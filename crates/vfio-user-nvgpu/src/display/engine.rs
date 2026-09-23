@@ -717,9 +717,16 @@ impl Engine {
             m.write(fb, mem, 8, &rec[8..16]);
             m.write(fb, mem, 0, &rec[0..4]);
         }
-        if f.notifier.is_some_and(|(_, awaken)| awaken) {
+        // AWAKEN follows the rule nvidia-drm models the hardware by
+        // (`__will_generate_flip_event`, nvidia-drm-modeset.c:96-140): a flip event only
+        // for a window that was scanning out a surface before this presentation. So a
+        // window being enabled raises none (its notifier is still written), and a window
+        // being disabled (no notifier, no surface) raises one.
+        let was_active = self.windows[w].latched.mem.is_some();
+        if was_active && f.notifier.is_none_or(|(_, awaken)| awaken) {
             self.awaken_win |= 1 << w;
         }
+        let win = &mut self.windows[w];
         let changed = win.latched != f.surface;
         win.latched = f.surface.clone();
         win.last_latch_tick = Some(tick);
@@ -1161,11 +1168,9 @@ mod tests {
         let mut ts = [0u8; 8];
         fb.read(0x50_0000 + 24, &mut ts);
         assert_eq!(u64::from_le_bytes(ts), t0 + 2 * p);
-        assert_eq!(e.read32(FE_EVT_STAT_AWAKEN_WIN, 0), Some(1));
-        assert_eq!(
-            e.read32(FE_RM_INTR_STAT_CTRL_DISP, 0),
-            Some(CTRL_DISP_AWAKEN)
-        );
+        // The window was off before: the notifier is written, but no AWAKEN (the
+        // nvidia-drm model of the hardware).
+        assert_eq!(e.read32(FE_EVT_STAT_AWAKEN_WIN, 0), Some(0));
         assert_eq!(e.windows[0].latched.mem.unwrap().addr, 0x80_0000 + 0x10000);
         // Release is written at flip-away, not at latch.
         fb.read(0x60_0000 + 32, &mut b);
@@ -1175,6 +1180,12 @@ mod tests {
         e.catch_up(t0 + 3 * p, &mut fb, &mem);
         fb.read(0x60_0000 + 32, &mut b);
         assert_eq!(u32::from_le_bytes(b), 8);
+        // Flipping away from a scanned-out surface raises AWAKEN.
+        assert_eq!(e.read32(FE_EVT_STAT_AWAKEN_WIN, 0), Some(1));
+        assert_eq!(
+            e.read32(FE_RM_INTR_STAT_CTRL_DISP, 0),
+            Some(CTRL_DISP_AWAKEN)
+        );
         // The guest clears AWAKEN; RG_DPCA counts frames.
         e.write32(FE_EVT_STAT_AWAKEN_WIN, 1);
         assert_eq!(e.read32(FE_RM_INTR_STAT_CTRL_DISP, 0), Some(0));
@@ -1212,7 +1223,14 @@ mod tests {
         e.window_method(3, W_SET_NOTIFIER_CONTROL, 1);
         e.window_update(3, 5, &mut fb, &mem);
         assert!(!e.window_busy(3));
-        assert_eq!(e.read32(FE_EVT_STAT_AWAKEN_WIN, 0), Some(1 << 3));
+        let mut b = [0u8; 4];
+        fb.read(0x50_0000, &mut b);
+        assert_eq!(u32::from_le_bytes(b) >> 30, 2, "notifier written");
+        assert_eq!(
+            e.read32(FE_EVT_STAT_AWAKEN_WIN, 0),
+            Some(0),
+            "no surface before"
+        );
     }
 
     #[test]
