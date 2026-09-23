@@ -15,6 +15,7 @@ use crate::config::PciIds;
 use crate::fb::FbLayout;
 use crate::guestmem::GuestMemory;
 use crate::ver::active as v;
+use nvrm_abi::naming::{self, Backend, NameFormat, Personality, Transport, VirtualGpuSpec};
 
 pub use crate::ver::active::{
     EV_GSP_INIT_DONE, FN_CONTINUATION_RECORD, FN_DUP_OBJECT, FN_FREE, FN_GET_GSP_STATIC_INFO,
@@ -197,8 +198,8 @@ pub struct StaticIdentity {
 
 impl StaticIdentity {
     /// The identity from the chip, the board, the captured config space and the
-    /// profile's FB size and board name. The label string is created once per call
-    /// and lives for the process (one call per device).
+    /// profile's FB size and board name, with the default (legacy) name. The label
+    /// string is created once per call and lives for the process (one call per device).
     pub fn new(
         chip: &ChipData,
         board: &Board,
@@ -206,9 +207,25 @@ impl StaticIdentity {
         board_name: &str,
         fb_bytes: u64,
     ) -> Self {
-        let gpu_name = Self::guest_name(board_name, fb_bytes);
+        let spec = Self::spec(board_name, fb_bytes);
+        Self::from_spec(chip, board, pci, &spec, NameFormat::default(), fb_bytes)
+    }
+
+    /// The identity with the guest name generated from `spec` in `format`
+    /// (`nvrm_abi::naming`). The GID follows the legacy-format name, so choosing the
+    /// format does not change the guest's UUID.
+    pub fn from_spec(
+        chip: &ChipData,
+        board: &Board,
+        pci: PciIds,
+        spec: &VirtualGpuSpec,
+        format: NameFormat,
+        fb_bytes: u64,
+    ) -> Self {
+        let gpu_name = spec.guest_name_within(format, v::SI_NAME_LEN);
+        let gid_seed = spec.guest_name_within(NameFormat::Legacy, v::SI_NAME_LEN);
         StaticIdentity {
-            gid: Self::synthetic_gid(&gpu_name, fb_bytes),
+            gid: Self::synthetic_gid(&gid_seed, fb_bytes),
             gpu_name,
             short_name: chip.short_name.clone(),
             fb_bytes,
@@ -223,15 +240,26 @@ impl StaticIdentity {
         }
     }
 
-    /// The Leandro naming rule (`guest_card_name` in crates/vhost-user-nvrm/src/vram.rs):
-    /// `Leandro <board>-<size>` with whole GiB as `G`, else MiB as `M`.
-    pub fn guest_name(board: &str, fb_bytes: u64) -> String {
-        let mib = fb_bytes >> 20;
-        if mib % 1024 == 0 {
-            format!("Leandro {board}-{}G", mib / 1024)
-        } else {
-            format!("Leandro {board}-{mib}M")
+    /// The Caraxes device's spec: transport VFIO, personality `board` (the board
+    /// data's `name` or `--board`), profile the guest FB size, backend the host RM.
+    pub fn spec(board: &str, fb_bytes: u64) -> VirtualGpuSpec {
+        VirtualGpuSpec {
+            transport: Transport::Vfio,
+            personality: Personality::new(board),
+            profile: naming::Profile::from_fb_bytes(fb_bytes),
+            backend: Backend::OpenRm,
         }
+    }
+
+    /// The default guest name (`nvrm_abi::naming`, legacy format): `Leandro <board>-<size>`
+    /// with whole GiB as `G`, else MiB as `M`, the same rule as Leandro v1.
+    pub fn guest_name(board: &str, fb_bytes: u64) -> String {
+        Self::guest_name_as(board, fb_bytes, NameFormat::default())
+    }
+
+    /// The guest name in `format`, bounded by the static info's name field.
+    pub fn guest_name_as(board: &str, fb_bytes: u64, format: NameFormat) -> String {
+        Self::spec(board, fb_bytes).guest_name_within(format, v::SI_NAME_LEN)
     }
 
     /// A stable, non-zero GID derived from the name and size (`synthesized`; E3 replaces
@@ -512,6 +540,21 @@ mod tests {
             StaticIdentity::guest_name("RTX 2070", 130 << 20),
             "Leandro RTX 2070-130M"
         );
+        let spec = StaticIdentity::spec("RTX 2070", 4 << 30);
+        assert_eq!(
+            spec.guest_name(NameFormat::Transport),
+            "Leandro VFIO RTX 2070-4G"
+        );
+        let t = StaticIdentity::from_spec(
+            f.chip.data(),
+            &f.board,
+            id.pci,
+            &spec,
+            NameFormat::Transport,
+            4 << 30,
+        );
+        assert_eq!(t.gpu_name, "Leandro VFIO RTX 2070-4G");
+        assert_eq!(t.gid, id.gid, "the name format leaves the GID alone");
         let wpr = WprLayout {
             fb_size: 4 << 30,
             gsp_fw_rsvd_start: 0xF760_0000,

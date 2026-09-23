@@ -12,6 +12,7 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
 use anyhow::{bail, Context, Result};
+use nvrm_abi::naming::{self, NameFormat};
 use vfio_user::Server;
 use vfio_user_nvgpu::bar0::Bar0;
 use vfio_user_nvgpu::board::{Board, BOARDS};
@@ -34,7 +35,9 @@ vfio-user-nvgpu --socket <path> [--trace <file>] [--board-data <name|file>] [--c
                 [--config <dump>] [--rom <rom.bin>] [--vbios <image>] [--vbios-version <v>]
                 [--boot-model] [--fb-mib <n>] [--board <name>] [--host-rm]
                 [--reserve-vram] [--register-guest-ram | --identity-dma-table] [--dma-ranges <file>]
-                [--host-exec]
+                [--host-exec] [--profile <size>] [--name-format <legacy|transport>]
+vfio-user-nvgpu --print-name [--board-data <name|file>] [--board <name>] [--fb-mib <n> | --profile <size>]
+                [--name-format <legacy|transport>]
 vfio-user-nvgpu --selftest <socket> [--board-data <name|file>] [--chip <chip>] [--config <dump>]
 
   --socket   vfio-user socket to create (a stale socket file is removed)
@@ -47,7 +50,12 @@ vfio-user-nvgpu --selftest <socket> [--board-data <name|file>] [--chip <chip>] [
   --vbios-version  VBIOS version NN.NN.NN.NN.NN of the static info (default: the board's, 90.06.3D.00.76)
   --boot-model  attach the boot model (falcons, GFW/fuse/FB-size/WPR2 registers, GSP message queues)
   --fb-mib   framebuffer size the guest is told, in MiB (default: LEA_VRAM_PROFILE_MIB or 4096)
-  --board    board name for the guest name (default: the board's, RTX 2070, giving Leandro RTX 2070-4G)
+  --profile  the same as --fb-mib, as a size: 4G, 4GiB, 1333M, 1333MiB or MiB (a vGPU type such as
+             4Q is refused: resolve it with nvrm-client --bin vgpuprofile first)
+  --board    the personality in the guest name (default: the board's, RTX 2070, giving Leandro RTX 2070-4G)
+  --name-format  legacy (Leandro RTX 2070-4G) or transport (Leandro VFIO RTX 2070-4G); default:
+             LEA_GPU_NAME_FORMAT or legacy. The name comes from nvrm_abi::naming
+  --print-name  print the guest-visible name these flags give and exit
   --host-rm  open the host RM (/dev/nvidiactl, unprivileged client) and forward the forwardable RPCs
   --reserve-vram  hold the profile's size of host VRAM at a fixed address at the top of the host FB
              heap for the device's life and give the guest FB addresses inside it (E5b,
@@ -82,6 +90,8 @@ struct Args {
     dma_ranges: Option<PathBuf>,
     host_exec: bool,
     selftest: Option<PathBuf>,
+    name_format: NameFormat,
+    print_name: bool,
 }
 
 fn parse_args() -> Result<Args> {
@@ -119,6 +129,8 @@ fn parse_args() -> Result<Args> {
         dma_ranges: None,
         host_exec: false,
         selftest: None,
+        name_format: NameFormat::from_env()?,
+        print_name: false,
         board_data: board_data.clone(),
     };
     let mut it = args.into_iter();
@@ -150,6 +162,18 @@ fn parse_args() -> Result<Args> {
             "--host-exec" => a.host_exec = true,
             "--fb-mib" => a.fb_mib = value()?.parse().context("--fb-mib needs a number")?,
             "--selftest" => a.selftest = Some(PathBuf::from(value()?)),
+            "--profile" => {
+                let p: naming::Profile = value()?
+                    .parse()
+                    .map_err(|e| anyhow::anyhow!("--profile: {e}"))?;
+                a.fb_mib = p.fb_mib();
+            }
+            "--name-format" => {
+                a.name_format = value()?
+                    .parse()
+                    .map_err(|e| anyhow::anyhow!("--name-format: {e}"))?
+            }
+            "--print-name" => a.print_name = true,
             "-h" | "--help" => {
                 println!("{USAGE}");
                 std::process::exit(0);
@@ -159,7 +183,7 @@ fn parse_args() -> Result<Args> {
     }
     a.chip = chip::by_name(&chip_name).map_err(|e| anyhow::anyhow!("--chip: {e}"))?;
     a.board_data = board_data;
-    if a.socket.is_none() && a.selftest.is_none() {
+    if a.socket.is_none() && a.selftest.is_none() && !a.print_name {
         bail!("{USAGE}");
     }
     if a.register_guest_ram && a.identity_dma_table {
@@ -300,8 +324,14 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
     }
     if a.boot_model {
         let fb_bytes = a.fb_mib << 20;
-        let static_identity =
-            StaticIdentity::new(chip.data(), &a.board_data, cfg.ids(), &a.board, fb_bytes);
+        let static_identity = StaticIdentity::from_spec(
+            chip.data(),
+            &a.board_data,
+            cfg.ids(),
+            &StaticIdentity::spec(&a.board, fb_bytes),
+            a.name_format,
+            fb_bytes,
+        );
         eprintln!("vfio-user-nvgpu: guest name {:?}", static_identity.gpu_name);
         let mut model = BootModel::new(chip, layout, static_identity);
         if a.host_rm {
@@ -411,6 +441,11 @@ fn main() -> Result<()> {
         return dma_table_alias(&argv[2..]);
     }
     let a = parse_args()?;
+    if a.print_name {
+        let name = StaticIdentity::guest_name_as(&a.board, a.fb_mib << 20, a.name_format);
+        println!("{name}");
+        return Ok(());
+    }
     // First, before any thread: reduce the privilege to what D12 allows.
     let privilege = if a.register_guest_ram {
         Privilege::init(true)?
