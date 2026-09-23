@@ -1,0 +1,23 @@
+stage 0 ok (cuInit)
+ERROR cuCtxCreate: 719 unspecified launch failure
+nvprobe rc=1
+[  175.631899] NVRM: nvidia_ctl_close
+[  175.641541] NVRM: nvidia_close on GPU with minor number 255
+[  175.641543] NVRM: nvidia_ctl_close
+[  175.645588] NVRM: nvidia_close on GPU with minor number 255
+[  175.645590] NVRM: nvidia_ctl_close
+[  176.855638] NVRM: nvidia_close on GPU with minor number 255
+[  176.855639] NVRM: nvidia_ctl_close
+[  176.880986] NVRM: nvidia_close on GPU with minor number 0
+[  176.952807] NVRM: nvidia_close on GPU with minor number 255
+[  176.952808] NVRM: nvidia_ctl_close
+[  176.997893] NVRM: nvidia_close on GPU with minor number 255
+[  176.997895] NVRM: nvidia_ctl_close
+[  177.001780] NVRM: nvidia_close on GPU with minor number 0
+[  177.001786] NVRM: nvidia_close on GPU with minor number 0
+[  177.001789] NVRM: nvidia_close on GPU with minor number 0
+[  177.002587] NVRM: nvidia_close on GPU with minor number 0
+[  177.002595] NVRM: nvidia_close on GPU with minor number 255
+[  177.002596] NVRM: nvidia_ctl_close
+[  177.002610] NVRM: nvidia_close on GPU with minor number 255
+[  177.002611] NVRM: nvidia_ctl_close

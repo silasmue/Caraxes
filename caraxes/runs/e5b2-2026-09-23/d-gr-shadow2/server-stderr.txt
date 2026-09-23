@@ -1,0 +1,17 @@
+vfio-user-nvgpu: shadow: MAP_MEMORY_DMA hDma=0x8000003c hMem=0x80000007 off=0x2af27000 len=0x1000 va=0x200400000 pgsz=1 flags=0x8110 -> 0x1f
+vfio-user-nvgpu: shadow: MAP_MEMORY_DMA hDma=0x8000003b hMem=0x80000007 off=0x2af27000 len=0x1000 va=0x200400000 pgsz=1 flags=0x8110 -> 0x33
+vfio-user-nvgpu: shadow: MAP_MEMORY_DMA hDma=0x8000003c hMem=0x80000003 off=0xff512000 len=0x1000 va=0x120010000 pgsz=1 flags=0x8100 -> 0x1f
+vfio-user-nvgpu: shadow: MAP_MEMORY_DMA hDma=0x8000003b hMem=0x80000003 off=0xff512000 len=0x1000 va=0x120010000 pgsz=1 flags=0x8100 -> 0x33
+vfio-user-nvgpu: shadow: MAP_MEMORY_DMA hDma=0x8000003c hMem=0x80000007 off=0x2ad00000 len=0x10000 va=0x120000000 pgsz=2 flags=0x8210 -> 0x1f
+vfio-user-nvgpu: shadow: MAP_MEMORY_DMA hDma=0x8000003c hMem=0x80000003 off=0xffb30000 len=0x10000 va=0x120110000 pgsz=2 flags=0x8200 -> 0x1f
+vfio-user-nvgpu: shadow: MAP_MEMORY_DMA hDma=0x8000003c hMem=0x80000003 off=0xffb40000 len=0x10000 va=0x120120000 pgsz=2 flags=0x8200 -> 0x1f
+vfio-user-nvgpu: shadow: MAP_MEMORY_DMA hDma=0x8000003c hMem=0x80000003 off=0xffb50000 len=0x10000 va=0x120130000 pgsz=2 flags=0x8200 -> 0x1f
+vfio-user-nvgpu: shadow: MAP_MEMORY_DMA hDma=0x8000003c hMem=0x80000003 off=0xff512000 len=0x1000 va=0x120010000 pgsz=1 flags=0x8100 -> 0x1f
+vfio-user-nvgpu: shadow: MAP_MEMORY_DMA hDma=0x8000003c hMem=0x80000003 off=0xff513000 len=0x1000 va=0x120011000 pgsz=1 flags=0x8100 -> 0x1f
+vfio-user-nvgpu: shadow: MAP_MEMORY_DMA hDma=0x8000003c hMem=0x80000003 off=0xff514000 len=0x1000 va=0x120012000 pgsz=1 flags=0x8100 -> 0x1f
+vfio-user-nvgpu: shadow: MAP_MEMORY_DMA hDma=0x8000003c hMem=0x80000003 off=0x200000 len=0x200000 va=0x200000000 pgsz=4 flags=0x8400 -> 0x1f
+vfio-user-nvgpu: shadow: MAP_MEMORY_DMA hDma=0x8000003c hMem=0x80000003 off=0xa00000 len=0x200000 va=0x200200000 pgsz=4 flags=0x8400 -> 0x1f
+vfio-user-nvgpu: shadow: MAP_MEMORY_DMA hDma=0x8000003c hMem=0x80000007 off=0x2af27000 len=0x1000 va=0x200400000 pgsz=1 flags=0x8110 -> 0x1f
+vfio-user-nvgpu: shadow: MAP_MEMORY_DMA hDma=0x8000003c hMem=0x80000007 off=0x2a768000 len=0x1000 va=0x200401000 pgsz=1 flags=0x8110 -> 0x1f
+vfio-user-nvgpu: shadow: MAP_MEMORY_DMA hDma=0x8000003c hMem=0x80000007 off=0x2a729000 len=0x1000 va=0x200402000 pgsz=1 flags=0x8110 -> 0x1f
+vfio-user-nvgpu: shadow: MAP_MEMORY_DMA hDma=0x8000003c hMem=0x80000007 off=0x2a6dd000 len=0x1000 va=0x201301000 pgsz=1 flags=0x8110 -> 0x1f

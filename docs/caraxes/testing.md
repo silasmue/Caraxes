@@ -352,11 +352,18 @@ Device on vm2 with `CARAXES_HOST_EXEC=1` (real VRAM behind the FB, mirror channe
 | cuda-jit, cuda-launch, rlprobe, convburn, robustness, cuda-torch | fail | the kernel-launch wall, as in §7a, now on real VRAM |
 | cuda-managed | fail | UVM managed alloc 801 (guest side, unchanged) |
 
-The same four scored tests pass as after E5c, now with the framebuffer on real VRAM. With
-`CARAXES_MIRROR_CHANNELS=1` CUDA's CE channels run on the physical copy engines with no Xid,
-but cuda-core then times out on the first CE `LAUNCH_DMA` not completing (execution.md §6, the
-CE first-launch stall). The two walls to more passes are the CE first-launch stall and the GR
-context on a host channel; both are documented in execution.md with the measured Xids.
+The same four scored tests pass as after E5c. Update 2026-09-23: with
+`CARAXES_MIRROR_CHANNELS=1` the four now pass **with CUDA's CE channels executing on the
+physical copy engines** (gate `gate-cuda-2026-09-23-13`, 0 RC, 0 Xid): cuda-core writes,
+reads back and compares device memory through copies the physical GPU ran, walking the
+guest's own page tables. Two device fixes made this work (execution.md §6): the guest reads
+the *host* work-submit token back from its notifier page (the device maps it to the guest
+channel), and the guest's register `MMU_INVALIDATE` is replayed as a privileged
+`MEM_OP MMU_TLB_INVALIDATE` of the guest PDB from a device-owned channel (`DMA_INVALIDATE_TLB`
+on the mirror VAS is a no-op, so a fresh mapping had faulted FAULT_PDE). The earlier "CE
+first-launch stall" was an artifact of a heavy per-doorbell debug poll, now gated off
+(`CARAXES_MIRROR_DIAG=1`). The remaining wall is the GR kernel launch (cuda-jit and beyond),
+execution.md §6 wall 2.
 
 ## 8. The CUDA path: what the device does not answer yet
 

@@ -390,12 +390,23 @@ impl BootModel {
                     // The guest changed page tables in VRAM through BAR1; drain the WC
                     // buffers before the host TLB invalidate so RM re-walks fresh tables.
                     self.fb.flush();
-                    let forwarded = self.ctrl.mirror_invalidate(Some(pdb));
+                    let forwarded = self.ctrl.mirror_invalidate(&mut self.fb, Some(pdb));
+                    // Re-sync the GR shadow VAS from the guest root: the guest maps set-A
+                    // pages (e.g. the kernel's I2M upload targets) and then invalidates
+                    // before the GR push touches them, so a page mapped since the last
+                    // walk must be mirrored now or the GR engine MMU-faults (Xid 31).
+                    {
+                        let mut gm = crate::channel::GpuMem {
+                            fb: &mut self.fb,
+                            sys: mem,
+                        };
+                        notes.extend(self.ctrl.mirror_shadow_resync(&mut gm));
+                    }
                     notes.push(format!(
                         "mmu invalidate: pdb {pdb:#x} flags {:#x}{}",
                         v & 0x7FFF_FFFF,
                         if forwarded > 0 {
-                            format!(" -> DMA_INVALIDATE_TLB on {forwarded} host VA space(s) [host]")
+                            format!(" -> invalidated on {forwarded} mirror VA space(s) [host]")
                         } else {
                             " (no mirror VA space rooted there; nothing cached here)".into()
                         }

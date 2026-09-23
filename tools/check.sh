@@ -312,7 +312,11 @@ licence_headers() {
         if [[ $got != "$want" ]]; then echo "wrong licence: $f has $got, expected $want"; rc=1; fi
     # The fuzz corpus is binary inputs -- no SPDX header is possible, the
     # way the .png/.bin cases above are skipped for their content.
-    done < <(git ls-files | grep -vE '^(vendor/|patches/|crates/vhost-user-nvrm/fuzz/corpus/)')
+    # caraxes/runs/ holds captured evidence (guest logs, device traces, tool
+    # output) that a prepended header would alter; the authored files there
+    # (READMEs, scripts, commands.txt) carry headers by convention but are not
+    # checked.
+    done < <(git ls-files | grep -vE '^(vendor/|patches/|caraxes/runs/|crates/vhost-user-nvrm/fuzz/corpus/)')
     return "$rc"
 }
 

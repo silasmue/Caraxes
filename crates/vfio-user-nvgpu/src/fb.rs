@@ -645,6 +645,121 @@ impl FakeFb {
         self.walk_in(sys, root, va).0
     }
 
+    /// Enumerate every present leaf mapping of the GMMU tree rooted at `root` (the guest
+    /// root, in the reservation): each is `(va, target, size, kind)` where `size` is 2 MiB,
+    /// 64 KiB or 4 KiB. Used to mirror the guest's set-A mappings into a host-managed
+    /// shadow VA space by fixed-VA `RM_MAP_MEMORY_DMA` (D17 stage 1, `shadow.rs`). Capped
+    /// at `max` leaves. Big/small precedence follows §2.3 (big PTE first, zero big -> small).
+    pub fn enumerate_leaves(
+        &self,
+        sys: Option<&GuestMemory>,
+        root: Target,
+        max: usize,
+    ) -> Vec<(u64, Target, u64, u8)> {
+        let mut out = Vec::new();
+        let leaf = |pte: u64, va: u64, size: u64| -> Option<(u64, Target, u64, u8)> {
+            if pte & 1 == 0 {
+                return None; // invalid or sparse: nothing physical to mirror
+            }
+            let kind = (pte >> 56) as u8;
+            let t = match (pte >> 1) & 3 {
+                0 => Target::Fb(((pte >> 8) & 0x1FF_FFFF) << 12),
+                2 | 3 => Target::Sys(((pte >> 8) & 0x3FFF_FFFF_FFFF) << 12),
+                _ => return None,
+            };
+            Some((va, t, size, kind))
+        };
+        // PD3 (VA 48:47) -> PD2 (46:38) -> PD1 (37:29) -> PD0 (28:21) -> PT.
+        for i3 in 0..4u64 {
+            if out.len() >= max {
+                break;
+            }
+            let Some(e3) = self.table_u64(sys, root, 8 * i3) else {
+                continue;
+            };
+            let Some(pd2) = Self::next_table(e3) else {
+                continue;
+            };
+            for i2 in 0..512u64 {
+                if out.len() >= max {
+                    break;
+                }
+                let Some(e2) = self.table_u64(sys, pd2, 8 * i2) else {
+                    continue;
+                };
+                let Some(pd1) = Self::next_table(e2) else {
+                    continue;
+                };
+                for i1 in 0..512u64 {
+                    if out.len() >= max {
+                        break;
+                    }
+                    let Some(e1) = self.table_u64(sys, pd1, 8 * i1) else {
+                        continue;
+                    };
+                    let Some(pd0) = Self::next_table(e1) else {
+                        continue;
+                    };
+                    for i0 in 0..256u64 {
+                        if out.len() >= max {
+                            break;
+                        }
+                        let base = (i3 << 47) | (i2 << 38) | (i1 << 29) | (i0 << 21);
+                        let (Some(lo), Some(hi)) = (
+                            self.table_u64(sys, pd0, 16 * i0),
+                            self.table_u64(sys, pd0, 16 * i0 + 8),
+                        ) else {
+                            continue;
+                        };
+                        if lo & 1 == 1 {
+                            // 2 MiB page (dual PDE low qword is a PTE).
+                            if let Some(l) = leaf(lo, base, 0x20_0000) {
+                                out.push(l);
+                            }
+                            continue;
+                        }
+                        let big = Self::big_table(lo);
+                        let small = Self::next_table(hi);
+                        // 64 KiB big-page table (VA 20:16, 32 entries).
+                        if let Some(pt) = big {
+                            for b in 0..32u64 {
+                                if out.len() >= max {
+                                    break;
+                                }
+                                if let Some(pte) = self.table_u64(sys, pt, 8 * b) {
+                                    if let Some(l) = leaf(pte, base | (b << 16), 0x1_0000) {
+                                        out.push(l);
+                                    }
+                                }
+                            }
+                        }
+                        // 4 KiB small-page table (VA 20:12, 512 entries); skip a 4 KiB slot
+                        // already covered by a valid 64 KiB big PTE.
+                        if let Some(pt) = small {
+                            for sidx in 0..512u64 {
+                                if out.len() >= max {
+                                    break;
+                                }
+                                let covered = big
+                                    .and_then(|bt| self.table_u64(sys, bt, 8 * (sidx >> 4)))
+                                    .is_some_and(|bpte| bpte & 1 == 1);
+                                if covered {
+                                    continue;
+                                }
+                                if let Some(pte) = self.table_u64(sys, pt, 8 * sidx) {
+                                    if let Some(l) = leaf(pte, base | (sidx << 12), 0x1000) {
+                                        out.push(l);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        out
+    }
+
     /// `translate_in` plus the raw last-level entry the walk ended on (the PTE, or the
     /// 2 MiB PDE-as-PTE; 0 when a directory level was missing), for the mirror's
     /// read-only diagnostics of what the physical GMMU will see (exec-formats.md §2.2).

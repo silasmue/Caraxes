@@ -21,7 +21,7 @@ addresses must be the host's before anything runs on the card). Evidence is in
 | CUDA's copy-engine channels (COPY2-4 TSGs) | host `TURING_CHANNEL_GPFIFO_A` mirror channels on the physical CEs (`D/mirror.rs`) |
 | GR channels (a `TURING_COMPUTE_A` is on them), nvidia-uvm's own channels (a `GP100_UVM_SW` is on them) | the software executor of `D/channel.rs`, over the VRAM store |
 | GR0 / CE2-CE4 non-stall completions | host OS events → guest interrupt vectors + MSI (`D/mirror.rs`, `D/intr.rs`) |
-| The guest kernel's register TLB invalidates, and the software executor's `MEM_OP` invalidates | `DMA_INVALIDATE_TLB` on the mirror VA spaces |
+| The guest kernel's register TLB invalidates, and the software executor's `MEM_OP` invalidates | a `MEM_OP MMU_TLB_INVALIDATE` of the guest PDB from a device-owned **privileged** channel (`D/invalidate.rs`); `DMA_INVALIDATE_TLB` on a mirror VAS is a no-op |
 
 Host channel execution is gated behind `CARAXES_MIRROR_CHANNELS=1` (default off) while the
 two execution walls below stand: with it off, `--host-exec` is the VRAM store plus the
@@ -136,23 +136,66 @@ value, no leak.
 
 ## 6. The two execution walls (open)
 
-1. **CE first-launch stall** (host-exec.md open item 3). With the WC flush (§2), CUDA's CE
-   channels build, schedule and take their first doorbell on the physical GPU with **zero
-   Xid**. But the first CE `LAUNCH_DMA` on a freshly scheduled host channel does not complete
-   (host-exec.md measured the same: it stalls, the watchdog RC-recovers): the channel-init
-   semaphore release never advances the guest's tracking semaphore, so the guest waits and
-   cuda-core times out with no Xid and no RC. host-exec absorbed this with a warm-up copy on a
-   channel it fully controlled; injecting a warm-up into the guest's own channel (a NOP
-   `LAUNCH_DMA` or CE init before the guest's first doorbell) is the next step. This is the
-   only wall between here and CUDA's copies running on the physical CE.
-2. **GR context on a host channel** (cuda-path.md §4.1). With the replayed VAS (§3) a GR
-   channel schedules and the host RM binds its own golden GR context (variant c1); the guest's
-   first compute push then executes on the SMs and faults (**Xid 38**, a GR/engine exception),
-   because the host-built context and the guest's method stream / promoted context do not
-   agree. Variant c2 (promoting the guest's context buffers onto the host channel) is
-   unestablished. Until this is resolved, GR channels stay in software (the kernel launch is
-   refused there, as in E5c, and never RCs the card). This is the wall on the kernel launch
-   itself.
+Two problems were resolved on 2026-09-23 (experiments.md "E5b part 2", runs d-ce-*):
+- **The host work-submit token.** The host RM writes the *host* token into the channel's
+  notifier page (the guest's own page, `kchannelNotifyWorkSubmitToken`), and libcuda reads it
+  back and rings it from the second submission on. The device maps a rung host token to its
+  guest channel (`mirror.rs` `chid_of_host_token`); before that fix the guest's later
+  doorbells hit "no such channel" and the CE work stopped after the first push.
+- **TLB invalidation of the guest PDB.** `DMA_INVALIDATE_TLB` on a mirror VA space never
+  invalidates the guest's tables (it hits the RM walker's own root; an externally-owned VAS
+  has none). The device now replays the guest's register `MMU_INVALIDATE` as a
+  `MEM_OP MMU_TLB_INVALIDATE` of the guest PDB from a **privileged** device-owned host channel
+  in the reservation carve-out (`invalidate.rs`, allocated under CAP_SYS_ADMIN so the method
+  is accepted, then a polled semaphore for the ack). Without it a fresh guest mapping faulted
+  FAULT_PDE on the physical GPU (Xid 31). With it, guest CE copies read and write freshly
+  mapped pages correctly. `CARAXES_MEMOP_INVALIDATE=0` restores the old (no-op) behaviour.
+
+The CE copies themselves now run end to end: the physical GPU fetches each guest CE channel's
+own GPFIFO entry, walks the guest page tables, does the H2D copies and lands the four-word
+semaphore (payload + GPU timestamp) in guest sysmem (measured, d-ce-diag / d-ce-token).
+
+1. **CE first-launch stall** (host-exec.md open item 3, still open). The *first* CE
+   `LAUNCH_DMA` on a freshly scheduled host channel does not complete and the watchdog RCs it
+   (a contained Xid 32, HCE `intr1` bit 3 or PBENTRY `intr0` bit 18, on the four-word
+   channel-init semaphore release; measured d-ce-inval2). host-exec absorbed the same stall
+   with a warm-up push on a channel it controlled; the mirror needs a warm-up issued on the
+   channel before the guest's first doorbell (a device-owned GPFIFO slot at GPGet=GPPut=0,
+   built when the channel is scheduled rather than at the first doorbell). This is the only
+   wall between here and CUDA's copies running unattended on the physical CE.
+2. **GR context on a host channel** (cuda-path.md §4.1, exec-formats.md §4.5). With the
+   replayed VAS (§3) a GR channel schedules and the host RM binds its own golden GR context
+   (variant c1); the guest's first compute push faults (**Xid 38**), because the host-built
+   context lives in the host kernel's own page tables, which the channel's PDB (the guest
+   root) does not map. Variant c2 was completed on 2026-09-23 (`d-gr-c2`): a privileged
+   `GPU_PROMOTE_CTX` of the guest's own recorded context buffers (MAIN/PATCH with the
+   reservation PAs and the initialize flag, FECS_EVENT/PRIV_ACCESS_MAP VAs) onto the host GR
+   channel is **accepted (NV_OK)**, but the channel still Xid 38s: the host kernel already
+   allocated and promoted *its own* GR context when `TURING_COMPUTE_A` was allocated on the
+   replayed VAS, and that is what FECS loads (exec-formats.md §4.2, §4.4), so the guest's
+   promoted buffers are unused. The only user-space configuration in which the guest's buffers
+   would be the ones FECS loads is an externally-owned VAS where the host allocates no GR
+   context — but such a VAS cannot schedule a GR channel (`kchannelIsSchedulable`). Resolving
+   this needs the host to build the context reachable through the guest root, i.e. the shadow
+   page table of decision D17 (route 4), not a user-space RM sequence. Until then GR channels
+   stay in software (the kernel launch is refused there, as in E5c, and never RCs the card).
+   This is the wall on the kernel launch itself.
+
+   **c1s progress (2026-09-23, `shadow.rs`, `CARAXES_MIRROR_GR_SHADOW=1`).** The GR channel
+   now runs on a **host-managed shadow VAS**: the host RM builds its own GR context (set B)
+   there, and the guest's set-A (GPFIFO, pushbuffers, QMDs, shader/constant/local memory,
+   semaphores) is mirrored into the same VAS at the guest's own VAs by fixed-VA
+   `RM_MAP_MEMORY_DMA` into per-run `NV50_MEMORY_VIRTUAL` objects (D17 route 4 stage 1),
+   with the reservation/registered-sysmem + non-compressible filter, the guest's
+   promoted-context VAs excluded (the host owns set B). Measured: 15372 set-A leaves map
+   NV_OK (0 collisions after enlarging the VAS to 1<<47 and making set-B exclusion
+   cumulative); the GR channel schedules with **no Xid 38** and, once the guest's GPGet/GPPut
+   are restored after the host RM clears the USERD, the **guest's first compute push executes
+   on the physical GPU** (GPGet advances). It then MMU-faults (Xid 31 FAULT_PDE, GRAPHICS/FE,
+   VA 0x100_04e00000) on a set-A page not yet mirrored. The remaining work is robust dynamic
+   set-A mirroring: resync at every guest `MMU_INVALIDATE` is wired, but a VA remapped to a
+   new PA needs unmap-before-remap (NVOS47), and a coalesced run that grows must free and
+   re-allocate its virtual object. That is the bounded next step to the first landed launch.
 
 Every Xid seen while iterating was contained to the device process (its pid), on our own
 mirror channels, with the cause identified; the host desktop was unaffected throughout. The

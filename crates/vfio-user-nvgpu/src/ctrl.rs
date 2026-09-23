@@ -115,6 +115,8 @@ pub struct Dispatcher {
     /// The host mirrors of the guest's channels (E5b part 2, mirror.rs), when the device
     /// executes on the physical GPU.
     pub mirror: Option<crate::mirror::Mirror>,
+    /// `CARAXES_MIRROR_DIAG=1`: run the per-doorbell push diagnostic (slow; investigation).
+    mirror_diag: bool,
 }
 
 /// Controls on a guest channel or TSG that a host mirror can take (mirror.rs
@@ -160,6 +162,7 @@ impl Dispatcher {
             channels: crate::channel::Registry::new(chip.channel),
             uvm: crate::uvm::UvmBuffers::default(),
             mirror: None,
+            mirror_diag: std::env::var("CARAXES_MIRROR_DIAG").as_deref() == Ok("1"),
         }
     }
 
@@ -180,6 +183,25 @@ impl Dispatcher {
             Some(c) => (c, true),
             None => (token & 0xFFF, false),
         };
+        // A GR channel under CARAXES_MIRROR_GR_SHADOW runs on the host-managed shadow VAS
+        // (D17 route 4 stage 1, shadow.rs), built at its first doorbell.
+        if m.is_gr_shadow(&self.channels, chid) {
+            let mut notes = m.gr_shadow_doorbell(&self.channels, gm, chid);
+            if let Some(c) = self.channels.channel_mut(chid) {
+                c.mirrored = true;
+            }
+            // Forward the guest's own MEM_OP TLB invalidates too (the shadow VAS's PDB is
+            // the host root; the invalidator handles the guest root for the CE channels).
+            let inv = std::mem::take(&mut self.channels.tlb_invalidates);
+            if !inv.is_empty() {
+                let n: usize = inv.iter().map(|pdb| m.invalidate_tlb(gm.fb, *pdb)).sum();
+                notes.push(format!(
+                    "mirror: {} software TLB invalidate(s) -> {n} host invalidate(s) [host]",
+                    inv.len()
+                ));
+            }
+            return notes;
+        }
         let eligible = m.is_mirrored(chid) || m.eligible(&self.channels, chid).is_ok();
         if !eligible {
             let mut notes = self.channels.doorbell(gm, token);
@@ -190,9 +212,9 @@ impl Dispatcher {
             // through the mirror VA spaces (the same page directories).
             let inv = std::mem::take(&mut self.channels.tlb_invalidates);
             if !inv.is_empty() {
-                let n: usize = inv.iter().map(|pdb| m.invalidate_tlb(*pdb)).sum();
+                let n: usize = inv.iter().map(|pdb| m.invalidate_tlb(gm.fb, *pdb)).sum();
                 notes.push(format!(
-                    "mirror: {} software TLB invalidate(s) -> DMA_INVALIDATE_TLB on {n} host VA space(s) [host]",
+                    "mirror: {} software TLB invalidate(s) -> invalidated on {n} mirror VA space(s) [host]",
                     inv.len()
                 ));
             }
@@ -226,7 +248,12 @@ impl Dispatcher {
                     Ok(n) => notes.push(n),
                     Err(e) => notes.push(format!("mirror: doorbell chid {chid}: {e}")),
                 }
-                notes.extend(self.mirror_push_diag(gm, chid));
+                // The per-doorbell push diagnostic (GPGet poll, entry decode, semaphore
+                // read-back) is an investigation aid that serializes and slows the data
+                // path; it is off unless `CARAXES_MIRROR_DIAG=1`.
+                if self.mirror_diag {
+                    notes.extend(self.mirror_push_diag(gm, chid));
+                }
             }
             Err(e) => {
                 notes.push(format!(
@@ -435,9 +462,21 @@ impl Dispatcher {
         notes
     }
 
+    /// Re-sync the GR shadow VAS from the guest root (called at each guest MMU_INVALIDATE):
+    /// the guest maps set-A pages then invalidates before the GR push touches them.
+    pub fn mirror_shadow_resync(&mut self, gm: &mut crate::channel::GpuMem) -> Vec<String> {
+        let reg = &self.channels;
+        self.mirror
+            .as_mut()
+            .map(|m| m.shadow_resync(reg, gm))
+            .unwrap_or_default()
+    }
+
     /// The guest kernel's TLB invalidate for `pdb`: forwarded to the mirror VA spaces.
-    pub fn mirror_invalidate(&mut self, pdb: Option<u64>) -> usize {
-        self.mirror.as_mut().map_or(0, |m| m.invalidate_tlb(pdb))
+    pub fn mirror_invalidate(&mut self, fb: &mut crate::fb::FakeFb, pdb: Option<u64>) -> usize {
+        self.mirror
+            .as_mut()
+            .map_or(0, |m| m.invalidate_tlb(fb, pdb))
     }
 
     pub fn has_host(&self) -> bool {

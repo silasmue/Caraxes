@@ -364,6 +364,168 @@ impl HostMemory {
         Ok(h)
     }
 
+    /// `alloc_object` inside one CAP_SYS_ADMIN window (D12). Turing derives a channel's
+    /// AUTH_LEVEL from the allocating client's privilege at alloc time
+    /// (`kchannelConstruct`, kernel_channel.c:257-287 — a GSP-client channel takes the
+    /// caller's `rmclientIsAdmin`, which reads the per-ioctl `secInfo.privLevel` set from
+    /// `osIsAdministrator()` = CAP_SYS_ADMIN, escape.c:381), so a privileged host method
+    /// such as `MEM_OP MMU_TLB_INVALIDATE` (invalidate.rs) is only accepted on a channel
+    /// allocated here. The window covers exactly this one `NV_ESC_RM_ALLOC`.
+    pub fn alloc_object_admin(
+        &mut self,
+        parent: u32,
+        class: u32,
+        params: &mut [u8],
+        what: &'static str,
+    ) -> Result<u32, Status> {
+        let h = self.rm.next_handle();
+        let mut p = sys::NVOS64_PARAMETERS::default();
+        p.hRoot = self.rm.root();
+        p.hObjectParent = parent;
+        p.hObjectNew = h;
+        p.hClass = class;
+        p.pAllocParms = if params.is_empty() {
+            0usize as sys::NvP64
+        } else {
+            params.as_mut_ptr() as usize as sys::NvP64
+        };
+        p.pRightsRequested = 0usize as sys::NvP64;
+        let rm = &self.rm;
+        // SAFETY: as `alloc_object`; the admin window is raised only around this ioctl.
+        let ioctl = self
+            .privilege
+            .with_admin(|| unsafe { rm.ctl().ioctl_raw(sys::NV_ESC_RM_ALLOC, &mut p) });
+        match ioctl {
+            Ok(Ok(())) => {}
+            Ok(Err(_)) => return Err(0xFFFF_FFFF),
+            Err(_) => return Err(0xFFFF_FFFD),
+        }
+        if p.status as u32 != sys::NV_OK {
+            return Err(p.status as u32);
+        }
+        self.live.push((parent, h, what));
+        Ok(h)
+    }
+
+    /// Allocate an `NV50_MEMORY_VIRTUAL` reservation of `size` inside `vaspace` and
+    /// return `(handle, base VA)` (RM writes the base back into the alloc params). The
+    /// shadow VA space (`shadow.rs`) maps the guest's set-A into this range at fixed VAs.
+    pub fn alloc_virtual(&mut self, vaspace: u32, size: u64) -> Result<(u32, u64), Status> {
+        let mut p = sys::NV_MEMORY_ALLOCATION_PARAMS::default();
+        p.owner = u32::from_le_bytes(*b"cara");
+        p.type_ = sys::NVOS32_TYPE_IMAGE as u32;
+        p.flags = sys::NVOS32_ALLOC_FLAGS_VIRTUAL as u32;
+        p.attr = nvos32_attr::LOCATION.set(sys::NVOS32_ATTR_LOCATION_PCI as u32)
+            | nvos32_attr::PAGE_SIZE.set(sys::NVOS32_ATTR_PAGE_SIZE_4KB as u32);
+        p.size = size;
+        p.hVASpace = vaspace;
+        let device = self.device();
+        // SAFETY: plain-data alloc params viewed as bytes for the escape ABI.
+        let bytes = unsafe {
+            std::slice::from_raw_parts_mut(
+                &mut p as *mut _ as *mut u8,
+                std::mem::size_of::<sys::NV_MEMORY_ALLOCATION_PARAMS>(),
+            )
+        };
+        let h = self.alloc_object(device, sys::NV50_MEMORY_VIRTUAL, bytes, "shadow-virtual")?;
+        Ok((h, p.offset))
+    }
+
+    /// `RM_MAP_MEMORY_DMA` (NVOS46) of `h_mem` at `[offset, offset+length)` into `h_dma`
+    /// (a virtual reservation, or a VA space) at the **fixed** VA `va`, with the given
+    /// `page_size` flag (`nvos46_flags::PAGE_SIZE_*`). Snoop for sysmem, off for vidmem.
+    /// Read/write, GPU-uncached. Returns the status.
+    /// Allocate an `NV50_MEMORY_VIRTUAL` reservation of `size` **fixed at VA `va`** inside
+    /// `vaspace`, with the page-size attribute for the guest page `page_bytes`
+    /// (4K/64K/2M). A `DMA_OFFSET_FIXED` map only lands inside the VA range a virtual
+    /// object reserved, so the shadow route reserves one per contiguous run at its VA.
+    /// Returns the handle, or the status (a refusal here is a VA collision with the
+    /// server-reserved range or the host RM's own context VAs).
+    pub fn alloc_virtual_fixed(
+        &mut self,
+        vaspace: u32,
+        va: u64,
+        size: u64,
+        page_bytes: u64,
+    ) -> Result<u32, Status> {
+        let (page_attr, attr2) = match page_bytes {
+            0x1000 => (sys::NVOS32_ATTR_PAGE_SIZE_4KB, 0),
+            0x1_0000 => (sys::NVOS32_ATTR_PAGE_SIZE_BIG, 0),
+            _ => (sys::NVOS32_ATTR_PAGE_SIZE_HUGE, v::ATTR2_PAGE_SIZE_HUGE_2MB),
+        };
+        let mut p = sys::NV_MEMORY_ALLOCATION_PARAMS::default();
+        p.owner = OWNER_TAG;
+        p.type_ = sys::NVOS32_TYPE_IMAGE as u32;
+        p.flags =
+            sys::NVOS32_ALLOC_FLAGS_VIRTUAL as u32 | sys::NVOS32_ALLOC_FLAGS_FIXED_ADDRESS_ALLOCATE;
+        p.attr = nvos32_attr::LOCATION.set(sys::NVOS32_ATTR_LOCATION_PCI as u32)
+            | nvos32_attr::PAGE_SIZE.set(page_attr);
+        p.attr2 = attr2;
+        p.size = size;
+        p.offset = va;
+        p.hVASpace = vaspace;
+        let device = self.device();
+        // SAFETY: plain-data alloc params viewed as bytes for the escape ABI.
+        let bytes = unsafe {
+            std::slice::from_raw_parts_mut(
+                &mut p as *mut _ as *mut u8,
+                std::mem::size_of::<sys::NV_MEMORY_ALLOCATION_PARAMS>(),
+            )
+        };
+        self.alloc_object(
+            device,
+            sys::NV50_MEMORY_VIRTUAL,
+            bytes,
+            "shadow-virtual-fixed",
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn map_dma_fixed(
+        &self,
+        h_dma: u32,
+        h_mem: u32,
+        offset: u64,
+        length: u64,
+        va: u64,
+        page_size: u32,
+        snoop: bool,
+    ) -> Status {
+        use nvrm_abi::nvgpu::nvos46_flags as f;
+        let mut p = sys::NVOS46_PARAMETERS::default();
+        p.hClient = self.rm.root();
+        p.hDevice = self.device();
+        p.hDma = h_dma;
+        p.hMemory = h_mem;
+        p.offset = offset;
+        p.length = length;
+        p.flags = f::ACCESS.set(f::ACCESS_READ_WRITE)
+            | f::PAGE_SIZE.set(page_size)
+            | f::CACHE_SNOOP.set(if snoop {
+                f::CACHE_SNOOP_ENABLE
+            } else {
+                f::CACHE_SNOOP_DISABLE
+            })
+            | f::DMA_OFFSET_FIXED.set(f::DMA_OFFSET_FIXED_TRUE);
+        p.dmaOffset = va;
+        // SAFETY: NVOS46 is the escape ABI; plain-data params, no host pointers.
+        let r = match unsafe {
+            self.rm
+                .ctl()
+                .ioctl_raw(sys::NV_ESC_RM_MAP_MEMORY_DMA, &mut p)
+        } {
+            Ok(()) => p.status as u32,
+            Err(_) => 0xFFFF_FFFF,
+        };
+        if r != sys::NV_OK {
+            eprintln!(
+                "vfio-user-nvgpu: shadow: MAP_MEMORY_DMA hDma={h_dma:#x} hMem={h_mem:#x} off={offset:#x} len={length:#x} va={va:#x} pgsz={page_size} flags={:#x} -> {r:#x}",
+                p.flags
+            );
+        }
+        r
+    }
+
     /// `RM_CONTROL` `cmd` on `object`; returns the status (0xFFFFFFFF when the ioctl failed).
     pub fn control(&self, object: u32, cmd: u32, params: &mut [u8]) -> Status {
         let mut p = sys::NVOS54_PARAMETERS::default();

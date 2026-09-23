@@ -46,10 +46,12 @@ use nvrm_client::mem::CpuMap;
 
 use crate::channel::{Channel, GpuMem, Registry};
 use crate::chip::ChipData;
+use crate::fb::FakeFb;
 use crate::fb::Target;
 use crate::guestmem::GuestMemory;
 use crate::hostmem::{HostMemory, OsEvent};
 use crate::intr::IntrShared;
+use crate::invalidate::Invalidator;
 use crate::ver::active as v;
 
 /// `NV2080_NOTIFIERS_*` (class/cl2080_notification.h): the engine notifiers the mirrored
@@ -173,6 +175,24 @@ pub struct Mirror {
     channels_enabled: bool,
     doorbell: Option<(u32, CpuMap)>,
     events: Option<Events>,
+    /// The device's own privileged channel for `MEM_OP MMU_TLB_INVALIDATE` of the guest's
+    /// page directories (invalidate.rs). This is the invalidation path that reaches the
+    /// physical GPU: `DMA_INVALIDATE_TLB` on an externally-owned mirror VA space is a
+    /// no-op (the RM walker has no root there), so the guest's register invalidate was
+    /// never replayed and a fresh mapping faulted with FAULT_PDE (Xid 31, measured
+    /// 2026-09-23 `d-ce-token`). `CARAXES_MEMOP_INVALIDATE=0` falls back to the (no-op)
+    /// `DMA_INVALIDATE_TLB` for A/B comparison.
+    invalidator: Option<Invalidator>,
+    memop_invalidate: bool,
+    /// `CARAXES_MIRROR_GR_SHADOW=1`: run GR channels on a host-managed **shadow VAS**
+    /// (`shadow.rs`, D17 route 4 stage 1) — the host RM owns the GR context there and the
+    /// guest's set-A is mirrored in at its own VAs. The GR launch experiment.
+    shadow_probe: bool,
+    /// The persistent shadow VAS the GR channels run on (built at the first GR channel).
+    shadow_vas: Option<crate::shadow::ShadowVas>,
+    /// The guest root the shadow VAS mirrors, and the set-B ranges excluded from it.
+    shadow_root: Option<u64>,
+    shadow_exclude: Vec<(u64, u64)>,
     next_event_id: u32,
     pub stats: MirrorStats,
 }
@@ -227,6 +247,12 @@ impl Mirror {
             channels_enabled: std::env::var("CARAXES_MIRROR_CHANNELS").as_deref() == Ok("1"),
             doorbell: None,
             events: None,
+            invalidator: None,
+            memop_invalidate: std::env::var("CARAXES_MEMOP_INVALIDATE").as_deref() != Ok("0"),
+            shadow_probe: std::env::var("CARAXES_MIRROR_GR_SHADOW").as_deref() == Ok("1"),
+            shadow_vas: None,
+            shadow_root: None,
+            shadow_exclude: Vec::new(),
             next_event_id: 0x1000,
             stats: MirrorStats::default(),
         })
@@ -234,6 +260,320 @@ impl Mirror {
 
     pub fn is_mirrored(&self, chid: u32) -> bool {
         self.channels.contains_key(&chid)
+    }
+
+    /// Whether `chid` is a GR channel the shadow path takes (`CARAXES_MIRROR_GR_SHADOW=1`).
+    pub fn is_gr_shadow(&self, reg: &Registry, chid: u32) -> bool {
+        if !self.shadow_probe {
+            return false;
+        }
+        let Some(ch) = reg.channel(chid) else {
+            return false;
+        };
+        let gr = v::lookup(v::NV2080_ENGINE_TYPES, "GR0").unwrap_or(1);
+        reg.tsg((ch.h_client, ch.h_parent))
+            .is_some_and(|(_, e)| e == gr)
+            || ch
+                .engine_objects
+                .iter()
+                .any(|(c, _)| *c == self.chip.channel.compute)
+    }
+
+    /// Re-sync the shadow VAS from the guest root (called at a guest TLB invalidate): map
+    /// any set-A page the guest has newly mapped since the last walk.
+    pub fn shadow_resync(&mut self, _reg: &Registry, gm: &mut GpuMem) -> Vec<String> {
+        let Some(root) = self.shadow_root else {
+            return Vec::new();
+        };
+        let (base, end, reservation) = (self.base, self.end, self.reservation);
+        let exclude = self.shadow_exclude.clone();
+        let mut h = self.hm.lock().unwrap();
+        let Some(sv) = self.shadow_vas.as_mut() else {
+            return Vec::new();
+        };
+        let before = sv.maps_ok;
+        let note = sv.sync(
+            &mut h,
+            gm.fb,
+            gm.sys,
+            root,
+            base,
+            end,
+            reservation,
+            &exclude,
+        );
+        if sv.maps_ok == before {
+            Vec::new()
+        } else {
+            vec![note]
+        }
+    }
+
+    /// Build (once) and ring a GR channel on the host-managed shadow VAS: mirror the
+    /// guest's set-A there, allocate the channel + its engine objects (the host RM builds
+    /// the GR context, set B, in the shadow VAS), schedule, and forward the doorbell. The
+    /// GR launch experiment (c1s, exec-formats.md §4.5). Returns the notes.
+    pub fn gr_shadow_doorbell(
+        &mut self,
+        reg: &Registry,
+        gm: &mut GpuMem,
+        chid: u32,
+    ) -> Vec<String> {
+        // Already built: re-sync the shadow VAS from the guest root FIRST (the guest maps
+        // more set-A between doorbells), then flush and ring.
+        if self.channels.contains_key(&chid) {
+            let mut notes = self.shadow_resync(reg, gm);
+            gm.fb.flush();
+            match self.doorbell(chid) {
+                Ok(n) => notes.push(n),
+                Err(e) => notes.push(format!("shadow: doorbell chid {chid}: {e}")),
+            }
+            return notes;
+        }
+        let Some(ch) = reg.channel(chid).cloned() else {
+            return vec![format!("shadow: chid {chid} not recorded")];
+        };
+        let root = match reg.vas_key_of(&ch).and_then(|k| reg.vas_root(k)) {
+            Some(Target::Fb(pa)) if pa >= self.base && pa + PAGE <= self.end => pa,
+            other => {
+                return vec![format!(
+                    "shadow: chid {chid} root {other:?} not in the reservation"
+                )]
+            }
+        };
+        // Accumulate the promoted-context (set-B) VA ranges across every GR channel: the
+        // host RM builds set B in the shadow VAS at these VAs, so a later GR channel that
+        // records no promote entries of its own must still not have set A mirrored over
+        // them (measured 2026-09-23: chids 3-9 collided at 0x120010000 etc.).
+        if let Some(m) = reg.promoted((ch.h_client, ch.h_object)) {
+            for e in m.values() {
+                if let Some(v) = e.virt {
+                    let r = (v, v + e.size.max(0x1000));
+                    if !self.shadow_exclude.contains(&r) {
+                        self.shadow_exclude.push(r);
+                    }
+                }
+            }
+        }
+        let exclude = self.shadow_exclude.clone();
+        self.shadow_root = Some(root);
+        let tsg_key = (ch.h_client, ch.h_parent);
+        // The host RM clears the channel's USERD when it creates the mirror; the guest has
+        // already written its GPFIFO entry and GPPut for the submission that rang this
+        // doorbell. Save them now and restore them after the alloc, or the GR PBDMA sees
+        // GPPut 0 and fetches nothing (measured 2026-09-23: GPGet 0 / GPPut 0, the launch
+        // hung with no Xid).
+        let saved_userd = ch.userd.map(|u| {
+            let at = |o: u64| match u {
+                Target::Fb(pa) => Target::Fb(pa + o),
+                Target::Sys(pa) => Target::Sys(pa + o),
+                t => t,
+            };
+            (
+                at(0x88),
+                at(0x8C),
+                gm.read_u32(at(0x88)),
+                gm.read_u32(at(0x8C)),
+            )
+        });
+        self.ensure_events(&mut Vec::new());
+        let mut notes = vec![format!(
+            "shadow: GR chid {chid} on the host-managed shadow VAS; root {root:#x}, {} set-B range(s) excluded",
+            exclude.len()
+        )];
+        let mut h = self.hm.lock().unwrap();
+        // The persistent shadow VAS, built once.
+        if self.shadow_vas.is_none() {
+            match crate::shadow::ShadowVas::new(&mut h) {
+                Ok(sv) => {
+                    notes.push(format!("shadow: host-managed VAS {:#x} [host]", sv.vas));
+                    self.shadow_vas = Some(sv);
+                }
+                Err(st) => {
+                    notes.push(format!("shadow: VAS refused: {}", status_name(st)));
+                    return notes;
+                }
+            }
+        }
+        let sv = self.shadow_vas.as_mut().expect("built");
+        // Mirror the guest's set-A before the channel/GPFIFO VA is validated against the VAS.
+        notes.push(sv.sync(
+            &mut h,
+            gm.fb,
+            gm.sys,
+            root,
+            self.base,
+            self.end,
+            self.reservation,
+            &exclude,
+        ));
+        if !sv.collisions.is_empty() {
+            notes.push(format!(
+                "shadow: {} run(s) refused (VA collision, first {:x?})",
+                sv.collisions.len(),
+                &sv.collisions[..sv.collisions.len().min(4)]
+            ));
+        }
+        let vas_handle = sv.vas;
+        // TSG on the shadow VAS (GR0), then the channel with the guest's GPFIFO/USERD.
+        let mut tp = sys::v610::NV_CHANNEL_GROUP_ALLOCATION_PARAMETERS::default();
+        tp.hVASpace = vas_handle;
+        tp.engineType = v::lookup(v::NV2080_ENGINE_TYPES, "GR0").unwrap_or(1);
+        let device = h.device();
+        let tsg = match h.alloc_object(
+            device,
+            sys::KEPLER_CHANNEL_GROUP_A,
+            as_bytes(&mut tp),
+            "shadow-tsg",
+        ) {
+            Ok(x) => x,
+            Err(st) => {
+                notes.push(format!("shadow: TSG refused: {}", status_name(st)));
+                return notes;
+            }
+        };
+        self.tsgs.insert(
+            tsg_key,
+            HostTsg {
+                handle: tsg,
+                vas: tsg_key,
+                engine: tp.engineType,
+            },
+        );
+        let userd = match ch.userd {
+            Some(Target::Fb(pa)) if pa >= self.base && pa + PAGE <= self.end => {
+                (self.reservation, pa - self.base)
+            }
+            other => {
+                notes.push(format!(
+                    "shadow: chid {chid} USERD {other:?} not a vidmem reservation page"
+                ));
+                return notes;
+            }
+        };
+        // The error notifier: the guest's page, so the host RM writes an RC there and the
+        // guest sees the fault (returns 719) instead of hanging to the 30 s watchdog (the
+        // CE path does this; without it launch5 hung on the MMU fault).
+        let h_error = match ch.error_notifier {
+            Some(Target::Sys(iova)) if iova % PAGE == 0 => gm
+                .sys
+                .translate(iova, PAGE)
+                .and_then(|gpa| gm.sys.host_ptr(gpa, PAGE))
+                .and_then(|ptr| h.guest_page_object(ptr, PAGE, "shadow-error-notifier").ok())
+                .unwrap_or(0),
+            _ => 0,
+        };
+        let mut cp = sys::v610::NV_CHANNEL_ALLOC_PARAMS::default();
+        cp.hObjectError = h_error;
+        cp.gpFifoOffset = ch.gpfifo_va;
+        cp.gpFifoEntries = ch.gpfifo_entries;
+        cp.hUserdMemory[0] = userd.0;
+        cp.userdOffset[0] = userd.1;
+        cp.engineType = ch.engine_type;
+        let channel = match h.alloc_object(
+            tsg,
+            self.chip.channel.gpfifo,
+            as_bytes(&mut cp),
+            "shadow-channel",
+        ) {
+            Ok(x) => x,
+            Err(st) => {
+                notes.push(format!(
+                    "shadow: channel refused: {} (gpfifo va {:#x})",
+                    status_name(st),
+                    ch.gpfifo_va
+                ));
+                return notes;
+            }
+        };
+        notes.push(format!("shadow: host GR channel {channel:#x} in TSG {tsg:#x} on VAS {vas_handle:#x}, gpfifo va {:#x} [host]", ch.gpfifo_va));
+        // The guest's engine objects; the compute object makes the host RM build set B.
+        let mut objects = Vec::new();
+        for (class, params) in &ch.engine_objects {
+            let mut p = params.clone();
+            match h.alloc_object(channel, *class, &mut p, "shadow-engine") {
+                Ok(oh) => {
+                    notes.push(format!(
+                        "shadow: chid {chid} host object class {class:#x} {oh:#x} [host]"
+                    ));
+                    objects.push((*class, oh));
+                }
+                Err(e) => notes.push(format!(
+                    "shadow: chid {chid} object class {class:#x} refused: {}",
+                    status_name(e)
+                )),
+            }
+        }
+        if objects.is_empty() {
+            notes.push("shadow: no engine object; not scheduling".into());
+            return notes;
+        }
+        let mut sched = [1u8, 0, 0];
+        let st = h.control(channel, CMD_GPFIFO_SCHEDULE, &mut sched);
+        if st != sys::NV_OK {
+            notes.push(format!("shadow: GPFIFO_SCHEDULE: {}", status_name(st)));
+            return notes;
+        }
+        let mut tok = [0u8; 4];
+        let st = h.control(channel, CMD_GET_WORK_SUBMIT_TOKEN, &mut tok);
+        if st != sys::NV_OK {
+            notes.push(format!(
+                "shadow: GET_WORK_SUBMIT_TOKEN: {}",
+                status_name(st)
+            ));
+            return notes;
+        }
+        let token = u32::from_le_bytes(tok);
+        self.stats.channels_created += 1;
+        self.channels.insert(
+            chid,
+            HostChannel {
+                handle: channel,
+                tsg: tsg_key,
+                token,
+                objects,
+                created: Instant::now(),
+                doorbells: 0,
+            },
+        );
+        notes.push(format!(
+            "shadow: chid {chid} scheduled; host token {token:#x} (host chid {}, runlist {}) [host]",
+            token & 0xFFF,
+            (token >> 16) & 0x7F
+        ));
+        drop(h);
+        // Restore the guest's GPGet/GPPut the host RM cleared at channel creation.
+        if let Some((get_at, put_at, Some(get), Some(put))) = saved_userd {
+            if gm.read_u32(put_at) != Some(put) {
+                gm.write(get_at, &get.to_le_bytes());
+                gm.write(put_at, &put.to_le_bytes());
+                notes.push(format!(
+                    "shadow: chid {chid} restored guest GPGet {get} / GPPut {put} (host RM had cleared the USERD) [guest]"
+                ));
+            }
+        }
+        gm.fb.flush();
+        match self.doorbell(chid) {
+            Ok(n) => notes.push(n),
+            Err(e) => notes.push(format!("shadow: doorbell chid {chid}: {e}")),
+        }
+        // One-shot USERD read (no poll): GPGet advancing past GPPut's start means the GR
+        // PBDMA fetched the guest's first push; GPGet stuck at 0 means it never fetched
+        // (scheduling/token). Distinguishes a completion-delivery hang from a fetch hang.
+        if let Some(userd) = ch.userd {
+            let at = |o: u64| match userd {
+                Target::Fb(pa) => Target::Fb(pa + o),
+                Target::Sys(pa) => Target::Sys(pa + o),
+                t => t,
+            };
+            std::thread::sleep(std::time::Duration::from_millis(5));
+            notes.push(format!(
+                "shadow: chid {chid} USERD after doorbell: GPGet {:?} GPPut {:?} [host GPU]",
+                gm.read_u32(at(0x88)),
+                gm.read_u32(at(0x8C))
+            ));
+        }
+        notes
     }
 
     /// The guest channel whose host mirror owns work-submit token `token`. The host RM
@@ -687,6 +1027,7 @@ impl Mirror {
             .unwrap_or_default();
         let (_, engine) = reg.tsg(tsg_key).ok_or("no TSG")?;
         self.ensure_events(&mut notes);
+        self.ensure_invalidator(gm.fb, &mut notes);
         let entries = reg.root_entries(vas_key);
         let vas_handle = self.ensure_vas(vas_key, root, entries, &mut notes)?;
         let tsg_handle = self.ensure_tsg(tsg_key, vas_key, vas_handle, engine, &mut notes)?;
@@ -937,10 +1278,60 @@ impl Mirror {
         ))
     }
 
+    fn ensure_invalidator(&mut self, fb: &mut FakeFb, notes: &mut Vec<String>) {
+        if self.invalidator.is_some() || !self.memop_invalidate {
+            return;
+        }
+        let mut h = self.hm.lock().unwrap();
+        match Invalidator::new(
+            &mut h,
+            fb,
+            self.base,
+            self.end,
+            self.reservation,
+            self.chip.channel.gpfifo,
+            self.chip.channel.copy,
+        ) {
+            Ok((inv, n)) => {
+                notes.extend(n);
+                self.invalidator = Some(inv);
+            }
+            Err(e) => notes.push(format!(
+                "invalidator: NOT built ({e}); the guest's TLB invalidates cannot reach the physical GPU (stale PDEs: FAULT_PDE on fresh mappings)"
+            )),
+        }
+    }
+
     /// The guest invalidated the TLB for page directory `pdb` (by register, or by a
     /// `MEM_OP` on a software channel; `None`: every page directory): the same on every
-    /// mirror VA space rooted there. Returns how many.
-    pub fn invalidate_tlb(&mut self, pdb: Option<u64>) -> usize {
+    /// mirror VA space rooted there. Default: `DMA_INVALIDATE_TLB` on the mirror VA
+    /// space (for an externally-owned one the RM's walker root *is* the guest root after
+    /// `DMA_SET_PAGE_DIRECTORY`; for a replayed one it is the host kernel's own root,
+    /// exec-formats.md §4.4). Opt-in: a `MEM_OP` `MMU_TLB_INVALIDATE` of each distinct
+    /// guest root from the invalidator channel (see `invalidator`). Returns how many.
+    pub fn invalidate_tlb(&mut self, fb: &mut FakeFb, pdb: Option<u64>) -> usize {
+        if let Some(inv) = self.invalidator.as_mut() {
+            let mut roots: Vec<u64> = self
+                .vas
+                .values()
+                .filter(|v| pdb.is_none_or(|p| v.root == p))
+                .map(|v| v.root)
+                .collect();
+            roots.sort_unstable();
+            roots.dedup();
+            for root in &roots {
+                match inv.invalidate(fb, *root) {
+                    Ok(n) => {
+                        if inv.pushes <= 3 || inv.pushes % 256 == 0 {
+                            self.intr.note(n);
+                        }
+                    }
+                    Err(e) => self.intr.note(format!("mirror: {e}")),
+                }
+            }
+            self.stats.invalidates += roots.len() as u64;
+            return roots.len();
+        }
         let targets: Vec<u32> = self
             .vas
             .values()
@@ -955,10 +1346,12 @@ impl Mirror {
         for t in &targets {
             let mut p = [0u8; 8];
             p[0..4].copy_from_slice(&t.to_le_bytes());
+            let t0 = Instant::now();
             let st = h.control(device, CMD_DMA_INVALIDATE_TLB, &mut p);
-            if st != sys::NV_OK {
+            let us = t0.elapsed().as_micros();
+            if st != sys::NV_OK || self.stats.invalidates < 3 {
                 self.intr.note(format!(
-                    "mirror: DMA_INVALIDATE_TLB on vaspace {t:#x}: {}",
+                    "mirror: DMA_INVALIDATE_TLB on vaspace {t:#x}: {} in {us} us [host]",
                     status_name(st)
                 ));
             }
@@ -1209,6 +1602,22 @@ impl Mirror {
         for k in vas {
             self.drop_vas(k, &mut notes);
         }
+        if let Some(sv) = self.shadow_vas.take() {
+            let mut h = self.hm.lock().unwrap();
+            notes.push(format!(
+                "shadow: VAS {:#x} freed ({} maps, {} run(s) refused; collisions {:x?})",
+                sv.vas,
+                sv.maps_ok,
+                sv.runs_failed,
+                &sv.collisions[..sv.collisions.len().min(8)]
+            ));
+            sv.free(&mut h);
+            self.shadow_root = None;
+        }
+        if let Some(inv) = self.invalidator.take() {
+            let mut h = self.hm.lock().unwrap();
+            notes.push(inv.free(&mut h));
+        }
         if let Some((h, map)) = self.doorbell.take() {
             drop(map);
             let r = self.hm.lock().unwrap().free_object(h);
@@ -1234,12 +1643,14 @@ impl Mirror {
     pub fn summary(&self) -> String {
         let s = &self.stats;
         format!(
-            "mirror: {} channel(s) created, {} freed, {} live; {} doorbell(s) forwarded, {} TLB invalidate(s), {} refusal(s), longest mirror build {} us; events raised {}, MSIs {} (coalesced {}), host RC events {}",
+            "mirror: {} channel(s) created, {} freed, {} live; {} doorbell(s) forwarded, {} TLB invalidate(s) ({} MEM_OP push(es), {} slow), {} refusal(s), longest mirror build {} us; events raised {}, MSIs {} (coalesced {}), host RC events {}",
             s.channels_created,
             s.channels_freed,
             self.channels.len(),
             s.doorbells,
             s.invalidates,
+            self.invalidator.as_ref().map_or(0, |i| i.pushes),
+            self.invalidator.as_ref().map_or(0, |i| i.slow),
             s.refusals,
             s.max_create_us,
             self.intr.raised.load(Ordering::Relaxed),

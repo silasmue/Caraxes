@@ -1,0 +1,23 @@
+stage 0 ok (cuInit)
+bash: line 1:  1929 Killed                  timeout -k 5 90 /home/leandro/caraxes-tests/leandro-test/probe/bin/nvprobe 2
+nvprobe rc=137
+[  229.659667] NVRM: nvidia_ctl_close
+[  229.659670] NVRM: nvidia_close on GPU with minor number 255
+[  229.659670] NVRM: nvidia_ctl_close
+[  229.659673] NVRM: nvidia_close on GPU with minor number 255
+[  229.659674] NVRM: nvidia_ctl_close
+[  229.659677] NVRM: nvidia_close on GPU with minor number 255
+[  229.659677] NVRM: nvidia_ctl_close
+[  229.659680] NVRM: nvidia_close on GPU with minor number 255
+[  229.659681] NVRM: nvidia_ctl_close
+[  229.659683] NVRM: nvidia_close on GPU with minor number 255
+[  229.659684] NVRM: nvidia_ctl_close
+[  229.659687] NVRM: nvidia_close on GPU with minor number 255
+[  229.659688] NVRM: nvidia_ctl_close
+[  229.659691] NVRM: nvidia_close on GPU with minor number 255
+[  229.659691] NVRM: nvidia_ctl_close
+[  229.659694] NVRM: nvidia_close on GPU with minor number 255
+[  229.659695] NVRM: nvidia_ctl_close
+[  229.659699] NVRM: nvidia_close on GPU with minor number 0
+[  229.659707] NVRM: nvidia_close on GPU with minor number 255
+[  229.659708] NVRM: nvidia_ctl_close

@@ -1,0 +1,25 @@
+stage 0 ok (cuInit)
+stage 1 ok (context, sched=auto)
+stage 2 ok (memory)
+ERROR: cannot read kernels.ptx
+nvprobe rc=1
+[  206.633594] NVRM: nvidia_ctl_close
+[  206.633596] NVRM: nvidia_close on GPU with minor number 255
+[  206.633597] NVRM: nvidia_ctl_close
+[  206.633599] NVRM: nvidia_close on GPU with minor number 255
+[  206.633600] NVRM: nvidia_ctl_close
+[  206.633602] NVRM: nvidia_close on GPU with minor number 255
+[  206.633603] NVRM: nvidia_ctl_close
+[  206.633719] NVRM: nvidia_close on GPU with minor number 255
+[  206.633720] NVRM: nvidia_ctl_close
+[  206.633938] NVRM: nvidia_close on GPU with minor number 255
+[  206.633940] NVRM: nvidia_ctl_close
+[  206.634026] NVRM: nvidia_close on GPU with minor number 255
+[  206.634027] NVRM: nvidia_ctl_close
+[  206.634030] NVRM: nvidia_close on GPU with minor number 255
+[  206.634031] NVRM: nvidia_ctl_close
+[  206.634033] NVRM: nvidia_close on GPU with minor number 255
+[  206.634034] NVRM: nvidia_ctl_close
+[  206.634037] NVRM: nvidia_close on GPU with minor number 0
+[  206.634040] NVRM: nvidia_close on GPU with minor number 255
+[  206.634041] NVRM: nvidia_ctl_close

@@ -1,0 +1,4 @@
+Sep 23 21:17:28 manacor kernel: NVRM: Xid (PCI:0000:2d:00): 32, pid=179611, name=vfio-user-nvgpu, channel 0x00000038 intr1 00000008 HCE_DBG0 000018e8 HCE_DBG1 0097cdb5
+Sep 23 21:17:28 manacor kernel: NVRM: Xid (PCI:0000:2d:00): 32, pid=179611, name=vfio-user-nvgpu, channel 0x00000038 intr1 00000008 HCE_DBG0 000018ec HCE_DBG1 47352d19
+Sep 23 21:17:28 manacor kernel: NVRM: Xid (PCI:0000:2d:00): 32, pid=179611, name=vfio-user-nvgpu, channel 0x00000039 intr0 00040000
+Sep 23 21:17:28 manacor kernel: NVRM: Xid (PCI:0000:2d:00): 32, pid=179611, name=vfio-user-nvgpu, channel 0x00000039 intr0 00040000

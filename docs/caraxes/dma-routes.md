@@ -112,3 +112,12 @@ gates; delete the module.
   filter, and the guest view stays readable.
 - Q32: verify the registry key names for instance-memory location in
   `vendor/open-gpu-kernel-modules` and which of them the GSP-client kernel RM honours.
+  Partial answer (2026-09-23): the kernel RM reads `NV_REG_STR_RM_INST_LOC` fields `PDE`, `PTE`,
+  `BAR_PDE`, `BAR_PTE` from `pGpu->instLocOverrides` in `_kgmmuInitRegistryOverrides`
+  (`src/nvidia/src/kernel/gpu/mmu/kern_gmmu.c`); the defaults are `ADDR_FBMEM`. Whether the
+  GSP side honours the same keys for its own tables is still open.
+- Decision D17 ([README](README.md)): route 4 is the target, built in two stages after CUDA runs, a
+  validating PTE filter first (isolation, guest module kept), the translating filter second (vanilla,
+  guest module dropped). The guest stays bare metal: page tables in VRAM are the driver's native
+  default, so the only configuration deviation is disabling UVM's sysmem fallback. VRAM cost of
+  shadowing: none beyond the guest's own tables; a host-RAM shadow is the fallback for sysmem tables only.

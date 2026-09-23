@@ -1,0 +1,1 @@
+Sep 23 21:39:19 manacor kernel: NVRM: Xid (PCI:0000:2d:00): 38, pid=273363, name=vfio-user-nvgpu, channel 0x00000042 0000c597 00000000 00000000
