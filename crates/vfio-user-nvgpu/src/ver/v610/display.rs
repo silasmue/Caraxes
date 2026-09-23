@@ -119,6 +119,10 @@ pub const CMD_DP_CONFIG_STREAM: u32 = 0x73_1362;
 pub const CMD_DP_SET_MANUAL_DISPLAYPORT: u32 = 0x73_1365;
 pub const CMD_DP_GET_CAPS: u32 = 0x73_1369;
 pub const CMD_DP_NOTIFY_LT: u32 = 0x73_138F;
+pub const CMD_DP_SET_STEREO_MSA_PROPERTIES: u32 = 0x73_1378;
+pub const CMD_DP_SET_MSA_PROPERTIES_V2: u32 = 0x73_1381;
+pub const CMD_SPECIFIC_SET_OD_PACKET: u32 = 0x73_0288;
+pub const CMD_SYSTEM_VRR_DISPLAY_INFO: u32 = 0x73_012C;
 pub const CMD_SPECIFIC_GET_BACKLIGHT_BRIGHTNESS: u32 = 0x73_0291;
 pub const CMD_SYSTEM_QUERY_DISPLAY_IDS_WITH_MUX: u32 = 0x73_013D;
 /// `NV2080_CTRL_CMD_LPWR_DIFR_CTRL` (ctrl2080lpwr.h:42): display idle frame refresh.
@@ -276,6 +280,13 @@ pub const LOCKPIN_NONE: u32 = 0xFFFF_FFFF;
 /// bIsPossible 1904.
 pub const IMP_SIZE: usize = 2048;
 pub const IMP_IS_POSSIBLE: usize = 1904;
+/// `numHeads` (NvU8), `head[]` of `NVC372_CTRL_IMP_HEAD` (92 bytes: `headIndex` NvU8 at
+/// 0, `maxPixelClkKHz` at 4); gcc-measured, display-layouts.txt.
+pub const IMP_NUM_HEADS: usize = 4;
+pub const IMP_HEAD: usize = 8;
+pub const IMP_HEAD_SIZE: usize = 92;
+pub const IMP_HEAD_INDEX: usize = 0;
+pub const IMP_HEAD_MAX_PCLK_KHZ: usize = 4;
 
 // ---------------------------------------------------------------------------------
 // Channel allocation parameters (cl5070.h / alloc).
@@ -399,6 +410,17 @@ mod tests {
             CHANNEL_INFO_STATE
         );
         assert_eq!(s("NVC372_CTRL_IS_MODE_POSSIBLE_PARAMS"), IMP_SIZE);
+        assert_eq!(
+            f("NVC372_CTRL_IS_MODE_POSSIBLE_PARAMS", "numHeads"),
+            IMP_NUM_HEADS
+        );
+        assert_eq!(f("NVC372_CTRL_IS_MODE_POSSIBLE_PARAMS", "head"), IMP_HEAD);
+        assert_eq!(s("NVC372_CTRL_IMP_HEAD"), IMP_HEAD_SIZE);
+        assert_eq!(f("NVC372_CTRL_IMP_HEAD", "headIndex"), IMP_HEAD_INDEX);
+        assert_eq!(
+            f("NVC372_CTRL_IMP_HEAD", "maxPixelClkKHz"),
+            IMP_HEAD_MAX_PCLK_KHZ
+        );
         assert_eq!(
             f("NVC372_CTRL_IS_MODE_POSSIBLE_PARAMS", "bIsPossible"),
             IMP_IS_POSSIBLE

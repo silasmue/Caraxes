@@ -17,11 +17,13 @@
 //!
 //! Nothing here is forwarded to the host: every answer is `synthesized` (chip data),
 //! `board` (the connector table) or `guest` (derived from what the guest wrote), D9.
-//! No modeset is modelled yet (phase C): `UPDATE` makes the core assembly state ARMED
-//! and moves GET, nothing more.
+//! Phase C (docs/caraxes/display-cd.md): the channels' methods go to [`engine`], which
+//! applies core `UPDATE`s (heads, window owners, notifier), queues window presentations
+//! and latches them on a per-head clock that also raises vblank.
 
 pub mod aux;
 pub mod edid;
+pub mod engine;
 
 use std::collections::BTreeMap;
 use std::sync::Mutex;
@@ -29,6 +31,7 @@ use std::sync::Mutex;
 use serde::Deserialize;
 
 use crate::ctrl::Answer;
+use crate::fb::FakeFb;
 use crate::guestmem::GuestMemory;
 use crate::ver::active::display as d;
 use crate::ver::active::{NV_ERR_NOT_SUPPORTED, NV_OK};
@@ -71,6 +74,25 @@ pub fn configure(setup: Setup) {
     *SETUP.lock().unwrap() = Some(setup);
 }
 
+static INTR: Mutex<Option<std::sync::Arc<crate::intr::IntrShared>>> = Mutex::new(None);
+
+/// The interrupt path the display raises its vector through (vblank, AWAKEN), from the
+/// server thread and from the ticker thread (engine.rs). The boot model's interrupt
+/// tree folds it in ([`intr_shared`]).
+pub fn set_intr_shared(shared: std::sync::Arc<crate::intr::IntrShared>) {
+    *INTR.lock().unwrap() = Some(shared);
+}
+
+/// The display's interrupt path when the display is on (for the interrupt tree).
+pub fn intr_shared() -> Option<std::sync::Arc<crate::intr::IntrShared>> {
+    let on = SETUP.lock().unwrap().as_ref().is_some_and(|s| s.enabled);
+    if on {
+        INTR.lock().unwrap().clone()
+    } else {
+        None
+    }
+}
+
 /// `chips/<chip>/display.toml`.
 #[derive(Clone, Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -84,6 +106,8 @@ pub struct ChipDisplay {
     pub i2c_port: u32,
     pub vga_workspace_base: u32,
     pub intr_vector: u32,
+    /// Per-head pixel clock cap (HEAD_CLK_CAP, display-scaling.md section 2.2), kHz.
+    pub head_clk_cap_khz: u32,
     pub link: LinkProfile,
     pub caps: Vec<CapReg>,
 }
@@ -230,6 +254,8 @@ pub struct Display {
     /// Link configuration the last DP_CTRL trained (rate code, lanes).
     pub link: Option<(u8, u8)>,
     pub notes: Vec<String>,
+    /// Phase C: methods, heads, the clock and the interrupt registers (engine.rs).
+    pub engine: engine::Engine,
 }
 
 fn put32(b: &mut [u8], off: usize, v: u32) {
@@ -304,6 +330,7 @@ impl Display {
             aux_transcript: Vec::new(),
             link: None,
             notes: Vec::new(),
+            engine: engine::Engine::new(0, 0),
         }
     }
 
@@ -345,6 +372,10 @@ impl Display {
             });
         }
         disp.enabled = true;
+        disp.engine = engine::Engine::new(chip.heads as usize, chip.windows as usize);
+        if let Some(i) = intr_shared() {
+            engine::ticker().attach(i, chip.intr_vector);
+        }
         disp.board_label = board.label;
         disp.chip = Some(chip);
         Ok(disp)
@@ -439,6 +470,7 @@ impl Display {
                     get32(params, d::WRITE_INST_MEM_ADDR_SPACE),
                 );
                 self.inst_mem = Some((pa, size, aspace));
+                self.engine.inst = Some(pa);
                 ok(
                     b,
                     GUEST,
@@ -572,8 +604,10 @@ impl Display {
             }
             d::CMD_SYSTEM_GET_BOOT_DISPLAYS => ok(vec![0u8; n], BOARD, "boot displays: none"),
             d::CMD_SYSTEM_GET_SCANLINE => {
-                put32(&mut b, d::GET_SCANLINE_CURRENT, 0);
-                ok(b, SYNTH, "scanline 0 (no raster yet)")
+                let head = get32(params, 4) as usize;
+                let line = self.engine.scanline(head, engine::now_ns());
+                put32(&mut b, d::GET_SCANLINE_CURRENT, line);
+                ok(b, SYNTH, format!("scanline of head {head}: {line} (device clock)"))
             }
             d::CMD_SYSTEM_INTERNAL_ALLOCATE_DISPLAY_BANDWIDTH => {
                 ok(b, ACK, "allocate display bandwidth")
@@ -696,7 +730,15 @@ impl Display {
             | d::CMD_DP_SET_AUDIO_MUTESTREAM
             | d::CMD_DP_CONFIG_STREAM
             | d::CMD_DP_SET_MANUAL_DISPLAYPORT
-            | d::CMD_DP_NOTIFY_LT => ok(b, ACK, format!("control {cmd:#x} on {did:#x}")),
+            | d::CMD_DP_NOTIFY_LT
+            | d::CMD_DP_SET_MSA_PROPERTIES_V2
+            | d::CMD_DP_SET_STEREO_MSA_PROPERTIES
+            | d::CMD_SPECIFIC_SET_OD_PACKET => ok(b, ACK, format!("control {cmd:#x} on {did:#x}")),
+            d::CMD_SYSTEM_VRR_DISPLAY_INFO => ok(
+                b,
+                BOARD,
+                format!("vrr display info of {did:#x}: not a VRR display (recorded)"),
+            ),
             d::CMD_SPECIFIC_IS_DIRECTMODE_DISPLAY => {
                 if b.len() > d::DIRECTMODE_IS_DIRECTMODE {
                     b[d::DIRECTMODE_IS_DIRECTMODE] = 0;
@@ -835,9 +877,14 @@ impl Display {
             d::CMD_C370_GET_CHANNEL_INFO => {
                 let class = get32(params, 4);
                 let inst = get32(params, 8);
-                let idle = userd_base(class, inst)
-                    .and_then(|base| self.channels.get(&base))
-                    .is_none_or(|c| c.get == c.put);
+                // A window UPDATE is pending until the clock latches it (NVKMS's
+                // IsChannelMethodPending, nvkms-evo3.c:6474-6490).
+                let latching = class == d::NVC57E_WINDOW_CHANNEL_DMA
+                    && self.engine.window_busy(inst as usize);
+                let idle = !latching
+                    && userd_base(class, inst)
+                        .and_then(|base| self.channels.get(&base))
+                        .is_none_or(|c| c.get == c.put);
                 put32(
                     &mut b,
                     d::CHANNEL_INFO_STATE,
@@ -848,7 +895,13 @@ impl Display {
                     GUEST,
                     format!(
                         "channel info: class {class:#x} instance {inst}: {}",
-                        if idle { "IDLE (GET == PUT)" } else { "BUSY" }
+                        if idle {
+                            "IDLE (GET == PUT)"
+                        } else if latching {
+                            "BUSY (UPDATE waiting for the next tick)"
+                        } else {
+                            "BUSY"
+                        }
                     ),
                 )
             }
@@ -860,20 +913,7 @@ impl Display {
             d::CMD_C370_GET_ACCL | d::CMD_C370_SET_ACCL => {
                 ok(b, ACK, format!("accelerators control {cmd:#x}"))
             }
-            d::CMD_C372_IS_MODE_POSSIBLE => {
-                if b.len() > d::IMP_IS_POSSIBLE {
-                    b[d::IMP_IS_POSSIBLE] = 1;
-                }
-                ok(
-                    b,
-                    SYNTH,
-                    format!(
-                        "is mode possible: yes ({} heads, {} windows asked)",
-                        params.get(4).copied().unwrap_or(0),
-                        params.get(5).copied().unwrap_or(0)
-                    ),
-                )
-            }
+            d::CMD_C372_IS_MODE_POSSIBLE => self.is_mode_possible(b),
             d::CMD_C372_GET_ACTIVE_VIEWPORT_POINT_IN => ok(b, ACK, "active viewport point in: 0,0"),
             // Features this connector does not have: refused like a GSP without them.
             d::CMD_SPECIFIC_GET_BACKLIGHT_BRIGHTNESS => fail(
@@ -903,6 +943,42 @@ impl Display {
             _ => return None,
         };
         Some(a)
+    }
+
+    /// `NVC372_CTRL_CMD_IS_MODE_POSSIBLE` (IMP): possible when the heads exist and every
+    /// head's pixel clock fits the link budget and the head clock cap
+    /// (display-adapter.md section 4; display-scaling.md section 2.2).
+    fn is_mode_possible(&self, mut b: Vec<u8>) -> Answer {
+        let n = b.get(d::IMP_NUM_HEADS).copied().unwrap_or(0) as usize;
+        let cap = self
+            .chip()
+            .link
+            .pclk_budget_khz()
+            .min(self.chip().head_clk_cap_khz);
+        let mut worst = (0u32, 0u32);
+        let mut heads = Vec::new();
+        for i in 0..n.min(8) {
+            let o = d::IMP_HEAD + i * d::IMP_HEAD_SIZE;
+            let head = b.get(o + d::IMP_HEAD_INDEX).copied().unwrap_or(0) as u32;
+            let k = get32(&b, o + d::IMP_HEAD_MAX_PCLK_KHZ);
+            heads.push(format!("head {head} {k} kHz"));
+            if k > worst.1 {
+                worst = (head, k);
+            }
+        }
+        let possible = n <= self.chip().heads as usize && worst.1 <= cap;
+        if b.len() > d::IMP_IS_POSSIBLE {
+            b[d::IMP_IS_POSSIBLE] = possible as u8;
+        }
+        ok(
+            b,
+            SYNTH,
+            format!(
+                "is mode possible: {} ({n} heads: {}; limit {cap} kHz = min(link budget, head clock cap))",
+                if possible { "yes" } else { "no" },
+                if heads.is_empty() { "none".into() } else { heads.join(", ") }
+            ),
+        )
     }
 
     fn bad_display(&self, cmd: u32, b: Vec<u8>, did: u32) -> Answer {
@@ -1089,6 +1165,9 @@ impl Display {
         if off == NV_PDISP_VGA_WORKSPACE_BASE {
             return Some(self.chip().vga_workspace_base);
         }
+        if let Some(v) = self.engine.read32(off, engine::now_ns()) {
+            return Some(v);
+        }
         if (NV_PDISP_FE_SW..NV_PDISP_FE_SW + CAPS_PAGE_SIZE).contains(&off) {
             let rel = (off - NV_PDISP_FE_SW) as u32;
             return Some(
@@ -1120,10 +1199,39 @@ impl Display {
         None
     }
 
+    /// A guest read through BAR0: the clock advances first (engine.rs), so the
+    /// interrupt handler sees the state of now, with the notifiers already written.
+    pub fn read32_io(&mut self, off: u64, fb: &mut FakeFb, mem: &GuestMemory) -> Option<u32> {
+        if self.enabled && engine::Engine::handles(off) {
+            self.engine.catch_up(engine::now_ns(), fb, mem);
+        }
+        self.read32(off)
+    }
+
+    /// Notes of the engine not yet in the trace.
+    pub fn take_engine_notes(&mut self) -> Vec<String> {
+        std::mem::take(&mut self.engine.notes)
+    }
+
     /// A write to a display register; `None` when it is not the display's.
-    pub fn write32(&mut self, off: u64, v: u32, mem: &GuestMemory) -> Option<Vec<String>> {
+    pub fn write32(
+        &mut self,
+        off: u64,
+        v: u32,
+        mem: &GuestMemory,
+        fb: &mut FakeFb,
+    ) -> Option<Vec<String>> {
         if !self.enabled {
             return None;
+        }
+        if engine::Engine::handles(off) {
+            self.engine.catch_up(engine::now_ns(), fb, mem);
+            let n = self.engine.write32(off, v).unwrap_or_default();
+            let mut notes = self.take_engine_notes();
+            if !n.is_empty() {
+                notes.push(n);
+            }
+            return Some(notes);
         }
         if off == NV_FUSE_STATUS_OPT_DISPLAY || off == NV_PDISP_VGA_WORKSPACE_BASE {
             return Some(vec!["display: read-only register, write dropped".into()]);
@@ -1141,9 +1249,12 @@ impl Display {
             if let Some(mut ch) = self.channels.get(&base).copied() {
                 ch.put = v;
                 ch.kicks += 1;
-                let note = self.kick(base, &mut ch, mem);
+                self.engine.catch_up(engine::now_ns(), fb, mem);
+                let note = self.kick(base, &mut ch, mem, fb);
                 self.channels.insert(base, ch);
-                return Some(vec![note]);
+                let mut notes = vec![note];
+                notes.extend(self.take_engine_notes());
+                return Some(notes);
             }
         }
         self.latched.insert(off, v);
@@ -1152,7 +1263,11 @@ impl Display {
 
     /// Walk the pushbuffer from GET to PUT (display-adapter.md section 4.3), keep the
     /// core channel's assembly state, make it ARMED at `UPDATE`, and move GET to PUT.
-    fn kick(&mut self, base: u64, ch: &mut Channel, mem: &GuestMemory) -> String {
+    fn kick(&mut self, base: u64, ch: &mut Channel, mem: &GuestMemory, fb: &mut FakeFb) -> String {
+        // Window channels 0..31 (NVC57E) take their methods into the engine.
+        let window = (WIN_USERD..WIN_USERD + 32 * 0x1000)
+            .contains(&base)
+            .then(|| ((base - WIN_USERD) / 0x1000) as usize);
         let (start, end) = (ch.get as u64, ch.put as u64);
         let mut methods = 0u32;
         let mut updates = 0u32;
@@ -1195,9 +1310,20 @@ impl Display {
                                     updates += 1;
                                     let a = self.core_assembly.clone();
                                     self.core_armed.extend(a);
+                                    let armed = self.core_armed.clone();
+                                    self.engine.core_update(&armed, engine::now_ns(), fb, mem);
                                 } else {
                                     self.core_assembly.insert(m, data);
                                 }
+                            } else if let Some(w) = window {
+                                if m == 0x200 {
+                                    updates += 1;
+                                    self.engine.window_update(w, engine::now_ns(), fb, mem);
+                                } else {
+                                    self.engine.window_method(w, m, data);
+                                }
+                            } else if m == 0x200 {
+                                updates += 1;
                             }
                         }
                     }
@@ -1215,7 +1341,7 @@ impl Display {
                 *m >= 0x2000 && ((m - 0x2000) % 0x400) >= 0x64 && ((m - 0x2000) % 0x400) <= 0x70
             })
             .count();
-        let list = if updates > 0 {
+        let list = if updates > 0 && base == CORE_USERD {
             let l: Vec<String> = seen.iter().map(|(m, v)| format!("{m:#x}={v:#x}")).collect();
             format!("; core methods {}", l.join(" "))
         } else {

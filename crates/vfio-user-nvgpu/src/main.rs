@@ -336,6 +336,7 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
         board: a.board_data.display.clone(),
     });
     if a.display {
+        vfio_user_nvgpu::display::set_intr_shared(intr_shared.clone());
         eprintln!("vfio-user-nvgpu: display engine present (fuse 0; board connectors from the board data)");
     }
     if a.boot_model {

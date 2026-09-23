@@ -204,7 +204,8 @@ fn core_channel_update_arms_the_assembly_state() {
     disp.control(d::CMD_INTERNAL_DISPLAY_CHANNEL_PUSHBUFFER, &p);
     disp.alloc(d::NVC57D_CORE_CHANNEL_DMA, &[0; 40]).unwrap();
     disp.core_assembly.insert(0x1080, 0x3);
-    let notes = disp.write32(CORE_USERD, 16, &mem).unwrap();
+    let mut fb = crate::fb::FakeFb::new(1 << 20);
+    let notes = disp.write32(CORE_USERD, 16, &mem, &mut fb).unwrap();
     assert!(notes[0].contains("2 method(s), 1 UPDATE(s)"), "{notes:?}");
     assert_eq!(disp.read32(CORE_USERD + 4), Some(16));
     assert_eq!(disp.read32(CORE_ARMED + 0x1080), Some(0));

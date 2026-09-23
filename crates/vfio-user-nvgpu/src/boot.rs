@@ -110,7 +110,11 @@ impl BootModel {
             mmu_invalidate: (0, 0, 0),
             bar2_block: 0,
             bar_faults: 0,
-            intr: IntrTree::new(r.intr_tree, r.intr_tree_size),
+            // The display raises its vector from its clock thread (display/engine.rs).
+            intr: match crate::display::intr_shared() {
+                Some(s) => IntrTree::new(r.intr_tree, r.intr_tree_size).with_shared(s),
+                None => IntrTree::new(r.intr_tree, r.intr_tree_size),
+            },
             vf: crate::uvm::VfRegs::new(d),
             exec: None,
         }
@@ -141,6 +145,17 @@ impl BootModel {
         Ok(self)
     }
 
+    /// A BAR0 read of the display (display/mod.rs), which may advance its clock and
+    /// write notifiers into the FB or guest memory.
+    pub fn display_read32(&mut self, off: u64, mem: &GuestMemory) -> Option<u32> {
+        self.ctrl.display.read32_io(off, &mut self.fb, mem)
+    }
+
+    /// A BAR0 write to the display (display/mod.rs).
+    pub fn display_write32(&mut self, off: u64, v: u32, mem: &GuestMemory) -> Option<Vec<String>> {
+        self.ctrl.display.write32(off, v, mem, &mut self.fb)
+    }
+
     /// True once when the interrupt tree asserted; the device then signals MSI.
     pub fn take_msi(&mut self) -> bool {
         self.intr.take_msi()
@@ -157,6 +172,9 @@ impl BootModel {
         }
         if let Some(m) = &self.ctrl.mirror {
             s.push(m.summary());
+        }
+        if self.ctrl.display.enabled {
+            s.push(self.ctrl.display.engine.summary());
         }
         s
     }

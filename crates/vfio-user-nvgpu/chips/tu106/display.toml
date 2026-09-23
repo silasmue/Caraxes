@@ -27,6 +27,9 @@ vga_workspace_base = 0
 # The display interrupt vector in leaf 4 (vectors 128-159, intr_tu102.c:1191-1212); it
 # appears in chips/tu106/interrupts.toml as MC_ENGINE_IDX_DISP.
 intr_vector = 156
+# Per-head pixel clock cap: the NVKMS HEAD_CLK_CAP workaround value 0x85 (133) in
+# 10 MHz units (nvkms-evo3.c:5181-5200), used by IS_MODE_POSSIBLE.
+head_clk_cap_khz = 1330000
 
 # The DisplayPort link the GPU side offers (NV0073 DP_GET_CAPS, DFP_GET_INFO, DP_CTRL,
 # DP_GET_LINK_CONFIG) and the sink profile must agree with (dp-sink
