@@ -189,7 +189,7 @@ nor starts anything. The checks:
 
 | Check | Pass condition |
 |---|---|
-| `name` | `-q` Product Name equals `Leandro RTX 2070-4G` (`CARAXES_GATE_NAME`) |
+| `name` | `-q` Product Name equals the name the device presents with the launcher's settings (`tools/caraxes-vm.sh name`, `Leandro RTX 2070-4G` by default; `CARAXES_GATE_NAME` overrides) |
 | `smi-row` | The plain `nvidia-smi` table shows the name and `4096MiB` (`CARAXES_GATE_FB_MIB`) |
 | `total` | FB total is 4096 MiB |
 | `usage` | reserved + used + free equals total within 2 MiB (rounding), and used is at most total |

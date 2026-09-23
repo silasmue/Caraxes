@@ -15,7 +15,7 @@ before any guest software runs and does not depend on rewriting RM replies.
 | `Profile` | `vram.rs:88-104`: `size` (what the VM costs the card), `reservation` (overhead allowance), `fb_length` (guest-visible framebuffer), `vgpu_type` (label), `encoder_capacity` | The three numbers the device needs |
 | Catalogue | `crates/nvrm-abi/src/vgpu.rs` (`Catalogue::derive` :155-189, `profile_for` :210-235, `resolve` :245-263): vGPU-style arithmetic from total FB, usable FB, VMMU segment size and measured overhead; names `<board>-<n>Q` for whole-GiB shares, `<board>-<size>` otherwise | `RTX2070-4Q` means 4 GiB share, fb_length rounded down to whole segments after subtracting overhead |
 | Launcher | `crates/nvrm-client/src/bin/vgpuprofile.rs`: asks the host RM for `GET_VMMU_SEGMENT_SIZE` and `FB_GET_INFO_V2`, derives the catalogue, prints `vgpu_type/vgpu_profile_mib/vgpu_fb_mib/…` for the backend environment | Host-side, unchanged |
-| Guest card name | `vram.rs:1222-1249` `guest_card_name`: `Leandro ` + board without the `NVIDIA `/`GeForce ` prefixes + `-<n>G` or `-<n>M` from `fb_length`; must fit `NV2080_GPU_MAX_NAME_STRING_LENGTH` = 64 | `Leandro RTX 2070-4G` for a 4 GiB fb_length; the `Q` label is the launcher's name, the guest sees the size |
+| Guest card name | `nvrm_abi::naming` (`crates/nvrm-abi/src/naming.rs`, P17), called by v1's `vram.rs` `guest_card_name` and Caraxes' `rpc.rs` `StaticIdentity`: `Leandro ` + personality (board without the `NVIDIA `/`GeForce ` prefixes) + `-<n>G` or `-<n>M` from `fb_length`; must fit `NV2080_GPU_MAX_NAME_STRING_LENGTH` = 64 | `Leandro RTX 2070-4G` for a 4 GiB fb_length; the `Q` label is the launcher's name, the guest sees the size |
 | Encoder share | `vgpu.rs:120-125` | percentage of the card, reported to the guest |
 
 Leandro v1 applies this by rewriting selected control replies after the fact
@@ -32,7 +32,7 @@ sources, all of which the synthetic device provides. Routing flags below come fr
 |---|---|---|---|
 | PCI identity (`lspci`, `NV2080_CTRL_CMD_BUS_GET_PCI_INFO`, kernel-served) | config space via BAR0 mirror 0x88000 and real config cycles | vendor `10de`, device `1f02` (TU106 so pci.ids says "TU106 [GeForce RTX 2070]"); subsystem ids free to choose, for example a Leandro-specific subsystem id, as long as `rm_is_legacy_device` does not match | none |
 | Chip identity (`GET_ARCH_INFO`, kernel-served) | `NV_PMC_BOOT_0/42` | TU106 values ([registers-turing.md](registers-turing.md)) | none |
-| Card name (`GET_NAME_STRING` 0x20800110, `GET_SHORT_NAME_STRING`, both kernel-served, `gpuGetNameString_FWCLIENT`, `gpu_gspclient.c:288-315`) | `GspStaticConfigInfo.gpuNameString[64]`, `gpuShortNameString[64]` (`gsp_static_config.h`) | `guest_card_name(...)` output, e.g. `Leandro RTX 2070-4G`; short name `Leandro RTX 2070` | `rewrite_gpu_name` |
+| Card name (`GET_NAME_STRING` 0x20800110, `GET_SHORT_NAME_STRING`, both kernel-served, `gpuGetNameString_FWCLIENT`, `gpu_gspclient.c:288-315`) | `GspStaticConfigInfo.gpuNameString[64]`, `gpuShortNameString[64]` (`gsp_static_config.h`) | `nvrm_abi::naming` output, e.g. `Leandro RTX 2070-4G`; short name the chip's (`TU106`) | `rewrite_gpu_name` |
 | FB size (`FB_GET_INFO_V2` 0x20801303, kernel-served, `kern_mem_sys_ctrl.c:1018`; `TOTAL_RAM_SIZE` from `Ram.fbTotalMemSizeMb`, `HEAP_SIZE`/`HEAP_FREE` from the guest's own PMA) | `GspStaticConfigInfo.fb_length` and `fbRegionInfoParams` (`mem_mgr_gsp_client.c:59-123`), plus the pre-boot register `NV_PFB_PRI_MMU_LOCAL_MEMORY_RANGE` 0x100CE0 used for the WPR layout | `fb_length` = profile `fb_length` (4 GiB), one usable region `[0, fb_length)` minus whatever reserved region the WPR layout needs at the top; 0x100CE0 encoding the same size | `rewrite_fb_info`, `rewrite_fb_info_list`, VID_HEAP INFO rewrite, and the allocation-time ledger cap for VIDMEM (the guest cannot allocate past its own FB) |
 | GPU UUID (`GET_GID_INFO`, kernel-served) | `GspStaticConfigInfo.gidInfo` | Leandro's per-VM UUID (`grid.rs:82-116` `vm_uuid(name_from_socket)`) | the UUID swap in `grid.rs:117-148` for the guest-visible side; the host-side swap remains for forwarded calls |
 | Encoder capacity (`GET_ENCODER_CAPACITY` 0x2080016c, kernel-served, `subdevice_ctrl_gpu_kernel.c:974`) | kernel RM state, filled from GSP-side info | check what the kernel implementation reads (open question 21) | `rewrite_encoder_capacity` |
@@ -64,4 +64,38 @@ static configuration; nothing has to be patched on the way back from the host.
    `LEA_VRAM_*`) and the launcher tool stay as they are; the Caraxes device reads the
    same variables through `vram::profile_from_env` (currently private; export it or
    move `decide` into `nvrm-abi::vgpu`).
-3. Keep `guest_card_name` as the single naming rule so v1 and v2 guests are named alike.
+3. Keep one naming rule so v1 and v2 guests are named alike: since P17 that rule is
+   `nvrm_abi::naming` (below), and both devices call it.
+
+## The naming model (P17)
+
+The guest-visible name is generated from a `VirtualGpuSpec { transport, personality,
+profile, backend }` in `crates/nvrm-abi/src/naming.rs`; nothing else spells a complete
+name. The fields and where each device takes them from:
+
+| Field | Values | v1 (`vhost-user-nvrm`) | Caraxes (`vfio-user-nvgpu`) |
+|---|---|---|---|
+| platform | always `Leandro` | constant | constant |
+| transport | `VirtIO`, `VFIO` | `VirtIO` | `VFIO` |
+| personality | `RTX 2070`, `A100`, ... | the host card's driver name without `NVIDIA `/`GeForce ` | the board data's `name` (`boards/rtx2070.toml`), or `--board` |
+| profile | the guest framebuffer size, `4G`, `3G`, `1333M` | `fb_length` of the policy (`LEA_VGPU_TYPE`, `LEA_VRAM_PROFILE_MIB`, `LEA_VRAM_LIMIT_MIB`); none without a cap | `--fb-mib`, `--profile <size>`, `LEA_VRAM_PROFILE_MIB`, default 4096 |
+| backend | `OpenRM`, `nova-core`, ... | never in the name | never in the name |
+
+Two formats exist. The default, `legacy`, is `Leandro <Personality>-<Profile>`
+(`Leandro RTX 2070-4G`), exactly the string both devices emitted before P17 and the one
+the v1 gates in `../Leandro-Test` and `tools/caraxes-gate.sh` compare. The format
+`transport` adds the transport word, `Leandro <Transport> <Personality>-<Profile>`
+(`Leandro VFIO RTX 2070-4G`, `Leandro VirtIO RTX 2070-4G`). It is opt-in until the gates
+accept it: `LEA_GPU_NAME_FORMAT=transport` for either device, `--name-format transport`
+for `vfio-user-nvgpu`, `CARAXES_NAME_FORMAT=transport` for `tools/caraxes-vm.sh`. The
+Caraxes GID stays seeded by the legacy name, so the format does not change the UUID.
+
+Profiles are sizes. A vGPU-style type (`4Q`, `RTX2070-4Q`) names what the VM costs the
+card; the launcher resolves it through the card's catalogue to a guest framebuffer, and
+the name carries that size (`RTX2070-4Q` with 3072 MiB guest FB gives `-3G`). Sizes are
+accepted as `4G`, `4GiB`, `1333M`, `1333MiB`, a bare MiB count or board-prefixed
+(`RTX2070-130M`); `--profile 4Q` is refused with a pointer to `vgpuprofile`.
+
+`tools/caraxes-vm.sh name` prints the name the device presents with the current settings
+(`vfio-user-nvgpu --print-name`), and the nvml gate takes its expectation from there
+unless `CARAXES_GATE_NAME` is set.
