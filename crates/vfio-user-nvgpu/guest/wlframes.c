@@ -192,12 +192,23 @@ int main(int argc, char **argv)
 		;
 	stride = size * 4;
 	fd = memfd_create("wlframes", 0);
-	ftruncate(fd, stride * size);
+	if (ftruncate(fd, stride * size))
+		return 2;
 	pix = mmap(0, stride * size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
 	memset(pix, 0x80, stride * size);
 	pool = wl_shm_create_pool(shm, fd, stride * size);
 	buf = wl_shm_pool_create_buffer(pool, 0, size, size, stride, WL_SHM_FORMAT_XRGB8888);
 	draw();
+	/* The measurement starts at the first frame callback: under a CPU renderer the
+	 * first full-screen repaint (the toplevel being mapped) takes as long as BAR1
+	 * needs for the whole scanout buffer. WLFRAMES_WAIT caps that wait (s). */
+	{
+		double wait = getenv("WLFRAMES_WAIT") ? atof(getenv("WLFRAMES_WAIT")) : 300;
+		double t0 = mono();
+		while (!frames && mono() < t0 + wait && wl_display_dispatch(dpy) >= 0)
+			;
+		printf("first frame callback after %.1f s\n", mono() - t0);
+	}
 	t_end = mono() + secs;
 	while (mono() < t_end && wl_display_dispatch(dpy) >= 0)
 		;

@@ -15,5 +15,6 @@ wayland-scanner client-header $P/stable/presentation-time/presentation-time.xml 
 wayland-scanner private-code $P/stable/presentation-time/presentation-time.xml presentation-time-protocol.c
 cc -O2 -Wall -I. -o wlframes wlframes.c xdg-shell-protocol.c presentation-time-protocol.c -lwayland-client -lm
 cc -O2 -o kmsflip kmsflip.c -lm
+cc -O2 -o kmsgrab kmsgrab.c
 sync
-echo built wlframes kmsflip
+echo built wlframes kmsflip kmsgrab
