@@ -126,6 +126,12 @@ pub struct Ticker {
     vector: AtomicU32,
     intr: Mutex<Option<Arc<IntrShared>>>,
     thread: Mutex<Option<std::thread::Thread>>,
+    /// Host-side connector commands (phase D): a file the ticker polls, the command
+    /// read from it, and the vector that makes the guest read the GSP queue.
+    control: Mutex<Option<std::path::PathBuf>>,
+    command: Mutex<Option<String>>,
+    command_pending: AtomicBool,
+    gsp_vector: AtomicU32,
     /// Vectors the ticker raised, and MSIs written for them.
     pub raised: AtomicU64,
     pub msis: AtomicU64,
@@ -151,6 +157,44 @@ impl Ticker {
                 .expect("spawn the display ticker");
             *t = Some(h.thread().clone());
         }
+    }
+
+    /// Poll `path` for connector commands (`edid-alt`, `edid-main`, `unplug`, `plug`);
+    /// `gsp_vector` is raised so that the guest services the GSP queue.
+    pub fn set_control(&self, path: std::path::PathBuf, gsp_vector: u32) {
+        let _ = std::fs::remove_file(&path);
+        *self.control.lock().unwrap() = Some(path);
+        self.gsp_vector.store(gsp_vector, Ordering::Relaxed);
+    }
+
+    /// Whether a connector command waits for the server thread (cheap).
+    pub fn command_pending(&self) -> bool {
+        self.command_pending.load(Ordering::Acquire)
+    }
+
+    pub fn take_command(&self) -> Option<String> {
+        self.command_pending.store(false, Ordering::Release);
+        self.command.lock().unwrap().take()
+    }
+
+    /// Raise the GSP vector (the device posted an event on the status queue).
+    pub fn raise_gsp(&self) -> bool {
+        self.intr()
+            .is_some_and(|i| i.raise(self.gsp_vector.load(Ordering::Relaxed)))
+    }
+
+    fn poll_control(&self) {
+        let path = self.control.lock().unwrap().clone();
+        let Some(path) = path else { return };
+        let Ok(text) = std::fs::read_to_string(&path) else {
+            return;
+        };
+        let _ = std::fs::remove_file(&path);
+        *self.command.lock().unwrap() = Some(text);
+        self.command_pending.store(true, Ordering::Release);
+        // Any register read of the guest makes the server thread act on it; the display
+        // vector gets the guest's attention even when nothing else runs.
+        self.raise();
     }
 
     pub fn intr(&self) -> Option<Arc<IntrShared>> {
@@ -191,8 +235,13 @@ impl Ticker {
 
     fn run(&self) {
         let mut last = [u64::MAX; MAX_HEADS];
+        let mut polled = 0u64;
         loop {
             let now = now_ns();
+            if now >= polled + 100_000_000 {
+                polled = now;
+                self.poll_control();
+            }
             let mut next: Option<u64> = None;
             let mut fire = false;
             for (h, t) in self.heads.iter().enumerate() {

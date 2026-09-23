@@ -1,0 +1,25 @@
+# SPDX-License-Identifier: MIT
+cp: warning: behavior of -n is non-portable and may change in future; use --update=none instead
+cp: warning: behavior of -n is non-portable and may change in future; use --update=none instead
+Synchronizing state of gdm3.service with SysV service script with /usr/lib/systemd/systemd-sysv-install.
+Executing: /usr/lib/systemd/systemd-sysv-install enable gdm3
+The unit files have no installation config (WantedBy=, RequiredBy=, UpheldBy=,
+Also=, or Alias= settings in the [Install] section, and DefaultInstance= for
+template units). This means they are not meant to be enabled or disabled using systemctl.
+ 
+Possible reasons for having these kinds of units are:
+• A unit may be statically enabled by being symlinked from another unit's
+  .wants/, .requires/, or .upholds/ directory.
+• A unit's purpose may be to act as a helper for some other unit which has
+  a requirement dependency on it.
+• A unit may be started when needed via activation (socket, path, timer,
+  D-Bus, udev, scripted systemctl call, ...).
+• In case of template units, the unit is meant to be enabled with some
+  instance name specified.
+multi-user.target
+[daemon]
+AutomaticLoginEnable=true
+AutomaticLogin=leandro
+WaylandEnable=true
+undo: cp /etc/gdm3/custom.conf.caraxes-orig /etc/gdm3/custom.conf; cp /etc/environment.caraxes-orig /etc/environment; rm /etc/udev/rules.d/61-gdm.rules; systemctl disable gdm3
+exit=0

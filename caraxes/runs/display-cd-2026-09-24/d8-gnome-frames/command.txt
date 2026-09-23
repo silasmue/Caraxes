@@ -1,0 +1,3 @@
+# SPDX-License-Identifier: MIT
+# 2026-09-24T01:25:12+02:00 VM=vm0 guest command (timeout 400s):
+sudo modetest -M nvidia-drm -p 2>/dev/null | grep -B2 -A3 -E "GAMMA_LUT|CTM" | grep -E "^[0-9]|GAMMA_LUT|value" | head -20; cd cx; sudo -u leandro env XDG_RUNTIME_DIR=/run/user/1000 WAYLAND_DISPLAY=wayland-0 WLFRAMES_WAIT=200 timeout 300 ./wlframes 20 64 8; journalctl --no-pager --since "-5min" | grep -ci "page flip failed"

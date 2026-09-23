@@ -337,6 +337,11 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
     });
     if a.display {
         vfio_user_nvgpu::display::set_intr_shared(intr_shared.clone());
+        // Connector commands for the display (hotplug with a new EDID, unplug, plug):
+        // `echo edid-alt > <state dir>/display-ctl` (docs/caraxes/display-cd.md).
+        if let Some(dir) = socket.parent() {
+            vfio_user_nvgpu::display::set_control_file(dir.join("display-ctl"));
+        }
         eprintln!("vfio-user-nvgpu: display engine present (fuse 0; board connectors from the board data)");
     }
     if a.boot_model {

@@ -1,0 +1,22 @@
+# SPDX-License-Identifier: MIT
+# events of the device trace (full window: /mnt/vmstore/caraxes/vm0/display-cd/d8-gnome-frames/device-trace-full.txt)
+  2869184756 E boot: mmu invalidate: pdb 0xf7552000 flags 0xc1 (no mirror VA space rooted there; nothing cached here)
+  2869185276 E boot: display channel 0xc57e/6 kick 19: PUT 0x7a0, 57 method(s), 1 UPDATE(s), 0 raster method(s); GET := PUT [guest]
+  2869185285 E boot: display: head 3 15597 ticks, 59.984 Hz over the last 2405 (40.094 s) [clock]
+  2869189276 E boot: display: window 6 latch 13305 at tick 15598: surface fb 0xa00000 1920x1080 format 0xe6 pitch pitch 120 (block height 2^0), notifier sys 0x10c6b6010 awaken, acquire none, release none [guest]
+  2869194237 E boot: mmu invalidate: pdb 0xf7601000 flags 0x5 (no mirror VA space rooted there; nothing cached here)
+  2869195052 E boot: mmu invalidate: pdb 0xf7600000 flags 0x5 (no mirror VA space rooted there; nothing cached here)
+  2869197792 E boot: mmu invalidate: pdb 0xf7600000 flags 0x5 (no mirror VA space rooted there; nothing cached here)
+  2869200440 E boot: mmu invalidate: pdb 0xf7600000 flags 0x5 (no mirror VA space rooted there; nothing cached here)
+  2869203170 E boot: mmu invalidate: pdb 0xf7600000 flags 0x5 (no mirror VA space rooted there; nothing cached here)
+  2869205802 E boot: mmu invalidate: pdb 0xf7601000 flags 0xc5 (no mirror VA space rooted there; nothing cached here)
+  2905274732 E boot: mmu invalidate: pdb 0xf7552000 flags 0xc1 (no mirror VA space rooted there; nothing cached here)
+  2905280771 E boot: mmu invalidate: pdb 0xf7552000 flags 0xc1 (no mirror VA space rooted there; nothing cached here)
+  2905282912 E boot: display channel 0xc57e/6 kick 20: PUT 0x964, 57 method(s), 1 UPDATE(s), 0 raster method(s); GET := PUT [guest]
+  2905282914 E boot: display: head 3 17763 ticks, 60.004 Hz over the last 2166 (36.098 s) [clock]
+  2905289117 E boot: display: window 6 latch 13306 at tick 17764: surface fb 0x1200000 1920x1080 format 0xe6 pitch pitch 120 (block height 2^0), notifier sys 0x10c6b6000 awaken, acquire none, release none [guest]
+  2905302507 E boot: mmu invalidate: pdb 0xf7552000 flags 0xc1 (no mirror VA space rooted there; nothing cached here)
+  2937258905 E boot: mmu invalidate: pdb 0xf7552000 flags 0xc1 (no mirror VA space rooted there; nothing cached here)
+  2937259561 E boot: display channel 0xc57e/6 kick 21: PUT 0xb28, 57 method(s), 1 UPDATE(s), 0 raster method(s); GET := PUT [guest]
+  2937259562 E boot: display: head 3 19682 ticks, 60.012 Hz over the last 1919 (31.977 s) [clock]
+  2937274677 E boot: display: window 6 latch 13307 at tick 19683: surface fb 0x200000 1920x1080 format 0xe6 pitch pitch 120 (block height 2^0), notifier sys 0x10c6b6010 awaken, acquire none, release none [guest]

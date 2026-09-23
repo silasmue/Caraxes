@@ -1,0 +1,89 @@
+# SPDX-License-Identifier: MIT
+== sessions
+94 1000 leandro -     -    active no -
+95 1000 leandro seat0 tty2 active no -
+== processes
+   7141     240 gdm3
+   7157     239 gdm-session-wor
+   7170     239 gdm-x-session
+   7402     209 gnome-shell
+   7446     208 mutter-x11-fram
+   7450     208 colord
+   7507     203 gnome-shell-cal
+   7579     203 gsd-color
+== session type
+Name=leandro
+Type=tty
+Class=user
+State=active
+Name=leandro
+Type=x11
+Class=user
+State=active
+== kms
+GRAB crtc 61 fb 130 1920x1080 format XR24 modifier 0x0 pitch 7680 handle 1 mode 1920x1080@60
+== gnome-shell / mutter log (errors, KMS, flips, gamma)
+[ 1475.443757] caraxes-vm0 /usr/libexec/gdm-x-session[7211]: Errors from xkbcomp are not fatal to the X server
+[ 1475.461016] caraxes-vm0 /usr/libexec/gdm-x-session[7172]: (**) Option "xkb_model" "pc105"
+[ 1500.381975] caraxes-vm0 /usr/libexec/gdm-x-session[7172]: (II) modeset(0): Disabling kernel dirty updates, not required.
+[ 1503.928679] caraxes-vm0 /usr/libexec/gdm-x-session[7172]: (II) modeset(0): EDID vendor "CRX", prod id 2
+[ 1503.929076] caraxes-vm0 /usr/libexec/gdm-x-session[7172]: (II) modeset(0): Printing DDC gathered Modelines:
+[ 1503.929076] caraxes-vm0 /usr/libexec/gdm-x-session[7172]: (II) modeset(0): Modeline "1920x1080"x0.0  148.50  1920 2008 2052 2200  1080 1084 1089 1125 +hsync +vsync (67.5 kHz eP)
+[ 1503.929076] caraxes-vm0 /usr/libexec/gdm-x-session[7172]: (II) modeset(0): Modeline "1280x720"x0.0   74.25  1280 1390 1430 1650  720 725 730 750 +hsync +vsync (45.0 kHz e)
+[ 1503.929076] caraxes-vm0 /usr/libexec/gdm-x-session[7172]: (II) modeset(0): Modeline "1920x1080"x0.0  148.50  1920 2448 2492 2640  1080 1084 1089 1125 +hsync +vsync (56.2 kHz e)
+[ 1503.929076] caraxes-vm0 /usr/libexec/gdm-x-session[7172]: (II) modeset(0): Modeline "640x480"x0.0   25.18  640 656 752 800  480 490 492 525 -hsync -vsync (31.5 kHz e)
+[ 1509.150558] caraxes-vm0 gnome-shell[7402]: Will monitor session 95
+[ 1509.454527] caraxes-vm0 /usr/libexec/gdm-x-session[7513]: > Warning:          Could not resolve keysym XF86CameraAccessEnable
+[ 1509.454527] caraxes-vm0 /usr/libexec/gdm-x-session[7513]: > Warning:          Could not resolve keysym XF86CameraAccessDisable
+[ 1509.454527] caraxes-vm0 /usr/libexec/gdm-x-session[7513]: > Warning:          Could not resolve keysym XF86CameraAccessToggle
+[ 1509.454527] caraxes-vm0 /usr/libexec/gdm-x-session[7513]: > Warning:          Could not resolve keysym XF86NextElement
+[ 1509.454527] caraxes-vm0 /usr/libexec/gdm-x-session[7513]: > Warning:          Could not resolve keysym XF86PreviousElement
+[ 1509.454527] caraxes-vm0 /usr/libexec/gdm-x-session[7513]: > Warning:          Could not resolve keysym XF86AutopilotEngageToggle
+[ 1509.454527] caraxes-vm0 /usr/libexec/gdm-x-session[7513]: > Warning:          Could not resolve keysym XF86MarkWaypoint
+[ 1509.454527] caraxes-vm0 /usr/libexec/gdm-x-session[7513]: > Warning:          Could not resolve keysym XF86Sos
+[ 1509.454527] caraxes-vm0 /usr/libexec/gdm-x-session[7513]: > Warning:          Could not resolve keysym XF86NavChart
+[ 1509.454527] caraxes-vm0 /usr/libexec/gdm-x-session[7513]: > Warning:          Could not resolve keysym XF86FishingChart
+[ 1509.454527] caraxes-vm0 /usr/libexec/gdm-x-session[7513]: > Warning:          Could not resolve keysym XF86SingleRangeRadar
+[ 1509.455134] caraxes-vm0 /usr/libexec/gdm-x-session[7513]: > Warning:          Could not resolve keysym XF86DualRangeRadar
+[ 1509.455134] caraxes-vm0 /usr/libexec/gdm-x-session[7513]: > Warning:          Could not resolve keysym XF86RadarOverlay
+[ 1509.455134] caraxes-vm0 /usr/libexec/gdm-x-session[7513]: > Warning:          Could not resolve keysym XF86TraditionalSonar
+[ 1509.455134] caraxes-vm0 /usr/libexec/gdm-x-session[7513]: > Warning:          Could not resolve keysym XF86ClearvuSonar
+[ 1509.455134] caraxes-vm0 /usr/libexec/gdm-x-session[7513]: > Warning:          Could not resolve keysym XF86SidevuSonar
+[ 1509.455134] caraxes-vm0 /usr/libexec/gdm-x-session[7513]: > Warning:          Could not resolve keysym XF86NavInfo
+[ 1509.455595] caraxes-vm0 /usr/libexec/gdm-x-session[7513]: Errors from xkbcomp are not fatal to the X server
+[ 1509.458619] caraxes-vm0 dbus-daemon[7023]: [session uid=1000 pid=7023] Activating via systemd: service name='org.gnome.evolution.dataserver.Sources5' unit='evolution-source-registry.service' requested by ':1.42' (uid=1000 pid=7507 comm="/usr/libexec/gnome-shell-calendar-server" label="unconfined")
+[ 1509.653328] caraxes-vm0 dbus-daemon[7023]: [session uid=1000 pid=7023] Activating via systemd: service name='org.gtk.vfs.UDisks2VolumeMonitor' unit='gvfs-udisks2-volume-monitor.service' requested by ':1.36' (uid=1000 pid=7402 comm="/usr/bin/gnome-shell" label="unconfined")
+[ 1509.774751] caraxes-vm0 dbus-daemon[7023]: [session uid=1000 pid=7023] Activating via systemd: service name='org.gnome.evolution.dataserver.Calendar8' unit='evolution-calendar-factory.service' requested by ':1.42' (uid=1000 pid=7507 comm="/usr/libexec/gnome-shell-calendar-server" label="unconfined")
+[ 1510.241869] caraxes-vm0 dbus-daemon[7023]: [session uid=1000 pid=7023] Activating via systemd: service name='org.gtk.vfs.GoaVolumeMonitor' unit='gvfs-goa-volume-monitor.service' requested by ':1.36' (uid=1000 pid=7402 comm="/usr/bin/gnome-shell" label="unconfined")
+[ 1510.275062] caraxes-vm0 dbus-daemon[7023]: [session uid=1000 pid=7023] Activating via systemd: service name='org.gtk.vfs.MTPVolumeMonitor' unit='gvfs-mtp-volume-monitor.service' requested by ':1.36' (uid=1000 pid=7402 comm="/usr/bin/gnome-shell" label="unconfined")
+[ 1510.319229] caraxes-vm0 dbus-daemon[7023]: [session uid=1000 pid=7023] Activating via systemd: service name='org.gtk.vfs.GPhoto2VolumeMonitor' unit='gvfs-gphoto2-volume-monitor.service' requested by ':1.36' (uid=1000 pid=7402 comm="/usr/bin/gnome-shell" label="unconfined")
+[ 1510.343930] caraxes-vm0 dbus-daemon[7023]: [session uid=1000 pid=7023] Activating via systemd: service name='org.gtk.vfs.AfcVolumeMonitor' unit='gvfs-afc-volume-monitor.service' requested by ':1.36' (uid=1000 pid=7402 comm="/usr/bin/gnome-shell" label="unconfined")
+[ 1510.465440] caraxes-vm0 gnome-shell[7402]: Error looking up permission: GDBus.Error:org.freedesktop.portal.Error.NotFound: No entry for geolocation
+[ 1512.999521] caraxes-vm0 gnome-shell[7402]: Failed to import DBusMenu, quicklists are not available: Error: Requiring Dbusmenu, version none: Typelib file for namespace 'Dbusmenu' (any version) not found
+[ 1512.999955] caraxes-vm0 gnome-shell[7402]: Failed to import DBusMenu, quicklists are not available: Error: Requiring Dbusmenu, version none: Typelib file for namespace 'Dbusmenu' (any version) not found
+[ 1513.000036] caraxes-vm0 gnome-shell[7402]: Failed to import DBusMenu, quicklists are not available: Error: Requiring Dbusmenu, version none: Typelib file for namespace 'Dbusmenu' (any version) not found
+[ 1513.200452] caraxes-vm0 gnome-shell[7402]: Window manager warning: Overwriting existing binding of keysym 34 with keysym 34 (keycode d).
+[ 1513.200452] caraxes-vm0 gnome-shell[7402]: Window manager warning: Overwriting existing binding of keysym 34 with keysym 34 (keycode d).
+[ 1513.200591] caraxes-vm0 gnome-shell[7402]: Window manager warning: Overwriting existing binding of keysym 39 with keysym 39 (keycode 12).
+[ 1513.200591] caraxes-vm0 gnome-shell[7402]: Window manager warning: Overwriting existing binding of keysym 39 with keysym 39 (keycode 12).
+[ 1513.200653] caraxes-vm0 gnome-shell[7402]: Window manager warning: Overwriting existing binding of keysym 37 with keysym 37 (keycode 10).
+[ 1513.200653] caraxes-vm0 gnome-shell[7402]: Window manager warning: Overwriting existing binding of keysym 32 with keysym 32 (keycode b).
+[ 1513.200716] caraxes-vm0 gnome-shell[7402]: Window manager warning: Overwriting existing binding of keysym 36 with keysym 36 (keycode f).
+[ 1513.200716] caraxes-vm0 gnome-shell[7402]: Window manager warning: Overwriting existing binding of keysym 31 with keysym 31 (keycode a).
+[ 1513.200716] caraxes-vm0 gnome-shell[7402]: Window manager warning: Overwriting existing binding of keysym 36 with keysym 36 (keycode f).
+[ 1513.200790] caraxes-vm0 gnome-shell[7402]: Window manager warning: Overwriting existing binding of keysym 31 with keysym 31 (keycode a).
+[ 1513.200790] caraxes-vm0 gnome-shell[7402]: Window manager warning: Overwriting existing binding of keysym 35 with keysym 35 (keycode e).
+[ 1513.200790] caraxes-vm0 gnome-shell[7402]: Window manager warning: Overwriting existing binding of keysym 37 with keysym 37 (keycode 10).
+[ 1513.200865] caraxes-vm0 gnome-shell[7402]: Window manager warning: Overwriting existing binding of keysym 38 with keysym 38 (keycode 11).
+[ 1513.200865] caraxes-vm0 gnome-shell[7402]: Window manager warning: Overwriting existing binding of keysym 38 with keysym 38 (keycode 11).
+[ 1513.200923] caraxes-vm0 gnome-shell[7402]: Window manager warning: Overwriting existing binding of keysym 32 with keysym 32 (keycode b).
+[ 1513.200923] caraxes-vm0 gnome-shell[7402]: Window manager warning: Overwriting existing binding of keysym 33 with keysym 33 (keycode c).
+[ 1513.200923] caraxes-vm0 gnome-shell[7402]: Window manager warning: Overwriting existing binding of keysym 35 with keysym 35 (keycode e).
+[ 1513.200923] caraxes-vm0 gnome-shell[7402]: Window manager warning: Overwriting existing binding of keysym 33 with keysym 33 (keycode c).
+[ 1540.621394] caraxes-vm0 gnome-shell[7402]: Window manager warning: Buggy client sent a _NET_ACTIVE_WINDOW message with a timestamp of 0 for 0x1e00004
+[ 1540.626463] caraxes-vm0 gnome-shell[7402]: Window manager warning: Buggy client sent a _NET_ACTIVE_WINDOW message with a timestamp of 0 for 0x1e00004
+[ 1540.692495] caraxes-vm0 gnome-shell[7402]: DING: (gjs:8065): Gjs-WARNING **: 23:03:27.804: GLib.unix_signal_add has been moved to a separate platform-specific library. Please update your code to use GLibUnix.signal_add instead.
+== counts
+page_flip_failed=0
+== dmesg
+exit=0

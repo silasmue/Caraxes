@@ -78,7 +78,21 @@ pub struct BootModel {
     /// reservation backs the FB, and the vectors the event thread raises. Kept across
     /// a reset, which rebuilds the store and the mirror.
     exec: Option<(Arc<Mutex<HostMemory>>, Arc<IntrShared>)>,
+    /// GSP IRQSTAT.SWGEN0 raised for an event the device posted unasked (display hotplug).
+    gsp_swgen0: bool,
 }
+
+// The GSP falcon's interrupt registers (turing/tu102/dev_falcon_v4.h at NV_PGSP 0x110000,
+// dev_riscv_pri.h at NV_FALCON2_GSP_BASE 0x111000) and the SWGEN0 bit.
+const GSP_IRQSCLR: u64 = 0x0011_0004;
+const GSP_IRQSTAT: u64 = 0x0011_0008;
+const GSP_IRQMASK: u64 = 0x0011_0018;
+const GSP_IRQDEST: u64 = 0x0011_001C;
+const GSP_RISCV_IRQMASK: u64 = 0x0011_12B4;
+const GSP_RISCV_IRQDEST: u64 = 0x0011_12B8;
+const GSP_SWGEN0: u32 = 1 << 6;
+/// `NV_VGPU_MSG_EVENT_POST_EVENT` (rpc_global_enums.h).
+const POST_EVENT: u32 = 0x1003;
 
 impl BootModel {
     /// The model for `layout`: the firmware boot reports its address space as the FB
@@ -117,6 +131,7 @@ impl BootModel {
             },
             vf: crate::uvm::VfRegs::new(d),
             exec: None,
+            gsp_swgen0: false,
         }
     }
 
@@ -146,14 +161,82 @@ impl BootModel {
     }
 
     /// A BAR0 read of the display (display/mod.rs), which may advance its clock and
-    /// write notifiers into the FB or guest memory.
+    /// write notifiers into the FB or guest memory. A pending connector command is acted
+    /// on first: its POST_EVENTs go on the status queue and GSP IRQSTAT.SWGEN0 rises, as
+    /// the GSP raises it for any message it sends unasked (kgspService_TU102).
     pub fn display_read32(&mut self, off: u64, mem: &GuestMemory) -> Option<u32> {
+        if !self.ctrl.display.enabled {
+            // Headless: the display model still answers the fuse (display absent).
+            return self.ctrl.display.read32_io(off, &mut self.fb, mem);
+        }
+        if crate::display::engine::ticker().command_pending() {
+            self.post_display_command(mem);
+        }
+        // GSP falcon IRQSTAT / IRQMASK / IRQDEST and the RISC-V IRQMASK / IRQDEST: SWGEN0
+        // (bit 6) is routed to the host; IRQSTAT carries it while an event is unread.
+        match off {
+            GSP_IRQSTAT => {
+                let v = self.read32(off).unwrap_or(0);
+                return Some(v | if self.gsp_swgen0 { GSP_SWGEN0 } else { 0 });
+            }
+            GSP_IRQMASK | GSP_IRQDEST | GSP_RISCV_IRQMASK | GSP_RISCV_IRQDEST => {
+                return Some(self.read32(off).unwrap_or(0) | GSP_SWGEN0);
+            }
+            _ => {}
+        }
         self.ctrl.display.read32_io(off, &mut self.fb, mem)
     }
 
     /// A BAR0 write to the display (display/mod.rs).
     pub fn display_write32(&mut self, off: u64, v: u32, mem: &GuestMemory) -> Option<Vec<String>> {
+        if off == GSP_IRQSCLR && v & GSP_SWGEN0 != 0 {
+            // The kernel clears SWGEN0 before it reads the queue; the falcon model sees
+            // the write too.
+            self.gsp_swgen0 = false;
+            return None;
+        }
         self.ctrl.display.write32(off, v, mem, &mut self.fb)
+    }
+
+    /// Act on a host-side connector command (display/mod.rs `connector_command`): post
+    /// one `POST_EVENT` (0x1003, `rpc_post_event_v17_00`) per registered hotplug event.
+    fn post_display_command(&mut self, mem: &GuestMemory) {
+        let Some(cmd) = crate::display::engine::ticker().take_command() else {
+            return;
+        };
+        let events = self.ctrl.display.connector_command(&cmd);
+        let Some(mut queues) = self.queues.take() else {
+            self.ctrl
+                .display
+                .notes
+                .push("display: connector command before the GSP queues exist; no event".into());
+            return;
+        };
+        let mut sent = 0;
+        {
+            let qm = QueueMemory::new(mem, &self.pages);
+            for p in &events {
+                match queues.send(&qm, &RpcHeader::event(POST_EVENT, p.len()), p) {
+                    Ok(seq) => {
+                        sent += 1;
+                        self.ctrl
+                            .display
+                            .notes
+                            .push(format!("display: tx seq {seq} event POST_EVENT HOTPLUG"));
+                    }
+                    Err(e) => self
+                        .ctrl
+                        .display
+                        .notes
+                        .push(format!("display: POST_EVENT: {e}")),
+                }
+            }
+        }
+        self.queues = Some(queues);
+        if sent > 0 {
+            self.gsp_swgen0 = true;
+            crate::display::engine::ticker().raise_gsp();
+        }
     }
 
     /// True once when the interrupt tree asserted; the device then signals MSI.

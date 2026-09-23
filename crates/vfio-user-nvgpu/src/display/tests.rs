@@ -226,3 +226,29 @@ fn tempfile_4k() -> std::fs::File {
     let _ = std::fs::remove_file(&path);
     f
 }
+
+/// Phase D: a hotplug event the guest registered gets one POST_EVENT per connector
+/// command, and the EDID change reaches the sink and the plug mask.
+#[test]
+fn connector_command_posts_hotplug_events() {
+    let mut disp = display();
+    let mut p = vec![0u8; 24];
+    put32(&mut p, 12, NV2080_NOTIFIERS_HOTPLUG);
+    disp.record_event(0xc1d0_0008, 0x1_0003, 0x7E, &p);
+    disp.record_event(0xc1d0_0008, 0x1_0003, 0x7E, &p);
+    put32(&mut p, 12, 7);
+    disp.record_event(0xc1d0_0008, 0x1_0004, 0x7E, &p);
+    assert_eq!(disp.hotplug_events, vec![(0xc1d0_0008, 0x1_0003)]);
+    let ev = disp.connector_command("edid-alt\n");
+    assert_eq!(ev.len(), 1);
+    assert_eq!(get32(&ev[0], 0), 0xc1d0_0008);
+    assert_eq!(get32(&ev[0], 4), 0x1_0003);
+    assert_eq!(get32(&ev[0], 8), NV2080_NOTIFIERS_HOTPLUG);
+    assert_eq!(get32(&ev[0], 12), 0x100);
+    let alt = edid::monitor_edid_alt();
+    assert_eq!(disp.connectors[0].sink.edid(), alt.as_slice());
+    assert_ne!(alt, edid::monitor_edid());
+    assert_eq!(alt[..128].iter().fold(0u8, |a, b| a.wrapping_add(*b)), 0);
+    assert!(disp.connectors[0].pending_plug && disp.connectors[0].sink.is_plugged());
+    assert!(disp.connector_command("bogus").is_empty());
+}

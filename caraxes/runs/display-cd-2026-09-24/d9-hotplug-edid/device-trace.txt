@@ -1,0 +1,724 @@
+# SPDX-License-Identifier: MIT
+# events of the device trace (full window: /mnt/vmstore/caraxes/vm0/display-cd/d9-hotplug-edid/device-trace-full.txt)
+   186208079 E boot: doorbell 371: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186208080 E boot: rx seq 370 GSP_RM_CONTROL (76) sequence 368 length 88 checksum ok: hClient=0xc1d00008 hObject=0x1000d cmd=0x730401 paramsSize=16 rpcFlags=0x0
+   186208082 E boot: ctrl 0x730401: hotplug/unplug state: plug 0x100 unplug 0x0 (cleared) -> status 0x0 [synthesized (dp-sink model behind the connector)]
+   186208083 E boot: tx seq 370 reply GSP_RM_CONTROL sequence 368 result 0x0 length 88
+   186208670 E boot: doorbell 372: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186208672 E boot: rx seq 371 GSP_RM_CONTROL (76) sequence 369 length 128 checksum ok: hClient=0xc1d00008 hObject=0x1000d cmd=0x73028b paramsSize=56 rpcFlags=0x0
+   186208673 E boot: ctrl 0x73028b: or info of 0x100: SOR0 DP_A, chip, static -> status 0x0 [synthesized (board connector table, boards/rtx2070.toml [display])]
+   186208674 E boot: tx seq 371 reply GSP_RM_CONTROL sequence 369 result 0x0 length 128
+   186209265 E boot: doorbell 373: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186209266 E boot: rx seq 372 GSP_RM_CONTROL (76) sequence 370 length 152 checksum ok: hClient=0xc1d00008 hObject=0x1000d cmd=0x731152 paramsSize=80 rpcFlags=0x0
+   186209267 E boot: ctrl 0x731152: assign sor: 0x100 -> SOR0 (single) -> status 0x0 [synthesized (board connector table, boards/rtx2070.toml [display])]
+   186209269 E boot: tx seq 372 reply GSP_RM_CONTROL sequence 370 result 0x0 length 152
+   186209847 E boot: doorbell 374: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186209848 E boot: rx seq 373 GSP_RM_CONTROL (76) sequence 371 length 120 checksum ok: hClient=0xc1d00008 hObject=0x1000d cmd=0x731341 paramsSize=48 rpcFlags=0x1
+   186209849 E boot: ctrl 0x731341: aux 0x100: nr 00e 1 -> ack 1 80 -> status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)]
+   186209851 E boot: tx seq 373 reply GSP_RM_CONTROL sequence 371 result 0x0 length 120
+   186210427 E boot: doorbell 375: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186210429 E boot: rx seq 374 GSP_RM_CONTROL (76) sequence 372 length 120 checksum ok: hClient=0xc1d00008 hObject=0x1000d cmd=0x731341 paramsSize=48 rpcFlags=0x1
+   186210430 E boot: ctrl 0x731341: aux 0x100: nr e000d 1 -> ack 1 00 -> status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)]
+   186210431 E boot: tx seq 374 reply GSP_RM_CONTROL sequence 372 result 0x0 length 120
+   186211039 E boot: doorbell 376: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186211040 E boot: rx seq 375 GSP_RM_CONTROL (76) sequence 373 length 120 checksum ok: hClient=0xc1d00008 hObject=0x1000d cmd=0x731341 paramsSize=48 rpcFlags=0x1
+   186211041 E boot: ctrl 0x731341: aux 0x100: nr e0030 1 -> ack 1 00 -> status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)]
+   186211043 E boot: tx seq 375 reply GSP_RM_CONTROL sequence 373 result 0x0 length 120
+   186211624 E boot: doorbell 377: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186211625 E boot: rx seq 376 GSP_RM_CONTROL (76) sequence 374 length 120 checksum ok: hClient=0xc1d00008 hObject=0x1000d cmd=0x731341 paramsSize=48 rpcFlags=0x1
+   186211626 E boot: ctrl 0x731341: aux 0x100: nw e0030 00 -> ack 1 -> status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)]
+   186211627 E boot: tx seq 376 reply GSP_RM_CONTROL sequence 374 result 0x0 length 120
+   186212305 E boot: doorbell 378: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186212307 E boot: rx seq 377 GSP_RM_CONTROL (76) sequence 375 length 120 checksum ok: hClient=0xc1d00008 hObject=0x1000d cmd=0x731341 paramsSize=48 rpcFlags=0x1
+   186212309 E boot: ctrl 0x731341: aux 0x100: nr 2200 16 -> ack 16 14 1e c4 81 00 00 01 00 02 00 00 00 00 00 80 00 -> status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)]
+   186212310 E boot: tx seq 377 reply GSP_RM_CONTROL sequence 375 result 0x0 length 120
+   186213107 E boot: doorbell 379: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186213108 E boot: rx seq 378 GSP_RM_CONTROL (76) sequence 376 length 120 checksum ok: hClient=0xc1d00008 hObject=0x1000d cmd=0x731341 paramsSize=48 rpcFlags=0x1
+   186213110 E boot: ctrl 0x731341: aux 0x100: nr 2002 1 -> ack 1 01 -> status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)]
+   186213111 E boot: tx seq 378 reply GSP_RM_CONTROL sequence 376 result 0x0 length 120
+   186213779 E boot: doorbell 380: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186213780 E boot: rx seq 379 GSP_RM_CONTROL (76) sequence 377 length 120 checksum ok: hClient=0xc1d00008 hObject=0x1000d cmd=0x731341 paramsSize=48 rpcFlags=0x1
+   186213782 E boot: ctrl 0x731341: aux 0x100: nr 020 3 -> ack 3 00 00 00 -> status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)]
+   186213783 E boot: tx seq 379 reply GSP_RM_CONTROL sequence 377 result 0x0 length 120
+   186214881 E boot: doorbell 381: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186214882 E boot: rx seq 380 GSP_RM_CONTROL (76) sequence 378 length 120 checksum ok: hClient=0xc1d00008 hObject=0x1000d cmd=0x731341 paramsSize=48 rpcFlags=0x1
+   186214884 E boot: ctrl 0x731341: aux 0x100: nr 2211 1 -> ack 1 00 -> status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)]
+   186214885 E boot: tx seq 380 reply GSP_RM_CONTROL sequence 378 result 0x0 length 120
+   186215495 E boot: doorbell 382: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186215496 E boot: rx seq 381 GSP_RM_CONTROL (76) sequence 379 length 120 checksum ok: hClient=0xc1d00008 hObject=0x1000d cmd=0x731341 paramsSize=48 rpcFlags=0x1
+   186215498 E boot: ctrl 0x731341: aux 0x100: nr 070 1 -> ack 1 00 -> status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)]
+   186215499 E boot: tx seq 381 reply GSP_RM_CONTROL sequence 379 result 0x0 length 120
+   186216089 E boot: doorbell 383: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186216090 E boot: rx seq 382 GSP_RM_CONTROL (76) sequence 380 length 120 checksum ok: hClient=0xc1d00008 hObject=0x1000d cmd=0x731341 paramsSize=48 rpcFlags=0x1
+   186216091 E boot: ctrl 0x731341: aux 0x100: nr 2002 4 -> ack 4 01 00 00 00 -> status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)]
+   186216093 E boot: tx seq 382 reply GSP_RM_CONTROL sequence 380 result 0x0 length 120
+   186216718 E boot: doorbell 384: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186216720 E boot: rx seq 383 GSP_RM_CONTROL (76) sequence 381 length 120 checksum ok: hClient=0xc1d00008 hObject=0x1000d cmd=0x731341 paramsSize=48 rpcFlags=0x1
+   186216721 E boot: ctrl 0x731341: aux 0x100: nr 200c 3 -> ack 3 00 00 00 -> status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)]
+   186216722 E boot: tx seq 383 reply GSP_RM_CONTROL sequence 381 result 0x0 length 120
+   186217313 E boot: doorbell 385: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186217314 E boot: rx seq 384 GSP_RM_CONTROL (76) sequence 382 length 120 checksum ok: hClient=0xc1d00008 hObject=0x1000d cmd=0x731341 paramsSize=48 rpcFlags=0x1
+   186217316 E boot: ctrl 0x731341: aux 0x100: nr 2003 3 -> ack 3 00 00 00 -> status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)]
+   186217317 E boot: tx seq 384 reply GSP_RM_CONTROL sequence 382 result 0x0 length 120
+   186217928 E boot: doorbell 386: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186217929 E boot: rx seq 385 GSP_RM_CONTROL (76) sequence 383 length 120 checksum ok: hClient=0xc1d00008 hObject=0x1000d cmd=0x731341 paramsSize=48 rpcFlags=0x1
+   186217930 E boot: ctrl 0x731341: aux 0x100: nr 111 1 -> ack 1 00 -> status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)]
+   186217931 E boot: tx seq 385 reply GSP_RM_CONTROL sequence 383 result 0x0 length 120
+   186218544 E boot: doorbell 387: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186218545 E boot: rx seq 386 GSP_RM_CONTROL (76) sequence 384 length 120 checksum ok: hClient=0xc1d00008 hObject=0x1000d cmd=0x731341 paramsSize=48 rpcFlags=0x1
+   186218546 E boot: ctrl 0x731341: aux 0x100: nw 111 04 -> ack 1 -> status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)]
+   186218547 E boot: tx seq 386 reply GSP_RM_CONTROL sequence 384 result 0x0 length 120
+   186219121 E boot: doorbell 388: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186219123 E boot: rx seq 387 GSP_RM_CONTROL (76) sequence 385 length 120 checksum ok: hClient=0xc1d00008 hObject=0x1000d cmd=0x731341 paramsSize=48 rpcFlags=0x1
+   186219124 E boot: ctrl 0x731341: aux 0x100: iwm 30 00 -> ack 1 -> status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)]
+   186219125 E boot: tx seq 387 reply GSP_RM_CONTROL sequence 385 result 0x0 length 120
+   186219721 E boot: doorbell 389: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186219723 E boot: rx seq 388 GSP_RM_CONTROL (76) sequence 386 length 120 checksum ok: hClient=0xc1d00008 hObject=0x1000d cmd=0x731341 paramsSize=48 rpcFlags=0x1
+   186219724 E boot: ctrl 0x731341: aux 0x100: iwm 52 00 -> i2c-nack 0 -> status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)]
+   186219725 E boot: tx seq 388 reply GSP_RM_CONTROL sequence 386 result 0x0 length 120
+   186220353 E boot: doorbell 390: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186220355 E boot: rx seq 389 GSP_RM_CONTROL (76) sequence 387 length 120 checksum ok: hClient=0xc1d00008 hObject=0x1000d cmd=0x731341 paramsSize=48 rpcFlags=0x1
+   186220356 E boot: ctrl 0x731341: aux 0x100: iwm 30 00 -> ack 1 -> status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)]
+   186220357 E boot: tx seq 389 reply GSP_RM_CONTROL sequence 387 result 0x0 length 120
+   186221006 E boot: doorbell 391: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186221007 E boot: rx seq 390 GSP_RM_CONTROL (76) sequence 388 length 120 checksum ok: hClient=0xc1d00008 hObject=0x1000d cmd=0x731341 paramsSize=48 rpcFlags=0x1
+   186221009 E boot: ctrl 0x731341: aux 0x100: iwm 52 00 -> i2c-nack 0 -> status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)]
+   186221010 E boot: tx seq 390 reply GSP_RM_CONTROL sequence 388 result 0x0 length 120
+   186221632 E boot: doorbell 392: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186221633 E boot: rx seq 391 GSP_RM_CONTROL (76) sequence 389 length 120 checksum ok: hClient=0xc1d00008 hObject=0x1000d cmd=0x731341 paramsSize=48 rpcFlags=0x1
+   186221635 E boot: ctrl 0x731341: aux 0x100: iwm 30 00 -> ack 1 -> status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)]
+   186221636 E boot: tx seq 391 reply GSP_RM_CONTROL sequence 389 result 0x0 length 120
+   186222271 E boot: doorbell 393: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186222273 E boot: rx seq 392 GSP_RM_CONTROL (76) sequence 390 length 120 checksum ok: hClient=0xc1d00008 hObject=0x1000d cmd=0x731341 paramsSize=48 rpcFlags=0x1
+   186222274 E boot: ctrl 0x731341: aux 0x100: iwm 52 00 -> i2c-nack 0 -> status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)]
+   186222275 E boot: tx seq 392 reply GSP_RM_CONTROL sequence 390 result 0x0 length 120
+   186222856 E boot: doorbell 394: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186222857 E boot: rx seq 393 GSP_RM_CONTROL (76) sequence 391 length 120 checksum ok: hClient=0xc1d00008 hObject=0x1000d cmd=0x731341 paramsSize=48 rpcFlags=0x1
+   186222859 E boot: ctrl 0x731341: aux 0x100: iwm 30 00 -> ack 1 -> status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)]
+   186222860 E boot: tx seq 393 reply GSP_RM_CONTROL sequence 391 result 0x0 length 120
+   186223439 E boot: doorbell 395: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186223440 E boot: rx seq 394 GSP_RM_CONTROL (76) sequence 392 length 120 checksum ok: hClient=0xc1d00008 hObject=0x1000d cmd=0x731341 paramsSize=48 rpcFlags=0x1
+   186223441 E boot: ctrl 0x731341: aux 0x100: iwm 52 00 -> i2c-nack 0 -> status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)]
+   186223443 E boot: tx seq 394 reply GSP_RM_CONTROL sequence 392 result 0x0 length 120
+   186224011 E boot: doorbell 396: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186224013 E boot: rx seq 395 GSP_RM_CONTROL (76) sequence 393 length 120 checksum ok: hClient=0xc1d00008 hObject=0x1000d cmd=0x731341 paramsSize=48 rpcFlags=0x1
+   186224014 E boot: ctrl 0x731341: aux 0x100: iwm 30 00 -> ack 1 -> status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)]
+   186224015 E boot: tx seq 395 reply GSP_RM_CONTROL sequence 393 result 0x0 length 120
+   186224624 E boot: doorbell 397: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186224625 E boot: rx seq 396 GSP_RM_CONTROL (76) sequence 394 length 120 checksum ok: hClient=0xc1d00008 hObject=0x1000d cmd=0x731341 paramsSize=48 rpcFlags=0x1
+   186224626 E boot: ctrl 0x731341: aux 0x100: iwm 52 00 -> i2c-nack 0 -> status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)]
+   186224628 E boot: tx seq 396 reply GSP_RM_CONTROL sequence 394 result 0x0 length 120
+   186225252 E boot: doorbell 398: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186225253 E boot: rx seq 397 GSP_RM_CONTROL (76) sequence 395 length 120 checksum ok: hClient=0xc1d00008 hObject=0x1000d cmd=0x731341 paramsSize=48 rpcFlags=0x1
+   186225254 E boot: ctrl 0x731341: aux 0x100: iwm 30 00 -> ack 1 -> status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)]
+   186225256 E boot: tx seq 397 reply GSP_RM_CONTROL sequence 395 result 0x0 length 120
+   186225856 E boot: doorbell 399: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186225858 E boot: rx seq 398 GSP_RM_CONTROL (76) sequence 396 length 120 checksum ok: hClient=0xc1d00008 hObject=0x1000d cmd=0x731341 paramsSize=48 rpcFlags=0x1
+   186225859 E boot: ctrl 0x731341: aux 0x100: iwm 52 00 -> i2c-nack 0 -> status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)]
+   186225860 E boot: tx seq 398 reply GSP_RM_CONTROL sequence 396 result 0x0 length 120
+   186226430 E boot: doorbell 400: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186226432 E boot: rx seq 399 GSP_RM_CONTROL (76) sequence 397 length 120 checksum ok: hClient=0xc1d00008 hObject=0x1000d cmd=0x731341 paramsSize=48 rpcFlags=0x1
+   186226433 E boot: ctrl 0x731341: aux 0x100: iwm 30 00 -> ack 1 -> status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)]
+   186226434 E boot: tx seq 399 reply GSP_RM_CONTROL sequence 397 result 0x0 length 120
+   186227003 E boot: doorbell 401: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186227005 E boot: rx seq 400 GSP_RM_CONTROL (76) sequence 398 length 120 checksum ok: hClient=0xc1d00008 hObject=0x1000d cmd=0x731341 paramsSize=48 rpcFlags=0x1
+   186227006 E boot: ctrl 0x731341: aux 0x100: iwm 52 00 -> i2c-nack 0 -> status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)]
+   186227007 E boot: tx seq 400 reply GSP_RM_CONTROL sequence 398 result 0x0 length 120
+   186227711 E boot: doorbell 402: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186227712 E boot: rx seq 401 GSP_RM_CONTROL (76) sequence 399 length 120 checksum ok: hClient=0xc1d00008 hObject=0x1000d cmd=0x731341 paramsSize=48 rpcFlags=0x1
+   186227713 E boot: ctrl 0x731341: aux 0x100: iwm 30 00 -> ack 1 -> status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)]
+   186227714 E boot: tx seq 401 reply GSP_RM_CONTROL sequence 399 result 0x0 length 120
+   186228357 E boot: doorbell 403: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186228359 E boot: rx seq 402 GSP_RM_CONTROL (76) sequence 400 length 120 checksum ok: hClient=0xc1d00008 hObject=0x1000d cmd=0x731341 paramsSize=48 rpcFlags=0x1
+   186228360 E boot: ctrl 0x731341: aux 0x100: iwm 52 00 -> i2c-nack 0 -> status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)]
+   186228362 E boot: tx seq 402 reply GSP_RM_CONTROL sequence 400 result 0x0 length 120
+   186229067 E boot: doorbell 404: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186229069 E boot: rx seq 403 GSP_RM_CONTROL (76) sequence 401 length 120 checksum ok: hClient=0xc1d00008 hObject=0x1000d cmd=0x731341 paramsSize=48 rpcFlags=0x1
+   186229071 E boot: ctrl 0x731341: aux 0x100: iwm 30 00 -> ack 1 -> status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)]
+   186229072 E boot: tx seq 403 reply GSP_RM_CONTROL sequence 401 result 0x0 length 120
+   186229771 E boot: doorbell 405: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186229778 E boot: rx seq 404 GSP_RM_CONTROL (76) sequence 402 length 120 checksum ok: hClient=0xc1d00008 hObject=0x1000d cmd=0x731341 paramsSize=48 rpcFlags=0x1
+   186229780 E boot: ctrl 0x731341: aux 0x100: iwm 52 00 -> i2c-nack 0 -> status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)]
+   186229782 E boot: tx seq 404 reply GSP_RM_CONTROL sequence 402 result 0x0 length 120
+   186230465 E boot: doorbell 406: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186230467 E boot: rx seq 405 GSP_RM_CONTROL (76) sequence 403 length 120 checksum ok: hClient=0xc1d00008 hObject=0x1000d cmd=0x731341 paramsSize=48 rpcFlags=0x1
+   186230468 E boot: ctrl 0x731341: aux 0x100: iwm 30 00 -> ack 1 -> status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)]
+   186230470 E boot: tx seq 405 reply GSP_RM_CONTROL sequence 403 result 0x0 length 120
+   186231141 E boot: doorbell 407: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186231147 E boot: rx seq 406 GSP_RM_CONTROL (76) sequence 404 length 120 checksum ok: hClient=0xc1d00008 hObject=0x1000d cmd=0x731341 paramsSize=48 rpcFlags=0x1
+   186231149 E boot: ctrl 0x731341: aux 0x100: iwm 52 00 -> i2c-nack 0 -> status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)]
+   186231151 E boot: tx seq 406 reply GSP_RM_CONTROL sequence 404 result 0x0 length 120
+   186231852 E boot: doorbell 408: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186231854 E boot: rx seq 407 GSP_RM_CONTROL (76) sequence 405 length 120 checksum ok: hClient=0xc1d00008 hObject=0x1000d cmd=0x731341 paramsSize=48 rpcFlags=0x1
+   186231855 E boot: ctrl 0x731341: aux 0x100: iwm 30 00 -> ack 1 -> status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)]
+   186231856 E boot: tx seq 407 reply GSP_RM_CONTROL sequence 405 result 0x0 length 120
+   186232541 E boot: doorbell 409: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186232542 E boot: rx seq 408 GSP_RM_CONTROL (76) sequence 406 length 120 checksum ok: hClient=0xc1d00008 hObject=0x1000d cmd=0x731341 paramsSize=48 rpcFlags=0x1
+   186232550 E boot: ctrl 0x731341: aux 0x100: iwm 52 00 -> i2c-nack 0 -> status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)]
+   186232551 E boot: tx seq 408 reply GSP_RM_CONTROL sequence 406 result 0x0 length 120
+   186233235 E boot: doorbell 410: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186233237 E boot: rx seq 409 GSP_RM_CONTROL (76) sequence 407 length 120 checksum ok: hClient=0xc1d00008 hObject=0x1000d cmd=0x731341 paramsSize=48 rpcFlags=0x1
+   186233238 E boot: ctrl 0x731341: aux 0x100: iwm 30 00 -> ack 1 -> status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)]
+   186233239 E boot: tx seq 409 reply GSP_RM_CONTROL sequence 407 result 0x0 length 120
+   186233921 E boot: doorbell 411: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186233923 E boot: rx seq 410 GSP_RM_CONTROL (76) sequence 408 length 120 checksum ok: hClient=0xc1d00008 hObject=0x1000d cmd=0x731341 paramsSize=48 rpcFlags=0x1
+   186233930 E boot: ctrl 0x731341: aux 0x100: iwm 52 00 -> i2c-nack 0 -> status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)]
+   186233932 E boot: tx seq 410 reply GSP_RM_CONTROL sequence 408 result 0x0 length 120
+   186234620 E boot: doorbell 412: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186234622 E boot: rx seq 411 GSP_RM_CONTROL (76) sequence 409 length 120 checksum ok: hClient=0xc1d00008 hObject=0x1000d cmd=0x731341 paramsSize=48 rpcFlags=0x1
+   186234623 E boot: ctrl 0x731341: aux 0x100: iwm 30 00 -> ack 1 -> status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)]
+   186234624 E boot: tx seq 411 reply GSP_RM_CONTROL sequence 409 result 0x0 length 120
+   186235256 E boot: doorbell 413: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186235257 E boot: rx seq 412 GSP_RM_CONTROL (76) sequence 410 length 120 checksum ok: hClient=0xc1d00008 hObject=0x1000d cmd=0x731341 paramsSize=48 rpcFlags=0x1
+   186235263 E boot: ctrl 0x731341: aux 0x100: iwm 52 00 -> i2c-nack 0 -> status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)]
+   186235264 E boot: tx seq 412 reply GSP_RM_CONTROL sequence 410 result 0x0 length 120
+   186235923 E boot: doorbell 414: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186235925 E boot: rx seq 413 GSP_RM_CONTROL (76) sequence 411 length 120 checksum ok: hClient=0xc1d00008 hObject=0x1000d cmd=0x731341 paramsSize=48 rpcFlags=0x1
+   186235927 E boot: ctrl 0x731341: aux 0x100: iwm 30 00 -> ack 1 -> status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)]
+   186235928 E boot: tx seq 413 reply GSP_RM_CONTROL sequence 411 result 0x0 length 120
+   186236599 E boot: doorbell 415: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186236600 E boot: rx seq 414 GSP_RM_CONTROL (76) sequence 412 length 120 checksum ok: hClient=0xc1d00008 hObject=0x1000d cmd=0x731341 paramsSize=48 rpcFlags=0x1
+   186236602 E boot: ctrl 0x731341: aux 0x100: iwm 52 00 -> i2c-nack 0 -> status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)]
+   186236609 E boot: tx seq 414 reply GSP_RM_CONTROL sequence 412 result 0x0 length 120
+   186237279 E boot: doorbell 416: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186237281 E boot: rx seq 415 GSP_RM_CONTROL (76) sequence 413 length 120 checksum ok: hClient=0xc1d00008 hObject=0x1000d cmd=0x731341 paramsSize=48 rpcFlags=0x1
+   186237282 E boot: ctrl 0x731341: aux 0x100: iwm 30 00 -> ack 1 -> status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)]
+   186237284 E boot: tx seq 415 reply GSP_RM_CONTROL sequence 413 result 0x0 length 120
+   186237972 E boot: doorbell 417: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186237974 E boot: rx seq 416 GSP_RM_CONTROL (76) sequence 414 length 120 checksum ok: hClient=0xc1d00008 hObject=0x1000d cmd=0x731341 paramsSize=48 rpcFlags=0x1
+   186237976 E boot: ctrl 0x731341: aux 0x100: iwm 52 00 -> i2c-nack 0 -> status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)]
+   186237983 E boot: tx seq 416 reply GSP_RM_CONTROL sequence 414 result 0x0 length 120
+   186238663 E boot: doorbell 418: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186238665 E boot: rx seq 417 GSP_RM_CONTROL (76) sequence 415 length 120 checksum ok: hClient=0xc1d00008 hObject=0x1000d cmd=0x731341 paramsSize=48 rpcFlags=0x1
+   186238666 E boot: ctrl 0x731341: aux 0x100: iwm 30 00 -> ack 1 -> status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)]
+   186238668 E boot: tx seq 417 reply GSP_RM_CONTROL sequence 415 result 0x0 length 120
+   186239366 E boot: doorbell 419: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186239368 E boot: rx seq 418 GSP_RM_CONTROL (76) sequence 416 length 120 checksum ok: hClient=0xc1d00008 hObject=0x1000d cmd=0x731341 paramsSize=48 rpcFlags=0x1
+   186239369 E boot: ctrl 0x731341: aux 0x100: iwm 52 00 -> i2c-nack 0 -> status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)]
+   186239371 E boot: tx seq 418 reply GSP_RM_CONTROL sequence 416 result 0x0 length 120
+   186240048 E boot: doorbell 420: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186240049 E boot: rx seq 419 GSP_RM_CONTROL (76) sequence 417 length 120 checksum ok: hClient=0xc1d00008 hObject=0x1000d cmd=0x731341 paramsSize=48 rpcFlags=0x1
+   186240051 E boot: ctrl 0x731341: aux 0x100: iwm 30 00 -> ack 1 -> status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)]
+   186240053 E boot: tx seq 419 reply GSP_RM_CONTROL sequence 417 result 0x0 length 120
+   186241275 E boot: doorbell 421: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186241276 E boot: rx seq 420 GSP_RM_CONTROL (76) sequence 418 length 120 checksum ok: hClient=0xc1d00008 hObject=0x1000d cmd=0x731341 paramsSize=48 rpcFlags=0x1
+   186241278 E boot: ctrl 0x731341: aux 0x100: iwm 52 00 -> i2c-nack 0 -> status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)]
+   186241280 E boot: tx seq 420 reply GSP_RM_CONTROL sequence 418 result 0x0 length 120
+   186241984 E boot: doorbell 422: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186241985 E boot: rx seq 421 GSP_RM_CONTROL (76) sequence 419 length 120 checksum ok: hClient=0xc1d00008 hObject=0x1000d cmd=0x731341 paramsSize=48 rpcFlags=0x1
+   186241987 E boot: ctrl 0x731341: aux 0x100: iwm 30 00 -> ack 1 -> status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)]
+   186241988 E boot: tx seq 421 reply GSP_RM_CONTROL sequence 419 result 0x0 length 120
+   186242624 E boot: doorbell 423: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186242625 E boot: rx seq 422 GSP_RM_CONTROL (76) sequence 420 length 120 checksum ok: hClient=0xc1d00008 hObject=0x1000d cmd=0x731341 paramsSize=48 rpcFlags=0x1
+   186242626 E boot: ctrl 0x731341: aux 0x100: iwm 52 00 -> i2c-nack 0 -> status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)]
+   186242628 E boot: tx seq 422 reply GSP_RM_CONTROL sequence 420 result 0x0 length 120
+   186243224 E boot: doorbell 424: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186243225 E boot: rx seq 423 GSP_RM_CONTROL (76) sequence 421 length 120 checksum ok: hClient=0xc1d00008 hObject=0x1000d cmd=0x731341 paramsSize=48 rpcFlags=0x1
+   186243226 E boot: ctrl 0x731341: aux 0x100: iwm 30 00 -> ack 1 -> status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)]
+   186243227 E boot: tx seq 423 reply GSP_RM_CONTROL sequence 421 result 0x0 length 120
+   186243815 E boot: doorbell 425: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186243817 E boot: rx seq 424 GSP_RM_CONTROL (76) sequence 422 length 120 checksum ok: hClient=0xc1d00008 hObject=0x1000d cmd=0x731341 paramsSize=48 rpcFlags=0x1
+   186243818 E boot: ctrl 0x731341: aux 0x100: iwm 52 00 -> i2c-nack 0 -> status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)]
+   186243819 E boot: tx seq 424 reply GSP_RM_CONTROL sequence 422 result 0x0 length 120
+   186244442 E boot: doorbell 426: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186244443 E boot: rx seq 425 GSP_RM_CONTROL (76) sequence 423 length 120 checksum ok: hClient=0xc1d00008 hObject=0x1000d cmd=0x731341 paramsSize=48 rpcFlags=0x1
+   186244444 E boot: ctrl 0x731341: aux 0x100: iwm 30 00 -> ack 1 -> status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)]
+   186244445 E boot: tx seq 425 reply GSP_RM_CONTROL sequence 423 result 0x0 length 120
+   186247318 E boot: doorbell 427: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186247320 E boot: rx seq 426 GSP_RM_CONTROL (76) sequence 424 length 120 checksum ok: hClient=0xc1d00008 hObject=0x1000d cmd=0x731341 paramsSize=48 rpcFlags=0x1
+   186247321 E boot: ctrl 0x731341: aux 0x100: iwm 52 00 -> i2c-nack 0 -> status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)]
+   186247323 E boot: tx seq 426 reply GSP_RM_CONTROL sequence 424 result 0x0 length 120
+   186248231 E boot: doorbell 428: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186248232 E boot: rx seq 427 GSP_RM_CONTROL (76) sequence 425 length 120 checksum ok: hClient=0xc1d00008 hObject=0x1000d cmd=0x731341 paramsSize=48 rpcFlags=0x1
+   186248234 E boot: ctrl 0x731341: aux 0x100: iwm 50 00 -> ack 1 -> status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)]
+   186248235 E boot: tx seq 427 reply GSP_RM_CONTROL sequence 425 result 0x0 length 120
+   186249050 E boot: doorbell 429: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186249052 E boot: rx seq 428 GSP_RM_CONTROL (76) sequence 426 length 120 checksum ok: hClient=0xc1d00008 hObject=0x1000d cmd=0x731341 paramsSize=48 rpcFlags=0x1
+   186249054 E boot: ctrl 0x731341: aux 0x100: irm 50 16 -> ack 16 00 ff ff ff ff ff ff 00 0e 58 03 00 00 00 00 00 -> status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)]
+   186249055 E boot: tx seq 428 reply GSP_RM_CONTROL sequence 426 result 0x0 length 120
+   186249861 E boot: doorbell 430: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186249863 E boot: rx seq 429 GSP_RM_CONTROL (76) sequence 427 length 120 checksum ok: hClient=0xc1d00008 hObject=0x1000d cmd=0x731341 paramsSize=48 rpcFlags=0x1
+   186249864 E boot: ctrl 0x731341: aux 0x100: irm 50 16 -> ack 16 27 24 01 04 a5 35 1e 78 06 ee 91 a3 54 4c 99 26 -> status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)]
+   186249866 E boot: tx seq 429 reply GSP_RM_CONTROL sequence 427 result 0x0 length 120
+   186253146 E boot: doorbell 431: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186253147 E boot: rx seq 430 GSP_RM_CONTROL (76) sequence 428 length 120 checksum ok: hClient=0xc1d00008 hObject=0x1000d cmd=0x731341 paramsSize=48 rpcFlags=0x1
+   186253149 E boot: ctrl 0x731341: aux 0x100: irm 50 16 -> ack 16 0f 50 54 21 00 00 01 01 01 01 01 01 01 01 01 01 -> status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)]
+   186253151 E boot: tx seq 430 reply GSP_RM_CONTROL sequence 428 result 0x0 length 120
+   186254158 E boot: doorbell 432: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186254160 E boot: rx seq 431 GSP_RM_CONTROL (76) sequence 429 length 120 checksum ok: hClient=0xc1d00008 hObject=0x1000d cmd=0x731341 paramsSize=48 rpcFlags=0x1
+   186254162 E boot: ctrl 0x731341: aux 0x100: irm 50 16 -> ack 16 01 01 01 01 01 01 02 3a 80 18 71 38 2d 40 58 2c -> status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)]
+   186254165 E boot: tx seq 431 reply GSP_RM_CONTROL sequence 429 result 0x0 length 120
+   186255145 E boot: doorbell 433: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186255147 E boot: rx seq 432 GSP_RM_CONTROL (76) sequence 430 length 120 checksum ok: hClient=0xc1d00008 hObject=0x1000d cmd=0x731341 paramsSize=48 rpcFlags=0x1
+   186255148 E boot: ctrl 0x731341: aux 0x100: irm 50 16 -> ack 16 45 00 0f 28 21 00 00 1e 01 1d 00 72 51 d0 1e 20 -> status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)]
+   186255150 E boot: tx seq 432 reply GSP_RM_CONTROL sequence 430 result 0x0 length 120
+   186256329 E boot: doorbell 434: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186256330 E boot: rx seq 433 GSP_RM_CONTROL (76) sequence 431 length 120 checksum ok: hClient=0xc1d00008 hObject=0x1000d cmd=0x731341 paramsSize=48 rpcFlags=0x1
+   186256332 E boot: ctrl 0x731341: aux 0x100: irm 50 16 -> ack 16 6e 28 55 00 0f 28 21 00 00 1e 02 3a 80 d0 72 38 -> status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)]
+   186256333 E boot: tx seq 433 reply GSP_RM_CONTROL sequence 431 result 0x0 length 120
+   186257319 E boot: doorbell 435: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186257320 E boot: rx seq 434 GSP_RM_CONTROL (76) sequence 432 length 120 checksum ok: hClient=0xc1d00008 hObject=0x1000d cmd=0x731341 paramsSize=48 rpcFlags=0x1
+   186257322 E boot: ctrl 0x731341: aux 0x100: irm 50 16 -> ack 16 2d 40 10 2c 45 80 0f 28 21 00 00 1e 00 00 00 fc -> status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)]
+   186257324 E boot: tx seq 434 reply GSP_RM_CONTROL sequence 432 result 0x0 length 120
+   186258317 E boot: doorbell 436: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186258319 E boot: rx seq 435 GSP_RM_CONTROL (76) sequence 433 length 120 checksum ok: hClient=0xc1d00008 hObject=0x1000d cmd=0x731341 paramsSize=48 rpcFlags=0x1
+   186258320 E boot: ctrl 0x731341: aux 0x100: ir 50 16 -> ack 16 00 43 61 72 61 78 65 73 20 44 50 32 0a 20 01 0b -> status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)]
+   186258322 E boot: tx seq 435 reply GSP_RM_CONTROL sequence 433 result 0x0 length 120
+   186261724 E boot: doorbell 437: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186261725 E boot: rx seq 436 GSP_RM_CONTROL (76) sequence 434 length 120 checksum ok: hClient=0xc1d00008 hObject=0x1000d cmd=0x731341 paramsSize=48 rpcFlags=0x1
+   186261727 E boot: ctrl 0x731341: aux 0x100: iwm 50 80 -> ack 1 -> status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)]
+   186261728 E boot: tx seq 436 reply GSP_RM_CONTROL sequence 434 result 0x0 length 120
+   186263450 E boot: doorbell 438: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186263451 E boot: rx seq 437 GSP_RM_CONTROL (76) sequence 435 length 120 checksum ok: hClient=0xc1d00008 hObject=0x1000d cmd=0x731341 paramsSize=48 rpcFlags=0x1
+   186263453 E boot: ctrl 0x731341: aux 0x100: irm 50 16 -> ack 16 02 03 0c 80 44 10 04 1f c9 e2 00 4a 00 00 00 00 -> status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)]
+   186263455 E boot: tx seq 437 reply GSP_RM_CONTROL sequence 435 result 0x0 length 120
+   186264219 E boot: doorbell 439: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186264221 E boot: rx seq 438 GSP_RM_CONTROL (76) sequence 436 length 120 checksum ok: hClient=0xc1d00008 hObject=0x1000d cmd=0x731341 paramsSize=48 rpcFlags=0x1
+   186264223 E boot: ctrl 0x731341: aux 0x100: irm 50 16 -> ack 16 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 -> status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)]
+   186264224 E boot: tx seq 438 reply GSP_RM_CONTROL sequence 436 result 0x0 length 120
+   186266610 E boot: doorbell 440: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186266612 E boot: rx seq 439 GSP_RM_CONTROL (76) sequence 437 length 120 checksum ok: hClient=0xc1d00008 hObject=0x1000d cmd=0x731341 paramsSize=48 rpcFlags=0x1
+   186266613 E boot: ctrl 0x731341: aux 0x100: irm 50 16 -> ack 16 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 -> status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)]
+   186266615 E boot: tx seq 439 reply GSP_RM_CONTROL sequence 437 result 0x0 length 120
+   186267626 E boot: doorbell 441: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186267627 E boot: rx seq 440 GSP_RM_CONTROL (76) sequence 438 length 120 checksum ok: hClient=0xc1d00008 hObject=0x1000d cmd=0x731341 paramsSize=48 rpcFlags=0x1
+   186267628 E boot: ctrl 0x731341: aux 0x100: irm 50 16 -> ack 16 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 -> status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)]
+   186267629 E boot: tx seq 440 reply GSP_RM_CONTROL sequence 438 result 0x0 length 120
+   186269080 E boot: doorbell 442: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186269081 E boot: rx seq 441 GSP_RM_CONTROL (76) sequence 439 length 120 checksum ok: hClient=0xc1d00008 hObject=0x1000d cmd=0x731341 paramsSize=48 rpcFlags=0x1
+   186269083 E boot: ctrl 0x731341: aux 0x100: irm 50 16 -> ack 16 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 -> status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)]
+   186269084 E boot: tx seq 441 reply GSP_RM_CONTROL sequence 439 result 0x0 length 120
+   186270162 E boot: doorbell 443: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186270164 E boot: rx seq 442 GSP_RM_CONTROL (76) sequence 440 length 120 checksum ok: hClient=0xc1d00008 hObject=0x1000d cmd=0x731341 paramsSize=48 rpcFlags=0x1
+   186270166 E boot: ctrl 0x731341: aux 0x100: irm 50 16 -> ack 16 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 -> status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)]
+   186270167 E boot: tx seq 442 reply GSP_RM_CONTROL sequence 440 result 0x0 length 120
+   186270878 E boot: doorbell 444: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186270880 E boot: rx seq 443 GSP_RM_CONTROL (76) sequence 441 length 120 checksum ok: hClient=0xc1d00008 hObject=0x1000d cmd=0x731341 paramsSize=48 rpcFlags=0x1
+   186270881 E boot: ctrl 0x731341: aux 0x100: irm 50 16 -> ack 16 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 -> status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)]
+   186270883 E boot: tx seq 443 reply GSP_RM_CONTROL sequence 441 result 0x0 length 120
+   186271558 E boot: doorbell 445: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186271559 E boot: rx seq 444 GSP_RM_CONTROL (76) sequence 442 length 120 checksum ok: hClient=0xc1d00008 hObject=0x1000d cmd=0x731341 paramsSize=48 rpcFlags=0x1
+   186271561 E boot: ctrl 0x731341: aux 0x100: ir 50 16 -> ack 16 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 03 -> status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)]
+   186271568 E boot: tx seq 444 reply GSP_RM_CONTROL sequence 442 result 0x0 length 120
+   186272274 E boot: doorbell 446: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186272275 E boot: rx seq 445 GSP_RM_CONTROL (76) sequence 443 length 2132 checksum ok: hClient=0xc1d00008 hObject=0x1000d cmd=0x730246 paramsSize=2060 rpcFlags=0x0
+   186272277 E boot: ctrl 0x730246: set edid of 0x100: 256 bytes stored as override (identical to the sink EDID: true) -> status 0x0 [guest-derived (per-display EDID state: sink EDID and override)]
+   186272279 E boot: tx seq 445 reply GSP_RM_CONTROL sequence 443 result 0x0 length 2132
+   186272984 E boot: doorbell 447: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186272986 E boot: rx seq 446 GSP_RM_CONTROL (76) sequence 444 length 120 checksum ok: hClient=0xc1d00008 hObject=0x1000d cmd=0x731341 paramsSize=48 rpcFlags=0x1
+   186272988 E boot: ctrl 0x731341: aux 0x100: nr 000 1 -> ack 1 14 -> status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)]
+   186272995 E boot: tx seq 446 reply GSP_RM_CONTROL sequence 444 result 0x0 length 120
+   186273696 E boot: doorbell 448: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186273698 E boot: rx seq 447 GSP_RM_CONTROL (76) sequence 445 length 84 checksum ok: hClient=0xc1d00008 hObject=0x1000d cmd=0x73138f paramsSize=12 rpcFlags=0x0
+   186273700 E boot: ctrl 0x73138f: control 0x73138f on 0x100 -> status 0x0 [synthesized (acknowledged; no display state behind it yet)]
+   186273701 E boot: tx seq 447 reply GSP_RM_CONTROL sequence 445 result 0x0 length 84
+   186274412 E boot: doorbell 449: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186274414 E boot: rx seq 448 GSP_RM_CONTROL (76) sequence 446 length 100 checksum ok: hClient=0xc1d00008 hObject=0x1000d cmd=0x731343 paramsSize=28 rpcFlags=0x1
+   186274416 E boot: ctrl 0x731343: dp ctrl of 0x100: cmd 0x83: trained 4 lanes at link bw 0x1e -> status 0x0 [synthesized (dp-sink model behind the connector)]
+   186274417 E boot: tx seq 448 reply GSP_RM_CONTROL sequence 446 result 0x0 length 100
+   186275108 E boot: doorbell 450: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186275110 E boot: rx seq 449 GSP_RM_CONTROL (76) sequence 447 length 84 checksum ok: hClient=0xc1d00008 hObject=0x1000d cmd=0x73138f paramsSize=12 rpcFlags=0x0
+   186275112 E boot: ctrl 0x73138f: control 0x73138f on 0x100 -> status 0x0 [synthesized (acknowledged; no display state behind it yet)]
+   186275113 E boot: tx seq 449 reply GSP_RM_CONTROL sequence 447 result 0x0 length 84
+   186275837 E boot: doorbell 451: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186275839 E boot: rx seq 450 GSP_RM_CONTROL (76) sequence 448 length 120 checksum ok: hClient=0xc1d00008 hObject=0x1000d cmd=0x731341 paramsSize=48 rpcFlags=0x1
+   186275840 E boot: ctrl 0x731341: aux 0x100: nr 600 1 -> ack 1 01 -> status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)]
+   186275841 E boot: tx seq 450 reply GSP_RM_CONTROL sequence 448 result 0x0 length 120
+   186276512 E boot: doorbell 452: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186276514 E boot: rx seq 451 GSP_RM_CONTROL (76) sequence 449 length 120 checksum ok: hClient=0xc1d00008 hObject=0x1000d cmd=0x731341 paramsSize=48 rpcFlags=0x1
+   186276515 E boot: ctrl 0x731341: aux 0x100: nr 600 1 -> ack 1 01 -> status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)]
+   186276517 E boot: tx seq 451 reply GSP_RM_CONTROL sequence 449 result 0x0 length 120
+   186277380 E boot: doorbell 453: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186277382 E boot: rx seq 452 GSP_RM_CONTROL (76) sequence 450 length 120 checksum ok: hClient=0xc1d00008 hObject=0x1000d cmd=0x731341 paramsSize=48 rpcFlags=0x1
+   186277383 E boot: ctrl 0x731341: aux 0x100: nr 6921d 1 -> ack 1 00 -> status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)]
+   186277384 E boot: tx seq 452 reply GSP_RM_CONTROL sequence 450 result 0x0 length 120
+   186278774 E boot: doorbell 454: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186278775 E boot: rx seq 453 GSP_RM_CONTROL (76) sequence 451 length 120 checksum ok: hClient=0xc1d00008 hObject=0x1000d cmd=0x731341 paramsSize=48 rpcFlags=0x1
+   186278777 E boot: ctrl 0x731341: aux 0x100: nr 68028 1 -> ack 1 00 -> status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)]
+   186278778 E boot: tx seq 453 reply GSP_RM_CONTROL sequence 451 result 0x0 length 120
+   186279922 E boot: doorbell 455: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186279924 E boot: rx seq 454 GSP_RM_CONTROL (76) sequence 452 length 120 checksum ok: hClient=0xc1d00008 hObject=0x1000d cmd=0x731341 paramsSize=48 rpcFlags=0x1
+   186279925 E boot: ctrl 0x731341: aux 0x100: nr 6802a 2 -> ack 2 00 00 -> status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)]
+   186279926 E boot: tx seq 454 reply GSP_RM_CONTROL sequence 452 result 0x0 length 120
+   186280951 E boot: doorbell 456: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186280952 E boot: rx seq 455 GSP_RM_CONTROL (76) sequence 453 length 120 checksum ok: hClient=0xc1d00008 hObject=0x1000d cmd=0x731341 paramsSize=48 rpcFlags=0x1
+   186280953 E boot: ctrl 0x731341: aux 0x100: nr 060 1 -> ack 1 01 -> status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)]
+   186280954 E boot: tx seq 455 reply GSP_RM_CONTROL sequence 453 result 0x0 length 120
+   186282312 E boot: doorbell 457: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186282313 E boot: rx seq 456 GSP_RM_CONTROL (76) sequence 454 length 120 checksum ok: hClient=0xc1d00008 hObject=0x1000d cmd=0x731341 paramsSize=48 rpcFlags=0x1
+   186282314 E boot: ctrl 0x731341: aux 0x100: nr 060 16 -> ack 16 01 21 00 05 0b 08 01 00 00 01 06 11 08 00 00 00 -> status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)]
+   186282315 E boot: tx seq 456 reply GSP_RM_CONTROL sequence 454 result 0x0 length 120
+   186283490 E boot: doorbell 458: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186283491 E boot: rx seq 457 GSP_RM_CONTROL (76) sequence 455 length 120 checksum ok: hClient=0xc1d00008 hObject=0x1000d cmd=0x731341 paramsSize=48 rpcFlags=0x1
+   186283492 E boot: ctrl 0x731341: aux 0x100: nr 0b0 1 -> ack 1 00 -> status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)]
+   186283493 E boot: tx seq 457 reply GSP_RM_CONTROL sequence 455 result 0x0 length 120
+   186284194 E boot: doorbell 459: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186284195 E boot: rx seq 458 GSP_RM_CONTROL (76) sequence 456 length 120 checksum ok: hClient=0xc1d00008 hObject=0x1000d cmd=0x731341 paramsSize=48 rpcFlags=0x1
+   186284197 E boot: ctrl 0x731341: aux 0x100: nr 0b1 1 -> ack 1 00 -> status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)]
+   186284198 E boot: tx seq 458 reply GSP_RM_CONTROL sequence 456 result 0x0 length 120
+   186284898 E boot: doorbell 460: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186284899 E boot: rx seq 459 GSP_RM_CONTROL (76) sequence 457 length 120 checksum ok: hClient=0xc1d00008 hObject=0x1000d cmd=0x731341 paramsSize=48 rpcFlags=0x1
+   186284900 E boot: ctrl 0x731341: aux 0x100: nr 02e 1 -> ack 1 00 -> status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)]
+   186284901 E boot: tx seq 459 reply GSP_RM_CONTROL sequence 457 result 0x0 length 120
+   186285633 E boot: doorbell 461: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186285635 E boot: rx seq 460 GSP_RM_CONTROL (76) sequence 458 length 120 checksum ok: hClient=0xc1d00008 hObject=0x1000d cmd=0x731341 paramsSize=48 rpcFlags=0x1
+   186285637 E boot: ctrl 0x731341: aux 0x100: nr 090 1 -> ack 1 01 -> status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)]
+   186285638 E boot: tx seq 460 reply GSP_RM_CONTROL sequence 458 result 0x0 length 120
+   186286662 E boot: doorbell 462: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186286663 E boot: rx seq 461 GSP_RM_CONTROL (76) sequence 459 length 120 checksum ok: hClient=0xc1d00008 hObject=0x1000d cmd=0x731341 paramsSize=48 rpcFlags=0x1
+   186286664 E boot: ctrl 0x731341: aux 0x100: nw 600 02 -> ack 1 -> status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)]
+   186286666 E boot: tx seq 461 reply GSP_RM_CONTROL sequence 459 result 0x0 length 120
+   186287652 E boot: doorbell 463: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186287654 E boot: rx seq 462 GSP_RM_CONTROL (76) sequence 460 length 100 checksum ok: hClient=0xc1d00008 hObject=0x1000d cmd=0x731343 paramsSize=28 rpcFlags=0x1
+   186287655 E boot: ctrl 0x731343: dp ctrl of 0x100: cmd 0x883 data 0x600: link powered down -> status 0x0 [synthesized (dp-sink model behind the connector)]
+   186287656 E boot: tx seq 462 reply GSP_RM_CONTROL sequence 460 result 0x0 length 100
+   186288915 E boot: doorbell 464: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186288916 E boot: rx seq 463 GSP_RM_CONTROL (76) sequence 461 length 84 checksum ok: hClient=0xc1d00008 hObject=0x1000d cmd=0x73138f paramsSize=12 rpcFlags=0x0
+   186288918 E boot: ctrl 0x73138f: control 0x73138f on 0x100 -> status 0x0 [synthesized (acknowledged; no display state behind it yet)]
+   186288920 E boot: tx seq 463 reply GSP_RM_CONTROL sequence 461 result 0x0 length 84
+   186290426 E boot: doorbell 465: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186290428 E boot: rx seq 464 GSP_RM_CONTROL (76) sequence 462 length 96 checksum ok: hClient=0xc1d00008 hObject=0x1000d cmd=0x731360 paramsSize=24 rpcFlags=0x0
+   186290429 E boot: ctrl 0x731360: link config of 0x100: 0 lanes, link bw 0x0 (0 = untrained) -> status 0x0 [synthesized (dp-sink model behind the connector)]
+   186290430 E boot: tx seq 464 reply GSP_RM_CONTROL sequence 462 result 0x0 length 96
+   186291846 E boot: doorbell 466: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186291847 E boot: rx seq 465 GSP_RM_CONTROL (76) sequence 463 length 88 checksum ok: hClient=0xc1d00008 hObject=0x1000d cmd=0x730291 paramsSize=16 rpcFlags=0x0
+   186291849 E boot: ctrl 0x730291: backlight brightness of 0x100: not supported (external DP monitor, no panel) -> status 0x56 [synthesized (board connector table, boards/rtx2070.toml [display])]
+   186291850 E boot: tx seq 465 reply GSP_RM_CONTROL sequence 463 result 0x0 length 88
+   186293125 E boot: doorbell 467: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186293126 E boot: rx seq 466 GSP_RM_CONTROL (76) sequence 464 length 2132 checksum ok: hClient=0xc1d00008 hObject=0x1000d cmd=0x730246 paramsSize=2060 rpcFlags=0x0
+   186293127 E boot: ctrl 0x730246: set edid of 0x100: size 0, override cleared -> status 0x0 [guest-derived (per-display EDID state: sink EDID and override)]
+   186293129 E boot: tx seq 466 reply GSP_RM_CONTROL sequence 464 result 0x0 length 2132
+   186293971 E boot: doorbell 468: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186293973 E boot: rx seq 467 GSP_RM_CONTROL (76) sequence 465 length 2132 checksum ok: hClient=0xc1d00008 hObject=0x1000d cmd=0x730246 paramsSize=2060 rpcFlags=0x0
+   186293974 E boot: ctrl 0x730246: set edid of 0x100: 256 bytes stored as override (identical to the sink EDID: true) -> status 0x0 [guest-derived (per-display EDID state: sink EDID and override)]
+   186293975 E boot: tx seq 467 reply GSP_RM_CONTROL sequence 465 result 0x0 length 2132
+   186294729 E boot: doorbell 469: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186294730 E boot: rx seq 468 GSP_RM_CONTROL (76) sequence 466 length 2136 checksum ok: hClient=0xc1d00008 hObject=0x1000d cmd=0x730245 paramsSize=2064 rpcFlags=0x0
+   186294732 E boot: ctrl 0x730245: get edid of 0x100 flags 0x0: 256 bytes from the override -> status 0x0 [guest-derived (per-display EDID state: sink EDID and override)]
+   186294733 E boot: tx seq 468 reply GSP_RM_CONTROL sequence 466 result 0x0 length 2136
+   186297363 E boot: doorbell 470: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186297364 E boot: rx seq 469 GSP_RM_CONTROL (76) sequence 467 length 92 checksum ok: hClient=0xc1d00008 hObject=0x1000d cmd=0x73028a paramsSize=20 rpcFlags=0x0
+   186297365 E boot: ctrl 0x73028a: pclk limit of 0x100: 1080000 kHz (link budget at 24 bpp) -> status 0x0 [synthesized (the display.toml [link] profile)]
+   186297367 E boot: tx seq 469 reply GSP_RM_CONTROL sequence 467 result 0x0 length 92
+   186298054 E boot: doorbell 471: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186298055 E boot: rx seq 470 GSP_RM_CONTROL (76) sequence 468 length 78 checksum ok: hClient=0xc1d00008 hObject=0x1000d cmd=0x7302a7 paramsSize=6 rpcFlags=0x0
+   186298056 E boot: ctrl 0x7302a7: direct mode (VR headset): no -> status 0x0 [synthesized (chips/tu106/display.toml)]
+   186298058 E boot: tx seq 470 reply GSP_RM_CONTROL sequence 468 result 0x0 length 78
+   186298753 E boot: doorbell 472: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186298754 E boot: rx seq 471 GSP_RM_CONTROL (76) sequence 469 length 96 checksum ok: hClient=0xc1d00008 hObject=0x1000d cmd=0x731360 paramsSize=24 rpcFlags=0x0
+   186298755 E boot: ctrl 0x731360: link config of 0x100: 0 lanes, link bw 0x0 (0 = untrained) -> status 0x0 [synthesized (dp-sink model behind the connector)]
+   186298757 E boot: tx seq 471 reply GSP_RM_CONTROL sequence 469 result 0x0 length 96
+   186299369 E boot: display channel 0xc57d/0 kick 3: PUT 0xfc8, 505 method(s), 0 UPDATE(s), 0 raster method(s); GET := PUT [guest]
+   186299478 E boot: display channel 0xc57d/0 kick 4: PUT 0x0, 0 method(s), 0 UPDATE(s), 0 raster method(s); GET := PUT [guest]
+   186299763 E boot: display channel 0xc57d/0 kick 5: PUT 0xfc8, 505 method(s), 0 UPDATE(s), 0 raster method(s); GET := PUT [guest]
+   186299900 E boot: display channel 0xc57d/0 kick 6: PUT 0x0, 0 method(s), 0 UPDATE(s), 0 raster method(s); GET := PUT [guest]
+   186300098 E boot: display channel 0xc57e/0 kick 3: PUT 0xfc8, 505 method(s), 0 UPDATE(s), 0 raster method(s); GET := PUT [guest]
+   186300214 E boot: display channel 0xc57e/0 kick 4: PUT 0x0, 0 method(s), 0 UPDATE(s), 0 raster method(s); GET := PUT [guest]
+   186300492 E boot: display channel 0xc57e/0 kick 5: PUT 0xfc8, 505 method(s), 0 UPDATE(s), 0 raster method(s); GET := PUT [guest]
+   186300602 E boot: display channel 0xc57e/0 kick 6: PUT 0x0, 0 method(s), 0 UPDATE(s), 0 raster method(s); GET := PUT [guest]
+   186300866 E boot: display channel 0xc57e/2 kick 3: PUT 0xfc8, 505 method(s), 0 UPDATE(s), 0 raster method(s); GET := PUT [guest]
+   186300988 E boot: display channel 0xc57e/2 kick 4: PUT 0x0, 0 method(s), 0 UPDATE(s), 0 raster method(s); GET := PUT [guest]
+   186301299 E boot: display channel 0xc57e/2 kick 5: PUT 0xfc8, 505 method(s), 0 UPDATE(s), 0 raster method(s); GET := PUT [guest]
+   186301418 E boot: display channel 0xc57e/2 kick 6: PUT 0x0, 0 method(s), 0 UPDATE(s), 0 raster method(s); GET := PUT [guest]
+   186301685 E boot: display channel 0xc57e/4 kick 3: PUT 0xfc8, 505 method(s), 0 UPDATE(s), 0 raster method(s); GET := PUT [guest]
+   186301810 E boot: display channel 0xc57e/4 kick 4: PUT 0x0, 0 method(s), 0 UPDATE(s), 0 raster method(s); GET := PUT [guest]
+   186302101 E boot: display channel 0xc57e/4 kick 5: PUT 0xfc8, 505 method(s), 0 UPDATE(s), 0 raster method(s); GET := PUT [guest]
+   186302162 E boot: display channel 0xc57e/4 kick 6: PUT 0x0, 0 method(s), 0 UPDATE(s), 0 raster method(s); GET := PUT [guest]
+   186302353 E boot: display channel 0xc57e/6 kick 3: PUT 0xfc8, 505 method(s), 0 UPDATE(s), 0 raster method(s); GET := PUT [guest]
+   186302414 E boot: display channel 0xc57e/6 kick 4: PUT 0x0, 0 method(s), 0 UPDATE(s), 0 raster method(s); GET := PUT [guest]
+   186302615 E boot: display channel 0xc57e/6 kick 5: PUT 0xfc8, 505 method(s), 0 UPDATE(s), 0 raster method(s); GET := PUT [guest]
+   186302673 E boot: display channel 0xc57e/6 kick 6: PUT 0x0, 0 method(s), 0 UPDATE(s), 0 raster method(s); GET := PUT [guest]
+   186303416 E boot: doorbell 473: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186303418 E boot: rx seq 472 GSP_RM_CONTROL (76) sequence 470 length 92 checksum ok: hClient=0xc1d00008 hObject=0x10012 cmd=0xc3700104 paramsSize=20 rpcFlags=0x0
+   186303420 E boot: ctrl 0xc3700104: channel info: class 0xc57e instance 0: IDLE (GET == PUT) -> status 0x0 [guest (recorded from the request)]
+   186303421 E boot: tx seq 472 reply GSP_RM_CONTROL sequence 470 result 0x0 length 92
+   186304255 E boot: doorbell 474: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186304257 E boot: rx seq 473 GSP_RM_CONTROL (76) sequence 471 length 92 checksum ok: hClient=0xc1d00008 hObject=0x10012 cmd=0xc3700104 paramsSize=20 rpcFlags=0x0
+   186304258 E boot: ctrl 0xc3700104: channel info: class 0xc57e instance 2: IDLE (GET == PUT) -> status 0x0 [guest (recorded from the request)]
+   186304259 E boot: tx seq 473 reply GSP_RM_CONTROL sequence 471 result 0x0 length 92
+   186305061 E boot: doorbell 475: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186305063 E boot: rx seq 474 GSP_RM_CONTROL (76) sequence 472 length 92 checksum ok: hClient=0xc1d00008 hObject=0x10012 cmd=0xc3700104 paramsSize=20 rpcFlags=0x0
+   186305064 E boot: ctrl 0xc3700104: channel info: class 0xc57e instance 4: IDLE (GET == PUT) -> status 0x0 [guest (recorded from the request)]
+   186305066 E boot: tx seq 474 reply GSP_RM_CONTROL sequence 472 result 0x0 length 92
+   186305887 E boot: doorbell 476: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186305889 E boot: rx seq 475 GSP_RM_CONTROL (76) sequence 473 length 92 checksum ok: hClient=0xc1d00008 hObject=0x10012 cmd=0xc3700104 paramsSize=20 rpcFlags=0x0
+   186305890 E boot: ctrl 0xc3700104: channel info: class 0xc57e instance 6: IDLE (GET == PUT) -> status 0x0 [guest (recorded from the request)]
+   186305892 E boot: tx seq 475 reply GSP_RM_CONTROL sequence 473 result 0x0 length 92
+   186306756 E boot: doorbell 477: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186306757 E boot: rx seq 476 GSP_RM_CONTROL (76) sequence 474 length 88 checksum ok: hClient=0xc1d00008 hObject=0x1000d cmd=0x7302a4 paramsSize=16 rpcFlags=0x0
+   186306759 E boot: ctrl 0x7302a4: control 0x7302a4 on 0x0 -> status 0x0 [synthesized (acknowledged; no display state behind it yet)]
+   186306760 E boot: tx seq 476 reply GSP_RM_CONTROL sequence 474 result 0x0 length 88
+   186307599 E boot: doorbell 478: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186307600 E boot: rx seq 477 GSP_RM_CONTROL (76) sequence 475 length 92 checksum ok: hClient=0xc1d00008 hObject=0x10012 cmd=0xc3700104 paramsSize=20 rpcFlags=0x0
+   186307602 E boot: ctrl 0xc3700104: channel info: class 0xc57d instance 0: IDLE (GET == PUT) -> status 0x0 [guest (recorded from the request)]
+   186307603 E boot: tx seq 477 reply GSP_RM_CONTROL sequence 475 result 0x0 length 92
+   186308270 E boot: display channel 0xc57d/0 kick 7: PUT 0x210, 66 method(s), 1 UPDATE(s), 0 raster method(s); core methods 0x2e14=0xb8000 0x2214=0xb901b 0x2614=0xb901b 0x2a14=0xb901b 0x2e14=0xb901b 0x2214=0xba064 0x2614=0xba064 0x2a14=0xba064 0x2e14=0xba064 0x2214=0xbb014 0x2614=0xbb014 0x2a14=0xbb014 0x2e14=0xbb014 0x2214=0xbc000 0x2614=0xbc000 0x2a14=0xbc000 0x2e14=0xbc000 0x2214=0xbd019 0x2614=0xbd019 0x2a14=0xbd019 0x2e14=0xbd019 0x2214=0xbe066 0x2614=0xbe066 0x2a14=0xbe066 0x2e14=0xbe066 0x2214=0xbf016 0x2614=0xbf016 0x2a14=0xbf016 0x2e14=0xbf016 0x2220=0xff 0x2224=0x0 0x2620=0xff 0x2624=0x0 0x2a20=0xff 0x2a24=0x0 0x2e20=0xff 0x2e24=0x0 0x1000=0x0 0x1080=0x0 0x1100=0x1 0x1180=0x1 0x1200=0x2 0x1280=0x2 0x1300=0x3 0x1380=0x3 0x1010=0x10110000 0x1004=0x0 0x1090=0x10110000 0x1084=0x0 0x1110=0x10110000 0x1104=0x0 0x1190=0x10110000 0x1184=0x0 0x1210=0x10110000 0x1204=0x0 0x1290=0x10110000 0x1284=0x0 0x1310=0x10110000 0x1304=0x0 0x1390=0x10110000 0x1384=0x0 0x208=0x10014 0x20c=0x1001 0x218=0x0; GET := PUT [guest]
+   186308272 E boot: display: core notifier FINISHED at sys 0x10625a000 (record 0), mode WRITE_AWAKEN [guest]
+   186308308 E boot: display channel 0xc57d/0 kick 8: PUT 0x220, 2 method(s), 0 UPDATE(s), 0 raster method(s); GET := PUT [guest]
+   186308684 E msi: signalled (Ok(()))
+   186308878 E boot: doorbell 479: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186308880 E boot: rx seq 478 GSP_RM_CONTROL (76) sequence 476 length 192 checksum ok: hClient=0xc1d00008 hObject=0x1000d cmd=0x731144 paramsSize=120 rpcFlags=0x0
+   186308881 E boot: ctrl 0x731144: control 0x731144 on 0x100 -> status 0x0 [synthesized (acknowledged; no display state behind it yet)]
+   186308883 E boot: tx seq 478 reply GSP_RM_CONTROL sequence 476 result 0x0 length 192
+   186309990 E msi: signalled (Ok(()))
+   186310177 E boot: doorbell 480: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186310179 E boot: rx seq 479 GSP_RM_CONTROL (76) sequence 477 length 192 checksum ok: hClient=0xc1d00008 hObject=0x1000d cmd=0x731144 paramsSize=120 rpcFlags=0x0
+   186310181 E boot: ctrl 0x731144: control 0x731144 on 0x100 -> status 0x0 [synthesized (acknowledged; no display state behind it yet)]
+   186310182 E boot: tx seq 479 reply GSP_RM_CONTROL sequence 477 result 0x0 length 192
+   186311255 E msi: signalled (Ok(()))
+   186311507 E boot: doorbell 481: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186311509 E boot: rx seq 480 GSP_RM_CONTROL (76) sequence 478 length 192 checksum ok: hClient=0xc1d00008 hObject=0x1000d cmd=0x731144 paramsSize=120 rpcFlags=0x0
+   186311511 E boot: ctrl 0x731144: control 0x731144 on 0x100 -> status 0x0 [synthesized (acknowledged; no display state behind it yet)]
+   186311512 E boot: tx seq 480 reply GSP_RM_CONTROL sequence 478 result 0x0 length 192
+   186312408 E msi: signalled (Ok(()))
+   186312564 E boot: doorbell 482: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186312565 E boot: rx seq 481 GSP_RM_CONTROL (76) sequence 479 length 192 checksum ok: hClient=0xc1d00008 hObject=0x1000d cmd=0x731144 paramsSize=120 rpcFlags=0x0
+   186312567 E boot: ctrl 0x731144: control 0x731144 on 0x100 -> status 0x0 [synthesized (acknowledged; no display state behind it yet)]
+   186312568 E boot: tx seq 481 reply GSP_RM_CONTROL sequence 479 result 0x0 length 192
+   186313112 E msi: signalled (Ok(()))
+   186313277 E boot: doorbell 483: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186313278 E boot: rx seq 482 GSP_RM_CONTROL (76) sequence 480 length 88 checksum ok: hClient=0xc1d00008 hObject=0x1000d cmd=0x7302a4 paramsSize=16 rpcFlags=0x0
+   186313280 E boot: ctrl 0x7302a4: control 0x7302a4 on 0x0 -> status 0x0 [synthesized (acknowledged; no display state behind it yet)]
+   186313281 E boot: tx seq 482 reply GSP_RM_CONTROL sequence 480 result 0x0 length 88
+   186314017 E msi: signalled (Ok(()))
+   186314214 E boot: doorbell 484: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186314216 E boot: rx seq 483 GSP_RM_CONTROL (76) sequence 481 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+   186314218 E boot: ctrl 0xc3720101: is mode possible: yes (1 heads: head 0 148500 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+   186314220 E boot: tx seq 483 reply GSP_RM_CONTROL sequence 481 result 0x0 length 2120
+   186314639 E msi: signalled (Ok(()))
+   186317082 E boot: doorbell 485: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186317083 E boot: rx seq 484 GSP_RM_CONTROL (76) sequence 482 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+   186317085 E boot: ctrl 0xc3720101: is mode possible: yes (1 heads: head 0 74250 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+   186317086 E boot: tx seq 484 reply GSP_RM_CONTROL sequence 482 result 0x0 length 2120
+   186318232 E boot: doorbell 486: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186318233 E boot: rx seq 485 GSP_RM_CONTROL (76) sequence 483 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+   186318235 E boot: ctrl 0xc3720101: is mode possible: yes (1 heads: head 0 148500 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+   186318236 E boot: tx seq 485 reply GSP_RM_CONTROL sequence 483 result 0x0 length 2120
+   186319024 E boot: doorbell 487: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186319026 E boot: rx seq 486 GSP_RM_CONTROL (76) sequence 484 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+   186319027 E boot: ctrl 0xc3720101: is mode possible: yes (1 heads: head 0 148350 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+   186319029 E boot: tx seq 486 reply GSP_RM_CONTROL sequence 484 result 0x0 length 2120
+   186319926 E boot: doorbell 488: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186319928 E boot: rx seq 487 GSP_RM_CONTROL (76) sequence 485 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+   186319929 E boot: ctrl 0xc3720101: is mode possible: yes (1 heads: head 0 74180 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+   186319931 E boot: tx seq 487 reply GSP_RM_CONTROL sequence 485 result 0x0 length 2120
+   186320597 E boot: doorbell 489: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186320599 E boot: rx seq 488 GSP_RM_CONTROL (76) sequence 486 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+   186320601 E boot: ctrl 0xc3720101: is mode possible: yes (1 heads: head 0 148500 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+   186320602 E boot: tx seq 488 reply GSP_RM_CONTROL sequence 486 result 0x0 length 2120
+   186321339 E boot: doorbell 490: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186321340 E boot: rx seq 489 GSP_RM_CONTROL (76) sequence 487 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+   186321342 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+   186321344 E boot: tx seq 489 reply GSP_RM_CONTROL sequence 487 result 0x0 length 2120
+   186322022 E boot: doorbell 491: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186322024 E boot: rx seq 490 GSP_RM_CONTROL (76) sequence 488 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+   186322025 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+   186322027 E boot: tx seq 490 reply GSP_RM_CONTROL sequence 488 result 0x0 length 2120
+   186323130 E boot: doorbell 492: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186323132 E boot: rx seq 491 GSP_RM_CONTROL (76) sequence 489 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+   186323133 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+   186323134 E boot: tx seq 491 reply GSP_RM_CONTROL sequence 489 result 0x0 length 2120
+   186324333 E boot: doorbell 493: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186324334 E boot: rx seq 492 GSP_RM_CONTROL (76) sequence 490 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+   186324336 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+   186324338 E boot: tx seq 492 reply GSP_RM_CONTROL sequence 490 result 0x0 length 2120
+   186325323 E boot: doorbell 494: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186325324 E boot: rx seq 493 GSP_RM_CONTROL (76) sequence 491 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+   186325326 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+   186325327 E boot: tx seq 493 reply GSP_RM_CONTROL sequence 491 result 0x0 length 2120
+   186326712 E boot: doorbell 495: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186326713 E boot: rx seq 494 GSP_RM_CONTROL (76) sequence 492 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+   186326715 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+   186326716 E boot: tx seq 494 reply GSP_RM_CONTROL sequence 492 result 0x0 length 2120
+   186328139 E boot: doorbell 496: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186328140 E boot: rx seq 495 GSP_RM_CONTROL (76) sequence 493 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+   186328142 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+   186328143 E boot: tx seq 495 reply GSP_RM_CONTROL sequence 493 result 0x0 length 2120
+   186329589 E boot: doorbell 497: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186329590 E boot: rx seq 496 GSP_RM_CONTROL (76) sequence 494 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+   186329591 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+   186329592 E boot: tx seq 496 reply GSP_RM_CONTROL sequence 494 result 0x0 length 2120
+   186331072 E boot: doorbell 498: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186331073 E boot: rx seq 497 GSP_RM_CONTROL (76) sequence 495 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+   186331075 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+   186331076 E boot: tx seq 497 reply GSP_RM_CONTROL sequence 495 result 0x0 length 2120
+   186332478 E boot: doorbell 499: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186332480 E boot: rx seq 498 GSP_RM_CONTROL (76) sequence 496 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+   186332481 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+   186332487 E boot: tx seq 498 reply GSP_RM_CONTROL sequence 496 result 0x0 length 2120
+   186333881 E boot: doorbell 500: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186333882 E boot: rx seq 499 GSP_RM_CONTROL (76) sequence 497 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+   186333884 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+   186333885 E boot: tx seq 499 reply GSP_RM_CONTROL sequence 497 result 0x0 length 2120
+   186335266 E boot: doorbell 501: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186335267 E boot: rx seq 500 GSP_RM_CONTROL (76) sequence 498 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+   186335268 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+   186335275 E boot: tx seq 500 reply GSP_RM_CONTROL sequence 498 result 0x0 length 2120
+   186336657 E boot: doorbell 502: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186336659 E boot: rx seq 501 GSP_RM_CONTROL (76) sequence 499 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+   186336660 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+   186336661 E boot: tx seq 501 reply GSP_RM_CONTROL sequence 499 result 0x0 length 2120
+   186338056 E boot: doorbell 503: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186338058 E boot: rx seq 502 GSP_RM_CONTROL (76) sequence 500 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+   186338064 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+   186338066 E boot: tx seq 502 reply GSP_RM_CONTROL sequence 500 result 0x0 length 2120
+   186339461 E boot: doorbell 504: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186339462 E boot: rx seq 503 GSP_RM_CONTROL (76) sequence 501 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+   186339464 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+   186339465 E boot: tx seq 503 reply GSP_RM_CONTROL sequence 501 result 0x0 length 2120
+   186340881 E boot: doorbell 505: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186340883 E boot: rx seq 504 GSP_RM_CONTROL (76) sequence 502 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+   186340889 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+   186340890 E boot: tx seq 504 reply GSP_RM_CONTROL sequence 502 result 0x0 length 2120
+   186342304 E boot: doorbell 506: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186342305 E boot: rx seq 505 GSP_RM_CONTROL (76) sequence 503 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+   186342306 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+   186342308 E boot: tx seq 505 reply GSP_RM_CONTROL sequence 503 result 0x0 length 2120
+   186343697 E boot: doorbell 507: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186343703 E boot: rx seq 506 GSP_RM_CONTROL (76) sequence 504 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+   186343705 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+   186343706 E boot: tx seq 506 reply GSP_RM_CONTROL sequence 504 result 0x0 length 2120
+   186345099 E boot: doorbell 508: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186345101 E boot: rx seq 507 GSP_RM_CONTROL (76) sequence 505 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+   186345102 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+   186345103 E boot: tx seq 507 reply GSP_RM_CONTROL sequence 505 result 0x0 length 2120
+   186346506 E boot: doorbell 509: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186346507 E boot: rx seq 508 GSP_RM_CONTROL (76) sequence 506 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+   186346509 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+   186346510 E boot: tx seq 508 reply GSP_RM_CONTROL sequence 506 result 0x0 length 2120
+   186347903 E boot: doorbell 510: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186347904 E boot: rx seq 509 GSP_RM_CONTROL (76) sequence 507 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+   186347906 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+   186347907 E boot: tx seq 509 reply GSP_RM_CONTROL sequence 507 result 0x0 length 2120
+   186349321 E boot: doorbell 511: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186349322 E boot: rx seq 510 GSP_RM_CONTROL (76) sequence 508 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+   186349324 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+   186349325 E boot: tx seq 510 reply GSP_RM_CONTROL sequence 508 result 0x0 length 2120
+   186350733 E boot: doorbell 512: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186350735 E boot: rx seq 511 GSP_RM_CONTROL (76) sequence 509 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+   186350736 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+   186350737 E boot: tx seq 511 reply GSP_RM_CONTROL sequence 509 result 0x0 length 2120
+   186352141 E boot: doorbell 513: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186352143 E boot: rx seq 512 GSP_RM_CONTROL (76) sequence 510 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+   186352144 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+   186352145 E boot: tx seq 512 reply GSP_RM_CONTROL sequence 510 result 0x0 length 2120
+   186353545 E boot: doorbell 514: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186353546 E boot: rx seq 513 GSP_RM_CONTROL (76) sequence 511 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+   186353548 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+   186353549 E boot: tx seq 513 reply GSP_RM_CONTROL sequence 511 result 0x0 length 2120
+   186354951 E boot: doorbell 515: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186354952 E boot: rx seq 514 GSP_RM_CONTROL (76) sequence 512 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+   186354954 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+   186354955 E boot: tx seq 514 reply GSP_RM_CONTROL sequence 512 result 0x0 length 2120
+   186356357 E boot: doorbell 516: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186356358 E boot: rx seq 515 GSP_RM_CONTROL (76) sequence 513 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+   186356360 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+   186356361 E boot: tx seq 515 reply GSP_RM_CONTROL sequence 513 result 0x0 length 2120
+   186357769 E boot: doorbell 517: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186357770 E boot: rx seq 516 GSP_RM_CONTROL (76) sequence 514 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+   186357771 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+   186357772 E boot: tx seq 516 reply GSP_RM_CONTROL sequence 514 result 0x0 length 2120
+   186359190 E boot: doorbell 518: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186359191 E boot: rx seq 517 GSP_RM_CONTROL (76) sequence 515 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+   186359193 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+   186359194 E boot: tx seq 517 reply GSP_RM_CONTROL sequence 515 result 0x0 length 2120
+   186360611 E boot: doorbell 519: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186360612 E boot: rx seq 518 GSP_RM_CONTROL (76) sequence 516 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+   186360613 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+   186360615 E boot: tx seq 518 reply GSP_RM_CONTROL sequence 516 result 0x0 length 2120
+   186362011 E boot: doorbell 520: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186362012 E boot: rx seq 519 GSP_RM_CONTROL (76) sequence 517 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+   186362013 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+   186362015 E boot: tx seq 519 reply GSP_RM_CONTROL sequence 517 result 0x0 length 2120
+   186363430 E boot: doorbell 521: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186363431 E boot: rx seq 520 GSP_RM_CONTROL (76) sequence 518 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+   186363432 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+   186363433 E boot: tx seq 520 reply GSP_RM_CONTROL sequence 518 result 0x0 length 2120
+   186364830 E boot: doorbell 522: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186364834 E boot: rx seq 521 GSP_RM_CONTROL (76) sequence 519 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+   186364835 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+   186364837 E boot: tx seq 521 reply GSP_RM_CONTROL sequence 519 result 0x0 length 2120
+   186366254 E boot: doorbell 523: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186366255 E boot: rx seq 522 GSP_RM_CONTROL (76) sequence 520 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+   186366256 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+   186366257 E boot: tx seq 522 reply GSP_RM_CONTROL sequence 520 result 0x0 length 2120
+   186367674 E boot: doorbell 524: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186367675 E boot: rx seq 523 GSP_RM_CONTROL (76) sequence 521 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+   186367676 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+   186367677 E boot: tx seq 523 reply GSP_RM_CONTROL sequence 521 result 0x0 length 2120
+   186369081 E boot: doorbell 525: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186369082 E boot: rx seq 524 GSP_RM_CONTROL (76) sequence 522 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+   186369084 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+   186369085 E boot: tx seq 524 reply GSP_RM_CONTROL sequence 522 result 0x0 length 2120
+   186370503 E boot: doorbell 526: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186370504 E boot: rx seq 525 GSP_RM_CONTROL (76) sequence 523 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+   186370505 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+   186370507 E boot: tx seq 525 reply GSP_RM_CONTROL sequence 523 result 0x0 length 2120
+   186371911 E boot: doorbell 527: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186371912 E boot: rx seq 526 GSP_RM_CONTROL (76) sequence 524 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+   186371914 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+   186371915 E boot: tx seq 526 reply GSP_RM_CONTROL sequence 524 result 0x0 length 2120
+   186373335 E boot: doorbell 528: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186373337 E boot: rx seq 527 GSP_RM_CONTROL (76) sequence 525 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+   186373338 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+   186373339 E boot: tx seq 527 reply GSP_RM_CONTROL sequence 525 result 0x0 length 2120
+   186374736 E boot: doorbell 529: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186374737 E boot: rx seq 528 GSP_RM_CONTROL (76) sequence 526 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+   186374738 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+   186374740 E boot: tx seq 528 reply GSP_RM_CONTROL sequence 526 result 0x0 length 2120
+   186377260 E boot: doorbell 530: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186377262 E boot: rx seq 529 GSP_RM_CONTROL (76) sequence 527 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+   186377263 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+   186377265 E boot: tx seq 529 reply GSP_RM_CONTROL sequence 527 result 0x0 length 2120
+   186378129 E boot: doorbell 531: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186378131 E boot: rx seq 530 GSP_RM_CONTROL (76) sequence 528 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+   186378132 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+   186378134 E boot: tx seq 530 reply GSP_RM_CONTROL sequence 528 result 0x0 length 2120
+   186378849 E boot: doorbell 532: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186378851 E boot: rx seq 531 GSP_RM_CONTROL (76) sequence 529 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+   186378853 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+   186378855 E boot: tx seq 531 reply GSP_RM_CONTROL sequence 529 result 0x0 length 2120
+   186379563 E boot: doorbell 533: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186379565 E boot: rx seq 532 GSP_RM_CONTROL (76) sequence 530 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+   186379566 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+   186379567 E boot: tx seq 532 reply GSP_RM_CONTROL sequence 530 result 0x0 length 2120
+   186380157 E boot: doorbell 534: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186380158 E boot: rx seq 533 GSP_RM_CONTROL (76) sequence 531 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+   186380159 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+   186380160 E boot: tx seq 533 reply GSP_RM_CONTROL sequence 531 result 0x0 length 2120
+   186380945 E boot: doorbell 535: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186380947 E boot: rx seq 534 GSP_RM_CONTROL (76) sequence 532 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+   186380949 E boot: ctrl 0xc3720101: is mode possible: yes (1 heads: head 0 25175 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+   186380950 E boot: tx seq 534 reply GSP_RM_CONTROL sequence 532 result 0x0 length 2120
+   186381637 E boot: doorbell 536: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186381639 E boot: rx seq 535 GSP_RM_CONTROL (76) sequence 533 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+   186381640 E boot: ctrl 0xc3720101: is mode possible: yes (1 heads: head 0 40000 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+   186381642 E boot: tx seq 535 reply GSP_RM_CONTROL sequence 533 result 0x0 length 2120
+   186382374 E boot: doorbell 537: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186382376 E boot: rx seq 536 GSP_RM_CONTROL (76) sequence 534 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+   186382377 E boot: ctrl 0xc3720101: is mode possible: yes (1 heads: head 0 148500 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+   186382379 E boot: tx seq 536 reply GSP_RM_CONTROL sequence 534 result 0x0 length 2120
+   186383093 E boot: doorbell 538: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186383095 E boot: rx seq 537 GSP_RM_CONTROL (76) sequence 535 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+   186383097 E boot: ctrl 0xc3720101: is mode possible: yes (1 heads: head 0 148350 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+   186383098 E boot: tx seq 537 reply GSP_RM_CONTROL sequence 535 result 0x0 length 2120
+   186383775 E boot: doorbell 539: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186383776 E boot: rx seq 538 GSP_RM_CONTROL (76) sequence 536 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+   186383778 E boot: ctrl 0xc3720101: is mode possible: yes (1 heads: head 0 148500 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+   186383779 E boot: tx seq 538 reply GSP_RM_CONTROL sequence 536 result 0x0 length 2120
+   186384369 E boot: doorbell 540: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186384370 E boot: rx seq 539 GSP_RM_CONTROL (76) sequence 537 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+   186384372 E boot: ctrl 0xc3720101: is mode possible: yes (1 heads: head 0 74250 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+   186384373 E boot: tx seq 539 reply GSP_RM_CONTROL sequence 537 result 0x0 length 2120
+   186384950 E boot: doorbell 541: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186384952 E boot: rx seq 540 GSP_RM_CONTROL (76) sequence 538 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+   186384953 E boot: ctrl 0xc3720101: is mode possible: yes (1 heads: head 0 74180 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+   186384954 E boot: tx seq 540 reply GSP_RM_CONTROL sequence 538 result 0x0 length 2120
+   186385551 E boot: doorbell 542: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186385553 E boot: rx seq 541 GSP_RM_CONTROL (76) sequence 539 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+   186385554 E boot: ctrl 0xc3720101: is mode possible: yes (1 heads: head 0 25175 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+   186385555 E boot: tx seq 541 reply GSP_RM_CONTROL sequence 539 result 0x0 length 2120
+   186386145 E boot: doorbell 543: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   186386147 E boot: rx seq 542 GSP_RM_CONTROL (76) sequence 540 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+   186386148 E boot: ctrl 0xc3720101: is mode possible: yes (1 heads: head 0 40000 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+   186386149 E boot: tx seq 542 reply GSP_RM_CONTROL sequence 540 result 0x0 length 2120

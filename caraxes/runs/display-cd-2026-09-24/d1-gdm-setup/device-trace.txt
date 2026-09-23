@@ -1,0 +1,2 @@
+# SPDX-License-Identifier: MIT
+# events of the device trace (full window: /mnt/vmstore/caraxes/vm0/display-cd/d1-gdm-setup/device-trace-full.txt)

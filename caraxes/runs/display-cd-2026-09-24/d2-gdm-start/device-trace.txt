@@ -1,0 +1,972 @@
+# SPDX-License-Identifier: MIT
+# events of the device trace (full window: /mnt/vmstore/caraxes/vm0/display-cd/d2-gdm-start/device-trace-full.txt)
+  1488518662 E boot: mmu invalidate: pdb 0xf7601000 flags 0x5 (no mirror VA space rooted there; nothing cached here)
+  1488519433 E boot: mmu invalidate: pdb 0xf7601000 flags 0xc5 (no mirror VA space rooted there; nothing cached here)
+  1488528376 E boot: mmu invalidate: pdb 0xf7552000 flags 0xc1 (no mirror VA space rooted there; nothing cached here)
+  1488531124 E boot: mmu invalidate: pdb 0xf7552000 flags 0xc1 (no mirror VA space rooted there; nothing cached here)
+  1488532703 E boot: mmu invalidate: pdb 0xf7601000 flags 0xc5 (no mirror VA space rooted there; nothing cached here)
+  1488602033 E boot: doorbell 4364: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1488602035 E boot: rx seq 4363 GSP_RM_CONTROL (76) sequence 4361 length 88 checksum ok: hClient=0xc1d00008 hObject=0x1000d cmd=0x730291 paramsSize=16 rpcFlags=0x0
+  1488602036 E boot: ctrl 0x730291: backlight brightness of 0x100: not supported (external DP monitor, no panel) -> status 0x56 [synthesized (board connector table, boards/rtx2070.toml [display])]
+  1488602038 E boot: tx seq 4362 reply GSP_RM_CONTROL sequence 4361 result 0x0 length 88
+  1488602690 E boot: doorbell 4365: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1488602691 E boot: rx seq 4364 GSP_RM_CONTROL (76) sequence 4362 length 2132 checksum ok: hClient=0xc1d00008 hObject=0x1000d cmd=0x730246 paramsSize=2060 rpcFlags=0x0
+  1488602693 E boot: ctrl 0x730246: set edid of 0x100: size 0, override cleared -> status 0x0 [guest-derived (per-display EDID state: sink EDID and override)]
+  1488602701 E boot: tx seq 4363 reply GSP_RM_CONTROL sequence 4362 result 0x0 length 2132
+  1488603272 E boot: doorbell 4366: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1488603273 E boot: rx seq 4365 GSP_RM_CONTROL (76) sequence 4363 length 2132 checksum ok: hClient=0xc1d00008 hObject=0x1000d cmd=0x730246 paramsSize=2060 rpcFlags=0x0
+  1488603274 E boot: ctrl 0x730246: set edid of 0x100: 256 bytes stored as override (identical to the sink EDID: true) -> status 0x0 [guest-derived (per-display EDID state: sink EDID and override)]
+  1488603275 E boot: tx seq 4364 reply GSP_RM_CONTROL sequence 4363 result 0x0 length 2132
+  1488603864 E boot: doorbell 4367: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1488603865 E boot: rx seq 4366 GSP_RM_CONTROL (76) sequence 4364 length 2136 checksum ok: hClient=0xc1d00008 hObject=0x1000d cmd=0x730245 paramsSize=2064 rpcFlags=0x0
+  1488603867 E boot: ctrl 0x730245: get edid of 0x100 flags 0x0: 256 bytes from the override -> status 0x0 [guest-derived (per-display EDID state: sink EDID and override)]
+  1488603874 E boot: tx seq 4365 reply GSP_RM_CONTROL sequence 4364 result 0x0 length 2136
+  1488604754 E boot: doorbell 4368: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1488604756 E boot: rx seq 4367 GSP_RM_CONTROL (76) sequence 4365 length 96 checksum ok: hClient=0xc1d00008 hObject=0x1000d cmd=0x731360 paramsSize=24 rpcFlags=0x0
+  1488604757 E boot: ctrl 0x731360: link config of 0x100: 0 lanes, link bw 0x0 (0 = untrained) -> status 0x0 [synthesized (dp-sink model behind the connector)]
+  1488604758 E boot: tx seq 4366 reply GSP_RM_CONTROL sequence 4365 result 0x0 length 96
+  1488605612 E boot: doorbell 4369: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1488605614 E boot: rx seq 4368 GSP_RM_CONTROL (76) sequence 4366 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1488605615 E boot: ctrl 0xc3720101: is mode possible: yes (1 heads: head 0 148500 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1488605621 E boot: tx seq 4367 reply GSP_RM_CONTROL sequence 4366 result 0x0 length 2120
+  1488606322 E boot: doorbell 4370: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1488606324 E boot: rx seq 4369 GSP_RM_CONTROL (76) sequence 4367 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1488606325 E boot: ctrl 0xc3720101: is mode possible: yes (1 heads: head 0 74250 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1488606327 E boot: tx seq 4368 reply GSP_RM_CONTROL sequence 4367 result 0x0 length 2120
+  1488607164 E boot: doorbell 4371: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1488607166 E boot: rx seq 4370 GSP_RM_CONTROL (76) sequence 4368 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1488607171 E boot: ctrl 0xc3720101: is mode possible: yes (1 heads: head 0 148500 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1488607172 E boot: tx seq 4369 reply GSP_RM_CONTROL sequence 4368 result 0x0 length 2120
+  1488607920 E boot: doorbell 4372: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1488607921 E boot: rx seq 4371 GSP_RM_CONTROL (76) sequence 4369 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1488607923 E boot: ctrl 0xc3720101: is mode possible: yes (1 heads: head 0 148350 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1488607926 E boot: tx seq 4370 reply GSP_RM_CONTROL sequence 4369 result 0x0 length 2120
+  1488608891 E boot: doorbell 4373: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1488608892 E boot: rx seq 4372 GSP_RM_CONTROL (76) sequence 4370 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1488608898 E boot: ctrl 0xc3720101: is mode possible: yes (1 heads: head 0 74180 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1488608899 E boot: tx seq 4371 reply GSP_RM_CONTROL sequence 4370 result 0x0 length 2120
+  1488609873 E boot: doorbell 4374: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1488609874 E boot: rx seq 4373 GSP_RM_CONTROL (76) sequence 4371 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1488609876 E boot: ctrl 0xc3720101: is mode possible: yes (1 heads: head 0 148500 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1488609877 E boot: tx seq 4372 reply GSP_RM_CONTROL sequence 4371 result 0x0 length 2120
+  1488610923 E boot: doorbell 4375: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1488610925 E boot: rx seq 4374 GSP_RM_CONTROL (76) sequence 4372 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1488610934 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1488610936 E boot: tx seq 4373 reply GSP_RM_CONTROL sequence 4372 result 0x0 length 2120
+  1488611630 E boot: doorbell 4376: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1488611631 E boot: rx seq 4375 GSP_RM_CONTROL (76) sequence 4373 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1488611633 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1488611634 E boot: tx seq 4374 reply GSP_RM_CONTROL sequence 4373 result 0x0 length 2120
+  1488612574 E boot: doorbell 4377: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1488612580 E boot: rx seq 4376 GSP_RM_CONTROL (76) sequence 4374 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1488612582 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1488612583 E boot: tx seq 4375 reply GSP_RM_CONTROL sequence 4374 result 0x0 length 2120
+  1488613472 E boot: doorbell 4378: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1488613474 E boot: rx seq 4377 GSP_RM_CONTROL (76) sequence 4375 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1488613475 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1488613476 E boot: tx seq 4376 reply GSP_RM_CONTROL sequence 4375 result 0x0 length 2120
+  1488614165 E boot: doorbell 4379: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1488614166 E boot: rx seq 4378 GSP_RM_CONTROL (76) sequence 4376 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1488614167 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1488614169 E boot: tx seq 4377 reply GSP_RM_CONTROL sequence 4376 result 0x0 length 2120
+  1488614987 E boot: doorbell 4380: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1488614989 E boot: rx seq 4379 GSP_RM_CONTROL (76) sequence 4377 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1488614990 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1488614992 E boot: tx seq 4378 reply GSP_RM_CONTROL sequence 4377 result 0x0 length 2120
+  1488615812 E boot: doorbell 4381: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1488615813 E boot: rx seq 4380 GSP_RM_CONTROL (76) sequence 4378 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1488615814 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1488615815 E boot: tx seq 4379 reply GSP_RM_CONTROL sequence 4378 result 0x0 length 2120
+  1488616540 E boot: doorbell 4382: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1488616541 E boot: rx seq 4381 GSP_RM_CONTROL (76) sequence 4379 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1488616543 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1488616544 E boot: tx seq 4380 reply GSP_RM_CONTROL sequence 4379 result 0x0 length 2120
+  1488617321 E boot: doorbell 4383: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1488617322 E boot: rx seq 4382 GSP_RM_CONTROL (76) sequence 4380 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1488617324 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1488617325 E boot: tx seq 4381 reply GSP_RM_CONTROL sequence 4380 result 0x0 length 2120
+  1488618130 E boot: doorbell 4384: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1488618131 E boot: rx seq 4383 GSP_RM_CONTROL (76) sequence 4381 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1488618133 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1488618134 E boot: tx seq 4382 reply GSP_RM_CONTROL sequence 4381 result 0x0 length 2120
+  1488619011 E boot: doorbell 4385: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1488619012 E boot: rx seq 4384 GSP_RM_CONTROL (76) sequence 4382 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1488619013 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1488619014 E boot: tx seq 4383 reply GSP_RM_CONTROL sequence 4382 result 0x0 length 2120
+  1488619965 E boot: doorbell 4386: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1488619966 E boot: rx seq 4385 GSP_RM_CONTROL (76) sequence 4383 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1488619967 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1488619968 E boot: tx seq 4384 reply GSP_RM_CONTROL sequence 4383 result 0x0 length 2120
+  1488620677 E boot: doorbell 4387: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1488620678 E boot: rx seq 4386 GSP_RM_CONTROL (76) sequence 4384 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1488620679 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1488620681 E boot: tx seq 4385 reply GSP_RM_CONTROL sequence 4384 result 0x0 length 2120
+  1488621442 E boot: doorbell 4388: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1488621443 E boot: rx seq 4387 GSP_RM_CONTROL (76) sequence 4385 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1488621445 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1488621446 E boot: tx seq 4386 reply GSP_RM_CONTROL sequence 4385 result 0x0 length 2120
+  1488622216 E boot: doorbell 4389: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1488622218 E boot: rx seq 4388 GSP_RM_CONTROL (76) sequence 4386 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1488622219 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1488622220 E boot: tx seq 4387 reply GSP_RM_CONTROL sequence 4386 result 0x0 length 2120
+  1488622948 E boot: doorbell 4390: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1488622949 E boot: rx seq 4389 GSP_RM_CONTROL (76) sequence 4387 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1488622950 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1488622951 E boot: tx seq 4388 reply GSP_RM_CONTROL sequence 4387 result 0x0 length 2120
+  1488623658 E boot: doorbell 4391: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1488623659 E boot: rx seq 4390 GSP_RM_CONTROL (76) sequence 4388 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1488623660 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1488623661 E boot: tx seq 4389 reply GSP_RM_CONTROL sequence 4388 result 0x0 length 2120
+  1488624383 E boot: doorbell 4392: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1488624384 E boot: rx seq 4391 GSP_RM_CONTROL (76) sequence 4389 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1488624385 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1488624387 E boot: tx seq 4390 reply GSP_RM_CONTROL sequence 4389 result 0x0 length 2120
+  1488625082 E boot: doorbell 4393: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1488625083 E boot: rx seq 4392 GSP_RM_CONTROL (76) sequence 4390 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1488625084 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1488625085 E boot: tx seq 4391 reply GSP_RM_CONTROL sequence 4390 result 0x0 length 2120
+  1488625849 E boot: doorbell 4394: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1488625850 E boot: rx seq 4393 GSP_RM_CONTROL (76) sequence 4391 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1488625851 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1488625852 E boot: tx seq 4392 reply GSP_RM_CONTROL sequence 4391 result 0x0 length 2120
+  1488626726 E boot: doorbell 4395: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1488626728 E boot: rx seq 4394 GSP_RM_CONTROL (76) sequence 4392 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1488626729 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1488626730 E boot: tx seq 4393 reply GSP_RM_CONTROL sequence 4392 result 0x0 length 2120
+  1488627393 E boot: doorbell 4396: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1488627394 E boot: rx seq 4395 GSP_RM_CONTROL (76) sequence 4393 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1488627395 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1488627396 E boot: tx seq 4394 reply GSP_RM_CONTROL sequence 4393 result 0x0 length 2120
+  1488628142 E boot: doorbell 4397: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1488628143 E boot: rx seq 4396 GSP_RM_CONTROL (76) sequence 4394 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1488628144 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1488628146 E boot: tx seq 4395 reply GSP_RM_CONTROL sequence 4394 result 0x0 length 2120
+  1488629004 E boot: doorbell 4398: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1488629005 E boot: rx seq 4397 GSP_RM_CONTROL (76) sequence 4395 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1488629006 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1488629007 E boot: tx seq 4396 reply GSP_RM_CONTROL sequence 4395 result 0x0 length 2120
+  1488629771 E boot: doorbell 4399: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1488629772 E boot: rx seq 4398 GSP_RM_CONTROL (76) sequence 4396 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1488629773 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1488629775 E boot: tx seq 4397 reply GSP_RM_CONTROL sequence 4396 result 0x0 length 2120
+  1488630681 E boot: doorbell 4400: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1488630683 E boot: rx seq 4399 GSP_RM_CONTROL (76) sequence 4397 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1488630684 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1488630685 E boot: tx seq 4398 reply GSP_RM_CONTROL sequence 4397 result 0x0 length 2120
+  1488631525 E boot: doorbell 4401: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1488631527 E boot: rx seq 4400 GSP_RM_CONTROL (76) sequence 4398 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1488631528 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1488631529 E boot: tx seq 4399 reply GSP_RM_CONTROL sequence 4398 result 0x0 length 2120
+  1488632212 E boot: doorbell 4402: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1488632213 E boot: rx seq 4401 GSP_RM_CONTROL (76) sequence 4399 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1488632214 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1488632215 E boot: tx seq 4400 reply GSP_RM_CONTROL sequence 4399 result 0x0 length 2120
+  1488633022 E boot: doorbell 4403: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1488633024 E boot: rx seq 4402 GSP_RM_CONTROL (76) sequence 4400 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1488633025 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1488633026 E boot: tx seq 4401 reply GSP_RM_CONTROL sequence 4400 result 0x0 length 2120
+  1488634025 E boot: doorbell 4404: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1488634026 E boot: rx seq 4403 GSP_RM_CONTROL (76) sequence 4401 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1488634028 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1488634029 E boot: tx seq 4402 reply GSP_RM_CONTROL sequence 4401 result 0x0 length 2120
+  1488634936 E boot: doorbell 4405: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1488634938 E boot: rx seq 4404 GSP_RM_CONTROL (76) sequence 4402 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1488634941 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1488634944 E boot: tx seq 4403 reply GSP_RM_CONTROL sequence 4402 result 0x0 length 2120
+  1488635806 E boot: doorbell 4406: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1488635808 E boot: rx seq 4405 GSP_RM_CONTROL (76) sequence 4403 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1488635809 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1488635810 E boot: tx seq 4404 reply GSP_RM_CONTROL sequence 4403 result 0x0 length 2120
+  1488636773 E boot: doorbell 4407: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1488636774 E boot: rx seq 4406 GSP_RM_CONTROL (76) sequence 4404 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1488636775 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1488636777 E boot: tx seq 4405 reply GSP_RM_CONTROL sequence 4404 result 0x0 length 2120
+  1488637608 E boot: doorbell 4408: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1488637609 E boot: rx seq 4407 GSP_RM_CONTROL (76) sequence 4405 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1488637611 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1488637612 E boot: tx seq 4406 reply GSP_RM_CONTROL sequence 4405 result 0x0 length 2120
+  1488638189 E boot: doorbell 4409: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1488638191 E boot: rx seq 4408 GSP_RM_CONTROL (76) sequence 4406 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1488638192 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1488638194 E boot: tx seq 4407 reply GSP_RM_CONTROL sequence 4406 result 0x0 length 2120
+  1488638909 E boot: doorbell 4410: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1488638910 E boot: rx seq 4409 GSP_RM_CONTROL (76) sequence 4407 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1488638911 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1488638912 E boot: tx seq 4408 reply GSP_RM_CONTROL sequence 4407 result 0x0 length 2120
+  1488639548 E boot: doorbell 4411: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1488639549 E boot: rx seq 4410 GSP_RM_CONTROL (76) sequence 4408 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1488639550 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1488639551 E boot: tx seq 4409 reply GSP_RM_CONTROL sequence 4408 result 0x0 length 2120
+  1488640110 E boot: doorbell 4412: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1488640112 E boot: rx seq 4411 GSP_RM_CONTROL (76) sequence 4409 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1488640113 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1488640120 E boot: tx seq 4410 reply GSP_RM_CONTROL sequence 4409 result 0x0 length 2120
+  1488640699 E boot: doorbell 4413: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1488640700 E boot: rx seq 4412 GSP_RM_CONTROL (76) sequence 4410 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1488640701 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1488640703 E boot: tx seq 4411 reply GSP_RM_CONTROL sequence 4410 result 0x0 length 2120
+  1488641299 E boot: doorbell 4414: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1488641301 E boot: rx seq 4413 GSP_RM_CONTROL (76) sequence 4411 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1488641302 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1488641308 E boot: tx seq 4412 reply GSP_RM_CONTROL sequence 4411 result 0x0 length 2120
+  1488641895 E boot: doorbell 4415: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1488641896 E boot: rx seq 4414 GSP_RM_CONTROL (76) sequence 4412 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1488641897 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1488641898 E boot: tx seq 4413 reply GSP_RM_CONTROL sequence 4412 result 0x0 length 2120
+  1488642472 E boot: doorbell 4416: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1488642473 E boot: rx seq 4415 GSP_RM_CONTROL (76) sequence 4413 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1488642478 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1488642479 E boot: tx seq 4414 reply GSP_RM_CONTROL sequence 4413 result 0x0 length 2120
+  1488643095 E boot: doorbell 4417: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1488643096 E boot: rx seq 4416 GSP_RM_CONTROL (76) sequence 4414 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1488643098 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1488643100 E boot: tx seq 4415 reply GSP_RM_CONTROL sequence 4414 result 0x0 length 2120
+  1488643765 E boot: doorbell 4418: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1488643766 E boot: rx seq 4417 GSP_RM_CONTROL (76) sequence 4415 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1488643773 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1488643774 E boot: tx seq 4416 reply GSP_RM_CONTROL sequence 4415 result 0x0 length 2120
+  1488644461 E boot: doorbell 4419: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1488644463 E boot: rx seq 4418 GSP_RM_CONTROL (76) sequence 4416 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1488644464 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1488644466 E boot: tx seq 4417 reply GSP_RM_CONTROL sequence 4416 result 0x0 length 2120
+  1488645261 E boot: doorbell 4420: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1488645269 E boot: rx seq 4419 GSP_RM_CONTROL (76) sequence 4417 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1488645270 E boot: ctrl 0xc3720101: is mode possible: yes (1 heads: head 0 25175 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1488645272 E boot: tx seq 4418 reply GSP_RM_CONTROL sequence 4417 result 0x0 length 2120
+  1488645982 E boot: doorbell 4421: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1488645984 E boot: rx seq 4420 GSP_RM_CONTROL (76) sequence 4418 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1488645985 E boot: ctrl 0xc3720101: is mode possible: yes (1 heads: head 0 148500 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1488645986 E boot: tx seq 4419 reply GSP_RM_CONTROL sequence 4418 result 0x0 length 2120
+  1488646570 E boot: doorbell 4422: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1488646571 E boot: rx seq 4421 GSP_RM_CONTROL (76) sequence 4419 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1488646572 E boot: ctrl 0xc3720101: is mode possible: yes (1 heads: head 0 148350 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1488646574 E boot: tx seq 4420 reply GSP_RM_CONTROL sequence 4419 result 0x0 length 2120
+  1488647141 E boot: doorbell 4423: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1488647143 E boot: rx seq 4422 GSP_RM_CONTROL (76) sequence 4420 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1488647144 E boot: ctrl 0xc3720101: is mode possible: yes (1 heads: head 0 148500 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1488647145 E boot: tx seq 4421 reply GSP_RM_CONTROL sequence 4420 result 0x0 length 2120
+  1488647722 E boot: doorbell 4424: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1488647723 E boot: rx seq 4423 GSP_RM_CONTROL (76) sequence 4421 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1488647725 E boot: ctrl 0xc3720101: is mode possible: yes (1 heads: head 0 74250 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1488647726 E boot: tx seq 4422 reply GSP_RM_CONTROL sequence 4421 result 0x0 length 2120
+  1488648274 E boot: doorbell 4425: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1488648275 E boot: rx seq 4424 GSP_RM_CONTROL (76) sequence 4422 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1488648277 E boot: ctrl 0xc3720101: is mode possible: yes (1 heads: head 0 74180 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1488648283 E boot: tx seq 4423 reply GSP_RM_CONTROL sequence 4422 result 0x0 length 2120
+  1488648866 E boot: doorbell 4426: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1488648867 E boot: rx seq 4425 GSP_RM_CONTROL (76) sequence 4423 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1488648869 E boot: ctrl 0xc3720101: is mode possible: yes (1 heads: head 0 25175 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1488648870 E boot: tx seq 4424 reply GSP_RM_CONTROL sequence 4423 result 0x0 length 2120
+  1488650627 E boot: doorbell 4427: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1488650656 E boot: rx seq 4426 GSP_RM_CONTROL (76) sequence 4424 length 88 checksum ok: hClient=0xc1d00008 hObject=0x1000d cmd=0x730291 paramsSize=16 rpcFlags=0x0
+  1488650684 E boot: ctrl 0x730291: backlight brightness of 0x100: not supported (external DP monitor, no panel) -> status 0x56 [synthesized (board connector table, boards/rtx2070.toml [display])]
+  1488650713 E boot: tx seq 4425 reply GSP_RM_CONTROL sequence 4424 result 0x0 length 88
+  1488651805 E boot: doorbell 4428: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1488651807 E boot: rx seq 4427 GSP_RM_CONTROL (76) sequence 4425 length 2132 checksum ok: hClient=0xc1d00008 hObject=0x1000d cmd=0x730246 paramsSize=2060 rpcFlags=0x0
+  1488651808 E boot: ctrl 0x730246: set edid of 0x100: size 0, override cleared -> status 0x0 [guest-derived (per-display EDID state: sink EDID and override)]
+  1488651809 E boot: tx seq 4426 reply GSP_RM_CONTROL sequence 4425 result 0x0 length 2132
+  1488652933 E boot: doorbell 4429: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1488652935 E boot: rx seq 4428 GSP_RM_CONTROL (76) sequence 4426 length 2132 checksum ok: hClient=0xc1d00008 hObject=0x1000d cmd=0x730246 paramsSize=2060 rpcFlags=0x0
+  1488652936 E boot: ctrl 0x730246: set edid of 0x100: 256 bytes stored as override (identical to the sink EDID: true) -> status 0x0 [guest-derived (per-display EDID state: sink EDID and override)]
+  1488652937 E boot: tx seq 4427 reply GSP_RM_CONTROL sequence 4426 result 0x0 length 2132
+  1488653971 E boot: doorbell 4430: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1488654033 E boot: rx seq 4429 GSP_RM_CONTROL (76) sequence 4427 length 2136 checksum ok: hClient=0xc1d00008 hObject=0x1000d cmd=0x730245 paramsSize=2064 rpcFlags=0x0
+  1488654062 E boot: ctrl 0x730245: get edid of 0x100 flags 0x0: 256 bytes from the override -> status 0x0 [guest-derived (per-display EDID state: sink EDID and override)]
+  1488654091 E boot: tx seq 4428 reply GSP_RM_CONTROL sequence 4427 result 0x0 length 2136
+  1488655603 E boot: doorbell 4431: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1488655631 E boot: rx seq 4430 GSP_RM_CONTROL (76) sequence 4428 length 96 checksum ok: hClient=0xc1d00008 hObject=0x1000d cmd=0x731360 paramsSize=24 rpcFlags=0x0
+  1488655660 E boot: ctrl 0x731360: link config of 0x100: 0 lanes, link bw 0x0 (0 = untrained) -> status 0x0 [synthesized (dp-sink model behind the connector)]
+  1488655688 E boot: tx seq 4429 reply GSP_RM_CONTROL sequence 4428 result 0x0 length 96
+  1488656837 E boot: doorbell 4432: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1488656866 E boot: rx seq 4431 GSP_RM_CONTROL (76) sequence 4429 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1488656894 E boot: ctrl 0xc3720101: is mode possible: yes (1 heads: head 0 148500 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1488656947 E boot: tx seq 4430 reply GSP_RM_CONTROL sequence 4429 result 0x0 length 2120
+  1488657832 E boot: doorbell 4433: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1488657833 E boot: rx seq 4432 GSP_RM_CONTROL (76) sequence 4430 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1488657835 E boot: ctrl 0xc3720101: is mode possible: yes (1 heads: head 0 74250 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1488657836 E boot: tx seq 4431 reply GSP_RM_CONTROL sequence 4430 result 0x0 length 2120
+  1488659332 E boot: doorbell 4434: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1488659333 E boot: rx seq 4433 GSP_RM_CONTROL (76) sequence 4431 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1488659335 E boot: ctrl 0xc3720101: is mode possible: yes (1 heads: head 0 148500 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1488659336 E boot: tx seq 4432 reply GSP_RM_CONTROL sequence 4431 result 0x0 length 2120
+  1488660616 E boot: doorbell 4435: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1488660645 E boot: rx seq 4434 GSP_RM_CONTROL (76) sequence 4432 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1488660698 E boot: ctrl 0xc3720101: is mode possible: yes (1 heads: head 0 148350 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1488660726 E boot: tx seq 4433 reply GSP_RM_CONTROL sequence 4432 result 0x0 length 2120
+  1488662111 E boot: doorbell 4436: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1488662140 E boot: rx seq 4435 GSP_RM_CONTROL (76) sequence 4433 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1488662196 E boot: ctrl 0xc3720101: is mode possible: yes (1 heads: head 0 74180 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1488662227 E boot: tx seq 4434 reply GSP_RM_CONTROL sequence 4433 result 0x0 length 2120
+  1488663964 E boot: doorbell 4437: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1488664002 E boot: rx seq 4436 GSP_RM_CONTROL (76) sequence 4434 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1488664031 E boot: ctrl 0xc3720101: is mode possible: yes (1 heads: head 0 148500 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1488664060 E boot: tx seq 4435 reply GSP_RM_CONTROL sequence 4434 result 0x0 length 2120
+  1488665196 E boot: doorbell 4438: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1488665223 E boot: rx seq 4437 GSP_RM_CONTROL (76) sequence 4435 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1488665292 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1488665346 E boot: tx seq 4436 reply GSP_RM_CONTROL sequence 4435 result 0x0 length 2120
+  1488666522 E boot: doorbell 4439: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1488666523 E boot: rx seq 4438 GSP_RM_CONTROL (76) sequence 4436 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1488666524 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1488666526 E boot: tx seq 4437 reply GSP_RM_CONTROL sequence 4436 result 0x0 length 2120
+  1488667961 E boot: doorbell 4440: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1488667992 E boot: rx seq 4439 GSP_RM_CONTROL (76) sequence 4437 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1488668027 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1488668080 E boot: tx seq 4438 reply GSP_RM_CONTROL sequence 4437 result 0x0 length 2120
+  1488669440 E boot: doorbell 4441: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1488669441 E boot: rx seq 4440 GSP_RM_CONTROL (76) sequence 4438 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1488669443 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1488669444 E boot: tx seq 4439 reply GSP_RM_CONTROL sequence 4438 result 0x0 length 2120
+  1488670185 E boot: doorbell 4442: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1488670187 E boot: rx seq 4441 GSP_RM_CONTROL (76) sequence 4439 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1488670188 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1488670189 E boot: tx seq 4440 reply GSP_RM_CONTROL sequence 4439 result 0x0 length 2120
+  1488671470 E boot: doorbell 4443: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1488671472 E boot: rx seq 4442 GSP_RM_CONTROL (76) sequence 4440 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1488671473 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1488671474 E boot: tx seq 4441 reply GSP_RM_CONTROL sequence 4440 result 0x0 length 2120
+  1488672847 E boot: doorbell 4444: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1488672848 E boot: rx seq 4443 GSP_RM_CONTROL (76) sequence 4441 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1488672849 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1488672850 E boot: tx seq 4442 reply GSP_RM_CONTROL sequence 4441 result 0x0 length 2120
+  1488674259 E boot: doorbell 4445: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1488674260 E boot: rx seq 4444 GSP_RM_CONTROL (76) sequence 4442 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1488674262 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1488674263 E boot: tx seq 4443 reply GSP_RM_CONTROL sequence 4442 result 0x0 length 2120
+  1488675635 E boot: doorbell 4446: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1488675636 E boot: rx seq 4445 GSP_RM_CONTROL (76) sequence 4443 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1488675638 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1488675639 E boot: tx seq 4444 reply GSP_RM_CONTROL sequence 4443 result 0x0 length 2120
+  1488677008 E boot: doorbell 4447: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1488677010 E boot: rx seq 4446 GSP_RM_CONTROL (76) sequence 4444 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1488677011 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1488677012 E boot: tx seq 4445 reply GSP_RM_CONTROL sequence 4444 result 0x0 length 2120
+  1488678400 E boot: doorbell 4448: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1488678401 E boot: rx seq 4447 GSP_RM_CONTROL (76) sequence 4445 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1488678402 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1488678404 E boot: tx seq 4446 reply GSP_RM_CONTROL sequence 4445 result 0x0 length 2120
+  1488679774 E boot: doorbell 4449: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1488679776 E boot: rx seq 4448 GSP_RM_CONTROL (76) sequence 4446 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1488679777 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1488679778 E boot: tx seq 4447 reply GSP_RM_CONTROL sequence 4446 result 0x0 length 2120
+  1488681202 E boot: doorbell 4450: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1488681203 E boot: rx seq 4449 GSP_RM_CONTROL (76) sequence 4447 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1488681204 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1488681206 E boot: tx seq 4448 reply GSP_RM_CONTROL sequence 4447 result 0x0 length 2120
+  1488682571 E boot: doorbell 4451: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1488682573 E boot: rx seq 4450 GSP_RM_CONTROL (76) sequence 4448 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1488682574 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1488682575 E boot: tx seq 4449 reply GSP_RM_CONTROL sequence 4448 result 0x0 length 2120
+  1488683951 E boot: doorbell 4452: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1488683952 E boot: rx seq 4451 GSP_RM_CONTROL (76) sequence 4449 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1488683953 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1488683955 E boot: tx seq 4450 reply GSP_RM_CONTROL sequence 4449 result 0x0 length 2120
+  1488685305 E boot: doorbell 4453: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1488685307 E boot: rx seq 4452 GSP_RM_CONTROL (76) sequence 4450 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1488685308 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1488685310 E boot: tx seq 4451 reply GSP_RM_CONTROL sequence 4450 result 0x0 length 2120
+  1488686691 E boot: doorbell 4454: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1488686692 E boot: rx seq 4453 GSP_RM_CONTROL (76) sequence 4451 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1488686694 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1488686695 E boot: tx seq 4452 reply GSP_RM_CONTROL sequence 4451 result 0x0 length 2120
+  1488688062 E boot: doorbell 4455: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1488688063 E boot: rx seq 4454 GSP_RM_CONTROL (76) sequence 4452 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1488688065 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1488688066 E boot: tx seq 4453 reply GSP_RM_CONTROL sequence 4452 result 0x0 length 2120
+  1488689442 E boot: doorbell 4456: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1488689444 E boot: rx seq 4455 GSP_RM_CONTROL (76) sequence 4453 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1488689445 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1488689446 E boot: tx seq 4454 reply GSP_RM_CONTROL sequence 4453 result 0x0 length 2120
+  1488690808 E boot: doorbell 4457: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1488690809 E boot: rx seq 4456 GSP_RM_CONTROL (76) sequence 4454 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1488690810 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1488690812 E boot: tx seq 4455 reply GSP_RM_CONTROL sequence 4454 result 0x0 length 2120
+  1488692172 E boot: doorbell 4458: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1488692174 E boot: rx seq 4457 GSP_RM_CONTROL (76) sequence 4455 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1488692175 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1488692176 E boot: tx seq 4456 reply GSP_RM_CONTROL sequence 4455 result 0x0 length 2120
+  1488693575 E boot: doorbell 4459: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1488693577 E boot: rx seq 4458 GSP_RM_CONTROL (76) sequence 4456 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1488693578 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1488693579 E boot: tx seq 4457 reply GSP_RM_CONTROL sequence 4456 result 0x0 length 2120
+  1488694990 E boot: doorbell 4460: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1488694991 E boot: rx seq 4459 GSP_RM_CONTROL (76) sequence 4457 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1488694992 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1488694993 E boot: tx seq 4458 reply GSP_RM_CONTROL sequence 4457 result 0x0 length 2120
+  1488696384 E boot: doorbell 4461: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1488696386 E boot: rx seq 4460 GSP_RM_CONTROL (76) sequence 4458 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1488696387 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1488696388 E boot: tx seq 4459 reply GSP_RM_CONTROL sequence 4458 result 0x0 length 2120
+  1488697754 E boot: doorbell 4462: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1488697755 E boot: rx seq 4461 GSP_RM_CONTROL (76) sequence 4459 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1488697756 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1488697758 E boot: tx seq 4460 reply GSP_RM_CONTROL sequence 4459 result 0x0 length 2120
+  1488699115 E boot: doorbell 4463: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1488699116 E boot: rx seq 4462 GSP_RM_CONTROL (76) sequence 4460 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1488699117 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1488699123 E boot: tx seq 4461 reply GSP_RM_CONTROL sequence 4460 result 0x0 length 2120
+  1488700536 E boot: doorbell 4464: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1488700537 E boot: rx seq 4463 GSP_RM_CONTROL (76) sequence 4461 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1488700538 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1488700540 E boot: tx seq 4462 reply GSP_RM_CONTROL sequence 4461 result 0x0 length 2120
+  1488701936 E boot: doorbell 4465: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1488701937 E boot: rx seq 4464 GSP_RM_CONTROL (76) sequence 4462 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1488701939 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1488701945 E boot: tx seq 4463 reply GSP_RM_CONTROL sequence 4462 result 0x0 length 2120
+  1488703336 E boot: doorbell 4466: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1488703338 E boot: rx seq 4465 GSP_RM_CONTROL (76) sequence 4463 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1488703339 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1488703340 E boot: tx seq 4464 reply GSP_RM_CONTROL sequence 4463 result 0x0 length 2120
+  1488704225 E boot: doorbell 4467: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1488704226 E boot: rx seq 4466 GSP_RM_CONTROL (76) sequence 4464 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1488704228 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1488704234 E boot: tx seq 4465 reply GSP_RM_CONTROL sequence 4464 result 0x0 length 2120
+  1488704812 E boot: doorbell 4468: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1488704813 E boot: rx seq 4467 GSP_RM_CONTROL (76) sequence 4465 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1488704814 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1488704816 E boot: tx seq 4466 reply GSP_RM_CONTROL sequence 4465 result 0x0 length 2120
+  1488705384 E boot: doorbell 4469: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1488705385 E boot: rx seq 4468 GSP_RM_CONTROL (76) sequence 4466 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1488705390 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1488705391 E boot: tx seq 4467 reply GSP_RM_CONTROL sequence 4466 result 0x0 length 2120
+  1488705940 E boot: doorbell 4470: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1488705941 E boot: rx seq 4469 GSP_RM_CONTROL (76) sequence 4467 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1488705943 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1488705944 E boot: tx seq 4468 reply GSP_RM_CONTROL sequence 4467 result 0x0 length 2120
+  1488706513 E boot: doorbell 4471: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1488706514 E boot: rx seq 4470 GSP_RM_CONTROL (76) sequence 4468 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1488706518 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1488706520 E boot: tx seq 4469 reply GSP_RM_CONTROL sequence 4468 result 0x0 length 2120
+  1488707071 E boot: doorbell 4472: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1488707072 E boot: rx seq 4471 GSP_RM_CONTROL (76) sequence 4469 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1488707073 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1488707074 E boot: tx seq 4470 reply GSP_RM_CONTROL sequence 4469 result 0x0 length 2120
+  1488707688 E boot: doorbell 4473: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1488707694 E boot: rx seq 4472 GSP_RM_CONTROL (76) sequence 4470 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1488707696 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1488707698 E boot: tx seq 4471 reply GSP_RM_CONTROL sequence 4470 result 0x0 length 2120
+  1488708372 E boot: doorbell 4474: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1488708373 E boot: rx seq 4473 GSP_RM_CONTROL (76) sequence 4471 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1488708375 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1488708376 E boot: tx seq 4472 reply GSP_RM_CONTROL sequence 4471 result 0x0 length 2120
+  1488708938 E boot: doorbell 4475: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1488708939 E boot: rx seq 4474 GSP_RM_CONTROL (76) sequence 4472 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1488708940 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1488708941 E boot: tx seq 4473 reply GSP_RM_CONTROL sequence 4472 result 0x0 length 2120
+  1488709555 E boot: doorbell 4476: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1488709556 E boot: rx seq 4475 GSP_RM_CONTROL (76) sequence 4473 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1488709558 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1488709559 E boot: tx seq 4474 reply GSP_RM_CONTROL sequence 4473 result 0x0 length 2120
+  1488710116 E boot: doorbell 4477: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1488710117 E boot: rx seq 4476 GSP_RM_CONTROL (76) sequence 4474 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1488710118 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1488710119 E boot: tx seq 4475 reply GSP_RM_CONTROL sequence 4474 result 0x0 length 2120
+  1488710718 E boot: doorbell 4478: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1488710719 E boot: rx seq 4477 GSP_RM_CONTROL (76) sequence 4475 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1488710720 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1488710721 E boot: tx seq 4476 reply GSP_RM_CONTROL sequence 4475 result 0x0 length 2120
+  1488711286 E boot: doorbell 4479: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1488711287 E boot: rx seq 4478 GSP_RM_CONTROL (76) sequence 4476 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1488711288 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1488711290 E boot: tx seq 4477 reply GSP_RM_CONTROL sequence 4476 result 0x0 length 2120
+  1488711929 E boot: doorbell 4480: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1488711931 E boot: rx seq 4479 GSP_RM_CONTROL (76) sequence 4477 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1488711932 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1488711933 E boot: tx seq 4478 reply GSP_RM_CONTROL sequence 4477 result 0x0 length 2120
+  1488713319 E boot: doorbell 4481: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1488713321 E boot: rx seq 4480 GSP_RM_CONTROL (76) sequence 4478 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1488713322 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1488713323 E boot: tx seq 4479 reply GSP_RM_CONTROL sequence 4478 result 0x0 length 2120
+  1488714715 E boot: doorbell 4482: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1488714716 E boot: rx seq 4481 GSP_RM_CONTROL (76) sequence 4479 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1488714717 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1488714718 E boot: tx seq 4480 reply GSP_RM_CONTROL sequence 4479 result 0x0 length 2120
+  1488715977 E boot: doorbell 4483: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1488715978 E boot: rx seq 4482 GSP_RM_CONTROL (76) sequence 4480 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1488715979 E boot: ctrl 0xc3720101: is mode possible: yes (1 heads: head 0 25175 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1488715981 E boot: tx seq 4481 reply GSP_RM_CONTROL sequence 4480 result 0x0 length 2120
+  1488717502 E boot: doorbell 4484: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1488717504 E boot: rx seq 4483 GSP_RM_CONTROL (76) sequence 4481 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1488717505 E boot: ctrl 0xc3720101: is mode possible: yes (1 heads: head 0 148500 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1488717506 E boot: tx seq 4482 reply GSP_RM_CONTROL sequence 4481 result 0x0 length 2120
+  1488718907 E boot: doorbell 4485: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1488718908 E boot: rx seq 4484 GSP_RM_CONTROL (76) sequence 4482 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1488718909 E boot: ctrl 0xc3720101: is mode possible: yes (1 heads: head 0 148350 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1488718910 E boot: tx seq 4483 reply GSP_RM_CONTROL sequence 4482 result 0x0 length 2120
+  1488720272 E boot: doorbell 4486: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1488720274 E boot: rx seq 4485 GSP_RM_CONTROL (76) sequence 4483 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1488720275 E boot: ctrl 0xc3720101: is mode possible: yes (1 heads: head 0 148500 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1488720276 E boot: tx seq 4484 reply GSP_RM_CONTROL sequence 4483 result 0x0 length 2120
+  1488721691 E boot: doorbell 4487: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1488721692 E boot: rx seq 4486 GSP_RM_CONTROL (76) sequence 4484 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1488721694 E boot: ctrl 0xc3720101: is mode possible: yes (1 heads: head 0 74250 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1488721695 E boot: tx seq 4485 reply GSP_RM_CONTROL sequence 4484 result 0x0 length 2120
+  1488723042 E boot: doorbell 4488: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1488723044 E boot: rx seq 4487 GSP_RM_CONTROL (76) sequence 4485 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1488723045 E boot: ctrl 0xc3720101: is mode possible: yes (1 heads: head 0 74180 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1488723046 E boot: tx seq 4486 reply GSP_RM_CONTROL sequence 4485 result 0x0 length 2120
+  1488724458 E boot: doorbell 4489: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1488724459 E boot: rx seq 4488 GSP_RM_CONTROL (76) sequence 4486 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1488724460 E boot: ctrl 0xc3720101: is mode possible: yes (1 heads: head 0 25175 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1488724461 E boot: tx seq 4487 reply GSP_RM_CONTROL sequence 4486 result 0x0 length 2120
+  1488749298 E boot: mmu invalidate: pdb 0xf7601000 flags 0x5 (no mirror VA space rooted there; nothing cached here)
+  1488758964 E boot: mmu invalidate: pdb 0xf7601000 flags 0xc5 (no mirror VA space rooted there; nothing cached here)
+  1488760359 E boot: mmu invalidate: pdb 0xf7601000 flags 0x5 (no mirror VA space rooted there; nothing cached here)
+  1488760716 E boot: mmu invalidate: pdb 0xf7601000 flags 0xc5 (no mirror VA space rooted there; nothing cached here)
+  1488761995 E boot: mmu invalidate: pdb 0xf7601000 flags 0x5 (no mirror VA space rooted there; nothing cached here)
+  1488762362 E boot: mmu invalidate: pdb 0xf7601000 flags 0xc5 (no mirror VA space rooted there; nothing cached here)
+  1488763679 E boot: mmu invalidate: pdb 0xf7601000 flags 0x5 (no mirror VA space rooted there; nothing cached here)
+  1488764074 E boot: mmu invalidate: pdb 0xf7601000 flags 0xc5 (no mirror VA space rooted there; nothing cached here)
+  1488765370 E boot: mmu invalidate: pdb 0xf7601000 flags 0x5 (no mirror VA space rooted there; nothing cached here)
+  1488765724 E boot: mmu invalidate: pdb 0xf7601000 flags 0xc5 (no mirror VA space rooted there; nothing cached here)
+  1514121779 E boot: mmu invalidate: pdb 0xf7552000 flags 0xc1 (no mirror VA space rooted there; nothing cached here)
+  1514123262 E boot: display channel 0xc57d/0 kick 3: PUT 0xfc8, 505 method(s), 0 UPDATE(s), 0 raster method(s); GET := PUT [guest]
+  1514123330 E boot: display channel 0xc57d/0 kick 4: PUT 0x0, 0 method(s), 0 UPDATE(s), 0 raster method(s); GET := PUT [guest]
+  1514123544 E boot: display channel 0xc57d/0 kick 5: PUT 0xfc8, 505 method(s), 0 UPDATE(s), 0 raster method(s); GET := PUT [guest]
+  1514123599 E boot: display channel 0xc57d/0 kick 6: PUT 0x0, 0 method(s), 0 UPDATE(s), 0 raster method(s); GET := PUT [guest]
+  1514123707 E boot: display channel 0xc57e/0 kick 3: PUT 0xfc8, 505 method(s), 0 UPDATE(s), 0 raster method(s); GET := PUT [guest]
+  1514123756 E boot: display channel 0xc57e/0 kick 4: PUT 0x0, 0 method(s), 0 UPDATE(s), 0 raster method(s); GET := PUT [guest]
+  1514123942 E boot: display channel 0xc57e/0 kick 5: PUT 0xfc8, 505 method(s), 0 UPDATE(s), 0 raster method(s); GET := PUT [guest]
+  1514123992 E boot: display channel 0xc57e/0 kick 6: PUT 0x0, 0 method(s), 0 UPDATE(s), 0 raster method(s); GET := PUT [guest]
+  1514124165 E boot: display channel 0xc57e/2 kick 3: PUT 0xfc8, 505 method(s), 0 UPDATE(s), 0 raster method(s); GET := PUT [guest]
+  1514124214 E boot: display channel 0xc57e/2 kick 4: PUT 0x0, 0 method(s), 0 UPDATE(s), 0 raster method(s); GET := PUT [guest]
+  1514124413 E boot: display channel 0xc57e/2 kick 5: PUT 0xfc8, 505 method(s), 0 UPDATE(s), 0 raster method(s); GET := PUT [guest]
+  1514124464 E boot: display channel 0xc57e/2 kick 6: PUT 0x0, 0 method(s), 0 UPDATE(s), 0 raster method(s); GET := PUT [guest]
+  1514124646 E boot: display channel 0xc57e/4 kick 3: PUT 0xfc8, 505 method(s), 0 UPDATE(s), 0 raster method(s); GET := PUT [guest]
+  1514124696 E boot: display channel 0xc57e/4 kick 4: PUT 0x0, 0 method(s), 0 UPDATE(s), 0 raster method(s); GET := PUT [guest]
+  1514124881 E boot: display channel 0xc57e/4 kick 5: PUT 0xfc8, 505 method(s), 0 UPDATE(s), 0 raster method(s); GET := PUT [guest]
+  1514124936 E boot: display channel 0xc57e/4 kick 6: PUT 0x0, 0 method(s), 0 UPDATE(s), 0 raster method(s); GET := PUT [guest]
+  1514125111 E boot: display channel 0xc57e/6 kick 3: PUT 0xfc8, 505 method(s), 0 UPDATE(s), 0 raster method(s); GET := PUT [guest]
+  1514125161 E boot: display channel 0xc57e/6 kick 4: PUT 0x0, 0 method(s), 0 UPDATE(s), 0 raster method(s); GET := PUT [guest]
+  1514125360 E boot: display channel 0xc57e/6 kick 5: PUT 0xfc8, 505 method(s), 0 UPDATE(s), 0 raster method(s); GET := PUT [guest]
+  1514125410 E boot: display channel 0xc57e/6 kick 6: PUT 0x0, 0 method(s), 0 UPDATE(s), 0 raster method(s); GET := PUT [guest]
+  1514125894 E boot: doorbell 4490: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1514125896 E boot: rx seq 4489 GSP_RM_CONTROL (76) sequence 4487 length 92 checksum ok: hClient=0xc1d00008 hObject=0x1000d cmd=0x73010b paramsSize=20 rpcFlags=0x0
+  1514125897 E boot: ctrl 0x73010b: head routing map: 0x100 -> map 0x0 (fits true) -> status 0x0 [synthesized (board connector table, boards/rtx2070.toml [display])]
+  1514125898 E boot: tx seq 4488 reply GSP_RM_CONTROL sequence 4487 result 0x0 length 92
+  1514126890 E boot: doorbell 4491: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1514126918 E boot: rx seq 4490 GSP_RM_CONTROL (76) sequence 4488 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1514126928 E boot: ctrl 0xc3720101: is mode possible: yes (1 heads: head 3 148500 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1514126929 E boot: tx seq 4489 reply GSP_RM_CONTROL sequence 4488 result 0x0 length 2120
+  1514127906 E boot: display channel 0xc57d/0 kick 7: PUT 0xfc8, 505 method(s), 0 UPDATE(s), 0 raster method(s); GET := PUT [guest]
+  1514127994 E boot: display channel 0xc57d/0 kick 8: PUT 0x0, 0 method(s), 0 UPDATE(s), 0 raster method(s); GET := PUT [guest]
+  1514128310 E boot: display channel 0xc57e/0 kick 7: PUT 0xfc8, 505 method(s), 0 UPDATE(s), 0 raster method(s); GET := PUT [guest]
+  1514128422 E boot: display channel 0xc57e/0 kick 8: PUT 0x0, 0 method(s), 0 UPDATE(s), 0 raster method(s); GET := PUT [guest]
+  1514129290 E boot: display channel 0xc57e/0 kick 9: PUT 0xfc8, 505 method(s), 0 UPDATE(s), 0 raster method(s); GET := PUT [guest]
+  1514129347 E boot: display channel 0xc57e/0 kick 10: PUT 0x0, 0 method(s), 0 UPDATE(s), 0 raster method(s); GET := PUT [guest]
+  1514129531 E boot: display channel 0xc57e/2 kick 7: PUT 0xfc8, 505 method(s), 0 UPDATE(s), 0 raster method(s); GET := PUT [guest]
+  1514129584 E boot: display channel 0xc57e/2 kick 8: PUT 0x0, 0 method(s), 0 UPDATE(s), 0 raster method(s); GET := PUT [guest]
+  1514129769 E boot: display channel 0xc57e/2 kick 9: PUT 0xfc8, 505 method(s), 0 UPDATE(s), 0 raster method(s); GET := PUT [guest]
+  1514129820 E boot: display channel 0xc57e/2 kick 10: PUT 0x0, 0 method(s), 0 UPDATE(s), 0 raster method(s); GET := PUT [guest]
+  1514129993 E boot: display channel 0xc57e/4 kick 7: PUT 0xfc8, 505 method(s), 0 UPDATE(s), 0 raster method(s); GET := PUT [guest]
+  1514130045 E boot: display channel 0xc57e/4 kick 8: PUT 0x0, 0 method(s), 0 UPDATE(s), 0 raster method(s); GET := PUT [guest]
+  1514130233 E boot: display channel 0xc57e/4 kick 9: PUT 0xfc8, 505 method(s), 0 UPDATE(s), 0 raster method(s); GET := PUT [guest]
+  1514130298 E boot: display channel 0xc57e/4 kick 10: PUT 0x0, 0 method(s), 0 UPDATE(s), 0 raster method(s); GET := PUT [guest]
+  1514130491 E boot: display channel 0xc57e/6 kick 7: PUT 0xfc8, 505 method(s), 0 UPDATE(s), 0 raster method(s); GET := PUT [guest]
+  1514130550 E boot: display channel 0xc57e/6 kick 8: PUT 0x0, 0 method(s), 0 UPDATE(s), 0 raster method(s); GET := PUT [guest]
+  1514130749 E boot: display channel 0xc57e/6 kick 9: PUT 0xfc8, 505 method(s), 0 UPDATE(s), 0 raster method(s); GET := PUT [guest]
+  1514130801 E boot: display channel 0xc57e/6 kick 10: PUT 0x0, 0 method(s), 0 UPDATE(s), 0 raster method(s); GET := PUT [guest]
+  1514131240 E boot: doorbell 4492: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1514131241 E boot: rx seq 4491 GSP_RM_CONTROL (76) sequence 4489 length 92 checksum ok: hClient=0xc1d00008 hObject=0x1000d cmd=0x73010b paramsSize=20 rpcFlags=0x0
+  1514131243 E boot: ctrl 0x73010b: head routing map: 0x100 -> map 0x0 (fits true) -> status 0x0 [synthesized (board connector table, boards/rtx2070.toml [display])]
+  1514131244 E boot: tx seq 4490 reply GSP_RM_CONTROL sequence 4489 result 0x0 length 92
+  1514131837 E boot: doorbell 4493: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1514131838 E boot: rx seq 4492 GSP_RM_CONTROL (76) sequence 4490 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1514131839 E boot: ctrl 0xc3720101: is mode possible: yes (1 heads: head 3 148500 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1514131841 E boot: tx seq 4491 reply GSP_RM_CONTROL sequence 4490 result 0x0 length 2120
+  1514132950 E boot: doorbell 4494: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1514132952 E boot: rx seq 4493 GSP_RM_CONTROL (76) sequence 4491 length 92 checksum ok: hClient=0xc1d00008 hObject=0x10012 cmd=0xc3700104 paramsSize=20 rpcFlags=0x0
+  1514132953 E boot: ctrl 0xc3700104: channel info: class 0xc57e instance 0: IDLE (GET == PUT) -> status 0x0 [guest (recorded from the request)]
+  1514132954 E boot: tx seq 4492 reply GSP_RM_CONTROL sequence 4491 result 0x0 length 92
+  1514133745 E boot: doorbell 4495: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1514133746 E boot: rx seq 4494 GSP_RM_CONTROL (76) sequence 4492 length 92 checksum ok: hClient=0xc1d00008 hObject=0x10012 cmd=0xc3700104 paramsSize=20 rpcFlags=0x0
+  1514133748 E boot: ctrl 0xc3700104: channel info: class 0xc57e instance 2: IDLE (GET == PUT) -> status 0x0 [guest (recorded from the request)]
+  1514133749 E boot: tx seq 4493 reply GSP_RM_CONTROL sequence 4492 result 0x0 length 92
+  1514134674 E boot: doorbell 4496: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1514134675 E boot: rx seq 4495 GSP_RM_CONTROL (76) sequence 4493 length 92 checksum ok: hClient=0xc1d00008 hObject=0x10012 cmd=0xc3700104 paramsSize=20 rpcFlags=0x0
+  1514134676 E boot: ctrl 0xc3700104: channel info: class 0xc57e instance 4: IDLE (GET == PUT) -> status 0x0 [guest (recorded from the request)]
+  1514134677 E boot: tx seq 4494 reply GSP_RM_CONTROL sequence 4493 result 0x0 length 92
+  1514135585 E boot: doorbell 4497: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1514135592 E boot: rx seq 4496 GSP_RM_CONTROL (76) sequence 4494 length 92 checksum ok: hClient=0xc1d00008 hObject=0x10012 cmd=0xc3700104 paramsSize=20 rpcFlags=0x0
+  1514135594 E boot: ctrl 0xc3700104: channel info: class 0xc57e instance 6: IDLE (GET == PUT) -> status 0x0 [guest (recorded from the request)]
+  1514135596 E boot: tx seq 4495 reply GSP_RM_CONTROL sequence 4494 result 0x0 length 92
+  1514136879 E boot: doorbell 4498: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1514136881 E boot: rx seq 4497 GSP_RM_CONTROL (76) sequence 4495 length 88 checksum ok: hClient=0xc1d00008 hObject=0x1000d cmd=0x7302a4 paramsSize=16 rpcFlags=0x0
+  1514136882 E boot: ctrl 0x7302a4: control 0x7302a4 on 0x100 -> status 0x0 [synthesized (acknowledged; no display state behind it yet)]
+  1514136883 E boot: tx seq 4496 reply GSP_RM_CONTROL sequence 4495 result 0x0 length 88
+  1514138049 E boot: doorbell 4499: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1514138050 E boot: rx seq 4498 GSP_RM_CONTROL (76) sequence 4496 length 92 checksum ok: hClient=0xc1d00008 hObject=0x10012 cmd=0xc3700104 paramsSize=20 rpcFlags=0x0
+  1514138056 E boot: ctrl 0xc3700104: channel info: class 0xc57d instance 0: IDLE (GET == PUT) -> status 0x0 [guest (recorded from the request)]
+  1514138057 E boot: tx seq 4497 reply GSP_RM_CONTROL sequence 4496 result 0x0 length 92
+  1514139462 E boot: doorbell 4500: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1514139463 E boot: rx seq 4499 GSP_RM_CONTROL (76) sequence 4497 length 152 checksum ok: hClient=0xc1d00008 hObject=0x1000d cmd=0x731152 paramsSize=80 rpcFlags=0x0
+  1514139464 E boot: ctrl 0x731152: assign sor: 0x100 -> SOR0 (single) -> status 0x0 [synthesized (board connector table, boards/rtx2070.toml [display])]
+  1514139465 E boot: tx seq 4498 reply GSP_RM_CONTROL sequence 4497 result 0x0 length 152
+  1514282019 E boot: doorbell 4501: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1514282020 E boot: rx seq 4500 GSP_RM_ALLOC (103) sequence 4498 length 64 checksum ok: hClient=0xc1d00008 hParent=0x10058 hObject=0x10091 hClass=0x7e paramsSize=24 flags=0x0
+  1514282022 E boot: alloc: alloc NV01_EVENT_KERNEL_CALLBACK_EX 0x7e object 0x10091 under 0x10058 -> status 0x0 [synthesized (object recorded, no host object yet)]
+  1514282023 E boot: tx seq 4499 reply GSP_RM_ALLOC sequence 4498 result 0x0 length 88
+  1514282824 E boot: doorbell 4502: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1514282825 E boot: rx seq 4501 GSP_RM_ALLOC (103) sequence 4499 length 64 checksum ok: hClient=0xc1d00008 hParent=0x10062 hObject=0x10092 hClass=0x7e paramsSize=24 flags=0x0
+  1514282826 E boot: alloc: alloc NV01_EVENT_KERNEL_CALLBACK_EX 0x7e object 0x10092 under 0x10062 -> status 0x0 [synthesized (object recorded, no host object yet)]
+  1514282827 E boot: tx seq 4500 reply GSP_RM_ALLOC sequence 4499 result 0x0 length 88
+  1514283655 E boot: doorbell 4503: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1514283656 E boot: rx seq 4502 GSP_RM_CONTROL (76) sequence 4500 length 92 checksum ok: hClient=0xc1d00008 hObject=0x10012 cmd=0x50700457 paramsSize=20 rpcFlags=0x0
+  1514283657 E boot: ctrl 0x50700457: 5070 control 0x50700457 -> status 0x0 [synthesized (acknowledged; no display state behind it yet)]
+  1514283658 E boot: tx seq 4501 reply GSP_RM_CONTROL sequence 4500 result 0x0 length 92
+  1514284421 E boot: doorbell 4504: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1514284422 E boot: rx seq 4503 GSP_RM_CONTROL (76) sequence 4501 length 84 checksum ok: hClient=0xc1d00008 hObject=0x1000d cmd=0x73138f paramsSize=12 rpcFlags=0x0
+  1514284423 E boot: ctrl 0x73138f: control 0x73138f on 0x100 -> status 0x0 [synthesized (acknowledged; no display state behind it yet)]
+  1514284425 E boot: tx seq 4502 reply GSP_RM_CONTROL sequence 4501 result 0x0 length 84
+  1514285220 E boot: doorbell 4505: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1514285222 E boot: rx seq 4504 GSP_RM_CONTROL (76) sequence 4502 length 100 checksum ok: hClient=0xc1d00008 hObject=0x1000d cmd=0x731343 paramsSize=28 rpcFlags=0x1
+  1514285223 E boot: ctrl 0x731343: dp ctrl of 0x100: cmd 0x83: trained 1 lanes at link bw 0x14 (sink set to D0 first: Ok(AuxReply { code: Ack, count: 1, data: [] })) -> status 0x0 [synthesized (dp-sink model behind the connector)]
+  1514285224 E boot: tx seq 4503 reply GSP_RM_CONTROL sequence 4502 result 0x0 length 100
+  1514285967 E boot: doorbell 4506: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1514285969 E boot: rx seq 4505 GSP_RM_CONTROL (76) sequence 4503 length 84 checksum ok: hClient=0xc1d00008 hObject=0x1000d cmd=0x73138f paramsSize=12 rpcFlags=0x0
+  1514285970 E boot: ctrl 0x73138f: control 0x73138f on 0x100 -> status 0x0 [synthesized (acknowledged; no display state behind it yet)]
+  1514285971 E boot: tx seq 4504 reply GSP_RM_CONTROL sequence 4503 result 0x0 length 84
+  1514286752 E boot: doorbell 4507: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1514286753 E boot: rx seq 4506 GSP_RM_CONTROL (76) sequence 4504 length 156 checksum ok: hClient=0xc1d00008 hObject=0x1000d cmd=0x731362 paramsSize=84 rpcFlags=0x0
+  1514286754 E boot: ctrl 0x731362: control 0x731362 on 0x3 -> status 0x0 [synthesized (acknowledged; no display state behind it yet)]
+  1514286755 E boot: tx seq 4505 reply GSP_RM_CONTROL sequence 4504 result 0x0 length 156
+  1514287825 E boot: doorbell 4508: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1514287826 E boot: rx seq 4507 GSP_RM_CONTROL (76) sequence 4505 length 92 checksum ok: hClient=0xc1d00008 hObject=0x10012 cmd=0x50700457 paramsSize=20 rpcFlags=0x0
+  1514287828 E boot: ctrl 0x50700457: 5070 control 0x50700457 -> status 0x0 [synthesized (acknowledged; no display state behind it yet)]
+  1514287829 E boot: tx seq 4506 reply GSP_RM_CONTROL sequence 4505 result 0x0 length 92
+  1514288620 E boot: doorbell 4509: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1514288621 E boot: rx seq 4508 GSP_RM_CONTROL (76) sequence 4506 length 120 checksum ok: hClient=0xc1d00008 hObject=0x1000d cmd=0x731341 paramsSize=48 rpcFlags=0x1
+  1514288623 E boot: ctrl 0x731341: aux 0x100: nr 160 1 -> ack 1 00 -> status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)]
+  1514288624 E boot: tx seq 4507 reply GSP_RM_CONTROL sequence 4506 result 0x0 length 120
+  1514289320 E boot: doorbell 4510: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1514289322 E boot: rx seq 4509 GSP_RM_CONTROL (76) sequence 4507 length 156 checksum ok: hClient=0xc1d00008 hObject=0x1000d cmd=0x731362 paramsSize=84 rpcFlags=0x0
+  1514289323 E boot: ctrl 0x731362: control 0x731362 on 0x3 -> status 0x0 [synthesized (acknowledged; no display state behind it yet)]
+  1514289324 E boot: tx seq 4508 reply GSP_RM_CONTROL sequence 4507 result 0x0 length 156
+  1514290211 E boot: doorbell 4511: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1514290212 E boot: rx seq 4510 GSP_RM_CONTROL (76) sequence 4508 length 124 checksum ok: hClient=0xc1d00008 hObject=0x1000d cmd=0x731378 paramsSize=52 rpcFlags=0x0
+  1514290213 E boot: ctrl 0x731378: control 0x731378 on 0x100 -> status 0x0 [synthesized (acknowledged; no display state behind it yet)]
+  1514290215 E boot: tx seq 4509 reply GSP_RM_CONTROL sequence 4508 result 0x0 length 124
+  1514290938 E boot: doorbell 4512: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1514290939 E boot: rx seq 4511 GSP_RM_CONTROL (76) sequence 4509 length 152 checksum ok: hClient=0xc1d00008 hObject=0x1000d cmd=0x731381 paramsSize=80 rpcFlags=0x0
+  1514290940 E boot: ctrl 0x731381: control 0x731381 on 0x100 -> status 0x0 [synthesized (acknowledged; no display state behind it yet)]
+  1514290941 E boot: tx seq 4510 reply GSP_RM_CONTROL sequence 4509 result 0x0 length 152
+  1514291358 E boot: display channel 0xc57d/0 kick 9: PUT 0xce0, 430 method(s), 1 UPDATE(s), 0 raster method(s); core methods 0x2214=0x7501a 0x2614=0x7501a 0x2a14=0x7501a 0x2e14=0x7501a 0x2214=0x76063 0x2614=0x76063 0x2a14=0x76063 0x2e14=0x76063 0x2214=0x77010 0x2614=0x77010 0x2a14=0x77010 0x2e14=0x77010 0x2214=0x78000 0x2614=0x78000 0x2a14=0x78000 0x2e14=0x78000 0x2214=0x79018 0x2614=0x79018 0x2a14=0x79018 0x2e14=0x79018 0x2214=0x7a066 0x2614=0x7a066 0x2a14=0x7a066 0x2e14=0x7a066 0x2214=0x7b011 0x2614=0x7b011 0x2a14=0x7b011 0x2e14=0x7b011 0x2214=0x7c000 0x2614=0x7c000 0x2a14=0x7c000 0x2e14=0x7c000 0x2214=0x7d016 0x2614=0x7d016 0x2a14=0x7d016 0x2e14=0x7d016 0x2214=0x7e069 0x2614=0x7e069 0x2a14=0x7e069 0x2e14=0x7e069 0x2214=0x7f013 0x2614=0x7f013 0x2a14=0x7f013 0x2e14=0x7f013 0x2214=0x80004 0x2614=0x80004 0x2a14=0x80004 0x2e14=0x80004 0x2214=0x8103e 0x2614=0x8103e 0x2a14=0x8103e 0x2e14=0x8103e 0x2214=0x82017 0x2614=0x82017 0x2a14=0x82017 0x2e14=0x82017 0x2214=0x83069 0x2614=0x83069 0x2a14=0x83069 0x2e14=0x83069 0x2214=0x84004 0x2614=0x84004 0x2a14=0x84004 0x2e14=0x84004; GET := PUT [guest]
+  1514291360 E boot: display: head 3 active: 1920x1080 viewport, raster 2200x1125, pixel clock 148500000 Hz, tick period 16666667 ns (60.000 Hz), OLUT control 0x40508 ctxdma 0x10087 [guest]
+  1514291399 E boot: display channel 0xc57b/6 kick 1: PUT 0x10, 2 method(s), 1 UPDATE(s), 0 raster method(s); GET := PUT [guest]
+  1514291438 E boot: display channel 0xc57e/6 kick 11: PUT 0xb0c, 354 method(s), 1 UPDATE(s), 0 raster method(s); GET := PUT [guest]
+  1514291471 E boot: display channel 0xc57b/7 kick 1: PUT 0x10, 2 method(s), 1 UPDATE(s), 0 raster method(s); GET := PUT [guest]
+  1514291510 E boot: display channel 0xc57e/7 kick 3: PUT 0xe40, 456 method(s), 1 UPDATE(s), 0 raster method(s); GET := PUT [guest]
+  1514291583 E boot: display channel 0xc57d/0 kick 10: PUT 0xcf0, 2 method(s), 0 UPDATE(s), 0 raster method(s); GET := PUT [guest]
+  1514291862 E msi: signalled (Ok(()))
+  1514291986 E boot: doorbell 4513: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1514291988 E boot: rx seq 4512 GSP_RM_CONTROL (76) sequence 4510 length 96 checksum ok: hClient=0xc1d00008 hObject=0x1000d cmd=0x73114e paramsSize=24 rpcFlags=0x0
+  1514291989 E boot: ctrl 0x73114e: control 0x73114e on 0x3 -> status 0x0 [synthesized (acknowledged; no display state behind it yet)]
+  1514291990 E boot: tx seq 4511 reply GSP_RM_CONTROL sequence 4510 result 0x0 length 96
+  1514293047 E msi: signalled (Ok(()))
+  1514293372 E boot: doorbell 4514: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1514293373 E boot: rx seq 4513 GSP_RM_CONTROL (76) sequence 4511 length 84 checksum ok: hClient=0xc1d00008 hObject=0x1000d cmd=0x730280 paramsSize=12 rpcFlags=0x0
+  1514293374 E boot: ctrl 0x730280: hdcp state: all false -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1514293375 E boot: tx seq 4512 reply GSP_RM_CONTROL sequence 4511 result 0x0 length 84
+  1514294578 E msi: signalled (Ok(()))
+  1514294965 E boot: doorbell 4515: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1514294966 E boot: rx seq 4514 GSP_RM_CONTROL (76) sequence 4512 length 96 checksum ok: hClient=0xc1d00008 hObject=0x1000d cmd=0x731360 paramsSize=24 rpcFlags=0x0
+  1514294967 E boot: ctrl 0x731360: link config of 0x100: 1 lanes, link bw 0x14 (0 = untrained) -> status 0x0 [synthesized (dp-sink model behind the connector)]
+  1514294969 E boot: tx seq 4513 reply GSP_RM_CONTROL sequence 4512 result 0x0 length 96
+  1514297865 E boot: doorbell 4516: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1514297867 E boot: rx seq 4515 GSP_RM_CONTROL (76) sequence 4513 length 132 checksum ok: hClient=0xc1d00008 hObject=0x1000d cmd=0x730288 paramsSize=60 rpcFlags=0x0
+  1514297868 E boot: ctrl 0x730288: control 0x730288 on 0x100 -> status 0x0 [synthesized (acknowledged; no display state behind it yet)]
+  1514297869 E boot: tx seq 4514 reply GSP_RM_CONTROL sequence 4513 result 0x0 length 132
+  1514298987 E boot: doorbell 4517: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1514298988 E boot: rx seq 4516 GSP_RM_CONTROL (76) sequence 4514 length 132 checksum ok: hClient=0xc1d00008 hObject=0x1000d cmd=0x730288 paramsSize=60 rpcFlags=0x0
+  1514298989 E boot: ctrl 0x730288: control 0x730288 on 0x100 -> status 0x0 [synthesized (acknowledged; no display state behind it yet)]
+  1514298990 E boot: tx seq 4515 reply GSP_RM_CONTROL sequence 4514 result 0x0 length 132
+  1514299578 E boot: doorbell 4518: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1514299579 E boot: rx seq 4517 GSP_RM_CONTROL (76) sequence 4515 length 192 checksum ok: hClient=0xc1d00008 hObject=0x1000d cmd=0x731144 paramsSize=120 rpcFlags=0x0
+  1514299580 E boot: ctrl 0x731144: control 0x731144 on 0x100 -> status 0x0 [synthesized (acknowledged; no display state behind it yet)]
+  1514299582 E boot: tx seq 4516 reply GSP_RM_CONTROL sequence 4515 result 0x0 length 192
+  1514300470 E boot: doorbell 4519: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1514300472 E boot: rx seq 4518 GSP_RM_CONTROL (76) sequence 4516 length 84 checksum ok: hClient=0xc1d00008 hObject=0x1000d cmd=0x73012c paramsSize=12 rpcFlags=0x0
+  1514300473 E boot: ctrl 0x73012c: vrr display info of 0x100: not a VRR display (recorded) -> status 0x0 [synthesized (board connector table, boards/rtx2070.toml [display])]
+  1514300474 E boot: tx seq 4517 reply GSP_RM_CONTROL sequence 4516 result 0x0 length 84
+  1514302130 E boot: doorbell 4520: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1514302132 E boot: rx seq 4519 GSP_RM_CONTROL (76) sequence 4517 length 88 checksum ok: hClient=0xc1d00008 hObject=0x1000d cmd=0x7302a4 paramsSize=16 rpcFlags=0x0
+  1514302133 E boot: ctrl 0x7302a4: control 0x7302a4 on 0x100 -> status 0x0 [synthesized (acknowledged; no display state behind it yet)]
+  1514302134 E boot: tx seq 4518 reply GSP_RM_CONTROL sequence 4517 result 0x0 length 88
+  1514302883 E boot: display channel 0xc57d/0 kick 11: PUT 0xd64, 20 method(s), 1 UPDATE(s), 0 raster method(s); core methods 0x2e44=0x10000 0x2e48=0x0 0x2e4c=0x0 0x2e50=0x0 0x2e54=0x0 0x2e58=0x10000 0x2e5c=0x0 0x2e60=0x0 0x2e64=0x0 0x2e68=0x0 0x2e6c=0x10000 0x2e70=0x0 0x2e80=0x40509 0x2e88=0x1006f 0x2e8c=0x21 0x2e84=0xffffffff 0x2e40=0x1 0x218=0x0 0x21c=0x0 0x200=0x1; GET := PUT [guest]
+  1517628160 E boot: doorbell 4521: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1517628161 E boot: rx seq 4520 GSP_RM_CONTROL (76) sequence 4518 length 88 checksum ok: hClient=0xc1d00008 hObject=0x1000d cmd=0x730291 paramsSize=16 rpcFlags=0x0
+  1517628163 E boot: ctrl 0x730291: backlight brightness of 0x100: not supported (external DP monitor, no panel) -> status 0x56 [synthesized (board connector table, boards/rtx2070.toml [display])]
+  1517628165 E boot: tx seq 4519 reply GSP_RM_CONTROL sequence 4518 result 0x0 length 88
+  1517628871 E boot: doorbell 4522: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1517628872 E boot: rx seq 4521 GSP_RM_CONTROL (76) sequence 4519 length 2132 checksum ok: hClient=0xc1d00008 hObject=0x1000d cmd=0x730246 paramsSize=2060 rpcFlags=0x0
+  1517628873 E boot: ctrl 0x730246: set edid of 0x100: size 0, override cleared -> status 0x0 [guest-derived (per-display EDID state: sink EDID and override)]
+  1517628875 E boot: tx seq 4520 reply GSP_RM_CONTROL sequence 4519 result 0x0 length 2132
+  1517629472 E boot: doorbell 4523: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1517629473 E boot: rx seq 4522 GSP_RM_CONTROL (76) sequence 4520 length 2132 checksum ok: hClient=0xc1d00008 hObject=0x1000d cmd=0x730246 paramsSize=2060 rpcFlags=0x0
+  1517629474 E boot: ctrl 0x730246: set edid of 0x100: 256 bytes stored as override (identical to the sink EDID: true) -> status 0x0 [guest-derived (per-display EDID state: sink EDID and override)]
+  1517629476 E boot: tx seq 4521 reply GSP_RM_CONTROL sequence 4520 result 0x0 length 2132
+  1517630073 E boot: doorbell 4524: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1517630074 E boot: rx seq 4523 GSP_RM_CONTROL (76) sequence 4521 length 2136 checksum ok: hClient=0xc1d00008 hObject=0x1000d cmd=0x730245 paramsSize=2064 rpcFlags=0x0
+  1517630076 E boot: ctrl 0x730245: get edid of 0x100 flags 0x0: 256 bytes from the override -> status 0x0 [guest-derived (per-display EDID state: sink EDID and override)]
+  1517630077 E boot: tx seq 4522 reply GSP_RM_CONTROL sequence 4521 result 0x0 length 2136
+  1517630720 E boot: doorbell 4525: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1517630721 E boot: rx seq 4524 GSP_RM_CONTROL (76) sequence 4522 length 132 checksum ok: hClient=0xc1d00008 hObject=0x1000d cmd=0x730288 paramsSize=60 rpcFlags=0x0
+  1517630722 E boot: ctrl 0x730288: control 0x730288 on 0x100 -> status 0x0 [synthesized (acknowledged; no display state behind it yet)]
+  1517630723 E boot: tx seq 4523 reply GSP_RM_CONTROL sequence 4522 result 0x0 length 132
+  1517631290 E boot: doorbell 4526: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1517631291 E boot: rx seq 4525 GSP_RM_CONTROL (76) sequence 4523 length 132 checksum ok: hClient=0xc1d00008 hObject=0x1000d cmd=0x730288 paramsSize=60 rpcFlags=0x0
+  1517631292 E boot: ctrl 0x730288: control 0x730288 on 0x100 -> status 0x0 [synthesized (acknowledged; no display state behind it yet)]
+  1517631293 E boot: tx seq 4524 reply GSP_RM_CONTROL sequence 4523 result 0x0 length 132
+  1517631877 E boot: doorbell 4527: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1517631879 E boot: rx seq 4526 GSP_RM_CONTROL (76) sequence 4524 length 96 checksum ok: hClient=0xc1d00008 hObject=0x1000d cmd=0x731360 paramsSize=24 rpcFlags=0x0
+  1517631880 E boot: ctrl 0x731360: link config of 0x100: 1 lanes, link bw 0x14 (0 = untrained) -> status 0x0 [synthesized (dp-sink model behind the connector)]
+  1517631881 E boot: tx seq 4525 reply GSP_RM_CONTROL sequence 4524 result 0x0 length 96
+  1517632560 E boot: doorbell 4528: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1517632561 E boot: rx seq 4527 GSP_RM_CONTROL (76) sequence 4525 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1517632563 E boot: ctrl 0xc3720101: is mode possible: yes (1 heads: head 0 148500 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1517632564 E boot: tx seq 4526 reply GSP_RM_CONTROL sequence 4525 result 0x0 length 2120
+  1517633160 E boot: doorbell 4529: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1517633161 E boot: rx seq 4528 GSP_RM_CONTROL (76) sequence 4526 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1517633163 E boot: ctrl 0xc3720101: is mode possible: yes (1 heads: head 0 74250 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1517633164 E boot: tx seq 4527 reply GSP_RM_CONTROL sequence 4526 result 0x0 length 2120
+  1517633752 E boot: doorbell 4530: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1517633753 E boot: rx seq 4529 GSP_RM_CONTROL (76) sequence 4527 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1517633754 E boot: ctrl 0xc3720101: is mode possible: yes (1 heads: head 0 148500 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1517633756 E boot: tx seq 4528 reply GSP_RM_CONTROL sequence 4527 result 0x0 length 2120
+  1517634347 E boot: doorbell 4531: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1517634348 E boot: rx seq 4530 GSP_RM_CONTROL (76) sequence 4528 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1517634350 E boot: ctrl 0xc3720101: is mode possible: yes (1 heads: head 0 148350 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1517634351 E boot: tx seq 4529 reply GSP_RM_CONTROL sequence 4528 result 0x0 length 2120
+  1517634994 E boot: doorbell 4532: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1517634995 E boot: rx seq 4531 GSP_RM_CONTROL (76) sequence 4529 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1517634997 E boot: ctrl 0xc3720101: is mode possible: yes (1 heads: head 0 74180 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1517634998 E boot: tx seq 4530 reply GSP_RM_CONTROL sequence 4529 result 0x0 length 2120
+  1517635665 E boot: doorbell 4533: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1517635666 E boot: rx seq 4532 GSP_RM_CONTROL (76) sequence 4530 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1517635668 E boot: ctrl 0xc3720101: is mode possible: yes (1 heads: head 0 148500 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1517635669 E boot: tx seq 4531 reply GSP_RM_CONTROL sequence 4530 result 0x0 length 2120
+  1517636298 E boot: doorbell 4534: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1517636299 E boot: rx seq 4533 GSP_RM_CONTROL (76) sequence 4531 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1517636301 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1517636302 E boot: tx seq 4532 reply GSP_RM_CONTROL sequence 4531 result 0x0 length 2120
+  1517636921 E boot: doorbell 4535: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1517636923 E boot: rx seq 4534 GSP_RM_CONTROL (76) sequence 4532 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1517636924 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1517636925 E boot: tx seq 4533 reply GSP_RM_CONTROL sequence 4532 result 0x0 length 2120
+  1517637546 E boot: doorbell 4536: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1517637547 E boot: rx seq 4535 GSP_RM_CONTROL (76) sequence 4533 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1517637549 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1517637550 E boot: tx seq 4534 reply GSP_RM_CONTROL sequence 4533 result 0x0 length 2120
+  1517638181 E boot: doorbell 4537: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1517638183 E boot: rx seq 4536 GSP_RM_CONTROL (76) sequence 4534 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1517638184 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1517638186 E boot: tx seq 4535 reply GSP_RM_CONTROL sequence 4534 result 0x0 length 2120
+  1517638815 E boot: doorbell 4538: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1517638817 E boot: rx seq 4537 GSP_RM_CONTROL (76) sequence 4535 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1517638818 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1517638820 E boot: tx seq 4536 reply GSP_RM_CONTROL sequence 4535 result 0x0 length 2120
+  1517639487 E boot: doorbell 4539: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1517639489 E boot: rx seq 4538 GSP_RM_CONTROL (76) sequence 4536 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1517639490 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1517639491 E boot: tx seq 4537 reply GSP_RM_CONTROL sequence 4536 result 0x0 length 2120
+  1517640102 E boot: doorbell 4540: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1517640103 E boot: rx seq 4539 GSP_RM_CONTROL (76) sequence 4537 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1517640105 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1517640106 E boot: tx seq 4538 reply GSP_RM_CONTROL sequence 4537 result 0x0 length 2120
+  1517640740 E boot: doorbell 4541: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1517640742 E boot: rx seq 4540 GSP_RM_CONTROL (76) sequence 4538 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1517640743 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1517640745 E boot: tx seq 4539 reply GSP_RM_CONTROL sequence 4538 result 0x0 length 2120
+  1517641341 E boot: doorbell 4542: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1517641343 E boot: rx seq 4541 GSP_RM_CONTROL (76) sequence 4539 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1517641344 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1517641346 E boot: tx seq 4540 reply GSP_RM_CONTROL sequence 4539 result 0x0 length 2120
+  1517641954 E boot: doorbell 4543: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1517641955 E boot: rx seq 4542 GSP_RM_CONTROL (76) sequence 4540 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1517641957 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1517641958 E boot: tx seq 4541 reply GSP_RM_CONTROL sequence 4540 result 0x0 length 2120
+  1517642606 E boot: doorbell 4544: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1517642608 E boot: rx seq 4543 GSP_RM_CONTROL (76) sequence 4541 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1517642609 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1517642610 E boot: tx seq 4542 reply GSP_RM_CONTROL sequence 4541 result 0x0 length 2120
+  1517643218 E boot: doorbell 4545: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1517643220 E boot: rx seq 4544 GSP_RM_CONTROL (76) sequence 4542 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1517643221 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1517643223 E boot: tx seq 4543 reply GSP_RM_CONTROL sequence 4542 result 0x0 length 2120
+  1517643856 E boot: doorbell 4546: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1517643858 E boot: rx seq 4545 GSP_RM_CONTROL (76) sequence 4543 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1517643859 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1517643861 E boot: tx seq 4544 reply GSP_RM_CONTROL sequence 4543 result 0x0 length 2120
+  1517644467 E boot: doorbell 4547: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1517644469 E boot: rx seq 4546 GSP_RM_CONTROL (76) sequence 4544 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1517644470 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1517644472 E boot: tx seq 4545 reply GSP_RM_CONTROL sequence 4544 result 0x0 length 2120
+  1517645083 E boot: doorbell 4548: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1517645085 E boot: rx seq 4547 GSP_RM_CONTROL (76) sequence 4545 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1517645086 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1517645088 E boot: tx seq 4546 reply GSP_RM_CONTROL sequence 4545 result 0x0 length 2120
+  1517645715 E boot: doorbell 4549: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1517645717 E boot: rx seq 4548 GSP_RM_CONTROL (76) sequence 4546 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1517645718 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1517645720 E boot: tx seq 4547 reply GSP_RM_CONTROL sequence 4546 result 0x0 length 2120
+  1517646365 E boot: doorbell 4550: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1517646366 E boot: rx seq 4549 GSP_RM_CONTROL (76) sequence 4547 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1517646368 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1517646369 E boot: tx seq 4548 reply GSP_RM_CONTROL sequence 4547 result 0x0 length 2120
+  1517646988 E boot: doorbell 4551: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1517646990 E boot: rx seq 4550 GSP_RM_CONTROL (76) sequence 4548 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1517646991 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1517646993 E boot: tx seq 4549 reply GSP_RM_CONTROL sequence 4548 result 0x0 length 2120
+  1517647605 E boot: doorbell 4552: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1517647606 E boot: rx seq 4551 GSP_RM_CONTROL (76) sequence 4549 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1517647608 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1517647609 E boot: tx seq 4550 reply GSP_RM_CONTROL sequence 4549 result 0x0 length 2120
+  1517648204 E boot: doorbell 4553: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1517648206 E boot: rx seq 4552 GSP_RM_CONTROL (76) sequence 4550 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1517648207 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1517648208 E boot: tx seq 4551 reply GSP_RM_CONTROL sequence 4550 result 0x0 length 2120
+  1517648811 E boot: doorbell 4554: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1517648812 E boot: rx seq 4553 GSP_RM_CONTROL (76) sequence 4551 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1517648814 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1517648815 E boot: tx seq 4552 reply GSP_RM_CONTROL sequence 4551 result 0x0 length 2120
+  1517649391 E boot: doorbell 4555: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1517649393 E boot: rx seq 4554 GSP_RM_CONTROL (76) sequence 4552 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1517649394 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1517649395 E boot: tx seq 4553 reply GSP_RM_CONTROL sequence 4552 result 0x0 length 2120
+  1517650058 E boot: doorbell 4556: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1517650060 E boot: rx seq 4555 GSP_RM_CONTROL (76) sequence 4553 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1517650061 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1517650062 E boot: tx seq 4554 reply GSP_RM_CONTROL sequence 4553 result 0x0 length 2120
+  1517650647 E boot: doorbell 4557: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1517650649 E boot: rx seq 4556 GSP_RM_CONTROL (76) sequence 4554 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1517650650 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1517650651 E boot: tx seq 4555 reply GSP_RM_CONTROL sequence 4554 result 0x0 length 2120
+  1517651229 E boot: doorbell 4558: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1517651231 E boot: rx seq 4557 GSP_RM_CONTROL (76) sequence 4555 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1517651232 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1517651237 E boot: tx seq 4556 reply GSP_RM_CONTROL sequence 4555 result 0x0 length 2120
+  1517651875 E boot: doorbell 4559: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1517651876 E boot: rx seq 4558 GSP_RM_CONTROL (76) sequence 4556 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1517651877 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1517651879 E boot: tx seq 4557 reply GSP_RM_CONTROL sequence 4556 result 0x0 length 2120
+  1517652446 E boot: doorbell 4560: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1517652448 E boot: rx seq 4559 GSP_RM_CONTROL (76) sequence 4557 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1517652449 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1517652455 E boot: tx seq 4558 reply GSP_RM_CONTROL sequence 4557 result 0x0 length 2120
+  1517653092 E boot: doorbell 4561: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1517653094 E boot: rx seq 4560 GSP_RM_CONTROL (76) sequence 4558 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1517653095 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1517653097 E boot: tx seq 4559 reply GSP_RM_CONTROL sequence 4558 result 0x0 length 2120
+  1517653741 E boot: doorbell 4562: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1517653742 E boot: rx seq 4561 GSP_RM_CONTROL (76) sequence 4559 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1517653744 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1517653751 E boot: tx seq 4560 reply GSP_RM_CONTROL sequence 4559 result 0x0 length 2120
+  1517654440 E boot: doorbell 4563: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1517654441 E boot: rx seq 4562 GSP_RM_CONTROL (76) sequence 4560 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1517654443 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1517654445 E boot: tx seq 4561 reply GSP_RM_CONTROL sequence 4560 result 0x0 length 2120
+  1517655084 E boot: doorbell 4564: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1517655085 E boot: rx seq 4563 GSP_RM_CONTROL (76) sequence 4561 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1517655093 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1517655094 E boot: tx seq 4562 reply GSP_RM_CONTROL sequence 4561 result 0x0 length 2120
+  1517655746 E boot: doorbell 4565: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1517655747 E boot: rx seq 4564 GSP_RM_CONTROL (76) sequence 4562 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1517655749 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1517655750 E boot: tx seq 4563 reply GSP_RM_CONTROL sequence 4562 result 0x0 length 2120
+  1517656363 E boot: doorbell 4566: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1517656372 E boot: rx seq 4565 GSP_RM_CONTROL (76) sequence 4563 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1517656373 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1517656375 E boot: tx seq 4564 reply GSP_RM_CONTROL sequence 4563 result 0x0 length 2120
+  1517656992 E boot: doorbell 4567: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1517656994 E boot: rx seq 4566 GSP_RM_CONTROL (76) sequence 4564 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1517656995 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1517656996 E boot: tx seq 4565 reply GSP_RM_CONTROL sequence 4564 result 0x0 length 2120
+  1517657619 E boot: doorbell 4568: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1517657621 E boot: rx seq 4567 GSP_RM_CONTROL (76) sequence 4565 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1517657622 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1517657624 E boot: tx seq 4566 reply GSP_RM_CONTROL sequence 4565 result 0x0 length 2120
+  1517658577 E boot: doorbell 4569: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1517658580 E boot: rx seq 4568 GSP_RM_CONTROL (76) sequence 4566 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1517658583 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1517658585 E boot: tx seq 4567 reply GSP_RM_CONTROL sequence 4566 result 0x0 length 2120
+  1517659421 E boot: doorbell 4570: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1517659423 E boot: rx seq 4569 GSP_RM_CONTROL (76) sequence 4567 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1517659424 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1517659425 E boot: tx seq 4568 reply GSP_RM_CONTROL sequence 4567 result 0x0 length 2120
+  1517659992 E boot: doorbell 4571: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1517659993 E boot: rx seq 4570 GSP_RM_CONTROL (76) sequence 4568 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1517659994 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1517659996 E boot: tx seq 4569 reply GSP_RM_CONTROL sequence 4568 result 0x0 length 2120
+  1517660590 E boot: doorbell 4572: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1517660591 E boot: rx seq 4571 GSP_RM_CONTROL (76) sequence 4569 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1517660592 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1517660593 E boot: tx seq 4570 reply GSP_RM_CONTROL sequence 4569 result 0x0 length 2120
+  1517661151 E boot: doorbell 4573: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1517661153 E boot: rx seq 4572 GSP_RM_CONTROL (76) sequence 4570 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1517661154 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1517661155 E boot: tx seq 4571 reply GSP_RM_CONTROL sequence 4570 result 0x0 length 2120
+  1517661763 E boot: doorbell 4574: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1517661765 E boot: rx seq 4573 GSP_RM_CONTROL (76) sequence 4571 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1517661767 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1517661768 E boot: tx seq 4572 reply GSP_RM_CONTROL sequence 4571 result 0x0 length 2120
+  1517662362 E boot: doorbell 4575: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1517662363 E boot: rx seq 4574 GSP_RM_CONTROL (76) sequence 4572 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1517662364 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1517662366 E boot: tx seq 4573 reply GSP_RM_CONTROL sequence 4572 result 0x0 length 2120
+  1517663039 E boot: doorbell 4576: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1517663040 E boot: rx seq 4575 GSP_RM_CONTROL (76) sequence 4573 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1517663042 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1517663043 E boot: tx seq 4574 reply GSP_RM_CONTROL sequence 4573 result 0x0 length 2120
+  1517663716 E boot: doorbell 4577: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1517663717 E boot: rx seq 4576 GSP_RM_CONTROL (76) sequence 4574 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1517663718 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1517663719 E boot: tx seq 4575 reply GSP_RM_CONTROL sequence 4574 result 0x0 length 2120
+  1517664358 E boot: doorbell 4578: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1517664360 E boot: rx seq 4577 GSP_RM_CONTROL (76) sequence 4575 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1517664361 E boot: ctrl 0xc3720101: is mode possible: no (2 heads: head 0 2373625 kHz, head 1 2373625 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1517664362 E boot: tx seq 4576 reply GSP_RM_CONTROL sequence 4575 result 0x0 length 2120
+  1517664978 E boot: doorbell 4579: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1517664980 E boot: rx seq 4578 GSP_RM_CONTROL (76) sequence 4576 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1517664981 E boot: ctrl 0xc3720101: is mode possible: yes (1 heads: head 0 25175 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1517664982 E boot: tx seq 4577 reply GSP_RM_CONTROL sequence 4576 result 0x0 length 2120
+  1517665625 E boot: doorbell 4580: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1517665626 E boot: rx seq 4579 GSP_RM_CONTROL (76) sequence 4577 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1517665627 E boot: ctrl 0xc3720101: is mode possible: yes (1 heads: head 0 148500 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1517665628 E boot: tx seq 4578 reply GSP_RM_CONTROL sequence 4577 result 0x0 length 2120
+  1517666202 E boot: doorbell 4581: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1517666203 E boot: rx seq 4580 GSP_RM_CONTROL (76) sequence 4578 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1517666204 E boot: ctrl 0xc3720101: is mode possible: yes (1 heads: head 0 148350 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1517666205 E boot: tx seq 4579 reply GSP_RM_CONTROL sequence 4578 result 0x0 length 2120
+  1517666911 E boot: doorbell 4582: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1517666912 E boot: rx seq 4581 GSP_RM_CONTROL (76) sequence 4579 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1517666914 E boot: ctrl 0xc3720101: is mode possible: yes (1 heads: head 0 148500 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1517666915 E boot: tx seq 4580 reply GSP_RM_CONTROL sequence 4579 result 0x0 length 2120
+  1517667502 E boot: doorbell 4583: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1517667503 E boot: rx seq 4582 GSP_RM_CONTROL (76) sequence 4580 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1517667505 E boot: ctrl 0xc3720101: is mode possible: yes (1 heads: head 0 74250 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1517667506 E boot: tx seq 4581 reply GSP_RM_CONTROL sequence 4580 result 0x0 length 2120
+  1517668085 E boot: doorbell 4584: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1517668086 E boot: rx seq 4583 GSP_RM_CONTROL (76) sequence 4581 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1517668087 E boot: ctrl 0xc3720101: is mode possible: yes (1 heads: head 0 74180 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1517668089 E boot: tx seq 4582 reply GSP_RM_CONTROL sequence 4581 result 0x0 length 2120
+  1517668686 E boot: doorbell 4585: libos args PA 0x120ffd000 (mapped), wpr meta PA 0x120ffc000
+  1517668687 E boot: rx seq 4584 GSP_RM_CONTROL (76) sequence 4582 length 2120 checksum ok: hClient=0xc1d00008 hObject=0x10011 cmd=0xc3720101 paramsSize=2048 rpcFlags=0x0
+  1517668688 E boot: ctrl 0xc3720101: is mode possible: yes (1 heads: head 0 25175 kHz; limit 1080000 kHz = min(link budget, head clock cap)) -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1517668690 E boot: tx seq 4583 reply GSP_RM_CONTROL sequence 4582 result 0x0 length 2120
+  1522494436 E boot: mmu invalidate: pdb 0xf7552000 flags 0xc1 (no mirror VA space rooted there; nothing cached here)
+  1522495400 E boot: display channel 0xc57d/0 kick 12: PUT 0xda8, 10 method(s), 1 UPDATE(s), 0 raster method(s); core methods 0x2c98=0x0 0x2c88=0x10094 0x2c8c=0x10094 0x2c90=0x0 0x2c94=0x0 0x2c9c=0x800003cf 0x2ca0=0x72ff 0x218=0x0 0x21c=0x40 0x200=0x1; GET := PUT [guest]
+  1522495402 E boot: display: window 6 latch 13275 at tick 1: surface fb 0x200000 1920x1080 format 0xe6 pitch pitch 120 (block height 2^0), notifier sys 0x10c6b6010 awaken, acquire none, release none [guest]
+  1522495472 E boot: display channel 0xc57e/6 kick 12: PUT 0xcd0, 57 method(s), 1 UPDATE(s), 0 raster method(s); GET := PUT [guest]
+  1524565603 E boot: display channel 0xc57d/0 kick 13: PUT 0xe58, 29 method(s), 1 UPDATE(s), 0 raster method(s); core methods 0x2c98=0x0 0x2c88=0x10094 0x2c8c=0x10094 0x2c90=0x0 0x2c94=0x0 0x2c9c=0x800003cf 0x2ca0=0x72ff 0x2e44=0x10000 0x2e48=0x0 0x2e4c=0x0 0x2e50=0x0 0x2e54=0x0 0x2e58=0x10000 0x2e5c=0x0 0x2e60=0x0 0x2e64=0x0 0x2e68=0x0 0x2e6c=0x10000 0x2e70=0x0 0x2e80=0x40509 0x2e88=0x10071 0x2e8c=0x21 0x2e84=0xffffffff 0x2e40=0x1 0x208=0x10014 0x20c=0x1010 0x218=0x0 0x21c=0x40 0x200=0x1; GET := PUT [guest]
+  1524565604 E boot: display: head 3 616 ticks, 59.957 Hz over the last 616 (10.274 s) [clock]
+  1524565657 E boot: display channel 0xc57e/6 kick 13: PUT 0xe94, 57 method(s), 1 UPDATE(s), 0 raster method(s); GET := PUT [guest]
+  1524565691 E boot: display channel 0xc57d/0 kick 14: PUT 0xe68, 2 method(s), 0 UPDATE(s), 0 raster method(s); GET := PUT [guest]
+  1524748889 E boot: display channel 0xc57e/6 kick 14: PUT 0x0, 39 method(s), 0 UPDATE(s), 0 raster method(s); GET := PUT [guest]
+  1524749005 E boot: display channel 0xc57d/0 kick 15: PUT 0xf18, 29 method(s), 1 UPDATE(s), 0 raster method(s); core methods 0x2c98=0x0 0x2c88=0x10094 0x2c8c=0x10094 0x2c90=0x0 0x2c94=0x0 0x2c9c=0x800003cf 0x2ca0=0x72ff 0x2e44=0x10000 0x2e48=0x0 0x2e4c=0x0 0x2e50=0x0 0x2e54=0x0 0x2e58=0x10000 0x2e5c=0x0 0x2e60=0x0 0x2e64=0x0 0x2e68=0x0 0x2e6c=0x10000 0x2e70=0x0 0x2e80=0x40509 0x2e88=0x10073 0x2e8c=0x21 0x2e84=0xffffffff 0x2e40=0x1 0x208=0x10014 0x20c=0x1010 0x218=0x0 0x21c=0x40 0x200=0x1; GET := PUT [guest]
+  1524749056 E boot: display channel 0xc57e/6 kick 15: PUT 0x90, 18 method(s), 1 UPDATE(s), 0 raster method(s); GET := PUT [guest]
+  1524749095 E boot: display channel 0xc57d/0 kick 16: PUT 0xf28, 2 method(s), 0 UPDATE(s), 0 raster method(s); GET := PUT [guest]
+  1529306831 E boot: mmu invalidate: pdb 0xf7552000 flags 0xc1 (no mirror VA space rooted there; nothing cached here)
+  1529307477 E boot: display channel 0xc57d/0 kick 17: PUT 0xf6c, 10 method(s), 1 UPDATE(s), 0 raster method(s); core methods 0x2c98=0x0 0x2c88=0x10096 0x2c8c=0x10096 0x2c90=0x0 0x2c94=0x0 0x2c9c=0x800003cf 0x2ca0=0x72ff 0x218=0x0 0x21c=0x40 0x200=0x1; GET := PUT [guest]
+  1529307522 E boot: display channel 0xc57e/6 kick 16: PUT 0x254, 57 method(s), 1 UPDATE(s), 0 raster method(s); GET := PUT [guest]
+  1529316002 E boot: mmu invalidate: pdb 0xf7552000 flags 0xc1 (no mirror VA space rooted there; nothing cached here)
+  1529317333 E boot: display channel 0xc57d/0 kick 18: PUT 0xfb0, 10 method(s), 1 UPDATE(s), 0 raster method(s); core methods 0x2c98=0x0 0x2c88=0x10096 0x2c8c=0x10096 0x2c90=0x0 0x2c94=0x0 0x2c9c=0x800003cf 0x2ca0=0x72ff 0x218=0x0 0x21c=0x0 0x200=0x1; GET := PUT [guest]

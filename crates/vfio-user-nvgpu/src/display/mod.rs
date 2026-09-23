@@ -37,6 +37,9 @@ use crate::ver::active::display as d;
 use crate::ver::active::{NV_ERR_NOT_SUPPORTED, NV_OK};
 use dp_sink::{DpSink, LinkConfig, LinkRate, SinkProfile};
 
+/// `NV2080_NOTIFIERS_HOTPLUG` (cl2080_notification.h).
+pub const NV2080_NOTIFIERS_HOTPLUG: u32 = 1;
+
 /// `NV_ERR_INVALID_ARGUMENT` (nvstatuscodes.h).
 pub const NV_ERR_INVALID_ARGUMENT: u32 = 0x1F;
 
@@ -83,6 +86,17 @@ pub fn set_intr_shared(shared: std::sync::Arc<crate::intr::IntrShared>) {
     *INTR.lock().unwrap() = Some(shared);
 }
 
+/// The file the display polls for host-side connector commands (engine.rs).
+pub fn set_control_file(path: std::path::PathBuf) {
+    let vector = SETUP
+        .lock()
+        .unwrap()
+        .as_ref()
+        .and_then(|s| chip_display(&s.chip).ok().flatten())
+        .map_or(0, |c| c.gsp_vector);
+    engine::ticker().set_control(path, vector);
+}
+
 /// The display's interrupt path when the display is on (for the interrupt tree).
 pub fn intr_shared() -> Option<std::sync::Arc<crate::intr::IntrShared>> {
     let on = SETUP.lock().unwrap().as_ref().is_some_and(|s| s.enabled);
@@ -106,6 +120,9 @@ pub struct ChipDisplay {
     pub i2c_port: u32,
     pub vga_workspace_base: u32,
     pub intr_vector: u32,
+    /// The GSP stall vector (chips/<chip>/interrupts.toml): raised after the device
+    /// posts a hotplug event on the status queue.
+    pub gsp_vector: u32,
     /// Per-head pixel clock cap (HEAD_CLK_CAP, display-scaling.md section 2.2), kHz.
     pub head_clk_cap_khz: u32,
     pub link: LinkProfile,
@@ -254,6 +271,9 @@ pub struct Display {
     /// Link configuration the last DP_CTRL trained (rate code, lanes).
     pub link: Option<(u8, u8)>,
     pub notes: Vec<String>,
+    /// NV2080_NOTIFIERS_HOTPLUG events the guest allocated (hClient, hEvent), for
+    /// POST_EVENT (docs/caraxes/display-cd.md, phase D).
+    pub hotplug_events: Vec<(u32, u32)>,
     /// Phase C: methods, heads, the clock and the interrupt registers (engine.rs).
     pub engine: engine::Engine,
 }
@@ -330,6 +350,7 @@ impl Display {
             aux_transcript: Vec::new(),
             link: None,
             notes: Vec::new(),
+            hotplug_events: Vec::new(),
             engine: engine::Engine::new(0, 0),
         }
     }
@@ -1210,7 +1231,9 @@ impl Display {
 
     /// Notes of the engine not yet in the trace.
     pub fn take_engine_notes(&mut self) -> Vec<String> {
-        std::mem::take(&mut self.engine.notes)
+        let mut n = std::mem::take(&mut self.notes);
+        n.append(&mut self.engine.notes);
+        n
     }
 
     /// A write to a display register; `None` when it is not the display's.
@@ -1355,6 +1378,91 @@ impl Display {
             ch.put,
             if unreadable { ", pushbuffer unreadable" } else { "" }
         )
+    }
+
+    /// An event object the guest allocated (`GSP_RM_ALLOC` of NV01_EVENT_KERNEL_CALLBACK_EX
+    /// or NV01_EVENT_OS_EVENT, NV0005_ALLOC_PARAMETERS: notifyIndex at 12): the hotplug
+    /// ones are kept for POST_EVENT.
+    pub fn record_event(&mut self, h_client: u32, h_object: u32, h_class: u32, params: &[u8]) {
+        if !self.enabled || !matches!(h_class, 0x79 | 0x7E) {
+            return;
+        }
+        if get32(params, 12) & 0xFFFF == NV2080_NOTIFIERS_HOTPLUG
+            && !self.hotplug_events.contains(&(h_client, h_object))
+        {
+            self.hotplug_events.push((h_client, h_object));
+            self.notes.push(format!(
+                "display: hotplug event {h_client:#x}/{h_object:#x} recorded for POST_EVENT [guest]"
+            ));
+        }
+    }
+
+    /// Apply a host-side connector command (engine.rs `Ticker::poll_control`) and return
+    /// the POST_EVENT payloads (`rpc_post_event_v17_00`, 32 bytes) for every hotplug event
+    /// the guest registered. Commands: `edid-alt` / `edid-main` (unplug, change the
+    /// monitor's EDID, replug), `unplug`, `plug`.
+    pub fn connector_command(&mut self, cmd: &str) -> Vec<Vec<u8>> {
+        if !self.enabled || self.connectors.is_empty() {
+            return Vec::new();
+        }
+        let cmd = cmd.trim();
+        let mut mask = 0u32;
+        let mut what = Vec::new();
+        for c in &mut self.connectors {
+            let before = c.sink.is_plugged();
+            match cmd {
+                "edid-alt" | "edid-main" => {
+                    c.sink.unplug();
+                    let e = if cmd == "edid-alt" {
+                        edid::monitor_edid_alt()
+                    } else {
+                        edid::monitor_edid()
+                    };
+                    let r = c.sink.set_edid(e);
+                    c.sink.plug();
+                    c.override_edid = None;
+                    c.last_answer = None;
+                    c.pending_plug = true;
+                    what.push(format!(
+                        "{:#x}: EDID {cmd} ({r:?}), replugged",
+                        c.display_id
+                    ));
+                }
+                "unplug" => {
+                    c.sink.unplug();
+                    c.pending_unplug = before;
+                    what.push(format!("{:#x}: unplugged", c.display_id));
+                }
+                "plug" => {
+                    c.sink.plug();
+                    c.pending_plug = !before;
+                    what.push(format!("{:#x}: plugged", c.display_id));
+                }
+                _ => {
+                    what.push(format!("unknown command {cmd:?}"));
+                    continue;
+                }
+            }
+            c.sink.take_events();
+            mask |= c.display_id;
+        }
+        let mut out = Vec::new();
+        if mask != 0 {
+            for &(h_client, h_event) in &self.hotplug_events {
+                let mut p = vec![0u8; 32];
+                put32(&mut p, 0, h_client);
+                put32(&mut p, 4, h_event);
+                put32(&mut p, 8, NV2080_NOTIFIERS_HOTPLUG);
+                put32(&mut p, 12, mask);
+                out.push(p);
+            }
+        }
+        self.notes.push(format!(
+            "display: connector command {cmd:?}: {}; {} POST_EVENT(s) NV2080_NOTIFIERS_HOTPLUG [host command]",
+            what.join(", "),
+            out.len()
+        ));
+        out
     }
 
     pub fn take_notes(&mut self) -> Vec<String> {
