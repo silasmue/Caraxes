@@ -87,6 +87,9 @@ fn link_answers_agree_on_one_profile() {
     assert_eq!(get32(&a.params, d::AUX_SIZE_FIELD), 16);
     let dpcd = &a.params[d::AUX_DATA..d::AUX_DATA + 16];
     assert_eq!((dpcd[0], dpcd[1], dpcd[2] & 0x1F), (0x14, 0x1E, 4));
+    // The DP library leaves the sink in D3 after detection (0x600 = 2, run b1); DP_CTRL
+    // wakes it before training, as GSP does.
+    aux(&mut disp, 0x8, 0x600, 0, false, &[0x02]);
     // Training through DP_CTRL: HBR3 (0x1E) x4, then the link config says the same.
     let mut p = vec![0u8; 28];
     put32(&mut p, d::DISPLAY_ID, DP);
