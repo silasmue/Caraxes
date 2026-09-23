@@ -1029,3 +1029,46 @@ only the usermode doorbell of its own throwaway channel.
 4. `NVreg_ResmanDebugLevel=0` in the guest is useful here: it makes the driver print
    the INFO-level path (`RmInitAdapter failed! (0x%x:0x%x:%d)` carries the failing
    line).
+
+### Display phases A and B (2026-09-23/24)
+
+Plan: [display-connector.md](display-connector.md) phases A and B with D15 (DisplayPort SST),
+checklist [display-adapter.md](display-adapter.md) §5. Result and tables:
+[display-ab.md](display-ab.md); evidence and commands:
+`caraxes/runs/display-ab-2026-09-23/`. Tree: branch `worktree-agent-a6f9005032084a629` from
+`66682ae`; vendor `open-gpu-kernel-modules` 610.57.04 (`e4a5faa2567f`). VM: vm0, device
+`--boot-model --fb-mib 4096 --host-rm` plus `--display` (`CARAXES_DISPLAY=1`).
+
+- **Expected (A):** `RmInitAdapter succeeded!` with KernelDisplay present, the init controls
+  A2-A12 answered and labelled, nvml 11/11, UVM registration unchanged.
+  **Observed:** as expected. Fuse 0x21C04 read 0 (three times), 0x625F04 read 0 (STATUS invalid,
+  layout unchanged: `vgaWorkspace 0xfff00000`), `GET_IP_VERSION` answered 0x04000000, static
+  info, brightc, static EDID data, `WRITE_INST_MEM` (FB 0xF75D0000, 64 KiB, as fb-model.md
+  §3.2 predicted), `MAP_SHARED_DATA`, the second `NV04_DISPLAY_COMMON`, and nvidia.ko's
+  `GET_SUPPORTED`/`OR_GET_INFO`/`GET_I2C_PORTID` (ddcPortId 0). Zero unanswered.
+  `SET_IMP_INIT_INFO` never came. The interrupt table carries `MC_ENGINE_IDX_DISP` at
+  vector 156.
+- **Expected (B, gate D3):** `card0-DP-1` connected, EDID byte-identical, edid-decode clean,
+  1080p60, 720p60 and 1080p50 listed, the over-budget mode pruned, no modeset.
+  **Observed:** as expected on run b3 (display-ab.md "Outcome"). 85 AUX transactions, HBR3 x4
+  trained through `DP_CTRL` and powered down, the EDID ping-pong, 14 `IS_MODE_POSSIBLE`, no
+  core `UPDATE`, zero unanswered.
+- **Not as expected:**
+  - The guest image starts **gdm3**. Its Xorg modeset the new card0 in run b1 (flip timeouts,
+    `Lost display notification`, `DP_CTRL` refused with `NotPowered` because the library had
+    put the sink in D3). Changed in vm0's overlay: `systemctl disable gdm3` and default target
+    `multi-user.target` (not a driver change; revert with `systemctl enable gdm3` and
+    `systemctl set-default graphical.target`). The device now wakes the sink to D0 before a
+    `DP_CTRL` training.
+  - Closing card0 as DRM master commits NVKMS's initial window mapping: one core `UPDATE`
+    without raster methods, logged as `Lost display notification`. That wait is phase C's
+    notifier.
+  - `tools/caraxes-vm.sh down` without a guest `sync` lost the first four-module build and
+    its install (all-zero `.ko` files after the restart). The build was redone.
+- **D0 baseline** (`gate-nvml-*.json`, `uvm-display-*`): nvml pass 11/11 and UVM
+  `rmStatus 0x0` before A (display off), after A, and after B.
+- **Guest:** the full four-module build of `~/ogkm/open-gpu-kernel-modules`
+  (`make modules -j8 SYSSRC=...`) builds `nvidia-drm.ko` against the 6.8.0-136 headers,
+  resolving D0's build failure. It was installed with `modules_install`. `nvidia-modeset` and
+  `nvidia-drm` are blacklisted from autoloading in `/etc/modprobe.d/caraxes-display.conf`
+  (`options nvidia-drm modeset=1 fbdev=0`). `modprobe video` still comes first.

@@ -1,0 +1,6 @@
+# SPDX-License-Identifier: MIT
+# Device trace lines of the baseline probe: display fuse reads, VGA workspace register, WPR meta (FB layout).
+   237765440 R bar0 0x00021c04 4  0x1          NV_FUSE_STATUS_OPT_DISPLAY
+   240596375 R bar0 0x00021c04 4  0x1          NV_FUSE_STATUS_OPT_DISPLAY
+   241072966 E boot: wpr meta: fbSize 0x100000000 gspFwRsvdStart 0xf7600000 nonWprHeap 0xf7600000+0x100000 wprStart 0xf7700000 frtsOffset 0xffe00000 wprEnd 0xfff00000 vgaWorkspace 0xfff00000
+   241197507 R bar0 0x00021c04 4  0x1          NV_FUSE_STATUS_OPT_DISPLAY

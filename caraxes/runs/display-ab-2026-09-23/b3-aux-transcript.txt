@@ -1,0 +1,178 @@
+# SPDX-License-Identifier: MIT
+# python3 transcript.py on the run b3 trace (100 = displayId 0x100); copied to crates/dp-sink/tests/transcripts/.
+! plug
+? events plug
+> nr 00e 1
+< ack 1 80
+> nr e000d 1
+< ack 1 00
+> nr e0030 1
+< ack 1 00
+> nw e0030 00
+< ack 1
+> nr 2200 16
+< ack 16 14 1e c4 81 00 00 01 00 02 00 00 00 00 00 80 00
+> nr 2002 1
+< ack 1 01
+> nr 020 3
+< ack 3 00 00 00
+> nr 2211 1
+< ack 1 00
+> nr 070 1
+< ack 1 00
+> nr 2002 4
+< ack 4 01 00 00 00
+> nr 200c 3
+< ack 3 00 00 00
+> nr 2003 3
+< ack 3 00 00 00
+> nr 111 1
+< ack 1 00
+> nw 111 04
+< ack 1
+> iwm 30 00
+< ack 1
+> iwm 52 00
+< i2c-nack 0
+> iwm 30 00
+< ack 1
+> iwm 52 00
+< i2c-nack 0
+> iwm 30 00
+< ack 1
+> iwm 52 00
+< i2c-nack 0
+> iwm 30 00
+< ack 1
+> iwm 52 00
+< i2c-nack 0
+> iwm 30 00
+< ack 1
+> iwm 52 00
+< i2c-nack 0
+> iwm 30 00
+< ack 1
+> iwm 52 00
+< i2c-nack 0
+> iwm 30 00
+< ack 1
+> iwm 52 00
+< i2c-nack 0
+> iwm 30 00
+< ack 1
+> iwm 52 00
+< i2c-nack 0
+> iwm 30 00
+< ack 1
+> iwm 52 00
+< i2c-nack 0
+> iwm 30 00
+< ack 1
+> iwm 52 00
+< i2c-nack 0
+> iwm 30 00
+< ack 1
+> iwm 52 00
+< i2c-nack 0
+> iwm 30 00
+< ack 1
+> iwm 52 00
+< i2c-nack 0
+> iwm 30 00
+< ack 1
+> iwm 52 00
+< i2c-nack 0
+> iwm 30 00
+< ack 1
+> iwm 52 00
+< i2c-nack 0
+> iwm 30 00
+< ack 1
+> iwm 52 00
+< i2c-nack 0
+> iwm 30 00
+< ack 1
+> iwm 52 00
+< i2c-nack 0
+> iwm 30 00
+< ack 1
+> iwm 52 00
+< i2c-nack 0
+> iwm 30 00
+< ack 1
+> iwm 52 00
+< i2c-nack 0
+> iwm 30 00
+< ack 1
+> iwm 52 00
+< i2c-nack 0
+> iwm 30 00
+< ack 1
+> iwm 52 00
+< i2c-nack 0
+> iwm 50 00
+< ack 1
+> irm 50 16
+< ack 16 00 ff ff ff ff ff ff 00 0e 58 02 00 00 00 00 00
+> irm 50 16
+< ack 16 27 24 01 04 a5 35 1e 78 06 ee 91 a3 54 4c 99 26
+> irm 50 16
+< ack 16 0f 50 54 20 00 00 01 01 01 01 01 01 01 01 01 01
+> irm 50 16
+< ack 16 01 01 01 01 01 01 02 3a 80 18 71 38 2d 40 58 2c
+> irm 50 16
+< ack 16 45 00 0f 28 21 00 00 1e 01 1d 00 72 51 d0 1e 20
+> irm 50 16
+< ack 16 6e 28 55 00 0f 28 21 00 00 1e 02 3a 80 d0 72 38
+> irm 50 16
+< ack 16 2d 40 10 2c 45 80 0f 28 21 00 00 1e 00 00 00 fc
+> ir 50 16
+< ack 16 00 43 61 72 61 78 65 73 20 44 50 0a 20 20 01 1f
+> iwm 50 80
+< ack 1
+> irm 50 16
+< ack 16 02 03 0c 80 44 10 04 1f c9 e2 00 4a 00 00 00 00
+> irm 50 16
+< ack 16 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+> irm 50 16
+< ack 16 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+> irm 50 16
+< ack 16 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+> irm 50 16
+< ack 16 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+> irm 50 16
+< ack 16 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+> irm 50 16
+< ack 16 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+> ir 50 16
+< ack 16 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 03
+> nr 000 1
+< ack 1 14
+# DP_CTRL: trained through the control
+! train 1e 4 ef
+> nr 600 1
+< ack 1 01
+> nr 600 1
+< ack 1 01
+> nr 6921d 1
+< ack 1 00
+> nr 68028 1
+< ack 1 00
+> nr 6802a 2
+< ack 2 00 00
+> nr 060 1
+< ack 1 01
+> nr 060 16
+< ack 16 01 21 00 05 0b 08 01 00 00 01 06 11 08 00 00 00
+> nr 0b0 1
+< ack 1 00
+> nr 0b1 1
+< ack 1 00
+> nr 02e 1
+< ack 1 00
+> nr 090 1
+< ack 1 01
+> nw 600 02
+< ack 1
+# DP_CTRL: lane count 0, link powered down
+! drop-link

@@ -1,0 +1,10 @@
+# SPDX-License-Identifier: MIT
+# drm-modes output of run b1.
+/dev/dri/card0: 1 connector(s), 4 crtc(s), 1 encoder(s), max 65535x65535
+connector 127: DP-1 connected, 530x300 mm, 6 mode(s), encoder 126
+  1920x1080    1920x1080   60.000 Hz  clock  148500 kHz  htotal 2200 vtotal 1125  preferred
+  1920x1080    1920x1080   59.939 Hz  clock  148350 kHz  htotal 2200 vtotal 1125
+  1920x1080    1920x1080   50.000 Hz  clock  148500 kHz  htotal 2640 vtotal 1125
+  1280x720     1280x720    60.000 Hz  clock   74250 kHz  htotal 1650 vtotal  750
+  1280x720     1280x720    59.943 Hz  clock   74180 kHz  htotal 1650 vtotal  750
+  640x480       640x480    59.940 Hz  clock   25175 kHz  htotal  800 vtotal  525

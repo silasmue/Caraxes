@@ -1,0 +1,32 @@
+# SPDX-License-Identifier: MIT
+# Guest dmesg and connector sysfs of run b1 (gdm3 enabled: Xorg modesets, flip timeouts).
+[  419.939485] nvidia-modeset: Loading NVIDIA UNIX Open Kernel Mode Setting Driver for x86_64  610.57.04  Release Build  (leandro@caraxes-vm0)  Wed Sep 23 19:23:25 UTC 2026
+[  419.953131] [drm] [nvidia-drm] [GPU ID 0x00000005] Loading driver
+[  419.953138] NVRM: GPU 0000:00:05.0: Opening GPU with minor number 0
+[  419.955496] NVRM: GPU 0000:00:05.0: Opening GPU with minor number 0
+[  420.675330] [drm] Initialized nvidia-drm 0.0.0 20160202 for 0000:00:05.0 on minor 0
+[  447.429645] nvidia-modeset: WARNING: GPU:0: Lost display notification (0:0x00000000); continuing.
+[  455.396798] [drm:nv_drm_atomic_commit [nvidia_drm]] *ERROR* [nvidia-drm] [GPU ID 0x00000005] Flip event timeout on head 0
+[  456.079974] rfkill: input handler disabled
+[  460.708826] [drm:nv_drm_atomic_commit [nvidia_drm]] *ERROR* [nvidia-drm] [GPU ID 0x00000005] Flip event timeout on head 0
+[  463.742506] nvidia-modeset: WARNING: GPU:0: Lost display notification (0:0x00000000); continuing.
+[  466.916801] [drm:nv_drm_atomic_commit [nvidia_drm]] *ERROR* [nvidia-drm] [GPU ID 0x00000005] Flip event timeout on head 0
+[  469.918337] nvidia-modeset: WARNING: GPU:0: Lost display notification (0:0x00000000); continuing.
+[  475.620780] [drm:nv_drm_atomic_commit [nvidia_drm]] *ERROR* [nvidia-drm] [GPU ID 0x00000005] Flip event timeout on head 0
+nvidia_drm            147456  1
+nvidia_modeset       1490944  1 nvidia_drm
+nvidia              16379904  1 nvidia_modeset
+video                  77824  1 nvidia_modeset
+== status
+connected
+== enabled
+enabled
+== dpms
+On
+== modes
+1920x1080
+1920x1080
+1920x1080
+1280x720
+1280x720
+640x480

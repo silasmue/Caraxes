@@ -1,0 +1,99 @@
+# SPDX-License-Identifier: MIT
+# tools/check.sh after phase A (licence FAIL: pre-existing unheaded files under caraxes/runs/e5b*; cargo doc FAIL fixed afterwards).
+==== FAIL: cargo doc -- last 40 lines ====
+    Checking nvrm-client v0.0.1 (/home/silas/git/Caraxes/.claude/worktrees/agent-a6f9005032084a629/crates/nvrm-client)
+ Documenting nvrm-client v0.0.1 (/home/silas/git/Caraxes/.claude/worktrees/agent-a6f9005032084a629/crates/nvrm-client)
+ Documenting nvrm-trace v0.0.1 (/home/silas/git/Caraxes/.claude/worktrees/agent-a6f9005032084a629/crates/nvrm-trace)
+ Documenting vhost-user-nvrm v0.0.1 (/home/silas/git/Caraxes/.claude/worktrees/agent-a6f9005032084a629/crates/vhost-user-nvrm)
+ Documenting vfio-user-nvgpu v0.0.1 (/home/silas/git/Caraxes/.claude/worktrees/agent-a6f9005032084a629/crates/vfio-user-nvgpu)
+error: unresolved link to `4`
+   --> crates/vfio-user-nvgpu/src/ver/v610/display.rs:159:83
+    |
+159 | /// `..._GET_CONNECTOR_DATA_PARAMS` (72): flags 8, DDCPartners 12, count 16, data[4] of
+    |                                                                                   ^ no item named `4` in scope
+    |
+    = help: to escape `[` and `]` characters, add '\' before them like `\[` or `\]`
+    = note: `-D rustdoc::broken-intra-doc-links` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(rustdoc::broken_intra_doc_links)]`
+
+error: unresolved link to `4`
+   --> crates/vfio-user-nvgpu/src/ver/v610/display.rs:197:61
+    |
+197 | /// `NV0073_CTRL_DFP_ASSIGN_SOR_PARAMS` (80): sorAssignList[4] at 24 (u32 display masks),
+    |                                                             ^ no item named `4` in scope
+    |
+    = help: to escape `[` and `]` characters, add '\' before them like `\[` or `\]`
+
+error: unresolved link to `4`
+   --> crates/vfio-user-nvgpu/src/ver/v610/display.rs:198:26
+    |
+198 | /// sorAssignListWithTag[4] of {displayMask, sorType} at 40.
+    |                          ^ no item named `4` in scope
+    |
+    = help: to escape `[` and `]` characters, add '\' before them like `\[` or `\]`
+
+error: unresolved link to `1`
+   --> crates/vfio-user-nvgpu/src/ver/v610/display.rs:262:64
+    |
+262 | /// `NV5070_CTRL_SYSTEM_GET_CAPS_V2_PARAMS` (8): base, capsTbl[1] at 4.
+    |                                                                ^ no item named `1` in scope
+    |
+    = help: to escape `[` and `]` characters, add '\' before them like `\[` or `\]`
+
+error: could not document `vfio-user-nvgpu`
+==== end cargo doc ====
+==== FAIL: licence -- last 40 lines ====
+no SPDX-License-Identifier: caraxes/runs/e5b-2026-09-23/a-device-log.txt
+no SPDX-License-Identifier: caraxes/runs/e5b-2026-09-23/a-host-before.txt
+no SPDX-License-Identifier: caraxes/runs/e5b-2026-09-23/a-host-held.txt
+no SPDX-License-Identifier: caraxes/runs/e5b-2026-09-23/b-device-exit.txt
+no SPDX-License-Identifier: caraxes/runs/e5b-2026-09-23/b-guest-dmesg.txt
+no SPDX-License-Identifier: caraxes/runs/e5b-2026-09-23/b-guest-nvidia-smi.txt
+no SPDX-License-Identifier: caraxes/runs/e5b-2026-09-23/b-host-after.txt
+no SPDX-License-Identifier: caraxes/runs/e5b-2026-09-23/b-nvml-gate.err
+no SPDX-License-Identifier: caraxes/runs/e5b-2026-09-23/b-trace-fb.txt
+no SPDX-License-Identifier: caraxes/runs/e5b-2026-09-23/b-uvm-guest.txt
+no SPDX-License-Identifier: caraxes/runs/e5b-2026-09-23/c-dma-load.txt
+no SPDX-License-Identifier: caraxes/runs/e5b-2026-09-23/c-dma-ranges
+no SPDX-License-Identifier: caraxes/runs/e5b-2026-09-23/c-guest-dmesg.txt
+no SPDX-License-Identifier: caraxes/runs/e5b-2026-09-23/c-host-before.txt
+no SPDX-License-Identifier: caraxes/runs/e5b-2026-09-23/c-nvml-gate.err
+no SPDX-License-Identifier: caraxes/runs/e5b-2026-09-23/c-trace-excerpt.txt
+no SPDX-License-Identifier: caraxes/runs/e5b-2026-09-23/c-uvm-guest.txt
+no SPDX-License-Identifier: caraxes/runs/e5b-2026-09-23/c-uvm-verify.txt
+no SPDX-License-Identifier: caraxes/runs/e5b-2026-09-23/c3-cuinit-trace.txt
+no SPDX-License-Identifier: caraxes/runs/e5b-2026-09-23/c3-cuinit.txt
+no SPDX-License-Identifier: caraxes/runs/e5b-2026-09-23/d-device-exit.txt
+no SPDX-License-Identifier: caraxes/runs/e5b-2026-09-23/d-host-after.txt
+no SPDX-License-Identifier: caraxes/runs/e5b-2026-09-23/d-host-held.txt
+no SPDX-License-Identifier: caraxes/runs/e5b-2026-09-23/d-sigterm.txt
+no SPDX-License-Identifier: caraxes/runs/e5b-2026-09-23/e-refusal.txt
+no SPDX-License-Identifier: caraxes/runs/e5b2-2026-09-23/a2-guest-uvm.txt
+no SPDX-License-Identifier: caraxes/runs/e5b2-2026-09-23/d-ce-diag/device-trace.txt
+no SPDX-License-Identifier: caraxes/runs/e5b2-2026-09-23/d-ce-diag/guest.txt
+no SPDX-License-Identifier: caraxes/runs/e5b2-2026-09-23/d-ce-diag/host-xid.txt
+no SPDX-License-Identifier: caraxes/runs/e5b2-2026-09-23/d-ce-diag/server-stderr.txt
+no SPDX-License-Identifier: caraxes/runs/e5b2-2026-09-23/d-ce-token/device-trace.txt
+no SPDX-License-Identifier: caraxes/runs/e5b2-2026-09-23/d-ce-token/guest.txt
+no SPDX-License-Identifier: caraxes/runs/e5b2-2026-09-23/d-ce-token/host-xid.txt
+no SPDX-License-Identifier: caraxes/runs/e5b2-2026-09-23/d-ce-token/server-stderr.txt
+==== end licence ====
+
+== check.sh ==
+PASS  cargo test  (17s)
+PASS  cargo test (release)  (33s)
+PASS  cargo test --doc  (6s)
+FAIL  cargo doc  (5s)
+PASS  clippy  (0s)
+PASS  clippy (all features)  (1s)
+PASS  nvrm-genhdr  (0s)
+PASS  c-interpreter  (1s)
+PASS  edid  (1s)
+PASS  class-sizes  (2s)
+PASS  kapi-abi  (0s)
+PASS  bash -n  (0s)
+FAIL  licence  (3s)
+PASS  abi  (77s)
+PASS  nix-sparse  (0s)
+PASS  dangling-refs  (1s)
+PASS  no-markers  (2s)
