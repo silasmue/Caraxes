@@ -1,0 +1,13 @@
+# SPDX-License-Identifier: MIT
+weston up (pid 1936) after       0 s
+first frame callback after 26.4 s
+FRAMES callbacks intervals=1488 mean_ms=20.052 rate_hz=49.87 min_ms=14.406 max_ms=38.793 sd_ms=1.355
+PRESENTED feedback intervals=1488 mean_ms=20.053 rate_hz=49.87 min_ms=17.852 max_ms=40.251 sd_ms=1.066
+presented=1494 discarded=0 refresh_ns=20000000 (50.000 Hz) flags=0x7 (vsync 1 hw_clock 1 hw_completion 1)
+wlframes exit 0
+first frame callback after 13.7 s
+FRAMES callbacks intervals=1681 mean_ms=17.723 rate_hz=56.43 min_ms=12.370 max_ms=59.637 sd_ms=4.301
+PRESENTED feedback intervals=1680 mean_ms=17.716 rate_hz=56.44 min_ms=14.052 max_ms=52.757 sd_ms=4.199
+presented=1686 discarded=0 refresh_ns=16666666 (60.000 Hz) flags=0x7 (vsync 1 hw_clock 1 hw_completion 1)
+wlframes exit 0
+exit=0

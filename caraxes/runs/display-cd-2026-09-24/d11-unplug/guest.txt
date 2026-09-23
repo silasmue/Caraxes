@@ -1,0 +1,11 @@
+# SPDX-License-Identifier: MIT
+before: status connected, edid 5bb810ebabcc 0 B, modes: 1920x1080 1920x1080 1920x1080 1280x720 1280x720 800x600 640x480 
+after: status disconnected, edid d41d8cd98f00 0 B, modes: 
+== udev (kernel, drm)
+KERNEL[813.365696] change   /devices/pci0000:00/0000:00:05.0/drm/card0 (drm)
+KERNEL[813.366187] change   /devices/pci0000:00/0000:00:05.0/drm/card0 (drm)
+== edid-decode (name, established)
+== dmesg
+[  162.166647] [drm] [nvidia-drm] [GPU ID 0x00000005] Loading driver
+[  163.124416] [drm] Initialized nvidia-drm 0.0.0 20160202 for 0000:00:05.0 on minor 0
+exit=0

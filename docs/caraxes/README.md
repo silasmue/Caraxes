@@ -503,3 +503,12 @@ the VM; then display, expected to be much easier than in v1.
   stays `Leandro RTX 2070-4G` for the v1 gates, the transport word (`Leandro VFIO RTX 2070-4G`)
   is opt-in through `LEA_GPU_NAME_FORMAT`, `--name-format` or `CARAXES_NAME_FORMAT`; the
   Caraxes gate asks the device for the expected name (`tools/caraxes-vm.sh name`).
+- 2026-09-24: **display phases C and D done** ([display-cd.md](display-cd.md)): the device
+  latches flips on a per-head `CLOCK_MONOTONIC` clock (core/window method decoder, RAMHT and
+  context DMAs, notifiers, semaphores, AWAKEN as nvidia-drm models it, `LAST_DATA` vblank,
+  `RG_DPCA`/LOADV, `FE_CORE_HEAD_STATE`, a real `IS_MODE_POSSIBLE`); 120 flips at 60.00 Hz,
+  NVKMS vblank at 60.01 Hz, Weston frame callbacks at 59.86 Hz (1080p60) and 49.87 Hz (1080p50),
+  GNOME 46 on Wayland (Mutter atomic KMS, Mesa kms_swrast, 0 page-flip failures), EDID-change
+  hotplug through `POST_EVENT`; the adapted `vdisplay` and `display` gates pass (GPU-execution
+  stages not run: no host execution on vm0). Open: GPU-rendered compositors (host-exec), BAR1
+  direct mapping (CPU access to scanout buffers runs at 0.4 MB/s), cursor, Moonlight reception.

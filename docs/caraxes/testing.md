@@ -10,13 +10,13 @@ VM=vm0 tools/caraxes-vm.sh sync-tests         # copy, build, record (idempotent)
 VM=vm0 tools/caraxes-gate.sh cuda              # every CUDA test, per-test table
 VM=vm0 tools/caraxes-gate.sh cuda cuda-init    # one test alone (a clean device trace)
 VM=vm0 tools/caraxes-gate.sh gpu               # v1's gpu gate, guest-side stages
-VM=vm0 tools/caraxes-gate.sh vdisplay          # not applicable yet (exit 2)
-VM=vm0 tools/caraxes-gate.sh display           # not applicable yet (exit 2)
+VM=vm0 tools/caraxes-gate.sh vdisplay          # the device's DP monitor (needs CARAXES_DISPLAY=1)
+VM=vm0 tools/caraxes-gate.sh display           # the same, with Weston (Wayland) and Sunshine capture=kms
 VM=vm0 tools/caraxes-gate.sh nvml              # the Caraxes nvidia-smi gate (nvml.md)
 ```
 
 Files: `tools/caraxes-vm.sh` (`sync_tests`), `tools/caraxes-gate.sh` (`gate_cuda`,
-`gate_gpu`, `gate_display_like`, the verdict helpers `g_*`), `tools/caraxes-guest-tests.sh`
+`gate_gpu`, `gate_vdisplay`, `gate_display`, the verdict helpers `g_*`), `tools/caraxes-guest-tests.sh`
 (the guest half, installed as `~/caraxes-tests/caraxes/run-tests.sh`).
 
 ## 1. What ../Leandro-Test contains
@@ -183,13 +183,25 @@ Host reads made by `gpu`: `nvidia-smi` and `nvidia-smi --query-gpu=name` on the 
 
 ### vdisplay, display
 
-Both exit 2 with "not applicable yet". v1's vdisplay gate (`test.sh:452-729`) tests
-virtio_nvrm's own virtual display (module parameter `vdisplay=1`, the module's EDID, a
-frame read back through nvidia-drm); v1's display gate (`test.sh:734-1126`) needs
-nvidia-drm with a connector and modeset, X, Vulkan presentation, Sunshine and Moonlight.
-Caraxes serves no display engine and scope stays nvidia.ko and nvidia-uvm until the
-compute path works (kickoff.md section 6). The facts in the JSON line record what the
-guest has: today no nvidia-modeset or nvidia-drm module and no `/dev/dri` node.
+Since display phases C and D ([display-cd.md](display-cd.md)) both run against the device's
+display engine (start the device with `CARAXES_DISPLAY=1`). The v1 stages that stood on
+virtio_nvrm (module parameters, descriptor tables) become the device's control route; X
+becomes Weston on the DRM backend; the X capture and the Moonlight stream become a KMS readback
+and Sunshine with `capture=kms`. The gates copy their probes from
+`crates/vfio-user-nvgpu/guest/` (and v1's `drm-modeset.c` from Leandro-Test) into
+`~/caraxes-tests/caraxes/display/` and build them in the guest.
+
+- **vdisplay**, fail-fast: setup, route (every display control answered by the display model),
+  device, edid (identical to the device's EDID, `edid-decode --check`), pixel (640x480 pattern
+  through BAR1, GETFB2 readback hash = reference, the device's latched surface), flips (120 at
+  1080p60 within 60 +- 0.5 Hz), teardown.
+- **display**: rig, connector, edid, modeset (v1's criteria, 300 s budget for the BAR1 fill),
+  compositor (Weston frame callbacks and `wp_presentation` within 60 +- 0.5 Hz), capture (the
+  client's pixel through GETFB2, Sunshine capture=kms encoder test), kernel. v1's swapchain,
+  present, rt and events need GPU execution; without `--host-exec` they are listed in the facts
+  as not run.
+- The worktree case: `CARAXES_LEANDRO_TEST` must name Leandro-Test when the checkout is not the
+  tree's sibling.
 
 ## 4. How the verdict is computed (the v1 gate logic)
 
@@ -369,6 +381,17 @@ Update 2026-09-23 23:54 (`caraxes/runs/e5b2-2026-09-24/`): with `CARAXES_MIRROR_
 CARAXES_MIRROR_GR_SHADOW=1` the GR channels run on the physical GPU through the shadow VAS
 (execution.md §6), and **cuda-jit, cuda-launch, cuda-torch and rlprobe pass** (gate
 `gate-cuda-2026-09-23` in that directory, 0 Xid); nvprobe 4 measures 18.2 ms/launch.
+
+### 7d. Display gates after phases C and D (2026-09-24, vm0)
+
+Device `--boot-model --fb-mib 4096 --host-rm --display`, no host execution; branch
+`worktree-agent-adbfba499c7110889`. Details: [display-cd.md](display-cd.md) "The gates".
+
+| Gate | Verdict | Exit | Run directory |
+|---|---|---|---|
+| vdisplay | pass (setup, route, device, edid, pixel, flips, teardown) | 0 | `caraxes/runs/gate-vdisplay-2026-09-24-3/` |
+| display | fail: modeset (v1's 45 s budget against the BAR1 fill), compositor (window closed before the first 1080p repaint) | 1 | `caraxes/runs/gate-display-2026-09-24/` |
+| display | pass (rig, connector, edid, modeset, compositor 59.90 Hz, capture, kernel); swapchain, present, rt, events not run (no GPU execution) | 0 | `caraxes/runs/gate-display-2026-09-24-2/` |
 
 ## 8. The CUDA path: what the device does not answer yet
 

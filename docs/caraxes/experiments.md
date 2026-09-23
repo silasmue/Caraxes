@@ -1152,3 +1152,50 @@ checklist [display-adapter.md](display-adapter.md) §5. Result and tables:
   resolving D0's build failure. It was installed with `modules_install`. `nvidia-modeset` and
   `nvidia-drm` are blacklisted from autoloading in `/etc/modprobe.d/caraxes-display.conf`
   (`options nvidia-drm modeset=1 fbdev=0`). `modprobe video` still comes first.
+
+### Display phases C and D (2026-09-24)
+
+Plan: [display-connector.md](display-connector.md) §4 phases C and D on top of A/B. Result
+and tables: [display-cd.md](display-cd.md); evidence and commands:
+`caraxes/runs/display-cd-2026-09-24/`, gates `caraxes/runs/gate-{vdisplay,display}-2026-09-24*`.
+Tree: branch `worktree-agent-adbfba499c7110889` from `5de9b40`. VM: vm0, device
+`--boot-model --fb-mib 4096 --host-rm --display` (no host execution).
+
+- **Expected (C):** the first modeset completes (core notifier FINISHED, no `Lost display
+  notification`); flips complete at the tick, 60.0 +- 0.5 Hz; the guest RM services vblank; a
+  Wayland compositor's frame callbacks run at the mode's rate.
+  **Observed:** as expected. 120 flips at 60.00 Hz (rms 0.18 ms); NVKMS `NOTIFY_VBLANK` 120/120
+  at 60.01 Hz; Weston 13 (DRM backend, atomic, pixman) frame callbacks 59.86 Hz at 1080p60 and
+  49.87 Hz at 1080p50, refresh reported exactly; mode switch 1080p60 -> 720p60 -> 1080p50 at
+  50.00 Hz.
+- **Expected (D):** GNOME Wayland with colord, 0 `Page flip failed`; an EDID change as a hotplug;
+  the adapted vdisplay and display gates pass the stages that need no GPU execution.
+  **Observed:** GNOME 46 on Wayland (Mutter atomic KMS, gbm renderer through Mesa `kms_swrast`),
+  colord running, OLUT armed, 0 page-flip failures; EDID-change hotplug through `POST_EVENT`
+  (800x600 appears, a drm change uevent), unplug and replug; vdisplay pass, display pass (GPU
+  stages listed as not run).
+- **Not as expected:**
+  - The first AWAKEN rule (an event for every awaken notifier) gave the `nvidia-drm-crtc.h:355`
+    WARNING at each Weston start and a `Flip event timeout` at each stop; the device now follows
+    nvidia-drm's rule (an event only for a window that scanned out before).
+  - `FE_CORE_HEAD_STATE` was decoded for heads 0-2 only and NVKMS drives head 3; fixed.
+  - gdm chose X11 twice: the user's AccountsService session was `ubuntu-xorg` (accounts-daemon
+    caches it), then gnome-shell on Wayland segfaulted in libgallium under
+    `LIBGL_ALWAYS_SOFTWARE=1`; `MESA_LOADER_DRIVER_OVERRIDE=kms_swrast` works.
+  - BAR1 CPU access to dumb buffers runs at 0.38 MB/s write, 0.14-0.37 MB/s read (trapped); a
+  1080p frame costs 21 s to write. The display gate's first run failed on v1's 45 s modeset
+    budget and on the 1080p first-repaint wait (gate budgets, no device change).
+  - GNOME frame-callback rates could not be measured (llvmpipe into BAR1); no hardware cursor
+    (no pointer device).
+  - The host's root filesystem reached 100 % for about a minute at 01:35 (another project's
+    process); only this worktree's `target/debug` was deleted.
+- **vm0 changes:** offline Ubuntu packages (weston 13, sway 1.9, libdrm-tests, edid-decode,
+  wayland-utils, grim, wlr-randr, libwayland-dev, libwayland-bin, wayland-protocols and
+  dependencies, from archive.ubuntu.com with plain curl); gdm3 enabled again (default target left
+  at `multi-user.target`, started by hand after the display modules), `WaylandEnable=true`,
+  `/etc/udev/rules.d/61-gdm.rules -> /dev/null`, AccountsService session `ubuntu-wayland`,
+  `/etc/environment` with `__EGL_VENDOR_LIBRARY_FILENAMES=.../50_mesa.json` and
+  `MESA_LOADER_DRIVER_OVERRIDE=kms_swrast`, gdm `[debug] Enable=true`; originals as
+  `*.caraxes-orig`, undo line printed by `guest/gdm-wayland-setup.sh`. `/dev/nvidia-modeset`,
+  `/dev/nvidiactl`, `/dev/nvidia0` made by `guest/display-up.sh`.
+- **Host GPU reads:** none beyond the device's nvml forwarding client.
