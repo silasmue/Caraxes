@@ -159,7 +159,9 @@ mod tests {
                 (84, 196, 4),
                 (17, 197, 5),
                 (18, 198, 6),
-                (19, 199, 7)
+                (19, 199, 7),
+                // The display vector in leaf 4 (docs/caraxes/display-ab.md).
+                (2, 156, 0)
             ]
         );
         assert_eq!(

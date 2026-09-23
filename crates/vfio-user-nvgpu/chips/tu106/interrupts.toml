@@ -31,6 +31,10 @@ entry = [
     { mc = "CE2", vector_stall = 197, vector_nonstall = 5 },
     { mc = "CE3", vector_stall = 198, vector_nonstall = 6 },
     { mc = "CE4", vector_stall = 199, vector_nonstall = 7 },
+    # The display engine (docs/caraxes/display-ab.md): the kernel RM services it from
+    # leaf 4 (intr_tu102.c:1191-1212, vectors 128-159); chips/tu106/display.toml
+    # intr_vector. Nothing raises it before phase C.
+    { mc = "DISP", vector_stall = 156, vector_nonstall = 0 },
 ]
 
 # subtreeMap[category] = subtree bitmask.

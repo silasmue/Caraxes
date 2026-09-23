@@ -115,6 +115,8 @@ pub struct Dispatcher {
     /// The host mirrors of the guest's channels (E5b part 2, mirror.rs), when the device
     /// executes on the physical GPU.
     pub mirror: Option<crate::mirror::Mirror>,
+    /// The display engine in the GSP role (display/mod.rs, docs/caraxes/display-ab.md).
+    pub display: crate::display::Display,
 }
 
 /// Controls on a guest channel or TSG that a host mirror can take (mirror.rs
@@ -160,6 +162,7 @@ impl Dispatcher {
             channels: crate::channel::Registry::new(chip.channel),
             uvm: crate::uvm::UvmBuffers::default(),
             mirror: None,
+            display: crate::display::Display::new(),
         }
     }
 
@@ -455,6 +458,10 @@ impl Dispatcher {
         params: &[u8],
     ) -> Answer {
         self.objects.insert((h_client, h_object), h_class);
+        // Display classes (display/mod.rs): recorded with their channel state.
+        if let Some(a) = self.display.alloc(h_class, params) {
+            return a;
+        }
         // Channels, TSGs and VA spaces feed the channel emulation (channel.rs); the
         // reply is the echo either way (phase5-rpcs.md §1.6 rows 59 and 61: no reply
         // field is read).
@@ -618,6 +625,10 @@ impl Dispatcher {
                 }
                 return a;
             }
+        }
+        // The display controls (docs/caraxes/display-ab.md) live in display/mod.rs.
+        if let Some(a) = self.display.control(cmd, params) {
+            return a;
         }
         // Graphics static-info rows (docs/caraxes/phase5-rpcs.md rows 35, 39-52) live in kgr.rs.
         if let Some(a) = crate::kgr::answer(self.chip, cmd, params, self.host.as_mut()) {
@@ -976,8 +987,9 @@ mod tests {
             &[0u8; 2112],
         );
         assert_eq!(a.params.len(), 2112);
-        // Six milestone-1 entries plus the GR0/CE2-CE4 non-stall entries of E5b part 2.
-        assert_eq!(u32::from_le_bytes(a.params[0..4].try_into().unwrap()), 10);
+        // Six milestone-1 entries plus the GR0/CE2-CE4 non-stall entries of E5b part 2,
+        // plus the display vector (display-ab.md).
+        assert_eq!(u32::from_le_bytes(a.params[0..4].try_into().unwrap()), 11);
         assert_eq!(
             u64::from_le_bytes(a.params[2056 + 8..2056 + 16].try_into().unwrap()),
             0x8

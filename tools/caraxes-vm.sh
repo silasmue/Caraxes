@@ -28,6 +28,7 @@
 # `probe` and `uvm`) loads the guest module caraxes_dma_range with that table before
 # nvidia binds (guest-module/caraxes_dma_range/README.md); the guest keeps nvidia
 # blacklisted from autoloading so that it never binds without the table.
+# CARAXES_DISPLAY=1 presents the display engine (--display, docs/caraxes/display-ab.md).
 # E5b part 2 (docs/caraxes/execution.md): CARAXES_HOST_EXEC=1 executes on the physical GPU
 # (the FB is the reserved VRAM, guest channels get host mirror channels, engine non-stall
 # events become guest interrupts); it needs the three flags above.
@@ -92,6 +93,7 @@ up() {
     [[ ${CARAXES_HOST_RM:-0} == 1 ]] && vbios+=(--host-rm)
     [[ ${CARAXES_RESERVE_VRAM:-0} == 1 ]] && vbios+=(--reserve-vram)
     [[ ${CARAXES_HOST_EXEC:-0} == 1 ]] && vbios+=(--host-exec)
+    [[ ${CARAXES_DISPLAY:-0} == 1 ]] && vbios+=(--display)
     local server=$SERVER
     rm -f "$W/dma-ranges"
     case ${CARAXES_DMA:-} in

@@ -35,7 +35,7 @@ vfio-user-nvgpu --socket <path> [--trace <file>] [--board-data <name|file>] [--c
                 [--config <dump>] [--rom <rom.bin>] [--vbios <image>] [--vbios-version <v>]
                 [--boot-model] [--fb-mib <n>] [--board <name>] [--host-rm]
                 [--reserve-vram] [--register-guest-ram | --identity-dma-table] [--dma-ranges <file>]
-                [--host-exec] [--profile <size>] [--name-format <legacy|transport>]
+                [--host-exec] [--profile <size>] [--name-format <legacy|transport>] [--display]
 vfio-user-nvgpu --print-name [--board-data <name|file>] [--board <name>] [--fb-mib <n> | --profile <size>]
                 [--name-format <legacy|transport>]
 vfio-user-nvgpu --selftest <socket> [--board-data <name|file>] [--chip <chip>] [--config <dump>]
@@ -69,6 +69,10 @@ vfio-user-nvgpu --selftest <socket> [--board-data <name|file>] [--chip <chip>] [
              reserved VRAM through BAR1 windows, the guest's channels get host mirror channels bound
              to the guest's page tables at their first doorbell, GR0/CE non-stall events become guest
              interrupts (needs --reserve-vram, --register-guest-ram and --host-rm)
+  --display  present the display engine (docs/caraxes/display-ab.md): the display fuse reads 0,
+             the display controls are answered from chips/<chip>/display.toml and the board's
+             [display] connectors, each connector backed by a DisplayPort sink model; without
+             it the device is headless (fuse 1), as in E0-E5
   --selftest connect to a running server and verify the E0 device model
 Paths default relative to LEA_ROOT or the current directory.";
 
@@ -84,6 +88,7 @@ struct Args {
     fb_mib: u64,
     board: String,
     host_rm: bool,
+    display: bool,
     reserve_vram: bool,
     register_guest_ram: bool,
     identity_dma_table: bool,
@@ -123,6 +128,7 @@ fn parse_args() -> Result<Args> {
             .unwrap_or(4096),
         board: board_data.name.clone(),
         host_rm: false,
+        display: false,
         reserve_vram: false,
         register_guest_ram: false,
         identity_dma_table: false,
@@ -155,6 +161,7 @@ fn parse_args() -> Result<Args> {
             "--boot-model" => a.boot_model = true,
             "--board" => a.board = value()?,
             "--host-rm" => a.host_rm = true,
+            "--display" => a.display = true,
             "--reserve-vram" => a.reserve_vram = true,
             "--register-guest-ram" => a.register_guest_ram = true,
             "--identity-dma-table" => a.identity_dma_table = true,
@@ -321,6 +328,15 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
             layout.bar_roots().unwrap().1,
             layout.profile
         );
+    }
+    // The display engine of every device model from here on (display/mod.rs).
+    vfio_user_nvgpu::display::configure(vfio_user_nvgpu::display::Setup {
+        enabled: a.display,
+        chip: chip.data().name.to_ascii_lowercase(),
+        board: a.board_data.display.clone(),
+    });
+    if a.display {
+        eprintln!("vfio-user-nvgpu: display engine present (fuse 0; board connectors from the board data)");
     }
     if a.boot_model {
         let fb_bytes = a.fb_mib << 20;

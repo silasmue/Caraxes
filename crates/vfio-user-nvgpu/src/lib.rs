@@ -21,6 +21,7 @@ pub mod config;
 pub mod ctrl;
 pub mod cuda;
 pub mod device;
+pub mod display;
 pub mod dmamap;
 pub mod falcon;
 pub mod fb;
