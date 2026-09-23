@@ -1,0 +1,425 @@
+# SPDX-License-Identifier: MIT
+# nvidia-smi package, VM iteration it1, file journal.txt (2026-09-23).
+Sep 23 11:10:53 caraxes-vm0 kernel: NVRM: probing 0x10de 0x1f02, class 0x30000
+Sep 23 11:10:53 caraxes-vm0 kernel: NVRM: resizable BAR disabled by regkey, skipping
+Sep 23 11:10:53 caraxes-vm0 kernel: NVRM: No clk handles for the dev
+Sep 23 11:10:53 caraxes-vm0 kernel: NVRM: PCI:0000:00:05.0 (10de:1f02): BAR0 @ 0xe6000000 (16MB)
+Sep 23 11:10:53 caraxes-vm0 kernel: NVRM: PCI:0000:00:05.0 (10de:1f02): BAR1 @ 0x3fffe0000000 (256MB)
+Sep 23 11:10:53 caraxes-vm0 kernel: NVRM: Failed to evaluate _PR3 object
+Sep 23 11:10:53 caraxes-vm0 kernel: NVRM: pciPbiReadUuid: Could not acquire pciPbi mutex
+Sep 23 11:10:53 caraxes-vm0 kernel: NVRM: Starting device 0000:00:05.0
+Sep 23 11:10:53 caraxes-vm0 kernel: NVRM: GPU 0000:00:05.0: RmInitAdapter
+Sep 23 11:10:53 caraxes-vm0 kernel: NVRM: GPU 0000:00:05.0: RmSetupRegisters for 0x10de:0x1f02
+Sep 23 11:10:53 caraxes-vm0 kernel: NVRM: GPU 0000:00:05.0: pci config info:
+Sep 23 11:10:53 caraxes-vm0 kernel: NVRM: GPU 0000:00:05.0:    registers look  like: 0xe6000000 0x1000000NVRM: GPU 0000:00:05.0:    fb        looks like: 0x3fffe0000000 0x10000000
+Sep 23 11:10:53 caraxes-vm0 kernel: NVRM: GPU 0000:00:05.0: Successfully mapped framebuffer and registers
+Sep 23 11:10:53 caraxes-vm0 kernel: NVRM: GPU 0000:00:05.0: final mappings:
+Sep 23 11:10:53 caraxes-vm0 kernel: NVRM: GPU 0000:00:05.0:     regs: 0xe6000000 0x1000000 0x000000005f1c0514
+Sep 23 11:10:53 caraxes-vm0 kernel: NVRM: VM: nv_alloc_pages: 1 pages, nodeid -1
+Sep 23 11:10:53 caraxes-vm0 kernel: NVRM: VM:    contig 1  cache_type 1
+Sep 23 11:10:53 caraxes-vm0 kernel: NVRM: VM: nv_alloc_contig_pages: 1 pages
+Sep 23 11:10:53 caraxes-vm0 kernel: NVRM: VM: nv_alloc_system_pages: 1 order0 pages, 0 order
+Sep 23 11:10:53 caraxes-vm0 kernel: NVRM: VM: nv_alloc_pages:3969: 0x00000000411d3f35, 1 page(s), count = 1, page_table = 0x000000003ff66b86
+Sep 23 11:10:53 caraxes-vm0 kernel: NVRM: VM: nv_alloc_pages: 129 pages, nodeid -1
+Sep 23 11:10:53 caraxes-vm0 kernel: NVRM: VM:    contig 0  cache_type 0
+Sep 23 11:10:53 caraxes-vm0 kernel: NVRM: VM: nv_alloc_system_pages: 129 order0 pages, 9 order
+Sep 23 11:10:53 caraxes-vm0 kernel: NVRM: VM: nv_mem_pool_alloc_pages: node=0 order=9: 0/1 pages allocated (0 already cleared, 0 left in pool)
+Sep 23 11:10:53 caraxes-vm0 kernel: NVRM: VM: nv_alloc_pages:3969: 0x00000000e82fd2c2, 129 page(s), count = 1, page_table = 0x00000000a8b54b66
+Sep 23 11:10:53 caraxes-vm0 kernel: NVRM: VM: nv_alloc_pages: 1 pages, nodeid -1
+Sep 23 11:10:53 caraxes-vm0 kernel: NVRM: VM:    contig 1  cache_type 0
+Sep 23 11:10:53 caraxes-vm0 kernel: NVRM: VM: nv_alloc_contig_pages: 1 pages
+Sep 23 11:10:53 caraxes-vm0 kernel: NVRM: VM: nv_alloc_system_pages: 1 order0 pages, 0 order
+Sep 23 11:10:53 caraxes-vm0 kernel: NVRM: VM: nv_mem_pool_alloc_pages: node=0 order=0: 0/1 pages allocated (0 already cleared, 0 left in pool)
+Sep 23 11:10:53 caraxes-vm0 kernel: NVRM: VM: nv_alloc_pages:3969: 0x000000003e847693, 1 page(s), count = 1, page_table = 0x000000009adb63fb
+Sep 23 11:10:53 caraxes-vm0 kernel: NVRM: VM: nv_alloc_pages: 1 pages, nodeid -1
+Sep 23 11:10:53 caraxes-vm0 kernel: NVRM: VM:    contig 1  cache_type 1
+Sep 23 11:10:53 caraxes-vm0 kernel: NVRM: VM: nv_alloc_contig_pages: 1 pages
+Sep 23 11:10:53 caraxes-vm0 kernel: NVRM: VM: nv_alloc_system_pages: 1 order0 pages, 0 order
+Sep 23 11:10:53 caraxes-vm0 kernel: NVRM: VM: nv_mem_pool_alloc_pages: node=0 order=0: 0/1 pages allocated (0 already cleared, 0 left in pool)
+Sep 23 11:10:53 caraxes-vm0 kernel: NVRM: VM: nv_alloc_pages:3969: 0x00000000e066af09, 1 page(s), count = 1, page_table = 0x0000000046ce2db1
+Sep 23 11:10:53 caraxes-vm0 kernel: NVRM: VM: nv_alloc_pages: 1 pages, nodeid -1
+Sep 23 11:10:53 caraxes-vm0 kernel: NVRM: VM:    contig 1  cache_type 0
+Sep 23 11:10:53 caraxes-vm0 kernel: NVRM: VM: nv_alloc_contig_pages: 1 pages
+Sep 23 11:10:53 caraxes-vm0 kernel: NVRM: VM: nv_alloc_system_pages: 1 order0 pages, 0 order
+Sep 23 11:10:53 caraxes-vm0 kernel: NVRM: VM: nv_mem_pool_alloc_pages: node=0 order=0: 0/1 pages allocated (0 already cleared, 0 left in pool)
+Sep 23 11:10:53 caraxes-vm0 kernel: NVRM: VM: nv_alloc_pages:3969: 0x00000000c7774b08, 1 page(s), count = 1, page_table = 0x000000007608b404
+Sep 23 11:10:53 caraxes-vm0 kernel: NVRM: VM: nv_alloc_pages: 1 pages, nodeid -1
+Sep 23 11:10:53 caraxes-vm0 kernel: NVRM: VM:    contig 0  cache_type 1
+Sep 23 11:10:53 caraxes-vm0 kernel: NVRM: VM: nv_alloc_system_pages: 1 order0 pages, 0 order
+Sep 23 11:10:53 caraxes-vm0 kernel: NVRM: VM: nv_mem_pool_alloc_pages: node=0 order=0: 0/1 pages allocated (0 already cleared, 0 left in pool)
+Sep 23 11:10:53 caraxes-vm0 kernel: NVRM: VM: nv_alloc_pages:3969: 0x000000000dc2306e, 1 page(s), count = 1, page_table = 0x00000000dcbef831
+Sep 23 11:10:53 caraxes-vm0 kernel: NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+Sep 23 11:10:53 caraxes-vm0 kernel: NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+Sep 23 11:10:53 caraxes-vm0 kernel: NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+Sep 23 11:10:53 caraxes-vm0 kernel: NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+Sep 23 11:10:53 caraxes-vm0 kernel: NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+Sep 23 11:10:53 caraxes-vm0 kernel: NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+Sep 23 11:10:53 caraxes-vm0 kernel: NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+Sep 23 11:10:53 caraxes-vm0 kernel: NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+Sep 23 11:10:53 caraxes-vm0 kernel: NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+Sep 23 11:10:53 caraxes-vm0 kernel: NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+Sep 23 11:10:53 caraxes-vm0 kernel: NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+Sep 23 11:10:53 caraxes-vm0 kernel: NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+Sep 23 11:10:53 caraxes-vm0 kernel: NVRM: nv_acpi_dod_method: failed to evaluate _DOD method!
+Sep 23 11:10:55 caraxes-vm0 kernel: NVRM: VM: nv_alloc_pages: 1 pages, nodeid -1
+Sep 23 11:10:55 caraxes-vm0 kernel: NVRM: VM:    contig 1  cache_type 1
+Sep 23 11:10:55 caraxes-vm0 kernel: NVRM: VM: nv_alloc_contig_pages: 1 pages
+Sep 23 11:10:55 caraxes-vm0 kernel: NVRM: VM: nv_alloc_system_pages: 1 order0 pages, 0 order
+Sep 23 11:10:55 caraxes-vm0 kernel: NVRM: VM: nv_mem_pool_alloc_pages: node=0 order=0: 0/1 pages allocated (0 already cleared, 0 left in pool)
+Sep 23 11:10:55 caraxes-vm0 kernel: NVRM: VM: nv_alloc_pages:3969: 0x00000000ab548081, 1 page(s), count = 1, page_table = 0x000000004b41858f
+Sep 23 11:10:55 caraxes-vm0 kernel: NVRM: VM: nv_alloc_pages: 1 pages, nodeid -1
+Sep 23 11:10:55 caraxes-vm0 kernel: NVRM: VM:    contig 1  cache_type 1
+Sep 23 11:10:55 caraxes-vm0 kernel: NVRM: VM: nv_alloc_contig_pages: 1 pages
+Sep 23 11:10:55 caraxes-vm0 kernel: NVRM: VM: nv_alloc_system_pages: 1 order0 pages, 0 order
+Sep 23 11:10:55 caraxes-vm0 kernel: NVRM: VM: nv_mem_pool_alloc_pages: node=0 order=0: 0/1 pages allocated (0 already cleared, 0 left in pool)
+Sep 23 11:10:55 caraxes-vm0 kernel: NVRM: VM: nv_alloc_pages:3969: 0x000000009ba0f5e6, 1 page(s), count = 1, page_table = 0x00000000f7f42298
+Sep 23 11:10:55 caraxes-vm0 kernel: NVRM: VM: nv_alloc_pages: 1 pages, nodeid -1
+Sep 23 11:10:55 caraxes-vm0 kernel: NVRM: VM:    contig 1  cache_type 0
+Sep 23 11:10:55 caraxes-vm0 kernel: NVRM: VM: nv_alloc_contig_pages: 1 pages
+Sep 23 11:10:55 caraxes-vm0 kernel: NVRM: VM: nv_alloc_system_pages: 1 order0 pages, 0 order
+Sep 23 11:10:55 caraxes-vm0 kernel: NVRM: VM: nv_mem_pool_alloc_pages: node=0 order=0: 0/1 pages allocated (0 already cleared, 0 left in pool)
+Sep 23 11:10:55 caraxes-vm0 kernel: NVRM: VM: nv_alloc_pages:3969: 0x00000000c496bf7c, 1 page(s), count = 1, page_table = 0x000000003e1f4f4e
+Sep 23 11:10:55 caraxes-vm0 kernel: NVRM: VM: nv_alloc_pages: 1 pages, nodeid -1
+Sep 23 11:10:55 caraxes-vm0 kernel: NVRM: VM:    contig 1  cache_type 0
+Sep 23 11:10:55 caraxes-vm0 kernel: NVRM: VM: nv_alloc_contig_pages: 1 pages
+Sep 23 11:10:55 caraxes-vm0 kernel: NVRM: VM: nv_alloc_system_pages: 1 order0 pages, 0 order
+Sep 23 11:10:55 caraxes-vm0 kernel: NVRM: VM: nv_mem_pool_alloc_pages: node=0 order=0: 0/1 pages allocated (0 already cleared, 0 left in pool)
+Sep 23 11:10:55 caraxes-vm0 kernel: NVRM: VM: nv_alloc_pages:3969: 0x000000005926f8f3, 1 page(s), count = 1, page_table = 0x00000000593cc32e
+Sep 23 11:10:55 caraxes-vm0 kernel: NVRM: VM: nv_alloc_pages: 7187 pages, nodeid -1
+Sep 23 11:10:55 caraxes-vm0 kernel: NVRM: VM:    contig 0  cache_type 0
+Sep 23 11:10:55 caraxes-vm0 kernel: NVRM: VM: nv_alloc_system_pages: 7187 order0 pages, 9 order
+Sep 23 11:10:55 caraxes-vm0 kernel: NVRM: VM: nv_mem_pool_alloc_pages: node=0 order=9: 0/15 pages allocated (0 already cleared, 0 left in pool)
+Sep 23 11:10:55 caraxes-vm0 kernel: NVRM: VM: nv_alloc_pages:3969: 0x00000000fc6d128a, 7187 page(s), count = 1, page_table = 0x00000000e8831076
+Sep 23 11:10:55 caraxes-vm0 kernel: NVRM: VM: nv_alloc_pages: 16 pages, nodeid -1
+Sep 23 11:10:55 caraxes-vm0 kernel: NVRM: VM:    contig 1  cache_type 0
+Sep 23 11:10:55 caraxes-vm0 kernel: NVRM: VM: nv_alloc_contig_pages: 16 pages
+Sep 23 11:10:55 caraxes-vm0 kernel: NVRM: VM: nv_alloc_system_pages: 16 order0 pages, 4 order
+Sep 23 11:10:55 caraxes-vm0 kernel: NVRM: VM: nv_mem_pool_alloc_pages: node=0 order=4: 0/1 pages allocated (0 already cleared, 0 left in pool)
+Sep 23 11:10:55 caraxes-vm0 kernel: NVRM: VM: nv_alloc_pages:3969: 0x0000000044627318, 16 page(s), count = 1, page_table = 0x000000008b0352ef
+Sep 23 11:10:55 caraxes-vm0 kernel: NVRM: VM: nv_alloc_pages: 16 pages, nodeid -1
+Sep 23 11:10:55 caraxes-vm0 kernel: NVRM: VM:    contig 1  cache_type 0
+Sep 23 11:10:55 caraxes-vm0 kernel: NVRM: VM: nv_alloc_contig_pages: 16 pages
+Sep 23 11:10:55 caraxes-vm0 kernel: NVRM: VM: nv_alloc_system_pages: 16 order0 pages, 4 order
+Sep 23 11:10:55 caraxes-vm0 kernel: NVRM: VM: nv_mem_pool_alloc_pages: node=0 order=4: 0/1 pages allocated (0 already cleared, 0 left in pool)
+Sep 23 11:10:55 caraxes-vm0 kernel: NVRM: VM: nv_alloc_pages:3969: 0x00000000ad453c87, 16 page(s), count = 1, page_table = 0x00000000ebcd6964
+Sep 23 11:10:55 caraxes-vm0 kernel: NVRM: VM: nv_alloc_pages: 1 pages, nodeid -1
+Sep 23 11:10:55 caraxes-vm0 kernel: NVRM: VM:    contig 1  cache_type 1
+Sep 23 11:10:55 caraxes-vm0 kernel: NVRM: VM: nv_alloc_contig_pages: 1 pages
+Sep 23 11:10:55 caraxes-vm0 kernel: NVRM: VM: nv_alloc_system_pages: 1 order0 pages, 0 order
+Sep 23 11:10:55 caraxes-vm0 kernel: NVRM: VM: nv_mem_pool_alloc_pages: node=0 order=0: 0/1 pages allocated (0 already cleared, 0 left in pool)
+Sep 23 11:10:55 caraxes-vm0 kernel: NVRM: VM: nv_alloc_pages:3969: 0x000000005800b621, 1 page(s), count = 1, page_table = 0x000000008a3d018a
+Sep 23 11:10:56 caraxes-vm0 kernel: NVRM: VM: nv_alloc_pages: 1 pages, nodeid -1
+Sep 23 11:10:56 caraxes-vm0 kernel: NVRM: VM:    contig 1  cache_type 1
+Sep 23 11:10:56 caraxes-vm0 kernel: NVRM: VM: nv_alloc_contig_pages: 1 pages
+Sep 23 11:10:56 caraxes-vm0 kernel: NVRM: VM: nv_alloc_system_pages: 1 order0 pages, 0 order
+Sep 23 11:10:56 caraxes-vm0 kernel: NVRM: VM: nv_mem_pool_alloc_pages: node=0 order=0: 0/1 pages allocated (0 already cleared, 0 left in pool)
+Sep 23 11:10:56 caraxes-vm0 kernel: NVRM: VM: nv_alloc_pages:3969: 0x00000000e21ba92b, 1 page(s), count = 1, page_table = 0x000000005d322db8
+Sep 23 11:10:56 caraxes-vm0 kernel: NVRM: VM: nv_alloc_pages: 1 pages, nodeid -1
+Sep 23 11:10:56 caraxes-vm0 kernel: NVRM: VM:    contig 1  cache_type 0
+Sep 23 11:10:56 caraxes-vm0 kernel: NVRM: VM: nv_alloc_contig_pages: 1 pages
+Sep 23 11:10:56 caraxes-vm0 kernel: NVRM: VM: nv_alloc_system_pages: 1 order0 pages, 0 order
+Sep 23 11:10:56 caraxes-vm0 kernel: NVRM: VM: nv_mem_pool_alloc_pages: node=0 order=0: 0/1 pages allocated (0 already cleared, 0 left in pool)
+Sep 23 11:10:56 caraxes-vm0 kernel: NVRM: VM: nv_alloc_pages:3969: 0x0000000066820d6a, 1 page(s), count = 1, page_table = 0x00000000cde00da2
+Sep 23 11:10:56 caraxes-vm0 kernel: NVRM: VM: nv_alloc_pages: 16 pages, nodeid -1
+Sep 23 11:10:56 caraxes-vm0 kernel: NVRM: VM:    contig 1  cache_type 0
+Sep 23 11:10:56 caraxes-vm0 kernel: NVRM: VM: nv_alloc_contig_pages: 16 pages
+Sep 23 11:10:56 caraxes-vm0 kernel: NVRM: VM: nv_alloc_system_pages: 16 order0 pages, 4 order
+Sep 23 11:10:56 caraxes-vm0 kernel: NVRM: VM: nv_mem_pool_alloc_pages: node=0 order=4: 0/1 pages allocated (0 already cleared, 0 left in pool)
+Sep 23 11:10:56 caraxes-vm0 kernel: NVRM: VM: nv_alloc_pages:3969: 0x00000000153c83f0, 16 page(s), count = 1, page_table = 0x000000009db34681
+Sep 23 11:10:56 caraxes-vm0 kernel: NVRM: VM: nv_alloc_pages: 1 pages, nodeid -1
+Sep 23 11:10:56 caraxes-vm0 kernel: NVRM: VM:    contig 1  cache_type 0
+Sep 23 11:10:56 caraxes-vm0 kernel: NVRM: VM: nv_alloc_contig_pages: 1 pages
+Sep 23 11:10:56 caraxes-vm0 kernel: NVRM: VM: nv_alloc_system_pages: 1 order0 pages, 0 order
+Sep 23 11:10:56 caraxes-vm0 kernel: NVRM: VM: nv_mem_pool_alloc_pages: node=0 order=0: 0/1 pages allocated (0 already cleared, 0 left in pool)
+Sep 23 11:10:56 caraxes-vm0 kernel: NVRM: VM: nv_alloc_pages:3969: 0x00000000a650def0, 1 page(s), count = 1, page_table = 0x00000000242805e2
+Sep 23 11:10:57 caraxes-vm0 kernel: NVRM: VM: nv_alloc_pages: 16 pages, nodeid -1
+Sep 23 11:10:57 caraxes-vm0 kernel: NVRM: VM:    contig 1  cache_type 0
+Sep 23 11:10:57 caraxes-vm0 kernel: NVRM: VM: nv_alloc_contig_pages: 16 pages
+Sep 23 11:10:57 caraxes-vm0 kernel: NVRM: VM: nv_alloc_system_pages: 16 order0 pages, 4 order
+Sep 23 11:10:57 caraxes-vm0 kernel: NVRM: VM: nv_mem_pool_alloc_pages: node=0 order=4: 0/1 pages allocated (0 already cleared, 0 left in pool)
+Sep 23 11:10:57 caraxes-vm0 kernel: NVRM: VM: nv_alloc_pages:3969: 0x00000000987df6dd, 16 page(s), count = 1, page_table = 0x00000000fe0111b5
+Sep 23 11:10:57 caraxes-vm0 kernel: NVRM: initializing rc timer
+Sep 23 11:10:57 caraxes-vm0 kernel: NVRM: rc timer initialized
+Sep 23 11:10:57 caraxes-vm0 kernel: NVRM: GPU 0000:00:05.0: RmInitAdapter succeeded!
+Sep 23 11:10:57 caraxes-vm0 kernel: NVRM: loading NVIDIA UNIX Open Kernel Module for x86_64  610.57.04  Release Build  (leandro@caraxes-vm0)  Wed Sep 23 08:32:41 UTC 2026
+Sep 23 11:13:12 caraxes-vm0 kernel: NVRM: nvidia_open...
+Sep 23 11:13:12 caraxes-vm0 kernel: NVRM: nvidia_ctl_open
+Sep 23 11:13:12 caraxes-vm0 kernel: NVRM: ioctl(0xd2, 0x52b304e0, 0x48)
+Sep 23 11:13:12 caraxes-vm0 kernel: NVRM: ioctl(0xd6, 0x52b305f0, 0x8)
+Sep 23 11:13:12 caraxes-vm0 kernel: NVRM: ioctl(0xc8, 0x494ede40, 0x900)
+Sep 23 11:13:12 caraxes-vm0 kernel: NVRM: ioctl(0x2b, 0x52b30680, 0x30)
+Sep 23 11:13:12 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x52b2fce0, 0x20)
+Sep 23 11:13:12 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x52b2fce0, 0x20)
+Sep 23 11:13:12 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x52b2fce0, 0x20)
+Sep 23 11:13:12 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x52b2fce0, 0x20)
+Sep 23 11:13:12 caraxes-vm0 kernel: NVRM: nvidia_open...
+Sep 23 11:13:12 caraxes-vm0 kernel: NVRM: GPU 0000:00:05.0: Opening GPU with minor number 0
+Sep 23 11:13:12 caraxes-vm0 kernel: NVRM: ioctl(0xda, 0x52b2fce0, 0x8)
+Sep 23 11:13:12 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x52b2d7f0, 0x20)
+Sep 23 11:13:12 caraxes-vm0 kernel: NVRM: ioctl(0x2b, 0x52b309c0, 0x30)
+Sep 23 11:13:12 caraxes-vm0 kernel: NVRM: ioctl(0x2b, 0x52b309c0, 0x30)
+Sep 23 11:13:13 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x52b2fcf0, 0x20)
+Sep 23 11:13:13 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x52b2fb00, 0x20)
+Sep 23 11:13:13 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x52b2fa30, 0x20)
+Sep 23 11:13:13 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x52b2fa30, 0x20)
+Sep 23 11:13:13 caraxes-vm0 kernel: NVRM: nvidia_open...
+Sep 23 11:13:13 caraxes-vm0 kernel: NVRM: GPU 0000:00:05.0: Opening GPU with minor number 0
+Sep 23 11:13:13 caraxes-vm0 kernel: NVRM: ioctl(0xc9, 0x52b30540, 0x4)
+Sep 23 11:13:13 caraxes-vm0 kernel: NVRM: ioctl(0xd7, 0x52b302d0, 0x230)
+Sep 23 11:13:13 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x52b2fab0, 0x20)
+Sep 23 11:13:13 caraxes-vm0 kernel: NVRM: ioctl(0x2b, 0x52b305f0, 0x30)
+Sep 23 11:13:13 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x52b2fc50, 0x20)
+Sep 23 11:13:13 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x52b2fa00, 0x20)
+Sep 23 11:13:13 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x52b2f900, 0x20)
+Sep 23 11:13:13 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x52b2f900, 0x20)
+Sep 23 11:13:13 caraxes-vm0 kernel: NVRM: nvidia_open...
+Sep 23 11:13:13 caraxes-vm0 kernel: NVRM: GPU 0000:00:05.0: Opening GPU with minor number 0
+Sep 23 11:13:13 caraxes-vm0 kernel: NVRM: ioctl(0xc9, 0x52b30410, 0x4)
+Sep 23 11:13:13 caraxes-vm0 kernel: NVRM: ioctl(0x2b, 0x52b304c0, 0x30)
+Sep 23 11:13:13 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x52b2fae0, 0x20)
+Sep 23 11:13:13 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x52b2fae0, 0x20)
+Sep 23 11:13:13 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x52b2fc30, 0x20)
+Sep 23 11:13:13 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x52b2fb20, 0x20)
+Sep 23 11:13:13 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x52b2f8f0, 0x20)
+Sep 23 11:13:13 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x52b2f730, 0x20)
+Sep 23 11:13:13 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x52b2fba0, 0x20)
+Sep 23 11:13:13 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x52b2fbb0, 0x20)
+Sep 23 11:13:13 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x52b2fba0, 0x20)
+Sep 23 11:13:13 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x52b2fbf0, 0x20)
+Sep 23 11:13:13 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x52b2f770, 0x20)
+Sep 23 11:13:13 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x52b2f770, 0x20)
+Sep 23 11:13:13 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x52b2f770, 0x20)
+Sep 23 11:13:13 caraxes-vm0 kernel: NVRM: ioctl(0x2b, 0x52b2f8e0, 0x30)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x52b2ef00, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2b, 0x52b305a0, 0x30)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x52b2fbe0, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x52b2fb00, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x52b2fac0, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x52b2fb00, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x52b2fb00, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x52b2fb00, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x52b2fb00, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x52b2fac0, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x52b2f230, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x52b2f870, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x52b2f550, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x52b2f550, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x52b2f5e0, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x52b2fbc0, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x52b2fba0, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x52b2fba0, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x52b1c340, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x52b2c560, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x52b2f7f0, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x52b2f3f0, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x52b2f3f0, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x52b2f3f0, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x52b2f3f0, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x52b2f3f0, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x52b2f700, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x52b2fc30, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x52b2f9a0, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x52b2f9a0, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x52b2f8f0, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x52b2f530, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x52b2f530, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x52b2b170, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x52b2b170, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x52b2b170, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x52b2fbe0, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x52b2b260, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x52b2b260, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x52b2b260, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2b, 0x52b30560, 0x30)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x52b2fbb0, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x29, 0x52b30750, 0x10)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x29, 0x52b30750, 0x10)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: nvidia_close on GPU with minor number 0
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x29, 0x52b30750, 0x10)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: nvidia_close on GPU with minor number 0
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x52b2fcf0, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: nvidia_close on GPU with minor number 0
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x29, 0x52b30770, 0x10)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: nvidia_close on GPU with minor number 255
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: nvidia_ctl_close
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: nvidia_open...
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: nvidia_ctl_open
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0xd2, 0x4265dbb0, 0x48)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0xd6, 0x4265dcc0, 0x8)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0xc8, 0x94cede40, 0x900)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2b, 0x4265dd50, 0x30)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x4265d3b0, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x4265d3b0, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x4265d3b0, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x4265d3b0, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: nvidia_open...
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: GPU 0000:00:05.0: Opening GPU with minor number 0
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0xda, 0x4265d3b0, 0x8)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x4265aec0, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2b, 0x4265e090, 0x30)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2b, 0x4265e090, 0x30)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x4265d3c0, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x4265d1d0, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x4265d100, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x4265d100, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: nvidia_open...
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: GPU 0000:00:05.0: Opening GPU with minor number 0
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0xc9, 0x4265dc10, 0x4)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0xd7, 0x4265d9a0, 0x230)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x4265d180, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2b, 0x4265dcc0, 0x30)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x4265d320, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x4265d0d0, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x4265cfd0, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x4265cfd0, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: nvidia_open...
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: GPU 0000:00:05.0: Opening GPU with minor number 0
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0xc9, 0x4265dae0, 0x4)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2b, 0x4265db90, 0x30)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x4265d1b0, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x4265d1b0, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x4265d300, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x4265d1f0, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x4265d1d0, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x4265d020, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x4265d020, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x4265d020, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2b, 0x4265d190, 0x30)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x4265c7b0, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x4265d3c0, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x4265d1b0, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x4265d1a0, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2b, 0x4265db70, 0x30)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x4265d1b0, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x4265d1b0, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x4265d1f0, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x4265d1f0, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x4265cf70, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x4265ce10, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x4265d1e0, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x4265d130, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x4265d0a0, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x4265cfb0, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x4265d190, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x4265cf90, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x4265d160, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x4265d0b0, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x4265d140, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x4265d0e0, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x4265d0a0, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x4265d130, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x4265d0e0, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x4265d0a0, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x4265d0e0, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x4265d0e0, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x4265d0e0, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x4265d0e0, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x4265d0a0, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x4265ccf0, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x4265ccf0, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2b, 0x4265dad0, 0x30)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x4265d180, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x4265d180, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x4265c610, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x4265d100, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x4265d190, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x4265cba0, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x4265cba0, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x4265cb90, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x4265cc10, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x4265cc10, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x4265bb50, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x4265cbf0, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x4265cae0, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x4265cbe0, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x4265cbe0, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x4265cbe0, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x4265cbe0, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x4265cb50, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x4265cb50, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x4265c830, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x4265ce70, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x4265d1c0, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x4265d150, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x4265c8f0, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x4265c8f0, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x426452d0, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x4265c8a0, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x4265c8a0, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x4265cdb0, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x4265cdb0, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x4265cdb0, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x4265cdb0, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x4265cdb0, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x4265cdb0, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x4265cdb0, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x4265cdb0, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x4265cdb0, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x4265cdb0, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x4265cdb0, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x4265cdb0, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x4265cef0, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x4265d210, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x4265cd40, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x4265cd30, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x4265cd30, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x4265d230, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x4265c9a0, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x4265c9a0, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x4265c9a0, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x4265c9a0, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x4265c9a0, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x4265ccb0, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x4265d180, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x4265d180, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x4265d130, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x4265d130, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x4265d1c0, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x4265d1e0, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x4265cab0, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x4265c810, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x4265b940, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x4265c9e0, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x4265c9e0, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x4265ca70, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x4265b4a0, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x4265cfc0, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x4265ca40, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x4265ca30, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x4265cf00, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x4265cf00, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x4265cee0, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x4265cee0, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x42649680, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x42659100, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x42659100, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x4265c990, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x4265d0e0, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x4265ba00, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x4265ba00, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x4265ba00, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x4265ba00, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x4265d140, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x4265d190, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x42651f50, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x42655030, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x42655030, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x42655030, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x4265d190, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x42655030, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x42644260, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x4265d1d0, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x4265cef0, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x42658810, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x42658810, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x42658810, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x4265cf70, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x29, 0x4265de20, 0x10)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: nvidia_close on GPU with minor number 0
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x29, 0x4265de20, 0x10)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: nvidia_close on GPU with minor number 0
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x4265d3c0, 0x20)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: nvidia_close on GPU with minor number 0
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: ioctl(0x29, 0x4265de40, 0x10)
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: nvidia_close on GPU with minor number 255
+Sep 23 11:13:14 caraxes-vm0 kernel: NVRM: nvidia_ctl_close

@@ -1,0 +1,115 @@
+# SPDX-License-Identifier: MIT
+# T2: patched guest kernel 6.8.12-caraxesdma, patched Cloud Hypervisor (0001-0004), GPU on pci_segment=1,
+# _DMA with a +5 GiB offset on every range [0:0x140000000:0xc0000000,0x100000000:0x240000000:0x40000000]. nvidia is NOT loaded
+# (blacklisted; the device cannot translate IOVAs back yet). vm3, 2026-09-23T14:07:15Z
+# Launch: B=/mnt/vmstore/caraxes/vm3/boot; CH=/mnt/vmstore/caraxes/vm3/cloud-hypervisor-0004 CH_EXTRA=-v SEG1=1 DMA_RANGES=0:0x140000000:0xc0000000,0x100000000:0x240000000:0x40000000 KERNEL=$B/vmlinuz-6.8.12-caraxesdma INITRD=$B/initrd.img-6.8.12-caraxesdma CMDLINE_EXTRA='dyndbg="file drivers/acpi/x86/dma.c +p"' caraxes/runs/acpi-dma-2026-09-23/vm3-up.sh
+
+## guest: uname -r; DSDT hash; modules; System RAM; zones; boot log lines about DMA, swiotlb, _DMA
+6.8.12-caraxesdma
+b8e9ee23ef9ad01f36d91fe36ca3df87133aa1a04b63b77fef34250f0348bc3c  /sys/firmware/acpi/tables/DSDT
+no nvidia, caraxes_dma_range or dmacheck module loaded
+00001000-0009ffff : System RAM
+00100000-bfffffff : System RAM
+100000000-13fffffff : System RAM
+Node 0, zone      DMA
+        present  3999
+        managed  3840
+Node 0, zone    DMA32
+        present  782336
+        managed  765952
+Node 0, zone   Normal
+        present  262144
+        managed  234355
+Node 0, zone  Movable
+        present  0
+        managed  0
+Node 0, zone   Device
+        present  0
+        managed  0
+[    0.001229] Zone ranges:
+[    0.001232]   DMA32    [mem 0x0000000001000000-0x00000000ffffffff]
+[    0.001235] Movable zone start for each node
+[    0.001454] On node 0, zone DMA: 1 pages in unavailable ranges
+[    0.001466] On node 0, zone DMA: 96 pages in unavailable ranges
+[    0.013956] Built 1 zonelists, mobility grouping on.  Total pages: 1031936
+[    0.013958] Policy zone: Normal
+[    0.013968] software IO TLB: area num 8.
+[    0.207760] DMA: preallocated 512 KiB GFP_KERNEL pool for atomic allocations
+[    0.208532] DMA: preallocated 512 KiB GFP_KERNEL|GFP_DMA pool for atomic allocations
+[    0.209719] DMA: preallocated 512 KiB GFP_KERNEL|GFP_DMA32 pool for atomic allocations
+[    0.321532] PCI host bridge to bus 0001:00
+[    0.322248] pci_bus 0001:00: root bus resource [mem 0xe8100000-0xe81fffff]
+[    0.322501] pci_bus 0001:00: root bus resource [mem 0xd4000000-0xe7ffffff window]
+[    0.323501] pci_bus 0001:00: root bus resource [mem 0x200040000000-0x3fffffeeffff window]
+[    0.324501] pci_bus 0001:00: root bus resource [bus 00]
+[    0.325501] pci 0001:00:00.0: [8086:0d57] type 00 class 0x060000 conventional PCI endpoint
+[    0.328957] pci 0001:00:01.0: [10de:1f02] type 00 class 0x030000 PCIe Legacy Endpoint
+[    0.330391] pci 0001:00:01.0: BAR 0 [mem 0xe7000000-0xe7ffffff]
+[    0.330518] pci 0001:00:01.0: BAR 1 [mem 0x3fffe0000000-0x3fffefffffff 64bit pref]
+[    0.331518] pci 0001:00:01.0: BAR 3 [mem 0x3ffffc000000-0x3ffffdffffff 64bit pref]
+[    0.332510] pci 0001:00:01.0: BAR 5 [io  0xff80-0xffff]
+[    0.333414] pci 0001:00:01.0: ROM [mem 0xe6f80000-0xe6ffffff pref]
+[    0.334744] pci 0001:00:01.0: Enabling HDA controller
+[    0.339433] pci 0001:00:01.0: PME# supported from D0 D3hot D3cold
+[    0.341722] pci 0001:00:01.0: 32.000 Gb/s available PCIe bandwidth, limited by 2.5 GT/s PCIe x16 link at 0001:00:01.0 (capable of 126.016 Gb/s with 8.0 GT/s PCIe x16 link)
+[    0.364901] pci 0001:00:01.0: BAR 5 [io  0xff80-0xffff]: can't claim; no compatible bridge window
+[    0.365741] pci 0001:00:01.0: vgaarb: setting as boot VGA device
+[    0.366497] pci 0001:00:01.0: vgaarb: bridge control possible
+[    0.366497] pci 0001:00:01.0: vgaarb: VGA device added: decodes=io+mem,owns=none,locks=none
+[    0.404234] pci 0001:00:01.0: BAR 5 [io  size 0x0080]: can't assign; no space
+[    0.405455] pci 0001:00:01.0: BAR 5: trying firmware assignment [io  0xff80-0xffff]
+[    0.406771] pci 0001:00:01.0: BAR 5 [io  0xff80-0xffff]: conflicts with PCI Bus 0000:00 [io  0x0d00-0xffff window]
+[    0.408521] pci 0001:00:01.0: BAR 5 [io  size 0x0080]: failed to assign
+[    0.409659] pci_bus 0001:00: resource 4 [mem 0xe8100000-0xe81fffff]
+[    0.410741] pci_bus 0001:00: resource 5 [mem 0xd4000000-0xe7ffffff window]
+[    0.411918] pci_bus 0001:00: resource 6 [mem 0x200040000000-0x3fffffeeffff window]
+[    0.414875] PCI-DMA: Using software bounce buffering for IO (SWIOTLB)
+[    0.415978] software IO TLB: mapped [mem 0x00000000ba7ff000-0x00000000be7ff000] (64MB)
+[    2.009566] Btrfs loaded, zoned=yes, fsverity=yes
+
+## guest: sudo cat /sys/kernel/debug/swiotlb/*
+/sys/kernel/debug/swiotlb/*: cat: '/sys/kernel/debug/swiotlb/*': No such file or directory
+
+## guest: dmacheck with the 47-bit mask nvidia sets
+# BDF=$(basename $(dirname $(grep -l 0x10de /sys/bus/pci/devices/*/vendor | head -1))); echo BDF=$BDF; sudo rmmod nvidia_uvm nvidia 2>/dev/null; lsmod | grep -E "^(dmacheck|caraxes_dma_range|nvidia) " ; sudo modprobe -r dmacheck 2>/dev/null; sudo rmmod dmacheck 2>/dev/null; sudo dmesg -C; sudo insmod dmacheck/dmacheck.ko; echo dmacheck | sudo tee /sys/bus/pci/devices/$BDF/driver_override >/dev/null; echo $BDF | sudo tee /sys/bus/pci/drivers_probe >/dev/null; echo | sudo tee /sys/bus/pci/devices/$BDF/driver_override >/dev/null; sudo rmmod dmacheck; sudo dmesg | grep -iE "dmacheck|_DMA|dma"
+BDF=0001:00:01.0
+[  215.303770] dmacheck: loading out-of-tree module taints kernel.
+[  215.303776] dmacheck: module verification failed: signature and/or required key missing - tainting kernel
+[  215.317446] dmacheck 0001:00:01.0: ACPI _DMA: 2 range(s), bus limit 0x27fffffff
+[  215.317459] dmacheck 0001:00:01.0: at probe: dma_range_map present (2 range(s)), bus_dma_limit 0x27fffffff, dma_mask 0xffffffff, coherent_dma_mask 0xffffffff
+[  215.317461] dmacheck 0001:00:01.0: range 0: cpu 0x0 dma 0x140000000 size 0xc0000000
+[  215.317463] dmacheck 0001:00:01.0: range 1: cpu 0x100000000 dma 0x240000000 size 0x40000000
+[  215.317464] dmacheck 0001:00:01.0: testing with dma_mask 0x7fffffffffff, coherent 0x7fffffffffff, bus_dma_limit 0x27fffffff (mask_bits=47)
+[  215.317678] dmacheck 0001:00:01.0: dma_to_phys(0x280000000, above every range) = 0xffffffffffffffff
+[  215.317681] dmacheck 0001:00:01.0: 269 mapped, 269 dma == expected, 269 dma_to_phys ok, 0 errors; coherent 8/8 ok, 0 below 4 GiB; lowest phys 0x1080000 -> dma 0x141080000, highest phys 0x13fffffff -> dma 0x27fffffff
+[  215.317684] dmacheck 0001:00:01.0: PASS (0 failures) against the installed dma_range_map
+
+## guest: dmacheck with the mask dma_configure leaves (mask_bits=0, i.e. the 32-bit default): a driver that never raises its mask cannot use this table
+# same command with: insmod dmacheck/dmacheck.ko mask_bits=0
+BDF=0001:00:01.0
+[  215.599712] dmacheck 0001:00:01.0: ACPI _DMA: 2 range(s), bus limit 0x27fffffff
+[  215.599726] dmacheck 0001:00:01.0: at probe: dma_range_map present (2 range(s)), bus_dma_limit 0x27fffffff, dma_mask 0xffffffff, coherent_dma_mask 0xffffffff
+[  215.599729] dmacheck 0001:00:01.0: range 0: cpu 0x0 dma 0x140000000 size 0xc0000000
+[  215.599731] dmacheck 0001:00:01.0: range 1: cpu 0x100000000 dma 0x240000000 size 0x40000000
+[  215.599732] dmacheck 0001:00:01.0: testing with dma_mask 0xffffffff, coherent 0xffffffff, bus_dma_limit 0x27fffffff (mask_bits=0)
+[  215.599852] dmacheck 0001:00:01.0: swiotlb addr 0x00000001fdfff000+4096 overflow (mask ffffffff, bus limit 27fffffff).
+[  215.599865] WARNING: CPU: 7 PID: 2853 at kernel/dma/swiotlb.c:1553 swiotlb_map+0x25f/0x270
+[  215.599871] Modules linked in: dmacheck(OE) snd_seq_dummy snd_hrtimer snd_seq snd_seq_device snd_timer snd soundcore binfmt_misc kvm_amd ccp nls_iso8859_1 kvm irqbypass sch_fq_codel dm_multipath msr parport_pc ppdev lp parport efi_pstore nfnetlink dmi_sysfs ip_tables x_tables autofs4 btrfs blake2b_generic raid10 raid456 async_raid6_recov async_memcpy async_pq async_xor async_tx libcrc32c xor raid6_pq raid1 raid0 crct10dif_pclmul crc32_pclmul polyval_clmulni polyval_generic ghash_clmulni_intel sha256_ssse3 sha1_ssse3 virtio_rng aesni_intel crypto_simd cryptd [last unloaded: dmacheck(OE)]
+[  215.599908] CPU: 7 PID: 2853 Comm: tee Tainted: G           OE      6.8.12-caraxesdma #1
+[  215.599935]  dma_map_page_attrs+0x188/0x2c0
+[  215.599941]  dc_probe+0x2e2/0x730 [dmacheck]
+[  215.600034] dmacheck 0001:00:01.0: page phys 0x113d000: mapping failed
+[  215.600924] dmacheck 0001:00:01.0: page phys 0x11fd2b000: mapping failed
+[  215.601767] dmacheck 0001:00:01.0: page phys 0x113e000: mapping failed
+[  215.602485] dmacheck 0001:00:01.0: page phys 0x10644a000: mapping failed
+[  215.603223] dmacheck 0001:00:01.0: page phys 0x113f000: mapping failed
+[  215.603904] dmacheck 0001:00:01.0: page phys 0x10644c000: mapping failed
+[  215.604611] dmacheck 0001:00:01.0: page phys 0x1140000: mapping failed
+[  215.605284] dmacheck 0001:00:01.0: page phys 0x11cab0000: mapping failed
+[  215.606410] dmacheck 0001:00:01.0: dma_to_phys(0x280000000, above every range) = 0xffffffffffffffff
+[  215.606412] dmacheck 0001:00:01.0: 0 mapped, 0 dma == expected, 0 dma_to_phys ok, 269 errors; coherent 0/8 ok, 0 below 4 GiB; lowest phys 0x0 -> dma 0x0, highest phys 0x0 -> dma 0x0
+[  215.606415] dmacheck 0001:00:01.0: FAIL (269 failures) against the installed dma_range_map
+
+## guest: swiotlb counters after both runs
+/sys/kernel/debug/swiotlb/*: cat: '/sys/kernel/debug/swiotlb/*': No such file or directory
+swiotlb error lines: 1

@@ -1,0 +1,68 @@
+# SPDX-License-Identifier: MIT
+# host state after sysmem-iova runs, 2026-09-23T14:33:59+02:00
+## nvidia-smi
+name, driver_version, memory.used [MiB], memory.free [MiB]
+NVIDIA GeForce RTX 2070, 610.57.04, 1265 MiB, 6508 MiB
+## vmstat pins (acquired - released was 3249 before run1)
+nr_foll_pin_acquired 1783265
+nr_foll_pin_released 1780016
+## MemAvailable
+MemAvailable:    8299960 kB
+## 'Using N-bit DMA addresses' notice this boot (would mean the GPU left 32-bit IOVAs)
+(none)
+## kernel log lines 14:30:00-14:32:00 (host driver logs every ioctl: NVreg_ResmanDebugLevel=0)
+1606090
+## same window, NVRM ioctl lines
+1602968
+## kernel log lines 14:25:00-14:30:00 (baseline)
+6151
+## journald overruns in the window
+Sep 23 14:30:19 manacor systemd-journald[338]: /dev/kmsg buffer overrun, some messages lost.
+Sep 23 14:30:19 manacor systemd-journald[338]: /dev/kmsg buffer overrun, some messages lost.
+Sep 23 14:30:59 manacor systemd-journald[338]: /dev/kmsg buffer overrun, some messages lost.
+## lines matching assert|fail|error|Xid|IO_PAGE_FAULT in the window
+0
+## register/unregister pairs logged by the host driver in the window
+Sep 23 14:30:13 manacor kernel: NVRM: VM: nv_register_user_pages: 0x400
+Sep 23 14:30:13 manacor kernel: NVRM: VM: nv_unregister_user_pages: 0x400
+Sep 23 14:30:14 manacor kernel: NVRM: VM: nv_register_user_pages: 0x10000
+Sep 23 14:30:15 manacor kernel: NVRM: VM: nv_unregister_user_pages: 0x10000
+Sep 23 14:30:15 manacor kernel: NVRM: VM: nv_register_user_pages: 0x10000
+Sep 23 14:30:16 manacor kernel: NVRM: VM: nv_unregister_user_pages: 0x10000
+Sep 23 14:30:16 manacor kernel: NVRM: VM: nv_register_user_pages: 0x10000
+Sep 23 14:30:17 manacor kernel: NVRM: VM: nv_unregister_user_pages: 0x10000
+Sep 23 14:30:18 manacor kernel: NVRM: VM: nv_register_user_pages: 0x10000
+Sep 23 14:30:19 manacor kernel: NVRM: VM: nv_unregister_user_pages: 0x10000
+Sep 23 14:30:19 manacor kernel: NVRM: VM: nv_register_user_pages: 0x10000
+Sep 23 14:30:20 manacor kernel: NVRM: VM: nv_unregister_user_pages: 0x10000
+Sep 23 14:30:20 manacor kernel: NVRM: VM: nv_register_user_pages: 0x10000
+Sep 23 14:30:20 manacor kernel: NVRM: VM: nv_register_user_pages: 0x10000
+Sep 23 14:30:20 manacor kernel: NVRM: VM: nv_unregister_user_pages: 0x10000
+Sep 23 14:30:20 manacor kernel: NVRM: VM: nv_unregister_user_pages: 0x10000
+Sep 23 14:30:56 manacor kernel: NVRM: VM: nv_register_user_pages: 0x400
+Sep 23 14:30:56 manacor kernel: NVRM: VM: nv_unregister_user_pages: 0x400
+Sep 23 14:30:58 manacor kernel: NVRM: VM: nv_register_user_pages: 0x40000
+Sep 23 14:31:03 manacor kernel: NVRM: VM: nv_unregister_user_pages: 0x40000
+Sep 23 14:31:05 manacor kernel: NVRM: VM: nv_register_user_pages: 0x40000
+Sep 23 14:31:09 manacor kernel: NVRM: VM: nv_unregister_user_pages: 0x40000
+Sep 23 14:31:10 manacor kernel: NVRM: VM: nv_register_user_pages: 0x40000
+Sep 23 14:31:15 manacor kernel: NVRM: VM: nv_unregister_user_pages: 0x40000
+Sep 23 14:31:16 manacor kernel: NVRM: VM: nv_register_user_pages: 0x40000
+Sep 23 14:31:20 manacor kernel: NVRM: VM: nv_unregister_user_pages: 0x40000
+Sep 23 14:31:20 manacor kernel: NVRM: VM: nv_register_user_pages: 0x40000
+Sep 23 14:31:25 manacor kernel: NVRM: VM: nv_unregister_user_pages: 0x40000
+
+## Notes
+- MemAvailable fell between the runs and this snapshot because of other host work
+  (a nix build of about 7 GiB RSS and two cloud-hypervisor processes, `ps` at 14:34).
+  No sysmem-iova process was left; the pin counters show acquired - released = 3249,
+  the same as before run 1 (host-before.txt: 11745 - 8496).
+- The host driver runs with NVreg_ResmanDebugLevel=0 and logs every ioctl. The full
+  per-page scans (65,536 queries per 256 MiB, 262,144 per 1 GiB) therefore wrote about
+  1.6 million NVRM lines to the kernel log in two minutes (baseline: 6,151 lines in the
+  five minutes before), and journald reported three /dev/kmsg overruns. Lines lost in
+  those overruns cannot be checked. Among the lines kept, none matches
+  assert|fail|error|Xid|IO_PAGE_FAULT. The tool now reads every 2 MiB by default;
+  `--full-scan` restores the per-page scan.
+- No "Using N-bit DMA addresses" notice for 0000:2d:00.0 this boot: the GPU still
+  takes 32-bit IOVAs first.

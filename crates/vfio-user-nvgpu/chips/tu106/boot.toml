@@ -1,0 +1,57 @@
+# SPDX-License-Identifier: MIT
+# SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
+# SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
+#
+# The TU106 firmware-boot model (src/chip/turing.rs): the registers and constants of
+# the GFW, FWSEC-FRTS, Booter and GSP RISC-V side effects the CPU checks, without any
+# firmware running (docs/caraxes/gsp-boot-turing.md, init-map.md phase 4,
+# experiments.md E2). The same HALs serve GA10x and AD10x
+# (docs/caraxes/other-architectures.md §1-2).
+
+# The two falcon blocks (dev_falcon_v4.h, dev_fbif_v4.h, dev_riscv_pri.h): IMEM/DMEM
+# sizes in 256-byte blocks as HWCFG reports them. After GFW boot the GSP falcon sits
+# halted; the CPU checks that first.
+gsp = { base = 0x0011_0000, imem_blocks = 0x100, dmem_blocks = 0x100, riscv = true, halted = true }
+sec2 = { base = 0x0084_0000, imem_blocks = 0x100, dmem_blocks = 0x100, riscv = false, halted = false }
+# Falcon, FBIF and the RISC-V block at +0x1000.
+falcon_block_size = 0x2000
+# NV_PGSP_QUEUE_HEAD(0): the command-queue doorbell (kgspSetCmdQueueHead_TU102).
+gsp_queue_head = 0x0011_0C00
+
+# NV_PFB_PRI_MMU_LOCAL_MEMORY_RANGE, encoded as kern_mem_sys_gp102.c:47-50.
+local_memory_range = 0x0010_0CE0
+# NV_PFB_PRI_MMU_WPR2_ADDR_LO/HI (dev_fb.h:42; kgspIsWpr2Up_TU102).
+wpr2_addr_lo = 0x001F_A824
+wpr2_addr_hi = 0x001F_A828
+
+# `kgspGetFrtsSize` on TU10x (docs/caraxes/gsp-boot-turing.md); used for the WPR2 high
+# address and for the fallback when guest RAM cannot be read.
+frts_size = 0x10_0000
+# Offset of `dataDmaBase` in `RM_FLCN_BL_DMEM_DESC` (rmflcnbl.h:89), a raw 64-bit
+# physical address split in two 32-bit words.
+bl_desc_data_dma_base = 0x40
+# Where the FWSEC data image built by `caraxes/tools/synth-vbios.py` keeps the FRTS
+# command's `frtsRegionOffset4K` (docs/caraxes/vbios-synthesis.md §d).
+fwsec_data_frts_offset_4k = 0xA0
+# `kgspCalculateFbLayout_TU102` with no display: the VGA workspace is the last 1 MiB,
+# `gspFwWprEnd` is that offset aligned down to 128 KiB, and FRTS sits just below it
+# (kernel_gsp_tu102.c:800-820).
+vga_workspace_size = 0x10_0000
+wpr_end_align = 0x2_0000
+
+# Registers that read a fixed post-GFW value; writes are dropped ("read-only").
+const = [
+    # Level 0 may write PTIMER_TIME_0/1 (timer_gv100.c:56); all levels enabled.
+    { name = "NV_PTIMER_TIME_PRIV_LEVEL_MASK", offset = 0x0000_9430, value = 0xFF },
+    { name = "NV_PBUS_VBIOS_SCRATCH(0xE)", offset = 0x0000_1438, value = 0 },
+    { name = "NV_PBUS_VBIOS_SCRATCH(0x15)", offset = 0x0000_1454, value = 0 },
+    # DATA_ENABLE is 0 (gm107/dev_fuse.h:29); 1 = no display, which keeps the VGA
+    # workspace and the display engine out of the picture for now.
+    { name = "NV_FUSE_STATUS_OPT_DISPLAY", offset = 0x0002_1C04, value = 1 },
+    # Production part: `_DATA_NO` = 1 is "debug disabled" (kernel_gsp_ga100.c:46-48).
+    { name = "NV_FUSE_OPT_SECURE_GSP_DEBUG_DIS", offset = 0x0002_174C, value = 1 },
+    # FWSEC lowered the read-protection PLM (kern_gpu_tu102.c:395-417).
+    { name = "NV_PGC6_AON_SECURE_SCRATCH_GROUP_05_PRIV_LEVEL_MASK", offset = 0x0011_8128, value = 1 },
+    # GFW_BOOT_PROGRESS_COMPLETED (dev_gc6_island_addendum.h:32).
+    { name = "NV_PGC6_AON_SECURE_SCRATCH_GROUP_05(0) GFW_BOOT", offset = 0x0011_8234, value = 0xFF },
+]

@@ -1,0 +1,21 @@
+# SPDX-License-Identifier: MIT
+# T0 boot A: stock Cloud Hypervisor (LEA_CH, sha256 4aabd2ac...), default topology, stock guest kernel 6.8.0-136-generic, vm3, 2026-09-23T13:38:57Z
+# Command: tools/caraxes-vm.sh ssh 'uname -r; sudo sha256sum /sys/firmware/acpi/tables/DSDT; ls /sys/firmware/acpi/tables; sudo grep -i "system ram" /proc/iomem; lspci -nn -D; cat /proc/cmdline'
+6.8.0-136-generic
+245e1c34ae1d109f6c2546aece5a7b06c41db6a45130d003c2b47c1605689275  /sys/firmware/acpi/tables/DSDT
+APIC
+DSDT
+FACP
+MCFG
+data
+dynamic
+00001000-0009ffff : System RAM
+00100000-bfffffff : System RAM
+100000000-13fffffff : System RAM
+0000:00:00.0 Host bridge [0600]: Intel Corporation Device [8086:0d57]
+0000:00:01.0 Mass storage controller [0180]: Red Hat, Inc. Virtio 1.0 block device [1af4:1042] (rev 01)
+0000:00:02.0 Mass storage controller [0180]: Red Hat, Inc. Virtio 1.0 block device [1af4:1042] (rev 01)
+0000:00:03.0 Ethernet controller [0200]: Red Hat, Inc. Virtio 1.0 network device [1af4:1041] (rev 01)
+0000:00:04.0 Unassigned class [ffff]: Red Hat, Inc. Virtio 1.0 RNG [1af4:1044] (rev 01)
+0000:00:05.0 VGA compatible controller [0300]: NVIDIA Corporation TU106 [GeForce RTX 2070] [10de:1f02] (rev a1)
+root=/dev/vda1 rw console=ttyS0 net.ifnames=0

@@ -1,0 +1,8 @@
+# SPDX-License-Identifier: MIT
+# cuda gate gate-cuda-2026-09-23-2: cuda-torch.rm.out
+Traceback (most recent call last):
+  File "/home/leandro/caraxes-tests/leandro-test/probe/python/torchprobe.py", line 57, in <module>
+    assert torch.cuda.is_available(), "no CUDA device visible"
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: no CUDA device visible
+ERROR: torchprobe 5 exited 1

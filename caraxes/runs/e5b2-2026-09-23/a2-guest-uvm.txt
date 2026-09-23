@@ -1,0 +1,12 @@
+[  139.431612] nvidia-uvm: uvm_channel.c:2099 uvm_channel_check_errors[pid:1841] Detected a channel error, channel ID 3:6 (0x3:0x6) CE 4 GPU ID 1: GPU-9bd7b93d-3d23-c074-6704-984ef33ab7a7 GI-9bd7b93d-3d23-c074-6704-984ef33ab7a7
+[  139.433779] nvidia-uvm: uvm_channel.c:2107 uvm_channel_check_errors[pid:1841] Channel error likely caused by push '' started at uvm_mmu.c:1182 in uvm_page_tree_init()
+[  139.435665] nvidia-uvm: uvm_global.c:435 uvm_global_set_fatal_error_impl[pid:1841] Encountered a global fatal error: Generic RC error [NV_ERR_RC_ERROR]
+[  139.437123] NVRM: nvGpuOpsReportFatalError: uvm encountered global fatal error 0x60, requiring os reboot to recover.
+[  139.437137] nvidia-uvm: uvm_gpu.c:1320 configure_address_space[pid:1841] Initializing the page tree failed: Generic RC error [NV_ERR_RC_ERROR], GPU ID 1: GPU-9bd7b93d-3d23-c074-6704-984ef33ab7a7 GI-9bd7b93d-3d23-c074-6704-984ef33ab7a7
+[  139.438090] NVRM: nvCheckOkFailedNoLog: Check failed: Call not supported [NV_ERR_NOT_SUPPORTED] (0x00000056) returned from pRmApi->Control(pRmApi, pGpu->hInternalClient, pGpu->hInternalSubdevice, NV2080_CTRL_CMD_INTERNAL_LOG_OOB_XID, &pa
+[  139.439463] nvidia-uvm: uvm_gpu.c:1658 init_gpu[pid:1841] Failed to configure the GPU address space: Generic RC error [NV_ERR_RC_ERROR], GPU ID 1: GPU-9bd7b93d-3d23-c074-6704-984ef33ab7a7 GI-9bd7b93d-3d23-c074-6704-984ef33ab7a7
+[  139.439466] NVRM: GPU at PCI:0000:00:05: GPU-9bd7b93d-3d23-c074-6704-984ef33ab7a7
+[  139.441634] NVRM: Xid (PCI:0000:00:05): 154, GPU recovery action changed from 0x0 (None) to 0x2 (OS Reboot)
+[  139.787851] NVRM: nvidia_close on GPU with minor number 0
+[  139.787859] NVRM: nvidia_close on GPU with minor number 255
+[  139.787861] NVRM: nvidia_ctl_close

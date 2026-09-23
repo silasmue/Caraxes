@@ -1,0 +1,171 @@
+# SPDX-License-Identifier: MIT
+# Commands of the caraxes_dma_range build and test in vm1, 2026-09-23 (times in the files are UTC)
+
+Environment (host, uid 1000):
+  export VM=vm1 CARAXES_TAP=caraxes1 CARAXES_IP=192.168.101.21 CARAXES_MAC=02:00:00:00:00:21 \
+         CARAXES_BOOT_MODEL=1 CARAXES_FB_MIB=4096 CARAXES_HOST_RM=1
+  The VM was already up (vfio-user-nvgpu with boot model and host RM, 4 GiB guest).
+  Guest System RAM: [0x1000-0x9ffff], [0x100000-0xbfffffff], [0x100000000-0x13fffffff].
+  Before any rmmod: operator session pts/0 idle more than 16 min, `fuser /dev/nvidia*` empty,
+  only nvidia_uvm and nvidia loaded (no nvidia_modeset/nvidia_drm).
+
+Copy and build in the guest (kernel 6.8.0-136-generic):
+  tar -C guest-module -cf - caraxes_dma_range | tools/caraxes-vm.sh ssh \
+    'rm -rf ~/caraxes_dma_range && tar -C ~ -xf - && cd ~/caraxes_dma_range &&
+     make -C /lib/modules/$(uname -r)/build M=$PWD KCFLAGS=-Werror W=1 modules'
+  Result: caraxes_dma_range.ko and caraxes_dma_range_test.ko, no warnings with W=1 -Werror.
+  Compile-only check on the host against its own 7.2.4-arch1-2 headers, in a scratch copy
+  (nothing loaded): make -C /usr/lib/modules/7.2.4-arch1-2/build M=<copy> KCFLAGS=-Werror modules
+  -> both modules build.
+
+Each phase ran as `tools/caraxes-vm.sh ssh 'bash -s' < phase-X.sh`. The scripts follow.
+Kernel log excerpts start at a marker the script writes to /dev/kmsg; the guest log was
+never cleared (no dmesg -C).
+
+A first attempt at phase B (not kept as a file) loaded nvidia without the function-level
+reset that `tools/caraxes-vm.sh probe` does before each probe. nvidia then failed in
+RmInitAdapter ("kgspExecuteFwsec_TU102: failed to execute FWSEC for FRTS: no initialized WPR2
+found", "RmInitAdapter failed! (0x62:0x56:2119)"), once with the identity map and once more
+after caraxes_dma_range was unloaded, with no map at all. The cause is the device model's
+state after the previous nvidia instance, not the map. That attempt also showed the
+probe-failure path: "driver probe failed; the driver core freed the map, the next bind gets
+a new copy", then on rmmod "no map in place, nothing to remove". Every later probe
+resets first (`echo 1 > /sys/bus/pci/devices/0000:00:05.0/reset`).
+
+Phase A tables: 65 entries (longer than 1024 bytes), a table without the
+[4 GiB, 5 GiB) entry (coverage), overlapping CPU and DMA entries, a size that is not a
+2 MiB multiple, an unaligned start, bad syntax, a bdf that does not exist. The first run
+of phase A used a charp parameter and showed "ranges: string parameter too long" for the
+65-entry string (param_set_charp's 1024-byte limit), which is why `ranges` has its own
+parameter ops; a-refusals.txt is the run after that change.
+
+---- phase-a.sh ----
+# runs inside vm1 as leandro
+set -u
+cd ~/caraxes_dma_range
+ID=0:0:40000000,40000000:40000000:40000000,80000000:80000000:40000000,100000000:100000000:40000000
+mark() { echo "caraxes-dma-range: == $* ==" | sudo tee /dev/kmsg >/dev/null; }
+run() { echo "\$ $*"; "$@"; echo "rc=$?"; }
+since() { sudo dmesg | awk -v m="caraxes-dma-range: == $1 ==" 'index($0,m){p=1} p'; }
+echo "# $(date -u +%FT%TZ) $(uname -r)"
+echo "# guest System RAM:"; sudo grep "System RAM" /proc/iomem
+echo "# driver bound to 0000:00:05.0: $(basename "$(readlink /sys/bus/pci/devices/0000:00:05.0/driver)")"
+lsmod | grep -E '^nvidia'
+M=phase-a-$(date +%s); mark $M
+run sudo insmod caraxes_dma_range.ko
+run sudo insmod caraxes_dma_range.ko ranges=0:0:40000000,20000000:80000000:40000000
+run sudo insmod caraxes_dma_range.ko ranges=0:0:40000000,40000000:0:40000000
+run sudo insmod caraxes_dma_range.ko ranges=0:0:40100000
+run sudo insmod caraxes_dma_range.ko ranges=0:800:40000000
+run sudo insmod caraxes_dma_range.ko ranges=0:0:40000000:5
+run sudo insmod caraxes_dma_range.ko ranges=0:zz:40000000
+run sudo insmod caraxes_dma_range.ko ranges=0:0:40000000,40000000:40000000:40000000,80000000:80000000:40000000
+run sudo insmod caraxes_dma_range.ko ranges=$(python3 -c 'print(",".join("%x:%x:200000"%(i*0x200000,i*0x200000) for i in range(65)))')
+run sudo insmod caraxes_dma_range.ko ranges=$ID bdf=00:07.0
+run sudo insmod caraxes_dma_range.ko ranges=$ID
+run sudo insmod caraxes_dma_range.ko ranges=$ID force=1
+run sudo insmod caraxes_dma_range_test.ko
+lsmod | grep caraxes || echo "no caraxes module loaded"
+echo "# kernel log since the marker:"
+since $M
+---- phase-b.sh ----
+# runs inside vm1 as leandro
+set -u
+cd ~/caraxes_dma_range
+ID=0:0:40000000,40000000:40000000:40000000,80000000:80000000:40000000,100000000:100000000:40000000
+P=/sys/module/caraxes_dma_range/parameters
+SMI=/opt/nvrm/bin/nvidia-smi
+mark() { echo "caraxes-dma-range: == $* ==" | sudo tee /dev/kmsg >/dev/null; }
+run() { echo "\$ $*"; "$@"; echo "rc=$?"; }
+since() { sudo dmesg | awk -v m="caraxes-dma-range: == $1 ==" 'index($0,m){p=1} p' | grep -v "NVRM: VM:"; }
+readback() { for f in status table live; do echo "\$ cat $P/$f"; cat $P/$f; done; }
+# As tools/caraxes-vm.sh probe does: a function-level reset returns the device
+# model to its initial state before each nvidia probe.
+flr() { echo "\$ echo 1 > /sys/bus/pci/devices/0000:00:05.0/reset"; echo 1 | sudo tee /sys/bus/pci/devices/0000:00:05.0/reset >/dev/null; echo "rc=$?"; }
+echo "# $(date -u +%FT%TZ)"; w -h
+echo "# open handles on /dev/nvidia*:"; sudo fuser -v /dev/nvidia* 2>&1 || echo "(none)"
+lsmod | grep -E '^(nvidia|caraxes)'
+M=phase-b-$(date +%s); mark $M
+run sudo rmmod nvidia_uvm nvidia
+run sudo insmod caraxes_dma_range.ko ranges=$ID
+readback
+echo "# DMA API check with the identity table (no driver bound):"
+run sudo insmod caraxes_dma_range_test.ko
+run sudo rmmod caraxes_dma_range_test
+flr
+run sudo modprobe nvidia
+sleep 2
+readback
+echo "# unload must be refused while nvidia is bound:"
+run sudo rmmod caraxes_dma_range
+run $SMI
+run sudo modprobe nvidia-uvm
+echo "# swiotlb slots in use: $(sudo cat /sys/kernel/debug/swiotlb/io_tlb_used 2>/dev/null)"
+echo "# reload cycle: the driver core frees the map on unbind, the notifier installs a new copy at the next bind"
+run sudo rmmod nvidia_uvm nvidia
+readback
+flr
+run sudo modprobe nvidia
+sleep 2
+readback
+run $SMI -L
+run sudo modprobe nvidia-uvm
+lsmod | grep -E '^(nvidia|caraxes)'
+echo "# kernel log since the marker:"
+since $M
+---- phase-c.sh ----
+# runs inside vm1 as leandro
+set -u
+cd ~/caraxes_dma_range
+ID=0:0:40000000,40000000:40000000:40000000,80000000:80000000:40000000,100000000:100000000:40000000
+# One range moved by +5 GiB, the rest identity.
+T1=0:0:40000000,40000000:40000000:40000000,80000000:1c0000000:40000000,100000000:100000000:40000000
+# Top-down 64-bit IOVAs below 2^47, 1 GiB aligned: the shape sysmem-iova.md expects after the host GPU leaves 32-bit IOVAs.
+T2=0:7fffc0000000:40000000,40000000:7fff80000000:40000000,80000000:7fff40000000:40000000,100000000:7fff00000000:40000000
+# An offset that is not a multiple of 2 MiB (warning) and a negative offset.
+T3=0:200001000:40000000,40000000:40000000:40000000,80000000:80000000:40000000,100000000:c0000000:40000000
+P=/sys/module/caraxes_dma_range/parameters
+mark() { echo "caraxes-dma-range: == $* ==" | sudo tee /dev/kmsg >/dev/null; }
+run() { echo "\$ $*"; "$@"; local rc=$?; echo "rc=$rc"; return $rc; }
+since() { sudo dmesg | awk -v m="caraxes-dma-range: == $1 ==" 'index($0,m){p=1} p' | grep -vE "NVRM: (VM:|ioctl|nvidia_(open|close|ctl))|_DSM method"; }
+readback() { for f in status table live; do echo "\$ cat $1/$f"; cat $1/$f; done; }
+flr() { echo "\$ echo 1 > /sys/bus/pci/devices/0000:00:05.0/reset"; echo 1 | sudo tee /sys/bus/pci/devices/0000:00:05.0/reset >/dev/null; echo "rc=$?"; }
+norm() { tr ',' '\n' | awk -F: '{printf "0x%x:0x%x:0x%x\n", strtonum("0x"$1), strtonum("0x"$2), strtonum("0x"$3)}'; }
+echo "# $(date -u +%FT%TZ)"; w -h
+echo "# open handles on /dev/nvidia*:"; sudo fuser -v /dev/nvidia* 2>&1 || echo "(none)"
+M=phase-c-$(date +%s); mark $M
+run sudo rmmod nvidia_uvm nvidia
+run sudo rmmod caraxes_dma_range
+for T in ${TABLES:-T1 T2 T3}; do
+  eval "V=\$$T"
+  echo "# ---- table $T: $V"
+  mark "$M $T"
+  run sudo insmod caraxes_dma_range.ko ranges=$V || continue
+  readback $P
+  if diff <(echo "$V" | norm) $P/table >/dev/null; then echo "# readback of table equals the input"; else echo "# readback DIFFERS from the input"; fi
+  if diff $P/table $P/live >/dev/null; then echo "# live map equals table"; else echo "# live map DIFFERS"; fi
+  run sudo insmod caraxes_dma_range_test.ko
+  run sudo rmmod caraxes_dma_range_test
+  run sudo rmmod caraxes_dma_range
+done
+echo "# ---- force=1: a second copy of the module (built as caraxes_dma_range2) replaces the first one's map and restores it"
+rm -rf ~/cdr2 && mkdir ~/cdr2 && cp caraxes_dma_range.c ~/cdr2/caraxes_dma_range2.c && cp caraxes_dma_range_pci.h ~/cdr2/ \
+  && echo 'obj-m := caraxes_dma_range2.o' > ~/cdr2/Kbuild && make -s -C /lib/modules/$(uname -r)/build M=$HOME/cdr2 modules 2>&1 | grep -v "compiler differs\|built by\|You are using\|BTF"
+P2=/sys/module/caraxes_dma_range2/parameters
+mark "$M force"
+run sudo insmod caraxes_dma_range.ko ranges=$ID
+run sudo insmod ~/cdr2/caraxes_dma_range2.ko ranges=$T2
+run sudo insmod ~/cdr2/caraxes_dma_range2.ko ranges=$T2 force=1
+readback $P2
+readback $P
+run sudo rmmod caraxes_dma_range2
+readback $P
+run sudo rmmod caraxes_dma_range
+echo "# ---- restore the state found: nvidia and nvidia_uvm loaded, no caraxes module"
+flr
+run sudo modprobe nvidia
+run sudo modprobe nvidia-uvm
+run /opt/nvrm/bin/nvidia-smi -L
+lsmod | grep -E '^(nvidia|caraxes)'
+echo "# kernel log since the marker:"
+since $M

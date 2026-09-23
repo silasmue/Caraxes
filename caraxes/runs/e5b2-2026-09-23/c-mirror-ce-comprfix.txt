@@ -1,0 +1,4 @@
+# SPDX-License-Identifier: MIT
+# E5b part 2 mirrored CE run WITH the compression fix (2026-09-23): supportCompressed=0 (guest PTEs verified kind 0x00/0x06 comptagline 0), CARAXES_MIRROR_CHANNELS=1. Result: cuda-core still times out; each CE channel takes exactly one doorbell (24 total) then stalls, with ZERO Xid and no host effect. So the compression fix removed the comptag hazard and any comptag stall, but the first CE LAUNCH_DMA on a fresh host channel still does not complete: this is host-exec.md open item 3 (the first-launch stall), independent of compression, which host-exec absorbed with a warm-up push. The next CE step is that warm-up, not compression.
+
+doorbells forwarded: 24; distinct CE channels, 1 doorbell each; xid 0

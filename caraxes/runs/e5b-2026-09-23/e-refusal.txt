@@ -1,0 +1,30 @@
+== before-e 15:27:00
+memory.used [MiB], memory.free [MiB]
+1325 MiB, 6447 MiB
+vfio-user-nvgpu: host memory client open; privilege: uid 1000; capabilities effective 0x0 permitted 0x200000 inheritable 0x0
+vfio-user-nvgpu: hostmem: refused: reserving 6144 MiB would leave the host 302 MiB of VRAM, below the 1024 MiB headroom (free 6446 MiB = min(HEAP_FREE, nvidia-smi); shortfall 722 MiB); choose a smaller profile or free host VRAM
+vfio-user-nvgpu: hostmem: host RM client 0xc1d0010b freed
+vfio-user-nvgpu: hostmem: privileged windows opened in total: 0
+Error: VRAM reservation refused: refused: reserving 6144 MiB would leave the host 302 MiB of VRAM, below the 1024 MiB headroom (free 6446 MiB = min(HEAP_FREE, nvidia-smi); shortfall 722 MiB); choose a smaller profile or free host VRAM
+ERROR: server did not create /mnt/vmstore/caraxes/vm2/gpu.sock
+up rc=1
+gpu: not running
+ch: not running
+-- ch.log
+cloud-hypervisor:   0.021852s: <vmm> WARN:vmm/src/device_manager.rs:2761 -- DEPRECATION: auto-detection of disk image type is deprecated and will be removed in a future release. Please specify image type explicitly.
+cloud-hypervisor:   0.021900s: <vmm> WARN:vmm/src/device_manager.rs:2766 -- No image_type specified - detected as raw. Configuration updated to persist type across reboots and migrations.
+cloud-hypervisor:   0.021921s: <vmm> WARN:vmm/src/device_manager.rs:2774 -- Autodetected raw image type. Disabling sector 0 writes.
+cloud-hypervisor:   0.021947s: <vmm> WARN:virtio-devices/src/block.rs:859 -- sparse=on requested but backend does not support sparse operations
+cloud-hypervisor:   0.022247s: <vmm> WARN:net_util/src/open_tap.rs:84 -- Tap caraxes2 already exists. IP configuration will not be overwritten.
+-- gpu.log
+vfio-user-nvgpu: host memory client open; privilege: uid 1000; capabilities effective 0x0 permitted 0x200000 inheritable 0x0
+vfio-user-nvgpu: hostmem: refused: reserving 6144 MiB would leave the host 302 MiB of VRAM, below the 1024 MiB headroom (free 6446 MiB = min(HEAP_FREE, nvidia-smi); shortfall 722 MiB); choose a smaller profile or free host VRAM
+vfio-user-nvgpu: hostmem: host RM client 0xc1d0010b freed
+vfio-user-nvgpu: hostmem: privileged windows opened in total: 0
+Error: VRAM reservation refused: refused: reserving 6144 MiB would leave the host 302 MiB of VRAM, below the 1024 MiB headroom (free 6446 MiB = min(HEAP_FREE, nvidia-smi); shortfall 722 MiB); choose a smaller profile or free host VRAM
+-- trace: 0 lines
+== after-e 15:27:06
+memory.used [MiB], memory.free [MiB]
+1322 MiB, 6451 MiB
+nr_foll_pin_acquired 2832151
+nr_foll_pin_released 2828902

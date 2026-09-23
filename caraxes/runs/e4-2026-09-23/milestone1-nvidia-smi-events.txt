@@ -1,0 +1,110 @@
+# SPDX-License-Identifier: MIT
+# RPC events during the first nvidia-smi run (window after the milestone-1 load), 2026-09-23.
+143166927 doorbell 73: libos args PA 0x1132bb000 (mapped), wpr meta PA 0x1132ba000
+143166929 rx seq 72 GSP_RM_ALLOC (103) sequence 70 length 64 checksum ok: hClient=0xc1d00005 hParent=0x0 hObject=0x0 hClass=0x0 paramsSize=120 flags=0x0
+143166930 alloc: alloc NV01_ROOT 0x0 object 0x0 under 0x0 -> status 0x0 [synthesized (object recorded, no host object yet)]
+143166931 tx seq 71 reply GSP_RM_ALLOC sequence 70 result 0x0 length 184
+143167087 doorbell 74: libos args PA 0x1132bb000 (mapped), wpr meta PA 0x1132ba000
+143167088 rx seq 73 GSP_RM_ALLOC (103) sequence 71 length 64 checksum ok: hClient=0xc1d00005 hParent=0xc1d00005 hObject=0xa55a0020 hClass=0x80 paramsSize=56 flags=0x0
+143167089 alloc: alloc NV01_DEVICE_0 0x80 object 0xa55a0020 under 0xc1d00005 -> status 0x0 [synthesized (object recorded, no host object yet)]
+143167090 tx seq 72 reply GSP_RM_ALLOC sequence 71 result 0x0 length 120
+143168311 doorbell 75: libos args PA 0x1132bb000 (mapped), wpr meta PA 0x1132ba000
+143168314 rx seq 74 GSP_RM_ALLOC (103) sequence 72 length 64 checksum ok: hClient=0xc1d00005 hParent=0xa55a0020 hObject=0xa55a0030 hClass=0x2080 paramsSize=4 flags=0x0
+143168317 alloc: alloc NV20_SUBDEVICE_0 0x2080 object 0xa55a0030 under 0xa55a0020 -> status 0x0 [synthesized (object recorded, no host object yet)]
+143168321 tx seq 73 reply GSP_RM_ALLOC sequence 72 result 0x0 length 68
+143186702 doorbell 76: libos args PA 0x1132bb000 (mapped), wpr meta PA 0x1132ba000
+143186704 rx seq 75 GSP_RM_CONTROL (76) sequence 73 length 76 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20800a4c paramsSize=4 rpcFlags=0x0
+143186705 ctrl 0x20800a4c: control 0x20800a4c on 0xca7a0003 (class 0x2080, 4 bytes): not supported -> status 0x56 [unanswered]
+143186722 tx seq 74 reply GSP_RM_CONTROL sequence 73 result 0x0 length 76
+143189609 doorbell 77: libos args PA 0x1132bb000 (mapped), wpr meta PA 0x1132ba000
+143189610 rx seq 76 GSP_RM_CONTROL (76) sequence 74 length 652 checksum ok: hClient=0xc1d00005 hObject=0xa55a0030 cmd=0x20800102 paramsSize=580 rpcFlags=0x0
+143189612 ctrl 0x20800102: control 0x20800102 on 0xa55a0030 (class 0x2080, 580 bytes): not supported -> status 0x56 [unanswered]
+143189613 tx seq 75 reply GSP_RM_CONTROL sequence 74 result 0x0 length 652
+143190192 doorbell 78: libos args PA 0x1132bb000 (mapped), wpr meta PA 0x1132ba000
+143190194 rx seq 77 GSP_RM_CONTROL (76) sequence 75 length 1504 checksum ok: hClient=0xc1d00005 hObject=0xa55a0030 cmd=0x2080852e paramsSize=1432 rpcFlags=0x0
+143190195 ctrl 0x2080852e: control 0x2080852e on 0xa55a0030 (class 0x2080, 1432 bytes): not supported -> status 0x56 [unanswered]
+143190197 tx seq 76 reply GSP_RM_CONTROL sequence 75 result 0x0 length 1504
+143190710 doorbell 79: libos args PA 0x1132bb000 (mapped), wpr meta PA 0x1132ba000
+143190711 rx seq 78 GSP_RM_CONTROL (76) sequence 76 length 1504 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20808513 paramsSize=1432 rpcFlags=0x0
+143190717 ctrl 0x20808513: control 0x20808513 on 0xca7a0003 (class 0x2080, 1432 bytes): not supported -> status 0x56 [unanswered]
+143190718 tx seq 77 reply GSP_RM_CONTROL sequence 76 result 0x0 length 1504
+143191287 doorbell 80: libos args PA 0x1132bb000 (mapped), wpr meta PA 0x1132ba000
+143191288 rx seq 79 GSP_RM_CONTROL (76) sequence 77 length 76 checksum ok: hClient=0xc1d00005 hObject=0xa55a0030 cmd=0x20802068 paramsSize=4 rpcFlags=0x0
+143191290 ctrl 0x20802068: control 0x20802068 on 0xa55a0030 (class 0x2080, 4 bytes): not supported -> status 0x56 [unanswered]
+143191291 tx seq 78 reply GSP_RM_CONTROL sequence 77 result 0x0 length 76
+143192319 doorbell 81: libos args PA 0x1132bb000 (mapped), wpr meta PA 0x1132ba000
+143192321 rx seq 80 GSP_RM_CONTROL (76) sequence 78 length 76 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20800a4c paramsSize=4 rpcFlags=0x0
+143192322 ctrl 0x20800a4c: control 0x20800a4c on 0xca7a0003 (class 0x2080, 4 bytes): not supported -> status 0x56 [unanswered]
+143192324 tx seq 79 reply GSP_RM_CONTROL sequence 78 result 0x0 length 76
+143192920 doorbell 82: libos args PA 0x1132bb000 (mapped), wpr meta PA 0x1132ba000
+143192921 rx seq 81 GSP_RM_CONTROL (76) sequence 79 length 76 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20800a4c paramsSize=4 rpcFlags=0x0
+143192923 ctrl 0x20800a4c: control 0x20800a4c on 0xca7a0003 (class 0x2080, 4 bytes): not supported -> status 0x56 [unanswered]
+143192924 tx seq 80 reply GSP_RM_CONTROL sequence 79 result 0x0 length 76
+143193492 doorbell 83: libos args PA 0x1132bb000 (mapped), wpr meta PA 0x1132ba000
+143193493 rx seq 82 GSP_RM_CONTROL (76) sequence 80 length 76 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20800a4c paramsSize=4 rpcFlags=0x0
+143193500 ctrl 0x20800a4c: control 0x20800a4c on 0xca7a0003 (class 0x2080, 4 bytes): not supported -> status 0x56 [unanswered]
+143193501 tx seq 81 reply GSP_RM_CONTROL sequence 80 result 0x0 length 76
+143194354 doorbell 84: libos args PA 0x1132bb000 (mapped), wpr meta PA 0x1132ba000
+143194356 rx seq 83 FREE (10) sequence 81 length 48 checksum ok: hRoot=0xc1d00005 hParent=0x0 hObject=0xa55a0030
+143194357 free 0xa55a0030 class Some(8320) [synthesized]
+143194359 tx seq 82 reply FREE sequence 81 result 0x0 length 48
+143194892 doorbell 85: libos args PA 0x1132bb000 (mapped), wpr meta PA 0x1132ba000
+143194893 rx seq 84 FREE (10) sequence 82 length 48 checksum ok: hRoot=0xc1d00005 hParent=0x0 hObject=0xa55a0020
+143194895 free 0xa55a0020 class Some(128) [synthesized]
+143194896 tx seq 83 reply FREE sequence 82 result 0x0 length 48
+143195031 doorbell 86: libos args PA 0x1132bb000 (mapped), wpr meta PA 0x1132ba000
+143195032 rx seq 85 FREE (10) sequence 83 length 48 checksum ok: hRoot=0xc1d00005 hParent=0x0 hObject=0xc1d00005
+143195033 free 0xc1d00005 class None [synthesized]
+143195039 tx seq 84 reply FREE sequence 83 result 0x0 length 48
+161929056 doorbell 87: libos args PA 0x1132bb000 (mapped), wpr meta PA 0x1132ba000
+161929058 rx seq 86 GSP_RM_ALLOC (103) sequence 84 length 64 checksum ok: hClient=0xc1d00007 hParent=0x0 hObject=0x0 hClass=0x0 paramsSize=120 flags=0x0
+161929060 alloc: alloc NV01_ROOT 0x0 object 0x0 under 0x0 -> status 0x0 [synthesized (object recorded, no host object yet)]
+161929062 tx seq 85 reply GSP_RM_ALLOC sequence 84 result 0x0 length 184
+161929262 doorbell 88: libos args PA 0x1132bb000 (mapped), wpr meta PA 0x1132ba000
+161929264 rx seq 87 GSP_RM_ALLOC (103) sequence 85 length 64 checksum ok: hClient=0xc1d00007 hParent=0xc1d00007 hObject=0xa55a0020 hClass=0x80 paramsSize=56 flags=0x0
+161929265 alloc: alloc NV01_DEVICE_0 0x80 object 0xa55a0020 under 0xc1d00007 -> status 0x0 [synthesized (object recorded, no host object yet)]
+161929267 tx seq 86 reply GSP_RM_ALLOC sequence 85 result 0x0 length 120
+161931727 doorbell 89: libos args PA 0x1132bb000 (mapped), wpr meta PA 0x1132ba000
+161931730 rx seq 88 GSP_RM_ALLOC (103) sequence 86 length 64 checksum ok: hClient=0xc1d00007 hParent=0xa55a0020 hObject=0xa55a0030 hClass=0x2080 paramsSize=4 flags=0x0
+161931732 alloc: alloc NV20_SUBDEVICE_0 0x2080 object 0xa55a0030 under 0xa55a0020 -> status 0x0 [synthesized (object recorded, no host object yet)]
+161931733 tx seq 87 reply GSP_RM_ALLOC sequence 86 result 0x0 length 68
+161946772 doorbell 90: libos args PA 0x1132bb000 (mapped), wpr meta PA 0x1132ba000
+161946774 rx seq 89 GSP_RM_CONTROL (76) sequence 87 length 76 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20800a4c paramsSize=4 rpcFlags=0x0
+161946776 ctrl 0x20800a4c: control 0x20800a4c on 0xca7a0003 (class 0x2080, 4 bytes): not supported -> status 0x56 [unanswered]
+161946777 tx seq 88 reply GSP_RM_CONTROL sequence 87 result 0x0 length 76
+161948256 doorbell 91: libos args PA 0x1132bb000 (mapped), wpr meta PA 0x1132ba000
+161948257 rx seq 90 GSP_RM_CONTROL (76) sequence 88 length 652 checksum ok: hClient=0xc1d00007 hObject=0xa55a0030 cmd=0x20800102 paramsSize=580 rpcFlags=0x0
+161948259 ctrl 0x20800102: control 0x20800102 on 0xa55a0030 (class 0x2080, 580 bytes): not supported -> status 0x56 [unanswered]
+161948260 tx seq 89 reply GSP_RM_CONTROL sequence 88 result 0x0 length 652
+161949337 doorbell 92: libos args PA 0x1132bb000 (mapped), wpr meta PA 0x1132ba000
+161949339 rx seq 91 GSP_RM_CONTROL (76) sequence 89 length 1504 checksum ok: hClient=0xc1d00007 hObject=0xa55a0030 cmd=0x2080852e paramsSize=1432 rpcFlags=0x0
+161949340 ctrl 0x2080852e: control 0x2080852e on 0xa55a0030 (class 0x2080, 1432 bytes): not supported -> status 0x56 [unanswered]
+161949342 tx seq 90 reply GSP_RM_CONTROL sequence 89 result 0x0 length 1504
+161950148 doorbell 93: libos args PA 0x1132bb000 (mapped), wpr meta PA 0x1132ba000
+161950150 rx seq 92 GSP_RM_CONTROL (76) sequence 90 length 1504 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20808513 paramsSize=1432 rpcFlags=0x0
+161950151 ctrl 0x20808513: control 0x20808513 on 0xca7a0003 (class 0x2080, 1432 bytes): not supported -> status 0x56 [unanswered]
+161950153 tx seq 91 reply GSP_RM_CONTROL sequence 90 result 0x0 length 1504
+161950813 doorbell 94: libos args PA 0x1132bb000 (mapped), wpr meta PA 0x1132ba000
+161950814 rx seq 93 GSP_RM_CONTROL (76) sequence 91 length 76 checksum ok: hClient=0xc1d00007 hObject=0xa55a0030 cmd=0x20802068 paramsSize=4 rpcFlags=0x0
+161950816 ctrl 0x20802068: control 0x20802068 on 0xa55a0030 (class 0x2080, 4 bytes): not supported -> status 0x56 [unanswered]
+161950817 tx seq 92 reply GSP_RM_CONTROL sequence 91 result 0x0 length 76
+161952204 doorbell 95: libos args PA 0x1132bb000 (mapped), wpr meta PA 0x1132ba000
+161952206 rx seq 94 GSP_RM_CONTROL (76) sequence 92 length 76 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20800a4c paramsSize=4 rpcFlags=0x0
+161952207 ctrl 0x20800a4c: control 0x20800a4c on 0xca7a0003 (class 0x2080, 4 bytes): not supported -> status 0x56 [unanswered]
+161952209 tx seq 93 reply GSP_RM_CONTROL sequence 92 result 0x0 length 76
+161953163 doorbell 96: libos args PA 0x1132bb000 (mapped), wpr meta PA 0x1132ba000
+161953165 rx seq 95 GSP_RM_CONTROL (76) sequence 93 length 76 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20800a4c paramsSize=4 rpcFlags=0x0
+161953167 ctrl 0x20800a4c: control 0x20800a4c on 0xca7a0003 (class 0x2080, 4 bytes): not supported -> status 0x56 [unanswered]
+161953168 tx seq 94 reply GSP_RM_CONTROL sequence 93 result 0x0 length 76
+161955207 doorbell 97: libos args PA 0x1132bb000 (mapped), wpr meta PA 0x1132ba000
+161955209 rx seq 96 FREE (10) sequence 94 length 48 checksum ok: hRoot=0xc1d00007 hParent=0x0 hObject=0xa55a0030
+161955211 free 0xa55a0030 class Some(8320) [synthesized]
+161955212 tx seq 95 reply FREE sequence 94 result 0x0 length 48
+161955844 doorbell 98: libos args PA 0x1132bb000 (mapped), wpr meta PA 0x1132ba000
+161955851 rx seq 97 FREE (10) sequence 95 length 48 checksum ok: hRoot=0xc1d00007 hParent=0x0 hObject=0xa55a0020
+161955853 free 0xa55a0020 class Some(128) [synthesized]
+161955854 tx seq 96 reply FREE sequence 95 result 0x0 length 48
+161956017 doorbell 99: libos args PA 0x1132bb000 (mapped), wpr meta PA 0x1132ba000
+161956018 rx seq 98 FREE (10) sequence 96 length 48 checksum ok: hRoot=0xc1d00007 hParent=0x0 hObject=0xc1d00007
+161956020 free 0xc1d00007 class None [synthesized]
+161956022 tx seq 97 reply FREE sequence 96 result 0x0 length 48

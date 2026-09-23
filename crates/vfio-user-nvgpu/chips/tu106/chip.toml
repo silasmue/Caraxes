@@ -1,0 +1,138 @@
+# SPDX-License-Identifier: MIT
+# SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
+# SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
+#
+# TU106 (Turing), the chip of the RTX 2070. Tables for src/chip (decision D14,
+# docs/caraxes/versatility.md). Paths below are relative to
+# vendor/open-gpu-kernel-modules at 610.57.04 unless they start with docs/ or caraxes/.
+# Labels are the provenance labels the answers carry in the trace (decision D9).
+# Driver enums (engine types, RAM type, ...) are given by name; the driver-version
+# module (src/ver) supplies their numbers.
+
+name = "tu106"
+short_name = "TU106"
+
+# TU106 revision A1 as predicted from `nv_ref.h` (docs/caraxes/environment.md):
+# BOOT_0 = architecture 0x16 in 28:24, implementation 6 in 23:20, major revision A
+# in 7:4, minor 1 in 3:0; BOOT_1 = 0 (VGPU field 17:16 = REAL); BOOT_42 =
+# architecture/implementation in 28:20, major revision in 19:16, minor in 15:12.
+# Experiment R2 confirms these against the card.
+[identity]
+boot_0 = 0x1660_00A1
+boot_1 = 0x0000_0000
+boot_42 = 0x166A_1000
+
+[bar0]
+# NV_PCFG: the PCI config space mirror (4 KiB) the kernel RM reads instead of real
+# config cycles (docs/caraxes/kernel-rm-hw-surface.md).
+pcfg = 0x0008_8000
+pcfg_size = 0x1000
+# NV_PROM_DATA: the 1 MiB VBIOS window (docs/caraxes/gsp-boot-turing.md).
+prom = 0x0030_0000
+prom_size = 0x0010_0000
+
+# The kernel-RM surface outside the firmware boot (docs/caraxes/kernel-rm-hw-surface.md,
+# docs/caraxes/fb-model.md, docs/caraxes/uvm.md).
+[registers]
+# NV_PBUS_BAR0_WINDOW: BASE[23:0] in 64 KiB units, TARGET[25:24]; the PRAMIN window
+# behind it at 0x700000 (fb-model.md §4c).
+bar0_window = 0x0000_1700
+bar1_block = 0x0000_1704
+bar2_block = 0x0000_1714
+pramin = 0x0070_0000
+pramin_size = 0x0010_0000
+# NV_VIRTUAL_FUNCTION_PRIV_MMU_INVALIDATE_PDB/_UPPER_PDB/_INVALIDATE (fb-model.md §4d).
+mmu_invalidate_pdb = 0x00B8_30A0
+mmu_invalidate_upper_pdb = 0x00B8_30A4
+mmu_invalidate = 0x00B8_30B0
+# The CPU interrupt tree of the VF window (kernel-rm-hw-surface.md §C, dev_vm.h).
+intr_tree = 0x00B8_1000
+intr_tree_size = 0x800
+# NV_VIRTUAL_FUNCTION_PRIV_MMU_FAULT_BUFFER_GET(i)/_PUT(i), i = 0 non-replayable,
+# 1 replayable (BAR0 0xB80000 + tu102/dev_vm.h:74-113).
+fault_buffer_get = [0x00B8_3008, 0x00B8_3028]
+fault_buffer_put = [0x00B8_300C, 0x00B8_302C]
+# NV_VIRTUAL_FUNCTION_PRIV_ACCESS_COUNTER_NOTIFY_BUFFER_SIZE/_GET/_PUT/_INFO
+# (0xB80000 + tu102/dev_vm.h:207-222).
+access_counter_notify_buffer_size = 0x00B8_3110
+access_counter_get = 0x00B8_3114
+access_counter_put = 0x00B8_3118
+access_counter_info = 0x00B8_311C
+# NV_VIRTUAL_FUNCTION_TIME_0/1 and NVC361_NOTIFY_CHANNEL_PENDING in the usermode
+# window at 0xBB0000 (dev_vm.h:224-227, clc361.h:31-33; usermode base from
+# kern_gpu_tu102.c:275-306).
+usermode_time_0 = 0x00BB_0080
+usermode_time_1 = 0x00BB_0084
+usermode_doorbell = 0x00BB_0090
+
+# engineCaps[3] of GspStaticConfigInfo: the NV2080_ENGINE_TYPE bits of the TU106
+# engines (kern_gpu_tu102.c:177-205; cl2080_notification.h).
+[engine_caps]
+types = ["GR0", "COPY0", "COPY1", "COPY2", "COPY3", "COPY4", "COPY5", "COPY6", "COPY7", "COPY8", "NVDEC0", "NVDEC1", "NVENC0", "SW", "SEC2", "HOST"]
+summary = "GR0, CE0-8, NVDEC0/1, NVENC0, SW, SEC2, HOST"
+source = "synthesized (TU106 child list; E4: host GET_ENGINES_V2)"
+
+# INTERNAL_GPU_GET_CHIP_INFO regBases per gpuGetRegBaseOffset_TU102: TIMER = 0x9000,
+# USERMODE = the NV_VIRTUAL_FUNCTION window at 0xBB0000, all others unsupported.
+[chip_info]
+timer_base = 0x9000
+usermode_base = 0x00BB_0000
+label = "card (config space) + synthesized regBases (kern_gpu_tu102.c:275-306)"
+
+# INTERNAL_GPU_GET_USER_REGISTER_ACCESS_MAP: size 0x80000 with compressedSize 0 =
+# allow all (gpu_register_access_map.c:260-298).
+[user_register_access_map]
+value = 0x8_0000
+label = "synthesized (allow-all map, gpu_register_access_map.c:260-298)"
+
+# INTERNAL_MEMSYS_GET_STATIC_CONFIG (ctrl2080internal.h:94-135).
+[memsys]
+disable_compbit_backing = true
+l2_cache_size = 0x40_0000
+fbpa_present = true
+compr_page_size = 0x1_0000
+compr_page_shift = 16
+ram_type = "GDDR6"
+ltc_count = 8
+lts_per_ltc_count = 2
+label = "synthesized (TU106: 4 MiB L2, 8 LTC x 2 LTS, GDDR6; E4: host FB_GET_INFO_V2)"
+
+[fifo]
+# INTERNAL_FIFO_GET_NUM_CHANNELS per runlist.
+num_channels = { value = 512, label = "synthesized (512 channels; E4: host FIFO_GET_INFO)" }
+# CE_GET_FAULT_METHOD_BUFFER_SIZE (docs/caraxes/fifo-device-info.md §4a).
+fault_method_buffer_size = { value = 0x8000, label = "synthesized (32 KiB fault method buffer; fifo-device-info.md §4a)" }
+
+[gmmu]
+# The 610.57.04 49-bit GMMU format, dual PDE at PD0 (fb.rs, docs/caraxes/fb-model.md).
+mmu_format = "gmmu-v2-49bit"
+# INTERNAL_GMMU_GET_STATIC_INFO: 256-entry fault buffers of 32-byte packets
+# (ctrl2080internal.h:1417-1426); the access-counter notify buffer reports the same
+# 256 entries (NV_..._ACCESS_COUNTER_NOTIFY_BUFFER_SIZE; 0 makes
+# nvUvmInterfaceInitAccessCntrInfo fail registration, uvm_tu102.c:264-274).
+fault_buffer_entries = 256
+fault_entry_size = 32
+label = "synthesized (256-entry fault buffers)"
+
+[ce]
+# Turing has no decompression LCE (INTERNAL_CE_GET_PCE_CONFIG_FOR_LCE_TYPE masks 0,
+# CE_IS_DECOMP_LCE_ENABLED false; kernel_ce.c:1172-1197).
+decomp_lce = false
+decomp_label = "synthesized (no decompression LCE on Turing)"
+
+[gr]
+# INTERNAL_STATIC_KGR_GET_PDB_PROPERTIES: TU106 default TRUE, g_kernel_graphics_nvoc.c:306-311.
+per_subctx_header = { value = true, label = "synthesized (bPerSubCtxheaderSupported TRUE, g_kernel_graphics_nvoc.c:306-314)" }
+# INTERNAL_GPU_GET_SMC_MODE (K2, subdevice_ctrl_gpu_kernel.c:255-289): TU106 has no MIG.
+mig = false
+smc_label = "synthesized (SMC/MIG unsupported on TU106)"
+
+# The classes the channel emulation executes for this chip (src/channel.rs):
+# TURING_CHANNEL_GPFIFO_A (clc46f.h), TURING_DMA_COPY_A (clc5b5.h), GP100_UVM_SW, and
+# TURING_COMPUTE_A (clc5c0.h), of which only the stub of E5c runs (semaphores, inline to
+# memory; kernel launches are refused and logged).
+[channel]
+gpfifo = 0xC46F
+copy = 0xC5B5
+uvm_sw = 0xC076
+compute = 0xC5C0

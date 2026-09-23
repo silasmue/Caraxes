@@ -1,0 +1,33 @@
+# SPDX-License-Identifier: MIT
+# E5b part 2 teardown (channels-on run), down at 2026-09-23T19:22:04+02:00
+vfio-user-nvgpu: hostmem: freed host error-notifier 0x8000003e
+vfio-user-nvgpu: hostmem: freed host error-notifier 0x8000003b
+vfio-user-nvgpu: hostmem: freed host error-notifier 0x80000038
+vfio-user-nvgpu: hostmem: freed host error-notifier 0x80000033
+vfio-user-nvgpu: hostmem: freed host error-notifier 0x80000030
+vfio-user-nvgpu: hostmem: freed host error-notifier 0x8000002d
+vfio-user-nvgpu: hostmem: freed host error-notifier 0x8000002a
+vfio-user-nvgpu: hostmem: freed host error-notifier 0x80000026
+vfio-user-nvgpu: hostmem: freed host error-notifier 0x80000023
+vfio-user-nvgpu: hostmem: freed host error-notifier 0x80000020
+vfio-user-nvgpu: hostmem: freed host error-notifier 0x8000001d
+vfio-user-nvgpu: hostmem: freed host error-notifier 0x80000019
+vfio-user-nvgpu: hostmem: freed host error-notifier 0x80000016
+vfio-user-nvgpu: hostmem: freed host error-notifier 0x80000013
+vfio-user-nvgpu: hostmem: freed host error-notifier 0x8000000f
+vfio-user-nvgpu: hostmem: freed 4 guest RAM descriptor(s), 4096 MiB unpinned; host foll_pin released +1048581 during the free (since open: acquired +1048607, released +1048588)
+vfio-user-nvgpu: hostmem: freed the VRAM reservation [0xe9000000, 0x1e9000000) (4096 MiB)
+vfio-user-nvgpu: hostmem: host RM client 0xc1d06c37 freed
+vram store: 2 window map(s), 0 refused, 0 eviction(s); 1177036 read(s) of 9410712 bytes, 212193 write(s) of 1626636 bytes
+mirror: 24 channel(s) created, 24 freed, 0 live; 24 doorbell(s) forwarded, 52 TLB invalidate(s), 0 refusal(s), longest mirror build 14898 us; events raised 89877, MSIs 88691 (coalesced 1186), host RC events 0
+## host VRAM used (before device start: from a-host-before.txt):
+memory.used [MiB], memory.free [MiB], memory.total [MiB]
+5392 MiB, 2380 MiB, 8192 MiB
+## host VRAM now:
+memory.used [MiB], memory.free [MiB]
+1379 MiB, 6393 MiB
+nr_foll_pin_acquired 18604396
+nr_foll_pin_released 18601147
+MemAvailable:   15823640 kB
+## Xid over the whole session:
+total contained Xid (all our pid): 59

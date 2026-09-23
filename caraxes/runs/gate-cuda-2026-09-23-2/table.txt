@@ -1,0 +1,23 @@
+# SPDX-License-Identifier: MIT
+# cuda gate, gate-cuda-2026-09-23-2, VM vm0: result per test; device = RPCs the device did not answer NV_OK in the test's window
+TEST                             RESULT SCORED GUEST ERROR | LAST FAILED RM CALL (guest tracer) | DEVICE
+cuda-init                        fail  yes    exit 1: ERROR cuInit: 100 no CUDA-capable device is detected | RM_CONTROL NV2080_CTRL_CMD_BUS_GET_PCIE_SUPPORTED_GPU_ATOMICS -> 0x56 | NV2080_CTRL_CMD_BUS_GET_PCIE_SUPPORTED_GPU_ATOMICS=0x56 x2
+cuda-context                     fail  yes    exit 1: ERROR cuInit: 100 no CUDA-capable device is detected | RM_CONTROL NV2080_CTRL_CMD_BUS_GET_PCIE_SUPPORTED_GPU_ATOMICS -> 0x56 | NV2080_CTRL_CMD_BUS_GET_PCIE_SUPPORTED_GPU_ATOMICS=0x56 x2
+cuda-core                        fail  yes    exit 1: ERROR cuInit: 100 no CUDA-capable device is detected | RM_CONTROL NV2080_CTRL_CMD_BUS_GET_PCIE_SUPPORTED_GPU_ATOMICS -> 0x56 | NV2080_CTRL_CMD_BUS_GET_PCIE_SUPPORTED_GPU_ATOMICS=0x56 x2
+cuda-jit                         fail  yes    exit 1: ERROR cuInit: 100 no CUDA-capable device is detected | RM_CONTROL NV2080_CTRL_CMD_BUS_GET_PCIE_SUPPORTED_GPU_ATOMICS -> 0x56 | NV2080_CTRL_CMD_BUS_GET_PCIE_SUPPORTED_GPU_ATOMICS=0x56 x2
+cuda-launch                      fail  yes    exit 1: ERROR cuInit: 100 no CUDA-capable device is detected | RM_CONTROL NV2080_CTRL_CMD_BUS_GET_PCIE_SUPPORTED_GPU_ATOMICS -> 0x56 | NV2080_CTRL_CMD_BUS_GET_PCIE_SUPPORTED_GPU_ATOMICS=0x56 x2
+cuda-managed                     fail  yes    exit 1: ERROR cuInit: 100 no CUDA-capable device is detected | RM_CONTROL NV2080_CTRL_CMD_BUS_GET_PCIE_SUPPORTED_GPU_ATOMICS -> 0x56 | NV2080_CTRL_CMD_BUS_GET_PCIE_SUPPORTED_GPU_ATOMICS=0x56 x2
+cuda-hostreg                     fail  yes    exit 1: A cuInit : 100 no CUDA-capable device is detected | RM_CONTROL NV2080_CTRL_CMD_BUS_GET_PCIE_SUPPORTED_GPU_ATOMICS -> 0x56 | NV2080_CTRL_CMD_BUS_GET_PCIE_SUPPORTED_GPU_ATOMICS=0x56 x2
+cuda-torch                       fail  yes    exit 1: AssertionError: no CUDA device visible | RM_CONTROL NV2080_CTRL_CMD_BUS_GET_PCIE_SUPPORTED_GPU_ATOMICS -> 0x56 | NV2080_CTRL_CMD_BUS_GET_PCIE_SUPPORTED_GPU_ATOMICS=0x56 x2
+cuda-gdb                         skip  yes    declared-unsupported: workload not procurable in this environment -- no cuda-gdb (CUDA_GDB) | - | none
+rlprobe                          fail  yes    exit 1: AssertionError: no CUDA card visible | RM_CONTROL NV2080_CTRL_CMD_BUS_GET_PCIE_SUPPORTED_GPU_ATOMICS -> 0x56 | NV2080_CTRL_CMD_BUS_GET_PCIE_SUPPORTED_GPU_ATOMICS=0x56 x2
+convburn                         fail  yes    exit 1: RuntimeError: No CUDA GPUs are available | RM_CONTROL NV2080_CTRL_CMD_BUS_GET_PCIE_SUPPORTED_GPU_ATOMICS -> 0x56 | NV2080_CTRL_CMD_BUS_GET_PCIE_SUPPORTED_GPU_ATOMICS=0x56 x2
+robustness                       fail  yes    0 of 3 runs correct (ERROR cuInit: 100 no CUDA-capable device is detected); refcnt 1 -> 2 | - | NV2080_CTRL_CMD_BUS_GET_PCIE_SUPPORTED_GPU_ATOMICS=0x56 x4
+suite-test_async_streams         fail  no     exit 1: RuntimeError: No CUDA GPUs are available | - | NV2080_CTRL_CMD_BUS_GET_PCIE_SUPPORTED_GPU_ATOMICS=0x56 x1
+suite-test_cuda_graphs           fail  no     exit 1: RuntimeError: No CUDA GPUs are available | - | NV2080_CTRL_CMD_BUS_GET_PCIE_SUPPORTED_GPU_ATOMICS=0x56 x1
+suite-test_high_freq_event_polling fail  no     exit 1: RuntimeError: No CUDA GPUs are available | - | NV2080_CTRL_CMD_BUS_GET_PCIE_SUPPORTED_GPU_ATOMICS=0x56 x1
+suite-test_multi_process_cuda    fail  no     exit 1: RuntimeError: No CUDA GPUs are available | - | NV2080_CTRL_CMD_BUS_GET_PCIE_SUPPORTED_GPU_ATOMICS=0x56 x1
+suite-test_nvrtc                 skip  no     missing module: cupy | - | none
+suite-test_uvm_migration         skip  no     missing module: cupy | - | none
+suite-test_vram_churn            fail  no     exit 1: RuntimeError: No CUDA GPUs are available | - | NV2080_CTRL_CMD_BUS_GET_PCIE_SUPPORTED_GPU_ATOMICS=0x56 x1
+suite-rapids_cuml_cudf           skip  no     missing module: cudf | - | none

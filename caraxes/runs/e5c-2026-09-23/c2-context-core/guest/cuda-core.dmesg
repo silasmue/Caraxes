@@ -1,0 +1,15 @@
+# SPDX-License-Identifier: MIT
+# cuda gate gate-cuda-2026-09-23: guest/cuda-core.dmesg
+[  210.155312] NVRM: GPU0 _deviceTeardown: Disable of Cuda limit activation failed
+[  242.375033] NVRM: _threadNodeCheckTimeout: _threadNodeCheckTimeout: currentTime: f423285e78340 >= f423285e78340
+[  242.375041] NVRM: _threadNodeCheckTimeout: _threadNodeCheckTimeout: Timeout was set to: 30000 msecs!
+[  242.375072] NVRM: kmemsysDoCacheOp_GM107: - timeout error waiting for reg 0x70010 update cnt=1067140
+[  242.375128] NVRM: _threadNodeCheckTimeout: _threadNodeCheckTimeout: currentTime: f423285e78340 >= f423285e78340
+[  242.375131] NVRM: _threadNodeCheckTimeout: _threadNodeCheckTimeout: Timeout was set to: 30000 msecs!
+[  242.375157] NVRM: kmemsysDoCacheOp_GM107: - timeout error waiting for reg 0x70004 update cnt=1
+[  273.152021] NVRM: _threadNodeCheckTimeout: _threadNodeCheckTimeout: currentTime: f4239b05b4380 >= f4239b05b4380
+[  273.152035] NVRM: _threadNodeCheckTimeout: _threadNodeCheckTimeout: Timeout was set to: 30000 msecs!
+[  273.152077] NVRM: kmemsysDoCacheOp_GM107: - timeout error waiting for reg 0x70010 update cnt=1089886
+[  273.152133] NVRM: _threadNodeCheckTimeout: _threadNodeCheckTimeout: currentTime: f4239b05b4380 >= f4239b05b4380
+[  273.152136] NVRM: _threadNodeCheckTimeout: _threadNodeCheckTimeout: Timeout was set to: 30000 msecs!
+[  273.152163] NVRM: kmemsysDoCacheOp_GM107: - timeout error waiting for reg 0x70004 update cnt=1

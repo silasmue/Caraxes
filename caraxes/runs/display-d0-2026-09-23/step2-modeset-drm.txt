@@ -1,0 +1,86 @@
+# SPDX-License-Identifier: MIT
+# D0 step 2 (2026-09-23): build and load nvidia-modeset / nvidia-drm in vm0.
+# nvidia.ko and nvidia-uvm.ko were already built and installed (from an earlier session,
+# ~/ogkm/open-gpu-kernel-modules); nvidia-modeset.ko and nvidia-drm.ko were not built yet.
+
+== Build attempt 1: make modules -j8 SYSSRC=/lib/modules/6.8.0-136-generic/build ==
+(builds every module under NV_KERNEL_MODULES, default "nvidia nvidia-uvm nvidia-vgpu-vfio
+nvidia-modeset nvidia-drm nvidia-peermem" filtered to directories that exist)
+Result: FAILED, in the nvidia-drm subtree, with -Werror on real API mismatches against this
+guest's kernel headers (Ubuntu 24.04.4, 6.8.0-136-generic). Representative errors:
+
+  nvidia-drm-connector.c:714:13: error: too few arguments to function
+    'drm_mode_create_dp_colorspace_property'
+    714 |  if (drm_mode_create_dp_colorspace_property(&nv_connector->base) == 0) {
+  ./include/drm/drm_connector.h:2027:5: note: declared here
+    int drm_mode_create_dp_colorspace_property(struct drm_connector *connector,
+  nvidia-drm-encoder.c: similar, drm_mode_create_hdmi_colorspace_property too few arguments
+
+  nvidia-drm-drv.c:1269:5: error: "NV_DRM_MODESET_LOCK_ALL_END_ARGUMENT_COUNT" is not
+    defined, evaluates to 0 [-Werror=undef]
+    (repeats at nvidia-drm-drv.c:1363,1378,1411,1476,1524,1537,1559,1711,1738)
+  nvidia-drm-drv.c:1928,1931: "NV_IS_EXPORT_SYMBOL_PRESENT_drm_gem_prime_handle_to_fd" /
+    "...drm_gem_prime_fd_to_handle" not defined, evaluates to 0 [-Werror=undef]
+
+  nvidia-drm-drv.c:2096:81: error: passing argument 2 of
+    'drm_aperture_remove_conflicting_pci_framebuffers' from incompatible pointer type
+    (pdev, nv_drm_driver.name) -- expected 'const struct drm_driver *', got 'char *'
+  nvidia-drm-drv.c:2115:17: error: too many arguments to function
+    'drm_aperture_remove_conflicting_framebuffers'
+    (source passes 4 args: base, size, false, name; the header declares 2: base, size)
+
+make[4]: *** [.../nvidia-drm/nvidia-drm-encoder.o] Error 1
+make[4]: *** [.../nvidia-drm/nvidia-drm-connector.o] Error 1
+make[4]: *** [.../nvidia-drm/nvidia-drm-drv.o] Error 1
+make: *** [Makefile:59: modules] Error 2   (27.3s wall)
+
+Reading: this guest kernel's DRM headers disagree with what 610.57.04's nvidia-drm source
+(and its conftest.sh probes) expect for a 6.8-labelled kernel -- several DRM helper
+signatures the source calls (colorspace property creators, aperture-conflict removal) do
+not match, and conftest results that should gate alternate code paths
+(NV_DRM_MODESET_LOCK_ALL_END_ARGUMENT_COUNT, the two NV_IS_EXPORT_SYMBOL_PRESENT_* macros)
+were never defined, so the plain #if reads them as 0 under -Werror=undef. This is a genuine
+source/kernel-header mismatch, not a fuse or an RPC problem, and it predates any display RPC
+question. No source in vendor/open-gpu-kernel-modules was touched to work around it (kickoff
+rule 2: no guest driver patches without an operator-approved, documented temporary aid); the
+mismatch is recorded here as a fact for whoever picks up D1/route E.
+
+== Building nvidia-modeset alone (skip nvidia-drm) ==
+  make modules -j8 SYSSRC=/lib/modules/6.8.0-136-generic/build NV_KERNEL_MODULES=nvidia-modeset
+First attempt failed at modpost: "nvidia_get_rm_ops" undefined, because nvidia-modeset.ko
+links against nvidia.ko's exported symbols and only nvidia-modeset was being rebuilt (stale
+Module.symvers). Rebuilding both together fixed it:
+  make modules -j8 SYSSRC=/lib/modules/6.8.0-136-generic/build NV_KERNEL_MODULES="nvidia nvidia-modeset"
+Result: OK.
+  -rw-rw-r-- 1 leandro leandro  2844440 Sep 23 14:59 kernel-open/nvidia-modeset.ko
+  -rw-rw-r-- 1 leandro leandro 34989488 Sep 23 14:59 kernel-open/nvidia.ko
+(nvidia.ko was relinked identically from the same unchanged source; not reinstalled over the
+already-loaded instance, so the running nvidia.ko in the kernel is untouched.)
+
+== Load: sudo insmod nvidia-modeset.ko ==
+Attempt 1: FAILED.
+  dmesg: nvidia_modeset: Unknown symbol acpi_video_register_backlight (err -2)
+         nvidia_modeset: Unknown symbol __acpi_video_get_backlight_type (err -2)
+Cause: the stock kernel's ACPI video backlight module (drivers/acpi/video.ko, a normal
+Ubuntu kernel module, no relation to the NVIDIA driver) was not loaded, so the two
+EXPORT_SYMBOL(_GPL) backlight hooks nvidia-modeset references were unresolved.
+Fix: sudo modprobe video   (loads the stock ACPI video driver only)
+
+Attempt 2 (after modprobe video): OK.
+  lsmod: nvidia_modeset 1490944 0 / video 77824 1 nvidia_modeset / nvidia 16379904 2 nvidia_uvm,nvidia_modeset
+  dmesg: nvidia-modeset: Loading NVIDIA UNIX Open Kernel Mode Setting Driver for x86_64
+           610.57.04  Release Build  (leandro@caraxes-vm0)  Wed Sep 23 08:32:07 UTC 2026
+  No "displayless"/"no display" message was printed at load time; nvidia-modeset logs that
+  only once a client (nvidia-drm, or an X server through libnvidia-modeset) actually queries
+  KernelDisplay, and neither was reachable in this run (see step2-drm and step3).
+  ls /dev/dri: still "No such file or directory" (nvidia-drm never loaded, so no render node).
+  ls /sys/class/drm: only "version" (the DRM core's own file; no card).
+
+== Device-side trace window for this whole step (build + both insmod attempts) ==
+Isolated by line count in $W/gpu-trace.log before/after (255024..255595, 572 lines): every
+line is a BAR0 register read at 0x0/0x160/0x180/0xb81208/0xb81408/0xb81608/0xb81610
+(NV_PMC_BOOT_*, and the b81xxx interrupt-table range read during the guest's post-reset probe
+before this step -- from the earlier baseline capture, not from nvidia-modeset itself). Zero
+GSP_RM_* RPC lines, zero display-class or display-control tokens in this window: loading
+nvidia-modeset by itself causes no new device traffic, because it registers as an in-kernel
+client of the already-running nvidia.ko and does not reprobe the device.

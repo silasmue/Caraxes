@@ -1,0 +1,1382 @@
+# SPDX-License-Identifier: MIT
+# nvidia-smi package, VM iteration it2, file trace-smi.txt (2026-09-23).
+   155255807 W bar0 0x00000180 4  0x0          latched
+   155255856 W bar0 0x00000160 4  0x0          latched
+   155255883 W bar0 0x00b81408 4  0x3          NV_VF_CPU_INTR_LEAF_EN_CLEAR(i)
+   155255907 W bar0 0x00b81610 4  0x8          NV_VF_CPU_INTR_TOP_EN_CLEAR(0)
+   155255931 W bar0 0x00b81608 4  0x1          NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155255957 W bar0 0x00000180 4  0x0          latched
+   155256196 W bar0 0x00000160 4  0x0          latched
+   155256221 W bar0 0x00000180 4  0x0          latched
+   155256244 W bar0 0x00000160 4  0x0          latched
+   155256308 W bar0 0x00000180 4  0x0          latched
+   155256338 W bar0 0x00000160 4  0x0          latched
+   155256363 W bar0 0x00000180 4  0x0          latched
+   155256387 W bar0 0x00000160 4  0x0          latched
+   155256411 W bar0 0x00b81208 4  0x3          NV_VF_CPU_INTR_LEAF_EN_SET(i)
+   155256435 W bar0 0x00b81608 4  0xfffffffe   NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155256458 W bar0 0x00b81608 4  0x1          NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155258578 R cfg  0x00000006 2  0x10
+   155258604 R cfg  0x00000034 1  0x60
+   155258619 R cfg  0x00000060 1  0x1
+   155258630 R cfg  0x00000061 1  0x68
+   155258641 R cfg  0x00000068 1  0x5
+   155258652 R cfg  0x00000069 1  0x78
+   155258663 R cfg  0x00000078 1  0x10
+   155258679 R cfg  0x00000079 1  0x0
+   155258694 R cfg  0x00000000 4  0x1f0210de
+   155258727 R cfg  0x00000006 2  0x10
+   155258742 R cfg  0x00000034 1  0x60
+   155258753 R cfg  0x00000060 1  0x1
+   155258764 R cfg  0x00000061 1  0x68
+   155258777 R cfg  0x00000068 1  0x5
+   155258787 R cfg  0x00000069 1  0x78
+   155258797 R cfg  0x00000078 1  0x10
+   155258811 R cfg  0x00000079 1  0x0
+   155258826 R cfg  0x00000004 4  0x100407
+   155258867 R cfg  0x00000006 2  0x10
+   155258882 R cfg  0x00000034 1  0x60
+   155258894 R cfg  0x00000060 1  0x1
+   155258908 R cfg  0x00000061 1  0x68
+   155258923 R cfg  0x00000068 1  0x5
+   155258937 R cfg  0x00000069 1  0x78
+   155258951 R cfg  0x00000078 1  0x10
+   155258962 R cfg  0x00000079 1  0x0
+   155258990 R cfg  0x00000008 4  0x30000a1
+   155259022 R cfg  0x00000006 2  0x10
+   155259034 R cfg  0x00000034 1  0x60
+   155259045 R cfg  0x00000060 1  0x1
+   155259055 R cfg  0x00000061 1  0x68
+   155259069 R cfg  0x00000068 1  0x5
+   155259080 R cfg  0x00000069 1  0x78
+   155259091 R cfg  0x00000078 1  0x10
+   155259104 R cfg  0x00000079 1  0x0
+   155259119 R cfg  0x0000000c 4  0x80f800
+   155259222 R cfg  0x00000006 2  0x10
+   155259234 R cfg  0x00000034 1  0x60
+   155259245 R cfg  0x00000060 1  0x1
+   155259260 R cfg  0x00000061 1  0x68
+   155259275 R cfg  0x00000068 1  0x5
+   155259289 R cfg  0x00000069 1  0x78
+   155259304 R cfg  0x00000078 1  0x10
+   155259320 R cfg  0x00000079 1  0x0
+   155259333 R cfg  0x00000028 4  0x0
+   155259361 R cfg  0x00000006 2  0x10
+   155259373 R cfg  0x00000034 1  0x60
+   155259387 R cfg  0x00000060 1  0x1
+   155259398 R cfg  0x00000061 1  0x68
+   155259412 R cfg  0x00000068 1  0x5
+   155259426 R cfg  0x00000069 1  0x78
+   155259436 R cfg  0x00000078 1  0x10
+   155259447 R cfg  0x00000079 1  0x0
+   155259458 R cfg  0x0000002c 4  0x40111458
+   155518534 W bar0 0x00000180 4  0x0          latched
+   155518595 W bar0 0x00000160 4  0x0          latched
+   155518629 W bar0 0x00b81408 4  0x3          NV_VF_CPU_INTR_LEAF_EN_CLEAR(i)
+   155518656 W bar0 0x00b81610 4  0x8          NV_VF_CPU_INTR_TOP_EN_CLEAR(0)
+   155518680 W bar0 0x00b81608 4  0x1          NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155518715 W bar0 0x00000180 4  0x0          latched
+   155518791 W bar0 0x00000160 4  0x0          latched
+   155518821 W bar0 0x00000180 4  0x0          latched
+   155518845 W bar0 0x00000160 4  0x0          latched
+   155518897 W bar0 0x00000180 4  0x0          latched
+   155518920 W bar0 0x00000160 4  0x0          latched
+   155518943 W bar0 0x00000180 4  0x0          latched
+   155518982 W bar0 0x00000160 4  0x0          latched
+   155519007 W bar0 0x00b81208 4  0x3          NV_VF_CPU_INTR_LEAF_EN_SET(i)
+   155519030 W bar0 0x00b81608 4  0xfffffffe   NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155519052 W bar0 0x00b81608 4  0x1          NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155521138 W bar0 0x00000180 4  0x0          latched
+   155521185 W bar0 0x00000160 4  0x0          latched
+   155521210 W bar0 0x00b81408 4  0x3          NV_VF_CPU_INTR_LEAF_EN_CLEAR(i)
+   155521234 W bar0 0x00b81610 4  0x8          NV_VF_CPU_INTR_TOP_EN_CLEAR(0)
+   155521257 W bar0 0x00b81608 4  0x1          NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155521282 W bar0 0x00000180 4  0x0          latched
+   155521305 W bar0 0x00000160 4  0x0          latched
+   155521327 W bar0 0x00000180 4  0x0          latched
+   155521350 W bar0 0x00000160 4  0x0          latched
+   155521376 W bar0 0x00000180 4  0x0          latched
+   155521399 W bar0 0x00000160 4  0x0          latched
+   155521422 W bar0 0x00000180 4  0x0          latched
+   155521445 W bar0 0x00000160 4  0x0          latched
+   155521468 W bar0 0x00b81208 4  0x3          NV_VF_CPU_INTR_LEAF_EN_SET(i)
+   155521491 W bar0 0x00b81608 4  0xfffffffe   NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155521513 W bar0 0x00b81608 4  0x1          NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155521555 W bar0 0x00000180 4  0x0          latched
+   155521579 W bar0 0x00000160 4  0x0          latched
+   155521603 W bar0 0x00b81408 4  0x3          NV_VF_CPU_INTR_LEAF_EN_CLEAR(i)
+   155521629 W bar0 0x00b81610 4  0x8          NV_VF_CPU_INTR_TOP_EN_CLEAR(0)
+   155521652 W bar0 0x00b81608 4  0x1          NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155521676 W bar0 0x00000180 4  0x0          latched
+   155521698 W bar0 0x00000160 4  0x0          latched
+   155521721 W bar0 0x00000180 4  0x0          latched
+   155521744 W bar0 0x00000160 4  0x0          latched
+   155521817 W bar0 0x00110c00 4  0x0          NV_PGSP_QUEUE_HEAD/TAIL
+   155521819 E boot: doorbell 73: libos args PA 0x10667d000 (mapped), wpr meta PA 0x10667c000
+   155521820 E boot: rx seq 72 GSP_RM_ALLOC (103) sequence 70 length 64 checksum ok: hClient=0xc1d00005 hParent=0x0 hObject=0x0 hClass=0x0 paramsSize=120 flags=0x0
+   155521822 E boot: alloc: alloc NV01_ROOT 0x0 object 0x0 under 0x0 -> status 0x0 [synthesized (object recorded, no host object yet)]
+   155521823 E boot: tx seq 71 reply GSP_RM_ALLOC sequence 70 result 0x0 length 184
+   155521874 R bar0 0x00110094 4  0x0          NV_PGSP (GSP falcon)
+   155521907 R bar0 0x00110804 4  0x0          NV_PGSP (GSP falcon)
+   155521930 R bar0 0x00110808 4  0x0          NV_PGSP (GSP falcon)
+   155521974 W bar0 0x00110c00 4  0x0          NV_PGSP_QUEUE_HEAD/TAIL
+   155521977 E boot: doorbell 74: libos args PA 0x10667d000 (mapped), wpr meta PA 0x10667c000
+   155521978 E boot: rx seq 73 GSP_RM_ALLOC (103) sequence 71 length 64 checksum ok: hClient=0xc1d00005 hParent=0xc1d00005 hObject=0xa55a0020 hClass=0x80 paramsSize=56 flags=0x0
+   155521980 E boot: alloc: alloc NV01_DEVICE_0 0x80 object 0xa55a0020 under 0xc1d00005 -> status 0x0 [synthesized (object recorded, no host object yet)]
+   155521981 E boot: tx seq 72 reply GSP_RM_ALLOC sequence 71 result 0x0 length 120
+   155522010 R bar0 0x00110094 4  0x0          NV_PGSP (GSP falcon)
+   155522038 R bar0 0x00110804 4  0x0          NV_PGSP (GSP falcon)
+   155522064 R bar0 0x00110808 4  0x0          NV_PGSP (GSP falcon)
+   155522098 W bar0 0x00000180 4  0x0          latched
+   155522124 W bar0 0x00000160 4  0x0          latched
+   155522150 W bar0 0x00000180 4  0x0          latched
+   155522175 W bar0 0x00000160 4  0x0          latched
+   155522201 W bar0 0x00b81208 4  0x3          NV_VF_CPU_INTR_LEAF_EN_SET(i)
+   155522227 W bar0 0x00b81608 4  0xfffffffe   NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155522253 W bar0 0x00b81608 4  0x1          NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155522354 W bar0 0x00000180 4  0x0          latched
+   155522384 W bar0 0x00000160 4  0x0          latched
+   155522421 W bar0 0x00b81408 4  0x3          NV_VF_CPU_INTR_LEAF_EN_CLEAR(i)
+   155522450 W bar0 0x00b81610 4  0x8          NV_VF_CPU_INTR_TOP_EN_CLEAR(0)
+   155522478 W bar0 0x00b81608 4  0x1          NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155522505 W bar0 0x00000180 4  0x0          latched
+   155522531 W bar0 0x00000160 4  0x0          latched
+   155522557 W bar0 0x00000180 4  0x0          latched
+   155522583 W bar0 0x00000160 4  0x0          latched
+   155522626 W bar0 0x00110c00 4  0x0          NV_PGSP_QUEUE_HEAD/TAIL
+   155522628 E boot: doorbell 75: libos args PA 0x10667d000 (mapped), wpr meta PA 0x10667c000
+   155522629 E boot: rx seq 74 GSP_RM_ALLOC (103) sequence 72 length 64 checksum ok: hClient=0xc1d00005 hParent=0xa55a0020 hObject=0xa55a0030 hClass=0x2080 paramsSize=4 flags=0x0
+   155522631 E boot: alloc: alloc NV20_SUBDEVICE_0 0x2080 object 0xa55a0030 under 0xa55a0020 -> status 0x0 [synthesized (object recorded, no host object yet)]
+   155522632 E boot: tx seq 73 reply GSP_RM_ALLOC sequence 72 result 0x0 length 68
+   155522663 R bar0 0x00110094 4  0x0          NV_PGSP (GSP falcon)
+   155522691 R bar0 0x00110804 4  0x0          NV_PGSP (GSP falcon)
+   155522717 R bar0 0x00110808 4  0x0          NV_PGSP (GSP falcon)
+   155522746 W bar0 0x00000180 4  0x0          latched
+   155522768 W bar0 0x00000160 4  0x0          latched
+   155522791 W bar0 0x00000180 4  0x0          latched
+   155522821 W bar0 0x00000160 4  0x0          latched
+   155522853 W bar0 0x00b81208 4  0x3          NV_VF_CPU_INTR_LEAF_EN_SET(i)
+   155522880 W bar0 0x00b81608 4  0xfffffffe   NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155522902 W bar0 0x00b81608 4  0x1          NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155522948 W bar0 0x00000180 4  0x0          latched
+   155522978 W bar0 0x00000160 4  0x0          latched
+   155523017 W bar0 0x00b81408 4  0x3          NV_VF_CPU_INTR_LEAF_EN_CLEAR(i)
+   155523049 W bar0 0x00b81610 4  0x8          NV_VF_CPU_INTR_TOP_EN_CLEAR(0)
+   155523076 W bar0 0x00b81608 4  0x1          NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155523101 W bar0 0x00000180 4  0x0          latched
+   155523124 W bar0 0x00000160 4  0x0          latched
+   155523146 W bar0 0x00000180 4  0x0          latched
+   155523169 W bar0 0x00000160 4  0x0          latched
+   155523195 R bar0 0x00bb0084 4  0x0          NV_VIRTUAL_FUNCTION_PRIV_TIMER/DOORBELL
+   155523219 R bar0 0x00bb0080 4  0x0          NV_VIRTUAL_FUNCTION_PRIV_TIMER/DOORBELL
+   155523243 R bar0 0x00bb0084 4  0x0          NV_VIRTUAL_FUNCTION_PRIV_TIMER/DOORBELL
+   155523266 R bar0 0x00bb0084 4  0x0          NV_VIRTUAL_FUNCTION_PRIV_TIMER/DOORBELL
+   155523290 R bar0 0x00bb0080 4  0x0          NV_VIRTUAL_FUNCTION_PRIV_TIMER/DOORBELL
+   155523314 R bar0 0x00bb0084 4  0x0          NV_VIRTUAL_FUNCTION_PRIV_TIMER/DOORBELL
+   155523338 R bar0 0x00bb0084 4  0x0          NV_VIRTUAL_FUNCTION_PRIV_TIMER/DOORBELL
+   155523362 R bar0 0x00bb0080 4  0x0          NV_VIRTUAL_FUNCTION_PRIV_TIMER/DOORBELL
+   155523386 R bar0 0x00bb0084 4  0x0          NV_VIRTUAL_FUNCTION_PRIV_TIMER/DOORBELL
+   155523410 R bar0 0x00bb0084 4  0x0          NV_VIRTUAL_FUNCTION_PRIV_TIMER/DOORBELL
+   155523433 R bar0 0x00bb0080 4  0x0          NV_VIRTUAL_FUNCTION_PRIV_TIMER/DOORBELL
+   155523457 R bar0 0x00bb0084 4  0x0          NV_VIRTUAL_FUNCTION_PRIV_TIMER/DOORBELL
+   155523480 R bar0 0x00bb0084 4  0x0          NV_VIRTUAL_FUNCTION_PRIV_TIMER/DOORBELL
+   155523504 R bar0 0x00bb0080 4  0x0          NV_VIRTUAL_FUNCTION_PRIV_TIMER/DOORBELL
+   155523527 R bar0 0x00bb0084 4  0x0          NV_VIRTUAL_FUNCTION_PRIV_TIMER/DOORBELL
+   155523554 W bar0 0x00000180 4  0x0          latched
+   155523577 W bar0 0x00000160 4  0x0          latched
+   155523601 W bar0 0x00000180 4  0x0          latched
+   155523624 W bar0 0x00000160 4  0x0          latched
+   155523648 W bar0 0x00b81208 4  0x3          NV_VF_CPU_INTR_LEAF_EN_SET(i)
+   155523671 W bar0 0x00b81608 4  0xfffffffe   NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155523694 W bar0 0x00b81608 4  0x1          NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155528807 W bar0 0x00000180 4  0x0          latched
+   155528842 W bar0 0x00000160 4  0x0          latched
+   155528878 W bar0 0x00b81408 4  0x3          NV_VF_CPU_INTR_LEAF_EN_CLEAR(i)
+   155528904 W bar0 0x00b81610 4  0x8          NV_VF_CPU_INTR_TOP_EN_CLEAR(0)
+   155528930 W bar0 0x00b81608 4  0x1          NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155528954 W bar0 0x00000180 4  0x0          latched
+   155528985 W bar0 0x00000160 4  0x0          latched
+   155529011 W bar0 0x00000180 4  0x0          latched
+   155529034 W bar0 0x00000160 4  0x0          latched
+   155529072 R bar0 0x00bb0084 4  0x0          NV_VIRTUAL_FUNCTION_PRIV_TIMER/DOORBELL
+   155529097 R bar0 0x00bb0080 4  0x0          NV_VIRTUAL_FUNCTION_PRIV_TIMER/DOORBELL
+   155529121 R bar0 0x00bb0084 4  0x0          NV_VIRTUAL_FUNCTION_PRIV_TIMER/DOORBELL
+   155529145 R bar0 0x00bb0084 4  0x0          NV_VIRTUAL_FUNCTION_PRIV_TIMER/DOORBELL
+   155529168 R bar0 0x00bb0080 4  0x0          NV_VIRTUAL_FUNCTION_PRIV_TIMER/DOORBELL
+   155529192 R bar0 0x00bb0084 4  0x0          NV_VIRTUAL_FUNCTION_PRIV_TIMER/DOORBELL
+   155529216 R bar0 0x00bb0084 4  0x0          NV_VIRTUAL_FUNCTION_PRIV_TIMER/DOORBELL
+   155529239 R bar0 0x00bb0080 4  0x0          NV_VIRTUAL_FUNCTION_PRIV_TIMER/DOORBELL
+   155529262 R bar0 0x00bb0084 4  0x0          NV_VIRTUAL_FUNCTION_PRIV_TIMER/DOORBELL
+   155529286 R bar0 0x00bb0084 4  0x0          NV_VIRTUAL_FUNCTION_PRIV_TIMER/DOORBELL
+   155529310 R bar0 0x00bb0080 4  0x0          NV_VIRTUAL_FUNCTION_PRIV_TIMER/DOORBELL
+   155529333 R bar0 0x00bb0084 4  0x0          NV_VIRTUAL_FUNCTION_PRIV_TIMER/DOORBELL
+   155529357 R bar0 0x00bb0084 4  0x0          NV_VIRTUAL_FUNCTION_PRIV_TIMER/DOORBELL
+   155529380 R bar0 0x00bb0080 4  0x0          NV_VIRTUAL_FUNCTION_PRIV_TIMER/DOORBELL
+   155529403 R bar0 0x00bb0084 4  0x0          NV_VIRTUAL_FUNCTION_PRIV_TIMER/DOORBELL
+   155529430 W bar0 0x00000180 4  0x0          latched
+   155529453 W bar0 0x00000160 4  0x0          latched
+   155529476 W bar0 0x00000180 4  0x0          latched
+   155529499 W bar0 0x00000160 4  0x0          latched
+   155529522 W bar0 0x00b81208 4  0x3          NV_VF_CPU_INTR_LEAF_EN_SET(i)
+   155529545 W bar0 0x00b81608 4  0xfffffffe   NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155529568 W bar0 0x00b81608 4  0x1          NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155529612 W bar0 0x00000180 4  0x0          latched
+   155529636 W bar0 0x00000160 4  0x0          latched
+   155529660 W bar0 0x00b81408 4  0x3          NV_VF_CPU_INTR_LEAF_EN_CLEAR(i)
+   155529682 W bar0 0x00b81610 4  0x8          NV_VF_CPU_INTR_TOP_EN_CLEAR(0)
+   155529705 W bar0 0x00b81608 4  0x1          NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155529728 W bar0 0x00000180 4  0x0          latched
+   155529751 W bar0 0x00000160 4  0x0          latched
+   155529774 W bar0 0x00000180 4  0x0          latched
+   155529797 W bar0 0x00000160 4  0x0          latched
+   155529834 W bar0 0x00000180 4  0x0          latched
+   155529858 W bar0 0x00000160 4  0x0          latched
+   155529886 W bar0 0x00000180 4  0x0          latched
+   155529912 W bar0 0x00000160 4  0x0          latched
+   155529938 W bar0 0x00b81208 4  0x3          NV_VF_CPU_INTR_LEAF_EN_SET(i)
+   155529961 W bar0 0x00b81608 4  0xfffffffe   NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155529989 W bar0 0x00b81608 4  0x1          NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155531237 W bar0 0x00000180 4  0x0          latched
+   155531273 W bar0 0x00000160 4  0x0          latched
+   155531355 W bar0 0x00b81408 4  0x3          NV_VF_CPU_INTR_LEAF_EN_CLEAR(i)
+   155531393 W bar0 0x00b81610 4  0x8          NV_VF_CPU_INTR_TOP_EN_CLEAR(0)
+   155531420 W bar0 0x00b81608 4  0x1          NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155531446 W bar0 0x00000180 4  0x0          latched
+   155531472 W bar0 0x00000160 4  0x0          latched
+   155531498 W bar0 0x00000180 4  0x0          latched
+   155531524 W bar0 0x00000160 4  0x0          latched
+   155531572 W bar0 0x00110c00 4  0x0          NV_PGSP_QUEUE_HEAD/TAIL
+   155531574 E boot: doorbell 76: libos args PA 0x10667d000 (mapped), wpr meta PA 0x10667c000
+   155531575 E boot: rx seq 75 GSP_RM_CONTROL (76) sequence 73 length 76 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20800a4c paramsSize=4 rpcFlags=0x0
+   155531582 E boot: ctrl 0x20800a4c: smc mode: unsupported -> status 0x0 [synthesized (SMC/MIG unsupported on TU106)]
+   155531583 E boot: tx seq 74 reply GSP_RM_CONTROL sequence 73 result 0x0 length 76
+   155531615 R bar0 0x00110094 4  0x0          NV_PGSP (GSP falcon)
+   155531643 R bar0 0x00110804 4  0x0          NV_PGSP (GSP falcon)
+   155531668 R bar0 0x00110808 4  0x0          NV_PGSP (GSP falcon)
+   155531694 W bar0 0x00000180 4  0x0          latched
+   155531717 W bar0 0x00000160 4  0x0          latched
+   155531740 W bar0 0x00000180 4  0x0          latched
+   155531763 W bar0 0x00000160 4  0x0          latched
+   155531787 W bar0 0x00b81208 4  0x3          NV_VF_CPU_INTR_LEAF_EN_SET(i)
+   155531810 W bar0 0x00b81608 4  0xfffffffe   NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155531845 W bar0 0x00b81608 4  0x1          NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155532057 W bar0 0x00000180 4  0x0          latched
+   155532095 W bar0 0x00000160 4  0x0          latched
+   155532122 W bar0 0x00b81408 4  0x3          NV_VF_CPU_INTR_LEAF_EN_CLEAR(i)
+   155532147 W bar0 0x00b81610 4  0x8          NV_VF_CPU_INTR_TOP_EN_CLEAR(0)
+   155532175 W bar0 0x00b81608 4  0x1          NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155532203 W bar0 0x00000180 4  0x0          latched
+   155532232 W bar0 0x00000160 4  0x0          latched
+   155532261 W bar0 0x00000180 4  0x0          latched
+   155532292 W bar0 0x00000160 4  0x0          latched
+   155532318 W bar0 0x00000180 4  0x0          latched
+   155532341 W bar0 0x00000160 4  0x0          latched
+   155532365 W bar0 0x00000180 4  0x0          latched
+   155532388 W bar0 0x00000160 4  0x0          latched
+   155532412 W bar0 0x00b81208 4  0x3          NV_VF_CPU_INTR_LEAF_EN_SET(i)
+   155532436 W bar0 0x00b81608 4  0xfffffffe   NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155532459 W bar0 0x00b81608 4  0x1          NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155532503 W bar0 0x00000180 4  0x0          latched
+   155532527 W bar0 0x00000160 4  0x0          latched
+   155532550 W bar0 0x00b81408 4  0x3          NV_VF_CPU_INTR_LEAF_EN_CLEAR(i)
+   155532573 W bar0 0x00b81610 4  0x8          NV_VF_CPU_INTR_TOP_EN_CLEAR(0)
+   155532597 W bar0 0x00b81608 4  0x1          NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155532621 W bar0 0x00000180 4  0x0          latched
+   155532644 W bar0 0x00000160 4  0x0          latched
+   155532667 W bar0 0x00000180 4  0x0          latched
+   155532690 W bar0 0x00000160 4  0x0          latched
+   155532717 W bar0 0x00000180 4  0x0          latched
+   155532741 W bar0 0x00000160 4  0x0          latched
+   155532764 W bar0 0x00000180 4  0x0          latched
+   155532787 W bar0 0x00000160 4  0x0          latched
+   155532856 W bar0 0x00b81208 4  0x3          NV_VF_CPU_INTR_LEAF_EN_SET(i)
+   155532896 W bar0 0x00b81608 4  0xfffffffe   NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155532926 W bar0 0x00b81608 4  0x1          NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155532984 W bar0 0x00000180 4  0x0          latched
+   155533016 W bar0 0x00000160 4  0x0          latched
+   155533044 W bar0 0x00b81408 4  0x3          NV_VF_CPU_INTR_LEAF_EN_CLEAR(i)
+   155533073 W bar0 0x00b81610 4  0x8          NV_VF_CPU_INTR_TOP_EN_CLEAR(0)
+   155533103 W bar0 0x00b81608 4  0x1          NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155533130 W bar0 0x00000180 4  0x0          latched
+   155533157 W bar0 0x00000160 4  0x0          latched
+   155533183 W bar0 0x00000180 4  0x0          latched
+   155533209 W bar0 0x00000160 4  0x0          latched
+   155533237 W bar0 0x00000180 4  0x0          latched
+   155533263 W bar0 0x00000160 4  0x0          latched
+   155533289 W bar0 0x00000180 4  0x0          latched
+   155533313 W bar0 0x00000160 4  0x0          latched
+   155533336 W bar0 0x00b81208 4  0x3          NV_VF_CPU_INTR_LEAF_EN_SET(i)
+   155533359 W bar0 0x00b81608 4  0xfffffffe   NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155533382 W bar0 0x00b81608 4  0x1          NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155533472 W bar0 0x00000180 4  0x0          latched
+   155533500 W bar0 0x00000160 4  0x0          latched
+   155533524 W bar0 0x00b81408 4  0x3          NV_VF_CPU_INTR_LEAF_EN_CLEAR(i)
+   155533554 W bar0 0x00b81610 4  0x8          NV_VF_CPU_INTR_TOP_EN_CLEAR(0)
+   155533577 W bar0 0x00b81608 4  0x1          NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155533600 W bar0 0x00000180 4  0x0          latched
+   155533623 W bar0 0x00000160 4  0x0          latched
+   155533646 W bar0 0x00000180 4  0x0          latched
+   155533669 W bar0 0x00000160 4  0x0          latched
+   155534476 W bar0 0x00110c00 4  0x0          NV_PGSP_QUEUE_HEAD/TAIL
+   155534481 E boot: doorbell 77: libos args PA 0x10667d000 (mapped), wpr meta PA 0x10667c000
+   155534483 E boot: rx seq 76 GSP_RM_CONTROL (76) sequence 74 length 652 checksum ok: hClient=0xc1d00005 hObject=0xa55a0030 cmd=0x20800102 paramsSize=580 rpcFlags=0x0
+   155534484 E boot: ctrl 0x20800102: gpu info v2: 1 entries; host [0x11] status 0x0; own [] -> status 0x0 [host (GPU_GET_INFO_V2, marked indices)]
+   155534485 E boot: tx seq 75 reply GSP_RM_CONTROL sequence 74 result 0x0 length 652
+   155534533 R bar0 0x00110094 4  0x0          NV_PGSP (GSP falcon)
+   155534610 R bar0 0x00110804 4  0x0          NV_PGSP (GSP falcon)
+   155534638 R bar0 0x00110808 4  0x0          NV_PGSP (GSP falcon)
+   155534667 W bar0 0x00000180 4  0x0          latched
+   155534690 W bar0 0x00000160 4  0x0          latched
+   155534713 W bar0 0x00000180 4  0x0          latched
+   155534736 W bar0 0x00000160 4  0x0          latched
+   155534759 W bar0 0x00b81208 4  0x3          NV_VF_CPU_INTR_LEAF_EN_SET(i)
+   155534782 W bar0 0x00b81608 4  0xfffffffe   NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155534806 W bar0 0x00b81608 4  0x1          NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155534861 W bar0 0x00000180 4  0x0          latched
+   155534884 W bar0 0x00000160 4  0x0          latched
+   155534908 W bar0 0x00b81408 4  0x3          NV_VF_CPU_INTR_LEAF_EN_CLEAR(i)
+   155534931 W bar0 0x00b81610 4  0x8          NV_VF_CPU_INTR_TOP_EN_CLEAR(0)
+   155534955 W bar0 0x00b81608 4  0x1          NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155534985 W bar0 0x00000180 4  0x0          latched
+   155535015 W bar0 0x00000160 4  0x0          latched
+   155535037 W bar0 0x00000180 4  0x0          latched
+   155535064 W bar0 0x00000160 4  0x0          latched
+   155535357 W bar0 0x00110c00 4  0x0          NV_PGSP_QUEUE_HEAD/TAIL
+   155535358 E boot: doorbell 78: libos args PA 0x10667d000 (mapped), wpr meta PA 0x10667c000
+   155535360 E boot: rx seq 77 GSP_RM_CONTROL (76) sequence 75 length 76 checksum ok: hClient=0xc1d00005 hObject=0xa55a0020 cmd=0x800294 paramsSize=4 rpcFlags=0x0
+   155535361 E boot: ctrl 0x800294: GPU_GET_BRAND_CAPS: host status 0x0 -> status 0x0 [host (forwarded as-is, public control)]
+   155535362 E boot: tx seq 76 reply GSP_RM_CONTROL sequence 75 result 0x0 length 76
+   155535390 R bar0 0x00110094 4  0x0          NV_PGSP (GSP falcon)
+   155535414 R bar0 0x00110804 4  0x0          NV_PGSP (GSP falcon)
+   155535438 R bar0 0x00110808 4  0x0          NV_PGSP (GSP falcon)
+   155535466 W bar0 0x00000180 4  0x0          latched
+   155535488 W bar0 0x00000160 4  0x0          latched
+   155535511 W bar0 0x00000180 4  0x0          latched
+   155535533 W bar0 0x00000160 4  0x0          latched
+   155535556 W bar0 0x00b81208 4  0x3          NV_VF_CPU_INTR_LEAF_EN_SET(i)
+   155535579 W bar0 0x00b81608 4  0xfffffffe   NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155535601 W bar0 0x00b81608 4  0x1          NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155535641 W bar0 0x00000180 4  0x0          latched
+   155535667 W bar0 0x00000160 4  0x0          latched
+   155535690 W bar0 0x00b81408 4  0x3          NV_VF_CPU_INTR_LEAF_EN_CLEAR(i)
+   155535713 W bar0 0x00b81610 4  0x8          NV_VF_CPU_INTR_TOP_EN_CLEAR(0)
+   155535735 W bar0 0x00b81608 4  0x1          NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155535759 W bar0 0x00000180 4  0x0          latched
+   155535781 W bar0 0x00000160 4  0x0          latched
+   155535804 W bar0 0x00000180 4  0x0          latched
+   155535830 W bar0 0x00000160 4  0x0          latched
+   155535885 W bar0 0x00110c00 4  0x0          NV_PGSP_QUEUE_HEAD/TAIL
+   155535888 E boot: doorbell 79: libos args PA 0x10667d000 (mapped), wpr meta PA 0x10667c000
+   155535938 E boot: rx seq 78 GSP_RM_ALLOC (103) sequence 76 length 64 checksum ok: hClient=0xc1d00005 hParent=0xa55a0030 hObject=0xa55a0040 hClass=0x2081 paramsSize=4 flags=0x0
+   155535940 E boot: alloc: alloc other 0x2081 object 0xa55a0040 under 0xa55a0030 -> status 0x0 [synthesized (object recorded, no host object yet)]
+   155535941 E boot: tx seq 77 reply GSP_RM_ALLOC sequence 76 result 0x0 length 68
+   155535984 R bar0 0x00110094 4  0x0          NV_PGSP (GSP falcon)
+   155536019 R bar0 0x00110804 4  0x0          NV_PGSP (GSP falcon)
+   155536043 R bar0 0x00110808 4  0x0          NV_PGSP (GSP falcon)
+   155536071 W bar0 0x00000180 4  0x0          latched
+   155536093 W bar0 0x00000160 4  0x0          latched
+   155536116 W bar0 0x00000180 4  0x0          latched
+   155536139 W bar0 0x00000160 4  0x0          latched
+   155536162 W bar0 0x00b81208 4  0x3          NV_VF_CPU_INTR_LEAF_EN_SET(i)
+   155536185 W bar0 0x00b81608 4  0xfffffffe   NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155536207 W bar0 0x00b81608 4  0x1          NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155536243 W bar0 0x00000180 4  0x0          latched
+   155536266 W bar0 0x00000160 4  0x0          latched
+   155536289 W bar0 0x00b81408 4  0x3          NV_VF_CPU_INTR_LEAF_EN_CLEAR(i)
+   155536312 W bar0 0x00b81610 4  0x8          NV_VF_CPU_INTR_TOP_EN_CLEAR(0)
+   155536334 W bar0 0x00b81608 4  0x1          NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155536358 W bar0 0x00000180 4  0x0          latched
+   155536381 W bar0 0x00000160 4  0x0          latched
+   155536403 W bar0 0x00000180 4  0x0          latched
+   155536426 W bar0 0x00000160 4  0x0          latched
+   155537575 W bar0 0x00110c00 4  0x0          NV_PGSP_QUEUE_HEAD/TAIL
+   155537580 E boot: doorbell 80: libos args PA 0x10667d000 (mapped), wpr meta PA 0x10667c000
+   155537582 E boot: rx seq 79 GSP_RM_CONTROL (76) sequence 77 length 1064 checksum ok: hClient=0xc1d00005 hObject=0xa55a0040 cmd=0x20810108 paramsSize=992 rpcFlags=0x0
+   155537583 E boot: ctrl 0x20810108: binapi 0x20810108: host status 0x0 -> status 0x0 [host (BINAPI object of the host client, forwarded opaquely)]
+   155537584 E boot: tx seq 78 reply GSP_RM_CONTROL sequence 77 result 0x0 length 1064
+   155537627 R bar0 0x00110094 4  0x0          NV_PGSP (GSP falcon)
+   155537657 R bar0 0x00110804 4  0x0          NV_PGSP (GSP falcon)
+   155537686 R bar0 0x00110808 4  0x0          NV_PGSP (GSP falcon)
+   155537717 W bar0 0x00000180 4  0x0          latched
+   155537742 W bar0 0x00000160 4  0x0          latched
+   155537778 W bar0 0x00000180 4  0x0          latched
+   155537802 W bar0 0x00000160 4  0x0          latched
+   155537833 W bar0 0x00b81208 4  0x3          NV_VF_CPU_INTR_LEAF_EN_SET(i)
+   155537857 W bar0 0x00b81608 4  0xfffffffe   NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155537881 W bar0 0x00b81608 4  0x1          NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155537922 W bar0 0x00000180 4  0x0          latched
+   155537946 W bar0 0x00000160 4  0x0          latched
+   155537981 W bar0 0x00b81408 4  0x3          NV_VF_CPU_INTR_LEAF_EN_CLEAR(i)
+   155538014 W bar0 0x00b81610 4  0x8          NV_VF_CPU_INTR_TOP_EN_CLEAR(0)
+   155538036 W bar0 0x00b81608 4  0x1          NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155538060 W bar0 0x00000180 4  0x0          latched
+   155538082 W bar0 0x00000160 4  0x0          latched
+   155538105 W bar0 0x00000180 4  0x0          latched
+   155538128 W bar0 0x00000160 4  0x0          latched
+   155538155 W bar0 0x00000180 4  0x0          latched
+   155538177 W bar0 0x00000160 4  0x0          latched
+   155538200 W bar0 0x00000180 4  0x0          latched
+   155538223 W bar0 0x00000160 4  0x0          latched
+   155538246 W bar0 0x00b81208 4  0x3          NV_VF_CPU_INTR_LEAF_EN_SET(i)
+   155538269 W bar0 0x00b81608 4  0xfffffffe   NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155538291 W bar0 0x00b81608 4  0x1          NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155538326 W bar0 0x00000180 4  0x0          latched
+   155538350 W bar0 0x00000160 4  0x0          latched
+   155538373 W bar0 0x00b81408 4  0x3          NV_VF_CPU_INTR_LEAF_EN_CLEAR(i)
+   155538395 W bar0 0x00b81610 4  0x8          NV_VF_CPU_INTR_TOP_EN_CLEAR(0)
+   155538424 W bar0 0x00b81608 4  0x1          NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155538448 W bar0 0x00000180 4  0x0          latched
+   155538470 W bar0 0x00000160 4  0x0          latched
+   155538493 W bar0 0x00000180 4  0x0          latched
+   155538515 W bar0 0x00000160 4  0x0          latched
+   155538746 W bar0 0x00110c00 4  0x0          NV_PGSP_QUEUE_HEAD/TAIL
+   155538747 E boot: doorbell 81: libos args PA 0x10667d000 (mapped), wpr meta PA 0x10667c000
+   155538749 E boot: rx seq 80 GSP_RM_CONTROL (76) sequence 78 length 73 checksum ok: hClient=0xc1d00005 hObject=0xa55a0040 cmd=0x20810110 paramsSize=1 rpcFlags=0x0
+   155538750 E boot: ctrl 0x20810110: binapi 0x20810110: host status 0x56 -> status 0x56 [host (BINAPI object of the host client, forwarded opaquely)]
+   155538751 E boot: tx seq 79 reply GSP_RM_CONTROL sequence 78 result 0x0 length 73
+   155538777 R bar0 0x00110094 4  0x0          NV_PGSP (GSP falcon)
+   155538802 R bar0 0x00110804 4  0x0          NV_PGSP (GSP falcon)
+   155538840 R bar0 0x00110808 4  0x0          NV_PGSP (GSP falcon)
+   155538872 W bar0 0x00000180 4  0x0          latched
+   155538897 W bar0 0x00000160 4  0x0          latched
+   155538922 W bar0 0x00000180 4  0x0          latched
+   155538948 W bar0 0x00000160 4  0x0          latched
+   155538991 W bar0 0x00b81208 4  0x3          NV_VF_CPU_INTR_LEAF_EN_SET(i)
+   155539024 W bar0 0x00b81608 4  0xfffffffe   NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155539057 W bar0 0x00b81608 4  0x1          NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155539102 W bar0 0x00000180 4  0x0          latched
+   155539125 W bar0 0x00000160 4  0x0          latched
+   155539149 W bar0 0x00b81408 4  0x3          NV_VF_CPU_INTR_LEAF_EN_CLEAR(i)
+   155539170 W bar0 0x00b81610 4  0x8          NV_VF_CPU_INTR_TOP_EN_CLEAR(0)
+   155539193 W bar0 0x00b81608 4  0x1          NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155539217 W bar0 0x00000180 4  0x0          latched
+   155539239 W bar0 0x00000160 4  0x0          latched
+   155539262 W bar0 0x00000180 4  0x0          latched
+   155539284 W bar0 0x00000160 4  0x0          latched
+   155539894 W bar0 0x00110c00 4  0x0          NV_PGSP_QUEUE_HEAD/TAIL
+   155539896 E boot: doorbell 82: libos args PA 0x10667d000 (mapped), wpr meta PA 0x10667c000
+   155539897 E boot: rx seq 81 GSP_RM_CONTROL (76) sequence 79 length 77 checksum ok: hClient=0xc1d00005 hObject=0xa55a0030 cmd=0x2080014b paramsSize=5 rpcFlags=0x0
+   155539898 E boot: ctrl 0x2080014b: GPU_GET_INFOROM_OBJECT_VERSION: host status 0x0 -> status 0x0 [host (forwarded as-is, public control)]
+   155539900 E boot: tx seq 80 reply GSP_RM_CONTROL sequence 79 result 0x0 length 77
+   155539939 R bar0 0x00110094 4  0x0          NV_PGSP (GSP falcon)
+   155539971 R bar0 0x00110804 4  0x0          NV_PGSP (GSP falcon)
+   155539997 R bar0 0x00110808 4  0x0          NV_PGSP (GSP falcon)
+   155540029 W bar0 0x00000180 4  0x0          latched
+   155540053 W bar0 0x00000160 4  0x0          latched
+   155540076 W bar0 0x00000180 4  0x0          latched
+   155540100 W bar0 0x00000160 4  0x0          latched
+   155540123 W bar0 0x00b81208 4  0x3          NV_VF_CPU_INTR_LEAF_EN_SET(i)
+   155540146 W bar0 0x00b81608 4  0xfffffffe   NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155540170 W bar0 0x00b81608 4  0x1          NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155540700 W bar0 0x00000180 4  0x0          latched
+   155540725 W bar0 0x00000160 4  0x0          latched
+   155540749 W bar0 0x00b81408 4  0x3          NV_VF_CPU_INTR_LEAF_EN_CLEAR(i)
+   155540772 W bar0 0x00b81610 4  0x8          NV_VF_CPU_INTR_TOP_EN_CLEAR(0)
+   155540795 W bar0 0x00b81608 4  0x1          NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155540826 W bar0 0x00000180 4  0x0          latched
+   155540855 W bar0 0x00000160 4  0x0          latched
+   155540878 W bar0 0x00000180 4  0x0          latched
+   155540901 W bar0 0x00000160 4  0x0          latched
+   155541152 W bar0 0x00110c00 4  0x0          NV_PGSP_QUEUE_HEAD/TAIL
+   155541156 E boot: doorbell 83: libos args PA 0x10667d000 (mapped), wpr meta PA 0x10667c000
+   155541157 E boot: rx seq 82 GSP_RM_CONTROL (76) sequence 80 length 72 checksum ok: hClient=0xc1d00005 hObject=0xa55a0030 cmd=0x20800157 paramsSize=0 rpcFlags=0x0
+   155541164 E boot: ctrl 0x20800157: GPU_QUERY_INFOROM_ECC_SUPPORT: host status 0x56 -> status 0x56 [host (forwarded as-is, public control)]
+   155541165 E boot: tx seq 81 reply GSP_RM_CONTROL sequence 80 result 0x0 length 72
+   155541196 R bar0 0x00110094 4  0x0          NV_PGSP (GSP falcon)
+   155541222 R bar0 0x00110804 4  0x0          NV_PGSP (GSP falcon)
+   155541247 R bar0 0x00110808 4  0x0          NV_PGSP (GSP falcon)
+   155541274 W bar0 0x00000180 4  0x0          latched
+   155541297 W bar0 0x00000160 4  0x0          latched
+   155541320 W bar0 0x00000180 4  0x0          latched
+   155541343 W bar0 0x00000160 4  0x0          latched
+   155541366 W bar0 0x00b81208 4  0x3          NV_VF_CPU_INTR_LEAF_EN_SET(i)
+   155541389 W bar0 0x00b81608 4  0xfffffffe   NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155541412 W bar0 0x00b81608 4  0x1          NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155541688 W bar0 0x00000180 4  0x0          latched
+   155541712 W bar0 0x00000160 4  0x0          latched
+   155541736 W bar0 0x00b81408 4  0x3          NV_VF_CPU_INTR_LEAF_EN_CLEAR(i)
+   155541758 W bar0 0x00b81610 4  0x8          NV_VF_CPU_INTR_TOP_EN_CLEAR(0)
+   155541781 W bar0 0x00b81608 4  0x1          NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155541805 W bar0 0x00000180 4  0x0          latched
+   155541836 W bar0 0x00000160 4  0x0          latched
+   155541867 W bar0 0x00000180 4  0x0          latched
+   155541891 W bar0 0x00000160 4  0x0          latched
+   155542124 W bar0 0x00110c00 4  0x0          NV_PGSP_QUEUE_HEAD/TAIL
+   155542128 E boot: doorbell 84: libos args PA 0x10667d000 (mapped), wpr meta PA 0x10667c000
+   155542129 E boot: rx seq 83 GSP_RM_CONTROL (76) sequence 81 length 77 checksum ok: hClient=0xc1d00005 hObject=0xa55a0030 cmd=0x2080014b paramsSize=5 rpcFlags=0x0
+   155542130 E boot: ctrl 0x2080014b: GPU_GET_INFOROM_OBJECT_VERSION: host status 0x57 -> status 0x57 [host (forwarded as-is, public control)]
+   155542132 E boot: tx seq 82 reply GSP_RM_CONTROL sequence 81 result 0x0 length 77
+   155542161 R bar0 0x00110094 4  0x0          NV_PGSP (GSP falcon)
+   155542186 R bar0 0x00110804 4  0x0          NV_PGSP (GSP falcon)
+   155542211 R bar0 0x00110808 4  0x0          NV_PGSP (GSP falcon)
+   155542336 W bar0 0x00000180 4  0x0          latched
+   155542359 W bar0 0x00000160 4  0x0          latched
+   155542383 W bar0 0x00000180 4  0x0          latched
+   155542405 W bar0 0x00000160 4  0x0          latched
+   155542429 W bar0 0x00b81208 4  0x3          NV_VF_CPU_INTR_LEAF_EN_SET(i)
+   155542452 W bar0 0x00b81608 4  0xfffffffe   NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155542474 W bar0 0x00b81608 4  0x1          NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155542511 W bar0 0x00000180 4  0x0          latched
+   155542534 W bar0 0x00000160 4  0x0          latched
+   155542558 W bar0 0x00b81408 4  0x3          NV_VF_CPU_INTR_LEAF_EN_CLEAR(i)
+   155542581 W bar0 0x00b81610 4  0x8          NV_VF_CPU_INTR_TOP_EN_CLEAR(0)
+   155542603 W bar0 0x00b81608 4  0x1          NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155542627 W bar0 0x00000180 4  0x0          latched
+   155542650 W bar0 0x00000160 4  0x0          latched
+   155542673 W bar0 0x00000180 4  0x0          latched
+   155542695 W bar0 0x00000160 4  0x0          latched
+   155543109 W bar0 0x00110c00 4  0x0          NV_PGSP_QUEUE_HEAD/TAIL
+   155543113 E boot: doorbell 85: libos args PA 0x10667d000 (mapped), wpr meta PA 0x10667c000
+   155543115 E boot: rx seq 84 GSP_RM_CONTROL (76) sequence 82 length 77 checksum ok: hClient=0xc1d00005 hObject=0xa55a0030 cmd=0x2080014b paramsSize=5 rpcFlags=0x0
+   155543116 E boot: ctrl 0x2080014b: GPU_GET_INFOROM_OBJECT_VERSION: host status 0x57 -> status 0x57 [host (forwarded as-is, public control)]
+   155543117 E boot: tx seq 83 reply GSP_RM_CONTROL sequence 82 result 0x0 length 77
+   155543163 R bar0 0x00110094 4  0x0          NV_PGSP (GSP falcon)
+   155543197 R bar0 0x00110804 4  0x0          NV_PGSP (GSP falcon)
+   155543225 R bar0 0x00110808 4  0x0          NV_PGSP (GSP falcon)
+   155543258 W bar0 0x00000180 4  0x0          latched
+   155543281 W bar0 0x00000160 4  0x0          latched
+   155543303 W bar0 0x00000180 4  0x0          latched
+   155543326 W bar0 0x00000160 4  0x0          latched
+   155543350 W bar0 0x00b81208 4  0x3          NV_VF_CPU_INTR_LEAF_EN_SET(i)
+   155543372 W bar0 0x00b81608 4  0xfffffffe   NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155543395 W bar0 0x00b81608 4  0x1          NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155543431 W bar0 0x00000180 4  0x0          latched
+   155543455 W bar0 0x00000160 4  0x0          latched
+   155543478 W bar0 0x00b81408 4  0x3          NV_VF_CPU_INTR_LEAF_EN_CLEAR(i)
+   155543501 W bar0 0x00b81610 4  0x8          NV_VF_CPU_INTR_TOP_EN_CLEAR(0)
+   155543524 W bar0 0x00b81608 4  0x1          NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155543547 W bar0 0x00000180 4  0x0          latched
+   155543570 W bar0 0x00000160 4  0x0          latched
+   155543593 W bar0 0x00000180 4  0x0          latched
+   155543616 W bar0 0x00000160 4  0x0          latched
+   155543847 W bar0 0x00110c00 4  0x0          NV_PGSP_QUEUE_HEAD/TAIL
+   155543849 E boot: doorbell 86: libos args PA 0x10667d000 (mapped), wpr meta PA 0x10667c000
+   155543851 E boot: rx seq 85 GSP_RM_CONTROL (76) sequence 83 length 77 checksum ok: hClient=0xc1d00005 hObject=0xa55a0030 cmd=0x2080014b paramsSize=5 rpcFlags=0x0
+   155543852 E boot: ctrl 0x2080014b: GPU_GET_INFOROM_OBJECT_VERSION: host status 0x57 -> status 0x57 [host (forwarded as-is, public control)]
+   155543853 E boot: tx seq 84 reply GSP_RM_CONTROL sequence 83 result 0x0 length 77
+   155543891 R bar0 0x00110094 4  0x0          NV_PGSP (GSP falcon)
+   155543915 R bar0 0x00110804 4  0x0          NV_PGSP (GSP falcon)
+   155543941 R bar0 0x00110808 4  0x0          NV_PGSP (GSP falcon)
+   155543972 W bar0 0x00000180 4  0x0          latched
+   155543998 W bar0 0x00000160 4  0x0          latched
+   155544021 W bar0 0x00000180 4  0x0          latched
+   155544043 W bar0 0x00000160 4  0x0          latched
+   155544067 W bar0 0x00b81208 4  0x3          NV_VF_CPU_INTR_LEAF_EN_SET(i)
+   155544090 W bar0 0x00b81608 4  0xfffffffe   NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155544112 W bar0 0x00b81608 4  0x1          NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155544148 W bar0 0x00000180 4  0x0          latched
+   155544172 W bar0 0x00000160 4  0x0          latched
+   155544195 W bar0 0x00b81408 4  0x3          NV_VF_CPU_INTR_LEAF_EN_CLEAR(i)
+   155544218 W bar0 0x00b81610 4  0x8          NV_VF_CPU_INTR_TOP_EN_CLEAR(0)
+   155544241 W bar0 0x00b81608 4  0x1          NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155544264 W bar0 0x00000180 4  0x0          latched
+   155544287 W bar0 0x00000160 4  0x0          latched
+   155544310 W bar0 0x00000180 4  0x0          latched
+   155544333 W bar0 0x00000160 4  0x0          latched
+   155544548 W bar0 0x00110c00 4  0x0          NV_PGSP_QUEUE_HEAD/TAIL
+   155544549 E boot: doorbell 87: libos args PA 0x10667d000 (mapped), wpr meta PA 0x10667c000
+   155544550 E boot: rx seq 86 GSP_RM_CONTROL (76) sequence 84 length 77 checksum ok: hClient=0xc1d00005 hObject=0xa55a0030 cmd=0x2080014b paramsSize=5 rpcFlags=0x0
+   155544552 E boot: ctrl 0x2080014b: GPU_GET_INFOROM_OBJECT_VERSION: host status 0x57 -> status 0x57 [host (forwarded as-is, public control)]
+   155544553 E boot: tx seq 85 reply GSP_RM_CONTROL sequence 84 result 0x0 length 77
+   155544583 R bar0 0x00110094 4  0x0          NV_PGSP (GSP falcon)
+   155544607 R bar0 0x00110804 4  0x0          NV_PGSP (GSP falcon)
+   155544630 R bar0 0x00110808 4  0x0          NV_PGSP (GSP falcon)
+   155544657 W bar0 0x00000180 4  0x0          latched
+   155544680 W bar0 0x00000160 4  0x0          latched
+   155544703 W bar0 0x00000180 4  0x0          latched
+   155544725 W bar0 0x00000160 4  0x0          latched
+   155544749 W bar0 0x00b81208 4  0x3          NV_VF_CPU_INTR_LEAF_EN_SET(i)
+   155544772 W bar0 0x00b81608 4  0xfffffffe   NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155544794 W bar0 0x00b81608 4  0x1          NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155544853 W bar0 0x00000180 4  0x0          latched
+   155544878 W bar0 0x00000160 4  0x0          latched
+   155544913 W bar0 0x00b81408 4  0x3          NV_VF_CPU_INTR_LEAF_EN_CLEAR(i)
+   155544936 W bar0 0x00b81610 4  0x8          NV_VF_CPU_INTR_TOP_EN_CLEAR(0)
+   155544958 W bar0 0x00b81608 4  0x1          NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155544988 W bar0 0x00000180 4  0x0          latched
+   155545013 W bar0 0x00000160 4  0x0          latched
+   155545036 W bar0 0x00000180 4  0x0          latched
+   155545058 W bar0 0x00000160 4  0x0          latched
+   155545297 W bar0 0x00110c00 4  0x0          NV_PGSP_QUEUE_HEAD/TAIL
+   155545299 E boot: doorbell 88: libos args PA 0x10667d000 (mapped), wpr meta PA 0x10667c000
+   155545300 E boot: rx seq 87 GSP_RM_CONTROL (76) sequence 85 length 76 checksum ok: hClient=0xc1d00005 hObject=0xa55a0030 cmd=0x20801357 paramsSize=4 rpcFlags=0x0
+   155545301 E boot: ctrl 0x20801357: FB_QUERY_DRAM_ENCRYPTION_INFOROM_SUPPORT: host status 0x56 -> status 0x56 [host (forwarded as-is, public control)]
+   155545302 E boot: tx seq 86 reply GSP_RM_CONTROL sequence 85 result 0x0 length 76
+   155545329 R bar0 0x00110094 4  0x0          NV_PGSP (GSP falcon)
+   155545354 R bar0 0x00110804 4  0x0          NV_PGSP (GSP falcon)
+   155545378 R bar0 0x00110808 4  0x0          NV_PGSP (GSP falcon)
+   155545405 W bar0 0x00000180 4  0x0          latched
+   155545428 W bar0 0x00000160 4  0x0          latched
+   155545451 W bar0 0x00000180 4  0x0          latched
+   155545474 W bar0 0x00000160 4  0x0          latched
+   155545497 W bar0 0x00b81208 4  0x3          NV_VF_CPU_INTR_LEAF_EN_SET(i)
+   155545520 W bar0 0x00b81608 4  0xfffffffe   NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155545543 W bar0 0x00b81608 4  0x1          NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155545588 W bar0 0x00000180 4  0x0          latched
+   155545612 W bar0 0x00000160 4  0x0          latched
+   155545635 W bar0 0x00b81408 4  0x3          NV_VF_CPU_INTR_LEAF_EN_CLEAR(i)
+   155545658 W bar0 0x00b81610 4  0x8          NV_VF_CPU_INTR_TOP_EN_CLEAR(0)
+   155545681 W bar0 0x00b81608 4  0x1          NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155545704 W bar0 0x00000180 4  0x0          latched
+   155545727 W bar0 0x00000160 4  0x0          latched
+   155545750 W bar0 0x00000180 4  0x0          latched
+   155545773 W bar0 0x00000160 4  0x0          latched
+   155545848 W bar0 0x00110c00 4  0x0          NV_PGSP_QUEUE_HEAD/TAIL
+   155545850 E boot: doorbell 89: libos args PA 0x10667d000 (mapped), wpr meta PA 0x10667c000
+   155545851 E boot: rx seq 88 GSP_RM_CONTROL (76) sequence 86 length 1504 checksum ok: hClient=0xc1d00005 hObject=0xa55a0030 cmd=0x2080852e paramsSize=1432 rpcFlags=0x0
+   155545852 E boot: ctrl 0x2080852e: GSS legacy thermal 0x2e (THERMAL_SYSTEM_EXECUTE_V2 instruction-list layout): host status 0x0; api 0.0 insn size 0 ops [] -> status 0x0 [host (GSS legacy, forwarded opaquely; command from the host's own nvidia-smi -q)]
+   155545853 E boot: tx seq 87 reply GSP_RM_CONTROL sequence 86 result 0x0 length 1504
+   155545903 R bar0 0x00110094 4  0x0          NV_PGSP (GSP falcon)
+   155545931 R bar0 0x00110804 4  0x0          NV_PGSP (GSP falcon)
+   155545959 R bar0 0x00110808 4  0x0          NV_PGSP (GSP falcon)
+   155545994 W bar0 0x00000180 4  0x0          latched
+   155546020 W bar0 0x00000160 4  0x0          latched
+   155546043 W bar0 0x00000180 4  0x0          latched
+   155546067 W bar0 0x00000160 4  0x0          latched
+   155546091 W bar0 0x00b81208 4  0x3          NV_VF_CPU_INTR_LEAF_EN_SET(i)
+   155546114 W bar0 0x00b81608 4  0xfffffffe   NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155546137 W bar0 0x00b81608 4  0x1          NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155546171 W bar0 0x00000180 4  0x0          latched
+   155546196 W bar0 0x00000160 4  0x0          latched
+   155546220 W bar0 0x00b81408 4  0x3          NV_VF_CPU_INTR_LEAF_EN_CLEAR(i)
+   155546243 W bar0 0x00b81610 4  0x8          NV_VF_CPU_INTR_TOP_EN_CLEAR(0)
+   155546266 W bar0 0x00b81608 4  0x1          NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155546291 W bar0 0x00000180 4  0x0          latched
+   155546314 W bar0 0x00000160 4  0x0          latched
+   155546338 W bar0 0x00000180 4  0x0          latched
+   155546367 W bar0 0x00000160 4  0x0          latched
+   155548725 W bar0 0x00110c00 4  0x0          NV_PGSP_QUEUE_HEAD/TAIL
+   155548729 E boot: doorbell 90: libos args PA 0x10667d000 (mapped), wpr meta PA 0x10667c000
+   155548730 E boot: rx seq 89 GSP_RM_CONTROL (76) sequence 87 length 916 checksum ok: hClient=0xc1d00005 hObject=0xa55a0030 cmd=0x2080852f paramsSize=844 rpcFlags=0x0
+   155548731 E boot: ctrl 0x2080852f: GSS legacy thermal 0x2f: host status 0x0 -> status 0x0 [host (GSS legacy, forwarded opaquely; command from the host's own nvidia-smi -q)]
+   155548732 E boot: tx seq 88 reply GSP_RM_CONTROL sequence 87 result 0x0 length 916
+   155548790 R bar0 0x00110094 4  0x0          NV_PGSP (GSP falcon)
+   155548839 R bar0 0x00110804 4  0x0          NV_PGSP (GSP falcon)
+   155548874 R bar0 0x00110808 4  0x0          NV_PGSP (GSP falcon)
+   155548907 W bar0 0x00000180 4  0x0          latched
+   155548935 W bar0 0x00000160 4  0x0          latched
+   155548968 W bar0 0x00000180 4  0x0          latched
+   155548998 W bar0 0x00000160 4  0x0          latched
+   155549027 W bar0 0x00b81208 4  0x3          NV_VF_CPU_INTR_LEAF_EN_SET(i)
+   155549056 W bar0 0x00b81608 4  0xfffffffe   NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155549084 W bar0 0x00b81608 4  0x1          NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155549132 W bar0 0x00000180 4  0x0          latched
+   155549161 W bar0 0x00000160 4  0x0          latched
+   155549190 W bar0 0x00b81408 4  0x3          NV_VF_CPU_INTR_LEAF_EN_CLEAR(i)
+   155549218 W bar0 0x00b81610 4  0x8          NV_VF_CPU_INTR_TOP_EN_CLEAR(0)
+   155549247 W bar0 0x00b81608 4  0x1          NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155549276 W bar0 0x00000180 4  0x0          latched
+   155549304 W bar0 0x00000160 4  0x0          latched
+   155549332 W bar0 0x00000180 4  0x0          latched
+   155549361 W bar0 0x00000160 4  0x0          latched
+   155549703 W bar0 0x00110c00 4  0x0          NV_PGSP_QUEUE_HEAD/TAIL
+   155549705 E boot: doorbell 91: libos args PA 0x10667d000 (mapped), wpr meta PA 0x10667c000
+   155549706 E boot: rx seq 90 GSP_RM_CONTROL (76) sequence 88 length 1504 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20808513 paramsSize=1432 rpcFlags=0x0
+   155549707 E boot: ctrl 0x20808513: thermal system execute v2: host status 0x0; api 1.0 insn size 44 ops [0x100]; 1 instructions succeeded -> status 0x0 [host (THERMAL_SYSTEM_EXECUTE_V2 0x20800513, same layout)]
+   155549708 E boot: tx seq 89 reply GSP_RM_CONTROL sequence 88 result 0x0 length 1504
+   155549736 R bar0 0x00110094 4  0x0          NV_PGSP (GSP falcon)
+   155549760 R bar0 0x00110804 4  0x0          NV_PGSP (GSP falcon)
+   155549784 R bar0 0x00110808 4  0x0          NV_PGSP (GSP falcon)
+   155549811 W bar0 0x00000180 4  0x0          latched
+   155549843 W bar0 0x00000160 4  0x0          latched
+   155549867 W bar0 0x00000180 4  0x0          latched
+   155549890 W bar0 0x00000160 4  0x0          latched
+   155549913 W bar0 0x00b81208 4  0x3          NV_VF_CPU_INTR_LEAF_EN_SET(i)
+   155549936 W bar0 0x00b81608 4  0xfffffffe   NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155549959 W bar0 0x00b81608 4  0x1          NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155550013 W bar0 0x00000180 4  0x0          latched
+   155550044 W bar0 0x00000160 4  0x0          latched
+   155550072 W bar0 0x00b81408 4  0x3          NV_VF_CPU_INTR_LEAF_EN_CLEAR(i)
+   155550095 W bar0 0x00b81610 4  0x8          NV_VF_CPU_INTR_TOP_EN_CLEAR(0)
+   155550118 W bar0 0x00b81608 4  0x1          NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155550142 W bar0 0x00000180 4  0x0          latched
+   155550165 W bar0 0x00000160 4  0x0          latched
+   155550187 W bar0 0x00000180 4  0x0          latched
+   155550210 W bar0 0x00000160 4  0x0          latched
+   155550479 W bar0 0x00110c00 4  0x0          NV_PGSP_QUEUE_HEAD/TAIL
+   155550481 E boot: doorbell 92: libos args PA 0x10667d000 (mapped), wpr meta PA 0x10667c000
+   155550482 E boot: rx seq 91 GSP_RM_CONTROL (76) sequence 89 length 1504 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20808513 paramsSize=1432 rpcFlags=0x0
+   155550484 E boot: ctrl 0x20808513: thermal system execute v2: host status 0x0; api 1.0 insn size 44 ops [0x101]; 1 instructions succeeded -> status 0x0 [host (THERMAL_SYSTEM_EXECUTE_V2 0x20800513, same layout)]
+   155550489 E boot: tx seq 90 reply GSP_RM_CONTROL sequence 89 result 0x0 length 1504
+   155550516 R bar0 0x00110094 4  0x0          NV_PGSP (GSP falcon)
+   155550540 R bar0 0x00110804 4  0x0          NV_PGSP (GSP falcon)
+   155550563 R bar0 0x00110808 4  0x0          NV_PGSP (GSP falcon)
+   155550593 W bar0 0x00000180 4  0x0          latched
+   155550619 W bar0 0x00000160 4  0x0          latched
+   155550642 W bar0 0x00000180 4  0x0          latched
+   155550664 W bar0 0x00000160 4  0x0          latched
+   155550688 W bar0 0x00b81208 4  0x3          NV_VF_CPU_INTR_LEAF_EN_SET(i)
+   155550710 W bar0 0x00b81608 4  0xfffffffe   NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155550733 W bar0 0x00b81608 4  0x1          NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155550769 W bar0 0x00000180 4  0x0          latched
+   155550793 W bar0 0x00000160 4  0x0          latched
+   155550823 W bar0 0x00b81408 4  0x3          NV_VF_CPU_INTR_LEAF_EN_CLEAR(i)
+   155550849 W bar0 0x00b81610 4  0x8          NV_VF_CPU_INTR_TOP_EN_CLEAR(0)
+   155550872 W bar0 0x00b81608 4  0x1          NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155550896 W bar0 0x00000180 4  0x0          latched
+   155550919 W bar0 0x00000160 4  0x0          latched
+   155550942 W bar0 0x00000180 4  0x0          latched
+   155550970 W bar0 0x00000160 4  0x0          latched
+   155551326 W bar0 0x00110c00 4  0x0          NV_PGSP_QUEUE_HEAD/TAIL
+   155551328 E boot: doorbell 93: libos args PA 0x10667d000 (mapped), wpr meta PA 0x10667c000
+   155551329 E boot: rx seq 92 GSP_RM_CONTROL (76) sequence 90 length 1504 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20808513 paramsSize=1432 rpcFlags=0x0
+   155551330 E boot: ctrl 0x20808513: thermal system execute v2: host status 0x0; api 1.0 insn size 44 ops [0x1500]; 1 instructions succeeded -> status 0x0 [host (THERMAL_SYSTEM_EXECUTE_V2 0x20800513, same layout)]
+   155551331 E boot: tx seq 91 reply GSP_RM_CONTROL sequence 90 result 0x0 length 1504
+   155551360 R bar0 0x00110094 4  0x0          NV_PGSP (GSP falcon)
+   155551384 R bar0 0x00110804 4  0x0          NV_PGSP (GSP falcon)
+   155551408 R bar0 0x00110808 4  0x0          NV_PGSP (GSP falcon)
+   155551454 W bar0 0x00000180 4  0x0          latched
+   155551478 W bar0 0x00000160 4  0x0          latched
+   155551501 W bar0 0x00000180 4  0x0          latched
+   155551524 W bar0 0x00000160 4  0x0          latched
+   155551547 W bar0 0x00b81208 4  0x3          NV_VF_CPU_INTR_LEAF_EN_SET(i)
+   155551570 W bar0 0x00b81608 4  0xfffffffe   NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155551592 W bar0 0x00b81608 4  0x1          NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155551635 W bar0 0x00000180 4  0x0          latched
+   155551661 W bar0 0x00000160 4  0x0          latched
+   155551684 W bar0 0x00b81408 4  0x3          NV_VF_CPU_INTR_LEAF_EN_CLEAR(i)
+   155551707 W bar0 0x00b81610 4  0x8          NV_VF_CPU_INTR_TOP_EN_CLEAR(0)
+   155551730 W bar0 0x00b81608 4  0x1          NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155551754 W bar0 0x00000180 4  0x0          latched
+   155551777 W bar0 0x00000160 4  0x0          latched
+   155551799 W bar0 0x00000180 4  0x0          latched
+   155551826 W bar0 0x00000160 4  0x0          latched
+   155552099 W bar0 0x00110c00 4  0x0          NV_PGSP_QUEUE_HEAD/TAIL
+   155552103 E boot: doorbell 94: libos args PA 0x10667d000 (mapped), wpr meta PA 0x10667c000
+   155552104 E boot: rx seq 93 GSP_RM_CONTROL (76) sequence 91 length 76 checksum ok: hClient=0xc1d00005 hObject=0xa55a0030 cmd=0x20802068 paramsSize=4 rpcFlags=0x0
+   155552105 E boot: ctrl 0x20802068: PERF_GET_CURRENT_PSTATE: host status 0x0 -> status 0x0 [host (forwarded as-is, public control)]
+   155552106 E boot: tx seq 92 reply GSP_RM_CONTROL sequence 91 result 0x0 length 76
+   155552139 R bar0 0x00110094 4  0x0          NV_PGSP (GSP falcon)
+   155552163 R bar0 0x00110804 4  0x0          NV_PGSP (GSP falcon)
+   155552187 R bar0 0x00110808 4  0x0          NV_PGSP (GSP falcon)
+   155552219 W bar0 0x00000180 4  0x0          latched
+   155552242 W bar0 0x00000160 4  0x0          latched
+   155552265 W bar0 0x00000180 4  0x0          latched
+   155552288 W bar0 0x00000160 4  0x0          latched
+   155552311 W bar0 0x00b81208 4  0x3          NV_VF_CPU_INTR_LEAF_EN_SET(i)
+   155552334 W bar0 0x00b81608 4  0xfffffffe   NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155552357 W bar0 0x00b81608 4  0x1          NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155553142 W bar0 0x00000180 4  0x0          latched
+   155553170 W bar0 0x00000160 4  0x0          latched
+   155553193 W bar0 0x00b81408 4  0x3          NV_VF_CPU_INTR_LEAF_EN_CLEAR(i)
+   155553216 W bar0 0x00b81610 4  0x8          NV_VF_CPU_INTR_TOP_EN_CLEAR(0)
+   155553246 W bar0 0x00b81608 4  0x1          NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155553275 W bar0 0x00000180 4  0x0          latched
+   155553297 W bar0 0x00000160 4  0x0          latched
+   155553320 W bar0 0x00000180 4  0x0          latched
+   155553343 W bar0 0x00000160 4  0x0          latched
+   155554416 W bar0 0x00110c00 4  0x0          NV_PGSP_QUEUE_HEAD/TAIL
+   155554420 E boot: doorbell 95: libos args PA 0x10667d000 (mapped), wpr meta PA 0x10667c000
+   155554421 E boot: rx seq 94 GSP_RM_CONTROL (76) sequence 92 length 20072 checksum ok: hClient=0xc1d00005 hObject=0xa55a0030 cmd=0x2080a618 paramsSize=20000 rpcFlags=0x0
+   155554423 E boot: ctrl 0x2080a618: GSS legacy pmgr 0x18: host status 0x0 -> status 0x0 [host (GSS legacy, forwarded opaquely; command from the host's own nvidia-smi -q)]
+   155554424 E boot: tx seq 93 reply GSP_RM_CONTROL sequence 92 result 0x0 length 20072
+   155554474 R bar0 0x00110094 4  0x0          NV_PGSP (GSP falcon)
+   155554499 R bar0 0x00110804 4  0x0          NV_PGSP (GSP falcon)
+   155554535 R bar0 0x00110808 4  0x0          NV_PGSP (GSP falcon)
+   155554562 W bar0 0x00000180 4  0x0          latched
+   155554585 W bar0 0x00000160 4  0x0          latched
+   155554608 W bar0 0x00000180 4  0x0          latched
+   155554631 W bar0 0x00000160 4  0x0          latched
+   155554654 W bar0 0x00b81208 4  0x3          NV_VF_CPU_INTR_LEAF_EN_SET(i)
+   155554677 W bar0 0x00b81608 4  0xfffffffe   NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155554699 W bar0 0x00b81608 4  0x1          NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155554888 W bar0 0x00000180 4  0x0          latched
+   155554912 W bar0 0x00000160 4  0x0          latched
+   155554935 W bar0 0x00b81408 4  0x3          NV_VF_CPU_INTR_LEAF_EN_CLEAR(i)
+   155554958 W bar0 0x00b81610 4  0x8          NV_VF_CPU_INTR_TOP_EN_CLEAR(0)
+   155554986 W bar0 0x00b81608 4  0x1          NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155555011 W bar0 0x00000180 4  0x0          latched
+   155555034 W bar0 0x00000160 4  0x0          latched
+   155555057 W bar0 0x00000180 4  0x0          latched
+   155555079 W bar0 0x00000160 4  0x0          latched
+   155556356 W bar0 0x00110c00 4  0x0          NV_PGSP_QUEUE_HEAD/TAIL
+   155556359 E boot: doorbell 96: libos args PA 0x10667d000 (mapped), wpr meta PA 0x10667c000
+   155556361 E boot: rx seq 95 GSP_RM_CONTROL (76) sequence 93 length 54424 checksum ok: hClient=0xc1d00005 hObject=0xa55a0030 cmd=0x2080a612 paramsSize=54352 rpcFlags=0x0
+   155556362 E boot: ctrl 0x2080a612: GSS legacy pmgr 0x12: host status 0x0 -> status 0x0 [host (GSS legacy, forwarded opaquely; command from the host's own nvidia-smi -q)]
+   155556363 E boot: tx seq 94 reply GSP_RM_CONTROL sequence 93 result 0x0 length 54424
+   155556418 R bar0 0x00110094 4  0x0          NV_PGSP (GSP falcon)
+   155556442 R bar0 0x00110804 4  0x0          NV_PGSP (GSP falcon)
+   155556466 R bar0 0x00110808 4  0x0          NV_PGSP (GSP falcon)
+   155556495 W bar0 0x00000180 4  0x0          latched
+   155556519 W bar0 0x00000160 4  0x0          latched
+   155556543 W bar0 0x00000180 4  0x0          latched
+   155556566 W bar0 0x00000160 4  0x0          latched
+   155556590 W bar0 0x00b81208 4  0x3          NV_VF_CPU_INTR_LEAF_EN_SET(i)
+   155556613 W bar0 0x00b81608 4  0xfffffffe   NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155556636 W bar0 0x00b81608 4  0x1          NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155556708 W bar0 0x00000180 4  0x0          latched
+   155556737 W bar0 0x00000160 4  0x0          latched
+   155556761 W bar0 0x00b81408 4  0x3          NV_VF_CPU_INTR_LEAF_EN_CLEAR(i)
+   155556785 W bar0 0x00b81610 4  0x8          NV_VF_CPU_INTR_TOP_EN_CLEAR(0)
+   155556808 W bar0 0x00b81608 4  0x1          NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155556835 W bar0 0x00000180 4  0x0          latched
+   155556859 W bar0 0x00000160 4  0x0          latched
+   155556882 W bar0 0x00000180 4  0x0          latched
+   155556906 W bar0 0x00000160 4  0x0          latched
+   155557024 W bar0 0x00110c00 4  0x0          NV_PGSP_QUEUE_HEAD/TAIL
+   155557027 E boot: doorbell 97: libos args PA 0x10667d000 (mapped), wpr meta PA 0x10667c000
+   155557028 E boot: large request GSP_RM_CONTROL: 65488 of 79976 bytes, waiting for continuation records
+   155561310 W bar0 0x00110c00 4  0x0          NV_PGSP_QUEUE_HEAD/TAIL
+   155561314 E boot: doorbell 98: libos args PA 0x10667d000 (mapped), wpr meta PA 0x10667c000
+   155561315 E boot: continuation: request complete, 79976 bytes
+   155561316 E boot: rx seq 96 GSP_RM_CONTROL (76) sequence 94 length 65520 checksum ok: hClient=0xc1d00005 hObject=0xa55a0030 cmd=0x2080a613 paramsSize=79936 rpcFlags=0x0
+   155561317 E boot: ctrl 0x2080a613: GSS legacy pmgr 0x13: host status 0x0 -> status 0x0 [host (GSS legacy, forwarded opaquely; command from the host's own nvidia-smi -q)]
+   155561319 E boot: tx seq 95 reply GSP_RM_CONTROL sequence 94 result 0x0 length 65520
+   155561320 E boot: tx seq 96 continuation sequence 95 length 14520
+   155561373 R bar0 0x00110094 4  0x0          NV_PGSP (GSP falcon)
+   155561398 R bar0 0x00110804 4  0x0          NV_PGSP (GSP falcon)
+   155561422 R bar0 0x00110808 4  0x0          NV_PGSP (GSP falcon)
+   155561451 R bar0 0x00110094 4  0x0          NV_PGSP (GSP falcon)
+   155561475 R bar0 0x00110804 4  0x0          NV_PGSP (GSP falcon)
+   155561499 R bar0 0x00110808 4  0x0          NV_PGSP (GSP falcon)
+   155561531 W bar0 0x00000180 4  0x0          latched
+   155561555 W bar0 0x00000160 4  0x0          latched
+   155561578 W bar0 0x00000180 4  0x0          latched
+   155561601 W bar0 0x00000160 4  0x0          latched
+   155561624 W bar0 0x00b81208 4  0x3          NV_VF_CPU_INTR_LEAF_EN_SET(i)
+   155561647 W bar0 0x00b81608 4  0xfffffffe   NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155561670 W bar0 0x00b81608 4  0x1          NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155561713 W bar0 0x00000180 4  0x0          latched
+   155561736 W bar0 0x00000160 4  0x0          latched
+   155561760 W bar0 0x00b81408 4  0x3          NV_VF_CPU_INTR_LEAF_EN_CLEAR(i)
+   155561783 W bar0 0x00b81610 4  0x8          NV_VF_CPU_INTR_TOP_EN_CLEAR(0)
+   155561806 W bar0 0x00b81608 4  0x1          NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155561832 W bar0 0x00000180 4  0x0          latched
+   155561854 W bar0 0x00000160 4  0x0          latched
+   155561877 W bar0 0x00000180 4  0x0          latched
+   155561900 W bar0 0x00000160 4  0x0          latched
+   155562218 W bar0 0x00110c00 4  0x0          NV_PGSP_QUEUE_HEAD/TAIL
+   155562221 E boot: doorbell 99: libos args PA 0x10667d000 (mapped), wpr meta PA 0x10667c000
+   155562222 E boot: rx seq 98 GSP_RM_CONTROL (76) sequence 96 length 80 checksum ok: hClient=0xc1d00005 hObject=0xa55a0030 cmd=0x2080a61f paramsSize=8 rpcFlags=0x0
+   155562224 E boot: ctrl 0x2080a61f: GSS legacy pmgr 0x1f: host status 0x0 -> status 0x0 [host (GSS legacy, forwarded opaquely; command from the host's own nvidia-smi -q)]
+   155562225 E boot: tx seq 97 reply GSP_RM_CONTROL sequence 96 result 0x0 length 80
+   155562254 R bar0 0x00110094 4  0x0          NV_PGSP (GSP falcon)
+   155562278 R bar0 0x00110804 4  0x0          NV_PGSP (GSP falcon)
+   155562302 R bar0 0x00110808 4  0x0          NV_PGSP (GSP falcon)
+   155562328 W bar0 0x00000180 4  0x0          latched
+   155562351 W bar0 0x00000160 4  0x0          latched
+   155562374 W bar0 0x00000180 4  0x0          latched
+   155562397 W bar0 0x00000160 4  0x0          latched
+   155562420 W bar0 0x00b81208 4  0x3          NV_VF_CPU_INTR_LEAF_EN_SET(i)
+   155562443 W bar0 0x00b81608 4  0xfffffffe   NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155562473 W bar0 0x00b81608 4  0x1          NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155562513 W bar0 0x00000180 4  0x0          latched
+   155562537 W bar0 0x00000160 4  0x0          latched
+   155562560 W bar0 0x00b81408 4  0x3          NV_VF_CPU_INTR_LEAF_EN_CLEAR(i)
+   155562583 W bar0 0x00b81610 4  0x8          NV_VF_CPU_INTR_TOP_EN_CLEAR(0)
+   155562606 W bar0 0x00b81608 4  0x1          NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155562629 W bar0 0x00000180 4  0x0          latched
+   155562652 W bar0 0x00000160 4  0x0          latched
+   155562675 W bar0 0x00000180 4  0x0          latched
+   155562698 W bar0 0x00000160 4  0x0          latched
+   155562726 W bar0 0x00000180 4  0x0          latched
+   155562749 W bar0 0x00000160 4  0x0          latched
+   155562772 W bar0 0x00000180 4  0x0          latched
+   155562795 W bar0 0x00000160 4  0x0          latched
+   155562824 W bar0 0x00b81208 4  0x3          NV_VF_CPU_INTR_LEAF_EN_SET(i)
+   155562850 W bar0 0x00b81608 4  0xfffffffe   NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155562874 W bar0 0x00b81608 4  0x1          NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155562923 W bar0 0x00000180 4  0x0          latched
+   155562948 W bar0 0x00000160 4  0x0          latched
+   155562982 W bar0 0x00b81408 4  0x3          NV_VF_CPU_INTR_LEAF_EN_CLEAR(i)
+   155563006 W bar0 0x00b81610 4  0x8          NV_VF_CPU_INTR_TOP_EN_CLEAR(0)
+   155563029 W bar0 0x00b81608 4  0x1          NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155563053 W bar0 0x00000180 4  0x0          latched
+   155563076 W bar0 0x00000160 4  0x0          latched
+   155563099 W bar0 0x00000180 4  0x0          latched
+   155563122 W bar0 0x00000160 4  0x0          latched
+   155563172 W bar0 0x00110c00 4  0x0          NV_PGSP_QUEUE_HEAD/TAIL
+   155563174 E boot: doorbell 100: libos args PA 0x10667d000 (mapped), wpr meta PA 0x10667c000
+   155563175 E boot: rx seq 99 GSP_RM_CONTROL (76) sequence 97 length 80 checksum ok: hClient=0xc1d00005 hObject=0xa55a0030 cmd=0x20809009 paramsSize=8 rpcFlags=0x0
+   155563176 E boot: ctrl 0x20809009: GSS legacy clk 0x09: host status 0x0 -> status 0x0 [host (GSS legacy, forwarded opaquely; command from the host's own nvidia-smi -q)]
+   155563177 E boot: tx seq 98 reply GSP_RM_CONTROL sequence 97 result 0x0 length 80
+   155563204 R bar0 0x00110094 4  0x0          NV_PGSP (GSP falcon)
+   155563229 R bar0 0x00110804 4  0x0          NV_PGSP (GSP falcon)
+   155563253 R bar0 0x00110808 4  0x0          NV_PGSP (GSP falcon)
+   155563279 W bar0 0x00000180 4  0x0          latched
+   155563306 W bar0 0x00000160 4  0x0          latched
+   155563337 W bar0 0x00000180 4  0x0          latched
+   155563361 W bar0 0x00000160 4  0x0          latched
+   155563384 W bar0 0x00b81208 4  0x3          NV_VF_CPU_INTR_LEAF_EN_SET(i)
+   155563407 W bar0 0x00b81608 4  0xfffffffe   NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155563429 W bar0 0x00b81608 4  0x1          NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155563462 W bar0 0x00000180 4  0x0          latched
+   155563486 W bar0 0x00000160 4  0x0          latched
+   155563509 W bar0 0x00b81408 4  0x3          NV_VF_CPU_INTR_LEAF_EN_CLEAR(i)
+   155563532 W bar0 0x00b81610 4  0x8          NV_VF_CPU_INTR_TOP_EN_CLEAR(0)
+   155563555 W bar0 0x00b81608 4  0x1          NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155563579 W bar0 0x00000180 4  0x0          latched
+   155563602 W bar0 0x00000160 4  0x0          latched
+   155563624 W bar0 0x00000180 4  0x0          latched
+   155563647 W bar0 0x00000160 4  0x0          latched
+   155563984 W bar0 0x00110c00 4  0x0          NV_PGSP_QUEUE_HEAD/TAIL
+   155563988 E boot: doorbell 101: libos args PA 0x10667d000 (mapped), wpr meta PA 0x10667c000
+   155563990 E boot: rx seq 100 GSP_RM_CONTROL (76) sequence 98 length 592 checksum ok: hClient=0xc1d00005 hObject=0xa55a0030 cmd=0x20809064 paramsSize=520 rpcFlags=0x0
+   155563991 E boot: ctrl 0x20809064: GSS legacy clk 0x64: host status 0x0 -> status 0x0 [host (GSS legacy, forwarded opaquely; command from the host's own nvidia-smi -q)]
+   155563992 E boot: tx seq 99 reply GSP_RM_CONTROL sequence 98 result 0x0 length 592
+   155564033 R bar0 0x00110094 4  0x0          NV_PGSP (GSP falcon)
+   155564063 R bar0 0x00110804 4  0x0          NV_PGSP (GSP falcon)
+   155564087 R bar0 0x00110808 4  0x0          NV_PGSP (GSP falcon)
+   155564114 W bar0 0x00000180 4  0x0          latched
+   155564137 W bar0 0x00000160 4  0x0          latched
+   155564160 W bar0 0x00000180 4  0x0          latched
+   155564182 W bar0 0x00000160 4  0x0          latched
+   155564206 W bar0 0x00b81208 4  0x3          NV_VF_CPU_INTR_LEAF_EN_SET(i)
+   155564229 W bar0 0x00b81608 4  0xfffffffe   NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155564251 W bar0 0x00b81608 4  0x1          NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155564284 W bar0 0x00000180 4  0x0          latched
+   155564308 W bar0 0x00000160 4  0x0          latched
+   155564331 W bar0 0x00b81408 4  0x3          NV_VF_CPU_INTR_LEAF_EN_CLEAR(i)
+   155564354 W bar0 0x00b81610 4  0x8          NV_VF_CPU_INTR_TOP_EN_CLEAR(0)
+   155564377 W bar0 0x00b81608 4  0x1          NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155564401 W bar0 0x00000180 4  0x0          latched
+   155564423 W bar0 0x00000160 4  0x0          latched
+   155564446 W bar0 0x00000180 4  0x0          latched
+   155564469 W bar0 0x00000160 4  0x0          latched
+   155564680 W bar0 0x00110c00 4  0x0          NV_PGSP_QUEUE_HEAD/TAIL
+   155564682 E boot: doorbell 102: libos args PA 0x10667d000 (mapped), wpr meta PA 0x10667c000
+   155564683 E boot: rx seq 101 GSP_RM_CONTROL (76) sequence 99 length 592 checksum ok: hClient=0xc1d00005 hObject=0xa55a0030 cmd=0x20809064 paramsSize=520 rpcFlags=0x0
+   155564684 E boot: ctrl 0x20809064: GSS legacy clk 0x64: host status 0x0 -> status 0x0 [host (GSS legacy, forwarded opaquely; command from the host's own nvidia-smi -q)]
+   155564685 E boot: tx seq 100 reply GSP_RM_CONTROL sequence 99 result 0x0 length 592
+   155564713 R bar0 0x00110094 4  0x0          NV_PGSP (GSP falcon)
+   155564737 R bar0 0x00110804 4  0x0          NV_PGSP (GSP falcon)
+   155564760 R bar0 0x00110808 4  0x0          NV_PGSP (GSP falcon)
+   155564787 W bar0 0x00000180 4  0x0          latched
+   155564810 W bar0 0x00000160 4  0x0          latched
+   155564835 W bar0 0x00000180 4  0x0          latched
+   155564858 W bar0 0x00000160 4  0x0          latched
+   155564881 W bar0 0x00b81208 4  0x3          NV_VF_CPU_INTR_LEAF_EN_SET(i)
+   155564904 W bar0 0x00b81608 4  0xfffffffe   NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155564927 W bar0 0x00b81608 4  0x1          NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155564976 W bar0 0x00000180 4  0x0          latched
+   155565001 W bar0 0x00000160 4  0x0          latched
+   155565025 W bar0 0x00b81408 4  0x3          NV_VF_CPU_INTR_LEAF_EN_CLEAR(i)
+   155565048 W bar0 0x00b81610 4  0x8          NV_VF_CPU_INTR_TOP_EN_CLEAR(0)
+   155565070 W bar0 0x00b81608 4  0x1          NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155565094 W bar0 0x00000180 4  0x0          latched
+   155565117 W bar0 0x00000160 4  0x0          latched
+   155565140 W bar0 0x00000180 4  0x0          latched
+   155565163 W bar0 0x00000160 4  0x0          latched
+   155565373 W bar0 0x00110c00 4  0x0          NV_PGSP_QUEUE_HEAD/TAIL
+   155565375 E boot: doorbell 103: libos args PA 0x10667d000 (mapped), wpr meta PA 0x10667c000
+   155565376 E boot: rx seq 102 GSP_RM_CONTROL (76) sequence 100 length 592 checksum ok: hClient=0xc1d00005 hObject=0xa55a0030 cmd=0x20809064 paramsSize=520 rpcFlags=0x0
+   155565377 E boot: ctrl 0x20809064: GSS legacy clk 0x64: host status 0x0 -> status 0x0 [host (GSS legacy, forwarded opaquely; command from the host's own nvidia-smi -q)]
+   155565378 E boot: tx seq 101 reply GSP_RM_CONTROL sequence 100 result 0x0 length 592
+   155565405 R bar0 0x00110094 4  0x0          NV_PGSP (GSP falcon)
+   155565429 R bar0 0x00110804 4  0x0          NV_PGSP (GSP falcon)
+   155565452 R bar0 0x00110808 4  0x0          NV_PGSP (GSP falcon)
+   155565479 W bar0 0x00000180 4  0x0          latched
+   155565503 W bar0 0x00000160 4  0x0          latched
+   155565527 W bar0 0x00000180 4  0x0          latched
+   155565550 W bar0 0x00000160 4  0x0          latched
+   155565574 W bar0 0x00b81208 4  0x3          NV_VF_CPU_INTR_LEAF_EN_SET(i)
+   155565603 W bar0 0x00b81608 4  0xfffffffe   NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155565626 W bar0 0x00b81608 4  0x1          NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155565660 W bar0 0x00000180 4  0x0          latched
+   155565684 W bar0 0x00000160 4  0x0          latched
+   155565708 W bar0 0x00b81408 4  0x3          NV_VF_CPU_INTR_LEAF_EN_CLEAR(i)
+   155565731 W bar0 0x00b81610 4  0x8          NV_VF_CPU_INTR_TOP_EN_CLEAR(0)
+   155565755 W bar0 0x00b81608 4  0x1          NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155565779 W bar0 0x00000180 4  0x0          latched
+   155565803 W bar0 0x00000160 4  0x0          latched
+   155565829 W bar0 0x00000180 4  0x0          latched
+   155565852 W bar0 0x00000160 4  0x0          latched
+   155566077 W bar0 0x00110c00 4  0x0          NV_PGSP_QUEUE_HEAD/TAIL
+   155566080 E boot: doorbell 104: libos args PA 0x10667d000 (mapped), wpr meta PA 0x10667c000
+   155566082 E boot: rx seq 103 GSP_RM_CONTROL (76) sequence 101 length 592 checksum ok: hClient=0xc1d00005 hObject=0xa55a0030 cmd=0x20809064 paramsSize=520 rpcFlags=0x0
+   155566083 E boot: ctrl 0x20809064: GSS legacy clk 0x64: host status 0x0 -> status 0x0 [host (GSS legacy, forwarded opaquely; command from the host's own nvidia-smi -q)]
+   155566084 E boot: tx seq 102 reply GSP_RM_CONTROL sequence 101 result 0x0 length 592
+   155566112 R bar0 0x00110094 4  0x0          NV_PGSP (GSP falcon)
+   155566136 R bar0 0x00110804 4  0x0          NV_PGSP (GSP falcon)
+   155566159 R bar0 0x00110808 4  0x0          NV_PGSP (GSP falcon)
+   155566186 W bar0 0x00000180 4  0x0          latched
+   155566209 W bar0 0x00000160 4  0x0          latched
+   155566235 W bar0 0x00000180 4  0x0          latched
+   155566266 W bar0 0x00000160 4  0x0          latched
+   155566295 W bar0 0x00b81208 4  0x3          NV_VF_CPU_INTR_LEAF_EN_SET(i)
+   155566323 W bar0 0x00b81608 4  0xfffffffe   NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155566351 W bar0 0x00b81608 4  0x1          NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155566388 W bar0 0x00000180 4  0x0          latched
+   155566416 W bar0 0x00000160 4  0x0          latched
+   155566443 W bar0 0x00b81408 4  0x3          NV_VF_CPU_INTR_LEAF_EN_CLEAR(i)
+   155566470 W bar0 0x00b81610 4  0x8          NV_VF_CPU_INTR_TOP_EN_CLEAR(0)
+   155566497 W bar0 0x00b81608 4  0x1          NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155566524 W bar0 0x00000180 4  0x0          latched
+   155566552 W bar0 0x00000160 4  0x0          latched
+   155566579 W bar0 0x00000180 4  0x0          latched
+   155566608 W bar0 0x00000160 4  0x0          latched
+   155568407 W bar0 0x00110c00 4  0x0          NV_PGSP_QUEUE_HEAD/TAIL
+   155568411 E boot: doorbell 105: libos args PA 0x10667d000 (mapped), wpr meta PA 0x10667c000
+   155568413 E boot: rx seq 104 GSP_RM_CONTROL (76) sequence 102 length 1240 checksum ok: hClient=0xc1d00005 hObject=0xa55a0030 cmd=0x2080a097 paramsSize=1168 rpcFlags=0x0
+   155568414 E boot: ctrl 0x2080a097: GSS legacy perf 0x97: host status 0x0 -> status 0x0 [host (GSS legacy, forwarded opaquely; command from the host's own nvidia-smi -q)]
+   155568415 E boot: tx seq 103 reply GSP_RM_CONTROL sequence 102 result 0x0 length 1240
+   155568457 R bar0 0x00110094 4  0x0          NV_PGSP (GSP falcon)
+   155568481 R bar0 0x00110804 4  0x0          NV_PGSP (GSP falcon)
+   155568506 R bar0 0x00110808 4  0x0          NV_PGSP (GSP falcon)
+   155568540 W bar0 0x00000180 4  0x0          latched
+   155568563 W bar0 0x00000160 4  0x0          latched
+   155568589 W bar0 0x00000180 4  0x0          latched
+   155568617 W bar0 0x00000160 4  0x0          latched
+   155568646 W bar0 0x00b81208 4  0x3          NV_VF_CPU_INTR_LEAF_EN_SET(i)
+   155568675 W bar0 0x00b81608 4  0xfffffffe   NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155568703 W bar0 0x00b81608 4  0x1          NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155568812 W bar0 0x00000180 4  0x0          latched
+   155568859 W bar0 0x00000160 4  0x0          latched
+   155568892 W bar0 0x00b81408 4  0x3          NV_VF_CPU_INTR_LEAF_EN_CLEAR(i)
+   155568923 W bar0 0x00b81610 4  0x8          NV_VF_CPU_INTR_TOP_EN_CLEAR(0)
+   155568955 W bar0 0x00b81608 4  0x1          NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155569000 W bar0 0x00000180 4  0x0          latched
+   155569035 W bar0 0x00000160 4  0x0          latched
+   155569063 W bar0 0x00000180 4  0x0          latched
+   155569099 W bar0 0x00000160 4  0x0          latched
+   155569163 W bar0 0x00110c00 4  0x0          NV_PGSP_QUEUE_HEAD/TAIL
+   155569214 E boot: doorbell 106: libos args PA 0x10667d000 (mapped), wpr meta PA 0x10667c000
+   155569216 E boot: rx seq 105 GSP_RM_CONTROL (76) sequence 103 length 76 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20800a4c paramsSize=4 rpcFlags=0x0
+   155569217 E boot: ctrl 0x20800a4c: smc mode: unsupported -> status 0x0 [synthesized (SMC/MIG unsupported on TU106)]
+   155569219 E boot: tx seq 104 reply GSP_RM_CONTROL sequence 103 result 0x0 length 76
+   155569261 R bar0 0x00110094 4  0x0          NV_PGSP (GSP falcon)
+   155569299 R bar0 0x00110804 4  0x0          NV_PGSP (GSP falcon)
+   155569327 R bar0 0x00110808 4  0x0          NV_PGSP (GSP falcon)
+   155569360 W bar0 0x00000180 4  0x0          latched
+   155569388 W bar0 0x00000160 4  0x0          latched
+   155569417 W bar0 0x00000180 4  0x0          latched
+   155569445 W bar0 0x00000160 4  0x0          latched
+   155569474 W bar0 0x00b81208 4  0x3          NV_VF_CPU_INTR_LEAF_EN_SET(i)
+   155569502 W bar0 0x00b81608 4  0xfffffffe   NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155569530 W bar0 0x00b81608 4  0x1          NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155569593 W bar0 0x00000180 4  0x0          latched
+   155569620 W bar0 0x00000160 4  0x0          latched
+   155569647 W bar0 0x00b81408 4  0x3          NV_VF_CPU_INTR_LEAF_EN_CLEAR(i)
+   155569674 W bar0 0x00b81610 4  0x8          NV_VF_CPU_INTR_TOP_EN_CLEAR(0)
+   155569706 W bar0 0x00b81608 4  0x1          NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155569741 W bar0 0x00000180 4  0x0          latched
+   155569770 W bar0 0x00000160 4  0x0          latched
+   155569793 W bar0 0x00000180 4  0x0          latched
+   155569847 W bar0 0x00000160 4  0x0          latched
+   155569905 W bar0 0x00110c00 4  0x0          NV_PGSP_QUEUE_HEAD/TAIL
+   155569909 E boot: doorbell 107: libos args PA 0x10667d000 (mapped), wpr meta PA 0x10667c000
+   155569910 E boot: rx seq 106 GSP_RM_CONTROL (76) sequence 104 length 76 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20800a4c paramsSize=4 rpcFlags=0x0
+   155569911 E boot: ctrl 0x20800a4c: smc mode: unsupported -> status 0x0 [synthesized (SMC/MIG unsupported on TU106)]
+   155569912 E boot: tx seq 105 reply GSP_RM_CONTROL sequence 104 result 0x0 length 76
+   155569939 R bar0 0x00110094 4  0x0          NV_PGSP (GSP falcon)
+   155569970 R bar0 0x00110804 4  0x0          NV_PGSP (GSP falcon)
+   155570000 R bar0 0x00110808 4  0x0          NV_PGSP (GSP falcon)
+   155570028 W bar0 0x00000180 4  0x0          latched
+   155570051 W bar0 0x00000160 4  0x0          latched
+   155570074 W bar0 0x00000180 4  0x0          latched
+   155570097 W bar0 0x00000160 4  0x0          latched
+   155570120 W bar0 0x00b81208 4  0x3          NV_VF_CPU_INTR_LEAF_EN_SET(i)
+   155570143 W bar0 0x00b81608 4  0xfffffffe   NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155570166 W bar0 0x00b81608 4  0x1          NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155572071 W bar0 0x00000180 4  0x0          latched
+   155572102 W bar0 0x00000160 4  0x0          latched
+   155572130 W bar0 0x00b81408 4  0x3          NV_VF_CPU_INTR_LEAF_EN_CLEAR(i)
+   155572158 W bar0 0x00b81610 4  0x8          NV_VF_CPU_INTR_TOP_EN_CLEAR(0)
+   155572182 W bar0 0x00b81608 4  0x1          NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155572205 W bar0 0x00000180 4  0x0          latched
+   155572228 W bar0 0x00000160 4  0x0          latched
+   155572251 W bar0 0x00000180 4  0x0          latched
+   155572274 W bar0 0x00000160 4  0x0          latched
+   155572314 W bar0 0x00110c00 4  0x0          NV_PGSP_QUEUE_HEAD/TAIL
+   155572315 E boot: doorbell 108: libos args PA 0x10667d000 (mapped), wpr meta PA 0x10667c000
+   155572317 E boot: rx seq 107 GSP_RM_CONTROL (76) sequence 105 length 76 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20800a4c paramsSize=4 rpcFlags=0x0
+   155572328 E boot: ctrl 0x20800a4c: smc mode: unsupported -> status 0x0 [synthesized (SMC/MIG unsupported on TU106)]
+   155572329 E boot: tx seq 106 reply GSP_RM_CONTROL sequence 105 result 0x0 length 76
+   155572356 R bar0 0x00110094 4  0x0          NV_PGSP (GSP falcon)
+   155572382 R bar0 0x00110804 4  0x0          NV_PGSP (GSP falcon)
+   155572406 R bar0 0x00110808 4  0x0          NV_PGSP (GSP falcon)
+   155572433 W bar0 0x00000180 4  0x0          latched
+   155572456 W bar0 0x00000160 4  0x0          latched
+   155572479 W bar0 0x00000180 4  0x0          latched
+   155572502 W bar0 0x00000160 4  0x0          latched
+   155572525 W bar0 0x00b81208 4  0x3          NV_VF_CPU_INTR_LEAF_EN_SET(i)
+   155572548 W bar0 0x00b81608 4  0xfffffffe   NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155572571 W bar0 0x00b81608 4  0x1          NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155572712 W bar0 0x00000180 4  0x0          latched
+   155572736 W bar0 0x00000160 4  0x0          latched
+   155572760 W bar0 0x00b81408 4  0x3          NV_VF_CPU_INTR_LEAF_EN_CLEAR(i)
+   155572783 W bar0 0x00b81610 4  0x8          NV_VF_CPU_INTR_TOP_EN_CLEAR(0)
+   155572805 W bar0 0x00b81608 4  0x1          NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155572835 W bar0 0x00000180 4  0x0          latched
+   155572863 W bar0 0x00000160 4  0x0          latched
+   155572887 W bar0 0x00000180 4  0x0          latched
+   155572910 W bar0 0x00000160 4  0x0          latched
+   155572961 W bar0 0x00000180 4  0x0          latched
+   155573021 W bar0 0x00000160 4  0x0          latched
+   155573052 W bar0 0x00000180 4  0x0          latched
+   155573078 W bar0 0x00000160 4  0x0          latched
+   155573102 W bar0 0x00b81208 4  0x3          NV_VF_CPU_INTR_LEAF_EN_SET(i)
+   155573125 W bar0 0x00b81608 4  0xfffffffe   NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155573148 W bar0 0x00b81608 4  0x1          NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155573187 W bar0 0x00000180 4  0x0          latched
+   155573211 W bar0 0x00000160 4  0x0          latched
+   155573234 W bar0 0x00b81408 4  0x3          NV_VF_CPU_INTR_LEAF_EN_CLEAR(i)
+   155573257 W bar0 0x00b81610 4  0x8          NV_VF_CPU_INTR_TOP_EN_CLEAR(0)
+   155573280 W bar0 0x00b81608 4  0x1          NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155573304 W bar0 0x00000180 4  0x0          latched
+   155573326 W bar0 0x00000160 4  0x0          latched
+   155573349 W bar0 0x00000180 4  0x0          latched
+   155573372 W bar0 0x00000160 4  0x0          latched
+   155573399 W bar0 0x00000180 4  0x0          latched
+   155573422 W bar0 0x00000160 4  0x0          latched
+   155573445 W bar0 0x00000180 4  0x0          latched
+   155573468 W bar0 0x00000160 4  0x0          latched
+   155573491 W bar0 0x00b81208 4  0x3          NV_VF_CPU_INTR_LEAF_EN_SET(i)
+   155573524 W bar0 0x00b81608 4  0xfffffffe   NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155573553 W bar0 0x00b81608 4  0x1          NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155573591 W bar0 0x00000180 4  0x0          latched
+   155573614 W bar0 0x00000160 4  0x0          latched
+   155573638 W bar0 0x00b81408 4  0x3          NV_VF_CPU_INTR_LEAF_EN_CLEAR(i)
+   155573660 W bar0 0x00b81610 4  0x8          NV_VF_CPU_INTR_TOP_EN_CLEAR(0)
+   155573683 W bar0 0x00b81608 4  0x1          NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155573707 W bar0 0x00000180 4  0x0          latched
+   155573730 W bar0 0x00000160 4  0x0          latched
+   155573752 W bar0 0x00000180 4  0x0          latched
+   155573775 W bar0 0x00000160 4  0x0          latched
+   155573802 W bar0 0x00000180 4  0x0          latched
+   155573839 W bar0 0x00000160 4  0x0          latched
+   155573868 W bar0 0x00000180 4  0x0          latched
+   155573891 W bar0 0x00000160 4  0x0          latched
+   155573915 W bar0 0x00b81208 4  0x3          NV_VF_CPU_INTR_LEAF_EN_SET(i)
+   155573938 W bar0 0x00b81608 4  0xfffffffe   NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155573960 W bar0 0x00b81608 4  0x1          NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155574065 W bar0 0x00000180 4  0x0          latched
+   155574093 W bar0 0x00000160 4  0x0          latched
+   155574121 W bar0 0x00b81408 4  0x3          NV_VF_CPU_INTR_LEAF_EN_CLEAR(i)
+   155574150 W bar0 0x00b81610 4  0x8          NV_VF_CPU_INTR_TOP_EN_CLEAR(0)
+   155574173 W bar0 0x00b81608 4  0x1          NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155574197 W bar0 0x00000180 4  0x0          latched
+   155574220 W bar0 0x00000160 4  0x0          latched
+   155574243 W bar0 0x00000180 4  0x0          latched
+   155574265 W bar0 0x00000160 4  0x0          latched
+   155574607 W bar0 0x00110c00 4  0x0          NV_PGSP_QUEUE_HEAD/TAIL
+   155574609 E boot: doorbell 109: libos args PA 0x10667d000 (mapped), wpr meta PA 0x10667c000
+   155574611 E boot: rx seq 108 GSP_RM_CONTROL (76) sequence 106 length 73 checksum ok: hClient=0xc1d00005 hObject=0xa55a0040 cmd=0x20810110 paramsSize=1 rpcFlags=0x0
+   155574612 E boot: ctrl 0x20810110: binapi 0x20810110: host status 0x56 -> status 0x56 [host (BINAPI object of the host client, forwarded opaquely)]
+   155574613 E boot: tx seq 107 reply GSP_RM_CONTROL sequence 106 result 0x0 length 73
+   155574640 R bar0 0x00110094 4  0x0          NV_PGSP (GSP falcon)
+   155574665 R bar0 0x00110804 4  0x0          NV_PGSP (GSP falcon)
+   155574689 R bar0 0x00110808 4  0x0          NV_PGSP (GSP falcon)
+   155574716 W bar0 0x00000180 4  0x0          latched
+   155574739 W bar0 0x00000160 4  0x0          latched
+   155574763 W bar0 0x00000180 4  0x0          latched
+   155574786 W bar0 0x00000160 4  0x0          latched
+   155574810 W bar0 0x00b81208 4  0x3          NV_VF_CPU_INTR_LEAF_EN_SET(i)
+   155574842 W bar0 0x00b81608 4  0xfffffffe   NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155574866 W bar0 0x00b81608 4  0x1          NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155575861 W bar0 0x00000180 4  0x0          latched
+   155575888 W bar0 0x00000160 4  0x0          latched
+   155575911 W bar0 0x00b81408 4  0x3          NV_VF_CPU_INTR_LEAF_EN_CLEAR(i)
+   155575934 W bar0 0x00b81610 4  0x8          NV_VF_CPU_INTR_TOP_EN_CLEAR(0)
+   155575956 W bar0 0x00b81608 4  0x1          NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155575986 W bar0 0x00000180 4  0x0          latched
+   155576009 W bar0 0x00000160 4  0x0          latched
+   155576032 W bar0 0x00000180 4  0x0          latched
+   155576054 W bar0 0x00000160 4  0x0          latched
+   155576081 W bar0 0x00000180 4  0x0          latched
+   155576105 W bar0 0x00000160 4  0x0          latched
+   155576128 W bar0 0x00000180 4  0x0          latched
+   155576151 W bar0 0x00000160 4  0x0          latched
+   155576174 W bar0 0x00b81208 4  0x3          NV_VF_CPU_INTR_LEAF_EN_SET(i)
+   155576197 W bar0 0x00b81608 4  0xfffffffe   NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155576220 W bar0 0x00b81608 4  0x1          NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155576258 W bar0 0x00000180 4  0x0          latched
+   155576282 W bar0 0x00000160 4  0x0          latched
+   155576305 W bar0 0x00b81408 4  0x3          NV_VF_CPU_INTR_LEAF_EN_CLEAR(i)
+   155576328 W bar0 0x00b81610 4  0x8          NV_VF_CPU_INTR_TOP_EN_CLEAR(0)
+   155576351 W bar0 0x00b81608 4  0x1          NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155576375 W bar0 0x00000180 4  0x0          latched
+   155576397 W bar0 0x00000160 4  0x0          latched
+   155576420 W bar0 0x00000180 4  0x0          latched
+   155576443 W bar0 0x00000160 4  0x0          latched
+   155576470 W bar0 0x00000180 4  0x0          latched
+   155576493 W bar0 0x00000160 4  0x0          latched
+   155576516 W bar0 0x00000180 4  0x0          latched
+   155576539 W bar0 0x00000160 4  0x0          latched
+   155576562 W bar0 0x00b81208 4  0x3          NV_VF_CPU_INTR_LEAF_EN_SET(i)
+   155576585 W bar0 0x00b81608 4  0xfffffffe   NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155576608 W bar0 0x00b81608 4  0x1          NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155576646 W bar0 0x00000180 4  0x0          latched
+   155576670 W bar0 0x00000160 4  0x0          latched
+   155576693 W bar0 0x00b81408 4  0x3          NV_VF_CPU_INTR_LEAF_EN_CLEAR(i)
+   155576716 W bar0 0x00b81610 4  0x8          NV_VF_CPU_INTR_TOP_EN_CLEAR(0)
+   155576739 W bar0 0x00b81608 4  0x1          NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155576763 W bar0 0x00000180 4  0x0          latched
+   155576786 W bar0 0x00000160 4  0x0          latched
+   155576809 W bar0 0x00000180 4  0x0          latched
+   155576848 W bar0 0x00000160 4  0x0          latched
+   155576886 W bar0 0x00000180 4  0x0          latched
+   155576910 W bar0 0x00000160 4  0x0          latched
+   155576938 W bar0 0x00000180 4  0x0          latched
+   155576962 W bar0 0x00000160 4  0x0          latched
+   155576997 W bar0 0x00b81208 4  0x3          NV_VF_CPU_INTR_LEAF_EN_SET(i)
+   155577019 W bar0 0x00b81608 4  0xfffffffe   NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155577042 W bar0 0x00b81608 4  0x1          NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155577110 W bar0 0x00000180 4  0x0          latched
+   155577134 W bar0 0x00000160 4  0x0          latched
+   155577158 W bar0 0x00b81408 4  0x3          NV_VF_CPU_INTR_LEAF_EN_CLEAR(i)
+   155577180 W bar0 0x00b81610 4  0x8          NV_VF_CPU_INTR_TOP_EN_CLEAR(0)
+   155577204 W bar0 0x00b81608 4  0x1          NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155577227 W bar0 0x00000180 4  0x0          latched
+   155577250 W bar0 0x00000160 4  0x0          latched
+   155577273 W bar0 0x00000180 4  0x0          latched
+   155577296 W bar0 0x00000160 4  0x0          latched
+   155577336 W bar0 0x00110c00 4  0x0          NV_PGSP_QUEUE_HEAD/TAIL
+   155577337 E boot: doorbell 110: libos args PA 0x10667d000 (mapped), wpr meta PA 0x10667c000
+   155577339 E boot: rx seq 109 GSP_RM_ALLOC (103) sequence 107 length 64 checksum ok: hClient=0xc1d00005 hParent=0xa55a0030 hObject=0xa55a0060 hClass=0x208f paramsSize=0 flags=0x0
+   155577340 E boot: alloc: alloc other 0x208f object 0xa55a0060 under 0xa55a0030 -> status 0x0 [synthesized (object recorded, no host object yet)]
+   155577341 E boot: tx seq 108 reply GSP_RM_ALLOC sequence 107 result 0x0 length 64
+   155577368 R bar0 0x00110094 4  0x0          NV_PGSP (GSP falcon)
+   155577392 R bar0 0x00110804 4  0x0          NV_PGSP (GSP falcon)
+   155577416 R bar0 0x00110808 4  0x0          NV_PGSP (GSP falcon)
+   155577443 W bar0 0x00000180 4  0x0          latched
+   155577466 W bar0 0x00000160 4  0x0          latched
+   155577489 W bar0 0x00000180 4  0x0          latched
+   155577512 W bar0 0x00000160 4  0x0          latched
+   155577535 W bar0 0x00b81208 4  0x3          NV_VF_CPU_INTR_LEAF_EN_SET(i)
+   155577558 W bar0 0x00b81608 4  0xfffffffe   NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155577580 W bar0 0x00b81608 4  0x1          NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155577616 W bar0 0x00000180 4  0x0          latched
+   155577640 W bar0 0x00000160 4  0x0          latched
+   155577663 W bar0 0x00b81408 4  0x3          NV_VF_CPU_INTR_LEAF_EN_CLEAR(i)
+   155577686 W bar0 0x00b81610 4  0x8          NV_VF_CPU_INTR_TOP_EN_CLEAR(0)
+   155577709 W bar0 0x00b81608 4  0x1          NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155577732 W bar0 0x00000180 4  0x0          latched
+   155577755 W bar0 0x00000160 4  0x0          latched
+   155577778 W bar0 0x00000180 4  0x0          latched
+   155577801 W bar0 0x00000160 4  0x0          latched
+   155577852 W bar0 0x00110c00 4  0x0          NV_PGSP_QUEUE_HEAD/TAIL
+   155577854 E boot: doorbell 111: libos args PA 0x10667d000 (mapped), wpr meta PA 0x10667c000
+   155577855 E boot: rx seq 110 GSP_RM_CONTROL (76) sequence 108 length 80 checksum ok: hClient=0xc1d00005 hObject=0xa55a0060 cmd=0x208f1105 paramsSize=8 rpcFlags=0x0
+   155577856 E boot: ctrl 0x208f1105: diag verify inforom: not supported -> status 0x56 [synthesized (NOT_SUPPORTED: no InfoROM verification, diag class not forwarded)]
+   155577857 E boot: tx seq 109 reply GSP_RM_CONTROL sequence 108 result 0x0 length 80
+   155577884 R bar0 0x00110094 4  0x0          NV_PGSP (GSP falcon)
+   155577908 R bar0 0x00110804 4  0x0          NV_PGSP (GSP falcon)
+   155577932 R bar0 0x00110808 4  0x0          NV_PGSP (GSP falcon)
+   155577959 W bar0 0x00000180 4  0x0          latched
+   155577988 W bar0 0x00000160 4  0x0          latched
+   155578013 W bar0 0x00000180 4  0x0          latched
+   155578036 W bar0 0x00000160 4  0x0          latched
+   155578059 W bar0 0x00b81208 4  0x3          NV_VF_CPU_INTR_LEAF_EN_SET(i)
+   155578082 W bar0 0x00b81608 4  0xfffffffe   NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155578115 W bar0 0x00b81608 4  0x1          NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155578169 W bar0 0x00000180 4  0x0          latched
+   155578193 W bar0 0x00000160 4  0x0          latched
+   155578216 W bar0 0x00b81408 4  0x3          NV_VF_CPU_INTR_LEAF_EN_CLEAR(i)
+   155578239 W bar0 0x00b81610 4  0x8          NV_VF_CPU_INTR_TOP_EN_CLEAR(0)
+   155578262 W bar0 0x00b81608 4  0x1          NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155578286 W bar0 0x00000180 4  0x0          latched
+   155578309 W bar0 0x00000160 4  0x0          latched
+   155578332 W bar0 0x00000180 4  0x0          latched
+   155578354 W bar0 0x00000160 4  0x0          latched
+   155578389 W bar0 0x00110c00 4  0x0          NV_PGSP_QUEUE_HEAD/TAIL
+   155578390 E boot: doorbell 112: libos args PA 0x10667d000 (mapped), wpr meta PA 0x10667c000
+   155578391 E boot: rx seq 111 FREE (10) sequence 109 length 48 checksum ok: hRoot=0xc1d00005 hParent=0x0 hObject=0xa55a0060
+   155578392 E boot: free 0xa55a0060 class Some(8335) [synthesized]
+   155578393 E boot: tx seq 110 reply FREE sequence 109 result 0x0 length 48
+   155578420 R bar0 0x00110094 4  0x0          NV_PGSP (GSP falcon)
+   155578445 R bar0 0x00110804 4  0x0          NV_PGSP (GSP falcon)
+   155578469 R bar0 0x00110808 4  0x0          NV_PGSP (GSP falcon)
+   155578497 W bar0 0x00000180 4  0x0          latched
+   155578521 W bar0 0x00000160 4  0x0          latched
+   155578544 W bar0 0x00000180 4  0x0          latched
+   155578566 W bar0 0x00000160 4  0x0          latched
+   155578592 W bar0 0x00b81208 4  0x3          NV_VF_CPU_INTR_LEAF_EN_SET(i)
+   155578617 W bar0 0x00b81608 4  0xfffffffe   NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155578640 W bar0 0x00b81608 4  0x1          NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155578675 W bar0 0x00000180 4  0x0          latched
+   155578700 W bar0 0x00000160 4  0x0          latched
+   155578723 W bar0 0x00b81408 4  0x3          NV_VF_CPU_INTR_LEAF_EN_CLEAR(i)
+   155578745 W bar0 0x00b81610 4  0x8          NV_VF_CPU_INTR_TOP_EN_CLEAR(0)
+   155578768 W bar0 0x00b81608 4  0x1          NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155578792 W bar0 0x00000180 4  0x0          latched
+   155578817 W bar0 0x00000160 4  0x0          latched
+   155578847 W bar0 0x00000180 4  0x0          latched
+   155578870 W bar0 0x00000160 4  0x0          latched
+   155578915 W bar0 0x00110c00 4  0x0          NV_PGSP_QUEUE_HEAD/TAIL
+   155578917 E boot: doorbell 113: libos args PA 0x10667d000 (mapped), wpr meta PA 0x10667c000
+   155578918 E boot: rx seq 112 FREE (10) sequence 110 length 48 checksum ok: hRoot=0xc1d00005 hParent=0x0 hObject=0xa55a0040
+   155578919 E boot: free 0xa55a0040 class Some(8321) [synthesized]
+   155578920 E boot: tx seq 111 reply FREE sequence 110 result 0x0 length 48
+   155578950 R bar0 0x00110094 4  0x0          NV_PGSP (GSP falcon)
+   155578982 R bar0 0x00110804 4  0x0          NV_PGSP (GSP falcon)
+   155579009 R bar0 0x00110808 4  0x0          NV_PGSP (GSP falcon)
+   155579039 W bar0 0x00000180 4  0x0          latched
+   155579063 W bar0 0x00000160 4  0x0          latched
+   155579086 W bar0 0x00000180 4  0x0          latched
+   155579109 W bar0 0x00000160 4  0x0          latched
+   155579133 W bar0 0x00b81208 4  0x3          NV_VF_CPU_INTR_LEAF_EN_SET(i)
+   155579156 W bar0 0x00b81608 4  0xfffffffe   NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155579180 W bar0 0x00b81608 4  0x1          NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155579205 W bar0 0x00000180 4  0x0          latched
+   155579229 W bar0 0x00000160 4  0x0          latched
+   155579253 W bar0 0x00b81408 4  0x3          NV_VF_CPU_INTR_LEAF_EN_CLEAR(i)
+   155579276 W bar0 0x00b81610 4  0x8          NV_VF_CPU_INTR_TOP_EN_CLEAR(0)
+   155579299 W bar0 0x00b81608 4  0x1          NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155579324 W bar0 0x00000180 4  0x0          latched
+   155579347 W bar0 0x00000160 4  0x0          latched
+   155579372 W bar0 0x00000180 4  0x0          latched
+   155579395 W bar0 0x00000160 4  0x0          latched
+   155579429 W bar0 0x00110c00 4  0x0          NV_PGSP_QUEUE_HEAD/TAIL
+   155579430 E boot: doorbell 114: libos args PA 0x10667d000 (mapped), wpr meta PA 0x10667c000
+   155579432 E boot: rx seq 113 FREE (10) sequence 111 length 48 checksum ok: hRoot=0xc1d00005 hParent=0x0 hObject=0xa55a0030
+   155579437 E boot: free 0xa55a0030 class Some(8320) [synthesized]
+   155579438 E boot: tx seq 112 reply FREE sequence 111 result 0x0 length 48
+   155579465 R bar0 0x00110094 4  0x0          NV_PGSP (GSP falcon)
+   155579489 R bar0 0x00110804 4  0x0          NV_PGSP (GSP falcon)
+   155579512 R bar0 0x00110808 4  0x0          NV_PGSP (GSP falcon)
+   155579540 W bar0 0x00000180 4  0x0          latched
+   155579564 W bar0 0x00000160 4  0x0          latched
+   155579587 W bar0 0x00000180 4  0x0          latched
+   155579610 W bar0 0x00000160 4  0x0          latched
+   155579633 W bar0 0x00b81208 4  0x3          NV_VF_CPU_INTR_LEAF_EN_SET(i)
+   155579656 W bar0 0x00b81608 4  0xfffffffe   NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155579678 W bar0 0x00b81608 4  0x1          NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155579720 W bar0 0x00000180 4  0x0          latched
+   155579744 W bar0 0x00000160 4  0x0          latched
+   155579767 W bar0 0x00b81408 4  0x3          NV_VF_CPU_INTR_LEAF_EN_CLEAR(i)
+   155579790 W bar0 0x00b81610 4  0x8          NV_VF_CPU_INTR_TOP_EN_CLEAR(0)
+   155579818 W bar0 0x00b81608 4  0x1          NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155579847 W bar0 0x00000180 4  0x0          latched
+   155579870 W bar0 0x00000160 4  0x0          latched
+   155579893 W bar0 0x00000180 4  0x0          latched
+   155579916 W bar0 0x00000160 4  0x0          latched
+   155579960 W bar0 0x00110c00 4  0x0          NV_PGSP_QUEUE_HEAD/TAIL
+   155579962 E boot: doorbell 115: libos args PA 0x10667d000 (mapped), wpr meta PA 0x10667c000
+   155579968 E boot: rx seq 114 FREE (10) sequence 112 length 48 checksum ok: hRoot=0xc1d00005 hParent=0x0 hObject=0xa55a0020
+   155579971 E boot: free 0xa55a0020 class Some(128) [synthesized]
+   155579972 E boot: tx seq 113 reply FREE sequence 112 result 0x0 length 48
+   155580001 R bar0 0x00110094 4  0x0          NV_PGSP (GSP falcon)
+   155580029 R bar0 0x00110804 4  0x0          NV_PGSP (GSP falcon)
+   155580054 R bar0 0x00110808 4  0x0          NV_PGSP (GSP falcon)
+   155580086 W bar0 0x00110c00 4  0x0          NV_PGSP_QUEUE_HEAD/TAIL
+   155580088 E boot: doorbell 116: libos args PA 0x10667d000 (mapped), wpr meta PA 0x10667c000
+   155580089 E boot: rx seq 115 FREE (10) sequence 113 length 48 checksum ok: hRoot=0xc1d00005 hParent=0x0 hObject=0xc1d00005
+   155580090 E boot: free 0xc1d00005 class None [synthesized]
+   155580091 E boot: tx seq 114 reply FREE sequence 113 result 0x0 length 48
+   155580117 R bar0 0x00110094 4  0x0          NV_PGSP (GSP falcon)
+   155580141 R bar0 0x00110804 4  0x0          NV_PGSP (GSP falcon)
+   155580164 R bar0 0x00110808 4  0x0          NV_PGSP (GSP falcon)
+   155580194 W bar0 0x00000180 4  0x0          latched
+   155580217 W bar0 0x00000160 4  0x0          latched
+   155580240 W bar0 0x00000180 4  0x0          latched
+   155580263 W bar0 0x00000160 4  0x0          latched
+   155580286 W bar0 0x00b81208 4  0x3          NV_VF_CPU_INTR_LEAF_EN_SET(i)
+   155580309 W bar0 0x00b81608 4  0xfffffffe   NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155580332 W bar0 0x00b81608 4  0x1          NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155580389 W bar0 0x00000180 4  0x0          latched
+   155580413 W bar0 0x00000160 4  0x0          latched
+   155580436 W bar0 0x00b81408 4  0x3          NV_VF_CPU_INTR_LEAF_EN_CLEAR(i)
+   155580459 W bar0 0x00b81610 4  0x8          NV_VF_CPU_INTR_TOP_EN_CLEAR(0)
+   155580482 W bar0 0x00b81608 4  0x1          NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155580505 W bar0 0x00000180 4  0x0          latched
+   155580528 W bar0 0x00000160 4  0x0          latched
+   155580551 W bar0 0x00000180 4  0x0          latched
+   155580574 W bar0 0x00000160 4  0x0          latched
+   155580599 W bar0 0x00000180 4  0x0          latched
+   155580622 W bar0 0x00000160 4  0x0          latched
+   155580645 W bar0 0x00000180 4  0x0          latched
+   155580668 W bar0 0x00000160 4  0x0          latched
+   155580691 W bar0 0x00b81208 4  0x3          NV_VF_CPU_INTR_LEAF_EN_SET(i)
+   155580714 W bar0 0x00b81608 4  0xfffffffe   NV_VF_CPU_INTR_TOP_EN_SET(0)
+   155580742 W bar0 0x00b81608 4  0x1          NV_VF_CPU_INTR_TOP_EN_SET(0)

@@ -1,0 +1,323 @@
+# SPDX-License-Identifier: MIT
+# host kernel log during attempt 2 (uvm verify2 1 with mirrored UVM channels), 2026-09-23T18:04:47+02:00
+Sep 23 18:01:58 manacor kernel: NVRM: VM: nv_register_user_pages: 0x40000
+Sep 23 18:01:58 manacor kernel: NVRM: VM: nv_register_user_pages:3485: 0x000000009b38f8a4, 262144 page(s), count = 0, page_table = 0x00000000201ab891
+Sep 23 18:01:58 manacor kernel: NVRM: VM: nv_register_user_pages: 0x40000
+Sep 23 18:01:58 manacor kernel: NVRM: VM: nv_register_user_pages:3485: 0x0000000012bb2cc6, 262144 page(s), count = 0, page_table = 0x0000000015143858
+Sep 23 18:01:59 manacor kernel: NVRM: VM: nv_register_user_pages: 0x40000
+Sep 23 18:01:59 manacor kernel: NVRM: VM: nv_register_user_pages:3485: 0x0000000006bd7bba, 262144 page(s), count = 0, page_table = 0x000000004973deea
+Sep 23 18:02:00 manacor kernel: NVRM: VM: nv_register_user_pages: 0x40000
+Sep 23 18:02:00 manacor kernel: NVRM: VM: nv_register_user_pages:3485: 0x00000000f474a212, 262144 page(s), count = 0, page_table = 0x000000008a52885c
+Sep 23 18:03:39 manacor kernel: NVRM: VM: nv_alloc_pages: 2 pages, nodeid -1
+Sep 23 18:03:39 manacor kernel: NVRM: VM:    contig 1  cache_type 0
+Sep 23 18:03:39 manacor kernel: NVRM: VM: nv_alloc_contig_pages: 2 pages
+Sep 23 18:03:39 manacor kernel: NVRM: VM: nv_alloc_system_pages: 2 order0 pages, 1 order
+Sep 23 18:03:39 manacor kernel: NVRM: VM: nv_alloc_pages:3969: 0x0000000077170fa6, 2 page(s), count = 1, page_table = 0x0000000093487f7f
+Sep 23 18:03:39 manacor kernel: NVRM: VM: nv_alloc_pages: 2 pages, nodeid -1
+Sep 23 18:03:39 manacor kernel: NVRM: VM:    contig 1  cache_type 0
+Sep 23 18:03:39 manacor kernel: NVRM: VM: nv_alloc_contig_pages: 2 pages
+Sep 23 18:03:39 manacor kernel: NVRM: VM: nv_alloc_system_pages: 2 order0 pages, 1 order
+Sep 23 18:03:39 manacor kernel: NVRM: VM: nv_alloc_pages:3969: 0x0000000090e44294, 2 page(s), count = 1, page_table = 0x00000000deb4e5df
+Sep 23 18:03:39 manacor kernel: NVRM: VM: nv_alloc_pages: 2 pages, nodeid -1
+Sep 23 18:03:39 manacor kernel: NVRM: VM:    contig 1  cache_type 0
+Sep 23 18:03:39 manacor kernel: NVRM: VM: nv_alloc_contig_pages: 2 pages
+Sep 23 18:03:39 manacor kernel: NVRM: VM: nv_alloc_system_pages: 2 order0 pages, 1 order
+Sep 23 18:03:39 manacor kernel: NVRM: VM: nv_alloc_pages:3969: 0x0000000037c7dad2, 2 page(s), count = 1, page_table = 0x000000004ff38f9d
+Sep 23 18:03:39 manacor kernel: NVRM: VM: nv_alloc_pages: 2 pages, nodeid -1
+Sep 23 18:03:39 manacor kernel: NVRM: VM:    contig 1  cache_type 0
+Sep 23 18:03:39 manacor kernel: NVRM: VM: nv_alloc_contig_pages: 2 pages
+Sep 23 18:03:39 manacor kernel: NVRM: VM: nv_alloc_system_pages: 2 order0 pages, 1 order
+Sep 23 18:03:39 manacor kernel: NVRM: VM: nv_alloc_pages:3969: 0x000000008fbb187d, 2 page(s), count = 1, page_table = 0x000000006b475c37
+Sep 23 18:03:39 manacor kernel: NVRM: VM: nv_alloc_pages: 32 pages, nodeid -1
+Sep 23 18:03:39 manacor kernel: NVRM: VM:    contig 0  cache_type 2
+Sep 23 18:03:39 manacor kernel: NVRM: VM: nv_alloc_system_pages: 32 order0 pages, 0 order
+Sep 23 18:03:39 manacor kernel: NVRM: VM: nv_mem_pool_alloc_pages: node=0 order=0: 32/32 pages allocated (32 already cleared, 2394 left in pool)
+Sep 23 18:03:39 manacor kernel: NVRM: VM: nv_alloc_pages:3969: 0x0000000010bbfe59, 32 page(s), count = 1, page_table = 0x00000000e77be497
+Sep 23 18:03:39 manacor kernel: NVRM: VM: nv_alloc_pages: 64 pages, nodeid -1
+Sep 23 18:03:39 manacor kernel: NVRM: VM:    contig 0  cache_type 2
+Sep 23 18:03:39 manacor kernel: NVRM: VM: nv_alloc_system_pages: 64 order0 pages, 0 order
+Sep 23 18:03:39 manacor kernel: NVRM: VM: nv_mem_pool_alloc_pages: node=0 order=0: 64/64 pages allocated (64 already cleared, 2330 left in pool)
+Sep 23 18:03:39 manacor kernel: NVRM: VM: nv_alloc_pages:3969: 0x00000000923faa97, 64 page(s), count = 1, page_table = 0x0000000053c7f739
+Sep 23 18:03:39 manacor kernel: NVRM: VM: nv_alloc_pages: 32 pages, nodeid -1
+Sep 23 18:03:39 manacor kernel: NVRM: VM:    contig 0  cache_type 2
+Sep 23 18:03:39 manacor kernel: NVRM: VM: nv_alloc_system_pages: 32 order0 pages, 0 order
+Sep 23 18:03:39 manacor kernel: NVRM: VM: nv_mem_pool_alloc_pages: node=0 order=0: 32/32 pages allocated (32 already cleared, 2298 left in pool)
+Sep 23 18:03:39 manacor kernel: NVRM: VM: nv_alloc_pages:3969: 0x000000002bdb7664, 32 page(s), count = 1, page_table = 0x00000000205e57dd
+Sep 23 18:03:39 manacor kernel: NVRM: VM: nv_alloc_pages: 64 pages, nodeid -1
+Sep 23 18:03:39 manacor kernel: NVRM: VM:    contig 0  cache_type 2
+Sep 23 18:03:39 manacor kernel: NVRM: VM: nv_alloc_system_pages: 64 order0 pages, 0 order
+Sep 23 18:03:39 manacor kernel: NVRM: VM: nv_mem_pool_alloc_pages: node=0 order=0: 64/64 pages allocated (64 already cleared, 2234 left in pool)
+Sep 23 18:03:39 manacor kernel: NVRM: VM: nv_alloc_pages:3969: 0x00000000c3e1b191, 64 page(s), count = 1, page_table = 0x000000006cbf2392
+Sep 23 18:03:39 manacor kernel: NVRM: VM: nv_alloc_pages: 32 pages, nodeid -1
+Sep 23 18:03:39 manacor kernel: NVRM: VM:    contig 0  cache_type 2
+Sep 23 18:03:39 manacor kernel: NVRM: VM: nv_alloc_system_pages: 32 order0 pages, 0 order
+Sep 23 18:03:39 manacor kernel: NVRM: VM: nv_mem_pool_alloc_pages: node=0 order=0: 32/32 pages allocated (32 already cleared, 2202 left in pool)
+Sep 23 18:03:39 manacor kernel: NVRM: VM: nv_alloc_pages:3969: 0x0000000089f4bf9b, 32 page(s), count = 1, page_table = 0x00000000eda97c16
+Sep 23 18:03:39 manacor kernel: NVRM: VM: nv_alloc_pages: 64 pages, nodeid -1
+Sep 23 18:03:39 manacor kernel: NVRM: VM:    contig 0  cache_type 2
+Sep 23 18:03:39 manacor kernel: NVRM: VM: nv_alloc_system_pages: 64 order0 pages, 0 order
+Sep 23 18:03:39 manacor kernel: NVRM: VM: nv_mem_pool_alloc_pages: node=0 order=0: 64/64 pages allocated (64 already cleared, 2138 left in pool)
+Sep 23 18:03:39 manacor kernel: NVRM: VM: nv_alloc_pages:3969: 0x000000008a8dfc78, 64 page(s), count = 1, page_table = 0x000000004700438d
+Sep 23 18:03:39 manacor kernel: NVRM: VM: nv_alloc_pages: 1 pages, nodeid -1
+Sep 23 18:03:39 manacor kernel: NVRM: VM:    contig 0  cache_type 0
+Sep 23 18:03:39 manacor kernel: NVRM: VM: nv_alloc_system_pages: 1 order0 pages, 0 order
+Sep 23 18:03:39 manacor kernel: NVRM: VM: nv_mem_pool_alloc_pages: node=0 order=0: 1/1 pages allocated (1 already cleared, 2137 left in pool)
+Sep 23 18:03:39 manacor kernel: NVRM: VM: nv_alloc_pages:3969: 0x000000006a9a2fdd, 1 page(s), count = 1, page_table = 0x00000000f7c488c8
+Sep 23 18:03:39 manacor kernel: NVRM: VM: nv_alloc_pages: 2 pages, nodeid -1
+Sep 23 18:03:39 manacor kernel: NVRM: VM:    contig 1  cache_type 0
+Sep 23 18:03:39 manacor kernel: NVRM: VM: nv_alloc_contig_pages: 2 pages
+Sep 23 18:03:39 manacor kernel: NVRM: VM: nv_alloc_system_pages: 2 order0 pages, 1 order
+Sep 23 18:03:39 manacor kernel: NVRM: VM: nv_alloc_pages:3969: 0x00000000835ea2eb, 2 page(s), count = 1, page_table = 0x0000000040ab3f6f
+Sep 23 18:03:39 manacor kernel: NVRM: VM: nv_alloc_pages: 2 pages, nodeid -1
+Sep 23 18:03:39 manacor kernel: NVRM: VM:    contig 1  cache_type 0
+Sep 23 18:03:39 manacor kernel: NVRM: VM: nv_alloc_contig_pages: 2 pages
+Sep 23 18:03:39 manacor kernel: NVRM: VM: nv_alloc_system_pages: 2 order0 pages, 1 order
+Sep 23 18:03:39 manacor kernel: NVRM: VM: nv_alloc_pages:3969: 0x000000008a0a3ce3, 2 page(s), count = 1, page_table = 0x00000000e08d21a9
+Sep 23 18:03:39 manacor kernel: NVRM: VM: nv_alloc_pages: 2 pages, nodeid -1
+Sep 23 18:03:39 manacor kernel: NVRM: VM:    contig 1  cache_type 0
+Sep 23 18:03:39 manacor kernel: NVRM: VM: nv_alloc_contig_pages: 2 pages
+Sep 23 18:03:39 manacor kernel: NVRM: VM: nv_alloc_system_pages: 2 order0 pages, 1 order
+Sep 23 18:03:39 manacor kernel: NVRM: VM: nv_alloc_pages:3969: 0x00000000624dc950, 2 page(s), count = 1, page_table = 0x0000000006af5b07
+Sep 23 18:03:39 manacor kernel: NVRM: VM: nv_alloc_pages: 2 pages, nodeid -1
+Sep 23 18:03:39 manacor kernel: NVRM: VM:    contig 1  cache_type 0
+Sep 23 18:03:39 manacor kernel: NVRM: VM: nv_alloc_contig_pages: 2 pages
+Sep 23 18:03:39 manacor kernel: NVRM: VM: nv_alloc_system_pages: 2 order0 pages, 1 order
+Sep 23 18:03:39 manacor kernel: NVRM: VM: nv_alloc_pages:3969: 0x0000000043c0a424, 2 page(s), count = 1, page_table = 0x00000000d49ff8c3
+Sep 23 18:03:39 manacor kernel: NVRM: VM: nv_alloc_pages: 2 pages, nodeid -1
+Sep 23 18:03:39 manacor kernel: NVRM: VM:    contig 0  cache_type 0
+Sep 23 18:03:39 manacor kernel: NVRM: VM: nv_alloc_system_pages: 2 order0 pages, 0 order
+Sep 23 18:03:39 manacor kernel: NVRM: VM: nv_mem_pool_alloc_pages: node=0 order=0: 2/2 pages allocated (2 already cleared, 2135 left in pool)
+Sep 23 18:03:39 manacor kernel: NVRM: VM: nv_alloc_pages:3969: 0x00000000deccdb60, 2 page(s), count = 1, page_table = 0x00000000d107afd4
+Sep 23 18:03:39 manacor kernel: NVRM: VM: nv_alloc_pages: 19 pages, nodeid -1
+Sep 23 18:03:39 manacor kernel: NVRM: VM:    contig 0  cache_type 0
+Sep 23 18:03:39 manacor kernel: NVRM: VM: nv_alloc_system_pages: 19 order0 pages, 0 order
+Sep 23 18:03:39 manacor kernel: NVRM: VM: nv_mem_pool_alloc_pages: node=0 order=0: 19/19 pages allocated (19 already cleared, 2116 left in pool)
+Sep 23 18:03:39 manacor kernel: NVRM: VM: nv_alloc_pages:3969: 0x00000000a9833f16, 19 page(s), count = 1, page_table = 0x0000000014bc8435
+Sep 23 18:03:39 manacor kernel: NVRM: VM: nv_alloc_pages: 256 pages, nodeid -1
+Sep 23 18:03:39 manacor kernel: NVRM: VM:    contig 0  cache_type 2
+Sep 23 18:03:39 manacor kernel: NVRM: VM: nv_alloc_system_pages: 256 order0 pages, 0 order
+Sep 23 18:03:39 manacor kernel: NVRM: VM: nv_mem_pool_alloc_pages: node=0 order=0: 256/256 pages allocated (256 already cleared, 1860 left in pool)
+Sep 23 18:03:39 manacor kernel: NVRM: VM: nv_alloc_pages:3969: 0x00000000ee612d3a, 256 page(s), count = 1, page_table = 0x00000000ce1e336b
+Sep 23 18:03:39 manacor kernel: NVRM: VM: nv_alloc_pages: 4 pages, nodeid -1
+Sep 23 18:03:39 manacor kernel: NVRM: VM:    contig 0  cache_type 2
+Sep 23 18:03:39 manacor kernel: NVRM: VM: nv_alloc_system_pages: 4 order0 pages, 0 order
+Sep 23 18:03:39 manacor kernel: NVRM: VM: nv_mem_pool_alloc_pages: node=0 order=0: 4/4 pages allocated (4 already cleared, 1856 left in pool)
+Sep 23 18:03:39 manacor kernel: NVRM: VM: nv_alloc_pages:3969: 0x00000000c0d2f66a, 4 page(s), count = 1, page_table = 0x000000008bf71aa7
+Sep 23 18:03:39 manacor kernel: NVRM: VM: nv_alloc_pages: 1 pages, nodeid -1
+Sep 23 18:03:39 manacor kernel: NVRM: VM:    contig 0  cache_type 0
+Sep 23 18:03:39 manacor kernel: NVRM: VM: nv_alloc_system_pages: 1 order0 pages, 0 order
+Sep 23 18:03:39 manacor kernel: NVRM: VM: nv_mem_pool_alloc_pages: node=0 order=0: 1/1 pages allocated (1 already cleared, 1855 left in pool)
+Sep 23 18:03:39 manacor kernel: NVRM: VM: nv_alloc_pages:3969: 0x00000000be69857e, 1 page(s), count = 1, page_table = 0x00000000ed218d94
+Sep 23 18:03:39 manacor kernel: NVRM: VM: nv_alloc_pages: 3 pages, nodeid -1
+Sep 23 18:03:39 manacor kernel: NVRM: VM:    contig 0  cache_type 0
+Sep 23 18:03:39 manacor kernel: NVRM: VM: nv_alloc_system_pages: 3 order0 pages, 0 order
+Sep 23 18:03:39 manacor kernel: NVRM: VM: nv_mem_pool_alloc_pages: node=0 order=0: 3/3 pages allocated (3 already cleared, 1852 left in pool)
+Sep 23 18:03:39 manacor kernel: NVRM: VM: nv_alloc_pages:3969: 0x00000000d9f2412f, 3 page(s), count = 1, page_table = 0x00000000e7e83fb1
+Sep 23 18:03:39 manacor kernel: NVRM: VM: nv_alloc_pages: 512 pages, nodeid -1
+Sep 23 18:03:39 manacor kernel: NVRM: VM:    contig 0  cache_type 0
+Sep 23 18:03:39 manacor kernel: NVRM: VM: nv_alloc_system_pages: 512 order0 pages, 0 order
+Sep 23 18:03:39 manacor kernel: NVRM: VM: nv_mem_pool_alloc_pages: node=0 order=0: 512/512 pages allocated (512 already cleared, 1340 left in pool)
+Sep 23 18:03:39 manacor kernel: NVRM: VM: nv_alloc_pages:3969: 0x00000000fb252644, 512 page(s), count = 1, page_table = 0x000000004013f95a
+Sep 23 18:03:39 manacor kernel: NVRM: VM: nvidia_vma_release:101: 0x7f8e2ad18000 - 0x7f8e2ad38000, 0x00020000 bytes @ 0x0000000000000000, 0x0000000010bbfe59, 0x000000006f6ae674
+Sep 23 18:03:39 manacor kernel: NVRM: VM: nv_alloc_release:1633: 0x0000000010bbfe59, 32 page(s), count = 3, page_table = 0x00000000e77be497
+Sep 23 18:03:39 manacor kernel: NVRM: VM: nv_alloc_release:1633: 0x0000000010bbfe59, 32 page(s), count = 2, page_table = 0x00000000e77be497
+Sep 23 18:03:39 manacor kernel: NVRM: VM: nv_free_pages: 0x20
+Sep 23 18:03:39 manacor kernel: NVRM: VM: nv_free_pages:3992: 0x0000000010bbfe59, 32 page(s), count = 1, page_table = 0x00000000e77be497
+Sep 23 18:03:39 manacor kernel: NVRM: VM: nv_mem_pool_free_pages: node=0 order=0: 32/32 pages added to pool (1372 now in pool)
+Sep 23 18:03:39 manacor kernel: NVRM: VM: nv_free_system_pages: 32/32 order0 pages
+Sep 23 18:04:19 manacor kernel: NVRM: VM: nv_alloc_pages: 2 pages, nodeid -1
+Sep 23 18:04:19 manacor kernel: NVRM: VM:    contig 1  cache_type 0
+Sep 23 18:04:19 manacor kernel: NVRM: VM: nv_alloc_contig_pages: 2 pages
+Sep 23 18:04:19 manacor kernel: NVRM: VM: nv_alloc_system_pages: 2 order0 pages, 1 order
+Sep 23 18:04:19 manacor kernel: NVRM: VM: nv_alloc_pages:3969: 0x00000000da99cb13, 2 page(s), count = 1, page_table = 0x00000000681a3c63
+Sep 23 18:04:19 manacor kernel: NVRM: VM: nv_alloc_pages: 2 pages, nodeid -1
+Sep 23 18:04:19 manacor kernel: NVRM: VM:    contig 1  cache_type 0
+Sep 23 18:04:19 manacor kernel: NVRM: VM: nv_alloc_contig_pages: 2 pages
+Sep 23 18:04:19 manacor kernel: NVRM: VM: nv_alloc_system_pages: 2 order0 pages, 1 order
+Sep 23 18:04:19 manacor kernel: NVRM: VM: nv_alloc_pages:3969: 0x000000004e8a080f, 2 page(s), count = 1, page_table = 0x0000000033637bdd
+Sep 23 18:04:19 manacor kernel: NVRM: VM: nv_register_user_pages: 0x1
+Sep 23 18:04:19 manacor kernel: NVRM: VM: nv_register_user_pages:3485: 0x0000000030bbb548, 1 page(s), count = 0, page_table = 0x000000006bec5825
+Sep 23 18:04:19 manacor kernel: NVRM: Xid (PCI:0000:2d:00): 32, pid=3517860, name=vfio-user-nvgpu, channel 0x00000032 intr 00800000, method0 00000000, data0 00000000, method1 00000000, data1 00000000, method2 00000000, data2 00000000, method3 00000000, data3 00000000
+Sep 23 18:04:19 manacor kernel: NVRM: VM: nv_register_user_pages: 0x1
+Sep 23 18:04:19 manacor kernel: NVRM: VM: nv_register_user_pages:3485: 0x000000002a84e045, 1 page(s), count = 0, page_table = 0x000000006e91dfba
+Sep 23 18:04:19 manacor kernel: NVRM: Xid (PCI:0000:2d:00): 32, pid=3517860, name=vfio-user-nvgpu, channel 0x00000033 intr 00800000, method0 00000000, data0 00000000, method1 00000000, data1 00000000, method2 00000000, data2 00000000, method3 00000000, data3 00000000
+Sep 23 18:04:19 manacor kernel: NVRM: VM: nv_alloc_pages: 2 pages, nodeid -1
+Sep 23 18:04:19 manacor kernel: NVRM: VM:    contig 1  cache_type 0
+Sep 23 18:04:19 manacor kernel: NVRM: VM: nv_alloc_contig_pages: 2 pages
+Sep 23 18:04:19 manacor kernel: NVRM: VM: nv_alloc_system_pages: 2 order0 pages, 1 order
+Sep 23 18:04:19 manacor kernel: NVRM: VM: nv_alloc_pages:3969: 0x00000000333862a3, 2 page(s), count = 1, page_table = 0x000000007f45d9ed
+Sep 23 18:04:19 manacor kernel: NVRM: VM: nv_alloc_pages: 2 pages, nodeid -1
+Sep 23 18:04:19 manacor kernel: NVRM: VM:    contig 1  cache_type 0
+Sep 23 18:04:19 manacor kernel: NVRM: VM: nv_alloc_contig_pages: 2 pages
+Sep 23 18:04:19 manacor kernel: NVRM: VM: nv_alloc_system_pages: 2 order0 pages, 1 order
+Sep 23 18:04:19 manacor kernel: NVRM: VM: nv_alloc_pages:3969: 0x000000006b87a25e, 2 page(s), count = 1, page_table = 0x000000002307487e
+Sep 23 18:04:19 manacor kernel: NVRM: VM: nv_register_user_pages: 0x1
+Sep 23 18:04:19 manacor kernel: NVRM: VM: nv_register_user_pages:3485: 0x0000000084054935, 1 page(s), count = 0, page_table = 0x0000000093c3a978
+Sep 23 18:04:19 manacor kernel: NVRM: Xid (PCI:0000:2d:00): 32, pid=3517860, name=vfio-user-nvgpu, channel 0x00000034 intr 00800000, method0 00000000, data0 00000000, method1 00000000, data1 00000000, method2 00000000, data2 00000000, method3 00000000, data3 00000000
+Sep 23 18:04:19 manacor kernel: NVRM: VM: nv_register_user_pages: 0x1
+Sep 23 18:04:19 manacor kernel: NVRM: VM: nv_register_user_pages:3485: 0x00000000e513543b, 1 page(s), count = 0, page_table = 0x000000009193e9e6
+Sep 23 18:04:19 manacor kernel: NVRM: Xid (PCI:0000:2d:00): 32, pid=3517860, name=vfio-user-nvgpu, channel 0x00000035 intr 00800000, method0 00000000, data0 00000000, method1 00000000, data1 00000000, method2 00000000, data2 00000000, method3 00000000, data3 00000000
+Sep 23 18:04:19 manacor kernel: NVRM: VM: nv_alloc_pages: 2 pages, nodeid -1
+Sep 23 18:04:19 manacor kernel: NVRM: VM:    contig 1  cache_type 0
+Sep 23 18:04:19 manacor kernel: NVRM: VM: nv_alloc_contig_pages: 2 pages
+Sep 23 18:04:19 manacor kernel: NVRM: VM: nv_alloc_system_pages: 2 order0 pages, 1 order
+Sep 23 18:04:19 manacor kernel: NVRM: VM: nv_alloc_pages:3969: 0x00000000447d5123, 2 page(s), count = 1, page_table = 0x00000000a4797f72
+Sep 23 18:04:19 manacor kernel: NVRM: VM: nv_alloc_pages: 2 pages, nodeid -1
+Sep 23 18:04:19 manacor kernel: NVRM: VM:    contig 1  cache_type 0
+Sep 23 18:04:19 manacor kernel: NVRM: VM: nv_alloc_contig_pages: 2 pages
+Sep 23 18:04:19 manacor kernel: NVRM: VM: nv_alloc_system_pages: 2 order0 pages, 1 order
+Sep 23 18:04:19 manacor kernel: NVRM: VM: nv_alloc_pages:3969: 0x000000000fe392b3, 2 page(s), count = 1, page_table = 0x00000000e30e3023
+Sep 23 18:04:19 manacor kernel: NVRM: VM: nv_register_user_pages: 0x1
+Sep 23 18:04:19 manacor kernel: NVRM: VM: nv_register_user_pages:3485: 0x00000000f954cd5b, 1 page(s), count = 0, page_table = 0x00000000b14538d4
+Sep 23 18:04:19 manacor kernel: NVRM: Xid (PCI:0000:2d:00): 32, pid=3517860, name=vfio-user-nvgpu, channel 0x00000036 intr 00800000, method0 00000000, data0 00000000, method1 00000000, data1 00000000, method2 00000000, data2 00000000, method3 00000000, data3 00000000
+Sep 23 18:04:19 manacor kernel: NVRM: VM: nv_register_user_pages: 0x1
+Sep 23 18:04:19 manacor kernel: NVRM: VM: nv_register_user_pages:3485: 0x00000000cb925205, 1 page(s), count = 0, page_table = 0x0000000046443461
+Sep 23 18:04:20 manacor kernel: NVRM: Xid (PCI:0000:2d:00): 32, pid=3517860, name=vfio-user-nvgpu, channel 0x00000037 intr 00800000, method0 00000000, data0 00000000, method1 00000000, data1 00000000, method2 00000000, data2 00000000, method3 00000000, data3 00000000
+Sep 23 18:04:20 manacor kernel: NVRM: VM: nv_free_pages: 0x2
+Sep 23 18:04:20 manacor kernel: NVRM: VM: nv_free_pages:3992: 0x00000000447d5123, 2 page(s), count = 1, page_table = 0x00000000a4797f72
+Sep 23 18:04:20 manacor kernel: NVRM: VM: nv_free_contig_pages: 2 pages
+Sep 23 18:04:20 manacor kernel: NVRM: VM: nv_free_system_pages: 2/2 order0 pages
+Sep 23 18:04:20 manacor kernel: NVRM: VM: nv_free_pages: 0x2
+Sep 23 18:04:20 manacor kernel: NVRM: VM: nv_free_pages:3992: 0x000000000fe392b3, 2 page(s), count = 1, page_table = 0x00000000e30e3023
+Sep 23 18:04:20 manacor kernel: NVRM: VM: nv_free_contig_pages: 2 pages
+Sep 23 18:04:20 manacor kernel: NVRM: VM: nv_free_system_pages: 2/2 order0 pages
+Sep 23 18:04:20 manacor kernel: NVRM: VM: nv_free_pages: 0x2
+Sep 23 18:04:20 manacor kernel: NVRM: VM: nv_free_pages:3992: 0x00000000333862a3, 2 page(s), count = 1, page_table = 0x000000007f45d9ed
+Sep 23 18:04:20 manacor kernel: NVRM: VM: nv_free_contig_pages: 2 pages
+Sep 23 18:04:20 manacor kernel: NVRM: VM: nv_free_system_pages: 2/2 order0 pages
+Sep 23 18:04:20 manacor kernel: NVRM: VM: nv_free_pages: 0x2
+Sep 23 18:04:20 manacor kernel: NVRM: VM: nv_free_pages:3992: 0x000000006b87a25e, 2 page(s), count = 1, page_table = 0x000000002307487e
+Sep 23 18:04:20 manacor kernel: NVRM: VM: nv_free_contig_pages: 2 pages
+Sep 23 18:04:20 manacor kernel: NVRM: VM: nv_free_system_pages: 2/2 order0 pages
+Sep 23 18:04:20 manacor kernel: NVRM: VM: nv_free_pages: 0x2
+Sep 23 18:04:20 manacor kernel: NVRM: VM: nv_free_pages:3992: 0x00000000da99cb13, 2 page(s), count = 1, page_table = 0x00000000681a3c63
+Sep 23 18:04:20 manacor kernel: NVRM: VM: nv_free_contig_pages: 2 pages
+Sep 23 18:04:20 manacor kernel: NVRM: VM: nv_free_system_pages: 2/2 order0 pages
+Sep 23 18:04:20 manacor kernel: NVRM: VM: nv_free_pages: 0x2
+Sep 23 18:04:20 manacor kernel: NVRM: VM: nv_free_pages:3992: 0x000000004e8a080f, 2 page(s), count = 1, page_table = 0x0000000033637bdd
+Sep 23 18:04:20 manacor kernel: NVRM: VM: nv_free_contig_pages: 2 pages
+Sep 23 18:04:20 manacor kernel: NVRM: VM: nv_free_system_pages: 2/2 order0 pages
+Sep 23 18:04:25 manacor kernel: NVRM: VM: nvidia_vma_release:101: 0x7f8e2ae82000 - 0x7f8e2ae85000, 0x00003000 bytes @ 0x0000000000000000, 0x0000000019b3af2b, 0x00000000c6388882
+Sep 23 18:04:25 manacor kernel: NVRM: VM: nv_alloc_release:1633: 0x0000000019b3af2b, 3 page(s), count = 3, page_table = 0x0000000039492ae9
+Sep 23 18:04:25 manacor kernel: NVRM: VM: nv_alloc_release:1633: 0x0000000019b3af2b, 3 page(s), count = 2, page_table = 0x0000000039492ae9
+Sep 23 18:04:25 manacor kernel: NVRM: VM: nv_free_pages: 0x3
+Sep 23 18:04:25 manacor kernel: NVRM: VM: nv_free_pages:3992: 0x0000000019b3af2b, 3 page(s), count = 1, page_table = 0x0000000039492ae9
+Sep 23 18:04:25 manacor kernel: NVRM: VM: nv_mem_pool_free_pages: node=0 order=0: 3/3 pages added to pool (1375 now in pool)
+Sep 23 18:04:25 manacor kernel: NVRM: VM: nv_free_system_pages: 3/3 order0 pages
+Sep 23 18:04:25 manacor kernel: NVRM: VM: nvidia_vma_release:101: 0x7f8e2afef000 - 0x7f8e2aff0000, 0x00001000 bytes @ 0x0000000000000000, 0x00000000b0dbe315, 0x000000002cf82246
+Sep 23 18:04:25 manacor kernel: NVRM: VM: nv_alloc_release:1633: 0x00000000b0dbe315, 1 page(s), count = 3, page_table = 0x00000000d2410af8
+Sep 23 18:04:25 manacor kernel: NVRM: VM: nv_alloc_release:1633: 0x00000000b0dbe315, 1 page(s), count = 2, page_table = 0x00000000d2410af8
+Sep 23 18:04:25 manacor kernel: NVRM: VM: nv_free_pages: 0x1
+Sep 23 18:04:25 manacor kernel: NVRM: VM: nv_free_pages:3992: 0x00000000b0dbe315, 1 page(s), count = 1, page_table = 0x00000000d2410af8
+Sep 23 18:04:25 manacor kernel: NVRM: VM: nv_mem_pool_free_pages: node=0 order=0: 1/1 pages added to pool (1376 now in pool)
+Sep 23 18:04:25 manacor kernel: NVRM: VM: nv_free_system_pages: 1/1 order0 pages
+Sep 23 18:04:25 manacor kernel: NVRM: VM: nv_free_pages: 0x2
+Sep 23 18:04:25 manacor kernel: NVRM: VM: nv_free_pages:3992: 0x00000000c64b9304, 2 page(s), count = 1, page_table = 0x000000002a99540d
+Sep 23 18:04:25 manacor kernel: NVRM: VM: nv_free_contig_pages: 2 pages
+Sep 23 18:04:25 manacor kernel: NVRM: VM: nv_free_system_pages: 2/2 order0 pages
+Sep 23 18:04:25 manacor kernel: NVRM: VM: nv_free_pages: 0x2
+Sep 23 18:04:25 manacor kernel: NVRM: VM: nv_free_pages:3992: 0x00000000e35eb444, 2 page(s), count = 1, page_table = 0x000000001d58657d
+Sep 23 18:04:25 manacor kernel: NVRM: VM: nv_free_contig_pages: 2 pages
+Sep 23 18:04:25 manacor kernel: NVRM: VM: nv_free_system_pages: 2/2 order0 pages
+Sep 23 18:04:25 manacor kernel: NVRM: VM: nv_free_pages: 0x2
+Sep 23 18:04:25 manacor kernel: NVRM: VM: nv_free_pages:3992: 0x000000009256776a, 2 page(s), count = 1, page_table = 0x00000000e2abc293
+Sep 23 18:04:25 manacor kernel: NVRM: VM: nv_free_contig_pages: 2 pages
+Sep 23 18:04:25 manacor kernel: NVRM: VM: nv_free_system_pages: 2/2 order0 pages
+Sep 23 18:04:25 manacor kernel: NVRM: VM: nv_free_pages: 0x2
+Sep 23 18:04:25 manacor kernel: NVRM: VM: nv_free_pages:3992: 0x00000000fbd988e3, 2 page(s), count = 1, page_table = 0x00000000129d3771
+Sep 23 18:04:25 manacor kernel: NVRM: VM: nv_free_contig_pages: 2 pages
+Sep 23 18:04:25 manacor kernel: NVRM: VM: nv_free_system_pages: 2/2 order0 pages
+Sep 23 18:04:25 manacor kernel: NVRM: VM: nv_free_pages: 0x2
+Sep 23 18:04:25 manacor kernel: NVRM: VM: nv_free_pages:3992: 0x000000006105de6f, 2 page(s), count = 1, page_table = 0x00000000108d7345
+Sep 23 18:04:25 manacor kernel: NVRM: VM: nv_free_contig_pages: 2 pages
+Sep 23 18:04:25 manacor kernel: NVRM: VM: nv_free_system_pages: 2/2 order0 pages
+Sep 23 18:04:25 manacor kernel: NVRM: VM: nv_free_pages: 0x2
+Sep 23 18:04:25 manacor kernel: NVRM: VM: nv_free_pages:3992: 0x00000000571df540, 2 page(s), count = 1, page_table = 0x0000000098a3c8d3
+Sep 23 18:04:25 manacor kernel: NVRM: VM: nv_free_contig_pages: 2 pages
+Sep 23 18:04:25 manacor kernel: NVRM: VM: nv_free_system_pages: 2/2 order0 pages
+Sep 23 18:04:25 manacor kernel: NVRM: VM: nv_free_pages: 0x2
+Sep 23 18:04:25 manacor kernel: NVRM: VM: nv_free_pages:3992: 0x00000000d1661f4d, 2 page(s), count = 1, page_table = 0x0000000020b933c0
+Sep 23 18:04:25 manacor kernel: NVRM: VM: nv_free_contig_pages: 2 pages
+Sep 23 18:04:25 manacor kernel: NVRM: VM: nv_free_system_pages: 2/2 order0 pages
+Sep 23 18:04:25 manacor kernel: NVRM: VM: nv_free_pages: 0x2
+Sep 23 18:04:25 manacor kernel: NVRM: VM: nv_free_pages:3992: 0x0000000014a7e169, 2 page(s), count = 1, page_table = 0x000000005a2f28ab
+Sep 23 18:04:25 manacor kernel: NVRM: VM: nv_free_contig_pages: 2 pages
+Sep 23 18:04:25 manacor kernel: NVRM: VM: nv_free_system_pages: 2/2 order0 pages
+Sep 23 18:04:25 manacor kernel: NVRM: VM: nvidia_vma_release:101: 0x7f8df8d9a000 - 0x7f8df8f9a000, 0x00200000 bytes @ 0x0000000000000000, 0x00000000fece4015, 0x00000000b0a9c5ce
+Sep 23 18:04:25 manacor kernel: NVRM: VM: nv_alloc_release:1633: 0x00000000fece4015, 512 page(s), count = 3, page_table = 0x00000000ff172e20
+Sep 23 18:04:25 manacor kernel: NVRM: VM: nv_alloc_release:1633: 0x00000000fece4015, 512 page(s), count = 2, page_table = 0x00000000ff172e20
+Sep 23 18:04:25 manacor kernel: NVRM: VM: nv_free_pages: 0x200
+Sep 23 18:04:25 manacor kernel: NVRM: VM: nv_free_pages:3992: 0x00000000fece4015, 512 page(s), count = 1, page_table = 0x00000000ff172e20
+Sep 23 18:04:25 manacor kernel: NVRM: VM: nv_mem_pool_free_pages: node=0 order=0: 512/512 pages added to pool (1888 now in pool)
+Sep 23 18:04:25 manacor kernel: NVRM: VM: nv_free_system_pages: 512/512 order0 pages
+Sep 23 18:04:25 manacor kernel: NVRM: VM: nvidia_vma_release:101: 0x7f8e2ae05000 - 0x7f8e2ae18000, 0x00013000 bytes @ 0x0000000000000000, 0x00000000217e9253, 0x00000000ec97f292
+Sep 23 18:04:25 manacor kernel: NVRM: VM: nv_alloc_release:1633: 0x00000000217e9253, 19 page(s), count = 3, page_table = 0x000000006b61d821
+Sep 23 18:04:25 manacor kernel: NVRM: VM: nv_alloc_release:1633: 0x00000000217e9253, 19 page(s), count = 2, page_table = 0x000000006b61d821
+Sep 23 18:04:25 manacor kernel: NVRM: VM: nv_free_pages: 0x13
+Sep 23 18:04:25 manacor kernel: NVRM: VM: nv_free_pages:3992: 0x00000000217e9253, 19 page(s), count = 1, page_table = 0x000000006b61d821
+Sep 23 18:04:25 manacor kernel: NVRM: VM: nv_mem_pool_free_pages: node=0 order=0: 19/19 pages added to pool (1907 now in pool)
+Sep 23 18:04:25 manacor kernel: NVRM: VM: nv_free_system_pages: 19/19 order0 pages
+Sep 23 18:04:25 manacor kernel: NVRM: VM: nvidia_vma_release:101: 0x7f8e2aff5000 - 0x7f8e2aff6000, 0x00001000 bytes @ 0x0000000000000000, 0x0000000000000000, 0x00000000464c8c45
+Sep 23 18:04:25 manacor kernel: NVRM: VM: nvidia_vma_release:101: 0x7f8e2aff0000 - 0x7f8e2aff2000, 0x00002000 bytes @ 0x0000000000000000, 0x000000004242113a, 0x0000000083e32e78
+Sep 23 18:04:25 manacor kernel: NVRM: VM: nv_alloc_release:1633: 0x000000004242113a, 2 page(s), count = 3, page_table = 0x000000001d2acfa2
+Sep 23 18:04:25 manacor kernel: NVRM: VM: nv_alloc_release:1633: 0x000000004242113a, 2 page(s), count = 2, page_table = 0x000000001d2acfa2
+Sep 23 18:04:25 manacor kernel: NVRM: VM: nv_free_pages: 0x2
+Sep 23 18:04:25 manacor kernel: NVRM: VM: nv_free_pages:3992: 0x000000004242113a, 2 page(s), count = 1, page_table = 0x000000001d2acfa2
+Sep 23 18:04:25 manacor kernel: NVRM: VM: nv_mem_pool_free_pages: node=0 order=0: 2/2 pages added to pool (1909 now in pool)
+Sep 23 18:04:25 manacor kernel: NVRM: VM: nv_free_system_pages: 2/2 order0 pages
+Sep 23 18:04:25 manacor kernel: NVRM: VM: nvidia_vma_release:101: 0x7f8e2aff7000 - 0x7f8e2aff8000, 0x00001000 bytes @ 0x0000000000000000, 0x000000000a63a083, 0x000000001e15d7de
+Sep 23 18:04:25 manacor kernel: NVRM: VM: nv_alloc_release:1633: 0x000000000a63a083, 1 page(s), count = 3, page_table = 0x00000000f1b00642
+Sep 23 18:04:25 manacor kernel: NVRM: VM: nv_alloc_release:1633: 0x000000000a63a083, 1 page(s), count = 2, page_table = 0x00000000f1b00642
+Sep 23 18:04:25 manacor kernel: NVRM: VM: nv_free_pages: 0x1
+Sep 23 18:04:25 manacor kernel: NVRM: VM: nv_free_pages:3992: 0x000000000a63a083, 1 page(s), count = 1, page_table = 0x00000000f1b00642
+Sep 23 18:04:25 manacor kernel: NVRM: VM: nv_mem_pool_free_pages: node=0 order=0: 1/1 pages added to pool (1910 now in pool)
+Sep 23 18:04:25 manacor kernel: NVRM: VM: nv_free_system_pages: 1/1 order0 pages
+Sep 23 18:04:25 manacor kernel: NVRM: VM: nvidia_vma_release:101: 0x7f8e2a9ac000 - 0x7f8e2aaac000, 0x00100000 bytes @ 0x0000000000000000, 0x00000000844e9cea, 0x0000000050ae338a
+Sep 23 18:04:25 manacor kernel: NVRM: VM: nv_alloc_release:1633: 0x00000000844e9cea, 256 page(s), count = 3, page_table = 0x00000000ec4a2524
+Sep 23 18:04:25 manacor kernel: NVRM: VM: nv_alloc_release:1633: 0x00000000844e9cea, 256 page(s), count = 2, page_table = 0x00000000ec4a2524
+Sep 23 18:04:25 manacor kernel: NVRM: VM: nv_free_pages: 0x100
+Sep 23 18:04:25 manacor kernel: NVRM: VM: nv_free_pages:3992: 0x00000000844e9cea, 256 page(s), count = 1, page_table = 0x00000000ec4a2524
+Sep 23 18:04:25 manacor kernel: NVRM: VM: nv_mem_pool_free_pages: node=0 order=0: 256/256 pages added to pool (2166 now in pool)
+Sep 23 18:04:25 manacor kernel: NVRM: VM: nv_free_system_pages: 256/256 order0 pages
+Sep 23 18:04:25 manacor kernel: NVRM: VM: nvidia_vma_release:101: 0x7f8e2ae8e000 - 0x7f8e2ae92000, 0x00004000 bytes @ 0x0000000000000000, 0x00000000f7d9bb94, 0x00000000163ce7c1
+Sep 23 18:04:25 manacor kernel: NVRM: VM: nv_alloc_release:1633: 0x00000000f7d9bb94, 4 page(s), count = 3, page_table = 0x000000009dbe031f
+Sep 23 18:04:25 manacor kernel: NVRM: VM: nv_alloc_release:1633: 0x00000000f7d9bb94, 4 page(s), count = 2, page_table = 0x000000009dbe031f
+Sep 23 18:04:25 manacor kernel: NVRM: VM: nv_free_pages: 0x4
+Sep 23 18:04:25 manacor kernel: NVRM: VM: nv_free_pages:3992: 0x00000000f7d9bb94, 4 page(s), count = 1, page_table = 0x000000009dbe031f
+Sep 23 18:04:25 manacor kernel: NVRM: VM: nv_mem_pool_free_pages: node=0 order=0: 4/4 pages added to pool (2170 now in pool)
+Sep 23 18:04:25 manacor kernel: NVRM: VM: nv_free_system_pages: 4/4 order0 pages
+Sep 23 18:04:25 manacor kernel: NVRM: VM: nvidia_vma_release:101: 0x7f8e2abbc000 - 0x7f8e2abfc000, 0x00040000 bytes @ 0x0000000000000000, 0x000000009fe107c1, 0x00000000baebbf4d
+Sep 23 18:04:25 manacor kernel: NVRM: VM: nv_alloc_release:1633: 0x000000009fe107c1, 64 page(s), count = 3, page_table = 0x00000000da42d4f1
+Sep 23 18:04:25 manacor kernel: NVRM: VM: nv_alloc_release:1633: 0x000000009fe107c1, 64 page(s), count = 2, page_table = 0x00000000da42d4f1
+Sep 23 18:04:25 manacor kernel: NVRM: VM: nv_free_pages: 0x40
+Sep 23 18:04:25 manacor kernel: NVRM: VM: nv_free_pages:3992: 0x000000009fe107c1, 64 page(s), count = 1, page_table = 0x00000000da42d4f1
+Sep 23 18:04:25 manacor kernel: NVRM: VM: nv_mem_pool_free_pages: node=0 order=0: 64/64 pages added to pool (2234 now in pool)
+Sep 23 18:04:25 manacor kernel: NVRM: VM: nv_free_system_pages: 64/64 order0 pages
+Sep 23 18:04:25 manacor kernel: NVRM: VM: nvidia_vma_release:101: 0x7f8e2ab9c000 - 0x7f8e2abbc000, 0x00020000 bytes @ 0x0000000000000000, 0x0000000055f202ae, 0x00000000f049cb43
+Sep 23 18:04:25 manacor kernel: NVRM: VM: nv_alloc_release:1633: 0x0000000055f202ae, 32 page(s), count = 3, page_table = 0x000000007d4dd448
+Sep 23 18:04:25 manacor kernel: NVRM: VM: nv_alloc_release:1633: 0x0000000055f202ae, 32 page(s), count = 2, page_table = 0x000000007d4dd448
+Sep 23 18:04:25 manacor kernel: NVRM: VM: nv_free_pages: 0x20
+Sep 23 18:04:25 manacor kernel: NVRM: VM: nv_free_pages:3992: 0x0000000055f202ae, 32 page(s), count = 1, page_table = 0x000000007d4dd448
+Sep 23 18:04:25 manacor kernel: NVRM: VM: nv_mem_pool_free_pages: node=0 order=0: 32/32 pages added to pool (2266 now in pool)
+Sep 23 18:04:25 manacor kernel: NVRM: VM: nv_free_system_pages: 32/32 order0 pages
+Sep 23 18:04:25 manacor kernel: NVRM: VM: nvidia_vma_release:101: 0x7f8e2ab40000 - 0x7f8e2ab80000, 0x00040000 bytes @ 0x0000000000000000, 0x000000002b4da7a4, 0x00000000001cf7f8
+Sep 23 18:04:25 manacor kernel: NVRM: VM: nv_alloc_release:1633: 0x000000002b4da7a4, 64 page(s), count = 3, page_table = 0x0000000010ceb101
+Sep 23 18:04:25 manacor kernel: NVRM: VM: nv_alloc_release:1633: 0x000000002b4da7a4, 64 page(s), count = 2, page_table = 0x0000000010ceb101
+Sep 23 18:04:25 manacor kernel: NVRM: VM: nv_free_pages: 0x40
+Sep 23 18:04:25 manacor kernel: NVRM: VM: nv_free_pages:3992: 0x000000002b4da7a4, 64 page(s), count = 1, page_table = 0x0000000010ceb101
+Sep 23 18:04:25 manacor kernel: NVRM: VM: nv_mem_pool_free_pages: node=0 order=0: 64/64 pages added to pool (2330 now in pool)
+Sep 23 18:04:25 manacor kernel: NVRM: VM: nv_free_system_pages: 64/64 order0 pages
+Sep 23 18:04:25 manacor kernel: NVRM: VM: nvidia_vma_release:101: 0x7f8e2ab20000 - 0x7f8e2ab40000, 0x00020000 bytes @ 0x0000000000000000, 0x000000008c08bb11, 0x00000000e63cff8e
+Sep 23 18:04:25 manacor kernel: NVRM: VM: nv_alloc_release:1633: 0x000000008c08bb11, 32 page(s), count = 3, page_table = 0x00000000b8cd31e6
+Sep 23 18:04:25 manacor kernel: NVRM: VM: nv_alloc_release:1633: 0x000000008c08bb11, 32 page(s), count = 2, page_table = 0x00000000b8cd31e6
+Sep 23 18:04:25 manacor kernel: NVRM: VM: nv_free_pages: 0x20
+Sep 23 18:04:25 manacor kernel: NVRM: VM: nv_free_pages:3992: 0x000000008c08bb11, 32 page(s), count = 1, page_table = 0x00000000b8cd31e6
+Sep 23 18:04:25 manacor kernel: NVRM: VM: nv_mem_pool_free_pages: node=0 order=0: 32/32 pages added to pool (2362 now in pool)
+Sep 23 18:04:25 manacor kernel: NVRM: VM: nv_free_system_pages: 32/32 order0 pages
+Sep 23 18:04:25 manacor kernel: NVRM: VM: nvidia_vma_release:101: 0x7f8e2aae0000 - 0x7f8e2ab20000, 0x00040000 bytes @ 0x0000000000000000, 0x000000008f4e4654, 0x00000000afcdeef6
+Sep 23 18:04:25 manacor kernel: NVRM: VM: nv_alloc_release:1633: 0x000000008f4e4654, 64 page(s), count = 3, page_table = 0x000000009b262413
+Sep 23 18:04:25 manacor kernel: NVRM: VM: nv_alloc_release:1633: 0x000000008f4e4654, 64 page(s), count = 2, page_table = 0x000000009b262413
+Sep 23 18:04:25 manacor kernel: NVRM: VM: nv_free_pages: 0x40
+Sep 23 18:04:25 manacor kernel: NVRM: VM: nv_free_pages:3992: 0x000000008f4e4654, 64 page(s), count = 1, page_table = 0x000000009b262413
+Sep 23 18:04:25 manacor kernel: NVRM: VM: nv_mem_pool_free_pages: node=0 order=0: 64/64 pages added to pool (2426 now in pool)
+Sep 23 18:04:25 manacor kernel: NVRM: VM: nv_free_system_pages: 64/64 order0 pages

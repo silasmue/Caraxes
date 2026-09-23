@@ -1,0 +1,44 @@
+# SPDX-License-Identifier: MIT
+# Guest kernel log of probe e2-flr-2, 2026-09-23.
+[  136.972188] nvidia-nvlink: Nvlink Core is being initialized, major device number 239
+[  136.972196] NVRM: probing 0x10de 0x1f02, class 0x30000
+[  136.979376] NVRM: resizable BAR disabled by regkey, skipping
+[  136.979380] NVRM: No clk handles for the dev
+[  136.979590] nvidia 0000:00:05.0: vgaarb: VGA decodes changed: olddecodes=none,decodes=none:owns=none
+[  136.979642] NVRM: PCI:0000:00:05.0 (10de:1f02): BAR0 @ 0xe6000000 (16MB)
+[  136.979645] NVRM: PCI:0000:00:05.0 (10de:1f02): BAR1 @ 0x3fffe0000000 (256MB)
+[  136.979670] NVRM: Failed to evaluate _PR3 object
+[  136.981565] NVRM: pciPbiReadUuid: Could not acquire pciPbi mutex
+[  136.981667] NVRM: Starting device 0000:00:05.0
+[  136.983816] NVRM: GPU 0000:00:05.0: RmInitAdapter
+[  136.983819] NVRM: GPU 0000:00:05.0: RmSetupRegisters for 0x10de:0x1f02
+[  136.983822] NVRM: GPU 0000:00:05.0: pci config info:
+[  136.983823] NVRM: GPU 0000:00:05.0:    registers look  like: 0xe6000000 0x1000000NVRM: GPU 0000:00:05.0:    fb        looks like: 0x3fffe0000000 0x10000000
+[  136.983948] NVRM: GPU 0000:00:05.0: Successfully mapped framebuffer and registers
+[  136.983950] NVRM: GPU 0000:00:05.0: final mappings:
+[  136.983952] NVRM: GPU 0000:00:05.0:     regs: 0xe6000000 0x1000000 0x00000000ad9a0607
+[  137.019969] NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+[  137.019973] NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+[  137.019976] NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+[  137.019978] NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+[  137.019980] NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+[  137.019982] NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+[  137.019984] NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+[  137.019986] NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+[  137.019988] NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+[  137.019990] NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+[  137.019992] NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+[  137.019995] NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+[  137.019999] NVRM: nv_acpi_dod_method: failed to evaluate _DOD method!
+[  142.419440] NVRM: GPU0 GspStatusQueueInit: msgqRxLink failed: -7, nvStatus 0x00000065, retries: 134791
+[  142.419453] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Call timed out [NV_ERR_TIMEOUT] (0x00000065) returned from GspStatusQueueInit(pGpu, &pKernelGsp->pRpc->pMessageQueueInfo) @ kernel_gsp_tu102.c:611
+[  142.421246] NVRM: GPU0 _kgspBootGspRm: unexpected WPR2 already up, cannot proceed with booting GSP
+[  142.421250] NVRM: GPU0 _kgspBootGspRm: (the GPU is likely in a bad state and may need to be reset)
+[  142.421298] NVRM: GPU0 RmInitAdapter: Cannot initialize GSP firmware RM
+[  142.422129] NVRM: GPU 0000:00:05.0: Tearing down registers
+[  142.422135] NVRM: GPU 0000:00:05.0: RmInitAdapter failed! (0x62:0x40:2119)
+[  142.422684] NVRM: GPU 0000:00:05.0: rm_init_adapter failed, device minor number 0
+[  142.424119] NVRM: Device start failed for 0000:00:05.0 (ret=-5)
+[  142.424848] nvidia: probe of 0000:00:05.0 failed with error -1
+[  142.424943] NVRM: loading NVIDIA UNIX Open Kernel Module for x86_64  610.57.04  Release Build  (leandro@caraxes-vm0)  Wed Sep 23 08:32:41 UTC 2026
+modprobe rc=0

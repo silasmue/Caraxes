@@ -1,0 +1,145 @@
+# SPDX-License-Identifier: MIT
+# E5a iteration 2 (2026-09-23, VM boot 2): alloc parameters taken from the whole queue slot. All 7 pushes ran (6 channel_init, 1 page-tree init), SET_PAGE_DIRECTORY arrived; registration then failed in uvm_devmem_init (request_free_mem_region -34: the guest's PCI host-bridge window covers all physical address space above RAM). Runs a: default flags; c: UVM_INITIALIZE flags 1; d: default flags with nvidia-uvm uvm_disable_hmm=1.
+## run it2b guest
+UVM_INITIALIZE: ioctl 0 rmStatus 0x0
+UVM_REGISTER_GPU GPU-9bd7b93d-3d23-c074-6704-984ef33ab7a7 ...
+UVM_REGISTER_GPU: ioctl 0 rmStatus 0x3 numaEnabled 0 numaNodeId 0
+---
+[  192.215370] nvidia-uvm: uvm_devmem.c:225 devmem_alloc_pagemap[pid:2044] request_free_mem_region() err -34
+[  192.218301] nvidia-uvm: uvm_gpu.c:2929 add_gpu[pid:2044] failed to intialize device private memory: System is busy, retry later [NV_ERR_BUSY_RETRY], GPU ID 1: Leandro RTX 2070-4G: GPU-9bd7b93d-3d23-c074-6704-984ef33ab7a7
+## run it2c guest
+UVM_INITIALIZE flags 0x1: ioctl 0 rmStatus 0x0
+UVM_REGISTER_GPU GPU-9bd7b93d-3d23-c074-6704-984ef33ab7a7 ...
+UVM_REGISTER_GPU: ioctl 0 rmStatus 0x0 numaEnabled 0 numaNodeId -1
+UVM_UNREGISTER_GPU: ioctl 0 rmStatus 0x0
+---
+## run it2d guest
+UVM_INITIALIZE flags 0x0: ioctl 0 rmStatus 0x0
+UVM_REGISTER_GPU GPU-9bd7b93d-3d23-c074-6704-984ef33ab7a7 ...
+UVM_REGISTER_GPU: ioctl 0 rmStatus 0x0 numaEnabled 0 numaNodeId -1
+UVM_UNREGISTER_GPU: ioctl 0 rmStatus 0x0
+---
+## run it2 device events (default flags)
+128757045 ctrl 0x2080012f: GPU_QUERY_ECC_STATUS: host status 0x56 -> status 0x56 [host (forwarded as-is, public control)]
+128760064 ctrl 0x20800a9b: register replayable fault buffer: size 0x2000 pte[0] 0x111803000 -> status 0x0 [guest (buffer recorded; no fault is ever reported)]
+128761605 ctrl 0x20800a9d: register client shadow fault buffer: queue pa 0x103099000 size 0x2000 -> status 0x0 [guest (shadow buffer recorded; MMU_FAULT_QUEUED is never sent)]
+128763259 ctrl 0x20800a1d: register access counter buffer 0: size 0x2000 pte[0] 0x102263000 -> status 0x0 [guest (buffer recorded; no notification is ever written)]
+128765363 alloc: alloc 0x90f1 object 0xcaf00005 under 0xcaf00000: vaspace 0xcaf00005 recorded [guest] -> status 0x0 [guest (recorded for the channel emulation; no host object)]
+128810671 ctrl 0x90f10106: vaspace 0xcaf00005: root Some(Fb(0)); va 0x100000000..0x11fffffff levels [0x0+0x20 ap 1 shift 47, 0x1000+0x1000 ap 1 shift 38, 0x2000+0x1000 ap 1 shift 29, 0x3000+0x1000 ap 1 shift 21] [guest] -> status 0x0 [guest (VAS root recorded; the server-reserved range stays empty)]
+128829645 ctrl 0x20802a12: ce lce 0 decomp enabled: false -> status 0x0 [synthesized (no decompression LCE on Turing)]
+128829774 ctrl 0x20802a12: ce lce 1 decomp enabled: false -> status 0x0 [synthesized (no decompression LCE on Turing)]
+128829890 ctrl 0x20802a12: ce lce 2 decomp enabled: false -> status 0x0 [synthesized (no decompression LCE on Turing)]
+128830008 ctrl 0x20802a12: ce lce 3 decomp enabled: false -> status 0x0 [synthesized (no decompression LCE on Turing)]
+128830121 ctrl 0x20802a12: ce lce 4 decomp enabled: false -> status 0x0 [synthesized (no decompression LCE on Turing)]
+128830237 ctrl 0x20802a12: ce lce 0 decomp enabled: false -> status 0x0 [synthesized (no decompression LCE on Turing)]
+128830347 ctrl 0x20802a12: ce lce 1 decomp enabled: false -> status 0x0 [synthesized (no decompression LCE on Turing)]
+128830466 ctrl 0x20802a12: ce lce 2 decomp enabled: false -> status 0x0 [synthesized (no decompression LCE on Turing)]
+128830614 ctrl 0x20802a12: ce lce 3 decomp enabled: false -> status 0x0 [synthesized (no decompression LCE on Turing)]
+128830727 ctrl 0x20802a12: ce lce 4 decomp enabled: false -> status 0x0 [synthesized (no decompression LCE on Turing)]
+128831435 ctrl 0x20802a07: ce physical caps for engine type 0x9: host 0x20802a03 status 0x0, caps 0xe3 0x03 -> status 0x0 [host (CE_GET_CAPS_V2 0x20802a03 of the same engine type, same layout)]
+128831566 ctrl 0x20802a02: ce pce mask for engine type 0x9: host 0x20802a02 status 0x0 -> status 0x0 [host (forwarded as-is, public control)]
+128832049 ctrl 0x20802a07: ce physical caps for engine type 0xa: host 0x20802a03 status 0x0, caps 0xe3 0x03 -> status 0x0 [host (CE_GET_CAPS_V2 0x20802a03 of the same engine type, same layout)]
+128832179 ctrl 0x20802a02: ce pce mask for engine type 0xa: host 0x20802a02 status 0x0 -> status 0x0 [host (forwarded as-is, public control)]
+128832650 ctrl 0x20802a07: ce physical caps for engine type 0xb: host 0x20802a03 status 0x0, caps 0xe0 0x03 -> status 0x0 [host (CE_GET_CAPS_V2 0x20802a03 of the same engine type, same layout)]
+128832780 ctrl 0x20802a02: ce pce mask for engine type 0xb: host 0x20802a02 status 0x0 -> status 0x0 [host (forwarded as-is, public control)]
+128833409 ctrl 0x20802a07: ce physical caps for engine type 0xc: host 0x20802a03 status 0x0, caps 0xe0 0x03 -> status 0x0 [host (CE_GET_CAPS_V2 0x20802a03 of the same engine type, same layout)]
+128833538 ctrl 0x20802a02: ce pce mask for engine type 0xc: host 0x20802a02 status 0x0 -> status 0x0 [host (forwarded as-is, public control)]
+128834022 ctrl 0x20802a07: ce physical caps for engine type 0xd: host 0x20802a03 status 0x0, caps 0xe0 0x03 -> status 0x0 [host (CE_GET_CAPS_V2 0x20802a03 of the same engine type, same layout)]
+128834152 ctrl 0x20802a02: ce pce mask for engine type 0xd: host 0x20802a02 status 0x0 -> status 0x0 [host (forwarded as-is, public control)]
+128834656 ctrl 0x20802a08: ce fault method buffer size -> status 0x0 [synthesized (32 KiB fault method buffer; fifo-device-info.md §4a)]
+128834828 alloc: alloc 0xa06c object 0xcaf00008 under 0xcaf00000: tsg 0xcaf00008 engineType 0xb vaspace 0xcaf00005 [guest] -> status 0x0 [guest (recorded for the channel emulation; no host object)]
+128834943 ctrl 0xa06c010a: promote fault method buffers on tsg 0xcaf00008 -> status 0x0 [guest (recorded only; no CE fault is ever replayed)]
+128888561 alloc: alloc 0xc46f object 0xcaf00012 under 0xcaf00008: channel 0xcaf00012 chid 1 engineType 0xb gpfifo va 0x121010000 x 1024 userd Some(Fb(196608)) vaspace Some((3251634181, 3404726277)) errorNotifier Some(Sys(5122101248)) [guest] -> status 0x0 [guest (recorded for the channel emulation; no host object)]
+128889401 alloc: alloc other 0xc076 object 0xcaf00015 under 0xcaf00012 -> status 0x0 [synthesized (object recorded, no host object yet)]
+128890229 alloc: alloc other 0xc5b5 object 0xcaf00016 under 0xcaf00012 -> status 0x0 [synthesized (object recorded, no host object yet)]
+128891602 ctrl 0xa06f0103: gpfifo schedule 0xcaf00012: bEnable 1 -> status 0x0 [synthesized (the emulated channel runs on its doorbell)]
+128892047 doorbell 1: token 0x10001 chid 1 runlist 1
+128892049 chid 1 gp 0: pushbuffer va 0x120000000 10 dwords
+128892050 host SET_OBJECT subch 0 class 0xc5b5
+128892051 host SET_OBJECT subch 5 class 0xc076
+128892053 ce semaphore release va 0x121000000 = 0x1 [guest]
+128921094 alloc: alloc 0xc46f object 0xcaf0001d under 0xcaf00008: channel 0xcaf0001d chid 2 engineType 0xb gpfifo va 0x121040000 x 1024 userd Some(Fb(327680)) vaspace Some((3251634181, 3404726277)) errorNotifier Some(Sys(5121839104)) [guest] -> status 0x0 [guest (recorded for the channel emulation; no host object)]
+128922334 alloc: alloc other 0xc076 object 0xcaf0001e under 0xcaf0001d -> status 0x0 [synthesized (object recorded, no host object yet)]
+128922911 alloc: alloc other 0xc5b5 object 0xcaf0001f under 0xcaf0001d -> status 0x0 [synthesized (object recorded, no host object yet)]
+128923936 ctrl 0xa06f0103: gpfifo schedule 0xcaf0001d: bEnable 1 -> status 0x0 [synthesized (the emulated channel runs on its doorbell)]
+128924373 doorbell 2: token 0x10002 chid 2 runlist 1
+128924374 chid 2 gp 0: pushbuffer va 0x120100000 10 dwords
+128924375 host SET_OBJECT subch 0 class 0xc5b5
+128924377 host SET_OBJECT subch 5 class 0xc076
+128924378 ce semaphore release va 0x121000004 = 0x1 [guest]
+128924702 ctrl 0x20802a08: ce fault method buffer size -> status 0x0 [synthesized (32 KiB fault method buffer; fifo-device-info.md §4a)]
+128924937 alloc: alloc 0xa06c object 0xcaf00020 under 0xcaf00000: tsg 0xcaf00020 engineType 0xc vaspace 0xcaf00005 [guest] -> status 0x0 [guest (recorded for the channel emulation; no host object)]
+128925095 ctrl 0xa06c010a: promote fault method buffers on tsg 0xcaf00020 -> status 0x0 [guest (recorded only; no CE fault is ever replayed)]
+128957185 alloc: alloc 0xc46f object 0xcaf00028 under 0xcaf00020: channel 0xcaf00028 chid 3 engineType 0xc gpfifo va 0x121070000 x 1024 userd Some(Fb(458752)) vaspace Some((3251634181, 3404726277)) errorNotifier Some(Sys(5121581056)) [guest] -> status 0x0 [guest (recorded for the channel emulation; no host object)]
+128958053 alloc: alloc other 0xc076 object 0xcaf0002b under 0xcaf00028 -> status 0x0 [synthesized (object recorded, no host object yet)]
+128958851 alloc: alloc other 0xc5b5 object 0xcaf0002c under 0xcaf00028 -> status 0x0 [synthesized (object recorded, no host object yet)]
+128960091 ctrl 0xa06f0103: gpfifo schedule 0xcaf00028: bEnable 1 -> status 0x0 [synthesized (the emulated channel runs on its doorbell)]
+128960711 doorbell 3: token 0x20003 chid 3 runlist 2
+128960713 chid 3 gp 0: pushbuffer va 0x120200000 10 dwords
+128960714 host SET_OBJECT subch 0 class 0xc5b5
+128960716 host SET_OBJECT subch 5 class 0xc076
+128960718 ce semaphore release va 0x121000008 = 0x1 [guest]
+128987958 alloc: alloc 0xc46f object 0xcaf00033 under 0xcaf00020: channel 0xcaf00033 chid 4 engineType 0xc gpfifo va 0x1210a0000 x 1024 userd Some(Fb(589824)) vaspace Some((3251634181, 3404726277)) errorNotifier Some(Sys(5121327104)) [guest] -> status 0x0 [guest (recorded for the channel emulation; no host object)]
+128988661 alloc: alloc other 0xc076 object 0xcaf00034 under 0xcaf00033 -> status 0x0 [synthesized (object recorded, no host object yet)]
+128989388 alloc: alloc other 0xc5b5 object 0xcaf00035 under 0xcaf00033 -> status 0x0 [synthesized (object recorded, no host object yet)]
+128990571 ctrl 0xa06f0103: gpfifo schedule 0xcaf00033: bEnable 1 -> status 0x0 [synthesized (the emulated channel runs on its doorbell)]
+128991026 doorbell 4: token 0x20004 chid 4 runlist 2
+128991028 chid 4 gp 0: pushbuffer va 0x120300000 10 dwords
+128991029 host SET_OBJECT subch 0 class 0xc5b5
+128991031 host SET_OBJECT subch 5 class 0xc076
+128991032 ce semaphore release va 0x12100000c = 0x1 [guest]
+128991342 ctrl 0x20802a08: ce fault method buffer size -> status 0x0 [synthesized (32 KiB fault method buffer; fifo-device-info.md §4a)]
+128991568 alloc: alloc 0xa06c object 0xcaf00036 under 0xcaf00000: tsg 0xcaf00036 engineType 0xd vaspace 0xcaf00005 [guest] -> status 0x0 [guest (recorded for the channel emulation; no host object)]
+128991752 ctrl 0xa06c010a: promote fault method buffers on tsg 0xcaf00036 -> status 0x0 [guest (recorded only; no CE fault is ever replayed)]
+129021813 alloc: alloc 0xc46f object 0xcaf0003e under 0xcaf00036: channel 0xcaf0003e chid 5 engineType 0xd gpfifo va 0x1210d0000 x 1024 userd Some(Fb(720896)) vaspace Some((3251634181, 3404726277)) errorNotifier Some(Sys(5121069056)) [guest] -> status 0x0 [guest (recorded for the channel emulation; no host object)]
+129022940 alloc: alloc other 0xc076 object 0xcaf00041 under 0xcaf0003e -> status 0x0 [synthesized (object recorded, no host object yet)]
+129023549 alloc: alloc other 0xc5b5 object 0xcaf00042 under 0xcaf0003e -> status 0x0 [synthesized (object recorded, no host object yet)]
+129024892 ctrl 0xa06f0103: gpfifo schedule 0xcaf0003e: bEnable 1 -> status 0x0 [synthesized (the emulated channel runs on its doorbell)]
+129025397 doorbell 5: token 0x30005 chid 5 runlist 3
+129025399 chid 5 gp 0: pushbuffer va 0x120400000 10 dwords
+129025400 host SET_OBJECT subch 0 class 0xc5b5
+129025402 host SET_OBJECT subch 5 class 0xc076
+129025404 ce semaphore release va 0x121000010 = 0x1 [guest]
+129048210 alloc: alloc 0xc46f object 0xcaf00049 under 0xcaf00036: channel 0xcaf00049 chid 6 engineType 0xd gpfifo va 0x121100000 x 1024 userd Some(Fb(851968)) vaspace Some((3251634181, 3404726277)) errorNotifier Some(Sys(5120811008)) [guest] -> status 0x0 [guest (recorded for the channel emulation; no host object)]
+129048878 alloc: alloc other 0xc076 object 0xcaf0004a under 0xcaf00049 -> status 0x0 [synthesized (object recorded, no host object yet)]
+129049477 alloc: alloc other 0xc5b5 object 0xcaf0004b under 0xcaf00049 -> status 0x0 [synthesized (object recorded, no host object yet)]
+129050680 ctrl 0xa06f0103: gpfifo schedule 0xcaf00049: bEnable 1 -> status 0x0 [synthesized (the emulated channel runs on its doorbell)]
+129051135 doorbell 6: token 0x30006 chid 6 runlist 3
+129051137 chid 6 gp 0: pushbuffer va 0x120500000 10 dwords
+129051138 host SET_OBJECT subch 0 class 0xc5b5
+129051140 host SET_OBJECT subch 5 class 0xc076
+129051141 ce semaphore release va 0x121000014 = 0x1 [guest]
+129051253 doorbell 7: token 0x30005 chid 5 runlist 3
+129051255 chid 5 gp 1: pushbuffer va 0x120600000 26 dwords
+129051256 ce memcopy 32 bytes -> Fb(2097152) from va 0x120600004 [guest]
+129051258 ce semaphore release va 0x121000010 = 0x2 [guest]
+129051612 ctrl 0x801813: set page directory: vaspace 0xcaf00005 root Some(Fb(2097152)) entries 4 flags 0x8 [guest] -> status 0x0 [guest (VAS root recorded for the channel emulation)]
+129060132 free 0xcaf0004b class Some(50613) [synthesized]
+129060778 free 0xcaf0004a class Some(49270) [synthesized]
+129065488 free 0xcaf00049 class Some(50287) [synthesized]
+129076339 free 0xcaf00042 class Some(50613) [synthesized]
+129077810 free 0xcaf00041 class Some(49270) [synthesized]
+129082089 free 0xcaf0003e class Some(50287) [synthesized]
+129097695 free 0xcaf00036 class Some(41068) [synthesized]
+129098398 free 0xcaf00035 class Some(50613) [synthesized]
+129099031 free 0xcaf00034 class Some(49270) [synthesized]
+129103531 free 0xcaf00033 class Some(50287) [synthesized]
+129112310 free 0xcaf0002c class Some(50613) [synthesized]
+129113129 free 0xcaf0002b class Some(49270) [synthesized]
+129118649 free 0xcaf00028 class Some(50287) [synthesized]
+129128682 free 0xcaf00020 class Some(41068) [synthesized]
+129129471 free 0xcaf0001f class Some(50613) [synthesized]
+129130242 free 0xcaf0001e class Some(49270) [synthesized]
+129135414 free 0xcaf0001d class Some(50287) [synthesized]
+129144074 free 0xcaf00016 class Some(50613) [synthesized]
+129144765 free 0xcaf00015 class Some(49270) [synthesized]
+129150207 free 0xcaf00012 class Some(50287) [synthesized]
+129160203 free 0xcaf00008 class Some(41068) [synthesized]
+129163741 ctrl 0x801814: unset page directory: vaspace 0xcaf00005 [guest] -> status 0x0 [guest]
+129168345 free 0xcaf00005 class Some(37105) [synthesized]
+129170218 ctrl 0x20800a9e: unregister client shadow fault buffer -> status 0x0 [guest]
+129171954 ctrl 0x20800a9c: unregister replayable fault buffer -> status 0x0 [guest]
+129173739 ctrl 0x20800a1e: unregister access counter buffer -> status 0x0 [guest]
+129176406 free 0xcaf00001 class Some(8320) [synthesized]
+129177238 free 0xcaf00000 class Some(128) [synthesized]
+129177399 free 0xc1d00005 class None [synthesized]

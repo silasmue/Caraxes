@@ -1,0 +1,10 @@
+# SPDX-License-Identifier: MIT
+# E5b part 2 PBENTRY evidence (2026-09-23): before the WC flush, CUDA's CE mirror channels RC on the first doorbell with PBDMA intr0 bit 18 = PBENTRY (the write-combined GPFIFO/pushbuffer had not drained to VRAM). Distinct from a2's intr 0x00800000 (bit 23 DEVICE, the refused UVM SW method).
+
+## Xid 32 intr0 0x00040000 (bit 18, PBENTRY), CE-only run pid 3670875, host chids 55/56 = guest CE chids 10/11:
+NVRM: Xid (PCI:0000:2d:00): 32, pid=3670875, name=vfio-user-nvgpu, channel 0x00000037 intr0 00040000
+NVRM: Xid (PCI:0000:2d:00): 32, pid=3670875, name=vfio-user-nvgpu, channel 0x00000037 intr0 00040000
+NVRM: Xid (PCI:0000:2d:00): 32, pid=3670875, name=vfio-user-nvgpu, channel 0x00000038 intr0 00040000
+NVRM: Xid (PCI:0000:2d:00): 32, pid=3670875, name=vfio-user-nvgpu, channel 0x00000038 intr0 00040000
+
+## Fixed by hostmem.rs Window::flush (sfence + read-back) before every host doorbell (ctrl.rs) and TLB invalidate (boot.rs); after the fix the same channels take the doorbell with zero Xid (c-wcflush-ce-firstlaunch.txt).

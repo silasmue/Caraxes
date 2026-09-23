@@ -1,0 +1,55 @@
+# SPDX-License-Identifier: MIT
+# D0 step 2 (2026-09-23): the display-RPC accounting display-path.md asks for ("list every
+# RPC/control the module loads caused and whether any is display-related; expected: none"),
+# run over the device's ENTIRE trace log for this VM instance (not just today's D0 window),
+# since the server has been running continuously through E0-E5c and every gate run today and
+# the trace file is append-only. A wider window makes "none" a stronger claim: if the device
+# never answers a display RPC across a whole day of driver probes, kernel loads, CUDA gate
+# runs and robustness/SIGKILL cycles, D0's own small window is not a lucky sample.
+#
+# Commands run on the host against $W/gpu-trace.log ($W = /mnt/vmstore/caraxes/vm0):
+#   wc -l "$W/gpu-trace.log"
+#   grep -c "hClass=<cls>\b" for every display class in display-path.md section 2.2/2.1
+#   grep -c "cmd=<id>\b" for every display-related RPC/control id display-path.md section 2.2 names
+#   grep "0x00021c04" (the display fuse register)
+
+Total trace lines at last check: 267459 (spans E0 through E5c and every gate run of
+2026-09-23; commit e2f1aec plus the uncommitted crates/vfio-user-nvgpu).
+
+hClass counts (display alloc classes, display-path.md section 2 / 2.4):
+  0x73 (NV04_DISPLAY_COMMON)         : 0
+  0xc370 (NVC370_DISPLAY)            : 0
+  0xc371 (NVC371_DISP_SF_USER)       : 0
+  0xc372 (NVC372_DISPLAY_SW)         : 0
+  0xc373 (NVC573_DISP_CAPABILITIES)  : 0
+  0xc57a (NVC57A_CURSOR_IMM_PIO)     : 0
+  0xc57b (NVC57B_WINDOW_IMM_DMA)     : 0
+  0xc57d (NVC57D_CORE_CHANNEL_DMA)   : 0
+  0xc57e (NVC57E_WINDOW_CHANNEL_DMA) : 0
+  0xa083 (NVA083_GRID_DISPLAYLESS)   : 0
+
+cmd counts (the PreInit/Init/Load internal RPCs display-path.md section 2.2 lists):
+  0x20800a4b GET_IP_VERSION              : 0
+  0x20800a01 INTERNAL_DISPLAY_GET_STATIC_INFO : 0
+  0x20800a49 INTERNAL_DISPLAY_WRITE_INST_MEM  : 0
+  0x20800a54 INTERNAL_DISPLAY_SET_IMP_INIT_INFO : 0
+  0x20800a58 INTERNAL_DISPLAY_CHANNEL_PUSHBUFFER : 0
+  0x20800ac6 INTERNAL_INIT_BRIGHTC_STATE_LOAD  : 0
+  0x20800adf INTERNAL_SET_STATIC_EDID_DATA     : 0
+  0x730151   NV0073_CTRL_CMD_SYSTEM_MAP_SHARED_DATA : 0
+
+Display fuse (NV_FUSE_STATUS_OPT_DISPLAY, BAR0 0x21C04), read 3 times today, all 0x1
+(no display):
+       3771576 R bar0 0x00021c04 4  0x1          NV_FUSE_STATUS_OPT_DISPLAY
+       4721426 R bar0 0x00021c04 4  0x1          NV_FUSE_STATUS_OPT_DISPLAY
+       5146304 R bar0 0x00021c04 4  0x1          NV_FUSE_STATUS_OPT_DISPLAY
+
+A broad case-insensitive grep for "0073|c370|disp|head|dfp|edid" over the whole file matches
+only false positives: monotonic-microsecond timestamps that happen to contain the digits
+"0073", and VBIOS PROM-window data bytes that happen to contain "c370"/"c57x" as hex payload,
+plus the three fuse reads above and the ordinary English word "display" inside the register
+name NV_FUSE_STATUS_OPT_DISPLAY itself. No RPC, control or class allocation anywhere in
+267459 lines is display-related.
+
+Verdict: matches display-path.md's D0 expectation exactly -- "the device trace shows no
+display RPC".

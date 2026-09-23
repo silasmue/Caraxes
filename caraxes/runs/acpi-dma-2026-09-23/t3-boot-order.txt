@@ -1,0 +1,98 @@
+# SPDX-License-Identifier: MIT
+# T3 (not run, by instruction): what the pre-registration flow of patches/ACPI-DMA.md §5 needs, from the boot order observed on
+# 2026-09-23. Sources: vm3 boot T2 (Cloud Hypervisor 0001-0004 with -v; ch.log kept as /mnt/vmstore/caraxes/vm3/ch-t2.log, the device
+# trace lines below copied verbatim from /mnt/vmstore/caraxes/vm3/gpu-trace.log of that boot, since overwritten by the next boot) and the
+# device log of vm2 (CARAXES_DMA=register, read only, /mnt/vmstore/caraxes/vm2/gpu-trace.log and gpu.log; vm2 belongs to another agent).
+
+## 1. One Cloud Hypervisor boot, vm3 T2 (clocks: ch.log = seconds since CH start; gpu-trace.log = microseconds since the trace opened)
+
+ch-t2.log, verbatim (long config dumps cut at "VmConfig {"):
+cloud-hypervisor:   0.001087s: <vmm> INFO:vmm/src/api/mod.rs:1278 -- API request event: VmCreate VmConfig { ...
+cloud-hypervisor:   0.002258s: <vmm> INFO:vmm/src/lib.rs:2230 -- Booting VM
+cloud-hypervisor:   0.003490s: <vmm> INFO:vmm/src/memory_manager.rs:2433 -- Creating userspace mapping: 0 -> 7fe66c000000 c0000000, slot 0
+cloud-hypervisor:   0.003561s: <vmm> INFO:vmm/src/memory_manager.rs:2433 -- Creating userspace mapping: 100000000 -> 7fe62c000000 40000000, slot 1
+cloud-hypervisor:   0.003696s: <payload_loader> INFO:vmm/src/vm.rs:1636 -- Loading kernel
+cloud-hypervisor:   0.020849s: <vmm> INFO:vmm/src/device_manager.rs:3105 -- Creating virtio-rng device: ...
+cloud-hypervisor:   0.021825s: <vmm> INFO:pci/src/vfio_user.rs:311 -- Enabling IRQ 0 number of fds = 1
+cloud-hypervisor:   0.022599s: <vmm> INFO:vmm/src/acpi.rs:1166 -- Generated ACPI tables: took 187µs size = 9285
+cloud-hypervisor:   0.022618s: <vmm> INFO:vmm/src/vm.rs:2739 -- Created ACPI tables: rsdp_addr = 0xa0000
+cloud-hypervisor:   0.023135s: <vmm> INFO:vmm/src/vm.rs:1826 -- Configuring system
+
+gpu-trace.log of the same boot, verbatim:
+      102434 R cfg  0x00000100 4  0x0
+      102562 E set_irqs index=0 flags=0x24 start=0 count=1 fds=1
+      102590 E dma_map address=0x0 size=0xc0000000 offset=0x0 fd=Some(9) flags=DmaMapFlags(READ | WRITE)
+      102624 E dma_map address=0x100000000 size=0x40000000 offset=0x0 fd=Some(10) flags=DmaMapFlags(READ | WRITE)
+      102656 R cfg  0x00000010 4  0x0
+      ...  (BAR sizing)
+      103006 R cfg  0x00000030 4  0x0
+
+Alignment: set_irqs is logged by CH just before sending it (vfio_user.rs:311) and by the device on receipt, so
+trace time - CH time = 102562 - 21825 = 80737 us (to within the message latency, tens of us). On the CH clock:
+  21.825 ms  SET_IRQS
+  21.853 ms  DMA_MAP GPA 0x0+0xc0000000         (fd 9, offset 0)
+  21.887 ms  DMA_MAP GPA 0x100000000+0x40000000 (fd 10, offset 0)
+  ~22.27 ms  BAR sizing done (device creation ends)
+  22.412 ms  ACPI generation starts (22.599 ms minus "took 187us"); the DSDT with _DMA is built from VmConfig here
+  22.618 ms  ACPI tables written; 23.135 ms vCPUs configured, guest starts
+  guest side: the _DMA object is evaluated only when a driver probes the device (dyndbg line at 141-220 s guest time in T1/T2)
+So the last DMA_MAP reply precedes the DSDT build by about 0.5 ms, in the same vm_boot, in the same process.
+
+## 2. DMA_MAP is synchronous, and in register mode it takes seconds (vm2, CARAXES_DMA=register), verbatim:
+       78159 E dma_map address=0x0 size=0xc0000000 offset=0x0 fd=Some(12) flags=DmaMapFlags(READ | WRITE)
+     1920775 E hostmem: guest RAM 0x0+0xc0000000: 3 chunk(s) in 1842 ms; pinned now 3072 MiB; host foll_pin acquired +786371 released +0; privileged windows so far 3
+     1920860 E dma table: 3 range(s), host IOVAs; ranges=0:7fff80000000:40000000,40000000:7fff40000000:40000000,80000000:7ffec0000000:40000000; published to /mnt/vmstore/caraxes/vm2/dma-ranges
+     1920908 E dma_map address=0x100000000 size=0x40000000 offset=0x0 fd=Some(13) flags=DmaMapFlags(READ | WRITE)
+     2537315 E hostmem: registered guest RAM chunk GPA 0x100000000..0x140000000 -> IOVA 0x7ffe80000000..0x7ffec0000000 (descriptor 0x80000007, 616 ms, 9 IOVA samples = base + offset)
+The second DMA_MAP arrives 48 us after the first one's table was published: Cloud Hypervisor waits for each reply. The boot
+blocks for about 2.5 s (about 620 ms per 1 GiB descriptor), and every IOVA is known before the ACPI tables are generated.
+The same four IOVA bases came out in both vm2 boots of the day (gpu.log of the earlier boot and gpu-trace.log of the current one),
+consistent with sysmem-iova.md §1.3 (reproducible while the host's own IOVA use is unchanged; not guaranteed).
+
+## 3. Consequences
+- The information exists in time; the channel does not. dma_ranges is part of VmConfig, fixed at VmCreate (0.001 s), and the
+  DMA_MAP reply carries no data. A static table therefore needs the IOVAs before Cloud Hypervisor starts (§5's pre-registration).
+- With --memory size=4G,shared=on, Cloud Hypervisor backs each RAM region with its own anonymous memfd (fd 9 and 10 above, both
+  offset 0). The device cannot register those before CH starts; the harness has to own the backing file.
+- The device's table file uses bare hex (0:7fff80000000:40000000, the module's format). Cloud Hypervisor's dma_ranges reads decimal
+  or 0x-prefixed hex: "[0:7fff80000000:40000000]" is refused ("unable to convert"), and "[0:40000000:40000000]" is read as decimal
+  40000000 = 0x2625a00 and refused only because that happens not to be 4 KiB aligned (commands in this run, host, no VM). The
+  launcher must add the 0x prefixes.
+
+## 4. What the device (crates/vfio-user-nvgpu) must add
+1. A pre-registration mode, e.g. --preregister <file>:<size>, started before Cloud Hypervisor:
+   mmap the file (MAP_SHARED), register it with the host RM in 1 GiB chunks exactly as --register-guest-ram does today, with the
+   file offset -> GPA rule of Cloud Hypervisor's memory zones (file [0, 3 GiB) -> GPA [0, 3 GiB), file [3 GiB, 4 GiB) -> GPA
+   [4 GiB, 5 GiB) for a 4 GiB guest; vmm/src/memory_manager.rs:645-700), write the table with 0x prefixes
+   (0x0:0x7fff80000000:0x40000000,...), and keep the registrations for the life of the process.
+2. At DMA_MAP: check that the fd refers to the pre-registered file (fstat st_dev/st_ino against the file, not the fd number) and that
+   (address, offset, size) matches the layout used in step 1; refuse the DMA_MAP otherwise. Expected for a 4 GiB zone: two DMA_MAPs
+   on the same file, (0x0, offset 0x0, size 0xc0000000) and (0x100000000, offset 0xc0000000, size 0x40000000) (code read, not run:
+   pci/src/vfio_user.rs:242-250 sends the region's file offset; vmm/src/memory_manager.rs:645-700 advances it across RAM regions).
+3. At DMA_UNMAP and on guest reboot keep the registrations: vm_reboot builds a new Vm from the same config (vmm/src/lib.rs:2427-2475,
+   code read, not run), so devices are recreated, DMA_MAP comes again for the same file and the DSDT carries the same table; a
+   re-register could return different IOVAs.
+4. Keep the reverse translation (IOVA -> GPA) for its own guest-memory accesses, as with the module (README, "What the device must
+   then do"); nothing there changes with _DMA.
+5. Free the registrations only at process exit, after the VM is gone (ordering of sysmem-iova.md §2).
+
+## 5. What the launcher (tools/caraxes-vm.sh) must add, as a new CARAXES_DMA mode (e.g. CARAXES_DMA=acpi)
+1. Create the guest RAM file: $W/ram (or /dev/shm/caraxes-$VM, or hugetlbfs), size = CARAXES_MEM, before anything else.
+2. Start the device with --preregister and wait for the table file to cover CARAXES_MEM (the existing table_bytes() loop, moved
+   before the Cloud Hypervisor start; with register mode's ~620 ms per GiB that is ~2.5 s for 4 GiB).
+3. Start Cloud Hypervisor with
+     --memory size=0 --memory-zone id=ram,size=$CARAXES_MEM,file=$W/ram,shared=on
+     --platform num_pci_segments=2
+     --pci-segment pci_segment=1,dma_ranges=[<table with 0x prefixes>]
+     --user-device socket=$W/gpu.sock,id=gpu0,pci_segment=1
+   and the patched guest kernel (CARAXES_KERNEL/CARAXES_INITRD, 6.8.12-caraxesdma). The GPU's BDF becomes 0001:00:01.0; the
+   launcher's probe/uvm already find it by vendor id.
+4. Skip dma_load (caraxes_dma_range) in this mode: with the kernel patch the module would see a foreign map (ACPI-DMA.md §4).
+5. Remove the RAM file in down, after the device process has exited.
+
+## 6. Checks for the T3 run once both exist (ACPI-DMA.md §6, T2/T3 there)
+- The guest's dyndbg line "ACPI _DMA: 4 range(s), bus limit 0x7fff....ffff" at the nvidia probe, equal to the device's table.
+- dmacheck (this run's probe-context checker) PASS against that table before nvidia loads; then nvidia-smi, tools/caraxes-vm.sh uvm.
+- The device log shows only table IOVAs in RPC addresses; no AMD-Vi IO_PAGE_FAULT or Xid on the host (read-only journalctl -k).
+- Expect all coherent allocations below 4 GiB (T2b: the top-down table puts GPA 0 at the highest IOVA, so bus_dma_limit maps back
+  to low memory and dma-direct adds GFP_DMA32).

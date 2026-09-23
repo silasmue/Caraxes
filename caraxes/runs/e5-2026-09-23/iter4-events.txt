@@ -1,0 +1,87 @@
+# SPDX-License-Identifier: MIT
+# E5a iteration 4 (2026-09-23, VM boot 4, final build with the KGR throttle-control change): RmInitAdapter succeeded; 0x20800b05 answered NOT_SUPPORTED without a host call; UVM_REGISTER_GPU returns 0 with flags 1 (run b) and with uvm_disable_hmm=1 (run c), 7 pushes each.
+5618240 ctrl 0x20800b05: kgr SM issue throttle ctrl: not supported, not forwarded -> status 0x56 [synthesized (NOT_SUPPORTED; forwarding makes the host driver assert)]
+## run it4b guest
+UVM_INITIALIZE flags 0x1: ioctl 0 rmStatus 0x0
+UVM_REGISTER_GPU GPU-9bd7b93d-3d23-c074-6704-984ef33ab7a7 ...
+UVM_REGISTER_GPU: ioctl 0 rmStatus 0x0 numaEnabled 0 numaNodeId -1
+UVM_UNREGISTER_GPU: ioctl 0 rmStatus 0x0
+---
+## run it4b pushes
+129529770 doorbell 1: token 0x10001 chid 1 runlist 1
+129529772 chid 1 gp 0: pushbuffer va 0x120000000 10 dwords
+129529773 host SET_OBJECT subch 0 class 0xc5b5
+129529774 host SET_OBJECT subch 5 class 0xc076
+129529775 ce semaphore release va 0x121000000 = 0x1 [guest]
+129563560 doorbell 2: token 0x10002 chid 2 runlist 1
+129563562 chid 2 gp 0: pushbuffer va 0x120100000 10 dwords
+129563563 host SET_OBJECT subch 0 class 0xc5b5
+129563564 host SET_OBJECT subch 5 class 0xc076
+129563565 ce semaphore release va 0x121000004 = 0x1 [guest]
+129600516 doorbell 3: token 0x20003 chid 3 runlist 2
+129600517 chid 3 gp 0: pushbuffer va 0x120200000 10 dwords
+129600519 host SET_OBJECT subch 0 class 0xc5b5
+129600520 host SET_OBJECT subch 5 class 0xc076
+129600522 ce semaphore release va 0x121000008 = 0x1 [guest]
+129634494 doorbell 4: token 0x20004 chid 4 runlist 2
+129634496 chid 4 gp 0: pushbuffer va 0x120300000 10 dwords
+129634497 host SET_OBJECT subch 0 class 0xc5b5
+129634499 host SET_OBJECT subch 5 class 0xc076
+129634500 ce semaphore release va 0x12100000c = 0x1 [guest]
+129677935 doorbell 5: token 0x30005 chid 5 runlist 3
+129677936 chid 5 gp 0: pushbuffer va 0x120400000 10 dwords
+129677938 host SET_OBJECT subch 0 class 0xc5b5
+129677939 host SET_OBJECT subch 5 class 0xc076
+129677940 ce semaphore release va 0x121000010 = 0x1 [guest]
+129719022 doorbell 6: token 0x30006 chid 6 runlist 3
+129719024 chid 6 gp 0: pushbuffer va 0x120500000 10 dwords
+129719025 host SET_OBJECT subch 0 class 0xc5b5
+129719026 host SET_OBJECT subch 5 class 0xc076
+129719028 ce semaphore release va 0x121000014 = 0x1 [guest]
+129719179 doorbell 7: token 0x30005 chid 5 runlist 3
+129719180 chid 5 gp 1: pushbuffer va 0x120600000 26 dwords
+129719181 ce memcopy 32 bytes -> Fb(2097152) from va 0x120600004 [guest]
+129719183 ce semaphore release va 0x121000010 = 0x2 [guest]
+129719585 ctrl 0x801813: set page directory: vaspace 0xcaf00005 root Some(Fb(2097152)) entries 4 flags 0x8 [guest] -> status 0x0 [guest (VAS root recorded for the channel emulation)]
+## run it4c guest
+UVM_INITIALIZE flags 0x0: ioctl 0 rmStatus 0x0
+UVM_REGISTER_GPU GPU-9bd7b93d-3d23-c074-6704-984ef33ab7a7 ...
+UVM_REGISTER_GPU: ioctl 0 rmStatus 0x0 numaEnabled 0 numaNodeId -1
+UVM_UNREGISTER_GPU: ioctl 0 rmStatus 0x0
+---
+## run it4c pushes
+155483525 doorbell 8: token 0x10001 chid 1 runlist 1
+155483526 chid 1 gp 0: pushbuffer va 0x120000000 10 dwords
+155483528 host SET_OBJECT subch 0 class 0xc5b5
+155483529 host SET_OBJECT subch 5 class 0xc076
+155483531 ce semaphore release va 0x121000000 = 0x1 [guest]
+155519332 doorbell 9: token 0x10002 chid 2 runlist 1
+155519334 chid 2 gp 0: pushbuffer va 0x120100000 10 dwords
+155519335 host SET_OBJECT subch 0 class 0xc5b5
+155519337 host SET_OBJECT subch 5 class 0xc076
+155519338 ce semaphore release va 0x121000004 = 0x1 [guest]
+155552713 doorbell 10: token 0x20003 chid 3 runlist 2
+155552714 chid 3 gp 0: pushbuffer va 0x120200000 10 dwords
+155552715 host SET_OBJECT subch 0 class 0xc5b5
+155552717 host SET_OBJECT subch 5 class 0xc076
+155552718 ce semaphore release va 0x121000008 = 0x1 [guest]
+155593813 doorbell 11: token 0x20004 chid 4 runlist 2
+155593814 chid 4 gp 0: pushbuffer va 0x120300000 10 dwords
+155593816 host SET_OBJECT subch 0 class 0xc5b5
+155593829 host SET_OBJECT subch 5 class 0xc076
+155593831 ce semaphore release va 0x12100000c = 0x1 [guest]
+155626093 doorbell 12: token 0x30005 chid 5 runlist 3
+155626094 chid 5 gp 0: pushbuffer va 0x120400000 10 dwords
+155626095 host SET_OBJECT subch 0 class 0xc5b5
+155626097 host SET_OBJECT subch 5 class 0xc076
+155626098 ce semaphore release va 0x121000010 = 0x1 [guest]
+155673058 doorbell 13: token 0x30006 chid 6 runlist 3
+155673059 chid 6 gp 0: pushbuffer va 0x120500000 10 dwords
+155673060 host SET_OBJECT subch 0 class 0xc5b5
+155673061 host SET_OBJECT subch 5 class 0xc076
+155673062 ce semaphore release va 0x121000014 = 0x1 [guest]
+155673403 doorbell 14: token 0x30005 chid 5 runlist 3
+155673404 chid 5 gp 1: pushbuffer va 0x120600000 26 dwords
+155673405 ce memcopy 32 bytes -> Fb(2097152) from va 0x120600004 [guest]
+155673406 ce semaphore release va 0x121000010 = 0x2 [guest]
+155674014 ctrl 0x801813: set page directory: vaspace 0xcaf00005 root Some(Fb(2097152)) entries 4 flags 0x8 [guest] -> status 0x0 [guest (VAS root recorded for the channel emulation)]

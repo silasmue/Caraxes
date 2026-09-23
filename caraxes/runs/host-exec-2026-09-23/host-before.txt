@@ -1,0 +1,11 @@
+<!-- SPDX-License-Identifier: MIT -->
+host-exec host state BEFORE, 2026-09-23T16:26:30+02:00
+GPU 00000000:2D:00.0
+    FB Memory Usage
+        Total                                          : 8192 MiB
+        Reserved                                       : 421 MiB
+        Used                                           : 5343 MiB
+        Free                                           : 2430 MiB
+    BAR1 Memory Usage
+nr_foll_pin_acquired 8118198
+nr_foll_pin_released 7066373

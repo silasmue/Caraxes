@@ -1,0 +1,27 @@
+# SPDX-License-Identifier: MIT
+# E5c full cuda gate on vm2 (binary c3), stopped by hand at 16:51 during the unscored suites, so the gate wrote no verdict.json/table.txt; per-test results from its stderr
+caraxes-gate: cuda-init
+  pass: stage 0 ok (cuInit)
+caraxes-gate: cuda-context
+  pass: stage 1 ok (context, sched=auto)
+caraxes-gate: cuda-core
+  pass: nvprobe 2: device memory written, read back and compared
+caraxes-gate: cuda-jit
+  fail: exit 1: ERROR: nvprobe 3 exited 1
+caraxes-gate: cuda-launch
+  fail: timed out after 180s; last line: 
+caraxes-gate: cuda-managed
+  fail: exit 1: ERROR AllocManaged a: 801 operation not supported
+caraxes-gate: cuda-hostreg
+  pass: hostregprobe: 2 pinned-memory roundtrips (HostRegister and HostAlloc) compared byte for byte
+caraxes-gate: cuda-torch
+  fail: exit 1: AssertionError: H2D/D2H round trip broken
+caraxes-gate: cuda-gdb
+  skip: declared-unsupported: workload not procurable in this environment -- no cuda-gdb (CUDA_GDB)
+caraxes-gate: rlprobe
+  fail: timed out after 180s; last line: 
+caraxes-gate: convburn
+  fail: timed out after 180s; last line: 
+caraxes-gate: robustness
+  fail: 0 of 3 runs correct (WRONG at 1: 0.000000 != 3.000000); refcnt 1 -> 2
+caraxes-gate: suite-test_async_streams

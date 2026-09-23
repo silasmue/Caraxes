@@ -1,0 +1,12 @@
+vfio-user-nvgpu: hostmem: guest RAM 0x0+0xc0000000: 3 chunk(s) in 2510 ms; pinned now 3072 MiB; host foll_pin acquired +786432 released +0; privileged windows so far 3
+vfio-user-nvgpu: dma table: 3 range(s), host IOVAs; ranges=0:40000000:40000000,40000000:7fffc0000000:40000000,80000000:7fff80000000:40000000; published to /mnt/vmstore/caraxes/vm2/dma-ranges
+vfio-user-nvgpu: hostmem: registered guest RAM chunk GPA 0x100000000..0x140000000 -> IOVA 0x7fff40000000..0x7fff80000000 (descriptor 0x80000007, 1532 ms, 9 IOVA samples = base + offset)
+vfio-user-nvgpu: hostmem: guest RAM 0x100000000+0x40000000: 1 chunk(s) in 1533 ms; pinned now 4096 MiB; host foll_pin acquired +262077 released +0; privileged windows so far 4
+vfio-user-nvgpu: dma table: 4 range(s), host IOVAs; ranges=0:40000000:40000000,40000000:7fffc0000000:40000000,80000000:7fff80000000:40000000,100000000:7fff40000000:40000000; published to /mnt/vmstore/caraxes/vm2/dma-ranges
+[2026-09-23T13:26:47Z INFO  vfio_user] Connection closed
+vfio-user-nvgpu: hostmem: freed 4 guest RAM descriptor(s), 4096 MiB unpinned; host foll_pin released +1048502 during the free (since open: acquired +1048576, released +1048502)
+vfio-user-nvgpu: hostmem: freed the VRAM reservation [0xe9000000, 0x1e9000000) (4096 MiB)
+vfio-user-nvgpu: hostmem: host RM client 0xc1d00100 freed
+vfio-user-nvgpu: hostmem: privileged windows opened in total: 4
+dma table: 0 DMA address(es) outside the table refused
+fb: reservation [0xe9000000, 0x1e9000000); accesses outside it: 0 reads, 0 writes

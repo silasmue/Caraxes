@@ -1,0 +1,12 @@
+vfio-user-nvgpu: fb layout: address space 0x200000000 (host card), reservation [0xe9000000, 0x1e9000000), usable [0xe9000000, 0x1e8e00000), BAR2/BAR1 roots 0x1e8e00000/0x1e8e01000, fb_length 0x100000000
+vfio-user-nvgpu: guest name "Leandro RTX 2070-4G"
+vfio-user-nvgpu: host RM open (unprivileged client, device 0, subdevice 0)
+vfio-user-nvgpu: TU106 (BOOT_0 0x166000a1, driver 610.57.04) on /mnt/vmstore/caraxes/vm2/gpu.sock, boot model on, FB 4096 MiB, ROM 130048 bytes, PROM image 131584 bytes, trace /mnt/vmstore/caraxes/vm2/gpu-trace.log
+[2026-09-23T13:20:34Z INFO  vfio_user] Received client version: major = 0 minor = 1 capabilities = Capabilities { max_msg_fds: 1, max_data_xfer_size: 1048576, migration: MigrationCapabilities { pgsize: 4096 } }
+[2026-09-23T13:20:34Z INFO  vfio_user] Sent server version: major = 0 minor = 0 capabilities = Capabilities { max_msg_fds: 1, max_data_xfer_size: 1048576, migration: MigrationCapabilities { pgsize: 4096 } }
+[2026-09-23T13:23:36Z INFO  vfio_user] Connection closed
+bar0: 35023 reads, 42281 writes
+bar1: 0 reads, 14 writes
+bar3: 399 reads, 21463 writes
+cfg: 10102 reads, 34 writes
+fb: reservation [0xe9000000, 0x1e9000000); accesses outside it: 0 reads, 0 writes

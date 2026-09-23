@@ -1,0 +1,13 @@
+vfio-user-nvgpu: host memory client open; privilege: uid 1000; capabilities effective 0x0 permitted 0x0 inheritable 0x0
+vfio-user-nvgpu: hostmem: host FB regions: [0x3600000, 0x1e918ffff] reserved 0x0
+vfio-user-nvgpu: hostmem: host VRAM: total 8192 MiB, HEAP_FREE 6439 MiB, nvidia-smi free 6436 MiB, largest free region 6215 MiB at 0x64a00000; request 2560 MiB at [0x149000000, 0x1e9000000) (heap region end 0x1e9190000)
+vfio-user-nvgpu: hostmem: reserved host VRAM [0x149000000, 0x1e9000000) (2560 MiB), handle 0x80000003, attr 0x11800000 attr2 0x100005, contiguous, in 0 ms
+vfio-user-nvgpu: fb layout: address space 0x200000000 (host card), reservation [0x149000000, 0x1e9000000), usable [0x149000000, 0x1e8e00000), BAR2/BAR1 roots 0x1e8e00000/0x1e8e01000, fb_length 0xa0000000
+vfio-user-nvgpu: guest name "Leandro RTX 2070-2560M"
+vfio-user-nvgpu: TU106 (BOOT_0 0x166000a1, driver 610.57.04) on /tmp/claude-1000/-home-silas-git-Caraxes/43784b5f-fc25-49bd-8e67-5dbab7e19aca/scratchpad/t.sock, boot model on, FB 2560 MiB, ROM 130048 bytes, PROM image 130048 bytes, trace off
+vfio-user-nvgpu: signal 15: freeing host memory and exiting
+vfio-user-nvgpu: hostmem: freed the VRAM reservation [0x149000000, 0x1e9000000) (2560 MiB)
+vfio-user-nvgpu: hostmem: host RM client 0xc1d0010e freed
+vfio-user-nvgpu: hostmem: privileged windows opened in total: 0
+exit status 143
+1382 MiB

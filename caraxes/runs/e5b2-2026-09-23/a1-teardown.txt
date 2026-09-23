@@ -1,0 +1,31 @@
+# SPDX-License-Identifier: MIT
+# device teardown after attempt 1 (down), 2026-09-23T18:01:42+02:00
+vfio-user-nvgpu: hostmem: reserved host VRAM [0xe9000000, 0x1e9000000) (4096 MiB), handle 0x80000003, attr 0x11800000 attr2 0x100005, contiguous, in 0 ms
+vfio-user-nvgpu: hostmem: registered guest RAM chunk GPA 0x0..0x40000000 -> IOVA 0x7fff80000000..0x7fffc0000000 (descriptor 0x80000004, 627 ms, 9 IOVA samples = base + offset)
+vfio-user-nvgpu: hostmem: registered guest RAM chunk GPA 0x40000000..0x80000000 -> IOVA 0x7fff40000000..0x7fff80000000 (descriptor 0x80000005, 603 ms, 9 IOVA samples = base + offset)
+vfio-user-nvgpu: hostmem: registered guest RAM chunk GPA 0x80000000..0xc0000000 -> IOVA 0x7ffec0000000..0x7fff00000000 (descriptor 0x80000006, 600 ms, 9 IOVA samples = base + offset)
+vfio-user-nvgpu: hostmem: guest RAM 0x0+0xc0000000: 3 chunk(s) in 1832 ms; pinned now 3072 MiB; host foll_pin acquired +786347 released +0; privileged windows so far 3
+vfio-user-nvgpu: hostmem: registered guest RAM chunk GPA 0x100000000..0x140000000 -> IOVA 0x7ffe80000000..0x7ffec0000000 (descriptor 0x80000007, 594 ms, 9 IOVA samples = base + offset)
+vfio-user-nvgpu: hostmem: guest RAM 0x100000000+0x40000000: 1 chunk(s) in 595 ms; pinned now 4096 MiB; host foll_pin acquired +262159 released +0; privileged windows so far 4
+vfio-user-nvgpu: mirror: chid 2: host channel 0x80000010 freed after 1 doorbell(s), 971158 ms of life [host]
+vfio-user-nvgpu: mirror: tsg 0xc1d0000a/0xcaf00008: host TSG 0x8000000e (engineType 0xb) freed [host]
+vfio-user-nvgpu: mirror: vaspace 0xc1d0000a/0xcaf00005: host VA space 0x8000000d freed [host]
+vfio-user-nvgpu: mirror: host doorbell object 0x80000013 freed: Ok(())
+vfio-user-nvgpu: mirror: host OS events freed, event thread stopped
+vfio-user-nvgpu: hostmem: freed host error-notifier 0x8000000f
+vfio-user-nvgpu: hostmem: freed host os-event 0x8000000c
+vfio-user-nvgpu: hostmem: freed host os-event 0x8000000b
+vfio-user-nvgpu: hostmem: freed host os-event 0x8000000a
+vfio-user-nvgpu: hostmem: freed host os-event 0x80000009
+vfio-user-nvgpu: hostmem: freed host os-event 0x80000008
+vfio-user-nvgpu: hostmem: freed 6 host mirror object(s) before the descriptors
+vfio-user-nvgpu: hostmem: freed 4 guest RAM descriptor(s), 4096 MiB unpinned; host foll_pin released +1048511 during the free (since open: acquired +1048591, released +1048526)
+vfio-user-nvgpu: hostmem: freed the VRAM reservation [0xe9000000, 0x1e9000000) (4096 MiB)
+vfio-user-nvgpu: hostmem: host RM client 0xc1d001d6 freed
+vfio-user-nvgpu: hostmem: privileged windows opened in total: 5
+vram store: 2 window map(s), 0 refused, 0 eviction(s); 168602 read(s) of 1347792 bytes, 45333 write(s) of 292532 bytes
+mirror: 1 channel(s) created, 1 freed, 0 live; 1 doorbell(s) forwarded, 0 TLB invalidate(s), 0 refusal(s), longest mirror build 20152 us; events raised 0, MSIs 0, host RC events 0
+memory.used [MiB], memory.free [MiB]
+1550 MiB, 6222 MiB
+nr_foll_pin_acquired 10215430
+nr_foll_pin_released 10212181

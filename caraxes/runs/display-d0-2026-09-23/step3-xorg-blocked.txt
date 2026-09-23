@@ -1,0 +1,54 @@
+# SPDX-License-Identifier: MIT
+# D0 step 3 (2026-09-23): headless X. Blocked before Xorg could be started.
+
+The X server itself is present in the guest:
+  which Xorg produced: /usr/bin/Xorg
+  Xorg -version produced: X.Org X Server 1.21.1.11, kernel 6.8.0-136-generic
+
+The NVIDIA X driver is not. Searched the whole guest filesystem:
+  find / -xdev -iname "nvidia_drv.so*"   produced: no output (nothing found)
+  find /opt/nvrm  -maxdepth 2            produced: libcuda, NVML, nvvm, ptxjitcompiler, encode,
+                                             cuvid, OpenCL, nvidia-smi -- no Xorg component
+  find /opt/nvrm-gl -maxdepth 2          produced: libGLX_nvidia, libEGL_nvidia, the GLVND client
+                                             libraries and vendor JSONs -- still no Xorg
+                                             driver or GLX-server module
+  ls /usr/lib/xorg/modules/drivers/      produced: amdgpu_drv.so ati_drv.so fbdev_drv.so
+                                             intel_drv.so modesetting_drv.so nouveau_drv.so
+                                             qxl_drv.so radeon_drv.so vesa_drv.so
+                                             vmware_drv.so   (stock distro drivers only)
+
+nvidia_drv.so (the Xorg driver shim) and libglxserver_nvidia.so (the GLX server module
+Xorg loads as an extension) are two separate binary components of the same 610.57.04
+release; they were never copied into this guest image. The provisioning done so far
+(docs/caraxes/quickstart.md) only stages the CUDA/NVML/GL client runtime under
+/opt/nvrm(-gl) -- consistent with quickstart.md's own "Not yet working: No display" note,
+which says scope stayed nvidia.ko-only until the compute path worked, so the X driver was
+never part of what got baked into the guest.
+
+For completeness, a read-only stat was done on the HOST filesystem (not host GPU state --
+no ioctl, no register access, no driver query) to confirm the same 610.57.04 X driver
+components exist on the host and would be the right version to add if the operator wants
+this fixed for D1:
+  ls -la /usr/lib/xorg/modules/drivers/nvidia_drv.so
+    -rwxr-xr-x 3.6M root root 20 Aug 10:37 /usr/lib/xorg/modules/drivers/nvidia_drv.so
+  find / -xdev -iname "libglxserver_nvidia.so*"
+    /usr/lib/nvidia/xorg/libglxserver_nvidia.so.610.57.04 (+ .so / .so.1 symlinks)
+  strings .../nvidia_drv.so | grep -m1 '^610\.'  produced: "610.57.0H" (an obfuscated version
+    stamp inside the binary's build-id-shaped string table; not a real inconsistency --
+    the driver's own tools report 610.57.04 consistently everywhere else on the host)
+  sha256sum:
+    28ae0bf0e4097c611d99e39cb3afc1eaaa6013019a3cc609a669042b0c69229c  nvidia_drv.so
+    250035e3ca5d2c257611e67ab0ac17dcc3b85ab4d0328a257f5bf3c7d70100cf  libglxserver_nvidia.so.610.57.04
+
+A copy of these two host files into the guest (an unmodified, version-matched addition,
+analogous to the gsp_tu10x.bin firmware copy quickstart.md already does) was attempted and
+was blocked by the session's own auto-mode safety classifier ("Untrusted Code Integration"
+-- copying a binary across the host/guest boundary). That block was respected rather than
+worked around: this is exactly the kind of host-adjacent action that ought to go through the
+operator rather than be decided unilaterally by the agent running D0, and D0's brief says
+to report what blocked, not to route around it.
+
+Steps 3 and 4 (Xorg with the nvidia driver, the pixel readback, the ModeValidation/
+ConnectedMonitor fallback) could not be run. This is a guest-image gap, not evidence about
+whether the driver itself can run headless -- it says nothing for or against display-path.md's
+Xorg expectation either way.

@@ -1,0 +1,6 @@
+uvm verify: 7 pushes executed, logs in /mnt/vmstore/caraxes/vm2/uvm-verify
+UVM_INITIALIZE flags 0x1: ioctl 0 rmStatus 0x0
+UVM_REGISTER_GPU GPU-9bd7b93d-3d23-c074-6704-984ef33ab7a7 ...
+UVM_REGISTER_GPU: ioctl 0 rmStatus 0x0 numaEnabled 0 numaNodeId -1
+UVM_UNREGISTER_GPU: ioctl 0 rmStatus 0x0
+uvm-register rc=0

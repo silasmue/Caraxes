@@ -1,0 +1,59 @@
+# SPDX-License-Identifier: MIT
+# T2b: as T2, but with the table the device really produced from host registrations in vm2 (CARAXES_DMA=register,
+# /mnt/vmstore/caraxes/vm2/dma-ranges, 2026-09-23): 4 x 1 GiB, top-down, GPA 0 at the HIGHEST IOVA. These IOVAs belong to vm2's
+# registration, not to vm3; the table is only used for guest-side address arithmetic here. nvidia is NOT loaded. vm3, 2026-09-23T14:10:00Z
+# Launch: B=/mnt/vmstore/caraxes/vm3/boot; T=0:0x7fff80000000:0x40000000,0x40000000:0x7fff40000000:0x40000000,0x80000000:0x7ffec0000000:0x40000000,0x100000000:0x7ffe80000000:0x40000000;
+#   CH=/mnt/vmstore/caraxes/vm3/cloud-hypervisor-0004 SEG1=1 DMA_RANGES=$T KERNEL=$B/vmlinuz-6.8.12-caraxesdma INITRD=$B/initrd.img-6.8.12-caraxesdma CMDLINE_EXTRA='dyndbg="file drivers/acpi/x86/dma.c +p"' caraxes/runs/acpi-dma-2026-09-23/vm3-up.sh
+# Cloud Hypervisor printed no MMIO-overlap warning (PC01's windows: [0xd4000000, 0xe7ffffff], [0x200040000000, 0x3fffffeeffff]).
+
+## host: iasl -d of the guest's DSDT, the _DMA object
+        Name (_DMA, ResourceTemplate ()  // _DMA: Direct Memory Access
+        {
+            QWordMemory (ResourceProducer, PosDecode, MinFixed, MaxFixed, Cacheable, ReadWrite,
+                0x0000000000000000, // Granularity
+                0x00007FFF80000000, // Range Minimum
+                0x00007FFFBFFFFFFF, // Range Maximum
+                0xFFFF800080000000, // Translation Offset
+                0x0000000040000000, // Length
+                ,, , AddressRangeMemory, TypeStatic)
+            QWordMemory (ResourceProducer, PosDecode, MinFixed, MaxFixed, Cacheable, ReadWrite,
+                0x0000000000000000, // Granularity
+                0x00007FFF40000000, // Range Minimum
+                0x00007FFF7FFFFFFF, // Range Maximum
+                0xFFFF800100000000, // Translation Offset
+                0x0000000040000000, // Length
+                ,, , AddressRangeMemory, TypeStatic)
+            QWordMemory (ResourceProducer, PosDecode, MinFixed, MaxFixed, Cacheable, ReadWrite,
+                0x0000000000000000, // Granularity
+                0x00007FFEC0000000, // Range Minimum
+                0x00007FFEFFFFFFFF, // Range Maximum
+                0xFFFF8001C0000000, // Translation Offset
+                0x0000000040000000, // Length
+                ,, , AddressRangeMemory, TypeStatic)
+            QWordMemory (ResourceProducer, PosDecode, MinFixed, MaxFixed, Cacheable, ReadWrite,
+                0x0000000000000000, // Granularity
+                0x00007FFE80000000, // Range Minimum
+                0x00007FFEBFFFFFFF, // Range Maximum
+                0xFFFF800280000000, // Translation Offset
+                0x0000000040000000, // Length
+                ,, , AddressRangeMemory, TypeStatic)
+        })
+
+## guest: dmacheck with the 47-bit mask
+# BDF=$(basename $(dirname $(grep -l 0x10de /sys/bus/pci/devices/*/vendor | head -1))); echo BDF=$BDF; sudo rmmod nvidia_uvm nvidia 2>/dev/null; lsmod | grep -E "^(dmacheck|caraxes_dma_range|nvidia) " ; sudo modprobe -r dmacheck 2>/dev/null; sudo rmmod dmacheck 2>/dev/null; sudo dmesg -C; sudo insmod dmacheck/dmacheck.ko; echo dmacheck | sudo tee /sys/bus/pci/devices/$BDF/driver_override >/dev/null; echo $BDF | sudo tee /sys/bus/pci/drivers_probe >/dev/null; echo | sudo tee /sys/bus/pci/devices/$BDF/driver_override >/dev/null; sudo rmmod dmacheck; sudo dmesg | grep -iE "dmacheck|_DMA|dma"
+BDF=0001:00:01.0
+[  141.171796] dmacheck: loading out-of-tree module taints kernel.
+[  141.171802] dmacheck: module verification failed: signature and/or required key missing - tainting kernel
+[  141.184049] dmacheck 0001:00:01.0: ACPI _DMA: 4 range(s), bus limit 0x7fffbfffffff
+[  141.184061] dmacheck 0001:00:01.0: at probe: dma_range_map present (4 range(s)), bus_dma_limit 0x7fffbfffffff, dma_mask 0xffffffff, coherent_dma_mask 0xffffffff
+[  141.184064] dmacheck 0001:00:01.0: range 0: cpu 0x0 dma 0x7fff80000000 size 0x40000000
+[  141.184065] dmacheck 0001:00:01.0: range 1: cpu 0x40000000 dma 0x7fff40000000 size 0x40000000
+[  141.184067] dmacheck 0001:00:01.0: range 2: cpu 0x80000000 dma 0x7ffec0000000 size 0x40000000
+[  141.184068] dmacheck 0001:00:01.0: range 3: cpu 0x100000000 dma 0x7ffe80000000 size 0x40000000
+[  141.184070] dmacheck 0001:00:01.0: testing with dma_mask 0x7fffffffffff, coherent 0x7fffffffffff, bus_dma_limit 0x7fffbfffffff (mask_bits=47)
+[  141.184213] dmacheck 0001:00:01.0: dma_to_phys(0x7fffc0000000, above every range) = 0xffffffffffffffff
+[  141.184215] dmacheck 0001:00:01.0: 275 mapped, 275 dma == expected, 275 dma_to_phys ok, 0 errors; coherent 8/8 ok, 8 below 4 GiB; lowest phys 0x1080000 -> dma 0x7fff81080000, highest phys 0x13fffffff -> dma 0x7ffebfffffff
+[  141.184217] dmacheck 0001:00:01.0: PASS (0 failures) against the installed dma_range_map
+
+## note: 'coherent 8/8 ok, 8 below 4 GiB' against 0 of 8 in T1 and T2: bus_dma_limit 0x7fffbfffffff translates back to phys 0x3fffffff,
+## so dma_direct_optimal_gfp_mask() adds GFP_DMA32 (ACPI-DMA.md §8 item 3). Allocations still succeed.

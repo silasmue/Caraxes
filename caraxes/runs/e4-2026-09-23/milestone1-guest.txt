@@ -1,0 +1,75 @@
+# SPDX-License-Identifier: MIT
+# Guest kernel journal of the milestone-1 load and nvidia-smi output, 2026-09-23.
+[    2.677467] caraxes-vm0 kernel: nvidia: loading out-of-tree module taints kernel.
+[    2.677482] caraxes-vm0 kernel: nvidia: module verification failed: signature and/or required key missing - tainting kernel
+[    2.805185] caraxes-vm0 kernel: nvidia-nvlink: Nvlink Core is being initialized, major device number 239
+[    2.805199] caraxes-vm0 kernel: NVRM: probing 0x10de 0x1f02, class 0x30000
+[    2.812978] caraxes-vm0 kernel: nvidia 0000:00:05.0: enabling device (0000 -> 0003)
+[    2.813660] caraxes-vm0 kernel: NVRM: resizable BAR disabled by regkey, skipping
+[    2.813663] caraxes-vm0 kernel: NVRM: No clk handles for the dev
+[    2.813813] caraxes-vm0 kernel: nvidia 0000:00:05.0: vgaarb: VGA decodes changed: olddecodes=io+mem,decodes=none:owns=none
+[    2.813873] caraxes-vm0 kernel: NVRM: PCI:0000:00:05.0 (10de:1f02): BAR0 @ 0xe6000000 (16MB)
+[    2.813876] caraxes-vm0 kernel: NVRM: PCI:0000:00:05.0 (10de:1f02): BAR1 @ 0x3fffe0000000 (256MB)
+[    2.813892] caraxes-vm0 kernel: NVRM: Failed to evaluate _PR3 object
+[    2.815760] caraxes-vm0 kernel: NVRM: pciPbiReadUuid: Could not acquire pciPbi mutex
+[    2.815897] caraxes-vm0 kernel: NVRM: Starting device 0000:00:05.0
+[    2.824897] caraxes-vm0 kernel: NVRM: GPU 0000:00:05.0: RmInitAdapter
+[    2.824902] caraxes-vm0 kernel: NVRM: GPU 0000:00:05.0: RmSetupRegisters for 0x10de:0x1f02
+[    2.824904] caraxes-vm0 kernel: NVRM: GPU 0000:00:05.0: pci config info:
+[    2.824905] caraxes-vm0 kernel: NVRM: GPU 0000:00:05.0:    registers look  like: 0xe6000000 0x1000000NVRM: GPU 0000:00:05.0:    fb        looks like: 0x3fffe0000000 0x10000000
+[    2.824917] caraxes-vm0 kernel: NVRM: GPU 0000:00:05.0: Successfully mapped framebuffer and registers
+[    2.824919] caraxes-vm0 kernel: NVRM: GPU 0000:00:05.0: final mappings:
+[    2.824920] caraxes-vm0 kernel: NVRM: GPU 0000:00:05.0:     regs: 0xe6000000 0x1000000 0x000000001ce9475e
+[    5.014463] caraxes-vm0 kernel: NVRM: initializing rc timer
+[    5.014468] caraxes-vm0 kernel: NVRM: rc timer initialized
+[    5.017610] caraxes-vm0 kernel: NVRM: GPU 0000:00:05.0: RmInitAdapter succeeded!
+[    5.018267] caraxes-vm0 kernel: NVRM: loading NVIDIA UNIX Open Kernel Module for x86_64  610.57.04  Release Build  (leandro@caraxes-vm0)  Wed Sep 23 08:32:41 UTC 2026
+[  142.303364] caraxes-vm0 kernel: NVRM: nvidia_open...
+[  142.303369] caraxes-vm0 kernel: NVRM: nvidia_ctl_open
+[  142.303373] caraxes-vm0 kernel: NVRM: ioctl(0xd2, 0x6b298eb0, 0x48)
+[  142.303390] caraxes-vm0 kernel: NVRM: ioctl(0xd6, 0x6b298fc0, 0x8)
+[  142.303392] caraxes-vm0 kernel: NVRM: ioctl(0xc8, 0x61eede40, 0x900)
+[  142.303399] caraxes-vm0 kernel: NVRM: ioctl(0x2b, 0x6b299050, 0x30)
+[  142.304161] caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x6b2986b0, 0x20)
+[  142.304178] caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x6b2986b0, 0x20)
+[  142.304183] caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x6b2986b0, 0x20)
+[  142.304187] caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x6b2986b0, 0x20)
+[  142.304231] caraxes-vm0 kernel: NVRM: nvidia_open...
+[  142.304233] caraxes-vm0 kernel: NVRM: GPU 0000:00:05.0: Opening GPU with minor number 0
+[  142.304238] caraxes-vm0 kernel: NVRM: ioctl(0xda, 0x6b2986b0, 0x8)
+[  142.304242] caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x6b2961c0, 0x20)
+[  142.305544] caraxes-vm0 kernel: NVRM: ioctl(0x2b, 0x6b299390, 0x30)
+[  142.305620] caraxes-vm0 kernel: NVRM: ioctl(0x2b, 0x6b299390, 0x30)
+[  142.826947] caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x6b2986c0, 0x20)
+[  142.826978] caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x6b2984d0, 0x20)
+[  142.826987] caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x6b298400, 0x20)
+[  142.826992] caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x6b298400, 0x20)
+[  142.827064] caraxes-vm0 kernel: NVRM: nvidia_open...
+[  142.827067] caraxes-vm0 kernel: NVRM: GPU 0000:00:05.0: Opening GPU with minor number 0
+[  142.827072] caraxes-vm0 kernel: NVRM: ioctl(0xc9, 0x6b298f10, 0x4)
+[  142.827077] caraxes-vm0 kernel: NVRM: ioctl(0xd7, 0x6b298ca0, 0x230)
+[  142.827741] caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x6b298480, 0x20)
+[  142.827752] caraxes-vm0 kernel: NVRM: ioctl(0x2b, 0x6b298fc0, 0x30)
+[  142.828789] caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x6b298620, 0x20)
+[  142.828811] caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x6b2983d0, 0x20)
+[  142.828819] caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x6b2982d0, 0x20)
+[  142.828826] caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x6b2982d0, 0x20)
+[  142.828886] caraxes-vm0 kernel: NVRM: nvidia_open...
+[  142.828888] caraxes-vm0 kernel: NVRM: GPU 0000:00:05.0: Opening GPU with minor number 0
+[  142.828893] caraxes-vm0 kernel: NVRM: ioctl(0xc9, 0x6b298de0, 0x4)
+[  142.828898] caraxes-vm0 kernel: NVRM: ioctl(0x2b, 0x6b298e90, 0x30)
+[  142.831405] caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x6b2984b0, 0x20)
+[  142.837872] caraxes-vm0 kernel: NVRM: ioctl(0x2a, 0x6b2984b0, 0x20)
+-- nvidia-smi
+Wed Sep 23 10:51:57 2026       
++-----------------------------------------------------------------------------------------+
+| NVIDIA-SMI 610.57.04              KMD Version: 610.57.04     CUDA UMD Version: 13.3     |
++-----------------------------------------+------------------------+----------------------+
+| GPU  Name                 Persistence-M | Bus-Id          Disp.A | Volatile Uncorr. ECC |
+| Fan  Temp   Perf          Pwr:Usage/Cap |           Memory-Usage | GPU-Util  Compute M. |
+|                                         |                        |               MIG M. |
+|=========================================+========================+======================|
+|   0  Leandro RTX 2070-4G            Off |   00000000:00:05.0 N/A |                  N/A |
+| N/A   N/A  N/A             N/A  /  N/A  |       0MiB /   4096MiB |     N/A      Default |
+|                                         |                        |                  N/A |
++-----------------------------------------+------------------------+----------------------+

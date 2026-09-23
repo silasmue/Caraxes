@@ -1,0 +1,14 @@
+# SPDX-License-Identifier: MIT
+# H8: PCIe capability decoded from caraxes/reference/rtx2070/config-space.txt (file read only)
+PCIe capability at 0x78 (cap id 0x10), PCIe cap reg 0x0012
+LnkCap @cfg 0x84 (BAR0 mirror 0x88084) = 0x00453d03
+  max link speed code (3:0) = 3  (3 = 8.0 GT/s; cuda-path requires 1..6)
+  max link width (9:4) = x16
+  ASPM support (11:10) = 3 (3 = L0s and L1)
+  L0s exit latency (14:12) = 3 (3 = 256-512 ns)
+  L1 exit latency (17:15) = 2 (2 = 2-4 us)
+  clock PM (18) = 1, surprise-down (19) = 0, DLL active reporting (20) = 0, BW notification (21) = 0, ASPM optionality (22) = 1
+  port number (31:24) = 0
+LnkCtl = 0x0140 (ASPM ctl 0, common clock 1); LnkSta = 0x1101 (current speed code 1, width x16, slot clock 1)
+LnkCap2 @cfg 0xa4 = 0x0000000e (supported speeds vector (7:1) = 0x7: 2.5/5/8 GT/s)
+DevCap @cfg 0x7c (BAR0 0x8807c) = 0x112c8de1

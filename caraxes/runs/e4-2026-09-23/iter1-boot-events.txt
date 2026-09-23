@@ -1,0 +1,147 @@
+# SPDX-License-Identifier: MIT
+# E4 iteration 1 (2026-09-23): boot-model events of the automatic module load with the first phase-5 answers and host RM forwarding; the guest crashed with a NULL KernelGraphics after the empty FIFO device-info table.
+4620625 gsp reset 1
+4625241 gsp start 1: halted
+4625242 fwsec: data buffer PA 0x104815000, frtsOffset 0xffe00000 (from the FWSEC command in guest RAM), WPR2 lo 0xffe000 hi 0xffeff0
+4625400 gsp reset 2
+4626143 sec2 reset 1
+5025314 sec2 start 1: booter done, wpr meta PA 0x1127dd000 (mapped), gsp riscv active
+5025316 wpr meta: fbSize 0x100000000 gspFwRsvdStart 0xf7600000 nonWprHeap 0xf7600000+0x100000 wprStart 0xf7700000 frtsOffset 0xffe00000 wprEnd 0xfff00000 vgaWorkspace 0xfff00000
+5025472 doorbell 1: libos args PA 0x1127df000 (mapped), wpr meta PA 0x1127dd000
+5025473 libos arg 0: "LOGINIT" pa 0x117a40000 size 0x10000
+5025474 libos arg 1: "LOGRM" pa 0x117a50000 size 0x10000
+5025475 libos arg 2: "RMARGS" pa 0x1127de000 size 0x1000
+5025477 rmargs: sharedMemPhysAddr 0x117200000 pages 129 cmdQueueOffset 0x1000 statQueueOffset 0x41000
+5025478 queues linked: cmd TxHeader { version: 0, size: 262144, msg_size: 4096, msg_count: 63, write_ptr: 1, flags: 1, rx_hdr_off: 32, entry_off: 4096 }; status header written (size 0x40000, 63 slots)
+5025479 tx seq 0 event GSP_INIT_DONE
+5025480 rx seq 0 GSP_SET_SYSTEM_INFO (72) sequence 0 length 984 checksum ok: gpuPhysAddr=0xe6000000 gpuPhysFbAddr=0x3fffe0000000 gpuPhysInstAddr=0x3ffffc000000 bdf=0x5 pciConfigMirror=0x88000+0x1000 PCIDeviceID=0x1f0210de PCISubDeviceID=0x40111458 rev=0xa1 maxUserVa=0x7ffffffff000 hostPageSize=0x1000
+5025523 doorbell 2: libos args PA 0x1127df000 (mapped), wpr meta PA 0x1127dd000
+5025525 rx seq 1 SET_REGISTRY (73) sequence 0 length 1523 checksum ok: size=1491 entries=40
+5025805 doorbell 3: libos args PA 0x1127df000 (mapped), wpr meta PA 0x1127dd000
+5025807 rx seq 2 SET_GUEST_SYSTEM_INFO (1) sequence 0 length 824 checksum ok: vgx 0x2e.0xd driver="610.57.04"
+5025808 tx seq 1 reply SET_GUEST_SYSTEM_INFO sequence 0 result 0x0 length 824
+5026068 doorbell 4: libos args PA 0x1127df000 (mapped), wpr meta PA 0x1127dd000
+5026070 rx seq 3 GET_GSP_STATIC_INFO (65) sequence 1 length 1632 checksum ok: 1600 bytes: 0000000000000000000000000000000000000000000000000000000000000000
+5026071 static-info gidInfo.data[0..16] = 9bd7b93d3d23c0746704984ef33ab7a7 [synthesized (E4: per-VM UUID)]
+5026073 static-info fbRegionInfoParams = 2 regions: usable [0, 0xf7600000), reserved [0xf7600000, 0x100000000) [guest (WPR meta gspFwRsvdStart)]
+5026074 static-info engineCaps = 0x81bfe02 0xc4 0x0 (GR0, CE0-8, NVDEC0/1, NVENC0, SW, SEC2, HOST) [synthesized (TU106 child list; E4: host GET_ENGINES_V2)]
+5026075 static-info fb_length = 0x100000000 [profile]
+5026077 static-info gpuNameString = Leandro RTX 2070-4G [profile (guest_card_name)]
+5026079 static-info gpuShortNameString = TU106 [card]
+5026080 static-info bar1PdeBase/bar2PdeBase = 0xf7601000/0xf7600000 [guest (WPR meta nonWprHeapOffset; docs/caraxes/fb-model.md)]
+5026082 static-info vbios* = valid, subsystem 0x1458:0x4011, revision 0x90063d00, oem 0x76 [card (config space, VBIOS BIT)]
+5026083 static-info hInternalClient/Device/Subdevice = 0xca7a0001/2/3 [synthesized (device-owned handles)]
+5026085 static-info branding, power, platform flags, SKU, PDI, ECID, bBusResetRequired = 0 [synthesized (desktop GeForce; E4: host controls)]
+5026086 tx seq 2 reply GET_GSP_STATIC_INFO sequence 1 result 0x0 length 1632
+5026443 doorbell 5: libos args PA 0x1127df000 (mapped), wpr meta PA 0x1127dd000
+5026444 rx seq 4 INIT_GSP_TRACE_CRASH_BUFFER (228) sequence 2 length 48 checksum ok: 16 bytes: 0000bc03010000004006000000000000
+5026446 init gsp trace crash buffer: pa 0x103bc0000 size 0x640 [guest, recorded]
+5026447 tx seq 3 reply INIT_GSP_TRACE_CRASH_BUFFER sequence 2 result 0x0 length 48
+5026753 doorbell 6: libos args PA 0x1127df000 (mapped), wpr meta PA 0x1127dd000
+5026755 rx seq 5 GSP_RM_CONTROL (76) sequence 3 length 160 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20800a36 paramsSize=88 rpcFlags=0x0
+5026756 ctrl 0x20800a36: chip info -> status 0x0 [card (config space) + synthesized regBases (kern_gpu_tu102.c:275-306)]
+5026758 tx seq 4 reply GSP_RM_CONTROL sequence 3 result 0x0 length 160
+5027027 doorbell 7: libos args PA 0x1127df000 (mapped), wpr meta PA 0x1127dd000
+5027029 rx seq 6 GSP_RM_CONTROL (76) sequence 4 length 20564 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20800a41 paramsSize=20492 rpcFlags=0x0
+5027030 ctrl 0x20800a41: user register access map -> status 0x0 [synthesized (allow-all map, gpu_register_access_map.c:260-298)]
+5027032 tx seq 5 reply GSP_RM_CONTROL sequence 4 result 0x0 length 20564
+5028098 doorbell 8: libos args PA 0x1127df000 (mapped), wpr meta PA 0x1127dd000
+5028100 rx seq 7 GSP_RM_CONTROL (76) sequence 5 length 1356 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x208001b0 paramsSize=1284 rpcFlags=0x0
+5028101 ctrl 0x208001b0: control 0x208001b0 forwarded to the host: status 0x0 -> status 0x0 [host (forwarded as-is)]
+5028103 tx seq 6 reply GSP_RM_CONTROL sequence 5 result 0x0 length 1356
+5028495 doorbell 9: libos args PA 0x1127df000 (mapped), wpr meta PA 0x1127dd000
+5028497 rx seq 8 GSP_RM_CONTROL (76) sequence 6 length 1356 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x208001b0 paramsSize=1284 rpcFlags=0x0
+5028498 ctrl 0x208001b0: control 0x208001b0 forwarded to the host: status 0x0 -> status 0x0 [host (forwarded as-is)]
+5028500 tx seq 7 reply GSP_RM_CONTROL sequence 6 result 0x0 length 1356
+5028662 doorbell 10: libos args PA 0x1127df000 (mapped), wpr meta PA 0x1127dd000
+5028663 rx seq 9 GSP_RM_CONTROL (76) sequence 7 length 3284 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20801112 paramsSize=3212 rpcFlags=0x0
+5028665 ctrl 0x20801112: fifo device info table: 0 entries -> status 0x0 [synthesized (empty table: GR and CE removed for milestone 1)]
+5028666 tx seq 8 reply GSP_RM_CONTROL sequence 7 result 0x0 length 3284
+5028915 doorbell 11: libos args PA 0x1127df000 (mapped), wpr meta PA 0x1127dd000
+5028917 rx seq 10 GSP_RM_CONTROL (76) sequence 8 length 3284 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20801112 paramsSize=3212 rpcFlags=0x0
+5028918 ctrl 0x20801112: fifo device info table: 0 entries -> status 0x0 [synthesized (empty table: GR and CE removed for milestone 1)]
+5028920 tx seq 9 reply GSP_RM_CONTROL sequence 8 result 0x0 length 3284
+5029150 doorbell 12: libos args PA 0x1127df000 (mapped), wpr meta PA 0x1127dd000
+5029152 rx seq 11 GSP_RM_CONTROL (76) sequence 9 length 3284 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20801112 paramsSize=3212 rpcFlags=0x0
+5029153 ctrl 0x20801112: fifo device info table: 0 entries -> status 0x0 [synthesized (empty table: GR and CE removed for milestone 1)]
+5029155 tx seq 10 reply GSP_RM_CONTROL sequence 9 result 0x0 length 3284
+5029383 doorbell 13: libos args PA 0x1127df000 (mapped), wpr meta PA 0x1127dd000
+5029385 rx seq 12 GSP_RM_CONTROL (76) sequence 10 length 3284 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20801112 paramsSize=3212 rpcFlags=0x0
+5029386 ctrl 0x20801112: fifo device info table: 0 entries -> status 0x0 [synthesized (empty table: GR and CE removed for milestone 1)]
+5029388 tx seq 11 reply GSP_RM_CONTROL sequence 10 result 0x0 length 3284
+5029580 doorbell 14: libos args PA 0x1127df000 (mapped), wpr meta PA 0x1127dd000
+5029582 rx seq 13 GSP_RM_CONTROL (76) sequence 11 length 3284 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20801112 paramsSize=3212 rpcFlags=0x0
+5029583 ctrl 0x20801112: fifo device info table: 0 entries -> status 0x0 [synthesized (empty table: GR and CE removed for milestone 1)]
+5029585 tx seq 12 reply GSP_RM_CONTROL sequence 11 result 0x0 length 3284
+5029778 doorbell 15: libos args PA 0x1127df000 (mapped), wpr meta PA 0x1127dd000
+5029779 rx seq 14 GSP_RM_CONTROL (76) sequence 12 length 3284 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20801112 paramsSize=3212 rpcFlags=0x0
+5029780 ctrl 0x20801112: fifo device info table: 0 entries -> status 0x0 [synthesized (empty table: GR and CE removed for milestone 1)]
+5029787 tx seq 13 reply GSP_RM_CONTROL sequence 12 result 0x0 length 3284
+5029979 doorbell 16: libos args PA 0x1127df000 (mapped), wpr meta PA 0x1127dd000
+5029981 rx seq 15 GSP_RM_CONTROL (76) sequence 13 length 3284 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20801112 paramsSize=3212 rpcFlags=0x0
+5029982 ctrl 0x20801112: fifo device info table: 0 entries -> status 0x0 [synthesized (empty table: GR and CE removed for milestone 1)]
+5029984 tx seq 14 reply GSP_RM_CONTROL sequence 13 result 0x0 length 3284
+5030173 doorbell 17: libos args PA 0x1127df000 (mapped), wpr meta PA 0x1127dd000
+5030175 rx seq 16 GSP_RM_CONTROL (76) sequence 14 length 3284 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20801112 paramsSize=3212 rpcFlags=0x0
+5030176 ctrl 0x20801112: fifo device info table: 0 entries -> status 0x0 [synthesized (empty table: GR and CE removed for milestone 1)]
+5030177 tx seq 15 reply GSP_RM_CONTROL sequence 14 result 0x0 length 3284
+5030409 doorbell 18: libos args PA 0x1127df000 (mapped), wpr meta PA 0x1127dd000
+5030410 rx seq 17 GSP_RM_CONTROL (76) sequence 15 length 3284 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20801112 paramsSize=3212 rpcFlags=0x0
+5030411 ctrl 0x20801112: fifo device info table: 0 entries -> status 0x0 [synthesized (empty table: GR and CE removed for milestone 1)]
+5030413 tx seq 16 reply GSP_RM_CONTROL sequence 15 result 0x0 length 3284
+5030604 doorbell 19: libos args PA 0x1127df000 (mapped), wpr meta PA 0x1127dd000
+5030605 rx seq 18 GSP_RM_CONTROL (76) sequence 16 length 3284 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20801112 paramsSize=3212 rpcFlags=0x0
+5030607 ctrl 0x20801112: fifo device info table: 0 entries -> status 0x0 [synthesized (empty table: GR and CE removed for milestone 1)]
+5030608 tx seq 17 reply GSP_RM_CONTROL sequence 16 result 0x0 length 3284
+5030810 doorbell 20: libos args PA 0x1127df000 (mapped), wpr meta PA 0x1127dd000
+5030811 rx seq 19 GSP_RM_CONTROL (76) sequence 17 length 3284 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20801112 paramsSize=3212 rpcFlags=0x0
+5030813 ctrl 0x20801112: fifo device info table: 0 entries -> status 0x0 [synthesized (empty table: GR and CE removed for milestone 1)]
+5030814 tx seq 18 reply GSP_RM_CONTROL sequence 17 result 0x0 length 3284
+5031002 doorbell 21: libos args PA 0x1127df000 (mapped), wpr meta PA 0x1127dd000
+5031003 rx seq 20 GSP_RM_CONTROL (76) sequence 18 length 3284 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20801112 paramsSize=3212 rpcFlags=0x0
+5031005 ctrl 0x20801112: fifo device info table: 0 entries -> status 0x0 [synthesized (empty table: GR and CE removed for milestone 1)]
+5031006 tx seq 19 reply GSP_RM_CONTROL sequence 18 result 0x0 length 3284
+5031193 doorbell 22: libos args PA 0x1127df000 (mapped), wpr meta PA 0x1127dd000
+5031200 rx seq 21 GSP_RM_CONTROL (76) sequence 19 length 3284 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20801112 paramsSize=3212 rpcFlags=0x0
+5031204 ctrl 0x20801112: fifo device info table: 0 entries -> status 0x0 [synthesized (empty table: GR and CE removed for milestone 1)]
+5031205 tx seq 20 reply GSP_RM_CONTROL sequence 19 result 0x0 length 3284
+5031411 doorbell 23: libos args PA 0x1127df000 (mapped), wpr meta PA 0x1127dd000
+5031413 rx seq 22 GSP_RM_CONTROL (76) sequence 20 length 3284 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20801112 paramsSize=3212 rpcFlags=0x0
+5031414 ctrl 0x20801112: fifo device info table: 0 entries -> status 0x0 [synthesized (empty table: GR and CE removed for milestone 1)]
+5031416 tx seq 21 reply GSP_RM_CONTROL sequence 20 result 0x0 length 3284
+5031603 doorbell 24: libos args PA 0x1127df000 (mapped), wpr meta PA 0x1127dd000
+5031604 rx seq 23 GSP_RM_CONTROL (76) sequence 21 length 3284 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20801112 paramsSize=3212 rpcFlags=0x0
+5031606 ctrl 0x20801112: fifo device info table: 0 entries -> status 0x0 [synthesized (empty table: GR and CE removed for milestone 1)]
+5031607 tx seq 22 reply GSP_RM_CONTROL sequence 21 result 0x0 length 3284
+5031804 doorbell 25: libos args PA 0x1127df000 (mapped), wpr meta PA 0x1127dd000
+5031806 rx seq 24 GSP_RM_CONTROL (76) sequence 22 length 2184 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20800a5c paramsSize=2112 rpcFlags=0x0
+5031808 ctrl 0x20800a5c: interrupt kernel table: 6 entries -> status 0x0 [synthesized (TU102-style subtree map; E4: host MC_GET_STATIC_INTR_TABLE)]
+5031809 tx seq 23 reply GSP_RM_CONTROL sequence 22 result 0x0 length 2184
+5031938 doorbell 26: libos args PA 0x1127df000 (mapped), wpr meta PA 0x1127dd000
+5031939 rx seq 25 GSP_RM_CONTROL (76) sequence 23 length 3284 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20801112 paramsSize=3212 rpcFlags=0x0
+5031941 ctrl 0x20801112: fifo device info table: 0 entries -> status 0x0 [synthesized (empty table: GR and CE removed for milestone 1)]
+5031942 tx seq 24 reply GSP_RM_CONTROL sequence 23 result 0x0 length 3284
+5032236 doorbell 27: libos args PA 0x1127df000 (mapped), wpr meta PA 0x1127dd000
+5032237 rx seq 26 GSP_RM_CONTROL (76) sequence 24 length 3284 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20801112 paramsSize=3212 rpcFlags=0x0
+5032239 ctrl 0x20801112: fifo device info table: 0 entries -> status 0x0 [synthesized (empty table: GR and CE removed for milestone 1)]
+5032240 tx seq 25 reply GSP_RM_CONTROL sequence 24 result 0x0 length 3284
+5032484 doorbell 28: libos args PA 0x1127df000 (mapped), wpr meta PA 0x1127dd000
+5032485 rx seq 27 GSP_RM_CONTROL (76) sequence 25 length 112 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20800a1c paramsSize=40 rpcFlags=0x0
+5032486 ctrl 0x20800a1c: memsys static config -> status 0x0 [synthesized (TU106: 4 MiB L2, 8 LTC x 2 LTS, GDDR6; E4: host FB_GET_INFO_V2)]
+5032488 tx seq 26 reply GSP_RM_CONTROL sequence 25 result 0x0 length 112
+5032674 doorbell 29: libos args PA 0x1127df000 (mapped), wpr meta PA 0x1127dd000
+5032676 rx seq 28 GSP_RM_CONTROL (76) sequence 26 length 272 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20801803 paramsSize=200 rpcFlags=0x0
+5032682 ctrl 0x20801803: pci bar info: 4 bars -> status 0x0 [guest (BAR addresses from GspSystemInfo) + card (emulated BAR sizes)]
+5032683 tx seq 27 reply GSP_RM_CONTROL sequence 26 result 0x0 length 272
+5034483 doorbell 30: libos args PA 0x1127df000 (mapped), wpr meta PA 0x1127dd000
+5034485 rx seq 29 GSP_RM_CONTROL (76) sequence 27 length 76 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20800aac paramsSize=4 rpcFlags=0x0
+5034486 ctrl 0x20800aac: bif static info: all false -> status 0x0 [synthesized (single function, no gen4, no C2C)]
+5034487 tx seq 28 reply GSP_RM_CONTROL sequence 27 result 0x0 length 76
+5034628 doorbell 31: libos args PA 0x1127df000 (mapped), wpr meta PA 0x1127dd000
+5034630 rx seq 30 GSP_RM_CONTROL (76) sequence 28 length 80 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20800a61 paramsSize=8 rpcFlags=0x0
+5034632 ctrl 0x20800a61: fifo num channels: 512 -> status 0x0 [synthesized (512 channels; E4: host FIFO_GET_INFO)]
+5034634 tx seq 29 reply GSP_RM_CONTROL sequence 28 result 0x0 length 80
+5034765 doorbell 32: libos args PA 0x1127df000 (mapped), wpr meta PA 0x1127dd000
+5034767 rx seq 31 GSP_RM_CONTROL (76) sequence 29 length 76 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20802a08 paramsSize=4 rpcFlags=0x0
+5034768 ctrl 0x20802a08: control 0x20802a08 on 0xca7a0003 (class 0x2080, 4 bytes): not supported -> status 0x56 [unanswered]
+5034770 tx seq 30 reply GSP_RM_CONTROL sequence 29 result 0x0 length 76

@@ -1,0 +1,28 @@
+# SPDX-License-Identifier: MIT
+# T1 control: patched guest kernel 6.8.12-caraxesdma, patched Cloud Hypervisor WITHOUT --pci-segment dma_ranges, default topology
+# (GPU at 0000:00:05.0). The new hook must find no _DMA and change nothing. vm3, 2026-09-23T14:12:40Z
+# Launch: B=/mnt/vmstore/caraxes/vm3/boot; CH=/mnt/vmstore/caraxes/vm3/cloud-hypervisor-0004 KERNEL=$B/vmlinuz-6.8.12-caraxesdma INITRD=$B/initrd.img-6.8.12-caraxesdma CMDLINE_EXTRA='dyndbg="file drivers/acpi/x86/dma.c +p"' caraxes/runs/acpi-dma-2026-09-23/vm3-up.sh
+
+## guest: uname -r; DSDT hash (boot A with the stock binary: 245e1c34...); 'ACPI _DMA' lines in the whole boot log
+6.8.12-caraxesdma
+245e1c34ae1d109f6c2546aece5a7b06c41db6a45130d003c2b47c1605689275  /sys/firmware/acpi/tables/DSDT
+'ACPI _DMA' lines in this boot's kernel journal (sudo journalctl -k -b 0 | grep -c 'ACPI _DMA'): 0
+2
+
+## guest: dmacheck
+# BDF=$(basename $(dirname $(grep -l 0x10de /sys/bus/pci/devices/*/vendor | head -1))); echo BDF=$BDF; sudo rmmod nvidia_uvm nvidia 2>/dev/null; lsmod | grep -E "^(dmacheck|caraxes_dma_range|nvidia) " ; sudo modprobe -r dmacheck 2>/dev/null; sudo rmmod dmacheck 2>/dev/null; sudo dmesg -C; sudo insmod dmacheck/dmacheck.ko; echo dmacheck | sudo tee /sys/bus/pci/devices/$BDF/driver_override >/dev/null; echo $BDF | sudo tee /sys/bus/pci/drivers_probe >/dev/null; echo | sudo tee /sys/bus/pci/devices/$BDF/driver_override >/dev/null; sudo rmmod dmacheck; sudo dmesg | grep -iE "dmacheck|_DMA|dma"
+BDF=0000:00:05.0
+[  137.909948] dmacheck: loading out-of-tree module taints kernel.
+[  137.909954] dmacheck: module verification failed: signature and/or required key missing - tainting kernel
+[  137.921453] dmacheck 0000:00:05.0: at probe: dma_range_map absent (0 range(s)), bus_dma_limit 0x0, dma_mask 0xffffffff, coherent_dma_mask 0xffffffff
+[  137.921458] dmacheck 0000:00:05.0: testing with dma_mask 0x7fffffffffff, coherent 0x7fffffffffff, bus_dma_limit 0x0 (mask_bits=47)
+[  137.921605] dmacheck 0000:00:05.0: 264 mapped, 264 dma == expected, 264 dma_to_phys ok, 0 errors; coherent 8/8 ok, 0 below 4 GiB; lowest phys 0x1080000 -> dma 0x1080000, highest phys 0x11d9b9000 -> dma 0x11d9b9000
+[  137.921608] dmacheck 0000:00:05.0: PASS (0 failures) against identity (no map)
+
+## host: tools/caraxes-vm.sh probe t1c-no-dma
+probe t1c-no-dma: 84027 device accesses, guest log in /mnt/vmstore/caraxes/vm3/probe-t1c-no-dma/guest-dmesg.txt
+[  138.472895] NVRM: GPU 0000:00:05.0: RmInitAdapter
+[  141.111773] NVRM: GPU 0000:00:05.0: RmInitAdapter succeeded!
+modprobe rc=0
+_DMA lines in the probe log: 0
+GPU 0: Leandro RTX 2070-4G (UUID: GPU-9bd7b93d-3d23-c074-6704-984ef33ab7a7)

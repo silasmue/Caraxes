@@ -1,0 +1,115 @@
+# SPDX-License-Identifier: MIT
+# SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
+# SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
+#
+# SST discovery, EDID read, link training and teardown against the default sink
+# (SinkProfile::dp11a_hbr_x4, EdidSpec::first_monitor). The request order follows the
+# NVIDIA 610.57.04 DP library as read in source (dp_sst_edid.cpp sstDDCPing and
+# readNextBlock with a 16-byte transaction size, dp_evoadapter.cpp EvoAuxBus::transaction);
+# it is NOT a capture from a guest. Replace it with a recorded trace once gate D2 exists.
+# The DPCD replies are derived by hand from the DP 1.1a register definitions; the EDID
+# bytes were checked with edid-decode 1.32.0 --check (conformity PASS).
+
+! plug
+? events plug
+# Receiver capability field: rev 1.1, HBR, 4 lanes + enhanced framing, 0.5 % downspread,
+# 8b/10b, local EDID present.
+> nr 000 16
+< ack 16 11 0a 84 01 00 00 01 00 02 00 00 00 00 00 00 00
+# Sink count 1, no service IRQ.
+> nr 200 2
+< ack 2 01 00
+# No extended receiver capability field below DPCD 1.4; no MST.
+> nr 2200 16
+< ack 16 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+> nr 021 1
+< ack 1 00
+> nw 600 01
+< ack 1
+# DDC ping: the library asks for an I2C read of size 0 without MOT; the NV0073 encoding
+# (size minus one, bAddrOnly only for writes) turns that into a 1-byte read.
+> ir 50 1
+< ack 1 00
+# An absent device (0x51, the second DDC address the library pings) NACKs the address.
+> ir 51 1
+< i2c-nack 0
+# readNextBlock: EDID offset 0 with MOT, seven MOT reads, the last read without MOT.
+> iwm 50 00
+< ack 1
+> irm 50 16
+< ack 16 00 ff ff ff ff ff ff 00 0e 58 01 00 00 00 00 00
+> irm 50 16
+< ack 16 27 24 01 04 a5 35 1e 78 06 ee 91 a3 54 4c 99 26
+> irm 50 16
+< ack 16 0f 50 54 21 08 00 81 c0 81 80 95 00 a9 c0 b3 00
+> irm 50 16
+< ack 16 01 01 01 01 01 01 1a 36 80 a0 70 38 1f 40 30 20
+> irm 50 16
+< ack 16 35 00 0f 28 21 00 00 1a 00 00 00 fc 00 43 61 72
+> irm 50 16
+< ack 16 61 78 65 73 20 44 50 0a 20 20 00 00 00 fd 00 38
+> irm 50 16
+< ack 16 3d 1e 46 0f 01 0a 20 20 20 20 20 20 00 00 00 10
+> ir 50 16
+< ack 16 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 94
+# Same block again with an I2C DEFER in the middle: the retry gets the bytes the
+# deferred request would have got (the offset did not advance).
+> iwm 50 00
+< ack 1
+> irm 50 16
+< ack 16 00 ff ff ff ff ff ff 00 0e 58 01 00 00 00 00 00
+! fault i2c-defer
+> irm 50 16
+< i2c-defer 0
+> irm 50 16
+< ack 16 27 24 01 04 a5 35 1e 78 06 ee 91 a3 54 4c 99 26
+# Address-only STOP ends the transaction.
+> ir 50 0
+< ack 0
+# Link training at HBR x4 with enhanced framing.
+> nw 100 0a 84
+< ack 2
+> nw 102 21 00 00 00 00
+< ack 5
+> nr 202 6
+< ack 6 11 11 00 00 00 00
+> nw 102 22
+< ack 1
+> nr 202 6
+< ack 6 77 77 01 00 00 00
+> nw 102 00
+< ack 1
+> nr 202 6
+< ack 6 77 77 01 01 00 00
+# A write to read-only receiver caps is acknowledged and ignored.
+> nw 000 ff 00
+< ack 2
+> nr 000 2
+< ack 2 11 0a
+# Native DEFER, then the retry.
+! fault aux-defer
+> nr 202 2
+< defer 0
+> nr 202 2
+< ack 2 77 77
+# The sink loses the link: short pulse, status cleared, LINK_STATUS_UPDATED set.
+! drop-link
+? events irq-link
+> nr 202 6
+< ack 6 00 00 80 00 00 00
+# Service IRQ, cleared by writing 1.
+! service-irq 02
+? events irq-service:02
+> nr 201 1
+< ack 1 02
+> nw 201 02
+< ack 1
+> nr 201 1
+< ack 1 00
+# Power down, unplug: AUX times out.
+> nw 600 02
+< ack 1
+! unplug
+? events unplug
+> nr 000 1
+< err timeout

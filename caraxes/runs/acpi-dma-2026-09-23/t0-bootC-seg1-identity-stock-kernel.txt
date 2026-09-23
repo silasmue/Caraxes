@@ -1,0 +1,132 @@
+# SPDX-License-Identifier: MIT
+# T0 boot C: patched Cloud Hypervisor (0001-0004), --platform num_pci_segments=2, GPU on pci_segment=1,
+# --pci-segment 'pci_segment=1,dma_ranges=[0:0:0xc0000000,0x100000000:0x100000000:0x40000000]' (identity, all RAM per /proc/iomem),
+# stock guest kernel 6.8.0-136-generic, vm3, 2026-09-23T13:46:59Z
+# Launch: CH=/mnt/vmstore/caraxes/vm3/cloud-hypervisor-0004 SEG1=1 DMA_RANGES=0:0:0xc0000000,0x100000000:0x100000000:0x40000000 caraxes/runs/acpi-dma-2026-09-23/vm3-up.sh
+
+## guest: uname -r; sha256sum DSDT; System RAM; lspci -nn -D; cmdline
+6.8.0-136-generic
+9626c9e803d2f2e4e64b9132142d0766c64605633932f2f275d9abbd4e02b8b5  /sys/firmware/acpi/tables/DSDT
+00001000-0009ffff : System RAM
+00100000-bfffffff : System RAM
+100000000-13fffffff : System RAM
+0000:00:00.0 Host bridge [0600]: Intel Corporation Device [8086:0d57]
+0000:00:01.0 Mass storage controller [0180]: Red Hat, Inc. Virtio 1.0 block device [1af4:1042] (rev 01)
+0000:00:02.0 Mass storage controller [0180]: Red Hat, Inc. Virtio 1.0 block device [1af4:1042] (rev 01)
+0000:00:03.0 Ethernet controller [0200]: Red Hat, Inc. Virtio 1.0 network device [1af4:1041] (rev 01)
+0000:00:04.0 Unassigned class [ffff]: Red Hat, Inc. Virtio 1.0 RNG [1af4:1044] (rev 01)
+0001:00:00.0 Host bridge [0600]: Intel Corporation Device [8086:0d57]
+0001:00:01.0 VGA compatible controller [0300]: NVIDIA Corporation TU106 [GeForce RTX 2070] [10de:1f02] (rev a1)
+root=/dev/vda1 rw console=ttyS0 net.ifnames=0
+
+## host: DSDT disassembled with ACPICA iasl (scratchpad build, version 20260408): iasl -d dsdt-C-seg1-identity.aml; _DMA occurrences: 1 (in the patched-CH boot without the option: 0)
+    Device (_SB.PC01)
+    {
+        Name (_HID, EisaId ("PNP0A08") /* PCI Express Bus */)  // _HID: Hardware ID
+        Name (_CID, EisaId ("PNP0A03") /* PCI Bus */)  // _CID: Compatible ID
+        Name (_ADR, Zero)  // _ADR: Address
+        Name (_SEG, One)  // _SEG: PCI Segment
+        Name (_UID, One)  // _UID: Unique ID
+        Name (_CCA, One)  // _CCA: Cache Coherency Attribute
+        ...
+        Name (_DMA, ResourceTemplate ()  // _DMA: Direct Memory Access
+        {
+            QWordMemory (ResourceProducer, PosDecode, MinFixed, MaxFixed, Cacheable, ReadWrite,
+                0x0000000000000000, // Granularity
+                0x0000000000000000, // Range Minimum
+                0x00000000BFFFFFFF, // Range Maximum
+                0x0000000000000000, // Translation Offset
+                0x00000000C0000000, // Length
+                ,, , AddressRangeMemory, TypeStatic)
+            QWordMemory (ResourceProducer, PosDecode, MinFixed, MaxFixed, Cacheable, ReadWrite,
+                0x0000000000000000, // Granularity
+                0x0000000100000000, // Range Minimum
+                0x000000013FFFFFFF, // Range Maximum
+                0x0000000000000000, // Translation Offset
+                0x0000000040000000, // Length
+                ,, , AddressRangeMemory, TypeStatic)
+        })
+
+## host: the _DMA bytes in the guest's DSDT (python: find b'_DMA', dump 104 bytes); same layout as ACPI-DMA.md §3.3
+000e82: 08 5f 44 4d 41 11 42 06 0a 5e 8a 2b 00 00 0c 03
+000e92: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+000ea2: ff ff ff bf 00 00 00 00 00 00 00 00 00 00 00 00
+000eb2: 00 00 00 c0 00 00 00 00 8a 2b 00 00 0c 03 00 00
+000ec2: 00 00 00 00 00 00 00 00 00 00 01 00 00 00 ff ff
+000ed2: ff 3f 01 00 00 00 00 00 00 00 00 00 00 00 00 00
+000ee2: 00 40 00 00 00 00 79 00
+
+## guest: dmacheck (caraxes/runs/acpi-dma-2026-09-23/dmacheck) bound by driver_override, no other driver bound
+# BDF=$(basename $(dirname $(grep -l 0x10de /sys/bus/pci/devices/*/vendor | head -1))); echo BDF=$BDF; sudo rmmod nvidia_uvm nvidia 2>/dev/null; lsmod | grep -E "^(dmacheck|caraxes_dma_range|nvidia) " ; sudo modprobe -r dmacheck 2>/dev/null; sudo rmmod dmacheck 2>/dev/null; sudo dmesg -C; sudo insmod dmacheck/dmacheck.ko; echo dmacheck | sudo tee /sys/bus/pci/devices/$BDF/driver_override >/dev/null; echo $BDF | sudo tee /sys/bus/pci/drivers_probe >/dev/null; echo | sudo tee /sys/bus/pci/devices/$BDF/driver_override >/dev/null; sudo rmmod dmacheck; sudo dmesg | grep -iE "dmacheck|_DMA|dma"
+BDF=0001:00:01.0
+[  186.453378] dmacheck: loading out-of-tree module taints kernel.
+[  186.453385] dmacheck: module verification failed: signature and/or required key missing - tainting kernel
+[  186.466812] dmacheck 0001:00:01.0: at probe: dma_range_map absent (0 range(s)), bus_dma_limit 0x0, dma_mask 0xffffffff, coherent_dma_mask 0xffffffff
+[  186.466819] dmacheck 0001:00:01.0: after dma_set_mask_and_coherent(47): dma_mask 0x7fffffffffff, coherent 0x7fffffffffff, bus_dma_limit 0x0
+[  186.467063] dmacheck 0001:00:01.0: 264 mapped, 264 dma == expected, 264 dma_to_phys ok, 0 errors; coherent 8/8 ok, 0 below 4 GiB; lowest phys 0x1080000 -> dma 0x1080000, highest phys 0x11f960000 -> dma 0x11f960000
+[  186.467066] dmacheck 0001:00:01.0: PASS (0 failures) against identity (no map)
+
+## host: tools/caraxes-vm.sh probe t0-seg1-identity   (FLR through sysfs reset, then modprobe nvidia; VM=vm3 CARAXES_IP=192.168.103.23)
+probe t0-seg1-identity: 85066 device accesses, guest log in /mnt/vmstore/caraxes/vm3/probe-t0-seg1-identity/guest-dmesg.txt
+[  199.600821] NVRM: GPU 0001:00:01.0: RmInitAdapter
+[  208.288753] NVRM: GPU 0001:00:01.0: RmInitAdapter succeeded!
+modprobe rc=0
+# guest log of that probe, filtered: grep -E 'NVRM|nvidia|0001:|modprobe rc' /mnt/vmstore/caraxes/vm3/probe-t0-seg1-identity/guest-dmesg.txt | head -40
+[  199.579400] nvidia-nvlink: Nvlink Core is being initialized, major device number 239
+[  199.579411] NVRM: probing 0x10de 0x1f02, class 0x30000
+[  199.589649] nvidia 0001:00:01.0: enabling device (0000 -> 0002)
+[  199.590335] NVRM: resizable BAR disabled by regkey, skipping
+[  199.590339] NVRM: No clk handles for the dev
+[  199.590480] nvidia 0001:00:01.0: vgaarb: VGA decodes changed: olddecodes=io+mem,decodes=none:owns=none
+[  199.590552] NVRM: PCI:0001:00:01.0 (10de:1f02): BAR0 @ 0xe7000000 (16MB)
+[  199.590555] NVRM: PCI:0001:00:01.0 (10de:1f02): BAR1 @ 0x3fffe0000000 (256MB)
+[  199.590581] NVRM: Failed to evaluate _PR3 object
+[  199.593013] NVRM: pciPbiReadUuid: Could not acquire pciPbi mutex
+[  199.593215] NVRM: Starting device 0001:00:01.0
+[  199.600821] NVRM: GPU 0001:00:01.0: RmInitAdapter
+[  199.600825] NVRM: GPU 0001:00:01.0: RmSetupRegisters for 0x10de:0x1f02
+[  199.600826] NVRM: GPU 0001:00:01.0: pci config info:
+[  199.600827] NVRM: GPU 0001:00:01.0:    registers look  like: 0xe7000000 0x1000000NVRM: GPU 0001:00:01.0:    fb        looks like: 0x3fffe0000000 0x10000000
+[  199.600839] NVRM: GPU 0001:00:01.0: Successfully mapped framebuffer and registers
+[  199.600840] NVRM: GPU 0001:00:01.0: final mappings:
+[  199.600841] NVRM: GPU 0001:00:01.0:     regs: 0xe7000000 0x1000000 0x000000005a0e6edc
+[  202.083708] NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+[  202.083714] NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+[  202.083716] NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+[  202.083718] NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+[  202.083720] NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+[  202.083722] NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+[  202.083723] NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+[  202.083725] NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+[  202.083727] NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+[  202.083729] NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+[  202.083731] NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+[  202.083733] NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+[  202.083737] NVRM: nv_acpi_dod_method: failed to evaluate _DOD method!
+[  208.285680] NVRM: initializing rc timer
+[  208.285684] NVRM: rc timer initialized
+[  208.288753] NVRM: GPU 0001:00:01.0: RmInitAdapter succeeded!
+[  208.289591] NVRM: loading NVIDIA UNIX Open Kernel Module for x86_64  610.57.04  Release Build  (leandro@caraxes-vm3)  Wed Sep 23 13:37:27 UTC 2026
+modprobe rc=0
+
+## guest: sudo LD_LIBRARY_PATH=/opt/nvrm/lib /opt/nvrm/bin/nvidia-smi
+Wed Sep 23 13:47:27 2026       
++-----------------------------------------------------------------------------------------+
+| NVIDIA-SMI 610.57.04              KMD Version: 610.57.04     CUDA UMD Version: 13.3     |
++-----------------------------------------+------------------------+----------------------+
+| GPU  Name                 Persistence-M | Bus-Id          Disp.A | Volatile Uncorr. ECC |
+| Fan  Temp   Perf          Pwr:Usage/Cap |           Memory-Usage | GPU-Util  Compute M. |
+|                                         |                        |               MIG M. |
+|=========================================+========================+======================|
+|   0  Leandro RTX 2070-4G            Off |   00000001:00:01.0 Off |                  N/A |
+|  0%   50C    P8             29W /  175W |       0MiB /   4096MiB |     25%      Default |
+|                                         |                        |                  N/A |
++-----------------------------------------+------------------------+----------------------+
+
++-----------------------------------------------------------------------------------------+
+| Processes:                                                                              |
+|  GPU   GI   CI              PID   Type   Process name                        GPU Memory |
+|        ID   ID                                                               Usage      |
+|=========================================================================================|
+|  No running processes found                                                             |
++-----------------------------------------------------------------------------------------+

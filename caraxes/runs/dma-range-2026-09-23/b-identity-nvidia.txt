@@ -1,0 +1,185 @@
+# SPDX-License-Identifier: MIT
+# caraxes_dma_range, test (b) in vm1, 2026-09-23: identity table in 1 GiB entries, then nvidia probes with it, twice.
+# Script: phase B in commands.txt. Kernel log filtered: NVRM per-ioctl lines, nvidia_open/close and _DSM lines are dropped
+# (the guest runs NVreg_ResmanDebugLevel=0, so nvidia-smi alone logs about 150 ioctl lines).
+# 2026-09-23T13:00:00Z
+leandro           192.168.101.1    13:00   26:47   0.00s   ?    sshd: leandro [priv]
+leandro           192.168.101.1    12:32   26:47   0.00s  0.01s sshd: leandro [priv]
+# open handles on /dev/nvidia*:
+(none)
+nvidia_uvm           2043904  0
+nvidia              16379904  1 nvidia_uvm
+$ sudo rmmod nvidia_uvm nvidia
+rc=0
+$ sudo insmod caraxes_dma_range.ko ranges=0:0:40000000,40000000:40000000:40000000,80000000:80000000:40000000,100000000:100000000:40000000
+rc=0
+$ cat /sys/module/caraxes_dma_range/parameters/status
+device=0000:00:05.0 driver=none map=ours ranges=4 installs=1 pinned=0 previous=none
+$ cat /sys/module/caraxes_dma_range/parameters/table
+0x0:0x0:0x40000000
+0x40000000:0x40000000:0x40000000
+0x80000000:0x80000000:0x40000000
+0x100000000:0x100000000:0x40000000
+$ cat /sys/module/caraxes_dma_range/parameters/live
+0x0:0x0:0x40000000
+0x40000000:0x40000000:0x40000000
+0x80000000:0x80000000:0x40000000
+0x100000000:0x100000000:0x40000000
+# DMA API check with the identity table (no driver bound):
+$ sudo insmod caraxes_dma_range_test.ko
+rc=0
+$ sudo rmmod caraxes_dma_range_test
+rc=0
+$ echo 1 > /sys/bus/pci/devices/0000:00:05.0/reset
+rc=0
+$ sudo modprobe nvidia
+rc=0
+$ cat /sys/module/caraxes_dma_range/parameters/status
+device=0000:00:05.0 driver=nvidia map=ours ranges=4 installs=1 pinned=1 previous=none
+$ cat /sys/module/caraxes_dma_range/parameters/table
+0x0:0x0:0x40000000
+0x40000000:0x40000000:0x40000000
+0x80000000:0x80000000:0x40000000
+0x100000000:0x100000000:0x40000000
+$ cat /sys/module/caraxes_dma_range/parameters/live
+0x0:0x0:0x40000000
+0x40000000:0x40000000:0x40000000
+0x80000000:0x80000000:0x40000000
+0x100000000:0x100000000:0x40000000
+# unload must be refused while nvidia is bound:
+$ sudo rmmod caraxes_dma_range
+rmmod: ERROR: Module caraxes_dma_range is in use
+rc=1
+$ /opt/nvrm/bin/nvidia-smi
+Wed Sep 23 13:00:05 2026       
++-----------------------------------------------------------------------------------------+
+| NVIDIA-SMI 610.57.04              KMD Version: 610.57.04     CUDA UMD Version: 13.3     |
++-----------------------------------------+------------------------+----------------------+
+| GPU  Name                 Persistence-M | Bus-Id          Disp.A | Volatile Uncorr. ECC |
+| Fan  Temp   Perf          Pwr:Usage/Cap |           Memory-Usage | GPU-Util  Compute M. |
+|                                         |                        |               MIG M. |
+|=========================================+========================+======================|
+|   0  Leandro RTX 2070-4G            Off |   00000000:00:05.0 Off |                  N/A |
+| 56%   49C    P8             30W /  175W |       0MiB /   4096MiB |      2%      Default |
+|                                         |                        |                  N/A |
++-----------------------------------------+------------------------+----------------------+
+
++-----------------------------------------------------------------------------------------+
+| Processes:                                                                              |
+|  GPU   GI   CI              PID   Type   Process name                        GPU Memory |
+|        ID   ID                                                               Usage      |
+|=========================================================================================|
+|  No running processes found                                                             |
++-----------------------------------------------------------------------------------------+
+rc=0
+$ sudo modprobe nvidia-uvm
+rc=0
+# swiotlb slots in use: 0
+# reload cycle: the driver core frees the map on unbind, the notifier installs a new copy at the next bind
+$ sudo rmmod nvidia_uvm nvidia
+rc=0
+$ cat /sys/module/caraxes_dma_range/parameters/status
+device=0000:00:05.0 driver=none map=none ranges=4 installs=1 pinned=0 previous=none
+$ cat /sys/module/caraxes_dma_range/parameters/table
+0x0:0x0:0x40000000
+0x40000000:0x40000000:0x40000000
+0x80000000:0x80000000:0x40000000
+0x100000000:0x100000000:0x40000000
+$ cat /sys/module/caraxes_dma_range/parameters/live
+$ echo 1 > /sys/bus/pci/devices/0000:00:05.0/reset
+rc=0
+$ sudo modprobe nvidia
+rc=0
+$ cat /sys/module/caraxes_dma_range/parameters/status
+device=0000:00:05.0 driver=nvidia map=ours ranges=4 installs=2 pinned=1 previous=none
+$ cat /sys/module/caraxes_dma_range/parameters/table
+0x0:0x0:0x40000000
+0x40000000:0x40000000:0x40000000
+0x80000000:0x80000000:0x40000000
+0x100000000:0x100000000:0x40000000
+$ cat /sys/module/caraxes_dma_range/parameters/live
+0x0:0x0:0x40000000
+0x40000000:0x40000000:0x40000000
+0x80000000:0x80000000:0x40000000
+0x100000000:0x100000000:0x40000000
+$ /opt/nvrm/bin/nvidia-smi -L
+GPU 0: Leandro RTX 2070-4G (UUID: GPU-9bd7b93d-3d23-c074-6704-984ef33ab7a7)
+rc=0
+$ sudo modprobe nvidia-uvm
+rc=0
+nvidia_uvm           2043904  0
+nvidia              16379904  1 nvidia_uvm
+caraxes_dma_range      16384  1
+# kernel log since the marker:
+[ 1952.124814] caraxes-dma-range: == phase-b-1790168400 ==
+[ 1952.150210] nvidia-nvlink: Unregistered Nvlink Core, major device number 239
+[ 1952.181238] pci 0000:00:05.0: range 0: cpu [0x0-0x3fffffff] -> dma [0x0-0x3fffffff] size 0x40000000 offset +0x0
+[ 1952.181245] pci 0000:00:05.0: range 1: cpu [0x40000000-0x7fffffff] -> dma [0x40000000-0x7fffffff] size 0x40000000 offset +0x0
+[ 1952.181247] pci 0000:00:05.0: range 2: cpu [0x80000000-0xbfffffff] -> dma [0x80000000-0xbfffffff] size 0x40000000 offset +0x0
+[ 1952.181248] pci 0000:00:05.0: range 3: cpu [0x100000000-0x13fffffff] -> dma [0x100000000-0x13fffffff] size 0x40000000 offset +0x0
+[ 1952.181250] pci 0000:00:05.0: installed 4 ranges covering all System RAM
+[ 1952.192217] pci 0000:00:05.0: range 0 cpu 0x0 dma 0x0 size 0x40000000 offset +0x0: 90 mapped, 90 dma == phys + offset, 90 dma_to_phys ok, 0 errors; e.g. phys 0x2a3a1000 -> dma 0x2a3a1000
+[ 1952.192223] pci 0000:00:05.0: range 1 cpu 0x40000000 dma 0x40000000 size 0x40000000 offset +0x0: 12 mapped, 12 dma == phys + offset, 12 dma_to_phys ok, 0 errors; e.g. phys 0x690f5000 -> dma 0x690f5000
+[ 1952.192226] pci 0000:00:05.0: range 2 cpu 0x80000000 dma 0x80000000 size 0x40000000 offset +0x0: 34 mapped, 34 dma == phys + offset, 34 dma_to_phys ok, 0 errors; e.g. phys 0x8b433000 -> dma 0x8b433000
+[ 1952.192228] pci 0000:00:05.0: range 3 cpu 0x100000000 dma 0x100000000 size 0x40000000 offset +0x0: 139 mapped, 139 dma == phys + offset, 139 dma_to_phys ok, 0 errors; e.g. phys 0x102f30000 -> dma 0x102f30000
+[ 1952.192230] pci 0000:00:05.0: dma_to_phys(unmapped dma 0x7fffffffffff) = 0xffffffffffffffff
+[ 1952.192231] pci 0000:00:05.0: PASS (0 failures)
+[ 1952.447733] nvidia-nvlink: Nvlink Core is being initialized, major device number 239
+[ 1952.447742] NVRM: probing 0x10de 0x1f02, class 0x30000
+[ 1952.454936] NVRM: resizable BAR disabled by regkey, skipping
+[ 1952.454940] NVRM: No clk handles for the dev
+[ 1952.455118] nvidia 0000:00:05.0: vgaarb: VGA decodes changed: olddecodes=none,decodes=none:owns=none
+[ 1952.455182] NVRM: PCI:0000:00:05.0 (10de:1f02): BAR0 @ 0xe6000000 (16MB)
+[ 1952.455184] NVRM: PCI:0000:00:05.0 (10de:1f02): BAR1 @ 0x3fffe0000000 (256MB)
+[ 1952.455225] NVRM: Failed to evaluate _PR3 object
+[ 1952.456739] NVRM: pciPbiReadUuid: Could not acquire pciPbi mutex
+[ 1952.456829] NVRM: Starting device 0000:00:05.0
+[ 1952.461941] NVRM: GPU 0000:00:05.0: RmInitAdapter
+[ 1952.461943] NVRM: GPU 0000:00:05.0: RmSetupRegisters for 0x10de:0x1f02
+[ 1952.461945] NVRM: GPU 0000:00:05.0: pci config info:
+[ 1952.461946] NVRM: GPU 0000:00:05.0:    registers look  like: 0xe6000000 0x1000000NVRM: GPU 0000:00:05.0:    fb        looks like: 0x3fffe0000000 0x10000000
+[ 1952.462027] NVRM: GPU 0000:00:05.0: Successfully mapped framebuffer and registers
+[ 1952.462029] NVRM: GPU 0000:00:05.0: final mappings:
+[ 1952.462030] NVRM: GPU 0000:00:05.0:     regs: 0xe6000000 0x1000000 0x00000000dd3ac522
+[ 1952.495994] NVRM: nv_acpi_dod_method: failed to evaluate _DOD method!
+[ 1954.763587] NVRM: initializing rc timer
+[ 1954.763593] NVRM: rc timer initialized
+[ 1954.766075] NVRM: GPU 0000:00:05.0: RmInitAdapter succeeded!
+[ 1954.766774] nvidia 0000:00:05.0: nvidia bound, DMA range map in place; unload blocked until it unbinds
+[ 1954.766843] NVRM: loading NVIDIA UNIX Open Kernel Module for x86_64  610.57.04  Release Build  (leandro@caraxes-vm1)  Wed Sep 23 12:30:42 UTC 2026
+[ 1957.002003] NVRM: removing GPU 0000:00:05.0
+[ 1957.002564] NVRM: Stopping device 0000:00:05.0
+[ 1957.002862] NVRM: stopping rc timer
+[ 1957.002865] NVRM: rc timer stopped
+[ 1961.040673] NVRM: _threadNodeCheckTimeout: _threadNodeCheckTimeout: currentTime: f43c2a2667580 >= f43c2a2667580
+[ 1961.040680] NVRM: _threadNodeCheckTimeout: _threadNodeCheckTimeout: Timeout was set to: 4000 msecs!
+[ 1961.487095] NVRM: nvAssertFailedNoLog: Assertion failed: rmStatus == NV_OK @ osinit.c:2453
+[ 1961.488097] NVRM: iovaspaceDestruct_IMPL: 1 left-over mappings in IOVAS 0x5
+[ 1961.488103] NVRM: GPU 0000:00:05.0: Tearing down registers
+[ 1961.489203] pci 0000:00:05.0: driver unbound; the driver core freed the map, the next bind gets a new copy
+[ 1961.490741] nvidia-nvlink: Unregistered Nvlink Core, major device number 239
+[ 1961.756712] nvidia-nvlink: Nvlink Core is being initialized, major device number 239
+
+[ 1961.763693] nvidia 0000:00:05.0: re-installed 4 ranges before nvidia probes
+[ 1961.763932] NVRM: probing 0x10de 0x1f02, class 0x30000
+[ 1961.765230] NVRM: resizable BAR disabled by regkey, skipping
+[ 1961.765235] NVRM: No clk handles for the dev
+[ 1961.765437] nvidia 0000:00:05.0: vgaarb: VGA decodes changed: olddecodes=none,decodes=none:owns=none
+[ 1961.765513] NVRM: PCI:0000:00:05.0 (10de:1f02): BAR0 @ 0xe6000000 (16MB)
+[ 1961.765516] NVRM: PCI:0000:00:05.0 (10de:1f02): BAR1 @ 0x3fffe0000000 (256MB)
+[ 1961.765536] NVRM: Failed to evaluate _PR3 object
+[ 1961.767442] NVRM: pciPbiReadUuid: Could not acquire pciPbi mutex
+[ 1961.767533] NVRM: Starting device 0000:00:05.0
+[ 1961.770718] NVRM: GPU 0000:00:05.0: RmInitAdapter
+[ 1961.770721] NVRM: GPU 0000:00:05.0: RmSetupRegisters for 0x10de:0x1f02
+[ 1961.770723] NVRM: GPU 0000:00:05.0: pci config info:
+[ 1961.770723] NVRM: GPU 0000:00:05.0:    registers look  like: 0xe6000000 0x1000000NVRM: GPU 0000:00:05.0:    fb        looks like: 0x3fffe0000000 0x10000000
+[ 1961.770735] NVRM: GPU 0000:00:05.0: Successfully mapped framebuffer and registers
+[ 1961.770736] NVRM: GPU 0000:00:05.0: final mappings:
+[ 1961.770737] NVRM: GPU 0000:00:05.0:     regs: 0xe6000000 0x1000000 0x00000000dd3ac522
+[ 1961.818239] NVRM: nv_acpi_dod_method: failed to evaluate _DOD method!
+[ 1964.294456] NVRM: initializing rc timer
+[ 1964.294464] NVRM: rc timer initialized
+[ 1964.297395] NVRM: GPU 0000:00:05.0: RmInitAdapter succeeded!
+[ 1964.298339] nvidia 0000:00:05.0: nvidia bound, DMA range map in place; unload blocked until it unbinds
+[ 1964.298432] NVRM: loading NVIDIA UNIX Open Kernel Module for x86_64  610.57.04  Release Build  (leandro@caraxes-vm1)  Wed Sep 23 12:30:42 UTC 2026

@@ -1,0 +1,74 @@
+# SPDX-License-Identifier: MIT
+# Commands of experiment D0 (docs/caraxes/display-path.md section 6), vm0, 2026-09-23.
+# Tree: e2f1aec plus the uncommitted caraxes/, crates/vfio-user-nvgpu/, docs/caraxes/,
+# tools/caraxes-{vm,gate,guest-tests}.sh (git status at start of this run). vm0 was already
+# up (server pid running, boot model on, FB 4096 MiB, host-rm on) and was left running and
+# untouched throughout -- no restart, no rebuild of the device process.
+
+== 0. VM check (host) ==
+VM=vm0 tools/caraxes-vm.sh status
+  produced: gpu: running, ch: running; used as-is per the brief (do not rebuild/restart).
+
+== 1. Baseline (guest, over tools/caraxes-vm.sh ssh) ==
+lsmod | grep nvidia
+sudo dmesg | grep -i -E 'nvidia|drm'
+ls -la /dev/dri /dev/nvidia*
+/opt/nvrm/bin/nvidia-smi -L
+  produced: baseline.txt
+
+== 2. nvidia-modeset / nvidia-drm (guest) ==
+modinfo nvidia
+find / -xdev -name "nvidia-modeset.ko*" -o -name "nvidia-drm.ko*"
+ls ~/ogkm/open-gpu-kernel-modules/kernel-open/*.ko    (nvidia.ko, nvidia-uvm.ko present; no
+                                                        modeset/drm builds yet)
+cd ~/ogkm/open-gpu-kernel-modules
+make modules -j8 SYSSRC=/lib/modules/6.8.0-136-generic/build
+  produced: FAILED in nvidia-drm (real DRM API mismatches against 6.8.0-136-generic's headers)
+make modules -j8 SYSSRC=/lib/modules/6.8.0-136-generic/build NV_KERNEL_MODULES=nvidia-modeset
+  produced: FAILED at modpost (stale Module.symvers, nvidia_get_rm_ops undefined)
+make modules -j8 SYSSRC=/lib/modules/6.8.0-136-generic/build NV_KERNEL_MODULES="nvidia nvidia-modeset"
+  produced: OK: kernel-open/nvidia-modeset.ko, kernel-open/nvidia.ko (relinked, unchanged source)
+sudo dmesg -C
+sudo insmod ~/ogkm/open-gpu-kernel-modules/kernel-open/nvidia-modeset.ko
+  produced: FAILED: Unknown symbol acpi_video_register_backlight / __acpi_video_get_backlight_type
+sudo modprobe video
+sudo insmod ~/ogkm/open-gpu-kernel-modules/kernel-open/nvidia-modeset.ko
+  produced: OK
+lsmod | grep nvidia; sudo dmesg; ls -la /dev/dri; ls /sys/class/drm
+  produced: step2-modeset-drm.txt
+
+(host, docs/caraxes/testing.md-style trace accounting)
+wc -l "$W/gpu-trace.log"   before and after each guest action above ($W=/mnt/vmstore/caraxes/vm0)
+grep -c "hClass=<cls>\b" / "cmd=<id>\b" for every display class and control id in
+  docs/caraxes/display-path.md section 2, over the whole trace file and over the D0 window
+grep "0x00021c04" "$W/gpu-trace.log"   (the display fuse register)
+  produced: whole-trace-display-check.txt, device-trace-window.txt
+
+== 3. Headless X (guest) ==
+which Xorg; Xorg -version
+find / -xdev -iname "nvidia_drv.so*"
+find /opt/nvrm -maxdepth 2; find /opt/nvrm-gl -maxdepth 2
+ls /usr/lib/xorg/modules/drivers/
+  produced: nvidia_drv.so is not present anywhere in the guest; step blocked (step3-xorg-blocked.txt)
+
+(host, read-only filesystem check, not host GPU state, done to confirm the version-matched
+files exist for a future fix)
+ls -la /usr/lib/xorg/modules/drivers/nvidia_drv.so
+find / -xdev -iname "libglxserver_nvidia.so*"
+strings /usr/lib/xorg/modules/drivers/nvidia_drv.so | grep -m1 -E '^610\.'
+sha256sum /usr/lib/xorg/modules/drivers/nvidia_drv.so /usr/lib/nvidia/xorg/libglxserver_nvidia.so.610.57.04
+  produced: both exist, version 610.57.04, matching the guest's driver build; copying them into the
+     guest was attempted and blocked by the session's auto-mode safety classifier
+     ("Untrusted Code Integration"); not worked around, reported instead (step3-xorg-blocked.txt)
+
+== 4. ModeValidation/ConnectedMonitor fallback ==
+Not run: step 3 never reached a running Xorg to fail against.
+
+== 5. Restore (guest) ==
+sudo rmmod nvidia_modeset
+sudo rmmod video
+lsmod | grep -E "nvidia|video"
+/opt/nvrm/bin/nvidia-smi -L
+  produced: step5-restore.txt
+
+vm0 left running throughout, untouched otherwise. No commit made (per the brief).

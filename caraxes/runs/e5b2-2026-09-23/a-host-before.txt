@@ -1,0 +1,7 @@
+# SPDX-License-Identifier: MIT
+# host state before E5b part 2 on vm2, 2026-09-23T17:42:43+02:00
+memory.used [MiB], memory.free [MiB], memory.total [MiB]
+5392 MiB, 2380 MiB, 8192 MiB
+nr_foll_pin_acquired 9166839
+nr_foll_pin_released 8115014
+MemAvailable:   17557352 kB

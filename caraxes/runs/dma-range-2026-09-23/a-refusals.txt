@@ -1,0 +1,66 @@
+# SPDX-License-Identifier: MIT
+# caraxes_dma_range, test (a) and parameter validation in vm1, 2026-09-23, nvidia bound. Every insmod must fail.
+# Script: phase A in commands.txt. Output verbatim; the kernel log is from the last marker on.
+# 2026-09-23T12:58:36Z 6.8.0-136-generic
+# guest System RAM:
+00001000-0009ffff : System RAM
+00100000-bfffffff : System RAM
+100000000-13fffffff : System RAM
+# driver bound to 0000:00:05.0: nvidia
+nvidia_uvm           2043904  0
+nvidia              16379904  1 nvidia_uvm
+$ sudo insmod caraxes_dma_range.ko
+insmod: ERROR: could not insert module caraxes_dma_range.ko: Invalid parameters
+rc=1
+$ sudo insmod caraxes_dma_range.ko ranges=0:0:40000000,20000000:80000000:40000000
+insmod: ERROR: could not insert module caraxes_dma_range.ko: Invalid parameters
+rc=1
+$ sudo insmod caraxes_dma_range.ko ranges=0:0:40000000,40000000:0:40000000
+insmod: ERROR: could not insert module caraxes_dma_range.ko: Invalid parameters
+rc=1
+$ sudo insmod caraxes_dma_range.ko ranges=0:0:40100000
+insmod: ERROR: could not insert module caraxes_dma_range.ko: Invalid parameters
+rc=1
+$ sudo insmod caraxes_dma_range.ko ranges=0:800:40000000
+insmod: ERROR: could not insert module caraxes_dma_range.ko: Invalid parameters
+rc=1
+$ sudo insmod caraxes_dma_range.ko ranges=0:0:40000000:5
+insmod: ERROR: could not insert module caraxes_dma_range.ko: Invalid parameters
+rc=1
+$ sudo insmod caraxes_dma_range.ko ranges=0:zz:40000000
+insmod: ERROR: could not insert module caraxes_dma_range.ko: Invalid parameters
+rc=1
+$ sudo insmod caraxes_dma_range.ko ranges=0:0:40000000,40000000:40000000:40000000,80000000:80000000:40000000
+insmod: ERROR: could not insert module caraxes_dma_range.ko: Invalid parameters
+rc=1
+$ sudo insmod caraxes_dma_range.ko ranges=0:0:200000,200000:200000:200000,400000:400000:200000,600000:600000:200000,800000:800000:200000,a00000:a00000:200000,c00000:c00000:200000,e00000:e00000:200000,1000000:1000000:200000,1200000:1200000:200000,1400000:1400000:200000,1600000:1600000:200000,1800000:1800000:200000,1a00000:1a00000:200000,1c00000:1c00000:200000,1e00000:1e00000:200000,2000000:2000000:200000,2200000:2200000:200000,2400000:2400000:200000,2600000:2600000:200000,2800000:2800000:200000,2a00000:2a00000:200000,2c00000:2c00000:200000,2e00000:2e00000:200000,3000000:3000000:200000,3200000:3200000:200000,3400000:3400000:200000,3600000:3600000:200000,3800000:3800000:200000,3a00000:3a00000:200000,3c00000:3c00000:200000,3e00000:3e00000:200000,4000000:4000000:200000,4200000:4200000:200000,4400000:4400000:200000,4600000:4600000:200000,4800000:4800000:200000,4a00000:4a00000:200000,4c00000:4c00000:200000,4e00000:4e00000:200000,5000000:5000000:200000,5200000:5200000:200000,5400000:5400000:200000,5600000:5600000:200000,5800000:5800000:200000,5a00000:5a00000:200000,5c00000:5c00000:200000,5e00000:5e00000:200000,6000000:6000000:200000,6200000:6200000:200000,6400000:6400000:200000,6600000:6600000:200000,6800000:6800000:200000,6a00000:6a00000:200000,6c00000:6c00000:200000,6e00000:6e00000:200000,7000000:7000000:200000,7200000:7200000:200000,7400000:7400000:200000,7600000:7600000:200000,7800000:7800000:200000,7a00000:7a00000:200000,7c00000:7c00000:200000,7e00000:7e00000:200000,8000000:8000000:200000
+insmod: ERROR: could not insert module caraxes_dma_range.ko: Argument list too long
+rc=1
+$ sudo insmod caraxes_dma_range.ko ranges=0:0:40000000,40000000:40000000:40000000,80000000:80000000:40000000,100000000:100000000:40000000 bdf=00:07.0
+insmod: ERROR: could not insert module caraxes_dma_range.ko: No such device
+rc=1
+$ sudo insmod caraxes_dma_range.ko ranges=0:0:40000000,40000000:40000000:40000000,80000000:80000000:40000000,100000000:100000000:40000000
+insmod: ERROR: could not insert module caraxes_dma_range.ko: Device or resource busy
+rc=1
+$ sudo insmod caraxes_dma_range.ko ranges=0:0:40000000,40000000:40000000:40000000,80000000:80000000:40000000,100000000:100000000:40000000 force=1
+insmod: ERROR: could not insert module caraxes_dma_range.ko: Device or resource busy
+rc=1
+$ sudo insmod caraxes_dma_range_test.ko
+insmod: ERROR: could not insert module caraxes_dma_range_test.ko: Device or resource busy
+rc=1
+no caraxes module loaded
+# kernel log since the marker:
+[ 1868.220648] caraxes-dma-range: == phase-a-1790168316 ==
+[ 1868.228099] caraxes_dma_range: ranges= is required
+[ 1868.279019] caraxes_dma_range: ranges 0 and 1 overlap in CPU physical space
+[ 1868.313902] caraxes_dma_range: ranges 0 and 1 overlap in DMA space
+[ 1868.355664] caraxes_dma_range: range 0: size 0x40100000 is not a non-zero multiple of 2 MiB
+[ 1868.391556] caraxes_dma_range: range 0: start 0x0 or 0x800 is not page aligned
+[ 1868.430013] caraxes_dma_range: ranges entry 0: more than three fields
+[ 1868.461090] caraxes_dma_range: ranges entry 0: want cpu_start:dma_start:size in hex
+[ 1868.503697] caraxes_dma_range: System RAM [0x100000000-0x13fffffff]: 0x100000000 is not covered by any range
+[ 1868.551977] caraxes_dma_range: more than 64 ranges
+[ 1868.594557] caraxes_dma_range: no device 00:07.0 (-19)
+[ 1868.630867] nvidia 0000:00:05.0: bound to nvidia; the map must be in place before the driver probes, unload it first (rmmod nvidia_uvm nvidia)
+[ 1868.662698] nvidia 0000:00:05.0: bound to nvidia; the map must be in place before the driver probes, unload it first (rmmod nvidia_uvm nvidia)
+[ 1868.691069] nvidia 0000:00:05.0: bound to nvidia; run this only with no driver bound

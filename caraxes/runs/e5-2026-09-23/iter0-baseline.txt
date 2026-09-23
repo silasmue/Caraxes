@@ -1,0 +1,5 @@
+# SPDX-License-Identifier: MIT
+# E5a iteration 0 (2026-09-23): the milestone-1 build on the running VM. Without /dev/nvidia0 held open UVM_REGISTER_GPU returned 0x1b (nv_gpu_ops.c:7671-7674); with it, the first UVM control 0x20800a9b was unanswered and registration returned 0x56.
+UVM_REGISTER_GPU: ioctl 0 rmStatus 0x56 (guest program, second attempt)
+NVRM: GPU0 faultbufConstruct_IMPL: Failed to setup Replayable Fault buffer (status=0x00000056).
+807850409 ctrl 0x20800a9b: control 0x20800a9b on 0xca7a0003 (class 0x2080, 2064 bytes): not supported -> status 0x56 [unanswered]

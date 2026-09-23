@@ -1,0 +1,26 @@
+# SPDX-License-Identifier: MIT
+# device teardown after attempt 2 (down), 2026-09-23T18:06:06+02:00
+vfio-user-nvgpu: mirror: HOST RC EVENT on a mirrored engine: notify 0x25 exceptType 0x20 info16 0xe9 [host]
+vfio-user-nvgpu: mirror: HOST RC EVENT on a mirrored engine: notify 0x25 exceptType 0x20 info16 0xe9 [host]
+vfio-user-nvgpu: mirror: HOST RC EVENT on a mirrored engine: notify 0x25 exceptType 0x20 info16 0xe9 [host]
+vfio-user-nvgpu: mirror: HOST RC EVENT on a mirrored engine: notify 0x25 exceptType 0x20 info16 0xe9 [host]
+vfio-user-nvgpu: mirror: HOST RC EVENT on a mirrored engine: notify 0x25 exceptType 0x20 info16 0xe9 [host]
+vfio-user-nvgpu: mirror: HOST RC EVENT on a mirrored engine: notify 0x25 exceptType 0x20 info16 0xe9 [host]
+vfio-user-nvgpu: mirror: host doorbell object 0x80000013 freed: Ok(())
+vfio-user-nvgpu: mirror: host OS events freed, event thread stopped
+vfio-user-nvgpu: hostmem: freed host error-notifier 0x80000026
+vfio-user-nvgpu: hostmem: freed host error-notifier 0x80000022
+vfio-user-nvgpu: hostmem: freed host error-notifier 0x8000001d
+vfio-user-nvgpu: hostmem: freed host error-notifier 0x80000019
+vfio-user-nvgpu: hostmem: freed host error-notifier 0x80000014
+vfio-user-nvgpu: hostmem: freed host error-notifier 0x8000000f
+vfio-user-nvgpu: hostmem: freed 6 host mirror object(s) before the descriptors
+vfio-user-nvgpu: hostmem: freed 4 guest RAM descriptor(s), 4096 MiB unpinned; host foll_pin released +1048502 during the free (since open: acquired +1048582, released +1048502)
+vfio-user-nvgpu: hostmem: freed the VRAM reservation [0xe9000000, 0x1e9000000) (4096 MiB)
+vfio-user-nvgpu: hostmem: host RM client 0xc1d001dd freed
+vram store: 2 window map(s), 0 refused, 0 eviction(s); 192953 read(s) of 1541340 bytes, 49060 write(s) of 322276 bytes
+mirror: 6 channel(s) created, 6 freed, 0 live; 7 doorbell(s) forwarded, 55 TLB invalidate(s), 0 refusal(s), longest mirror build 17949 us; events raised 31927, MSIs 31927, host RC events 6
+memory.used [MiB], memory.free [MiB]
+1444 MiB, 6328 MiB
+nr_foll_pin_acquired 11264012
+nr_foll_pin_released 11260763

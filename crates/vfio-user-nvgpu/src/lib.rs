@@ -1,0 +1,43 @@
+// SPDX-License-Identifier: MIT
+// SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
+// SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
+//! Caraxes: a synthetic NVIDIA PCI device served over vfio-user for unmodified
+//! NVIDIA guest drivers (docs/caraxes/architecture.md). The first device is a TU106
+//! (GeForce RTX 2070) for driver 610.57.04.
+//!
+//! What varies is kept on three axes (decision D14, docs/caraxes/versatility.md):
+//! the silicon in [`chip`] (a trait plus data files per chip, `chips/<chip>/`), the
+//! board in [`board`] (`boards/<board>.toml` plus the captured config space and ROM),
+//! and the driver version in [`ver`] (one module per vendored driver, behind a
+//! feature). Everything else is generic: the vfio-user device, the BAR0 window, the
+//! GSP message queues and RPC service, the phase-5 dispatcher and the fake FB.
+
+pub mod bar0;
+pub mod board;
+pub mod boot;
+pub mod channel;
+pub mod chip;
+pub mod config;
+pub mod ctrl;
+pub mod cuda;
+pub mod device;
+pub mod dmamap;
+pub mod falcon;
+pub mod fb;
+pub mod guestmem;
+pub mod hostmem;
+pub mod hostrm;
+pub mod intr;
+pub mod kgr;
+pub mod mirror;
+pub mod msgq;
+pub mod nvml;
+pub mod privilege;
+pub mod rpc;
+pub mod selftest;
+pub mod trace;
+pub mod uvm;
+pub mod ver;
+
+#[cfg(test)]
+pub(crate) mod fixture;

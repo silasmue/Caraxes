@@ -1,0 +1,55 @@
+# SPDX-License-Identifier: MIT
+# SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
+# SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
+#
+# TU106 BAR0 register names for the trace, from docs/caraxes/registers-turing.md.
+# [lo, hi) byte ranges; the first matching entry names an access. An offset in no
+# range is listed in the trace summary as unnamed.
+
+register = [
+    { lo = 0x0000_0000, hi = 0x0000_0004, name = "NV_PMC_BOOT_0" },
+    { lo = 0x0000_0004, hi = 0x0000_0008, name = "NV_PMC_BOOT_1" },
+    { lo = 0x0000_0100, hi = 0x0000_0104, name = "NV_PMC_INTR(0)" },
+    { lo = 0x0000_0140, hi = 0x0000_0144, name = "NV_PMC_INTR_EN(0)" },
+    { lo = 0x0000_0200, hi = 0x0000_0204, name = "NV_PMC_ENABLE" },
+    { lo = 0x0000_0A00, hi = 0x0000_0A04, name = "NV_PMC_BOOT_42" },
+    { lo = 0x0000_1400, hi = 0x0000_1480, name = "NV_PBUS_SW_SCRATCH(i)" },
+    { lo = 0x0000_1700, hi = 0x0000_1704, name = "NV_PBUS_BAR0_WINDOW" },
+    { lo = 0x0000_1704, hi = 0x0000_1708, name = "NV_PBUS_BAR1_BLOCK" },
+    { lo = 0x0000_1714, hi = 0x0000_1718, name = "NV_PBUS_BAR2_BLOCK" },
+    { lo = 0x0000_9400, hi = 0x0000_9430, name = "NV_PTIMER_TIME" },
+    { lo = 0x0000_9430, hi = 0x0000_9434, name = "NV_PTIMER_TIME_PRIV_LEVEL_MASK" },
+    { lo = 0x0000_9434, hi = 0x0000_9440, name = "NV_PTIMER" },
+    { lo = 0x0002_174C, hi = 0x0002_1750, name = "NV_FUSE_OPT_SECURE_GSP_DEBUG_DIS" },
+    { lo = 0x0002_1C04, hi = 0x0002_1C08, name = "NV_FUSE_STATUS_OPT_DISPLAY" },
+    { lo = 0x0008_8000, hi = 0x0008_9000, name = "NV_PCFG (config mirror)" },
+    { lo = 0x0014_0000, hi = 0x0016_0000, name = "NV_PLTCG_LTC(i)_LTS(j) (L2 ECC counts)" },
+    { lo = 0x0010_0C10, hi = 0x0010_0C14, name = "NV_PFB_NISO_FLUSH_SYSMEM_ADDR" },
+    { lo = 0x0010_0CE0, hi = 0x0010_0CE4, name = "NV_PFB_PRI_MMU_LOCAL_MEMORY_RANGE" },
+    { lo = 0x0011_0000, hi = 0x0011_0C00, name = "NV_PGSP (GSP falcon)" },
+    { lo = 0x0011_0C00, hi = 0x0011_0C40, name = "NV_PGSP_QUEUE_HEAD/TAIL" },
+    { lo = 0x0011_0C40, hi = 0x0011_1000, name = "NV_PGSP (GSP falcon)" },
+    { lo = 0x0011_1000, hi = 0x0011_2000, name = "NV_PGSP RISC-V" },
+    { lo = 0x0011_8128, hi = 0x0011_812C, name = "NV_PGC6_AON_SECURE_SCRATCH_GROUP_05_PRIV_LEVEL_MASK" },
+    { lo = 0x0011_8234, hi = 0x0011_8238, name = "NV_PGC6_AON_SECURE_SCRATCH_GROUP_05(0) GFW_BOOT" },
+    { lo = 0x001F_A824, hi = 0x001F_A82C, name = "NV_PFB_PRI_MMU_WPR2_ADDR_LO/HI" },
+    { lo = 0x0030_0000, hi = 0x0040_0000, name = "NV_PROM_DATA (VBIOS window)" },
+    { lo = 0x0040_9660, hi = 0x0040_9664, name = "NV_PGRAPH_PRI_FECS_FALCON_MAILBOX" },
+    { lo = 0x0062_5F04, hi = 0x0062_5F08, name = "NV_PDISP_VGA_WORKSPACE_BASE" },
+    { lo = 0x0070_0000, hi = 0x0080_0000, name = "NV_PRAMIN" },
+    { lo = 0x0084_0000, hi = 0x0084_2000, name = "NV_PSEC (SEC2 falcon)" },
+    { lo = 0x0090_0000, hi = 0x0094_0000, name = "NV_PFB_FBPA(i) (ECC counts)" },
+    { lo = 0x00B8_1000, hi = 0x00B8_1020, name = "NV_VF_CPU_INTR_LEAF(i)" },
+    { lo = 0x00B8_1200, hi = 0x00B8_1220, name = "NV_VF_CPU_INTR_LEAF_EN_SET(i)" },
+    { lo = 0x00B8_1400, hi = 0x00B8_1420, name = "NV_VF_CPU_INTR_LEAF_EN_CLEAR(i)" },
+    { lo = 0x00B8_1600, hi = 0x00B8_1604, name = "NV_VF_CPU_INTR_TOP(0)" },
+    { lo = 0x00B8_1608, hi = 0x00B8_160C, name = "NV_VF_CPU_INTR_TOP_EN_SET(0)" },
+    { lo = 0x00B8_1610, hi = 0x00B8_1614, name = "NV_VF_CPU_INTR_TOP_EN_CLEAR(0)" },
+    { lo = 0x00B8_1640, hi = 0x00B8_1644, name = "NV_VF_CPU_INTR_LEAF_TRIGGER" },
+    { lo = 0x00B8_1000, hi = 0x00B8_2000, name = "NV_CTRL (interrupt tree)" },
+    { lo = 0x00B8_3000, hi = 0x00B8_3080, name = "NV_VIRTUAL_FUNCTION_PRIV_MMU_FAULT_BUFFER(i)/PAGE_FAULT_CTRL" },
+    { lo = 0x00B8_30A0, hi = 0x00B8_30B4, name = "NV_VIRTUAL_FUNCTION_PRIV_MMU_INVALIDATE" },
+    { lo = 0x00B8_3100, hi = 0x00B8_3130, name = "NV_VIRTUAL_FUNCTION_PRIV_ACCESS_COUNTER_NOTIFY_BUFFER" },
+    { lo = 0x00BB_0080, hi = 0x00BB_0090, name = "NV_VIRTUAL_FUNCTION_TIME_0/1 (usermode)" },
+    { lo = 0x00BB_0090, hi = 0x00BB_0094, name = "NV_VIRTUAL_FUNCTION_DOORBELL (usermode)" },
+]

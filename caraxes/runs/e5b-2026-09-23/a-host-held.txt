@@ -1,0 +1,2 @@
+memory.total [MiB], memory.reserved [MiB], memory.used [MiB], memory.free [MiB]
+8192 MiB, 421 MiB, 5359 MiB, 2414 MiB

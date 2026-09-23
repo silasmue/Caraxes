@@ -1,7 +1,7 @@
 <!-- SPDX-License-Identifier: MIT -->
 # Cloud Hypervisor patches
 
-Apply all three patches, in order, to the tag in [CH_VERSION](../CH_VERSION),
+Apply patches 0001-0003, in order (0004 is optional and independent: it applies before or after them), to the tag in [CH_VERSION](../CH_VERSION),
 currently `v53.0`. `tools/build.sh ch` fetches, patches and builds it. The
 [manual setup](../docs/VM-PREPARATION.md#build-and-patch-cloud-hypervisor)
 shows the equivalent commands. The patches are `git format-patch` output, so
@@ -16,6 +16,7 @@ refers to NVIDIA or to Leandro; virtio-nvrm is one user.
 | [0001](0001-generic-vhost-user-shmem.patch) | VIRTIO Shared Memory Regions: `SHMEM` negotiation, `GET_SHMEM_CONFIG`, `SHMEM_MAP`/`SHMEM_UNMAP`; vhost-user frontend on `vhost` 0.17 | `Cargo.toml`, `Cargo.lock`, `virtio-devices/Cargo.toml`, `virtio-devices/src/vhost_user/*.rs`, `virtio-devices/src/lib.rs`, `virtio-devices/src/transport/pci_device.rs`, `vmm/src/device_manager.rs` |
 | [0002](0002-generic-vhost-user-device-features.patch) | Offer the device-specific feature bits | `virtio-devices/src/vhost_user/generic_vhost_user.rs` |
 | [0003](0003-generic-vhost-user-refused-request.patch) | Keep serving the backend channel after a refused request | `virtio-devices/src/vhost_user/mod.rs` |
+| [0004](0004-acpi-dma-host-bridge.patch) | Emit an ACPI `_DMA` object on a PCI segment's host bridge from `--pci-segment pci_segment=<id>,dma_ranges=[<cpu>:<dma>:<size>,...]`; nothing changes without the option ([ACPI-DMA.md](ACPI-DMA.md)); Caraxes only, tested in [../caraxes/runs/acpi-dma-2026-09-23](../caraxes/runs/acpi-dma-2026-09-23) | `vmm/src/api/openapi/cloud-hypervisor.yaml`, `vmm/src/config.rs`, `vmm/src/device_manager.rs`, `vmm/src/pci_segment.rs`, `vmm/src/vm_config.rs` |
 
 [REVIEW-vhost-user.md](REVIEW-vhost-user.md) lists what the previous version of
 this series got wrong and why each point changed.

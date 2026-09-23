@@ -1,0 +1,81 @@
+# SPDX-License-Identifier: MIT
+# T1: patched guest kernel 6.8.12-caraxesdma (Ubuntu-6.8.0-136.136 + patches/linux/0001), patched Cloud Hypervisor (0001-0004),
+# GPU on pci_segment=1, identity _DMA [0:0:0xc0000000,0x100000000:0x100000000:0x40000000], vm3, 2026-09-23T14:02:22Z
+# Launch: B=/mnt/vmstore/caraxes/vm3/boot; CH=/mnt/vmstore/caraxes/vm3/cloud-hypervisor-0004 SEG1=1 DMA_RANGES=0:0:0xc0000000,0x100000000:0x100000000:0x40000000 KERNEL=$B/vmlinuz-6.8.12-caraxesdma INITRD=$B/initrd.img-6.8.12-caraxesdma CMDLINE_EXTRA='dyndbg="file drivers/acpi/x86/dma.c +p"' caraxes/runs/acpi-dma-2026-09-23/vm3-up.sh
+
+## guest: uname -r; /proc/cmdline; DSDT hash; modules of interest; dynamic debug sites; boot log DMA lines
+6.8.12-caraxesdma
+root=/dev/vda1 rw console=ttyS0 net.ifnames=0 dyndbg="file drivers/acpi/x86/dma.c +p"
+9626c9e803d2f2e4e64b9132142d0766c64605633932f2f275d9abbd4e02b8b5  /sys/firmware/acpi/tables/DSDT
+no nvidia, caraxes_dma_range or dmacheck module loaded
+drivers/acpi/x86/dma.c:22 [acpi]acpi_arch_dma_setup =p "dma_range_map already set\n"
+drivers/acpi/x86/dma.c:42 [acpi]acpi_arch_dma_setup =p "ACPI _DMA: %td range(s), bus limit %#llx\n"
+[  154.408384] dmacheck 0001:00:01.0: ACPI _DMA: 2 range(s), bus limit 0x13fffffff
+[  154.408398] dmacheck 0001:00:01.0: at probe: dma_range_map present (2 range(s)), bus_dma_limit 0x13fffffff, dma_mask 0xffffffff, coherent_dma_mask 0xffffffff
+[  154.408400] dmacheck 0001:00:01.0: range 0: cpu 0x0 dma 0x0 size 0xc0000000
+[  154.408402] dmacheck 0001:00:01.0: range 1: cpu 0x100000000 dma 0x100000000 size 0x40000000
+[  154.408403] dmacheck 0001:00:01.0: after dma_set_mask_and_coherent(47): dma_mask 0x7fffffffffff, coherent 0x7fffffffffff, bus_dma_limit 0x13fffffff
+[  154.408639] dmacheck 0001:00:01.0: dma_to_phys(0x140000000, above every range) = 0xffffffffffffffff
+[  154.408641] dmacheck 0001:00:01.0: 269 mapped, 269 dma == expected, 269 dma_to_phys ok, 0 errors; coherent 8/8 ok, 0 below 4 GiB; lowest phys 0x1080000 -> dma 0x1080000, highest phys 0x13fffffff -> dma 0x13fffffff
+[  154.408643] dmacheck 0001:00:01.0: PASS (0 failures) against the installed dma_range_map
+
+## guest: dmacheck bound by driver_override (no other driver bound)
+# BDF=$(basename $(dirname $(grep -l 0x10de /sys/bus/pci/devices/*/vendor | head -1))); echo BDF=$BDF; sudo rmmod nvidia_uvm nvidia 2>/dev/null; lsmod | grep -E "^(dmacheck|caraxes_dma_range|nvidia) " ; sudo modprobe -r dmacheck 2>/dev/null; sudo rmmod dmacheck 2>/dev/null; sudo dmesg -C; sudo insmod dmacheck/dmacheck.ko; echo dmacheck | sudo tee /sys/bus/pci/devices/$BDF/driver_override >/dev/null; echo $BDF | sudo tee /sys/bus/pci/drivers_probe >/dev/null; echo | sudo tee /sys/bus/pci/devices/$BDF/driver_override >/dev/null; sudo rmmod dmacheck; sudo dmesg | grep -iE "dmacheck|_DMA|dma"
+BDF=0001:00:01.0
+[  172.272600] dmacheck 0001:00:01.0: ACPI _DMA: 2 range(s), bus limit 0x13fffffff
+[  172.272617] dmacheck 0001:00:01.0: at probe: dma_range_map present (2 range(s)), bus_dma_limit 0x13fffffff, dma_mask 0xffffffff, coherent_dma_mask 0xffffffff
+[  172.272620] dmacheck 0001:00:01.0: range 0: cpu 0x0 dma 0x0 size 0xc0000000
+[  172.272621] dmacheck 0001:00:01.0: range 1: cpu 0x100000000 dma 0x100000000 size 0x40000000
+[  172.272623] dmacheck 0001:00:01.0: after dma_set_mask_and_coherent(47): dma_mask 0x7fffffffffff, coherent 0x7fffffffffff, bus_dma_limit 0x13fffffff
+[  172.272889] dmacheck 0001:00:01.0: dma_to_phys(0x140000000, above every range) = 0xffffffffffffffff
+[  172.272891] dmacheck 0001:00:01.0: 269 mapped, 269 dma == expected, 269 dma_to_phys ok, 0 errors; coherent 8/8 ok, 0 below 4 GiB; lowest phys 0x113d000 -> dma 0x113d000, highest phys 0x13fffffff -> dma 0x13fffffff
+[  172.272894] dmacheck 0001:00:01.0: PASS (0 failures) against the installed dma_range_map
+
+## host: tools/caraxes-vm.sh probe t1-identity   (FLR, then modprobe nvidia)
+probe t1-identity: 85053 device accesses, guest log in /mnt/vmstore/caraxes/vm3/probe-t1-identity/guest-dmesg.txt
+[  176.019814] NVRM: GPU 0001:00:01.0: RmInitAdapter
+[  182.343176] NVRM: GPU 0001:00:01.0: RmInitAdapter succeeded!
+modprobe rc=0
+# grep -E '_DMA|dma_range|RmInitAdapter|NVRM: GPU 0001|Xid|modprobe rc|DMA|swiotlb' /mnt/vmstore/caraxes/vm3/probe-t1-identity/guest-dmesg.txt
+[  176.000656] nvidia 0001:00:01.0: ACPI _DMA: 2 range(s), bus limit 0x13fffffff
+[  176.000915] NVRM: probing 0x10de 0x1f02, class 0x30000
+[  176.019814] NVRM: GPU 0001:00:01.0: RmInitAdapter
+[  182.343176] NVRM: GPU 0001:00:01.0: RmInitAdapter succeeded!
+modprobe rc=0
+
+## guest: sudo LD_LIBRARY_PATH=/opt/nvrm/lib /opt/nvrm/bin/nvidia-smi; lsmod
+Wed Sep 23 14:02:36 2026       
++-----------------------------------------------------------------------------------------+
+| NVIDIA-SMI 610.57.04              KMD Version: 610.57.04     CUDA UMD Version: 13.3     |
++-----------------------------------------+------------------------+----------------------+
+| GPU  Name                 Persistence-M | Bus-Id          Disp.A | Volatile Uncorr. ECC |
+| Fan  Temp   Perf          Pwr:Usage/Cap |           Memory-Usage | GPU-Util  Compute M. |
+|                                         |                        |               MIG M. |
+|=========================================+========================+======================|
+|   0  Leandro RTX 2070-4G            Off |   00000001:00:01.0 Off |                  N/A |
+| 55%   49C    P8             30W /  175W |       0MiB /   4096MiB |     19%      Default |
+|                                         |                        |                  N/A |
++-----------------------------------------+------------------------+----------------------+
+
++-----------------------------------------------------------------------------------------+
+| Processes:                                                                              |
+|  GPU   GI   CI              PID   Type   Process name                        GPU Memory |
+|        ID   ID                                                               Usage      |
+|=========================================================================================|
+|  No running processes found                                                             |
++-----------------------------------------------------------------------------------------+
+nvidia              16363520  1 nvidia_uvm
+
+## guest: second probe: tools/caraxes-vm.sh ssh 'sudo rmmod nvidia_uvm'; tools/caraxes-vm.sh probe t1-identity-3
+# (nvidia-smi had loaded nvidia_uvm, so the launcher's rmmod nvidia alone fails; a first attempt, probe-t1-identity-2, therefore did not reload.)
+# The driver core freed the table at unbind; the new probe must get a fresh one from _DMA.
+nvidia              16363520  0
+probe t1-identity-3: 831912 device accesses, guest log in /mnt/vmstore/caraxes/vm3/probe-t1-identity-3/guest-dmesg.txt
+[  220.336722] NVRM: GPU 0001:00:01.0: RmInitAdapter
+[  222.651710] NVRM: GPU 0001:00:01.0: RmInitAdapter succeeded!
+modprobe rc=0
+[  220.327142] nvidia 0001:00:01.0: ACPI _DMA: 2 range(s), bus limit 0x13fffffff
+[  220.336722] NVRM: GPU 0001:00:01.0: RmInitAdapter
+[  222.651710] NVRM: GPU 0001:00:01.0: RmInitAdapter succeeded!
+modprobe rc=0
+GPU 0: Leandro RTX 2070-4G (UUID: GPU-9bd7b93d-3d23-c074-6704-984ef33ab7a7)

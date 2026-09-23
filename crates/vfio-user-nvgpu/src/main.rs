@@ -1,0 +1,437 @@
+// SPDX-License-Identifier: MIT
+// SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
+// SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
+//! `vfio-user-nvgpu`: serve the synthetic GPU (by default the RTX 2070: board data
+//! `rtx2070`, chip `tu106`, driver 610.57.04) on a vfio-user socket, or check a
+//! running server from the client side.
+//!
+//! One process serves one VM. The client is Cloud Hypervisor's `--user-device`
+//! (docs/caraxes/vfio-user.md); the run recipe is in docs/caraxes/kickoff.md.
+
+use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex};
+
+use anyhow::{bail, Context, Result};
+use vfio_user::Server;
+use vfio_user_nvgpu::bar0::Bar0;
+use vfio_user_nvgpu::board::{Board, BOARDS};
+use vfio_user_nvgpu::boot::BootModel;
+use vfio_user_nvgpu::chip::{self, Chip};
+use vfio_user_nvgpu::config::{parse_dump, ConfigSpace};
+use vfio_user_nvgpu::device::{irqs, regions, Device, GuestRam};
+use vfio_user_nvgpu::fb::FbLayout;
+use vfio_user_nvgpu::hostmem::HostMemory;
+use vfio_user_nvgpu::hostrm::HostRmClient;
+use vfio_user_nvgpu::intr::IntrShared;
+use vfio_user_nvgpu::privilege::Privilege;
+use vfio_user_nvgpu::rpc::StaticIdentity;
+use vfio_user_nvgpu::selftest;
+use vfio_user_nvgpu::trace::Trace;
+use vfio_user_nvgpu::ver;
+
+const USAGE: &str = "\
+vfio-user-nvgpu --socket <path> [--trace <file>] [--board-data <name|file>] [--chip <chip>]
+                [--config <dump>] [--rom <rom.bin>] [--vbios <image>] [--vbios-version <v>]
+                [--boot-model] [--fb-mib <n>] [--board <name>] [--host-rm]
+                [--reserve-vram] [--register-guest-ram | --identity-dma-table] [--dma-ranges <file>]
+                [--host-exec]
+vfio-user-nvgpu --selftest <socket> [--board-data <name|file>] [--chip <chip>] [--config <dump>]
+
+  --socket   vfio-user socket to create (a stale socket file is removed)
+  --trace    access log file (default: none; the summary always goes to stderr)
+  --board-data  board data: a built-in board or a boards/*.toml-shaped file (default: rtx2070)
+  --chip     the chip to present (default: the board's, tu106 for rtx2070)
+  --config   lspci -xxxx dump of the card (default: the board's, caraxes/reference/rtx2070/config-space.txt)
+  --rom      PCI-visible ROM image for the expansion ROM region (default: the board's, caraxes/reference/rtx2070/rom.bin)
+  --vbios    image served through the BAR0 PROM window (default: the --rom image)
+  --vbios-version  VBIOS version NN.NN.NN.NN.NN of the static info (default: the board's, 90.06.3D.00.76)
+  --boot-model  attach the boot model (falcons, GFW/fuse/FB-size/WPR2 registers, GSP message queues)
+  --fb-mib   framebuffer size the guest is told, in MiB (default: LEA_VRAM_PROFILE_MIB or 4096)
+  --board    board name for the guest name (default: the board's, RTX 2070, giving Leandro RTX 2070-4G)
+  --host-rm  open the host RM (/dev/nvidiactl, unprivileged client) and forward the forwardable RPCs
+  --reserve-vram  hold the profile's size of host VRAM at a fixed address at the top of the host FB
+             heap for the device's life and give the guest FB addresses inside it (E5b,
+             docs/caraxes/memory-model.md); refused when the host would keep less than 1 GiB free
+  --register-guest-ram  register guest RAM with the host RM in 1 GiB chunks at DMA_MAP and translate
+             every guest DMA address through the resulting IOVA table (needs CAP_SYS_ADMIN
+             permitted: file capability cap_sys_admin+p, or start with sudo -n)
+  --identity-dma-table  publish an identity table (IOVA = GPA) instead, without host registration
+  --dma-ranges  file the table is written to, in caraxes_dma_range's ranges= format
+  --host-exec  execute on the physical GPU (E5b part 2, docs/caraxes/execution.md): the FB is the
+             reserved VRAM through BAR1 windows, the guest's channels get host mirror channels bound
+             to the guest's page tables at their first doorbell, GR0/CE non-stall events become guest
+             interrupts (needs --reserve-vram, --register-guest-ram and --host-rm)
+  --selftest connect to a running server and verify the E0 device model
+Paths default relative to LEA_ROOT or the current directory.";
+
+struct Args {
+    socket: Option<PathBuf>,
+    trace: Option<PathBuf>,
+    board_data: Board,
+    chip: &'static dyn Chip,
+    config: PathBuf,
+    rom: PathBuf,
+    vbios: Option<PathBuf>,
+    boot_model: bool,
+    fb_mib: u64,
+    board: String,
+    host_rm: bool,
+    reserve_vram: bool,
+    register_guest_ram: bool,
+    identity_dma_table: bool,
+    dma_ranges: Option<PathBuf>,
+    host_exec: bool,
+    selftest: Option<PathBuf>,
+}
+
+fn parse_args() -> Result<Args> {
+    let root = std::env::var_os("LEA_ROOT")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| PathBuf::from("."));
+    let args: Vec<String> = std::env::args().skip(1).collect();
+    // The board data first: it supplies the defaults of the other flags.
+    let board_name = args
+        .iter()
+        .position(|f| f == "--board-data")
+        .and_then(|i| args.get(i + 1))
+        .map_or("rtx2070", String::as_str);
+    let mut board_data = Board::load(board_name)
+        .map_err(|e| anyhow::anyhow!("{e} (built in: {})", BOARDS.join(", ")))?;
+    let mut chip_name = board_data.chip.clone();
+    let mut a = Args {
+        socket: None,
+        trace: None,
+        config: root.join(&board_data.config),
+        rom: root.join(&board_data.rom),
+        // Resolved after the flags (the board's chip unless --chip names another).
+        chip: chip::by_name(&chip_name).map_err(anyhow::Error::msg)?,
+        vbios: None,
+        boot_model: false,
+        fb_mib: std::env::var("LEA_VRAM_PROFILE_MIB")
+            .ok()
+            .and_then(|v| v.trim().parse().ok())
+            .unwrap_or(4096),
+        board: board_data.name.clone(),
+        host_rm: false,
+        reserve_vram: false,
+        register_guest_ram: false,
+        identity_dma_table: false,
+        dma_ranges: None,
+        host_exec: false,
+        selftest: None,
+        board_data: board_data.clone(),
+    };
+    let mut it = args.into_iter();
+    while let Some(flag) = it.next() {
+        let mut value = || {
+            it.next()
+                .with_context(|| format!("{flag} needs a value\n{USAGE}"))
+        };
+        match flag.as_str() {
+            "--socket" => a.socket = Some(PathBuf::from(value()?)),
+            "--trace" => a.trace = Some(PathBuf::from(value()?)),
+            "--board-data" => {
+                value()?;
+            }
+            "--chip" => chip_name = value()?,
+            "--config" => a.config = PathBuf::from(value()?),
+            "--rom" => a.rom = PathBuf::from(value()?),
+            "--vbios" => a.vbios = Some(PathBuf::from(value()?)),
+            "--vbios-version" => board_data
+                .set_vbios_version(&value()?)
+                .map_err(anyhow::Error::msg)?,
+            "--boot-model" => a.boot_model = true,
+            "--board" => a.board = value()?,
+            "--host-rm" => a.host_rm = true,
+            "--reserve-vram" => a.reserve_vram = true,
+            "--register-guest-ram" => a.register_guest_ram = true,
+            "--identity-dma-table" => a.identity_dma_table = true,
+            "--dma-ranges" => a.dma_ranges = Some(PathBuf::from(value()?)),
+            "--host-exec" => a.host_exec = true,
+            "--fb-mib" => a.fb_mib = value()?.parse().context("--fb-mib needs a number")?,
+            "--selftest" => a.selftest = Some(PathBuf::from(value()?)),
+            "-h" | "--help" => {
+                println!("{USAGE}");
+                std::process::exit(0);
+            }
+            other => bail!("unknown argument {other:?}\n{USAGE}"),
+        }
+    }
+    a.chip = chip::by_name(&chip_name).map_err(|e| anyhow::anyhow!("--chip: {e}"))?;
+    a.board_data = board_data;
+    if a.socket.is_none() && a.selftest.is_none() {
+        bail!("{USAGE}");
+    }
+    if a.register_guest_ram && a.identity_dma_table {
+        bail!("--register-guest-ram and --identity-dma-table exclude each other");
+    }
+    if a.reserve_vram && !a.boot_model {
+        bail!("--reserve-vram needs --boot-model (the FB layout lives in the boot model)");
+    }
+    if a.host_exec && !(a.reserve_vram && a.register_guest_ram && a.host_rm) {
+        bail!("--host-exec needs --reserve-vram, --register-guest-ram and --host-rm (the guest's addresses must be the host's before anything runs on the physical GPU)");
+    }
+    Ok(a)
+}
+
+fn config_space(a: &Args) -> Result<ConfigSpace> {
+    let dump = std::fs::read_to_string(&a.config)
+        .with_context(|| format!("read {}", a.config.display()))?;
+    ConfigSpace::from_dump(
+        parse_dump(&dump)?,
+        a.board_data.bars,
+        a.board_data.rom_bar_size,
+    )
+}
+
+/// Free the host memory on SIGTERM, SIGINT or SIGHUP, then exit. The signals are
+/// blocked in every other thread (the mask is set before any thread starts), so this
+/// thread alone receives them.
+fn spawn_signal_thread(hm: Arc<Mutex<HostMemory>>) -> Result<()> {
+    // SAFETY: sigset manipulation on a local set; pthread_sigmask on this (the only)
+    // thread before the helper exists, so both threads share the blocked mask.
+    let set = unsafe {
+        let mut set: libc::sigset_t = std::mem::zeroed();
+        libc::sigemptyset(&mut set);
+        for s in [libc::SIGTERM, libc::SIGINT, libc::SIGHUP] {
+            libc::sigaddset(&mut set, s);
+        }
+        if libc::pthread_sigmask(libc::SIG_BLOCK, &set, std::ptr::null_mut()) != 0 {
+            bail!("pthread_sigmask");
+        }
+        set
+    };
+    std::thread::Builder::new()
+        .name("signals".into())
+        .spawn(move || {
+            let mut sig = 0;
+            // SAFETY: sigwait on the set blocked above.
+            unsafe { libc::sigwait(&set, &mut sig) };
+            eprintln!("vfio-user-nvgpu: signal {sig}: freeing host memory and exiting");
+            // A DMA_MAP registration in progress holds the lock; wait for it.
+            let log = match hm.lock() {
+                Ok(mut h) => h.shutdown(),
+                Err(p) => p.into_inner().shutdown(),
+            };
+            for l in log {
+                eprintln!("vfio-user-nvgpu: hostmem: {l}");
+            }
+            std::process::exit(128 + sig);
+        })?;
+    Ok(())
+}
+
+fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
+    let cfg = config_space(a)?;
+    let rom = std::fs::read(&a.rom).with_context(|| {
+        format!(
+            "read {} (the PCI-visible ROM of the card; capture it with `cat /sys/bus/pci/devices/<bdf>/rom` after `echo 1 > rom`)",
+            a.rom.display()
+        )
+    })?;
+    if rom.len() < 2 || rom[0] != 0x55 || rom[1] != 0xAA {
+        bail!(
+            "{} does not start with the 55 AA ROM signature",
+            a.rom.display()
+        );
+    }
+    let vbios = match &a.vbios {
+        Some(p) => {
+            let img = std::fs::read(p).with_context(|| format!("read {}", p.display()))?;
+            if img.len() < 2 || img[0] != 0x55 || img[1] != 0xAA {
+                bail!(
+                    "{} does not start with the 55 AA ROM signature",
+                    p.display()
+                );
+            }
+            Some(img)
+        }
+        None => None,
+    };
+    let chip = a.chip;
+    let identity = chip.data().identity;
+    let trace = Trace::new(a.trace.as_deref())?;
+    let mut bar0 = Bar0::new(chip, rom, vbios);
+    // Host memory for E5b: one client for the reservation and the guest RAM, shared with
+    // the signal thread so that SIGTERM frees it too.
+    let host_mem = if a.reserve_vram || a.register_guest_ram {
+        let hm = HostMemory::open(privilege).context("open the host RM for host memory")?;
+        eprintln!(
+            "vfio-user-nvgpu: host memory client open; privilege: {}",
+            hm.privilege().describe()
+        );
+        let hm = Arc::new(Mutex::new(hm));
+        spawn_signal_thread(hm.clone())?;
+        Some(hm)
+    } else {
+        None
+    };
+    let intr_shared = IntrShared::new();
+    let mut layout = FbLayout::plain(a.fb_mib << 20);
+    if a.reserve_vram {
+        let hm = host_mem.as_ref().expect("opened above");
+        let mut h = hm.lock().unwrap();
+        match h.reserve(a.fb_mib << 20) {
+            Ok(log) => log
+                .iter()
+                .for_each(|l| eprintln!("vfio-user-nvgpu: hostmem: {l}")),
+            Err(e) => {
+                eprintln!("vfio-user-nvgpu: hostmem: {e:#}");
+                let log = h.shutdown();
+                log.iter()
+                    .for_each(|l| eprintln!("vfio-user-nvgpu: hostmem: {l}"));
+                bail!("VRAM reservation refused: {e:#}");
+            }
+        }
+        let r = h.reservation().expect("reserved").clone();
+        layout = FbLayout::reserved(a.fb_mib << 20, r.host_fb_total, r.base, r.end())
+            .map_err(anyhow::Error::msg)?;
+        eprintln!(
+            "vfio-user-nvgpu: fb layout: address space {:#x} (host card), reservation [{:#x}, {:#x}), usable [{:#x}, {:#x}), BAR2/BAR1 roots {:#x}/{:#x}, fb_length {:#x}",
+            layout.addr_space,
+            r.base,
+            r.end(),
+            layout.usable().unwrap().0,
+            layout.usable().unwrap().1,
+            layout.bar_roots().unwrap().0,
+            layout.bar_roots().unwrap().1,
+            layout.profile
+        );
+    }
+    if a.boot_model {
+        let fb_bytes = a.fb_mib << 20;
+        let static_identity =
+            StaticIdentity::new(chip.data(), &a.board_data, cfg.ids(), &a.board, fb_bytes);
+        eprintln!("vfio-user-nvgpu: guest name {:?}", static_identity.gpu_name);
+        let mut model = BootModel::new(chip, layout, static_identity);
+        if a.host_rm {
+            let host = HostRmClient::open().context("open the host RM (decision D10)")?;
+            eprintln!("vfio-user-nvgpu: host RM open (unprivileged client, device 0, subdevice 0)");
+            model = model.with_host(Box::new(host));
+        }
+        if a.host_exec {
+            let hm = host_mem.as_ref().expect("checked in parse_args").clone();
+            model = model
+                .with_exec(hm, intr_shared.clone())
+                .map_err(anyhow::Error::msg)?;
+            eprintln!(
+                "vfio-user-nvgpu: host execution on: FB backed by the reserved VRAM through BAR1 windows; guest channels mirrored on the host at their first doorbell; GR0/CE2-CE4 non-stall events forwarded as guest vectors (docs/caraxes/execution.md)"
+            );
+        }
+        bar0 = bar0.with_boot_model(model);
+    }
+    let guest_ram = match (&host_mem, a.register_guest_ram, a.identity_dma_table) {
+        (Some(hm), true, _) => GuestRam::Register(hm.clone()),
+        (_, _, true) => GuestRam::Identity,
+        _ => GuestRam::Plain,
+    };
+    let mut device = Device::new(cfg, bar0, trace)
+        .with_guest_ram(guest_ram, a.dma_ranges.clone())
+        .with_intr_shared(intr_shared);
+    if let Some(r) = host_mem
+        .as_ref()
+        .and_then(|h| h.lock().unwrap().reservation().cloned())
+    {
+        device.log_event(&format!(
+            "hostmem: reservation [{:#x}, {:#x}) held (handle {:#x}); FB layout {layout:?}",
+            r.base,
+            r.end(),
+            r.handle
+        ));
+    }
+
+    if let Ok(meta) = std::fs::symlink_metadata(socket) {
+        use std::os::unix::fs::FileTypeExt;
+        if meta.file_type().is_socket() {
+            std::fs::remove_file(socket)
+                .with_context(|| format!("remove stale {}", socket.display()))?;
+        }
+    }
+    let server = Server::new(socket, true, irqs(), regions(&a.board_data))
+        .map_err(|e| anyhow::anyhow!("vfio-user server: {e}"))?;
+    eprintln!(
+        "vfio-user-nvgpu: {} (BOOT_0 {:#010x}, driver {}) on {}, boot model {}, FB {} MiB, ROM {} bytes, PROM image {} bytes, trace {}",
+        chip.data().short_name,
+        identity.boot_0,
+        ver::active::DRIVER_VERSION,
+        socket.display(),
+        if a.boot_model { "on" } else { "off" },
+        a.fb_mib,
+        device_rom_len(&a.rom),
+        a.vbios.as_ref().map_or_else(|| device_rom_len(&a.rom), |p| device_rom_len(p)),
+        a.trace
+            .as_ref()
+            .map(|p| p.display().to_string())
+            .unwrap_or_else(|| "off".into())
+    );
+    let result = server
+        .run(&mut device)
+        .map_err(|e| anyhow::anyhow!("vfio-user server: {e}"));
+    // The client is gone: free the descriptors and the reservation before exiting.
+    device.shutdown();
+    if let Some(hm) = &host_mem {
+        let log = match hm.lock() {
+            Ok(mut h) => h.shutdown(),
+            Err(p) => p.into_inner().shutdown(),
+        };
+        log.iter()
+            .for_each(|l| eprintln!("vfio-user-nvgpu: hostmem: {l}"));
+    }
+    eprint!("{}", device.summary());
+    result
+}
+
+fn device_rom_len(p: &Path) -> u64 {
+    std::fs::metadata(p).map(|m| m.len()).unwrap_or(0)
+}
+
+/// `vfio-user-nvgpu --dma-table-alias <table file> <gpa> <size>`: print the table with
+/// the guest's swiotlb pool aliased below 2^40 (dmamap.rs `with_alias`), for the launcher.
+fn dma_table_alias(args: &[String]) -> Result<()> {
+    let [file, gpa, size] = args else {
+        bail!("--dma-table-alias <table file> <gpa hex> <size hex>");
+    };
+    let hex = |s: &str| u64::from_str_radix(s.trim_start_matches("0x"), 16);
+    let t = vfio_user_nvgpu::dmamap::DmaTable::parse(&std::fs::read_to_string(file)?)
+        .map_err(anyhow::Error::msg)?;
+    let t = t
+        .with_alias(
+            hex(gpa)?,
+            hex(size)?,
+            vfio_user_nvgpu::dmamap::LOW_ALIAS_IOVA,
+        )
+        .map_err(anyhow::Error::msg)?;
+    println!("{}", t.module_param());
+    Ok(())
+}
+
+fn main() -> Result<()> {
+    let argv: Vec<String> = std::env::args().collect();
+    if argv.get(1).map(String::as_str) == Some("--dma-table-alias") {
+        return dma_table_alias(&argv[2..]);
+    }
+    let a = parse_args()?;
+    // First, before any thread: reduce the privilege to what D12 allows.
+    let privilege = if a.register_guest_ram {
+        Privilege::init(true)?
+    } else if a.selftest.is_none() {
+        Privilege::init(false)?
+    } else {
+        Privilege::none()
+    };
+    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
+    if let Some(socket) = &a.selftest {
+        let cfg = config_space(&a)?;
+        let expect = selftest::Expect {
+            chip: a.chip,
+            board: &a.board_data,
+            pci: cfg.ids(),
+            class_revision: cfg.dword(0x08),
+            cap_ptr: cfg.byte(0x34),
+        };
+        let passed = selftest::run(socket, &expect)?;
+        println!("selftest passed: {}", passed.join(", "));
+        return Ok(());
+    }
+    serve(&a, a.socket.as_deref().expect("socket is set"), privilege)
+}

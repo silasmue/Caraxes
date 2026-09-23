@@ -1,0 +1,16 @@
+# SPDX-License-Identifier: MIT
+# E5b part 2 attempt 1 (2026-09-23): first mirror build on vm2 during uvm verify 1; the push did not run (host RM cleared the USERD after the guest wrote GPPut); host-kick of the token twice did not help
+   154785928 E boot: doorbell 1: token 0x10002 chid 2 runlist 1 -> host mirror
+   154785931 E boot: events: GR0: EVENT_SET_NOTIFICATION notifier 0x800000c: status 0x1f
+   154785933 E boot: events: CE2: EVENT_SET_NOTIFICATION notifier 0x8000019: status 0x1f
+   154785935 E boot: events: CE3: EVENT_SET_NOTIFICATION notifier 0x800001a: status 0x1f
+   154785936 E boot: events: CE4: EVENT_SET_NOTIFICATION notifier 0x800001b: status 0x1f
+   154785938 E boot: events: RC notifier: EVENT_SET_NOTIFICATION notifier 0x25: status 0x1f
+   154785939 E boot: vaspace 0xc1d0000a/0xcaf00005: host FERMI_VASPACE_A 0x8000000d externally owned, page directory 0xe9000000 x 4 (VIDMEM, all channels) set in 889 us [host; guest root unchanged]
+   154785940 E boot: tsg 0xc1d0000a/0xcaf00008: host TSG 0x8000000e engineType 0xb on vaspace 0x8000000d [host]
+   154785942 E boot: chid 2: host channel 0x80000010 in TSG 0x8000000e: gpfifo va 0x121010000 x 1024 [guest], userd Some(Fb(3909287936)) -> host object 0x80000003+0x30000, error notifier the guest's page [host]
+   154785943 E boot: chid 2: host object class 0xc076 refused: 0x1b NV_ERR_INSUFFICIENT_PERMISSIONS (continuing)
+   154785945 E boot: chid 2: host object class 0xc5b5 0x80000012 (8 bytes of the guest's params) [host]
+   154785946 E boot: chid 2: scheduled; host token 0x80032 (host chid 50, runlist 8) for guest token chid 2; mirror built in 20152 us [host]
+   154785948 E boot: doorbell: guest chid 2 -> host token 0x80032 written to the host doorbell page (1 on this channel) [host]
+host-kick: rang 0x80032 twice from client 0xc1d001db; guest uvm-register still spinning; kmsg Xid count 0

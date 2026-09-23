@@ -1,0 +1,251 @@
+// SPDX-License-Identifier: MIT
+// SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
+// SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
+//! Guest RAM as the client offered it through `DMA_MAP` with file descriptors
+//! (Cloud Hypervisor maps every memory zone of a `--memory shared=on` VM).
+//! The device reads the structures the driver places in sysmem: the bootloader
+//! descriptors, the FWSEC command, later the libos arguments and the message
+//! queues (docs/caraxes/gsp-boot-turing.md §3).
+//!
+//! Every address the device takes from the guest is a DMA address. Once guest RAM is
+//! registered with the host RM and the guest module `caraxes_dma_range` installed the
+//! table (E5b, docs/caraxes/memory-model.md), those are host IOVAs, not guest physical
+//! addresses. [`GuestMemory::translate`] is the one place that maps them back: every
+//! read and write goes through it. Without a table it is the identity.
+
+use std::cell::{Cell, RefCell};
+use std::fs::File;
+use std::os::fd::AsRawFd;
+
+use crate::dmamap::DmaTable;
+
+struct Region {
+    address: u64,
+    size: u64,
+    ptr: *mut u8,
+}
+
+#[derive(Default)]
+pub struct GuestMemory {
+    regions: Vec<Region>,
+    /// The active DMA table; `None` is the identity (no registration, E0-E5a).
+    table: Option<DmaTable>,
+    /// DMA addresses the table does not cover (count, first few) since the table
+    /// was set: each one is an access the device refused.
+    misses: Cell<u64>,
+    first_misses: RefCell<Vec<u64>>,
+}
+
+// SAFETY: the mappings are plain shared memory owned by this struct; access is
+// serialized by the single-threaded server loop.
+unsafe impl Send for GuestMemory {}
+
+impl GuestMemory {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Map `size` bytes at `offset` of `fd` as guest physical range `address..`.
+    pub fn map(&mut self, address: u64, size: u64, offset: u64, fd: &File) -> std::io::Result<()> {
+        // SAFETY: mmap of a file descriptor the client handed us; the result is
+        // checked and stored with its size; unmapped in Drop.
+        let ptr = unsafe {
+            libc::mmap(
+                std::ptr::null_mut(),
+                size as usize,
+                libc::PROT_READ | libc::PROT_WRITE,
+                libc::MAP_SHARED,
+                fd.as_raw_fd(),
+                offset as libc::off_t,
+            )
+        };
+        if ptr == libc::MAP_FAILED {
+            return Err(std::io::Error::last_os_error());
+        }
+        self.regions.push(Region {
+            address,
+            size,
+            ptr: ptr.cast(),
+        });
+        Ok(())
+    }
+
+    pub fn unmap(&mut self, address: u64, size: u64) {
+        self.regions.retain(|r| {
+            if r.address == address && r.size == size {
+                // SAFETY: pointer and size come from a successful mmap above.
+                unsafe { libc::munmap(r.ptr.cast(), r.size as usize) };
+                false
+            } else {
+                true
+            }
+        });
+    }
+
+    /// Guest physical `gpa..gpa + len` in one mapping: the host pointer.
+    fn locate_gpa(&self, gpa: u64, len: u64) -> Option<*mut u8> {
+        self.regions
+            .iter()
+            .find(|r| gpa >= r.address && gpa + len <= r.address + r.size)
+            .map(|r| r.ptr.wrapping_add((gpa - r.address) as usize))
+    }
+
+    /// The guest physical address of `len` bytes at the DMA address `addr`: through
+    /// the DMA table when one is active (an address outside it is refused and
+    /// counted, never passed through), else the identity.
+    pub fn translate(&self, addr: u64, len: u64) -> Option<u64> {
+        match &self.table {
+            None => Some(addr),
+            Some(t) => {
+                let gpa = t.iova_to_gpa(addr, len.max(1));
+                if gpa.is_none() {
+                    self.misses.set(self.misses.get() + 1);
+                    let mut f = self.first_misses.borrow_mut();
+                    if f.len() < 16 {
+                        f.push(addr);
+                    }
+                }
+                gpa
+            }
+        }
+    }
+
+    fn locate(&self, addr: u64, len: u64) -> Option<*mut u8> {
+        self.locate_gpa(self.translate(addr, len)?, len)
+    }
+
+    /// Whether the DMA address range is guest RAM the device can reach.
+    pub fn covers(&self, pa: u64, len: u64) -> bool {
+        self.locate(pa, len).is_some()
+    }
+
+    /// Make `table` the translation for every later access (or the identity).
+    pub fn set_table(&mut self, table: Option<DmaTable>) {
+        self.table = table;
+        self.misses.set(0);
+        self.first_misses.borrow_mut().clear();
+    }
+
+    pub fn table(&self) -> Option<&DmaTable> {
+        self.table.as_ref()
+    }
+
+    /// Refused DMA addresses: how many, and the first few.
+    pub fn misses(&self) -> (u64, Vec<u64>) {
+        (self.misses.get(), self.first_misses.borrow().clone())
+    }
+
+    /// The device's own mapping of guest physical `gpa..gpa + len` (for registering
+    /// guest RAM with the host RM), when it lies in one DMA_MAP region.
+    pub fn host_ptr(&self, gpa: u64, len: u64) -> Option<*mut u8> {
+        self.locate_gpa(gpa, len)
+    }
+
+    pub fn regions(&self) -> Vec<(u64, u64)> {
+        self.regions.iter().map(|r| (r.address, r.size)).collect()
+    }
+
+    /// Copy guest bytes at `pa`; `false` when the range is not mapped.
+    pub fn read(&self, pa: u64, buf: &mut [u8]) -> bool {
+        match self.locate(pa, buf.len() as u64) {
+            Some(p) => {
+                // SAFETY: locate() guarantees the range lies inside one mapping.
+                unsafe { std::ptr::copy_nonoverlapping(p, buf.as_mut_ptr(), buf.len()) };
+                true
+            }
+            None => false,
+        }
+    }
+
+    pub fn write(&self, pa: u64, data: &[u8]) -> bool {
+        match self.locate(pa, data.len() as u64) {
+            Some(p) => {
+                // SAFETY: as in read().
+                unsafe { std::ptr::copy_nonoverlapping(data.as_ptr(), p, data.len()) };
+                true
+            }
+            None => false,
+        }
+    }
+
+    pub fn read_u32(&self, pa: u64) -> Option<u32> {
+        let mut b = [0u8; 4];
+        self.read(pa, &mut b).then(|| u32::from_le_bytes(b))
+    }
+
+    pub fn read_u64(&self, pa: u64) -> Option<u64> {
+        let mut b = [0u8; 8];
+        self.read(pa, &mut b).then(|| u64::from_le_bytes(b))
+    }
+}
+
+impl Drop for GuestMemory {
+    fn drop(&mut self) {
+        for r in &self.regions {
+            // SAFETY: see unmap().
+            unsafe { libc::munmap(r.ptr.cast(), r.size as usize) };
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::io::Write;
+
+    #[test]
+    fn maps_and_reads_a_file() {
+        let path = std::env::temp_dir().join(format!("nvgpu-guestmem-{}", std::process::id()));
+        let mut f = File::options()
+            .read(true)
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .open(&path)
+            .unwrap();
+        f.write_all(&[0u8; 8192]).unwrap();
+        f.write_all(&0x1234_5678u32.to_le_bytes()).unwrap();
+        f.write_all(&[0u8; 4092]).unwrap();
+        let mut m = GuestMemory::new();
+        m.map(0x1000_0000, 4096, 8192, &f).unwrap();
+        assert_eq!(m.read_u32(0x1000_0000), Some(0x1234_5678));
+        assert_eq!(m.read_u32(0x1000_0ffc), Some(0));
+        assert_eq!(m.read_u32(0x1000_1000), None);
+        assert!(m.write(0x1000_0010, &[1, 2, 3, 4]));
+        assert_eq!(m.read_u32(0x1000_0010), Some(0x0403_0201));
+        assert!(m.covers(0x1000_0000, 4096));
+        assert!(!m.covers(0x1000_0000, 4097));
+        m.unmap(0x1000_0000, 4096);
+        assert!(!m.covers(0x1000_0000, 4));
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn every_access_goes_through_the_table() {
+        let path = std::env::temp_dir().join(format!("nvgpu-guestmem-t-{}", std::process::id()));
+        let f = File::options()
+            .read(true)
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .open(&path)
+            .unwrap();
+        f.set_len(4 << 20).unwrap();
+        let mut m = GuestMemory::new();
+        m.map(0x20_0000, 4 << 20, 0, &f).unwrap();
+        assert!(m.write(0x20_0100, &[7, 7, 7, 7]));
+        // IOVA 0x7f00_0000_0000 is GPA 0 (a 2 MiB hole, as the first page is in CH).
+        let t = DmaTable::parse("0:7f0000000000:600000").unwrap();
+        m.set_table(Some(t));
+        assert_eq!(m.translate(0x7f00_0020_0100, 4), Some(0x20_0100));
+        assert_eq!(m.read_u32(0x7f00_0020_0100), Some(0x0707_0707));
+        // The guest physical address itself is no longer a valid DMA address.
+        assert_eq!(m.read_u32(0x20_0100), None);
+        assert!(m.write(0x7f00_0020_0104, &[1, 0, 0, 0]));
+        assert_eq!(m.host_ptr(0x20_0104, 4).map(|p| unsafe { *p }), Some(1));
+        assert_eq!(m.misses(), (1, vec![0x20_0100]));
+        m.set_table(None);
+        assert_eq!(m.read_u32(0x20_0104), Some(1));
+        let _ = std::fs::remove_file(&path);
+    }
+}

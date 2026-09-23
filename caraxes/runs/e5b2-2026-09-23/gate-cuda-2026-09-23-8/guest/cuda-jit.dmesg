@@ -1,0 +1,27 @@
+# SPDX-License-Identifier: MIT
+# cuda gate gate-cuda-2026-09-23-8: guest/cuda-jit.dmesg
+[  155.616169] hrtimer: interrupt took 3647832 ns
+[  179.856792] NVRM: _threadNodeCheckTimeout: _threadNodeCheckTimeout: currentTime: f4223f73e3e80 >= f4223f73e3e80
+[  179.856803] NVRM: _threadNodeCheckTimeout: _threadNodeCheckTimeout: Timeout was set to: 30000 msecs!
+[  179.858051] NVRM: kmemsysDoCacheOp_GM107: - timeout error waiting for reg 0x70010 update cnt=442968
+[  179.858379] NVRM: _threadNodeCheckTimeout: _threadNodeCheckTimeout: currentTime: f4223f75cc300 >= f4223f73e3e80
+[  179.858383] NVRM: _threadNodeCheckTimeout: _threadNodeCheckTimeout: Timeout was set to: 30000 msecs!
+[  179.858512] NVRM: kmemsysDoCacheOp_GM107: - timeout error waiting for reg 0x70004 update cnt=1
+[  213.563834] NVRM: _threadNodeCheckTimeout: _threadNodeCheckTimeout: currentTime: f422bd0658180 >= f422bd0658180
+[  213.563843] NVRM: _threadNodeCheckTimeout: _threadNodeCheckTimeout: Timeout was set to: 30000 msecs!
+[  213.563891] NVRM: kmemsysDoCacheOp_GM107: - timeout error waiting for reg 0x70010 update cnt=861917
+[  213.563958] NVRM: _threadNodeCheckTimeout: _threadNodeCheckTimeout: currentTime: f422bd0658180 >= f422bd0658180
+[  213.563961] NVRM: _threadNodeCheckTimeout: _threadNodeCheckTimeout: Timeout was set to: 30000 msecs!
+[  213.563992] NVRM: kmemsysDoCacheOp_GM107: - timeout error waiting for reg 0x70004 update cnt=1
+[  298.910814] NVRM: _threadNodeCheckTimeout: _threadNodeCheckTimeout: currentTime: f423faf796040 >= f423faf796040
+[  298.910821] NVRM: _threadNodeCheckTimeout: _threadNodeCheckTimeout: Timeout was set to: 30000 msecs!
+[  298.910853] NVRM: kmemsysDoCacheOp_GM107: - timeout error waiting for reg 0x70010 update cnt=1002203
+[  298.910905] NVRM: _threadNodeCheckTimeout: _threadNodeCheckTimeout: currentTime: f423faf796040 >= f423faf796040
+[  298.910908] NVRM: _threadNodeCheckTimeout: _threadNodeCheckTimeout: Timeout was set to: 30000 msecs!
+[  298.910935] NVRM: kmemsysDoCacheOp_GM107: - timeout error waiting for reg 0x70004 update cnt=1
+[  331.591821] NVRM: _threadNodeCheckTimeout: _threadNodeCheckTimeout: currentTime: f42474b69dc80 >= f42474b69dc80
+[  331.591829] NVRM: _threadNodeCheckTimeout: _threadNodeCheckTimeout: Timeout was set to: 30000 msecs!
+[  331.591865] NVRM: kmemsysDoCacheOp_GM107: - timeout error waiting for reg 0x70010 update cnt=1080715
+[  331.591927] NVRM: _threadNodeCheckTimeout: _threadNodeCheckTimeout: currentTime: f42474b69dc80 >= f42474b69dc80
+[  331.591930] NVRM: _threadNodeCheckTimeout: _threadNodeCheckTimeout: Timeout was set to: 30000 msecs!
+[  331.591961] NVRM: kmemsysDoCacheOp_GM107: - timeout error waiting for reg 0x70004 update cnt=1

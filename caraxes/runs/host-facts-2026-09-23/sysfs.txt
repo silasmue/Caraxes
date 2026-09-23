@@ -1,0 +1,31 @@
+# SPDX-License-Identifier: MIT
+# sysfs and lspci reads (no GPU access), 2026-09-23T13:55:47+02:00
+## H1 /sys/kernel/iommu_groups/28/type
+DMA-FQ
+## H1 group 28 devices
+0000:2d:00.0 vendor=0x10de device=0x1f02 class=0x030000 driver=nvidia
+0000:2d:00.1 vendor=0x10de device=0x10f9 class=0x040300 driver=snd_hda_intel
+0000:2d:00.2 vendor=0x10de device=0x1ada class=0x0c0330 driver=xhci_hcd
+0000:2d:00.3 vendor=0x10de device=0x1adb class=0x0c8000 driver=nvidia-gpu
+## H1 /sys/class/iommu
+ivhd0 -> ../../devices/pci0000:00/0000:00:00.2/iommu/ivhd0
+## H1 kernel command line
+BOOT_IMAGE=/vmlinuz-linux root=UUID=71875be3-a43d-4554-9c80-2cfd8d3d28b1 rw loglevel=3 quiet nvidia.NVreg_ResmanDebugLevel=0
+## H2 /sys/bus/pci/devices/0000:2d:00.0/resource (start end flags), BAR0..BAR5, ROM
+0x00000000fb000000 0x00000000fbffffff 0x0000000000040200
+0x0000007fe0000000 0x0000007fefffffff 0x000000000014220c
+0x0000000000000000 0x0000000000000000 0x0000000000000000
+0x0000007ff0000000 0x0000007ff1ffffff 0x000000000014220c
+0x0000000000000000 0x0000000000000000 0x0000000000000000
+0x000000000000f000 0x000000000000f07f 0x0000000000040101
+0x00000000fc000000 0x00000000fc07ffff 0x0000000000046200
+resource0_resize: 0000000000000010
+resource1_resize: 00000000000001c0
+resource3_resize: 0000000000000020
+## H2 /proc/driver/nvidia/params EnableResizableBar
+EnableResizableBar: 0
+## H2 lspci -vv regions and Resizable BAR
+	Region 0: Memory at fb000000 (32-bit, non-prefetchable) [size=16M]
+	Region 1: Memory at 7fe0000000 (64-bit, prefetchable) [size=256M]
+	Region 3: Memory at 7ff0000000 (64-bit, prefetchable) [size=32M]
+	Region 5: I/O ports at f000 [size=128]

@@ -1,0 +1,82 @@
+# SPDX-License-Identifier: MIT
+# Guest kernel journal of E4 iteration 1 (automatic load at boot), 2026-09-23.
+[    2.849375] caraxes-vm0 kernel: nvidia: loading out-of-tree module taints kernel.
+[    2.849391] caraxes-vm0 kernel: nvidia: module verification failed: signature and/or required key missing - tainting kernel
+[    2.989156] caraxes-vm0 kernel: nvidia-nvlink: Nvlink Core is being initialized, major device number 239
+[    2.989163] caraxes-vm0 kernel: NVRM: probing 0x10de 0x1f02, class 0x30000
+[    2.997924] caraxes-vm0 kernel: nvidia 0000:00:05.0: enabling device (0000 -> 0003)
+[    2.998732] caraxes-vm0 kernel: NVRM: resizable BAR disabled by regkey, skipping
+[    2.998737] caraxes-vm0 kernel: NVRM: No clk handles for the dev
+[    2.998916] caraxes-vm0 kernel: nvidia 0000:00:05.0: vgaarb: VGA decodes changed: olddecodes=io+mem,decodes=none:owns=none
+[    2.998986] caraxes-vm0 kernel: NVRM: PCI:0000:00:05.0 (10de:1f02): BAR0 @ 0xe6000000 (16MB)
+[    2.998989] caraxes-vm0 kernel: NVRM: PCI:0000:00:05.0 (10de:1f02): BAR1 @ 0x3fffe0000000 (256MB)
+[    2.999011] caraxes-vm0 kernel: NVRM: Failed to evaluate _PR3 object
+[    3.000749] caraxes-vm0 kernel: NVRM: pciPbiReadUuid: Could not acquire pciPbi mutex
+[    3.000857] caraxes-vm0 kernel: NVRM: Starting device 0000:00:05.0
+[    3.009282] caraxes-vm0 kernel: NVRM: GPU 0000:00:05.0: RmInitAdapter
+[    3.009292] caraxes-vm0 kernel: NVRM: GPU 0000:00:05.0: RmSetupRegisters for 0x10de:0x1f02
+[    3.009294] caraxes-vm0 kernel: NVRM: GPU 0000:00:05.0: pci config info:
+[    3.009295] caraxes-vm0 kernel: NVRM: GPU 0000:00:05.0:    registers look  like: 0xe6000000 0x1000000NVRM: GPU 0000:00:05.0:    fb        looks like: 0x3fffe0000000 0x10000000
+[    3.009319] caraxes-vm0 kernel: NVRM: GPU 0000:00:05.0: Successfully mapped framebuffer and registers
+[    3.009325] caraxes-vm0 kernel: NVRM: GPU 0000:00:05.0: final mappings:
+[    3.009326] caraxes-vm0 kernel: NVRM: GPU 0000:00:05.0:     regs: 0xe6000000 0x1000000 0x0000000037de9639
+[    4.658749] caraxes-vm0 kernel: NVRM: GPU0 nvCheckFailedNoLog: Check failed: pEngineInfo->engineInfoList != NULL @ kernel_fifo.c:2088
+[    4.658754] caraxes-vm0 kernel: NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Out of memory [NV_ERR_NO_MEMORY] (0x00000051) returned from kfifoGetHostDeviceInfoTable_HAL(pGpu, pKernelFifo, pEngineInfo, 0) @ kernel_fifo.c:2204
+[    4.658795] caraxes-vm0 kernel: NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Out of memory [NV_ERR_NO_MEMORY] (0x00000051) returned from kfifoConstructEngineList_HAL(pGpu, pKernelFifo) @ kernel_fifo_gm107.c:694
+[    4.659000] caraxes-vm0 kernel: NVRM: GPU0 nvCheckFailedNoLog: Check failed: pEngineInfo->engineInfoList != NULL @ kernel_fifo.c:2088
+[    4.659004] caraxes-vm0 kernel: NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Out of memory [NV_ERR_NO_MEMORY] (0x00000051) returned from kfifoGetHostDeviceInfoTable_HAL(pGpu, pKernelFifo, pEngineInfo, 0) @ kernel_fifo.c:2204
+[    4.659043] caraxes-vm0 kernel: NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Out of memory [NV_ERR_NO_MEMORY] (0x00000051) returned from kfifoConstructEngineList_HAL(pGpu, pKernelFifo) @ kernel_fifo_gm107.c:694
+[    4.659254] caraxes-vm0 kernel: NVRM: GPU0 nvCheckFailedNoLog: Check failed: pEngineInfo->engineInfoList != NULL @ kernel_fifo.c:2088
+[    4.659258] caraxes-vm0 kernel: NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Out of memory [NV_ERR_NO_MEMORY] (0x00000051) returned from kfifoGetHostDeviceInfoTable_HAL(pGpu, pKernelFifo, pEngineInfo, 0) @ kernel_fifo.c:2204
+[    4.659289] caraxes-vm0 kernel: NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Out of memory [NV_ERR_NO_MEMORY] (0x00000051) returned from kfifoConstructEngineList_HAL(pGpu, pKernelFifo) @ kernel_fifo_gm107.c:694
+[    4.659452] caraxes-vm0 kernel: NVRM: GPU0 nvCheckFailedNoLog: Check failed: pEngineInfo->engineInfoList != NULL @ kernel_fifo.c:2088
+[    4.659456] caraxes-vm0 kernel: NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Out of memory [NV_ERR_NO_MEMORY] (0x00000051) returned from kfifoGetHostDeviceInfoTable_HAL(pGpu, pKernelFifo, pEngineInfo, 0) @ kernel_fifo.c:2204
+[    4.659487] caraxes-vm0 kernel: NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Out of memory [NV_ERR_NO_MEMORY] (0x00000051) returned from kfifoConstructEngineList_HAL(pGpu, pKernelFifo) @ kernel_fifo_gm107.c:694
+[    4.659650] caraxes-vm0 kernel: NVRM: GPU0 nvCheckFailedNoLog: Check failed: pEngineInfo->engineInfoList != NULL @ kernel_fifo.c:2088
+[    4.659654] caraxes-vm0 kernel: NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Out of memory [NV_ERR_NO_MEMORY] (0x00000051) returned from kfifoGetHostDeviceInfoTable_HAL(pGpu, pKernelFifo, pEngineInfo, 0) @ kernel_fifo.c:2204
+[    4.659684] caraxes-vm0 kernel: NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Out of memory [NV_ERR_NO_MEMORY] (0x00000051) returned from kfifoConstructEngineList_HAL(pGpu, pKernelFifo) @ kernel_fifo_gm107.c:694
+[    4.659852] caraxes-vm0 kernel: NVRM: GPU0 nvCheckFailedNoLog: Check failed: pEngineInfo->engineInfoList != NULL @ kernel_fifo.c:2088
+[    4.659856] caraxes-vm0 kernel: NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Out of memory [NV_ERR_NO_MEMORY] (0x00000051) returned from kfifoGetHostDeviceInfoTable_HAL(pGpu, pKernelFifo, pEngineInfo, 0) @ kernel_fifo.c:2204
+[    4.659886] caraxes-vm0 kernel: NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Out of memory [NV_ERR_NO_MEMORY] (0x00000051) returned from kfifoConstructEngineList_HAL(pGpu, pKernelFifo) @ kernel_fifo_gm107.c:694
+[    4.660047] caraxes-vm0 kernel: NVRM: GPU0 nvCheckFailedNoLog: Check failed: pEngineInfo->engineInfoList != NULL @ kernel_fifo.c:2088
+[    4.660051] caraxes-vm0 kernel: NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Out of memory [NV_ERR_NO_MEMORY] (0x00000051) returned from kfifoGetHostDeviceInfoTable_HAL(pGpu, pKernelFifo, pEngineInfo, 0) @ kernel_fifo.c:2204
+[    4.660082] caraxes-vm0 kernel: NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Out of memory [NV_ERR_NO_MEMORY] (0x00000051) returned from kfifoConstructEngineList_HAL(pGpu, pKernelFifo) @ kernel_fifo_gm107.c:694
+[    4.660281] caraxes-vm0 kernel: NVRM: GPU0 nvCheckFailedNoLog: Check failed: pEngineInfo->engineInfoList != NULL @ kernel_fifo.c:2088
+[    4.660285] caraxes-vm0 kernel: NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Out of memory [NV_ERR_NO_MEMORY] (0x00000051) returned from kfifoGetHostDeviceInfoTable_HAL(pGpu, pKernelFifo, pEngineInfo, 0) @ kernel_fifo.c:2204
+[    4.660316] caraxes-vm0 kernel: NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Out of memory [NV_ERR_NO_MEMORY] (0x00000051) returned from kfifoConstructEngineList_HAL(pGpu, pKernelFifo) @ kernel_fifo_gm107.c:694
+[    4.660478] caraxes-vm0 kernel: NVRM: GPU0 nvCheckFailedNoLog: Check failed: pEngineInfo->engineInfoList != NULL @ kernel_fifo.c:2088
+[    4.660482] caraxes-vm0 kernel: NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Out of memory [NV_ERR_NO_MEMORY] (0x00000051) returned from kfifoGetHostDeviceInfoTable_HAL(pGpu, pKernelFifo, pEngineInfo, 0) @ kernel_fifo.c:2204
+[    4.660512] caraxes-vm0 kernel: NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Out of memory [NV_ERR_NO_MEMORY] (0x00000051) returned from kfifoConstructEngineList_HAL(pGpu, pKernelFifo) @ kernel_fifo_gm107.c:694
+[    4.660674] caraxes-vm0 kernel: NVRM: GPU0 nvCheckFailedNoLog: Check failed: pEngineInfo->engineInfoList != NULL @ kernel_fifo.c:2088
+[    4.660677] caraxes-vm0 kernel: NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Out of memory [NV_ERR_NO_MEMORY] (0x00000051) returned from kfifoGetHostDeviceInfoTable_HAL(pGpu, pKernelFifo, pEngineInfo, 0) @ kernel_fifo.c:2204
+[    4.660708] caraxes-vm0 kernel: NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Out of memory [NV_ERR_NO_MEMORY] (0x00000051) returned from kfifoConstructEngineList_HAL(pGpu, pKernelFifo) @ kernel_fifo_gm107.c:694
+[    4.660881] caraxes-vm0 kernel: NVRM: GPU0 nvCheckFailedNoLog: Check failed: pEngineInfo->engineInfoList != NULL @ kernel_fifo.c:2088
+[    4.660885] caraxes-vm0 kernel: NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Out of memory [NV_ERR_NO_MEMORY] (0x00000051) returned from kfifoGetHostDeviceInfoTable_HAL(pGpu, pKernelFifo, pEngineInfo, 0) @ kernel_fifo.c:2204
+[    4.660915] caraxes-vm0 kernel: NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Out of memory [NV_ERR_NO_MEMORY] (0x00000051) returned from kfifoConstructEngineList_HAL(pGpu, pKernelFifo) @ kernel_fifo_gm107.c:694
+[    4.661072] caraxes-vm0 kernel: NVRM: GPU0 nvCheckFailedNoLog: Check failed: pEngineInfo->engineInfoList != NULL @ kernel_fifo.c:2088
+[    4.661076] caraxes-vm0 kernel: NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Out of memory [NV_ERR_NO_MEMORY] (0x00000051) returned from kfifoGetHostDeviceInfoTable_HAL(pGpu, pKernelFifo, pEngineInfo, 0) @ kernel_fifo.c:2204
+[    4.661106] caraxes-vm0 kernel: NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Out of memory [NV_ERR_NO_MEMORY] (0x00000051) returned from kfifoConstructEngineList_HAL(pGpu, pKernelFifo) @ kernel_fifo_gm107.c:694
+[    4.661290] caraxes-vm0 kernel: NVRM: GPU0 nvCheckFailedNoLog: Check failed: pEngineInfo->engineInfoList != NULL @ kernel_fifo.c:2088
+[    4.661293] caraxes-vm0 kernel: NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Out of memory [NV_ERR_NO_MEMORY] (0x00000051) returned from kfifoGetHostDeviceInfoTable_HAL(pGpu, pKernelFifo, pEngineInfo, 0) @ kernel_fifo.c:2204
+[    4.661324] caraxes-vm0 kernel: NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Out of memory [NV_ERR_NO_MEMORY] (0x00000051) returned from kfifoConstructEngineList_HAL(pGpu, pKernelFifo) @ kernel_fifo_gm107.c:694
+[    4.661481] caraxes-vm0 kernel: NVRM: GPU0 nvCheckFailedNoLog: Check failed: pEngineInfo->engineInfoList != NULL @ kernel_fifo.c:2088
+[    4.661485] caraxes-vm0 kernel: NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Out of memory [NV_ERR_NO_MEMORY] (0x00000051) returned from kfifoGetHostDeviceInfoTable_HAL(pGpu, pKernelFifo, pEngineInfo, 0) @ kernel_fifo.c:2204
+[    4.661516] caraxes-vm0 kernel: NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Out of memory [NV_ERR_NO_MEMORY] (0x00000051) returned from kfifoConstructEngineList_HAL(pGpu, pKernelFifo) @ kernel_fifo_gm107.c:694
+[    4.661679] caraxes-vm0 kernel: NVRM: GPU0 nvCheckFailedNoLog: Check failed: pEngineInfo->engineInfoList != NULL @ kernel_fifo.c:2088
+[    4.661683] caraxes-vm0 kernel: NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Out of memory [NV_ERR_NO_MEMORY] (0x00000051) returned from kfifoGetHostDeviceInfoTable_HAL(pGpu, pKernelFifo, pEngineInfo, 0) @ kernel_fifo.c:2204
+[    4.661714] caraxes-vm0 kernel: NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Out of memory [NV_ERR_NO_MEMORY] (0x00000051) returned from kfifoConstructEngineList_HAL(pGpu, pKernelFifo) @ kernel_fifo_gm107.c:694
+[    4.662008] caraxes-vm0 kernel: NVRM: GPU0 nvCheckFailedNoLog: Check failed: pEngineInfo->engineInfoList != NULL @ kernel_fifo.c:2088
+[    4.662012] caraxes-vm0 kernel: NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Out of memory [NV_ERR_NO_MEMORY] (0x00000051) returned from kfifoGetHostDeviceInfoTable_HAL(pGpu, pKernelFifo, pEngineInfo, 0) @ kernel_fifo.c:2204
+[    4.662043] caraxes-vm0 kernel: NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Out of memory [NV_ERR_NO_MEMORY] (0x00000051) returned from kfifoConstructEngineList_HAL(pGpu, pKernelFifo) @ kernel_fifo_gm107.c:694
+[    4.662074] caraxes-vm0 kernel: NVRM: GPU0 nvAssertFailedNoLog: Assertion failed: status == NV_OK @ kernel_falcon.c:391
+[    4.662325] caraxes-vm0 kernel: NVRM: GPU0 nvCheckFailedNoLog: Check failed: pEngineInfo->engineInfoList != NULL @ kernel_fifo.c:2088
+[    4.662329] caraxes-vm0 kernel: NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Out of memory [NV_ERR_NO_MEMORY] (0x00000051) returned from kfifoGetHostDeviceInfoTable_HAL(pGpu, pKernelFifo, pEngineInfo, 0) @ kernel_fifo.c:2204
+[    4.662363] caraxes-vm0 kernel: NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Out of memory [NV_ERR_NO_MEMORY] (0x00000051) returned from kfifoConstructEngineList_HAL(pGpu, pKernelFifo) @ kernel_fifo_gm107.c:694
+[    4.662398] caraxes-vm0 kernel: NVRM: GPU0 nvAssertFailedNoLog: Assertion failed: status == NV_OK @ kernel_falcon.c:391
+[    4.664834] caraxes-vm0 kernel: NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Call not supported [NV_ERR_NOT_SUPPORTED] (0x00000056) returned from pRmApi->Control(pRmApi, pGpu->hInternalClient, pGpu->hInternalSubdevice, NV2080_CTRL_CMD_CE_GET_FAULT_METHOD_BUFFER_SIZE, &params, sizeof(params)) @ kernel_ce.c:857
+[    4.664873] caraxes-vm0 kernel: BUG: kernel NULL pointer dereference, address: 0000000000000206
+[    4.666883] caraxes-vm0 kernel: Oops: 0000 [#1] PREEMPT SMP NOPTI
+[    4.668900] caraxes-vm0 kernel: RIP: 0010:memmgrCalcReservedFbSpaceHal_GM107+0x40f/0x7b0 [nvidia]
+[    4.678037] caraxes-vm0 kernel: Call Trace:
+[    4.678538] caraxes-vm0 kernel:  memmgrCalcReservedFbSpace_IMPL+0x67/0x480 [nvidia]
+[    4.679353] caraxes-vm0 kernel:  memmgrRegionSetupForPma_IMPL+0x16/0x30 [nvidia]

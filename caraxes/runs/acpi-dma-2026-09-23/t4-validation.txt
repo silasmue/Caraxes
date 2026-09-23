@@ -1,0 +1,60 @@
+# SPDX-License-Identifier: MIT
+# T4 (validation part only): patched Cloud Hypervisor refuses bad dma_ranges before creating a VM. Host, 2026-09-23T13:50:21Z.
+# No guest, no device: each command must exit non-zero with a validation error. The last one is a valid table (control):
+# it passes validation and then fails only for lack of a disk/console setup or is stopped by timeout 3.
+
+$ cloud-hypervisor-0004 --memory size=4G --kernel /mnt/vmstore/leandro/vm/guest-image/vmlinuz --console off --serial off --platform num_pci_segments=2 --pci-segment pci_segment=1,dma_ranges=[0:0x1000000000:0xc0000000,0x80000000:0x2000000000:0x40000000]
+<main> ERROR:/tmp/claude-1000/-home-silas-git-Caraxes/43784b5f-fc25-49bd-8e67-5dbab7e19aca/scratchpad/ch/stacked/cloud-hypervisor/src/lib.rs:24 -- Fatal error: ParsingConfig(Validation(OverlappingPciSegmentDmaRanges(1, 0, 1)))
+Error: Cloud Hypervisor exited with the following chain of errors:
+  0: Error parsing config
+  1: Error validating configuration
+  2: PCI segment 1: DMA ranges 0 and 1 overlap
+exit 1
+
+$ cloud-hypervisor-0004 --memory size=4G --kernel /mnt/vmstore/leandro/vm/guest-image/vmlinuz --console off --serial off --platform num_pci_segments=2 --pci-segment pci_segment=1,dma_ranges=[0:0x1000000000:0xc0000000,0x100000000:0x1000000000:0x40000000]
+<main> ERROR:/tmp/claude-1000/-home-silas-git-Caraxes/43784b5f-fc25-49bd-8e67-5dbab7e19aca/scratchpad/ch/stacked/cloud-hypervisor/src/lib.rs:24 -- Fatal error: ParsingConfig(Validation(OverlappingPciSegmentDmaRanges(1, 0, 1)))
+Error: Cloud Hypervisor exited with the following chain of errors:
+  0: Error parsing config
+  1: Error validating configuration
+  2: PCI segment 1: DMA ranges 0 and 1 overlap
+exit 1
+
+$ cloud-hypervisor-0004 --memory size=4G --kernel /mnt/vmstore/leandro/vm/guest-image/vmlinuz --console off --serial off --platform num_pci_segments=2 --pci-segment pci_segment=1,dma_ranges=[0x800:0x1000000000:0xc0000000]
+<main> ERROR:/tmp/claude-1000/-home-silas-git-Caraxes/43784b5f-fc25-49bd-8e67-5dbab7e19aca/scratchpad/ch/stacked/cloud-hypervisor/src/lib.rs:24 -- Fatal error: ParsingConfig(Validation(InvalidPciSegmentDmaRange(1, 0)))
+Error: Cloud Hypervisor exited with the following chain of errors:
+  0: Error parsing config
+  1: Error validating configuration
+  2: PCI segment 1: DMA range 0 is empty, not 4 KiB aligned, or wraps
+exit 1
+
+$ cloud-hypervisor-0004 --memory size=4G --kernel /mnt/vmstore/leandro/vm/guest-image/vmlinuz --console off --serial off --platform num_pci_segments=2 --pci-segment pci_segment=1,dma_ranges=[0:0x1000000000:0]
+<main> ERROR:/tmp/claude-1000/-home-silas-git-Caraxes/43784b5f-fc25-49bd-8e67-5dbab7e19aca/scratchpad/ch/stacked/cloud-hypervisor/src/lib.rs:24 -- Fatal error: ParsingConfig(Validation(InvalidPciSegmentDmaRange(1, 0)))
+Error: Cloud Hypervisor exited with the following chain of errors:
+  0: Error parsing config
+  1: Error validating configuration
+  2: PCI segment 1: DMA range 0 is empty, not 4 KiB aligned, or wraps
+exit 1
+
+$ cloud-hypervisor-0004 --memory size=4G --kernel /mnt/vmstore/leandro/vm/guest-image/vmlinuz --console off --serial off --platform num_pci_segments=2 --pci-segment pci_segment=1,dma_ranges=[0:0xfffffffffffff000:0x2000]
+<main> ERROR:/tmp/claude-1000/-home-silas-git-Caraxes/43784b5f-fc25-49bd-8e67-5dbab7e19aca/scratchpad/ch/stacked/cloud-hypervisor/src/lib.rs:24 -- Fatal error: ParsingConfig(Validation(InvalidPciSegmentDmaRange(1, 0)))
+Error: Cloud Hypervisor exited with the following chain of errors:
+  0: Error parsing config
+  1: Error validating configuration
+  2: PCI segment 1: DMA range 0 is empty, not 4 KiB aligned, or wraps
+exit 1
+
+$ cloud-hypervisor-0004 --memory size=4G --kernel /mnt/vmstore/leandro/vm/guest-image/vmlinuz --console off --serial off --platform num_pci_segments=2 --pci-segment pci_segment=2,dma_ranges=[0:0:0xc0000000]
+<main> ERROR:/tmp/claude-1000/-home-silas-git-Caraxes/43784b5f-fc25-49bd-8e67-5dbab7e19aca/scratchpad/ch/stacked/cloud-hypervisor/src/lib.rs:24 -- Fatal error: ParsingConfig(Validation(InvalidPciSegment(2)))
+Error: Cloud Hypervisor exited with the following chain of errors:
+  0: Error parsing config
+  1: Error validating configuration
+  2: Invalid PCI segment id: 2
+exit 1
+
+$ cloud-hypervisor-0004 --memory size=4G --kernel /mnt/vmstore/leandro/vm/guest-image/vmlinuz --console off --serial off --pci-segment pci_segment=0,dma_ranges=[0:0xc0000000:0x1000]
+<vmm> WARN:vmm/src/pci_segment.rs:242 -- PCI segment 0: DMA range [0xc0000000-0xc0000fff] overlaps the MMIO window [0xc0000000-0xe7ffffff]
+<vmm> WARN:vmm/src/cpu.rs:823 -- vCPU thread did not respond in 10ms to signal - retrying
+<vmm> WARN:vmm/src/cpu.rs:823 -- vCPU thread did not respond in 20ms to signal - retrying
+<vmm> WARN:vmm/src/cpu.rs:823 -- vCPU thread did not respond in 30ms to signal - retrying
+<vmm> WARN:vmm/src/cpu.rs:823 -- vCPU thread did not respond in 40ms to signal - retrying
+exit 124

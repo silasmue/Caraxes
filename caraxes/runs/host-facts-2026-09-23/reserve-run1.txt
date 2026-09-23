@@ -1,0 +1,98 @@
+# SPDX-License-Identifier: MIT
+# target/host-facts reserve --go (caraxes/tools/host-facts.rs), unprivileged RM client (uid 1000), start 2026-09-23T13:56:30+02:00
+# Run 1: the fixed "low" offset was LARGEST_FREE_REGION_BASE_KB taken as absolute; it is region-relative (+ HEAP_BASE 0x3600000), so the fixed-low steps started 54 MiB inside occupied memory. Superseded by reserve-run2.txt.
+client=0xc1d00090 device=0xcaf10001 subdevice=0xcaf10002
+region base=0x3600000 limit=0x1e918ffff reserved=0x0 tag=0
+STEP contig-2560MiB: size 2560 MiB, contiguous, any address
+  before: HEAP_FREE 6449 MiB, LARGEST_FREE_REGION 6215 MiB at 0x61400000
+  nvidia-smi: FB free 6450 MiB (answered in 20 ms)
+  RM_ALLOC ok in 0 ms: handle=0xcaf10100 offset(phys)=0x64a00000 size=0xa0000000 limit=0x9fffffff attr=0x11800000 attr2=0x100005 flags=0x8000
+  while held: HEAP_FREE 3889 MiB, LARGEST_FREE_REGION 3655 MiB at 0x101400000
+  nvidia-smi: FB free 3890 MiB (answered in 20 ms)
+  RM_FREE ok
+  after free: HEAP_FREE 6449 MiB, LARGEST_FREE_REGION 6215 MiB at 0x61400000
+  nvidia-smi: FB free 6450 MiB (answered in 41 ms)
+STEP contig-3072MiB: size 3072 MiB, contiguous, any address
+  before: HEAP_FREE 6449 MiB, LARGEST_FREE_REGION 6215 MiB at 0x61400000
+  nvidia-smi: FB free 6450 MiB (answered in 44 ms)
+  RM_ALLOC ok in 0 ms: handle=0xcaf10101 offset(phys)=0x104a00000 size=0xc0000000 limit=0xbfffffff attr=0x11800000 attr2=0x100005 flags=0x8000
+  while held: HEAP_FREE 3377 MiB, LARGEST_FREE_REGION 2560 MiB at 0x61400000
+  nvidia-smi: FB free 3378 MiB (answered in 40 ms)
+  RM_FREE ok
+  after free: HEAP_FREE 6449 MiB, LARGEST_FREE_REGION 6215 MiB at 0x61400000
+  nvidia-smi: FB free 6450 MiB (answered in 44 ms)
+STEP contig-5120MiB: size 5120 MiB, contiguous, any address
+  before: HEAP_FREE 6449 MiB, LARGEST_FREE_REGION 6215 MiB at 0x61400000
+  nvidia-smi: FB free 6450 MiB (answered in 56 ms)
+  RM_ALLOC ok in 177 ms: handle=0xcaf10102 offset(phys)=0x64a00000 size=0x140000000 limit=0x13fffffff attr=0x11800000 attr2=0x100005 flags=0x8000
+  while held: HEAP_FREE 1329 MiB, LARGEST_FREE_REGION 1095 MiB at 0x1a1400000
+  nvidia-smi: FB free 1330 MiB (answered in 16 ms)
+  RM_FREE ok
+  after free: HEAP_FREE 6449 MiB, LARGEST_FREE_REGION 6215 MiB at 0x61400000
+  nvidia-smi: FB free 6450 MiB (answered in 17 ms)
+  layout: HEAP_FREE 6449 MiB, LARGEST_FREE_REGION 6215 MiB at 0x61400000
+  nvidia-smi: FB free 6450 MiB (answered in 16 ms)
+STEP fixed-low-2560MiB: size 2560 MiB, fixed offset 0x61400000
+  before: HEAP_FREE 6449 MiB, LARGEST_FREE_REGION 6215 MiB at 0x61400000
+  nvidia-smi: FB free 6450 MiB (answered in 16 ms)
+  RM_ALLOC NV01_MEMORY_LOCAL_USER status=0x51 after 75 ms
+  after refusal: HEAP_FREE 6449 MiB, LARGEST_FREE_REGION 6215 MiB at 0x61400000
+  nvidia-smi: FB free 6470 MiB (answered in 16 ms)
+STEP fixed-high-2560MiB: size 2560 MiB, fixed offset 0x145a00000
+  before: HEAP_FREE 6469 MiB, LARGEST_FREE_REGION 6215 MiB at 0x61400000
+  nvidia-smi: FB free 6470 MiB (answered in 16 ms)
+  RM_ALLOC ok in 0 ms: handle=0xcaf10104 offset(phys)=0x145a00000 size=0xa0000000 limit=0x9fffffff attr=0x11800000 attr2=0x100005 flags=0x8010
+  while held: HEAP_FREE 3909 MiB, LARGEST_FREE_REGION 3600 MiB at 0x61400000
+  nvidia-smi: FB free 3910 MiB (answered in 15 ms)
+  RM_FREE ok
+  after free: HEAP_FREE 6469 MiB, LARGEST_FREE_REGION 6215 MiB at 0x61400000
+  nvidia-smi: FB free 6470 MiB (answered in 16 ms)
+  layout: HEAP_FREE 6469 MiB, LARGEST_FREE_REGION 6215 MiB at 0x61400000
+  nvidia-smi: FB free 6470 MiB (answered in 17 ms)
+STEP fixed-low-3072MiB: size 3072 MiB, fixed offset 0x61400000
+  before: HEAP_FREE 6469 MiB, LARGEST_FREE_REGION 6215 MiB at 0x61400000
+  nvidia-smi: FB free 6470 MiB (answered in 17 ms)
+  RM_ALLOC NV01_MEMORY_LOCAL_USER status=0x51 after 1 ms
+  after refusal: HEAP_FREE 6469 MiB, LARGEST_FREE_REGION 6215 MiB at 0x61400000
+  nvidia-smi: FB free 6470 MiB (answered in 18 ms)
+STEP fixed-high-3072MiB: size 3072 MiB, fixed offset 0x125a00000
+  before: HEAP_FREE 6469 MiB, LARGEST_FREE_REGION 6215 MiB at 0x61400000
+  nvidia-smi: FB free 6470 MiB (answered in 16 ms)
+  RM_ALLOC ok in 0 ms: handle=0xcaf10106 offset(phys)=0x125a00000 size=0xc0000000 limit=0xbfffffff attr=0x11800000 attr2=0x100005 flags=0x8010
+  while held: HEAP_FREE 3397 MiB, LARGEST_FREE_REGION 3088 MiB at 0x61400000
+  nvidia-smi: FB free 3398 MiB (answered in 17 ms)
+  RM_FREE ok
+  after free: HEAP_FREE 6469 MiB, LARGEST_FREE_REGION 6215 MiB at 0x61400000
+  nvidia-smi: FB free 6470 MiB (answered in 17 ms)
+  layout: HEAP_FREE 6469 MiB, LARGEST_FREE_REGION 6215 MiB at 0x61400000
+  nvidia-smi: FB free 6470 MiB (answered in 16 ms)
+STEP fixed-low-5120MiB: size 5120 MiB, fixed offset 0x61400000
+  before: HEAP_FREE 6469 MiB, LARGEST_FREE_REGION 6215 MiB at 0x61400000
+  nvidia-smi: FB free 6470 MiB (answered in 16 ms)
+  RM_ALLOC NV01_MEMORY_LOCAL_USER status=0x51 after 11 ms
+  after refusal: HEAP_FREE 6469 MiB, LARGEST_FREE_REGION 6215 MiB at 0x61400000
+  nvidia-smi: FB free 6470 MiB (answered in 16 ms)
+STEP fixed-high-5120MiB: size 5120 MiB, fixed offset 0xa5a00000
+  before: HEAP_FREE 6469 MiB, LARGEST_FREE_REGION 6215 MiB at 0x61400000
+  nvidia-smi: FB free 6470 MiB (answered in 16 ms)
+  RM_ALLOC ok in 0 ms: handle=0xcaf10108 offset(phys)=0xa5a00000 size=0x140000000 limit=0x13fffffff attr=0x11800000 attr2=0x100005 flags=0x8010
+  while held: HEAP_FREE 1349 MiB, LARGEST_FREE_REGION 1040 MiB at 0x61400000
+  nvidia-smi: FB free 1350 MiB (answered in 16 ms)
+  RM_FREE ok
+  after free: HEAP_FREE 6469 MiB, LARGEST_FREE_REGION 6215 MiB at 0x61400000
+  nvidia-smi: FB free 6470 MiB (answered in 16 ms)
+  layout: HEAP_FREE 6469 MiB, LARGEST_FREE_REGION 6215 MiB at 0x61400000
+  nvidia-smi: FB free 6470 MiB (answered in 16 ms)
+STEP fixed-occupied: SKIP, region bottom 0x3600000 overlaps the largest free region
+
+RESULT contig-2560MiB size=2560MiB mode=contig status=0x0 addr=0x64a00000..0x1049fffff contiguous=true free_before=6450MiB free_held=3890MiB free_after=6450MiB heap_free_before=6449MiB heap_free_after=6449MiB
+RESULT contig-3072MiB size=3072MiB mode=contig status=0x0 addr=0x104a00000..0x1c49fffff contiguous=true free_before=6450MiB free_held=3378MiB free_after=6450MiB heap_free_before=6449MiB heap_free_after=6449MiB
+RESULT contig-5120MiB size=5120MiB mode=contig status=0x0 addr=0x64a00000..0x1a49fffff contiguous=true free_before=6450MiB free_held=1330MiB free_after=6450MiB heap_free_before=6449MiB heap_free_after=6449MiB
+RESULT fixed-low-2560MiB size=2560MiB mode=fixed@0x61400000 status=0x51 addr=- free_before=6450MiB free_after=6470MiB
+RESULT fixed-high-2560MiB size=2560MiB mode=fixed@0x145a00000 status=0x0 addr=0x145a00000..0x1e59fffff contiguous=true free_before=6470MiB free_held=3910MiB free_after=6470MiB heap_free_before=6469MiB heap_free_after=6469MiB
+RESULT fixed-low-3072MiB size=3072MiB mode=fixed@0x61400000 status=0x51 addr=- free_before=6470MiB free_after=6470MiB
+RESULT fixed-high-3072MiB size=3072MiB mode=fixed@0x125a00000 status=0x0 addr=0x125a00000..0x1e59fffff contiguous=true free_before=6470MiB free_held=3398MiB free_after=6470MiB heap_free_before=6469MiB heap_free_after=6469MiB
+RESULT fixed-low-5120MiB size=5120MiB mode=fixed@0x61400000 status=0x51 addr=- free_before=6470MiB free_after=6470MiB
+RESULT fixed-high-5120MiB size=5120MiB mode=fixed@0xa5a00000 status=0x0 addr=0xa5a00000..0x1e59fffff contiguous=true free_before=6470MiB free_held=1350MiB free_after=6470MiB heap_free_before=6469MiB heap_free_after=6469MiB
+client freed; nothing allocated
+# exit status 0, end 2026-09-23T13:56:31+02:00

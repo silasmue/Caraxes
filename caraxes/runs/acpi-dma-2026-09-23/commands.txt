@@ -1,0 +1,97 @@
+# SPDX-License-Identifier: MIT
+# Commands of the ACPI _DMA tests (patches/ACPI-DMA.md §6, T0-T3) in vm3, 2026-09-23 (times in the files are UTC).
+# Tree: e2f1aec plus uncommitted work (git status at start: caraxes/, crates/vfio-user-nvgpu/, patches/0004, patches/linux/ untracked).
+
+== Inputs
+- Cloud Hypervisor, stock (what tools/caraxes-vm.sh uses, LEA_CH): /mnt/vmstore/leandro/cloud-hypervisor/bin/cloud-hypervisor,
+  "cloud-hypervisor v53.0.0", sha256 4aabd2ac8889f42fd68bc37e44ad54c556dfd4e473f907c9d0ee5c2b3f99ce0e.
+- Cloud Hypervisor, patched: v53.0 + patches 0001-0004, built earlier today in the session scratchpad (not by tools/build.sh ch),
+  copied to /mnt/vmstore/caraxes/vm3/cloud-hypervisor-0004, "cloud-hypervisor v53.0-dirty",
+  sha256 9ceeeff1574a4eab8b5c369efd3249a86d4028eb527ac776043d08ecfa98649f.
+- Device: target/release/vfio-user-nvgpu as of 15:31 local, frozen as /mnt/vmstore/caraxes/vm3/vfio-user-nvgpu,
+  sha256 2054dcc26902ffed5810dd565b65180a55e18c3a078fa55b988e5cd8bdb9b451; run with --boot-model --fb-mib 4096 --host-rm (the
+  quickstart's settings; the device opens the host RM as an unprivileged client, as in every Caraxes run). No CARAXES_DMA mode.
+- Guest image: overlay on guest-baked-20260801-610.57.04-20260820-105733.qcow2, stock kernel 6.8.0-136-generic from
+  /mnt/vmstore/leandro/vm/guest-image/{vmlinuz,initrd}.
+- iasl: ACPICA built from source in the session scratchpad earlier today (acpica/generate/unix/bin/iasl).
+
+== vm3 creation (host)
+  qemu-img create -f qcow2 -b /mnt/vmstore/leandro/vm/guest-baked-20260801-610.57.04-20260820-105733.qcow2 -F qcow2 /mnt/vmstore/caraxes/vm3/rootfs.qcow2
+  seed: /mnt/vmstore/caraxes/vm1/seed/* with caraxes-vm1 -> caraxes-vm3, 192.168.101.21/24 -> 192.168.103.23/24,
+        via 192.168.101.1 -> 192.168.103.1, a new instance-id; then
+  mkfs.fat -C -n cidata seed.img 1440 && mcopy -i seed.img seed/user-data seed/meta-data seed/network-config ::
+  sudo -n ip tuntap add dev caraxes3 mode tap user silas; sudo -n ip addr add 192.168.103.1/24 dev caraxes3; sudo -n ip link set caraxes3 up
+  (the tap caraxes3 is left in place)
+
+== vm3 guest preparation (as vm2, experiments.md "vm2 created")
+  scp target/caraxes/ogkm-610.57.04.tar.zst /usr/lib/firmware/nvidia/610.57.04/gsp_tu10x.bin leandro@192.168.103.23:
+  guest: mkdir -p ogkm && tar -C ogkm --zstd -xf ogkm-610.57.04.tar.zst
+         cd ogkm/open-gpu-kernel-modules && nice make modules -j8 SYSSRC=/lib/modules/6.8.0-136-generic/build
+         sudo install -m 644 kernel-open/nvidia.ko kernel-open/nvidia-uvm.ko /lib/modules/6.8.0-136-generic/updates/
+         sudo install -m 644 gsp_tu10x.bin /lib/firmware/nvidia/610.57.04/gsp_tu10x.bin   (sha256 d157e3b7...)
+         /etc/modprobe.d/caraxes.conf: the three registry keys, "options nvidia-uvm uvm_disable_hmm=1", "blacklist nvidia"
+         sudo depmod -a
+  dmacheck (probe-context checker, dmacheck/ here): tar -C caraxes/runs/acpi-dma-2026-09-23 -cf - dmacheck | tools/caraxes-vm.sh ssh 'rm -rf dmacheck && tar xf - && make -C dmacheck'
+  Why dmacheck and not caraxes_dma_range_test.ko: the test module refuses while a driver is bound, but a map from _DMA exists only
+  between dma_configure in really_probe() and device_unbind_cleanup(); with no driver bound the device never has one. dmacheck is a
+  PCI driver without id table, bound through driver_override; its probe runs the same checks (256 pages, 8 coherent 64 KiB buffers,
+  first/middle/last page of every range, dma_to_phys above the table) and returns -ENODEV. caraxes_dma_range was never loaded in vm3.
+
+== Launching (every boot): caraxes/runs/acpi-dma-2026-09-23/vm3-up.sh, then with
+   export VM=vm3 CARAXES_TAP=caraxes3 CARAXES_IP=192.168.103.23 CARAXES_MAC=02:00:00:00:00:23
+   tools/caraxes-vm.sh wait | ssh | probe <label> | down        (unchanged launcher; see "Deviations")
+  boot A  stock CH, default topology:                        caraxes/runs/acpi-dma-2026-09-23/vm3-up.sh
+  boot B  patched CH, no option:                             CH=/mnt/vmstore/caraxes/vm3/cloud-hypervisor-0004 caraxes/runs/acpi-dma-2026-09-23/vm3-up.sh
+  boot C  patched CH, segment 1, identity:                   CH=... SEG1=1 DMA_RANGES=0:0:0xc0000000,0x100000000:0x100000000:0x40000000 .../vm3-up.sh
+  T1      + patched kernel:                                  B=/mnt/vmstore/caraxes/vm3/boot; CH=... SEG1=1 DMA_RANGES=<identity> KERNEL=$B/vmlinuz-6.8.12-caraxesdma INITRD=$B/initrd.img-6.8.12-caraxesdma CMDLINE_EXTRA='dyndbg="file drivers/acpi/x86/dma.c +p"' .../vm3-up.sh
+  T2      + 5 GiB:                                           ... CH_EXTRA=-v DMA_RANGES=0:0x140000000:0xc0000000,0x100000000:0x240000000:0x40000000 ...
+  T2b     real vm2 table:                                    ... DMA_RANGES=0:0x7fff80000000:0x40000000,0x40000000:0x7fff40000000:0x40000000,0x80000000:0x7ffec0000000:0x40000000,0x100000000:0x7ffe80000000:0x40000000 ...
+  T1c     patched kernel, patched CH, no option:             CH=... KERNEL=... INITRD=... CMDLINE_EXTRA=... .../vm3-up.sh
+  Each shutdown: tools/caraxes-vm.sh ssh 'sudo poweroff'; sleep 6; tools/caraxes-vm.sh down; sleep 2
+  (without the sleep the next CH start once failed: "API socket ... already in use", the old CH still held ch.sock.lock)
+
+== Guest kernel build (host), 2026-09-23 13:49:59Z-13:55:58Z (6 min), release 6.8.12-caraxesdma
+  Source: the clone made earlier today in the session scratchpad, linux/ubuntu-noble
+    (git://git.launchpad.net/~ubuntu-kernel/ubuntu/+source/linux/+git/noble), HEAD 8d442a5b5d42 = tag Ubuntu-6.8.0-136.136
+    (9e2939f04a28) + one commit whose diff equals patches/linux/0001-x86-acpi-honour-dma-ranges.patch; clean work tree.
+  Compiler: gcc 13.4.0 from nixpkgs, unwrapped (the guest kernel was built with gcc-13 13.3.0; the host's GCC 16.2.1 is not used for
+    kernel objects), host programs with the system gcc:
+    nix --extra-experimental-features 'nix-command flakes' build --no-link --print-out-paths nixpkgs#gcc13.cc
+      -> /nix/store/wqrvmy7a8fcf7ljgfwdyd47j16g86qd3-gcc-13.4.0
+  S=<scratchpad>/linux/ubuntu-noble  O=/home/silas/git/Caraxes/target/caraxes/kbuild-caraxesdma  G=/nix/store/wqrvmy7a8fcf7ljgfwdyd47j16g86qd3-gcc-13.4.0/bin/gcc
+  M="make O=$O CC=$G HOSTCC=gcc LOCALVERSION="            (bash; LOCALVERSION= on the command line keeps setlocalversion from adding "+")
+  tools/caraxes-vm.sh ssh 'cat /boot/config-6.8.0-136-generic' > $O/config-6.8.0-136-generic
+  tools/caraxes-vm.sh ssh lsmod > $O/lsmod.txt             (stock kernel, nvidia loaded after the boot-A probe; 58 lines)
+  cp $O/config-6.8.0-136-generic $O/.config
+  $M olddefconfig
+  $M LSMOD=$O/lsmod.txt localmodconfig
+  scripts/config --file $O/.config --set-str LOCALVERSION -caraxesdma --disable LOCALVERSION_AUTO --disable WERROR \
+      --set-str SYSTEM_TRUSTED_KEYS "" --set-str SYSTEM_REVOCATION_KEYS "" --disable DEBUG_INFO_DWARF5 --disable DEBUG_INFO_BTF \
+      --disable DEBUG_INFO_DWARF_TOOLCHAIN_DEFAULT --enable DEBUG_INFO_NONE
+  $M olddefconfig                                          (58 =m, 2122 =y; CONFIG_DYNAMIC_DEBUG=y, no GCC plugin selected)
+  nice -n 19 make -j12 O=$O CC=$G HOSTCC=gcc LOCALVERSION=  -> rc=0, bzImage 12825088 bytes; nm vmlinux: "T acpi_arch_dma_setup";
+      no warning in drivers/acpi/x86/dma.c (the 6 compiler warnings are in security/, apparmor/, random.c, cpufreq.c)
+  Install: S=... O=... G=... caraxes/runs/acpi-dma-2026-09-23/install-kernel.sh  (log: /mnt/vmstore/caraxes/vm3/install-kernel.log)
+    make modules_install INSTALL_MOD_PATH=$O/stage INSTALL_MOD_STRIP=1; scripts/package/install-extmod-build $O/stage/build;
+    rsync both and bzImage/System.map/.config into the guest; guest: /lib/modules/6.8.12-caraxesdma, /usr/src/linux-headers-6.8.12-caraxesdma
+    (build symlink), /boot/{vmlinuz,System.map,config}-6.8.12-caraxesdma, depmod, update-initramfs -c, update-grub (finds both
+    kernels; stock 6.8.0-136-generic stays as an entry), nvidia rebuilt from ~/ogkm with SYSSRC=/lib/modules/6.8.12-caraxesdma/build
+    ("vermagic: 6.8.12-caraxesdma SMP preempt mod_unload modversions") into updates/; the host-built tools in the build tree need
+    at most GLIBC_2.38 (guest 2.39) and libelf.so.1/libcrypto.so.3, both present in the guest.
+    Boot files for Cloud Hypervisor's direct kernel boot (grub is not used by it):
+      /mnt/vmstore/caraxes/vm3/boot/vmlinuz-6.8.12-caraxesdma     sha256 e6b34c2189612254ad83b5abb6c0b7c437bf703d26f6c95bd360934ea82a7df7
+      /mnt/vmstore/caraxes/vm3/boot/initrd.img-6.8.12-caraxesdma  sha256 33c7684014109f265063d582d355d2dc46d423274dfdc520842853a2f1af3cdc
+
+== Raw ACPI tables (binary, kept outside the tree): /mnt/vmstore/caraxes/vm3/acpi/
+  dsdt-A-stock-ch.aml, dsdt-B-patched-noopt.aml (both sha256 245e1c34...), dsdt-C-seg1-identity.aml (9626c9e8...),
+  dsdt-T2b-real-iova.aml, each with its iasl -d disassembly (.dsl).
+
+== Files here
+  t0-bootA-stock-ch.txt, t0-bootB-patched-ch-no-option.txt, t0-bootC-seg1-identity-stock-kernel.txt   T0
+  t1-patched-kernel-identity.txt, t1c-patched-kernel-no-dma-control.txt                               T1 and its control
+  t2-patched-kernel-offset-5g.txt, t2b-patched-kernel-real-iova-table.txt                             T2
+  t3-boot-order.txt                                                                                   T3 (analysis, not run)
+  t4-validation.txt                                                                                   T4 validation part (extra)
+  vm3-up.sh, install-kernel.sh, dmacheck/                                                             scripts and the checker
+  Full guest logs of each probe: /mnt/vmstore/caraxes/vm3/probe-<label>/ (t0-A-seg0, t0-seg1-identity, t1-identity,
+  t1-identity-2 (did not reload: nvidia_uvm held nvidia), t1-identity-3, t1c-no-dma).

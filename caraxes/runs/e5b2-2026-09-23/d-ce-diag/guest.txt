@@ -1,0 +1,22 @@
+stage 0 ok (cuInit)
+nvprobe rc=124
+[  178.641251] NVRM: nvidia_ctl_close
+[  178.641254] NVRM: nvidia_close on GPU with minor number 255
+[  178.641255] NVRM: nvidia_ctl_close
+[  178.641258] NVRM: nvidia_close on GPU with minor number 255
+[  178.641259] NVRM: nvidia_ctl_close
+[  178.641262] NVRM: nvidia_close on GPU with minor number 255
+[  178.641263] NVRM: nvidia_ctl_close
+[  178.641266] NVRM: nvidia_close on GPU with minor number 255
+[  178.641270] NVRM: nvidia_ctl_close
+[  178.641380] NVRM: nvidia_close on GPU with minor number 255
+[  178.641381] NVRM: nvidia_ctl_close
+[  178.641384] NVRM: nvidia_close on GPU with minor number 255
+[  178.641384] NVRM: nvidia_ctl_close
+[  178.641387] NVRM: nvidia_close on GPU with minor number 255
+[  178.641390] NVRM: nvidia_ctl_close
+[  178.641392] NVRM: nvidia_close on GPU with minor number 255
+[  178.641393] NVRM: nvidia_ctl_close
+[  178.641398] NVRM: nvidia_close on GPU with minor number 0
+[  178.641405] NVRM: nvidia_close on GPU with minor number 255
+[  178.641406] NVRM: nvidia_ctl_close

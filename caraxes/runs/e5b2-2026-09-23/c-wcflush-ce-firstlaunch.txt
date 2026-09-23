@@ -1,0 +1,31 @@
+# SPDX-License-Identifier: MIT
+# E5b part 2, WC-flush attempt (2026-09-23): with the BAR1 write-combine flush before every host doorbell, CUDA's CE channels (guest chids 10-21) build, schedule and take their first doorbell on the physical GPU with ZERO Xid (PBENTRY gone). The first CE LAUNCH_DMA (the channel-init semaphore release) then does not complete - exactly one doorbell per channel, the guest waits, cuda-core times out at 90s with no Xid and no RC. This is host-exec.md open item 3 (the first CE launch on a fresh host channel stalls); host-exec absorbed it with a warm-up copy.
+
+## CE channels scheduled on the host (guest chid -> host chid/runlist), no Xid:
+chid 10: scheduled; host token 0x80037 (host chid 55, runlist 8) for guest token chid 10; mirror built in 2957
+chid 10: scheduled; host token 0x8003a (host chid 58, runlist 8) for guest token chid 10; mirror built in 1309
+chid 11: scheduled; host token 0x80038 (host chid 56, runlist 8) for guest token chid 11; mirror built in 1887
+chid 11: scheduled; host token 0x8003b (host chid 59, runlist 8) for guest token chid 11; mirror built in 6983
+chid 12: scheduled; host token 0x80039 (host chid 57, runlist 8) for guest token chid 12; mirror built in 1722
+chid 12: scheduled; host token 0x8003c (host chid 60, runlist 8) for guest token chid 12; mirror built in 7363
+chid 13: scheduled; host token 0x8003a (host chid 58, runlist 8) for guest token chid 13; mirror built in 1485
+chid 13: scheduled; host token 0x8003d (host chid 61, runlist 8) for guest token chid 13; mirror built in 9136
+chid 14: scheduled; host token 0x90030 (host chid 48, runlist 9) for guest token chid 14; mirror built in 2986
+chid 14: scheduled; host token 0x90036 (host chid 54, runlist 9) for guest token chid 14; mirror built in 1284
+chid 15: scheduled; host token 0x90031 (host chid 49, runlist 9) for guest token chid 15; mirror built in 1389
+chid 15: scheduled; host token 0x90037 (host chid 55, runlist 9) for guest token chid 15; mirror built in 1340
+chid 16: scheduled; host token 0x90035 (host chid 53, runlist 9) for guest token chid 16; mirror built in 1856
+chid 16: scheduled; host token 0x90038 (host chid 56, runlist 9) for guest token chid 16; mirror built in 7382
+chid 17: scheduled; host token 0x90036 (host chid 54, runlist 9) for guest token chid 17; mirror built in 1667
+chid 17: scheduled; host token 0x90039 (host chid 57, runlist 9) for guest token chid 17; mirror built in 6994
+chid 18: scheduled; host token 0xa002c (host chid 44, runlist 10) for guest token chid 18; mirror built in 554
+chid 18: scheduled; host token 0xa002f (host chid 47, runlist 10) for guest token chid 18; mirror built in 148
+chid 19: scheduled; host token 0xa002d (host chid 45, runlist 10) for guest token chid 19; mirror built in 159
+chid 19: scheduled; host token 0xa0030 (host chid 48, runlist 10) for guest token chid 19; mirror built in 671
+chid 20: scheduled; host token 0xa002e (host chid 46, runlist 10) for guest token chid 20; mirror built in 164
+chid 20: scheduled; host token 0xa0031 (host chid 49, runlist 10) for guest token chid 20; mirror built in 673
+chid 21: scheduled; host token 0xa002f (host chid 47, runlist 10) for guest token chid 21; mirror built in 177
+chid 21: scheduled; host token 0xa0035 (host chid 53, runlist 10) for guest token chid 21; mirror built in 689
+
+## kmsg Xid during the window:
+xid count: 0

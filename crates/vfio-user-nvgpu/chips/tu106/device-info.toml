@@ -1,0 +1,33 @@
+# SPDX-License-Identifier: MIT
+# SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
+# SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
+#
+# The TU106 FIFO device-info table, the answer to FIFO_GET_DEVICE_INFO_TABLE
+# (ctrl2080fifo.h:535-576; docs/caraxes/fifo-device-info.md and
+# caraxes/tools/fifo-table-tu106.json). Engines, MMU fault ids and PBDMA counts come
+# from the host card (unprivileged controls); runlist ids, PBDMA ids and PBDMA fault
+# ids are synthesized under the kernel's constraints; mc_idx is the MC_ENGINE_IDX (an
+# array index in the guest). An empty table removes KernelGraphics and crashes the
+# guest in memmgrCalcReservedFbSpaceHal_GM107, so GR0 must be present.
+#
+# eng_desc = [NVOC class of the physical engine, instance] (ENG_DESC = class id << 8
+# | instance, g_eng_desc_nvoc.h:55-59); rm_engine_type is the RM_ENGINE_TYPE and mc
+# the MC_ENGINE_IDX, by name (numbers from src/ver). dev_type is the hardware
+# device-info type (19 = LCE). pbdma = [[PBDMA id, PBDMA fault id], ...].
+
+label = "host (engines, fault ids, PBDMA counts) + synthesized (runlists, PBDMA ids; fifo-device-info.md)"
+
+engine = [
+    { name = "gr0", eng_desc = ["Graphics", 0], rm_engine_type = "GR0", runlist = 0, mmu_fault_id = 64, mc = "GR0", instance = 0, host_driven = 1, dev_type = 0, pbdma = [[0, 32], [1, 33]] },
+    { name = "ce0", eng_desc = ["OBJCE", 0], rm_engine_type = "COPY0", runlist = 0, mmu_fault_id = 15, mc = "CE0", instance = 0, host_driven = 1, dev_type = 19, pbdma = [[0, 32]] },
+    { name = "ce1", eng_desc = ["OBJCE", 1], rm_engine_type = "COPY1", runlist = 0, mmu_fault_id = 16, mc = "CE1", instance = 1, host_driven = 1, dev_type = 19, pbdma = [[1, 33]] },
+    { name = "ce2", eng_desc = ["OBJCE", 2], rm_engine_type = "COPY2", runlist = 1, mmu_fault_id = 17, mc = "CE2", instance = 2, host_driven = 1, dev_type = 19, pbdma = [[2, 34]] },
+    { name = "ce3", eng_desc = ["OBJCE", 3], rm_engine_type = "COPY3", runlist = 2, mmu_fault_id = 18, mc = "CE3", instance = 3, host_driven = 1, dev_type = 19, pbdma = [[3, 35]] },
+    { name = "ce4", eng_desc = ["OBJCE", 4], rm_engine_type = "COPY4", runlist = 3, mmu_fault_id = 19, mc = "CE4", instance = 4, host_driven = 1, dev_type = 19, pbdma = [[4, 36]] },
+    { name = "nvdec0", eng_desc = ["OBJBSP", 0], rm_engine_type = "NVDEC0", runlist = 4, mmu_fault_id = 10, mc = "NVDEC0", instance = 0, host_driven = 1, dev_type = 0, pbdma = [[5, 37]] },
+    { name = "nvdec1", eng_desc = ["OBJBSP", 1], rm_engine_type = "NVDEC1", runlist = 5, mmu_fault_id = 25, mc = "NVDEC1", instance = 1, host_driven = 1, dev_type = 0, pbdma = [[6, 38]] },
+    { name = "nvdec2", eng_desc = ["OBJBSP", 2], rm_engine_type = "NVDEC2", runlist = 6, mmu_fault_id = 26, mc = "NVDEC2", instance = 2, host_driven = 1, dev_type = 0, pbdma = [[7, 39]] },
+    { name = "nvenc0", eng_desc = ["OBJMSENC", 0], rm_engine_type = "NVENC0", runlist = 7, mmu_fault_id = 11, mc = "NVENC0", instance = 0, host_driven = 1, dev_type = 0, pbdma = [[8, 40]] },
+    { name = "sec2", eng_desc = ["OBJSEC2", 0], rm_engine_type = "SEC2", runlist = 8, mmu_fault_id = 14, mc = "SEC2", instance = 0, host_driven = 1, dev_type = 0, pbdma = [[9, 41]] },
+    { name = "sw", eng_desc = ["OBJSWENG", 0], rm_engine_type = "SW", runlist = 0, mmu_fault_id = 0xFFFF_FFFF, mc = "NULL", instance = 0, host_driven = 0, dev_type = 0, pbdma = [] },
+]

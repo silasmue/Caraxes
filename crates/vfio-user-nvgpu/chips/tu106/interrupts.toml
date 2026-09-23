@@ -1,0 +1,42 @@
+# SPDX-License-Identifier: MIT
+# SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
+# SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
+#
+# The TU106 kernel interrupt table, the answer to INTERNAL_INTR_GET_KERNEL_TABLE
+# (ctrl2080internal.h:1463-1480). Subtrees as intr_tu102.c:1386-1417:
+# ESCHED_DRIVEN_ENGINE bit 3, ESCHED_NOTIFICATION bit 0, UVM_OWNED bit 1, UVM_SHARED
+# bit 2. Vectors: subtree s covers vectors 64s..64s+63. `mc` is the MC_ENGINE_IDX and
+# `category` the NV2080_INTR_CATEGORY, by name (numbers from src/ver).
+
+label = "synthesized (TU102-style subtree map; E4: host MC_GET_STATIC_INTR_TABLE; E5b part 2: GR0/CE2-CE4 non-stall vectors)"
+
+entry = [
+    # MC_ENGINE_IDX_GSP: stall in subtree 3, non-stall in subtree 0.
+    { mc = "GSP", vector_stall = 192, vector_nonstall = 1 },
+    { mc = "FIFO", vector_stall = 193, vector_nonstall = 2 },
+    { mc = "TMR", vector_stall = 194, vector_nonstall = 3 },
+    # REPLAYABLE_FAULT: UVM-owned subtree 1, leaf 2.
+    { mc = "REPLAYABLE_FAULT", vector_stall = 64, vector_nonstall = 0 },
+    # ACCESS_CNTR: same leaf as REPLAYABLE_FAULT.
+    { mc = "ACCESS_CNTR", vector_stall = 65, vector_nonstall = 0 },
+    { mc = "NON_REPLAYABLE_FAULT", vector_stall = 195, vector_nonstall = 0 },
+    # E5b part 2 (docs/caraxes/execution.md): the engines the mirror channels run on.
+    # Their non-stall vectors sit in subtree 0 (ESCHED_DRIVEN_ENGINE_NOTIFICATION, leaf 0),
+    # which the kernel enables from this table (intr.c:126-130) and services through
+    # intrServiceNonStall_TU102 -> engineNonStallIntrNotify -> the client's OS events
+    # (cuda-path.md §5.2). The device raises them from the host's OS events of the same
+    # engines (mirror.rs). Their stall vectors are in leaf 6 like the others; nothing
+    # ever raises them.
+    { mc = "GR0", vector_stall = 196, vector_nonstall = 4 },
+    { mc = "CE2", vector_stall = 197, vector_nonstall = 5 },
+    { mc = "CE3", vector_stall = 198, vector_nonstall = 6 },
+    { mc = "CE4", vector_stall = 199, vector_nonstall = 7 },
+]
+
+# subtreeMap[category] = subtree bitmask.
+subtree = [
+    { category = "ESCHED_DRIVEN_ENGINE", mask = 0x8 },
+    { category = "ESCHED_DRIVEN_ENGINE_NOTIFICATION", mask = 0x1 },
+    { category = "UVM_OWNED", mask = 0x2 },
+    { category = "UVM_SHARED", mask = 0x4 },
+]

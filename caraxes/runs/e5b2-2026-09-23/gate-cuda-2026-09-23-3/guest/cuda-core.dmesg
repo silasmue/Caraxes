@@ -1,0 +1,14 @@
+# SPDX-License-Identifier: MIT
+# cuda gate gate-cuda-2026-09-23-3: guest/cuda-core.dmesg
+[  249.148545] NVRM: _threadNodeCheckTimeout: _threadNodeCheckTimeout: currentTime: f42341386e500 >= f42341386e500
+[  249.148557] NVRM: _threadNodeCheckTimeout: _threadNodeCheckTimeout: Timeout was set to: 30000 msecs!
+[  249.148610] NVRM: kmemsysDoCacheOp_GM107: - timeout error waiting for reg 0x70010 update cnt=924266
+[  249.148698] NVRM: _threadNodeCheckTimeout: _threadNodeCheckTimeout: currentTime: f42341386e500 >= f42341386e500
+[  249.148701] NVRM: _threadNodeCheckTimeout: _threadNodeCheckTimeout: Timeout was set to: 30000 msecs!
+[  249.148745] NVRM: kmemsysDoCacheOp_GM107: - timeout error waiting for reg 0x70004 update cnt=1
+[  282.177622] NVRM: _threadNodeCheckTimeout: _threadNodeCheckTimeout: currentTime: f423bc4357040 >= f423bc4357040
+[  282.177632] NVRM: _threadNodeCheckTimeout: _threadNodeCheckTimeout: Timeout was set to: 30000 msecs!
+[  282.177720] NVRM: kmemsysDoCacheOp_GM107: - timeout error waiting for reg 0x70010 update cnt=933402
+[  282.177794] NVRM: _threadNodeCheckTimeout: _threadNodeCheckTimeout: currentTime: f423bc4357040 >= f423bc4357040
+[  282.177801] NVRM: _threadNodeCheckTimeout: _threadNodeCheckTimeout: Timeout was set to: 30000 msecs!
+[  282.177842] NVRM: kmemsysDoCacheOp_GM107: - timeout error waiting for reg 0x70004 update cnt=1

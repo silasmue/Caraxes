@@ -1,0 +1,6 @@
+# SPDX-License-Identifier: MIT
+# E5b part 2 comptag verification (2026-09-23): with supportCompressed=0, the software walker's decode of every vidmem PTE across boot + uvm verify + cuda-context + cuda-core, from the device exit summary. All kind 0x00 (PITCH) or 0x06 (GENERIC_MEMORY), COMPTAGLINE 0 -> no compressible kinds -> the comptag safety hold (execution.md §7) is satisfied by evidence, so a mirrored CE run is allowed.
+
+vidmem PTE kinds walked (kind:comptagline x count): 0x00:0x0x175423 0x06:0x0x59648 -- all uncompressed (kind 0x06/0x00, comptagline 0): comptag hold satisfied
+
+## cuda-context and cuda-core both PASS in software mode on the VRAM store with the fix.

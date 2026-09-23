@@ -1,0 +1,10 @@
+vfio-user-nvgpu: host memory client open; privilege: uid 1000; capabilities effective 0x0 permitted 0x0 inheritable 0x0
+vfio-user-nvgpu: hostmem: host FB regions: [0x3600000, 0x1e918ffff] reserved 0x0
+vfio-user-nvgpu: hostmem: host VRAM: total 8192 MiB, HEAP_FREE 6520 MiB, nvidia-smi free 6521 MiB, largest free region 6215 MiB at 0x64a00000; request 4096 MiB at [0xe9000000, 0x1e9000000) (heap region end 0x1e9190000)
+vfio-user-nvgpu: hostmem: reserved host VRAM [0xe9000000, 0x1e9000000) (4096 MiB), handle 0x80000003, attr 0x11800000 attr2 0x100005, contiguous, in 0 ms
+vfio-user-nvgpu: fb layout: address space 0x200000000 (host card), reservation [0xe9000000, 0x1e9000000), usable [0xe9000000, 0x1e8e00000), BAR2/BAR1 roots 0x1e8e00000/0x1e8e01000, fb_length 0x100000000
+vfio-user-nvgpu: guest name "Leandro RTX 2070-4G"
+vfio-user-nvgpu: host RM open (unprivileged client, device 0, subdevice 0)
+vfio-user-nvgpu: TU106 (BOOT_0 0x166000a1, driver 610.57.04) on /mnt/vmstore/caraxes/vm2/gpu.sock, boot model on, FB 4096 MiB, ROM 130048 bytes, PROM image 131584 bytes, trace /mnt/vmstore/caraxes/vm2/gpu-trace.log
+[2026-09-23T13:20:34Z INFO  vfio_user] Received client version: major = 0 minor = 1 capabilities = Capabilities { max_msg_fds: 1, max_data_xfer_size: 1048576, migration: MigrationCapabilities { pgsize: 4096 } }
+[2026-09-23T13:20:34Z INFO  vfio_user] Sent server version: major = 0 minor = 0 capabilities = Capabilities { max_msg_fds: 1, max_data_xfer_size: 1048576, migration: MigrationCapabilities { pgsize: 4096 } }

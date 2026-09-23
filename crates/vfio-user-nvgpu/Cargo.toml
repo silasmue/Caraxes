@@ -1,0 +1,41 @@
+# SPDX-License-Identifier: MIT
+# SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
+# SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
+[package]
+name = "vfio-user-nvgpu"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Caraxes: a synthetic NVIDIA PCI device served over vfio-user for stock guest drivers"
+
+[lib]
+name = "vfio_user_nvgpu"
+path = "src/lib.rs"
+
+[[bin]]
+name = "vfio-user-nvgpu"
+path = "src/main.rs"
+
+[dependencies]
+anyhow.workspace = true
+libc.workspace = true
+nvrm-sys.workspace = true
+nvrm-abi.workspace = true
+nvrm-client = { path = "../nvrm-client" }
+log = "0.4"
+env_logger = "0.11"
+# Same rust-vmm lineage as the vfio-user client in the pinned Cloud Hypervisor
+# (vfio_user 0.1.3); the git-ignored vendor/vfio checkout is for reading.
+vfio_user = "0.1.6"
+vfio-bindings = { version = "0.6", features = ["fam-wrappers"] }
+# The per-chip and per-board data files (chips/<chip>/*.toml, boards/*.toml).
+serde = { version = "1", features = ["derive"] }
+toml = "0.8"
+
+# The GSP driver-version axis (decision D14, docs/caraxes/versatility.md): one
+# feature per vendored driver version, mirroring crates/nvrm-sys. `src/ver`
+# holds one module per version; the build emulates exactly one of them
+# (docs/caraxes/gsp-abi-610.md (e), "Version selection").
+[features]
+default = ["v610"]
+v610 = ["nvrm-sys/v610"]

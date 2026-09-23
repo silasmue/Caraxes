@@ -1,0 +1,235 @@
+# SPDX-License-Identifier: MIT
+# caraxes_dma_range, test (c) in vm1, 2026-09-23: non-zero offsets, checked with caraxes_dma_range_test.ko while NO driver is bound
+# (the device never saw these tables), the force=1 path, then the guest is put back as found (nvidia + nvidia_uvm, no caraxes module).
+# Script: phase C in commands.txt. Kernel log filtered as in b-identity-nvidia.txt.
+# 2026-09-23T13:01:22Z
+leandro           192.168.101.1    13:01   28:09   0.00s  0.03s sshd: leandro [priv]
+leandro           192.168.101.1    12:32   28:09   0.00s  0.01s sshd: leandro [priv]
+# open handles on /dev/nvidia*:
+(none)
+$ sudo rmmod nvidia_uvm nvidia
+rc=0
+$ sudo rmmod caraxes_dma_range
+rmmod: ERROR: Module caraxes_dma_range is not currently loaded
+rc=1
+# ---- table T1: 0:0:40000000,40000000:40000000:40000000,80000000:1c0000000:40000000,100000000:100000000:40000000
+$ sudo insmod caraxes_dma_range.ko ranges=0:0:40000000,40000000:40000000:40000000,80000000:1c0000000:40000000,100000000:100000000:40000000
+rc=0
+$ cat /sys/module/caraxes_dma_range/parameters/status
+device=0000:00:05.0 driver=none map=ours ranges=4 installs=1 pinned=0 previous=none
+$ cat /sys/module/caraxes_dma_range/parameters/table
+0x0:0x0:0x40000000
+0x40000000:0x40000000:0x40000000
+0x80000000:0x1c0000000:0x40000000
+0x100000000:0x100000000:0x40000000
+$ cat /sys/module/caraxes_dma_range/parameters/live
+0x0:0x0:0x40000000
+0x40000000:0x40000000:0x40000000
+0x80000000:0x1c0000000:0x40000000
+0x100000000:0x100000000:0x40000000
+# readback of table equals the input
+# live map equals table
+$ sudo insmod caraxes_dma_range_test.ko
+rc=0
+$ sudo rmmod caraxes_dma_range_test
+rc=0
+$ sudo rmmod caraxes_dma_range
+rc=0
+# ---- table T2: 0:7fffc0000000:40000000,40000000:7fff80000000:40000000,80000000:7fff40000000:40000000,100000000:7fff00000000:40000000
+$ sudo insmod caraxes_dma_range.ko ranges=0:7fffc0000000:40000000,40000000:7fff80000000:40000000,80000000:7fff40000000:40000000,100000000:7fff00000000:40000000
+rc=0
+$ cat /sys/module/caraxes_dma_range/parameters/status
+device=0000:00:05.0 driver=none map=ours ranges=4 installs=1 pinned=0 previous=none
+$ cat /sys/module/caraxes_dma_range/parameters/table
+0x0:0x7fffc0000000:0x40000000
+0x40000000:0x7fff80000000:0x40000000
+0x80000000:0x7fff40000000:0x40000000
+0x100000000:0x7fff00000000:0x40000000
+$ cat /sys/module/caraxes_dma_range/parameters/live
+0x0:0x7fffc0000000:0x40000000
+0x40000000:0x7fff80000000:0x40000000
+0x80000000:0x7fff40000000:0x40000000
+0x100000000:0x7fff00000000:0x40000000
+# readback of table equals the input
+# live map equals table
+$ sudo insmod caraxes_dma_range_test.ko
+rc=0
+$ sudo rmmod caraxes_dma_range_test
+rc=0
+$ sudo rmmod caraxes_dma_range
+rc=0
+# ---- table T3: 0:200001000:40000000,40000000:40000000:40000000,80000000:80000000:40000000,100000000:c0000000:40000000
+$ sudo insmod caraxes_dma_range.ko ranges=0:200001000:40000000,40000000:40000000:40000000,80000000:80000000:40000000,100000000:c0000000:40000000
+rc=0
+$ cat /sys/module/caraxes_dma_range/parameters/status
+device=0000:00:05.0 driver=none map=ours ranges=4 installs=1 pinned=0 previous=none
+$ cat /sys/module/caraxes_dma_range/parameters/table
+0x0:0x200001000:0x40000000
+0x40000000:0x40000000:0x40000000
+0x80000000:0x80000000:0x40000000
+0x100000000:0xc0000000:0x40000000
+$ cat /sys/module/caraxes_dma_range/parameters/live
+0x0:0x200001000:0x40000000
+0x40000000:0x40000000:0x40000000
+0x80000000:0x80000000:0x40000000
+0x100000000:0xc0000000:0x40000000
+# readback of table equals the input
+# live map equals table
+$ sudo insmod caraxes_dma_range_test.ko
+rc=0
+$ sudo rmmod caraxes_dma_range_test
+rc=0
+$ sudo rmmod caraxes_dma_range
+rc=0
+# ---- force=1: a second copy of the module (built as caraxes_dma_range2) replaces the first one's map and restores it
+$ sudo insmod caraxes_dma_range.ko ranges=0:0:40000000,40000000:40000000:40000000,80000000:80000000:40000000,100000000:100000000:40000000
+rc=0
+$ sudo insmod /home/leandro/cdr2/caraxes_dma_range2.ko ranges=0:7fffc0000000:40000000,40000000:7fff80000000:40000000,80000000:7fff40000000:40000000,100000000:7fff00000000:40000000
+insmod: ERROR: could not insert module /home/leandro/cdr2/caraxes_dma_range2.ko: File exists
+rc=1
+$ sudo insmod /home/leandro/cdr2/caraxes_dma_range2.ko ranges=0:7fffc0000000:40000000,40000000:7fff80000000:40000000,80000000:7fff40000000:40000000,100000000:7fff00000000:40000000 force=1
+rc=0
+$ cat /sys/module/caraxes_dma_range2/parameters/status
+device=0000:00:05.0 driver=none map=ours ranges=4 installs=1 pinned=0 previous=kept
+$ cat /sys/module/caraxes_dma_range2/parameters/table
+0x0:0x7fffc0000000:0x40000000
+0x40000000:0x7fff80000000:0x40000000
+0x80000000:0x7fff40000000:0x40000000
+0x100000000:0x7fff00000000:0x40000000
+$ cat /sys/module/caraxes_dma_range2/parameters/live
+0x0:0x7fffc0000000:0x40000000
+0x40000000:0x7fff80000000:0x40000000
+0x80000000:0x7fff40000000:0x40000000
+0x100000000:0x7fff00000000:0x40000000
+$ cat /sys/module/caraxes_dma_range/parameters/status
+device=0000:00:05.0 driver=none map=foreign ranges=4 installs=1 pinned=0 previous=none
+$ cat /sys/module/caraxes_dma_range/parameters/table
+0x0:0x0:0x40000000
+0x40000000:0x40000000:0x40000000
+0x80000000:0x80000000:0x40000000
+0x100000000:0x100000000:0x40000000
+$ cat /sys/module/caraxes_dma_range/parameters/live
+0x0:0x7fffc0000000:0x40000000
+0x40000000:0x7fff80000000:0x40000000
+0x80000000:0x7fff40000000:0x40000000
+0x100000000:0x7fff00000000:0x40000000
+$ sudo rmmod caraxes_dma_range2
+rc=0
+$ cat /sys/module/caraxes_dma_range/parameters/status
+device=0000:00:05.0 driver=none map=ours ranges=4 installs=1 pinned=0 previous=none
+$ cat /sys/module/caraxes_dma_range/parameters/table
+0x0:0x0:0x40000000
+0x40000000:0x40000000:0x40000000
+0x80000000:0x80000000:0x40000000
+0x100000000:0x100000000:0x40000000
+$ cat /sys/module/caraxes_dma_range/parameters/live
+0x0:0x0:0x40000000
+0x40000000:0x40000000:0x40000000
+0x80000000:0x80000000:0x40000000
+0x100000000:0x100000000:0x40000000
+$ sudo rmmod caraxes_dma_range
+rc=0
+# ---- restore the state found: nvidia and nvidia_uvm loaded, no caraxes module
+$ echo 1 > /sys/bus/pci/devices/0000:00:05.0/reset
+rc=0
+$ sudo modprobe nvidia
+rc=0
+$ sudo modprobe nvidia-uvm
+rc=0
+$ /opt/nvrm/bin/nvidia-smi -L
+GPU 0: Leandro RTX 2070-4G (UUID: GPU-9bd7b93d-3d23-c074-6704-984ef33ab7a7)
+rc=0
+nvidia_uvm           2043904  0
+nvidia              16379904  1 nvidia_uvm
+# kernel log since the marker:
+[ 2034.151111] caraxes-dma-range: == phase-c-1790168482 ==
+[ 2034.187808] NVRM: removing GPU 0000:00:05.0
+[ 2034.188962] NVRM: Stopping device 0000:00:05.0
+[ 2034.189269] NVRM: stopping rc timer
+[ 2034.189271] NVRM: rc timer stopped
+[ 2038.223688] NVRM: _threadNodeCheckTimeout: _threadNodeCheckTimeout: currentTime: f43d49add9340 >= f43d49add9340
+[ 2038.223695] NVRM: _threadNodeCheckTimeout: _threadNodeCheckTimeout: Timeout was set to: 4000 msecs!
+[ 2038.609658] NVRM: nvAssertFailedNoLog: Assertion failed: rmStatus == NV_OK @ osinit.c:2453
+[ 2038.620826] NVRM: iovaspaceDestruct_IMPL: 1 left-over mappings in IOVAS 0x5
+[ 2038.620833] NVRM: GPU 0000:00:05.0: Tearing down registers
+[ 2038.622570] nvidia-nvlink: Unregistered Nvlink Core, major device number 239
+[ 2038.668197] caraxes-dma-range: == phase-c-1790168482 T1 ==
+[ 2038.674998] pci 0000:00:05.0: range 0: cpu [0x0-0x3fffffff] -> dma [0x0-0x3fffffff] size 0x40000000 offset +0x0
+[ 2038.675004] pci 0000:00:05.0: range 1: cpu [0x40000000-0x7fffffff] -> dma [0x40000000-0x7fffffff] size 0x40000000 offset +0x0
+[ 2038.675006] pci 0000:00:05.0: range 2: cpu [0x80000000-0xbfffffff] -> dma [0x1c0000000-0x1ffffffff] size 0x40000000 offset +0x140000000
+[ 2038.675008] pci 0000:00:05.0: range 3: cpu [0x100000000-0x13fffffff] -> dma [0x100000000-0x13fffffff] size 0x40000000 offset +0x0
+[ 2038.675009] pci 0000:00:05.0: installed 4 ranges covering all System RAM
+[ 2038.693963] pci 0000:00:05.0: range 0 cpu 0x0 dma 0x0 size 0x40000000 offset +0x0: 126 mapped, 126 dma == phys + offset, 126 dma_to_phys ok, 0 errors; e.g. phys 0x2da89000 -> dma 0x2da89000
+[ 2038.693971] pci 0000:00:05.0: range 1 cpu 0x40000000 dma 0x40000000 size 0x40000000 offset +0x0: 118 mapped, 118 dma == phys + offset, 118 dma_to_phys ok, 0 errors; e.g. phys 0x7c3bb000 -> dma 0x7c3bb000
+[ 2038.693973] pci 0000:00:05.0: range 2 cpu 0x80000000 dma 0x1c0000000 size 0x40000000 offset +0x140000000: 28 mapped, 28 dma == phys + offset, 28 dma_to_phys ok, 0 errors; e.g. phys 0x9145f000 -> dma 0x1d145f000
+[ 2038.693975] pci 0000:00:05.0: range 3 cpu 0x100000000 dma 0x100000000 size 0x40000000 offset +0x0: 3 mapped, 3 dma == phys + offset, 3 dma_to_phys ok, 0 errors; e.g. phys 0x100000000 -> dma 0x100000000
+[ 2038.693978] pci 0000:00:05.0: dma_to_phys(0x200000000, above every range) = 0xffffffffffffffff
+[ 2038.693986] pci 0000:00:05.0: PASS (0 failures)
+[ 2038.736393] pci 0000:00:05.0: map removed, no DMA range map left
+[ 2038.763537] caraxes-dma-range: == phase-c-1790168482 T2 ==
+[ 2038.770279] pci 0000:00:05.0: range 0: cpu [0x0-0x3fffffff] -> dma [0x7fffc0000000-0x7fffffffffff] size 0x40000000 offset +0x7fffc0000000
+[ 2038.770286] pci 0000:00:05.0: range 1: cpu [0x40000000-0x7fffffff] -> dma [0x7fff80000000-0x7fffbfffffff] size 0x40000000 offset +0x7fff40000000
+[ 2038.770288] pci 0000:00:05.0: range 2: cpu [0x80000000-0xbfffffff] -> dma [0x7fff40000000-0x7fff7fffffff] size 0x40000000 offset +0x7ffec0000000
+[ 2038.770290] pci 0000:00:05.0: range 3: cpu [0x100000000-0x13fffffff] -> dma [0x7fff00000000-0x7fff3fffffff] size 0x40000000 offset +0x7ffe00000000
+[ 2038.770291] pci 0000:00:05.0: installed 4 ranges covering all System RAM
+[ 2038.790123] pci 0000:00:05.0: range 0 cpu 0x0 dma 0x7fffc0000000 size 0x40000000 offset +0x7fffc0000000: 150 mapped, 150 dma == phys + offset, 150 dma_to_phys ok, 0 errors; e.g. phys 0x2a271000 -> dma 0x7fffea271000
+[ 2038.790132] pci 0000:00:05.0: range 1 cpu 0x40000000 dma 0x7fff80000000 size 0x40000000 offset +0x7fff40000000: 88 mapped, 88 dma == phys + offset, 88 dma_to_phys ok, 0 errors; e.g. phys 0x48201000 -> dma 0x7fff88201000
+[ 2038.790134] pci 0000:00:05.0: range 2 cpu 0x80000000 dma 0x7fff40000000 size 0x40000000 offset +0x7ffec0000000: 34 mapped, 34 dma == phys + offset, 34 dma_to_phys ok, 0 errors; e.g. phys 0x95bb5000 -> dma 0x7fff55bb5000
+[ 2038.790136] pci 0000:00:05.0: range 3 cpu 0x100000000 dma 0x7fff00000000 size 0x40000000 offset +0x7ffe00000000: 3 mapped, 3 dma == phys + offset, 3 dma_to_phys ok, 0 errors; e.g. phys 0x100000000 -> dma 0x7fff00000000
+[ 2038.790138] pci 0000:00:05.0: dma_to_phys(0x800000000000, above every range) = 0xffffffffffffffff
+[ 2038.790139] pci 0000:00:05.0: PASS (0 failures)
+[ 2038.832635] pci 0000:00:05.0: map removed, no DMA range map left
+[ 2038.871902] caraxes-dma-range: == phase-c-1790168482 T3 ==
+[ 2038.878475] caraxes_dma_range: range 0: cpu and dma start differ modulo 2 MiB; GPU big pages lose their alignment
+[ 2038.878489] pci 0000:00:05.0: range 0: cpu [0x0-0x3fffffff] -> dma [0x200001000-0x240000fff] size 0x40000000 offset +0x200001000
+[ 2038.878492] pci 0000:00:05.0: range 1: cpu [0x40000000-0x7fffffff] -> dma [0x40000000-0x7fffffff] size 0x40000000 offset +0x0
+[ 2038.878493] pci 0000:00:05.0: range 2: cpu [0x80000000-0xbfffffff] -> dma [0x80000000-0xbfffffff] size 0x40000000 offset +0x0
+[ 2038.878495] pci 0000:00:05.0: range 3: cpu [0x100000000-0x13fffffff] -> dma [0xc0000000-0xffffffff] size 0x40000000 offset -0x40000000
+[ 2038.878523] pci 0000:00:05.0: installed 4 ranges covering all System RAM
+[ 2038.891820] pci 0000:00:05.0: range 0 cpu 0x0 dma 0x200001000 size 0x40000000 offset +0x200001000: 177 mapped, 177 dma == phys + offset, 177 dma_to_phys ok, 0 errors; e.g. phys 0x2913a000 -> dma 0x22913b000
+[ 2038.891829] pci 0000:00:05.0: range 1 cpu 0x40000000 dma 0x40000000 size 0x40000000 offset +0x0: 67 mapped, 67 dma == phys + offset, 67 dma_to_phys ok, 0 errors; e.g. phys 0x6a86b000 -> dma 0x6a86b000
+[ 2038.891831] pci 0000:00:05.0: range 2 cpu 0x80000000 dma 0x80000000 size 0x40000000 offset +0x0: 28 mapped, 28 dma == phys + offset, 28 dma_to_phys ok, 0 errors; e.g. phys 0x8b43b000 -> dma 0x8b43b000
+[ 2038.891833] pci 0000:00:05.0: range 3 cpu 0x100000000 dma 0xc0000000 size 0x40000000 offset -0x40000000: 3 mapped, 3 dma == phys + offset, 3 dma_to_phys ok, 0 errors; e.g. phys 0x100000000 -> dma 0xc0000000
+[ 2038.891835] pci 0000:00:05.0: dma_to_phys(0x240001000, above every range) = 0xffffffffffffffff
+[ 2038.891837] pci 0000:00:05.0: PASS (0 failures)
+[ 2038.934976] pci 0000:00:05.0: map removed, no DMA range map left
+[ 2040.462714] caraxes-dma-range: == phase-c-1790168482 force ==
+[ 2040.474156] pci 0000:00:05.0: range 0: cpu [0x0-0x3fffffff] -> dma [0x0-0x3fffffff] size 0x40000000 offset +0x0
+[ 2040.474164] pci 0000:00:05.0: range 1: cpu [0x40000000-0x7fffffff] -> dma [0x40000000-0x7fffffff] size 0x40000000 offset +0x0
+[ 2040.474167] pci 0000:00:05.0: range 2: cpu [0x80000000-0xbfffffff] -> dma [0x80000000-0xbfffffff] size 0x40000000 offset +0x0
+[ 2040.474169] pci 0000:00:05.0: range 3: cpu [0x100000000-0x13fffffff] -> dma [0x100000000-0x13fffffff] size 0x40000000 offset +0x0
+[ 2040.474171] pci 0000:00:05.0: installed 4 ranges covering all System RAM
+[ 2040.482542] pci 0000:00:05.0: already has a DMA range map; force=1 replaces it
+[ 2040.529570] pci 0000:00:05.0: force=1: replacing the existing DMA range map, restored on unload
+[ 2040.529577] pci 0000:00:05.0: range 0: cpu [0x0-0x3fffffff] -> dma [0x7fffc0000000-0x7fffffffffff] size 0x40000000 offset +0x7fffc0000000
+[ 2040.529580] pci 0000:00:05.0: range 1: cpu [0x40000000-0x7fffffff] -> dma [0x7fff80000000-0x7fffbfffffff] size 0x40000000 offset +0x7fff40000000
+[ 2040.529582] pci 0000:00:05.0: range 2: cpu [0x80000000-0xbfffffff] -> dma [0x7fff40000000-0x7fff7fffffff] size 0x40000000 offset +0x7ffec0000000
+[ 2040.529583] pci 0000:00:05.0: range 3: cpu [0x100000000-0x13fffffff] -> dma [0x7fff00000000-0x7fff3fffffff] size 0x40000000 offset +0x7ffe00000000
+[ 2040.529585] pci 0000:00:05.0: installed 4 ranges covering all System RAM
+[ 2040.543707] pci 0000:00:05.0: map removed, previous map restored
+[ 2040.578835] pci 0000:00:05.0: map removed, no DMA range map left
+[ 2040.856688] nvidia-nvlink: Nvlink Core is being initialized, major device number 239
+[ 2040.856699] NVRM: probing 0x10de 0x1f02, class 0x30000
+[ 2040.864696] NVRM: resizable BAR disabled by regkey, skipping
+[ 2040.864700] NVRM: No clk handles for the dev
+[ 2040.864908] nvidia 0000:00:05.0: vgaarb: VGA decodes changed: olddecodes=none,decodes=none:owns=none
+[ 2040.864985] NVRM: PCI:0000:00:05.0 (10de:1f02): BAR0 @ 0xe6000000 (16MB)
+[ 2040.864988] NVRM: PCI:0000:00:05.0 (10de:1f02): BAR1 @ 0x3fffe0000000 (256MB)
+[ 2040.865023] NVRM: Failed to evaluate _PR3 object
+[ 2040.866969] NVRM: pciPbiReadUuid: Could not acquire pciPbi mutex
+[ 2040.867078] NVRM: Starting device 0000:00:05.0
+[ 2040.870392] NVRM: GPU 0000:00:05.0: RmInitAdapter
+[ 2040.870395] NVRM: GPU 0000:00:05.0: RmSetupRegisters for 0x10de:0x1f02
+[ 2040.870397] NVRM: GPU 0000:00:05.0: pci config info:
+[ 2040.870398] NVRM: GPU 0000:00:05.0:    registers look  like: 0xe6000000 0x1000000NVRM: GPU 0000:00:05.0:    fb        looks like: 0x3fffe0000000 0x10000000
+[ 2040.870419] NVRM: GPU 0000:00:05.0: Successfully mapped framebuffer and registers
+[ 2040.870420] NVRM: GPU 0000:00:05.0: final mappings:
+[ 2040.870421] NVRM: GPU 0000:00:05.0:     regs: 0xe6000000 0x1000000 0x00000000dd3ac522
+[ 2040.920813] NVRM: nv_acpi_dod_method: failed to evaluate _DOD method!
+[ 2043.019129] NVRM: initializing rc timer
+[ 2043.019135] NVRM: rc timer initialized
+[ 2043.024802] NVRM: GPU 0000:00:05.0: RmInitAdapter succeeded!
+[ 2043.025267] NVRM: loading NVIDIA UNIX Open Kernel Module for x86_64  610.57.04  Release Build  (leandro@caraxes-vm1)  Wed Sep 23 12:30:42 UTC 2026
+[ 2043.105956] NVRM: GPU 0000:00:05.0: Opening GPU with minor number 0
+[ 2043.106579] NVRM: GPU 0000:00:05.0: Opening GPU with minor number 0
+[ 2043.107810] NVRM: GPU 0000:00:05.0: Opening GPU with minor number 0

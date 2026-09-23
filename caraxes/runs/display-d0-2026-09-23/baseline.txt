@@ -1,0 +1,39 @@
+# SPDX-License-Identifier: MIT
+# D0 step 1 (2026-09-23): baseline state of vm0 before touching nvidia-modeset/nvidia-drm.
+# Commands: lsmod | grep nvidia; sudo dmesg | grep -i -E 'nvidia|drm'; ls -la /dev/dri /dev/nvidia*; nvidia-smi -L.
+
+== lsmod | grep nvidia ==
+nvidia_uvm           2043904  0
+nvidia              16379904  1 nvidia_uvm
+ecc                    45056  1 nvidia
+
+== sudo dmesg | grep -i -E 'nvidia|drm' ==
+996 matching lines, all of the form below (repeated open/close pairs left over from earlier
+gate runs on this VM today; verified unique with `sort -u` after stripping the four
+open/close message shapes -- zero lines remain, so there is no "drm" line, no Xid, no other
+NVRM message in the baseline):
+  NVRM: nvidia_open...
+  NVRM: nvidia_ctl_open
+  NVRM: nvidia_close on GPU with minor number 0
+  NVRM: nvidia_close on GPU with minor number 255
+  NVRM: nvidia_ctl_close
+No line contains "drm" (case-insensitive). No /dev/dri node exists yet (nvidia-drm never
+loaded on this VM before today).
+
+== ls -la /dev/dri /dev/nvidia* ==
+ls: cannot access '/dev/dri': No such file or directory
+crw-rw-rw- 1 root root 237,   0 Sep 23 12:50 /dev/nvidia-uvm
+crw-rw-rw- 1 root root 237,   1 Sep 23 12:50 /dev/nvidia-uvm-tools
+crw-rw-rw- 1 root root 195,   0 Sep 23 12:50 /dev/nvidia0
+crw-rw-rw- 1 root root 195, 255 Sep 23 12:50 /dev/nvidiactl
+
+/dev/nvidia-caps:
+cr--------  1 root root 240, 1 Sep 23 12:50 nvidia-cap1
+cr--r--r--  1 root root 240, 2 Sep 23 12:50 nvidia-cap2
+
+== nvidia-smi -L (/opt/nvrm/bin/nvidia-smi) ==
+GPU 0: Leandro RTX 2070-4G (UUID: GPU-9bd7b93d-3d23-c074-6704-984ef33ab7a7)
+
+== Verdict ==
+Matches display-path.md section 3 ("What the device reports today"): no nvidia-modeset, no
+nvidia-drm, no /dev/dri node; nvidia.ko and nvidia-uvm.ko loaded and working.

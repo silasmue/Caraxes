@@ -74,3 +74,16 @@ tmp.md
 
 # Optional upstream input backend source checkout.
 /vendor/vhost-device/
+
+# Caraxes reference checkouts (not tracked)
+/vendor/vfio
+/vendor/libvfio-user
+/vendor/qemu-vfio-user
+/vendor/open-gpu-kernel-modules-615
+/caraxes/reference/rtx2070/rom.bin
+/caraxes/reference/rtx2070/synth-vbios.bin
+
+# Caraxes raw device traces stay on disk (evidence notes are committed, multi-GB traces are not)
+caraxes/runs/**/*.trace
+caraxes/runs/**/device/
+caraxes/runs/**/transcript.log

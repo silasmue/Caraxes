@@ -1,0 +1,7 @@
+== while held 15:26:47
+memory.total [MiB], memory.reserved [MiB], memory.used [MiB], memory.free [MiB]
+8192 MiB, 421 MiB, 5420 MiB, 2353 MiB
+MemAvailable:    9730692 kB
+Shmem:          11197444 kB
+nr_foll_pin_acquired 2832151
+nr_foll_pin_released 1780326

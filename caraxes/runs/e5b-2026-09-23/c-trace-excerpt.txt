@@ -1,0 +1,21 @@
+       23920 E hostmem: reservation [0xe9000000, 0x1e9000000) held (handle 0x80000003); FB layout FbLayout { addr_space: 8589934592, profile: 4294967296, reservation: Some((3909091328, 8204058624)) }
+     2635882 E hostmem: registered guest RAM chunk GPA 0x0..0x40000000 -> IOVA 0x40000000..0x80000000 (descriptor 0x80000004, 677 ms, 9 IOVA samples = base + offset)
+     2636086 E hostmem: registered guest RAM chunk GPA 0x40000000..0x80000000 -> IOVA 0x7fffc0000000..0x800000000000 (descriptor 0x80000005, 707 ms, 9 IOVA samples = base + offset)
+     2636095 E hostmem: registered guest RAM chunk GPA 0x80000000..0xc0000000 -> IOVA 0x7fff80000000..0x7fffc0000000 (descriptor 0x80000006, 1124 ms, 9 IOVA samples = base + offset)
+     2636103 E hostmem: guest RAM 0x0+0xc0000000: 3 chunk(s) in 2510 ms; pinned now 3072 MiB; host foll_pin acquired +786432 released +0; privileged windows so far 3
+     2636216 E dma table: 3 range(s), host IOVAs; ranges=0:40000000:40000000,40000000:7fffc0000000:40000000,80000000:7fff80000000:40000000; published to /mnt/vmstore/caraxes/vm2/dma-ranges
+     4169858 E hostmem: registered guest RAM chunk GPA 0x100000000..0x140000000 -> IOVA 0x7fff40000000..0x7fff80000000 (descriptor 0x80000007, 1532 ms, 9 IOVA samples = base + offset)
+     4169872 E hostmem: guest RAM 0x100000000+0x40000000: 1 chunk(s) in 1533 ms; pinned now 4096 MiB; host foll_pin acquired +262077 released +0; privileged windows so far 4
+     4170108 E dma table: 4 range(s), host IOVAs; ranges=0:40000000:40000000,40000000:7fffc0000000:40000000,80000000:7fff80000000:40000000,100000000:7fff40000000:40000000; published to /mnt/vmstore/caraxes/vm2/dma-ranges
+   140354528 E boot: fwsec: data buffer PA 0x7fff6020d000, frtsOffset 0x1ffe00000 (from the FWSEC command in guest RAM), WPR2 lo 0x1ffe000 hi 0x1ffeff0
+   140779470 E boot: sec2 start 1: booter done, wpr meta PA 0x7fff66218000 (mapped), gsp riscv active
+   140779472 E boot: fb layout: guest WPR [0x1f7600000, 0x200000000) above the reservation [0xe9000000, 0x1e9000000): ok
+   140780052 E boot: static-info fbRegionInfoParams = 2 regions: usable [0xe9000000, 0x1e8e00000), reserved [0x1e8e00000, 0x200000000) [reservation (host VRAM fixed allocation; usable = reservation minus the carve-out)]
+   140780058 E boot: static-info bar1PdeBase/bar2PdeBase = 0x1e8e01000/0x1e8e00000 [reservation carve-out (top 2 MiB; docs/caraxes/memory-model.md)]
+   157738555 E boot: ctrl 0x20800a9b: register replayable fault buffer: size 0x2000 pte[0] 0x7fff6dafc000 -> status 0x0 [guest (buffer recorded; no fault is ever reported)]
+   157740591 E boot: ctrl 0x20800a9d: register client shadow fault buffer: queue pa 0x7fff43093000 size 0x2000 -> status 0x0 [guest (shadow buffer recorded; MMU_FAULT_QUEUED is never sent)]
+   157787685 E boot: ctrl 0x90f10106: vaspace 0xcaf00005: root Some(Fb(3909091328)); va 0x100000000..0x11fffffff levels [0xe9000000+0x20 ap 1 shift 47, 0xe9001000+0x1000 ap 1 shift 38, 0xe9002000+0x1000 ap 1 shift 29, 0xe9003000+0x1000 ap 1 shift 21] [guest] -> status 0x0 [guest (VAS root recorded; the server-reserved range stays empty)]
+   158003677 E boot: ctrl 0x801813: set page directory: vaspace 0xcaf00005 root Some(Fb(3911188480)) entries 4 flags 0x8 [guest] -> status 0x0 [guest (VAS root recorded for the channel emulation)]
+   158080632 E boot: ctrl 0x801814: unset page directory: vaspace 0xcaf00005 [guest] -> status 0x0 [guest]
+   158086354 E boot: ctrl 0x20800a9e: unregister client shadow fault buffer -> status 0x0 [guest]
+   158087605 E boot: ctrl 0x20800a9c: unregister replayable fault buffer -> status 0x0 [guest]

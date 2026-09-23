@@ -1,0 +1,8 @@
+       90172 E hostmem: reservation [0xe9000000, 0x1e9000000) held (handle 0x80000003); FB layout FbLayout { addr_space: 8589934592, profile: 4294967296, reservation: Some((3909091328, 8204058624)) }
+      261968 E dma_map address=0x0 size=0xc0000000 offset=0x0 fd=Some(12) flags=DmaMapFlags(READ | WRITE)
+      262010 E dma_map address=0x100000000 size=0x40000000 offset=0x0 fd=Some(13) flags=DmaMapFlags(READ | WRITE)
+   148536506 E boot: wpr meta: fbSize 0x200000000 gspFwRsvdStart 0x1f7600000 nonWprHeap 0x1f7600000+0x100000 wprStart 0x1f7700000 frtsOffset 0x1ffe00000 wprEnd 0x1fff00000 vgaWorkspace 0x1fff00000
+   148536508 E boot: fb layout: guest WPR [0x1f7600000, 0x200000000) above the reservation [0xe9000000, 0x1e9000000): ok
+   148538881 E boot: static-info fbRegionInfoParams = 2 regions: usable [0xe9000000, 0x1e8e00000), reserved [0x1e8e00000, 0x200000000) [reservation (host VRAM fixed allocation; usable = reservation minus the carve-out)]
+   148538883 E boot: static-info fb_length = 0x100000000 [profile]
+   148538887 E boot: static-info bar1PdeBase/bar2PdeBase = 0x1e8e01000/0x1e8e00000 [reservation carve-out (top 2 MiB; docs/caraxes/memory-model.md)]

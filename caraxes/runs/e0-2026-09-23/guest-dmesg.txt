@@ -1,0 +1,44 @@
+# SPDX-License-Identifier: MIT
+# Guest kernel log (Ubuntu 6.8.0-136-generic, nvidia.ko 610.57.04 built in-guest) from the E0 module load, 2026-09-23. VM: allocator lines omitted.
+[  283.770987] nvidia: loading out-of-tree module taints kernel.
+[  283.771001] nvidia: module verification failed: signature and/or required key missing - tainting kernel
+[  283.876023] nvidia-nvlink: Nvlink Core is being initialized, major device number 239
+[  283.876035] NVRM: probing 0x10de 0x1f02, class 0x30000
+[  283.885398] nvidia 0000:00:05.0: enabling device (0000 -> 0003)
+[  283.886766] NVRM: resizable BAR disabled by regkey, skipping
+[  283.886772] NVRM: No clk handles for the dev
+[  283.887117] nvidia 0000:00:05.0: vgaarb: VGA decodes changed: olddecodes=io+mem,decodes=none:owns=none
+[  283.887226] NVRM: PCI:0000:00:05.0 (10de:1f02): BAR0 @ 0xe6000000 (16MB)
+[  283.887230] NVRM: PCI:0000:00:05.0 (10de:1f02): BAR1 @ 0x3fffe0000000 (256MB)
+[  283.887267] NVRM: Failed to evaluate _PR3 object
+[  283.890477] NVRM: pciPbiReadUuid: Could not acquire pciPbi mutex
+[  283.890723] NVRM: Starting device 0000:00:05.0
+[  283.894283] NVRM: GPU 0000:00:05.0: RmInitAdapter
+[  283.894287] NVRM: GPU 0000:00:05.0: RmSetupRegisters for 0x10de:0x1f02
+[  283.894289] NVRM: GPU 0000:00:05.0: pci config info:
+[  283.894290] NVRM: GPU 0000:00:05.0:    registers look  like: 0xe6000000 0x1000000NVRM: GPU 0000:00:05.0:    fb        looks like: 0x3fffe0000000 0x10000000
+[  283.894303] NVRM: GPU 0000:00:05.0: Successfully mapped framebuffer and registers
+[  283.894304] NVRM: GPU 0000:00:05.0: final mappings:
+[  283.894305] NVRM: GPU 0000:00:05.0:     regs: 0xe6000000 0x1000000 0x000000008aafa3f9
+[  284.046159] NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+[  284.046165] NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+[  284.046167] NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+[  284.046169] NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+[  284.046171] NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+[  284.046172] NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+[  284.046174] NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+[  284.046176] NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+[  284.046178] NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+[  284.046180] NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+[  284.046182] NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+[  284.046184] NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+[  284.046188] NVRM: nv_acpi_dod_method: failed to evaluate _DOD method!
+[  284.047388] NVRM: GPU0 kgspExtractVbiosFromRom_TU102: failed to locate expansion ROMs: 0x25
+[  284.047393] NVRM: GPU0 kgspInitRm_IMPL: failed to extract VBIOS image from ROM: 0x25
+[  284.047398] NVRM: GPU0 RmInitAdapter: Cannot initialize GSP firmware RM
+[  284.047837] NVRM: GPU 0000:00:05.0: Tearing down registers
+[  284.047843] NVRM: GPU 0000:00:05.0: RmInitAdapter failed! (0x62:0x25:2119)
+[  284.048202] NVRM: GPU 0000:00:05.0: rm_init_adapter failed, device minor number 0
+[  284.049324] NVRM: Device start failed for 0000:00:05.0 (ret=-5)
+[  284.049904] nvidia: probe of 0000:00:05.0 failed with error -1
+[  284.049971] NVRM: loading NVIDIA UNIX Open Kernel Module for x86_64  610.57.04  Release Build  (leandro@caraxes-vm0)  Wed Sep 23 08:32:41 UTC 2026

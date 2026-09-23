@@ -1,0 +1,24 @@
+stage 0 ok (cuInit)
+timeout: the monitored command dumped core
+nvprobe rc=139
+bash: line 1:  1926 Segmentation fault      timeout -k 5 60 /home/leandro/caraxes-tests/leandro-test/probe/bin/nvprobe 1
+[  178.954772] NVRM: nvidia_ctl_close
+[  178.954774] NVRM: nvidia_close on GPU with minor number 255
+[  178.954774] NVRM: nvidia_ctl_close
+[  178.954777] NVRM: nvidia_close on GPU with minor number 255
+[  178.954778] NVRM: nvidia_ctl_close
+[  178.954780] NVRM: nvidia_close on GPU with minor number 255
+[  178.954781] NVRM: nvidia_ctl_close
+[  178.954890] NVRM: nvidia_close on GPU with minor number 255
+[  178.954891] NVRM: nvidia_ctl_close
+[  178.955074] NVRM: nvidia_close on GPU with minor number 255
+[  178.955075] NVRM: nvidia_ctl_close
+[  178.955166] NVRM: nvidia_close on GPU with minor number 255
+[  178.955168] NVRM: nvidia_ctl_close
+[  178.955170] NVRM: nvidia_close on GPU with minor number 255
+[  178.955171] NVRM: nvidia_ctl_close
+[  178.955174] NVRM: nvidia_close on GPU with minor number 255
+[  178.955175] NVRM: nvidia_ctl_close
+[  178.955178] NVRM: nvidia_close on GPU with minor number 0
+[  178.955182] NVRM: nvidia_close on GPU with minor number 255
+[  178.955183] NVRM: nvidia_ctl_close

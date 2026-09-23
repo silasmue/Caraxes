@@ -1,0 +1,21 @@
+# SPDX-License-Identifier: MIT
+# D0 step 5 (2026-09-23): restore. No X was ever started (step 3/4 blocked), so there was
+# nothing to stop; nvidia-drm was never loaded (step 2's build failed), so only
+# nvidia-modeset needed unloading. The stock ACPI "video" module, loaded only to satisfy
+# nvidia-modeset's symbol dependency, was unloaded too, to leave the guest exactly as the
+# baseline had it.
+
+  sudo rmmod nvidia_modeset  produced: "rmmod nvidia_modeset ok"
+  sudo rmmod video           produced: ok (no output, no error)
+
+lsmod | grep -E "nvidia|video" afterwards:
+  nvidia_uvm           2043904  0
+  nvidia              16379904  1 nvidia_uvm
+  ecc                    45056  1 nvidia
+(identical to the step-1 baseline: nvidia and nvidia_uvm loaded, nvidia_modeset and video
+gone, no drm/modeset trace left.)
+
+/opt/nvrm/bin/nvidia-smi -L:
+  GPU 0: Leandro RTX 2070-4G (UUID: GPU-9bd7b93d-3d23-c074-6704-984ef33ab7a7)
+Still works. vm0 was left running (per the brief: do not rebuild or restart vm0's device
+process); only the guest's nvidia-modeset/video modules were touched, and both are back out.

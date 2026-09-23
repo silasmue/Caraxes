@@ -1,0 +1,18 @@
+# SPDX-License-Identifier: MIT
+# E5a iteration 5 (2026-09-23, VM boot 5): the final binary (channel parameter offsets through RmAbi), run with tools/caraxes-vm.sh uvm. Both variants return 0 with 7 pushes.
+## tools/caraxes-vm.sh uvm final-flags1
+UVM_INITIALIZE flags 0x1: ioctl 0 rmStatus 0x0
+UVM_REGISTER_GPU GPU-9bd7b93d-3d23-c074-6704-984ef33ab7a7 ...
+UVM_REGISTER_GPU: ioctl 0 rmStatus 0x0 numaEnabled 0 numaNodeId -1
+UVM_UNREGISTER_GPU: ioctl 0 rmStatus 0x0
+uvm-register rc=0
+pushes executed: 7
+unanswered: 0
+## tools/caraxes-vm.sh uvm final-nohmm
+UVM_INITIALIZE flags 0x0: ioctl 0 rmStatus 0x0
+UVM_REGISTER_GPU GPU-9bd7b93d-3d23-c074-6704-984ef33ab7a7 ...
+UVM_REGISTER_GPU: ioctl 0 rmStatus 0x0 numaEnabled 0 numaNodeId -1
+UVM_UNREGISTER_GPU: ioctl 0 rmStatus 0x0
+uvm-register rc=0
+pushes executed: 7
+unanswered: 0

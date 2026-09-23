@@ -1,0 +1,7 @@
+== after down 15:26:50
+memory.total [MiB], memory.reserved [MiB], memory.used [MiB], memory.free [MiB]
+8192 MiB, 421 MiB, 1323 MiB, 6449 MiB
+MemAvailable:   14016888 kB
+Shmem:           7000964 kB
+nr_foll_pin_acquired 2832151
+nr_foll_pin_released 2828902

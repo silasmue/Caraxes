@@ -1,0 +1,587 @@
+From 1b7263e16b7c4c3971a2ff733f4da46dd28facfc Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Silas=20M=C3=BCller?= <dev@silasmueller.de>
+Date: Wed, 23 Sep 2026 15:30:00 +0200
+Subject: [PATCH] vmm: report a PCI segment's DMA translation in ACPI _DMA
+
+A PCI host bridge may translate the addresses its devices put on the bus
+before they reach memory. ACPI describes this with the bridge's _DMA
+object (ACPI 6.5 sec 6.2.4): a resource template, in _CRS format, of the
+child-side ranges the bridge forwards, each with an Address Translation
+Offset _TRA that is added to the child-side (bus) address to obtain the
+parent-side (system physical) address (sec 6.4.3.5.1). Cloud Hypervisor
+emits _CCA and _CRS for every PCI segment's host bridge but never _DMA,
+so a guest always assumes bus address == guest physical address.
+
+That identity does not hold for a device whose DMA the VMM does not
+perform itself and cannot route through a vIOMMU, for example a
+vfio-user or vhost-user device backed by hardware that sits in a host
+IOMMU domain whose I/O virtual addresses are allocated by a host driver.
+The backend then knows the bus address at which each piece of guest RAM
+is visible to the hardware, and the guest has to use those addresses.
+
+Add an optional per-segment table:
+
+    --pci-segment pci_segment=<id>,dma_ranges=[<cpu_start>:<dma_start>:<size>,...]
+
+Each entry says that a device on the segment reaches guest physical
+address cpu_start + n at bus address dma_start + n, for n < size. Numbers
+are decimal or 0x-prefixed hex. When the table is present the segment's
+PNP0A08 device carries
+
+    Name (_DMA, ResourceTemplate () {
+        QWordMemory (ResourceProducer, PosDecode, MinFixed, MaxFixed,
+                     Cacheable, ReadWrite, 0,
+                     dma_start, dma_start + size - 1,
+                     cpu_start - dma_start,      // _TRA, two's complement
+                     size)
+        ...
+    })
+
+one descriptor per entry. Without the option nothing changes: no _DMA
+is emitted and the DSDT is byte-identical.
+
+The option lives on --pci-segment because _DMA is defined only for
+devices that represent buses (sec 6.2.4), so a segment's host bridge is
+the finest granularity the specification offers; a device that needs a
+translation that other devices must not see is placed on a segment of
+its own (--platform num_pci_segments=N and pci_segment= on the device).
+A VM-wide --platform option would force the translation on every device.
+
+The configuration is validated: every range must be non-empty, 4 KiB
+aligned and not wrap, and no two ranges may overlap on the CPU side or
+on the bus side, so the translation is unambiguous in both directions.
+A bus-side range that overlaps the segment's own MMIO windows is only
+warned about: the specification treats such child-side accesses as
+peer-to-peer, but the VMM cannot know whether the backend's hardware
+does.
+
+Consumers: Linux evaluates _DMA through acpi_dma_get_range() in
+drivers/acpi/scan.c and installs the result as the device's
+dma_range_map; arm64 and LoongArch do this today from
+acpi_arch_dma_setup(). x86 does not call it yet, so on x86 guests the
+object is inert until the guest kernel gains the same hook.
+
+Tests: config parsing and validation, and the exact AML bytes of the
+_DMA object for a two-range table.
+
+SPDX-License-Identifier: Apache-2.0 AND BSD-3-Clause
+Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>
+---
+ vmm/src/api/openapi/cloud-hypervisor.yaml |  21 +++
+ vmm/src/config.rs                         | 170 +++++++++++++++++++++-
+ vmm/src/device_manager.rs                 |   9 ++
+ vmm/src/pci_segment.rs                    | 105 ++++++++++++-
+ vmm/src/vm_config.rs                      |  13 ++
+ 5 files changed, 315 insertions(+), 3 deletions(-)
+
+diff --git a/vmm/src/api/openapi/cloud-hypervisor.yaml b/vmm/src/api/openapi/cloud-hypervisor.yaml
+index 1547b8d36..44daa86ee 100644
+--- a/vmm/src/api/openapi/cloud-hypervisor.yaml
++++ b/vmm/src/api/openapi/cloud-hypervisor.yaml
+@@ -771,6 +771,27 @@ components:
+         mmio64_aperture_weight:
+           type: integer
+           format: int32
++        dma_ranges:
++          type: array
++          items:
++            $ref: "#/components/schemas/DmaRangeConfig"
++
++    DmaRangeConfig:
++      required:
++        - cpu_start
++        - dma_start
++        - size
++      type: object
++      properties:
++        cpu_start:
++          type: integer
++          format: int64
++        dma_start:
++          type: integer
++          format: int64
++        size:
++          type: integer
++          format: int64
+ 
+     PlatformConfig:
+       type: object
+diff --git a/vmm/src/config.rs b/vmm/src/config.rs
+index 900fd3173..0d31af379 100644
+--- a/vmm/src/config.rs
++++ b/vmm/src/config.rs
+@@ -317,6 +317,12 @@ pub enum ValidationError {
+     /// Invalid PCI segment aperture weight
+     #[error("Invalid PCI segment aperture weight: {0}")]
+     InvalidPciSegmentApertureWeight(u32),
++    /// A DMA range of a PCI segment is empty, not 4 KiB aligned, or wraps
++    #[error("PCI segment {0}: DMA range {1} is empty, not 4 KiB aligned, or wraps")]
++    InvalidPciSegmentDmaRange(u16, usize),
++    /// Two DMA ranges of a PCI segment overlap on the CPU or the bus side
++    #[error("PCI segment {0}: DMA ranges {1} and {2} overlap")]
++    OverlappingPciSegmentDmaRanges(u16, usize, usize),
+     /// Invalid VFIO excluded-mmap BAR index
+     #[error("Invalid VFIO excluded-mmap BAR index: {0}")]
+     InvalidDeviceExcludeMmapBar(u64),
+@@ -807,16 +813,57 @@ impl CpusConfig {
+     }
+ }
+ 
++/// `[<cpu_start>:<dma_start>:<size>,...]`, every number decimal or `0x` hex.
++struct DmaRangeList(Vec<DmaRangeConfig>);
++
++impl FromStr for DmaRangeList {
++    type Err = String;
++
++    fn from_str(s: &str) -> result::Result<Self, Self::Err> {
++        fn number(s: &str) -> result::Result<u64, String> {
++            let s = s.trim();
++            match s.strip_prefix("0x").or_else(|| s.strip_prefix("0X")) {
++                Some(hex) => u64::from_str_radix(hex, 16),
++                None => s.parse(),
++            }
++            .map_err(|_| format!("invalid number {s:?}"))
++        }
++
++        s.trim()
++            .trim_start_matches('[')
++            .trim_end_matches(']')
++            .split(',')
++            .map(|entry| {
++                let fields = entry
++                    .split(':')
++                    .map(number)
++                    .collect::<result::Result<Vec<_>, _>>()?;
++                match fields[..] {
++                    [cpu_start, dma_start, size] => Ok(DmaRangeConfig {
++                        cpu_start,
++                        dma_start,
++                        size,
++                    }),
++                    _ => Err(format!("{entry:?} is not <cpu_start>:<dma_start>:<size>")),
++                }
++            })
++            .collect::<result::Result<_, _>>()
++            .map(DmaRangeList)
++    }
++}
++
+ impl PciSegmentConfig {
+     pub const SYNTAX: &'static str = "PCI Segment parameters \
+-         \"pci_segment=<segment_id>,mmio32_aperture_weight=<scale>,mmio64_aperture_weight=<scale>\"";
++         \"pci_segment=<segment_id>,mmio32_aperture_weight=<scale>,mmio64_aperture_weight=<scale>,\
++         dma_ranges=[<cpu_start>:<dma_start>:<size>,...]\"";
+ 
+     pub fn parse(disk: &str) -> Result<Self> {
+         let mut parser = OptionParser::new();
+         parser
+             .add("mmio32_aperture_weight")
+             .add("mmio64_aperture_weight")
+-            .add("pci_segment");
++            .add("pci_segment")
++            .add("dma_ranges");
+         parser.parse(disk).map_err(Error::ParsePciSegment)?;
+ 
+         let pci_segment = parser
+@@ -831,11 +878,16 @@ impl PciSegmentConfig {
+             .convert("mmio64_aperture_weight")
+             .map_err(Error::ParsePciSegment)?
+             .unwrap_or(DEFAULT_PCI_SEGMENT_APERTURE_WEIGHT);
++        let dma_ranges = parser
++            .convert::<DmaRangeList>("dma_ranges")
++            .map_err(Error::ParsePciSegment)?
++            .map(|l| l.0);
+ 
+         Ok(PciSegmentConfig {
+             pci_segment,
+             mmio32_aperture_weight,
+             mmio64_aperture_weight,
++            dma_ranges,
+         })
+     }
+ 
+@@ -861,6 +913,40 @@ impl PciSegmentConfig {
+             ));
+         }
+ 
++        // Each range must be translatable in both directions without
++        // ambiguity: non-empty, page aligned, no wrap, and disjoint from
++        // every other range on the CPU side and on the bus side.
++        let ranges = self.dma_ranges.as_deref().unwrap_or_default();
++        let last = |start: u64, size: u64| start.checked_add(size - 1);
++        for (i, r) in ranges.iter().enumerate() {
++            if r.size == 0
++                || (r.cpu_start | r.dma_start | r.size) & 0xfff != 0
++                || last(r.cpu_start, r.size).is_none()
++                || last(r.dma_start, r.size).is_none()
++            {
++                return Err(ValidationError::InvalidPciSegmentDmaRange(
++                    self.pci_segment,
++                    i,
++                ));
++            }
++        }
++        let overlap = |a: u64, b: u64, size_a: u64, size_b: u64| {
++            a <= b + (size_b - 1) && b <= a + (size_a - 1)
++        };
++        for (i, a) in ranges.iter().enumerate() {
++            for (j, b) in ranges.iter().enumerate().skip(i + 1) {
++                if overlap(a.cpu_start, b.cpu_start, a.size, b.size)
++                    || overlap(a.dma_start, b.dma_start, a.size, b.size)
++                {
++                    return Err(ValidationError::OverlappingPciSegmentDmaRanges(
++                        self.pci_segment,
++                        i,
++                        j,
++                    ));
++                }
++            }
++        }
++
+         Ok(())
+     }
+ }
+@@ -4185,6 +4271,7 @@ mod unit_tests {
+                 pci_segment: 0,
+                 mmio32_aperture_weight: 1,
+                 mmio64_aperture_weight: 1,
++                dma_ranges: None,
+             }
+         );
+         assert_eq!(
+@@ -4195,6 +4282,7 @@ mod unit_tests {
+                 pci_segment: 0,
+                 mmio32_aperture_weight: 1,
+                 mmio64_aperture_weight: 1,
++                dma_ranges: None,
+             }
+         );
+         assert_eq!(
+@@ -4203,6 +4291,7 @@ mod unit_tests {
+                 pci_segment: 0,
+                 mmio32_aperture_weight: 2,
+                 mmio64_aperture_weight: 1,
++                dma_ranges: None,
+             }
+         );
+         assert_eq!(
+@@ -4211,8 +4300,35 @@ mod unit_tests {
+                 pci_segment: 0,
+                 mmio32_aperture_weight: 1,
+                 mmio64_aperture_weight: 2,
++                dma_ranges: None,
+             }
+         );
++        assert_eq!(
++            PciSegmentConfig::parse(
++                "pci_segment=1,dma_ranges=[0:0x7ffe00000000:0xc0000000,\
++                 0x100000000:0x7ffdc0000000:1073741824]"
++            )?,
++            PciSegmentConfig {
++                pci_segment: 1,
++                mmio32_aperture_weight: 1,
++                mmio64_aperture_weight: 1,
++                dma_ranges: Some(vec![
++                    DmaRangeConfig {
++                        cpu_start: 0,
++                        dma_start: 0x7ffe_0000_0000,
++                        size: 0xc000_0000,
++                    },
++                    DmaRangeConfig {
++                        cpu_start: 0x1_0000_0000,
++                        dma_start: 0x7ffd_c000_0000,
++                        size: 0x4000_0000,
++                    },
++                ]),
++            }
++        );
++        PciSegmentConfig::parse("dma_ranges=[0:0x1000]").unwrap_err();
++        PciSegmentConfig::parse("dma_ranges=[0:0x1000:0x1000:0]").unwrap_err();
++        PciSegmentConfig::parse("dma_ranges=[0:0x1000:zz]").unwrap_err();
+ 
+         Ok(())
+     }
+@@ -6121,6 +6237,7 @@ id=\"{id}\",pci_segment={pci_segment},queue_sizes={queue_sizes}"
+             pci_segment: 0,
+             mmio32_aperture_weight: 1,
+             mmio64_aperture_weight: 0,
++            dma_ranges: None,
+         }]));
+         assert_eq!(
+             invalid_config.validate(),
+@@ -6132,12 +6249,61 @@ id=\"{id}\",pci_segment={pci_segment},queue_sizes={queue_sizes}"
+             pci_segment: 0,
+             mmio32_aperture_weight: 0,
+             mmio64_aperture_weight: 1,
++            dma_ranges: None,
+         }]));
+         assert_eq!(
+             invalid_config.validate(),
+             Err(ValidationError::InvalidPciSegmentApertureWeight(0))
+         );
+ 
++        let dma_segment = |ranges: &[(u64, u64, u64)]| PciSegmentConfig {
++            pci_segment: 0,
++            mmio32_aperture_weight: 1,
++            mmio64_aperture_weight: 1,
++            dma_ranges: Some(
++                ranges
++                    .iter()
++                    .map(|&(cpu_start, dma_start, size)| DmaRangeConfig {
++                        cpu_start,
++                        dma_start,
++                        size,
++                    })
++                    .collect(),
++            ),
++        };
++        let mut still_valid = valid_config.clone();
++        still_valid.pci_segments = Some(Box::new([dma_segment(&[
++            (0, 0x1_0000_0000, 0x4000_0000),
++            (0x4000_0000, 0x8000_0000, 0x4000_0000),
++        ])]));
++        still_valid.validate().unwrap();
++        for (ranges, err) in [
++            (
++                &[(0, 0x1000, 0)][..],
++                ValidationError::InvalidPciSegmentDmaRange(0, 0),
++            ),
++            (
++                &[(0x800, 0x1000, 0x1000)][..],
++                ValidationError::InvalidPciSegmentDmaRange(0, 0),
++            ),
++            (
++                &[(0, u64::MAX - 0xfff, 0x2000)][..],
++                ValidationError::InvalidPciSegmentDmaRange(0, 0),
++            ),
++            (
++                &[(0, 0x10_0000, 0x2000), (0x1000, 0x20_0000, 0x1000)][..],
++                ValidationError::OverlappingPciSegmentDmaRanges(0, 0, 1),
++            ),
++            (
++                &[(0, 0x10_0000, 0x2000), (0x2000, 0x10_1000, 0x1000)][..],
++                ValidationError::OverlappingPciSegmentDmaRanges(0, 0, 1),
++            ),
++        ] {
++            let mut invalid_config = valid_config.clone();
++            invalid_config.pci_segments = Some(Box::new([dma_segment(ranges)]));
++            assert_eq!(invalid_config.validate(), Err(err));
++        }
++
+         let mut invalid_config = valid_config.clone();
+         invalid_config.numa = Some(Box::new([
+             NumaConfig {
+diff --git a/vmm/src/device_manager.rs b/vmm/src/device_manager.rs
+index 416132e62..62ca820fc 100644
+--- a/vmm/src/device_manager.rs
++++ b/vmm/src/device_manager.rs
+@@ -1354,6 +1354,15 @@ impl DeviceManager {
+             )?);
+         }
+ 
++        if let Some(pci_segment_configs) = &config.lock().unwrap().pci_segments {
++            for pci_segment_config in pci_segment_configs.iter() {
++                if let Some(dma_ranges) = &pci_segment_config.dma_ranges {
++                    pci_segments[pci_segment_config.pci_segment as usize]
++                        .set_dma_ranges(dma_ranges);
++                }
++            }
++        }
++
+         let acpi_cpu_hotplug_controller =
+             AcpiCpuHotplugController::new(&cpu_manager.lock().unwrap());
+         let acpi_cpu_hotplug_controller = Arc::new(Mutex::new(acpi_cpu_hotplug_controller));
+diff --git a/vmm/src/pci_segment.rs b/vmm/src/pci_segment.rs
+index 9f5d065ac..f23912b9b 100644
+--- a/vmm/src/pci_segment.rs
++++ b/vmm/src/pci_segment.rs
+@@ -13,7 +13,7 @@ use std::sync::{Arc, Mutex};
+ 
+ use acpi_tables::{Aml, aml};
+ use arch::layout;
+-use log::info;
++use log::{info, warn};
+ use pci::{DeviceRelocation, PciBdf, PciBus, PciConfigMmio, PciRoot};
+ #[cfg(target_arch = "x86_64")]
+ use pci::{PCI_CONFIG_IO_PORT, PCI_CONFIG_IO_PORT_SIZE, PciConfigIo};
+@@ -22,6 +22,7 @@ use vm_allocator::AddressAllocator;
+ use vm_device::BusDeviceSync;
+ 
+ use crate::device_manager::{AddressManager, DeviceManagerError, DeviceManagerResult};
++use crate::vm_config::DmaRangeConfig;
+ 
+ pub(crate) struct PciSegment {
+     pub(crate) id: u16,
+@@ -49,6 +50,10 @@ pub(crate) struct PciSegment {
+ 
+     pub(crate) mem32_allocator: Arc<Mutex<AddressAllocator>>,
+     pub(crate) mem64_allocator: Arc<Mutex<AddressAllocator>>,
++
++    // Translated DMA window reported in the host bridge's _DMA object;
++    // empty means no _DMA (bus address = guest physical address).
++    pub(crate) dma_ranges: Vec<DmaRangeConfig>,
+ }
+ 
+ impl PciSegment {
+@@ -102,6 +107,7 @@ impl PciSegment {
+             start_of_mem64_area,
+             end_of_mem64_area,
+             pci_irq_slots: *pci_irq_slots,
++            dma_ranges: Vec::new(),
+         };
+ 
+         info!(
+@@ -221,6 +227,28 @@ impl PciSegment {
+         Ok(())
+     }
+ 
++    /// Sets the ranges reported in this segment's `_DMA` object. The config
++    /// has already been validated; this only warns about bus-side ranges
++    /// that fall into the segment's own MMIO windows, because ACPI treats
++    /// such child-side accesses as peer-to-peer and not as memory accesses.
++    pub(crate) fn set_dma_ranges(&mut self, dma_ranges: &[DmaRangeConfig]) {
++        for r in dma_ranges {
++            let dma_end = r.dma_start + (r.size - 1);
++            for (start, end) in [
++                (self.start_of_mem32_area, self.end_of_mem32_area),
++                (self.start_of_mem64_area, self.end_of_mem64_area),
++            ] {
++                if r.dma_start <= end && start <= dma_end {
++                    warn!(
++                        "PCI segment {}: DMA range [0x{:x}-0x{:x}] overlaps the MMIO window [0x{:x}-0x{:x}]",
++                        self.id, r.dma_start, dma_end, start, end
++                    );
++                }
++            }
++        }
++        self.dma_ranges = dma_ranges.to_vec();
++    }
++
+     #[cfg(test)]
+     /// Creates a PciSegment without the need for an [`AddressManager`]
+     /// for testing purpose.
+@@ -266,6 +294,7 @@ impl PciSegment {
+             start_of_mem64_area,
+             end_of_mem64_area,
+             pci_irq_slots: *pci_irq_slots,
++            dma_ranges: Vec::new(),
+         };
+ 
+         info!(
+@@ -514,6 +543,30 @@ impl Aml for PciSegment {
+         };
+         pci_dsdt_inner_data.push(&crs);
+ 
++        // _DMA (ACPI 6.5 sec 6.2.4): one QWordMemory descriptor per range.
++        // _MIN/_MAX are bus (child-side) addresses; _TRA is added to them
++        // to obtain the guest physical address (sec 6.4.3.5.1), hence
++        // cpu_start - dma_start, in two's complement when negative.
++        let dma_descriptors: Vec<aml::AddressSpace<u64>> = self
++            .dma_ranges
++            .iter()
++            .map(|r| {
++                aml::AddressSpace::new_memory(
++                    aml::AddressSpaceCacheable::Cacheable,
++                    true,
++                    r.dma_start,
++                    r.dma_start + (r.size - 1),
++                    Some(r.cpu_start.wrapping_sub(r.dma_start)),
++                )
++            })
++            .collect();
++        let dma_template =
++            aml::ResourceTemplate::new(dma_descriptors.iter().map(|d| d as &dyn Aml).collect());
++        let dma = aml::Name::new("_DMA".into(), &dma_template);
++        if !self.dma_ranges.is_empty() {
++            pci_dsdt_inner_data.push(&dma);
++        }
++
+         let mut pci_devices = Vec::new();
+         for device_id in 0..32 {
+             let pci_device = PciDevSlot { device_id };
+@@ -649,4 +702,54 @@ mod unit_tests {
+             )
+         ));
+     }
++
++    #[test]
++    // The host bridge carries _DMA only when ranges are configured, as a
++    // buffer of one QWordMemory descriptor per range with _TRA = cpu - dma.
++    fn dma_ranges_emit_dma_object() {
++        let mut segment = setup();
++        let mut aml = Vec::new();
++        segment.to_aml_bytes(&mut aml);
++        assert!(!aml.windows(4).any(|w| w == b"_DMA"));
++
++        segment.set_dma_ranges(&[
++            DmaRangeConfig {
++                cpu_start: 0,
++                dma_start: 0x7ffe_0000_0000,
++                size: 0xc000_0000,
++            },
++            DmaRangeConfig {
++                cpu_start: 0x1_0000_0000,
++                dma_start: 0x7ffd_c000_0000,
++                size: 0x4000_0000,
++            },
++        ]);
++        #[rustfmt::skip]
++        let expected: &[u8] = &[
++            0x08, b'_', b'D', b'M', b'A',       // NameOp "_DMA"
++            0x11, 0x42, 0x06, 0x0a, 0x5e,       // BufferOp, PkgLength 98, size 94
++            // QWordMemory: producer, MinFixed, MaxFixed, Cacheable, ReadWrite
++            0x8a, 0x2b, 0x00, 0x00, 0x0c, 0x03,
++            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // _GRA
++            0x00, 0x00, 0x00, 0x00, 0xfe, 0x7f, 0x00, 0x00, // _MIN
++            0xff, 0xff, 0xff, 0xbf, 0xfe, 0x7f, 0x00, 0x00, // _MAX
++            0x00, 0x00, 0x00, 0x00, 0x02, 0x80, 0xff, 0xff, // _TRA
++            0x00, 0x00, 0x00, 0xc0, 0x00, 0x00, 0x00, 0x00, // _LEN
++            0x8a, 0x2b, 0x00, 0x00, 0x0c, 0x03,
++            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // _GRA
++            0x00, 0x00, 0x00, 0xc0, 0xfd, 0x7f, 0x00, 0x00, // _MIN
++            0xff, 0xff, 0xff, 0xff, 0xfd, 0x7f, 0x00, 0x00, // _MAX
++            0x00, 0x00, 0x00, 0x40, 0x03, 0x80, 0xff, 0xff, // _TRA
++            0x00, 0x00, 0x00, 0x40, 0x00, 0x00, 0x00, 0x00, // _LEN
++            0x79, 0x00,                         // EndTag
++        ];
++        let mut aml = Vec::new();
++        segment.to_aml_bytes(&mut aml);
++        assert_eq!(
++            aml.windows(expected.len())
++                .filter(|w| *w == expected)
++                .count(),
++            1
++        );
++    }
+ }
+diff --git a/vmm/src/vm_config.rs b/vmm/src/vm_config.rs
+index 04102478a..b4ff23e10 100644
+--- a/vmm/src/vm_config.rs
++++ b/vmm/src/vm_config.rs
+@@ -233,6 +233,17 @@ fn default_pci_segment_aperture_weight() -> u32 {
+     DEFAULT_PCI_SEGMENT_APERTURE_WEIGHT
+ }
+ 
++/// One translated range of a PCI segment's DMA window, reported to the guest
++/// in the host bridge's ACPI `_DMA` object: a device on the segment reaches
++/// guest physical address `cpu_start + n` at bus address `dma_start + n`,
++/// for `n < size`.
++#[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize, Serialize)]
++pub struct DmaRangeConfig {
++    pub cpu_start: u64,
++    pub dma_start: u64,
++    pub size: u64,
++}
++
+ #[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
+ pub struct PciSegmentConfig {
+     #[serde(default)]
+@@ -241,6 +252,8 @@ pub struct PciSegmentConfig {
+     pub mmio32_aperture_weight: u32,
+     #[serde(default = "default_pci_segment_aperture_weight")]
+     pub mmio64_aperture_weight: u32,
++    #[serde(default, skip_serializing_if = "Option::is_none")]
++    pub dma_ranges: Option<Vec<DmaRangeConfig>>,
+ }
+ 
+ #[serde_with::skip_serializing_none]

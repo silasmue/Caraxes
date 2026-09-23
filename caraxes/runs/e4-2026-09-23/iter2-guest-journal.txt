@@ -1,0 +1,52 @@
+# SPDX-License-Identifier: MIT
+# Guest kernel journal of E4 iteration 2 (automatic load at boot), 2026-09-23.
+[    2.730654] caraxes-vm0 kernel: nvidia: loading out-of-tree module taints kernel.
+[    2.730672] caraxes-vm0 kernel: nvidia: module verification failed: signature and/or required key missing - tainting kernel
+[    2.859908] caraxes-vm0 kernel: nvidia-nvlink: Nvlink Core is being initialized, major device number 239
+[    2.859917] caraxes-vm0 kernel: NVRM: probing 0x10de 0x1f02, class 0x30000
+[    2.866788] caraxes-vm0 kernel: nvidia 0000:00:05.0: enabling device (0000 -> 0003)
+[    2.867884] caraxes-vm0 kernel: NVRM: resizable BAR disabled by regkey, skipping
+[    2.867889] caraxes-vm0 kernel: NVRM: No clk handles for the dev
+[    2.868062] caraxes-vm0 kernel: nvidia 0000:00:05.0: vgaarb: VGA decodes changed: olddecodes=io+mem,decodes=none:owns=none
+[    2.868127] caraxes-vm0 kernel: NVRM: PCI:0000:00:05.0 (10de:1f02): BAR0 @ 0xe6000000 (16MB)
+[    2.868129] caraxes-vm0 kernel: NVRM: PCI:0000:00:05.0 (10de:1f02): BAR1 @ 0x3fffe0000000 (256MB)
+[    2.868152] caraxes-vm0 kernel: NVRM: Failed to evaluate _PR3 object
+[    2.869970] caraxes-vm0 kernel: NVRM: pciPbiReadUuid: Could not acquire pciPbi mutex
+[    2.870086] caraxes-vm0 kernel: NVRM: Starting device 0000:00:05.0
+[    2.872524] caraxes-vm0 kernel: NVRM: GPU 0000:00:05.0: RmInitAdapter
+[    2.872531] caraxes-vm0 kernel: NVRM: GPU 0000:00:05.0: RmSetupRegisters for 0x10de:0x1f02
+[    2.872536] caraxes-vm0 kernel: NVRM: GPU 0000:00:05.0: pci config info:
+[    2.872537] caraxes-vm0 kernel: NVRM: GPU 0000:00:05.0:    registers look  like: 0xe6000000 0x1000000NVRM: GPU 0000:00:05.0:    fb        looks like: 0x3fffe0000000 0x10000000
+[    2.872553] caraxes-vm0 kernel: NVRM: GPU 0000:00:05.0: Successfully mapped framebuffer and registers
+[    2.872556] caraxes-vm0 kernel: NVRM: GPU 0000:00:05.0: final mappings:
+[    2.872559] caraxes-vm0 kernel: NVRM: GPU 0000:00:05.0:     regs: 0xe6000000 0x1000000 0x0000000075407a4f
+[    4.243134] caraxes-vm0 kernel: NVRM: GPU0 nvAssertFailedNoLog: Assertion failed: pRecords[mcIdx].pNotificationService == NULL @ kernel_falcon.c:396
+[    4.722159] caraxes-vm0 kernel: NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Call not supported [NV_ERR_NOT_SUPPORTED] (0x00000056) returned from pRmApi->Control(pRmApi, pGpu->hInternalClient, pGpu->hInternalSubdevice, NV2080_CTRL_CMD_INTERNAL_CE_GET_PCE_CONFIG_FOR_LCE_TYPE, &pceConfigParams, sizeof(pceConfigParams)) @ kernel_ce.c:1088
+[    4.722201] caraxes-vm0 kernel: NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Call not supported [NV_ERR_NOT_SUPPORTED] (0x00000056) returned from kceGetPceConfigForLceType(pGpu, pKCe, NV2080_CTRL_CE_LCE_TYPE_DECOMP, &numPcesPerLce, &numLces, &supportedPceMask, &supportedLceMask, &pcesPerHshub, &shimPreference) @ kernel_ce_gp100.c:64
+[    4.985595] caraxes-vm0 kernel: NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Call not supported [NV_ERR_NOT_SUPPORTED] (0x00000056) returned from pRmApi->Control(pRmApi, pGpu->hInternalClient, pGpu->hInternalSubdevice, NV2080_CTRL_CMD_INTERNAL_GMMU_COPY_RESERVED_SPLIT_GVASPACE_PDES_TO_SERVER, &globalCopyParams, sizeof(NV2080_CTRL_INTERNAL_GMMU_COPY_RESERVED_SPLIT_GVASPACE_PDES_TO_SERVER_PARAMS)) @ gpu_vaspace.c:3934
+[    4.985652] caraxes-vm0 kernel: NVRM: GPU0 nvAssertFailedNoLog: Assertion failed: NV_OK == status @ gpu_vaspace.c:592
+[    4.986046] caraxes-vm0 kernel: NVRM: GPU0 nvAssertFailedNoLog: Assertion failed: (NV_OK == rmStatus) @ kern_gmmu.c:248
+[    4.986094] caraxes-vm0 kernel: NVRM: GPU0 kgmmuStatePostLoad_IMPL: Failed to create GVASpace, status:56
+[    5.071441] caraxes-vm0 kernel: NVRM: GPU0 nvCheckOkFailedNoLog: Check failed: Call not supported [NV_ERR_NOT_SUPPORTED] (0x00000056) returned from pRmApi->Control(pRmApi, hClient, hSubdevice, NV2080_CTRL_CMD_INTERNAL_STATIC_KGR_GET_CAPS, pParams, sizeof(pParams->caps)) @ kernel_graphics.c:1214
+[    5.071789] caraxes-vm0 kernel: NVRM: GPU0 nvCheckOkFailedNoLog: Check failed: Call not supported [NV_ERR_NOT_SUPPORTED] (0x00000056) returned from kgraphicsLoadStaticInfo(pGpu, pKernelGraphics, KMIGMGR_SWIZZID_INVALID) @ kernel_graphics.c:446
+[    5.112352] caraxes-vm0 kernel: NVRM: GPU0 nvAssertFailedNoLog: Assertion failed: pKernelGraphicsStaticInfo != NULL @ kernel_graphics.c:487
+[    5.112393] caraxes-vm0 kernel: NVRM: GPU0 nvAssertFailedNoLog: Assertion failed: 0 @ kernel_fifo.c:3108
+[    5.112432] caraxes-vm0 kernel: NVRM: GPU0 RmInitNvDevice: *** Cannot load state into the device
+[    5.112435] caraxes-vm0 kernel: NVRM: GPU0 RmInitAdapter: RmInitNvDevice failed, bailing out of RmInitAdapter
+[    5.112991] caraxes-vm0 kernel: NVRM: GPU0 nvAssertFailedNoLog: Assertion failed: (status == NV_OK) || (status == NV_ERR_GPU_IN_FULLCHIP_RESET) @ fecs_event_list.c:1623
+[    5.113060] caraxes-vm0 kernel: NVRM: GPU0 nvAssertFailedNoLog: Assertion failed: listCount(&pKernelBus->virtualBar2[gfid].usedMapList) == 0 @ kern_bus_vbar2.c:346
+[   64.239962] caraxes-vm0 kernel: NVRM: GPU0 _threadNodeCheckTimeout: _threadNodeCheckTimeout: currentTime: f4209114c1ec0 >= f4209114c1ec0
+[   64.239969] caraxes-vm0 kernel: NVRM: GPU0 _threadNodeCheckTimeout: _threadNodeCheckTimeout: Timeout was set to: 4000 msecs!
+[   64.471662] caraxes-vm0 kernel: NVRM: GPU0 kgspExecuteBooterUnloadIfNeeded_TU102: failed to execute Booter Unload: WPR2 is still up
+[   64.471781] caraxes-vm0 kernel: NVRM: GPU0 nvAssertFailedNoLog: Assertion failed: rmStatus == NV_OK @ osinit.c:2453
+[   64.472185] caraxes-vm0 kernel: NVRM: GPU0 nvAssertFailedNoLog: Assertion failed: listCount(&pKernelBus->virtualBar2[gfid].usedMapList) == 0 @ kern_bus_vbar2.c:346
+[   64.472316] caraxes-vm0 kernel: NVRM: GPU 0000:00:05.0: Tearing down registers
+[   64.472321] caraxes-vm0 kernel: NVRM: GPU 0000:00:05.0: RmInitAdapter failed! (0x25:0x40:1310)
+[   64.472853] caraxes-vm0 kernel: NVRM: GPU 0000:00:05.0: rm_init_adapter failed, device minor number 0
+[   64.474489] caraxes-vm0 kernel: NVRM: Device start failed for 0000:00:05.0 (ret=-5)
+[   64.475146] caraxes-vm0 kernel: nvidia: probe of 0000:00:05.0 failed with error -1
+[   64.475204] caraxes-vm0 kernel: NVRM: loading NVIDIA UNIX Open Kernel Module for x86_64  610.57.04  Release Build  (leandro@caraxes-vm0)  Wed Sep 23 08:32:41 UTC 2026
+[   67.988229] caraxes-vm0 kernel: Modules linked in: binfmt_misc kvm_amd ccp nls_iso8859_1 nvidia(OE) kvm irqbypass ecc sch_fq_codel dm_multipath msr parport_pc ppdev lp parport efi_pstore nfnetlink dmi_sysfs ip_tables x_tables autofs4 btrfs blake2b_generic raid10 raid456 async_raid6_recov async_memcpy async_pq async_xor async_tx xor raid6_pq libcrc32c raid1 raid0 crct10dif_pclmul crc32_pclmul polyval_clmulni polyval_generic ghash_clmulni_intel sha256_ssse3 sha1_ssse3 virtio_rng aesni_intel crypto_simd cryptd
+[   67.989172] caraxes-vm0 kernel: BUG: Bad page map in process (udev-worker)  pte:840000010c400800 pmd:102a44067
+[   67.997862] caraxes-vm0 kernel: BUG: Bad rss-counter state mm:00000000789137d4 type:MM_ANONPAGES val:2
+[   67.998826] caraxes-vm0 kernel: BUG: Bad rss-counter state mm:00000000789137d4 type:MM_SWAPENTS val:-1

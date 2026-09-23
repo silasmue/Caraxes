@@ -1,0 +1,80 @@
+<!-- SPDX-License-Identifier: MIT -->
+privilege: uid=1000 gid=1000; caps effective=0x0 permitted=0x200000 (CAP_SYS_ADMIN bit21=0x200000, raised only around SET_PAGE_DIRECTORY / GET_SURFACE_PHYS_ATTR / PROMOTE_CTX)
+RM client=0xc1d001c9 device=0xca200001 subdevice=0xca200002 (uid 1000)
+
+=== Stage A: reserve VRAM at top of FB region, map through BAR1 ===
+  FB region[0] base=0x3600000 limit=0x1e918ffff reserved=0x0
+  FB region end E=0x1e9000000; reservation [0x1e5000000, 0x1e9000000) 64 MiB
+  free VRAM: nvidia-smi 2430 MiB, HEAP_FREE 2429 MiB; need 1088 MiB
+  RM_ALLOC NV01_MEMORY_LOCAL_USER(0x40) fixed@0x1e5000000 status=0x51 phys=0x1e5000000 attr=0x11800000
+  fixed-top REFUSED (NO_MEMORY): top range occupied. Falling back to floating contiguous 64 MiB (proof only).
+  RM_ALLOC NV01_MEMORY_LOCAL_USER(0x40) floating contiguous status=0x0 phys=0x65800000 attr=0x11800000
+  RM_MAP_MEMORY window 64 MiB: NV_OK (BAR1)
+  second concurrent window (16 MiB @ +16 MiB): NV_OK -> multiple windows can be held
+  CPU write/read-back at reservation +0x300000: wrote 0xA5A51234 read 0xa5a51234 (OK)
+
+=== Stage B: pin sysmem, read IOVA (admin), build GMMU v2 page table in VRAM ===
+  RM_ALLOC_MEMORY OS descriptor(0x71) 8 pages status=0x0 handle=0xca200101
+  GET_SURFACE_PHYS_ATTR(admin) status=0x0 IOVA=0x7ffe7fff0000 aperture=1 (1=SYSMEM)
+  RM_ALLOC_MEMORY USERD OS descriptor(0x71) status=0x0 handle=0xca200102
+  USERD IOVA=0xcf823000
+  PD3@0x65800000=0x0000000006580102 PD2@0x65801000 PD1@0x65802000 PD0[1] small->PT@0x65804000
+    PTE[  0] GPFIFO  VA=0x200000 ap=2 phys/iova=0x7ffe7fff0000 -> 0x000007ffe7fff005 (validated)
+    PTE[  1] pushbuf VA=0x201000 ap=2 phys/iova=0x7ffe7fff1000 -> 0x000007ffe7fff105 (validated)
+    PTE[  2] semaphr VA=0x202000 ap=2 phys/iova=0x7ffe7fff2000 -> 0x000007ffe7fff205 (validated)
+    PTE[  3] vram-dat VA=0x203000 ap=0 phys/iova=0x65c00000 -> 0x00000000065c0001 (validated)
+    PTE[  4] sys-src VA=0x204000 ap=2 phys/iova=0x7ffe7fff3000 -> 0x000007ffe7fff305 (validated)
+    PTE[  5] sys-dst VA=0x205000 ap=2 phys/iova=0x7ffe7fff4000 -> 0x000007ffe7fff405 (validated)
+  page-table BAR1 write flushed (readback checksum 0xe1a7f007)
+
+=== Stage C: VA space, channel, SET_PAGE_DIRECTORY, schedule, token, doorbell ===
+  RM_ALLOC FERMI_VASPACE_A externally-owned status=0x0 vaSize=0xfffff00000
+  DMA_SET_PAGE_DIRECTORY(admin) PDB=0x65800000 numEntries=1 aperture=VIDMEM status=0x0
+  RM_ALLOC TURING_CHANNEL_GPFIFO_A status=0x0 (USERD sysmem OS-descriptor, GPFIFO VA 0x200000)
+  RM_ALLOC TURING_DMA_COPY_A(version 1, COPY2) on channel status=0x0
+  GPFIFO_SCHEDULE bEnable=1 status=0x0
+  GET_WORK_SUBMIT_TOKEN status=0x0 token=0x8002c
+  RM_ALLOC VOLTA_USERMODE_A status=0x0
+  RM_MAP_MEMORY VOLTA_USERMODE_A doorbell page: NV_OK
+
+=== Stage D: submit through the doorbell; prove the GPU walks the VRAM page table ===
+  doorbell token 0x8002c; submitting host semaphore-release to VA 0x202000 (payload 0xcafe)
+  semaphore=0xcafe GPGet=1 latency=16.63µs => GPU WALKED THE VRAM PAGE TABLE AND RELEASED THE SEMAPHORE
+  CE object (TURING_DMA_COPY_A 0xca200105) allocated in Stage C; running the bidirectional copy
+  warm-up CE copy (sysmem->sysmem) done=false latency=3.000000086s bytes MISMATCH (absorbs the first-launch stall)
+  copy VRAM(VA 0x203000 = phys 0x65c00000) -> sys-dst(VA 0x205000) done=true latency=22.751µs: bytes MATCH
+  => PROVEN: the physical GPU read the reserved VRAM through the guest-built page table (CE VRAM->sysmem copy verified)
+  note: a CE *write into* the reservation (sysmem->VRAM) via a 4 KiB PTE over the 2 MiB contiguous allocation also stalled and is left out; the CPU (BAR1) writes the reserved VRAM. See host-exec.md.
+
+=== Stage E: non-stall completion via NV01_EVENT (OS event fd) ===
+  NV_ESC_ALLOC_OS_EVENT fd=10 status=0x0
+  RM_ALLOC NV01_EVENT_OS_EVENT (HOST/FIFO non-stall) status=0x0 notifyIndex=0x8000023
+  EVENT_SET_NOTIFICATION (HOST/FIFO, REPEAT) status=0x0
+  submitted NON_STALL_INTERRUPT (semaphore released=false); waiting on the OS event fd (2 s)
+  poll returned 0 revents=0x0: no fd wakeup arrived (semaphore still checked below)
+  semaphore after NON_STALL_INTERRUPT push = 0x0
+
+=== Stage F: GR channel + TURING_COMPUTE_A; PROMOTE_CTX acceptance ===
+  RM_ALLOC FERMI_VASPACE_A (GR) status=0x0
+  DMA_SET_PAGE_DIRECTORY (GR VAS) status=0x0
+  RM_ALLOC GR TURING_CHANNEL_GPFIFO_A status=0x0
+  RM_ALLOC TURING_COMPUTE_A on GR channel status=0x0
+  GPU_PROMOTE_CTX(admin) MAIN buffer phys=0x66000000 (in reservation) va=0x300000 status=0x57
+  => PROMOTE_CTX finding: REFUSED - see status; this is the code the device path must handle
+
+privileged windows opened: 5
+=== Stage G: teardown (Drop frees the whole client tree) ===
+teardown: free compute 0xca20010a status=0x0
+teardown: free gr-channel 0xca200109 status=0x0
+teardown: free vaspace-gr 0xca200108 status=0x0
+teardown: free os-event 0xca200107 status=0x0
+teardown: free usermode 0xca200106 status=0x0
+teardown: free ce-object 0xca200105 status=0x0
+teardown: free channel 0xca200104 status=0x0
+teardown: free vaspace 0xca200103 status=0x0
+teardown: free userd-osdesc 0xca200102 status=0x0
+teardown: free sysbuf-osdesc 0xca200101 status=0x0
+teardown: free resv-vram 0xca200100 status=0x0
+teardown: free subdevice 0xca200002 status=0x0
+teardown: free device 0xca200001 status=0x0
+teardown: client 0xc1d001c9 freed status=0x0

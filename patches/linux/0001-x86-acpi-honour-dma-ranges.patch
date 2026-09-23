@@ -1,0 +1,178 @@
+From 8d442a5b5d42129d5fb9a8f81dab9d102a019ed1 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Silas=20M=C3=BCller?= <dev@silasmueller.de>
+Date: Wed, 23 Sep 2026 15:45:00 +0200
+Subject: [RFC PATCH] ACPI: x86: honour _DMA translation for device DMA setup
+
+ACPI lets a bus device describe, in its _DMA object, the child-side
+address ranges it forwards to memory and the offset (_TRA) it adds to
+them (ACPI 6.5, sections 6.2.4 and 6.4.3.5.1). Linux parses that object
+in acpi_dma_get_range() and turns it into a struct bus_dma_region table,
+but only architectures that implement acpi_arch_dma_setup() use it:
+
+  acpi_dma_configure_id()                      drivers/acpi/scan.c
+    acpi_arch_dma_setup(dev)
+      arm64:     drivers/acpi/arm64/dma.c      (since v5.14)
+      LoongArch: arch/loongarch/kernel/dma.c   (since v6.1)
+      others:    empty inline in include/linux/acpi.h
+
+x86 has neither the function nor a caller of acpi_dma_get_range(), so on
+x86 a _DMA object is evaluated by nobody. This is historical rather than
+deliberate: x86 platforms have described DMA translation through the
+IOMMU tables (DMAR, IVRS), not through bus offsets. The hook was added
+for arm64 by commit db59e1b6e492 ("ACPI: arm64: Move DMA setup
+operations out of IORT") and given its current form, a full range table,
+for LoongArch by commit bf2ee8d0c385 ("ACPI: scan: Support multiple DMA
+windows with different offsets"); x86 had no user for it either time. The
+x86 DMA layer itself already supports per-device translation tables:
+dma-direct, including swiotlb, applies dev->dma_range_map in
+phys_to_dma()/dma_to_phys() on every architecture without
+ARCH_HAS_PHYS_TO_DMA, and arch/x86/pci/sta2x11-fixup.c has installed one
+through dma_direct_set_offset() for years.
+
+The missing piece matters for virtual machines. A VMM that exposes a
+device whose DMA is performed by hardware in a host IOMMU domain, at I/O
+virtual addresses the VMM does not choose, has to tell the guest at
+which bus address each range of guest RAM is visible to the device. A
+_DMA object on the PCI host bridge is the firmware interface for exactly
+that, and arm64 guests already honour it.
+
+Implement acpi_arch_dma_setup() for x86 the way LoongArch does: if
+acpi_dma_get_range() finds a _DMA object on the device or an ancestor,
+install the table as dev->dma_range_map, set bus_dma_limit to the
+highest bus address it covers and clamp the default masks to it. Like
+arm64, leave an already installed dma_range_map alone.
+
+What changes:
+- Only devices below an ACPI node with a _DMA object are affected; for
+  every other device acpi_dma_get_range() returns -ENODEV and nothing is
+  touched. Firmware without _DMA, which is nearly all x86 firmware,
+  sees no change.
+- For affected devices without an IOMMU, dma-direct and swiotlb return
+  translated addresses, and a physical address that no range covers
+  fails to map (DMA_MAPPING_ERROR) instead of being passed through.
+- For affected devices behind an IOMMU DMA domain, iommu-dma ignores the
+  table but honours bus_dma_limit as an upper IOVA bound, as on arm64.
+- The table is allocated per probe by acpi_dma_get_range() and freed by
+  the driver core on unbind or probe failure (device_unbind_cleanup()).
+
+SPDX-License-Identifier: GPL-2.0-only
+Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>
+---
+DRAFT -- notes for the submitter, not part of the commit message:
+
+- Base: Ubuntu noble kernel tag Ubuntu-6.8.0-136.136 (9e2939f04a28),
+  the guest kernel of the Caraxes VM. The three touched files are
+  identical to upstream v6.8 there, so the patch also applies to v6.8.
+- Compile-tested only: drivers/acpi/x86/dma.o and drivers/acpi/scan.o
+  build without warnings (W=1, GCC 16.2.1) with x86_64_defconfig and
+  with Ubuntu's generic amd64 config exported from
+  debian.master/config/annotations; vmlinux links with x86_64_defconfig
+  (CONFIG_WERROR off: GCC 16 trips unrelated -Werror checks in v6.8).
+  Not boot-tested; nothing here has run.
+- checkpatch: code clean; it asks for a Signed-off-by (to be added by
+  the submitter), flags the Co-Authored-By spelling and the
+  SPDX-License-Identifier trailer (both to be adjusted or dropped
+  before posting), and asks whether MAINTAINERS needs updating
+  (drivers/acpi/x86/ is covered by the ACPI entry).
+- v6.12 and mainline (read at v7.3-rc4): same change, two differences.
+  drivers/acpi/x86/ has its own Makefile there, so the object is added
+  as "acpi-x86-y += dma.o" in drivers/acpi/x86/Makefile instead of
+  drivers/acpi/Makefile; and the loop computing the highest bus address
+  becomes dma_range_map_max(map) (include/linux/dma-direct.h, since
+  v6.10). The include/linux/acpi.h hunk is unchanged. That variant was
+  compile-tested on v6.12 (defconfig, W=1); it was not built on
+  mainline.
+- Review questions to expect upstream:
+  1. x86 firmware that ships a _DMA object today, so far ignored, would
+     start to be honoured. If that turns out to exist and be wrong,
+     gate the x86 path (for example on the PCI host bridge only, or
+     behind a Kconfig/cmdline switch).
+  2. arm64, LoongArch and now x86 carry nearly the same body; a generic
+     helper in drivers/acpi/scan.c with arm64 adding its IORT fallback
+     may be preferred over a third copy.
+  3. dma-direct's zone heuristic (dma_direct_optimal_gfp_mask) uses
+     dma_to_phys(bus_dma_limit); with a table whose highest bus range
+     maps to low guest memory, coherent allocations are steered to
+     ZONE_DMA32. Correct, but conservative; same on arm64 today.
+
+ drivers/acpi/Makefile  |  1 +
+ drivers/acpi/x86/dma.c | 44 ++++++++++++++++++++++++++++++++++++++++++
+ include/linux/acpi.h   |  2 +-
+ 3 files changed, 46 insertions(+), 1 deletion(-)
+ create mode 100644 drivers/acpi/x86/dma.c
+
+diff --git a/drivers/acpi/Makefile b/drivers/acpi/Makefile
+index 12ef8180d..b6acb6617 100644
+--- a/drivers/acpi/Makefile
++++ b/drivers/acpi/Makefile
+@@ -59,6 +59,7 @@ acpi-$(CONFIG_X86)		+= acpi_cmos_rtc.o
+ acpi-$(CONFIG_X86)		+= x86/apple.o
+ acpi-$(CONFIG_X86)		+= x86/utils.o
+ acpi-$(CONFIG_X86)		+= x86/s2idle.o
++acpi-$(CONFIG_X86)		+= x86/dma.o
+ acpi-$(CONFIG_DEBUG_FS)		+= debugfs.o
+ acpi-y				+= acpi_lpat.o
+ acpi-$(CONFIG_ACPI_FPDT)	+= acpi_fpdt.o
+diff --git a/drivers/acpi/x86/dma.c b/drivers/acpi/x86/dma.c
+new file mode 100644
+index 000000000..8b9852de7
+--- /dev/null
++++ b/drivers/acpi/x86/dma.c
+@@ -0,0 +1,44 @@
++// SPDX-License-Identifier: GPL-2.0-only
++/*
++ * Honour the ACPI _DMA object on x86.
++ *
++ * A bus device (typically a PCI host bridge) may describe in _DMA the
++ * child-side address ranges it forwards to memory and the offset it adds
++ * to them (ACPI 6.5, sections 6.2.4 and 6.4.3.5). acpi_dma_get_range()
++ * turns that into a bus_dma_region table; installing it as the device's
++ * dma_range_map makes dma-direct (and swiotlb) hand out translated DMA
++ * addresses, exactly as on arm64 and LoongArch.
++ */
++#include <linux/acpi.h>
++#include <linux/device.h>
++#include <linux/dma-direct.h>
++
++void acpi_arch_dma_setup(struct device *dev)
++{
++	const struct bus_dma_region *map = NULL, *r;
++	u64 end = 0, mask;
++
++	if (dev->dma_range_map) {
++		dev_dbg(dev, "dma_range_map already set\n");
++		return;
++	}
++
++	/* -ENODEV: no _DMA above this device, the common case on x86. */
++	if (acpi_dma_get_range(dev, &map) || !map)
++		return;
++
++	for (r = map; r->size; r++)
++		end = max_t(u64, end, r->dma_start + r->size - 1);
++
++	dev->dma_range_map = map;
++	dev->bus_dma_limit = end;
++
++	/* Limit the default masks as arm64 and LoongArch do. */
++	mask = DMA_BIT_MASK(ilog2(end) + 1);
++	dev->coherent_dma_mask = min(dev->coherent_dma_mask, mask);
++	if (dev->dma_mask)
++		*dev->dma_mask = min(*dev->dma_mask, mask);
++
++	dev_dbg(dev, "ACPI _DMA: %td range(s), bus limit %#llx\n",
++		r - map, end);
++}
+diff --git a/include/linux/acpi.h b/include/linux/acpi.h
+index 4cc509fe3..a76aa9d37 100644
+--- a/include/linux/acpi.h
++++ b/include/linux/acpi.h
+@@ -254,7 +254,7 @@ acpi_numa_processor_affinity_init(struct acpi_srat_cpu_affinity *pa) { }
+ 
+ void acpi_numa_x2apic_affinity_init(struct acpi_srat_x2apic_cpu_affinity *pa);
+ 
+-#if defined(CONFIG_ARM64) || defined(CONFIG_LOONGARCH)
++#if defined(CONFIG_ARM64) || defined(CONFIG_LOONGARCH) || defined(CONFIG_X86)
+ void acpi_arch_dma_setup(struct device *dev);
+ #else
+ static inline void acpi_arch_dma_setup(struct device *dev) { }

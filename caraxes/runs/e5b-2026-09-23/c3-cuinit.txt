@@ -1,0 +1,5 @@
+cuInit 100
+cuDeviceGetCount 3 0
+cuDeviceGet 3
+name b''
+cuCtxCreate 3

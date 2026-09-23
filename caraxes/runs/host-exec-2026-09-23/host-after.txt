@@ -1,0 +1,441 @@
+<!-- SPDX-License-Identifier: MIT -->
+host-exec host state AFTER, 2026-09-23T16:26:39+02:00
+GPU 00000000:2D:00.0
+    FB Memory Usage
+        Total                                          : 8192 MiB
+        Reserved                                       : 421 MiB
+        Used                                           : 5357 MiB
+        Free                                           : 2416 MiB
+    BAR1 Memory Usage
+nr_foll_pin_acquired 8118207
+nr_foll_pin_released 7066373
+--- kernel Xid / NVRM since run start ---
+Sep 23 16:26:30 manacor kernel: NVRM: nvidia_open...
+Sep 23 16:26:30 manacor kernel: NVRM: nvidia_ctl_open
+Sep 23 16:26:30 manacor kernel: NVRM: ioctl(0xd2, 0xb54d370, 0x48)
+Sep 23 16:26:30 manacor kernel: NVRM: ioctl(0xd6, 0xb54d480, 0x8)
+Sep 23 16:26:30 manacor kernel: NVRM: ioctl(0xc8, 0x9ccede40, 0x900)
+Sep 23 16:26:30 manacor kernel: NVRM: ioctl(0x2b, 0xb54d510, 0x30)
+Sep 23 16:26:30 manacor kernel: NVRM: ioctl(0x2a, 0xb54cb70, 0x20)
+Sep 23 16:26:30 manacor kernel: NVRM: ioctl(0x2a, 0xb54cb70, 0x20)
+Sep 23 16:26:30 manacor kernel: NVRM: ioctl(0x2a, 0xb54cb70, 0x20)
+Sep 23 16:26:30 manacor kernel: NVRM: ioctl(0x2a, 0xb54cb70, 0x20)
+Sep 23 16:26:30 manacor kernel: NVRM: nvidia_open...
+Sep 23 16:26:30 manacor kernel: NVRM: GPU 0000:2d:00.0: Opening GPU with minor number 0
+Sep 23 16:26:30 manacor kernel: NVRM: ioctl(0xda, 0xb54cb70, 0x8)
+Sep 23 16:26:30 manacor kernel: NVRM: ioctl(0x2a, 0xb54a680, 0x20)
+Sep 23 16:26:30 manacor kernel: NVRM: ioctl(0x2b, 0xb54d850, 0x30)
+Sep 23 16:26:30 manacor kernel: NVRM: ioctl(0x2a, 0xb54cb80, 0x20)
+Sep 23 16:26:30 manacor kernel: NVRM: ioctl(0x2a, 0xb54c990, 0x20)
+Sep 23 16:26:30 manacor kernel: NVRM: ioctl(0x2a, 0xb54c8c0, 0x20)
+Sep 23 16:26:30 manacor kernel: NVRM: ioctl(0x2a, 0xb54c8c0, 0x20)
+Sep 23 16:26:30 manacor kernel: NVRM: nvidia_open...
+Sep 23 16:26:30 manacor kernel: NVRM: GPU 0000:2d:00.0: Opening GPU with minor number 0
+Sep 23 16:26:30 manacor kernel: NVRM: ioctl(0xc9, 0xb54d3d0, 0x4)
+Sep 23 16:26:30 manacor kernel: NVRM: ioctl(0xd7, 0xb54d160, 0x230)
+Sep 23 16:26:30 manacor kernel: NVRM: ioctl(0x2a, 0xb54c940, 0x20)
+Sep 23 16:26:30 manacor kernel: NVRM: ioctl(0x2b, 0xb54d480, 0x30)
+Sep 23 16:26:30 manacor kernel: NVRM: ioctl(0x2a, 0xb54cae0, 0x20)
+Sep 23 16:26:30 manacor kernel: NVRM: ioctl(0x2a, 0xb54c890, 0x20)
+Sep 23 16:26:30 manacor kernel: NVRM: ioctl(0x2a, 0xb54c790, 0x20)
+Sep 23 16:26:30 manacor kernel: NVRM: ioctl(0x2a, 0xb54c790, 0x20)
+Sep 23 16:26:30 manacor kernel: NVRM: nvidia_open...
+Sep 23 16:26:30 manacor kernel: NVRM: GPU 0000:2d:00.0: Opening GPU with minor number 0
+Sep 23 16:26:30 manacor kernel: NVRM: ioctl(0xc9, 0xb54d2a0, 0x4)
+Sep 23 16:26:30 manacor kernel: NVRM: ioctl(0x2b, 0xb54d350, 0x30)
+Sep 23 16:26:30 manacor kernel: NVRM: ioctl(0x2a, 0xb54c970, 0x20)
+Sep 23 16:26:30 manacor kernel: NVRM: ioctl(0x2a, 0xb54c970, 0x20)
+Sep 23 16:26:30 manacor kernel: NVRM: ioctl(0x2a, 0xb54cac0, 0x20)
+Sep 23 16:26:30 manacor kernel: NVRM: ioctl(0x2a, 0xb54c9b0, 0x20)
+Sep 23 16:26:30 manacor kernel: NVRM: ioctl(0x2a, 0xb54c990, 0x20)
+Sep 23 16:26:30 manacor kernel: NVRM: ioctl(0x2a, 0xb54c7e0, 0x20)
+Sep 23 16:26:30 manacor kernel: NVRM: ioctl(0x2a, 0xb54c7e0, 0x20)
+Sep 23 16:26:30 manacor kernel: NVRM: ioctl(0x2a, 0xb54c7e0, 0x20)
+Sep 23 16:26:30 manacor kernel: NVRM: ioctl(0x2b, 0xb54c950, 0x30)
+Sep 23 16:26:30 manacor kernel: NVRM: ioctl(0x2a, 0xb54bf70, 0x20)
+Sep 23 16:26:30 manacor kernel: NVRM: ioctl(0x2a, 0xb54cb80, 0x20)
+Sep 23 16:26:30 manacor kernel: NVRM: ioctl(0x2a, 0xb54c970, 0x20)
+Sep 23 16:26:30 manacor kernel: NVRM: ioctl(0x2a, 0xb54c500, 0x20)
+Sep 23 16:26:30 manacor kernel: NVRM: ioctl(0x2a, 0xb54c4f0, 0x20)
+Sep 23 16:26:30 manacor kernel: NVRM: ioctl(0x2a, 0xb54c4f0, 0x20)
+Sep 23 16:26:30 manacor kernel: NVRM: ioctl(0x29, 0xb54d5e0, 0x10)
+Sep 23 16:26:30 manacor kernel: NVRM: nvidia_close on GPU with minor number 0
+Sep 23 16:26:30 manacor kernel: NVRM: ioctl(0x29, 0xb54d5e0, 0x10)
+Sep 23 16:26:30 manacor kernel: NVRM: nvidia_close on GPU with minor number 0
+Sep 23 16:26:30 manacor kernel: NVRM: ioctl(0x2a, 0xb54cb80, 0x20)
+Sep 23 16:26:30 manacor kernel: NVRM: nvidia_close on GPU with minor number 0
+Sep 23 16:26:30 manacor kernel: NVRM: ioctl(0x29, 0xb54d600, 0x10)
+Sep 23 16:26:30 manacor kernel: NVRM: nvidia_close on GPU with minor number 255
+Sep 23 16:26:30 manacor kernel: NVRM: nvidia_ctl_close
+Sep 23 16:26:30 manacor kernel: NVRM: nvidia_open...
+Sep 23 16:26:30 manacor kernel: NVRM: nvidia_ctl_open
+Sep 23 16:26:30 manacor kernel: NVRM: nvidia_open...
+Sep 23 16:26:30 manacor kernel: NVRM: GPU 0000:2d:00.0: Opening GPU with minor number 0
+Sep 23 16:26:30 manacor kernel: NVRM: ioctl(0x2b, 0x73a4f110, 0x30)
+Sep 23 16:26:30 manacor kernel: NVRM: ioctl(0x2b, 0x73a4f0d0, 0x30)
+Sep 23 16:26:30 manacor kernel: NVRM: ioctl(0x2b, 0x73a4f0d0, 0x30)
+Sep 23 16:26:30 manacor kernel: NVRM: ioctl(0xc9, 0x73a4f150, 0x4)
+Sep 23 16:26:30 manacor kernel: NVRM: ioctl(0x2a, 0x73a4ede0, 0x20)
+Sep 23 16:26:30 manacor kernel: NVRM: nvidia_open...
+Sep 23 16:26:30 manacor kernel: NVRM: nvidia_ctl_open
+Sep 23 16:26:30 manacor kernel: NVRM: ioctl(0xd2, 0x6f933a60, 0x48)
+Sep 23 16:26:30 manacor kernel: NVRM: ioctl(0xd6, 0x6f933b70, 0x8)
+Sep 23 16:26:30 manacor kernel: NVRM: ioctl(0xc8, 0x816ede40, 0x900)
+Sep 23 16:26:30 manacor kernel: NVRM: ioctl(0x2b, 0x6f933c00, 0x30)
+Sep 23 16:26:30 manacor kernel: NVRM: ioctl(0x2a, 0x6f933260, 0x20)
+Sep 23 16:26:30 manacor kernel: NVRM: ioctl(0x2a, 0x6f933260, 0x20)
+Sep 23 16:26:30 manacor kernel: NVRM: ioctl(0x2a, 0x6f933260, 0x20)
+Sep 23 16:26:30 manacor kernel: NVRM: ioctl(0x2a, 0x6f933260, 0x20)
+Sep 23 16:26:30 manacor kernel: NVRM: nvidia_open...
+Sep 23 16:26:30 manacor kernel: NVRM: GPU 0000:2d:00.0: Opening GPU with minor number 0
+Sep 23 16:26:30 manacor kernel: NVRM: ioctl(0xda, 0x6f933260, 0x8)
+Sep 23 16:26:30 manacor kernel: NVRM: ioctl(0x2a, 0x6f930d70, 0x20)
+Sep 23 16:26:30 manacor kernel: NVRM: ioctl(0x2b, 0x6f933f40, 0x30)
+Sep 23 16:26:30 manacor kernel: NVRM: ioctl(0x2a, 0x6f933270, 0x20)
+Sep 23 16:26:30 manacor kernel: NVRM: ioctl(0x2a, 0x6f933080, 0x20)
+Sep 23 16:26:30 manacor kernel: NVRM: ioctl(0x2a, 0x6f932fb0, 0x20)
+Sep 23 16:26:30 manacor kernel: NVRM: ioctl(0x2a, 0x6f932fb0, 0x20)
+Sep 23 16:26:30 manacor kernel: NVRM: nvidia_open...
+Sep 23 16:26:30 manacor kernel: NVRM: GPU 0000:2d:00.0: Opening GPU with minor number 0
+Sep 23 16:26:30 manacor kernel: NVRM: ioctl(0xc9, 0x6f933ac0, 0x4)
+Sep 23 16:26:30 manacor kernel: NVRM: ioctl(0xd7, 0x6f933850, 0x230)
+Sep 23 16:26:30 manacor kernel: NVRM: ioctl(0x2a, 0x6f933030, 0x20)
+Sep 23 16:26:30 manacor kernel: NVRM: ioctl(0x2b, 0x6f933b70, 0x30)
+Sep 23 16:26:30 manacor kernel: NVRM: ioctl(0x2a, 0x6f9331d0, 0x20)
+Sep 23 16:26:30 manacor kernel: NVRM: ioctl(0x2a, 0x6f932f80, 0x20)
+Sep 23 16:26:30 manacor kernel: NVRM: ioctl(0x2a, 0x6f932e80, 0x20)
+Sep 23 16:26:30 manacor kernel: NVRM: ioctl(0x2a, 0x6f932e80, 0x20)
+Sep 23 16:26:30 manacor kernel: NVRM: nvidia_open...
+Sep 23 16:26:30 manacor kernel: NVRM: GPU 0000:2d:00.0: Opening GPU with minor number 0
+Sep 23 16:26:30 manacor kernel: NVRM: ioctl(0xc9, 0x6f933990, 0x4)
+Sep 23 16:26:30 manacor kernel: NVRM: ioctl(0x2b, 0x6f933a40, 0x30)
+Sep 23 16:26:30 manacor kernel: NVRM: ioctl(0x2a, 0x6f933060, 0x20)
+Sep 23 16:26:30 manacor kernel: NVRM: ioctl(0x2a, 0x6f933060, 0x20)
+Sep 23 16:26:30 manacor kernel: NVRM: ioctl(0x2a, 0x6f9331b0, 0x20)
+Sep 23 16:26:30 manacor kernel: NVRM: ioctl(0x2a, 0x6f9330a0, 0x20)
+Sep 23 16:26:30 manacor kernel: NVRM: ioctl(0x2a, 0x6f933080, 0x20)
+Sep 23 16:26:30 manacor kernel: NVRM: ioctl(0x2a, 0x6f932ed0, 0x20)
+Sep 23 16:26:30 manacor kernel: NVRM: ioctl(0x2a, 0x6f932ed0, 0x20)
+Sep 23 16:26:30 manacor kernel: NVRM: ioctl(0x2a, 0x6f932ed0, 0x20)
+Sep 23 16:26:30 manacor kernel: NVRM: ioctl(0x2b, 0x6f933040, 0x30)
+Sep 23 16:26:30 manacor kernel: NVRM: ioctl(0x2a, 0x6f932660, 0x20)
+Sep 23 16:26:30 manacor kernel: NVRM: ioctl(0x2a, 0x6f933270, 0x20)
+Sep 23 16:26:30 manacor kernel: NVRM: ioctl(0x2a, 0x6f933060, 0x20)
+Sep 23 16:26:30 manacor kernel: NVRM: ioctl(0x2a, 0x6f932bf0, 0x20)
+Sep 23 16:26:30 manacor kernel: NVRM: ioctl(0x2a, 0x6f932be0, 0x20)
+Sep 23 16:26:30 manacor kernel: NVRM: ioctl(0x2a, 0x6f932be0, 0x20)
+Sep 23 16:26:30 manacor kernel: NVRM: ioctl(0x29, 0x6f933cd0, 0x10)
+Sep 23 16:26:31 manacor kernel: NVRM: nvidia_close on GPU with minor number 0
+Sep 23 16:26:31 manacor kernel: NVRM: ioctl(0x29, 0x6f933cd0, 0x10)
+Sep 23 16:26:31 manacor kernel: NVRM: nvidia_close on GPU with minor number 0
+Sep 23 16:26:31 manacor kernel: NVRM: ioctl(0x2a, 0x6f933270, 0x20)
+Sep 23 16:26:31 manacor kernel: NVRM: nvidia_close on GPU with minor number 0
+Sep 23 16:26:31 manacor kernel: NVRM: ioctl(0x29, 0x6f933cf0, 0x10)
+Sep 23 16:26:31 manacor kernel: NVRM: nvidia_close on GPU with minor number 255
+Sep 23 16:26:31 manacor kernel: NVRM: nvidia_ctl_close
+Sep 23 16:26:31 manacor kernel: NVRM: ioctl(0x2a, 0x73a4ede0, 0x20)
+Sep 23 16:26:31 manacor kernel: NVRM: ioctl(0x2b, 0x73a4ee68, 0x30)
+Sep 23 16:26:31 manacor kernel: NVRM: ioctl(0x2b, 0x73a4ee68, 0x30)
+Sep 23 16:26:31 manacor kernel: NVRM: nvidia_open...
+Sep 23 16:26:31 manacor kernel: NVRM: GPU 0000:2d:00.0: Opening GPU with minor number 0
+Sep 23 16:26:31 manacor kernel: NVRM: ioctl(0xc9, 0x73a4ee00, 0x4)
+Sep 23 16:26:31 manacor kernel: NVRM: ioctl(0x4e, 0x73a4edc0, 0x38)
+Sep 23 16:26:31 manacor kernel: NVRM: VM: nvidia_mmap_helper:559: 0x7f040ee00000 - 0x7f0412e00000, 0x04000000 bytes @ 0x0000000000000000, 0x0000000000000000, 0x0000000065955819
+Sep 23 16:26:31 manacor kernel: NVRM: nvidia_open...
+Sep 23 16:26:31 manacor kernel: NVRM: GPU 0000:2d:00.0: Opening GPU with minor number 0
+Sep 23 16:26:31 manacor kernel: NVRM: ioctl(0xc9, 0x73a4ee00, 0x4)
+Sep 23 16:26:31 manacor kernel: NVRM: ioctl(0x4e, 0x73a4edc0, 0x38)
+Sep 23 16:26:31 manacor kernel: NVRM: VM: nvidia_mmap_helper:559: 0x7f040de00000 - 0x7f040ee00000, 0x01000000 bytes @ 0x0000000000000000, 0x0000000000000000, 0x000000005322d279
+Sep 23 16:26:31 manacor kernel: NVRM: ioctl(0x27, 0x73a4efe0, 0x38)
+Sep 23 16:26:31 manacor kernel: NVRM: VM: nv_register_user_pages: 0x8
+Sep 23 16:26:31 manacor kernel: NVRM: VM: nv_register_user_pages:3485: 0x00000000d88ad730, 8 page(s), count = 0, page_table = 0x00000000c5d90337
+Sep 23 16:26:31 manacor kernel: NVRM: ioctl(0x2a, 0x73a4ecd0, 0x20)
+Sep 23 16:26:31 manacor kernel: NVRM: ioctl(0x27, 0x73a4f018, 0x38)
+Sep 23 16:26:31 manacor kernel: NVRM: VM: nv_register_user_pages: 0x1
+Sep 23 16:26:31 manacor kernel: NVRM: VM: nv_register_user_pages:3485: 0x00000000a09cc9de, 1 page(s), count = 0, page_table = 0x00000000ddac6de6
+Sep 23 16:26:31 manacor kernel: NVRM: ioctl(0x2a, 0x73a4ecd0, 0x20)
+Sep 23 16:26:31 manacor kernel: NVRM: ioctl(0x2b, 0x73a4eea8, 0x30)
+Sep 23 16:26:31 manacor kernel: NVRM: ioctl(0x2a, 0x73a4ec70, 0x20)
+Sep 23 16:26:31 manacor kernel: NVRM: ioctl(0x2b, 0x73a4ed50, 0x30)
+Sep 23 16:26:31 manacor kernel: NVRM: VM: nv_alloc_pages: 2 pages, nodeid -1
+Sep 23 16:26:31 manacor kernel: NVRM: VM:    contig 1  cache_type 0
+Sep 23 16:26:31 manacor kernel: NVRM: VM: nv_alloc_contig_pages: 2 pages
+Sep 23 16:26:31 manacor kernel: NVRM: VM: nv_alloc_system_pages: 2 order0 pages, 1 order
+Sep 23 16:26:31 manacor kernel: NVRM: VM: nv_alloc_pages:3969: 0x000000008f58d450, 2 page(s), count = 1, page_table = 0x000000009d7214ff
+Sep 23 16:26:31 manacor kernel: NVRM: VM: nv_alloc_pages: 2 pages, nodeid -1
+Sep 23 16:26:31 manacor kernel: NVRM: VM:    contig 1  cache_type 0
+Sep 23 16:26:31 manacor kernel: NVRM: VM: nv_alloc_contig_pages: 2 pages
+Sep 23 16:26:31 manacor kernel: NVRM: VM: nv_alloc_system_pages: 2 order0 pages, 1 order
+Sep 23 16:26:31 manacor kernel: NVRM: VM: nv_alloc_pages:3969: 0x000000001969b768, 2 page(s), count = 1, page_table = 0x0000000025397d63
+Sep 23 16:26:31 manacor kernel: NVRM: ioctl(0x2b, 0x73a4ed50, 0x30)
+Sep 23 16:26:31 manacor kernel: NVRM: ioctl(0x2a, 0x73a4ec70, 0x20)
+Sep 23 16:26:31 manacor kernel: NVRM: ioctl(0x2a, 0x73a4ec70, 0x20)
+Sep 23 16:26:31 manacor kernel: NVRM: ioctl(0x2b, 0x73a4ed50, 0x30)
+Sep 23 16:26:31 manacor kernel: NVRM: nvidia_open...
+Sep 23 16:26:31 manacor kernel: NVRM: GPU 0000:2d:00.0: Opening GPU with minor number 0
+Sep 23 16:26:31 manacor kernel: NVRM: ioctl(0xc9, 0x73a4ec90, 0x4)
+Sep 23 16:26:31 manacor kernel: NVRM: ioctl(0x4e, 0x73a4ec50, 0x38)
+Sep 23 16:26:31 manacor kernel: NVRM: VM: nvidia_mmap_helper:559: 0x7f04130c4000 - 0x7f04130d4000, 0x00010000 bytes @ 0x0000000000000000, 0x0000000000000000, 0x0000000069c15c92
+Sep 23 16:26:32 manacor kernel: NVRM: ioctl(0x4a, 0xbb7e0a20, 0xb8)
+Sep 23 16:26:32 manacor kernel: NVRM: ioctl(0x57, 0xbb7e0820, 0x40)
+Sep 23 16:26:32 manacor kernel: NVRM: ioctl(0x4a, 0xbb7df250, 0xb8)
+Sep 23 16:26:32 manacor kernel: NVRM: ioctl(0x57, 0xbb7df050, 0x40)
+Sep 23 16:26:32 manacor kernel: NVRM: ioctl(0x4a, 0xbb7df2e0, 0xb8)
+Sep 23 16:26:32 manacor kernel: NVRM: ioctl(0x57, 0xbb7df0e0, 0x40)
+Sep 23 16:26:32 manacor kernel: NVRM: ioctl(0x4a, 0xbb7df2e0, 0xb8)
+Sep 23 16:26:32 manacor kernel: NVRM: ioctl(0x57, 0xbb7df0e0, 0x40)
+Sep 23 16:26:32 manacor kernel: NVRM: ioctl(0x4a, 0xbb7df2e0, 0xb8)
+Sep 23 16:26:32 manacor kernel: NVRM: ioctl(0x57, 0xbb7df0e0, 0x40)
+Sep 23 16:26:32 manacor kernel: NVRM: ioctl(0x4a, 0xbb7df2e0, 0xb8)
+Sep 23 16:26:32 manacor kernel: NVRM: ioctl(0x57, 0xbb7df0e0, 0x40)
+Sep 23 16:26:32 manacor kernel: NVRM: ioctl(0x4a, 0xbb7df130, 0xb8)
+Sep 23 16:26:32 manacor kernel: NVRM: ioctl(0x57, 0xbb7def30, 0x40)
+Sep 23 16:26:32 manacor kernel: NVRM: ioctl(0x4a, 0xbb7df370, 0xb8)
+Sep 23 16:26:32 manacor kernel: NVRM: ioctl(0x57, 0xbb7df170, 0x40)
+Sep 23 16:26:32 manacor kernel: NVRM: ioctl(0x4a, 0xbb7df200, 0xb8)
+Sep 23 16:26:32 manacor kernel: NVRM: ioctl(0x4a, 0xbb7df030, 0xb8)
+Sep 23 16:26:32 manacor kernel: NVRM: ioctl(0x57, 0xbb7def20, 0x40)
+Sep 23 16:26:32 manacor kernel: NVRM: ioctl(0x58, 0xa1f247a0, 0x30)
+Sep 23 16:26:32 manacor kernel: NVRM: ioctl(0x29, 0xa1f24790, 0x10)
+Sep 23 16:26:32 manacor kernel: NVRM: ioctl(0x4a, 0xa1f23ee0, 0xb8)
+Sep 23 16:26:32 manacor kernel: NVRM: ioctl(0x4a, 0xa1f23d10, 0xb8)
+Sep 23 16:26:32 manacor kernel: NVRM: ioctl(0x57, 0xa1f23c00, 0x40)
+Sep 23 16:26:32 manacor kernel: NVRM: ioctl(0x58, 0xa1f24250, 0x30)
+Sep 23 16:26:32 manacor kernel: NVRM: ioctl(0x29, 0xa1f24290, 0x10)
+Sep 23 16:26:32 manacor kernel: NVRM: ioctl(0x29, 0xa1f242b0, 0x10)
+Sep 23 16:26:32 manacor kernel: NVRM: ioctl(0x4a, 0xa1f23c80, 0xb8)
+Sep 23 16:26:32 manacor kernel: NVRM: ioctl(0x57, 0xa1f23a80, 0x40)
+Sep 23 16:26:33 manacor kernel: NVRM: ioctl(0x58, 0xbb7e1e90, 0x30)
+Sep 23 16:26:33 manacor kernel: NVRM: ioctl(0x29, 0xbb7e1e80, 0x10)
+Sep 23 16:26:33 manacor kernel: NVRM: ioctl(0x58, 0xbb7e1e90, 0x30)
+Sep 23 16:26:33 manacor kernel: NVRM: ioctl(0x29, 0xbb7e1e80, 0x10)
+Sep 23 16:26:33 manacor kernel: NVRM: ioctl(0x58, 0xbb7e1e90, 0x30)
+Sep 23 16:26:33 manacor kernel: NVRM: ioctl(0x29, 0xbb7e1e80, 0x10)
+Sep 23 16:26:33 manacor kernel: NVRM: ioctl(0x58, 0xbb7e1e90, 0x30)
+Sep 23 16:26:33 manacor kernel: NVRM: ioctl(0x29, 0xbb7e1e80, 0x10)
+Sep 23 16:26:33 manacor kernel: NVRM: ioctl(0x58, 0xbb7e1e90, 0x30)
+Sep 23 16:26:33 manacor kernel: NVRM: ioctl(0x29, 0xbb7e1e80, 0x10)
+Sep 23 16:26:33 manacor kernel: NVRM: ioctl(0x2a, 0x9f6672f8, 0x20)
+Sep 23 16:26:33 manacor kernel: NVRM: ioctl(0x2a, 0x9f6672f8, 0x20)
+Sep 23 16:26:33 manacor kernel: NVRM: ioctl(0x2a, 0x9f6672f8, 0x20)
+Sep 23 16:26:33 manacor kernel: NVRM: ioctl(0x2a, 0x9f6672f8, 0x20)
+Sep 23 16:26:33 manacor kernel: NVRM: ioctl(0x2a, 0x9f667208, 0x20)
+Sep 23 16:26:33 manacor kernel: NVRM: ioctl(0x2a, 0x9f667268, 0x20)
+Sep 23 16:26:33 manacor kernel: NVRM: ioctl(0x2a, 0x9f667358, 0x20)
+Sep 23 16:26:33 manacor kernel: NVRM: ioctl(0x2a, 0x9f6672f8, 0x20)
+Sep 23 16:26:33 manacor kernel: NVRM: ioctl(0x2a, 0x9f667208, 0x20)
+Sep 23 16:26:34 manacor kernel: NVRM: ioctl(0xce, 0x73a4f020, 0x10)
+Sep 23 16:26:34 manacor kernel: NVRM: ioctl(0x2b, 0x73a4ef58, 0x30)
+Sep 23 16:26:34 manacor kernel: NVRM: ioctl(0x2a, 0x73a4eed0, 0x20)
+Sep 23 16:26:34 manacor kernel: NVRM: ioctl(0x2a, 0x9f6672f8, 0x20)
+Sep 23 16:26:34 manacor kernel: NVRM: ioctl(0x2a, 0x9f6672f8, 0x20)
+Sep 23 16:26:34 manacor kernel: NVRM: ioctl(0x2a, 0x9f6672f8, 0x20)
+Sep 23 16:26:34 manacor kernel: NVRM: ioctl(0x58, 0xbb7e1fc0, 0x30)
+Sep 23 16:26:34 manacor kernel: NVRM: ioctl(0x29, 0xbb7e2000, 0x10)
+Sep 23 16:26:34 manacor kernel: NVRM: ioctl(0x29, 0xbb7e2020, 0x10)
+Sep 23 16:26:34 manacor kernel: NVRM: ioctl(0x58, 0xbb7e20a0, 0x30)
+Sep 23 16:26:34 manacor kernel: NVRM: ioctl(0x29, 0xbb7e2090, 0x10)
+Sep 23 16:26:37 manacor kernel: NVRM: ioctl(0x4a, 0xbb7df250, 0xb8)
+Sep 23 16:26:37 manacor kernel: NVRM: ioctl(0x57, 0xbb7df050, 0x40)
+Sep 23 16:26:37 manacor kernel: NVRM: ioctl(0x4a, 0xbb7df2e0, 0xb8)
+Sep 23 16:26:37 manacor kernel: NVRM: ioctl(0x57, 0xbb7df0e0, 0x40)
+Sep 23 16:26:37 manacor kernel: NVRM: ioctl(0x4a, 0xbb7df2e0, 0xb8)
+Sep 23 16:26:37 manacor kernel: NVRM: ioctl(0x57, 0xbb7df0e0, 0x40)
+Sep 23 16:26:37 manacor kernel: NVRM: ioctl(0x4a, 0xbb7df130, 0xb8)
+Sep 23 16:26:37 manacor kernel: NVRM: ioctl(0x57, 0xbb7def30, 0x40)
+Sep 23 16:26:37 manacor kernel: NVRM: ioctl(0x4a, 0xbb7df370, 0xb8)
+Sep 23 16:26:37 manacor kernel: NVRM: ioctl(0x57, 0xbb7df170, 0x40)
+Sep 23 16:26:37 manacor kernel: NVRM: ioctl(0x4a, 0xbb7df200, 0xb8)
+Sep 23 16:26:37 manacor kernel: NVRM: ioctl(0x4a, 0xbb7df030, 0xb8)
+Sep 23 16:26:37 manacor kernel: NVRM: ioctl(0x57, 0xbb7def20, 0x40)
+Sep 23 16:26:37 manacor kernel: NVRM: ioctl(0x4a, 0x80c351d0, 0xb8)
+Sep 23 16:26:37 manacor kernel: NVRM: ioctl(0x4a, 0x80c35010, 0xb8)
+Sep 23 16:26:37 manacor kernel: NVRM: ioctl(0x57, 0x80c34f10, 0x40)
+Sep 23 16:26:37 manacor kernel: NVRM: ioctl(0x4a, 0x80c34ff0, 0xb8)
+Sep 23 16:26:37 manacor kernel: NVRM: ioctl(0x57, 0x80c34e00, 0x40)
+Sep 23 16:26:37 manacor kernel: NVRM: ioctl(0x4a, 0x80c33750, 0xb8)
+Sep 23 16:26:37 manacor kernel: NVRM: ioctl(0x4a, 0x80c33590, 0xb8)
+Sep 23 16:26:37 manacor kernel: NVRM: ioctl(0x57, 0x80c33490, 0x40)
+Sep 23 16:26:37 manacor kernel: NVRM: ioctl(0x4a, 0x80c336b0, 0xb8)
+Sep 23 16:26:37 manacor kernel: NVRM: ioctl(0x57, 0x80c334c0, 0x40)
+Sep 23 16:26:37 manacor kernel: NVRM: ioctl(0x4a, 0x80c33730, 0xb8)
+Sep 23 16:26:37 manacor kernel: NVRM: ioctl(0x57, 0x80c33540, 0x40)
+Sep 23 16:26:37 manacor kernel: NVRM: ioctl(0x4a, 0x80c33710, 0xb8)
+Sep 23 16:26:37 manacor kernel: NVRM: ioctl(0x57, 0x80c33520, 0x40)
+Sep 23 16:26:37 manacor kernel: NVRM: ioctl(0x4a, 0x80c335f0, 0xb8)
+Sep 23 16:26:37 manacor kernel: NVRM: ioctl(0x4a, 0x80c33430, 0xb8)
+Sep 23 16:26:37 manacor kernel: NVRM: ioctl(0x57, 0x80c33330, 0x40)
+Sep 23 16:26:38 manacor kernel: NVRM: ioctl(0x58, 0xbb7e1e90, 0x30)
+Sep 23 16:26:38 manacor kernel: NVRM: ioctl(0x29, 0xbb7e1e80, 0x10)
+Sep 23 16:26:38 manacor kernel: NVRM: ioctl(0x58, 0xbb7e1e90, 0x30)
+Sep 23 16:26:38 manacor kernel: NVRM: ioctl(0x29, 0xbb7e1e80, 0x10)
+Sep 23 16:26:38 manacor kernel: NVRM: ioctl(0x58, 0xbb7e1e90, 0x30)
+Sep 23 16:26:38 manacor kernel: NVRM: ioctl(0x29, 0xbb7e1e80, 0x10)
+Sep 23 16:26:38 manacor kernel: NVRM: ioctl(0x58, 0x80c36390, 0x30)
+Sep 23 16:26:38 manacor kernel: NVRM: ioctl(0x29, 0x80c36390, 0x10)
+Sep 23 16:26:38 manacor kernel: NVRM: ioctl(0x58, 0x80c361a0, 0x30)
+Sep 23 16:26:38 manacor kernel: NVRM: ioctl(0x29, 0x80c361a0, 0x10)
+Sep 23 16:26:38 manacor kernel: NVRM: ioctl(0x4a, 0x80c336b0, 0xb8)
+Sep 23 16:26:38 manacor kernel: NVRM: ioctl(0x57, 0x80c334c0, 0x40)
+Sep 23 16:26:38 manacor kernel: NVRM: ioctl(0x4a, 0x80c33730, 0xb8)
+Sep 23 16:26:38 manacor kernel: NVRM: ioctl(0x57, 0x80c33540, 0x40)
+Sep 23 16:26:38 manacor kernel: NVRM: ioctl(0x4a, 0x80c33710, 0xb8)
+Sep 23 16:26:38 manacor kernel: NVRM: ioctl(0x57, 0x80c33520, 0x40)
+Sep 23 16:26:38 manacor kernel: NVRM: ioctl(0x4a, 0x80c335f0, 0xb8)
+Sep 23 16:26:38 manacor kernel: NVRM: ioctl(0x4a, 0x80c33430, 0xb8)
+Sep 23 16:26:38 manacor kernel: NVRM: ioctl(0x57, 0x80c33330, 0x40)
+Sep 23 16:26:38 manacor kernel: NVRM: ioctl(0x58, 0x80c35bb0, 0x30)
+Sep 23 16:26:38 manacor kernel: NVRM: ioctl(0x29, 0x80c35bb0, 0x10)
+Sep 23 16:26:38 manacor kernel: NVRM: ioctl(0x4a, 0x80c336b0, 0xb8)
+Sep 23 16:26:38 manacor kernel: NVRM: ioctl(0x57, 0x80c334c0, 0x40)
+Sep 23 16:26:38 manacor kernel: NVRM: ioctl(0x4a, 0x80c33730, 0xb8)
+Sep 23 16:26:38 manacor kernel: NVRM: ioctl(0x57, 0x80c33540, 0x40)
+Sep 23 16:26:38 manacor kernel: NVRM: ioctl(0x4a, 0x80c33710, 0xb8)
+Sep 23 16:26:38 manacor kernel: NVRM: ioctl(0x57, 0x80c33520, 0x40)
+Sep 23 16:26:38 manacor kernel: NVRM: ioctl(0x4a, 0x80c335f0, 0xb8)
+Sep 23 16:26:38 manacor kernel: NVRM: ioctl(0x4a, 0x80c33430, 0xb8)
+Sep 23 16:26:38 manacor kernel: NVRM: ioctl(0x57, 0x80c33330, 0x40)
+Sep 23 16:26:38 manacor kernel: NVRM: ioctl(0x4a, 0x80c34ff0, 0xb8)
+Sep 23 16:26:38 manacor kernel: NVRM: ioctl(0x57, 0x80c34e00, 0x40)
+Sep 23 16:26:38 manacor kernel: NVRM: ioctl(0x4a, 0x80c34ff0, 0xb8)
+Sep 23 16:26:38 manacor kernel: NVRM: ioctl(0x57, 0x80c34e00, 0x40)
+Sep 23 16:26:38 manacor kernel: NVRM: ioctl(0x4a, 0x80c336b0, 0xb8)
+Sep 23 16:26:38 manacor kernel: NVRM: ioctl(0x57, 0x80c334c0, 0x40)
+Sep 23 16:26:38 manacor kernel: NVRM: ioctl(0x4a, 0x80c33730, 0xb8)
+Sep 23 16:26:38 manacor kernel: NVRM: ioctl(0x57, 0x80c33540, 0x40)
+Sep 23 16:26:38 manacor kernel: NVRM: ioctl(0x4a, 0x80c33710, 0xb8)
+Sep 23 16:26:38 manacor kernel: NVRM: ioctl(0x57, 0x80c33520, 0x40)
+Sep 23 16:26:38 manacor kernel: NVRM: ioctl(0x4a, 0x80c335f0, 0xb8)
+Sep 23 16:26:38 manacor kernel: NVRM: ioctl(0x4a, 0x80c33430, 0xb8)
+Sep 23 16:26:38 manacor kernel: NVRM: ioctl(0x57, 0x80c33330, 0x40)
+Sep 23 16:26:38 manacor kernel: NVRM: ioctl(0x4a, 0x80c34ff0, 0xb8)
+Sep 23 16:26:38 manacor kernel: NVRM: ioctl(0x57, 0x80c34e00, 0x40)
+Sep 23 16:26:38 manacor kernel: NVRM: ioctl(0x4a, 0x80c34ff0, 0xb8)
+Sep 23 16:26:38 manacor kernel: NVRM: ioctl(0x57, 0x80c34e00, 0x40)
+Sep 23 16:26:38 manacor kernel: NVRM: ioctl(0x4a, 0x80c34ff0, 0xb8)
+Sep 23 16:26:38 manacor kernel: NVRM: ioctl(0x57, 0x80c34e00, 0x40)
+Sep 23 16:26:38 manacor kernel: NVRM: ioctl(0x4a, 0x80c34ff0, 0xb8)
+Sep 23 16:26:38 manacor kernel: NVRM: ioctl(0x57, 0x80c34e00, 0x40)
+Sep 23 16:26:38 manacor kernel: NVRM: ioctl(0x4a, 0x80c34ff0, 0xb8)
+Sep 23 16:26:38 manacor kernel: NVRM: ioctl(0x57, 0x80c34e00, 0x40)
+Sep 23 16:26:38 manacor kernel: NVRM: ioctl(0x4a, 0x80c34ff0, 0xb8)
+Sep 23 16:26:38 manacor kernel: NVRM: ioctl(0x57, 0x80c34e00, 0x40)
+Sep 23 16:26:38 manacor kernel: NVRM: ioctl(0x4a, 0x80c33780, 0xb8)
+Sep 23 16:26:38 manacor kernel: NVRM: ioctl(0x57, 0x80c33590, 0x40)
+Sep 23 16:26:38 manacor kernel: NVRM: ioctl(0x4a, 0x80c33780, 0xb8)
+Sep 23 16:26:38 manacor kernel: NVRM: ioctl(0x57, 0x80c33590, 0x40)
+Sep 23 16:26:39 manacor kernel: NVRM: ioctl(0x2b, 0x73a4ec40, 0x30)
+Sep 23 16:26:39 manacor kernel: NVRM: ioctl(0x2a, 0x73a4eb50, 0x20)
+Sep 23 16:26:39 manacor kernel: NVRM: ioctl(0x2b, 0x73a4ec40, 0x30)
+Sep 23 16:26:39 manacor kernel: NVRM: VM: nv_alloc_pages: 2 pages, nodeid -1
+Sep 23 16:26:39 manacor kernel: NVRM: VM:    contig 1  cache_type 0
+Sep 23 16:26:39 manacor kernel: NVRM: VM: nv_alloc_contig_pages: 2 pages
+Sep 23 16:26:39 manacor kernel: NVRM: VM: nv_alloc_system_pages: 2 order0 pages, 1 order
+Sep 23 16:26:39 manacor kernel: NVRM: VM: nv_alloc_pages:3969: 0x0000000099e4afb7, 2 page(s), count = 1, page_table = 0x00000000553ccc41
+Sep 23 16:26:39 manacor kernel: NVRM: VM: nv_alloc_pages: 2 pages, nodeid -1
+Sep 23 16:26:39 manacor kernel: NVRM: VM:    contig 1  cache_type 0
+Sep 23 16:26:39 manacor kernel: NVRM: VM: nv_alloc_contig_pages: 2 pages
+Sep 23 16:26:39 manacor kernel: NVRM: VM: nv_alloc_system_pages: 2 order0 pages, 1 order
+Sep 23 16:26:39 manacor kernel: NVRM: VM: nv_alloc_pages:3969: 0x000000001ce4cf0a, 2 page(s), count = 1, page_table = 0x000000006befff6d
+Sep 23 16:26:39 manacor kernel: NVRM: ioctl(0x2b, 0x73a4ec40, 0x30)
+Sep 23 16:26:39 manacor kernel: NVRM: ioctl(0x2a, 0x73a4eb50, 0x20)
+Sep 23 16:26:39 manacor kernel: NVRM: VM: nvidia_vma_release:101: 0x7f040ee00000 - 0x7f0412e00000, 0x04000000 bytes @ 0x0000000000000000, 0x0000000000000000, 0x0000000065955819
+Sep 23 16:26:39 manacor kernel: NVRM: nvidia_close on GPU with minor number 0
+Sep 23 16:26:39 manacor kernel: NVRM: VM: nvidia_vma_release:101: 0x7f040de00000 - 0x7f040ee00000, 0x01000000 bytes @ 0x0000000000000000, 0x0000000000000000, 0x000000005322d279
+Sep 23 16:26:39 manacor kernel: NVRM: nvidia_close on GPU with minor number 0
+Sep 23 16:26:39 manacor kernel: NVRM: VM: nvidia_vma_release:101: 0x7f04130c4000 - 0x7f04130d4000, 0x00010000 bytes @ 0x0000000000000000, 0x0000000000000000, 0x0000000069c15c92
+Sep 23 16:26:39 manacor kernel: NVRM: nvidia_close on GPU with minor number 0
+Sep 23 16:26:39 manacor kernel: NVRM: ioctl(0x29, 0x73a4eff0, 0x10)
+Sep 23 16:26:39 manacor kernel: NVRM: ioctl(0x29, 0x73a4eff0, 0x10)
+Sep 23 16:26:39 manacor kernel: NVRM: VM: nv_free_pages: 0x2
+Sep 23 16:26:39 manacor kernel: NVRM: VM: nv_free_pages:3992: 0x0000000099e4afb7, 2 page(s), count = 1, page_table = 0x00000000553ccc41
+Sep 23 16:26:39 manacor kernel: NVRM: VM: nv_free_contig_pages: 2 pages
+Sep 23 16:26:39 manacor kernel: NVRM: VM: nv_free_system_pages: 2/2 order0 pages
+Sep 23 16:26:39 manacor kernel: NVRM: VM: nv_free_pages: 0x2
+Sep 23 16:26:39 manacor kernel: NVRM: VM: nv_free_pages:3992: 0x000000001ce4cf0a, 2 page(s), count = 1, page_table = 0x000000006befff6d
+Sep 23 16:26:39 manacor kernel: NVRM: VM: nv_free_contig_pages: 2 pages
+Sep 23 16:26:39 manacor kernel: NVRM: VM: nv_free_system_pages: 2/2 order0 pages
+Sep 23 16:26:39 manacor kernel: NVRM: ioctl(0x29, 0x73a4eff0, 0x10)
+Sep 23 16:26:39 manacor kernel: NVRM: ioctl(0x29, 0x73a4eff0, 0x10)
+Sep 23 16:26:39 manacor kernel: NVRM: ioctl(0x29, 0x73a4eff0, 0x10)
+Sep 23 16:26:39 manacor kernel: NVRM: ioctl(0x29, 0x73a4eff0, 0x10)
+Sep 23 16:26:39 manacor kernel: NVRM: ioctl(0x29, 0x73a4eff0, 0x10)
+Sep 23 16:26:39 manacor kernel: NVRM: VM: nv_free_pages: 0x2
+Sep 23 16:26:39 manacor kernel: NVRM: VM: nv_free_pages:3992: 0x000000008f58d450, 2 page(s), count = 1, page_table = 0x000000009d7214ff
+Sep 23 16:26:39 manacor kernel: NVRM: VM: nv_free_contig_pages: 2 pages
+Sep 23 16:26:39 manacor kernel: NVRM: VM: nv_free_system_pages: 2/2 order0 pages
+Sep 23 16:26:39 manacor kernel: NVRM: VM: nv_free_pages: 0x2
+Sep 23 16:26:39 manacor kernel: NVRM: VM: nv_free_pages:3992: 0x000000001969b768, 2 page(s), count = 1, page_table = 0x0000000025397d63
+Sep 23 16:26:39 manacor kernel: NVRM: VM: nv_free_contig_pages: 2 pages
+Sep 23 16:26:39 manacor kernel: NVRM: VM: nv_free_system_pages: 2/2 order0 pages
+Sep 23 16:26:39 manacor kernel: NVRM: ioctl(0x29, 0x73a4eff0, 0x10)
+Sep 23 16:26:39 manacor kernel: NVRM: ioctl(0x29, 0x73a4eff0, 0x10)
+Sep 23 16:26:39 manacor kernel: NVRM: VM: nv_unregister_user_pages: 0x1
+Sep 23 16:26:39 manacor kernel: NVRM: VM: nv_unregister_user_pages:3501: 0x00000000a09cc9de, 1 page(s), count = 0, page_table = 0x00000000ddac6de6
+Sep 23 16:26:39 manacor kernel: NVRM: ioctl(0x29, 0x73a4eff0, 0x10)
+Sep 23 16:26:39 manacor kernel: NVRM: VM: nv_unregister_user_pages: 0x8
+Sep 23 16:26:39 manacor kernel: NVRM: VM: nv_unregister_user_pages:3501: 0x00000000d88ad730, 8 page(s), count = 0, page_table = 0x00000000c5d90337
+Sep 23 16:26:39 manacor kernel: NVRM: ioctl(0x29, 0x73a4eff0, 0x10)
+Sep 23 16:26:39 manacor kernel: NVRM: ioctl(0x29, 0x73a4eff0, 0x10)
+Sep 23 16:26:39 manacor kernel: NVRM: ioctl(0x29, 0x73a4eff0, 0x10)
+Sep 23 16:26:39 manacor kernel: NVRM: ioctl(0x29, 0x73a4eff0, 0x10)
+Sep 23 16:26:39 manacor kernel: NVRM: nvidia_close on GPU with minor number 0
+Sep 23 16:26:39 manacor kernel: NVRM: nvidia_close on GPU with minor number 255
+Sep 23 16:26:39 manacor kernel: NVRM: nvidia_ctl_close
+Sep 23 16:26:39 manacor kernel: NVRM: nvidia_open...
+Sep 23 16:26:39 manacor kernel: NVRM: nvidia_ctl_open
+Sep 23 16:26:39 manacor kernel: NVRM: ioctl(0xd2, 0xc5874590, 0x48)
+Sep 23 16:26:39 manacor kernel: NVRM: ioctl(0xd6, 0xc58746a0, 0x8)
+Sep 23 16:26:39 manacor kernel: NVRM: ioctl(0xc8, 0xeb8ede40, 0x900)
+Sep 23 16:26:39 manacor kernel: NVRM: ioctl(0x2b, 0xc5874730, 0x30)
+Sep 23 16:26:39 manacor kernel: NVRM: ioctl(0x2a, 0xc5873d90, 0x20)
+Sep 23 16:26:39 manacor kernel: NVRM: ioctl(0x2a, 0xc5873d90, 0x20)
+Sep 23 16:26:39 manacor kernel: NVRM: ioctl(0x2a, 0xc5873d90, 0x20)
+Sep 23 16:26:39 manacor kernel: NVRM: ioctl(0x2a, 0xc5873d90, 0x20)
+Sep 23 16:26:39 manacor kernel: NVRM: nvidia_open...
+Sep 23 16:26:39 manacor kernel: NVRM: GPU 0000:2d:00.0: Opening GPU with minor number 0
+Sep 23 16:26:39 manacor kernel: NVRM: ioctl(0xda, 0xc5873d90, 0x8)
+Sep 23 16:26:39 manacor kernel: NVRM: ioctl(0x2a, 0xc58718a0, 0x20)
+Sep 23 16:26:39 manacor kernel: NVRM: ioctl(0x2b, 0xc5874a70, 0x30)
+Sep 23 16:26:39 manacor kernel: NVRM: ioctl(0x2a, 0xc5873da0, 0x20)
+Sep 23 16:26:39 manacor kernel: NVRM: ioctl(0x2a, 0xc5873bb0, 0x20)
+Sep 23 16:26:39 manacor kernel: NVRM: ioctl(0x2a, 0xc5873ae0, 0x20)
+Sep 23 16:26:39 manacor kernel: NVRM: ioctl(0x2a, 0xc5873ae0, 0x20)
+Sep 23 16:26:39 manacor kernel: NVRM: nvidia_open...
+Sep 23 16:26:39 manacor kernel: NVRM: GPU 0000:2d:00.0: Opening GPU with minor number 0
+Sep 23 16:26:39 manacor kernel: NVRM: ioctl(0xc9, 0xc58745f0, 0x4)
+Sep 23 16:26:39 manacor kernel: NVRM: ioctl(0xd7, 0xc5874380, 0x230)
+Sep 23 16:26:39 manacor kernel: NVRM: ioctl(0x2a, 0xc5873b60, 0x20)
+Sep 23 16:26:39 manacor kernel: NVRM: ioctl(0x2b, 0xc58746a0, 0x30)
+Sep 23 16:26:39 manacor kernel: NVRM: ioctl(0x2a, 0xc5873d00, 0x20)
+Sep 23 16:26:39 manacor kernel: NVRM: ioctl(0x2a, 0xc5873ab0, 0x20)
+Sep 23 16:26:39 manacor kernel: NVRM: ioctl(0x2a, 0xc58739b0, 0x20)
+Sep 23 16:26:39 manacor kernel: NVRM: ioctl(0x2a, 0xc58739b0, 0x20)
+Sep 23 16:26:39 manacor kernel: NVRM: nvidia_open...
+Sep 23 16:26:39 manacor kernel: NVRM: GPU 0000:2d:00.0: Opening GPU with minor number 0
+Sep 23 16:26:39 manacor kernel: NVRM: ioctl(0xc9, 0xc58744c0, 0x4)
+Sep 23 16:26:39 manacor kernel: NVRM: ioctl(0x2b, 0xc5874570, 0x30)
+Sep 23 16:26:39 manacor kernel: NVRM: ioctl(0x2a, 0xc5873b90, 0x20)
+Sep 23 16:26:39 manacor kernel: NVRM: ioctl(0x2a, 0xc5873b90, 0x20)
+Sep 23 16:26:39 manacor kernel: NVRM: ioctl(0x2a, 0xc5873ce0, 0x20)
+Sep 23 16:26:39 manacor kernel: NVRM: ioctl(0x2a, 0xc5873bd0, 0x20)
+Sep 23 16:26:39 manacor kernel: NVRM: ioctl(0x2a, 0xc5873bb0, 0x20)
+Sep 23 16:26:39 manacor kernel: NVRM: ioctl(0x2a, 0xc5873a00, 0x20)
+Sep 23 16:26:39 manacor kernel: NVRM: ioctl(0x2a, 0xc5873a00, 0x20)
+Sep 23 16:26:39 manacor kernel: NVRM: ioctl(0x2a, 0xc5873a00, 0x20)
+Sep 23 16:26:39 manacor kernel: NVRM: ioctl(0x2b, 0xc5873b70, 0x30)
+Sep 23 16:26:39 manacor kernel: NVRM: ioctl(0x2a, 0xc5873190, 0x20)
+Sep 23 16:26:39 manacor kernel: NVRM: ioctl(0x2a, 0xc5873da0, 0x20)
+Sep 23 16:26:39 manacor kernel: NVRM: ioctl(0x2a, 0xc5873b90, 0x20)
+Sep 23 16:26:39 manacor kernel: NVRM: ioctl(0x2a, 0xc5873720, 0x20)
+Sep 23 16:26:39 manacor kernel: NVRM: ioctl(0x2a, 0xc5873710, 0x20)
+Sep 23 16:26:39 manacor kernel: NVRM: ioctl(0x2a, 0xc5873710, 0x20)
+Sep 23 16:26:39 manacor kernel: NVRM: ioctl(0x29, 0xc5874800, 0x10)
+Sep 23 16:26:39 manacor kernel: NVRM: nvidia_close on GPU with minor number 0
+Sep 23 16:26:39 manacor kernel: NVRM: ioctl(0x29, 0xc5874800, 0x10)
+Sep 23 16:26:39 manacor kernel: NVRM: nvidia_close on GPU with minor number 0
+Sep 23 16:26:39 manacor kernel: NVRM: ioctl(0x2a, 0xc5873da0, 0x20)
+Sep 23 16:26:39 manacor kernel: NVRM: nvidia_close on GPU with minor number 0
+Sep 23 16:26:39 manacor kernel: NVRM: ioctl(0x29, 0xc5874820, 0x10)
+Sep 23 16:26:39 manacor kernel: NVRM: nvidia_close on GPU with minor number 255
+Sep 23 16:26:39 manacor kernel: NVRM: nvidia_ctl_close

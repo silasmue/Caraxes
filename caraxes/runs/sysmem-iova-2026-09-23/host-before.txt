@@ -1,0 +1,39 @@
+# SPDX-License-Identifier: MIT
+# host state before sysmem-iova runs, 2026-09-23T14:29:35+02:00
+## uname
+7.2.4-arch1-2
+## /proc/cmdline
+BOOT_IMAGE=/vmlinuz-linux root=UUID=71875be3-a43d-4554-9c80-2cfd8d3d28b1 rw loglevel=3 quiet nvidia.NVreg_ResmanDebugLevel=0
+## iommu group 28
+type: DMA-FQ
+0000:2d:00.0 -> ../../../../devices/pci0000:00/0000:00:03.1/0000:2d:00.0
+0000:2d:00.1 -> ../../../../devices/pci0000:00/0000:00:03.1/0000:2d:00.1
+0000:2d:00.2 -> ../../../../devices/pci0000:00/0000:00:03.1/0000:2d:00.2
+0000:2d:00.3 -> ../../../../devices/pci0000:00/0000:00:03.1/0000:2d:00.3
+reserved_regions:
+0x00000000fee00000 0x00000000feefffff msi
+0x000000fd00000000 0x000000ffffffffff reserved
+## amd-iommu ivhd0 features
+58f77ef22294a5a:0
+## boot log: IOMMU policy, root bus windows
+Sep 22 20:09:16 archlinux kernel: AMD-Vi: Using global IVHD EFR:0x58f77ef22294a5a, EFR2:0x0
+Sep 22 20:09:16 archlinux kernel: pci_bus 0000:00: root bus resource [mem 0x000a0000-0x000dffff window]
+Sep 22 20:09:16 archlinux kernel: pci_bus 0000:00: root bus resource [mem 0xe0000000-0xfcffffff window]
+Sep 22 20:09:16 archlinux kernel: pci_bus 0000:00: root bus resource [mem 0x820000000-0x7fffffffff window]
+Sep 22 20:09:16 archlinux kernel: iommu: Default domain type: Translated
+Sep 22 20:09:16 archlinux kernel: iommu: DMA domain TLB invalidation policy: lazy mode
+## boot log: any 'Using N-bit DMA addresses' notice
+(none)
+## /proc/meminfo
+MemTotal:       32774360 kB
+MemAvailable:   18885532 kB
+Shmem:           3311292 kB
+## vmstat pins
+nr_foll_pin_acquired 11745
+nr_foll_pin_released 8496
+## nvidia-smi
+name, driver_version, memory.used [MiB], memory.free [MiB]
+NVIDIA GeForce RTX 2070, 610.57.04, 1286 MiB, 6486 MiB
+## THP
+[always] madvise never
+always within_size [advise] never deny force

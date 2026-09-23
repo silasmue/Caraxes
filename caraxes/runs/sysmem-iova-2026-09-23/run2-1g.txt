@@ -1,0 +1,137 @@
+# SPDX-License-Identifier: MIT
+# run2 2026-09-23T14:30:56+02:00: sudo -n target/sysmem-iova measure --go --sizes 1024 --reps 3
+privilege: uid=1000 gid=1000; caps effective=0x0 permitted=0x200000 inheritable=0x0 (CAP_SYS_ADMIN = bit 21 = 0x200000, raised only around GET_SURFACE_PHYS_ATTR)
+RM client=0xc1d000db device=0xca100001 (as uid 1000)
+control: 4 MiB descriptor 0xc1d001db: GET_SURFACE_PHYS_ATTR without CAP_SYS_ADMIN status=0x1b (0x1b = NV_ERR_INSUFFICIENT_PERMISSIONS); with it status=0x0 IOVA=0xbbc00000
+control: RM_FREE status=0x0
+STEP 1 GiB memfd MAP_SHARED buffer
+  RAM guard: MemAvailable 10744 MiB, buffer 1024 MiB, left 9720 MiB (floor 4096 MiB): ok
+  rep0: RM_ALLOC_MEMORY(0x71) handle=0xc1d001dc va=0x7f1158400000 len=0x40000000 status=0x0 in 192 ms; foll_pin acquired +262080 released +0
+  rep0: scanned 262144 pages in 5.46 s: 1 IOVA-contiguous segment(s); aperture=1 (1=SYSMEM) format=0x6 gpuCacheAttr=2 contigSegmentSize@0=0x1000
+    seg[0] buf+0x0 -> IOVA 0x40000000..0x7fffffff (1 GiB), IOVA alignment 1 GiB
+    sample buf+0x000000000: status=0x0 IOVA=0x40000000 (= base + offset) contigSegmentSize=0x1000
+    sample buf+0x004000000: status=0x0 IOVA=0x44000000 (= base + offset) contigSegmentSize=0x1000
+    sample buf+0x008000000: status=0x0 IOVA=0x48000000 (= base + offset) contigSegmentSize=0x1000
+    sample buf+0x00c000000: status=0x0 IOVA=0x4c000000 (= base + offset) contigSegmentSize=0x1000
+    sample buf+0x010000000: status=0x0 IOVA=0x50000000 (= base + offset) contigSegmentSize=0x1000
+    sample buf+0x014000000: status=0x0 IOVA=0x54000000 (= base + offset) contigSegmentSize=0x1000
+    sample buf+0x018000000: status=0x0 IOVA=0x58000000 (= base + offset) contigSegmentSize=0x1000
+    sample buf+0x01c000000: status=0x0 IOVA=0x5c000000 (= base + offset) contigSegmentSize=0x1000
+    sample buf+0x020000000: status=0x0 IOVA=0x60000000 (= base + offset) contigSegmentSize=0x1000
+    sample buf+0x024000000: status=0x0 IOVA=0x64000000 (= base + offset) contigSegmentSize=0x1000
+    sample buf+0x028000000: status=0x0 IOVA=0x68000000 (= base + offset) contigSegmentSize=0x1000
+    sample buf+0x02c000000: status=0x0 IOVA=0x6c000000 (= base + offset) contigSegmentSize=0x1000
+    sample buf+0x030000000: status=0x0 IOVA=0x70000000 (= base + offset) contigSegmentSize=0x1000
+    sample buf+0x034000000: status=0x0 IOVA=0x74000000 (= base + offset) contigSegmentSize=0x1000
+    sample buf+0x038000000: status=0x0 IOVA=0x78000000 (= base + offset) contigSegmentSize=0x1000
+    sample buf+0x03c000000: status=0x0 IOVA=0x7c000000 (= base + offset) contigSegmentSize=0x1000
+    sample buf+0x03ffff000: status=0x0 IOVA=0x7ffff000 (= base + offset) contigSegmentSize=0x1000
+    sample buf+0x03fffffff: status=0x0 IOVA=0x7fffffff (= base + offset) contigSegmentSize=0x1
+  rep0: RESULT base=0x40000000 end=0x7fffffff single-range=true base-alignment=1 GiB 2MiB-aligned=true below-4GiB=true
+  rep0: RM_FREE status=0x0; foll_pin acquired +0 released +262080 (while freeing)
+  rep0: second query after free: GET_SURFACE_PHYS_ATTR on 0xc1d001dc status=0x57 (NV_ERR_OBJECT_NOT_FOUND: descriptor gone)
+  RAM guard: MemAvailable 14199 MiB, buffer 1024 MiB, left 13175 MiB (floor 4096 MiB): ok
+  rep1: RM_ALLOC_MEMORY(0x71) handle=0xc1d001dd va=0x7f1158400000 len=0x40000000 status=0x0 in 158 ms; foll_pin acquired +262144 released +0
+  rep1: scanned 262144 pages in 4.13 s: 1 IOVA-contiguous segment(s); aperture=1 (1=SYSMEM) format=0x6 gpuCacheAttr=2 contigSegmentSize@0=0x1000
+    seg[0] buf+0x0 -> IOVA 0x40000000..0x7fffffff (1 GiB), IOVA alignment 1 GiB
+    sample buf+0x000000000: status=0x0 IOVA=0x40000000 (= base + offset) contigSegmentSize=0x1000
+    sample buf+0x004000000: status=0x0 IOVA=0x44000000 (= base + offset) contigSegmentSize=0x1000
+    sample buf+0x008000000: status=0x0 IOVA=0x48000000 (= base + offset) contigSegmentSize=0x1000
+    sample buf+0x00c000000: status=0x0 IOVA=0x4c000000 (= base + offset) contigSegmentSize=0x1000
+    sample buf+0x010000000: status=0x0 IOVA=0x50000000 (= base + offset) contigSegmentSize=0x1000
+    sample buf+0x014000000: status=0x0 IOVA=0x54000000 (= base + offset) contigSegmentSize=0x1000
+    sample buf+0x018000000: status=0x0 IOVA=0x58000000 (= base + offset) contigSegmentSize=0x1000
+    sample buf+0x01c000000: status=0x0 IOVA=0x5c000000 (= base + offset) contigSegmentSize=0x1000
+    sample buf+0x020000000: status=0x0 IOVA=0x60000000 (= base + offset) contigSegmentSize=0x1000
+    sample buf+0x024000000: status=0x0 IOVA=0x64000000 (= base + offset) contigSegmentSize=0x1000
+    sample buf+0x028000000: status=0x0 IOVA=0x68000000 (= base + offset) contigSegmentSize=0x1000
+    sample buf+0x02c000000: status=0x0 IOVA=0x6c000000 (= base + offset) contigSegmentSize=0x1000
+    sample buf+0x030000000: status=0x0 IOVA=0x70000000 (= base + offset) contigSegmentSize=0x1000
+    sample buf+0x034000000: status=0x0 IOVA=0x74000000 (= base + offset) contigSegmentSize=0x1000
+    sample buf+0x038000000: status=0x0 IOVA=0x78000000 (= base + offset) contigSegmentSize=0x1000
+    sample buf+0x03c000000: status=0x0 IOVA=0x7c000000 (= base + offset) contigSegmentSize=0x1000
+    sample buf+0x03ffff000: status=0x0 IOVA=0x7ffff000 (= base + offset) contigSegmentSize=0x1000
+    sample buf+0x03fffffff: status=0x0 IOVA=0x7fffffff (= base + offset) contigSegmentSize=0x1
+  rep1: RESULT base=0x40000000 end=0x7fffffff single-range=true base-alignment=1 GiB 2MiB-aligned=true below-4GiB=true
+  rep1: RM_FREE status=0x0; foll_pin acquired +0 released +262080 (while freeing)
+  rep1: second query after free: GET_SURFACE_PHYS_ATTR on 0xc1d001dd status=0x57 (NV_ERR_OBJECT_NOT_FOUND: descriptor gone)
+  RAM guard: MemAvailable 14594 MiB, buffer 1024 MiB, left 13570 MiB (floor 4096 MiB): ok
+  rep2: RM_ALLOC_MEMORY(0x71) handle=0xc1d001de va=0x7f1158400000 len=0x40000000 status=0x0 in 156 ms; foll_pin acquired +262080 released +0
+  rep2: scanned 262144 pages in 4.40 s: 1 IOVA-contiguous segment(s); aperture=1 (1=SYSMEM) format=0x6 gpuCacheAttr=2 contigSegmentSize@0=0x1000
+    seg[0] buf+0x0 -> IOVA 0x40000000..0x7fffffff (1 GiB), IOVA alignment 1 GiB
+    sample buf+0x000000000: status=0x0 IOVA=0x40000000 (= base + offset) contigSegmentSize=0x1000
+    sample buf+0x004000000: status=0x0 IOVA=0x44000000 (= base + offset) contigSegmentSize=0x1000
+    sample buf+0x008000000: status=0x0 IOVA=0x48000000 (= base + offset) contigSegmentSize=0x1000
+    sample buf+0x00c000000: status=0x0 IOVA=0x4c000000 (= base + offset) contigSegmentSize=0x1000
+    sample buf+0x010000000: status=0x0 IOVA=0x50000000 (= base + offset) contigSegmentSize=0x1000
+    sample buf+0x014000000: status=0x0 IOVA=0x54000000 (= base + offset) contigSegmentSize=0x1000
+    sample buf+0x018000000: status=0x0 IOVA=0x58000000 (= base + offset) contigSegmentSize=0x1000
+    sample buf+0x01c000000: status=0x0 IOVA=0x5c000000 (= base + offset) contigSegmentSize=0x1000
+    sample buf+0x020000000: status=0x0 IOVA=0x60000000 (= base + offset) contigSegmentSize=0x1000
+    sample buf+0x024000000: status=0x0 IOVA=0x64000000 (= base + offset) contigSegmentSize=0x1000
+    sample buf+0x028000000: status=0x0 IOVA=0x68000000 (= base + offset) contigSegmentSize=0x1000
+    sample buf+0x02c000000: status=0x0 IOVA=0x6c000000 (= base + offset) contigSegmentSize=0x1000
+    sample buf+0x030000000: status=0x0 IOVA=0x70000000 (= base + offset) contigSegmentSize=0x1000
+    sample buf+0x034000000: status=0x0 IOVA=0x74000000 (= base + offset) contigSegmentSize=0x1000
+    sample buf+0x038000000: status=0x0 IOVA=0x78000000 (= base + offset) contigSegmentSize=0x1000
+    sample buf+0x03c000000: status=0x0 IOVA=0x7c000000 (= base + offset) contigSegmentSize=0x1000
+    sample buf+0x03ffff000: status=0x0 IOVA=0x7ffff000 (= base + offset) contigSegmentSize=0x1000
+    sample buf+0x03fffffff: status=0x0 IOVA=0x7fffffff (= base + offset) contigSegmentSize=0x1
+  rep2: RESULT base=0x40000000 end=0x7fffffff single-range=true base-alignment=1 GiB 2MiB-aligned=true below-4GiB=true
+  rep2: RM_FREE status=0x0; foll_pin acquired +0 released +262080 (while freeing)
+  rep2: second query after free: GET_SURFACE_PHYS_ATTR on 0xc1d001de status=0x57 (NV_ERR_OBJECT_NOT_FOUND: descriptor gone)
+  RAM guard: MemAvailable 14888 MiB, buffer 1024 MiB, left 13864 MiB (floor 4096 MiB): ok
+  same-buffer-1: RM_ALLOC_MEMORY(0x71) handle=0xc1d001df va=0x7f1158400000 len=0x40000000 status=0x0 in 140 ms; foll_pin acquired +262080 released +0
+  same-buffer-1: scanned 262144 pages in 4.20 s: 1 IOVA-contiguous segment(s); aperture=1 (1=SYSMEM) format=0x6 gpuCacheAttr=2 contigSegmentSize@0=0x1000
+    seg[0] buf+0x0 -> IOVA 0x40000000..0x7fffffff (1 GiB), IOVA alignment 1 GiB
+    sample buf+0x000000000: status=0x0 IOVA=0x40000000 (= base + offset) contigSegmentSize=0x1000
+    sample buf+0x004000000: status=0x0 IOVA=0x44000000 (= base + offset) contigSegmentSize=0x1000
+    sample buf+0x008000000: status=0x0 IOVA=0x48000000 (= base + offset) contigSegmentSize=0x1000
+    sample buf+0x00c000000: status=0x0 IOVA=0x4c000000 (= base + offset) contigSegmentSize=0x1000
+    sample buf+0x010000000: status=0x0 IOVA=0x50000000 (= base + offset) contigSegmentSize=0x1000
+    sample buf+0x014000000: status=0x0 IOVA=0x54000000 (= base + offset) contigSegmentSize=0x1000
+    sample buf+0x018000000: status=0x0 IOVA=0x58000000 (= base + offset) contigSegmentSize=0x1000
+    sample buf+0x01c000000: status=0x0 IOVA=0x5c000000 (= base + offset) contigSegmentSize=0x1000
+    sample buf+0x020000000: status=0x0 IOVA=0x60000000 (= base + offset) contigSegmentSize=0x1000
+    sample buf+0x024000000: status=0x0 IOVA=0x64000000 (= base + offset) contigSegmentSize=0x1000
+    sample buf+0x028000000: status=0x0 IOVA=0x68000000 (= base + offset) contigSegmentSize=0x1000
+    sample buf+0x02c000000: status=0x0 IOVA=0x6c000000 (= base + offset) contigSegmentSize=0x1000
+    sample buf+0x030000000: status=0x0 IOVA=0x70000000 (= base + offset) contigSegmentSize=0x1000
+    sample buf+0x034000000: status=0x0 IOVA=0x74000000 (= base + offset) contigSegmentSize=0x1000
+    sample buf+0x038000000: status=0x0 IOVA=0x78000000 (= base + offset) contigSegmentSize=0x1000
+    sample buf+0x03c000000: status=0x0 IOVA=0x7c000000 (= base + offset) contigSegmentSize=0x1000
+    sample buf+0x03ffff000: status=0x0 IOVA=0x7ffff000 (= base + offset) contigSegmentSize=0x1000
+    sample buf+0x03fffffff: status=0x0 IOVA=0x7fffffff (= base + offset) contigSegmentSize=0x1
+  same-buffer-1: RESULT base=0x40000000 end=0x7fffffff single-range=true base-alignment=1 GiB 2MiB-aligned=true below-4GiB=true
+  same-buffer-1: RM_FREE status=0x0; foll_pin acquired +0 released +262080 (while freeing)
+  same-buffer-1: second query after free: GET_SURFACE_PHYS_ATTR on 0xc1d001df status=0x57 (NV_ERR_OBJECT_NOT_FOUND: descriptor gone)
+  same-buffer-2: RM_ALLOC_MEMORY(0x71) handle=0xc1d001e0 va=0x7f1158400000 len=0x40000000 status=0x0 in 165 ms; foll_pin acquired +262144 released +64
+  same-buffer-2: scanned 262144 pages in 4.78 s: 1 IOVA-contiguous segment(s); aperture=1 (1=SYSMEM) format=0x6 gpuCacheAttr=2 contigSegmentSize@0=0x1000
+    seg[0] buf+0x0 -> IOVA 0x40000000..0x7fffffff (1 GiB), IOVA alignment 1 GiB
+    sample buf+0x000000000: status=0x0 IOVA=0x40000000 (= base + offset) contigSegmentSize=0x1000
+    sample buf+0x004000000: status=0x0 IOVA=0x44000000 (= base + offset) contigSegmentSize=0x1000
+    sample buf+0x008000000: status=0x0 IOVA=0x48000000 (= base + offset) contigSegmentSize=0x1000
+    sample buf+0x00c000000: status=0x0 IOVA=0x4c000000 (= base + offset) contigSegmentSize=0x1000
+    sample buf+0x010000000: status=0x0 IOVA=0x50000000 (= base + offset) contigSegmentSize=0x1000
+    sample buf+0x014000000: status=0x0 IOVA=0x54000000 (= base + offset) contigSegmentSize=0x1000
+    sample buf+0x018000000: status=0x0 IOVA=0x58000000 (= base + offset) contigSegmentSize=0x1000
+    sample buf+0x01c000000: status=0x0 IOVA=0x5c000000 (= base + offset) contigSegmentSize=0x1000
+    sample buf+0x020000000: status=0x0 IOVA=0x60000000 (= base + offset) contigSegmentSize=0x1000
+    sample buf+0x024000000: status=0x0 IOVA=0x64000000 (= base + offset) contigSegmentSize=0x1000
+    sample buf+0x028000000: status=0x0 IOVA=0x68000000 (= base + offset) contigSegmentSize=0x1000
+    sample buf+0x02c000000: status=0x0 IOVA=0x6c000000 (= base + offset) contigSegmentSize=0x1000
+    sample buf+0x030000000: status=0x0 IOVA=0x70000000 (= base + offset) contigSegmentSize=0x1000
+    sample buf+0x034000000: status=0x0 IOVA=0x74000000 (= base + offset) contigSegmentSize=0x1000
+    sample buf+0x038000000: status=0x0 IOVA=0x78000000 (= base + offset) contigSegmentSize=0x1000
+    sample buf+0x03c000000: status=0x0 IOVA=0x7c000000 (= base + offset) contigSegmentSize=0x1000
+    sample buf+0x03ffff000: status=0x0 IOVA=0x7ffff000 (= base + offset) contigSegmentSize=0x1000
+    sample buf+0x03fffffff: status=0x0 IOVA=0x7fffffff (= base + offset) contigSegmentSize=0x1
+  same-buffer-2: RESULT base=0x40000000 end=0x7fffffff single-range=true base-alignment=1 GiB 2MiB-aligned=true below-4GiB=true
+  same-buffer-2: RM_FREE status=0x0; foll_pin acquired +0 released +262080 (while freeing)
+  same-buffer-2: second query after free: GET_SURFACE_PHYS_ATTR on 0xc1d001e0 status=0x57 (NV_ERR_OBJECT_NOT_FOUND: descriptor gone)
+  BASES 1 GiB: 0x40000000 0x40000000 0x40000000 0x40000000 0x40000000
+privileged windows opened: 16
+client 0xc1d000db freed status=0x0
+end: foll_pin acquired=1783265 released=1780016 (host-wide counters)
+exit=0
+# end 2026-09-23T14:31:25+02:00

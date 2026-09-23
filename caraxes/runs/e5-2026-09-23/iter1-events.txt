@@ -1,0 +1,40 @@
+# SPDX-License-Identifier: MIT
+# E5a iteration 1 (2026-09-23, VM boot 1): first channel emulation. The channel parameters read as zeros because GSP_RM_ALLOC counts only its fixed part in the RPC length (rpc.c:11002-11025); the doorbell named chid 1, which was recorded as chid 0, so the first push never ran and UVM_REGISTER_GPU waited (no timeout, uvm_common.c:249-279).
+UVM_INITIALIZE: ioctl 0 rmStatus 0x0
+UVM_REGISTER_GPU GPU-9bd7b93d-3d23-c074-6704-984ef33ab7a7 ...
+---
+182742953 ctrl 0x2080012f: GPU_QUERY_ECC_STATUS: host status 0x56 -> status 0x56 [host (forwarded as-is, public control)]
+182746423 ctrl 0x20800a9b: register replayable fault buffer: size 0x2000 pte[0] 0x109ae9000 -> status 0x0 [guest (buffer recorded; no fault is ever reported)]
+182748240 ctrl 0x20800a9d: register client shadow fault buffer: queue pa 0x104ab0000 size 0x2000 -> status 0x0 [guest (shadow buffer recorded; MMU_FAULT_QUEUED is never sent)]
+182750057 ctrl 0x20800a1d: register access counter buffer 0: size 0x2000 pte[0] 0x116bab000 -> status 0x0 [guest (buffer recorded; no notification is ever written)]
+182752610 alloc: alloc 0x90f1 object 0xcaf00005 under 0xcaf00000: vaspace 0xcaf00005 recorded [guest] -> status 0x0 [guest (recorded for the channel emulation; no host object)]
+182801834 ctrl 0x90f10106: vaspace 0xcaf00005: root Some(Fb(0)) (levels 4, aperture 1) [guest] -> status 0x0 [guest (VAS root recorded; the server-reserved range stays empty)]
+182831328 ctrl 0x20802a12: control 0x20802a12 on 0xcaf00001 (class 0x2080, 8 bytes): not supported -> status 0x56 [unanswered]
+182831511 ctrl 0x20802a12: control 0x20802a12 on 0xcaf00001 (class 0x2080, 8 bytes): not supported -> status 0x56 [unanswered]
+182831677 ctrl 0x20802a12: control 0x20802a12 on 0xcaf00001 (class 0x2080, 8 bytes): not supported -> status 0x56 [unanswered]
+182831847 ctrl 0x20802a12: control 0x20802a12 on 0xcaf00001 (class 0x2080, 8 bytes): not supported -> status 0x56 [unanswered]
+182832008 ctrl 0x20802a12: control 0x20802a12 on 0xcaf00001 (class 0x2080, 8 bytes): not supported -> status 0x56 [unanswered]
+182832176 ctrl 0x20802a12: control 0x20802a12 on 0xcaf00001 (class 0x2080, 8 bytes): not supported -> status 0x56 [unanswered]
+182832352 ctrl 0x20802a12: control 0x20802a12 on 0xcaf00001 (class 0x2080, 8 bytes): not supported -> status 0x56 [unanswered]
+182832521 ctrl 0x20802a12: control 0x20802a12 on 0xcaf00001 (class 0x2080, 8 bytes): not supported -> status 0x56 [unanswered]
+182832673 ctrl 0x20802a12: control 0x20802a12 on 0xcaf00001 (class 0x2080, 8 bytes): not supported -> status 0x56 [unanswered]
+182832826 ctrl 0x20802a12: control 0x20802a12 on 0xcaf00001 (class 0x2080, 8 bytes): not supported -> status 0x56 [unanswered]
+182833565 ctrl 0x20802a07: ce physical caps for engine type 0x9: host 0x20802a03 status 0x0, caps 0xe3 0x03 -> status 0x0 [host (CE_GET_CAPS_V2 0x20802a03 of the same engine type, same layout)]
+182833768 ctrl 0x20802a02: ce pce mask for engine type 0x9: host 0x20802a02 status 0x0 -> status 0x0 [host (forwarded as-is, public control)]
+182834220 ctrl 0x20802a07: ce physical caps for engine type 0xa: host 0x20802a03 status 0x0, caps 0xe3 0x03 -> status 0x0 [host (CE_GET_CAPS_V2 0x20802a03 of the same engine type, same layout)]
+182834419 ctrl 0x20802a02: ce pce mask for engine type 0xa: host 0x20802a02 status 0x0 -> status 0x0 [host (forwarded as-is, public control)]
+182835018 ctrl 0x20802a07: ce physical caps for engine type 0xb: host 0x20802a03 status 0x0, caps 0xe0 0x03 -> status 0x0 [host (CE_GET_CAPS_V2 0x20802a03 of the same engine type, same layout)]
+182835185 ctrl 0x20802a02: ce pce mask for engine type 0xb: host 0x20802a02 status 0x0 -> status 0x0 [host (forwarded as-is, public control)]
+182835819 ctrl 0x20802a07: ce physical caps for engine type 0xc: host 0x20802a03 status 0x0, caps 0xe0 0x03 -> status 0x0 [host (CE_GET_CAPS_V2 0x20802a03 of the same engine type, same layout)]
+182835982 ctrl 0x20802a02: ce pce mask for engine type 0xc: host 0x20802a02 status 0x0 -> status 0x0 [host (forwarded as-is, public control)]
+182836545 ctrl 0x20802a07: ce physical caps for engine type 0xd: host 0x20802a03 status 0x0, caps 0xe0 0x03 -> status 0x0 [host (CE_GET_CAPS_V2 0x20802a03 of the same engine type, same layout)]
+182836714 ctrl 0x20802a02: ce pce mask for engine type 0xd: host 0x20802a02 status 0x0 -> status 0x0 [host (forwarded as-is, public control)]
+182837546 ctrl 0x20802a08: ce fault method buffer size -> status 0x0 [synthesized (32 KiB fault method buffer; fifo-device-info.md §4a)]
+182837746 alloc: alloc 0xa06c object 0xcaf00008 under 0xcaf00000: tsg 0xcaf00008 engineType 0x0 vaspace 0x0 [guest] -> status 0x0 [guest (recorded for the channel emulation; no host object)]
+182837892 ctrl 0xa06c010a: promote fault method buffers on tsg 0xcaf00008 -> status 0x0 [guest (recorded only; no CE fault is ever replayed)]
+182887223 alloc: alloc 0xc46f object 0xcaf00012 under 0xcaf00008: channel 0xcaf00012 chid 0 engineType 0x0 gpfifo va 0x0 x 0 userd None vaspace None errorNotifier None [guest] -> status 0x0 [guest (recorded for the channel emulation; no host object)]
+182887875 alloc: alloc other 0xc076 object 0xcaf00015 under 0xcaf00012 -> status 0x0 [synthesized (object recorded, no host object yet)]
+182888494 alloc: alloc other 0xc5b5 object 0xcaf00016 under 0xcaf00012 -> status 0x0 [synthesized (object recorded, no host object yet)]
+182889657 ctrl 0xa06f0103: gpfifo schedule 0xcaf00012: bEnable 1 -> status 0x0 [synthesized (the emulated channel runs on its doorbell)]
+182890119 doorbell 1: token 0x10001 chid 1 runlist 1
+182890120 chid 1: no such channel recorded

@@ -1,0 +1,282 @@
+# SPDX-License-Identifier: MIT
+# E5a iteration 3 (2026-09-23, VM boot 3, final build): RmInitAdapter and nvidia-smi as in milestone 1 (tools/caraxes-gate.sh nvml: pass, 11 of 11). a: default flags (HMM device-private memory fails, guest platform); b: flags 1, UVM_REGISTER_GPU returns 0; c: default flags with uvm_disable_hmm=1, returns 0. Device events of run b follow, every RPC with its label (D9).
+## run it3a guest
+UVM_INITIALIZE flags 0x0: ioctl 0 rmStatus 0x0
+UVM_REGISTER_GPU GPU-9bd7b93d-3d23-c074-6704-984ef33ab7a7 ...
+UVM_REGISTER_GPU: ioctl 0 rmStatus 0x3 numaEnabled 0 numaNodeId 0
+---
+[  139.549063] nvidia-uvm: uvm_devmem.c:225 devmem_alloc_pagemap[pid:1450] request_free_mem_region() err -34
+[  139.550509] nvidia-uvm: uvm_gpu.c:2929 add_gpu[pid:1450] failed to intialize device private memory: System is busy, retry later [NV_ERR_BUSY_RETRY], GPU ID 1: Leandro RTX 2070-4G: GPU-9bd7b93d-3d23-c074-6704-984ef33ab7a7
+## run it3b guest
+UVM_INITIALIZE flags 0x1: ioctl 0 rmStatus 0x0
+UVM_REGISTER_GPU GPU-9bd7b93d-3d23-c074-6704-984ef33ab7a7 ...
+UVM_REGISTER_GPU: ioctl 0 rmStatus 0x0 numaEnabled 0 numaNodeId -1
+UVM_UNREGISTER_GPU: ioctl 0 rmStatus 0x0
+---
+## run it3c guest
+UVM_INITIALIZE flags 0x0: ioctl 0 rmStatus 0x0
+UVM_REGISTER_GPU GPU-9bd7b93d-3d23-c074-6704-984ef33ab7a7 ...
+UVM_REGISTER_GPU: ioctl 0 rmStatus 0x0 numaEnabled 0 numaNodeId -1
+UVM_UNREGISTER_GPU: ioctl 0 rmStatus 0x0
+---
+## run it3b device events
+165495906 rx seq 209 GSP_RM_ALLOC (103) sequence 207 length 64 checksum ok: hClient=0xc1d00009 hParent=0x0 hObject=0x0 hClass=0x0 paramsSize=120 flags=0x0
+165495907 alloc: alloc NV01_ROOT 0x0 object 0x0 under 0x0 -> status 0x0 [synthesized (object recorded, no host object yet)]
+165496089 rx seq 210 GSP_RM_ALLOC (103) sequence 208 length 64 checksum ok: hClient=0xc1d00009 hParent=0xc1d00009 hObject=0x1 hClass=0x80 paramsSize=56 flags=0x0
+165496090 alloc: alloc NV01_DEVICE_0 0x80 object 0x1 under 0xc1d00009 -> status 0x0 [synthesized (object recorded, no host object yet)]
+165496964 rx seq 211 GSP_RM_ALLOC (103) sequence 209 length 64 checksum ok: hClient=0xc1d00009 hParent=0x1 hObject=0x2 hClass=0x2080 paramsSize=4 flags=0x0
+165496965 alloc: alloc NV20_SUBDEVICE_0 0x2080 object 0x2 under 0x1 -> status 0x0 [synthesized (object recorded, no host object yet)]
+165506344 rx seq 212 FREE (10) sequence 210 length 48 checksum ok: hRoot=0xc1d00009 hParent=0x0 hObject=0x2
+165506345 free 0x2 class Some(8320) [synthesized]
+165507175 rx seq 213 FREE (10) sequence 211 length 48 checksum ok: hRoot=0xc1d00009 hParent=0x0 hObject=0x1
+165507176 free 0x1 class Some(128) [synthesized]
+165507352 rx seq 214 FREE (10) sequence 212 length 48 checksum ok: hRoot=0xc1d00009 hParent=0x0 hObject=0xc1d00009
+165507354 free 0xc1d00009 class None [synthesized]
+165509605 rx seq 215 GSP_RM_ALLOC (103) sequence 213 length 64 checksum ok: hClient=0xc1d00008 hParent=0x0 hObject=0x0 hClass=0x0 paramsSize=120 flags=0x0
+165509606 alloc: alloc NV01_ROOT 0x0 object 0x0 under 0x0 -> status 0x0 [synthesized (object recorded, no host object yet)]
+165509851 rx seq 216 GSP_RM_ALLOC (103) sequence 214 length 64 checksum ok: hClient=0xc1d00008 hParent=0xc1d00008 hObject=0xcaf00000 hClass=0x80 paramsSize=56 flags=0x0
+165509852 alloc: alloc NV01_DEVICE_0 0x80 object 0xcaf00000 under 0xc1d00008 -> status 0x0 [synthesized (object recorded, no host object yet)]
+165510711 rx seq 217 GSP_RM_ALLOC (103) sequence 215 length 64 checksum ok: hClient=0xc1d00008 hParent=0xcaf00000 hObject=0xcaf00001 hClass=0x2080 paramsSize=4 flags=0x0
+165510712 alloc: alloc NV20_SUBDEVICE_0 0x2080 object 0xcaf00001 under 0xcaf00000 -> status 0x0 [synthesized (object recorded, no host object yet)]
+165513835 rx seq 218 GSP_RM_CONTROL (76) sequence 216 length 1736 checksum ok: hClient=0xc1d00008 hObject=0xcaf00001 cmd=0x2080012f paramsSize=1664 rpcFlags=0x0
+165513836 ctrl 0x2080012f: GPU_QUERY_ECC_STATUS: host status 0x56 -> status 0x56 [host (forwarded as-is, public control)]
+165518555 rx seq 219 GSP_RM_CONTROL (76) sequence 217 length 2136 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20800a9b paramsSize=2064 rpcFlags=0x0
+165518556 ctrl 0x20800a9b: register replayable fault buffer: size 0x2000 pte[0] 0x1130c2000 -> status 0x0 [guest (buffer recorded; no fault is ever reported)]
+165520901 rx seq 220 GSP_RM_CONTROL (76) sequence 218 length 24104 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20800a9d paramsSize=24032 rpcFlags=0x0
+165520903 ctrl 0x20800a9d: register client shadow fault buffer: queue pa 0x1366fc000 size 0x2000 -> status 0x0 [guest (shadow buffer recorded; MMU_FAULT_QUEUED is never sent)]
+165523781 rx seq 221 GSP_RM_CONTROL (76) sequence 219 length 592 checksum ok: hClient=0xc1e00002 hObject=0xcaf00001 cmd=0x20800a1d paramsSize=520 rpcFlags=0x0
+165523783 ctrl 0x20800a1d: register access counter buffer 0: size 0x2000 pte[0] 0x11ada7000 -> status 0x0 [guest (buffer recorded; no notification is ever written)]
+165529506 rx seq 222 GSP_RM_ALLOC (103) sequence 220 length 64 checksum ok: hClient=0xc1d00008 hParent=0xcaf00000 hObject=0xcaf00005 hClass=0x90f1 paramsSize=56 flags=0x0
+165529507 alloc: alloc 0x90f1 object 0xcaf00005 under 0xcaf00000: vaspace 0xcaf00005 recorded [guest] -> status 0x0 [guest (recorded for the channel emulation; no host object)]
+165617396 rx seq 223 GSP_RM_CONTROL (76) sequence 221 length 256 checksum ok: hClient=0xc1d00008 hObject=0xcaf00005 cmd=0x90f10106 paramsSize=184 rpcFlags=0x0
+165617398 ctrl 0x90f10106: vaspace 0xcaf00005: root Some(Fb(0)); va 0x100000000..0x11fffffff levels [0x0+0x20 ap 1 shift 47, 0x1000+0x1000 ap 1 shift 38, 0x2000+0x1000 ap 1 shift 29, 0x3000+0x1000 ap 1 shift 21] [guest] -> status 0x0 [guest (VAS root recorded; the server-reserved range stays empty)]
+165668910 rx seq 224 GSP_RM_CONTROL (76) sequence 222 length 80 checksum ok: hClient=0xc1d00008 hObject=0xcaf00001 cmd=0x20802a12 paramsSize=8 rpcFlags=0x0
+165668911 ctrl 0x20802a12: ce lce 0 decomp enabled: false -> status 0x0 [synthesized (no decompression LCE on Turing)]
+165669226 rx seq 225 GSP_RM_CONTROL (76) sequence 223 length 80 checksum ok: hClient=0xc1d00008 hObject=0xcaf00001 cmd=0x20802a12 paramsSize=8 rpcFlags=0x0
+165669227 ctrl 0x20802a12: ce lce 1 decomp enabled: false -> status 0x0 [synthesized (no decompression LCE on Turing)]
+165669410 rx seq 226 GSP_RM_CONTROL (76) sequence 224 length 80 checksum ok: hClient=0xc1d00008 hObject=0xcaf00001 cmd=0x20802a12 paramsSize=8 rpcFlags=0x0
+165669411 ctrl 0x20802a12: ce lce 2 decomp enabled: false -> status 0x0 [synthesized (no decompression LCE on Turing)]
+165669614 rx seq 227 GSP_RM_CONTROL (76) sequence 225 length 80 checksum ok: hClient=0xc1d00008 hObject=0xcaf00001 cmd=0x20802a12 paramsSize=8 rpcFlags=0x0
+165669615 ctrl 0x20802a12: ce lce 3 decomp enabled: false -> status 0x0 [synthesized (no decompression LCE on Turing)]
+165669866 rx seq 228 GSP_RM_CONTROL (76) sequence 226 length 80 checksum ok: hClient=0xc1d00008 hObject=0xcaf00001 cmd=0x20802a12 paramsSize=8 rpcFlags=0x0
+165669867 ctrl 0x20802a12: ce lce 4 decomp enabled: false -> status 0x0 [synthesized (no decompression LCE on Turing)]
+165670053 rx seq 229 GSP_RM_CONTROL (76) sequence 227 length 80 checksum ok: hClient=0xc1d00008 hObject=0xcaf00001 cmd=0x20802a12 paramsSize=8 rpcFlags=0x0
+165670054 ctrl 0x20802a12: ce lce 0 decomp enabled: false -> status 0x0 [synthesized (no decompression LCE on Turing)]
+165670238 rx seq 230 GSP_RM_CONTROL (76) sequence 228 length 80 checksum ok: hClient=0xc1d00008 hObject=0xcaf00001 cmd=0x20802a12 paramsSize=8 rpcFlags=0x0
+165670248 ctrl 0x20802a12: ce lce 1 decomp enabled: false -> status 0x0 [synthesized (no decompression LCE on Turing)]
+165670500 rx seq 231 GSP_RM_CONTROL (76) sequence 229 length 80 checksum ok: hClient=0xc1d00008 hObject=0xcaf00001 cmd=0x20802a12 paramsSize=8 rpcFlags=0x0
+165670501 ctrl 0x20802a12: ce lce 2 decomp enabled: false -> status 0x0 [synthesized (no decompression LCE on Turing)]
+165670754 rx seq 232 GSP_RM_CONTROL (76) sequence 230 length 80 checksum ok: hClient=0xc1d00008 hObject=0xcaf00001 cmd=0x20802a12 paramsSize=8 rpcFlags=0x0
+165670760 ctrl 0x20802a12: ce lce 3 decomp enabled: false -> status 0x0 [synthesized (no decompression LCE on Turing)]
+165670984 rx seq 233 GSP_RM_CONTROL (76) sequence 231 length 80 checksum ok: hClient=0xc1d00008 hObject=0xcaf00001 cmd=0x20802a12 paramsSize=8 rpcFlags=0x0
+165670988 ctrl 0x20802a12: ce lce 4 decomp enabled: false -> status 0x0 [synthesized (no decompression LCE on Turing)]
+165672232 rx seq 234 GSP_RM_CONTROL (76) sequence 232 length 80 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20802a07 paramsSize=8 rpcFlags=0x0
+165672233 ctrl 0x20802a07: ce physical caps for engine type 0x9: host 0x20802a03 status 0x0, caps 0xe3 0x03 -> status 0x0 [host (CE_GET_CAPS_V2 0x20802a03 of the same engine type, same layout)]
+165673290 rx seq 235 GSP_RM_CONTROL (76) sequence 233 length 80 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20802a07 paramsSize=8 rpcFlags=0x0
+165673291 ctrl 0x20802a07: ce physical caps for engine type 0xa: host 0x20802a03 status 0x0, caps 0xe3 0x03 -> status 0x0 [host (CE_GET_CAPS_V2 0x20802a03 of the same engine type, same layout)]
+165675443 rx seq 236 GSP_RM_CONTROL (76) sequence 234 length 80 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20802a07 paramsSize=8 rpcFlags=0x0
+165675444 ctrl 0x20802a07: ce physical caps for engine type 0xb: host 0x20802a03 status 0x0, caps 0xe0 0x03 -> status 0x0 [host (CE_GET_CAPS_V2 0x20802a03 of the same engine type, same layout)]
+165676247 rx seq 237 GSP_RM_CONTROL (76) sequence 235 length 80 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20802a07 paramsSize=8 rpcFlags=0x0
+165676248 ctrl 0x20802a07: ce physical caps for engine type 0xc: host 0x20802a03 status 0x0, caps 0xe0 0x03 -> status 0x0 [host (CE_GET_CAPS_V2 0x20802a03 of the same engine type, same layout)]
+165677236 rx seq 238 GSP_RM_CONTROL (76) sequence 236 length 80 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20802a07 paramsSize=8 rpcFlags=0x0
+165677237 ctrl 0x20802a07: ce physical caps for engine type 0xd: host 0x20802a03 status 0x0, caps 0xe0 0x03 -> status 0x0 [host (CE_GET_CAPS_V2 0x20802a03 of the same engine type, same layout)]
+165679020 rx seq 239 GSP_RM_CONTROL (76) sequence 237 length 76 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20802a08 paramsSize=4 rpcFlags=0x0
+165679037 ctrl 0x20802a08: ce fault method buffer size -> status 0x0 [synthesized (32 KiB fault method buffer; fifo-device-info.md §4a)]
+165679342 rx seq 240 GSP_RM_ALLOC (103) sequence 238 length 64 checksum ok: hClient=0xc1d00008 hParent=0xcaf00000 hObject=0xcaf00008 hClass=0xa06c paramsSize=20 flags=0x0
+165679343 alloc: alloc 0xa06c object 0xcaf00008 under 0xcaf00000: tsg 0xcaf00008 engineType 0xb vaspace 0xcaf00005 [guest] -> status 0x0 [guest (recorded for the channel emulation; no host object)]
+165679588 rx seq 241 GSP_RM_CONTROL (76) sequence 239 length 160 checksum ok: hClient=0xc1d00008 hObject=0xcaf00008 cmd=0xa06c010a paramsSize=88 rpcFlags=0x0
+165679589 ctrl 0xa06c010a: promote fault method buffers on tsg 0xcaf00008 -> status 0x0 [guest (recorded only; no CE fault is ever replayed)]
+165793851 rx seq 242 GSP_RM_ALLOC (103) sequence 240 length 64 checksum ok: hClient=0xc1d00008 hParent=0xcaf00008 hObject=0xcaf00012 hClass=0xc46f paramsSize=376 flags=0x0
+165793853 alloc: alloc 0xc46f object 0xcaf00012 under 0xcaf00008: channel 0xcaf00012 chid 1 engineType 0xb gpfifo va 0x121010000 x 1024 userd Some(Fb(196608)) vaspace Some((3251634184, 3404726277)) errorNotifier Some(Sys(4648394752)) [guest] -> status 0x0 [guest (recorded for the channel emulation; no host object)]
+165795082 rx seq 243 GSP_RM_ALLOC (103) sequence 241 length 64 checksum ok: hClient=0xc1d00008 hParent=0xcaf00012 hObject=0xcaf00015 hClass=0xc076 paramsSize=0 flags=0x0
+165795084 alloc: alloc other 0xc076 object 0xcaf00015 under 0xcaf00012 -> status 0x0 [synthesized (object recorded, no host object yet)]
+165795858 rx seq 244 GSP_RM_ALLOC (103) sequence 242 length 64 checksum ok: hClient=0xc1d00008 hParent=0xcaf00012 hObject=0xcaf00016 hClass=0xc5b5 paramsSize=8 flags=0x0
+165795860 alloc: alloc other 0xc5b5 object 0xcaf00016 under 0xcaf00012 -> status 0x0 [synthesized (object recorded, no host object yet)]
+165798383 rx seq 245 GSP_RM_CONTROL (76) sequence 243 length 75 checksum ok: hClient=0xc1d00008 hObject=0xcaf00012 cmd=0xa06f0103 paramsSize=3 rpcFlags=0x0
+165798384 ctrl 0xa06f0103: gpfifo schedule 0xcaf00012: bEnable 1 -> status 0x0 [synthesized (the emulated channel runs on its doorbell)]
+165801141 doorbell 8: token 0x10001 chid 1 runlist 1
+165801143 chid 1 gp 0: pushbuffer va 0x120000000 10 dwords
+165801145 host SET_OBJECT subch 0 class 0xc5b5
+165801146 host SET_OBJECT subch 5 class 0xc076
+165801148 ce semaphore release va 0x121000000 = 0x1 [guest]
+165850307 rx seq 246 GSP_RM_ALLOC (103) sequence 244 length 64 checksum ok: hClient=0xc1d00008 hParent=0xcaf00008 hObject=0xcaf0001d hClass=0xc46f paramsSize=376 flags=0x0
+165850308 alloc: alloc 0xc46f object 0xcaf0001d under 0xcaf00008: channel 0xcaf0001d chid 2 engineType 0xb gpfifo va 0x121040000 x 1024 userd Some(Fb(327680)) vaspace Some((3251634184, 3404726277)) errorNotifier Some(Sys(4718272512)) [guest] -> status 0x0 [guest (recorded for the channel emulation; no host object)]
+165851414 rx seq 247 GSP_RM_ALLOC (103) sequence 245 length 64 checksum ok: hClient=0xc1d00008 hParent=0xcaf0001d hObject=0xcaf0001e hClass=0xc076 paramsSize=0 flags=0x0
+165851415 alloc: alloc other 0xc076 object 0xcaf0001e under 0xcaf0001d -> status 0x0 [synthesized (object recorded, no host object yet)]
+165854549 rx seq 248 GSP_RM_ALLOC (103) sequence 246 length 64 checksum ok: hClient=0xc1d00008 hParent=0xcaf0001d hObject=0xcaf0001f hClass=0xc5b5 paramsSize=8 flags=0x0
+165854551 alloc: alloc other 0xc5b5 object 0xcaf0001f under 0xcaf0001d -> status 0x0 [synthesized (object recorded, no host object yet)]
+165857925 rx seq 249 GSP_RM_CONTROL (76) sequence 247 length 75 checksum ok: hClient=0xc1d00008 hObject=0xcaf0001d cmd=0xa06f0103 paramsSize=3 rpcFlags=0x0
+165857927 ctrl 0xa06f0103: gpfifo schedule 0xcaf0001d: bEnable 1 -> status 0x0 [synthesized (the emulated channel runs on its doorbell)]
+165858696 doorbell 9: token 0x10002 chid 2 runlist 1
+165858697 chid 2 gp 0: pushbuffer va 0x120100000 10 dwords
+165858698 host SET_OBJECT subch 0 class 0xc5b5
+165858699 host SET_OBJECT subch 5 class 0xc076
+165858701 ce semaphore release va 0x121000004 = 0x1 [guest]
+165859246 rx seq 250 GSP_RM_CONTROL (76) sequence 248 length 76 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20802a08 paramsSize=4 rpcFlags=0x0
+165859247 ctrl 0x20802a08: ce fault method buffer size -> status 0x0 [synthesized (32 KiB fault method buffer; fifo-device-info.md §4a)]
+165859600 rx seq 251 GSP_RM_ALLOC (103) sequence 249 length 64 checksum ok: hClient=0xc1d00008 hParent=0xcaf00000 hObject=0xcaf00020 hClass=0xa06c paramsSize=20 flags=0x0
+165859601 alloc: alloc 0xa06c object 0xcaf00020 under 0xcaf00000: tsg 0xcaf00020 engineType 0xc vaspace 0xcaf00005 [guest] -> status 0x0 [guest (recorded for the channel emulation; no host object)]
+165860210 rx seq 252 GSP_RM_CONTROL (76) sequence 250 length 160 checksum ok: hClient=0xc1d00008 hObject=0xcaf00020 cmd=0xa06c010a paramsSize=88 rpcFlags=0x0
+165860211 ctrl 0xa06c010a: promote fault method buffers on tsg 0xcaf00020 -> status 0x0 [guest (recorded only; no CE fault is ever replayed)]
+165930823 rx seq 253 GSP_RM_ALLOC (103) sequence 251 length 64 checksum ok: hClient=0xc1d00008 hParent=0xcaf00020 hObject=0xcaf00028 hClass=0xc46f paramsSize=376 flags=0x0
+165930824 alloc: alloc 0xc46f object 0xcaf00028 under 0xcaf00020: channel 0xcaf00028 chid 3 engineType 0xc gpfifo va 0x121070000 x 1024 userd Some(Fb(458752)) vaspace Some((3251634184, 3404726277)) errorNotifier Some(Sys(4840112128)) [guest] -> status 0x0 [guest (recorded for the channel emulation; no host object)]
+165931957 rx seq 254 GSP_RM_ALLOC (103) sequence 252 length 64 checksum ok: hClient=0xc1d00008 hParent=0xcaf00028 hObject=0xcaf0002b hClass=0xc076 paramsSize=0 flags=0x0
+165931958 alloc: alloc other 0xc076 object 0xcaf0002b under 0xcaf00028 -> status 0x0 [synthesized (object recorded, no host object yet)]
+165932927 rx seq 255 GSP_RM_ALLOC (103) sequence 253 length 64 checksum ok: hClient=0xc1d00008 hParent=0xcaf00028 hObject=0xcaf0002c hClass=0xc5b5 paramsSize=8 flags=0x0
+165932928 alloc: alloc other 0xc5b5 object 0xcaf0002c under 0xcaf00028 -> status 0x0 [synthesized (object recorded, no host object yet)]
+165935286 rx seq 256 GSP_RM_CONTROL (76) sequence 254 length 75 checksum ok: hClient=0xc1d00008 hObject=0xcaf00028 cmd=0xa06f0103 paramsSize=3 rpcFlags=0x0
+165935287 ctrl 0xa06f0103: gpfifo schedule 0xcaf00028: bEnable 1 -> status 0x0 [synthesized (the emulated channel runs on its doorbell)]
+165936181 doorbell 10: token 0x20003 chid 3 runlist 2
+165936182 chid 3 gp 0: pushbuffer va 0x120200000 10 dwords
+165936184 host SET_OBJECT subch 0 class 0xc5b5
+165936185 host SET_OBJECT subch 5 class 0xc076
+165936186 ce semaphore release va 0x121000008 = 0x1 [guest]
+165998579 rx seq 257 GSP_RM_ALLOC (103) sequence 255 length 64 checksum ok: hClient=0xc1d00008 hParent=0xcaf00020 hObject=0xcaf00033 hClass=0xc46f paramsSize=376 flags=0x0
+165998581 alloc: alloc 0xc46f object 0xcaf00033 under 0xcaf00020: channel 0xcaf00033 chid 4 engineType 0xc gpfifo va 0x1210a0000 x 1024 userd Some(Fb(589824)) vaspace Some((3251634184, 3404726277)) errorNotifier Some(Sys(4383141888)) [guest] -> status 0x0 [guest (recorded for the channel emulation; no host object)]
+165999829 rx seq 258 GSP_RM_ALLOC (103) sequence 256 length 64 checksum ok: hClient=0xc1d00008 hParent=0xcaf00033 hObject=0xcaf00034 hClass=0xc076 paramsSize=0 flags=0x0
+165999831 alloc: alloc other 0xc076 object 0xcaf00034 under 0xcaf00033 -> status 0x0 [synthesized (object recorded, no host object yet)]
+166001549 rx seq 259 GSP_RM_ALLOC (103) sequence 257 length 64 checksum ok: hClient=0xc1d00008 hParent=0xcaf00033 hObject=0xcaf00035 hClass=0xc5b5 paramsSize=8 flags=0x0
+166001550 alloc: alloc other 0xc5b5 object 0xcaf00035 under 0xcaf00033 -> status 0x0 [synthesized (object recorded, no host object yet)]
+166005503 rx seq 260 GSP_RM_CONTROL (76) sequence 258 length 75 checksum ok: hClient=0xc1d00008 hObject=0xcaf00033 cmd=0xa06f0103 paramsSize=3 rpcFlags=0x0
+166005505 ctrl 0xa06f0103: gpfifo schedule 0xcaf00033: bEnable 1 -> status 0x0 [synthesized (the emulated channel runs on its doorbell)]
+166007752 doorbell 11: token 0x20004 chid 4 runlist 2
+166007754 chid 4 gp 0: pushbuffer va 0x120300000 10 dwords
+166007772 host SET_OBJECT subch 0 class 0xc5b5
+166007774 host SET_OBJECT subch 5 class 0xc076
+166007775 ce semaphore release va 0x12100000c = 0x1 [guest]
+166008297 rx seq 261 GSP_RM_CONTROL (76) sequence 259 length 76 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20802a08 paramsSize=4 rpcFlags=0x0
+166008298 ctrl 0x20802a08: ce fault method buffer size -> status 0x0 [synthesized (32 KiB fault method buffer; fifo-device-info.md §4a)]
+166008604 rx seq 262 GSP_RM_ALLOC (103) sequence 260 length 64 checksum ok: hClient=0xc1d00008 hParent=0xcaf00000 hObject=0xcaf00036 hClass=0xa06c paramsSize=20 flags=0x0
+166008605 alloc: alloc 0xa06c object 0xcaf00036 under 0xcaf00000: tsg 0xcaf00036 engineType 0xd vaspace 0xcaf00005 [guest] -> status 0x0 [guest (recorded for the channel emulation; no host object)]
+166009494 rx seq 263 GSP_RM_CONTROL (76) sequence 261 length 160 checksum ok: hClient=0xc1d00008 hObject=0xcaf00036 cmd=0xa06c010a paramsSize=88 rpcFlags=0x0
+166009495 ctrl 0xa06c010a: promote fault method buffers on tsg 0xcaf00036 -> status 0x0 [guest (recorded only; no CE fault is ever replayed)]
+166057673 rx seq 264 GSP_RM_ALLOC (103) sequence 262 length 64 checksum ok: hClient=0xc1d00008 hParent=0xcaf00036 hObject=0xcaf0003e hClass=0xc46f paramsSize=376 flags=0x0
+166057674 alloc: alloc 0xc46f object 0xcaf0003e under 0xcaf00036: channel 0xcaf0003e chid 5 engineType 0xd gpfifo va 0x1210d0000 x 1024 userd Some(Fb(720896)) vaspace Some((3251634184, 3404726277)) errorNotifier Some(Sys(4609433600)) [guest] -> status 0x0 [guest (recorded for the channel emulation; no host object)]
+166058655 rx seq 265 GSP_RM_ALLOC (103) sequence 263 length 64 checksum ok: hClient=0xc1d00008 hParent=0xcaf0003e hObject=0xcaf00041 hClass=0xc076 paramsSize=0 flags=0x0
+166058656 alloc: alloc other 0xc076 object 0xcaf00041 under 0xcaf0003e -> status 0x0 [synthesized (object recorded, no host object yet)]
+166059585 rx seq 266 GSP_RM_ALLOC (103) sequence 264 length 64 checksum ok: hClient=0xc1d00008 hParent=0xcaf0003e hObject=0xcaf00042 hClass=0xc5b5 paramsSize=8 flags=0x0
+166059587 alloc: alloc other 0xc5b5 object 0xcaf00042 under 0xcaf0003e -> status 0x0 [synthesized (object recorded, no host object yet)]
+166061302 rx seq 267 GSP_RM_CONTROL (76) sequence 265 length 75 checksum ok: hClient=0xc1d00008 hObject=0xcaf0003e cmd=0xa06f0103 paramsSize=3 rpcFlags=0x0
+166061316 ctrl 0xa06f0103: gpfifo schedule 0xcaf0003e: bEnable 1 -> status 0x0 [synthesized (the emulated channel runs on its doorbell)]
+166062028 doorbell 12: token 0x30005 chid 5 runlist 3
+166062029 chid 5 gp 0: pushbuffer va 0x120400000 10 dwords
+166062030 host SET_OBJECT subch 0 class 0xc5b5
+166062032 host SET_OBJECT subch 5 class 0xc076
+166062033 ce semaphore release va 0x121000010 = 0x1 [guest]
+166101016 rx seq 268 GSP_RM_ALLOC (103) sequence 266 length 64 checksum ok: hClient=0xc1d00008 hParent=0xcaf00036 hObject=0xcaf00049 hClass=0xc46f paramsSize=376 flags=0x0
+166101017 alloc: alloc 0xc46f object 0xcaf00049 under 0xcaf00036: channel 0xcaf00049 chid 6 engineType 0xd gpfifo va 0x121100000 x 1024 userd Some(Fb(851968)) vaspace Some((3251634184, 3404726277)) errorNotifier Some(Sys(5152444416)) [guest] -> status 0x0 [guest (recorded for the channel emulation; no host object)]
+166101995 rx seq 269 GSP_RM_ALLOC (103) sequence 267 length 64 checksum ok: hClient=0xc1d00008 hParent=0xcaf00049 hObject=0xcaf0004a hClass=0xc076 paramsSize=0 flags=0x0
+166101996 alloc: alloc other 0xc076 object 0xcaf0004a under 0xcaf00049 -> status 0x0 [synthesized (object recorded, no host object yet)]
+166102902 rx seq 270 GSP_RM_ALLOC (103) sequence 268 length 64 checksum ok: hClient=0xc1d00008 hParent=0xcaf00049 hObject=0xcaf0004b hClass=0xc5b5 paramsSize=8 flags=0x0
+166102903 alloc: alloc other 0xc5b5 object 0xcaf0004b under 0xcaf00049 -> status 0x0 [synthesized (object recorded, no host object yet)]
+166104625 rx seq 271 GSP_RM_CONTROL (76) sequence 269 length 75 checksum ok: hClient=0xc1d00008 hObject=0xcaf00049 cmd=0xa06f0103 paramsSize=3 rpcFlags=0x0
+166104626 ctrl 0xa06f0103: gpfifo schedule 0xcaf00049: bEnable 1 -> status 0x0 [synthesized (the emulated channel runs on its doorbell)]
+166105281 doorbell 13: token 0x30006 chid 6 runlist 3
+166105283 chid 6 gp 0: pushbuffer va 0x120500000 10 dwords
+166105284 host SET_OBJECT subch 0 class 0xc5b5
+166105285 host SET_OBJECT subch 5 class 0xc076
+166105286 ce semaphore release va 0x121000014 = 0x1 [guest]
+166105478 doorbell 14: token 0x30005 chid 5 runlist 3
+166105479 chid 5 gp 1: pushbuffer va 0x120600000 26 dwords
+166105480 ce memcopy 32 bytes -> Fb(2097152) from va 0x120600004 [guest]
+166105481 ce semaphore release va 0x121000010 = 0x2 [guest]
+166105961 rx seq 272 GSP_RM_CONTROL (76) sequence 270 length 104 checksum ok: hClient=0xc1d00008 hObject=0xcaf00000 cmd=0x801813 paramsSize=32 rpcFlags=0x0
+166105974 ctrl 0x801813: set page directory: vaspace 0xcaf00005 root Some(Fb(2097152)) entries 4 flags 0x8 [guest] -> status 0x0 [guest (VAS root recorded for the channel emulation)]
+166108452 rx seq 273 FREE (10) sequence 271 length 48 checksum ok: hRoot=0xc1d00008 hParent=0x0 hObject=0xcaf0004b
+166108454 free 0xcaf0004b class Some(50613) [synthesized]
+166109341 rx seq 274 FREE (10) sequence 272 length 48 checksum ok: hRoot=0xc1d00008 hParent=0x0 hObject=0xcaf0004a
+166109342 free 0xcaf0004a class Some(49270) [synthesized]
+166115721 rx seq 275 FREE (10) sequence 273 length 48 checksum ok: hRoot=0xc1d00008 hParent=0x0 hObject=0xcaf00049
+166115722 free 0xcaf00049 class Some(50287) [synthesized]
+166128685 rx seq 276 FREE (10) sequence 274 length 48 checksum ok: hRoot=0xc1d00008 hParent=0x0 hObject=0xcaf00042
+166128687 free 0xcaf00042 class Some(50613) [synthesized]
+166130790 rx seq 277 FREE (10) sequence 275 length 48 checksum ok: hRoot=0xc1d00008 hParent=0x0 hObject=0xcaf00041
+166130792 free 0xcaf00041 class Some(49270) [synthesized]
+166137951 rx seq 278 FREE (10) sequence 276 length 48 checksum ok: hRoot=0xc1d00008 hParent=0x0 hObject=0xcaf0003e
+166137953 free 0xcaf0003e class Some(50287) [synthesized]
+166153216 rx seq 279 FREE (10) sequence 277 length 48 checksum ok: hRoot=0xc1d00008 hParent=0x0 hObject=0xcaf00036
+166153217 free 0xcaf00036 class Some(41068) [synthesized]
+166154278 rx seq 280 FREE (10) sequence 278 length 48 checksum ok: hRoot=0xc1d00008 hParent=0x0 hObject=0xcaf00035
+166154280 free 0xcaf00035 class Some(50613) [synthesized]
+166155174 rx seq 281 FREE (10) sequence 279 length 48 checksum ok: hRoot=0xc1d00008 hParent=0x0 hObject=0xcaf00034
+166155176 free 0xcaf00034 class Some(49270) [synthesized]
+166161785 rx seq 282 FREE (10) sequence 280 length 48 checksum ok: hRoot=0xc1d00008 hParent=0x0 hObject=0xcaf00033
+166161786 free 0xcaf00033 class Some(50287) [synthesized]
+166172290 rx seq 283 FREE (10) sequence 281 length 48 checksum ok: hRoot=0xc1d00008 hParent=0x0 hObject=0xcaf0002c
+166172291 free 0xcaf0002c class Some(50613) [synthesized]
+166173086 rx seq 284 FREE (10) sequence 282 length 48 checksum ok: hRoot=0xc1d00008 hParent=0x0 hObject=0xcaf0002b
+166173087 free 0xcaf0002b class Some(49270) [synthesized]
+166178962 rx seq 285 FREE (10) sequence 283 length 48 checksum ok: hRoot=0xc1d00008 hParent=0x0 hObject=0xcaf00028
+166178964 free 0xcaf00028 class Some(50287) [synthesized]
+166191204 rx seq 286 FREE (10) sequence 284 length 48 checksum ok: hRoot=0xc1d00008 hParent=0x0 hObject=0xcaf00020
+166191205 free 0xcaf00020 class Some(41068) [synthesized]
+166192421 rx seq 287 FREE (10) sequence 285 length 48 checksum ok: hRoot=0xc1d00008 hParent=0x0 hObject=0xcaf0001f
+166192422 free 0xcaf0001f class Some(50613) [synthesized]
+166194612 rx seq 288 FREE (10) sequence 286 length 48 checksum ok: hRoot=0xc1d00008 hParent=0x0 hObject=0xcaf0001e
+166194613 free 0xcaf0001e class Some(49270) [synthesized]
+166201411 rx seq 289 FREE (10) sequence 287 length 48 checksum ok: hRoot=0xc1d00008 hParent=0x0 hObject=0xcaf0001d
+166201412 free 0xcaf0001d class Some(50287) [synthesized]
+166215129 rx seq 290 FREE (10) sequence 288 length 48 checksum ok: hRoot=0xc1d00008 hParent=0x0 hObject=0xcaf00016
+166215131 free 0xcaf00016 class Some(50613) [synthesized]
+166216037 rx seq 291 FREE (10) sequence 289 length 48 checksum ok: hRoot=0xc1d00008 hParent=0x0 hObject=0xcaf00015
+166216039 free 0xcaf00015 class Some(49270) [synthesized]
+166226510 rx seq 292 FREE (10) sequence 290 length 48 checksum ok: hRoot=0xc1d00008 hParent=0x0 hObject=0xcaf00012
+166226512 free 0xcaf00012 class Some(50287) [synthesized]
+166278502 rx seq 293 FREE (10) sequence 291 length 48 checksum ok: hRoot=0xc1d00008 hParent=0x0 hObject=0xcaf00008
+166278504 free 0xcaf00008 class Some(41068) [synthesized]
+166304403 rx seq 294 GSP_RM_CONTROL (76) sequence 292 length 80 checksum ok: hClient=0xc1d00008 hObject=0xcaf00000 cmd=0x801814 paramsSize=8 rpcFlags=0x0
+166304405 ctrl 0x801814: unset page directory: vaspace 0xcaf00005 [guest] -> status 0x0 [guest]
+166317545 rx seq 295 FREE (10) sequence 293 length 48 checksum ok: hRoot=0xc1d00008 hParent=0x0 hObject=0xcaf00005
+166317546 free 0xcaf00005 class Some(37105) [synthesized]
+166319630 rx seq 296 GSP_RM_CONTROL (76) sequence 294 length 76 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20800a9e paramsSize=4 rpcFlags=0x0
+166319631 ctrl 0x20800a9e: unregister client shadow fault buffer -> status 0x0 [guest]
+166324862 rx seq 297 GSP_RM_CONTROL (76) sequence 295 length 72 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20800a9c paramsSize=0 rpcFlags=0x0
+166324863 ctrl 0x20800a9c: unregister replayable fault buffer -> status 0x0 [guest]
+166327464 rx seq 298 GSP_RM_CONTROL (76) sequence 296 length 76 checksum ok: hClient=0xc1e00002 hObject=0xcaf00001 cmd=0x20800a1e paramsSize=4 rpcFlags=0x0
+166327465 ctrl 0x20800a1e: unregister access counter buffer -> status 0x0 [guest]
+166333575 rx seq 299 FREE (10) sequence 297 length 48 checksum ok: hRoot=0xc1d00008 hParent=0x0 hObject=0xcaf00001
+166333576 free 0xcaf00001 class Some(8320) [synthesized]
+166335625 rx seq 300 FREE (10) sequence 298 length 48 checksum ok: hRoot=0xc1d00008 hParent=0x0 hObject=0xcaf00000
+166335626 free 0xcaf00000 class Some(128) [synthesized]
+166335914 rx seq 301 FREE (10) sequence 299 length 48 checksum ok: hRoot=0xc1d00008 hParent=0x0 hObject=0xc1d00008
+166335915 free 0xc1d00008 class None [synthesized]
+## run it3b BAR0 accesses outside the boot path (count, dir, offset, value, name)
+    224 W 0x00b81408 0x2 NV_VF_CPU_INTR_LEAF_EN_CLEAR(i)  
+    224 W 0x00b81208 0x2 NV_VF_CPU_INTR_LEAF_EN_SET(i)  
+    124 R 0x00b830b0 0xc1 NV_VIRTUAL_FUNCTION_PRIV_MMU_INVALIDATE  
+    112 W 0x00b830a4 0x0 NV_VIRTUAL_FUNCTION_PRIV_MMU_INVALIDATE  
+     75 W 0x00b81408 0x3 NV_VF_CPU_INTR_LEAF_EN_CLEAR(i)  
+     75 W 0x00b81208 0x3 NV_VF_CPU_INTR_LEAF_EN_SET(i)  
+     62 W 0x00b830b0 0x800000c1 NV_VIRTUAL_FUNCTION_PRIV_MMU_INVALIDATE  
+     52 R 0x00b830b0 0x5 NV_VIRTUAL_FUNCTION_PRIV_MMU_INVALIDATE  
+     48 R 0x00b830b0 0xc5 NV_VIRTUAL_FUNCTION_PRIV_MMU_INVALIDATE  
+     39 W 0x00b830a0 0x2000 NV_VIRTUAL_FUNCTION_PRIV_MMU_INVALIDATE  
+     36 W 0x00b830a0 0xf76010 NV_VIRTUAL_FUNCTION_PRIV_MMU_INVALIDATE  
+     26 W 0x00b830b0 0x80000005 NV_VIRTUAL_FUNCTION_PRIV_MMU_INVALIDATE  
+     24 W 0x00b830b0 0x800000c5 NV_VIRTUAL_FUNCTION_PRIV_MMU_INVALIDATE  
+     23 W 0x00b830a0 0x0 NV_VIRTUAL_FUNCTION_PRIV_MMU_INVALIDATE  
+     14 W 0x00b830a0 0xf76000 NV_VIRTUAL_FUNCTION_PRIV_MMU_INVALIDATE  
+     12 R 0x00bb0084 0x26 NV_VIRTUAL_FUNCTION_TIME_0/1 (usermode) 
+      2 W 0x00bb0090 0x30005 NV_VIRTUAL_FUNCTION_DOORBELL (usermode) 
+      2 W 0x00b81008 0x1 NV_VF_CPU_INTR_LEAF(i)  
+      1 W 0x00bb0090 0x30006 NV_VIRTUAL_FUNCTION_DOORBELL (usermode) 
+      1 W 0x00bb0090 0x20004 NV_VIRTUAL_FUNCTION_DOORBELL (usermode) 
+      1 W 0x00bb0090 0x20003 NV_VIRTUAL_FUNCTION_DOORBELL (usermode) 
+      1 W 0x00bb0090 0x10002 NV_VIRTUAL_FUNCTION_DOORBELL (usermode) 
+      1 W 0x00bb0090 0x10001 NV_VIRTUAL_FUNCTION_DOORBELL (usermode) 
+      1 W 0x00b83070 0x0 NV_VIRTUAL_FUNCTION_PRIV_MMU_FAULT_BUFFER(i)/PAGE_FAULT_CTRL  
+      1 W 0x00b83028 0xc0000000 NV_VIRTUAL_FUNCTION_PRIV_MMU_FAULT_BUFFER(i)/PAGE_FAULT_CTRL  
+      1 W 0x00b83028 0x0 NV_VIRTUAL_FUNCTION_PRIV_MMU_FAULT_BUFFER(i)/PAGE_FAULT_CTRL  
+      1 W 0x00b81408 0x1 NV_VF_CPU_INTR_LEAF_EN_CLEAR(i)  
+      1 W 0x00b81208 0x1 NV_VF_CPU_INTR_LEAF_EN_SET(i)  
+      1 R 0x00bb0080 0xac728480 NV_VIRTUAL_FUNCTION_TIME_0/1 (usermode) 
+      1 R 0x00bb0080 0xa9dd6840 NV_VIRTUAL_FUNCTION_TIME_0/1 (usermode) 
+      1 R 0x00bb0080 0xa668f220 NV_VIRTUAL_FUNCTION_TIME_0/1 (usermode) 
+      1 R 0x00bb0080 0xa2527800 NV_VIRTUAL_FUNCTION_TIME_0/1 (usermode) 
+      1 R 0x00bb0080 0x9da613a0 NV_VIRTUAL_FUNCTION_TIME_0/1 (usermode) 
+      1 R 0x00bb0080 0x9a249020 NV_VIRTUAL_FUNCTION_TIME_0/1 (usermode) 
+      1 R 0x00b83110 0x100 NV_VIRTUAL_FUNCTION_PRIV_ACCESS_COUNTER_NOTIFY_BUFFER  
+      1 R 0x00b83070 0x0 NV_VIRTUAL_FUNCTION_PRIV_MMU_FAULT_BUFFER(i)/PAGE_FAULT_CTRL  
+      1 R 0x00b8302c 0x0 NV_VIRTUAL_FUNCTION_PRIV_MMU_FAULT_BUFFER(i)/PAGE_FAULT_CTRL  
+      1 R 0x00b83028 0x0 NV_VIRTUAL_FUNCTION_PRIV_MMU_FAULT_BUFFER(i)/PAGE_FAULT_CTRL  
+      1 R 0x00088084 0x453d03 NV_PCFG (config mirror)

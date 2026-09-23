@@ -1,0 +1,33 @@
+# SPDX-License-Identifier: MIT
+# SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
+# SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
+#
+# The board axis (decision D14, docs/caraxes/versatility.md): what the RTX 2070 board
+# adds to its chip. PCI ids, subsystem ids, class, revision and the capability chain
+# come from the config-space capture named here, the ROM from its ROM capture; this
+# file holds what neither capture carries. Everything can be overridden on the
+# command line (--chip, --config, --rom, --board, --vbios-version).
+
+# The board name in the guest name "Leandro <name>-<size>" (identity-profile.md).
+name = "RTX 2070"
+# The chip on the board (src/chip, chips/<chip>/).
+chip = "tu106"
+# Captures of the physical card (caraxes/reference/rtx2070/, relative to LEA_ROOT).
+config = "caraxes/reference/rtx2070/config-space.txt"
+rom = "caraxes/reference/rtx2070/rom.bin"
+# VBIOS 90.06.3D.00.76 from the card's BIT (the version the kernel prints from the
+# synthetic image, docs/caraxes/vbios-synthesis.md): vbiosRevision 0x90063D00 and
+# vbiosOemRevision 0x76 in the static info and BIOS_GET_INFO_V2.
+vbios_version = "90.06.3D.00.76"
+
+# The BARs in the order the card exposes them (docs/caraxes/environment.md): 16 MiB
+# registers, 256 MiB framebuffer window, 32 MiB RAMIN window, 128 B I/O. "mem64"
+# occupies two BAR registers.
+bars = [
+    { kind = "mem32", size = 0x100_0000, prefetch = false },
+    { kind = "mem64", size = 0x1000_0000, prefetch = true },
+    { kind = "mem64", size = 0x200_0000, prefetch = true },
+    { kind = "io", size = 0x80 },
+]
+# Expansion ROM BAR size (the card decodes 512 KiB).
+rom_bar_size = 0x8_0000

@@ -31,6 +31,7 @@ before interpreting isolation claims.
 | [OPEN-QUESTIONS.md](OPEN-QUESTIONS.md) | Numbered investigations, findings and unresolved issues |
 | [FUTURE.md](FUTURE.md) | Planned correctness, compatibility and research work |
 | [VIRTIO-UAPI.md](VIRTIO-UAPI.md) | Proposal for generalizing table-described driver forwarding |
+| [caraxes/](caraxes/README.md) | Leandro v2 (Caraxes): synthetic NVIDIA PCI device for stock guest drivers; findings, init map, experiment ladder |
 | [NAMING.md](NAMING.md) | Component names and terminology |
 | [llm.md](llm.md) | Maintenance notes; filename retained for existing links |
 | [Licenses](../LICENSES.md) | Licensing and third-party attribution |
