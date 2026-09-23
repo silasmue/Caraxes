@@ -1,0 +1,57 @@
+# SPDX-License-Identifier: MIT
+# tools/check.sh on the rebased branch (licence FAIL only for the pre-existing unheaded files under caraxes/runs/e5b*).
+==== FAIL: licence -- last 40 lines ====
+no SPDX-License-Identifier: caraxes/runs/e5b-2026-09-23/a-device-log.txt
+no SPDX-License-Identifier: caraxes/runs/e5b-2026-09-23/a-host-before.txt
+no SPDX-License-Identifier: caraxes/runs/e5b-2026-09-23/a-host-held.txt
+no SPDX-License-Identifier: caraxes/runs/e5b-2026-09-23/b-device-exit.txt
+no SPDX-License-Identifier: caraxes/runs/e5b-2026-09-23/b-guest-dmesg.txt
+no SPDX-License-Identifier: caraxes/runs/e5b-2026-09-23/b-guest-nvidia-smi.txt
+no SPDX-License-Identifier: caraxes/runs/e5b-2026-09-23/b-host-after.txt
+no SPDX-License-Identifier: caraxes/runs/e5b-2026-09-23/b-nvml-gate.err
+no SPDX-License-Identifier: caraxes/runs/e5b-2026-09-23/b-trace-fb.txt
+no SPDX-License-Identifier: caraxes/runs/e5b-2026-09-23/b-uvm-guest.txt
+no SPDX-License-Identifier: caraxes/runs/e5b-2026-09-23/c-dma-load.txt
+no SPDX-License-Identifier: caraxes/runs/e5b-2026-09-23/c-dma-ranges
+no SPDX-License-Identifier: caraxes/runs/e5b-2026-09-23/c-guest-dmesg.txt
+no SPDX-License-Identifier: caraxes/runs/e5b-2026-09-23/c-host-before.txt
+no SPDX-License-Identifier: caraxes/runs/e5b-2026-09-23/c-nvml-gate.err
+no SPDX-License-Identifier: caraxes/runs/e5b-2026-09-23/c-trace-excerpt.txt
+no SPDX-License-Identifier: caraxes/runs/e5b-2026-09-23/c-uvm-guest.txt
+no SPDX-License-Identifier: caraxes/runs/e5b-2026-09-23/c-uvm-verify.txt
+no SPDX-License-Identifier: caraxes/runs/e5b-2026-09-23/c3-cuinit-trace.txt
+no SPDX-License-Identifier: caraxes/runs/e5b-2026-09-23/c3-cuinit.txt
+no SPDX-License-Identifier: caraxes/runs/e5b-2026-09-23/d-device-exit.txt
+no SPDX-License-Identifier: caraxes/runs/e5b-2026-09-23/d-host-after.txt
+no SPDX-License-Identifier: caraxes/runs/e5b-2026-09-23/d-host-held.txt
+no SPDX-License-Identifier: caraxes/runs/e5b-2026-09-23/d-sigterm.txt
+no SPDX-License-Identifier: caraxes/runs/e5b-2026-09-23/e-refusal.txt
+no SPDX-License-Identifier: caraxes/runs/e5b2-2026-09-23/a2-guest-uvm.txt
+no SPDX-License-Identifier: caraxes/runs/e5b2-2026-09-23/d-ce-diag/device-trace.txt
+no SPDX-License-Identifier: caraxes/runs/e5b2-2026-09-23/d-ce-diag/guest.txt
+no SPDX-License-Identifier: caraxes/runs/e5b2-2026-09-23/d-ce-diag/host-xid.txt
+no SPDX-License-Identifier: caraxes/runs/e5b2-2026-09-23/d-ce-diag/server-stderr.txt
+no SPDX-License-Identifier: caraxes/runs/e5b2-2026-09-23/d-ce-token/device-trace.txt
+no SPDX-License-Identifier: caraxes/runs/e5b2-2026-09-23/d-ce-token/guest.txt
+no SPDX-License-Identifier: caraxes/runs/e5b2-2026-09-23/d-ce-token/host-xid.txt
+no SPDX-License-Identifier: caraxes/runs/e5b2-2026-09-23/d-ce-token/server-stderr.txt
+==== end licence ====
+
+== check.sh ==
+PASS  cargo test  (7s)
+PASS  cargo test (release)  (18s)
+PASS  cargo test --doc  (4s)
+PASS  cargo doc  (2s)
+PASS  clippy  (5s)
+PASS  clippy (all features)  (6s)
+PASS  nvrm-genhdr  (1s)
+PASS  c-interpreter  (0s)
+PASS  edid  (1s)
+PASS  class-sizes  (2s)
+PASS  kapi-abi  (0s)
+PASS  bash -n  (0s)
+FAIL  licence  (2s)
+PASS  abi  (42s)
+PASS  nix-sparse  (0s)
+PASS  dangling-refs  (2s)
+PASS  no-markers  (1s)

@@ -1,0 +1,282 @@
+# SPDX-License-Identifier: MIT
+# route.py on run b4: same route as b3, 0 unanswered, no core UPDATE.
+   1 alloc status 0x0 [synthesized (display object recorded; channel state in display/mod.rs)] alloc NV04_DISPLAY_COMMON 0x73
+   2 ctrl 0x730101 status 0x0 [synthesized (chips/tu106/display.toml)] system caps: CROSS_BAR_SUPPORTED
+   3 ctrl 0x730102 status 0x0 [synthesized (chips/tu106/display.toml)] num heads 4
+   4 ctrl 0x730287 status 0x0 [synthesized (chips/tu106/display.toml)] all head mask 0xf
+   5 ctrl 0x7302ad status 0x0 [synthesized (chips/tu106/display.toml)] window head assignment: windows 2h, 2h+1 on head h (8 windows)
+   6 ctrl 0x73028b status 0x0 [synthesized (board connector table, boards/rtx2070.toml [display])] or info of 0x100: SOR0 DP_A, chip, static
+   7 ctrl 0x73028b status 0x0 [synthesized (board connector table, boards/rtx2070.toml [display])] or info of 0x100: SOR0 DP_A, chip, static
+   8 ctrl 0x730250 status 0x0 [synthesized (board connector table, boards/rtx2070.toml [display])] connector data of 0x100: 1 connector, DP_EXT, index 0
+   9 ctrl 0x731369 status 0x0 [synthesized (the display.toml [link] profile)] dp caps of SOR0: max link rate code 4 (HBR3), DP1.2+1.4, no MST, FEC true, DSC true
+  10 ctrl 0x731365 status 0x0 [synthesized (acknowledged; no display state behind it yet)] control 0x731365 on 0x0
+  11 ctrl 0x730287 status 0x0 [synthesized (chips/tu106/display.toml)] all head mask 0xf
+  12 ctrl 0x731369 status 0x0 [synthesized (the display.toml [link] profile)] dp caps of SOR4294967295: max link rate code 4 (HBR3), DP1.2+1.4, no MST, FEC true, DSC true
+  13 ctrl 0x731140 status 0x0 [synthesized (the display.toml [link] profile)] dfp info of 0x100: flags 0x18001b (DP, 4 lanes, link bw code 4)
+  14 ctrl 0x731140 status 0x0 [synthesized (the display.toml [link] profile)] dfp info of 0x100: flags 0x18001b (DP, 4 lanes, link bw code 4)
+  15 ctrl 0x730240 status 0x0 [synthesized (board connector table, boards/rtx2070.toml [display])] display type of 0x100: DFP
+  16 ctrl 0x73011e status 0x0 [synthesized (board connector table, boards/rtx2070.toml [display])] boot displays: none
+  17 ctrl 0x73028a status 0x0 [synthesized (the display.toml [link] profile)] pclk limit of 0x100: 1080000 kHz (link budget at 24 bpp)
+  18 alloc status 0x0 [synthesized (display object recorded; channel state in display/mod.rs)] alloc NVC372_DISPLAY_SW 0xc372
+  19 ctrl 0x20800a76 status 0x0 [synthesized (acknowledged; no display state behind it yet)] internal display control 0x20800a76
+  20 ctrl 0x20800a77 status 0x0 [synthesized (acknowledged; no display state behind it yet)] internal display control 0x20800a77
+  21 alloc status 0x0 [synthesized (display object recorded; channel state in display/mod.rs)] alloc NVC570_DISPLAY 0xc570
+  22 ctrl 0x50700709 status 0x0 [synthesized (chips/tu106/display.toml)] 5070 system caps: none
+  23 ctrl 0x20800a58 status 0x0 [guest (recorded from the request)] channel pushbuffer: class 0xc57d instance 0 pa 0x102c91000 limit 0xfff addrSpace 1 valid true pbSize 0x0
+  24 alloc status 0x0 [synthesized (display object recorded; channel state in display/mod.rs)] alloc NVC57D_CORE_CHANNEL_DMA 0xc57d instance 0: USERD at BAR0 0x680000, pushbuffer 0x102c91000 (valid true)
+  25 mmio display channel 0xc57d/0 kick 1: PUT 0xfc8, 505 method(s), 0 UPDATE(s), 0 raster method(s); GET := PUT [guest]
+  26 mmio display channel 0xc57d/0 kick 2: PUT 0x0, 0 method(s), 0 UPDATE(s), 0 raster method(s); GET := PUT [guest]
+  27 ctrl 0x73010c status 0x0 [synthesized (chips/tu106/display.toml)] head 0 active: none (no firmware-lit head)
+  28 ctrl 0x73010c status 0x0 [synthesized (chips/tu106/display.toml)] head 1 active: none (no firmware-lit head)
+  29 ctrl 0x73010c status 0x0 [synthesized (chips/tu106/display.toml)] head 2 active: none (no firmware-lit head)
+  30 ctrl 0x73010c status 0x0 [synthesized (chips/tu106/display.toml)] head 3 active: none (no firmware-lit head)
+  31 ctrl 0xc3700201 status 0x0 [synthesized (chips/tu106/display.toml)] lockpins caps: no stereo pin
+  32 ctrl 0x73028a status 0x0 [synthesized (the display.toml [link] profile)] pclk limit of 0x100: 1080000 kHz (link budget at 24 bpp)
+  33 ctrl 0x20800a58 status 0x0 [guest (recorded from the request)] channel pushbuffer: class 0xc57e instance 0 pa 0x102c8f000 limit 0xfff addrSpace 1 valid true pbSize 0x0
+  34 alloc status 0x0 [synthesized (display object recorded; channel state in display/mod.rs)] alloc NVC57E_WINDOW_CHANNEL_DMA 0xc57e instance 0: USERD at BAR0 0x690000, pushbuffer 0x102c8f000 (valid true)
+  35 mmio display channel 0xc57e/0 kick 1: PUT 0xfc8, 505 method(s), 0 UPDATE(s), 0 raster method(s); GET := PUT [guest]
+  36 mmio display channel 0xc57e/0 kick 2: PUT 0x0, 0 method(s), 0 UPDATE(s), 0 raster method(s); GET := PUT [guest]
+  37 ctrl 0x20800a58 status 0x0 [guest (recorded from the request)] channel pushbuffer: class 0xc57b instance 0 pa 0x102c8d000 limit 0xfff addrSpace 1 valid true pbSize 0x0
+  38 alloc status 0x0 [synthesized (display object recorded; channel state in display/mod.rs)] alloc NVC57B_WINDOW_IMM_CHANNEL_DMA 0xc57b instance 0: USERD at BAR0 0x6b0000, pushbuffer 0x102c8d000 (valid true)
+  39 ctrl 0x20800a58 status 0x0 [guest (recorded from the request)] channel pushbuffer: class 0xc57e instance 1 pa 0x102c8b000 limit 0xfff addrSpace 1 valid true pbSize 0x0
+  40 alloc status 0x0 [synthesized (display object recorded; channel state in display/mod.rs)] alloc NVC57E_WINDOW_CHANNEL_DMA 0xc57e instance 1: USERD at BAR0 0x691000, pushbuffer 0x102c8b000 (valid true)
+  41 mmio display channel 0xc57e/1 kick 1: PUT 0xfc8, 505 method(s), 0 UPDATE(s), 0 raster method(s); GET := PUT [guest]
+  42 mmio display channel 0xc57e/1 kick 2: PUT 0x0, 0 method(s), 0 UPDATE(s), 0 raster method(s); GET := PUT [guest]
+  43 ctrl 0x20800a58 status 0x0 [guest (recorded from the request)] channel pushbuffer: class 0xc57b instance 1 pa 0x102c89000 limit 0xfff addrSpace 1 valid true pbSize 0x0
+  44 alloc status 0x0 [synthesized (display object recorded; channel state in display/mod.rs)] alloc NVC57B_WINDOW_IMM_CHANNEL_DMA 0xc57b instance 1: USERD at BAR0 0x6b1000, pushbuffer 0x102c89000 (valid true)
+  45 ctrl 0x20800a58 status 0x0 [guest (recorded from the request)] channel pushbuffer: class 0xc57e instance 2 pa 0x102c87000 limit 0xfff addrSpace 1 valid true pbSize 0x0
+  46 alloc status 0x0 [synthesized (display object recorded; channel state in display/mod.rs)] alloc NVC57E_WINDOW_CHANNEL_DMA 0xc57e instance 2: USERD at BAR0 0x692000, pushbuffer 0x102c87000 (valid true)
+  47 mmio display channel 0xc57e/2 kick 1: PUT 0xfc8, 505 method(s), 0 UPDATE(s), 0 raster method(s); GET := PUT [guest]
+  48 mmio display channel 0xc57e/2 kick 2: PUT 0x0, 0 method(s), 0 UPDATE(s), 0 raster method(s); GET := PUT [guest]
+  49 ctrl 0x20800a58 status 0x0 [guest (recorded from the request)] channel pushbuffer: class 0xc57b instance 2 pa 0x102c84000 limit 0xfff addrSpace 1 valid true pbSize 0x0
+  50 alloc status 0x0 [synthesized (display object recorded; channel state in display/mod.rs)] alloc NVC57B_WINDOW_IMM_CHANNEL_DMA 0xc57b instance 2: USERD at BAR0 0x6b2000, pushbuffer 0x102c84000 (valid true)
+  51 ctrl 0x20800a58 status 0x0 [guest (recorded from the request)] channel pushbuffer: class 0xc57e instance 3 pa 0x102c81000 limit 0xfff addrSpace 1 valid true pbSize 0x0
+  52 alloc status 0x0 [synthesized (display object recorded; channel state in display/mod.rs)] alloc NVC57E_WINDOW_CHANNEL_DMA 0xc57e instance 3: USERD at BAR0 0x693000, pushbuffer 0x102c81000 (valid true)
+  53 mmio display channel 0xc57e/3 kick 1: PUT 0xfc8, 505 method(s), 0 UPDATE(s), 0 raster method(s); GET := PUT [guest]
+  54 mmio display channel 0xc57e/3 kick 2: PUT 0x0, 0 method(s), 0 UPDATE(s), 0 raster method(s); GET := PUT [guest]
+  55 ctrl 0x20800a58 status 0x0 [guest (recorded from the request)] channel pushbuffer: class 0xc57b instance 3 pa 0x103b7f000 limit 0xfff addrSpace 1 valid true pbSize 0x0
+  56 alloc status 0x0 [synthesized (display object recorded; channel state in display/mod.rs)] alloc NVC57B_WINDOW_IMM_CHANNEL_DMA 0xc57b instance 3: USERD at BAR0 0x6b3000, pushbuffer 0x103b7f000 (valid true)
+  57 ctrl 0x20800a58 status 0x0 [guest (recorded from the request)] channel pushbuffer: class 0xc57e instance 4 pa 0x103b7d000 limit 0xfff addrSpace 1 valid true pbSize 0x0
+  58 alloc status 0x0 [synthesized (display object recorded; channel state in display/mod.rs)] alloc NVC57E_WINDOW_CHANNEL_DMA 0xc57e instance 4: USERD at BAR0 0x694000, pushbuffer 0x103b7d000 (valid true)
+  59 mmio display channel 0xc57e/4 kick 1: PUT 0xfc8, 505 method(s), 0 UPDATE(s), 0 raster method(s); GET := PUT [guest]
+  60 mmio display channel 0xc57e/4 kick 2: PUT 0x0, 0 method(s), 0 UPDATE(s), 0 raster method(s); GET := PUT [guest]
+  61 ctrl 0x20800a58 status 0x0 [guest (recorded from the request)] channel pushbuffer: class 0xc57b instance 4 pa 0x103b79000 limit 0xfff addrSpace 1 valid true pbSize 0x0
+  62 alloc status 0x0 [synthesized (display object recorded; channel state in display/mod.rs)] alloc NVC57B_WINDOW_IMM_CHANNEL_DMA 0xc57b instance 4: USERD at BAR0 0x6b4000, pushbuffer 0x103b79000 (valid true)
+  63 ctrl 0x20800a58 status 0x0 [guest (recorded from the request)] channel pushbuffer: class 0xc57e instance 5 pa 0x103b77000 limit 0xfff addrSpace 1 valid true pbSize 0x0
+  64 alloc status 0x0 [synthesized (display object recorded; channel state in display/mod.rs)] alloc NVC57E_WINDOW_CHANNEL_DMA 0xc57e instance 5: USERD at BAR0 0x695000, pushbuffer 0x103b77000 (valid true)
+  65 mmio display channel 0xc57e/5 kick 1: PUT 0xfc8, 505 method(s), 0 UPDATE(s), 0 raster method(s); GET := PUT [guest]
+  66 mmio display channel 0xc57e/5 kick 2: PUT 0x0, 0 method(s), 0 UPDATE(s), 0 raster method(s); GET := PUT [guest]
+  67 ctrl 0x20800a58 status 0x0 [guest (recorded from the request)] channel pushbuffer: class 0xc57b instance 5 pa 0x103b75000 limit 0xfff addrSpace 1 valid true pbSize 0x0
+  68 alloc status 0x0 [synthesized (display object recorded; channel state in display/mod.rs)] alloc NVC57B_WINDOW_IMM_CHANNEL_DMA 0xc57b instance 5: USERD at BAR0 0x6b5000, pushbuffer 0x103b75000 (valid true)
+  69 ctrl 0x20800a58 status 0x0 [guest (recorded from the request)] channel pushbuffer: class 0xc57e instance 6 pa 0x103b72000 limit 0xfff addrSpace 1 valid true pbSize 0x0
+  70 alloc status 0x0 [synthesized (display object recorded; channel state in display/mod.rs)] alloc NVC57E_WINDOW_CHANNEL_DMA 0xc57e instance 6: USERD at BAR0 0x696000, pushbuffer 0x103b72000 (valid true)
+  71 mmio display channel 0xc57e/6 kick 1: PUT 0xfc8, 505 method(s), 0 UPDATE(s), 0 raster method(s); GET := PUT [guest]
+  72 mmio display channel 0xc57e/6 kick 2: PUT 0x0, 0 method(s), 0 UPDATE(s), 0 raster method(s); GET := PUT [guest]
+  73 ctrl 0x20800a58 status 0x0 [guest (recorded from the request)] channel pushbuffer: class 0xc57b instance 6 pa 0x103b70000 limit 0xfff addrSpace 1 valid true pbSize 0x0
+  74 alloc status 0x0 [synthesized (display object recorded; channel state in display/mod.rs)] alloc NVC57B_WINDOW_IMM_CHANNEL_DMA 0xc57b instance 6: USERD at BAR0 0x6b6000, pushbuffer 0x103b70000 (valid true)
+  75 ctrl 0x20800a58 status 0x0 [guest (recorded from the request)] channel pushbuffer: class 0xc57e instance 7 pa 0x103b6e000 limit 0xfff addrSpace 1 valid true pbSize 0x0
+  76 alloc status 0x0 [synthesized (display object recorded; channel state in display/mod.rs)] alloc NVC57E_WINDOW_CHANNEL_DMA 0xc57e instance 7: USERD at BAR0 0x697000, pushbuffer 0x103b6e000 (valid true)
+  77 mmio display channel 0xc57e/7 kick 1: PUT 0xfc8, 505 method(s), 0 UPDATE(s), 0 raster method(s); GET := PUT [guest]
+  78 mmio display channel 0xc57e/7 kick 2: PUT 0x0, 0 method(s), 0 UPDATE(s), 0 raster method(s); GET := PUT [guest]
+  79 ctrl 0x20800a58 status 0x0 [guest (recorded from the request)] channel pushbuffer: class 0xc57b instance 7 pa 0x103b6b000 limit 0xfff addrSpace 1 valid true pbSize 0x0
+  80 alloc status 0x0 [synthesized (display object recorded; channel state in display/mod.rs)] alloc NVC57B_WINDOW_IMM_CHANNEL_DMA 0xc57b instance 7: USERD at BAR0 0x6b7000, pushbuffer 0x103b6b000 (valid true)
+  81 ctrl 0x20800a58 status 0x0 [guest (recorded from the request)] channel pushbuffer: class 0xc57a instance 0 pa 0x0 limit 0x0 addrSpace 0 valid false pbSize 0x0
+  82 alloc status 0x0 [synthesized (display object recorded; channel state in display/mod.rs)] alloc NVC57A_CURSOR_IMM_CHANNEL_PIO 0xc57a instance 0: USERD at BAR0 0x6d8000, pushbuffer 0x0 (valid false)
+  83 ctrl 0x20800a58 status 0x0 [guest (recorded from the request)] channel pushbuffer: class 0xc57a instance 1 pa 0x0 limit 0x0 addrSpace 0 valid false pbSize 0x0
+  84 alloc status 0x0 [synthesized (display object recorded; channel state in display/mod.rs)] alloc NVC57A_CURSOR_IMM_CHANNEL_PIO 0xc57a instance 1: USERD at BAR0 0x6d9000, pushbuffer 0x0 (valid false)
+  85 ctrl 0x20800a58 status 0x0 [guest (recorded from the request)] channel pushbuffer: class 0xc57a instance 2 pa 0x0 limit 0x0 addrSpace 0 valid false pbSize 0x0
+  86 alloc status 0x0 [synthesized (display object recorded; channel state in display/mod.rs)] alloc NVC57A_CURSOR_IMM_CHANNEL_PIO 0xc57a instance 2: USERD at BAR0 0x6da000, pushbuffer 0x0 (valid false)
+  87 ctrl 0x20800a58 status 0x0 [guest (recorded from the request)] channel pushbuffer: class 0xc57a instance 3 pa 0x0 limit 0x0 addrSpace 0 valid false pbSize 0x0
+  88 alloc status 0x0 [synthesized (display object recorded; channel state in display/mod.rs)] alloc NVC57A_CURSOR_IMM_CHANNEL_PIO 0xc57a instance 3: USERD at BAR0 0x6db000, pushbuffer 0x0 (valid false)
+  89 ctrl 0x730108 status 0x0 [synthesized (dp-sink model behind the connector)] connect state: asked 0x100 connected 0x100
+  90 ctrl 0x731152 status 0x0 [synthesized (board connector table, boards/rtx2070.toml [display])] assign sor: 0x100 -> SOR0 (single)
+  91 ctrl 0x731341 status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)] aux 0x100: nr 00e 1 -> ack 1 80
+  92 ctrl 0x731341 status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)] aux 0x100: nr e000d 1 -> ack 1 00
+  93 ctrl 0x731341 status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)] aux 0x100: nr e0030 1 -> ack 1 00
+  94 ctrl 0x731341 status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)] aux 0x100: nw e0030 00 -> ack 1
+  95 ctrl 0x731341 status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)] aux 0x100: nr 2200 16 -> ack 16 14 1e c4 81 00 00 01 00 02 00 00 00 00 00 80 00
+  96 ctrl 0x731341 status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)] aux 0x100: nr 2002 1 -> ack 1 01
+  97 ctrl 0x731341 status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)] aux 0x100: nr 020 3 -> ack 3 00 00 00
+  98 ctrl 0x731341 status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)] aux 0x100: nr 2211 1 -> ack 1 00
+  99 ctrl 0x731341 status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)] aux 0x100: nr 070 1 -> ack 1 00
+ 100 ctrl 0x731341 status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)] aux 0x100: nr 2002 4 -> ack 4 01 00 00 00
+ 101 ctrl 0x731341 status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)] aux 0x100: nr 200c 3 -> ack 3 00 00 00
+ 102 ctrl 0x731341 status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)] aux 0x100: nr 2003 3 -> ack 3 00 00 00
+ 103 ctrl 0x731341 status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)] aux 0x100: nr 111 1 -> ack 1 00
+ 104 ctrl 0x731341 status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)] aux 0x100: nw 111 04 -> ack 1
+ 105 ctrl 0x731341 status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)] aux 0x100: iwm 30 00 -> ack 1
+ 106 ctrl 0x731341 status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)] aux 0x100: iwm 52 00 -> i2c-nack 0
+ 107 ctrl 0x731341 status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)] aux 0x100: iwm 30 00 -> ack 1
+ 108 ctrl 0x731341 status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)] aux 0x100: iwm 52 00 -> i2c-nack 0
+ 109 ctrl 0x731341 status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)] aux 0x100: iwm 30 00 -> ack 1
+ 110 ctrl 0x731341 status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)] aux 0x100: iwm 52 00 -> i2c-nack 0
+ 111 ctrl 0x731341 status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)] aux 0x100: iwm 30 00 -> ack 1
+ 112 ctrl 0x731341 status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)] aux 0x100: iwm 52 00 -> i2c-nack 0
+ 113 ctrl 0x731341 status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)] aux 0x100: iwm 30 00 -> ack 1
+ 114 ctrl 0x731341 status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)] aux 0x100: iwm 52 00 -> i2c-nack 0
+ 115 ctrl 0x731341 status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)] aux 0x100: iwm 30 00 -> ack 1
+ 116 ctrl 0x731341 status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)] aux 0x100: iwm 52 00 -> i2c-nack 0
+ 117 ctrl 0x731341 status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)] aux 0x100: iwm 30 00 -> ack 1
+ 118 ctrl 0x731341 status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)] aux 0x100: iwm 52 00 -> i2c-nack 0
+ 119 ctrl 0x731341 status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)] aux 0x100: iwm 30 00 -> ack 1
+ 120 ctrl 0x731341 status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)] aux 0x100: iwm 52 00 -> i2c-nack 0
+ 121 ctrl 0x731341 status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)] aux 0x100: iwm 30 00 -> ack 1
+ 122 ctrl 0x731341 status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)] aux 0x100: iwm 52 00 -> i2c-nack 0
+ 123 ctrl 0x731341 status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)] aux 0x100: iwm 30 00 -> ack 1
+ 124 ctrl 0x731341 status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)] aux 0x100: iwm 52 00 -> i2c-nack 0
+ 125 ctrl 0x731341 status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)] aux 0x100: iwm 30 00 -> ack 1
+ 126 ctrl 0x731341 status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)] aux 0x100: iwm 52 00 -> i2c-nack 0
+ 127 ctrl 0x731341 status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)] aux 0x100: iwm 30 00 -> ack 1
+ 128 ctrl 0x731341 status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)] aux 0x100: iwm 52 00 -> i2c-nack 0
+ 129 ctrl 0x731341 status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)] aux 0x100: iwm 30 00 -> ack 1
+ 130 ctrl 0x731341 status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)] aux 0x100: iwm 52 00 -> i2c-nack 0
+ 131 ctrl 0x731341 status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)] aux 0x100: iwm 30 00 -> ack 1
+ 132 ctrl 0x731341 status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)] aux 0x100: iwm 52 00 -> i2c-nack 0
+ 133 ctrl 0x731341 status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)] aux 0x100: iwm 30 00 -> ack 1
+ 134 ctrl 0x731341 status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)] aux 0x100: iwm 52 00 -> i2c-nack 0
+ 135 ctrl 0x731341 status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)] aux 0x100: iwm 30 00 -> ack 1
+ 136 ctrl 0x731341 status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)] aux 0x100: iwm 52 00 -> i2c-nack 0
+ 137 ctrl 0x731341 status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)] aux 0x100: iwm 30 00 -> ack 1
+ 138 ctrl 0x731341 status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)] aux 0x100: iwm 52 00 -> i2c-nack 0
+ 139 ctrl 0x731341 status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)] aux 0x100: iwm 30 00 -> ack 1
+ 140 ctrl 0x731341 status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)] aux 0x100: iwm 52 00 -> i2c-nack 0
+ 141 ctrl 0x731341 status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)] aux 0x100: iwm 30 00 -> ack 1
+ 142 ctrl 0x731341 status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)] aux 0x100: iwm 52 00 -> i2c-nack 0
+ 143 ctrl 0x731341 status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)] aux 0x100: iwm 30 00 -> ack 1
+ 144 ctrl 0x731341 status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)] aux 0x100: iwm 52 00 -> i2c-nack 0
+ 145 ctrl 0x731341 status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)] aux 0x100: iwm 50 00 -> ack 1
+ 146 ctrl 0x731341 status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)] aux 0x100: irm 50 16 -> ack 16 00 ff ff ff ff ff ff 00 0e 58 02 00 00 00 00 00
+ 147 ctrl 0x731341 status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)] aux 0x100: irm 50 16 -> ack 16 27 24 01 04 a5 35 1e 78 06 ee 91 a3 54 4c 99 26
+ 148 ctrl 0x731341 status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)] aux 0x100: irm 50 16 -> ack 16 0f 50 54 20 00 00 01 01 01 01 01 01 01 01 01 01
+ 149 ctrl 0x731341 status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)] aux 0x100: irm 50 16 -> ack 16 01 01 01 01 01 01 02 3a 80 18 71 38 2d 40 58 2c
+ 150 ctrl 0x731341 status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)] aux 0x100: irm 50 16 -> ack 16 45 00 0f 28 21 00 00 1e 01 1d 00 72 51 d0 1e 20
+ 151 ctrl 0x731341 status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)] aux 0x100: irm 50 16 -> ack 16 6e 28 55 00 0f 28 21 00 00 1e 02 3a 80 d0 72 38
+ 152 ctrl 0x731341 status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)] aux 0x100: irm 50 16 -> ack 16 2d 40 10 2c 45 80 0f 28 21 00 00 1e 00 00 00 fc
+ 153 ctrl 0x731341 status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)] aux 0x100: ir 50 16 -> ack 16 00 43 61 72 61 78 65 73 20 44 50 0a 20 20 01 1f
+ 154 ctrl 0x731341 status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)] aux 0x100: iwm 50 80 -> ack 1
+ 155 ctrl 0x731341 status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)] aux 0x100: irm 50 16 -> ack 16 02 03 0c 80 44 10 04 1f c9 e2 00 4a 00 00 00 00
+ 156 ctrl 0x731341 status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)] aux 0x100: irm 50 16 -> ack 16 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+ 157 ctrl 0x731341 status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)] aux 0x100: irm 50 16 -> ack 16 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+ 158 ctrl 0x731341 status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)] aux 0x100: irm 50 16 -> ack 16 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+ 159 ctrl 0x731341 status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)] aux 0x100: irm 50 16 -> ack 16 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+ 160 ctrl 0x731341 status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)] aux 0x100: irm 50 16 -> ack 16 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+ 161 ctrl 0x731341 status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)] aux 0x100: irm 50 16 -> ack 16 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+ 162 ctrl 0x731341 status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)] aux 0x100: ir 50 16 -> ack 16 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 03
+ 163 ctrl 0x730246 status 0x0 [guest-derived (per-display EDID state: sink EDID and override)] set edid of 0x100: 256 bytes stored as override (identical to the sink EDID: true)
+ 164 ctrl 0x731341 status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)] aux 0x100: nr 000 1 -> ack 1 14
+ 165 ctrl 0x73138f status 0x0 [synthesized (acknowledged; no display state behind it yet)] control 0x73138f on 0x100
+ 166 ctrl 0x731343 status 0x0 [synthesized (dp-sink model behind the connector)] dp ctrl of 0x100: cmd 0x83: trained 4 lanes at link bw 0x1e
+ 167 ctrl 0x73138f status 0x0 [synthesized (acknowledged; no display state behind it yet)] control 0x73138f on 0x100
+ 168 ctrl 0x731341 status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)] aux 0x100: nr 600 1 -> ack 1 01
+ 169 ctrl 0x731341 status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)] aux 0x100: nr 600 1 -> ack 1 01
+ 170 ctrl 0x731341 status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)] aux 0x100: nr 6921d 1 -> ack 1 00
+ 171 ctrl 0x731341 status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)] aux 0x100: nr 68028 1 -> ack 1 00
+ 172 ctrl 0x731341 status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)] aux 0x100: nr 6802a 2 -> ack 2 00 00
+ 173 ctrl 0x731341 status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)] aux 0x100: nr 060 1 -> ack 1 01
+ 174 ctrl 0x731341 status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)] aux 0x100: nr 060 16 -> ack 16 01 21 00 05 0b 08 01 00 00 01 06 11 08 00 00 00
+ 175 ctrl 0x731341 status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)] aux 0x100: nr 0b0 1 -> ack 1 00
+ 176 ctrl 0x731341 status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)] aux 0x100: nr 0b1 1 -> ack 1 00
+ 177 ctrl 0x731341 status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)] aux 0x100: nr 02e 1 -> ack 1 00
+ 178 ctrl 0x731341 status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)] aux 0x100: nr 090 1 -> ack 1 01
+ 179 ctrl 0x731341 status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)] aux 0x100: nw 600 02 -> ack 1
+ 180 ctrl 0x731343 status 0x0 [synthesized (dp-sink model behind the connector)] dp ctrl of 0x100: cmd 0x883 data 0x600: link powered down
+ 181 ctrl 0x73138f status 0x0 [synthesized (acknowledged; no display state behind it yet)] control 0x73138f on 0x100
+ 182 ctrl 0x730116 status 0x0 [synthesized (board connector table, boards/rtx2070.toml [display])] internal displays: none
+ 183 ctrl 0x73013d status 0x56 [synthesized (board connector table, boards/rtx2070.toml [display])] display ids with mux: not supported (no dynamic mux)
+ 184 ctrl 0x730291 status 0x56 [synthesized (board connector table, boards/rtx2070.toml [display])] backlight brightness of 0x100: not supported (external DP monitor, no panel)
+ 185 ctrl 0x730246 status 0x0 [guest-derived (per-display EDID state: sink EDID and override)] set edid of 0x100: size 0, override cleared
+ 186 ctrl 0x730246 status 0x0 [guest-derived (per-display EDID state: sink EDID and override)] set edid of 0x100: 256 bytes stored as override (identical to the sink EDID: true)
+ 187 ctrl 0x730245 status 0x0 [guest-derived (per-display EDID state: sink EDID and override)] get edid of 0x100 flags 0x0: 256 bytes from the override
+ 188 ctrl 0x73028a status 0x0 [synthesized (the display.toml [link] profile)] pclk limit of 0x100: 1080000 kHz (link budget at 24 bpp)
+ 189 ctrl 0x7302a7 status 0x0 [synthesized (chips/tu106/display.toml)] direct mode (VR headset): no
+ 190 ctrl 0x731360 status 0x0 [synthesized (dp-sink model behind the connector)] link config of 0x100: 0 lanes, link bw 0x0 (0 = untrained)
+ 191 ctrl 0x730291 status 0x56 [synthesized (board connector table, boards/rtx2070.toml [display])] backlight brightness of 0x100: not supported (external DP monitor, no panel)
+ 192 ctrl 0x730246 status 0x0 [guest-derived (per-display EDID state: sink EDID and override)] set edid of 0x100: size 0, override cleared
+ 193 ctrl 0x730246 status 0x0 [guest-derived (per-display EDID state: sink EDID and override)] set edid of 0x100: 256 bytes stored as override (identical to the sink EDID: true)
+ 194 ctrl 0x730245 status 0x0 [guest-derived (per-display EDID state: sink EDID and override)] get edid of 0x100 flags 0x0: 256 bytes from the override
+ 195 ctrl 0x731360 status 0x0 [synthesized (dp-sink model behind the connector)] link config of 0x100: 0 lanes, link bw 0x0 (0 = untrained)
+ 196 ctrl 0xc3720101 status 0x0 [synthesized (chips/tu106/display.toml)] is mode possible: yes (1 heads, 2 windows asked)
+ 197 ctrl 0xc3720101 status 0x0 [synthesized (chips/tu106/display.toml)] is mode possible: yes (1 heads, 2 windows asked)
+ 198 ctrl 0xc3720101 status 0x0 [synthesized (chips/tu106/display.toml)] is mode possible: yes (1 heads, 2 windows asked)
+ 199 ctrl 0xc3720101 status 0x0 [synthesized (chips/tu106/display.toml)] is mode possible: yes (1 heads, 2 windows asked)
+ 200 ctrl 0xc3720101 status 0x0 [synthesized (chips/tu106/display.toml)] is mode possible: yes (1 heads, 2 windows asked)
+ 201 ctrl 0xc3720101 status 0x0 [synthesized (chips/tu106/display.toml)] is mode possible: yes (1 heads, 2 windows asked)
+ 202 ctrl 0xc3720101 status 0x0 [synthesized (chips/tu106/display.toml)] is mode possible: yes (2 heads, 4 windows asked)
+ 203 ctrl 0xc3720101 status 0x0 [synthesized (chips/tu106/display.toml)] is mode possible: yes (1 heads, 2 windows asked)
+ 204 ctrl 0xc3720101 status 0x0 [synthesized (chips/tu106/display.toml)] is mode possible: yes (1 heads, 2 windows asked)
+ 205 ctrl 0xc3720101 status 0x0 [synthesized (chips/tu106/display.toml)] is mode possible: yes (1 heads, 2 windows asked)
+ 206 ctrl 0xc3720101 status 0x0 [synthesized (chips/tu106/display.toml)] is mode possible: yes (1 heads, 2 windows asked)
+ 207 ctrl 0xc3720101 status 0x0 [synthesized (chips/tu106/display.toml)] is mode possible: yes (1 heads, 2 windows asked)
+ 208 ctrl 0xc3720101 status 0x0 [synthesized (chips/tu106/display.toml)] is mode possible: yes (1 heads, 2 windows asked)
+ 209 ctrl 0xc3720101 status 0x0 [synthesized (chips/tu106/display.toml)] is mode possible: yes (1 heads, 2 windows asked)
+
+Display BAR0 accesses (register, or 4 KiB USERD page):
+  R 0x640000: 1
+  R 0x640004: 1
+  R 0x640010: 1
+  R 0x640144: 1
+  R 0x64014c: 1
+  R 0x640154: 1
+  R 0x64015c: 1
+  R 0x6405e8: 1
+  R 0x6405ec: 1
+  R 0x6405f0: 1
+  R 0x6405f4: 1
+  R 0x640608: 1
+  R 0x64060c: 1
+  R 0x640610: 1
+  R 0x640614: 1
+  R 0x640680: 1
+  R 0x6406a0: 1
+  R 0x6406c0: 1
+  R 0x6406e0: 1
+  R 0x640780: 2
+  R 0x6407a0: 2
+  R 0x6407c0: 2
+  R 0x6407e0: 2
+  R 0x640800: 2
+  R 0x640820: 2
+  R 0x640840: 2
+  R 0x640860: 2
+  R 0x640880: 2
+  R 0x6408a0: 2
+  R 0x6408c0: 2
+  R 0x6408e0: 2
+  R 0x640900: 2
+  R 0x640920: 2
+  R 0x640940: 2
+  R 0x640960: 2
+  R 0x640980: 2
+  R 0x6409a0: 2
+  R 0x6409c0: 2
+  R 0x6409e0: 2
+  R 0x640a00: 2
+  R 0x640a20: 2
+  R 0x640a40: 2
+  R 0x640a60: 2
+  R 0x640a80: 2
+  R 0x640aa0: 2
+  R 0x640ac0: 2
+  R 0x640ae0: 2
+  R 0x640b00: 2
+  R 0x640b20: 2
+  R 0x640b40: 2
+  R 0x640b60: 2
+  R 0x680000: 4
+  R 0x690000: 4
+  R 0x691000: 4
+  R 0x692000: 4
+  R 0x693000: 4
+  R 0x694000: 4
+  R 0x695000: 4
+  R 0x696000: 4
+  R 0x697000: 4
+  W 0x680000: 2
+  W 0x690000: 2
+  W 0x691000: 2
+  W 0x692000: 2
+  W 0x693000: 2
+  W 0x694000: 2
+  W 0x695000: 2
+  W 0x696000: 2
+  W 0x697000: 2

@@ -41,6 +41,10 @@ What the gate checked:
   `tools/caraxes-vm.sh uvm` registers the GPU (`rmStatus 0x0`). This held before A (display off),
   after A and after B.
 
+After the rebase onto main `d45bf4f` (P17 naming), run b4 repeated B on the rebased build.
+The result was the same connector, modes and EDID, a byte-identical AUX transcript, zero
+unanswered controls, no `UPDATE`, and nvml pass.
+
 **Phase A passes:**
 - `RmInitAdapter succeeded!` with KernelDisplay present.
 - The fuse reads 0.

@@ -106,3 +106,26 @@ The transcript output became `crates/dp-sink/tests/transcripts/nvidia-610-guest-
 (with a header) and `b3-aux-transcript.txt`. The empty `*.stderr` files of the gate runs
 were removed (nothing was written to stderr). The text evidence files got an SPDX line and
 a one-line description at the top when they were collected.
+
+## Re-verification after the rebase onto main (d45bf4f), run b4
+
+```sh
+tools/check.sh > caraxes/runs/display-ab-2026-09-23/check-rebased.txt 2>&1
+cargo build -q --release -p vfio-user-nvgpu
+VM=vm0 tools/caraxes-vm.sh ssh 'sync'
+VM=vm0 tools/caraxes-vm.sh down
+VM=vm0 CARAXES_BOOT_MODEL=1 CARAXES_FB_MIB=4096 CARAXES_HOST_RM=1 CARAXES_DISPLAY=1 tools/caraxes-vm.sh up
+VM=vm0 tools/caraxes-vm.sh wait
+VM=vm0 tools/caraxes-vm.sh probe display-b4
+VM=vm0 tools/caraxes-vm.sh ssh 'sudo dmesg -C; sudo modprobe video; sudo modprobe nvidia-modeset; sudo modprobe nvidia-drm modeset=1 fbdev=0; sleep 20; for f in status enabled dpms modes; do echo "== $f"; cat /sys/class/drm/card0-DP-1/$f; done; echo "== dmesg"; sudo dmesg | grep -v "NVRM: VM:"' > caraxes/runs/display-ab-2026-09-23/b4-guest-sysfs-dmesg.txt
+sed -n 374717,401455p /mnt/vmstore/caraxes/vm0/gpu-trace.log > /mnt/vmstore/caraxes/vm0/b4-device-trace.txt
+python3 caraxes/runs/display-ab-2026-09-23/route.py /mnt/vmstore/caraxes/vm0/b4-device-trace.txt > caraxes/runs/display-ab-2026-09-23/b4-route.txt
+python3 caraxes/runs/display-ab-2026-09-23/transcript.py /mnt/vmstore/caraxes/vm0/b4-device-trace.txt 100 > caraxes/runs/display-ab-2026-09-23/b4-aux-transcript.txt
+VM=vm0 tools/caraxes-gate.sh nvml > caraxes/runs/display-ab-2026-09-23/gate-nvml-rebased.json
+scp -q -i /mnt/vmstore/leandro/vm/id_leandro -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR leandro@192.168.100.20:/sys/class/drm/card0-DP-1/edid /mnt/vmstore/caraxes/vm0/b4-edid.bin
+cmp /mnt/vmstore/caraxes/vm0/b4-edid.bin caraxes/runs/display-ab-2026-09-23/guest-card0-DP-1.edid.bin
+```
+
+Result: connected, the same six modes, zero unanswered, no core UPDATE, nvml pass. The b4 AUX
+transcript was byte-identical to b3's (`cmp` against b3 without its two header lines), so it
+was not kept. The EDID was identical too.

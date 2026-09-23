@@ -1,0 +1,21 @@
+# SPDX-License-Identifier: MIT
+# Run b4 (the branch rebased onto main d45bf4f): connector sysfs and dmesg 20 s after loading nvidia-drm.
+== status
+connected
+== enabled
+disabled
+== dpms
+On
+== modes
+1920x1080
+1920x1080
+1920x1080
+1280x720
+1280x720
+640x480
+== dmesg
+[  166.161551] nvidia-modeset: Loading NVIDIA UNIX Open Kernel Mode Setting Driver for x86_64  610.57.04  Release Build  (leandro@caraxes-vm0)  Wed Sep 23 19:23:25 UTC 2026
+[  166.200411] [drm] [nvidia-drm] [GPU ID 0x00000005] Loading driver
+[  166.200421] NVRM: GPU 0000:00:05.0: Opening GPU with minor number 0
+[  166.205702] NVRM: GPU 0000:00:05.0: Opening GPU with minor number 0
+[  167.073272] [drm] Initialized nvidia-drm 0.0.0 20160202 for 0000:00:05.0 on minor 0
