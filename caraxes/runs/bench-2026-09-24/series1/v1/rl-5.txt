@@ -1,0 +1,33 @@
+# target v1 metric rl rep 5
+# cmd NVRL_EPISODES=50 $HOME/gpu/venv/bin/python $HOME/caraxes-tests/leandro-test/probe/python/rlprobe.py
+# time 2026-09-24T00:13:18+02:00
+# gpu 60, 1410 MHz, 7000 MHz, P0, 15 %, 5337 MiB, Disabled
+# procs 789512:vm2-dev 789520:vm2-vmm 846533:bench-v1-dev 846569:bench-v1-vmm 896184:vm0-dev 896194:vm0-vmm 
+# loadavg 16.32 16.02 10.94
+rlprobe: stage=4 episodes=50 pin=False nonblock=False sync=False item=True
+stage0: cuInit ok, Leandro RTX 2070
+Traceback (most recent call last):
+  File "/home/leandro/caraxes-tests/leandro-test/probe/python/rlprobe.py", line 203, in <module>
+    main()
+  File "/home/leandro/caraxes-tests/leandro-test/probe/python/rlprobe.py", line 167, in main
+    pol = Policy().to(dev)
+          ^^^^^^^^^^^^^^^^
+  File "/home/leandro/gpu/venv/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1383, in to
+    return self._apply(convert)
+           ^^^^^^^^^^^^^^^^^^^^
+  File "/home/leandro/gpu/venv/lib/python3.12/site-packages/torch/nn/modules/module.py", line 933, in _apply
+    module._apply(fn)
+  File "/home/leandro/gpu/venv/lib/python3.12/site-packages/torch/nn/modules/module.py", line 933, in _apply
+    module._apply(fn)
+  File "/home/leandro/gpu/venv/lib/python3.12/site-packages/torch/nn/modules/module.py", line 964, in _apply
+    param_applied = fn(param)
+                    ^^^^^^^^^
+  File "/home/leandro/gpu/venv/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1369, in convert
+    return t.to(
+           ^^^^^
+torch.AcceleratorError: CUDA error: CUDA-capable device(s) is/are busy or unavailable
+Search for `cudaErrorDevicesUnavailable' in https://docs.nvidia.com/cuda/cuda-runtime-api/group__CUDART__TYPES.html for more information.
+For more detailed error information, run with CUDA_LOG_FILE=stderr
+
+# WALL wall_ms=2507 rc=1
+# MEAS dev_pid=846533 dev_cpu_ms=300 dev_rss_hwm_kb=1026264/1086492 vmm_cpu_ms=2560 others: vm2-vmm=2200ms vm0-dev=0ms vm0-vmm=30ms vm2-dev=1300ms 

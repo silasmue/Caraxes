@@ -108,6 +108,15 @@ struct HostVas {
     replayed: bool,
 }
 
+/// The shadow VAS of one guest root, the set-B ranges excluded from it, and the guest
+/// channels and TSGs placed on it.
+struct ShadowSpace {
+    sv: crate::shadow::ShadowVas,
+    exclude: Vec<(u64, u64)>,
+    chids: std::collections::BTreeSet<u32>,
+    tsgs: std::collections::BTreeSet<(u32, u32)>,
+}
+
 struct HostTsg {
     handle: u32,
     vas: (u32, u32),
@@ -126,6 +135,8 @@ pub struct HostChannel {
     pub objects: Vec<(u32, u32)>,
     pub created: Instant,
     pub doorbells: u64,
+    /// The guest root of the shadow VAS a shadow GR channel runs on (`None`: CE mirror).
+    pub shadow_root: Option<u64>,
 }
 
 /// Counters for the exit summary.
@@ -188,11 +199,10 @@ pub struct Mirror {
     /// (`shadow.rs`, D17 route 4 stage 1) — the host RM owns the GR context there and the
     /// guest's set-A is mirrored in at its own VAs. The GR launch experiment.
     shadow_probe: bool,
-    /// The persistent shadow VAS the GR channels run on (built at the first GR channel).
-    shadow_vas: Option<crate::shadow::ShadowVas>,
-    /// The guest root the shadow VAS mirrors, and the set-B ranges excluded from it.
-    shadow_root: Option<u64>,
-    shadow_exclude: Vec<(u64, u64)>,
+    /// One shadow VAS per guest root (per CUDA context: two processes use the same VAs
+    /// for different pages, measured in the gpu gate's robustness stage), built at the
+    /// first GR channel of that root and freed when its last channel and TSG are gone.
+    shadows: BTreeMap<u64, ShadowSpace>,
     next_event_id: u32,
     pub stats: MirrorStats,
 }
@@ -250,9 +260,7 @@ impl Mirror {
             invalidator: None,
             memop_invalidate: std::env::var("CARAXES_MEMOP_INVALIDATE").as_deref() != Ok("0"),
             shadow_probe: std::env::var("CARAXES_MIRROR_GR_SHADOW").as_deref() == Ok("1"),
-            shadow_vas: None,
-            shadow_root: None,
-            shadow_exclude: Vec::new(),
+            shadows: BTreeMap::new(),
             next_event_id: 0x1000,
             stats: MirrorStats::default(),
         })
@@ -279,32 +287,60 @@ impl Mirror {
                 .any(|(c, _)| *c == self.chip.channel.compute)
     }
 
-    /// Re-sync the shadow VAS from the guest root (called at a guest TLB invalidate): map
-    /// any set-A page the guest has newly mapped since the last walk.
-    pub fn shadow_resync(&mut self, _reg: &Registry, gm: &mut GpuMem) -> Vec<String> {
-        let Some(root) = self.shadow_root else {
-            return Vec::new();
-        };
+    /// Re-sync the shadow VAS of guest root `root` (`None`: every shadow VAS) from the
+    /// guest's tables (called at a guest TLB invalidate and before a shadow doorbell): map
+    /// what the guest newly mapped, unmap what it changed or removed.
+    pub fn shadow_resync(
+        &mut self,
+        _reg: &Registry,
+        gm: &mut GpuMem,
+        root: Option<u64>,
+    ) -> Vec<String> {
         let (base, end, reservation) = (self.base, self.end, self.reservation);
-        let exclude = self.shadow_exclude.clone();
         let mut h = self.hm.lock().unwrap();
-        let Some(sv) = self.shadow_vas.as_mut() else {
-            return Vec::new();
-        };
-        let (changed, notes) = sv.sync(
-            &mut h,
-            gm.fb,
-            gm.sys,
-            root,
-            base,
-            end,
-            reservation,
-            &exclude,
-        );
-        if changed {
-            notes
-        } else {
-            Vec::new()
+        let mut out = Vec::new();
+        for (r, sp) in self.shadows.iter_mut() {
+            if root.is_some_and(|x| x != *r) {
+                continue;
+            }
+            let (changed, notes) = sp.sv.sync(
+                &mut h,
+                gm.fb,
+                gm.sys,
+                *r,
+                base,
+                end,
+                reservation,
+                &sp.exclude,
+            );
+            if changed {
+                out.extend(notes);
+            }
+        }
+        out
+    }
+
+    /// Free a shadow VAS whose last channel and TSG are gone.
+    fn reap_shadows(&mut self, fb: Option<&crate::fb::FakeFb>, notes: &mut Vec<String>) {
+        let empty: Vec<u64> = self
+            .shadows
+            .iter()
+            .filter(|(_, sp)| sp.chids.is_empty() && sp.tsgs.is_empty())
+            .map(|(r, _)| *r)
+            .collect();
+        for r in empty {
+            if let Some(sp) = self.shadows.remove(&r) {
+                let mut h = self.hm.lock().unwrap();
+                notes.push(format!(
+                    "shadow: VAS {:#x} of guest root {r:#x} freed: {} [host]",
+                    sp.sv.vas,
+                    sp.sv.summary()
+                ));
+                sp.sv.free(&mut h);
+                if let Some(fb) = fb {
+                    fb.unwatch_tables(Target::Fb(r));
+                }
+            }
         }
     }
 
@@ -321,7 +357,8 @@ impl Mirror {
         // Already built: re-sync the shadow VAS from the guest root FIRST (the guest maps
         // more set-A between doorbells), then flush and ring.
         if self.channels.contains_key(&chid) {
-            let mut notes = self.shadow_resync(reg, gm);
+            let root = self.channels.get(&chid).and_then(|c| c.shadow_root);
+            let mut notes = self.shadow_resync(reg, gm, root);
             gm.fb.flush();
             match self.doorbell(chid) {
                 Ok(n) => notes.push(n),
@@ -344,18 +381,14 @@ impl Mirror {
         // host RM builds set B in the shadow VAS at these VAs, so a later GR channel that
         // records no promote entries of its own must still not have set A mirrored over
         // them (measured 2026-09-23: chids 3-9 collided at 0x120010000 etc.).
+        let mut new_b = Vec::new();
         if let Some(m) = reg.promoted((ch.h_client, ch.h_object)) {
             for e in m.values() {
                 if let Some(v) = e.virt {
-                    let r = (v, v + e.size.max(0x1000));
-                    if !self.shadow_exclude.contains(&r) {
-                        self.shadow_exclude.push(r);
-                    }
+                    new_b.push((v, v + e.size.max(0x1000)));
                 }
             }
         }
-        let exclude = self.shadow_exclude.clone();
-        self.shadow_root = Some(root);
         let tsg_key = (ch.h_client, ch.h_parent);
         // The host RM clears the channel's USERD when it creates the mirror; the guest has
         // already written its GPFIFO entry and GPPut for the submission that rang this
@@ -377,16 +410,23 @@ impl Mirror {
         });
         self.ensure_events(&mut Vec::new());
         let mut notes = vec![format!(
-            "shadow: GR chid {chid} on the host-managed shadow VAS; root {root:#x}, {} set-B range(s) excluded",
-            exclude.len()
+            "shadow: GR chid {chid} on the host-managed shadow VAS of guest root {root:#x}"
         )];
         let mut h = self.hm.lock().unwrap();
-        // The persistent shadow VAS, built once.
-        if self.shadow_vas.is_none() {
+        // The shadow VAS of this guest root, built once per root.
+        if let std::collections::btree_map::Entry::Vacant(slot) = self.shadows.entry(root) {
             match crate::shadow::ShadowVas::new(&mut h) {
                 Ok(sv) => {
-                    notes.push(format!("shadow: host-managed VAS {:#x} [host]", sv.vas));
-                    self.shadow_vas = Some(sv);
+                    notes.push(format!(
+                        "shadow: host-managed VAS {:#x} for guest root {root:#x} [host]",
+                        sv.vas
+                    ));
+                    slot.insert(ShadowSpace {
+                        sv,
+                        exclude: Vec::new(),
+                        chids: Default::default(),
+                        tsgs: Default::default(),
+                    });
                 }
                 Err(st) => {
                     notes.push(format!("shadow: VAS refused: {}", status_name(st)));
@@ -394,7 +434,16 @@ impl Mirror {
                 }
             }
         }
-        let sv = self.shadow_vas.as_mut().expect("built");
+        let sp = self.shadows.get_mut(&root).expect("built");
+        for r in new_b {
+            if !sp.exclude.contains(&r) {
+                sp.exclude.push(r);
+            }
+        }
+        sp.chids.insert(chid);
+        sp.tsgs.insert(tsg_key);
+        let exclude = sp.exclude.clone();
+        let sv = &mut sp.sv;
         // Mirror the guest's set-A before the channel/GPFIFO VA is validated against the VAS.
         let (_, sync_notes) = sv.sync(
             &mut h,
@@ -547,6 +596,7 @@ impl Mirror {
                 objects,
                 created: Instant::now(),
                 doorbells: 0,
+                shadow_root: Some(root),
             },
         );
         notes.push(format!(
@@ -1229,6 +1279,7 @@ impl Mirror {
                         objects,
                         created: t0,
                         doorbells: 0,
+                        shadow_root: None,
                     },
                 );
                 Ok((token, notes))
@@ -1405,6 +1456,9 @@ impl Mirror {
     }
 
     fn free_channel(&mut self, chid: u32, notes: &mut Vec<String>) {
+        for sp in self.shadows.values_mut() {
+            sp.chids.remove(&chid);
+        }
         if let Some(hc) = self.channels.remove(&chid) {
             let r = self.hm.lock().unwrap().free_object(hc.handle);
             self.stats.channels_freed += 1;
@@ -1446,6 +1500,10 @@ impl Mirror {
                 ),
             });
         }
+        for sp in self.shadows.values_mut() {
+            sp.tsgs.remove(&key);
+        }
+        self.reap_shadows(None, notes);
     }
 
     fn drop_vas(&mut self, key: (u32, u32), notes: &mut Vec<String>) {
@@ -1615,12 +1673,11 @@ impl Mirror {
         for k in vas {
             self.drop_vas(k, &mut notes);
         }
-        if let Some(sv) = self.shadow_vas.take() {
-            let mut h = self.hm.lock().unwrap();
-            notes.push(format!("shadow: VAS {:#x} freed: {}", sv.vas, sv.summary()));
-            sv.free(&mut h);
-            self.shadow_root = None;
+        for sp in self.shadows.values_mut() {
+            sp.chids.clear();
+            sp.tsgs.clear();
         }
+        self.reap_shadows(None, &mut notes);
         if let Some(inv) = self.invalidator.take() {
             let mut h = self.hm.lock().unwrap();
             notes.push(inv.free(&mut h));

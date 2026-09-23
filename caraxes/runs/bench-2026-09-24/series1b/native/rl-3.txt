@@ -1,0 +1,20 @@
+# target native metric rl rep 3
+# cmd NVRL_EPISODES=50 /home/silas/git/Leandro/vendor/hostvenv/bin/python /home/silas/git/Leandro-Test/probe/python/rlprobe.py
+# time 2026-09-24T00:27:18+02:00
+# gpu 56, 1410 MHz, 7000 MHz, P0, 1 %, 5317 MiB, Disabled
+# procs 936301:vm0-dev 936305:vm0-vmm 938748:vm2-dev 938763:vm2-vmm 973370:bench-v1-dev 973384:bench-v1-vmm 
+# loadavg 14.39 9.30 9.37
+rlprobe: stage=4 episodes=50 pin=False nonblock=False sync=False item=True
+stage0: cuInit ok, NVIDIA GeForce RTX 2070
+stage1: policy on cuda:0
+stage2: rollout 25 steps, return=25
+stage3: update loss=2.271
+  ep   10  return=   11  mean10=  20.7
+  ep   20  return=   15  mean10=  14.4
+  ep   30  return=   13  mean10=  15.8
+  ep   40  return=   39  mean10=  28.3
+  ep   50  return=   38  mean10=  56.9
+stage4: 50 episodes in 2.3s, mean10=56.9
+transfers: H2D=1437 D2H=1437 (~1253/s)
+# WALL wall_ms=9577 rc=0
+# MEAS dev_pid=- dev_cpu_ms=0 dev_rss_hwm_kb=-/- vmm_cpu_ms=0 others: vm2-dev=4260ms vm0-vmm=3710ms vm0-dev=2540ms bench-v1-dev=0ms vm2-vmm=2800ms bench-v1-vmm=40ms 

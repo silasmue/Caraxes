@@ -1,0 +1,9 @@
+# target v1 metric copy rep 5
+# cmd ./bench-cu copy 10
+# time 2026-09-24T00:13:07+02:00
+# gpu 63, 1860 MHz, 7000 MHz, P0, 68 %, 5354 MiB, Disabled
+# procs 789512:vm2-dev 789520:vm2-vmm 846533:bench-v1-dev 846569:bench-v1-vmm 896184:vm0-dev 896194:vm0-vmm 
+# loadavg 18.19 16.37 11.00
+ERROR cuCtxCreate: 304 OS call failed or operation not supported on this OS
+# WALL wall_ms=319 rc=1
+# MEAS dev_pid=846533 dev_cpu_ms=180 dev_rss_hwm_kb=1029244/1086492 vmm_cpu_ms=240 others: vm2-vmm=20ms vm0-dev=0ms vm0-vmm=10ms vm2-dev=10ms 

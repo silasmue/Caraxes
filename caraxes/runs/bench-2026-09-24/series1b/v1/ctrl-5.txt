@@ -1,0 +1,12 @@
+# target v1 metric ctrl rep 5
+# cmd ./ctrlping 2000 64 512 4096 16384
+# time 2026-09-24T00:37:47+02:00
+# gpu 56, 1410 MHz, 7000 MHz, P0, 1 %, 5325 MiB, Disabled
+# procs 938748:vm2-dev 938763:vm2-vmm 999659:bench-v1-dev 999686:bench-v1-vmm 1010621:vm0-dev 
+# loadavg 7.01 6.66 7.92
+ctrlping bytes=232 n=2000 fails=0 p50_us=27.41 p90_us=29.88 p99_us=73.39 mean_us=27.44
+ctrlping bytes=1576 n=2000 fails=0 p50_us=18.77 p90_us=30.51 p99_us=81.39 mean_us=28.28
+ctrlping bytes=12328 n=2000 fails=0 p50_us=23.74 p90_us=32.26 p99_us=300.63 mean_us=33.30
+ctrlping bytes=49192 n=2000 fails=0 p50_us=38.49 p90_us=46.74 p99_us=61.30 mean_us=41.29
+# WALL wall_ms=271 rc=0
+# MEAS dev_pid=999659 dev_cpu_ms=100 dev_rss_hwm_kb=413756/460068 vmm_cpu_ms=570 others: vm2-dev=30ms vm0-dev=0ms vm2-vmm=40ms 

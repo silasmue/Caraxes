@@ -1,0 +1,38 @@
+caraxes-gate: smi -- nvidia-smi against the native host run, masked as v1 masks it
+  host  |   0  NVIDIA GeForce RTX 2070        Off |   00000000:2D:00.0  On |                  N/A |
+  guest |   0  Leandro RTX 2070-4G            Off |   00000000:00:05.0 Off |                  N/A |
+  GATE smi: FAIL  (masked diff 2 lines; see smi-unmasked.txt)
+caraxes-gate: gpu-memory
+  pass: stage 2 ok (memory)
+caraxes-gate: gpu-kernel
+  fail: managedprobe-stage2=0/2; ERROR AllocManaged a: 801 operation not supported
+  guest RM: -; device: NV2080_CTRL_CMD_GPU_QUERY_ECC_STATUS=0x56 x3
+caraxes-gate: gpu-torch
+  pass: mean10=56.9 acc=3.041451216e+00
+caraxes-gate: gpu-robustness
+  fail: 0 of 3 runs correct (stage 0 ok (cuInit)); refcnt 1 -> 2
+  guest RM: -; device: NV2080_CTRL_CMD_GPU_QUERY_ECC_STATUS=0x56 x4
+caraxes-gate: gpu-own
+  fail: holder did not start: holder pid 4531
+  guest RM: -; device: NV2080_CTRL_CMD_GPU_QUERY_ECC_STATUS=0x56 x1; NV2080_CTRL_CMD_GPU_GET_INFOROM_OBJECT_VERSION=0x57 x4; NV2080_CTRL_CMD_GPU_QUERY_INFOROM_ECC_SUPPORT=0x56 x1; NV2080_CTRL_CMD_FB_QUERY_DRAM_ENCRYPTION_INFOROM_SUPPORT=0x56 x1; 0x20810110=0x56 x2
+caraxes-gate: gpu-encode
+  fail: no ffmpeg in the guest (not in the baked image)
+  guest RM: -; device: none
+
+TEST                             RESULT SCORED GUEST ERROR | LAST FAILED RM CALL (guest tracer) | DEVICE
+gpu-memory                       pass  yes    stage 2 ok (memory) | - | NV2080_CTRL_CMD_GPU_QUERY_ECC_STATUS=0x56 x1
+gpu-kernel                       fail  yes    managedprobe-stage2=0/2; ERROR AllocManaged a: 801 operation not supported | - | NV2080_CTRL_CMD_GPU_QUERY_ECC_STATUS=0x56 x3
+gpu-torch                        pass  yes    mean10=56.9 acc=3.041451216e+00 | - | NV2080_CTRL_CMD_GPU_QUERY_ECC_STATUS=0x56 x2
+gpu-robustness                   fail  yes    0 of 3 runs correct (stage 0 ok (cuInit)); refcnt 1 -> 2 | - | NV2080_CTRL_CMD_GPU_QUERY_ECC_STATUS=0x56 x4
+gpu-own                          fail  yes    holder did not start: holder pid 4531 | - | NV2080_CTRL_CMD_GPU_QUERY_ECC_STATUS=0x56 x1; NV2080_CTRL_CMD_GPU_GET_INFOROM_OBJECT_VERSION=0x57 x4; NV2080_CTRL_CMD_GPU_QUERY_INFOROM_ECC_SUPPORT=0x56 x1; NV2080_CTRL_CMD_FB_QUERY_DRAM_ENCRYPTION_INFOROM_SUPPORT=0x56 x1; 0x20810110=0x56 x2
+gpu-encode                       fail  yes    no ffmpeg in the guest (not in the baked image) | - | none
+  GATE memory: PASS  (stage 2 ok (memory))
+  GATE kernel: FAIL  (managedprobe-stage2=0/2; ERROR AllocManaged a: 801 operation not supported | device: NV2080_CTRL_CMD_GPU_QUERY_ECC_STATUS=0x56 x3)
+  GATE robustness: FAIL  (0 of 3 runs correct (stage 0 ok (cuInit)); refcnt 1 -> 2 | device: NV2080_CTRL_CMD_GPU_QUERY_ECC_STATUS=0x56 x4)
+  GATE own: FAIL  (holder did not start: holder pid 4531 | device: NV2080_CTRL_CMD_GPU_QUERY_ECC_STATUS=0x56 x1; NV2080_CTRL_CMD_GPU_GET_INFOROM_OBJECT_VERSION=0x57 x4; NV2080_CTRL_CMD_GPU_QUERY_INFOROM_ECC_SUPPORT=0x56 x1; NV2080_CTRL_CMD_FB_QUERY_DRAM_ENCRYPTION_INFOROM_SUPPORT=0x56 x1; 0x20810110=0x56 x2)
+  GATE encode: FAIL  (no ffmpeg in the guest (not in the baked image) | device: none)
+  GATE torch: FAIL  (guest mean10=56.9 acc=3.041451216e+00, but no native reference (/home/silas/git/Caraxes/caraxes/reference/rtx2070/torch-native.txt; CARAXES_GATE_NATIVE=1 runs it on the host card))
+
+GPU-GATE: FAIL -- smi kernel robustness own encode torch
+{"gate":"gpu","result":"fail","dur_s":921,"reason":"failed: smi kernel robustness own encode torch","facts":{"stages":["smi","memory","kernel","robustness","own","encode","torch"],"failed":["smi","kernel","robustness","own","encode","torch"],"vm":"vm2","leandro_test":"e046e0493724-dirty","caraxes":"shell-rig-50-g5de9b409e015-dirty","device":"TU106 (BOOT_0 0x166000a1, driver 610.57.04) on /mnt/vmstore/caraxes/vm2/gpu.sock, boot model on, FB 4096 MiB","tables":"not applicable: virtio_nvrm descriptor-table checksum; the stock driver has none","counter_check":"not applicable: unloads virtio_nvrm","host_gpu":"NVIDIA GeForce RTX 2070","smi_diff":"> | N CARD Off | N:N:N.N Off | N/A | ","error_kernel":"managedprobe-stage2=0/2; ERROR AllocManaged a: 801 operation not supported","error_robustness":"0 of 3 runs correct (stage 0 ok (cuInit)); refcnt 1 -> 2","error_own":"holder did not start: holder pid 4531","error_encode":"no ffmpeg in the guest (not in the baked image)","run_dir":"caraxes/runs/e5b2-2026-09-24/gate-gpu-2026-09-23","detail":"failed: smi kernel robustness own encode torch; logs in caraxes/runs/e5b2-2026-09-24/gate-gpu-2026-09-23/"}}
+xid 17

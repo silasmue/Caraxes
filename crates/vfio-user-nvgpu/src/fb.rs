@@ -460,6 +460,15 @@ pub struct FakeFb {
     /// the comptag safety check (execution.md §7): every vidmem PTE must be kind 0x06/0x00
     /// with comptagline 0 before any mirrored execution. `(kind, comptagline) -> count`.
     pte_kinds: RefCell<std::collections::BTreeMap<(u8, u32), u64>>,
+    /// The page-table pages (4 KiB page numbers) the last shadow walk read, and whether
+    /// a write reached one since (`take_tables_dirty`): the shadow VAS re-walks the guest
+    /// root only when its tables changed (shadow.rs). `None`: no walk yet, always dirty.
+    /// Per watched root (its FB address, or the sysmem address with bit 63): the table
+    /// pages and the dirty flag.
+    pt_watch: RefCell<std::collections::BTreeMap<u64, (std::collections::BTreeSet<u64>, bool)>>,
+    /// While a walk runs: the table pages it reads.
+    pt_collect: RefCell<Option<std::collections::BTreeSet<u64>>>,
+    sys_tables_seen: std::cell::Cell<bool>,
 }
 
 impl Default for FakeFb {
@@ -477,6 +486,40 @@ impl FakeFb {
             bounds: None,
             outside: Outside::default(),
             pte_kinds: RefCell::new(std::collections::BTreeMap::new()),
+            pt_watch: RefCell::new(std::collections::BTreeMap::new()),
+            pt_collect: RefCell::new(None),
+            sys_tables_seen: std::cell::Cell::new(false),
+        }
+    }
+
+    fn watch_key(root: Target) -> u64 {
+        match root {
+            Target::Fb(pa) => pa,
+            Target::Sys(pa) => pa | 1 << 63,
+            _ => u64::MAX,
+        }
+    }
+
+    /// Whether a page-table page of the last watched walk from `root` was written since
+    /// that walk (or no walk from it was watched yet); clears the flag.
+    pub fn take_tables_dirty(&self, root: Target) -> bool {
+        match self.pt_watch.borrow_mut().get_mut(&Self::watch_key(root)) {
+            Some((_, d)) => std::mem::replace(d, false),
+            None => true,
+        }
+    }
+
+    /// Stop watching `root` (its next check reports dirty).
+    pub fn unwatch_tables(&self, root: Target) {
+        self.pt_watch.borrow_mut().remove(&Self::watch_key(root));
+    }
+
+    fn note_write(&self, pa: u64, len: usize) {
+        let last = (pa + len.max(1) as u64 - 1) >> 12;
+        for (pages, dirty) in self.pt_watch.borrow_mut().values_mut() {
+            if !*dirty && pages.range(pa >> 12..=last).next().is_some() {
+                *dirty = true;
+            }
         }
     }
 
@@ -573,6 +616,7 @@ impl FakeFb {
             return false;
         }
         self.filter.before_write(pa, data);
+        self.note_write(pa, data.len());
         self.store.write(pa, data);
         true
     }
@@ -758,12 +802,42 @@ impl FakeFb {
         out
     }
 
+    /// [`Self::enumerate_leaves`], and afterwards watch every FB table page it read:
+    /// a later write to one sets the dirty flag (`take_tables_dirty`). A table in guest
+    /// sysmem cannot be watched (its writes never reach the device), so such a walk
+    /// leaves the tables permanently dirty.
+    pub fn enumerate_leaves_watched(
+        &self,
+        sys: Option<&GuestMemory>,
+        root: Target,
+        max: usize,
+    ) -> Vec<(u64, Target, u64, u8)> {
+        *self.pt_collect.borrow_mut() = Some(std::collections::BTreeSet::new());
+        let out = self.enumerate_leaves(sys, root, max);
+        let pages = self.pt_collect.borrow_mut().take().unwrap_or_default();
+        let key = Self::watch_key(root);
+        if self.sys_tables_seen.replace(false) {
+            self.pt_watch.borrow_mut().remove(&key);
+        } else {
+            self.pt_watch.borrow_mut().insert(key, (pages, false));
+        }
+        out
+    }
+
     /// `n` consecutive qwords of a page-table page (in the FB store, or in guest RAM).
     fn table_block(&self, sys: Option<&GuestMemory>, table: Target, n: usize) -> Option<Vec<u64>> {
         let mut b = vec![0u8; n * 8];
         let ok = match table {
-            Target::Fb(pa) => self.read(pa, &mut b),
-            Target::Sys(pa) => sys?.read(pa, &mut b),
+            Target::Fb(pa) => {
+                if let Some(c) = self.pt_collect.borrow_mut().as_mut() {
+                    c.insert(pa >> 12);
+                }
+                self.read(pa, &mut b)
+            }
+            Target::Sys(pa) => {
+                self.sys_tables_seen.set(true);
+                sys?.read(pa, &mut b)
+            }
             _ => false,
         };
         ok.then(|| {
@@ -939,6 +1013,15 @@ mod tests {
                 (0x20_0000, Target::Fb(0x40_0000), 0x20_0000, 0x06),
             ]
         );
+        // The watched walk: clean until a table page it read is written.
+        assert!(fb.take_tables_dirty(Target::Fb(root)));
+        let _ = fb.enumerate_leaves_watched(Some(&mem), Target::Fb(root), 1 << 20);
+        assert!(!fb.take_tables_dirty(Target::Fb(root)));
+        fb.write_u64(0x20000, 1); // data page, not a table
+        assert!(!fb.take_tables_dirty(Target::Fb(root)));
+        fb.write_u64(pt_small + 8 * 7, ((0x21000u64 >> 12) << 8) | 1);
+        assert!(fb.take_tables_dirty(Target::Fb(root)));
+        assert!(!fb.take_tables_dirty(Target::Fb(root)));
     }
 
     #[test]

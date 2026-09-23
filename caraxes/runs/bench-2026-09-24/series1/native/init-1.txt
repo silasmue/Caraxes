@@ -1,0 +1,9 @@
+# target native metric init rep 1
+# cmd ./bench-cu init
+# time 2026-09-24T00:08:40+02:00
+# gpu 57, 1410 MHz, 7000 MHz, P0, 5 %, 5446 MiB, Disabled
+# procs 343405:vm0-dev 343410:vm0-vmm 789512:vm2-dev 789520:vm2-vmm 846533:bench-v1-dev 846569:bench-v1-vmm 
+# loadavg 7.39 6.94 6.71
+INIT cuinit_ms=87.244 devget_ms=0.002 ctxcreate_ms=206.343 ctxdestroy_ms=134.820
+# WALL wall_ms=614 rc=0
+# MEAS dev_pid=- dev_cpu_ms=0 dev_rss_hwm_kb=-/- vmm_cpu_ms=0 others: vm2-vmm=260ms bench-v1-dev=0ms vm0-vmm=0ms vm0-dev=0ms bench-v1-vmm=0ms vm2-dev=210ms 

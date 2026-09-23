@@ -1,0 +1,4 @@
+probe d-launch4-2: 93584 device accesses, guest log in /mnt/vmstore/caraxes/vm2/probe-d-launch4-2/guest-dmesg.txt
+[  128.742018] NVRM: GPU 0000:00:05.0: RmInitAdapter
+[  131.684586] NVRM: GPU 0000:00:05.0: RmInitAdapter succeeded!
+modprobe rc=0

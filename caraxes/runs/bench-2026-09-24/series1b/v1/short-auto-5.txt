@@ -1,0 +1,15 @@
+# target v1 metric short-auto rep 5
+# cmd NVPROBE_ITERS=100 NVPROBE_CYCLES=1000 NVPROBE_SCHED=auto ./nvprobe 4
+# time 2026-09-24T00:36:32+02:00
+# gpu 54, 1560 MHz, 7000 MHz, P0, 20 %, 5322 MiB, Disabled
+# procs 936301:vm0-dev 936305:vm0-vmm 938748:vm2-dev 938763:vm2-vmm 999659:bench-v1-dev 999686:bench-v1-vmm 
+# loadavg 6.58 6.41 7.95
+stage 0 ok (cuInit)
+stage 1 ok (context, sched=auto)
+stage 2 ok (memory)
+stage 3 ok (kernel, result correct)
+stage 4 ok (100 launches, 0.009 ms/launch, sched=auto)
+ITERS=100
+MSPERLAUNCH=0.009
+# WALL wall_ms=377 rc=0
+# MEAS dev_pid=999659 dev_cpu_ms=240 dev_rss_hwm_kb=54652/100880 vmm_cpu_ms=220 others: vm2-dev=30ms vm0-vmm=0ms vm0-dev=0ms vm2-vmm=20ms 

@@ -1,0 +1,48 @@
+stage 0 ok (cuInit)
+stage 1 ok (context, sched=auto)
+stage 2 ok (memory)
+stage 3 ok (kernel, result correct)
+stage 4 ok (100 launches, 18.221 ms/launch, sched=auto)
+ITERS=100
+MSPERLAUNCH=18.221
+nvprobe rc=0
+[  205.095233] NVRM: ioctl(0x29, 0x74c684d0, 0x10)
+[  205.096211] NVRM: ioctl(0x58, 0x74c684f0, 0x30)
+[  205.110038] NVRM: ioctl(0x29, 0x74c68420, 0x10)
+[  205.111074] NVRM: ioctl(0x29, 0x74c684d0, 0x10)
+[  205.112097] NVRM: ioctl(0x58, 0x74c684d0, 0x30)
+[  205.120989] NVRM: ioctl(0x29, 0x74c68400, 0x10)
+[  205.121910] NVRM: ioctl(0x29, 0x74c684b0, 0x10)
+[  205.122613] NVRM: ioctl(0x58, 0x74c684d0, 0x30)
+[  205.133423] NVRM: ioctl(0x29, 0x74c68400, 0x10)
+[  205.134496] NVRM: ioctl(0x29, 0x74c684b0, 0x10)
+[  205.135216] NVRM: ioctl(0x58, 0x74c684a0, 0x30)
+[  205.185809] NVRM: ioctl(0x29, 0x74c683d0, 0x10)
+[  205.186832] NVRM: ioctl(0x4f, 0x74c684a0, 0x20)
+[  205.187467] NVRM: nvidia_close on GPU with minor number 255
+[  205.187468] NVRM: nvidia_ctl_close
+[  205.187479] NVRM: ioctl(0x29, 0x74c68480, 0x10)
+[  205.188160] NVRM: ioctl(0x58, 0x74c684a0, 0x30)
+[  205.261148] NVRM: ioctl(0x29, 0x74c683d0, 0x10)
+[  205.262158] NVRM: ioctl(0x4f, 0x74c684a0, 0x20)
+[  205.262962] NVRM: nvidia_close on GPU with minor number 255
+[  205.262963] NVRM: nvidia_ctl_close
+[  205.262973] NVRM: ioctl(0x29, 0x74c68480, 0x10)
+[  205.263609] NVRM: ioctl(0x58, 0x74c684c0, 0x30)
+[  205.271074] NVRM: ioctl(0x29, 0x74c683f0, 0x10)
+[  205.271965] NVRM: ioctl(0x29, 0x74c684a0, 0x10)
+[  205.272633] NVRM: ioctl(0x58, 0x74c684c0, 0x30)
+[  205.314922] NVRM: ioctl(0x29, 0x74c683f0, 0x10)
+[  205.316082] NVRM: ioctl(0x29, 0x74c684a0, 0x10)
+[  205.316999] NVRM: ioctl(0x58, 0x74c684b0, 0x30)
+[  205.365505] NVRM: ioctl(0x29, 0x74c683e0, 0x10)
+[  205.366526] NVRM: ioctl(0x29, 0x74c68490, 0x10)
+[  205.367579] NVRM: ioctl(0x2a, 0x74c678d0, 0x20)
+[  205.370857] NVRM: nvidia_close on GPU with minor number 0
+[  205.370864] NVRM: nvidia_close on GPU with minor number 0
+[  205.370866] NVRM: nvidia_close on GPU with minor number 0
+[  205.372224] NVRM: nvidia_close on GPU with minor number 0
+[  205.372231] NVRM: nvidia_close on GPU with minor number 255
+[  205.372232] NVRM: nvidia_ctl_close
+[  205.372242] NVRM: nvidia_close on GPU with minor number 255
+[  205.372243] NVRM: nvidia_ctl_close

@@ -1,0 +1,10 @@
+# target v1 metric time0 rep 3
+# cmd TIMEFORMAT='TIME wall_s=%3R user_s=%3U sys_s=%3S'; time ./nvprobe 0
+# time 2026-09-24T00:28:20+02:00
+# gpu 57, 1410 MHz, 7000 MHz, P0, 3 %, 5290 MiB, Disabled
+# procs 936301:vm0-dev 936305:vm0-vmm 938748:vm2-dev 938763:vm2-vmm 973370:bench-v1-dev 973384:bench-v1-vmm 
+# loadavg 15.93 11.01 9.97
+stage 0 ok (cuInit)
+TIME wall_s=0.112 user_s=0.000 sys_s=0.004
+# WALL wall_ms=115 rc=0
+# MEAS dev_pid=973370 dev_cpu_ms=50 dev_rss_hwm_kb=475276/521956 vmm_cpu_ms=140 others: vm2-dev=170ms vm0-vmm=10ms vm0-dev=0ms vm2-vmm=330ms 

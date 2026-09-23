@@ -1,0 +1,9 @@
+# SPDX-License-Identifier: MIT
+# gpu gate, gate-gpu-2026-09-23, VM vm2: result per test; device = RPCs the device did not answer NV_OK in the test's window
+TEST                             RESULT SCORED GUEST ERROR | LAST FAILED RM CALL (guest tracer) | DEVICE
+gpu-memory                       pass  yes    stage 2 ok (memory) | - | NV2080_CTRL_CMD_GPU_QUERY_ECC_STATUS=0x56 x1
+gpu-kernel                       fail  yes    managedprobe-stage2=0/2; ERROR AllocManaged a: 801 operation not supported | - | NV2080_CTRL_CMD_GPU_QUERY_ECC_STATUS=0x56 x3
+gpu-torch                        pass  yes    mean10=56.9 acc=3.041451216e+00 | - | NV2080_CTRL_CMD_GPU_QUERY_ECC_STATUS=0x56 x2
+gpu-robustness                   fail  yes    0 of 3 runs correct (stage 0 ok (cuInit)); refcnt 1 -> 2 | - | NV2080_CTRL_CMD_GPU_QUERY_ECC_STATUS=0x56 x4
+gpu-own                          fail  yes    holder did not start: holder pid 4531 | - | NV2080_CTRL_CMD_GPU_QUERY_ECC_STATUS=0x56 x1; NV2080_CTRL_CMD_GPU_GET_INFOROM_OBJECT_VERSION=0x57 x4; NV2080_CTRL_CMD_GPU_QUERY_INFOROM_ECC_SUPPORT=0x56 x1; NV2080_CTRL_CMD_FB_QUERY_DRAM_ENCRYPTION_INFOROM_SUPPORT=0x56 x1; 0x20810110=0x56 x2
+gpu-encode                       fail  yes    no ffmpeg in the guest (not in the baked image) | - | none

@@ -1,0 +1,15 @@
+# target v1 metric launch-blocking rep 2
+# cmd NVPROBE_ITERS=100 NVPROBE_SCHED=blocking ./nvprobe 4
+# time 2026-09-24T00:09:01+02:00
+# gpu 61, 1875 MHz, 7000 MHz, P0, 99 %, 5483 MiB, Disabled
+# procs 343405:vm0-dev 343410:vm0-vmm 789512:vm2-dev 789520:vm2-vmm 846533:bench-v1-dev 846569:bench-v1-vmm 
+# loadavg 10.95 7.84 7.01
+stage 0 ok (cuInit)
+stage 1 ok (context, sched=blocking)
+stage 2 ok (memory)
+stage 3 ok (kernel, result correct)
+stage 4 ok (100 launches, 99.084 ms/launch, sched=blocking)
+ITERS=100
+MSPERLAUNCH=99.084
+# WALL wall_ms=10448 rc=0
+# MEAS dev_pid=846533 dev_cpu_ms=260 dev_rss_hwm_kb=755228/803112 vmm_cpu_ms=550 others: vm2-vmm=7950ms vm0-vmm=30ms vm0-dev=0ms vm2-dev=390ms 

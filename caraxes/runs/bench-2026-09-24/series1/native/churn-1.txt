@@ -1,0 +1,10 @@
+# target native metric churn rep 1
+# cmd ./bench-cu churn 20
+# time 2026-09-24T00:08:50+02:00
+# gpu 56, 810 MHz, 810 MHz, P5, 1 %, 5416 MiB, Disabled
+# procs 343405:vm0-dev 343410:vm0-vmm 789512:vm2-dev 789520:vm2-vmm 846533:bench-v1-dev 846569:bench-v1-vmm 
+# loadavg 9.31 7.37 6.85
+CHURN blocks=64 block_mib=1 cycles=20 alloc_med_us=42.2 free_med_us=46.8 cycle_med_ms=25.548 total_ms=458.0
+CHURN blocks=8 block_mib=64 cycles=20 alloc_med_us=537.7 free_med_us=485.2 cycle_med_ms=9.598 total_ms=225.2
+# WALL wall_ms=1295 rc=0
+# MEAS dev_pid=- dev_cpu_ms=0 dev_rss_hwm_kb=-/- vmm_cpu_ms=0 others: vm2-vmm=180ms bench-v1-dev=0ms vm0-vmm=0ms vm0-dev=0ms bench-v1-vmm=10ms vm2-dev=950ms 

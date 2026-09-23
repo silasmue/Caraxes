@@ -1,0 +1,11 @@
+# target v1 metric time1 rep 5
+# cmd TIMEFORMAT='TIME wall_s=%3R user_s=%3U sys_s=%3S'; time ./nvprobe 1
+# time 2026-09-24T00:13:24+02:00
+# gpu 62, 1860 MHz, 7000 MHz, P0, 2 %, 5336 MiB, Disabled
+# procs 789512:vm2-dev 789520:vm2-vmm 846533:bench-v1-dev 846569:bench-v1-vmm 896184:vm0-dev 896194:vm0-vmm 
+# loadavg 15.97 15.96 10.95
+stage 0 ok (cuInit)
+ERROR cuCtxCreate: 304 OS call failed or operation not supported on this OS
+TIME wall_s=0.303 user_s=0.013 sys_s=0.016
+# WALL wall_ms=306 rc=1
+# MEAS dev_pid=846533 dev_cpu_ms=190 dev_rss_hwm_kb=1026568/1086492 vmm_cpu_ms=230 others: vm2-vmm=430ms vm0-dev=0ms vm0-vmm=0ms vm2-dev=270ms 

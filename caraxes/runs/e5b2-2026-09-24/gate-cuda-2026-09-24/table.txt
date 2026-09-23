@@ -1,0 +1,6 @@
+# SPDX-License-Identifier: MIT
+# cuda gate, gate-cuda-2026-09-24, VM vm2: result per test; device = RPCs the device did not answer NV_OK in the test's window
+TEST                             RESULT SCORED GUEST ERROR | LAST FAILED RM CALL (guest tracer) | DEVICE
+cuda-core                        pass  yes    nvprobe 2: device memory written, read back and compared | - | NV2080_CTRL_CMD_GPU_QUERY_ECC_STATUS=0x56 x1
+robustness                       pass  yes    2 in parallel ok, next run after SIGKILL ok, nvidia.ko pinned by an open FD | - | NV2080_CTRL_CMD_GPU_QUERY_ECC_STATUS=0x56 x4
+cuda-launch                      pass  yes    nvprobe 4 (blocking): 100 kernel launches completed and verified | - | NV2080_CTRL_CMD_GPU_QUERY_ECC_STATUS=0x56 x1

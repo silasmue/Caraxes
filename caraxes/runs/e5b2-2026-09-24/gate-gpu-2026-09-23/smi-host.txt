@@ -1,0 +1,28 @@
+# SPDX-License-Identifier: MIT
+# gpu gate gate-gpu-2026-09-23: smi-host.txt
+Wed Sep 23 23:59:33 2026       
++-----------------------------------------------------------------------------------------+
+| NVIDIA-SMI 610.57.04              KMD Version: 610.57.04     CUDA UMD Version: 13.3     |
++-----------------------------------------+------------------------+----------------------+
+| GPU  Name                 Persistence-M | Bus-Id          Disp.A | Volatile Uncorr. ECC |
+| Fan  Temp   Perf          Pwr:Usage/Cap |           Memory-Usage | GPU-Util  Compute M. |
+|                                         |                        |               MIG M. |
+|=========================================+========================+======================|
+|   0  NVIDIA GeForce RTX 2070        Off |   00000000:2D:00.0  On |                  N/A |
+| 56%   49C    P8             29W /  175W |    5302MiB /   8192MiB |     11%      Default |
+|                                         |                        |                  N/A |
++-----------------------------------------+------------------------+----------------------+
+
++-----------------------------------------------------------------------------------------+
+| Processes:                                                                              |
+|  GPU   GI   CI              PID   Type   Process name                        GPU Memory |
+|        ID   ID                                                               Usage      |
+|=========================================================================================|
+|    0   N/A  N/A            1085      G   Hyprland                                172MiB |
+|    0   N/A  N/A            1129      G   kitty                                    48MiB |
+|    0   N/A  N/A            1130      G   /usr/lib/firefox/firefox                 61MiB |
+|    0   N/A  N/A            1207      G   Xwayland                                  2MiB |
+|    0   N/A  N/A            1370    C+G   ...rack-uuid=3190708988185955192         64MiB |
+|    0   N/A  N/A            1470      G   ...ice --variations-seed-version         70MiB |
+|    0   N/A  N/A            2131    C+G   ...rack-uuid=3190708988185955192        464MiB |
++-----------------------------------------------------------------------------------------+

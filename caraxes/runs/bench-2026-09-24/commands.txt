@@ -1,0 +1,30 @@
+# SPDX-License-Identifier: MIT
+# Commands of the P13 benchmark, 2026-09-24, in the order run (repo root = /home/silas/git/Caraxes).
+# Method and results: docs/caraxes/benchmark.md. B=caraxes/runs/bench-2026-09-24
+
+## v1 backend from main (target/release/vhost-user-nvrm was a 2026-09-19 build, before the SHMEM protocol)
+CARGO_TARGET_DIR=target/bench cargo build --release -p vhost-user-nvrm        # $B/build-vhost-user-nvrm.log
+
+## v2 on vm1: refused while vm2's device holds its reservation (fixed address at the top of the host FB)
+VM=vm1 CARAXES_IP=192.168.101.21 CARAXES_TAP=caraxes1 CARAXES_MAC=02:00:00:00:00:21 CARAXES_BOOT_MODEL=1 \
+  CARAXES_HOST_RM=1 CARAXES_HOST_EXEC=1 CARAXES_MIRROR_CHANNELS=1 CARAXES_MIRROR_GR_SHADOW=1 \
+  CARAXES_RESERVE_VRAM=1 CARAXES_DMA=register CARAXES_FB_MIB=1024 tools/caraxes-vm.sh up   # $B/v2-up1/run.txt
+
+## v1 VM (overlay on the baked 610.57.04 image, seed of the v1check VM, tap caraxes5)
+caraxes/tools/bench-v1vm.sh prepare && caraxes/tools/bench-v1vm.sh up && caraxes/tools/bench-v1vm.sh modules
+CARAXES_IP=192.168.105.25 VM=bench-v1 tools/caraxes-vm.sh sync-tests      # Leandro-Test probes into the guest, built there
+
+## One set of binaries: bench-cu built in the guest, the probes from sync-tests, copied to target/bench/bin
+caraxes/tools/bench-v1vm.sh ssh 'cat > ~/bench/bench-cu.c' < caraxes/tools/bench-cu.c
+caraxes/tools/bench-v1vm.sh ssh 'cd ~/bench && gcc -O2 -Wall -o bench-cu bench-cu.c -I<venv nvidia/cu13/include> -L/opt/nvrm/lib -lcuda'
+# (then cat each of bench-cu nvprobe ioctlping ctrlping vrampress kernels.ptx back to target/bench/bin; sha256 in $B/*/series.txt)
+caraxes/tools/bench-run.sh stage v1
+
+## Series 1: native + v1 interleaved, N=5 (shows the v1 pinned-page retention from rep 2 on)
+caraxes/tools/bench-run.sh series --targets "native v1" --reps 5 --out $B/series1
+## v1 restarted, startup metric, series 1b with a v1 restart before every rep
+caraxes/tools/bench-v1vm.sh down && caraxes/tools/bench-v1vm.sh up && caraxes/tools/bench-v1vm.sh modules
+caraxes/tools/bench-run.sh startup v1 --out $B/series1b
+V1_RESTART=1 caraxes/tools/bench-run.sh series --targets "native v1" --reps 5 --out $B/series1b
+caraxes/tools/bench-v1vm.sh down        # host memory: swap full, RAM 25/31 GiB
+python3 caraxes/tools/bench-summary.py $B/series1b/native $B/series1b/v1 > $B/summary-series1b.md

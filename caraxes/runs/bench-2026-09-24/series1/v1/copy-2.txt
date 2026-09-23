@@ -1,0 +1,21 @@
+# target v1 metric copy rep 2
+# cmd ./bench-cu copy 10
+# time 2026-09-24T00:09:37+02:00
+# gpu 58, 1410 MHz, 7000 MHz, P0, 7 %, 5370 MiB, Disabled
+# procs 343405:vm0-dev 343410:vm0-vmm 789512:vm2-dev 789520:vm2-vmm 846533:bench-v1-dev 846569:bench-v1-vmm 
+# loadavg 23.81 11.36 8.22
+ERROR cuMemHostAlloc: 304 OS call failed or operation not supported on this OS
+BW dir=h2d mem=pinned size_mib=1 reps=50 med_us=86.7 min_us=85.7 gbps=12.089
+BW dir=d2h mem=pinned size_mib=1 reps=50 med_us=85.5 min_us=85.1 gbps=12.263
+BW dir=d2d mem=device size_mib=1 reps=50 med_us=9.5 min_us=8.3 gbps=110.087
+BW dir=h2d mem=pageable size_mib=1 reps=50 med_us=158.3 min_us=147.0 gbps=6.625
+BW dir=d2h mem=pageable size_mib=1 reps=50 med_us=235.5 min_us=199.8 gbps=4.452
+CHECK size_mib=1 bad_words=0
+BW dir=h2d mem=pinned size_mib=16 reps=20 med_us=1317.5 min_us=1285.0 gbps=12.735
+BW dir=d2h mem=pinned size_mib=16 reps=20 med_us=1299.6 min_us=1278.5 gbps=12.909
+BW dir=d2d mem=device size_mib=16 reps=20 med_us=95.8 min_us=91.4 gbps=175.091
+BW dir=h2d mem=pageable size_mib=16 reps=20 med_us=3065.8 min_us=2703.8 gbps=5.472
+BW dir=d2h mem=pageable size_mib=16 reps=20 med_us=6352.6 min_us=3273.2 gbps=2.641
+CHECK size_mib=16 bad_words=0
+# WALL wall_ms=3013 rc=1
+# MEAS dev_pid=846533 dev_cpu_ms=390 dev_rss_hwm_kb=804968/832864 vmm_cpu_ms=910 others: vm2-vmm=2000ms vm0-vmm=20ms vm0-dev=0ms vm2-dev=90ms 

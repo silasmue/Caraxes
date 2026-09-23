@@ -1,0 +1,19 @@
+vfio-user-nvgpu: host memory client open; privilege: uid 1000; capabilities effective 0x0 permitted 0x200000 inheritable 0x0
+vfio-user-nvgpu: hostmem: host FB regions: [0x3600000, 0x1e918ffff] reserved 0x0
+vfio-user-nvgpu: hostmem: host VRAM: total 8192 MiB, HEAP_FREE 6390 MiB, nvidia-smi free 6391 MiB, largest free region 6019 MiB at 0x70e00000; request 4096 MiB at [0xe9000000, 0x1e9000000) (heap region end 0x1e9190000)
+vfio-user-nvgpu: hostmem: reserved host VRAM [0xe9000000, 0x1e9000000) (4096 MiB), handle 0x80000003, attr 0x11800000 attr2 0x100005, contiguous, in 0 ms
+vfio-user-nvgpu: fb layout: address space 0x200000000 (host card), reservation [0xe9000000, 0x1e9000000), usable [0xe9000000, 0x1e8e00000), BAR2/BAR1 roots 0x1e8e00000/0x1e8e01000, fb_length 0x100000000
+vfio-user-nvgpu: guest name "Leandro RTX 2070-4G"
+vfio-user-nvgpu: host RM open (unprivileged client, device 0, subdevice 0)
+vfio-user-nvgpu: host execution on: FB backed by the reserved VRAM through BAR1 windows; guest channels mirrored on the host at their first doorbell; GR0/CE2-CE4 non-stall events forwarded as guest vectors (docs/caraxes/execution.md)
+vfio-user-nvgpu: TU106 (BOOT_0 0x166000a1, driver 610.57.04) on /mnt/vmstore/caraxes/vm2/gpu.sock, boot model on, FB 4096 MiB, ROM 130048 bytes, PROM image 131584 bytes, trace /mnt/vmstore/caraxes/vm2/gpu-trace.log
+[2026-09-23T22:17:56Z INFO  vfio_user] Received client version: major = 0 minor = 1 capabilities = Capabilities { max_msg_fds: 1, max_data_xfer_size: 1048576, migration: MigrationCapabilities { pgsize: 4096 } }
+[2026-09-23T22:17:56Z INFO  vfio_user] Sent server version: major = 0 minor = 0 capabilities = Capabilities { max_msg_fds: 1, max_data_xfer_size: 1048576, migration: MigrationCapabilities { pgsize: 4096 } }
+vfio-user-nvgpu: hostmem: registered guest RAM chunk GPA 0x0..0x40000000 -> IOVA 0x7fff80000000..0x7fffc0000000 (descriptor 0x80000004, 862 ms, 9 IOVA samples = base + offset)
+vfio-user-nvgpu: hostmem: registered guest RAM chunk GPA 0x40000000..0x80000000 -> IOVA 0x7fff40000000..0x7fff80000000 (descriptor 0x80000005, 725 ms, 9 IOVA samples = base + offset)
+vfio-user-nvgpu: hostmem: registered guest RAM chunk GPA 0x80000000..0xc0000000 -> IOVA 0x7ffec0000000..0x7fff00000000 (descriptor 0x80000006, 727 ms, 9 IOVA samples = base + offset)
+vfio-user-nvgpu: hostmem: guest RAM 0x0+0xc0000000: 3 chunk(s) in 2316 ms; pinned now 3072 MiB; host foll_pin acquired +786372 released +0; privileged windows so far 3
+vfio-user-nvgpu: dma table: 3 range(s), host IOVAs; ranges=0:7fff80000000:40000000,40000000:7fff40000000:40000000,80000000:7ffec0000000:40000000; published to /mnt/vmstore/caraxes/vm2/dma-ranges
+vfio-user-nvgpu: hostmem: registered guest RAM chunk GPA 0x100000000..0x140000000 -> IOVA 0x7ffe80000000..0x7ffec0000000 (descriptor 0x80000007, 761 ms, 9 IOVA samples = base + offset)
+vfio-user-nvgpu: hostmem: guest RAM 0x100000000+0x40000000: 1 chunk(s) in 762 ms; pinned now 4096 MiB; host foll_pin acquired +262204 released +0; privileged windows so far 4
+vfio-user-nvgpu: dma table: 4 range(s), host IOVAs; ranges=0:7fff80000000:40000000,40000000:7fff40000000:40000000,80000000:7ffec0000000:40000000,100000000:7ffe80000000:40000000; published to /mnt/vmstore/caraxes/vm2/dma-ranges

@@ -467,11 +467,15 @@ impl Dispatcher {
 
     /// Re-sync the GR shadow VAS from the guest root (called at each guest MMU_INVALIDATE):
     /// the guest maps set-A pages then invalidates before the GR push touches them.
-    pub fn mirror_shadow_resync(&mut self, gm: &mut crate::channel::GpuMem) -> Vec<String> {
+    pub fn mirror_shadow_resync(
+        &mut self,
+        gm: &mut crate::channel::GpuMem,
+        pdb: Option<u64>,
+    ) -> Vec<String> {
         let reg = &self.channels;
         self.mirror
             .as_mut()
-            .map(|m| m.shadow_resync(reg, gm))
+            .map(|m| m.shadow_resync(reg, gm, pdb))
             .unwrap_or_default()
     }
 

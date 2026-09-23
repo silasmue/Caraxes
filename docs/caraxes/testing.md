@@ -365,6 +365,11 @@ first-launch stall" was an artifact of a heavy per-doorbell debug poll, now gate
 (`CARAXES_MIRROR_DIAG=1`). The remaining wall is the GR kernel launch (cuda-jit and beyond),
 execution.md §6 wall 2.
 
+Update 2026-09-23 23:54 (`caraxes/runs/e5b2-2026-09-24/`): with `CARAXES_MIRROR_CHANNELS=1
+CARAXES_MIRROR_GR_SHADOW=1` the GR channels run on the physical GPU through the shadow VAS
+(execution.md §6), and **cuda-jit, cuda-launch, cuda-torch and rlprobe pass** (gate
+`gate-cuda-2026-09-23` in that directory, 0 Xid); nvprobe 4 measures 18.2 ms/launch.
+
 ## 8. The CUDA path: what the device does not answer yet
 
 The smallest CUDA program in the material is `nvprobe 0` (`cuInit` alone). It ran alone

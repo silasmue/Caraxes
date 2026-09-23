@@ -1,0 +1,38 @@
+stage 0 ok (cuInit)
+stage 1 ok (context, sched=auto)
+stage 2 ok (memory)
+stage 3 ok (kernel, result correct)
+stage 4 ok (100 launches, 68.449 ms/launch, sched=auto)
+ITERS=100
+MSPERLAUNCH=68.449
+nvprobe rc=0
+[  469.762053] NVRM: nvidia_close on GPU with minor number 255
+[  469.762055] NVRM: nvidia_ctl_close
+[  469.780497] NVRM: nvidia_close on GPU with minor number 255
+[  469.780499] NVRM: nvidia_ctl_close
+[  469.793852] NVRM: nvidia_close on GPU with minor number 255
+[  469.793876] NVRM: nvidia_ctl_close
+[  469.820370] NVRM: nvidia_close on GPU with minor number 0
+[  469.828388] NVRM: nvidia_close on GPU with minor number 255
+[  469.828390] NVRM: nvidia_ctl_close
+[  469.838302] NVRM: nvidia_close on GPU with minor number 255
+[  469.838304] NVRM: nvidia_ctl_close
+[  469.850359] NVRM: nvidia_close on GPU with minor number 255
+[  469.850360] NVRM: nvidia_ctl_close
+[  469.861949] NVRM: nvidia_close on GPU with minor number 255
+[  469.861951] NVRM: nvidia_ctl_close
+[  475.448756] NVRM: nvidia_close on GPU with minor number 255
+[  475.448758] NVRM: nvidia_ctl_close
+[  475.519646] NVRM: nvidia_close on GPU with minor number 0
+[  475.855953] NVRM: nvidia_close on GPU with minor number 255
+[  475.855954] NVRM: nvidia_ctl_close
+[  476.140919] NVRM: nvidia_close on GPU with minor number 255
+[  476.140920] NVRM: nvidia_ctl_close
+[  476.642772] NVRM: nvidia_close on GPU with minor number 0
+[  476.642782] NVRM: nvidia_close on GPU with minor number 0
+[  476.642786] NVRM: nvidia_close on GPU with minor number 0
+[  476.648274] NVRM: nvidia_close on GPU with minor number 0
+[  476.648292] NVRM: nvidia_close on GPU with minor number 255
+[  476.648343] NVRM: nvidia_ctl_close
+[  476.648594] NVRM: nvidia_close on GPU with minor number 255
+[  476.648597] NVRM: nvidia_ctl_close

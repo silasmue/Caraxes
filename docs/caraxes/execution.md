@@ -134,7 +134,7 @@ channels created and 24 freed (0 live), the reservation released, guest RAM unpi
 (`foll_pin` balanced), the host RM client freed, host `nvidia-smi` VRAM back to its prior
 value, no leak.
 
-## 6. The two execution walls (open)
+## 6. The two execution walls (closed 2026-09-23)
 
 Two problems were resolved on 2026-09-23 (experiments.md "E5b part 2", runs d-ce-*):
 - **The host work-submit token.** The host RM writes the *host* token into the channel's
@@ -196,6 +196,39 @@ semaphore (payload + GPU timestamp) in guest sysmem (measured, d-ce-diag / d-ce-
    set-A mirroring: resync at every guest `MMU_INVALIDATE` is wired, but a VA remapped to a
    new PA needs unmap-before-remap (NVOS47), and a coalesced run that grows must free and
    re-allocate its virtual object. That is the bounded next step to the first landed launch.
+
+   **c1s closed (2026-09-23 23:40-23:59, `caraxes/runs/e5b2-2026-09-24/`).** The kernel-launch wall is
+   down: with `CARAXES_MIRROR_CHANNELS=1 CARAXES_MIRROR_GR_SHADOW=1`, nvprobe 3 (vecAdd, result
+   correct), nvprobe 4 (100 launches, **18.2 ms/launch** for a 30M-cycle spin kernel) and the
+   cuda gate's cuda-jit, cuda-launch, **cuda-torch** (cuDNN convolution) and **rlprobe** pass on the
+   physical GPU, 0 Xid, 0 RC; nvprobe 2 (CE path) stays green. Three changes did it:
+   - *Dynamic set-A mirror* (`shadow.rs`): each resync diffs the guest root's leaves against a
+     VA -> (target, size) map; a vanished or changed leaf is unmapped (`NV_ESC_RM_UNMAP_MEMORY_DMA`,
+     NVOS47) before any new map; mapped VAs live in one fixed `NV50_MEMORY_VIRTUAL` per 2 MiB
+     region and page class (never grown; freed when empty or on a class change), or in a
+     per-leaf object where a region touches a set-B range or is refused. The D16/D17 filter
+     needs the whole leaf inside the reservation or a registered guest-RAM range; every
+     refused leaf is counted and logged once with VA, PA, aperture and reason. Resync runs at
+     the channel build, before every doorbell of a shadow GR channel and at every guest
+     `MMU_INVALIDATE`.
+   - *One host TSG per guest TSG* (`mirror.rs` `gr_shadow_doorbell`): CUDA's GR chids 2-9 (one
+     guest TSG, one context share) now share one host TSG and one host GR context.
+   - *Resync cost*: BAR1 window reads were byte-wise uncached bus reads (a full walk ~250 ms);
+     qword reads and whole-table block reads bring it to ~30 ms, and the walk is skipped
+     altogether when no write reached a page-table page of the previous walk (`fb.rs`
+     `enumerate_leaves_watched`; BAR1 is fully trapped, so the FB store sees every guest PTE
+     write; a table in sysmem disables the skip; `CARAXES_SHADOW_ALWAYS_RESYNC=1` forces the
+     walk). Without the skip nvprobe 4 measured 68.4 ms/launch. The resync still runs
+     synchronously on the server thread (inside the doorbell and the `MMU_INVALIDATE` register
+     write); a walk that does run costs the guest ~30-60 ms of MMIO latency at that point.
+     Moving it off the server thread is later work.
+   - *One shadow VAS per guest root* (2026-09-24 00:18): every CUDA context has its own guest
+     root with the same VA layout, so a single shadow VAS mirrored the wrong context for the
+     second one (gpu gate robustness: 17 contained Xid 31 on the device's GR channels, FAULT_PDE
+     at the second context's GPFIFO). `mirror.rs` keeps a `ShadowSpace` per guest root (the VAS,
+     its set-B exclusions, its chids and TSGs), freed when its last channel and TSG are freed;
+     the cuda gate's robustness stage passes after the change, 0 Xid.
+
 
 Every Xid seen while iterating was contained to the device process (its pid), on our own
 mirror channels, with the cause identified; the host desktop was unaffected throughout. The

@@ -162,6 +162,8 @@ fn plan(
 #[derive(Default, Debug, Clone)]
 pub struct ShadowStats {
     pub syncs: u64,
+    /// Resync requests answered without a walk (no page-table write since the last).
+    pub skipped: u64,
     pub maps: u64,
     pub unmaps: u64,
     pub unmap_failed: u64,
@@ -191,6 +193,8 @@ pub struct ShadowVas {
     /// Leaves the filter refused (to count and log each once).
     refused: BTreeMap<u64, Leaf>,
     pub stats: ShadowStats,
+    exclude_len: usize,
+    always: bool,
 }
 
 impl ShadowVas {
@@ -215,6 +219,8 @@ impl ShadowVas {
             failed: BTreeMap::new(),
             refused: BTreeMap::new(),
             stats: ShadowStats::default(),
+            exclude_len: usize::MAX,
+            always: std::env::var("CARAXES_SHADOW_ALWAYS_RESYNC").as_deref() == Ok("1"),
         })
     }
 
@@ -264,6 +270,17 @@ impl ShadowVas {
         exclude: &[(u64, u64)],
     ) -> (bool, Vec<String>) {
         let t0 = Instant::now();
+        // Skip the walk when no write reached a page-table page of the last walk (the
+        // FB store sees every guest write to VRAM: BAR1 is trapped, fb.rs `note_write`)
+        // and the set-B exclusions did not change. A full walk costs ~30 ms of uncached
+        // BAR1 reads, which dominated the per-launch cost (d-launch4-1: 68 ms/launch).
+        // `CARAXES_SHADOW_ALWAYS_RESYNC=1` walks every time.
+        let dirty = fb.take_tables_dirty(Target::Fb(guest_root));
+        if !dirty && !self.always && exclude.len() == self.exclude_len {
+            self.stats.skipped += 1;
+            return (false, Vec::new());
+        }
+        self.exclude_len = exclude.len();
         self.stats.syncs += 1;
         let descs: Vec<(u32, u64, u64)> = hm
             .descriptors()
@@ -273,7 +290,7 @@ impl ShadowVas {
         // Walk the whole guest root (a 16384 cap once cut off the guest's high-VA set-A,
         // the Xid 31 at 0x100_04e00000 of d-gr-launch5).
         const WALK_MAX: usize = 1 << 20;
-        let walked = fb.enumerate_leaves(Some(sys_mem), Target::Fb(guest_root), WALK_MAX);
+        let walked = fb.enumerate_leaves_watched(Some(sys_mem), Target::Fb(guest_root), WALK_MAX);
         let truncated = walked.len() == WALK_MAX;
         let t_walk = t0.elapsed().as_micros();
         let mut notes = Vec::new();
@@ -491,8 +508,9 @@ impl ShadowVas {
     pub fn summary(&self) -> String {
         let s = &self.stats;
         format!(
-            "{} syncs (max {} us, total {} ms), {} maps, {} unmaps ({} failed), {} map-failed, {} refused by the filter, {} region objects ({} freed, {} refused), {} per-leaf objects; {} leaves mirrored at the end",
+            "{} syncs ({} skipped clean; max {} us, total {} ms), {} maps, {} unmaps ({} failed), {} map-failed, {} refused by the filter, {} region objects ({} freed, {} refused), {} per-leaf objects; {} leaves mirrored at the end",
             s.syncs,
+            s.skipped,
             s.max_sync_us,
             s.total_sync_us / 1000,
             s.maps,

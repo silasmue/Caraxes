@@ -1,0 +1,20 @@
+start 2026-09-24 00:01:04
+CARAXES_BOOT_MODEL=1
+CARAXES_DMA=register
+CARAXES_FB_MIB=1024
+CARAXES_HOST_EXEC=1
+CARAXES_HOST_RM=1
+CARAXES_IP=192.168.101.21
+CARAXES_MAC=02:00:00:00:00:21
+CARAXES_MIRROR_CHANNELS=1
+CARAXES_MIRROR_GR_SHADOW=1
+CARAXES_RESERVE_VRAM=1
+CARAXES_TAP=caraxes1
+git shell-rig-50-g5de9b40-dirty
+4372fcf759ce4e8c4ba4ee91489a3b9dd12e8eaf53e3dfd26641a4df6f61f422  target/release/vfio-user-nvgpu
+vfio-user-nvgpu: host memory client open; privilege: uid 1000; capabilities effective 0x0 permitted 0x200000 inheritable 0x0
+vfio-user-nvgpu: hostmem: refused: the host RM did not give [0x1a9000000, 0x1e9000000) (RM status 0x51 (NV_ERR_NO_MEMORY) on ioctl 0x2b); the host holds part of the range or the heap is fragmented (largest free region 1992 MiB at 0x6c800000); no floating fallback (the guest's FB layout is fixed at start)
+vfio-user-nvgpu: hostmem: host RM client 0xc1d22503 freed
+vfio-user-nvgpu: hostmem: privileged windows opened in total: 0
+Error: VRAM reservation refused: refused: the host RM did not give [0x1a9000000, 0x1e9000000) (RM status 0x51 (NV_ERR_NO_MEMORY) on ioctl 0x2b); the host holds part of the range or the heap is fragmented (largest free region 1992 MiB at 0x6c800000); no floating fallback (the guest's FB layout is fixed at start)
+ERROR: server did not create /mnt/vmstore/caraxes/vm1/gpu.sock

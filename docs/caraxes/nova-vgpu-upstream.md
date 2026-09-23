@@ -276,7 +276,7 @@ Upstream, patch 30, `vgpu/scrubber.rs` and `vgpu/instance.rs`:
 - Fail-closed: `CeUtilsAllocError::NotOwned` (the firmware explicitly refused) lets the
   instance be removed; `MayOwn` (transport or validation error: the firmware may own the ChID)
   returns the error **with the instance left registered**, so its channels and VRAM stay out of
-  the allocators. A scrub failure in `destroy_instance` returns early through `?` before the
+  the allocators. A scrub failure in `destroy_instance` returns early through the question-mark operator before the
   instance is removed: its VRAM is quarantined rather than handed to the next VM. The cover
   letter states the rule: "If ownership or completion is uncertain, keep the affected VRAM and
   channels out of the allocators."

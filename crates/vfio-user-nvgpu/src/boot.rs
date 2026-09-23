@@ -400,7 +400,9 @@ impl BootModel {
                             fb: &mut self.fb,
                             sys: mem,
                         };
-                        notes.extend(self.ctrl.mirror_shadow_resync(&mut gm));
+                        // ALL_PDB (bit 1) invalidates every VAS: resync every shadow.
+                        let which = if v & 2 != 0 { None } else { Some(pdb) };
+                        notes.extend(self.ctrl.mirror_shadow_resync(&mut gm, which));
                     }
                     notes.push(format!(
                         "mmu invalidate: pdb {pdb:#x} flags {:#x}{}",

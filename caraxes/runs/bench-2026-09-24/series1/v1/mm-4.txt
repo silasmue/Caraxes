@@ -1,0 +1,12 @@
+# target v1 metric mm rep 4
+# cmd NVMM_SIZES=1024,2048,4096 NVMM_ITERS=10 $HOME/gpu/venv/bin/python $HOME/caraxes-tests/leandro-test/probe/python/mmsweep.py
+# time 2026-09-24T00:12:26+02:00
+# gpu 62, 1875 MHz, 7000 MHz, P0, 16 %, 5393 MiB, Disabled
+# procs 789512:vm2-dev 789520:vm2-vmm 846533:bench-v1-dev 846569:bench-v1-vmm 896184:vm0-dev 896194:vm0-vmm 
+# loadavg 22.39 16.49 10.76
+mmsweep: N=1024 ERROR AcceleratorError: CUDA error: CUDA-capable device(s) is/are busy or unavailable
+Search for `cudaErrorDevicesUnavailable' in https://docs.nvidia.com/cuda/cuda-runtime-api/group__CUDART__TYPES.html for more information.
+For more detailed error information, run with CUDA_LOG_FILE=stderr
+
+# WALL wall_ms=4172 rc=0
+# MEAS dev_pid=846533 dev_cpu_ms=330 dev_rss_hwm_kb=1028488/1085440 vmm_cpu_ms=2620 others: vm2-vmm=1960ms vm0-dev=0ms vm0-vmm=70ms vm2-dev=1390ms 

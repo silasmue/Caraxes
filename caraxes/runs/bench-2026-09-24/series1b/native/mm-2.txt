@@ -1,0 +1,11 @@
+# target native metric mm rep 2
+# cmd NVMM_SIZES=1024,2048,4096 NVMM_ITERS=10 /home/silas/git/Leandro/vendor/hostvenv/bin/python /home/silas/git/Leandro-Test/probe/python/mmsweep.py
+# time 2026-09-24T00:21:45+02:00
+# gpu 58, 1875 MHz, 7000 MHz, P0, 47 %, 5339 MiB, Disabled
+# procs 936301:vm0-dev 936305:vm0-vmm 938748:vm2-dev 938763:vm2-vmm 941568:bench-v1-dev 941583:bench-v1-vmm 
+# loadavg 6.91 9.87 9.87
+mmsweep: N=1024     0.48ms/mm   4517.2 GFLOP/s chk=-3.498482e+04 vram=24MiB
+mmsweep: N=2048     3.06ms/mm   5618.8 GFLOP/s chk=1.067825e+04 vram=72MiB
+mmsweep: N=4096    23.42ms/mm   5869.0 GFLOP/s chk=2.118019e+05 vram=264MiB
+# WALL wall_ms=2602 rc=0
+# MEAS dev_pid=- dev_cpu_ms=0 dev_rss_hwm_kb=-/- vmm_cpu_ms=0 others: vm2-dev=1090ms bench-v1-vmm=2260ms vm0-vmm=370ms bench-v1-dev=0ms vm0-dev=0ms vm2-vmm=1790ms 
