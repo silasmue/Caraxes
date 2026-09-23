@@ -291,8 +291,7 @@ impl Mirror {
         let Some(sv) = self.shadow_vas.as_mut() else {
             return Vec::new();
         };
-        let before = sv.maps_ok;
-        let note = sv.sync(
+        let (changed, notes) = sv.sync(
             &mut h,
             gm.fb,
             gm.sys,
@@ -302,10 +301,10 @@ impl Mirror {
             reservation,
             &exclude,
         );
-        if sv.maps_ok == before {
-            Vec::new()
+        if changed {
+            notes
         } else {
-            vec![note]
+            Vec::new()
         }
     }
 
@@ -397,7 +396,7 @@ impl Mirror {
         }
         let sv = self.shadow_vas.as_mut().expect("built");
         // Mirror the guest's set-A before the channel/GPFIFO VA is validated against the VAS.
-        notes.push(sv.sync(
+        let (_, sync_notes) = sv.sync(
             &mut h,
             gm.fb,
             gm.sys,
@@ -406,40 +405,54 @@ impl Mirror {
             self.end,
             self.reservation,
             &exclude,
-        ));
-        if !sv.collisions.is_empty() {
-            notes.push(format!(
-                "shadow: {} run(s) refused (VA collision, first {:x?})",
-                sv.collisions.len(),
-                &sv.collisions[..sv.collisions.len().min(4)]
-            ));
-        }
+        );
+        notes.extend(sync_notes);
         let vas_handle = sv.vas;
-        // TSG on the shadow VAS (GR0), then the channel with the guest's GPFIFO/USERD.
-        let mut tp = sys::v610::NV_CHANNEL_GROUP_ALLOCATION_PARAMETERS::default();
-        tp.hVASpace = vas_handle;
-        tp.engineType = v::lookup(v::NV2080_ENGINE_TYPES, "GR0").unwrap_or(1);
-        let device = h.device();
-        let tsg = match h.alloc_object(
-            device,
-            sys::KEPLER_CHANNEL_GROUP_A,
-            as_bytes(&mut tp),
-            "shadow-tsg",
-        ) {
-            Ok(x) => x,
-            Err(st) => {
-                notes.push(format!("shadow: TSG refused: {}", status_name(st)));
-                return notes;
+        // One host TSG per guest TSG, on the shadow VAS (GR0): the guest's GR channels
+        // of one group (CUDA's chids 2-9, one TSG, one context share) share one GR
+        // context on the host too, so state a push sets on one channel is what a launch
+        // on another sees (the guest's layout; before, every channel got its own TSG and
+        // context, and `self.tsgs` kept only the last handle).
+        let tsg = match self.tsgs.get(&tsg_key) {
+            Some(t) => {
+                notes.push(format!(
+                    "shadow: chid {chid} joins host TSG {:#x} of guest TSG {:#x} [host]",
+                    t.handle, tsg_key.1
+                ));
+                t.handle
+            }
+            None => {
+                let mut tp = sys::v610::NV_CHANNEL_GROUP_ALLOCATION_PARAMETERS::default();
+                tp.hVASpace = vas_handle;
+                tp.engineType = v::lookup(v::NV2080_ENGINE_TYPES, "GR0").unwrap_or(1);
+                let device = h.device();
+                let tsg = match h.alloc_object(
+                    device,
+                    sys::KEPLER_CHANNEL_GROUP_A,
+                    as_bytes(&mut tp),
+                    "shadow-tsg",
+                ) {
+                    Ok(x) => x,
+                    Err(st) => {
+                        notes.push(format!("shadow: TSG refused: {}", status_name(st)));
+                        return notes;
+                    }
+                };
+                notes.push(format!(
+                    "shadow: host TSG {tsg:#x} for guest TSG {:#x} on VAS {vas_handle:#x} [host]",
+                    tsg_key.1
+                ));
+                self.tsgs.insert(
+                    tsg_key,
+                    HostTsg {
+                        handle: tsg,
+                        vas: tsg_key,
+                        engine: tp.engineType,
+                    },
+                );
+                tsg
             }
         };
-        self.tsgs.insert(
-            tsg_key,
-            HostTsg {
-                handle: tsg,
-                vas: tsg_key,
-                engine: tp.engineType,
-            },
-        );
         let userd = match ch.userd {
             Some(Target::Fb(pa)) if pa >= self.base && pa + PAGE <= self.end => {
                 (self.reservation, pa - self.base)
@@ -1604,13 +1617,7 @@ impl Mirror {
         }
         if let Some(sv) = self.shadow_vas.take() {
             let mut h = self.hm.lock().unwrap();
-            notes.push(format!(
-                "shadow: VAS {:#x} freed ({} maps, {} run(s) refused; collisions {:x?})",
-                sv.vas,
-                sv.maps_ok,
-                sv.runs_failed,
-                &sv.collisions[..sv.collisions.len().min(8)]
-            ));
+            notes.push(format!("shadow: VAS {:#x} freed: {}", sv.vas, sv.summary()));
             sv.free(&mut h);
             self.shadow_root = None;
         }

@@ -60,9 +60,24 @@ impl Window {
         debug_assert!(self.covers(off, buf.len()));
         let at = (off - self.offset) as usize;
         // SAFETY: bounds checked against the mapping; volatile because it is device memory.
+        // BAR1 reads are uncached PCIe reads, one bus round trip each: read aligned
+        // qwords where possible (a byte loop made the shadow VAS's guest-root walk take
+        // ~250 ms per GR doorbell, d-gr-launch7), bytes only at unaligned edges.
         unsafe {
-            for (i, b) in buf.iter_mut().enumerate() {
-                *b = std::ptr::read_volatile(self.ptr.add(at + i));
+            let mut i = 0;
+            while i < buf.len() {
+                if (at + i) % 8 == 0 && buf.len() - i >= 8 {
+                    let q = std::ptr::read_volatile(self.ptr.add(at + i) as *const u64);
+                    buf[i..i + 8].copy_from_slice(&q.to_le_bytes());
+                    i += 8;
+                } else if (at + i) % 4 == 0 && buf.len() - i >= 4 {
+                    let d = std::ptr::read_volatile(self.ptr.add(at + i) as *const u32);
+                    buf[i..i + 4].copy_from_slice(&d.to_le_bytes());
+                    i += 4;
+                } else {
+                    buf[i] = std::ptr::read_volatile(self.ptr.add(at + i));
+                    i += 1;
+                }
             }
         }
     }
@@ -431,33 +446,40 @@ impl HostMemory {
         Ok((h, p.offset))
     }
 
-    /// `RM_MAP_MEMORY_DMA` (NVOS46) of `h_mem` at `[offset, offset+length)` into `h_dma`
-    /// (a virtual reservation, or a VA space) at the **fixed** VA `va`, with the given
-    /// `page_size` flag (`nvos46_flags::PAGE_SIZE_*`). Snoop for sysmem, off for vidmem.
-    /// Read/write, GPU-uncached. Returns the status.
     /// Allocate an `NV50_MEMORY_VIRTUAL` reservation of `size` **fixed at VA `va`** inside
-    /// `vaspace`, with the page-size attribute for the guest page `page_bytes`
-    /// (4K/64K/2M). A `DMA_OFFSET_FIXED` map only lands inside the VA range a virtual
-    /// object reserved, so the shadow route reserves one per contiguous run at its VA.
-    /// Returns the handle, or the status (a refusal here is a VA collision with the
+    /// `vaspace`. `page_bytes` is the page-size attribute: 4 KiB, 64 KiB or 2 MiB, or
+    /// `None` for `PAGE_SIZE_DEFAULT` (RM locks both 4 KiB and big pages for the range,
+    /// the page size is chosen at each map, `gvaspaceApplyDefaultAlignment_IMPL`). A
+    /// `DMA_OFFSET_FIXED` map only lands inside the VA range a virtual object reserved
+    /// (`dma.c:157-158`, NV_ERR_INVALID_OFFSET otherwise), so the shadow route reserves
+    /// one object per 2 MiB region at its VA. `force_align` sets
+    /// `ALIGNMENT_FORCE` with the page size as alignment, for an object smaller than the
+    /// VAS's compression-page alignment (legal because nothing here is ever compressed,
+    /// D16). Returns the handle, or the status (a refusal is a VA collision with the
     /// server-reserved range or the host RM's own context VAs).
     pub fn alloc_virtual_fixed(
         &mut self,
         vaspace: u32,
         va: u64,
         size: u64,
-        page_bytes: u64,
+        page_bytes: Option<u64>,
+        force_align: bool,
     ) -> Result<u32, Status> {
         let (page_attr, attr2) = match page_bytes {
-            0x1000 => (sys::NVOS32_ATTR_PAGE_SIZE_4KB, 0),
-            0x1_0000 => (sys::NVOS32_ATTR_PAGE_SIZE_BIG, 0),
-            _ => (sys::NVOS32_ATTR_PAGE_SIZE_HUGE, v::ATTR2_PAGE_SIZE_HUGE_2MB),
+            None => (sys::NVOS32_ATTR_PAGE_SIZE_DEFAULT, 0),
+            Some(0x1000) => (sys::NVOS32_ATTR_PAGE_SIZE_4KB, 0),
+            Some(0x1_0000) => (sys::NVOS32_ATTR_PAGE_SIZE_BIG, 0),
+            Some(_) => (sys::NVOS32_ATTR_PAGE_SIZE_HUGE, v::ATTR2_PAGE_SIZE_HUGE_2MB),
         };
         let mut p = sys::NV_MEMORY_ALLOCATION_PARAMS::default();
         p.owner = OWNER_TAG;
         p.type_ = sys::NVOS32_TYPE_IMAGE as u32;
         p.flags =
             sys::NVOS32_ALLOC_FLAGS_VIRTUAL as u32 | sys::NVOS32_ALLOC_FLAGS_FIXED_ADDRESS_ALLOCATE;
+        if force_align {
+            p.flags |= sys::NVOS32_ALLOC_FLAGS_ALIGNMENT_FORCE;
+            p.alignment = page_bytes.unwrap_or(0x1000);
+        }
         p.attr = nvos32_attr::LOCATION.set(sys::NVOS32_ATTR_LOCATION_PCI as u32)
             | nvos32_attr::PAGE_SIZE.set(page_attr);
         p.attr2 = attr2;
@@ -480,6 +502,34 @@ impl HostMemory {
         )
     }
 
+    /// `RM_UNMAP_MEMORY_DMA` (NVOS47) of the mapping of `h_mem` at VA `va`, `length`
+    /// bytes, from the virtual object `h_dma` (the inverse of [`Self::map_dma_fixed`];
+    /// RM also splits a larger mapping, `virtmemUnmapFrom_IMPL`). RM invalidates the
+    /// TLB of the VAS itself (flags 0: no deferral). Returns the status.
+    pub fn unmap_dma(&self, h_dma: u32, h_mem: u32, va: u64, length: u64) -> Status {
+        let mut p = sys::NVOS47_PARAMETERS::default();
+        p.hClient = self.rm.root();
+        p.hDevice = self.device();
+        p.hDma = h_dma;
+        p.hMemory = h_mem;
+        p.flags = 0;
+        p.dmaOffset = va;
+        p.size = length;
+        // SAFETY: NVOS47 is the escape ABI; plain-data params, no host pointers.
+        match unsafe {
+            self.rm
+                .ctl()
+                .ioctl_raw(sys::NV_ESC_RM_UNMAP_MEMORY_DMA, &mut p)
+        } {
+            Ok(()) => p.status as u32,
+            Err(_) => 0xFFFF_FFFF,
+        }
+    }
+
+    /// `RM_MAP_MEMORY_DMA` (NVOS46) of `h_mem` at `[offset, offset+length)` into `h_dma`
+    /// (a virtual reservation, or a VA space) at the **fixed** VA `va`, with the given
+    /// `page_size` flag (`nvos46_flags::PAGE_SIZE_*`). Snoop for sysmem, off for vidmem.
+    /// Read/write, GPU-uncached. Returns the status.
     #[allow(clippy::too_many_arguments)]
     pub fn map_dma_fixed(
         &self,
@@ -509,21 +559,15 @@ impl HostMemory {
             | f::DMA_OFFSET_FIXED.set(f::DMA_OFFSET_FIXED_TRUE);
         p.dmaOffset = va;
         // SAFETY: NVOS46 is the escape ABI; plain-data params, no host pointers.
-        let r = match unsafe {
+        // The caller (shadow.rs) logs a refusal once per leaf, with VA, PA and reason.
+        match unsafe {
             self.rm
                 .ctl()
                 .ioctl_raw(sys::NV_ESC_RM_MAP_MEMORY_DMA, &mut p)
         } {
             Ok(()) => p.status as u32,
             Err(_) => 0xFFFF_FFFF,
-        };
-        if r != sys::NV_OK {
-            eprintln!(
-                "vfio-user-nvgpu: shadow: MAP_MEMORY_DMA hDma={h_dma:#x} hMem={h_mem:#x} off={offset:#x} len={length:#x} va={va:#x} pgsz={page_size} flags={:#x} -> {r:#x}",
-                p.flags
-            );
         }
-        r
     }
 
     /// `RM_CONTROL` `cmd` on `object`; returns the status (0xFFFFFFFF when the ioctl failed).

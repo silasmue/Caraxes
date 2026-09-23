@@ -669,48 +669,51 @@ impl FakeFb {
             };
             Some((va, t, size, kind))
         };
-        // PD3 (VA 48:47) -> PD2 (46:38) -> PD1 (37:29) -> PD0 (28:21) -> PT.
-        for i3 in 0..4u64 {
+        // PD3 (VA 48:47) -> PD2 (46:38) -> PD1 (37:29) -> PD0 (28:21) -> PT. Each table
+        // is read in one block (BAR1 reads are uncached bus round trips; per-entry reads
+        // and a re-read of the big PTE for every small slot made this walk ~250 ms).
+        let Some(pd3) = self.table_block(sys, root, 4) else {
+            return out;
+        };
+        for (i3, e3) in pd3.iter().enumerate() {
             if out.len() >= max {
                 break;
             }
-            let Some(e3) = self.table_u64(sys, root, 8 * i3) else {
+            let Some(pd2t) = Self::next_table(*e3) else {
                 continue;
             };
-            let Some(pd2) = Self::next_table(e3) else {
+            let Some(pd2) = self.table_block(sys, pd2t, 512) else {
                 continue;
             };
-            for i2 in 0..512u64 {
+            for (i2, e2) in pd2.iter().enumerate() {
                 if out.len() >= max {
                     break;
                 }
-                let Some(e2) = self.table_u64(sys, pd2, 8 * i2) else {
+                let Some(pd1t) = Self::next_table(*e2) else {
                     continue;
                 };
-                let Some(pd1) = Self::next_table(e2) else {
+                let Some(pd1) = self.table_block(sys, pd1t, 512) else {
                     continue;
                 };
-                for i1 in 0..512u64 {
+                for (i1, e1) in pd1.iter().enumerate() {
                     if out.len() >= max {
                         break;
                     }
-                    let Some(e1) = self.table_u64(sys, pd1, 8 * i1) else {
+                    let Some(pd0t) = Self::next_table(*e1) else {
                         continue;
                     };
-                    let Some(pd0) = Self::next_table(e1) else {
+                    let Some(pd0) = self.table_block(sys, pd0t, 512) else {
                         continue;
                     };
-                    for i0 in 0..256u64 {
+                    for i0 in 0..256usize {
                         if out.len() >= max {
                             break;
                         }
-                        let base = (i3 << 47) | (i2 << 38) | (i1 << 29) | (i0 << 21);
-                        let (Some(lo), Some(hi)) = (
-                            self.table_u64(sys, pd0, 16 * i0),
-                            self.table_u64(sys, pd0, 16 * i0 + 8),
-                        ) else {
-                            continue;
-                        };
+                        let base = ((i3 as u64) << 47)
+                            | ((i2 as u64) << 38)
+                            | ((i1 as u64) << 29)
+                            | ((i0 as u64) << 21);
+                        let (lo, hi) = (pd0[2 * i0], pd0[2 * i0 + 1]);
                         if lo & 1 == 1 {
                             // 2 MiB page (dual PDE low qword is a PTE).
                             if let Some(l) = leaf(lo, base, 0x20_0000) {
@@ -718,39 +721,34 @@ impl FakeFb {
                             }
                             continue;
                         }
-                        let big = Self::big_table(lo);
-                        let small = Self::next_table(hi);
                         // 64 KiB big-page table (VA 20:16, 32 entries).
-                        if let Some(pt) = big {
-                            for b in 0..32u64 {
+                        let big = Self::big_table(lo).and_then(|t| self.table_block(sys, t, 32));
+                        if let Some(bt) = &big {
+                            for (b, pte) in bt.iter().enumerate() {
                                 if out.len() >= max {
                                     break;
                                 }
-                                if let Some(pte) = self.table_u64(sys, pt, 8 * b) {
-                                    if let Some(l) = leaf(pte, base | (b << 16), 0x1_0000) {
-                                        out.push(l);
-                                    }
+                                if let Some(l) = leaf(*pte, base | ((b as u64) << 16), 0x1_0000) {
+                                    out.push(l);
                                 }
                             }
                         }
                         // 4 KiB small-page table (VA 20:12, 512 entries); skip a 4 KiB slot
                         // already covered by a valid 64 KiB big PTE.
-                        if let Some(pt) = small {
-                            for sidx in 0..512u64 {
-                                if out.len() >= max {
-                                    break;
-                                }
-                                let covered = big
-                                    .and_then(|bt| self.table_u64(sys, bt, 8 * (sidx >> 4)))
-                                    .is_some_and(|bpte| bpte & 1 == 1);
-                                if covered {
-                                    continue;
-                                }
-                                if let Some(pte) = self.table_u64(sys, pt, 8 * sidx) {
-                                    if let Some(l) = leaf(pte, base | (sidx << 12), 0x1000) {
-                                        out.push(l);
-                                    }
-                                }
+                        let Some(pt) =
+                            Self::next_table(hi).and_then(|t| self.table_block(sys, t, 512))
+                        else {
+                            continue;
+                        };
+                        for (sidx, pte) in pt.iter().enumerate() {
+                            if out.len() >= max {
+                                break;
+                            }
+                            if big.as_ref().is_some_and(|bt| bt[sidx >> 4] & 1 == 1) {
+                                continue;
+                            }
+                            if let Some(l) = leaf(*pte, base | ((sidx as u64) << 12), 0x1000) {
+                                out.push(l);
                             }
                         }
                     }
@@ -758,6 +756,21 @@ impl FakeFb {
             }
         }
         out
+    }
+
+    /// `n` consecutive qwords of a page-table page (in the FB store, or in guest RAM).
+    fn table_block(&self, sys: Option<&GuestMemory>, table: Target, n: usize) -> Option<Vec<u64>> {
+        let mut b = vec![0u8; n * 8];
+        let ok = match table {
+            Target::Fb(pa) => self.read(pa, &mut b),
+            Target::Sys(pa) => sys?.read(pa, &mut b),
+            _ => false,
+        };
+        ok.then(|| {
+            b.chunks_exact(8)
+                .map(|c| u64::from_le_bytes(c.try_into().unwrap()))
+                .collect()
+        })
     }
 
     /// `translate_in` plus the raw last-level entry the walk ended on (the PTE, or the
@@ -897,6 +910,35 @@ mod tests {
         assert_eq!(z, [0; 4]);
         assert!(!fb.read(64 << 20, &mut z));
         assert_eq!(fb.pages_touched(), 7);
+    }
+
+    #[test]
+    fn enumerate_leaves_sees_every_page_size_once() {
+        let mut fb = FakeFb::new(64 << 20);
+        let (root, pd2, pd1, pd0) = (0x10000u64, 0x11000u64, 0x12000u64, 0x13000u64);
+        let (pt_small, pt_big) = (0x14000u64, 0x15000u64);
+        let vid = |addr: u64| ((addr >> 12) << 8) | 0b010;
+        fb.write_u64(root, vid(pd2));
+        fb.write_u64(pd2, vid(pd1));
+        fb.write_u64(pd1, vid(pd0));
+        fb.write_u64(pd0, ((pt_big >> 8) << 4) | 0b010);
+        fb.write_u64(pd0 + 8, vid(pt_small));
+        // Small PTEs at VA 0x3000 and at 0x11000 (the latter under a valid big PTE: hidden).
+        fb.write_u64(pt_small + 8 * 3, ((0x20000u64 >> 12) << 8) | 1);
+        fb.write_u64(pt_small + 8 * 0x11, ((0x30000u64 >> 12) << 8) | 1);
+        fb.write_u64(pt_big + 8, ((0x8000_0000u64 >> 12) << 8) | 0b101);
+        // A 2 MiB PTE in PD0 entry 1 (VA 0x20_0000), kind 0x06.
+        fb.write_u64(pd0 + 16, ((0x40_0000u64 >> 12) << 8) | (0x06u64 << 56) | 1);
+        let mem = GuestMemory::new();
+        let l = fb.enumerate_leaves(Some(&mem), Target::Fb(root), 1 << 20);
+        assert_eq!(
+            l,
+            vec![
+                (0x1_0000, Target::Sys(0x8000_0000), 0x1_0000, 0),
+                (0x3000, Target::Fb(0x20000), 0x1000, 0),
+                (0x20_0000, Target::Fb(0x40_0000), 0x20_0000, 0x06),
+            ]
+        );
     }
 
     #[test]
