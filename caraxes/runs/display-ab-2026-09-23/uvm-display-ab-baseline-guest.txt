@@ -1,0 +1,15 @@
+# SPDX-License-Identifier: MIT
+# uvm-display-ab-baseline/guest.txt from the VM store.
+UVM_INITIALIZE flags 0x0: ioctl 0 rmStatus 0x0
+UVM_REGISTER_GPU GPU-9bd7b93d-3d23-c074-6704-984ef33ab7a7 ...
+UVM_REGISTER_GPU: ioctl 0 rmStatus 0x0 numaEnabled 0 numaNodeId -1
+UVM_UNREGISTER_GPU: ioctl 0 rmStatus 0x0
+uvm-register rc=0
+[  284.210286] NVRM: nvidia_open...
+[  284.210296] NVRM: nvidia_ctl_open
+[  284.210302] NVRM: nvidia_open...
+[  284.210305] NVRM: GPU 0000:00:05.0: Opening GPU with minor number 0
+[  284.210491] NVRM: GPU 0000:00:05.0: Opening GPU with minor number 0
+[  284.852778] NVRM: nvidia_close on GPU with minor number 0
+[  284.852797] NVRM: nvidia_close on GPU with minor number 255
+[  284.852799] NVRM: nvidia_ctl_close

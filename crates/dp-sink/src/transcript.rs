@@ -9,6 +9,8 @@
 //! ! plug                      action: plug | unplug | aux-reset | drop-link
 //! ! fault i2c-defer           queue a fault: aux-defer | aux-nack | i2c-defer | i2c-nack | timeout
 //! ! service-irq 02            set DEVICE_SERVICE_IRQ_VECTOR bits (short pulse)
+//! ! train 1e 4 ef             train through `DpSink::train` (a transport's DP_CTRL):
+//!                             LINK_BW code (hex), lanes, `ef` for enhanced framing
 //! ? events plug irq-link      expect exactly these pending HPD events (and consume them)
 //! > nr 000 16                 native read: address (hex), length (decimal)
 //! > nw 100 0a 84              native write: address, data bytes (hex)
@@ -213,6 +215,22 @@ pub fn replay(sink: &mut DpSink, script: &str) -> Result<usize, ReplayError> {
                     (Some("fault"), Some(f)) => sink.inject(parse_fault(f).map_err(err)?),
                     (Some("service-irq"), Some(b)) => {
                         sink.service_irq(parse_byte(b).map_err(err)?);
+                    }
+                    (Some("train"), Some(bw)) => {
+                        let rate =
+                            crate::profile::LinkRate::from_code(parse_byte(bw).map_err(err)?)
+                                .ok_or_else(|| err(format!("unknown link rate {bw:?}")))?;
+                        let lanes: u8 = t
+                            .next()
+                            .and_then(|l| l.parse().ok())
+                            .ok_or_else(|| err("train needs a lane count".into()))?;
+                        let cfg = crate::link::LinkConfig {
+                            rate,
+                            lanes,
+                            enhanced_framing: t.next() == Some("ef"),
+                        };
+                        sink.train(cfg)
+                            .map_err(|e| err(format!("training {cfg:?} refused: {e:?}")))?;
                     }
                     _ => return Err(err(format!("unknown action {body:?}"))),
                 }

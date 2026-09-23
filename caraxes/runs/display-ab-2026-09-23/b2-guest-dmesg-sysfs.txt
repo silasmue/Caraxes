@@ -1,0 +1,29 @@
+# SPDX-License-Identifier: MIT
+# Guest sysfs and dmesg of run b2.
+Y
+N
+== status
+connected
+== enabled
+disabled
+== dpms
+On
+== modes
+1920x1080
+1920x1080
+1920x1080
+1280x720
+1280x720
+640x480
+== dmesg
+[  159.284416] nvidia-modeset: Loading NVIDIA UNIX Open Kernel Mode Setting Driver for x86_64  610.57.04  Release Build  (leandro@caraxes-vm0)  Wed Sep 23 19:23:25 UTC 2026
+[  159.317242] [drm] [nvidia-drm] [GPU ID 0x00000005] Loading driver
+[  159.317249] NVRM: GPU 0000:00:05.0: Opening GPU with minor number 0
+[  159.319602] NVRM: GPU 0000:00:05.0: Opening GPU with minor number 0
+[  160.018824] [drm] Initialized nvidia-drm 0.0.0 20160202 for 0000:00:05.0 on minor 0
+[  173.054318] nvidia-modeset: WARNING: GPU:0: Lost display notification (0:0x00000000); continuing.
+== lsmod
+nvidia_drm            147456  0
+nvidia_modeset       1490944  1 nvidia_drm
+video                  77824  1 nvidia_modeset
+nvidia              16379904  1 nvidia_modeset

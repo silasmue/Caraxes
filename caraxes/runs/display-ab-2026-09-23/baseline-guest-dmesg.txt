@@ -1,0 +1,37 @@
+# SPDX-License-Identifier: MIT
+# Guest log of `tools/caraxes-vm.sh probe display-ab-baseline` (display off, D0 baseline).
+[  236.060175] nvidia-nvlink: Nvlink Core is being initialized, major device number 239
+[  236.060188] NVRM: probing 0x10de 0x1f02, class 0x30000
+[  236.071483] NVRM: resizable BAR disabled by regkey, skipping
+[  236.071487] NVRM: No clk handles for the dev
+[  236.071680] nvidia 0000:00:05.0: vgaarb: VGA decodes changed: olddecodes=none,decodes=none:owns=none
+[  236.071754] NVRM: PCI:0000:00:05.0 (10de:1f02): BAR0 @ 0xe6000000 (16MB)
+[  236.071757] NVRM: PCI:0000:00:05.0 (10de:1f02): BAR1 @ 0x3fffe0000000 (256MB)
+[  236.071801] NVRM: Failed to evaluate _PR3 object
+[  236.073821] NVRM: pciPbiReadUuid: Could not acquire pciPbi mutex
+[  236.073930] NVRM: Starting device 0000:00:05.0
+[  236.085944] NVRM: GPU 0000:00:05.0: RmInitAdapter
+[  236.085952] NVRM: GPU 0000:00:05.0: RmSetupRegisters for 0x10de:0x1f02
+[  236.085955] NVRM: GPU 0000:00:05.0: pci config info:
+[  236.085956] NVRM: GPU 0000:00:05.0:    registers look  like: 0xe6000000 0x1000000NVRM: GPU 0000:00:05.0:    fb        looks like: 0x3fffe0000000 0x10000000
+[  236.085975] NVRM: GPU 0000:00:05.0: Successfully mapped framebuffer and registers
+[  236.085977] NVRM: GPU 0000:00:05.0: final mappings:
+[  236.085978] NVRM: GPU 0000:00:05.0:     regs: 0xe6000000 0x1000000 0x000000000c3bb01a
+[  236.546952] NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+[  236.546961] NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+[  236.546964] NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+[  236.546966] NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+[  236.546968] NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+[  236.546971] NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+[  236.546973] NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+[  236.546975] NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+[  236.546978] NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+[  236.546981] NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+[  236.546984] NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+[  236.546986] NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+[  236.546992] NVRM: nv_acpi_dod_method: failed to evaluate _DOD method!
+[  244.276328] NVRM: initializing rc timer
+[  244.276335] NVRM: rc timer initialized
+[  244.279827] NVRM: GPU 0000:00:05.0: RmInitAdapter succeeded!
+[  244.281765] NVRM: loading NVIDIA UNIX Open Kernel Module for x86_64  610.57.04  Release Build  (leandro@caraxes-vm0)  Wed Sep 23 08:32:41 UTC 2026
+modprobe rc=0

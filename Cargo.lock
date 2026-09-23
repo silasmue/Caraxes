@@ -230,6 +230,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "dp-sink"
+version = "0.0.1"
+
+[[package]]
 name = "either"
 version = "1.17.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -774,6 +778,7 @@ name = "vfio-user-nvgpu"
 version = "0.0.1"
 dependencies = [
  "anyhow",
+ "dp-sink",
  "env_logger",
  "libc",
  "log",

@@ -150,6 +150,11 @@ impl Bar0 {
             NV_PMC_BOOT_1 => self.identity.boot_1,
             NV_PMC_BOOT_42 => self.identity.boot_42,
             _ => {
+                // The display engine's registers and pages (display/mod.rs) come first:
+                // the fuse there overrides the chip's boot constant.
+                if let Some(v) = self.boot.as_mut().and_then(|b| b.ctrl.display.read32(reg)) {
+                    return v;
+                }
                 if let Some(v) = self.boot.as_mut().and_then(|b| b.read32(reg)) {
                     return v;
                 }
@@ -192,6 +197,10 @@ impl Bar0 {
         if let Some(boot) = self.boot.as_mut() {
             if data.len() == 4 && offset % 4 == 0 {
                 let v = u32::from_le_bytes([data[0], data[1], data[2], data[3]]);
+                if let Some(notes) = boot.ctrl.display.write32(offset, v, mem) {
+                    self.notes.extend(notes);
+                    return WriteEffect::Model;
+                }
                 if let Some(notes) = boot.write32(offset, v, mem) {
                     self.notes.extend(notes);
                     return WriteEffect::Model;

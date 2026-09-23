@@ -10,14 +10,16 @@ machine, the AUX engine with I2C-over-AUX, the EDID and hot-plug detect. It know
 NVIDIA, vfio-user or GSP. The NVIDIA control adapter (package B) and the display model will sit
 on top of it (decision D15: DisplayPort SST, one connector per head).
 
-Status 2026-09-23: written and unit-tested (gate D1, "Sink-Unit-Tests"). It has not been run
-against a guest driver. For tonight it is a **standalone crate**: `Cargo.toml` has an empty
-`[workspace]` table, so it is not a member of the repository workspace, and it has no
-dependencies beyond `std`. It moves into `crates/` later.
+Status 2026-09-23: written and unit-tested (gate D1, "Sink-Unit-Tests"). Moved from
+`caraxes/dp-sink` to `crates/dp-sink` as a workspace member (still `std` only) for display
+phase B ([docs/caraxes/display-ab.md](../../docs/caraxes/display-ab.md)). There it sits behind
+the device's NV0073 AUX adapter (`crates/vfio-user-nvgpu/src/display/aux.rs`) and answered the
+stock 610.57.04 guest's DP library: detection, DisplayID probe, EDID read, HBR3 x4 training
+through `DP_CTRL`. The golden transcript is now that guest's recorded capture.
 
 ```sh
-cd caraxes/dp-sink
-cargo test                                            # 52 tests
+cargo test -p dp-sink                                 # 52 tests
+cd crates/dp-sink
 cargo clippy --all-targets -- -D warnings
 cargo run -q --example edid | edid-decode --check     # EDID conformity: PASS
 cargo run -q --example edid -- --cta | edid-decode --check
@@ -238,17 +240,20 @@ in the open tree) is package B's question.
 | `src/aux.rs` | 2 | command nibble round trip; validation rules |
 | `src/hpd.rs` | 1 | long and short pulses are separate |
 | `src/edid.rs` | 4 | CVT-RB against published values; base block layout; CTA extension; bad inputs |
-| `src/transcript.rs` | 1 | request text round trip |
+| `src/transcript.rs` | 1 | request text round trip (the replayer's `! train` action is exercised by `tests/replay.rs`) |
 | `tests/aux_cases.rs` | 16 | briefing 2.2 and 6: native read of 1 and 16 bytes, native write of 1 and 16 bytes, I2C read of 1 and 16 bytes, **short reply** (profile limit and EDID end), **address-only**, **MOT continuation** with segment pointer, **NACK** (natural and injected), **DEFER** (state unchanged, retry correct), **invalid length**, **invalid port / display id**, timeout when unplugged, **reset abandons a transfer**, write status request, read-only writes ACKed, direct training API, hotplug vs IRQ events |
-| `tests/replay.rs` | 3 | the **golden transcript** (`tests/transcripts/nvidia-sst-discovery.txt`, 38 request/reply pairs) replays exactly; the replayer detects one wrong byte; **changed lane count and EDID offset**: the golden transcript with 2 lanes or offset 0x40 must fail at the right line; corrected expectations pass; per-lane status and offset checked against values derived in the test |
+| `tests/replay.rs` | 3 | the **golden transcript** (`tests/transcripts/nvidia-610-guest-capture.txt`, 85 request/reply pairs recorded from the stock 610.57.04 guest on 2026-09-23, against `SinkProfile::dp14_hbr3_x4_dsc` and `caraxes-dp-monitor.edid.bin`) replays exactly; the replayer detects one wrong byte; **changed lane count and EDID offset**: the capture trained with 2 lanes (`! train 1e 2 ef`) or with the EDID offset 0x40 must fail at the right line; corrected expectations pass; per-lane status and offset checked against values derived in the test |
 | `tests/edid_oracle.rs` | 4 | independent parser re-derives the first monitor read over AUX; CTA block walk; edid-decode on the base block and the CTA variant |
 
-About the golden transcript: its request order follows the NVIDIA 610.57.04 DP library as read
-in source (`sstDDCPing`, `readNextBlock` with 16-byte transactions). It is **not** a capture from
-a guest, and should be replaced by a recorded trace once gate D2 exists (`transcript::record`
-writes the same format). The DPCD replies in it were written by hand from the register
-definitions. The replay caught one mistake in them (a 15-byte line for a 16-byte read), so it
-does check.
+About the golden transcript: until 2026-09-23 it was written by hand from the NVIDIA DP
+library's source. It is now the recorded capture of display run b3
+(`caraxes/runs/display-ab-2026-09-23/transcript.py` turns the device trace into this format).
+The capture corrected the hand-written assumptions:
+- the library reads 0x00E and then the DPCD 1.4 extended caps at 0x2200;
+- it touches the DP-tunneling registers 0xE000D/0xE0030;
+- it sends no DDC ping;
+- it probes DisplayID at 0x52 twenty times before reading the EDID;
+- it trains through `DP_CTRL`, not over AUX. The new `! train` action replays that.
 
 ## 8. Ambiguities the specification left open (decisions taken here)
 

@@ -3,13 +3,10 @@
 # SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 [package]
 name = "dp-sink"
-version = "0.1.0"
-edition = "2021"
-license = "MIT"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
 publish = false
 description = "Transport-neutral DisplayPort SST sink model: DPCD, AUX and I2C-over-AUX, EDID, link training, HPD"
 
 [dependencies]
-
-# Standalone for now (not a member of the repository workspace); moves into crates/ later.
-[workspace]

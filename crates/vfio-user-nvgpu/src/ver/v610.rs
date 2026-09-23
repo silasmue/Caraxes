@@ -23,6 +23,9 @@ pub const DRIVER_VERSION: &str = "610.57.04";
 /// The `ChannelAllocParams` layout of this version (channel.rs), through `nvrm-sys`.
 pub type RmAbi = nvrm_sys::V610;
 
+/// The display control vocabulary (src/ver/v610/display.rs).
+pub mod display;
+
 // ---------------------------------------------------------------------------------
 // NV_STATUS values (src/common/sdk/nvidia/inc/nvstatuscodes.h).
 
@@ -257,6 +260,7 @@ pub const ENG_DESC_CLASSES: &[(&str, u32)] = &[
 /// index in the guest.
 pub const MC_ENGINE_IDX: &[(&str, u32)] = &[
     ("NULL", 0),
+    ("DISP", 2),
     ("TMR", 1),
     ("FIFO", 4),
     ("CE0", 15),

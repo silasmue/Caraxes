@@ -1,0 +1,18 @@
+# SPDX-License-Identifier: MIT
+# python3 route.py on the device trace of probe display-a1: every display RPC/control in order (D2, phase A).
+   1 ctrl 0x730151 status 0x0 [guest (recorded from the request)] map shared data: base 0x0 size 0x0 bMap 0
+   2 ctrl 0x20800a4b status 0x0 [synthesized (chips/tu106/display.toml)] display ip version 0x4000000
+   3 alloc status 0x0 [synthesized (display object recorded; channel state in display/mod.rs)] alloc NV04_DISPLAY_COMMON 0x73
+   4 ctrl 0x20800a01 status 0x0 [synthesized (chips/tu106/display.toml)] display static info: 4 heads, windows 0xff, i2cPort 16, 81 channels, no internal panel
+   5 ctrl 0x20800ac6 status 0x0 [synthesized (acknowledged; no display state behind it yet)] brightc state load: no backlight (no internal panel)
+   6 ctrl 0x20800adf status 0x0 [synthesized (acknowledged; no display state behind it yet)] static (ACPI) EDID data: tableLen 16
+   7 ctrl 0x20800a49 status 0x0 [guest (recorded from the request)] display instance memory: pa 0xf75d0000 size 0x10000 addrSpace 2
+   8 ctrl 0x730151 status 0x0 [guest (recorded from the request)] map shared data: base 0xf75ce000 size 0x20 bMap 1
+   9 alloc status 0x0 [synthesized (display object recorded; channel state in display/mod.rs)] alloc NV04_DISPLAY_COMMON 0x73
+  10 ctrl 0x730107 status 0x0 [synthesized (board connector table, boards/rtx2070.toml [display])] supported displays 0x100
+  11 ctrl 0x73028b status 0x0 [synthesized (board connector table, boards/rtx2070.toml [display])] or info of 0x100: SOR0 DP_A, chip, static
+  12 ctrl 0x730211 status 0x0 [synthesized (board connector table, boards/rtx2070.toml [display])] i2c port id of 0x100: ddcPortId 0 (I2C_PORT_NONE)
+
+Display BAR0 accesses (register, or 4 KiB USERD page):
+  R 0x21c04: 3
+  R 0x625f04: 1

@@ -1,0 +1,159 @@
+# SPDX-License-Identifier: MIT
+# SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
+# SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
+#
+# The TU106 display engine as the device presents it (docs/caraxes/display-ab.md,
+# display-adapter.md sections 3-5, display-scaling.md section 3.1). Synthetic data: no
+# value here was read from the physical card; every number is either a Turing header
+# reset value (named) or a choice for the emulated display (4 heads, 8 windows, 4 SORs).
+# The board's connectors live in boards/<board>.toml [display].
+
+label = "synthesized (TU106 display engine data, chips/tu106/display.toml)"
+
+# INTERNAL_DISPLAY_GET_IP_VERSION: display IP v04.00 (Turing; display-path.md §2).
+ip_version = 0x0400_0000
+heads = 4
+windows = 8
+sors = 4
+# NV_UDISP_FE_CHN_ASSY_BASEADR__SIZE_1 (disp/v03_00/dev_disp.h): core, 32 windows,
+# 32 window-imm, 8 cursors, and the gap between them.
+num_disp_channels = 81
+# NV402C_CTRL_NUM_I2C_PORTS: "no external device" (kern_disp.c:611-623).
+i2c_port = 16
+# NV_PDISP_VGA_WORKSPACE_BASE (0x625F04): STATUS (bit 3) invalid, so the kernel keeps
+# the VGA workspace at fbSize - 1 MiB, the layout it computes without a display
+# (kernel_gsp_tu102.c:787-802, fb-model.md §3.1).
+vga_workspace_base = 0
+# The display interrupt vector in leaf 4 (vectors 128-159, intr_tu102.c:1191-1212); it
+# appears in chips/tu106/interrupts.toml as MC_ENGINE_IDX_DISP.
+intr_vector = 156
+
+# The DisplayPort link the GPU side offers (NV0073 DP_GET_CAPS, DFP_GET_INFO, DP_CTRL,
+# DP_GET_LINK_CONFIG) and the sink profile must agree with (dp-sink
+# SinkProfile::dp14_hbr3_x4_dsc): one profile, D15, display-adapter.md §7 item 3.
+[link]
+rate = "HBR3"
+lanes = 4
+dsc = true
+fec = true
+
+# The NVC573 capabilities page at BAR0 0x640000 (4096 bytes, clc573.h). Offsets are
+# relative to 0x640000; every dword not listed reads 0 (nvkms-evo3.c reads the
+# precomp caps of all 32 windows, so windows 8-31 must stay 0).
+[[caps]]
+offset = 0x000
+name = "SYS_CAP: HEAD_EXISTS(0-3), SOR_EXISTS(0-3)"
+value = 0x0000_0F0F
+[[caps]]
+offset = 0x004
+name = "SYS_CAPB: WINDOW_EXISTS(0-7)"
+value = 0x0000_00FF
+[[caps]]
+offset = 0x010
+name = "IHUB_COMMON_CAPA: SUPPORT_PLANAR"
+value = 0x0008_0000
+# SOR_CAP(i) = 0x144 + 8i: SINGLE_TMDS_A/B, DUAL_TMDS, DP_A, DP_B; HDMI_FRL (bit 28) 0.
+[[caps]]
+offset = 0x144
+name = "SOR_CAP(0)"
+value = 0x0300_0B00
+[[caps]]
+offset = 0x14C
+name = "SOR_CAP(1)"
+value = 0x0300_0B00
+[[caps]]
+offset = 0x154
+name = "SOR_CAP(2)"
+value = 0x0300_0B00
+[[caps]]
+offset = 0x15C
+name = "SOR_CAP(3)"
+value = 0x0300_0B00
+# HEAD_CLK_CAP(i) = 0x5E8 + 4i: PCLK_MAX 133 x 10 MHz, the Turing reset value NVKMS
+# itself carries (nvkms-evo3.c:5182-5186).
+[[caps]]
+offset = 0x5E8
+name = "HEAD_CLK_CAP(0)"
+value = 0x85
+[[caps]]
+offset = 0x5EC
+name = "HEAD_CLK_CAP(1)"
+value = 0x85
+[[caps]]
+offset = 0x5F0
+name = "HEAD_CLK_CAP(2)"
+value = 0x85
+[[caps]]
+offset = 0x5F4
+name = "HEAD_CLK_CAP(3)"
+value = 0x85
+# SOR_CLK_CAP(i) = 0x608 + 4i: DP_MAX 0x51 (8.1 Gbit/s), TMDS_MAX 0x3C (600 MHz), the
+# clc573.h INIT values.
+[[caps]]
+offset = 0x608
+name = "SOR_CLK_CAP(0)"
+value = 0x003C_0051
+[[caps]]
+offset = 0x60C
+name = "SOR_CLK_CAP(1)"
+value = 0x003C_0051
+[[caps]]
+offset = 0x610
+name = "SOR_CLK_CAP(2)"
+value = 0x003C_0051
+[[caps]]
+offset = 0x614
+name = "SOR_CLK_CAP(3)"
+value = 0x003C_0051
+# POSTCOMP_HEAD_HDR_CAPA(i) = 0x680 + 32i: UNIT_WIDTH 16, OCSC0/1, DTH, DSC_PRESENT; no
+# scaler.
+[[caps]]
+offset = 0x680
+name = "POSTCOMP_HEAD_HDR_CAPA(0)"
+value = 0x0053_0200
+[[caps]]
+offset = 0x6A0
+name = "POSTCOMP_HEAD_HDR_CAPA(1)"
+value = 0x0053_0200
+[[caps]]
+offset = 0x6C0
+name = "POSTCOMP_HEAD_HDR_CAPA(2)"
+value = 0x0053_0200
+[[caps]]
+offset = 0x6E0
+name = "POSTCOMP_HEAD_HDR_CAPA(3)"
+value = 0x0053_0200
+# PRECOMP_WIN_PIPE_HDR_CAPA(w) = 0x780 + 32w: CSC00, CSC0LUT, CSC01, CSC10, CSC1LUT,
+# CSC11 (CSC11 is asserted on every flip, nvkms-evo3.c:1150); no TMO, no scaler.
+[[caps]]
+offset = 0x780
+name = "PRECOMP_WIN_PIPE_HDR_CAPA(0)"
+value = 0x01C7_0000
+[[caps]]
+offset = 0x7A0
+name = "PRECOMP_WIN_PIPE_HDR_CAPA(1)"
+value = 0x01C7_0000
+[[caps]]
+offset = 0x7C0
+name = "PRECOMP_WIN_PIPE_HDR_CAPA(2)"
+value = 0x01C7_0000
+[[caps]]
+offset = 0x7E0
+name = "PRECOMP_WIN_PIPE_HDR_CAPA(3)"
+value = 0x01C7_0000
+[[caps]]
+offset = 0x800
+name = "PRECOMP_WIN_PIPE_HDR_CAPA(4)"
+value = 0x01C7_0000
+[[caps]]
+offset = 0x820
+name = "PRECOMP_WIN_PIPE_HDR_CAPA(5)"
+value = 0x01C7_0000
+[[caps]]
+offset = 0x840
+name = "PRECOMP_WIN_PIPE_HDR_CAPA(6)"
+value = 0x01C7_0000
+[[caps]]
+offset = 0x860
+name = "PRECOMP_WIN_PIPE_HDR_CAPA(7)"
+value = 0x01C7_0000

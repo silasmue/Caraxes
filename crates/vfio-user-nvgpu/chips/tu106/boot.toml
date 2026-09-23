@@ -45,9 +45,10 @@ const = [
     { name = "NV_PTIMER_TIME_PRIV_LEVEL_MASK", offset = 0x0000_9430, value = 0xFF },
     { name = "NV_PBUS_VBIOS_SCRATCH(0xE)", offset = 0x0000_1438, value = 0 },
     { name = "NV_PBUS_VBIOS_SCRATCH(0x15)", offset = 0x0000_1454, value = 0 },
-    # DATA_ENABLE is 0 (gm107/dev_fuse.h:29); 1 = no display, which keeps the VGA
-    # workspace and the display engine out of the picture for now.
-    { name = "NV_FUSE_STATUS_OPT_DISPLAY", offset = 0x0002_1C04, value = 1 },
+    # DATA_ENABLE is 0 (gm107/dev_fuse.h:29): TU106 has a display engine. The display
+    # model (src/display) answers this register first: 0 with --display, 1 (no display,
+    # the headless profile of E0-E5) without it.
+    { name = "NV_FUSE_STATUS_OPT_DISPLAY", offset = 0x0002_1C04, value = 0 },
     # Production part: `_DATA_NO` = 1 is "debug disabled" (kernel_gsp_ga100.c:46-48).
     { name = "NV_FUSE_OPT_SECURE_GSP_DEBUG_DIS", offset = 0x0002_174C, value = 1 },
     # FWSEC lowered the read-protection PLM (kern_gpu_tu102.c:395-417).

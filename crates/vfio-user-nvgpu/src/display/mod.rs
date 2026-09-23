@@ -1,0 +1,1267 @@
+// SPDX-License-Identifier: MIT
+// SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
+// SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
+//! The display engine in the GSP role: phases A and B of docs/caraxes/display-connector.md
+//! with the DisplayPort decision D15 (docs/caraxes/display-ab.md, display-adapter.md).
+//!
+//! What is here:
+//! - the display's presence (the fuse `NV_FUSE_STATUS_OPT_DISPLAY`, the VGA workspace
+//!   register) and the kernel's init RPCs (IP version, static info, instance memory);
+//! - the NV0073/NV5070/NVC370/NVC372 controls NVKMS and its DP library send for one
+//!   DisplayPort SST connector per head, answered from the chip data
+//!   (`chips/<chip>/display.toml`), the board's connectors (`boards/<board>.toml`
+//!   `[display]`) and one [`dp_sink::DpSink`] per connector ([`aux`] adapts the NV0073
+//!   AUX encoding onto it);
+//! - the BAR0 pages of the channels (USERD PUT/GET, the core channel's ARMED state
+//!   mirror, cursor `Free`) and the NVC573 capabilities page.
+//!
+//! Nothing here is forwarded to the host: every answer is `synthesized` (chip data),
+//! `board` (the connector table) or `guest` (derived from what the guest wrote), D9.
+//! No modeset is modelled yet (phase C): `UPDATE` makes the core assembly state ARMED
+//! and moves GET, nothing more.
+
+pub mod aux;
+pub mod edid;
+
+use std::collections::BTreeMap;
+use std::sync::Mutex;
+
+use serde::Deserialize;
+
+use crate::ctrl::Answer;
+use crate::guestmem::GuestMemory;
+use crate::ver::active::display as d;
+use crate::ver::active::{NV_ERR_NOT_SUPPORTED, NV_OK};
+use dp_sink::{DpSink, LinkConfig, LinkRate, SinkProfile};
+
+/// `NV_ERR_INVALID_ARGUMENT` (nvstatuscodes.h).
+pub const NV_ERR_INVALID_ARGUMENT: u32 = 0x1F;
+
+/// BAR0 registers and pages (disp/v03_00/dev_disp.h, v04_00/dev_disp.h, gm107/dev_fuse.h).
+pub const NV_FUSE_STATUS_OPT_DISPLAY: u64 = 0x0002_1C04;
+pub const NV_PDISP_VGA_WORKSPACE_BASE: u64 = 0x0062_5F04;
+pub const NV_PDISP_FE_SW: u64 = 0x0064_0000;
+pub const CAPS_PAGE_SIZE: u64 = 0x1000;
+pub const CORE_USERD: u64 = 0x0068_0000;
+pub const CORE_ARMED: u64 = 0x0068_8000;
+pub const WIN_USERD: u64 = 0x0069_0000;
+pub const CURSOR_USERD: u64 = 0x006D_8000;
+pub const USERD_END: u64 = 0x006E_0000;
+/// `NVC57A_FREE` (+0x08 of the cursor PIO page): space for methods; must be non-zero.
+const CURSOR_FREE: u64 = 0x08;
+/// A value for `Free`: the PIO FIFO is empty (clc57a.h: `Free` counts dwords).
+const CURSOR_FREE_ENTRIES: u32 = 0x40;
+
+/// Who configured the display (main.rs `--display`); read by every new [`Display`], so
+/// a device reset keeps the choice.
+#[derive(Clone, Debug, Default)]
+pub struct Setup {
+    /// The display engine exists: the fuse reads 0 and the controls are answered.
+    pub enabled: bool,
+    /// The chip whose `display.toml` applies.
+    pub chip: String,
+    /// The board's `[display]` table.
+    pub board: Option<toml::Value>,
+}
+
+static SETUP: Mutex<Option<Setup>> = Mutex::new(None);
+
+/// Configure the display of every device model created from now on.
+pub fn configure(setup: Setup) {
+    *SETUP.lock().unwrap() = Some(setup);
+}
+
+/// `chips/<chip>/display.toml`.
+#[derive(Clone, Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ChipDisplay {
+    pub label: String,
+    pub ip_version: u32,
+    pub heads: u32,
+    pub windows: u32,
+    pub sors: u32,
+    pub num_disp_channels: u32,
+    pub i2c_port: u32,
+    pub vga_workspace_base: u32,
+    pub intr_vector: u32,
+    pub link: LinkProfile,
+    pub caps: Vec<CapReg>,
+}
+
+/// The one DisplayPort link profile every link answer derives from.
+#[derive(Clone, Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct LinkProfile {
+    pub rate: String,
+    pub lanes: u8,
+    pub dsc: bool,
+    pub fec: bool,
+}
+
+impl LinkProfile {
+    pub fn rate(&self) -> LinkRate {
+        match self.rate.as_str() {
+            "RBR" => LinkRate::Rbr,
+            "HBR" => LinkRate::Hbr,
+            "HBR2" => LinkRate::Hbr2,
+            _ => LinkRate::Hbr3,
+        }
+    }
+
+    /// `NV0073_CTRL_CMD_DP_GET_CAPS_MAX_LINK_RATE_*` and `DFP_FLAGS_DP_LINK_BW_*`
+    /// (both 1 = 1.62 .. 4 = 8.10 Gbit/s).
+    pub fn nv_rate_code(&self) -> u32 {
+        match self.rate() {
+            LinkRate::Rbr => 1,
+            LinkRate::Hbr => 2,
+            LinkRate::Hbr2 => 3,
+            LinkRate::Hbr3 => 4,
+        }
+    }
+
+    /// The sink profile of a monitor that matches this link (dp-sink).
+    pub fn sink_profile(&self) -> SinkProfile {
+        let mut p = SinkProfile::dp14_hbr3_x4_dsc();
+        p.max_rate = self.rate();
+        p.max_lanes = self.lanes;
+        if !self.dsc {
+            p.dsc = None;
+        }
+        p.fec = self.fec;
+        p
+    }
+
+    /// Uncompressed pixel-clock budget at 24 bpp, in kHz (8b/10b payload / 24).
+    pub fn pclk_budget_khz(&self) -> u32 {
+        (self.rate().mbps() as u64 * self.lanes as u64 * 8 / 10 * 1000 / 24) as u32
+    }
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct CapReg {
+    pub offset: u32,
+    pub name: String,
+    pub value: u32,
+}
+
+/// `boards/<board>.toml` `[display]`.
+#[derive(Clone, Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct BoardDisplay {
+    pub label: String,
+    pub connector: Vec<ConnectorFile>,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ConnectorFile {
+    /// One bit: the NV0073 displayId.
+    pub display_id: u32,
+    pub sor: u32,
+    /// The connector's physical index (`GET_CONNECTOR_DATA`, the DCB index).
+    pub index: u32,
+    /// Only "DP" (D15).
+    pub kind: String,
+}
+
+const TU106_DISPLAY: &str = include_str!("../../chips/tu106/display.toml");
+
+/// The chip's display data, if the chip has any.
+pub fn chip_display(chip: &str) -> Result<Option<ChipDisplay>, String> {
+    let text = match chip {
+        "tu106" => TU106_DISPLAY,
+        _ => return Ok(None),
+    };
+    toml::from_str(text)
+        .map(Some)
+        .map_err(|e| format!("chips/{chip}/display.toml: {e}"))
+}
+
+/// One emulated connector and the per-display state the adapter keeps
+/// (display-adapter.md section 2.3).
+pub struct Connector {
+    pub display_id: u32,
+    pub sor: u32,
+    pub index: u32,
+    pub sink: DpSink,
+    /// `SET_EDID_V2` with a non-zero size; cleared by size 0.
+    pub override_edid: Option<Vec<u8>>,
+    /// What the last `GET_EDID_V2` returned (`COPY_CACHE_YES`).
+    pub last_answer: Option<Vec<u8>>,
+    /// Hotplug masks not yet read through `INTERNAL_GET_HOTPLUG_UNPLUG_STATE`.
+    pub pending_plug: bool,
+    pub pending_unplug: bool,
+}
+
+/// A display channel: its pushbuffer (from `INTERNAL_DISPLAY_CHANNEL_PUSHBUFFER`) and
+/// its USERD page.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct Channel {
+    pub hclass: u32,
+    pub instance: u32,
+    pub pb: u64,
+    pub pb_limit: u64,
+    pub pb_aspace: u32,
+    pub valid: bool,
+    pub put: u32,
+    pub get: u32,
+    pub kicks: u32,
+    pub methods: u32,
+}
+
+/// The display state of one device.
+pub struct Display {
+    pub enabled: bool,
+    pub chip: Option<ChipDisplay>,
+    pub board_label: String,
+    pub connectors: Vec<Connector>,
+    /// `INTERNAL_DISPLAY_WRITE_INST_MEM`: base, size, address space.
+    pub inst_mem: Option<(u64, u64, u32)>,
+    /// Channels by USERD page offset in BAR0.
+    pub channels: BTreeMap<u64, Channel>,
+    /// Core channel method state: assembly (written) and armed (after `UPDATE`).
+    pub core_assembly: BTreeMap<u32, u32>,
+    pub core_armed: BTreeMap<u32, u32>,
+    /// Latched writes to display pages without a model.
+    latched: BTreeMap<u64, u32>,
+    /// The AUX transcript in dp-sink's format (`aux::record_line`).
+    pub aux_transcript: Vec<String>,
+    /// Link configuration the last DP_CTRL trained (rate code, lanes).
+    pub link: Option<(u8, u8)>,
+    pub notes: Vec<String>,
+}
+
+fn put32(b: &mut [u8], off: usize, v: u32) {
+    if off + 4 <= b.len() {
+        b[off..off + 4].copy_from_slice(&v.to_le_bytes());
+    }
+}
+
+fn get32(b: &[u8], off: usize) -> u32 {
+    b.get(off..off + 4)
+        .map_or(0, |s| u32::from_le_bytes(s.try_into().unwrap()))
+}
+
+fn get64(b: &[u8], off: usize) -> u64 {
+    b.get(off..off + 8)
+        .map_or(0, |s| u64::from_le_bytes(s.try_into().unwrap()))
+}
+
+fn ok(params: Vec<u8>, label: &'static str, note: impl Into<String>) -> Answer {
+    Answer {
+        status: NV_OK,
+        params,
+        label,
+        note: note.into(),
+    }
+}
+
+fn fail(status: u32, params: Vec<u8>, label: &'static str, note: impl Into<String>) -> Answer {
+    Answer {
+        status,
+        params,
+        label,
+        note: note.into(),
+    }
+}
+
+const SYNTH: &str = "synthesized (chips/tu106/display.toml)";
+const BOARD: &str = "synthesized (board connector table, boards/rtx2070.toml [display])";
+const ACK: &str = "synthesized (acknowledged; no display state behind it yet)";
+const GUEST: &str = "guest (recorded from the request)";
+const SINK: &str = "synthesized (dp-sink model behind the connector)";
+const LINK: &str = "synthesized (the display.toml [link] profile)";
+const EDID_STATE: &str = "guest-derived (per-display EDID state: sink EDID and override)";
+
+impl Default for Display {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Display {
+    /// A display as [`configure`] set it up (disabled when nothing was configured).
+    pub fn new() -> Self {
+        let setup = SETUP.lock().unwrap().clone().unwrap_or_default();
+        Self::from_setup(&setup).unwrap_or_else(|e| {
+            log::error!("display: {e}; display disabled");
+            Self::disabled()
+        })
+    }
+
+    pub fn disabled() -> Self {
+        Display {
+            enabled: false,
+            chip: None,
+            board_label: String::new(),
+            connectors: Vec::new(),
+            inst_mem: None,
+            channels: BTreeMap::new(),
+            core_assembly: BTreeMap::new(),
+            core_armed: BTreeMap::new(),
+            latched: BTreeMap::new(),
+            aux_transcript: Vec::new(),
+            link: None,
+            notes: Vec::new(),
+        }
+    }
+
+    pub fn from_setup(setup: &Setup) -> Result<Self, String> {
+        let mut disp = Self::disabled();
+        if !setup.enabled {
+            return Ok(disp);
+        }
+        let chip = chip_display(&setup.chip)?
+            .ok_or_else(|| format!("chip {} has no display data", setup.chip))?;
+        let board: BoardDisplay = match &setup.board {
+            Some(v) => v
+                .clone()
+                .try_into()
+                .map_err(|e| format!("board [display]: {e}"))?,
+            None => return Err("the board has no [display] table".into()),
+        };
+        let profile = chip.link.sink_profile();
+        profile
+            .validate()
+            .map_err(|e| format!("link profile: {e:?}"))?;
+        for c in &board.connector {
+            if c.kind != "DP" || c.display_id.count_ones() != 1 || c.sor >= chip.sors {
+                return Err(format!("unsupported connector {c:?}"));
+            }
+            let mut sink = DpSink::new(profile.clone(), edid::monitor_edid())
+                .map_err(|e| format!("sink: {e:?}"))?;
+            sink.plug();
+            sink.take_events();
+            disp.connectors.push(Connector {
+                display_id: c.display_id,
+                sor: c.sor,
+                index: c.index,
+                sink,
+                override_edid: None,
+                last_answer: None,
+                pending_plug: false,
+                pending_unplug: false,
+            });
+        }
+        disp.enabled = true;
+        disp.board_label = board.label;
+        disp.chip = Some(chip);
+        Ok(disp)
+    }
+
+    fn chip(&self) -> &ChipDisplay {
+        self.chip.as_ref().expect("enabled display has chip data")
+    }
+
+    fn supported_mask(&self) -> u32 {
+        self.connectors.iter().fold(0, |m, c| m | c.display_id)
+    }
+
+    fn connected_mask(&self) -> u32 {
+        self.connectors
+            .iter()
+            .filter(|c| c.sink.is_plugged())
+            .fold(0, |m, c| m | c.display_id)
+    }
+
+    fn connector(&mut self, display_id: u32) -> Option<&mut Connector> {
+        self.connectors
+            .iter_mut()
+            .find(|c| c.display_id == display_id)
+    }
+
+    // -----------------------------------------------------------------------------
+    // Controls.
+
+    /// Answer a display control, or `None` when `cmd` is not the display's (or the
+    /// display is switched off: then the controls stay unanswered, as before phase A).
+    pub fn control(&mut self, cmd: u32, params: &[u8]) -> Option<Answer> {
+        if !self.enabled {
+            return None;
+        }
+        let n = params.len();
+        let mut b = params.to_vec();
+        let did = get32(params, d::DISPLAY_ID);
+        let a = match cmd {
+            // ---- kernel init (phase A)
+            d::CMD_INTERNAL_DISPLAY_GET_IP_VERSION => {
+                put32(&mut b, 0, self.chip().ip_version);
+                ok(
+                    b,
+                    SYNTH,
+                    format!("display ip version {:#x}", self.chip().ip_version),
+                )
+            }
+            d::CMD_INTERNAL_DISPLAY_GET_STATIC_INFO => {
+                let c = self.chip().clone();
+                let mut b = vec![0u8; n];
+                put32(&mut b, d::STATIC_INFO_FE_HW_SYS_CAP, (1 << c.heads) - 1);
+                put32(
+                    &mut b,
+                    d::STATIC_INFO_WINDOW_PRESENT_MASK,
+                    (1 << c.windows) - 1,
+                );
+                put32(&mut b, d::STATIC_INFO_NUM_HEADS, c.heads);
+                put32(&mut b, d::STATIC_INFO_I2C_PORT, c.i2c_port);
+                put32(
+                    &mut b,
+                    d::STATIC_INFO_NUM_DISP_CHANNELS,
+                    c.num_disp_channels,
+                );
+                ok(
+                    b,
+                    SYNTH,
+                    format!(
+                        "display static info: {} heads, windows {:#x}, i2cPort {}, {} channels, no internal panel",
+                        c.heads,
+                        (1u32 << c.windows) - 1,
+                        c.i2c_port,
+                        c.num_disp_channels
+                    ),
+                )
+            }
+            d::CMD_INTERNAL_INIT_BRIGHTC_STATE_LOAD => ok(
+                b,
+                ACK,
+                "brightc state load: no backlight (no internal panel)",
+            ),
+            d::CMD_INTERNAL_SET_STATIC_EDID_DATA => ok(
+                b,
+                ACK,
+                format!("static (ACPI) EDID data: tableLen {}", get32(params, 0)),
+            ),
+            d::CMD_INTERNAL_DISPLAY_SET_IMP_INIT_INFO => ok(b, ACK, "imp init info"),
+            d::CMD_INTERNAL_DISPLAY_WRITE_INST_MEM => {
+                let (pa, size, aspace) = (
+                    get64(params, d::WRITE_INST_MEM_PHYS_ADDR),
+                    get64(params, d::WRITE_INST_MEM_SIZE_FIELD),
+                    get32(params, d::WRITE_INST_MEM_ADDR_SPACE),
+                );
+                self.inst_mem = Some((pa, size, aspace));
+                ok(
+                    b,
+                    GUEST,
+                    format!(
+                        "display instance memory: pa {pa:#x} size {size:#x} addrSpace {aspace}"
+                    ),
+                )
+            }
+            d::CMD_SYSTEM_MAP_SHARED_DATA => ok(
+                b,
+                GUEST,
+                format!(
+                    "map shared data: base {:#x} size {:#x} bMap {}",
+                    get64(params, 0),
+                    get64(params, 8),
+                    params.get(36).copied().unwrap_or(0)
+                ),
+            ),
+            d::CMD_INTERNAL_DISPLAY_PRE_UNIX_CONSOLE
+            | d::CMD_INTERNAL_DISPLAY_POST_UNIX_CONSOLE
+            | d::CMD_INTERNAL_DISPLAY_SETUP_RG_LINE_INTR
+            | d::CMD_INTERNAL_DISPLAY_ACPI_SUBSYSTEM_ACTIVATED
+            | d::CMD_INTERNAL_DISPLAY_PRE_MODESET
+            | d::CMD_INTERNAL_DISPLAY_POST_MODESET => {
+                ok(b, ACK, format!("internal display control {cmd:#x}"))
+            }
+            d::CMD_INTERNAL_DISPLAY_GET_ACTIVE_DISPLAY_DEVICES => ok(
+                vec![0u8; n],
+                SYNTH,
+                "active display devices: none (nothing lit)",
+            ),
+            d::CMD_INTERNAL_DISPLAY_CHANNEL_PUSHBUFFER => {
+                let ch = Channel {
+                    hclass: get32(params, d::PUSHBUFFER_HCLASS),
+                    instance: get32(params, d::PUSHBUFFER_CHANNEL_INSTANCE),
+                    pb: get64(params, d::PUSHBUFFER_PHYSICAL_ADDR),
+                    pb_limit: get64(params, d::PUSHBUFFER_LIMIT),
+                    pb_aspace: get32(params, d::PUSHBUFFER_ADDRESS_SPACE),
+                    valid: params.get(d::PUSHBUFFER_VALID).copied().unwrap_or(0) != 0,
+                    ..Channel::default()
+                };
+                let note = format!(
+                    "channel pushbuffer: class {:#x} instance {} pa {:#x} limit {:#x} addrSpace {} valid {} pbSize {:#x}",
+                    ch.hclass,
+                    ch.instance,
+                    ch.pb,
+                    ch.pb_limit,
+                    ch.pb_aspace,
+                    ch.valid,
+                    get32(params, d::PUSHBUFFER_CHANNEL_PB_SIZE)
+                );
+                if let Some(base) = userd_base(ch.hclass, ch.instance) {
+                    self.channels.insert(base, ch);
+                }
+                ok(b, GUEST, note)
+            }
+
+            // ---- NV0073 system
+            d::CMD_SYSTEM_GET_CAPS_V2 => {
+                let mut b = vec![0u8; n];
+                let (byte, bit) = d::SYSTEM_CAPS_CROSS_BAR_SUPPORTED;
+                if byte < n {
+                    b[byte] |= bit;
+                }
+                ok(b, SYNTH, "system caps: CROSS_BAR_SUPPORTED")
+            }
+            d::CMD_SYSTEM_GET_NUM_HEADS => {
+                put32(&mut b, d::GET_NUM_HEADS_NUM_HEADS, self.chip().heads);
+                ok(b, SYNTH, format!("num heads {}", self.chip().heads))
+            }
+            d::CMD_SYSTEM_GET_SUPPORTED => {
+                let m = self.supported_mask();
+                put32(&mut b, d::GET_SUPPORTED_DISPLAY_MASK, m);
+                put32(&mut b, d::GET_SUPPORTED_DISPLAY_MASK_DDC, 0);
+                ok(b, BOARD, format!("supported displays {m:#x}"))
+            }
+            d::CMD_SYSTEM_GET_CONNECT_STATE => {
+                let asked = get32(params, d::CONNECT_STATE_DISPLAY_MASK);
+                let asked = if asked == 0 {
+                    self.supported_mask()
+                } else {
+                    asked
+                };
+                let m = asked & self.connected_mask();
+                put32(&mut b, d::CONNECT_STATE_DISPLAY_MASK, m);
+                put32(&mut b, d::CONNECT_STATE_RETRY_TIME_MS, 0);
+                ok(
+                    b,
+                    SINK,
+                    format!("connect state: asked {asked:#x} connected {m:#x}"),
+                )
+            }
+            d::CMD_SYSTEM_GET_HEAD_ROUTING_MAP => {
+                // Echo the request when every display is ours and there are heads for
+                // them; head i drives the i-th display (4 bits per display).
+                let asked = get32(params, d::HEAD_ROUTING_DISPLAY_MASK);
+                let fits =
+                    asked & !self.supported_mask() == 0 && asked.count_ones() <= self.chip().heads;
+                let mut map = 0u32;
+                if fits {
+                    for (i, bit) in (0..32).filter(|b| asked & (1 << b) != 0).enumerate() {
+                        let _ = bit;
+                        map |= (i as u32) << (4 * i);
+                    }
+                }
+                put32(
+                    &mut b,
+                    d::HEAD_ROUTING_DISPLAY_MASK,
+                    if fits { asked } else { 0 },
+                );
+                put32(&mut b, d::HEAD_ROUTING_MAP, map);
+                ok(
+                    b,
+                    BOARD,
+                    format!("head routing map: {asked:#x} -> map {map:#x} (fits {fits})"),
+                )
+            }
+            d::CMD_SYSTEM_GET_ACTIVE => {
+                put32(&mut b, d::GET_ACTIVE_DISPLAY_ID, 0);
+                ok(
+                    b,
+                    SYNTH,
+                    format!(
+                        "head {} active: none (no firmware-lit head)",
+                        get32(params, d::GET_ACTIVE_HEAD)
+                    ),
+                )
+            }
+            d::CMD_SYSTEM_GET_INTERNAL_DISPLAYS => {
+                ok(vec![0u8; n], BOARD, "internal displays: none")
+            }
+            d::CMD_SYSTEM_GET_BOOT_DISPLAYS => ok(vec![0u8; n], BOARD, "boot displays: none"),
+            d::CMD_SYSTEM_GET_SCANLINE => {
+                put32(&mut b, d::GET_SCANLINE_CURRENT, 0);
+                ok(b, SYNTH, "scanline 0 (no raster yet)")
+            }
+            d::CMD_SYSTEM_INTERNAL_ALLOCATE_DISPLAY_BANDWIDTH => {
+                ok(b, ACK, "allocate display bandwidth")
+            }
+            d::CMD_INTERNAL_GET_HOTPLUG_UNPLUG_STATE => {
+                let (mut plug, mut unplug) = (0u32, 0u32);
+                for c in &mut self.connectors {
+                    if std::mem::take(&mut c.pending_plug) {
+                        plug |= c.display_id;
+                    }
+                    if std::mem::take(&mut c.pending_unplug) {
+                        unplug |= c.display_id;
+                    }
+                }
+                put32(&mut b, d::HOTPLUG_UNPLUG_PLUG_MASK, plug);
+                put32(&mut b, d::HOTPLUG_UNPLUG_UNPLUG_MASK, unplug);
+                ok(
+                    b,
+                    SINK,
+                    format!("hotplug/unplug state: plug {plug:#x} unplug {unplug:#x} (cleared)"),
+                )
+            }
+
+            // ---- NV0073 specific
+            d::CMD_SPECIFIC_GET_I2C_PORTID => {
+                put32(&mut b, d::I2C_PORTID_COMM_PORT_ID, 0);
+                put32(&mut b, d::I2C_PORTID_DDC_PORT_ID, 0);
+                ok(
+                    b,
+                    BOARD,
+                    format!("i2c port id of {did:#x}: ddcPortId 0 (I2C_PORT_NONE)"),
+                )
+            }
+            d::CMD_SPECIFIC_GET_TYPE => {
+                if self.supported_mask() & did == 0 {
+                    return Some(self.bad_display(cmd, b, did));
+                }
+                put32(&mut b, d::GET_TYPE_DISPLAY_TYPE, d::DISPLAY_TYPE_DFP);
+                ok(b, BOARD, format!("display type of {did:#x}: DFP"))
+            }
+            d::CMD_SPECIFIC_OR_GET_INFO => {
+                let Some(c) = self.connector(did) else {
+                    return Some(self.bad_display(cmd, b, did));
+                };
+                let (sor, index) = (c.sor, c.index);
+                put32(&mut b, d::OR_INFO_INDEX, sor);
+                put32(&mut b, d::OR_INFO_TYPE, d::OR_TYPE_SOR);
+                put32(&mut b, d::OR_INFO_PROTOCOL, d::OR_PROTOCOL_SOR_DP_A);
+                put32(&mut b, d::OR_INFO_LOCATION, d::OR_LOCATION_CHIP);
+                put32(&mut b, d::OR_INFO_DCB_INDEX, index);
+                if b.len() > d::OR_INFO_IS_DISP_DYNAMIC {
+                    b[d::OR_INFO_IS_LIT_BY_VBIOS] = 0;
+                    b[d::OR_INFO_IS_DISP_DYNAMIC] = 0;
+                }
+                ok(
+                    b,
+                    BOARD,
+                    format!("or info of {did:#x}: SOR{sor} DP_A, chip, static"),
+                )
+            }
+            d::CMD_SPECIFIC_GET_CONNECTOR_DATA => {
+                let Some(c) = self.connector(did) else {
+                    return Some(self.bad_display(cmd, b, did));
+                };
+                let index = c.index;
+                let mut b = params.to_vec();
+                put32(&mut b, 8, 0);
+                put32(&mut b, d::CONNECTOR_DATA_DDC_PARTNERS, 0);
+                put32(&mut b, d::CONNECTOR_DATA_COUNT, 1);
+                let e = d::CONNECTOR_DATA_DATA;
+                put32(&mut b, e, index);
+                put32(&mut b, e + 4, d::CONNECTOR_TYPE_DP_EXT);
+                put32(&mut b, e + 8, 0);
+                put32(&mut b, d::CONNECTOR_DATA_PLATFORM, 0);
+                ok(
+                    b,
+                    BOARD,
+                    format!("connector data of {did:#x}: 1 connector, DP_EXT, index {index}"),
+                )
+            }
+            d::CMD_SPECIFIC_GET_HDCP_STATE => {
+                put32(&mut b, d::HDCP_STATE_FLAGS, 0);
+                ok(b, SYNTH, "hdcp state: all false")
+            }
+            d::CMD_SPECIFIC_GET_ALL_HEAD_MASK => {
+                let m = (1u32 << self.chip().heads) - 1;
+                put32(&mut b, d::ALL_HEAD_MASK_HEAD_MASK, m);
+                ok(b, SYNTH, format!("all head mask {m:#x}"))
+            }
+            d::CMD_SPECIFIC_GET_VALID_HEAD_WINDOW_ASSIGNMENT => {
+                let w = self.chip().windows as usize;
+                for i in 0..d::WINDOW_HEAD_MASK_COUNT {
+                    if d::WINDOW_HEAD_MASK + i < b.len() {
+                        b[d::WINDOW_HEAD_MASK + i] = if i < w { 1 << (i / 2) } else { 0 };
+                    }
+                }
+                ok(
+                    b,
+                    SYNTH,
+                    format!("window head assignment: windows 2h, 2h+1 on head h ({w} windows)"),
+                )
+            }
+            d::CMD_SPECIFIC_GET_PCLK_LIMIT => {
+                let k = self.chip().link.pclk_budget_khz();
+                put32(&mut b, d::PCLK_LIMIT_PCLK, k);
+                put32(&mut b, d::PCLK_LIMIT_OR_PCLK, k);
+                put32(&mut b, d::PCLK_LIMIT_VB_PCLK, k);
+                ok(
+                    b,
+                    LINK,
+                    format!("pclk limit of {did:#x}: {k} kHz (link budget at 24 bpp)"),
+                )
+            }
+            d::CMD_SPECIFIC_SET_MONITOR_POWER
+            | d::CMD_SPECIFIC_DISPLAY_CHANGE
+            | d::CMD_DFP_SET_ELD_AUDIO_CAPS
+            | d::CMD_DFP_UPDATE_DYNAMIC_DFP_CACHE
+            | d::CMD_DFP_SET_AUDIO_ENABLE
+            | d::CMD_DP_MAIN_LINK_CTRL
+            | d::CMD_DP_SET_AUDIO_MUTESTREAM
+            | d::CMD_DP_CONFIG_STREAM
+            | d::CMD_DP_SET_MANUAL_DISPLAYPORT
+            | d::CMD_DP_NOTIFY_LT => ok(b, ACK, format!("control {cmd:#x} on {did:#x}")),
+            d::CMD_SPECIFIC_IS_DIRECTMODE_DISPLAY => {
+                if b.len() > d::DIRECTMODE_IS_DIRECTMODE {
+                    b[d::DIRECTMODE_IS_DIRECTMODE] = 0;
+                }
+                ok(b, SYNTH, "direct mode (VR headset): no")
+            }
+            d::CMD_SPECIFIC_GET_EDID_V2 => self.get_edid(cmd, b, did),
+            d::CMD_SPECIFIC_SET_EDID_V2 => self.set_edid(cmd, b, did),
+            d::CMD_SPECIFIC_APPLY_EDID_OVERRIDE_V2 => ok(
+                b,
+                EDID_STATE,
+                "apply edid override: input returned unchanged (no regkey overrides)",
+            ),
+
+            // ---- NV0073 DFP and DP
+            d::CMD_DFP_GET_INFO => {
+                if self.supported_mask() & did == 0 {
+                    return Some(self.bad_display(cmd, b, did));
+                }
+                let flags = d::DFP_FLAGS_SIGNAL_DISPLAYPORT
+                    | (d::DFP_FLAGS_LANE_QUAD << d::DFP_FLAGS_LANE_SHIFT)
+                    | (self.chip().link.nv_rate_code() << d::DFP_FLAGS_DP_LINK_BW_SHIFT)
+                    | (d::DFP_FLAGS_LINK_SINGLE << d::DFP_FLAGS_LINK_SHIFT);
+                put32(&mut b, d::DFP_INFO_FLAGS, flags);
+                put32(&mut b, d::DFP_INFO_FLAGS + 4, 0);
+                ok(
+                    b,
+                    LINK,
+                    format!(
+                        "dfp info of {did:#x}: flags {flags:#x} (DP, 4 lanes, link bw code {})",
+                        self.chip().link.nv_rate_code()
+                    ),
+                )
+            }
+            d::CMD_DFP_ASSIGN_SOR => {
+                let Some(c) = self.connector(did) else {
+                    return Some(self.bad_display(cmd, b, did));
+                };
+                let sor = c.sor as usize;
+                let sors = self.chip().sors as usize;
+                for s in 0..sors.min(4) {
+                    let m = if s == sor { did } else { 0 };
+                    put32(&mut b, d::ASSIGN_SOR_LIST + 4 * s, m);
+                    let t = d::ASSIGN_SOR_LIST_WITH_TAG + d::ASSIGN_SOR_TAG_SIZE * s;
+                    put32(&mut b, t, m);
+                    put32(&mut b, t + 4, if s == sor { d::SOR_TYPE_SINGLE } else { 0 });
+                }
+                ok(
+                    b,
+                    BOARD,
+                    format!("assign sor: {did:#x} -> SOR{sor} (single)"),
+                )
+            }
+            d::CMD_DP_GET_CAPS => {
+                let l = self.chip().link.clone();
+                let mut b = params.to_vec();
+                put32(&mut b, d::DP_CAPS_MAX_LINK_RATE, l.nv_rate_code());
+                put32(&mut b, d::DP_CAPS_DP_VERSIONS, d::DP_VERSIONS_DP1_2_DP1_4);
+                put32(&mut b, 16, 0);
+                for o in 20..36 {
+                    if o < b.len() {
+                        b[o] = 0;
+                    }
+                }
+                if b.len() >= d::DP_CAPS_SIZE {
+                    b[d::DP_CAPS_FEC] = l.fec as u8;
+                    b[d::DP_CAPS_DOWNSPREAD] = 1;
+                    b[d::DP_CAPS_DSC_SUPPORTED] = l.dsc as u8;
+                }
+                put32(
+                    &mut b,
+                    d::DP_CAPS_DSC_COLOR_FORMAT_MASK,
+                    if l.dsc { 1 } else { 0 },
+                );
+                put32(
+                    &mut b,
+                    d::DP_CAPS_DSC_LINE_BUFFER_KB,
+                    if l.dsc { 32 } else { 0 },
+                );
+                put32(
+                    &mut b,
+                    d::DP_CAPS_DSC_RATE_BUFFER_KB,
+                    if l.dsc { 6 } else { 0 },
+                );
+                put32(
+                    &mut b,
+                    d::DP_CAPS_DSC_BPP_PRECISION,
+                    if l.dsc { 1 } else { 0 },
+                );
+                put32(
+                    &mut b,
+                    d::DP_CAPS_DSC_MAX_HZT_SLICES,
+                    if l.dsc { 4 } else { 0 },
+                );
+                put32(
+                    &mut b,
+                    d::DP_CAPS_DSC_LINE_BUFFER_BIT_DEPTH,
+                    if l.dsc { 8 } else { 0 },
+                );
+                ok(b, LINK, format!("dp caps of SOR{}: max link rate code {} ({}), DP1.2+1.4, no MST, FEC {}, DSC {}", get32(params, 4), l.nv_rate_code(), l.rate, l.fec, l.dsc))
+            }
+            d::CMD_DP_AUXCH_CTRL => {
+                let (a, line) = aux::transact(self, params);
+                if let Some(l) = line {
+                    self.aux_transcript.push(l);
+                }
+                a
+            }
+            d::CMD_DP_CTRL => self.dp_ctrl(cmd, b, did),
+            d::CMD_DP_GET_LINK_CONFIG => {
+                let (bw, lanes) = self.link.unwrap_or((0, 0));
+                put32(&mut b, d::LINK_CONFIG_LANE_COUNT, lanes as u32);
+                put32(&mut b, d::LINK_CONFIG_LINK_BW, bw as u32);
+                put32(&mut b, d::LINK_CONFIG_DP2_LINK_BW, 0);
+                put32(&mut b, d::LINK_CONFIG_FEC_ENABLED, 0);
+                ok(
+                    b,
+                    SINK,
+                    format!(
+                        "link config of {did:#x}: {lanes} lanes, link bw {bw:#x} (0 = untrained)"
+                    ),
+                )
+            }
+
+            // ---- NV5070 / NVC370 / NVC372 on the NVC570 and NVC372 objects
+            d::CMD_5070_SYSTEM_GET_CAPS_V2 => {
+                let mut b = params.to_vec();
+                if b.len() > d::CAPS_5070_TBL {
+                    b[d::CAPS_5070_TBL] = 0;
+                }
+                ok(b, SYNTH, "5070 system caps: none")
+            }
+            d::CMD_5070_SET_SOR_FLUSH_MODE | d::CMD_5070_SET_RMFREE_FLAGS => {
+                ok(b, ACK, format!("5070 control {cmd:#x}"))
+            }
+            d::CMD_C370_GET_CHANNEL_INFO => {
+                let class = get32(params, 4);
+                let inst = get32(params, 8);
+                let idle = userd_base(class, inst)
+                    .and_then(|base| self.channels.get(&base))
+                    .is_none_or(|c| c.get == c.put);
+                put32(
+                    &mut b,
+                    d::CHANNEL_INFO_STATE,
+                    if idle { d::CHANNEL_STATE_IDLE } else { 0x40 },
+                );
+                ok(
+                    b,
+                    GUEST,
+                    format!(
+                        "channel info: class {class:#x} instance {inst}: {}",
+                        if idle { "IDLE (GET == PUT)" } else { "BUSY" }
+                    ),
+                )
+            }
+            d::CMD_C370_IDLE_CHANNEL => ok(b, GUEST, "idle channel: idle (GET == PUT)"),
+            d::CMD_C370_GET_LOCKPINS_CAPS => {
+                put32(&mut b, d::LOCKPINS_STEREO_PIN, d::LOCKPIN_NONE);
+                ok(b, SYNTH, "lockpins caps: no stereo pin")
+            }
+            d::CMD_C370_GET_ACCL | d::CMD_C370_SET_ACCL => {
+                ok(b, ACK, format!("accelerators control {cmd:#x}"))
+            }
+            d::CMD_C372_IS_MODE_POSSIBLE => {
+                if b.len() > d::IMP_IS_POSSIBLE {
+                    b[d::IMP_IS_POSSIBLE] = 1;
+                }
+                ok(
+                    b,
+                    SYNTH,
+                    format!(
+                        "is mode possible: yes ({} heads, {} windows asked)",
+                        params.get(4).copied().unwrap_or(0),
+                        params.get(5).copied().unwrap_or(0)
+                    ),
+                )
+            }
+            d::CMD_C372_GET_ACTIVE_VIEWPORT_POINT_IN => ok(b, ACK, "active viewport point in: 0,0"),
+            // Features this connector does not have: refused like a GSP without them.
+            d::CMD_SPECIFIC_GET_BACKLIGHT_BRIGHTNESS => fail(
+                NV_ERR_NOT_SUPPORTED,
+                b,
+                BOARD,
+                format!("backlight brightness of {did:#x}: not supported (external DP monitor, no panel)"),
+            ),
+            d::CMD_SYSTEM_QUERY_DISPLAY_IDS_WITH_MUX => fail(
+                NV_ERR_NOT_SUPPORTED,
+                b,
+                BOARD,
+                "display ids with mux: not supported (no dynamic mux)",
+            ),
+            d::CMD_LPWR_DIFR_CTRL => fail(
+                NV_ERR_NOT_SUPPORTED,
+                b,
+                SYNTH,
+                "DIFR (display idle frame refresh): not supported",
+            ),
+            c if is_display_cmd(c) => fail(
+                NV_ERR_NOT_SUPPORTED,
+                b,
+                "unanswered",
+                format!("display control {cmd:#x} ({n} bytes): not modelled"),
+            ),
+            _ => return None,
+        };
+        Some(a)
+    }
+
+    fn bad_display(&self, cmd: u32, b: Vec<u8>, did: u32) -> Answer {
+        fail(
+            NV_ERR_INVALID_ARGUMENT,
+            b,
+            BOARD,
+            format!("control {cmd:#x}: displayId {did:#x} is not a connector"),
+        )
+    }
+
+    /// `SPECIFIC_GET_EDID_V2` (display-adapter.md section 2.2): the override if set
+    /// (unless RAW), else the sink EDID; `COPY_CACHE_YES` repeats the last answer; a
+    /// disconnected display is an invalid argument.
+    fn get_edid(&mut self, cmd: u32, mut b: Vec<u8>, did: u32) -> Answer {
+        let flags = get32(&b, d::GET_EDID_FLAGS);
+        let Some(c) = self.connector(did) else {
+            return self.bad_display(cmd, b, did);
+        };
+        if !c.sink.is_plugged() {
+            return fail(
+                NV_ERR_INVALID_ARGUMENT,
+                b,
+                EDID_STATE,
+                format!("get edid of {did:#x}: disconnected"),
+            );
+        }
+        let (bytes, from) =
+            if flags & d::GET_EDID_FLAGS_COPY_CACHE_YES != 0 && c.last_answer.is_some() {
+                (c.last_answer.clone().unwrap(), "last answer")
+            } else if flags & d::GET_EDID_FLAGS_READ_MODE_RAW == 0 && c.override_edid.is_some() {
+                (c.override_edid.clone().unwrap(), "override")
+            } else {
+                (c.sink.edid().to_vec(), "sink")
+            };
+        c.last_answer = Some(bytes.clone());
+        let len = bytes.len().min(d::EDID_MAX_BYTES);
+        put32(&mut b, d::GET_EDID_BUFFER_SIZE, len as u32);
+        let at = d::GET_EDID_BUFFER;
+        if at + d::EDID_MAX_BYTES <= b.len() {
+            b[at..at + d::EDID_MAX_BYTES].fill(0);
+            b[at..at + len].copy_from_slice(&bytes[..len]);
+        }
+        ok(
+            b,
+            EDID_STATE,
+            format!("get edid of {did:#x} flags {flags:#x}: {len} bytes from the {from}"),
+        )
+    }
+
+    /// `SPECIFIC_SET_EDID_V2`: `bufferSize` 0 clears the override, whatever the buffer
+    /// holds (display-adapter.md section 2.2, the device rule).
+    fn set_edid(&mut self, cmd: u32, b: Vec<u8>, did: u32) -> Answer {
+        let size = get32(&b, d::SET_EDID_BUFFER_SIZE) as usize;
+        let at = d::SET_EDID_BUFFER;
+        let bytes = b
+            .get(at..at + size.min(d::EDID_MAX_BYTES))
+            .map(<[u8]>::to_vec);
+        let Some(c) = self.connector(did) else {
+            return self.bad_display(cmd, b, did);
+        };
+        let note = if size == 0 {
+            c.override_edid = None;
+            format!("set edid of {did:#x}: size 0, override cleared")
+        } else {
+            let e = bytes.unwrap_or_default();
+            let same = e.as_slice() == c.sink.edid();
+            c.override_edid = Some(e);
+            format!("set edid of {did:#x}: {size} bytes stored as override (identical to the sink EDID: {same})")
+        };
+        ok(b, EDID_STATE, note)
+    }
+
+    /// `DP_CTRL`: link training behind a control. A non-zero lane count trains the sink
+    /// (dp-sink `train`, which leaves the DPCD as a real training would); zero powers
+    /// the link down.
+    fn dp_ctrl(&mut self, cmd: u32, mut b: Vec<u8>, did: u32) -> Answer {
+        let (c_cmd, data) = (get32(&b, d::DP_CTRL_CMD), get32(&b, d::DP_CTRL_DATA));
+        let lanes = (data & d::DP_DATA_LANE_COUNT_MASK) as u8;
+        let bw = ((data >> d::DP_DATA_LINK_BW_SHIFT) & 0xFF) as u8;
+        let profile_rate = self.chip().link.rate();
+        let Some(c) = self.connector(did) else {
+            return self.bad_display(cmd, b, did);
+        };
+        if lanes == 0 {
+            c.sink.drop_link();
+            c.sink.take_events();
+            self.link = None;
+            return ok(
+                b,
+                SINK,
+                format!("dp ctrl of {did:#x}: cmd {c_cmd:#x} data {data:#x}: link powered down"),
+            );
+        }
+        // GSP's training starts with the sink in D0 (the DP library may have left it in
+        // D3 after detection, DPCD 0x600 = 2); the device does the same before training.
+        let mut woke = String::new();
+        let mut power = [0u8];
+        c.sink.dpcd().read(0x600, &mut power);
+        if power[0] != 1 {
+            let r = c
+                .sink
+                .transact(&dp_sink::AuxRequest::native_write(0x600, &[1]));
+            woke = format!(" (sink set to D0 first: {r:?})");
+        }
+        let cfg = LinkRate::from_code(bw).map(|rate| LinkConfig {
+            rate,
+            lanes,
+            enhanced_framing: c_cmd & (1 << 7) != 0,
+        });
+        match cfg.map(|cfg| (cfg, c.sink.train(cfg))) {
+            Some((cfg, Ok(()))) if cfg.rate <= profile_rate => {
+                self.link = Some((bw, lanes));
+                put32(&mut b, d::DP_CTRL_ERR, 0);
+                ok(b, SINK, format!("dp ctrl of {did:#x}: cmd {c_cmd:#x}: trained {lanes} lanes at link bw {bw:#x}{woke}"))
+            }
+            other => {
+                put32(&mut b, d::DP_CTRL_ERR, 1);
+                fail(
+                    NV_ERR_INVALID_ARGUMENT,
+                    b,
+                    SINK,
+                    format!("dp ctrl of {did:#x}: cmd {c_cmd:#x} data {data:#x}: training refused ({other:?})"),
+                )
+            }
+        }
+    }
+
+    // -----------------------------------------------------------------------------
+    // Allocations.
+
+    /// A display class allocation: recorded with its label; `None` for other classes.
+    pub fn alloc(&mut self, h_class: u32, params: &[u8]) -> Option<Answer> {
+        if !self.enabled {
+            return None;
+        }
+        let name = match h_class {
+            d::NV04_DISPLAY_COMMON => "NV04_DISPLAY_COMMON",
+            d::NVC570_DISPLAY => "NVC570_DISPLAY",
+            d::NVC372_DISPLAY_SW => "NVC372_DISPLAY_SW",
+            d::NVC573_DISP_CAPABILITIES => "NVC573_DISP_CAPABILITIES",
+            d::NVC371_DISP_SF_USER => "NVC371_DISP_SF_USER",
+            d::NVC57D_CORE_CHANNEL_DMA => "NVC57D_CORE_CHANNEL_DMA",
+            d::NVC57E_WINDOW_CHANNEL_DMA => "NVC57E_WINDOW_CHANNEL_DMA",
+            d::NVC57B_WINDOW_IMM_CHANNEL_DMA => "NVC57B_WINDOW_IMM_CHANNEL_DMA",
+            d::NVC57A_CURSOR_IMM_CHANNEL_PIO => "NVC57A_CURSOR_IMM_CHANNEL_PIO",
+            _ => return None,
+        };
+        let mut note = format!("alloc {name} {h_class:#x}");
+        if let Some(base) = userd_base(h_class, get32(params, d::CHANNEL_ALLOC_INSTANCE)) {
+            let inst = get32(params, d::CHANNEL_ALLOC_INSTANCE);
+            let ch = self.channels.entry(base).or_insert(Channel {
+                hclass: h_class,
+                instance: inst,
+                ..Channel::default()
+            });
+            ch.put = 0;
+            ch.get = 0;
+            note.push_str(&format!(
+                " instance {inst}: USERD at BAR0 {base:#x}, pushbuffer {:#x} (valid {})",
+                ch.pb, ch.valid
+            ));
+        }
+        Some(ok(
+            params.to_vec(),
+            "synthesized (display object recorded; channel state in display/mod.rs)",
+            note,
+        ))
+    }
+
+    // -----------------------------------------------------------------------------
+    // BAR0.
+
+    /// The value of the display register at the dword-aligned `off`, or `None` when it
+    /// is not the display's.
+    pub fn read32(&mut self, off: u64) -> Option<u32> {
+        if off == NV_FUSE_STATUS_OPT_DISPLAY {
+            // DATA 0 = display present (gm107/dev_fuse.h:29).
+            return Some(if self.enabled { 0 } else { 1 });
+        }
+        if !self.enabled {
+            return None;
+        }
+        if off == NV_PDISP_VGA_WORKSPACE_BASE {
+            return Some(self.chip().vga_workspace_base);
+        }
+        if (NV_PDISP_FE_SW..NV_PDISP_FE_SW + CAPS_PAGE_SIZE).contains(&off) {
+            let rel = (off - NV_PDISP_FE_SW) as u32;
+            return Some(
+                self.chip()
+                    .caps
+                    .iter()
+                    .find(|c| c.offset == rel)
+                    .map_or(0, |c| c.value),
+            );
+        }
+        if (CORE_ARMED..CORE_ARMED + 0x8000).contains(&off) {
+            let m = (off - CORE_ARMED) as u32;
+            return Some(self.core_armed.get(&m).copied().unwrap_or(0));
+        }
+        if (CORE_USERD..USERD_END).contains(&off) {
+            let (base, rel) = page_of(off);
+            if let Some(ch) = self.channels.get(&base) {
+                match rel {
+                    0 => return Some(ch.put),
+                    4 => return Some(ch.get),
+                    _ => {}
+                }
+            }
+            if base >= CURSOR_USERD && rel == CURSOR_FREE {
+                return Some(CURSOR_FREE_ENTRIES);
+            }
+            return Some(self.latched.get(&off).copied().unwrap_or(0));
+        }
+        None
+    }
+
+    /// A write to a display register; `None` when it is not the display's.
+    pub fn write32(&mut self, off: u64, v: u32, mem: &GuestMemory) -> Option<Vec<String>> {
+        if !self.enabled {
+            return None;
+        }
+        if off == NV_FUSE_STATUS_OPT_DISPLAY || off == NV_PDISP_VGA_WORKSPACE_BASE {
+            return Some(vec!["display: read-only register, write dropped".into()]);
+        }
+        if (NV_PDISP_FE_SW..NV_PDISP_FE_SW + CAPS_PAGE_SIZE).contains(&off)
+            || (CORE_ARMED..CORE_ARMED + 0x8000).contains(&off)
+        {
+            return Some(vec!["display: read-only page, write dropped".into()]);
+        }
+        if !(CORE_USERD..USERD_END).contains(&off) {
+            return None;
+        }
+        let (base, rel) = page_of(off);
+        if rel == 0 && base < CURSOR_USERD {
+            if let Some(mut ch) = self.channels.get(&base).copied() {
+                ch.put = v;
+                ch.kicks += 1;
+                let note = self.kick(base, &mut ch, mem);
+                self.channels.insert(base, ch);
+                return Some(vec![note]);
+            }
+        }
+        self.latched.insert(off, v);
+        Some(Vec::new())
+    }
+
+    /// Walk the pushbuffer from GET to PUT (display-adapter.md section 4.3), keep the
+    /// core channel's assembly state, make it ARMED at `UPDATE`, and move GET to PUT.
+    fn kick(&mut self, base: u64, ch: &mut Channel, mem: &GuestMemory) -> String {
+        let (start, end) = (ch.get as u64, ch.put as u64);
+        let mut methods = 0u32;
+        let mut updates = 0u32;
+        // Core methods written in this kick (for the trace: which state an UPDATE commits).
+        let mut seen: Vec<(u32, u32)> = Vec::new();
+        let mut unreadable = false;
+        if ch.valid && ch.pb_aspace == 1 && end <= ch.pb_limit + 1 {
+            let mut pos = start;
+            let mut budget = 4096u32;
+            let read = |p: u64| mem.read_u32(ch.pb + p);
+            while pos != end && budget > 0 {
+                budget -= 1;
+                let Some(hdr) = read(pos) else {
+                    unreadable = true;
+                    break;
+                };
+                pos += 4;
+                let op = hdr >> 29;
+                let count = (hdr >> 18) & 0x3FF;
+                let addr = hdr & 0x3FFC;
+                match op {
+                    1 => {
+                        pos = (hdr & 0xFFC) as u64;
+                        continue;
+                    }
+                    0 | 2 => {
+                        for k in 0..count {
+                            let Some(data) = read(pos) else {
+                                unreadable = true;
+                                break;
+                            };
+                            pos += 4;
+                            let m = if op == 0 { addr + 4 * k } else { addr };
+                            methods += 1;
+                            if base == CORE_USERD && seen.len() < 64 {
+                                seen.push((m, data));
+                            }
+                            if base == CORE_USERD {
+                                if m == 0x200 {
+                                    updates += 1;
+                                    let a = self.core_assembly.clone();
+                                    self.core_armed.extend(a);
+                                } else {
+                                    self.core_assembly.insert(m, data);
+                                }
+                            }
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
+        ch.methods += methods;
+        ch.get = ch.put;
+        // HEAD_SET_RASTER_SIZE/SYNC_END/BLANK_END/BLANK_START(h) = 0x2064-0x2070 + 0x400h
+        // (clc57d.h): an UPDATE carrying them is a modeset (display-adapter.md §5).
+        let raster = seen
+            .iter()
+            .filter(|(m, _)| {
+                *m >= 0x2000 && ((m - 0x2000) % 0x400) >= 0x64 && ((m - 0x2000) % 0x400) <= 0x70
+            })
+            .count();
+        let list = if updates > 0 {
+            let l: Vec<String> = seen.iter().map(|(m, v)| format!("{m:#x}={v:#x}")).collect();
+            format!("; core methods {}", l.join(" "))
+        } else {
+            String::new()
+        };
+        format!(
+            "display channel {:#x}/{} kick {}: PUT {:#x}, {methods} method(s), {updates} UPDATE(s), {raster} raster method(s){}{list}; GET := PUT [guest]",
+            ch.hclass,
+            ch.instance,
+            ch.kicks,
+            ch.put,
+            if unreadable { ", pushbuffer unreadable" } else { "" }
+        )
+    }
+
+    pub fn take_notes(&mut self) -> Vec<String> {
+        std::mem::take(&mut self.notes)
+    }
+}
+
+/// The page and offset within it of a USERD access.
+fn page_of(off: u64) -> (u64, u64) {
+    if off < WIN_USERD {
+        (CORE_USERD, off - CORE_USERD)
+    } else {
+        (off & !0xFFF, off & 0xFFF)
+    }
+}
+
+/// The USERD page of a channel (disp/v03_00/dev_disp.h `NV_UDISP_FE_CHN_ASSY_BASEADR*`).
+pub fn userd_base(hclass: u32, instance: u32) -> Option<u64> {
+    let i = instance as u64;
+    match hclass {
+        d::NVC57D_CORE_CHANNEL_DMA => Some(CORE_USERD),
+        d::NVC57E_WINDOW_CHANNEL_DMA if i < 32 => Some(WIN_USERD + i * 0x1000),
+        d::NVC57B_WINDOW_IMM_CHANNEL_DMA if i < 32 => Some(WIN_USERD + (32 + i) * 0x1000),
+        d::NVC57A_CURSOR_IMM_CHANNEL_PIO if i < 8 => Some(CURSOR_USERD + i * 0x1000),
+        _ => None,
+    }
+}
+
+/// The command belongs to the display's control families (NV0073, NV5070, NVC370,
+/// NVC372, and the internal NV2080 display range).
+fn is_display_cmd(cmd: u32) -> bool {
+    matches!(cmd >> 16, 0x0073 | 0x5070 | 0xC370 | 0xC372)
+}
+
+#[cfg(test)]
+mod tests;

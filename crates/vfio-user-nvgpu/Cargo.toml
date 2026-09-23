@@ -22,6 +22,8 @@ libc.workspace = true
 nvrm-sys.workspace = true
 nvrm-abi.workspace = true
 nvrm-client = { path = "../nvrm-client" }
+# The DisplayPort sink behind the emulated connector (docs/caraxes/display-ab.md).
+dp-sink = { path = "../dp-sink" }
 log = "0.4"
 env_logger = "0.11"
 # Same rust-vmm lineage as the vfio-user client in the pinned Cloud Hypervisor

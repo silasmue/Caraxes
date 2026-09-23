@@ -67,6 +67,7 @@ driver recognizes and initializes a Turing/RTX 2070-like device. Windows later.
 | [display-scaling.md](display-scaling.md) | Second display study: the connectors compared for an emulated link (DVI-D, HDMI, DP SST/MST, eDP, virtual), the guest-side limits vs the device-answered ones (IMP, caps page, DPCD), 4K144 arithmetic (DP HBR3 x4 plus DSC), multi-head (4 heads, 8 windows), NVENC and VRAM as the real limits, vGPU comparison, product view, phases E-H to 4 x 4K144 at 17-27 agent-days total (operator's question 2026-09-23) |
 | [display-d0.md](display-d0.md) | D0 run on vm0: nvidia-modeset loads headless with zero display RPCs (confirmed on the whole trace, not just the run's own window); nvidia-drm fails to build against the guest kernel's DRM headers; Xorg untested, no NVIDIA X driver in the guest image; what D1 needs first |
 | [display-adapter.md](display-adapter.md) | Side package B: where DP AUX and every NV0073/NV5070/NVC370/NVC372 control on the DP connector, EDID, link, head and modeset paths terminates (local, GSP_RM_CONTROL, local plus internal control; none by MMIO), with ids, struct sizes and consumed reply fields; the SST EDID lifecycle and per-displayId state; class list and HAL selection; channel allocation, BAR0 pages, C57D/C57E method basics and the minimal decoder; the ordered phase A/B checklist to the first EDID read; gates D0-D6 per phase; the three riskiest ABI details |
+| [display-ab.md](display-ab.md) | Display phases A and B on vm0 (D15): the display in the GSP role (`--display`; `src/display/`, `chips/tu106/display.toml`, the board's `[display]` connector, the `crates/dp-sink` sink behind an NV0073 AUX adapter); gate D3 passed (`card0-DP-1` connected, EDID byte-identical and edid-decode clean, 1080p60/720p60/1080p50, the over-budget 8K120 VIC pruned, no modeset); every display RPC/control in order with its answer and label (D2); the recorded AUX capture replaced the hand-written transcript; what phase C needs (core notifier, window completion, four modeset-path controls) |
 | [experiments.md](experiments.md) | The experiment ladder, starting with the smallest one, each with a falsifiable expectation |
 | [kickoff.md](kickoff.md) | The brief for the implementation sessions: rules, reading order, E0 step by step, run recipe, parked ideas |
 | [open-questions.md](open-questions.md) | Unresolved questions, numbered |
@@ -419,6 +420,15 @@ the VM; then display, expected to be much easier than in v1.
   likely fix, v1 guests had it), and the guest image has no NVIDIA X driver (`nvidia_drv.so`,
   `libglxserver_nvidia.so`), which needs the operator's OK to stage from the host's 610.57.04
   files as v1's harness did. Guest restored to baseline.
+- 2026-09-23: **display phases A and B done, gate D3 passed** ([display-ab.md](display-ab.md)): with
+  `--display` the fuse reads 0, `RmInitAdapter succeeded!` with KernelDisplay, and the stock
+  `nvidia-modeset` + `nvidia-drm modeset=1 fbdev=0` show one connected `card0-DP-1` with the
+  device's EDID (byte-identical, edid-decode PASS) and modes 1080p60/59.94/50, 720p60/59.94,
+  640x480; the 8K120 VIC above the HBR3 x4 budget is pruned; no core UPDATE with raster
+  methods; zero unanswered display controls; nvml 11/11 and UVM unchanged before A, after A
+  and after B. Headless (fuse 1) remains the default without `--display`. The guest image's
+  gdm3 modesets any new card0, so it is disabled on vm0. Next: phase C (core notifier through
+  RAMHT, window completion paced by the device timer).
 - 2026-09-23: **N2 verified on a real v1 VM** (worktree commit `79b7d0b`, evidence
   `caraxes/runs/vhost-user-check-2026-09-23/` in the worktree): window 0x200000000 negotiated,
   guest sees the 8 GiB window on BAR 2, nvidia-smi and a driver-API vector add pass, the injected
@@ -475,7 +485,7 @@ the VM; then display, expected to be much easier than in v1.
   - Teardown freed every object; `nvidia-smi` memory returned; no `Xid`. host-exec.md carries the
     part-2 device wiring spec (host RM call per guest event, pass-through vs translated addresses,
     what to send back) and the measured numbers.
-- 2026-09-23: **P16 package A, DP sink library: unit gate D1 passes** ([caraxes/dp-sink](../../caraxes/dp-sink/README.md),
+- 2026-09-23: **P16 package A, DP sink library: unit gate D1 passes** ([crates/dp-sink](../../crates/dp-sink/README.md), moved from `caraxes/dp-sink` on 2026-09-23,
   a standalone crate outside the workspace for now, `std` only). It covers the DPCD for a
   DPCD 1.1a HBR x4 SST profile (the HBR3/TPS4/DSC headroom is a profile value), the training
   state machine that refuses invalid configurations, native AUX and I2C-over-AUX (MOT,

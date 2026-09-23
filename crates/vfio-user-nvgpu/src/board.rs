@@ -52,6 +52,8 @@ pub struct Board {
     /// The six BAR registers.
     pub bars: [Bar; 6],
     pub rom_bar_size: u64,
+    /// The board's display outputs (`[display]`, read by display/mod.rs).
+    pub display: Option<toml::Value>,
 }
 
 #[derive(Deserialize)]
@@ -64,6 +66,8 @@ struct BoardFile {
     vbios_version: String,
     bars: Vec<BarFile>,
     rom_bar_size: u64,
+    #[serde(default)]
+    display: Option<toml::Value>,
 }
 
 #[derive(Deserialize)]
@@ -150,6 +154,7 @@ impl Board {
             vbios_oem_revision,
             bars,
             rom_bar_size: f.rom_bar_size,
+            display: f.display,
         })
     }
 
