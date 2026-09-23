@@ -5,7 +5,7 @@
 # Run one Caraxes guest: the synthetic GPU (vfio-user-nvgpu) plus Cloud Hypervisor
 # attaching it with --user-device. Experiment ladder: docs/caraxes/experiments.md.
 # Usage: tools/caraxes-vm.sh up|down|status|wait|ssh [command...]|serial|probe [label]
-#        |uvm [label] [flags]|dma
+#        |uvm [label] [flags]|dma|name
 # `probe` reloads nvidia.ko in the guest and saves the guest log and the device trace
 # of that window under $W/probe-<label>/. `uvm` (experiment E5a, docs/caraxes/uvm.md)
 # reloads nvidia-uvm with debug prints, runs crates/vfio-user-nvgpu/guest/uvm-register.c
@@ -16,6 +16,9 @@
 # present, else the PCI-visible rom.bin). CARAXES_BOOT_MODEL=1 attaches the E2 boot
 # model; CARAXES_FB_MIB sets the framebuffer size the guest is told; CARAXES_HOST_RM=1
 # lets the device open the host RM and forward the forwardable RPCs.
+# CARAXES_NAME_FORMAT=transport names the card "Leandro VFIO RTX 2070-4G" instead of the
+# default "Leandro RTX 2070-4G" (nvrm_abi::naming, docs/caraxes/identity-profile.md);
+# `name` prints the guest-visible name the device presents with the current settings.
 # E5b part 1 (docs/caraxes/memory-model.md): CARAXES_RESERVE_VRAM=1 makes the device hold
 # the profile's size of host VRAM at a fixed address for its life (refused when the host
 # would keep less than 1 GiB free); CARAXES_DMA=register registers guest RAM with the host
@@ -54,6 +57,10 @@ KERNEL=${CARAXES_KERNEL:-$LEA_VM_DIR/guest-image/vmlinuz}
 INITRD=${CARAXES_INITRD:-$LEA_VM_DIR/guest-image/initrd}
 SSH_KEY=${CARAXES_SSH_KEY:-$LEA_VM_DIR/id_leandro}
 SERVER=$LEA_ROOT/target/release/vfio-user-nvgpu
+# The settings the guest-visible identity follows (`up` and `name` pass the same ones).
+IDENTITY=()
+[[ -n ${CARAXES_FB_MIB:-} ]] && IDENTITY+=(--fb-mib "$CARAXES_FB_MIB")
+[[ -n ${CARAXES_NAME_FORMAT:-} ]] && IDENTITY+=(--name-format "$CARAXES_NAME_FORMAT")
 REF=$LEA_ROOT/caraxes/reference/rtx2070
 if [[ -z ${CARAXES_VBIOS:-} && -f $REF/synth-vbios.bin ]]; then CARAXES_VBIOS=$REF/synth-vbios.bin; fi
 
@@ -81,7 +88,7 @@ up() {
     local vbios=()
     [[ -n ${CARAXES_VBIOS:-} ]] && vbios=(--vbios "$CARAXES_VBIOS")
     [[ ${CARAXES_BOOT_MODEL:-0} == 1 ]] && vbios+=(--boot-model)
-    [[ -n ${CARAXES_FB_MIB:-} ]] && vbios+=(--fb-mib "$CARAXES_FB_MIB")
+    vbios+=("${IDENTITY[@]}")
     [[ ${CARAXES_HOST_RM:-0} == 1 ]] && vbios+=(--host-rm)
     [[ ${CARAXES_RESERVE_VRAM:-0} == 1 ]] && vbios+=(--reserve-vram)
     [[ ${CARAXES_HOST_EXEC:-0} == 1 ]] && vbios+=(--host-exec)
@@ -344,5 +351,7 @@ case ${1:-} in
     wait) wait_ssh "${2:-90}" ;;
     ssh) shift; do_ssh "$@" ;;
     serial) tail -n "${2:-40}" "$W/serial.log" ;;
+    name) [[ -x $SERVER ]] || error "$SERVER missing: cargo build --release -p vfio-user-nvgpu"
+          "$SERVER" --print-name "${IDENTITY[@]}" ;;
     *) sed -n '5,/^set -euo/p' "$0" | sed '$d'; exit 1 ;;
 esac
