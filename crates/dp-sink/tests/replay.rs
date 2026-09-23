@@ -6,22 +6,21 @@
 //! so that a hard-wired success transcript cannot pass.
 
 use dp_sink::transcript::{format_outcome, record, replay};
-use dp_sink::{AuxRequest, DpSink, EdidSpec, SinkProfile, DDC_EDID_ADDR};
+use dp_sink::{AuxRequest, DpSink, SinkProfile, DDC_EDID_ADDR};
 
-const GOLDEN: &str = include_str!("transcripts/nvidia-sst-discovery.txt");
+/// The recorded capture of the stock 610.57.04 guest (display-ab.md, run b3).
+const GOLDEN: &str = include_str!("transcripts/nvidia-610-guest-capture.txt");
+/// The EDID the guest read in that run (byte-identical to its sysfs `edid`).
+const EDID: &[u8] = include_bytes!("transcripts/caraxes-dp-monitor.edid.bin");
 
 fn sink() -> DpSink {
-    DpSink::new(
-        SinkProfile::default(),
-        EdidSpec::first_monitor().build().unwrap(),
-    )
-    .unwrap()
+    DpSink::new(SinkProfile::dp14_hbr3_x4_dsc(), EDID.to_vec()).unwrap()
 }
 
 #[test]
 fn golden_transcript_replays_exactly() {
     let n = replay(&mut sink(), GOLDEN).unwrap();
-    assert_eq!(n, 38, "request/reply pairs checked");
+    assert_eq!(n, 85, "request/reply pairs checked");
 }
 
 #[test]
@@ -44,30 +43,24 @@ fn edit(text: &str, from: &str, to: &str) -> String {
 
 #[test]
 fn changed_lane_count_and_edid_offset_are_observed() {
-    // 1. Two lanes instead of four: the sink must report lanes 2-3 untrained, so the
-    //    golden 4-lane status line no longer matches.
-    let two_lanes = edit(GOLDEN, "> nw 100 0a 84", "> nw 100 0a 82");
+    // 1. Two lanes instead of four: the capture trains through DP_CTRL (`! train`) and
+    //    never reads the lane status, so the check reads it right after training.
+    let upto = &GOLDEN[..GOLDEN.find("! train 1e 4 ef").unwrap() + "! train 1e 4 ef".len()];
+    let four = format!("{upto}\n> nr 202 2\n< ack 2 77 77\n");
+    replay(&mut sink(), &four).unwrap();
+    let two_lanes = edit(&four, "! train 1e 4 ef", "! train 1e 2 ef");
     let e = replay(&mut sink(), &two_lanes).unwrap_err();
-    assert!(e.message.contains("nr 202 6"), "{e}");
-    assert!(e.message.contains("ack 6 11 00 00 00 00 00"), "{e}");
-    // With the expected replies corrected for two lanes, the whole transcript passes.
-    let fixed = edit(
-        &edit(
-            &edit(
-                &edit(&two_lanes, "< ack 6 11 11 00", "< ack 6 11 00 00"),
-                "< ack 6 77 77 01 00",
-                "< ack 6 77 00 01 00",
-            ),
-            "< ack 6 77 77 01 01",
-            "< ack 6 77 00 01 01",
-        ),
-        "> nr 202 2\n< ack 2 77 77",
-        "> nr 202 2\n< ack 2 77 00",
-    );
-    replay(&mut sink(), &fixed).unwrap();
+    assert!(e.message.contains("nr 202 2"), "{e}");
+    assert!(e.message.contains("ack 2 77 00"), "{e}");
+    // With the expected reply corrected for two lanes, it passes.
+    replay(
+        &mut sink(),
+        &edit(&two_lanes, "< ack 2 77 77", "< ack 2 77 00"),
+    )
+    .unwrap();
 
     // 2. EDID offset 0x40 instead of 0: the first read must return bytes 0x40..0x50.
-    let edid = EdidSpec::first_monitor().build().unwrap();
+    let edid = EDID;
     let moved = edit(GOLDEN, "> iwm 50 00", "> iwm 50 40");
     let e = replay(&mut sink(), &moved).unwrap_err();
     let want = format_outcome(&Ok(dp_sink::AuxReply::read_ack(edid[0x40..0x50].to_vec())));
@@ -94,8 +87,8 @@ fn changed_lane_count_and_edid_offset_are_observed() {
             format!("< ack 2 {:02x} {:02x}", status[0], status[1]),
             "{lanes} lanes"
         );
-        // 0x36 is the first detailed timing: pixel clock 13850 (0x361A LE), h active 0x780.
-        assert_eq!(last[0], "< ack 4 1a 36 80 a0");
+        // 0x36 is the first detailed timing: pixel clock 14850 (0x3A02 LE), h active 0x780.
+        assert_eq!(last[0], "< ack 4 02 3a 80 18");
         // The recorded transcript replays against a fresh sink.
         let mut fresh = sink();
         fresh.plug();
