@@ -281,6 +281,15 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
     // The eventfd does not carry the token: the reader rings the channels whose GPPut
     // moved since their last doorbell (`Dispatcher::doorbell_pending`), on every path.
     let doorbell_ioeventfd = doorbell_ioeventfd_requested();
+    if doorbell_ioeventfd && vfio_user_nvgpu::fb::bar1_passthrough_config().is_some() {
+        // The token-less ioeventfd path rings the channels whose GPPut moved, read from the
+        // FB store's watched copy that the trapped BAR1 writes keep current; with the
+        // passthrough area those writes bypass the device, the copy stays stale, no channel
+        // is ever rung and the guest waits forever (caraxes/runs/p21-bar1-2026-09-24/
+        // B-on-with-ioeventfd-hung). Until the datamatch token pool exists, the doorbell
+        // stays trapped whenever the area is on (docs/caraxes/bar1-passthrough.md).
+        bail!("{DOORBELL_IOEVENTFD_ENV}=1 is refused together with CARAXES_BAR1_PASSTHROUGH=1: the ioeventfd carries no token and the passthrough area hides the GPPut writes the token-less path relies on; the trapped doorbell carries the token (token pool: roadmap.md)");
+    }
     let cfg = config_space(a)?;
     let rom = std::fs::read(&a.rom).with_context(|| {
         format!(

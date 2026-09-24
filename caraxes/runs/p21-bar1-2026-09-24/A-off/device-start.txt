@@ -1,0 +1,3 @@
+/mnt/vmstore/caraxes/vm1/gpu.log:vfio-user-nvgpu: hostmem: host VRAM: total 8192 MiB, HEAP_FREE 2591 MiB, nvidia-smi free 2592 MiB, largest free region 1992 MiB at 0x6c800000; request 1024 MiB at [0xa9000000, 0xe9000000) (slot 4, heap regio
+/mnt/vmstore/caraxes/vm1/gpu.log:vfio-user-nvgpu: doorbell ioeventfd: BAR0 0xbb0090, 4 bytes, no datamatch, offered through VFIO_USER_DEVICE_GET_REGION_IO_FDS (CARAXES_DOORBELL_IOEVENTFD=1)
+/mnt/vmstore/caraxes/vm1/ch.log:cloud-hypervisor:  23.416437s: <vmm> INFO:pci/src/vfio_user.rs:464 -- gpu0: region 0 offset 0xbb0090: ioeventfd at 0xe6bb0090, len 4, datamatch None

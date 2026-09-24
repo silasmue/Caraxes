@@ -75,6 +75,7 @@ driver recognizes and initializes a Turing/RTX 2070-like device. Windows later.
 | [parallel.md](parallel.md) | P20, the parallelism proof: two reserving VMs in fixed slots run the cuda gate concurrently beside the desktop; isolation by construction and by pattern test, the host's scrub on free proven for the reservation, fail-closed teardown, the D11 refusal of a third VM; the BAR1 leak and deadlock found and fixed, and two open sysmem-path findings (mapping scale, the chunk-crossing hole) |
 | [nova-vgpu-upstream.md](nova-vgpu-upstream.md) | The upstream nova-core vGPU manager series (v2, 32 patches, 2026-09-14) read patch by patch against the device: plugin ABI and RPC discipline, VRAM/channel allocation, CeUtils scrubbing and fail-closed teardown, VMMU segment, FIFO engine table, VF routing, migration, logging; ranked actionable differences and a cross-check of the GSP message queues (subagent report, P19) |
 | [blackwell-gb206.md](blackwell-gb206.md) | The Blackwell lab capture (RTX 5060 Ti, GB206, driver 615.71.09, korngold, 2026-09-24, filed under `caraxes/reference/gb206/`) read item by item against TU106; the D14 work list for a GB206 identity with five draft chip tables under `chips/gb206/`; the 610.57.04 driver supports GB206 (gsp_ga10x firmware, boots GSP through FSP, no ROM parsing); 615.71.09 redesigns the CPU-GSP transport (queue v2 in registers, MCTP-framed elements, one GMCAPI init instead of the four init RPCs) and changes seven control structs; the 615 gsp-abi-sizes record; a nine-step N-gate plan of 27 to 39 days that stops at "driver up" without a Blackwell card here (subagent report) |
+| [bar1-passthrough.md](bar1-passthrough.md) | P21: what the guest does with BAR1 (4-byte GPFIFO and GPPut writes at one traced layout, tables through BAR2), Cloud Hypervisor v53's sparse-area mechanics, the NVIDIA mmap rule and why an RM mapping fd is unsafe, the dma-buf export as the region descriptor, rejected candidates, target design H (private pool, guest pages remapped), prototype G behind `CARAXES_BAR1_PASSTHROUGH=1` with its checks, measurement plan and results (subagent report) |
 | [gsp-surface.md](gsp-surface.md) | P23, the GSP surface of 610.57.04 from source: 829 of 1377 exported controls reach GSP, the device handles 171 with D9 provenance, the 658 unhandled sorted into five categories (pure chip data, host-forwardable, guest-state derived, needs modelling, never expected on TU106) with a recipe and estimate each, the 20 RPC functions and 41 events a GSP client uses, the top ten a Linux CUDA or display client hits next, what Windows and nova-core share; produced by `caraxes/tools/gsp-surface.py` (subagent report, 2026-09-24) |
 | [open-questions.md](open-questions.md) | Unresolved questions, numbered |
 
@@ -547,6 +548,15 @@ the VM; then display, expected to be much easier than in v1.
   first Blackwell identity needs new names and an FSP model, not a new ABI version; 615.71.09
   is a new GSP transport altogether. Open with the operator: MSI-X and the BAR1 size of the
   synthetic GB206, a second capture, the guest driver version for Blackwell.
+- 2026-09-24: **P21 BAR1 passthrough, prototype on the GPU path** ([bar1-passthrough.md](bar1-passthrough.md),
+  benchmark.md, `caraxes/runs/p21-bar1-2026-09-24/`): guest BAR1's first MiB as one sparse
+  mmap area of region 1 backed by an NVIDIA dma-buf of the reservation piece the traces showed,
+  spec-conformant, mapped once by Cloud Hypervisor v53; BAR1 reads inside the area 47.9 us to
+  1.4 us, no trapped GPFIFO or GPPut write in 2 reps of short kernel and rlprobe, rlprobe stage 4
+  19.6 s to 9.0 s, 0 mismatched pages, 0 page-table hazards, 0 Xid, the host BAR1 use released
+  at exit. Not combinable with the ioeventfd doorbell until the datamatch token pool exists
+  (the device refuses both switches together); the target design H with a private pool and
+  guest-page remapping is the next step after the pool.
 - 2026-09-24: **Doorbell over KVM ioeventfd on the GPU path** (patch 0005, device 3bcfb35 plus
   the watched GPPut copy; vm1 under load, `caraxes/runs/doorbell-2026-09-24-vm1-watch/`): the
   doorbell write falls from 29.3 us to 3.9 us p50, no trapped doorbell in 196k submissions, the

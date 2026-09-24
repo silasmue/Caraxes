@@ -1,0 +1,5 @@
+vfio-user-nvgpu: host execution on: FB backed by the reserved VRAM through BAR1 windows (budget 2 x 32 MiB = 64 MiB of the host's shared BAR1; CARAXES_BAR1_WINDOWS, CARAXES_BAR1_WINDOW_MIB); guest channels mirrored on the host at their firs
+vfio-user-nvgpu: doorbell ioeventfd: BAR0 0xbb0090, 4 bytes, no datamatch, offered through VFIO_USER_DEVICE_GET_REGION_IO_FDS (CARAXES_DOORBELL_IOEVENTFD=1)
+vfio-user-nvgpu: mirror: host doorbell object 0x8000003a freed: Ok(())
+doorbell ioeventfd: 196488 guest write(s) in 196132 wakeup(s)
+mirror: 80 channel(s) created, 80 freed, 0 live; 176130 doorbell(s) forwarded, 0 TLB invalidate(s) (0 MEM_OP push(es), 0 slow), 0 refusal(s), longest mirror build 0 us; events raised 11620, MSIs 11052 (coalesced 568), host RC events 0
