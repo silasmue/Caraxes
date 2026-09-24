@@ -17,7 +17,7 @@ use std::cell::{Cell, RefCell};
 use std::fs::File;
 use std::os::fd::AsRawFd;
 
-use crate::dmamap::DmaTable;
+use crate::dmamap::{DmaRange, DmaTable};
 
 struct Region {
     address: u64,
@@ -30,6 +30,10 @@ pub struct GuestMemory {
     regions: Vec<Region>,
     /// The active DMA table; `None` is the identity (no registration, E0-E5a).
     table: Option<DmaTable>,
+    /// The guest's other DMA addresses for some of that RAM: the swiotlb alias of its
+    /// installed table, validated against `table` (dmamap.rs `aliases_of`). Only
+    /// consulted for an address `table` does not cover.
+    aliases: Vec<DmaRange>,
     /// DMA addresses the table does not cover (count, first few) since the table
     /// was set: each one is an access the device refused.
     misses: Cell<u64>,
@@ -97,7 +101,13 @@ impl GuestMemory {
         match &self.table {
             None => Some(addr),
             Some(t) => {
-                let gpa = t.iova_to_gpa(addr, len.max(1));
+                let len = len.max(1);
+                let gpa = t.iova_to_gpa(addr, len).or_else(|| {
+                    self.aliases
+                        .iter()
+                        .find(|r| addr >= r.iova && addr - r.iova < r.size && len <= r.size - (addr - r.iova))
+                        .map(|r| r.gpa + (addr - r.iova))
+                });
                 if gpa.is_none() {
                     self.misses.set(self.misses.get() + 1);
                     let mut f = self.first_misses.borrow_mut();
@@ -119,11 +129,45 @@ impl GuestMemory {
         self.locate(pa, len).is_some()
     }
 
-    /// Make `table` the translation for every later access (or the identity).
+    /// Make `table` the translation for every later access (or the identity). The
+    /// guest's aliases were checked against the old table and go with it.
     pub fn set_table(&mut self, table: Option<DmaTable>) {
         self.table = table;
+        self.aliases.clear();
         self.misses.set(0);
         self.first_misses.borrow_mut().clear();
+    }
+
+    /// Accept the guest's aliases (dmamap.rs `aliases_of`, which checked them against the
+    /// active table) for every later access.
+    pub fn set_aliases(&mut self, aliases: Vec<DmaRange>) {
+        self.aliases = aliases;
+    }
+
+    pub fn aliases(&self) -> &[DmaRange] {
+        &self.aliases
+    }
+
+    /// The host IOVA of `len` bytes at the guest's DMA address `addr`: the address itself
+    /// when the device's table covers it (the usual case, guest and host agree), the
+    /// registered IOVA of the same guest pages for an alias, `None` when neither covers
+    /// the whole range in one piece. Counts nothing: the shadow filter reports its own
+    /// refusals.
+    pub fn host_iova(&self, addr: u64, len: u64) -> Option<u64> {
+        let Some(t) = &self.table else {
+            return Some(addr);
+        };
+        let len = len.max(1);
+        if t.iova_to_gpa(addr, len).is_some() {
+            return Some(addr);
+        }
+        let r = self
+            .aliases
+            .iter()
+            .find(|r| addr >= r.iova && addr - r.iova < r.size && len <= r.size - (addr - r.iova))?;
+        let gpa = r.gpa + (addr - r.iova);
+        let host = t.gpa_to_iova(gpa)?;
+        (t.iova_to_gpa(host, len) == Some(gpa)).then_some(host)
     }
 
     pub fn table(&self) -> Option<&DmaTable> {
@@ -246,6 +290,42 @@ mod tests {
         assert_eq!(m.misses(), (1, vec![0x20_0100]));
         m.set_table(None);
         assert_eq!(m.read_u32(0x20_0104), Some(1));
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// The swiotlb alias of the guest's table (memory-model.md §2): the guest reaches GPA
+    /// 0x20_0000.. at IOVA 0xf0_0000_0000.. as well, and the device must follow it for its
+    /// own accesses and give the shadow the registered IOVA of the same page.
+    #[test]
+    fn the_guest_alias_reaches_the_same_pages() {
+        let path = std::env::temp_dir().join(format!("nvgpu-guestmem-a-{}", std::process::id()));
+        let f = File::options()
+            .read(true)
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .open(&path)
+            .unwrap();
+        f.set_len(4 << 20).unwrap();
+        let mut m = GuestMemory::new();
+        m.map(0, 4 << 20, 0, &f).unwrap();
+        let dev = DmaTable::parse("0:7f0000000000:400000").unwrap();
+        let guest = dev.with_alias(0x20_0000, 0x1000, 0xF0_0000_0000).unwrap();
+        m.set_table(Some(dev.clone()));
+        assert!(m.write(0x7f00_0020_0010, &[9, 8, 7, 6]));
+        // Before the aliases are known the alias is refused (the Xid 31 case).
+        assert_eq!(m.read_u32(0xF0_0000_0010), None);
+        assert_eq!(m.host_iova(0xF0_0000_0010, 4), None);
+        m.set_aliases(dev.aliases_of(&guest).unwrap());
+        assert_eq!(m.read_u32(0xF0_0000_0010), Some(0x0607_0809));
+        assert_eq!(m.host_iova(0xF0_0000_1000, 0x1000), Some(0x7f00_0020_1000));
+        // A registered address is its own host IOVA; the alias ends where its entry ends.
+        assert_eq!(m.host_iova(0x7f00_0000_1000, 0x1000), Some(0x7f00_0000_1000));
+        assert_eq!(m.host_iova(0xF0_001F_F000, 0x2000), None);
+        assert_eq!(m.host_iova(0xF0_0020_0000, 0x1000), None);
+        // A new device table drops them.
+        m.set_table(Some(dev));
+        assert!(m.aliases().is_empty());
         let _ = std::fs::remove_file(&path);
     }
 }

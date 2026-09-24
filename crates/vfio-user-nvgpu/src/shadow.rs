@@ -125,6 +125,20 @@ fn resolve_leaf(
     }
 }
 
+/// The target a guest leaf resolves by: a sysmem leaf at the guest's DMA address becomes
+/// the registered host IOVA of the same guest pages. The two differ only for the swiotlb
+/// alias of the guest's table (guestmem.rs `host_iova`, memory-model.md §2), whose rounding
+/// also covers ordinary guest RAM; a leaf nothing covers keeps its address and is refused
+/// by [`resolve_leaf`]. The leaf's identity for the diff stays the guest's address.
+fn host_target(sys_mem: &GuestMemory, t: &Target, size: u64) -> Target {
+    match t {
+        Target::Sys(iova) => sys_mem
+            .host_iova(*iova, size)
+            .map_or(*t, Target::Sys),
+        _ => *t,
+    }
+}
+
 /// What a guest leaf points at: the identity the mirror diffs on.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Leaf {
@@ -261,16 +275,18 @@ pub struct ShadowStats {
 }
 
 impl ShadowStats {
-    fn note_mapped(&mut self, t: &Target, size: u64, descs: &[(u32, u64, u64)]) {
+    fn note_mapped(&mut self, t: &Target, size: u64, h_mem: u32, descs: &[(u32, u64, u64)]) {
         match t {
             Target::Fb(pa) => {
                 let (lo, hi) = self.vid_extent.unwrap_or((*pa, *pa + size));
                 self.vid_extent = Some((lo.min(*pa), hi.max(*pa + size)));
             }
             Target::Sys(iova) => {
+                // An alias leaf (host_target) is counted under the descriptor it maps from.
                 if let Some((_, base, _)) = descs
                     .iter()
                     .find(|(_, b, sz)| *iova >= *b && *iova < *b + *sz)
+                    .or_else(|| descs.iter().find(|(h, _, _)| *h == h_mem))
                 {
                     *self.sys_chunks.entry(*base).or_insert(0) += 1;
                 }
@@ -461,7 +477,7 @@ impl ShadowFront {
                     size: *size,
                     kind: *kind,
                 };
-                match resolve_leaf(t, *size, *kind, base, end, descs) {
+                match resolve_leaf(&host_target(sys_mem, t, *size), *size, *kind, base, end, descs) {
                     Resolved::Vidmem { offset } => want_u.push(ToMap {
                         va: *va,
                         leaf,
@@ -973,7 +989,7 @@ impl ShadowVas {
         self.stats.maps += 1;
         self.stats.leaves_mapped += piece.len() as u64;
         let t = piece[0].leaf.target;
-        self.stats.note_mapped(&t, len, descs);
+        self.stats.note_mapped(&t, len, h_mem, descs);
     }
 
     pub fn summary(&self) -> String {
@@ -1211,6 +1227,57 @@ mod tests {
         let items: Vec<ToMap> = p.units.iter().flat_map(|(_, w)| w.iter().copied()).collect();
         assert_eq!(coalesce(&items[1..]).len(), 3);
         assert!(!front.needs_sync(&fb, &[]));
+    }
+
+    /// The Xid 31 of 2026-09-24 (docs/caraxes/memory-model.md §2, "The alias in the
+    /// device"): a pinned host buffer whose pages the guest placed in the 2 MiB rounding of
+    /// its swiotlb alias carries PTEs at alias IOVAs (0xf0_xxxx_x000). Without the guest's
+    /// aliases the filter refuses those leaves, the shadow has no PTE there and the copy
+    /// engine faults (FAULT_PTE); with them the leaf maps from the registered descriptor
+    /// at the page's own offset, and a leaf outside every range stays refused.
+    #[test]
+    fn a_leaf_at_the_guest_alias_maps_from_the_registered_descriptor() {
+        let mut fb = FakeFb::new(END + (64 << 20));
+        let vid = |a: u64| ((a >> 12) << 8) | 0b010;
+        let sys = |a: u64| ((a >> 12) << 8) | 0b101 | (6u64 << 56);
+        let (root, pd2, pd1, pd0, pt) = (BASE, BASE + 0x1000, BASE + 0x2000, BASE + 0x3000, BASE + 0x4000);
+        fb.write_u64(root, vid(pd2));
+        fb.write_u64(pd2, vid(pd1));
+        fb.write_u64(pd1, vid(pd0));
+        fb.write_u64(pd0 + 8, vid(pt));
+        fb.write_u64(pt + 8, sys(0x7fff_0000_1000)); // VA 0x1000: a registered IOVA
+        fb.write_u64(pt + 16, sys(0xF0_0000_1000)); // VA 0x2000: the alias of GPA 0x20_1000
+        fb.write_u64(pt + 24, sys(0xF0_0040_0000)); // VA 0x3000: past the alias entry
+        let dev = crate::dmamap::DmaTable::parse("0:7fff00000000:40000000").unwrap();
+        let guest = dev.with_alias(0x20_0000, 0x1000, crate::dmamap::LOW_ALIAS_IOVA).unwrap();
+        let descs = [(7u32, 0x7fff_0000_0000u64, 0x4000_0000u64)];
+        let want = |plan: &Plan| -> Vec<(u64, u32, u64, bool)> {
+            plan.units
+                .iter()
+                .flat_map(|(_, w)| w.iter().map(|m| (m.va, m.h_mem, m.off, m.snoop)))
+                .collect()
+        };
+        let mut mem = GuestMemory::new();
+        mem.set_table(Some(dev.clone()));
+        // Before: only the registered IOVA maps.
+        let p = ShadowFront::new(root)
+            .plan(&fb, &mem, BASE, END, 1, &[], &descs)
+            .unwrap();
+        assert_eq!(want(&p), vec![(0x1000, 7, 0x1000, true)]);
+        assert_eq!(p.refused_now, 2);
+        // With the guest's aliases: the alias leaf maps at GPA 0x20_1000's offset.
+        mem.set_aliases(dev.aliases_of(&guest).unwrap());
+        let p = ShadowFront::new(root)
+            .plan(&fb, &mem, BASE, END, 1, &[], &descs)
+            .unwrap();
+        assert_eq!(want(&p), vec![(0x1000, 7, 0x1000, true), (0x2000, 7, 0x20_1000, true)]);
+        assert_eq!(p.refused_now, 1);
+        // The leaf keeps the guest's address as its identity for the diff.
+        let t = p.units[0].1[1].leaf.target;
+        assert_eq!(t, Target::Sys(0xF0_0000_1000));
+        let mut st = ShadowStats::default();
+        st.note_mapped(&t, 0x1000, 7, &descs);
+        assert_eq!(st.sys_chunks.get(&0x7fff_0000_0000), Some(&1));
     }
 
     #[test]

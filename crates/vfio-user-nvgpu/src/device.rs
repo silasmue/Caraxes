@@ -580,6 +580,53 @@ impl Device {
         Ok(())
     }
 
+    /// The table the guest installed, as the launcher records it next to the published one
+    /// (`<dma-ranges>.guest`, tools/caraxes-vm.sh `dma_load`, written before the module is
+    /// loaded and the function is reset). Its swiotlb alias gives some guest RAM a second
+    /// DMA address, and its 2 MiB rounding includes ordinary pages: a buffer there reaches
+    /// the device at the alias (docs/caraxes/memory-model.md §2, "The alias in the
+    /// device"). Read at every reset, checked against the device's own table
+    /// (dmamap.rs `aliases_of`); a missing file means no alias, a table that fails the check
+    /// is refused with an ERROR line and the aliases stay off.
+    fn load_guest_aliases(&mut self) {
+        let (Some(path), Some(table)) = (self.dma_ranges.clone(), self.mem.table().cloned()) else {
+            return;
+        };
+        let gpath = path.with_extension("guest");
+        let text = match std::fs::read_to_string(&gpath) {
+            Ok(t) => t,
+            Err(_) => {
+                if !self.mem.aliases().is_empty() {
+                    self.mem.set_aliases(Vec::new());
+                    self.note(&format!("dma table: {} gone, guest aliases dropped", gpath.display()));
+                }
+                return;
+            }
+        };
+        let result = DmaTable::parse(&text).and_then(|g| table.aliases_of(&g));
+        match result {
+            Ok(aliases) => {
+                if aliases.as_slice() == self.mem.aliases() {
+                    return;
+                }
+                let what = if aliases.is_empty() {
+                    "none".to_string()
+                } else {
+                    aliases.iter().map(|r| r.to_string()).collect::<Vec<_>>().join(", ")
+                };
+                self.mem.set_aliases(aliases);
+                self.note(&format!("dma table: guest aliases from {}: {what}", gpath.display()));
+            }
+            Err(e) => {
+                self.mem.set_aliases(Vec::new());
+                self.note(&format!(
+                    "ERROR dma table: guest table {} refused, no aliases: {e}",
+                    gpath.display()
+                ));
+            }
+        }
+    }
+
     /// Register or describe a freshly mapped region; an error refuses the DMA_MAP.
     fn add_guest_ram(&mut self, address: u64, size: u64) -> std::io::Result<()> {
         match &self.guest_ram {
@@ -875,6 +922,7 @@ impl ServerBackend for Device {
             self.trace
                 .event("flr: function-level reset, device model back to its initial state");
             self.bar0.reset();
+            self.load_guest_aliases();
         }
         if self.bar0.boot_mut().is_some_and(|b| b.take_msi()) {
             self.raise_msi();
@@ -935,6 +983,7 @@ impl ServerBackend for Device {
         self.trace
             .event("reset: device model back to its initial state");
         self.bar0.reset();
+        self.load_guest_aliases();
         Ok(())
     }
 

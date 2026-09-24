@@ -214,6 +214,45 @@ impl DmaTable {
         Self::new(ranges)
     }
 
+    /// The entries of `guest` (the table the guest module installed, `<dma-ranges>.guest`
+    /// of the launcher) that give guest RAM other DMA addresses than this table does: the
+    /// swiotlb alias of [`Self::with_alias`], which also covers up to 2 MiB of ordinary
+    /// guest RAM around the pool (the rounding). The guest hands the device those
+    /// addresses for any buffer that lands there (docs/caraxes/memory-model.md §2, "The
+    /// alias in the device", the Xid 31 of 2026-09-24).
+    ///
+    /// Refused unless `guest` describes exactly this table's guest RAM, every entry either
+    /// translates as this table does or lies wholly outside this table's IOVAs, and every
+    /// alias covers registered guest RAM only. So an alias can only ever name this VM's own
+    /// pages, and no address this table accepts changes meaning.
+    pub fn aliases_of(&self, guest: &DmaTable) -> Result<Vec<DmaRange>, String> {
+        for r in &guest.ranges {
+            if !self.covers_gpa(r.gpa, r.size) {
+                return Err(format!("{r}: guest RAM the device did not register"));
+            }
+        }
+        for r in &self.ranges {
+            if !guest.covers_gpa(r.gpa, r.size) {
+                return Err(format!("{r}: registered guest RAM the guest table leaves out"));
+            }
+        }
+        let mut aliases = Vec::new();
+        for r in &guest.ranges {
+            if self.iova_to_gpa(r.iova, r.size) == Some(r.gpa) {
+                continue;
+            }
+            if let Some(o) = self
+                .ranges
+                .iter()
+                .find(|d| r.iova < d.iova + d.size && d.iova < r.iova + r.size)
+            {
+                return Err(format!("{r}: overlaps the device's {o} with another meaning"));
+            }
+            aliases.push(*r);
+        }
+        Ok(aliases)
+    }
+
     /// The `ranges=` value of `caraxes_dma_range`.
     pub fn module_param(&self) -> String {
         self.ranges
@@ -333,6 +372,42 @@ mod tests {
         assert!(table()
             .with_alias(0xbfff_f000, 8192, 0xF0_0000_0000)
             .is_err());
+    }
+
+    #[test]
+    fn the_guest_alias_is_accepted_and_nothing_else() {
+        let dev = table();
+        let guest = dev
+            .with_alias(0xba2b_7000, 64 << 20, 0xF0_0000_0000)
+            .unwrap();
+        let a = dev.aliases_of(&guest).unwrap();
+        assert_eq!(
+            a,
+            vec![DmaRange {
+                gpa: 0xba20_0000,
+                iova: 0xF0_0000_0000,
+                size: 0x420_0000
+            }]
+        );
+        // The same table as the device's: no alias.
+        assert!(dev.aliases_of(&dev).unwrap().is_empty());
+        // Guest RAM the device never registered.
+        let r = |gpa, iova, size| DmaRange { gpa, iova, size };
+        let mut more = guest.ranges().to_vec();
+        more.push(r(5 * G, 0xF1_0000_0000, 2 << 20));
+        assert!(dev.aliases_of(&DmaTable::new(more).unwrap()).is_err());
+        // A registered chunk the guest table leaves out.
+        let fewer: Vec<DmaRange> = guest.ranges().iter().copied().filter(|x| x.gpa != 4 * G).collect();
+        assert!(dev.aliases_of(&DmaTable::new(fewer).unwrap()).is_err());
+        // An entry that gives a device IOVA to other guest pages (swaps two chunks).
+        let swapped = DmaTable::new(vec![
+            r(0, 0x4000_0000, G),
+            r(G, 0x7ffe_8000_0000, G),
+            r(2 * G, 0x7ffe_c000_0000, G),
+            r(4 * G, 0x7fff_0000_0000, G),
+        ])
+        .unwrap();
+        assert!(dev.aliases_of(&swapped).is_err());
     }
 
     #[test]
