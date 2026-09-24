@@ -45,5 +45,7 @@ echo "device pid $DEVPID" > "$C/device-pid.txt"
 "$VMSH" down > "$C/down.txt" 2>&1
 journalctl -k --since "$T0" --no-pager -g Xid > "$C/host-xid.txt" 2>/dev/null
 # The cuda gate's run directory, into this record.
-for d in "$R"/caraxes/runs/gate-cuda-2026-09-24*; do [[ -d $d ]] && mv "$d" "$C/gate-cuda-run"; done
+# The gate directory of THIS run only (the earlier loop moved every gate-cuda-2026-09-24* directory,
+# other agents' committed records included; those are restored at the top level).
+latest=$(ls -td "$R"/caraxes/runs/gate-cuda-2026-09-24* 2>/dev/null | head -1); [[ -n $latest && $latest -nt "$C/setup.txt" ]] && mv "$latest" "$C/gate-cuda-run"
 echo "gsp-bc gpu-vm1 done $(date -Iseconds); Xid lines $(grep -c Xid "$C/host-xid.txt"), device pid $DEVPID"

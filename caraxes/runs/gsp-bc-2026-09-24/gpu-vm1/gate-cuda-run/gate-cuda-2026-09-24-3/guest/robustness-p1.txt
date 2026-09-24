@@ -1,6 +1,0 @@
-# SPDX-License-Identifier: MIT
-# cuda gate gate-cuda-2026-09-24-3: guest/robustness-p1.txt
-stage 0 ok (cuInit)
-stage 1 ok (context, sched=auto)
-stage 2 ok (memory)
-stage 3 ok (kernel, result correct)

@@ -1,7 +1,0 @@
-# SPDX-License-Identifier: MIT
-# cuda gate gate-cuda-2026-09-24-5: guest/cuda-torch.dmesg
-[  141.507990] NVRM: GPU 0000:00:05.0: GPU failed probe-time init, open returning -EIO
-[  141.508016] NVRM: --- last print repeated 4 times ---
-[  141.508017] NVRM: nvAssertFailedNoLog: Assertion failed: rmapiLockIsOwner() && rmGpuLockIsOwner() @ conf_compute_api.c:81
-[  145.206938] NVRM: GPU 0000:00:05.0: GPU failed probe-time init, open returning -EIO
-[  145.206960] NVRM: nvAssertFailedNoLog: Assertion failed: rmapiLockIsOwner() && rmGpuLockIsOwner() @ conf_compute_api.c:81
