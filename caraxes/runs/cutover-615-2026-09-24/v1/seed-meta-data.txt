@@ -1,0 +1,3 @@
+# SPDX-License-Identifier: MIT
+instance-id: v1-615-1790262142
+local-hostname: v1-615

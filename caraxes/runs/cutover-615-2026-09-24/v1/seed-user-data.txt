@@ -1,0 +1,32 @@
+# SPDX-License-Identifier: MIT
+#cloud-config
+hostname: v1-615
+users:
+  - name: leandro
+    sudo: "ALL=(ALL) NOPASSWD:ALL"
+    shell: /bin/bash
+    lock_passwd: false
+    plain_text_passwd: leandro
+    ssh_authorized_keys:
+      - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAxXrGcGjWCcoEj7TZKFnNlM8eV9k2o+T4+k/Nx1xuCJ leandro-vm
+ssh_pwauth: true
+write_files:
+  - path: /etc/netplan/60-leandro.yaml
+    permissions: "0600"
+    content: |
+      network:
+        version: 2
+        ethernets:
+          eth0:
+            match: { name: eth0 }
+            addresses: [192.168.105.25/24]
+            routes:
+              - to: default
+                via: 192.168.105.1
+  - path: /etc/hosts
+    append: true
+    content: "127.0.1.1 v1-615\n"
+runcmd:
+  - [ netplan, apply ]
+  - [ systemctl, disable, --now, ssh.socket ]
+  - [ systemctl, enable, --now, ssh.service ]

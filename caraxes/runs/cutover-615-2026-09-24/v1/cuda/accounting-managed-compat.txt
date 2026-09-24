@@ -1,0 +1,4 @@
+# SPDX-License-Identifier: MIT
+stat_osdesc_pins=20
+stat_pinned_kib=0
+stat_pool_pages=0

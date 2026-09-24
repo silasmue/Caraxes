@@ -1,0 +1,12 @@
+# SPDX-License-Identifier: MIT
+[  128.362471] nvrm_nodes: loading out-of-tree module taints kernel.
+[  128.362479] nvrm_nodes: module verification failed: signature and/or required key missing - tainting kernel
+[  128.363265] nvrm_nodes: ready (ABI 1, nodes off, max_pin 1024 MiB)
+[  128.399439] virtio_nvrm: BDF mediation: guest 0000:00:05.0 -> gpu id 0x5
+[  128.408321] virtio_nvrm: window 8192 MiB @0x3ffc00000000
+[  128.408927] virtio_nvrm: Hello accepted, protocol v6 negotiated
+[  128.409016] virtio_nvrm: tables v1 accepted -- 9240 bytes, checksum 0x255c7423 (100 ioctls, 128 classes, 50 controls, 17 nested)
+[  128.409226] virtio_nvrm: ready (nodes on, 1 GPU, max_pin 1024 MiB)
+[  128.409598] virtio_nvrm: balloon off (display_reserve_mib=-1, display=0)
+[  129.233740] virtio_nvrm: 2359296 pages would blow the limit of 1024 MiB -- knob: module parameter max_pin_mib
+[  129.557173] virtio_nvrm: 2359296 pages would blow the limit of 1024 MiB -- knob: module parameter max_pin_mib

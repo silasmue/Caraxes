@@ -1,0 +1,102 @@
+# SPDX-License-Identifier: MIT
+Sep 24 16:56:58 manacor kernel: NVRM: loading NVIDIA UNIX Open Kernel Module for x86_64  615.71.09  Release Build  (root@)  
+Sep 24 17:31:19 manacor kernel: NVRM: GPU0 kmemsysFlushGpuCache_IMPL: Invalid aperture.
+Sep 24 17:31:19 manacor kernel: NVRM: GPU0 kmemsysFlushGpuCache_IMPL: Invalid array size (0x0)
+Sep 24 17:31:20 manacor kernel: NVRM: GPU0 kmemsysFlushGpuCache_IMPL: Invalid aperture.
+Sep 24 17:31:20 manacor kernel: NVRM: GPU0 kmemsysFlushGpuCache_IMPL: Invalid array size (0x0)
+Sep 24 17:31:24 manacor kernel: NVRM: GPU0 kmemsysFlushGpuCache_IMPL: Invalid aperture.
+Sep 24 17:31:24 manacor kernel: NVRM: GPU0 kmemsysFlushGpuCache_IMPL: Invalid array size (0x0)
+Sep 24 17:31:26 manacor kernel: NVRM: GPU0 kmemsysFlushGpuCache_IMPL: Invalid aperture.
+Sep 24 17:31:26 manacor kernel: NVRM: GPU0 kmemsysFlushGpuCache_IMPL: Invalid array size (0x0)
+Sep 24 17:31:31 manacor kernel: NVRM: GPU0 kmemsysFlushGpuCache_IMPL: Invalid aperture.
+Sep 24 17:31:31 manacor kernel: NVRM: GPU0 kmemsysFlushGpuCache_IMPL: Invalid array size (0x0)
+Sep 24 17:31:33 manacor kernel: NVRM: GPU0 kmemsysFlushGpuCache_IMPL: Invalid aperture.
+Sep 24 17:31:33 manacor kernel: NVRM: GPU0 kmemsysFlushGpuCache_IMPL: Invalid array size (0x0)
+Sep 24 17:31:36 manacor kernel: NVRM: GPU0 kmemsysFlushGpuCache_IMPL: Invalid aperture.
+Sep 24 17:31:36 manacor kernel: NVRM: GPU0 kmemsysFlushGpuCache_IMPL: Invalid array size (0x0)
+Sep 24 17:31:38 manacor kernel: NVRM: GPU0 kmemsysFlushGpuCache_IMPL: Invalid aperture.
+Sep 24 17:31:38 manacor kernel: NVRM: GPU0 kmemsysFlushGpuCache_IMPL: Invalid array size (0x0)
+Sep 24 17:31:43 manacor kernel: NVRM: GPU0 kmemsysFlushGpuCache_IMPL: Invalid aperture.
+Sep 24 17:31:43 manacor kernel: NVRM: GPU0 kmemsysFlushGpuCache_IMPL: Invalid array size (0x0)
+Sep 24 17:31:44 manacor kernel: NVRM: GPU0 kmemsysFlushGpuCache_IMPL: Invalid aperture.
+Sep 24 17:31:44 manacor kernel: NVRM: GPU0 kmemsysFlushGpuCache_IMPL: Invalid array size (0x0)
+Sep 24 17:31:47 manacor kernel: NVRM: GPU0 kmemsysFlushGpuCache_IMPL: Invalid aperture.
+Sep 24 17:31:47 manacor kernel: NVRM: GPU0 kmemsysFlushGpuCache_IMPL: Invalid array size (0x0)
+Sep 24 17:31:49 manacor kernel: NVRM: GPU0 kmemsysFlushGpuCache_IMPL: Invalid aperture.
+Sep 24 17:31:49 manacor kernel: NVRM: GPU0 kmemsysFlushGpuCache_IMPL: Invalid array size (0x0)
+Sep 24 17:31:53 manacor kernel: NVRM: GPU0 kmemsysFlushGpuCache_IMPL: Invalid aperture.
+Sep 24 17:31:53 manacor kernel: NVRM: GPU0 kmemsysFlushGpuCache_IMPL: Invalid array size (0x0)
+Sep 24 17:31:54 manacor kernel: NVRM: GPU0 kmemsysFlushGpuCache_IMPL: Invalid aperture.
+Sep 24 17:31:54 manacor kernel: NVRM: GPU0 kmemsysFlushGpuCache_IMPL: Invalid array size (0x0)
+Sep 24 17:32:05 manacor kernel: NVRM: GPU0 kmemsysFlushGpuCache_IMPL: Invalid aperture.
+Sep 24 17:32:05 manacor kernel: NVRM: GPU0 kmemsysFlushGpuCache_IMPL: Invalid array size (0x0)
+Sep 24 17:32:06 manacor kernel: NVRM: GPU0 kmemsysFlushGpuCache_IMPL: Invalid aperture.
+Sep 24 17:32:06 manacor kernel: NVRM: GPU0 kmemsysFlushGpuCache_IMPL: Invalid array size (0x0)
+Sep 24 17:32:16 manacor kernel: NVRM: GPU0 kmemsysFlushGpuCache_IMPL: Invalid aperture.
+Sep 24 17:32:16 manacor kernel: NVRM: GPU0 kmemsysFlushGpuCache_IMPL: Invalid array size (0x0)
+Sep 24 17:32:18 manacor kernel: NVRM: GPU0 kmemsysFlushGpuCache_IMPL: Invalid aperture.
+Sep 24 17:32:18 manacor kernel: NVRM: GPU0 kmemsysFlushGpuCache_IMPL: Invalid array size (0x0)
+Sep 24 17:32:27 manacor kernel: NVRM: GPU0 kmemsysFlushGpuCache_IMPL: Invalid aperture.
+Sep 24 17:32:27 manacor kernel: NVRM: GPU0 kmemsysFlushGpuCache_IMPL: Invalid array size (0x0)
+Sep 24 17:32:29 manacor kernel: NVRM: GPU0 kmemsysFlushGpuCache_IMPL: Invalid aperture.
+Sep 24 17:32:29 manacor kernel: NVRM: GPU0 kmemsysFlushGpuCache_IMPL: Invalid array size (0x0)
+Sep 24 17:32:45 manacor kernel: NVRM: GPU0 kmemsysFlushGpuCache_IMPL: Invalid aperture.
+Sep 24 17:32:45 manacor kernel: NVRM: GPU0 kmemsysFlushGpuCache_IMPL: Invalid array size (0x0)
+Sep 24 17:32:45 manacor kernel: NVRM: GPU0 kmemsysFlushGpuCache_IMPL: Invalid aperture.
+Sep 24 17:32:45 manacor kernel: NVRM: GPU0 kmemsysFlushGpuCache_IMPL: Invalid array size (0x0)
+Sep 24 17:32:47 manacor kernel: NVRM: GPU0 kmemsysFlushGpuCache_IMPL: Invalid aperture.
+Sep 24 17:32:47 manacor kernel: NVRM: GPU0 kmemsysFlushGpuCache_IMPL: Invalid array size (0x0)
+Sep 24 17:34:44 manacor kernel: NVRM: GPU0 kmemsysFlushGpuCache_IMPL: Invalid aperture.
+Sep 24 17:34:44 manacor kernel: NVRM: GPU0 kmemsysFlushGpuCache_IMPL: Invalid array size (0x0)
+Sep 24 17:34:45 manacor kernel: NVRM: GPU0 kmemsysFlushGpuCache_IMPL: Invalid aperture.
+Sep 24 17:34:45 manacor kernel: NVRM: GPU0 kmemsysFlushGpuCache_IMPL: Invalid array size (0x0)
+Sep 24 17:34:48 manacor kernel: NVRM: GPU0 kmemsysFlushGpuCache_IMPL: Invalid aperture.
+Sep 24 17:34:48 manacor kernel: NVRM: GPU0 kmemsysFlushGpuCache_IMPL: Invalid array size (0x0)
+Sep 24 17:34:49 manacor kernel: NVRM: GPU0 kmemsysFlushGpuCache_IMPL: Invalid aperture.
+Sep 24 17:34:49 manacor kernel: NVRM: GPU0 kmemsysFlushGpuCache_IMPL: Invalid array size (0x0)
+Sep 24 17:34:58 manacor kernel: NVRM: GPU0 kmemsysFlushGpuCache_IMPL: Invalid aperture.
+Sep 24 17:34:58 manacor kernel: NVRM: GPU0 kmemsysFlushGpuCache_IMPL: Invalid array size (0x0)
+Sep 24 17:34:59 manacor kernel: NVRM: GPU0 kmemsysFlushGpuCache_IMPL: Invalid aperture.
+Sep 24 17:34:59 manacor kernel: NVRM: GPU0 kmemsysFlushGpuCache_IMPL: Invalid array size (0x0)
+Sep 24 17:36:29 manacor kernel: NVRM: GPU0 kmemsysFlushGpuCache_IMPL: Invalid aperture.
+Sep 24 17:36:29 manacor kernel: NVRM: GPU0 kmemsysFlushGpuCache_IMPL: Invalid array size (0x0)
+Sep 24 17:36:30 manacor kernel: NVRM: GPU0 kmemsysFlushGpuCache_IMPL: Invalid aperture.
+Sep 24 17:36:30 manacor kernel: NVRM: GPU0 kmemsysFlushGpuCache_IMPL: Invalid array size (0x0)
+Sep 24 17:37:17 manacor kernel: NVRM: GPU0 kmemsysFlushGpuCache_IMPL: Invalid aperture.
+Sep 24 17:37:17 manacor kernel: NVRM: GPU0 kmemsysFlushGpuCache_IMPL: Invalid array size (0x0)
+Sep 24 17:37:18 manacor kernel: NVRM: GPU0 kmemsysFlushGpuCache_IMPL: Invalid aperture.
+Sep 24 17:37:18 manacor kernel: NVRM: GPU0 kmemsysFlushGpuCache_IMPL: Invalid array size (0x0)
+Sep 24 17:37:23 manacor kernel: NVRM: GPU0 kmemsysFlushGpuCache_IMPL: Invalid aperture.
+Sep 24 17:37:23 manacor kernel: NVRM: GPU0 kmemsysFlushGpuCache_IMPL: Invalid array size (0x0)
+Sep 24 17:37:24 manacor kernel: NVRM: GPU0 kmemsysFlushGpuCache_IMPL: Invalid aperture.
+Sep 24 17:37:24 manacor kernel: NVRM: GPU0 kmemsysFlushGpuCache_IMPL: Invalid array size (0x0)
+Sep 24 17:37:27 manacor kernel: NVRM: GPU0 kmemsysFlushGpuCache_IMPL: Invalid aperture.
+Sep 24 17:37:27 manacor kernel: NVRM: GPU0 kmemsysFlushGpuCache_IMPL: Invalid array size (0x0)
+Sep 24 17:37:29 manacor kernel: NVRM: GPU0 kmemsysFlushGpuCache_IMPL: Invalid aperture.
+Sep 24 17:37:29 manacor kernel: NVRM: GPU0 kmemsysFlushGpuCache_IMPL: Invalid array size (0x0)
+Sep 24 17:37:37 manacor kernel: NVRM: GPU0 kmemsysFlushGpuCache_IMPL: Invalid aperture.
+Sep 24 17:37:37 manacor kernel: NVRM: GPU0 kmemsysFlushGpuCache_IMPL: Invalid array size (0x0)
+Sep 24 17:37:38 manacor kernel: NVRM: GPU0 kmemsysFlushGpuCache_IMPL: Invalid aperture.
+Sep 24 17:37:38 manacor kernel: NVRM: GPU0 kmemsysFlushGpuCache_IMPL: Invalid array size (0x0)
+Sep 24 17:37:46 manacor kernel: NVRM: GPU0 kmemsysFlushGpuCache_IMPL: Invalid aperture.
+Sep 24 17:37:46 manacor kernel: NVRM: GPU0 kmemsysFlushGpuCache_IMPL: Invalid array size (0x0)
+Sep 24 17:37:48 manacor kernel: NVRM: GPU0 kmemsysFlushGpuCache_IMPL: Invalid aperture.
+Sep 24 17:37:48 manacor kernel: NVRM: GPU0 kmemsysFlushGpuCache_IMPL: Invalid array size (0x0)
+Sep 24 17:37:54 manacor kernel: NVRM: GPU0 kmemsysFlushGpuCache_IMPL: Invalid aperture.
+Sep 24 17:37:54 manacor kernel: NVRM: GPU0 kmemsysFlushGpuCache_IMPL: Invalid array size (0x0)
+Sep 24 17:37:56 manacor kernel: NVRM: GPU0 kmemsysFlushGpuCache_IMPL: Invalid aperture.
+Sep 24 17:37:56 manacor kernel: NVRM: GPU0 kmemsysFlushGpuCache_IMPL: Invalid array size (0x0)
+Sep 24 17:38:01 manacor kernel: NVRM: GPU0 kmemsysFlushGpuCache_IMPL: Invalid aperture.
+Sep 24 17:38:01 manacor kernel: NVRM: GPU0 kmemsysFlushGpuCache_IMPL: Invalid array size (0x0)
+Sep 24 17:38:03 manacor kernel: NVRM: GPU0 kmemsysFlushGpuCache_IMPL: Invalid aperture.
+Sep 24 17:38:03 manacor kernel: NVRM: GPU0 kmemsysFlushGpuCache_IMPL: Invalid array size (0x0)
+Sep 24 17:38:12 manacor kernel: NVRM: GPU0 kmemsysFlushGpuCache_IMPL: Invalid aperture.
+Sep 24 17:38:12 manacor kernel: NVRM: GPU0 kmemsysFlushGpuCache_IMPL: Invalid array size (0x0)
+Sep 24 17:38:14 manacor kernel: NVRM: GPU0 kmemsysFlushGpuCache_IMPL: Invalid aperture.
+Sep 24 17:38:14 manacor kernel: NVRM: GPU0 kmemsysFlushGpuCache_IMPL: Invalid array size (0x0)
+Sep 24 17:38:17 manacor kernel: NVRM: GPU0 kmemsysFlushGpuCache_IMPL: Invalid aperture.
+Sep 24 17:38:17 manacor kernel: NVRM: GPU0 kmemsysFlushGpuCache_IMPL: Invalid array size (0x0)
+Sep 24 17:38:19 manacor kernel: NVRM: GPU0 kmemsysFlushGpuCache_IMPL: Invalid aperture.
+Sep 24 17:38:19 manacor kernel: NVRM: GPU0 kmemsysFlushGpuCache_IMPL: Invalid array size (0x0)
+Sep 24 17:38:23 manacor kernel: NVRM: GPU0 kmemsysFlushGpuCache_IMPL: Invalid aperture.
+Sep 24 17:38:23 manacor kernel: NVRM: GPU0 kmemsysFlushGpuCache_IMPL: Invalid array size (0x0)

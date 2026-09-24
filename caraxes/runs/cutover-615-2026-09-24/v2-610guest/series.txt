@@ -1,0 +1,40 @@
+# series 2026-09-24T17:00:52+02:00 targets=[v2] reps=2 metrics=[init short-auto rl]
+# caraxes shell-rig-167-gae9b460 leandro-test 3edea73-dirty
+# bin c5b48cf1181bfcfc251f12aa2b0eaeb074887efec4c479f36efe399cb1307a13  bench-cu
+# bin 2e7db7218ac29e0da0b22a4d30307ea1f675dc04912d6b34922708495595904d  convnet.py
+# bin 68449e9ec7b25613a65d096a6a42864c01fbf46ec47e540ce01f47184f0479ea  ctrlping
+# bin 138c5073848b2f3cf2beb4709376c7c49b420d88e836664584e5cf8bbfc7848c  ioctlping
+# bin 1f921680fc7a2c2e0978eb007cc0ab48d2f1a7cf404a196c9063a19a10aa228f  kernels.ptx
+# bin abdf09531ac015ba4e8e7550bda6eb43609c429d6e1240e7f8553841bfe06513  llamaprobe.py
+# bin 2735d2a9cd25c0753898188542dbeb4a8433609024aa48230b6803a4a8d96e66  nvprobe
+# bin 012bb008b87ec0a6ee4ef566e0b55f856df09d6a3e07e72fe5cde5a9043dd18a  pporl.py
+# bin 02b1d58fc1778a47f8940e7f89d2cabb44b64d078f5b54b5ca1fba9437073c4a  transformer.py
+# bin f0868123fca8e2c40138fda523e35fa76c015b97e232fc647fea0b6b49f33584  vrampress
+# time 2026-09-24T17:00:52+02:00
+# gpu 50, 300 MHz, 405 MHz, P8, 1 %, 1273 MiB, Disabled
+# procs 
+# loadavg 1.43 1.16 0.53
+# end 2026-09-24T17:01:22+02:00
+# series 2026-09-24T17:37:44+02:00 targets=[v2] reps=2 metrics=[init short-auto rl]
+# caraxes shell-rig-170-ge0b3dc9 leandro-test 3edea73-dirty
+# bin c5b48cf1181bfcfc251f12aa2b0eaeb074887efec4c479f36efe399cb1307a13  bench-cu
+# bin 2e7db7218ac29e0da0b22a4d30307ea1f675dc04912d6b34922708495595904d  convnet.py
+# bin 68449e9ec7b25613a65d096a6a42864c01fbf46ec47e540ce01f47184f0479ea  ctrlping
+# bin 138c5073848b2f3cf2beb4709376c7c49b420d88e836664584e5cf8bbfc7848c  ioctlping
+# bin 1f921680fc7a2c2e0978eb007cc0ab48d2f1a7cf404a196c9063a19a10aa228f  kernels.ptx
+# bin abdf09531ac015ba4e8e7550bda6eb43609c429d6e1240e7f8553841bfe06513  llamaprobe.py
+# bin 2735d2a9cd25c0753898188542dbeb4a8433609024aa48230b6803a4a8d96e66  nvprobe
+# bin 012bb008b87ec0a6ee4ef566e0b55f856df09d6a3e07e72fe5cde5a9043dd18a  pporl.py
+# bin 02b1d58fc1778a47f8940e7f89d2cabb44b64d078f5b54b5ca1fba9437073c4a  transformer.py
+# bin f0868123fca8e2c40138fda523e35fa76c015b97e232fc647fea0b6b49f33584  vrampress
+# time 2026-09-24T17:37:44+02:00
+# gpu 63, 1410 MHz, 7000 MHz, P0, 43 %, 3359 MiB, Disabled
+# procs 36468:vm2-dev 36476:vm1-vmm 46217:bench-v1-615-dev 46223:bench-v1-615-vmm 
+# loadavg 2.14 2.44 1.80
+17:37:51 v2  init            rep 1: INIT cuinit_ms=140.256 devget_ms=0.002 ctxcreate_ms=4046.886 ctxdestroy_ms=2726.667 # WALL wall_ms=6927 rc=0  | # MEAS dev_pid=36468 dev_cpu_ms=2560 dev_rss_hwm_kb=5329928/6297808 vmm_cpu_ms=3670 others: bench-v1-615-vmm=60ms bench-
+17:37:57 v2  short-auto      rep 1: MSPERLAUNCH=0.022 # WALL wall_ms=5558 rc=0  | # MEAS dev_pid=36468 dev_cpu_ms=2900 dev_rss_hwm_kb=5329932/6297808 vmm_cpu_ms=3420 others: bench-v1-615-vmm=40ms bench-
+17:38:10 v2  rl              rep 1:   ep   10  return=   11  mean10=  20.7   ep   20  return=   15  mean10=  14.4   ep   30  return=   13  mean10=  15.8  | # MEAS dev_pid=36468 dev_cpu_ms=5670 dev_rss_hwm_kb=5329932/6297808 vmm_cpu_ms=11040 others: bench-v1-615-vmm=3990ms ben
+17:38:15 v2  init            rep 2: INIT cuinit_ms=168.110 devget_ms=0.001 ctxcreate_ms=3348.148 ctxdestroy_ms=982.182 # WALL wall_ms=4516 rc=0  | # MEAS dev_pid=36468 dev_cpu_ms=2570 dev_rss_hwm_kb=5329932/6297808 vmm_cpu_ms=3080 others: bench-v1-615-vmm=2140ms benc
+17:38:20 v2  short-auto      rep 2: MSPERLAUNCH=0.022 # WALL wall_ms=4463 rc=0  | # MEAS dev_pid=36468 dev_cpu_ms=3130 dev_rss_hwm_kb=5329932/6297808 vmm_cpu_ms=3560 others: bench-v1-615-vmm=920ms bench
+17:38:31 v2  rl              rep 2:   ep   10  return=   11  mean10=  20.7   ep   20  return=   15  mean10=  14.4   ep   30  return=   13  mean10=  15.8  | # MEAS dev_pid=36468 dev_cpu_ms=5700 dev_rss_hwm_kb=5329932/6297808 vmm_cpu_ms=10000 others: bench-v1-615-vmm=6090ms ben
+# end 2026-09-24T17:38:31+02:00

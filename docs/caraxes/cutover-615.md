@@ -283,6 +283,65 @@ down until Leandro's L615 step (repo-split.md step L2: `DRIVER_VERSION` 615.71.0
 `nix build .#guest-image` at the L615 pin) exist. The v1 benchmark path
 (`caraxes/tools/bench-v1vm.sh`) is off until then.
 
+### Result on the 615 host (2026-09-24, 17:28 to 17:40)
+
+v1 runs on 615.71.09 and every gate run passes, with two conditions: `nvidia-smi` needs a guest image fix (below), and
+managed memory needs the backend started with `LEA_MANAGED_COMPAT=1`, as the v1 gate starts it. Record, with the
+commands, the raw outputs and the harness files: `caraxes/runs/cutover-615-2026-09-24/v1/`
+(`commands.txt` first).
+
+What ran:
+
+- **Host binaries.** The frozen L615 set, `/mnt/vmstore/leandro/l615-host-bin-8c0d2b2/`
+  (`leandro-commit.txt` 8c0d2b2, `SHA256SUMS` verified). The **615-only** `vhost-user-nvrm` was used. It reported
+  `driver 615.71.09 ABI`, tables checksum 0x255c7423. The dual binary was not needed. Nothing was rebuilt on the host.
+  The `port/615` worktree is at `/mnt/vmstore/leandro/wt-615` (51c0884, which is 8c0d2b2 plus the record).
+- **Guest image.** An overlay on the Caraxes 615 base image (guest-driver-versions.md section 8, sha256 `08b2680c...`):
+  `/mnt/vmstore/caraxes/bench-v1-615/rootfs.qcow2`, with its own seed (192.168.105.25, instance id
+  `v1-615-1790262142`). The overlay was edited offline and in the guest, nothing else:
+  - the guest's own NVIDIA modules are blacklisted and set to `install ... /bin/false`;
+  - `nvidia-persistenced` is disabled;
+  - `/opt/nvrm/lib` points to the 615 system libraries (`bench-run.sh` sets `LD_LIBRARY_PATH=/opt/nvrm/lib`), and the
+    610 copies moved to `/opt/nvrm-610.57.04`;
+  - `/usr/bin/nvidia-modprobe` was renamed (see smi).
+
+  The overlay's sha256 after shutdown is in `image-sha256.txt`. The guest modules were built inside the guest from the
+  `port/615` sources against 6.8.0-136-generic. `virtio_nvrm.ko` carries 615.71.09. `bench-v1vm.sh` was run unchanged
+  with `V` and `NVRM` set. Only its `modules` step was repeated by hand with the worktree's sources, because it tars
+  Caraxes' `guest-module`, whose `nvrm_wire.h` still says 610.57.04.
+
+| Gate | Result |
+|---|---|
+| tables | pass: the guest's checksum equals the host's (0x255c7423), protocol v6 |
+| smi | **fail, then pass after an image fix.** The first run failed with `Failed to initialize NVML: GPU access blocked by the operating system` (exit 17), and no ioctl reached the device. Cause: NVML finds no `/proc/driver/nvidia/capabilities/mig/*` (this was already so on 610) and then runs `/usr/bin/nvidia-modprobe`. That fails without `/sys/module/nvidia`, and NVML turns the failure into an OS error. The 610 image had no `nvidia-modprobe`. With it renamed in the overlay, the masked diff against the host's `nvidia-smi` is empty: driver 615.71.09, name `Leandro VirtIO RTX 2070` |
+| cuda: nvprobe 0-4 | pass: stages 0 to 4. nvprobe 4 took 16.6 ms per launch for the 30M-cycle kernel. The matrix rows core, jit, launch, hostreg and torch (cuDNN) pass |
+| cuda: torch | pass: rlprobe `mean10=56.9`, convburn `acc=3.041451216e+00`. These are the values every 610 run recorded (native, v1, v2). The native reference was not re-run, because that would use the host card |
+| managed memory | fail with the bench backend (`AllocManaged: invalid argument`, control 0x2080012f status 0x56). **Pass** with `LEA_MANAGED_COMPAT=1`, which Leandro-Test's gpu gate sets and `bench-v1vm.sh` does not: managedprobe reached stage 2 twice, and the kernel stage's accounting ended at 0 KiB and 0 pool pages |
+| robustness (v1 form) | pass: two processes in parallel, SIGKILL without a leak, `rmmod virtio_nvrm` refused while an FD is open |
+| own | pass: the guest's PID appears in the guest's `nvidia-smi` |
+| bench `short-auto rl`, 2 reps | ran. short-auto 0.008 and 0.021 ms/launch (610: 0.007 [0.007-0.008]). rl `mean10` 56.9 both times, stage4 2.2 and 1.6 s (610: 1.50 [1.40-1.80]), 1284 and 1791 transfers/s, process wall time 6.0 and 5.1 s. vm2 was running, so these are not a clean series (`bench/series.txt`) |
+
+Host: no Xid since the 16:56 boot. The v1 backend PIDs were 35440, then 46217 for the managed retest. The kernel log
+has `kmemsysFlushGpuCache_IMPL: Invalid aperture` pairs from 17:31:19 on. These come from vm2's device
+(vfio-user-nvgpu 36468, the v2 cut-over, running concurrently): it logs `FB_FLUSH_GPU_CACHE ... failed: status 0x1f`
+at the same times, and the first pairs came before v1's first RM call. They are not v1's. The host was only read:
+`nvidia-smi` and `/proc/driver/nvidia/params`.
+
+Not run: Leandro-Test's own `scripts/test.sh gpu`, because it needs its vm0 rig and a nix-built 615 guest image
+(step G). The encode stage was also not run, because the image has no NVENC and no ffmpeg at 615. The display gates
+were not run.
+
+Follow-ups:
+
+1. The v1 615 image needs `nvidia-modprobe` absent, or disabled, as in this overlay.
+2. `bench-v1vm.sh` should take its guest-module source and base image from Leandro at the L615 pin, instead of from
+   Caraxes' `guest-module` and the 610 file name.
+3. Decide whether the bench backend should run with `LEA_MANAGED_COMPAT=1`, as the gate does.
+
+The VM is down. To bring it back up: `V=/mnt/vmstore/caraxes/bench-v1-615 NVRM=/mnt/vmstore/leandro/l615-host-bin-8c0d2b2/vhost-user-nvrm caraxes/tools/bench-v1vm.sh up`,
+then the manual `modules` step from `commands.txt` section 4.
+
+
 ## (f) Rollback
 
 Rolling back is the operator's call; no host state was changed by the agents.

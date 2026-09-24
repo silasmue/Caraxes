@@ -1,0 +1,2 @@
+# SPDX-License-Identifier: MIT
+smi PASS: nvidia-smi identical to the native host run (masked), driver 615.71.09, guest sees Leandro VirtIO RTX 2070

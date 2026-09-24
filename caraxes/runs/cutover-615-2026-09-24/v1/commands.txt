@@ -1,0 +1,88 @@
+# SPDX-License-Identifier: MIT
+# Leandro v1 on the 615.71.09 host (manacor), 2026-09-24. Commands in order, as run.
+# Host driver: /proc/driver/nvidia/version "NVIDIA UNIX Open Kernel Module for x86_64 615.71.09".
+
+## 1. Leandro port/615 worktree and host binaries
+git -C /home/silas/git/Leandro worktree add /mnt/vmstore/leandro/wt-615 port/615   # HEAD 51c0884 (8c0d2b2 + docs record only)
+git -C /home/silas/git/Leandro diff --stat 8c0d2b2 51c0884                         # docs/measurements/l615-2026-09-24.md only
+cd /mnt/vmstore/leandro/l615-host-bin-8c0d2b2 && cat leandro-commit.txt && sha256sum -c SHA256SUMS
+#   8c0d2b2ccb587647e6de7aa15c1e51e56e1d7b7c; vhost-user-nvrm OK, vhost-user-nvrm-v610-v615 OK, libnvrm_trace.so OK
+#   -> the frozen binaries fit; nothing rebuilt on the host (no cargo run, target-wt-615 unused).
+diff -r /home/silas/git/Caraxes/guest-module/virtio_nvrm /mnt/vmstore/leandro/wt-615/guest-module/virtio_nvrm
+#   only nvrm_wire.h:21 NVRM_DRIVER_VERSION "610.57.04" -> "615.71.09"; nvrm_nodes identical
+
+## 2. Guest image: overlay on the Caraxes 615 base image, new seed, offline edits of the overlay
+B=/mnt/vmstore/caraxes/images/guest-baked-2026-09-24-615.71.09.qcow2   # sha256 08b2680c...9bdb9 (.sha256 beside it)
+V=/mnt/vmstore/caraxes/bench-v1-615
+qemu-img create -q -f qcow2 -F qcow2 -b $B $V/rootfs.qcow2
+# seed: the v1check seed (/mnt/vmstore/caraxes/v1check/seed.img, 192.168.105.25, key id_leandro) with
+# hostname v1-615 and a new instance id (see seed-meta-data.txt, seed-user-data.txt):
+mcopy -s -i /mnt/vmstore/caraxes/v1check/seed.img ::/ seed/ ; sed -i s/v1check/v1-615/g seed/user-data
+printf 'instance-id: v1-615-1790262142\nlocal-hostname: v1-615\n' > seed/meta-data
+truncate -s 2M $V/seed.img; mkfs.vfat -n CIDATA $V/seed.img; mcopy -i $V/seed.img seed/{meta-data,user-data,network-config} ::/
+guestfish -a $V/rootfs.qcow2 -i   # overlay only:
+#   write /etc/modprobe.d/leandro-v1.conf: blacklist + "install <m> /bin/false" for nvidia, nvidia-uvm,
+#     nvidia-modeset, nvidia-drm, nvidia-peermem (virtio_nvrm owns /dev/nvidia*; the base already had "blacklist nvidia")
+#   rm /etc/systemd/system/multi-user.target.wants/nvidia-persistenced.service
+#   mv /opt/nvrm/{lib,bin} /opt/nvrm-610.57.04/; ln -s /usr/lib/x86_64-linux-gnu /opt/nvrm/lib;
+#   ln -s /usr/bin/nvidia-smi /opt/nvrm/bin/nvidia-smi
+#   (bench-run.sh sets LD_LIBRARY_PATH=/opt/nvrm/lib for every guest target; without this the v1
+#    guest would load the 610.57.04 libcuda against the 615 host)
+
+## 3. Wait for the tap (host rebooted for the upgrade; the operator recreated caraxes5)
+until ip link show caraxes5; do sleep 30; done      # present after 1500 s, 17:28
+
+## 4. v1 up, 615-only backend (bench-v1vm.sh, unchanged script, state dir and binary by environment)
+export V=/mnt/vmstore/caraxes/bench-v1-615 NVRM=/mnt/vmstore/leandro/l615-host-bin-8c0d2b2/vhost-user-nvrm
+caraxes/tools/bench-v1vm.sh up        # backend 35440 "driver 615.71.09 ABI", tables checksum 0x255c7423
+# modules: the same commands as bench-v1vm.sh `modules`, but the sources tarred from the port/615
+# worktree (bench-v1vm.sh tars Caraxes' guest-module, whose nvrm_wire.h still says 610.57.04):
+tar -C /mnt/vmstore/leandro/wt-615 -cf - --exclude=test guest-module/nvrm_nodes guest-module/virtio_nvrm | ssh ... 'rm -rf ~/guest-module && tar -xf - -C ~'
+ssh ... 'mkdir -p ~/gpu && cat > ~/gpu/params.txt' < /proc/driver/nvidia/params      # host read, as in the v1 procedure
+ssh ... 'make -C ~/guest-module/nvrm_nodes; make -C ~/guest-module/virtio_nvrm      # in the guest, gcc-13, headers 6.8.0-136-generic
+  sudo insmod nvrm_nodes.ko create_nodes=0; sudo nvrm-nodes-tool provision params ~/gpu/params.txt
+  sudo usermod -aG render,video leandro; sudo insmod virtio_nvrm.ko'
+#   virtio_nvrm.ko vermagic 6.8.0-136-generic, carries "615.71.09"; sha256 a27ec051...d2d549, nvrm_nodes.ko 186f29e6...d45268
+#   guest dmesg: Hello accepted, protocol v6; tables v1 accepted, checksum 0x255c7423 (= host); ready, 1 GPU
+
+## 5. Test material (the Caraxes guest runner and the Leandro-Test probes, built in the guest against libcuda 615.71.09)
+CARAXES_IP=192.168.105.25 CARAXES_DRIVER=615 VM=bench-v1-615 tools/caraxes-vm.sh sync-tests   # sync-tests.txt
+rsync /mnt/vmstore/leandro/l615-host-bin-8c0d2b2/libnvrm_trace.so -> guest ~/caraxes-tests/leandro-test/lib/   # the 615 tracer
+
+## 6. smi (Leandro-Test scripts/test.sh gate_gpu smi stage, same masking, lea_mediated_name_re from scripts/lib/common.sh)
+ssh ... 'nvidia-smi'  -> "Failed to initialize NVML: GPU access blocked by the operating system", exit 17 (smi/first-attempt/)
+#   strace: no ioctl reaches /dev/nvidiactl. NVML finds /proc/driver/nvidia/capabilities/mig/{config,monitor} missing
+#   (as on 610, Leandro docs/history/OPEN-QUESTIONS-2026-09-18.md:5815), then runs /usr/bin/nvidia-modprobe -s -f=<cap>,
+#   which exits 1 because /sys/module/nvidia/initstate does not exist, and NVML turns that into NVML_ERROR_OPERATING_SYSTEM.
+#   The 610 base image had no nvidia-modprobe (guest-driver-versions.md section 8), so NVML skipped the step there.
+ssh ... 'sudo mv /usr/bin/nvidia-modprobe /usr/bin/nvidia-modprobe.disabled-v1'   # overlay only, persists in the overlay
+ssh ... 'nvidia-smi' ; nvidia-smi (host read) ; masked diff empty -> PASS (smi/)
+
+## 7. cuda: the guest runner (tools/caraxes-guest-tests.sh, as installed by sync-tests), one ssh call per test
+for t in cuda-init cuda-context gpu-memory gpu-kernel cuda-core cuda-jit cuda-launch cuda-managed cuda-hostreg \
+         cuda-torch rlprobe convburn gpu-torch gpu-own; do
+  ssh ... "CARAXES_TEST_TIMEOUT=120 ~/caraxes-tests/caraxes/run-tests.sh ~/caraxes-tests/out/v1-615 $t"; done   # cuda/rows.tsv
+ssh ... 'NVPROBE_PTX=... probe/bin/nvprobe 4'        # cuda/nvprobe4.log
+# v1 robustness and accounting (scripts/test.sh gate_gpu robustness stage verbatim: parallel, SIGKILL, rmmod virtio_nvrm refused)
+#   -> cuda/robust-v1.log. The runner's own `robustness` test reads /sys/module/nvidia/refcnt (a v2 adaptation) and does not apply.
+# Managed memory: bench-v1vm.sh starts the backend without LEA_MANAGED_COMPAT; Leandro-Test's gpu gate starts it WITH it
+# (scripts/test.sh: LEA_DEBUG=1 LEA_MANAGED_COMPAT=1 lea_rig_up). So after the bench:
+caraxes/tools/bench-v1vm.sh down; LEA_MANAGED_COMPAT=1 caraxes/tools/bench-v1vm.sh up; (insmod as in 4)
+ssh ... run-tests.sh ~/caraxes-tests/out/v1-615-managed gpu-kernel ; ... cuda-managed        # cuda/rows-managed-compat.tsv
+
+## 8. Bench harness (between 7 and the managed retest, backend 35440 without LEA_MANAGED_COMPAT, V and NVRM as in 4)
+caraxes/tools/bench-run.sh stage v1                                                     # bench-stage.txt
+caraxes/tools/bench-run.sh series --targets v1 --out caraxes/runs/cutover-615-2026-09-24/v1/bench --reps 2 --metrics "short-auto rl"
+# bench-run.sh sets LD_LIBRARY_PATH=/opt/nvrm/lib for guests; in this overlay that is the 615.71.09 system directory (step 2).
+
+## 9. Host checks (reads only)
+journalctl -k -b | grep -i 'NVRM: Xid'      # none since the 16:56 boot (host-nvrm-kernel-log.txt: every NVRM line)
+# NVRM "kmemsysFlushGpuCache_IMPL: Invalid aperture / Invalid array size (0x0)" pairs from 17:31:19 on: vm2's device
+# (vfio-user-nvgpu pid 36468, started 17:28:52 for the v2 cut-over) logs "FB_FLUSH_GPU_CACHE ... failed: status 0x1f"
+# in /mnt/vmstore/caraxes/vm2/gpu.log in step, and the first pairs predate any v1 GPU call (the v1 guest's first RM
+# ioctl was the nvidia-smi at 17:32:09). Not Xids.
+caraxes/tools/bench-v1vm.sh down        # about 17:39, VM and backend stopped
+sha256sum $V/rootfs.qcow2 $V/seed.img   # image-sha256.txt (overlay after shutdown)
+
+# Concurrent on the card throughout: vm2 (Caraxes v2 cut-over, vfio-user-nvgpu 36468, cloud-hypervisor 36476), and the
+# host desktop. bench series.txt records the other processes' CPU per run ("others: vm1-vmm ... vm2-dev ...").

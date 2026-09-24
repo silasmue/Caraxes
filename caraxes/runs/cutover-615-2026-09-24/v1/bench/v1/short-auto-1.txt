@@ -1,0 +1,17 @@
+# SPDX-License-Identifier: MIT
+# target v1 metric short-auto rep 1
+# cmd NVPROBE_ITERS=100 NVPROBE_CYCLES=1000 NVPROBE_SCHED=auto ./nvprobe 4
+# device /mnt/vmstore/leandro/l615-host-bin-8c0d2b2/vhost-user-nvrm sha256 2fe56aa07903abcd
+# time 2026-09-24T17:35:03+02:00
+# gpu 57, 1335 MHz, 7000 MHz, P0, 17 %, 3324 MiB, Disabled
+# procs 35440:bench-v1-615-dev 35517:bench-v1-615-vmm 36468:vm2-dev 36476:vm1-vmm 
+# loadavg 3.27 2.72 1.75
+stage 0 ok (cuInit)
+stage 1 ok (context, sched=auto)
+stage 2 ok (memory)
+stage 3 ok (kernel, result correct)
+stage 4 ok (100 launches, 0.008 ms/launch, sched=auto)
+ITERS=100
+MSPERLAUNCH=0.008
+# WALL wall_ms=366 rc=0
+# MEAS dev_pid=35440 dev_cpu_ms=250 dev_rss_hwm_kb=407764/537500 vmm_cpu_ms=230 others: vm1-vmm=490ms vm2-dev=310ms 

@@ -1,0 +1,3 @@
+# SPDX-License-Identifier: MIT
+CXROW	gpu-kernel	pass	1	result correct, managedprobe 2x to stage 2	-
+CXROW	cuda-managed	pass	1	managedprobe stage 2: managed buffer written by the GPU, prefetched, and compared on the CPU (bad=0)	-

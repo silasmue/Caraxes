@@ -1,0 +1,22 @@
+# SPDX-License-Identifier: MIT
+# target v1 metric rl rep 2
+# cmd NVRL_EPISODES=50 $HOME/gpu/venv/bin/python $HOME/caraxes-tests/leandro-test/probe/python/rlprobe.py
+# device /mnt/vmstore/leandro/l615-host-bin-8c0d2b2/vhost-user-nvrm sha256 2fe56aa07903abcd
+# time 2026-09-24T17:35:11+02:00
+# gpu 57, 1410 MHz, 7000 MHz, P0, 6 %, 3312 MiB, Disabled
+# procs 35440:bench-v1-615-dev 35517:bench-v1-615-vmm 36468:vm2-dev 36476:vm1-vmm 
+# loadavg 3.17 2.71 1.75
+rlprobe: stage=4 episodes=50 pin=False nonblock=False sync=False item=True
+stage0: cuInit ok, Leandro VirtIO RTX 2070
+stage1: policy on cuda:0
+stage2: rollout 25 steps, return=25
+stage3: update loss=2.271
+  ep   10  return=   11  mean10=  20.7
+  ep   20  return=   15  mean10=  14.4
+  ep   30  return=   13  mean10=  15.8
+  ep   40  return=   39  mean10=  28.3
+  ep   50  return=   38  mean10=  56.9
+stage4: 50 episodes in 1.6s, mean10=56.9
+transfers: H2D=1437 D2H=1437 (~1791/s)
+# WALL wall_ms=5064 rc=0
+# MEAS dev_pid=35440 dev_cpu_ms=330 dev_rss_hwm_kb=446856/564196 vmm_cpu_ms=4970 others: vm1-vmm=4080ms vm2-dev=2250ms 

@@ -1,0 +1,12 @@
+      1 vfio-user-nvgpu: ERROR: bar1 passthrough: guest BAR1 0x8f000 maps Fb(6077607936), the passthrough area gives FB 0x16a20f000: guest CPU accesses of this page reach the wrong page of its own reservation
+      1 vfio-user-nvgpu: ERROR: bar1 passthrough: guest BAR1 0x8e000 maps Fb(6077603840), the passthrough area gives FB 0x16a20e000: guest CPU accesses of this page reach the wrong page of its own reservation
+      1 vfio-user-nvgpu: ERROR: bar1 passthrough: guest BAR1 0x8d000 maps Fb(6077599744), the passthrough area gives FB 0x16a20d000: guest CPU accesses of this page reach the wrong page of its own reservation
+      1 vfio-user-nvgpu: ERROR: bar1 passthrough: guest BAR1 0x8c000 maps Fb(6077595648), the passthrough area gives FB 0x16a20c000: guest CPU accesses of this page reach the wrong page of its own reservation
+      1 vfio-user-nvgpu: ERROR: bar1 passthrough: guest BAR1 0x8b000 maps Fb(6077591552), the passthrough area gives FB 0x16a20b000: guest CPU accesses of this page reach the wrong page of its own reservation
+      1 vfio-user-nvgpu: ERROR: bar1 passthrough: guest BAR1 0x8a000 maps Fb(6077587456), the passthrough area gives FB 0x16a20a000: guest CPU accesses of this page reach the wrong page of its own reservation
+      1 vfio-user-nvgpu: ERROR: bar1 passthrough: guest BAR1 0x89000 maps Fb(6077583360), the passthrough area gives FB 0x16a209000: guest CPU accesses of this page reach the wrong page of its own reservation
+      1 vfio-user-nvgpu: ERROR: bar1 passthrough: guest BAR1 0x88000 maps Fb(6077579264), the passthrough area gives FB 0x16a208000: guest CPU accesses of this page reach the wrong page of its own reservation
+      1 vfio-user-nvgpu: ERROR: bar1 passthrough: guest BAR1 0x87000 maps Fb(6077575168), the passthrough area gives FB 0x16a207000: guest CPU accesses of this page reach the wrong page of its own reservation
+      1 vfio-user-nvgpu: ERROR: bar1 passthrough: guest BAR1 0x86000 maps Fb(6077571072), the passthrough area gives FB 0x16a206000: guest CPU accesses of this page reach the wrong page of its own reservation
+      1 vfio-user-nvgpu: ERROR: bar1 passthrough: guest BAR1 0x85000 maps Fb(6077566976), the passthrough area gives FB 0x16a205000: guest CPU accesses of this page reach the wrong page of its own reservation
+      1 vfio-user-nvgpu: ERROR: bar1 passthrough: guest BAR1 0x84000 maps Fb(6077562880), the passthrough area gives FB 0x16a204000: guest CPU accesses of this page reach the wrong page of its own reservation
