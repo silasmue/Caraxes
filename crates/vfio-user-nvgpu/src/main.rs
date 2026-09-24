@@ -250,12 +250,19 @@ fn spawn_signal_thread(hm: Arc<Mutex<HostMemory>>) -> Result<()> {
             unsafe { libc::sigwait(&set, &mut sig) };
             eprintln!("vfio-user-nvgpu: signal {sig}: freeing host memory and exiting");
             // A DMA_MAP registration in progress holds the lock; wait for it.
-            let log = match hm.lock() {
-                Ok(mut h) => h.shutdown(),
-                Err(p) => p.into_inner().shutdown(),
+            let (log, closed) = match hm.lock() {
+                Ok(mut h) => (h.shutdown(), h.fail_closed().map(str::to_owned)),
+                Err(p) => {
+                    let mut h = p.into_inner();
+                    (h.shutdown(), h.fail_closed().map(str::to_owned))
+                }
             };
             for l in log {
                 eprintln!("vfio-user-nvgpu: hostmem: {l}");
+            }
+            if let Some(why) = closed {
+                eprintln!("vfio-user-nvgpu: exit 3: teardown failed closed ({why})");
+                std::process::exit(FAIL_CLOSED_EXIT);
             }
             std::process::exit(128 + sig);
         })?;
@@ -376,8 +383,11 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
             model = model
                 .with_exec(hm, intr_shared.clone())
                 .map_err(anyhow::Error::msg)?;
+            let (wlen, wn) = vfio_user_nvgpu::fb::bar1_budget();
             eprintln!(
-                "vfio-user-nvgpu: host execution on: FB backed by the reserved VRAM through BAR1 windows; guest channels mirrored on the host at their first doorbell; GR0/CE2-CE4 non-stall events forwarded as guest vectors (docs/caraxes/execution.md)"
+                "vfio-user-nvgpu: host execution on: FB backed by the reserved VRAM through BAR1 windows (budget {wn} x {} MiB = {} MiB of the host's shared BAR1; CARAXES_BAR1_WINDOWS, CARAXES_BAR1_WINDOW_MIB); guest channels mirrored on the host at their first doorbell; GR0/CE2-CE4 non-stall events forwarded as guest vectors (docs/caraxes/execution.md)",
+                wlen >> 20,
+                (wlen >> 20) * wn
             );
         }
         bar0 = bar0.with_boot_model(model);
@@ -431,17 +441,31 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
         .map_err(|e| anyhow::anyhow!("vfio-user server: {e}"));
     // The client is gone: free the descriptors and the reservation before exiting.
     device.shutdown();
+    let mut closed = None;
     if let Some(hm) = &host_mem {
-        let log = match hm.lock() {
-            Ok(mut h) => h.shutdown(),
-            Err(p) => p.into_inner().shutdown(),
+        let (log, c) = match hm.lock() {
+            Ok(mut h) => (h.shutdown(), h.fail_closed().map(str::to_owned)),
+            Err(p) => {
+                let mut h = p.into_inner();
+                (h.shutdown(), h.fail_closed().map(str::to_owned))
+            }
         };
         log.iter()
             .for_each(|l| eprintln!("vfio-user-nvgpu: hostmem: {l}"));
+        closed = c;
     }
     eprint!("{}", device.summary());
+    if let Some(why) = closed {
+        // Fail closed (P20 item 4a): never report a clean exit when host state the GPU
+        // could still reach was kept; the fd close at exit hands it to the host RM.
+        eprintln!("vfio-user-nvgpu: exit {FAIL_CLOSED_EXIT}: teardown failed closed ({why})");
+        std::process::exit(FAIL_CLOSED_EXIT);
+    }
     result
 }
+
+/// Exit status of a teardown that failed closed (hostmem.rs `run_teardown`).
+const FAIL_CLOSED_EXIT: i32 = 3;
 
 fn device_rom_len(p: &Path) -> u64 {
     std::fs::metadata(p).map(|m| m.len()).unwrap_or(0)

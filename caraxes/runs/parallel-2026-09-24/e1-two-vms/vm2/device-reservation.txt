@@ -1,0 +1,10 @@
+vfio-user-nvgpu: hostmem: host FB regions: [0x3600000, 0x1e918ffff] reserved 0x0
+vfio-user-nvgpu: hostmem: host VRAM: total 8192 MiB, HEAP_FREE 4576 MiB, nvidia-smi free 4577 MiB, largest free region 4040 MiB at 0x6c800000; request 2048 MiB at [0xe9000000, 0x169000000) (slot 1, heap region end 0x1e9190000)
+vfio-user-nvgpu: hostmem: reserved host VRAM [0xe9000000, 0x169000000) (2048 MiB, slot 1), handle 0x80000003, attr 0x11800000 attr2 0x100005, contiguous, in 0 ms
+vfio-user-nvgpu: fb layout: address space 0x200000000 (host card), reservation [0xe9000000, 0x169000000), usable [0xe9000000, 0x168e00000), BAR2/BAR1 roots 0x168e00000/0x168e01000, fb_length 0x80000000
+vfio-user-nvgpu: hostmem: registered guest RAM chunk GPA 0x0..0x40000000 -> IOVA 0x7ffd80000000..0x7ffdc0000000 (descriptor 0x80000004, 697 ms, 9 IOVA samples = base + offset)
+vfio-user-nvgpu: hostmem: registered guest RAM chunk GPA 0x40000000..0x80000000 -> IOVA 0x7ffd40000000..0x7ffd80000000 (descriptor 0x80000005, 754 ms, 9 IOVA samples = base + offset)
+vfio-user-nvgpu: hostmem: registered guest RAM chunk GPA 0x80000000..0xc0000000 -> IOVA 0x7ffd00000000..0x7ffd40000000 (descriptor 0x80000006, 626 ms, 9 IOVA samples = base + offset)
+vfio-user-nvgpu: hostmem: guest RAM 0x0+0xc0000000: 3 chunk(s) in 2079 ms; pinned now 3072 MiB; host foll_pin acquired +786343 released +0; privileged windows so far 3
+vfio-user-nvgpu: hostmem: registered guest RAM chunk GPA 0x100000000..0x140000000 -> IOVA 0x7ffcc0000000..0x7ffd00000000 (descriptor 0x80000007, 1544 ms, 9 IOVA samples = base + offset)
+vfio-user-nvgpu: hostmem: guest RAM 0x100000000+0x40000000: 1 chunk(s) in 1544 ms; pinned now 4096 MiB; host foll_pin acquired +262233 released +0; privileged windows so far 4

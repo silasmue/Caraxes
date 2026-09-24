@@ -1204,3 +1204,25 @@ Tree: branch `worktree-agent-adbfba499c7110889` from `5de9b40`. VM: vm0, device
   `*.caraxes-orig`, undo line printed by `guest/gdm-wayland-setup.sh`. `/dev/nvidia-modeset`,
   `/dev/nvidiactl`, `/dev/nvidia0` made by `guest/display-up.sh`.
 - **Host GPU reads:** none beyond the device's nvml forwarding client.
+
+### P20: parallelism proof (2026-09-24)
+
+Two reserving VMs, vm1 on slot 0 and vm2 on slot 1, each with a 2 GiB profile, run in the green
+configuration at the same time on the card that drives the desktop. The write-up is
+[parallel.md](parallel.md). Evidence is under `caraxes/runs/parallel-2026-09-24/`. The host logged
+0 Xid over the whole window, 06:41 to 08:25. Every host GPU access went through the RM API as the
+devices' clients. Privileged controls stayed in the launcher's CAP_SYS_ADMIN windows. No host
+module or register was touched.
+
+| Attempt (time) | Hypothesis | Change | Result | Exception | Evidence |
+|---|---|---|---|---|---|
+| e1 (06:41-06:46) | two 2 GiB slots fit beside the desktop and leave it 1 GiB | vm1 slot 0, vm2 slot 1 | `[0x169000000, 0x1e9000000)` and `[0xe9000000, 0x169000000)`; host used 1148 -> 3195 -> 5243 MiB; nvml 11/11 on both | none | `e1-two-vms/` |
+| e2 (06:46-07:20) | nvprobe and the cuda gate run concurrently | both at once | probes pass (28.3/27.2 ms, then about 22 ms, against 18 alone); the scored gate passes except one hostreg roundtrip on vm2; both devices deadlock in `suite-test_async_streams` | no Xid; 732088 refused host BAR1 mappings (06:53:47-06:57:12); guest RCU stalls | `e2-concurrent/` (`hang-*`, `dev-*`, `check.txt`) |
+| diagnosis (07:15-07:25) | the server thread waits on the HostMemory lock it already holds | read the thread states and the code paths | the shadow sync holds the lock, and the FB store's window map takes it again; the leak is the missing `RM_UNMAP_MEMORY` in `Window::drop` | none; recovered with kill -9 (fd close), host back to 1152 MiB | `e2-concurrent/` |
+| e2b (07:28) | a lock-free mapper and a 2 x 32 MiB budget are enough | first fix build | the device's own 2 MiB scan windows leaked BAR1 (no unmap); the store stalled without a window (writes no longer dropped) | about 920k refused BAR1 mapping lines; vm1 and vm2 stopped | `e2b-aborted-bar1-leak/` |
+| e2c (07:42) | `RM_UNMAP_MEMORY` on window drop releases BAR1 | unmap in `Window::drop` | 256 windows mapped and released, 0 refused, 0 asserts | none | `e2c-bar1-unmap/` |
+| e2d (07:44-08:07) | the concurrent gate passes on the fixed device | rerun | probes pass (24.7/25.0 ms, then 16.5-18.3 ms, against 18.2-18.5 alone); the scored gate is the single-VM green set on both; then `suite-test_async_streams` (545k mirrored leaves, about 556k RM maps per device) stalls the host RM: `nvidia-smi` timed out at 20 s, the desktop's electron GPU process restarted at 08:04:34, and host IOMMU IO_PAGE_FAULTs at 0x7fff00000000 + 0..0x5000 (07:58:30-08:00:41) | no Xid; host impact, see parallel.md §2.4 and §8 | `e2d-concurrent-fixed/` |
+| e3 (08:10-08:18) | VM B never sees VM A's VRAM | a 1 GiB pattern held in A, B scans everything it can allocate, both directions, positive control | 0 foreign records, 1728 MiB and 640 MiB scanned; the control finds 16.7M stale own records; checker PASS on e2 and e3 | none | `e3-isolation/` |
+| e5 (08:16) | a third 2 GiB VM is refused by D11 | vm3 slot 2 | refused (would leave 569 MiB, shortfall 455 MiB) before its socket existed; vm1 and vm2 unaffected | none | `e5-refusal/` |
+| e4b (08:18-08:21) | host scrub on free covers the reservation | A down while holding the pattern; C reserves slot 0 and scans | before the free, 327680 records in the samples; after the new reservation, 0 records and 0 non-zero dwords (device); 1728 MiB of zeros (guest); the next allocation waits 23-38 ms for the 2 GiB scrub | none | `e4-scrub/` |
+| e4a (08:20) | a failed free makes the teardown fail closed | `CARAXES_INJECT_TEARDOWN_FAILURE=1` on vm2 | `FAIL-CLOSED teardown`: descriptors and reservation kept, exit 3; the fd close freed the 2048 MiB | none | `e4-failclosed/` |

@@ -1,0 +1,44 @@
+== dev-vm1: reservation [0x169000000, 0x1e9000000); guest RAM IOVA chunks 0x7ffe00000000+0x40000000 0x7ffe80000000+0x40000000 0x7ffec0000000+0x40000000 0x7fff80000000+0x40000000
+873 shadow sync lines; union of mapped vidmem PAs [0x169200000, 0x1e8bb0000); sysmem chunks mapped from: 0x7ffe00000000 (20855 maps) 0x7ffe80000000 (219437 maps) 0x7ffec0000000 (204028 maps) 0x7fff80000000 (38540 maps)
+ok: every mapped vidmem PA inside the own reservation, none in the other's
+ok: every mapped sysmem chunk is one of the own registered chunks, none of the other's
+51 refused-leaf lines, 27 distinct:
+  Fb 0x2000 size 0x1000 kind 0xf x25: vidmem outside the reservation; lies in neither VM's range
+  Fb 0x3000 size 0x1000 kind 0xf x1: vidmem outside the reservation; lies in neither VM's range
+  Fb 0x16000 size 0x1000 kind 0xf x1: vidmem outside the reservation; lies in neither VM's range
+  Sys 0x7fff00000000 size 0x1000 kind 0x6 x1: sysmem outside the registered guest-RAM ranges; lies in neither VM's range
+  Sys 0x7fff00001000 size 0x1000 kind 0x6 x1: sysmem outside the registered guest-RAM ranges; lies in neither VM's range
+  Sys 0x7fff00002000 size 0x1000 kind 0x6 x1: sysmem outside the registered guest-RAM ranges; lies in neither VM's range
+  Sys 0x7fff00003000 size 0x1000 kind 0x6 x1: sysmem outside the registered guest-RAM ranges; lies in neither VM's range
+  Sys 0x7fff00004000 size 0x1000 kind 0x6 x1: sysmem outside the registered guest-RAM ranges; lies in neither VM's range
+  Sys 0x7fff00005000 size 0x1000 kind 0x6 x1: sysmem outside the registered guest-RAM ranges; lies in neither VM's range
+  Sys 0x7fff00006000 size 0x1000 kind 0x6 x1: sysmem outside the registered guest-RAM ranges; lies in neither VM's range
+  Sys 0x7fff00007000 size 0x1000 kind 0x6 x1: sysmem outside the registered guest-RAM ranges; lies in neither VM's range
+  Sys 0x7fff00008000 size 0x1000 kind 0x6 x1: sysmem outside the registered guest-RAM ranges; lies in neither VM's range
+  Sys 0x7fff00009000 size 0x1000 kind 0x6 x1: sysmem outside the registered guest-RAM ranges; lies in neither VM's range
+  Sys 0x7fff0000a000 size 0x1000 kind 0x6 x1: sysmem outside the registered guest-RAM ranges; lies in neither VM's range
+  Sys 0x7fff0000b000 size 0x1000 kind 0x6 x1: sysmem outside the registered guest-RAM ranges; lies in neither VM's range
+  Sys 0x7fff0000c000 size 0x1000 kind 0x6 x1: sysmem outside the registered guest-RAM ranges; lies in neither VM's range
+  Sys 0x7fff0000d000 size 0x1000 kind 0x6 x1: sysmem outside the registered guest-RAM ranges; lies in neither VM's range
+  Sys 0x7fff0000e000 size 0x1000 kind 0x6 x1: sysmem outside the registered guest-RAM ranges; lies in neither VM's range
+  Sys 0x7fff0000f000 size 0x1000 kind 0x6 x1: sysmem outside the registered guest-RAM ranges; lies in neither VM's range
+  Sys 0x7fff00010000 size 0x1000 kind 0x6 x1: sysmem outside the registered guest-RAM ranges; lies in neither VM's range
+  Sys 0x7fff00011000 size 0x1000 kind 0x6 x1: sysmem outside the registered guest-RAM ranges; lies in neither VM's range
+  Sys 0x7fff00012000 size 0x1000 kind 0x6 x1: sysmem outside the registered guest-RAM ranges; lies in neither VM's range
+  Sys 0x7fff00013000 size 0x1000 kind 0x6 x1: sysmem outside the registered guest-RAM ranges; lies in neither VM's range
+  Sys 0x7fff00014000 size 0x1000 kind 0x6 x1: sysmem outside the registered guest-RAM ranges; lies in neither VM's range
+  Sys 0x7fff00015000 size 0x1000 kind 0x6 x1: sysmem outside the registered guest-RAM ranges; lies in neither VM's range
+  Sys 0x7fff00016000 size 0x1000 kind 0x6 x1: sysmem outside the registered guest-RAM ranges; lies in neither VM's range
+  Sys 0x7fff00017000 size 0x1000 kind 0x6 x1: sysmem outside the registered guest-RAM ranges; lies in neither VM's range
+== dev-vm2: reservation [0xe9000000, 0x169000000); guest RAM IOVA chunks 0x7ffcc0000000+0x40000000 0x7ffd00000000+0x40000000 0x7ffd40000000+0x40000000 0x7ffd80000000+0x40000000
+914 shadow sync lines; union of mapped vidmem PAs [0xe9200000, 0x168bb0000); sysmem chunks mapped from: 0x7ffcc0000000 (19214 maps) 0x7ffd00000000 (44783 maps) 0x7ffd40000000 (146502 maps) 0x7ffd80000000 (12515 maps)
+ok: every mapped vidmem PA inside the own reservation, none in the other's
+ok: every mapped sysmem chunk is one of the own registered chunks, none of the other's
+32 refused-leaf lines, 5 distinct:
+  Fb 0x2000 size 0x1000 kind 0xf x26: vidmem outside the reservation; lies in neither VM's range
+  Fb 0x3000 size 0x1000 kind 0xf x1: vidmem outside the reservation; lies in neither VM's range
+  Fb 0x16000 size 0x1000 kind 0xf x1: vidmem outside the reservation; lies in neither VM's range
+  Sys 0xf0041b3000 size 0x1000 kind 0x6 x2: sysmem outside the registered guest-RAM ranges; lies in neither VM's range
+  Sys 0xf0041d1000 size 0x1000 kind 0x6 x2: sysmem outside the registered guest-RAM ranges; lies in neither VM's range
+== host Xid lines: 0; device pids [1724206, 1728234]; not contained: 0
+RESULT: PASS

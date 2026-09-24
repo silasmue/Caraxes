@@ -71,6 +71,7 @@ driver recognizes and initializes a Turing/RTX 2070-like device. Windows later.
 | [display-ab.md](display-ab.md) | Display phases A and B on vm0 (D15): the display in the GSP role (`--display`; `src/display/`, `chips/tu106/display.toml`, the board's `[display]` connector, the `crates/dp-sink` sink behind an NV0073 AUX adapter); gate D3 passed (`card0-DP-1` connected, EDID byte-identical and edid-decode clean, 1080p60/720p60/1080p50, the over-budget 8K120 VIC pruned, no modeset); every display RPC/control in order with its answer and label (D2); the recorded AUX capture replaced the hand-written transcript; what phase C needs (core notifier, window completion, four modeset-path controls) |
 | [experiments.md](experiments.md) | The experiment ladder, starting with the smallest one, each with a falsifiable expectation |
 | [kickoff.md](kickoff.md) | The brief for the implementation sessions: rules, reading order, E0 step by step, run recipe, parked ideas |
+| [parallel.md](parallel.md) | P20, the parallelism proof: two reserving VMs in fixed slots run the cuda gate concurrently beside the desktop; isolation by construction and by pattern test, the host's scrub on free proven for the reservation, fail-closed teardown, the D11 refusal of a third VM; the BAR1 leak and deadlock found and fixed, and two open sysmem-path findings (mapping scale, the chunk-crossing hole) |
 | [nova-vgpu-upstream.md](nova-vgpu-upstream.md) | The upstream nova-core vGPU manager series (v2, 32 patches, 2026-09-14) read patch by patch against the device: plugin ABI and RPC discipline, VRAM/channel allocation, CeUtils scrubbing and fail-closed teardown, VMMU segment, FIFO engine table, VF routing, migration, logging; ranked actionable differences and a cross-check of the GSP message queues (subagent report, P19) |
 | [open-questions.md](open-questions.md) | Unresolved questions, numbered |
 
@@ -514,3 +515,21 @@ the VM; then display, expected to be much easier than in v1.
   `vdisplay` and `display` gates pass (GPU-execution stages not run: no host execution on vm0;
   the compositor stage missed 60 +- 0.5 Hz by 0.01 Hz once under host load). Open: GPU-rendered compositors (host-exec), BAR1
   direct mapping (CPU access to scanout buffers runs at 0.4 MB/s), cursor, Moonlight reception.
+- 2026-09-24: **P20, the parallelism proof** ([parallel.md](parallel.md), evidence in
+  `caraxes/runs/parallel-2026-09-24/`). vm1 on slot 0 and vm2 on slot 1 (2 GiB each) run
+  concurrently beside the desktop.
+  - The nvml gate passes 11/11 on both, and the scored cuda gate passes on both at once with the
+    single-VM green result.
+  - A 1 GiB pattern in one VM is invisible to the other in both directions.
+  - The host RM's scrub on free clears a freed slot before its next owner sees it (2 GiB costs
+    23-38 ms).
+  - The teardown fails closed (exit 3, registrations and reservation kept).
+  - A third 2 GiB VM is refused by the D11 headroom rule.
+  - The host logged 0 Xid, and the comptag audit is clean on both devices.
+  - Fixed on the way: a BAR1 leak (windows were never `RM_UNMAP_MEMORY`ed), a lock re-entry
+    deadlock in the FB store, and silently dropped guest writes; the per-device BAR1 budget is now
+    2 x 32 MiB.
+  - Found and not fixed: the unscored `suite-test_async_streams` mirrors about 545k leaves per
+    device and stalled the host RM for minutes at teardown (the desktop's electron GPU process
+    restarted); and a guest buffer crossing a 1 GiB GPA chunk makes CE page tables point past the
+    VM's registered guest RAM, which the host IOMMU blocked (parallel.md §8).

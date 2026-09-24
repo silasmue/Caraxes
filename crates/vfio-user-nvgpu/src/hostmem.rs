@@ -40,6 +40,12 @@ const NV_ESC_RM_GET_EVENT_DATA: u32 = 0x52;
 /// only in VRAM once a read of the window came back, which [`Window::write`] does.
 pub struct Window {
     _fd: NvDevice,
+    /// What `RM_UNMAP_MEMORY` needs to release the BAR1 mapping when the window goes:
+    /// a duplicate of the client's ctl FD, hClient, hDevice, hMemory and the linear
+    /// address RM returned. Closing the mapping FD alone does not release it (P20: every
+    /// evicted window leaked host BAR1 until the client died, which exhausted the
+    /// desktop's BAR1 with two devices).
+    unmap: Option<(NvDevice, u32, u32, u32, sys::NvP64)>,
     ptr: *mut u8,
     /// Offset of the window inside the reservation, and its length.
     pub offset: u64,
@@ -127,8 +133,99 @@ impl Window {
 
 impl Drop for Window {
     fn drop(&mut self) {
-        // SAFETY: our own mapping; the fd closes with `_fd` and releases the RM mapping.
+        // SAFETY: our own mapping.
         unsafe { libc::munmap(self.ptr.cast(), self.len) };
+        // Release the RM mapping (and its BAR1 space), then the FD closes with `_fd`.
+        if let Some((ctl, root, device, memory, linear)) = self.unmap.take() {
+            let mut p = sys::NVOS34_PARAMETERS::default();
+            p.hClient = root;
+            p.hDevice = device;
+            p.hMemory = memory;
+            p.pLinearAddress = linear;
+            p.flags = 0;
+            // SAFETY: NVOS34 is this escape's ABI; plain data, no host pointers besides
+            // the RM cookie it returned for this mapping.
+            let r = unsafe { ctl.ioctl_raw(sys::NV_ESC_RM_UNMAP_MEMORY, &mut p) };
+            if r.is_err() || p.status as u32 != sys::NV_OK {
+                eprintln!(
+                    "vfio-user-nvgpu: ERROR: fb: RM_UNMAP_MEMORY of the BAR1 window at reservation offset {:#x} (+{:#x}): {:?} status {:#x}",
+                    self.offset, self.len, r.err(), p.status as u32
+                );
+            }
+        }
+    }
+}
+
+/// `RM_MAP_MEMORY` of `len` bytes of the memory object `handle` at `offset` on a fresh
+/// `/dev/nvidia0` fd registered to `ctl`, then `mmap` of that fd: a BAR1 window.
+fn map_window(
+    ctl: &NvDevice,
+    gpu: &NvDevice,
+    root: u32,
+    device: u32,
+    handle: u32,
+    offset: u64,
+    len: usize,
+) -> Result<Window, Status> {
+    let target = gpu.open_for_mapping(ctl).map_err(|_| 0xFFFF_FFFFu32)?;
+    let mut params = sys::NVOS33_PARAMETERS::default();
+    params.hClient = root;
+    params.hDevice = device;
+    params.hMemory = handle;
+    params.offset = offset;
+    params.length = len as u64;
+    params.pLinearAddress = 0usize as sys::NvP64;
+    params.flags = nvos33_flags::ACCESS.set(nvos33_flags::ACCESS_READ_WRITE);
+    let mut p = Nvos33WithFd::new(params, target.as_raw_fd());
+    // SAFETY: NVOS33-with-fd is this escape's ABI; the context lands on `target`.
+    if unsafe { ctl.ioctl_raw(sys::NV_ESC_RM_MAP_MEMORY, &mut p) }.is_err() {
+        return Err(0xFFFF_FFFF);
+    }
+    if p.params.status as u32 != sys::NV_OK {
+        return Err(p.params.status as u32);
+    }
+    // SAFETY: RM installed the mapping context on `target`; offset 0 by RM's rule.
+    let ptr = unsafe {
+        libc::mmap(
+            std::ptr::null_mut(),
+            len,
+            libc::PROT_READ | libc::PROT_WRITE,
+            libc::MAP_SHARED,
+            target.as_raw_fd(),
+            0,
+        )
+    };
+    if ptr == libc::MAP_FAILED {
+        return Err(0xFFFF_FFFF);
+    }
+    let linear = p.params.pLinearAddress;
+    Ok(Window {
+        _fd: target,
+        unmap: ctl
+            .try_clone()
+            .ok()
+            .map(|c| (c, root, device, handle, linear)),
+        ptr: ptr.cast(),
+        offset,
+        len,
+    })
+}
+
+/// BAR1 windows of the reservation without the `HostMemory` lock
+/// ([`HostMemory::reservation_mapper`]). Only maps; the reservation outlives it because
+/// the device frees the reservation after the FB store (and the client's fd close frees
+/// every mapping anyway).
+pub struct ReservationMapper {
+    ctl: NvDevice,
+    gpu: NvDevice,
+    root: u32,
+    device: u32,
+    handle: u32,
+}
+
+impl ReservationMapper {
+    pub fn map(&self, offset: u64, len: usize) -> Result<Window, Status> {
+        map_window(&self.ctl, &self.gpu, self.root, self.device, self.handle, offset, len)
     }
 }
 
@@ -179,6 +276,31 @@ pub const RAM_FLOOR: u64 = 4 * GIB;
 pub const CHUNK: u64 = GIB;
 /// Where each chunk's IOVA is read besides offset 0 and the last page.
 const SAMPLE_STEP: u64 = 128 * MIB;
+/// The P20 pattern record's two magic words (caraxes/tools/p20-patprobe.c).
+const P20_MAGIC: (u32, u32) = (0xCA7A_5E5A, 0x50A7_7E2D);
+/// Sampling of [`HostMemory::scan_reservation`]: one 2 MiB BAR1 window every 16 MiB, of
+/// which the first 64 KiB are read.
+const SCAN_STEP: u64 = 16 * MIB;
+const SCAN_READ: usize = 64 * 1024;
+
+/// Count, in `buf`, the 16-byte-aligned P20 pattern records and the non-zero dwords.
+pub fn count_pattern(buf: &[u8]) -> (u64, u64) {
+    let (mut records, mut nonzero) = (0u64, 0u64);
+    for (i, w) in buf.chunks_exact(4).enumerate() {
+        let d = u32::from_le_bytes([w[0], w[1], w[2], w[3]]);
+        if d != 0 {
+            nonzero += 1;
+        }
+        if i % 4 == 0 && d == P20_MAGIC.0 && buf.len() >= i * 4 + 8 {
+            let e = u32::from_le_bytes(buf[i * 4 + 4..i * 4 + 8].try_into().unwrap());
+            if e == P20_MAGIC.1 {
+                records += 1;
+            }
+        }
+    }
+    (records, nonzero)
+}
+
 /// Heap attribution tag of the reservation (as host-facts.rs).
 const OWNER_TAG: u32 = u32::from_le_bytes(*b"cara");
 
@@ -254,6 +376,83 @@ pub struct HostMemory {
     /// `nr_foll_pin_acquired`/`_released` when the client opened (host-wide counters).
     pins_at_open: (u64, u64),
     shut: bool,
+    /// Host frees that did not return NV_OK over the device's life (`free_object`,
+    /// `free_live`), with a line each. Any entry makes the teardown fail closed
+    /// ([`run_teardown`]): a host object whose free failed may still reference the
+    /// guest's IOVAs or the reservation.
+    free_failures: Vec<String>,
+    /// Set when the teardown kept the registrations or the reservation (fail closed):
+    /// the reason. The process must then exit non-zero (main.rs).
+    fail_closed: Option<String>,
+}
+
+/// One step of the teardown that frees host state the GPU could still reach.
+pub trait TeardownOps {
+    /// Free the mirror objects (channels, TSGs, VA spaces); returns how many frees failed.
+    fn free_mirrors(&mut self, log: &mut Vec<String>) -> usize;
+    /// Guest RAM descriptors still registered.
+    fn descriptor_count(&self) -> usize;
+    /// Free the last registered descriptor (unpinning its guest RAM); false on failure,
+    /// in which case the descriptor stays registered.
+    fn free_last_descriptor(&mut self, log: &mut Vec<String>) -> bool;
+    /// Scrub and free the reservation (if held); false on failure (kept).
+    fn free_reservation(&mut self, log: &mut Vec<String>) -> bool;
+    /// Free the host RM client; false on failure.
+    fn free_client(&mut self, log: &mut Vec<String>) -> bool;
+}
+
+/// How a teardown ended.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum TeardownOutcome {
+    /// Everything freed.
+    Clean,
+    /// Fail closed (P20 item 4a, the upstream rule "if ownership or completion is
+    /// uncertain, keep the affected VRAM and channels out of the allocators",
+    /// nova-vgpu-upstream.md §3.5): a free failed, so nothing after it was freed
+    /// explicitly. `descriptors_kept` guest RAM chunks stay pinned, the reservation stays
+    /// held when `reservation_kept`; the process exits non-zero and the close of
+    /// `/dev/nvidiactl` lets the RM free the client in its own dependency order.
+    FailClosed {
+        reason: String,
+        descriptors_kept: usize,
+        reservation_kept: bool,
+    },
+}
+
+/// The fail-closed teardown order: mirror objects, then the descriptors (unpinning guest
+/// RAM), then the reservation, then the client. A failure at any step, or an earlier
+/// failed host free (`prior_failures`), stops the sequence there: no descriptor is freed
+/// after a failed mirror free, and the reservation is never freed after a failed unpin.
+pub fn run_teardown<O: TeardownOps>(
+    ops: &mut O,
+    prior_failures: usize,
+    log: &mut Vec<String>,
+) -> TeardownOutcome {
+    let failed = ops.free_mirrors(log) + prior_failures;
+    let closed = |ops: &O, reason: String, reservation_kept: bool| TeardownOutcome::FailClosed {
+        reason,
+        descriptors_kept: ops.descriptor_count(),
+        reservation_kept,
+    };
+    if failed > 0 {
+        return closed(
+            ops,
+            format!("{failed} host object free(s) failed before the descriptors"),
+            true,
+        );
+    }
+    while ops.descriptor_count() > 0 {
+        if !ops.free_last_descriptor(log) {
+            return closed(ops, "a guest RAM descriptor free (unpin) failed".into(), true);
+        }
+    }
+    if !ops.free_reservation(log) {
+        return closed(ops, "the reservation free failed".into(), true);
+    }
+    if !ops.free_client(log) {
+        return closed(ops, "the host RM client free failed".into(), false);
+    }
+    TeardownOutcome::Clean
 }
 
 /// One RM status, for callers that log the number rather than fail.
@@ -343,6 +542,8 @@ impl HostMemory {
             live: Vec::new(),
             pins_at_open: foll_pins(),
             shut: false,
+            free_failures: Vec::new(),
+            fail_closed: None,
         })
     }
 
@@ -625,10 +826,25 @@ impl HostMemory {
         let Some(i) = self.live.iter().rposition(|(_, h, _)| *h == handle) else {
             return Err(0xFFFF_FFFE);
         };
-        let (parent, _, _) = self.live.remove(i);
+        let (parent, _, what) = self.live.remove(i);
         // RM frees the subtree; forget the children this side too.
         self.live.retain(|(p, _, _)| *p != handle);
-        self.rm_free(parent, handle)
+        let r = self.rm_free(parent, handle);
+        if let Err(st) = r {
+            self.free_failures
+                .push(format!("host {what} {handle:#x}: status {st:#x}"));
+        }
+        r
+    }
+
+    /// Host frees that failed so far (each makes the teardown fail closed).
+    pub fn free_failures(&self) -> &[String] {
+        &self.free_failures
+    }
+
+    /// Why the teardown failed closed, if it did: the process must exit non-zero.
+    pub fn fail_closed(&self) -> Option<&str> {
+        self.fail_closed.as_deref()
     }
 
     fn rm_free(&self, parent: u32, handle: u32) -> Result<(), Status> {
@@ -654,7 +870,11 @@ impl HostMemory {
         while let Some((parent, h, what)) = self.live.pop() {
             match self.rm_free(parent, h) {
                 Ok(()) => log.push(format!("freed host {what} {h:#x}")),
-                Err(st) => log.push(format!("ERROR freeing host {what} {h:#x}: status {st:#x}")),
+                Err(st) => {
+                    log.push(format!("ERROR freeing host {what} {h:#x}: status {st:#x}"));
+                    self.free_failures
+                        .push(format!("host {what} {h:#x}: status {st:#x}"));
+                }
             }
         }
         log
@@ -673,49 +893,86 @@ impl HostMemory {
         Ok(h)
     }
 
+    /// A sampled read of the whole reservation through BAR1 (P20 item 4b): every 16 MiB
+    /// a 2 MiB window, its first 64 KiB read; counts the P20 pattern records and the
+    /// non-zero dwords. Only with `CARAXES_P20_SCAN=1` (at the reservation and before its
+    /// free). Read-only; the windows are dropped before returning.
+    pub fn scan_reservation(&mut self, when: &str) -> Option<String> {
+        if std::env::var("CARAXES_P20_SCAN").as_deref() != Ok("1") {
+            return None;
+        }
+        let r = self.reservation.clone()?;
+        let t = Instant::now();
+        let (mut records, mut nonzero, mut bytes, mut windows, mut refused) = (0u64, 0u64, 0u64, 0u32, 0u32);
+        let mut hit_offsets = Vec::new();
+        let mut buf = vec![0u8; SCAN_READ];
+        let mut off = 0;
+        while off < r.size {
+            match self.map_reservation(off, (2 * MIB) as usize) {
+                Ok(w) => {
+                    windows += 1;
+                    w.read(off, &mut buf);
+                    let (rec, nz) = count_pattern(&buf);
+                    if rec > 0 && hit_offsets.len() < 8 {
+                        hit_offsets.push(off);
+                    }
+                    records += rec;
+                    nonzero += nz;
+                    bytes += SCAN_READ as u64;
+                }
+                Err(_) => refused += 1,
+            }
+            off += SCAN_STEP;
+        }
+        Some(format!(
+            "P20 scan {when}: reservation [{:#x}, {:#x}) sampled {} KiB in {windows} window(s) ({refused} refused): {records} pattern record(s), {nonzero} non-zero dword(s) of {}{} in {} ms",
+            r.base,
+            r.end(),
+            bytes / KIB,
+            bytes / 4,
+            if hit_offsets.is_empty() {
+                String::new()
+            } else {
+                format!(
+                    " (records at offsets {})",
+                    hit_offsets
+                        .iter()
+                        .map(|o| format!("{o:#x}"))
+                        .collect::<Vec<_>>()
+                        .join(" ")
+                )
+            },
+            t.elapsed().as_millis()
+        ))
+    }
+
     /// Map `len` bytes of the reservation at reservation offset `offset` through BAR1.
     pub fn map_reservation(&mut self, offset: u64, len: usize) -> Result<Window, Status> {
         let r = self.reservation.as_ref().ok_or(0xFFFF_FFFEu32)?;
-        let handle = r.handle;
-        let target = self
-            ._gpu
-            .open_for_mapping(self.rm.ctl())
-            .map_err(|_| 0xFFFF_FFFFu32)?;
-        let mut params = sys::NVOS33_PARAMETERS::default();
-        params.hClient = self.rm.root();
-        params.hDevice = self.device;
-        params.hMemory = handle;
-        params.offset = offset;
-        params.length = len as u64;
-        params.pLinearAddress = 0usize as sys::NvP64;
-        params.flags = nvos33_flags::ACCESS.set(nvos33_flags::ACCESS_READ_WRITE);
-        let mut p = Nvos33WithFd::new(params, target.as_raw_fd());
-        // SAFETY: NVOS33-with-fd is this escape's ABI; the context lands on `target`.
-        if unsafe { self.rm.ctl().ioctl_raw(sys::NV_ESC_RM_MAP_MEMORY, &mut p) }.is_err() {
-            return Err(0xFFFF_FFFF);
-        }
-        if p.params.status as u32 != sys::NV_OK {
-            return Err(p.params.status as u32);
-        }
-        // SAFETY: RM installed the mapping context on `target`; offset 0 by RM's rule.
-        let ptr = unsafe {
-            libc::mmap(
-                std::ptr::null_mut(),
-                len,
-                libc::PROT_READ | libc::PROT_WRITE,
-                libc::MAP_SHARED,
-                target.as_raw_fd(),
-                0,
-            )
-        };
-        if ptr == libc::MAP_FAILED {
-            return Err(0xFFFF_FFFF);
-        }
-        Ok(Window {
-            _fd: target,
-            ptr: ptr.cast(),
+        map_window(
+            self.rm.ctl(),
+            &self._gpu,
+            self.rm.root(),
+            self.device,
+            r.handle,
             offset,
             len,
+        )
+    }
+
+    /// A mapper for BAR1 windows of the reservation that holds its own duplicates of the
+    /// client's FDs, so the FB store maps windows without the `HostMemory` lock. The
+    /// shadow sync and the invalidator hold that lock while they walk the FB; a window
+    /// map from inside the walk locked it again and deadlocked the server thread once
+    /// BAR1 ran short (P20, docs/caraxes/parallel.md §2).
+    pub fn reservation_mapper(&self) -> Result<ReservationMapper, Status> {
+        let r = self.reservation.as_ref().ok_or(0xFFFF_FFFEu32)?;
+        Ok(ReservationMapper {
+            ctl: self.rm.ctl().try_clone().map_err(|_| 0xFFFF_FFFFu32)?,
+            gpu: self._gpu.try_clone().map_err(|_| 0xFFFF_FFFFu32)?,
+            root: self.rm.root(),
+            device: self.device,
+            handle: r.handle,
         })
     }
 
@@ -940,6 +1197,9 @@ impl HostMemory {
             smi_free,
             alloc_ms,
         });
+        if let Some(l) = self.scan_reservation("after the reservation") {
+            log.push(l);
+        }
         Ok(log)
     }
 
@@ -1110,6 +1370,16 @@ impl HostMemory {
     /// unmaps it). The GPU must be idle on the guest's channels first: in part 1 no
     /// host channel exists (docs/caraxes/memory-model.md §4).
     pub fn release_region(&mut self, gpa: u64, size: u64) -> Vec<String> {
+        // Never unpin while a host object that may reach the IOVAs lives (fail closed):
+        // the descriptors stay registered (the pages stay pinned, which is safe after the
+        // device's munmap) and the teardown frees them after the mirror objects.
+        if !self.live.is_empty() || !self.free_failures.is_empty() {
+            return vec![format!(
+                "guest RAM {gpa:#x}+{size:#x} unmapped by the client while {} host mirror object(s) live and {} free(s) failed: descriptors kept until the teardown (fail closed)",
+                self.live.len(),
+                self.free_failures.len()
+            )];
+        }
         let (gone, keep): (Vec<Descriptor>, Vec<Descriptor>) = self
             .descriptors
             .iter()
@@ -1123,65 +1393,151 @@ impl HostMemory {
             .collect()
     }
 
-    /// Free everything: the descriptors (unpinning guest RAM), then the reservation, then
-    /// the client. Idempotent. Part 1 has no host channels, so nothing can still be
-    /// using the IOVAs.
+    /// Free everything by [`run_teardown`]: the mirror objects, then the descriptors
+    /// (unpinning guest RAM), then the reservation, then the client, failing closed at the
+    /// first failure (docs/caraxes/parallel.md, P20 item 4a). Idempotent. After a fail
+    /// closed teardown [`HostMemory::fail_closed`] names the reason and the caller exits
+    /// non-zero. `CARAXES_INJECT_TEARDOWN_FAILURE=1` counts one failed host free (a test of
+    /// the rule on a live device; nothing is freed wrongly by it).
     pub fn shutdown(&mut self) -> Vec<String> {
         if self.shut {
             return Vec::new();
         }
         self.shut = true;
         let mut log = Vec::new();
-        // Mirror channels first (RM preempts and idles each channel in its free), so
-        // that no host channel can still reach the IOVAs the descriptors unpin next.
-        if !self.live.is_empty() {
-            let n = self.live.len();
-            log.extend(self.free_live());
-            log.push(format!(
-                "freed {n} host mirror object(s) before the descriptors"
-            ));
+        if std::env::var("CARAXES_INJECT_TEARDOWN_FAILURE").as_deref() == Ok("1") {
+            self.free_failures
+                .push("injected by CARAXES_INJECT_TEARDOWN_FAILURE=1".into());
+        }
+        let prior = self.free_failures.len();
+        for f in &self.free_failures {
+            log.push(format!("earlier failed host free: {f}"));
         }
         let n = self.descriptors.len();
         let bytes = self.pinned_bytes();
         let p0 = foll_pins();
-        for d in std::mem::take(&mut self.descriptors) {
-            if let Err(e) = self.free_descriptor(d.handle) {
-                log.push(format!("ERROR freeing descriptor {:#x}: {e}", d.handle));
-            }
-        }
+        let outcome = run_teardown(self, prior, &mut log);
         let p1 = foll_pins();
-        if n > 0 {
+        let freed = n - self.descriptors.len();
+        if freed > 0 {
             log.push(format!(
-                "freed {n} guest RAM descriptor(s), {} MiB unpinned; host foll_pin released +{} during the free (since open: acquired +{}, released +{})",
-                bytes / MIB,
+                "freed {freed} guest RAM descriptor(s), {} MiB unpinned; host foll_pin released +{} during the free (since open: acquired +{}, released +{})",
+                (bytes - self.pinned_bytes()) / MIB,
                 p1.1 - p0.1,
                 p1.0 - self.pins_at_open.0,
                 p1.1 - self.pins_at_open.1
             ));
         }
-        if let Some(r) = self.reservation.take() {
-            match self.rm.free(r.handle) {
-                Ok(()) => log.push(format!(
-                    "freed the VRAM reservation [{:#x}, {:#x}) ({} MiB)",
-                    r.base,
-                    r.end(),
-                    r.size / MIB
-                )),
-                Err(e) => log.push(format!("ERROR freeing the VRAM reservation: {e}")),
-            }
-        }
-        let root = self.rm.root();
-        match self.rm.free(root) {
-            Ok(()) => log.push(format!("host RM client {root:#x} freed")),
-            Err(e) => log.push(format!(
-                "host RM client {root:#x}: {e} (the fd close frees it)"
-            )),
+        if let TeardownOutcome::FailClosed {
+            reason,
+            descriptors_kept,
+            reservation_kept,
+        } = &outcome
+        {
+            let res = self
+                .reservation
+                .as_ref()
+                .map(|r| format!("[{:#x}, {:#x})", r.base, r.end()))
+                .unwrap_or_else(|| "none".into());
+            log.push(format!(
+                "FAIL-CLOSED teardown: {reason}; kept {descriptors_kept} guest RAM descriptor(s) ({} MiB pinned) and the reservation {res} (kept: {reservation_kept}); the client is not freed explicitly: the process exits non-zero and the close of /dev/nvidiactl lets the host RM free everything in its own order",
+                self.pinned_bytes() / MIB
+            ));
+            self.fail_closed = Some(reason.clone());
         }
         log.push(format!(
             "privileged windows opened in total: {}",
             self.privilege.windows()
         ));
         log
+    }
+}
+
+impl TeardownOps for HostMemory {
+    fn free_mirrors(&mut self, log: &mut Vec<String>) -> usize {
+        // Mirror channels first (RM preempts and idles each channel in its free), so that
+        // no host channel can still reach the IOVAs the descriptors unpin next.
+        if self.live.is_empty() {
+            return 0;
+        }
+        let n = self.live.len();
+        let before = self.free_failures.len();
+        log.extend(self.free_live());
+        let failed = self.free_failures.len() - before;
+        log.push(format!(
+            "freed {} of {n} host mirror object(s) before the descriptors",
+            n - failed
+        ));
+        failed
+    }
+
+    fn descriptor_count(&self) -> usize {
+        self.descriptors.len()
+    }
+
+    fn free_last_descriptor(&mut self, log: &mut Vec<String>) -> bool {
+        let Some(d) = self.descriptors.last().copied() else {
+            return true;
+        };
+        match self.free_descriptor(d.handle) {
+            Ok(()) => {
+                self.descriptors.pop();
+                true
+            }
+            Err(e) => {
+                log.push(format!(
+                    "ERROR freeing descriptor {:#x} ({}): {e}",
+                    d.handle, d.range
+                ));
+                false
+            }
+        }
+    }
+
+    fn free_reservation(&mut self, log: &mut Vec<String>) -> bool {
+        let Some(r) = self.reservation.clone() else {
+            return true;
+        };
+        // The host RM scrubs a freed vidmem allocation (scrub on free, PMA; parallel.md
+        // §4b): the free returns once the scrub is submitted, the next allocation of the
+        // range waits for it.
+        if let Some(l) = self.scan_reservation("before the free") {
+            log.push(l);
+        }
+        let t = Instant::now();
+        match self.rm.free(r.handle) {
+            Ok(()) => {
+                log.push(format!(
+                    "freed the VRAM reservation [{:#x}, {:#x}) ({} MiB) in {} ms (host RM scrub on free)",
+                    r.base,
+                    r.end(),
+                    r.size / MIB,
+                    t.elapsed().as_millis()
+                ));
+                self.reservation = None;
+                true
+            }
+            Err(e) => {
+                log.push(format!("ERROR freeing the VRAM reservation: {e}"));
+                false
+            }
+        }
+    }
+
+    fn free_client(&mut self, log: &mut Vec<String>) -> bool {
+        let root = self.rm.root();
+        match self.rm.free(root) {
+            Ok(()) => {
+                log.push(format!("host RM client {root:#x} freed"));
+                true
+            }
+            Err(e) => {
+                log.push(format!(
+                    "host RM client {root:#x}: {e} (the fd close frees it)"
+                ));
+                false
+            }
+        }
     }
 }
 
@@ -1230,5 +1586,165 @@ mod slot_tests {
         assert!(slot_range(heap, end, 4 * GIB, 1).is_err());
         assert!(slot_range(heap, end, 2 * GIB, 3).is_err());
         assert!(slot_range(heap, end, 2 * GIB, u32::MAX).is_err());
+    }
+}
+
+#[cfg(test)]
+mod teardown_tests {
+    use super::*;
+
+    /// A scripted teardown: which step fails, and what was freed.
+    #[derive(Default)]
+    struct Fake {
+        mirror_failures: usize,
+        descriptors: usize,
+        fail_descriptor_at: Option<usize>,
+        fail_reservation: bool,
+        reservation: bool,
+        client: bool,
+        order: Vec<&'static str>,
+    }
+
+    impl TeardownOps for Fake {
+        fn free_mirrors(&mut self, _: &mut Vec<String>) -> usize {
+            self.order.push("mirrors");
+            self.mirror_failures
+        }
+        fn descriptor_count(&self) -> usize {
+            self.descriptors
+        }
+        fn free_last_descriptor(&mut self, _: &mut Vec<String>) -> bool {
+            if self.fail_descriptor_at == Some(self.descriptors) {
+                return false;
+            }
+            self.order.push("descriptor");
+            self.descriptors -= 1;
+            true
+        }
+        fn free_reservation(&mut self, _: &mut Vec<String>) -> bool {
+            if self.fail_reservation {
+                return false;
+            }
+            self.order.push("reservation");
+            self.reservation = false;
+            true
+        }
+        fn free_client(&mut self, _: &mut Vec<String>) -> bool {
+            self.order.push("client");
+            self.client = false;
+            true
+        }
+    }
+
+    fn fake(descriptors: usize) -> Fake {
+        Fake {
+            descriptors,
+            reservation: true,
+            client: true,
+            ..Fake::default()
+        }
+    }
+
+    #[test]
+    fn a_clean_teardown_frees_in_order() {
+        let mut f = fake(4);
+        let out = run_teardown(&mut f, 0, &mut Vec::new());
+        assert_eq!(out, TeardownOutcome::Clean);
+        assert_eq!(
+            f.order,
+            [
+                "mirrors",
+                "descriptor",
+                "descriptor",
+                "descriptor",
+                "descriptor",
+                "reservation",
+                "client"
+            ]
+        );
+    }
+
+    #[test]
+    fn a_failed_mirror_free_keeps_every_registration_and_the_reservation() {
+        let mut f = fake(4);
+        f.mirror_failures = 1;
+        let out = run_teardown(&mut f, 0, &mut Vec::new());
+        assert!(matches!(
+            out,
+            TeardownOutcome::FailClosed {
+                descriptors_kept: 4,
+                reservation_kept: true,
+                ..
+            }
+        ));
+        assert_eq!(f.order, ["mirrors"]);
+        assert!(f.reservation && f.client);
+    }
+
+    #[test]
+    fn an_earlier_failed_free_also_fails_closed() {
+        let mut f = fake(2);
+        let out = run_teardown(&mut f, 1, &mut Vec::new());
+        assert!(matches!(
+            out,
+            TeardownOutcome::FailClosed {
+                descriptors_kept: 2,
+                ..
+            }
+        ));
+        assert_eq!(f.order, ["mirrors"]);
+    }
+
+    #[test]
+    fn a_failed_unpin_stops_before_the_reservation() {
+        let mut f = fake(4);
+        f.fail_descriptor_at = Some(2);
+        let out = run_teardown(&mut f, 0, &mut Vec::new());
+        assert!(matches!(
+            out,
+            TeardownOutcome::FailClosed {
+                descriptors_kept: 2,
+                reservation_kept: true,
+                ..
+            }
+        ));
+        assert_eq!(f.order, ["mirrors", "descriptor", "descriptor"]);
+        assert!(f.reservation && f.client);
+    }
+
+    #[test]
+    fn a_failed_reservation_free_keeps_the_client() {
+        let mut f = fake(1);
+        f.fail_reservation = true;
+        let out = run_teardown(&mut f, 0, &mut Vec::new());
+        assert!(matches!(
+            out,
+            TeardownOutcome::FailClosed {
+                descriptors_kept: 0,
+                reservation_kept: true,
+                ..
+            }
+        ));
+        assert!(f.client);
+    }
+}
+
+#[cfg(test)]
+mod scan_tests {
+    use super::*;
+
+    #[test]
+    fn pattern_records_are_counted_on_16_byte_boundaries() {
+        let mut b = vec![0u8; 64];
+        for (i, v) in [P20_MAGIC.0, P20_MAGIC.1, 0xA1, 7].iter().enumerate() {
+            b[16 + 4 * i..20 + 4 * i].copy_from_slice(&v.to_le_bytes());
+        }
+        assert_eq!(count_pattern(&b), (1, 4));
+        // The same words shifted by 4 bytes are not a record.
+        let mut c = vec![0u8; 64];
+        c[4..8].copy_from_slice(&P20_MAGIC.0.to_le_bytes());
+        c[8..12].copy_from_slice(&P20_MAGIC.1.to_le_bytes());
+        assert_eq!(count_pattern(&c), (0, 2));
+        assert_eq!(count_pattern(&[0u8; 32]), (0, 0));
     }
 }

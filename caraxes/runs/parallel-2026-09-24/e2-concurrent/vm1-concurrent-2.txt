@@ -1,0 +1,5 @@
+stage 2 rc=0 wall_s=9.84 start=04:48:48 last=stage 2 ok (memory)
+stage 3 rc=0 wall_s=11.71 start=04:48:57 last=stage 3 ok (kernel, result correct)
+stage 4 rc=0 wall_s=13.65 start=04:49:09 last=stage 4 ok (100 launches, 22.624 ms/launch, sched=auto)
+ITERS=100
+MSPERLAUNCH=22.624

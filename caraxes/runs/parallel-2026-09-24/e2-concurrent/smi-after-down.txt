@@ -1,0 +1,37 @@
+# SPDX-License-Identifier: MIT
+# host nvidia-smi, 2026-09-24T07:17:10+02:00
+memory.used [MiB], memory.free [MiB], memory.total [MiB]
+5248 MiB, 2524 MiB, 8192 MiB
+pid, used_gpu_memory [MiB]
+1370, 64 MiB
+2131, 394 MiB
+1724206, 2048 MiB
+1728234, 2048 MiB
+Thu Sep 24 07:17:10 2026       
++-----------------------------------------------------------------------------------------+
+| NVIDIA-SMI 610.57.04              KMD Version: 610.57.04     CUDA UMD Version: 13.3     |
++-----------------------------------------+------------------------+----------------------+
+| GPU  Name                 Persistence-M | Bus-Id          Disp.A | Volatile Uncorr. ECC |
+| Fan  Temp   Perf          Pwr:Usage/Cap |           Memory-Usage | GPU-Util  Compute M. |
+|                                         |                        |               MIG M. |
+|=========================================+========================+======================|
+|   0  NVIDIA GeForce RTX 2070        Off |   00000000:2D:00.0  On |                  N/A |
+| 55%   49C    P8             29W /  175W |    5248MiB /   8192MiB |     13%      Default |
+|                                         |                        |                  N/A |
++-----------------------------------------+------------------------+----------------------+
+
++-----------------------------------------------------------------------------------------+
+| Processes:                                                                              |
+|  GPU   GI   CI              PID   Type   Process name                        GPU Memory |
+|        ID   ID                                                               Usage      |
+|=========================================================================================|
+|    0   N/A  N/A            1085      G   Hyprland                                188MiB |
+|    0   N/A  N/A            1129      G   kitty                                    48MiB |
+|    0   N/A  N/A            1130      G   /usr/lib/firefox/firefox                 61MiB |
+|    0   N/A  N/A            1207      G   Xwayland                                  2MiB |
+|    0   N/A  N/A            1370    C+G   ...rack-uuid=3190708988185955192         64MiB |
+|    0   N/A  N/A            1470      G   ...ice --variations-seed-version         65MiB |
+|    0   N/A  N/A            2131    C+G   ...rack-uuid=3190708988185955192        394MiB |
+|    0   N/A  N/A         1724206      C   ...e/caraxes/vm1/vfio-user-nvgpu       2048MiB |
+|    0   N/A  N/A         1728234      C   ...e/caraxes/vm2/vfio-user-nvgpu       2048MiB |
++-----------------------------------------------------------------------------------------+

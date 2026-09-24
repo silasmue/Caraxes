@@ -1,0 +1,3 @@
+filled_mib=1024 tag=0xa1 dptr=0x1000c000000 fill_s=0.608 verify_bad=0
+memory.used [MiB], memory.total [MiB]
+1123 MiB, 2048 MiB

@@ -1,0 +1,36 @@
+[  128.691406] nvidia-nvlink: Nvlink Core is being initialized, major device number 239
+[  128.691415] NVRM: probing 0x10de 0x1f02, class 0x30000
+[  128.698715] NVRM: resizable BAR disabled by regkey, skipping
+[  128.698718] NVRM: No clk handles for the dev
+[  128.698920] nvidia 0000:00:05.0: vgaarb: VGA decodes changed: olddecodes=none,decodes=none:owns=none
+[  128.698968] NVRM: PCI:0000:00:05.0 (10de:1f02): BAR0 @ 0xe6000000 (16MB)
+[  128.698970] NVRM: PCI:0000:00:05.0 (10de:1f02): BAR1 @ 0x3fffe0000000 (256MB)
+[  128.698994] NVRM: Failed to evaluate _PR3 object
+[  128.700848] NVRM: pciPbiReadUuid: Could not acquire pciPbi mutex
+[  128.700951] NVRM: Starting device 0000:00:05.0
+[  128.706938] NVRM: GPU 0000:00:05.0: RmInitAdapter
+[  128.706940] NVRM: GPU 0000:00:05.0: RmSetupRegisters for 0x10de:0x1f02
+[  128.706942] NVRM: GPU 0000:00:05.0: pci config info:
+[  128.706943] NVRM: GPU 0000:00:05.0:    registers look  like: 0xe6000000 0x1000000NVRM: GPU 0000:00:05.0:    fb        looks like: 0x3fffe0000000 0x10000000
+[  128.707324] NVRM: GPU 0000:00:05.0: Successfully mapped framebuffer and registers
+[  128.707327] NVRM: GPU 0000:00:05.0: final mappings:
+[  128.707328] NVRM: GPU 0000:00:05.0:     regs: 0xe6000000 0x1000000 0x00000000ed22a9cc
+[  128.740358] NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+[  128.740362] NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+[  128.740364] NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+[  128.740365] NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+[  128.740367] NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+[  128.740369] NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+[  128.740370] NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+[  128.740372] NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+[  128.740374] NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+[  128.740376] NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+[  128.740378] NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+[  128.740380] NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+[  128.740384] NVRM: nv_acpi_dod_method: failed to evaluate _DOD method!
+[  131.682661] NVRM: initializing rc timer
+[  131.682663] NVRM: rc timer initialized
+[  131.685388] NVRM: GPU 0000:00:05.0: RmInitAdapter succeeded!
+[  131.685904] nvidia 0000:00:05.0: nvidia bound, DMA range map in place; unload blocked until it unbinds
+[  131.685968] NVRM: loading NVIDIA UNIX Open Kernel Module for x86_64  610.57.04  Release Build  (leandro@caraxes-vm1)  Wed Sep 23 12:30:42 UTC 2026
+modprobe rc=0

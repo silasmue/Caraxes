@@ -173,8 +173,13 @@ impl BootModel {
             .layout
             .reservation
             .ok_or("--host-exec needs the VRAM reservation")?;
+        let mapper = hm
+            .lock()
+            .unwrap()
+            .reservation_mapper()
+            .map_err(|st| format!("reservation window mapper: status {st:#x}"))?;
         self.fb = FakeFb::for_layout(&self.layout).with_store(Box::new(VramStore::new(
-            Box::new(hm.clone()),
+            Box::new(mapper),
             base,
             end,
         )));
@@ -274,8 +279,8 @@ impl BootModel {
         let mut s = Vec::new();
         if let Some(st) = self.fb.vram_stats() {
             s.push(format!(
-                "vram store: {} window map(s), {} refused, {} eviction(s); {} read(s) of {} bytes, {} write(s) of {} bytes",
-                st.maps, st.map_failures, st.evictions, st.reads, st.bytes_read, st.writes, st.bytes_written
+                "vram store: {} window map(s), {} refused, {} eviction(s), {} stall(s) without any window; {} read(s) of {} bytes, {} write(s) of {} bytes",
+                st.maps, st.map_failures, st.evictions, st.stalls, st.reads, st.bytes_read, st.writes, st.bytes_written
             ));
         }
         if let Some(m) = &self.ctrl.mirror {

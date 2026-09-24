@@ -1,0 +1,6 @@
+vfio-user-nvgpu: host memory client open; privilege: uid 1000; capabilities effective 0x0 permitted 0x200000 inheritable 0x0
+vfio-user-nvgpu: hostmem: refused: reserving 2048 MiB would leave the host 569 MiB of VRAM, below the 1024 MiB headroom (free 2617 MiB = min(HEAP_FREE, nvidia-smi); shortfall 455 MiB); choose a smaller profile or free host VRAM
+vfio-user-nvgpu: hostmem: host RM client 0xc1d52f61 freed
+vfio-user-nvgpu: hostmem: privileged windows opened in total: 0
+Error: VRAM reservation refused: refused: reserving 2048 MiB would leave the host 569 MiB of VRAM, below the 1024 MiB headroom (free 2617 MiB = min(HEAP_FREE, nvidia-smi); shortfall 455 MiB); choose a smaller profile or free host VRAM
+ERROR: server did not create /mnt/vmstore/caraxes/vm3/gpu.sock

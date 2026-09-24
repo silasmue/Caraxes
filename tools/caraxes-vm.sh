@@ -33,7 +33,10 @@
 # CARAXES_DISPLAY=1 presents the display engine (--display, docs/caraxes/display-ab.md).
 # E5b part 2 (docs/caraxes/execution.md): CARAXES_HOST_EXEC=1 executes on the physical GPU
 # (the FB is the reserved VRAM, guest channels get host mirror channels, engine non-stall
-# events become guest interrupts); it needs the three flags above.
+# events become guest interrupts); it needs the three flags above. The device maps the
+# reservation through the host's shared BAR1 (256 MiB on the RTX 2070): at most
+# CARAXES_BAR1_WINDOWS (default 2) windows of CARAXES_BAR1_WINDOW_MIB (default 32) MiB
+# each, so several devices and the desktop fit (docs/caraxes/parallel.md §2).
 # State lives under $CARAXES_STORE/$VM (default /mnt/vmstore/caraxes/vm0, falling
 # back to target/caraxes/$VM when the store is absent): rootfs.qcow2 (overlay on
 # LEA_BASE_IMAGE), seed.img (cloud-init), gpu.sock, gpu-trace.log, serial.log.

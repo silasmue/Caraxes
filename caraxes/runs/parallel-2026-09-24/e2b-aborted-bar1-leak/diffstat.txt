@@ -1,0 +1,8 @@
+ crates/nvrm-abi/src/lib.rs            |   9 +
+ crates/vfio-user-nvgpu/src/boot.rs    |  11 +-
+ crates/vfio-user-nvgpu/src/fb.rs      | 187 +++++++++-
+ crates/vfio-user-nvgpu/src/hostmem.rs | 639 ++++++++++++++++++++++++++++++----
+ crates/vfio-user-nvgpu/src/main.rs    |  38 +-
+ crates/vfio-user-nvgpu/src/shadow.rs  |  55 ++-
+ tools/caraxes-vm.sh                   |   5 +-
+ 7 files changed, 843 insertions(+), 101 deletions(-)

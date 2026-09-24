@@ -1,0 +1,2 @@
+vfio-user-nvgpu: hostmem: reserved host VRAM [0x169000000, 0x1e9000000) (2048 MiB, slot 0), handle 0x80000003, attr 0x11800000 attr2 0x100005, contiguous, in 0 ms
+vfio-user-nvgpu: hostmem: P20 scan after the reservation: reservation [0x169000000, 0x1e9000000) sampled 8192 KiB in 128 window(s) (0 refused): 0 pattern record(s), 0 non-zero dword(s) of 2097152 in 1817 ms

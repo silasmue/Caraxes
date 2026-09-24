@@ -177,6 +177,52 @@ pub struct ShadowStats {
     pub leaf_objects: u64,
     pub max_sync_us: u128,
     pub total_sync_us: u128,
+    /// Every physical address ever mapped (isolation evidence, P20 item 3a): the vidmem
+    /// PA extent `[lo, hi)` of all maps, and the maps per registered sysmem chunk (its
+    /// IOVA base). Everything here passed the filter, so it lies in this device's own
+    /// reservation and registered guest RAM by construction; the log lets a checker
+    /// compare it with the other VM's ranges.
+    pub vid_extent: Option<(u64, u64)>,
+    pub sys_chunks: BTreeMap<u64, u64>,
+}
+
+impl ShadowStats {
+    fn note_mapped(&mut self, t: &Target, size: u64, descs: &[(u32, u64, u64)]) {
+        match t {
+            Target::Fb(pa) => {
+                let (lo, hi) = self.vid_extent.unwrap_or((*pa, *pa + size));
+                self.vid_extent = Some((lo.min(*pa), hi.max(*pa + size)));
+            }
+            Target::Sys(iova) => {
+                if let Some((_, base, _)) = descs
+                    .iter()
+                    .find(|(_, b, sz)| *iova >= *b && *iova < *b + *sz)
+                {
+                    *self.sys_chunks.entry(*base).or_insert(0) += 1;
+                }
+            }
+            _ => {}
+        }
+    }
+
+    /// `mapped PAs: vidmem [lo, hi); sysmem chunks base:n ...` (every map so far).
+    pub fn extents(&self) -> String {
+        format!(
+            "mapped PAs so far: vidmem {}; sysmem chunks {}",
+            self.vid_extent
+                .map(|(lo, hi)| format!("[{lo:#x}, {hi:#x})"))
+                .unwrap_or_else(|| "none".into()),
+            if self.sys_chunks.is_empty() {
+                "none".into()
+            } else {
+                self.sys_chunks
+                    .iter()
+                    .map(|(b, n)| format!("{b:#x}:{n}"))
+                    .collect::<Vec<_>>()
+                    .join(" ")
+            }
+        )
+    }
 }
 
 /// A host-managed shadow VA space (c1s): the guest's set-A mappings mirrored at their
@@ -462,6 +508,7 @@ impl ShadowVas {
                     },
                 );
                 self.stats.maps += 1;
+                self.stats.note_mapped(&leaf.target, leaf.size, &descs);
                 n_map += 1;
             } else {
                 if own {
@@ -486,7 +533,7 @@ impl ShadowVas {
         notes.insert(
             0,
             format!(
-                "shadow: sync {} leaves walked{} ({} set-A, {excluded} set-B excluded, {} refused now) -> {n_unmap} unmapped, {n_map} mapped, {n_fail} failed; mirrored {} leaves in {} region object(s) + {} leaf object(s); totals: {} maps, {} unmaps ({} failed), {} map-failed, {} refused, {} region(s) refused; walk {t_walk} us, sync {us} us",
+                "shadow: sync {} leaves walked{} ({} set-A, {excluded} set-B excluded, {} refused now) -> {n_unmap} unmapped, {n_map} mapped, {n_fail} failed; mirrored {} leaves in {} region object(s) + {} leaf object(s); totals: {} maps, {} unmaps ({} failed), {} map-failed, {} refused, {} region(s) refused; walk {t_walk} us, sync {us} us; {}",
                 walked.len(),
                 if truncated { " [TRUNCATED at the walk cap]" } else { "" },
                 want.len(),
@@ -500,6 +547,7 @@ impl ShadowVas {
                 self.stats.map_failed,
                 self.stats.refused,
                 self.stats.regions_refused,
+                self.stats.extents(),
             ),
         );
         (changed, notes)
@@ -508,7 +556,7 @@ impl ShadowVas {
     pub fn summary(&self) -> String {
         let s = &self.stats;
         format!(
-            "{} syncs ({} skipped clean; max {} us, total {} ms), {} maps, {} unmaps ({} failed), {} map-failed, {} refused by the filter, {} region objects ({} freed, {} refused), {} per-leaf objects; {} leaves mirrored at the end",
+            "{} syncs ({} skipped clean; max {} us, total {} ms), {} maps, {} unmaps ({} failed), {} map-failed, {} refused by the filter, {} region objects ({} freed, {} refused), {} per-leaf objects; {} leaves mirrored at the end; {}",
             s.syncs,
             s.skipped,
             s.max_sync_us,
@@ -522,7 +570,8 @@ impl ShadowVas {
             s.regions_freed,
             s.regions_refused,
             s.leaf_objects,
-            self.mapped.len()
+            self.mapped.len(),
+            s.extents()
         )
     }
 

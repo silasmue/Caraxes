@@ -228,9 +228,10 @@ impl WindowBacking for crate::hostmem::Window {
     }
 }
 
-impl WindowSource for std::sync::Arc<std::sync::Mutex<crate::hostmem::HostMemory>> {
+impl WindowSource for crate::hostmem::ReservationMapper {
     fn map(&mut self, offset: u64, len: usize) -> Result<Box<dyn WindowBacking>, u32> {
-        let w = self.lock().unwrap().map_reservation(offset, len)?;
+        // Never through the `HostMemory` lock: the FB is walked while it is held.
+        let w = crate::hostmem::ReservationMapper::map(self, offset, len)?;
         Ok(Box::new(w))
     }
 }
@@ -240,6 +241,9 @@ impl WindowSource for std::sync::Arc<std::sync::Mutex<crate::hostmem::HostMemory
 pub struct VramStats {
     pub maps: u64,
     pub map_failures: u64,
+    /// Retries of an access for which the host granted no window at all (stalled, never
+    /// dropped).
+    pub stalls: u64,
     pub evictions: u64,
     pub reads: u64,
     pub writes: u64,
@@ -267,25 +271,60 @@ pub struct VramStore {
     tick: Cell<u64>,
     max_windows: usize,
     window_len: Cell<usize>,
+    /// Tests only: give up after this many stalls (0: never).
+    stall_limit: Cell<u64>,
     outside: RefCell<HostRamStore>,
     stats: RefCell<VramStats>,
 }
 
-/// The default window: 64 MiB, the largest RM granted in host-exec.md §1 (stage A).
-pub const VRAM_WINDOW: usize = 64 << 20;
-/// Windows held at once (3 x 64 MiB of the 256 MiB host BAR1, ~232 MiB free, H2).
-pub const VRAM_WINDOWS: usize = 3;
+/// The default window: 32 MiB. BAR1 is a shared host resource (256 MiB on this card,
+/// no resizable BAR): the desktop's own mappings and every device's windows come out of
+/// it. 2 x 32 MiB per device leaves the desktop about 40 MiB of its measured ~232 MiB
+/// free even with three devices up (P20, docs/caraxes/parallel.md §2; three devices at
+/// 3 x 64 MiB exhausted it). `CARAXES_BAR1_WINDOW_MIB` (a power of two, 2..=64) and
+/// `CARAXES_BAR1_WINDOWS` (1..=8) set another budget.
+pub const VRAM_WINDOW: usize = 32 << 20;
+/// Windows held at once by default.
+pub const VRAM_WINDOWS: usize = 2;
+
+/// The per-device BAR1 budget: (window bytes, windows), from the environment.
+pub fn bar1_budget() -> (usize, usize) {
+    let len = std::env::var("CARAXES_BAR1_WINDOW_MIB")
+        .ok()
+        .and_then(|v| v.parse::<usize>().ok())
+        .filter(|m| m.is_power_of_two() && (2..=64).contains(m))
+        .map_or(VRAM_WINDOW, |m| m << 20);
+    let n = std::env::var("CARAXES_BAR1_WINDOWS")
+        .ok()
+        .and_then(|v| v.parse::<usize>().ok())
+        .filter(|n| (1..=8).contains(n))
+        .unwrap_or(VRAM_WINDOWS);
+    (len, n)
+}
 
 impl VramStore {
     pub fn new(src: Box<dyn WindowSource>, base: u64, end: u64) -> Self {
+        let (len, n) = bar1_budget();
+        Self::with_budget(src, base, end, len, n)
+    }
+
+    /// A store holding at most `max_windows` BAR1 windows of `window_len` bytes.
+    pub fn with_budget(
+        src: Box<dyn WindowSource>,
+        base: u64,
+        end: u64,
+        window_len: usize,
+        max_windows: usize,
+    ) -> Self {
         VramStore {
             src: RefCell::new(src),
             base,
             end,
             windows: RefCell::new(Vec::new()),
             tick: Cell::new(0),
-            max_windows: VRAM_WINDOWS,
-            window_len: Cell::new(VRAM_WINDOW),
+            max_windows,
+            window_len: Cell::new(window_len),
+            stall_limit: Cell::new(0),
             outside: RefCell::new(HostRamStore::default()),
             stats: RefCell::new(VramStats::default()),
         }
@@ -351,8 +390,43 @@ impl VramStore {
                 }
                 Err(_) => {
                     st.map_failures += 1;
+                    drop(st);
+                    // BAR1 is shared with the host desktop and the other devices: give
+                    // back our own least recently used window and retry at this size
+                    // before asking for a smaller one, so a device never grows its BAR1
+                    // share under pressure and never loops on refused maps (P20: two
+                    // devices at 3 x 64 MiB drove the host into ~690k refused BAR1 maps).
+                    let mut ws = self.windows.borrow_mut();
+                    if !ws.is_empty() {
+                        let (i, _) = ws
+                            .iter()
+                            .enumerate()
+                            .min_by_key(|(_, s)| s.last_use)
+                            .expect("non-empty");
+                        ws[i].win.flush();
+                        ws.remove(i);
+                        self.stats.borrow_mut().evictions += 1;
+                        continue;
+                    }
+                    drop(ws);
                     if wlen <= 2 << 20 {
-                        return None;
+                        // No window at all, not even 2 MiB: stall the access and retry,
+                        // never drop a guest write or invent a read (before P20 this
+                        // path zero-filled reads and dropped writes silently).
+                        let mut st = self.stats.borrow_mut();
+                        st.stalls += 1;
+                        let n = st.stalls;
+                        drop(st);
+                        if n == 1 || n % 1000 == 0 {
+                            eprintln!(
+                                "vfio-user-nvgpu: ERROR: fb: no BAR1 window of the reservation can be mapped (offset {off:#x}); stalling the access and retrying ({n} stall(s) so far)"
+                            );
+                        }
+                        if self.stall_limit.get() != 0 && n >= self.stall_limit.get() {
+                            return None;
+                        }
+                        std::thread::sleep(std::time::Duration::from_millis(1));
+                        continue;
                     }
                     self.window_len.set(wlen / 2);
                 }
@@ -1102,7 +1176,7 @@ mod tests {
             pages: pages.clone(),
             maps: maps.clone(),
         };
-        let mut s = VramStore::new(Box::new(src), base, end);
+        let mut s = VramStore::with_budget(Box::new(src), base, end, 64 << 20, 3);
         s.write(base + 0x300000, &0xA5A5_1234u32.to_le_bytes());
         let mut b = [0u8; 4];
         s.read(base + 0x300000, &mut b);
@@ -1119,7 +1193,7 @@ mod tests {
         for k in 2..5u64 {
             s.write(base + k * (16 << 20), &[k as u8]);
         }
-        assert_eq!(s.windows_held().len(), VRAM_WINDOWS);
+        assert_eq!(s.windows_held().len(), 3);
         assert_eq!(s.stats().evictions, 2);
         assert!(!s.windows_held().iter().any(|(o, _)| *o == 0));
         // Window 0 comes back on demand with its data intact (it is the same VRAM).
@@ -1155,5 +1229,96 @@ mod tests {
         assert_eq!(fb.read_u64(base + 0x1000), Some(0x1122_3344_5566_7788));
         assert_eq!(seen.load(std::sync::atomic::Ordering::Relaxed), 8);
         assert!(fb.vram_stats().is_some());
+    }
+
+    /// A host BAR1 with room for `room` windows at a time: a map beyond that is refused
+    /// until a window is dropped (the shared-BAR1 case of P20).
+    struct TightBar1 {
+        live: std::sync::Arc<std::sync::atomic::AtomicUsize>,
+        room: usize,
+        pages: std::sync::Arc<std::sync::Mutex<HostRamStore>>,
+    }
+
+    struct TightWindow {
+        inner: RamWindow,
+        live: std::sync::Arc<std::sync::atomic::AtomicUsize>,
+    }
+
+    impl Drop for TightWindow {
+        fn drop(&mut self) {
+            self.live.fetch_sub(1, std::sync::atomic::Ordering::SeqCst);
+        }
+    }
+
+    impl WindowBacking for TightWindow {
+        fn offset(&self) -> u64 {
+            self.inner.offset()
+        }
+        fn len(&self) -> usize {
+            self.inner.len()
+        }
+        fn read(&self, off: u64, buf: &mut [u8]) {
+            self.inner.read(off, buf)
+        }
+        fn write(&self, off: u64, data: &[u8]) {
+            self.inner.write(off, data)
+        }
+    }
+
+    impl WindowSource for TightBar1 {
+        fn map(&mut self, offset: u64, len: usize) -> Result<Box<dyn WindowBacking>, u32> {
+            use std::sync::atomic::Ordering::SeqCst;
+            if self.live.load(SeqCst) >= self.room {
+                return Err(0x51);
+            }
+            self.live.fetch_add(1, SeqCst);
+            Ok(Box::new(TightWindow {
+                inner: RamWindow {
+                    offset,
+                    len,
+                    pages: self.pages.clone(),
+                },
+                live: self.live.clone(),
+            }))
+        }
+    }
+
+    #[test]
+    fn a_refused_window_evicts_our_own_and_never_drops_a_write() {
+        use std::sync::atomic::Ordering::SeqCst;
+        let (base, end) = (0xE900_0000u64, 0x1_6900_0000u64);
+        let live = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let pages = std::sync::Arc::new(std::sync::Mutex::new(HostRamStore::default()));
+        // Budget 3 windows, but the host has room for only 1 (the others' windows).
+        let src = TightBar1 {
+            live: live.clone(),
+            room: 1,
+            pages: pages.clone(),
+        };
+        let mut s = VramStore::with_budget(Box::new(src), base, end, 32 << 20, 3);
+        for k in 0..6u64 {
+            s.write(base + k * (32 << 20), &[k as u8 + 1]);
+        }
+        let mut b = [0u8; 1];
+        for k in 0..6u64 {
+            s.read(base + k * (32 << 20), &mut b);
+            assert_eq!(b[0], k as u8 + 1, "window {k}");
+        }
+        // The window size never shrank and the store never held more than the host allows.
+        assert_eq!(s.windows_held().len(), 1);
+        assert_eq!(s.windows_held()[0].1, 32 << 20);
+        assert!(live.load(SeqCst) <= 1);
+        assert_eq!(s.stats().stalls, 0);
+        // No room at all: the access stalls (bounded here by the test limit) and is
+        // reported, instead of silently succeeding.
+        let src = TightBar1 {
+            live: std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0)),
+            room: 0,
+            pages,
+        };
+        let mut s = VramStore::with_budget(Box::new(src), base, end, 2 << 20, 2);
+        s.stall_limit.set(3);
+        s.write(base, &[1]);
+        assert_eq!(s.stats().stalls, 3);
     }
 }

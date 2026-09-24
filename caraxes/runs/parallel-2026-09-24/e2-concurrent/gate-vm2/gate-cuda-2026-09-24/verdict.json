@@ -1,0 +1,1 @@
+{"gate":"cuda","result":"fail","dur_s":1547,"reason":"exited before the verdict (pending status 0)","facts":{"stages":[],"failed":[],"vm":"vm2","leandro_test":"e046e0493724-dirty","caraxes":"shell-rig-62-g05cd1f83d44b-dirty","device":"TU106 (BOOT_0 0x166000a1, driver 610.57.04) on /mnt/vmstore/caraxes/vm2/gpu.sock, boot model on, FB 2048 MiB","tests_selected":"all"}}
