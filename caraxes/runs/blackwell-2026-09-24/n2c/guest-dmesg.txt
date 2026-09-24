@@ -1,0 +1,41 @@
+[  158.016040] nvidia-nvlink: Nvlink Core is being initialized, major device number 239
+[  158.016064] NVRM: probing 0x10de 0x2d04, class 0x30000
+[  158.051705] NVRM: resizable BAR disabled by regkey, skipping
+[  158.051715] NVRM: No clk handles for the dev
+[  158.053055] nvidia 0000:00:05.0: vgaarb: VGA decodes changed: olddecodes=none,decodes=none:owns=none
+[  158.056243] NVRM: PCI:0000:00:05.0 (10de:2d04): BAR0 @ 0xe0000000 (64MB)
+[  158.056252] NVRM: PCI:0000:00:05.0 (10de:2d04): BAR1 @ 0x3fffe0000000 (256MB)
+[  158.056299] NVRM: Failed to evaluate _PR3 object
+[  158.061933] NVRM: PBI is not supported for GPU 0000:00:05.0
+[  158.062144] NVRM: PBI is not supported for GPU 0000:00:05.0
+[  158.062149] NVRM: Starting device 0000:00:05.0
+[  158.126449] NVRM: GPU 0000:00:05.0: RmInitAdapter
+[  158.126460] NVRM: GPU 0000:00:05.0: RmSetupRegisters for 0x10de:0x2d04
+[  158.126462] NVRM: GPU 0000:00:05.0: pci config info:
+[  158.126464] NVRM: GPU 0000:00:05.0:    registers look  like: 0xe0000000 0x4000000NVRM: GPU 0000:00:05.0:    fb        looks like: 0x3fffe0000000 0x10000000
+[  158.148195] NVRM: GPU 0000:00:05.0: Successfully mapped framebuffer and registers
+[  158.148210] NVRM: GPU 0000:00:05.0: final mappings:
+[  158.148212] NVRM: GPU 0000:00:05.0:     regs: 0xe0000000 0x4000000 0x00000000a372ab11
+[  158.528454] NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+[  158.528464] NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+[  158.528466] NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+[  158.528468] NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+[  158.528469] NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+[  158.528471] NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+[  158.528473] NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+[  158.528475] NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+[  158.528476] NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+[  158.528479] NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+[  158.528481] NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+[  158.528486] NVRM: nv_acpi_dod_method: failed to evaluate _DOD method!
+[  159.182188] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Call not supported [NV_ERR_NOT_SUPPORTED] (0x00000056) returned from pRmApi->Control(pRmApi, pGpu->hInternalClient, pGpu->hInternalSubdevice, NV2080_CTRL_CMD_INTERNAL_CONF_COMPUTE_GET_STATIC_INFO, &pConfCompute->ccStaticInfo, sizeof(pConfCompute->ccStaticInfo)) @ conf_compute.c:560
+[  159.935957] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Call not supported [NV_ERR_NOT_SUPPORTED] (0x00000056) returned from pRmApi->Control(pRmApi, pGpu->hInternalClient, pGpu->hInternalSubdevice, NV2080_CTRL_CMD_CE_GET_HUB_PCE_MASK_V2, &params, sizeof(params)) @ kernel_ce.c:890
+[  159.945069] NVRM: GPU0 kccuGetBufSize_GB100: CCU sample size retrieval failed with status: 0x56
+[  159.945091] NVRM: GPU0 kccuStateLoad_IMPL: Failed to get the buffer size info(status: 86) 
+[  159.946973] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Call not supported [NV_ERR_NOT_SUPPORTED] (0x00000056) returned from pRmApi->Control(pRmApi, pGpu->hInternalClient, pGpu->hInternalSubdevice, NV2080_CTRL_CMD_INTERNAL_CONF_COMPUTE_GET_STATIC_INFO, &pConfCompute->ccStaticInfo, sizeof(pConfCompute->ccStaticInfo)) @ conf_compute.c:455
+[  160.352481] NVRM: initializing rc timer
+[  160.352533] NVRM: rc timer initialized
+[  160.354684] NVRM: PBI is not supported for GPU 0000:00:05.0
+[  160.357362] NVRM: GPU 0000:00:05.0: RmInitAdapter succeeded!
+[  160.362458] NVRM: loading NVIDIA UNIX Open Kernel Module for x86_64  610.57.04  Release Build  (leandro@caraxes-vm1)  Wed Sep 23 12:30:42 UTC 2026
+modprobe rc=0

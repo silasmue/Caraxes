@@ -1,0 +1,37 @@
+Type=wayland
+[ 2477.082446] caraxes-vm0 gnome-shell[10030]: Created gbm renderer for '/dev/dri/card0'
+page_flip_failed=0
+== gnome, 2026-09-24T08:12:31Z, load 0.67 0.96 0.79 1/635 10675
+vulkaninfo: exit 0 wall 8.532130588 s
+	apiVersion         = 1.4.341
+	deviceName         = Leandro VFIO RTX 2070-2G
+	driverName         = NVIDIA
+	driverInfo         = 610.57.04
+	apiVersion         = 1.4.318
+	deviceName         = llvmpipe (LLVM 20.1.2, 256 bits)
+	driverName         = llvmpipe
+	driverInfo         = Mesa 25.2.8-0ubuntu0.24.04.2 (LLVM 20.1.2)
+eglinfo: exit 0 wall 2.342975960 s
+EGL vendor string: NVIDIA
+OpenGL core profile renderer: Leandro VFIO RTX 2070-2G/PCIe/SSE2
+OpenGL core profile version: 4.6.0 NVIDIA 610.57.04
+OpenGL core profile shading language version: 4.60 NVIDIA
+OpenGL compatibility profile renderer: Leandro VFIO RTX 2070-2G/PCIe/SSE2
+OpenGL compatibility profile version: 4.6.0 NVIDIA 610.57.04
+glxinfo: exit 0 wall 2.696641733 s
+direct rendering: Yes
+OpenGL vendor string: NVIDIA Corporation
+OpenGL renderer string: Leandro VFIO RTX 2070-2G/PCIe/SSE2
+OpenGL core profile version string: 4.6.0 NVIDIA 610.57.04
+vkcube-wayland: exit 0 wall 57.768266034 s
+DEMO vkcube-wayland frames=1320 elapsed_s=57.762 fps=22.8 Selected GPU 0: Leandro VFIO RTX 2070-2G, type: DiscreteGpu
+vkcube-xwayland: exit 0 wall 69.205421039 s
+DEMO vkcube-xwayland frames=1320 elapsed_s=69.138 fps=19.0 Selected GPU 0: Leandro VFIO RTX 2070-2G, type: DiscreteGpu
+glxgears: exit 124 wall 23.013099418 s
+DEMO glxgears 106 frames in 5.0 seconds = 21.058 FPS;94 frames in 5.0 seconds = 18.644 FPS;71 frames in 5.0 seconds = 14.146 FPS;
+es2gears_wayland: exit 124 wall 22.856286354 s
+DEMO es2gears_wayland 
+weston-simple-egl: exit 124 wall 22.868022968 s
+DEMO weston-simple-egl 81 frames in 5 seconds: 16.200001 fps;124 frames in 5 seconds: 24.799999 fps;142 frames in 5 seconds: 28.400000 fps;
+glmark2-wayland: exit 124 wall 84.503201430 s
+DEMO glmark2-wayland  GL_RENDERER: Leandro VFIO RTX 2070-2G/PCIe/SSE2; glmark2 Score: 31 ;

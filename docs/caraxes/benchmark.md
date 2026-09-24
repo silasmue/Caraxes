@@ -620,3 +620,35 @@ current by the trapped GPPut writes) the scan is a map lookup. The short kernel 
 one trap of four (25 us of 160); the other three (GPFIFO entry, GPPut through BAR1) and the
 small copies are P21's. Once P21 passes the BAR1 windows through, the watched copy no longer
 sees GPPut, and the wakeup needs the token: the datamatch token pool ([roadmap.md](roadmap.md)).
+
+## P21 BAR1 passthrough, prototype G (2026-09-24, vm1, host under load)
+
+The 1 MiB passthrough area of [bar1-passthrough.md](bar1-passthrough.md) (guest BAR1
+`[0, 0x100000)` as one vfio-user sparse mmap area of region 1, backed by an NVIDIA dma-buf of
+the reservation piece the traces showed, `CARAXES_BAR1_PASSTHROUGH=1`), merged as 572525f, on
+vm1 with a 1 GiB profile at slot 4 while vm0, vm2 and vm3 were active. Both runs with the
+mapping package; A with the doorbell over the ioeventfd, B with the trapped doorbell (the two
+switches cannot be combined yet, see below). `caraxes/runs/p21-bar1-2026-09-24/`.
+
+| Value | A: no area, ioeventfd doorbell | B: area, trapped doorbell |
+|---|---|---|
+| BAR1 read at 0x80000 (inside the area), p50 / p99 | 47.9 / 133.9 us | 1.4 / 3.2 us |
+| BAR1 read at 0x400000 (outside), p50 | 44.3 us | 43.0 us |
+| doorbell write, p50 | 4.1 us | 34.5 us |
+| trapped BAR1 accesses in the first MiB | 549464 | 0 |
+| short kernel, ms/launch (2 reps) | 0.153, 0.161 | 0.077, 0.122 |
+| rlprobe stage 4 (2 reps) | 19.6 s, 18.3 s | 9.0 s, 9.6 s |
+| rlprobe transfers per second | 144 | 318, 299 |
+| prototype checks | - | 91 checks, 0 mismatched pages, 0 page-table hazards |
+| host BAR1 use while up / after | - | 185 MiB / 152 MiB (the area released) |
+| host Xid | 0 | 0 |
+
+Reading: the dma-buf export, the Cloud Hypervisor mapping and the guest's write-combined
+access all work on this host; three of the four trapped accesses of a submission are gone
+and rlprobe's stage 4 halves (native 1.3 s, v1 3.4 s, so the gap is now the doorbell trap
+and the device's own work per submission). The combination with the ioeventfd doorbell hangs
+the guest (`B-on-with-ioeventfd-hung/`: the token-less path reads GPPut from the FB store's
+watched copy, which the passthrough area bypasses; 20040 wakeups rang nothing), so the device
+refuses both switches together until the datamatch token pool exists
+([doorbell-token-pool.md](doorbell-token-pool.md) when it lands): with it, a submission takes
+no exit at all.

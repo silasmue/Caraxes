@@ -1,0 +1,80 @@
+nvrm-trace: LEA_TRACE_FORMAT=text is not tsv, jsonl or both; writing both
+nvrm-trace: LEA_TRACE_FORMAT=text is not tsv, jsonl or both; writing both
+nvrm-trace: LEA_TRACE_FORMAT=text is not tsv, jsonl or both; writing both
+nvrm-trace: LEA_TRACE_FORMAT=text is not tsv, jsonl or both; writing both
+nvrm-trace: LEA_TRACE_FORMAT=text is not tsv, jsonl or both; writing both
+nvrm-trace: LEA_TRACE_FORMAT=text is not tsv, jsonl or both; writing both
+nvrm-trace: LEA_TRACE_FORMAT=text is not tsv, jsonl or both; writing both
+nvrm-trace: LEA_TRACE_FORMAT=text is not tsv, jsonl or both; writing both
+nvrm-trace: LEA_TRACE_FORMAT=text is not tsv, jsonl or both; writing both
+nvrm-trace: LEA_TRACE_FORMAT=text is not tsv, jsonl or both; writing both
+nvrm-trace: LEA_TRACE_FORMAT=text is not tsv, jsonl or both; writing both
+nvrm-trace: LEA_TRACE_FORMAT=text is not tsv, jsonl or both; writing both
+weston up (pid 1694) after       2 s
+nvrm-trace: LEA_TRACE_FORMAT=text is not tsv, jsonl or both; writing both
+nvrm-trace: LEA_TRACE_FORMAT=text is not tsv, jsonl or both; writing both
+weston-pace.sh: line 34: ./wlframes: No such file or directory
+wlframes exit 127
+---- weston.log (tail)
+nvrm-trace: LEA_TRACE_FORMAT=text is not tsv, jsonl or both; writing both
+nvrm-trace: LEA_TRACE_FORMAT=text is not tsv, jsonl or both; writing both
+[06:53:02.655] Loading module '/usr/lib/x86_64-linux-gnu/libweston-13/gl-renderer.so'
+[06:53:03.397] Using rendering device: /dev/dri/renderD128
+[06:53:03.397] EGL version: 1.5
+[06:53:03.397] EGL vendor: NVIDIA
+[06:53:03.397] EGL client APIs: OpenGL_ES OpenGL
+[06:53:03.397] EGL features:
+               EGL Wayland extension: yes
+               context priority: yes
+               buffer age: yes
+               partial update: yes
+               swap buffers with damage: yes
+               configless context: yes
+               surfaceless context: yes
+               dmabuf support: modifiers
+[06:53:04.515] GL version: OpenGL ES 3.2 NVIDIA 610.57.04
+[06:53:04.515] GLSL version: OpenGL ES GLSL ES 3.20
+[06:53:04.515] GL vendor: NVIDIA Corporation
+[06:53:04.515] GL renderer: Leandro VFIO RTX 2070-2G/PCIe/SSE2
+[06:53:04.519] GL ES 3.2 - renderer features:
+               read-back format: ARGB8888
+               glReadPixels supports y-flip: no
+               wl_shm 10 bpc formats: yes
+               wl_shm 16 bpc formats: yes
+               wl_shm half-float formats: no
+               internal R and RG formats: yes
+               OES_EGL_image_external: yes
+[06:53:04.519] Using GL renderer
+[06:53:04.527] event0  - Power Button: is tagged by udev as: Keyboard
+[06:53:04.527] event0  - Power Button: device is a keyboard
+[06:53:04.536] libinput: configuring device "Power Button".
+[06:53:04.574] DRM: head 'DP-1' found, connector 127 is connected, EDID make 'CRX', model 'Caraxes DP', serial ''
+               Supported EOTF modes: SDR
+[06:53:04.574] Registered plugin API 'weston_drm_output_api_v1' of size 40
+[06:53:04.574] Registered plugin API 'weston_drm_virtual_output_api_v2' of size 48
+[06:53:04.574] Color manager: no-op
+[06:53:04.575] Output 'DP-1' attempts EOTF mode: SDR
+[06:53:04.576] Output 'DP-1' using color profile: stock sRGB color profile
+[06:53:04.576] Chosen EGL config details: id:  24 rgba: 8 8 8 0 buf: 24 dep:  0 stcl: 0 int: 0-1 type: win|pbf vis_id: XRGB8888 (0x34325258)
+[06:53:04.600] Output DP-1 (crtc 118) video modes:
+               1920x1080@60.0, preferred, current, 148.5 MHz
+               1920x1080@59.9, 148.3 MHz
+               1920x1080@50.0, 148.5 MHz
+               1280x720@60.0, 74.2 MHz
+               1280x720@59.9, 74.2 MHz
+               640x480@59.9, 25.2 MHz
+[06:53:04.600] associating input device event0 with output DP-1 (none by udev)
+[06:53:04.600] Output 'DP-1' enabled with head(s) DP-1
+[06:53:04.600] Compositor capabilities:
+               arbitrary surface rotation: yes
+               screen capture uses y-flip: yes
+               cursor planes: yes
+               arbitrary resolutions: no
+               view mask clipping: yes
+               explicit sync: yes
+               color operations: no
+               presentation clock: CLOCK_MONOTONIC, id 1
+               presentation clock resolution: 0.000000001 s
+[06:53:04.600] Loading module '/usr/lib/x86_64-linux-gnu/weston/kiosk-shell.so'
+[06:53:09.661] caught signal 15
+[06:53:09.661] event0  - Power Button: device removed

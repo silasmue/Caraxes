@@ -1,0 +1,42 @@
+=======================================================
+    glmark2 2023.01
+=======================================================
+    OpenGL Information
+    GL_VENDOR:      NVIDIA Corporation
+    GL_RENDERER:    Leandro VFIO RTX 2070-2G/PCIe/SSE2
+    GL_VERSION:     4.6.0 NVIDIA 610.57.04
+    Surface Config: buf=32 r=8 g=8 b=8 a=8 depth=24 stencil=0 samples=0
+    Surface Size:   1280x720 windowed
+=======================================================
+[build] use-vbo=false: FPS: 4 FrameTime: 307.326 ms
+[build] use-vbo=true: FPS: 35 FrameTime: 29.167 ms
+[texture] texture-filter=nearest: FPS: 36 FrameTime: 27.809 ms
+[texture] texture-filter=linear: FPS: 31 FrameTime: 33.057 ms
+[texture] texture-filter=mipmap: FPS: 32 FrameTime: 31.267 ms
+[shading] shading=gouraud: FPS: 40 FrameTime: 25.291 ms
+[shading] shading=blinn-phong-inf: FPS: 32 FrameTime: 31.777 ms
+[shading] shading=phong: FPS: 45 FrameTime: 22.604 ms
+[shading] shading=cel: FPS: 34 FrameTime: 30.271 ms
+[bump] bump-render=high-poly: FPS: 32 FrameTime: 31.945 ms
+[bump] bump-render=normals: FPS: 28 FrameTime: 35.750 ms
+[bump] bump-render=height: FPS: 29 FrameTime: 35.309 ms
+[effect2d] kernel=0,1,0;1,-4,1;0,1,0;: FPS: 32 FrameTime: 31.735 ms
+[effect2d] kernel=1,1,1,1,1;1,1,1,1,1;1,1,1,1,1;: FPS: 37 FrameTime: 27.553 ms
+[pulsar] light=false:quads=5:texture=false: FPS: 31 FrameTime: 33.022 ms
+[desktop] blur-radius=5:effect=blur:passes=1:separable=true:windows=4: FPS: 32 FrameTime: 32.091 ms
+[desktop] effect=shadow:windows=4: FPS: 34 FrameTime: 29.475 ms
+[buffer] columns=200:interleave=false:update-dispersion=0.9:update-fraction=0.5:update-method=map: FPS: 37 FrameTime: 27.546 ms
+[buffer] columns=200:interleave=false:update-dispersion=0.9:update-fraction=0.5:update-method=subdata: FPS: 34 FrameTime: 30.242 ms
+[buffer] columns=200:interleave=true:update-dispersion=0.9:update-fraction=0.5:update-method=map: FPS: 31 FrameTime: 33.121 ms
+[ideas] speed=duration: FPS: 28 FrameTime: 35.987 ms
+[jellyfish] <default>: FPS: 50 FrameTime: 20.201 ms
+[terrain] <default>: FPS: 25 FrameTime: 40.992 ms
+[shadow] <default>: FPS: 35 FrameTime: 29.053 ms
+[refract] <default>: FPS: 13 FrameTime: 78.802 ms
+[conditionals] fragment-steps=0:vertex-steps=0: FPS: 36 FrameTime: 27.793 ms
+[conditionals] fragment-steps=5:vertex-steps=0: FPS: 33 FrameTime: 30.596 ms
+[conditionals] fragment-steps=0:vertex-steps=5: FPS: 34 FrameTime: 30.069 ms
+[function] fragment-complexity=low:fragment-steps=5: FPS: 36 FrameTime: 27.930 ms
+=======================================================
+                                  glmark2 Score: 31 
+=======================================================

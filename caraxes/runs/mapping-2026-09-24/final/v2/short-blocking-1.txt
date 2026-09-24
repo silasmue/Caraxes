@@ -1,0 +1,16 @@
+# target v2 metric short-blocking rep 1
+# cmd NVPROBE_ITERS=100 NVPROBE_CYCLES=1000 NVPROBE_SCHED=blocking ./nvprobe 4
+# device /mnt/vmstore/caraxes/vm2/vfio-user-nvgpu sha256 99e1cfbf0725e7d3
+# time 2026-09-24T10:19:33+02:00
+# gpu 54, 1410 MHz, 7000 MHz, P0, 2 %, 5086 MiB, Disabled
+# procs 2077025:vm0-dev 2077035:vm0-vmm 2199740:bench-v1-dev 2199754:bench-v1-vmm 2203975:ch-0005-dev 2209572:vm2-dev 2209589:vm2-vmm 2215433:ch-0005-check-vmm 2215444:-vmm 2217280:ch-0005-check-vmm 
+# loadavg 5.04 4.78 5.30
+stage 0 ok (cuInit)
+stage 1 ok (context, sched=blocking)
+stage 2 ok (memory)
+stage 3 ok (kernel, result correct)
+stage 4 ok (100 launches, 0.200 ms/launch, sched=blocking)
+ITERS=100
+MSPERLAUNCH=0.200
+# WALL wall_ms=6011 rc=0
+# MEAS dev_pid=2209572 dev_cpu_ms=2970 dev_rss_hwm_kb=5253708/6296796 vmm_cpu_ms=8200 others: bench-v1-dev=0ms ch-0005-check-vmm=-38580ms -vmm=-200ms ch-0005-dev=0ms vm0-dev=880ms ch-0005-check-vmm=0ms vm0-vmm=1410ms bench-v1-vmm=10ms 

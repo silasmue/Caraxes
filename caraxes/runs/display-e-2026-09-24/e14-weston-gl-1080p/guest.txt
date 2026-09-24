@@ -1,0 +1,36 @@
+=== SIZE=64 DAMAGE=8
+weston up (pid 1958) after       1 s
+globals: wp_presentation yes
+first frame callback after 5.1 s
+surface 64x64, damage 8x8 per frame, 20.0 s
+FRAMES callbacks intervals=0
+PRESENTED feedback intervals=0
+presented=4 discarded=0 refresh_ns=16666666 (60.000 Hz) flags=0x7 (vsync 1 hw_clock 1 hw_completion 1)
+wlframes exit 0
+---- weston.log (tail)
+[07:10:19.429] Using rendering device: /dev/dri/renderD128
+[07:10:19.429] EGL version: 1.5
+[07:10:19.429] EGL vendor: NVIDIA
+[07:10:19.429] EGL client APIs: OpenGL_ES OpenGL
+[07:10:19.429] EGL features:
+[07:10:20.318] GL version: OpenGL ES 3.2 NVIDIA 610.57.04
+[07:10:20.318] GLSL version: OpenGL ES GLSL ES 3.20
+[07:10:20.318] GL vendor: NVIDIA Corporation
+[07:10:20.318] GL renderer: Leandro VFIO RTX 2070-2G/PCIe/SSE2
+[07:10:20.323] GL ES 3.2 - renderer features:
+[07:10:20.323] Using GL renderer
+[07:10:20.387] DRM: head 'DP-1' found, connector 127 is connected, EDID make 'CRX', model 'Caraxes DP', serial ''
+[07:10:20.387] Color manager: no-op
+[07:10:20.389] Output 'DP-1' attempts EOTF mode: SDR
+[07:10:20.389] Output 'DP-1' using color profile: stock sRGB color profile
+[07:10:20.389] Chosen EGL config details: id:  24 rgba: 8 8 8 0 buf: 24 dep:  0 stcl: 0 int: 0-1 type: win|pbf vis_id: XRGB8888 (0x34325258)
+[07:10:20.420] Output DP-1 (crtc 118) video modes:
+[07:10:20.420] Output 'DP-1' enabled with head(s) DP-1
+[07:10:20.420] Compositor capabilities:
+[07:10:20.420] Loading module '/usr/lib/x86_64-linux-gnu/weston/kiosk-shell.so'
+[07:11:02.794] caught signal 15
+[07:11:02.795] Warning: computed repaint delay for output [DP-1] is abnormal: -11211 msec
+=== SIZE=1080 DAMAGE=1080
+weston up (pid 1983) after       1 s
+weston-pace.sh: line 34:  1992 Floating point exception(core dumped) WAYLAND_DISPLAY=wayland-1 "$(dirname "$0")/wlframes" "$SECS" "${SIZE:-64}" "${DAMAGE:-8}"
+wlframes exit 136

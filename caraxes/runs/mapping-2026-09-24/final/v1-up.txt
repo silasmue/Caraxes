@@ -13,3 +13,8 @@ nvrm-nodes-tool: /proc/driver/nvidia/params set (1078 bytes)
 [  142.410537] virtio_nvrm: balloon off (display_reserve_mib=-1, display=0)
 virtio_nvrm           139264  0
 nvrm_nodes             16384  0
+c5b48cf1181bfcfc251f12aa2b0eaeb074887efec4c479f36efe399cb1307a13  bench-cu
+2735d2a9cd25c0753898188542dbeb4a8433609024aa48230b6803a4a8d96e66  nvprobe
+138c5073848b2f3cf2beb4709376c7c49b420d88e836664584e5cf8bbfc7848c  ioctlping
+68449e9ec7b25613a65d096a6a42864c01fbf46ec47e540ce01f47184f0479ea  ctrlping
+1f921680fc7a2c2e0978eb007cc0ab48d2f1a7cf404a196c9063a19a10aa228f  kernels.ptx

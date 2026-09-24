@@ -24,6 +24,7 @@ use crate::mirror::Mirror;
 use crate::msgq::{QueueMemory, QueueState, ReplyTo, RpcHeader};
 use crate::rpc::{self, StaticIdentity, WprLayout};
 use crate::ver::active as v;
+use crate::ver::GspTransport;
 
 /// A register of the kernel-RM surface this model owns (offsets from the chip).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -103,6 +104,13 @@ pub struct BootModel {
     exec: Option<(Arc<Mutex<HostMemory>>, Arc<IntrShared>)>,
     /// GSP IRQSTAT.SWGEN0 raised for an event the device posted unasked (display hotplug).
     gsp_swgen0: bool,
+    /// The CPU-GSP transport this model serves: the emulated version's
+    /// (`ver::active::GSP_TRANSPORT`) unless [`BootModel::with_transport`] says otherwise.
+    transport: GspTransport,
+    /// The last value the CPU wrote to the command-queue head register. With message
+    /// queue v2 it is the CPU's write pointer (`msgqTxCreate` writes 0 before GSP-RM
+    /// boots, msgq.c:175-177 of 615); with v0 the register is a plain doorbell.
+    cpu_cmd_head: u32,
 }
 
 // The GSP falcon's interrupt registers (turing/tu102/dev_falcon_v4.h at NV_PGSP 0x110000,
@@ -141,7 +149,7 @@ impl BootModel {
             system_info: None,
             unanswered: Vec::new(),
             pending: None,
-            fb: FakeFb::for_layout(&layout),
+            fb: FakeFb::for_layout(&layout).with_mmu_format(&d.gmmu.mmu_format),
             // Reset value as the VBIOS leaves it: the last MiB of FB (fb-model.md §4c).
             bar0_window: ((fb_bytes - (1 << 20)) >> 16) as u32,
             mmu_invalidate: (0, 0, 0),
@@ -157,6 +165,8 @@ impl BootModel {
             vf: crate::uvm::VfRegs::new(d),
             exec: None,
             gsp_swgen0: false,
+            transport: v::GSP_TRANSPORT,
+            cpu_cmd_head: 0,
         }
     }
 
@@ -429,6 +439,7 @@ impl BootModel {
         }
         self.fb.carry_bar1_passthrough(&fresh.fb);
         fresh.ctrl.channels.tokens = tokens;
+        fresh.transport = self.transport;
         *self = fresh;
     }
 
@@ -523,6 +534,9 @@ impl BootModel {
     pub fn read32(&mut self, off: u64) -> Option<u32> {
         if !self.handles(off) {
             return None;
+        }
+        if let Some(v) = self.queue_register_read(off) {
+            return Some(v);
         }
         if self.intr.handles(off) {
             return Some(self.intr.read32(off));
@@ -644,6 +658,7 @@ impl BootModel {
                 }
             }
             None => {
+                notes.extend(self.queue_register_write(off, v, mem));
                 let w = self.fw.write32(off, v, mem)?;
                 notes.extend(w.notes);
                 match w.event {
@@ -669,6 +684,7 @@ impl BootModel {
                             }
                             Err(e) => notes.push(format!("wpr meta: {e}")),
                         }
+                        notes.extend(self.gsp_started(mem));
                     }
                     Some(BootEvent::CmdQueueDoorbell { libos_args_pa: pa }) => {
                         self.doorbells += 1;
@@ -707,6 +723,12 @@ impl BootModel {
     /// doorbell, then answer everything in the command queue.
     fn service_queues(&mut self, mem: &GuestMemory, libos_args_pa: u64) -> Vec<String> {
         let mut notes = Vec::new();
+        if self.transport == GspTransport::MsgqV2 && self.queues.is_none() {
+            // Message queue v2 links when GSP-RM starts (`gsp_started`); a doorbell before
+            // that is the CPU's msgqTxCreate at construction (msgq.c:175-177 of 615).
+            notes.push("queues: not linked yet (615 transport: they link when GSP-RM starts)".into());
+            return notes;
+        }
         if self.queues.is_none() {
             match self.link_queues(mem, libos_args_pa) {
                 Ok(n) => notes.extend(n),
@@ -796,7 +818,9 @@ impl BootModel {
                     };
                     // Only a first record at the maxRpcSize cap can be split (rpc.c:2082-2092);
                     // client allocations legitimately carry fewer bytes than paramsSize.
-                    if msg.header.length as usize >= v::MAX_RPC_SIZE && needed > msg.payload.len() {
+                    if msg.header.length as usize >= crate::ver::element_layout().max_rpc_size()
+                        && needed > msg.payload.len()
+                    {
                         notes.push(format!(
                             "large request {}: {} of {needed} bytes, waiting for continuation records",
                             rpc::function_name(msg.header.function),
@@ -827,6 +851,26 @@ impl BootModel {
                         None
                     }
                     rpc::FN_SET_REGISTRY => None,
+                    // 615 on: one GMCAPI request in place of the four init RPCs
+                    // (docs/caraxes/gsp-transport-615.md §4-5); its id lies above the RPC
+                    // function numbers, so a 610 guest never reaches these arms.
+                    crate::gmcapi::CMD_GSP_INIT if msg.gmcapi.is_some() => {
+                        Some(self.gsp_init(&msg, &mut notes))
+                    }
+                    crate::gmcapi::CMD_GSP_SUSPEND if msg.gmcapi.is_some() => {
+                        // Fire and forget (gmcapi_table.h:109-116 of 615): no response. The
+                        // kernel then waits for the processor-suspended bit that libos
+                        // sets in the GSP's MAILBOX0 (kernel_gsp.c:5889-5907,
+                        // kernel_gsp_tu102.c:218-255 of 615); without it the unload
+                        // waits out its timeout.
+                        let m0 = self.fw.read32(GSP_MAILBOX0).unwrap_or(0);
+                        self.fw.write32(GSP_MAILBOX0, m0 | GSP_PROCESSOR_SUSPENDED, mem);
+                        notes.push(format!(
+                            "gmcapi GSP_SUSPEND: no response (fire and forget); MAILBOX0 {m0:#x} -> {:#x} (processor suspended)",
+                            m0 | GSP_PROCESSOR_SUSPENDED
+                        ));
+                        None
+                    }
                     rpc::FN_SET_GUEST_SYSTEM_INFO => {
                         // The device emulates one driver version (gsp-abi-610.md (e)); a
                         // guest that announces another is noted, not refused, so its
@@ -853,7 +897,7 @@ impl BootModel {
                                 l.field, l.value, l.source
                             ));
                         }
-                        Some((rpc::NV_OK, info))
+                        Some((rpc::NV_OK, crate::ver::static_info_for_guest(info)))
                     }
                     rpc::FN_GSP_RM_CONTROL => {
                         // rpc_gsp_rm_control_v03_00 (docs/caraxes/gsp-abi-610.md).
@@ -867,9 +911,15 @@ impl BootModel {
                         );
                         let at = v::RM_CONTROL_PARAMS;
                         let params = p.get(at..at + size).unwrap_or(&[]);
-                        let a = self
-                            .ctrl
-                            .control(w(v::RM_CONTROL_H_CLIENT), h_object, cmd, params);
+                        // Controls only newer chips' kernels send come from the chip first
+                        // (chip/physical.rs), the rest from the dispatcher.
+                        let a = match crate::chip::physical::answer(self.chip.data(), cmd, params) {
+                            Some(a) => a,
+                            None => {
+                                self.ctrl
+                                    .control(w(v::RM_CONTROL_H_CLIENT), h_object, cmd, params)
+                            }
+                        };
                         notes.push(format!(
                             "ctrl {cmd:#x}: {} -> status {:#x} [{}]",
                             a.note, a.status, a.label
@@ -1035,8 +1085,8 @@ impl BootModel {
                 if let Some((result, payload)) = reply {
                     // The reply takes the request's shape: at most 65520 bytes per record,
                     // continuation records with the following sequence numbers.
-                    const MAX_RPC: usize = v::MAX_RPC_SIZE;
-                    let first_len = payload.len().min(MAX_RPC - v::RPC_HEADER_SIZE);
+                    let max_rpc: usize = crate::ver::element_layout().max_rpc_size();
+                    let first_len = payload.len().min(max_rpc - v::RPC_HEADER_SIZE);
                     let hdr = RpcHeader::reply(&h, result, first_len);
                     match queues.send(&qm, &hdr, &payload[..first_len]) {
                         Ok(seq) => notes.push(format!(
@@ -1050,7 +1100,7 @@ impl BootModel {
                     let mut sent = first_len;
                     let mut sequence = h.sequence;
                     while sent < payload.len() {
-                        let chunk = (payload.len() - sent).min(MAX_RPC - v::RPC_HEADER_SIZE);
+                        let chunk = (payload.len() - sent).min(max_rpc - v::RPC_HEADER_SIZE);
                         sequence = sequence.wrapping_add(1);
                         let cont = RpcHeader {
                             function: rpc::FN_CONTINUATION_RECORD,
@@ -1154,6 +1204,239 @@ impl BootModel {
     }
 }
 
+/// The GSP falcon's MAILBOX0 (NV_PGSP_FALCON_MAILBOX0, turing/tu102/dev_gsp.h) and the
+/// `INTERRUPT_PROCESSOR_SUSPENDED_VALUE` libos reports in it (kernel_gsp_tu102.c:218-221
+/// of 615).
+const GSP_MAILBOX0: u64 = 0x0011_0040;
+const GSP_PROCESSOR_SUSPENDED: u32 = 0x8000_0000;
+
+/// `NV_ERR_BUFFER_TOO_SMALL` and `NV_ERR_INVALID_ARGUMENT` (sdk/nvstatuscodes.h).
+const NV_ERR_BUFFER_TOO_SMALL: u32 = 0x02;
+const NV_ERR_INVALID_ARGUMENT: u32 = 0x1F;
+
+/// The 615 transport (docs/caraxes/gsp-transport-615.md): message queue v2 with the
+/// pointers in the NV_PGSP_QUEUE_* and MSGQ_* registers, linked when GSP-RM starts, and
+/// the GMCAPI init.
+impl BootModel {
+    /// Serve `transport` instead of the emulated version's (the tests of the 615 path,
+    /// which run in the default 610 build).
+    pub fn with_transport(mut self, transport: GspTransport) -> Self {
+        self.transport = transport;
+        self
+    }
+
+    pub fn transport(&self) -> GspTransport {
+        self.transport
+    }
+
+    /// `NV_PGSP_QUEUE_TAIL(0)` and `NV_PGSP_MSGQ_HEAD(0)` once v2 queues are linked:
+    /// the GSP's read pointer into the command queue and write pointer into the status
+    /// queue (msgqTxGetFreeSpace and msgqRxGetReadAvailable read them, msgq.c:283-430 of 615).
+    fn queue_register_read(&self, off: u64) -> Option<u32> {
+        if self.transport != GspTransport::MsgqV2 {
+            return None;
+        }
+        let r = self.fw.queue_registers()?;
+        let q = self.queues.as_ref()?.v2()?;
+        match off {
+            o if o == r.cmd_tail => Some(q.read_ptr),
+            o if o == r.msg_head => Some(q.write_ptr),
+            _ => None,
+        }
+    }
+
+    /// The CPU's pointer writes: `NV_PGSP_QUEUE_HEAD(0)` (its command write pointer; the
+    /// doorbell event follows from the firmware-boot model) and `NV_PGSP_MSGQ_TAIL(0)`
+    /// (its status read pointer, after which held replies may fit). The value still
+    /// reaches the falcon block. A head of 0 while our tail is not is a queue created
+    /// anew (a driver reload without a reset): the link is dropped until GSP-RM starts
+    /// again.
+    fn queue_register_write(&mut self, off: u64, v: u32, mem: &GuestMemory) -> Vec<String> {
+        let mut notes = Vec::new();
+        if self.transport != GspTransport::MsgqV2 {
+            return notes;
+        }
+        let Some(r) = self.fw.queue_registers() else {
+            return notes;
+        };
+        if off == r.cmd_head {
+            self.cpu_cmd_head = v;
+            let recreated = match self.queues.as_mut().and_then(|q| q.v2_mut()) {
+                Some(q) if v == 0 && q.read_ptr != 0 => true,
+                Some(q) => {
+                    q.cpu_write_ptr = v;
+                    false
+                }
+                None => false,
+            };
+            if recreated {
+                self.queues = None;
+                notes.push("queues: QUEUE_HEAD written 0 (command queue created anew); link dropped until GSP-RM starts again".into());
+            }
+        } else if off == r.msg_tail {
+            let pages = std::mem::take(&mut self.pages);
+            if let Some(queues) = self.queues.as_mut() {
+                if let Some(q) = queues.v2_mut() {
+                    q.cpu_read_ptr = v;
+                }
+                let qm = QueueMemory::new(mem, &pages);
+                notes.extend(queues.retry_held(&qm));
+            }
+            self.pages = pages;
+        }
+        notes
+    }
+
+    /// GSP-RM "starts" (Booter-Load done). The 615 CPU polls for our status-queue header
+    /// right after this (GspStatusQueueInit, kernel_gsp_tu102.c:463-469 of 615) and rings
+    /// no doorbell before its first message, so the v2 queues link here, from the libos
+    /// arguments the CPU put into the GSP mailboxes before Booter
+    /// (kernel_gsp_tu102.c:429-437). A 610 device notes a 615 guest (RMARGS magic "GSP ")
+    /// and leaves its queues alone: the guest times out in its status-queue link.
+    fn gsp_started(&mut self, mem: &GuestMemory) -> Vec<String> {
+        let mut notes = Vec::new();
+        let Some(pa) = self.fw.libos_args_pa() else {
+            if self.transport == GspTransport::MsgqV2 {
+                notes.push("queues (v2): no libos arguments in the GSP mailboxes; not linked".into());
+            }
+            return notes;
+        };
+        if self.transport != GspTransport::MsgqV2 {
+            let mut probe = Vec::new();
+            if let Ok(rmargs) = Self::find_rmargs(mem, pa, &mut probe) {
+                if crate::msgq::v2::rmargs_is_v2(mem, rmargs) == Some(true) {
+                    notes.push(format!(
+                        "guest ABI: ERROR the guest's RMARGS at {rmargs:#x} carry the 615 magic \"GSP \"; this device emulates {} with the 610 transport (start it with --guest-abi 615 from a v615 build, CARAXES_GUEST_ABI=615)",
+                        v::DRIVER_VERSION
+                    ));
+                }
+            }
+            return notes;
+        }
+        self.libos_args_pa = Some(pa);
+        match self.link_queues_v2(mem, pa) {
+            Ok(n) => notes.extend(n),
+            Err(e) => notes.push(format!("queues (v2): {e}")),
+        }
+        notes
+    }
+
+    /// The RMARGS region among the libos init arguments at `libos_args_pa`.
+    fn find_rmargs(mem: &GuestMemory, libos_args_pa: u64, notes: &mut Vec<String>) -> Result<u64, String> {
+        let mut rmargs = None;
+        for i in 0..16u64 {
+            let e = libos_args_pa + v::LIBOS_ARG_SIZE * i;
+            let id8 = mem
+                .read_u64(e + v::LIBOS_ARG_ID8)
+                .ok_or("libos args not mapped")?;
+            if id8 == 0 {
+                break;
+            }
+            let pa = mem.read_u64(e + v::LIBOS_ARG_PA).unwrap_or(0);
+            let size = mem.read_u64(e + v::LIBOS_ARG_REGION_SIZE).unwrap_or(0);
+            let name: String = id8
+                .to_be_bytes()
+                .iter()
+                .filter(|&&c| c != 0)
+                .map(|&c| c as char)
+                .collect();
+            notes.push(format!("libos arg {i}: {name:?} pa {pa:#x} size {size:#x}"));
+            if id8 == v::RMARGS_ID8 {
+                rmargs = Some(pa);
+            }
+        }
+        rmargs.ok_or_else(|| "no RMARGS region in the libos init arguments".into())
+    }
+
+    /// Link message queue v2: check RMARGS (`GSP_ARGUMENTS_CACHED`, magic "GSP "), read
+    /// the page table, check the CPU's command-queue header and write ours
+    /// (`msgq::v2::QueueStateV2::link`). No GSP_INIT_DONE: the 615 kernel does not wait
+    /// for it.
+    fn link_queues_v2(&mut self, mem: &GuestMemory, libos_args_pa: u64) -> Result<Vec<String>, String> {
+        use crate::msgq::v2::{QueueArgs, QueueStateV2};
+        let mut notes = Vec::new();
+        let rmargs = Self::find_rmargs(mem, libos_args_pa, &mut notes)?;
+        let args = QueueArgs::read(mem, rmargs)?;
+        notes.push(format!(
+            "rmargs (615): size {} flags {:#x} sharedMemPhysAddr {:#x} pages {} cmdQueueOffset {:#x} statQueueOffset {:#x} element {}/{:#x}/{:#x}",
+            args.args_size,
+            args.args_flags,
+            args.shared_mem_pa,
+            args.page_table_entry_count,
+            args.cmd_queue_offset,
+            args.stat_queue_offset,
+            args.element_hdr_size,
+            args.element_size_min,
+            args.element_size_max
+        ));
+        let pages = QueueMemory::read_page_table(mem, args.shared_mem_pa, args.page_table_entry_count)
+            .ok_or("queue page table not mapped")?;
+        let q = {
+            let qm = QueueMemory::new(mem, &pages);
+            QueueStateV2::link(&qm, &args, self.cpu_cmd_head)?
+        };
+        notes.push(format!(
+            "queues linked (v2): cmd {:?}; status header written (size {:#x}, {} slots); pointers in QUEUE_HEAD/TAIL(0), MSGQ_HEAD/TAIL(0); no GSP_INIT_DONE",
+            q.cmd, q.stat.size, q.stat.msg_count
+        ));
+        self.pages = pages;
+        self.queues = Some(crate::msgq::QueueState::from_v2(q));
+        self.pending = None;
+        Ok(notes)
+    }
+
+    /// `GMCAPI_CMD_GSP_INIT`: read the NVKV system information (BAR addresses, driver
+    /// version, registry), answer with the static configuration as NVKV keys
+    /// (`rpc::static_info_nvkv`), bounded by the request's `max_response_size`.
+    fn gsp_init(&mut self, msg: &crate::msgq::Message, notes: &mut Vec<String>) -> (u32, Vec<u8>) {
+        let max = msg.gmcapi.map_or(0, |g| g.request_or_status as usize);
+        let si = match crate::gmcapi::SystemInfo::parse(&msg.payload) {
+            Ok(si) => si,
+            Err(e) => {
+                notes.push(format!("gmcapi GSP_INIT: request refused: {e}"));
+                return (NV_ERR_INVALID_ARGUMENT, Vec::new());
+            }
+        };
+        notes.push(format!("gmcapi GSP_INIT system info: {}", si.describe()));
+        if let Some(bars) = si.bar_addresses() {
+            self.ctrl.bar_offsets = bars;
+        }
+        if si.driver_version.as_deref() != Some(v::DRIVER_VERSION) {
+            notes.push(format!(
+                "guest driver {:?} is not the emulated {} (build with its ver module)",
+                si.driver_version,
+                v::DRIVER_VERSION
+            ));
+        }
+        for (name, value) in &si.registry {
+            notes.push(format!("registry {name} = {value:?}"));
+        }
+        self.system_info = Some(msg.payload.clone());
+        let (image, labels) = rpc::build_static_info(
+            self.chip.data(),
+            &self.identity,
+            self.wpr.as_ref(),
+            &self.layout,
+        );
+        for l in labels {
+            notes.push(format!("static-info {} = {} [{}]", l.field, l.value, l.source));
+        }
+        let (out, keys) = rpc::static_info_nvkv(&image, self.chip.data());
+        for k in keys {
+            notes.push(format!("static-info key {k}"));
+        }
+        if out.len() > max {
+            notes.push(format!(
+                "gmcapi GSP_INIT: {} bytes of static info exceed max_response_size {max}",
+                out.len()
+            ));
+            return (NV_ERR_BUFFER_TOO_SMALL, Vec::new());
+        }
+        notes.push(format!("gmcapi GSP_INIT: {} bytes of NVKV static info", out.len()));
+        (rpc::NV_OK, out)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1236,5 +1519,129 @@ mod tests {
         assert_eq!(b.read32(gsp + falcon::CPUCTL), Some(0x10));
         assert_eq!(b.read32(0x001F_A824), Some(0));
         assert_eq!(b.doorbells(), 0);
+    }
+
+    /// Guest memory holding what the 615.71.09 guest prepared before its GSP boot, as
+    /// captured from guest RAM (caraxes/runs/guest-driver-2026-09-24/615.71.09/unlinked/):
+    /// the WPR meta at 0x769c000, the libos init arguments at 0x769d000, RMARGS
+    /// (`GSP_ARGUMENTS_CACHED`) at 0x769e000, and the 129-page shared queue buffer at
+    /// 0x88a00000 with the page table and the v2 command-queue header.
+    fn guest_615(tag: &str) -> (GuestMemory, std::path::PathBuf) {
+        use std::io::Write;
+        const RUN: &str = "../../caraxes/runs/guest-driver-2026-09-24/615.71.09/unlinked";
+        let read = |f: &str| std::fs::read(format!("{RUN}/{f}")).unwrap();
+        let path = std::env::temp_dir().join(format!("nvgpu-boot615-{tag}-{}", std::process::id()));
+        let mut f = std::fs::File::options()
+            .read(true)
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .open(&path)
+            .unwrap();
+        f.write_all(&vec![0u8; 0x100000]).unwrap();
+        let mut mem = GuestMemory::new();
+        mem.map(0x0769_0000, 0x20000, 0, &f).unwrap();
+        mem.map(0x88a0_0000, 0x81000, 0x20000, &f).unwrap();
+        assert!(mem.write(0x0769_c000, &read("wpr-meta.bin")));
+        assert!(mem.write(0x0769_d000, &read("libos-init-args.bin")));
+        assert!(mem.write(0x0769_e000, &read("gsp-arguments-cached.bin")));
+        assert!(mem.write(0x88a0_0000, &read("queue-page-table.bin")));
+        assert!(mem.write(0x88a0_1000, &read("cmd-queue-first-page.bin")));
+        (mem, path)
+    }
+
+    /// Booter-Load of the Turing boot model with the libos arguments in the GSP mailboxes
+    /// and the WPR meta in SEC2's, as `kgspBootstrap_TU102` of 615 drives it
+    /// (kernel_gsp_tu102.c:429-437).
+    fn booter_load(b: &mut BootModel, mem: &GuestMemory) -> Vec<String> {
+        let (gsp, sec2) = (0x0011_0000u64, 0x0084_0000u64);
+        b.write32(gsp + falcon::MAILBOX0, 0x0769_d000, mem);
+        b.write32(gsp + falcon::MAILBOX1, 0, mem);
+        b.write32(sec2 + falcon::MAILBOX0, 0x0769_c000, mem);
+        b.write32(sec2 + falcon::MAILBOX1, 0, mem);
+        b.write32(sec2 + falcon::CPUCTL, 2, mem).unwrap()
+    }
+
+    /// The 615 path end to end against the captured guest: the pre-boot QUEUE_HEAD
+    /// write is no doorbell, the queues link at Booter-Load with the status header
+    /// msgqRxLink wants, the captured first GMCAPI_CMD_GSP_INIT is answered with NVKV
+    /// static info the kernel's key handler accepts, and the pointers travel in the
+    /// NV_PGSP_QUEUE_* and MSGQ_* registers.
+    #[test]
+    fn boot_615_link_and_gsp_init_from_the_captured_guest() {
+        let (mem, path) = guest_615("init");
+        let f = crate::fixture::rtx2070();
+        let mut b = BootModel::new(f.chip, crate::fb::FbLayout::plain(4 << 30), f.identity(4 << 30))
+            .with_transport(GspTransport::MsgqV2);
+        let (cmd_head, cmd_tail, msg_head, msg_tail) =
+            (0x0011_0C00u64, 0x0011_0C04u64, 0x0011_0C80u64, 0x0011_0C84u64);
+        // msgqTxCreate before the boot (msgq.c:175-177): no link, no reply.
+        let notes = b.write32(cmd_head, 0, &mem).unwrap();
+        assert!(notes.iter().any(|n| n.contains("not linked yet")), "{notes:?}");
+        let notes = booter_load(&mut b, &mem);
+        assert!(notes.iter().any(|n| n.starts_with("rmargs (615): size 184 flags 0x2 sharedMemPhysAddr 0x88a00000 pages 129")), "{notes:?}");
+        assert!(notes.iter().any(|n| n.starts_with("queues linked (v2)")), "{notes:?}");
+        let mut hdr = [0u8; 32];
+        assert!(mem.read(0x88a0_0000 + 0x41000, &mut hdr));
+        // The header the linked capture wrote by hand (guest-driver-versions.md §5.3).
+        assert_eq!(
+            hdr.iter().map(|x| format!("{x:02x}")).collect::<String>(),
+            "0200000000000400001000003f00000000100000000000000000000000000000"
+        );
+        assert_eq!((b.read32(cmd_tail), b.read32(msg_head)), (Some(0), Some(0)));
+
+        // The guest links its status queue, queues GSP_INIT and rings.
+        let slot0 = std::fs::read(
+            "../../caraxes/runs/guest-driver-2026-09-24/615.71.09/linked/gmcapi-gsp-init-slot0.bin",
+        )
+        .unwrap();
+        assert!(mem.write(0x88a0_0000 + 0x2000, &slot0));
+        b.write32(msg_tail, 0, &mem);
+        let notes = b.write32(cmd_head, 1, &mem).unwrap();
+        assert!(notes.iter().any(|n| n.contains("GMCAPI_GSP_INIT (65537) sequence 0")), "{notes:?}");
+        assert!(
+            notes.iter().any(|n| n.contains("\"NVRM\" \"615.71.09\"") && n.contains("bars 0xe6000000/0x3fffe0000000/0x3ffffc000000/0x0")),
+            "{notes:?}"
+        );
+        assert!(notes.iter().any(|n| n.starts_with("registry RmRcWatchdog = U32(0)")), "{notes:?}");
+        assert!(notes.iter().any(|n| n.starts_with("tx seq 0 reply GMCAPI_GSP_INIT sequence 0 result 0x0")), "{notes:?}");
+        assert_eq!(b.ctrl.bar_offsets, [0xe600_0000, 0x3fff_e000_0000, 0x3fff_fc00_0000, 0]);
+        // QUEUE_TAIL: one element consumed; MSGQ_HEAD: one element published.
+        assert_eq!((b.read32(cmd_tail), b.read32(msg_head)), (Some(1), Some(1)));
+        // The CPU's view of the response (message_queue_cpu.c:634-822, gpu.c:7887-7893).
+        let mut el = vec![0u8; 0x1000];
+        assert!(mem.read(0x88a0_0000 + 0x42000, &mut el));
+        let u32_at = |o: usize| u32::from_le_bytes(el[o..o + 4].try_into().unwrap());
+        assert_eq!((u32_at(0), u32_at(8), u32_at(12)), (0x4D43_5450, 0xC000_0001, 0x2610_DE7E));
+        let g = crate::gmcapi::Header::parse(&el[24..]).unwrap();
+        assert_eq!((g.command, g.sequence, g.request_or_status), (0x0101_0001, 0, 0));
+        assert_eq!(u32_at(4) as usize, 24 + 40 + g.size as usize);
+        assert!(g.size <= 0xc000);
+        let data = &el[64..64 + g.size as usize];
+        let keys = crate::rpc::tests::kernel_accepts(&crate::gmcapi::words(data)).unwrap();
+        assert!(keys.iter().any(|e| e.key == crate::gmcapi::sc::GPU_NAME_STRING));
+        // A driver reload creates the command queue anew (QUEUE_HEAD := 0): the link
+        // goes until GSP-RM starts again.
+        let notes = b.write32(cmd_head, 0, &mem).unwrap();
+        assert!(notes.iter().any(|n| n.contains("link dropped")), "{notes:?}");
+        assert_eq!(b.read32(msg_head), Some(0), "the falcon register again");
+        b.reset();
+        assert_eq!(b.transport(), GspTransport::MsgqV2, "a reset keeps the transport");
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// Fail closed: a 610 device facing the captured 615 guest does not link anything
+    /// at Booter-Load, names the mismatch, and keeps the QUEUE_* registers the falcon's.
+    #[test]
+    fn a_610_device_names_a_615_guest() {
+        let (mem, path) = guest_615("mismatch");
+        let f = crate::fixture::rtx2070();
+        let mut b = BootModel::new(f.chip, crate::fb::FbLayout::plain(4 << 30), f.identity(4 << 30))
+            .with_transport(GspTransport::MsgqV1);
+        let notes = booter_load(&mut b, &mem);
+        assert!(notes.iter().any(|n| n.contains("guest ABI: ERROR") && n.contains("615 magic")), "{notes:?}");
+        assert!(!notes.iter().any(|n| n.contains("queues linked")), "{notes:?}");
+        assert_eq!(b.read32(0x0011_0C80), Some(0));
+        let _ = std::fs::remove_file(&path);
     }
 }

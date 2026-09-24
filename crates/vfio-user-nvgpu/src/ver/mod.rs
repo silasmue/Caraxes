@@ -27,13 +27,104 @@
 
 #[cfg(feature = "v610")]
 pub mod v610;
+/// Driver 615.71.09 as the guest's driver: the 615 control layouts over the 610 module
+/// (docs/caraxes/gsp-transport-615.md). The feature implies `v610`, whose module keeps
+/// the host-side layouts: the host driver stays 610.57.04.
+#[cfg(feature = "v615")]
+pub mod v615;
 
-/// The driver version this build emulates.
-#[cfg(feature = "v610")]
+/// The driver version this build emulates. Features are additive (as in `nvrm-sys`),
+/// so a build with both picks the newer one.
+#[cfg(feature = "v615")]
+pub use v615 as active;
+#[cfg(all(feature = "v610", not(feature = "v615")))]
 pub use v610 as active;
 
 #[cfg(not(feature = "v610"))]
 compile_error!("vfio-user-nvgpu needs a driver-version feature (v610)");
+
+/// How the CPU and the emulated GSP exchange messages: what a version module names in
+/// `GSP_TRANSPORT`, what the boot model links and serves (boot.rs, msgq.rs).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum GspTransport {
+    /// Up to 610: message queue v0 with the read and write pointers in the shared queue
+    /// headers, checksummed and sequence-numbered elements, and the init RPCs
+    /// GSP_SET_SYSTEM_INFO, SET_REGISTRY, GET_GSP_STATIC_INFO and the GSP_INIT_DONE event
+    /// (docs/caraxes/gsp-rpc-protocol.md).
+    MsgqV1,
+    /// From 615: message queue v2 with the pointers in `NV_PGSP_QUEUE_HEAD/TAIL(0)` and
+    /// `NV_PGSP_MSGQ_HEAD/TAIL(0)`, MCTP-framed elements without checksum or sequence
+    /// number, and one `GMCAPI_CMD_GSP_INIT` with NVKV-encoded request and response
+    /// (docs/caraxes/gsp-transport-615.md; `msgq::v2`, `gmcapi`).
+    MsgqV2,
+}
+
+/// The guest ABI the device serves, checked against this build (fail closed): what
+/// `--guest-abi` and `CARAXES_GUEST_ABI` ask for must be the build's own
+/// (`active::GSP_TRANSPORT`: 610 in a default build, 615 in a `--features v615` build), or
+/// 595 in a 610 build together with the environment switch that selects the pre-610
+/// element layout ([`element_layout`]). Neither given: the build's. Returns the ABI.
+pub fn check_guest_abi(flag: Option<u32>, env: Option<&str>) -> Result<u32, String> {
+    let build = active::GSP_TRANSPORT.guest_abi();
+    let env = match env {
+        None | Some("") => None,
+        Some(v) => Some(
+            v.parse::<u32>()
+                .map_err(|_| format!("CARAXES_GUEST_ABI={v:?} is not 595, 610 or 615"))?,
+        ),
+    };
+    if let (Some(f), Some(e)) = (flag, env) {
+        if f != e {
+            return Err(format!("--guest-abi {f} but CARAXES_GUEST_ABI={e}"));
+        }
+    }
+    let want = flag.or(env).unwrap_or(build);
+    let how = |abi: u32| match abi {
+        615 => "cargo build --release -p vfio-user-nvgpu --features v615 --target-dir target/v615".to_string(),
+        _ => "cargo build --release -p vfio-user-nvgpu".to_string(),
+    };
+    match want {
+        595 if build == 610 && env == Some(595) => Ok(595),
+        595 => Err("guest ABI 595 needs a 610 build and CARAXES_GUEST_ABI=595 in the device's environment".into()),
+        610 | 615 if want == build => Ok(want),
+        610 | 615 => Err(format!(
+            "guest ABI {want}, but this binary emulates {} with the {build} transport ({:?}); use the binary of `{}`",
+            active::DRIVER_VERSION,
+            active::GSP_TRANSPORT,
+            how(want)
+        )),
+        other => Err(format!("guest ABI {other} is none of 595, 610, 615")),
+    }
+}
+
+impl GspTransport {
+    /// The guest ABI a transport stands for, as `--guest-abi` and `CARAXES_GUEST_ABI` name it.
+    pub fn guest_abi(self) -> u32 {
+        match self {
+            GspTransport::MsgqV1 => 610,
+            GspTransport::MsgqV2 => 615,
+        }
+    }
+}
+
+#[cfg(test)]
+mod abi_tests {
+    use super::*;
+
+    #[test]
+    fn the_guest_abi_must_be_the_builds() {
+        let build = active::GSP_TRANSPORT.guest_abi();
+        let other = if build == 610 { 615 } else { 610 };
+        assert_eq!(check_guest_abi(None, None), Ok(build));
+        assert_eq!(check_guest_abi(Some(build), Some(&build.to_string())), Ok(build));
+        assert!(check_guest_abi(Some(other), None).unwrap_err().contains("use the binary"));
+        assert!(check_guest_abi(None, Some(&other.to_string())).is_err());
+        assert!(check_guest_abi(Some(610), Some("615")).is_err());
+        assert!(check_guest_abi(None, Some("6x5")).is_err());
+        assert!(check_guest_abi(Some(595), None).is_err(), "595 needs the environment switch");
+        assert_eq!(check_guest_abi(None, Some("595")).is_ok(), build == 610);
+    }
+}
 
 /// The compiler-measured layout tables of docs/caraxes/gsp-abi-610.md (a), parsed
 /// for the tests: `(struct, field) -> offset`, and `struct -> sizeof`.
@@ -84,4 +175,86 @@ pub(crate) mod measured {
         }
         Tables { sizes, fields }
     }
+}
+
+/// Queue-element layout of the guest's driver. The build emulates one version, but
+/// the element header is the first thing a guest of another version disagrees on
+/// (docs/caraxes/guest-driver-versions.md): before 610 it is `authTagBuffer[16]`,
+/// `aadBuffer[16]`, `checkSum`, `seqNum`, `elemCount` and the RPC header at 0x30
+/// (595.91.07 `message_queue_priv.h:43-51`); from 610 on `mctpHeader`,
+/// `nvdmHeader`, `checkSum`, `seqNum` and the payload at 0x10 (610.57.04
+/// `message_queue_priv.h:52-67`). Experiment only: `CARAXES_GUEST_ABI=595` selects
+/// the older layout; unset, the device uses the emulated version's.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ElementLayout {
+    /// Bytes before the RPC header (`queueElementHdrSize`).
+    pub header_size: usize,
+    pub checksum_off: usize,
+    pub seq_off: usize,
+    /// `elemCount`, which the pre-610 receiver reads instead of deriving it.
+    pub elem_count_off: Option<usize>,
+    /// Whether the element carries `mctpHeader`/`nvdmHeader` at 0 and 4.
+    pub mctp: bool,
+}
+
+impl ElementLayout {
+    /// `maxRpcSize` = `queueElementSizeMax` (16 pages) minus the element header
+    /// (message_queue_priv.h `gspMsgQueueGetMaxRpcSize`): 65520 from 610 on, 65488
+    /// before. The first record of a large RPC is exactly this long.
+    pub fn max_rpc_size(&self) -> usize {
+        0x10000 - self.header_size
+    }
+
+    pub const EMULATED: ElementLayout = ElementLayout {
+        header_size: active::ELEMENT_HEADER_SIZE,
+        checksum_off: 8,
+        seq_off: 12,
+        elem_count_off: None,
+        mctp: true,
+    };
+    pub const PRE_610: ElementLayout = ElementLayout {
+        header_size: 0x30,
+        checksum_off: 0x20,
+        seq_off: 0x24,
+        elem_count_off: Some(0x28),
+        mctp: false,
+    };
+}
+
+/// The layout selected by `CARAXES_GUEST_ABI` (read once).
+pub fn element_layout() -> ElementLayout {
+    static L: std::sync::OnceLock<ElementLayout> = std::sync::OnceLock::new();
+    *L.get_or_init(|| match std::env::var("CARAXES_GUEST_ABI").as_deref() {
+        Ok("595") => {
+            log::warn!("CARAXES_GUEST_ABI=595: pre-610 GSP queue elements (experiment)");
+            ElementLayout::PRE_610
+        }
+        _ => ElementLayout::EMULATED,
+    })
+}
+
+/// `GspStaticConfigInfo` as a pre-610 guest reads it (`CARAXES_GUEST_ABI=595`):
+/// 595.91.07 lacks `vbiosRevision`/`vbiosOemRevision` (610: 0x5fc, 0x600),
+/// `bSysL2CacheCoherentMode` (610: 0x616) and `bBusResetRequired` (610: 0x638), so
+/// its tail sits 8 bytes lower and the struct is 0x638 bytes, not 0x640
+/// (gsp-abi-sizes of both trees, docs/caraxes/guest-driver-versions.md). Everything
+/// before 0x5fc is identical. Unchanged for the emulated version.
+pub fn static_info_for_guest(info: Vec<u8>) -> Vec<u8> {
+    if element_layout() != ElementLayout::PRE_610 || info.len() != 0x640 {
+        return info;
+    }
+    let mut out = vec![0u8; 0x638];
+    // (610 offset, 595 offset, length)
+    for (from, to, len) in [
+        (0x000, 0x000, 0x5fc), // everything up to vbiosRevision
+        (0x604, 0x5fc, 3),     // bPageRetirementSupported .. bClRootportNeedsNosnoopWAR
+        (0x608, 0x600, 12),    // hInternalClient/Device/Subdevice
+        (0x614, 0x60c, 2),     // bSelfHostedMode, bAtsSupported
+        (0x617, 0x60e, 2),     // bIsGpuUefi, bIsEfiInit
+        (0x61c, 0x610, 12),    // ecidInfo
+        (0x628, 0x620, 16),    // fwWprLayoutOffset
+    ] {
+        out[to..to + len].copy_from_slice(&info[from..from + len]);
+    }
+    out
 }

@@ -1,0 +1,11 @@
+# target v1 metric ioctl rep 5
+# cmd ./ioctlping 10000
+# device /home/silas/git/Caraxes/target/bench/release/vhost-user-nvrm sha256 736ffc900ef62831
+# time 2026-09-24T11:02:08+02:00
+# gpu 53, 900 MHz, 810 MHz, P5, 11 %, 5188 MiB, Disabled
+# procs 2223591:vm0-dev 2223607:vm0-vmm 2342749:bench-v1-dev 2342757:bench-v1-vmm 2347263:vm2-dev 2347270:vm2-vmm 
+# loadavg 4.93 4.44 4.32
+version reply=1 str=610.57.04
+ioctlping n=10000 pause_us=0 fails=0 min_us=14.71 p10_us=16.27 p50_us=16.71 p90_us=20.84 p99_us=35.55 max_us=4076.87 mean_us=19.53
+# WALL wall_ms=203 rc=0
+# MEAS dev_pid=2342749 dev_cpu_ms=90 dev_rss_hwm_kb=513672/560632 vmm_cpu_ms=480 others: vm0-dev=30ms vm2-dev=30ms vm0-vmm=60ms vm2-vmm=60ms 

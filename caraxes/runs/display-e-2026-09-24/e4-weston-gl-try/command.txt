@@ -1,0 +1,4 @@
+# SPDX-License-Identifier: MIT
+# 2026-09-24 08:40:48 guest command:
+unset DISPLAY; cd caraxes-guest; sudo SETTLE=5 bash weston-pace.sh 1920x1080 10 gl 2>&1 | tail -80
+rc=0

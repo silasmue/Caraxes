@@ -1,0 +1,4 @@
+  creating device with swapchain + deferred_host_ops + acceleration_structure
+  vkCreateDevice                             VK_ERROR_INITIALIZATION_FAILED
+command exit 1
+-rw-r--r-- 1 root root 589511 Sep 24 07:39 /tmp/rt-rm

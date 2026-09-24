@@ -1,27 +1,62 @@
 # SPDX-License-Identifier: MIT
 #
-# DRAFT: GB206 BAR0 register names for the trace, same format as
-# chips/tu106/regmap.toml; not loaded by any code (docs/caraxes/blackwell-gb206.md).
-# Only the registers whose GB20x offset is known from the 610.57.04 headers the guest
-# driver uses are listed (see chips/gb206/boot.toml for the sources); the rest of the
-# Blackwell map (XAL/XTL ZB windows, HUBMMU, the VF window) is OPEN.
+# GB206 BAR0 register names for the trace, same format as chips/tu106/regmap.toml
+# ([lo, hi) byte ranges, first match wins; an offset in no range is listed in the
+# trace summary as unnamed). Offsets are those chips/gb206/chip.toml and boot.toml
+# cite from the 610.57.04 headers (src/common/inc/swref/published/); the rest of the
+# Blackwell map is added as the N gate trace names it (docs/caraxes/blackwell-gate.md).
 # MSI-X: the card's MSI-X table and PBA live in BAR0 at 0xB90000 and 0xBA0000
-# (caraxes/reference/gb206/gpu-0000_01_00.0/lspci-vvv.txt:49-51).
+# (caraxes/reference/gb206/gpu-0000_01_00.0/lspci-vvv.txt:49-51); the capability is not
+# presented (boards/rtx5060ti.toml msix = false).
 
 register = [
     { lo = 0x0000_0000, hi = 0x0000_0004, name = "NV_PMC_BOOT_0" },
     { lo = 0x0000_0004, hi = 0x0000_0008, name = "NV_PMC_BOOT_1" },
     { lo = 0x0000_0A00, hi = 0x0000_0A04, name = "NV_PMC_BOOT_42" },
+    { lo = 0x0000_14DC, hi = 0x0000_14E0, name = "NV_PBUS_SW_SCRATCH(0x37) GSP_FMC_ERROR" },
+    { lo = 0x0000_1400, hi = 0x0000_1480, name = "NV_PBUS_SW_SCRATCH(i)" },
+    { lo = 0x0000_9000, hi = 0x0000_A000, name = "NV_PTIMER" },
+    { lo = 0x0009_2000, hi = 0x0009_3000, name = "NV_EP_PCFGM (config mirror)" },
+    { lo = 0x0010_F800, hi = 0x0010_F818, name = "NV_XAL_EP_ZB_UFLUSH_*" },
+    { lo = 0x0010_FD40, hi = 0x0010_FD44, name = "NV_XAL_EP_ZB_BAR0_WINDOW" },
+    { lo = 0x0010_F000, hi = 0x0011_0000, name = "NV_XAL_EP_ZB" },
     { lo = 0x0011_0040, hi = 0x0011_0048, name = "NV_PGSP_FALCON_MAILBOX0/1" },
+    { lo = 0x0011_0080, hi = 0x0011_0084, name = "NV_PGSP_FALCON_OS" },
+    { lo = 0x0011_0094, hi = 0x0011_0098, name = "NV_PGSP_FALCON_DEBUGINFO" },
     { lo = 0x0011_00F4, hi = 0x0011_00F8, name = "NV_PGSP_FALCON_HWCFG2 (target mask, lockdown)" },
     { lo = 0x0011_0C00, hi = 0x0011_0C40, name = "NV_PGSP_QUEUE_HEAD/TAIL" },
     { lo = 0x0011_0C80, hi = 0x0011_0CC0, name = "NV_PGSP_MSGQ_HEAD/TAIL" },
+    { lo = 0x0011_1388, hi = 0x0011_138C, name = "NV_PGSP_RISCV_CPUCTL" },
+    { lo = 0x0011_0804, hi = 0x0011_080C, name = "NV_PGSP_MAILBOX(0/1) GSP-RM/libos heartbeat" },
     { lo = 0x0011_0000, hi = 0x0011_4000, name = "NV_PGSP (GSP falcon/RISC-V)" },
+    { lo = 0x0011_83A4, hi = 0x0011_83A8, name = "NV_USABLE_FB_SIZE_IN_MB (SECURE_SCRATCH_GROUP_42)" },
+    { lo = 0x0011_8DF4, hi = 0x0011_8DFC, name = "NV_PGC6_SCI_SEC_TIMER_OFFSET" },
+    { lo = 0x0011_8F54, hi = 0x0011_8F5C, name = "NV_PGC6_SCI_SEC_TIMER_TIME_0/1" },
+    { lo = 0x0011_8000, hi = 0x0011_9000, name = "NV_PGC6 (AON)" },
+    { lo = 0x0030_0000, hi = 0x0040_0000, name = "NV_PROM_DATA (VBIOS window)" },
+    { lo = 0x0070_0000, hi = 0x0080_0000, name = "NV_PRAMIN" },
+    { lo = 0x0082_074C, hi = 0x0082_0750, name = "NV_FUSE_ZB_OPT_SECURE_GSP_DEBUG_DIS" },
+    { lo = 0x0082_3814, hi = 0x0082_3818, name = "NV_FUSE_ZB_FEATURE_READOUT" },
+    { lo = 0x0082_0000, hi = 0x0083_0000, name = "NV_FUSE" },
+    { lo = 0x0088_A824, hi = 0x0088_A82C, name = "NV_HUBMMU_PRI_MMU_WPR2_ADDR_LO/HI" },
+    { lo = 0x0088_0000, hi = 0x008A_0000, name = "NV_HUBMMU" },
     { lo = 0x008F_0320, hi = 0x008F_0330, name = "NV_PFSP_FALCON_COMMON_SCRATCH_GROUP_2(i)" },
     { lo = 0x008F_2AC0, hi = 0x008F_2B00, name = "NV_PFSP_EMEMC/EMEMD(i)" },
     { lo = 0x008F_2C00, hi = 0x008F_2C40, name = "NV_PFSP_QUEUE_HEAD/TAIL" },
     { lo = 0x008F_2C80, hi = 0x008F_2CC0, name = "NV_PFSP_MSGQ_HEAD/TAIL" },
+    { lo = 0x008F_0000, hi = 0x0090_0000, name = "NV_PFSP" },
     { lo = 0x00AD_00BC, hi = 0x00AD_00C0, name = "NV_THERM_I2CS_SCRATCH (FSP_BOOT_COMPLETE)" },
-    { lo = 0x00B9_0000, hi = 0x00BA_0000, name = "MSI-X table (config capability 0xB0)" },
-    { lo = 0x00BA_0000, hi = 0x00BA_1000, name = "MSI-X PBA" },
+    { lo = 0x00B8_0F10, hi = 0x00B8_0F20, name = "NV_VIRTUAL_FUNCTION_PRIV_FUNC_L2_*_INVALIDATE" },
+    { lo = 0x00B8_0F60, hi = 0x00B8_0F68, name = "NV_VIRTUAL_FUNCTION_PRIV_FUNC_BAR1_BLOCK" },
+    { lo = 0x00B8_0F70, hi = 0x00B8_0F78, name = "NV_VIRTUAL_FUNCTION_PRIV_FUNC_BAR2_BLOCK" },
+    { lo = 0x00B8_1000, hi = 0x00B8_1800, name = "NV_VIRTUAL_FUNCTION_PRIV_CPU_INTR (tree)" },
+    { lo = 0x00B8_3000, hi = 0x00B8_3040, name = "NV_VIRTUAL_FUNCTION_PRIV_MMU_FAULT_BUFFER" },
+    { lo = 0x00B8_30A0, hi = 0x00B8_30B4, name = "NV_VIRTUAL_FUNCTION_PRIV_MMU_INVALIDATE" },
+    { lo = 0x00B8_3110, hi = 0x00B8_3120, name = "NV_VIRTUAL_FUNCTION_PRIV_ACCESS_COUNTER_NOTIFY_BUFFER" },
+    { lo = 0x00B9_0000, hi = 0x00BA_0000, name = "MSI-X table (capability not presented)" },
+    { lo = 0x00BA_0000, hi = 0x00BA_1000, name = "MSI-X PBA (capability not presented)" },
+    { lo = 0x00B8_0000, hi = 0x00BB_0000, name = "NV_VIRTUAL_FUNCTION_PRIV" },
+    { lo = 0x00BB_0080, hi = 0x00BB_0088, name = "NV_VIRTUAL_FUNCTION_TIME_0/1" },
+    { lo = 0x00BB_0090, hi = 0x00BB_0094, name = "NV_VIRTUAL_FUNCTION_DOORBELL" },
+    { lo = 0x00BB_0000, hi = 0x00BC_0000, name = "NV_VIRTUAL_FUNCTION (usermode)" },
 ]

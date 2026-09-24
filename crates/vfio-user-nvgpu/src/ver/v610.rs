@@ -26,6 +26,10 @@ pub type RmAbi = nvrm_sys::V610;
 /// The display control vocabulary (src/ver/v610/display.rs).
 pub mod display;
 
+/// The CPU-GSP transport of this version: message queue v0, checksummed elements, the
+/// four init RPCs (docs/caraxes/gsp-rpc-protocol.md).
+pub const GSP_TRANSPORT: super::GspTransport = super::GspTransport::MsgqV1;
+
 // ---------------------------------------------------------------------------------
 // NV_STATUS values (src/common/sdk/nvidia/inc/nvstatuscodes.h).
 
@@ -173,6 +177,11 @@ pub const SI_H_INTERNAL_CLIENT: usize = 0x608;
 pub const SI_H_INTERNAL_DEVICE: usize = 0x60C;
 pub const SI_H_INTERNAL_SUBDEVICE: usize = 0x610;
 pub const SI_BUS_RESET_REQUIRED: usize = 0x638;
+/// `fwWprLayoutOffset.nonWprHeapOffset`/`.frtsOffset`: read by the kernel RM only with
+/// `PDB_PROP_GPU_FW_WPR_OFFSET_SET_BY_ACR` (GH100 and GB20x; kernel_gsp.c:4712-4728,
+/// generated/g_gpu_nvoc.c:365-375), where ACR, not the CPU, lays out the WPR.
+pub const SI_FW_WPR_NON_WPR_HEAP_OFFSET: usize = 0x628;
+pub const SI_FW_WPR_FRTS_OFFSET: usize = 0x630;
 
 /// `GspFwWprMeta` (gsp_fw_wpr_meta.h:211-212 for the magic).
 pub const WPR_META_SIZE: usize = 256;
@@ -186,6 +195,25 @@ pub const WPR_META_FRTS_OFFSET: usize = 0x98;
 pub const WPR_META_GSP_FW_WPR_END: usize = 0xA8;
 pub const WPR_META_FB_SIZE: usize = 0xB0;
 pub const WPR_META_VGA_WORKSPACE_OFFSET: usize = 0xB8;
+// The fields the CPU fills as size requests on GH100 and later and ACR completes
+// (kgspPopulateWprMeta_GH100, kernel_gsp_gh100.c:303-397); the FSP boot model plays ACR.
+pub const WPR_META_SIZE_OF_RADIX3_ELF: usize = 0x18;
+pub const WPR_META_SIZE_OF_BOOTLOADER: usize = 0x28;
+pub const WPR_META_GSP_FW_HEAP_OFFSET: usize = 0x78;
+pub const WPR_META_GSP_FW_HEAP_SIZE: usize = 0x80;
+pub const WPR_META_GSP_FW_OFFSET: usize = 0x88;
+pub const WPR_META_BOOT_BIN_OFFSET: usize = 0x90;
+pub const WPR_META_FRTS_SIZE: usize = 0xA0;
+pub const WPR_META_VGA_WORKSPACE_SIZE: usize = 0xC0;
+pub const WPR_META_PMU_RESERVED_SIZE: usize = 0xF4;
+
+/// `GSP_FMC_BOOT_PARAMS` (arch/nvalloc/common/inc/gsp/gspifpub.h:115-122), the GSP-FMC
+/// arguments whose address the COT message carries (kfspGetGspBootArgs,
+/// kern_fsp_gh100.c:919-940; filled by kgspSetupGspFmcArgs_GH100, kernel_gsp_gh100.c:419-497).
+pub const FMC_PARAMS_SIZE: usize = 88;
+pub const FMC_GSP_RM_DESC_SIZE: usize = 0x0C;
+pub const FMC_GSP_RM_DESC_OFFSET: usize = 0x10;
+pub const FMC_BOOT_ARGS_OFFSET: usize = 0x30;
 
 /// `LibosMemoryRegionInitArgument`, the array the libos args page holds.
 pub const LIBOS_ARG_SIZE: u64 = 32;
@@ -205,8 +233,8 @@ pub const MQ_STAT_QUEUE_OFFSET: u64 = 24;
 // Driver enums the chip tables name symbolically (src/chip; chips/<chip>/*.toml). A
 // chip file says `COPY0`, this table says what number 610.57.04 gives it.
 
-/// `NV2080_ENGINE_TYPE_*` (sdk/class/cl2080_notification.h:284-326), the bits of
-/// `engineCaps`.
+/// `NV2080_ENGINE_TYPE_*` (sdk/class/cl2080_notification.h:284-340), the bits of
+/// `engineCaps`. NVJPEG0 and OFA0 are the GB206 additions (:330-331, :339-340).
 pub const NV2080_ENGINE_TYPES: &[(&str, u32)] = &[
     ("GR0", 0x01),
     ("COPY0", 0x09),
@@ -226,10 +254,13 @@ pub const NV2080_ENGINE_TYPES: &[(&str, u32)] = &[
     ("SW", 0x22),
     ("SEC2", 0x26),
     ("HOST", 0x27),
+    ("NVJPEG0", 0x2B),
+    ("OFA0", 0x33),
 ];
 
-/// `RM_ENGINE_TYPE_*` (src/nvidia/inc/kernel/gpu/gpu_engine_type.h:35-83), the
-/// `ENGINE_INFO_TYPE_RM_ENGINE_TYPE` column of the FIFO device-info table.
+/// `RM_ENGINE_TYPE_*` (src/nvidia/inc/kernel/gpu/gpu_engine_type.h:35-96), the
+/// `ENGINE_INFO_TYPE_RM_ENGINE_TYPE` column of the FIFO device-info table. COPY7,
+/// NVJPEG0 and OFA0 are the GB206 additions (:50, :88, :96).
 pub const RM_ENGINE_TYPES: &[(&str, u32)] = &[
     ("GR0", 0x01),
     ("COPY0", 0x09),
@@ -237,16 +268,20 @@ pub const RM_ENGINE_TYPES: &[(&str, u32)] = &[
     ("COPY2", 0x0B),
     ("COPY3", 0x0C),
     ("COPY4", 0x0D),
+    ("COPY7", 0x10),
     ("NVDEC0", 0x1D),
     ("NVDEC1", 0x1E),
     ("NVDEC2", 0x1F),
     ("NVENC0", 0x25),
     ("SW", 0x2D),
     ("SEC2", 0x31),
+    ("NVJPEG0", 0x36),
+    ("OFA0", 0x3E),
 ];
 
 /// NVOC class ids of the physical engines (src/nvidia/generated/g_eng_desc_nvoc.h);
-/// `ENG_DESC` = class id << 8 | instance (`MKENGDESC`, :55-59).
+/// `ENG_DESC` = class id << 8 | instance (`MKENGDESC`, :55-59). OBJNVJPG and OBJOFA
+/// are the GB206 additions (:825, :865).
 pub const ENG_DESC_CLASSES: &[(&str, u32)] = &[
     ("Graphics", 0xd3_34df),
     ("OBJCE", 0x79_3ceb),
@@ -254,10 +289,13 @@ pub const ENG_DESC_CLASSES: &[(&str, u32)] = &[
     ("OBJMSENC", 0xe9_7b6c),
     ("OBJSEC2", 0x28_c408),
     ("OBJSWENG", 0x95_a6f5),
+    ("OBJNVJPG", 0x2b_3a54),
+    ("OBJOFA", 0xdd_7bab),
 ];
 
 /// `MC_ENGINE_IDX_*` (src/nvidia/inc/kernel/gpu/intr/engine_idx.h:39-172), an array
-/// index in the guest.
+/// index in the guest. CE7, NVJPEG0 (= MC_ENGINE_IDX_NVJPG) and OFA0 are the GB206
+/// additions (:61, :91-93, :125).
 pub const MC_ENGINE_IDX: &[(&str, u32)] = &[
     ("NULL", 0),
     ("DISP", 2),
@@ -268,15 +306,18 @@ pub const MC_ENGINE_IDX: &[(&str, u32)] = &[
     ("CE2", 17),
     ("CE3", 18),
     ("CE4", 19),
+    ("CE7", 22),
     ("NVENC0", 38),
     ("SEC2", 47),
     ("GSP", 50),
+    ("NVJPEG0", 51),
     ("REPLAYABLE_FAULT", 59),
     ("ACCESS_CNTR", 60),
     ("NON_REPLAYABLE_FAULT", 61),
     ("NVDEC0", 65),
     ("NVDEC1", 66),
     ("NVDEC2", 67),
+    ("OFA0", 81),
     ("GR0", 84),
 ];
 
@@ -292,8 +333,14 @@ pub const INTR_CATEGORIES: &[(&str, u32)] = &[
     ("UVM_SHARED", 6),
 ];
 
-/// `NV2080_CTRL_FB_INFO_RAM_TYPE_*` (sdk/ctrl/ctrl2080/ctrl2080fb.h:400-420).
-pub const RAM_TYPES: &[(&str, u32)] = &[("GDDR5", 0x08), ("GDDR5X", 0x10), ("GDDR6", 0x11)];
+/// `NV2080_CTRL_FB_INFO_RAM_TYPE_*` (sdk/ctrl/ctrl2080/ctrl2080fb.h:400-423; GDDR7 for
+/// GB206 at :423).
+pub const RAM_TYPES: &[(&str, u32)] = &[
+    ("GDDR5", 0x08),
+    ("GDDR5X", 0x10),
+    ("GDDR6", 0x11),
+    ("GDDR7", 0x15),
+];
 
 /// The number `name` has in `table`, or `None`.
 pub fn lookup(table: &[(&str, u32)], name: &str) -> Option<u32> {
@@ -337,6 +384,20 @@ pub const CMD_INTERNAL_MEMSYS_L2_INVALIDATE_EVICT: u32 = 0x2080_0A6C;
 pub const CMD_INTERNAL_PERF_GPU_BOOST_SYNC_GET_INFO: u32 = 0x2080_0A80;
 pub const CMD_INTERNAL_FIFO_GET_NUM_CHANNELS: u32 = 0x2080_0A61;
 pub const CMD_GPU_GET_VMMU_SEGMENT_SIZE: u32 = 0x2080_017E;
+/// `NV2080_CTRL_CMD_FB_GET_GPU_CACHE_INFO` (sdk/ctrl/ctrl2080/ctrl2080fb.h:822-846), export
+/// flags 0x40148 (NON_PRIVILEGED): `{powerState, writeMode, bypassMode, rcmState}`. The
+/// NVIDIA EGL/GL driver asks it at `eglInitialize` and gives up on an error (display-e.md).
+pub const CMD_FB_GET_GPU_CACHE_INFO: u32 = 0x2080_1315;
+/// `NV0080_CTRL_CMD_FIFO_GET_ENGINE_CONTEXT_PROPERTIES` (sdk/ctrl/ctrl0080/ctrl0080fifo.h:119),
+/// export flags 0x50148 (NON_PRIVILEGED): `{engineId, alignment, size}` of an engine's
+/// context buffer. The GL driver sizes its 3D context buffers with it (display-e.md).
+pub const CMD_FIFO_GET_ENGINE_CONTEXT_PROPERTIES: u32 = 0x0080_1707;
+/// `NV2080_CTRL_CMD_GR_CTXSW_ZCULL_BIND` (sdk/ctrl/ctrl2080/ctrl2080gr.h:600-621), export flags
+/// 0x90348: `{hClient, hChannel, vMemPtr (u64 at 8), zcullMode (at 16)}`; the GL driver binds
+/// a zcull buffer to its 3D channel (display-e.md).
+pub const CMD_GR_CTXSW_ZCULL_BIND: u32 = 0x2080_1208;
+/// `WRITE_MODE_WRITEBACK` (ctrl2080fb.h:838); the other fields' 0 is ENABLED, DISABLED, FULL.
+pub const GPU_CACHE_INFO_WRITE_MODE_WRITEBACK: u32 = 1;
 pub const CMD_INTERNAL_BUS_FLUSH_WITH_SYSMEMBAR: u32 = 0x2080_0A70;
 pub const CMD_INTERNAL_CE_GET_PCE_CONFIG_FOR_LCE_TYPE: u32 = 0x2080_2A0F;
 pub const CMD_CE_UPDATE_CLASS_DB: u32 = 0x2080_2A06;
@@ -687,9 +748,41 @@ pub const PES_INFO_MAP_LEN: usize = 10;
 /// NV2080_CTRL_INTERNAL_STATIC_GR_GLOBAL_SM_ORDER (ctrl2080internal.h:223-238): 512 SMs
 /// of nine u16, then numSm and numTpc.
 pub const SM_ENTRY: usize = 18;
+/// One SM of the host's public NV2080_CTRL_GR_GET_GLOBAL_SM_ORDER_PARAMS (the host driver
+/// is this version): nine u16. A guest version with a wider entry converts
+/// (kgr.rs, docs/caraxes/gsp-transport-615.md §7).
+pub const HOST_SM_ENTRY: usize = size_of::<ffi::NV2080_CTRL_GR_GET_GLOBAL_SM_ORDER_PARAMS__bindgen_ty_1>();
+/// `numSm` in the host's public struct (numTpc follows).
+pub const HOST_SM_ORDER_NUM_SM: usize =
+    offset_of!(ffi::NV2080_CTRL_GR_GET_GLOBAL_SM_ORDER_PARAMS, numSm);
+/// Where a guest SM entry has the field the host entry lacks: nowhere in this version
+/// (the entry is the host's).
+pub const SM_ENTRY_WIDENED_AT: usize = SM_ENTRY;
 pub const SM_ORDER_ELEM: usize = size_of::<ffi::NV2080_CTRL_INTERNAL_STATIC_GR_GLOBAL_SM_ORDER>();
 pub const SM_ORDER_NUM_SM: usize =
     offset_of!(ffi::NV2080_CTRL_INTERNAL_STATIC_GR_GLOBAL_SM_ORDER, numSm);
+pub const SM_ORDER_NUM_TPC: usize =
+    offset_of!(ffi::NV2080_CTRL_INTERNAL_STATIC_GR_GLOBAL_SM_ORDER, numTpc);
+/// The nine u16 of one internal SM entry, by name, for the translation from the
+/// host's public layout (hostabi.rs `sm_order_to_guest`: a 615 host adds
+/// `virtualDpcId`, which this guest does not have).
+pub const SM_ENTRY_FIELDS: &[(&str, usize)] = {
+    type E = ffi::NV2080_CTRL_INTERNAL_STATIC_GR_GLOBAL_SM_ORDER__bindgen_ty_1;
+    &[
+        ("gpcId", offset_of!(E, gpcId)),
+        ("localTpcId", offset_of!(E, localTpcId)),
+        ("localSmId", offset_of!(E, localSmId)),
+        ("globalTpcId", offset_of!(E, globalTpcId)),
+        ("virtualGpcId", offset_of!(E, virtualGpcId)),
+        ("migratableTpcId", offset_of!(E, migratableTpcId)),
+        ("ugpuId", offset_of!(E, ugpuId)),
+        ("physicalCpcId", offset_of!(E, physicalCpcId)),
+        ("virtualTpcId", offset_of!(E, virtualTpcId)),
+    ]
+};
+const _: () = assert!(
+    SM_ENTRY == size_of::<ffi::NV2080_CTRL_INTERNAL_STATIC_GR_GLOBAL_SM_ORDER__bindgen_ty_1>()
+);
 pub const SM_ORDER_PARAMS: usize =
     size_of::<ffi::NV2080_CTRL_INTERNAL_STATIC_GR_GET_GLOBAL_SM_ORDER_PARAMS>();
 /// NV2080_CTRL_GR_GET_GLOBAL_SM_ORDER_PARAMS (ctrl2080gr.h:1213-1229).
@@ -790,8 +883,9 @@ pub const CMD_DIAG_GPU_VERIFY_INFOROM: u32 = 0x208F_1105;
 /// NV2081_BINAPI commands (the class forwards any command to GSP, binary_api.c:60-118;
 /// none is named in the open headers). 0x0108 (992 bytes) is in the host's own
 /// `nvidia-smi -q` trace; 0x0110 (1 byte) and 0x0111 (4 bytes) are what the guest's
-/// `nvidia-smi` adds.
-pub const BINAPI: &[u32] = &[CMD_BINAPI_0108, 0x2081_0110, 0x2081_0111];
+/// `nvidia-smi` adds; 0x0107 (2 bytes) is what the NVIDIA GL/EGL driver asks at context
+/// creation (display-e.md).
+pub const BINAPI: &[u32] = &[0x2081_0107, CMD_BINAPI_0108, 0x2081_0110, 0x2081_0111];
 
 /// `INDEX_FORWARD_TO_PHYSICAL` (subdevice_ctrl_gpu_kernel.c:86): the guest kernel marks
 /// the GET_INFO_V2 indices it cannot serve; the physical side clears the bit.
@@ -955,6 +1049,9 @@ pub const CMD_DMA_SET_PAGE_DIRECTORY: u32 = 0x0080_1813;
 pub const CMD_DMA_UNSET_PAGE_DIRECTORY: u32 = 0x0080_1814;
 pub const CMD_VASPACE_COPY_SERVER_RESERVED_PDES: u32 = 0x90F1_0106;
 pub const CMD_CHANNEL_GPFIFO_SCHEDULE: u32 = 0xA06F_0103;
+/// `NVA06F_CTRL_CMD_BIND` (sdk/ctrl/ctrla06f/ctrla06fgpfifo.h), `{engineType}`: the NVIDIA
+/// GL/EGL driver binds its channel to GR before allocating the 3D object (display-e.md).
+pub const CMD_CHANNEL_BIND: u32 = 0xA06F_0104;
 pub const CMD_TSG_GPFIFO_SCHEDULE: u32 = 0xA06C_0101;
 pub const CMD_TSG_INTERNAL_PROMOTE_FAULT_METHOD_BUFFERS: u32 = 0xA06C_010A;
 
@@ -1245,6 +1342,43 @@ mod tests {
         assert_eq!(
             field(w, "vgaWorkspaceOffset"),
             WPR_META_VGA_WORKSPACE_OFFSET
+        );
+
+        for (f, off) in [
+            ("sizeOfRadix3Elf", WPR_META_SIZE_OF_RADIX3_ELF),
+            ("sizeOfBootloader", WPR_META_SIZE_OF_BOOTLOADER),
+            ("gspFwHeapOffset", WPR_META_GSP_FW_HEAP_OFFSET),
+            ("gspFwHeapSize", WPR_META_GSP_FW_HEAP_SIZE),
+            ("gspFwOffset", WPR_META_GSP_FW_OFFSET),
+            ("bootBinOffset", WPR_META_BOOT_BIN_OFFSET),
+            ("frtsSize", WPR_META_FRTS_SIZE),
+            ("vgaWorkspaceSize", WPR_META_VGA_WORKSPACE_SIZE),
+            ("pmuReservedSize", WPR_META_PMU_RESERVED_SIZE),
+        ] {
+            assert_eq!(field(w, f), off, "{f}");
+        }
+        let i = "GspStaticConfigInfo";
+        assert_eq!(
+            field(i, "fwWprLayoutOffset.nonWprHeapOffset"),
+            SI_FW_WPR_NON_WPR_HEAP_OFFSET
+        );
+        assert_eq!(
+            field(i, "fwWprLayoutOffset.frtsOffset"),
+            SI_FW_WPR_FRTS_OFFSET
+        );
+        let fmc = "GSP_FMC_BOOT_PARAMS";
+        assert_eq!(size(fmc), FMC_PARAMS_SIZE);
+        assert_eq!(
+            field(fmc, "bootGspRmParams.gspRmDescSize"),
+            FMC_GSP_RM_DESC_SIZE
+        );
+        assert_eq!(
+            field(fmc, "bootGspRmParams.gspRmDescOffset"),
+            FMC_GSP_RM_DESC_OFFSET
+        );
+        assert_eq!(
+            field(fmc, "gspRmParams.bootArgsOffset"),
+            FMC_BOOT_ARGS_OFFSET
         );
 
         let l = "LibosMemoryRegionInitArgument";

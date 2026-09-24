@@ -455,3 +455,24 @@ It does not prove, or it found the opposite:
 These two holes are in the sysmem and mapping path. The D11 reservation isolation and the D16
 comptag rule held throughout: no VRAM outside the two slots was ever touched, and no compressible
 kind or comptag line appeared.
+
+### 8.3 Closure (mapping package, 2026-09-24)
+
+Both findings are closed in [mapping.md](mapping.md), on vm2 alone at slot 0. The
+concurrent rerun with vm1 is pending: vm0 held slot 1 for the display agent.
+
+- **Mapping scale** (§8.1), run `caraxes/runs/mapping-2026-09-24/b1-async-streams`.
+  - `suite-test_async_streams` passed in 14.8 s.
+  - Its 544750 set-A leaves sat in 18921 RM mappings; 556k leaves were mapped by 30k calls in
+    total, against 556k calls before. The walk only reads dirty table pages.
+  - A per-device budget of 32768 live mappings refuses anything beyond it, with an error line.
+  - The teardown of 18914 mappings took 2.5 s in bounded batches. Since the worker it runs in the
+    worker's idle time.
+  - Host `nvidia-smi` stayed under 0.06 s throughout, with 0 Xid.
+- **Chunk-crossing hole** (§8.2), run `caraxes/runs/mapping-2026-09-24/d1-isolation`.
+  - Guest RAM is registered with IOVA = GPA + 0x7ffac0000000 for the whole guest (chunks from the
+    top down, a filler over the hole), so a crossing buffer keeps a valid IOVA.
+  - The CE channels run on the filtered shadow VAS of their root, so no host channel walks
+    unfiltered guest tables.
+  - The whole cuda gate and every unscored suite passed with 0 refused sysmem leaves (128 before
+    in b1), 0 IOMMU faults and 0 Xid.

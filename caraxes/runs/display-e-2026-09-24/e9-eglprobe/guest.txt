@@ -1,0 +1,6 @@
+EGL 1.5 vendor NVIDIA version 1.5
+GL vendor NVIDIA Corporation renderer Leandro VFIO RTX 2070-2G/PCIe/SSE2 version OpenGL ES 3.2 NVIDIA 610.57.04
+gl error 0
+FRAMES 30 at 1920x1080: clear+finish mean 24.029 ms min 22.327 max 28.156; total 0.721 s
+READBACK 101.320 ms; centre pixel 0000000000; pixels equal to green 60032 of 2073600 (WRONG)
+rc=2

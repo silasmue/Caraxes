@@ -101,7 +101,7 @@ static const struct wl_callback_listener frame_l;
 static void draw(void)
 {
 	struct wl_callback *cb;
-	int x0 = (frames * 3) % (size - dmg), y, x;
+	int x0 = size > dmg ? (frames * 3) % (size - dmg) : 0, y, x;
 
 	for (y = 0; y < dmg; y++)
 		for (x = 0; x < dmg; x++)

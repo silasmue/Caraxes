@@ -1,0 +1,80 @@
+[  759.781984] NVRM: ioctl(0x4f, 0xb93debb0, 0x20)
+[  759.782571] NVRM: VM: nvidia_vma_release:101: 0x7948dd79d000 - 0x7948dd81d000, 0x00080000 bytes @ 0x0000000000000000, 0x00000000ed845396, 0x00000000c1c0c693
+[  759.782576] NVRM: VM: nv_alloc_release:1633: 0x00000000ed845396, 128 page(s), count = 3, page_table = 0x000000002cd6399e
+[  759.782578] NVRM: nvidia_close on GPU with minor number 255
+[  759.782580] NVRM: nvidia_ctl_close
+[  759.782581] NVRM: VM: nv_alloc_release:1633: 0x00000000ed845396, 128 page(s), count = 2, page_table = 0x000000002cd6399e
+[  759.782588] NVRM: ioctl(0x4f, 0xb93debb0, 0x20)
+[  759.784531] NVRM: VM: nvidia_vma_release:101: 0x7948dd91d000 - 0x7948dd99d000, 0x00080000 bytes @ 0x0000000000000000, 0x0000000059b24551, 0x0000000039036cbd
+[  759.784562] NVRM: VM: nv_alloc_release:1633: 0x0000000059b24551, 128 page(s), count = 3, page_table = 0x000000006afe0715
+[  759.784584] NVRM: nvidia_close on GPU with minor number 255
+[  759.784594] NVRM: nvidia_ctl_close
+[  759.784596] NVRM: VM: nv_alloc_release:1633: 0x0000000059b24551, 128 page(s), count = 2, page_table = 0x000000006afe0715
+[  759.784632] NVRM: ioctl(0x4f, 0xb93debb0, 0x20)
+[  759.792060] NVRM: VM: nvidia_vma_release:101: 0x7948ddae5000 - 0x7948ddb65000, 0x00080000 bytes @ 0x0000000000000000, 0x0000000000000000, 0x000000009ba325a4
+[  759.792067] NVRM: nvidia_close on GPU with minor number 0
+[  759.792290] NVRM: nvidia_close on GPU with minor number 255
+[  759.792292] NVRM: nvidia_ctl_close
+[  759.792661] NVRM: VM: nv_free_pages: 0x1
+[  759.792665] NVRM: VM: nv_free_pages:3992: 0x00000000fffae77d, 1 page(s), count = 1, page_table = 0x000000009f57d5be
+[  759.792756] NVRM: VM: nv_mem_pool_free_pages: node=0 order=0: 1/1 pages added to pool (11975 now in pool)
+[  759.792763] NVRM: VM: nv_free_system_pages: 1/1 order0 pages
+[  759.794334] NVRM: ioctl(0x29, 0xb93deca0, 0x10)
+[  759.871043] NVRM: VM: nv_free_pages: 0x80
+[  759.871049] NVRM: VM: nv_free_pages:3992: 0x000000009cfa7e9c, 128 page(s), count = 1, page_table = 0x000000001f179bf7
+[  759.871166] NVRM: VM: nv_mem_pool_free_pages: node=0 order=0: 128/128 pages added to pool (12103 now in pool)
+[  759.871172] NVRM: VM: nv_free_system_pages: 128/128 order0 pages
+[  759.871981] NVRM: VM: nv_free_pages: 0x80
+[  759.871984] NVRM: VM: nv_free_pages:3992: 0x000000005c24af28, 128 page(s), count = 1, page_table = 0x000000004398468f
+[  759.872048] NVRM: VM: nv_mem_pool_free_pages: node=0 order=0: 128/128 pages added to pool (12231 now in pool)
+[  759.872054] NVRM: VM: nv_free_system_pages: 128/128 order0 pages
+[  759.872829] NVRM: VM: nv_free_pages: 0x80
+[  759.872832] NVRM: VM: nv_free_pages:3992: 0x00000000ed845396, 128 page(s), count = 1, page_table = 0x000000002cd6399e
+[  759.872938] NVRM: VM: nv_mem_pool_free_pages: node=0 order=0: 128/128 pages added to pool (12359 now in pool)
+[  759.872942] NVRM: VM: nv_free_system_pages: 128/128 order0 pages
+[  759.875159] NVRM: VM: nv_free_pages: 0x80
+[  759.875163] NVRM: VM: nv_free_pages:3992: 0x0000000059b24551, 128 page(s), count = 1, page_table = 0x000000006afe0715
+[  759.875243] NVRM: VM: nv_mem_pool_free_pages: node=0 order=0: 128/128 pages added to pool (12487 now in pool)
+[  759.875250] NVRM: VM: nv_free_system_pages: 128/128 order0 pages
+[  759.875968] NVRM: VM: nv_free_pages: 0x4
+[  759.875970] NVRM: VM: nv_free_pages:3992: 0x000000005d1e68f6, 4 page(s), count = 1, page_table = 0x00000000ba6f097d
+[  759.875996] NVRM: VM: nv_mem_pool_free_pages: node=0 order=0: 4/4 pages added to pool (12491 now in pool)
+[  759.876001] NVRM: VM: nv_free_system_pages: 4/4 order0 pages
+[  759.876667] NVRM: VM: nv_free_pages: 0x1
+[  759.876673] NVRM: VM: nv_free_pages:3992: 0x00000000c672613e, 1 page(s), count = 1, page_table = 0x00000000a721014c
+[  759.876677] NVRM: VM: nv_mem_pool_free_pages: node=0 order=0: 1/1 pages added to pool (12492 now in pool)
+[  759.876684] NVRM: VM: nv_free_system_pages: 1/1 order0 pages
+[  759.877960] NVRM: VM: nvidia_vma_release:101: 0x7948f6012000 - 0x7948f6013000, 0x00001000 bytes @ 0x0000000000000000, 0x00000000a191ca63, 0x00000000c3ec140b
+[  759.877968] NVRM: VM: nv_alloc_release:1633: 0x00000000a191ca63, 1 page(s), count = 3, page_table = 0x000000007811b06f
+[  759.877973] NVRM: nvidia_close on GPU with minor number 255
+[  759.877975] NVRM: nvidia_ctl_close
+[  759.877976] NVRM: VM: nv_alloc_release:1633: 0x00000000a191ca63, 1 page(s), count = 2, page_table = 0x000000007811b06f
+[  759.877996] NVRM: VM: nvidia_vma_release:101: 0x7948f25d7000 - 0x7948f25e7000, 0x00010000 bytes @ 0x0000000000000000, 0x0000000000000000, 0x00000000949d2623
+[  759.878000] NVRM: nvidia_close on GPU with minor number 0
+[  759.878010] NVRM: nvidia_close on GPU with minor number 0
+[  759.878012] NVRM: nvidia_close on GPU with minor number 0
+[  759.878079] NVRM: ioctl(0x29, 0xb93ded00, 0x10)
+[  759.878680] NVRM: nvidia_close on GPU with minor number 255
+[  759.878683] NVRM: nvidia_ctl_close
+[  759.878901] NVRM: ioctl(0x41, 0xb93debb0, 0x38)
+[  759.878930] NVRM: ioctl(0x2a, 0xb93de210, 0x20)
+[  759.879600] NVRM: ioctl(0x29, 0xb93dec00, 0x10)
+[  759.881517] NVRM: ioctl(0x29, 0xb93dec00, 0x10)
+[  759.884570] NVRM: nvidia_close on GPU with minor number 0
+[  759.884576] NVRM: nvidia_close on GPU with minor number 0
+[  759.884928] NVRM: ioctl(0x29, 0xb93decd0, 0x10)
+[  759.885516] NVRM: nvidia_close on GPU with minor number 255
+[  759.885519] NVRM: nvidia_ctl_close
+[  759.885946] NVRM: VM: nv_free_pages: 0x1
+[  759.885949] NVRM: VM: nv_free_pages:3992: 0x00000000f4d8c855, 1 page(s), count = 1, page_table = 0x00000000dc8862d7
+[  759.885982] NVRM: VM: nv_mem_pool_free_pages: node=0 order=0: 1/1 pages added to pool (12493 now in pool)
+[  759.885988] NVRM: VM: nv_free_system_pages: 1/1 order0 pages
+[  759.891479] NVRM: ioctl(0x29, 0xb93dec20, 0x10)
+[  759.893635] NVRM: ioctl(0x29, 0xb93dec40, 0x10)
+[  759.896476] NVRM: nvidia_close on GPU with minor number 0
+[  759.896488] NVRM: nvidia_close on GPU with minor number 0
+[  759.896497] NVRM: ioctl(0x2a, 0xb93de230, 0x20)
+[  759.896524] NVRM: nvidia_close on GPU with minor number 0
+[  759.896622] NVRM: ioctl(0x29, 0xb93ded00, 0x10)
+[  759.897288] NVRM: nvidia_close on GPU with minor number 255
+[  759.897291] NVRM: nvidia_ctl_close

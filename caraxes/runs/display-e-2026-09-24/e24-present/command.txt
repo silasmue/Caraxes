@@ -1,0 +1,5 @@
+# SPDX-License-Identifier: MIT
+# 2026-09-24 09:41:46 guest command:
+unset DISPLAY; cd caraxes-guest; cat /proc/loadavg; for i in 1 2; do sudo timeout 200 bash weston-run.sh 1920x1080@60 gl ./vkprobe-wl --present 120 | tail -2; done
+rc=0
+full trace 448105 lines, events only kept

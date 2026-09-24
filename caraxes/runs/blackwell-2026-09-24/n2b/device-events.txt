@@ -1,0 +1,484 @@
+   306581088 E flr: function-level reset, device model back to its initial state
+   306849388 E set_irqs index=0 flags=0x11 start=0 count=1 fds=0
+   306849429 E set_irqs index=0 flags=0x11 start=0 count=1 fds=0
+   306849466 E set_irqs index=0 flags=0x11 start=0 count=1 fds=0
+   306849509 E set_irqs index=0 flags=0x11 start=0 count=1 fds=0
+   306849546 E set_irqs index=0 flags=0x11 start=0 count=1 fds=0
+   306849597 E set_irqs index=0 flags=0x11 start=0 count=1 fds=0
+   306851003 E set_irqs index=0 flags=0x11 start=0 count=1 fds=0
+   306851037 E set_irqs index=0 flags=0x11 start=0 count=1 fds=0
+   306852628 E set_irqs index=0 flags=0x21 start=0 count=0 fds=0
+   306852652 E set_irqs index=1 flags=0x24 start=0 count=1 fds=1
+   306971791 W bar0 0x008a1d5c 4  0x1          latched
+   306971842 W bar0 0x008a1d58 4  0x20adf000   latched
+   307050000 W bar0 0x00118df8 4  0x18d83a7b   NV_PGC6_SCI_SEC_TIMER_OFFSET
+   307050037 W bar0 0x00118df4 4  0x7e2df289   NV_PGC6_SCI_SEC_TIMER_OFFSET
+   307050205 W bar0 0x008f2ac0 4  0x1000000    NV_PFSP_EMEMC/EMEMD(i)
+   307050285 W bar0 0x008f2ac4 4  0xc0000001   NV_PFSP_EMEMC/EMEMD(i)
+   307050316 W bar0 0x008f2ac4 4  0x1610de7e   NV_PFSP_EMEMC/EMEMD(i)
+   307050345 W bar0 0x008f2ac4 4  0x20         NV_PFSP_EMEMC/EMEMD(i)
+   307050413 W bar0 0x008f2c04 4  0x8          NV_PFSP_QUEUE_HEAD/TAIL
+   307050457 W bar0 0x008f2c00 4  0x0          NV_PFSP_QUEUE_HEAD/TAIL
+   307050461 E boot: fsp: CAPS_QUERY sub-message 0x20: supported
+   307050867 W bar0 0x008f2ac0 4  0x2000000    NV_PFSP_EMEMC/EMEMD(i)
+   307052453 W bar0 0x008f2c84 4  0x0          NV_PFSP_MSGQ_HEAD/TAIL
+   307052514 W bar0 0x008f2c80 4  0x0          NV_PFSP_MSGQ_HEAD/TAIL
+   307053905 W bar0 0x008f2ac0 4  0x1000000    NV_PFSP_EMEMC/EMEMD(i)
+   307054318 W bar0 0x008f2ac4 4  0xc0000001   NV_PFSP_EMEMC/EMEMD(i)
+   307054474 W bar0 0x008f2ac4 4  0x2010de7e   NV_PFSP_EMEMC/EMEMD(i)
+   307054631 W bar0 0x008f2ac4 4  0x1          NV_PFSP_EMEMC/EMEMD(i)
+   307054997 W bar0 0x008f2c04 4  0x8          NV_PFSP_QUEUE_HEAD/TAIL
+   307055032 W bar0 0x008f2c00 4  0x0          NV_PFSP_QUEUE_HEAD/TAIL
+   307055034 E boot: fsp: CLOCK_BOOST sub-message 0x1: accepted
+   307056851 W bar0 0x008f2ac0 4  0x2000000    NV_PFSP_EMEMC/EMEMD(i)
+   307057873 W bar0 0x008f2c84 4  0x0          NV_PFSP_MSGQ_HEAD/TAIL
+   307057914 W bar0 0x008f2c80 4  0x0          NV_PFSP_MSGQ_HEAD/TAIL
+   307058494 W bar0 0x000014dc 4  0x0          NV_PBUS_SW_SCRATCH(0x37) GSP_FMC_ERROR
+   307058523 W bar0 0x000014dc 4  0x0          NV_PBUS_SW_SCRATCH(0x37) GSP_FMC_ERROR
+   307059220 W bar0 0x008f2ac0 4  0x1000000    NV_PFSP_EMEMC/EMEMD(i)
+   307059707 W bar0 0x008f2ac4 4  0xc0000001   NV_PFSP_EMEMC/EMEMD(i)
+   307060043 W bar0 0x008f2ac4 4  0x1410de7e   NV_PFSP_EMEMC/EMEMD(i)
+   307060273 W bar0 0x008f2ac4 4  0x35c0002    NV_PFSP_EMEMC/EMEMD(i)
+   307060514 W bar0 0x008f2ac4 4  0x39100000   NV_PFSP_EMEMC/EMEMD(i)
+   307060730 W bar0 0x008f2ac4 4  0x1          NV_PFSP_EMEMC/EMEMD(i)
+   307060893 W bar0 0x008f2ac4 4  0x0          NV_PFSP_EMEMC/EMEMD(i)
+   307061047 W bar0 0x008f2ac4 4  0x0          NV_PFSP_EMEMC/EMEMD(i)
+   307061190 W bar0 0x008f2ac4 4  0x0          NV_PFSP_EMEMC/EMEMD(i)
+   307061377 W bar0 0x008f2ac4 4  0x1bc0000    NV_PFSP_EMEMC/EMEMD(i)
+   307061567 W bar0 0x008f2ac4 4  0x0          NV_PFSP_EMEMC/EMEMD(i)
+   307061747 W bar0 0x008f2ac4 4  0x100000     NV_PFSP_EMEMC/EMEMD(i)
+   307061929 W bar0 0x008f2ac4 4  0x4a612860   NV_PFSP_EMEMC/EMEMD(i)
+   307062109 W bar0 0x008f2ac4 4  0x574e3e0    NV_PFSP_EMEMC/EMEMD(i)
+   307062287 W bar0 0x008f2ac4 4  0x7011e810   NV_PFSP_EMEMC/EMEMD(i)
+   307062464 W bar0 0x008f2ac4 4  0x688cf15e   NV_PFSP_EMEMC/EMEMD(i)
+   307062649 W bar0 0x008f2ac4 4  0x12ce362    NV_PFSP_EMEMC/EMEMD(i)
+   307062828 W bar0 0x008f2ac4 4  0x54083219   NV_PFSP_EMEMC/EMEMD(i)
+   307063006 W bar0 0x008f2ac4 4  0x6c7cfddc   NV_PFSP_EMEMC/EMEMD(i)
+   307063191 W bar0 0x008f2ac4 4  0x5dbcddc    NV_PFSP_EMEMC/EMEMD(i)
+   307063364 W bar0 0x008f2ac4 4  0xcb5e052d   NV_PFSP_EMEMC/EMEMD(i)
+   307063542 W bar0 0x008f2ac4 4  0x38b70604   NV_PFSP_EMEMC/EMEMD(i)
+   307063728 W bar0 0x008f2ac4 4  0xcdf17c86   NV_PFSP_EMEMC/EMEMD(i)
+   307063906 W bar0 0x008f2ac4 4  0x89fea879   NV_PFSP_EMEMC/EMEMD(i)
+   307064084 W bar0 0x008f2ac4 4  0x18f18b04   NV_PFSP_EMEMC/EMEMD(i)
+   307064266 W bar0 0x008f2ac4 4  0xf9cebbb    NV_PFSP_EMEMC/EMEMD(i)
+   307064443 W bar0 0x008f2ac4 4  0xa4d4a65e   NV_PFSP_EMEMC/EMEMD(i)
+   307064626 W bar0 0x008f2ac4 4  0xf519731d   NV_PFSP_EMEMC/EMEMD(i)
+   307064803 W bar0 0x008f2ac4 4  0xb9e20c3d   NV_PFSP_EMEMC/EMEMD(i)
+   307064980 W bar0 0x008f2ac4 4  0xa3287481   NV_PFSP_EMEMC/EMEMD(i)
+   307065006 W bar0 0x008f2ac4 4  0x998ce80d   NV_PFSP_EMEMC/EMEMD(i)
+   307065032 W bar0 0x008f2ac4 4  0xefe20574   NV_PFSP_EMEMC/EMEMD(i)
+   307065057 W bar0 0x008f2ac4 4  0xb46a8a00   NV_PFSP_EMEMC/EMEMD(i)
+   307065082 W bar0 0x008f2ac4 4  0x7cdf2ebf   NV_PFSP_EMEMC/EMEMD(i)
+   307065108 W bar0 0x008f2ac4 4  0xea972ef3   NV_PFSP_EMEMC/EMEMD(i)
+   307065444 W bar0 0x008f2ac4 4  0x862b9934   NV_PFSP_EMEMC/EMEMD(i)
+   307065476 W bar0 0x008f2ac4 4  0xa1f99daf   NV_PFSP_EMEMC/EMEMD(i)
+   307065504 W bar0 0x008f2ac4 4  0x89a99848   NV_PFSP_EMEMC/EMEMD(i)
+   307065531 W bar0 0x008f2ac4 4  0x2e40378b   NV_PFSP_EMEMC/EMEMD(i)
+   307065567 W bar0 0x008f2ac4 4  0xb04c7da    NV_PFSP_EMEMC/EMEMD(i)
+   307065605 W bar0 0x008f2ac4 4  0xdefea545   NV_PFSP_EMEMC/EMEMD(i)
+   307065632 W bar0 0x008f2ac4 4  0x1a3be8bb   NV_PFSP_EMEMC/EMEMD(i)
+   307065661 W bar0 0x008f2ac4 4  0xcae12d1c   NV_PFSP_EMEMC/EMEMD(i)
+   307065689 W bar0 0x008f2ac4 4  0x1baab6b    NV_PFSP_EMEMC/EMEMD(i)
+   307065716 W bar0 0x008f2ac4 4  0x34291741   NV_PFSP_EMEMC/EMEMD(i)
+   307065744 W bar0 0x008f2ac4 4  0x52da0395   NV_PFSP_EMEMC/EMEMD(i)
+   307065781 W bar0 0x008f2ac4 4  0x90813ab7   NV_PFSP_EMEMC/EMEMD(i)
+   307065808 W bar0 0x008f2ac4 4  0xbbc07071   NV_PFSP_EMEMC/EMEMD(i)
+   307065835 W bar0 0x008f2ac4 4  0x4          NV_PFSP_EMEMC/EMEMD(i)
+   307065861 W bar0 0x008f2ac4 4  0x0          NV_PFSP_EMEMC/EMEMD(i)
+   307065888 W bar0 0x008f2ac4 4  0x0          NV_PFSP_EMEMC/EMEMD(i)
+   307065915 W bar0 0x008f2ac4 4  0x0          NV_PFSP_EMEMC/EMEMD(i)
+   307065942 W bar0 0x008f2ac4 4  0x0          NV_PFSP_EMEMC/EMEMD(i)
+   307065969 W bar0 0x008f2ac4 4  0x0          NV_PFSP_EMEMC/EMEMD(i)
+   307065995 W bar0 0x008f2ac4 4  0x0          NV_PFSP_EMEMC/EMEMD(i)
+   307066059 W bar0 0x008f2ac4 4  0x0          NV_PFSP_EMEMC/EMEMD(i)
+   307066089 W bar0 0x008f2ac4 4  0x0          NV_PFSP_EMEMC/EMEMD(i)
+   307066116 W bar0 0x008f2ac4 4  0x0          NV_PFSP_EMEMC/EMEMD(i)
+   307066146 W bar0 0x008f2ac4 4  0x0          NV_PFSP_EMEMC/EMEMD(i)
+   307066171 W bar0 0x008f2ac4 4  0x0          NV_PFSP_EMEMC/EMEMD(i)
+   307066198 W bar0 0x008f2ac4 4  0x0          NV_PFSP_EMEMC/EMEMD(i)
+   307066225 W bar0 0x008f2ac4 4  0x0          NV_PFSP_EMEMC/EMEMD(i)
+   307066259 W bar0 0x008f2ac4 4  0x0          NV_PFSP_EMEMC/EMEMD(i)
+   307066308 W bar0 0x008f2ac4 4  0x0          NV_PFSP_EMEMC/EMEMD(i)
+   307066343 W bar0 0x008f2ac4 4  0x0          NV_PFSP_EMEMC/EMEMD(i)
+   307066369 W bar0 0x008f2ac4 4  0x0          NV_PFSP_EMEMC/EMEMD(i)
+   307066396 W bar0 0x008f2ac4 4  0x0          NV_PFSP_EMEMC/EMEMD(i)
+   307066423 W bar0 0x008f2ac4 4  0x0          NV_PFSP_EMEMC/EMEMD(i)
+   307066450 W bar0 0x008f2ac4 4  0x0          NV_PFSP_EMEMC/EMEMD(i)
+   307066476 W bar0 0x008f2ac4 4  0x0          NV_PFSP_EMEMC/EMEMD(i)
+   307066503 W bar0 0x008f2ac4 4  0x0          NV_PFSP_EMEMC/EMEMD(i)
+   307066530 W bar0 0x008f2ac4 4  0x0          NV_PFSP_EMEMC/EMEMD(i)
+   307066563 W bar0 0x008f2ac4 4  0x0          NV_PFSP_EMEMC/EMEMD(i)
+   307066589 W bar0 0x008f2ac4 4  0x0          NV_PFSP_EMEMC/EMEMD(i)
+   307066616 W bar0 0x008f2ac4 4  0x0          NV_PFSP_EMEMC/EMEMD(i)
+   307066643 W bar0 0x008f2ac4 4  0x0          NV_PFSP_EMEMC/EMEMD(i)
+   307066669 W bar0 0x008f2ac4 4  0x0          NV_PFSP_EMEMC/EMEMD(i)
+   307066696 W bar0 0x008f2ac4 4  0x0          NV_PFSP_EMEMC/EMEMD(i)
+   307066723 W bar0 0x008f2ac4 4  0x0          NV_PFSP_EMEMC/EMEMD(i)
+   307066749 W bar0 0x008f2ac4 4  0x0          NV_PFSP_EMEMC/EMEMD(i)
+   307066776 W bar0 0x008f2ac4 4  0x0          NV_PFSP_EMEMC/EMEMD(i)
+   307066803 W bar0 0x008f2ac4 4  0x0          NV_PFSP_EMEMC/EMEMD(i)
+   307066830 W bar0 0x008f2ac4 4  0x0          NV_PFSP_EMEMC/EMEMD(i)
+   307066856 W bar0 0x008f2ac4 4  0x0          NV_PFSP_EMEMC/EMEMD(i)
+   307066883 W bar0 0x008f2ac4 4  0x0          NV_PFSP_EMEMC/EMEMD(i)
+   307066910 W bar0 0x008f2ac4 4  0x0          NV_PFSP_EMEMC/EMEMD(i)
+   307066937 W bar0 0x008f2ac4 4  0x0          NV_PFSP_EMEMC/EMEMD(i)
+   307066963 W bar0 0x008f2ac4 4  0x0          NV_PFSP_EMEMC/EMEMD(i)
+   307066990 W bar0 0x008f2ac4 4  0x0          NV_PFSP_EMEMC/EMEMD(i)
+   307067017 W bar0 0x008f2ac4 4  0x0          NV_PFSP_EMEMC/EMEMD(i)
+   307067043 W bar0 0x008f2ac4 4  0x0          NV_PFSP_EMEMC/EMEMD(i)
+   307067070 W bar0 0x008f2ac4 4  0x0          NV_PFSP_EMEMC/EMEMD(i)
+   307067097 W bar0 0x008f2ac4 4  0x0          NV_PFSP_EMEMC/EMEMD(i)
+   307067124 W bar0 0x008f2ac4 4  0x0          NV_PFSP_EMEMC/EMEMD(i)
+   307067151 W bar0 0x008f2ac4 4  0x0          NV_PFSP_EMEMC/EMEMD(i)
+   307067177 W bar0 0x008f2ac4 4  0x0          NV_PFSP_EMEMC/EMEMD(i)
+   307067204 W bar0 0x008f2ac4 4  0x0          NV_PFSP_EMEMC/EMEMD(i)
+   307067231 W bar0 0x008f2ac4 4  0x0          NV_PFSP_EMEMC/EMEMD(i)
+   307067347 W bar0 0x008f2ac4 4  0x0          NV_PFSP_EMEMC/EMEMD(i)
+   307067384 W bar0 0x008f2ac4 4  0x0          NV_PFSP_EMEMC/EMEMD(i)
+   307067415 W bar0 0x008f2ac4 4  0x0          NV_PFSP_EMEMC/EMEMD(i)
+   307067444 W bar0 0x008f2ac4 4  0x0          NV_PFSP_EMEMC/EMEMD(i)
+   307067473 W bar0 0x008f2ac4 4  0x0          NV_PFSP_EMEMC/EMEMD(i)
+   307067500 W bar0 0x008f2ac4 4  0x0          NV_PFSP_EMEMC/EMEMD(i)
+   307067539 W bar0 0x008f2ac4 4  0x0          NV_PFSP_EMEMC/EMEMD(i)
+   307067573 W bar0 0x008f2ac4 4  0x0          NV_PFSP_EMEMC/EMEMD(i)
+   307067603 W bar0 0x008f2ac4 4  0x0          NV_PFSP_EMEMC/EMEMD(i)
+   307067628 W bar0 0x008f2ac4 4  0x0          NV_PFSP_EMEMC/EMEMD(i)
+   307067657 W bar0 0x008f2ac4 4  0x0          NV_PFSP_EMEMC/EMEMD(i)
+   307067685 W bar0 0x008f2ac4 4  0x0          NV_PFSP_EMEMC/EMEMD(i)
+   307067715 W bar0 0x008f2ac4 4  0x0          NV_PFSP_EMEMC/EMEMD(i)
+   307067746 W bar0 0x008f2ac4 4  0x0          NV_PFSP_EMEMC/EMEMD(i)
+   307067772 W bar0 0x008f2ac4 4  0x0          NV_PFSP_EMEMC/EMEMD(i)
+   307067798 W bar0 0x008f2ac4 4  0x0          NV_PFSP_EMEMC/EMEMD(i)
+   307067826 W bar0 0x008f2ac4 4  0x0          NV_PFSP_EMEMC/EMEMD(i)
+   307067853 W bar0 0x008f2ac4 4  0x0          NV_PFSP_EMEMC/EMEMD(i)
+   307067878 W bar0 0x008f2ac4 4  0x0          NV_PFSP_EMEMC/EMEMD(i)
+   307067905 W bar0 0x008f2ac4 4  0x0          NV_PFSP_EMEMC/EMEMD(i)
+   307067931 W bar0 0x008f2ac4 4  0x0          NV_PFSP_EMEMC/EMEMD(i)
+   307067955 W bar0 0x008f2ac4 4  0x0          NV_PFSP_EMEMC/EMEMD(i)
+   307067981 W bar0 0x008f2ac4 4  0xbb1dca06   NV_PFSP_EMEMC/EMEMD(i)
+   307068006 W bar0 0x008f2ac4 4  0xd36166be   NV_PFSP_EMEMC/EMEMD(i)
+   307068032 W bar0 0x008f2ac4 4  0x489962e0   NV_PFSP_EMEMC/EMEMD(i)
+   307068057 W bar0 0x008f2ac4 4  0x5779af18   NV_PFSP_EMEMC/EMEMD(i)
+   307068083 W bar0 0x008f2ac4 4  0x8823899c   NV_PFSP_EMEMC/EMEMD(i)
+   307068112 W bar0 0x008f2ac4 4  0x58f9e7e3   NV_PFSP_EMEMC/EMEMD(i)
+   307068141 W bar0 0x008f2ac4 4  0x7de8ae06   NV_PFSP_EMEMC/EMEMD(i)
+   307068169 W bar0 0x008f2ac4 4  0x5fa29d38   NV_PFSP_EMEMC/EMEMD(i)
+   307068197 W bar0 0x008f2ac4 4  0xf26922fd   NV_PFSP_EMEMC/EMEMD(i)
+   307068223 W bar0 0x008f2ac4 4  0x38d21dbf   NV_PFSP_EMEMC/EMEMD(i)
+   307068250 W bar0 0x008f2ac4 4  0x8ba6db24   NV_PFSP_EMEMC/EMEMD(i)
+   307068291 W bar0 0x008f2ac4 4  0x81e4b117   NV_PFSP_EMEMC/EMEMD(i)
+   307068324 W bar0 0x008f2ac4 4  0x140dc856   NV_PFSP_EMEMC/EMEMD(i)
+   307068354 W bar0 0x008f2ac4 4  0x6576b5d7   NV_PFSP_EMEMC/EMEMD(i)
+   307068380 W bar0 0x008f2ac4 4  0xa6e77213   NV_PFSP_EMEMC/EMEMD(i)
+   307068406 W bar0 0x008f2ac4 4  0xa3532ae4   NV_PFSP_EMEMC/EMEMD(i)
+   307068431 W bar0 0x008f2ac4 4  0x7b6f6bd    NV_PFSP_EMEMC/EMEMD(i)
+   307068462 W bar0 0x008f2ac4 4  0x2282c966   NV_PFSP_EMEMC/EMEMD(i)
+   307068491 W bar0 0x008f2ac4 4  0x6c255a35   NV_PFSP_EMEMC/EMEMD(i)
+   307068520 W bar0 0x008f2ac4 4  0x40259966   NV_PFSP_EMEMC/EMEMD(i)
+   307068548 W bar0 0x008f2ac4 4  0x6b3aa101   NV_PFSP_EMEMC/EMEMD(i)
+   307068579 W bar0 0x008f2ac4 4  0xf1d936a4   NV_PFSP_EMEMC/EMEMD(i)
+   307068612 W bar0 0x008f2ac4 4  0x5d8f01a4   NV_PFSP_EMEMC/EMEMD(i)
+   307068637 W bar0 0x008f2ac4 4  0x20b8e754   NV_PFSP_EMEMC/EMEMD(i)
+   307068663 W bar0 0x008f2ac4 4  0x0          NV_PFSP_EMEMC/EMEMD(i)
+   307068689 W bar0 0x008f2ac4 4  0x0          NV_PFSP_EMEMC/EMEMD(i)
+   307068719 W bar0 0x008f2ac4 4  0x0          NV_PFSP_EMEMC/EMEMD(i)
+   307068748 W bar0 0x008f2ac4 4  0x0          NV_PFSP_EMEMC/EMEMD(i)
+   307068777 W bar0 0x008f2ac4 4  0x0          NV_PFSP_EMEMC/EMEMD(i)
+   307068805 W bar0 0x008f2ac4 4  0x0          NV_PFSP_EMEMC/EMEMD(i)
+   307068831 W bar0 0x008f2ac4 4  0x0          NV_PFSP_EMEMC/EMEMD(i)
+   307068857 W bar0 0x008f2ac4 4  0x0          NV_PFSP_EMEMC/EMEMD(i)
+   307068883 W bar0 0x008f2ac4 4  0x0          NV_PFSP_EMEMC/EMEMD(i)
+   307068909 W bar0 0x008f2ac4 4  0x0          NV_PFSP_EMEMC/EMEMD(i)
+   307068934 W bar0 0x008f2ac4 4  0x0          NV_PFSP_EMEMC/EMEMD(i)
+   307068960 W bar0 0x008f2ac4 4  0x0          NV_PFSP_EMEMC/EMEMD(i)
+   307068986 W bar0 0x008f2ac4 4  0x0          NV_PFSP_EMEMC/EMEMD(i)
+   307069011 W bar0 0x008f2ac4 4  0x0          NV_PFSP_EMEMC/EMEMD(i)
+   307069036 W bar0 0x008f2ac4 4  0x0          NV_PFSP_EMEMC/EMEMD(i)
+   307069060 W bar0 0x008f2ac4 4  0x0          NV_PFSP_EMEMC/EMEMD(i)
+   307069085 W bar0 0x008f2ac4 4  0x0          NV_PFSP_EMEMC/EMEMD(i)
+   307069115 W bar0 0x008f2ac4 4  0x0          NV_PFSP_EMEMC/EMEMD(i)
+   307069147 W bar0 0x008f2ac4 4  0x0          NV_PFSP_EMEMC/EMEMD(i)
+   307069184 W bar0 0x008f2ac4 4  0x0          NV_PFSP_EMEMC/EMEMD(i)
+   307069211 W bar0 0x008f2ac4 4  0x0          NV_PFSP_EMEMC/EMEMD(i)
+   307069237 W bar0 0x008f2ac4 4  0x0          NV_PFSP_EMEMC/EMEMD(i)
+   307069288 W bar0 0x008f2ac4 4  0x0          NV_PFSP_EMEMC/EMEMD(i)
+   307069325 W bar0 0x008f2ac4 4  0x0          NV_PFSP_EMEMC/EMEMD(i)
+   307069359 W bar0 0x008f2ac4 4  0x0          NV_PFSP_EMEMC/EMEMD(i)
+   307069393 W bar0 0x008f2ac4 4  0x0          NV_PFSP_EMEMC/EMEMD(i)
+   307069426 W bar0 0x008f2ac4 4  0x0          NV_PFSP_EMEMC/EMEMD(i)
+   307069469 W bar0 0x008f2ac4 4  0x0          NV_PFSP_EMEMC/EMEMD(i)
+   307069517 W bar0 0x008f2ac4 4  0x0          NV_PFSP_EMEMC/EMEMD(i)
+   307069565 W bar0 0x008f2ac4 4  0x0          NV_PFSP_EMEMC/EMEMD(i)
+   307069612 W bar0 0x008f2ac4 4  0x0          NV_PFSP_EMEMC/EMEMD(i)
+   307069641 W bar0 0x008f2ac4 4  0x0          NV_PFSP_EMEMC/EMEMD(i)
+   307069717 W bar0 0x008f2ac4 4  0x0          NV_PFSP_EMEMC/EMEMD(i)
+   307069767 W bar0 0x008f2ac4 4  0x0          NV_PFSP_EMEMC/EMEMD(i)
+   307069805 W bar0 0x008f2ac4 4  0x0          NV_PFSP_EMEMC/EMEMD(i)
+   307070137 W bar0 0x008f2ac4 4  0x0          NV_PFSP_EMEMC/EMEMD(i)
+   307070163 W bar0 0x008f2ac4 4  0x0          NV_PFSP_EMEMC/EMEMD(i)
+   307070187 W bar0 0x008f2ac4 4  0x0          NV_PFSP_EMEMC/EMEMD(i)
+   307070210 W bar0 0x008f2ac4 4  0x0          NV_PFSP_EMEMC/EMEMD(i)
+   307070234 W bar0 0x008f2ac4 4  0x0          NV_PFSP_EMEMC/EMEMD(i)
+   307070278 W bar0 0x008f2ac4 4  0x0          NV_PFSP_EMEMC/EMEMD(i)
+   307070304 W bar0 0x008f2ac4 4  0x0          NV_PFSP_EMEMC/EMEMD(i)
+   307070328 W bar0 0x008f2ac4 4  0x0          NV_PFSP_EMEMC/EMEMD(i)
+   307070352 W bar0 0x008f2ac4 4  0x0          NV_PFSP_EMEMC/EMEMD(i)
+   307070375 W bar0 0x008f2ac4 4  0x0          NV_PFSP_EMEMC/EMEMD(i)
+   307070398 W bar0 0x008f2ac4 4  0x0          NV_PFSP_EMEMC/EMEMD(i)
+   307070422 W bar0 0x008f2ac4 4  0x0          NV_PFSP_EMEMC/EMEMD(i)
+   307070447 W bar0 0x008f2ac4 4  0x0          NV_PFSP_EMEMC/EMEMD(i)
+   307070475 W bar0 0x008f2ac4 4  0x0          NV_PFSP_EMEMC/EMEMD(i)
+   307070512 W bar0 0x008f2ac4 4  0x0          NV_PFSP_EMEMC/EMEMD(i)
+   307070543 W bar0 0x008f2ac4 4  0x0          NV_PFSP_EMEMC/EMEMD(i)
+   307070574 W bar0 0x008f2ac4 4  0x0          NV_PFSP_EMEMC/EMEMD(i)
+   307070602 W bar0 0x008f2ac4 4  0x0          NV_PFSP_EMEMC/EMEMD(i)
+   307070626 W bar0 0x008f2ac4 4  0x0          NV_PFSP_EMEMC/EMEMD(i)
+   307070650 W bar0 0x008f2ac4 4  0x0          NV_PFSP_EMEMC/EMEMD(i)
+   307070682 W bar0 0x008f2ac4 4  0x0          NV_PFSP_EMEMC/EMEMD(i)
+   307070713 W bar0 0x008f2ac4 4  0x0          NV_PFSP_EMEMC/EMEMD(i)
+   307070739 W bar0 0x008f2ac4 4  0x0          NV_PFSP_EMEMC/EMEMD(i)
+   307070765 W bar0 0x008f2ac4 4  0x0          NV_PFSP_EMEMC/EMEMD(i)
+   307070791 W bar0 0x008f2ac4 4  0x0          NV_PFSP_EMEMC/EMEMD(i)
+   307070817 W bar0 0x008f2ac4 4  0x0          NV_PFSP_EMEMC/EMEMD(i)
+   307070844 W bar0 0x008f2ac4 4  0x0          NV_PFSP_EMEMC/EMEMD(i)
+   307070870 W bar0 0x008f2ac4 4  0x0          NV_PFSP_EMEMC/EMEMD(i)
+   307070896 W bar0 0x008f2ac4 4  0x0          NV_PFSP_EMEMC/EMEMD(i)
+   307070921 W bar0 0x008f2ac4 4  0x0          NV_PFSP_EMEMC/EMEMD(i)
+   307070947 W bar0 0x008f2ac4 4  0x0          NV_PFSP_EMEMC/EMEMD(i)
+   307070974 W bar0 0x008f2ac4 4  0x0          NV_PFSP_EMEMC/EMEMD(i)
+   307071000 W bar0 0x008f2ac4 4  0x0          NV_PFSP_EMEMC/EMEMD(i)
+   307071027 W bar0 0x008f2ac4 4  0x0          NV_PFSP_EMEMC/EMEMD(i)
+   307071053 W bar0 0x008f2ac4 4  0x0          NV_PFSP_EMEMC/EMEMD(i)
+   307071077 W bar0 0x008f2ac4 4  0x0          NV_PFSP_EMEMC/EMEMD(i)
+   307071100 W bar0 0x008f2ac4 4  0x0          NV_PFSP_EMEMC/EMEMD(i)
+   307071124 W bar0 0x008f2ac4 4  0x20b4e000   NV_PFSP_EMEMC/EMEMD(i)
+   307071147 W bar0 0x008f2ac4 4  0x1          NV_PFSP_EMEMC/EMEMD(i)
+   307071207 W bar0 0x008f2c04 4  0x360        NV_PFSP_QUEUE_HEAD/TAIL
+   307071403 W bar0 0x008f2c00 4  0x0          NV_PFSP_QUEUE_HEAD/TAIL
+   307071411 E boot: fsp: COT version 2 size 860: gspFmc 0x139100000, frts sysmem 0x0+0x0, frts vidmem 0x1bc0000 from the end +0x100000, GSP_FMC_BOOT_PARAMS 0x120b4e000
+   307071413 E boot: fsp: GSP_FMC_BOOT_PARAMS 0x120b4e000: gspRmDesc 0x120b4f000 (256 bytes), libos args 0x120b50000
+   307071414 E boot: acr: fb 0x100000000, WPR [0xf0c00000, 0xfe440000), FRTS 0xfe340000+0x100000, heap 0xf0d00000+0x8590000, non-WPR heap 0xf0900000+0x300000, VGA 0xfffe0000
+   307071415 E boot: gsp: target mask released, lockdown released, GSP-RM running
+   307071416 E boot: wpr meta: fbSize 0x100000000 gspFwRsvdStart 0xf0900000 nonWprHeap 0xf0900000+0x300000 wprStart 0xf0c00000 frtsOffset 0xfe340000 wprEnd 0xfe440000 vgaWorkspace 0xfffe0000
+   307071876 W bar0 0x008f2ac0 4  0x2000000    NV_PFSP_EMEMC/EMEMD(i)
+   307072287 W bar0 0x008f2c84 4  0x0          NV_PFSP_MSGQ_HEAD/TAIL
+   307072327 W bar0 0x008f2c80 4  0x0          NV_PFSP_MSGQ_HEAD/TAIL
+   307072462 W bar0 0x00110c00 4  0x0          NV_PGSP_QUEUE_HEAD/TAIL
+   307072465 E boot: doorbell 1: libos args PA 0x120b50000 (mapped), wpr meta PA 0x120b4f000
+   307072466 E boot: libos arg 0: "LOGINIT" pa 0x116710000 size 0x10000
+   307072467 E boot: libos arg 1: "LOGINTR" pa 0x116760000 size 0x10000
+   307072469 E boot: libos arg 2: "LOGRM" pa 0x116770000 size 0x10000
+   307072470 E boot: libos arg 3: "LOGMNOC" pa 0x139000000 size 0x10000
+   307072471 E boot: libos arg 4: "LOGDBG" pa 0x139010000 size 0x10000
+   307072472 E boot: libos arg 5: "LOGROOT" pa 0x120be9000 size 0x1000
+   307072473 E boot: libos arg 6: "LOGRMON" pa 0x120bea000 size 0x1000
+   307072474 E boot: libos arg 7: "LOGKRNL" pa 0x139060000 size 0x10000
+   307072475 E boot: libos arg 8: "RMARGS" pa 0x120b51000 size 0x1000
+   307072477 E boot: rmargs: sharedMemPhysAddr 0x120200000 pages 129 cmdQueueOffset 0x1000 statQueueOffset 0x41000
+   307072478 E boot: queues linked: cmd TxHeader { version: 0, size: 262144, msg_size: 4096, msg_count: 63, write_ptr: 1, flags: 1, rx_hdr_off: 32, entry_off: 4096 }; status header written (size 0x40000, 63 slots)
+   307072479 E boot: tx seq 0 event GSP_INIT_DONE
+   307072480 E boot: rx seq 0 GSP_SET_SYSTEM_INFO (72) sequence 0 length 984 checksum ok: gpuPhysAddr=0xe0000000 gpuPhysFbAddr=0x3fffe0000000 gpuPhysInstAddr=0x3ffffc000000 bdf=0x5 pciConfigMirror=0x92000+0x1000 PCIDeviceID=0x2d0410de PCISubDeviceID=0x8a081043 rev=0xa1 maxUserVa=0x7ffffffff000 hostPageSize=0x1000
+   307072530 W bar0 0x00110c00 4  0x0          NV_PGSP_QUEUE_HEAD/TAIL
+   307072533 E boot: doorbell 2: libos args PA 0x120b50000 (mapped), wpr meta PA 0x120b4f000
+   307072535 E boot: rx seq 1 SET_REGISTRY (73) sequence 0 length 1628 checksum ok: size=1596 entries=43
+   307072727 W bar0 0x00110080 4  0x0          NV_PGSP_FALCON_OS
+   307072907 W bar0 0x00110c00 4  0x0          NV_PGSP_QUEUE_HEAD/TAIL
+   307072909 E boot: doorbell 3: libos args PA 0x120b50000 (mapped), wpr meta PA 0x120b4f000
+   307072911 E boot: rx seq 2 SET_GUEST_SYSTEM_INFO (1) sequence 0 length 824 checksum ok: vgx 0x2e.0xd driver="610.57.04"
+   307072912 E boot: tx seq 1 reply SET_GUEST_SYSTEM_INFO sequence 0 result 0x0 length 824
+   307073271 W bar0 0x00110c00 4  0x0          NV_PGSP_QUEUE_HEAD/TAIL
+   307073274 E boot: doorbell 4: libos args PA 0x120b50000 (mapped), wpr meta PA 0x120b4f000
+   307073275 E boot: rx seq 3 GET_GSP_STATIC_INFO (65) sequence 1 length 1632 checksum ok: 1600 bytes: 0000000000000000000000000000000000000000000000000000000000000000
+   307073276 E boot: static-info gidInfo.data[0..16] = 0796ae383ef83a1a075f47e3c0d215c7 [synthesized (E4: per-VM UUID)]
+   307073277 E boot: static-info fbRegionInfoParams = 2 regions: usable [0x0, 0xf0900000), reserved [0xf0900000, 0x100000000) [guest (WPR meta gspFwRsvdStart)]
+   307073278 E boot: static-info engineCaps = 0x8092202 0x80844 0x0 (GR0, CE0/4/7, NVDEC0, NVENC0, SW, SEC2, NVJPG0, OFA0) [host (GB206 GET_ENGINES_V2, caraxes/reference/gb206/rm-tools/fifo-host-query.txt:4)]
+   307073280 E boot: static-info fb_length = 0x100000000 [profile]
+   307073281 E boot: static-info gpuNameString = Leandro VFIO RTX 5060 Ti-4G [profile (guest_card_name)]
+   307073282 E boot: static-info gpuShortNameString = GB206 [card]
+   307073283 E boot: static-info bar1PdeBase/bar2PdeBase = 0xf0901000/0xf0900000 [guest (WPR meta nonWprHeapOffset; docs/caraxes/fb-model.md)]
+   307073285 E boot: static-info fwWprLayoutOffset = nonWprHeapOffset 0xf0900000 frtsOffset 0xfe340000 [guest (WPR meta; on GB20x as the FSP model laid it out)]
+   307073286 E boot: static-info vbios* = valid, subsystem 0x1043:0x8a08, revision 0x98061f40, oem 0x4a [card (config space, VBIOS BIT)]
+   307073287 E boot: static-info hInternalClient/Device/Subdevice = 0xca7a0001/2/3 [synthesized (device-owned handles)]
+   307073288 E boot: static-info branding, power, platform flags, SKU, PDI, ECID, bBusResetRequired = 0 [synthesized (desktop GeForce; E4: host controls)]
+   307073289 E boot: tx seq 2 reply GET_GSP_STATIC_INFO sequence 1 result 0x0 length 1632
+   307073870 W bar0 0x00110c00 4  0x0          NV_PGSP_QUEUE_HEAD/TAIL
+   307073874 E boot: doorbell 5: libos args PA 0x120b50000 (mapped), wpr meta PA 0x120b4f000
+   307073881 E boot: rx seq 4 INIT_GSP_TRACE_CRASH_BUFFER (228) sequence 2 length 48 checksum ok: 16 bytes: 00c0be20010000004006000000000000
+   307073883 E boot: init gsp trace crash buffer: pa 0x120bec000 size 0x640 [guest, recorded]
+   307073884 E boot: tx seq 3 reply INIT_GSP_TRACE_CRASH_BUFFER sequence 2 result 0x0 length 48
+   307074446 W bar0 0x00110c00 4  0x0          NV_PGSP_QUEUE_HEAD/TAIL
+   307074449 E boot: doorbell 6: libos args PA 0x120b50000 (mapped), wpr meta PA 0x120b4f000
+   307074451 E boot: rx seq 5 GSP_RM_CONTROL (76) sequence 3 length 160 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20800a36 paramsSize=88 rpcFlags=0x0
+   307074452 E boot: ctrl 0x20800a36: chip info -> status 0x0 [card (config space) + synthesized regBases (kern_gpu_gb100.c:1804-1822)]
+   307074454 E boot: tx seq 4 reply GSP_RM_CONTROL sequence 3 result 0x0 length 160
+   307074903 W bar0 0x00110c00 4  0x0          NV_PGSP_QUEUE_HEAD/TAIL
+   307074906 E boot: doorbell 7: libos args PA 0x120b50000 (mapped), wpr meta PA 0x120b4f000
+   307074907 E boot: rx seq 6 GSP_RM_CONTROL (76) sequence 4 length 20564 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20800a41 paramsSize=20492 rpcFlags=0x0
+   307074909 E boot: ctrl 0x20800a41: user register access map -> status 0x0 [synthesized (allow-all map, gpu_register_access_map.c:260-298; unchanged from TU106, recheck the GB20x size)]
+   307074910 E boot: tx seq 5 reply GSP_RM_CONTROL sequence 4 result 0x0 length 20564
+   307075376 W bar0 0x00110c00 4  0x0          NV_PGSP_QUEUE_HEAD/TAIL
+   307075379 E boot: doorbell 8: libos args PA 0x120b50000 (mapped), wpr meta PA 0x120b4f000
+   307075387 E boot: rx seq 7 GSP_RM_CONTROL (76) sequence 5 length 1356 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x208001b0 paramsSize=1284 rpcFlags=0x0
+   307075388 E boot: ctrl 0x208001b0: constructed falcon info: empty -> status 0x0 [synthesized fallback (no falcons)]
+   307075390 E boot: tx seq 6 reply GSP_RM_CONTROL sequence 5 result 0x0 length 1356
+   307075683 W bar0 0x00110c00 4  0x0          NV_PGSP_QUEUE_HEAD/TAIL
+   307075685 E boot: doorbell 9: libos args PA 0x120b50000 (mapped), wpr meta PA 0x120b4f000
+   307075686 E boot: rx seq 8 GSP_RM_CONTROL (76) sequence 6 length 1356 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x208001b0 paramsSize=1284 rpcFlags=0x0
+   307075687 E boot: ctrl 0x208001b0: constructed falcon info: empty -> status 0x0 [synthesized fallback (no falcons)]
+   307075688 E boot: tx seq 7 reply GSP_RM_CONTROL sequence 6 result 0x0 length 1356
+   307076023 W bar0 0x00110c00 4  0x0          NV_PGSP_QUEUE_HEAD/TAIL
+   307076025 E boot: doorbell 10: libos args PA 0x120b50000 (mapped), wpr meta PA 0x120b4f000
+   307076026 E boot: rx seq 9 GSP_RM_CONTROL (76) sequence 7 length 1160 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20800a87 paramsSize=1088 rpcFlags=0x0
+   307076028 E boot: ctrl 0x20800a87: nvlink device info: not supported -> status 0x56 [synthesized (no NVLink; removes KernelNvlink, row 6)]
+   307076029 E boot: tx seq 8 reply GSP_RM_CONTROL sequence 7 result 0x0 length 1160
+   307076805 W bar0 0x00110c00 4  0x0          NV_PGSP_QUEUE_HEAD/TAIL
+   307076810 E boot: doorbell 11: libos args PA 0x120b50000 (mapped), wpr meta PA 0x120b4f000
+   307076812 E boot: rx seq 10 GSP_RM_CONTROL (76) sequence 8 length 24652 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20800a40 paramsSize=24580 rpcFlags=0x0
+   307076814 E boot: ctrl 0x20800a40: internal device info table: 7 entries -> status 0x0 [synthesized (DEVICE_INFO2 from chips/<chip>/device-info.toml + TMR/PBUS/HUBMMU PRI bases)]
+   307078561 E boot: tx seq 9 reply GSP_RM_CONTROL sequence 8 result 0x0 length 24652
+   307080791 W bar0 0x00110c00 4  0x0          NV_PGSP_QUEUE_HEAD/TAIL
+   307080794 E boot: doorbell 12: libos args PA 0x120b50000 (mapped), wpr meta PA 0x120b4f000
+   307080795 E boot: rx seq 11 GSP_RM_CONTROL (76) sequence 9 length 3284 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20801112 paramsSize=3212 rpcFlags=0x0
+   307080797 E boot: ctrl 0x20801112: fifo device info table: 10 entries -> status 0x0 [host (engines, fault ids, GRCE pairing) + synthesized (runlists, PBDMA ids; unverified for GB20x)]
+   307080798 E boot: tx seq 10 reply GSP_RM_CONTROL sequence 9 result 0x0 length 3284
+   307082108 W bar0 0x00110c00 4  0x0          NV_PGSP_QUEUE_HEAD/TAIL
+   307082110 E boot: doorbell 13: libos args PA 0x120b50000 (mapped), wpr meta PA 0x120b4f000
+   307082112 E boot: rx seq 12 GSP_RM_CONTROL (76) sequence 10 length 2184 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20800a5c paramsSize=2112 rpcFlags=0x0
+   307082113 E boot: ctrl 0x20800a5c: interrupt kernel table: 6 entries -> status 0x0 [host (GB206 MC_GET_STATIC_INTR_TABLE, subtree map) + synthesized (GSP, FIFO in the ESCHED_DRIVEN_ENGINE subtree 3, as TU106)]
+   307082114 E boot: tx seq 11 reply GSP_RM_CONTROL sequence 10 result 0x0 length 2184
+   307082611 W bar0 0x00110c00 4  0x0          NV_PGSP_QUEUE_HEAD/TAIL
+   307082616 E boot: doorbell 14: libos args PA 0x120b50000 (mapped), wpr meta PA 0x120b4f000
+   307082618 E boot: rx seq 13 GSP_RM_CONTROL (76) sequence 11 length 112 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20800a1c paramsSize=40 rpcFlags=0x0
+   307082619 E boot: ctrl 0x20800a1c: memsys static config -> status 0x0 [synthesized (GB206: 32 MiB L2, 8 LTC x 2 LTS, unverified; GDDR7 from the product)]
+   307082620 E boot: tx seq 12 reply GSP_RM_CONTROL sequence 11 result 0x0 length 112
+   307082941 W bar0 0x00110c00 4  0x0          NV_PGSP_QUEUE_HEAD/TAIL
+   307082942 E boot: doorbell 15: libos args PA 0x120b50000 (mapped), wpr meta PA 0x120b4f000
+   307082944 E boot: rx seq 14 GSP_RM_CONTROL (76) sequence 12 length 272 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20801803 paramsSize=200 rpcFlags=0x0
+   307082945 E boot: ctrl 0x20801803: pci bar info: 4 bars -> status 0x0 [guest (BAR addresses from GspSystemInfo) + card (emulated BAR sizes)]
+   307082946 E boot: tx seq 13 reply GSP_RM_CONTROL sequence 12 result 0x0 length 272
+   307083301 W bar0 0x00110c00 4  0x0          NV_PGSP_QUEUE_HEAD/TAIL
+   307083304 E boot: doorbell 16: libos args PA 0x120b50000 (mapped), wpr meta PA 0x120b4f000
+   307083305 E boot: rx seq 15 GSP_RM_CONTROL (76) sequence 13 length 76 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20800a4b paramsSize=4 rpcFlags=0x0
+   307083307 E boot: ctrl 0x20800a4b: control 0x20800a4b on 0xca7a0003 (class 0x2080, 4 bytes): not supported -> status 0x56 [unanswered]
+   307083308 E boot: tx seq 14 reply GSP_RM_CONTROL sequence 13 result 0x0 length 76
+   307083677 W bar0 0x00110c00 4  0x0          NV_PGSP_QUEUE_HEAD/TAIL
+   307083679 E boot: doorbell 17: libos args PA 0x120b50000 (mapped), wpr meta PA 0x120b4f000
+   307083680 E boot: rx seq 16 GSP_RM_CONTROL (76) sequence 14 length 74 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20800af3 paramsSize=2 rpcFlags=0x0
+   307083682 E boot: ctrl 0x20800af3: control 0x20800af3 on 0xca7a0003 (class 0x2080, 2 bytes): not supported -> status 0x56 [unanswered]
+   307083683 E boot: tx seq 15 reply GSP_RM_CONTROL sequence 14 result 0x0 length 74
+   307086845 W bar0 0x00110c00 4  0x0          NV_PGSP_QUEUE_HEAD/TAIL
+   307086847 E boot: doorbell 18: libos args PA 0x120b50000 (mapped), wpr meta PA 0x120b4f000
+   307086848 E boot: rx seq 17 GSP_RM_CONTROL (76) sequence 15 length 76 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20800aac paramsSize=4 rpcFlags=0x0
+   307086856 E boot: ctrl 0x20800aac: bif static info: all false -> status 0x0 [synthesized (single function, no gen4, no C2C)]
+   307086857 E boot: tx seq 16 reply GSP_RM_CONTROL sequence 15 result 0x0 length 76
+   307087314 W bar0 0x00110c00 4  0x0          NV_PGSP_QUEUE_HEAD/TAIL
+   307087317 E boot: doorbell 19: libos args PA 0x120b50000 (mapped), wpr meta PA 0x120b4f000
+   307087318 E boot: rx seq 18 GSP_RM_CONTROL (76) sequence 16 length 80 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20800a61 paramsSize=8 rpcFlags=0x0
+   307087320 E boot: ctrl 0x20800a61: fifo num channels: 512 -> status 0x0 [synthesized (512 channels per runlist, as TU106)]
+   307087322 E boot: tx seq 17 reply GSP_RM_CONTROL sequence 16 result 0x0 length 80
+   307090764 W bar0 0x00110c00 4  0x0          NV_PGSP_QUEUE_HEAD/TAIL
+   307090767 E boot: doorbell 20: libos args PA 0x120b50000 (mapped), wpr meta PA 0x120b4f000
+   307090768 E boot: rx seq 19 GSP_RM_CONTROL (76) sequence 17 length 80 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20800a61 paramsSize=8 rpcFlags=0x0
+   307090769 E boot: ctrl 0x20800a61: fifo num channels: 512 -> status 0x0 [synthesized (512 channels per runlist, as TU106)]
+   307090771 E boot: tx seq 18 reply GSP_RM_CONTROL sequence 17 result 0x0 length 80
+   307091164 W bar0 0x00110c00 4  0x0          NV_PGSP_QUEUE_HEAD/TAIL
+   307091166 E boot: doorbell 21: libos args PA 0x120b50000 (mapped), wpr meta PA 0x120b4f000
+   307091167 E boot: rx seq 20 GSP_RM_CONTROL (76) sequence 18 length 80 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20800a61 paramsSize=8 rpcFlags=0x0
+   307091168 E boot: ctrl 0x20800a61: fifo num channels: 512 -> status 0x0 [synthesized (512 channels per runlist, as TU106)]
+   307091169 E boot: tx seq 19 reply GSP_RM_CONTROL sequence 18 result 0x0 length 80
+   307093719 W bar0 0x00110c00 4  0x0          NV_PGSP_QUEUE_HEAD/TAIL
+   307093721 E boot: doorbell 22: libos args PA 0x120b50000 (mapped), wpr meta PA 0x120b4f000
+   307093722 E boot: rx seq 21 GSP_RM_CONTROL (76) sequence 19 length 80 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20800a61 paramsSize=8 rpcFlags=0x0
+   307093723 E boot: ctrl 0x20800a61: fifo num channels: 512 -> status 0x0 [synthesized (512 channels per runlist, as TU106)]
+   307093724 E boot: tx seq 20 reply GSP_RM_CONTROL sequence 19 result 0x0 length 80
+   307094016 W bar0 0x00110c00 4  0x0          NV_PGSP_QUEUE_HEAD/TAIL
+   307094018 E boot: doorbell 23: libos args PA 0x120b50000 (mapped), wpr meta PA 0x120b4f000
+   307094019 E boot: rx seq 22 GSP_RM_CONTROL (76) sequence 20 length 76 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20802a08 paramsSize=4 rpcFlags=0x0
+   307094020 E boot: ctrl 0x20802a08: ce fault method buffer size -> status 0x0 [synthesized (32 KiB fault method buffer, as TU106)]
+   307094021 E boot: tx seq 21 reply GSP_RM_CONTROL sequence 20 result 0x0 length 76
+   307095392 W bar0 0x00110c00 4  0x0          NV_PGSP_QUEUE_HEAD/TAIL
+   307095397 E boot: doorbell 24: libos args PA 0x120b50000 (mapped), wpr meta PA 0x120b4f000
+   307095398 E boot: rx seq 23 GSP_RM_CONTROL (76) sequence 21 length 88 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20800afe paramsSize=16 rpcFlags=0x0
+   307095400 E boot: ctrl 0x20800afe: init user shared data: pa 0x1204f0000 -> status 0x0 [guest (RUSD page recorded)]
+   307095401 E boot: tx seq 22 reply GSP_RM_CONTROL sequence 21 result 0x0 length 88
+   307095717 W bar0 0x00110c00 4  0x0          NV_PGSP_QUEUE_HEAD/TAIL
+   307095719 E boot: doorbell 25: libos args PA 0x120b50000 (mapped), wpr meta PA 0x120b4f000
+   307095720 E boot: rx seq 24 GSP_RM_CONTROL (76) sequence 22 length 88 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20800aff paramsSize=16 rpcFlags=0x0
+   307095721 E boot: ctrl 0x20800aff: user shared data poll: ok -> status 0x0 [synthesized]
+   307095722 E boot: tx seq 23 reply GSP_RM_CONTROL sequence 22 result 0x0 length 88
+   307100659 W bar0 0x00110c00 4  0x0          NV_PGSP_QUEUE_HEAD/TAIL
+   307100661 E boot: doorbell 26: libos args PA 0x120b50000 (mapped), wpr meta PA 0x120b4f000
+   307100663 E boot: rx seq 25 GSP_RM_ALLOC (103) sequence 23 length 64 checksum ok: hClient=0xc1e00001 hParent=0x0 hObject=0x0 hClass=0x0 paramsSize=120 flags=0x0
+   307100664 E boot: alloc: alloc NV01_ROOT 0x0 object 0x0 under 0x0 -> status 0x0 [synthesized (object recorded, no host object yet)]
+   307100665 E boot: tx seq 24 reply GSP_RM_ALLOC sequence 23 result 0x0 length 184
+   307100956 W bar0 0x00110c00 4  0x0          NV_PGSP_QUEUE_HEAD/TAIL
+   307100958 E boot: doorbell 27: libos args PA 0x120b50000 (mapped), wpr meta PA 0x120b4f000
+   307100959 E boot: rx seq 26 GSP_RM_ALLOC (103) sequence 24 length 64 checksum ok: hClient=0xc1e00001 hParent=0xc1e00001 hObject=0xcaf00000 hClass=0x80 paramsSize=56 flags=0x0
+   307100960 E boot: alloc: alloc NV01_DEVICE_0 0x80 object 0xcaf00000 under 0xc1e00001 -> status 0x0 [synthesized (object recorded, no host object yet)]
+   307100962 E boot: tx seq 25 reply GSP_RM_ALLOC sequence 24 result 0x0 length 120
+   307101257 W bar0 0x00110c00 4  0x0          NV_PGSP_QUEUE_HEAD/TAIL
+   307101259 E boot: doorbell 28: libos args PA 0x120b50000 (mapped), wpr meta PA 0x120b4f000
+   307101260 E boot: rx seq 27 GSP_RM_ALLOC (103) sequence 25 length 64 checksum ok: hClient=0xc1e00001 hParent=0xcaf00000 hObject=0xcaf00001 hClass=0x2080 paramsSize=4 flags=0x0
+   307101266 E boot: alloc: alloc NV20_SUBDEVICE_0 0x2080 object 0xcaf00001 under 0xcaf00000 -> status 0x0 [synthesized (object recorded, no host object yet)]
+   307101267 E boot: tx seq 26 reply GSP_RM_ALLOC sequence 25 result 0x0 length 68
+   307101612 W bar0 0x00110c00 4  0x0          NV_PGSP_QUEUE_HEAD/TAIL
+   307101616 E boot: doorbell 29: libos args PA 0x120b50000 (mapped), wpr meta PA 0x120b4f000
+   307101617 E boot: rx seq 28 GSP_RM_ALLOC (103) sequence 26 length 64 checksum ok: hClient=0xc1e00001 hParent=0xcaf00001 hObject=0xcaf00003 hClass=0x7e paramsSize=24 flags=0x0
+   307101618 E boot: alloc: alloc NV01_EVENT_KERNEL_CALLBACK_EX 0x7e object 0xcaf00003 under 0xcaf00001 -> status 0x0 [synthesized (object recorded, no host object yet)]
+   307101620 E boot: tx seq 27 reply GSP_RM_ALLOC sequence 26 result 0x0 length 88
+   307101915 W bar0 0x00110c00 4  0x0          NV_PGSP_QUEUE_HEAD/TAIL
+   307101917 E boot: doorbell 30: libos args PA 0x120b50000 (mapped), wpr meta PA 0x120b4f000
+   307101918 E boot: rx seq 29 GSP_RM_CONTROL (76) sequence 27 length 92 checksum ok: hClient=0xc1e00001 hObject=0xcaf00001 cmd=0x20800301 paramsSize=20 rpcFlags=0x0
+   307101919 E boot: ctrl 0x20800301: event set notification: ok -> status 0x0 [synthesized (event registered, never raised yet)]
+   307101920 E boot: tx seq 28 reply GSP_RM_CONTROL sequence 27 result 0x0 length 92
+   307102375 W bar0 0x00110c00 4  0x0          NV_PGSP_QUEUE_HEAD/TAIL
+   307102405 E boot: doorbell 31: libos args PA 0x120b50000 (mapped), wpr meta PA 0x120b4f000
+   307102407 E boot: rx seq 30 GSP_RM_CONTROL (76) sequence 28 length 88 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20800a59 paramsSize=16 rpcFlags=0x0
+   307102408 E boot: ctrl 0x20800a59: gmmu static info -> status 0x0 [synthesized (256-entry fault buffers, as TU106)]
+   307102409 E boot: tx seq 29 reply GSP_RM_CONTROL sequence 28 result 0x0 length 88
+   307103350 W bar0 0x0010fd40 4  0xf08e       NV_XAL_EP_ZB_BAR0_WINDOW
+   307595793 W bar0 0x00110c00 4  0x0          NV_PGSP_QUEUE_HEAD/TAIL
+   307595796 E boot: doorbell 32: libos args PA 0x120b50000 (mapped), wpr meta PA 0x120b4f000
+   307595797 E boot: rx seq 31 UPDATE_BAR_PDE (70) sequence 29 length 56 checksum ok: 24 bytes: 010000000000000012308ef0000000003800000000000000
+   307595798 E boot: update bar pde: barType 1 entryValue 0xf08e3012 levelShift 56 -> PDE3[0] at Some(4035969024) stored true [guest]
+   307595800 E boot: tx seq 30 reply UPDATE_BAR_PDE sequence 29 result 0x0 length 56
+   307596101 W bar0 0x0010fd40 4  0xfff0       NV_XAL_EP_ZB_BAR0_WINDOW
+   307596158 W bar0 0x0010fd40 4  0xf08e       NV_XAL_EP_ZB_BAR0_WINDOW
+   307597375 W bar0 0x0010fd40 4  0xfff0       NV_XAL_EP_ZB_BAR0_WINDOW
+   307597477 W bar0 0x00b830a0 4  0xf09000     NV_VIRTUAL_FUNCTION_PRIV_MMU_INVALIDATE
+   307597500 W bar0 0x00b830a4 4  0x0          NV_VIRTUAL_FUNCTION_PRIV_MMU_INVALIDATE
+   307597523 W bar0 0x00b830b0 4  0x80010005   NV_VIRTUAL_FUNCTION_PRIV_MMU_INVALIDATE
+   307597525 E boot: mmu invalidate: pdb 0xf0900000 flags 0x10005 (no mirror VA space rooted there; nothing cached here)
+   307597623 W bar3 0x01ffef48 8  0xf08cf681   UNMAPPED (level 2)
+   307597650 W bar3 0x01ffef48 8  0xf08cf681   UNMAPPED (level 2)
+   307597753 W bar0 0x00b830a0 4  0xf09000     NV_VIRTUAL_FUNCTION_PRIV_MMU_INVALIDATE
+   307597775 W bar0 0x00b830a4 4  0x0          NV_VIRTUAL_FUNCTION_PRIV_MMU_INVALIDATE
+   307597799 W bar0 0x00b830b0 4  0x80010005   NV_VIRTUAL_FUNCTION_PRIV_MMU_INVALIDATE
+   307597800 E boot: mmu invalidate: pdb 0xf0900000 flags 0x10005 (no mirror VA space rooted there; nothing cached here)
+   307597859 W bar3 0x01fef000 8  0xf08ce681   UNMAPPED (level 2)
+   307597883 W bar3 0x01fef000 8  0xf08ce681   UNMAPPED (level 2)
+   307597906 R bar3 0x01fe9000 4  0x0          UNMAPPED (level 2)
+   307597960 W bar0 0x00b830a0 4  0xf09000     NV_VIRTUAL_FUNCTION_PRIV_MMU_INVALIDATE
+   307597983 W bar0 0x00b830a4 4  0x0          NV_VIRTUAL_FUNCTION_PRIV_MMU_INVALIDATE
+   307598007 W bar0 0x00b830b0 4  0x80010005   NV_VIRTUAL_FUNCTION_PRIV_MMU_INVALIDATE
+   307598013 E boot: mmu invalidate: pdb 0xf0900000 flags 0x10005 (no mirror VA space rooted there; nothing cached here)
+   307598089 W bar0 0x0010fd40 4  0xf08c       NV_XAL_EP_ZB_BAR0_WINDOW
+   307598206 W bar0 0x00110c00 4  0x0          NV_PGSP_QUEUE_HEAD/TAIL
+   307598208 E boot: doorbell 33: libos args PA 0x120b50000 (mapped), wpr meta PA 0x120b4f000
+   307598209 E boot: rx seq 32 GSP_RM_CONTROL (76) sequence 30 length 76 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20800a6c paramsSize=4 rpcFlags=0x0
+   307598210 E boot: ctrl 0x20800a6c: l2 invalidate/evict: ok -> status 0x0 [synthesized (no cache to evict)]
+   307598211 E boot: tx seq 31 reply GSP_RM_CONTROL sequence 30 result 0x0 length 76
+   307598563 W bar0 0x0010fd40 4  0xfff0       NV_XAL_EP_ZB_BAR0_WINDOW
+   307598592 W bar3 0x00000000 4  0xabcdabcd   UNMAPPED (level 2)
+   307598618 W bar3 0x00000004 4  0xabcdabcd   UNMAPPED (level 2)
+   307598642 W bar3 0x00000008 4  0xabcdabcd   UNMAPPED (level 2)
+   307598665 W bar3 0x0000000c 4  0xabcdabcd   UNMAPPED (level 2)
+   307598699 W bar0 0x00110c00 4  0x0          NV_PGSP_QUEUE_HEAD/TAIL
+   307598701 E boot: doorbell 34: libos args PA 0x120b50000 (mapped), wpr meta PA 0x120b4f000
+   307598703 E boot: rx seq 33 GSP_RM_CONTROL (76) sequence 31 length 76 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20800a6c paramsSize=4 rpcFlags=0x0
+   307598704 E boot: ctrl 0x20800a6c: l2 invalidate/evict: ok -> status 0x0 [synthesized (no cache to evict)]
+   307598705 E boot: tx seq 32 reply GSP_RM_CONTROL sequence 31 result 0x0 length 76
+   307598960 R bar3 0x00000000 4  0x0          UNMAPPED (level 2)
+   307598987 R bar3 0x01fe9000 4  0x0          UNMAPPED (level 2)
+   307602430 E set_irqs index=1 flags=0x21 start=0 count=0 fds=0
+   307602458 E set_irqs index=0 flags=0x24 start=0 count=1 fds=1

@@ -1,0 +1,16 @@
+vfio-user-nvgpu: host execution on: FB backed by the reserved VRAM through BAR1 windows (budget 2 x 32 MiB = 64 MiB of the host's shared BAR1; CARAXES_BAR1_WINDOWS, CARAXES_BAR1_WINDOW_MIB); guest channels mirrored on the host at their firs
+vfio-user-nvgpu: bar1 passthrough: guest BAR1 [0, 0x100000) offered as one sparse mmap area of region 1, backed by a dma-buf of FB [0xa9980000, 0xa9a80000) (reservation offset 0x980000); 0x100000 of host BAR1 held while the client maps it (
+vfio-user-nvgpu: bar1 passthrough: check 5: 128 page(s) of guest BAR1 [0, 0x100000) mapped, 128 at the area's FB 0xa9980000 + offset, 0 elsewhere
+vfio-user-nvgpu: bar1 passthrough: check 27: 0 page(s) of guest BAR1 [0, 0x100000) mapped, 0 at the area's FB 0xa9980000 + offset, 0 elsewhere
+vfio-user-nvgpu: bar1 passthrough: check 29: 48 page(s) of guest BAR1 [0, 0x100000) mapped, 48 at the area's FB 0xa9980000 + offset, 0 elsewhere
+vfio-user-nvgpu: bar1 passthrough: check 30: 112 page(s) of guest BAR1 [0, 0x100000) mapped, 112 at the area's FB 0xa9980000 + offset, 0 elsewhere
+vfio-user-nvgpu: bar1 passthrough: check 31: 128 page(s) of guest BAR1 [0, 0x100000) mapped, 128 at the area's FB 0xa9980000 + offset, 0 elsewhere
+vfio-user-nvgpu: bar1 passthrough: check 44: 0 page(s) of guest BAR1 [0, 0x100000) mapped, 0 at the area's FB 0xa9980000 + offset, 0 elsewhere
+vfio-user-nvgpu: bar1 passthrough: check 49: 128 page(s) of guest BAR1 [0, 0x100000) mapped, 128 at the area's FB 0xa9980000 + offset, 0 elsewhere
+vfio-user-nvgpu: bar1 passthrough: check 70: 0 page(s) of guest BAR1 [0, 0x100000) mapped, 0 at the area's FB 0xa9980000 + offset, 0 elsewhere
+vfio-user-nvgpu: bar1 passthrough: check 72: 128 page(s) of guest BAR1 [0, 0x100000) mapped, 128 at the area's FB 0xa9980000 + offset, 0 elsewhere
+vfio-user-nvgpu: bar1 passthrough: check 87: 48 page(s) of guest BAR1 [0, 0x100000) mapped, 48 at the area's FB 0xa9980000 + offset, 0 elsewhere
+vfio-user-nvgpu: bar1 passthrough: check 88: 0 page(s) of guest BAR1 [0, 0x100000) mapped, 0 at the area's FB 0xa9980000 + offset, 0 elsewhere
+vfio-user-nvgpu: mirror: host doorbell object 0x8000003a freed: Ok(())
+bar1 passthrough: guest BAR1 [0, 0x100000) on FB 0xa9980000; 91 check(s), last: 0 page(s) mapped, 0 matched, 0 elsewhere; 0 mismatched page(s) and 0 page-table hazard(s) over the run (docs/caraxes/bar1-passthrough.md)
+mirror: 80 channel(s) created, 80 freed, 0 live; 176488 doorbell(s) forwarded, 0 TLB invalidate(s) (0 MEM_OP push(es), 0 slow), 0 refusal(s), longest mirror build 0 us; events raised 8408, MSIs 7883 (coalesced 525), host RC events 0

@@ -1083,6 +1083,69 @@ scoped CAP_SYS_ADMIN window, the reservation, the registration. No register acce
 module change, no passthrough. `caraxes/tools/host-kick.rs` (a doorbell diagnostic) touches
 only the usermode doorbell of its own throwaway channel.
 
+## 615 transport (2026-09-24)
+
+- **Goal (decision D19, the 615 baseline):** a 615.71.09 guest boots against the device:
+  message queue v2 with the pointers in registers, MCTP-framed elements, `GMCAPI_CMD_GSP_INIT`
+  with NVKV system info and static info, the 615 boot arguments, and the 615 control layouts
+  where they differ ([gsp-transport-615.md](gsp-transport-615.md)). The 610 path stays as it
+  was. Target: `RmInitAdapter succeeded!` with the 615 guest, and `nvidia-smi` answering.
+- **Starting point:** the 610 device stops the 615 guest at `GspStatusQueueInit: msgqRxLink
+  failed: -7` ([guest-driver-versions.md](guest-driver-versions.md) §5.1). The pre-boot
+  `QUEUE_HEAD(0) = 0` counts as a doorbell, and the 615 `GSP_ARGUMENTS_CACHED` is read with the
+  610 offsets.
+- **What changed in `crates/vfio-user-nvgpu`:** `msgq/v2.rs` (behind `QueueState`), `gmcapi.rs`,
+  `ver/v615.rs` (feature `v615`, which implies `v610`; the host side keeps the 610 layouts) and
+  additive hooks in `boot.rs` (link at Booter-Load, the register pointers, the `GSP_INIT` and
+  `GSP_SUSPEND` arms). `rpc::static_info_nvkv` encodes the static info. `kgr.rs` widens the SM
+  order. `main.rs` gained `--guest-abi` (fail closed), and `tools/caraxes-vm.sh` gained
+  `CARAXES_GUEST_ABI=615`. The chip data gained the three pointer registers. The file list is
+  in gsp-transport-615.md §10.
+- **Expected:** the status header lands before the guest's 4 s link window closes, `GSP_INIT`
+  is answered with static info the kernel's key handler accepts, and the phase-5 RPCs follow
+  unchanged in their RPC headers. A falsifier would be a key refused by
+  `_kgspStaticInfoKeyHandler` (`GSP_INIT` failing with 0x1f), a control layout mismatch showing
+  up as an assert or a failed `RmInitAdapter`, or the queues wedging on the pointer semantics.
+- **Unit tests:** `cargo test -p vfio-user-nvgpu`: 119 library tests and the 2 protocol tests
+  pass. That is the 102 existing ones unchanged and 17 new ones: `msgq::v2` 7,
+  `gmcapi` 6, `rpc::tests::static_info_as_nvkv_keys`, `boot::tests::boot_615_link_and_gsp_init_from_the_captured_guest`,
+  `boot::tests::a_610_device_names_a_615_guest` and `ver::abi_tests`. The 615 transport tests
+  run in the default build. With `--features v615` the three `ver::v615` tests pass as well
+  (Appendix A of gsp-transport-615.md, the versioned layouts, the reused id); 111 of 122 pass
+  there. The 11 that fail are pinned to 610 numbers by construction: the six v0 queue tests
+  (their element header is 24 bytes in that build), four kgr layout pins and mocks, and the
+  `GSP_GET_FEATURES` version string in `ctrl::tests::answers_have_the_request_size`. The clippy line
+  (with and without `--all-features`) and `cargo doc` are clean for the crate.
+- **Run** (vm3, pure emulation, no reservation, no host execution; the 615.71.09 overlay
+  `vm3/g615` of guest-driver-versions.md §7):
+  `cargo build --release -p vfio-user-nvgpu --features v615 --target-dir target/v615`, then
+  `VM=vm3/g615 CARAXES_TAP=caraxes3 CARAXES_IP=192.168.103.23 CARAXES_MAC=02:00:00:00:00:23
+  CARAXES_HOST_RM=1 CARAXES_BOOT_MODEL=1 CARAXES_GUEST_ABI=615 tools/caraxes-vm.sh up; wait`.
+  The guest image loads nvidia at boot (nvidia-persistenced), so the first boot is the first
+  probe. For a reload: stop nvidia-persistenced, `rmmod nvidia_modeset`, then
+  `tools/caraxes-vm.sh probe <label>`. Evidence is in `caraxes/runs/transport-615-2026-09-24/`.
+- **Observed (target reached on the first run):**
+
+  | Run | Result | Evidence |
+  |---|---|---|
+  | boot | pre-boot doorbell ignored (`queues: not linked yet`); linked at Booter-Load (`rmargs (615): size 184 flags 0x2 ... pages 129`, `queues linked (v2)`); `GMCAPI_GSP_INIT` (2368 bytes, 142 keys, 44 registry entries, driver "615.71.09") answered with 424 bytes of NVKV static info; 162 requests up to and including `nvidia-smi`; guest `RmInitAdapter succeeded!` 19.6 s after `RmInitAdapter` (the known PROM read of the VBIOS, as in 610) | `boot/guest.txt`, `boot/device-events.txt`, `boot/gpu.log` |
+  | `nvidia-smi` | answers: `Leandro VFIO RTX 2070-4G`, 4096 MiB, KMD 615.71.09, CUDA UMD 13.4, UUID `GPU-9bd7b93d-3d23-c074-6704-984ef33ab7a7` (the 610 one); power reads `ERR!` | `boot/guest.txt` (`nvidia-smi -q`) |
+  | reload a (probe `t615-reload`, device before the suspend fix) | `GMCAPI_GSP_SUSPEND` received; the guest then polled MAILBOX0 for 6 s for the processor-suspended bit, then Booter-Unload; function-level reset; relinked at the next Booter-Load; `RmInitAdapter succeeded!` | `reload-a/` |
+  | reload b (probe `t615-reload-b`, MAILBOX0 bit 31 set on `GSP_SUSPEND`) | the unload continues at once (GSP reset 0.2 ms after `GSP_SUSPEND`); `RmInitAdapter` to `succeeded!` in 2.9 s; `nvidia-smi` and `nvidia-smi -q` answer | `reload-b/` |
+
+- **The walls after init, all non-fatal:**
+  1. `ALLOC_MEMORY` (RPC 4) from the new `goeimport` path is answered `NV_ERR_NOT_SUPPORTED`,
+     and the guest logs `_goeimportSetupTransport: goeimport: step 3a failed (0x56)` and goes on.
+  2. Power `ERR!` in `nvidia-smi`: the GSS legacy controls forwarded opaquely carry 615 sizes
+     that the 610 host refuses with 0x1f (`pmgr 0x18`: 20512 bytes against the host's 20000;
+     `thermal 0x36`: 24532 against 25552). Unanswered and new: `FB_GET_REMAPPED_BANKS`
+     0x20801361 and perf 0x2080A0F1.
+  3. The guest never sent 0x20800A36 (the id 610 used for chip info), and no RPC was rejected
+     by the v2 framing checks.
+- **Host GPU and host state touched:** RM API only, from the device's unprivileged client (the
+  forwarded controls of `CARAXES_HOST_RM=1`). No reservation, no registration, no host
+  execution, no register access, no module change. vm3 was stopped after the runs.
+
 ## Reference captures on the real card (opt-in, desktop off)
 
 - **R1: full VBIOS through the PROM window.** Boot a VM with the real card via
@@ -1226,3 +1289,55 @@ module or register was touched.
 | e5 (08:16) | a third 2 GiB VM is refused by D11 | vm3 slot 2 | refused (would leave 569 MiB, shortfall 455 MiB) before its socket existed; vm1 and vm2 unaffected | none | `e5-refusal/` |
 | e4b (08:18-08:21) | host scrub on free covers the reservation | A down while holding the pattern; C reserves slot 0 and scans | before the free, 327680 records in the samples; after the new reservation, 0 records and 0 non-zero dwords (device); 1728 MiB of zeros (guest); the next allocation waits 23-38 ms for the 2 GiB scrub | none | `e4-scrub/` |
 | e4a (08:20) | a failed free makes the teardown fail closed | `CARAXES_INJECT_TEARDOWN_FAILURE=1` on vm2 | `FAIL-CLOSED teardown`: descriptors and reservation kept, exit 3; the fd close freed the 2048 MiB | none | `e4-failclosed/` |
+
+### Mapping package (2026-09-24)
+
+This package took the v2 cost the benchmark measured and the two P20 findings (benchmark.md §5
+and §7, parallel.md §8). The write-up is [mapping.md](mapping.md). Evidence is under
+`caraxes/runs/mapping-2026-09-24/` (`commands.txt`).
+
+Setup:
+
+- vm2 ran alone at slot 0 with a 2 GiB profile. vm0 (the display agent) held slot 1.
+- Every host GPU access went through the RM API as the device's client.
+- Privileged controls stayed in the launcher's CAP_SYS_ADMIN windows.
+- Host `nvidia-smi` latency and the host kernel log were watched during every stress run
+  (`bench-hostwatch.sh`, at most 0.12 s).
+- 0 Xid came from this package's devices. The Xid 13 lines at 09:26-09:28 belong to vm0's
+  device, pid 2061395, class c597.
+
+| Attempt (time) | Hypothesis | Change | Result | Exception | Evidence |
+|---|---|---|---|---|---|
+| a0 (08:40) | baseline on this configuration | the `718a311` device | 1 MiB alloc/free 18.9/20.8 ms, churn device CPU 80 s, ctx 5.4/3.4 s, short launch 0.457 ms | none | `a0-baseline/` |
+| a1 (08:50) | walking only what the guest wrote cuts the mapping cost | cached walk per root, diff per 2 MiB unit (coalescing off) | 1 MiB alloc/free 1.30/1.40 ms, churn device CPU 10.7 s, N=2048 matmul 781 -> 2440 GFLOP/s; each table read still about 0.8 ms of BAR1 | none | `a1-incremental/` |
+| a2 (08:55) | a write-through copy of every watched table page removes the reads | patch the copy on every guest write | 1 MiB alloc/free 0.92/0.97 ms, 64 MiB 10.5/7.2 ms, short launch 0.193 ms | none | `a2-writethrough/` |
+| a3 (08:58) | coalesced maps cut the RM calls | one map per contiguous run, partial unmaps | ctx destroy 3.6 -> 1.5 s; a context's scattered sysmem leaves (the guest's order-0 page pool) often do not coalesce | none | `a3-coalesce/` |
+| p3 (09:00) | find where cuCtxCreate goes | device trace of one `bench-cu init` | 96193 trapped 8-byte BAR2 writes (107 zeroed table pages, about 19.8k PTEs written twice) and about 4M uncached BAR1 reads for the device's BAR2 walk | none | `p3-profile/` |
+| a4 (09:04) | a BAR aperture TLB removes the device's walk | TLB flushed by a write to a table page it used | ctx 2.7/1.0 s, short launch 0.131 ms, 0 Xid | none | `a4-bartlb/` |
+| b1 (09:06) | the P20 suite no longer hurts the host | `suite-test_async_streams` on a4 | pass (14.8 s); 544750 leaves in 18921 RM maps (556k leaves by 30k calls); teardown 18914 maps in 2.5 s; host nvidia-smi max 0.056 s | none | `b1-async-streams/` |
+| c0/c1 (09:10) | where the per-submission cost goes | trace of 100 short launches; guest microbenchmark `bench-trap.c`; trace lines off | 4 traps per submission (GPFIFO lo/hi and GPPut through BAR1, then the doorbell), 23-27 us each; device share 1-2 us | none | `c0-doorbell-study/`, `c1-trace-off/` |
+| c2 (09:20) | USERD in sysmem by `RMInstLoc=0x10000` removes the GPPut trap | guest registry key, sysmem USERD for shadow channels | the guest RM never finished RmInitAdapter: last RPC 0x20802a08, then a BOOT_0 poll loop and asserts at alloc_free.c:360; reverted; the device trace was lost to the next `up` | none on the host; vm2 restarted | `c2-userd-sysmem/` |
+| d1 (09:38) | IOVA = GPA + one offset and CE on the shadow VAS close the P20 holes | linear registration with a hole filler and restart, CE channels on the shadow VAS | IOVA = GPA + 0x7ffac0000000 after 1 restart; cuda gate green (cuda-managed the known gap), all unscored suites pass; 0 sysmem refusals (128 in b1); 0 IOMMU faults; 400 channels shadowed, 0 externally-owned VAS | none | `d1-isolation/` |
+| d2 (09:52) | resync off the server thread | shadow worker, doorbell barrier, streaming BAR1 reads | server-thread time per resync p50 42 us, p99 2.4 ms (was 1.7 ms and 506 ms); cuda gate green; plans waited up to 2 s behind teardowns | none | `d2-worker/` |
+| d3 (10:05) | teardowns must not delay plans | teardown stepped in the worker's idle time | quick metrics pass (ctx 4.0/1.7 s on a host with vm0 and vm3 busy); checkpoint `b58cb12`, exercised by the final series | none | `d3-worker2/` |
+## Blackwell N gate (2026-09-24, defined, not run)
+
+A stock 610.57.04 guest on the synthetic GB206 (RTX 5060 Ti identity of
+`caraxes/reference/gb206/`), pure emulation: no host RM, no host execution, no reservation,
+no host register. Stages N0 to N4, the exact launcher command and the predicted walls are in
+[blackwell-gate.md](blackwell-gate.md); the boot path the device emulates is
+[gsp-boot-blackwell.md](gsp-boot-blackwell.md). Rows as in the E0 to E5 steps: one wall per
+row, read from the guest dmesg and the device trace, fixed from the 610 source.
+
+| Attempt (time) | Hypothesis | Change | Result | Exception | Evidence |
+|---|---|---|---|---|---|
+| b0 (2026-09-24, morning) | the device side is complete up to the linked GSP queues | GB206 identity (board `rtx5060ti`, chip `gb206`, MSI-X unlinked, BAR1 256 MiB), FSP boot model `src/chip/boot_fsp.rs` | unit tests: config identity and capability chain, client selftest against a running `--board-data rtx5060ti` server, the FSP sequence of gsp-boot-blackwell.md section 2 up to `queues linked` and GSP_INIT_DONE | not run in a VM: vm3 busy | `cargo test -p vfio-user-nvgpu` |
+| b1 (12:06-12:12, vm1) | N0 to N2 pass as far as the boot model goes | `CARAXES_CHIP=gb206 CARAXES_BOOT_MODEL=1 CARAXES_FB_MIB=4096`, worktree build, stock Cloud Hypervisor; the guest had only `gsp_tu10x.bin`, so the host's `/lib/firmware/nvidia/610.57.04/gsp_ga10x.bin` (same driver version, sha256 c0156954...) was installed in vm1's rootfs | N0 and N1 pass (10de:2d04 rev a1, 1043:8a08, BAR0 64 MiB, BAR1 256 MiB, BAR3 32 MiB, I/O 128 B, ROM 512 KiB, capabilities PM, MSI, Express only). N2: the FSP sequence runs as gsp-boot-blackwell.md section 2 predicts (CAPS_QUERY, CLOCK_BOOST, COT, ACR layout, target mask and lockdown released, queues linked, init RPCs, GET_GSP_STATIC_INFO, phase-5 controls). Wall: `NV2080_CTRL_CMD_INTERNAL_GET_DEVICE_INFO_TABLE` 0x20800A40 refused 44 times (the GA100+ `gpuConstructDeviceInfoTable_FWCLIENT`, gpu_gspclient.c:224-280), so `kfifoConstructEngineList_KERNEL` builds no engine list and the guest oopses (NULL KernelGraphics) in `memmgrCalcReservedFbSpaceHal_GM107` (mem_mgr_gm107.c:1997-2002, `kgraphicsDoesUcodeSupportPrivAccessMap`). Also: `_kgspIsHeartbeatTimedOut` messages on every RPC (NV_PGSP_MAILBOX(0/1) heartbeats 0x110804/0x110808 read 0; logged, not fatal); unanswered 0x20800A4B (DISPLAY_GET_IP_VERSION), 0x20800AF3 (CONF_COMPUTE_GET_STATIC_INFO); unnamed BAR0 0x590, 0x8A1D58/5C | guest oops in modprobe; no host effect (pure emulation) | `caraxes/runs/blackwell-2026-09-24/n2a/` |
+| b2 (12:14-12:19, vm1) | answering the device-info table from the chip data gets past the heap | `src/chip/physical.rs`: DEVICE_INFO2 for GR0, CE0/4/7 (fault ids, instances) plus TMR 0x9000, PBUS 0x1000, HUBMMU 0x880000 PRI bases; a small hook in boot.rs asks it before the dispatcher | the heap and the engine list come up (no oop). Wall: `kbusVerifyBar2_GB202`, "MMUTest BAR2 readback VA = 0x0 returned garbage 0x0" (NV_ERR_MEMORY_ERROR via kbusStateInitLockedKernel, kern_bus_gm107.c:362, 467), `RmInitAdapter failed! (0x24:0x72:1281)`. The device trace shows every BAR3 access "UNMAPPED (level 2)": the guest's BAR2 page tables are GMMU v3 (5 levels), fb.rs walks only v2 (`MMU_FORMATS_UNWALKED`). Next wall is the GMMU v3 walker, which is fb.rs work (outside this package) | driver load fails cleanly; no host effect | `caraxes/runs/blackwell-2026-09-24/n2b/` |
+| b3 (12:25-, unit tests, no VM) | the b2 wall is the missing GMMU v3 walker | `src/gmmu_v3.rs` (5-level, 57-bit, GB10X levels, gh100/dev_mmu.h fields), selected in fb.rs by the chip's format (`with_mmu_format`, purely additive: the v2 code paths unchanged); secure timer and heartbeat mailboxes in `boot_fsp.rs`; device-info columns checked against the source | unit tests: v3 and v2 trees with the same mappings give the same `Target`s for 4 KiB, 64 KiB, 2 MiB, sysmem and sparse pages, the same leaf enumeration, the BAR TLB flushes on a v3 table write; the heartbeat check of `_kgspIsHeartbeatTimedOut` stays within 2 ms; next: a VM run when the coordinator frees vm1 | none | `cargo test -p vfio-user-nvgpu` |
+| b4 (12:31-12:36, vm1) | with the v3 walker the BAR2 self-test passes and RmInitAdapter completes | b3 binary | `RmInitAdapter succeeded!`. BAR2 root confirmed: the device walks from the static info's `bar2PdeBase` (the ACR layout's `nonWprHeapOffset` 0xF0900000), the guest's v3 tables sit right below it (0xF08C5000-0xF08CF000) and every BAR3 access resolves (0 UNMAPPED, bar TLB 11103 hits / 97 walks). Tolerated on the way: CCU buffer size (kccuGetBufSize_GB100, 0x56), CE_GET_HUB_PCE_MASK_V2, CONF_COMPUTE_GET_STATIC_INFO; unanswered 0x20800A4B, 0x20800AB2, 0x20800AB4, 0x20800AF3, 0x20802A0E. **N3 passes**: `nvidia-smi -q` (the guest's `/opt/nvrm/bin/nvidia-smi`, device nodes made by hand as the `uvm` step does) shows Product Name "Leandro VFIO RTX 5060 Ti-4G", Product Architecture Blackwell, VBIOS 98.06.1F.40.4A, FB 4096 MiB, BAR1 256 MiB, a synthetic UUID and PDI (neither the capture's, checked), no Xid | none | `caraxes/runs/blackwell-2026-09-24/n2c/`, `n3/nvidia-smi-q.txt` |
+| b5 (12:36, vm1) | UVM registration allocates the first channels (N4) | `tools/caraxes-vm.sh uvm n4` | UVM_REGISTER_GPU 0x56: `CE_GET_PHYSICAL_CAPS` 0x20802A07 is only forwarded to a host RM on Turing, so queryCopyEngines fails (kernel_ce.c:564) | none | `n4a/` |
+| b6 (12:39, vm1) | the capture's CE caps satisfy queryCopyEngines | `physical.rs` answers 0x20802A07 from CE_GET_ALL_CAPS of the capture (host-facts.txt:33-36) | next: `CE_GET_CE_PCE_MASK` 0x20802A02, same cause | none | `n4b/` |
+| b7 (12:43, vm1) | the capture's PCE masks satisfy it | `physical.rs` answers 0x20802A02 (fifo-host-query.txt:6-8) | UVM gets to channel creation: TSG allocated, then `kchangrpapiSetLegacyMode` fails `numMax == numFree && numMax != 0` (kernel_channel_group_api.c:914), because the GR info is not answered without a host (`pGrInfo` NULL, `kfifoGetMaxSubcontextFromGr_KERNEL` returns 0, kernel_fifo.c:2760-2775) | none | `n4c/` |
+| b8 (12:47-12:51, vm1) | synthesized GR info gets the channel allocated | `physical.rs` answers INTERNAL_STATIC_KGR_GET_INFO 0x20800A2A for gb206: MAX_SUBCONTEXT_COUNT 64, 3 GPCs, 6 TPCs per GPC, 2 SMs per TPC, SM version 0x1200, rest 0 | **N4 reached**: TSG 0xA06C, `BLACKWELL_CHANNEL_GPFIFO_B` 0xCA6F on chid 1 (engine COPY4) -> status 0, then GP100_UVM_SW 0xC076 and `BLACKWELL_DMA_COPY_B` 0xCAB5 objects and GPFIFO schedule, all status 0. The gate stops here, as defined. Past it, as expected: UVM's first push (the channel_init semaphore release, uvm_channel.c:2546) never completes because the device does not execute Blackwell methods (and no GPFIFO doorbell was seen), so UVM_REGISTER_GPU hangs until the VM is brought down | none; vm1 down 12:51 | `n4d/` |
+

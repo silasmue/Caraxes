@@ -1,0 +1,15 @@
+# SPDX-License-Identifier: MIT
+# 615.71.09 guest, stock device, probe g615-capture2 (the capture.txt of this directory): device events and every NV_PGSP_QUEUE/MSGQ (0x110c00-0x110cff) and GSP mailbox (0x110040/44) access
+658:   547592332 E flr: function-level reset, device model back to its initial state
+1166:   547961135 W bar0 0x00110c00 4  0x0          NV_PGSP_QUEUE_HEAD/TAIL
+1167:   547961139 E boot: doorbell 1: libos args PA 0x0 (mapped), wpr meta PA unknown
+1168:   547961140 E boot: queues: no RMARGS region in the libos init arguments
+34250:   548873422 E boot: gsp reset 1
+34437:   548880900 E boot: gsp start 1: halted
+34438:   548880902 E boot: fwsec: data buffer PA 0x103307000, frtsOffset 0xffe00000 (from the FWSEC command in guest RAM), WPR2 lo 0xffe000 hi 0xffeff0
+34445:   548881055 E boot: gsp reset 2
+34470:   548881651 W bar0 0x00110040 4  0x769d000    NV_PGSP (GSP falcon)
+34471:   548881681 W bar0 0x00110044 4  0x0          NV_PGSP (GSP falcon)
+34474:   548881777 E boot: sec2 reset 1
+49429:   549271466 E boot: sec2 start 1: booter done, wpr meta PA 0x769c000 (mapped), gsp riscv active
+49430:   549271468 E boot: wpr meta: fbSize 0x100000000 gspFwRsvdStart 0xf7d00000 nonWprHeap 0xf7d00000+0x100000 wprStart 0xf7e00000 frtsOffset 0xffe00000 wprEnd 0xfff00000 vgaWorkspace 0xfff00000

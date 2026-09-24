@@ -1,0 +1,107 @@
+[  731.977499] nvidia-nvlink: Nvlink Core is being initialized, major device number 239
+
+[  731.983893] NVRM: probing 0x10de 0x1f02, class 0x30000
+[  731.985229] NVRM: resizable BAR disabled by regkey, skipping
+[  731.985232] NVRM: No clk handles for the dev
+[  731.985381] nvidia 0000:00:05.0: vgaarb: VGA decodes changed: olddecodes=none,decodes=none:owns=none
+[  731.985384] NVRM: GPU 0000:00:05.0: Init-on-probe: enabled (NVreg_GpuInitOnProbe=1, FORCE_ON)
+[  731.985435] NVRM: PCI:0000:00:05.0 (10de:1f02): BAR0 @ 0xe6000000 (16MB)
+[  731.985437] NVRM: PCI:0000:00:05.0 (10de:1f02): BAR1 @ 0x3fffe0000000 (256MB)
+[  731.985465] NVRM: Failed to evaluate _PR3 object
+[  731.985615] NVRM: Failed to find NVIDIA DVSEC3
+[  731.987121] NVRM: pciPbiReadUuid: Could not acquire pciPbi mutex
+[  731.987216] NVRM: Starting device 0000:00:05.0
+[  731.989673] NVRM: GPU 0000:00:05.0: RmInitAdapter
+[  731.989675] NVRM: GPU 0000:00:05.0: RmSetupRegisters for 0x10de:0x1f02
+[  731.989677] NVRM: GPU 0000:00:05.0: pci config info:
+[  731.989678] NVRM: GPU 0000:00:05.0:    registers look  like: 0xe6000000 0x1000000NVRM: GPU 0000:00:05.0:    fb        looks like: 0x3fffe0000000 0x10000000
+[  731.989762] NVRM: GPU 0000:00:05.0: Successfully mapped framebuffer and registers
+[  731.989763] NVRM: GPU 0000:00:05.0: final mappings:
+[  731.989764] NVRM: GPU 0000:00:05.0:     regs: 0xe6000000 0x1000000 0x000000005890e409
+[  732.026191] NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+[  732.026196] NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+[  732.026198] NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+[  732.026200] NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+[  732.026202] NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+[  732.026203] NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+[  732.026205] NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+[  732.026207] NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+[  732.026208] NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+[  732.026211] NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+[  732.026213] NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+[  732.026215] NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+[  732.026219] NVRM: nv_acpi_dod_method: failed to evaluate _DOD method!
+[  739.905166] NVRM: GPU0 _kgspLogGspTimeout: *** GSP Timeout: GSP-RM is slow (origin=RPC) ***
+[  739.905173] NVRM: GPU0 kgspPrintGspBinBuildId_IMPL: GSP bin buildId: 4aa804318cbd8e455fbe9f4e9f9e359a9462b957
+[  739.905227] NVRM: GPU0 GSP RPC buffer contains function 0 (NOP) sequence 0 and data 0x0000000000000000 0x0000000000000000.
+[  739.905231] NVRM: GPU0 RPC history (CPU -> GSP):
+[  739.905232] NVRM:     entry function                     sequence data0              data1              ts_start           ts_end             duration actively_polling
+[  739.905233] NVRM:      0    65537 Unknown                        0 0x0000000000000000 0x0000000000000000 0x00065c3802cf1615 0x0000000000000000          y
+[  739.905236] NVRM: GPU0 RPC event history (CPU <- GSP):
+[  739.905237] NVRM:     entry function                     sequence data0              data1              ts_start           ts_end             duration during_incomplete_rpc
+[  739.905240] CPU: 3 PID: 45719 Comm: nv-probe-0000:0 Tainted: G           OE      6.8.0-136-generic #136-Ubuntu
+[  739.905242] Hardware name: Cloud Hypervisor cloud-hypervisor, BIOS 0 
+[  739.905244] Call Trace:
+[  739.905246]  <TASK>
+[  739.905249]  dump_stack_lvl+0x76/0xa0
+[  739.905254]  dump_stack+0x10/0x20
+[  739.905259]  os_dump_stack+0xe/0x20 [nvidia]
+[  739.905466]  _kgspCheckAndLogTimeout+0xaa9/0xf80 [nvidia]
+[  739.905698]  kgspRecvPoll_IMPL+0x21c/0x7a0 [nvidia]
+[  739.905921]  kgspSendRpc_IMPL+0x18b/0x200 [nvidia]
+[  739.906139]  gpuSendGmcRpc_KERNEL+0xeb/0x2a0 [nvidia]
+[  739.906364]  ? os_acquire_spinlock+0x12/0x30 [nvidia]
+[  739.906529]  ? os_get_monotonic_time_ns+0x3c/0xb0 [nvidia]
+[  739.906686]  gmcapiDispatch+0x4c2/0x880 [nvidia]
+[  739.906926]  kgspSendInitRpcs_IMPL+0x90/0x210 [nvidia]
+[  739.907149]  kgspBootstrap_TU102+0x1d1/0x430 [nvidia]
+[  739.907367]  ? _tlsEntryRelease+0x7b/0x150 [nvidia]
+[  739.907553]  kgspInitRm_IMPL+0x1837/0x2f90 [nvidia]
+[  739.907771]  RmInitAdapter+0xe33/0x2000 [nvidia]
+[  739.908010]  ? _raw_spin_unlock_irqrestore+0x11/0x60
+[  739.908016]  rm_init_adapter+0x135/0x140 [nvidia]
+[  739.908255]  nv_start_device+0x3f2/0x7c0 [nvidia]
+[  739.908408]  nv_pci_probe_body.isra.0+0xf93/0x1710 [nvidia]
+[  739.908569]  ? __pfx_nv_pci_probe_deferred_worker+0x10/0x10 [nvidia]
+[  739.908722]  nv_pci_probe_deferred_worker+0x15/0x30 [nvidia]
+[  739.908875]  kthread+0xf2/0x120
+[  739.908878]  ? __pfx_kthread+0x10/0x10
+[  739.908879]  ret_from_fork+0x47/0x70
+[  739.908882]  ? __pfx_kthread+0x10/0x10
+[  739.908883]  ret_from_fork_asm+0x1b/0x30
+[  739.908887]  </TASK>
+[  740.176830] NVRM: GPU0 _kgspDumpRmState: Failed to get RM state, timeout
+[  740.177466] NVRM: GPU0 kflcnCoreDumpNondestructive_IMPL: PRI: riscvPc               : 00000000
+[  740.177469] NVRM: GPU0 kflcnCoreDumpNondestructive_IMPL: PRI: riscvCpuctl           : 00000000
+[  740.177470] NVRM: GPU0 kflcnCoreDumpNondestructive_IMPL: PRI: riscvIrqmask          : 00000000
+[  740.177471] NVRM: GPU0 kflcnCoreDumpNondestructive_IMPL: PRI: riscvIrqdest          : 00000000
+[  740.177472] NVRM: GPU0 kflcnCoreDumpNondestructive_IMPL: PRI: riscvPrivErrStat      : 00000000
+[  740.177473] NVRM: GPU0 kflcnCoreDumpNondestructive_IMPL: PRI: riscvPrivErrInfo      : 00000000
+[  740.177474] NVRM: GPU0 kflcnCoreDumpNondestructive_IMPL: PRI: riscvPrivErrAddr      : 0000000000000000
+[  740.177475] NVRM: GPU0 kflcnCoreDumpNondestructive_IMPL: PRI: riscvHubErrStat       : 00000000
+[  740.177476] NVRM: GPU0 kflcnCoreDumpNondestructive_IMPL: PRI: falconMailbox         : 0:0573c000 1:00000000
+[  740.177477] NVRM: GPU0 kflcnCoreDumpNondestructive_IMPL: PRI: falconIrqstat         : 00000000
+[  740.177478] NVRM: GPU0 kflcnCoreDumpNondestructive_IMPL: PRI: falconIrqmode         : 00000000
+[  740.177479] NVRM: GPU0 kflcnCoreDumpNondestructive_IMPL: PRI: fbifInstblk           : 00000000
+[  740.177480] NVRM: GPU0 kflcnCoreDumpNondestructive_IMPL: PRI: fbifCtl               : 00000000
+[  740.177481] NVRM: GPU0 kflcnCoreDumpNondestructive_IMPL: PRI: fbifThrottle          : 00000000
+[  740.177482] NVRM: GPU0 kflcnCoreDumpNondestructive_IMPL: PRI: fbifAchkBlk           : 0:00000000 1:00000000
+[  740.177483] NVRM: GPU0 kflcnCoreDumpNondestructive_IMPL: PRI: fbifAchkCtl           : 0:00000000 1:00000000
+[  740.177491] NVRM: GPU0 kflcnCoreDumpNondestructive_IMPL: PRI: fbifCg1               : 00000000
+[  740.177526] NVRM: GPU0 kgspDumpMailbox_TU102: GSP: MAILBOX(0) = 0x00000000
+[  740.177555] NVRM: GPU0 kgspDumpMailbox_TU102: GSP: MAILBOX(1) = 0x00000000
+[  740.177583] NVRM: GPU0 kgspDumpMailbox_TU102: GSP: MAILBOX(2) = 0x00000000
+[  740.177610] NVRM: GPU0 kgspDumpMailbox_TU102: GSP: MAILBOX(3) = 0x00000000
+[  740.177613] NVRM: GPU0 _kgspLogGspTimeout: *** End GSP Timeout ***
+[  740.177617] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Call timed out [NV_ERR_TIMEOUT] (0x00000065) returned from kgspSendRpc(pGpu, pKernelGsp, NVDM_TYPE_GMCAPI, fullRpcSize, bSync) @ gpu.c:7871
+[  740.177647] NVRM: GPU0 kgspSendInitRpcs_IMPL: GMCAPI_CMD_GSP_INIT failed: 0x65
+[  740.177655] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Call timed out [NV_ERR_TIMEOUT] (0x00000065) returned from kgspSendInitRpcs(pGpu, pKernelGsp) @ kernel_gsp_tu102.c:473
+[  740.180111] NVRM: GPU0 _kgspBootGspRm: unexpected WPR2 already up, cannot proceed with booting GSP
+[  740.180115] NVRM: GPU0 _kgspBootGspRm: (the GPU is likely in a bad state and may need to be reset)
+[  740.180167] NVRM: GPU0 RmInitAdapter: Cannot initialize GSP firmware RM
+[  740.180729] NVRM: GPU 0000:00:05.0: Tearing down registers
+[  740.180736] NVRM: GPU 0000:00:05.0: RmInitAdapter failed! (0x62:0x40:2130)
+[  740.181412] NVRM: GPU 0000:00:05.0: rm_init_adapter failed, device minor number 0
+[  740.182856] NVRM: GPU 0000:00:05.0 init failed during probe (ret=-5).
+[  740.183031] NVRM: loading NVIDIA UNIX Open Kernel Module for x86_64  615.71.09  Release Build  (dvs-builder@U22-I3-F05-2-4)  Fri Sep  4 22:33:33 UTC 2026
+modprobe rc=0

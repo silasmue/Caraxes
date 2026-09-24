@@ -28,8 +28,13 @@
  * where the message queue, the queue element, the GSP arguments and the
  * GSP-FMC boot parameters were redesigned and GSP_SET_SYSTEM_INFO was replaced
  * by GMCAPI_CMD_GSP_INIT (docs/caraxes/blackwell-gb206.md section 3).
+ * 595 (any major below 610) drops what 610.57.04 added: the MCTP/NVDM
+ * element header and GSP_MSG_QUEUE_ENCRYPTION_TAG (the element then carries
+ * authTagBuffer, aadBuffer, elemCount and the RPC header), vbiosRevision,
+ * vbiosOemRevision, bSysL2CacheCoherentMode, bBusResetRequired, regionTag,
+ * bIsCxlDevice and bindataArgs (docs/caraxes/guest-driver-versions.md).
  * gsp-abi-sizes.sh sets it from the tree's version.mk or from --abi; the 610
- * output is byte-identical to the file before the switch was added.
+ * output is byte-identical to the file before the switches were added.
  */
 #ifndef GSP_ABI
 #define GSP_ABI 610
@@ -59,8 +64,10 @@
 #else
 #include "msgq/msgq_priv.h"             /* msgqTxHeader, msgqRxHeader */
 #endif
+#if GSP_ABI >= 610
 #include "mctp_format.h"                /* as message_queue_cpu.c:49 */
 #include "nvdm_format.h"                /* as message_queue_cpu.c:50 */
+#endif
 #include "gpu/gsp/gsp_static_config.h"  /* GspStaticConfigInfo, GspSystemInfo */
 #include "gpu/gsp/gsp_init_args.h"      /* GSP_ARGUMENTS_CACHED */
 #include "gsp/gsp_fw_wpr_meta.h"        /* GspFwWprMeta */
@@ -124,9 +131,14 @@ static void constants(void)
     /* 615: message_queue_cpu.c:82-83 */
     const unsigned long hdr      = GSP_MSG_QUEUE_ELEMENT_SIZE_NO_ENCRYPTION;
     const unsigned long hdr_cc   = GSP_MSG_QUEUE_ELEMENT_SIZE_WITH_ENCRYPTION;
-#else
+#elif GSP_ABI >= 610
     const unsigned long hdr      = OFF(GSP_MSG_QUEUE_ELEMENT, payload);
     const unsigned long hdr_cc   = hdr + sizeof(GSP_MSG_QUEUE_ENCRYPTION_TAG);
+#else
+    /* before 610: NV_OFFSETOF(GSP_MSG_QUEUE_ELEMENT, rpc), CC tag inline
+     * (595.91.07 message_queue_cpu.c:73) */
+    const unsigned long hdr      = OFF(GSP_MSG_QUEUE_ELEMENT, rpc);
+    const unsigned long hdr_cc   = hdr;
 #endif
     const unsigned long elem_min = RM_PAGE_SIZE;
     const unsigned long elem_max = RM_PAGE_SIZE * 16;
@@ -159,11 +171,13 @@ static void constants(void)
 #endif
     konst("msgq entryOff (entryAlign 12)", entry_off);
     konst("msgq msgCount for a 0x40000 queue", (0x40000 - entry_off) / elem_min);
+#if GSP_ABI >= 610
     konst("mctpHeader = mctpCreateTransportHeader(1,1,0,0,0)", mctpCreateTransportHeader(1, 1, 0, 0, 0));
     konst("nvdmHeader = mctpCreateNvdmHeader(NVDM_TYPE_RM_RPC)", mctpCreateNvdmHeader(NVDM_TYPE_RM_RPC));
     K(MCTP_MSG_HEADER_VENDOR_ID_NV);
     K(MCTP_MSG_HEADER_TYPE_VENDOR_PCI);
     K(NVDM_TYPE_RM_RPC);
+#endif
 #if GSP_ABI >= 615
     K(MSGQ_VERSION_MAJOR);
     K(MSGQ_VERSION_MINOR);
@@ -256,8 +270,19 @@ int main(void)
     F(GSP_MSG_QUEUE_ELEMENT, mctpMagic);
     F(GSP_MSG_QUEUE_ELEMENT, mctpPayloadSize);
 #endif
+#if GSP_ABI < 610
+    /* Before 610: CC tag inline, element count in the element, the RPC header
+     * as a member (595.91.07 message_queue_priv.h:43-51). */
+    F(GSP_MSG_QUEUE_ELEMENT, authTagBuffer);
+    F(GSP_MSG_QUEUE_ELEMENT, aadBuffer);
+    F(GSP_MSG_QUEUE_ELEMENT, checkSum);
+    F(GSP_MSG_QUEUE_ELEMENT, seqNum);
+    F(GSP_MSG_QUEUE_ELEMENT, elemCount);
+    F(GSP_MSG_QUEUE_ELEMENT, rpc);
+#else
     F(GSP_MSG_QUEUE_ELEMENT, mctpHeader);
     F(GSP_MSG_QUEUE_ELEMENT, nvdmHeader);
+#endif
 #if GSP_ABI >= 615
     F(GSP_MSG_QUEUE_ELEMENT, noEncryption.nvdmPayloadSize);
     F(GSP_MSG_QUEUE_ELEMENT, noEncryption.reserved);
@@ -266,11 +291,12 @@ int main(void)
     F(GSP_MSG_QUEUE_ELEMENT, withEncryption.nvdmPayloadSize);
     F(GSP_MSG_QUEUE_ELEMENT, withEncryption.reserved);
     FX(GSP_MSG_QUEUE_ELEMENT, withEncryption.payload);
-#else
+#elif GSP_ABI >= 610
     F(GSP_MSG_QUEUE_ELEMENT, checkSum);
     F(GSP_MSG_QUEUE_ELEMENT, seqNum);
     FX(GSP_MSG_QUEUE_ELEMENT, payload);
 #endif
+#if GSP_ABI >= 610
 
     TYPE(GSP_MSG_QUEUE_ENCRYPTION_TAG);
 #if GSP_ABI < 615
@@ -291,6 +317,7 @@ int main(void)
 #else
     F(GSP_MSG_QUEUE_ENCRYPTION_TAG, aadBuffer);
 #endif
+#endif /* GSP_ABI >= 610 */
 
     TYPE(rpc_message_header_v);
     F(rpc_message_header_v, header_version);
@@ -485,8 +512,10 @@ int main(void)
     F(GspStaticConfigInfo, bVbiosValid);
     F(GspStaticConfigInfo, vbiosSubVendor);
     F(GspStaticConfigInfo, vbiosSubDevice);
+#if GSP_ABI >= 610
     F(GspStaticConfigInfo, vbiosRevision);
     F(GspStaticConfigInfo, vbiosOemRevision);
+#endif
     F(GspStaticConfigInfo, bPageRetirementSupported);
     F(GspStaticConfigInfo, bSplitVasBetweenServerClientRm);
     F(GspStaticConfigInfo, bClRootportNeedsNosnoopWAR);
@@ -495,7 +524,9 @@ int main(void)
     F(GspStaticConfigInfo, hInternalSubdevice);
     F(GspStaticConfigInfo, bSelfHostedMode);
     F(GspStaticConfigInfo, bAtsSupported);
+#if GSP_ABI >= 610
     F(GspStaticConfigInfo, bSysL2CacheCoherentMode);
+#endif
     F(GspStaticConfigInfo, bIsGpuUefi);
     F(GspStaticConfigInfo, bIsEfiInit);
     F(GspStaticConfigInfo, ecidInfo); /* struct */
@@ -509,7 +540,9 @@ int main(void)
     F(GspStaticConfigInfo, fwWprLayoutOffset); /* struct */
     F(GspStaticConfigInfo, fwWprLayoutOffset.nonWprHeapOffset);
     F(GspStaticConfigInfo, fwWprLayoutOffset.frtsOffset);
+#if GSP_ABI >= 610
     F(GspStaticConfigInfo, bBusResetRequired);
+#endif
 
     TYPE(NV2080_CTRL_CMD_FB_GET_FB_REGION_FB_REGION_INFO);
     F(NV2080_CTRL_CMD_FB_GET_FB_REGION_FB_REGION_INFO, base);
@@ -520,7 +553,9 @@ int main(void)
     F(NV2080_CTRL_CMD_FB_GET_FB_REGION_FB_REGION_INFO, supportISO);
     F(NV2080_CTRL_CMD_FB_GET_FB_REGION_FB_REGION_INFO, bProtected);
     F(NV2080_CTRL_CMD_FB_GET_FB_REGION_FB_REGION_INFO, blackList);
+#if GSP_ABI >= 610
     F(NV2080_CTRL_CMD_FB_GET_FB_REGION_FB_REGION_INFO, regionTag);
+#endif
 
     SECTION("GSP_SET_SYSTEM_INFO payload");
     TYPE(GspSystemInfo);
@@ -617,7 +652,9 @@ int main(void)
     F(GspSystemInfo, pciePowerControlValue);
     F(GspSystemInfo, bPciePowerControlPresent);
     F(GspSystemInfo, pf0DeviceControl2Reg);
+#if GSP_ABI >= 610
     F(GspSystemInfo, bIsCxlDevice);
+#endif
 
     TYPE(MUX_METHOD_DATA_ELEMENT);
     F(MUX_METHOD_DATA_ELEMENT, acpiId);
@@ -666,9 +703,11 @@ int main(void)
     F(GSP_ARGUMENTS_CACHED, rmStateMonitorBufferArgs); /* struct */
     F(GSP_ARGUMENTS_CACHED, rmStateMonitorBufferArgs.pa);
     F(GSP_ARGUMENTS_CACHED, rmStateMonitorBufferArgs.size);
+#if GSP_ABI >= 610
     F(GSP_ARGUMENTS_CACHED, bindataArgs); /* struct */
     F(GSP_ARGUMENTS_CACHED, bindataArgs.radix3);
     F(GSP_ARGUMENTS_CACHED, bindataArgs.size);
+#endif
 #if GSP_ABI >= 615
     F(GSP_ARGUMENTS_CACHED, vbiosOverrideArgs.pa);
     F(GSP_ARGUMENTS_CACHED, vbiosOverrideArgs.size);

@@ -1,0 +1,34 @@
+== 2026-09-24T08:23:23Z load 0.22 0.07 0.02 1/281 1821
+FRAMES 120 at 1920x1080: clear+finish mean 1.094 ms min 0.216 max 45.724; total 0.131 s
+READBACK 149.714 ms; centre pixel 0xff00ff00; pixels equal to green 2073600 of 2073600 (GPU-RENDERED-OK)
+== weston gl repaint-window 7
+first frame callback after 0.0 s
+FRAMES callbacks intervals=1163 mean_ms=17.096 rate_hz=58.49 min_ms=11.789 max_ms=161.139 sd_ms=4.744
+PRESENTED feedback intervals=1162 mean_ms=17.097 rate_hz=58.49 min_ms=12.360 max_ms=166.498 sd_ms=4.860
+presented=1168 discarded=0 refresh_ns=16666666 (60.000 Hz) flags=0x7 (vsync 1 hw_clock 1 hw_completion 1)
+== weston gl repaint-window 12
+first frame callback after 0.0 s
+FRAMES callbacks intervals=1185 mean_ms=16.798 rate_hz=59.53 min_ms=8.731 max_ms=57.292 sd_ms=2.391
+PRESENTED feedback intervals=1185 mean_ms=16.795 rate_hz=59.54 min_ms=11.438 max_ms=50.015 sd_ms=1.957
+presented=1191 discarded=0 refresh_ns=16666666 (60.000 Hz) flags=0x7 (vsync 1 hw_clock 1 hw_completion 1)
+== present 1
+  presented 120 frames, all VK_SUCCESS, 52.4 FPS
+== present 2
+  presented 120 frames, all VK_SUCCESS, 53.2 FPS
+== capture
+/tmp/sunshine-cx/stdout.txt:[2026-09-24 08:24:52.691]: Info: Found monitor for DRM screencasting
+/tmp/sunshine-cx/stdout.txt:[2026-09-24 08:24:53.731]: Info: Found monitor for DRM screencasting
+/tmp/sunshine-cx/stdout.txt:[2026-09-24 08:24:53.758]: Info: Found H.264 encoder: libx264 [software]
+/tmp/sunshine-cx/sunshine.log:[2026-09-24 08:24:52.691]: Info: Found monitor for DRM screencasting
+/tmp/sunshine-cx/sunshine.log:[2026-09-24 08:24:53.731]: Info: Found monitor for DRM screencasting
+/tmp/sunshine-cx/sunshine.log:[2026-09-24 08:24:53.758]: Info: Found H.264 encoder: libx264 [software]
+SAMPLE 320 240 0x00808080
+SAMPLE 4 4 0x00202020
+== mutter
+Type=wayland
+[  293.353888] caraxes-vm0 gnome-shell[2186]: Created gbm renderer for '/dev/dri/card0'
+page_flip_failed=0
+first frame callback after 0.1 s
+FRAMES callbacks intervals=916 mean_ms=21.238 rate_hz=47.09 min_ms=11.472 max_ms=108.358 sd_ms=6.763
+PRESENTED feedback intervals=916 mean_ms=21.228 rate_hz=47.11 min_ms=3.888 max_ms=116.665 sd_ms=8.269
+presented=922 discarded=0 refresh_ns=16666667 (60.000 Hz) flags=0x7 (vsync 1 hw_clock 1 hw_completion 1)

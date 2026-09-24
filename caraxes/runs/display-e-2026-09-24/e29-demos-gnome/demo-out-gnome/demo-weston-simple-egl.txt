@@ -1,0 +1,4 @@
+has EGL_EXT_buffer_age and EGL_KHR_swap_buffers_with_damage
+81 frames in 5 seconds: 16.200001 fps
+124 frames in 5 seconds: 24.799999 fps
+142 frames in 5 seconds: 28.400000 fps

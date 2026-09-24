@@ -1,0 +1,14 @@
+# SPDX-License-Identifier: MIT
+# 595.91.07 guest, stock device: device events
+34862:   111995145 E boot: fwsec: data buffer PA 0x1057b9000, frtsOffset 0xffe00000 (from the FWSEC command in guest RAM), WPR2 lo 0xffe000 hi 0xffeff0
+49854:   112652441 E boot: wpr meta: fbSize 0x100000000 gspFwRsvdStart 0xf7600000 nonWprHeap 0xf7600000+0x100000 wprStart 0xf7700000 frtsOffset 0xffe00000 wprEnd 0xfff00000 vgaWorkspace 0xfff00000
+49859:   112652911 E boot: doorbell 1: libos args PA 0x10107e000 (mapped), wpr meta PA 0x101068000
+49860:   112652913 E boot: libos arg 0: "LOGINIT" pa 0x113ec0000 size 0x10000
+49861:   112652914 E boot: libos arg 1: "LOGRM" pa 0x113ed0000 size 0x10000
+49862:   112652915 E boot: libos arg 2: "RMARGS" pa 0x101064000 size 0x1000
+49863:   112652916 E boot: rmargs: sharedMemPhysAddr 0x117400000 pages 129 cmdQueueOffset 0x1000 statQueueOffset 0x41000
+49864:   112652918 E boot: queues linked: cmd TxHeader { version: 0, size: 262144, msg_size: 4096, msg_count: 63, write_ptr: 1, flags: 1, rx_hdr_off: 32, entry_off: 4096 }; status header written (size 0x40000, 63 slots)
+49865:   112652945 E boot: tx seq 0 event GSP_INIT_DONE
+49866:   112652949 E boot: rx seq 0 rejected: bad rpc length 0 in command slot 0 (seqNum 0), element skipped
+49868:   112653015 E boot: doorbell 2: libos args PA 0x10107e000 (mapped), wpr meta PA 0x101068000
+49869:   112653016 E boot: rx seq 0 rejected: bad rpc length 0 in command slot 1 (seqNum 0), element skipped

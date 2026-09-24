@@ -1,0 +1,12 @@
+# target v2 metric mm rep 1
+# cmd NVMM_SIZES=1024,2048,4096 NVMM_ITERS=10 $HOME/gpu/venv/bin/python $HOME/caraxes-tests/leandro-test/probe/python/mmsweep.py
+# device /mnt/vmstore/caraxes/vm2/vfio-user-nvgpu sha256 99e1cfbf0725e7d3
+# time 2026-09-24T10:21:12+02:00
+# gpu 53, 930 MHz, 810 MHz, P5, 12 %, 5102 MiB, Disabled
+# procs 2199740:bench-v1-dev 2199754:bench-v1-vmm 2203975:ch-0005-dev 2209572:vm2-dev 2209589:vm2-vmm 2223591:vm0-dev 2223607:vm0-vmm 
+# loadavg 5.23 4.98 5.33
+mmsweep: N=1024     1.81ms/mm   1187.3 GFLOP/s chk=-3.498482e+04 vram=24MiB
+mmsweep: N=2048     7.56ms/mm   2272.6 GFLOP/s chk=1.067825e+04 vram=72MiB
+mmsweep: N=4096    26.21ms/mm   5244.7 GFLOP/s chk=2.118019e+05 vram=264MiB
+# WALL wall_ms=9764 rc=0
+# MEAS dev_pid=2209572 dev_cpu_ms=3330 dev_rss_hwm_kb=5264676/6296796 vmm_cpu_ms=9570 others: bench-v1-dev=0ms ch-0005-dev=0ms vm0-dev=0ms vm0-vmm=60ms bench-v1-vmm=150ms 

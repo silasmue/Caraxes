@@ -1,0 +1,4 @@
+# SPDX-License-Identifier: MIT
+# 2026-09-24 08:53:52 guest command:
+unset DISPLAY; cp cx/wlframes caraxes-guest/; cd caraxes-guest; sudo SETTLE=5 timeout 400 bash weston-pace.sh 1920x1080 10 gl 2>&1
+rc=0

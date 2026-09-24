@@ -51,39 +51,40 @@ Snapshot of 2026-09-24, 10:30. The decisions and ideas it refers to are in [READ
 
 ## Next (this week)
 
-1. P21: BAR1 window passthrough (operator's order); also the prerequisite for asset streaming
-   in a game. With it the submission path has no trap left but the token-less doorbell scan,
-   so the follow-up to patch 0005 comes right behind: a token pool with datamatch ioeventfds
-   (the device hands the guest device-chosen work-submit tokens through the notifier page it
-   already writes, one eventfd per token declared at start because the client asks for the
-   sub-regions once, KVM holds about a thousand per VM; the vendored client must accept more
-   than one descriptor per reply). Designed and built 2026-09-24 behind
-   `CARAXES_DOORBELL_TOKENS=N` ([doorbell-token-pool.md](doorbell-token-pool.md), patch 0006,
-   crate patch 0002): the bound is 253 tokens (`SCM_MAX_FD`, one reply), not KVM's count,
-   which leaves ioeventfds out of `NR_IOBUS_DEVS`; default 64 because KVM scans the entries of
-   one address at about 25 ns each. Pure emulation verified; the GPU measurement with P21 is
-   next.
+1. P21: BAR1 window passthrough (operator's order). Prototype G measured 2026-09-24 (three of
+   four submission traps gone, rlprobe stage 4 halved). The datamatch token pool was designed
+   and built 2026-09-24 behind `CARAXES_DOORBELL_TOKENS=N` ([doorbell-token-pool.md](doorbell-token-pool.md),
+   patch 0006, crate patch 0002): the bound is 253 tokens (`SCM_MAX_FD`, one reply), not KVM's
+   count, which leaves ioeventfds out of `NR_IOBUS_DEVS`; default 64 because KVM scans the
+   entries of one address at about 25 ns each. Pure emulation verified; the GPU measurement
+   with P21 is running. Then target design H (a private pool in the reservation with guest
+   BAR1 pages remapped in every translation, so the area holds for any guest layout and can
+   grow for asset streaming in a game).
 2. The game benchmark: Shadow of the Tomb Raider in the Caraxes guest at 720p and 1080p,
    streamed through Sunshine to Moonlight on the host with the v1 stream measurement, one guest
    and then two concurrently against [sottr-4q](../measurements/sottr-4q/README.md); the guest
    needs the game installed (v1 image or a Steam login by the operator).
 3. NVENC through a mirror for Sunshine hardware encoding (pulled forward from later: the game
    comparison with v1 needs it); the Moonlight stream stage.
-4. P23, the GSP surface week: E (refusal per family, 1 day), A (table handler plus one sweep
+4. D19, the move to driver 615.71.09 before P23: the device's 615 transport (agent running:
+   queue v2, MCTP framing, GMCAPI init, ver/v615), a 615 guest image (agent running on vm3),
+   then the host upgrade by the operator and the host-side client on nvrm-sys v615, v1's image
+   with it; the GSP-surface inventory is rerun on 615 before the week starts.
+5. P23, the GSP surface week (on 615): E (refusal per family, 1 day), A (table handler plus one sweep
    of the real card, operator's go-ahead), B (forward rule with the D9 deny list), C (channel
    registry and mirror), D rules 1 and 4 (acknowledge setters, refuse profiling), the nine RPC
    functions and the RC and fault events; display and mirror parts of D with their packages.
-5. BAR2 selective passthrough: the 96k trapped 8-byte writes of a context create.
-6. gpu gate leftovers: the own holder, ffmpeg in the guest image, the native torch reference,
+6. BAR2 selective passthrough: the 96k trapped 8-byte writes of a context create.
+7. gpu gate leftovers: the own holder, ffmpeg in the guest image, the native torch reference,
    robustness inside the gpu gate, the smi name masking.
-7. UVM managed memory: fault forwarding to the guest, physical UVM channels, copy-engine written
+8. UVM managed memory: fault forwarding to the guest, physical UVM channels, copy-engine written
    page tables (the pushbuffer scanner), cuda-managed and the gpu gate's kernel stage.
-8. D18: sparse demand-driven registration with the cached mapping object, then drop the guest
+9. D18: sparse demand-driven registration with the cached mapping object, then drop the guest
    DMA module and the `_DMA` patches: the vanilla gate.
-9. v1 upkeep if v1 stays the reference: the pinned-page leak and the 100 ms blocking sync.
-10. Multi-VM beyond the proof: timeslices and QoS, reservation policy as configuration, the host
+10. v1 upkeep if v1 stays the reference: the pinned-page leak and the 100 ms blocking sync.
+11. Multi-VM beyond the proof: timeslices and QoS, reservation policy as configuration, the host
     journal flood (gone with the next host reboot).
-11. The P13 decision after the benchmark rerun.
+12. The P13 decision after the benchmark rerun.
 
 ## Later
 

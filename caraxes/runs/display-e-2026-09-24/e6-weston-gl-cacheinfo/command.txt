@@ -1,0 +1,4 @@
+# SPDX-License-Identifier: MIT
+# 2026-09-24 08:49:21 guest command:
+unset DISPLAY; cd caraxes-guest; sudo LD_PRELOAD=/usr/local/lib/libnvrm_trace.so LEA_TRACE_FILE=/tmp/weston-rm.txt LEA_TRACE_FORMAT=text SETTLE=5 bash weston-pace.sh 1920x1080 10 gl 2>&1 | tail -50; sudo cp /tmp/weston-rm.txt /home/leandro/weston-rm.txt
+rc=0

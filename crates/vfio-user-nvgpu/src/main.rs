@@ -18,7 +18,7 @@ use vfio_user_nvgpu::bar0::Bar0;
 use vfio_user_nvgpu::board::{Board, BOARDS};
 use vfio_user_nvgpu::boot::BootModel;
 use vfio_user_nvgpu::chip::{self, Chip};
-use vfio_user_nvgpu::config::{parse_dump, ConfigSpace};
+use vfio_user_nvgpu::config::{self as pci_config, ConfigSpace};
 use vfio_bindings::bindings::vfio::VFIO_PCI_BAR0_REGION_INDEX;
 use vfio_user_nvgpu::device::{
     doorbell_ioeventfd_requested, doorbell_sub_region, doorbell_token_sub_regions, irqs,
@@ -42,14 +42,15 @@ vfio-user-nvgpu --socket <path> [--trace <file>] [--board-data <name|file>] [--c
                 [--boot-model] [--fb-mib <n>] [--board <name>] [--host-rm]
                 [--reserve-vram [--reserve-slot <n>]] [--register-guest-ram | --identity-dma-table] [--dma-ranges <file>]
                 [--host-exec] [--profile <size>] [--name-format <legacy|transport>] [--display]
+                [--guest-abi <595|610|615>]
 vfio-user-nvgpu --print-name [--board-data <name|file>] [--board <name>] [--fb-mib <n> | --profile <size>]
                 [--name-format <legacy|transport>]
 vfio-user-nvgpu --selftest <socket> [--board-data <name|file>] [--chip <chip>] [--config <dump>]
 
   --socket   vfio-user socket to create (a stale socket file is removed)
   --trace    access log file (default: none; the summary always goes to stderr)
-  --board-data  board data: a built-in board or a boards/*.toml-shaped file (default: rtx2070)
-  --chip     the chip to present (default: the board's, tu106 for rtx2070)
+  --board-data  board data: a built-in board (rtx2070, rtx5060ti) or a boards/*.toml-shaped file (default: rtx2070)
+  --chip     the chip to present, tu106 or gb206 (default: the board's, tu106 for rtx2070, gb206 for rtx5060ti)
   --config   lspci -xxxx dump of the card (default: the board's, caraxes/reference/rtx2070/config-space.txt)
   --rom      PCI-visible ROM image for the expansion ROM region (default: the board's, caraxes/reference/rtx2070/rom.bin)
   --vbios    image served through the BAR0 PROM window (default: the --rom image)
@@ -82,6 +83,10 @@ vfio-user-nvgpu --selftest <socket> [--board-data <name|file>] [--chip <chip>] [
              [display] connectors, each connector backed by a DisplayPort sink model; without
              it the device is headless (fuse 1), as in E0-E5
   --selftest connect to a running server and verify the E0 device model
+  --guest-abi  the guest driver's GSP ABI this device must serve (default: CARAXES_GUEST_ABI, else
+             the build's): 610 needs a default build, 615 a `--features v615` build (message
+             queue v2, GMCAPI init; docs/caraxes/gsp-transport-615.md), 595 a 610 build with
+             CARAXES_GUEST_ABI=595; anything else is refused (fail closed)
 Environment: CARAXES_DOORBELL_IOEVENTFD=1 offers the usermode doorbell register as an
   ioeventfd sub-region (VFIO_USER_DEVICE_GET_REGION_IO_FDS; needs patch 0005 in Cloud
   Hypervisor, a client without it keeps trapping); the eventfd carries no token, so a
@@ -117,6 +122,7 @@ struct Args {
     selftest: Option<PathBuf>,
     name_format: NameFormat,
     print_name: bool,
+    guest_abi: u32,
 }
 
 fn parse_args() -> Result<Args> {
@@ -159,7 +165,9 @@ fn parse_args() -> Result<Args> {
         name_format: NameFormat::from_env()?,
         print_name: false,
         board_data: board_data.clone(),
+        guest_abi: 0,
     };
+    let mut guest_abi_flag = None;
     let mut it = args.into_iter();
     while let Some(flag) = it.next() {
         let mut value = || {
@@ -205,6 +213,9 @@ fn parse_args() -> Result<Args> {
                     .map_err(|e| anyhow::anyhow!("--name-format: {e}"))?
             }
             "--print-name" => a.print_name = true,
+            "--guest-abi" => {
+                guest_abi_flag = Some(value()?.parse().context("--guest-abi needs 595, 610 or 615")?)
+            }
             "-h" | "--help" => {
                 println!("{USAGE}");
                 std::process::exit(0);
@@ -213,9 +224,21 @@ fn parse_args() -> Result<Args> {
         }
     }
     a.chip = chip::by_name(&chip_name).map_err(|e| anyhow::anyhow!("--chip: {e}"))?;
+    a.guest_abi = ver::check_guest_abi(
+        guest_abi_flag,
+        std::env::var("CARAXES_GUEST_ABI").ok().as_deref(),
+    )
+    .map_err(|e| anyhow::anyhow!("--guest-abi: {e}"))?;
     a.board_data = board_data;
     if a.socket.is_none() && a.selftest.is_none() && !a.print_name {
         bail!("{USAGE}");
+    }
+    // The host paths talk to the house card, a TU106 (docs/caraxes/blackwell-gb206.md
+    // section 4): any other chip identity runs in pure emulation.
+    let chip_name = &a.chip.data().name;
+    if chip_name != "tu106" && (a.host_rm || a.reserve_vram || a.register_guest_ram || a.host_exec)
+    {
+        bail!("--chip {chip_name} runs in pure emulation: --host-rm, --reserve-vram, --register-guest-ram and --host-exec need a host card of the same chip");
     }
     if a.register_guest_ram && a.identity_dma_table {
         bail!("--register-guest-ram and --identity-dma-table exclude each other");
@@ -235,11 +258,8 @@ fn parse_args() -> Result<Args> {
 fn config_space(a: &Args) -> Result<ConfigSpace> {
     let dump = std::fs::read_to_string(&a.config)
         .with_context(|| format!("read {}", a.config.display()))?;
-    ConfigSpace::from_dump(
-        parse_dump(&dump)?,
-        a.board_data.bars,
-        a.board_data.rom_bar_size,
-    )
+    // The board's capability filter (MSI-X) applies to any dump, also a --config one.
+    pci_config::for_board(&dump, &a.board_data)
 }
 
 /// Free the host memory on SIGTERM, SIGINT or SIGHUP, then exit. The signals are
@@ -344,6 +364,18 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
     let identity = chip.data().identity;
     let trace = Trace::new(a.trace.as_deref())?;
     let mut bar0 = Bar0::new(chip, rom, vbios);
+    // The host driver's ABI, before the first host RM client opens (hostabi.rs,
+    // docs/caraxes/cutover-615.md): CARAXES_HOST_ABI, else the running driver's
+    // version; any version without measured layouts ends start-up here.
+    if a.reserve_vram || a.register_guest_ram || a.host_rm {
+        let sel = vfio_user_nvgpu::hostabi::select().map_err(anyhow::Error::msg)?;
+        eprintln!(
+            "vfio-user-nvgpu: {} (chosen by {}); guest ABI {}",
+            sel.layouts.describe(),
+            sel.how,
+            vfio_user_nvgpu::ver::active::DRIVER_VERSION
+        );
+    }
     // Host memory for E5b: one client for the reservation and the guest RAM, shared with
     // the signal thread so that SIGTERM frees it too.
     let host_mem = if a.reserve_vram || a.register_guest_ram {
@@ -533,6 +565,11 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
         }
         None => None,
     };
+    eprintln!(
+        "vfio-user-nvgpu: guest ABI {} ({:?})",
+        a.guest_abi,
+        ver::active::GSP_TRANSPORT
+    );
     eprintln!(
         "vfio-user-nvgpu: {} (BOOT_0 {:#010x}, driver {}) on {}, boot model {}, FB {} MiB, ROM {} bytes, PROM image {} bytes, trace {}",
         chip.data().short_name,

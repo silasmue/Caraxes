@@ -1,0 +1,21 @@
+# target v1 metric rl rep 4
+# cmd NVRL_EPISODES=50 $HOME/gpu/venv/bin/python $HOME/caraxes-tests/leandro-test/probe/python/rlprobe.py
+# device /home/silas/git/Caraxes/target/bench/release/vhost-user-nvrm sha256 736ffc900ef62831
+# time 2026-09-24T10:52:13+02:00
+# gpu 55, 1410 MHz, 7000 MHz, P0, 15 %, 5188 MiB, Disabled
+# procs 2223591:vm0-dev 2223607:vm0-vmm 2321951:bench-v1-dev 2321959:bench-v1-vmm 2326314:vm2-dev 2326328:vm2-vmm 
+# loadavg 3.70 3.73 4.32
+rlprobe: stage=4 episodes=50 pin=False nonblock=False sync=False item=True
+stage0: cuInit ok, Leandro RTX 2070
+stage1: policy on cuda:0
+stage2: rollout 25 steps, return=25
+stage3: update loss=2.271
+  ep   10  return=   11  mean10=  20.7
+  ep   20  return=   15  mean10=  14.4
+  ep   30  return=   13  mean10=  15.8
+  ep   40  return=   39  mean10=  28.3
+  ep   50  return=   38  mean10=  56.9
+stage4: 50 episodes in 1.6s, mean10=56.9
+transfers: H2D=1437 D2H=1437 (~1743/s)
+# WALL wall_ms=12090 rc=0
+# MEAS dev_pid=2321951 dev_cpu_ms=340 dev_rss_hwm_kb=472436/509084 vmm_cpu_ms=11720 others: vm0-dev=1000ms vm2-vmm=13030ms vm2-dev=1030ms vm0-vmm=1500ms 

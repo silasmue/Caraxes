@@ -669,7 +669,11 @@ struct PhysAttr([u8; v::PHYS_ATTR_SIZE]);
 impl HostMemory {
     /// A fresh host RM client with device 0 and subdevice 0.
     pub fn open(privilege: Privilege) -> Result<Self> {
-        let mut rm = RmClient::new().map_err(|e| anyhow::anyhow!("host RM client: {e}"))?;
+        // The version check is start-up's host-ABI selection (hostabi.rs), not the
+        // build default's assertion in `RmClient::new` (which panics on 615.71.09).
+        crate::hostabi::selected().map_err(|e| anyhow::anyhow!(e))?;
+        let mut rm = RmClient::open_without_version_check()
+            .map_err(|e| anyhow::anyhow!("host RM client: {e}"))?;
         let gpu = NvDevice::open_gpu(0).map_err(|e| anyhow::anyhow!("open /dev/nvidia0: {e}"))?;
         let gpu_reg = gpu
             .open_for_mapping(rm.ctl())
@@ -925,6 +929,7 @@ impl HostMemory {
         va: u64,
         page_size: u32,
         snoop: bool,
+        kind: Option<u8>,
     ) -> Status {
         use nvrm_abi::nvgpu::nvos46_flags as f;
         let mut p = sys::NVOS46_PARAMETERS::default();
@@ -942,6 +947,12 @@ impl HostMemory {
                 f::CACHE_SNOOP_DISABLE
             })
             | f::DMA_OFFSET_FIXED.set(f::DMA_OFFSET_FIXED_TRUE);
+        // A guest depth/stencil kind (shadow.rs `kind_override`): NVOS46_FLAGS_PAGE_KIND_OVERRIDE
+        // (nvos.h:2114) with `kindOverride` (nvos.h:2178).
+        if let Some(k) = kind {
+            p.flags |= f::PAGE_KIND_OVERRIDE.set(1);
+            p.kindOverride = k as u32;
+        }
         p.dmaOffset = va;
         // SAFETY: NVOS46 is the escape ABI; plain-data params, no host pointers.
         // The caller (shadow.rs) logs a refusal once per leaf, with VA, PA and reason.

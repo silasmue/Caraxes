@@ -13,6 +13,7 @@
 #            vendor/nvidia-rm-headers/<v>/), or a directory: an
 #            open-gpu-kernel-modules tree or its src/common/sdk/nvidia/inc
 #   --print  print the fingerprint instead of comparing it
+#   With no TARGET, the tree named by $CARAXES_OGKM is checked when it is set.
 #
 # Exit status: 0 all targets identical, 1 at least one differs, 2 usage or
 # header error. Only host files are read; nothing here touches a GPU.
@@ -33,6 +34,7 @@ for a in "$@"; do
         *) targets+=("$a") ;;
     esac
 done
+[ ${#targets[@]} -gt 0 ] || [ -z "${CARAXES_OGKM:-}" ] || targets=("$CARAXES_OGKM")
 [ ${#targets[@]} -gt 0 ] || { sed -n '4,19p' "$0" >&2; exit 2; }
 command -v "$cc" >/dev/null || { echo "no C compiler ($cc)" >&2; exit 2; }
 
@@ -90,7 +92,13 @@ for t in "${targets[@]}"; do
         echo "== $t: identical to 610.57.04 ($(wc -l <"$tmp/out.txt") items): the tools' layouts hold"
     else
         echo "== $t: DIFFERS from 610.57.04 ($(grep -c '^>' "$tmp/diff.txt") items): the tools' output is unverified for this version"
-        sed -n 's/^< /   610.57.04: /p; s/^> /   '"$t"': /p' "$tmp/diff.txt"
+        # printf, not sed: a directory TARGET contains slashes
+        while IFS= read -r l; do
+            case $l in
+                '< '*) printf '   610.57.04: %s\n' "${l#< }" ;;
+                '> '*) printf '   %s: %s\n' "$t" "${l#> }" ;;
+            esac
+        done <"$tmp/diff.txt"
         [ $rc = 0 ] && rc=1
     fi
 done

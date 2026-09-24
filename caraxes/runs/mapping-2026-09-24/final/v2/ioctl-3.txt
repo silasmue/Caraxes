@@ -1,0 +1,11 @@
+# target v2 metric ioctl rep 3
+# cmd ./ioctlping 10000
+# device /mnt/vmstore/caraxes/vm2/vfio-user-nvgpu sha256 99e1cfbf0725e7d3
+# time 2026-09-24T10:45:04+02:00
+# gpu 53, 420 MHz, 810 MHz, P5, 14 %, 5188 MiB, Disabled
+# procs 2203975:ch-0005-dev 2223591:vm0-dev 2223607:vm0-vmm 2297063:bench-v1-dev 2297071:bench-v1-vmm 2301370:vm2-dev 2301383:vm2-vmm 
+# loadavg 4.14 4.21 4.73
+version reply=1 str=610.57.04
+ioctlping n=10000 pause_us=0 fails=0 min_us=1.21 p10_us=1.26 p50_us=1.42 p90_us=2.19 p99_us=4.86 max_us=466.92 mean_us=1.81
+# WALL wall_ms=23 rc=0
+# MEAS dev_pid=2301370 dev_cpu_ms=20 dev_rss_hwm_kb=5265216/6296400 vmm_cpu_ms=210 others: bench-v1-dev=0ms ch-0005-dev=0ms vm0-dev=170ms bench-v1-vmm=0ms vm0-vmm=300ms 

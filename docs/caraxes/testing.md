@@ -73,10 +73,11 @@ caraxes-tests/
     scripts/guest/         the guest workloads (display probes, nvrm-setup.sh, bench-one.sh, ...)
     scripts/lib/           config.sh, common.sh, matrix.sh (what the matrix probes source)
     lib/libnvrm_trace.so   the v1 tracer (crates/nvrm-trace, host-built), where matrix-guest.sh expects it
-    DRIVER_VERSION         from this tree (610.57.04); the matrix payload reads it from its root
+    DRIVER_VERSION         the selected driver's (tools/lib/driver.sh, default 610.57.04); the matrix payload reads it
     README.md, LICENSE
   probe -> leandro-test/probe
   caraxes/run-tests.sh     tools/caraxes-guest-tests.sh
+  caraxes/driver.env       the guest's nvidia-smi and library directory for the selected driver
   SYNC.txt                 what the sync found in the guest (below)
   out/<run>/               raw results of each gate run; fetched into caraxes/runs/
 ```
@@ -93,9 +94,10 @@ display gates use `edid-verify.c` and `vdisp-frame.c`).
 
 Built in the guest: `nvprobe managedprobe hostregprobe oomprobe vrampress rmdirect ctrlping
 ioctlping`, with `CUDA_HOME` set to the torch venv's `nvidia/cu13` (it carries `cuda.h`)
-and `-L/opt/nvrm/lib -lcuda`. Not built: `forkprobe` (needs the toolkit's `lib64/stubs`),
-`glinterop`, `oclprobe`, `eglplat`, `vkalloc`, `vkrt` (EGL, OpenCL and Vulkan headers are
-not in the image), and `kernels.ptx` stays the checked-in sm_75 file (no nvcc in the guest).
+and `-L$CARAXES_GUEST_LIBDIR -lcuda` (`/opt/nvrm/lib` for 610). Not built: `forkprobe`
+(needs the toolkit's `lib64/stubs`), `glinterop`, `oclprobe`, `eglplat`, `vkalloc`, `vkrt`
+(EGL, OpenCL and Vulkan headers are not in the image), and `kernels.ptx` stays the
+checked-in sm_75 file (no nvcc in the guest).
 
 What the baked image has (`SYNC.txt` of 2026-09-23, image
 `guest-baked-20260801-610.57.04-20260820-105733.qcow2`):
@@ -110,6 +112,11 @@ What the baked image has (`SYNC.txt` of 2026-09-23, image
 | PyTorch | `~/gpu/venv`: torch 2.13.0 with the CUDA 13.0 wheels (cuda-runtime 13.0.96, cuDNN 9.20.0.48, cuBLAS 13.1.1.3, NCCL 2.29.7, triton 3.7.1), numpy 2.5.2 |
 | Toolchain | gcc 13.3.0, make, python 3.12.3, strace, rsync |
 | Missing | ffmpeg, cupy, cudf, cuml, clinfo, the EGL/GLES/OpenCL/Vulkan development headers |
+
+The 615.71.09 image (`CARAXES_DRIVER=615`, [quickstart.md](quickstart.md) section 3) has its
+userspace in `/usr/lib/x86_64-linux-gnu` and `/usr/bin/nvidia-smi` and lacks NVENC, NVDEC and
+the GL stack at 615.71.09; its layout and gaps are in
+[guest-driver-versions.md](guest-driver-versions.md) section 8.
 
 The guest has no network (no NAT on the `caraxes0` tap, DNS fails), so sync-tests installs
 nothing; it records what is missing. Adding NAT touches host network state and needs the

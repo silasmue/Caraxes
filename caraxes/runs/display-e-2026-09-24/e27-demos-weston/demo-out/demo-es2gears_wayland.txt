@@ -1,0 +1,198 @@
+weston up (pid 8725, renderer gl, 1920x1080@60); GL renderer: Leandro VFIO RTX 2070-2G/PCIe/SSE2
+EGL_VERSION = 1.5
+
+(es2gears_wayland:8736): dconf-CRITICAL **: 08:02:57.005: unable to create directory '/tmp/weston-run/dconf': Permission denied.  dconf will not work properly.
+
+(es2gears_wayland:8736): dconf-CRITICAL **: 08:02:57.005: unable to create directory '/tmp/weston-run/dconf': Permission denied.  dconf will not work properly.
+
+(es2gears_wayland:8736): dconf-CRITICAL **: 08:02:57.005: unable to create directory '/tmp/weston-run/dconf': Permission denied.  dconf will not work properly.
+
+(es2gears_wayland:8736): dconf-CRITICAL **: 08:02:57.005: unable to create directory '/tmp/weston-run/dconf': Permission denied.  dconf will not work properly.
+
+(es2gears_wayland:8736): dconf-CRITICAL **: 08:02:57.005: unable to create directory '/tmp/weston-run/dconf': Permission denied.  dconf will not work properly.
+
+(es2gears_wayland:8736): dconf-CRITICAL **: 08:02:57.005: unable to create directory '/tmp/weston-run/dconf': Permission denied.  dconf will not work properly.
+
+(es2gears_wayland:8736): dconf-CRITICAL **: 08:02:57.006: unable to create directory '/tmp/weston-run/dconf': Permission denied.  dconf will not work properly.
+
+(es2gears_wayland:8736): dconf-CRITICAL **: 08:02:57.006: unable to create directory '/tmp/weston-run/dconf': Permission denied.  dconf will not work properly.
+
+(es2gears_wayland:8736): dconf-CRITICAL **: 08:02:57.006: unable to create directory '/tmp/weston-run/dconf': Permission denied.  dconf will not work properly.
+
+(es2gears_wayland:8736): dconf-CRITICAL **: 08:02:57.006: unable to create directory '/tmp/weston-run/dconf': Permission denied.  dconf will not work properly.
+
+(es2gears_wayland:8736): dconf-CRITICAL **: 08:02:57.006: unable to create directory '/tmp/weston-run/dconf': Permission denied.  dconf will not work properly.
+
+(es2gears_wayland:8736): dconf-CRITICAL **: 08:02:57.006: unable to create directory '/tmp/weston-run/dconf': Permission denied.  dconf will not work properly.
+
+(es2gears_wayland:8736): dconf-CRITICAL **: 08:02:57.006: unable to create directory '/tmp/weston-run/dconf': Permission denied.  dconf will not work properly.
+
+(es2gears_wayland:8736): dconf-CRITICAL **: 08:02:57.006: unable to create directory '/tmp/weston-run/dconf': Permission denied.  dconf will not work properly.
+
+(es2gears_wayland:8736): dconf-CRITICAL **: 08:02:57.007: unable to create directory '/tmp/weston-run/dconf': Permission denied.  dconf will not work properly.
+
+(es2gears_wayland:8736): dconf-CRITICAL **: 08:02:57.007: unable to create directory '/tmp/weston-run/dconf': Permission denied.  dconf will not work properly.
+
+(es2gears_wayland:8736): dconf-CRITICAL **: 08:02:57.007: unable to create directory '/tmp/weston-run/dconf': Permission denied.  dconf will not work properly.
+
+(es2gears_wayland:8736): dconf-CRITICAL **: 08:02:57.007: unable to create directory '/tmp/weston-run/dconf': Permission denied.  dconf will not work properly.
+
+(es2gears_wayland:8736): dconf-CRITICAL **: 08:02:57.007: unable to create directory '/tmp/weston-run/dconf': Permission denied.  dconf will not work properly.
+
+(es2gears_wayland:8736): dconf-CRITICAL **: 08:02:57.007: unable to create directory '/tmp/weston-run/dconf': Permission denied.  dconf will not work properly.
+
+(es2gears_wayland:8736): dconf-CRITICAL **: 08:02:57.007: unable to create directory '/tmp/weston-run/dconf': Permission denied.  dconf will not work properly.
+
+(es2gears_wayland:8736): dconf-CRITICAL **: 08:02:57.007: unable to create directory '/tmp/weston-run/dconf': Permission denied.  dconf will not work properly.
+
+(es2gears_wayland:8736): dconf-CRITICAL **: 08:02:57.017: unable to create directory '/tmp/weston-run/dconf': Permission denied.  dconf will not work properly.
+
+(es2gears_wayland:8736): dconf-CRITICAL **: 08:02:57.017: unable to create directory '/tmp/weston-run/dconf': Permission denied.  dconf will not work properly.
+
+(es2gears_wayland:8736): dconf-CRITICAL **: 08:02:57.018: unable to create directory '/tmp/weston-run/dconf': Permission denied.  dconf will not work properly.
+
+(es2gears_wayland:8736): dconf-CRITICAL **: 08:02:57.039: unable to create directory '/tmp/weston-run/dconf': Permission denied.  dconf will not work properly.
+
+(es2gears_wayland:8736): dconf-CRITICAL **: 08:02:57.039: unable to create directory '/tmp/weston-run/dconf': Permission denied.  dconf will not work properly.
+
+(es2gears_wayland:8736): dconf-CRITICAL **: 08:02:57.039: unable to create directory '/tmp/weston-run/dconf': Permission denied.  dconf will not work properly.
+
+(es2gears_wayland:8736): dconf-CRITICAL **: 08:02:57.039: unable to create directory '/tmp/weston-run/dconf': Permission denied.  dconf will not work properly.
+
+(es2gears_wayland:8736): dconf-CRITICAL **: 08:02:57.039: unable to create directory '/tmp/weston-run/dconf': Permission denied.  dconf will not work properly.
+
+(es2gears_wayland:8736): dconf-CRITICAL **: 08:02:57.039: unable to create directory '/tmp/weston-run/dconf': Permission denied.  dconf will not work properly.
+
+(es2gears_wayland:8736): dconf-CRITICAL **: 08:02:57.040: unable to create directory '/tmp/weston-run/dconf': Permission denied.  dconf will not work properly.
+
+(es2gears_wayland:8736): dconf-CRITICAL **: 08:02:57.040: unable to create directory '/tmp/weston-run/dconf': Permission denied.  dconf will not work properly.
+
+(es2gears_wayland:8736): dconf-CRITICAL **: 08:02:57.040: unable to create directory '/tmp/weston-run/dconf': Permission denied.  dconf will not work properly.
+
+(es2gears_wayland:8736): dconf-CRITICAL **: 08:02:57.040: unable to create directory '/tmp/weston-run/dconf': Permission denied.  dconf will not work properly.
+
+(es2gears_wayland:8736): dconf-CRITICAL **: 08:02:57.040: unable to create directory '/tmp/weston-run/dconf': Permission denied.  dconf will not work properly.
+
+(es2gears_wayland:8736): dconf-CRITICAL **: 08:02:57.040: unable to create directory '/tmp/weston-run/dconf': Permission denied.  dconf will not work properly.
+
+(es2gears_wayland:8736): dconf-CRITICAL **: 08:02:57.040: unable to create directory '/tmp/weston-run/dconf': Permission denied.  dconf will not work properly.
+
+(es2gears_wayland:8736): dconf-CRITICAL **: 08:02:57.040: unable to create directory '/tmp/weston-run/dconf': Permission denied.  dconf will not work properly.
+
+(es2gears_wayland:8736): dconf-CRITICAL **: 08:02:57.040: unable to create directory '/tmp/weston-run/dconf': Permission denied.  dconf will not work properly.
+
+(es2gears_wayland:8736): dconf-CRITICAL **: 08:02:57.040: unable to create directory '/tmp/weston-run/dconf': Permission denied.  dconf will not work properly.
+
+(es2gears_wayland:8736): dconf-CRITICAL **: 08:02:57.040: unable to create directory '/tmp/weston-run/dconf': Permission denied.  dconf will not work properly.
+
+(es2gears_wayland:8736): dconf-CRITICAL **: 08:02:57.040: unable to create directory '/tmp/weston-run/dconf': Permission denied.  dconf will not work properly.
+
+(es2gears_wayland:8736): dconf-CRITICAL **: 08:02:57.040: unable to create directory '/tmp/weston-run/dconf': Permission denied.  dconf will not work properly.
+
+(es2gears_wayland:8736): dconf-CRITICAL **: 08:02:57.040: unable to create directory '/tmp/weston-run/dconf': Permission denied.  dconf will not work properly.
+
+(es2gears_wayland:8736): dconf-CRITICAL **: 08:02:57.040: unable to create directory '/tmp/weston-run/dconf': Permission denied.  dconf will not work properly.
+
+(es2gears_wayland:8736): dconf-CRITICAL **: 08:02:57.040: unable to create directory '/tmp/weston-run/dconf': Permission denied.  dconf will not work properly.
+
+(es2gears_wayland:8736): dconf-CRITICAL **: 08:02:57.040: unable to create directory '/tmp/weston-run/dconf': Permission denied.  dconf will not work properly.
+vertex shader info: 
+fragment shader info: 
+info: 
+
+(es2gears_wayland:8736): dconf-CRITICAL **: 08:02:58.309: unable to create directory '/tmp/weston-run/dconf': Permission denied.  dconf will not work properly.
+
+(es2gears_wayland:8736): dconf-CRITICAL **: 08:02:58.309: unable to create directory '/tmp/weston-run/dconf': Permission denied.  dconf will not work properly.
+
+(es2gears_wayland:8736): dconf-CRITICAL **: 08:02:58.310: unable to create directory '/tmp/weston-run/dconf': Permission denied.  dconf will not work properly.
+
+(es2gears_wayland:8736): dconf-CRITICAL **: 08:02:58.310: unable to create directory '/tmp/weston-run/dconf': Permission denied.  dconf will not work properly.
+
+(es2gears_wayland:8736): dconf-CRITICAL **: 08:02:58.310: unable to create directory '/tmp/weston-run/dconf': Permission denied.  dconf will not work properly.
+
+(es2gears_wayland:8736): dconf-CRITICAL **: 08:02:58.310: unable to create directory '/tmp/weston-run/dconf': Permission denied.  dconf will not work properly.
+
+(es2gears_wayland:8736): dconf-CRITICAL **: 08:02:58.310: unable to create directory '/tmp/weston-run/dconf': Permission denied.  dconf will not work properly.
+
+(es2gears_wayland:8736): dconf-CRITICAL **: 08:02:58.310: unable to create directory '/tmp/weston-run/dconf': Permission denied.  dconf will not work properly.
+
+(es2gears_wayland:8736): dconf-CRITICAL **: 08:02:58.310: unable to create directory '/tmp/weston-run/dconf': Permission denied.  dconf will not work properly.
+
+(es2gears_wayland:8736): dconf-CRITICAL **: 08:02:58.310: unable to create directory '/tmp/weston-run/dconf': Permission denied.  dconf will not work properly.
+
+(es2gears_wayland:8736): dconf-CRITICAL **: 08:02:58.310: unable to create directory '/tmp/weston-run/dconf': Permission denied.  dconf will not work properly.
+
+(es2gears_wayland:8736): dconf-CRITICAL **: 08:02:58.310: unable to create directory '/tmp/weston-run/dconf': Permission denied.  dconf will not work properly.
+
+(es2gears_wayland:8736): dconf-CRITICAL **: 08:02:58.310: unable to create directory '/tmp/weston-run/dconf': Permission denied.  dconf will not work properly.
+
+(es2gears_wayland:8736): dconf-CRITICAL **: 08:02:58.311: unable to create directory '/tmp/weston-run/dconf': Permission denied.  dconf will not work properly.
+
+(es2gears_wayland:8736): dconf-CRITICAL **: 08:02:58.311: unable to create directory '/tmp/weston-run/dconf': Permission denied.  dconf will not work properly.
+
+(es2gears_wayland:8736): dconf-CRITICAL **: 08:02:58.311: unable to create directory '/tmp/weston-run/dconf': Permission denied.  dconf will not work properly.
+
+(es2gears_wayland:8736): dconf-CRITICAL **: 08:02:58.311: unable to create directory '/tmp/weston-run/dconf': Permission denied.  dconf will not work properly.
+
+(es2gears_wayland:8736): dconf-CRITICAL **: 08:02:58.311: unable to create directory '/tmp/weston-run/dconf': Permission denied.  dconf will not work properly.
+
+(es2gears_wayland:8736): dconf-CRITICAL **: 08:02:58.311: unable to create directory '/tmp/weston-run/dconf': Permission denied.  dconf will not work properly.
+
+(es2gears_wayland:8736): dconf-CRITICAL **: 08:02:58.311: unable to create directory '/tmp/weston-run/dconf': Permission denied.  dconf will not work properly.
+
+(es2gears_wayland:8736): dconf-CRITICAL **: 08:02:58.311: unable to create directory '/tmp/weston-run/dconf': Permission denied.  dconf will not work properly.
+
+(es2gears_wayland:8736): dconf-CRITICAL **: 08:02:58.311: unable to create directory '/tmp/weston-run/dconf': Permission denied.  dconf will not work properly.
+
+(es2gears_wayland:8736): dconf-CRITICAL **: 08:02:58.331: unable to create directory '/tmp/weston-run/dconf': Permission denied.  dconf will not work properly.
+
+(es2gears_wayland:8736): dconf-CRITICAL **: 08:02:58.332: unable to create directory '/tmp/weston-run/dconf': Permission denied.  dconf will not work properly.
+
+(es2gears_wayland:8736): dconf-CRITICAL **: 08:02:58.332: unable to create directory '/tmp/weston-run/dconf': Permission denied.  dconf will not work properly.
+
+(es2gears_wayland:8736): dconf-CRITICAL **: 08:02:58.332: unable to create directory '/tmp/weston-run/dconf': Permission denied.  dconf will not work properly.
+
+(es2gears_wayland:8736): dconf-CRITICAL **: 08:02:58.332: unable to create directory '/tmp/weston-run/dconf': Permission denied.  dconf will not work properly.
+
+(es2gears_wayland:8736): dconf-CRITICAL **: 08:02:58.332: unable to create directory '/tmp/weston-run/dconf': Permission denied.  dconf will not work properly.
+
+(es2gears_wayland:8736): dconf-CRITICAL **: 08:02:58.332: unable to create directory '/tmp/weston-run/dconf': Permission denied.  dconf will not work properly.
+
+(es2gears_wayland:8736): dconf-CRITICAL **: 08:02:58.332: unable to create directory '/tmp/weston-run/dconf': Permission denied.  dconf will not work properly.
+
+(es2gears_wayland:8736): dconf-CRITICAL **: 08:02:58.332: unable to create directory '/tmp/weston-run/dconf': Permission denied.  dconf will not work properly.
+
+(es2gears_wayland:8736): dconf-CRITICAL **: 08:02:58.332: unable to create directory '/tmp/weston-run/dconf': Permission denied.  dconf will not work properly.
+
+(es2gears_wayland:8736): dconf-CRITICAL **: 08:02:58.332: unable to create directory '/tmp/weston-run/dconf': Permission denied.  dconf will not work properly.
+
+(es2gears_wayland:8736): dconf-CRITICAL **: 08:02:58.332: unable to create directory '/tmp/weston-run/dconf': Permission denied.  dconf will not work properly.
+
+(es2gears_wayland:8736): dconf-CRITICAL **: 08:02:58.332: unable to create directory '/tmp/weston-run/dconf': Permission denied.  dconf will not work properly.
+
+(es2gears_wayland:8736): dconf-CRITICAL **: 08:02:58.332: unable to create directory '/tmp/weston-run/dconf': Permission denied.  dconf will not work properly.
+
+(es2gears_wayland:8736): dconf-CRITICAL **: 08:02:58.332: unable to create directory '/tmp/weston-run/dconf': Permission denied.  dconf will not work properly.
+
+(es2gears_wayland:8736): dconf-CRITICAL **: 08:02:58.332: unable to create directory '/tmp/weston-run/dconf': Permission denied.  dconf will not work properly.
+
+(es2gears_wayland:8736): dconf-CRITICAL **: 08:02:58.332: unable to create directory '/tmp/weston-run/dconf': Permission denied.  dconf will not work properly.
+
+(es2gears_wayland:8736): dconf-CRITICAL **: 08:02:58.332: unable to create directory '/tmp/weston-run/dconf': Permission denied.  dconf will not work properly.
+
+(es2gears_wayland:8736): dconf-CRITICAL **: 08:02:58.332: unable to create directory '/tmp/weston-run/dconf': Permission denied.  dconf will not work properly.
+
+(es2gears_wayland:8736): dconf-CRITICAL **: 08:02:58.332: unable to create directory '/tmp/weston-run/dconf': Permission denied.  dconf will not work properly.
+
+(es2gears_wayland:8736): dconf-CRITICAL **: 08:02:58.332: unable to create directory '/tmp/weston-run/dconf': Permission denied.  dconf will not work properly.
+
+(es2gears_wayland:8736): dconf-CRITICAL **: 08:02:58.332: unable to create directory '/tmp/weston-run/dconf': Permission denied.  dconf will not work properly.
+
+(es2gears_wayland:8736): dconf-CRITICAL **: 08:02:58.350: unable to create directory '/tmp/weston-run/dconf': Permission denied.  dconf will not work properly.
+
+(es2gears_wayland:8736): dconf-CRITICAL **: 08:02:58.350: unable to create directory '/tmp/weston-run/dconf': Permission denied.  dconf will not work properly.
+
+(es2gears_wayland:8736): dconf-CRITICAL **: 08:02:58.351: unable to create directory '/tmp/weston-run/dconf': Permission denied.  dconf will not work properly.
+
+(es2gears_wayland:8736): dconf-CRITICAL **: 08:02:58.368: unable to create directory '/tmp/weston-run/dconf': Permission denied.  dconf will not work properly.
+command exit 124

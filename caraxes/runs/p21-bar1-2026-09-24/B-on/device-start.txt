@@ -1,0 +1,2 @@
+/mnt/vmstore/caraxes/vm1/gpu.log:vfio-user-nvgpu: hostmem: host VRAM: total 8192 MiB, HEAP_FREE 2669 MiB, nvidia-smi free 2670 MiB, largest free region 1992 MiB at 0x6c800000; request 1024 MiB at [0xa9000000, 0xe9000000) (slot 4, heap regio
+/mnt/vmstore/caraxes/vm1/gpu.log:vfio-user-nvgpu: bar1 passthrough: guest BAR1 [0, 0x100000) offered as one sparse mmap area of region 1, backed by a dma-buf of FB [0xa9980000, 0xa9a80000) (reservation offset 0x980000); 0x100000 of host BAR

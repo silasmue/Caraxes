@@ -1,0 +1,15 @@
+# SPDX-License-Identifier: MIT
+# 595.91.07 guest, element + GspStaticConfigInfo switch: kernel journal, first 120 NVRM lines after RmInitAdapter and the Xid lines
+505:[   26.719620] caraxes-vm3 kernel: NVRM: GPU 0000:00:05.0: RmInitAdapter
+542:[   48.356222] caraxes-vm3 kernel: NVRM: GPU 0000:00:05.0: RmInitAdapter succeeded!
+545:[   54.276019] caraxes-vm3 kernel: [drm] [nvidia-drm] [GPU ID 0x00000005] Loading driver
+548:[   54.291654] caraxes-vm3 kernel: [drm] Initialized nvidia-drm 0.0.0 20160202 for 0000:00:05.0 on minor 0
+550:[   54.291670] caraxes-vm3 kernel: nvidia 0000:00:05.0: [drm] No compatible format found
+551:[   54.291672] caraxes-vm3 kernel: nvidia 0000:00:05.0: [drm] Cannot find any crtc or sizes
+650:[  219.708918] caraxes-vm3 kernel: NVRM: Xid (PCI:0000:00:05): 119, Timeout after 295s of waiting for RPC response from GPU0 GSP! Expected function 76 (GSP_RM_CONTROL) sequence 150 (0x20800a70 0x0).
+795:[  220.115425] caraxes-vm3 kernel: NVRM: _issueRpcLarge: rpcRecvPoll timedout for fn 76 sequence 150!
+938:[  227.531347] caraxes-vm3 kernel: NVRM: Xid (PCI:0000:00:05): 119, Timeout after 127s of waiting for RPC response from GPU0 GSP! Expected function 76 (GSP_RM_CONTROL) sequence 215 (0x20800a70 0x0).
+1012:[  227.932967] caraxes-vm3 kernel: NVRM: _issueRpcLarge: rpcRecvPoll timedout for fn 76 sequence 215!
+1157:[  235.334363] caraxes-vm3 kernel: NVRM: Xid (PCI:0000:00:05): 119, Timeout after 123s of waiting for RPC response from GPU0 GSP! Expected function 76 (GSP_RM_CONTROL) sequence 278 (0x20800a70 0x0).
+1327:[  236.880094] caraxes-vm3 kernel: NVRM: _issueRpcLarge: rpcRecvPoll timedout for fn 76 sequence 278!
+1330:[  236.880792] caraxes-vm3 kernel: NVRM: Xid (PCI:0000:00:05): 154, GPU recovery action changed from 0x0 (None) to 0x1 (GPU Reset Required)

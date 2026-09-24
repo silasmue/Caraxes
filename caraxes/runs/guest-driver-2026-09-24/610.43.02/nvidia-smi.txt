@@ -1,0 +1,16 @@
+nvidia_uvm           2039808  0
+nvidia_drm            147456  1
+nvidia_modeset       1503232  1 nvidia_drm
+nvidia              16388096  2 nvidia_uvm,nvidia_modeset
+Thu Sep 24 10:11:34 2026       
++-----------------------------------------------------------------------------------------+
+| NVIDIA-SMI 610.43.02              KMD Version: 610.43.02     CUDA UMD Version: 13.3     |
++-----------------------------------------+------------------------+----------------------+
+| GPU  Name                 Persistence-M | Bus-Id          Disp.A | Volatile Uncorr. ECC |
+| Fan  Temp   Perf          Pwr:Usage/Cap |           Memory-Usage | GPU-Util  Compute M. |
+|                                         |                        |               MIG M. |
+|=========================================+========================+======================|
+|   0  Leandro VFIO RTX 2070-4G       Off |   00000000:00:05.0 Off |                  N/A |
+| 55%   49C    P8             29W /  175W |       0MiB /   4096MiB |     13%      Default |
+|                                         |                        |                  N/A |
++-----------------------------------------+------------------------+----------------------+

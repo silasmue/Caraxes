@@ -44,20 +44,35 @@
 # call; CARAXES_BAR_TLB=0 walks the BAR tables at every trapped access; CARAXES_CE_SHADOW=0
 # runs copy-engine channels on the guest's own (unfiltered) tables; CARAXES_LINEAR_IOVA=0 keeps
 # the independent 1 GiB chunks instead of IOVA = GPA + one offset.
+# Guest driver ABI (docs/caraxes/gsp-transport-615.md): CARAXES_GUEST_ABI=610 (the default
+# build) or 615 (message queue v2 and GMCAPI init: the binary of `cargo build --release -p
+# vfio-user-nvgpu --features v615 --target-dir target/v615`, the default SERVER then) is
+# passed to the device as --guest-abi, which refuses a binary built for another ABI (fail
+# closed); 595 is the pre-610 element experiment of docs/caraxes/guest-driver-versions.md.
 # State lives under $CARAXES_STORE/$VM (default /mnt/vmstore/caraxes/vm0, falling
 # back to target/caraxes/$VM when the store is absent): rootfs.qcow2 (overlay on
 # LEA_BASE_IMAGE), seed.img (cloud-init), gpu.sock, gpu-trace.log, serial.log.
+# CARAXES_DRIVER=610|615 picks the guest driver (default: the repository's DRIVER_VERSION;
+# tools/lib/driver.sh): 615 takes /mnt/vmstore/caraxes/images/guest-baked-2026-09-24-615.71.09.qcow2
+# as LEA_BASE_IMAGE and exports CARAXES_GUEST_ABI=615 to the device (which acts on it only
+# once the 615 GSP transport lands); any other value is refused. With CARAXES_DRIVER set, or
+# with a driver other than 610, `up` refuses an overlay not backed by that image.
 # The host tap (default caraxes0, 192.168.100.1/24) must exist and be owned by the user:
 #   sudo ip tuntap add dev caraxes0 mode tap user $USER
 #   sudo ip addr add 192.168.100.1/24 dev caraxes0 && sudo ip link set caraxes0 up
 set -euo pipefail
 
 LEA_ROOT=$(cd "$(dirname "$(readlink -f "$0")")/.." && pwd -P)
+# shellcheck source=tools/lib/driver.sh
+source "$LEA_ROOT/tools/lib/driver.sh"
+caraxes_driver_select || exit 1
+# local.env pins LEA_BASE_IMAGE to the 610 image (:=), so another driver sets it first.
+if [[ $CARAXES_DRIVER != 610 && -z ${LEA_BASE_IMAGE:-} ]]; then LEA_BASE_IMAGE=$(caraxes_driver_image ""); fi
 # shellcheck disable=SC1091
 [[ -f $LEA_ROOT/local.env ]] && source "$LEA_ROOT/local.env"
 : "${LEA_VM_DIR:=/mnt/vmstore/leandro/vm}"
 : "${LEA_CH:=/mnt/vmstore/leandro/cloud-hypervisor/bin/cloud-hypervisor}"
-: "${LEA_BASE_IMAGE:=$LEA_VM_DIR/guest-baked-20260801-610.57.04-20260820-105733.qcow2}"
+: "${LEA_BASE_IMAGE:=$(caraxes_driver_image "$LEA_VM_DIR")}"
 VM=${VM:-vm0}
 if [[ -z ${CARAXES_STORE:-} ]]; then
     if [[ -d /mnt/vmstore/caraxes ]]; then CARAXES_STORE=/mnt/vmstore/caraxes; else CARAXES_STORE=$LEA_ROOT/target/caraxes; fi
@@ -70,11 +85,29 @@ KERNEL=${CARAXES_KERNEL:-$LEA_VM_DIR/guest-image/vmlinuz}
 INITRD=${CARAXES_INITRD:-$LEA_VM_DIR/guest-image/initrd}
 SSH_KEY=${CARAXES_SSH_KEY:-$LEA_VM_DIR/id_leandro}
 SERVER=${CARAXES_SERVER:-$LEA_ROOT/target/release/vfio-user-nvgpu}
+if [[ ${CARAXES_GUEST_ABI:-} == 615 && -z ${CARAXES_SERVER:-} ]]; then
+    SERVER=$LEA_ROOT/target/v615/release/vfio-user-nvgpu
+fi
 # The settings the guest-visible identity follows (`up` and `name` pass the same ones).
 IDENTITY=()
 [[ -n ${CARAXES_FB_MIB:-} ]] && IDENTITY+=(--fb-mib "$CARAXES_FB_MIB")
 [[ -n ${CARAXES_NAME_FORMAT:-} ]] && IDENTITY+=(--name-format "$CARAXES_NAME_FORMAT")
-REF=$LEA_ROOT/caraxes/reference/rtx2070
+# The chip the device presents (decision D14): tu106 (the RTX 2070, default) or gb206
+# (the RTX 5060 Ti of caraxes/reference/gb206/, board data rtx5060ti; the Blackwell N gate,
+# docs/caraxes/blackwell-gate.md). REF holds the chip's config-space and ROM captures.
+case ${CARAXES_CHIP:-tu106} in
+    tu106) REF=$LEA_ROOT/caraxes/reference/rtx2070 ;;
+    gb206) REF=$LEA_ROOT/caraxes/reference/gb206/gpu-0000_01_00.0
+           IDENTITY+=(--board-data rtx5060ti) ;;
+    *) printf 'ERROR: CARAXES_CHIP must be tu106 or gb206\n' >&2; exit 1 ;;
+esac
+# A Blackwell identity never touches the host card (the device refuses the host flags too).
+if [[ ${CARAXES_CHIP:-tu106} != tu106 ]]; then
+    for v in CARAXES_HOST_RM CARAXES_RESERVE_VRAM CARAXES_HOST_EXEC; do
+        [[ ${!v:-0} == 1 ]] && { printf 'ERROR: %s=1 with CARAXES_CHIP=%s: pure emulation only\n' "$v" "$CARAXES_CHIP" >&2; exit 1; }
+    done
+    [[ ${CARAXES_DMA:-} == register ]] && { printf 'ERROR: CARAXES_DMA=register with CARAXES_CHIP=%s: pure emulation only\n' "$CARAXES_CHIP" >&2; exit 1; }
+fi
 if [[ -z ${CARAXES_VBIOS:-} && -f $REF/synth-vbios.bin ]]; then CARAXES_VBIOS=$REF/synth-vbios.bin; fi
 
 error() { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
@@ -92,6 +125,7 @@ up() {
     [[ -x $SERVER ]] || error "$SERVER missing: cargo build --release -p vfio-user-nvgpu"
     [[ -x $LEA_CH ]] || error "cloud-hypervisor missing at $LEA_CH"
     [[ -f $W/rootfs.qcow2 && -f $W/seed.img ]] || error "$W needs rootfs.qcow2 and seed.img"
+    if [[ -n $CARAXES_DRIVER_EXPLICIT || $CARAXES_DRIVER != 610 ]]; then check_base; fi
     [[ -f $REF/rom.bin ]] || error "$REF/rom.bin missing (git-ignored capture of the card's ROM)"
     ip link show "$TAP" >/dev/null 2>&1 || error "tap $TAP missing; see the header of this script"
     alive "$W/gpu.pid" && error "server already running (pid $(cat "$W/gpu.pid"))"
@@ -108,6 +142,7 @@ up() {
         vbios+=(--reserve-slot "$CARAXES_RESERVE_SLOT")
     [[ ${CARAXES_HOST_EXEC:-0} == 1 ]] && vbios+=(--host-exec)
     [[ ${CARAXES_DISPLAY:-0} == 1 ]] && vbios+=(--display)
+    [[ -n ${CARAXES_GUEST_ABI:-} ]] && vbios+=(--guest-abi "$CARAXES_GUEST_ABI")
     local server=$SERVER
     rm -f "$W/dma-ranges"
     case ${CARAXES_DMA:-} in
@@ -152,6 +187,24 @@ up() {
         echo "dma table: $(cat "$W/dma-ranges")"
     fi
     echo "server pid $(cat "$W/gpu.pid"), VM pid $(cat "$W/ch.pid"); logs in $W"
+}
+
+# The overlay must sit on the selected driver's image: LEA_BASE_IMAGE carries the driver
+# version in its name and is in the overlay's backing chain (qemu-img -U takes no lock).
+check_base() {
+    [[ $(basename "$LEA_BASE_IMAGE") == *"$CARAXES_DRIVER_VERSION"* ]] ||
+        error "driver $CARAXES_DRIVER_VERSION selected, but LEA_BASE_IMAGE is $LEA_BASE_IMAGE"
+    [[ -f $LEA_BASE_IMAGE ]] || error "base image $LEA_BASE_IMAGE missing"
+    command -v qemu-img >/dev/null || error "qemu-img missing (it reads the overlay's backing chain)"
+    local base img found=0
+    base=$(readlink -f "$LEA_BASE_IMAGE")
+    while read -r img; do
+        [[ $(readlink -f "$img") == "$base" ]] && found=1
+    done < <(qemu-img info -U --backing-chain "$W/rootfs.qcow2" | sed -n 's/^image: //p')
+    ((found)) || error "$W/rootfs.qcow2 is not an overlay on $LEA_BASE_IMAGE (driver $CARAXES_DRIVER_VERSION);
+use a new state directory <dir> (VM=<name>) with this overlay:
+  qemu-img create -f qcow2 -F qcow2 -b $LEA_BASE_IMAGE <dir>/rootfs.qcow2"
+    echo "driver $CARAXES_DRIVER_VERSION: overlay on $LEA_BASE_IMAGE${CARAXES_GUEST_ABI:+, CARAXES_GUEST_ABI=$CARAXES_GUEST_ABI}"
 }
 
 # Bytes of a Cloud Hypervisor memory size (4G, 4096M).
@@ -287,7 +340,8 @@ uvm() {
 LEA_TEST=${CARAXES_LEANDRO_TEST:-$(cd "$LEA_ROOT/.." && pwd -P)/Leandro-Test}
 GUEST_TESTS=${CARAXES_GUEST_TESTS:-/home/leandro/caraxes-tests}
 # The CUDA driver-API header ships in the baked image's torch venv (nvidia/cu13); libcuda
-# is the 610.57.04 userspace in /opt/nvrm/lib. The image has no CUDA toolkit and no nvcc.
+# is the selected driver's userspace in $CARAXES_GUEST_LIBDIR (610.57.04: /opt/nvrm/lib;
+# tools/lib/driver.sh). The image has no CUDA toolkit and no nvcc.
 GUEST_VENV=${CARAXES_GUEST_VENV:-/home/leandro/gpu/venv}
 # The probes that build without Vulkan, EGL or OpenCL headers (probe/Makefile targets).
 GUEST_PROBES=(nvprobe managedprobe hostregprobe oomprobe vrampress rmdirect ctrlping ioctlping)
@@ -319,9 +373,13 @@ sync_tests() {
     # rsync --delete because excluded paths are left alone on the receiving side.
     do_ssh "mkdir -p $GUEST_TESTS/leandro-test $GUEST_TESTS/caraxes $GUEST_TESTS/out && ln -sfn leandro-test/probe $GUEST_TESTS/probe"
     rsync -a --delete -e "$rsh" "${filt[@]}" "$LEA_TEST/" "leandro@$IP:$GUEST_TESTS/leandro-test/"
-    # The matrix payload reads DRIVER_VERSION from its own root (probe/run/matrix-guest.sh).
-    do_ssh "cat > $GUEST_TESTS/leandro-test/DRIVER_VERSION" < "$LEA_ROOT/DRIVER_VERSION"
+    # The matrix payload reads DRIVER_VERSION from its own root (probe/run/matrix-guest.sh):
+    # the selected driver's version (tools/lib/driver.sh), DRIVER_VERSION's by default.
+    printf '%s\n' "$CARAXES_DRIVER_VERSION" | do_ssh "cat > $GUEST_TESTS/leandro-test/DRIVER_VERSION"
     rsync -a -e "$rsh" "$LEA_ROOT/tools/caraxes-guest-tests.sh" "leandro@$IP:$GUEST_TESTS/caraxes/run-tests.sh"
+    # Where the guest runner finds this driver's nvidia-smi and libraries.
+    printf '# SPDX-License-Identifier: MIT\nCARAXES_GUEST_LIBDIR=%s\nCARAXES_GUEST_SMI=%s\n' \
+        "$CARAXES_GUEST_LIBDIR" "$CARAXES_GUEST_SMI" | do_ssh "cat > $GUEST_TESTS/caraxes/driver.env"
     # The v1 tracer, where probe/run/matrix-guest.sh looks for it; the gates re-run a
     # failed test under it. Host-built (it needs GLIBC 2.34, the guest has 2.39).
     local tracer=$LEA_ROOT/target/release/libnvrm_trace.so
@@ -337,7 +395,7 @@ sync_tests() {
     do_ssh "set -e; cd $GUEST_TESTS
         cuda=\$(dirname \$(dirname \$(ls $GUEST_VENV/lib/python3*/site-packages/nvidia/cu*/include/cuda.h | head -1)))
         make -s -C leandro-test/probe CUDA_HOME=\$cuda LEANDRO=/nonexistent \
-            CUDA_LDLIBS='-L/opt/nvrm/lib -lcuda' $targets > out/build.log 2>&1 \
+            CUDA_LDLIBS='-L$CARAXES_GUEST_LIBDIR -lcuda' $targets > out/build.log 2>&1 \
             || { tail -20 out/build.log; exit 1; }
         {
             echo \"# SPDX-License-Identifier: MIT\"
@@ -346,7 +404,7 @@ sync_tests() {
             echo \"caraxes $(git -C "$LEA_ROOT" describe --always --dirty --abbrev=12 2>/dev/null)\"
             echo \"kernel \$(uname -r); \$(. /etc/os-release; echo \$PRETTY_NAME)\"
             echo \"nvidia.ko \$(sed -n 's/.*Kernel Module for x86_64 *\([0-9.]*\).*/\1/p' /proc/driver/nvidia/version 2>/dev/null)\"
-            echo \"libcuda \$(readlink /opt/nvrm/lib/libcuda.so.1)\"
+            echo \"libcuda \$(readlink $CARAXES_GUEST_LIBDIR/libcuda.so.1)\"
             echo \"cuda.h \$cuda/include/cuda.h CUDA_VERSION \$(sed -n 's/^#define CUDA_VERSION //p' \$cuda/include/cuda.h)\"
             echo \"gcc \$(gcc -dumpfullversion); python \$(python3 -V | cut -d' ' -f2)\"
             echo \"venv $GUEST_VENV: \$($GUEST_VENV/bin/pip list 2>/dev/null | awk '/^(torch|numpy|triton|cupy|cudf|cuml|nvidia-cuda-runtime|nvidia-cudnn)/{printf \"%s=%s \", \$1, \$2}')\"

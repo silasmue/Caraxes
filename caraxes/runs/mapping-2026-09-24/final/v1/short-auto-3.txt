@@ -1,0 +1,16 @@
+# target v1 metric short-auto rep 3
+# cmd NVPROBE_ITERS=100 NVPROBE_CYCLES=1000 NVPROBE_SCHED=auto ./nvprobe 4
+# device /home/silas/git/Caraxes/target/bench/release/vhost-user-nvrm sha256 736ffc900ef62831
+# time 2026-09-24T10:40:33+02:00
+# gpu 56, 1695 MHz, 7000 MHz, P0, 8 %, 5188 MiB, Disabled
+# procs 2203975:ch-0005-dev 2223591:vm0-dev 2223607:vm0-vmm 2297063:bench-v1-dev 2297071:bench-v1-vmm 2301370:vm2-dev 2301383:vm2-vmm 
+# loadavg 4.07 4.07 4.88
+stage 0 ok (cuInit)
+stage 1 ok (context, sched=auto)
+stage 2 ok (memory)
+stage 3 ok (kernel, result correct)
+stage 4 ok (100 launches, 0.053 ms/launch, sched=auto)
+ITERS=100
+MSPERLAUNCH=0.053
+# WALL wall_ms=456 rc=0
+# MEAS dev_pid=2297063 dev_cpu_ms=270 dev_rss_hwm_kb=107816/146732 vmm_cpu_ms=390 others: ch-0005-dev=0ms vm0-dev=160ms vm2-dev=670ms vm0-vmm=310ms vm2-vmm=110ms 

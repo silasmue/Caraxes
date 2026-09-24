@@ -18,11 +18,14 @@ use serde::Deserialize;
 
 use crate::guestmem::GuestMemory;
 
+pub mod boot_fsp;
+pub mod physical;
+pub mod gb206;
 pub mod tu106;
 pub mod turing;
 
 /// Every chip this build can present, by `--chip` name.
-pub const CHIPS: &[&str] = &["tu106"];
+pub const CHIPS: &[&str] = &["tu106", "gb206"];
 
 /// A chip the device can present.
 pub trait Chip: Sync {
@@ -37,6 +40,7 @@ pub trait Chip: Sync {
 pub fn by_name(name: &str) -> Result<&'static dyn Chip, String> {
     match name {
         "tu106" => tu106::get(),
+        "gb206" => gb206::get(),
         other => Err(format!(
             "unknown chip {other:?}; this build knows {}",
             CHIPS.join(", ")
@@ -53,6 +57,30 @@ pub trait FirmwareBoot: Send {
     /// Write an owned register (`None` when not owned). Firmware side effects that
     /// the generic model has to act on come back as a [`BootEvent`].
     fn write32(&mut self, off: u64, v: u32, mem: &GuestMemory) -> Option<BootWrite>;
+    /// Where the CPU put the libos init arguments for the GSP-RM it boots (on Turing
+    /// the GSP falcon's MAILBOX0/1, `kgspProgramLibosBootArgsAddr_TU102`). The 615
+    /// transport links its queues when GSP-RM starts, before any doorbell
+    /// (docs/caraxes/gsp-transport-615.md §3). `None` when the model does not know.
+    fn libos_args_pa(&self) -> Option<u64> {
+        None
+    }
+    /// The four registers that hold the message-queue pointers from driver 615 on
+    /// (message queue v2), when the chip has them.
+    fn queue_registers(&self) -> Option<QueueRegisters> {
+        None
+    }
+}
+
+/// `NV_PGSP_QUEUE_HEAD/TAIL(0)` and `NV_PGSP_MSGQ_HEAD/TAIL(0)`: the CPU writes the
+/// command queue's write pointer to `cmd_head` and the status queue's read pointer to
+/// `msg_tail`, and reads the GSP's pointers from `cmd_tail` and `msg_head`
+/// (msgq_priv.h:55-63 and kern_gpu_tu102.c:596-605 of 615).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct QueueRegisters {
+    pub cmd_head: u64,
+    pub cmd_tail: u64,
+    pub msg_head: u64,
+    pub msg_tail: u64,
 }
 
 /// What a firmware-boot register write did.
@@ -236,6 +264,12 @@ pub struct Gmmu {
 
 /// The GMMU formats `fb.rs` implements.
 pub const MMU_FORMATS: &[&str] = &["gmmu-v2-49bit"];
+
+/// GMMU formats fb.rs's own walker does not know. `gmmu-v3-57bit` (Hopper and Blackwell)
+/// is walked by [`crate::gmmu_v3`] for the BAR1/BAR2 apertures and the leaf enumeration
+/// (fb.rs `with_mmu_format`); the incremental shadow walker (ptcache.rs), used only with
+/// host execution, stays v2 (versatility.md, "GMMU format").
+pub const MMU_FORMATS_UNWALKED: &[&str] = &["gmmu-v3-57bit"];
 
 #[derive(Clone, Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -437,7 +471,8 @@ impl ChipData {
         let regmap: RegmapFile = parse("regmap.toml", f.regmap)?;
         let di: DeviceInfoFile = parse("device-info.toml", f.device_info)?;
         let intr: InterruptsFile = parse("interrupts.toml", f.interrupts)?;
-        if !MMU_FORMATS.contains(&c.gmmu.mmu_format.as_str()) {
+        let format = c.gmmu.mmu_format.as_str();
+        if !MMU_FORMATS.contains(&format) && !MMU_FORMATS_UNWALKED.contains(&format) {
             return Err(format!(
                 "chip {}: GMMU format {:?} is not implemented (fb.rs knows {})",
                 c.name,

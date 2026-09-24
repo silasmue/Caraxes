@@ -1,0 +1,5 @@
+# SPDX-License-Identifier: MIT
+# 2026-09-24 10:05:42 guest command:
+unset DISPLAY; cd caraxes-guest; ONLY="es2gears_wayland weston-simple-egl" SECS=12 bash demos.sh weston 2>&1 | grep DEMO; tail -n 5 /tmp/demo-es2gears_wayland.txt /tmp/demo-weston-simple-egl.txt
+rc=0
+full trace 3563971 lines, events only kept

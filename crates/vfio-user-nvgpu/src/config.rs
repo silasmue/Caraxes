@@ -29,6 +29,48 @@ const REG_CAP_PTR: usize = 0x34;
 const CAP_ID_PM: u8 = 0x01;
 const CAP_ID_MSI: u8 = 0x05;
 const CAP_ID_PCIE: u8 = 0x10;
+/// The MSI-X capability id (PCI Local Bus 3.0, 6.8.2).
+pub const CAP_ID_MSIX: u8 = 0x11;
+/// The vendor-specific capability id (PCI Local Bus 3.0, 6.8.4).
+pub const CAP_ID_VNDR: u8 = 0x09;
+
+/// Bytes a standard capability occupies: MSI-X 12, vendor-specific its length byte, other
+/// ids their two header bytes.
+fn cap_len(bytes: &[u8; SIZE], id: u8, off: usize) -> usize {
+    match id {
+        CAP_ID_MSIX => 12,
+        CAP_ID_VNDR => (bytes[off + 2] as usize).max(3),
+        _ => 2,
+    }
+    .min(0x100 - off)
+}
+
+/// Unlink every capability `id` from the standard capability list of a dump and zero
+/// its bytes, so the chain the guest walks no longer reaches it and no captured value
+/// of it stays readable. Returns how many were removed. The board profile uses it to
+/// drop MSI-X (`msix = false`) and the vendor-specific capability.
+pub fn unlink_cap(bytes: &mut [u8; SIZE], id: u8) -> usize {
+    let mut removed = 0;
+    // `prev` is the offset of the pointer byte that leads to `off`.
+    let mut prev = REG_CAP_PTR;
+    let mut off = (bytes[REG_CAP_PTR] & 0xFC) as usize;
+    for _ in 0..48 {
+        if off < 0x40 {
+            break;
+        }
+        let next = bytes[off + 1] & 0xFC;
+        if bytes[off] == id {
+            bytes[prev] = next;
+            let len = cap_len(bytes, id, off);
+            bytes[off..off + len].fill(0);
+            removed += 1;
+        } else {
+            prev = off + 1;
+        }
+        off = next as usize;
+    }
+    removed
+}
 
 /// The offset of capability `id` in the standard capability list, or `None`.
 fn find_cap(bytes: &[u8; SIZE], id: u8) -> Option<usize> {
@@ -43,6 +85,21 @@ fn find_cap(bytes: &[u8; SIZE], id: u8) -> Option<usize> {
         off = (bytes[off + 1] & 0xFC) as usize;
     }
     None
+}
+
+/// The device's config space for `board` from the dump text `dump`: the board's
+/// capability filter (MSI-X unlinked unless `msix`), its BAR layout and ROM BAR size.
+/// The vendor-specific capability is always removed: on GB206 it is the PBI mailbox
+/// (blackwell/gb100/dev_pcfg_pf0.h:32-37), and its data dwords in the capture hold part
+/// of the card's UUID, a per-card value no synthetic identity may carry
+/// (docs/caraxes/blackwell-gb206.md 2.5).
+pub fn for_board(dump: &str, board: &crate::board::Board) -> Result<ConfigSpace> {
+    let mut bytes = parse_dump(dump)?;
+    unlink_cap(&mut bytes, CAP_ID_VNDR);
+    if !board.msix {
+        unlink_cap(&mut bytes, CAP_ID_MSIX);
+    }
+    ConfigSpace::from_dump(bytes, board.bars, board.rom_bar_size)
 }
 
 /// The PCI identity words of the function.
@@ -68,7 +125,9 @@ impl PciIds {
 }
 
 /// Parse an `lspci -xxxx` hex dump. Lines that are not `<hex offset>: <bytes>`
-/// are skipped, so the header line and comments are harmless.
+/// are skipped, so the header line and comments are harmless. A byte spelled `xx` was
+/// redacted by the capture kit (per-card values, `caraxes/tools/lab-capture.sh`
+/// `redact_config`) and reads as 0.
 pub fn parse_dump(text: &str) -> Result<[u8; SIZE]> {
     let mut bytes = [0u8; SIZE];
     let mut seen = 0usize;
@@ -84,7 +143,7 @@ pub fn parse_dump(text: &str) -> Result<[u8; SIZE]> {
         if tokens.is_empty()
             || !tokens
                 .iter()
-                .all(|t| t.len() == 2 && t.chars().all(|c| c.is_ascii_hexdigit()))
+                .all(|t| t.len() == 2 && (*t == "xx" || t.chars().all(|c| c.is_ascii_hexdigit())))
         {
             continue;
         }
@@ -94,7 +153,11 @@ pub fn parse_dump(text: &str) -> Result<[u8; SIZE]> {
             if off >= SIZE {
                 bail!("config dump offset {off:#x} exceeds {SIZE:#x}");
             }
-            bytes[off] = u8::from_str_radix(tok, 16)?;
+            bytes[off] = if *tok == "xx" {
+                0
+            } else {
+                u8::from_str_radix(tok, 16)?
+            };
             seen = seen.max(off + 1);
         }
     }
@@ -350,6 +413,48 @@ mod tests {
         assert_eq!(c.ids().sub_device_id(), 0x4011_1458);
         assert!(!c.msi_enabled());
         assert_eq!(c.dword(0x100), 0);
+    }
+
+    /// The GB206 capture (blackwell-gb206.md 1.2): PM 0x40, MSI 0x48, PCIe 0x60, the
+    /// vendor-specific capability 0x9C and MSI-X 0xB0 on the card; the vendor-specific
+    /// capability (UUID bytes in its PBI data dwords) is always removed, MSI-X by the
+    /// board's `msix = false`, and the extended space (SR-IOV, ARI, the serial number at
+    /// 0x2F4) is not presented.
+    #[test]
+    fn gb206_capture_without_msix() {
+        let dump =
+            include_str!("../../../caraxes/reference/gb206/gpu-0000_01_00.0/config-space.txt");
+        let raw = parse_dump(dump).unwrap();
+        assert_eq!(find_cap(&raw, CAP_ID_MSIX), Some(0xB0));
+        // The capture kit redacted the DSN serial (0x2F8-0x2FF) to "xx": the header stays.
+        assert_eq!(raw[0x2F4], 0x03);
+        assert_eq!(raw[0x2F8..0x300], [0u8; 8]);
+        let b = crate::board::Board::load("rtx5060ti").unwrap();
+        let c = for_board(dump, &b).unwrap();
+        assert_eq!(
+            (c.vendor_id(), c.device_id(), c.revision()),
+            (0x10DE, 0x2D04, 0xA1)
+        );
+        assert_eq!(c.class_code(), 0x030000);
+        assert_eq!(c.subsystem(), (0x1043, 0x8A08));
+        let mut chain = Vec::new();
+        let mut off = c.byte(0x34) as usize;
+        while off >= 0x40 {
+            chain.push((off, c.byte(off)));
+            off = c.byte(off + 1) as usize;
+        }
+        assert_eq!(chain, [(0x40, 0x01), (0x48, 0x05), (0x60, 0x10)]);
+        // Nothing of the vendor-specific capability (0x9C, with UUID bytes at 0xA8) or
+        // of MSI-X (0xB0) stays readable.
+        assert!((0x9C..0x100).all(|o| c.byte(o) == 0));
+        assert_eq!(raw[0xA8..0xAC], [0u8; 4], "redacted in the capture");
+        assert!((0x100..SIZE).all(|o| c.byte(o) == 0));
+        assert_eq!((c.cap_msi, c.cap_pcie), (0x48, 0x60));
+        // The TU106 dump has no MSI-X: the filter changes nothing there.
+        let mut t = parse_dump(DUMP).unwrap();
+        let before = t;
+        assert_eq!(unlink_cap(&mut t, CAP_ID_MSIX), 0);
+        assert_eq!(t, before);
     }
 
     #[test]

@@ -12,7 +12,8 @@ for making the device complete without trace-driven bring-up
 (docs/caraxes/gsp-surface.md).
 
 Inputs (all read only):
-  vendor/open-gpu-kernel-modules (the 610.57.04 tree)
+  an open-gpu-kernel-modules tree: --ogkm DIR, else $CARAXES_OGKM, else the vendored
+  vendor/open-gpu-kernel-modules (610.57.04); the driver version is its version.mk
     src/nvidia/inc/kernel/vgpu/rpc_global_enums.h   RPC functions (X) and events (E)
     src/nvidia/generated/g_rpc-structures.h           versioned payload structs
     src/nvidia/generated/g_*_nvoc.c                   exported control tables
@@ -25,7 +26,7 @@ Inputs (all read only):
     call sites in src/nvidia/src, src/nvidia/arch, src/nvidia-modeset, src/common
       (displayport, modeset, unix), kernel-open/nvidia-drm, kernel-open/nvidia-uvm
   crates/vfio-user-nvgpu/src (dispatcher modules, ver/v610*, tests stripped)
-  matrix/traces/610.57.04/control/*.jsonl (optional: native user-level control traces,
+  matrix/traces/<version>/control/*.jsonl (optional: native user-level control traces,
     used only as a secondary "seen on the real card" signal)
 
 What counts as "routed to GSP":
@@ -64,6 +65,8 @@ Usage:
   python3 caraxes/tools/gsp-surface.py --full            plus the per-control lists
   python3 caraxes/tools/gsp-surface.py --json out.json   raw inventory as JSON
   python3 caraxes/tools/gsp-surface.py --explain         how each handled id was read
+  python3 caraxes/tools/gsp-surface.py --ogkm DIR        against another driver tree
+                                                         (or CARAXES_OGKM=DIR)
 
 Python 3.8 or later, standard library only. Runs in a few seconds.
 """
@@ -77,10 +80,10 @@ import re
 import sys
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-VENDOR = os.path.join(ROOT, "vendor", "open-gpu-kernel-modules")
-NV = os.path.join(VENDOR, "src", "nvidia")
 CRATE = os.path.join(ROOT, "crates", "vfio-user-nvgpu", "src")
-TRACES = os.path.join(ROOT, "matrix", "traces", "610.57.04", "control")
+# The driver tree (VENDOR, NV, DRIVER, TRACES, CALLER_DIRS) is set by select_tree():
+# --ogkm DIR, else $CARAXES_OGKM, else the vendored tree.
+DEFAULT_VENDOR = os.path.join(ROOT, "vendor", "open-gpu-kernel-modules")
 
 # RMCTRL_FLAGS_* (src/nvidia/inc/kernel/rmapi/control.h:167-344); re-read from the header
 # at run time, these are only the names used below.
@@ -135,7 +138,38 @@ NOVA_KNOWS = {"ALLOC_CHANNEL_DMA", "ALLOC_CTX_DMA", "ALLOC_DEVICE", "ALLOC_MEMOR
 
 
 def rel(p):
-    return os.path.relpath(p, ROOT)
+    r = os.path.relpath(p, ROOT)
+    # a tree outside the repository (CARAXES_OGKM) is cited by its absolute path
+    return os.path.abspath(p) if r.startswith("..") else r
+
+
+def tree_version(vendor):
+    """NVIDIA_VERSION from the tree's version.mk, or None."""
+    try:
+        t = read(os.path.join(vendor, "version.mk"))
+    except OSError:
+        return None
+    m = re.search(r"^NVIDIA_VERSION\s*=\s*(\S+)", t, re.M)
+    return m.group(1) if m else None
+
+
+def select_tree(vendor):
+    """Point every vendor-side path at the tree `vendor`."""
+    global VENDOR, NV, DRIVER, TRACES, CALLER_DIRS
+    VENDOR = vendor
+    NV = os.path.join(VENDOR, "src", "nvidia")
+    DRIVER = tree_version(VENDOR) or "unknown"
+    TRACES = os.path.join(ROOT, "matrix", "traces", DRIVER, "control")
+    CALLER_DIRS = {
+        "kernel-rm": [os.path.join(NV, "src"), os.path.join(NV, "arch")],
+        "display": [os.path.join(VENDOR, "src", "nvidia-modeset"),
+                    os.path.join(VENDOR, "src", "common", "modeset"),
+                    os.path.join(VENDOR, "src", "common", "displayport"),
+                    os.path.join(VENDOR, "src", "common", "unix"),
+                    os.path.join(VENDOR, "kernel-open", "nvidia-drm"),
+                    os.path.join(VENDOR, "kernel-open", "nvidia-modeset")],
+        "uvm": [os.path.join(VENDOR, "kernel-open", "nvidia-uvm")],
+    }
 
 
 def read(p):
@@ -258,16 +292,6 @@ def balanced_call(text, start):
     return text[i:], args
 
 
-CALLER_DIRS = {
-    "kernel-rm": [os.path.join(NV, "src"), os.path.join(NV, "arch")],
-    "display": [os.path.join(VENDOR, "src", "nvidia-modeset"),
-                os.path.join(VENDOR, "src", "common", "modeset"),
-                os.path.join(VENDOR, "src", "common", "displayport"),
-                os.path.join(VENDOR, "src", "common", "unix"),
-                os.path.join(VENDOR, "kernel-open", "nvidia-drm"),
-                os.path.join(VENDOR, "kernel-open", "nvidia-modeset")],
-    "uvm": [os.path.join(VENDOR, "kernel-open", "nvidia-uvm")],
-}
 SRC_EXT = (".c", ".cpp", ".h")
 
 
@@ -925,7 +949,7 @@ def build():
             "acknowledged (generic alloc echo)" if c["reaches_gsp"] else "")
 
     return {
-        "driver": "610.57.04",
+        "driver": DRIVER,
         "sources": {"vendor": rel(VENDOR), "crate": rel(CRATE),
                     "event_dispatch": dispatch_src},
         "rmctrl_flags": flags_by_name,
@@ -1105,7 +1129,11 @@ def main():
     ap.add_argument("--explain", action="store_true", help="list how each handled id was read")
     ap.add_argument("--top", type=int, default=0,
                     help="print the N unhandled controls with most call sites and trace hits")
+    ap.add_argument("--ogkm", metavar="DIR",
+                    help="open-gpu-kernel-modules tree (default: $CARAXES_OGKM, else "
+                         "vendor/open-gpu-kernel-modules)")
     a = ap.parse_args()
+    select_tree(os.path.abspath(a.ogkm or os.environ.get("CARAXES_OGKM") or DEFAULT_VENDOR))
     if not os.path.isdir(NV):
         sys.exit("vendor tree not found: %s" % VENDOR)
     inv = build()

@@ -1,0 +1,27 @@
+# SPDX-License-Identifier: MIT
+# 615.71.09 guest, stock device, status queue header written by the host (LINK=1), probe g615-link2: device events and queue register accesses (MSGQ_HEAD polls collapsed to the first 5 and the count)
+658:   732031985 E flr: function-level reset, device model back to its initial state
+1166:   732382069 W bar0 0x00110c00 4  0x0          NV_PGSP_QUEUE_HEAD/TAIL
+1167:   732382072 E boot: doorbell 1: libos args PA 0x0 (mapped), wpr meta PA unknown
+1168:   732382074 E boot: queues: no RMARGS region in the libos init arguments
+34250:   733330784 E boot: gsp reset 1
+34437:   733335361 E boot: gsp start 1: halted
+34438:   733335363 E boot: fwsec: data buffer PA 0x3c920000, frtsOffset 0xffe00000 (from the FWSEC command in guest RAM), WPR2 lo 0xffe000 hi 0xffeff0
+34445:   733335986 E boot: gsp reset 2
+34470:   733336610 W bar0 0x00110040 4  0x573c000    NV_PGSP (GSP falcon)
+34471:   733336634 W bar0 0x00110044 4  0x0          NV_PGSP (GSP falcon)
+34474:   733336727 E boot: sec2 reset 1
+49429:   733726118 E boot: sec2 start 1: booter done, wpr meta PA 0x573b000 (mapped), gsp riscv active
+49430:   733726124 E boot: wpr meta: fbSize 0x100000000 gspFwRsvdStart 0xf7d00000 nonWprHeap 0xf7d00000+0x100000 wprStart 0xf7e00000 frtsOffset 0xffe00000 wprEnd 0xfff00000 vgaWorkspace 0xfff00000
+67162:   734269777 W bar0 0x00110c84 4  0x0          NV_PGSP (GSP falcon)
+67163:   734269891 W bar0 0x00110c00 4  0x1          NV_PGSP_QUEUE_HEAD/TAIL
+67164:   734269894 E boot: doorbell 2: libos args PA 0x573c000 (mapped), wpr meta PA 0x573b000
+67165:   734269896 E boot: queues: implausible queue arguments: 2 pages, status at 0x88400000
+67166:   734269930 R bar0 0x00110c80 4  0x0          NV_PGSP (GSP falcon)
+67168:   734270000 R bar0 0x00110c80 4  0x0          NV_PGSP (GSP falcon)
+67170:   734270065 R bar0 0x00110c80 4  0x0          NV_PGSP (GSP falcon)
+67172:   734270124 R bar0 0x00110c80 4  0x0          NV_PGSP (GSP falcon)
+67174:   734270180 R bar0 0x00110c80 4  0x0          NV_PGSP (GSP falcon)
+271108:   740542314 R bar0 0x00110040 4  0x573c000    NV_PGSP (GSP falcon)
+271109:   740542338 R bar0 0x00110044 4  0x0          NV_PGSP (GSP falcon)
+# R bar0 0x00110c80 (NV_PGSP_MSGQ_HEAD(0)) reads in the window: 101962

@@ -1,0 +1,5 @@
+# SPDX-License-Identifier: MIT
+# 2026-09-24 09:25:53 guest command:
+unset DISPLAY; cd caraxes-guest; echo "load $(cat /proc/loadavg)"; timeout 300 ./eglprobe 1920 1080 120; sudo SETTLE=3 REPAINT_WINDOW=12 SIZE=1080 DAMAGE=1080 timeout 300 bash weston-pace.sh 1920x1080 20 gl 2>&1 | grep -E "weston up|first frame|surface|FRAMES|PRESENTED|presented=|exit"
+rc=0
+full trace 349925 lines, events only kept

@@ -19,7 +19,9 @@ path = "src/main.rs"
 [dependencies]
 anyhow.workspace = true
 libc.workspace = true
-nvrm-sys.workspace = true
+# Both host layouts: the host driver is chosen at run time (src/hostabi.rs,
+# docs/caraxes/cutover-615.md); the guest ABI stays the build-time `v610` below.
+nvrm-sys = { workspace = true, features = ["v610", "v615"] }
 nvrm-abi.workspace = true
 nvrm-client = { path = "../nvrm-client" }
 # The DisplayPort sink behind the emulated connector (docs/caraxes/display-ab.md).
@@ -41,3 +43,9 @@ toml = "0.8"
 [features]
 default = ["v610"]
 v610 = ["nvrm-sys/v610"]
+# The guest runs driver 615.71.09 (docs/caraxes/gsp-transport-615.md): `ver::active` is
+# `ver::v615`, the transport is message queue v2 with the GMCAPI init. It implies v610,
+# whose layouts the host side keeps (the host driver stays 610.57.04). Build with
+# `cargo build --release -p vfio-user-nvgpu --features v615 --target-dir target/v615`;
+# tools/caraxes-vm.sh picks that binary for CARAXES_GUEST_ABI=615.
+v615 = ["v610", "nvrm-sys/v615"]

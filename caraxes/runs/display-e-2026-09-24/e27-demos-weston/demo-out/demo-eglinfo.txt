@@ -1,0 +1,20 @@
+weston up (pid 8502, renderer gl, 1920x1080@60); GL renderer: Leandro VFIO RTX 2070-2G/PCIe/SSE2
+Wayland platform:
+EGL API version: 1.5
+EGL vendor string: NVIDIA
+EGL version string: 1.5
+EGL client APIs: OpenGL_ES OpenGL
+OpenGL core profile vendor: NVIDIA Corporation
+OpenGL core profile renderer: Leandro VFIO RTX 2070-2G/PCIe/SSE2
+OpenGL core profile version: 4.6.0 NVIDIA 610.57.04
+OpenGL core profile shading language version: 4.60 NVIDIA
+OpenGL compatibility profile vendor: NVIDIA Corporation
+OpenGL compatibility profile renderer: Leandro VFIO RTX 2070-2G/PCIe/SSE2
+OpenGL compatibility profile version: 4.6.0 NVIDIA 610.57.04
+OpenGL compatibility profile shading language version: 4.60 NVIDIA
+OpenGL ES profile vendor: NVIDIA Corporation
+OpenGL ES profile renderer: Leandro VFIO RTX 2070-2G/PCIe/SSE2
+OpenGL ES profile version: OpenGL ES 3.2 NVIDIA 610.57.04
+OpenGL ES profile shading language version: OpenGL ES GLSL ES 3.20
+
+command exit 0
