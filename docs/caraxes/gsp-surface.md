@@ -683,3 +683,130 @@ Notes. (1) The "a GSP client sends" set is the 610 source survey kept as a const
 GMCAPI_CMD_GSP_INIT (blackwell-gb206.md §3.3), so 20 overstates what a 615 kernel RM sends. (2) The
 A to E classification is the same heuristic; the 16 new unhandled controls fall into C (2), D (3)
 and E (11).
+
+## After E and A (2026-09-24)
+
+Categories E and A are implemented as two table-driven rules in
+`crates/vfio-user-nvgpu/src/chipctl.rs`, one hook in `Dispatcher::control` (ctrl.rs) after the
+display, kgr, cuda, uvm and nvml handlers and before the match of ctrl.rs. Both guest ABIs,
+615 as the reference.
+
+**How the tables are made.** Two generators, both offline and from source:
+
+- `caraxes/tools/gsp-tables.py --ogkm <tree>` runs `gsp-surface.py --json` on the tree and writes
+  `src/ver/v<major>/surface.rs`: every routed control with its heuristic category and whether
+  another handler answers it (`ROUTED`), the category E controls no other handler answers sorted
+  into feature families with the SDK header blocks that define them (`E_FAMILIES`), and the
+  inventory counts (`E_INVENTORY`, `A_INVENTORY`). The ids are driver-version data (D14), so
+  there is one file per version; `gsp-surface.py` now keeps the category of handled controls as
+  `class_category`, so the files regenerate identically once the rules answer.
+- `caraxes/tools/ctrl-layouts.py --ogkm <tree>` writes `src/ver/v<major>/ctrl_layouts.rs`, the
+  layouts of the parameter structs `controls.toml` names, measured by the compiler against the
+  tree's SDK headers (clang's record-layout dump for the field names, `offsetof`/`sizeof` for the
+  numbers). Where `nvrm-sys` binds the struct (6 of 8), the file asserts at compile time that
+  size and top-level offsets equal the binding; the other two (`NV9096_CTRL_GET_ZBC_CLEAR_TABLE_SIZE_PARAMS`,
+  `NV2080_CTRL_CE_GET_DECOMP_LCE_MASK_PARAMS`) are not in the `nvrm-sys` footprint, and widening
+  the footprint needs `tools/build.sh vendor-abi`, which fetches all four header sets from the
+  network. No offset is typed by hand.
+
+**Category E.** `chips/<chip>/chip.toml` gains `[features]`: every family of the version is named
+`absent` or `present` (a TU102 would list `nvlink` present, a GA100 `mig`), unknown names refuse
+the chip. The controls of absent families are answered NOT_SUPPORTED, request echoed, label
+`refused (feature absent on this chip)`. TU106 and GB206 name all twelve families absent.
+Header blocks are the 615 tree's (`src/common/sdk/nvidia/inc/ctrl/`); the INTERNAL ones are
+spread over `ctrl2080internal.h`, so the ranges there are wide and `surface.rs` lists every id.
+
+| Family | 610 | 615 | What | Control blocks (615 headers) |
+|---|---:|---:|---|---|
+| `rm_test` | 13 | 13 | RM self-tests, fuzzers, ECC and ctxsw-ucode injection | `ctrl2080ecc.h:190-237`, `ctrl2080gpu.h:4393-4916`, `ctrl2080gr.h:2031`, `ctrl2080gsp.h:206-214`, `ctrl208ffb.h:420`, `ctrl208fgr.h:158` |
+| `nvlink` | 86 | 93 | NVLink and INTERNAL_NVLINK | `ctrl2080nvlink.h:750-3604`, `ctrl2080internal.h:2316-5551` |
+| `hshub` | 8 | 8 | high-speed hub | `ctrl2080hshub.h:53-72`, `ctrl2080internal.h:2218-4228` |
+| `fabric` | 9 | 9 | FLA, fabric probe, fabric manager, memory fabric | `ctrl2080fla.h:84-148`, `ctrl00f8.h:129`, `ctrl0000system.h:2283`, `ctrl2080internal.h:3559-3637` |
+| `c2c` | 7 | 7 | chip-to-chip links | `ctrl2080bus.h:1455-1736`, `ctrl2080internal.h:1284-1304` |
+| `gsync` | 9 | 9 | G-SYNC board | `ctrl2080internal.h:2743-4251` |
+| `vgpu` | 23 | 27 | vGPU host, SR-IOV VF | `ctrl2080vgpumgrinternal.h:59-617`, `ctrl2080gpu.h:2357-4491`, `ctrl2080internal.h:1331-2969`, `ctrl0080gpu.h:583`, `ctrl2080fifo.h:764` |
+| `mig` | 12 | 12 | MIG and SMC | `ctrlc637.h:200-325`, `ctrl2080ce.h:543-567`, `ctrl2080internal.h:815-2098` |
+| `cc` | 9 | 9 | Confidential Computing | `ctrl2080internal.h:3650-5521`, `ctrlc56f.h:95` |
+| `spdm` | 1 | 1 | SPDM | `ctrl2080spdm.h:222` |
+| `ccu` | 6 | 6 | clock-counter unit | `ctrl2080internal.h:2394-2722`, `ctrlb0ccprofiler.h:713-723` |
+| `internal_uncalled` | 6 | 6 | INTERNAL without a kernel-RM call site | `ctrl2080ce.h:308`, `ctrlc36f.h:152`, `ctrl2080internal.h:1435-4124` |
+| **total** | **189** | **200** | = the inventory's E count of each tree | |
+
+No FSP control is in either E list, so there is no `fsp` family. The real card's answers were
+checked against the native traces (`matrix/traces/610.57.04/control/*.jsonl`): of the E controls
+only `NV2080_CTRL_GPU_GET_NVENC_SW_SESSION_STATS` 0x2080016D appears, answered NV_OK with 12 zero
+bytes (`nvml.jsonl:419`; the kernel answers it itself unless it is a vGPU host,
+`subdevice_ctrl_gpu_kernel.c:1039`), so chip.toml lists it under `empty_ok` and the device
+answers NV_OK with zeros, label `card`. `NVLINK_GET_PLATFORM_INFO`, the other NV_OK-with-zeros
+answer of the card, stays with nvml.rs and is in no family.
+
+**Category A.** `chips/tu106/controls.toml` names each control, its parameter struct, the input
+fields to keep, the fields to write (a number or `ENUM:NAME` for the driver enums the version
+module knows) and optional cases on an input; the handler writes them into a zeroed block of the
+request's size. 8 of the 60 are filled, all for both ABIs:
+
+| Control | Source | Value |
+|---|---|---|
+| `NV0080_CTRL_CMD_NVDEC_GET_CAPS_V2` | card | capsTbl `01 00 00 00 16 00 00 00` (`nvdec.jsonl:2192`, `vk-enum.jsonl:590`) |
+| `NV0080_CTRL_CMD_NVENC_GET_CAPS_V2` | card | all zero (the V1 control's nested table, `nvdec.jsonl:2195`) |
+| `NV9096_CTRL_CMD_GET_ZBC_CLEAR_TABLE_SIZE` | card | indices 1 to 15 for colour, depth, stencil (72 captures, `gl-enum.jsonl:1465`) |
+| `NV2080_CTRL_CMD_MC_GET_INTR_CATEGORY_SUBTREE_MAP` | chip | `interrupts.toml` subtrees |
+| `NV2080_CTRL_CMD_MC_GET_STATIC_INTR_TABLE` | chip | the four static interrupts of `interrupts.toml` |
+| `NV2080_CTRL_CMD_MC_GET_ENGINE_NOTIFICATION_INTR_VECTORS` | chip | GR0, CE2-CE4 non-stall vectors of `interrupts.toml` |
+| `NV2080_CTRL_CMD_CE_GET_DECOMP_LCE_MASK` | chip | 0 (no decompression LCE, chip.toml `[ce]`) |
+| `NV2080_CTRL_CMD_GPU_GET_FIRST_ASYNC_CE_IDX` | chip | 2 (`device-info.toml`: CE0/CE1 on GR's runlist) |
+
+None came from RM source constants: the physical implementations of these controls are GSP-RM
+code, not in the open tree. The other 52, and what a capture (the operator's one-time sweep of the
+real card, host GPU untouched until then) would supply:
+
+- *A sweep of the card's own answers* (the control with a zeroed request on the host
+  subdevice/device, one capture per chip): `NV0080_CTRL_CMD_FB_GET_COMPBIT_STORE_INFO`,
+  `NV0080_CTRL_CMD_FIFO_GET_LATENCY_BUFFER_SIZE` (per engine), `NV0080_CTRL_CMD_GR_GET_TPC_PARTITION_MODE`,
+  `NV0080_CTRL_CMD_NVJPG_GET_CAPS_V2` (TU106 has no NVJPG: status only), `NV2080_CTRL_CMD_GPU_GET_IP_VERSION`
+  (per target engine), `NV2080_CTRL_CMD_GPU_GET_VPR_CAPS`, `_GET_VPR_INFO`, `_GET_OEM_INFO`,
+  `NV2080_CTRL_CMD_GET_P2P_CAPS`, `NV2080_CTRL_CMD_FIFO_OBJSCHED_GET_CAPS` (per engine),
+  `NV2080_CTRL_CMD_GR_GET_GPC_TILE_MAP`, `NV2080_CTRL_CMD_GR_GET_TPC_RECONFIG_MASK`,
+  `NV2080_CTRL_CMD_FB_GET_FS_INFO`, `_GET_CARVEOUT_REGION_INFO`, `_GET_WPR_REGION_INFO`,
+  `_GET_COMPBITCOPY_CONSTRUCT_INFO`, `NV2080_CTRL_CMD_GET_RC_INFO`, `NV2080_CTRL_CMD_PMGR_GET_MODULE_INFO`,
+  `NV2080_CTRL_CMD_CE_GET_HUB_PCE_MASK_V2`, `NV2080_CTRL_CMD_CE_GET_LCE_SHIM_INFO`,
+  `NV2080_CTRL_CMD_FLCN_GET_ENGINE_ARCH` (per engine), `NV2080_CTRL_CMD_GPU_GET_DIELET_INFO`,
+  `NV402C_CTRL_CMD_I2C_TABLE_GET_DEV_INFO`, `NV9096_CTRL_CMD_GET_ZBC_CLEAR_TABLE` (the default
+  table entries), `NV90CC_CTRL_CMD_HWPM_GET_RESERVATION_INFO` (25).
+- *The display and board data* (the host's DispCommon on the connector the device presents; the
+  board, not the chip): `NV0073_CTRL_CMD_SYSTEM_GET_HOTPLUG_CONFIG`, `_GET_ACPI_ID_MAP`,
+  `_GET_CONNECTOR_TABLE`, `_GET_HOTPLUG_EVENT_CONFIG`, `NV0073_CTRL_CMD_SPECIFIC_GET_HDCP_REPEATER_INFO`,
+  `_GET_HDMI_GPU_CAPS`, `NV0073_CTRL_CMD_DFP_GET_DISPLAYPORT_DONGLE_INFO`, `_GET_PADLINK_MASK`,
+  `_GET_DISP_PHY_INFO`, `NV0073_CTRL_CMD_PSR_GET_SR_PANEL_INFO` (10). These belong with the
+  connector model of `display/` (P12) as much as with a capture.
+- *INTERNAL controls only the kernel sends*: a capture cannot reach them (they are not callable
+  from user space); they need the kernel's reading of the answer, from source:
+  `NV2080_CTRL_CMD_INTERNAL_BIF_GET_DATA`, `_GR_GET_FECS_TRACE_RD_OFFSET`, `_GET_DEVICE_INFO_TABLE`
+  (the raw PTOP table, derivable from `device-info.toml` once its row format is modelled),
+  `_GET_EGPU_BRIDGE_INFO`, `_GPU_GET_GSP_RM_FREE_HEAP`, `_PMGR_PFM_REQ_HNDLR_GET_EDPP_LIMIT_INFO`,
+  `_UCODE_INSTRUMENTATION_GET_DATA`, `NVB0CC_CTRL_CMD_INTERNAL_GET_MAX_PMAS`, and
+  `NV2080_CTRL_CMD_FIFO_GET_CHANNEL_MEM_INFO` (per channel, closer to C) (9).
+- *Not sent on this chip* (feature-gated in the kernel: MIG, CC, Hopper ATS, Blackwell HFRP,
+  vGPU): `NV2080_CTRL_CMD_INTERNAL_STATIC_KMIGMGR_GET_PROFILES`, `_GET_PARTITIONABLE_ENGINES`,
+  `_GET_SWIZZ_ID_FB_MEM_PAGE_RANGES`, `_GET_COMPUTE_PROFILES`, `_FIFO_GET_NUM_SECURE_CHANNELS`,
+  `_MEMSYS_GET_LOCAL_ATS_CONFIG`, `_GPU_GET_HFRP_INFO`, `_GPU_GET_PF_BAR1_SPA` (8). They are A by
+  shape; a later pass can move them into the matching E family.
+
+**Counts** (`gsp-surface.py --explain` against this tree, 2026-09-24; no native traces in the
+worktree, so the trace columns are 0; the device side is `ver/v610` for both trees, as above):
+
+| Item | 610 before | 610 after | 615 before | 615 after |
+|---|---:|---:|---:|---:|
+| Routed controls handled | 176 | 373 | 175 | 383 |
+| (host / synthesized / guest / echo / refused) | 40/55/23/47/11 | 40/64/23/47/199 | 39/55/23/47/11 | 39/64/23/47/210 |
+| Routed controls unhandled | 653 | 456 | 669 | 461 |
+| (A / B / C / D / E) | 60/70/29/305/189 | 52/70/29/305/0 | 60/70/31/308/200 | 52/70/31/308/0 |
+
+"Before" is the same tree without the two rules (HEAD 6450203); it differs from the tables
+above (171 handled, A 62) by the handlers added since the survey. Tests: `chipctl::tests` checks
+that every family id is refused through the dispatcher and never reaches the host, that with
+every family present each family id falls through all other handlers unanswered (so the rule
+takes nothing a handler answers or forwards), that the families cover exactly `E_INVENTORY` for
+each ABI (189 and 200), the handler against hand-built blocks for NVDEC caps, the engine
+notification vectors and the ZBC table size on both ABIs, and that every table entry resolves
+against both ABIs' layouts.
