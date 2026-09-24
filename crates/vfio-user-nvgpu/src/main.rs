@@ -92,6 +92,13 @@ Environment: CARAXES_DOORBELL_IOEVENTFD=1 offers the usermode doorbell register 
   Hypervisor, a client without it keeps trapping); the eventfd carries no token, so a
   wakeup rings every channel whose GPPut moved since its last doorbell. Refused with
   CARAXES_BAR1_PASSTHROUGH=1.
+  CARAXES_BAR1_PASSTHROUGH=pool (P21 design H, docs/caraxes/bar1-pool.md) carves a pool of
+  CARAXES_BAR1_POOL_MIB (even, 2-128, default 64) from the top of the usable FB, offers
+  guest BAR1 [0, pool) as one sparse mmap area backed by a dma-buf of it, and moves every
+  page the guest maps there into the pool; needs --reserve-vram, host execution and every
+  host channel on a shadow VA space (CARAXES_MIRROR_GR_SHADOW=1, not CARAXES_CE_SHADOW=0,
+  not CARAXES_MIRROR_GR=1). Refused with CARAXES_DOORBELL_IOEVENTFD=1.
+  CARAXES_BAR1_POOL_WARM=refuse never moves a page the GPU maps (no preempt barrier).
   CARAXES_DOORBELL_TOKENS=N (1-253, or on = 64) offers the doorbell register as N
   ioeventfd sub-regions with KVM datamatch, one eventfd per device-chosen token; a
   channel's first doorbell traps and hands it a pool token through its work-submit-token
@@ -349,6 +356,28 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
             tokens::TOKENS_ENV
         );
     }
+    let bar1_pool = vfio_user_nvgpu::bar1pool::config().map_err(anyhow::Error::msg)?;
+    if doorbell_ioeventfd && bar1_pool.is_some() {
+        // The same reason as for the prototype below: GPPut writes through the area never
+        // reach the device, and the token-less path has nothing else to go by.
+        bail!("{DOORBELL_IOEVENTFD_ENV}=1 is refused together with CARAXES_BAR1_PASSTHROUGH=pool: use the token pool ({}=N) instead", tokens::TOKENS_ENV);
+    }
+    if bar1_pool.is_some() {
+        // Every GPU access must go through a translation the device controls: a host
+        // channel on an externally-owned VA space (CE without the shadow, or the replayed
+        // VAS of CARAXES_MIRROR_GR=1) walks the guest's own tables and would reach a page
+        // at its old place (docs/caraxes/bar1-pool.md, isolation and rules).
+        let env = |k: &str| std::env::var(k).ok();
+        if env("CARAXES_MIRROR_GR_SHADOW").as_deref() != Some("1")
+            || env("CARAXES_CE_SHADOW").as_deref() == Some("0")
+            || env("CARAXES_MIRROR_GR").as_deref() == Some("1")
+        {
+            bail!("CARAXES_BAR1_PASSTHROUGH=pool needs every host channel on a shadow VA space: CARAXES_MIRROR_GR_SHADOW=1, and neither CARAXES_CE_SHADOW=0 nor CARAXES_MIRROR_GR=1");
+        }
+        if !a.reserve_vram || !a.boot_model || !a.host_exec {
+            bail!("CARAXES_BAR1_PASSTHROUGH=pool needs --reserve-vram, --boot-model and host execution (the FB on the reserved VRAM)");
+        }
+    }
     if doorbell_ioeventfd && vfio_user_nvgpu::fb::bar1_passthrough_config().is_some() {
         // The token-less ioeventfd path rings the channels whose GPPut moved, read from the
         // FB store's watched copy that the trapped BAR1 writes keep current; with the
@@ -437,6 +466,19 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
         let r = h.reservation().expect("reserved").clone();
         layout = FbLayout::reserved(a.fb_mib << 20, r.host_fb_total, r.base, r.end())
             .map_err(anyhow::Error::msg)?;
+        if let Some(len) = bar1_pool {
+            // P21 design H: the pool comes out of the usable FB before the static info is
+            // built, so the guest's region table already ends its heap below it.
+            let (wlen, wn) = vfio_user_nvgpu::fb::bar1_budget();
+            vfio_user_nvgpu::bar1pool::check_size(
+                &layout,
+                len,
+                region_size(&a.board_data, 1),
+                (wlen * wn) as u64,
+            )
+            .map_err(anyhow::Error::msg)?;
+            layout = layout.with_pool(len).map_err(anyhow::Error::msg)?;
+        }
         eprintln!(
             "vfio-user-nvgpu: fb layout: address space {:#x} (host card), reservation [{:#x}, {:#x}), usable [{:#x}, {:#x}), BAR2/BAR1 roots {:#x}/{:#x}, fb_length {:#x}",
             layout.addr_space,
@@ -513,6 +555,23 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
             eprintln!(
                 "vfio-user-nvgpu: bar1 passthrough: guest BAR1 [0, {len:#x}) offered as one sparse mmap area of region 1, backed by a dma-buf of FB [{fb0:#x}, {:#x}) (reservation offset {off:#x}); {len:#x} of host BAR1 held while the client maps it (CARAXES_BAR1_PASSTHROUGH=1, docs/caraxes/bar1-passthrough.md)",
                 fb0 + len
+            );
+            bar1_export = Some(ex);
+        }
+        if let Some((pool0, pool_end)) = layout.pool_range() {
+            let len = pool_end - pool0;
+            let hm = host_mem.as_ref().expect("checked above");
+            let ex = hm
+                .lock()
+                .unwrap()
+                .export_bar1_passthrough(pool0, len)
+                .context("BAR1 pool (CARAXES_BAR1_PASSTHROUGH=pool)")?;
+            let (_, root) = layout.bar_roots().expect("a reserved layout");
+            let usable = layout.usable().expect("a reserved layout");
+            model.fb.set_bar1_pool(root, pool0, len, usable);
+            eprintln!(
+                "vfio-user-nvgpu: bar1 pool: guest BAR1 [0, {len:#x}) offered as one sparse mmap area of region 1, backed by a dma-buf of the pool FB [{pool0:#x}, {pool_end:#x}) below the carve-out; the guest's usable FB ends at {:#x} (fbRegionInfo region 0), the pool is reported reserved; every page the guest maps into the area is moved to its pool page; {len:#x} of host BAR1 held while the client maps it (CARAXES_BAR1_PASSTHROUGH=pool, docs/caraxes/bar1-pool.md)",
+                usable.1
             );
             bar1_export = Some(ex);
         }
