@@ -45,13 +45,17 @@
 //!   §2.4: half a million mappings in one free held it for minutes).
 //!
 //! **Fewer host RM calls (docs/caraxes/memory-model.md §7, 2026-09-25).**
-//! - *Deferred TLB invalidation.* Every map and unmap of a plan or a teardown step carries
-//!   the RM's `DEFER_TLB_INVALIDATION` flag, which skips the flush and the VAS-wide TLB
-//!   invalidate the RM otherwise makes after each call. The shadow then owes the VAS one
-//!   `NV0080_CTRL_CMD_DMA_INVALIDATE_TLB`, and pays it ([`ShadowVas::settle`]) before any
-//!   virtual object is freed, at the end of every plan (so before the doorbell barrier
+//! - *Whole-region frees.* When the guest empties a 2 MiB region that holds at least
+//!   [`BULK_MIN_RUNS`] runs, the shadow frees the region object with its mappings in one
+//!   `RM_FREE` (the RM unmaps them itself) instead of one NVOS47 per run; the teardown does
+//!   the same, about [`TEARDOWN_BATCH`] mappings per step. `CARAXES_SHADOW_BULK_FREE=0`
+//!   unmaps run by run.
+//! - *Deferred TLB invalidation* (`CARAXES_SHADOW_DEFER_TLB=1`, off by default: it measured
+//!   no gain, the per-call cost is not the invalidate). Every map and unmap of a plan or a
+//!   teardown step then carries the RM's `DEFER_TLB_INVALIDATION` flag, and the shadow owes
+//!   the VAS one `NV0080_CTRL_CMD_DMA_INVALIDATE_TLB`, paid ([`ShadowVas::settle`]) before
+//!   any virtual object is freed, at the end of every plan (so before the doorbell barrier
 //!   releases a channel) and at the end of every teardown step.
-//!   `CARAXES_SHADOW_DEFER_TLB=0` invalidates per call (the earlier behaviour).
 //! - *Region free list.* A region object whose 2 MiB region the guest emptied, with every
 //!   run in it unmapped by the RM, goes on a bounded per-VAS free list instead of being
 //!   freed, and the next need of the same region and page class takes it back: two RM
@@ -88,6 +92,10 @@ pub const DEFAULT_MAP_BUDGET: usize = 32768;
 /// Empty region objects a shadow VAS keeps for reuse at most (each is a 2 MiB VA reservation
 /// with no mapping and no backing, freed with the VAS).
 pub const REGION_POOL_MAX: usize = 64;
+
+/// An emptied region with at least this many runs is freed whole (one `RM_FREE`, the RM
+/// unmaps its mappings itself) instead of one unmap per run.
+pub const BULK_MIN_RUNS: usize = 4;
 
 /// The host RM calls the shadow makes, behind a trait so the plan logic runs against a fake
 /// host in the unit tests. [`HostMemory`] implements it with the RM escapes.
@@ -331,6 +339,7 @@ fn class_of(size: u64) -> Class {
     }
 }
 
+#[derive(Clone, Copy, Debug)]
 struct Region {
     /// The region's virtual object; `None`: per-leaf objects (the region object was
     /// refused, or the region touches an excluded set-B range).
@@ -420,6 +429,9 @@ pub struct ShadowStats {
     pub regions_freed: u64,
     pub regions_refused: u64,
     pub leaf_objects: u64,
+    /// Region objects freed whole with their mappings, and the runs they held.
+    pub bulk_frees: u64,
+    pub bulk_runs: u64,
     /// `DMA_INVALIDATE_TLB` calls the RM refused (each turns the deferral off).
     pub invalidate_failed: u64,
     pub max_sync_us: u128,
@@ -712,8 +724,12 @@ pub struct ShadowVas {
     /// mapping per leaf, the earlier behaviour, for A/B measurements).
     coalesce: bool,
     /// Map and unmap with the RM's TLB invalidate deferred to [`Self::settle`]
-    /// (`CARAXES_SHADOW_DEFER_TLB=0`: off). Turned off for good when an invalidate fails.
+    /// (`CARAXES_SHADOW_DEFER_TLB=1`; off by default: measured without gain, memory-model.md
+    /// §7.5). Turned off for good when an invalidate fails.
     defer_tlb: bool,
+    /// Free an emptied region's object with its mappings in one call
+    /// (`CARAXES_SHADOW_BULK_FREE=0`: one unmap per run).
+    bulk_on: bool,
     /// A deferred map or unmap was made since the last invalidate of the VAS.
     tlb_owed: bool,
     /// Empty region objects kept for reuse, by region VA (`CARAXES_SHADOW_REGION_POOL=0`:
@@ -726,6 +742,8 @@ pub struct ShadowVas {
     settle_notes: Vec<String>,
     /// The call counters when the teardown started (the teardown line reports its own).
     teardown_calls0: Option<RmCalls>,
+    /// Mappings the teardown removed with their region object.
+    teardown_bulk: usize,
 }
 
 impl ShadowVas {
@@ -761,13 +779,15 @@ impl ShadowVas {
             teardown_unmapped: 0,
             teardown_freed: 0,
             coalesce: switch_on("CARAXES_SHADOW_COALESCE"),
-            defer_tlb: switch_on("CARAXES_SHADOW_DEFER_TLB"),
+            defer_tlb: std::env::var("CARAXES_SHADOW_DEFER_TLB").as_deref() == Ok("1"),
+            bulk_on: switch_on("CARAXES_SHADOW_BULK_FREE"),
             tlb_owed: false,
             pool: BTreeMap::new(),
             pool_on: switch_on("CARAXES_SHADOW_REGION_POOL"),
             calls: RmCalls::default(),
             settle_notes: Vec::new(),
             teardown_calls0: None,
+            teardown_bulk: 0,
         }
     }
 
@@ -809,6 +829,30 @@ impl ShadowVas {
         let t0 = Instant::now();
         let _ = h.free_object(handle);
         self.calls.add(Call::ObjectFree, t0);
+    }
+
+    /// Free a region object together with its mappings: one `RM_FREE`, in which the RM first
+    /// unmaps every mapping made into the object (the resource server's auto-unmap of the
+    /// context's back-references, `_clientUnmapInterBackRefMappings`, rs_client.c:1347-1400,
+    /// each through `virtmemUnmapFrom` with its own TLB invalidate) and then frees the
+    /// object's VA range. The shadow forgets the region's runs and leaves. The owed
+    /// invalidate of deferred calls is paid first ([`Self::free_virtual`]).
+    fn free_region_whole<H: ShadowHost>(&mut self, h: &mut H, u: u64, hd: u32) -> usize {
+        let runs: Vec<u64> = self.runs.range(u..u + REGION).map(|(v, _)| *v).collect();
+        for v in &runs {
+            self.runs.remove(v);
+        }
+        self.budget.add(-(runs.len() as isize));
+        let gone: Vec<u64> = self.mapped.range(u..u + REGION).map(|(v, _)| *v).collect();
+        for v in gone {
+            self.mapped.remove(&v);
+        }
+        self.regions.remove(&u);
+        self.free_virtual(h, hd);
+        self.stats.regions_freed += 1;
+        self.stats.bulk_frees += 1;
+        self.stats.bulk_runs += runs.len() as u64;
+        runs.len()
     }
 
     /// Free the pooled region objects that overlap an excluded (set-B) range: the host RM
@@ -1006,6 +1050,16 @@ impl ShadowVas {
                 continue;
             }
             let mut h = hm.lock().unwrap();
+            // The guest emptied a region with many runs: one RM_FREE of its object instead
+            // of one unmap per run (nothing is left to map in it).
+            if need.is_none() && self.bulk_on {
+                let hd = self.regions.get(&u).and_then(|r| r.handle);
+                if let Some(hd) = hd.filter(|_| self.runs.range(u..u + REGION).count() >= BULK_MIN_RUNS) {
+                    n_unmap += unmap.len();
+                    self.free_region_whole(&mut *h, u, hd);
+                    continue;
+                }
+            }
             let unmap_failed0 = self.stats.unmap_failed;
             n_unmap += unmap.len();
             self.unmap_leaves(&mut *h, &unmap);
@@ -1309,7 +1363,7 @@ impl ShadowVas {
     pub fn summary(&self) -> String {
         let s = &self.stats;
         format!(
-            "{} syncs ({} skipped clean, {} full walks, {} table reads, {} units diffed; max {} us, total {} ms), {} maps ({} leaves), {} unmaps ({} partial, {} failed), {} map-failed, {} over budget, {} refused by the filter, {} region objects ({} freed, {} refused, {} pooled), {} per-leaf objects; {} leaves in {} RM mappings at the end; {}; TLB invalidation {}{}; {}",
+            "{} syncs ({} skipped clean, {} full walks, {} table reads, {} units diffed; max {} us, total {} ms), {} maps ({} leaves), {} unmaps ({} partial, {} failed), {} map-failed, {} over budget, {} refused by the filter, {} region objects ({} freed, {} of them whole with {} mappings, {} refused, {} pooled), {} per-leaf objects; {} leaves in {} RM mappings at the end; {}; TLB invalidation {}{}; {}",
             s.syncs,
             s.skipped,
             s.full_walks,
@@ -1327,6 +1381,8 @@ impl ShadowVas {
             s.refused,
             s.region_objects,
             s.regions_freed,
+            s.bulk_frees,
+            s.bulk_runs,
             s.regions_refused,
             self.pool.len(),
             s.leaf_objects,
@@ -1364,6 +1420,31 @@ impl ShadowVas {
         let mut h = hm.lock().unwrap();
         if self.teardown_calls0.is_none() {
             self.teardown_calls0 = Some(self.calls);
+        }
+        if !self.runs.is_empty() && self.bulk_on {
+            // Region objects whole, with their mappings: about TEARDOWN_BATCH mappings per
+            // step, at least one object.
+            let regs: Vec<(u64, u32)> = self
+                .regions
+                .iter()
+                .filter_map(|(u, r)| r.handle.map(|hd| (*u, hd)))
+                .filter(|(u, _)| self.runs.range(*u..*u + REGION).next().is_some())
+                .collect();
+            let mut taken = 0usize;
+            for (u, hd) in regs {
+                let n = self.runs.range(u..u + REGION).count();
+                if taken > 0 && taken + n > TEARDOWN_BATCH {
+                    break;
+                }
+                self.free_region_whole(&mut *h, u, hd);
+                self.teardown_unmapped += n;
+                self.teardown_bulk += n;
+                self.teardown_freed += 1;
+                taken += n;
+            }
+            if taken > 0 {
+                return false;
+            }
         }
         if !self.runs.is_empty() {
             let batch: Vec<(u64, Run)> = self.runs.iter().take(TEARDOWN_BATCH).map(|(v, r)| (*v, *r)).collect();
@@ -1416,8 +1497,9 @@ impl ShadowVas {
 
     pub fn teardown_line(&self, steps: usize, ms: u128) -> String {
         format!(
-            "incremental teardown: {} RM mapping(s) unmapped ({} failed) and {} virtual object(s) freed in {steps} step(s) of at most {TEARDOWN_BATCH}, the host RM lock released between steps, TLB invalidation {}, {ms} ms in total; {}",
+            "incremental teardown: {} RM mapping(s) unmapped ({} with their region object, {} failed) and {} virtual object(s) freed in {steps} step(s) of at most {TEARDOWN_BATCH} mappings, the host RM lock released between steps, TLB invalidation {}, {ms} ms in total; {}",
             self.teardown_unmapped,
+            self.teardown_bulk,
             self.stats.unmap_failed,
             self.teardown_freed,
             if self.defer_tlb { "deferred to one per step" } else { "per call" },
@@ -1708,6 +1790,7 @@ mod tests {
         s.coalesce = true;
         s.defer_tlb = defer;
         s.pool_on = pool;
+        s.bulk_on = false;
         s
     }
 
@@ -1950,5 +2033,89 @@ mod tests {
         assert_eq!(&k[72..], &[Call::ObjectFree, Call::ObjectFree, Call::ObjectFree]);
         assert!(h.live.borrow().is_empty());
         assert!(line.contains("deferred to one per step"));
+    }
+
+    /// An emptied region with many runs is freed whole: one RM_FREE, no unmap, and the
+    /// fake RM (like the real one) takes the mappings with the object. Few runs still go run
+    /// by run (and then to the free list).
+    #[test]
+    fn an_emptied_region_with_many_runs_is_freed_whole() {
+        let host = Mutex::new(FakeHost::default());
+        let mut s = sv(false, true);
+        s.bulk_on = true;
+        let many: Vec<(u64, u64, u64, u8)> =
+            (0..10u64).map(|i| (0x1000 + 2 * i * 0x1000, BASE + 0x1000 + 2 * i * 0x1000, 0x1000, 6)).collect();
+        s.apply(&host, &plan_of(&many, &[]), &[]);
+        s.apply(&host, &plan_of(&[(REGION + 0x1000, BASE + 0x40_0000, 0x1000, 6)], &[]), &[]);
+        assert_eq!((s.live_maps(), s.budget.live()), (11, 11));
+        host.lock().unwrap().seen.borrow_mut().clear();
+        let (_, lines) = s.apply(&host, &plan_of(&[], &[0, REGION]), &[]);
+        let h = host.lock().unwrap();
+        // Region 0 (10 runs): one free. Region 1 (1 run): an unmap, then the free list.
+        assert_eq!(h.kinds(), vec![Call::ObjectFree, Call::Unmap]);
+        assert!(h.live.borrow().is_empty());
+        assert_eq!((s.live_maps(), s.mapped_leaves(), s.budget.live()), (0, 0, 0));
+        assert_eq!((s.stats.bulk_frees, s.stats.bulk_runs, s.pool.len()), (1, 10, 1));
+        assert!(lines[0].contains("-> 11 unmapped"));
+        // The region is mapped again later: a fresh object, nothing stale in it.
+        drop(h);
+        s.apply(&host, &plan_of(&[(0x5000, BASE + 0x50_0000, 0x1000, 6)], &[]), &[]);
+        assert_eq!(host.lock().unwrap().calls(Call::ObjectAlloc).len(), 1);
+        assert_eq!(s.lookup(0x5000).map(|(_, l)| l.target), Some(Target::Fb(BASE + 0x50_0000)));
+        assert_eq!(s.lookup(0x1000), None);
+    }
+
+    /// With deferral on, a whole-region free pays the owed invalidate first.
+    #[test]
+    fn a_whole_region_free_pays_the_owed_invalidate_first() {
+        let host = Mutex::new(FakeHost::default());
+        let mut s = sv(true, false);
+        s.bulk_on = true;
+        let many: Vec<(u64, u64, u64, u8)> =
+            (0..6u64).map(|i| (0x1000 + 2 * i * 0x1000, BASE + 0x1000 + 2 * i * 0x1000, 0x1000, 6)).collect();
+        s.apply(&host, &plan_of(&many, &[]), &[]);
+        host.lock().unwrap().seen.borrow_mut().clear();
+        // One plan: a deferred map in region 1 (listed first), then region 0 emptied: the
+        // invalidate comes before the free, and nothing is owed after it.
+        let mut p = plan_of(&[(REGION + 0x1000, BASE + 0x40_0000, 0x1000, 6)], &[0]);
+        p.units.sort_by_key(|(u, _)| std::cmp::Reverse(*u));
+        s.apply(&host, &p, &[]);
+        let h = host.lock().unwrap();
+        assert_eq!(
+            h.kinds(),
+            vec![Call::ObjectAlloc, Call::Map, Call::Invalidate, Call::ObjectFree]
+        );
+    }
+
+    #[test]
+    fn the_teardown_frees_whole_regions_about_a_batch_per_step() {
+        let host = Mutex::new(FakeHost::default());
+        let mut s = sv(false, false);
+        s.bulk_on = true;
+        // Region 0: 40 runs, region 1: 40 runs, region 2: 1 run.
+        let mut leaves = Vec::new();
+        for r in 0..2u64 {
+            for i in 0..40u64 {
+                let va = r * REGION + 0x1000 + 2 * i * 0x1000;
+                leaves.push((va, BASE + va, 0x1000, 6));
+            }
+        }
+        leaves.push((2 * REGION + 0x1000, BASE + 2 * REGION + 0x1000, 0x1000, 6));
+        s.apply(&host, &plan_of(&leaves, &[]), &[]);
+        assert_eq!(s.live_maps(), 81);
+        host.lock().unwrap().seen.borrow_mut().clear();
+        // Step 1: region 0 (40; region 1 would pass 64). Step 2: region 1 and region 2.
+        assert!(!s.teardown_step(&host));
+        assert_eq!(s.live_maps(), 41);
+        assert!(!s.teardown_step(&host));
+        assert_eq!(s.live_maps(), 0);
+        let budget = s.budget.clone();
+        let line = s.free(&host);
+        let h = host.lock().unwrap();
+        assert!(h.calls(Call::Unmap).is_empty());
+        assert_eq!(h.calls(Call::ObjectFree).len(), 4); // three regions and the VAS
+        assert!(h.live.borrow().is_empty());
+        assert_eq!(budget.live(), 0);
+        assert!(line.contains("81 RM mapping(s) unmapped (81 with their region object"), "{line}");
     }
 }
