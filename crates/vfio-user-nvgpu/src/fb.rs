@@ -554,6 +554,10 @@ pub struct FakeFb {
     /// window miss). `watched_pages` is the page set for the fast check in `note_write`.
     watched: RefCell<HashMap<u64, u32>>,
     watched_pages: RefCell<std::collections::HashSet<u64>>,
+    /// The guest's page tables are in the GMMU v3 format (Hopper and Blackwell,
+    /// `gmmu-v3-57bit`): the walks below hand over to [`crate::gmmu_v3`]; false keeps the
+    /// v2 walker of this file.
+    mmu_v3: bool,
 }
 
 impl Default for FakeFb {
@@ -578,7 +582,15 @@ impl FakeFb {
             bar_tlb_stats: Cell::new((0, 0, 0)),
             watched: RefCell::new(HashMap::new()),
             watched_pages: RefCell::new(std::collections::HashSet::new()),
+            mmu_v3: false,
         }
+    }
+
+    /// Select the page-table format of the chip (`ChipData::gmmu.mmu_format`):
+    /// `gmmu-v3-57bit` walks with [`crate::gmmu_v3`], anything else with the v2 walker.
+    pub fn with_mmu_format(mut self, format: &str) -> Self {
+        self.mmu_v3 = format == "gmmu-v3-57bit";
+        self
     }
 
     /// The current value of the dword at `pa`, watched from now on: the first call reads
@@ -879,6 +891,9 @@ impl FakeFb {
         root: Target,
         max: usize,
     ) -> Vec<(u64, Target, u64, u8)> {
+        if self.mmu_v3 {
+            return crate::gmmu_v3::enumerate_leaves(&FbReader { fb: self, sys }, root, max);
+        }
         let mut out = Vec::new();
         let leaf = |pte: u64, va: u64, size: u64| -> Option<(u64, Target, u64, u8)> {
             if pte & 1 == 0 {
@@ -1000,6 +1015,9 @@ impl FakeFb {
     /// 2 MiB PDE-as-PTE; 0 when a directory level was missing), for the mirror's
     /// read-only diagnostics of what the physical GMMU will see (exec-formats.md §2.2).
     pub fn walk_in(&self, sys: Option<&GuestMemory>, root: Target, va: u64) -> (Target, u64) {
+        if self.mmu_v3 {
+            return crate::gmmu_v3::walk(&FbReader { fb: self, sys }, root, va, &mut Vec::new());
+        }
         let Some(e3) = self.table_u64(sys, root, 8 * ((va >> 47) & 3)) else {
             return (Target::Unmapped { level: 3 }, 0);
         };
@@ -1082,6 +1100,15 @@ impl FakeFb {
 
     /// The walk of `translate` for a page-aligned `va`, and the FB table pages it read.
     fn walk_pages(&self, root: u64, va: u64) -> (Target, Vec<u64>) {
+        if self.mmu_v3 {
+            let mut pages = Vec::new();
+            let r = FbReader {
+                fb: self,
+                sys: None,
+            };
+            let (t, _) = crate::gmmu_v3::walk(&r, Target::Fb(root), va, &mut pages);
+            return (t, pages);
+        }
         let mut pages = vec![root >> 12];
         let at = |pages: &mut Vec<u64>, t: Target| {
             if let Target::Fb(pa) = t {
@@ -1167,6 +1194,12 @@ impl FakeFb {
 struct FbReader<'a> {
     fb: &'a FakeFb,
     sys: Option<&'a GuestMemory>,
+}
+
+impl crate::gmmu_v3::Tables for FbReader<'_> {
+    fn block(&self, table: Target, n: usize) -> Option<Vec<u64>> {
+        self.fb.table_block(self.sys, table, n)
+    }
 }
 
 impl crate::ptcache::TableReader for FbReader<'_> {
