@@ -74,7 +74,7 @@ if [[ " $targets " == *" v2 "* ]]; then
     export CARAXES_SERVER=${pre:-$(ls -t /mnt/vmstore/caraxes/vfio-user-nvgpu-closing-610-* 2>/dev/null | head -1)}
     [[ -x $CARAXES_SERVER ]] || { note "no device binary $CARAXES_SERVER"; exit 1; }
     export LEA_CH=/mnt/vmstore/caraxes/vm1/ch-0006-v.sh
-    export CARAXES_BAR1_PASSTHROUGH=1 CARAXES_DOORBELL_TOKENS=64
+    export CARAXES_BAR1_PASSTHROUGH=pool CARAXES_DOORBELL_TOKENS=64
     export CARAXES_DOORBELL_POLL=${CARAXES_DOORBELL_POLL:-spin}
     unset CARAXES_DOORBELL_IOEVENTFD
     { sha256sum "$CARAXES_SERVER" /mnt/vmstore/caraxes/vm1/cloud-hypervisor-0006; env | grep -E '^CARAXES_|^LEA_CH' | sort; } >> "$F/setup.txt"

@@ -8,7 +8,7 @@ mkdir -p "$F"; cd "$R"
 source "$R/caraxes/runs/mapping-2026-09-24/env.sh"
 export CARAXES_SERVER=$(grep -o '/mnt/vmstore/caraxes/vfio-user-nvgpu-closing-610-[0-9a-f]*' "$R/caraxes/runs/closing-610-2026-09-24/run.sh" | head -1)
 export LEA_CH=/mnt/vmstore/caraxes/vm1/ch-0006-v.sh
-export CARAXES_BAR1_PASSTHROUGH=1 CARAXES_DOORBELL_TOKENS=64 CARAXES_DOORBELL_POLL=${CARAXES_DOORBELL_POLL:-spin}
+export CARAXES_BAR1_PASSTHROUGH=pool CARAXES_DOORBELL_TOKENS=64 CARAXES_DOORBELL_POLL=${CARAXES_DOORBELL_POLL:-spin}
 unset CARAXES_DOORBELL_IOEVENTFD
 caraxes/tools/bench-hostwatch.sh start "$F"
 caraxes/tools/bench-run.sh v2-restart > "$F/v2-up.txt" 2>&1

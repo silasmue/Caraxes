@@ -480,3 +480,15 @@ The trace grep counts trapped `bar1` lines whose offset is below 0x100000.
   - host `nvidia-smi -q -d MEMORY`, the BAR1 used before, during and after: B should show 1 MiB
     more while vm2 is up, and the same value as before once Cloud Hypervisor is gone;
   - `p20-check.py` on the device log.
+
+## 9. Prototype G withdrawn (2026-09-24, 17:40)
+
+On the first run against the 615 host (`caraxes/runs/cutover-615-2026-09-24/v2-610guest/`)
+the 610 guest laid its BAR1 out 2 MiB away from the traced layout: 128 pages of the area
+mapped FB pages the area did not back, and the check could only log it after the guest had
+already read and written the wrong pages of its own reservation (the area is mapped once by
+the client and cannot be withdrawn). The cuda gate's robustness stage failed 1 of 3 runs in
+that session. `CARAXES_BAR1_PASSTHROUGH=1` is therefore refused unless
+`CARAXES_BAR1_PASSTHROUGH_UNSAFE_LAYOUT=1` names the experiment; the measurements that used
+it (P21, the token pool, the reactor, the closing series) stay valid as measurements of the
+trap counts, their layout matched. The pool of [bar1-pool.md](bar1-pool.md) is the mode to use.

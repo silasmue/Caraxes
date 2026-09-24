@@ -345,6 +345,18 @@ pub fn bar1_passthrough_config() -> Option<(u64, u64)> {
     if std::env::var("CARAXES_BAR1_PASSTHROUGH").as_deref() != Ok("1") {
         return None;
     }
+    // Prototype G assumes the traced layout (guest BAR1 offset X at reservation base +
+    // 0x980000 + X). On 2026-09-24, on the 615 host, the guest laid its BAR1 out 2 MiB away
+    // and 128 pages of the area reached the wrong page of the VM's own reservation; the check
+    // can only log that after the fact, because the area is mapped once by the client. The
+    // fixed layout is therefore refused unless the operator asks for it by name; the pool
+    // (`CARAXES_BAR1_PASSTHROUGH=pool`, bar1pool.rs) remaps any layout and fails closed.
+    if std::env::var("CARAXES_BAR1_PASSTHROUGH_UNSAFE_LAYOUT").as_deref() != Ok("1") {
+        eprintln!(
+            "vfio-user-nvgpu: ERROR: CARAXES_BAR1_PASSTHROUGH=1 (the fixed-layout prototype) is refused: it mismatched 128 pages on 2026-09-24; use CARAXES_BAR1_PASSTHROUGH=pool, or set CARAXES_BAR1_PASSTHROUGH_UNSAFE_LAYOUT=1 for an experiment; starting without the area"
+        );
+        return None;
+    }
     let len = std::env::var("CARAXES_BAR1_PT_MIB")
         .ok()
         .and_then(|v| v.parse::<u64>().ok())
