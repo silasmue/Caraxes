@@ -9,12 +9,18 @@
  * Path: the device writes a GOE record into the kernel's import buffer and posts
  * POST_EVENT; the kernel drains it (gpu_op_event_import.c:1300-1458) into its
  * OpEventLog, which pushes every new group to the kernel-side binds
- * (op_event_log.c:773-990). This probe owns one such bind: an NV_EVENT_BUFFER (0x90CD)
- * the kernel allocates and maps into this process (event_buffer.c:81, 373-477), enabled
- * KEEP_OLDEST, and an NV_OPERATIONAL_EVENT_BUFFER_BIND (0x90D0) with the GPU's UUID,
+ * (op_event_log.c:773-990). This probe owns one such bind: an NV_EVENT_BUFFER (0x90CD) on
+ * three deviceless system-memory objects of its own (NV01_MEMORY_DEVICELESS 0x90CE under
+ * the client: a bind needs an event buffer without hSubDevice, op_event_buffer_bind.c:
+ * 392-399), allocated user-read-only as a user client must (event_buffer.c:101-107 refuses
+ * the kernel's internal allocation on Linux, :236-240 needs
+ * NVOS32_ATTR2_PROTECTION_USER_READ_ONLY) and mapped read-only into this process
+ * (NV_ESC_RM_MAP_MEMORY on a fresh control FD, then mmap offset 0), enabled KEEP_OLDEST,
+ * and an NV_OPERATIONAL_EVENT_BUFFER_BIND (0x90D0) with the GPU's UUID,
  * GOE records, every level and severity, starting after the bind (the only cursor
  * the kernel takes, :352-356). It then prints every record that arrives within
- * `seconds` and exits 0 when at least one did, 3 when none did.
+ * `seconds` (moving the get pointer with UPDATE_GET) and exits 0 when at least one did,
+ * 3 when none did.
  *
  * Usage: goe-probe [seconds]   (default 60)
  * Layouts (615.71.09 SDK headers): NVOS64/NVOS54 nvos.h; NV0080_ALLOC_PARAMETERS 56
@@ -31,6 +37,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/ioctl.h>
+#include <sys/mman.h>
 #include <time.h>
 #include <unistd.h>
 
@@ -38,6 +45,18 @@
 #define NV_ESC_RM_ALLOC 0x2b
 #define NV_ESC_RM_CONTROL 0x2a
 #define NV_ESC_CHECK_VERSION_STR 210
+#define NV_ESC_RM_MAP_MEMORY 0x4e
+#define NV01_MEMORY_DEVICELESS 0x90ce
+/* NV_MEMORY_ALLOCATION_PARAMS (nvos.h, 128 bytes): owner @0, type @4, flags @8, attr @24,
+ * attr2 @28, size @64. attr: LOCATION_PCI, COHERENCY_CACHED; attr2:
+ * PROTECTION_USER_READ_ONLY (22:22). */
+#define MEM_ATTR_PCI_CACHED 0x32000000u
+#define MEM_ATTR2_USER_READ_ONLY (1u << 22)
+/* NVOS33 flags: ACCESS_READ_ONLY (1:0 = 1), RESERVE_ON_UNMAP_ENABLE (19:19). */
+#define MAP_FLAGS_READ_ONLY (1u | (1u << 19))
+#define H_MEM_HEADER 0x5e0e0010u
+#define H_MEM_RECORDS 0x5e0e0011u
+#define H_MEM_VARDATA 0x5e0e0012u
 #define NV_RM_API_VERSION_CMD_QUERY '2'
 
 #define NV01_ROOT_CLIENT 0x41
@@ -109,6 +128,22 @@ struct bind_params { /* NV_OPERATIONAL_EVENT_BUFFER_BIND_ALLOC_PARAMETERS, 104 b
 	uint64_t capDescriptors[8];
 };
 
+struct mem_params { /* NV_MEMORY_ALLOCATION_PARAMS, 128 bytes */
+	uint32_t owner, type, flags, width, height;
+	int32_t pitch;
+	uint32_t attr, attr2, format, comprCovg, zcullCovg, pad;
+	uint64_t rangeLo, rangeHi, size, alignment, offset, limit, address;
+	uint32_t ctagOffset, hVASpace, internalflags, tag;
+	uint32_t numaNode, pad2;
+};
+
+struct nvos33_fd { /* nv_ioctl_nvos33_parameters_with_fd, 56 bytes */
+	uint32_t hClient, hDevice, hMemory, pad;
+	uint64_t offset, length, pLinearAddress;
+	uint32_t status, flags;
+	int32_t fd, pad2;
+};
+
 struct gid_params { /* NV2080_CTRL_GPU_GET_GID_INFO_PARAMS */
 	uint32_t index, flags, length;
 	uint8_t data[256];
@@ -151,6 +186,37 @@ static int rm_ctrl(uint32_t client, uint32_t obj, uint32_t cmd, void *p, uint32_
 	if (what)
 		printf("goe-probe: control %-22s %#010x: ret %d status %#x\n", what, cmd, r, c.status);
 	return (r || c.status) ? -1 : 0;
+}
+
+/* One user-read-only deviceless memory object of `size` bytes under the client, mapped
+ * read-only into this process. */
+static const void *ro_buffer(uint32_t hc, uint32_t h, uint64_t size, const char *what)
+{
+	struct mem_params mp;
+	memset(&mp, 0, sizeof mp);
+	mp.owner = 0x5e0e0000u;
+	mp.attr = MEM_ATTR_PCI_CACHED;
+	mp.attr2 = MEM_ATTR2_USER_READ_ONLY;
+	mp.size = size;
+	if (rm_alloc(hc, hc, h, NV01_MEMORY_DEVICELESS, &mp, sizeof mp, what))
+		return NULL;
+	int mfd = open("/dev/nvidiactl", O_RDWR);
+	if (mfd < 0)
+		return NULL;
+	struct nvos33_fd m;
+	memset(&m, 0, sizeof m);
+	m.hClient = hc;
+	m.hDevice = hc;
+	m.hMemory = h;
+	m.length = size;
+	m.flags = MAP_FLAGS_READ_ONLY;
+	m.fd = mfd;
+	int r = ioctl(fd, _IOWR(NV_IOCTL_MAGIC, NV_ESC_RM_MAP_MEMORY, struct nvos33_fd), &m);
+	printf("goe-probe: map %-26s ret %d status %#x\n", what, r, m.status);
+	if (r || m.status)
+		return NULL;
+	void *p = mmap(NULL, size, PROT_READ, MAP_SHARED, mfd, 0);
+	return p == MAP_FAILED ? NULL : p;
 }
 
 static uint32_t rd32(const uint8_t *b, int o) { uint32_t v; memcpy(&v, b + o, 4); return v; }
@@ -241,6 +307,14 @@ int main(int argc, char **argv)
 		return 1;
 	}
 
+	struct evbuf_header *hdr = (struct evbuf_header *)ro_buffer(hc, H_MEM_HEADER, 4096, "header memory");
+	const uint8_t *records = ro_buffer(hc, H_MEM_RECORDS, (RECORD_SIZE * RECORD_COUNT + 4095) & ~4095, "record memory");
+	const uint8_t *vardata = ro_buffer(hc, H_MEM_VARDATA, VARDATA_SIZE, "vardata memory");
+	printf("goe-probe: header %p records %p vardata %p\n", (void *)hdr, (void *)records,
+	       (void *)vardata);
+	if (!hdr || !records || !vardata)
+		return 1;
+
 	struct evbuf_params eb;
 	memset(&eb, 0, sizeof eb);
 	eb.recordSize = RECORD_SIZE;
@@ -248,15 +322,13 @@ int main(int argc, char **argv)
 	eb.vardataBufferSize = VARDATA_SIZE;
 	eb.recordsFreeThreshold = RECORD_COUNT - 1;
 	eb.vardataFreeThreshold = 1024;
-	eb.hSubDevice = H_SUBDEVICE;
-	if (rm_alloc(hc, H_SUBDEVICE, H_EVBUF, NV_EVENT_BUFFER, &eb, sizeof eb, "event buffer"))
-		return 1;
-	struct evbuf_header *hdr = (struct evbuf_header *)(uintptr_t)eb.bufferHeader;
-	const uint8_t *records = (const uint8_t *)(uintptr_t)eb.recordBuffer;
-	const uint8_t *vardata = (const uint8_t *)(uintptr_t)eb.vardataBuffer;
-	printf("goe-probe: header %p records %p vardata %p\n", (void *)hdr, (void *)records,
-	       (void *)vardata);
-	if (!hdr || !records || !vardata)
+	eb.hSubDevice = 0; /* deviceless backing; the bind names the GPU by UUID */
+	eb.hBufferHeader = H_MEM_HEADER;
+	eb.hRecordBuffer = H_MEM_RECORDS;
+	eb.hVardataBuffer = H_MEM_VARDATA;
+	/* Parent: the client, as the kernel's own import allocates it (the subdevice is a
+	 * parameter; a subdevice parent is NV_ERR_INVALID_OBJECT_PARENT). */
+	if (rm_alloc(hc, hc, H_EVBUF, NV_EVENT_BUFFER, &eb, sizeof eb, "event buffer"))
 		return 1;
 
 	uint32_t enable[2] = { 1, OVERFLOW_KEEP_OLDEST };
@@ -289,7 +361,7 @@ int main(int argc, char **argv)
 			seen++;
 		}
 		if (seen) {
-			hdr->recordGet = get;
+			/* The header is read-only here: UPDATE_GET moves the get pointer. */
 			uint32_t upd[2] = { get, vget };
 			rm_ctrl(hc, H_EVBUF, CMD_EVENT_BUFFER_UPDATE_GET, upd, sizeof upd, NULL);
 		}
