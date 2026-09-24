@@ -128,6 +128,8 @@ pub struct Dispatcher {
     pub reservation: Option<(u64, u64)>,
     /// What the guest set on its channels and TSGs (public.rs, gsp-plan/c-guest-state.md).
     pub guest_attrs: crate::public::GuestAttrs,
+    /// The category D models of this VM (dmodel.rs, rc.rs, zbc.rs; gsp-plan/d-device-model.md).
+    pub dstate: crate::dmodel::DState,
 }
 
 /// Controls on a guest channel or TSG that a host mirror can take (mirror.rs
@@ -178,6 +180,7 @@ impl Dispatcher {
             display: crate::display::Display::new(),
             reservation: None,
             guest_attrs: Default::default(),
+            dstate: crate::dmodel::DState::new(chip),
         }
     }
 
@@ -713,8 +716,9 @@ impl Dispatcher {
         h_class: u32,
         params: &[u8],
     ) -> Answer {
-        // Profiler classes are refused (dmodel.rs, d-device-model.md 6.16).
-        if let Some(a) = crate::dmodel::alloc(h_class) {
+        // Profiler classes are refused (dmodel.rs, d-device-model.md 6.16); the D models note
+        // the allocation (a reused handle, a channel's instance block).
+        if let Some(a) = self.dstate.alloc(h_client, h_object, h_class, params) {
             return a;
         }
         self.objects.insert((h_client, h_object), h_class);
@@ -967,8 +971,26 @@ impl Dispatcher {
         if let Some(a) = crate::chipctl::answer(self.chip, cmd, params) {
             return a;
         }
-        // Category D rule table (dmodel.rs, docs/caraxes/gsp-plan/d-device-model.md R0).
-        if let Some(a) = crate::dmodel::answer(cmd, params) {
+        // Category D: the models (dmodel.rs, rc.rs, zbc.rs; R2 and the open MODEL rows), then
+        // the rule table (R0), docs/caraxes/gsp-plan/d-device-model.md.
+        let mut dmirror = self.mirror.as_mut().map(|mirror| crate::rc::MirrorRef {
+            mirror,
+            reg: &self.channels,
+        });
+        let mut dcx = crate::dmodel::DCtx {
+            reg: &self.channels,
+            mirror: dmirror
+                .as_mut()
+                .map(|m| m as &mut dyn crate::rc::MirrorOps),
+            host: self.host.as_deref_mut(),
+            bar0: (self.bar_offsets[0], self.bar_sizes.first().copied().unwrap_or(0)),
+            object: (h_client, h_object),
+        };
+        if let Some(a) = self
+            .dstate
+            .control(&mut dcx, cmd, params)
+            .or_else(|| crate::dmodel::answer(cmd, params))
+        {
             return a;
         }
         match cmd {

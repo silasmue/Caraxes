@@ -26,6 +26,8 @@
 //!
 //! The profiler classes (6.16) are refused at allocation: [`alloc`].
 
+use std::collections::BTreeMap;
+
 use crate::ctrl::Answer;
 use crate::ver::{Abi, DAnswer, DRule};
 
@@ -44,6 +46,253 @@ pub const MODELLED: &[&str] = &[
     "NV0073_CTRL_CMD_DP_CONFIGURE_FEC",
     "NV5070_CTRL_CMD_GET_RG_STATUS",
 ];
+
+/// The controls the models of round 2 answer (d-device-model.md R2): [`DState::control`],
+/// rc.rs. A subset of `MODELLED_HERE` of caraxes/tools/gsp-dtable.py, which lays out their
+/// parameter structs.
+pub const MODELLED_HERE: &[&str] = &[
+    "NV2080_CTRL_CMD_FIFO_DISABLE_CHANNELS",
+    "NV2080_CTRL_CMD_GPU_REPORT_NON_REPLAYABLE_FAULT",
+    "NV2080_CTRL_CMD_INTERNAL_RC_WATCHDOG_TIMEOUT",
+    "NV2080_CTRL_CMD_INTERNAL_LOG_OOB_XID",
+    "NV2080_CTRL_CMD_RC_SET_CLEAN_ERROR_HISTORY",
+    "NV2080_CTRL_CMD_GPU_SET_COMPUTE_MODE_RULES",
+    "NV0000_CTRL_CMD_GPUACCT_SET_ACCOUNTING_STATE",
+    "NV2080_CTRL_CMD_GPU_VALIDATE_MEM_MAP_REQUEST",
+];
+
+/// Getters outside category D that answer from a model's state: none yet.
+pub const MODEL_GETTERS: &[&str] = &[
+];
+
+/// D9 labels of the small models.
+pub const COMPUTE_MODE: &str = "guest (compute mode of this VM; never the host's)";
+pub const GPUACCT: &str =
+    "guest (accounting state of this VM recorded; no samples; never the host's)";
+pub const BAR0_POLICY: &str = "guest (BAR0 map policy: deny by default)";
+
+/// What a D model may reach from the dispatcher for one control.
+pub struct DCtx<'a> {
+    /// The guest's channels, TSGs and VA spaces.
+    pub reg: &'a crate::channel::Registry,
+    /// The host mirrors of the guest's own channels and TSGs.
+    pub mirror: Option<&'a mut dyn crate::rc::MirrorOps>,
+    /// The device's host RM client (the L2 flush only).
+    pub host: Option<&'a mut (dyn crate::ctrl::HostRm + 'static)>,
+    /// The guest BAR0 (bus address as the guest reported it, size).
+    pub bar0: (u64, u64),
+    /// The object the control names (hClient, hObject).
+    pub object: (u32, u32),
+}
+
+/// The state of the D models of one VM (roadmap R2 and the open MODEL rows). Lives in the
+/// dispatcher; nothing of it is the host's, and nothing of it reaches the host but the
+/// per-channel controls on the guest's own mirrors (rc.rs).
+pub struct DState {
+    chip: &'static crate::chip::ChipData,
+    pub rc: crate::rc::RcState,
+    pub compute_mode: u32,
+    /// Accounting state by gpuId (`NV0000_CTRL_GPU_ACCOUNTING_STATE_*`).
+    pub gpuacct: BTreeMap<u32, u32>,
+    /// BAR0 windows a non-root guest process may map ([offset, offset + size)): empty.
+    pub bar0_allow: Vec<(u64, u64)>,
+}
+
+fn rd32(b: &[u8], o: usize) -> u32 {
+    b.get(o..o + 4)
+        .map_or(0, |s| u32::from_le_bytes(s.try_into().unwrap()))
+}
+
+fn rd64(b: &[u8], o: usize) -> u64 {
+    b.get(o..o + 8)
+        .map_or(0, |s| u64::from_le_bytes(s.try_into().unwrap()))
+}
+
+
+/// Offset of `path` in the version's generated layout of `st`.
+fn off(st: &str, path: &str) -> usize {
+    Abi::active()
+        .layout(st)
+        .unwrap_or_else(|| panic!("{st}: no generated layout"))
+        .resolve(path)
+        .unwrap_or_else(|e| panic!("{e}"))
+        .0
+}
+
+fn enum_(name: &str) -> u32 {
+    Abi::active()
+        .d_enum(name)
+        .unwrap_or_else(|| panic!("{name} is no enum of the generated D table"))
+}
+
+fn model(status: u32, params: &[u8], label: &'static str, note: String) -> Answer {
+    Answer {
+        status,
+        params: params.to_vec(),
+        label,
+        note,
+    }
+}
+
+/// The name of `cmd` if a model of this module answers it.
+fn modelled_name(cmd: u32) -> Option<&'static str> {
+    if let Some(r) = rule(cmd) {
+        return MODELLED_HERE.contains(&r.name).then_some(r.name);
+    }
+    Abi::active()
+        .routed
+        .iter()
+        .find(|r| r.id == cmd && MODEL_GETTERS.contains(&r.name))
+        .map(|r| r.name)
+}
+
+impl DState {
+    pub fn new(chip: &'static crate::chip::ChipData) -> Self {
+        DState {
+            chip,
+            rc: Default::default(),
+            compute_mode: 0,
+            gpuacct: BTreeMap::new(),
+            bar0_allow: Vec::new(),
+        }
+    }
+
+    /// `GSP_RM_ALLOC`: the profiler classes are refused ([`alloc`]); a handle allocated
+    /// again drops what the models kept for its previous object; a channel's instance block
+    /// is recorded for the fault path (rc.rs).
+    pub fn alloc(
+        &mut self,
+        h_client: u32,
+        h_object: u32,
+        h_class: u32,
+        params: &[u8],
+    ) -> Option<Answer> {
+        if let Some(a) = alloc(h_class) {
+            return Some(a);
+        }
+        self.rc.forget(h_client, h_object);
+        if h_class == self.chip.channel.gpfifo {
+            self.rc.record_channel(h_client, h_object, params);
+        }
+        None
+    }
+
+    /// The models' answer to `cmd`, or `None` (not modelled here).
+    pub fn control(&mut self, cx: &mut DCtx, cmd: u32, params: &[u8]) -> Option<Answer> {
+        let name = modelled_name(cmd)?;
+        let bad = status("NV_ERR_INVALID_ARGUMENT");
+        let a = match name {
+            "NV2080_CTRL_CMD_FIFO_DISABLE_CHANNELS" => {
+                self.rc
+                    .disable_channels(cx.reg, cx.mirror.as_deref_mut(), params)
+            }
+            "NV2080_CTRL_CMD_GPU_REPORT_NON_REPLAYABLE_FAULT" => {
+                self.rc
+                    .report_nr_fault(cx.reg, cx.mirror.as_deref_mut(), params)
+            }
+            "NV2080_CTRL_CMD_INTERNAL_RC_WATCHDOG_TIMEOUT" => self.rc.watchdog_timeout(params),
+            "NV2080_CTRL_CMD_INTERNAL_LOG_OOB_XID" => self.rc.log_oob_xid(params),
+            "NV2080_CTRL_CMD_RC_SET_CLEAN_ERROR_HISTORY" => self.rc.clean_history(params),
+            // ctrl2080gpu.h:1217-1290: the four rules; the kernel stores and enforces the
+            // rule itself after the answer (subdevice_ctrl_gpu_kernel.c:2097-2121).
+            "NV2080_CTRL_CMD_GPU_SET_COMPUTE_MODE_RULES" => {
+                const P: &str = "NV2080_CTRL_GPU_SET_COMPUTE_MODE_RULES_PARAMS";
+                let rules = rd32(params, off(P, "rules"));
+                let legal = [
+                    "NV2080_CTRL_GPU_COMPUTE_MODE_RULES_NONE",
+                    "NV2080_CTRL_GPU_COMPUTE_MODE_RULES_EXCLUSIVE_COMPUTE",
+                    "NV2080_CTRL_GPU_COMPUTE_MODE_RULES_COMPUTE_PROHIBITED",
+                    "NV2080_CTRL_GPU_COMPUTE_MODE_RULES_EXCLUSIVE_COMPUTE_PROCESS",
+                ];
+                if legal.iter().any(|n| enum_(n) == rules) {
+                    let was = std::mem::replace(&mut self.compute_mode, rules);
+                    model(
+                        0,
+                        params,
+                        COMPUTE_MODE,
+                        format!("compute mode rules {was} -> {rules}"),
+                    )
+                } else {
+                    model(
+                        bad,
+                        params,
+                        COMPUTE_MODE,
+                        format!("compute mode rules {rules}: no such rule"),
+                    )
+                }
+            }
+            // ctrl0000gpuacct.h:40-77; the kernel keeps its own accounting tables and turns
+            // them on after NV_OK (client_resource.c:2061-2073).
+            "NV0000_CTRL_CMD_GPUACCT_SET_ACCOUNTING_STATE" => {
+                const P: &str = "NV0000_CTRL_GPUACCT_SET_ACCOUNTING_STATE_PARAMS";
+                let gpu = rd32(params, off(P, "gpuId"));
+                let state = rd32(params, off(P, "newState"));
+                let on = enum_("NV0000_CTRL_GPU_ACCOUNTING_STATE_ENABLED");
+                let disabled = enum_("NV0000_CTRL_GPU_ACCOUNTING_STATE_DISABLED");
+                if state != on && state != disabled {
+                    model(
+                        bad,
+                        params,
+                        GPUACCT,
+                        format!("accounting state {state} of gpu {gpu:#x}: no such state"),
+                    )
+                } else {
+                    self.gpuacct.insert(gpu, state);
+                    let what = if state == on { "enabled" } else { "disabled" };
+                    model(
+                        0,
+                        params,
+                        GPUACCT,
+                        format!("accounting of gpu {gpu:#x} {what}"),
+                    )
+                }
+            }
+            "NV2080_CTRL_CMD_GPU_VALIDATE_MEM_MAP_REQUEST" => self.bar0_policy(cx.bar0, params),
+            _ => return None,
+        };
+        Some(a)
+    }
+
+    /// The BAR0 map policy (6.4 rule 3): the kernel answers PTIMER, the usermode page and
+    /// PMC itself and sends only the other BAR0 ranges, with the absolute bus address
+    /// (subdevice_ctrl_gpu_kernel.c:2918-2995). A range outside BAR0, empty or wrapping is a
+    /// protection fault; inside, only an allow-list window is mapped, and the list is empty:
+    /// a non-root guest process never maps the registers the guest kernel owns.
+    fn bar0_policy(&self, bar0: (u64, u64), params: &[u8]) -> Answer {
+        const P: &str = "NV2080_CTRL_GPU_VALIDATE_MEM_MAP_REQUEST_PARAMS";
+        let fault = status("NV_ERR_PROTECTION_FAULT");
+        let start = rd64(params, off(P, "addressStart"));
+        let len = rd64(params, off(P, "addressLength"));
+        let (base, size) = bar0;
+        let range = start
+            .checked_sub(base)
+            .filter(|_| base != 0 && len != 0)
+            .and_then(|o| o.checked_add(len).filter(|&e| e <= size).map(|e| (o, e)));
+        let Some((o, e)) = range else {
+            return model(
+                fault,
+                params,
+                BAR0_POLICY,
+                format!("map {start:#x}+{len:#x}: outside the guest BAR0 {base:#x}+{size:#x}"),
+            );
+        };
+        if self.bar0_allow.iter().any(|&(a, n)| o >= a && e <= a + n) {
+            return model(
+                0,
+                params,
+                BAR0_POLICY,
+                format!("map BAR0 [{o:#x}, {e:#x}): in the allow-list"),
+            );
+        }
+        model(
+            fault,
+            params,
+            BAR0_POLICY,
+            format!("map BAR0 [{o:#x}, {e:#x}): not in the allow-list (empty)"),
+        )
+    }
+
+}
 
 /// An NV status by name, from the version's nvstatuscodes.h (generated `D_ENUMS`).
 pub fn status(name: &str) -> u32 {
@@ -177,10 +426,11 @@ mod tests {
                 }
             }
         }
-        // Refuse, Deny, Ack, Table, Model, Mirror.
+        // Refuse, Deny, Ack, Table, Model, Mirror. Round 2 (d-device-model.md §10): GPU
+        // accounting is a model.
         let by_name = |n: &str| ABIS.iter().find(|a| a.name == n).unwrap();
-        assert_eq!(counts(by_name("615")), [200, 37, 21, 5, 42, 3]);
-        assert_eq!(counts(by_name("610")), [198, 37, 20, 5, 42, 3]);
+        assert_eq!(counts(by_name("615")), [200, 37, 20, 5, 43, 3]);
+        assert_eq!(counts(by_name("610")), [198, 37, 19, 5, 43, 3]);
         for abi in ABIS {
             let re = |c: char| abi.d_rules.iter().filter(|r| r.reclass == c).count();
             assert_eq!((re('A'), re('C'), re('E')), (7, 17, 102), "{}", abi.name);
@@ -238,9 +488,10 @@ mod tests {
     }
 
     /// Through the dispatcher, every row that stays in D gets its label (REFUSE, DENY and
-    /// ACK answered here or by the display's board table, MODEL and MIRROR unanswered), the
-    /// moved rows are someone else's (E refused by the family rule, A by the chip table or
-    /// unanswered while open), and no D control reaches the host.
+    /// ACK answered here or by the display's board table, the modelled rows by their model,
+    /// the other MODEL and MIRROR rows unanswered), the moved rows are someone else's (E
+    /// refused by the family rule, A by the chip table or unanswered while open, C
+    /// unanswered unless modelled), and no D control reaches the host.
     #[test]
     fn the_dispatcher_answers_every_d_control_by_its_rule() {
         let seen = Arc::new(Mutex::new(Vec::new()));
@@ -249,6 +500,15 @@ mod tests {
         for r in Abi::active().d_rules {
             let req = vec![0xA5u8; r.size.max(4)];
             let a = d.control(INTERNAL_CLIENT, INTERNAL_SUBDEVICE, r.id, &req);
+            if MODELLED_HERE.contains(&r.name) {
+                assert!(
+                    !["unanswered", REFUSED, DENIED].contains(&a.label),
+                    "{}: {}",
+                    r.name,
+                    a.label
+                );
+                continue;
+            }
             match (r.reclass, r.answer) {
                 ('-', DAnswer::Refuse) => {
                     assert_eq!((a.status, a.label), (r.status, REFUSED), "{}", r.name);
@@ -528,5 +788,96 @@ mod tests {
         for r in Abi::active().d_rules.iter().filter(|r| r.reclass == 'E') {
             assert!(answer(r.id, &[0u8; 8]).is_none(), "{}", r.name);
         }
+    }
+
+    fn id(name: &str) -> u32 {
+        Abi::active()
+            .d_rules
+            .iter()
+            .find(|r| r.name == name)
+            .map(|r| r.id)
+            .or_else(|| Abi::active().routed(name).map(|r| r.id))
+            .unwrap_or_else(|| panic!("{name}"))
+    }
+
+    fn params(st: &str, fields: &[(&str, u64)]) -> Vec<u8> {
+        let l = Abi::active().layout(st).unwrap();
+        let mut b = vec![0u8; l.size];
+        for &(f, x) in fields {
+            let (o, n) = l.resolve(f).unwrap();
+            b[o..o + n].copy_from_slice(&x.to_le_bytes()[..n]);
+        }
+        b
+    }
+
+    /// Compute mode (6.2) and GPU accounting (6.17): the legal values are recorded per VM,
+    /// anything else is an invalid argument, and neither reaches the host.
+    #[test]
+    fn compute_mode_and_accounting_are_this_vms() {
+        let seen = Arc::new(Mutex::new(Vec::new()));
+        let mut d = dispatcher(Some(Box::new(Rec(seen.clone()))));
+        let cm = id("NV2080_CTRL_CMD_GPU_SET_COMPUTE_MODE_RULES");
+        let p = params(
+            "NV2080_CTRL_GPU_SET_COMPUTE_MODE_RULES_PARAMS",
+            &[("rules", 2)],
+        );
+        let a = d.control(INTERNAL_CLIENT, INTERNAL_SUBDEVICE, cm, &p);
+        assert_eq!((a.status, a.label), (0, COMPUTE_MODE));
+        assert_eq!(d.dstate.compute_mode, 2);
+        let p = params(
+            "NV2080_CTRL_GPU_SET_COMPUTE_MODE_RULES_PARAMS",
+            &[("rules", 7)],
+        );
+        let a = d.control(INTERNAL_CLIENT, INTERNAL_SUBDEVICE, cm, &p);
+        assert_eq!(a.status, status("NV_ERR_INVALID_ARGUMENT"));
+        assert_eq!(d.dstate.compute_mode, 2);
+        let acct = id("NV0000_CTRL_CMD_GPUACCT_SET_ACCOUNTING_STATE");
+        let st = "NV0000_CTRL_GPUACCT_SET_ACCOUNTING_STATE_PARAMS";
+        let p = params(st, &[("gpuId", 0x500), ("newState", 0)]);
+        let a = d.control(INTERNAL_CLIENT, INTERNAL_CLIENT, acct, &p);
+        assert_eq!((a.status, a.label), (0, GPUACCT));
+        assert_eq!(d.dstate.gpuacct.get(&0x500), Some(&0));
+        let p = params(st, &[("gpuId", 0x500), ("newState", 9)]);
+        let a = d.control(INTERNAL_CLIENT, INTERNAL_CLIENT, acct, &p);
+        assert_eq!(a.status, status("NV_ERR_INVALID_ARGUMENT"));
+        assert!(seen.lock().unwrap().is_empty());
+    }
+
+    /// The BAR0 map policy (6.4): deny by default; outside BAR0, straddling its end, empty,
+    /// below it or wrapping is a protection fault too; an allow-list window maps.
+    #[test]
+    fn bar0_map_policy_denies_by_default() {
+        let mut d = dispatcher(None);
+        d.bar_offsets[0] = 0xE600_0000;
+        let vm = id("NV2080_CTRL_CMD_GPU_VALIDATE_MEM_MAP_REQUEST");
+        const P: &str = "NV2080_CTRL_GPU_VALIDATE_MEM_MAP_REQUEST_PARAMS";
+        let fault = status("NV_ERR_PROTECTION_FAULT");
+        let size = d.bar_sizes[0];
+        for (start, len) in [
+            (0xE600_0000 + 0x10_0000, 0x1000),
+            (0xE600_0000 + size - 0x800, 0x1000),
+            (0xE600_0000, 0),
+            (0xE500_0000, 0x1000),
+            (u64::MAX - 0x10, 0x1000),
+            (0xE600_0000 + 0x10_0000, u64::MAX),
+        ] {
+            let p = params(P, &[("addressStart", start), ("addressLength", len)]);
+            let a = d.control(INTERNAL_CLIENT, INTERNAL_SUBDEVICE, vm, &p);
+            assert_eq!(
+                (a.status, a.label),
+                (fault, BAR0_POLICY),
+                "{start:#x}+{len:#x}"
+            );
+        }
+        d.dstate.bar0_allow.push((0x10_0000, 0x1000));
+        let p = params(
+            P,
+            &[("addressStart", 0xE610_0000), ("addressLength", 0x1000)],
+        );
+        assert_eq!(
+            d.control(INTERNAL_CLIENT, INTERNAL_SUBDEVICE, vm, &p)
+                .status,
+            0
+        );
     }
 }

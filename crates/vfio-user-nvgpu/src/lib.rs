@@ -52,6 +52,7 @@ pub mod privilege;
 pub mod poll;
 pub mod ptcache;
 pub mod public;
+pub mod rc;
 pub mod rpc;
 pub mod selftest;
 pub mod shadow;

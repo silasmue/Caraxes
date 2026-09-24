@@ -3655,9 +3655,9 @@ pub const D_RULES: &[DRule] = &[
         id: 0x0000_0B01,
         name: "NV0000_CTRL_CMD_GPUACCT_SET_ACCOUNTING_STATE",
         group: "other",
-        answer: DAnswer::Ack,
-        model: "",
-        status: 0x0, // NV_OK
+        answer: DAnswer::Model,
+        model: "gpuacct",
+        status: 0,
         reclass: '-',
         rank: 2,
         size: 12,
