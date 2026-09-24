@@ -15,7 +15,10 @@ The window ends 1 s before the last latch of a scanout surface in the trace (the
 stops, the compositor idles) and is --secs long. A presented frame is one latch of a
 window with a surface (display: window N latch ... surface fb ...).
 
-Usage: trap-table.py <device-trace.txt[.xz]> [--secs 10] [--json out.json]
+Usage: trap-table.py <device-trace.txt[.xz]> [--secs 10] [--json out.json] [--pages]
+
+--pages adds the BAR0 accesses per 4 KiB page and per frame (docs/caraxes/intr-page.md §1:
+with CARAXES_INTR_PAGE=1 pages 0x000000 and 0xb81000 are memory and drop out).
 """
 import argparse
 import collections
@@ -54,6 +57,7 @@ def main():
     ap.add_argument("trace")
     ap.add_argument("--secs", type=float, default=10.0)
     ap.add_argument("--json")
+    ap.add_argument("--pages", action="store_true", help="BAR0 accesses per 4 KiB page")
     a = ap.parse_args()
 
     rows = []
@@ -80,6 +84,7 @@ def main():
     w1_bytes = 0
     w2 = collections.Counter()
     r1 = 0
+    pages = collections.Counter()
     r2 = 0
     ev = collections.Counter()
     walk, apply_, queued = [], [], []
@@ -115,6 +120,8 @@ def main():
         name = p[6].split()[0] if len(p) > 6 and p[6].strip() else ""
         # p[5] is the value; p[6] the register name / fb annotation
         name = ln.split(None, 6)[6].strip() if len(p) > 6 else ""
+        if region == "bar0":
+            pages[(off & ~0xFFF, kind)] += 1
         if kind == "W" and region == "bar0":
             w0[classify_bar0_write(off, name)] += 1
         elif kind == "R" and region == "bar0":
@@ -164,6 +171,9 @@ def main():
     for k, v in sorted(ev.items()):
         row(k, v)
     row("shadow plans applied (sync lines)", len(walk))
+    if a.pages:
+        for (pg, kind), n in sorted(pages.items(), key=lambda x: -x[1])[:12]:
+            row(f"BAR0 page {pg:#08x} {'reads' if kind == 'R' else 'writes'}", n)
     if walk:
         tot_w, tot_a = sum(walk), sum(apply_)
         print(f"  server-thread walk per plan: p50 {statistics.median(walk)} us, max {max(walk)} us, "
