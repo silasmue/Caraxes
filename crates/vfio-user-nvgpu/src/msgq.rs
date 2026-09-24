@@ -10,6 +10,17 @@
 //! `msgqRxHeader` at `rxHdrOff` and 4 KiB slots from `entryOff`. With `SWAP_RX`
 //! set on both headers, our read pointer for the command queue lives in our
 //! queue's rx header and the CPU's read pointer for our queue lives in its.
+//!
+//! Memory ordering follows the transaction discipline of the guest's
+//! `message_queue_cpu.c` (store fence before `msgqTxSubmitBuffers`, :599-610) and of
+//! upstream nova-core (docs/caraxes/nova-vgpu-upstream.md §5): the four pointer words
+//! are accessed as 32-bit atomics in the shared mapping. A producer's pointer is loaded
+//! with `Acquire` before any slot it covers is read (the payload is visible once the
+//! pointer is), and our own pointers are stored with `Release` after the slots are
+//! written or copied out (the payload is visible before the pointer, and a slot is not
+//! handed back before we are done with it).
+
+use std::sync::atomic::{AtomicU32, Ordering};
 
 use crate::guestmem::GuestMemory;
 
@@ -45,11 +56,57 @@ fn put_u32(b: &mut [u8], off: usize, v: u32) {
 pub struct QueueMemory<'a> {
     mem: &'a GuestMemory,
     pages: &'a [u64],
+    /// Acquire loads and release stores of pointer words (the ordering tests).
+    #[cfg(test)]
+    ordered: std::cell::RefCell<Vec<(char, u64)>>,
 }
 
 impl<'a> QueueMemory<'a> {
     pub fn new(mem: &'a GuestMemory, pages: &'a [u64]) -> Self {
-        QueueMemory { mem, pages }
+        QueueMemory {
+            mem,
+            pages,
+            #[cfg(test)]
+            ordered: Default::default(),
+        }
+    }
+
+    /// The host address of the aligned 32-bit word at logical offset `off`.
+    fn word(&self, off: u64) -> Option<&AtomicU32> {
+        if off % 4 != 0 {
+            return None;
+        }
+        let pa = self.pages.get((off / PAGE) as usize)? + off % PAGE;
+        let gpa = self.mem.translate(pa, 4)?;
+        let p = self.mem.host_ptr(gpa, 4)?;
+        if (p as usize) % 4 != 0 {
+            return None;
+        }
+        // SAFETY: host_ptr() guarantees four mapped bytes inside one mapping, the
+        // pointer is 4-aligned, and the mapping lives as long as `self.mem`. The word is
+        // shared with the guest, which is why it is only ever accessed atomically here.
+        Some(unsafe { AtomicU32::from_ptr(p.cast()) })
+    }
+
+    /// Load a pointer word the other side publishes, with acquire ordering: every
+    /// later read of the queue sees at least what the writer stored before it.
+    pub fn load_acquire(&self, off: u64) -> Option<u32> {
+        let v = u32::from_le(self.word(off)?.load(Ordering::Acquire));
+        #[cfg(test)]
+        self.ordered.borrow_mut().push(('A', off));
+        Some(v)
+    }
+
+    /// Publish one of our pointer words with release ordering: every earlier read
+    /// or write of the queue happens before the other side can see the new value.
+    pub fn store_release(&self, off: u64, v: u32) -> bool {
+        let Some(w) = self.word(off) else {
+            return false;
+        };
+        w.store(v.to_le(), Ordering::Release);
+        #[cfg(test)]
+        self.ordered.borrow_mut().push(('R', off));
+        true
     }
 
     /// Read the page table itself: `count` physical page addresses at `shared_pa`.
@@ -312,7 +369,7 @@ impl QueueState {
     /// Take the next message from the command queue, if any.
     pub fn receive(&mut self, qm: &QueueMemory) -> Result<Option<Message>, String> {
         let write_ptr = qm
-            .read_u32(self.cmd_off + 16)
+            .load_acquire(self.cmd_off + 16)
             .ok_or("command queue write pointer unreadable")?;
         if write_ptr >= self.cmd.msg_count || write_ptr == self.read_ptr {
             return Ok(None);
@@ -351,7 +408,7 @@ impl QueueState {
         let payload = raw[ELEMENT_HEADER_SIZE + RPC_HEADER_SIZE..total].to_vec();
         let slot_payload = raw[ELEMENT_HEADER_SIZE + RPC_HEADER_SIZE..].to_vec();
         self.read_ptr = (self.read_ptr + slots) % self.cmd.msg_count;
-        qm.write_u32(self.stat_off + self.stat.rx_hdr_off as u64, self.read_ptr);
+        qm.store_release(self.stat_off + self.stat.rx_hdr_off as u64, self.read_ptr);
         self.rx_seq = self.rx_seq.wrapping_add(1);
         Ok(Some(Message {
             seq_num,
@@ -366,7 +423,7 @@ impl QueueState {
     /// Slots the CPU has not consumed yet leave this much room in our queue.
     fn free_slots(&self, qm: &QueueMemory) -> u32 {
         let cpu_read = qm
-            .read_u32(self.cmd_off + self.cmd.rx_hdr_off as u64)
+            .load_acquire(self.cmd_off + self.cmd.rx_hdr_off as u64)
             .unwrap_or(0);
         let n = self.stat.msg_count;
         if cpu_read >= n || self.stat.write_ptr >= n {
@@ -412,9 +469,8 @@ impl QueueState {
                 return Err("status slot unwritable".into());
             }
         }
-        std::sync::atomic::fence(std::sync::atomic::Ordering::SeqCst);
         self.stat.write_ptr = (self.stat.write_ptr + slots) % self.stat.msg_count;
-        qm.write_u32(self.stat_off + 16, self.stat.write_ptr);
+        qm.store_release(self.stat_off + 16, self.stat.write_ptr);
         let seq = self.tx_seq;
         self.tx_seq = self.tx_seq.wrapping_add(1);
         Ok(seq)
@@ -551,5 +607,50 @@ pub(crate) mod tests {
         // 63 slots minus the one written and the one always kept free.
         assert_eq!(q.free_slots(&qm), 61);
         let _ = std::fs::remove_file(&path);
+    }
+
+    /// The pointer words go through acquire loads and release stores: receive loads
+    /// the CPU's write pointer before it reads the slot and publishes our read pointer
+    /// last; send loads the CPU's read pointer before it writes a slot and publishes
+    /// our write pointer last.
+    #[test]
+    fn pointer_words_are_acquire_release() {
+        let (mem, pages, _base, path) = queue_fixture("order");
+        let qm = QueueMemory::new(&mem, &pages);
+        let mut cmd = TxHeader::standard(0x40000);
+        assert!(qm.write(0x1000, &cmd.encode()));
+        let mut q = QueueState::link(&qm, 0x1000, 0x41000, 0x40000).unwrap();
+        cpu_send(&qm, &mut cmd, 0, &request(1), &[1, 2, 3, 4]);
+        qm.ordered.borrow_mut().clear();
+        let m = q.receive(&qm).unwrap().expect("one message");
+        assert_eq!(
+            *qm.ordered.borrow(),
+            vec![('A', 0x1000 + 16), ('R', 0x41000 + 0x20)]
+        );
+        qm.ordered.borrow_mut().clear();
+        q.send(&qm, &RpcHeader::reply(&m.header, 0, 0), &[])
+            .unwrap();
+        assert_eq!(
+            *qm.ordered.borrow(),
+            vec![('A', 0x1000 + 0x20), ('R', 0x41000 + 16)]
+        );
+        // Both sides see the same values as through the plain accessors.
+        assert_eq!(qm.read_u32(0x41000 + 16), Some(1));
+        assert_eq!(qm.load_acquire(0x41000 + 0x20), Some(1));
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// A well-formed CPU request header for `function`.
+    pub(crate) fn request(function: u32) -> RpcHeader {
+        RpcHeader {
+            header_version: RPC_HEADER_VERSION,
+            signature: RPC_SIGNATURE,
+            length: 0,
+            function,
+            rpc_result: 0xFFFF_FFFF,
+            rpc_result_private: 0xFFFF_FFFF,
+            sequence: 7,
+            u: 0,
+        }
     }
 }
