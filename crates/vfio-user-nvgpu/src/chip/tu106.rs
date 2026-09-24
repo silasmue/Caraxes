@@ -9,11 +9,12 @@ use std::sync::OnceLock;
 use super::turing::{TuringBoot, TuringBootData};
 use super::{Chip, ChipData, ChipFiles, FirmwareBoot};
 
-const FILES: ChipFiles<'static> = ChipFiles {
+pub(crate) const FILES: ChipFiles<'static> = ChipFiles {
     chip: include_str!("../../chips/tu106/chip.toml"),
     regmap: include_str!("../../chips/tu106/regmap.toml"),
     device_info: include_str!("../../chips/tu106/device-info.toml"),
     interrupts: include_str!("../../chips/tu106/interrupts.toml"),
+    controls: include_str!("../../chips/tu106/controls.toml"),
 };
 const BOOT: &str = include_str!("../../chips/tu106/boot.toml");
 

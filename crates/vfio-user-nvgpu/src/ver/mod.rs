@@ -43,6 +43,162 @@ pub use v610 as active;
 #[cfg(not(feature = "v610"))]
 compile_error!("vfio-user-nvgpu needs a driver-version feature (v610)");
 
+// The generated control tables of every guest ABI (caraxes/tools/gsp-tables.py and
+// caraxes/tools/ctrl-layouts.py; docs/caraxes/gsp-surface.md). They are data, not code,
+// and compiled into every build, so the tests check a chip's tables against each ABI;
+// the running device uses the build's own ([`Abi::active`]).
+#[path = "v610/surface.rs"]
+pub mod surface610;
+#[path = "v610/ctrl_layouts.rs"]
+pub mod layouts610;
+#[path = "v615/surface.rs"]
+pub mod surface615;
+#[path = "v615/ctrl_layouts.rs"]
+pub mod layouts615;
+
+/// One feature family of category E controls ("never expected from a stock client on
+/// this chip", docs/caraxes/gsp-surface.md §3.E) of one driver version.
+#[derive(Debug)]
+pub struct Family {
+    pub name: &'static str,
+    pub what: &'static str,
+    /// The SDK header blocks that define the family's controls (`file:first-last`).
+    pub headers: &'static [&'static str],
+    /// (control id, control name).
+    pub controls: &'static [(u32, &'static str)],
+}
+
+/// One control that reaches GSP, as the surface inventory of a driver version reads it.
+#[derive(Debug)]
+pub struct Routed {
+    pub id: u32,
+    pub name: &'static str,
+    /// The inventory's heuristic category, 'A' to 'E' (gsp-surface.py `classify`).
+    pub category: char,
+    /// A handler other than the table rules of chipctl.rs answered it when the table was
+    /// generated (display, kgr, cuda, uvm, nvml or a match arm of ctrl.rs).
+    pub other: bool,
+}
+
+/// A control parameter struct as the compiler lays it out for one driver version.
+#[derive(Debug)]
+pub struct CtrlLayout {
+    pub name: &'static str,
+    /// The SDK header that defines it (relative to `sdk/nvidia/inc/ctrl/`).
+    pub header: &'static str,
+    pub size: usize,
+    /// Every scalar leaf.
+    pub fields: &'static [CtrlField],
+}
+
+/// A scalar leaf of a [`CtrlLayout`]: `path` has `[]` for each array level, whose
+/// (stride, count) are in `dims`, outermost first.
+#[derive(Debug)]
+pub struct CtrlField {
+    pub path: &'static str,
+    pub offset: usize,
+    pub size: usize,
+    pub dims: &'static [(usize, usize)],
+}
+
+impl CtrlLayout {
+    /// The (offset, size) of the scalar `path` names, with array indices
+    /// (`entries[2].nv2080EngineType`, `capsTbl[4]`).
+    pub fn resolve(&self, path: &str) -> Result<(usize, usize), String> {
+        let mut shape = String::new();
+        let mut idx = Vec::new();
+        let mut rest = path;
+        while let Some(open) = rest.find('[') {
+            let close = rest[open..]
+                .find(']')
+                .map(|c| open + c)
+                .ok_or_else(|| format!("{}: unbalanced [ in {path:?}", self.name))?;
+            shape.push_str(&rest[..open]);
+            shape.push_str("[]");
+            let i = rest[open + 1..close]
+                .trim()
+                .parse::<usize>()
+                .map_err(|_| format!("{}: index in {path:?} is not a number", self.name))?;
+            idx.push(i);
+            rest = &rest[close + 1..];
+        }
+        shape.push_str(rest);
+        let f = self
+            .fields
+            .iter()
+            .find(|f| f.path == shape)
+            .ok_or_else(|| format!("{} has no scalar field {path:?}", self.name))?;
+        if f.dims.len() != idx.len() {
+            return Err(format!(
+                "{}: {path:?} needs {} index(es)",
+                self.name,
+                f.dims.len()
+            ));
+        }
+        let mut off = f.offset;
+        for (&i, &(stride, count)) in idx.iter().zip(f.dims) {
+            if i >= count {
+                return Err(format!("{}: index {i} of {path:?} is out of 0..{count}", self.name));
+            }
+            off += i * stride;
+        }
+        Ok((off, f.size))
+    }
+}
+
+/// A guest ABI's generated tables.
+#[derive(Debug)]
+pub struct Abi {
+    /// "610" or "615", as `--guest-abi` names it.
+    pub name: &'static str,
+    pub driver: &'static str,
+    pub routed: &'static [Routed],
+    pub families: &'static [Family],
+    /// Category E and A controls no other handler answered at generation time.
+    pub e_inventory: usize,
+    pub a_inventory: usize,
+    pub layouts: &'static [CtrlLayout],
+}
+
+/// Every guest ABI the tables exist for.
+pub const ABIS: &[Abi] = &[
+    Abi {
+        name: "610",
+        driver: surface610::SURFACE_DRIVER,
+        routed: surface610::ROUTED,
+        families: surface610::E_FAMILIES,
+        e_inventory: surface610::E_INVENTORY,
+        a_inventory: surface610::A_INVENTORY,
+        layouts: layouts610::CTRL_LAYOUTS,
+    },
+    Abi {
+        name: "615",
+        driver: surface615::SURFACE_DRIVER,
+        routed: surface615::ROUTED,
+        families: surface615::E_FAMILIES,
+        e_inventory: surface615::E_INVENTORY,
+        a_inventory: surface615::A_INVENTORY,
+        layouts: layouts615::CTRL_LAYOUTS,
+    },
+];
+
+impl Abi {
+    /// The tables of the driver version this build emulates.
+    pub fn active() -> &'static Abi {
+        ABIS.iter()
+            .find(|a| a.driver == active::DRIVER_VERSION)
+            .expect("generated control tables for the emulated driver version")
+    }
+
+    pub fn routed(&self, name: &str) -> Option<&'static Routed> {
+        self.routed.iter().find(|r| r.name == name)
+    }
+
+    pub fn layout(&self, name: &str) -> Option<&'static CtrlLayout> {
+        self.layouts.iter().find(|l| l.name == name)
+    }
+}
+
 /// What the control id 0x20800A36 names in the guest's driver: 610.57.04
 /// `NV2080_CTRL_CMD_INTERNAL_GPU_GET_CHIP_INFO` (88-byte params), 615.71.09
 /// `NV2080_CTRL_CMD_INTERNAL_GPU_SYNC_FABRIC_PROBE_INFO` (16-byte params; 615

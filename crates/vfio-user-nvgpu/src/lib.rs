@@ -19,6 +19,7 @@ pub mod board;
 pub mod boot;
 pub mod channel;
 pub mod chip;
+pub mod chipctl;
 pub mod config;
 pub mod ctrl;
 pub mod cuda;

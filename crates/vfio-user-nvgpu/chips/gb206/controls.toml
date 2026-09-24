@@ -1,0 +1,6 @@
+# SPDX-License-Identifier: MIT
+# SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
+# SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
+#
+# GB206: the category A chip-data table (format: chips/tu106/controls.toml). Empty until a
+# capture of the GB206 supplies values; the TU106 values do not carry over.

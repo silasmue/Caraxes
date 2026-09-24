@@ -51,6 +51,11 @@ How the crate side is read (heuristic, see --explain):
   unchanged or says "acknowledged"/"echo" is echo, anything else ("synthesized",
   "card", "profile", a chip-table label) is synthesized. The display fallback arm
   (`c if is_display_cmd(c)`, label "unanswered") does not count as handled.
+  The two table rules of chipctl.rs count as handled too: the category E families of the
+  tree's src/ver/v<major>/surface.rs that chips/tu106/chip.toml [features] names absent
+  (refused, or synthesized for its `empty_ok` controls), and the entries of
+  chips/tu106/controls.toml (synthesized). Every routed control carries its heuristic
+  category as `class_category` in the JSON, handled or not (caraxes/tools/gsp-tables.py).
 
 Categories for unhandled controls (name and flag heuristics, see classify()):
   A chip data        answerable from the chip/board tables (static getters, CACHEABLE)
@@ -720,6 +725,58 @@ def crate_handlers(consts):
     return handlers, fn_handlers
 
 
+CHIP_DIR = os.path.join(ROOT, "crates", "vfio-user-nvgpu", "chips", "tu106")
+E_RULE_LABEL = "refused (feature absent on this chip)"
+
+
+def surface_file():
+    """The generated surface table of the tree's driver version (src/ver/v<major>/surface.rs,
+    written by caraxes/tools/gsp-tables.py), or None."""
+    p = os.path.join(CRATE, "ver", "v%s" % DRIVER.split(".")[0], "surface.rs")
+    return p if os.path.exists(p) else None
+
+
+def chip_rule_handlers(ctrl_by_name):
+    """The two table-driven rules of chipctl.rs: the category E refusal per feature family
+    (the families of the version's surface.rs that chips/tu106/chip.toml [features] names
+    absent) and the category A chip-data table (chips/tu106/controls.toml). Both run in
+    Dispatcher::control after nvml.rs and before the match of ctrl.rs."""
+    import tomllib
+    out = collections.defaultdict(list)
+    rule_src = "crates/vfio-user-nvgpu/src/chipctl.rs"
+    chip_p = os.path.join(CHIP_DIR, "chip.toml")
+    feats = tomllib.loads(read(chip_p)).get("features", {})
+    absent = set(feats.get("absent", []))
+    empty_ok = {e["name"]: e["label"] for e in feats.get("empty_ok", [])}
+    sp = surface_file()
+    if sp:
+        rx = re.compile(r'Family \{\s*name: "(\w+)",.*?controls: &\[(.*?)\],\s*\}', re.S)
+        for m in rx.finditer(read(sp)):
+            if m.group(1) not in absent:
+                continue
+            for val, name in re.findall(r'\((0x[0-9A-Fa-f_]+), "(\w+)"\)', m.group(2)):
+                if name in empty_ok:
+                    h = {"module": "ctrl", "provenance": "synthesized",
+                         "labels": [empty_ok[name]], "src": rel(chip_p),
+                         "guard": "E family %s (NV_OK, empty)" % m.group(1)}
+                else:
+                    h = {"module": "ctrl", "provenance": "refused", "labels": [E_RULE_LABEL],
+                         "guard": "E family %s" % m.group(1), "src": rule_src}
+                out[hexint(val)].append(h)
+    ctl_p = os.path.join(CHIP_DIR, "controls.toml")
+    if os.path.exists(ctl_p):
+        for e in tomllib.loads(read(ctl_p)).get("control", []):
+            val = ctrl_by_name.get(e["name"])
+            if val is None or DRIVER.split(".")[0] not in e.get("abi", ["610", "615"]):
+                continue
+            labels = [c["label"] for c in e.get("case", []) if "label" in c] or [e["label"]]
+            refused = e.get("status", "OK") != "OK"
+            out[val].append({"module": "ctrl", "provenance": "refused" if refused else
+                             "synthesized", "labels": labels[:3], "guard": "A table",
+                             "src": rel(ctl_p)})
+    return out
+
+
 def primary(hs):
     """The handler that answers first (Dispatcher::control order); the mirror table is
     conditional on a mirror and yields to the unconditional handler."""
@@ -862,6 +919,7 @@ def build():
     consts, _ = crate_constants()
     handlers, fn_handlers = crate_handlers(consts)
     crate_cls = crate_classes(consts)
+    rule_handlers = chip_rule_handlers(ctrl_by_name)
 
     # Controls: one row per (methodId), merged over classes that export the same id.
     by_id = {}
@@ -906,7 +964,7 @@ def build():
         for n in names:
             cs.update(refs.get(n, {}))
             where += ref_where.get(n, [])
-        hs = list(handlers.get(val, []))
+        hs = list(handlers.get(val, [])) + list(rule_handlers.get(val, []))
         for pre, prov, label, src in RANGE_RULES:
             if val >> 16 == pre:
                 hs.append({"module": "nvml", "provenance": prov, "labels": [label],
@@ -922,8 +980,12 @@ def build():
         r["interface"] = "%04x" % (val >> 16)
         kernel_site = bool(r["explicit"]) or cs.get("kernel-rm", 0) > 0 or \
             cs.get("display", 0) > 0 or cs.get("uvm", 0) > 0
+        if r["routed"]:
+            # The heuristic category of every routed control, handled or not: the table
+            # generator (gsp-tables.py) selects the E families and the A candidates by it.
+            r["class_category"], r["class_reason"] = classify(r, kernel_site)
         if r["routed"] and not r["handled"]:
-            r["category"], r["reason"] = classify(r, kernel_site)
+            r["category"], r["reason"] = r["class_category"], r["class_reason"]
         rows.append(r)
 
     # Handled ids that the vendor tables do not export (legacy GSS numbers, ...).
