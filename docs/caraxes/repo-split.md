@@ -409,6 +409,26 @@ Call that commit **L615** and push it.
 Before tonight, build two sets of host binaries and keep them side by side: L610 and L615.
 Caraxes' device must also be built at both pins (C3 below).
 
+**Step L2 prepared (2026-09-24, 15:45):** local branch `port/615` in `../Leandro` on top of the
+port-back branch, five commits: the 615 switch made by `cargo xtask abi` (DRIVER_VERSION
+615.71.09, default feature v615 in the shared crates and vhost-user-nvrm, `nvrm_wire.h`
+regenerated with only the version string changed, so the guest module needs a rebuild and no
+source change); the flake hashes for the 615 tag computed offline by the same NAR method that
+reproduces the committed 610 hashes (to be confirmed by one `nix store prefetch-file` from
+GitHub); packaging with a `@BRANCH@` placeholder for the 615 package names; docs; the record
+`docs/measurements/l615-2026-09-24.md`. Passing offline: `tools/check.sh` 17 of 17 against the
+615 vendor tree, 393 cargo tests, `cargo xtask abi --check`, `nix flake check --offline`, the
+leandro nix build with an impure header override, the two guest modules against the flake's
+kernel. Not run: `nix build .#guest-modules` (kernel closure not in the store). Deviations: a
+vhost-user-nvrm that serves both drivers needs `--features v610` (the generator owns the
+feature block); Leandro's untracked vendor tree is now the 615 clone and the 610 tree sits at
+`/mnt/vmstore/leandro/ogkm-610.57.04`, so `check.sh` on L610 reads the 615 tree until L615 is
+merged (the record has the one-line `mv` back). Host binaries for tonight:
+`/mnt/vmstore/leandro/l615-host-bin-8c0d2b2/` (615-only and dual-ABI vhost-user-nvrm,
+`libnvrm_trace.so`). The operator merges L610 then `port/615`, pushes after each, confirms the
+hashes, builds the nix packages, runs the verified 615 matrix on the card, and bakes the v1
+615 image (step G).
+
 ### Step C3: Caraxes at L615 (1 h for the pin; the device's `ver/v615` is separate work)
 
 1. Bump `rev = "<L615>"`, set `DRIVER_VERSION` to 615.71.09, and add
