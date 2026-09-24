@@ -1,0 +1,4 @@
+vfio-user-nvgpu: l2 FlushDirty: FB_FLUSH_GPU_CACHE flags 0x4 failed: status 0x1f; reported complete
+vfio-user-nvgpu: l2 SysmemInvalidate: FB_FLUSH_GPU_CACHE flags 0x8 failed: status 0x1f; reported complete
+vfio-user-nvgpu: l2 FlushDirty: FB_FLUSH_GPU_CACHE flags 0x4 failed: status 0x1f; reported complete
+vfio-user-nvgpu: l2 SysmemInvalidate: FB_FLUSH_GPU_CACHE flags 0x8 failed: status 0x1f; reported complete

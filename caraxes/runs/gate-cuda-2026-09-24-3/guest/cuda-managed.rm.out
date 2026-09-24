@@ -1,0 +1,5 @@
+# SPDX-License-Identifier: MIT
+# cuda gate gate-cuda-2026-09-24-3: guest/cuda-managed.rm.out
+ERROR AllocManaged a: 801 operation not supported
+managedprobe: attrs managed=0 concurrent=0 pageable=0
+ERROR: managedprobe exited 1

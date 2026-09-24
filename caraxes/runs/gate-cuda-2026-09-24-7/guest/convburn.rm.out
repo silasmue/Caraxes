@@ -1,0 +1,20 @@
+# SPDX-License-Identifier: MIT
+# cuda gate gate-cuda-2026-09-24-7: guest/convburn.rm.out
+Traceback (most recent call last):
+  File "/home/leandro/caraxes-tests/leandro-test/probe/python/convburn.py", line 40, in <module>
+    ).to(dev)
+      ^^^^^^^
+  File "/home/leandro/gpu/venv/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1383, in to
+    return self._apply(convert)
+           ^^^^^^^^^^^^^^^^^^^^
+  File "/home/leandro/gpu/venv/lib/python3.12/site-packages/torch/nn/modules/module.py", line 933, in _apply
+    module._apply(fn)
+  File "/home/leandro/gpu/venv/lib/python3.12/site-packages/torch/nn/modules/module.py", line 964, in _apply
+    param_applied = fn(param)
+                    ^^^^^^^^^
+  File "/home/leandro/gpu/venv/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1369, in convert
+    return t.to(
+           ^^^^^
+  File "/home/leandro/gpu/venv/lib/python3.12/site-packages/torch/cuda/__init__.py", line 529, in _lazy_init
+    torch._C._cuda_init()
+RuntimeError: No CUDA GPUs are available

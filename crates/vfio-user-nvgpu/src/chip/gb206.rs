@@ -10,11 +10,12 @@ use std::sync::OnceLock;
 use super::boot_fsp::{FspBoot, FspBootData};
 use super::{Chip, ChipData, ChipFiles, FirmwareBoot};
 
-const FILES: ChipFiles<'static> = ChipFiles {
+pub(crate) const FILES: ChipFiles<'static> = ChipFiles {
     chip: include_str!("../../chips/gb206/chip.toml"),
     regmap: include_str!("../../chips/gb206/regmap.toml"),
     device_info: include_str!("../../chips/gb206/device-info.toml"),
     interrupts: include_str!("../../chips/gb206/interrupts.toml"),
+    controls: include_str!("../../chips/gb206/controls.toml"),
 };
 const BOOT: &str = include_str!("../../chips/gb206/boot.toml");
 

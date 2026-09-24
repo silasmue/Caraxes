@@ -1,0 +1,4 @@
+# SPDX-License-Identifier: MIT
+# cuda gate gate-cuda-2026-09-24-5: guest/cuda-hostreg.rm.out
+A cuInit                : 999 unknown error
+ERROR: hostregprobe exited 1

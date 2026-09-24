@@ -1,0 +1,3 @@
+# SPDX-License-Identifier: MIT
+# cuda gate gate-cuda-2026-09-24-7: guest/robustness-p2.txt
+ERROR cuInit: 100 no CUDA-capable device is detected

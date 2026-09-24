@@ -1,0 +1,23 @@
+window 10 s [610652453, 620652453) us; presented frames (latches with a surface): window 6: 570; per-frame base: window 6 = 570 (57.00 Hz)
+what                                                              count  per frame
+BAR0 writes, all                                                   6702      11.76
+  other 0x88704 NV_PCFG (config mirror)                            6068      10.65
+  other 0x696000                                                    634       1.11
+BAR0 reads, all                                                    9875      17.32
+  NV_VIRTUAL_FUNCTION_TIME_0/1                                     9741      17.09
+  0x696004                                                          128       0.22
+  0x1100                                                              6       0.01
+BAR1 writes, all                                                   1140       2.00
+  USERD GPPut (offset 0x8c)                                        1140       2.00
+BAR1 reads                                                            0       0.00
+BAR2 writes, all                                                      0       0.00
+BAR2 reads                                                            0       0.00
+all trapped accesses                                              17717      31.08
+display channel kicks                                               634       1.11
+forwarded doorbells (host doorbell rung)                           1105       1.94
+shadow plans applied (sync lines)                                     0       0.00
+BAR0 page 0xbb0000 reads                                           9741      17.09
+BAR0 page 0x088000 writes                                          6068      10.65
+BAR0 page 0x696000 writes                                           634       1.11
+BAR0 page 0x696000 reads                                            128       0.22
+BAR0 page 0x001000 reads                                              6       0.01
