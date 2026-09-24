@@ -1275,6 +1275,32 @@ mod tests {
         assert_eq!(a.note == "chip info", want == Id0A36::GetChipInfo, "{}", a.note);
     }
 
+    /// The costume board (docs/caraxes/costume-5060.md): chip info carries the 5060 Ti's
+    /// PCI ids, the register bases stay the TU106's; the nvidia-smi profile (GET_CHIP_DETAILS
+    /// pciDevId) has the costume's device id.
+    #[test]
+    fn costume_chip_info_has_the_5060_ti_ids_and_tu106_bases() {
+        use crate::ver::Id0A36;
+        let f = crate::fixture::rtx5060ti_on_tu106();
+        let d = Dispatcher::new(f.chip.data(), &f.identity(1 << 30), None);
+        let t = dispatcher(None);
+        let a = d.id_0a36(Id0A36::GetChipInfo, &[0u8; 88]);
+        let b = t.id_0a36(Id0A36::GetChipInfo, &[0u8; 88]);
+        assert_eq!(a.status, NV_OK);
+        assert_eq!(get32(&a.params, v::CHIP_INFO_PCI_DEVICE_ID), 0x2D04_10DE);
+        assert_eq!(
+            get32(&a.params, v::CHIP_INFO_PCI_SUB_DEVICE_ID),
+            0x8A08_1043
+        );
+        assert_eq!(get32(&a.params, v::CHIP_INFO_PCI_REVISION_ID), 0xA1);
+        assert_eq!(
+            a.params[v::CHIP_INFO_REG_BASES..],
+            b.params[v::CHIP_INFO_REG_BASES..]
+        );
+        assert_eq!(d.profile.pci_device_id, 0x2D04);
+        assert_eq!(d.bar_sizes, [64 << 20, 256 << 20, 32 << 20, 0x80]);
+    }
+
     #[test]
     fn answers_have_the_request_size() {
         let mut d = dispatcher(None);

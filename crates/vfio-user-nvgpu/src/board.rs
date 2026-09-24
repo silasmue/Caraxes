@@ -86,9 +86,12 @@ struct BarFile {
 
 const RTX2070: &str = include_str!("../boards/rtx2070.toml");
 const RTX5060TI: &str = include_str!("../boards/rtx5060ti.toml");
+const RTX5060TI_ON_TU106: &str = include_str!("../boards/rtx5060ti-on-tu106.toml");
 
-/// The boards compiled into the binary, by `--board-data` name.
-pub const BOARDS: &[&str] = &["rtx2070", "rtx5060ti"];
+/// The boards compiled into the binary, by `--board-data` name. `rtx5060ti-on-tu106` is
+/// the costume (docs/caraxes/costume-5060.md): the 5060 Ti's PCI identity and name on the
+/// TU106 chip, whose answers stay the truth.
+pub const BOARDS: &[&str] = &["rtx2070", "rtx5060ti", "rtx5060ti-on-tu106"];
 
 impl Board {
     /// A built-in board by name, or a board file by path.
@@ -96,6 +99,9 @@ impl Board {
         match name_or_path {
             "rtx2070" => Self::parse("boards/rtx2070.toml", RTX2070),
             "rtx5060ti" => Self::parse("boards/rtx5060ti.toml", RTX5060TI),
+            "rtx5060ti-on-tu106" => {
+                Self::parse("boards/rtx5060ti-on-tu106.toml", RTX5060TI_ON_TU106)
+            }
             path => {
                 let text = std::fs::read_to_string(path)
                     .map_err(|e| format!("read board data {path}: {e}"))?;
@@ -254,5 +260,33 @@ mod tests {
         let on = RTX5060TI.replace("msix = false", "msix = true");
         let e = Board::parse("x", &on).unwrap_err();
         assert!(e.contains("msix"), "{e}");
+    }
+
+    /// The costume (docs/caraxes/costume-5060.md): the 5060 Ti's config capture, BARs
+    /// and personality on the TU106, with the RTX 2070's ROM and VBIOS version.
+    #[test]
+    fn rtx5060ti_on_tu106_is_the_costume() {
+        let b = Board::load("rtx5060ti-on-tu106").unwrap();
+        let g = Board::load("rtx5060ti").unwrap();
+        let t = Board::load("rtx2070").unwrap();
+        assert!(BOARDS.contains(&"rtx5060ti-on-tu106"));
+        assert_eq!((b.name.as_str(), b.chip.as_str()), ("RTX 5060 Ti", "tu106"));
+        assert_eq!(
+            (b.name.as_str(), b.config.as_str()),
+            (g.name.as_str(), g.config.as_str())
+        );
+        assert_eq!(
+            (b.bars, b.rom_bar_size, b.msix),
+            (g.bars, g.rom_bar_size, g.msix)
+        );
+        assert_eq!(
+            (b.rom.as_str(), b.vbios_version.as_str()),
+            (t.rom.as_str(), t.vbios_version.as_str())
+        );
+        assert_eq!(
+            (b.vbios_revision, b.vbios_oem_revision),
+            (t.vbios_revision, t.vbios_oem_revision)
+        );
+        assert!(b.display.is_some());
     }
 }

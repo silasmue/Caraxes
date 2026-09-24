@@ -35,6 +35,16 @@ pub fn rtx5060ti() -> Fixture {
     }
 }
 
+/// The costume (docs/caraxes/costume-5060.md): the TU106 chip under the RTX 5060 Ti's PCI
+/// identity (board data `rtx5060ti-on-tu106`, the GB206 config-space capture).
+pub fn rtx5060ti_on_tu106() -> Fixture {
+    Fixture {
+        chip: chip::by_name("tu106").unwrap(),
+        board: Board::load("rtx5060ti-on-tu106").unwrap(),
+        dump: DUMP_GB206,
+    }
+}
+
 impl Fixture {
     pub fn config(&self) -> ConfigSpace {
         crate::config::for_board(self.dump, &self.board).unwrap()

@@ -51,7 +51,8 @@ vfio-user-nvgpu --selftest <socket> [--board-data <name|file>] [--chip <chip>] [
 
   --socket   vfio-user socket to create (a stale socket file is removed)
   --trace    access log file (default: none; the summary always goes to stderr)
-  --board-data  board data: a built-in board (rtx2070, rtx5060ti) or a boards/*.toml-shaped file (default: rtx2070)
+  --board-data  board data: a built-in board (rtx2070, rtx5060ti, rtx5060ti-on-tu106: the 5060 Ti's PCI identity
+             and name on the TU106, docs/caraxes/costume-5060.md) or a boards/*.toml-shaped file (default: rtx2070)
   --chip     the chip to present, tu106 or gb206 (default: the board's, tu106 for rtx2070, gb206 for rtx5060ti)
   --config   lspci -xxxx dump of the card (default: the board's, caraxes/reference/rtx2070/config-space.txt)
   --rom      PCI-visible ROM image for the expansion ROM region (default: the board's, caraxes/reference/rtx2070/rom.bin)

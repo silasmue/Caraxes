@@ -53,4 +53,6 @@ pub mod uvm;
 pub mod ver;
 
 #[cfg(test)]
+mod costume;
+#[cfg(test)]
 pub(crate) mod fixture;
