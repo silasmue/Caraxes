@@ -2,8 +2,9 @@
 // SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
 //! The costume board `rtx5060ti-on-tu106` (docs/caraxes/costume-5060.md), as the tests
 //! pin it: the RTX 5060 Ti's PCI identity and name, every answer a capability is derived
-//! from the TU106's. The costume is the board data alone (`boards/rtx5060ti-on-tu106.toml`);
-//! no code path knows it, so these tests compare it with the two boards it is made of.
+//! from the TU106's. The costume is board data (`boards/rtx5060ti-on-tu106.toml`, with the
+//! generic `ids_from` overlay of config.rs); no code path knows it, so these tests compare
+//! it with the two boards it is made of.
 
 use crate::bar0::{Bar0, NV_PMC_BOOT_0, NV_PMC_BOOT_1, NV_PMC_BOOT_42};
 use crate::board::Board;
@@ -15,30 +16,49 @@ use crate::ver::active as v;
 
 const MIB: u64 = 1 << 20;
 
-/// The PCI identity is the GB206 board's, byte for byte (same capture, same filter):
-/// 10de:2d04 rev a1, class 030000, subsystem 1043:8a08, PM/MSI/PCIe and nothing else.
+/// The PCI ids are the 5060 Ti's (10de:2d04 rev a1, class 030000, subsystem 1043:8a08,
+/// the GB206 board's bytes); every other config byte is the RTX 2070's, so the capability
+/// chain and the link registers sit where the Turing kernel RM reads them (XVE 0x84/0x88).
 #[test]
-fn pci_identity_is_the_5060_ti() {
+fn pci_ids_are_the_5060_ti_and_the_layout_the_tu106() {
     let c = fixture::rtx5060ti_on_tu106().config();
     let g = fixture::rtx5060ti().config();
+    let t = fixture::rtx2070().config();
     assert_eq!(
         (c.vendor_id(), c.device_id(), c.revision()),
         (0x10DE, 0x2D04, 0xA1)
     );
     assert_eq!(c.class_code(), 0x03_0000);
     assert_eq!(c.subsystem(), (0x1043, 0x8A08));
+    for o in 0..crate::config::SIZE {
+        if crate::config::ID_BYTES.iter().any(|r| r.contains(&o)) {
+            assert_eq!(c.byte(o), g.byte(o), "id byte {o:#x}");
+        } else {
+            assert_eq!(c.byte(o), t.byte(o), "config byte {o:#x}");
+        }
+    }
     let mut chain = Vec::new();
     let mut off = c.byte(0x34) as usize;
     while off >= 0x40 {
         chain.push((off, c.byte(off)));
         off = c.byte(off + 1) as usize;
     }
-    assert_eq!(chain, [(0x40, 0x01), (0x48, 0x05), (0x60, 0x10)]);
-    for o in 0..crate::config::SIZE {
-        assert_eq!(c.byte(o), g.byte(o), "config byte {o:#x}");
-    }
-    // Nothing of the vendor-specific capability (UUID bytes) or of the extended space.
-    assert!((0x9C..crate::config::SIZE).all(|o| c.byte(o) == 0));
+    assert_eq!(chain, [(0x60, 0x01), (0x68, 0x05), (0x78, 0x10)]);
+    // NV_XVE_LINK_CAPABILITIES (0x84): max speed 3 (8 GT/s) in 3:0, max width 16 in 9:4.
+    let lnkcap = c.dword(0x84);
+    assert_eq!((lnkcap & 0xF, (lnkcap >> 4) & 0x3F), (3, 16));
+    assert!((0x100..crate::config::SIZE).all(|o| c.byte(o) == 0));
+}
+
+/// With the whole GB206 config space the Turing RM's fixed-offset read of
+/// NV_XVE_LINK_CAPABILITIES lands in Device Capabilities 2 and yields width 25 (what the
+/// first GPU run showed, caraxes/runs/costume-2026-09-24/gb206-layout/): the reason the
+/// costume takes only the ids.
+#[test]
+fn the_gb206_layout_would_break_the_turing_link_read() {
+    let g = fixture::rtx5060ti().config();
+    let v = g.dword(0x84);
+    assert_eq!((v & 0xF, (v >> 4) & 0x3F), (3, 25));
 }
 
 /// The BARs are the 5060 Ti board's (BAR0 64 MiB), the ROM BAR 512 KiB as on both cards.

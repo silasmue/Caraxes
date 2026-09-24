@@ -10,13 +10,15 @@ use crate::config::ConfigSpace;
 use crate::rpc::StaticIdentity;
 
 const DUMP: &str = include_str!("../../../caraxes/reference/rtx2070/config-space.txt");
-const DUMP_GB206: &str =
+pub const DUMP_GB206: &str =
     include_str!("../../../caraxes/reference/gb206/gpu-0000_01_00.0/config-space.txt");
 
 pub struct Fixture {
     pub chip: &'static dyn Chip,
     pub board: Board,
     dump: &'static str,
+    /// The capture of the board's `ids_from`, when it has one.
+    ids: Option<&'static str>,
 }
 
 pub fn rtx2070() -> Fixture {
@@ -24,6 +26,7 @@ pub fn rtx2070() -> Fixture {
         chip: chip::by_name("tu106").unwrap(),
         board: Board::load("rtx2070").unwrap(),
         dump: DUMP,
+        ids: None,
     }
 }
 
@@ -32,22 +35,24 @@ pub fn rtx5060ti() -> Fixture {
         chip: chip::by_name("gb206").unwrap(),
         board: Board::load("rtx5060ti").unwrap(),
         dump: DUMP_GB206,
+        ids: None,
     }
 }
 
-/// The costume (docs/caraxes/costume-5060.md): the TU106 chip under the RTX 5060 Ti's PCI
-/// identity (board data `rtx5060ti-on-tu106`, the GB206 config-space capture).
+/// The costume (docs/caraxes/costume-5060.md): the TU106 chip and config layout under the
+/// RTX 5060 Ti's PCI ids (board data `rtx5060ti-on-tu106`, ids from the GB206 capture).
 pub fn rtx5060ti_on_tu106() -> Fixture {
     Fixture {
         chip: chip::by_name("tu106").unwrap(),
         board: Board::load("rtx5060ti-on-tu106").unwrap(),
-        dump: DUMP_GB206,
+        dump: DUMP,
+        ids: Some(DUMP_GB206),
     }
 }
 
 impl Fixture {
     pub fn config(&self) -> ConfigSpace {
-        crate::config::for_board(self.dump, &self.board).unwrap()
+        crate::config::for_board_with_ids(self.dump, self.ids, &self.board).unwrap()
     }
 
     /// The identity `main` builds for `fb_bytes` ("Leandro VFIO RTX 2070-<size>").

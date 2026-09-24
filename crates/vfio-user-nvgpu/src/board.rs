@@ -57,6 +57,10 @@ pub struct Board {
     /// Present the MSI-X capability of the capture. `false` (the default) unlinks it
     /// from the capability chain; `true` is refused until the device implements MSI-X.
     pub msix: bool,
+    /// A config-space capture whose identity words (vendor, device, revision, class,
+    /// subsystem; `config::ID_BYTES`) are laid over `config`, relative to `LEA_ROOT`: the
+    /// costume board's 5060 Ti ids on the TU106 layout (docs/caraxes/costume-5060.md).
+    pub ids_from: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -73,6 +77,8 @@ struct BoardFile {
     display: Option<toml::Value>,
     #[serde(default)]
     msix: bool,
+    #[serde(default)]
+    ids_from: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -174,6 +180,7 @@ impl Board {
             rom_bar_size: f.rom_bar_size,
             display: f.display,
             msix: f.msix,
+            ids_from: f.ids_from,
         })
     }
 
@@ -271,10 +278,11 @@ mod tests {
         let t = Board::load("rtx2070").unwrap();
         assert!(BOARDS.contains(&"rtx5060ti-on-tu106"));
         assert_eq!((b.name.as_str(), b.chip.as_str()), ("RTX 5060 Ti", "tu106"));
-        assert_eq!(
-            (b.name.as_str(), b.config.as_str()),
-            (g.name.as_str(), g.config.as_str())
-        );
+        assert_eq!(b.name, g.name);
+        // The TU106 config layout with the GB206 capture's ids (config::ID_BYTES).
+        assert_eq!(b.config, t.config);
+        assert_eq!(b.ids_from.as_deref(), Some(g.config.as_str()));
+        assert_eq!((t.ids_from.as_deref(), g.ids_from.as_deref()), (None, None));
         assert_eq!(
             (b.bars, b.rom_bar_size, b.msix),
             (g.bars, g.rom_bar_size, g.msix)

@@ -275,8 +275,22 @@ fn parse_args() -> Result<Args> {
 fn config_space(a: &Args) -> Result<ConfigSpace> {
     let dump = std::fs::read_to_string(&a.config)
         .with_context(|| format!("read {}", a.config.display()))?;
-    // The board's capability filter (MSI-X) applies to any dump, also a --config one.
-    pci_config::for_board(&dump, &a.board_data)
+    // The board's capability filter (MSI-X) and its identity overlay (`ids_from`, the
+    // costume board) apply to any dump, also a --config one.
+    let ids = match &a.board_data.ids_from {
+        Some(p) => {
+            let root = std::env::var_os("LEA_ROOT")
+                .map(PathBuf::from)
+                .unwrap_or_else(|| PathBuf::from("."));
+            let path = root.join(p);
+            Some(
+                std::fs::read_to_string(&path)
+                    .with_context(|| format!("read {} (the board's ids_from)", path.display()))?,
+            )
+        }
+        None => None,
+    };
+    pci_config::for_board_with_ids(&dump, ids.as_deref(), &a.board_data)
 }
 
 /// Free the host memory on SIGTERM, SIGINT or SIGHUP, then exit. The signals are

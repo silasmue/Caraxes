@@ -2,20 +2,25 @@
 # SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
 #
 # The costume board (docs/caraxes/costume-5060.md): the RTX 5060 Ti's PCI identity on
-# the TU106 of the house. Costume: the config space of the GB206 capture (10de:2d04,
-# revision a1, class 030000, subsystem 1043:8a08, capabilities PM, MSI and PCI Express
-# after the same filter as boards/rtx5060ti.toml: vendor-specific capability and MSI-X
-# unlinked, extended space not presented), the 5060 Ti's BAR0 size and the personality
-# "RTX 5060 Ti" of the guest name ("Leandro VFIO RTX 5060 Ti-1G" for a 1 GiB profile,
-# nvrm_abi::naming). Truth: everything the guest driver and libcuda derive capabilities
-# from is the chip's, `chip = "tu106"` (PMC_BOOT_0/42, the BAR0 register model, the
-# Turing GSP boot, GMMU v2, the Turing classes and engines, the SM version 7.5 the host
-# card reports), and the VBIOS below. No per-card value of the capture (UUID, PDI,
-# serials) is used; the device's own derived GID stays.
+# the TU106 of the house. Costume: the identity words of the GB206 capture (`ids_from`:
+# 10de:2d04, revision a1, class 030000, subsystem 1043:8a08), the 5060 Ti's BAR0 size and
+# the personality "RTX 5060 Ti" of the guest name ("Leandro VFIO RTX 5060 Ti-1G" for a
+# 1 GiB profile, nvrm_abi::naming). Truth: everything the guest driver and libcuda derive
+# capabilities from is the chip's, `chip = "tu106"` (PMC_BOOT_0/42, the BAR0 register
+# model, the Turing GSP boot, GMMU v2, the Turing classes and engines, the SM version 7.5
+# the host card reports), the VBIOS below, and the config layout: the capability chain
+# is the RTX 2070's (PM 0x60, MSI 0x68, PCI Express 0x78, 8 GT/s x16), because the Turing
+# kernel RM reads the link registers at the fixed XVE offsets 0x84/0x88
+# (maxwell/gm107/dev_nv_xve.h:104-105), which in the GB206 layout (PCI Express at 0x60)
+# are Device Capabilities 2 and Device Control 2: with the whole GB206 config space the
+# guest's nvidia-smi showed "Link Width Max 25x", "Current Unknown Error"
+# (caraxes/runs/costume-2026-09-24/gb206-layout/). No per-card value of the capture (UUID,
+# PDI, serials) is used; the device's own derived GID stays.
 
 name = "RTX 5060 Ti"
 chip = "tu106"
-config = "caraxes/reference/gb206/gpu-0000_01_00.0/config-space.txt"
+config = "caraxes/reference/rtx2070/config-space.txt"
+ids_from = "caraxes/reference/gb206/gpu-0000_01_00.0/config-space.txt"
 # The VBIOS stays Turing's: the TU106 boot parses the image behind the PROM window (the
 # BIT and the FWSEC ucode that sets up FRTS, docs/caraxes/gsp-boot-turing.md), which the
 # GB206 images do not carry (a GB20x boots through the FSP, blackwell-gb206.md 1.4). The
