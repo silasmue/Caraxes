@@ -107,6 +107,14 @@ pub struct BootModel {
     exec: Option<(Arc<Mutex<HostMemory>>, Arc<IntrShared>)>,
     /// GSP IRQSTAT.SWGEN0 raised for an event the device posted unasked (display hotplug).
     gsp_swgen0: bool,
+    /// The device posted an unsolicited message at least once: SWGEN0 reads routed to the
+    /// host in the GSP falcon's IRQMASK/IRQDEST (events.rs).
+    events_posted: bool,
+    /// The error notifiers of the guest channels on host mirrors (events.rs
+    /// `ChannelWatch`), by (hClient, hChannel).
+    watch: BTreeMap<(u32, u32), crate::events::ChannelWatch>,
+    /// The host RC counter at the last notifier scan, and when that scan ran.
+    rc_scan: (u64, Option<std::time::Instant>),
     /// The CPU-GSP transport this model serves: the emulated version's
     /// (`ver::active::GSP_TRANSPORT`) unless [`BootModel::with_transport`] says otherwise.
     transport: GspTransport,
@@ -181,6 +189,9 @@ impl BootModel {
             vf: crate::uvm::VfRegs::new(d),
             exec: None,
             gsp_swgen0: false,
+            events_posted: false,
+            watch: BTreeMap::new(),
+            rc_scan: (0, None),
             transport: v::GSP_TRANSPORT,
             cpu_cmd_head: 0,
         }
@@ -249,7 +260,150 @@ impl BootModel {
         if crate::display::engine::ticker().command_pending() {
             self.post_display_command(mem);
         }
-        self.ctrl.display.tick(&mut self.fb, mem)
+        let mut notes = self.ctrl.display.tick(&mut self.fb, mem);
+        notes.extend(self.scan_channel_errors(mem, true));
+        notes
+    }
+
+    /// Send unsolicited messages (events.rs) on the status queue and raise GSP
+    /// IRQSTAT.SWGEN0 with the GSP stall vector, as the GSP does for any message it
+    /// posts unasked (kgspService_TU102). Without linked queues nothing is sent.
+    pub fn post_unsolicited(
+        &mut self,
+        mem: &GuestMemory,
+        items: &[crate::events::Unsolicited],
+    ) -> Vec<String> {
+        use crate::events::Unsolicited;
+        let mut notes = Vec::new();
+        let Some(mut queues) = self.queues.take() else {
+            notes.push(format!(
+                "events: {} message(s) before the GSP queues exist; not sent",
+                items.len()
+            ));
+            return notes;
+        };
+        let mut sent = 0;
+        {
+            let qm = QueueMemory::new(mem, &self.pages);
+            for u in items {
+                let (r, len) = match u {
+                    Unsolicited::Event(f, p) => {
+                        (queues.send(&qm, &RpcHeader::event(*f, p.len()), p), p.len())
+                    }
+                    Unsolicited::Gmcapi(id, p) => (queues.send_gmcapi_request(&qm, *id, p), p.len()),
+                };
+                match r {
+                    Ok(seq) => {
+                        sent += 1;
+                        notes.push(format!("tx seq {seq} {} ({len} bytes) [unsolicited]", u.name()));
+                    }
+                    Err(e) => notes.push(format!("{}: {e}", u.name())),
+                }
+            }
+        }
+        self.queues = Some(queues);
+        if sent > 0 {
+            self.gsp_swgen0 = true;
+            self.events_posted = true;
+            let raised = if self.ctrl.display.enabled {
+                crate::display::engine::ticker().raise_gsp()
+            } else {
+                let d = self.chip.data();
+                let gsp = v::MC_ENGINE_IDX
+                    .iter()
+                    .find(|(n, _)| *n == "GSP")
+                    .map(|&(_, i)| i);
+                match d
+                    .interrupts
+                    .entries
+                    .iter()
+                    .find(|e| Some(e.mc_idx as u32) == gsp)
+                {
+                    Some(e) => {
+                        self.intr.trigger(e.vector_stall);
+                        true
+                    }
+                    None => false,
+                }
+            };
+            notes.push(format!("events: {sent} sent, SWGEN0 set, GSP vector raised {raised}"));
+        }
+        notes
+    }
+
+    /// Look at the error notifiers of the guest's channels that run on host mirrors
+    /// (events.rs): a write the host RM made there (it is the guest's own page, the
+    /// mirror channel's `hObjectError`) becomes OS_ERROR_LOG and RC_TRIGGERED for that
+    /// guest channel, once per channel. Runs when the host RC counter moved (a wake-up
+    /// only: that subscription is host-global and never a source, events.rs) and at most
+    /// every 100 ms otherwise when `periodic`.
+    fn scan_channel_errors(&mut self, mem: &GuestMemory, periodic: bool) -> Vec<String> {
+        let rc = self
+            .exec
+            .as_ref()
+            .map_or(0, |(_, s)| s.rc_events.load(std::sync::atomic::Ordering::Relaxed));
+        let due = periodic
+            && self
+                .rc_scan
+                .1
+                .is_none_or(|t| t.elapsed() >= std::time::Duration::from_millis(100));
+        if rc == self.rc_scan.0 && !due {
+            return Vec::new();
+        }
+        self.rc_scan = (rc, Some(std::time::Instant::now()));
+        let layout = crate::events::rc_layout(self.transport.guest_abi());
+        let mut items = Vec::new();
+        let mut notes = Vec::new();
+        let mut live = std::collections::BTreeSet::new();
+        let chans: Vec<_> = self
+            .ctrl
+            .channels
+            .channels()
+            .filter(|c| c.mirrored)
+            .filter_map(|c| {
+                c.error_notifier
+                    .map(|t| (c.h_client, c.h_object, c.chid, c.engine_type, t))
+            })
+            .collect();
+        for (hc, ho, chid, eng, t) in chans {
+            live.insert((hc, ho));
+            let mut now = [0u8; crate::events::NOTIFIER_SIZE];
+            let gm = crate::channel::GpuMem {
+                fb: &mut self.fb,
+                sys: mem,
+            };
+            if !gm.read(t, &mut now) {
+                continue;
+            }
+            let w = self
+                .watch
+                .entry((hc, ho))
+                .or_insert(crate::events::ChannelWatch {
+                    baseline: now,
+                    raised: false,
+                });
+            if let Some((xid, info16)) = crate::events::notifier_error(w, &now) {
+                let text = format!(
+                    "Caraxes: channel {chid} (engine type {eng:#x}) error, info16 {info16:#x} (host mirror)"
+                );
+                notes.push(format!(
+                    "chid {chid}: error notifier written (exceptType {xid}, info16 {info16:#x}): OS_ERROR_LOG and RC_TRIGGERED to the guest [guest channel, host mirror]"
+                ));
+                items.push(crate::events::Unsolicited::Event(
+                    crate::events::EV_OS_ERROR_LOG,
+                    crate::events::os_error_log(xid, 0, chid, &text),
+                ));
+                items.push(crate::events::Unsolicited::Event(
+                    crate::events::EV_RC_TRIGGERED,
+                    crate::events::rc_triggered(layout, eng, chid, xid),
+                ));
+            }
+        }
+        self.watch.retain(|k, _| live.contains(k));
+        if !items.is_empty() {
+            notes.extend(self.post_unsolicited(mem, &items));
+        }
+        notes
     }
 
     /// A BAR0 write to the display (display/mod.rs).
@@ -449,7 +603,9 @@ impl BootModel {
             fb: &mut self.fb,
             sys: mem,
         };
-        self.ctrl.doorbell_pool(&mut gm, token, false)
+        let mut notes = self.ctrl.doorbell_pool(&mut gm, token, false);
+        notes.extend(self.scan_channel_errors(mem, false));
+        notes
     }
 
     /// The first host doorbell write since the last call (ctrl.rs `host_doorbell_at`).
@@ -643,7 +799,20 @@ impl BootModel {
             // The operation completed when the write started it: PENDING and
             // OUTSTANDING read EMPTY/FALSE (execution.md §6, "L2 cache operations").
             Some(Reg::L2Op(_)) => self.l2_ops.get(&off).copied().unwrap_or(0) & !L2_OP_BUSY,
-            None => return self.fw.read32(off),
+            None => {
+                // SWGEN0 of an unsolicited message (events.rs), as display_read32 shows
+                // it for the display's events.
+                let v = self.fw.read32(off)?;
+                return Some(match off {
+                    GSP_IRQSTAT if self.gsp_swgen0 => v | GSP_SWGEN0,
+                    GSP_IRQMASK | GSP_IRQDEST | GSP_RISCV_IRQMASK | GSP_RISCV_IRQDEST
+                        if self.events_posted =>
+                    {
+                        v | GSP_SWGEN0
+                    }
+                    _ => v,
+                });
+            }
         })
     }
 
@@ -657,6 +826,10 @@ impl BootModel {
         if let Some((_, shared)) = &self.exec {
             notes.extend(shared.take_notes());
         }
+        if off == GSP_IRQSCLR && v & GSP_SWGEN0 != 0 {
+            self.gsp_swgen0 = false;
+        }
+        notes.extend(self.scan_channel_errors(mem, false));
         if self.intr.handles(off) {
             notes.extend(self.intr.write32(off, v));
             return Some(notes);
@@ -821,7 +994,9 @@ impl BootModel {
             fb: &mut self.fb,
             sys: mem,
         };
-        self.ctrl.doorbell_pending(&mut gm)
+        let mut notes = self.ctrl.doorbell_pending(&mut gm);
+        notes.extend(self.scan_channel_errors(mem, false));
+        notes
     }
 
     /// Find RMARGS through the libos init arguments, link the queues on the first
@@ -2089,6 +2264,62 @@ mod tests {
         assert_eq!(Guest615::reply(&el, g::FN_UNLOADING_GUEST_DRIVER).unwrap().0, 0);
         assert_eq!(q.b.fw.read32(GSP_MAILBOX0).unwrap() & GSP_PROCESSOR_SUSPENDED, GSP_PROCESSOR_SUSPENDED);
         assert!(q.b.unanswered.is_empty(), "{:?}", q.b.unanswered);
+    }
+
+    /// Events from a host-mirrored channel's error notifier (events.rs): the host RM's
+    /// write into the guest's own notifier page becomes OS_ERROR_LOG then the 64-byte
+    /// 615 RC_TRIGGERED for that guest chid, once, with SWGEN0 up until the kernel
+    /// clears it.
+    #[test]
+    fn a_mirrored_channel_error_reaches_the_guest_once() {
+        use nvrm_sys::RmAbi;
+        type Abi = v::RmAbi;
+        let mut g = Guest615::boot("rcevent");
+        let (c, notifier) = (0xc1d0_0001u32, 0x88a7_8000u64);
+        let mut p = vec![0u8; <Abi as RmAbi>::ALLOC_CHANNEL_PARAMS_SIZE as usize];
+        let put = |b: &mut [u8], o: usize, x: &[u8]| b[o..o + x.len()].copy_from_slice(x);
+        let flags = (1u32 << 21) | (5 << 8);
+        put(&mut p, <Abi as RmAbi>::ALLOC_CHANNEL_PARAMS_OFF_flags, &flags.to_le_bytes());
+        put(&mut p, <Abi as RmAbi>::ALLOC_CHANNEL_PARAMS_OFF_gpFifoEntries, &32u32.to_le_bytes());
+        put(&mut p, <Abi as RmAbi>::ALLOC_CHANNEL_PARAMS_OFF_engineType, &1u32.to_le_bytes());
+        let userd = <Abi as RmAbi>::ALLOC_CHANNEL_PARAMS_OFF_userdMem;
+        put(&mut p, userd + v::MEM_DESC_BASE, &0x20_0000u64.to_le_bytes());
+        put(&mut p, userd + v::MEM_DESC_ADDRESS_SPACE, &v::ADDR_FBMEM.to_le_bytes());
+        let err = <Abi as RmAbi>::ALLOC_CHANNEL_PARAMS_OFF_errorNotifierMem;
+        put(&mut p, err + v::MEM_DESC_BASE, &notifier.to_le_bytes());
+        put(&mut p, err + v::MEM_DESC_ADDRESS_SPACE, &v::ADDR_SYSMEM.to_le_bytes());
+        let (notes, el) = g.rpc(rpc::FN_GSP_RM_ALLOC, &alloc_request(c, 0xcaf1_0000, 0xc46f, &p));
+        assert_eq!(Guest615::reply(&el, rpc::FN_GSP_RM_ALLOC).unwrap().0, 0, "{notes:?}");
+        g.b.ctrl.channels.channel_mut(5).unwrap().mirrored = true;
+        // First look: the notifier is the baseline; nothing to report.
+        assert!(g.b.scan_channel_errors(&g.mem, true).is_empty());
+        g.b.rc_scan.1 = None;
+        // The host RM's RC write: info32 31 (MMU fault), status 0xFFFF.
+        let mut n = [0u8; 16];
+        n[8] = 31;
+        n[14] = 0xFF;
+        n[15] = 0xFF;
+        assert!(g.mem.write(notifier, &n));
+        let notes = g.b.scan_channel_errors(&g.mem, true);
+        assert!(notes.iter().any(|s| s.contains("chid 5: error notifier written (exceptType 31")), "{notes:?}");
+        assert_eq!(g.b.read32(GSP_IRQSTAT).unwrap() & GSP_SWGEN0, GSP_SWGEN0);
+        let el = g.drain();
+        let oel = Guest615::reply(&el, crate::events::EV_OS_ERROR_LOG).unwrap().1;
+        assert_eq!(u32::from_le_bytes(oel[..4].try_into().unwrap()), 31);
+        let rc = Guest615::reply(&el, crate::events::EV_RC_TRIGGERED).unwrap().1;
+        assert_eq!(rc.len(), 64);
+        assert_eq!(
+            (u32::from_le_bytes(rc[0..4].try_into().unwrap()), u32::from_le_bytes(rc[4..8].try_into().unwrap())),
+            (1, 5)
+        );
+        // The kernel clears SWGEN0; the guest kernel's own notifier write after the RC
+        // raises nothing more.
+        g.b.write32(GSP_IRQSCLR, GSP_SWGEN0, &g.mem);
+        assert_eq!(g.b.read32(GSP_IRQSTAT).unwrap() & GSP_SWGEN0, 0);
+        n[0] = 1;
+        assert!(g.mem.write(notifier, &n));
+        g.b.rc_scan.1 = None;
+        assert!(g.b.scan_channel_errors(&g.mem, true).is_empty());
     }
 
     /// Fail closed: a 610 device facing the captured 615 guest does not link anything

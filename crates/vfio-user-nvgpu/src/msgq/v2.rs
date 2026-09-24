@@ -650,7 +650,7 @@ impl QueueStateV2 {
         if self.failed.is_some() {
             return Err(self.failed_error());
         }
-        let (nvdm_type, mut body) = if header.function > gmcapi::COMMAND_RESERVED_LAST {
+        let (nvdm_type, body) = if header.function > gmcapi::COMMAND_RESERVED_LAST {
             let g = gmcapi::Header::response(
                 header.function,
                 header.sequence as u64,
@@ -663,6 +663,38 @@ impl QueueStateV2 {
             h.length = (RPC_HEADER_SIZE + payload.len()) as u32;
             (NVDM_TYPE_RM_RPC, h.encode().to_vec())
         };
+        self.enqueue(qm, nvdm_type, body, payload, header.function, header.sequence)
+    }
+
+    /// Send a GMCAPI *request* of the GSP-to-CPU direction (`GMCAPI_KERNEL` commands such
+    /// as `GSP_RESUME_DONE` 0x10005 or `MMU_FAULT_QUEUED` 0x40001): the command id without
+    /// `GMCAPI_HEADER_COMMAND_FLAGS_RESPONSE`, sequence 0, `max_response_size` 0 (every
+    /// kernel-side command is fire and forget, gmcapi_impl.c:212-215). The kernel's drain
+    /// loop hands any GMCAPI element that is not the awaited response to `gmcapiCommand`
+    /// (kernel_gsp.c:1989-2020); a response-flagged one would instead match a pending wait
+    /// with the same id and sequence (docs/caraxes/gsp-plan/events.md, GMCAPI section).
+    pub fn send_gmcapi_request(&mut self, qm: &QueueMemory, id: u32, params: &[u8]) -> Result<u32, String> {
+        if self.failed.is_some() {
+            return Err(self.failed_error());
+        }
+        let g = gmcapi::Header {
+            command: id & gmcapi::COMMAND_ID_MASK,
+            size: params.len() as u32,
+            sequence: 0,
+            request_or_status: 0,
+        };
+        self.enqueue(qm, NVDM_TYPE_GMCAPI, g.encode().to_vec(), params, id, 0)
+    }
+
+    fn enqueue(
+        &mut self,
+        qm: &QueueMemory,
+        nvdm_type: u32,
+        mut body: Vec<u8>,
+        payload: &[u8],
+        function: u32,
+        sequence: u32,
+    ) -> Result<u32, String> {
         body.extend_from_slice(payload);
         let total = ELEMENT_HEADER_SIZE + body.len();
         let msg_size = self.stat.msg_size as usize;
@@ -676,8 +708,8 @@ impl QueueStateV2 {
             let e = format!(
                 "status queue full: {} elements held, function {:#x} sequence {} not sent",
                 self.held.len(),
-                header.function,
-                header.sequence
+                function,
+                sequence
             );
             log::error!("GSP status queue (v2): {e}");
             return Err(e);
@@ -697,8 +729,8 @@ impl QueueStateV2 {
             log::warn!(
                 "GSP status queue (v2) full: {} element(s) held for the next doorbell (function {:#x} sequence {})",
                 self.held.len(),
-                header.function,
-                header.sequence
+                function,
+                sequence
             );
         }
         Ok(index)
@@ -948,6 +980,32 @@ pub(crate) mod tests {
             (76, 5, 0, 40)
         );
         assert_eq!(&body[32..], &[7u8; 8]);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// A GMCAPI request of the GSP-to-CPU direction: NVDM type GMCAPI, the command id
+    /// without the response flag, sequence 0, the parameters as data; after an ordinary
+    /// reply in the same queue.
+    #[test]
+    fn unsolicited_gmcapi_request() {
+        let (mem, pages, path) = linked("v2gmcreq");
+        let qm = QueueMemory::new(&mem, &pages);
+        let mut cpu = Cpu::create(&qm);
+        let mut q = QueueStateV2::link(&qm, &args(), 0).unwrap();
+        assert_eq!(q.send_gmcapi_request(&qm, gmcapi::CMD_GSP_RESUME_DONE, &[0u8; 8]), Ok(0));
+        assert_eq!(q.send_gmcapi_request(&qm, 0x0004_0001, &[]), Ok(1));
+        let (nvdm, body) = cpu.receive(&qm, q.write_ptr).expect("resume done");
+        assert_eq!(nvdm, NVDM_TYPE_GMCAPI);
+        let g = gmcapi::Header::parse(&body).unwrap();
+        assert!(!g.is_response());
+        assert_eq!((g.command, g.sequence, g.size, g.request_or_status), (0x0001_0005, 0, 8, 0));
+        assert_eq!(body.len(), gmcapi::HEADER_SIZE + 8);
+        let (nvdm, body) = cpu.receive(&qm, q.write_ptr).expect("mmu fault queued");
+        let g = gmcapi::Header::parse(&body).unwrap();
+        assert_eq!((nvdm, g.command, g.size), (NVDM_TYPE_GMCAPI, 0x0004_0001, 0));
+        // Through the version-independent state as well; the 610 transport has none.
+        let mut s = QueueState::from_v2(q);
+        assert_eq!(s.send_gmcapi_request(&qm, 0x0004_0001, &[]), Ok(2));
         let _ = std::fs::remove_file(&path);
     }
 
