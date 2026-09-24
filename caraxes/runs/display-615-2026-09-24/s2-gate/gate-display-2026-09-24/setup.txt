@@ -1,0 +1,5 @@
+# SPDX-License-Identifier: MIT
+# display gate gate-display-2026-09-24: setup.txt
+modprobe: ERROR: could not insert 'nvidia_drm': Unknown symbol in module, or unknown parameter (see dmesg)
+modprobe: ERROR: ../libkmod/libkmod-module.c:1084 command_do() Error running install command 'grep -q '^caraxes_dma_range ' /proc/modules && /sbin/modprobe --ignore-install nvidia_drm modeset=1 fbdev=0' for module nvidia_drm: retcode 1
+modprobe: ERROR: could not insert 'nvidia_drm': Invalid argument

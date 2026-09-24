@@ -1,0 +1,8 @@
+   173474542 E boot: ctrl 0x731391: NV0073_CTRL_CMD_DP_SET_WAR_FLAGS (0x731391, 16 bytes): D rule ACK, group disp rank 1 (d-controls.tsv) -> status 0x0 [synthesized (acknowledged, no effect)]
+   184097280 E boot: ctrl 0x731391: NV0073_CTRL_CMD_DP_SET_WAR_FLAGS (0x731391, 16 bytes): D rule ACK, group disp rank 1 (d-controls.tsv) -> status 0x0 [synthesized (acknowledged, no effect)]
+   340653788 E boot: ctrl 0x731391: NV0073_CTRL_CMD_DP_SET_WAR_FLAGS (0x731391, 16 bytes): D rule ACK, group disp rank 1 (d-controls.tsv) -> status 0x0 [synthesized (acknowledged, no effect)]
+   378212449 E boot: ctrl 0x731391: NV0073_CTRL_CMD_DP_SET_WAR_FLAGS (0x731391, 16 bytes): D rule ACK, group disp rank 1 (d-controls.tsv) -> status 0x0 [synthesized (acknowledged, no effect)]
+   448045938 E boot: ctrl 0x731391: NV0073_CTRL_CMD_DP_SET_WAR_FLAGS (0x731391, 16 bytes): D rule ACK, group disp rank 1 (d-controls.tsv) -> status 0x0 [synthesized (acknowledged, no effect)]
+   455109400 E boot: ctrl 0x731391: NV0073_CTRL_CMD_DP_SET_WAR_FLAGS (0x731391, 16 bytes): D rule ACK, group disp rank 1 (d-controls.tsv) -> status 0x0 [synthesized (acknowledged, no effect)]
+   464396864 E boot: ctrl 0x731391: NV0073_CTRL_CMD_DP_SET_WAR_FLAGS (0x731391, 16 bytes): D rule ACK, group disp rank 1 (d-controls.tsv) -> status 0x0 [synthesized (acknowledged, no effect)]
+   473437207 E boot: ctrl 0x731391: NV0073_CTRL_CMD_DP_SET_WAR_FLAGS (0x731391, 16 bytes): D rule ACK, group disp rank 1 (d-controls.tsv) -> status 0x0 [synthesized (acknowledged, no effect)]

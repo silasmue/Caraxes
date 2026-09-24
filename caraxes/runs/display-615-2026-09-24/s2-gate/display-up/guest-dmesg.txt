@@ -1,0 +1,3 @@
+[  136.148035] nvidia-modeset: Loading NVIDIA UNIX Open Kernel Mode Setting Driver for x86_64  615.71.09  Release Build  (dvs-builder@U22-I3-F05-2-4)  Fri Sep  4 22:15:27 UTC 2026
+[  136.155498] nvidia_drm: Unknown symbol drm_hdcp_update_content_protection (err -2)
+[  136.155588] nvidia_drm: Unknown symbol drm_connector_attach_content_protection_property (err -2)

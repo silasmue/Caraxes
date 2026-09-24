@@ -1,0 +1,5 @@
+# SPDX-License-Identifier: MIT
+# 2026-09-25 00:03:03 guest command:
+bash caraxes-f/gnome-restart.sh 20
+rc=0
+full trace 222403 lines, events only kept

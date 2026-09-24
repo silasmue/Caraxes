@@ -1,0 +1,4 @@
+105:#if 0 /* Caraxes display-615: no drm_display_helper.ko in the image */
+built: 615.71.09, depends: nvidia-modeset, vermagic: 6.8.0-136-generic SMP preempt mod_unload modversions 
+9f368f5b99281c10e72d5c1cc97c0b3490ec6dadadf87c8c5c767e0b8a8ce1a1  /lib/modules/6.8.0-136-generic/caraxes/nvidia-drm.ko
+install nvidia_drm grep -q '^caraxes_dma_range ' /proc/modules && /sbin/modprobe nvidia_modeset && /sbin/insmod /lib/modules/6.8.0-136-generic/caraxes/nvidia-drm.ko $CMDLINE_OPTS

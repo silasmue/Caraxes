@@ -604,7 +604,7 @@ display_kernel() {
     gsh 'sudo dmesg' > "$RUN/dmesg.txt" 2>/dev/null
     oops=$(grep -cE "BUG:|Oops:|kernel NULL pointer" "$RUN/dmesg.txt")
     warns=$(grep -c "WARNING:" "$RUN/dmesg.txt")
-    unknown=$(grep "WARNING:" "$RUN/dmesg.txt" | grep -vcE 'nvidia-drm-crtc\.h:355')
+    unknown=$(grep "WARNING:" "$RUN/dmesg.txt" | grep -vcE 'nvidia-drm-crtc\.h:(355|368)')
     g_fact dmesg_oops "$oops"
     g_fact dmesg_warnings "$warns"
     g_fact dmesg_flip_timeouts "$(grep -c 'Flip event timeout' "$RUN/dmesg.txt")"

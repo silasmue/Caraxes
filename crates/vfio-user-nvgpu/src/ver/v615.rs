@@ -40,6 +40,10 @@ use nvrm_sys::v615 as ffi;
 
 pub use super::v610::*;
 
+/// The display control vocabulary: the 610 one with the 615 changes of the NV0073 headers
+/// (src/ver/v615/display.rs, docs/caraxes/display-615.md §3). Shadows the glob's `display`.
+pub mod display;
+
 /// `NV_VERSION_STRING` of this driver: what the guest announces in `SET_GUEST_SYSTEM_INFO`
 /// and in the NVKV key `NVGMC_SI_KERNEL_DRIVER_VERSION_STRING` of `GMCAPI_CMD_GSP_INIT`.
 pub const DRIVER_VERSION: &str = "615.71.09";

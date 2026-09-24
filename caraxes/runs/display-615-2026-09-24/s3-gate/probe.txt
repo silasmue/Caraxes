@@ -1,0 +1,4 @@
+probe d615-s3-gate: 93622 device accesses, guest log in /mnt/vmstore/caraxes/vm0-615/probe-d615-s3-gate/guest-dmesg.txt
+[  130.324143] NVRM: GPU 0000:00:05.0: RmInitAdapter
+[  134.010846] NVRM: GPU 0000:00:05.0: RmInitAdapter succeeded!
+modprobe rc=0

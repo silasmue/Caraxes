@@ -1,0 +1,2 @@
+{"gate":"display","result":"fail","dur_s":3,"reason":"failed: rig","facts":{"stages":["rig"],"failed":["rig"],"vm":"vm0-615","caraxes":"shell-rig-248-g7b3e3a27792a-dirty","device":"TU106 (BOOT_0 0x166000a1, driver 615.71.09) on /mnt/vmstore/caraxes/vm0-615/gpu.sock, boot model on, FB 2048 MiB","modules":"nvidia_modeset nvidia ","drm_modeset":"","detail":"no DRM device"}}
+gate rc=1

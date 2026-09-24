@@ -1,0 +1,19 @@
+before: status connected, edid 673ddd0c5f72 0 B, modes: 1920x1080 1920x1080 1920x1080 1280x720 1280x720 640x480 
+after: status connected, edid 673ddd0c5f72 0 B, modes: 1920x1080 1920x1080 1920x1080 1280x720 1280x720 640x480 
+== udev (kernel, drm)
+KERNEL[461.703511] change   /devices/pci0000:00/0000:00:05.0/drm/card0 (drm)
+KERNEL[461.703571] change   /devices/pci0000:00/0000:00:05.0/drm/card0 (drm)
+KERNEL[475.669046] change   /devices/pci0000:00/0000:00:05.0/drm/card0 (drm)
+KERNEL[475.672809] change   /devices/pci0000:00/0000:00:05.0/drm/card0 (drm)
+== edid-decode (name, established)
+  Vendor & Product Identification:
+    Manufacturer: CRX
+    Display Product Name: 'Caraxes DP'
+== dmesg
+[  327.128550] WARNING: CPU: 3 PID: 1694 at /root/nvdrm-615/nvidia-drm/nvidia-drm-crtc.h:368 __nv_drm_handle_flip_event+0x1d5/0x1f0 [nvidia_drm]
+[  412.043244] WARNING: CPU: 1 PID: 1694 at /root/nvdrm-615/nvidia-drm/nvidia-drm-crtc.h:368 __nv_drm_handle_flip_event+0x1d5/0x1f0 [nvidia_drm]
+[  417.909608] WARNING: CPU: 1 PID: 1694 at /root/nvdrm-615/nvidia-drm/nvidia-drm-crtc.h:368 __nv_drm_handle_flip_event+0x1d5/0x1f0 [nvidia_drm]
+[  417.928588] WARNING: CPU: 1 PID: 1694 at /root/nvdrm-615/nvidia-drm/nvidia-drm-crtc.h:368 __nv_drm_handle_flip_event+0x1d5/0x1f0 [nvidia_drm]
+[  421.842811] WARNING: CPU: 1 PID: 1694 at /root/nvdrm-615/nvidia-drm/nvidia-drm-crtc.h:368 __nv_drm_handle_flip_event+0x1d5/0x1f0 [nvidia_drm]
+[  437.861117] WARNING: CPU: 2 PID: 1694 at /root/nvdrm-615/nvidia-drm/nvidia-drm-crtc.h:368 __nv_drm_handle_flip_event+0x1d5/0x1f0 [nvidia_drm]
+[  445.311349] WARNING: CPU: 2 PID: 1694 at /root/nvdrm-615/nvidia-drm/nvidia-drm-crtc.h:368 __nv_drm_handle_flip_event+0x1d5/0x1f0 [nvidia_drm]
