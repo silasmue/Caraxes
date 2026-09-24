@@ -1,0 +1,4 @@
+# SPDX-License-Identifier: MIT
+timeout: the monitored command dumped core
+done
+exit=0

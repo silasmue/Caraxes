@@ -392,6 +392,9 @@ Device `--boot-model --fb-mib 4096 --host-rm --display`, no host execution; bran
 | vdisplay | pass (setup, route, device, edid, pixel, flips, teardown) | 0 | `caraxes/runs/gate-vdisplay-2026-09-24-3/` |
 | display | fail: modeset (v1's 45 s budget against the BAR1 fill), compositor (window closed before the first 1080p repaint) | 1 | `caraxes/runs/gate-display-2026-09-24/` |
 | display | pass (rig, connector, edid, modeset, compositor 59.90 Hz, capture, kernel); swapchain, present, rt, events not run (no GPU execution) | 0 | `caraxes/runs/gate-display-2026-09-24-2/` |
+| vdisplay, final build (rebased on `223075d`) | pass (flips 60.02 Hz) | 0 | `caraxes/runs/gate-vdisplay-2026-09-24-4/` |
+| display, final build | fail: compositor 59.50 Hz (host load average 5.5) | 1 | `caraxes/runs/gate-display-2026-09-24-3/` |
+| display, final build | pass (compositor 60.00 Hz, load 2.6) | 0 | `caraxes/runs/gate-display-2026-09-24-4/` |
 
 ## 8. The CUDA path: what the device does not answer yet
 

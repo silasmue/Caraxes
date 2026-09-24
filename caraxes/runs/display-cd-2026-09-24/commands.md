@@ -67,6 +67,8 @@ libwayland-bin wayland-protocols libffi-dev` (`~/caraxes-debs2`).
 | d9-hotplug-edid | `bash caraxes/runs/display-cd-2026-09-24/hotplug.sh d9-hotplug-edid edid-alt` (host writes the command into `/mnt/vmstore/caraxes/vm0/display-ctl` 10 s into `cx/hotplug-watch.sh 40`) |
 | d10-weston-1080p50 | `sudo SETTLE=30 bash ./cx/weston-pace.sh 1920x1080@50 30; sudo SETTLE=20 bash ./cx/weston-pace.sh 1280x720@60 30` |
 | d11-unplug, d12-plug-main | `hotplug.sh d11-unplug unplug`, `hotplug.sh d12-plug-main edid-main` |
+| d13-cursor | `sudo timeout -s INT 60 modetest -M nvidia-drm -s 127@61:640x480 -C` (modetest dumped core) |
+| d14-cursor | `sudo timeout 90 ./cx/kmsflip --mode-index 5 --flips 10 --cursor` |
 
 ## Gates
 
@@ -74,8 +76,14 @@ libwayland-bin wayland-protocols libffi-dev` (`~/caraxes-debs2`).
 bash caraxes/runs/display-cd-2026-09-24/gate.sh vdisplay 1   # = CARAXES_LEANDRO_TEST=/home/silas/git/Leandro-Test VM=vm0 tools/caraxes-gate.sh vdisplay
 bash caraxes/runs/display-cd-2026-09-24/gate.sh display 1
 bash caraxes/runs/display-cd-2026-09-24/gate.sh display 2
+# after the rebase onto main 223075d, a fresh device (the first boot fell into emergency mode:
+# /boot by-label not found while the host was loaded; the second boot was clean):
+bash caraxes/runs/display-cd-2026-09-24/gate.sh vdisplay final
+bash caraxes/runs/display-cd-2026-09-24/gate.sh display final
+bash caraxes/runs/display-cd-2026-09-24/gate.sh display final2
 ```
 
 The gate run directories are `caraxes/runs/gate-vdisplay-2026-09-24{,-2,-3}` (the first two are
 skips from precondition bugs of the new gate code: `/dev/nvidia0` required, Leandro-Test path)
-and `caraxes/runs/gate-display-2026-09-24{,-2}`.
+and `caraxes/runs/gate-display-2026-09-24{,-2}`; on the final build
+`gate-vdisplay-2026-09-24-4`, `gate-display-2026-09-24-3` (fail, 59.50 Hz) and `-4` (pass).

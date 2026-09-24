@@ -26,6 +26,7 @@ device's per-head clock:
 | Weston 13, DRM backend, atomic KMS, 1920x1080@60 | frame callbacks **59.86 Hz** over 2091 intervals (sd 1.1 ms), `wp_presentation` 59.86 Hz, refresh 16 666 666 ns, flags VSYNC, HW_CLOCK, HW_COMPLETION, 0 discarded | c8 |
 | Weston at 1080p50 | 49.87 Hz, refresh 20 000 000 ns (the timer follows the mode) | d10 |
 | Weston at 640x480@59.94 | 59.65 Hz and 59.39 Hz | c6, c12 |
+| Hardware cursor (legacy `DRM_IOCTL_MODE_CURSOR`, 64x64) | set, 60 moves one frame apart and off all succeed; NVKMS drives cursor channel 3 (PIO `Update` and `SetCursorHotSpotPointOut`, 62 writes each); no kernel messages | d14 |
 | Kernel log | 0 WARNINGs, 0 `Flip event timeout` after the AWAKEN rule below | c12, gates |
 
 The expectation of display-connector.md §4 C was 60.0 ± 0.5 Hz for the frame callbacks; the
@@ -48,16 +49,19 @@ the compositor is the occasional late frame on the guest side (below, "Jitter").
   (d11, d12).
 - **Mode switch**: 1080p60 -> 720p60 -> 1080p50 on the KMS level (c9) and for Weston's frame
   callbacks at 1080p50 (d10).
+- **Cursor channel**: the legacy cursor ioctls reach NVKMS's cursor channel (d14); under GNOME
+  no pointer device exists in the guest, so Mutter drew no cursor.
 - Not reached: frame-callback rates under GNOME (d8: llvmpipe renders into dumb buffers through
-  trapped BAR1; the first client map did not repaint within 200 s), the hardware cursor (no
-  pointer device in the guest, so the cursor channel stayed idle), GPU-rendered GBM/EGL (needs
+  trapped BAR1; the first client map did not repaint within 200 s), GPU-rendered GBM/EGL (needs
   host execution; not allowed on vm0 tonight).
 
-**Gates.** Both adapted gates pass on the final build (verdicts in "The gates" below):
+**Gates.** Both adapted gates pass on the final (rebased) build (verdicts in "The gates" below):
 - `tools/caraxes-gate.sh vdisplay`: **pass** (setup, route, device, edid, pixel, flips, teardown);
 - `tools/caraxes-gate.sh display`: **pass** (rig, connector, edid, modeset, compositor, capture,
   kernel), with v1's GPU-execution stages (swapchain, present, rt, events) listed as not run in
-  the JSON facts, and Moonlight reception not part of the capture stage.
+  the JSON facts, and Moonlight reception not part of the capture stage. The compositor stage sits
+  at the edge of its criterion under host load: one run of the final build measured 59.50 Hz
+  (fail by 0.01 Hz, load average 5.5 from the other agents), the next 60.00 Hz (load 2.6).
 
 ## What was built
 
@@ -167,21 +171,21 @@ v1's *swapchain*, *present*, *rt* and *events* need the GPU to execute (Vulkan d
 without host execution they are not run and the JSON facts say so (`gpu_stages_not_run`). v1's
 Moonlight reception is not part of the capture stage.
 
-Verdicts (vm0, this build):
+Runs (vm0):
 
-```
-{"gate":"vdisplay","result":"pass", ... "display_controls":1437,"display_controls_unanswered":0, "edid_decode":"pass",
- "frame_hash":"0x727dcdf3e49208c5","frame_ref":"0x727dcdf3e49208c5","bar1_write_MBps":0.38,"bar1_read_MBps":0.37,
- "flip_rate_hz":60.00, "dmesg_oops":0,"dmesg_warnings":0,"dmesg_flip_timeouts":0}
-{"gate":"display","result":"pass","dur_s":336, "frame_callback_hz":59.90,"presentation_hz":59.90,
- "presentation_refresh_ns":16666666, "sunshine":"4 KMS monitor finds, encoder: Found H.264 encoder: libx264",
- "capture_sample":"SAMPLE 320 240 0x80808080", "gpu_stages_not_run":"swapchain present rt events: ...", "dmesg_warnings":0}
-```
+| Run | Build | Verdict | Key facts |
+|---|---|---|---|
+| gate-vdisplay-2026-09-24-3 | before the rebase (`3e52e36`+) | pass | 1437 display controls, 0 unanswered; frame 0x727dcdf3e49208c5 = reference; BAR1 0.38/0.37 MB/s; flips 60.00 Hz |
+| gate-display-2026-09-24 | before the rebase | fail (modeset, compositor) | gate budgets: v1's 45 s against the BAR1 fill; the 1080p first repaint outlasted the measuring window |
+| gate-display-2026-09-24-2 | before the rebase | pass | frame callbacks 59.90 Hz, presentation 59.90 Hz, refresh 16 666 666 ns; Sunshine capture=kms encoder test passed; sample 0x80808080 |
+| gate-vdisplay-2026-09-24-4 | **final** (`a8485e4`, rebased on main `223075d`) | **pass** | 296 display controls (fresh device), 0 unanswered; frame hash = reference; BAR1 0.32/0.28 MB/s; flips 60.02 Hz; 0 warnings |
+| gate-display-2026-09-24-3 | final | fail (compositor) | frame callbacks 59.50 Hz (criterion 59.5 excluded by 0.01), max interval 40 ms, 14 late frames of 1777; host load average 5.5 |
+| gate-display-2026-09-24-4 | final | **pass** | frame callbacks 60.00 Hz, presentation 60.00 Hz; host load average 2.6 |
 
-Before these, `display` failed once (run -1): v1's 45 s modeset budget against the BAR1 fill, and
-the compositor window closing before the client's first fullscreen repaint at 1080p. Both were
-budget errors of the gate, fixed by measuring from the first frame callback and a 300 s modeset
-budget; no device change.
+The first `display` failure was a budget error of the gate, fixed by measuring from the first
+frame callback and a 300 s modeset budget; no device change. The final-build failure is the
+guest-side latency under host load described in "Jitter": the device clock is exact, and a late
+event costs the compositor one refresh.
 
 ## vm0 changes (recorded in experiments.md)
 
@@ -203,9 +207,9 @@ budget; no device change.
    coordinator's "host-exec on vm0 allowed" (one VRAM reservation at a time today).
 2. **BAR1 direct mapping** (above): the package that makes CPU-rendered and readback paths
    usable at 1080p.
-3. **Cursor channel**: methods are accepted and `Free` reads non-zero, but no run moved a hardware
-   cursor (no pointer device); `HEAD_SET_CONTEXT_DMA_CURSOR` and the PIO `SET_CURSOR_HOT_SPOT` are
-   recorded, not latched.
+3. **Cursor channel**: the legacy cursor ioctls work (d14), but the device only records the
+   cursor surface and position (`HEAD_SET_CONTEXT_DMA_CURSOR`, PIO `SetCursorHotSpotPointOut`); a
+   host sink would need them latched. GNOME had no pointer device to draw one.
 4. **Gamma LUT content**: the OLUT control and context DMA are armed and accepted; whether the LUT
    came from colord or from NVKMS's default ramp was not distinguished (modetest's property dump
    was inconclusive).
@@ -218,3 +222,6 @@ budget; no device change.
    recorded, not honoured; `RG_DPCA`'s line count is interpolated from the clock.
 8. **Moonlight reception** for the display gate's stream stage (needs pairing from the host).
 9. The route stage counts every display control in the whole trace log, not only the gate's window.
+10. **Compositor pacing under host load**: 0.5-1 % late frames when the host is busy; the gate's
+    +- 0.5 Hz window is met at load average up to about 4, missed by 0.01 Hz at 5.5. Candidates:
+    the trace write per BAR1 access on the server thread, the guest's deferred NVKMS work.

@@ -10,7 +10,7 @@
  * (the v1 displayless symptom) shows intervals far below the period.
  *
  *   kmsflip [--card /dev/dri/card0] [--mode WxH@HZ | --mode-index N] [--flips N]
- *           [--fill] [--keep]
+ *           [--fill] [--cursor] [--keep]
  *
  * --fill writes a pattern into both buffers (slow through BAR1) and reads one row back.
  * Output: one "RESULT" line with key=value pairs, preceded by the per-step log.
@@ -94,7 +94,7 @@ int main(int argc, char **argv)
 {
 	const char *card = "/dev/dri/card0";
 	unsigned want_w = 0, want_h = 0, want_hz = 0, flips = 120;
-	int mode_index = -1, do_fill = 0, keep = 0, ai;
+	int mode_index = -1, do_fill = 0, keep = 0, cursor = 0, ai;
 	struct drm_mode_card_res res = { 0 };
 	uint32_t conns[16], crtcs[16], encs[16];
 	struct drm_mode_modeinfo modes[64], *mode = NULL;
@@ -113,6 +113,8 @@ int main(int argc, char **argv)
 			flips = (unsigned)atoi(argv[++ai]);
 		else if (!strcmp(argv[ai], "--fill"))
 			do_fill = 1;
+		else if (!strcmp(argv[ai], "--cursor"))
+			cursor = 1;
 		else if (!strcmp(argv[ai], "--keep"))
 			keep = 1;
 		else {
@@ -240,6 +242,44 @@ int main(int argc, char **argv)
 			ioctl(fd, DRM_IOCTL_MODE_GETCRTC, &got);
 			printf("GETCRTC: fb %u (expected %u), mode_valid %u, %ux%u\n", got.fb_id,
 			       b[done & 1].fb, got.mode_valid, got.mode.hdisplay, got.mode.vdisplay);
+		}
+		if (cursor) {
+			/* A 64x64 ARGB cursor through the legacy cursor ioctls (NVKMS's cursor
+			 * channel), then 60 moves one frame apart. */
+			struct drm_mode_create_dumb cd = { .width = 64, .height = 64, .bpp = 32 };
+			struct drm_mode_cursor cu = { 0 };
+			int moved = 0, i;
+
+			if (ioctl(fd, DRM_IOCTL_MODE_CREATE_DUMB, &cd) == 0) {
+				struct drm_mode_map_dumb md = { .handle = cd.handle };
+				uint32_t *p;
+				if (!ioctl(fd, DRM_IOCTL_MODE_MAP_DUMB, &md) &&
+				    (p = mmap(0, cd.size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, md.offset)) != MAP_FAILED) {
+					for (i = 0; i < 64 * 64; i++)
+						p[i] = 0xffff00ffu;
+					munmap(p, cd.size);
+				}
+				cu.flags = DRM_MODE_CURSOR_BO;
+				cu.crtc_id = crtc_id;
+				cu.handle = cd.handle;
+				cu.width = 64;
+				cu.height = 64;
+				printf("CURSOR set: %s\n", ioctl(fd, DRM_IOCTL_MODE_CURSOR, &cu) ? strerror(errno) : "ok");
+				for (i = 0; i < 60; i++) {
+					cu.flags = DRM_MODE_CURSOR_MOVE;
+					cu.x = 10 * i;
+					cu.y = 5 * i;
+					if (ioctl(fd, DRM_IOCTL_MODE_CURSOR, &cu) == 0)
+						moved++;
+					usleep(16667);
+				}
+				printf("CURSOR moves=%d of 60\n", moved);
+				cu.flags = DRM_MODE_CURSOR_BO;
+				cu.handle = 0;
+				printf("CURSOR off: %s\n", ioctl(fd, DRM_IOCTL_MODE_CURSOR, &cu) ? strerror(errno) : "ok");
+			} else {
+				printf("CURSOR dumb buffer: %s\n", strerror(errno));
+			}
 		}
 		if (keep) {
 			printf("keeping the mode; Ctrl-C to end\n");

@@ -1185,8 +1185,12 @@ Tree: branch `worktree-agent-adbfba499c7110889` from `5de9b40`. VM: vm0, device
   - BAR1 CPU access to dumb buffers runs at 0.38 MB/s write, 0.14-0.37 MB/s read (trapped); a
   1080p frame costs 21 s to write. The display gate's first run failed on v1's 45 s modeset
     budget and on the 1080p first-repaint wait (gate budgets, no device change).
-  - GNOME frame-callback rates could not be measured (llvmpipe into BAR1); no hardware cursor
-    (no pointer device).
+  - GNOME frame-callback rates could not be measured (llvmpipe into BAR1); the hardware cursor
+    was exercised through the legacy cursor ioctls instead (d14), GNOME had no pointer device.
+  - On the final (rebased) build the display gate's compositor stage measured 59.50 Hz once
+    (host load average 5.5, fail by 0.01 Hz) and 60.00 Hz on the rerun; vdisplay passed.
+  - One vm0 boot fell into emergency mode (`/dev/disk/by-label/BOOT` not found in time under host
+    load); the next boot was clean.
   - The host's root filesystem reached 100 % for about a minute at 01:35 (another project's
     process); only this worktree's `target/debug` was deleted.
 - **vm0 changes:** offline Ubuntu packages (weston 13, sway 1.9, libdrm-tests, edid-decode,

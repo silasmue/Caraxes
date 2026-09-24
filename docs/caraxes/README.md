@@ -509,6 +509,7 @@ the VM; then display, expected to be much easier than in v1.
   `RG_DPCA`/LOADV, `FE_CORE_HEAD_STATE`, a real `IS_MODE_POSSIBLE`); 120 flips at 60.00 Hz,
   NVKMS vblank at 60.01 Hz, Weston frame callbacks at 59.86 Hz (1080p60) and 49.87 Hz (1080p50),
   GNOME 46 on Wayland (Mutter atomic KMS, Mesa kms_swrast, 0 page-flip failures), EDID-change
-  hotplug through `POST_EVENT`; the adapted `vdisplay` and `display` gates pass (GPU-execution
-  stages not run: no host execution on vm0). Open: GPU-rendered compositors (host-exec), BAR1
+  hotplug through `POST_EVENT`, the hardware cursor through NVKMS's cursor channel; the adapted
+  `vdisplay` and `display` gates pass (GPU-execution stages not run: no host execution on vm0;
+  the compositor stage missed 60 +- 0.5 Hz by 0.01 Hz once under host load). Open: GPU-rendered compositors (host-exec), BAR1
   direct mapping (CPU access to scanout buffers runs at 0.4 MB/s), cursor, Moonlight reception.
