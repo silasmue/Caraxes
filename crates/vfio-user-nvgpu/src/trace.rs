@@ -30,6 +30,14 @@ pub struct Trace {
     reads: [u64; 9],
     writes: [u64; 9],
     unnamed: BTreeMap<u64, u64>,
+    /// `CARAXES_TRACE_ACCESSES=0`: count the region accesses but write no line per
+    /// access (events are still written). Every trapped access otherwise formats and
+    /// writes one line on the guest's MMIO round trip (docs/caraxes/mapping.md §6).
+    accesses: bool,
+    /// `CARAXES_TRACE_FLUSH=0`: flush at event lines and at most every 100 ms instead of
+    /// after every line (one write syscall per trapped access).
+    flush_each: bool,
+    last_flush: Instant,
 }
 
 /// Render an access value: little-endian integer up to 8 bytes, hex bytes beyond.
@@ -62,6 +70,9 @@ impl Trace {
             reads: [0; 9],
             writes: [0; 9],
             unnamed: BTreeMap::new(),
+            accesses: std::env::var("CARAXES_TRACE_ACCESSES").as_deref() != Ok("0"),
+            flush_each: std::env::var("CARAXES_TRACE_FLUSH").as_deref() != Ok("0"),
+            last_flush: Instant::now(),
         })
     }
 
@@ -69,7 +80,10 @@ impl Trace {
         let t = self.start.elapsed().as_micros();
         if let Some(out) = &mut self.out {
             let _ = writeln!(out, "{t:>12} {text}");
-            let _ = out.flush();
+            if self.flush_each || text.starts_with('E') || self.last_flush.elapsed().as_millis() >= 100 {
+                let _ = out.flush();
+                self.last_flush = Instant::now();
+            }
         }
     }
 
@@ -83,6 +97,9 @@ impl Trace {
         }
         if region == 0 && note.is_none() {
             *self.unnamed.entry(offset & !3).or_insert(0) += 1;
+        }
+        if !self.accesses || self.out.is_none() {
+            return;
         }
         let name = REGION_NAMES.get(r).copied().unwrap_or("?");
         let d = match dir {

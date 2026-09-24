@@ -1,0 +1,4 @@
+# SPDX-License-Identifier: MIT
+# cuda gate, gate-cuda-2026-09-24, VM vm2: result per test; device = RPCs the device did not answer NV_OK in the test's window
+TEST                             RESULT SCORED GUEST ERROR | LAST FAILED RM CALL (guest tracer) | DEVICE
+suite-test_async_streams         pass  no     async streams ok, duration: 14.7998s | - | NV2080_CTRL_CMD_GPU_QUERY_ECC_STATUS=0x56 x1

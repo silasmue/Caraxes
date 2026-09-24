@@ -111,7 +111,9 @@ struct HostVas {
 /// The shadow VAS of one guest root, the set-B ranges excluded from it, and the guest
 /// channels and TSGs placed on it.
 struct ShadowSpace {
-    sv: crate::shadow::ShadowVas,
+    /// The walk and the filter (this thread); the host side lives in the worker.
+    front: crate::shadow::ShadowFront,
+    vas: u32,
     exclude: Vec<(u64, u64)>,
     chids: std::collections::BTreeSet<u32>,
     tsgs: std::collections::BTreeSet<(u32, u32)>,
@@ -204,10 +206,20 @@ pub struct Mirror {
     /// by the channel's handle. Bare GR channels (the kernel's golden-context and WAR
     /// channels) stay in software either way.
     bare_ce: bool,
+    /// CE channels on the shadow VAS too (default with the GR shadow; `CARAXES_CE_SHADOW=0`).
+    ce_shadow: bool,
     /// One shadow VAS per guest root (per CUDA context: two processes use the same VAs
     /// for different pages, measured in the gpu gate's robustness stage), built at the
     /// first GR channel of that root and freed when its last channel and TSG are gone.
     shadows: BTreeMap<u64, ShadowSpace>,
+    /// The device's budget of live RM mappings over all shadow VA spaces
+    /// (`CARAXES_MAP_BUDGET`, docs/caraxes/mapping.md §2).
+    map_budget: crate::shadow::MapBudget,
+    /// The shadow worker (docs/caraxes/mapping.md §4): applies the plans (the RM map and
+    /// unmap calls) and the teardowns off the server thread, in order.
+    worker: ShadowWorker,
+    /// The registered guest RAM descriptors `(handle, iova, size)`, read once.
+    descs: Option<Vec<(u32, u64, u64)>>,
     next_event_id: u32,
     pub stats: MirrorStats,
 }
@@ -242,6 +254,7 @@ impl Mirror {
                 .ok_or("the mirror needs the VRAM reservation (--reserve-vram)")?;
             (r.base, r.end(), r.handle)
         };
+        let worker = ShadowWorker::new(hm.clone(), intr.clone());
         Ok(Mirror {
             hm,
             intr,
@@ -266,7 +279,11 @@ impl Mirror {
             memop_invalidate: std::env::var("CARAXES_MEMOP_INVALIDATE").as_deref() != Ok("0"),
             shadow_probe: std::env::var("CARAXES_MIRROR_GR_SHADOW").as_deref() == Ok("1"),
             bare_ce: std::env::var("CARAXES_MIRROR_BARE_CE").as_deref() == Ok("1"),
+            ce_shadow: std::env::var("CARAXES_CE_SHADOW").as_deref() != Ok("0"),
             shadows: BTreeMap::new(),
+            map_budget: crate::shadow::MapBudget::from_env(),
+            worker,
+            descs: None,
             next_event_id: 0x1000,
             stats: MirrorStats::default(),
         })
@@ -319,6 +336,21 @@ impl Mirror {
                 .any(|(c, _)| *c == self.chip.channel.compute)
     }
 
+    /// Whether `chid` runs on the shadow VAS of its root: every GR channel under
+    /// `CARAXES_MIRROR_GR_SHADOW=1`, and every other channel the mirror takes (CUDA's copy
+    /// engines) too, so that no host channel walks the guest's unfiltered tables
+    /// (parallel.md §8.2, D17 stage 2; docs/caraxes/mapping.md §5).
+    /// `CARAXES_CE_SHADOW=0` keeps CE channels on the externally-owned VAS (the guest root).
+    pub fn is_shadow(&self, reg: &Registry, chid: u32) -> bool {
+        if self.is_gr_shadow(reg, chid) {
+            return true;
+        }
+        if let Some(c) = self.channels.get(&chid) {
+            return c.shadow_root.is_some();
+        }
+        self.shadow_probe && self.ce_shadow && self.eligible(reg, chid).is_ok()
+    }
+
     /// Re-sync the shadow VAS of guest root `root` (`None`: every shadow VAS) from the
     /// guest's tables (called at a guest TLB invalidate and before a shadow doorbell): map
     /// what the guest newly mapped, unmap what it changed or removed.
@@ -329,27 +361,52 @@ impl Mirror {
         root: Option<u64>,
     ) -> Vec<String> {
         let (base, end, reservation) = (self.base, self.end, self.reservation);
-        let mut h = self.hm.lock().unwrap();
+        let descs = self.descs();
         let mut out = Vec::new();
         for (r, sp) in self.shadows.iter_mut() {
             if root.is_some_and(|x| x != *r) {
                 continue;
             }
-            let (changed, notes) = sp.sv.sync(
-                &mut h,
-                gm.fb,
-                gm.sys,
-                *r,
-                base,
-                end,
-                reservation,
-                &sp.exclude,
-            );
-            if changed {
-                out.extend(notes);
+            if let Some(plan) =
+                sp.front
+                    .plan(gm.fb, gm.sys, base, end, reservation, &sp.exclude, &descs)
+            {
+                if !plan.is_empty() {
+                    self.worker.submit(Job::Apply(plan, Instant::now()));
+                }
             }
         }
+        if !self.worker.enabled {
+            self.worker.wait_all();
+        }
+        out.append(&mut Vec::new());
         out
+    }
+
+    /// The registered guest RAM descriptors, read once (they do not change while the
+    /// guest runs).
+    fn descs(&mut self) -> Vec<(u32, u64, u64)> {
+        if self.descs.is_none() {
+            let h = self.hm.lock().unwrap();
+            let d: Vec<(u32, u64, u64)> = h
+                .descriptors()
+                .iter()
+                .map(|d| (d.handle, d.range.iova, d.range.size))
+                .collect();
+            if !d.is_empty() {
+                self.descs = Some(d);
+            } else {
+                return d;
+            }
+        }
+        self.descs.clone().unwrap_or_default()
+    }
+
+    /// Wait until the worker applied everything submitted so far: the mirror of every
+    /// root is then consistent with the guest's tables as of the last resync (the
+    /// ordering guarantee a doorbell needs).
+    pub fn shadow_barrier(&self) {
+        self.worker.wait_all();
     }
 
     /// Free a shadow VAS whose last channel and TSG are gone.
@@ -362,13 +419,12 @@ impl Mirror {
             .collect();
         for r in empty {
             if let Some(sp) = self.shadows.remove(&r) {
-                let mut h = self.hm.lock().unwrap();
+                // Freed by the worker in bounded batches, after everything queued before.
+                self.worker.submit(Job::Free(r));
                 notes.push(format!(
-                    "shadow: VAS {:#x} of guest root {r:#x} freed: {} [host]",
-                    sp.sv.vas,
-                    sp.sv.summary()
+                    "shadow: VAS {:#x} of guest root {r:#x} handed to the worker for an incremental teardown ({} resync(s) skipped clean on this thread) [host]",
+                    sp.vas, sp.front.skipped
                 ));
-                sp.sv.free(&mut h);
                 if let Some(fb) = fb {
                     fb.unwatch_tables(Target::Fb(r));
                 }
@@ -391,6 +447,9 @@ impl Mirror {
         if self.channels.contains_key(&chid) {
             let root = self.channels.get(&chid).and_then(|c| c.shadow_root);
             let mut notes = self.shadow_resync(reg, gm, root);
+            // Ordering: the doorbell is forwarded only after the worker applied every plan
+            // submitted so far (the mirror is consistent for this root).
+            self.worker.wait_all();
             gm.fb.flush();
             match self.doorbell(chid) {
                 Ok(n) => notes.push(n),
@@ -431,7 +490,14 @@ impl Mirror {
                 }
             }
         }
-        let tsg_key = (ch.h_client, ch.h_parent);
+        // A bare CE channel (`bare_ce`, the GL driver's) gets a host TSG of its own, keyed
+        // by its handle, on the channel's own engine.
+        let bare = reg.tsg((ch.h_client, ch.h_parent)).is_none();
+        let tsg_key = if bare {
+            (ch.h_client, ch.h_object)
+        } else {
+            (ch.h_client, ch.h_parent)
+        };
         // The host RM clears the channel's USERD when it creates the mirror; the guest has
         // already written its GPFIFO entry and GPPut for the submission that rang this
         // doorbell. Save them now and restore them after the alloc, or the GR PBDMA sees
@@ -454,17 +520,21 @@ impl Mirror {
         let mut notes = vec![format!(
             "shadow: GR chid {chid} on the host-managed shadow VAS of guest root {root:#x}"
         )];
+        let descs = self.descs();
         let mut h = self.hm.lock().unwrap();
         // The shadow VAS of this guest root, built once per root.
         if let std::collections::btree_map::Entry::Vacant(slot) = self.shadows.entry(root) {
-            match crate::shadow::ShadowVas::new(&mut h) {
+            match crate::shadow::ShadowVas::new(&mut h, self.map_budget.clone()) {
                 Ok(sv) => {
                     notes.push(format!(
                         "shadow: host-managed VAS {:#x} for guest root {root:#x} [host]",
                         sv.vas
                     ));
+                    let vas = sv.vas;
+                    self.worker.submit(Job::Create(root, Box::new(sv)));
                     slot.insert(ShadowSpace {
-                        sv,
+                        front: crate::shadow::ShadowFront::new(root),
+                        vas,
                         exclude: Vec::new(),
                         chids: Default::default(),
                         tsgs: Default::default(),
@@ -485,20 +555,24 @@ impl Mirror {
         sp.chids.insert(chid);
         sp.tsgs.insert(tsg_key);
         let exclude = sp.exclude.clone();
-        let sv = &mut sp.sv;
-        // Mirror the guest's set-A before the channel/GPFIFO VA is validated against the VAS.
-        let (_, sync_notes) = sv.sync(
-            &mut h,
+        // Mirror the guest's set-A before the channel/GPFIFO VA is validated against the
+        // VAS: plan here, apply in the worker, and wait for it.
+        let plan = sp.front.plan(
             gm.fb,
             gm.sys,
-            root,
             self.base,
             self.end,
             self.reservation,
             &exclude,
+            &descs,
         );
-        notes.extend(sync_notes);
-        let vas_handle = sv.vas;
+        let vas_handle = sp.vas;
+        drop(h);
+        if let Some(plan) = plan {
+            self.worker.submit(Job::Apply(plan, Instant::now()));
+        }
+        self.worker.wait_all();
+        let mut h = self.hm.lock().unwrap();
         // One host TSG per guest TSG, on the shadow VAS (GR0): the guest's GR channels
         // of one group (CUDA's chids 2-9, one TSG, one context share) share one GR
         // context on the host too, so state a push sets on one channel is what a launch
@@ -515,7 +589,13 @@ impl Mirror {
             None => {
                 let mut tp = sys::v610::NV_CHANNEL_GROUP_ALLOCATION_PARAMETERS::default();
                 tp.hVASpace = vas_handle;
-                tp.engineType = v::lookup(v::NV2080_ENGINE_TYPES, "GR0").unwrap_or(1);
+                let gr = v::lookup(v::NV2080_ENGINE_TYPES, "GR0").unwrap_or(1);
+                // The guest TSG's engine: GR0 for a compute channel, COPYn for a CE one.
+                tp.engineType = match reg.tsg(tsg_key) {
+                    Some((_, e)) if e != 0 => e,
+                    _ if bare && ch.engine_type != 0 => ch.engine_type,
+                    _ => gr,
+                };
                 let device = h.device();
                 let tsg = match h.alloc_object(
                     device,
@@ -547,6 +627,25 @@ impl Mirror {
         let userd = match ch.userd {
             Some(Target::Fb(pa)) if pa >= self.base && pa + PAGE <= self.end => {
                 (self.reservation, pa - self.base)
+            }
+            // USERD in guest sysmem (the guest's RMInstLoc USERD=COH, docs/caraxes/mapping.md
+            // §6): the host memory object over the guest's own page, as for a CE channel.
+            Some(Target::Sys(iova)) => {
+                match gm
+                    .sys
+                    .translate(iova & !(PAGE - 1), PAGE)
+                    .and_then(|gpa| gm.sys.host_ptr(gpa, PAGE))
+                    .map(|ptr| h.guest_page_object(ptr, PAGE, "shadow-userd-page"))
+                {
+                    Some(Ok(d)) => (d, iova & (PAGE - 1)),
+                    other => {
+                        notes.push(format!(
+                            "shadow: chid {chid} USERD IOVA {iova:#x} not registered guest RAM ({:?})",
+                            other.map(|r| r.map_err(|e| e.to_string()))
+                        ));
+                        return notes;
+                    }
+                }
             }
             other => {
                 notes.push(format!(
@@ -665,7 +764,10 @@ impl Mirror {
         // One-shot USERD read (no poll): GPGet advancing past GPPut's start means the GR
         // PBDMA fetched the guest's first push; GPGet stuck at 0 means it never fetched
         // (scheduling/token). Distinguishes a completion-delivery hang from a fetch hang.
-        if let Some(userd) = ch.userd {
+        // Diagnostic only (`CARAXES_MIRROR_DIAG=1`): its 5 ms sleep ran at every shadow
+        // channel's creation, about half a second per CUDA context (mapping.md §3).
+        let diag = std::env::var("CARAXES_MIRROR_DIAG").as_deref() == Ok("1");
+        if let Some(userd) = ch.userd.filter(|_| diag) {
             let at = |o: u64| match userd {
                 Target::Fb(pa) => Target::Fb(pa + o),
                 Target::Sys(pa) => Target::Sys(pa + o),
@@ -1737,6 +1839,9 @@ impl Mirror {
             sp.tsgs.clear();
         }
         self.reap_shadows(None, &mut notes);
+        // Every teardown queued above finishes before the descriptors can be freed.
+        self.worker.wait_idle();
+        notes.extend(self.worker.take_notes());
         if let Some(inv) = self.invalidator.take() {
             let mut h = self.hm.lock().unwrap();
             notes.push(inv.free(&mut h));
@@ -1781,6 +1886,198 @@ impl Mirror {
             self.intr.coalesced.load(Ordering::Relaxed),
             self.intr.rc_events.load(Ordering::Relaxed)
         )
+    }
+}
+
+/// Work for the shadow worker, applied in submission order.
+enum Job {
+    /// A fresh shadow VAS of a guest root.
+    Create(u64, Box<crate::shadow::ShadowVas>),
+    /// A plan of the server thread, and when it was submitted.
+    Apply(crate::shadow::Plan, Instant),
+    /// Tear the shadow VAS of a root down (its channels and TSGs are already freed).
+    Free(u64),
+}
+
+/// The shadow worker (docs/caraxes/mapping.md §4): one thread that owns the host side of
+/// every shadow VA space and applies the server thread's plans, so a guest MMU invalidate
+/// returns after the walk (tens of microseconds) instead of after the RM calls, and a
+/// context's teardown runs in the background in bounded batches. Ordering: every job gets
+/// a sequence number; a doorbell of a shadow channel waits until the worker finished every
+/// job submitted before it (`wait_all`), so no host channel runs before its root's mirror is
+/// consistent with the guest's last invalidate. `CARAXES_SHADOW_WORKER=0` waits after every
+/// submission (the synchronous reference).
+struct ShadowWorker {
+    tx: Option<std::sync::mpsc::Sender<(u64, Job)>>,
+    done: Arc<(Mutex<u64>, std::sync::Condvar)>,
+    submitted: u64,
+    enabled: bool,
+    notes: Arc<Mutex<Vec<String>>>,
+    /// No teardown in progress.
+    idle: Arc<(Mutex<bool>, std::sync::Condvar)>,
+    thread: Option<std::thread::JoinHandle<()>>,
+}
+
+impl ShadowWorker {
+    fn new(hm: Arc<Mutex<HostMemory>>, intr: Arc<IntrShared>) -> Self {
+        let (tx, rx) = std::sync::mpsc::channel::<(u64, Job)>();
+        let done = Arc::new((Mutex::new(0u64), std::sync::Condvar::new()));
+        let notes = Arc::new(Mutex::new(Vec::new()));
+        let (done2, notes2) = (done.clone(), notes.clone());
+        let idle = Arc::new((Mutex::new(true), std::sync::Condvar::new()));
+        let idle2 = idle.clone();
+        let thread = std::thread::Builder::new()
+            .name("shadow-worker".into())
+            .spawn(move || {
+                let mut spaces: BTreeMap<u64, crate::shadow::ShadowVas> = BTreeMap::new();
+                // Shadow VASes being torn down, a bounded step at a time whenever no job
+                // waits: a teardown never delays a plan (the doorbell barrier waits only
+                // for plans), and never holds the host RM lock for more than one step.
+                let mut graveyard: std::collections::VecDeque<(u64, crate::shadow::ShadowVas, Instant, usize, String)> =
+                    std::collections::VecDeque::new();
+                loop {
+                    let next = if graveyard.is_empty() {
+                        match rx.recv() {
+                            Ok(j) => Some(j),
+                            Err(_) => break,
+                        }
+                    } else {
+                        match rx.recv_timeout(crate::shadow::TEARDOWN_PAUSE) {
+                            Ok(j) => Some(j),
+                            Err(std::sync::mpsc::RecvTimeoutError::Timeout) => None,
+                            Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => {
+                                // Shutting down: finish every teardown.
+                                while let Some((root, mut sv, t0, mut steps, summary)) = graveyard.pop_front() {
+                                    while !sv.teardown_step(&hm) {
+                                        steps += 1;
+                                    }
+                                    intr.note(format!("shadow: VAS of guest root {root:#x} freed: {summary}; {} [host]", sv.teardown_line(steps + 1, t0.elapsed().as_millis())));
+                                }
+                                break;
+                            }
+                        }
+                    };
+                    let Some((seq, job)) = next else {
+                        if let Some(g) = graveyard.front_mut() {
+                            g.3 += 1;
+                            if g.1.teardown_step(&hm) {
+                                let (root, sv, t0, steps, summary) = graveyard.pop_front().expect("front");
+                                let line = format!(
+                                    "shadow: VAS of guest root {root:#x} freed: {summary}; {} [host]",
+                                    sv.teardown_line(steps, t0.elapsed().as_millis())
+                                );
+                                notes2.lock().unwrap().push(line.clone());
+                                intr.note(line);
+                            }
+                        }
+                        if graveyard.is_empty() {
+                            let (m, cv) = &*idle2;
+                            *m.lock().unwrap() = true;
+                            cv.notify_all();
+                        }
+                        continue;
+                    };
+                    let lines: Vec<String> = match job {
+                        Job::Create(root, sv) => {
+                            spaces.insert(root, *sv);
+                            Vec::new()
+                        }
+                        Job::Apply(mut plan, queued) => {
+                            plan.queued_us = queued.elapsed().as_micros();
+                            let descs: Vec<(u32, u64, u64)> = hm
+                                .lock()
+                                .unwrap()
+                                .descriptors()
+                                .iter()
+                                .map(|d| (d.handle, d.range.iova, d.range.size))
+                                .collect();
+                            match spaces.get_mut(&plan.root) {
+                                Some(sv) => {
+                                    let (changed, n) = sv.apply(&hm, &plan, &descs);
+                                    if changed { n } else { Vec::new() }
+                                }
+                                None => vec![format!("shadow: plan for unknown root {:#x} dropped", plan.root)],
+                            }
+                        }
+                        Job::Free(root) => {
+                            if let Some(sv) = spaces.remove(&root) {
+                                let summary = sv.summary();
+                                {
+                                    let (m, _) = &*idle2;
+                                    *m.lock().unwrap() = false;
+                                }
+                                graveyard.push_back((root, sv, Instant::now(), 0, summary));
+                            }
+                            Vec::new()
+                        }
+                    };
+                    for l in lines {
+                        intr.note(l);
+                    }
+                    let (m, cv) = &*done2;
+                    *m.lock().unwrap() = seq;
+                    cv.notify_all();
+                }
+            })
+            .ok();
+        ShadowWorker {
+            tx: Some(tx),
+            done,
+            idle,
+            submitted: 0,
+            enabled: std::env::var("CARAXES_SHADOW_WORKER").as_deref() != Ok("0"),
+            notes,
+            thread,
+        }
+    }
+
+    fn submit(&mut self, job: Job) {
+        self.submitted += 1;
+        if let Some(tx) = &self.tx {
+            let _ = tx.send((self.submitted, job));
+        }
+        if !self.enabled {
+            self.wait_all();
+        }
+    }
+
+    /// Block until every job submitted so far is done.
+    fn wait_all(&self) {
+        if self.thread.is_none() {
+            return;
+        }
+        let (m, cv) = &*self.done;
+        let mut d = m.lock().unwrap();
+        while *d < self.submitted {
+            d = cv.wait(d).unwrap();
+        }
+    }
+
+    /// Block until every job is done and every teardown finished (before the host
+    /// descriptors may be freed).
+    fn wait_idle(&self) {
+        self.wait_all();
+        if self.thread.is_none() {
+            return;
+        }
+        let (m, cv) = &*self.idle;
+        let mut i = m.lock().unwrap();
+        while !*i {
+            i = cv.wait(i).unwrap();
+        }
+    }
+
+    fn take_notes(&self) -> Vec<String> {
+        std::mem::take(&mut *self.notes.lock().unwrap())
+    }
+}
+
+impl Drop for ShadowWorker {
+    fn drop(&mut self) {
+        self.tx.take();
+        if let Some(t) = self.thread.take() {
+            let _ = t.join();
+        }
     }
 }
 

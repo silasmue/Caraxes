@@ -188,7 +188,7 @@ impl Dispatcher {
         };
         // A GR channel under CARAXES_MIRROR_GR_SHADOW runs on the host-managed shadow VAS
         // (D17 route 4 stage 1, shadow.rs), built at its first doorbell.
-        if m.is_gr_shadow(&self.channels, chid) {
+        if m.is_shadow(&self.channels, chid) {
             let mut notes = m.gr_shadow_doorbell(&self.channels, gm, chid);
             if let Some(c) = self.channels.channel_mut(chid) {
                 c.mirrored = true;

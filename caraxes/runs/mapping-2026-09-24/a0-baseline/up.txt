@@ -1,0 +1,7 @@
+dma table: 0:7ffd80000000:40000000,40000000:7ffd40000000:40000000,80000000:7ffd00000000:40000000,100000000:7ffcc0000000:40000000
+server pid 1987377, VM pid 1987386; logs in /mnt/vmstore/caraxes/vm2
+ssh up at 192.168.102.22
+[  128.739521] NVRM: GPU 0000:00:05.0: RmInitAdapter
+[  131.734237] NVRM: GPU 0000:00:05.0: RmInitAdapter succeeded!
+modprobe rc=0
+( tools/caraxes-vm.sh up && tools/caraxes-vm.sh wait 120 &&  probe map-a0 |  )  0.21s user 0.25s system 0% cpu 2:17.15 total

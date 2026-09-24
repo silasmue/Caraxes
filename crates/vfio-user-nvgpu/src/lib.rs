@@ -35,6 +35,7 @@ pub mod mirror;
 pub mod msgq;
 pub mod nvml;
 pub mod privilege;
+pub mod ptcache;
 pub mod rpc;
 pub mod selftest;
 pub mod shadow;

@@ -1,0 +1,19 @@
+# series 2026-09-24T09:52:52+02:00 targets=[v2] reps=1 metrics=[init churn short-auto time1 mm copy]
+# caraxes shell-rig-76-gb28a7af-dirty leandro-test 3edea73-dirty
+# bin c5b48cf1181bfcfc251f12aa2b0eaeb074887efec4c479f36efe399cb1307a13  bench-cu
+# bin 68449e9ec7b25613a65d096a6a42864c01fbf46ec47e540ce01f47184f0479ea  ctrlping
+# bin 138c5073848b2f3cf2beb4709376c7c49b420d88e836664584e5cf8bbfc7848c  ioctlping
+# bin 1f921680fc7a2c2e0978eb007cc0ab48d2f1a7cf404a196c9063a19a10aa228f  kernels.ptx
+# bin 2735d2a9cd25c0753898188542dbeb4a8433609024aa48230b6803a4a8d96e66  nvprobe
+# bin f0868123fca8e2c40138fda523e35fa76c015b97e232fc647fea0b6b49f33584  vrampress
+# time 2026-09-24T09:52:52+02:00
+# gpu 49, 300 MHz, 405 MHz, P8, 12 %, 5175 MiB, Disabled
+# procs 2077025:vm0-dev 2077035:vm0-vmm 2135609:vm2-dev 2135624:vm2-vmm 
+# loadavg 3.14 5.21 5.09
+09:52:57 v2  init            rep 1: INIT cuinit_ms=155.878 devget_ms=0.002 ctxcreate_ms=3425.275 ctxdestroy_ms=1178.173 # WALL wall_ms=4793 rc=0  | # MEAS dev_pid=2135609 dev_cpu_ms=2010 dev_rss_hwm_kb=5252352/6296516 vmm_cpu_ms=7220 others: vm0-dev=220ms vm0-vmm=360m
+09:53:09 v2  churn           rep 1: # WALL wall_ms=11794 rc=0  | # MEAS dev_pid=2135609 dev_cpu_ms=6050 dev_rss_hwm_kb=5253612/6296516 vmm_cpu_ms=18880 others: vm0-dev=510ms vm0-vmm=950
+09:53:15 v2  short-auto      rep 1: MSPERLAUNCH=0.278 # WALL wall_ms=5007 rc=0  | # MEAS dev_pid=2135609 dev_cpu_ms=3490 dev_rss_hwm_kb=5253716/6296516 vmm_cpu_ms=7830 others: vm0-dev=240ms vm0-vmm=370m
+09:53:20 v2  time1           rep 1: # cmd TIMEFORMAT='TIME wall_s=%3R user_s=%3U sys_s=%3S'; time ./nvprobe 1 TIME wall_s=5.281 user_s=0.122 sys_s=5.159 # WALL wall_ms=5286 rc=0  | # MEAS dev_pid=2135609 dev_cpu_ms=3180 dev_rss_hwm_kb=5254256/6296516 vmm_cpu_ms=7710 others: vm0-dev=240ms vm0-vmm=410m
+09:53:31 v2  mm              rep 1: mmsweep: N=1024     1.84ms/mm   1169.1 GFLOP/s chk=-3.498482e+04 vram=24MiB mmsweep: N=2048     6.82ms/mm   2519.2 GFLOP/s chk=1.067825e+04 vram=72MiB | # MEAS dev_pid=2135609 dev_cpu_ms=3250 dev_rss_hwm_kb=5254320/6296516 vmm_cpu_ms=18810 others: vm0-dev=410ms vm0-vmm=114
+09:53:50 v2  copy            rep 1: # WALL wall_ms=18990 rc=0  | # MEAS dev_pid=2135609 dev_cpu_ms=7620 dev_rss_hwm_kb=5261876/6296516 vmm_cpu_ms=30510 others: vm0-dev=770ms vm0-vmm=136
+# end 2026-09-24T09:53:50+02:00

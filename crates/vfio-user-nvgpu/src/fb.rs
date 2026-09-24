@@ -534,15 +534,19 @@ pub struct FakeFb {
     /// the comptag safety check (execution.md §7): every vidmem PTE must be kind 0x06/0x00
     /// with comptagline 0 before any mirrored execution. `(kind, comptagline) -> count`.
     pte_kinds: RefCell<std::collections::BTreeMap<(u8, u32), u64>>,
-    /// The page-table pages (4 KiB page numbers) the last shadow walk read, and whether
-    /// a write reached one since (`take_tables_dirty`): the shadow VAS re-walks the guest
-    /// root only when its tables changed (shadow.rs). `None`: no walk yet, always dirty.
-    /// Per watched root (its FB address, or the sysmem address with bit 63): the table
-    /// pages and the dirty flag.
-    pt_watch: RefCell<std::collections::BTreeMap<u64, (std::collections::BTreeSet<u64>, bool)>>,
-    /// While a walk runs: the table pages it reads.
-    pt_collect: RefCell<Option<std::collections::BTreeSet<u64>>>,
-    sys_tables_seen: std::cell::Cell<bool>,
+    /// The cached walk of every guest root the shadow mirrors (ptcache.rs), keyed by the
+    /// root's FB address (a sysmem root with bit 63): a guest write to one of its table
+    /// pages marks that page dirty, and the next update re-reads only the dirty pages.
+    walks: RefCell<std::collections::BTreeMap<u64, crate::ptcache::WalkCache>>,
+    /// The BAR aperture TLB (docs/caraxes/mapping.md §3): `(root, va page) -> the page's
+    /// target`, filled by the walk of a trapped BAR1/BAR2 access. Every BAR access used to
+    /// walk five table levels through uncached BAR1 reads; a context creation makes about
+    /// 100k of them. Flushed whole when a guest write reaches a table page any entry was
+    /// walked through (`bar_tlb_pages`); `CARAXES_BAR_TLB=0` walks every access.
+    bar_tlb: RefCell<HashMap<(u64, u64), Target>>,
+    bar_tlb_pages: RefCell<std::collections::HashSet<u64>>,
+    bar_tlb_on: bool,
+    pub bar_tlb_stats: Cell<(u64, u64, u64)>,
 }
 
 impl Default for FakeFb {
@@ -560,9 +564,11 @@ impl FakeFb {
             bounds: None,
             outside: Outside::default(),
             pte_kinds: RefCell::new(std::collections::BTreeMap::new()),
-            pt_watch: RefCell::new(std::collections::BTreeMap::new()),
-            pt_collect: RefCell::new(None),
-            sys_tables_seen: std::cell::Cell::new(false),
+            walks: RefCell::new(std::collections::BTreeMap::new()),
+            bar_tlb: RefCell::new(HashMap::new()),
+            bar_tlb_pages: RefCell::new(std::collections::HashSet::new()),
+            bar_tlb_on: std::env::var("CARAXES_BAR_TLB").as_deref() != Ok("0"),
+            bar_tlb_stats: Cell::new((0, 0, 0)),
         }
     }
 
@@ -574,25 +580,72 @@ impl FakeFb {
         }
     }
 
-    /// Whether a page-table page of the last watched walk from `root` was written since
-    /// that walk (or no walk from it was watched yet); clears the flag.
-    pub fn take_tables_dirty(&self, root: Target) -> bool {
-        match self.pt_watch.borrow_mut().get_mut(&Self::watch_key(root)) {
-            Some((_, d)) => std::mem::replace(d, false),
-            None => true,
-        }
+    /// Whether the cached walk of `root` has work to do (never built, a table page was
+    /// written since the last update, or a table lives in sysmem).
+    pub fn tables_dirty(&self, root: Target) -> bool {
+        self.walks
+            .borrow()
+            .get(&Self::watch_key(root))
+            .is_none_or(|c| c.is_dirty())
     }
 
-    /// Stop watching `root` (its next check reports dirty).
+    /// Stop watching `root` (drops its cached walk).
     pub fn unwatch_tables(&self, root: Target) {
-        self.pt_watch.borrow_mut().remove(&Self::watch_key(root));
+        self.walks.borrow_mut().remove(&Self::watch_key(root));
     }
 
-    fn note_write(&self, pa: u64, len: usize) {
-        let last = (pa + len.max(1) as u64 - 1) >> 12;
-        for (pages, dirty) in self.pt_watch.borrow_mut().values_mut() {
-            if !*dirty && pages.range(pa >> 12..=last).next().is_some() {
-                *dirty = true;
+    /// Bring the cached walk of `root` up to date (ptcache.rs): only the dirty table pages
+    /// are read again, or everything when `full` (the always-resync reference), on the first
+    /// call, or when a table lives in guest sysmem. Returns the units whose leaves may have
+    /// changed.
+    pub fn walk_update(
+        &self,
+        sys: Option<&GuestMemory>,
+        root: Target,
+        full: bool,
+        max_leaves: usize,
+    ) -> crate::ptcache::Update {
+        let reader = FbReader { fb: self, sys };
+        let mut walks = self.walks.borrow_mut();
+        let c = walks
+            .entry(Self::watch_key(root))
+            .or_insert_with(|| {
+                let mut c = crate::ptcache::WalkCache::new(root, max_leaves);
+                c.reread = std::env::var("CARAXES_SHADOW_REREAD").as_deref() == Ok("1");
+                c
+            });
+        c.update(&reader, full)
+    }
+
+    /// Run `f` on the cached walk of `root` (after [`Self::walk_update`]).
+    pub fn with_walk<R>(
+        &self,
+        root: Target,
+        f: impl FnOnce(&crate::ptcache::WalkCache) -> R,
+    ) -> Option<R> {
+        self.walks.borrow().get(&Self::watch_key(root)).map(f)
+    }
+
+    fn note_write(&self, pa: u64, data: &[u8]) {
+        let last = (pa + data.len().max(1) as u64 - 1) >> 12;
+        {
+            let mut tp = self.bar_tlb_pages.borrow_mut();
+            if !tp.is_empty() && (pa >> 12..=last).any(|p| tp.contains(&p)) {
+                tp.clear();
+                self.bar_tlb.borrow_mut().clear();
+                let (h, m, f) = self.bar_tlb_stats.get();
+                self.bar_tlb_stats.set((h, m, f + 1));
+            }
+        }
+        let mut walks = self.walks.borrow_mut();
+        if walks.is_empty() {
+            return;
+        }
+        for page in pa >> 12..=last {
+            for c in walks.values_mut() {
+                if c.watches(page) {
+                    c.note_write(page, pa, data);
+                }
             }
         }
     }
@@ -690,7 +743,7 @@ impl FakeFb {
             return false;
         }
         self.filter.before_write(pa, data);
-        self.note_write(pa, data.len());
+        self.note_write(pa, data);
         self.store.write(pa, data);
         true
     }
@@ -876,42 +929,12 @@ impl FakeFb {
         out
     }
 
-    /// [`Self::enumerate_leaves`], and afterwards watch every FB table page it read:
-    /// a later write to one sets the dirty flag (`take_tables_dirty`). A table in guest
-    /// sysmem cannot be watched (its writes never reach the device), so such a walk
-    /// leaves the tables permanently dirty.
-    pub fn enumerate_leaves_watched(
-        &self,
-        sys: Option<&GuestMemory>,
-        root: Target,
-        max: usize,
-    ) -> Vec<(u64, Target, u64, u8)> {
-        *self.pt_collect.borrow_mut() = Some(std::collections::BTreeSet::new());
-        let out = self.enumerate_leaves(sys, root, max);
-        let pages = self.pt_collect.borrow_mut().take().unwrap_or_default();
-        let key = Self::watch_key(root);
-        if self.sys_tables_seen.replace(false) {
-            self.pt_watch.borrow_mut().remove(&key);
-        } else {
-            self.pt_watch.borrow_mut().insert(key, (pages, false));
-        }
-        out
-    }
-
     /// `n` consecutive qwords of a page-table page (in the FB store, or in guest RAM).
     fn table_block(&self, sys: Option<&GuestMemory>, table: Target, n: usize) -> Option<Vec<u64>> {
         let mut b = vec![0u8; n * 8];
         let ok = match table {
-            Target::Fb(pa) => {
-                if let Some(c) = self.pt_collect.borrow_mut().as_mut() {
-                    c.insert(pa >> 12);
-                }
-                self.read(pa, &mut b)
-            }
-            Target::Sys(pa) => {
-                self.sys_tables_seen.set(true);
-                sys?.read(pa, &mut b)
-            }
+            Target::Fb(pa) => self.read(pa, &mut b),
+            Target::Sys(pa) => sys?.read(pa, &mut b),
             _ => false,
         };
         ok.then(|| {
@@ -975,6 +998,83 @@ impl FakeFb {
         (Target::Unmapped { level: 0 }, 0)
     }
 
+    /// [`Self::translate`] through the BAR TLB: a hit costs no table read; a miss walks
+    /// and records the table pages it read, so that a later write to one flushes the TLB.
+    pub fn bar_translate(&self, root: u64, va: u64) -> Target {
+        if !self.bar_tlb_on {
+            return self.translate(root, va);
+        }
+        let key = (root, va >> 12);
+        let off = va & 0xFFF;
+        let (h, m, f) = self.bar_tlb_stats.get();
+        if let Some(t) = self.bar_tlb.borrow().get(&key) {
+            self.bar_tlb_stats.set((h + 1, m, f));
+            return match *t {
+                Target::Fb(pa) => Target::Fb(pa + off),
+                Target::Sys(pa) => Target::Sys(pa + off),
+                other => other,
+            };
+        }
+        self.bar_tlb_stats.set((h, m + 1, f));
+        let (t, pages) = self.walk_pages(root, va & !0xFFF);
+        if matches!(t, Target::Fb(_) | Target::Sys(_)) {
+            self.bar_tlb_pages.borrow_mut().extend(pages);
+            self.bar_tlb.borrow_mut().insert(key, t);
+        }
+        match t {
+            Target::Fb(pa) => Target::Fb(pa + off),
+            Target::Sys(pa) => Target::Sys(pa + off),
+            other => other,
+        }
+    }
+
+    /// The walk of `translate` for a page-aligned `va`, and the FB table pages it read.
+    fn walk_pages(&self, root: u64, va: u64) -> (Target, Vec<u64>) {
+        let mut pages = vec![root >> 12];
+        let at = |pages: &mut Vec<u64>, t: Target| {
+            if let Target::Fb(pa) = t {
+                pages.push(pa >> 12);
+            }
+        };
+        let Some(e3) = self.read_u64(root + 8 * ((va >> 47) & 3)) else {
+            return (Target::Unmapped { level: 3 }, pages);
+        };
+        let Some(pd2) = Self::next_table(e3) else {
+            return (Target::Unmapped { level: 3 }, pages);
+        };
+        at(&mut pages, pd2);
+        let Some(e2) = self.table_u64(None, pd2, 8 * ((va >> 38) & 0x1FF)) else {
+            return (Target::Unmapped { level: 2 }, pages);
+        };
+        let Some(pd1) = Self::next_table(e2) else {
+            return (Target::Unmapped { level: 2 }, pages);
+        };
+        at(&mut pages, pd1);
+        let Some(e1) = self.table_u64(None, pd1, 8 * ((va >> 29) & 0x1FF)) else {
+            return (Target::Unmapped { level: 1 }, pages);
+        };
+        let Some(pd0) = Self::next_table(e1) else {
+            return (Target::Unmapped { level: 1 }, pages);
+        };
+        at(&mut pages, pd0);
+        let (t, _) = self.walk_in(None, Target::Fb(root), va);
+        // The last level: the small and big tables the dual PDE names.
+        let idx0 = (va >> 21) & 0xFF;
+        if let (Some(lo), Some(hi)) = (
+            self.table_u64(None, pd0, 16 * idx0),
+            self.table_u64(None, pd0, 16 * idx0 + 8),
+        ) {
+            if lo & 1 == 0 {
+                for tt in [Self::big_table(lo), Self::next_table(hi)].into_iter().flatten() {
+                    if let Target::Fb(pa) = tt {
+                        pages.push(pa >> 12);
+                    }
+                }
+            }
+        }
+        (t, pages)
+    }
+
     /// Perform a BAR access at `va`: read into or write from `data`.
     /// Returns the target for the trace.
     pub fn bar_access(
@@ -985,7 +1085,7 @@ impl FakeFb {
         data: &mut [u8],
         write: bool,
     ) -> Target {
-        let t = self.translate(root, va);
+        let t = self.bar_translate(root, va);
         match t {
             Target::Fb(pa) => {
                 if write {
@@ -1008,6 +1108,18 @@ impl FakeFb {
             }
         }
         t
+    }
+}
+
+/// The FB store (and guest RAM for sysmem tables) as the incremental walker's reader.
+struct FbReader<'a> {
+    fb: &'a FakeFb,
+    sys: Option<&'a GuestMemory>,
+}
+
+impl crate::ptcache::TableReader for FbReader<'_> {
+    fn block(&self, table: Target, n: usize) -> Option<Vec<u64>> {
+        self.fb.table_block(self.sys, table, n)
     }
 }
 
@@ -1058,6 +1170,13 @@ mod tests {
         assert_eq!(z, [0; 4]);
         assert!(!fb.read(64 << 20, &mut z));
         assert_eq!(fb.pages_touched(), 7);
+        // The BAR TLB: a hit needs no walk; a write to a table page on the path flushes it.
+        let (_, walks0, _) = fb.bar_tlb_stats.get();
+        assert_eq!(fb.bar_translate(root, 0x3020), Target::Fb(0x20020));
+        assert_eq!(fb.bar_tlb_stats.get().1, walks0);
+        fb.write_u64(pt_small + 8 * 3, ((0x28000u64 >> 12) << 8) | 1);
+        assert_eq!(fb.bar_translate(root, 0x3020), Target::Fb(0x28020));
+        assert_eq!(fb.bar_tlb_stats.get().1, walks0 + 1);
     }
 
     #[test]
@@ -1087,15 +1206,25 @@ mod tests {
                 (0x20_0000, Target::Fb(0x40_0000), 0x20_0000, 0x06),
             ]
         );
-        // The watched walk: clean until a table page it read is written.
-        assert!(fb.take_tables_dirty(Target::Fb(root)));
-        let _ = fb.enumerate_leaves_watched(Some(&mem), Target::Fb(root), 1 << 20);
-        assert!(!fb.take_tables_dirty(Target::Fb(root)));
+        // The cached walk: the same leaves, clean until a table page it read is written.
+        assert!(fb.tables_dirty(Target::Fb(root)));
+        let u = fb.walk_update(Some(&mem), Target::Fb(root), false, 1 << 20);
+        assert!(u.full);
+        let mut cached = fb.with_walk(Target::Fb(root), |c| c.all_leaves()).unwrap();
+        cached.sort_by_key(|l| l.0);
+        let mut walked = l.clone();
+        walked.sort_by_key(|l| l.0);
+        assert_eq!(cached, walked);
+        assert!(!fb.tables_dirty(Target::Fb(root)));
         fb.write_u64(0x20000, 1); // data page, not a table
-        assert!(!fb.take_tables_dirty(Target::Fb(root)));
+        assert!(!fb.tables_dirty(Target::Fb(root)));
         fb.write_u64(pt_small + 8 * 7, ((0x21000u64 >> 12) << 8) | 1);
-        assert!(fb.take_tables_dirty(Target::Fb(root)));
-        assert!(!fb.take_tables_dirty(Target::Fb(root)));
+        assert!(fb.tables_dirty(Target::Fb(root)));
+        let u = fb.walk_update(Some(&mem), Target::Fb(root), false, 1 << 20);
+        assert!(!u.full);
+        assert_eq!(u.changed, vec![0]);
+        assert!(!fb.tables_dirty(Target::Fb(root)));
+        assert_eq!(fb.with_walk(Target::Fb(root), |c| c.leaf_count()), Some(4));
     }
 
     #[test]

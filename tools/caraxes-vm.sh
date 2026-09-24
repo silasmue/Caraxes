@@ -37,6 +37,13 @@
 # reservation through the host's shared BAR1 (256 MiB on the RTX 2070): at most
 # CARAXES_BAR1_WINDOWS (default 2) windows of CARAXES_BAR1_WINDOW_MIB (default 32) MiB
 # each, so several devices and the desktop fit (docs/caraxes/parallel.md §2).
+# Mapping package (docs/caraxes/mapping.md): CARAXES_MAP_BUDGET caps the device's live RM
+# mappings of the shadow VA spaces (default 32768; beyond it guest leaves are refused with an
+# error line, protecting the host RM); CARAXES_SHADOW_ALWAYS_RESYNC=1 walks and diffs the whole
+# guest tree at every resync (the reference); CARAXES_SHADOW_COALESCE=0 maps one leaf per RM
+# call; CARAXES_BAR_TLB=0 walks the BAR tables at every trapped access; CARAXES_CE_SHADOW=0
+# runs copy-engine channels on the guest's own (unfiltered) tables; CARAXES_LINEAR_IOVA=0 keeps
+# the independent 1 GiB chunks instead of IOVA = GPA + one offset.
 # State lives under $CARAXES_STORE/$VM (default /mnt/vmstore/caraxes/vm0, falling
 # back to target/caraxes/$VM when the store is absent): rootfs.qcow2 (overlay on
 # LEA_BASE_IMAGE), seed.img (cloud-init), gpu.sock, gpu-trace.log, serial.log.
@@ -105,7 +112,10 @@ up() {
     rm -f "$W/dma-ranges"
     case ${CARAXES_DMA:-} in
         '') ;;
-        register) vbios+=(--register-guest-ram --dma-ranges "$W/dma-ranges"); server=$(privileged_server) ;;
+        register) vbios+=(--register-guest-ram --dma-ranges "$W/dma-ranges"); server=$(privileged_server)
+            # One IOVA offset for the whole guest (docs/caraxes/mapping.md §5): the device
+            # registers all zones at once, from the top GPA down, with hole fillers.
+            export CARAXES_GUEST_RAM_BYTES; CARAXES_GUEST_RAM_BYTES=$(mem_bytes "${CARAXES_MEM:-4G}") ;;
         identity) vbios+=(--identity-dma-table --dma-ranges "$W/dma-ranges") ;;
         *) error "CARAXES_DMA must be register or identity" ;;
     esac

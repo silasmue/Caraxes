@@ -1,0 +1,55 @@
+# SPDX-License-Identifier: MIT
+# Commands of the mapping package, 2026-09-24, in the order run (repo root /home/silas/git/Caraxes).
+# M=caraxes/runs/mapping-2026-09-24; env: source $M/env.sh (vm2, slot 0, 2 GiB profile).
+# Builds: CARGO_TARGET_DIR=target/mapping cargo build --release -p vfio-user-nvgpu (working tree);
+#         baseline 718a311: CARGO_TARGET_DIR=target/mapping-base in a clean checkout of 718a311.
+
+## a0-baseline: the 718a311 device (target/mapping-base), quick metrics, n=1, no restart
+source $M/env.sh; CARAXES_SERVER=target/mapping-base/release/vfio-user-nvgpu tools/caraxes-vm.sh up && tools/caraxes-vm.sh wait 120 && tools/caraxes-vm.sh probe map-a0 && caraxes/tools/bench-run.sh v2-nodes
+caraxes/tools/bench-run.sh stage v2
+caraxes/tools/bench-hostwatch.sh start $M/a0-baseline; caraxes/tools/bench-run.sh series --targets v2 --reps 1 --metrics "init churn short-auto time1 mm" --out $M/a0-baseline; caraxes/tools/bench-hostwatch.sh stop $M/a0-baseline
+
+## a1-incremental: item 1 (incremental walk and unit diff), coalescing off (CARAXES_SHADOW_COALESCE=0)
+source $M/env.sh; CARAXES_SHADOW_COALESCE=0 caraxes/tools/bench-run.sh v2-restart
+caraxes/tools/bench-hostwatch.sh start $M/a1-incremental; CARAXES_SHADOW_COALESCE=0 caraxes/tools/bench-run.sh series --targets v2 --reps 1 --metrics "init churn short-auto time1 mm" --out $M/a1-incremental; caraxes/tools/bench-hostwatch.sh stop $M/a1-incremental
+
+## a2-writethrough: item 1 with the write-through table copies (no BAR1 re-read of a written table page), coalescing off
+source $M/env.sh; CARAXES_SHADOW_COALESCE=0 caraxes/tools/bench-run.sh v2-restart
+caraxes/tools/bench-hostwatch.sh start $M/a2-writethrough; CARAXES_SHADOW_COALESCE=0 caraxes/tools/bench-run.sh series --targets v2 --reps 1 --metrics "init churn short-auto time1 mm" --out $M/a2-writethrough; caraxes/tools/bench-hostwatch.sh stop $M/a2-writethrough
+
+## a3-coalesce: items 1+2 (coalesced RM maps, budget 32768 default), the same quick metrics
+source $M/env.sh; caraxes/tools/bench-run.sh v2-restart
+caraxes/tools/bench-hostwatch.sh start $M/a3-coalesce; caraxes/tools/bench-run.sh series --targets v2 --reps 1 --metrics "init churn short-auto time1 mm" --out $M/a3-coalesce; caraxes/tools/bench-hostwatch.sh stop $M/a3-coalesce
+tools/caraxes-vm.sh ssh sync; tools/caraxes-vm.sh down; cp /mnt/vmstore/caraxes/vm2/gpu.log $M/a3-coalesce/gpu.log   # exit summary of a3
+# p3-profile: one `bench-cu init` on the a3 device with the trace lines of that window ($M/p3-profile/init-trace.txt): 96193 trapped 8-byte BAR2 writes, 35 us apart
+
+## a4-bartlb: items 1+2 plus the BAR aperture TLB (item 3, first cut)
+source $M/env.sh; tools/caraxes-vm.sh up && tools/caraxes-vm.sh wait 120 && tools/caraxes-vm.sh probe map-a4 && caraxes/tools/bench-run.sh v2-nodes
+caraxes/tools/bench-hostwatch.sh start $M/a4-bartlb; caraxes/tools/bench-run.sh series --targets v2 --reps 1 --metrics "init churn short-auto time1 mm" --out $M/a4-bartlb; caraxes/tools/bench-hostwatch.sh stop $M/a4-bartlb
+
+## b1-async-streams: the previously fatal P20 suite on the a4 device (items 1+2), host watch kills the device if nvidia-smi > 2 s
+KILL=/mnt/vmstore/caraxes/vm2/gpu.pid caraxes/tools/bench-hostwatch.sh start $M/b1-async-streams
+CARAXES_GATE_RUNS=$M/b1-async-streams tools/caraxes-gate.sh cuda suite-test_async_streams
+caraxes/tools/bench-hostwatch.sh stop $M/b1-async-streams; caraxes/tools/p20.sh - xid $M/b1-async-streams/host-xid.txt <t0>
+
+## c0/c1 doorbell study: short-kernel trace (c0-doorbell-study/short-trace.txt), guest trap microbenchmark caraxes/tools/bench-trap.c
+$M/trapbench.sh $M/c1-trace-off   (CARAXES_TRACE_ACCESSES=0)
+## c2-userd-sysmem: guest registry RMInstLoc=0x10000 (USERD field 17:16 = COH) in /etc/modprobe.d/caraxes.conf of vm2; device with sysmem USERD for shadow GR channels
+tools/caraxes-vm.sh ssh 'sudo sed -i "s/RmRcWatchdog=0\"/RmRcWatchdog=0;RMInstLoc=0x10000\"/" /etc/modprobe.d/caraxes.conf'
+METRICS="short-auto launch-auto init" $M/trapbench.sh $M/c2-userd-sysmem
+# c2 result: with RMInstLoc=0x10000 the guest RM never finished RmInitAdapter (assert loop alloc_free.c:360 / rs_server.c:1382); reverted (caraxes.conf.pre-userd), vm2 down. Host Xid 13 at 09:26-09:28 were vm0's device (pid 2061395, class c597), not this package's.
+
+## d1-isolation: item 5 (IOVA = GPA + one offset with hole fillers, CE channels on the shadow VAS) + items 1-3 so far; cuda gate scored tests and the async_streams suite
+source $M/env.sh; tools/caraxes-vm.sh up && tools/caraxes-vm.sh wait 120 && tools/caraxes-vm.sh probe map-d1 && caraxes/tools/bench-run.sh v2-nodes
+KILL=/mnt/vmstore/caraxes/vm2/gpu.pid INTERVAL=2 caraxes/tools/bench-hostwatch.sh start $M/d1-isolation
+CARAXES_GATE_RUNS=$M/d1-isolation tools/caraxes-gate.sh cuda
+CARAXES_GATE_RUNS=$M/d1-isolation tools/caraxes-gate.sh cuda suite-test_async_streams
+# d1 result: cuda gate green (cuda-managed the known gap), all unscored suites pass, 0 sysmem refusals (was 128 crossing leaves), 0 IOMMU faults, 0 Xid, 0 externally-owned VAS (400 channels on shadow VASes). p20-check: see d1-isolation/check.txt (the overlap FAILs were the restart's stale placement lines; fixed in the log wording)
+
+## d2-worker: item 4 (plans applied by the shadow worker, doorbell barrier, background teardown), streaming BAR1 reads; quick metrics then the cuda gate
+source $M/env.sh; METRICS="init churn short-auto time1 mm copy" $M/trapbench.sh $M/d2-worker
+# d2 result: cuda gate green as d1; plans waited up to 2 s behind teardowns in the worker queue -> teardown moved to a background graveyard stepped only when no job waits
+
+## d3-worker2: teardown steps in the worker's idle time; quick metrics, then cuda gate subset
+source $M/env.sh; METRICS="init churn short-auto time1" $M/trapbench.sh $M/d3-worker2
+CARAXES_GATE_RUNS=$M/d3-worker2 tools/caraxes-gate.sh cuda cuda-core cuda-launch cuda-torch robustness rlprobe suite-test_async_streams suite-test_vram_churn
