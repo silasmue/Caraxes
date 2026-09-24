@@ -108,6 +108,20 @@ case ${CARAXES_CHIP:-tu106} in
            IDENTITY+=(--board-data rtx5060ti) ;;
     *) printf 'ERROR: CARAXES_CHIP must be tu106 or gb206\n' >&2; exit 1 ;;
 esac
+# The costume (docs/caraxes/costume-5060.md): CARAXES_COSTUME=rtx5060ti presents the RTX
+# 5060 Ti's PCI ids (vendor, device, revision, class, subsystem of the GB206 capture, laid
+# over the TU106 config layout by the board's ids_from, which the device resolves against
+# LEA_ROOT) and name on the TU106 (board data rtx5060ti-on-tu106); the capability chain,
+# the ROM, the VBIOS and every capability answer stay the TU106's, so the host flags stay
+# allowed. Only with CARAXES_CHIP=tu106.
+CONFIG=$REF/config-space.txt
+case ${CARAXES_COSTUME:-} in
+    '') ;;
+    rtx5060ti)
+        [[ ${CARAXES_CHIP:-tu106} == tu106 ]] || { printf 'ERROR: CARAXES_COSTUME=rtx5060ti needs CARAXES_CHIP=tu106\n' >&2; exit 1; }
+        IDENTITY+=(--board-data rtx5060ti-on-tu106) ;;
+    *) printf 'ERROR: CARAXES_COSTUME must be empty or rtx5060ti\n' >&2; exit 1 ;;
+esac
 # A Blackwell identity never touches the host card (the device refuses the host flags too).
 if [[ ${CARAXES_CHIP:-tu106} != tu106 ]]; then
     for v in CARAXES_HOST_RM CARAXES_RESERVE_VRAM CARAXES_HOST_EXEC; do
@@ -161,8 +175,8 @@ up() {
         identity) vbios+=(--identity-dma-table --dma-ranges "$W/dma-ranges") ;;
         *) error "CARAXES_DMA must be register or identity" ;;
     esac
-    "$server" --socket "$W/gpu.sock" --trace "$W/gpu-trace.log" \
-        --config "$REF/config-space.txt" --rom "$REF/rom.bin" "${vbios[@]}" > "$W/gpu.log" 2>&1 &
+    LEA_ROOT=$LEA_ROOT "$server" --socket "$W/gpu.sock" --trace "$W/gpu-trace.log" \
+        --config "$CONFIG" --rom "$REF/rom.bin" "${vbios[@]}" > "$W/gpu.log" 2>&1 &
     echo $! > "$W/gpu.pid"
     for _ in $(seq 50); do [[ -S $W/gpu.sock ]] && break; sleep 0.1; done
     [[ -S $W/gpu.sock ]] || { cat "$W/gpu.log"; error "server did not create $W/gpu.sock"; }

@@ -1,0 +1,53 @@
+# SPDX-License-Identifier: MIT
+# SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
+#
+# The costume board (docs/caraxes/costume-5060.md): the RTX 5060 Ti's PCI identity on
+# the TU106 of the house. Costume: the identity words of the GB206 capture (`ids_from`:
+# 10de:2d04, revision a1, class 030000, subsystem 1043:8a08), the 5060 Ti's BAR0 size and
+# the personality "RTX 5060 Ti" of the guest name ("Leandro VFIO RTX 5060 Ti-1G" for a
+# 1 GiB profile, nvrm_abi::naming). Truth: everything the guest driver and libcuda derive
+# capabilities from is the chip's, `chip = "tu106"` (PMC_BOOT_0/42, the BAR0 register
+# model, the Turing GSP boot, GMMU v2, the Turing classes and engines, the SM version 7.5
+# the host card reports), the VBIOS below, and the config layout: the capability chain
+# is the RTX 2070's (PM 0x60, MSI 0x68, PCI Express 0x78, 8 GT/s x16), because the Turing
+# kernel RM reads the link registers at the fixed XVE offsets 0x84/0x88
+# (maxwell/gm107/dev_nv_xve.h:104-105), which in the GB206 layout (PCI Express at 0x60)
+# are Device Capabilities 2 and Device Control 2: with the whole GB206 config space the
+# guest's nvidia-smi showed "Link Width Max 25x", "Current Unknown Error"
+# (caraxes/runs/costume-2026-09-24/gb206-layout/). No per-card value of the capture (UUID,
+# PDI, serials) is used; the device's own derived GID stays.
+
+name = "RTX 5060 Ti"
+chip = "tu106"
+config = "caraxes/reference/rtx2070/config-space.txt"
+ids_from = "caraxes/reference/gb206/gpu-0000_01_00.0/config-space.txt"
+# The VBIOS stays Turing's: the TU106 boot parses the image behind the PROM window (the
+# BIT and the FWSEC ucode that sets up FRTS, docs/caraxes/gsp-boot-turing.md), which the
+# GB206 images do not carry (a GB20x boots through the FSP, blackwell-gb206.md 1.4). The
+# PCI-visible ROM is the RTX 2070's so that the expansion ROM BAR and the PROM window
+# show one ROM, and the version below is the one of the image the guest parses.
+rom = "caraxes/reference/rtx2070/rom.bin"
+vbios_version = "90.06.3D.00.76"
+msix = false
+
+# BAR0 64 MiB as on the 5060 Ti (caraxes/reference/gb206/gpu-0000_01_00.0/bars.txt:3):
+# the Turing register map lies below 16 MiB and every access is trapped, so the larger
+# window only adds addresses that read 0. BAR1 256 MiB as boards/rtx5060ti.toml (the
+# card's resizable-BAR minimum is 64 MiB, its firmware default 16 GiB, bars.txt:4,12; 256
+# MiB is also the RTX 2070's, so the host-execution BAR1 budget is unchanged), BAR3
+# 32 MiB and 128 B I/O as on both cards.
+bars = [
+    { kind = "mem32", size = 0x400_0000, prefetch = false },
+    { kind = "mem64", size = 0x1000_0000, prefetch = true },
+    { kind = "mem64", size = 0x200_0000, prefetch = true },
+    { kind = "io", size = 0x80 },
+]
+rom_bar_size = 0x8_0000
+
+# The TU106 display model with the RTX 2070 board's synthetic connector (display-ab.md);
+# only used with --display.
+[display]
+label = "board (rtx5060ti-on-tu106: one DisplayPort SST connector on SOR0)"
+connector = [
+    { display_id = 0x100, sor = 0, index = 0, kind = "DP" },
+]

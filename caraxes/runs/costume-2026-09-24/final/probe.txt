@@ -1,0 +1,4 @@
+probe costume: 93584 device accesses, guest log in /mnt/vmstore/caraxes/vm1/probe-costume/guest-dmesg.txt
+[  133.732639] NVRM: GPU 0000:00:05.0: RmInitAdapter
+[  137.454193] NVRM: GPU 0000:00:05.0: RmInitAdapter succeeded!
+modprobe rc=0

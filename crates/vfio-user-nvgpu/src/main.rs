@@ -51,7 +51,8 @@ vfio-user-nvgpu --selftest <socket> [--board-data <name|file>] [--chip <chip>] [
 
   --socket   vfio-user socket to create (a stale socket file is removed)
   --trace    access log file (default: none; the summary always goes to stderr)
-  --board-data  board data: a built-in board (rtx2070, rtx5060ti) or a boards/*.toml-shaped file (default: rtx2070)
+  --board-data  board data: a built-in board (rtx2070, rtx5060ti, rtx5060ti-on-tu106: the 5060 Ti's PCI identity
+             and name on the TU106, docs/caraxes/costume-5060.md) or a boards/*.toml-shaped file (default: rtx2070)
   --chip     the chip to present, tu106 or gb206 (default: the board's, tu106 for rtx2070, gb206 for rtx5060ti)
   --config   lspci -xxxx dump of the card (default: the board's, caraxes/reference/rtx2070/config-space.txt)
   --rom      PCI-visible ROM image for the expansion ROM region (default: the board's, caraxes/reference/rtx2070/rom.bin)
@@ -274,8 +275,22 @@ fn parse_args() -> Result<Args> {
 fn config_space(a: &Args) -> Result<ConfigSpace> {
     let dump = std::fs::read_to_string(&a.config)
         .with_context(|| format!("read {}", a.config.display()))?;
-    // The board's capability filter (MSI-X) applies to any dump, also a --config one.
-    pci_config::for_board(&dump, &a.board_data)
+    // The board's capability filter (MSI-X) and its identity overlay (`ids_from`, the
+    // costume board) apply to any dump, also a --config one.
+    let ids = match &a.board_data.ids_from {
+        Some(p) => {
+            let root = std::env::var_os("LEA_ROOT")
+                .map(PathBuf::from)
+                .unwrap_or_else(|| PathBuf::from("."));
+            let path = root.join(p);
+            Some(
+                std::fs::read_to_string(&path)
+                    .with_context(|| format!("read {} (the board's ids_from)", path.display()))?,
+            )
+        }
+        None => None,
+    };
+    pci_config::for_board_with_ids(&dump, ids.as_deref(), &a.board_data)
 }
 
 /// Free the host memory on SIGTERM, SIGINT or SIGHUP, then exit. The signals are

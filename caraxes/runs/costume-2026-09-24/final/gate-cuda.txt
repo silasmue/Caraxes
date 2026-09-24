@@ -1,0 +1,82 @@
+caraxes-gate: cuda-init
+  pass: stage 0 ok (cuInit)
+caraxes-gate: cuda-context
+  pass: stage 1 ok (context, sched=auto)
+caraxes-gate: cuda-core
+  pass: nvprobe 2: device memory written, read back and compared
+caraxes-gate: cuda-jit
+  pass: nvprobe 3: PTX compiled by the driver, kernel launched, result verified
+caraxes-gate: cuda-launch
+  pass: nvprobe 4 (blocking): 100 kernel launches completed and verified
+caraxes-gate: cuda-managed
+  fail: exit 1: ERROR AllocManaged a: 801 operation not supported
+  guest RM: RM_CONTROL 0x2080012f -> 0x56; device: 0x2080012f=0x56 x2
+caraxes-gate: cuda-hostreg
+  pass: hostregprobe: 2 pinned-memory roundtrips (HostRegister and HostAlloc) compared byte for byte
+caraxes-gate: cuda-torch
+  pass: torchprobe stage 5 with NVTORCH_CONV=1: cuDNN convolution result verified by the probe
+caraxes-gate: cuda-gdb
+  skip: declared-unsupported: workload not procurable in this environment -- no cuda-gdb (CUDA_GDB)
+  guest RM: -; device: none
+caraxes-gate: rlprobe
+  pass: mean10=56.9 (pinned)
+caraxes-gate: convburn
+  pass: acc=3.041450977e+00
+caraxes-gate: robustness
+  pass: 2 in parallel ok, next run after SIGKILL ok, nvidia.ko pinned by an open FD
+caraxes-gate: suite-test_async_streams
+  fail: exit 1: torch.OutOfMemoryError: CUDA out of memory. Tried to allocate 256.00 MiB. GPU 0 has a total capacity of 855.75 MiB of which 222.94 MiB is free. Including non-PyTorch memory, this process has 628.00 MiB memory in use. Of the allocated memory 512.00 MiB is allocated by PyTorch, and 0 bytes is reserved
+  guest RM: -; device: 0x2080012f=0x56 x1
+caraxes-gate: suite-test_cuda_graphs
+  pass: CUDA graphs test ok
+caraxes-gate: suite-test_high_freq_event_polling
+  pass: high-frequency event test ok
+caraxes-gate: suite-test_multi_process_cuda
+  pass: [W924 16:45:36.588362037 CudaIPCTypes.cpp:16] Producer process has been terminated before all shared CUDA tensors released. See Note [Sharing CUDA tensors]
+caraxes-gate: suite-test_nvrtc
+  skip: missing module: cupy
+  guest RM: -; device: none
+caraxes-gate: suite-test_uvm_migration
+  skip: missing module: cupy
+  guest RM: -; device: none
+caraxes-gate: suite-test_vram_churn
+  pass: VRAM churn test ok (no leak, no crash)
+caraxes-gate: suite-rapids_cuml_cudf
+  skip: missing module: cudf
+  guest RM: -; device: none
+
+TEST                             RESULT SCORED GUEST ERROR | LAST FAILED RM CALL (guest tracer) | DEVICE
+cuda-init                        pass  yes    stage 0 ok (cuInit) | - | 0x2080012f=0x56 x1
+cuda-context                     pass  yes    stage 1 ok (context, sched=auto) | - | 0x2080012f=0x56 x1
+cuda-core                        pass  yes    nvprobe 2: device memory written, read back and compared | - | 0x2080012f=0x56 x1
+cuda-jit                         pass  yes    nvprobe 3: PTX compiled by the driver, kernel launched, result verified | - | 0x2080012f=0x56 x1
+cuda-launch                      pass  yes    nvprobe 4 (blocking): 100 kernel launches completed and verified | - | 0x2080012f=0x56 x1
+cuda-managed                     fail  yes    exit 1: ERROR AllocManaged a: 801 operation not supported | RM_CONTROL 0x2080012f -> 0x56 | 0x2080012f=0x56 x2
+cuda-hostreg                     pass  yes    hostregprobe: 2 pinned-memory roundtrips (HostRegister and HostAlloc) compared byte for byte | - | 0x2080012f=0x56 x1
+cuda-torch                       pass  yes    torchprobe stage 5 with NVTORCH_CONV=1: cuDNN convolution result verified by the probe | - | 0x2080012f=0x56 x1
+cuda-gdb                         skip  yes    declared-unsupported: workload not procurable in this environment -- no cuda-gdb (CUDA_GDB) | - | none
+rlprobe                          pass  yes    mean10=56.9 (pinned) | - | 0x2080012f=0x56 x1
+convburn                         pass  yes    acc=3.041450977e+00 | - | 0x2080012f=0x56 x1
+robustness                       pass  yes    2 in parallel ok, next run after SIGKILL ok, nvidia.ko pinned by an open FD | - | 0x2080012f=0x56 x4
+suite-test_async_streams         fail  no     exit 1: torch.OutOfMemoryError: CUDA out of memory. Tried to allocate 256.00 MiB. GPU 0 has a total capacity of 855.75 MiB of which 222.94 MiB is free. Including non-PyTorch memory, this process has 628.00 MiB memory in use. Of the allocated memory 512.00 MiB is allocated by PyTorch, and 0 bytes is reserved | - | 0x2080012f=0x56 x1
+suite-test_cuda_graphs           pass  no     CUDA graphs test ok | - | 0x2080012f=0x56 x1
+suite-test_high_freq_event_polling pass  no     high-frequency event test ok | - | 0x2080012f=0x56 x1
+suite-test_multi_process_cuda    pass  no     [W924 16:45:36.588362037 CudaIPCTypes.cpp:16] Producer process has been terminated before all shared CUDA tensors released. See Note [Sharing CUDA tensors] | - | 0x2080012f=0x56 x2
+suite-test_nvrtc                 skip  no     missing module: cupy | - | none
+suite-test_uvm_migration         skip  no     missing module: cupy | - | none
+suite-test_vram_churn            pass  no     VRAM churn test ok (no leak, no crash) | - | 0x2080012f=0x56 x1
+suite-rapids_cuml_cudf           skip  no     missing module: cudf | - | none
+  GATE cuda-init: PASS  (stage 0 ok (cuInit))
+  GATE cuda-context: PASS  (stage 1 ok (context, sched=auto))
+  GATE cuda-core: PASS  (nvprobe 2: device memory written, read back and compared)
+  GATE cuda-jit: PASS  (nvprobe 3: PTX compiled by the driver, kernel launched, result verified)
+  GATE cuda-launch: PASS  (nvprobe 4 (blocking): 100 kernel launches completed and verified)
+  GATE cuda-managed: FAIL  (exit 1: ERROR AllocManaged a: 801 operation not supported | rm: RM_CONTROL 0x2080012f -> 0x56 | device: 0x2080012f=0x56 x2)
+  GATE cuda-hostreg: PASS  (hostregprobe: 2 pinned-memory roundtrips (HostRegister and HostAlloc) compared byte for byte)
+  GATE cuda-torch: PASS  (torchprobe stage 5 with NVTORCH_CONV=1: cuDNN convolution result verified by the probe)
+  GATE rlprobe: PASS  (mean10=56.9 (pinned))
+  GATE convburn: PASS  (acc=3.041450977e+00)
+  GATE robustness: PASS  (2 in parallel ok, next run after SIGKILL ok, nvidia.ko pinned by an open FD)
+
+CUDA-GATE: FAIL -- cuda-managed
+{"gate":"cuda","result":"fail","dur_s":400,"reason":"failed: cuda-managed","facts":{"stages":["cuda-init","cuda-context","cuda-core","cuda-jit","cuda-launch","cuda-managed","cuda-hostreg","cuda-torch","cuda-gdb","rlprobe","convburn","robustness"],"failed":["cuda-managed"],"vm":"vm1","leandro_test":"3edea730c2d8-dirty","caraxes":"shell-rig-182-g96ad5f858328","device":"TU106 (BOOT_0 0x166000a1, driver 610.57.04) on /mnt/vmstore/caraxes/vm1/gpu.sock, boot model on, FB 1024 MiB","tests_selected":"all","error_cuda-managed":"exit 1: ERROR AllocManaged a: 801 operation not supported","rm_cuda-managed":"RM_CONTROL 0x2080012f -> 0x56","device_cuda-managed":"0x2080012f=0x56 x2","skipped_cuda-gdb":"declared-unsupported: workload not procurable in this environment -- no cuda-gdb (CUDA_GDB)","info_suite-test_async_streams":"fail: exit 1: torch.OutOfMemoryError: CUDA out of memory. Tried to allocate 256.00 MiB. GPU 0 has a total capacity of 855.75 MiB of which 222.94 MiB is free. Including non-PyTorch memory, this process has 628.00 MiB memory in use. Of the allocated memory 512.00 MiB is allocated by PyTorch, and 0 bytes is reserved","info_suite-test_cuda_graphs":"pass: CUDA graphs test ok","info_suite-test_high_freq_event_polling":"pass: high-frequency event test ok","info_suite-test_multi_process_cuda":"pass: [W924 16:45:36.588362037 CudaIPCTypes.cpp:16] Producer process has been terminated before all shared CUDA tensors released. See Note [Sharing CUDA tensors]","info_suite-test_nvrtc":"skip: missing module: cupy","info_suite-test_uvm_migration":"skip: missing module: cupy","info_suite-test_vram_churn":"pass: VRAM churn test ok (no leak, no crash)","info_suite-rapids_cuml_cudf":"skip: missing module: cudf","scored":"10 pass, 1 fail, 1 declared-unsupported","suites_unscored":8,"run_dir":"caraxes/runs/gate-cuda-2026-09-24","detail":"10 of 12 scored tests pass; table in caraxes/runs/gate-cuda-2026-09-24/table.txt"}}

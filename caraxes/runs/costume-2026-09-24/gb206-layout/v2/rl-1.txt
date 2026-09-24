@@ -1,0 +1,21 @@
+# target v2 metric rl rep 1
+# cmd NVRL_EPISODES=50 $HOME/gpu/venv/bin/python $HOME/caraxes-tests/leandro-test/probe/python/rlprobe.py
+# device /mnt/vmstore/caraxes/vm1/vfio-user-nvgpu sha256 7ab0a2bc61230f2a
+# time 2026-09-24T18:27:39+02:00
+# gpu 61, 1425 MHz, 7000 MHz, P0, 25 %, 5531 MiB, Disabled
+# procs 122287:vm1-dev 122298:vm1-vmm 143264:vm2-615-dev 143275:vm1-vmm 165021:vm0-dev 165035:vm1-vmm 
+# loadavg 10.65 9.36 6.50
+rlprobe: stage=4 episodes=50 pin=False nonblock=False sync=False item=True
+stage0: cuInit ok, Leandro VFIO RTX 5060 Ti-1G
+stage1: policy on cuda:0
+stage2: rollout 25 steps, return=25
+stage3: update loss=2.271
+  ep   10  return=   11  mean10=  20.7
+  ep   20  return=   15  mean10=  14.4
+  ep   30  return=   13  mean10=  15.8
+  ep   40  return=   39  mean10=  28.3
+  ep   50  return=   38  mean10=  56.9
+stage4: 50 episodes in 21.3s, mean10=56.9
+transfers: H2D=1437 D2H=1437 (~135/s)
+# WALL wall_ms=36168 rc=0
+# MEAS dev_pid=122287 dev_cpu_ms=24860 dev_rss_hwm_kb=2914604/5331484 vmm_cpu_ms=27290 others: vm1-vmm=200ms vm2-615-dev=14060ms vm0-dev=720ms vm1-vmm=23860ms 

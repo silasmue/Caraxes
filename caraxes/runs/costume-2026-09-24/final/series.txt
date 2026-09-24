@@ -1,0 +1,21 @@
+# series 2026-09-24T18:45:54+02:00 targets=[v2] reps=2 metrics=[short-auto rl]
+# caraxes shell-rig-182-g96ad5f8 leandro-test 3edea73-dirty
+# bin c5b48cf1181bfcfc251f12aa2b0eaeb074887efec4c479f36efe399cb1307a13  bench-cu
+# bin 2e7db7218ac29e0da0b22a4d30307ea1f675dc04912d6b34922708495595904d  convnet.py
+# bin 68449e9ec7b25613a65d096a6a42864c01fbf46ec47e540ce01f47184f0479ea  ctrlping
+# bin 138c5073848b2f3cf2beb4709376c7c49b420d88e836664584e5cf8bbfc7848c  ioctlping
+# bin 1f921680fc7a2c2e0978eb007cc0ab48d2f1a7cf404a196c9063a19a10aa228f  kernels.ptx
+# bin abdf09531ac015ba4e8e7550bda6eb43609c429d6e1240e7f8553841bfe06513  llamaprobe.py
+# bin 2735d2a9cd25c0753898188542dbeb4a8433609024aa48230b6803a4a8d96e66  nvprobe
+# bin 012bb008b87ec0a6ee4ef566e0b55f856df09d6a3e07e72fe5cde5a9043dd18a  pporl.py
+# bin 02b1d58fc1778a47f8940e7f89d2cabb44b64d078f5b54b5ca1fba9437073c4a  transformer.py
+# bin f0868123fca8e2c40138fda523e35fa76c015b97e232fc647fea0b6b49f33584  vrampress
+# time 2026-09-24T18:45:54+02:00
+# gpu 65, 525 MHz, 810 MHz, P5, 28 %, 4259 MiB, Disabled
+# procs 210964:vm1-vmm 229255:vm1-dev 229269:vm1-vmm 253268:vm0-dev 253283:vm1-vmm 
+# loadavg 5.29 5.55 5.93
+18:46:00 v2  short-auto      rep 1: MSPERLAUNCH=0.318 # WALL wall_ms=5200 rc=0  | # MEAS dev_pid=229255 dev_cpu_ms=2690 dev_rss_hwm_kb=5332368/6298508 vmm_cpu_ms=3470 others: vm1-vmm=4210ms vm0-dev=5530
+18:46:28 v2  rl              rep 1:   ep   10  return=   11  mean10=  20.7   ep   20  return=   15  mean10=  14.4   ep   30  return=   13  mean10=  15.8  | # MEAS dev_pid=229255 dev_cpu_ms=22680 dev_rss_hwm_kb=5332368/6298508 vmm_cpu_ms=22290 others: vm1-vmm=20550ms vm0-dev=3
+18:46:34 v2  short-auto      rep 2: MSPERLAUNCH=0.410 # WALL wall_ms=5175 rc=0  | # MEAS dev_pid=229255 dev_cpu_ms=2700 dev_rss_hwm_kb=5332368/6298508 vmm_cpu_ms=3630 others: vm1-vmm=4110ms vm0-dev=6430
+18:47:02 v2  rl              rep 2:   ep   10  return=   11  mean10=  20.7   ep   20  return=   15  mean10=  14.4   ep   30  return=   13  mean10=  15.8  | # MEAS dev_pid=229255 dev_cpu_ms=22710 dev_rss_hwm_kb=5332368/6298508 vmm_cpu_ms=21770 others: vm1-vmm=20880ms vm0-dev=2
+# end 2026-09-24T18:47:02+02:00

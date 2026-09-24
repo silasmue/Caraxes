@@ -1,0 +1,4 @@
+2.13.0+cu130 13.0
+Leandro VFIO RTX 5060 Ti-1G
+(7, 5)
+_CudaDeviceProperties(name='Leandro VFIO RTX 5060 Ti-1G', major=7, minor=5, total_memory=855MB, multi_processor_count=36, uuid=a3da8c7c-08c7-ea03-e158-7d60549b910f, pci_bus_id=0, pci_device_id=5, pci_domain_id=0, L2_cache_size=4MB)

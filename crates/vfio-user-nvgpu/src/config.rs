@@ -94,7 +94,36 @@ fn find_cap(bytes: &[u8; SIZE], id: u8) -> Option<usize> {
 /// of the card's UUID, a per-card value no synthetic identity may carry
 /// (docs/caraxes/blackwell-gb206.md 2.5).
 pub fn for_board(dump: &str, board: &crate::board::Board) -> Result<ConfigSpace> {
+    for_board_with_ids(dump, None, board)
+}
+
+/// The identity words a board may take from another card's capture (`ids_from`, the
+/// costume board of docs/caraxes/costume-5060.md): vendor and device id (0x00-0x03),
+/// revision and class code (0x08-0x0B), subsystem vendor and id (0x2C-0x2F). Nothing
+/// else: the capability chain stays where the chip's kernel RM reads it at fixed
+/// offsets (Turing: `NV_XVE_LINK_CAPABILITIES` 0x84, `NV_XVE_LINK_CONTROL_STATUS` 0x88,
+/// maxwell/gm107/dev_nv_xve.h:104-105, through `kbifGetBusOptionsAddr_GM107`,
+/// kernel_bif_gm107.c:993-1025).
+pub const ID_BYTES: [std::ops::Range<usize>; 3] = [0x00..0x04, 0x08..0x0C, 0x2C..0x30];
+
+/// Copy the [`ID_BYTES`] of the capture `ids` over `bytes`.
+pub fn overlay_ids(bytes: &mut [u8; SIZE], ids: &[u8; SIZE]) {
+    for r in ID_BYTES {
+        bytes[r.clone()].copy_from_slice(&ids[r]);
+    }
+}
+
+/// [`for_board`] with the identity words of `ids_dump` (the board's `ids_from` capture)
+/// laid over `dump` when given.
+pub fn for_board_with_ids(
+    dump: &str,
+    ids_dump: Option<&str>,
+    board: &crate::board::Board,
+) -> Result<ConfigSpace> {
     let mut bytes = parse_dump(dump)?;
+    if let Some(ids) = ids_dump {
+        overlay_ids(&mut bytes, &parse_dump(ids)?);
+    }
     unlink_cap(&mut bytes, CAP_ID_VNDR);
     if !board.msix {
         unlink_cap(&mut bytes, CAP_ID_MSIX);
