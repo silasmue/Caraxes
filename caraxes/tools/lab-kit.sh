@@ -236,7 +236,8 @@ do_run() {
     begin() { step=$((step + 1)); t0=$(date +%s); printf '[%d/%d] %s ... ' "$step" "$N" "$1" | tee -a "$log"; }
     end() { printf '%s (%ss)\n' "$1" "$(($(date +%s) - t0))" | tee -a "$log"; }
     sudo_ok=0
-    if [ $nosudo = 0 ] && [ $((rom + prom + priv)) -gt 0 ] && have sudo && sudo -n true 2>/dev/null; then sudo_ok=1; fi
+    # sudo only when the operator cached it (sudo -v) and did not say --no-sudo; the kit never asks
+    if [ $nosudo = 0 ] && have sudo && sudo -n true 2>/dev/null; then sudo_ok=1; fi
 
     # ---- 1. preflight -----------------------------------------------------
     begin "preflight: pack sums, tools, driver, glibc"
