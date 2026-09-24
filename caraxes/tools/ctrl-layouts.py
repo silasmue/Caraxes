@@ -53,13 +53,16 @@ def wanted_structs():
 
 
 def d_structs():
-    """The parameter structs of the D controls with a layout change or a model."""
+    """The parameter structs of the D controls with a layout change or a model, and of the
+    getters that answer from a model (`MODEL_STRUCTS` of gsp-dtable.py)."""
     spec = importlib.util.spec_from_file_location(
         "gsp_dtable", os.path.join(ROOT, "caraxes", "tools", "gsp-dtable.py"))
     m = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(m)
     return sorted({r["params"] for r in m.read_tsv()
-                   if r["layout_change"] or r["name"] in m.MODELLED})
+                   if r["params"] and (r["layout_change"] or r["name"] in m.MODELLED
+                                       or r["name"] in m.MODELLED_HERE)}
+                  | set(m.MODEL_STRUCTS))
 
 
 def header_of(sdk, name):
@@ -90,14 +93,29 @@ def record_dump(sdk, headers, names):
         if not m:
             continue
         fields = []
+        # An anonymous struct member (`struct { ... } value;`) has no record of its own in
+        # the dump: its direct members follow it one level deeper and become the record
+        # "<outer>::<member>".
+        anon = None
         for l in lines[1:]:
             # "   OFF |   TYPE NAME": one space after the bar, two per nesting level.
             body = l.split("|", 1)[1][1:]
-            if body.startswith("   ") or not body.startswith("  ") or body.strip().startswith("["):
+            depth = (len(body) - len(body.lstrip(" "))) // 2
+            if body.strip().startswith("["):
                 continue
             tm = re.match(r"(.+?)\s+(\w+)$", body.strip())
-            if tm:
-                fields.append((tm.group(2), tm.group(1)))
+            if not tm:
+                continue
+            if depth == 1:
+                anon = None
+                ty = tm.group(1)
+                if "(unnamed at " in ty and "[" not in ty.rsplit(")", 1)[-1]:
+                    anon = "%s::%s" % (m.group(1), tm.group(2))
+                    ty = anon
+                    records.setdefault(anon, [])
+                fields.append((tm.group(2), ty))
+            elif depth == 2 and anon is not None:
+                records[anon].append((tm.group(2), tm.group(1)))
         records.setdefault(m.group(1), fields)
     return records
 
