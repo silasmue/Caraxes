@@ -81,6 +81,9 @@ pub struct BootModel {
     pub unanswered: Vec<String>,
     /// A request split over CONTINUATION_RECORDs that is still being assembled.
     pending: Option<(crate::msgq::Message, usize)>,
+    /// Memory registered with `ALLOC_MEMORY` and the GSP-side event buffers on it
+    /// (gspmem.rs, docs/caraxes/gsp-plan/rpc-functions.md §4.1).
+    pub gspmem: crate::gspmem::GspMemory,
     /// Phase-5 answers (docs/caraxes/phase5-rpcs.md).
     pub ctrl: Dispatcher,
     /// The fake framebuffer (docs/caraxes/fb-model.md).
@@ -161,6 +164,7 @@ impl BootModel {
             system_info: None,
             unanswered: Vec::new(),
             pending: None,
+            gspmem: crate::gspmem::GspMemory::new(),
             fb: FakeFb::for_layout(&layout).with_mmu_format(&d.gmmu.mmu_format),
             // Reset value as the VBIOS leaves it: the last MiB of FB (fb-model.md §4c).
             bar0_window: ((fb_bytes - (1 << 20)) >> 16) as u32,
@@ -915,6 +919,11 @@ impl BootModel {
                         {
                             v::RM_ALLOC_PARAMS + size_at(v::RM_ALLOC_PARAMS_SIZE)
                         }
+                        // A page list above maxRpcSize arrives split too (_issuePteDescRpc,
+                        // rpc.c:2334-2347 of 615): the fixed part plus pteDesc.length PFNs.
+                        crate::gspmem::FN_ALLOC_MEMORY => {
+                            crate::gspmem::alloc_memory_size(&msg.payload).unwrap_or(0)
+                        }
                         _ => 0,
                     };
                     // Only a first record at the maxRpcSize cap can be split (rpc.c:2082-2092);
@@ -1014,7 +1023,19 @@ impl BootModel {
                         let params = p.get(at..at + size).unwrap_or(&[]);
                         // Controls only newer chips' kernels send come from the chip first
                         // (chip/physical.rs), the rest from the dispatcher.
-                        let a = match crate::chip::physical::answer(self.chip.data(), cmd, params) {
+                        // The event-buffer controls on GSP-side event buffers (gspmem.rs).
+                        let gm = self
+                            .gspmem
+                            .control(w(v::RM_CONTROL_H_CLIENT), h_object, cmd, params)
+                            .map(|r| crate::ctrl::Answer {
+                                status: r.status,
+                                params: r.params,
+                                label: "guest (GSP-side event buffer, gspmem.rs)",
+                                note: r.note,
+                            });
+                        let a = match gm
+                            .or_else(|| crate::chip::physical::answer(self.chip.data(), cmd, params))
+                        {
                             Some(a) => a,
                             None => {
                                 self.ctrl
@@ -1063,9 +1084,20 @@ impl BootModel {
                             .or_else(|| msg.slot_payload.get(at..at + size))
                             .unwrap_or(&[]);
                         let h_client = w(v::RM_ALLOC_H_CLIENT);
-                        let a = self
-                            .ctrl
-                            .alloc(h_client, h_object, h_parent, h_class, params);
+                        // The event-buffer classes the 615 event import allocates on GSP
+                        // (gspmem.rs) are checked against the registered memory first.
+                        let a = match self
+                            .gspmem
+                            .alloc(h_client, h_parent, h_object, h_class, params)
+                        {
+                            Some(r) => crate::ctrl::Answer {
+                                status: r.status,
+                                params: r.params,
+                                label: "guest (GSP-side event buffer, gspmem.rs)",
+                                note: r.note,
+                            },
+                            None => self.ctrl.alloc(h_client, h_object, h_parent, h_class, params),
+                        };
                         notes.push(format!(
                             "alloc: {} -> status {:#x} [{}]",
                             a.note, a.status, a.label
@@ -1108,6 +1140,9 @@ impl BootModel {
                         let (h_client, h_object) = (w(v::FREE_H_ROOT), w(v::FREE_H_OBJECT));
                         let a = self.ctrl.free(h_client, h_object);
                         notes.push(format!("{} [{}]", a.note, a.label));
+                        if let Some(n) = self.gspmem.free(h_client, h_object) {
+                            notes.push(format!("free {h_client:#x}/{h_object:#x}: {n} [guest]"));
+                        }
                         let mut reply = p.clone();
                         if reply.len() >= v::FREE_SIZE {
                             let st = v::FREE_STATUS;
@@ -1134,6 +1169,18 @@ impl BootModel {
                         }
                         notes.push(format!("dup object: {note}: ok [guest, recorded]"));
                         Some((rpc::NV_OK, reply))
+                    }
+                    crate::gspmem::FN_ALLOC_MEMORY => {
+                        // rpc_alloc_memory_v13_01: GSP-RM creates a memory-list object under
+                        // the same handles (mem.c:513-585 of 615); the kernel reads only the
+                        // status (rpc.c:3486-3530). Recorded, pages checked (gspmem.rs).
+                        let fb_bytes = self.fb_bytes();
+                        let (st, note) = self.gspmem.alloc_memory(&msg.payload, mem, fb_bytes);
+                        notes.push(note);
+                        // One record back, whatever the request's length: the send is
+                        // not bidirectional (rpc.c:2362), a continuation would be unread.
+                        let n = msg.payload.len().min(crate::gspmem::AM_SIZE);
+                        Some((st, msg.payload[..n].to_vec()))
                     }
                     rpc::FN_INIT_GSP_TRACE_CRASH_BUFFER => {
                         let p = &msg.payload;
@@ -1729,6 +1776,203 @@ mod tests {
         b.reset();
         assert_eq!(b.transport(), GspTransport::MsgqV2, "a reset keeps the transport");
         let _ = std::fs::remove_file(&path);
+    }
+
+    /// The captured 615 guest past `GMCAPI_CMD_GSP_INIT`, with the CPU's side of both
+    /// queues (msgq/v2.rs `Cpu`): what the tests of the RPCs that follow the init send
+    /// their requests through.
+    pub(crate) struct Guest615 {
+        pub b: BootModel,
+        pub mem: GuestMemory,
+        pub path: std::path::PathBuf,
+        pages: Vec<u64>,
+        cpu: crate::msgq::v2::tests::Cpu,
+        sequence: u32,
+    }
+
+    const CMD_HEAD: u64 = 0x0011_0C00;
+    const MSGQ_HEAD: u64 = 0x0011_0C80;
+    const MSGQ_TAIL: u64 = 0x0011_0C84;
+
+    impl Guest615 {
+        pub fn boot(tag: &str) -> Self {
+            let (mem, path) = guest_615(tag);
+            let f = crate::fixture::rtx2070();
+            let mut b = BootModel::new(f.chip, crate::fb::FbLayout::plain(4 << 30), f.identity(4 << 30))
+                .with_transport(GspTransport::MsgqV2);
+            b.write32(CMD_HEAD, 0, &mem);
+            booter_load(&mut b, &mem);
+            let slot0 = std::fs::read(
+                "../../caraxes/runs/guest-driver-2026-09-24/615.71.09/linked/gmcapi-gsp-init-slot0.bin",
+            )
+            .unwrap();
+            assert!(mem.write(0x88a0_0000 + 0x2000, &slot0));
+            b.write32(MSGQ_TAIL, 0, &mem);
+            b.write32(CMD_HEAD, 1, &mem);
+            let pages = QueueMemory::read_page_table(&mem, 0x88a0_0000, 129).unwrap();
+            let cpu = crate::msgq::v2::tests::Cpu {
+                hdr: crate::msgq::v2::TxHeaderV2::standard(0x40000),
+                write_ptr: 1,
+                read_ptr: 0,
+            };
+            let mut g = Guest615 { b, mem, path, pages, cpu, sequence: 1 };
+            let init = g.drain();
+            assert_eq!(init.len(), 1, "the GSP_INIT response");
+            g
+        }
+
+        /// Every element the device published since the last call, as (NVDM type, body).
+        pub fn drain(&mut self) -> Vec<(u32, Vec<u8>)> {
+            let head = self.b.read32(MSGQ_HEAD).unwrap();
+            let mut out = Vec::new();
+            {
+                let qm = QueueMemory::new(&self.mem, &self.pages);
+                while let Some(e) = self.cpu.receive(&qm, head) {
+                    out.push(e);
+                }
+            }
+            self.b.write32(MSGQ_TAIL, self.cpu.read_ptr, &self.mem);
+            out
+        }
+
+        /// Send one element of type `nvdm` and return the device's notes and every
+        /// element it published.
+        pub fn send(&mut self, nvdm: u32, body: &[u8]) -> (Vec<String>, Vec<(u32, Vec<u8>)>) {
+            {
+                let qm = QueueMemory::new(&self.mem, &self.pages);
+                self.cpu.send(&qm, nvdm, body);
+            }
+            let notes = self.b.write32(CMD_HEAD, self.cpu.write_ptr, &self.mem).unwrap();
+            (notes, self.drain())
+        }
+
+        /// Send one RPC and return the device's notes and every element it published.
+        pub fn rpc(&mut self, function: u32, payload: &[u8]) -> (Vec<String>, Vec<(u32, Vec<u8>)>) {
+            let h = RpcHeader {
+                header_version: v::RPC_HEADER_VERSION,
+                signature: v::RPC_SIGNATURE,
+                length: (v::RPC_HEADER_SIZE + payload.len()) as u32,
+                function,
+                rpc_result: 0xFFFF_FFFF,
+                rpc_result_private: 0xFFFF_FFFF,
+                sequence: self.sequence,
+                u: 0,
+            };
+            self.sequence += 1;
+            let mut body = h.encode().to_vec();
+            body.extend_from_slice(payload);
+            self.send(crate::msgq::v2::NVDM_TYPE_RM_RPC, &body)
+        }
+
+        /// The RPC element for `function` among `elements`: (rpc_result, payload).
+        pub fn reply(elements: &[(u32, Vec<u8>)], function: u32) -> Option<(u32, Vec<u8>)> {
+            elements.iter().find_map(|(t, body)| {
+                let h = RpcHeader::parse(body);
+                (*t == crate::msgq::v2::NVDM_TYPE_RM_RPC && h.function == function)
+                    .then(|| (h.rpc_result, body[v::RPC_HEADER_SIZE..h.length as usize].to_vec()))
+            })
+        }
+    }
+
+    impl Drop for Guest615 {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_file(&self.path);
+        }
+    }
+
+    /// A `GSP_RM_ALLOC` request of client `c` under parent `c`.
+    pub(crate) fn alloc_request(c: u32, h: u32, class: u32, params: &[u8]) -> Vec<u8> {
+        let mut p = vec![0u8; v::RM_ALLOC_PARAMS];
+        for (o, x) in [
+            (v::RM_ALLOC_H_CLIENT, c),
+            (v::RM_ALLOC_H_PARENT, c),
+            (v::RM_ALLOC_H_OBJECT, h),
+            (v::RM_ALLOC_H_CLASS, class),
+            (v::RM_ALLOC_PARAMS_SIZE, params.len() as u32),
+        ] {
+            p[o..o + 4].copy_from_slice(&x.to_le_bytes());
+        }
+        p.extend_from_slice(params);
+        p
+    }
+
+    /// A `GSP_RM_CONTROL` request.
+    pub(crate) fn control_request(c: u32, h: u32, cmd: u32, params: &[u8]) -> Vec<u8> {
+        let mut p = vec![0u8; v::RM_CONTROL_PARAMS];
+        for (o, x) in [
+            (v::RM_CONTROL_H_CLIENT, c),
+            (v::RM_CONTROL_H_OBJECT, h),
+            (v::RM_CONTROL_CMD, cmd),
+            (v::RM_CONTROL_PARAMS_SIZE, params.len() as u32),
+        ] {
+            p[o..o + 4].copy_from_slice(&x.to_le_bytes());
+        }
+        p.extend_from_slice(params);
+        p
+    }
+
+    /// B1: the operational-event import of 615 (gpu_op_event_import.c:593-685) through
+    /// the queue: the header buffer's `ALLOC_MEMORY` of the first 615 boot
+    /// (transport-615-2026-09-24/boot/device-events.txt:517) is answered NV_OK, and the
+    /// event buffer, its enable and its bind follow on the registered memory.
+    #[test]
+    fn alloc_memory_and_the_event_import_through_the_queue() {
+        let mut g = Guest615::boot("allocmem");
+        let (c, d, s) = (0xc1e0_0007u32, 0xcaf0_0000u32, 0xcaf0_0001u32);
+        let am = |h: u32, len: u64, pfn: u64| {
+            let mut p = vec![0u8; crate::gspmem::AM_PTES + 8];
+            for (o, v) in [(0, c), (4, d), (8, h), (12, 0x81), (16, 0x4c00_0000), (24, 6)] {
+                p[o..o + 4].copy_from_slice(&v.to_le_bytes());
+            }
+            p[32..40].copy_from_slice(&len.to_le_bytes());
+            p[40..44].copy_from_slice(&1u32.to_le_bytes());
+            p[48..52].copy_from_slice(&(1u32 << 16).to_le_bytes());
+            p[56..64].copy_from_slice(&pfn.to_le_bytes());
+            p
+        };
+        // Header, records and vardata in the captured guest's mapped RAM.
+        for (h, len, pfn) in [(0xcaf0_0002u32, 32u64, 0x88a70u64), (0xcaf0_0003, 0x4000, 0x88a71), (0xcaf0_0004, 0x1000, 0x88a75)] {
+            let (notes, el) = g.rpc(crate::gspmem::FN_ALLOC_MEMORY, &am(h, len, pfn));
+            let (st, reply) = Guest615::reply(&el, crate::gspmem::FN_ALLOC_MEMORY).unwrap();
+            assert_eq!(st, 0, "{notes:?}");
+            assert_eq!(reply.len(), crate::gspmem::AM_SIZE);
+            assert!(notes.iter().any(|n| n.contains("ALLOC_MEMORY (4)")), "{notes:?}");
+        }
+        // A page the guest does not have: refused, nothing mapped.
+        let (_, el) = g.rpc(crate::gspmem::FN_ALLOC_MEMORY, &am(0xcaf0_0009, 0x1000, 0x7_0000_0000));
+        assert_eq!(
+            Guest615::reply(&el, crate::gspmem::FN_ALLOC_MEMORY).unwrap().0,
+            crate::gspmem::NV_ERR_INVALID_ADDRESS
+        );
+        // Step 5b: NV_EVENT_BUFFER on the three, allocated by GSP_RM_ALLOC.
+        let mut eb = vec![0u8; crate::gspmem::EB_PARAMS_SIZE];
+        for (o, x) in [(16, 64u32), (20, 256), (32, 0x1000), (52, s), (60, 0xcaf0_0002), (64, 0xcaf0_0003), (68, 0xcaf0_0004)] {
+            eb[o..o + 4].copy_from_slice(&x.to_le_bytes());
+        }
+        let (notes, el) = g.rpc(rpc::FN_GSP_RM_ALLOC, &alloc_request(c, 0xcaf0_0006, 0x90cd, &eb));
+        assert_eq!(Guest615::reply(&el, rpc::FN_GSP_RM_ALLOC).unwrap().0, 0, "{notes:?}");
+        // Step 7: ENABLE_EVENTS, a GSP_RM_CONTROL on the buffer.
+        let ctl = control_request(c, 0xcaf0_0006, 0x90cd_0101, &[1, 0, 0, 0, 1, 0, 0, 0]);
+        let (notes, el) = g.rpc(rpc::FN_GSP_RM_CONTROL, &ctl);
+        let (_, reply) = Guest615::reply(&el, rpc::FN_GSP_RM_CONTROL).unwrap();
+        let st = u32::from_le_bytes(reply[v::RM_CONTROL_STATUS..][..4].try_into().unwrap());
+        assert_eq!(st, 0, "{notes:?}");
+        // Step 8: the bind names the buffer; bindId comes back.
+        let mut bind = vec![0u8; crate::gspmem::BIND_PARAMS_SIZE];
+        bind[..4].copy_from_slice(&0xcaf0_0006u32.to_le_bytes());
+        bind[4] = 1;
+        let (notes, el) = g.rpc(rpc::FN_GSP_RM_ALLOC, &alloc_request(c, 0xcaf0_0005, 0x90d0, &bind));
+        let (st, reply) = Guest615::reply(&el, rpc::FN_GSP_RM_ALLOC).unwrap();
+        assert_eq!(st, 0, "{notes:?}");
+        assert_ne!(reply[v::RM_ALLOC_PARAMS + crate::gspmem::BIND_BIND_ID], 0);
+        // Teardown frees the client: every registration goes.
+        let mut free = vec![0u8; v::FREE_SIZE];
+        free[v::FREE_H_ROOT..][..4].copy_from_slice(&c.to_le_bytes());
+        free[v::FREE_H_OBJECT..][..4].copy_from_slice(&c.to_le_bytes());
+        let (notes, _) = g.rpc(rpc::FN_FREE, &free);
+        assert!(notes.iter().any(|n| n.contains("GSP memory object(s) of the client")), "{notes:?}");
+        assert!(g.b.gspmem.memories.is_empty() && g.b.gspmem.buffers.is_empty());
+        assert!(g.b.unanswered.is_empty(), "{:?}", g.b.unanswered);
     }
 
     /// Fail closed: a 610 device facing the captured 615 guest does not link anything
