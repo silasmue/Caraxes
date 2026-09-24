@@ -1226,3 +1226,34 @@ module or register was touched.
 | e5 (08:16) | a third 2 GiB VM is refused by D11 | vm3 slot 2 | refused (would leave 569 MiB, shortfall 455 MiB) before its socket existed; vm1 and vm2 unaffected | none | `e5-refusal/` |
 | e4b (08:18-08:21) | host scrub on free covers the reservation | A down while holding the pattern; C reserves slot 0 and scans | before the free, 327680 records in the samples; after the new reservation, 0 records and 0 non-zero dwords (device); 1728 MiB of zeros (guest); the next allocation waits 23-38 ms for the 2 GiB scrub | none | `e4-scrub/` |
 | e4a (08:20) | a failed free makes the teardown fail closed | `CARAXES_INJECT_TEARDOWN_FAILURE=1` on vm2 | `FAIL-CLOSED teardown`: descriptors and reservation kept, exit 3; the fd close freed the 2048 MiB | none | `e4-failclosed/` |
+
+### Mapping package (2026-09-24)
+
+This package took the v2 cost the benchmark measured and the two P20 findings (benchmark.md §5
+and §7, parallel.md §8). The write-up is [mapping.md](mapping.md). Evidence is under
+`caraxes/runs/mapping-2026-09-24/` (`commands.txt`).
+
+Setup:
+
+- vm2 ran alone at slot 0 with a 2 GiB profile. vm0 (the display agent) held slot 1.
+- Every host GPU access went through the RM API as the device's client.
+- Privileged controls stayed in the launcher's CAP_SYS_ADMIN windows.
+- Host `nvidia-smi` latency and the host kernel log were watched during every stress run
+  (`bench-hostwatch.sh`, at most 0.12 s).
+- 0 Xid came from this package's devices. The Xid 13 lines at 09:26-09:28 belong to vm0's
+  device, pid 2061395, class c597.
+
+| Attempt (time) | Hypothesis | Change | Result | Exception | Evidence |
+|---|---|---|---|---|---|
+| a0 (08:40) | baseline on this configuration | the `718a311` device | 1 MiB alloc/free 18.9/20.8 ms, churn device CPU 80 s, ctx 5.4/3.4 s, short launch 0.457 ms | none | `a0-baseline/` |
+| a1 (08:50) | walking only what the guest wrote cuts the mapping cost | cached walk per root, diff per 2 MiB unit (coalescing off) | 1 MiB alloc/free 1.30/1.40 ms, churn device CPU 10.7 s, N=2048 matmul 781 -> 2440 GFLOP/s; each table read still about 0.8 ms of BAR1 | none | `a1-incremental/` |
+| a2 (08:55) | a write-through copy of every watched table page removes the reads | patch the copy on every guest write | 1 MiB alloc/free 0.92/0.97 ms, 64 MiB 10.5/7.2 ms, short launch 0.193 ms | none | `a2-writethrough/` |
+| a3 (08:58) | coalesced maps cut the RM calls | one map per contiguous run, partial unmaps | ctx destroy 3.6 -> 1.5 s; a context's scattered sysmem leaves (the guest's order-0 page pool) often do not coalesce | none | `a3-coalesce/` |
+| p3 (09:00) | find where cuCtxCreate goes | device trace of one `bench-cu init` | 96193 trapped 8-byte BAR2 writes (107 zeroed table pages, about 19.8k PTEs written twice) and about 4M uncached BAR1 reads for the device's BAR2 walk | none | `p3-profile/` |
+| a4 (09:04) | a BAR aperture TLB removes the device's walk | TLB flushed by a write to a table page it used | ctx 2.7/1.0 s, short launch 0.131 ms, 0 Xid | none | `a4-bartlb/` |
+| b1 (09:06) | the P20 suite no longer hurts the host | `suite-test_async_streams` on a4 | pass (14.8 s); 544750 leaves in 18921 RM maps (556k leaves by 30k calls); teardown 18914 maps in 2.5 s; host nvidia-smi max 0.056 s | none | `b1-async-streams/` |
+| c0/c1 (09:10) | where the per-submission cost goes | trace of 100 short launches; guest microbenchmark `bench-trap.c`; trace lines off | 4 traps per submission (GPFIFO lo/hi and GPPut through BAR1, then the doorbell), 23-27 us each; device share 1-2 us | none | `c0-doorbell-study/`, `c1-trace-off/` |
+| c2 (09:20) | USERD in sysmem by `RMInstLoc=0x10000` removes the GPPut trap | guest registry key, sysmem USERD for shadow channels | the guest RM never finished RmInitAdapter: last RPC 0x20802a08, then a BOOT_0 poll loop and asserts at alloc_free.c:360; reverted; the device trace was lost to the next `up` | none on the host; vm2 restarted | `c2-userd-sysmem/` |
+| d1 (09:38) | IOVA = GPA + one offset and CE on the shadow VAS close the P20 holes | linear registration with a hole filler and restart, CE channels on the shadow VAS | IOVA = GPA + 0x7ffac0000000 after 1 restart; cuda gate green (cuda-managed the known gap), all unscored suites pass; 0 sysmem refusals (128 in b1); 0 IOMMU faults; 400 channels shadowed, 0 externally-owned VAS | none | `d1-isolation/` |
+| d2 (09:52) | resync off the server thread | shadow worker, doorbell barrier, streaming BAR1 reads | server-thread time per resync p50 42 us, p99 2.4 ms (was 1.7 ms and 506 ms); cuda gate green; plans waited up to 2 s behind teardowns | none | `d2-worker/` |
+| d3 (10:05) | teardowns must not delay plans | teardown stepped in the worker's idle time | quick metrics pass (ctx 4.0/1.7 s on a host with vm0 and vm3 busy); checkpoint `b58cb12`, exercised by the final series | none | `d3-worker2/` |

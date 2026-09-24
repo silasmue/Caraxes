@@ -50,6 +50,11 @@ CARAXES_GATE_RUNS=$M/d1-isolation tools/caraxes-gate.sh cuda suite-test_async_st
 source $M/env.sh; METRICS="init churn short-auto time1 mm copy" $M/trapbench.sh $M/d2-worker
 # d2 result: cuda gate green as d1; plans waited up to 2 s behind teardowns in the worker queue -> teardown moved to a background graveyard stepped only when no job waits
 
-## d3-worker2: teardown steps in the worker's idle time; quick metrics, then cuda gate subset
+## d3-worker2: teardown steps in the worker's idle time; quick metrics (the gate subset below was not run)
 source $M/env.sh; METRICS="init churn short-auto time1" $M/trapbench.sh $M/d3-worker2
 CARAXES_GATE_RUNS=$M/d3-worker2 tools/caraxes-gate.sh cuda cuda-core cuda-launch cuda-torch robustness rlprobe suite-test_async_streams suite-test_vram_churn
+# d3 result: plans no longer wait behind teardowns; checkpoint commit b58cb12 (crate, launcher, tools, runs)
+
+## final: the benchmark series on the checkpoint binary (target/mapping-commit, built from b58cb12 in a clean worktree)
+caraxes/tools/bench-v1vm.sh up && caraxes/tools/bench-v1vm.sh modules     # $M/final/v1-up.txt
+$M/final/run.sh                                                          # $M/final/, $M/summary-final.md
