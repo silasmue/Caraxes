@@ -71,6 +71,7 @@ driver recognizes and initializes a Turing/RTX 2070-like device. Windows later.
 | [display-d0.md](display-d0.md) | D0 run on vm0: nvidia-modeset loads headless with zero display RPCs (confirmed on the whole trace, not just the run's own window); nvidia-drm fails to build against the guest kernel's DRM headers; Xorg untested, no NVIDIA X driver in the guest image; what D1 needs first |
 | [display-adapter.md](display-adapter.md) | Side package B: where DP AUX and every NV0073/NV5070/NVC370/NVC372 control on the DP connector, EDID, link, head and modeset paths terminates (local, GSP_RM_CONTROL, local plus internal control; none by MMIO), with ids, struct sizes and consumed reply fields; the SST EDID lifecycle and per-displayId state; class list and HAL selection; channel allocation, BAR0 pages, C57D/C57E method basics and the minimal decoder; the ordered phase A/B checklist to the first EDID read; gates D0-D6 per phase; the three riskiest ABI details |
 | [display-e.md](display-e.md) | Display phase E on vm0 (2026-09-24): the stock NVIDIA EGL/GL/Vulkan stack rendering on the physical GPU through the shadow GR path, Weston and GNOME on it, the display gate 11/11 with host execution; series E (e1-e31, reconstructed from its evidence) and series F: the classic demos (Weston glmark2 1804, vkcube 44 FPS), the per-frame trap table (Weston 157, Mutter about 670 traps per frame, mostly interrupt servicing; the doorbell ioeventfd removes the 3 doorbell traps and does not move Mutter), the stream stage (Sunshine kms + x264, Moonlight 25.9 FPS), the virtio-input pointer (`CARAXES_INPUT=fifo`), what the NVENC mirror would change |
+| [display-615.md](display-615.md) | The 615.71.09 guest's display path on vm0-615 (2026-09-24/25): the overlay with the host's 615 GL/EGL/Vulkan userspace and a rebuilt nvidia-drm.ko (the image's DKMS module needs drm_display_helper.ko, which the image lacks), the 615 display layouts in `ver/v615/display.rs`, the display gate 11/11, the per-frame trap tables against series C (Mutter 138.92 against 139.86, Weston 29.25 against 31.08), Q1's 615 half (DP_SET_WAR_FLAGS at plug and unplug, HDCP_CTRL at unplug, nothing unanswered) |
 | [display-ab.md](display-ab.md) | Display phases A and B on vm0 (D15): the display in the GSP role (`--display`; `src/display/`, `chips/tu106/display.toml`, the board's `[display]` connector, the `crates/dp-sink` sink behind an NV0073 AUX adapter); gate D3 passed (`card0-DP-1` connected, EDID byte-identical and edid-decode clean, 1080p60/720p60/1080p50, the over-budget 8K120 VIC pruned, no modeset); every display RPC/control in order with its answer and label (D2); the recorded AUX capture replaced the hand-written transcript; what phase C needs (core notifier, window completion, four modeset-path controls) |
 | [experiments.md](experiments.md) | The experiment ladder, starting with the smallest one, each with a falsifiable expectation |
 | [kickoff.md](kickoff.md) | The brief for the implementation sessions: rules, reading order, E0 step by step, run recipe, parked ideas |
@@ -768,3 +769,17 @@ the VM; then display, expected to be much easier than in v1.
   of a CUDA process sends no D control (no 0x2080110B, no 0x20800177); the display gate itself
   sends `SET_ZBC_COLOR_CLEAR` three times (ZBC model, R3). No host Xid on the device's pid (one
   Xid 31 on vm1's device in the same hour).
+- 2026-09-25: **The 615 guest's display path** ([display-615.md](display-615.md),
+  `caraxes/runs/display-615-2026-09-24/`). vm0-615 is an overlay on the 615 base image with vm0's
+  seed. Its GL, EGL and Vulkan userspace at 615.71.09 is copied from the host's nvidia-utils,
+  because the image has no libnvidia-gl-615. Its nvidia-drm.ko is rebuilt from the image's DKMS
+  source without the new HDCP property, because the DKMS module needs drm_display_helper.ko from
+  linux-modules-extra, which the image lacks. With the display page environment of series C (slot
+  0, 2 GiB), the display gate passes 11/11 twice and three GNOME starts come up on the NVIDIA EGL.
+  The per-frame traps match series C row for row: Mutter 138.92 (610: 139.86) and Weston 29.25 at
+  60 Hz (610: 31.08 at 57.4 Hz). Q1's 615 half: the unplug sends DP_SET_WAR_FLAGS, then HDCP_CTRL
+  DISABLE_AUTHENTICATION, and the plug sends DP_SET_WAR_FLAGS; they are the only D controls, and
+  none is unanswered. The device needed no fix. `ver/v615/display.rs` now makes the 615 layouts
+  explicit (GET_ACTIVE 20 bytes, staleSorIndex) and records the WAR per connector, with tests.
+  Found: the 615 GL driver asks GET_ZBC_CLEAR_TABLE_ENTRY 45 times per context (unanswered, A).
+  0 host Xid on the device's pid.

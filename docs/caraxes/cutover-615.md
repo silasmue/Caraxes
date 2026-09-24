@@ -286,6 +286,11 @@ Only after `ver/v615` (msgq v2 with register-held pointers, MCTP-framed elements
    them (the host downloads them with plain GETs, as in
    `caraxes/runs/guest-driver-2026-09-24/commands.txt`), `gpu-encode` and the GL/EGL/Vulkan
    rows fail on 615. That is expected, not a device fault.
+   **Display (2026-09-25):** the display path runs on the 615 guest without a device change
+   ([display-615.md](display-615.md)): vm0-615 takes the 615 GL, EGL and Vulkan libraries from
+   the host's own nvidia-utils 615.71.09 and a rebuilt `nvidia-drm.ko` (the image's DKMS module
+   needs `drm_display_helper.ko` from linux-modules-extra). The display gate passes 11/11, and the
+   trap tables equal the 610 guest's series C.
 
 Until then `CARAXES_DRIVER=615` boots a guest that stops at the status-queue link
 (guest-driver-versions.md §5), exactly as `vm3/g615` did.
@@ -380,6 +385,30 @@ bench-run.sh takes the v2 directory from `tools/lib/driver.sh` (`CARAXES_GUEST_L
 Verified in `caraxes/runs/bench-615-2026-09-24/615/libcuda.txt` (the harness resolves
 `/usr/lib/x86_64-linux-gnu/libcuda.so.1`, the cache `libcuda.so.615.71.09`) and by the first 615
 series (benchmark.md "First 615 series"), every run rc 0.
+
+### The 615 guest's display path (2026-09-25)
+
+Record `caraxes/runs/display-615-2026-09-24/`, details in [display-615.md](display-615.md). State
+folder `vm0-615`: an overlay on the 615 base image with vm0's seed (192.168.100.20). Unlike vm2-615
+and vm3-615, nvidia_modeset and nvidia_drm are allowed, but only after the launcher's DMA table
+is installed; nvidia_peermem stays blocked and nvidia-persistenced masked. The environment is
+series C's (display page, slot 0, 2 GiB), with `CARAXES_DRIVER=615` and the v615 build.
+
+- **Guest, not device:** the image lacks `libnvidia-gl-615`, and its DKMS `nvidia-drm.ko` does not
+  load (`Unknown symbol drm_hdcp_update_content_protection`: the 615 HDCP connector property needs
+  `drm_display_helper.ko`, which the image does not have). Neither was fetched: the GL userspace is
+  the host's own 615.71.09 copy in `/opt/nvrm-gl`, and `nvidia-drm.ko` is rebuilt from the image's
+  DKMS source with that property configured out.
+- **Display gate:** 11 of 11 (sessions s3 and s4). **GNOME:** 3 of 3 starts on the NVIDIA EGL.
+- **Trap tables:** Mutter 138.92 and Weston 29.25 per frame (the 610 guest's series C: 139.86 and
+  31.08), with the same rows.
+- **Q1:** `DP_SET_WAR_FLAGS` comes at every plug and unplug, and `HDCP_CTRL`
+  DISABLE_AUTHENTICATION at the unplug. They are the only D controls, and none is unanswered.
+- **Device:** `ver/v615/display.rs` (the 615 NV0073 layouts: GET_ACTIVE 20 bytes, DP_GET_CAPS'
+  new byte, DP_SET_WAR_FLAGS), commit 11dabe5. 0 Xid on the device's pid.
+- **Open:** the 615 GL driver asks `GET_ZBC_CLEAR_TABLE_ENTRY` 45 times per context, and it goes
+  unanswered (the ZBC model, gsp-plan R3). The display gate's kernel stage knows the flip warning
+  only at 610's `nvidia-drm-crtc.h:355`, while on 615 it is at `:368`.
 
 ## (e) v1 (Leandro)
 
