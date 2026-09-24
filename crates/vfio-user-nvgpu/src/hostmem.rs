@@ -615,6 +615,11 @@ pub fn run_teardown<O: TeardownOps>(
 /// One RM status, for callers that log the number rather than fail.
 pub type Status = u32;
 
+/// `NVOS47_FLAGS_DEFER_TLB_INVALIDATION_TRUE` (nvos.h:2192-2194, field 0:0).
+const NVOS47_FLAGS_DEFER_TLB_INVALIDATION_TRUE: u32 = 1;
+/// `NV0080_CTRL_CMD_DMA_INVALIDATE_TLB` (ctrl0080dma.h:495), params `{hVASpace, flags}`.
+const CMD_DMA_INVALIDATE_TLB: u32 = 0x0080_180C;
+
 fn meminfo_kib(key: &str) -> u64 {
     std::fs::read_to_string("/proc/meminfo")
         .ok()
@@ -894,14 +899,17 @@ impl HostMemory {
     /// `RM_UNMAP_MEMORY_DMA` (NVOS47) of the mapping of `h_mem` at VA `va`, `length`
     /// bytes, from the virtual object `h_dma` (the inverse of [`Self::map_dma_fixed`];
     /// RM also splits a larger mapping, `virtmemUnmapFrom_IMPL`). RM invalidates the
-    /// TLB of the VAS itself (flags 0: no deferral). Returns the status.
-    pub fn unmap_dma(&self, h_dma: u32, h_mem: u32, va: u64, length: u64) -> Status {
+    /// TLB of the VAS itself unless `defer` sets `NVOS47_FLAGS_DEFER_TLB_INVALIDATION`
+    /// (nvos.h:2192, bit 0; honoured by `dmaFreeMapping_GM107`,
+    /// virt_mem_allocator_gm107.c:1579); the caller then owes the VAS one
+    /// [`Self::invalidate_vas`] before anything relies on the unmap. Returns the status.
+    pub fn unmap_dma(&self, h_dma: u32, h_mem: u32, va: u64, length: u64, defer: bool) -> Status {
         let mut p = sys::NVOS47_PARAMETERS::default();
         p.hClient = self.rm.root();
         p.hDevice = self.device();
         p.hDma = h_dma;
         p.hMemory = h_mem;
-        p.flags = 0;
+        p.flags = u32::from(defer) * NVOS47_FLAGS_DEFER_TLB_INVALIDATION_TRUE;
         p.dmaOffset = va;
         p.size = length;
         // SAFETY: NVOS47 is the escape ABI; plain-data params, no host pointers.
@@ -918,7 +926,10 @@ impl HostMemory {
     /// `RM_MAP_MEMORY_DMA` (NVOS46) of `h_mem` at `[offset, offset+length)` into `h_dma`
     /// (a virtual reservation, or a VA space) at the **fixed** VA `va`, with the given
     /// `page_size` flag (`nvos46_flags::PAGE_SIZE_*`). Snoop for sysmem, off for vidmem.
-    /// Read/write, GPU-uncached. Returns the status.
+    /// Read/write, GPU-uncached. `defer` sets `NVOS46_FLAGS_DEFER_TLB_INVALIDATION` (nvos.h:2151,
+    /// bit 31): RM then skips its flush and VAS TLB invalidate after the PTE writes
+    /// (`dmaUpdateVASpace_GF100`, virt_mem_allocator_gm107.c:2567-2577), and the caller owes
+    /// the VAS one [`Self::invalidate_vas`]. Returns the status.
     #[allow(clippy::too_many_arguments)]
     pub fn map_dma_fixed(
         &self,
@@ -930,6 +941,7 @@ impl HostMemory {
         page_size: u32,
         snoop: bool,
         kind: Option<u8>,
+        defer: bool,
     ) -> Status {
         use nvrm_abi::nvgpu::nvos46_flags as f;
         let mut p = sys::NVOS46_PARAMETERS::default();
@@ -946,7 +958,8 @@ impl HostMemory {
             } else {
                 f::CACHE_SNOOP_DISABLE
             })
-            | f::DMA_OFFSET_FIXED.set(f::DMA_OFFSET_FIXED_TRUE);
+            | f::DMA_OFFSET_FIXED.set(f::DMA_OFFSET_FIXED_TRUE)
+            | f::DEFER_TLB_INVALIDATION.set(u32::from(defer));
         // A guest depth/stencil kind (shadow.rs `kind_override`): NVOS46_FLAGS_PAGE_KIND_OVERRIDE
         // (nvos.h:2114) with `kindOverride` (nvos.h:2178).
         if let Some(k) = kind {
@@ -964,6 +977,20 @@ impl HostMemory {
             Ok(()) => p.status as u32,
             Err(_) => 0xFFFF_FFFF,
         }
+    }
+
+    /// `NV0080_CTRL_CMD_DMA_INVALIDATE_TLB` (ctrl0080dma.h:467-495) on the device for the VA
+    /// space `vas`, flags 0 (`_ALL_FALSE`: only that VAS). NON_PRIVILEGED, runs in the kernel
+    /// RM (flags 0x10008, g_device_nvoc.c:1144), where `deviceCtrlCmdDmaInvalidateTLB_IMPL`
+    /// (dma.c:967-1010) calls `vaspaceInvalidateTlb(PTE_DOWNGRADE)`: the whole VAS
+    /// (`_ALL_VA`, kern_gmmu_gm107.c:194), with the membar of a downgrade. The header names
+    /// it the companion of the `DEFER_TLB_INVALIDATION` map and unmap flags. The walker root
+    /// it invalidates is the root host channels run on for a normal host-managed VAS (the
+    /// shadow's; not for an externally-owned one, invalidate.rs). Returns the status.
+    pub fn invalidate_vas(&self, vas: u32) -> Status {
+        let mut p = [0u8; 8];
+        p[0..4].copy_from_slice(&vas.to_le_bytes());
+        self.control(self.device(), CMD_DMA_INVALIDATE_TLB, &mut p)
     }
 
     /// `RM_CONTROL` `cmd` on `object`; returns the status (0xFFFFFFFF when the ioctl failed).
