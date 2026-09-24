@@ -177,7 +177,9 @@ Refused: GPU_GET_ENGINE_RUNLIST_PRI_BASE and CE_GET_FAULT_METHOD_BUFFER_SIZE wit
 **Correction to lab-blackwell.md §5.** It says the RM refuses the two resized controls with
 `NV_ERR_INVALID_PARAM_STRUCT`. The capture shows status 0x1F, which is `NV_ERR_INVALID_ARGUMENT`
 (`src/common/sdk/nvidia/inc/nvstatuscodes.h:60`; `INVALID_PARAM_STRUCT` is 0x3A, `:87`), also for
-PES_INFO (`gb206/rm-tools/host-facts.txt:30-32`). The conclusion (refused, never misread) holds.
+PES_INFO (`gb206/rm-tools/host-facts.txt:30-32`). The conclusion (refused, never misread) holds. The
+status comes from the size check against the control table in `_rmapiRmControl`, which runs
+before the resserv check (`src/nvidia/src/kernel/rmapi/control.c:446-461`; the same code in 615).
 
 ### 1.7 Architecture, classes, names (rm-tools/lab-rm-query.txt)
 
@@ -268,7 +270,7 @@ Persistence mode on (`gpu/nvidia-smi-q.txt:20`); power limit 180 W (150 to 234 W
 GPU UUID, GPU PDI and the PCIe Device Serial Number of the physical card are in the capture
 (`gpu/proc-information.txt:5`, `gpu/nvidia-smi-q.txt:31-32`, `gpu/lspci-vvv.txt:91`). The synthetic
 identity must not reuse them: the GID stays the Leandro GID (identity-profile.md) and the DSN
-capability is dropped (1.2).
+capability is dropped (1.2). The full list of per-card values and their replacements is in 2.5.
 
 ## 2. The D14 identity work list for a Blackwell device
 
@@ -402,6 +404,30 @@ For D14 this means: the first Blackwell identity is a chip axis addition (`chips
 `src/chip/gb206.rs`, a new `FirmwareBoot`, a GMMU walker) on the existing `v610` version axis.
 A 615.71.09 guest is a separate, larger step (section 3).
 
+### 2.5 The synthetic identity: what in the capture belongs to this one card
+
+The capture describes one physical board, and several of its values identify that board. None of
+them may appear in the synthetic device, in a chip or board file, or in a trace the device emits:
+
+| Per-card value | Where in the capture | What the device presents instead |
+|---|---|---|
+| GPU UUID | `gpu/proc-information.txt:5`, `gpu/nvidia-smi-q.txt:31` | the per-VM UUID the device already derives (`GspStaticConfigInfo.gidInfo`, 615: `NVGMC_SC_GPU_GID_SHA1`; identity-profile.md, "GPU UUID", and the naming model, whose GID is seeded by the Leandro name) |
+| GPU PDI | `gpu/nvidia-smi-q.txt:32` | `bPdiValid` false, or a PDI derived like the UUID (`GspStaticConfigInfo.pdi`, 615: `NVGMC_SC_PDI`) |
+| PCIe Device Serial Number | `gpu/lspci-vvv.txt:91`, `gpu/config-space.txt` offset 0x2f4-0x2ff | capability removed from the synthetic config space (1.2) |
+| Board serial and chassis serial | redacted in the capture (`gpu/nvidia-smi-q.txt:30,41`) | none; the device answers the serial controls with an empty or synthetic value, never a forwarded one |
+| ECID (chip manufacturing id) | not captured; the GSP reports it (`GspStaticConfigInfo.ecidInfo`, 615: `NVGMC_SC_ECID_INFO`) | zero or synthetic |
+| InfoROM image and OEM object, time run (36191367 s) | `gpu/nvidia-smi-q.txt:48-57` | synthetic InfoROM answers of the device, not these |
+| Subsystem 1043:8a08 and the ASUS TUF strings in the ROM | `gpu/lspci-vvv.txt:4`, `rom.bin` 0xce0, 0xd1c | a Leandro subsystem id (identity-profile.md); the ROM images are served as captured, which names the ASUS board, so the board file should say whether that is wanted or the ROM BAR stays empty |
+| Link state, IRQ, bus address, BAR addresses | `gpu/lspci-vvv.txt:8,10-14,32`, `gpu/bars.txt` | the VM's own (vfio-user assigns them) |
+| Power limits, clocks, temperature, fan, utilisation | `gpu/nvidia-smi-q.txt:98-252` | host forwarding of the house card or synthetic values, never these numbers |
+| Host facts (hostname, CPU, other devices, kernel log timestamps) | `gb206/host/` | not part of any identity |
+
+What is not per-card and may be used: device id 2d04 and revision a1, class, capability layout
+(minus the rows above), BAR sizes, VBIOS version string, chip facts (architecture,
+implementation, engine list, fault ids, classes, GPC/TPC counts, FB region shape) and the
+connector list. The GPU part number 2D04-300-A1 (`gpu/nvidia-smi-q.txt:37`) is a SKU, not a
+serial, and may be used.
+
 ## 3. gsp-abi-sizes for 615.71.09 (the item the lab run skipped)
 
 ### 3.1 How it was produced
@@ -415,10 +441,13 @@ plus one missing nvport module define. That is the tool doing its job ("a field 
 ... makes this file fail to compile", `caraxes/tools/gsp-abi-sizes.c:15-20`). The lab-capture
 script would have recorded it as `failed`.
 
-A copy of the tool adapted to the 615 field names (patch in appendix B, applied to a scratch copy;
-`caraxes/tools/` is unchanged) compiles, and the minimal and driver flag sets give identical output
-(gcc 16.2.1). The clang leg of `--check` fails in nvport's C11 atomics with
-`-DPORT_MODULE_time=1`, a header issue, not a layout one. Full output: appendix A.
+The tool adapted to the 615 field names (appendix B) compiles, and the minimal and driver flag
+sets give identical output (gcc 16.2.1). The clang leg of `--check` fails where the RUSD fence of
+`class/cl00de.h:512` reaches nvport's C11 atomics, a header issue, not a layout one. Full output:
+appendix A. Since 2026-09-24 (follow-up) the adaptation is in `caraxes/tools/gsp-abi-sizes.c`
+behind the `GSP_ABI` switch, selected by `gsp-abi-sizes.sh --abi N` or the tree's `version.mk`;
+the 610 output is byte-identical to before, and the lab kit passes the running driver's major
+version (lab-blackwell.md §5).
 
 ### 3.2 Sizes, 610.57.04 against 615.71.09
 
@@ -553,6 +582,10 @@ What cannot be done without a Blackwell card in this house:
 - **Real device-info, L2/LTC, EDIDs**: need the second capture of 2.3 (lab card, read-only).
 
 ## 5. Corrections to other notes
+
+Applied on 2026-09-24 (follow-up): the first four in versatility.md and lab-blackwell.md, the
+last in `caraxes/tools/lab-capture.sh` (a device-id table, 1f02 tu106 and 2d04 gb206, before the
+`10de-<id>` fallback).
 
 - versatility.md "Blackwell": the GB20x boot of a 610 guest goes through FSP
   (`kfspSendBootCommands`), the BCR register path is the FSP-less fallback (2.2); "610.57.04 does
@@ -1239,7 +1272,12 @@ Produced 2026-09-24 by the adapted tool of appendix B, minimal flag set, against
 
 ## Appendix B: changes to gsp-abi-sizes for 615.71.09
 
-Applied to a scratch copy only; `caraxes/tools/gsp-abi-sizes.{c,sh}` are unchanged. The `.c` changes follow the 615 field names; the `.sh` change adds `-DPORT_MODULE_time=1`, which 615 headers need (`g_objtmr_nvoc.h:1192` calls `portTimeGetUptimeNanoseconds`). Applying it to the tool in the repository would break the 610 build (the 610 fields are gone), so a version switch is needed if it is merged.
+The diff as first applied to a scratch copy. It is now merged into `caraxes/tools/gsp-abi-sizes.{c,sh}`
+behind a version switch (each change under `#if GSP_ABI >= 615`, `-DPORT_MODULE_time=1` only for
+615). The `.c` changes follow the 615 field names; the `.sh` change adds `-DPORT_MODULE_time=1`,
+which 615 headers need (`generated/g_objtmr_nvoc.h:1192` calls `portTimeGetUptimeNanoseconds`).
+Applied unswitched, the diff would break the 610 build (the 610 fields are gone), which is why
+the merged version keeps both lists.
 
 ```diff
 --- a/caraxes/tools/gsp-abi-sizes.sh	2026-09-23 11:32:05.017917374 +0200

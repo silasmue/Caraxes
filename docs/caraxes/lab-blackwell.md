@@ -161,7 +161,7 @@ Result for every version whose headers are on the development host
 | Version | Differences from 610.57.04 | Effect on the tool output |
 |---|---|---|
 | 610.43.02, 610.43.03, 610.57.04 | none | fully verified |
-| 615.71.09 | `GPU_GET_PES_INFO_PARAMS` 56 -> 76 bytes, `FIFO_GET_DEVICE_INFO_TABLE_PARAMS` 3212 -> 3340 bytes | the RM refuses both controls (status `NV_ERR_INVALID_PARAM_STRUCT`; it checks the parameter size, `rs_resource.c:134-143`); host-facts loses the per-GPC PES line, fifo-host-query prints only the refused status it printed anyway; the rest is valid |
+| 615.71.09 | `GPU_GET_PES_INFO_PARAMS` 56 -> 76 bytes, `FIFO_GET_DEVICE_INFO_TABLE_PARAMS` 3212 -> 3340 bytes | the RM refuses both controls (status 0x1F `NV_ERR_INVALID_ARGUMENT`, as the GB206 capture shows in `fifo-host-query.txt:38` and `host-facts.txt:30-32`; the size is checked first in `_rmapiRmControl` against the control table, `src/nvidia/src/kernel/rmapi/control.c:446-461`, which returns `NV_ERR_INVALID_ARGUMENT`; the resserv check of `rs_resource.c:134-143` with 0x3A `NV_ERR_INVALID_PARAM_STRUCT` is not reached); host-facts loses the per-GPC PES line, fifo-host-query prints only the refused status it printed anyway; the rest is valid |
 | 595.91.07, 595.99.02 | `FB_REGION_INFO` has no `regionTag` (same size) | the `tag=` value of the FB regions is padding, ignore it; the rest is valid |
 | 580.167.08 to 590.48.01 | as 595, plus `GPU_GET_NAME_STRING_PARAMS` 68 -> 132 bytes | as 595; lab-rm-query retries the name string with the older size, so nothing else is lost |
 | 570.211.01, 575.64.05 | as 580, plus `FB_GET_INFO_V2_PARAMS` 1028 -> 460 bytes, `FB_GET_FB_REGION_INFO_PARAMS` 904 -> 776 bytes, no `MC_GET_INTR_CATEGORY_SUBTREE_MAP` | host-facts loses FB info, FB regions and the subtree map (refused); nvidia-smi still has the FB sizes; the rest is valid |
@@ -195,9 +195,34 @@ a driver version, not a chip. The script runs it only when the running version i
 full open-gpu-kernel-modules checkout of the running version
 (`git clone --depth 1 --branch <v> https://github.com/NVIDIA/open-gpu-kernel-modules`);
 otherwise it is recorded as `skipped`, and it can be run at home against that tag with
-the same result. `gsp-abi-sizes.c` is written against 610.57.04; on a much older or newer
-tree it may need adjusting before it compiles, and the script then records `failed`
-with the compiler output.
+the same result.
+
+`gsp-abi-sizes.c` carries two field lists behind a version switch (`GSP_ABI`): the 610.57.04
+lists, and the 615.71.09 lists (message queue v2, MCTP-framed queue element, `GMCAPI_HEADER`,
+the new `GSP_ARGUMENTS_CACHED` and `GSP_FMC_BOOT_PARAMS`; [blackwell-gb206.md](blackwell-gb206.md)
+§3). `gsp-abi-sizes.sh --abi N` picks the lists by driver major version, 610 below 615 and
+615 from 615 on; without `--abi` it takes the major version from the tree's `version.mk` and
+warns on stderr when `--abi` and the tree disagree. The lab kit passes the running driver's
+major version, so the invocation of a lab run on 615.71.09 is
+
+```sh
+caraxes/tools/gsp-abi-sizes.sh --abi 615 /path/to/open-gpu-kernel-modules-615.71.09
+```
+
+and at home, for the GB206 capture, with the clone of blackwell-gb206.md §3.1:
+
+```sh
+caraxes/tools/gsp-abi-sizes.sh /mnt/vmstore/caraxes/ogkm-615.71.09      # --abi 615 from version.mk
+caraxes/tools/gsp-abi-sizes.sh                                          # vendored 610.57.04, --abi 610
+```
+
+The 610 output is byte-identical to the output before the switch (checked 2026-09-24, also
+with `--check`); the 615 output is the one in blackwell-gb206.md appendix A, identical with
+`--driver-flags`. `--check` on a 615 tree fails in its clang leg (the RUSD fence of `class/cl00de.h:512`
+reaches nvport's C11 atomics, which clang cannot resolve without `stdatomic.h`; a header issue,
+not a layout one); use it on 610 only.
+On a tree older than 610 or newer than 615 the lists may need adjusting before they compile,
+and the script then records `failed` with the compiler output.
 
 When the lab version later becomes a device target, that is a separate step: one entry in
 `crates/nvrm-sys/abi.toml`, `tools/build.sh vendor-abi <v>` and `cargo xtask abi`
@@ -227,7 +252,7 @@ The Blackwell identity work is listed in [other-architectures.md](other-architec
 [versatility.md](versatility.md) ("Blackwell (GB10x, GB20x): checklist"). Each captured
 item feeds one part of it.
 
-**Boot model** (GSP-FMC instead of FWSEC and Booter; §1, §2).
+**Boot model** (GSP-FMC through FSP instead of FWSEC and Booter; §1, §2; on GB20x the 610 kernel RM hands GSP-FMC to FSP with an NVDM COT message, the direct BCR path is the fallback without FSP, [blackwell-gb206.md](blackwell-gb206.md) §2.2).
 - `lab-rm-query.txt` `MC_GET_ARCH_INFO` gives architecture (0x1B0 for GB20x),
   implementation and revision, which is what `NV_PMC_BOOT_0` and `NV_PMC_BOOT_42` encode
   and how the guest RM picks the chip's HALs; the config space and `lspci` give the PCI

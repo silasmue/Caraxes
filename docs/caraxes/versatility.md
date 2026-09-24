@@ -137,7 +137,7 @@ the right version produces no extra event.
 | `channel.rs` | the method decoding of the host class (`clc46f.h`) and the Turing copy class (`clc5b5.h`), USERD GP_GET/GP_PUT at 0x88/0x8C | Code for the classes the chip file names; a chip whose host or CE class adds or moves methods needs a decoder of its own |
 | `falcon.rs` | the falcon v4 register block layout (relative offsets) | The Turing-to-Ada falcon; GA102+ adds the BROM/PKC registers (see below) |
 | `intr.rs` | the leaf/top layout of the interrupt tree, relative to the chip's base | The `dev_vm.h` layout of Turing to Ada |
-| `msgq.rs` | the `msgqTxHeader` field order, 4 KiB slots, `_checkSum32` | The msgq library's layout, unchanged across chips (other-architectures.md §3); part of the version axis, but no version so far moved it |
+| `msgq.rs` | the `msgqTxHeader` field order, 4 KiB slots, `_checkSum32` | The msgq library's layout, unchanged across chips (other-architectures.md §3); part of the version axis. 615.71.09 moves it: queue v2 with the read/write pointers in the `NV_PGSP_QUEUE_*`/`NV_PGSP_MSGQ_*` registers, no `msgqRxHeader`, MCTP-framed elements without checksum and sequence number ([blackwell-gb206.md](blackwell-gb206.md) §3.3). A `v615` build needs a second transport selected by the version module |
 | `ctrl.rs` | internal handles `0xCA7A0001/2/3` | Device-owned, synthesized |
 | `nvml.rs` | the routing rules (device-class controls to the host device, GSS legacy bit, BINAPI) | Driver-version behaviour of the guest kernel; the lists they apply to live in `ver` |
 | `rpc.rs` | the naming rule `Leandro <board>-<size>` and the synthetic GID | Profile policy (D6), shared with Leandro v1 |
@@ -182,14 +182,27 @@ subset in `channel.rs`.
 Blackwell reuses the Hopper boot flow (other-architectures.md §1, §2, §5), which is a
 new firmware-boot model, not a variant of `turing.rs`:
 
-- **Boot model: GSP-FMC instead of FWSEC and Booter.** `kgspBootstrap_GH100`: no
-  FWSEC-FRTS, no SEC2 Booter, no `GFW_BOOT` scratch poll (`kgspWaitForGfwBootOk_GH100`
-  defers to FSP, `gpuWaitForGfwBootComplete` is stubbed). The CPU points the RISC-V
+- **Boot model: GSP-FMC through FSP instead of FWSEC and Booter.** `kgspBootstrap_GH100`
+  (the GB20x HAL, `generated/g_kernel_gsp_nvoc.c:731-748`): no FWSEC-FRTS, no SEC2 Booter, no
+  `GFW_BOOT` scratch poll (`kgspWaitForGfwBootOk_GH100` defers to FSP,
+  `gpuWaitForGfwBootComplete` is stubbed). **Default path (FSP present, as on GB206,
+  `generated/g_kern_fsp_nvoc.c:234`):** `kfspWaitForSecureBoot_GB202` polls
+  `NV_THERM_I2CS_SCRATCH` (0xAD00BC on GB202) for 0xFF
+  (`fsp/arch/blackwell/kern_fsp_gb202.c:48-100`); `kfspSendBootCommands_GH100` sends an NVDM
+  COT payload (GSP-FMC image address, FRTS offsets and sizes, the address of
+  `GSP_FMC_BOOT_PARAMS`) over the FSP EMEM port and queue (`NV_PFSP_EMEMC/EMEMD` 0x8F2AC0/4,
+  `NV_PFSP_QUEUE_*` 0x8F2C00, `NV_PFSP_MSGQ_*` 0x8F2C80) and reads FSP's NVDM response
+  (`fsp/arch/hopper/kern_fsp_gh100.c:1030-1046, 1341-1458, 1500-1530`); then it waits for FSP to
+  release the GSP target mask (GSP `HWCFG2` non-zero and not 0xBADF41xx, `:1069-1100`). The
+  device therefore emulates FSP: boot-complete scratch, EMEM port, two rings, one NVDM message
+  type and a fixed response; the WPR meta is found through the `GSP_FMC_BOOT_PARAMS` the COT
+  payload names ([blackwell-gb206.md](blackwell-gb206.md) §2.2, `chips/gb206/boot.toml`).
+  **Fallback (no FSP and no SEC2 GSP-FMC boot, `_kgspBootstrapGspFmc_GH100`):** the CPU points the RISC-V
   BootROM at the FMC image through `NV_PRISCV_RISCV_BCR_DMAADDR_FMCCODE/FMCDATA/
   PKCPARAM_LO/HI`, `NV_PRISCV_RISCV_BCR_DMACFG` and `NV_PRISCV_RISCV_CPUCTL`
   (`kernel_gsp_gh100.c:744-774`), and `NV_PFALCON_FALCON_MAILBOX0/1` carry the physical
   address of `GSP_FMC_BOOT_PARAMS` (measured in gsp-abi-610.md (a)), not a loader
-  header. The model polls `NV_PFALCON_FALCON_HWCFG2_RISCV_BR_PRIV_LOCKDOWN` for the
+  header. Both paths then share the rest: the model polls `NV_PFALCON_FALCON_HWCFG2_RISCV_BR_PRIV_LOCKDOWN` for the
   lockdown release (`:540-543`) and checks `NV_PGSP_FALCON_ENGINE_RESET_STATUS`
   (`:82-104`). A new `FirmwareBoot` (`src/chip/hopper.rs`) produces these side
   effects and raises `BootEvent::WprMeta` from the WPR meta that `GSP_FMC_BOOT_PARAMS`
@@ -229,11 +242,18 @@ A build emulates exactly one driver version; the guest refuses GSP firmware of
 another version, so there is no runtime mediation (gsp-abi-610.md (e), "Version
 selection").
 
+615.71.09 is more than a layout change ([blackwell-gb206.md](blackwell-gb206.md) §3): the
+message-queue transport moves to register-held pointers and MCTP framing (`msgq.rs`, above), and
+`GSP_SET_SYSTEM_INFO`, `SET_REGISTRY`, `GET_GSP_STATIC_INFO` and `GSP_INIT_DONE` are replaced by
+one `GMCAPI_CMD_GSP_INIT` whose request and response are key/value (NVKV) encoded. The steps
+below cover the struct and control layouts; the transport and the NVKV static-info writer are
+code of their own, selected by the version module.
+
 1. **Vendor the headers.** Fetch 615.71.09 into `vendor/open-gpu-kernel-modules` (a
    second checkout or tag) and run `tools/build.sh vendor-abi` for the ioctl closure;
    `crates/nvrm-sys` already has `v615` (bindings generated by `cargo xtask abi`).
 2. **Measure the GSP layouts.** Run `caraxes/tools/gsp-abi-sizes.sh` against the new
-   tree and write `docs/caraxes/gsp-abi-615.md` with the same section (a) format. The
+   tree (it picks the 615 field list from the tree's version, lab-blackwell.md §5) and write `docs/caraxes/gsp-abi-615.md` with the same section (a) format. The
    recommended step beyond that is gsp-abi-610.md (e): a sibling crate `nvgsp-sys`
    generated by the same xtask (`cargo xtask abi --crate nvgsp-sys`) with the wrapper,
    include roots and defines in its `abi.toml`, so the GSP structs become typed

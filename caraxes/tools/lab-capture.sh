@@ -18,7 +18,9 @@
 #   --no-rm-tools   skip part 2 (the RM query tools built with rustc)
 #   --ogkm DIR      open-gpu-kernel-modules tree at the running driver version, for
 #                   gsp-abi-sizes in part 2 (default: vendor/open-gpu-kernel-modules
-#                   when its version matches)
+#                   when its version matches); the field lists follow the running
+#                   driver's major version (gsp-abi-sizes.sh --abi: 610 lists below
+#                   615, 615 lists from 615 on)
 #   --walk-rom FILE only run the ROM image chain walk on FILE and exit
 #   -h, --help      this text
 #
@@ -250,13 +252,26 @@ for dev in /sys/bus/pci/devices/*; do
     gpus+=("$b")
 done
 
-# chip code name from the pci.ids name ("TU106 [GeForce RTX 2070]"), else the device id
+# Device ids whose chip is known here, for machines whose pci.ids does not name them
+# (the GB206 run of 2026-09-24 was named "10de-2d04": "NVIDIA Corporation Device [10de:2d04]").
+# One "id chip" pair per entry, id in lowercase hex; add an id only with a source.
+#   1f02 tu106  RTX 2070 (caraxes/reference/rtx2070/lspci-vvv.txt:2)
+#   2d04 gb206  RTX 5060 Ti (caraxes/reference/gb206/rm-tools/lab-rm-query.txt:3-6: GB20x,
+#               implementation 6, short name GB206-A)
+chip_ids="1f02 tu106
+2d04 gb206"
+
+# chip code name from the pci.ids name ("TU106 [GeForce RTX 2070]"), else from the
+# table above, else the device id ("10de-<id>", as before)
 chip_of() {
-    local name
+    local name id
     name=$(lspci -s "$1" 2>/dev/null)
     name=$(grep -oE '\b(GB|GR|GH|AD|GA|TU|GV|GP)[0-9]{3}[A-Z]?\b' <<<"$name" | head -1)
-    if [ -n "$name" ]; then tr 'A-Z' 'a-z' <<<"$name"
-    else echo "10de-$(sed 's/^0x//' "/sys/bus/pci/devices/$1/device" 2>/dev/null)"; fi
+    if [ -n "$name" ]; then tr 'A-Z' 'a-z' <<<"$name"; return; fi
+    id=$(sed 's/^0x//' "/sys/bus/pci/devices/$1/device" 2>/dev/null | tr 'A-Z' 'a-z')
+    name=$(awk -v id="$id" '$1 == id { print $2; exit }' <<<"$chip_ids")
+    if [ -n "$name" ]; then echo "$name"
+    else echo "10de-$id"; fi
 }
 chip=unknown
 [ ${#gpus[@]} -gt 0 ] && chip=$(chip_of "${gpus[0]}")
@@ -661,15 +676,16 @@ done
         c=$(chip_of "$bdf")
         case $c in
             tu10*|tu11*|ga100) fam="tu10x (gsp_tu10x.bin, LIBOS2)" ;;
-            ga10*|ad10*|gh10*|gb*|gr*) fam="ga10x (gsp_ga10x.bin, LIBOS3; shared GA10x through GB20x in 610.57.04)" ;;
+            ga10*|ad10*|gh10*|gb*|gr*) fam="ga10x (gsp_ga10x.bin, LIBOS3; shared GA10x through GB20x in 610.57.04 and 615.71.09)" ;;
             *) fam="unknown for chip $c" ;;
         esac
         echo "$bdf chip=$c architecture=${arch:-?} gsp_firmware_version=${gspv:-?} proc_gpu_firmware=${pfw:-?} family=$fam"
         [ -n "$gspv" ] && [ "$gspv" != "N/A" ] && echo "  GSP firmware is in use (nvidia-smi reports a GSP firmware version)"
         [ -n "$fwdir" ] && ls "$fwdir" | grep -E '^gsp_' | sed 's/^/  present: /'
     done
-    echo "# The family is derived from the chip name with the 610.57.04 mapping; check it against"
-    echo "# nv-firmware.h of the running driver version when that differs."
+    echo "# The family is derived from the chip name (pci.ids or the script's device-id table) with"
+    echo "# the mapping of nv-firmware.h in 610.57.04 and 615.71.09; check it against nv-firmware.h"
+    echo "# of the running driver version when that is another one."
 } >"$H/gsp-firmware.txt"
 item host.gsp-family ok host/gsp-firmware.txt "$(sed -n '2p' "$H/gsp-firmware.txt" | grep -oE 'family=[a-z0-9]+' )"
 
@@ -733,9 +749,12 @@ else
         item rm-tools.gsp-abi-sizes skipped - "needs an open-gpu-kernel-modules tree at ${drv:-the running version} (--ogkm DIR); the vendored one is 610.57.04"
     elif ! have cc; then
         item rm-tools.gsp-abi-sizes skipped - "no C compiler"
-    elif cap "$R/gsp-abi-sizes.md" -- "$repo/caraxes/tools/gsp-abi-sizes.sh" "$tree"; then
+    elif abiargs=(); [ -n "$drv" ] && abiargs=(--abi "${drv%%.*}");
+         cap "$R/gsp-abi-sizes.md" -- "$repo/caraxes/tools/gsp-abi-sizes.sh" "${abiargs[@]}" "$tree"; then
+        # --abi: the field lists follow the running driver's major version (610 lists
+        # below 615, 615 lists from 615 on; gsp-abi-sizes.sh, GSP_ABI in gsp-abi-sizes.c)
         sed -i '1s/.*/<!-- SPDX-License-Identifier: MIT -->/; 2s/^# \(.*\)/<!-- \1 -->/' "$R/gsp-abi-sizes.md"
-        item rm-tools.gsp-abi-sizes ok rm-tools/gsp-abi-sizes.md "tree ${tree#"$repo"/}"
+        item rm-tools.gsp-abi-sizes ok rm-tools/gsp-abi-sizes.md "tree ${tree#"$repo"/}${drv:+, field lists for major ${drv%%.*}}"
     else
         item rm-tools.gsp-abi-sizes failed rm-tools/gsp-abi-sizes.md "did not compile against ${tree#"$repo"/} (see file)"
     fi

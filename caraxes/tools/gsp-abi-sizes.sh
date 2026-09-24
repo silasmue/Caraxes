@@ -5,9 +5,15 @@
 # tree and print the compiled sizes and field offsets of the CPU<->GSP
 # message-queue and boot structures as Markdown.
 #
-#   caraxes/tools/gsp-abi-sizes.sh [--driver-flags] [--check] [OGKM_DIR]
+#   caraxes/tools/gsp-abi-sizes.sh [--driver-flags] [--check] [--abi N] [OGKM_DIR]
 #
 #   OGKM_DIR        default: vendor/open-gpu-kernel-modules
+#   --abi N         driver major version whose field lists to use: below 615
+#                   the 610.57.04 lists, 615 and above the 615.71.09 lists
+#                   (GSP_ABI in gsp-abi-sizes.c). Default: the major version
+#                   in OGKM_DIR/version.mk. A mismatch with the tree is
+#                   reported on stderr; the tree's headers decide whether it
+#                   compiles.
 #   --driver-flags  compile with the full include/define set of the driver's
 #                   own build (src/nvidia/Makefile:28-138) instead of the
 #                   minimal set below
@@ -39,12 +45,14 @@ src="$here/gsp-abi-sizes.c"
 
 mode=minimal
 check=0
+abi=""
 ogkm="$root/vendor/open-gpu-kernel-modules"
 while [ $# -gt 0 ]; do
     case "$1" in
         --driver-flags) mode=driver ;;
         --check)        check=1 ;;
-        -h|--help)      sed -n '4,24p' "$0"; exit 0 ;;
+        --abi)          abi=$2; shift ;;
+        -h|--help)      sed -n '4,30p' "$0"; exit 0 ;;
         -*)             echo "unknown option: $1" >&2; exit 2 ;;
         *)              ogkm=$(cd "$1" && pwd) ;;
     esac
@@ -56,6 +64,15 @@ N="$S/nvidia"
 C="$S/common"
 [ -f "$N/inc/kernel/gpu/gsp/gsp_static_config.h" ] ||
     { echo "not an open-gpu-kernel-modules tree: $ogkm" >&2; exit 2; }
+
+# The field-list variant (GSP_ABI): 610 below driver major 615, 615 from there on.
+tree_major=$(sed -n 's/^NVIDIA_VERSION *= *\([0-9]*\)\..*/\1/p' "$ogkm/version.mk" 2>/dev/null)
+[ -n "$abi" ] || abi=$tree_major
+case $abi in ''|*[!0-9]*) echo "cannot tell the driver major version (--abi N)" >&2; exit 2 ;; esac
+if [ -n "$tree_major" ] && [ "$abi" != "$tree_major" ]; then
+    echo "warning: --abi $abi but the tree is major $tree_major" >&2
+fi
+if [ "$abi" -ge 615 ]; then gsp_abi=615; else gsp_abi=610; fi
 
 if [ "$(uname -m)" != x86_64 ]; then
     echo "warning: host is $(uname -m); the kernel module whose layout matters is x86_64" >&2
@@ -84,6 +101,9 @@ minimal_flags() {
         -DPORT_MODULE_debug=1 \
         -DPORT_MODULE_memory=1 \
         -DPORT_MODULE_thread=1
+    # 615.71.09 headers call portTimeGetUptimeNanoseconds (generated/g_objtmr_nvoc.h:1192)
+    [ "$gsp_abi" = 615 ] && printf '%s\n' -DPORT_MODULE_time=1
+    printf '%s\n' -DGSP_ABI="$gsp_abi"
 }
 
 # src/nvidia/Makefile:28-58 (includes) and :106-138 (defines), in order.
@@ -114,7 +134,8 @@ driver_flags() {
         -DRS_PROVIDES_API_STATE=0 -DNV_CONTAINERS_NO_TEMPLATES \
         -DINCLUDE_NVLINK_LIB -DINCLUDE_NVSWITCH_LIB \
         -DNV_PRINTF_STRINGS_ALLOWED=1 -DNV_ASSERT_FAILED_USES_STRINGS=1 \
-        -DPORT_ASSERT_FAILED_USES_STRINGS=1
+        -DPORT_ASSERT_FAILED_USES_STRINGS=1 \
+        -DGSP_ABI="$gsp_abi"
 }
 
 tmp=$(mktemp -d "${TMPDIR:-/tmp}/gsp-abi-sizes.XXXXXX")
