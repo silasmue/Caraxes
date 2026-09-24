@@ -544,10 +544,7 @@ mod tests {
             "Leandro VFIO RTX 2070-130M"
         );
         let spec = StaticIdentity::spec("RTX 2070", 4 << 30);
-        assert_eq!(
-            spec.guest_name(NameFormat::Legacy),
-            "Leandro RTX 2070-4G"
-        );
+        assert_eq!(spec.guest_name(NameFormat::Legacy), "Leandro RTX 2070-4G");
         let t = StaticIdentity::from_spec(
             f.chip.data(),
             &f.board,
@@ -567,8 +564,8 @@ mod tests {
         assert_eq!(
             id.gid,
             [
-                0x9b, 0xd7, 0xb9, 0x3d, 0x3d, 0x23, 0xc0, 0x74, 0x67, 0x04, 0x98, 0x4e, 0xf3,
-                0x3a, 0xb7, 0xa7
+                0x9b, 0xd7, 0xb9, 0x3d, 0x3d, 0x23, 0xc0, 0x74, 0x67, 0x04, 0x98, 0x4e, 0xf3, 0x3a,
+                0xb7, 0xa7
             ]
         );
         let wpr = WprLayout {

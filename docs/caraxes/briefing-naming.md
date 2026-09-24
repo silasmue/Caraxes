@@ -114,3 +114,24 @@ Left alone on purpose: historical records (`docs/measurements/**`, `docs/history
 recorded outputs in `docs/caraxes/*.md` and the recorded criteria in
 `matrix/guest-610.57.04.json`), the catalogue's host-side type names, provenance label
 strings, and every protocol, RM or execution path.
+
+## Status (2026-09-24): default switched
+
+The operator allowed changes to `../Leandro-Test` for this step (2026-09-24), which lifts
+the "never modified by us" condition above. Done in this order:
+
+1. `../Leandro-Test` (commit `3edea73` on its branch `refactor-thesis`): one helper,
+   `lea_mediated_name_re` in `scripts/lib/common.sh`, builds an extended regex for either
+   format from the host card's name (`Leandro( VirtIO| VFIO)? RTX 2070`). The gpu gate's
+   `smi` stage masks and checks with it, `showcase.sh`'s nvidia-smi section accepts it, and
+   its README has a short "Guest-visible GPU name" section. Those were the only places
+   there that compared the name; the other mentions are comments.
+2. `NameFormat::default()` is `Transport`. The legacy name stays an explicit opt-in
+   (`LEA_GPU_NAME_FORMAT=legacy`, `--name-format legacy`, `CARAXES_NAME_FORMAT=legacy`),
+   `parse_name` reads both formats, an empty format string means the default, and an
+   unknown `LEA_GPU_NAME_FORMAT` in v1 falls back to the default. The Caraxes GID is still
+   seeded from the legacy-format name; the static-info test pins the recorded UUID
+   `GPU-9bd7b93d-3d23-c074-6704-984ef33ab7a7`.
+3. Tests, help texts, `identity-profile.md`, `nvml.md`, `crates/vhost-user-nvrm/README.md`
+   and the P17 row in `README.md` follow the new default. Historical records keep the names
+   they recorded.

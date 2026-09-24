@@ -12,7 +12,7 @@
 # state, power draw and utilization are numbers; then compares the forwarded values
 # with the host's own nvidia-smi -q (read-only NVML query on the host card).
 # CARAXES_GATE_NAME (default: the name the device presents with the launcher's settings,
-# `tools/caraxes-vm.sh name`, "Leandro RTX 2070-4G" by default), CARAXES_GATE_FB_MIB (4096) and
+# `tools/caraxes-vm.sh name`, "Leandro VFIO RTX 2070-4G" by default), CARAXES_GATE_FB_MIB (4096) and
 # CARAXES_GATE_TEMP_TOL (degrees, default 4) set the expectations.
 # cuda, gpu, vdisplay, display: the Leandro v1 gates (../Leandro-Test scripts/test.sh)
 # against the vfio-user device, in v1's verdict format (scripts/lib/common.sh
