@@ -1,0 +1,64 @@
+# series 2026-09-24T18:31:20+02:00 targets=[v2] reps=5 metrics=[copy rl short-auto]
+# caraxes shell-rig-191-g76a33e6-dirty leandro-test 3edea73-dirty
+# bin c5b48cf1181bfcfc251f12aa2b0eaeb074887efec4c479f36efe399cb1307a13  bench-cu
+# bin 2e7db7218ac29e0da0b22a4d30307ea1f675dc04912d6b34922708495595904d  convnet.py
+# bin 68449e9ec7b25613a65d096a6a42864c01fbf46ec47e540ce01f47184f0479ea  ctrlping
+# bin 138c5073848b2f3cf2beb4709376c7c49b420d88e836664584e5cf8bbfc7848c  ioctlping
+# bin 1f921680fc7a2c2e0978eb007cc0ab48d2f1a7cf404a196c9063a19a10aa228f  kernels.ptx
+# bin abdf09531ac015ba4e8e7550bda6eb43609c429d6e1240e7f8553841bfe06513  llamaprobe.py
+# bin 2735d2a9cd25c0753898188542dbeb4a8433609024aa48230b6803a4a8d96e66  nvprobe
+# bin 012bb008b87ec0a6ee4ef566e0b55f856df09d6a3e07e72fe5cde5a9043dd18a  pporl.py
+# bin 02b1d58fc1778a47f8940e7f89d2cabb44b64d078f5b54b5ca1fba9437073c4a  transformer.py
+# bin f0868123fca8e2c40138fda523e35fa76c015b97e232fc647fea0b6b49f33584  vrampress
+# time 2026-09-24T18:31:20+02:00
+# gpu 59, 1410 MHz, 7000 MHz, P0, 36 %, 4398 MiB, Disabled
+# procs 193297:vm0-dev 193319:vm1-vmm 195228:vm1-dev 195240:vm1-vmm 
+# loadavg 4.29 7.35 6.36
+18:31:36 v2  copy            rep 1: # WALL wall_ms=15885 rc=0  | # MEAS dev_pid=193297 dev_cpu_ms=8790 dev_rss_hwm_kb=5266428/5266428 vmm_cpu_ms=11130 others: vm1-dev=1270ms vm1-vmm=102
+18:32:04 v2  rl              rep 1:   ep   10  return=   11  mean10=  20.7   ep   20  return=   15  mean10=  14.4   ep   30  return=   13  mean10=  15.8  | # MEAS dev_pid=193297 dev_cpu_ms=20830 dev_rss_hwm_kb=5266448/5266448 vmm_cpu_ms=22120 others: vm1-dev=-7310ms vm1-vmm=-
+18:32:08 v2  short-auto      rep 1: MSPERLAUNCH=0.118 # WALL wall_ms=3869 rc=0  | # MEAS dev_pid=193297 dev_cpu_ms=3240 dev_rss_hwm_kb=5266432/5266432 vmm_cpu_ms=2670 others: 
+# 18:32:08 v2 restart before rep 2
+stopped
+dma table: 0:7ffe80000000:c0000000,100000000:7fff80000000:40000000
+server pid 206800, VM pid 206809; logs in /mnt/vmstore/caraxes/vm0
+ssh up at 192.168.100.20
+[  135.008975] NVRM: GPU 0000:00:05.0: RmInitAdapter succeeded!
+modprobe rc=0
+v2 restarted: server pid 206800
+18:34:47 v2  copy            rep 2: # WALL wall_ms=15652 rc=0  | # MEAS dev_pid=206800 dev_cpu_ms=8730 dev_rss_hwm_kb=5265756/5265756 vmm_cpu_ms=11360 others: vm1-vmm=120ms 
+18:35:43 v2  rl              rep 2:   ep   10  return=   11  mean10=  20.7   ep   20  return=   15  mean10=  14.4   ep   30  return=   13  mean10=  15.8  | # MEAS dev_pid=206800 dev_cpu_ms=26670 dev_rss_hwm_kb=5265668/5265668 vmm_cpu_ms=31920 others: vm2-615-dev=1180ms vm1-vm
+18:35:50 v2  short-auto      rep 2: MSPERLAUNCH=0.343 # WALL wall_ms=5865 rc=0  | # MEAS dev_pid=206800 dev_cpu_ms=3900 dev_rss_hwm_kb=5265700/5265700 vmm_cpu_ms=3630 others: vm2-615-dev=0ms vm1-vmm=50m
+# 18:35:50 v2 restart before rep 3
+stopped
+dma table: 0:7ffe80000000:c0000000,100000000:7fff80000000:40000000
+server pid 226379, VM pid 226407; logs in /mnt/vmstore/caraxes/vm0
+ssh up at 192.168.100.20
+[  136.018388] NVRM: GPU 0000:00:05.0: RmInitAdapter succeeded!
+modprobe rc=0
+v2 restarted: server pid 226379
+18:38:29 v2  copy            rep 3: # WALL wall_ms=14806 rc=0  | # MEAS dev_pid=226379 dev_cpu_ms=8230 dev_rss_hwm_kb=5266168/5266168 vmm_cpu_ms=11140 others: vm1-dev=0ms vm1-vmm=120ms 
+18:38:59 v2  rl              rep 3:   ep   10  return=   11  mean10=  20.7   ep   20  return=   15  mean10=  14.4   ep   30  return=   13  mean10=  15.8  | # MEAS dev_pid=226379 dev_cpu_ms=20810 dev_rss_hwm_kb=5266176/5266176 vmm_cpu_ms=23280 others: vm1-dev=50ms vm1-vmm=8190
+18:39:03 v2  short-auto      rep 3: MSPERLAUNCH=0.128 # WALL wall_ms=3857 rc=0  | # MEAS dev_pid=226379 dev_cpu_ms=3200 dev_rss_hwm_kb=5264704/5265636 vmm_cpu_ms=2590 others: vm1-dev=1350ms vm1-vmm=2200
+# 18:39:03 v2 restart before rep 4
+stopped
+dma table: 0:7ffe80000000:c0000000,100000000:7fff80000000:40000000
+server pid 239239, VM pid 239253; logs in /mnt/vmstore/caraxes/vm0
+ssh up at 192.168.100.20
+[  135.656427] NVRM: GPU 0000:00:05.0: RmInitAdapter succeeded!
+modprobe rc=0
+v2 restarted: server pid 239239
+18:41:46 v2  copy            rep 4: # WALL wall_ms=18987 rc=0  | # MEAS dev_pid=239239 dev_cpu_ms=9460 dev_rss_hwm_kb=5266252/5266252 vmm_cpu_ms=11810 others: vm1-dev=9610ms vm1-vmm=265
+18:42:23 v2  rl              rep 4:   ep   10  return=   11  mean10=  20.7   ep   20  return=   15  mean10=  14.4   ep   30  return=   13  mean10=  15.8  | # MEAS dev_pid=239239 dev_cpu_ms=22100 dev_rss_hwm_kb=5265924/5265924 vmm_cpu_ms=23870 others: vm1-dev=11410ms vm1-vmm=5
+18:42:29 v2  short-auto      rep 4: MSPERLAUNCH=0.249 # WALL wall_ms=5310 rc=0  | # MEAS dev_pid=239239 dev_cpu_ms=3370 dev_rss_hwm_kb=5265676/5265676 vmm_cpu_ms=3170 others: vm1-dev=2310ms vm1-vmm=8490
+# 18:42:29 v2 restart before rep 5
+stopped
+dma table: 0:7ffe80000000:c0000000,100000000:7fff80000000:40000000
+server pid 253268, VM pid 253283; logs in /mnt/vmstore/caraxes/vm0
+ssh up at 192.168.100.20
+[  135.769182] NVRM: GPU 0000:00:05.0: RmInitAdapter succeeded!
+modprobe rc=0
+v2 restarted: server pid 253268
+18:45:12 v2  copy            rep 5: # WALL wall_ms=19384 rc=0  | # MEAS dev_pid=253268 dev_cpu_ms=8620 dev_rss_hwm_kb=5265700/5265700 vmm_cpu_ms=13850 others: vm1-dev=3010ms vm1-vmm=164
+18:45:42 v2  rl              rep 5:   ep   10  return=   11  mean10=  20.7   ep   20  return=   15  mean10=  14.4   ep   30  return=   13  mean10=  15.8  | # MEAS dev_pid=253268 dev_cpu_ms=20240 dev_rss_hwm_kb=5265704/5265704 vmm_cpu_ms=22100 others: vm1-dev=13410ms vm1-vmm=2
+18:45:46 v2  short-auto      rep 5: MSPERLAUNCH=0.119 # WALL wall_ms=3555 rc=0  | # MEAS dev_pid=253268 dev_cpu_ms=3050 dev_rss_hwm_kb=5265716/5265716 vmm_cpu_ms=2440 others: vm1-dev=1710ms vm1-vmm=2520
+# end 2026-09-24T18:45:46+02:00

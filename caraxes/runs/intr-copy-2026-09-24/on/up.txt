@@ -1,0 +1,33 @@
+ssh: connect to host 192.168.100.20 port 22: Connection refused
+stopped
+dma table: 0:7ffe80000000:c0000000,100000000:7fff80000000:40000000
+server pid 193297, VM pid 193319; logs in /mnt/vmstore/caraxes/vm0
+ssh up at 192.168.100.20
+[  134.501179] NVRM: GPU 0000:00:05.0: RmInitAdapter succeeded!
+modprobe rc=0
+v2 restarted: server pid 193297
+egistered address 0x278
+cloud-hypervisor:  12.711776s: <vcpu0> INFO:pci/src/vfio_user.rs:670 -- Disabling IRQ 0
+cloud-hypervisor:  12.711836s: <vcpu0> INFO:pci/src/vfio_user.rs:633 -- Enabling IRQ 1 number of fds = 1
+cloud-hypervisor:  20.498423s: <vcpu0> INFO:pci/src/vfio_user.rs:670 -- Disabling IRQ 1
+cloud-hypervisor:  20.498955s: <vcpu0> INFO:pci/src/vfio_user.rs:633 -- Enabling IRQ 0 number of fds = 1
+cloud-hypervisor: 139.707031s: <vmm> INFO:vmm/src/lib.rs:2080 -- VM exit event
+cloud-hypervisor: 139.707794s: <vmm> INFO:virtio-devices/src/device.rs:485 -- Resuming virtio-rng
+cloud-hypervisor: 139.707825s: <vmm> INFO:virtio-devices/src/device.rs:485 -- Resuming virtio-net
+cloud-hypervisor: 139.707901s: <vmm> INFO:virtio-devices/src/device.rs:485 -- Resuming virtio-block
+cloud-hypervisor: 139.708038s: <vmm> INFO:virtio-devices/src/device.rs:485 -- Resuming virtio-block
+cloud-hypervisor: 139.711334s: <vmm> INFO:event_monitor/src/lib.rs:113 -- Event: source = vm event = shutdown 
+cloud-hypervisor: 139.711395s: <vmm> INFO:virtio-devices/src/device.rs:485 -- Resuming virtio-rng
+cloud-hypervisor: 139.711426s: <vmm> INFO:virtio-devices/src/device.rs:485 -- Resuming virtio-net
+cloud-hypervisor: 139.711472s: <vmm> INFO:virtio-devices/src/device.rs:485 -- Resuming virtio-block
+cloud-hypervisor: 139.711502s: <vmm> INFO:virtio-devices/src/device.rs:485 -- Resuming virtio-block
+cloud-hypervisor: 139.748642s: <vmm> INFO:pci/src/vfio_user.rs:670 -- Disabling IRQ 0
+cloud-hypervisor: 139.803696s: <vmm> INFO:event_monitor/src/lib.rs:113 -- Event: source = vm event = deleted 
+cloud-hypervisor: 139.803757s: <vmm> INFO:event_monitor/src/lib.rs:113 -- Event: source = vmm event = shutdown 
+cloud-hypervisor: 139.804291s: <main> INFO:cloud-hypervisor/src/main.rs:962 -- Cloud Hypervisor exited successfully
+ERROR: VM exited
+c5b48cf1181bfcfc251f12aa2b0eaeb074887efec4c479f36efe399cb1307a13  bench-cu
+2735d2a9cd25c0753898188542dbeb4a8433609024aa48230b6803a4a8d96e66  nvprobe
+138c5073848b2f3cf2beb4709376c7c49b420d88e836664584e5cf8bbfc7848c  ioctlping
+68449e9ec7b25613a65d096a6a42864c01fbf46ec47e540ce01f47184f0479ea  ctrlping
+1f921680fc7a2c2e0978eb007cc0ab48d2f1a7cf404a196c9063a19a10aa228f  kernels.ptx

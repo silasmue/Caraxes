@@ -800,3 +800,44 @@ and its delivery pays the trapped interrupt path. The same applies to the pinned
 measurement for the copy rows, not the pool; H stays as an option for guest BAR1 traffic
 (display scanout imports, the console mapping) and for Ampere and later, where the pool has
 no host BAR1 limit.
+
+## The interrupt page removes the copy stall (2026-09-24, 18:24-19:07, vm0)
+
+The measurement the design H section asked for: `caraxes/runs/intr-copy-2026-09-24/run-vm0.sh`
+(the vm2 script of `caraxes/runs/bar1-pool-2026-09-24/intr-copy.sh` moved to vm0 at 2 GiB in
+slot 0, the display-series binary `vfio-user-nvgpu-fepage` of main with both pages, pool, token
+pool, hybrid reactor), `CARAXES_INTR_PAGE` off against on, copy, rlprobe and short kernel with
+5 reps each and PPO with 2; `summary.md` there. The host was busy (other VMs' device processes
+were active in 3 of 15 off runs and 7 of 15 on runs; load 4.3-4.8), so the spreads are wide;
+the medians tell the story. 0 host Xid in both modes.
+
+| Row | Page off | Page on | Native (closing series) |
+|---|---|---|---|
+| h2d pinned 1 MiB | 3.89 GB/s | 5.36 GB/s | about 12 |
+| d2h pinned 1 MiB | 3.74 | 5.41 | about 12 |
+| h2d pinned 16 MiB | 6.29 | **11.9** | 12-13 |
+| d2h pinned 16 MiB | 6.31 | **12.0** | 12-13 |
+| d2d device 16 MiB | 14.6 | **90.1** | about 190 |
+| d2d device 256 MiB | 178 | 175 | 193 |
+| h2d pinned 256 MiB | 12.9 | 12.9 | 12.9 |
+| rlprobe stage4 (50 episodes) | 18.7 s | 14.7 s | about 8 |
+| rlprobe transfers per second | 154 | 195 | |
+| PPO steps per second (2 runs) | 7628, 8340 | 10109, 9054 | |
+| short kernel, ms per launch | 0.232 | 0.128 | 0.045 |
+
+Reading: the 16 MiB copies were the stall (design H section: a fixed 0.9 ms per copy, the
+trapped completion interrupt). With the page the pinned 16 MiB copies run at native bandwidth
+and the d2d 16 MiB copy goes from 14.6 to 90 GB/s; the 256 MiB rows do not move because they
+were bandwidth-bound already. What stays at 1 MiB (5.4 against about 12 GB/s native) is the
+per-copy submission and completion cost that the page does not touch: the copies are copy-engine
+work on the mirror channel with a trapped fence wait at the end (alloc-path.md, the BAR2 memfd
+rows are the next candidates). rlprobe's stage4 loses 4 s of its 10.7 s gap to native, PPO gains
+15-30 percent. The page is on in every later series.
+
+Two caveats. The off mode of the first attempt collided with a second instance of the same
+script on the same VM (both waiting for the v1 gate run; the folder `off/` holds only the clean
+rerun of 19:00-19:07). And the binary predates the FB_FLUSH_GPU_CACHE flag fix for the 615 host
+(6450203), so the host kernel logged flush refusals during both modes (`hostwatch.txt`: 204 kernel
+log lines in off); both modes share the binary, so the comparison holds, and later series use a
+binary from main after the fix.
+

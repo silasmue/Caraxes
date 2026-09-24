@@ -1,0 +1,29 @@
+# target v2 metric ppo rep 2
+# cmd $HOME/gpu/venv/bin/python ./pporl.py --seconds 60
+# device /mnt/vmstore/caraxes/vm0/vfio-user-nvgpu sha256 adc21ce9a448de11
+# time 2026-09-24T18:46:56+02:00
+# gpu 69, 1845 MHz, 7000 MHz, P0, 12 %, 4248 MiB, Disabled
+# procs 210964:vm1-vmm 229255:vm1-dev 229269:vm1-vmm 253268:vm0-dev 253283:vm1-vmm 
+# loadavg 4.92 5.41 5.86
+device: Leandro VFIO RTX 2070-2G
+parallel environments: 128
+runtime: 60 seconds
+   10.7s | steps      65536 |      6129 steps/s | episodes    2725 | reward100    25.0
+   18.4s | steps     131072 |      7137 steps/s | episodes    5268 | reward100    23.7
+   26.6s | steps     196608 |      7386 steps/s | episodes    7898 | reward100    22.0
+   33.0s | steps     262144 |      7935 steps/s | episodes   10501 | reward100    25.3
+   39.6s | steps     327680 |      8280 steps/s | episodes   12735 | reward100    27.7
+   46.0s | steps     393216 |      8552 steps/s | episodes   14824 | reward100    32.5
+   52.5s | steps     458752 |      8745 steps/s | episodes   16536 | reward100    36.3
+   58.4s | steps     524288 |      8979 steps/s | episodes   17914 | reward100    65.6
+
+=== final ===
+runtime:       61.53 s
+steps:         557056
+episodes:      18664
+steps/s:       9054
+reward100:     45.9
+solve time:    not solved
+# PPO steps_per_s=9054 solve_s=-1 episodes=18664 reward100=45.9 envs=128 rollout=256
+# WALL wall_ms=68063 rc=0
+# MEAS dev_pid=253268 dev_cpu_ms=68030 dev_rss_hwm_kb=5265752/5267132 vmm_cpu_ms=51090 others: vm1-dev=-195770ms vm1-vmm=-540010ms vm1-vmm=930ms 

@@ -437,6 +437,10 @@ Pending: the display gate with the page on (B3 ran without it because of the hos
 window), a second pass of A and B3 for the run-to-run spread (series F had Mutter at 30-41 Hz
 between runs; A here was 48.8 Hz), and spin instead of hybrid.
 
+The copy rows with the page on and off were measured on vm0 on 2026-09-24 (18:24-19:07):
+benchmark.md, "The interrupt page removes the copy stall". Pinned 16 MiB copies go from 6.3 to
+11.9 GB/s (native 12-13), d2d 16 MiB from 14.6 to 90 GB/s, PPO gains 15-30 percent; 0 Xid.
+
 ## 10. The display front-end page (`CARAXES_DISPLAY_PAGE=1`)
 
 Written 2026-09-24 (evening) for the first row of §6a. Implementation:
