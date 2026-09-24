@@ -70,7 +70,7 @@ FAMILIES = [
     ("internal_uncalled", "INTERNAL controls without a kernel-RM call site in this tree",
      lambda n, f, c, r: r.startswith("internal, no kernel-RM call site")),
 ]
-RULE_GUARDS = ("E family", "A table")
+RULE_GUARDS = ("E family", "A table", "D table")
 
 
 def load_inventory(ogkm):

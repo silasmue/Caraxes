@@ -55,6 +55,10 @@ pub mod layouts610;
 pub mod surface615;
 #[path = "v615/ctrl_layouts.rs"]
 pub mod layouts615;
+#[path = "v610/dmodel.rs"]
+pub mod dmodel610;
+#[path = "v615/dmodel.rs"]
+pub mod dmodel615;
 
 /// One feature family of category E controls ("never expected from a stock client on
 /// this chip", docs/caraxes/gsp-surface.md §3.E) of one driver version.
@@ -78,6 +82,46 @@ pub struct Routed {
     /// A handler other than the table rules of chipctl.rs answered it when the table was
     /// generated (display, kgr, cuda, uvm, nvml or a match arm of ctrl.rs).
     pub other: bool,
+}
+
+/// The answer kind of a category D control (docs/caraxes/gsp-plan/d-device-model.md §2).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum DAnswer {
+    /// NV_ERR_NOT_SUPPORTED (or the status the header names): feature absent on this board.
+    Refuse,
+    /// Refused although a client may want it: the effect would reach shared host hardware.
+    Deny,
+    /// NV_OK with the request echoed: a setter no caller reads back.
+    Ack,
+    /// Static chip or board data (category A).
+    Table,
+    /// Answered from a device model's state (`model` names it).
+    Model,
+    /// Forwarded to the host mirror object of the guest's own channel or TSG.
+    Mirror,
+}
+
+/// One category D control and the plan's answer to it (generated from d-controls.tsv by
+/// caraxes/tools/gsp-dtable.py).
+#[derive(Debug)]
+pub struct DRule {
+    pub id: u32,
+    pub name: &'static str,
+    /// The §6 group (`fifo`, `disp`, `prof`, ...).
+    pub group: &'static str,
+    pub answer: DAnswer,
+    /// The model of a [`DAnswer::Model`] row (`display-connector`, `channel-registry`, ...).
+    pub model: &'static str,
+    /// The NV status of a Refuse, Deny or Ack row (from the tree's nvstatuscodes.h).
+    pub status: u32,
+    /// The category the row moves to: 'A', 'C', 'E', or '-' (stays D).
+    pub reclass: char,
+    /// 1 = on the CUDA or Wayland path now ... 5 = never on this chip (§5).
+    pub rank: u8,
+    /// `sizeof` of the parameter struct in this driver version.
+    pub size: usize,
+    /// The plan's reason where the answer names one (a status or a table value).
+    pub why: &'static str,
 }
 
 /// A control parameter struct as the compiler lays it out for one driver version.
@@ -158,6 +202,18 @@ pub struct Abi {
     pub e_inventory: usize,
     pub a_inventory: usize,
     pub layouts: &'static [CtrlLayout],
+    /// The category D rule table (docs/caraxes/gsp-plan/d-device-model.md, dmodel.rs).
+    pub d_rules: &'static [DRule],
+    /// The D rows that belong to E, as feature families beside `families`.
+    pub d_families: &'static [Family],
+    /// The ids of `d_families` answered NV_OK (echo) where the family is absent.
+    pub d_e_ack: &'static [u32],
+    /// The category D controls no other handler answered at generation time.
+    pub d_inventory: usize,
+    /// The profiler classes whose allocation is refused (6.16).
+    pub profiler_classes: &'static [(u32, &'static str)],
+    /// SDK enum values the modelled D controls use.
+    pub d_enums: &'static [(&'static str, u32)],
 }
 
 /// Every guest ABI the tables exist for.
@@ -170,6 +226,12 @@ pub const ABIS: &[Abi] = &[
         e_inventory: surface610::E_INVENTORY,
         a_inventory: surface610::A_INVENTORY,
         layouts: layouts610::CTRL_LAYOUTS,
+        d_rules: dmodel610::D_RULES,
+        d_families: dmodel610::D_FAMILIES,
+        d_e_ack: dmodel610::D_E_ACK,
+        d_inventory: dmodel610::D_INVENTORY,
+        profiler_classes: dmodel610::PROFILER_CLASSES,
+        d_enums: dmodel610::D_ENUMS,
     },
     Abi {
         name: "615",
@@ -179,6 +241,12 @@ pub const ABIS: &[Abi] = &[
         e_inventory: surface615::E_INVENTORY,
         a_inventory: surface615::A_INVENTORY,
         layouts: layouts615::CTRL_LAYOUTS,
+        d_rules: dmodel615::D_RULES,
+        d_families: dmodel615::D_FAMILIES,
+        d_e_ack: dmodel615::D_E_ACK,
+        d_inventory: dmodel615::D_INVENTORY,
+        profiler_classes: dmodel615::PROFILER_CLASSES,
+        d_enums: dmodel615::D_ENUMS,
     },
 ];
 
@@ -196,6 +264,16 @@ impl Abi {
 
     pub fn layout(&self, name: &str) -> Option<&'static CtrlLayout> {
         self.layouts.iter().find(|l| l.name == name)
+    }
+
+    /// The category D rule of `cmd`.
+    pub fn d_rule(&self, cmd: u32) -> Option<&'static DRule> {
+        self.d_rules.iter().find(|r| r.id == cmd)
+    }
+
+    /// An SDK enum value of a modelled D control.
+    pub fn d_enum(&self, name: &str) -> Option<u32> {
+        self.d_enums.iter().find(|e| e.0 == name).map(|e| e.1)
     }
 }
 

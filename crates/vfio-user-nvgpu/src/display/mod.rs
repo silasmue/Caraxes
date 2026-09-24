@@ -979,6 +979,24 @@ impl Display {
                 SYNTH,
                 "DIFR (display idle frame refresh): not supported",
             ),
+            // The category D rows of the display (docs/caraxes/gsp-plan/d-device-model.md 6.5
+            // rule 1), the NV2080 and NV9072 ones included: the board has no HDMI, FRL, MST,
+            // HDCP, panel, mux, pinsets or DP 2.x, so the rule table's REFUSE and ACK rows are
+            // this board's answers. The rows the plan moves to A or E are the chip tables'
+            // (chipctl.rs), the MODEL rows without a model stay unanswered.
+            c if crate::dmodel::rule(c).is_some_and(|r| matches!(r.reclass, 'A' | 'E')) => {
+                return None
+            }
+            c if crate::dmodel::rule(c).is_some_and(|r| r.group == "disp") => {
+                crate::dmodel::answer(c, params).unwrap_or_else(|| {
+                    fail(
+                        NV_ERR_NOT_SUPPORTED,
+                        b,
+                        "unanswered",
+                        format!("display control {cmd:#x} ({n} bytes): D row without a model yet"),
+                    )
+                })
+            }
             c if is_display_cmd(c) => fail(
                 NV_ERR_NOT_SUPPORTED,
                 b,

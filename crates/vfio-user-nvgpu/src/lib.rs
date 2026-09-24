@@ -26,6 +26,7 @@ pub mod cuda;
 pub mod device;
 pub mod display;
 pub mod dmamap;
+pub mod dmodel;
 pub mod falcon;
 pub mod fb;
 pub mod gmcapi;

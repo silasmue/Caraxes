@@ -700,6 +700,10 @@ impl Dispatcher {
         h_class: u32,
         params: &[u8],
     ) -> Answer {
+        // Profiler classes are refused (dmodel.rs, d-device-model.md 6.16).
+        if let Some(a) = crate::dmodel::alloc(h_class) {
+            return a;
+        }
         self.objects.insert((h_client, h_object), h_class);
         // Hotplug events are kept for the display's POST_EVENT (display/mod.rs).
         self.display
@@ -926,6 +930,10 @@ impl Dispatcher {
         // Category E refusals per feature family and the category A chip-data table
         // (chipctl.rs, docs/caraxes/gsp-surface.md §3).
         if let Some(a) = crate::chipctl::answer(self.chip, cmd, params) {
+            return a;
+        }
+        // Category D rule table (dmodel.rs, docs/caraxes/gsp-plan/d-device-model.md R0).
+        if let Some(a) = crate::dmodel::answer(cmd, params) {
             return a;
         }
         match cmd {
