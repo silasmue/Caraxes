@@ -6,7 +6,7 @@ kmd_version: 615.71.09
 count: 1
 name: NVIDIA GeForce RTX 5060 Ti
 serial: <redacted>
-uuid: GPU-b595f0d6-daab-a1de-296d-39753ab594c6
+uuid: GPU-00000000-0000-0000-0000-000000000000
 pci.bus_id: 00000000:01:00.0
 pci.domain: 0x0000
 pci.bus: 0x01

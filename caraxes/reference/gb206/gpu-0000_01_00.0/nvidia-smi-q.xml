@@ -32,7 +32,7 @@
 			<pending_dm>N/A</pending_dm>
 		</driver_model>
 		<serial>redacted</serial>
-		<uuid>GPU-b595f0d6-daab-a1de-296d-39753ab594c6</uuid>
+		<uuid>GPU-00000000-0000-0000-0000-000000000000</uuid>
 		<pdi>0x51faf242d79f891</pdi>
 		<minor_number>0</minor_number>
 		<vbios_version>98.06.1F.40.4A</vbios_version>

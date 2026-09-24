@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: MIT
 # lab-capture 1 (2026-09-24)
-# created 2026-09-24T10:47:53+02:00 on korngold, kernel 7.0.0-31-generic, driver 615.71.09, chip 10de-2d04, 1 GPU(s): 0000:01:00.0
+# created 2026-09-24T10:47:53+02:00 on lab-host, kernel 7.0.0-31-generic, driver 615.71.09, chip 10de-2d04, 1 GPU(s): 0000:01:00.0
 # options: rom=1 sudo=1 (sudo -n works) rm_tools=1; runtime 2s
 # status: ok = complete, reduced = captured with less detail (usually for lack of sudo),
 #         skipped = not captured (reason given), failed = tried and failed

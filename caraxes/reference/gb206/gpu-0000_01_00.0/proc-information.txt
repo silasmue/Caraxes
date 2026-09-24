@@ -2,7 +2,7 @@
 # command: cat /proc/driver/nvidia/gpus/0000:01:00.0/information
 Model: 		 NVIDIA GeForce RTX 5060 Ti
 IRQ:   		 145
-GPU UUID: 	 GPU-b595f0d6-daab-a1de-296d-39753ab594c6
+GPU UUID: 	 GPU-00000000-0000-0000-0000-000000000000
 Video BIOS: 	 98.06.1f.40.4a
 Bus Type: 	 PCIe
 DMA Size: 	 52 bits
