@@ -768,3 +768,24 @@ the VM; then display, expected to be much easier than in v1.
   of a CUDA process sends no D control (no 0x2080110B, no 0x20800177); the display gate itself
   sends `SET_ZBC_COLOR_CLEAR` three times (ZBC model, R3). No host Xid on the device's pid (one
   Xid 31 on vm1's device in the same hour).
+- 2026-09-24: **The Xid 31 in cuda-hostreg was the swiotlb alias, fixed**
+  ([memory-model.md](memory-model.md) §2 "The alias in the device", records in
+  `caraxes/runs/xid31-hostreg-2026-09-24/`).
+  - **Case.** vm1's cuda gate with main 7621cfb failed cuda-hostreg (719), with one Xid 31 on
+    the device pid 508533: `CE2 ... FAULT_PTE` at a GPU VA inside the pinned buffer.
+  - **Cause.** The guest aliases its swiotlb pool below 2^40, rounded out to 2 MiB, so
+    ordinary guest pages next to the pool get alias IOVAs. The device's table had no alias.
+    The shadow filter refused those leaves: the faulting VA was the first refused leaf. The
+    shadow had no PTE and the copy engine faulted on the VM's own channel.
+  - **Not a race, and not B and C.** Whether a buffer gets margin pages depends on the
+    guest's free lists, which is why the rerun passed.
+  - **Fix.** The device reads the guest's table (`<dma-ranges>.guest`) at every reset and
+    accepts only aliases of its own registered guest RAM (`DmaTable::aliases_of`). It
+    translates them for its own accesses. The shadow maps an alias leaf from the registered
+    descriptor of the same page. Three unit tests cover it.
+  - **Reproducer.** The new probe `caraxes/tools/hostreg-margin.c` registers exactly those
+    pages.
+  - **Runs.**
+    - Before, device pid 1131576: 719 and two Xid 31 on the device pid.
+    - After, device pid 1151433: hostreg-margin 20 of 20, hostregprobe 20 of 20, full cuda
+      gate 10 of 11 (only the known cuda-managed 801), 0 host Xid.
