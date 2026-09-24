@@ -48,13 +48,13 @@ type GuestAbi = v::RmAbi;
 pub const CHANNELS: &str =
     "guest (this VM's channels; host mirrors by their own channel objects only)";
 pub const RC: &str = "guest (RC of this VM's channel; reflected as RC_TRIGGERED)";
-pub const JOURNAL: &str = "guest (RC journal of this VM)";
+pub const RC_LOG: &str = "guest (RC error log of this VM)";
 
 /// USERD GPGet and GPPut (Volta and later; the offsets of channel.rs:50-51).
 const USERD_GP_GET: u64 = 0x88;
 const USERD_GP_PUT: u64 = 0x8C;
 /// Journal entries kept (the oldest go first).
-const JOURNAL_MAX: usize = 64;
+const RC_LOG_MAX: usize = 64;
 /// `NVB069_FAULT_BUF_ENTRY_INST_APERTURE` 9:8, `_INST_LO` 31:12 of word 0, `_INST_HI` word 1
 /// (class/clb069.h:35-40): VID_MEM 0, SYS_MEM_COHERENT 2, SYS_MEM_NONCOHERENT 3.
 const INST_APERTURE_VID: u32 = 0;
@@ -168,7 +168,7 @@ fn ans(status: u32, params: &[u8], label: &'static str, note: String) -> Answer 
 
 impl RcState {
     fn journal(&mut self, r: RcRecord) {
-        if self.journal.len() == JOURNAL_MAX {
+        if self.journal.len() == RC_LOG_MAX {
             self.journal.remove(0);
         }
         self.journal.push(r);
@@ -399,7 +399,7 @@ impl RcState {
         ans(
             0,
             params,
-            JOURNAL,
+            RC_LOG,
             format!("RC error history: {n} journal entries cleared"),
         )
     }

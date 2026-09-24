@@ -30,7 +30,7 @@ pub const RECORDED: &str = "guest (ZBC table of this VM; never written to the ho
 /// D9 label of a getter.
 pub const READ: &str = "guest (ZBC table of this VM: the chip defaults read once from the host, then this guest's entries)";
 
-/// One table entry: the value words (colour: colorFB[4] then colorDS[4]; depth and stencil:
+/// One table entry: the value words (colour: `colorFB[4]` then `colorDS[4]`; depth and stencil:
 /// one word) and the format.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Entry {

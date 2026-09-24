@@ -112,7 +112,7 @@ pub const OEL_ERR_STRING: usize = 16;
 pub const OEL_ERR_STRING_LEN: usize = 0x100;
 
 /// An Xid for the guest's log (`_kgspRpcOsErrorLog`, kernel_gsp.c:849-885, prints
-/// "NVRM: Xid (PCI:...): N, pid=..., name=..., <errString>" through
+/// "NVRM: Xid (PCI:...): N, pid=..., name=..., `<errString>`" through
 /// kernel_rc.c:388-400). The string carries guest facts only, never a host Xid line.
 pub fn os_error_log(except_type: u32, runlist_id: u32, chid: u32, text: &str) -> Vec<u8> {
     let mut b = vec![0u8; OS_ERROR_LOG_SIZE];
