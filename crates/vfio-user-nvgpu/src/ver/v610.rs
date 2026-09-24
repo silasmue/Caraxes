@@ -691,6 +691,16 @@ pub const PES_INFO_MAP_LEN: usize = 10;
 /// NV2080_CTRL_INTERNAL_STATIC_GR_GLOBAL_SM_ORDER (ctrl2080internal.h:223-238): 512 SMs
 /// of nine u16, then numSm and numTpc.
 pub const SM_ENTRY: usize = 18;
+/// One SM of the host's public NV2080_CTRL_GR_GET_GLOBAL_SM_ORDER_PARAMS (the host driver
+/// is this version): nine u16. A guest version with a wider entry converts
+/// (kgr.rs, docs/caraxes/gsp-transport-615.md §7).
+pub const HOST_SM_ENTRY: usize = size_of::<ffi::NV2080_CTRL_GR_GET_GLOBAL_SM_ORDER_PARAMS__bindgen_ty_1>();
+/// `numSm` in the host's public struct (numTpc follows).
+pub const HOST_SM_ORDER_NUM_SM: usize =
+    offset_of!(ffi::NV2080_CTRL_GR_GET_GLOBAL_SM_ORDER_PARAMS, numSm);
+/// Where a guest SM entry has the field the host entry lacks: nowhere in this version
+/// (the entry is the host's).
+pub const SM_ENTRY_WIDENED_AT: usize = SM_ENTRY;
 pub const SM_ORDER_ELEM: usize = size_of::<ffi::NV2080_CTRL_INTERNAL_STATIC_GR_GLOBAL_SM_ORDER>();
 pub const SM_ORDER_NUM_SM: usize =
     offset_of!(ffi::NV2080_CTRL_INTERNAL_STATIC_GR_GLOBAL_SM_ORDER, numSm);

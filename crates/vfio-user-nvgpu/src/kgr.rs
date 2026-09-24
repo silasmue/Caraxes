@@ -81,6 +81,7 @@ pub use crate::ver::active::{
     SM_ORDER_ELEM, SM_ORDER_NUM_SM, SM_ORDER_PARAMS, ZCULL_ELEM, ZCULL_PARAMS,
 };
 use crate::ver::active::{NV20_SUBDEVICE_0, NV_ERR_NOT_SUPPORTED, NV_OK};
+use crate::ver::active::{HOST_SM_ENTRY, HOST_SM_ORDER_NUM_SM, SM_ENTRY_WIDENED_AT};
 
 /// The host RM as the handlers see it (the device's own boxed client).
 type Host<'a> = Option<&'a mut (dyn HostRm + 'static)>;
@@ -149,6 +150,42 @@ fn forward_elem(
             Ok(b)
         }
         Some(st) => Err(Some(st)),
+    }
+}
+
+/// The global SM order for a guest whose SM entry is wider than the host's (a 615 guest
+/// on the 610 host: `virtualDpcId` inserted after `virtualGpcId`, ten u16 instead of
+/// nine; docs/caraxes/gsp-transport-615.md §7). Each host entry is copied field by field
+/// around the new u16, which stays 0 (no DPC before Blackwell); numSm and numTpc follow
+/// the entries in both. Never an error, as the unwidened answer.
+fn sm_order_widened(host: &mut Host<'_>, n: usize) -> Answer {
+    let mut p = vec![0u8; PUB_SM_ORDER];
+    match host_call(host, CMD_GR_GET_GLOBAL_SM_ORDER, &mut p) {
+        Some(NV_OK) => {
+            let mut b = vec![0u8; SM_ORDER_PARAMS];
+            let wide = SM_ENTRY - HOST_SM_ENTRY;
+            for i in 0..HOST_SM_ORDER_NUM_SM / HOST_SM_ENTRY {
+                let (h, g) = (i * HOST_SM_ENTRY, i * SM_ENTRY);
+                b[g..g + SM_ENTRY_WIDENED_AT].copy_from_slice(&p[h..h + SM_ENTRY_WIDENED_AT]);
+                b[g + SM_ENTRY_WIDENED_AT + wide..g + SM_ENTRY]
+                    .copy_from_slice(&p[h + SM_ENTRY_WIDENED_AT..h + HOST_SM_ENTRY]);
+            }
+            b[SM_ORDER_NUM_SM..SM_ORDER_NUM_SM + 4]
+                .copy_from_slice(&p[HOST_SM_ORDER_NUM_SM..HOST_SM_ORDER_NUM_SM + 4]);
+            let num_sm = u16::from_le_bytes([b[SM_ORDER_NUM_SM], b[SM_ORDER_NUM_SM + 1]]);
+            ok(
+                b,
+                n,
+                "host (GR_GET_GLOBAL_SM_ORDER, entries widened; virtualDpcId 0 synthesized)",
+                format!("kgr global SM order: {num_sm} SMs from host, entries widened {HOST_SM_ENTRY} to {SM_ENTRY} bytes"),
+            )
+        }
+        e => ok(
+            vec![0u8; SM_ORDER_PARAMS],
+            n,
+            "synthesized fallback (empty SM order)",
+            format!("kgr global SM order: zeros ({})", why(e)),
+        ),
     }
 }
 
@@ -306,6 +343,9 @@ pub fn answer(
                 format!("kgr floorsweeping masks: all zero ({})", why(e)),
             ),
         },
+        CMD_INTERNAL_STATIC_KGR_GET_GLOBAL_SM_ORDER if SM_ENTRY != HOST_SM_ENTRY => {
+            sm_order_widened(host, n)
+        }
         CMD_INTERNAL_STATIC_KGR_GET_GLOBAL_SM_ORDER => {
             // Fatal (kgr.c:1290-1297), so never an error. The public struct's first
             // 9220 bytes are the internal element field by field (same nine u16 per
