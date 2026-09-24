@@ -37,6 +37,9 @@ pub struct FbLayout {
     pub profile: u64,
     /// The host VRAM reservation `[base, end)`, when there is one.
     pub reservation: Option<(u64, u64)>,
+    /// P21 design H: bytes of the reservation below the carve-out held back as the BAR1
+    /// pool (docs/caraxes/bar1-pool.md); 0 without it. Taken out of the usable FB.
+    pub pool: u64,
 }
 
 impl FbLayout {
@@ -46,6 +49,7 @@ impl FbLayout {
             addr_space: profile,
             profile,
             reservation: None,
+            pool: 0,
         }
     }
 
@@ -73,7 +77,35 @@ impl FbLayout {
             addr_space,
             profile,
             reservation: Some((base, end)),
+            pool: 0,
         })
+    }
+
+    /// The same layout with a BAR1 pool of `len` bytes (a multiple of 2 MiB) carved from
+    /// the top of the usable FB, right below the carve-out: the guest's region table then
+    /// ends its usable region below the pool and reports the pool as reserved
+    /// (docs/caraxes/bar1-pool.md).
+    pub fn with_pool(self, len: u64) -> Result<Self, String> {
+        let (lo, hi) = self
+            .usable()
+            .ok_or("the BAR1 pool needs a VRAM reservation (--reserve-vram)")?;
+        if len == 0 || len % (2 * MIB) != 0 || len.saturating_add(2 * MIB) > hi - lo {
+            return Err(format!(
+                "BAR1 pool of {len:#x} bytes does not fit the usable FB [{lo:#x}, {hi:#x}) in 2 MiB units"
+            ));
+        }
+        Ok(FbLayout {
+            pool: self.pool + len,
+            ..self
+        })
+    }
+
+    /// The BAR1 pool `[start, end)`, right below the carve-out, when there is one.
+    pub fn pool_range(&self) -> Option<(u64, u64)> {
+        match self.reservation {
+            Some((_, end)) if self.pool > 0 => Some((end - CARVE_OUT - self.pool, end - CARVE_OUT)),
+            _ => None,
+        }
     }
 
     /// `(bar2PdeBase, bar1PdeBase)` in the carve-out, with a reservation.
@@ -82,10 +114,11 @@ impl FbLayout {
             .map(|(_, end)| (end - CARVE_OUT, end - CARVE_OUT + PAGE))
     }
 
-    /// The usable FB `[base, end - CARVE_OUT)` the region table gives the guest's heap,
-    /// with a reservation.
+    /// The usable FB `[base, end - CARVE_OUT - pool)` the region table gives the guest's
+    /// heap, with a reservation.
     pub fn usable(&self) -> Option<(u64, u64)> {
-        self.reservation.map(|(base, end)| (base, end - CARVE_OUT))
+        self.reservation
+            .map(|(base, end)| (base, end - CARVE_OUT - self.pool))
     }
 
     /// Whether `[pa, pa + len)` lies inside the reservation (always, without one).
@@ -663,6 +696,9 @@ pub struct FakeFb {
     watched_pages: RefCell<std::collections::HashSet<u64>>,
     /// P21: the BAR1 passthrough area and its check, when on.
     bar1_pt: RefCell<Option<Bar1Pt>>,
+    /// P21 design H: the BAR1 pool and its remap table, when on (bar1pool.rs). Every FB
+    /// access of this model goes through [`Self::remap`].
+    pool: RefCell<Option<crate::bar1pool::Bar1Pool>>,
     /// The guest's page tables are in the GMMU v3 format (Hopper and Blackwell,
     /// `gmmu-v3-57bit`): the walks below hand over to [`crate::gmmu_v3`]; false keeps the
     /// v2 walker of this file.
@@ -692,6 +728,7 @@ impl FakeFb {
             watched: RefCell::new(HashMap::new()),
             watched_pages: RefCell::new(std::collections::HashSet::new()),
             bar1_pt: RefCell::new(None),
+            pool: RefCell::new(None),
             mmu_v3: false,
         }
     }
@@ -707,6 +744,12 @@ impl FakeFb {
     /// it from the store, later calls answer from the copy `note_write` keeps current.
     /// `None` when `pa` is outside the store.
     pub fn watched_dword(&self, pa: u64) -> Option<u32> {
+        if self.is_remapped(pa) {
+            // A pool page: the guest writes it through the BAR1 area, which bypasses
+            // `note_write`, so a copy would go stale. Read the store every time.
+            let mut b = [0u8; 4];
+            return self.read(pa, &mut b).then(|| u32::from_le_bytes(b));
+        }
         if let Some(v) = self.watched.borrow().get(&pa) {
             return Some(*v);
         }
@@ -773,6 +816,9 @@ impl FakeFb {
             if let Some(pt) = self.bar1_pt.borrow_mut().as_mut() {
                 pt.hazard_dirty = true;
             }
+            if let Some(p) = self.pool.borrow_mut().as_mut() {
+                p.hazard_dirty = true;
+            }
         }
         u
     }
@@ -792,6 +838,9 @@ impl FakeFb {
             if !pt.walk_dirty && (pa >> 12..=last).any(|p| pt.table_pages.contains(&p)) {
                 pt.walk_dirty = true;
             }
+        }
+        if let Some(p) = self.pool.borrow_mut().as_mut() {
+            p.note_table_write(pa >> 12, last);
         }
         {
             let wp = self.watched_pages.borrow();
@@ -919,7 +968,12 @@ impl FakeFb {
         if pa + buf.len() as u64 > self.size {
             return false;
         }
-        self.store.read(pa, buf);
+        match self.pool.borrow().as_ref().map(|p| &p.table).filter(|t| !t.is_empty()) {
+            None => self.store.read(pa, buf),
+            Some(t) => t.for_each_piece(pa, buf.len(), |hpa, off, n| {
+                self.store.read(hpa, &mut buf[off..off + n])
+            }),
+        }
         true
     }
 
@@ -930,7 +984,12 @@ impl FakeFb {
         }
         self.filter.before_write(pa, data);
         self.note_write(pa, data);
-        self.store.write(pa, data);
+        match self.pool.borrow().as_ref().map(|p| &p.table).filter(|t| !t.is_empty()) {
+            None => self.store.write(pa, data),
+            Some(t) => t.for_each_piece(pa, data.len(), |hpa, off, n| {
+                self.store.write(hpa, &data[off..off + n])
+            }),
+        }
         true
     }
 
@@ -1340,6 +1399,13 @@ impl FakeFb {
             pt.hazard_dirty = true;
             *to.bar1_pt.borrow_mut() = Some(pt);
         }
+        // The pool area stays mapped by the VMM across the reset as well; the remaps go
+        // with the old model (its host channels and shadows are freed with it) and the
+        // fresh model walks the guest's new BAR1 tables from scratch. No data is copied
+        // back: the guest re-initializes its FB after a function-level reset.
+        if let Some(p) = self.pool.borrow_mut().take() {
+            *to.pool.borrow_mut() = Some(p.after_reset());
+        }
     }
 
     /// `(fb0, len)` of the passthrough area, when on.
@@ -1352,88 +1418,194 @@ impl FakeFb {
         self.bar1_pt.borrow().as_ref().map(|p| p.stats.clone())
     }
 
+    /// Turn on the BAR1 pool (P21 design H, docs/caraxes/bar1-pool.md): guest BAR1
+    /// `[0, len)` is backed by the pool `[pool0, pool0 + len)`, the guest's BAR1 tables are
+    /// rooted at `root`, and only pages of `usable` may be remapped into the pool. The first
+    /// [`crate::bar1pool::poll`] walks the whole area.
+    pub fn set_bar1_pool(&mut self, root: u64, pool0: u64, len: u64, usable: (u64, u64)) {
+        *self.pool.borrow_mut() = Some(crate::bar1pool::Bar1Pool::new(root, pool0, len, usable));
+    }
+
+    /// `(pool0, len)` of the BAR1 pool, when on.
+    pub fn bar1_pool(&self) -> Option<(u64, u64)> {
+        self.pool.borrow().as_ref().map(|p| p.table.pool())
+    }
+
+    /// The pool state (bar1pool.rs).
+    pub(crate) fn pool_mut(&self) -> std::cell::RefMut<'_, Option<crate::bar1pool::Bar1Pool>> {
+        self.pool.borrow_mut()
+    }
+
+    /// The one translation every device path applies to a guest FB address (P21 design
+    /// H): a page the guest maps into the BAR1 pool area lives at its pool page, every
+    /// other address at itself. The FB store (and with it BAR2, PRAMIN, the BAR aperture
+    /// TLB's targets, the table walks and the software executor) applies it inside
+    /// [`Self::read`] and [`Self::write`]; the shadow (its leaves) and the mirror (USERD
+    /// handed to a host channel) call it for the addresses they give the host RM.
+    pub fn remap(&self, pa: u64) -> u64 {
+        match self.pool.borrow().as_ref() {
+            Some(p) => p.table.translate(pa),
+            None => pa,
+        }
+    }
+
+    /// Whether the page of `pa` is remapped into the pool now.
+    pub fn is_remapped(&self, pa: u64) -> bool {
+        self.pool
+            .borrow()
+            .as_ref()
+            .is_some_and(|p| p.table.is_remapped(pa))
+    }
+
+    /// Guest GMMU leaves `(va, target, size, kind)` as the physical GPU must see them: a
+    /// leaf on a page that lives in the pool now points at its pool page; a 64 KiB or
+    /// 2 MiB leaf with a remapped page inside is split into 4 KiB leaves (the shadow maps
+    /// them one by one and coalesces the contiguous rest). Unchanged without a pool.
+    pub fn remap_leaves(&self, leaves: Vec<(u64, Target, u64, u8)>) -> Vec<(u64, Target, u64, u8)> {
+        match self.pool.borrow().as_ref().map(|p| &p.table).filter(|t| !t.is_empty()) {
+            None => leaves,
+            Some(t) => leaves.into_iter().flat_map(|l| t.split_leaf(l)).collect(),
+        }
+    }
+
+    /// Whether a remap changed a page the shadow of guest root `root` maps (the shadow must
+    /// re-diff every unit of that root at its next sync).
+    pub fn pool_rediff_pending(&self, root: u64) -> bool {
+        self.pool
+            .borrow()
+            .as_ref()
+            .is_some_and(|p| p.rediff.contains(&root))
+    }
+
+    /// [`Self::pool_rediff_pending`], and clear it (the shadow's plan is taking it).
+    pub fn take_pool_rediff(&self, root: u64) -> bool {
+        self.pool
+            .borrow_mut()
+            .as_mut()
+            .is_some_and(|p| p.rediff.remove(&root))
+    }
+
+    /// Copy one 4 KiB page from FB address `from` to `to` in the store itself, past the
+    /// remap (the pool's copy-in and copy-back).
+    pub(crate) fn copy_page_raw(&mut self, from: u64, to: u64) {
+        let mut b = vec![0u8; PAGE as usize];
+        self.store.read(from, &mut b);
+        self.store.write(to, &b);
+    }
+
+    /// Drop the watched copies of the dwords on page `page` (its bytes moved).
+    pub(crate) fn forget_watched_page(&self, page: u64) {
+        self.watched.borrow_mut().retain(|k, _| k >> 12 != page);
+    }
+
+    /// Whether page `page` is a guest page-table page one of the cached walks watches.
+    pub(crate) fn watches_table_page(&self, page: u64) -> bool {
+        self.walks.borrow().values().any(|c| c.watches(page))
+    }
+
+    /// The pool's exit-summary line, when on.
+    pub fn bar1_pool_summary(&self) -> Option<String> {
+        self.pool.borrow().as_ref().map(|p| p.summary())
+    }
+
     /// Every mapped 4 KiB page of the BAR1 range `[0, len)` under `root`, and the table
     /// pages the walk read. Reads each table once per 2 MiB unit (the area is one or a
     /// few PD0 entries), not five qwords per page: BAR1 reads of VRAM are uncached.
     fn area_walk(&self, root: u64, len: u64) -> (Vec<(u64, Target)>, HashSet<u64>) {
         let mut out = Vec::new();
         let mut pages = HashSet::from([root >> 12]);
-        let note = |pages: &mut HashSet<u64>, t: Target| {
+        let mut va = 0u64;
+        while va < len {
+            let n = ((len - va).min(0x20_0000) >> 12) as usize;
+            let (m, p) = self.area_walk_unit(root, va, n);
+            out.extend(m);
+            pages.extend(p);
+            va += 0x20_0000;
+        }
+        (out, pages)
+    }
+
+    /// The area walk of one 2 MiB unit at BAR1 `va` (2 MiB aligned), its first `n` 4 KiB
+    /// pages: every mapped page `(guest BAR1 offset, page target)` and the FB table pages
+    /// read (the root included).
+    pub(crate) fn area_walk_unit(
+        &self,
+        root: u64,
+        va: u64,
+        n: usize,
+    ) -> (Vec<(u64, Target)>, Vec<u64>) {
+        let mut out = Vec::new();
+        let mut pages = vec![root >> 12];
+        let note = |pages: &mut Vec<u64>, t: Target| {
             if let Target::Fb(pa) = t {
-                pages.insert(pa >> 12);
+                pages.push(pa >> 12);
             }
         };
-        let mut unit = 0u64;
-        while unit < len {
-            let va = unit;
-            unit += 0x20_0000;
-            let Some(e3) = self.read_u64(root + 8 * ((va >> 47) & 3)) else {
-                continue;
-            };
-            let Some(pd2) = Self::next_table(e3) else {
-                continue;
-            };
-            note(&mut pages, pd2);
-            let Some(e2) = self.table_u64(None, pd2, 8 * ((va >> 38) & 0x1FF)) else {
-                continue;
-            };
-            let Some(pd1) = Self::next_table(e2) else {
-                continue;
-            };
-            note(&mut pages, pd1);
-            let Some(e1) = self.table_u64(None, pd1, 8 * ((va >> 29) & 0x1FF)) else {
-                continue;
-            };
-            let Some(pd0) = Self::next_table(e1) else {
-                continue;
-            };
-            note(&mut pages, pd0);
-            let idx0 = (va >> 21) & 0xFF;
-            let (Some(lo), Some(hi)) = (
-                self.table_u64(None, pd0, 16 * idx0),
-                self.table_u64(None, pd0, 16 * idx0 + 8),
-            ) else {
-                continue;
-            };
-            let n = ((len - va).min(0x20_0000) >> 12) as usize;
-            if lo & 1 == 1 {
-                // A 2 MiB page: every 4 KiB page of the unit at its offset.
-                for i in 0..n as u64 {
-                    let t = Self::decode_pte(lo, i << 12);
-                    if matches!(t, Target::Fb(_) | Target::Sys(_)) {
-                        out.push((va + (i << 12), t));
-                    }
-                }
-                continue;
-            }
-            let big_t = Self::big_table(lo);
-            let small_t = Self::next_table(hi);
-            if let Some(t) = big_t {
-                note(&mut pages, t);
-            }
-            if let Some(t) = small_t {
-                note(&mut pages, t);
-            }
-            let big = big_t.and_then(|t| self.table_block(None, t, 32));
-            let small = small_t.and_then(|t| self.table_block(None, t, 512));
-            for i in 0..n {
-                let g = va + ((i as u64) << 12);
-                // walk_in's precedence: the small PTE unless it is invalid and a big
-                // table exists, then the big PTE.
-                let from_small = small
-                    .as_ref()
-                    .map(|pt| Self::decode_pte(pt[i], 0))
-                    .filter(|t| !matches!(t, Target::Unmapped { .. }) || big.is_none());
-                let t = match from_small {
-                    Some(t) => t,
-                    None => match &big {
-                        Some(bt) => Self::decode_pte(bt[i >> 4], (g & 0xFFFF) & !0xFFF),
-                        None => Target::Unmapped { level: 0 },
-                    },
-                };
+        let Some(e3) = self.read_u64(root + 8 * ((va >> 47) & 3)) else {
+            return (out, pages);
+        };
+        let Some(pd2) = Self::next_table(e3) else {
+            return (out, pages);
+        };
+        note(&mut pages, pd2);
+        let Some(e2) = self.table_u64(None, pd2, 8 * ((va >> 38) & 0x1FF)) else {
+            return (out, pages);
+        };
+        let Some(pd1) = Self::next_table(e2) else {
+            return (out, pages);
+        };
+        note(&mut pages, pd1);
+        let Some(e1) = self.table_u64(None, pd1, 8 * ((va >> 29) & 0x1FF)) else {
+            return (out, pages);
+        };
+        let Some(pd0) = Self::next_table(e1) else {
+            return (out, pages);
+        };
+        note(&mut pages, pd0);
+        let idx0 = (va >> 21) & 0xFF;
+        let (Some(lo), Some(hi)) = (
+            self.table_u64(None, pd0, 16 * idx0),
+            self.table_u64(None, pd0, 16 * idx0 + 8),
+        ) else {
+            return (out, pages);
+        };
+        if lo & 1 == 1 {
+            // A 2 MiB page: every 4 KiB page of the unit at its offset.
+            for i in 0..n as u64 {
+                let t = Self::decode_pte(lo, i << 12);
                 if matches!(t, Target::Fb(_) | Target::Sys(_)) {
-                    out.push((g, t));
+                    out.push((va + (i << 12), t));
                 }
+            }
+            return (out, pages);
+        }
+        let big_t = Self::big_table(lo);
+        let small_t = Self::next_table(hi);
+        if let Some(t) = big_t {
+            note(&mut pages, t);
+        }
+        if let Some(t) = small_t {
+            note(&mut pages, t);
+        }
+        let big = big_t.and_then(|t| self.table_block(None, t, 32));
+        let small = small_t.and_then(|t| self.table_block(None, t, 512));
+        for i in 0..n {
+            let g = va + ((i as u64) << 12);
+            // walk_in's precedence: the small PTE unless it is invalid and a big
+            // table exists, then the big PTE.
+            let from_small = small
+                .as_ref()
+                .map(|pt| Self::decode_pte(pt[i], 0))
+                .filter(|t| !matches!(t, Target::Unmapped { .. }) || big.is_none());
+            let t = match from_small {
+                Some(t) => t,
+                None => match &big {
+                    Some(bt) => Self::decode_pte(bt[i >> 4], (g & 0xFFFF) & !0xFFF),
+                    None => Target::Unmapped { level: 0 },
+                },
+            };
+            if matches!(t, Target::Fb(_) | Target::Sys(_)) {
+                out.push((g, t));
             }
         }
         (out, pages)

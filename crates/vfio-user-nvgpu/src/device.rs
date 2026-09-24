@@ -613,6 +613,10 @@ impl Device {
                 s.push_str(&l);
                 s.push('\n');
             }
+            if let Some(l) = b.fb.bar1_pool_summary() {
+                s.push_str(&l);
+                s.push('\n');
+            }
             let kinds = b.fb.pte_kinds();
             if !kinds.is_empty() {
                 let unsafe_pte = kinds
@@ -718,6 +722,10 @@ impl ServerBackend for Device {
             // mapping and before it uses the mapping.
             if let Some(b) = self.bar0.boot() {
                 b.fb.poll_bar1_passthrough();
+            }
+            // P21 design H: the same point moves pages into and out of the BAR1 pool.
+            if let Some(b) = self.bar0.boot_mut() {
+                crate::bar1pool::poll_model(b, &self.mem);
             }
         }
         for n in self.bar0.take_notes() {

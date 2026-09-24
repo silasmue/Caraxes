@@ -394,7 +394,10 @@ impl ShadowFront {
     /// Whether the next sync has work: the guest wrote a table page of this root, or the
     /// exclusions changed, or always-resync is on.
     pub fn needs_sync(&self, fb: &FakeFb, exclude: &[(u64, u64)]) -> bool {
-        self.always || exclude != self.exclude.as_slice() || fb.tables_dirty(Target::Fb(self.root))
+        self.always
+            || exclude != self.exclude.as_slice()
+            || fb.tables_dirty(Target::Fb(self.root))
+            || fb.pool_rediff_pending(self.root)
     }
 
     /// Walk what changed (ptcache.rs) and filter it (D16/D17): the plan for [`ShadowVas::apply`].
@@ -420,7 +423,9 @@ impl ShadowFront {
         let root = Target::Fb(self.root);
         let upd = fb.walk_update(Some(sys_mem), root, self.always, MAX_LEAVES);
         let mut units: BTreeSet<u64> = upd.changed.iter().copied().collect();
-        if exclude_changed || upd.full {
+        // P21 design H: a page this root maps moved into or out of the BAR1 pool.
+        let pool_moved = fb.take_pool_rediff(self.root);
+        if exclude_changed || upd.full || pool_moved {
             if let Some(all) = fb.with_walk(root, |c| c.units_with_leaves()) {
                 units.extend(all);
             }
@@ -437,9 +442,11 @@ impl ShadowFront {
         };
         let mut logged = 0usize;
         for &u in &units {
-            let leaves = fb
-                .with_walk(root, |c| c.unit_leaves(u).to_vec())
-                .unwrap_or_default();
+            // P21 design H: leaves on pool pages point there (fb.rs `remap`).
+            let leaves = fb.remap_leaves(
+                fb.with_walk(root, |c| c.unit_leaves(u).to_vec())
+                    .unwrap_or_default(),
+            );
             plan.walked += leaves.len();
             let mut want_u: Vec<ToMap> = Vec::new();
             let old: Vec<u64> = self.refused.range(u..u + REGION).map(|(v, _)| *v).collect();
@@ -1146,6 +1153,64 @@ mod tests {
         assert_eq!(class_of(0x1_0000), Class::Small);
         assert_eq!(class_of(REGION), Class::Huge);
         assert_eq!(0x100_04e0_1000u64 & !(REGION - 1), 0x100_04e0_0000);
+    }
+
+    #[test]
+    fn a_leaf_on_a_bar1_pool_page_is_mirrored_to_the_pool_page() {
+        // P21 design H (bar1pool.rs): the plan maps a leaf on a remapped page at its pool
+        // page, splits a big leaf around it, and re-diffs when only the remap changed.
+        let mut fb = FakeFb::new(END + (64 << 20));
+        let vid = |a: u64| ((a >> 12) << 8) | 0b010;
+        let pte = |a: u64| ((a >> 12) << 8) | 1 | (6u64 << 56);
+        let (root, pd2, pd1, pd0, pt, bt) = (
+            BASE,
+            BASE + 0x1000,
+            BASE + 0x2000,
+            BASE + 0x3000,
+            BASE + 0x4000,
+            BASE + 0x5000,
+        );
+        fb.write_u64(root, vid(pd2));
+        fb.write_u64(pd2, vid(pd1));
+        fb.write_u64(pd1, vid(pd0));
+        fb.write_u64(pd0, ((bt >> 8) << 4) | 0b010);
+        fb.write_u64(pd0 + 8, vid(pt));
+        let x = BASE + 0x10_0000;
+        fb.write_u64(pt + 8, pte(x)); // VA 0x1000 -> X (4 KiB)
+        fb.write_u64(bt + 8, pte(BASE + 0x20_0000)); // VA 0x10000 -> 64 KiB
+        let pool0 = END - (8 << 20);
+        fb.set_bar1_pool(0, pool0, 4 << 20, (BASE, pool0));
+        let mem = GuestMemory::new();
+        let mut front = ShadowFront::new(root);
+        let want = |plan: &Plan| -> Vec<(u64, Target, u64, u64)> {
+            plan.units
+                .iter()
+                .flat_map(|(_, w)| w.iter().map(|m| (m.va, m.leaf.target, m.leaf.size, m.off)))
+                .collect()
+        };
+        let p = front.plan(&fb, &mem, BASE, END, 1, &[], &[]).unwrap();
+        assert_eq!(want(&p)[0], (0x1000, Target::Fb(x), 0x1000, x - BASE));
+        assert!(front.plan(&fb, &mem, BASE, END, 1, &[], &[]).is_none());
+        // X and one page of the big leaf move into the pool; the pool poll asks the root
+        // to re-diff.
+        {
+            let mut g = fb.pool_mut();
+            let pool = g.as_mut().unwrap();
+            pool.table.install(0x3000, x, (BASE, pool0)).unwrap();
+            pool.table.install(0x4000, BASE + 0x20_2000, (BASE, pool0)).unwrap();
+            pool.rediff.insert(root);
+        }
+        assert!(front.needs_sync(&fb, &[]));
+        let p = front.plan(&fb, &mem, BASE, END, 1, &[], &[]).unwrap();
+        let w = want(&p);
+        assert_eq!(w.len(), 17);
+        assert_eq!(w[0], (0x1000, Target::Fb(pool0 + 0x3000), 0x1000, pool0 + 0x3000 - BASE));
+        assert_eq!(w[1], (0x10000, Target::Fb(BASE + 0x20_0000), 0x1000, 0x20_0000));
+        assert_eq!(w[3], (0x12000, Target::Fb(pool0 + 0x4000), 0x1000, pool0 + 0x4000 - BASE));
+        // The split leaves coalesce around the pool page.
+        let items: Vec<ToMap> = p.units.iter().flat_map(|(_, w)| w.iter().copied()).collect();
+        assert_eq!(coalesce(&items[1..]).len(), 3);
+        assert!(!front.needs_sync(&fb, &[]));
     }
 
     #[test]

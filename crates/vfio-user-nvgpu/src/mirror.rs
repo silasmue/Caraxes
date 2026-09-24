@@ -402,6 +402,28 @@ impl Mirror {
         self.descs.clone().unwrap_or_default()
     }
 
+    /// P21 design H (bar1pool.rs): every mirrored channel as `(guest chid, the guest root of
+    /// its shadow VAS or None, its host TSG handle)`.
+    pub fn pool_channels(&self) -> Vec<(u32, Option<u64>, Option<u32>)> {
+        self.channels
+            .iter()
+            .map(|(chid, c)| (*chid, c.shadow_root, self.tsgs.get(&c.tsg).map(|t| t.handle)))
+            .collect()
+    }
+
+    /// P21 design H: the guest roots that have a shadow VAS.
+    pub fn shadow_roots(&self) -> Vec<u64> {
+        self.shadows.keys().copied().collect()
+    }
+
+    /// P21 design H: `NVA06C_CTRL_CMD_PREEMPT` with wait on host TSG `handle` (ctrla06c.h:
+    /// 203-211, NON_PRIVILEGED): its channels are off the engines when this returns.
+    pub fn preempt_tsg(&self, handle: u32) -> u32 {
+        // bWait, bManualTimeout, pad, timeoutUs.
+        let mut p = [1u8, 0, 0, 0, 0, 0, 0, 0];
+        self.hm.lock().unwrap().control(handle, 0xA06C_0105, &mut p)
+    }
+
     /// Wait until the worker applied everything submitted so far: the mirror of every
     /// root is then consistent with the guest's tables as of the last resync (the
     /// ordering guarantee a doorbell needs).
@@ -624,7 +646,12 @@ impl Mirror {
                 tsg
             }
         };
-        let userd = match ch.userd {
+        // P21 design H: a USERD page the guest maps into the BAR1 pool area lives at its
+        // pool page (fb.rs `remap`).
+        let userd = match ch.userd.map(|t| match t {
+            Target::Fb(pa) => Target::Fb(gm.fb.remap(pa)),
+            t => t,
+        }) {
             Some(Target::Fb(pa)) if pa >= self.base && pa + PAGE <= self.end => {
                 (self.reservation, pa - self.base)
             }
@@ -1255,7 +1282,11 @@ impl Mirror {
         let mut owned: Vec<u32> = Vec::new();
         let r = (|| -> Result<Built, String> {
             // USERD: the guest's page, as the host memory object over the same bytes.
-            let (userd_mem, userd_off) = match ch.userd {
+            // P21 design H: the USERD's pool page when it lives in the pool (fb.rs `remap`).
+            let (userd_mem, userd_off) = match ch.userd.map(|t| match t {
+                Target::Fb(pa) => Target::Fb(gm.fb.remap(pa)),
+                t => t,
+            }) {
                 Some(Target::Fb(pa)) => {
                     if pa < self.base || pa + PAGE > self.end {
                         return Err(format!("USERD {pa:#x} outside the reservation: refused"));
