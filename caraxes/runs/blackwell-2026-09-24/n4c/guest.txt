@@ -1,0 +1,21 @@
+UVM_INITIALIZE flags 0x0: ioctl 0 rmStatus 0x0
+UVM_REGISTER_GPU GPU-0796ae38-3ef8-3a1a-075f-47e3c0d215c7 ...
+UVM_REGISTER_GPU: ioctl 0 rmStatus 0x40 numaEnabled 0 numaNodeId 0
+uvm-register rc=1
+[  166.022429] NVRM: nvidia_open...
+[  166.022433] NVRM: nvidia_ctl_open
+[  166.022436] NVRM: nvidia_open...
+[  166.022438] NVRM: GPU 0000:00:05.0: Opening GPU with minor number 0
+[  166.022574] NVRM: GPU 0000:00:05.0: Opening GPU with minor number 0
+[  166.029000] NVRM: nvAssertFailedNoLog: Assertion failed: kgrmgrGetLegacyKGraphicsStaticInfo(pGpu, pKernelGraphicsManager)->pGrInfo != NULL @ nv_gpu_ops.c:7090
+[  166.171952] NVRM: GPU0 nvAssertFailedNoLog: Assertion failed: kgrmgrGetLegacyKGraphicsStaticInfo(pGpu, pKernelGraphicsManager)->pGrInfo != NULL @ kernel_fifo.c:2771
+[  166.194474] NVRM: GPU0 nvAssertFailedNoLog: Assertion failed: kgrmgrGetLegacyKGraphicsStaticInfo(pGpu, pKernelGraphicsManager)->pGrInfo != NULL @ kernel_fifo.c:2771
+[  166.241914] NVRM: GPU0 nvAssertFailedNoLog: Assertion failed: kgrmgrGetLegacyKGraphicsStaticInfo(pGpu, pKernelGraphicsManager)->pGrInfo != NULL @ kernel_fifo.c:2771
+[  166.241955] NVRM: GPU0 nvAssertFailedNoLog: Assertion failed: numMax == numFree && numMax != 0 @ kernel_channel_group_api.c:914
+[  166.241992] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Generic Error: Invalid state [NV_ERR_INVALID_STATE] (0x00000040) returned from kchangrpapiSetLegacyMode(pKernelChannelGroupApi, pGpu, pKernelFifo, hClient) @ kernel_channel.c:684
+[  166.252726] nvidia-uvm: uvm_channel.c:2371 internal_channel_create[pid:1546] nvUvmInterfaceChannelAllocate() failed: Generic Error: Invalid state [NV_ERR_INVALID_STATE], GPU ID 1: GPU-0796ae38-3ef8-3a1a-075f-47e3c0d215c7 GI-0796ae38-3ef8-3a1a-075f-47e3c0d215c7, type UVM_CHANNEL_POOL_TYPE_CE
+[  166.256345] NVRM: GPU0 nvAssertFailedNoLog: Assertion failed: kgrmgrGetLegacyKGraphicsStaticInfo(pGpu, pKernelGraphicsManager)->pGrInfo != NULL @ kernel_fifo.c:2771
+[  166.258481] nvidia-uvm: uvm_gpu.c:1650 init_gpu[pid:1546] Failed to initialize the channel manager: Generic Error: Invalid state [NV_ERR_INVALID_STATE], GPU ID 1: GPU-0796ae38-3ef8-3a1a-075f-47e3c0d215c7 GI-0796ae38-3ef8-3a1a-075f-47e3c0d215c7
+[  166.269496] NVRM: nvidia_close on GPU with minor number 0
+[  166.269503] NVRM: nvidia_close on GPU with minor number 255
+[  166.269504] NVRM: nvidia_ctl_close

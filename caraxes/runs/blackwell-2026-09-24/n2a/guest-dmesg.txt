@@ -1,0 +1,452 @@
+bash: line 1:  1672 Killed                  sudo modprobe nvidia
+[  236.635159] nvidia-nvlink: Nvlink Core is being initialized, major device number 239
+[  236.635168] NVRM: probing 0x10de 0x2d04, class 0x30000
+[  236.643334] NVRM: resizable BAR disabled by regkey, skipping
+[  236.643339] NVRM: No clk handles for the dev
+[  236.643489] nvidia 0000:00:05.0: vgaarb: VGA decodes changed: olddecodes=none,decodes=none:owns=none
+[  236.643553] NVRM: PCI:0000:00:05.0 (10de:2d04): BAR0 @ 0xe0000000 (64MB)
+[  236.643555] NVRM: PCI:0000:00:05.0 (10de:2d04): BAR1 @ 0x3fffe0000000 (256MB)
+[  236.643576] NVRM: Failed to evaluate _PR3 object
+[  236.644663] NVRM: PBI is not supported for GPU 0000:00:05.0
+[  236.644752] NVRM: PBI is not supported for GPU 0000:00:05.0
+[  236.644756] NVRM: Starting device 0000:00:05.0
+[  236.647508] NVRM: GPU 0000:00:05.0: RmInitAdapter
+[  236.647511] NVRM: GPU 0000:00:05.0: RmSetupRegisters for 0x10de:0x2d04
+[  236.647513] NVRM: GPU 0000:00:05.0: pci config info:
+[  236.647514] NVRM: GPU 0000:00:05.0:    registers look  like: 0xe0000000 0x4000000NVRM: GPU 0000:00:05.0:    fb        looks like: 0x3fffe0000000 0x10000000
+[  236.647523] NVRM: GPU 0000:00:05.0: Successfully mapped framebuffer and registers
+[  236.647524] NVRM: GPU 0000:00:05.0: final mappings:
+[  236.647525] NVRM: GPU 0000:00:05.0:     regs: 0xe0000000 0x4000000 0x000000001338ac16
+[  236.966361] NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+[  236.966366] NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+[  236.966368] NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+[  236.966370] NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+[  236.966371] NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+[  236.966373] NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+[  236.966375] NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+[  236.966376] NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+[  236.966378] NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+[  236.966380] NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+[  236.966382] NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+[  236.966386] NVRM: nv_acpi_dod_method: failed to evaluate _DOD method!
+[  242.708813] NVRM: GPU0 _kgspIsHeartbeatTimedOut: Heartbeat timed out, currentTimeMs 6317 heartbeat 0 heartbeatWithOffsetMs 3538234144 diff 756739469 timeout 5200
+[  242.708819] NVRM: GPU0 _kgspRpcRecvPoll: GSP RM heartbeat timed out
+[  242.709111] NVRM: GPU0 _kgspIsHeartbeatTimedOut: Heartbeat timed out, currentTimeMs 6317 heartbeat 0 heartbeatWithOffsetMs 3538234144 diff 756739469 timeout 5200
+[  242.709114] NVRM: GPU0 _kgspRpcRecvPoll: LibOS heartbeat timed out
+[  242.710110] NVRM: GPU0 _kgspIsHeartbeatTimedOut: Heartbeat timed out, currentTimeMs 6318 heartbeat 0 heartbeatWithOffsetMs 3538234144 diff 756739470 timeout 5200
+[  242.710113] NVRM: GPU0 _kgspRpcRecvPoll: GSP RM heartbeat timed out
+[  242.712228] NVRM: GPU0 _kgspIsHeartbeatTimedOut: Heartbeat timed out, currentTimeMs 6320 heartbeat 0 heartbeatWithOffsetMs 3538234144 diff 756739472 timeout 5200
+[  242.712231] NVRM: GPU0 _kgspRpcRecvPoll: LibOS heartbeat timed out
+[  242.712682] NVRM: GPU0 _kgspIsHeartbeatTimedOut: Heartbeat timed out, currentTimeMs 6321 heartbeat 0 heartbeatWithOffsetMs 3538234144 diff 756739473 timeout 5200
+[  242.712684] NVRM: GPU0 _kgspRpcRecvPoll: GSP RM heartbeat timed out
+[  242.712792] NVRM: GPU0 _kgspIsHeartbeatTimedOut: Heartbeat timed out, currentTimeMs 6321 heartbeat 0 heartbeatWithOffsetMs 3538234144 diff 756739473 timeout 5200
+[  242.712794] NVRM: GPU0 _kgspRpcRecvPoll: LibOS heartbeat timed out
+[  242.713305] NVRM: GPU0 _kgspIsHeartbeatTimedOut: Heartbeat timed out, currentTimeMs 6322 heartbeat 0 heartbeatWithOffsetMs 3538234144 diff 756739474 timeout 5200
+[  242.713308] NVRM: GPU0 _kgspRpcRecvPoll: GSP RM heartbeat timed out
+[  242.713422] NVRM: GPU0 _kgspIsHeartbeatTimedOut: Heartbeat timed out, currentTimeMs 6322 heartbeat 0 heartbeatWithOffsetMs 3538234144 diff 756739474 timeout 5200
+[  242.713425] NVRM: GPU0 _kgspRpcRecvPoll: LibOS heartbeat timed out
+[  242.713699] NVRM: GPU0 _kgspIsHeartbeatTimedOut: Heartbeat timed out, currentTimeMs 6322 heartbeat 0 heartbeatWithOffsetMs 3538234144 diff 756739474 timeout 5200
+[  242.713702] NVRM: GPU0 _kgspRpcRecvPoll: GSP RM heartbeat timed out
+[  242.713816] NVRM: GPU0 _kgspIsHeartbeatTimedOut: Heartbeat timed out, currentTimeMs 6322 heartbeat 0 heartbeatWithOffsetMs 3538234144 diff 756739474 timeout 5200
+[  242.713819] NVRM: GPU0 _kgspRpcRecvPoll: LibOS heartbeat timed out
+[  242.716182] NVRM: GPU0 _kgspIsHeartbeatTimedOut: Heartbeat timed out, currentTimeMs 6324 heartbeat 0 heartbeatWithOffsetMs 3538234144 diff 756739476 timeout 5200
+[  242.716186] NVRM: GPU0 _kgspRpcRecvPoll: GSP RM heartbeat timed out
+[  242.716314] NVRM: GPU0 _kgspIsHeartbeatTimedOut: Heartbeat timed out, currentTimeMs 6325 heartbeat 0 heartbeatWithOffsetMs 3538234144 diff 756739477 timeout 5200
+[  242.716317] NVRM: GPU0 _kgspRpcRecvPoll: LibOS heartbeat timed out
+[  242.716521] NVRM: GPU0 _kgspIsHeartbeatTimedOut: Heartbeat timed out, currentTimeMs 6325 heartbeat 0 heartbeatWithOffsetMs 3538234144 diff 756739477 timeout 5200
+[  242.716524] NVRM: GPU0 _kgspRpcRecvPoll: GSP RM heartbeat timed out
+[  242.716640] NVRM: GPU0 _kgspIsHeartbeatTimedOut: Heartbeat timed out, currentTimeMs 6325 heartbeat 0 heartbeatWithOffsetMs 3538234144 diff 756739477 timeout 5200
+[  242.716643] NVRM: GPU0 _kgspRpcRecvPoll: LibOS heartbeat timed out
+[  242.716850] NVRM: GPU0 _kgspIsHeartbeatTimedOut: Heartbeat timed out, currentTimeMs 6325 heartbeat 0 heartbeatWithOffsetMs 3538234144 diff 756739477 timeout 5200
+[  242.716853] NVRM: GPU0 _kgspRpcRecvPoll: GSP RM heartbeat timed out
+[  242.717020] NVRM: GPU0 _kgspIsHeartbeatTimedOut: Heartbeat timed out, currentTimeMs 6325 heartbeat 0 heartbeatWithOffsetMs 3538234144 diff 756739477 timeout 5200
+[  242.717023] NVRM: GPU0 _kgspRpcRecvPoll: LibOS heartbeat timed out
+[  242.717297] NVRM: GPU0 _kgspIsHeartbeatTimedOut: Heartbeat timed out, currentTimeMs 6326 heartbeat 0 heartbeatWithOffsetMs 3538234144 diff 756739478 timeout 5200
+[  242.717300] NVRM: GPU0 _kgspRpcRecvPoll: GSP RM heartbeat timed out
+[  242.717415] NVRM: GPU0 _kgspIsHeartbeatTimedOut: Heartbeat timed out, currentTimeMs 6326 heartbeat 0 heartbeatWithOffsetMs 3538234144 diff 756739478 timeout 5200
+[  242.717418] NVRM: GPU0 _kgspRpcRecvPoll: LibOS heartbeat timed out
+[  242.717427] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Call not supported [NV_ERR_NOT_SUPPORTED] (0x00000056) returned from gpuConstructDeviceInfoTable_HAL(pGpu) @ kernel_fifo.c:2201
+[  242.717465] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Call not supported [NV_ERR_NOT_SUPPORTED] (0x00000056) returned from kfifoConstructEngineList_HAL(pGpu, pKernelFifo) @ kernel_fifo_gm107.c:694
+[  242.717751] NVRM: GPU0 _kgspIsHeartbeatTimedOut: Heartbeat timed out, currentTimeMs 6326 heartbeat 0 heartbeatWithOffsetMs 3538234144 diff 756739478 timeout 5200
+[  242.717754] NVRM: GPU0 _kgspRpcRecvPoll: GSP RM heartbeat timed out
+[  242.717867] NVRM: GPU0 _kgspIsHeartbeatTimedOut: Heartbeat timed out, currentTimeMs 6326 heartbeat 0 heartbeatWithOffsetMs 3538234144 diff 756739478 timeout 5200
+[  242.717874] NVRM: GPU0 _kgspRpcRecvPoll: LibOS heartbeat timed out
+[  242.717890] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Call not supported [NV_ERR_NOT_SUPPORTED] (0x00000056) returned from gpuConstructDeviceInfoTable_HAL(pGpu) @ kernel_fifo.c:2201
+[  242.717981] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Call not supported [NV_ERR_NOT_SUPPORTED] (0x00000056) returned from kfifoConstructEngineList_HAL(pGpu, pKernelFifo) @ kernel_fifo_gm107.c:694
+[  242.718263] NVRM: GPU0 _kgspIsHeartbeatTimedOut: Heartbeat timed out, currentTimeMs 6326 heartbeat 0 heartbeatWithOffsetMs 3538234144 diff 756739478 timeout 5200
+[  242.718266] NVRM: GPU0 _kgspRpcRecvPoll: GSP RM heartbeat timed out
+[  242.718397] NVRM: GPU0 _kgspIsHeartbeatTimedOut: Heartbeat timed out, currentTimeMs 6327 heartbeat 0 heartbeatWithOffsetMs 3538234144 diff 756739479 timeout 5200
+[  242.718400] NVRM: GPU0 _kgspRpcRecvPoll: LibOS heartbeat timed out
+[  242.718404] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Call not supported [NV_ERR_NOT_SUPPORTED] (0x00000056) returned from gpuConstructDeviceInfoTable_HAL(pGpu) @ kernel_fifo.c:2201
+[  242.718438] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Call not supported [NV_ERR_NOT_SUPPORTED] (0x00000056) returned from kfifoConstructEngineList_HAL(pGpu, pKernelFifo) @ kernel_fifo_gm107.c:694
+[  242.719032] NVRM: GPU0 _kgspIsHeartbeatTimedOut: Heartbeat timed out, currentTimeMs 6327 heartbeat 0 heartbeatWithOffsetMs 3538234144 diff 756739479 timeout 5200
+[  242.719035] NVRM: GPU0 _kgspRpcRecvPoll: GSP RM heartbeat timed out
+[  242.719172] NVRM: GPU0 _kgspIsHeartbeatTimedOut: Heartbeat timed out, currentTimeMs 6327 heartbeat 0 heartbeatWithOffsetMs 3538234144 diff 756739479 timeout 5200
+[  242.719175] NVRM: GPU0 _kgspRpcRecvPoll: LibOS heartbeat timed out
+[  242.719179] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Call not supported [NV_ERR_NOT_SUPPORTED] (0x00000056) returned from gpuConstructDeviceInfoTable_HAL(pGpu) @ kernel_fifo.c:2201
+[  242.719217] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Call not supported [NV_ERR_NOT_SUPPORTED] (0x00000056) returned from kfifoConstructEngineList_HAL(pGpu, pKernelFifo) @ kernel_fifo_gm107.c:694
+[  242.719642] NVRM: GPU0 _kgspIsHeartbeatTimedOut: Heartbeat timed out, currentTimeMs 6328 heartbeat 0 heartbeatWithOffsetMs 3538234144 diff 756739480 timeout 5200
+[  242.719645] NVRM: GPU0 _kgspRpcRecvPoll: GSP RM heartbeat timed out
+[  242.719749] NVRM: GPU0 _kgspIsHeartbeatTimedOut: Heartbeat timed out, currentTimeMs 6328 heartbeat 0 heartbeatWithOffsetMs 3538234144 diff 756739480 timeout 5200
+[  242.719751] NVRM: GPU0 _kgspRpcRecvPoll: LibOS heartbeat timed out
+[  242.719755] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Call not supported [NV_ERR_NOT_SUPPORTED] (0x00000056) returned from gpuConstructDeviceInfoTable_HAL(pGpu) @ kernel_fifo.c:2201
+[  242.719788] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Call not supported [NV_ERR_NOT_SUPPORTED] (0x00000056) returned from kfifoConstructEngineList_HAL(pGpu, pKernelFifo) @ kernel_fifo_gm107.c:694
+[  242.720264] NVRM: GPU0 _kgspIsHeartbeatTimedOut: Heartbeat timed out, currentTimeMs 6328 heartbeat 0 heartbeatWithOffsetMs 3538234144 diff 756739480 timeout 5200
+[  242.720267] NVRM: GPU0 _kgspRpcRecvPoll: GSP RM heartbeat timed out
+[  242.720402] NVRM: GPU0 _kgspIsHeartbeatTimedOut: Heartbeat timed out, currentTimeMs 6329 heartbeat 0 heartbeatWithOffsetMs 3538234144 diff 756739481 timeout 5200
+[  242.720404] NVRM: GPU0 _kgspRpcRecvPoll: LibOS heartbeat timed out
+[  242.720407] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Call not supported [NV_ERR_NOT_SUPPORTED] (0x00000056) returned from gpuConstructDeviceInfoTable_HAL(pGpu) @ kernel_fifo.c:2201
+[  242.720437] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Call not supported [NV_ERR_NOT_SUPPORTED] (0x00000056) returned from kfifoConstructEngineList_HAL(pGpu, pKernelFifo) @ kernel_fifo_gm107.c:694
+[  242.720700] NVRM: GPU0 _kgspIsHeartbeatTimedOut: Heartbeat timed out, currentTimeMs 6329 heartbeat 0 heartbeatWithOffsetMs 3538234144 diff 756739481 timeout 5200
+[  242.720702] NVRM: GPU0 _kgspRpcRecvPoll: GSP RM heartbeat timed out
+[  242.720814] NVRM: GPU0 _kgspIsHeartbeatTimedOut: Heartbeat timed out, currentTimeMs 6329 heartbeat 0 heartbeatWithOffsetMs 3538234144 diff 756739481 timeout 5200
+[  242.720816] NVRM: GPU0 _kgspRpcRecvPoll: LibOS heartbeat timed out
+[  242.720819] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Call not supported [NV_ERR_NOT_SUPPORTED] (0x00000056) returned from gpuConstructDeviceInfoTable_HAL(pGpu) @ kernel_fifo.c:2201
+[  242.720855] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Call not supported [NV_ERR_NOT_SUPPORTED] (0x00000056) returned from kfifoConstructEngineList_HAL(pGpu, pKernelFifo) @ kernel_fifo_gm107.c:694
+[  242.721165] NVRM: GPU0 _kgspIsHeartbeatTimedOut: Heartbeat timed out, currentTimeMs 6329 heartbeat 0 heartbeatWithOffsetMs 3538234144 diff 756739481 timeout 5200
+[  242.721168] NVRM: GPU0 _kgspRpcRecvPoll: GSP RM heartbeat timed out
+[  242.721271] NVRM: GPU0 _kgspIsHeartbeatTimedOut: Heartbeat timed out, currentTimeMs 6330 heartbeat 0 heartbeatWithOffsetMs 3538234144 diff 756739482 timeout 5200
+[  242.721274] NVRM: GPU0 _kgspRpcRecvPoll: LibOS heartbeat timed out
+[  242.721276] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Call not supported [NV_ERR_NOT_SUPPORTED] (0x00000056) returned from gpuConstructDeviceInfoTable_HAL(pGpu) @ kernel_fifo.c:2201
+[  242.721319] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Call not supported [NV_ERR_NOT_SUPPORTED] (0x00000056) returned from kfifoConstructEngineList_HAL(pGpu, pKernelFifo) @ kernel_fifo_gm107.c:694
+[  242.721555] NVRM: GPU0 _kgspIsHeartbeatTimedOut: Heartbeat timed out, currentTimeMs 6330 heartbeat 0 heartbeatWithOffsetMs 3538234144 diff 756739482 timeout 5200
+[  242.721557] NVRM: GPU0 _kgspRpcRecvPoll: GSP RM heartbeat timed out
+[  242.721687] NVRM: GPU0 _kgspIsHeartbeatTimedOut: Heartbeat timed out, currentTimeMs 6330 heartbeat 0 heartbeatWithOffsetMs 3538234144 diff 756739482 timeout 5200
+[  242.721690] NVRM: GPU0 _kgspRpcRecvPoll: LibOS heartbeat timed out
+[  242.721694] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Call not supported [NV_ERR_NOT_SUPPORTED] (0x00000056) returned from gpuConstructDeviceInfoTable_HAL(pGpu) @ kernel_fifo.c:2201
+[  242.721738] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Call not supported [NV_ERR_NOT_SUPPORTED] (0x00000056) returned from kfifoConstructEngineList_HAL(pGpu, pKernelFifo) @ kernel_fifo_gm107.c:694
+[  242.722271] NVRM: GPU0 _kgspIsHeartbeatTimedOut: Heartbeat timed out, currentTimeMs 6331 heartbeat 0 heartbeatWithOffsetMs 3538234144 diff 756739483 timeout 5200
+[  242.722275] NVRM: GPU0 _kgspRpcRecvPoll: GSP RM heartbeat timed out
+[  242.722402] NVRM: GPU0 _kgspIsHeartbeatTimedOut: Heartbeat timed out, currentTimeMs 6331 heartbeat 0 heartbeatWithOffsetMs 3538234144 diff 756739483 timeout 5200
+[  242.722405] NVRM: GPU0 _kgspRpcRecvPoll: LibOS heartbeat timed out
+[  242.722409] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Call not supported [NV_ERR_NOT_SUPPORTED] (0x00000056) returned from gpuConstructDeviceInfoTable_HAL(pGpu) @ kernel_fifo.c:2201
+[  242.722444] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Call not supported [NV_ERR_NOT_SUPPORTED] (0x00000056) returned from kfifoConstructEngineList_HAL(pGpu, pKernelFifo) @ kernel_fifo_gm107.c:694
+[  242.722722] NVRM: GPU0 _kgspIsHeartbeatTimedOut: Heartbeat timed out, currentTimeMs 6331 heartbeat 0 heartbeatWithOffsetMs 3538234144 diff 756739483 timeout 5200
+[  242.722725] NVRM: GPU0 _kgspRpcRecvPoll: GSP RM heartbeat timed out
+[  242.722841] NVRM: GPU0 _kgspIsHeartbeatTimedOut: Heartbeat timed out, currentTimeMs 6331 heartbeat 0 heartbeatWithOffsetMs 3538234144 diff 756739483 timeout 5200
+[  242.722844] NVRM: GPU0 _kgspRpcRecvPoll: LibOS heartbeat timed out
+[  242.722848] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Call not supported [NV_ERR_NOT_SUPPORTED] (0x00000056) returned from gpuConstructDeviceInfoTable_HAL(pGpu) @ kernel_fifo.c:2201
+[  242.722898] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Call not supported [NV_ERR_NOT_SUPPORTED] (0x00000056) returned from kfifoConstructEngineList_HAL(pGpu, pKernelFifo) @ kernel_fifo_gm107.c:694
+[  242.723469] NVRM: GPU0 _kgspIsHeartbeatTimedOut: Heartbeat timed out, currentTimeMs 6332 heartbeat 0 heartbeatWithOffsetMs 3538234144 diff 756739484 timeout 5200
+[  242.723473] NVRM: GPU0 _kgspRpcRecvPoll: GSP RM heartbeat timed out
+[  242.723591] NVRM: GPU0 _kgspIsHeartbeatTimedOut: Heartbeat timed out, currentTimeMs 6332 heartbeat 0 heartbeatWithOffsetMs 3538234144 diff 756739484 timeout 5200
+[  242.723594] NVRM: GPU0 _kgspRpcRecvPoll: LibOS heartbeat timed out
+[  242.723598] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Call not supported [NV_ERR_NOT_SUPPORTED] (0x00000056) returned from gpuConstructDeviceInfoTable_HAL(pGpu) @ kernel_fifo.c:2201
+[  242.723632] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Call not supported [NV_ERR_NOT_SUPPORTED] (0x00000056) returned from kfifoConstructEngineList_HAL(pGpu, pKernelFifo) @ kernel_fifo_gm107.c:694
+[  242.723928] NVRM: GPU0 _kgspIsHeartbeatTimedOut: Heartbeat timed out, currentTimeMs 6332 heartbeat 0 heartbeatWithOffsetMs 3538234144 diff 756739484 timeout 5200
+[  242.723931] NVRM: GPU0 _kgspRpcRecvPoll: GSP RM heartbeat timed out
+[  242.724054] NVRM: GPU0 _kgspIsHeartbeatTimedOut: Heartbeat timed out, currentTimeMs 6332 heartbeat 0 heartbeatWithOffsetMs 3538234144 diff 756739484 timeout 5200
+[  242.724057] NVRM: GPU0 _kgspRpcRecvPoll: LibOS heartbeat timed out
+[  242.724060] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Call not supported [NV_ERR_NOT_SUPPORTED] (0x00000056) returned from gpuConstructDeviceInfoTable_HAL(pGpu) @ kernel_fifo.c:2201
+[  242.724096] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Call not supported [NV_ERR_NOT_SUPPORTED] (0x00000056) returned from kfifoConstructEngineList_HAL(pGpu, pKernelFifo) @ kernel_fifo_gm107.c:694
+[  242.724451] NVRM: GPU0 _kgspIsHeartbeatTimedOut: Heartbeat timed out, currentTimeMs 6333 heartbeat 0 heartbeatWithOffsetMs 3538234144 diff 756739485 timeout 5200
+[  242.724454] NVRM: GPU0 _kgspRpcRecvPoll: GSP RM heartbeat timed out
+[  242.724582] NVRM: GPU0 _kgspIsHeartbeatTimedOut: Heartbeat timed out, currentTimeMs 6333 heartbeat 0 heartbeatWithOffsetMs 3538234144 diff 756739485 timeout 5200
+[  242.724584] NVRM: GPU0 _kgspRpcRecvPoll: LibOS heartbeat timed out
+[  242.724588] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Call not supported [NV_ERR_NOT_SUPPORTED] (0x00000056) returned from gpuConstructDeviceInfoTable_HAL(pGpu) @ kernel_fifo.c:2201
+[  242.724620] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Call not supported [NV_ERR_NOT_SUPPORTED] (0x00000056) returned from kfifoConstructEngineList_HAL(pGpu, pKernelFifo) @ kernel_fifo_gm107.c:694
+[  242.724918] NVRM: GPU0 _kgspIsHeartbeatTimedOut: Heartbeat timed out, currentTimeMs 6333 heartbeat 0 heartbeatWithOffsetMs 3538234144 diff 756739485 timeout 5200
+[  242.724922] NVRM: GPU0 _kgspRpcRecvPoll: GSP RM heartbeat timed out
+[  242.725106] NVRM: GPU0 _kgspIsHeartbeatTimedOut: Heartbeat timed out, currentTimeMs 6333 heartbeat 0 heartbeatWithOffsetMs 3538234144 diff 756739485 timeout 5200
+[  242.725110] NVRM: GPU0 _kgspRpcRecvPoll: LibOS heartbeat timed out
+[  242.725114] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Call not supported [NV_ERR_NOT_SUPPORTED] (0x00000056) returned from gpuConstructDeviceInfoTable_HAL(pGpu) @ kernel_fifo.c:2201
+[  242.725155] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Call not supported [NV_ERR_NOT_SUPPORTED] (0x00000056) returned from kfifoConstructEngineList_HAL(pGpu, pKernelFifo) @ kernel_fifo_gm107.c:694
+[  242.725445] NVRM: GPU0 _kgspIsHeartbeatTimedOut: Heartbeat timed out, currentTimeMs 6334 heartbeat 0 heartbeatWithOffsetMs 3538234144 diff 756739486 timeout 5200
+[  242.725448] NVRM: GPU0 _kgspRpcRecvPoll: GSP RM heartbeat timed out
+[  242.725547] NVRM: GPU0 _kgspIsHeartbeatTimedOut: Heartbeat timed out, currentTimeMs 6334 heartbeat 0 heartbeatWithOffsetMs 3538234144 diff 756739486 timeout 5200
+[  242.725549] NVRM: GPU0 _kgspRpcRecvPoll: LibOS heartbeat timed out
+[  242.725552] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Call not supported [NV_ERR_NOT_SUPPORTED] (0x00000056) returned from gpuConstructDeviceInfoTable_HAL(pGpu) @ kernel_fifo.c:2201
+[  242.725583] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Call not supported [NV_ERR_NOT_SUPPORTED] (0x00000056) returned from kfifoConstructEngineList_HAL(pGpu, pKernelFifo) @ kernel_fifo_gm107.c:694
+[  242.725935] NVRM: GPU0 _kgspIsHeartbeatTimedOut: Heartbeat timed out, currentTimeMs 6334 heartbeat 0 heartbeatWithOffsetMs 3538234144 diff 756739486 timeout 5200
+[  242.725938] NVRM: GPU0 _kgspRpcRecvPoll: GSP RM heartbeat timed out
+[  242.726153] NVRM: GPU0 _kgspIsHeartbeatTimedOut: Heartbeat timed out, currentTimeMs 6334 heartbeat 0 heartbeatWithOffsetMs 3538234144 diff 756739486 timeout 5200
+[  242.726156] NVRM: GPU0 _kgspRpcRecvPoll: LibOS heartbeat timed out
+[  242.726160] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Call not supported [NV_ERR_NOT_SUPPORTED] (0x00000056) returned from gpuConstructDeviceInfoTable_HAL(pGpu) @ kernel_fifo.c:2201
+[  242.726194] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Call not supported [NV_ERR_NOT_SUPPORTED] (0x00000056) returned from kfifoConstructEngineList_HAL(pGpu, pKernelFifo) @ kernel_fifo_gm107.c:694
+[  242.726548] NVRM: GPU0 _kgspIsHeartbeatTimedOut: Heartbeat timed out, currentTimeMs 6335 heartbeat 0 heartbeatWithOffsetMs 3538234144 diff 756739487 timeout 5200
+[  242.726551] NVRM: GPU0 _kgspRpcRecvPoll: GSP RM heartbeat timed out
+[  242.726666] NVRM: GPU0 _kgspIsHeartbeatTimedOut: Heartbeat timed out, currentTimeMs 6335 heartbeat 0 heartbeatWithOffsetMs 3538234144 diff 756739487 timeout 5200
+[  242.726669] NVRM: GPU0 _kgspRpcRecvPoll: LibOS heartbeat timed out
+[  242.726672] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Call not supported [NV_ERR_NOT_SUPPORTED] (0x00000056) returned from gpuConstructDeviceInfoTable_HAL(pGpu) @ kernel_fifo.c:2201
+[  242.726706] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Call not supported [NV_ERR_NOT_SUPPORTED] (0x00000056) returned from kfifoConstructEngineList_HAL(pGpu, pKernelFifo) @ kernel_fifo_gm107.c:694
+[  242.726990] NVRM: GPU0 _kgspIsHeartbeatTimedOut: Heartbeat timed out, currentTimeMs 6335 heartbeat 0 heartbeatWithOffsetMs 3538234144 diff 756739487 timeout 5200
+[  242.726993] NVRM: GPU0 _kgspRpcRecvPoll: GSP RM heartbeat timed out
+[  242.727116] NVRM: GPU0 _kgspIsHeartbeatTimedOut: Heartbeat timed out, currentTimeMs 6335 heartbeat 0 heartbeatWithOffsetMs 3538234144 diff 756739487 timeout 5200
+[  242.727119] NVRM: GPU0 _kgspRpcRecvPoll: LibOS heartbeat timed out
+[  242.727123] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Call not supported [NV_ERR_NOT_SUPPORTED] (0x00000056) returned from gpuConstructDeviceInfoTable_HAL(pGpu) @ kernel_fifo.c:2201
+[  242.727184] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Call not supported [NV_ERR_NOT_SUPPORTED] (0x00000056) returned from kfifoConstructEngineList_HAL(pGpu, pKernelFifo) @ kernel_fifo_gm107.c:694
+[  242.727807] NVRM: GPU0 _kgspIsHeartbeatTimedOut: Heartbeat timed out, currentTimeMs 6336 heartbeat 0 heartbeatWithOffsetMs 3538234144 diff 756739488 timeout 5200
+[  242.727863] NVRM: GPU0 _kgspRpcRecvPoll: GSP RM heartbeat timed out
+[  242.728098] NVRM: GPU0 _kgspIsHeartbeatTimedOut: Heartbeat timed out, currentTimeMs 6336 heartbeat 0 heartbeatWithOffsetMs 3538234144 diff 756739488 timeout 5200
+[  242.728101] NVRM: GPU0 _kgspRpcRecvPoll: LibOS heartbeat timed out
+[  242.728106] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Call not supported [NV_ERR_NOT_SUPPORTED] (0x00000056) returned from gpuConstructDeviceInfoTable_HAL(pGpu) @ kernel_fifo.c:2201
+[  242.728153] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Call not supported [NV_ERR_NOT_SUPPORTED] (0x00000056) returned from kfifoConstructEngineList_HAL(pGpu, pKernelFifo) @ kernel_fifo_gm107.c:694
+[  242.728568] NVRM: GPU0 _kgspIsHeartbeatTimedOut: Heartbeat timed out, currentTimeMs 6337 heartbeat 0 heartbeatWithOffsetMs 3538234144 diff 756739489 timeout 5200
+[  242.728571] NVRM: GPU0 _kgspRpcRecvPoll: GSP RM heartbeat timed out
+[  242.728691] NVRM: GPU0 _kgspIsHeartbeatTimedOut: Heartbeat timed out, currentTimeMs 6337 heartbeat 0 heartbeatWithOffsetMs 3538234144 diff 756739489 timeout 5200
+[  242.728694] NVRM: GPU0 _kgspRpcRecvPoll: LibOS heartbeat timed out
+[  242.728697] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Call not supported [NV_ERR_NOT_SUPPORTED] (0x00000056) returned from gpuConstructDeviceInfoTable_HAL(pGpu) @ kernel_fifo.c:2201
+[  242.728731] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Call not supported [NV_ERR_NOT_SUPPORTED] (0x00000056) returned from kfifoConstructEngineList_HAL(pGpu, pKernelFifo) @ kernel_fifo_gm107.c:694
+[  242.729070] NVRM: GPU0 _kgspIsHeartbeatTimedOut: Heartbeat timed out, currentTimeMs 6337 heartbeat 0 heartbeatWithOffsetMs 3538234144 diff 756739489 timeout 5200
+[  242.729074] NVRM: GPU0 _kgspRpcRecvPoll: GSP RM heartbeat timed out
+[  242.729211] NVRM: GPU0 _kgspIsHeartbeatTimedOut: Heartbeat timed out, currentTimeMs 6337 heartbeat 0 heartbeatWithOffsetMs 3538234144 diff 756739489 timeout 5200
+[  242.729214] NVRM: GPU0 _kgspRpcRecvPoll: LibOS heartbeat timed out
+[  242.729218] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Call not supported [NV_ERR_NOT_SUPPORTED] (0x00000056) returned from gpuConstructDeviceInfoTable_HAL(pGpu) @ kernel_fifo.c:2201
+[  242.729252] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Call not supported [NV_ERR_NOT_SUPPORTED] (0x00000056) returned from kfifoConstructEngineList_HAL(pGpu, pKernelFifo) @ kernel_fifo_gm107.c:694
+[  242.729545] NVRM: GPU0 _kgspIsHeartbeatTimedOut: Heartbeat timed out, currentTimeMs 6338 heartbeat 0 heartbeatWithOffsetMs 3538234144 diff 756739490 timeout 5200
+[  242.729548] NVRM: GPU0 _kgspRpcRecvPoll: GSP RM heartbeat timed out
+[  242.729660] NVRM: GPU0 _kgspIsHeartbeatTimedOut: Heartbeat timed out, currentTimeMs 6338 heartbeat 0 heartbeatWithOffsetMs 3538234144 diff 756739490 timeout 5200
+[  242.729663] NVRM: GPU0 _kgspRpcRecvPoll: LibOS heartbeat timed out
+[  242.729667] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Call not supported [NV_ERR_NOT_SUPPORTED] (0x00000056) returned from gpuConstructDeviceInfoTable_HAL(pGpu) @ kernel_fifo.c:2201
+[  242.729768] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Call not supported [NV_ERR_NOT_SUPPORTED] (0x00000056) returned from kfifoConstructEngineList_HAL(pGpu, pKernelFifo) @ kernel_fifo_gm107.c:694
+[  242.732535] NVRM: GPU0 _kgspIsHeartbeatTimedOut: Heartbeat timed out, currentTimeMs 6341 heartbeat 0 heartbeatWithOffsetMs 3538234144 diff 756739493 timeout 5200
+[  242.732539] NVRM: GPU0 _kgspRpcRecvPoll: GSP RM heartbeat timed out
+[  242.732739] NVRM: GPU0 _kgspIsHeartbeatTimedOut: Heartbeat timed out, currentTimeMs 6341 heartbeat 0 heartbeatWithOffsetMs 3538234144 diff 756739493 timeout 5200
+[  242.732742] NVRM: GPU0 _kgspRpcRecvPoll: LibOS heartbeat timed out
+[  242.732747] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Call not supported [NV_ERR_NOT_SUPPORTED] (0x00000056) returned from gpuConstructDeviceInfoTable_HAL(pGpu) @ kernel_fifo.c:2201
+[  242.732811] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Call not supported [NV_ERR_NOT_SUPPORTED] (0x00000056) returned from kfifoConstructEngineList_HAL(pGpu, pKernelFifo) @ kernel_fifo_gm107.c:694
+[  242.733247] NVRM: GPU0 _kgspIsHeartbeatTimedOut: Heartbeat timed out, currentTimeMs 6341 heartbeat 0 heartbeatWithOffsetMs 3538234144 diff 756739493 timeout 5200
+[  242.733249] NVRM: GPU0 _kgspRpcRecvPoll: GSP RM heartbeat timed out
+[  242.733499] NVRM: GPU0 _kgspIsHeartbeatTimedOut: Heartbeat timed out, currentTimeMs 6342 heartbeat 0 heartbeatWithOffsetMs 3538234144 diff 756739494 timeout 5200
+[  242.733502] NVRM: GPU0 _kgspRpcRecvPoll: LibOS heartbeat timed out
+[  242.733505] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Call not supported [NV_ERR_NOT_SUPPORTED] (0x00000056) returned from gpuConstructDeviceInfoTable_HAL(pGpu) @ kernel_fifo.c:2201
+[  242.733567] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Call not supported [NV_ERR_NOT_SUPPORTED] (0x00000056) returned from kfifoConstructEngineList_HAL(pGpu, pKernelFifo) @ kernel_fifo_gm107.c:694
+[  242.734059] NVRM: GPU0 _kgspIsHeartbeatTimedOut: Heartbeat timed out, currentTimeMs 6342 heartbeat 0 heartbeatWithOffsetMs 3538234144 diff 756739494 timeout 5200
+[  242.734062] NVRM: GPU0 _kgspRpcRecvPoll: GSP RM heartbeat timed out
+[  242.734336] NVRM: GPU0 _kgspIsHeartbeatTimedOut: Heartbeat timed out, currentTimeMs 6342 heartbeat 0 heartbeatWithOffsetMs 3538234144 diff 756739494 timeout 5200
+[  242.734338] NVRM: GPU0 _kgspRpcRecvPoll: LibOS heartbeat timed out
+[  242.734341] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Call not supported [NV_ERR_NOT_SUPPORTED] (0x00000056) returned from gpuConstructDeviceInfoTable_HAL(pGpu) @ kernel_fifo.c:2201
+[  242.734403] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Call not supported [NV_ERR_NOT_SUPPORTED] (0x00000056) returned from kfifoConstructEngineList_HAL(pGpu, pKernelFifo) @ kernel_fifo_gm107.c:694
+[  242.734864] NVRM: GPU0 _kgspIsHeartbeatTimedOut: Heartbeat timed out, currentTimeMs 6343 heartbeat 0 heartbeatWithOffsetMs 3538234144 diff 756739495 timeout 5200
+[  242.734866] NVRM: GPU0 _kgspRpcRecvPoll: GSP RM heartbeat timed out
+[  242.735064] NVRM: GPU0 _kgspIsHeartbeatTimedOut: Heartbeat timed out, currentTimeMs 6343 heartbeat 0 heartbeatWithOffsetMs 3538234144 diff 756739495 timeout 5200
+[  242.735067] NVRM: GPU0 _kgspRpcRecvPoll: LibOS heartbeat timed out
+[  242.735070] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Call not supported [NV_ERR_NOT_SUPPORTED] (0x00000056) returned from gpuConstructDeviceInfoTable_HAL(pGpu) @ kernel_fifo.c:2201
+[  242.735105] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Call not supported [NV_ERR_NOT_SUPPORTED] (0x00000056) returned from kfifoConstructEngineList_HAL(pGpu, pKernelFifo) @ kernel_fifo_gm107.c:694
+[  242.735376] NVRM: GPU0 _kgspIsHeartbeatTimedOut: Heartbeat timed out, currentTimeMs 6344 heartbeat 0 heartbeatWithOffsetMs 3538234144 diff 756739496 timeout 5200
+[  242.735378] NVRM: GPU0 _kgspRpcRecvPoll: GSP RM heartbeat timed out
+[  242.735479] NVRM: GPU0 _kgspIsHeartbeatTimedOut: Heartbeat timed out, currentTimeMs 6344 heartbeat 0 heartbeatWithOffsetMs 3538234144 diff 756739496 timeout 5200
+[  242.735482] NVRM: GPU0 _kgspRpcRecvPoll: LibOS heartbeat timed out
+[  242.735484] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Call not supported [NV_ERR_NOT_SUPPORTED] (0x00000056) returned from gpuConstructDeviceInfoTable_HAL(pGpu) @ kernel_fifo.c:2201
+[  242.735514] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Call not supported [NV_ERR_NOT_SUPPORTED] (0x00000056) returned from kfifoConstructEngineList_HAL(pGpu, pKernelFifo) @ kernel_fifo_gm107.c:694
+[  242.735757] NVRM: GPU0 _kgspIsHeartbeatTimedOut: Heartbeat timed out, currentTimeMs 6344 heartbeat 0 heartbeatWithOffsetMs 3538234144 diff 756739496 timeout 5200
+[  242.735759] NVRM: GPU0 _kgspRpcRecvPoll: GSP RM heartbeat timed out
+[  242.735860] NVRM: GPU0 _kgspIsHeartbeatTimedOut: Heartbeat timed out, currentTimeMs 6344 heartbeat 0 heartbeatWithOffsetMs 3538234144 diff 756739496 timeout 5200
+[  242.735863] NVRM: GPU0 _kgspRpcRecvPoll: LibOS heartbeat timed out
+[  242.735865] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Call not supported [NV_ERR_NOT_SUPPORTED] (0x00000056) returned from gpuConstructDeviceInfoTable_HAL(pGpu) @ kernel_fifo.c:2201
+[  242.735925] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Call not supported [NV_ERR_NOT_SUPPORTED] (0x00000056) returned from kfifoConstructEngineList_HAL(pGpu, pKernelFifo) @ kernel_fifo_gm107.c:694
+[  242.736194] NVRM: GPU0 _kgspIsHeartbeatTimedOut: Heartbeat timed out, currentTimeMs 6344 heartbeat 0 heartbeatWithOffsetMs 3538234144 diff 756739496 timeout 5200
+[  242.736197] NVRM: GPU0 _kgspRpcRecvPoll: GSP RM heartbeat timed out
+[  242.736310] NVRM: GPU0 _kgspIsHeartbeatTimedOut: Heartbeat timed out, currentTimeMs 6345 heartbeat 0 heartbeatWithOffsetMs 3538234144 diff 756739497 timeout 5200
+[  242.736312] NVRM: GPU0 _kgspRpcRecvPoll: LibOS heartbeat timed out
+[  242.736315] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Call not supported [NV_ERR_NOT_SUPPORTED] (0x00000056) returned from gpuConstructDeviceInfoTable_HAL(pGpu) @ kernel_fifo.c:2201
+[  242.736352] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Call not supported [NV_ERR_NOT_SUPPORTED] (0x00000056) returned from kfifoConstructEngineList_HAL(pGpu, pKernelFifo) @ kernel_fifo_gm107.c:694
+[  242.736756] NVRM: GPU0 _kgspIsHeartbeatTimedOut: Heartbeat timed out, currentTimeMs 6345 heartbeat 0 heartbeatWithOffsetMs 3538234144 diff 756739497 timeout 5200
+[  242.736760] NVRM: GPU0 _kgspRpcRecvPoll: GSP RM heartbeat timed out
+[  242.736893] NVRM: GPU0 _kgspIsHeartbeatTimedOut: Heartbeat timed out, currentTimeMs 6345 heartbeat 0 heartbeatWithOffsetMs 3538234144 diff 756739497 timeout 5200
+[  242.736896] NVRM: GPU0 _kgspRpcRecvPoll: LibOS heartbeat timed out
+[  242.736900] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Call not supported [NV_ERR_NOT_SUPPORTED] (0x00000056) returned from gpuConstructDeviceInfoTable_HAL(pGpu) @ kernel_fifo.c:2201
+[  242.736950] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Call not supported [NV_ERR_NOT_SUPPORTED] (0x00000056) returned from kfifoConstructEngineList_HAL(pGpu, pKernelFifo) @ kernel_fifo_gm107.c:694
+[  242.737222] NVRM: GPU0 _kgspIsHeartbeatTimedOut: Heartbeat timed out, currentTimeMs 6345 heartbeat 0 heartbeatWithOffsetMs 3538234144 diff 756739497 timeout 5200
+[  242.737225] NVRM: GPU0 _kgspRpcRecvPoll: GSP RM heartbeat timed out
+[  242.737366] NVRM: GPU0 _kgspIsHeartbeatTimedOut: Heartbeat timed out, currentTimeMs 6346 heartbeat 0 heartbeatWithOffsetMs 3538234144 diff 756739498 timeout 5200
+[  242.737369] NVRM: GPU0 _kgspRpcRecvPoll: LibOS heartbeat timed out
+[  242.737373] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Call not supported [NV_ERR_NOT_SUPPORTED] (0x00000056) returned from gpuConstructDeviceInfoTable_HAL(pGpu) @ kernel_fifo.c:2201
+[  242.737459] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Call not supported [NV_ERR_NOT_SUPPORTED] (0x00000056) returned from kfifoConstructEngineList_HAL(pGpu, pKernelFifo) @ kernel_fifo_gm107.c:694
+[  242.737710] NVRM: GPU0 _kgspIsHeartbeatTimedOut: Heartbeat timed out, currentTimeMs 6346 heartbeat 0 heartbeatWithOffsetMs 3538234144 diff 756739498 timeout 5200
+[  242.737713] NVRM: GPU0 _kgspRpcRecvPoll: GSP RM heartbeat timed out
+[  242.737836] NVRM: GPU0 _kgspIsHeartbeatTimedOut: Heartbeat timed out, currentTimeMs 6346 heartbeat 0 heartbeatWithOffsetMs 3538234144 diff 756739498 timeout 5200
+[  242.737839] NVRM: GPU0 _kgspRpcRecvPoll: LibOS heartbeat timed out
+[  242.737843] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Call not supported [NV_ERR_NOT_SUPPORTED] (0x00000056) returned from gpuConstructDeviceInfoTable_HAL(pGpu) @ kernel_fifo.c:2201
+[  242.737892] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Call not supported [NV_ERR_NOT_SUPPORTED] (0x00000056) returned from kfifoConstructEngineList_HAL(pGpu, pKernelFifo) @ kernel_fifo_gm107.c:694
+[  242.738180] NVRM: GPU0 _kgspIsHeartbeatTimedOut: Heartbeat timed out, currentTimeMs 6346 heartbeat 0 heartbeatWithOffsetMs 3538234144 diff 756739498 timeout 5200
+[  242.738183] NVRM: GPU0 _kgspRpcRecvPoll: GSP RM heartbeat timed out
+[  242.738310] NVRM: GPU0 _kgspIsHeartbeatTimedOut: Heartbeat timed out, currentTimeMs 6347 heartbeat 0 heartbeatWithOffsetMs 3538234144 diff 756739499 timeout 5200
+[  242.738313] NVRM: GPU0 _kgspRpcRecvPoll: LibOS heartbeat timed out
+[  242.738317] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Call not supported [NV_ERR_NOT_SUPPORTED] (0x00000056) returned from gpuConstructDeviceInfoTable_HAL(pGpu) @ kernel_fifo.c:2201
+[  242.738355] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Call not supported [NV_ERR_NOT_SUPPORTED] (0x00000056) returned from kfifoConstructEngineList_HAL(pGpu, pKernelFifo) @ kernel_fifo_gm107.c:694
+[  242.738704] NVRM: GPU0 _kgspIsHeartbeatTimedOut: Heartbeat timed out, currentTimeMs 6347 heartbeat 0 heartbeatWithOffsetMs 3538234144 diff 756739499 timeout 5200
+[  242.738707] NVRM: GPU0 _kgspRpcRecvPoll: GSP RM heartbeat timed out
+[  242.738834] NVRM: GPU0 _kgspIsHeartbeatTimedOut: Heartbeat timed out, currentTimeMs 6347 heartbeat 0 heartbeatWithOffsetMs 3538234144 diff 756739499 timeout 5200
+[  242.738837] NVRM: GPU0 _kgspRpcRecvPoll: LibOS heartbeat timed out
+[  242.738840] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Call not supported [NV_ERR_NOT_SUPPORTED] (0x00000056) returned from gpuConstructDeviceInfoTable_HAL(pGpu) @ kernel_fifo.c:2201
+[  242.738891] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Call not supported [NV_ERR_NOT_SUPPORTED] (0x00000056) returned from kfifoConstructEngineList_HAL(pGpu, pKernelFifo) @ kernel_fifo_gm107.c:694
+[  242.739161] NVRM: GPU0 _kgspIsHeartbeatTimedOut: Heartbeat timed out, currentTimeMs 6347 heartbeat 0 heartbeatWithOffsetMs 3538234144 diff 756739499 timeout 5200
+[  242.739164] NVRM: GPU0 _kgspRpcRecvPoll: GSP RM heartbeat timed out
+[  242.739278] NVRM: GPU0 _kgspIsHeartbeatTimedOut: Heartbeat timed out, currentTimeMs 6348 heartbeat 0 heartbeatWithOffsetMs 3538234144 diff 756739500 timeout 5200
+[  242.739281] NVRM: GPU0 _kgspRpcRecvPoll: LibOS heartbeat timed out
+[  242.739285] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Call not supported [NV_ERR_NOT_SUPPORTED] (0x00000056) returned from gpuConstructDeviceInfoTable_HAL(pGpu) @ kernel_fifo.c:2201
+[  242.739321] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Call not supported [NV_ERR_NOT_SUPPORTED] (0x00000056) returned from kfifoConstructEngineList_HAL(pGpu, pKernelFifo) @ kernel_fifo_gm107.c:694
+[  242.739574] NVRM: GPU0 _kgspIsHeartbeatTimedOut: Heartbeat timed out, currentTimeMs 6348 heartbeat 0 heartbeatWithOffsetMs 3538234144 diff 756739500 timeout 5200
+[  242.739577] NVRM: GPU0 _kgspRpcRecvPoll: GSP RM heartbeat timed out
+[  242.739691] NVRM: GPU0 _kgspIsHeartbeatTimedOut: Heartbeat timed out, currentTimeMs 6348 heartbeat 0 heartbeatWithOffsetMs 3538234144 diff 756739500 timeout 5200
+[  242.739694] NVRM: GPU0 _kgspRpcRecvPoll: LibOS heartbeat timed out
+[  242.739697] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Call not supported [NV_ERR_NOT_SUPPORTED] (0x00000056) returned from gpuConstructDeviceInfoTable_HAL(pGpu) @ kernel_fifo.c:2201
+[  242.739731] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Call not supported [NV_ERR_NOT_SUPPORTED] (0x00000056) returned from kfifoConstructEngineList_HAL(pGpu, pKernelFifo) @ kernel_fifo_gm107.c:694
+[  242.740000] NVRM: GPU0 _kgspIsHeartbeatTimedOut: Heartbeat timed out, currentTimeMs 6348 heartbeat 0 heartbeatWithOffsetMs 3538234144 diff 756739500 timeout 5200
+[  242.740003] NVRM: GPU0 _kgspRpcRecvPoll: GSP RM heartbeat timed out
+[  242.740117] NVRM: GPU0 _kgspIsHeartbeatTimedOut: Heartbeat timed out, currentTimeMs 6348 heartbeat 0 heartbeatWithOffsetMs 3538234144 diff 756739500 timeout 5200
+[  242.740120] NVRM: GPU0 _kgspRpcRecvPoll: LibOS heartbeat timed out
+[  242.740123] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Call not supported [NV_ERR_NOT_SUPPORTED] (0x00000056) returned from gpuConstructDeviceInfoTable_HAL(pGpu) @ kernel_fifo.c:2201
+[  242.740166] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Call not supported [NV_ERR_NOT_SUPPORTED] (0x00000056) returned from kfifoConstructEngineList_HAL(pGpu, pKernelFifo) @ kernel_fifo_gm107.c:694
+[  242.740435] NVRM: GPU0 _kgspIsHeartbeatTimedOut: Heartbeat timed out, currentTimeMs 6349 heartbeat 0 heartbeatWithOffsetMs 3538234144 diff 756739501 timeout 5200
+[  242.740438] NVRM: GPU0 _kgspRpcRecvPoll: GSP RM heartbeat timed out
+[  242.740758] NVRM: GPU0 _kgspIsHeartbeatTimedOut: Heartbeat timed out, currentTimeMs 6349 heartbeat 0 heartbeatWithOffsetMs 3538234144 diff 756739501 timeout 5200
+[  242.740761] NVRM: GPU0 _kgspRpcRecvPoll: LibOS heartbeat timed out
+[  242.740765] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Call not supported [NV_ERR_NOT_SUPPORTED] (0x00000056) returned from gpuConstructDeviceInfoTable_HAL(pGpu) @ kernel_fifo.c:2201
+[  242.740972] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Call not supported [NV_ERR_NOT_SUPPORTED] (0x00000056) returned from kfifoConstructEngineList_HAL(pGpu, pKernelFifo) @ kernel_fifo_gm107.c:694
+[  242.741800] NVRM: GPU0 _kgspIsHeartbeatTimedOut: Heartbeat timed out, currentTimeMs 6350 heartbeat 0 heartbeatWithOffsetMs 3538234144 diff 756739502 timeout 5200
+[  242.741803] NVRM: GPU0 _kgspRpcRecvPoll: GSP RM heartbeat timed out
+[  242.741945] NVRM: GPU0 _kgspIsHeartbeatTimedOut: Heartbeat timed out, currentTimeMs 6350 heartbeat 0 heartbeatWithOffsetMs 3538234144 diff 756739502 timeout 5200
+[  242.741948] NVRM: GPU0 _kgspRpcRecvPoll: LibOS heartbeat timed out
+[  242.741952] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Call not supported [NV_ERR_NOT_SUPPORTED] (0x00000056) returned from gpuConstructDeviceInfoTable_HAL(pGpu) @ kernel_fifo.c:2201
+[  242.741988] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Call not supported [NV_ERR_NOT_SUPPORTED] (0x00000056) returned from kfifoConstructEngineList_HAL(pGpu, pKernelFifo) @ kernel_fifo_gm107.c:694
+[  242.742347] NVRM: GPU0 _kgspIsHeartbeatTimedOut: Heartbeat timed out, currentTimeMs 6351 heartbeat 0 heartbeatWithOffsetMs 3538234144 diff 756739503 timeout 5200
+[  242.742351] NVRM: GPU0 _kgspRpcRecvPoll: GSP RM heartbeat timed out
+[  242.742473] NVRM: GPU0 _kgspIsHeartbeatTimedOut: Heartbeat timed out, currentTimeMs 6351 heartbeat 0 heartbeatWithOffsetMs 3538234144 diff 756739503 timeout 5200
+[  242.742476] NVRM: GPU0 _kgspRpcRecvPoll: LibOS heartbeat timed out
+[  242.742480] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Call not supported [NV_ERR_NOT_SUPPORTED] (0x00000056) returned from gpuConstructDeviceInfoTable_HAL(pGpu) @ kernel_fifo.c:2201
+[  242.742516] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Call not supported [NV_ERR_NOT_SUPPORTED] (0x00000056) returned from kfifoConstructEngineList_HAL(pGpu, pKernelFifo) @ kernel_fifo_gm107.c:694
+[  242.742770] NVRM: GPU0 _kgspIsHeartbeatTimedOut: Heartbeat timed out, currentTimeMs 6351 heartbeat 0 heartbeatWithOffsetMs 3538234144 diff 756739503 timeout 5200
+[  242.742774] NVRM: GPU0 _kgspRpcRecvPoll: GSP RM heartbeat timed out
+[  242.742905] NVRM: GPU0 _kgspIsHeartbeatTimedOut: Heartbeat timed out, currentTimeMs 6351 heartbeat 0 heartbeatWithOffsetMs 3538234144 diff 756739503 timeout 5200
+[  242.742909] NVRM: GPU0 _kgspRpcRecvPoll: LibOS heartbeat timed out
+[  242.742912] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Call not supported [NV_ERR_NOT_SUPPORTED] (0x00000056) returned from gpuConstructDeviceInfoTable_HAL(pGpu) @ kernel_fifo.c:2201
+[  242.742947] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Call not supported [NV_ERR_NOT_SUPPORTED] (0x00000056) returned from kfifoConstructEngineList_HAL(pGpu, pKernelFifo) @ kernel_fifo_gm107.c:694
+[  242.743226] NVRM: GPU0 _kgspIsHeartbeatTimedOut: Heartbeat timed out, currentTimeMs 6351 heartbeat 0 heartbeatWithOffsetMs 3538234144 diff 756739503 timeout 5200
+[  242.743229] NVRM: GPU0 _kgspRpcRecvPoll: GSP RM heartbeat timed out
+[  242.743343] NVRM: GPU0 _kgspIsHeartbeatTimedOut: Heartbeat timed out, currentTimeMs 6352 heartbeat 0 heartbeatWithOffsetMs 3538234144 diff 756739504 timeout 5200
+[  242.743346] NVRM: GPU0 _kgspRpcRecvPoll: LibOS heartbeat timed out
+[  242.743349] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Call not supported [NV_ERR_NOT_SUPPORTED] (0x00000056) returned from gpuConstructDeviceInfoTable_HAL(pGpu) @ kernel_fifo.c:2201
+[  242.743379] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Call not supported [NV_ERR_NOT_SUPPORTED] (0x00000056) returned from kfifoConstructEngineList_HAL(pGpu, pKernelFifo) @ kernel_fifo_gm107.c:694
+[  242.743610] NVRM: GPU0 _kgspIsHeartbeatTimedOut: Heartbeat timed out, currentTimeMs 6352 heartbeat 0 heartbeatWithOffsetMs 3538234144 diff 756739504 timeout 5200
+[  242.743612] NVRM: GPU0 _kgspRpcRecvPoll: GSP RM heartbeat timed out
+[  242.743711] NVRM: GPU0 _kgspIsHeartbeatTimedOut: Heartbeat timed out, currentTimeMs 6352 heartbeat 0 heartbeatWithOffsetMs 3538234144 diff 756739504 timeout 5200
+[  242.743714] NVRM: GPU0 _kgspRpcRecvPoll: LibOS heartbeat timed out
+[  242.743717] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Call not supported [NV_ERR_NOT_SUPPORTED] (0x00000056) returned from gpuConstructDeviceInfoTable_HAL(pGpu) @ kernel_fifo.c:2201
+[  242.743746] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Call not supported [NV_ERR_NOT_SUPPORTED] (0x00000056) returned from kfifoConstructEngineList_HAL(pGpu, pKernelFifo) @ kernel_fifo_gm107.c:694
+[  242.743996] NVRM: GPU0 _kgspIsHeartbeatTimedOut: Heartbeat timed out, currentTimeMs 6352 heartbeat 0 heartbeatWithOffsetMs 3538234144 diff 756739504 timeout 5200
+[  242.743999] NVRM: GPU0 _kgspRpcRecvPoll: GSP RM heartbeat timed out
+[  242.744098] NVRM: GPU0 _kgspIsHeartbeatTimedOut: Heartbeat timed out, currentTimeMs 6352 heartbeat 0 heartbeatWithOffsetMs 3538234144 diff 756739504 timeout 5200
+[  242.744100] NVRM: GPU0 _kgspRpcRecvPoll: LibOS heartbeat timed out
+[  242.744291] NVRM: GPU0 _kgspIsHeartbeatTimedOut: Heartbeat timed out, currentTimeMs 6353 heartbeat 0 heartbeatWithOffsetMs 3538234144 diff 756739505 timeout 5200
+[  242.744294] NVRM: GPU0 _kgspRpcRecvPoll: GSP RM heartbeat timed out
+[  242.744399] NVRM: GPU0 _kgspIsHeartbeatTimedOut: Heartbeat timed out, currentTimeMs 6353 heartbeat 0 heartbeatWithOffsetMs 3538234144 diff 756739505 timeout 5200
+[  242.744402] NVRM: GPU0 _kgspRpcRecvPoll: LibOS heartbeat timed out
+[  242.744581] NVRM: GPU0 _kgspIsHeartbeatTimedOut: Heartbeat timed out, currentTimeMs 6353 heartbeat 0 heartbeatWithOffsetMs 3538234144 diff 756739505 timeout 5200
+[  242.744584] NVRM: GPU0 _kgspRpcRecvPoll: GSP RM heartbeat timed out
+[  242.744682] NVRM: GPU0 _kgspIsHeartbeatTimedOut: Heartbeat timed out, currentTimeMs 6353 heartbeat 0 heartbeatWithOffsetMs 3538234144 diff 756739505 timeout 5200
+[  242.744684] NVRM: GPU0 _kgspRpcRecvPoll: LibOS heartbeat timed out
+[  242.744956] NVRM: GPU0 _kgspIsHeartbeatTimedOut: Heartbeat timed out, currentTimeMs 6353 heartbeat 0 heartbeatWithOffsetMs 3538234144 diff 756739505 timeout 5200
+[  242.744959] NVRM: GPU0 _kgspRpcRecvPoll: GSP RM heartbeat timed out
+[  242.745072] NVRM: GPU0 _kgspIsHeartbeatTimedOut: Heartbeat timed out, currentTimeMs 6353 heartbeat 0 heartbeatWithOffsetMs 3538234144 diff 756739505 timeout 5200
+[  242.745074] NVRM: GPU0 _kgspRpcRecvPoll: LibOS heartbeat timed out
+[  242.745271] NVRM: GPU0 _kgspIsHeartbeatTimedOut: Heartbeat timed out, currentTimeMs 6354 heartbeat 0 heartbeatWithOffsetMs 3538234144 diff 756739506 timeout 5200
+[  242.745274] NVRM: GPU0 _kgspRpcRecvPoll: GSP RM heartbeat timed out
+[  242.745380] NVRM: GPU0 _kgspIsHeartbeatTimedOut: Heartbeat timed out, currentTimeMs 6354 heartbeat 0 heartbeatWithOffsetMs 3538234144 diff 756739506 timeout 5200
+[  242.745382] NVRM: GPU0 _kgspRpcRecvPoll: LibOS heartbeat timed out
+[  242.745385] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Call not supported [NV_ERR_NOT_SUPPORTED] (0x00000056) returned from pRmApi->Control(pRmApi, pGpu->hInternalClient, pGpu->hInternalSubdevice, NV2080_CTRL_CMD_INTERNAL_CONF_COMPUTE_GET_STATIC_INFO, &pConfCompute->ccStaticInfo, sizeof(pConfCompute->ccStaticInfo)) @ conf_compute.c:560
+[  242.747497] NVRM: GPU0 _kgspIsHeartbeatTimedOut: Heartbeat timed out, currentTimeMs 6356 heartbeat 0 heartbeatWithOffsetMs 3538234144 diff 756739508 timeout 5200
+[  242.747500] NVRM: GPU0 _kgspRpcRecvPoll: GSP RM heartbeat timed out
+[  242.747604] NVRM: GPU0 _kgspIsHeartbeatTimedOut: Heartbeat timed out, currentTimeMs 6356 heartbeat 0 heartbeatWithOffsetMs 3538234144 diff 756739508 timeout 5200
+[  242.747606] NVRM: GPU0 _kgspRpcRecvPoll: LibOS heartbeat timed out
+[  242.747797] NVRM: GPU0 _kgspIsHeartbeatTimedOut: Heartbeat timed out, currentTimeMs 6356 heartbeat 0 heartbeatWithOffsetMs 3538234144 diff 756739508 timeout 5200
+[  242.747799] NVRM: GPU0 _kgspRpcRecvPoll: GSP RM heartbeat timed out
+[  242.747919] NVRM: GPU0 _kgspIsHeartbeatTimedOut: Heartbeat timed out, currentTimeMs 6356 heartbeat 0 heartbeatWithOffsetMs 3538234144 diff 756739508 timeout 5200
+[  242.747922] NVRM: GPU0 _kgspRpcRecvPoll: LibOS heartbeat timed out
+[  242.747926] BUG: kernel NULL pointer dereference, address: 0000000000000206
+[  242.748786] #PF: supervisor read access in kernel mode
+[  242.749410] #PF: error_code(0x0000) - not-present page
+[  242.750022] PGD 0 P4D 0 
+[  242.750885] Oops: 0000 [#1] PREEMPT SMP NOPTI
+[  242.751871] CPU: 6 PID: 1673 Comm: modprobe Tainted: G           OE      6.8.0-136-generic #136-Ubuntu
+[  242.754116] Hardware name: Cloud Hypervisor cloud-hypervisor, BIOS 0 
+[  242.755754] RIP: 0010:memmgrCalcReservedFbSpaceHal_GM107+0x40f/0x7b0 [nvidia]
+[  242.756903] Code: c1 e1 04 4c 01 f1 c7 81 f8 0c 00 00 1f 00 00 00 48 89 81 00 0d 00 00 41 89 96 f0 0c 00 00 48 8b 4d a8 49 03 04 24 49 89 04 24 <80> b9 06 02 00 00 00 74 4b 8b 93 40 3a 00 00 48 01 d0 49 89 04 24
+[  242.759083] RSP: 0018:ffffccdb827f32d0 EFLAGS: 00010206
+[  242.759714] RAX: 000000000646e000 RBX: ffff8992051a0008 RCX: 0000000000000000
+[  242.760566] RDX: 0000000000000008 RSI: ffffccdb827f323c RDI: ffffccdb827f323c
+[  242.761411] RBP: ffffccdb827f3340 R08: 0000000000008000 R09: 0000000000000000
+[  242.762259] R10: ffff899235ec1030 R11: 0000000000000000 R12: ffffccdb827f3370
+[  242.763113] R13: ffffccdb827f3368 R14: ffff8992018cd008 R15: ffffccdb827f3378
+[  242.763967] FS:  000077846f4ad080(0000) GS:ffff89923bd00000(0000) knlGS:0000000000000000
+[  242.764934] CS:  0010 DS: 0000 ES: 0000 CR0: 0000000080050033
+[  242.765648] CR2: 0000000000000206 CR3: 0000000128cb6000 CR4: 0000000000350ef0
+[  242.766506] Call Trace:
+[  242.766819]  <TASK>
+[  242.767102]  memmgrCalcReservedFbSpace_IMPL+0x67/0x480 [nvidia]
+[  242.768079]  memmgrRegionSetupForPma_IMPL+0x16/0x30 [nvidia]
+[  242.769187]  heapInitInternal_IMPL+0x1f7/0x5a0 [nvidia]
+[  242.770153]  ? memmgrInitInternalChannels_IMPL+0x230/0x230 [nvidia]
+[  242.771209]  memmgrCreateHeap_IMPL+0xfc/0x2a0 [nvidia]
+[  242.772050]  ? memmgrCreateHeap_IMPL+0x19a/0x2a0 [nvidia]
+[  242.772929]  ? memmgrDestroyInternalChannels_IMPL+0xb0/0xb0 [nvidia]
+[  242.773920]  memmgrStateInitLocked_IMPL+0x339/0x9b0 [nvidia]
+[  242.774847]  ? _rmGpuLockIsOwner+0x24/0x90 [nvidia]
+[  242.775702]  ? engstateStateInit_IMPL+0x1c/0xd0 [nvidia]
+[  242.776592]  gpuStateInit_IMPL+0x79/0x190 [nvidia]
+[  242.777417]  gpumgrStateInitGpu+0x48/0x60 [nvidia]
+[  242.778221]  RmInitAdapter+0x9e8/0x1f40 [nvidia]
+[  242.779034]  ? os_acquire_spinlock+0x12/0x30 [nvidia]
+[  242.779819]  ? _raw_spin_unlock_irqrestore+0x11/0x60
+[  242.780433]  rm_init_adapter+0x135/0x140 [nvidia]
+[  242.781264]  nv_start_device+0x3f2/0x7c0 [nvidia]
+[  242.782000]  nv_pci_probe+0xef1/0x1670 [nvidia]
+[  242.782727]  ? __kernfs_new_node+0x18f/0x220
+[  242.783268]  local_pci_probe+0x47/0xb0
+[  242.783729]  pci_call_probe+0x55/0x1a0
+[  242.784204]  pci_device_probe+0x84/0x120
+[  242.784688]  really_probe+0x1c7/0x410
+[  242.785151]  __driver_probe_device+0x9f/0x1d0
+[  242.785684]  driver_probe_device+0x24/0xd0
+[  242.786195]  __driver_attach+0x10b/0x210
+[  242.786674]  ? __pfx___driver_attach+0x10/0x10
+[  242.787224]  bus_for_each_dev+0x8d/0xf0
+[  242.787692]  driver_attach+0x1e/0x30
+[  242.788144]  bus_add_driver+0x14e/0x290
+[  242.788614]  driver_register+0x5e/0x130
+[  242.789088]  __pci_register_driver+0x5e/0x70
+[  242.789612]  nv_pci_register_driver+0x3a/0x50 [nvidia]
+[  242.790403]  nvidia_init_module+0x421/0x880 [nvidia]
+[  242.791163]  ? __pfx_nvidia_init_module+0x10/0x10 [nvidia]
+[  242.791953]  do_one_initcall+0x5e/0x340
+[  242.792363]  do_init_module+0x97/0x290
+[  242.792752]  load_module+0xb5f/0xca0
+[  242.793132]  init_module_from_file+0x96/0x100
+[  242.793588]  ? init_module_from_file+0x96/0x100
+[  242.794055]  idempotent_init_module+0x11c/0x310
+[  242.794527]  __x64_sys_finit_module+0x64/0xd0
+[  242.794977]  x64_sys_call+0x2019/0x25a0
+[  242.795385]  do_syscall_64+0x87/0x180
+[  242.795793]  ? ksys_read+0x73/0x100
+[  242.796173]  ? arch_exit_to_user_mode_prepare.isra.0+0x1a/0xe0
+[  242.796762]  ? syscall_exit_to_user_mode+0x43/0x1e0
+[  242.797308]  ? do_syscall_64+0x94/0x180
+[  242.797710]  ? irqentry_exit+0x43/0x50
+[  242.798103]  ? exc_page_fault+0x94/0x1b0
+[  242.798517]  entry_SYSCALL_64_after_hwframe+0x78/0x80
+[  242.799032] RIP: 0033:0x77846eb2738d
+[  242.799425] Code: ff c3 66 2e 0f 1f 84 00 00 00 00 00 90 f3 0f 1e fa 48 89 f8 48 89 f7 48 89 d6 48 89 ca 4d 89 c2 4d 89 c8 4c 8b 4c 24 08 0f 05 <48> 3d 01 f0 ff ff 73 01 c3 48 8b 0d 5b ba 0d 00 f7 d8 64 89 01 48
+[  242.801255] RSP: 002b:00007ffc6d4dd9a8 EFLAGS: 00000246 ORIG_RAX: 0000000000000139
+[  242.802009] RAX: ffffffffffffffda RBX: 0000560bbe232b50 RCX: 000077846eb2738d
+[  242.802728] RDX: 0000000000000000 RSI: 0000560bbe233250 RDI: 0000000000000003
+[  242.803466] RBP: 00007ffc6d4dda60 R08: 0000000000000040 R09: 00007ffc6d4dd9f0
+[  242.804227] R10: 000077846ec03b20 R11: 0000000000000246 R12: 0000560bbe233250
+[  242.804940] R13: 0000000000040000 R14: 0000560bbe232c80 R15: 0000560bbe233250
+[  242.805658]  </TASK>
+[  242.805905] Modules linked in: nvidia(OE+) snd_seq_dummy snd_hrtimer snd_seq_midi snd_seq_midi_event snd_rawmidi snd_seq snd_seq_device snd_timer snd soundcore binfmt_misc kvm_amd ccp nls_iso8859_1 kvm irqbypass ecc sch_fq_codel dm_multipath msr parport_pc ppdev lp parport efi_pstore nfnetlink dmi_sysfs ip_tables x_tables autofs4 btrfs blake2b_generic raid10 raid456 async_raid6_recov async_memcpy async_pq async_xor async_tx xor raid6_pq libcrc32c raid1 raid0 crct10dif_pclmul crc32_pclmul polyval_clmulni polyval_generic ghash_clmulni_intel sha256_ssse3 sha1_ssse3 virtio_rng aesni_intel crypto_simd cryptd [last unloaded: nvidia(OE)]
+[  242.811310] CR2: 0000000000000206
+[  242.811658] ---[ end trace 0000000000000000 ]---
+[  242.812130] RIP: 0010:memmgrCalcReservedFbSpaceHal_GM107+0x40f/0x7b0 [nvidia]
+[  242.813085] Code: c1 e1 04 4c 01 f1 c7 81 f8 0c 00 00 1f 00 00 00 48 89 81 00 0d 00 00 41 89 96 f0 0c 00 00 48 8b 4d a8 49 03 04 24 49 89 04 24 <80> b9 06 02 00 00 00 74 4b 8b 93 40 3a 00 00 48 01 d0 49 89 04 24
+[  242.814915] RSP: 0018:ffffccdb827f32d0 EFLAGS: 00010206
+[  242.815450] RAX: 000000000646e000 RBX: ffff8992051a0008 RCX: 0000000000000000
+[  242.816171] RDX: 0000000000000008 RSI: ffffccdb827f323c RDI: ffffccdb827f323c
+[  242.816880] RBP: ffffccdb827f3340 R08: 0000000000008000 R09: 0000000000000000
+[  242.817602] R10: ffff899235ec1030 R11: 0000000000000000 R12: ffffccdb827f3370
+[  242.818323] R13: ffffccdb827f3368 R14: ffff8992018cd008 R15: ffffccdb827f3378
+[  242.819037] FS:  000077846f4ad080(0000) GS:ffff89923bd00000(0000) knlGS:0000000000000000
+[  242.819843] CS:  0010 DS: 0000 ES: 0000 CR0: 0000000080050033
+[  242.820515] CR2: 0000000000000206 CR3: 0000000128cb6000 CR4: 0000000000350ef0
+[  242.821241] note: modprobe[1673] exited with irqs disabled
+modprobe rc=137

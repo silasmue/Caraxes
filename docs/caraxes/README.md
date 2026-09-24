@@ -30,6 +30,7 @@ driver recognizes and initializes a Turing/RTX 2070-like device. Windows later.
 | [driver-modes.md](driver-modes.md) | How the stock driver picks its runtime variant; why the vGPU-VF shortcut is dead on Turing; why GSP-client is the only path |
 | [init-map.md](init-map.md) | The concrete path from PCI enumeration to the first meaningful GSP RPC, with file:line anchors |
 | [gsp-boot-turing.md](gsp-boot-turing.md) | Every register the driver touches to boot GSP-RM on TU106, in order, with expected values (source survey) |
+| [gsp-boot-blackwell.md](gsp-boot-blackwell.md) | The same for GB206 with a 610.57.04 guest: the FSP Chain-of-Trust boot (FSP boot-complete scratch, NVDM/MCTP messages over the FSP EMEM queue, the COT payload and GSP_FMC_BOOT_PARAMS, the WPR layout ACR fills, target-mask and lockdown release), every register in order with the GB206 HAL and header, and what `src/chip/boot_fsp.rs` answers (source survey) |
 | [gsp-rpc-protocol.md](gsp-rpc-protocol.md) | Message-queue memory layout, checksums, sequence rules, RPC headers, init handshake, alloc/control serialization (source survey) |
 | [kernel-rm-hw-surface.md](kernel-rm-hw-surface.md) | What the kernel RM touches directly besides GSP boot: config mirror, BAR2/PRAMIN, interrupt tree, TLB invalidate, timer, MSI, self-tests (source survey) |
 | [registers-turing.md](registers-turing.md) | Consolidated BAR0 register map the emulator must answer, by phase |
@@ -75,6 +76,7 @@ driver recognizes and initializes a Turing/RTX 2070-like device. Windows later.
 | [parallel.md](parallel.md) | P20, the parallelism proof: two reserving VMs in fixed slots run the cuda gate concurrently beside the desktop; isolation by construction and by pattern test, the host's scrub on free proven for the reservation, fail-closed teardown, the D11 refusal of a third VM; the BAR1 leak and deadlock found and fixed, and two open sysmem-path findings (mapping scale, the chunk-crossing hole) |
 | [nova-vgpu-upstream.md](nova-vgpu-upstream.md) | The upstream nova-core vGPU manager series (v2, 32 patches, 2026-09-14) read patch by patch against the device: plugin ABI and RPC discipline, VRAM/channel allocation, CeUtils scrubbing and fail-closed teardown, VMMU segment, FIFO engine table, VF routing, migration, logging; ranked actionable differences and a cross-check of the GSP message queues (subagent report, P19) |
 | [blackwell-gb206.md](blackwell-gb206.md) | The Blackwell lab capture (RTX 5060 Ti, GB206, driver 615.71.09, korngold, 2026-09-24, filed under `caraxes/reference/gb206/`) read item by item against TU106; the D14 work list for a GB206 identity with five draft chip tables under `chips/gb206/`; the 610.57.04 driver supports GB206 (gsp_ga10x firmware, boots GSP through FSP, no ROM parsing); 615.71.09 redesigns the CPU-GSP transport (queue v2 in registers, MCTP-framed elements, one GMCAPI init instead of the four init RPCs) and changes seven control structs; the 615 gsp-abi-sizes record; a nine-step N-gate plan of 27 to 39 days that stops at "driver up" without a Blackwell card here (subagent report) |
+| [blackwell-gate.md](blackwell-gate.md) | The Blackwell N gate in pure emulation: the GB206 identity (`--board-data rtx5060ti`, `CARAXES_CHIP=gb206`), stages N0 (device) to N4 (first channel allocation), the predicted walls, preconditions and the exact vm3 launcher command; defined 2026-09-24, not run yet |
 | [gsp-surface.md](gsp-surface.md) | P23, the GSP surface of 610.57.04 from source: 829 of 1377 exported controls reach GSP, the device handles 171 with D9 provenance, the 658 unhandled sorted into five categories (pure chip data, host-forwardable, guest-state derived, needs modelling, never expected on TU106) with a recipe and estimate each, the 20 RPC functions and 41 events a GSP client uses, the top ten a Linux CUDA or display client hits next, what Windows and nova-core share; produced by `caraxes/tools/gsp-surface.py` (subagent report, 2026-09-24) |
 | [open-questions.md](open-questions.md) | Unresolved questions, numbered |
 
@@ -560,3 +562,13 @@ the VM; then display, expected to be much easier than in v1.
   `naming::parse_name` reads both. The v1 gates in `../Leandro-Test` accept either format
   through one regex helper (`lea_mediated_name_re`, operator's permission of 2026-09-24).
   The Caraxes GID is still seeded from the legacy name, so the guest UUID is unchanged.
+- 2026-09-24: **Blackwell N gate passed in pure emulation** ([blackwell-gate.md](blackwell-gate.md),
+  [gsp-boot-blackwell.md](gsp-boot-blackwell.md), experiments.md rows b0-b8, evidence in
+  `caraxes/runs/blackwell-2026-09-24/`): the device presents the RTX 5060 Ti of the lab capture
+  (`--board-data rtx5060ti`, `CARAXES_CHIP=gb206`; MSI-X unlinked, BAR1 256 MiB, PBI mailbox
+  and DSN bytes redacted) and emulates the FSP Chain-of-Trust boot (`src/chip/boot_fsp.rs`),
+  the GMMU v3 page tables (`src/gmmu_v3.rs`, selected additively in fb.rs) and four
+  physical-RM answers from the capture (`src/chip/physical.rs`). A stock 610.57.04 guest on
+  vm1 reached RmInitAdapter, `nvidia-smi -q` ("Leandro VFIO RTX 5060 Ti-4G", 4096 MiB, VBIOS
+  98.06.1F.40.4A) and UVM's first BLACKWELL_CHANNEL_GPFIFO_B allocation; no host GPU was
+  touched. Next: the CA6F/CAB5 method subsets (the first push hangs), full KGR static info.

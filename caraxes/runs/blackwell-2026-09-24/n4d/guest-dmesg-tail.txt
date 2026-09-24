@@ -1,0 +1,25 @@
+[  367.899532]  ? thread_context_non_interrupt_add+0x13a/0x250 [nvidia_uvm]
+[  367.899568]  uvm_unlocked_ioctl_entry.part.0+0x7b/0xf0 [nvidia_uvm]
+[  367.899598]  ? security_file_permission+0x39/0x60
+[  367.899602]  uvm_unlocked_ioctl_entry+0x6b/0x90 [nvidia_uvm]
+[  367.899630]  __x64_sys_ioctl+0xa3/0xf0
+[  367.899634]  x64_sys_call+0x12a3/0x25a0
+[  367.899637]  do_syscall_64+0x87/0x180
+[  367.899640]  ? ksys_write+0xc9/0x100
+[  367.899642]  ? arch_exit_to_user_mode_prepare.isra.0+0x1a/0xe0
+[  367.899644]  ? syscall_exit_to_user_mode+0x43/0x1e0
+[  367.899647]  ? do_syscall_64+0x94/0x180
+[  367.899648]  ? exc_page_fault+0x94/0x1b0
+[  367.899650]  entry_SYSCALL_64_after_hwframe+0x78/0x80
+[  367.899656] RIP: 0033:0x79e0b2124f1d
+[  367.899667] Code: 04 25 28 00 00 00 48 89 45 c8 31 c0 48 8d 45 10 c7 45 b0 10 00 00 00 48 89 45 b8 48 8d 45 d0 48 89 45 c0 b8 10 00 00 00 0f 05 <89> c2 3d 00 f0 ff ff 77 1a 48 8b 45 c8 64 48 2b 04 25 28 00 00 00
+[  367.899668] RSP: 002b:00007ffccd3184c0 EFLAGS: 00000246 ORIG_RAX: 0000000000000010
+[  367.899671] RAX: ffffffffffffffda RBX: 0000000000000000 RCX: 000079e0b2124f1d
+[  367.899672] RDX: 00007ffccd3185a0 RSI: 0000000000000025 RDI: 0000000000000005
+[  367.899673] RBP: 00007ffccd318510 R08: 0000000000000073 R09: 0000000000000000
+[  367.899674] R10: 00000000ffffffff R11: 0000000000000246 R12: 00007ffccd3185d0
+[  367.899675] R13: 0000000000000005 R14: 0000000000000003 R15: 0000000000000004
+[  367.899677]  </TASK>
+[  367.899695] nvidia-uvm: uvm_tracker.c:285 uvm_tracker_entry_print_pending_pushes[pid:1647] Tracker entry for value 1 (sema VA 0x121000000) channel ID 1:1 (0x1:0x1) CE 4 GPU ID 1: GPU-0796ae38-3ef8-3a1a-075f-47e3c0d215c7 GI-0796ae38-3ef8-3a1a-075f-47e3c0d215c7
+[  367.899699] nvidia-uvm: uvm_channel.c:4210 channel_print_pushes[pid:1647]  control GPFIFO entry - data: 0x400000000, gpu_get: 0
+[  367.899701] nvidia-uvm: uvm_channel.c:4226 channel_print_pushes[pid:1647]  pending push '' started at uvm_channel.c:2546 in channel_init() releasing value 1
