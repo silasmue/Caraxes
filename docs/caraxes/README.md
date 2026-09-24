@@ -768,3 +768,25 @@ the VM; then display, expected to be much easier than in v1.
   of a CUDA process sends no D control (no 0x2080110B, no 0x20800177); the display gate itself
   sends `SET_ZBC_COLOR_CLEAR` three times (ZBC model, R3). No host Xid on the device's pid (one
   Xid 31 on vm1's device in the same hour).
+- 2026-09-24: **GSP surface, category D round 2: R2, the open MODEL rows, the ZBC table**
+  ([gsp-plan/d-device-model.md](gsp-plan/d-device-model.md) §10 "Round 2",
+  [gsp-surface.md](gsp-surface.md) "After round 2 of D", records
+  `caraxes/runs/gsp-round2-d-2026-09-24/`). R2 in `src/rc.rs` and a per-VM `DState`:
+  `FIFO_DISABLE_CHANNELS` only on the guest's own channels (mirrors by their own channel and
+  TSG objects, never a runlist action), `GPU_REPORT_NON_REPLAYABLE_FAULT` and the RC watchdog
+  timeout RC the guest's channel through the existing RC_TRIGGERED path, `LOG_OOB_XID` and the
+  RC journal, compute mode and GPU accounting per VM, the BAR0 map policy deny by default. The
+  open MODEL rows outside the display got the plan's small models (FECS setters, the two L2
+  flushes on the device's own subdevice, FBSR_INIT, RATED_TDP, the MMU debug mode); the timed
+  semaphore is refused until Q4; the 12 display rows stay with the display branch. The ZBC
+  table is guest-local per VM, seeded from one read-only host sweep (Q5: 48 GET controls on an
+  unprivileged client's own GF100_ZBC_CLEAR, all NV_OK, no host kernel line; only GSP-RM's seed
+  kept, the host desktop's clear colours left out), and the getters answer from it. Rule table
+  615: REFUSE 202, DENY 37, ACK 20, TABLE 5, MODEL 41, MIRROR 3; routed controls answered 734 to
+  757 on 615 (720 to 743 on 610), D unanswered 48 to 28. vm3 gates before and after on both
+  guests unchanged (610: nvml power N/A, cuda 10 of 12; 615: nvml pass, cuda 10 of 12, both
+  failing only `cuda-managed`); the gates send no D control, a ZBC probe in the guest reads the
+  seeded table and its own three entries back after (all 0x56 before). No host Xid on the
+  device's pid (two Xid 31 of another VM's device during the 615 before run). What the guest
+  watchdog needs before `RmRcWatchdog=0` can go: 2D-class NOTIFY in the software executor, the
+  BAR1 USERD path (Q7).

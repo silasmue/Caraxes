@@ -1,0 +1,107 @@
+RM_ALLOC class 0x0041 (root client): status 0x0 handle 0xc1d0004e
+RM_ALLOC class 0x0080 handle 0xcaf30001 under 0xc1d0004e: status 0x0
+RM_ALLOC class 0x2080 handle 0xcaf30002 under 0xcaf30001: status 0x0
+RM_ALLOC class 0x9096 handle 0xcaf30003 under 0xcaf30002: status 0x0
+GET_ZBC_CLEAR_TABLE_SIZE 0x90960106 tableType=1 (color) status=0x0 indexStart=1 indexEnd=15
+GET_ZBC_CLEAR_TABLE_ENTRY 0x90960107 tableType=1 (color) index=1 status=0x56 bIndexValid=0 format=0x0 colorFB=0x00000000,0x00000000,0x00000000,0x00000000 colorDS=0x00000000,0x00000000,0x00000000,0x00000000
+GET_ZBC_CLEAR_TABLE_ENTRY 0x90960107 tableType=1 (color) index=2 status=0x56 bIndexValid=0 format=0x0 colorFB=0x00000000,0x00000000,0x00000000,0x00000000 colorDS=0x00000000,0x00000000,0x00000000,0x00000000
+GET_ZBC_CLEAR_TABLE_ENTRY 0x90960107 tableType=1 (color) index=3 status=0x56 bIndexValid=0 format=0x0 colorFB=0x00000000,0x00000000,0x00000000,0x00000000 colorDS=0x00000000,0x00000000,0x00000000,0x00000000
+GET_ZBC_CLEAR_TABLE_ENTRY 0x90960107 tableType=1 (color) index=4 status=0x56 bIndexValid=0 format=0x0 colorFB=0x00000000,0x00000000,0x00000000,0x00000000 colorDS=0x00000000,0x00000000,0x00000000,0x00000000
+GET_ZBC_CLEAR_TABLE_ENTRY 0x90960107 tableType=1 (color) index=5 status=0x56 bIndexValid=0 format=0x0 colorFB=0x00000000,0x00000000,0x00000000,0x00000000 colorDS=0x00000000,0x00000000,0x00000000,0x00000000
+GET_ZBC_CLEAR_TABLE_ENTRY 0x90960107 tableType=1 (color) index=6 status=0x56 bIndexValid=0 format=0x0 colorFB=0x00000000,0x00000000,0x00000000,0x00000000 colorDS=0x00000000,0x00000000,0x00000000,0x00000000
+GET_ZBC_CLEAR_TABLE_ENTRY 0x90960107 tableType=1 (color) index=7 status=0x56 bIndexValid=0 format=0x0 colorFB=0x00000000,0x00000000,0x00000000,0x00000000 colorDS=0x00000000,0x00000000,0x00000000,0x00000000
+GET_ZBC_CLEAR_TABLE_ENTRY 0x90960107 tableType=1 (color) index=8 status=0x56 bIndexValid=0 format=0x0 colorFB=0x00000000,0x00000000,0x00000000,0x00000000 colorDS=0x00000000,0x00000000,0x00000000,0x00000000
+GET_ZBC_CLEAR_TABLE_ENTRY 0x90960107 tableType=1 (color) index=9 status=0x56 bIndexValid=0 format=0x0 colorFB=0x00000000,0x00000000,0x00000000,0x00000000 colorDS=0x00000000,0x00000000,0x00000000,0x00000000
+GET_ZBC_CLEAR_TABLE_ENTRY 0x90960107 tableType=1 (color) index=10 status=0x56 bIndexValid=0 format=0x0 colorFB=0x00000000,0x00000000,0x00000000,0x00000000 colorDS=0x00000000,0x00000000,0x00000000,0x00000000
+GET_ZBC_CLEAR_TABLE_ENTRY 0x90960107 tableType=1 (color) index=11 status=0x56 bIndexValid=0 format=0x0 colorFB=0x00000000,0x00000000,0x00000000,0x00000000 colorDS=0x00000000,0x00000000,0x00000000,0x00000000
+GET_ZBC_CLEAR_TABLE_ENTRY 0x90960107 tableType=1 (color) index=12 status=0x56 bIndexValid=0 format=0x0 colorFB=0x00000000,0x00000000,0x00000000,0x00000000 colorDS=0x00000000,0x00000000,0x00000000,0x00000000
+GET_ZBC_CLEAR_TABLE_ENTRY 0x90960107 tableType=1 (color) index=13 status=0x56 bIndexValid=0 format=0x0 colorFB=0x00000000,0x00000000,0x00000000,0x00000000 colorDS=0x00000000,0x00000000,0x00000000,0x00000000
+GET_ZBC_CLEAR_TABLE_ENTRY 0x90960107 tableType=1 (color) index=14 status=0x56 bIndexValid=0 format=0x0 colorFB=0x00000000,0x00000000,0x00000000,0x00000000 colorDS=0x00000000,0x00000000,0x00000000,0x00000000
+GET_ZBC_CLEAR_TABLE_ENTRY 0x90960107 tableType=1 (color) index=15 status=0x56 bIndexValid=0 format=0x0 colorFB=0x00000000,0x00000000,0x00000000,0x00000000 colorDS=0x00000000,0x00000000,0x00000000,0x00000000
+GET_ZBC_CLEAR_TABLE_SIZE 0x90960106 tableType=2 (depth) status=0x0 indexStart=1 indexEnd=15
+GET_ZBC_CLEAR_TABLE_ENTRY 0x90960107 tableType=2 (depth) index=1 status=0x56 bIndexValid=0 format=0x0 depth=0x00000000
+GET_ZBC_CLEAR_TABLE_ENTRY 0x90960107 tableType=2 (depth) index=2 status=0x56 bIndexValid=0 format=0x0 depth=0x00000000
+GET_ZBC_CLEAR_TABLE_ENTRY 0x90960107 tableType=2 (depth) index=3 status=0x56 bIndexValid=0 format=0x0 depth=0x00000000
+GET_ZBC_CLEAR_TABLE_ENTRY 0x90960107 tableType=2 (depth) index=4 status=0x56 bIndexValid=0 format=0x0 depth=0x00000000
+GET_ZBC_CLEAR_TABLE_ENTRY 0x90960107 tableType=2 (depth) index=5 status=0x56 bIndexValid=0 format=0x0 depth=0x00000000
+GET_ZBC_CLEAR_TABLE_ENTRY 0x90960107 tableType=2 (depth) index=6 status=0x56 bIndexValid=0 format=0x0 depth=0x00000000
+GET_ZBC_CLEAR_TABLE_ENTRY 0x90960107 tableType=2 (depth) index=7 status=0x56 bIndexValid=0 format=0x0 depth=0x00000000
+GET_ZBC_CLEAR_TABLE_ENTRY 0x90960107 tableType=2 (depth) index=8 status=0x56 bIndexValid=0 format=0x0 depth=0x00000000
+GET_ZBC_CLEAR_TABLE_ENTRY 0x90960107 tableType=2 (depth) index=9 status=0x56 bIndexValid=0 format=0x0 depth=0x00000000
+GET_ZBC_CLEAR_TABLE_ENTRY 0x90960107 tableType=2 (depth) index=10 status=0x56 bIndexValid=0 format=0x0 depth=0x00000000
+GET_ZBC_CLEAR_TABLE_ENTRY 0x90960107 tableType=2 (depth) index=11 status=0x56 bIndexValid=0 format=0x0 depth=0x00000000
+GET_ZBC_CLEAR_TABLE_ENTRY 0x90960107 tableType=2 (depth) index=12 status=0x56 bIndexValid=0 format=0x0 depth=0x00000000
+GET_ZBC_CLEAR_TABLE_ENTRY 0x90960107 tableType=2 (depth) index=13 status=0x56 bIndexValid=0 format=0x0 depth=0x00000000
+GET_ZBC_CLEAR_TABLE_ENTRY 0x90960107 tableType=2 (depth) index=14 status=0x56 bIndexValid=0 format=0x0 depth=0x00000000
+GET_ZBC_CLEAR_TABLE_ENTRY 0x90960107 tableType=2 (depth) index=15 status=0x56 bIndexValid=0 format=0x0 depth=0x00000000
+GET_ZBC_CLEAR_TABLE_SIZE 0x90960106 tableType=3 (stencil) status=0x0 indexStart=1 indexEnd=15
+GET_ZBC_CLEAR_TABLE_ENTRY 0x90960107 tableType=3 (stencil) index=1 status=0x56 bIndexValid=0 format=0x0 stencil=0x00000000
+GET_ZBC_CLEAR_TABLE_ENTRY 0x90960107 tableType=3 (stencil) index=2 status=0x56 bIndexValid=0 format=0x0 stencil=0x00000000
+GET_ZBC_CLEAR_TABLE_ENTRY 0x90960107 tableType=3 (stencil) index=3 status=0x56 bIndexValid=0 format=0x0 stencil=0x00000000
+GET_ZBC_CLEAR_TABLE_ENTRY 0x90960107 tableType=3 (stencil) index=4 status=0x56 bIndexValid=0 format=0x0 stencil=0x00000000
+GET_ZBC_CLEAR_TABLE_ENTRY 0x90960107 tableType=3 (stencil) index=5 status=0x56 bIndexValid=0 format=0x0 stencil=0x00000000
+GET_ZBC_CLEAR_TABLE_ENTRY 0x90960107 tableType=3 (stencil) index=6 status=0x56 bIndexValid=0 format=0x0 stencil=0x00000000
+GET_ZBC_CLEAR_TABLE_ENTRY 0x90960107 tableType=3 (stencil) index=7 status=0x56 bIndexValid=0 format=0x0 stencil=0x00000000
+GET_ZBC_CLEAR_TABLE_ENTRY 0x90960107 tableType=3 (stencil) index=8 status=0x56 bIndexValid=0 format=0x0 stencil=0x00000000
+GET_ZBC_CLEAR_TABLE_ENTRY 0x90960107 tableType=3 (stencil) index=9 status=0x56 bIndexValid=0 format=0x0 stencil=0x00000000
+GET_ZBC_CLEAR_TABLE_ENTRY 0x90960107 tableType=3 (stencil) index=10 status=0x56 bIndexValid=0 format=0x0 stencil=0x00000000
+GET_ZBC_CLEAR_TABLE_ENTRY 0x90960107 tableType=3 (stencil) index=11 status=0x56 bIndexValid=0 format=0x0 stencil=0x00000000
+GET_ZBC_CLEAR_TABLE_ENTRY 0x90960107 tableType=3 (stencil) index=12 status=0x56 bIndexValid=0 format=0x0 stencil=0x00000000
+GET_ZBC_CLEAR_TABLE_ENTRY 0x90960107 tableType=3 (stencil) index=13 status=0x56 bIndexValid=0 format=0x0 stencil=0x00000000
+GET_ZBC_CLEAR_TABLE_ENTRY 0x90960107 tableType=3 (stencil) index=14 status=0x56 bIndexValid=0 format=0x0 stencil=0x00000000
+GET_ZBC_CLEAR_TABLE_ENTRY 0x90960107 tableType=3 (stencil) index=15 status=0x56 bIndexValid=0 format=0x0 stencil=0x00000000
+sweep: 0 entries answered, 0 valid
+SET_ZBC_COLOR_CLEAR 0x90960101 status=0x56
+SET_ZBC_DEPTH_CLEAR 0x90960102 status=0x56
+SET_ZBC_STENCIL_CLEAR 0x90960105 status=0x56
+GET_ZBC_CLEAR_TABLE_SIZE 0x90960106 tableType=1 (color) status=0x0 indexStart=1 indexEnd=15
+GET_ZBC_CLEAR_TABLE_ENTRY 0x90960107 tableType=1 (color) index=1 status=0x56 bIndexValid=0 format=0x0 colorFB=0x00000000,0x00000000,0x00000000,0x00000000 colorDS=0x00000000,0x00000000,0x00000000,0x00000000
+GET_ZBC_CLEAR_TABLE_ENTRY 0x90960107 tableType=1 (color) index=2 status=0x56 bIndexValid=0 format=0x0 colorFB=0x00000000,0x00000000,0x00000000,0x00000000 colorDS=0x00000000,0x00000000,0x00000000,0x00000000
+GET_ZBC_CLEAR_TABLE_ENTRY 0x90960107 tableType=1 (color) index=3 status=0x56 bIndexValid=0 format=0x0 colorFB=0x00000000,0x00000000,0x00000000,0x00000000 colorDS=0x00000000,0x00000000,0x00000000,0x00000000
+GET_ZBC_CLEAR_TABLE_ENTRY 0x90960107 tableType=1 (color) index=4 status=0x56 bIndexValid=0 format=0x0 colorFB=0x00000000,0x00000000,0x00000000,0x00000000 colorDS=0x00000000,0x00000000,0x00000000,0x00000000
+GET_ZBC_CLEAR_TABLE_ENTRY 0x90960107 tableType=1 (color) index=5 status=0x56 bIndexValid=0 format=0x0 colorFB=0x00000000,0x00000000,0x00000000,0x00000000 colorDS=0x00000000,0x00000000,0x00000000,0x00000000
+GET_ZBC_CLEAR_TABLE_ENTRY 0x90960107 tableType=1 (color) index=6 status=0x56 bIndexValid=0 format=0x0 colorFB=0x00000000,0x00000000,0x00000000,0x00000000 colorDS=0x00000000,0x00000000,0x00000000,0x00000000
+GET_ZBC_CLEAR_TABLE_ENTRY 0x90960107 tableType=1 (color) index=7 status=0x56 bIndexValid=0 format=0x0 colorFB=0x00000000,0x00000000,0x00000000,0x00000000 colorDS=0x00000000,0x00000000,0x00000000,0x00000000
+GET_ZBC_CLEAR_TABLE_ENTRY 0x90960107 tableType=1 (color) index=8 status=0x56 bIndexValid=0 format=0x0 colorFB=0x00000000,0x00000000,0x00000000,0x00000000 colorDS=0x00000000,0x00000000,0x00000000,0x00000000
+GET_ZBC_CLEAR_TABLE_ENTRY 0x90960107 tableType=1 (color) index=9 status=0x56 bIndexValid=0 format=0x0 colorFB=0x00000000,0x00000000,0x00000000,0x00000000 colorDS=0x00000000,0x00000000,0x00000000,0x00000000
+GET_ZBC_CLEAR_TABLE_ENTRY 0x90960107 tableType=1 (color) index=10 status=0x56 bIndexValid=0 format=0x0 colorFB=0x00000000,0x00000000,0x00000000,0x00000000 colorDS=0x00000000,0x00000000,0x00000000,0x00000000
+GET_ZBC_CLEAR_TABLE_ENTRY 0x90960107 tableType=1 (color) index=11 status=0x56 bIndexValid=0 format=0x0 colorFB=0x00000000,0x00000000,0x00000000,0x00000000 colorDS=0x00000000,0x00000000,0x00000000,0x00000000
+GET_ZBC_CLEAR_TABLE_ENTRY 0x90960107 tableType=1 (color) index=12 status=0x56 bIndexValid=0 format=0x0 colorFB=0x00000000,0x00000000,0x00000000,0x00000000 colorDS=0x00000000,0x00000000,0x00000000,0x00000000
+GET_ZBC_CLEAR_TABLE_ENTRY 0x90960107 tableType=1 (color) index=13 status=0x56 bIndexValid=0 format=0x0 colorFB=0x00000000,0x00000000,0x00000000,0x00000000 colorDS=0x00000000,0x00000000,0x00000000,0x00000000
+GET_ZBC_CLEAR_TABLE_ENTRY 0x90960107 tableType=1 (color) index=14 status=0x56 bIndexValid=0 format=0x0 colorFB=0x00000000,0x00000000,0x00000000,0x00000000 colorDS=0x00000000,0x00000000,0x00000000,0x00000000
+GET_ZBC_CLEAR_TABLE_ENTRY 0x90960107 tableType=1 (color) index=15 status=0x56 bIndexValid=0 format=0x0 colorFB=0x00000000,0x00000000,0x00000000,0x00000000 colorDS=0x00000000,0x00000000,0x00000000,0x00000000
+GET_ZBC_CLEAR_TABLE_SIZE 0x90960106 tableType=2 (depth) status=0x0 indexStart=1 indexEnd=15
+GET_ZBC_CLEAR_TABLE_ENTRY 0x90960107 tableType=2 (depth) index=1 status=0x56 bIndexValid=0 format=0x0 depth=0x00000000
+GET_ZBC_CLEAR_TABLE_ENTRY 0x90960107 tableType=2 (depth) index=2 status=0x56 bIndexValid=0 format=0x0 depth=0x00000000
+GET_ZBC_CLEAR_TABLE_ENTRY 0x90960107 tableType=2 (depth) index=3 status=0x56 bIndexValid=0 format=0x0 depth=0x00000000
+GET_ZBC_CLEAR_TABLE_ENTRY 0x90960107 tableType=2 (depth) index=4 status=0x56 bIndexValid=0 format=0x0 depth=0x00000000
+GET_ZBC_CLEAR_TABLE_ENTRY 0x90960107 tableType=2 (depth) index=5 status=0x56 bIndexValid=0 format=0x0 depth=0x00000000
+GET_ZBC_CLEAR_TABLE_ENTRY 0x90960107 tableType=2 (depth) index=6 status=0x56 bIndexValid=0 format=0x0 depth=0x00000000
+GET_ZBC_CLEAR_TABLE_ENTRY 0x90960107 tableType=2 (depth) index=7 status=0x56 bIndexValid=0 format=0x0 depth=0x00000000
+GET_ZBC_CLEAR_TABLE_ENTRY 0x90960107 tableType=2 (depth) index=8 status=0x56 bIndexValid=0 format=0x0 depth=0x00000000
+GET_ZBC_CLEAR_TABLE_ENTRY 0x90960107 tableType=2 (depth) index=9 status=0x56 bIndexValid=0 format=0x0 depth=0x00000000
+GET_ZBC_CLEAR_TABLE_ENTRY 0x90960107 tableType=2 (depth) index=10 status=0x56 bIndexValid=0 format=0x0 depth=0x00000000
+GET_ZBC_CLEAR_TABLE_ENTRY 0x90960107 tableType=2 (depth) index=11 status=0x56 bIndexValid=0 format=0x0 depth=0x00000000
+GET_ZBC_CLEAR_TABLE_ENTRY 0x90960107 tableType=2 (depth) index=12 status=0x56 bIndexValid=0 format=0x0 depth=0x00000000
+GET_ZBC_CLEAR_TABLE_ENTRY 0x90960107 tableType=2 (depth) index=13 status=0x56 bIndexValid=0 format=0x0 depth=0x00000000
+GET_ZBC_CLEAR_TABLE_ENTRY 0x90960107 tableType=2 (depth) index=14 status=0x56 bIndexValid=0 format=0x0 depth=0x00000000
+GET_ZBC_CLEAR_TABLE_ENTRY 0x90960107 tableType=2 (depth) index=15 status=0x56 bIndexValid=0 format=0x0 depth=0x00000000
+GET_ZBC_CLEAR_TABLE_SIZE 0x90960106 tableType=3 (stencil) status=0x0 indexStart=1 indexEnd=15
+GET_ZBC_CLEAR_TABLE_ENTRY 0x90960107 tableType=3 (stencil) index=1 status=0x56 bIndexValid=0 format=0x0 stencil=0x00000000
+GET_ZBC_CLEAR_TABLE_ENTRY 0x90960107 tableType=3 (stencil) index=2 status=0x56 bIndexValid=0 format=0x0 stencil=0x00000000
+GET_ZBC_CLEAR_TABLE_ENTRY 0x90960107 tableType=3 (stencil) index=3 status=0x56 bIndexValid=0 format=0x0 stencil=0x00000000
+GET_ZBC_CLEAR_TABLE_ENTRY 0x90960107 tableType=3 (stencil) index=4 status=0x56 bIndexValid=0 format=0x0 stencil=0x00000000
+GET_ZBC_CLEAR_TABLE_ENTRY 0x90960107 tableType=3 (stencil) index=5 status=0x56 bIndexValid=0 format=0x0 stencil=0x00000000
+GET_ZBC_CLEAR_TABLE_ENTRY 0x90960107 tableType=3 (stencil) index=6 status=0x56 bIndexValid=0 format=0x0 stencil=0x00000000
+GET_ZBC_CLEAR_TABLE_ENTRY 0x90960107 tableType=3 (stencil) index=7 status=0x56 bIndexValid=0 format=0x0 stencil=0x00000000
+GET_ZBC_CLEAR_TABLE_ENTRY 0x90960107 tableType=3 (stencil) index=8 status=0x56 bIndexValid=0 format=0x0 stencil=0x00000000
+GET_ZBC_CLEAR_TABLE_ENTRY 0x90960107 tableType=3 (stencil) index=9 status=0x56 bIndexValid=0 format=0x0 stencil=0x00000000
+GET_ZBC_CLEAR_TABLE_ENTRY 0x90960107 tableType=3 (stencil) index=10 status=0x56 bIndexValid=0 format=0x0 stencil=0x00000000
+GET_ZBC_CLEAR_TABLE_ENTRY 0x90960107 tableType=3 (stencil) index=11 status=0x56 bIndexValid=0 format=0x0 stencil=0x00000000
+GET_ZBC_CLEAR_TABLE_ENTRY 0x90960107 tableType=3 (stencil) index=12 status=0x56 bIndexValid=0 format=0x0 stencil=0x00000000
+GET_ZBC_CLEAR_TABLE_ENTRY 0x90960107 tableType=3 (stencil) index=13 status=0x56 bIndexValid=0 format=0x0 stencil=0x00000000
+GET_ZBC_CLEAR_TABLE_ENTRY 0x90960107 tableType=3 (stencil) index=14 status=0x56 bIndexValid=0 format=0x0 stencil=0x00000000
+GET_ZBC_CLEAR_TABLE_ENTRY 0x90960107 tableType=3 (stencil) index=15 status=0x56 bIndexValid=0 format=0x0 stencil=0x00000000
+readback: color false, depth false, stencil false
+RM_FREE client 0xc1d0004e: status 0x0
+zbc-probe rc=1

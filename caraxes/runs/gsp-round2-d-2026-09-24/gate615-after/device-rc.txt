@@ -1,0 +1,1 @@
+   144929259 E boot: registry RmLogonRC = 1: honoured, an RC carries the Xid line (OS_ERROR_LOG)

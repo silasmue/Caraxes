@@ -1,0 +1,21 @@
+NVRM version: NVIDIA UNIX Open Kernel Module for x86_64  615.71.09  Release Build  (root@)  
+5d18010b0f4b4ba832fcc9feea98070b746b0d6ef7f3759d45dc1a685d5fcc74  /tmp/claude-1000/-home-silas-git-Caraxes/43784b5f-fc25-49bd-8e67-5dbab7e19aca/scratchpad/base/vfio-user-nvgpu-610
+CARAXES_BOOT_MODEL=1
+CARAXES_DMA=register
+CARAXES_DOORBELL_POLL=hybrid
+CARAXES_DOORBELL_TOKENS=64
+CARAXES_FB_MIB=1024
+CARAXES_GATE_FB_MIB=1024
+CARAXES_GATE_RUNS=/home/silas/git/Caraxes/.claude/worktrees/agent-a381e2fd8c7fc690d/caraxes/runs/gsp-round2-d-2026-09-24/gate610-before
+CARAXES_HOST_EXEC=1
+CARAXES_HOST_RM=1
+CARAXES_IP=192.168.103.23
+CARAXES_MAC=02:00:00:00:00:23
+CARAXES_MIRROR_CHANNELS=1
+CARAXES_MIRROR_GR_SHADOW=1
+CARAXES_RESERVE_SLOT=5
+CARAXES_RESERVE_VRAM=1
+CARAXES_SERVER=/tmp/claude-1000/-home-silas-git-Caraxes/43784b5f-fc25-49bd-8e67-5dbab7e19aca/scratchpad/base/vfio-user-nvgpu-610
+CARAXES_TAP=caraxes3
+LEA_CH=/mnt/vmstore/caraxes/vm1/ch-0006-v.sh
+VM=vm3
