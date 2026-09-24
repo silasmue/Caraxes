@@ -43,6 +43,18 @@ pub use v610 as active;
 #[cfg(not(feature = "v610"))]
 compile_error!("vfio-user-nvgpu needs a driver-version feature (v610)");
 
+/// What the control id 0x20800A36 names in the guest's driver: 610.57.04
+/// `NV2080_CTRL_CMD_INTERNAL_GPU_GET_CHIP_INFO` (88-byte params), 615.71.09
+/// `NV2080_CTRL_CMD_INTERNAL_GPU_SYNC_FABRIC_PROBE_INFO` (16-byte params; 615
+/// sdk/ctrl/ctrl2080/ctrl2080internal.h:572-585). Each version module names its own as
+/// `CTRL_0A36`, and ctrl.rs dispatches the id by it, so a 615 guest is never answered
+/// with 610 chip info.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Id0A36 {
+    GetChipInfo,
+    SyncFabricProbeInfo,
+}
+
 /// How the CPU and the emulated GSP exchange messages: what a version module names in
 /// `GSP_TRANSPORT`, what the boot model links and serves (boot.rs, msgq.rs).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

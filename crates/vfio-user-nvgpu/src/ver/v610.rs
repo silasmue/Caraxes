@@ -367,7 +367,11 @@ pub const CTXSHARE_HVASPACE: usize = 0;
 // ---------------------------------------------------------------------------------
 // Controls of the phase-5 dispatcher (ctrl.rs; sdk/ctrl/ctrl2080/*.h).
 
+/// 0x20800A36 is `INTERNAL_GPU_GET_CHIP_INFO` in this version (ctrl2080internal.h:574-592);
+/// 615 reuses the id (`ver::v615`), so ctrl.rs answers it by [`CTRL_0A36`].
 pub const CMD_INTERNAL_GPU_GET_CHIP_INFO: u32 = 0x2080_0A36;
+/// What 0x20800A36 names in this version.
+pub const CTRL_0A36: super::Id0A36 = super::Id0A36::GetChipInfo;
 pub const CMD_INTERNAL_GPU_GET_USER_REGISTER_ACCESS_MAP: u32 = 0x2080_0A41;
 pub const CMD_GPU_GET_CONSTRUCTED_FALCON_INFO: u32 = 0x2080_01B0;
 pub const CMD_INTERNAL_NVLINK_GET_NVLINK_DEVICE_INFO: u32 = 0x2080_0A87;
@@ -738,55 +742,31 @@ pub const CMD_GPU_GET_PES_INFO: u32 = 0x2080_0168;
 pub const GR_ROUTED_SIZE: usize = 24;
 pub const GR_ROUTED_ARG: usize = 16;
 pub const GR_ROUTED_OUT: usize = 20;
-pub const PES_INFO_SIZE: usize = size_of::<ffi::NV2080_CTRL_GPU_GET_PES_INFO_PARAMS>();
-pub const PES_INFO_NUM_PES: usize =
-    offset_of!(ffi::NV2080_CTRL_GPU_GET_PES_INFO_PARAMS, numPesInGpc);
-pub const PES_INFO_TPC_TO_PES_MAP: usize =
-    offset_of!(ffi::NV2080_CTRL_GPU_GET_PES_INFO_PARAMS, tpcToPesMap);
-pub const PES_INFO_MAP_LEN: usize = 10;
+// `GPU_GET_PES_INFO` and the public `GR_GET_GLOBAL_SM_ORDER` are host calls: their
+// layouts are the HOST driver's and live in hostabi.rs (`HostLayouts`), chosen at run
+// time. What follows is the guest's side.
+
+/// Entries of the guest's `tpcToPesMap` in `NV2080_CTRL_INTERNAL_STATIC_GR_FLOORSWEEPING_MASKS`
+/// (ten in 610; the tests pin it to the struct).
+pub const FS_TPC_TO_PES_MAP_LEN: usize = 10;
+const _: () = assert!(FS_TPC_TO_PES_MAP + 4 * FS_TPC_TO_PES_MAP_LEN == FS_NUM_PES_PER_GPC);
 
 /// NV2080_CTRL_INTERNAL_STATIC_GR_GLOBAL_SM_ORDER (ctrl2080internal.h:223-238): 512 SMs
-/// of nine u16, then numSm and numTpc.
-pub const SM_ENTRY: usize = 18;
-/// One SM of the host's public NV2080_CTRL_GR_GET_GLOBAL_SM_ORDER_PARAMS (the host driver
-/// is this version): nine u16. A guest version with a wider entry converts
-/// (kgr.rs, docs/caraxes/gsp-transport-615.md §7).
-pub const HOST_SM_ENTRY: usize = size_of::<ffi::NV2080_CTRL_GR_GET_GLOBAL_SM_ORDER_PARAMS__bindgen_ty_1>();
-/// `numSm` in the host's public struct (numTpc follows).
-pub const HOST_SM_ORDER_NUM_SM: usize =
-    offset_of!(ffi::NV2080_CTRL_GR_GET_GLOBAL_SM_ORDER_PARAMS, numSm);
-/// Where a guest SM entry has the field the host entry lacks: nowhere in this version
-/// (the entry is the host's).
-pub const SM_ENTRY_WIDENED_AT: usize = SM_ENTRY;
-pub const SM_ORDER_ELEM: usize = size_of::<ffi::NV2080_CTRL_INTERNAL_STATIC_GR_GLOBAL_SM_ORDER>();
-pub const SM_ORDER_NUM_SM: usize =
-    offset_of!(ffi::NV2080_CTRL_INTERNAL_STATIC_GR_GLOBAL_SM_ORDER, numSm);
-pub const SM_ORDER_NUM_TPC: usize =
-    offset_of!(ffi::NV2080_CTRL_INTERNAL_STATIC_GR_GLOBAL_SM_ORDER, numTpc);
-/// The nine u16 of one internal SM entry, by name, for the translation from the
-/// host's public layout (hostabi.rs `sm_order_to_guest`: a 615 host adds
-/// `virtualDpcId`, which this guest does not have).
-pub const SM_ENTRY_FIELDS: &[(&str, usize)] = {
-    type E = ffi::NV2080_CTRL_INTERNAL_STATIC_GR_GLOBAL_SM_ORDER__bindgen_ty_1;
-    &[
-        ("gpcId", offset_of!(E, gpcId)),
-        ("localTpcId", offset_of!(E, localTpcId)),
-        ("localSmId", offset_of!(E, localSmId)),
-        ("globalTpcId", offset_of!(E, globalTpcId)),
-        ("virtualGpcId", offset_of!(E, virtualGpcId)),
-        ("migratableTpcId", offset_of!(E, migratableTpcId)),
-        ("ugpuId", offset_of!(E, ugpuId)),
-        ("physicalCpcId", offset_of!(E, physicalCpcId)),
-        ("virtualTpcId", offset_of!(E, virtualTpcId)),
-    ]
-};
-const _: () = assert!(
-    SM_ENTRY == size_of::<ffi::NV2080_CTRL_INTERNAL_STATIC_GR_GLOBAL_SM_ORDER__bindgen_ty_1>()
+/// of nine u16, then numSm and numTpc. The host's public struct is translated into it
+/// field by name (hostabi.rs `translate_sm_order`, kgr.rs `global_sm_order`).
+pub const SM_ORDER_GUEST: crate::hostabi::SmOrderLayout = crate::hostabi::sm_order_layout!(
+    ffi::NV2080_CTRL_INTERNAL_STATIC_GR_GLOBAL_SM_ORDER,
+    ffi::NV2080_CTRL_INTERNAL_STATIC_GR_GLOBAL_SM_ORDER__bindgen_ty_1;
+    gpcId, localTpcId, localSmId, globalTpcId, virtualGpcId, migratableTpcId, ugpuId,
+    physicalCpcId, virtualTpcId
 );
+pub const SM_ENTRY: usize = SM_ORDER_GUEST.entry_size;
+pub const SM_ORDER_ELEM: usize = SM_ORDER_GUEST.size;
+pub const SM_ORDER_NUM_SM: usize = SM_ORDER_GUEST.num_sm;
+pub const SM_ORDER_NUM_TPC: usize = SM_ORDER_GUEST.num_tpc;
+const _: () = assert!(SM_ORDER_GUEST.fields.len() * 2 == SM_ENTRY);
 pub const SM_ORDER_PARAMS: usize =
     size_of::<ffi::NV2080_CTRL_INTERNAL_STATIC_GR_GET_GLOBAL_SM_ORDER_PARAMS>();
-/// NV2080_CTRL_GR_GET_GLOBAL_SM_ORDER_PARAMS (ctrl2080gr.h:1213-1229).
-pub const PUB_SM_ORDER: usize = size_of::<ffi::NV2080_CTRL_GR_GET_GLOBAL_SM_ORDER_PARAMS>();
 
 /// NV2080_CTRL_INTERNAL_STATIC_GR_ZCULL_INFO; the public ZCULL_INFO is the same 10 x u32.
 pub const ZCULL_ELEM: usize = size_of::<ffi::NV2080_CTRL_GR_GET_ZCULL_INFO_PARAMS>();
@@ -962,6 +942,12 @@ pub const FORWARD: &[(u32, &str)] = &[
     (0x2080_1322, "FB_GET_OFFLINED_PAGES"),
     (0x2080_1344, "FB_GET_REMAPPED_ROWS"),
     (0x2080_1357, "FB_QUERY_DRAM_ENCRYPTION_INFOROM_SUPPORT"),
+    // Sent by the 615 guest's nvidia-smi (caraxes/runs/transport-615-2026-09-24/boot/
+    // device-events.txt:1114, 8208 bytes). Not new in 615: 610.57.04 has the same control
+    // and layout (sdk/ctrl/ctrl2080/ctrl2080fb.h:2990-3014; `nvrm_sys::v610` and `v615`
+    // both 8208 bytes, hostabi.rs tests), NON_PRIVILEGED and ROUTE_TO_PHYSICAL (flags 0x58,
+    // g_subdevice_nvoc.c), so both host drivers answer it.
+    (0x2080_1361, "FB_GET_REMAPPED_BANKS"),
     (0x2080_1813, "BUS_GET_PEX_COUNTERS"),
     (0x2080_1819, "BUS_GET_PEX_UTIL_COUNTERS"),
     (0x2080_1823, "BUS_GET_INFO_V2"),
@@ -989,7 +975,8 @@ pub const LEGACY: &[(u32, usize, &str)] = &[
     // size of THERMAL_SYSTEM_EXECUTE_V2 but not its instruction list.
     (0x2080_852E, 1432, "thermal 0x2e"),
     (0x2080_852F, 844, "thermal 0x2f"),
-    (0x2080_8536, 25552, "thermal 0x36"),
+    // thermal 0x36 (0x20808536), pmgr 0x18 (0x2080A618) and perf 0xf1 (0x2080A0F1) have a
+    // size that depends on the host driver: hostabi.rs `HostLayouts::legacy`.
     (0x2080_853A, 15352, "thermal 0x3a"),
     (0x2080_8542, 504, "thermal 0x42"),
     (0x2080_8546, 24, "thermal 0x46"),
@@ -1011,7 +998,6 @@ pub const LEGACY: &[(u32, usize, &str)] = &[
     (0x2080_A0F2, 96, "perf 0xf2"),
     (0x2080_A612, 54352, "pmgr 0x12"),
     (0x2080_A613, 79936, "pmgr 0x13"),
-    (0x2080_A618, 20000, "pmgr 0x18"),
     (0x2080_A61A, 13840, "pmgr 0x1a"),
     (0x2080_A61F, 8, "pmgr 0x1f"),
     (0x2080_A63C, 28, "pmgr 0x3c"),

@@ -17,7 +17,9 @@
 //!   and so does the host kernel for the device's unprivileged host client. Only the
 //!   commands the host's own `nvidia-smi -q` issues (matrix/traces/610.57.04/nvml.tsv)
 //!   are forwarded, so the device never sends the host card a command a read-only
-//!   query tool would not;
+//!   query tool would not. Three of them have a params size that depends on the host
+//!   driver (hostabi.rs `HostLayouts::legacy`): forwarded only when the guest's size is
+//!   the running host's, NOT_SUPPORTED otherwise;
 //! - kernel-served controls that issue an RPC of their own (phase5-rpcs.md K1-K5),
 //!   on the guest kernel's internal handles.
 //!
@@ -27,6 +29,7 @@
 
 use crate::chip::ChipData;
 use crate::ctrl::{Answer, HostRm};
+use crate::hostabi::{HostLayouts, HOST_SIZED_LEGACY};
 // The control numbers, lists and layouts of the emulated driver version (src/ver).
 use crate::ver::active::{
     self as v, INDEX_FORWARD_TO_PHYSICAL, INFO_CHIP_UNIQUE_HI, INFO_CHIP_UNIQUE_LO, NV01_DEVICE_0,
@@ -151,6 +154,14 @@ pub fn answer(
             "host (forwarded as-is, public control)",
         ));
     }
+    if HOST_SIZED_LEGACY.contains(&cmd) {
+        return Some(host_sized_legacy(
+            host,
+            crate::hostabi::current(),
+            cmd,
+            params,
+        ));
+    }
     if let Some((_, size, name)) = LEGACY.iter().find(|(c, _, _)| *c == cmd) {
         let mut a = forward(
             host,
@@ -257,6 +268,45 @@ pub fn answer(
         _ => return None,
     };
     Some(a)
+}
+
+/// A GSS legacy control whose params size depends on the host driver (`hl.legacy`).
+/// No open header of either version defines these layouts (matrix/catalog-610.57.04.md:384,
+/// :419), so a guest buffer of another size cannot be translated field by field: it is
+/// answered NOT_SUPPORTED and not sent (the host would refuse it with 0x1f, as the 610
+/// host did for the 615 guest: caraxes/runs/transport-615-2026-09-24/boot/
+/// device-events.txt:735, :1151). What the guest loses is that reading (nvidia-smi shows
+/// N/A: power draw for pmgr 0x18); docs/caraxes/cutover-615.md (d).
+fn host_sized_legacy(host: &mut Host<'_>, hl: &HostLayouts, cmd: u32, params: &[u8]) -> Answer {
+    let n = params.len();
+    match hl.legacy_size(cmd) {
+        Some((size, name)) if size == n => forward(
+            host,
+            NV20_SUBDEVICE_0,
+            cmd,
+            params,
+            &format!("GSS legacy {name} ({n} bytes, host {})", hl.driver()),
+            "host (GSS legacy, forwarded opaquely; the running host driver's size)",
+        ),
+        Some((size, name)) => answer_with(
+            NV_ERR_NOT_SUPPORTED,
+            params.to_vec(),
+            "synthesized (NOT_SUPPORTED: GSS legacy params differ between guest and host driver, no layout to translate)",
+            format!(
+                "GSS legacy {name}: guest params {n} bytes, host {} takes {size}; not sent",
+                hl.driver()
+            ),
+        ),
+        None => answer_with(
+            NV_ERR_NOT_SUPPORTED,
+            params.to_vec(),
+            "synthesized (NOT_SUPPORTED: no such GSS legacy control measured for the host driver)",
+            format!(
+                "GSS legacy {cmd:#x} ({n} bytes): not in host {}'s own nvidia-smi; not sent",
+                hl.driver()
+            ),
+        ),
+    }
 }
 
 /// K1: `GPU_GET_INFO_V2` with the indices the guest kernel could not serve marked by
@@ -606,6 +656,78 @@ mod tests {
             &pr
         )
         .is_none());
+    }
+
+    /// The host-sized GSS legacy controls on both hosts, with the 610 and the 615
+    /// guest's sizes: forwarded exactly when the sizes agree.
+    #[test]
+    fn host_sized_legacy_follows_the_host() {
+        use crate::hostabi::{HOST_610, HOST_615};
+        // (command, 610 guest's size, 615 guest's size); 0 = that guest never sends it.
+        let rows = [
+            (0x2080_A618u32, 20000usize, 20512usize),
+            (0x2080_8536, 25552, 24532),
+            (0x2080_A0F1, 0, 9216),
+        ];
+        for (hl, host_is_615) in [(&HOST_610, false), (&HOST_615, true)] {
+            for (cmd, g610, g615) in rows {
+                for (n, guest_is_615) in [(g610, false), (g615, true)] {
+                    if n == 0 {
+                        continue;
+                    }
+                    let fake = FakeHost::default();
+                    let seen = fake.seen.clone();
+                    let mut h: Box<dyn HostRm> = Box::new(fake);
+                    let mut host: Host<'_> = Some(h.as_mut());
+                    let a = host_sized_legacy(&mut host, hl, cmd, &vec![0u8; n]);
+                    let what = format!("{cmd:#x} {n} bytes on host {}", hl.driver());
+                    assert_eq!(a.params.len(), n, "{what}");
+                    if guest_is_615 == host_is_615 {
+                        // Forwarded: the fake host's status comes back.
+                        assert_eq!(a.status, 0x57, "{what}");
+                        assert_eq!(*seen.lock().unwrap(), [(NV20_SUBDEVICE_0, cmd)], "{what}");
+                        assert!(a.label.starts_with("host (GSS legacy"), "{what}");
+                    } else {
+                        assert_eq!(a.status, NV_ERR_NOT_SUPPORTED, "{what}");
+                        assert!(seen.lock().unwrap().is_empty(), "{what}: sent to the host");
+                        assert!(a.label.starts_with("synthesized (NOT_SUPPORTED"), "{what}");
+                    }
+                }
+            }
+        }
+        // Through `answer`, with the default host selection (610.57.04 in the tests).
+        let mut h: Box<dyn HostRm> = Box::new(FakeHost::default());
+        let a = answer(chip(), 0x2080_A618, NV20_SUBDEVICE_0, &[0u8; 20000], Some(&mut h), &profile())
+            .unwrap();
+        assert_eq!(a.status, 0x57);
+        let a = answer(chip(), 0x2080_A618, NV20_SUBDEVICE_0, &[0u8; 20512], Some(&mut h), &profile())
+            .unwrap();
+        assert_eq!(a.status, NV_ERR_NOT_SUPPORTED);
+        // Neither host-sized row stays in the guest-ABI LEGACY list.
+        for c in HOST_SIZED_LEGACY {
+            assert!(!LEGACY.iter().any(|(l, _, _)| l == c), "{c:#x}");
+        }
+    }
+
+    /// FB_GET_REMAPPED_BANKS is forwarded as-is: the same control and layout on both
+    /// host drivers (610 and 615 ctrl2080fb.h, 8208 bytes in both bindings).
+    #[test]
+    fn remapped_banks_is_forwarded() {
+        assert_eq!(
+            size_of::<nvrm_sys::v610::NV2080_CTRL_FB_GET_REMAPPED_BANKS_PARAMS>(),
+            size_of::<nvrm_sys::v615::NV2080_CTRL_FB_GET_REMAPPED_BANKS_PARAMS>()
+        );
+        assert_eq!(
+            size_of::<nvrm_sys::v615::NV2080_CTRL_FB_GET_REMAPPED_BANKS_PARAMS>(),
+            8208
+        );
+        let fake = FakeHost::default();
+        let seen = fake.seen.clone();
+        let mut h: Box<dyn HostRm> = Box::new(fake);
+        let a = answer(chip(), 0x2080_1361, NV20_SUBDEVICE_0, &[0u8; 8208], Some(&mut h), &profile())
+            .unwrap();
+        assert_eq!(a.status, 0x57);
+        assert_eq!(*seen.lock().unwrap(), [(NV20_SUBDEVICE_0, 0x2080_1361)]);
     }
 
     #[test]

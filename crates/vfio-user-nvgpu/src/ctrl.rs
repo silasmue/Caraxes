@@ -922,23 +922,9 @@ impl Dispatcher {
             return a;
         }
         match cmd {
-            CMD_INTERNAL_GPU_GET_CHIP_INFO => {
-                // ctrl2080internal.h:574-592: the PCI ids of the function and the chip's
-                // register bases (TIMER and USERMODE; all others unsupported).
-                let c = &self.chip.chip_info;
-                let mut b = vec![0u8; n.max(v::CHIP_INFO_SIZE)];
-                put32(&mut b, v::CHIP_INFO_PCI_DEVICE_ID, self.pci_device_id);
-                put32(&mut b, v::CHIP_INFO_PCI_SUB_DEVICE_ID, self.pci_sub_device_id);
-                put32(&mut b, v::CHIP_INFO_PCI_REVISION_ID, self.pci_revision);
-                let base = |i: usize| v::CHIP_INFO_REG_BASES + 4 * i;
-                for i in 0..v::CHIP_INFO_REG_BASE_COUNT {
-                    put32(&mut b, base(i), v::REG_BASE_NONE);
-                }
-                put32(&mut b, base(v::REG_BASE_TIMER), c.timer_base);
-                put32(&mut b, base(v::REG_BASE_USERMODE), c.usermode_base);
-                b.truncate(n);
-                Answer::ok(b, &c.label, "chip info")
-            }
+            // 0x20800A36: chip info for a 610 guest, the fabric-probe sync for a 615
+            // guest (the id was reused; `ver::Id0A36`).
+            CMD_INTERNAL_GPU_GET_CHIP_INFO => self.id_0a36(v::CTRL_0A36, params),
             CMD_INTERNAL_GPU_GET_USER_REGISTER_ACCESS_MAP => {
                 // ctrl2080internal.h:775-788: the map size with compressedSize 0 = allow all.
                 let m = &self.chip.user_register_access_map;
@@ -1188,6 +1174,40 @@ impl Dispatcher {
         }
     }
 
+    /// 0x20800A36 as the guest's driver version means it (`ver::Id0A36`, chosen by the
+    /// guest ABI through `v::CTRL_0A36`).
+    fn id_0a36(&self, id: crate::ver::Id0A36, params: &[u8]) -> Answer {
+        let n = params.len();
+        match id {
+            crate::ver::Id0A36::GetChipInfo => {
+                // 610 ctrl2080internal.h:574-592: the PCI ids of the function and the
+                // chip's register bases (TIMER and USERMODE; all others unsupported).
+                let c = &self.chip.chip_info;
+                let mut b = vec![0u8; n.max(v::CHIP_INFO_SIZE)];
+                put32(&mut b, v::CHIP_INFO_PCI_DEVICE_ID, self.pci_device_id);
+                put32(&mut b, v::CHIP_INFO_PCI_SUB_DEVICE_ID, self.pci_sub_device_id);
+                put32(&mut b, v::CHIP_INFO_PCI_REVISION_ID, self.pci_revision);
+                let base = |i: usize| v::CHIP_INFO_REG_BASES + 4 * i;
+                for i in 0..v::CHIP_INFO_REG_BASE_COUNT {
+                    put32(&mut b, base(i), v::REG_BASE_NONE);
+                }
+                put32(&mut b, base(v::REG_BASE_TIMER), c.timer_base);
+                put32(&mut b, base(v::REG_BASE_USERMODE), c.usermode_base);
+                b.truncate(n);
+                Answer::ok(b, &c.label, "chip info")
+            }
+            // 615 ctrl2080internal.h:572-585: the kernel pushes the NVLink mask a fabric
+            // manager reduced (gpu_fabric_probe.c:1912-1943, only on NVLink-fabric
+            // systems; the kernel only logs a failure). No fabric on TU106: nothing to
+            // apply, and nothing goes to the host.
+            crate::ver::Id0A36::SyncFabricProbeInfo => Answer::ok(
+                params.to_vec(),
+                "synthesized (NV_OK, echo: no NVLink fabric; 615 INTERNAL_GPU_SYNC_FABRIC_PROBE_INFO)",
+                format!("sync fabric probe info ({n} bytes): nothing to apply, no NVLink fabric"),
+            ),
+        }
+    }
+
     fn forward_or(
         &mut self,
         class: u32,
@@ -1220,15 +1240,43 @@ mod tests {
         Dispatcher::new(f.chip.data(), &f.identity(4 << 30), host)
     }
 
+    /// 0x20800A36 follows the guest ABI: 610 chip info, 615 the fabric-probe sync,
+    /// never chip info for a 615 guest.
+    #[test]
+    fn id_0a36_follows_the_guest_abi() {
+        use crate::ver::Id0A36;
+        let d = dispatcher(None);
+        let chip = d.id_0a36(Id0A36::GetChipInfo, &[0u8; 88]);
+        assert_eq!((chip.status, chip.note.as_str()), (NV_OK, "chip info"));
+        assert_eq!(get32(&chip.params, 12), 0x1F02_10DE);
+        let mut p = [0u8; 16];
+        p[0] = 1;
+        p[8] = 0xAA;
+        let fab = d.id_0a36(Id0A36::SyncFabricProbeInfo, &p);
+        assert_eq!((fab.status, &fab.params[..]), (NV_OK, &p[..]));
+        assert!(fab.label.contains("SYNC_FABRIC_PROBE_INFO"), "{}", fab.label);
+        assert_eq!(
+            std::mem::size_of::<
+                nvrm_sys::v615::NV2080_CTRL_CMD_INTERNAL_GPU_SYNC_FABRIC_PROBE_INFO_PARAMS,
+            >(),
+            16
+        );
+        // Through the dispatcher, the build's guest ABI decides.
+        let mut d = dispatcher(None);
+        let a = d.control(INTERNAL_CLIENT, 0xCA7A_0003, 0x2080_0A36, &p);
+        let want = if v::DRIVER_VERSION == "615.71.09" {
+            Id0A36::SyncFabricProbeInfo
+        } else {
+            Id0A36::GetChipInfo
+        };
+        assert_eq!(v::CTRL_0A36, want);
+        assert_eq!(a.note == "chip info", want == Id0A36::GetChipInfo, "{}", a.note);
+    }
+
     #[test]
     fn answers_have_the_request_size() {
         let mut d = dispatcher(None);
-        let a = d.control(
-            INTERNAL_CLIENT,
-            0xCA7A_0003,
-            CMD_INTERNAL_GPU_GET_CHIP_INFO,
-            &[0u8; 88],
-        );
+        let a = d.id_0a36(crate::ver::Id0A36::GetChipInfo, &[0u8; 88]);
         assert_eq!(a.status, NV_OK);
         assert_eq!(a.params.len(), 88);
         assert_eq!(
@@ -1301,7 +1349,7 @@ mod tests {
             CMD_GSP_GET_FEATURES,
             &[0u8; 72],
         );
-        assert_eq!(&a.params[6..15], b"610.57.04");
+        assert_eq!(&a.params[6..15], v::DRIVER_VERSION.as_bytes());
         let a = d.control(INTERNAL_CLIENT, 0xCA7A_0003, 0x2080_0BAD, &[0u8; 8]);
         assert_eq!(a.label, "unanswered");
 

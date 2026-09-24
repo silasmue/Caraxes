@@ -20,11 +20,11 @@
 //!    The guest-facing ones are recomputed from `nvrm_sys::v615`; the test
 //!    `versioned_layouts_are_overridden_where_they_differ` fails when a regenerated
 //!    binding moves a layout this file does not override.
-//! 3. The host driver stays 610.57.04 (the host-side switch to `nvrm_sys::v615` is a
-//!    separate package after the host upgrade). The layouts of controls the device
-//!    sends to the host (`PES_INFO_*`, `PUB_SM_ORDER`, `HOST_SM_ENTRY`,
-//!    `FLUSH_GPU_CACHE_*`, the GR routed queries) therefore stay the 610 ones: they are
-//!    deliberately not overridden.
+//! 3. The layouts of controls the device sends to the HOST are not this module's: they
+//!    follow the running host driver (610.57.04 or 615.71.09), chosen at start-up by
+//!    `crate::hostabi` (`GPU_GET_PES_INFO`, the public `GR_GET_GLOBAL_SM_ORDER`, the TSG
+//!    allocation, the host-sized GSS legacy controls). The rest of what the device sends
+//!    to the host (`FLUSH_GPU_CACHE_*`, the GR routed queries) is the same in both.
 //!
 //! `GspStaticConfigInfo` and `GspSystemInfo` are no longer on the wire in 615
 //! (kernel_gsp.c:5314-5361). The device still builds its static info as the 610 struct
@@ -73,12 +73,17 @@ pub const MQ_STAT_QUEUE_OFFSET: u64 = crate::msgq::v2::ARGS_MQ_STAT_QUEUE_OFFSET
 /// `NV2080_CTRL_CMD_INTERNAL_GPU_GET_CHIP_INFO` does not exist in 615: its id 0x20800A36
 /// is `NV2080_CTRL_CMD_INTERNAL_GPU_SYNC_FABRIC_PROBE_INFO` now
 /// (sdk/ctrl/ctrl2080/ctrl2080internal.h:572-585), and the chip sub-revision travels as
-/// `NVGMC_SC_CHIP_SUB_REV` (interface/gmcapi/gmcapi_gsp_config.h:33). The dispatcher's
-/// chip-info handler (ctrl.rs) must not answer a fabric-probe call with chip info, so
-/// the command it matches is a value no control carries (class 0xFFFF does not exist).
-pub const CMD_INTERNAL_GPU_GET_CHIP_INFO: u32 = u32::MAX;
-/// The id 0x20800A36 carries in 615, for the trace and the test below.
+/// `NVGMC_SC_CHIP_SUB_REV` (interface/gmcapi/gmcapi_gsp_config.h:33). ctrl.rs dispatches
+/// the id by [`CTRL_0A36`], so a fabric-probe call is never answered with chip info.
+pub const CTRL_0A36: super::Id0A36 = super::Id0A36::SyncFabricProbeInfo;
+/// The id 0x20800A36 carries in 615 (the same number as 610's
+/// `CMD_INTERNAL_GPU_GET_CHIP_INFO`, which this module inherits).
 pub const CMD_INTERNAL_GPU_SYNC_FABRIC_PROBE_INFO: u32 = 0x2080_0A36;
+/// `NV2080_CTRL_CMD_INTERNAL_GPU_SYNC_FABRIC_PROBE_INFO_PARAMS` {linkMaskToBeReduced}: the
+/// kernel pushes the fabric manager's NVLink mask to GSP (src/kernel/gpu/gpu_fabric_probe.c:
+/// 1912-1943) and only logs a failure.
+pub const FABRIC_PROBE_INFO_SIZE: usize =
+    size_of::<ffi::NV2080_CTRL_CMD_INTERNAL_GPU_SYNC_FABRIC_PROBE_INFO_PARAMS>();
 
 /// `NV2080_CTRL_FIFO_GET_DEVICE_INFO_TABLE_PARAMS` (sdk/ctrl/ctrl2080/ctrl2080fifo.h):
 /// `engineData` grew from 16 to 17 words (`ENGINE_INFO_TYPE_IS_PREEMPTABLE`,
@@ -138,6 +143,9 @@ pub const FS_TPC_TO_PES_MAP: usize = offset_of!(
     ffi::NV2080_CTRL_INTERNAL_STATIC_GR_FLOORSWEEPING_MASKS,
     tpcToPesMap
 );
+/// `tpcToPesMap[15]` in 615 (ten in 610).
+pub const FS_TPC_TO_PES_MAP_LEN: usize = 15;
+const _: () = assert!(FS_TPC_TO_PES_MAP + 4 * FS_TPC_TO_PES_MAP_LEN == FS_NUM_PES_PER_GPC);
 pub const FS_NUM_PES_PER_GPC: usize = offset_of!(
     ffi::NV2080_CTRL_INTERNAL_STATIC_GR_FLOORSWEEPING_MASKS,
     numPesPerGpc
@@ -156,22 +164,22 @@ pub const FS_NUM_GFX_TPC: usize = offset_of!(
 );
 
 /// NV2080_CTRL_INTERNAL_STATIC_GR_GLOBAL_SM_ORDER: `virtualDpcId` inserted after
-/// `virtualGpcId` in every SM entry (ten u16 instead of nine). The host's public struct
-/// keeps nine (`HOST_SM_ENTRY`, `PUB_SM_ORDER` from the 610 module); kgr.rs widens the
-/// entries when the two differ.
-pub const SM_ENTRY: usize =
-    size_of::<ffi::NV2080_CTRL_INTERNAL_STATIC_GR_GLOBAL_SM_ORDER__bindgen_ty_1>();
-pub const SM_ORDER_ELEM: usize = size_of::<ffi::NV2080_CTRL_INTERNAL_STATIC_GR_GLOBAL_SM_ORDER>();
-pub const SM_ORDER_NUM_SM: usize =
-    offset_of!(ffi::NV2080_CTRL_INTERNAL_STATIC_GR_GLOBAL_SM_ORDER, numSm);
+/// `virtualGpcId` in every SM entry (ten u16 instead of nine). kgr.rs translates the host's
+/// public struct into it field by name, whichever host driver runs (hostabi.rs
+/// `translate_sm_order`); on a 610 host `virtualDpcId` stays 0 (no DPC before Blackwell).
+pub const SM_ORDER_GUEST: crate::hostabi::SmOrderLayout = crate::hostabi::sm_order_layout!(
+    ffi::NV2080_CTRL_INTERNAL_STATIC_GR_GLOBAL_SM_ORDER,
+    ffi::NV2080_CTRL_INTERNAL_STATIC_GR_GLOBAL_SM_ORDER__bindgen_ty_1;
+    gpcId, localTpcId, localSmId, globalTpcId, virtualGpcId, virtualDpcId,
+    migratableTpcId, ugpuId, physicalCpcId, virtualTpcId
+);
+pub const SM_ENTRY: usize = SM_ORDER_GUEST.entry_size;
+pub const SM_ORDER_ELEM: usize = SM_ORDER_GUEST.size;
+pub const SM_ORDER_NUM_SM: usize = SM_ORDER_GUEST.num_sm;
+pub const SM_ORDER_NUM_TPC: usize = SM_ORDER_GUEST.num_tpc;
+const _: () = assert!(SM_ORDER_GUEST.fields.len() * 2 == SM_ENTRY);
 pub const SM_ORDER_PARAMS: usize =
     size_of::<ffi::NV2080_CTRL_INTERNAL_STATIC_GR_GET_GLOBAL_SM_ORDER_PARAMS>();
-/// Where `virtualDpcId` sits in a guest SM entry (the u16 the host entry lacks).
-pub const SM_ENTRY_VIRTUAL_DPC_ID: usize = offset_of!(
-    ffi::NV2080_CTRL_INTERNAL_STATIC_GR_GLOBAL_SM_ORDER__bindgen_ty_1,
-    virtualDpcId
-);
-pub const SM_ENTRY_WIDENED_AT: usize = SM_ENTRY_VIRTUAL_DPC_ID;
 
 #[cfg(test)]
 mod tests {
@@ -306,30 +314,20 @@ mod tests {
             (104, 0, 68)
         );
         assert_eq!((DEVINFO_NUM_PBDMAS, DEVINFO_ENGINE_NAME), (84, 88));
-        assert_eq!(s::<b::NV2080_CTRL_GPU_GET_PES_INFO_PARAMS>(), 76);
+        // The two host queries (PES info 56/76, public SM order 9240/10264) follow the
+        // host driver: hostabi.rs pins both versions.
+        assert_eq!(SM_ENTRY, 20);
+        assert_eq!(SM_ORDER_GUEST.fields[5], ("virtualDpcId", 10));
         assert_eq!(
-            PES_INFO_SIZE,
-            s::<a::NV2080_CTRL_GPU_GET_PES_INFO_PARAMS>(),
-            "host query: 610"
+            (SM_ORDER_ELEM, SM_ORDER_NUM_SM, SM_ORDER_NUM_TPC, SM_ORDER_PARAMS),
+            (10244, 10240, 10242, 81952)
         );
         assert_eq!(
-            (
-                s::<a::NV2080_CTRL_GR_GET_GLOBAL_SM_ORDER_PARAMS>(),
-                PUB_SM_ORDER
-            ),
-            (9240, 9240),
-            "host query: 610"
-        );
-        assert_eq!(s::<b::NV2080_CTRL_GR_GET_GLOBAL_SM_ORDER_PARAMS>(), 10264);
-        assert_eq!(
-            (SM_ENTRY, HOST_SM_ENTRY, SM_ENTRY_VIRTUAL_DPC_ID),
-            (20, 18, 10)
-        );
-        assert_eq!(
-            (SM_ORDER_ELEM, SM_ORDER_NUM_SM, SM_ORDER_PARAMS),
-            (10244, 10240, 81952)
+            SM_ORDER_GUEST,
+            crate::hostabi::guest_layouts::GUEST_SM_ORDER_615
         );
         assert_eq!(FS_PARAMS, 10848);
+        assert_eq!((FS_TPC_TO_PES_MAP_LEN, FS_NUM_PES_PER_GPC - FS_TPC_TO_PES_MAP), (15, 60));
         assert_eq!(s::<b::NV2080_CTRL_INTERNAL_GET_PCIE_P2P_CAPS_PARAMS>(), 4);
         assert_eq!((P2P_READ_CAPS_STATUS, P2P_WRITE_CAPS_STATUS), (1, 2));
         assert_eq!(
@@ -341,14 +339,13 @@ mod tests {
     /// The reused id is not answered as chip info (docs/caraxes/blackwell-gb206.md §3.4).
     #[test]
     fn the_reused_chip_info_id_is_not_chip_info() {
-        assert_ne!(
-            CMD_INTERNAL_GPU_GET_CHIP_INFO,
-            CMD_INTERNAL_GPU_SYNC_FABRIC_PROBE_INFO
-        );
+        assert_eq!(CTRL_0A36, crate::ver::Id0A36::SyncFabricProbeInfo);
+        assert_eq!(super::super::v610::CTRL_0A36, crate::ver::Id0A36::GetChipInfo);
         assert_eq!(
             super::super::v610::CMD_INTERNAL_GPU_GET_CHIP_INFO,
             CMD_INTERNAL_GPU_SYNC_FABRIC_PROBE_INFO
         );
+        assert_eq!(FABRIC_PROBE_INFO_SIZE, 16);
         assert_eq!(DRIVER_VERSION, nvrm_sys::DriverVersion::V615.as_str());
         assert_eq!(GSP_TRANSPORT.guest_abi(), 615);
     }
