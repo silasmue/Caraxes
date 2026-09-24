@@ -54,13 +54,45 @@ def parse(target, f):
         if x: put("stage4 (50 training episodes)", x.group(1), "s", "low")
         x = re.search(r"~(\d+)/s", t)
         if x: put("H2D+D2H transfers per second", x.group(1), "1/s", "high")
-    elif m == "ppo":
+    elif m in ("ppo", "ppo-full"):
         x = re.search(r"# PPO steps_per_s=(\d+) solve_s=([-0-9.]+) episodes=(\d+) reward100=([0-9.]+)", t)
         if x:
             put("environment steps per second", x.group(1), "1/s", "high")
             if float(x.group(2)) >= 0:
                 put("time to solved (mean100 >= 475)", x.group(2), "s", "low")
             put("reward100 at the end (not a time)", x.group(4), "", "info")
+    elif m in ("llama", "llama-nograph"):
+        x = re.search(r"^# LLAMA (.*)$", t, re.M)
+        kv = dict(re.findall(r"(\S+?)=(\S+)", x.group(1))) if x else {}
+        for k, v in kv.items():
+            y = re.fullmatch(r"(pp|tg)(\d+)_tps", k)
+            if y:
+                what = "prompt processing" if y.group(1) == "pp" else "token generation"
+                put(f"{k[:-4]} ({what}, {y.group(2)} tokens)", v, "tokens/s", "high")
+        if "wall_s" in kv:
+            put("llama-bench process wall (load, warm-up, all reps)", kv["wall_s"], "s", "low")
+    elif m == "transformer":
+        x = re.search(r"^# TRANSFORMER (.*)$", t, re.M)
+        kv = dict(re.findall(r"(\S+?)=(\S+)", x.group(1))) if x else {}
+        if kv:
+            cfg = f"batch {kv.get('batch')}, seq {kv.get('seq')}, amp {kv.get('amp')}"
+            put(f"training steps per second ({cfg})", kv["steps_per_s"], "1/s", "high")
+            put("median step time", kv["step_med_ms"], "ms", "low")
+            put("p90 step time", kv["step_p90_ms"], "ms", "low")
+            put("tokens per second", kv["tokens_per_s"], "1/s", "high")
+            put("first step (cuBLAS setup, allocations)", kv["first_step_ms"], "ms", "low")
+            put("peak allocated memory", kv["mem_peak_mib"], "MiB", "info")
+            put("loss at the end (not a time)", kv["loss_last"], "", "info")
+    elif m == "convnet":
+        x = re.search(r"^# CONVNET (.*)$", t, re.M)
+        kv = dict(re.findall(r"(\S+?)=(\S+)", x.group(1))) if x else {}
+        if kv:
+            cfg = f"batch {kv.get('batch')}, {kv.get('size')} px, amp {kv.get('amp')}"
+            put(f"images per second ({cfg})", kv["images_per_s"], "1/s", "high")
+            put("median step time", kv["step_med_ms"], "ms", "low")
+            put("p90 step time", kv["step_p90_ms"], "ms", "low")
+            put("first step (cuDNN autotuning)", kv["first_step_ms"], "ms", "low")
+            put("peak allocated memory", kv["mem_peak_mib"], "MiB", "info")
     elif m == "init":
         x = re.search(r"INIT cuinit_ms=([0-9.]+) devget_ms=[0-9.]+ ctxcreate_ms=([0-9.]+) ctxdestroy_ms=([0-9.]+)", t)
         if x:
@@ -164,6 +196,11 @@ TITLES = [
     ("mm", "(3) Matmul throughput, fp32 torch.mm (mmsweep)"),
     ("rl", "(4) rlprobe, 50 REINFORCE episodes"),
     ("ppo", "(4) PPO CartPole, 128 vector environments, one H2D and one synchronous D2H per step (pporl, 60 s)"),
+    ("ppo-full", "(W1) PPO CartPole, full length (pporl, 420 s)"),
+    ("llama", "(W2) llama.cpp inference, all layers on the GPU (llama-bench: pp = prompt processing, tg = token generation)"),
+    ("llama-nograph", "(W2) llama.cpp token generation with CUDA graphs off (GGML_CUDA_DISABLE_GRAPHS=1): one launch per kernel"),
+    ("transformer", "(W3) GPT-style training loop, 6 layers, d_model 256, AdamW (transformer.py)"),
+    ("convnet", "(W4) ResNet-18 training, synthetic 224 px images, cuDNN (convnet.py)"),
     ("startup", "(5) Module load to first successful cuInit (in the guest)"),
     ("init", "(5) cuInit / cuCtxCreate inside one process (bench-cu init)"),
     ("time0", "(5) nvprobe 0 process, bash time"),

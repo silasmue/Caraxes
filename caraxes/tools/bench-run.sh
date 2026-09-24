@@ -5,6 +5,7 @@
 # Method, conditions and results: docs/caraxes/benchmark.md.
 #
 #   bench-run.sh stage  TARGET                  copy target/bench/bin/* into the guest's ~/bench
+#   bench-run.sh stage-llama TARGET             copy the llama.cpp build and model into ~/bench-llama
 #   bench-run.sh series --targets "native v1 v2" --out DIR [--reps 5] [--metrics "..."]
 #   bench-run.sh startup TARGET --out DIR [--reps 5]   modprobe (v2) / module load (v1) to first cuInit
 #   bench-run.sh v2-restart | v2-nodes     restart the v2 VM and device (down, up, probe, nodes) |
@@ -24,6 +25,13 @@
 # nvprobe 0 / 1; the host has no /usr/bin/time), ioctl (ioctlping 10000), ctrl (ctrlping 2000 x 64/512/4096/16384),
 # churn (bench-cu churn 20), ppo (caraxes/tools/pporl.py, PPO CartPole with 128 vector envs for
 # PPO_SECONDS, default 60: steps per second and time to solved; not in ALL_METRICS).
+# Workload gate (docs/caraxes/workload-gate.md, not in ALL_METRICS): ppo-full (pporl.py for
+# PPO_FULL_SECONDS, default 420), llama (llamaprobe.py: llama-bench pp512/tg128, LLAMA_REPS
+# default 5, LLAMA_ARGS extra; needs `stage-llama` for a guest), llama-nograph (tg128 only,
+# CUDA graphs off: one launch per kernel instead of one graph per token), transformer (transformer.py,
+# GPT-style training steps) and convnet (convnet.py, ResNet-18 training), the last two for
+# WORKLOAD_SECONDS (default 60) with TRANSFORMER_ARGS / CONVNET_ARGS appended. BENCH_TIMEOUT
+# (default 900 s) bounds each run.
 # The rep loop is outermost and the targets interleave inside it, so drift (temperature,
 # desktop load) spreads over all targets. Each run writes DIR/<target>/<metric>-<rep>.txt:
 # "# " header lines (time, target, command, GPU state, running VMs), the raw output, then
@@ -36,6 +44,11 @@ LT=${LT:-$(cd "$ROOT/.." && pwd -P)/Leandro-Test}
 BIN=$ROOT/target/bench/bin
 HOSTPY=${LEA_HOSTVENV:-$(cd "$ROOT/.." && pwd -P)/Leandro/vendor/hostvenv}/bin/python
 TICK=$(getconf CLK_TCK)
+# The llama.cpp build and the model of the workload gate (caraxes/tools/build-llama.sh).
+LLAMA_DIST=${LLAMA_DIST:-/mnt/vmstore/caraxes/llama/dist}
+LLAMA_GGUF=${LLAMA_GGUF:-/mnt/vmstore/caraxes/models/llama-gate.gguf}
+# Probes that travel with the binaries into ~/bench (and into target/bench/bin for native).
+PROBES="pporl.py llamaprobe.py transformer.py convnet.py"
 ALL_METRICS="launch-auto launch-blocking short-auto short-blocking copy mm rl init time0 time1 ioctl ctrl churn"
 
 err() { echo "ERROR: $*" >&2; exit 1; }
@@ -58,6 +71,11 @@ metric_cmd() {
         ctrl)            echo './ctrlping 2000 64 512 4096 16384' ;;
         churn)           echo './bench-cu churn 20' ;;
         ppo)             echo "$py ./pporl.py --seconds ${PPO_SECONDS:-60}" ;;
+        ppo-full)        echo "$py ./pporl.py --seconds ${PPO_FULL_SECONDS:-420}" ;;
+        llama)           echo "$py ./llamaprobe.py --reps ${LLAMA_REPS:-5} ${LLAMA_ARGS:-}" ;;
+        llama-nograph)   echo "GGML_CUDA_DISABLE_GRAPHS=1 $py ./llamaprobe.py --reps ${LLAMA_REPS:-5} -p 0 -n 128 ${LLAMA_ARGS:-}" ;;
+        transformer)     echo "$py ./transformer.py --seconds ${WORKLOAD_SECONDS:-60} ${TRANSFORMER_ARGS:-}" ;;
+        convnet)         echo "$py ./convnet.py --seconds ${WORKLOAD_SECONDS:-60} ${CONVNET_ARGS:-}" ;;
         *) err "unknown metric $m" ;;
     esac
 }
@@ -73,8 +91,8 @@ target_exec() {
 }
 target_prefix() {  # environment + cd for the run
     case $1 in
-        native) echo "cd $BIN && export PYTHONDONTWRITEBYTECODE=1 NVPROBE_PTX=$BIN/kernels.ptx" ;;
-        *) echo 'cd ~/bench && export PYTHONDONTWRITEBYTECODE=1 LD_LIBRARY_PATH=/opt/nvrm/lib NVPROBE_PTX=$HOME/bench/kernels.ptx' ;;
+        native) echo "cd $BIN && export PYTHONDONTWRITEBYTECODE=1 NVPROBE_PTX=$BIN/kernels.ptx LLAMA_DIR=$LLAMA_DIST LLAMA_MODEL=$LLAMA_GGUF" ;;
+        *) echo 'cd ~/bench && export PYTHONDONTWRITEBYTECODE=1 LD_LIBRARY_PATH=/opt/nvrm/lib NVPROBE_PTX=$HOME/bench/kernels.ptx LLAMA_DIR=$HOME/bench-llama LLAMA_MODEL=$HOME/bench-llama/model.gguf' ;;
     esac
 }
 target_py()   { [[ $1 == native ]] && echo "$HOSTPY" || echo '$HOME/gpu/venv/bin/python'; }
@@ -128,13 +146,13 @@ run_one() {  # target metric rep dir
         conditions
     } > "$f"
     d0=$(ticks "$dev"); v0=$(ticks "$vmm")
-    target_exec "$t" "$(target_prefix "$t"); t0=\$(date +%s%N); timeout 900 bash -c \"$cmd\" 2>&1; rc=\$?; t1=\$(date +%s%N); echo \"# WALL wall_ms=\$(( (t1 - t0) / 1000000 )) rc=\$rc\"" >> "$f" 2>&1
+    target_exec "$t" "$(target_prefix "$t"); t0=\$(date +%s%N); timeout ${BENCH_TIMEOUT:-900} bash -c \"$cmd\" 2>&1; rc=\$?; t1=\$(date +%s%N); echo \"# WALL wall_ms=\$(( (t1 - t0) / 1000000 )) rc=\$rc\"" >> "$f" 2>&1
     d1=$(ticks "$dev"); v1_=$(ticks "$vmm")
     local others=""
     for p in "${!oth0[@]}"; do others+="${p#*:}=$(( ( $(ticks "${p%%:*}") - oth0[$p] ) * 1000 / TICK ))ms "; done
     echo "# MEAS dev_pid=$dev dev_cpu_ms=$(( (d1 - d0) * 1000 / TICK )) dev_rss_hwm_kb=$(rss "$dev" | tr ' ' /) vmm_cpu_ms=$(( (v1_ - v0) * 1000 / TICK )) others: $others" >> "$f"
     printf '%s %-3s %-15s rep %s: %s | %s\n' "$(date +%T)" "$t" "$m" "$r" \
-        "$(grep -E 'MSPERLAUNCH|mean10|WALL|p50_us|INIT|TIME|GFLOP' "$f" | head -3 | tr '\n' ' ' | cut -c1-150)" \
+        "$(grep -E '^# (PPO|LLAMA|TRANSFORMER|CONVNET) |MSPERLAUNCH|mean10|WALL|p50_us|INIT|TIME|GFLOP' "$f" | head -3 | tr '\n' ' ' | cut -c1-150)" \
         "$(tail -1 "$f" | cut -c1-120)"
 }
 
@@ -161,9 +179,25 @@ v2-restart) v2_restart ;;
 v2-nodes) "$ROOT/tools/caraxes-vm.sh" ssh "$V2_NODES" ;;
 stage)
     t=${2:?target}
+    # The Python probes travel with the binaries (metrics ppo, ppo-full, llama, transformer,
+    # convnet); native runs them from $BIN too.
+    for p in $PROBES; do cp "$ROOT/caraxes/tools/$p" "$BIN/$p"; done
     [[ $t == native ]] && exit 0
-    cp "$ROOT/caraxes/tools/pporl.py" "$BIN/pporl.py"   # the PPO probe travels with the binaries (metric ppo)
     tar -C "$BIN" -cf - . | target_exec "$t" 'mkdir -p ~/bench && tar -xf - -C ~/bench && cd ~/bench && sha256sum bench-cu nvprobe ioctlping ctrlping kernels.ptx'
+    ;;
+stage-llama)
+    # llama-bench, its CUDA runtime and cuBLAS (dist/lib) and the model as ~/bench-llama/model.gguf;
+    # skipped when the guest already holds the same files (sha256). Native reads them in place.
+    t=${2:?target}
+    [[ -x $LLAMA_DIST/llama-bench && -s $LLAMA_GGUF ]] || err "no $LLAMA_DIST/llama-bench or $LLAMA_GGUF (caraxes/tools/build-llama.sh all)"
+    [[ $t == native ]] && exit 0
+    sums=$( (cd "$LLAMA_DIST" && sha256sum llama-bench lib/*); echo "$(sha256sum < "$LLAMA_GGUF" | cut -d' ' -f1)  model.gguf")
+    if target_exec "$t" "cd ~/bench-llama 2>/dev/null && echo '$sums' > SHA256SUMS.want && sha256sum --quiet -c SHA256SUMS.want" >/dev/null 2>&1; then
+        echo "stage-llama $t: up to date"; exit 0
+    fi
+    m=$(readlink -f "$LLAMA_GGUF")
+    tar -C "$LLAMA_DIST" -chf - . -C "$(dirname "$m")" --transform "s|^$(basename "$m")\$|model.gguf|" "$(basename "$m")" |
+        target_exec "$t" 'rm -rf ~/bench-llama && mkdir -p ~/bench-llama && tar -xf - -C ~/bench-llama && cd ~/bench-llama && sha256sum llama-bench model.gguf && df -h ~ | tail -1'
     ;;
 series)
     shift; targets="native" out="" reps=5 metrics=$ALL_METRICS
