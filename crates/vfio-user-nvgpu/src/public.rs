@@ -19,7 +19,9 @@
 //! never reach another host object (hostrm.rs).
 
 use crate::ctrl::{Answer, HostRm};
-use crate::ver::active::public::{self as p, Dev, Filter, PublicControl, Rule};
+use std::collections::BTreeMap;
+
+use crate::ver::active::public::{self as p, Dev, Filter, Guest, PublicControl, Rule};
 use crate::ver::active::{NV20_SUBDEVICE_0, NV_ERR_NOT_SUPPORTED, NV_OK};
 
 /// `NV_ERR_INVALID_PARAM_STRUCT` (nvstatuscodes.h:87): a guest buffer of another size
@@ -35,6 +37,74 @@ pub struct Ctx<'a> {
     pub chip: &'static crate::chip::ChipData,
     /// The device clock, in ns (`channel::Registry::now_ns`).
     pub now_ns: u64,
+    /// The guest object the control names (hClient, hObject), and its key in the
+    /// attribute record (duplicates resolved, `channel::Registry::resolve`).
+    pub object: (u32, u32),
+    pub key: (u32, u32),
+    /// The host mirrors of the guest's channels and TSGs, when the device executes on the
+    /// physical GPU.
+    pub mirror: Option<&'a mut dyn MirrorObjects>,
+    /// What the guest set on its objects.
+    pub attrs: &'a mut GuestAttrs,
+}
+
+/// The host mirror of a guest channel or TSG, looked up by the guest's own handles.
+pub trait MirrorObjects {
+    /// Issue `cmd` on the host object that mirrors the guest object `(h_client,
+    /// h_object)`: (host status, note), or `None` when the object has no mirror.
+    fn forward(&mut self, h_client: u32, h_object: u32, cmd: u32, params: &[u8])
+        -> Option<(u32, String)>;
+}
+
+/// [`MirrorObjects`] over the device's mirror (`Mirror::forward_control`: the TSG by its
+/// guest key, the channel through the registry by its guest handle, never another handle).
+pub struct MirrorFwd<'a> {
+    pub mirror: &'a mut crate::mirror::Mirror,
+    pub reg: &'a crate::channel::Registry,
+}
+
+impl MirrorObjects for MirrorFwd<'_> {
+    fn forward(
+        &mut self,
+        h_client: u32,
+        h_object: u32,
+        cmd: u32,
+        params: &[u8],
+    ) -> Option<(u32, String)> {
+        self.mirror
+            .forward_control(self.reg, h_client, h_object, cmd, params)
+    }
+}
+
+/// Per guest object: what its controls recorded (c-guest-state.md §4 `ObjAttrs`).
+#[derive(Default, Debug)]
+pub struct GuestAttrs {
+    objects: BTreeMap<(u32, u32), Attrs>,
+}
+
+#[derive(Default, Debug, Clone)]
+pub struct Attrs {
+    /// The last parameter block of each setter, by control id.
+    pub recorded: BTreeMap<u32, Vec<u8>>,
+    /// Resets of the channel the device answered or forwarded.
+    pub resets: u32,
+    /// The last MMU fault of the channel as `GET_MMU_FAULT_INFO` returns it; nothing
+    /// records one yet (the RC events are the RPC plan's).
+    pub last_fault: Option<Vec<u8>>,
+}
+
+impl GuestAttrs {
+    pub fn get(&self, key: (u32, u32)) -> Option<&Attrs> {
+        self.objects.get(&key)
+    }
+
+    /// `FREE` of an object (and of everything a freed client owned).
+    pub fn free(&mut self, h_client: u32, h_object: u32) {
+        self.objects.remove(&(h_client, h_object));
+        if h_client == h_object {
+            self.objects.retain(|(c, _), _| *c != h_client);
+        }
+    }
 }
 
 fn get32(b: &[u8], off: usize) -> u32 {
@@ -70,6 +140,7 @@ pub fn answer(ctx: &mut Ctx<'_>, cmd: u32, params: &[u8]) -> Option<Answer> {
     Some(match row.rule {
         Rule::Filtered(f) => filtered(ctx, row, f, params),
         Rule::Device(d) => device(ctx, row, d, params),
+        Rule::Guest(g) => guest(ctx, row, g, params),
         Rule::Refuse(label) => Answer {
             status: NV_ERR_NOT_SUPPORTED,
             params: params.to_vec(),
@@ -77,6 +148,137 @@ pub fn answer(ctx: &mut Ctx<'_>, cmd: u32, params: &[u8]) -> Option<Answer> {
             note: format!("{} ({cmd:#x}): not supported, never forwarded", row.name),
         },
     })
+}
+
+/// A control on one of the guest's channels or TSGs. Nothing here uses the host RM
+/// client; the only host path is the object's own mirror.
+fn guest(ctx: &mut Ctx<'_>, row: &PublicControl, g: Guest, params: &[u8]) -> Answer {
+    let (h_client, h_object) = ctx.object;
+    let n = params.len();
+    let ok = |b: Vec<u8>, label: &'static str, what: String| Answer {
+        status: NV_OK,
+        params: b,
+        label,
+        note: format!(
+            "{} ({:#x}) on {h_client:#x}/{h_object:#x}: {what}",
+            row.name, row.id
+        ),
+    };
+    match g {
+        Guest::Reset { host_cmd } => {
+            let a = ctx.attrs.objects.entry(ctx.key).or_default();
+            a.resets += 1;
+            a.last_fault = None;
+            let resets = a.resets;
+            match ctx
+                .mirror
+                .as_deref_mut()
+                .and_then(|m| m.forward(h_client, h_object, host_cmd, params))
+            {
+                Some((st, note)) => ok(
+                    params.to_vec(),
+                    "host (reset on the guest's own mirror channel; the guest sees NV_OK)",
+                    format!("reset {resets}, as {host_cmd:#x}: {note}; host status {st:#x}"),
+                ),
+                None => ok(
+                    params.to_vec(),
+                    "guest (no mirror: reset recorded by the device; the software executor keeps no fault state)",
+                    format!("reset {resets}, no host object"),
+                ),
+            }
+        }
+        Guest::MmuFaultInfo => {
+            let fault = ctx.attrs.get(ctx.key).and_then(|a| a.last_fault.clone());
+            let mut b = vec![0u8; n];
+            let what = match fault {
+                Some(f) => {
+                    let k = f.len().min(n);
+                    b[..k].copy_from_slice(&f[..k]);
+                    "the recorded fault".to_string()
+                }
+                None => "no fault recorded".to_string(),
+            };
+            ok(b, "guest (the device's fault state of the channel)", what)
+        }
+        Guest::DeferRcState => ok(
+            vec![0u8; n],
+            "guest (the device defers no RC: bDeferRCPending 0)",
+            "no deferred RC".into(),
+        ),
+        Guest::RcErrorCount => ok(
+            vec![0u8; n],
+            "guest (the device's RC journal for this guest: no RC error reported)",
+            "error count 0".into(),
+        ),
+        Guest::RcErrorV2 => {
+            let mut b = vec![0u8; n];
+            b[..4].copy_from_slice(&params[..4]);
+            put32(&mut b, p::RC_ERROR_V2_OUTPUT_SIZE, 0);
+            ok(
+                b,
+                "guest (the device's RC journal for this guest: no record)",
+                format!("record {}: none", get32(params, 0)),
+            )
+        }
+        Guest::Record { max_level } => {
+            ctx.attrs
+                .objects
+                .entry(ctx.key)
+                .or_default()
+                .recorded
+                .insert(row.id, params.to_vec());
+            let level = get32(params, 0);
+            if max_level.is_some_and(|m| level > m) {
+                return ok(
+                    params.to_vec(),
+                    "guest (recorded; a level above MEDIUM is not forwarded: a guest must not outrank the host desktop)",
+                    format!("level {level} recorded only"),
+                );
+            }
+            match ctx
+                .mirror
+                .as_deref_mut()
+                .and_then(|m| m.forward(h_client, h_object, row.id, params))
+            {
+                Some((st, note)) => ok(
+                    params.to_vec(),
+                    "host (recorded; forwarded to the guest object's own mirror; the guest sees NV_OK)",
+                    format!("{note}; host status {st:#x}"),
+                ),
+                None => ok(
+                    params.to_vec(),
+                    "guest (recorded; no mirror object)",
+                    "recorded".into(),
+                ),
+            }
+        }
+        Guest::Get { set } => {
+            let rec = ctx.attrs.get(ctx.key).and_then(|a| a.recorded.get(&set));
+            let mut b = vec![0u8; n];
+            if let Some(r) = rec {
+                let k = r.len().min(n);
+                b[..k].copy_from_slice(&r[..k]);
+            }
+            ok(
+                b,
+                "guest (the value the guest set; NONE before)",
+                format!("recorded: {}", rec.is_some()),
+            )
+        }
+        Guest::RecordOnly => {
+            ctx.attrs
+                .objects
+                .entry(ctx.key)
+                .or_default()
+                .recorded
+                .insert(row.id, params.to_vec());
+            ok(
+                params.to_vec(),
+                "guest (recorded, never forwarded: decision Q-C7, no guest priority over the host desktop, no restart of a shared runlist)",
+                "recorded only".into(),
+            )
+        }
+    }
 }
 
 fn device(ctx: &Ctx<'_>, row: &PublicControl, d: Dev, params: &[u8]) -> Answer {
@@ -371,6 +573,10 @@ mod tests {
             reservation: res,
             chip: tu106(),
             now_ns: 0,
+            object: (0, 0),
+            key: (0, 0),
+            mirror: None,
+            attrs: &mut GuestAttrs::default(),
         };
         let size = p::public_control(cmd).unwrap().size;
         let a = answer(&mut ctx, cmd, &vec![0u8; size]).unwrap();
@@ -489,6 +695,10 @@ mod tests {
             reservation: Some(RES),
             chip: tu106(),
             now_ns: 0,
+            object: (0, 0),
+            key: (0, 0),
+            mirror: None,
+            attrs: &mut GuestAttrs::default(),
         };
         let a = answer(&mut ctx, 0x2080_1322, &[0u8; 2048]).unwrap();
         assert_eq!(a.status, NV_ERR_INVALID_PARAM_STRUCT);
@@ -592,6 +802,10 @@ mod tests {
             reservation: Some(RES),
             chip: tu106(),
             now_ns: 0,
+            object: (0, 0),
+            key: (0, 0),
+            mirror: None,
+            attrs: &mut GuestAttrs::default(),
         };
         let a = answer(&mut ctx, 0x2080_3602, &b).unwrap();
         assert!(seen.lock().unwrap().is_empty());
@@ -686,6 +900,10 @@ mod tests {
             reservation: Some(RES),
             chip: tu106(),
             now_ns,
+            object: (0, 0),
+            key: (0, 0),
+            mirror: None,
+            attrs: &mut GuestAttrs::default(),
         };
         let a = answer(&mut ctx, cmd, params).unwrap();
         let s = seen.lock().unwrap().clone();
@@ -772,5 +990,202 @@ mod tests {
         let a = d.control(INTERNAL_CLIENT, INTERNAL_SUBDEVICE, 0x2080_0154, &[0u8; 8]);
         assert_eq!(a.status, NV_ERR_NOT_SUPPORTED);
         assert_eq!(a.label, "host (forwarded as-is, public control)");
+    }
+
+    type Calls = std::sync::Arc<std::sync::Mutex<Vec<(u32, u32, u32)>>>;
+
+    /// A mirror that holds host twins of the guest objects in `mirrored` only.
+    struct FakeMirror {
+        mirrored: Vec<(u32, u32)>,
+        calls: Calls,
+    }
+    impl MirrorObjects for FakeMirror {
+        fn forward(&mut self, c: u32, o: u32, cmd: u32, _: &[u8]) -> Option<(u32, String)> {
+            if !self.mirrored.contains(&(c, o)) {
+                return None;
+            }
+            self.calls.lock().unwrap().push((c, o, cmd));
+            Some((NV_OK, format!("host object of {o:#x}")))
+        }
+    }
+
+    /// One control of the C table on guest object `obj`, with a host RM that must never be
+    /// called and a mirror of `mirrored`.
+    fn guest_call(
+        attrs: &mut GuestAttrs,
+        mirrored: &[(u32, u32)],
+        obj: (u32, u32),
+        cmd: u32,
+        params: &[u8],
+    ) -> (Answer, Vec<(u32, u32, u32)>) {
+        let seen = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+        let mut h = Canned(vec![0; 8192], seen.clone());
+        let calls: Calls = Default::default();
+        let mut m = FakeMirror {
+            mirrored: mirrored.to_vec(),
+            calls: calls.clone(),
+        };
+        let mut ctx = Ctx {
+            host: Some(&mut h),
+            reservation: Some(RES),
+            chip: tu106(),
+            now_ns: 0,
+            object: obj,
+            key: obj,
+            mirror: Some(&mut m),
+            attrs,
+        };
+        let a = answer(&mut ctx, cmd, params).unwrap();
+        assert!(
+            seen.lock().unwrap().is_empty(),
+            "{cmd:#x} reached the host RM client"
+        );
+        let c = calls.lock().unwrap().clone();
+        (a, c)
+    }
+
+    const CH: (u32, u32) = (0xC1, 0x5C00_0010);
+    const OTHER: (u32, u32) = (0xC1, 0x5C00_0020);
+
+    /// The resets act on the guest's own mirror channel only, as the public control; a
+    /// channel without a mirror is answered by the device.
+    #[test]
+    fn resets_go_to_the_own_mirror_channel_only() {
+        let mut attrs = GuestAttrs::default();
+        for (cmd, host_cmd, size) in [
+            (0x906F_0102u32, 0x906F_0102u32, 16usize),
+            (0x506F_0105, 0x506F_0105, 8),
+            (0x506F_0106, 0x506F_0105, 8),
+        ] {
+            let (a, calls) = guest_call(&mut attrs, &[CH, OTHER], CH, cmd, &vec![1u8; size]);
+            assert_eq!(a.status, NV_OK);
+            assert_eq!(calls, [(CH.0, CH.1, host_cmd)], "{cmd:#x}");
+            assert!(a.label.starts_with("host (reset"), "{}", a.label);
+            // No mirror: the device answers, nothing goes anywhere.
+            let (a, calls) = guest_call(&mut attrs, &[OTHER], CH, cmd, &vec![1u8; size]);
+            assert_eq!(a.status, NV_OK);
+            assert!(calls.is_empty());
+            assert!(a.label.starts_with("guest (no mirror"), "{}", a.label);
+        }
+        assert_eq!(attrs.get(CH).unwrap().resets, 6);
+    }
+
+    /// The fault state and the RC journal are the device's: zeros, no host call.
+    #[test]
+    fn fault_and_rc_state_come_from_the_device() {
+        let mut attrs = GuestAttrs::default();
+        for (cmd, size) in [
+            (0x906F_0106u32, p::MMU_FAULT_INFO_SIZE),
+            (0x906F_0105, 1),
+            (0x2080_2205, 4),
+        ] {
+            let (a, calls) = guest_call(&mut attrs, &[CH], CH, cmd, &vec![0xEEu8; size]);
+            assert!(calls.is_empty(), "{cmd:#x}");
+            assert_eq!(a.status, NV_OK);
+            assert!(a.params.iter().all(|&x| x == 0), "{cmd:#x}");
+        }
+        let mut q = vec![0xEEu8; p::RC_ERROR_V2_SIZE];
+        put32(&mut q, 0, 2);
+        let (a, _) = guest_call(&mut attrs, &[CH], CH, 0x2080_2213, &q);
+        assert_eq!(get32(&a.params, 0), 2, "whichBuffer kept");
+        assert_eq!(get32(&a.params, p::RC_ERROR_V2_OUTPUT_SIZE), 0);
+        assert!(a.params[8..].iter().all(|&x| x == 0));
+    }
+
+    /// Group M records and forwards to the object's own mirror; a level above MEDIUM stays
+    /// recorded; the getter reads the record back.
+    #[test]
+    fn group_m_records_and_forwards() {
+        let mut attrs = GuestAttrs::default();
+        let tsg = (0xC1, 0x5C00_0001);
+        let (a, calls) = guest_call(&mut attrs, &[tsg], tsg, 0xA06C_0107, &1u32.to_le_bytes());
+        assert_eq!(a.status, NV_OK);
+        assert_eq!(calls, [(tsg.0, tsg.1, 0xA06C_0107)]);
+        let (a, calls) = guest_call(&mut attrs, &[tsg], tsg, 0xA06C_0107, &2u32.to_le_bytes());
+        assert_eq!(a.status, NV_OK);
+        assert!(calls.is_empty(), "HIGH is not forwarded");
+        let (_, calls) = guest_call(&mut attrs, &[CH], CH, 0xA06F_0109, &2u32.to_le_bytes());
+        assert!(calls.is_empty(), "HIGH is not forwarded");
+        // TPC partition mode: set (forwarded), then read back without a host call.
+        let mut set = [0u8; 8];
+        set[0] = 1; // STATIC
+        set[4] = 1;
+        let (_, calls) = guest_call(&mut attrs, &[tsg], tsg, 0x0090_0101, &set);
+        assert_eq!(calls, [(tsg.0, tsg.1, 0x0090_0101)]);
+        let (a, calls) = guest_call(&mut attrs, &[tsg], tsg, 0x0090_0103, &[0u8; 8]);
+        assert!(calls.is_empty());
+        assert_eq!(a.params, set);
+        // Unset on another TSG: NONE.
+        let (a, _) = guest_call(&mut attrs, &[], (0xC1, 0x5C00_0002), 0x0090_0103, &[9u8; 8]);
+        assert_eq!(a.params, [0u8; 8]);
+        // Without a mirror: recorded only.
+        let (a, calls) = guest_call(&mut attrs, &[], CH, 0xA06C_0109, &[3u8; 8]);
+        assert!(calls.is_empty());
+        assert_eq!(a.label, "guest (recorded; no mirror object)");
+        // FREE forgets the object's record.
+        attrs.free(tsg.0, tsg.1);
+        assert!(attrs.get(tsg).is_none());
+        attrs.free(0xC1, 0xC1);
+        assert!(attrs.get(CH).is_none());
+    }
+
+    /// Q-C7: MAKE_REALTIME and RESTART_RUNLIST are recorded and never leave the device, not
+    /// even on a mirrored object.
+    #[test]
+    fn realtime_and_runlist_restart_are_never_forwarded() {
+        let mut attrs = GuestAttrs::default();
+        for (cmd, size) in [(0xA06C_0110u32, 1usize), (0xA06F_0111, 2)] {
+            let (a, calls) = guest_call(&mut attrs, &[CH], CH, cmd, &vec![1u8; size]);
+            assert_eq!(a.status, NV_OK);
+            assert!(calls.is_empty(), "{cmd:#x}");
+            assert!(a.label.contains("Q-C7"), "{}", a.label);
+            assert!(attrs.get(CH).unwrap().recorded.contains_key(&cmd));
+        }
+    }
+
+    /// Groups V, K and X are refused without any host or mirror call.
+    #[test]
+    fn c_refusals() {
+        let mut attrs = GuestAttrs::default();
+        let refused: Vec<&PublicControl> = p::PUBLIC_C
+            .iter()
+            .filter(|c| matches!(c.rule, Rule::Refuse(_)))
+            .collect();
+        assert_eq!(refused.len(), 8 + 5 + 2);
+        for c in refused {
+            let (a, calls) = guest_call(&mut attrs, &[CH], CH, c.id, &[0x3C; 16]);
+            assert!(calls.is_empty(), "{}", c.name);
+            assert_eq!(a.status, NV_ERR_NOT_SUPPORTED, "{}", c.name);
+            assert!(a.label.starts_with("refused ("), "{}", c.name);
+        }
+    }
+
+    /// NV_EVENT_BUFFER UPDATE_GET is left to the event-buffer model (ALLOC_MEMORY).
+    #[test]
+    fn event_buffer_update_get_is_not_in_the_table() {
+        assert!(p::public_control(0x90CD_0102).is_none());
+    }
+
+    /// Through the dispatcher (no mirror, no host): every C row reaches this table ahead of
+    /// the other handlers, and a record dies with its object.
+    #[test]
+    fn the_dispatcher_takes_the_c_rows() {
+        use crate::ctrl::Dispatcher;
+        let f = crate::fixture::rtx2070();
+        let mut d = Dispatcher::new(f.chip.data(), &f.identity(4 << 30), None);
+        for c in p::PUBLIC_C {
+            let size = if c.size == 0 { 16 } else { c.size };
+            let a = d.control(CH.0, CH.1, c.id, &vec![0u8; size]);
+            assert_ne!(a.label, "unanswered", "{}", c.name);
+            assert!(
+                a.label.starts_with("guest (") || a.label.starts_with("refused ("),
+                "{}: {}",
+                c.name,
+                a.label
+            );
+        }
+        assert!(d.guest_attrs.get(CH).is_some());
+        d.free(CH.0, CH.1);
+        assert!(d.guest_attrs.get(CH).is_none());
     }
 }

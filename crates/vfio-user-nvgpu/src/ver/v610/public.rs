@@ -22,6 +22,35 @@ pub enum Rule {
     Device(Dev),
     /// NOT_SUPPORTED with the label, request echoed; never forwarded.
     Refuse(&'static str),
+    /// A control on one of the guest's own channels or TSGs (c-guest-state.md).
+    Guest(Guest),
+}
+
+/// Controls on the guest's objects (docs/caraxes/gsp-plan/c-guest-state.md). The host side
+/// is only ever the guest object's own mirror (`mirror::Mirror::forward_control`, which
+/// looks the object up by the guest's handle), never another host handle, and never the
+/// device's host RM client.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Guest {
+    /// Channel reset: on the channel's own host mirror as `host_cmd` (an INTERNAL control
+    /// cannot be issued from host user space, so its public form); a channel without a
+    /// mirror is answered by the device.
+    Reset { host_cmd: u32 },
+    /// `GET_MMU_FAULT_INFO`: the device's fault state of the channel.
+    MmuFaultInfo,
+    /// `GET_DEFER_RC_STATE`: the device defers no RC.
+    DeferRcState,
+    /// `RC_GET_ERROR_COUNT`: the device's RC journal for this guest (empty).
+    RcErrorCount,
+    /// `RC_GET_ERROR_V2`: the journal's records (none).
+    RcErrorV2,
+    /// Record the setting, and forward it to the object's mirror when there is one. A u32
+    /// level @0 above `max_level` is recorded only.
+    Record { max_level: Option<u32> },
+    /// The value the setter `set` recorded; zeros (the default) before.
+    Get { set: u32 },
+    /// Record only, never forwarded (policy decision Q-C7).
+    RecordOnly,
 }
 
 /// Answers the device owns (b-host-forwardable.md §3 S, and the decisions recorded there).
@@ -134,13 +163,72 @@ pub const PUBLIC: &[PublicControl] = &[
     row(0x0000_0B06, "NV0000 GPUACCT_GET_PROC_ACCOUNTING_INFO_V2", 0, Rule::Refuse(REFUSED_ACCOUNTING)),
 ];
 
+/// `NVA06C_CTRL_INTERLEAVE_LEVEL_MEDIUM` (ctrla06c.h:275): the highest level a guest TSG
+/// or channel gets on the host runlist.
+pub const INTERLEAVE_LEVEL_MEDIUM: u32 = 1;
+
+pub const PUBLIC_C: &[PublicControl] = &[
+    // RC group (c-guest-state.md §2 rows 6, 7, 11-13; §3 B6, B7).
+    row(0x906F_0102, "NV906F RESET_CHANNEL", 16, Rule::Guest(Guest::Reset { host_cmd: 0x906F_0102 })),
+    row(0x506F_0105, "NV506F RESET_ISOLATED_CHANNEL", 8, Rule::Guest(Guest::Reset { host_cmd: 0x506F_0105 })),
+    row(0x506F_0106, "NV506F INTERNAL_RESET_ISOLATED_CHANNEL", 8, Rule::Guest(Guest::Reset { host_cmd: 0x506F_0105 })),
+    row(0x906F_0106, "NV906F GET_MMU_FAULT_INFO", MMU_FAULT_INFO_SIZE, Rule::Guest(Guest::MmuFaultInfo)),
+    row(0x906F_0105, "NV906F GET_DEFER_RC_STATE", 1, Rule::Guest(Guest::DeferRcState)),
+    row(0x2080_2205, "RC_GET_ERROR_COUNT", 4, Rule::Guest(Guest::RcErrorCount)),
+    row(0x2080_2213, "RC_GET_ERROR_V2", RC_ERROR_V2_SIZE, Rule::Guest(Guest::RcErrorV2)),
+    // Group M: record, forward to the host mirror (rows 1-5, 15, 16, 20).
+    row(0x0090_0101, "NV0090 SET_TPC_PARTITION_MODE", 8, Rule::Guest(Guest::Record { max_level: None })),
+    row(0x0090_0103, "NV0090 GET_TPC_PARTITION_MODE", 8, Rule::Guest(Guest::Get { set: 0x0090_0101 })),
+    row(0x0090_0107, "NV0090 PROGRAM_VIDMEM_PROMOTE", 8, Rule::Guest(Guest::Record { max_level: None })),
+    row(0x0090_010B, "NV0090 SET_LG_SECTOR_PROMOTION", 4, Rule::Guest(Guest::Record { max_level: None })),
+    row(0x0090_010E, "NV0090 PROGRAM_SYSMEM_PROMOTE", 4, Rule::Guest(Guest::Record { max_level: None })),
+    row(0xA06C_0107, "NVA06C SET_INTERLEAVE_LEVEL", 4, Rule::Guest(Guest::Record { max_level: Some(INTERLEAVE_LEVEL_MEDIUM) })),
+    row(0xA06C_0109, "NVA06C PROGRAM_VIDMEM_PROMOTE", 8, Rule::Guest(Guest::Record { max_level: None })),
+    row(0xA06F_0109, "NVA06F SET_INTERLEAVE_LEVEL", 4, Rule::Guest(Guest::Record { max_level: Some(INTERLEAVE_LEVEL_MEDIUM) })),
+    // Group L: recorded, never forwarded (Q-C7, decided: a guest must not outrank the host
+    // desktop, nor restart a runlist the host shares).
+    row(0xA06C_0110, "NVA06C MAKE_REALTIME", 1, Rule::Guest(Guest::RecordOnly)),
+    row(0xA06F_0111, "NVA06F RESTART_RUNLIST", 2, Rule::Guest(Guest::RecordOnly)),
+    // Group V: live migration, refused as a family.
+    row(0xB06F_010B, "NVB06F GET_ENGINE_CTX_SIZE", 0, Rule::Refuse(REFUSED_MIGRATION)),
+    row(0xB06F_010C, "NVB06F GET_ENGINE_CTX_DATA", 0, Rule::Refuse(REFUSED_MIGRATION)),
+    row(0xB06F_010D, "NVB06F MIGRATE_ENGINE_CTX_DATA", 0, Rule::Refuse(REFUSED_MIGRATION)),
+    row(0xB06F_010E, "NVB06F GET_ENGINE_CTX_STATE", 0, Rule::Refuse(REFUSED_MIGRATION)),
+    row(0xB06F_010F, "NVB06F GET_CHANNEL_HW_STATE", 0, Rule::Refuse(REFUSED_MIGRATION)),
+    row(0xB06F_0110, "NVB06F SET_CHANNEL_HW_STATE", 0, Rule::Refuse(REFUSED_MIGRATION)),
+    row(0xB06F_0111, "NVB06F SAVE_ENGINE_CTX_DATA", 0, Rule::Refuse(REFUSED_MIGRATION)),
+    row(0xB06F_0112, "NVB06F RESTORE_ENGINE_CTX_DATA", 0, Rule::Refuse(REFUSED_MIGRATION)),
+    // Group K: kernel-privileged or vGPU-plugin controls without a caller on a GSP client.
+    row(0x9067_0102, "NV9067 SET_TPC_PARTITION_TABLE", 0, Rule::Refuse(REFUSED_KERNEL)),
+    row(0x9067_0201, "NV9067 GET_CWD_WATERMARK", 0, Rule::Refuse(REFUSED_KERNEL)),
+    row(0x9067_0202, "NV9067 SET_CWD_WATERMARK", 0, Rule::Refuse(REFUSED_KERNEL)),
+    row(0xC365_0108, "NVC365 ACCESS_CNTR_BUFFER_RESET_COUNTERS", 0, Rule::Refuse(REFUSED_KERNEL)),
+    row(0xC36F_0109, "NVC36F GPFIFO_UPDATE_FAULT_METHOD_BUFFER", 0, Rule::Refuse(REFUSED_KERNEL)),
+    // Group X: the INTERNAL TSG controls; a GSP client sends the public forms.
+    row(0xA06C_0201, "NVA06C INTERNAL_GPFIFO_SCHEDULE", 0, Rule::Refuse(REFUSED_INTERNAL_TSG)),
+    row(0xA06C_0202, "NVA06C INTERNAL_SET_TIMESLICE", 0, Rule::Refuse(REFUSED_INTERNAL_TSG)),
+];
+
+pub const REFUSED_MIGRATION: &str = "refused (no live migration)";
+pub const REFUSED_KERNEL: &str =
+    "refused (kernel-privileged or vGPU-plugin control; no caller on a GSP client)";
+pub const REFUSED_INTERNAL_TSG: &str =
+    "refused (INTERNAL TSG control; a GSP client sends the public form)";
+
+/// `NV906F_CTRL_GET_MMU_FAULT_INFO_PARAMS` (ctrl906f.h:214-220): 104 bytes.
+pub const MMU_FAULT_INFO_SIZE: usize = 104;
+/// `NV2080_CTRL_RC_GET_ERROR_V2_PARAMS` (ctrl2080rc.h:124-128): `whichBuffer` @0 (input),
+/// `outputRecordSize` @4, `recordBuffer` @8; 8200 bytes.
+pub const RC_ERROR_V2_SIZE: usize = 8200;
+pub const RC_ERROR_V2_OUTPUT_SIZE: usize = 4;
+
 pub const REFUSED_PROFILER: &str = "refused (profiler: profiling is refused, gsp-surface.md §3 D rule 4)";
 pub const REFUSED_SCHED_LOG: &str = "refused (host scheduler log: every tenant's scheduling)";
 pub const REFUSED_ACCOUNTING: &str = "refused (host accounting: host PIDs, D9 deny list)";
 
-/// The row of `id`, if the table has one.
+/// The row of `id`, if the table has one (category B rows, then category C rows).
 pub fn public_control(id: u32) -> Option<&'static PublicControl> {
-    PUBLIC.iter().find(|c| c.id == id)
+    PUBLIC.iter().chain(PUBLIC_C).find(|c| c.id == id)
 }
 
 // ---------------------------------------------------------------------------------
@@ -303,9 +391,9 @@ mod tests {
 
     #[test]
     fn one_row_per_id() {
-        let mut ids: Vec<u32> = PUBLIC.iter().map(|c| c.id).collect();
+        let mut ids: Vec<u32> = PUBLIC.iter().chain(PUBLIC_C).map(|c| c.id).collect();
         ids.sort_unstable();
         ids.dedup();
-        assert_eq!(ids.len(), PUBLIC.len());
+        assert_eq!(ids.len(), PUBLIC.len() + PUBLIC_C.len());
     }
 }
