@@ -18,6 +18,16 @@
 pub enum Rule {
     /// Forward to the host subdevice, then filter the answer before the guest sees it.
     Filtered(Filter),
+    /// Answered from the device's own model; never forwarded.
+    Device(Dev),
+}
+
+/// Answers the device owns (b-host-forwardable.md §3 S, and the decisions recorded there).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Dev {
+    /// `GSP_GET_RM_HEAP_STATS`: the device's own GSP heap view (decision under D9, Q-B6):
+    /// the emulated GSP has no RM heap, so every number is 0; the host GSP is not asked.
+    RmHeapStats,
 }
 
 /// The output filters of forwarded controls (b-host-forwardable.md §3 F2 and §6).
@@ -28,6 +38,15 @@ pub enum Filter {
     /// `FB_GET_REMAPPED_ROWS`: DRAM rows cannot be placed in the reservation; no entry
     /// reaches the guest, the card-level flags do.
     RemappedRows,
+    /// `GPU_QUERY_SCRUBBER_STATUS`: the scrub range clamped to the reservation (0 and 0
+    /// when they do not meet).
+    ScrubberRange,
+    /// `FB_GET_DYNAMIC_OFFLINED_PAGES`: keep the entries whose pages lie in the
+    /// reservation, recount `validEntries`.
+    DynamicOfflinedPages,
+    /// `PERF_GET_GPUMON_PERFMON_UTIL_SAMPLES_V2`: zero the host process fields of every
+    /// engine sample, and the utilization of engines the device does not present.
+    GpumonProcess,
 }
 
 /// One control of the table.
@@ -39,6 +58,12 @@ pub struct PublicControl {
     pub size: usize,
     pub rule: Rule,
 }
+
+const fn row(id: u32, name: &'static str, size: usize, rule: Rule) -> PublicControl {
+    PublicControl { id, name, size, rule }
+}
+
+use Filter as F;
 
 pub const PUBLIC: &[PublicControl] = &[
     // Forwarded as-is until 2026-09-24 (the FORWARD list): the host answer carries host FB
@@ -55,6 +80,14 @@ pub const PUBLIC: &[PublicControl] = &[
         size: REMAPPED_ROWS_SIZE,
         rule: Rule::Filtered(Filter::RemappedRows),
     },
+    // Group F2 of b-host-forwardable.md: forwards with an output filter.
+    row(0x2080_015F, "GPU_QUERY_SCRUBBER_STATUS", SCRUBBER_SIZE, Rule::Filtered(F::ScrubberRange)),
+    row(0x2080_1348, "FB_GET_DYNAMIC_OFFLINED_PAGES", DYN_OFFLINED_SIZE, Rule::Filtered(F::DynamicOfflinedPages)),
+    row(0x2080_2096, "PERF_GET_GPUMON_PERFMON_UTIL_SAMPLES_V2", GPUMON_SIZE, Rule::Filtered(F::GpumonProcess)),
+    // The fourth F2 row of the plan (gfid pinned to 0, then forwarded) became a device
+    // answer: the guest's GSP is the device, not the host's (decision recorded in
+    // b-host-forwardable.md, Q-B6).
+    row(0x2080_3602, "GSP_GET_RM_HEAP_STATS", RM_HEAP_STATS_SIZE, Rule::Device(Dev::RmHeapStats)),
 ];
 
 /// The row of `id`, if the table has one.
@@ -96,6 +129,48 @@ pub const REMAPPED_ROWS_ENTRY_COUNT: usize = 0;
 pub const REMAPPED_ROWS_FLAGS: usize = 4;
 pub const REMAPPED_ROWS_ENTRIES: usize = 8;
 
+/// `NV2080_CTRL_GPU_QUERY_SCRUBBER_STATUS_PARAMS` (ctrl2080gpu.h:2128-2133):
+/// `scrubberStatus` @0, `remainingTimeMs` @4, `scrubStartAddr` u64 @8, `scrubEndAddr` u64
+/// @16 (host FB addresses); 24 bytes.
+pub const SCRUBBER_SIZE: usize = 24;
+pub const SCRUBBER_START: usize = 8;
+pub const SCRUBBER_END: usize = 16;
+
+/// `NV2080_CTRL_FB_GET_DYNAMIC_OFFLINED_PAGES_PARAMS` (ctrl2080fb.h:2459-2464): `offlined[64]`
+/// of 16-byte `{pageNumber u64 @0, source u8 @8}` (4 KiB pages, mem_mgr_ga100.c:416),
+/// `validEntries` @1024, `baseIndex` @1028, `bMore` @1032; 1040 bytes.
+pub const DYN_OFFLINED_SIZE: usize = 1040;
+pub const DYN_OFFLINED_ENTRY_SIZE: usize = 16;
+pub const DYN_OFFLINED_MAX: usize = 64;
+pub const DYN_OFFLINED_VALID_ENTRIES: usize = 1024;
+
+/// `NV2080_CTRL_PERF_GET_GPUMON_PERFMON_UTIL_SAMPLES_V2_PARAMS` (ctrl2080perf.h:562-600):
+/// `type` @0, `bufSize` @4, `count` @8, `tracker` @12, `samples[72]` @16 of 776 bytes:
+/// `base` (8), then the engine samples fb @8, gr @136, nvenc @264, nvdec @392, nvjpg @520,
+/// nvofa @648, each 128 bytes `{util @0, vgpuScale @4, procId @8, subProcessID @12,
+/// subProcessName[100] @16, pOsPidInfo u64 @120}`; 55888 bytes.
+pub const GPUMON_SIZE: usize = 55888;
+pub const GPUMON_COUNT: usize = 8;
+pub const GPUMON_SAMPLES: usize = 16;
+pub const GPUMON_SAMPLE_SIZE: usize = 776;
+pub const GPUMON_SAMPLE_COUNT: usize = 72;
+/// (engine, offset in a sample): the six engine samples.
+pub const GPUMON_ENGINES: &[(&str, usize)] = &[
+    ("fb", 8),
+    ("gr", 136),
+    ("nvenc", 264),
+    ("nvdec", 392),
+    ("nvjpg", 520),
+    ("nvofa", 648),
+];
+pub const GPUMON_ENGINE_UTIL: usize = 0;
+/// `procId` @8 up to the end of `pOsPidInfo` @120+8: every host process field.
+pub const GPUMON_ENGINE_PROC: std::ops::Range<usize> = 8..128;
+
+/// `NV2080_CTRL_GSP_GET_RM_HEAP_STATS_PARAMS` (ctrl2080gsp.h:131-137): `gfid` @0 (input),
+/// then the managed size, largest free chunk and two snapshots; 88 bytes.
+pub const RM_HEAP_STATS_SIZE: usize = 88;
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -125,6 +200,23 @@ mod tests {
         assert_eq!(offset_of!(R610, entries), REMAPPED_ROWS_ENTRIES);
         assert_eq!(offset_of!(R615, entries), REMAPPED_ROWS_ENTRIES);
         assert_eq!(offset_of!(R615, entryCount), REMAPPED_ROWS_ENTRY_COUNT);
+    }
+
+    #[test]
+    fn b_f2_layouts() {
+        type S = nvrm_sys::NV2080_CTRL_GPU_QUERY_SCRUBBER_STATUS_PARAMS;
+        assert_eq!(size_of::<S>(), SCRUBBER_SIZE);
+        assert_eq!(offset_of!(S, scrubStartAddr), SCRUBBER_START);
+        assert_eq!(offset_of!(S, scrubEndAddr), SCRUBBER_END);
+        type D = nvrm_sys::NV2080_CTRL_FB_GET_DYNAMIC_OFFLINED_PAGES_PARAMS;
+        assert_eq!(size_of::<D>(), DYN_OFFLINED_SIZE);
+        assert_eq!(offset_of!(D, validEntries), DYN_OFFLINED_VALID_ENTRIES);
+        assert_eq!(DYN_OFFLINED_MAX * DYN_OFFLINED_ENTRY_SIZE, DYN_OFFLINED_VALID_ENTRIES);
+        assert_eq!(
+            GPUMON_SAMPLES + GPUMON_SAMPLE_COUNT * GPUMON_SAMPLE_SIZE,
+            GPUMON_SIZE
+        );
+        assert_eq!(GPUMON_ENGINES.last().unwrap().1 + 128, GPUMON_SAMPLE_SIZE);
     }
 
     #[test]

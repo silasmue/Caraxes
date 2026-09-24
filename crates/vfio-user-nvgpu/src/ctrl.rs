@@ -926,6 +926,7 @@ impl Dispatcher {
         let mut pctx = crate::public::Ctx {
             host: self.host.as_deref_mut(),
             reservation: self.reservation,
+            chip: self.chip,
         };
         if let Some(a) = crate::public::answer(&mut pctx, cmd, params) {
             return a;
@@ -1233,13 +1234,23 @@ impl Dispatcher {
         }
     }
 
+    /// Forward `cmd` to the host object its id addresses (hostrm.rs `class_of_control`),
+    /// not to the guest object's class: a control on any other object is never sent.
     fn forward_or(
         &mut self,
-        class: u32,
+        _class: u32,
         cmd: u32,
         params: &[u8],
         fallback: impl FnOnce(usize) -> Answer,
     ) -> Answer {
+        let Some(class) = crate::hostrm::class_of_control(cmd) else {
+            return Answer {
+                status: NV_ERR_NOT_SUPPORTED,
+                params: params.to_vec(),
+                label: "refused (no host object for this control's class)",
+                note: format!("control {cmd:#x}: not forwarded"),
+            };
+        };
         match self.host.as_mut() {
             Some(host) => {
                 let mut b = params.to_vec();

@@ -691,6 +691,15 @@ mod tests {
             size_of::<v610::NV2080_CTRL_CMD_FB_GET_FB_REGION_INFO_PARAMS>(),
             size_of::<v615::NV2080_CTRL_CMD_FB_GET_FB_REGION_INFO_PARAMS>()
         );
+        // The 26 F1 rows of gsp-plan/b-host-forwardable.md: 19 params structs are in
+        // `nvrm_sys::stable` (generated once because they are identical in every version),
+        // the rest are not bound (CLK_PMUMON samples, PERF level info V2, power state, rated TDP,
+        // FLCN DMEM usage, LIBOS heap stats: sizes measured with cc against both trees,
+        // equal, plan §2: 6); the one bound per version is compared here.
+        assert_eq!(
+            size_of::<v610::NV2080_CTRL_CMD_GPU_IS_RESET_COUPLED_PARAMS>(),
+            size_of::<v615::NV2080_CTRL_CMD_GPU_IS_RESET_COUPLED_PARAMS>()
+        );
     }
 
     #[test]
