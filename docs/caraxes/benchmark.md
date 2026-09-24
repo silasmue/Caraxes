@@ -590,3 +590,33 @@ build with the NV_UFLUSH work in progress (`c09fcccc`), and there cuCtxCreate to
 and creates `nvidiactl`, `nvidia0`, `nvidia-uvm` and `nvidia-uvm-tools` itself
 (`bench-run.sh v2-nodes`, the same nodes as `tools/caraxes-vm.sh uvm`). This is part of the
 v2 startup time in §4.
+
+## Doorbell over KVM ioeventfd (2026-09-24, vm1, host under load)
+
+Patch 0005 (Cloud Hypervisor asks for the region I/O fds and registers the usermode doorbell
+as a KVM ioeventfd, [../../patches/README.md](../../patches/README.md)) and the device's
+token-less doorbell path (`Dispatcher::doorbell_pending`: the eventfd carries no work-submit
+token, so a wakeup rings every channel whose USERD GPPut moved since its last doorbell). vm1
+with a 1 GiB profile at reservation slot 4 while vm0 (display) and vm2 (the mapping series)
+were active, so the absolute numbers are under load; A and B ran minutes apart under the same
+load. `caraxes/runs/doorbell-2026-09-24-vm1/` (A, and B with the first scan) and
+`caraxes/runs/doorbell-2026-09-24-vm1-watch/` (B with the watched GPPut copy).
+
+| Value | A: trapped doorbell | B: ioeventfd, scan by BAR1 reads | B: ioeventfd, watched copy |
+|---|---|---|---|
+| doorbell write p50 (bench-trap, 20000 writes) | 29.3 us | 3.5 us | 3.9 us |
+| trapped doorbell writes in the run | 196488 | 0 | 0 |
+| eventfd wakeups | - | 196193 | 196244 |
+| channels scanned per wakeup, pending per wakeup | - | 19.0, 0.90 | 19.0, 0.90 |
+| scan per wakeup, mean | - | 31.4 us | 1.07 us |
+| short kernel, ms/launch (2 reps) | 0.176, 0.159 | 0.189, 0.239 | 0.144, 0.153 |
+| rlprobe stage 4 (2 reps) | 20.0 s, 20.8 s | 22.8 s, 22.8 s | 18.8 s, 22.2 s |
+| host Xid | 0 | 0 | 0 |
+
+Reading: the trap is gone and costs the device 3.9 us per doorbell; the first scan read every
+channel's GPPut through the host BAR1 windows (1.6 us per uncached read, 2.5 ms on a window
+miss) and gave the gain back; with the FB store's watched copy (`FakeFb::watched_dword`, kept
+current by the trapped GPPut writes) the scan is a map lookup. The short kernel gains about the
+one trap of four (25 us of 160); the other three (GPFIFO entry, GPPut through BAR1) and the
+small copies are P21's. Once P21 passes the BAR1 windows through, the watched copy no longer
+sees GPPut, and the wakeup needs the token: the datamatch token pool ([roadmap.md](roadmap.md)).

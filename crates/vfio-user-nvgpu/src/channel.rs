@@ -344,15 +344,17 @@ impl Registry {
         self.channels.get_mut(&chid)
     }
 
-    /// The channel and its USERD GPPut as the guest published it, when both are known.
+    /// The channel and its USERD GPPut as the guest published it, when both are known. A
+    /// USERD in VRAM is read through the FB store's watched copy (`FakeFb::watched_dword`,
+    /// a map lookup after the first read); one in guest RAM is read directly.
     fn gp_put_of(&self, mem: &GpuMem, chid: u32) -> Option<(&Channel, u32)> {
         let ch = self.channels.get(&chid)?;
-        let at = match ch.userd? {
-            Target::Fb(pa) => Target::Fb(pa + USERD_GP_PUT),
-            Target::Sys(pa) => Target::Sys(pa + USERD_GP_PUT),
-            t => t,
+        let v = match ch.userd? {
+            Target::Fb(pa) => mem.fb.watched_dword(pa + USERD_GP_PUT)?,
+            Target::Sys(pa) => mem.read_u32(Target::Sys(pa + USERD_GP_PUT))?,
+            t => mem.read_u32(t)?,
         };
-        Some((ch, mem.read_u32(at)?))
+        Some((ch, v))
     }
 
     /// Whether the guest has published GPFIFO entries the device has neither run nor

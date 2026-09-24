@@ -1,0 +1,1 @@
+wakeups 196244, pending per wakeup 0.90, channels 19.0, scan us mean 1.07

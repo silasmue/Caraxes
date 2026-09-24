@@ -1,0 +1,17 @@
+# series 2026-09-24T11:14:27+02:00 targets=[v2] reps=2 metrics=[short-auto rl]
+# caraxes shell-rig-82-g22f3609-dirty leandro-test 3edea73-dirty
+# bin c5b48cf1181bfcfc251f12aa2b0eaeb074887efec4c479f36efe399cb1307a13  bench-cu
+# bin 68449e9ec7b25613a65d096a6a42864c01fbf46ec47e540ce01f47184f0479ea  ctrlping
+# bin 138c5073848b2f3cf2beb4709376c7c49b420d88e836664584e5cf8bbfc7848c  ioctlping
+# bin 1f921680fc7a2c2e0978eb007cc0ab48d2f1a7cf404a196c9063a19a10aa228f  kernels.ptx
+# bin 2735d2a9cd25c0753898188542dbeb4a8433609024aa48230b6803a4a8d96e66  nvprobe
+# bin f0868123fca8e2c40138fda523e35fa76c015b97e232fc647fea0b6b49f33584  vrampress
+# time 2026-09-24T11:14:28+02:00
+# gpu 49, 420 MHz, 405 MHz, P8, 19 %, 6211 MiB, Disabled
+# procs 2223591:vm0-dev 2223607:vm0-vmm 2342749:bench-v1-dev 2342757:bench-v1-vmm 2347263:vm2-dev 2347270:vm2-vmm 2382786:vm3-vmm 2387270:vm1-dev 2387279:vm3-vmm 
+# loadavg 3.68 4.26 4.22
+11:14:34 v2  short-auto      rep 1: MSPERLAUNCH=0.153 # WALL wall_ms=5459 rc=0  | # MEAS dev_pid=2387270 dev_cpu_ms=2300 dev_rss_hwm_kb=5252004/6296468 vmm_cpu_ms=3480 others: bench-v1-dev=0ms vm0-dev=4
+11:15:18 v2  rl              rep 1:   ep   10  return=   11  mean10=  20.7   ep   20  return=   15  mean10=  14.4   ep   30  return=   13  mean10=  15.8  | # MEAS dev_pid=2387270 dev_cpu_ms=13540 dev_rss_hwm_kb=5253396/6296468 vmm_cpu_ms=64860 others: bench-v1-dev=0ms vm0-dev
+11:15:25 v2  short-auto      rep 2: MSPERLAUNCH=0.144 # WALL wall_ms=6108 rc=0  | # MEAS dev_pid=2387270 dev_cpu_ms=3260 dev_rss_hwm_kb=5253680/6296468 vmm_cpu_ms=10050 others: bench-v1-dev=0ms vm0-dev=
+11:15:57 v2  rl              rep 2:   ep   10  return=   11  mean10=  20.7   ep   20  return=   15  mean10=  14.4   ep   30  return=   13  mean10=  15.8  | # MEAS dev_pid=2387270 dev_cpu_ms=11210 dev_rss_hwm_kb=5253588/6296468 vmm_cpu_ms=48320 others: bench-v1-dev=0ms vm0-dev
+# end 2026-09-24T11:15:57+02:00

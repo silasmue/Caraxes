@@ -547,6 +547,13 @@ pub struct FakeFb {
     bar_tlb_pages: RefCell<std::collections::HashSet<u64>>,
     bar_tlb_on: bool,
     pub bar_tlb_stats: Cell<(u64, u64, u64)>,
+    /// Watched dwords: `pa -> last value written or read`, kept current by `note_write`
+    /// (every guest write to VRAM passes it), so that a hot reader such as the token-less
+    /// doorbell scan (channel.rs `Registry::pending`, USERD GPPut of every channel) costs a
+    /// map lookup instead of an uncached BAR1 read (measured 1.6 us per read, 2.5 ms on a
+    /// window miss). `watched_pages` is the page set for the fast check in `note_write`.
+    watched: RefCell<HashMap<u64, u32>>,
+    watched_pages: RefCell<std::collections::HashSet<u64>>,
 }
 
 impl Default for FakeFb {
@@ -569,7 +576,31 @@ impl FakeFb {
             bar_tlb_pages: RefCell::new(std::collections::HashSet::new()),
             bar_tlb_on: std::env::var("CARAXES_BAR_TLB").as_deref() != Ok("0"),
             bar_tlb_stats: Cell::new((0, 0, 0)),
+            watched: RefCell::new(HashMap::new()),
+            watched_pages: RefCell::new(std::collections::HashSet::new()),
         }
+    }
+
+    /// The current value of the dword at `pa`, watched from now on: the first call reads
+    /// it from the store, later calls answer from the copy `note_write` keeps current.
+    /// `None` when `pa` is outside the store.
+    pub fn watched_dword(&self, pa: u64) -> Option<u32> {
+        if let Some(v) = self.watched.borrow().get(&pa) {
+            return Some(*v);
+        }
+        let mut b = [0u8; 4];
+        if !self.read(pa, &mut b) {
+            return None;
+        }
+        let v = u32::from_le_bytes(b);
+        self.watched.borrow_mut().insert(pa, v);
+        self.watched_pages.borrow_mut().insert(pa >> 12);
+        Some(v)
+    }
+
+    /// Forget the watch on `pa` (the next `watched_dword` reads the store again).
+    pub fn unwatch_dword(&self, pa: u64) {
+        self.watched.borrow_mut().remove(&pa);
     }
 
     fn watch_key(root: Target) -> u64 {
@@ -628,6 +659,27 @@ impl FakeFb {
 
     fn note_write(&self, pa: u64, data: &[u8]) {
         let last = (pa + data.len().max(1) as u64 - 1) >> 12;
+        {
+            let wp = self.watched_pages.borrow();
+            if !wp.is_empty() && (pa >> 12..=last).any(|p| wp.contains(&p)) {
+                let end = pa + data.len() as u64;
+                let mut w = self.watched.borrow_mut();
+                let hit: Vec<u64> = w
+                    .keys()
+                    .copied()
+                    .filter(|&k| k < end && k + 4 > pa)
+                    .collect();
+                for k in hit {
+                    if k >= pa && k + 4 <= end {
+                        let o = (k - pa) as usize;
+                        w.insert(k, u32::from_le_bytes([data[o], data[o + 1], data[o + 2], data[o + 3]]));
+                    } else {
+                        // A partial overwrite: re-read from the store on the next use.
+                        w.remove(&k);
+                    }
+                }
+            }
+        }
         {
             let mut tp = self.bar_tlb_pages.borrow_mut();
             if !tp.is_empty() && (pa >> 12..=last).any(|p| tp.contains(&p)) {
@@ -1125,6 +1177,23 @@ impl crate::ptcache::TableReader for FbReader<'_> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn watched_dword_follows_writes() {
+        let mut fb = super::FakeFb::new(1 << 20);
+        fb.write(0x1000, &[1, 0, 0, 0, 2, 0, 0, 0]);
+        // First read comes from the store, later ones from the copy.
+        assert_eq!(fb.watched_dword(0x1004), Some(2));
+        fb.write(0x1004, &7u32.to_le_bytes());
+        assert_eq!(fb.watched_dword(0x1004), Some(7));
+        // A write elsewhere on the page leaves it alone; a partial overwrite drops the
+        // copy and the next read goes to the store again.
+        fb.write(0x1000, &9u32.to_le_bytes());
+        assert_eq!(fb.watched_dword(0x1004), Some(7));
+        fb.write(0x1006, &[0xAA, 0xBB]);
+        assert_eq!(fb.watched_dword(0x1004), Some(0xBBAA_0007));
+        assert_eq!(fb.watched_dword(1 << 20), None);
+    }
+
     use super::*;
 
     #[test]
