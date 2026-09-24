@@ -1,0 +1,17 @@
+# target v2 metric ppo rep 1
+# cmd $HOME/gpu/venv/bin/python ./pporl.py --seconds 60
+# device /mnt/vmstore/caraxes/vm2/vfio-user-nvgpu sha256 5f9f4470bb174999
+# time 2026-09-24T19:17:06+02:00
+# gpu 49, 315 MHz, 405 MHz, P8, 20 %, 4192 MiB, Disabled
+# procs 402214:vm0-dev 402239:vm1-vmm 403839:vm2-dev 403852:vm1-vmm 
+# loadavg 5.44 4.38 4.39
+/home/leandro/gpu/venv/lib/python3.12/site-packages/torch/cuda/__init__.py:188: UserWarning: CUDA initialization: CUDA unknown error - this may be due to an incorrectly set up environment, e.g. changing env variable CUDA_VISIBLE_DEVICES after program start. Setting the available devices to be zero. (Triggered internally at /__w/pytorch/pytorch/c10/cuda/CUDAFunctions.cpp:119.)
+  return torch._C._cuda_getDeviceCount() > 0
+Traceback (most recent call last):
+  File "/home/leandro/bench/./pporl.py", line 241, in <module>
+    main()
+  File "/home/leandro/bench/./pporl.py", line 125, in main
+    raise RuntimeError("CUDA GPU required")
+RuntimeError: CUDA GPU required
+# WALL wall_ms=1656 rc=1
+# MEAS dev_pid=403839 dev_cpu_ms=10 dev_rss_hwm_kb=5251216/5251216 vmm_cpu_ms=3790 others: vm1-vmm=1120ms vm0-dev=810ms 

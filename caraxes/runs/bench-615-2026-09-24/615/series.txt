@@ -1,0 +1,77 @@
+# series 2026-09-24T18:56:31+02:00 targets=[v2] reps=3 metrics=[short-auto rl copy init]
+# libdir v2 /usr/lib/x86_64-linux-gnu
+# caraxes shell-rig-213-ga0bf4ef leandro-test 3edea73-dirty
+# bin c5b48cf1181bfcfc251f12aa2b0eaeb074887efec4c479f36efe399cb1307a13  bench-cu
+# bin 2e7db7218ac29e0da0b22a4d30307ea1f675dc04912d6b34922708495595904d  convnet.py
+# bin 68449e9ec7b25613a65d096a6a42864c01fbf46ec47e540ce01f47184f0479ea  ctrlping
+# bin 138c5073848b2f3cf2beb4709376c7c49b420d88e836664584e5cf8bbfc7848c  ioctlping
+# bin 1f921680fc7a2c2e0978eb007cc0ab48d2f1a7cf404a196c9063a19a10aa228f  kernels.ptx
+# bin abdf09531ac015ba4e8e7550bda6eb43609c429d6e1240e7f8553841bfe06513  llamaprobe.py
+# bin 2735d2a9cd25c0753898188542dbeb4a8433609024aa48230b6803a4a8d96e66  nvprobe
+# bin 012bb008b87ec0a6ee4ef566e0b55f856df09d6a3e07e72fe5cde5a9043dd18a  pporl.py
+# bin 02b1d58fc1778a47f8940e7f89d2cabb44b64d078f5b54b5ca1fba9437073c4a  transformer.py
+# bin f0868123fca8e2c40138fda523e35fa76c015b97e232fc647fea0b6b49f33584  vrampress
+# time 2026-09-24T18:56:31+02:00
+# gpu 49, 315 MHz, 405 MHz, P8, 24 %, 4298 MiB, Disabled
+# procs 308784:vm2-615-dev 308796:vm1-vmm 313304:vm0-dev 313327:vm1-vmm 
+# loadavg 4.17 4.95 5.45
+18:56:36 v2  short-auto      rep 1: MSPERLAUNCH=0.148 # WALL wall_ms=4659 rc=0  | # MEAS dev_pid=308784 dev_cpu_ms=2070 dev_rss_hwm_kb=5253948/6298260 vmm_cpu_ms=7640 others: vm0-dev=0ms vm1-vmm=30ms 
+18:57:10 v2  rl              rep 1:   ep   10  return=   11  mean10=  20.7   ep   20  return=   15  mean10=  14.4   ep   30  return=   13  mean10=  15.8  | # MEAS dev_pid=308784 dev_cpu_ms=22190 dev_rss_hwm_kb=5255240/6298260 vmm_cpu_ms=52350 others: vm0-dev=0ms vm1-vmm=260ms
+18:57:32 v2  copy            rep 1: # WALL wall_ms=21603 rc=0  | # MEAS dev_pid=308784 dev_cpu_ms=10200 dev_rss_hwm_kb=5266156/6298260 vmm_cpu_ms=32910 others: vm0-dev=3160ms vm1-vmm=12
+18:57:38 v2  init            rep 1: INIT cuinit_ms=135.312 devget_ms=0.001 ctxcreate_ms=4349.015 ctxdestroy_ms=1517.168 # WALL wall_ms=6025 rc=0  | # MEAS dev_pid=308784 dev_cpu_ms=2980 dev_rss_hwm_kb=5262036/6298260 vmm_cpu_ms=8870 others: vm0-dev=2510ms vm1-vmm=4110
+# 18:57:38 v2 restart before rep 2
+stopped
+driver 615.71.09: overlay on /mnt/vmstore/caraxes/images/guest-baked-2026-09-24-615.71.09.qcow2, CARAXES_GUEST_ABI=615
+dma table: 0:7ffb80000000:c0000000,100000000:7ffc80000000:40000000
+server pid 325213, VM pid 325221; logs in /mnt/vmstore/caraxes/vm2-615
+ssh up at 192.168.102.22
+[  131.719284] NVRM: GPU 0000:00:05.0: RmInitAdapter succeeded!
+modprobe rc=0
+v2 restarted: server pid 325213
+19:00:04 v2  short-auto      rep 2: MSPERLAUNCH=0.144 # WALL wall_ms=4276 rc=0  | # MEAS dev_pid=325213 dev_cpu_ms=2140 dev_rss_hwm_kb=5253160/6297856 vmm_cpu_ms=5220 others: vm1-vmm=20ms vm0-dev=0ms 
+19:00:32 v2  rl              rep 2:   ep   10  return=   11  mean10=  20.7   ep   20  return=   15  mean10=  14.4   ep   30  return=   13  mean10=  15.8  | # MEAS dev_pid=325213 dev_cpu_ms=20990 dev_rss_hwm_kb=5254324/6297856 vmm_cpu_ms=47480 others: vm1-vmm=130ms vm0-dev=0ms
+19:00:52 v2  copy            rep 2: # WALL wall_ms=19347 rc=0  | # MEAS dev_pid=325213 dev_cpu_ms=9540 dev_rss_hwm_kb=5265716/6297856 vmm_cpu_ms=31440 others: vm1-vmm=12010ms vm0-dev=31
+19:00:57 v2  init            rep 2: INIT cuinit_ms=133.645 devget_ms=0.001 ctxcreate_ms=3682.795 ctxdestroy_ms=1115.206 # WALL wall_ms=4956 rc=0  | # MEAS dev_pid=325213 dev_cpu_ms=2760 dev_rss_hwm_kb=5265380/6297856 vmm_cpu_ms=4580 others: vm1-vmm=3770ms vm0-dev=2330
+# 19:00:57 v2 restart before rep 3
+stopped
+driver 615.71.09: overlay on /mnt/vmstore/caraxes/images/guest-baked-2026-09-24-615.71.09.qcow2, CARAXES_GUEST_ABI=615
+dma table: 0:7ffb80000000:c0000000,100000000:7ffc80000000:40000000
+server pid 338725, VM pid 338747; logs in /mnt/vmstore/caraxes/vm2-615
+ssh up at 192.168.102.22
+[  131.300797] NVRM: GPU 0000:00:05.0: RmInitAdapter succeeded!
+modprobe rc=0
+v2 restarted: server pid 338725
+19:03:22 v2  short-auto      rep 3: MSPERLAUNCH=0.127 # WALL wall_ms=4227 rc=0  | # MEAS dev_pid=338725 dev_cpu_ms=2070 dev_rss_hwm_kb=5254128/6297824 vmm_cpu_ms=5950 others: vm1-vmm=30ms vm1-vmm=0ms vm
+19:03:49 v2  rl              rep 3:   ep   10  return=   11  mean10=  20.7   ep   20  return=   15  mean10=  14.4   ep   30  return=   13  mean10=  15.8  | # MEAS dev_pid=338725 dev_cpu_ms=21000 dev_rss_hwm_kb=5255316/6297824 vmm_cpu_ms=45830 others: vm1-vmm=6230ms vm1-vmm=20
+19:04:15 v2  copy            rep 3: # WALL wall_ms=26067 rc=0  | # MEAS dev_pid=338725 dev_cpu_ms=10740 dev_rss_hwm_kb=5266320/6297824 vmm_cpu_ms=36140 others: vm1-vmm=14180ms vm1-vmm=2
+19:04:23 v2  init            rep 3: INIT cuinit_ms=233.436 devget_ms=0.001 ctxcreate_ms=4788.021 ctxdestroy_ms=1644.397 # WALL wall_ms=6696 rc=0  | # MEAS dev_pid=338725 dev_cpu_ms=3170 dev_rss_hwm_kb=5265652/6297824 vmm_cpu_ms=9890 others: vm1-vmm=5600ms vm1-vmm=50ms
+# end 2026-09-24T19:04:23+02:00
+# series 2026-09-24T19:04:23+02:00 targets=[v2] reps=2 metrics=[ppo]
+# libdir v2 /usr/lib/x86_64-linux-gnu
+# caraxes shell-rig-213-ga0bf4ef leandro-test 3edea73-dirty
+# bin c5b48cf1181bfcfc251f12aa2b0eaeb074887efec4c479f36efe399cb1307a13  bench-cu
+# bin 2e7db7218ac29e0da0b22a4d30307ea1f675dc04912d6b34922708495595904d  convnet.py
+# bin 68449e9ec7b25613a65d096a6a42864c01fbf46ec47e540ce01f47184f0479ea  ctrlping
+# bin 138c5073848b2f3cf2beb4709376c7c49b420d88e836664584e5cf8bbfc7848c  ioctlping
+# bin 1f921680fc7a2c2e0978eb007cc0ab48d2f1a7cf404a196c9063a19a10aa228f  kernels.ptx
+# bin abdf09531ac015ba4e8e7550bda6eb43609c429d6e1240e7f8553841bfe06513  llamaprobe.py
+# bin 2735d2a9cd25c0753898188542dbeb4a8433609024aa48230b6803a4a8d96e66  nvprobe
+# bin 012bb008b87ec0a6ee4ef566e0b55f856df09d6a3e07e72fe5cde5a9043dd18a  pporl.py
+# bin 02b1d58fc1778a47f8940e7f89d2cabb44b64d078f5b54b5ca1fba9437073c4a  transformer.py
+# bin f0868123fca8e2c40138fda523e35fa76c015b97e232fc647fea0b6b49f33584  vrampress
+# time 2026-09-24T19:04:23+02:00
+# gpu 50, 420 MHz, 405 MHz, P8, 8 %, 4207 MiB, Disabled
+# procs 338725:vm2-615-dev 338747:vm1-vmm 341265:vm0-dev 341274:vm1-vmm 345926:vm1-vmm 
+# loadavg 5.35 3.73 4.58
+19:05:35 v2  ppo             rep 1: # PPO steps_per_s=5727 solve_s=-1 episodes=13869 reward100=30.2 envs=128 rollout=256 # WALL wall_ms=71698 rc=0  | # MEAS dev_pid=338725 dev_cpu_ms=50460 dev_rss_hwm_kb=5265652/6297824 vmm_cpu_ms=103280 others: vm1-vmm=45310ms vm1-vmm=
+# 19:05:35 v2 restart before rep 2
+stopped
+driver 615.71.09: overlay on /mnt/vmstore/caraxes/images/guest-baked-2026-09-24-615.71.09.qcow2, CARAXES_GUEST_ABI=615
+dma table: 0:7ffb80000000:c0000000,100000000:7ffc80000000:40000000
+server pid 360405, VM pid 360417; logs in /mnt/vmstore/caraxes/vm2-615
+ssh up at 192.168.102.22
+[  132.225863] NVRM: GPU 0000:00:05.0: RmInitAdapter succeeded!
+modprobe rc=0
+v2 restarted: server pid 360405
+19:09:10 v2  ppo             rep 2: # PPO steps_per_s=6726 solve_s=-1 episodes=15660 reward100=36.8 envs=128 rollout=256 # WALL wall_ms=74243 rc=0  | # MEAS dev_pid=360405 dev_cpu_ms=58160 dev_rss_hwm_kb=5254208/6298232 vmm_cpu_ms=114700 others: vm1-vmm=-6760ms 
+# end 2026-09-24T19:09:10+02:00

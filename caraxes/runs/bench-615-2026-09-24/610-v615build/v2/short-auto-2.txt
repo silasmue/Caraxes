@@ -1,0 +1,10 @@
+# target v2 metric short-auto rep 2
+# cmd NVPROBE_ITERS=100 NVPROBE_CYCLES=1000 NVPROBE_SCHED=auto ./nvprobe 4
+# device /mnt/vmstore/caraxes/vm2/vfio-user-nvgpu sha256 5f9f4470bb174999
+# time 2026-09-24T19:14:28+02:00
+# gpu 49, 315 MHz, 405 MHz, P8, 24 %, 4239 MiB, Disabled
+# procs 392928:vm2-dev 392939:vm1-vmm 402214:vm0-dev 402239:vm1-vmm 
+# loadavg 1.40 2.75 3.93
+ERROR cuInit: 999 unknown error
+# WALL wall_ms=45 rc=1
+# MEAS dev_pid=392928 dev_cpu_ms=0 dev_rss_hwm_kb=5251308/5251308 vmm_cpu_ms=410 others: vm1-vmm=260ms vm0-dev=170ms 

@@ -1,0 +1,9 @@
+ssh: connect to host 192.168.102.22 port 22: No route to host
+stopped
+driver 615.71.09: overlay on /mnt/vmstore/caraxes/images/guest-baked-2026-09-24-615.71.09.qcow2, CARAXES_GUEST_ABI=615
+dma table: 0:7ffb80000000:c0000000,100000000:7ffc80000000:40000000
+server pid 308784, VM pid 308796; logs in /mnt/vmstore/caraxes/vm2-615
+ssh up at 192.168.102.22
+[  132.247152] NVRM: GPU 0000:00:05.0: RmInitAdapter succeeded!
+modprobe rc=0
+v2 restarted: server pid 308784

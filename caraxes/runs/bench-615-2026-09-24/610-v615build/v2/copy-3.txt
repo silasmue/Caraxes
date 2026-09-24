@@ -1,0 +1,10 @@
+# target v2 metric copy rep 3
+# cmd ./bench-cu copy 10
+# device /mnt/vmstore/caraxes/vm2/vfio-user-nvgpu sha256 5f9f4470bb174999
+# time 2026-09-24T19:17:05+02:00
+# gpu 50, 315 MHz, 405 MHz, P8, 23 %, 4200 MiB, Disabled
+# procs 402214:vm0-dev 402239:vm1-vmm 403839:vm2-dev 403852:vm1-vmm 
+# loadavg 5.44 4.38 4.39
+ERROR cuInit: 999 unknown error
+# WALL wall_ms=8 rc=1
+# MEAS dev_pid=403839 dev_cpu_ms=0 dev_rss_hwm_kb=5251216/5251216 vmm_cpu_ms=360 others: vm1-vmm=250ms vm0-dev=180ms 
