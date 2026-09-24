@@ -14,8 +14,12 @@
 //!
 //! * **Device answers.** Controls whose host answer is wrong for the guest are answered
 //!   from the device's own model and never forwarded.
+//! * **Refusals.** NOT_SUPPORTED with a label, the request echoed, nothing sent anywhere.
+//! * **Guest objects** (the C plan). Controls on the guest's own channels and TSGs are
+//!   recorded per object ([`GuestAttrs`]); the only host path is the object's own mirror
+//!   ([`MirrorObjects`]), never the host RM client and never another handle.
 //!
-//! Every host call goes through `HostRm::control` with the subdevice class, so a row can
+//! The filtered forwards call `HostRm::control` with the subdevice class, so a row can
 //! never reach another host object (hostrm.rs).
 
 use crate::ctrl::{Answer, HostRm};

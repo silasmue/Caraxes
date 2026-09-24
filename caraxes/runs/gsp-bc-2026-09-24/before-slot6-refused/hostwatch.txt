@@ -1,0 +1,10 @@
+# SPDX-License-Identifier: MIT
+# host watch from 2026-09-24T19:01:23+02:00: interval 5s, slow above 2s, kill none
+# time smi_s used_mib klog_lines_interval xid_lines_interval
+19:01:24 0.029 4201 0 0
+19:01:29 0.021 4215 0 0
+19:01:34 0.045 4217 0 0
+19:01:39 0.021 4228 4 0
+19:01:44 0.020 4227 0 0
+19:01:49 0.020 4231 0 0
+host watch: 6 samples, nvidia-smi max 0.045s mean 0.026s, 4 kernel log lines, 0 Xid lines, 0 alerts

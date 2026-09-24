@@ -1,0 +1,4 @@
+# SPDX-License-Identifier: MIT
+# cuda gate gate-cuda-2026-09-24: guest/cuda-managed.dmesg
+[  143.260689] NVRM: GPU0 nvCheckOkFailedNoLog: Check failed: Call not supported [NV_ERR_NOT_SUPPORTED] (0x00000056) returned from kbusSendBusInfo(pGpu, GPU_GET_KERNEL_BUS(pGpu), &pBusInfos[i]) @ kern_bus_ctrl.c:257
+[  143.291244] NVRM: GPU0 nvCheckOkFailedNoLog: Check failed: Call not supported [NV_ERR_NOT_SUPPORTED] (0x00000056) returned from kbusSendBusInfo(pGpu, GPU_GET_KERNEL_BUS(pGpu), &pBusInfos[i]) @ kern_bus_ctrl.c:257

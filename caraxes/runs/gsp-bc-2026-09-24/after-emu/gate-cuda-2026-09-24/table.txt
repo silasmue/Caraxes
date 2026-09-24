@@ -1,0 +1,11 @@
+# SPDX-License-Identifier: MIT
+# cuda gate, gate-cuda-2026-09-24, VM vm5: result per test; device = RPCs the device did not answer NV_OK in the test's window
+TEST                             RESULT SCORED GUEST ERROR | LAST FAILED RM CALL (guest tracer) | DEVICE
+cuda-init                        fail  yes    exit 1: ERROR cuInit: 100 no CUDA-capable device is detected | RM_CONTROL NV2080_CTRL_CMD_BUS_GET_INFO_V2 -> 0x56 | NV2080_CTRL_CMD_BUS_GET_INFO_V2=0x56 x2; 0x20810108=0x56 x2
+cuda-context                     fail  yes    exit 1: ERROR cuInit: 100 no CUDA-capable device is detected | RM_CONTROL NV2080_CTRL_CMD_BUS_GET_INFO_V2 -> 0x56 | NV2080_CTRL_CMD_BUS_GET_INFO_V2=0x56 x2; 0x20810108=0x56 x2
+cuda-core                        fail  yes    exit 1: ERROR cuInit: 100 no CUDA-capable device is detected | RM_CONTROL NV2080_CTRL_CMD_BUS_GET_INFO_V2 -> 0x56 | NV2080_CTRL_CMD_BUS_GET_INFO_V2=0x56 x2; 0x20810108=0x56 x2
+cuda-jit                         fail  yes    exit 1: ERROR cuInit: 100 no CUDA-capable device is detected | RM_CONTROL NV2080_CTRL_CMD_BUS_GET_INFO_V2 -> 0x56 | NV2080_CTRL_CMD_BUS_GET_INFO_V2=0x56 x2; 0x20810108=0x56 x2
+cuda-launch                      fail  yes    exit 1: ERROR cuInit: 100 no CUDA-capable device is detected | RM_CONTROL NV2080_CTRL_CMD_BUS_GET_INFO_V2 -> 0x56 | NV2080_CTRL_CMD_BUS_GET_INFO_V2=0x56 x2; 0x20810108=0x56 x2
+cuda-managed                     fail  yes    exit 1: ERROR cuInit: 100 no CUDA-capable device is detected | RM_CONTROL NV2080_CTRL_CMD_BUS_GET_INFO_V2 -> 0x56 | NV2080_CTRL_CMD_BUS_GET_INFO_V2=0x56 x2; 0x20810108=0x56 x2
+cuda-hostreg                     fail  yes    exit 1: A cuInit : 100 no CUDA-capable device is detected | RM_CONTROL NV2080_CTRL_CMD_BUS_GET_INFO_V2 -> 0x56 | NV2080_CTRL_CMD_BUS_GET_INFO_V2=0x56 x2; 0x20810108=0x56 x2
+robustness                       fail  yes    0 of 3 runs correct (ERROR cuInit: 100 no CUDA-capable device is detected); refcnt 1 -> 2 | - | NV2080_CTRL_CMD_BUS_GET_INFO_V2=0x56 x4; 0x20810108=0x56 x4

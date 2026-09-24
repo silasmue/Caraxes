@@ -663,3 +663,25 @@ the VM; then display, expected to be much easier than in v1.
   offsets are generated per driver version from the SDK headers. One correction is already known:
   `CE_GET_LCE_SHIM_INFO` sits in the `internal_uncalled` family, but the 615 user space calls it
   during cuInit (cutover-615.md, run 4); it moves out with the 615 cuInit work.
+- 2026-09-24: **GSP surface, categories B and C** ([gsp-surface.md](gsp-surface.md) "After B
+  and C", [gsp-plan/b-host-forwardable.md](gsp-plan/b-host-forwardable.md) §8,
+  [gsp-plan/c-guest-state.md](gsp-plan/c-guest-state.md) §8). Routed controls answered: 373 to
+  462 on the 610 ABI, 383 to 473 on 615.
+  - **The isolation fix first.** `FB_GET_OFFLINED_PAGES` and `FB_GET_REMAPPED_ROWS` handed the
+    guest host FB pages; they now pass on only pages inside the VM's reservation (rows: none).
+    `HostRmClient` no longer sends a control of another class to the host root client.
+  - **B.** 26 plain forwards, 3 filtered forwards (scrub range, dynamic offlined pages, GPUMON
+    process fields), 11 device-owned answers (5 of them chip data in `controls.toml`) and 17
+    refusals. The 10 guest-object rows stay open.
+  - **C.** Resets, the M-group settings and the interleave levels go only to the guest
+    object's own host mirror. `MAKE_REALTIME` and `RESTART_RUNLIST` are recorded and never
+    forwarded (decision Q-C7). 15 controls are refused. `NV_EVENT_BUFFER UPDATE_GET` waits for
+    `ALLOC_MEMORY`.
+  - **Decision under D9 (Q-B6).** The GSP heap statistics are the device's own, all zero; the
+    host GSP's numbers are not forwarded.
+  - **Q-B1.** The read-only sweep of the 30 forward candidates on the device's own host
+    subdevice gave 15 NV_OK, 11 NOT_SUPPORTED, 3 INVALID_ARGUMENT for a zeroed request and 1
+    GENERIC; no Xid (caraxes/runs/gsp-bc-2026-09-24/qb1-sweep).
+  - **GPU gates.** They could not run: the host RM refused vm5's reservation at slot 6 and the
+    device failed closed. In pure emulation, the nvml and cuda rows were unchanged before and
+    after.

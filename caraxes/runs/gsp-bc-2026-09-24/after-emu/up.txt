@@ -1,0 +1,7 @@
+ssh: connect to host 192.168.105.26 port 22: No route to host
+stopped
+server pid 418588, VM pid 418594; logs in /mnt/vmstore/caraxes/vm5
+ssh up at 192.168.105.26
+[  131.482397] NVRM: GPU 0000:00:05.0: RmInitAdapter succeeded!
+modprobe rc=0
+v2 restarted: server pid 418588

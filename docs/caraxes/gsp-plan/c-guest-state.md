@@ -18,6 +18,9 @@ Section 3 adds the twelve controls that
 
 ## Summary
 
+- **Status (2026-09-24).** 27 of the 31 controls of §2 are done, 3 are partial and 1 is open;
+  2 of the 12 from B are done. Details in §8.
+
 - **The set.** 31 controls in 615.71.09, 29 in 610.57.04. The two 615-only controls are:
   - `NV0090_CTRL_CMD_PROGRAM_SYSMEM_PROMOTE`, new in 615;
   - `NV_EVENT_BUFFER_CTRL_CMD_UPDATE_GET`, which exists in 610 but reaches GSP only from 615 on,
@@ -110,7 +113,7 @@ state or a guest gate.
 | 11 | `NV906F_CTRL_CMD_RESET_CHANNEL` 0x906F0102 | KernelChannel, g_kernel_channel_nvoc.c:465 / :487 | `NV906F_CTRL_CMD_RESET_CHANNEL_PARAMS`, ctrl906f.h:143 | 16 / 16 | NON_PRIVILEGED | kernel then GSP: `kchannelCtrlCmdResetChannel_IMPL` (kernel_channel.c:3021 / 610 :2979) fills `bIsRcPending` and sends on a GSP client (:3049 / 610 :3007); the RC watchdog sends it with `_FAKE_ERROR` (kernel_rc_watchdog_callback.c:88, both); the fault path after GET_MMU_DEBUG_MODE (615 kern_gmmu.c:3077, SR-IOV VF only; 610 kern_gmmu_gv100.c:2082 in `kgmmuServiceMmuFault_GV100`, reached after MMU_FAULT_QUEUED) | the channel's run state and RC state | `Channel` (channel.rs:195), mirror `HostChannel` (mirror.rs:132) | per-channel RC state; RC events (gsp-surface.md §4) | software channel: stop, drop the resume point, mark reset; mirrored: forward to the host channel (NON_PRIVILEGED on the host) | fault gate (CUDA illegal address, then context destroy); unit on the registry | RC |
 | 12 | `NV906F_CTRL_CMD_GET_DEFER_RC_STATE` 0x906F0105 | KernelChannel, g_kernel_channel_nvoc.c:480 / :502 | `NV906F_CTRL_CMD_GET_DEFER_RC_STATE_PARAMS`, ctrl906f.h:171 | 1 / 1 | NON_PRIVILEGED | GSP (flags 0x48) | deferred RC pending on the channel | `Channel` (channel.rs:195) | no deferred-RC model | `bDeferRCPending` 0 | unit | RC |
 | 13 | `NV906F_CTRL_CMD_GET_MMU_FAULT_INFO` 0x906F0106 | KernelChannel, g_kernel_channel_nvoc.c:495 / :517 | `NV906F_CTRL_GET_MMU_FAULT_INFO_PARAMS`, ctrl906f.h:214 / :213 | 104 / 104 | NON_PRIVILEGED | GSP (flags 0x10048); may bypass the RM lock (`rmapiRmControlCanBeBypassLock`, rmapi_specific.c:183-189, both), i.e. meant for the RC path | the last MMU fault of the channel (address, type, text) | nowhere: the mirror's event thread only counts the RC notifier (mirror.rs:1045); the software executor refuses launches (`launches_refused`, channel.rs) | a per-channel last-fault record (from the host's answer on the mirror channel, or from the device's own executor) | mirrored: forward to the host channel (the host fault address is the guest VA: the mirror runs in the guest's VA space); software: zeros | fault gate: the guest's Xid text shows the faulting VA | RC |
-| 14 | `NV_EVENT_BUFFER_CTRL_CMD_UPDATE_GET` 0x90CD0102 | EventBuffer, g_event_buffer_nvoc.c:153 / :154 | `NV_EVENT_BUFFER_CTRL_CMD_UPDATE_GET_PARAMS`, ctrl90cd.h:124 | 8 / 8 | NON_PRIVILEGED | 615 only: `_goeimportIssueUpdateGet` (gpu_op_event_import.c:1260, send :1278) on the event buffer the 615 kernel allocates on GSP after state load (gpu.c:2796, `gpuOpEventImportConstruct_IMPL` :837); today the importer stops at step 3a with 0x56 (caraxes/runs/transport-615-2026-09-24/boot/guest.txt:36) because its sysmem is registered with `_REGISTER_MEMDESC_TO_PHYS_RM` (`_goeimportAllocSysmemRegion`, :295-324), i.e. RPC ALLOC_MEMORY, which the device does not answer | the event buffer the guest allocated (class 0x90CD) and its record/vardata get pointers | nowhere yet: the alloc is acknowledged and recorded by class only (ctrl.rs `Dispatcher::alloc`) | an event-buffer object (header, records, vardata in guest sysmem) with the device as the producer; depends on ALLOC_MEMORY (RPC 4, the RPC plan) | record the get pointers, NV_OK | 615 guest boot: no `goeimport` error in dmesg; unit on the object | EB |
+| 14 | `NV_EVENT_BUFFER_CTRL_CMD_UPDATE_GET` 0x90CD0102 | EventBuffer, g_event_buffer_nvoc.c:153 / :154 | `NV_EVENT_BUFFER_CTRL_CMD_UPDATE_GET_PARAMS`, ctrl90cd.h:124 | 8 / 8 | NON_PRIVILEGED | 615 only: `_goeimportIssueUpdateGet` (gpu_op_event_import.c:1260, send :1278) on the event buffer the 615 kernel allocates on GSP after state load (gpu.c:2796, `gpuOpEventImportConstruct_IMPL` :837); today the importer stops at step 3a with 0x56 (caraxes/runs/transport-615-2026-09-24/boot/guest.txt:36) because its sysmem is registered with `_REGISTER_MEMDESC_TO_PHYS_RM` (`_goeimportAllocSysmemRegion`, :295-324), i.e. RPC ALLOC_MEMORY, which the device does not answer | the event buffer the guest allocated (class 0x90CD) and its record/vardata get pointers | nowhere yet: the alloc is acknowledged and recorded by class only (ctrl.rs `Dispatcher::alloc`) | an event-buffer object (header, records, vardata in guest sysmem) with the device as the producer; depends on ALLOC_MEMORY (RPC 4, the RPC plan) | record the get pointers, NV_OK | 615 guest boot: no `goeimport` error in dmesg; unit on the object | EB (depends on ALLOC_MEMORY) |
 | 15 | `NVA06C_CTRL_CMD_SET_INTERLEAVE_LEVEL` 0xA06C0107 | KernelChannelGroupApi, g_kernel_channel_group_api_nvoc.c:407 / :429 | `NVA06C_CTRL_INTERLEAVE_LEVEL_PARAMS`, ctrla06c.h:270 | 4 / 4 | NON_PRIVILEGED | kernel then GSP: `kchangrpapiCtrlCmdSetInterleaveLevel_IMPL` (kernel_channel_group_api.c:1404 / 610 :1379; send :1431 / 610 :1406); a failure turns into NOT_SUPPORTED for the caller | the TSG's interleave level | `Registry` `tsgs` (channel.rs:249), `HostTsg` (mirror.rs:122) | a per-TSG level | record; forward to the host TSG when mirrored (NON_PRIVILEGED on the host); levels above MEDIUM stay recorded only (isolation: no guest priority over the host desktop) | unit; CUDA stream-priority gate (Q-C2) | M |
 | 16 | `NVA06C_CTRL_CMD_PROGRAM_VIDMEM_PROMOTE` 0xA06C0109 | KernelChannelGroupApi, g_kernel_channel_group_api_nvoc.c:422 / :444 | `NVA06C_CTRL_PROGRAM_VIDMEM_PROMOTE_PARAMS`, ctrla06c.h:323 | 8 / 8 | NON_PRIVILEGED | GSP (flags 0x48) | the TSG's vidmem promotion | as SET_INTERLEAVE_LEVEL | per-TSG record | record; forward when mirrored | unit | M |
 | 17 | `NVA06C_CTRL_CMD_MAKE_REALTIME` 0xA06C0110 | KernelChannelGroupApi, g_kernel_channel_group_api_nvoc.c:452 / :474 | `NVA06C_CTRL_MAKE_REALTIME_PARAMS`, ctrla06c.h:399 | 1 / 1 | NON_PRIVILEGED | GSP (flags 0x48) | the TSG's realtime flag | `Registry` `tsgs` | per-TSG flag | record only, never forwarded: a realtime guest TSG would preempt the host desktop (P7) | unit | L |
@@ -262,6 +265,119 @@ Client likelihood first.
   device's own mirror TSG in the cuda gate, one `SET_INTERLEAVE_LEVEL` and one
   `SET_TPC_PARTITION_MODE` with `NONE`, logging the host status. This acts only on the
   device's own host objects.
+  Status: open. The forwards exist since b49cc5c, but no GPU gate could run on 2026-09-24
+  (§8).
 - **Q-C7. Policy for MAKE_REALTIME and RESTART_RUNLIST.** Recording without forwarding is an
   isolation choice: a guest must not raise its priority over the host desktop or restart a
   shared runlist. That is for the operator to confirm (P7).
+  Status: decided 2026-09-24. Recorded, never forwarded (§8).
+
+## 8. Status (2026-09-24)
+
+Implemented in `crates/vfio-user-nvgpu` in commit b49cc5c.
+
+- **Where it lives.** The C rows are the table `PUBLIC_C` in `src/ver/v610/public.rs`, answered
+  by `src/public.rs`.
+- **The record.** Each guest object has a record: `public::GuestAttrs`, keyed like the
+  registry by `(hClient, hObject)` with duplicates resolved, and freed with its object in
+  `Dispatcher::free`. It keeps the last parameter block of every setter, the reset count and
+  the last fault. It does not live in `channel::Registry`, so that change stays out of the
+  channel code.
+- **The only host path.** It is the object's own mirror: `Mirror::forward_control`, which
+  finds the host TSG by the guest's TSG key and the host channel through the registry by the
+  guest's channel handle. No C row uses the device's host RM client. The unit tests drive
+  every row with a host RM that fails the test when called and with a fake mirror that
+  records each forward.
+
+**Counts.**
+
+| Group | Rows | Done | Partial | Open |
+|---|---:|---:|---:|---:|
+| M | 8 | 8 | 0 | 0 |
+| RC | 5 | 2 | 3 | 0 |
+| L | 2 | 2 | 0 | 0 |
+| K | 5 | 5 | 0 | 0 |
+| X | 2 | 2 | 0 | 0 |
+| V | 8 | 8 | 0 | 0 |
+| EB | 1 | 0 | 0 | 1 |
+| **§2 total** | **31** | **27** | **3** | **1** |
+| from B (§3) | 12 | 2 | 0 | 10 |
+
+**Decision Q-C7, taken 2026-09-24 by the operator.** `NVA06C_CTRL_CMD_MAKE_REALTIME` and
+`NVA06F_CTRL_CMD_RESTART_RUNLIST` are recorded and never forwarded. A guest must not outrank
+the host desktop, nor restart a runlist the host shares with other tenants. The same rule caps
+the forwarded interleave level at MEDIUM: a higher level is recorded only.
+
+**Changes against the plan's recipes.**
+
+- **The K rows are refused.** The plan's recipe was to record and echo; the refusal is the
+  operator's instruction. None has a caller on a GSP client.
+- **The RC rows are partial.**
+  - A software channel's reset is recorded (reset count, last fault cleared) and answered
+    NV_OK. The software executor's own state (the resume point) is not reset; that needs a
+    reset entry point in channel.rs.
+  - `GET_MMU_FAULT_INFO` answers from the device's fault record. Nothing fills that record
+    until the RC events of the RPC plan exist, so it answers zeros.
+  - Q-C3 (what the host returns on a mirrored channel) stays open. The device does not forward
+    this getter.
+- **A reset on the host resets an engine.** `RESET_CHANNEL` "resets the channel ... and also
+  resets the specified engine" (ctrl906f.h:105-124). Forwarded, it acts only on the device's
+  own host channel object, as it would for any host process on its own channel. But
+  `engineID` is the guest's, and the host GSP's engine reset can still disturb other tenants
+  of that engine, the host desktop included. This was not measured, because no GPU run was
+  possible. Check it in the fault gate (Q-C1) before relying on it. The fallback is to answer
+  the reset from the device, as for a software channel.
+- **The M rows have not been seen on the card.** Their mirror forwards were not exercised,
+  because the GPU gates could not run (see b-host-forwardable.md §8, Verification), so Q-C6
+  is still open. The guest sees NV_OK and the host status goes to the log, as for
+  `MIRROR_FORWARDED`.
+- **`NV_EVENT_BUFFER_CTRL_CMD_UPDATE_GET` is open.** It depends on `ALLOC_MEMORY`. It belongs
+  to the event-buffer model the RPC plan builds and has no row in the table (a test pins
+  that).
+
+**Per row (§2).**
+
+| # | Control | Group | Status | Commit | Note |
+|---|---|---|---|---|---|
+| 1 | `NV0090_CTRL_CMD_SET_TPC_PARTITION_MODE` | M | done | b49cc5c | recorded; forwarded to the own mirror TSG or channel (Q-C6 open) |
+| 2 | `NV0090_CTRL_CMD_GET_TPC_PARTITION_MODE` | M | done | b49cc5c | the recorded mode, NONE before |
+| 3 | `NV0090_CTRL_CMD_PROGRAM_VIDMEM_PROMOTE` | M | done | b49cc5c | recorded, forwarded when mirrored |
+| 4 | `NV0090_CTRL_CMD_SET_LG_SECTOR_PROMOTION` | M | done | b49cc5c | recorded, forwarded when mirrored |
+| 5 | `NV0090_CTRL_CMD_PROGRAM_SYSMEM_PROMOTE` | M | done | b49cc5c | recorded, forwarded when mirrored (615 only) |
+| 6 | `NV506F_CTRL_CMD_RESET_ISOLATED_CHANNEL` | RC | partial | b49cc5c | own mirror channel; without a mirror recorded only, software executor not reset |
+| 7 | `NV506F_CTRL_CMD_INTERNAL_RESET_ISOLATED_CHANNEL` | RC | partial | b49cc5c | as 6, sent to the host as the public 0x506F0105 |
+| 8 | `NV9067_CTRL_CMD_SET_TPC_PARTITION_TABLE` | K | done | b49cc5c | refused |
+| 9 | `NV9067_CTRL_CMD_GET_CWD_WATERMARK` | K | done | b49cc5c | refused |
+| 10 | `NV9067_CTRL_CMD_SET_CWD_WATERMARK` | K | done | b49cc5c | refused |
+| 11 | `NV906F_CTRL_CMD_RESET_CHANNEL` | RC | partial | b49cc5c | as 6 |
+| 12 | `NV906F_CTRL_CMD_GET_DEFER_RC_STATE` | RC | done | b49cc5c | bDeferRCPending 0 |
+| 13 | `NV906F_CTRL_CMD_GET_MMU_FAULT_INFO` | RC | done | b49cc5c | the device's fault record (zeros until the RC events fill it) |
+| 14 | `NV_EVENT_BUFFER_CTRL_CMD_UPDATE_GET` | EB | open | - | depends on ALLOC_MEMORY (the RPC plan's event-buffer model) |
+| 15 | `NVA06C_CTRL_CMD_SET_INTERLEAVE_LEVEL` | M | done | b49cc5c | recorded; forwarded up to MEDIUM |
+| 16 | `NVA06C_CTRL_CMD_PROGRAM_VIDMEM_PROMOTE` | M | done | b49cc5c | recorded, forwarded when mirrored |
+| 17 | `NVA06C_CTRL_CMD_MAKE_REALTIME` | L | done | b49cc5c | recorded, never forwarded (Q-C7) |
+| 18 | `NVA06C_CTRL_CMD_INTERNAL_GPFIFO_SCHEDULE` | X | done | b49cc5c | refused |
+| 19 | `NVA06C_CTRL_CMD_INTERNAL_SET_TIMESLICE` | X | done | b49cc5c | refused |
+| 20 | `NVA06F_CTRL_CMD_SET_INTERLEAVE_LEVEL` | M | done | b49cc5c | recorded; forwarded up to MEDIUM |
+| 21 | `NVA06F_CTRL_CMD_RESTART_RUNLIST` | L | done | b49cc5c | recorded, never forwarded (Q-C7) |
+| 22-29 | `NVB06F_CTRL_CMD_*_ENGINE_CTX_*`, `*_CHANNEL_HW_STATE` | V | done | b49cc5c | refused (no live migration) |
+| 30 | `NVC365_CTRL_CMD_ACCESS_CNTR_BUFFER_RESET_COUNTERS` | K | done | b49cc5c | refused |
+| 31 | `NVC36F_CTRL_CMD_GPFIFO_UPDATE_FAULT_METHOD_BUFFER` | K | done | b49cc5c | refused |
+
+Row 13 counts as done: it answers from the device's fault state, as the plan asks, and the
+state has no source yet. Rows 6, 7 and 11 are partial because the software path records the
+reset but does not act on it.
+
+**Per row (§3).**
+
+| # | Control | Status | Commit | Note |
+|---|---|---|---|---|
+| B1 | `NV9096_CTRL_CMD_GET_ZBC_CLEAR_TABLE_ENTRY` | open | - | needs a device ZBC table; its defaults need Q-B3, not permitted in this package |
+| B2 | `NV0090_CTRL_CMD_GET_MMU_DEBUG_MODE` | open | - | |
+| B3 | `NV2080_CTRL_CMD_GR_GET_CTXSW_STATS` | open | - | |
+| B4 | `NV2080_CTRL_CMD_GR_GET_CTXSW_MODES` | open | - | |
+| B5 | `NV2080_CTRL_CMD_GR_GET_CURRENT_RESIDENT_CHANNEL` | open | - | |
+| B6 | `NV2080_CTRL_CMD_RC_GET_ERROR_COUNT` | done | b49cc5c | the device's journal: 0 |
+| B7 | `NV2080_CTRL_CMD_RC_GET_ERROR_V2` | done | b49cc5c | no record, outputRecordSize 0 |
+| B8 | `NV208F_CTRL_CMD_FIFO_GET_CHANNEL_STATE` | open | - | |
+| B9-B12 | `NV83DE_CTRL_CMD_DEBUG_GET_*` | open | - | debugger defaults |

@@ -1,0 +1,3 @@
+
+CUDA-GATE: SKIP -- guest not reachable; start it with tools/caraxes-vm.sh up && tools/caraxes-vm.sh wait
+{"gate":"cuda","result":"skip","dur_s":3,"reason":"guest not reachable; start it with tools/caraxes-vm.sh up && tools/caraxes-vm.sh wait","facts":{"stages":[],"failed":[]}}

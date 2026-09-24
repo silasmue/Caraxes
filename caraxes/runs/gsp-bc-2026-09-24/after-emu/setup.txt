@@ -1,0 +1,11 @@
+NVRM version: NVIDIA UNIX Open Kernel Module for x86_64  615.71.09  Release Build  (root@)  
+023b8524a92af414259a811e4e7ebf37e41430d24e360ae155826be4a509cf3d  /mnt/vmstore/caraxes/vfio-user-nvgpu-gspbc-after-b49cc5c
+CARAXES_BOOT_MODEL=1
+CARAXES_FB_MIB=1024
+CARAXES_GATE_FB_MIB=1024
+CARAXES_IP=192.168.105.26
+CARAXES_MAC=02:00:00:00:00:26
+CARAXES_SERVER=/mnt/vmstore/caraxes/vfio-user-nvgpu-gspbc-after-b49cc5c
+CARAXES_TAP=caraxes5
+LEA_CH=/mnt/vmstore/caraxes/vm1/ch-0006-v.sh
+VM=vm5
