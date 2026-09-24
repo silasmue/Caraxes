@@ -150,7 +150,7 @@ impl BootModel {
             regs: r,
             fw: chip.firmware_boot(fb_bytes),
             layout,
-            ctrl: Dispatcher::new(d, &identity, None),
+            ctrl: Dispatcher::new(d, &identity, None).with_reservation(layout.reservation),
             identity,
             wpr_meta_pa: None,
             wpr: None,
@@ -427,7 +427,8 @@ impl BootModel {
 
     /// Give the device a host RM connection for the forwardable RPCs.
     pub fn with_host(mut self, host: Box<dyn HostRm>) -> Self {
-        self.ctrl = Dispatcher::new(self.chip.data(), &self.identity, Some(host));
+        self.ctrl = Dispatcher::new(self.chip.data(), &self.identity, Some(host))
+            .with_reservation(self.layout.reservation);
         self
     }
 
@@ -493,7 +494,8 @@ impl BootModel {
         // The old mirror frees its host objects when the old model drops (Mirror::drop).
         let mut fresh = BootModel::new(self.chip, self.layout, self.identity.clone());
         if let Some(h) = host {
-            fresh.ctrl = Dispatcher::new(self.chip.data(), &self.identity, Some(h));
+            fresh.ctrl = Dispatcher::new(self.chip.data(), &self.identity, Some(h))
+                .with_reservation(self.layout.reservation);
         }
         if let Some((hm, shared)) = exec {
             // Cannot fail once it succeeded (the layout's reservation is unchanged).

@@ -26,6 +26,10 @@ pub type RmAbi = nvrm_sys::V610;
 /// The display control vocabulary (src/ver/v610/display.rs).
 pub mod display;
 
+/// The public controls of the GSP plan that are not a plain forward: filtered forwards,
+/// device-owned answers, guest-object controls and refusals (src/ver/v610/public.rs).
+pub mod public;
+
 /// The CPU-GSP transport of this version: message queue v0, checksummed elements, the
 /// four init RPCs (docs/caraxes/gsp-rpc-protocol.md).
 pub const GSP_TRANSPORT: super::GspTransport = super::GspTransport::MsgqV1;
@@ -924,8 +928,8 @@ pub const FORWARD: &[(u32, &str)] = &[
     (0x2080_014B, "GPU_GET_INFOROM_OBJECT_VERSION"),
     (0x2080_0156, "GPU_GET_INFOROM_IMAGE_VERSION"),
     (0x2080_0157, "GPU_QUERY_INFOROM_ECC_SUPPORT"),
-    (0x2080_1322, "FB_GET_OFFLINED_PAGES"),
-    (0x2080_1344, "FB_GET_REMAPPED_ROWS"),
+    // FB_GET_OFFLINED_PAGES 0x20801322 and FB_GET_REMAPPED_ROWS 0x20801344 carry host FB
+    // pages and DRAM rows: filtered forwards of `public::PUBLIC` since 2026-09-24.
     (0x2080_1357, "FB_QUERY_DRAM_ENCRYPTION_INFOROM_SUPPORT"),
     // Sent by the 615 guest's nvidia-smi (caraxes/runs/transport-615-2026-09-24/boot/
     // device-events.txt:1114, 8208 bytes). Not new in 615: 610.57.04 has the same control

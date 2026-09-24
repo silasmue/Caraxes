@@ -123,6 +123,9 @@ pub struct Dispatcher {
     pub host_doorbell_at: Option<std::time::Instant>,
     /// The display engine in the GSP role (display/mod.rs, docs/caraxes/display-ab.md).
     pub display: crate::display::Display,
+    /// The VM's VRAM reservation `[B, E)` (fb.rs `FbLayout`): the filtered forwards of
+    /// public.rs pass on only host FB addresses inside it.
+    pub reservation: Option<(u64, u64)>,
 }
 
 /// Controls on a guest channel or TSG that a host mirror can take (mirror.rs
@@ -171,7 +174,14 @@ impl Dispatcher {
             mirror_diag: std::env::var("CARAXES_MIRROR_DIAG").as_deref() == Ok("1"),
             host_doorbell_at: None,
             display: crate::display::Display::new(),
+            reservation: None,
         }
+    }
+
+    /// The dispatcher of a device holding the VRAM reservation `r` (`FbLayout::reservation`).
+    pub fn with_reservation(mut self, r: Option<(u64, u64)>) -> Self {
+        self.reservation = r;
+        self
     }
 
     pub fn take_host(&mut self) -> Option<Box<dyn HostRm>> {
@@ -912,6 +922,14 @@ impl Dispatcher {
             .or_else(|| self.objects.get(&(INTERNAL_CLIENT, h_object)))
             .copied()
             .unwrap_or(NV20_SUBDEVICE_0);
+        // The GSP plan's table-driven public controls (public.rs, docs/caraxes/gsp-plan/).
+        let mut pctx = crate::public::Ctx {
+            host: self.host.as_deref_mut(),
+            reservation: self.reservation,
+        };
+        if let Some(a) = crate::public::answer(&mut pctx, cmd, params) {
+            return a;
+        }
         // nvidia-smi telemetry and identity (docs/caraxes/nvml.md) live in nvml.rs.
         if let Some(a) = crate::nvml::answer(
             self.chip,
