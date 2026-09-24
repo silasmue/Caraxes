@@ -1,0 +1,4 @@
+2026-09-24T23:22:26+02:00
+NVRM version: NVIDIA UNIX Open Kernel Module for x86_64  615.71.09  Release Build  (root@)  
+909a024e21bb861a229f8d9eeb8c6754d2622295a765fcc9fc62dd6dd14470c8  /home/silas/git/Caraxes/.claude/worktrees/agent-a381e2fd8c7fc690d/target/zbc-probe
+eefafea70f88b2398477d0205b891863a37ab660aee12419e01b86427d7c1cc0  /home/silas/git/Caraxes/.claude/worktrees/agent-a381e2fd8c7fc690d/caraxes/tools/zbc-probe.rs

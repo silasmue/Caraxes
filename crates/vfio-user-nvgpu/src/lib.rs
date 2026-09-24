@@ -59,6 +59,7 @@ pub mod shadow;
 pub mod tokens;
 pub mod trace;
 pub mod uvm;
+pub mod zbc;
 pub mod ver;
 
 #[cfg(test)]

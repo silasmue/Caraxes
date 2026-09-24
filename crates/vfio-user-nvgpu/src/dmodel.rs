@@ -47,9 +47,9 @@ pub const MODELLED: &[&str] = &[
     "NV5070_CTRL_CMD_GET_RG_STATUS",
 ];
 
-/// The controls the models of round 2 answer (d-device-model.md R2, the open MODEL rows outside the display): [`DState::control`],
-/// rc.rs. A subset of `MODELLED_HERE` of caraxes/tools/gsp-dtable.py, which lays out their
-/// parameter structs.
+/// The controls the models of round 2 answer (d-device-model.md R2, the open MODEL rows
+/// outside the display, the ZBC table): [`DState::control`], rc.rs, zbc.rs. The same list as
+/// `MODELLED_HERE` of caraxes/tools/gsp-dtable.py, which lays out their parameter structs.
 pub const MODELLED_HERE: &[&str] = &[
     "NV2080_CTRL_CMD_FIFO_DISABLE_CHANNELS",
     "NV2080_CTRL_CMD_GPU_REPORT_NON_REPLAYABLE_FAULT",
@@ -59,6 +59,10 @@ pub const MODELLED_HERE: &[&str] = &[
     "NV2080_CTRL_CMD_GPU_SET_COMPUTE_MODE_RULES",
     "NV0000_CTRL_CMD_GPUACCT_SET_ACCOUNTING_STATE",
     "NV2080_CTRL_CMD_GPU_VALIDATE_MEM_MAP_REQUEST",
+    "NV9096_CTRL_CMD_SET_ZBC_COLOR_CLEAR",
+    "NV9096_CTRL_CMD_SET_ZBC_DEPTH_CLEAR",
+    "NV9096_CTRL_CMD_SET_ZBC_CLEAR_TABLE",
+    "NV9096_CTRL_CMD_SET_ZBC_STENCIL_CLEAR",
     "NV2080_CTRL_CMD_INTERNAL_GR_SET_FECS_TRACE_HW_ENABLE",
     "NV2080_CTRL_CMD_INTERNAL_GR_SET_FECS_TRACE_RD_OFFSET",
     "NV2080_CTRL_CMD_INTERNAL_GR_SET_FECS_TRACE_WR_OFFSET",
@@ -69,9 +73,12 @@ pub const MODELLED_HERE: &[&str] = &[
     "NV83DE_CTRL_CMD_DEBUG_SET_MODE_MMU_DEBUG",
 ];
 
-/// Getters outside category D that answer from a model's state: the MMU debug mode of a
-/// debugger session (category B).
+/// Getters outside category D that answer from a model's state: the ZBC table entry
+/// (category B) and the deprecated combined ZBC getter (A), the MMU debug mode of a
+/// debugger session (B). `GET_ZBC_CLEAR_TABLE_SIZE` stays the chip-data row of chipctl.rs.
 pub const MODEL_GETTERS: &[&str] = &[
+    "NV9096_CTRL_CMD_GET_ZBC_CLEAR_TABLE_ENTRY",
+    "NV9096_CTRL_CMD_GET_ZBC_CLEAR_TABLE",
     "NV83DE_CTRL_CMD_DEBUG_GET_MODE_MMU_DEBUG",
 ];
 
@@ -108,6 +115,8 @@ pub struct DCtx<'a> {
 pub struct DState {
     chip: &'static crate::chip::ChipData,
     pub rc: crate::rc::RcState,
+    /// Created at the first ZBC control from the chip's defaults (zbc.rs).
+    pub zbc: Option<crate::zbc::ZbcTable>,
     pub compute_mode: u32,
     /// Accounting state by gpuId (`NV0000_CTRL_GPU_ACCOUNTING_STATE_*`).
     pub gpuacct: BTreeMap<u32, u32>,
@@ -181,6 +190,7 @@ impl DState {
         DState {
             chip,
             rc: Default::default(),
+            zbc: None,
             compute_mode: 0,
             gpuacct: BTreeMap::new(),
             fecs: (false, 0, 0),
@@ -228,6 +238,13 @@ impl DState {
             "NV2080_CTRL_CMD_INTERNAL_RC_WATCHDOG_TIMEOUT" => self.rc.watchdog_timeout(params),
             "NV2080_CTRL_CMD_INTERNAL_LOG_OOB_XID" => self.rc.log_oob_xid(params),
             "NV2080_CTRL_CMD_RC_SET_CLEAN_ERROR_HISTORY" => self.rc.clean_history(params),
+            n if n.starts_with("NV9096_") => {
+                let chip = &self.chip.name;
+                let t = self
+                    .zbc
+                    .get_or_insert_with(|| crate::zbc::ZbcTable::for_chip(chip));
+                return crate::zbc::control(t, n, params);
+            }
             // ctrl2080gpu.h:1217-1290: the four rules; the kernel stores and enforces the
             // rule itself after the answer (subdevice_ctrl_gpu_kernel.c:2097-2121).
             "NV2080_CTRL_CMD_GPU_SET_COMPUTE_MODE_RULES" => {
@@ -1110,6 +1127,28 @@ mod tests {
         // A new object under the same handle starts disabled again.
         d.alloc(0xC1, 0xDB, 0xCAF0_0001, 0x83DE, &[0u8; 16]);
         assert_eq!(rd(&d.control(0xC1, 0xDB, get, &[0u8; 4])), 2);
+    }
+
+    /// ZBC through the dispatcher: a guest colour goes into this VM's table and comes back
+    /// through GET_ZBC_CLEAR_TABLE_ENTRY; no host control is issued.
+    #[test]
+    fn zbc_through_the_dispatcher_stays_off_the_host() {
+        let seen = Arc::new(Mutex::new(Vec::new()));
+        let mut d = dispatcher(Some(Box::new(Rec(seen.clone()))));
+        let set = id("NV9096_CTRL_CMD_SET_ZBC_COLOR_CLEAR");
+        let names: Vec<String> = (0..4).map(|i| format!("colorFB[{i}]")).collect();
+        let mut f: Vec<(&str, u64)> = names.iter().map(|n| (n.as_str(), 0x0A0B_0C0D)).collect();
+        f.push(("format", 0x28));
+        let p = params("NV9096_CTRL_SET_ZBC_COLOR_CLEAR_PARAMS", &f);
+        let a = d.control(0xC1, 0x9096, set, &p);
+        assert_eq!((a.status, a.label), (0, crate::zbc::RECORDED));
+        let get = id("NV9096_CTRL_CMD_GET_ZBC_CLEAR_TABLE_ENTRY");
+        let st = "NV9096_CTRL_GET_ZBC_CLEAR_TABLE_ENTRY_PARAMS";
+        let q = params(st, &[("tableType", 1), ("index", 4)]);
+        let a = d.control(0xC1, 0x9096, get, &q);
+        assert_eq!((a.status, a.label), (0, crate::zbc::READ));
+        assert_eq!(&a.params[..4], &0x0A0B_0C0Du32.to_le_bytes());
+        assert!(seen.lock().unwrap().is_empty());
     }
 
     /// The small recorders: FECS trace setters, FBSR_INIT, RATED_TDP; the flushes answer

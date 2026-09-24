@@ -1,0 +1,70 @@
+# SPDX-License-Identifier: MIT
+# SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
+# SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
+#
+# The ZBC clear table defaults of TU106 (docs/caraxes/gsp-plan/d-device-model.md 6.2): the
+# seed of the device's guest-local ZBC table (src/zbc.rs). Every VM starts from these entries;
+# what its guest adds stays in that VM and never reaches the host's table.
+#
+# Source: the one read-only sweep of the host's table on the RTX 2070 under 615.71.09
+# (Measurement Q5, caraxes/runs/gsp-round2-d-2026-09-24/q5-host-sweep/sweep.txt: a
+# GF100_ZBC_CLEAR object of an unprivileged RM client, GET_ZBC_CLEAR_TABLE_SIZE and
+# GET_ZBC_CLEAR_TABLE_ENTRY for every index). Only the entries GSP-RM seeds are kept: colour
+# 1-3, depth 1-2 and stencil 1-3 are identical in that sweep and in all 10 native traces of
+# 610.57.04 that read the table (matrix/traces/610.57.04/control/*.jsonl, e.g. gl-enum.jsonl
+# :1466), and no open source adds them (GSP-RM firmware). Colour 4-15 differ between the two
+# captures: they are clear colours the host desktop's clients added, and would hand the guest
+# the host session's clear colours, so they are left out.
+label = "card (host ZBC table read once, q5-host-sweep; the GSP-RM seeded entries only)"
+
+# ctrl9096.h:371-377: NV9096_CTRL_ZBC_CLEAR_TABLE_TYPE COLOR 1, DEPTH 2, STENCIL 3. The
+# index ranges are GET_ZBC_CLEAR_TABLE_SIZE's (the same as controls.toml's rows).
+[color]
+index_start = 1
+index_end = 15
+# Formats: ctrl9096.h:62-81 (ZERO 0x1, UNORM_ONE 0x2, RF32_GF32_BF32_AF32 0x4).
+[[color.entry]]
+index = 1
+format = 0x1
+color_fb = [0x00000000, 0x00000000, 0x00000000, 0x00000000]
+color_ds = [0x00000000, 0x00000000, 0x00000000, 0x00000000]
+[[color.entry]]
+index = 2
+format = 0x2
+color_fb = [0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff]
+color_ds = [0x3f800000, 0x3f800000, 0x3f800000, 0x3f800000]
+[[color.entry]]
+index = 3
+format = 0x4
+color_fb = [0x3f800000, 0x3f800000, 0x3f800000, 0x3f800000]
+color_ds = [0x3f800000, 0x3f800000, 0x3f800000, 0x3f800000]
+
+[depth]
+index_start = 1
+index_end = 15
+# FMT_FP32 0x1 (ctrl9096.h:141): 0.0 and 1.0.
+[[depth.entry]]
+index = 1
+format = 0x1
+value = 0x00000000
+[[depth.entry]]
+index = 2
+format = 0x1
+value = 0x3f800000
+
+[stencil]
+index_start = 1
+index_end = 15
+# FMT_U8 0x1 (ctrl9096.h:319): 0, 1 and 0xff.
+[[stencil.entry]]
+index = 1
+format = 0x1
+value = 0x00
+[[stencil.entry]]
+index = 2
+format = 0x1
+value = 0x01
+[[stencil.entry]]
+index = 3
+format = 0x1
+value = 0xff
