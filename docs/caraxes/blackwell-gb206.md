@@ -1483,3 +1483,19 @@ the merged version keeps both lists.
      F(GspFwWprMeta, verified);
  
 ```
+
+## 6. Operator's answers
+
+**Operator's answers (2026-09-24, 11:28):**
+
+1. MSI-X and the BAR1 size of the synthetic GB206 are configuration: MSI-X off and a 256 MiB
+   BAR1 as the first defaults, both switchable in the identity profile for later.
+2. korngold has no monitor attached; a second capture there is possible later (rm-tools in
+   615 layouts, L2 and RAM data, firmware list).
+3. The FWSEC image behind the BAR0 PROM window may be read for the test: the kit gets an
+   opt-in step for it (sudo, read-only), first run on the RTX 2070 here, then on korngold.
+4. The guest stays on 610.57.04 for Blackwell; 615 is a later target.
+5. The constructed falcon with class 0x4f32fd is worth chasing.
+
+Context for planning: once v1 runs in the university lab, that lab gives access to every
+generation except Ampere, and the agent runners can run there.
