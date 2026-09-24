@@ -1,0 +1,3 @@
+     21 ctrl 0x20802a0c: ce lce shim info: ceEngineType 0xb (LCE 2) -> host status 0x0, shimInstance 0 shimLocalLceIdx 2; chip table agrees -> status 0x0 [host (forwarded as-is; NON_PRIVILEGED on the 615 host)]
+     21 ctrl 0x20802a0c: ce lce shim info: ceEngineType 0xc (LCE 3) -> host status 0x0, shimInstance 0 shimLocalLceIdx 3; chip table agrees -> status 0x0 [host (forwarded as-is; NON_PRIVILEGED on the 615 host)]
+     21 ctrl 0x20802a0c: ce lce shim info: ceEngineType 0xd (LCE 4) -> host status 0x0, shimInstance 0 shimLocalLceIdx 4; chip table agrees -> status 0x0 [host (forwarded as-is; NON_PRIVILEGED on the 615 host)]
