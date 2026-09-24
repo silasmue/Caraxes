@@ -1,0 +1,20 @@
+Type=wayland
+Type=tty
+GRAB crtc 61 fb 130 1920x1080 format XR24 modifier 0x300000000606014 pitch 7680 handle 1 mode 1920x1080@60
+[  139.739595] caraxes-vm0 gnome-shell[1851]: Added device '/dev/dri/card0' (nvidia-drm) using atomic mode setting.
+[  139.765807] caraxes-vm0 gnome-shell[1851]: Created gbm renderer for '/dev/dri/card0'
+[  139.771039] caraxes-vm0 gnome-shell[1851]: Obtained a high priority EGL context
+[  139.863919] caraxes-vm0 gnome-shell[1851]: Obtained a high priority EGL context
+[  145.419733] caraxes-vm0 gnome-shell[1851]: DING: (gjs:2416): Gjs-WARNING **: 07:32:41.261: GLib.unix_signal_add has been moved to a separate platform-specific library. Please update your code to use GLibUnix.signal_add instead.
+page_flip_failed=0
+libgallium-25.2.8-0ubuntu0.24.04.2.so
+libnvidia-eglcore.so.610.57.04
+load 0.33 0.21 0.08 1/637 2590
+== wlframes under Mutter
+globals: wp_presentation yes
+first frame callback after 0.3 s
+surface 64x64, damage 8x8 per frame, 20.0 s
+FRAMES callbacks intervals=710 mean_ms=25.904 rate_hz=38.60 min_ms=14.232 max_ms=179.162 sd_ms=10.712
+PRESENTED feedback intervals=707 mean_ms=25.890 rate_hz=38.63 min_ms=6.884 max_ms=200.766 sd_ms=14.392
+presented=713 discarded=2 refresh_ns=16666667 (60.000 Hz) flags=0x7 (vsync 1 hw_clock 1 hw_completion 1)
+wlframes rc=0

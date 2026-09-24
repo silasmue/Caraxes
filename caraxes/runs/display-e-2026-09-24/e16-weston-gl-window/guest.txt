@@ -1,0 +1,17 @@
+=== REPAINT_WINDOW=7 SIZE=64 DAMAGE=8 load 0.26 0.10 0.03 2/269 1988
+weston up (pid 1997) after       1 s
+first frame callback after 0.1 s
+FRAMES callbacks intervals=1122 mean_ms=17.703 rate_hz=56.49 min_ms=12.912 max_ms=80.096 sd_ms=4.070
+PRESENTED feedback intervals=1121 mean_ms=17.706 rate_hz=56.48 min_ms=14.076 max_ms=82.215 sd_ms=4.164
+presented=1127 discarded=0 refresh_ns=16666666 (60.000 Hz) flags=0x7 (vsync 1 hw_clock 1 hw_completion 1)
+wlframes exit 0
+=== REPAINT_WINDOW=12 SIZE=64 DAMAGE=8 load 0.35 0.14 0.05 1/255 2012
+weston up (pid 2021) after       1 s
+first frame callback after 0.1 s
+FRAMES callbacks intervals=1179 mean_ms=16.879 rate_hz=59.25 min_ms=8.810 max_ms=78.550 sd_ms=3.737
+PRESENTED feedback intervals=1179 mean_ms=16.879 rate_hz=59.25 min_ms=10.589 max_ms=83.132 sd_ms=2.996
+presented=1185 discarded=0 refresh_ns=16666666 (60.000 Hz) flags=0x7 (vsync 1 hw_clock 1 hw_completion 1)
+wlframes exit 0
+=== REPAINT_WINDOW=12 SIZE=1080 DAMAGE=1080 load 0.23 0.13 0.04 1/254 2037
+weston up (pid 2046) after       1 s
+wlframes exit 136

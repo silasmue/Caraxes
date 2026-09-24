@@ -105,6 +105,17 @@ fn resolve_leaf(
 pub struct Leaf {
     pub target: Target,
     pub size: u64,
+    /// The guest PTE's kind. A depth/stencil kind (Z16..Z24S8, 0x01-0x05, uncompressed) is
+    /// carried into the shadow mapping as a kind override: the 3D engine checks the
+    /// kind of a Z surface (Xid 13 "3D-Z KIND Violation" with the reservation's generic
+    /// kind, display-e.md).
+    pub kind: u8,
+}
+
+/// The kind a shadow mapping overrides to: the guest's, for the uncompressed depth and
+/// stencil kinds only; every other leaf keeps the backing object's kind.
+pub fn kind_override(kind: u8) -> Option<u8> {
+    (0x01..=0x05).contains(&kind).then_some(kind)
 }
 
 /// The page class of a region object: 2 MiB pages, or 4 KiB/64 KiB pages under the
@@ -353,6 +364,7 @@ impl ShadowVas {
             let leaf = Leaf {
                 target: *t,
                 size: *size,
+                kind: *kind,
             };
             match resolve_leaf(t, *size, *kind, base, end, &descs) {
                 Resolved::Vidmem { offset } => {
@@ -496,6 +508,7 @@ impl ShadowVas {
                 va,
                 page_size_flag(leaf.size),
                 snoop,
+                kind_override(leaf.kind),
             );
             if st == sys::NV_OK {
                 self.mapped.insert(
@@ -642,6 +655,7 @@ mod tests {
         let l = |pa: u64, size: u64| Leaf {
             target: Target::Fb(pa),
             size,
+            kind: 6,
         };
         let mut mapped = BTreeMap::new();
         mapped.insert(0x1000u64, l(BASE, 0x1000));

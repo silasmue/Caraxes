@@ -1,0 +1,30 @@
+# SPDX-License-Identifier: MIT
+# host kernel log, Xid lines since 2026-09-24 09:26:41
+Sep 24 09:26:48 manacor kernel: NVRM: Xid (PCI:0000:2d:00): 13, Graphics Exception on GPC 0: 3D-Z KIND Violation. Coordinates: (0x0, 0x0)
+Sep 24 09:26:48 manacor kernel: NVRM: Xid (PCI:0000:2d:00): 13, Graphics Exception: ESR 0x500420=0x80000080 0x500434=0x0 0x500438=0x20000 0x50043c=0x10006
+Sep 24 09:26:48 manacor kernel: NVRM: Xid (PCI:0000:2d:00): 13, Graphics Exception on GPC 1: 3D-Z KIND Violation. Coordinates: (0x8, 0x0)
+Sep 24 09:26:48 manacor kernel: NVRM: Xid (PCI:0000:2d:00): 13, Graphics Exception: ESR 0x508420=0x80000080 0x508434=0x8 0x508438=0x20000 0x50843c=0x10006
+Sep 24 09:26:48 manacor kernel: NVRM: Xid (PCI:0000:2d:00): 13, Graphics Exception on GPC 2: 3D-Z KIND Violation. Coordinates: (0x10, 0x0)
+Sep 24 09:26:48 manacor kernel: NVRM: Xid (PCI:0000:2d:00): 13, Graphics Exception: ESR 0x510420=0x80000080 0x510434=0x10 0x510438=0x20000 0x51043c=0x10006
+Sep 24 09:26:48 manacor kernel: NVRM: Xid (PCI:0000:2d:00): 13, pid=2061395, name=vfio-user-nvgpu, Graphics Exception: channel 0x00000032, Class 0000c597, Offset 00000000, Data 00000000
+Sep 24 09:27:08 manacor kernel: NVRM: Xid (PCI:0000:2d:00): 13, Graphics Exception on GPC 0: 3D-Z KIND Violation. Coordinates: (0x0, 0x0)
+Sep 24 09:27:08 manacor kernel: NVRM: Xid (PCI:0000:2d:00): 13, Graphics Exception: ESR 0x500420=0x80000080 0x500434=0x0 0x500438=0x20000 0x50043c=0x10006
+Sep 24 09:27:08 manacor kernel: NVRM: Xid (PCI:0000:2d:00): 13, Graphics Exception on GPC 1: 3D-Z KIND Violation. Coordinates: (0x8, 0x0)
+Sep 24 09:27:08 manacor kernel: NVRM: Xid (PCI:0000:2d:00): 13, Graphics Exception: ESR 0x508420=0x80000080 0x508434=0x8 0x508438=0x20000 0x50843c=0x10006
+Sep 24 09:27:08 manacor kernel: NVRM: Xid (PCI:0000:2d:00): 13, Graphics Exception on GPC 2: 3D-Z KIND Violation. Coordinates: (0x10, 0x0)
+Sep 24 09:27:08 manacor kernel: NVRM: Xid (PCI:0000:2d:00): 13, Graphics Exception: ESR 0x510420=0x80000080 0x510434=0x10 0x510438=0x20000 0x51043c=0x10006
+Sep 24 09:27:08 manacor kernel: NVRM: Xid (PCI:0000:2d:00): 13, pid=2061395, name=vfio-user-nvgpu, Graphics Exception: channel 0x00000032, Class 0000c597, Offset 00000000, Data 00000000
+Sep 24 09:27:27 manacor kernel: NVRM: Xid (PCI:0000:2d:00): 13, Graphics Exception on GPC 0: 3D-Z KIND Violation. Coordinates: (0x0, 0x0)
+Sep 24 09:27:27 manacor kernel: NVRM: Xid (PCI:0000:2d:00): 13, Graphics Exception: ESR 0x500420=0x80000080 0x500434=0x0 0x500438=0x20000 0x50043c=0x10006
+Sep 24 09:27:27 manacor kernel: NVRM: Xid (PCI:0000:2d:00): 13, Graphics Exception on GPC 1: 3D-Z KIND Violation. Coordinates: (0x8, 0x0)
+Sep 24 09:27:27 manacor kernel: NVRM: Xid (PCI:0000:2d:00): 13, Graphics Exception: ESR 0x508420=0x80000080 0x508434=0x8 0x508438=0x20000 0x50843c=0x10006
+Sep 24 09:27:27 manacor kernel: NVRM: Xid (PCI:0000:2d:00): 13, Graphics Exception on GPC 2: 3D-Z KIND Violation. Coordinates: (0x10, 0x0)
+Sep 24 09:27:27 manacor kernel: NVRM: Xid (PCI:0000:2d:00): 13, Graphics Exception: ESR 0x510420=0x80000080 0x510434=0x10 0x510438=0x20000 0x51043c=0x10006
+Sep 24 09:27:27 manacor kernel: NVRM: Xid (PCI:0000:2d:00): 13, pid=2061395, name=vfio-user-nvgpu, Graphics Exception: channel 0x00000032, Class 0000c597, Offset 00000000, Data 00000000
+Sep 24 09:28:15 manacor kernel: NVRM: Xid (PCI:0000:2d:00): 13, Graphics Exception on GPC 0: 3D-Z KIND Violation. Coordinates: (0x10, 0x10)
+Sep 24 09:28:15 manacor kernel: NVRM: Xid (PCI:0000:2d:00): 13, Graphics Exception: ESR 0x500420=0x80000080 0x500434=0x100010 0x500438=0x20000 0x50043c=0x10006
+Sep 24 09:28:15 manacor kernel: NVRM: Xid (PCI:0000:2d:00): 13, Graphics Exception on GPC 1: 3D-Z KIND Violation. Coordinates: (0x0, 0x10)
+Sep 24 09:28:15 manacor kernel: NVRM: Xid (PCI:0000:2d:00): 13, Graphics Exception: ESR 0x508420=0x80000080 0x508434=0x100000 0x508438=0x20000 0x50843c=0x10006
+Sep 24 09:28:15 manacor kernel: NVRM: Xid (PCI:0000:2d:00): 13, pid=2073263, name=nvidia-smi, Graphics Exception on GPC 2: 3D-Z KIND Violation. Coordinates: (0x8, 0x10)
+Sep 24 09:28:15 manacor kernel: NVRM: Xid (PCI:0000:2d:00): 13, pid=2073263, name=nvidia-smi, Graphics Exception: ESR 0x510420=0x80000080 0x510434=0x100008 0x510438=0x20000 0x51043c=0x10006
+Sep 24 09:28:15 manacor kernel: NVRM: Xid (PCI:0000:2d:00): 13, pid=2061395, name=vfio-user-nvgpu, Graphics Exception: channel 0x00000032, Class 0000c597, Offset 00000000, Data 00000000

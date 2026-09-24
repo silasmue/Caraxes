@@ -1,0 +1,4 @@
+# SPDX-License-Identifier: MIT
+# 2026-09-24 09:23:30 guest command:
+unset DISPLAY; cd caraxes-guest; cp ../cx/wlframes . ; sudo SETTLE=3 SIZE=64 DAMAGE=8 timeout 300 bash weston-pace.sh 1920x1080 20 gl 2>&1 | grep -vE "^\s|Registered plugin|event0|libinput"
+rc=0

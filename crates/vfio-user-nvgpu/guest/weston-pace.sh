@@ -6,6 +6,8 @@
 # Weston on card0 with the DRM backend (atomic KMS), run a Wayland client whose frame
 # callbacks and wp_presentation feedback are measured, stop Weston, print the logs.
 # Usage (as root): weston-pace.sh [mode, e.g. 640x480 or 1920x1080@60] [seconds] [renderer]
+# REPAINT_WINDOW (ms, Weston's default 7) widens the time Weston gives a repaint before
+# the vblank: with the GL renderer the frame waits for the GPU's completion interrupt.
 set -u
 MODE=${1:-640x480} SECS=${2:-10} RENDERER=${3:-pixman}
 D=/tmp/weston-pace
@@ -14,6 +16,7 @@ export XDG_RUNTIME_DIR=$D
 cat > "$D/weston.ini" <<EOF
 [core]
 idle-time=0
+repaint-window=${REPAINT_WINDOW:-7}
 require-input=false
 [shell]
 background-color=0xff202020

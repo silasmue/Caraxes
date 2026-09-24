@@ -276,6 +276,32 @@ impl Mirror {
         self.channels.contains_key(&chid)
     }
 
+    /// The size of a global GR context buffer (by `NV2080_CTRL_GPU_PROMOTE_CTX_BUFFER_ID_*`)
+    /// on the host: `NV0080_CTRL_CMD_FIFO_GET_ENGINE_CONTEXT_PROPERTIES` (NON_PRIVILEGED)
+    /// on the device's own host device, rounded up to 64 KiB.
+    fn global_ctx_size(&self, buffer_id: u16) -> Option<u64> {
+        // ctrl0080fifo.h ENGINE_ID_GRAPHICS_*: BUNDLE_CB 0x11, PAGEPOOL 0x0d, ATTRIBUTE_CB
+        // 0x13, RTV_CB_GLOBAL 0x14, GFXP_POOL 0x15, GFXP_CTRL_BLK 0x16, FECS_EVENT 0x17,
+        // PRIV_ACCESS_MAP 0x18.
+        let engine_id: u32 = match buffer_id {
+            3 => 0x11,
+            4 => 0x0d,
+            5 => 0x13,
+            6 => 0x14,
+            7 => 0x15,
+            8 => 0x16,
+            9 => 0x17,
+            10..=12 => 0x18,
+            _ => return None,
+        };
+        let h = self.hm.lock().unwrap();
+        let mut p = [0u8; 12];
+        p[..4].copy_from_slice(&engine_id.to_le_bytes());
+        let st = h.control(h.device(), 0x0080_1707, &mut p);
+        let size = u32::from_le_bytes(p[8..12].try_into().unwrap()) as u64;
+        (st == sys::NV_OK && size != 0).then(|| (size + 0xFFFF) & !0xFFFF)
+    }
+
     /// Whether `chid` is a GR channel the shadow path takes (`CARAXES_MIRROR_GR_SHADOW=1`).
     pub fn is_gr_shadow(&self, reg: &Registry, chid: u32) -> bool {
         if !self.shadow_probe {
@@ -391,7 +417,17 @@ impl Mirror {
         if let Some(m) = reg.promoted((ch.h_client, ch.h_object)) {
             for e in m.values() {
                 if let Some(v) = e.virt {
-                    new_b.push((v, v + e.size.max(0x1000)));
+                    // A global buffer (the 3D class's bundle/attribute/RTV CBs, the
+                    // pagepool) is promoted by VA only, size 0; its extent is the host's
+                    // context-buffer size for the same silicon (display-e.md: the guest's
+                    // attribute CB at 0x120400000 was mirrored as set A and the host's
+                    // own collided with it, Xid 31 PRIV_VIOLATION).
+                    let size = if e.size == 0 {
+                        self.global_ctx_size(e.buffer_id).unwrap_or(0x1000)
+                    } else {
+                        e.size
+                    };
+                    new_b.push((v, v + size.max(0x1000)));
                 }
             }
         }

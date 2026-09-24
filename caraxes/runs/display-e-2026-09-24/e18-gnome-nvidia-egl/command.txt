@@ -1,0 +1,5 @@
+# SPDX-License-Identifier: MIT
+# 2026-09-24 09:26:41 guest command:
+unset DISPLAY; cd caraxes-guest; sudo bash gnome-check.sh start 90; P=$(pgrep -u leandro -x gnome-shell | head -1); echo "gnome-shell pid $P"; sudo grep -oE "libnvidia-eglcore[^ ]*|libEGL_mesa[^ ]*|libgallium[^ ]*|nvidia-drm_gbm[^ ]*|libnvidia-allocator[^ ]*" /proc/$P/maps | sort -u; U=$(id -u leandro); echo "== wlframes under Mutter"; sudo -u leandro XDG_RUNTIME_DIR=/run/user/$U WAYLAND_DISPLAY=wayland-0 timeout 120 ./wlframes 20 64 8; echo "wlframes rc=$?"
+rc=0
+full trace 972753 lines, events only kept
