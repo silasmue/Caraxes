@@ -25,7 +25,11 @@ LT=$ROOT/leandro-test
 VENV=${CARAXES_GUEST_VENV:-$HOME/gpu/venv}
 PY=$VENV/bin/python
 TMO=${CARAXES_TEST_TIMEOUT:-120}
-SMI="sudo LD_LIBRARY_PATH=/opt/nvrm/lib /opt/nvrm/bin/nvidia-smi"
+# The guest driver's nvidia-smi and libraries, as sync-tests records them in driver.env
+# (tools/lib/driver.sh); the 610.57.04 image's /opt/nvrm without it.
+# shellcheck disable=SC1091
+[[ -r $ROOT/caraxes/driver.env ]] && source "$ROOT/caraxes/driver.env"
+SMI="sudo LD_LIBRARY_PATH=${CARAXES_GUEST_LIBDIR:-/opt/nvrm/lib} ${CARAXES_GUEST_SMI:-/opt/nvrm/bin/nvidia-smi}"
 # What the v1 matrix scripts and the probes read (probe/matrix/*.sh, probe/Makefile).
 export LEA_TEST_ROOT=$LT LEA_ROOT=$LT LEANDRO=$LT LEA_PROBE_BIN=$LT/probe/bin
 export NVPROBE_PTX=$LT/probe/kernels/kernels.ptx NVTORCH_PY=$PY LEA_HOSTVENV=$VENV

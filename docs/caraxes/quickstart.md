@@ -104,6 +104,33 @@ tools/caraxes-vm.sh down
   `probe-<label>/guest-dmesg.txt` and `probe-<label>/device-trace.txt`, scoped to that
   reload only.
 
+### The guest driver: `CARAXES_DRIVER`
+
+`CARAXES_DRIVER=610|615` selects the guest's driver for one run of `tools/caraxes-vm.sh`
+and `tools/caraxes-gate.sh`. The default is the repository's `DRIVER_VERSION` (610.57.04).
+The mapping lives in `tools/lib/driver.sh`; any other value is refused.
+
+| | `610` (default) | `615` |
+|---|---|---|
+| Version | 610.57.04 | 615.71.09 |
+| `LEA_BASE_IMAGE` | `$LEA_VM_DIR/guest-baked-20260801-610.57.04-20260820-105733.qcow2` | `/mnt/vmstore/caraxes/images/guest-baked-2026-09-24-615.71.09.qcow2` ([guest-driver-versions.md](guest-driver-versions.md) section 8); set before `local.env`, so its 610 default does not apply |
+| Guest nvidia-smi and libraries | `/opt/nvrm/bin/nvidia-smi`, `/opt/nvrm/lib` | `/usr/bin/nvidia-smi`, `/usr/lib/x86_64-linux-gnu` |
+| `CARAXES_GUEST_ABI` (for the device) | left as the caller has it (unset, or `595` for the experiment) | exported as `615`; another value is refused |
+
+- A 615 VM needs its own overlay on the 615 image, in a new state directory:
+  `qemu-img create -f qcow2 -F qcow2 -b /mnt/vmstore/caraxes/images/guest-baked-2026-09-24-615.71.09.qcow2 <dir>/rootfs.qcow2`,
+  plus a `seed.img`.
+- With `CARAXES_DRIVER` set, or with a driver other than 610, `up` checks that
+  `LEA_BASE_IMAGE` carries the version in its name and is in the overlay's backing chain,
+  and refuses otherwise.
+- `CARAXES_GUEST_ABI=615` has no effect on today's device, because the device knows only
+  `595` (`crates/vfio-user-nvgpu/src/ver/mod.rs:133-143`). A 615 guest therefore stops at the status-queue link
+  ([guest-driver-versions.md](guest-driver-versions.md) section 5) until the 615 GSP
+  transport lands.
+- `sync-tests` writes the selected version into the guest's `leandro-test/DRIVER_VERSION`
+  and the userspace paths into `caraxes-tests/caraxes/driver.env`. After a switch, run it
+  again before the gates.
+
 ## 4. Verify
 
 ```sh
