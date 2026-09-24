@@ -90,7 +90,9 @@ version, and whether an FWSEC (code type 0xE0) image is present. The layout it c
 the one documented by nova-core: https://docs.kernel.org/gpu/nova/core/vbios.html. A
 sysfs read ends at the PCI "last image" flag, so a complete dump shows the x86 and EFI
 images and, on Turing, no FWSEC image; the FWSEC image follows only in NVIDIA's own chain,
-reachable through the BAR0 PROM window, which this kit does not read. On the RTX 2070
+reachable through the BAR0 PROM window, which the kit reads only with the opt-in `--prom`
+(read-only mapping of `resource0`; refused by kernels with `CONFIG_IO_STRICT_DEVMEM` while
+a driver holds the BAR, blackwell-gb206.md 7.3). On the RTX 2070
 this looks like:
 
 ```text
@@ -124,6 +126,17 @@ file; the board serial number is redacted in the `nvidia-smi` outputs. Kept: the
 hostname, the GPU UUID (it matches captures across runs) and the EDIDs of the attached
 monitors (they carry the monitor's serial number; unplug monitors before the run if that
 is not wanted).
+
+The config-space dump is redacted too (since 2026-09-24): the data bytes of the
+vendor-specific capability, which on NVIDIA GPUs is the PBI mailbox (capability id 0x09;
+its DATAOUT register at +0x0C hands the GPU UUID to `pciPbiReadUuid`,
+`src/nvidia/src/kernel/platform/chipset/pci_pbi.c:42-55` in the 610.57.04 tree), and the
+serial number of the Device Serial Number extended capability are written as `xx`
+(`redact_config` in the script; the device's config parser reads `xx` as 0), and the
+serial number line of `lspci -vvv` reads `<redacted>`. The first GB206 capture had four
+UUID bytes at 0xA8-0xAB and the DSN in the clear; both are redacted in the working tree
+(blackwell-gb206.md 2.5); older revisions in the history still hold them. Note that the
+UUID itself stays in the `nvidia-smi` and `/proc` outputs, as said above.
 
 At home, file it like this:
 
@@ -238,7 +251,8 @@ does not need it, since 610.57.04 has the GB10x/GB20x HALs.
   `driver_override`, `power/control`, `d3cold_allowed` or `resourceN_resize` in sysfs;
   no suspend or hibernate during the run.
 - No register access of any kind: no `setpci` writes, no `devmem`, no `mmap` or read of
-  `resourceN`, no `nvflash` or other VBIOS tools (their "read" goes through privileged
+  `resourceN` (the one exception is the kit's own opt-in `--prom`, a read-only mapping of
+  the PROM window, operator decision of 2026-09-24), no `nvflash` or other VBIOS tools (their "read" goes through privileged
   register paths), no `nvidia-bug-report.sh` (it is broad and collects personal data).
 - No other Caraxes tools on that machine: not `host-facts reserve`, `host-exec`,
   `host-kick`, `sysmem-iova` or the bench scripts. The kit runs `host-facts facts` only.

@@ -173,6 +173,11 @@ pub const SI_H_INTERNAL_CLIENT: usize = 0x608;
 pub const SI_H_INTERNAL_DEVICE: usize = 0x60C;
 pub const SI_H_INTERNAL_SUBDEVICE: usize = 0x610;
 pub const SI_BUS_RESET_REQUIRED: usize = 0x638;
+/// `fwWprLayoutOffset.nonWprHeapOffset`/`.frtsOffset`: read by the kernel RM only with
+/// `PDB_PROP_GPU_FW_WPR_OFFSET_SET_BY_ACR` (GH100 and GB20x; kernel_gsp.c:4712-4728,
+/// generated/g_gpu_nvoc.c:365-375), where ACR, not the CPU, lays out the WPR.
+pub const SI_FW_WPR_NON_WPR_HEAP_OFFSET: usize = 0x628;
+pub const SI_FW_WPR_FRTS_OFFSET: usize = 0x630;
 
 /// `GspFwWprMeta` (gsp_fw_wpr_meta.h:211-212 for the magic).
 pub const WPR_META_SIZE: usize = 256;
@@ -186,6 +191,25 @@ pub const WPR_META_FRTS_OFFSET: usize = 0x98;
 pub const WPR_META_GSP_FW_WPR_END: usize = 0xA8;
 pub const WPR_META_FB_SIZE: usize = 0xB0;
 pub const WPR_META_VGA_WORKSPACE_OFFSET: usize = 0xB8;
+// The fields the CPU fills as size requests on GH100 and later and ACR completes
+// (kgspPopulateWprMeta_GH100, kernel_gsp_gh100.c:303-397); the FSP boot model plays ACR.
+pub const WPR_META_SIZE_OF_RADIX3_ELF: usize = 0x18;
+pub const WPR_META_SIZE_OF_BOOTLOADER: usize = 0x28;
+pub const WPR_META_GSP_FW_HEAP_OFFSET: usize = 0x78;
+pub const WPR_META_GSP_FW_HEAP_SIZE: usize = 0x80;
+pub const WPR_META_GSP_FW_OFFSET: usize = 0x88;
+pub const WPR_META_BOOT_BIN_OFFSET: usize = 0x90;
+pub const WPR_META_FRTS_SIZE: usize = 0xA0;
+pub const WPR_META_VGA_WORKSPACE_SIZE: usize = 0xC0;
+pub const WPR_META_PMU_RESERVED_SIZE: usize = 0xF4;
+
+/// `GSP_FMC_BOOT_PARAMS` (arch/nvalloc/common/inc/gsp/gspifpub.h:115-122), the GSP-FMC
+/// arguments whose address the COT message carries (kfspGetGspBootArgs,
+/// kern_fsp_gh100.c:919-940; filled by kgspSetupGspFmcArgs_GH100, kernel_gsp_gh100.c:419-497).
+pub const FMC_PARAMS_SIZE: usize = 88;
+pub const FMC_GSP_RM_DESC_SIZE: usize = 0x0C;
+pub const FMC_GSP_RM_DESC_OFFSET: usize = 0x10;
+pub const FMC_BOOT_ARGS_OFFSET: usize = 0x30;
 
 /// `LibosMemoryRegionInitArgument`, the array the libos args page holds.
 pub const LIBOS_ARG_SIZE: u64 = 32;
@@ -205,8 +229,8 @@ pub const MQ_STAT_QUEUE_OFFSET: u64 = 24;
 // Driver enums the chip tables name symbolically (src/chip; chips/<chip>/*.toml). A
 // chip file says `COPY0`, this table says what number 610.57.04 gives it.
 
-/// `NV2080_ENGINE_TYPE_*` (sdk/class/cl2080_notification.h:284-326), the bits of
-/// `engineCaps`.
+/// `NV2080_ENGINE_TYPE_*` (sdk/class/cl2080_notification.h:284-340), the bits of
+/// `engineCaps`. NVJPEG0 and OFA0 are the GB206 additions (:330-331, :339-340).
 pub const NV2080_ENGINE_TYPES: &[(&str, u32)] = &[
     ("GR0", 0x01),
     ("COPY0", 0x09),
@@ -226,10 +250,13 @@ pub const NV2080_ENGINE_TYPES: &[(&str, u32)] = &[
     ("SW", 0x22),
     ("SEC2", 0x26),
     ("HOST", 0x27),
+    ("NVJPEG0", 0x2B),
+    ("OFA0", 0x33),
 ];
 
-/// `RM_ENGINE_TYPE_*` (src/nvidia/inc/kernel/gpu/gpu_engine_type.h:35-83), the
-/// `ENGINE_INFO_TYPE_RM_ENGINE_TYPE` column of the FIFO device-info table.
+/// `RM_ENGINE_TYPE_*` (src/nvidia/inc/kernel/gpu/gpu_engine_type.h:35-96), the
+/// `ENGINE_INFO_TYPE_RM_ENGINE_TYPE` column of the FIFO device-info table. COPY7,
+/// NVJPEG0 and OFA0 are the GB206 additions (:50, :88, :96).
 pub const RM_ENGINE_TYPES: &[(&str, u32)] = &[
     ("GR0", 0x01),
     ("COPY0", 0x09),
@@ -237,16 +264,20 @@ pub const RM_ENGINE_TYPES: &[(&str, u32)] = &[
     ("COPY2", 0x0B),
     ("COPY3", 0x0C),
     ("COPY4", 0x0D),
+    ("COPY7", 0x10),
     ("NVDEC0", 0x1D),
     ("NVDEC1", 0x1E),
     ("NVDEC2", 0x1F),
     ("NVENC0", 0x25),
     ("SW", 0x2D),
     ("SEC2", 0x31),
+    ("NVJPEG0", 0x36),
+    ("OFA0", 0x3E),
 ];
 
 /// NVOC class ids of the physical engines (src/nvidia/generated/g_eng_desc_nvoc.h);
-/// `ENG_DESC` = class id << 8 | instance (`MKENGDESC`, :55-59).
+/// `ENG_DESC` = class id << 8 | instance (`MKENGDESC`, :55-59). OBJNVJPG and OBJOFA
+/// are the GB206 additions (:825, :865).
 pub const ENG_DESC_CLASSES: &[(&str, u32)] = &[
     ("Graphics", 0xd3_34df),
     ("OBJCE", 0x79_3ceb),
@@ -254,10 +285,13 @@ pub const ENG_DESC_CLASSES: &[(&str, u32)] = &[
     ("OBJMSENC", 0xe9_7b6c),
     ("OBJSEC2", 0x28_c408),
     ("OBJSWENG", 0x95_a6f5),
+    ("OBJNVJPG", 0x2b_3a54),
+    ("OBJOFA", 0xdd_7bab),
 ];
 
 /// `MC_ENGINE_IDX_*` (src/nvidia/inc/kernel/gpu/intr/engine_idx.h:39-172), an array
-/// index in the guest.
+/// index in the guest. CE7, NVJPEG0 (= MC_ENGINE_IDX_NVJPG) and OFA0 are the GB206
+/// additions (:61, :91-93, :125).
 pub const MC_ENGINE_IDX: &[(&str, u32)] = &[
     ("NULL", 0),
     ("DISP", 2),
@@ -268,15 +302,18 @@ pub const MC_ENGINE_IDX: &[(&str, u32)] = &[
     ("CE2", 17),
     ("CE3", 18),
     ("CE4", 19),
+    ("CE7", 22),
     ("NVENC0", 38),
     ("SEC2", 47),
     ("GSP", 50),
+    ("NVJPEG0", 51),
     ("REPLAYABLE_FAULT", 59),
     ("ACCESS_CNTR", 60),
     ("NON_REPLAYABLE_FAULT", 61),
     ("NVDEC0", 65),
     ("NVDEC1", 66),
     ("NVDEC2", 67),
+    ("OFA0", 81),
     ("GR0", 84),
 ];
 
@@ -292,8 +329,14 @@ pub const INTR_CATEGORIES: &[(&str, u32)] = &[
     ("UVM_SHARED", 6),
 ];
 
-/// `NV2080_CTRL_FB_INFO_RAM_TYPE_*` (sdk/ctrl/ctrl2080/ctrl2080fb.h:400-420).
-pub const RAM_TYPES: &[(&str, u32)] = &[("GDDR5", 0x08), ("GDDR5X", 0x10), ("GDDR6", 0x11)];
+/// `NV2080_CTRL_FB_INFO_RAM_TYPE_*` (sdk/ctrl/ctrl2080/ctrl2080fb.h:400-423; GDDR7 for
+/// GB206 at :423).
+pub const RAM_TYPES: &[(&str, u32)] = &[
+    ("GDDR5", 0x08),
+    ("GDDR5X", 0x10),
+    ("GDDR6", 0x11),
+    ("GDDR7", 0x15),
+];
 
 /// The number `name` has in `table`, or `None`.
 pub fn lookup(table: &[(&str, u32)], name: &str) -> Option<u32> {
@@ -1263,6 +1306,43 @@ mod tests {
         assert_eq!(
             field(w, "vgaWorkspaceOffset"),
             WPR_META_VGA_WORKSPACE_OFFSET
+        );
+
+        for (f, off) in [
+            ("sizeOfRadix3Elf", WPR_META_SIZE_OF_RADIX3_ELF),
+            ("sizeOfBootloader", WPR_META_SIZE_OF_BOOTLOADER),
+            ("gspFwHeapOffset", WPR_META_GSP_FW_HEAP_OFFSET),
+            ("gspFwHeapSize", WPR_META_GSP_FW_HEAP_SIZE),
+            ("gspFwOffset", WPR_META_GSP_FW_OFFSET),
+            ("bootBinOffset", WPR_META_BOOT_BIN_OFFSET),
+            ("frtsSize", WPR_META_FRTS_SIZE),
+            ("vgaWorkspaceSize", WPR_META_VGA_WORKSPACE_SIZE),
+            ("pmuReservedSize", WPR_META_PMU_RESERVED_SIZE),
+        ] {
+            assert_eq!(field(w, f), off, "{f}");
+        }
+        let i = "GspStaticConfigInfo";
+        assert_eq!(
+            field(i, "fwWprLayoutOffset.nonWprHeapOffset"),
+            SI_FW_WPR_NON_WPR_HEAP_OFFSET
+        );
+        assert_eq!(
+            field(i, "fwWprLayoutOffset.frtsOffset"),
+            SI_FW_WPR_FRTS_OFFSET
+        );
+        let fmc = "GSP_FMC_BOOT_PARAMS";
+        assert_eq!(size(fmc), FMC_PARAMS_SIZE);
+        assert_eq!(
+            field(fmc, "bootGspRmParams.gspRmDescSize"),
+            FMC_GSP_RM_DESC_SIZE
+        );
+        assert_eq!(
+            field(fmc, "bootGspRmParams.gspRmDescOffset"),
+            FMC_GSP_RM_DESC_OFFSET
+        );
+        assert_eq!(
+            field(fmc, "gspRmParams.bootArgsOffset"),
+            FMC_BOOT_ARGS_OFFSET
         );
 
         let l = "LibosMemoryRegionInitArgument";

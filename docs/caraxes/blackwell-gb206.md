@@ -380,10 +380,10 @@ boot (every `unanswered` is a row).
 | FIFO device-info table, PES info | refused on 615 because the tool uses 610 sizes | rebuild the three tools with 615 layouts (the fingerprint in `abi-check-home.txt` lists exactly these two) |
 | L2 size, LTC/LTS counts, RAM type, bus width | not in nvidia-smi -q | add FB_GET_INFO_V2 indices L2_CACHE_SIZE, LTC_COUNT, LTS_COUNT, RAM_TYPE, BUS_WIDTH to host-facts H3 |
 | EDIDs | 0 EDIDs, all connectors disconnected (1.10) | plug a monitor; only for the display model |
-| FWSEC image behind the BAR0 PROM window | not needed by a 610/615 guest on GB20x (ROM not parsed); needed only for nova-core | needs a BAR0 register read, which the kit forbids (lab-blackwell.md §6); operator decision |
+| FWSEC image behind the BAR0 PROM window | not needed by a 610/615 guest on GB20x (ROM not parsed); needed only for nova-core | `lab-capture.sh --prom` (opt-in, sudo, read-only; section 7.3), after the operator's decision of section 6 |
 | linux-firmware `gb206/` file list | `firmware-files.txt:3` shows the directory, not its files | list `/lib/firmware/nvidia/gb206/**` with sizes and sums (nova-core) |
 | pci.ids name | the run named the chip `10de-2d04` | map 2d04 in `chip_of` or update pci.ids |
-| Class 0x4f32fd | constructed falcon not in the open tree (1.6) | nothing; ask whether it matters |
+| Class 0x4f32fd | constructed falcon not in the open tree (1.6) | most likely the Neural Net Engine (NNE), section 7.2 |
 
 A verbose kernel log of the GSP boot would help the boot model, but it needs a module parameter
 change, which the kit forbids; the source sequence of 2.2 replaces it.
@@ -414,6 +414,7 @@ them may appear in the synthetic device, in a chip or board file, or in a trace 
 | GPU UUID | `gpu/proc-information.txt:5`, `gpu/nvidia-smi-q.txt:31` | the per-VM UUID the device already derives (`GspStaticConfigInfo.gidInfo`, 615: `NVGMC_SC_GPU_GID_SHA1`; identity-profile.md, "GPU UUID", and the naming model, whose GID is seeded by the Leandro name) |
 | GPU PDI | `gpu/nvidia-smi-q.txt:32` | `bPdiValid` false, or a PDI derived like the UUID (`GspStaticConfigInfo.pdi`, 615: `NVGMC_SC_PDI`) |
 | PCIe Device Serial Number | `gpu/lspci-vvv.txt:91`, `gpu/config-space.txt` offset 0x2f4-0x2ff | capability removed from the synthetic config space (1.2) |
+| Four bytes of the GPU UUID in the vendor-specific (PBI mailbox) capability | `gpu/config-space.txt` offset 0xa8-0xab (found 2026-09-24, section 7.1; the PBI DATAOUT register, `src/nvidia/src/kernel/platform/chipset/pci_pbi.c:42-55`) | capability removed and zeroed for every board (`config.rs` `for_board`); the capability's data and the DSN serial are now `xx` in the capture's working tree and redacted by `lab-capture.sh` for future captures (`redact_config`); `SHA256SUMS` updated for the two files; older revisions keep the bytes |
 | Board serial and chassis serial | redacted in the capture (`gpu/nvidia-smi-q.txt:30,41`) | none; the device answers the serial controls with an empty or synthetic value, never a forwarded one |
 | ECID (chip manufacturing id) | not captured; the GSP reports it (`GspStaticConfigInfo.ecidInfo`, 615: `NVGMC_SC_ECID_INFO`) | zero or synthetic |
 | InfoROM image and OEM object, time run (36191367 s) | `gpu/nvidia-smi-q.txt:48-57` | synthetic InfoROM answers of the device, not these |
@@ -1499,3 +1500,93 @@ the merged version keeps both lists.
 
 Context for planning: once v1 runs in the university lab, that lab gives access to every
 generation except Ampere, and the agent runners can run there.
+
+## 7. Follow-ups of 2026-09-24: the N gate package
+
+### 7.1 State of the section 4 steps
+
+- Step 1 (board data): `boards/rtx5060ti.toml` is built in (`--board-data rtx5060ti`): the
+  captured config space with MSI-X unlinked by `msix = false` (a board switch, refused when
+  true until the device implements MSI-X), the extended space (SR-IOV, ARI, DSN, both
+  resizable-BAR capabilities) not presented, and the vendor-specific capability at 0x9C
+  removed and zeroed: it is the PBI mailbox (`hdr:blackwell/gb100/dev_pcfg_pf0.h:32-37`),
+  and its data dwords at 0xA8 in `gpu/config-space.txt` hold four bytes of the card's UUID
+  (checked against `gpu/proc-information.txt` without printing it), a per-card value of 2.5
+  that the 1.2 table missed; config.rs removes it for every board, BAR0 64 MiB, BAR1 256 MiB, BAR3 32 MiB, I/O 128 B,
+  ROM 512 KiB serving the two captured images unchanged. The subsystem stays ASUS 1043:8a08,
+  as the RTX 2070 keeps its Gigabyte id: the identity profile does not replace board identity
+  (identity-profile.md, "PCI identity"). No value of 2.5 is used.
+- Step 2 (version tables and chip): the names of 2.1 are in `src/ver/v610.rs`; the drafts in
+  `chips/gb206/` are loaded by `src/chip/gb206.rs` (`--chip gb206`). The GMMU format is
+  declared `gmmu-v3-57bit`, which loads but is not walked (`MMU_FORMATS_UNWALKED`, step 7).
+  Values the capture does not give are synthesized and labelled (L2 and LTC counts, channels
+  per runlist, fault buffers); the Blackwell register surface is taken from the headers the
+  GB20x HALs include (chip.toml comments), unverified until the N gate trace.
+- Step 5 (FSP boot model): `src/chip/boot_fsp.rs`, source trace
+  [gsp-boot-blackwell.md](gsp-boot-blackwell.md), unit-tested up to the linked GSP queues.
+- Steps 3, 4, 6 to 9: the N gate, [blackwell-gate.md](blackwell-gate.md) (defined, not run).
+
+### 7.2 The constructed falcon with class 0x4f32fd
+
+The capture's last constructed falcon is `engDesc=0x4f32fd00 (class 0x4f32fd inst 0)
+ctxAttr=0x2 ctxBufferSize=0x1000 addrSpaceList=0x3 registerBase=0x0`
+(`gb206/rm-tools/fifo-host-query.txt:35`), right after OFA (`:34`).
+
+- The value is in neither open tree as a class id or engine descriptor (searched
+  case-insensitively, with and without `0x`, in `vendor/open-gpu-kernel-modules` and
+  `615:`; the only two hits are coincidental substrings of firmware blob constants,
+  `615:src/nvidia/generated/g_bindata_kgspGetBinArchiveConcatenatedFMC_GB100.c:10727`).
+- The list comes from physical RM: the kernel only consumes
+  `NV2080_CTRL_CMD_GPU_GET_CONSTRUCTED_FALCON_INFO` (0x208001B0,
+  `src/common/sdk/nvidia/inc/ctrl/ctrl2080/ctrl2080gpu.h:4463`) and wraps every entry except
+  SEC2 in a `GenericKernelFalcon` with the reported context-buffer size
+  (`gpuBuildGenericKernelFalconList_IMPL`, `src/nvidia/src/kernel/gpu/gpu.c:5704-5770`); the
+  populating side (`gpuAddConstructedFalcon`, `generated/g_gpu_nvoc.h:2414-2419`) has no caller
+  in the open tree. A falcon only GSP-RM constructs can therefore carry a class the open tree
+  never defines.
+- `engDesc` is `MKENGDESC(classId(X), instance)`, so X is an engine class. Of the 109 engine
+  classes `g_eng_desc_nvoc.h` names (110 in `615:`), exactly one has no
+  `__nvoc_class_id_*` define in either tree: **OBJNNE**, `ENG_CLASS_NNE classId(OBJNNE)` and
+  `ENG_NNE MKENGDESC(ENG_CLASS_NNE, 0)` (`src/nvidia/generated/g_eng_desc_nvoc.h:1093, 1209`),
+  the "Neural Net Engine (NNE)" whose module is compiled out of the open build
+  (`src/nvidia/generated/rmconfig.h:845`, `RMCFG_MODULE_NNE 0`) and which the GPU child list
+  carries as a single instance (`src/nvidia/inc/kernel/gpu/gpu_child_list.h:67`). Instance 0
+  matches. Checked by script over both headers, 2026-09-24.
+- The other candidates with open class ids do not match: KernelGsp 0x311d4e, KernelGsplite
+  0x927969 (GB202 child list, `src/nvidia/src/kernel/gpu/arch/blackwell/kern_gpu_gb202.c:91`),
+  KernelCcu 0x5d5b68, Spdm 0x261ee8, ConfidentialCompute 0x9798cc, Oob 0x98b919, and
+  the eleven other falcons of the list, which all resolve to open ids.
+
+Most likely, then: the NNE falcon, a physical-RM-only engine of GB20x with a 4 KiB context
+buffer and no CPU-visible register base (FSP reports 0xffffffff instead). Confidence
+medium: the argument is by elimination over the engine-class table; nothing in either tree
+names 0x4f32fd. For the device: a GB206 guest wraps it generically and never touches a
+register of it, so the synthetic falcon list may carry it as captured or leave it out; the
+N gate shows whether the kernel asks. A GB206 lab host could confirm it by the control's
+answer on a driver whose RM exposes an NNE control (`NV2080_CTRL_NNE` 0x37,
+`ctrl2080base.h:93`), which no tool here calls.
+
+### 7.3 The PROM read (`lab-capture.sh --prom`)
+
+The kit reads the VBIOS through the BAR0 PROM window on request: sysfs `resource0` opened
+read-only and mapped `PROT_READ`, the 1 MiB window at `NV_PROM_DATA` 0x300000
+(`src/common/inc/swref/published/turing/tu102/dev_ext_devices.h:27`) read with aligned 32-bit
+loads, as the kernel RM does (`s_promRead32`, `src/nvidia/src/kernel/gpu/gsp/arch/turing/kernel_gsp_vbios_tu102.c:74-86`)
+and nova-core does (its VBIOS scan of the same window, at most 1 MiB,
+https://docs.kernel.org/gpu/nova/core/vbios.html). The result, `prom.bin`, goes through the
+existing chain walk (`prom-walk.txt`) and becomes the manifest item `<bdf>.prom`; nothing is
+written to the card. First run on the RTX 2070 here (the operator runs it):
+
+```sh
+sudo -v && mkdir -p /tmp/prom-test && caraxes/tools/lab-capture.sh --prom --no-rm-tools --bdf 0000:2d:00.0 -o /tmp/prom-test
+```
+
+Expected outcome while `nvidia` drives the card: the item is recorded as `failed` with
+"mmap of resource0 refused (EINVAL)". This host runs with `CONFIG_IO_STRICT_DEVMEM=y`
+(the running kernel's config, read 2026-09-24), and that option makes the kernel refuse to
+map a BAR a driver has claimed (open-questions.md Q1, experiments.md "Safety envelope").
+Ubuntu kernels set it too, so korngold will very likely answer the same. The read then needs
+the card without a driver bound, which the kit never arranges (lab-blackwell.md section 6).
+Whether that is acceptable for one read is the operator's call. The code path is tested
+against a file laid out like `resource0`: the captured GB206 ROM at 0x300000 is read back
+and walked.

@@ -141,7 +141,7 @@ impl BootModel {
             system_info: None,
             unanswered: Vec::new(),
             pending: None,
-            fb: FakeFb::for_layout(&layout),
+            fb: FakeFb::for_layout(&layout).with_mmu_format(&d.gmmu.mmu_format),
             // Reset value as the VBIOS leaves it: the last MiB of FB (fb-model.md §4c).
             bar0_window: ((fb_bytes - (1 << 20)) >> 16) as u32,
             mmu_invalidate: (0, 0, 0),
@@ -838,9 +838,15 @@ impl BootModel {
                         );
                         let at = v::RM_CONTROL_PARAMS;
                         let params = p.get(at..at + size).unwrap_or(&[]);
-                        let a = self
-                            .ctrl
-                            .control(w(v::RM_CONTROL_H_CLIENT), h_object, cmd, params);
+                        // Controls only newer chips' kernels send come from the chip first
+                        // (chip/physical.rs), the rest from the dispatcher.
+                        let a = match crate::chip::physical::answer(self.chip.data(), cmd, params) {
+                            Some(a) => a,
+                            None => {
+                                self.ctrl
+                                    .control(w(v::RM_CONTROL_H_CLIENT), h_object, cmd, params)
+                            }
+                        };
                         notes.push(format!(
                             "ctrl {cmd:#x}: {} -> status {:#x} [{}]",
                             a.note, a.status, a.label

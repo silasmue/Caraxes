@@ -440,6 +440,27 @@ pub fn build_static_info(
         pde_source,
     );
 
+    // fwWprLayoutOffset: where the WPR ended up. The kernel RM takes nonWprHeapOffset and
+    // frtsOffset from here only where ACR lays the WPR out (GH100, GB20x;
+    // kernel_gsp.c:4712-4728); a Turing guest does not read it (gsp-abi-610.md).
+    if let Some(w) = wpr {
+        put64(
+            &mut b,
+            v::SI_FW_WPR_NON_WPR_HEAP_OFFSET,
+            w.non_wpr_heap_offset,
+        );
+        put64(&mut b, v::SI_FW_WPR_FRTS_OFFSET, w.frts_offset);
+        label(
+            &mut labels,
+            "fwWprLayoutOffset",
+            format!(
+                "nonWprHeapOffset {:#x} frtsOffset {:#x}",
+                w.non_wpr_heap_offset, w.frts_offset
+            ),
+            "guest (WPR meta; on GB20x as the FSP model laid it out)",
+        );
+    }
+
     b[v::SI_VBIOS_VALID] = 1;
     put32(&mut b, v::SI_VBIOS_SUB_VENDOR, id.pci.sub_vendor as u32);
     put32(&mut b, v::SI_VBIOS_SUB_DEVICE, id.pci.sub_device as u32);

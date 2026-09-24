@@ -1,0 +1,17 @@
+UVM_INITIALIZE flags 0x0: ioctl 0 rmStatus 0x0
+UVM_REGISTER_GPU GPU-0796ae38-3ef8-3a1a-075f-47e3c0d215c7 ...
+UVM_REGISTER_GPU: ioctl 0 rmStatus 0x56 numaEnabled 0 numaNodeId 0
+uvm-register rc=1
+[  224.405084] NVRM: nvidia_open...
+[  224.405090] NVRM: nvidia_ctl_open
+[  224.405093] NVRM: nvidia_open...
+[  224.405095] NVRM: GPU 0000:00:05.0: Opening GPU with minor number 0
+[  224.405183] NVRM: GPU 0000:00:05.0: Opening GPU with minor number 0
+[  224.410904] NVRM: nvAssertFailedNoLog: Assertion failed: kgrmgrGetLegacyKGraphicsStaticInfo(pGpu, pKernelGraphicsManager)->pGrInfo != NULL @ nv_gpu_ops.c:7090
+[  224.553142] NVRM: GPU0 nvAssertFailedNoLog: Assertion failed: kgrmgrGetLegacyKGraphicsStaticInfo(pGpu, pKernelGraphicsManager)->pGrInfo != NULL @ kernel_fifo.c:2771
+[  224.658245] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Call not supported [NV_ERR_NOT_SUPPORTED] (0x00000056) returned from pRmApi->Control(pRmApi, pGpu->hInternalClient, pGpu->hInternalSubdevice, NV2080_CTRL_CMD_CE_GET_PHYSICAL_CAPS, &physicalCaps, sizeof(physicalCaps)) @ kernel_ce.c:564
+[  224.658286] NVRM: queryCopyEngines: queryCopyEngines:8707: Call not supported [NV_ERR_NOT_SUPPORTED]
+[  224.661844] nvidia-uvm: uvm_gpu.c:1650 init_gpu[pid:2223] Failed to initialize the channel manager: Call not supported [NV_ERR_NOT_SUPPORTED], GPU ID 1: GPU-0796ae38-3ef8-3a1a-075f-47e3c0d215c7 GI-0796ae38-3ef8-3a1a-075f-47e3c0d215c7
+[  224.672497] NVRM: nvidia_close on GPU with minor number 0
+[  224.672504] NVRM: nvidia_close on GPU with minor number 255
+[  224.672505] NVRM: nvidia_ctl_close

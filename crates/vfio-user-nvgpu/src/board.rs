@@ -54,6 +54,9 @@ pub struct Board {
     pub rom_bar_size: u64,
     /// The board's display outputs (`[display]`, read by display/mod.rs).
     pub display: Option<toml::Value>,
+    /// Present the MSI-X capability of the capture. `false` (the default) unlinks it
+    /// from the capability chain; `true` is refused until the device implements MSI-X.
+    pub msix: bool,
 }
 
 #[derive(Deserialize)]
@@ -68,6 +71,8 @@ struct BoardFile {
     rom_bar_size: u64,
     #[serde(default)]
     display: Option<toml::Value>,
+    #[serde(default)]
+    msix: bool,
 }
 
 #[derive(Deserialize)]
@@ -80,15 +85,17 @@ struct BarFile {
 }
 
 const RTX2070: &str = include_str!("../boards/rtx2070.toml");
+const RTX5060TI: &str = include_str!("../boards/rtx5060ti.toml");
 
 /// The boards compiled into the binary, by `--board-data` name.
-pub const BOARDS: &[&str] = &["rtx2070"];
+pub const BOARDS: &[&str] = &["rtx2070", "rtx5060ti"];
 
 impl Board {
     /// A built-in board by name, or a board file by path.
     pub fn load(name_or_path: &str) -> Result<Self, String> {
         match name_or_path {
             "rtx2070" => Self::parse("boards/rtx2070.toml", RTX2070),
+            "rtx5060ti" => Self::parse("boards/rtx5060ti.toml", RTX5060TI),
             path => {
                 let text = std::fs::read_to_string(path)
                     .map_err(|e| format!("read board data {path}: {e}"))?;
@@ -137,6 +144,11 @@ impl Board {
                 f.rom_bar_size
             ));
         }
+        if f.msix {
+            return Err(format!(
+                "{file}: msix = true is not implemented (the device offers INTx and MSI only, device.rs irqs)"
+            ));
+        }
         let (vbios_revision, vbios_oem_revision) = parse_vbios_version(&f.vbios_version)
             .ok_or_else(|| {
                 format!(
@@ -155,6 +167,7 @@ impl Board {
             bars,
             rom_bar_size: f.rom_bar_size,
             display: f.display,
+            msix: f.msix,
         })
     }
 
@@ -222,5 +235,24 @@ mod tests {
         assert_eq!(parse_vbios_version("90.06.3d.00.7"), Some((0x9006_3D00, 7)));
         assert_eq!(parse_vbios_version("90.06"), None);
         assert!(Board::parse("x", "name = 1").is_err());
+        assert!(!b.msix);
+    }
+
+    #[test]
+    fn rtx5060ti_is_the_gb206_capture() {
+        let b = Board::load("rtx5060ti").unwrap();
+        assert_eq!((b.name.as_str(), b.chip.as_str()), ("RTX 5060 Ti", "gb206"));
+        assert_eq!(
+            (b.vbios_revision, b.vbios_oem_revision),
+            (0x9806_1F40, 0x4A)
+        );
+        assert_eq!(b.region_bar_sizes(), [64 << 20, 256 << 20, 32 << 20, 0x80]);
+        assert_eq!(b.rom_bar_size, 512 << 10);
+        assert!(!b.msix && b.display.is_none());
+        assert!(b.config.starts_with("caraxes/reference/gb206/"));
+        // MSI-X on is refused until the device implements it.
+        let on = RTX5060TI.replace("msix = false", "msix = true");
+        let e = Board::parse("x", &on).unwrap_err();
+        assert!(e.contains("msix"), "{e}");
     }
 }

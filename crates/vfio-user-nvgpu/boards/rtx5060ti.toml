@@ -1,0 +1,43 @@
+# SPDX-License-Identifier: MIT
+#
+# The board axis (decision D14, docs/caraxes/versatility.md): the RTX 5060 Ti (GB206)
+# as captured in the lab (caraxes/reference/gb206/, docs/caraxes/blackwell-gb206.md).
+# PCI ids, subsystem ids, class, revision and the standard capability chain come from
+# the config-space capture named here; the extended space (SR-IOV, ARI, the Device
+# Serial Number, the resizable-BAR capabilities) is not presented (config.rs zeroes it),
+# the vendor-specific capability at 0x9C (the PBI mailbox, whose data dwords in the
+# capture hold part of the card's UUID) is removed for every board (config.rs for_board),
+# and MSI-X is unlinked from the chain while `msix` is false. No per-card value of the
+# capture (UUID, PDI, serials, ECID, InfoROM; blackwell-gb206.md 2.5) is used.
+# Everything can be overridden on the command line (--chip, --config, --rom, --board,
+# --vbios-version) or by a copy of this file (--board-data <path>).
+
+# The personality in the guest name: "Leandro VFIO RTX 5060 Ti-4G" (identity-profile.md).
+name = "RTX 5060 Ti"
+chip = "gb206"
+# Captures of the physical card (relative to LEA_ROOT). The subsystem id stays the
+# captured board's (ASUS 1043:8a08), as the RTX 2070 keeps its Gigabyte id: the identity
+# profile does not replace board identity yet (identity-profile.md, "PCI identity").
+config = "caraxes/reference/gb206/gpu-0000_01_00.0/config-space.txt"
+# The two captured ROM images (x86 and EFI, 162304 bytes), served unchanged through the
+# expansion ROM BAR and the PROM window; a GB20x guest does not parse them
+# (blackwell-gb206.md 1.4). Read at run time; the device refuses to start without it.
+rom = "caraxes/reference/gb206/gpu-0000_01_00.0/rom.bin"
+# BIT BIOSDATA 98.06.1f.40.4a (caraxes/reference/gb206/gpu-0000_01_00.0/rom-walk.txt:8).
+vbios_version = "98.06.1F.40.4A"
+# MSI-X capability (config 0xB0, 9 vectors on the card, lspci-vvv.txt:49-51): off, the
+# operator's first default (blackwell-gb206.md 6); the guest then uses MSI as on TU106.
+# `true` is refused until the device implements MSI-X over vfio-user.
+msix = false
+
+# BAR0 64 MiB registers; BAR1 256 MiB framebuffer window (the operator's first default;
+# the card's firmware default is 16 GiB, resizable 64 MiB to 16 GiB, bars.txt:4,12);
+# BAR3 32 MiB; 128 B I/O (caraxes/reference/gb206/gpu-0000_01_00.0/bars.txt:3-6).
+bars = [
+    { kind = "mem32", size = 0x400_0000, prefetch = false },
+    { kind = "mem64", size = 0x1000_0000, prefetch = true },
+    { kind = "mem64", size = 0x200_0000, prefetch = true },
+    { kind = "io", size = 0x80 },
+]
+# Expansion ROM BAR size (512 KiB, bars.txt:18).
+rom_bar_size = 0x8_0000

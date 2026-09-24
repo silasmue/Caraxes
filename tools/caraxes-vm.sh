@@ -74,7 +74,22 @@ SERVER=${CARAXES_SERVER:-$LEA_ROOT/target/release/vfio-user-nvgpu}
 IDENTITY=()
 [[ -n ${CARAXES_FB_MIB:-} ]] && IDENTITY+=(--fb-mib "$CARAXES_FB_MIB")
 [[ -n ${CARAXES_NAME_FORMAT:-} ]] && IDENTITY+=(--name-format "$CARAXES_NAME_FORMAT")
-REF=$LEA_ROOT/caraxes/reference/rtx2070
+# The chip the device presents (decision D14): tu106 (the RTX 2070, default) or gb206
+# (the RTX 5060 Ti of caraxes/reference/gb206/, board data rtx5060ti; the Blackwell N gate,
+# docs/caraxes/blackwell-gate.md). REF holds the chip's config-space and ROM captures.
+case ${CARAXES_CHIP:-tu106} in
+    tu106) REF=$LEA_ROOT/caraxes/reference/rtx2070 ;;
+    gb206) REF=$LEA_ROOT/caraxes/reference/gb206/gpu-0000_01_00.0
+           IDENTITY+=(--board-data rtx5060ti) ;;
+    *) printf 'ERROR: CARAXES_CHIP must be tu106 or gb206\n' >&2; exit 1 ;;
+esac
+# A Blackwell identity never touches the host card (the device refuses the host flags too).
+if [[ ${CARAXES_CHIP:-tu106} != tu106 ]]; then
+    for v in CARAXES_HOST_RM CARAXES_RESERVE_VRAM CARAXES_HOST_EXEC; do
+        [[ ${!v:-0} == 1 ]] && { printf 'ERROR: %s=1 with CARAXES_CHIP=%s: pure emulation only\n' "$v" "$CARAXES_CHIP" >&2; exit 1; }
+    done
+    [[ ${CARAXES_DMA:-} == register ]] && { printf 'ERROR: CARAXES_DMA=register with CARAXES_CHIP=%s: pure emulation only\n' "$CARAXES_CHIP" >&2; exit 1; }
+fi
 if [[ -z ${CARAXES_VBIOS:-} && -f $REF/synth-vbios.bin ]]; then CARAXES_VBIOS=$REF/synth-vbios.bin; fi
 
 error() { printf 'ERROR: %s\n' "$*" >&2; exit 1; }

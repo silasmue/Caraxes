@@ -18,7 +18,7 @@ use vfio_user_nvgpu::bar0::Bar0;
 use vfio_user_nvgpu::board::{Board, BOARDS};
 use vfio_user_nvgpu::boot::BootModel;
 use vfio_user_nvgpu::chip::{self, Chip};
-use vfio_user_nvgpu::config::{parse_dump, ConfigSpace};
+use vfio_user_nvgpu::config::{self as pci_config, ConfigSpace};
 use vfio_bindings::bindings::vfio::VFIO_PCI_BAR0_REGION_INDEX;
 use vfio_user_nvgpu::device::{
     doorbell_ioeventfd_requested, doorbell_sub_region, irqs, region_size, regions_with,
@@ -46,8 +46,8 @@ vfio-user-nvgpu --selftest <socket> [--board-data <name|file>] [--chip <chip>] [
 
   --socket   vfio-user socket to create (a stale socket file is removed)
   --trace    access log file (default: none; the summary always goes to stderr)
-  --board-data  board data: a built-in board or a boards/*.toml-shaped file (default: rtx2070)
-  --chip     the chip to present (default: the board's, tu106 for rtx2070)
+  --board-data  board data: a built-in board (rtx2070, rtx5060ti) or a boards/*.toml-shaped file (default: rtx2070)
+  --chip     the chip to present, tu106 or gb206 (default: the board's, tu106 for rtx2070, gb206 for rtx5060ti)
   --config   lspci -xxxx dump of the card (default: the board's, caraxes/reference/rtx2070/config-space.txt)
   --rom      PCI-visible ROM image for the expansion ROM region (default: the board's, caraxes/reference/rtx2070/rom.bin)
   --vbios    image served through the BAR0 PROM window (default: the --rom image)
@@ -208,6 +208,13 @@ fn parse_args() -> Result<Args> {
     if a.socket.is_none() && a.selftest.is_none() && !a.print_name {
         bail!("{USAGE}");
     }
+    // The host paths talk to the house card, a TU106 (docs/caraxes/blackwell-gb206.md
+    // section 4): any other chip identity runs in pure emulation.
+    let chip_name = &a.chip.data().name;
+    if chip_name != "tu106" && (a.host_rm || a.reserve_vram || a.register_guest_ram || a.host_exec)
+    {
+        bail!("--chip {chip_name} runs in pure emulation: --host-rm, --reserve-vram, --register-guest-ram and --host-exec need a host card of the same chip");
+    }
     if a.register_guest_ram && a.identity_dma_table {
         bail!("--register-guest-ram and --identity-dma-table exclude each other");
     }
@@ -226,11 +233,8 @@ fn parse_args() -> Result<Args> {
 fn config_space(a: &Args) -> Result<ConfigSpace> {
     let dump = std::fs::read_to_string(&a.config)
         .with_context(|| format!("read {}", a.config.display()))?;
-    ConfigSpace::from_dump(
-        parse_dump(&dump)?,
-        a.board_data.bars,
-        a.board_data.rom_bar_size,
-    )
+    // The board's capability filter (MSI-X) applies to any dump, also a --config one.
+    pci_config::for_board(&dump, &a.board_data)
 }
 
 /// Free the host memory on SIGTERM, SIGINT or SIGHUP, then exit. The signals are

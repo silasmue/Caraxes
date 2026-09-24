@@ -88,7 +88,7 @@
 		VF Migration: offset: 00000000, BIR: 0
 	Capabilities: [2a4 v1] Vendor Specific Information: ID=0001 Rev=1 Len=014 <?>
 	Capabilities: [2bc v1] Power Budgeting <?>
-	Capabilities: [2f4 v1] Device Serial Number b1-09-ef-d0-7e-2d-b0-48
+	Capabilities: [2f4 v1] Device Serial Number <redacted>
 	Kernel driver in use: nvidia
 	Kernel modules: nvidiafb, nouveau, nvidia_drm, nvidia
 
