@@ -239,6 +239,15 @@ impl BootModel {
     }
 
     /// Act on a host-side connector command (display/mod.rs `connector_command`): post
+    /// The display clock's tick with the display page (display/mod.rs `Display::tick`):
+    /// a waiting connector command first, as a trapped display read would do.
+    pub fn display_tick(&mut self, mem: &GuestMemory) -> Vec<String> {
+        if crate::display::engine::ticker().command_pending() {
+            self.post_display_command(mem);
+        }
+        self.ctrl.display.tick(&mut self.fb, mem)
+    }
+
     /// one `POST_EVENT` (0x1003, `rpc_post_event_v17_00`) per registered hotplug event.
     fn post_display_command(&mut self, mem: &GuestMemory) {
         let Some(cmd) = crate::display::engine::ticker().take_command() else {

@@ -24,6 +24,7 @@
 pub mod aux;
 pub mod edid;
 pub mod engine;
+pub mod fe_page;
 
 use std::collections::BTreeMap;
 use std::sync::Mutex;
@@ -84,6 +85,19 @@ static INTR: Mutex<Option<std::sync::Arc<crate::intr::IntrShared>>> = Mutex::new
 /// tree folds it in ([`intr_shared`]).
 pub fn set_intr_shared(shared: std::sync::Arc<crate::intr::IntrShared>) {
     *INTR.lock().unwrap() = Some(shared);
+}
+
+static FE_PAGE: Mutex<Option<std::sync::Arc<fe_page::FePage>>> = Mutex::new(None);
+
+/// The display page (`CARAXES_DISPLAY_PAGE=1`, fe_page.rs): every display engine created
+/// from now on (a device reset makes a new one) keeps its interrupt status there.
+pub fn set_fe_page(page: std::sync::Arc<fe_page::FePage>) {
+    *FE_PAGE.lock().unwrap() = Some(page);
+}
+
+/// The display page, when on.
+pub fn fe_page() -> Option<std::sync::Arc<fe_page::FePage>> {
+    FE_PAGE.lock().unwrap().clone()
 }
 
 /// The file the display polls for host-side connector commands (engine.rs).
@@ -394,6 +408,9 @@ impl Display {
         }
         disp.enabled = true;
         disp.engine = engine::Engine::new(chip.heads as usize, chip.windows as usize);
+        if let Some(p) = fe_page() {
+            disp.engine.attach_page(p);
+        }
         if let Some(i) = intr_shared() {
             engine::ticker().attach(i, chip.intr_vector);
         }
@@ -1234,6 +1251,21 @@ impl Display {
             self.engine.catch_up(engine::now_ns(), fb, mem);
         }
         self.read32(off)
+    }
+
+    /// The display clock's tick with the display page (engine.rs `Ticker::set_driver`):
+    /// the guest's reads of the status no longer trap, so the clock advances the engine
+    /// (latches, notifiers, `LAST_DATA`, AWAKEN, the raise) and returns the trace's notes.
+    pub fn tick(&mut self, fb: &mut FakeFb, mem: &GuestMemory) -> Vec<String> {
+        if !self.enabled {
+            return Vec::new();
+        }
+        self.engine.catch_up(engine::now_ns(), fb, mem);
+        let mut n = self.take_engine_notes();
+        if let Some(p) = fe_page() {
+            n.extend(p.take_notes());
+        }
+        n
     }
 
     /// Notes of the engine not yet in the trace.

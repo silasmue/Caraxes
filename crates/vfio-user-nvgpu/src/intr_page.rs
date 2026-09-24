@@ -144,8 +144,9 @@ fn watched_offset(i: usize) -> u64 {
     }
 }
 
-/// One mapped page of the memfd, as 1024 words the guest also writes.
-struct Mapping {
+/// One mapped page of the memfd, as 1024 words the guest also writes (also the display
+/// front-end page, display/fe_page.rs).
+pub(crate) struct Mapping {
     ptr: NonNull<AtomicU32>,
 }
 
@@ -156,7 +157,7 @@ unsafe impl Send for Mapping {}
 unsafe impl Sync for Mapping {}
 
 impl Mapping {
-    fn new(fd: RawFd, offset: u64) -> std::io::Result<Self> {
+    pub(crate) fn new(fd: RawFd, offset: u64) -> std::io::Result<Self> {
         // SAFETY: a fresh shared mapping of an fd we own; checked before use.
         let p = unsafe {
             libc::mmap(
@@ -177,7 +178,7 @@ impl Mapping {
     }
 
     /// The word at byte offset `off` (dword-aligned, below `PAGE`).
-    fn word(&self, off: u64) -> &AtomicU32 {
+    pub(crate) fn word(&self, off: u64) -> &AtomicU32 {
         assert!(off < PAGE && off % 4 == 0);
         // SAFETY: in bounds of the page mapped in `new`; AtomicU32 has u32's layout.
         unsafe { &*self.ptr.as_ptr().add((off / 4) as usize) }
@@ -390,6 +391,18 @@ impl IntrPage {
     /// The sparse areas of region 0: (offset, size), file offset = region offset.
     pub fn areas(&self) -> [(u64, u64); 2] {
         [(0, PAGE), (self.tree_base, PAGE)]
+    }
+
+    /// Map one more page of the memfd (the display front-end page, display/fe_page.rs):
+    /// `off` page-aligned, inside BAR0 and neither of the two pages.
+    pub(crate) fn map_page(&self, off: u64) -> Result<Mapping, String> {
+        if off % PAGE != 0 || off + PAGE > self.size || self.covers(off) {
+            return Err(format!(
+                "BAR0 {off:#x}: not a free page of its own within BAR0 ({:#x})",
+                self.size
+            ));
+        }
+        Mapping::new(self.fd.as_raw_fd(), off).map_err(|e| format!("mmap page {off:#x}: {e}"))
     }
 
     /// Whether BAR0 offset `off` lies in one of the two pages.
@@ -789,6 +802,8 @@ impl IntrPage {
 /// millisecond, the wake eventfd that raises write.
 pub struct PageHook {
     page: Arc<IntrPage>,
+    /// The display page (`CARAXES_DISPLAY_PAGE=1`, display/fe_page.rs), scanned first.
+    fe: Option<Arc<crate::display::fe_page::FePage>>,
     wake: File,
     iterations: u32,
     last_tick: Instant,
@@ -809,6 +824,7 @@ impl PageHook {
         Ok((
             PageHook {
                 page,
+                fe: None,
                 wake,
                 iterations: 0,
                 last_tick: Instant::now(),
@@ -818,15 +834,33 @@ impl PageHook {
     }
 }
 
+impl PageHook {
+    /// Scan the display page too, before the tree: a raise it makes after an ack is folded
+    /// into the tree in the same iteration.
+    pub fn with_display(mut self, fe: Arc<crate::display::fe_page::FePage>) -> Self {
+        self.fe = Some(fe);
+        self
+    }
+}
+
 impl crate::poll::Hook for PageHook {
     fn poll(&mut self, woken: bool) -> bool {
-        let mut work = self.page.scan().work;
+        // An outstanding awaken marker keeps a hybrid reactor spinning, so the guest's
+        // CORE_RESET is seen within one iteration (display/fe_page.rs).
+        let mut work = self
+            .fe
+            .as_ref()
+            .is_some_and(|f| f.scan() | f.busy(Instant::now()));
+        work |= self.page.scan().work;
         self.iterations = self.iterations.wrapping_add(1);
         if woken || self.iterations % TICK_ITERATIONS == 0 {
             let now = Instant::now();
             if now.saturating_duration_since(self.last_tick) >= Duration::from_millis(1) {
                 self.last_tick = now;
                 work |= self.page.tick(now);
+                if let Some(f) = &self.fe {
+                    work |= f.tick(now);
+                }
             }
         }
         work

@@ -25,6 +25,7 @@ use vfio_user_nvgpu::device::{
     region_size, regions_with_pages, spawn_doorbell_reader_hooked, spawn_token_reader_hooked,
     Bar0Areas, Bar1Area, Bar2Region, Device, GuestRam, SharedDevice, DOORBELL_IOEVENTFD_ENV,
 };
+use vfio_user_nvgpu::display::fe_page::{self, FePage};
 use vfio_user_nvgpu::fb::FbLayout;
 use vfio_user_nvgpu::hostmem::HostMemory;
 use vfio_user_nvgpu::hostrm::HostRmClient;
@@ -347,6 +348,9 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
     // The interrupt page (docs/caraxes/intr-page.md): the guest's acks and enable writes
     // land in memory and are seen only by a polling reactor.
     let intr_page_config = intr_page::requested().map_err(anyhow::Error::msg)?;
+    // The display front-end page (display/fe_page.rs): a third area of the same memfd.
+    let display_page =
+        fe_page::requested(intr_page_config.is_some(), a.display).map_err(anyhow::Error::msg)?;
     if intr_page_config.is_some() {
         if poll.mode == vfio_user_nvgpu::poll::Mode::Off {
             bail!(
@@ -668,11 +672,44 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
         }
         None => None,
     };
+    let fe = match (&intr_page, display_page) {
+        (Some(page), true) => {
+            let fe = FePage::create(page)
+                .map_err(|e| anyhow::anyhow!("{}=1: {e}", fe_page::DISPLAY_PAGE_ENV))?;
+            FePage::check(&vfio_user_nvgpu::display::engine::Engine::handles, &|off| {
+                bar0.boot().is_some_and(|b| b.owns_register(off))
+            })
+            .map_err(|e| anyhow::anyhow!("{}=1: {e}", fe_page::DISPLAY_PAGE_ENV))?;
+            // Every display engine from now on keeps its status in the page; the one the
+            // boot model already made takes it now.
+            vfio_user_nvgpu::display::set_fe_page(fe.clone());
+            match bar0.boot_mut() {
+                Some(b) if b.ctrl.display.enabled => b.ctrl.display.engine.attach_page(fe.clone()),
+                _ => bail!(
+                    "{}=1: the display engine is not present",
+                    fe_page::DISPLAY_PAGE_ENV
+                ),
+            }
+            bar0 = bar0.with_fe_page(fe.clone());
+            eprintln!(
+                "vfio-user-nvgpu: display page: BAR0 [{:#x}, {:#x}) (the display front-end interrupt status) offered as a third sparse mmap area; the display clock advances the engine at every tick, the reactor applies the guest's acks and enables, window AWAKENs are acknowledged by the CORE marker ({}=1, docs/caraxes/intr-page.md §10)",
+                fe_page::FE_PAGE,
+                fe_page::FE_PAGE + intr_page::PAGE,
+                fe_page::DISPLAY_PAGE_ENV
+            );
+            Some(fe)
+        }
+        _ => None,
+    };
     // The reactor's side of the page; from here on raises go through it.
     let mut page_hook: Option<Box<dyn vfio_user_nvgpu::poll::Hook>> = match &intr_page {
         Some(p) => {
             let (hook, wake) = PageHook::new(p.clone()).context("intr page wake eventfd")?;
             intr_shared.attach_page(wake);
+            let hook = match &fe {
+                Some(f) => hook.with_display(f.clone()),
+                None => hook,
+            };
             Some(Box::new(hook))
         }
         None => None,
@@ -710,7 +747,11 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
     });
     let bar0_areas = intr_page.as_ref().map(|p| Bar0Areas {
         fd: p.raw_fd(),
-        areas: p.areas(),
+        areas: p
+            .areas()
+            .into_iter()
+            .chain(fe.as_ref().map(|f| f.area()))
+            .collect(),
     });
     let mut server = Server::new(
         socket,
@@ -775,6 +816,16 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
             .unwrap_or_else(|| "off".into())
     );
     let device = Arc::new(Mutex::new(device));
+    if fe.is_some() {
+        // The display clock advances the engine at its ticks (the guest's status reads
+        // no longer trap and so no longer do it).
+        let d = device.clone();
+        vfio_user_nvgpu::display::engine::ticker().set_driver(Arc::new(move || {
+            d.lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .display_tick()
+        }));
+    }
     let mut readers = Vec::new();
     if let Some((offset, reader)) = doorbell {
         readers.push((
@@ -843,6 +894,9 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
     }
     if let Some(p) = &intr_page {
         eprint!("{}", p.summary());
+    }
+    if let Some(f) = &fe {
+        eprint!("{}", f.summary());
     }
     if let Some(why) = closed {
         // Fail closed (P20 item 4a): never report a clean exit when host state the GPU

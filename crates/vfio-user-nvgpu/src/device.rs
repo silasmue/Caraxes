@@ -282,10 +282,11 @@ pub fn regions_with(board: &Board, bar1: Option<Bar1Area>) -> Vec<ServerRegion> 
 
 /// The interrupt page (docs/caraxes/intr-page.md §2): region 0 mmap-able from the memfd
 /// `fd` over the sparse `areas` (offset, size) only.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 pub struct Bar0Areas {
     pub fd: std::os::fd::RawFd,
-    pub areas: [(u64, u64); 2],
+    /// (offset, size): the interrupt page's two pages, and the display page when on.
+    pub areas: Vec<(u64, u64)>,
 }
 
 /// The region table with the P21 BAR1 area and the interrupt page's BAR0 areas, each when
@@ -681,6 +682,18 @@ impl Device {
         &self.mem
     }
 
+    /// The display clock's tick with the display page (engine.rs `Ticker::set_driver`,
+    /// display/fe_page.rs): advance the display engine, trace its notes.
+    pub fn display_tick(&mut self) {
+        let notes = match self.bar0.boot_mut() {
+            Some(b) => b.display_tick(&self.mem),
+            None => return,
+        };
+        for n in notes {
+            self.trace.event(&format!("boot: {n}"));
+        }
+    }
+
     pub fn summary(&self) -> String {
         let mut s = self.trace.summary();
         if self.doorbell_wakeups > 0 {
@@ -999,9 +1012,9 @@ mod tests {
         let plain = regions(&board);
         let areas = Bar0Areas {
             fd: 9,
-            areas: [(0, 0x1000), (0xb8_1000, 0x1000)],
+            areas: vec![(0, 0x1000), (0xb8_1000, 0x1000)],
         };
-        let r = regions_with_pages(&board, None, None, Some(areas));
+        let r = regions_with_pages(&board, None, None, Some(areas.clone()));
         let b0 = &r[VFIO_PCI_BAR0_REGION_INDEX as usize];
         assert_eq!(b0.mmap_fd, Some(9));
         assert_ne!(b0.region_info.flags & VFIO_REGION_INFO_FLAG_MMAP, 0);
@@ -1021,7 +1034,7 @@ mod tests {
         // Areas outside the BAR are not offered.
         let bad = Bar0Areas {
             fd: 9,
-            areas: [(0, 0x1000), (16 << 20, 0x1000)],
+            areas: vec![(0, 0x1000), (16 << 20, 0x1000)],
         };
         let r = regions_with_pages(&board, None, None, Some(bad));
         assert!(r[0].mmap_fd.is_none());

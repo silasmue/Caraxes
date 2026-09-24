@@ -62,6 +62,9 @@ pub struct Bar0 {
     /// `CARAXES_INTR_PAGE=1`: page 0 and the interrupt tree's page are memory the guest
     /// maps (intr_page.rs); a trapped access there goes to that memory too.
     page: Option<std::sync::Arc<crate::intr_page::IntrPage>>,
+    /// `CARAXES_DISPLAY_PAGE=1`: the display front-end page 0x611000 is memory too
+    /// (display/fe_page.rs).
+    fe_page: Option<std::sync::Arc<crate::display::fe_page::FePage>>,
 }
 
 impl Bar0 {
@@ -80,12 +83,19 @@ impl Bar0 {
             boot: None,
             notes: Vec::new(),
             page: None,
+            fe_page: None,
         }
     }
 
     /// Serve the interrupt page's two pages from its memory (intr_page.rs).
     pub fn with_intr_page(mut self, page: std::sync::Arc<crate::intr_page::IntrPage>) -> Self {
         self.page = Some(page);
+        self
+    }
+
+    /// Serve the display page from its memory (display/fe_page.rs).
+    pub fn with_fe_page(mut self, page: std::sync::Arc<crate::display::fe_page::FePage>) -> Self {
+        self.fe_page = Some(page);
         self
     }
 
@@ -160,6 +170,9 @@ impl Bar0 {
         if let Some(p) = self.page.as_ref().filter(|p| p.covers(reg)) {
             return p.read32(reg);
         }
+        if let Some(p) = self.fe_page.as_ref().filter(|p| p.covers(reg)) {
+            return p.read32(reg);
+        }
         if self.pcfg.contains(&reg) {
             return cfg.dword((reg - self.pcfg.start) as usize);
         }
@@ -216,6 +229,10 @@ impl Bar0 {
     ) -> WriteEffect {
         if let Some(p) = self.page.as_ref().filter(|p| p.covers(offset)) {
             // The reactor applies it as it applies the guest's own stores.
+            p.write(offset, data);
+            return WriteEffect::Model;
+        }
+        if let Some(p) = self.fe_page.as_ref().filter(|p| p.covers(offset)) {
             p.write(offset, data);
             return WriteEffect::Model;
         }
