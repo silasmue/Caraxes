@@ -1,0 +1,9 @@
+13:32:02 vm1 up
+13:34:23 vm2 up
+13:36:46 sync-tests
+host watch pid 2804329 -> /home/silas/git/Caraxes/caraxes/runs/mapping-2026-09-24/f1-concurrent/b-gate/hostwatch.txt
+13:36:51 gates start
+13:43:02 gates done: vm1 exit=1 dur_s=371 start=13:36:51, vm2 exit=1 dur_s=354 start=13:36:51
+host watch: 70 samples, nvidia-smi max 0.087s mean 0.027s, 1195979 kernel log lines, 0 Xid lines, 0 alerts
+13:43:02 down
+13:43:23 done

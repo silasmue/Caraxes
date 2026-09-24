@@ -1,0 +1,23 @@
+== dev-vm1: reservation [0x169000000, 0x1e9000000); guest RAM IOVA chunks 0x7ffac0000000+0x40000000 0x7ffb00000000+0x40000000 0x7ffb40000000+0x40000000 0x7ffbc0000000+0x40000000
+166 shadow sync lines; union of mapped vidmem PAs [0x169200000, 0x1e8bb0000); sysmem chunks mapped from: 0x7ffac0000000 (316 maps) 0x7ffb40000000 (167 maps) 0x7ffbc0000000 (17220 maps)
+ok: every mapped vidmem PA inside the own reservation, none in the other's
+ok: every mapped sysmem chunk is one of the own registered chunks, none of the other's
+4 refused-leaf lines, 2 distinct:
+  Fb 0x2000 size 0x1000 kind 0xf x3: vidmem outside the reservation; lies in neither VM's range
+  Fb 0x16000 size 0x1000 kind 0xf x1: vidmem outside the reservation; lies in neither VM's range
+device DMA refusals: 8 (first 8 checked: none in the other VM's IOVA ranges)
+FB store accesses outside the reservation: 0 reads, 0 writes
+comptag audit: vidmem PTE kinds walked (kind:comptagline x count): 0x00:0x0x1003 0x06:0x0x757 -- all uncompressed (kind 0x06/0x00, comptagline 0): comptag hold satisfied
+== dev-vm2: reservation [0xa9000000, 0xe9000000); guest RAM IOVA chunks 0x7ff840000000+0x40000000 0x7ff880000000+0x40000000 0x7ff8c0000000+0x40000000 0x7ff940000000+0x40000000
+68 shadow sync lines; union of mapped vidmem PAs [0xa9200000, 0xe8bb0000); sysmem chunks mapped from: 0x7ff840000000 (1823 maps) 0x7ff8c0000000 (3854 maps) 0x7ff940000000 (11426 maps)
+ok: every mapped vidmem PA inside the own reservation, none in the other's
+ok: every mapped sysmem chunk is one of the own registered chunks, none of the other's
+2 refused-leaf lines, 1 distinct:
+  Fb 0x2000 size 0x1000 kind 0xf x2: vidmem outside the reservation; lies in neither VM's range
+device DMA refusals: 0 (first 0 checked: none in the other VM's IOVA ranges)
+FB store accesses outside the reservation: 0 reads, 0 writes
+comptag audit: vidmem PTE kinds walked (kind:comptagline x count): 0x00:0x0x511 0x06:0x0x434 -- all uncompressed (kind 0x06/0x00, comptagline 0): comptag hold satisfied
+== host Xid lines: 1; device pids [2767525, 2774871]; not contained: 1
+  NOT CONTAINED: Sep 24 13:20:35 manacor kernel: NVRM: Xid (PCI:0000:2d:00): 31, pid=2731076, name=vfio-user-nvgpu, channel 0x00000032, intr 00000000. MMU Fault: ENGINE GRAPHICS GPC2 GPCCLIENT_PROP_0 faulted @ 0x1_202c0000. Fault is of type FAULT_PTE ACCESS_TYPE_VIRT_WRITE
+RESULT: FAIL
+p20-check exit 1

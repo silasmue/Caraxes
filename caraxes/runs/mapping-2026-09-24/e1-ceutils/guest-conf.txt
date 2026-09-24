@@ -1,0 +1,4 @@
+options nvidia NVreg_GpuInitOnProbe=1 NVreg_ResmanDebugLevel=0 NVreg_RegistryDwords="RMDisableScrubOnFree=1;RmRcWatchdog=0"
+options nvidia-uvm uvm_disable_hmm=1
+# Caraxes E5b: nvidia is loaded by tools/caraxes-vm.sh after caraxes_dma_range installed the DMA table
+blacklist nvidia

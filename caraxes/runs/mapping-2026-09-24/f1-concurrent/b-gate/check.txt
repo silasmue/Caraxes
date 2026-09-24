@@ -1,0 +1,25 @@
+== dev-vm1: reservation [0x169000000, 0x1e9000000); guest RAM IOVA chunks 0x7ffac0000000+0x40000000 0x7ffb00000000+0x40000000 0x7ffb40000000+0x40000000 0x7ffbc0000000+0x40000000
+901 shadow sync lines; union of mapped vidmem PAs [0x169200000, 0x1e8bb0000); sysmem chunks mapped from: 0x7ffac0000000 (7921 maps) 0x7ffb00000000 (805 maps) 0x7ffb40000000 (563 maps) 0x7ffbc0000000 (18263 maps)
+ok: every mapped vidmem PA inside the own reservation, none in the other's
+ok: every mapped sysmem chunk is one of the own registered chunks, none of the other's
+20 refused-leaf lines, 3 distinct:
+  Fb 0x2000 size 0x1000 kind 0xf x17: vidmem outside the reservation; lies in neither VM's range
+  Fb 0x3000 size 0x1000 kind 0xf x1: vidmem outside the reservation; lies in neither VM's range
+  Fb 0x16000 size 0x1000 kind 0xf x2: vidmem outside the reservation; lies in neither VM's range
+device DMA refusals: 8 (first 8 checked: none in the other VM's IOVA ranges)
+FB store accesses outside the reservation: 0 reads, 0 writes
+comptag audit: vidmem PTE kinds walked (kind:comptagline x count): 0x00:0x0x10829 0x06:0x0x5351 -- all uncompressed (kind 0x06/0x00, comptagline 0): comptag hold satisfied
+== dev-vm2: reservation [0xa9000000, 0xe9000000); guest RAM IOVA chunks 0x7ff840000000+0x40000000 0x7ff880000000+0x40000000 0x7ff8c0000000+0x40000000 0x7ff940000000+0x40000000
+692 shadow sync lines; union of mapped vidmem PAs [0xa9200000, 0xe8bb0000); sysmem chunks mapped from: 0x7ff840000000 (13093 maps) 0x7ff880000000 (2473 maps) 0x7ff8c0000000 (4096 maps) 0x7ff940000000 (9398 maps)
+ok: every mapped vidmem PA inside the own reservation, none in the other's
+ok: every mapped sysmem chunk is one of the own registered chunks, none of the other's
+20 refused-leaf lines, 3 distinct:
+  Fb 0x2000 size 0x1000 kind 0xf x17: vidmem outside the reservation; lies in neither VM's range
+  Fb 0x4000 size 0x1000 kind 0xf x1: vidmem outside the reservation; lies in neither VM's range
+  Fb 0x16000 size 0x1000 kind 0xf x2: vidmem outside the reservation; lies in neither VM's range
+device DMA refusals: 0 (first 0 checked: none in the other VM's IOVA ranges)
+FB store accesses outside the reservation: 0 reads, 0 writes
+comptag audit: vidmem PTE kinds walked (kind:comptagline x count): 0x00:0x0x10776 0x06:0x0x5283 -- all uncompressed (kind 0x06/0x00, comptagline 0): comptag hold satisfied
+== host Xid lines: 0; device pids [2790087, 2799147]; not contained: 0
+RESULT: PASS
+p20-check exit 0

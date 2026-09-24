@@ -1,0 +1,14 @@
+# series 2026-09-24T13:10:59+02:00 targets=[v2] reps=1 metrics=[init]
+# caraxes shell-rig-119-gad4049b leandro-test 3edea73-dirty
+# bin c5b48cf1181bfcfc251f12aa2b0eaeb074887efec4c479f36efe399cb1307a13  bench-cu
+# bin 68449e9ec7b25613a65d096a6a42864c01fbf46ec47e540ce01f47184f0479ea  ctrlping
+# bin 138c5073848b2f3cf2beb4709376c7c49b420d88e836664584e5cf8bbfc7848c  ioctlping
+# bin 1f921680fc7a2c2e0978eb007cc0ab48d2f1a7cf404a196c9063a19a10aa228f  kernels.ptx
+# bin 2735d2a9cd25c0753898188542dbeb4a8433609024aa48230b6803a4a8d96e66  nvprobe
+# bin f0868123fca8e2c40138fda523e35fa76c015b97e232fc647fea0b6b49f33584  vrampress
+# time 2026-09-24T13:10:59+02:00
+# gpu 49, 300 MHz, 405 MHz, P8, 14 %, 6116 MiB, Disabled
+# procs 2342749:bench-v1-dev 2342757:bench-v1-vmm 2731076:vm0-dev 2731088:vm0-vmm 2741244:vm2-dev 2741254:vm2-vmm 2744120:vm1-dev 2744134:vm1-vmm 
+# loadavg 1.57 2.60 3.41
+13:11:03 v2  init            rep 1: INIT cuinit_ms=155.876 devget_ms=0.002 ctxcreate_ms=2696.671 ctxdestroy_ms=892.986 # WALL wall_ms=3778 rc=0  | # MEAS dev_pid=2741244 dev_cpu_ms=1910 dev_rss_hwm_kb=5251928/8394004 vmm_cpu_ms=4240 others: vm0-vmm=40ms vm1-vmm=20ms 
+# end 2026-09-24T13:11:03+02:00

@@ -458,8 +458,8 @@ kind or comptag line appeared.
 
 ### 8.3 Closure (mapping package, 2026-09-24)
 
-Both findings are closed in [mapping.md](mapping.md), on vm2 alone at slot 0. The
-concurrent rerun with vm1 is pending: vm0 held slot 1 for the display agent.
+Both findings are closed in [mapping.md](mapping.md), first on vm2 alone at slot 0 (below),
+then on two VMs at once (§8.4).
 
 - **Mapping scale** (§8.1), run `caraxes/runs/mapping-2026-09-24/b1-async-streams`.
   - `suite-test_async_streams` passed in 14.8 s.
@@ -476,3 +476,116 @@ concurrent rerun with vm1 is pending: vm0 held slot 1 for the display agent.
     unfiltered guest tables.
   - The whole cuda gate and every unscored suite passed with 0 refused sysmem leaves (128 before
     in b1), 0 IOMMU faults and 0 Xid.
+
+### 8.4 The concurrency check on the mapping tree (2026-09-24)
+
+Evidence: `caraxes/runs/mapping-2026-09-24/f1-concurrent/`. Both devices ran the main build
+`0d00b26` (`target/mapping`, sha256 prefix 7b3c77fd2f92dd68), in the configuration of §1 with
+linear IOVA and CE-on-shadow at their defaults. `CARAXES_BAR1_PASSTHROUGH` and
+`CARAXES_DOORBELL_TOKENS` were unset.
+
+**Placement.** The display agent's vm0 held 2 GiB at slot 1, `[0xe9000000, 0x169000000)`, so
+the host had 4713 MiB free. Two 2 GiB profiles would have left about 620 MiB, below the D11
+headroom of 1 GiB. The check therefore ran with two profile sizes, agreed with the
+coordinator, which also exercises the slot arithmetic across sizes:
+
+| | vm1 | vm2 |
+|---|---|---|
+| Profile, slot | 2 GiB, slot 0 | 1 GiB, slot 4 |
+| Reservation | `[0x169000000, 0x1e9000000)` | `[0xa9000000, 0xe9000000)` |
+| Guest RAM IOVA (one offset, `dma table`) | GPA + 0x7ffac0000000 | GPA + 0x7ff840000000 |
+| Linear registration restarts (host allocations in the way) | 3 | 3 |
+
+Host `nvidia-smi`: 3053 MiB used before, 6126 MiB with both VMs (exactly 3 GiB more), 1647
+MiB free, 3076 MiB after the teardown. A first attempt to put vm2 at slot 2 with 2 GiB, made
+while the coordinator's vm1 still held 1 GiB at slot 4, was refused by the host RM before the
+device's socket existed (`NV_ERR_NO_MEMORY` for the fixed range, no floating fallback).
+
+**The cuda gate on both at once** (`b-gate/`, started together at 13:36:51, 371 s and 354 s):
+
+| Test | vm1 (2 GiB) | vm2 (1 GiB) |
+|---|---|---|
+| cuda-init, -context, -core, -jit, -launch, -hostreg, -torch | pass | pass |
+| cuda-managed | fail (`AllocManaged 801`, the known gap) | fail (same) |
+| cuda-gdb | skip | skip |
+| rlprobe | pass (mean10=56.9) | pass (mean10=56.9) |
+| convburn | pass (acc=3.041451216e+00) | pass (acc=3.041450977e+00) |
+| robustness | pass | pass |
+| suite-test_async_streams (unscored) | pass, 14.9 s | fail: torch `OutOfMemoryError` at 628 of 855 MiB (the 1 GiB profile is too small for the suite) |
+| suite-test_cuda_graphs, high_freq_event_polling, multi_process_cuda, vram_churn | pass | pass |
+
+The scored result is the single-VM green one on both VMs. The convburn sums differ in the
+seventh digit on the 1 GiB profile. The gate accepts both. The likely cause is a different
+cuDNN algorithm choice under less free memory, which was not checked.
+
+**The mapping-scale finding (§8.1), on two VMs at once.**
+
+- vm1's async_streams suite mapped 555907 leaves in 24186 RM mappings (240 syncs, 2.96 s in
+  total).
+- vm2's copy of the suite reached 543921 leaves in 12947 mappings before its OOM.
+- Both teardowns ran in the worker's idle time.
+- The host watch sampled host `nvidia-smi` 70 times at 5 s intervals: max 0.087 s, mean
+  0.027 s, 0 alerts, 0 Xid (`b-gate/hostwatch.txt`). In P20 the same suite on one VM made
+  `nvidia-smi` time out after 20 s.
+
+**The chunk-crossing finding (§8.2), on two VMs at once.** `p20-check.py` over both devices
+(`b-gate/check.txt`): **PASS**.
+
+- Every mapped vidmem PA lies inside the device's own reservation, and none lies in the other's.
+- Every sysmem leaf mapped comes from one of the device's own registered chunks, and none
+  from the other's.
+- Mapped per chunk: vm1 7921, 805, 563 and 18263 maps; vm2 13093, 2473, 4096 and 9398
+  maps.
+- The only refused leaves are the known kind-0x0F SKED leaves at FB 0x2000, 0x3000, 0x4000
+  and 0x16000 (§3a), which lie in neither VM's range.
+- Refused sysmem leaves: 0. FB store accesses outside the reservation: 0. No compressible
+  kind was seen.
+- Both devices mirrored 400 channels each, all 400 on host-managed shadow VASes. There were
+  0 on an externally-owned VAS and 0 mirror refusals.
+- The host logged 0 Xid and 0 `IO_PAGE_FAULT`.
+
+**The pattern test** (`a-pattern/`, the same placement, earlier in the same window):
+
+| Step | Result |
+|---|---|
+| vm1 fills 1024 MiB with tag 0xA1 and holds it | `verify_bad=0` |
+| vm2 scans all it can allocate | 704 MiB: **0 records, 0 non-zero words** |
+| vm1, second process, scans while A1 is held | 640 MiB: 0 records, 0 non-zero words |
+| vm2 fills 512 MiB with tag 0xB2 and holds it; vm1 scans | 1728 MiB: **0 records of 0xB2**; 67108864 records of 0xA1, which is vm1's own freed A1 (the guest RM does not scrub its own frees, §3d) |
+
+The a-pattern run's gate step did not run (a script error, then stale guest test material),
+so its `check.txt` covers only the pattern workload. Its one host Xid (13:20:35, Xid 31, an MMU
+fault on GRAPHICS) names pid 2731076, vm0's device. The checker counts it as "not
+contained" because vm0 is not one of the two devices under test. It is outside this check.
+
+**Teardown.**
+
+- vm1, clean: 400 of 400 host mirror objects freed before the descriptors, then the
+  reservation (2 ms, host scrub on free), then the 4 guest RAM descriptors.
+- vm2 ran with `CARAXES_INJECT_TEARDOWN_FAILURE=1`: `FAIL-CLOSED teardown: 1 host object
+  free(s) failed before the descriptors; kept 4 guest RAM descriptor(s) (4096 MiB pinned) and
+  the reservation [0xa9000000, 0xe9000000)`, then exit 3.
+- The fd close then let the host RM free the client. Host used memory went back to the
+  pre-run value, with 0 Xid.
+
+**Side observations, none isolation-relevant.**
+
+- *Host BAR1 refusals.* The host RM logged 4 refused BAR1 mappings between 13:39:47 and 13:40:41
+  (`reusemappingdbMap` `NV_ERR_NO_MEMORY`, 3 log lines each; `host-xid.txt` counts lines, so
+  12).
+  - The devices' VRAM stores counted 3 refused window maps (vm1 1, vm2 2), each followed by an
+    eviction and a retry, with 0 stalls.
+  - Host BAR1 (256 MiB) is shared by the desktop, vm0 and two stores of 2 x 32 MiB. It is
+    near its limit with three devices, as in §2.3.
+- *Unmap errors after the reservation free.* At vm1's clean exit the two BAR1 windows still
+  open were unmapped after the reservation was freed. Both `RM_UNMAP_MEMORY` calls returned
+  0x33 (`NV_ERR_INVALID_OBJECT_HANDLE`), because the RM had already dropped them with the
+  memory. This is harmless, but the store should close its windows before the reservation
+  goes.
+- *DMA addresses refused by vm1.* vm1's device refused 8 DMA addresses outside its table in
+  both runs, for example 0x109dfc000 and 0x10a9210a0. They lie in neither VM's IOVA ranges. They
+  look like guest physical addresses, not IOVAs. vm2 refused none. The traces were overwritten
+  before this was noticed, so the source is open.
+
+**What stays open from P20.** The third-VM refusal case (§5) was not repeated: the check's
+window ended with the gate. vm0 stayed up and untouched throughout.

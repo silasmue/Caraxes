@@ -1,0 +1,53 @@
+[  129.413092] nvidia-nvlink: Nvlink Core is being initialized, major device number 239
+[  129.413102] NVRM: probing 0x10de 0x1f02, class 0x30000
+[  129.421099] nvidia 0000:00:05.0: enabling device (0000 -> 0003)
+[  129.421983] NVRM: resizable BAR disabled by regkey, skipping
+[  129.421992] NVRM: No clk handles for the dev
+[  129.422161] nvidia 0000:00:05.0: vgaarb: VGA decodes changed: olddecodes=io+mem,decodes=none:owns=none
+[  129.422218] NVRM: PCI:0000:00:05.0 (10de:1f02): BAR0 @ 0xe6000000 (16MB)
+[  129.422221] NVRM: PCI:0000:00:05.0 (10de:1f02): BAR1 @ 0x3fffe0000000 (256MB)
+[  129.422243] NVRM: Failed to evaluate _PR3 object
+[  129.423931] NVRM: pciPbiReadUuid: Could not acquire pciPbi mutex
+[  129.424024] NVRM: Starting device 0000:00:05.0
+[  129.426467] NVRM: GPU 0000:00:05.0: RmInitAdapter
+[  129.426470] NVRM: GPU 0000:00:05.0: RmSetupRegisters for 0x10de:0x1f02
+[  129.426472] NVRM: GPU 0000:00:05.0: pci config info:
+[  129.426473] NVRM: GPU 0000:00:05.0:    registers look  like: 0xe6000000 0x1000000NVRM: GPU 0000:00:05.0:    fb        looks like: 0x3fffe0000000 0x10000000
+[  129.426488] NVRM: GPU 0000:00:05.0: Successfully mapped framebuffer and registers
+[  129.426490] NVRM: GPU 0000:00:05.0: final mappings:
+[  129.426490] NVRM: GPU 0000:00:05.0:     regs: 0xe6000000 0x1000000 0x0000000038fd10f7
+[  129.518015] NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+[  129.518019] NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+[  129.518021] NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+[  129.518023] NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+[  129.518024] NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+[  129.518026] NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+[  129.518028] NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+[  129.518030] NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+[  129.518031] NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+[  129.518034] NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+[  129.518036] NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+[  129.518037] NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+[  129.518042] NVRM: nv_acpi_dod_method: failed to evaluate _DOD method!
+[  136.606761] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Call timed out [NV_ERR_TIMEOUT] (0x00000065) returned from memmgrMemSet(pMemoryManager, &vidSurface, 0, sizeof vidmemData, TRANSFER_FLAGS_PREFER_CE) @ mem_mgr.c:445
+[  136.607021] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Call timed out [NV_ERR_TIMEOUT] (0x00000065) returned from status @ mem_mgr.c:4166
+[  140.607686] NVRM: GPU0 nvAssertFailedNoLog: Assertion failed: pCeUtils->lastCompletedPayload == lastSubmittedPayload @ ce_utils.c:350
+[  140.644076] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Call timed out [NV_ERR_TIMEOUT] (0x00000065) returned from memmgrInitCeUtils(pMemoryManager, NV_FALSE, NV_TRUE) @ mem_mgr.c:508
+[  140.644123] NVRM: GPU0 nvAssertFailedNoLog: Assertion failed: 0 @ kernel_fifo.c:3108
+[  140.644191] NVRM: GPU0 RmInitNvDevice: *** Cannot load state into the device
+[  140.644194] NVRM: GPU0 RmInitAdapter: RmInitNvDevice failed, bailing out of RmInitAdapter
+[  140.644937] NVRM: GPU0 nvAssertFailedNoLog: Assertion failed: listCount(&pKernelBus->virtualBar2[gfid].usedMapList) == 0 @ kern_bus_vbar2.c:346
+[  141.770636] NVRM: GPU0 nvAssertFailedNoLog: Assertion failed: rmStatus == NV_OK @ osinit.c:2453
+[  141.770711] NVRM: GPU0 rmapiReportInternalLeakedDevices: Internal device object leak: (0xc1e00005, 0xcaf00000). Please file a bug against RM-core.
+[  141.770715] NVRM: GPU0 nvAssertFailedNoLog: Assertion failed: 0 @ rmapi.c:944
+[  141.771460] NVRM: GPU0 nvAssertFailedNoLog: Assertion failed: listCount(&pKernelBus->virtualBar2[gfid].usedMapList) == 0 @ kern_bus_vbar2.c:346
+[  141.771696] NVRM: GPU0 nvAssertFailedNoLog: Assertion failed: pGpu->numSubdeviceBackReferences == 0 @ gpu.c:1614
+[  141.771769] NVRM: GPU0 iovaspaceDestruct_IMPL: 4 left-over mappings in IOVAS 0x5
+[  141.771778] NVRM: GPU 0000:00:05.0: Tearing down registers
+[  141.771789] NVRM: GPU 0000:00:05.0: RmInitAdapter failed! (0x25:0x65:1310)
+[  141.772471] NVRM: GPU 0000:00:05.0: rm_init_adapter failed, device minor number 0
+[  141.776520] NVRM: Device start failed for 0000:00:05.0 (ret=-5)
+[  141.777542] nvidia: probe of 0000:00:05.0 failed with error -1
+[  141.777558] nvidia 0000:00:05.0: driver probe failed; the driver core freed the map, the next bind gets a new copy
+[  141.777712] NVRM: loading NVIDIA UNIX Open Kernel Module for x86_64  610.57.04  Release Build  (leandro@caraxes-vm2)  Wed Sep 23 13:07:57 UTC 2026
+modprobe rc=0

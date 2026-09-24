@@ -58,3 +58,20 @@ CARAXES_GATE_RUNS=$M/d3-worker2 tools/caraxes-gate.sh cuda cuda-core cuda-launch
 ## final: the benchmark series on the checkpoint binary (target/mapping-commit, built from b58cb12 in a clean worktree)
 caraxes/tools/bench-v1vm.sh up && caraxes/tools/bench-v1vm.sh modules     # $M/final/v1-up.txt
 $M/final/run.sh                                                          # $M/final/, $M/summary-final.md
+
+## e1-ceutils: guest registry without RmDisableGlobalCeUtils=1 (docs/caraxes/mapping.md §9), device built from 8cca8e6 (target/mapping)
+CARGO_TARGET_DIR=target/mapping cargo build --release -p vfio-user-nvgpu
+source $M/env.sh; D=$M/e1-ceutils; caraxes/tools/p20.sh - smi $D/smi-before.txt
+tools/caraxes-vm.sh ssh 'sudo cp -a /etc/modprobe.d/caraxes.conf /etc/modprobe.d/caraxes.conf.pre-ceutils && sudo sed -i "s/RmDisableGlobalCeUtils=1;//" /etc/modprobe.d/caraxes.conf'
+caraxes/tools/bench-run.sh v2-restart > $D/up.txt      # probe: RmInitAdapter failed (0x25:0x65:1310), memmgrTestCeUtils timed out
+# red at the driver load: bench-cu init, churn and the cuda gate were not run; no second attempt
+caraxes/tools/p20.sh - xid $D/host-xid.txt "2026-09-24 13:05:02"
+tools/caraxes-vm.sh ssh 'sudo cp -a /etc/modprobe.d/caraxes.conf.pre-ceutils /etc/modprobe.d/caraxes.conf && sudo rm /etc/modprobe.d/caraxes.conf.pre-ceutils'
+caraxes/tools/bench-run.sh v2-restart > $D/restored-up.txt; caraxes/tools/bench-run.sh series --targets v2 --reps 1 --metrics init --out $D/restored
+
+## f1-concurrent: the concurrency check (docs/caraxes/parallel.md §8.4), device built from 0d00b26 (target/mapping)
+# vm0 (display agent) held 2 GiB at slot 1, so vm1 2 GiB at slot 0 and vm2 1 GiB at slot 4 (coordinator's option (a))
+CARGO_TARGET_DIR=target/mapping cargo build --release -p vfio-user-nvgpu
+CARAXES_SERVER=$PWD/target/mapping/release/vfio-user-nvgpu P20_SLOT=2 caraxes/tools/p20.sh vm2 up   # 13:17, 2 GiB at slot 2: refused by the host RM (the coordinator's vm1 held slot 4)
+$M/f1-concurrent/a-pattern/run.sh            # 13:19: both up, gate step failed (script error, then stale test material), pattern test in both directions, teardown, check
+$M/f1-concurrent/b-gate/run.sh               # 13:32: both up, sync-tests, cuda gate on both at once under the host watch, teardown (vm2 injected failure: FAIL-CLOSED), p20-check PASS

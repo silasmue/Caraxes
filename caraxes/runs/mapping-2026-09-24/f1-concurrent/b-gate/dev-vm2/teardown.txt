@@ -1,0 +1,4 @@
+vfio-user-nvgpu: hostmem: earlier failed host free: injected by CARAXES_INJECT_TEARDOWN_FAILURE=1
+vfio-user-nvgpu: hostmem: freed 400 of 400 host mirror object(s) before the descriptors
+vfio-user-nvgpu: hostmem: FAIL-CLOSED teardown: 1 host object free(s) failed before the descriptors; kept 4 guest RAM descriptor(s) (4096 MiB pinned) and the reservation [0xa9000000, 0xe9000000) (kept: true); the client is not freed explicitly: the process exits non-zero and the close of /dev/nvidiactl lets the host RM free everything in its own order
+vfio-user-nvgpu: exit 3: teardown failed closed (1 host object free(s) failed before the descriptors)

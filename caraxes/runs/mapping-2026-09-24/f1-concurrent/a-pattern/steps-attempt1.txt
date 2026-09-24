@@ -1,0 +1,6 @@
+13:19:13 vm1 up
+13:23:34 vm2 up
+13:25:54 gates start
+13:25:54 gates done
+host watch: 0 samples, nvidia-smi max 0.000s mean 0.000s, 0 kernel log lines, 0 Xid lines, 0 alerts
+13:25:54 pattern: vm1 fills 1024 MiB A1 and holds, vm2 scans

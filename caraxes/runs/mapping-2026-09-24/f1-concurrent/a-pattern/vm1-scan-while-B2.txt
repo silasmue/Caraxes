@@ -1,0 +1,2 @@
+scan_mib=1728 mem_free_mib=1781 mem_total_mib=1877 stop=CUDA_ERROR_OUT_OF_MEMORY dptr_lo=0x1000c000000 dptr_hi=0x10078000000 records=67108864 nonzero_words=268773094 words=452984832 scan_s=1.065
+tag=0xa1 records=67108864

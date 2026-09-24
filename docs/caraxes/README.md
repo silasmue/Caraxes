@@ -74,6 +74,7 @@ driver recognizes and initializes a Turing/RTX 2070-like device. Windows later.
 | [experiments.md](experiments.md) | The experiment ladder, starting with the smallest one, each with a falsifiable expectation |
 | [kickoff.md](kickoff.md) | The brief for the implementation sessions: rules, reading order, E0 step by step, run recipe, parked ideas |
 | [parallel.md](parallel.md) | P20, the parallelism proof: two reserving VMs in fixed slots run the cuda gate concurrently beside the desktop; isolation by construction and by pattern test, the host's scrub on free proven for the reservation, fail-closed teardown, the D11 refusal of a third VM; the BAR1 leak and deadlock found and fixed, and two open sysmem-path findings (mapping scale, the chunk-crossing hole) |
+| [mapping.md](mapping.md) | The mapping package (2026-09-24): incremental shadow walk with write-through table copies, coalesced RM maps with a per-device budget, resync on a worker thread with a doorbell barrier, IOVA = GPA + one offset and CE channels on the filtered shadow (the two P20 §8 fixes), the BAR aperture TLB, the doorbell and context-creation accounting (96k trapped BAR2 writes per cuCtxCreate), the CeUtils experiment (§9: the guest driver does not load without `RmDisableGlobalCeUtils=1`, keep the key) |
 | [nova-vgpu-upstream.md](nova-vgpu-upstream.md) | The upstream nova-core vGPU manager series (v2, 32 patches, 2026-09-14) read patch by patch against the device: plugin ABI and RPC discipline, VRAM/channel allocation, CeUtils scrubbing and fail-closed teardown, VMMU segment, FIFO engine table, VF routing, migration, logging; ranked actionable differences and a cross-check of the GSP message queues (subagent report, P19) |
 | [blackwell-gb206.md](blackwell-gb206.md) | The Blackwell lab capture (RTX 5060 Ti, GB206, driver 615.71.09, korngold, 2026-09-24, filed under `caraxes/reference/gb206/`) read item by item against TU106; the D14 work list for a GB206 identity with five draft chip tables under `chips/gb206/`; the 610.57.04 driver supports GB206 (gsp_ga10x firmware, boots GSP through FSP, no ROM parsing); 615.71.09 redesigns the CPU-GSP transport (queue v2 in registers, MCTP-framed elements, one GMCAPI init instead of the four init RPCs) and changes seven control structs; the 615 gsp-abi-sizes record; a nine-step N-gate plan of 27 to 39 days that stops at "driver up" without a Blackwell card here (subagent report) |
 | [guest-driver-versions.md](guest-driver-versions.md) | Other guest driver versions against the 610.57.04 device (2026-09-24, vm3): Ubuntu's recommended 595.91.07 stops at the first queue element (pre-610 element header) and comes up with three `CARAXES_GUEST_ABI=595` switches; 610.43.02 works as is; 615.71.09 stops at the status-queue link, with the captured GMCAPI_CMD_GSP_INIT; size table, version detection, D14 estimate (subagent report) |
@@ -531,6 +532,16 @@ the VM; then display, expected to be much easier than in v1.
   `vdisplay` and `display` gates pass (GPU-execution stages not run: no host execution on vm0;
   the compositor stage missed 60 +- 0.5 Hz by 0.01 Hz once under host load). Open: GPU-rendered compositors (host-exec), BAR1
   direct mapping (CPU access to scanout buffers runs at 0.4 MB/s), cursor, Moonlight reception.
+- 2026-09-24: **Mapping package closed** ([mapping.md](mapping.md), parallel.md §8.3 and §8.4,
+  `caraxes/runs/mapping-2026-09-24/`). The CeUtils experiment went red: without
+  `RmDisableGlobalCeUtils=1` the guest RM's CeUtils channel (bare, no TSG, no VA space handle)
+  runs on neither path, and `RmInitAdapter` fails in `memmgrTestCeUtils`. 0 Xid. The key stays
+  in the guest default. The concurrency check on the device of 0d00b26 passed with vm1 (2 GiB,
+  slot 0) and vm2 (1 GiB, slot 4) next to vm0. Two 2 GiB VMs would have broken the 1 GiB
+  desktop floor. The cuda gate ran on both at once with the single-VM result, and
+  async_streams passed on vm1 (556k leaves in 24k maps) with host `nvidia-smi` at most
+  0.087 s. p20-check PASS, the pattern test was clean in both directions, 0 Xid, and the
+  injected teardown failure failed closed.
 - 2026-09-24: **P20, the parallelism proof** ([parallel.md](parallel.md), evidence in
   `caraxes/runs/parallel-2026-09-24/`). vm1 on slot 0 and vm2 on slot 1 (2 GiB each) run
   concurrently beside the desktop.

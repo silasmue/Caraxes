@@ -1,0 +1,27 @@
+# SPDX-License-Identifier: MIT
+# device trace events of the guest RM's CeUtils channel (client 0xc1e00006), probe-bench-130731
+   137304963 E boot: rx seq 88 GSP_RM_ALLOC (103) sequence 86 length 64 checksum ok: hClient=0xc1e00006 hParent=0x0 hObject=0x0 hClass=0x0 paramsSize=120 flags=0x0
+   137305072 E boot: rx seq 89 GSP_RM_ALLOC (103) sequence 87 length 64 checksum ok: hClient=0xc1e00006 hParent=0xc1e00006 hObject=0xa hClass=0x80 paramsSize=56 flags=0x0
+   137305073 E boot: alloc: alloc NV01_DEVICE_0 0x80 object 0xa under 0xc1e00006 -> status 0x0 [synthesized (object recorded, no host object yet)]
+   137305225 E boot: rx seq 90 GSP_RM_ALLOC (103) sequence 88 length 64 checksum ok: hClient=0xc1e00006 hParent=0xa hObject=0xb hClass=0x2080 paramsSize=4 flags=0x0
+   137371202 E boot: rx seq 91 GSP_RM_ALLOC (103) sequence 89 length 64 checksum ok: hClient=0xc1e00006 hParent=0xa hObject=0xc hClass=0x90f1 paramsSize=56 flags=0x0
+   137371352 E boot: rx seq 92 GSP_RM_CONTROL (76) sequence 90 length 256 checksum ok: hClient=0xc1e00006 hObject=0xc cmd=0x90f10106 paramsSize=184 rpcFlags=0x0
+   137371483 E boot: rx seq 93 FREE (10) sequence 91 length 48 checksum ok: hRoot=0xc1e00006 hParent=0x0 hObject=0xc
+   137433103 E boot: rx seq 95 GSP_RM_ALLOC (103) sequence 93 length 64 checksum ok: hClient=0xc1e00006 hParent=0xa hObject=0x2 hClass=0xc46f paramsSize=376 flags=0x0
+   137433105 E boot: alloc: alloc 0xc46f object 0x2 under 0xa: channel 0x2 chid 2 engineType 0xb gpfifo va 0x120064000 x 4096 userd Some(Fb(8025407488)) vaspace None errorNotifier Some(Sys(140719892959232)) [guest] -> status 0x0 [guest (recorded for the channel emulation; no host object)]
+   137433106 E boot: chid 2: USERD Fb(8025407488) cleared (512 bytes, as GSP-RM does at channel creation): true [synthesized]
+   137440512 E boot: rx seq 96 GSP_RM_ALLOC (103) sequence 94 length 64 checksum ok: hClient=0xc1e00006 hParent=0x2 hObject=0x5 hClass=0xc5b5 paramsSize=8 flags=0x0
+   137440513 E boot: alloc: alloc 0xc5b5 object 0x5 under 0x2: engine object class 0xc5b5 on chid 2 (8 bytes of params) [guest] -> status 0x0 [guest (recorded for the channel emulation; no host object)]
+   137440641 E boot: rx seq 97 GSP_RM_CONTROL (76) sequence 95 length 75 checksum ok: hClient=0xc1e00006 hObject=0x2 cmd=0xa06f0103 paramsSize=3 rpcFlags=0x0
+   137440769 E boot: rx seq 98 GSP_RM_ALLOC (103) sequence 96 length 64 checksum ok: hClient=0xc1e00006 hParent=0xb hObject=0x6 hClass=0x7e paramsSize=24 flags=0x0
+   137440897 E boot: rx seq 99 GSP_RM_CONTROL (76) sequence 97 length 92 checksum ok: hClient=0xc1e00006 hObject=0xb cmd=0x20800301 paramsSize=20 rpcFlags=0x0
+   137441442 E boot: doorbell 1: token 0x10002 chid 2 runlist 1
+   137441443 E boot: chid 2: VAS root unknown, nothing run
+   137441445 E boot: mirror: chid 2 in software: bare channel (no TSG): stays with the software executor
+   145443510 E boot: rx seq 100 FREE (10) sequence 98 length 48 checksum ok: hRoot=0xc1e00006 hParent=0x0 hObject=0x5
+   145443682 E boot: rx seq 101 FREE (10) sequence 99 length 48 checksum ok: hRoot=0xc1e00006 hParent=0x0 hObject=0x2
+   145448117 E boot: rx seq 102 FREE (10) sequence 100 length 48 checksum ok: hRoot=0xc1e00006 hParent=0x0 hObject=0x6
+   145448318 E boot: rx seq 103 FREE (10) sequence 101 length 48 checksum ok: hRoot=0xc1e00006 hParent=0x0 hObject=0xb
+   145479319 E boot: rx seq 104 FREE (10) sequence 102 length 48 checksum ok: hRoot=0xc1e00006 hParent=0x0 hObject=0xa
+   145479452 E boot: rx seq 105 FREE (10) sequence 103 length 48 checksum ok: hRoot=0xc1e00006 hParent=0x0 hObject=0xc1e00006
+   145479454 E boot: free 0xc1e00006 class None [synthesized]

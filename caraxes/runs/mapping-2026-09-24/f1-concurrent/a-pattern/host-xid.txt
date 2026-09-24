@@ -1,0 +1,4 @@
+# SPDX-License-Identifier: MIT
+# host kernel log, Xid lines since 2026-09-24 13:19:13
+Sep 24 13:20:35 manacor kernel: NVRM: Xid (PCI:0000:2d:00): 31, pid=2731076, name=vfio-user-nvgpu, channel 0x00000032, intr 00000000. MMU Fault: ENGINE GRAPHICS GPC2 GPCCLIENT_PROP_0 faulted @ 0x1_202c0000. Fault is of type FAULT_PTE ACCESS_TYPE_VIRT_WRITE
+# host RM refused-BAR1-mapping asserts (reusemappingdbMap/pMapCb NV_ERR_NO_MEMORY) since 2026-09-24 13:19:13: 0

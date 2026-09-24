@@ -1,0 +1,1 @@
+scan_mib=704 mem_free_mib=759 mem_total_mib=855 stop=CUDA_ERROR_OUT_OF_MEMORY dptr_lo=0x1000c000000 dptr_hi=0x10038000000 records=0 nonzero_words=0 words=184549376 scan_s=0.486

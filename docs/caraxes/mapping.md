@@ -29,6 +29,7 @@ The n=5 numbers are in benchmark.md §8.
 | RM mappings for the P20 async_streams suite | 555k (one per leaf) | 30k for 556k leaves, 18.9k live | b1 |
 | sysmem leaves refused as chunk-crossing (async_streams) | 128 | 0 | b1, d1 |
 | channels walking unfiltered guest tables | every CE channel | none | d1 |
+| two VMs at once: cuda gate, p20-check, pattern test | P20: scored tests pass, suites stall the host RM | scored tests pass, async_streams passes on the 2 GiB VM, check PASS, 0 Xid | f1 |
 
 What did not reach the operator's targets, and why:
 
@@ -286,7 +287,9 @@ Its two overlap FAILs are an artefact of that run's log: the restart's blocker p
 logged as registered chunks and overlap P20's old IOVAs. Such placements are now logged as
 `placed` and only the final chunks as `registered`.
 
-The concurrent check with vm1 is pending (§8).
+The concurrent check on two VMs at once passed on 0d00b26 (parallel.md §8.4): vm1 2 GiB at
+slot 0 and vm2 1 GiB at slot 4, the cuda gate on both, p20-check PASS, the pattern test clean
+in both directions, 0 Xid, and host `nvidia-smi` at most 0.087 s while vm1 ran async_streams.
 
 Not built: an intentionally chunk-crossing buffer. The suite's natural crossing buffers are the
 test, and they now map and pass. The CE filter also covers what a malicious guest kernel could
@@ -392,10 +395,87 @@ at one busy host core per poller.
 
 ## 8. Open
 
-- The concurrency check: vm1 and vm2 with the cuda gate and p20-check at once. It waits for vm0
-  to go down (coordinator).
+- The concurrency check is done (parallel.md §8.4). It left three small items: the BAR1
+  windows are unmapped after the reservation is freed (0x33 at exit); vm1 refused 8 DMA
+  addresses that look like GPAs, source open; and host BAR1 is near its limit with three
+  devices (4 host refusals, handled by eviction).
 - The display acceptance of item 4: Mutter at 60 Hz, and a Vulkan present on Weston.
 - The gather descriptor for scattered sysmem leaves (§2).
 - Progress-gated interrupt forwarding (§3).
 - BAR2 writes without traps, the P21 idea for BAR2 (§3).
 - The CH patch for the doorbell (§6).
+- The guest RM's CeUtils channel: its VA space root and a path to execute it (§9).
+
+## 9. The CeUtils experiment
+
+**Question.** The guest boots with `RmDisableGlobalCeUtils=1` in `NVreg_RegistryDwords`
+(`/etc/modprobe.d/caraxes.conf`). Without global CeUtils the guest RM zeroes every fresh
+page-table page by CPU through BAR2: 54.8k of the 96k trapped writes of a cuCtxCreate (§3).
+Does the guest run, and run faster, with the key dropped?
+
+**Run** (`caraxes/runs/mapping-2026-09-24/e1-ceutils`, 2026-09-24 13:05-13:11, vm2 at slot 0,
+2 GiB profile, device built from main `8cca8e6` into `target/mapping`, the mapping
+environment of `env.sh`):
+
+1. `caraxes.conf` backed up, `RmDisableGlobalCeUtils=1;` removed; the rest of the
+   registry string (`RMDisableScrubOnFree=1;RmRcWatchdog=0`) kept (`guest-conf.txt`).
+2. `bench-run.sh v2-restart`: a fresh device process, and the launcher's probe step unloads,
+   resets and reloads the guest driver (`up.txt`, `guest-dmesg.txt`).
+
+**Result: red at the driver load.** The guest RM failed `RmInitAdapter` (0x25:0x65:1310):
+
+- `memmgrTestCeUtils` timed out in its CE memset (`memmgrMemSet ... TRANSFER_FLAGS_PREFER_CE`,
+  mem_mgr.c:445, `NV_ERR_TIMEOUT`);
+- `pCeUtils->lastCompletedPayload == lastSubmittedPayload` failed at ce_utils.c:350;
+- `memmgrInitCeUtils` returned the timeout (mem_mgr.c:508) and `RmInitNvDevice` bailed out.
+
+So there was no CUDA to measure: `bench-cu init`, `bench-cu churn 20` and the cuda gate were
+not run, and there is no BAR2 write count, cuCtxCreate or cuCtxDestroy for this
+configuration. Following the rule for a red result there was no second attempt.
+
+**Which path the CeUtils channel took** (`ceutils-channel.txt`, the device trace events of the
+guest RM's internal client 0xc1e00006):
+
+- The guest RM allocated a bare `0xc46f` channel (chid 2, engine type 0xb, a GPFIFO of 4096
+  entries at VA 0x120064000, USERD in vidmem) directly under its device, with no TSG and no
+  VA space handle. For a physical CE channel on a GSP client without MIG, CeUtils names no VA
+  space (channel_utils.c:86-93) and the channel runs on the device's default VA space. The
+  one `0x90f1` object this client allocated was freed again before the channel was created.
+- A `0xc5b5` (TURING_DMA_COPY_A) object was bound, the channel scheduled, and the doorbell
+  rang once (token 0x10002).
+- The device logged `chid 2: VAS root unknown, nothing run` and
+  `mirror: chid 2 in software: bare channel (no TSG): stays with the software executor`.
+
+The channel therefore took neither path that executes work. The mirror refused it as a bare
+channel (`CARAXES_MIRROR_BARE_CE` is off in this configuration), and the software executor
+found no VA space root and ran nothing, so the memset's semaphore never arrived. No host
+channel was created for it, and it never walked guest tables on the GPU: the fail-safe held.
+The host logged 0 Xid and 0 refused BAR1 mappings from 13:05 on (`host-xid.txt`).
+
+**Restored.** The backup was copied back (`guest-conf-restored.txt`, the registry string as
+before) and vm2 restarted: `RmInitAdapter succeeded`, and one `bench-cu init` gave cuInit
+156 ms, cuCtxCreate 2697 ms and cuCtxDestroy 893 ms (`restored/`), inside the range of §3.
+
+**What dropping the key would need.** Three things, in the device, before the experiment
+can be repeated:
+
+1. The default VA space of a device: a channel with no VA space handle must resolve to the
+   root the guest RM uses for its device's default VAS. The three `0x90f1` objects of this
+   run reported only their server-reserved range (0x100000000-0x11fffffff) and roots, and
+   the device ties none of them to a channel without a handle. Until the device knows that
+   root, no path can run the channel.
+2. A path for the bare kernel CE channel. The software executor is the right one: its
+   memsets and copies write through `FakeFb::write`, so the walk cache of §1 sees every
+   page-table write. The host mirror is not: a copy engine on the host would zero guest
+   page-table pages behind the FB store, and the cache would keep stale copies of pages it
+   watched before (§1, "Correctness"). If the mirror ever takes this channel, it must be on
+   the filtered shadow like every CE channel, and the cache must drop the pages a CE channel
+   writes.
+3. A measurement that shows the gain. The expected one is the 54.8k zeroing writes (107
+   pages) replaced by 107 memsets of about 4 trapped writes each, that is 1.2-2 s off
+   cuCtxCreate at 23-37 us per trap. The PTE writes (39.5k) and the destruction's 20k
+   clearing writes stay, so this is not the 500 ms target of §3.
+
+**For the operator.** The guest default should keep `RmDisableGlobalCeUtils=1`. With the
+current device the guest driver does not load without it. Revisit after items 1 and 2 above,
+with a green cuda gate as the condition for the switch.

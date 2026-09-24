@@ -1,0 +1,9 @@
+13:19:13 vm1 up
+13:23:34 vm2 up
+host watch pid 2778801 -> /home/silas/git/Caraxes/caraxes/runs/mapping-2026-09-24/f1-concurrent/hostwatch.txt
+13:25:54 gates start
+caraxes/runs/mapping-2026-09-24/f1-concurrent/run.sh: line 24: $2: unbound variable
+caraxes/runs/mapping-2026-09-24/f1-concurrent/run.sh: line 24: $2: unbound variable
+13:25:54 gates done
+host watch: 0 samples, nvidia-smi max 0.000s mean 0.000s, 0 kernel log lines, 0 Xid lines, 0 alerts
+13:25:54 pattern: vm1 fills 1024 MiB A1 and holds, vm2 scans

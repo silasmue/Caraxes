@@ -1,0 +1,3 @@
+vfio-user-nvgpu: hostmem: freed 400 of 400 host mirror object(s) before the descriptors
+vfio-user-nvgpu: hostmem: freed the VRAM reservation [0x169000000, 0x1e9000000) (2048 MiB) in 2 ms (host RM scrub on free)
+vfio-user-nvgpu: hostmem: freed 4 guest RAM descriptor(s), 4096 MiB unpinned; host foll_pin released +1311110 during the free (since open: acquired +9437991, released +8126861)

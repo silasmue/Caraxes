@@ -1,0 +1,8 @@
+dma table: 0:7ff840000000:c0000000,100000000:7ff940000000:40000000
+server pid 2799147, VM pid 2799154; logs in /mnt/vmstore/caraxes/vm2
+ssh up at 192.168.102.22
+probe p20-vm2: 93585 device accesses, guest log in /mnt/vmstore/caraxes/vm2/probe-p20-vm2/guest-dmesg.txt
+[  129.663485] NVRM: GPU 0000:00:05.0: RmInitAdapter
+[  132.814550] NVRM: GPU 0000:00:05.0: RmInitAdapter succeeded!
+modprobe rc=0
+built p20/p20-patprobe

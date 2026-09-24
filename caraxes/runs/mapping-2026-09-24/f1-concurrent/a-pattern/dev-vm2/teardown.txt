@@ -1,0 +1,12 @@
+vfio-user-nvgpu: hostmem: freed host shadow-error-notifier 0x80000052
+vfio-user-nvgpu: hostmem: freed host shadow-error-notifier 0x8000004f
+vfio-user-nvgpu: hostmem: freed host shadow-error-notifier 0x8000004c
+vfio-user-nvgpu: hostmem: freed host shadow-error-notifier 0x80000049
+vfio-user-nvgpu: hostmem: freed host shadow-error-notifier 0x80000045
+vfio-user-nvgpu: hostmem: freed host shadow-error-notifier 0x80000042
+vfio-user-nvgpu: hostmem: freed host shadow-error-notifier 0x8000003f
+vfio-user-nvgpu: hostmem: freed host shadow-error-notifier 0x8000003b
+vfio-user-nvgpu: hostmem: freed 40 of 40 host mirror object(s) before the descriptors
+vfio-user-nvgpu: hostmem: freed hole filler descriptor 0x8000000c (GPA 0xc0000000, IOVA 0x7ff900000000)
+vfio-user-nvgpu: hostmem: freed the VRAM reservation [0xa9000000, 0xe9000000) (1024 MiB) in 1 ms (host RM scrub on free)
+vfio-user-nvgpu: hostmem: freed 4 guest RAM descriptor(s), 4096 MiB unpinned; host foll_pin released +1310673 during the free (since open: acquired +6291583, released +7602216)
