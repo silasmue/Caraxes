@@ -198,7 +198,8 @@ pub struct StaticIdentity {
 
 impl StaticIdentity {
     /// The identity from the chip, the board, the captured config space and the
-    /// profile's FB size and board name, with the default (legacy) name. The label
+    /// profile's FB size and board name, with the default name (transport word,
+    /// `Leandro VFIO RTX 2070-4G`). The label
     /// string is created once per call and lives for the process (one call per device).
     pub fn new(
         chip: &ChipData,
@@ -212,8 +213,9 @@ impl StaticIdentity {
     }
 
     /// The identity with the guest name generated from `spec` in `format`
-    /// (`nvrm_abi::naming`). The GID follows the legacy-format name, so choosing the
-    /// format does not change the guest's UUID.
+    /// (`nvrm_abi::naming`). The GID follows the legacy-format name whatever the
+    /// format, so neither the choice nor the 2026-09-24 default switch changes the
+    /// guest's UUID.
     pub fn from_spec(
         chip: &ChipData,
         board: &Board,
@@ -251,8 +253,9 @@ impl StaticIdentity {
         }
     }
 
-    /// The default guest name (`nvrm_abi::naming`, legacy format): `Leandro <board>-<size>`
-    /// with whole GiB as `G`, else MiB as `M`, the same rule as Leandro v1.
+    /// The default guest name (`nvrm_abi::naming`, transport format):
+    /// `Leandro VFIO <board>-<size>` with whole GiB as `G`, else MiB as `M`, the same
+    /// rule as Leandro v1.
     pub fn guest_name(board: &str, fb_bytes: u64) -> String {
         Self::guest_name_as(board, fb_bytes, NameFormat::default())
     }
@@ -535,26 +538,39 @@ mod tests {
     fn static_info_layout() {
         let f = crate::fixture::rtx2070();
         let id = f.identity(4 << 30);
-        assert_eq!(id.gpu_name, "Leandro RTX 2070-4G");
+        assert_eq!(id.gpu_name, "Leandro VFIO RTX 2070-4G");
         assert_eq!(
             StaticIdentity::guest_name("RTX 2070", 130 << 20),
-            "Leandro RTX 2070-130M"
+            "Leandro VFIO RTX 2070-130M"
         );
         let spec = StaticIdentity::spec("RTX 2070", 4 << 30);
         assert_eq!(
-            spec.guest_name(NameFormat::Transport),
-            "Leandro VFIO RTX 2070-4G"
+            spec.guest_name(NameFormat::Legacy),
+            "Leandro RTX 2070-4G"
         );
         let t = StaticIdentity::from_spec(
             f.chip.data(),
             &f.board,
             id.pci,
             &spec,
-            NameFormat::Transport,
+            NameFormat::Legacy,
             4 << 30,
         );
-        assert_eq!(t.gpu_name, "Leandro VFIO RTX 2070-4G");
+        assert_eq!(t.gpu_name, "Leandro RTX 2070-4G");
         assert_eq!(t.gid, id.gid, "the name format leaves the GID alone");
+        // The seed is the legacy name, so the default switch kept the guest UUID
+        // every recorded run shows (GPU-9bd7b93d-3d23-c074-6704-984ef33ab7a7).
+        assert_eq!(
+            id.gid,
+            StaticIdentity::synthetic_gid("Leandro RTX 2070-4G", 4 << 30)
+        );
+        assert_eq!(
+            id.gid,
+            [
+                0x9b, 0xd7, 0xb9, 0x3d, 0x3d, 0x23, 0xc0, 0x74, 0x67, 0x04, 0x98, 0x4e, 0xf3,
+                0x3a, 0xb7, 0xa7
+            ]
+        );
         let wpr = WprLayout {
             fb_size: 4 << 30,
             gsp_fw_rsvd_start: 0xF760_0000,
@@ -574,7 +590,7 @@ mod tests {
         assert_eq!(u64_at(&b, 0x148 + 56), 0xF760_0000);
         assert_eq!(u64_at(&b, 0x148 + 56 + 16), (4u64 << 30) - 0xF760_0000);
         assert_eq!(u64_at(&b, 0x540), 4 << 30);
-        assert_eq!(cstr(&b, 0x548, 64), "Leandro RTX 2070-4G");
+        assert_eq!(cstr(&b, 0x548, 64), "Leandro VFIO RTX 2070-4G");
         assert_eq!(cstr(&b, 0x588, 64), "TU106");
         assert_eq!(u64_at(&b, 0x5E8), 0xF760_0000);
         assert_eq!(u32_at(&b, 0x52C) & 2, 2);

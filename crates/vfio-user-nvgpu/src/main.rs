@@ -52,9 +52,9 @@ vfio-user-nvgpu --selftest <socket> [--board-data <name|file>] [--chip <chip>] [
   --fb-mib   framebuffer size the guest is told, in MiB (default: LEA_VRAM_PROFILE_MIB or 4096)
   --profile  the same as --fb-mib, as a size: 4G, 4GiB, 1333M, 1333MiB or MiB (a vGPU type such as
              4Q is refused: resolve it with nvrm-client --bin vgpuprofile first)
-  --board    the personality in the guest name (default: the board's, RTX 2070, giving Leandro RTX 2070-4G)
-  --name-format  legacy (Leandro RTX 2070-4G) or transport (Leandro VFIO RTX 2070-4G); default:
-             LEA_GPU_NAME_FORMAT or legacy. The name comes from nvrm_abi::naming
+  --board    the personality in the guest name (default: the board's, RTX 2070, giving Leandro VFIO RTX 2070-4G)
+  --name-format  transport (Leandro VFIO RTX 2070-4G) or legacy (Leandro RTX 2070-4G); default:
+             LEA_GPU_NAME_FORMAT or transport. The name comes from nvrm_abi::naming
   --print-name  print the guest-visible name these flags give and exit
   --host-rm  open the host RM (/dev/nvidiactl, unprivileged client) and forward the forwardable RPCs
   --reserve-vram  hold the profile's size of host VRAM at a fixed address at the top of the host FB

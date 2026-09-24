@@ -76,7 +76,7 @@ fn boot_model_is_visible_through_the_protocol() {
     let mut rom = vec![0x55u8, 0xAA, 0x76];
     rom.resize(512, 0);
     let id = StaticIdentity::new(chip.data(), &board, cfg.ids(), &board.name, 4 << 30);
-    assert_eq!(id.gpu_name, "Leandro RTX 2070-4G");
+    assert_eq!(id.gpu_name, "Leandro VFIO RTX 2070-4G");
     let bar0 = Bar0::new(chip, rom, None).with_boot_model(BootModel::new(
         chip,
         vfio_user_nvgpu::fb::FbLayout::plain(4 << 30),
