@@ -290,6 +290,85 @@ Only after `ver/v615` (msgq v2 with register-held pointers, MCTP-framed elements
 Until then `CARAXES_DRIVER=615` boots a guest that stops at the status-queue link
 (guest-driver-versions.md §5), exactly as `vm3/g615` did.
 
+### The 615 guest on the 615 host: runs 4 to 6
+
+State folder `vm2-615` (an overlay on the 615 base image, autoload of nvidia_modeset, nvidia_drm
+and nvidia_peermem blocked, `nvidia-persistenced` masked), the v615-feature device binary, token
+pool and hybrid reactor, no BAR1 area. Records in `caraxes/runs/cutover-615-2026-09-24/`: run 4
+is `v2-615guest.sh` with `v2-615guest/`; runs 5 and 6 are `v2-615guest-run.sh r5|r6` with
+`v2-615guest-r5/` and `v2-615guest-r6/`. The run script is run 4's with the device binary of the
+checkout it lives in (`setup.txt` names its sha256 and commit) and the per-control lines extracted
+from `gpu-trace.log` (`device-log-lce-shim.txt`, `device-trace-issues.txt`; `gpu.log` has no
+`ctrl` lines, so run 4's `device-log-issues.txt` is empty).
+
+**Profile change from run 5 on.** Runs 5 and 6 use a 1 GiB profile at reserve slot 3
+(`CARAXES_FB_MIB=1024 CARAXES_GATE_FB_MIB=1024 CARAXES_RESERVE_SLOT=3`, the range
+[top-4 GiB, top-3 GiB)), not 2 GiB at slot 0 as run 4 and the 610 guest run, because a 3 GiB VM
+takes slot 0 and vm1 holds 1 GiB at slot 4. The cuda gate passed on 1 GiB profiles before (P20,
+vm2 at 1 GiB slot 4), so the comparison with the 610 guest stays valid for the scored rows. The
+unscored `suite-test_async_streams` asks for 256 MiB more than a 1 GiB card has free and fails
+with `torch.OutOfMemoryError`; that is the profile, not the device.
+
+**Run 4 (device 61e0b6a).** `RmInitAdapter succeeded!`, the nvml gate passes, and every cuda stage
+fails at `cuInit: 100 no CUDA-capable device is detected` (0 of 12 scored pass,
+`v2-615guest/gate-cuda.txt:1-3`). The device refused two controls with 0x56:
+`NV2080_CTRL_CMD_CE_GET_LCE_SHIM_INFO` (0x20802A0C) and `NV2080_CTRL_CMD_GPU_QUERY_ECC_STATUS`
+(0x2080012F). Which one breaks cuInit:
+
+- `GPU_QUERY_ECC_STATUS` is not the cause. It is in `FORWARD` (`ver/v610.rs`) and the 0x56 is the
+  host's answer (`host status 0x56 -> status 0x56 [host (forwarded as-is, public control)]` in
+  run 5's `device-trace-issues.txt`): the card has no ECC. The 610 guest gets the same 0x56 and its
+  cuInit passes (`v2-610guest/gate-cuda.txt:49`). The struct is the same in both SDKs
+  (`ctrl2080gpu.h:1207-1213` in 610, `:1208-1214` in 615, 41 units), so forwarding it is sound on
+  either host.
+- `CE_GET_LCE_SHIM_INFO` is the cause. The struct is the same 12 bytes in both SDKs
+  (`ctrl2080ce.h:351-374`: ceEngineType in, shimInstance and shimLocalLceIdx out), and both route
+  it to GSP, but 610 exports it PRIVILEGED (flags 0x145, 610 `src/nvidia/generated/g_subdevice_nvoc.c:11827`)
+  and 615 NON_PRIVILEGED (0x149, 615 `g_subdevice_nvoc.c:12008`). The 610 libcuda therefore never
+  asked it; the 615 libcuda asks it after `CE_GET_CAPS_V2` for every CE, and on the real host RM it
+  succeeds (`v1/cuda/guest/v1-615/cuda-managed.rm.tsv:214-228`, status 0x0, len=12). Its
+  implementation is GSP-RM code, not in the open tree; the kernel side keeps every KernelCE in
+  shim 0 before Blackwell (615 `src/kernel/gpu/ce/kernel_ce.c:53-56`, the default no-op HAL of
+  `g_kernel_ce_nvoc.c:352-362`; only `kceSetShimInstance_GB100`,
+  `kernel_ce_gb100.c:105-112`, divides the public id by a stride).
+
+**The answer** (`cuda.rs` `lce_shim_info`): forwarded to the host subdevice when the host driver
+exports it NON_PRIVILEGED (`hostabi::HostLayouts::lce_shim_info_public`, 615 true, 610 false,
+because the device's client is unprivileged); otherwise from the chip's shim table
+(`chips/tu106/chip.toml` `[ce] lce_shim`, one shim: shim 0, local index = LCE index). The device
+log line names both, so a disagreement is visible. A non-copy engine type is
+NV_ERR_INVALID_ARGUMENT. Tests: `cuda::tests::lce_shim_info_and_ecc_layouts`,
+`cuda::tests::lce_shim_info_answer`. After the merge of the E and A rules, `surface.rs` was
+regenerated: 0x20802A0C has a handler now (`other: true`), A_INVENTORY 60 to 59 on both ABIs
+(gsp-surface.md "After E and A").
+
+| Run | Device | Profile | nvml | cuda gate (scored) | Unscored suites | Refused controls | Host Xid |
+|---|---|---|---|---|---|---|---|
+| 610 guest (`v2-610guest/`) | e0b3dc9 | 2 GiB slot 0 | pass | 9 pass, 2 fail (cuda-managed 801, robustness 2 of 3), 1 unsupported | 5 pass, 3 skip | ECC_STATUS (host 0x56) | 0 |
+| 4 | 61e0b6a | 2 GiB slot 0 | pass | 0 pass, 11 fail (cuInit 100), 1 unsupported | 5 fail, 3 skip | LCE_SHIM_INFO (device 0x56), ECC_STATUS (host 0x56) | 0 |
+| 5 | 68a09e7 | 1 GiB slot 3 | pass | 10 pass, 1 fail (cuda-managed 801), 1 unsupported | 4 pass, 1 fail (async_streams, OOM on 1 GiB), 3 skip | ECC_STATUS (host 0x56) | 0 (device pid 143264) |
+| 6 | 7f37529 (after the merge of the E and A rules, `surface.rs` regenerated) | 1 GiB slot 3 | pass | 10 pass, 1 fail (cuda-managed 801), 1 unsupported | 4 pass, 1 fail (async_streams, OOM on 1 GiB), 3 skip | ECC_STATUS (host 0x56); no `unanswered`, no family refusal | 0 (device pid 220569) |
+
+Run 5's host answers for CE_GET_LCE_SHIM_INFO: LCE 2, 3 and 4 (ceEngineType 0xB to 0xD), each
+shimInstance 0, shimLocalLceIdx = the LCE, 21 times each, `chip table agrees`
+(`v2-615guest-r5/device-log-lce-shim.txt`). cuda-managed fails as on the 610 guest (`AllocManaged
+a: 801 operation not supported`, the known exception on this host); robustness passed 3 of 3
+where the 610 guest run had 2 of 3. rlprobe `mean10=56.9`, convburn `acc=3.041450977e+00`.
+Run 6 repeats run 5 with the merged device (the chipctl family hook sits after the CUDA rows, so
+it never sees 0x20802A0C): the same 10 of 12, the same host answers, cuda gate 391 s (run 5
+426 s, the 610 guest 388 s). During run 6 the host kernel logged 22 pairs of
+`kmemsysFlushGpuCache_IMPL: Invalid aperture.` / `Invalid array size (0x0)` (18:34:52 to 18:45);
+they are not vm2's: its device sent the 615 flag words (0x29, 0x31) with NV_OK every time, while
+vm0's device (pid 253268, another agent's) logs `FB_FLUSH_GPU_CACHE flags 0x8 failed: status 0x1f`,
+the 610 word on the 615 host.
+
+**Open: the bench series.** `bench-run.sh series` (init, short-auto) fails in runs 4 and 5 with
+`cuInit: 803 system has unsupported display driver / cuda driver combination` within 10 to 35 ms,
+while the gate's cuInit in the same VM passes. The series runs with `LD_LIBRARY_PATH=/opt/nvrm/lib`
+(`caraxes/tools/bench-run.sh:95`, :260), which in the 615 base image most likely still holds the
+610 user-space libraries (the v1 overlay had to repoint it to the 615 system libraries, (e) below).
+A harness setting, not a device fault; the first 615 benchmark needs it fixed.
+
 ## (e) v1 (Leandro)
 
 v1 forwards ioctls verbatim, so its guest module and user-space libraries must be the host's

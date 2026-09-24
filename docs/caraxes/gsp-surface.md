@@ -810,3 +810,28 @@ takes nothing a handler answers or forwards), that the families cover exactly `E
 each ABI (189 and 200), the handler against hand-built blocks for NVDEC caps, the engine
 notification vectors and the ZBC table size on both ABIs, and that every table entry resolves
 against both ABIs' layouts.
+
+### Controls the 615 user space sends that the 610 one did not (2026-09-24)
+
+The first cuda gate of the 615 guest on the 615 host (cutover-615.md, "The 615 guest on the 615
+host", run 4) failed at cuInit on one refused control. Categories and sources as the device
+answers them now:
+
+| Control | Id | Params (610 / 615) | Export flags (610 / 615) | Category | Source | Where |
+|---|---|---:|---|---|---|---|
+| `NV2080_CTRL_CMD_CE_GET_LCE_SHIM_INFO` | 0x20802A0C | 12 / 12 (`ctrl2080ce.h:370-374`) | 0x145 PRIVILEGED (610 `g_subdevice_nvoc.c:11827`) / 0x149 NON_PRIVILEGED (`g_subdevice_nvoc.c:12008`) | B on a 615 host (host-forwardable as-is), A otherwise | host on a 615 host (`HostLayouts::lce_shim_info_public`); chip table `chips/tu106/chip.toml` `[ce] lce_shim` (shim 0, local index = LCE) on a 610 host or without a host | `cuda.rs` `lce_shim_info` |
+| `NV2080_CTRL_CMD_GPU_QUERY_ECC_STATUS` | 0x2080012F | same struct, 41 units (`ctrl2080gpu.h:1207-1213` / `:1208-1214`) | 0x50158 in both | B | host (`FORWARD`, unchanged); the host answers 0x56 on this card (no ECC), for the 610 guest too | `nvml.rs` |
+
+The category of `CE_GET_LCE_SHIM_INFO` was wrong in the tables above: the inventory's heuristic
+put it in A ("pure chip data") and the capture list above names it, and the README's E and A
+entry placed it in the `internal_uncalled` E family. It is in neither family (the family lists
+six other ids, `surface.rs`), and it is not only the kernel's: from 615 on user space may call it,
+and the 615 libcuda does, once per CE at cuInit (the v1 615 trace,
+`caraxes/runs/cutover-615-2026-09-24/v1/cuda/guest/v1-615/cuda-managed.rm.tsv:214-228`; run 4's
+`gate-cuda.txt:1-3` for the failure when it is refused). The host RM answers it (run 5: LCE 2 to 4
+in shim 0 at their own index, the same as the chip table,
+`v2-615guest-r5/device-log-lce-shim.txt`). With the handler in `cuda.rs` the regenerated
+`surface.rs` marks it `other: true`, so `A_INVENTORY` is 59 on both ABIs, and the counts table
+above moves by one (`gsp-surface.py --ogkm` against the 610 vendor tree and
+`/mnt/vmstore/caraxes/ogkm-615.71.09`, rerun after the change): 374 and 384 routed controls
+handled, host-forwarded 41 and 40, unhandled 455 and 460, A unhandled 51 on both.

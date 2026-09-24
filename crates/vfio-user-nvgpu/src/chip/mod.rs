@@ -281,6 +281,32 @@ pub struct Ce {
     /// A decompression LCE exists (Ampere GA100 and later).
     pub decomp_lce: bool,
     pub decomp_label: String,
+    /// How LCEs group into CE shims (`CE_GET_LCE_SHIM_INFO`), when the device answers it
+    /// without the host (cuda.rs). `None`: not known for this chip (the control is then
+    /// NOT_SUPPORTED without a host that may answer it).
+    #[serde(default)]
+    pub lce_shim: Option<LceShim>,
+}
+
+/// LCE `i` is in shim `i / lces_per_shim` at local index `i % lces_per_shim`: the
+/// `kceSetShimInstance_GB100` rule (publicID / group-id stride, 615
+/// src/kernel/gpu/ce/arch/blackwell/kernel_ce_gb100.c:105-112). Chips before Blackwell
+/// keep every KernelCE in shim 0 (kernel_ce.c:53-56, the no-op HAL of
+/// g_kernel_ce_nvoc.c:352-362), which a stride of 20 (every LCE an NV2080 engine type can
+/// name) expresses.
+#[derive(Clone, Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct LceShim {
+    pub lces_per_shim: u32,
+    pub label: String,
+}
+
+impl LceShim {
+    /// (shimInstance, shimLocalLceIdx) of LCE `lce`.
+    pub fn of(&self, lce: u32) -> (u32, u32) {
+        let s = self.lces_per_shim.max(1);
+        (lce / s, lce % s)
+    }
 }
 
 #[derive(Clone, Debug, Deserialize)]

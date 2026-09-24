@@ -35,6 +35,8 @@ pub const GSP_TRANSPORT: super::GspTransport = super::GspTransport::MsgqV1;
 
 pub const NV_OK: u32 = 0;
 pub const NV_ERR_NOT_SUPPORTED: u32 = 0x56;
+/// nvstatuscodes.h:60.
+pub const NV_ERR_INVALID_ARGUMENT: u32 = 0x1F;
 
 // ---------------------------------------------------------------------------------
 // GSP RPC function numbers (src/nvidia/inc/kernel/vgpu/rpc_global_enums.h).
@@ -617,6 +619,32 @@ pub const NUM_CHANNELS: usize = offset_of!(
 
 /// `NV2080_CTRL_CE_GET_FAULT_METHOD_BUFFER_SIZE_PARAMS` {size} (ctrl2080ce.h:295).
 pub const CE_FAULT_METHOD_BUFFER_SIZE: usize = 0;
+
+/// `NV2080_CTRL_CMD_CE_GET_LCE_SHIM_INFO` (sdk/ctrl/ctrl2080/ctrl2080ce.h:351-374, the same
+/// text in 610.57.04 and 615.71.09): which CE shim an LCE belongs to and its index inside
+/// the shim. ROUTE_TO_PHYSICAL in both; PRIVILEGED in 610 (export flags 0x145,
+/// src/nvidia/generated/g_subdevice_nvoc.c:11827), NON_PRIVILEGED in 615 (0x149, 615
+/// g_subdevice_nvoc.c:12008), and the 615 libcuda asks it at cuInit for every CE
+/// (caraxes/runs/cutover-615-2026-09-24/v1/cuda/guest/v1-615/cuda-managed.rm.tsv:214-228).
+pub const CMD_CE_GET_LCE_SHIM_INFO: u32 = 0x2080_2A0C;
+/// `NV2080_CTRL_CE_GET_LCE_SHIM_INFO_PARAMS` {ceEngineType (in), shimInstance (out),
+/// shimLocalLceIdx (out)}, three NvU32 (ctrl2080ce.h:370-374). Not in the generated
+/// bindings; measured by hand from the header, as the 615 libcuda sends it (len=12 in
+/// the trace above).
+pub const LCE_SHIM_INFO_SIZE: usize = 12;
+pub const LCE_SHIM_CE_ENGINE_TYPE: usize = 0;
+pub const LCE_SHIM_INSTANCE: usize = 4;
+pub const LCE_SHIM_LOCAL_LCE_IDX: usize = 8;
+/// `NV2080_ENGINE_TYPE_COPY0`..`COPY9` and `COPY10`..`COPY19`
+/// (sdk/class/cl2080_notification.h:293-302, :342-351; `NV2080_ENGINE_TYPE_COPY_IDX`
+/// :401-402).
+pub fn copy_engine_index(nv2080: u32) -> Option<u32> {
+    match nv2080 {
+        0x09..=0x12 => Some(nv2080 - 0x09),
+        0x34..=0x3D => Some(nv2080 - 0x34 + 10),
+        _ => None,
+    }
+}
 
 // ---------------------------------------------------------------------------------
 // KernelGraphics static info (kgr.rs; ctrl2080internal.h, ctrl2080gr.h, ctrl0080gr.h).

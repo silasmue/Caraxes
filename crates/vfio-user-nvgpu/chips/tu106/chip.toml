@@ -132,6 +132,10 @@ label = "synthesized (256-entry fault buffers)"
 # CE_IS_DECOMP_LCE_ENABLED false; kernel_ce.c:1172-1197).
 decomp_lce = false
 decomp_label = "synthesized (no decompression LCE on Turing)"
+# CE_GET_LCE_SHIM_INFO without a host that may answer it (a 610 host has the control
+# PRIVILEGED): Turing has one CE shim; kernel_ce.c:53-56 leaves shimInstance 0 and the
+# shim HAL is a no-op before Blackwell (615 g_kernel_ce_nvoc.c:352-362).
+lce_shim = { lces_per_shim = 20, label = "synthesized (one CE shim on Turing: shim 0, local index = LCE index; kernel_ce.c:53-56)" }
 
 [gr]
 # INTERNAL_STATIC_KGR_GET_PDB_PROPERTIES: TU106 default TRUE, g_kernel_graphics_nvoc.c:306-311.

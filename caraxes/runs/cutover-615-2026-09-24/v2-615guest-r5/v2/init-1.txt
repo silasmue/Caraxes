@@ -1,0 +1,10 @@
+# target v2 metric init rep 1
+# cmd ./bench-cu init
+# device /mnt/vmstore/caraxes/vm2-615/vfio-user-nvgpu sha256 281ff29296911668
+# time 2026-09-24T18:30:51+02:00
+# gpu 60, 525 MHz, 405 MHz, P8, 30 %, 5395 MiB, Disabled
+# procs 143264:vm2-615-dev 143275:vm1-vmm 193297:vm0-dev 193319:vm1-vmm 195228:vm1-dev 195240:vm1-vmm 
+# loadavg 4.53 7.67 6.42
+ERROR cuInit: 803 system has unsupported display driver / cuda driver combination
+# WALL wall_ms=34 rc=1
+# MEAS dev_pid=143264 dev_cpu_ms=10 dev_rss_hwm_kb=2251868/6298332 vmm_cpu_ms=170 others: vm1-dev=0ms vm1-vmm=10ms vm1-vmm=10ms vm0-dev=0ms 

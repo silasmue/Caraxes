@@ -15,7 +15,7 @@ pub const SURFACE_DRIVER: &str = "610.57.04";
 /// other handler answers: the number `E_FAMILIES` must cover.
 pub const E_INVENTORY: usize = 189;
 /// Category A controls (pure chip data) that no other handler answers.
-pub const A_INVENTORY: usize = 60;
+pub const A_INVENTORY: usize = 59;
 
 /// The category E controls by feature family. A chip names the families it lacks in
 /// `chips/<chip>/chip.toml` `[features]`; chipctl.rs refuses their controls.
@@ -905,7 +905,7 @@ pub const ROUTED: &[Routed] = &[
     Routed { id: 0x2080_2A08, name: "NV2080_CTRL_CMD_CE_GET_FAULT_METHOD_BUFFER_SIZE", category: 'B', other: true },
     Routed { id: 0x2080_2A09, name: "NV2080_CTRL_CMD_CE_GET_HUB_PCE_MASK", category: 'E', other: false },
     Routed { id: 0x2080_2A0B, name: "NV2080_CTRL_CMD_CE_GET_ALL_PHYSICAL_CAPS", category: 'A', other: true },
-    Routed { id: 0x2080_2A0C, name: "NV2080_CTRL_CMD_CE_GET_LCE_SHIM_INFO", category: 'A', other: false },
+    Routed { id: 0x2080_2A0C, name: "NV2080_CTRL_CMD_CE_GET_LCE_SHIM_INFO", category: 'A', other: true },
     Routed { id: 0x2080_2A0D, name: "NV2080_CTRL_CMD_CE_UPDATE_PCE_LCE_MAPPINGS_V2", category: 'D', other: true },
     Routed { id: 0x2080_2A0E, name: "NV2080_CTRL_CMD_CE_GET_HUB_PCE_MASK_V2", category: 'A', other: false },
     Routed { id: 0x2080_2A0F, name: "NV2080_CTRL_CMD_INTERNAL_CE_GET_PCE_CONFIG_FOR_LCE_TYPE", category: 'A', other: true },

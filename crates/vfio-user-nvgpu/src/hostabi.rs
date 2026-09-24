@@ -30,6 +30,7 @@
 //! | GSS legacy perf 0xf1 (0x2080A0F1) | none | 9216 | forwarded for nvidia-smi (nvml.rs) | [`HostLayouts::legacy`] |
 //! | `NV_CHANNEL_ALLOC_PARAMS` | 376 | 376 | channel alloc | [`ChannelAllocParams`], equality asserted at compile time |
 //! | `NV2080_CTRL_FB_FLUSH_GPU_CACHE_PARAMS` `flags` bits | APERTURE 1:0 | APERTURE 2:0 | `FB_FLUSH_GPU_CACHE` (guest L2 ops, boot.rs) | [`HostLayouts::flush_gpu_cache`] |
+//! | `NV2080_CTRL_CMD_CE_GET_LCE_SHIM_INFO` privilege | PRIVILEGED | NON_PRIVILEGED | forwarded for libcuda 615 (cuda.rs) | [`HostLayouts::lce_shim_info_public`] |
 //!
 //! The flush row is not a struct layout (the struct is 4024 bytes on both, in
 //! `nvrm_sys::stable`) but a flag-word layout the bindings cannot carry: 615 widens
@@ -152,6 +153,10 @@ pub struct HostLayouts {
     pub legacy: &'static [(u32, usize, &'static str)],
     /// The `NV2080_CTRL_FB_FLUSH_GPU_CACHE_FLAGS` bits of this host driver.
     pub flush: FlushFlags,
+    /// `NV2080_CTRL_CMD_CE_GET_LCE_SHIM_INFO` is NON_PRIVILEGED on this host, so the
+    /// device's unprivileged client may forward it (610 export flags 0x145, PRIVILEGED;
+    /// 615 0x149, NON_PRIVILEGED; the layout is the same, `ver::v610::LCE_SHIM_INFO_SIZE`).
+    pub lce_shim_info_public: bool,
 }
 
 /// `NV2080_CTRL_CMD_FB_FLUSH_GPU_CACHE` (ctrl2080fb.h, both versions): public and
@@ -286,6 +291,8 @@ pub static HOST_610: HostLayouts = HostLayouts {
         invalidate: 1 << 3,
         full_cache: 1 << 4,
     },
+    // 610 src/nvidia/generated/g_subdevice_nvoc.c:11827: flags 0x145 (PRIVILEGED).
+    lce_shim_info_public: false,
 };
 
 pub static HOST_615: HostLayouts = HostLayouts {
@@ -313,6 +320,8 @@ pub static HOST_615: HostLayouts = HostLayouts {
         invalidate: 1 << 4,
         full_cache: 1 << 5,
     },
+    // 615 src/nvidia/generated/g_subdevice_nvoc.c:12008: flags 0x149 (NON_PRIVILEGED).
+    lce_shim_info_public: true,
 };
 
 // The map lengths are array lengths the bindings cannot give as constants; pin

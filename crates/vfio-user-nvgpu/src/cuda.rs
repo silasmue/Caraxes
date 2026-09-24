@@ -73,7 +73,7 @@ pub fn answer_control(
     cmd: u32,
     params: &[u8],
     channels: &mut Registry,
-    _host: Option<&mut Box<dyn HostRm>>,
+    host: Option<&mut Box<dyn HostRm>>,
 ) -> Option<Answer> {
     let n = params.len();
     if let Some((_, what)) = ACKNOWLEDGED.iter().find(|(c, _)| *c == cmd) {
@@ -108,8 +108,95 @@ pub fn answer_control(
                 format!("grmgr skyline info: 0 entries ({n} bytes)"),
             )
         }
+        v::CMD_CE_GET_LCE_SHIM_INFO => {
+            lce_shim_info(chip, params, host, crate::hostabi::current())
+        }
         _ => return None,
     })
+}
+
+fn get32(b: &[u8], off: usize) -> Option<u32> {
+    b.get(off..off + 4)
+        .map(|w| u32::from_le_bytes(w.try_into().unwrap()))
+}
+
+/// `CE_GET_LCE_SHIM_INFO` (v610.rs `CMD_CE_GET_LCE_SHIM_INFO`), asked by the 615 libcuda
+/// at cuInit for every CE; refusing it makes cuInit fail with 100 (no CUDA-capable device;
+/// caraxes/runs/cutover-615-2026-09-24/v2-615guest/gate-cuda.txt:1-3). The shim layout is
+/// the silicon's: forwarded to the host's subdevice when the host driver has the control
+/// NON_PRIVILEGED (615, `HostLayouts::lce_shim_info_public`), answered from the chip's
+/// shim table (`[ce] lce_shim`) otherwise. The note decodes the answer and names the
+/// chip table's answer beside a host one, so a disagreement shows in the device log.
+fn lce_shim_info(
+    chip: &'static ChipData,
+    params: &[u8],
+    host: Option<&mut Box<dyn HostRm>>,
+    layouts: &crate::hostabi::HostLayouts,
+) -> Answer {
+    let ce = get32(params, v::LCE_SHIM_CE_ENGINE_TYPE);
+    let lce = ce.and_then(v::copy_engine_index);
+    let table = chip.ce.lce_shim.as_ref();
+    let from_table = lce.zip(table).map(|(i, t)| t.of(i));
+    let what = format!(
+        "ce lce shim info: ceEngineType {} (LCE {})",
+        ce.map_or("missing".into(), |c| format!("{c:#x}")),
+        lce.map_or("none".into(), |i| i.to_string())
+    );
+    if params.len() < v::LCE_SHIM_INFO_SIZE {
+        return Answer {
+            status: v::NV_ERR_INVALID_ARGUMENT,
+            params: params.to_vec(),
+            label: "synthesized (params shorter than NV2080_CTRL_CE_GET_LCE_SHIM_INFO_PARAMS)",
+            note: format!("{what}: {} bytes, expected {}", params.len(), v::LCE_SHIM_INFO_SIZE),
+        };
+    }
+    if let (Some(host), true) = (host, layouts.lce_shim_info_public) {
+        let mut b = params.to_vec();
+        let status = host.control(v::NV20_SUBDEVICE_0, v::CMD_CE_GET_LCE_SHIM_INFO, &mut b);
+        let got = (
+            get32(&b, v::LCE_SHIM_INSTANCE).unwrap_or(0),
+            get32(&b, v::LCE_SHIM_LOCAL_LCE_IDX).unwrap_or(0),
+        );
+        let agrees = match from_table {
+            Some(t) if status == NV_OK && t != got => format!("; chip table says {t:?}: DISAGREES"),
+            Some(_) if status == NV_OK => "; chip table agrees".into(),
+            _ => String::new(),
+        };
+        return Answer {
+            status,
+            params: b,
+            label: "host (forwarded as-is; NON_PRIVILEGED on the 615 host)",
+            note: format!(
+                "{what} -> host status {status:#x}, shimInstance {} shimLocalLceIdx {}{agrees}",
+                got.0, got.1
+            ),
+        };
+    }
+    match (lce, table) {
+        (Some(_), Some(t)) => {
+            let (shim, local) = from_table.unwrap();
+            let mut b = params.to_vec();
+            b[v::LCE_SHIM_INSTANCE..][..4].copy_from_slice(&shim.to_le_bytes());
+            b[v::LCE_SHIM_LOCAL_LCE_IDX..][..4].copy_from_slice(&local.to_le_bytes());
+            answer(
+                b,
+                &t.label,
+                format!("{what} -> shimInstance {shim} shimLocalLceIdx {local}"),
+            )
+        }
+        (None, _) => Answer {
+            status: v::NV_ERR_INVALID_ARGUMENT,
+            params: params.to_vec(),
+            label: "synthesized (not a copy engine type)",
+            note: format!("{what}: not a copy engine"),
+        },
+        (Some(_), None) => Answer {
+            status: v::NV_ERR_NOT_SUPPORTED,
+            params: params.to_vec(),
+            label: "synthesized (no shim table for this chip and no host that may answer)",
+            note: format!("{what}: not supported"),
+        },
+    }
 }
 
 #[cfg(test)]
@@ -180,5 +267,84 @@ mod tests {
                 (NV_OK, &[1u8, 2, 3, 4][..])
             );
         }
+    }
+
+    /// `NV2080_CTRL_CE_GET_LCE_SHIM_INFO_PARAMS` is three NvU32 in both drivers
+    /// (ctrl2080ce.h:370-374 in 610.57.04 and 615.71.09); the 615 libcuda sends 12 bytes.
+    /// The ECC status the same libcuda asks is forwarded unchanged (`FORWARD`), which is
+    /// sound on either host because its struct is the same size in both bindings.
+    #[test]
+    fn lce_shim_info_and_ecc_layouts() {
+        use core::mem::size_of;
+        assert_eq!(v::CMD_CE_GET_LCE_SHIM_INFO, 0x2080_2A0C);
+        assert_eq!(v::LCE_SHIM_INFO_SIZE, 3 * 4);
+        assert_eq!(
+            (v::LCE_SHIM_CE_ENGINE_TYPE, v::LCE_SHIM_INSTANCE, v::LCE_SHIM_LOCAL_LCE_IDX),
+            (0, 4, 8)
+        );
+        assert_eq!(
+            size_of::<nvrm_sys::v610::NV2080_CTRL_GPU_QUERY_ECC_STATUS_PARAMS>(),
+            size_of::<nvrm_sys::v615::NV2080_CTRL_GPU_QUERY_ECC_STATUS_PARAMS>()
+        );
+        assert!(crate::ver::v610::FORWARD.iter().any(|(c, _)| *c == 0x2080_012F));
+        assert_eq!(v::copy_engine_index(0x09), Some(0));
+        assert_eq!(v::copy_engine_index(0x12), Some(9));
+        assert_eq!(v::copy_engine_index(0x34), Some(10));
+        assert_eq!(v::copy_engine_index(0x3D), Some(19));
+        assert_eq!(v::copy_engine_index(0x01), None);
+        use crate::hostabi::{HOST_610, HOST_615};
+        assert!(!HOST_610.lce_shim_info_public && HOST_615.lce_shim_info_public);
+    }
+
+    /// Forwarded on a 615 host, the chip's shim table on a 610 host (the control is
+    /// PRIVILEGED there) or without a host; a non-copy engine is an invalid argument.
+    #[test]
+    fn lce_shim_info_answer() {
+        use crate::hostabi::{HOST_610, HOST_615};
+        type Seen = std::sync::Arc<std::sync::Mutex<Vec<(u32, u32, usize)>>>;
+        struct Rec(Seen);
+        impl HostRm for Rec {
+            fn control(&mut self, class: u32, cmd: u32, p: &mut [u8]) -> u32 {
+                self.0.lock().unwrap().push((class, cmd, p.len()));
+                let lce = u32::from_le_bytes(p[0..4].try_into().unwrap()) - 0x09;
+                p[4..8].copy_from_slice(&0u32.to_le_bytes());
+                p[8..12].copy_from_slice(&lce.to_le_bytes());
+                NV_OK
+            }
+        }
+        let f = crate::fixture::rtx2070();
+        let chip = f.chip.data();
+        let req = |engine: u32| {
+            let mut p = vec![0xEEu8; v::LCE_SHIM_INFO_SIZE];
+            p[0..4].copy_from_slice(&engine.to_le_bytes());
+            p
+        };
+        let out = |a: &Answer| (a.status, get32(&a.params, 4), get32(&a.params, 8));
+        let seen: Seen = Default::default();
+        let mut host: Box<dyn HostRm> = Box::new(Rec(seen.clone()));
+        // 615 host: forwarded to the subdevice, the chip table agrees.
+        let a = lce_shim_info(chip, &req(0x09 + 3), Some(&mut host), &HOST_615);
+        assert_eq!(out(&a), (NV_OK, Some(0), Some(3)));
+        assert!(a.label.starts_with("host"), "{}", a.label);
+        assert!(a.note.ends_with("chip table agrees"), "{}", a.note);
+        assert_eq!(
+            seen.lock().unwrap().as_slice(),
+            &[(v::NV20_SUBDEVICE_0, 0x2080_2A0C, 12)]
+        );
+        // 610 host: not sent; the chip table (one shim on Turing).
+        let a = lce_shim_info(chip, &req(0x09 + 2), Some(&mut host), &HOST_610);
+        assert_eq!(out(&a), (NV_OK, Some(0), Some(2)));
+        assert_eq!(seen.lock().unwrap().len(), 1);
+        assert!(a.label.contains("one CE shim"), "{}", a.label);
+        // No host, COPY10.
+        let a = lce_shim_info(chip, &req(0x34), None, &HOST_615);
+        assert_eq!(out(&a), (NV_OK, Some(0), Some(10)));
+        // Not a copy engine; too short.
+        assert_eq!(lce_shim_info(chip, &req(0x01), None, &HOST_615).status, v::NV_ERR_INVALID_ARGUMENT);
+        assert_eq!(lce_shim_info(chip, &[9, 0, 0, 0], None, &HOST_615).status, v::NV_ERR_INVALID_ARGUMENT);
+        // Through the dispatcher's CUDA rows.
+        let mut reg = Registry::new(chip.channel);
+        let a = answer_control(chip, v::CMD_CE_GET_LCE_SHIM_INFO, &req(0x0A), &mut reg, None).unwrap();
+        assert_eq!(out(&a), (NV_OK, Some(0), Some(1)));
     }
 }
