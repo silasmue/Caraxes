@@ -1,0 +1,89 @@
+vfio-user-nvgpu: display engine present (fuse 0; board connectors from the board data)
+vfio-user-nvgpu: guest name "Leandro VFIO RTX 2070-3G"
+vfio-user-nvgpu: intr page: BAR0 [0x0, 0x1000) and the interrupt tree [0xb81000, 0xb82000) offered as sparse mmap areas of region 0 from a memfd; the reactor applies the guest's stores (sleep bound 1 ms, retrigger watchdog 10 ms) (CARAXES_INTR_PAGE=1, docs/caraxes/intr-page.md)
+vfio-user-nvgpu: display page: BAR0 [0x611000, 0x612000) (the display front-end interrupt status) offered as a third sparse mmap area; the display clock advances the engine at every tick, the reactor applies the guest's acks and enables, window AWAKENs are acknowledged by the CORE marker (CARAXES_DISPLAY_PAGE=1, docs/caraxes/intr-page.md §10)
+vfio-user-nvgpu: doorbell tokens: BAR0 0xbb0090, 4 bytes, 64 sub-region(s) with datamatch 0xca700000..=0xca70003f and one eventfd each, offered through VFIO_USER_DEVICE_GET_REGION_IO_FDS; a channel gets a pool token at its first (trapped) doorbell, written to its work-submit-token notifier entry (CARAXES_DOORBELL_TOKENS=64, docs/caraxes/doorbell-token-pool.md)
+vfio-user-nvgpu: guest ABI 610 (MsgqV1)
+vfio-user-nvgpu: TU106 (BOOT_0 0x166000a1, driver 610.57.04) on /mnt/vmstore/caraxes/vm4/gpu.sock, boot model on, FB 3072 MiB, ROM 130048 bytes, PROM image 131584 bytes, trace /mnt/vmstore/caraxes/vm4/gpu-trace.log
+vfio-user-nvgpu: doorbell poll: hybrid reader (CARAXES_DOORBELL_POLL=hybrid, CARAXES_DOORBELL_POLL_CPU=Auto)
+[2026-09-24T16:32:48Z INFO  vfio_user] Received client version: major = 0 minor = 1 capabilities = Capabilities { max_msg_fds: 253, max_data_xfer_size: 1048576, migration: MigrationCapabilities { pgsize: 4096 } }
+[2026-09-24T16:32:48Z INFO  vfio_user] Sent server version: major = 0 minor = 0 capabilities = Capabilities { max_msg_fds: 1, max_data_xfer_size: 1048576, migration: MigrationCapabilities { pgsize: 4096 } }
+vfio-user-nvgpu: doorbell poll: reader pinned to CPU 5 (auto: 88 % idle over 1 s; not CPU 0; VMM vCPU threads of pid 210964 on CPU(s) [0, 1, 3, 4, 6, 7, 12] at the sample, avoided)
+[2026-09-24T16:51:23Z INFO  vfio_user] Connection closed
+bar0: 35084 reads, 33315 writes
+bar1: 2 reads, 4098 writes
+bar3: 395 reads, 6952 writes
+cfg: 19813 reads, 34 writes
+bar0 offsets without a name in the register map (offset: accesses):
+  0x00640000: 1
+  0x00640004: 1
+  0x00640010: 1
+  0x00640144: 1
+  0x0064014c: 1
+  0x00640154: 1
+  0x0064015c: 1
+  0x006405e8: 1
+  0x006405ec: 1
+  0x006405f0: 1
+  0x006405f4: 1
+  0x00640608: 1
+  0x0064060c: 1
+  0x00640610: 1
+  0x00640614: 1
+  0x00640680: 1
+  0x006406a0: 1
+  0x006406c0: 1
+  0x006406e0: 1
+  0x00640780: 2
+  0x006407a0: 2
+  0x006407c0: 2
+  0x006407e0: 2
+  0x00640800: 2
+  0x00640820: 2
+  0x00640840: 2
+  0x00640860: 2
+  0x00640880: 2
+  0x006408a0: 2
+  0x006408c0: 2
+  0x006408e0: 2
+  0x00640900: 2
+  0x00640920: 2
+  0x00640940: 2
+  0x00640960: 2
+  0x00640980: 2
+  0x006409a0: 2
+  0x006409c0: 2
+  0x006409e0: 2
+  0x00640a00: 2
+  0x00640a20: 2
+  0x00640a40: 2
+  0x00640a60: 2
+  0x00640a80: 2
+  0x00640aa0: 2
+  0x00640ac0: 2
+  0x00640ae0: 2
+  0x00640b00: 2
+  0x00640b20: 2
+  0x00640b40: 2
+  0x00640b60: 2
+  0x00680000: 8
+  0x00680004: 10
+  0x00689000: 1
+  0x00689080: 1
+  0x00689100: 1
+  0x00689180: 1
+  0x00689200: 1
+  0x00689280: 1
+  0x00689300: 1
+  0x00689380: 1
+  0x00690000: 7
+  0x00690004: 10
+  0x00691000: 3
+  ... 13 more
+bar tlb: 11383 hit(s), 64 walk(s), 15 flush(es) by a table write (docs/caraxes/mapping.md §3)
+doorbell tokens: 64 offered (0xca700000..), 0 handed out, 0 written again, 0 assigned at exit (peak 0); 0 eventfd wakeup(s) for 0 guest write(s); 0 pool token(s) trapped; 0 trapped ring(s) with a channel's own token after its hand-out; 0 stale; left on their own token: 0 without notifier, 0 notifier mismatch, 0 pool exhausted
+display engine: 1 core UPDATEs, 1 core notifiers written, 0 vblank interrupts, 0 unresolved context DMAs, ticker raised 1 (1 MSIs); ; 
+vidmem PTE kinds walked (kind:comptagline x count): 0x00:0x0x24 0x06:0x0x40 -- all uncompressed (kind 0x06/0x00, comptagline 0): comptag hold satisfied
+doorbell poll (tokens): hybrid (200 us idle), pinned to CPU 5; 1639095 loop iteration(s), 1 with events, 1009848 blocking wait(s); 0 eventfd event(s) for 0 guest write(s); ring to host doorbell: 0 ring(s), mean 0.00 us, p50 0.0 us, p99 0.0 us, max 0.0 us (0 ring(s) without a host doorbell); Device lock wait per wakeup: mean 0.00 us, p50 0.0 us, p99 0.0 us, max 0.0 us; reader CPU 21.827 s (2.0 %) in 1115.3 s
+intr page: 2049 scan(s) with work (slowest 60.8 us); guest stores applied: 3 ack(s), 1604 LEAF_EN_SET, 2525 LEAF_EN_CLEAR, 1689 TOP_EN_SET, 1259 TOP_EN_CLEAR, 1 trigger(s); 1 raise fold(s) (0 coalesced while pending, 0 pended again at the ack); MSIs: 2 for raises, 1 re-arms (a set store while a vector is pending), 0 by the watchdog, 0 not written (MSI off or no eventfd); 110 compare-and-swap(s) lost to a guest store; inconsistencies: none
+display page: 1 scan(s) with work; guest stores applied: 0 EVT_STAT ack(s), 0 RM_INTR_EN store(s); 1 awaken marker(s), 1 acked by CORE_RESET (longest 0.0 ms); 0 raise(s) after an ack, 0 by the watchdog; 0 compare-and-swap(s) lost to a guest store; inconsistencies: none

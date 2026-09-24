@@ -1,0 +1,65 @@
+== modules
+/lib/modules/6.8.0-136-generic/kernel/drivers/video/fbdev/nvidia/nvidiafb.ko.zst
+/lib/modules/6.8.0-136-generic/kernel/drivers/video/nvidia-drm.ko
+/lib/modules/6.8.0-136-generic/kernel/drivers/video/nvidia-modeset.ko
+/lib/modules/6.8.0-136-generic/kernel/drivers/video/nvidia-peermem.ko
+/lib/modules/6.8.0-136-generic/kernel/drivers/video/nvidia-uvm.ko
+/lib/modules/6.8.0-136-generic/kernel/drivers/video/nvidia.ko
+== firmware
+d157e3b7dd5da2ca8d1ccb6ca98958f9e35d10a9ef7326277ebac133e4b0d1a7  /lib/firmware/nvidia/610.57.04/gsp_tu10x.bin
+== modprobe
+== display
+graphical.target
+[daemon]
+AutomaticLoginEnable=true
+AutomaticLogin=leandro
+WaylandEnable=true
+PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
+# CARAXES display-cd phase D: Mesa EGL/GBM with kms_swrast (no GPU execution on vm0)
+__EGL_VENDOR_LIBRARY_FILENAMES=/usr/share/glvnd/egl_vendor.d/50_mesa.json
+MESA_LOADER_DRIVER_OVERRIDE=kms_swrast
+undo: cp /etc/gdm3/custom.conf.caraxes-orig /etc/gdm3/custom.conf; cp /etc/environment.caraxes-orig /etc/environment; rm /etc/udev/rules.d/61-gdm.rules; cp /var/lib/AccountsService/users/leandro.caraxes-orig /var/lib/AccountsService/users/leandro; systemctl disable gdm3
+PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
+# CARAXES display-e: EGL/GBM on the NVIDIA driver (host execution on)
+lrwxrwxrwx 1 root root 41 Sep 24 16:36 /usr/lib/x86_64-linux-gnu/gbm/nvidia-drm_gbm.so -> /opt/nvrm-gl/lib/libnvidia-allocator.so.1
+== sunshine
+/usr/bin/sunshine cap_sys_admin,cap_sys_nice=p
+== games
+/dev/vdc at /games: 196G total, 137G free
+== steam
+"libraryfolders"
+{
+	"0"
+	{
+		"path"		"/home/leandro/.steam/debian-installation"
+		"label"		""
+		"totalsize"		"0"
+		"apps"
+		{
+		}
+	}
+	"1"
+	{
+		"path"		"/games/SteamLibrary"
+		"label"		""
+		"contentid"		"715472432590830080"
+		"totalsize"		"0"
+		"apps"
+		{
+			"1391110"		"676965917"
+			"1493710"		"1515489043"
+			"1628350"		"803970096"
+			"2180100"		"1515209578"
+			"231350"		"6658019387"
+			"4183110"		"672162947"
+			"750920"		"37955541433"
+		}
+	}
+}
+prepared: display.done
+firmware.done
+games.done
+modprobe.done
+modules.done
+steam.done
+sunshine.done

@@ -1,0 +1,22 @@
+# SPDX-License-Identifier: MIT
+# 2026-09-24T18:52:11+02:00 binary check, CARAXES_SERVER=/mnt/vmstore/caraxes/vfio-user-nvgpu-main-3cb33af
+44a261bbeef4a22e080c196d86bd91d3a0d2cf35ab233d03b95a3ad9ca3a987d  /mnt/vmstore/caraxes/vfio-user-nvgpu-main-3cb33af
+games disk: /mnt/vmstore/caraxes/vm4/games.qcow2
+server pid 301517, VM pid 301532; logs in /mnt/vmstore/caraxes/vm4
+ssh up at 192.168.103.24
+vfio-user-nvgpu: intr page: BAR0 [0x0, 0x1000) and the interrupt tree [0xb81000, 0xb82000) offered as sparse mmap areas of region 0 from a memfd; the reactor applies the guest's stores (sleep bound 1 
+vfio-user-nvgpu: display page: BAR0 [0x611000, 0x612000) (the display front-end interrupt status) offered as a third sparse mmap area; the display clock advances the engine at every tick, the reactor 
+vfio-user-nvgpu: doorbell tokens: BAR0 0xbb0090, 4 bytes, 64 sub-region(s) with datamatch 0xca700000..=0xca70003f and one eventfd each, offered through VFIO_USER_DEVICE_GET_REGION_IO_FDS; a channel ge
+vfio-user-nvgpu: TU106 (BOOT_0 0x166000a1, driver 610.57.04) on /mnt/vmstore/caraxes/vm4/gpu.sock, boot model on, FB 3072 MiB, ROM 130048 bytes, PROM image 131584 bytes, trace /mnt/vmstore/caraxes/vm4
+[  129.434622] NVRM: GPU 0000:00:06.0: RmInitAdapter
+[  132.206308] NVRM: GPU 0000:00:06.0: RmInitAdapter succeeded!
+modprobe rc=0
+display-up.sh: line 22: /sys/class/drm/card0-*/modes: No such file or directory
+card0-*  
+/games /dev/vdc ext4   rw,relatime
+Shadow of the Tomb Raider
+multi-user.target
+stopped
+doorbell poll (tokens): hybrid (200 us idle), pinned to CPU 15; 298722 loop iteration(s), 1 with events, 135432 blocking wait(s); 0 eventfd event(s) for 0 guest write(s); ring to host doorbell: 0 ring(s), mean 0.00 us, p50 0.0 us, p99 0.0 us, max 0.0 us (0 ring(s) without a host doorbell); Device lo
+intr page: 1221 scan(s) with work (slowest 6.8 us); guest stores applied: 3 ack(s), 775 LEAF_EN_SET, 899 LEAF_EN_CLEAR, 863 TOP_EN_SET, 448 TOP_EN_CLEAR, 1 trigger(s); 1 raise fold(s) (0 coalesced while pending, 0 pended again at the ack); MSIs: 2 for raises, 1 re-arms (a set store while a vector is
+display page: 1 scan(s) with work; guest stores applied: 0 EVT_STAT ack(s), 0 RM_INTR_EN store(s); 1 awaken marker(s), 1 acked by CORE_RESET (longest 0.1 ms); 0 raise(s) after an ack, 0 by the watchdog; 0 compare-and-swap(s) lost to a guest store; inconsistencies: none

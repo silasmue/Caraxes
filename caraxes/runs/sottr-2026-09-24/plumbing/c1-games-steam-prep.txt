@@ -1,0 +1,29 @@
+# SPDX-License-Identifier: MIT
+# 2026-09-24T18:47:59+02:00 guest command: hostname; findmnt /games; grep LEAGAMES /etc/fstab; ls "/games/SteamLibrary/steamapps/common/Shadow of the Tomb Raider"; file "/games/SteamLibrary/steamapps/common/Shadow of the Tomb Raider/bin/ShadowOfTheTombRaider"; ls -la ~/.steam; cat ~/.config/autostart/steam.desktop; sysctl kernel.apparmor_restrict_unprivileged_userns; systemctl get-default
+caraxes-vm4
+TARGET SOURCE   FSTYPE OPTIONS
+/games /dev/vdc ext4   rw,relatime
+LABEL=LEAGAMES /games ext4 defaults,nofail,x-systemd.device-timeout=10 0 2
+ShadowOfTheTombRaider.sh
+bin
+config
+lib
+share
+/games/SteamLibrary/steamapps/common/Shadow of the Tomb Raider/bin/ShadowOfTheTombRaider: ELF 64-bit LSB executable, x86-64, version 1 (SYSV), dynamically linked, interpreter /lib64/ld-linux-x86-64.so.2, BuildID[sha1]=5559bd11cfb1cae534d961a060a60440fbe03328, for GNU/Linux 2.6.24, stripped
+total 12
+drwxr-xr-x  3 leandro leandro 4096 Sep 24 16:36 .
+drwxr-x--- 11 leandro leandro 4096 Sep 24 16:48 ..
+drwxr-xr-x  4 leandro leandro 4096 Sep 24 16:36 debian-installation
+lrwxrwxrwx  1 leandro leandro   40 Sep 24 16:36 root -> /home/leandro/.steam/debian-installation
+lrwxrwxrwx  1 leandro leandro   40 Sep 24 16:36 steam -> /home/leandro/.steam/debian-installation
+[Desktop Entry]
+Type=Application
+Name=Steam
+Comment=Caraxes SotTR stage: Steam in the session (docs/caraxes/sottr-stage.md)
+Exec=/usr/games/steam
+Icon=steam
+X-GNOME-Autostart-enabled=true
+X-GNOME-Autostart-Delay=5
+kernel.apparmor_restrict_unprivileged_userns = 0
+graphical.target
+rc=0

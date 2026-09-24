@@ -1,0 +1,4 @@
+probe sottr: 74164 device accesses, guest log in /mnt/vmstore/caraxes/vm4/probe-sottr/guest-dmesg.txt
+[  249.383193] NVRM: GPU 0000:00:06.0: RmInitAdapter
+[  251.553628] NVRM: GPU 0000:00:06.0: RmInitAdapter succeeded!
+modprobe rc=0
