@@ -252,3 +252,186 @@ fn connector_command_posts_hotplug_events() {
     assert!(disp.connectors[0].pending_plug && disp.connectors[0].sink.is_plugged());
     assert!(disp.connector_command("bogus").is_empty());
 }
+
+// ---- Category D display controls (docs/caraxes/gsp-plan/d-device-model.md 6.5, roadmap R1)
+
+/// The id and generated layout size of a D control of this build's driver version.
+fn d_id(name: &str) -> Option<(u32, usize)> {
+    crate::ver::Abi::active()
+        .d_rules
+        .iter()
+        .find(|r| r.name == name)
+        .map(|r| (r.id, r.size))
+}
+
+fn hdcp(disp: &mut Display, did: u32, sub: &str, fill: u8) -> (Answer, Vec<u8>) {
+    const P: &str = "NV0073_CTRL_SPECIFIC_HDCP_CTRL_PARAMS";
+    let abi = crate::ver::Abi::active();
+    let (id, size) = d_id("NV0073_CTRL_CMD_SPECIFIC_HDCP_CTRL").unwrap();
+    assert_eq!(abi.layout(P).unwrap().size, size);
+    let mut p = vec![fill; size];
+    put_field(&mut p, field(P, "subDeviceInstance"), 0);
+    put_field(&mut p, field(P, "displayId"), did as u64);
+    let c = abi
+        .d_enum(&format!("NV0073_CTRL_SPECIFIC_HDCP_CTRL_CMD_{sub}"))
+        .map_or(0x77, u64::from);
+    put_field(&mut p, field(P, "cmd"), c);
+    put_field(&mut p, field(P, "err"), 0xEE);
+    (disp.control(id, &p).unwrap(), p)
+}
+
+/// SPECIFIC_HDCP_CTRL per sub-command: the unplug's DISABLE_AUTHENTICATION (every unplug
+/// sends it, caraxes/runs/display-cd-2026-09-24/d11-unplug/device-trace.txt:16) succeeds
+/// with err 0, a cipher request succeeds with err UNSUCCESSFUL, the queries return no data,
+/// an unknown cmd or display is an invalid argument; nothing is `unanswered`.
+#[test]
+fn hdcp_ctrl_is_answered_per_sub_command() {
+    const P: &str = "NV0073_CTRL_SPECIFIC_HDCP_CTRL_PARAMS";
+    let mut disp = display();
+    let err = field(P, "err");
+    for sub in ["DISABLE_AUTHENTICATION", "ABORT_AUTHENTICATION", "NULL"] {
+        let (a, req) = hdcp(&mut disp, DP, sub, 0);
+        assert_eq!((a.status, a.label), (NV_OK, HDCP), "{sub}");
+        assert_eq!(get_field(&a.params, err), 0, "{sub}");
+        assert_eq!(a.params.len(), req.len());
+    }
+    for sub in ["RENEGOTIATE", "VALIDATE_LINK", "READ_LINK_STATUS"] {
+        let (a, _) = hdcp(&mut disp, DP, sub, 0);
+        assert_eq!(a.status, NV_OK, "{sub}");
+        assert_eq!(get_field(&a.params, err) & 1, 1, "{sub}: err UNSUCCESSFUL");
+    }
+    for sub in ["GET_ALL_FLAGS", "READ_TOPOLOGY", "QUERY_HEAD_CONFIG"] {
+        let (a, req) = hdcp(&mut disp, DP, sub, 0xFF);
+        assert_eq!(a.status, NV_OK, "{sub}");
+        for f in ["displayId", "cmd"] {
+            assert_eq!(
+                get_field(&a.params, field(P, f)),
+                get_field(&req, field(P, f))
+            );
+        }
+        for f in [
+            "err",
+            "flags",
+            "isHdcpCapable",
+            "isHdcpAuthOn",
+            "numBksvs",
+            "bCaps[0]",
+            "cS",
+        ] {
+            assert_eq!(get_field(&a.params, field(P, f)), 0, "{sub}: {f}");
+        }
+    }
+    let (a, _) = hdcp(&mut disp, DP, "NO_SUCH_COMMAND", 0);
+    assert_eq!(a.status, NV_ERR_INVALID_ARGUMENT);
+    let (a, _) = hdcp(&mut disp, 0x8000, "DISABLE_AUTHENTICATION", 0);
+    assert_eq!(a.status, NV_ERR_INVALID_ARGUMENT);
+}
+
+/// DP_CONFIGURE_FEC turns FEC on for a trained link of a profile with FEC and
+/// DP_GET_LINK_CONFIG reports it; untrained it is an invalid argument; a new training
+/// clears it.
+#[test]
+fn configure_fec_feeds_the_link_config() {
+    const P: &str = "NV0073_CTRL_CMD_DP_CONFIGURE_FEC_PARAMS";
+    let mut disp = display();
+    assert!(
+        disp.chip().link.fec,
+        "the TU106 link profile has FEC (display.toml [link])"
+    );
+    let (id, size) = d_id("NV0073_CTRL_CMD_DP_CONFIGURE_FEC").unwrap();
+    let mut p = vec![0u8; size];
+    put_field(&mut p, field(P, "displayId"), DP as u64);
+    put_field(&mut p, field(P, "bEnableFec"), 1);
+    assert_eq!(
+        disp.control(id, &p).unwrap().status,
+        NV_ERR_INVALID_ARGUMENT
+    );
+    disp.link = Some((0x14, 4));
+    let a = disp.control(id, &p).unwrap();
+    assert_eq!((a.status, a.label), (NV_OK, SINK));
+    let mut lc = vec![0u8; d::LINK_CONFIG_FEC_ENABLED + 4];
+    put32(&mut lc, d::DISPLAY_ID, DP);
+    let a = disp.control(d::CMD_DP_GET_LINK_CONFIG, &lc).unwrap();
+    assert_eq!(get32(&a.params, d::LINK_CONFIG_FEC_ENABLED), 1);
+    put_field(&mut p, field(P, "bEnableFec"), 0);
+    assert_eq!(disp.control(id, &p).unwrap().status, NV_OK);
+    assert!(!disp.fec);
+    put_field(&mut p, field(P, "displayId"), 0x8000);
+    assert_eq!(
+        disp.control(id, &p).unwrap().status,
+        NV_ERR_INVALID_ARGUMENT
+    );
+}
+
+/// GET_RG_STATUS: no merge pair, no scan or flip lock, never stalled; a head the chip does
+/// not have is an invalid argument.
+#[test]
+fn rg_status_reports_unlocked_heads() {
+    const P: &str = "NV5070_CTRL_CMD_GET_RG_STATUS_PARAMS";
+    let mut disp = display();
+    let (id, size) = d_id("NV5070_CTRL_CMD_GET_RG_STATUS").unwrap();
+    let mut p = vec![0xFFu8; size];
+    put_field(&mut p, field(P, "head"), 1);
+    let a = disp.control(id, &p).unwrap();
+    assert_eq!((a.status, a.label), (NV_OK, ENGINE));
+    for f in ["scanLocked", "flipLocked", "rgStalled"] {
+        assert_eq!(get_field(&a.params, field(P, f)), 0, "{f}");
+    }
+    put_field(&mut p, field(P, "head"), disp.chip().heads as u64);
+    assert_eq!(
+        disp.control(id, &p).unwrap().status,
+        NV_ERR_INVALID_ARGUMENT
+    );
+}
+
+/// DP_SET_WAR_FLAGS (615 only, every plug and unplug, dp_connectorimpl.cpp:8048, :8475) is
+/// acknowledged by the board table; the 610 ABI has no such control.
+#[test]
+fn dp_set_war_flags_is_acknowledged() {
+    let mut disp = display();
+    match d_id("NV0073_CTRL_CMD_DP_SET_WAR_FLAGS") {
+        Some((id, size)) => {
+            let mut p = vec![0u8; size];
+            put32(&mut p, 4, DP);
+            let a = disp.control(id, &p).unwrap();
+            assert_eq!(
+                (a.status, a.label, &a.params),
+                (NV_OK, crate::dmodel::ACKNOWLEDGED, &p)
+            );
+        }
+        None => assert_eq!(crate::ver::active::DRIVER_VERSION, "610.57.04"),
+    }
+}
+
+/// Every field the display's D models use resolves in both ABIs' generated layouts.
+#[test]
+fn d_model_fields_resolve_in_both_abis() {
+    for abi in crate::ver::ABIS {
+        for (s, fs) in [
+            (
+                "NV0073_CTRL_SPECIFIC_HDCP_CTRL_PARAMS",
+                &["subDeviceInstance", "displayId", "cmd", "err", "flags"][..],
+            ),
+            (
+                "NV0073_CTRL_CMD_DP_CONFIGURE_FEC_PARAMS",
+                &["displayId", "bEnableFec"][..],
+            ),
+            (
+                "NV5070_CTRL_CMD_GET_RG_STATUS_PARAMS",
+                &["head", "scanLocked", "flipLocked", "rgStalled"][..],
+            ),
+        ] {
+            let l = abi.layout(s).unwrap_or_else(|| panic!("{}: {s}", abi.name));
+            for f in fs {
+                l.resolve(f).unwrap();
+            }
+        }
+        for n in [
+            "NV0073_CTRL_SPECIFIC_HDCP_CTRL_CMD_DISABLE_AUTHENTICATION",
+            "NV0073_CTRL_SPECIFIC_HDCP_CTRL_ERR_UNSUCCESSFUL_YES",
+            "NV5070_CTRL_CMD_GET_RG_STATUS_SCANLOCKED_NO",
+        ] {
+            assert!(abi.d_enum(n).is_some(), "{}: {n}", abi.name);
+        }
+    }
+}

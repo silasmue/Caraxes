@@ -39,7 +39,11 @@ pub const ACKNOWLEDGED: &str = "synthesized (acknowledged, no effect)";
 pub const PROFILING_DENIED: &str = "refused (isolation: profiling is admin-only on the host)";
 
 /// The controls with a hand-written model (roadmap R1, display/mod.rs), answered there.
-pub const MODELLED: &[&str] = &[];
+pub const MODELLED: &[&str] = &[
+    "NV0073_CTRL_CMD_SPECIFIC_HDCP_CTRL",
+    "NV0073_CTRL_CMD_DP_CONFIGURE_FEC",
+    "NV5070_CTRL_CMD_GET_RG_STATUS",
+];
 
 /// An NV status by name, from the version's nvstatuscodes.h (generated `D_ENUMS`).
 pub fn status(name: &str) -> u32 {
@@ -257,9 +261,8 @@ mod tests {
                     assert_eq!((a.status, a.label), (v::NV_OK, ACKNOWLEDGED), "{}", r.name);
                     assert_eq!(a.params, req, "{}", r.name);
                 }
-                ('-', _) if MODELLED.contains(&r.name) => {
-                    assert_ne!(a.label, "unanswered", "{}", r.name)
-                }
+                // The display models (MODELLED) need the display, which this dispatcher
+                // has switched off: unanswered here, answered in the next test.
                 ('-', _) | ('C', _) => assert_eq!(a.label, "unanswered", "{}", r.name),
                 ('E', _) => {
                     let acked = chip.features.acked.contains_key(&r.id);
@@ -316,6 +319,10 @@ mod tests {
                     assert_eq!((a.status, a.label), (want.status, want.label), "{}", r.name);
                 }
                 ('A' | 'E', _) => assert!(a.is_none(), "{}: left to the chip tables", r.name),
+                ('-', _) if MODELLED.contains(&r.name) => {
+                    let a = a.unwrap_or_else(|| panic!("{}", r.name));
+                    assert_ne!(a.label, "unanswered", "{}", r.name);
+                }
                 _ => {}
             }
         }
@@ -492,6 +499,26 @@ mod tests {
         for f in Abi::active().d_families {
             assert!(tu.absent.contains(&f.name), "{}", f.name);
         }
+    }
+
+    /// The R1 setters without a model: PERF_NOTIFY_VIDEOEVENT (NVENC through Sunshine, 6.9)
+    /// is acknowledged through the dispatcher, request echoed, never forwarded.
+    #[test]
+    fn notify_videoevent_is_acknowledged() {
+        let seen = Arc::new(Mutex::new(Vec::new()));
+        let mut d = dispatcher(Some(Box::new(Rec(seen.clone()))));
+        let r = Abi::active()
+            .d_rules
+            .iter()
+            .find(|r| r.name == "NV2080_CTRL_CMD_PERF_NOTIFY_VIDEOEVENT")
+            .unwrap();
+        let req: Vec<u8> = (0..r.size as u8).collect();
+        let a = d.control(INTERNAL_CLIENT, INTERNAL_SUBDEVICE, r.id, &req);
+        assert_eq!(
+            (a.status, a.label, &a.params),
+            (v::NV_OK, ACKNOWLEDGED, &req)
+        );
+        assert!(seen.lock().unwrap().is_empty());
     }
 
     /// With every family present, the D rows that move to E fall through every other

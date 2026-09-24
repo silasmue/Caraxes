@@ -284,6 +284,9 @@ pub struct Display {
     pub aux_transcript: Vec<String>,
     /// Link configuration the last DP_CTRL trained (rate code, lanes).
     pub link: Option<(u8, u8)>,
+    /// FEC on the trained link (`DP_CONFIGURE_FEC` after training; cleared when the link
+    /// is trained again or powered down, ctrl0073dp.h:356-360).
+    pub fec: bool,
     pub notes: Vec<String>,
     /// NV2080_NOTIFIERS_HOTPLUG events the guest allocated (hClient, hEvent), for
     /// POST_EVENT (docs/caraxes/display-cd.md, phase D).
@@ -301,6 +304,30 @@ fn put32(b: &mut [u8], off: usize, v: u32) {
 fn get32(b: &[u8], off: usize) -> u32 {
     b.get(off..off + 4)
         .map_or(0, |s| u32::from_le_bytes(s.try_into().unwrap()))
+}
+
+/// (offset, size) of `path` in the version's generated layout of `params`
+/// (src/ver/v<major>/ctrl_layouts.rs; the tests check every one the display uses).
+fn field(params: &str, path: &str) -> (usize, usize) {
+    crate::ver::Abi::active()
+        .layout(params)
+        .ok_or_else(|| format!("no generated layout of {params}"))
+        .and_then(|l| l.resolve(path))
+        .unwrap_or_else(|e| panic!("{e}"))
+}
+
+fn get_field(b: &[u8], (off, size): (usize, usize)) -> u64 {
+    let mut w = [0u8; 8];
+    if let Some(s) = b.get(off..off + size) {
+        w[..size].copy_from_slice(s);
+    }
+    u64::from_le_bytes(w)
+}
+
+fn put_field(b: &mut [u8], (off, size): (usize, usize), v: u64) {
+    if off + size <= b.len() {
+        b[off..off + size].copy_from_slice(&v.to_le_bytes()[..size]);
+    }
 }
 
 fn get64(b: &[u8], off: usize) -> u64 {
@@ -333,6 +360,8 @@ const GUEST: &str = "guest (recorded from the request)";
 const SINK: &str = "synthesized (dp-sink model behind the connector)";
 const LINK: &str = "synthesized (the display.toml [link] profile)";
 const EDID_STATE: &str = "guest-derived (per-display EDID state: sink EDID and override)";
+const HDCP: &str = "synthesized (connector without HDCP: not capable, not authenticated)";
+const ENGINE: &str = "synthesized (display engine: no merge pair, no scan or flip lock)";
 
 impl Default for Display {
     fn default() -> Self {
@@ -363,6 +392,7 @@ impl Display {
             latched: BTreeMap::new(),
             aux_transcript: Vec::new(),
             link: None,
+            fec: false,
             notes: Vec::new(),
             hotplug_events: Vec::new(),
             engine: engine::Engine::new(0, 0),
@@ -898,12 +928,13 @@ impl Display {
                 put32(&mut b, d::LINK_CONFIG_LANE_COUNT, lanes as u32);
                 put32(&mut b, d::LINK_CONFIG_LINK_BW, bw as u32);
                 put32(&mut b, d::LINK_CONFIG_DP2_LINK_BW, 0);
-                put32(&mut b, d::LINK_CONFIG_FEC_ENABLED, 0);
+                put32(&mut b, d::LINK_CONFIG_FEC_ENABLED, self.fec as u32);
                 ok(
                     b,
                     SINK,
                     format!(
-                        "link config of {did:#x}: {lanes} lanes, link bw {bw:#x} (0 = untrained)"
+                        "link config of {did:#x}: {lanes} lanes, link bw {bw:#x} (0 = untrained), FEC {}",
+                        self.fec
                     ),
                 )
             }
@@ -984,6 +1015,10 @@ impl Display {
             // HDCP, panel, mux, pinsets or DP 2.x, so the rule table's REFUSE and ACK rows are
             // this board's answers. The rows the plan moves to A or E are the chip tables'
             // (chipctl.rs), the MODEL rows without a model stay unanswered.
+            // The D rows with a model here (roadmap R1): HDCP per sub-command, FEC, RG status.
+            c if crate::dmodel::rule(c).is_some_and(|r| crate::dmodel::MODELLED.contains(&r.name)) => {
+                self.d_model(c, params)
+            }
             c if crate::dmodel::rule(c).is_some_and(|r| matches!(r.reclass, 'A' | 'E')) => {
                 return None
             }
@@ -1006,6 +1041,155 @@ impl Display {
             _ => return None,
         };
         Some(a)
+    }
+
+    /// The category D display controls with a model (docs/caraxes/gsp-plan/d-device-model.md
+    /// 6.5 rule 3, roadmap R1). Fields are resolved through the version's generated layout
+    /// table (`ctrl_layouts.rs`), enum values through the generated D table.
+    fn d_model(&mut self, cmd: u32, params: &[u8]) -> Answer {
+        let name = crate::dmodel::rule(cmd).map_or("", |r| r.name);
+        match name {
+            "NV0073_CTRL_CMD_SPECIFIC_HDCP_CTRL" => self.hdcp_ctrl(cmd, params),
+            "NV0073_CTRL_CMD_DP_CONFIGURE_FEC" => self.configure_fec(cmd, params),
+            "NV5070_CTRL_CMD_GET_RG_STATUS" => self.rg_status(params),
+            _ => fail(
+                NV_ERR_NOT_SUPPORTED,
+                params.to_vec(),
+                "unanswered",
+                format!("display control {cmd:#x}: no model"),
+            ),
+        }
+    }
+
+    /// `SPECIFIC_HDCP_CTRL` per `cmd` (ctrl0073specific.h:911-1315): the connector has no
+    /// HDCP, so it is never authenticated. Disabling or aborting authentication (the DP
+    /// library's unplug path, dp_connectorimpl.cpp:8491) succeeds with `err` 0; asking for
+    /// a cipher (renegotiate, validate, link status, stream type) succeeds with
+    /// `err` UNSUCCESSFUL; the flag, head-config and topology queries return no data (all
+    /// outputs 0, `flags` 0: nothing valid). An unknown `cmd` is an invalid argument.
+    fn hdcp_ctrl(&mut self, cmd: u32, params: &[u8]) -> Answer {
+        const P: &str = "NV0073_CTRL_SPECIFIC_HDCP_CTRL_PARAMS";
+        const PREFIX: &str = "NV0073_CTRL_SPECIFIC_HDCP_CTRL_CMD_";
+        let abi = crate::ver::Abi::active();
+        let mut b = params.to_vec();
+        let did = get_field(&b, field(P, "displayId")) as u32;
+        if self.connector(did).is_none() {
+            return self.bad_display(cmd, b, did);
+        }
+        let sub = get_field(&b, field(P, "cmd")) as u32;
+        let sub_name = abi
+            .d_enums
+            .iter()
+            .find(|(n, v)| n.starts_with(PREFIX) && *v == sub)
+            .map_or("?", |(n, _)| &n[PREFIX.len()..]);
+        // `err` is a bit field; ERR_UNSUCCESSFUL is bit 0 (ctrl0073specific.h:1290-1292).
+        let unsuccessful = abi
+            .d_enum("NV0073_CTRL_SPECIFIC_HDCP_CTRL_ERR_UNSUCCESSFUL_YES")
+            .unwrap_or(1) as u64;
+        let err = field(P, "err");
+        let (what, e) = match sub_name {
+            "NULL"
+            | "DISABLE_AUTHENTICATION"
+            | "ABORT_AUTHENTICATION"
+            | "FORWARD_KSVLIST_READY" => ("nothing to do, not authenticated", 0),
+            "RENEGOTIATE"
+            | "VALIDATE_LINK"
+            | "READ_LINK_STATUS"
+            | "READ_LINK_STATUS_NO_DISPLAY"
+            | "SET_TYPE" => ("no HDCP cipher: err UNSUCCESSFUL", unsuccessful),
+            "GET_ALL_FLAGS" | "GET_SPECIFIED_FLAGS" | "QUERY_HEAD_CONFIG" | "READ_TOPOLOGY" => {
+                let keep = ["subDeviceInstance", "displayId", "cmd"].map(|f| field(P, f));
+                let mut z = vec![0u8; b.len()];
+                for (off, size) in keep {
+                    if off + size <= b.len() {
+                        z[off..off + size].copy_from_slice(&b[off..off + size]);
+                    }
+                }
+                b = z;
+                ("no HDCP receiver data: every output 0, no flag valid", 0)
+            }
+            _ => {
+                return fail(
+                    NV_ERR_INVALID_ARGUMENT,
+                    b,
+                    HDCP,
+                    format!("hdcp ctrl of {did:#x}: unknown cmd {sub:#x}"),
+                )
+            }
+        };
+        put_field(&mut b, err, e);
+        ok(
+            b,
+            HDCP,
+            format!("hdcp ctrl of {did:#x}: cmd {sub_name} ({sub}): {what}"),
+        )
+    }
+
+    /// `DP_CONFIGURE_FEC` (ctrl0073dp.h:2271-2303): FEC on the trained link when the link
+    /// profile has it (`display.toml` [link] fec), reported back through
+    /// `DP_GET_LINK_CONFIG.bFECEnabled`.
+    fn configure_fec(&mut self, cmd: u32, params: &[u8]) -> Answer {
+        const P: &str = "NV0073_CTRL_CMD_DP_CONFIGURE_FEC_PARAMS";
+        let b = params.to_vec();
+        let did = get_field(&b, field(P, "displayId")) as u32;
+        if self.connector(did).is_none() {
+            return self.bad_display(cmd, b, did);
+        }
+        let on = get_field(&b, field(P, "bEnableFec")) != 0;
+        if on && !self.chip().link.fec {
+            return fail(
+                NV_ERR_NOT_SUPPORTED,
+                b,
+                LINK,
+                format!("configure fec of {did:#x}: the link profile has no FEC"),
+            );
+        }
+        if on && self.link.is_none() {
+            return fail(
+                NV_ERR_INVALID_ARGUMENT,
+                b,
+                SINK,
+                format!("configure fec of {did:#x}: the link is not trained"),
+            );
+        }
+        self.fec = on;
+        ok(
+            b,
+            SINK,
+            format!(
+                "configure fec of {did:#x}: FEC {}",
+                if on { "on" } else { "off" }
+            ),
+        )
+    }
+
+    /// `NV5070_CTRL_CMD_GET_RG_STATUS` (ctrl5070rg.h:37-73): the engine has no merge pairs
+    /// and no scan or flip lock between heads, and its raster generators never stall.
+    fn rg_status(&mut self, params: &[u8]) -> Answer {
+        const P: &str = "NV5070_CTRL_CMD_GET_RG_STATUS_PARAMS";
+        let abi = crate::ver::Abi::active();
+        let e = |n: &str| {
+            abi.d_enum(&format!("NV5070_CTRL_CMD_GET_RG_STATUS_{n}"))
+                .unwrap_or(0) as u64
+        };
+        let mut b = params.to_vec();
+        let head = get_field(&b, field(P, "head")) as u32;
+        if head >= self.chip().heads {
+            return fail(
+                NV_ERR_INVALID_ARGUMENT,
+                b,
+                SYNTH,
+                format!("rg status: head {head} does not exist"),
+            );
+        }
+        put_field(&mut b, field(P, "scanLocked"), e("SCANLOCKED_NO"));
+        put_field(&mut b, field(P, "flipLocked"), e("FLIPLOCKED_NO"));
+        put_field(&mut b, field(P, "rgStalled"), e("STALLED_NO"));
+        ok(
+            b,
+            ENGINE,
+            format!("rg status of head {head}: not scan locked, not flip locked, not stalled"),
+        )
     }
 
     /// `NVC372_CTRL_CMD_IS_MODE_POSSIBLE` (IMP): possible when the heads exist and every
@@ -1130,6 +1314,7 @@ impl Display {
             c.sink.drop_link();
             c.sink.take_events();
             self.link = None;
+            self.fec = false;
             return ok(
                 b,
                 SINK,
@@ -1155,6 +1340,7 @@ impl Display {
         match cfg.map(|cfg| (cfg, c.sink.train(cfg))) {
             Some((cfg, Ok(()))) if cfg.rate <= profile_rate => {
                 self.link = Some((bw, lanes));
+                self.fec = false;
                 put32(&mut b, d::DP_CTRL_ERR, 0);
                 ok(b, SINK, format!("dp ctrl of {did:#x}: cmd {c_cmd:#x}: trained {lanes} lanes at link bw {bw:#x}{woke}"))
             }
