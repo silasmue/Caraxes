@@ -587,20 +587,20 @@ impl Mirror {
                 t.handle
             }
             None => {
-                let mut tp = sys::v610::NV_CHANNEL_GROUP_ALLOCATION_PARAMETERS::default();
-                tp.hVASpace = vas_handle;
                 let gr = v::lookup(v::NV2080_ENGINE_TYPES, "GR0").unwrap_or(1);
                 // The guest TSG's engine: GR0 for a compute channel, COPYn for a CE one.
-                tp.engineType = match reg.tsg(tsg_key) {
+                let engine_type = match reg.tsg(tsg_key) {
                     Some((_, e)) if e != 0 => e,
                     _ if bare && ch.engine_type != 0 => ch.engine_type,
                     _ => gr,
                 };
+                // The host driver's layout (hostabi.rs).
+                let mut tp = crate::hostabi::current().tsg_params(vas_handle, engine_type);
                 let device = h.device();
                 let tsg = match h.alloc_object(
                     device,
                     sys::KEPLER_CHANNEL_GROUP_A,
-                    as_bytes(&mut tp),
+                    &mut tp,
                     "shadow-tsg",
                 ) {
                     Ok(x) => x,
@@ -618,7 +618,7 @@ impl Mirror {
                     HostTsg {
                         handle: tsg,
                         vas: tsg_key,
-                        engine: tp.engineType,
+                        engine: engine_type,
                     },
                 );
                 tsg
@@ -666,7 +666,7 @@ impl Mirror {
                 .unwrap_or(0),
             _ => 0,
         };
-        let mut cp = sys::v610::NV_CHANNEL_ALLOC_PARAMS::default();
+        let mut cp = crate::hostabi::ChannelAllocParams::default();
         cp.hObjectError = h_error;
         cp.gpFifoOffset = ch.gpfifo_va;
         cp.gpFifoEntries = ch.gpfifo_entries;
@@ -1163,15 +1163,14 @@ impl Mirror {
             return Ok(t.handle);
         }
         let mut h = self.hm.lock().unwrap();
-        let mut tp = sys::v610::NV_CHANNEL_GROUP_ALLOCATION_PARAMETERS::default();
-        tp.hVASpace = vas_handle;
-        tp.engineType = engine;
+        // The host driver's layout (hostabi.rs).
+        let mut tp = crate::hostabi::current().tsg_params(vas_handle, engine);
         let device = h.device();
         let handle = h
             .alloc_object(
                 device,
                 sys::KEPLER_CHANNEL_GROUP_A,
-                as_bytes(&mut tp),
+                &mut tp,
                 "tsg",
             )
             .map_err(|st| {
@@ -1303,7 +1302,7 @@ impl Mirror {
                 }
                 _ => 0,
             };
-            let mut cp = sys::v610::NV_CHANNEL_ALLOC_PARAMS::default();
+            let mut cp = crate::hostabi::ChannelAllocParams::default();
             cp.hObjectError = h_error;
             cp.gpFifoOffset = ch.gpfifo_va;
             cp.gpFifoEntries = ch.gpfifo_entries;

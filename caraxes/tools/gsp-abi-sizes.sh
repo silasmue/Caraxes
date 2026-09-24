@@ -7,7 +7,7 @@
 #
 #   caraxes/tools/gsp-abi-sizes.sh [--driver-flags] [--check] [--abi N] [OGKM_DIR]
 #
-#   OGKM_DIR        default: vendor/open-gpu-kernel-modules
+#   OGKM_DIR        default: $CARAXES_OGKM, else vendor/open-gpu-kernel-modules
 #   --abi N         driver major version whose field lists to use: below 610
 #                   the 595.91.07 lists (pre-MCTP queue element, no vbios
 #                   revisions in GspStaticConfigInfo), 610 to 614 the 610.57.04
@@ -49,6 +49,7 @@ mode=minimal
 check=0
 abi=""
 ogkm="$root/vendor/open-gpu-kernel-modules"
+[ -z "${CARAXES_OGKM:-}" ] || ogkm=$(cd "$CARAXES_OGKM" && pwd)
 while [ $# -gt 0 ]; do
     case "$1" in
         --driver-flags) mode=driver ;;

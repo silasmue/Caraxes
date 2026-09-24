@@ -669,7 +669,11 @@ struct PhysAttr([u8; v::PHYS_ATTR_SIZE]);
 impl HostMemory {
     /// A fresh host RM client with device 0 and subdevice 0.
     pub fn open(privilege: Privilege) -> Result<Self> {
-        let mut rm = RmClient::new().map_err(|e| anyhow::anyhow!("host RM client: {e}"))?;
+        // The version check is start-up's host-ABI selection (hostabi.rs), not the
+        // build default's assertion in `RmClient::new` (which panics on 615.71.09).
+        crate::hostabi::selected().map_err(|e| anyhow::anyhow!(e))?;
+        let mut rm = RmClient::open_without_version_check()
+            .map_err(|e| anyhow::anyhow!("host RM client: {e}"))?;
         let gpu = NvDevice::open_gpu(0).map_err(|e| anyhow::anyhow!("open /dev/nvidia0: {e}"))?;
         let gpu_reg = gpu
             .open_for_mapping(rm.ctl())

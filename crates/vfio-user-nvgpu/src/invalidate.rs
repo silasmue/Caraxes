@@ -180,13 +180,13 @@ impl Invalidator {
                 status_name(st)
             ));
         }
-        let mut tp = sys::v610::NV_CHANNEL_GROUP_ALLOCATION_PARAMETERS::default();
-        tp.hVASpace = vas;
-        tp.engineType = v::lookup(v::NV2080_ENGINE_TYPES, "COPY2").unwrap_or(0x0B);
+        // The TSG and channel parameters are the HOST driver's layouts (hostabi.rs).
+        let engine_type = v::lookup(v::NV2080_ENGINE_TYPES, "COPY2").unwrap_or(0x0B);
+        let mut tp = crate::hostabi::current().tsg_params(vas, engine_type);
         let tsg = match hm.alloc_object(
             device,
             sys::KEPLER_CHANNEL_GROUP_A,
-            as_bytes(&mut tp),
+            &mut tp,
             "inv-tsg",
         ) {
             Ok(h) => h,
@@ -198,7 +198,7 @@ impl Invalidator {
                 ));
             }
         };
-        let mut cp = sys::v610::NV_CHANNEL_ALLOC_PARAMS::default();
+        let mut cp = crate::hostabi::ChannelAllocParams::default();
         cp.gpFifoOffset = GPFIFO_VA;
         cp.gpFifoEntries = GPFIFO_ENTRIES;
         cp.hUserdMemory[0] = reservation;
@@ -235,7 +235,7 @@ impl Invalidator {
         // NVB0B5_ALLOCATION_PARAMETERS version 1: {version, engineType (NV2080 ordinal)}.
         let mut ce = [0u8; 8];
         ce[0..4].copy_from_slice(&1u32.to_le_bytes());
-        ce[4..8].copy_from_slice(&tp.engineType.to_le_bytes());
+        ce[4..8].copy_from_slice(&engine_type.to_le_bytes());
         if let Err(st) = hm.alloc_object(channel, copy_class, &mut ce, "inv-ce") {
             return fail(
                 hm,

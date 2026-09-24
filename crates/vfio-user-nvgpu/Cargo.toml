@@ -19,7 +19,9 @@ path = "src/main.rs"
 [dependencies]
 anyhow.workspace = true
 libc.workspace = true
-nvrm-sys.workspace = true
+# Both host layouts: the host driver is chosen at run time (src/hostabi.rs,
+# docs/caraxes/cutover-615.md); the guest ABI stays the build-time `v610` below.
+nvrm-sys = { workspace = true, features = ["v610", "v615"] }
 nvrm-abi.workspace = true
 nvrm-client = { path = "../nvrm-client" }
 # The DisplayPort sink behind the emulated connector (docs/caraxes/display-ab.md).

@@ -278,7 +278,8 @@ output before that change, and `--check` passes.
 ## 5. 615.71.09: what the guest sends, and where the 610 emulation stops
 
 The operator's new baseline. The image is the fresh overlay `vm3/g615`
-(`VM=vm3/g615 tools/caraxes-vm.sh up`, section 7). The guest has:
+(`VM=vm3/g615 tools/caraxes-vm.sh up`, section 7), flattened into a base image in section 8.
+The guest has:
 
 - nvidia 615.71.09 from NVIDIA's CUDA repository for ubuntu2404: `nvidia-headless-open`,
   `nvidia-dkms-open`, `libnvidia-compute`, `nvidia-firmware` and `nvidia-modprobe`, all
@@ -499,3 +500,63 @@ about 1.5 hours to reach a 595 guest with the driver up):
   `python3 caraxes/runs/guest-driver-2026-09-24/capture615.py $(cat $W/gpu.pid) $W/gpu-trace.log <out> 180 &`
   before `tools/caraxes-vm.sh probe <label>`. Set `LINK=1` to write the status-queue header
   and get the `GMCAPI_CMD_GSP_INIT` element.
+
+## 8. The 615.71.09 base image
+
+The g615 overlay of section 7, flattened into a standalone image (2026-09-24, after the runs;
+no VM had the overlay or its backing files open for writing):
+
+```
+qemu-img convert -O qcow2 /mnt/vmstore/caraxes/vm3/g615/rootfs.qcow2 \
+    /mnt/vmstore/caraxes/images/guest-baked-2026-09-24-615.71.09.qcow2
+```
+
+| Item | Value |
+|---|---|
+| Path | `/mnt/vmstore/caraxes/images/guest-baked-2026-09-24-615.71.09.qcow2` |
+| Source chain | `vm3/g615/rootfs.qcow2` on `vm3/rootfs.qcow2` on `guest-baked-20260801-610.57.04-20260820-105733.qcow2` |
+| Format | qcow2, compat 1.1, no backing file, virtual size 40 GiB |
+| Size | 16734486528 bytes (15.6 GiB, uncompressed clusters; `qemu-img convert -c` would shrink it) |
+| `qemu-img check` | no errors, 255283/655360 clusters allocated |
+| sha256 | `08b2680c329483a637461b7dec963cff7a255447834480f62ac5e673b9e9bdb9` (also in `.sha256` next to the image) |
+
+`CARAXES_DRIVER=615 tools/caraxes-vm.sh up` expects `$W/rootfs.qcow2` to be an overlay on
+this image (`tools/lib/driver.sh`, [quickstart.md](quickstart.md) section 3). The image
+carries vm3's cloud-init state; a new VM's `seed.img` has its own instance id, so cloud-init
+applies that VM's address at the first boot.
+
+What the image holds, read with `guestfish --ro` (no boot, no root), next to the 610 base
+image the launcher uses today and vm3's 610 overlay (the per-VM setup of quickstart.md
+section 2):
+
+| Piece | 610 base image | vm3 610 overlay | 615.71.09 image |
+|---|---|---|---|
+| Kernel modules, 6.8.0-136-generic | none | `updates/nvidia.ko`, `nvidia-uvm.ko` (610.57.04, built in the guest) | `updates/dkms/nvidia.ko.zst`, `nvidia-uvm`, `nvidia-modeset`, `nvidia-drm`, `nvidia-peermem` (DKMS); the same for 6.8.12-caraxesdma; the 610 modules are in `/root/nvidia-610-modules` |
+| GSP firmware | none | `/lib/firmware/nvidia/610.57.04/gsp_tu10x.bin` | `615.71.09/{gsp,ucodes}_{tu10x,ga10x}.bin`, plus the 610 directory |
+| libcuda, NVML, nvvm, ptxjitcompiler, OpenCL, cfg, cudadebugger | `/opt/nvrm/lib` (610.57.04, stale 610.43.03 beside them) | same | `/usr/lib/x86_64-linux-gnu` (615.71.09, `libcuda.so` link included); `/opt/nvrm/lib` still holds 610.57.04 |
+| `nvidia-smi` | `/opt/nvrm/bin` | same | `/usr/bin` (615.71.09); `/opt/nvrm/bin` is still 610.57.04 |
+| Linker path | `nvrm.conf`, `nvrm-gl.conf` | same | both renamed to `*.disabled` |
+| GL, EGL, GBM, Vulkan userspace | `/opt/nvrm-gl` (610.57.04) | same | only the 610 copy in `/opt/nvrm-gl`, outside the linker path; `10_nvidia.json` still names `/opt/nvrm-gl/lib/libEGL_nvidia.so.0` |
+| NVENC, NVDEC (`libnvidia-encode`, `libnvcuvid`) | `/opt/nvrm/lib` | same | none at 615.71.09 |
+| `nvidia-modprobe`, `nvidia-persistenced` | none | none | `/usr/bin` |
+| `/etc/modprobe.d/caraxes.conf` | none | registry keys, `uvm_disable_hmm=1`, `blacklist nvidia` | same as vm3 |
+| Torch venv, `cuda.h` (`~/gpu/venv`, `nvidia/cu13`) | yes | yes | yes (unchanged) |
+| gcc, make, rsync, python3, strace, stdbuf, timeout | yes | yes | yes |
+| nvcc, cuda-gdb, ffmpeg, weston | none | none | none |
+
+What a gate run on this image lacks:
+
+- **NVENC and NVDEC at 615.71.09** (`libnvidia-encode-615`, `libnvidia-decode-615`). The
+  `gpu-encode` stage needs them, and ffmpeg, which neither image has.
+- **The 615.71.09 GL, EGL, GBM and Vulkan userspace** (`libnvidia-gl-615`). The GL, GLES,
+  EGL and Vulkan rows of `probe/matrix` need it; `gles.sh` and `gl-enum.sh` compare the
+  version string with the guest's `DRIVER_VERSION`. The display gates render with pixman
+  and need only `nvidia-modeset` and `nvidia-drm`, which the image has.
+- **Weston and the display debs** (`build-wl.sh` installs them from `../caraxes-debs2`), a
+  per-VM step for either image.
+- **nvcc and cuda-gdb**, as on 610.
+
+The launcher and the gates take the guest's userspace from `tools/lib/driver.sh`
+(`/usr/lib/x86_64-linux-gnu` and `/usr/bin/nvidia-smi` for 615). `sync-tests` records them
+in the guest's `caraxes-tests/caraxes/driver.env` and writes 615.71.09 into
+`leandro-test/DRIVER_VERSION`, so the 610 copies in `/opt/nvrm` are not used.

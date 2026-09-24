@@ -324,6 +324,18 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
     let identity = chip.data().identity;
     let trace = Trace::new(a.trace.as_deref())?;
     let mut bar0 = Bar0::new(chip, rom, vbios);
+    // The host driver's ABI, before the first host RM client opens (hostabi.rs,
+    // docs/caraxes/cutover-615.md): CARAXES_HOST_ABI, else the running driver's
+    // version; any version without measured layouts ends start-up here.
+    if a.reserve_vram || a.register_guest_ram || a.host_rm {
+        let sel = vfio_user_nvgpu::hostabi::select().map_err(anyhow::Error::msg)?;
+        eprintln!(
+            "vfio-user-nvgpu: {} (chosen by {}); guest ABI {}",
+            sel.layouts.describe(),
+            sel.how,
+            vfio_user_nvgpu::ver::active::DRIVER_VERSION
+        );
+    }
     // Host memory for E5b: one client for the reservation and the guest RAM, shared with
     // the signal thread so that SIGTERM frees it too.
     let host_mem = if a.reserve_vram || a.register_guest_ram {

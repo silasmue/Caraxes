@@ -747,6 +747,28 @@ pub const SM_ENTRY: usize = 18;
 pub const SM_ORDER_ELEM: usize = size_of::<ffi::NV2080_CTRL_INTERNAL_STATIC_GR_GLOBAL_SM_ORDER>();
 pub const SM_ORDER_NUM_SM: usize =
     offset_of!(ffi::NV2080_CTRL_INTERNAL_STATIC_GR_GLOBAL_SM_ORDER, numSm);
+pub const SM_ORDER_NUM_TPC: usize =
+    offset_of!(ffi::NV2080_CTRL_INTERNAL_STATIC_GR_GLOBAL_SM_ORDER, numTpc);
+/// The nine u16 of one internal SM entry, by name, for the translation from the
+/// host's public layout (hostabi.rs `sm_order_to_guest`: a 615 host adds
+/// `virtualDpcId`, which this guest does not have).
+pub const SM_ENTRY_FIELDS: &[(&str, usize)] = {
+    type E = ffi::NV2080_CTRL_INTERNAL_STATIC_GR_GLOBAL_SM_ORDER__bindgen_ty_1;
+    &[
+        ("gpcId", offset_of!(E, gpcId)),
+        ("localTpcId", offset_of!(E, localTpcId)),
+        ("localSmId", offset_of!(E, localSmId)),
+        ("globalTpcId", offset_of!(E, globalTpcId)),
+        ("virtualGpcId", offset_of!(E, virtualGpcId)),
+        ("migratableTpcId", offset_of!(E, migratableTpcId)),
+        ("ugpuId", offset_of!(E, ugpuId)),
+        ("physicalCpcId", offset_of!(E, physicalCpcId)),
+        ("virtualTpcId", offset_of!(E, virtualTpcId)),
+    ]
+};
+const _: () = assert!(
+    SM_ENTRY == size_of::<ffi::NV2080_CTRL_INTERNAL_STATIC_GR_GLOBAL_SM_ORDER__bindgen_ty_1>()
+);
 pub const SM_ORDER_PARAMS: usize =
     size_of::<ffi::NV2080_CTRL_INTERNAL_STATIC_GR_GET_GLOBAL_SM_ORDER_PARAMS>();
 /// NV2080_CTRL_GR_GET_GLOBAL_SM_ORDER_PARAMS (ctrl2080gr.h:1213-1229).

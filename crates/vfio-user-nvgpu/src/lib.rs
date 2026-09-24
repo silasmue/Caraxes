@@ -27,6 +27,7 @@ pub mod falcon;
 pub mod fb;
 pub mod gmmu_v3;
 pub mod guestmem;
+pub mod hostabi;
 pub mod hostmem;
 pub mod hostrm;
 pub mod intr;
