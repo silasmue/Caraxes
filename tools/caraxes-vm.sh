@@ -64,6 +64,17 @@
 # as LEA_BASE_IMAGE and exports CARAXES_GUEST_ABI=615 to the device (which acts on it only
 # once the 615 GSP transport lands); any other value is refused. With CARAXES_DRIVER set, or
 # with a driver other than 610, `up` refuses an overlay not backed by that image.
+# Steam library disk (docs/caraxes/sottr-stage.md): CARAXES_GAMES_DISK=<base.qcow2> attaches a
+# second data disk after the seed (vdc in the Ubuntu guest, which mounts it by its label). By
+# default the VM gets a thin overlay $W/games.qcow2 on the base (qemu-img create -b base -F qcow2,
+# made at the first `up`, kept across up/down; delete it by hand to drop the VM's changes); the
+# base is never written. CARAXES_GAMES_DISK_RW=1 attaches the base itself for writing (to fill the
+# library), only when no running Cloud Hypervisor has the base or an overlay on it among its disks
+# and no other VM holds the writer lock. The lock is $CARAXES_STORE/locks/games-<hash>.writer
+# ("<vm> <pid> <disk>", hash = the first 16 hex digits of the sha256 of the base's real path),
+# because the base's own directory may be read-only; `down` removes it, and a lock whose pid is
+# gone is stale. An overlay start is refused while a writer holds the base (the lock, or a Cloud
+# Hypervisor with the base itself as a disk, as v1's --games-init does). `up` refuses a missing base.
 # The host tap (default caraxes0, 192.168.100.1/24) must exist and be owned by the user:
 #   sudo ip tuntap add dev caraxes0 mode tap user $USER
 #   sudo ip addr add 192.168.100.1/24 dev caraxes0 && sudo ip link set caraxes0 up
@@ -138,6 +149,11 @@ up() {
     alive "$W/gpu.pid" && error "server already running (pid $(cat "$W/gpu.pid"))"
     alive "$W/ch.pid" && error "VM already running (pid $(cat "$W/ch.pid"))"
     rm -f "$W/gpu.sock" "$W/ch.sock"
+    local games=()
+    if [[ -n ${CARAXES_GAMES_DISK:-} ]]; then
+        games_prepare || exit 1
+        games=("path=$GAMES_PATH,image_type=qcow2,backing_files=on")
+    fi
 
     local vbios=()
     [[ -n ${CARAXES_VBIOS:-} ]] && vbios=(--vbios "$CARAXES_VBIOS")
@@ -177,12 +193,16 @@ up() {
         --kernel "$KERNEL" --initramfs "$INITRD" \
         --cmdline 'root=/dev/vda1 rw console=ttyS0 net.ifnames=0' \
         --disk path="$W/rootfs.qcow2",image_type=qcow2,backing_files=on \
-               path="$W/seed.img",readonly=on \
+               path="$W/seed.img",readonly=on "${games[@]}" \
         --net tap="$TAP",mac="$MAC" \
         --user-device socket="$W/gpu.sock",id=gpu0 "${input[@]}" \
         --serial file="$W/serial.log" --console off \
         > "$W/ch.log" 2>&1 &
     echo $! > "$W/ch.pid"
+    if [[ -n ${GAMES_LOCK:-} ]]; then
+        printf '%s %s %s\n' "$VM" "$(cat "$W/ch.pid")" "$GAMES_PATH" > "$GAMES_LOCK"
+    fi
+    [[ -n ${GAMES_PATH:-} ]] && echo "games disk: $GAMES_PATH${GAMES_LOCK:+ (for writing, lock $GAMES_LOCK)}"
     if [[ -n ${CARAXES_DMA:-} ]]; then
         # The device rewrites the table at each DMA_MAP (one per memory zone); wait until
         # it covers all guest RAM.
@@ -217,6 +237,70 @@ check_base() {
 use a new state directory <dir> (VM=<name>) with this overlay:
   qemu-img create -f qcow2 -F qcow2 -b $LEA_BASE_IMAGE <dir>/rootfs.qcow2"
     echo "driver $CARAXES_DRIVER_VERSION: overlay on $LEA_BASE_IMAGE${CARAXES_GUEST_ABI:+, CARAXES_GUEST_ABI=$CARAXES_GUEST_ABI}"
+}
+
+# The Steam library disk (CARAXES_GAMES_DISK, see the header). games_prepare sets GAMES_PATH
+# (the file to attach) and, for CARAXES_GAMES_DISK_RW=1, GAMES_LOCK (the writer lock, taken
+# here with noclobber and rewritten with the VM's pid by `up`).
+games_lock_file() {
+    local h
+    h=$(printf '%s' "$1" | sha256sum | cut -c1-16)
+    echo "$CARAXES_STORE/locks/games-$h.writer"
+}
+
+# "<pid> <disk>" for every disk of a running Cloud Hypervisor that is the base or has it in
+# its backing chain (qemu-img -U takes no lock).
+games_users() {
+    local base=$1 pid p img
+    for pid in $(pgrep -f cloud-hypervisor); do
+        while read -r p; do
+            [[ -f $p ]] || continue
+            while read -r img; do
+                [[ $(readlink -f "$img") == "$base" ]] && { echo "$pid $p"; break; }
+            done < <(qemu-img info -U --backing-chain "$p" 2>/dev/null | sed -n 's/^image: //p')
+        done < <(tr '\0' '\n' < "/proc/$pid/cmdline" 2>/dev/null | grep -o 'path=[^,]*' | cut -d= -f2-)
+    done
+}
+
+games_prepare() {
+    command -v qemu-img >/dev/null || { printf 'ERROR: qemu-img missing (games disk)\n' >&2; return 1; }
+    local base lock holder="" lvm="" lpid="" users direct
+    base=$(readlink -f "$CARAXES_GAMES_DISK" 2>/dev/null) || base=""
+    [[ -n $base && -f $base ]] || { printf 'ERROR: games base %s missing\n' "$CARAXES_GAMES_DISK" >&2; return 1; }
+    lock=$(games_lock_file "$base")
+    mkdir -p "${lock%/*}"
+    if [[ -f $lock ]]; then
+        read -r lvm lpid _ < "$lock" || true
+        if [[ -n $lpid ]] && kill -0 "$lpid" 2>/dev/null && [[ $lvm != "$VM" ]]; then
+            holder="$lvm (pid $lpid)"
+        else
+            rm -f "$lock"    # stale: its VM is gone, or this VM's own after an unclean stop
+        fi
+    fi
+    users=$(games_users "$base")
+    if [[ ${CARAXES_GAMES_DISK_RW:-0} == 1 ]]; then
+        [[ -z $holder ]] || { printf 'ERROR: %s holds the games base %s for writing (%s)\n' "$holder" "$base" "$lock" >&2; return 1; }
+        [[ -z $users ]] || { printf 'ERROR: the games base %s is open (pid, disk):\n%s\nStop those VMs before writing the base.\n' "$base" "$users" >&2; return 1; }
+        ( set -C; printf '%s %s %s\n' "$VM" "$$" "$base" > "$lock" ) 2>/dev/null \
+            || { printf 'ERROR: could not take the writer lock %s\n' "$lock" >&2; return 1; }
+        [[ -f $W/games.qcow2 ]] && echo "note: $W/games.qcow2 sits on this base; it is stale once the base is written (delete it)"
+        GAMES_PATH=$base GAMES_LOCK=$lock
+        return 0
+    fi
+    [[ -z $holder ]] || { printf 'ERROR: %s is writing the games base %s (%s); an overlay now would read a moving base\n' "$holder" "$base" "$lock" >&2; return 1; }
+    direct=$(awk -v b="$base" '$2 == b' <<< "$users")
+    [[ -z $direct ]] || { printf 'ERROR: a VM has the games base itself as a disk (a writer):\n%s\n' "$direct" >&2; return 1; }
+    if [[ ! -f $W/games.qcow2 ]]; then
+        qemu-img create -q -f qcow2 -F qcow2 -b "$base" "$W/games.qcow2" \
+            || { printf 'ERROR: could not create %s/games.qcow2\n' "$W" >&2; return 1; }
+        echo "games disk: new overlay $W/games.qcow2 on $base"
+    fi
+    local img found=0
+    while read -r img; do
+        [[ $(readlink -f "$img") == "$base" ]] && found=1
+    done < <(qemu-img info -U --backing-chain "$W/games.qcow2" | sed -n 's/^image: //p')
+    ((found)) || { printf 'ERROR: %s/games.qcow2 is not an overlay on %s\n' "$W" "$base" >&2; return 1; }
+    GAMES_PATH=$W/games.qcow2
 }
 
 # Bytes of a Cloud Hypervisor memory size (4G, 4096M).
@@ -284,6 +368,13 @@ down() {
     for _ in $(seq 50); do alive "$W/gpu.pid" || break; sleep 0.1; done
     if alive "$W/gpu.pid"; then kill "$(cat "$W/gpu.pid")" 2>/dev/null || true; fi
     if alive "$W/input.pid"; then kill "$(cat "$W/input.pid")" 2>/dev/null || true; fi
+    # This VM's games writer lock (CARAXES_GAMES_DISK_RW), whatever base it was for.
+    local l lvm
+    for l in "$CARAXES_STORE"/locks/games-*.writer; do
+        [[ -f $l ]] || continue
+        read -r lvm _ < "$l" || true
+        [[ $lvm == "$VM" ]] && rm -f "$l"
+    done
     rm -f "$W/ch.pid" "$W/gpu.pid" "$W/input.pid"
     echo "stopped"
 }
