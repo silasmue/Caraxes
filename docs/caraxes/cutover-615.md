@@ -339,7 +339,21 @@ Follow-ups:
 3. Decide whether the bench backend should run with `LEA_MANAGED_COMPAT=1`, as the gate does.
 
 The VM is down. To bring it back up: `V=/mnt/vmstore/caraxes/bench-v1-615 NVRM=/mnt/vmstore/leandro/l615-host-bin-8c0d2b2/vhost-user-nvrm caraxes/tools/bench-v1vm.sh up`,
-then the manual `modules` step from `commands.txt` section 4.
+then the manual `modules` step from `commands.txt` section 4. With the new script this overlay is refused,
+because it sits on the base image. Use the image below.
+
+**Follow-ups done (2026-09-24, not yet booted), in [v1-615-image.md](v1-615-image.md):**
+
+1. There is now a standalone image, `/mnt/vmstore/caraxes/images/guest-v1-2026-09-24-615.71.09.qcow2` (sha256
+   `cba67208...71f5d`). It was flattened from this overlay. `nvidia-modprobe` is now a local dpkg diversion,
+   `nvidia-persistenced` is masked, and the run's state is removed. Section 2 of that page is the table of
+   differences from the base image.
+2. `bench-v1vm.sh` now takes the guest modules from `LEA_V1_ROOT` and the host binary from `NVRM`/`LEA_V1_BIN`.
+   It picks the image by `tools/lib/driver.sh`. It refuses a host driver, `nvrm_wire.h` version, overlay base or
+   backend ABI that does not match. `modules` now does the manual steps.
+3. Yes. The backend now starts with `LEA_MANAGED_COMPAT=1` by default, as Leandro-Test's gate does. The switch
+   touches only the managed-only UVM commands. `caraxes/tools/v1-gates.sh` runs the smi and cuda gates of this
+   run. The boot command is in section 4 of v1-615-image.md.
 
 
 ## (f) Rollback
