@@ -13,6 +13,15 @@
 #                   the only step that writes anything to the card: the sysfs "rom"
 #                   switch sets the ROM BAR decode enable bit, and it is cleared
 #                   again right after the read. Off unless given.
+#   --prom          also read the VBIOS through the BAR0 PROM window (NV_PROM_DATA,
+#                   BAR0 0x300000, 1 MiB) the way the driver and nova-core read it:
+#                   sysfs resource0 opened read-only and mapped PROT_READ, aligned
+#                   32-bit loads, nothing written. This is the only copy of the full
+#                   NVIDIA image chain (the FWSEC image behind the PCI last-image
+#                   flag). Needs sudo, and a BAR0 no driver holds on kernels with
+#                   CONFIG_IO_STRICT_DEVMEM (else recorded as failed, nothing
+#                   read); off unless given (operator decision of 2026-09-24,
+#                   docs/caraxes/blackwell-gb206.md section 6).
 #   --no-sudo       never call sudo, not even "sudo -n true" (sudo-only items are
 #                   recorded as skipped)
 #   --no-rm-tools   skip part 2 (the RM query tools built with rustc)
@@ -31,12 +40,14 @@
 # Towards the card and the driver everything is read-only: file reads under /proc
 # and /sys, lspci, nvidia-smi queries, and RM getter controls on a private RM
 # client in part 2. No module is loaded or unloaded, no register is read or
-# written, nothing resets the card. The one exception is --rom (see above).
+# written, nothing resets the card. The one exception is --rom (see above);
+# --prom reads BAR0 registers (the PROM window only) and writes none.
 #
 # Result: DIR/lab-capture-<chip>-<host>-<stamp>/ with MANIFEST.txt and
 # SHA256SUMS, and the tarball DIR/lab-capture-<chip>-<host>-<stamp>.tar.gz with
 # its .sha256 next to it. Usernames, the home directory and e-mail addresses are
-# replaced in every text file; board serial numbers are redacted.
+# replaced in every text file; board serial numbers are redacted, and so are the
+# per-card bytes of the config-space dump (PBI mailbox data, Device Serial Number).
 set -uo pipefail
 umask 022
 export LC_ALL=C
@@ -49,18 +60,20 @@ SPDX='# SPDX-License-Identifier: MIT'
 parent=$PWD
 only_bdf=""
 want_rom=0
+want_prom=0
 no_sudo=0
 rm_tools=1
 ogkm_dir=""
 walk_only=""
 
-usage() { sed -n '4,36p' "$0"; }
+usage() { sed -n '4,46p' "$0"; }
 
 while [ $# -gt 0 ]; do
     case $1 in
         -o) parent=$2; shift 2 ;;
         --bdf) only_bdf=$2; shift 2 ;;
         --rom) want_rom=1; shift ;;
+        --prom) want_prom=1; shift ;;
         --no-sudo) no_sudo=1; shift ;;
         --no-rm-tools) rm_tools=0; shift ;;
         --ogkm) ogkm_dir=$2; shift 2 ;;
@@ -223,7 +236,7 @@ print("VERDICT: PCI image chain %s; FWSEC (0xE0) image %s"
       % ("complete (the last-image flag is inside the dump)" if pci_ok else "INCOMPLETE",
          "present" if fwsec else ("partly present" if ext else
          "absent (expected for a sysfs read: sysfs and the ROM BAR stop at the PCI last-image flag; "
-         "the NVIDIA chain continues only through the BAR0 PROM window, which this kit does not read)")))
+         "the NVIDIA chain continues only through the BAR0 PROM window, read with --prom)")))
 sys.exit(0 if pci_ok else 1)
 PY
 }
@@ -287,6 +300,55 @@ manifest=()
 # messages name paths with the home directory as "~"
 tilde() { local m="$*"; [ ${#home} -gt 1 ] && m=${m//"$home"/\~}; printf '%s\n' "$m"; }
 say() { tilde "$*" | tee -a "$log"; }
+# redact_config FILE: replace the per-card bytes of an lspci -xxxx dump with "xx" (the
+# device's config parser reads "xx" as 0): the data of the vendor-specific capability,
+# which on NVIDIA GPUs is the PBI mailbox (PCI_PBI_CAP_ID 0x09; its DATAOUT register at
+# +0x0C returns the GPU UUID to pciPbiReadUuid, vendor/open-gpu-kernel-modules
+# src/nvidia/src/kernel/platform/chipset/pci_pbi.c:42-55; on the GB206 capture the
+# capability sits at 0x9C and 0xA8-0xAB held four UUID bytes, docs/caraxes/blackwell-gb206.md
+# 2.5), and the serial number of the Device Serial Number extended capability (id 0x0003,
+# PCIe base spec 7.9.3).
+redact_config() {
+    have python3 || { say "python3 not found: $1 not redacted"; return 0; }
+    python3 - "$1" <<'PY'
+import re, sys
+path = sys.argv[1]
+lines = open(path).read().splitlines()
+b, where = {}, {}
+for n, l in enumerate(lines):
+    m = re.match(r"^([0-9a-f]{2,3}): ((?:[0-9a-fx]{2} ?)+)$", l)
+    if m:
+        base = int(m.group(1), 16)
+        for i, t in enumerate(m.group(2).split()):
+            b[base + i] = int(t, 16) if t != "xx" else 0
+            where[base + i] = (n, i)
+def x(off):
+    if off in where:
+        n, i = where[off]
+        head, toks = lines[n].split(": ", 1)
+        t = toks.split()
+        t[i] = "xx"
+        lines[n] = head + ": " + " ".join(t)
+g = lambda o: b.get(o, 0)
+off, seen = g(0x34) & 0xFC, 0
+while 0x40 <= off < 0x100 and seen < 48:
+    if g(off) == 0x09:
+        for o in range(off + 3, min(off + max(g(off + 2), 3), 0x100)):
+            x(o)
+    off, seen = g(off + 1) & 0xFC, seen + 1
+off, seen = 0x100, 0
+while 0x100 <= off < 0x1000 and seen < 128:
+    hdr = g(off) | g(off + 1) << 8 | g(off + 2) << 16 | g(off + 3) << 24
+    if hdr in (0, 0xFFFFFFFF):
+        break
+    if hdr & 0xFFFF == 0x0003:
+        for o in range(off + 4, off + 12):
+            x(o)
+    off, seen = (hdr >> 20) & 0xFFC, seen + 1
+open(path, "w").write("\n".join(lines) + "\n")
+PY
+}
+
 # item NAME STATUS PATH REASON: one manifest row
 item() { manifest+=("$(printf '%-34s %-8s %-44s %s' "$1" "$2" "$3" "$4")"); say "[$2] $1${4:+: $4}"; }
 
@@ -477,6 +539,7 @@ for bdf in "${gpus[@]}"; do
     # lspci: decoded capabilities, all functions of the slot, upstream port
     if [ $sudo_ok = 1 ]; then
         cap "$G/lspci-vvv.txt" -- sudo -n lspci -vvv -nn -s "$bdf"
+        sed -i -E 's/(Device Serial Number ).*/\1<redacted>/' "$G/lspci-vvv.txt"
         item "$bdf.lspci-vvv" ok "$gd/lspci-vvv.txt" "as root: every capability decoded"
     else
         cap "$G/lspci-vvv.txt" -- lspci -vvv -nn -s "$bdf"
@@ -494,7 +557,8 @@ for bdf in "${gpus[@]}"; do
     # config space
     if [ $sudo_ok = 1 ]; then
         cap "$G/config-space.txt" -- sudo -n lspci -xxxx -s "$bdf"
-        item "$bdf.config-space" ok "$gd/config-space.txt" "4096 bytes (lspci -xxxx as root)"
+        redact_config "$G/config-space.txt"
+        item "$bdf.config-space" ok "$gd/config-space.txt" "4096 bytes (lspci -xxxx as root), PBI data and DSN redacted"
     else
         cap "$G/config-space.txt" -- lspci -xxxx -s "$bdf"
         nb=$(grep -cE '^[0-9a-f]+0: ' "$G/config-space.txt")
@@ -622,6 +686,65 @@ PY
         else
             trap - EXIT INT TERM
             item "$bdf.rom" failed - "could not enable $sys/rom"
+        fi
+    fi
+
+    # VBIOS through the BAR0 PROM window (optional, sudo, read-only). NV_PROM_DATA(i) is
+    # BAR0 0x300000 + i (src/common/inc/swref/published/turing/tu102/dev_ext_devices.h:27
+    # in vendor/open-gpu-kernel-modules 610.57.04, the only definition, used for every
+    # chip); the kernel RM reads it with 32-bit loads (s_promRead32,
+    # src/nvidia/src/kernel/gpu/gsp/arch/turing/kernel_gsp_vbios_tu102.c:74-86, the
+    # image walk :275-417), and nova-core scans the same window, at most 1 MiB, 32 bits
+    # at a time (nova-core vbios.rs, https://docs.kernel.org/gpu/nova/core/vbios.html).
+    # The window is read whole (1 MiB) and the chain walk says where the images end.
+    if [ $want_prom = 0 ]; then
+        item "$bdf.prom" skipped - "not requested (--prom): the full NVIDIA image chain (FWSEC) is only in the BAR0 PROM window"
+    elif [ $sudo_ok = 0 ]; then
+        item "$bdf.prom" skipped - "--prom needs sudo ($sudo_why)"
+    elif ! have python3; then
+        item "$bdf.prom" skipped - "--prom needs python3"
+    else
+        promf="$G/prom.bin"
+        sudo -n python3 - "$sys/resource0" >"$promf" 2>"$G/prom.err" <<'PY'
+import mmap, os, sys
+# NV_PROM_DATA(i) = BAR0 0x300000 + i (tu102/dev_ext_devices.h:27); nova-core's scan limit.
+PROM, WINDOW = 0x300000, 0x100000
+fd = os.open(sys.argv[1], os.O_RDONLY | os.O_SYNC)
+if os.fstat(fd).st_size < PROM + WINDOW:
+    sys.exit("resource0 is %d bytes, smaller than the PROM window end 0x%x" % (os.fstat(fd).st_size, PROM + WINDOW))
+# Read-only mapping of the window alone; no store is ever issued. With
+# CONFIG_IO_STRICT_DEVMEM the kernel refuses to map a BAR a driver has claimed
+# (docs/caraxes/open-questions.md Q1): then the read needs the card without a driver,
+# which this kit never arranges.
+try:
+    mm = mmap.mmap(fd, WINDOW, mmap.MAP_SHARED, mmap.PROT_READ, offset=PROM)
+except OSError as e:
+    sys.exit("mmap of resource0 refused (%s): a driver holds BAR0 and the kernel has "
+             "CONFIG_IO_STRICT_DEVMEM; the PROM read needs the card without a driver" % e)
+words = memoryview(mm).cast("I")
+first = words[0]
+if first == 0xFFFFFFFF:
+    sys.exit("PROM window reads all ones (memory decoding off or the device is in reset)")
+if first & 0xFFFF != 0xAA55 and first != 0x4947564E:
+    sys.exit("PROM window does not start with 55 AA or the IFR signature NVGI (0x%08x)" % first)
+out = bytearray(WINDOW)
+for i in range(WINDOW // 4):
+    out[4 * i:4 * i + 4] = words[i].to_bytes(4, "little")
+words.release()
+mm.close()
+os.close(fd)
+sys.stdout.buffer.write(out)
+PY
+        rc=$?
+        if [ $rc = 0 ] && [ -s "$promf" ]; then
+            { echo "$SPDX"; echo "# source: BAR0 PROM window (NV_PROM_DATA 0x300000, 1 MiB) via sysfs resource0, read-only"; rom_walk "$promf"; } >"$G/prom-walk.txt" 2>&1
+            verdict=$(grep '^VERDICT' "$G/prom-walk.txt" | sed 's/^VERDICT: //')
+            item "$bdf.prom" ok "$gd/prom.bin" "$(stat -c %s "$promf") bytes (PROM window); walk: ${verdict:-see prom-walk.txt}"
+            say "$(sed 1,2d "$G/prom-walk.txt")"
+            rm -f "$G/prom.err"
+        else
+            rm -f "$promf"
+            item "$bdf.prom" failed "$gd/prom.err" "PROM read failed (status $rc): $(head -c 200 "$G/prom.err" 2>/dev/null)"
         fi
     fi
 
@@ -774,7 +897,7 @@ elapsed=$(($(date +%s) - t0))
     echo "$SPDX"
     echo "# $KIT_VERSION"
     echo "# created $(date -Is) on $host, kernel $(uname -r), driver ${drv:-none}, chip $chip, ${#gpus[@]} GPU(s): ${gpus[*]}"
-    echo "# options: rom=$want_rom sudo=$sudo_ok ($sudo_why) rm_tools=$rm_tools; runtime ${elapsed}s"
+    echo "# options: rom=$want_rom prom=$want_prom sudo=$sudo_ok ($sudo_why) rm_tools=$rm_tools; runtime ${elapsed}s"
     echo "# status: ok = complete, reduced = captured with less detail (usually for lack of sudo),"
     echo "#         skipped = not captured (reason given), failed = tried and failed"
     printf '%-34s %-8s %-44s %s\n' "# item" status path note
