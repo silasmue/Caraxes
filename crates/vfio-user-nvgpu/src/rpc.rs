@@ -338,6 +338,12 @@ pub fn build_static_info(
     // on the host, whose one region starts at 54 MiB). docs/caraxes/memory-model.md §1.
     let space = layout.addr_space;
     let (usable_start, usable_end, rsvd_start, source) = match (layout.usable(), wpr) {
+        (Some((b, e)), _) if layout.pool > 0 => (
+            b,
+            e,
+            e,
+            "reservation (host VRAM fixed allocation; usable = reservation minus the carve-out and the BAR1 pool below it, docs/caraxes/bar1-pool.md)",
+        ),
         (Some((b, e)), _) => (
             b,
             e,
@@ -766,6 +772,17 @@ pub(crate) mod tests {
         assert!(labels
             .iter()
             .any(|l| l.field == "fbRegionInfoParams" && l.source.starts_with("reservation")));
+        // P21 design H: a 64 MiB BAR1 pool ends the usable region 64 MiB lower and is
+        // reported reserved with the carve-out; the BAR roots stay.
+        let pooled = layout.with_pool(64 << 20).unwrap();
+        let (b, labels) = build_static_info(f.chip.data(), &id, Some(&wpr), &pooled);
+        let r = |i: usize, o: usize| u64_at(&b, v::SI_FB_REGIONS + i * v::FB_REGION_SIZE + o);
+        assert_eq!((r(0, 0), r(0, 8)), (0xE900_0000, 0x1_E4DF_FFFF));
+        assert_eq!((r(1, 0), r(1, 16)), (0x1_E4E0_0000, (8u64 << 30) - 0x1_E4E0_0000));
+        assert_eq!(u64_at(&b, v::SI_BAR1_PDE_BASE), 0x1_E8E0_1000);
+        assert!(labels
+            .iter()
+            .any(|l| l.field == "fbRegionInfoParams" && l.source.contains("BAR1 pool")));
     }
 
     #[test]
