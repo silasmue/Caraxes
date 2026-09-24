@@ -14,6 +14,7 @@
 
 pub mod bar0;
 pub mod bar1pool;
+pub mod bar2area;
 pub mod board;
 pub mod boot;
 pub mod channel;
