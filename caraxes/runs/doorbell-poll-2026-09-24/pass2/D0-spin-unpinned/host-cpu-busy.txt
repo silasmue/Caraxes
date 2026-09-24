@@ -1,0 +1,16 @@
+cpu0 21%
+cpu1 30%
+cpu2 4%
+cpu3 9%
+cpu4 12%
+cpu5 8%
+cpu6 5%
+cpu7 3%
+cpu8 6%
+cpu9 61%
+cpu10 2%
+cpu11 5%
+cpu12 0%
+cpu13 1%
+cpu14 1%
+cpu15 1%

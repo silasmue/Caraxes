@@ -1,0 +1,8 @@
+ssh: connect to host 192.168.101.21 port 22: No route to host
+stopped
+dma table: 0:7ff940000000:c0000000,100000000:7ffa40000000:40000000
+server pid 2881502, VM pid 2881513; logs in /mnt/vmstore/caraxes/vm1
+ssh up at 192.168.101.21
+[  131.190339] NVRM: GPU 0000:00:05.0: RmInitAdapter succeeded!
+modprobe rc=0
+v2 restarted: server pid 2881502

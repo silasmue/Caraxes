@@ -1,0 +1,4 @@
+vfio-user-nvgpu: bar1 passthrough: guest BAR1 [0, 0x100000) offered as one sparse mmap area of region 1, backed by a dma-buf of FB [0xa9980000, 0xa9a80000) (reservation offset 0x980000); 0x100000 of host BAR1 held while the client maps it (CARAXES_BAR1_PASSTHROUGH=1, docs/caraxes/bar1-passthrough.md
+vfio-user-nvgpu: doorbell tokens: BAR0 0xbb0090, 4 bytes, 64 sub-region(s) with datamatch 0xca700000..=0xca70003f and one eventfd each, offered through VFIO_USER_DEVICE_GET_REGION_IO_FDS; a channel gets a pool token at its first (trapped) doorbell, written to its work-submit-token notifier entry (CA
+vfio-user-nvgpu: doorbell poll: hybrid reader (CARAXES_DOORBELL_POLL=hybrid, CARAXES_DOORBELL_POLL_CPU=Auto)
+vfio-user-nvgpu: doorbell poll: reader pinned to CPU 14 (auto: 95 % idle over 1 s; not CPU 0; VMM vCPU threads of pid 2859974 on CPU(s) [3, 4, 5, 6, 8, 12, 13, 15] at the sample, avoided)
