@@ -259,6 +259,20 @@ Verification (all offline, no GPU):
 
 Merge into Leandro `main` and push to GitHub. That commit is **L610**.
 
+**Step L1 done (2026-09-24, 12:50):** branch `port/caraxes-2026-09` in `../Leandro`, 14 commits on
+e2f1aec, local only; crate diff against Caraxes shows only the naming comment; Leandro's
+`tools/check.sh` 17 of 17, `nix build .#cloud-hypervisor .#leandro` and `nix flake check` pass;
+the mapping is in Leandro's `docs/measurements/portback-2026-09-24.md`. Corrections to the
+recipe above, found while running it: `git am -3 --keep-cr` (plain `git am` strips the CRLF
+endings of the four hypervisor logs in the evidence run); `docs/NAMING.md` already exists in
+Leandro, the naming section was added to it; the README link is line 360 there, not 642;
+check.sh's C scratch steps write under `$LEA_ROOT/target` regardless of `CARGO_TARGET_DIR`
+(risk R3 is only partly covered by the variable); the Leandro checkout has no git identity, every
+commit needs the `-c` flags; the three path-limited commits keep their original messages, which
+name Caraxes content that is not in them (the mapping file says so). The merge into Leandro
+`main` and the push are the operator's (option B confirmed 2026-09-24; Caraxes pushes nothing
+to Leandro).
+
 ### Step T1: Leandro-Test follows (45 min, needs the operator's network steps)
 
 1. Commit the dirty tree.
