@@ -610,11 +610,42 @@ impl Reactor {
     /// Start the reader thread: `ring(rings, seen, stats)` is called with the eventfds
     /// read in one wakeup, `(index, guest writes)` each, and the instant `epoll_wait`
     /// returned them. The thread ends only when an OS call fails.
-    pub fn spawn<F>(self, readers: Vec<File>, mut ring: F) -> std::io::Result<Arc<ReaderStats>>
+    pub fn spawn<F>(self, readers: Vec<File>, ring: F) -> std::io::Result<Arc<ReaderStats>>
     where
         F: FnMut(&[(usize, u64)], Instant, &ReaderStats) + Send + 'static,
     {
+        self.spawn_hooked(readers, ring, None)
+    }
+
+    /// As [`Reactor::spawn`], with a [`Hook`] the loop runs on every iteration (the
+    /// interrupt page, intr_page.rs): its wake eventfd joins the epoll set, what it finds
+    /// counts as an event for hybrid mode, and a blocking wait lasts at most
+    /// [`Hook::max_block_ms`]. A hook needs a polling mode.
+    pub fn spawn_hooked<F>(
+        self,
+        readers: Vec<File>,
+        mut ring: F,
+        mut hook: Option<Box<dyn Hook>>,
+    ) -> std::io::Result<Arc<ReaderStats>>
+    where
+        F: FnMut(&[(usize, u64)], Instant, &ReaderStats) + Send + 'static,
+    {
+        if hook.is_some() && self.config.mode == Mode::Off {
+            return Err(std::io::Error::other(
+                "a reactor hook needs a polling mode (spin or hybrid)",
+            ));
+        }
         let ep = epoll_over(&readers)?;
+        if let Some(fd) = hook.as_ref().and_then(|h| h.wake_fd()) {
+            let mut ev = libc::epoll_event {
+                events: libc::EPOLLIN as u32,
+                u64: WAKE,
+            };
+            // SAFETY: both descriptors are open; `ev` lives across the call.
+            if unsafe { libc::epoll_ctl(ep.as_raw_fd(), libc::EPOLL_CTL_ADD, fd, &mut ev) } < 0 {
+                return Err(std::io::Error::last_os_error());
+            }
+        }
         if self.config.mode != Mode::Off {
             // Non-blocking reads: a spinning reader must never sleep in read(2).
             for r in &readers {
@@ -665,13 +696,30 @@ impl Reactor {
                         st.cpu.store(c as i64, Relaxed);
                     }
                 }
-                if let Err(e) = run(&ep, &readers, self.config.mode, &st, &mut ring) {
+                if let Err(e) = run(&ep, &readers, self.config.mode, &st, &mut ring, &mut hook) {
                     eprintln!("vfio-user-nvgpu: doorbell {name}: {e}; reader ends, the doorbell eventfds are no longer read");
                 }
             })?;
         Ok(stats)
     }
 }
+
+/// Work a reactor does on every loop iteration besides reading its eventfds: the
+/// interrupt page (intr_page.rs) scans the guest's stores there.
+pub trait Hook: Send {
+    /// One iteration; `blocked` says the iteration followed a blocking wait. Returns
+    /// whether it found work, which counts as an event for hybrid mode.
+    fn poll(&mut self, blocked: bool) -> bool;
+    /// The longest blocking wait in milliseconds while the hook runs.
+    fn max_block_ms(&self) -> i32;
+    /// An eventfd other threads write to wake a blocked reactor for the hook.
+    fn wake_fd(&self) -> Option<std::os::fd::RawFd>;
+    /// Read the wake eventfd after it fired.
+    fn drain_wake(&mut self);
+}
+
+/// The epoll data of a hook's wake eventfd (the readers use their index).
+const WAKE: u64 = u64::MAX;
 
 /// The loop. Allocates only before it starts.
 fn run<F>(
@@ -680,11 +728,12 @@ fn run<F>(
     mode: Mode,
     st: &ReaderStats,
     ring: &mut F,
+    hook: &mut Option<Box<dyn Hook>>,
 ) -> std::io::Result<()>
 where
     F: FnMut(&[(usize, u64)], Instant, &ReaderStats),
 {
-    let mut events = vec![libc::epoll_event { events: 0, u64: 0 }; readers.len().max(1)];
+    let mut events = vec![libc::epoll_event { events: 0, u64: 0 }; readers.len() + 1];
     let mut rings: Vec<(usize, u64)> = Vec::with_capacity(readers.len().max(1));
     let mut wait = Wait::new(mode);
     let mut iterations = 0u64;
@@ -692,11 +741,14 @@ where
         if st.stop.load(Relaxed) {
             return Ok(());
         }
-        let timeout = wait.timeout(Instant::now);
+        let mut timeout = wait.timeout(Instant::now);
         iterations += 1;
         st.iterations.store(iterations, Relaxed);
         if timeout < 0 {
             bump(&st.blocking_waits, 1);
+            if let Some(h) = hook.as_ref() {
+                timeout = h.max_block_ms().max(1);
+            }
         }
         // SAFETY: `events` has room for the count passed.
         let n = unsafe {
@@ -715,13 +767,23 @@ where
             return Err(e);
         }
         if n == 0 {
+            if let Some(h) = hook.as_mut() {
+                if h.poll(timeout != 0) {
+                    wait.saw_events(Instant::now());
+                }
+            }
             continue;
         }
         let seen = Instant::now();
         wait.saw_events(seen);
         bump(&st.wakeups, 1);
         rings.clear();
+        let mut woken = false;
         for ev in &events[..n as usize] {
+            if ev.u64 == WAKE {
+                woken = true;
+                continue;
+            }
             let i = ev.u64 as usize;
             let mut count = [0u8; 8];
             match (&readers[i]).read(&mut count) {
@@ -742,6 +804,12 @@ where
         }
         if !rings.is_empty() {
             ring(&rings, seen, st);
+        }
+        if let Some(h) = hook.as_mut() {
+            if woken {
+                h.drain_wake();
+            }
+            h.poll(woken || timeout != 0);
         }
     }
 }

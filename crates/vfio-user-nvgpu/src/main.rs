@@ -22,13 +22,14 @@ use vfio_user_nvgpu::config::{self as pci_config, ConfigSpace};
 use vfio_bindings::bindings::vfio::VFIO_PCI_BAR0_REGION_INDEX;
 use vfio_user_nvgpu::device::{
     doorbell_ioeventfd_requested, doorbell_sub_region, doorbell_token_sub_regions, irqs,
-    region_size, regions_with, spawn_doorbell_reader, spawn_token_reader, Bar1Area, Device,
-    GuestRam, SharedDevice, DOORBELL_IOEVENTFD_ENV,
+    region_size, regions_with_pages, spawn_doorbell_reader_hooked, spawn_token_reader_hooked,
+    Bar0Areas, Bar1Area, Device, GuestRam, SharedDevice, DOORBELL_IOEVENTFD_ENV,
 };
 use vfio_user_nvgpu::fb::FbLayout;
 use vfio_user_nvgpu::hostmem::HostMemory;
 use vfio_user_nvgpu::hostrm::HostRmClient;
 use vfio_user_nvgpu::intr::IntrShared;
+use vfio_user_nvgpu::intr_page::{self, IntrPage, PageHook};
 use vfio_user_nvgpu::privilege::Privilege;
 use vfio_user_nvgpu::rpc::StaticIdentity;
 use vfio_user_nvgpu::selftest;
@@ -336,6 +337,24 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
             tokens::TOKENS_ENV
         );
     }
+    // The interrupt page (docs/caraxes/intr-page.md): the guest's acks and enable writes
+    // land in memory and are seen only by a polling reactor.
+    let intr_page_config = intr_page::requested().map_err(anyhow::Error::msg)?;
+    if intr_page_config.is_some() {
+        if poll.mode == vfio_user_nvgpu::poll::Mode::Off {
+            bail!(
+                "{}=1 needs {}=spin or hybrid: the guest's acks and enable writes in the page are seen only by the polling reactor (docs/caraxes/intr-page.md §5)",
+                intr_page::INTR_PAGE_ENV,
+                vfio_user_nvgpu::poll::POLL_ENV
+            );
+        }
+        if !a.boot_model {
+            bail!(
+                "{}=1 needs --boot-model (the interrupt tree lives in the boot model)",
+                intr_page::INTR_PAGE_ENV
+            );
+        }
+    }
     // Refuse at start when a poll mode cannot pin its reader (no core to choose).
     let reactor = |name| {
         vfio_user_nvgpu::poll::Reactor::new(name, poll, Some(socket.to_path_buf()))
@@ -521,6 +540,52 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
         }
         bar0 = bar0.with_boot_model(model);
     }
+    let intr_page = match intr_page_config {
+        Some(cfg) => {
+            let d = chip.data();
+            let page = IntrPage::create(
+                region_size(&a.board_data, VFIO_PCI_BAR0_REGION_INDEX),
+                d.registers.intr_tree,
+                identity,
+                intr_shared.clone(),
+                cfg,
+            )
+            .map_err(|e| anyhow::anyhow!("{}=1: {e}", intr_page::INTR_PAGE_ENV))?;
+            let vectors: Vec<u32> = d
+                .interrupts
+                .entries
+                .iter()
+                .flat_map(|e| [e.vector_stall, e.vector_nonstall])
+                .collect();
+            page.check(
+                &|off| bar0.model_owns(off),
+                d.registers.intr_tree_size,
+                &vectors,
+            )
+            .map_err(|e| anyhow::anyhow!("{}=1: {e}", intr_page::INTR_PAGE_ENV))?;
+            bar0 = bar0.with_intr_page(page.clone());
+            eprintln!(
+                "vfio-user-nvgpu: intr page: BAR0 [0x0, 0x1000) and the interrupt tree [{:#x}, {:#x}) offered as sparse mmap areas of region 0 from a memfd; the reactor applies the guest's stores (sleep bound {} ms, retrigger watchdog {}) ({}=1, docs/caraxes/intr-page.md)",
+                d.registers.intr_tree,
+                d.registers.intr_tree + intr_page::PAGE,
+                cfg.sleep_ms,
+                cfg.retrigger
+                    .map_or("off".into(), |p| format!("{} ms", p.as_millis())),
+                intr_page::INTR_PAGE_ENV
+            );
+            Some(page)
+        }
+        None => None,
+    };
+    // The reactor's side of the page; from here on raises go through it.
+    let mut page_hook: Option<Box<dyn vfio_user_nvgpu::poll::Hook>> = match &intr_page {
+        Some(p) => {
+            let (hook, wake) = PageHook::new(p.clone()).context("intr page wake eventfd")?;
+            intr_shared.attach_page(wake);
+            Some(Box::new(hook))
+        }
+        None => None,
+    };
     let guest_ram = match (&host_mem, a.register_guest_ram, a.identity_dma_table) {
         (Some(hm), true, _) => GuestRam::Register(hm.clone()),
         (_, _, true) => GuestRam::Identity,
@@ -528,7 +593,7 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
     };
     let mut device = Device::new(cfg, bar0, trace)
         .with_guest_ram(guest_ram, a.dma_ranges.clone())
-        .with_intr_shared(intr_shared);
+        .with_intr_shared(intr_shared.clone());
     if let Some(r) = host_mem
         .as_ref()
         .and_then(|h| h.lock().unwrap().reservation().cloned())
@@ -552,8 +617,17 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
         fd: e.raw_fd(),
         len: e.len,
     });
-    let mut server = Server::new(socket, true, irqs(), regions_with(&a.board_data, bar1_area))
-        .map_err(|e| anyhow::anyhow!("vfio-user server: {e}"))?;
+    let bar0_areas = intr_page.as_ref().map(|p| Bar0Areas {
+        fd: p.raw_fd(),
+        areas: p.areas(),
+    });
+    let mut server = Server::new(
+        socket,
+        true,
+        irqs(),
+        regions_with_pages(&a.board_data, bar1_area, bar0_areas),
+    )
+    .map_err(|e| anyhow::anyhow!("vfio-user server: {e}"))?;
     let doorbell = if doorbell_ioeventfd {
         let offset = chip.data().registers.usermode_doorbell;
         let (sub_region, reader) = doorbell_sub_region(offset).context("doorbell eventfd")?;
@@ -614,16 +688,34 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
     if let Some((offset, reader)) = doorbell {
         readers.push((
             "ioeventfd",
-            spawn_doorbell_reader(device.clone(), offset, reader, ioeventfd_reactor)
-                .context("doorbell reader")?,
+            spawn_doorbell_reader_hooked(
+                device.clone(),
+                offset,
+                reader,
+                ioeventfd_reactor,
+                page_hook.take(),
+            )
+            .context("doorbell reader")?,
         ));
     }
     if let Some((offset, token_eventfds)) = token_readers {
         readers.push((
             "tokens",
-            spawn_token_reader(device.clone(), offset, token_eventfds, token_reactor)
-                .context("doorbell token reader")?,
+            spawn_token_reader_hooked(
+                device.clone(),
+                offset,
+                token_eventfds,
+                token_reactor,
+                page_hook.take(),
+            )
+            .context("doorbell token reader")?,
         ));
+    }
+    if page_hook.is_some() {
+        bail!(
+            "{}=1: no doorbell reactor to run the page in",
+            intr_page::INTR_PAGE_ENV
+        );
     }
     if poll.mode != vfio_user_nvgpu::poll::Mode::Off {
         eprintln!(
@@ -657,6 +749,9 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
     eprint!("{}", device.summary());
     for (name, st) in &readers {
         eprint!("{}", st.summary(name));
+    }
+    if let Some(p) = &intr_page {
+        eprint!("{}", p.summary());
     }
     if let Some(why) = closed {
         // Fail closed (P20 item 4a): never report a clean exit when host state the GPU
