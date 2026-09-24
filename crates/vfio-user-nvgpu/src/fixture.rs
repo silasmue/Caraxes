@@ -33,7 +33,7 @@ impl Fixture {
         .unwrap()
     }
 
-    /// The identity `main` builds for `fb_bytes` ("Leandro RTX 2070-<size>").
+    /// The identity `main` builds for `fb_bytes` ("Leandro VFIO RTX 2070-<size>").
     pub fn identity(&self, fb_bytes: u64) -> StaticIdentity {
         StaticIdentity::new(
             self.chip.data(),

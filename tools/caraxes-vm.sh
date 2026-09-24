@@ -17,8 +17,8 @@
 # model; CARAXES_FB_MIB sets the framebuffer size the guest is told; CARAXES_HOST_RM=1
 # lets the device open the host RM and forward the forwardable RPCs. CARAXES_SERVER
 # overrides the device binary (default target/release/vfio-user-nvgpu).
-# CARAXES_NAME_FORMAT=transport names the card "Leandro VFIO RTX 2070-4G" instead of the
-# default "Leandro RTX 2070-4G" (nvrm_abi::naming, docs/caraxes/identity-profile.md);
+# The card is named "Leandro VFIO RTX 2070-4G" by default; CARAXES_NAME_FORMAT=legacy gives
+# the pre-2026-09-24 "Leandro RTX 2070-4G" (nvrm_abi::naming, docs/caraxes/identity-profile.md);
 # `name` prints the guest-visible name the device presents with the current settings.
 # E5b part 1 (docs/caraxes/memory-model.md): CARAXES_RESERVE_VRAM=1 makes the device hold
 # the profile's size of host VRAM at a fixed address for its life (refused when the host
