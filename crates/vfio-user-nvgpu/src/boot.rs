@@ -1261,7 +1261,22 @@ impl BootModel {
                         let h_client = w(v::RM_ALLOC_H_CLIENT);
                         // The event-buffer classes the 615 event import allocates on GSP
                         // (gspmem.rs) are checked against the registered memory first.
-                        let a = match self
+                        // Classes GSP-RM would refuse are refused first (classes.rs).
+                        let under_channel = self
+                            .ctrl
+                            .channels
+                            .channels()
+                            .any(|c| c.h_client == h_client && c.h_object == h_parent);
+                        let refused =
+                            crate::classes::refusal(self.chip.data(), h_class, under_channel);
+                        let a = match refused {
+                            Some((status, note)) => crate::ctrl::Answer {
+                                status,
+                                params: params.to_vec(),
+                                label: "synthesized (refused as GSP-RM refuses it, classes.rs)",
+                                note,
+                            },
+                            None => match self
                             .gspmem
                             .alloc(h_client, h_parent, h_object, h_class, params)
                         {
@@ -1272,6 +1287,7 @@ impl BootModel {
                                 note: r.note,
                             },
                             None => self.ctrl.alloc(h_client, h_object, h_parent, h_class, params),
+                        },
                         };
                         notes.push(format!(
                             "alloc: {} -> status {:#x} [{}]",
