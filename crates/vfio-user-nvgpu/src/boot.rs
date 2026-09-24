@@ -305,6 +305,9 @@ impl BootModel {
                 st.checks, st.mapped, st.matched, st.mismatched, st.mismatch_events, st.table_hazards
             ));
         }
+        if let Some(a) = self.fb.bar2_area() {
+            s.push(a.summary());
+        }
         if let Some(m) = &self.ctrl.mirror {
             s.push(m.summary());
         }
@@ -351,6 +354,12 @@ impl BootModel {
             }
             return "no root yet".into();
         };
+        if bar == 3 && self.fb.bar2_area().is_some() {
+            // With the BAR2 memfd only the trapped pages reach here: the guest RM's flush
+            // read (kbusFlushSingle_GV100), its point for "BAR2 writes visible to the GPU".
+            self.fb.bar2_note_trapped();
+            self.fb.bar2_sync(Some(root), Some(mem));
+        }
         let t = self.fb.bar_access(mem, root, offset, data, write);
         match t {
             Target::Fb(pa) => format!("fb {pa:#x}"),
@@ -378,6 +387,7 @@ impl BootModel {
 
     /// A ring of pool token `token` through its ioeventfd (device.rs `doorbell_tokens`).
     pub fn doorbell_token(&mut self, mem: &GuestMemory, token: u32) -> Vec<String> {
+        self.bar2_doorbell_sync(mem);
         let mut gm = crate::channel::GpuMem {
             fb: &mut self.fb,
             sys: mem,
@@ -443,6 +453,7 @@ impl BootModel {
             };
         }
         self.fb.carry_bar1_passthrough(&fresh.fb);
+        self.fb.carry_bar2_area(&mut fresh.fb);
         fresh.ctrl.channels.tokens = tokens;
         fresh.transport = self.transport;
         *self = fresh;
@@ -607,7 +618,12 @@ impl BootModel {
         }
         match self.reg(off) {
             Some(Reg::Bar0Window) => self.bar0_window = v,
-            Some(Reg::Bar2Block) => self.bar2_block = v,
+            Some(Reg::Bar2Block) => {
+                self.bar2_block = v;
+                // BAR2 (re)bound: its tables are live from here on.
+                let root = self.bar_root(3);
+                self.fb.bar2_sync(root, Some(mem));
+            }
             Some(Reg::MmuInvalidatePdb) => self.mmu_invalidate.0 = v,
             Some(Reg::MmuInvalidateUpperPdb) => self.mmu_invalidate.1 = v,
             Some(Reg::Bar1Block) => notes.push("read-only".into()),
@@ -618,6 +634,7 @@ impl BootModel {
                 }
             }
             Some(Reg::UsermodeDoorbell) => {
+                self.bar2_doorbell_sync(mem);
                 // A channel's work submit token (kernel_fifo_tu102.c:75-130): a mirrored
                 // channel rings the host doorbell (E5b part 2), the others run their
                 // pending GPFIFO entries against the FB store and guest RAM (E5a).
@@ -634,6 +651,12 @@ impl BootModel {
                     // 1:0; UPPER_PDB adds bits 51:32 (fb-model.md §4d).
                     let pdb = ((self.mmu_invalidate.0 as u64 >> 4) << 12)
                         | ((self.mmu_invalidate.1 as u64 & 0xF_FFFF) << 32);
+                    // With the BAR2 memfd: take in what the guest wrote through BAR2 (write
+                    // it back to VRAM, mark the changed table pages dirty) and follow the
+                    // BAR2 tables; the RM flushes and invalidates after every BAR2 PTE
+                    // update (kbusUpdateRmAperture_GM107, kern_bus_gm107.c:2757-2785).
+                    let bar2_root = self.bar_root(3);
+                    self.fb.bar2_sync(bar2_root, Some(mem));
                     // The guest changed page tables in VRAM through BAR1; drain the WC
                     // buffers before the host TLB invalidate so RM re-walks fresh tables.
                     self.fb.flush();
@@ -692,6 +715,9 @@ impl BootModel {
                         notes.extend(self.gsp_started(mem));
                     }
                     Some(BootEvent::CmdQueueDoorbell { libos_args_pa: pa }) => {
+                        // An RPC may name memory the guest filled through BAR2.
+                        let bar2_root = self.bar_root(3);
+                        self.fb.bar2_sync(bar2_root, Some(mem));
                         self.doorbells += 1;
                         self.libos_args_pa = Some(pa);
                         notes.push(format!(
@@ -714,9 +740,20 @@ impl BootModel {
         Some(notes)
     }
 
+    /// `CARAXES_BAR2_MEMFD_SYNC_DOORBELL=1`: a BAR2 memfd sync before every doorbell (the
+    /// reference for the rule that the guest's flush and invalidate are enough,
+    /// docs/caraxes/bar2-memfd.md §3).
+    fn bar2_doorbell_sync(&mut self, mem: &GuestMemory) {
+        if self.fb.bar2_area().is_some_and(|a| a.sync_doorbell) {
+            let root = self.bar_root(3);
+            self.fb.bar2_sync(root, Some(mem));
+        }
+    }
+
     /// A token-less doorbell from the ioeventfd path (device.rs): ring every channel with
     /// newly published GPFIFO entries (`Dispatcher::doorbell_pending`).
     pub fn doorbell_pending(&mut self, mem: &GuestMemory) -> Vec<String> {
+        self.bar2_doorbell_sync(mem);
         let mut gm = crate::channel::GpuMem {
             fb: &mut self.fb,
             sys: mem,

@@ -246,6 +246,27 @@ pub struct Bar1Area {
 /// `VFIO_USER_DEVICE_GET_REGION_INFO` and of the sparse mmap areas); the rest of BAR1
 /// stays trapped.
 pub fn regions_with(board: &Board, bar1: Option<Bar1Area>) -> Vec<ServerRegion> {
+    regions_with_bar2(board, bar1, None)
+}
+
+/// `CARAXES_BAR2_MEMFD=1` (docs/caraxes/bar2-memfd.md): region 3 (BAR2) offered for mmap
+/// from the memfd `fd`, in the sparse areas `(offset, size)` (all of BAR2 but the pages
+/// that stay trapped).
+#[derive(Clone, Debug)]
+pub struct Bar2Region {
+    pub fd: std::os::fd::RawFd,
+    pub areas: Vec<(u64, u64)>,
+}
+
+/// [`regions_with`], and region 3 mmap-able from the BAR2 memfd when `bar2` is given:
+/// `VFIO_REGION_INFO_FLAG_MMAP`, file offset 0 (memfd offset = BAR2 offset), one sparse
+/// area per stretch between trapped pages. The client maps each area at `0 + offset`
+/// (vfio-user.rst, sparse mmap areas) and traps the rest.
+pub fn regions_with_bar2(
+    board: &Board,
+    bar1: Option<Bar1Area>,
+    bar2: Option<&Bar2Region>,
+) -> Vec<ServerRegion> {
     (0..VFIO_PCI_NUM_REGIONS)
         .map(|index| {
             let size = region_size(board, index);
@@ -254,6 +275,35 @@ pub fn regions_with(board: &Board, bar1: Option<Bar1Area>) -> Vec<ServerRegion> 
                 flags |= VFIO_REGION_INFO_FLAG_READ;
                 if index != VFIO_PCI_ROM_REGION_INDEX {
                     flags |= VFIO_REGION_INFO_FLAG_WRITE;
+                }
+            }
+            if let (3, Some(b)) = (index, bar2) {
+                let fits = b
+                    .areas
+                    .iter()
+                    .all(|&(o, l)| l > 0 && o.checked_add(l).is_some_and(|e| e <= size));
+                if !b.areas.is_empty() && fits {
+                    return ServerRegion {
+                        region_info: vfio_region_info {
+                            argsz: size_of::<vfio_region_info>() as u32,
+                            flags: flags | VFIO_REGION_INFO_FLAG_MMAP,
+                            index,
+                            size,
+                            offset: 0,
+                            ..Default::default()
+                        },
+                        sparse_areas: b
+                            .areas
+                            .iter()
+                            .map(|&(offset, size)| SparseArea {
+                                area: vfio_bindings::bindings::vfio::vfio_region_sparse_mmap_area {
+                                    offset,
+                                    size,
+                                },
+                            })
+                            .collect(),
+                        mmap_fd: Some(b.fd),
+                    };
                 }
             }
             if let (1, Some(a)) = (index, bar1) {
@@ -888,5 +938,34 @@ mod tests {
         // An area larger than the BAR is not offered.
         let r = regions_with(&board, area(512 << 20));
         assert!(r[1].mmap_fd.is_none());
+    }
+
+    #[test]
+    fn bar2_memfd_makes_region_3_mmapable_around_the_trapped_page() {
+        let board = crate::board::Board::load("rtx2070").unwrap();
+        let plain = regions(&board);
+        let size = 32u64 << 20;
+        let areas = crate::bar2area::sparse_areas(size, &[crate::bar2area::DEFAULT_TRAP]).unwrap();
+        let b2 = Bar2Region { fd: 9, areas };
+        let r = regions_with_bar2(&board, None, Some(&b2));
+        let b3 = &r[3];
+        assert_eq!(b3.mmap_fd, Some(9));
+        assert_ne!(b3.region_info.flags & VFIO_REGION_INFO_FLAG_MMAP, 0);
+        assert_eq!((b3.region_info.offset, b3.region_info.size), (0, size));
+        let got: Vec<(u64, u64)> = b3
+            .sparse_areas
+            .iter()
+            .map(|a| (a.area.offset, a.area.size))
+            .collect();
+        assert_eq!(got, vec![(0, 0xfe_a000), (0xfe_b000, size - 0xfe_b000)]);
+        for i in [0usize, 1, 2, 4, 5, 6, 7, 8] {
+            assert_eq!(r[i].region_info.flags, plain[i].region_info.flags);
+            assert!(r[i].mmap_fd.is_none());
+        }
+        // Both areas at once, and an area past the BAR is refused (region 3 stays trapped).
+        let both = regions_with_bar2(&board, Some(Bar1Area { fd: 7, len: 1 << 20 }), Some(&b2));
+        assert_eq!((both[1].mmap_fd, both[3].mmap_fd), (Some(7), Some(9)));
+        let bad = Bar2Region { fd: 9, areas: vec![(0, size + 4096)] };
+        assert!(regions_with_bar2(&board, None, Some(&bad))[3].mmap_fd.is_none());
     }
 }

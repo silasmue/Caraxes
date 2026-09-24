@@ -22,7 +22,8 @@ use vfio_user_nvgpu::config::{self as pci_config, ConfigSpace};
 use vfio_bindings::bindings::vfio::VFIO_PCI_BAR0_REGION_INDEX;
 use vfio_user_nvgpu::device::{
     doorbell_ioeventfd_requested, doorbell_sub_region, doorbell_token_sub_regions, irqs,
-    region_size, regions_with, spawn_doorbell_reader, spawn_token_reader, Bar1Area, Device,
+    region_size, regions_with_bar2, spawn_doorbell_reader, spawn_token_reader, Bar1Area,
+    Bar2Region, Device,
     GuestRam, SharedDevice, DOORBELL_IOEVENTFD_ENV,
 };
 use vfio_user_nvgpu::fb::FbLayout;
@@ -419,6 +420,13 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
     // P21: the dma-buf behind the guest's BAR1 passthrough area, held for the process's
     // life (docs/caraxes/bar1-passthrough.md §6).
     let mut bar1_export = None;
+    // CARAXES_BAR2_MEMFD=1 (docs/caraxes/bar2-memfd.md): region 3 from a memfd. A malformed
+    // trap list ends start-up; a memfd that cannot be set up leaves BAR2 trapped.
+    let bar2_config = vfio_user_nvgpu::bar2area::config().map_err(anyhow::Error::msg)?;
+    let mut bar2_region = None;
+    if bar2_config.is_some() && !a.boot_model {
+        eprintln!("vfio-user-nvgpu: ERROR: bar2 memfd: needs --boot-model (the FB lives there); starting without the area, BAR2 stays trapped");
+    }
     if a.reserve_vram {
         let hm = host_mem.as_ref().expect("opened above");
         let mut h = hm.lock().unwrap();
@@ -516,6 +524,30 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
             );
             bar1_export = Some(ex);
         }
+        if let Some(cfg) = &bar2_config {
+            let size = region_size(&a.board_data, 3);
+            let made = vfio_user_nvgpu::bar2area::Bar2Area::create(size, cfg).and_then(|area| {
+                let r = Bar2Region {
+                    fd: area.raw_fd(),
+                    areas: area.sparse_areas(),
+                };
+                model.fb.set_bar2_area(area).map(|_| r)
+            });
+            match made {
+                Ok(r) => {
+                    eprintln!(
+                        "vfio-user-nvgpu: bar2 memfd: guest BAR2 [0, {size:#x}) offered as {} sparse mmap area(s) of region 3 from a sealed memfd; trapped page(s) {:?}; synced at the trapped pages, MMU invalidates, BAR2 binds and GSP doorbells{} (CARAXES_BAR2_MEMFD=1, docs/caraxes/bar2-memfd.md)",
+                        r.areas.len(),
+                        cfg.traps.iter().map(|t| format!("{t:#x}")).collect::<Vec<_>>(),
+                        if cfg.sync_doorbell { " and every doorbell" } else { "" }
+                    );
+                    bar2_region = Some(r);
+                }
+                Err(e) => eprintln!(
+                    "vfio-user-nvgpu: ERROR: bar2 memfd: {e}; starting without the area, BAR2 stays trapped"
+                ),
+            }
+        }
         if let Some(n) = doorbell_tokens {
             model = model.with_doorbell_tokens(n);
         }
@@ -552,7 +584,8 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
         fd: e.raw_fd(),
         len: e.len,
     });
-    let mut server = Server::new(socket, true, irqs(), regions_with(&a.board_data, bar1_area))
+    let regions = regions_with_bar2(&a.board_data, bar1_area, bar2_region.as_ref());
+    let mut server = Server::new(socket, true, irqs(), regions)
         .map_err(|e| anyhow::anyhow!("vfio-user server: {e}"))?;
     let doorbell = if doorbell_ioeventfd {
         let offset = chip.data().registers.usermode_doorbell;
