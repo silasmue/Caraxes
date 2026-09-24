@@ -303,6 +303,10 @@ licence_headers() {
         case "$f" in *.png|*.jpg|*.ppm|*.bin|*.img|*.ico) continue ;; esac
         # JSON has no comment syntax.
         case "$f" in *.json) continue ;; esac
+        # Lab captures (caraxes/reference/<chip>/): the checksum list and the
+        # machine-written XML and CSV dumps are verified by their sums and
+        # must stay byte-identical to what the capture kit wrote.
+        case "$f" in caraxes/reference/*/SHA256SUMS|caraxes/reference/*/*.xml|caraxes/reference/*/*.csv) continue ;; esac
         # Require a line-leading identifier, not a mention in prose.
         got=$(head -20 "$f" \
               | grep -oE '^[[:space:]]*(#|//|/\*|\*|<!--|;)?[[:space:]]*SPDX-License-Identifier: [A-Za-z0-9.+-]*' \
