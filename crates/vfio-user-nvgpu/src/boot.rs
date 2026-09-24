@@ -21,7 +21,7 @@ use crate::guestmem::GuestMemory;
 use crate::hostmem::HostMemory;
 use crate::intr::{IntrShared, IntrTree};
 use crate::mirror::Mirror;
-use crate::msgq::{QueueMemory, QueueState, RpcHeader};
+use crate::msgq::{QueueMemory, QueueState, ReplyTo, RpcHeader};
 use crate::rpc::{self, StaticIdentity, WprLayout};
 use crate::ver::active as v;
 
@@ -666,6 +666,7 @@ impl BootModel {
         let mut queues = self.queues.take().expect("linked");
         {
             let qm = QueueMemory::new(mem, &pages);
+            notes.extend(queues.retry_held(&qm));
             loop {
                 let mut msg = match queues.receive(&qm) {
                     Ok(Some(m)) => m,
@@ -675,6 +676,30 @@ impl BootModel {
                         break;
                     }
                 };
+                // A rejected element (msgq.rs `Rejection`) is never dispatched. Its
+                // error reply goes to the request it belongs to: a torn continuation
+                // record ends the request being assembled.
+                if let Some(to) = msg.reply_to() {
+                    let rej = msg.rejected.take().expect("rejected");
+                    notes.push(format!("rx seq {} rejected: {}", msg.seq_num, rej.reason));
+                    let target = match to {
+                        ReplyTo::Itself => Some(msg.header),
+                        ReplyTo::PendingRequest => self.pending.take().map(|(p, _)| p.header),
+                        ReplyTo::Nobody => None,
+                    };
+                    if let Some(h) = target {
+                        match queues.send(&qm, &RpcHeader::reply(&h, rej.status, 0), &[]) {
+                            Ok(seq) => notes.push(format!(
+                                "tx seq {seq} reply {} sequence {} result {:#x} (rejected request)",
+                                rpc::function_name(h.function),
+                                h.sequence,
+                                rej.status
+                            )),
+                            Err(e) => notes.push(format!("send: {e}")),
+                        }
+                    }
+                    continue;
+                }
                 // Large RPCs arrive as a first record plus CONTINUATION_RECORDs whose
                 // payloads continue the buffer (rpc.c:2058-2244); reassemble them.
                 if msg.header.function == rpc::FN_CONTINUATION_RECORD {
@@ -991,6 +1016,12 @@ impl BootModel {
                         sent += chunk;
                     }
                 }
+            }
+            if queues.held() > 0 {
+                notes.push(format!(
+                    "status queue full: {} element(s) held for the next doorbell",
+                    queues.held()
+                ));
             }
         }
         self.pages = pages;
