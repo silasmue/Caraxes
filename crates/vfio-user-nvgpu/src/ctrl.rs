@@ -651,7 +651,8 @@ impl Dispatcher {
     }
 
     /// Re-sync the GR shadow VAS from the guest root (called at each guest MMU_INVALIDATE):
-    /// the guest maps set-A pages then invalidates before the GR push touches them.
+    /// the guest maps set-A pages then invalidates before the GR push touches them. With
+    /// `CARAXES_ALLOC_LAZY=1` the plan waits for the next shadow doorbell (lazy.rs).
     pub fn mirror_shadow_resync(
         &mut self,
         gm: &mut crate::channel::GpuMem,
@@ -660,7 +661,7 @@ impl Dispatcher {
         let reg = &self.channels;
         self.mirror
             .as_mut()
-            .map(|m| m.shadow_resync(reg, gm, pdb))
+            .map(|m| m.shadow_invalidated(reg, gm, pdb))
             .unwrap_or_default()
     }
 

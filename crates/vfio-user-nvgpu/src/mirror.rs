@@ -218,6 +218,9 @@ pub struct Mirror {
     /// The shadow worker (docs/caraxes/mapping.md §4): applies the plans (the RM map and
     /// unmap calls) and the teardowns off the server thread, in order.
     worker: ShadowWorker,
+    /// `CARAXES_ALLOC_LAZY=1` (lazy.rs, docs/caraxes/alloc-path.md): a guest MMU invalidate
+    /// defers its plan to the next shadow doorbell or channel creation.
+    lazy: crate::lazy::LazyPlans,
     /// The registered guest RAM descriptors `(handle, iova, size)`, read once.
     descs: Option<Vec<(u32, u64, u64)>>,
     next_event_id: u32,
@@ -283,6 +286,22 @@ impl Mirror {
             shadows: BTreeMap::new(),
             map_budget: crate::shadow::MapBudget::from_env(),
             worker,
+            lazy: match crate::lazy::LazyPlans::from_env() {
+                Ok(l) => {
+                    if l.enabled() {
+                        eprintln!(
+                            "vfio-user-nvgpu: alloc lazy: on, shadow plans at the next shadow doorbell or channel creation, deadline {} [{}]",
+                            l.deadline().map_or("none".into(), |d| format!("{} ms", d.as_millis())),
+                            crate::lazy::ENV
+                        );
+                    }
+                    l
+                }
+                Err(e) => {
+                    eprintln!("vfio-user-nvgpu: ERROR alloc lazy: {e}; shadow plans stay at every invalidate");
+                    crate::lazy::LazyPlans::new(false, None)
+                }
+            },
             descs: None,
             next_event_id: 0x1000,
             stats: MirrorStats::default(),
@@ -383,6 +402,56 @@ impl Mirror {
         out
     }
 
+    /// A guest MMU invalidate of `pdb` (`None`: `ALL_PDB`): re-sync the shadows now, or,
+    /// with `CARAXES_ALLOC_LAZY=1`, record the root for the next shadow doorbell or channel
+    /// creation (lazy.rs); past the deadline, plan everything pending now.
+    pub fn shadow_invalidated(
+        &mut self,
+        reg: &Registry,
+        gm: &mut GpuMem,
+        pdb: Option<u64>,
+    ) -> Vec<String> {
+        use crate::lazy::OnInvalidate;
+        match self.lazy.on_invalidate(pdb, Instant::now()) {
+            OnInvalidate::Plan(p) => self.shadow_resync(reg, gm, p),
+            OnInvalidate::Defer => Vec::new(),
+            OnInvalidate::Flush(p) => {
+                let mut notes = vec![format!(
+                    "alloc lazy: deadline passed, planning {} deferred invalidate(s) now",
+                    p.invalidates
+                )];
+                notes.extend(self.resync_pending(reg, gm, &p));
+                notes
+            }
+        }
+    }
+
+    /// Plan every root a lazy batch names (lazy.rs).
+    fn resync_pending(
+        &mut self,
+        reg: &Registry,
+        gm: &mut GpuMem,
+        p: &crate::lazy::Pending,
+    ) -> Vec<String> {
+        match p.roots() {
+            None => self.shadow_resync(reg, gm, None),
+            Some(roots) => roots
+                .into_iter()
+                .flat_map(|r| self.shadow_resync(reg, gm, Some(r)))
+                .collect(),
+        }
+    }
+
+    /// Before a shadow channel runs (its doorbell or creation): plan what lazy mode
+    /// deferred, for every root, so no host channel runs on a mirror older than the
+    /// guest's last invalidate (the ordering rule of `gr_shadow_doorbell`).
+    fn flush_lazy(&mut self, reg: &Registry, gm: &mut GpuMem) -> Vec<String> {
+        match self.lazy.take() {
+            Some(p) => self.resync_pending(reg, gm, &p),
+            None => Vec::new(),
+        }
+    }
+
     /// The registered guest RAM descriptors, read once (they do not change while the
     /// guest runs).
     fn descs(&mut self) -> Vec<(u32, u64, u64)> {
@@ -464,11 +533,15 @@ impl Mirror {
         gm: &mut GpuMem,
         chid: u32,
     ) -> Vec<String> {
+        // CARAXES_ALLOC_LAZY: the invalidates deferred since the last doorbell are planned
+        // here, before the barrier below or the creation's own wait.
+        let lazy_notes = self.flush_lazy(reg, gm);
         // Already built: re-sync the shadow VAS from the guest root FIRST (the guest maps
         // more set-A between doorbells), then flush and ring.
         if self.channels.contains_key(&chid) {
             let root = self.channels.get(&chid).and_then(|c| c.shadow_root);
-            let mut notes = self.shadow_resync(reg, gm, root);
+            let mut notes = lazy_notes;
+            notes.extend(self.shadow_resync(reg, gm, root));
             // Ordering: the doorbell is forwarded only after the worker applied every plan
             // submitted so far (the mirror is consistent for this root).
             self.worker.wait_all();
@@ -539,9 +612,10 @@ impl Mirror {
             )
         });
         self.ensure_events(&mut Vec::new());
-        let mut notes = vec![format!(
+        let mut notes = lazy_notes;
+        notes.push(format!(
             "shadow: GR chid {chid} on the host-managed shadow VAS of guest root {root:#x}"
-        )];
+        ));
         let descs = self.descs();
         let mut h = self.hm.lock().unwrap();
         // The shadow VAS of this guest root, built once per root.
@@ -1901,7 +1975,7 @@ impl Mirror {
     pub fn summary(&self) -> String {
         let s = &self.stats;
         format!(
-            "mirror: {} channel(s) created, {} freed, {} live; {} doorbell(s) forwarded, {} TLB invalidate(s) ({} MEM_OP push(es), {} slow), {} refusal(s), longest mirror build {} us; events raised {}, MSIs {} (coalesced {}), host RC events {}",
+            "mirror: {} channel(s) created, {} freed, {} live; {} doorbell(s) forwarded, {} TLB invalidate(s) ({} MEM_OP push(es), {} slow), {} refusal(s), longest mirror build {} us; events raised {}, MSIs {} (coalesced {}), host RC events {}{}",
             s.channels_created,
             s.channels_freed,
             self.channels.len(),
@@ -1914,7 +1988,12 @@ impl Mirror {
             self.intr.raised.load(Ordering::Relaxed),
             self.intr.msis.load(Ordering::Relaxed),
             self.intr.coalesced.load(Ordering::Relaxed),
-            self.intr.rc_events.load(Ordering::Relaxed)
+            self.intr.rc_events.load(Ordering::Relaxed),
+            if self.lazy.enabled() {
+                format!("; {}", self.lazy.summary())
+            } else {
+                String::new()
+            }
         )
     }
 }
