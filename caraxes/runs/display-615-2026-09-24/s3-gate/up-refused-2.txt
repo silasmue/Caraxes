@@ -1,0 +1,8 @@
+driver 615.71.09: overlay on /mnt/vmstore/caraxes/images/guest-baked-2026-09-24-615.71.09.qcow2, CARAXES_GUEST_ABI=615
+vfio-user-nvgpu: host ABI 615.71.09: TSG params 28 bytes, GPU_GET_PES_INFO 76 (tpcToPesMap[15]), GR_GET_GLOBAL_SM_ORDER 10264 (SM entry 20), channel params 376, GSS legacy [pmgr 0x18 20512, thermal 0x36 24532, perf 0xf1 9216] (chosen by running driver 615.71.09 (/proc/driver/nvidia/version)); guest ABI 615.71.09
+vfio-user-nvgpu: host memory client open; privilege: uid 1000; capabilities effective 0x0 permitted 0x200000 inheritable 0x0
+vfio-user-nvgpu: hostmem: refused: reserving 2048 MiB would leave the host 453 MiB of VRAM, below the 1024 MiB headroom (free 2501 MiB = min(HEAP_FREE, nvidia-smi); shortfall 571 MiB); choose a smaller profile or free host VRAM
+vfio-user-nvgpu: hostmem: host RM client 0xc1d23e0b freed
+vfio-user-nvgpu: hostmem: privileged windows opened in total: 0
+Error: VRAM reservation refused: refused: reserving 2048 MiB would leave the host 453 MiB of VRAM, below the 1024 MiB headroom (free 2501 MiB = min(HEAP_FREE, nvidia-smi); shortfall 571 MiB); choose a smaller profile or free host VRAM
+ERROR: server did not create /mnt/vmstore/caraxes/vm0-615/gpu.sock

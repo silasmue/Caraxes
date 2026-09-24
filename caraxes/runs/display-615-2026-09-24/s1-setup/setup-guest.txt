@@ -1,0 +1,34 @@
+== dpkg
+caraxes-debs: dpkg rc=0 (59 debs)
+caraxes-debs2: dpkg rc=0 (4 debs)
+caraxes-debs3: dpkg rc=0 (1 debs)
+ii edid-decode 0.1~git20220315.cb74358c2896-1.1
+ii gnome-shell 46.0-0ubuntu6~24.04.14
+ii libvulkan-dev:amd64 1.3.275.0-1build1
+ii libwayland-dev:amd64 1.22.0-2.1build1
+ii libweston-13-0:amd64 13.0.0-4build3
+ii sunshine 2026.516.143833
+ii wayland-protocols 1.45-1~ubuntu0.24.04.2
+ii weston 13.0.0-4build3
+== gdm-wayland-setup
+WaylandEnable=true
+PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
+# CARAXES display-cd phase D: Mesa EGL/GBM with kms_swrast (no GPU execution on vm0)
+__EGL_VENDOR_LIBRARY_FILENAMES=/usr/share/glvnd/egl_vendor.d/50_mesa.json
+MESA_LOADER_DRIVER_OVERRIDE=kms_swrast
+undo: cp /etc/gdm3/custom.conf.caraxes-orig /etc/gdm3/custom.conf; cp /etc/environment.caraxes-orig /etc/environment; rm /etc/udev/rules.d/61-gdm.rules; cp /var/lib/AccountsService/users/leandro.caraxes-orig /var/lib/AccountsService/users/leandro; systemctl disable gdm3
+== nvidia-egl-setup on
+PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
+# CARAXES display-e: EGL/GBM on the NVIDIA driver (host execution on)
+lrwxrwxrwx 1 root root 41 Sep 24 21:25 /usr/lib/x86_64-linux-gnu/gbm/nvidia-drm_gbm.so -> /opt/nvrm-gl/lib/libnvidia-allocator.so.1
+== build-wl
+built wlframes kmsflip kmsgrab
+== GL userspace
+/opt/nvrm-gl: the NVIDIA 615.71.09 GL, EGL, GLES and Vulkan libraries, copied from the host's
+nvidia-utils 615.71.09 on 2026-09-24T23:20:22+02:00 by caraxes/runs/display-615-2026-09-24/prepare-vm0-615.sh
+(docs/caraxes/display-615.md). The image's 610.57.04 copy is /opt/nvrm-gl-610.57.04; the EGL
+platform libraries (egl-wayland, egl-gbm, egl-xcb, egl-xlib) are its vendor-neutral ones.
+	libnvidia-eglcore.so.615.71.09 (libc6,x86-64) => /opt/nvrm-gl/lib/libnvidia-eglcore.so.615.71.09
+	libcuda.so.1 (libc6,x86-64) => /lib/x86_64-linux-gnu/libcuda.so.1
+	libGLX_nvidia.so.0 (libc6,x86-64) => /opt/nvrm-gl/lib/libGLX_nvidia.so.0
+	libEGL_nvidia.so.0 (libc6,x86-64) => /opt/nvrm-gl/lib/libEGL_nvidia.so.0

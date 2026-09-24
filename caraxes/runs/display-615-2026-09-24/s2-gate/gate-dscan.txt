@@ -1,0 +1,2 @@
+== /home/silas/git/Caraxes/.claude/worktrees/agent-ae3c158a1a2db0810/caraxes/runs/display-615-2026-09-24/s2-gate/gate-trace.txt.xz: 0 control answers, 0 distinct D ids, 0 unanswered answers (0 ids)
+watch: none of 0x2080110b FIFO_DISABLE_CHANNELS, 0x20800177 GPU_REPORT_NON_REPLAYABLE_FAULT

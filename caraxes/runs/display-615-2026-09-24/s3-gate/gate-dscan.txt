@@ -1,0 +1,6 @@
+== /home/silas/git/Caraxes/.claude/worktrees/agent-ae3c158a1a2db0810/caraxes/runs/display-615-2026-09-24/s3-gate/gate-trace.txt.xz: 3147 control answers, 2 distinct D ids, 813 unanswered answers (2 ids)
+D 0x00731391 NV0073_CTRL_CMD_DP_SET_WAR_FLAGS                        x7   plan ACK                          -> status 0x0 [synthesized (acknowledged, no effect)]
+D 0x90960101 NV9096_CTRL_CMD_SET_ZBC_COLOR_CLEAR                     x3   plan MODEL:zbc-table              -> status 0x56 [unanswered]
+unanswered 0x90960101 x3 (D)
+unanswered 0x90960107 x810
+watch: none of 0x2080110b FIFO_DISABLE_CHANNELS, 0x20800177 GPU_REPORT_NON_REPLAYABLE_FAULT

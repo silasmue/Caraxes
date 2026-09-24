@@ -1,0 +1,2 @@
+5b8cc83f685de8a8cecbad202eeb66bbc48d5e858a3ac722eebd94d5944d16c7  /home/silas/git/Caraxes/.claude/worktrees/agent-ae3c158a1a2db0810/target/disp615/release/vfio-user-nvgpu
+57693d8 Merge branch 'worktree-agent-a25cf04a900b964bc'
