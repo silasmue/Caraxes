@@ -1,0 +1,1962 @@
+{
+ "1": {
+  "name": "idle_100ms",
+  "reps": 20,
+  "traps_per_rep": 245.4,
+  "window_us_med": 100155.0,
+  "guest_us_med": 100081.35,
+  "classes": {
+   "vf-intr-tree": 204.55,
+   "pcfg-mirror (intr re-arm)": 14.5,
+   "pci-config": 25.65,
+   "pmc-intr-en (RM lock)": 0.6,
+   "pmc page 0, other": 0.1
+  },
+  "class_us": {
+   "vf-intr-tree": 7537.5,
+   "pcfg-mirror (intr re-arm)": 574.55,
+   "pci-config": 775.6,
+   "pmc-intr-en (RM lock)": 27.15,
+   "pmc page 0, other": 4.25
+  },
+  "registers": {
+   "BAR0 0xb81000 R 0xb81600 NV_VF_CPU_INTR_TOP(0)": 29.2,
+   "BAR0 0xb81000 R 0xb81000 NV_VF_CPU_INTR_LEAF(i)": 29.15,
+   "BAR0 0xb81000 R 0xb81200 NV_VF_CPU_INTR_LEAF_EN_SET(i)": 29.15,
+   "BAR0 0xb81000 R 0xb81004 NV_VF_CPU_INTR_LEAF(i)": 29.15,
+   "BAR0 0xb81000 R 0xb81204 NV_VF_CPU_INTR_LEAF_EN_SET(i)": 29.05,
+   "BAR0 0xb81000 W 0xb81000 NV_VF_CPU_INTR_LEAF(i)": 14.5,
+   "BAR0 0xb81000 R 0xb81010 NV_VF_CPU_INTR_LEAF(i)": 14.55,
+   "BAR0 0xb81000 R 0xb81008 NV_VF_CPU_INTR_LEAF(i)": 14.5,
+   "BAR0 0xb81000 R 0xb81018 NV_VF_CPU_INTR_LEAF(i)": 14.5,
+   "BAR0 0x088000 W 0x088704 NV_PCFG": 14.5,
+   "PCI config  R 0x6": 2.85,
+   "PCI config  R 0x34": 2.9,
+   "PCI config  R 0x60": 2.9,
+   "PCI config  R 0x61": 2.85,
+   "PCI config  R 0x68": 2.9,
+   "PCI config  R 0x69": 2.85,
+   "PCI config  R 0x78": 2.9,
+   "PCI config  R 0x79": 2.85,
+   "PCI config  R 0x0": 0.05,
+   "PCI config  R 0x4": 0.05,
+   "PCI config  R 0x8": 0.05,
+   "PCI config  R 0xc": 0.05,
+   "PCI config  R 0x28": 0.05,
+   "PCI config  R 0x2c": 0.05,
+   "PCI config  R 0x38": 0.05,
+   "PCI config  R 0x3c": 0.05,
+   "PCI config  R 0x40": 0.05,
+   "PCI config  R 0x44": 0.05,
+   "PCI config  R 0x48": 0.05,
+   "PCI config  R 0x4c": 0.05,
+   "PCI config  R 0x50": 0.05,
+   "PCI config  R 0x54": 0.05,
+   "PCI config  R 0x58": 0.05,
+   "PCI config  R 0x5c": 0.05,
+   "PCI config  R 0x64": 0.05,
+   "PCI config  R 0x6c": 0.05,
+   "PCI config  R 0x70": 0.05,
+   "PCI config  R 0x74": 0.05,
+   "PCI config  R 0x7c": 0.05,
+   "PCI config  R 0x80": 0.05,
+   "PCI config  R 0x84": 0.05,
+   "PCI config  R 0x88": 0.05,
+   "PCI config  R 0x8c": 0.05,
+   "PCI config  R 0x90": 0.05,
+   "PCI config  R 0x94": 0.05,
+   "PCI config  R 0x98": 0.05,
+   "PCI config  R 0x9c": 0.05,
+   "PCI config  R 0xa0": 0.05,
+   "PCI config  R 0xa4": 0.05,
+   "PCI config  R 0xa8": 0.05,
+   "PCI config  R 0xac": 0.05,
+   "PCI config  R 0xb0": 0.05,
+   "PCI config  R 0xb4": 0.05,
+   "PCI config  R 0xb8": 0.05,
+   "PCI config  R 0xbc": 0.05,
+   "PCI config  R 0xc0": 0.05,
+   "PCI config  R 0xc4": 0.05,
+   "PCI config  R 0xc8": 0.05,
+   "PCI config  R 0xcc": 0.05,
+   "PCI config  R 0xd0": 0.05,
+   "PCI config  R 0xd4": 0.05,
+   "PCI config  R 0xd8": 0.05,
+   "PCI config  R 0xdc": 0.05,
+   "PCI config  R 0xe0": 0.05,
+   "PCI config  R 0xe4": 0.05,
+   "PCI config  R 0xe8": 0.05,
+   "PCI config  R 0xec": 0.05,
+   "PCI config  R 0xf0": 0.05,
+   "PCI config  R 0xf4": 0.05,
+   "PCI config  R 0xf8": 0.05,
+   "PCI config  R 0xfc": 0.05,
+   "BAR0 0x000000 W 0x000180 latched": 0.3,
+   "BAR0 0x000000 W 0x000160 latched": 0.3,
+   "BAR0 0xb81000 W 0xb81408 NV_VF_CPU_INTR_LEAF_EN_CLEAR(i)": 0.1,
+   "BAR0 0xb81000 W 0xb81410 NV_VF_CPU_INTR_LEAF_EN_CLEAR(i)": 0.1,
+   "BAR0 0xb81000 W 0xb81610 NV_VF_CPU_INTR_TOP_EN_CLEAR(0)": 0.1,
+   "BAR0 0xb81000 W 0xb81608 NV_VF_CPU_INTR_TOP_EN_SET(0)": 0.3,
+   "BAR0 0x000000 R 0x000000 NV_PMC_BOOT_0": 0.1,
+   "BAR0 0xb81000 W 0xb81208 NV_VF_CPU_INTR_LEAF_EN_SET(i)": 0.1,
+   "BAR0 0xb81000 W 0xb81210 NV_VF_CPU_INTR_LEAF_EN_SET(i)": 0.1
+  },
+  "windows": {
+   "intr": 205.25
+  },
+  "rpcs": {},
+  "host_events": 14.55,
+  "syncs": 0.0,
+  "sync_calls": 0,
+  "sync_apply_us": 0,
+  "events": {
+   "host notifier events -> MSI": 14.55
+  }
+ },
+ "2": {
+  "name": "cuInit",
+  "reps": 3,
+  "traps_per_rep": 4237.333333333333,
+  "window_us_med": 188768,
+  "guest_us_med": 188692.6,
+  "classes": {
+   "pmc-intr-en (RM lock)": 525.3333333333334,
+   "vf-intr-tree": 421.3333333333333,
+   "gsp-queue-doorbell": 27.333333333333332,
+   "gsp-falcon": 82.0,
+   "pcfg-mirror (intr re-arm)": 1.0,
+   "pmc page 0, other": 0.3333333333333333,
+   "bar2-write": 3116.0,
+   "bar2-flush-read": 24.0,
+   "mmu-invalidate": 40.0
+  },
+  "class_us": {
+   "pmc-intr-en (RM lock)": 23776.666666666668,
+   "vf-intr-tree": 13987.666666666666,
+   "gsp-queue-doorbell": 6828.0,
+   "gsp-falcon": 3818.0,
+   "pcfg-mirror (intr re-arm)": 29.666666666666668,
+   "pmc page 0, other": 12.666666666666666,
+   "bar2-write": 115924.33333333333,
+   "bar2-flush-read": 969.6666666666666,
+   "mmu-invalidate": 1752.6666666666667
+  },
+  "registers": {
+   "BAR0 0x000000 W 0x000180 latched": 262.6666666666667,
+   "BAR0 0x000000 W 0x000160 latched": 262.6666666666667,
+   "BAR0 0xb81000 W 0xb81408 NV_VF_CPU_INTR_LEAF_EN_CLEAR(i)": 52.666666666666664,
+   "BAR0 0xb81000 W 0xb81410 NV_VF_CPU_INTR_LEAF_EN_CLEAR(i)": 52.666666666666664,
+   "BAR0 0xb81000 W 0xb81610 NV_VF_CPU_INTR_TOP_EN_CLEAR(0)": 52.666666666666664,
+   "BAR0 0xb81000 W 0xb81608 NV_VF_CPU_INTR_TOP_EN_SET(0)": 158.0,
+   "BAR0 0xb81000 W 0xb81208 NV_VF_CPU_INTR_LEAF_EN_SET(i)": 52.666666666666664,
+   "BAR0 0xb81000 W 0xb81210 NV_VF_CPU_INTR_LEAF_EN_SET(i)": 52.666666666666664,
+   "BAR0 0x110000 W 0x110c00 NV_PGSP_QUEUE_HEAD/TAIL": 27.333333333333332,
+   "BAR0 0x110000 R 0x110094 NV_PGSP": 27.333333333333332,
+   "BAR0 0x110000 R 0x110804 NV_PGSP": 27.333333333333332,
+   "BAR0 0x110000 R 0x110808 NV_PGSP": 27.333333333333332,
+   "BAR0 0x088000 R 0x088084 NV_PCFG": 1.0,
+   "BAR0 0x000000 R 0x000000 NV_PMC_BOOT_0": 0.3333333333333333,
+   "BAR2 other pages W ": 3116.0,
+   "BAR2 flush page R ": 24.0,
+   "BAR0 0xb83000 R 0xb830b0 NV_VIRTUAL_FUNCTION_PRIV_MMU_INVALIDATE": 16.0,
+   "BAR0 0xb83000 W 0xb830a0 NV_VIRTUAL_FUNCTION_PRIV_MMU_INVALIDATE": 8.0,
+   "BAR0 0xb83000 W 0xb830a4 NV_VIRTUAL_FUNCTION_PRIV_MMU_INVALIDATE": 8.0,
+   "BAR0 0xb83000 W 0xb830b0 NV_VIRTUAL_FUNCTION_PRIV_MMU_INVALIDATE": 8.0
+  },
+  "windows": {
+   "intr": 947.0,
+   "bar2memfd": 3116.0
+  },
+  "rpcs": {
+   "GSP_RM_ALLOC class 0x0": [
+    1.0,
+    3.0,
+    0.0
+   ],
+   "GSP_RM_ALLOC class 0x80": [
+    1.0,
+    5.0,
+    0.0
+   ],
+   "GSP_RM_ALLOC class 0x2080": [
+    1.0,
+    2.6666666666666665,
+    0.0
+   ],
+   "GSP_RM_ALLOC class 0x2081": [
+    1.0,
+    2.6666666666666665,
+    0.0
+   ],
+   "GSP_RM_CONTROL cmd 0x20810108": [
+    1.0,
+    3.3333333333333335,
+    1.0
+   ],
+   "GSP_RM_CONTROL cmd 0x20801823": [
+    1.0,
+    2.6666666666666665,
+    1.0
+   ],
+   "GSP_RM_CONTROL cmd 0x2080182a": [
+    1.0,
+    2.6666666666666665,
+    1.0
+   ],
+   "GSP_RM_CONTROL cmd 0x2080012f": [
+    1.0,
+    3.3333333333333335,
+    1.0
+   ],
+   "GSP_RM_CONTROL cmd 0x20801303": [
+    2.0,
+    6.333333333333333,
+    2.0
+   ],
+   "GSP_RM_CONTROL cmd 0x20802a12": [
+    5.0,
+    20.333333333333332,
+    0.0
+   ],
+   "GSP_RM_CONTROL cmd 0x20800a4c": [
+    1.0,
+    3.0,
+    0.0
+   ],
+   "GSP_RM_CONTROL cmd 0x20800102": [
+    1.0,
+    3.0,
+    1.0
+   ],
+   "GSP_RM_CONTROL cmd 0x20802a0b": [
+    1.0,
+    3.6666666666666665,
+    1.0
+   ],
+   "GSP_RM_CONTROL cmd 0x20800aa2": [
+    1.0,
+    3.6666666666666665,
+    0.0
+   ],
+   "GSP_RM_CONTROL cmd 0x20803801": [
+    1.0,
+    9.0,
+    1.0
+   ],
+   "GSP_RM_ALLOC class 0x90f1": [
+    2.0,
+    7.0,
+    0.0
+   ],
+   "GSP_RM_CONTROL cmd 0x90f10106": [
+    2.0,
+    9.666666666666666,
+    0.0
+   ],
+   "GSP_RM_CONTROL cmd 0x20808159": [
+    1.0,
+    4.333333333333333,
+    1.0
+   ],
+   "GSP_RM_CONTROL cmd 0x20800ab8": [
+    0.3333333333333333,
+    1.0,
+    0.0
+   ],
+   "GSP_RM_CONTROL cmd 0x20808162": [
+    1.0,
+    3.0,
+    1.0
+   ],
+   "GSP_RM_CONTROL cmd 0x2080182b": [
+    1.0,
+    5.666666666666667,
+    1.0
+   ]
+  },
+  "host_events": 12.0,
+  "syncs": 0.0,
+  "sync_calls": 0,
+  "sync_apply_us": 0,
+  "events": {
+   "other events": 54.666666666666664,
+   "guest MMU invalidates": 8.0
+  }
+ },
+ "3": {
+  "name": "cuCtxCreate",
+  "reps": 3,
+  "traps_per_rep": 89375.66666666667,
+  "window_us_med": 4463945,
+  "guest_us_med": 4463839.3,
+  "classes": {
+   "pmc-intr-en (RM lock)": 2722.0,
+   "vf-intr-tree": 10268.666666666666,
+   "gsp-queue-doorbell": 85.0,
+   "gsp-falcon": 255.0,
+   "bar2-write": 72736.33333333333,
+   "bar2-flush-read": 273.0,
+   "mmu-invalidate": 488.3333333333333,
+   "pci-config": 1026.0,
+   "pmc page 0, other": 4.0,
+   "usermode page, other": 60.0,
+   "bar0-other": 8.0,
+   "bar1-write": 642.0,
+   "usermode-doorbell": 214.0,
+   "pcfg-mirror (intr re-arm)": 593.3333333333334
+  },
+  "class_us": {
+   "pmc-intr-en (RM lock)": 181333.66666666666,
+   "vf-intr-tree": 756235.3333333334,
+   "gsp-queue-doorbell": 13374.0,
+   "gsp-falcon": 18336.0,
+   "bar2-write": 3359060.3333333335,
+   "bar2-flush-read": 14629.333333333334,
+   "mmu-invalidate": 30602.0,
+   "pci-config": 28947.0,
+   "pmc page 0, other": 263.6666666666667,
+   "usermode page, other": 5359.333333333333,
+   "bar0-other": 2429.3333333333335,
+   "bar1-write": 46900.333333333336,
+   "pcfg-mirror (intr re-arm)": 41028.666666666664,
+   "usermode-doorbell": 10652.333333333334
+  },
+  "registers": {
+   "BAR0 0x000000 W 0x000180 latched": 1361.0,
+   "BAR0 0x000000 W 0x000160 latched": 1361.0,
+   "BAR0 0xb81000 W 0xb81408 NV_VF_CPU_INTR_LEAF_EN_CLEAR(i)": 272.3333333333333,
+   "BAR0 0xb81000 W 0xb81410 NV_VF_CPU_INTR_LEAF_EN_CLEAR(i)": 272.3333333333333,
+   "BAR0 0xb81000 W 0xb81610 NV_VF_CPU_INTR_TOP_EN_CLEAR(0)": 272.3333333333333,
+   "BAR0 0xb81000 W 0xb81608 NV_VF_CPU_INTR_TOP_EN_SET(0)": 817.0,
+   "BAR0 0x110000 W 0x110c00 NV_PGSP_QUEUE_HEAD/TAIL": 85.0,
+   "BAR0 0x110000 R 0x110094 NV_PGSP": 85.0,
+   "BAR0 0x110000 R 0x110804 NV_PGSP": 85.0,
+   "BAR0 0x110000 R 0x110808 NV_PGSP": 85.0,
+   "BAR0 0xb81000 W 0xb81208 NV_VF_CPU_INTR_LEAF_EN_SET(i)": 272.3333333333333,
+   "BAR0 0xb81000 W 0xb81210 NV_VF_CPU_INTR_LEAF_EN_SET(i)": 272.3333333333333,
+   "BAR2 other pages W ": 72736.33333333333,
+   "BAR2 flush page R ": 273.0,
+   "BAR0 0xb83000 R 0xb830b0 NV_VIRTUAL_FUNCTION_PRIV_MMU_INVALIDATE": 195.33333333333334,
+   "BAR0 0xb83000 W 0xb830a0 NV_VIRTUAL_FUNCTION_PRIV_MMU_INVALIDATE": 97.66666666666667,
+   "BAR0 0xb83000 W 0xb830a4 NV_VIRTUAL_FUNCTION_PRIV_MMU_INVALIDATE": 97.66666666666667,
+   "BAR0 0xb83000 W 0xb830b0 NV_VIRTUAL_FUNCTION_PRIV_MMU_INVALIDATE": 97.66666666666667,
+   "PCI config  R 0x6": 114.0,
+   "PCI config  R 0x34": 116.0,
+   "PCI config  R 0x60": 116.0,
+   "PCI config  R 0x61": 114.0,
+   "PCI config  R 0x68": 116.0,
+   "PCI config  R 0x69": 114.0,
+   "PCI config  R 0x78": 116.0,
+   "PCI config  R 0x79": 114.0,
+   "PCI config  R 0x0": 2.0,
+   "PCI config  R 0x4": 2.0,
+   "PCI config  R 0x8": 2.0,
+   "PCI config  R 0xc": 2.0,
+   "PCI config  R 0x28": 2.0,
+   "PCI config  R 0x2c": 2.0,
+   "PCI config  R 0x38": 2.0,
+   "PCI config  R 0x3c": 2.0,
+   "PCI config  R 0x40": 2.0,
+   "PCI config  R 0x44": 2.0,
+   "PCI config  R 0x48": 2.0,
+   "PCI config  R 0x4c": 2.0,
+   "PCI config  R 0x50": 2.0,
+   "PCI config  R 0x54": 2.0,
+   "PCI config  R 0x58": 2.0,
+   "PCI config  R 0x5c": 2.0,
+   "PCI config  R 0x64": 2.0,
+   "PCI config  R 0x6c": 2.0,
+   "PCI config  R 0x70": 2.0,
+   "PCI config  R 0x74": 2.0,
+   "PCI config  R 0x7c": 2.0,
+   "PCI config  R 0x80": 2.0,
+   "PCI config  R 0x84": 2.0,
+   "PCI config  R 0x88": 2.0,
+   "PCI config  R 0x8c": 2.0,
+   "PCI config  R 0x90": 2.0,
+   "PCI config  R 0x94": 2.0,
+   "PCI config  R 0x98": 2.0,
+   "PCI config  R 0x9c": 2.0,
+   "PCI config  R 0xa0": 2.0,
+   "PCI config  R 0xa4": 2.0,
+   "PCI config  R 0xa8": 2.0,
+   "PCI config  R 0xac": 2.0,
+   "PCI config  R 0xb0": 2.0,
+   "PCI config  R 0xb4": 2.0,
+   "PCI config  R 0xb8": 2.0,
+   "PCI config  R 0xbc": 2.0,
+   "PCI config  R 0xc0": 2.0,
+   "PCI config  R 0xc4": 2.0,
+   "PCI config  R 0xc8": 2.0,
+   "PCI config  R 0xcc": 2.0,
+   "PCI config  R 0xd0": 2.0,
+   "PCI config  R 0xd4": 2.0,
+   "PCI config  R 0xd8": 2.0,
+   "PCI config  R 0xdc": 2.0,
+   "PCI config  R 0xe0": 2.0,
+   "PCI config  R 0xe4": 2.0,
+   "PCI config  R 0xe8": 2.0,
+   "PCI config  R 0xec": 2.0,
+   "PCI config  R 0xf0": 2.0,
+   "PCI config  R 0xf4": 2.0,
+   "PCI config  R 0xf8": 2.0,
+   "PCI config  R 0xfc": 2.0,
+   "BAR0 0x000000 R 0x000000 NV_PMC_BOOT_0": 4.0,
+   "BAR0 0xbb0000 R 0xbb0084 NV_VIRTUAL_FUNCTION_TIME_0/1": 40.0,
+   "BAR0 0xbb0000 R 0xbb0080 NV_VIRTUAL_FUNCTION_TIME_0/1": 20.0,
+   "BAR0 0x070000 W 0x070010 NV_UFLUSH_L2_FLUSH_DIRTY": 2.0,
+   "BAR0 0x070000 R 0x070010 NV_UFLUSH_L2_FLUSH_DIRTY": 2.0,
+   "BAR0 0xb80000 W 0xb80f00 NV_VIRTUAL_FUNCTION_PRIV_L2_SYSMEM_INVALIDATE": 2.0,
+   "BAR0 0xb80000 R 0xb80f00 NV_VIRTUAL_FUNCTION_PRIV_L2_SYSMEM_INVALIDATE": 2.0,
+   "BAR1 [0, 32 MiB) W ": 424.0,
+   "BAR1 [0, 32 MiB) W USERD GPPut": 218.0,
+   "BAR0 0xbb0000 W 0xbb0090 NV_VIRTUAL_FUNCTION_DOORBELL": 214.0,
+   "BAR0 0xb81000 R 0xb81600 NV_VF_CPU_INTR_TOP(0)": 1165.0,
+   "BAR0 0xb81000 R 0xb81000 NV_VF_CPU_INTR_LEAF(i)": 1143.3333333333333,
+   "BAR0 0xb81000 R 0xb81200 NV_VF_CPU_INTR_LEAF_EN_SET(i)": 1143.3333333333333,
+   "BAR0 0xb81000 R 0xb81004 NV_VF_CPU_INTR_LEAF(i)": 1143.3333333333333,
+   "BAR0 0xb81000 R 0xb81204 NV_VF_CPU_INTR_LEAF_EN_SET(i)": 1143.3333333333333,
+   "BAR0 0xb81000 W 0xb81000 NV_VF_CPU_INTR_LEAF(i)": 571.6666666666666,
+   "BAR0 0xb81000 R 0xb81010 NV_VF_CPU_INTR_LEAF(i)": 593.3333333333334,
+   "BAR0 0xb81000 R 0xb81008 NV_VF_CPU_INTR_LEAF(i)": 593.3333333333334,
+   "BAR0 0xb81000 R 0xb81018 NV_VF_CPU_INTR_LEAF(i)": 593.3333333333334,
+   "BAR0 0x088000 W 0x088704 NV_PCFG": 593.3333333333334
+  },
+  "windows": {
+   "intr": 12994.666666666666,
+   "bar2memfd": 72736.33333333333,
+   "bar1pool": 642.0,
+   "tokens": 214.0
+  },
+  "rpcs": {
+   "GSP_RM_CONTROL cmd 0x20800a9a": [
+    1.0,
+    4.0,
+    0.0
+   ],
+   "GSP_RM_CONTROL cmd 0x20802a08": [
+    4.0,
+    18.333333333333332,
+    0.0
+   ],
+   "GSP_RM_ALLOC class 0xa06c": [
+    4.0,
+    15.0,
+    0.0
+   ],
+   "GSP_RM_CONTROL cmd 0xa06c010a": [
+    4.0,
+    17.0,
+    0.0
+   ],
+   "GSP_RM_ALLOC class 0x9067": [
+    1.0,
+    3.3333333333333335,
+    0.0
+   ],
+   "GSP_RM_ALLOC class 0xc46f": [
+    20.0,
+    171.66666666666666,
+    0.0
+   ],
+   "GSP_RM_CONTROL cmd 0x2080012b": [
+    1.0,
+    3.6666666666666665,
+    0.0
+   ],
+   "GSP_RM_ALLOC class 0xc5c0": [
+    8.0,
+    27.333333333333332,
+    0.0
+   ],
+   "GSP_RM_ALLOC class 0xc5b5": [
+    20.0,
+    83.33333333333333,
+    0.0
+   ],
+   "GSP_RM_CONTROL cmd 0x20800a70": [
+    2.0,
+    6.333333333333333,
+    0.0
+   ],
+   "GSP_RM_CONTROL cmd 0xa06c0101": [
+    4.0,
+    19.0,
+    0.0
+   ],
+   "GSP_RM_ALLOC class 0x79": [
+    8.0,
+    28.666666666666668,
+    0.0
+   ],
+   "GSP_RM_ALLOC class 0x0": [
+    1.0,
+    7.666666666666667,
+    0.0
+   ],
+   "GSP_RM_ALLOC class 0x80": [
+    1.0,
+    5.0,
+    0.0
+   ],
+   "GSP_RM_ALLOC class 0x2080": [
+    1.0,
+    3.0,
+    0.0
+   ],
+   "GSP_RM_ALLOC class 0x83de": [
+    1.0,
+    3.0,
+    0.0
+   ],
+   "GSP_RM_CONTROL cmd 0x83de0309": [
+    1.0,
+    3.0,
+    0.0
+   ],
+   "GSP_RM_CONTROL cmd 0x20801210": [
+    1.0,
+    3.3333333333333335,
+    0.0
+   ],
+   "GSP_RM_CONTROL cmd 0xa06c0103": [
+    1.0,
+    3.0,
+    1.0
+   ],
+   "GSP_RM_CONTROL cmd 0x802009": [
+    1.0,
+    2.6666666666666665,
+    0.0
+   ]
+  },
+  "host_events": 973.3333333333334,
+  "syncs": 20.333333333333332,
+  "sync_calls": 6398.333333333333,
+  "sync_apply_us": 861346.6666666666,
+  "events": {
+   "other events": 349.3333333333333,
+   "guest MMU invalidates": 97.66666666666667,
+   "host doorbells written (forwarded)": 214.0,
+   "host notifier events -> MSI": 613.0,
+   "host notifier events (no MSI)": 52.0
+  }
+ },
+ "4": {
+  "name": "cuCtxDestroy",
+  "reps": 3,
+  "traps_per_rep": 28299.333333333332,
+  "window_us_med": 1870423,
+  "guest_us_med": 1870283.9,
+  "classes": {
+   "pci-config": 24.0,
+   "pmc-intr-en (RM lock)": 2012.0,
+   "vf-intr-tree": 4931.333333333333,
+   "bar2-write": 20360.0,
+   "bar2-flush-read": 169.0,
+   "mmu-invalidate": 280.0,
+   "pcfg-mirror (intr re-arm)": 245.66666666666666,
+   "gsp-queue-doorbell": 69.0,
+   "gsp-falcon": 207.0,
+   "pmc page 0, other": 1.3333333333333333
+  },
+  "class_us": {
+   "pci-config": 567.6666666666666,
+   "pmc-intr-en (RM lock)": 119637.33333333333,
+   "vf-intr-tree": 327276.6666666667,
+   "bar2-write": 936369.0,
+   "bar2-flush-read": 9729.0,
+   "mmu-invalidate": 16579.666666666668,
+   "pcfg-mirror (intr re-arm)": 12441.666666666666,
+   "gsp-queue-doorbell": 18510.0,
+   "gsp-falcon": 11769.666666666666,
+   "pmc page 0, other": 79.0
+  },
+  "registers": {
+   "PCI config  R 0x6": 2.6666666666666665,
+   "PCI config  R 0x34": 2.6666666666666665,
+   "PCI config  R 0x60": 2.6666666666666665,
+   "PCI config  R 0x61": 2.6666666666666665,
+   "PCI config  R 0x68": 2.6666666666666665,
+   "PCI config  R 0x69": 2.6666666666666665,
+   "PCI config  R 0x78": 2.6666666666666665,
+   "PCI config  R 0x79": 2.6666666666666665,
+   "PCI config  R 0xe0": 0.3333333333333333,
+   "BAR0 0x000000 W 0x000180 latched": 1006.0,
+   "PCI config  R 0xe4": 0.3333333333333333,
+   "BAR0 0x000000 W 0x000160 latched": 1006.0,
+   "PCI config  R 0xe8": 0.3333333333333333,
+   "BAR0 0xb81000 W 0xb81408 NV_VF_CPU_INTR_LEAF_EN_CLEAR(i)": 201.33333333333334,
+   "PCI config  R 0xec": 0.3333333333333333,
+   "BAR0 0xb81000 W 0xb81410 NV_VF_CPU_INTR_LEAF_EN_CLEAR(i)": 201.33333333333334,
+   "PCI config  R 0xf0": 0.3333333333333333,
+   "BAR0 0xb81000 W 0xb81610 NV_VF_CPU_INTR_TOP_EN_CLEAR(0)": 201.33333333333334,
+   "PCI config  R 0xf4": 0.3333333333333333,
+   "BAR0 0xb81000 W 0xb81608 NV_VF_CPU_INTR_TOP_EN_SET(0)": 604.0,
+   "BAR0 0xb81000 R 0xb81600 NV_VF_CPU_INTR_TOP(0)": 479.6666666666667,
+   "PCI config  R 0xf8": 0.3333333333333333,
+   "BAR0 0xb81000 R 0xb81000 NV_VF_CPU_INTR_LEAF(i)": 467.6666666666667,
+   "PCI config  R 0xfc": 0.3333333333333333,
+   "BAR0 0xb81000 R 0xb81200 NV_VF_CPU_INTR_LEAF_EN_SET(i)": 467.6666666666667,
+   "BAR0 0xb81000 R 0xb81004 NV_VF_CPU_INTR_LEAF(i)": 467.6666666666667,
+   "BAR2 other pages W ": 20360.0,
+   "BAR0 0xb81000 R 0xb81204 NV_VF_CPU_INTR_LEAF_EN_SET(i)": 467.3333333333333,
+   "BAR2 flush page R ": 169.0,
+   "BAR0 0xb83000 R 0xb830b0 NV_VIRTUAL_FUNCTION_PRIV_MMU_INVALIDATE": 112.0,
+   "BAR0 0xb83000 W 0xb830a0 NV_VIRTUAL_FUNCTION_PRIV_MMU_INVALIDATE": 56.0,
+   "BAR0 0xb83000 W 0xb830a4 NV_VIRTUAL_FUNCTION_PRIV_MMU_INVALIDATE": 56.0,
+   "BAR0 0xb83000 W 0xb830b0 NV_VIRTUAL_FUNCTION_PRIV_MMU_INVALIDATE": 56.0,
+   "BAR0 0xb81000 W 0xb81000 NV_VF_CPU_INTR_LEAF(i)": 233.66666666666666,
+   "BAR0 0xb81000 R 0xb81010 NV_VF_CPU_INTR_LEAF(i)": 245.66666666666666,
+   "BAR0 0xb81000 W 0xb81208 NV_VF_CPU_INTR_LEAF_EN_SET(i)": 201.33333333333334,
+   "BAR0 0xb81000 W 0xb81210 NV_VF_CPU_INTR_LEAF_EN_SET(i)": 201.33333333333334,
+   "BAR0 0xb81000 R 0xb81008 NV_VF_CPU_INTR_LEAF(i)": 245.66666666666666,
+   "BAR0 0xb81000 R 0xb81018 NV_VF_CPU_INTR_LEAF(i)": 245.66666666666666,
+   "BAR0 0x088000 W 0x088704 NV_PCFG": 245.66666666666666,
+   "BAR0 0x110000 W 0x110c00 NV_PGSP_QUEUE_HEAD/TAIL": 69.0,
+   "BAR0 0x110000 R 0x110094 NV_PGSP": 69.0,
+   "BAR0 0x110000 R 0x110804 NV_PGSP": 69.0,
+   "BAR0 0x110000 R 0x110808 NV_PGSP": 69.0,
+   "BAR0 0x000000 R 0x000000 NV_PMC_BOOT_0": 1.3333333333333333
+  },
+  "windows": {
+   "intr": 6944.666666666667,
+   "bar2memfd": 20360.0
+  },
+  "rpcs": {
+   "FREE": [
+    65.0,
+    856.0,
+    24.0
+   ],
+   "GSP_RM_CONTROL cmd 0xa06c0105": [
+    2.0,
+    6.0,
+    2.0
+   ],
+   "GSP_RM_CONTROL cmd 0x20800a9a": [
+    1.0,
+    3.0,
+    0.0
+   ],
+   "GSP_RM_CONTROL cmd 0x802009": [
+    1.0,
+    3.0,
+    0.0
+   ]
+  },
+  "host_events": 281.0,
+  "syncs": 15.333333333333334,
+  "sync_calls": 0.0,
+  "sync_apply_us": 48434.666666666664,
+  "events": {
+   "host notifier events -> MSI": 249.33333333333334,
+   "guest MMU invalidates": 56.0,
+   "other events": 154.0,
+   "host notifier events (no MSI)": 5.0
+  }
+ },
+ "10": {
+  "name": "cuMemAlloc_1M",
+  "reps": 40,
+  "traps_per_rep": 35.525,
+  "window_us_med": 1008.0,
+  "guest_us_med": 958.4,
+  "classes": {
+   "pmc-intr-en (RM lock)": 15.0,
+   "vf-intr-tree": 14.825,
+   "pcfg-mirror (intr re-arm)": 0.2,
+   "bar2-write": 2.0,
+   "bar2-flush-read": 1.0,
+   "mmu-invalidate": 2.5
+  },
+  "class_us": {
+   "pmc-intr-en (RM lock)": 611.275,
+   "vf-intr-tree": 457.5,
+   "pcfg-mirror (intr re-arm)": 5.875,
+   "bar2-write": 124.375,
+   "bar2-flush-read": 35.975,
+   "mmu-invalidate": 88.1
+  },
+  "registers": {
+   "BAR0 0x000000 W 0x000180 latched": 7.5,
+   "BAR0 0x000000 W 0x000160 latched": 7.5,
+   "BAR0 0xb81000 W 0xb81408 NV_VF_CPU_INTR_LEAF_EN_CLEAR(i)": 1.5,
+   "BAR0 0xb81000 W 0xb81410 NV_VF_CPU_INTR_LEAF_EN_CLEAR(i)": 1.5,
+   "BAR0 0xb81000 W 0xb81610 NV_VF_CPU_INTR_TOP_EN_CLEAR(0)": 1.5,
+   "BAR0 0xb81000 W 0xb81608 NV_VF_CPU_INTR_TOP_EN_SET(0)": 4.5,
+   "BAR0 0xb81000 W 0xb81208 NV_VF_CPU_INTR_LEAF_EN_SET(i)": 1.5,
+   "BAR0 0xb81000 W 0xb81210 NV_VF_CPU_INTR_LEAF_EN_SET(i)": 1.5,
+   "BAR0 0xb81000 R 0xb81600 NV_VF_CPU_INTR_TOP(0)": 0.4,
+   "BAR0 0xb81000 R 0xb81000 NV_VF_CPU_INTR_LEAF(i)": 0.4,
+   "BAR0 0xb81000 R 0xb81200 NV_VF_CPU_INTR_LEAF_EN_SET(i)": 0.4,
+   "BAR0 0xb81000 R 0xb81004 NV_VF_CPU_INTR_LEAF(i)": 0.4,
+   "BAR0 0xb81000 R 0xb81204 NV_VF_CPU_INTR_LEAF_EN_SET(i)": 0.425,
+   "BAR0 0xb81000 W 0xb81000 NV_VF_CPU_INTR_LEAF(i)": 0.2,
+   "BAR0 0xb81000 R 0xb81010 NV_VF_CPU_INTR_LEAF(i)": 0.2,
+   "BAR0 0xb81000 R 0xb81008 NV_VF_CPU_INTR_LEAF(i)": 0.2,
+   "BAR0 0xb81000 R 0xb81018 NV_VF_CPU_INTR_LEAF(i)": 0.2,
+   "BAR0 0x088000 W 0x088704 NV_PCFG": 0.2,
+   "BAR2 other pages W ": 2.0,
+   "BAR2 flush page R ": 1.0,
+   "BAR0 0xb83000 R 0xb830b0 NV_VIRTUAL_FUNCTION_PRIV_MMU_INVALIDATE": 1.0,
+   "BAR0 0xb83000 W 0xb830a0 NV_VIRTUAL_FUNCTION_PRIV_MMU_INVALIDATE": 0.5,
+   "BAR0 0xb83000 W 0xb830a4 NV_VIRTUAL_FUNCTION_PRIV_MMU_INVALIDATE": 0.5,
+   "BAR0 0xb83000 W 0xb830b0 NV_VIRTUAL_FUNCTION_PRIV_MMU_INVALIDATE": 0.5
+  },
+  "windows": {
+   "intr": 29.825,
+   "bar2memfd": 2.0
+  },
+  "rpcs": {},
+  "host_events": 0.2,
+  "syncs": 0.2,
+  "sync_calls": 0.2,
+  "sync_apply_us": 23.975,
+  "events": {
+   "host notifier events -> MSI": 0.2,
+   "guest MMU invalidates": 0.5,
+   "other events": 0.2
+  }
+ },
+ "11": {
+  "name": "cuMemFree_1M",
+  "reps": 40,
+  "traps_per_rep": 38.475,
+  "window_us_med": 1311.5,
+  "guest_us_med": 973.85,
+  "classes": {
+   "pmc-intr-en (RM lock)": 15.025,
+   "vf-intr-tree": 15.575,
+   "bar2-write": 1.0,
+   "bar2-flush-read": 1.5,
+   "mmu-invalidate": 5.0,
+   "pcfg-mirror (intr re-arm)": 0.35,
+   "pmc page 0, other": 0.025
+  },
+  "class_us": {
+   "pmc-intr-en (RM lock)": 639.6,
+   "vf-intr-tree": 505.375,
+   "bar2-write": 46.65,
+   "bar2-flush-read": 60.05,
+   "mmu-invalidate": 176.95,
+   "pcfg-mirror (intr re-arm)": 10.475,
+   "pmc page 0, other": 0.625
+  },
+  "registers": {
+   "BAR0 0x000000 W 0x000180 latched": 7.525,
+   "BAR0 0x000000 W 0x000160 latched": 7.5,
+   "BAR0 0xb81000 W 0xb81408 NV_VF_CPU_INTR_LEAF_EN_CLEAR(i)": 1.5,
+   "BAR0 0xb81000 W 0xb81410 NV_VF_CPU_INTR_LEAF_EN_CLEAR(i)": 1.5,
+   "BAR0 0xb81000 W 0xb81610 NV_VF_CPU_INTR_TOP_EN_CLEAR(0)": 1.5,
+   "BAR0 0xb81000 W 0xb81608 NV_VF_CPU_INTR_TOP_EN_SET(0)": 4.5,
+   "BAR2 other pages W ": 1.0,
+   "BAR2 flush page R ": 1.5,
+   "BAR0 0xb83000 R 0xb830b0 NV_VIRTUAL_FUNCTION_PRIV_MMU_INVALIDATE": 2.0,
+   "BAR0 0xb83000 W 0xb830a0 NV_VIRTUAL_FUNCTION_PRIV_MMU_INVALIDATE": 1.0,
+   "BAR0 0xb83000 W 0xb830a4 NV_VIRTUAL_FUNCTION_PRIV_MMU_INVALIDATE": 1.0,
+   "BAR0 0xb83000 W 0xb830b0 NV_VIRTUAL_FUNCTION_PRIV_MMU_INVALIDATE": 1.0,
+   "BAR0 0xb81000 W 0xb81208 NV_VF_CPU_INTR_LEAF_EN_SET(i)": 1.5,
+   "BAR0 0xb81000 W 0xb81210 NV_VF_CPU_INTR_LEAF_EN_SET(i)": 1.5,
+   "BAR0 0xb81000 R 0xb81600 NV_VF_CPU_INTR_TOP(0)": 0.4,
+   "BAR0 0xb81000 R 0xb81000 NV_VF_CPU_INTR_LEAF(i)": 0.45,
+   "BAR0 0xb81000 R 0xb81200 NV_VF_CPU_INTR_LEAF_EN_SET(i)": 0.5,
+   "BAR0 0xb81000 R 0xb81004 NV_VF_CPU_INTR_LEAF(i)": 0.5,
+   "BAR0 0xb81000 R 0xb81204 NV_VF_CPU_INTR_LEAF_EN_SET(i)": 0.5,
+   "BAR0 0xb81000 W 0xb81000 NV_VF_CPU_INTR_LEAF(i)": 0.3,
+   "BAR0 0xb81000 R 0xb81010 NV_VF_CPU_INTR_LEAF(i)": 0.3,
+   "BAR0 0xb81000 R 0xb81008 NV_VF_CPU_INTR_LEAF(i)": 0.3,
+   "BAR0 0xb81000 R 0xb81018 NV_VF_CPU_INTR_LEAF(i)": 0.325,
+   "BAR0 0x088000 W 0x088704 NV_PCFG": 0.35,
+   "BAR0 0x000000 R 0x000000 NV_PMC_BOOT_0": 0.025
+  },
+  "windows": {
+   "intr": 30.625,
+   "bar2memfd": 1.0
+  },
+  "rpcs": {},
+  "host_events": 0.3,
+  "syncs": 0.4,
+  "sync_calls": 0.0,
+  "sync_apply_us": 59.35,
+  "events": {
+   "guest MMU invalidates": 1.0,
+   "other events": 0.4,
+   "host notifier events -> MSI": 0.3
+  }
+ },
+ "12": {
+  "name": "cuMemAlloc_64M",
+  "reps": 20,
+  "traps_per_rep": 265.9,
+  "window_us_med": 7669.0,
+  "guest_us_med": 7491.700000000001,
+  "classes": {
+   "pmc-intr-en (RM lock)": 30.0,
+   "vf-intr-tree": 46.85,
+   "pcfg-mirror (intr re-arm)": 1.65,
+   "bar2-write": 179.6,
+   "bar2-flush-read": 2.3,
+   "mmu-invalidate": 5.5
+  },
+  "class_us": {
+   "pmc-intr-en (RM lock)": 1238.4,
+   "vf-intr-tree": 1920.65,
+   "pcfg-mirror (intr re-arm)": 51.4,
+   "bar2-write": 7161.85,
+   "bar2-flush-read": 81.8,
+   "mmu-invalidate": 226.5
+  },
+  "registers": {
+   "BAR0 0x000000 W 0x000180 latched": 15.0,
+   "BAR0 0x000000 W 0x000160 latched": 15.0,
+   "BAR0 0xb81000 W 0xb81408 NV_VF_CPU_INTR_LEAF_EN_CLEAR(i)": 3.0,
+   "BAR0 0xb81000 W 0xb81410 NV_VF_CPU_INTR_LEAF_EN_CLEAR(i)": 3.0,
+   "BAR0 0xb81000 W 0xb81610 NV_VF_CPU_INTR_TOP_EN_CLEAR(0)": 3.0,
+   "BAR0 0xb81000 W 0xb81608 NV_VF_CPU_INTR_TOP_EN_SET(0)": 9.0,
+   "BAR0 0xb81000 W 0xb81208 NV_VF_CPU_INTR_LEAF_EN_SET(i)": 3.0,
+   "BAR0 0xb81000 W 0xb81210 NV_VF_CPU_INTR_LEAF_EN_SET(i)": 3.0,
+   "BAR0 0xb81000 R 0xb81600 NV_VF_CPU_INTR_TOP(0)": 3.35,
+   "BAR0 0xb81000 R 0xb81000 NV_VF_CPU_INTR_LEAF(i)": 3.2,
+   "BAR0 0xb81000 R 0xb81200 NV_VF_CPU_INTR_LEAF_EN_SET(i)": 3.2,
+   "BAR0 0xb81000 R 0xb81004 NV_VF_CPU_INTR_LEAF(i)": 3.2,
+   "BAR0 0xb81000 R 0xb81204 NV_VF_CPU_INTR_LEAF_EN_SET(i)": 3.2,
+   "BAR0 0xb81000 W 0xb81000 NV_VF_CPU_INTR_LEAF(i)": 1.65,
+   "BAR0 0xb81000 R 0xb81010 NV_VF_CPU_INTR_LEAF(i)": 1.7,
+   "BAR0 0xb81000 R 0xb81008 NV_VF_CPU_INTR_LEAF(i)": 1.7,
+   "BAR0 0xb81000 R 0xb81018 NV_VF_CPU_INTR_LEAF(i)": 1.65,
+   "BAR0 0x088000 W 0x088704 NV_PCFG": 1.65,
+   "BAR2 other pages W ": 179.6,
+   "BAR2 flush page R ": 2.3,
+   "BAR0 0xb83000 R 0xb830b0 NV_VIRTUAL_FUNCTION_PRIV_MMU_INVALIDATE": 2.2,
+   "BAR0 0xb83000 W 0xb830a0 NV_VIRTUAL_FUNCTION_PRIV_MMU_INVALIDATE": 1.1,
+   "BAR0 0xb83000 W 0xb830a4 NV_VIRTUAL_FUNCTION_PRIV_MMU_INVALIDATE": 1.1,
+   "BAR0 0xb83000 W 0xb830b0 NV_VIRTUAL_FUNCTION_PRIV_MMU_INVALIDATE": 1.1
+  },
+  "windows": {
+   "intr": 76.85,
+   "bar2memfd": 179.6
+  },
+  "rpcs": {},
+  "host_events": 1.85,
+  "syncs": 0.0,
+  "sync_calls": 0,
+  "sync_apply_us": 0,
+  "events": {
+   "host notifier events -> MSI": 1.85,
+   "guest MMU invalidates": 1.1
+  }
+ },
+ "13": {
+  "name": "cuMemFree_64M",
+  "reps": 20,
+  "traps_per_rep": 142.75,
+  "window_us_med": 5020.5,
+  "guest_us_med": 6137.35,
+  "classes": {
+   "pmc-intr-en (RM lock)": 30.0,
+   "vf-intr-tree": 34.7,
+   "bar2-write": 64.1,
+   "bar2-flush-read": 3.1,
+   "mmu-invalidate": 10.0,
+   "pcfg-mirror (intr re-arm)": 0.8,
+   "pmc page 0, other": 0.05
+  },
+  "class_us": {
+   "pmc-intr-en (RM lock)": 1486.05,
+   "vf-intr-tree": 1908.2,
+   "bar2-write": 2412.65,
+   "bar2-flush-read": 277.2,
+   "mmu-invalidate": 436.3,
+   "pcfg-mirror (intr re-arm)": 34.2,
+   "pmc page 0, other": 4.3
+  },
+  "registers": {
+   "BAR0 0x000000 W 0x000180 latched": 15.0,
+   "BAR0 0x000000 W 0x000160 latched": 15.0,
+   "BAR0 0xb81000 W 0xb81408 NV_VF_CPU_INTR_LEAF_EN_CLEAR(i)": 3.0,
+   "BAR0 0xb81000 W 0xb81410 NV_VF_CPU_INTR_LEAF_EN_CLEAR(i)": 3.0,
+   "BAR0 0xb81000 W 0xb81610 NV_VF_CPU_INTR_TOP_EN_CLEAR(0)": 3.0,
+   "BAR0 0xb81000 W 0xb81608 NV_VF_CPU_INTR_TOP_EN_SET(0)": 9.0,
+   "BAR2 other pages W ": 64.1,
+   "BAR2 flush page R ": 3.1,
+   "BAR0 0xb83000 R 0xb830b0 NV_VIRTUAL_FUNCTION_PRIV_MMU_INVALIDATE": 4.0,
+   "BAR0 0xb83000 W 0xb830a0 NV_VIRTUAL_FUNCTION_PRIV_MMU_INVALIDATE": 2.0,
+   "BAR0 0xb83000 W 0xb830a4 NV_VIRTUAL_FUNCTION_PRIV_MMU_INVALIDATE": 2.0,
+   "BAR0 0xb83000 W 0xb830b0 NV_VIRTUAL_FUNCTION_PRIV_MMU_INVALIDATE": 2.0,
+   "BAR0 0xb81000 W 0xb81208 NV_VF_CPU_INTR_LEAF_EN_SET(i)": 3.0,
+   "BAR0 0xb81000 W 0xb81210 NV_VF_CPU_INTR_LEAF_EN_SET(i)": 3.0,
+   "BAR0 0xb81000 R 0xb81600 NV_VF_CPU_INTR_TOP(0)": 1.65,
+   "BAR0 0xb81000 R 0xb81000 NV_VF_CPU_INTR_LEAF(i)": 1.5,
+   "BAR0 0xb81000 R 0xb81200 NV_VF_CPU_INTR_LEAF_EN_SET(i)": 1.5,
+   "BAR0 0xb81000 R 0xb81004 NV_VF_CPU_INTR_LEAF(i)": 1.5,
+   "BAR0 0xb81000 R 0xb81204 NV_VF_CPU_INTR_LEAF_EN_SET(i)": 1.45,
+   "BAR0 0xb81000 W 0xb81000 NV_VF_CPU_INTR_LEAF(i)": 0.7,
+   "BAR0 0xb81000 R 0xb81010 NV_VF_CPU_INTR_LEAF(i)": 0.8,
+   "BAR0 0xb81000 R 0xb81008 NV_VF_CPU_INTR_LEAF(i)": 0.8,
+   "BAR0 0xb81000 R 0xb81018 NV_VF_CPU_INTR_LEAF(i)": 0.8,
+   "BAR0 0x088000 W 0x088704 NV_PCFG": 0.8,
+   "BAR0 0x000000 R 0x000000 NV_PMC_BOOT_0": 0.05
+  },
+  "windows": {
+   "intr": 64.75,
+   "bar2memfd": 64.1
+  },
+  "rpcs": {},
+  "host_events": 0.95,
+  "syncs": 0.4,
+  "sync_calls": 0.0,
+  "sync_apply_us": 705.15,
+  "events": {
+   "guest MMU invalidates": 2.0,
+   "host notifier events -> MSI": 0.95,
+   "other events": 0.4
+  }
+ },
+ "14": {
+  "name": "cuMemHostAlloc_1M",
+  "reps": 20,
+  "traps_per_rep": 906.4,
+  "window_us_med": 25416.0,
+  "guest_us_med": 25716.8,
+  "classes": {
+   "pmc-intr-en (RM lock)": 15.0,
+   "vf-intr-tree": 82.2,
+   "bar2-write": 771.0,
+   "bar2-flush-read": 2.5,
+   "mmu-invalidate": 5.0,
+   "pcfg-mirror (intr re-arm)": 5.05,
+   "pci-config": 25.65
+  },
+  "class_us": {
+   "pmc-intr-en (RM lock)": 1219.7,
+   "vf-intr-tree": 3724.6,
+   "bar2-write": 27715.85,
+   "bar2-flush-read": 113.3,
+   "mmu-invalidate": 237.7,
+   "pcfg-mirror (intr re-arm)": 154.6,
+   "pci-config": 348.15
+  },
+  "registers": {
+   "BAR0 0x000000 W 0x000180 latched": 7.5,
+   "BAR0 0x000000 W 0x000160 latched": 7.5,
+   "BAR0 0xb81000 W 0xb81408 NV_VF_CPU_INTR_LEAF_EN_CLEAR(i)": 1.5,
+   "BAR0 0xb81000 W 0xb81410 NV_VF_CPU_INTR_LEAF_EN_CLEAR(i)": 1.5,
+   "BAR0 0xb81000 W 0xb81610 NV_VF_CPU_INTR_TOP_EN_CLEAR(0)": 1.5,
+   "BAR0 0xb81000 W 0xb81608 NV_VF_CPU_INTR_TOP_EN_SET(0)": 4.5,
+   "BAR0 0xb81000 W 0xb81208 NV_VF_CPU_INTR_LEAF_EN_SET(i)": 1.5,
+   "BAR0 0xb81000 W 0xb81210 NV_VF_CPU_INTR_LEAF_EN_SET(i)": 1.5,
+   "BAR2 other pages W ": 771.0,
+   "BAR2 flush page R ": 2.5,
+   "BAR0 0xb83000 R 0xb830b0 NV_VIRTUAL_FUNCTION_PRIV_MMU_INVALIDATE": 2.0,
+   "BAR0 0xb83000 W 0xb830a0 NV_VIRTUAL_FUNCTION_PRIV_MMU_INVALIDATE": 1.0,
+   "BAR0 0xb83000 W 0xb830a4 NV_VIRTUAL_FUNCTION_PRIV_MMU_INVALIDATE": 1.0,
+   "BAR0 0xb83000 W 0xb830b0 NV_VIRTUAL_FUNCTION_PRIV_MMU_INVALIDATE": 1.0,
+   "BAR0 0xb81000 R 0xb81600 NV_VF_CPU_INTR_TOP(0)": 10.0,
+   "BAR0 0xb81000 R 0xb81000 NV_VF_CPU_INTR_LEAF(i)": 10.0,
+   "BAR0 0xb81000 R 0xb81200 NV_VF_CPU_INTR_LEAF_EN_SET(i)": 10.0,
+   "BAR0 0xb81000 R 0xb81004 NV_VF_CPU_INTR_LEAF(i)": 10.0,
+   "BAR0 0xb81000 R 0xb81204 NV_VF_CPU_INTR_LEAF_EN_SET(i)": 10.05,
+   "BAR0 0xb81000 W 0xb81000 NV_VF_CPU_INTR_LEAF(i)": 5.05,
+   "BAR0 0xb81000 R 0xb81010 NV_VF_CPU_INTR_LEAF(i)": 5.05,
+   "BAR0 0xb81000 R 0xb81008 NV_VF_CPU_INTR_LEAF(i)": 5.0,
+   "BAR0 0xb81000 R 0xb81018 NV_VF_CPU_INTR_LEAF(i)": 5.05,
+   "BAR0 0x088000 W 0x088704 NV_PCFG": 5.05,
+   "PCI config  R 0x6": 2.85,
+   "PCI config  R 0x34": 2.9,
+   "PCI config  R 0x60": 2.9,
+   "PCI config  R 0x61": 2.85,
+   "PCI config  R 0x68": 2.9,
+   "PCI config  R 0x69": 2.85,
+   "PCI config  R 0x78": 2.9,
+   "PCI config  R 0x79": 2.85,
+   "PCI config  R 0x0": 0.05,
+   "PCI config  R 0x4": 0.05,
+   "PCI config  R 0x8": 0.05,
+   "PCI config  R 0xc": 0.05,
+   "PCI config  R 0x28": 0.05,
+   "PCI config  R 0x2c": 0.05,
+   "PCI config  R 0x38": 0.05,
+   "PCI config  R 0x3c": 0.05,
+   "PCI config  R 0x40": 0.05,
+   "PCI config  R 0x44": 0.05,
+   "PCI config  R 0x48": 0.05,
+   "PCI config  R 0x4c": 0.05,
+   "PCI config  R 0x50": 0.05,
+   "PCI config  R 0x54": 0.05,
+   "PCI config  R 0x58": 0.05,
+   "PCI config  R 0x5c": 0.05,
+   "PCI config  R 0x64": 0.05,
+   "PCI config  R 0x6c": 0.05,
+   "PCI config  R 0x70": 0.05,
+   "PCI config  R 0x74": 0.05,
+   "PCI config  R 0x7c": 0.05,
+   "PCI config  R 0x80": 0.05,
+   "PCI config  R 0x84": 0.05,
+   "PCI config  R 0x88": 0.05,
+   "PCI config  R 0x8c": 0.05,
+   "PCI config  R 0x90": 0.05,
+   "PCI config  R 0x94": 0.05,
+   "PCI config  R 0x98": 0.05,
+   "PCI config  R 0x9c": 0.05,
+   "PCI config  R 0xa0": 0.05,
+   "PCI config  R 0xa4": 0.05,
+   "PCI config  R 0xa8": 0.05,
+   "PCI config  R 0xac": 0.05,
+   "PCI config  R 0xb0": 0.05,
+   "PCI config  R 0xb4": 0.05,
+   "PCI config  R 0xb8": 0.05,
+   "PCI config  R 0xbc": 0.05,
+   "PCI config  R 0xc0": 0.05,
+   "PCI config  R 0xc4": 0.05,
+   "PCI config  R 0xc8": 0.05,
+   "PCI config  R 0xcc": 0.05,
+   "PCI config  R 0xd0": 0.05,
+   "PCI config  R 0xd4": 0.05,
+   "PCI config  R 0xd8": 0.05,
+   "PCI config  R 0xdc": 0.05,
+   "PCI config  R 0xe0": 0.05,
+   "PCI config  R 0xe4": 0.05,
+   "PCI config  R 0xe8": 0.05,
+   "PCI config  R 0xec": 0.05,
+   "PCI config  R 0xf0": 0.05,
+   "PCI config  R 0xf4": 0.05,
+   "PCI config  R 0xf8": 0.05,
+   "PCI config  R 0xfc": 0.05
+  },
+  "windows": {
+   "intr": 97.2,
+   "bar2memfd": 771.0
+  },
+  "rpcs": {},
+  "host_events": 5.05,
+  "syncs": 0.0,
+  "sync_calls": 0,
+  "sync_apply_us": 0,
+  "events": {
+   "guest MMU invalidates": 1.0,
+   "host notifier events -> MSI": 5.05
+  }
+ },
+ "15": {
+  "name": "cuMemFreeHost_1M",
+  "reps": 20,
+  "traps_per_rep": 321.0,
+  "window_us_med": 10108.0,
+  "guest_us_med": 9653.7,
+  "classes": {
+   "vf-intr-tree": 40.05,
+   "pcfg-mirror (intr re-arm)": 1.95,
+   "pmc-intr-en (RM lock)": 15.0,
+   "bar2-write": 257.0,
+   "bar2-flush-read": 2.0,
+   "mmu-invalidate": 5.0
+  },
+  "class_us": {
+   "vf-intr-tree": 1828.15,
+   "pcfg-mirror (intr re-arm)": 72.75,
+   "pmc-intr-en (RM lock)": 691.25,
+   "bar2-write": 9517.8,
+   "bar2-flush-read": 78.2,
+   "mmu-invalidate": 178.55
+  },
+  "registers": {
+   "BAR0 0xb81000 R 0xb81200 NV_VF_CPU_INTR_LEAF_EN_SET(i)": 4.05,
+   "BAR0 0xb81000 R 0xb81004 NV_VF_CPU_INTR_LEAF(i)": 4.05,
+   "BAR0 0xb81000 R 0xb81204 NV_VF_CPU_INTR_LEAF_EN_SET(i)": 4.05,
+   "BAR0 0xb81000 R 0xb81600 NV_VF_CPU_INTR_TOP(0)": 4.0,
+   "BAR0 0xb81000 R 0xb81000 NV_VF_CPU_INTR_LEAF(i)": 4.05,
+   "BAR0 0xb81000 W 0xb81000 NV_VF_CPU_INTR_LEAF(i)": 2.0,
+   "BAR0 0xb81000 R 0xb81010 NV_VF_CPU_INTR_LEAF(i)": 1.95,
+   "BAR0 0xb81000 R 0xb81008 NV_VF_CPU_INTR_LEAF(i)": 1.95,
+   "BAR0 0xb81000 R 0xb81018 NV_VF_CPU_INTR_LEAF(i)": 1.95,
+   "BAR0 0x088000 W 0x088704 NV_PCFG": 1.95,
+   "BAR0 0x000000 W 0x000180 latched": 7.5,
+   "BAR0 0x000000 W 0x000160 latched": 7.5,
+   "BAR0 0xb81000 W 0xb81408 NV_VF_CPU_INTR_LEAF_EN_CLEAR(i)": 1.5,
+   "BAR0 0xb81000 W 0xb81410 NV_VF_CPU_INTR_LEAF_EN_CLEAR(i)": 1.5,
+   "BAR0 0xb81000 W 0xb81610 NV_VF_CPU_INTR_TOP_EN_CLEAR(0)": 1.5,
+   "BAR0 0xb81000 W 0xb81608 NV_VF_CPU_INTR_TOP_EN_SET(0)": 4.5,
+   "BAR2 other pages W ": 257.0,
+   "BAR2 flush page R ": 2.0,
+   "BAR0 0xb83000 R 0xb830b0 NV_VIRTUAL_FUNCTION_PRIV_MMU_INVALIDATE": 2.0,
+   "BAR0 0xb83000 W 0xb830a0 NV_VIRTUAL_FUNCTION_PRIV_MMU_INVALIDATE": 1.0,
+   "BAR0 0xb83000 W 0xb830a4 NV_VIRTUAL_FUNCTION_PRIV_MMU_INVALIDATE": 1.0,
+   "BAR0 0xb83000 W 0xb830b0 NV_VIRTUAL_FUNCTION_PRIV_MMU_INVALIDATE": 1.0,
+   "BAR0 0xb81000 W 0xb81208 NV_VF_CPU_INTR_LEAF_EN_SET(i)": 1.5,
+   "BAR0 0xb81000 W 0xb81210 NV_VF_CPU_INTR_LEAF_EN_SET(i)": 1.5
+  },
+  "windows": {
+   "intr": 55.05,
+   "bar2memfd": 257.0
+  },
+  "rpcs": {},
+  "host_events": 2.0,
+  "syncs": 0.25,
+  "sync_calls": 0.0,
+  "sync_apply_us": 397.4,
+  "events": {
+   "host notifier events -> MSI": 2.0,
+   "guest MMU invalidates": 1.0,
+   "other events": 0.25
+  }
+ },
+ "16": {
+  "name": "cuMemHostRegister_1M",
+  "reps": 20,
+  "traps_per_rep": 1196.95,
+  "window_us_med": 41062.0,
+  "guest_us_med": 40817.2,
+  "classes": {
+   "pmc-intr-en (RM lock)": 30.0,
+   "vf-intr-tree": 115.2,
+   "bar2-write": 1030.0,
+   "bar2-flush-read": 5.0,
+   "mmu-invalidate": 10.0,
+   "pcfg-mirror (intr re-arm)": 6.7,
+   "pmc page 0, other": 0.05
+  },
+  "class_us": {
+   "pmc-intr-en (RM lock)": 1149.6,
+   "vf-intr-tree": 4480.55,
+   "bar2-write": 35844.7,
+   "bar2-flush-read": 189.85,
+   "mmu-invalidate": 504.5,
+   "pcfg-mirror (intr re-arm)": 219.25,
+   "pmc page 0, other": 1.5
+  },
+  "registers": {
+   "BAR0 0x000000 W 0x000180 latched": 15.0,
+   "BAR0 0x000000 W 0x000160 latched": 15.0,
+   "BAR0 0xb81000 W 0xb81408 NV_VF_CPU_INTR_LEAF_EN_CLEAR(i)": 3.0,
+   "BAR0 0xb81000 W 0xb81410 NV_VF_CPU_INTR_LEAF_EN_CLEAR(i)": 3.0,
+   "BAR0 0xb81000 W 0xb81610 NV_VF_CPU_INTR_TOP_EN_CLEAR(0)": 3.0,
+   "BAR0 0xb81000 W 0xb81608 NV_VF_CPU_INTR_TOP_EN_SET(0)": 9.0,
+   "BAR0 0xb81000 W 0xb81208 NV_VF_CPU_INTR_LEAF_EN_SET(i)": 3.0,
+   "BAR0 0xb81000 W 0xb81210 NV_VF_CPU_INTR_LEAF_EN_SET(i)": 3.0,
+   "BAR2 other pages W ": 1030.0,
+   "BAR2 flush page R ": 5.0,
+   "BAR0 0xb83000 R 0xb830b0 NV_VIRTUAL_FUNCTION_PRIV_MMU_INVALIDATE": 4.0,
+   "BAR0 0xb83000 W 0xb830a0 NV_VIRTUAL_FUNCTION_PRIV_MMU_INVALIDATE": 2.0,
+   "BAR0 0xb83000 W 0xb830a4 NV_VIRTUAL_FUNCTION_PRIV_MMU_INVALIDATE": 2.0,
+   "BAR0 0xb83000 W 0xb830b0 NV_VIRTUAL_FUNCTION_PRIV_MMU_INVALIDATE": 2.0,
+   "BAR0 0xb81000 R 0xb81600 NV_VF_CPU_INTR_TOP(0)": 13.1,
+   "BAR0 0xb81000 R 0xb81000 NV_VF_CPU_INTR_LEAF(i)": 12.85,
+   "BAR0 0xb81000 R 0xb81200 NV_VF_CPU_INTR_LEAF_EN_SET(i)": 12.85,
+   "BAR0 0xb81000 R 0xb81004 NV_VF_CPU_INTR_LEAF(i)": 12.95,
+   "BAR0 0xb81000 R 0xb81204 NV_VF_CPU_INTR_LEAF_EN_SET(i)": 12.95,
+   "BAR0 0xb81000 W 0xb81000 NV_VF_CPU_INTR_LEAF(i)": 6.4,
+   "BAR0 0xb81000 R 0xb81010 NV_VF_CPU_INTR_LEAF(i)": 6.7,
+   "BAR0 0xb81000 R 0xb81008 NV_VF_CPU_INTR_LEAF(i)": 6.7,
+   "BAR0 0xb81000 R 0xb81018 NV_VF_CPU_INTR_LEAF(i)": 6.7,
+   "BAR0 0x088000 W 0x088704 NV_PCFG": 6.7,
+   "BAR0 0x000000 R 0x000000 NV_PMC_BOOT_0": 0.05
+  },
+  "windows": {
+   "intr": 145.25,
+   "bar2memfd": 1030.0
+  },
+  "rpcs": {},
+  "host_events": 6.85,
+  "syncs": 0.0,
+  "sync_calls": 0,
+  "sync_apply_us": 0,
+  "events": {
+   "guest MMU invalidates": 2.0,
+   "host notifier events -> MSI": 6.75,
+   "host notifier events (no MSI)": 0.1
+  }
+ },
+ "17": {
+  "name": "cuMemHostUnregister_1M",
+  "reps": 20,
+  "traps_per_rep": 358.95,
+  "window_us_med": 12846.5,
+  "guest_us_med": 12464.05,
+  "classes": {
+   "vf-intr-tree": 54.75,
+   "pmc-intr-en (RM lock)": 30.0,
+   "pcfg-mirror (intr re-arm)": 2.15,
+   "bar2-write": 258.0,
+   "bar2-flush-read": 4.0,
+   "mmu-invalidate": 10.0,
+   "pmc page 0, other": 0.05
+  },
+  "class_us": {
+   "vf-intr-tree": 2838.2,
+   "pmc-intr-en (RM lock)": 1671.8,
+   "pcfg-mirror (intr re-arm)": 65.6,
+   "bar2-write": 9192.05,
+   "bar2-flush-read": 161.25,
+   "mmu-invalidate": 380.2,
+   "pmc page 0, other": 1.05
+  },
+  "registers": {
+   "BAR0 0xb81000 R 0xb81000 NV_VF_CPU_INTR_LEAF(i)": 4.45,
+   "BAR0 0xb81000 R 0xb81200 NV_VF_CPU_INTR_LEAF_EN_SET(i)": 4.45,
+   "BAR0 0xb81000 R 0xb81004 NV_VF_CPU_INTR_LEAF(i)": 4.3,
+   "BAR0 0xb81000 R 0xb81204 NV_VF_CPU_INTR_LEAF_EN_SET(i)": 4.35,
+   "BAR0 0x000000 W 0x000180 latched": 15.0,
+   "BAR0 0xb81000 R 0xb81600 NV_VF_CPU_INTR_TOP(0)": 4.45,
+   "BAR0 0x000000 W 0x000160 latched": 15.0,
+   "BAR0 0xb81000 W 0xb81408 NV_VF_CPU_INTR_LEAF_EN_CLEAR(i)": 3.0,
+   "BAR0 0xb81000 W 0xb81410 NV_VF_CPU_INTR_LEAF_EN_CLEAR(i)": 3.0,
+   "BAR0 0xb81000 W 0xb81000 NV_VF_CPU_INTR_LEAF(i)": 2.15,
+   "BAR0 0xb81000 W 0xb81610 NV_VF_CPU_INTR_TOP_EN_CLEAR(0)": 3.0,
+   "BAR0 0xb81000 W 0xb81608 NV_VF_CPU_INTR_TOP_EN_SET(0)": 9.0,
+   "BAR0 0xb81000 R 0xb81010 NV_VF_CPU_INTR_LEAF(i)": 2.2,
+   "BAR0 0xb81000 R 0xb81008 NV_VF_CPU_INTR_LEAF(i)": 2.2,
+   "BAR0 0xb81000 R 0xb81018 NV_VF_CPU_INTR_LEAF(i)": 2.2,
+   "BAR0 0x088000 W 0x088704 NV_PCFG": 2.15,
+   "BAR2 other pages W ": 258.0,
+   "BAR2 flush page R ": 4.0,
+   "BAR0 0xb83000 R 0xb830b0 NV_VIRTUAL_FUNCTION_PRIV_MMU_INVALIDATE": 4.0,
+   "BAR0 0xb83000 W 0xb830a0 NV_VIRTUAL_FUNCTION_PRIV_MMU_INVALIDATE": 2.0,
+   "BAR0 0xb83000 W 0xb830a4 NV_VIRTUAL_FUNCTION_PRIV_MMU_INVALIDATE": 2.0,
+   "BAR0 0xb83000 W 0xb830b0 NV_VIRTUAL_FUNCTION_PRIV_MMU_INVALIDATE": 2.0,
+   "BAR0 0x000000 R 0x000000 NV_PMC_BOOT_0": 0.05,
+   "BAR0 0xb81000 W 0xb81208 NV_VF_CPU_INTR_LEAF_EN_SET(i)": 3.0,
+   "BAR0 0xb81000 W 0xb81210 NV_VF_CPU_INTR_LEAF_EN_SET(i)": 3.0
+  },
+  "windows": {
+   "intr": 84.8,
+   "bar2memfd": 258.0
+  },
+  "rpcs": {},
+  "host_events": 2.3,
+  "syncs": 0.65,
+  "sync_calls": 0.0,
+  "sync_apply_us": 2133.85,
+  "events": {
+   "host notifier events -> MSI": 2.3,
+   "guest MMU invalidates": 2.0,
+   "other events": 0.65
+  }
+ },
+ "20": {
+  "name": "launch_1_sync",
+  "reps": 40,
+  "traps_per_rep": 10.525,
+  "window_us_med": 909.5,
+  "guest_us_med": 883.65,
+  "classes": {
+   "vf-intr-tree": 4.275,
+   "bar1-write": 3.0,
+   "usermode-doorbell": 1.0,
+   "pcfg-mirror (intr re-arm)": 0.275,
+   "pmc-intr-en (RM lock)": 0.15,
+   "pmc page 0, other": 0.025,
+   "pci-config": 1.8
+  },
+  "class_us": {
+   "vf-intr-tree": 245.875,
+   "bar1-write": 320.325,
+   "usermode-doorbell": 50.475,
+   "pcfg-mirror (intr re-arm)": 9.975,
+   "pmc-intr-en (RM lock)": 29.375,
+   "pmc page 0, other": 0.7,
+   "pci-config": 26.05
+  },
+  "registers": {
+   "BAR0 0xb81000 W 0xb81000 NV_VF_CPU_INTR_LEAF(i)": 0.35,
+   "BAR0 0xb81000 R 0xb81004 NV_VF_CPU_INTR_LEAF(i)": 0.575,
+   "BAR1 [0, 32 MiB) W ": 2.0,
+   "BAR0 0xb81000 R 0xb81204 NV_VF_CPU_INTR_LEAF_EN_SET(i)": 0.55,
+   "BAR0 0xb81000 R 0xb81010 NV_VF_CPU_INTR_LEAF(i)": 0.325,
+   "BAR1 [0, 32 MiB) W USERD GPPut": 1.0,
+   "BAR0 0xb81000 R 0xb81008 NV_VF_CPU_INTR_LEAF(i)": 0.325,
+   "BAR0 0xbb0000 W 0xbb0090 NV_VIRTUAL_FUNCTION_DOORBELL": 1.0,
+   "BAR0 0xb81000 R 0xb81018 NV_VF_CPU_INTR_LEAF(i)": 0.275,
+   "BAR0 0x088000 W 0x088704 NV_PCFG": 0.275,
+   "BAR0 0xb81000 R 0xb81600 NV_VF_CPU_INTR_TOP(0)": 0.525,
+   "BAR0 0xb81000 R 0xb81000 NV_VF_CPU_INTR_LEAF(i)": 0.575,
+   "BAR0 0xb81000 R 0xb81200 NV_VF_CPU_INTR_LEAF_EN_SET(i)": 0.575,
+   "BAR0 0x000000 W 0x000180 latched": 0.075,
+   "BAR0 0x000000 W 0x000160 latched": 0.075,
+   "BAR0 0xb81000 W 0xb81408 NV_VF_CPU_INTR_LEAF_EN_CLEAR(i)": 0.025,
+   "BAR0 0xb81000 W 0xb81410 NV_VF_CPU_INTR_LEAF_EN_CLEAR(i)": 0.025,
+   "BAR0 0xb81000 W 0xb81610 NV_VF_CPU_INTR_TOP_EN_CLEAR(0)": 0.025,
+   "BAR0 0xb81000 W 0xb81608 NV_VF_CPU_INTR_TOP_EN_SET(0)": 0.075,
+   "BAR0 0x000000 R 0x000000 NV_PMC_BOOT_0": 0.025,
+   "BAR0 0xb81000 W 0xb81208 NV_VF_CPU_INTR_LEAF_EN_SET(i)": 0.025,
+   "BAR0 0xb81000 W 0xb81210 NV_VF_CPU_INTR_LEAF_EN_SET(i)": 0.025,
+   "PCI config  R 0x6": 0.2,
+   "PCI config  R 0x34": 0.2,
+   "PCI config  R 0x60": 0.225,
+   "PCI config  R 0x61": 0.2,
+   "PCI config  R 0x68": 0.225,
+   "PCI config  R 0x69": 0.2,
+   "PCI config  R 0x78": 0.2,
+   "PCI config  R 0x79": 0.2,
+   "PCI config  R 0x4c": 0.025,
+   "PCI config  R 0x50": 0.025,
+   "PCI config  R 0x54": 0.025,
+   "PCI config  R 0x58": 0.025,
+   "PCI config  R 0x5c": 0.025,
+   "PCI config  R 0x64": 0.025
+  },
+  "windows": {
+   "intr": 4.45,
+   "bar1pool": 3.0,
+   "tokens": 1.0
+  },
+  "rpcs": {},
+  "host_events": 1.4,
+  "syncs": 0.0,
+  "sync_calls": 0,
+  "sync_apply_us": 0,
+  "events": {
+   "host notifier events -> MSI": 0.375,
+   "host doorbells written (forwarded)": 1.0,
+   "host notifier events (no MSI)": 0.025
+  }
+ },
+ "21": {
+  "name": "launch_1000_sync",
+  "reps": 2,
+  "traps_per_rep": 4517.5,
+  "window_us_med": 245917.5,
+  "guest_us_med": 137.8,
+  "classes": {
+   "vf-intr-tree": 483.0,
+   "bar1-write": 3000.0,
+   "usermode-doorbell": 1000.0,
+   "pcfg-mirror (intr re-arm)": 34.5
+  },
+  "class_us": {
+   "vf-intr-tree": 37935.5,
+   "bar1-write": 145648.5,
+   "usermode-doorbell": 36169.0,
+   "pcfg-mirror (intr re-arm)": 1212.0
+  },
+  "registers": {
+   "BAR0 0xb81000 R 0xb81600 NV_VF_CPU_INTR_TOP(0)": 69.0,
+   "BAR0 0xb81000 R 0xb81000 NV_VF_CPU_INTR_LEAF(i)": 69.0,
+   "BAR1 [0, 32 MiB) W ": 1984.0,
+   "BAR1 [0, 32 MiB) W USERD GPPut": 1016.0,
+   "BAR0 0xbb0000 W 0xbb0090 NV_VIRTUAL_FUNCTION_DOORBELL": 1000.0,
+   "BAR0 0xb81000 R 0xb81200 NV_VF_CPU_INTR_LEAF_EN_SET(i)": 69.0,
+   "BAR0 0xb81000 R 0xb81004 NV_VF_CPU_INTR_LEAF(i)": 69.0,
+   "BAR0 0xb81000 R 0xb81204 NV_VF_CPU_INTR_LEAF_EN_SET(i)": 69.0,
+   "BAR0 0xb81000 W 0xb81000 NV_VF_CPU_INTR_LEAF(i)": 34.5,
+   "BAR0 0xb81000 R 0xb81010 NV_VF_CPU_INTR_LEAF(i)": 34.5,
+   "BAR0 0xb81000 R 0xb81008 NV_VF_CPU_INTR_LEAF(i)": 34.5,
+   "BAR0 0xb81000 R 0xb81018 NV_VF_CPU_INTR_LEAF(i)": 34.5,
+   "BAR0 0x088000 W 0x088704 NV_PCFG": 34.5
+  },
+  "windows": {
+   "intr": 483.0,
+   "bar1pool": 3000.0,
+   "tokens": 1000.0
+  },
+  "rpcs": {},
+  "host_events": 1034.5,
+  "syncs": 0.0,
+  "sync_calls": 0,
+  "sync_apply_us": 0,
+  "events": {
+   "host notifier events -> MSI": 34.5,
+   "host doorbells written (forwarded)": 1000.0
+  }
+ },
+ "30": {
+  "name": "h2d_pinned_1M",
+  "reps": 20,
+  "traps_per_rep": 4.9,
+  "window_us_med": 556.5,
+  "guest_us_med": 504.84999999999997,
+  "classes": {
+   "bar1-write": 3.0,
+   "usermode-doorbell": 1.0,
+   "pcfg-mirror (intr re-arm)": 0.1,
+   "vf-intr-tree": 0.8
+  },
+  "class_us": {
+   "bar1-write": 172.4,
+   "usermode-doorbell": 42.6,
+   "pcfg-mirror (intr re-arm)": 10.0,
+   "vf-intr-tree": 74.55
+  },
+  "registers": {
+   "BAR1 [0, 32 MiB) W ": 2.0,
+   "BAR1 [0, 32 MiB) W USERD GPPut": 1.0,
+   "BAR0 0xbb0000 W 0xbb0090 NV_VIRTUAL_FUNCTION_DOORBELL": 1.0,
+   "BAR0 0x088000 W 0x088704 NV_PCFG": 0.1,
+   "BAR0 0xb81000 R 0xb81600 NV_VF_CPU_INTR_TOP(0)": 0.1,
+   "BAR0 0xb81000 R 0xb81000 NV_VF_CPU_INTR_LEAF(i)": 0.1,
+   "BAR0 0xb81000 R 0xb81200 NV_VF_CPU_INTR_LEAF_EN_SET(i)": 0.1,
+   "BAR0 0xb81000 R 0xb81004 NV_VF_CPU_INTR_LEAF(i)": 0.1,
+   "BAR0 0xb81000 R 0xb81204 NV_VF_CPU_INTR_LEAF_EN_SET(i)": 0.1,
+   "BAR0 0xb81000 W 0xb81000 NV_VF_CPU_INTR_LEAF(i)": 0.05,
+   "BAR0 0xb81000 R 0xb81010 NV_VF_CPU_INTR_LEAF(i)": 0.05,
+   "BAR0 0xb81000 R 0xb81008 NV_VF_CPU_INTR_LEAF(i)": 0.1,
+   "BAR0 0xb81000 R 0xb81018 NV_VF_CPU_INTR_LEAF(i)": 0.1
+  },
+  "windows": {
+   "bar1pool": 3.0,
+   "tokens": 1.0,
+   "intr": 0.8
+  },
+  "rpcs": {},
+  "host_events": 1.1,
+  "syncs": 0.0,
+  "sync_calls": 0,
+  "sync_apply_us": 0,
+  "events": {
+   "host doorbells written (forwarded)": 1.0,
+   "host notifier events -> MSI": 0.1
+  }
+ },
+ "31": {
+  "name": "d2h_pinned_1M",
+  "reps": 20,
+  "traps_per_rep": 6.6,
+  "window_us_med": 557.0,
+  "guest_us_med": 550.9,
+  "classes": {
+   "bar1-write": 3.0,
+   "usermode-doorbell": 1.0,
+   "vf-intr-tree": 2.5,
+   "pcfg-mirror (intr re-arm)": 0.1
+  },
+  "class_us": {
+   "bar1-write": 185.55,
+   "usermode-doorbell": 48.3,
+   "vf-intr-tree": 86.85,
+   "pcfg-mirror (intr re-arm)": 54.1
+  },
+  "registers": {
+   "BAR1 [0, 32 MiB) W ": 2.0,
+   "BAR1 [0, 32 MiB) W USERD GPPut": 1.0,
+   "BAR0 0xbb0000 W 0xbb0090 NV_VIRTUAL_FUNCTION_DOORBELL": 1.0,
+   "BAR0 0xb81000 R 0xb81204 NV_VF_CPU_INTR_LEAF_EN_SET(i)": 0.4,
+   "BAR0 0xb81000 R 0xb81010 NV_VF_CPU_INTR_LEAF(i)": 0.2,
+   "BAR0 0xb81000 R 0xb81008 NV_VF_CPU_INTR_LEAF(i)": 0.2,
+   "BAR0 0xb81000 R 0xb81018 NV_VF_CPU_INTR_LEAF(i)": 0.15,
+   "BAR0 0x088000 W 0x088704 NV_PCFG": 0.1,
+   "BAR0 0xb81000 R 0xb81600 NV_VF_CPU_INTR_TOP(0)": 0.35,
+   "BAR0 0xb81000 R 0xb81000 NV_VF_CPU_INTR_LEAF(i)": 0.35,
+   "BAR0 0xb81000 R 0xb81200 NV_VF_CPU_INTR_LEAF_EN_SET(i)": 0.35,
+   "BAR0 0xb81000 R 0xb81004 NV_VF_CPU_INTR_LEAF(i)": 0.35,
+   "BAR0 0xb81000 W 0xb81000 NV_VF_CPU_INTR_LEAF(i)": 0.15
+  },
+  "windows": {
+   "bar1pool": 3.0,
+   "tokens": 1.0,
+   "intr": 2.5
+  },
+  "rpcs": {},
+  "host_events": 1.2,
+  "syncs": 0.0,
+  "sync_calls": 0,
+  "sync_apply_us": 0,
+  "events": {
+   "host doorbells written (forwarded)": 1.0,
+   "host notifier events -> MSI": 0.2
+  }
+ },
+ "32": {
+  "name": "d2d_1M",
+  "reps": 20,
+  "traps_per_rep": 6.7,
+  "window_us_med": 1034.0,
+  "guest_us_med": 1002.25,
+  "classes": {
+   "bar1-write": 3.0,
+   "usermode-doorbell": 1.0,
+   "vf-intr-tree": 2.5,
+   "pcfg-mirror (intr re-arm)": 0.2
+  },
+  "class_us": {
+   "bar1-write": 152.0,
+   "usermode-doorbell": 51.9,
+   "vf-intr-tree": 164.65,
+   "pcfg-mirror (intr re-arm)": 5.55
+  },
+  "registers": {
+   "BAR1 [0, 32 MiB) W ": 2.0,
+   "BAR1 [0, 32 MiB) W USERD GPPut": 1.0,
+   "BAR0 0xbb0000 W 0xbb0090 NV_VIRTUAL_FUNCTION_DOORBELL": 1.0,
+   "BAR0 0xb81000 R 0xb81600 NV_VF_CPU_INTR_TOP(0)": 0.4,
+   "BAR0 0xb81000 R 0xb81000 NV_VF_CPU_INTR_LEAF(i)": 0.4,
+   "BAR0 0xb81000 R 0xb81200 NV_VF_CPU_INTR_LEAF_EN_SET(i)": 0.4,
+   "BAR0 0xb81000 R 0xb81004 NV_VF_CPU_INTR_LEAF(i)": 0.35,
+   "BAR0 0xb81000 R 0xb81204 NV_VF_CPU_INTR_LEAF_EN_SET(i)": 0.35,
+   "BAR0 0x088000 W 0x088704 NV_PCFG": 0.2,
+   "BAR0 0xb81000 W 0xb81000 NV_VF_CPU_INTR_LEAF(i)": 0.15,
+   "BAR0 0xb81000 R 0xb81010 NV_VF_CPU_INTR_LEAF(i)": 0.15,
+   "BAR0 0xb81000 R 0xb81008 NV_VF_CPU_INTR_LEAF(i)": 0.15,
+   "BAR0 0xb81000 R 0xb81018 NV_VF_CPU_INTR_LEAF(i)": 0.15
+  },
+  "windows": {
+   "bar1pool": 3.0,
+   "tokens": 1.0,
+   "intr": 2.5
+  },
+  "rpcs": {},
+  "host_events": 1.25,
+  "syncs": 0.0,
+  "sync_calls": 0,
+  "sync_apply_us": 0,
+  "events": {
+   "host doorbells written (forwarded)": 1.0,
+   "host notifier events -> MSI": 0.2,
+   "host notifier events (no MSI)": 0.05
+  }
+ },
+ "33": {
+  "name": "h2d_pinned_16M",
+  "reps": 20,
+  "traps_per_rep": 13.5,
+  "window_us_med": 5355.5,
+  "guest_us_med": 5298.85,
+  "classes": {
+   "bar1-write": 3.0,
+   "usermode-doorbell": 1.0,
+   "vf-intr-tree": 8.9,
+   "pcfg-mirror (intr re-arm)": 0.6
+  },
+  "class_us": {
+   "bar1-write": 141.5,
+   "usermode-doorbell": 43.2,
+   "vf-intr-tree": 532.8,
+   "pcfg-mirror (intr re-arm)": 22.3
+  },
+  "registers": {
+   "BAR1 [0, 32 MiB) W ": 2.0,
+   "BAR1 [0, 32 MiB) W USERD GPPut": 1.0,
+   "BAR0 0xbb0000 W 0xbb0090 NV_VIRTUAL_FUNCTION_DOORBELL": 1.0,
+   "BAR0 0xb81000 R 0xb81600 NV_VF_CPU_INTR_TOP(0)": 1.25,
+   "BAR0 0xb81000 R 0xb81000 NV_VF_CPU_INTR_LEAF(i)": 1.25,
+   "BAR0 0xb81000 R 0xb81200 NV_VF_CPU_INTR_LEAF_EN_SET(i)": 1.25,
+   "BAR0 0xb81000 R 0xb81004 NV_VF_CPU_INTR_LEAF(i)": 1.3,
+   "BAR0 0xb81000 R 0xb81204 NV_VF_CPU_INTR_LEAF_EN_SET(i)": 1.3,
+   "BAR0 0xb81000 W 0xb81000 NV_VF_CPU_INTR_LEAF(i)": 0.65,
+   "BAR0 0xb81000 R 0xb81010 NV_VF_CPU_INTR_LEAF(i)": 0.65,
+   "BAR0 0xb81000 R 0xb81008 NV_VF_CPU_INTR_LEAF(i)": 0.65,
+   "BAR0 0xb81000 R 0xb81018 NV_VF_CPU_INTR_LEAF(i)": 0.6,
+   "BAR0 0x088000 W 0x088704 NV_PCFG": 0.6
+  },
+  "windows": {
+   "bar1pool": 3.0,
+   "tokens": 1.0,
+   "intr": 8.9
+  },
+  "rpcs": {},
+  "host_events": 1.65,
+  "syncs": 0.0,
+  "sync_calls": 0,
+  "sync_apply_us": 0,
+  "events": {
+   "host doorbells written (forwarded)": 1.0,
+   "host notifier events -> MSI": 0.65
+  }
+ },
+ "34": {
+  "name": "d2h_pinned_16M",
+  "reps": 20,
+  "traps_per_rep": 24.75,
+  "window_us_med": 5442.0,
+  "guest_us_med": 5621.549999999999,
+  "classes": {
+   "vf-intr-tree": 10.5,
+   "bar1-write": 3.0,
+   "usermode-doorbell": 1.0,
+   "pcfg-mirror (intr re-arm)": 0.8,
+   "pci-config": 9.45
+  },
+  "class_us": {
+   "vf-intr-tree": 759.7,
+   "bar1-write": 252.55,
+   "usermode-doorbell": 225.85,
+   "pcfg-mirror (intr re-arm)": 28.25,
+   "pci-config": 257.15
+  },
+  "registers": {
+   "BAR0 0xb81000 R 0xb81004 NV_VF_CPU_INTR_LEAF(i)": 1.5,
+   "BAR0 0xb81000 R 0xb81204 NV_VF_CPU_INTR_LEAF_EN_SET(i)": 1.55,
+   "BAR0 0xb81000 R 0xb81600 NV_VF_CPU_INTR_TOP(0)": 1.4,
+   "BAR1 [0, 32 MiB) W ": 2.0,
+   "BAR0 0xb81000 R 0xb81000 NV_VF_CPU_INTR_LEAF(i)": 1.45,
+   "BAR0 0xb81000 R 0xb81200 NV_VF_CPU_INTR_LEAF_EN_SET(i)": 1.45,
+   "BAR1 [0, 32 MiB) W USERD GPPut": 1.0,
+   "BAR0 0xb81000 W 0xb81000 NV_VF_CPU_INTR_LEAF(i)": 0.75,
+   "BAR0 0xbb0000 W 0xbb0090 NV_VIRTUAL_FUNCTION_DOORBELL": 1.0,
+   "BAR0 0xb81000 R 0xb81010 NV_VF_CPU_INTR_LEAF(i)": 0.8,
+   "BAR0 0xb81000 R 0xb81008 NV_VF_CPU_INTR_LEAF(i)": 0.8,
+   "BAR0 0xb81000 R 0xb81018 NV_VF_CPU_INTR_LEAF(i)": 0.8,
+   "BAR0 0x088000 W 0x088704 NV_PCFG": 0.8,
+   "PCI config  R 0x6": 1.05,
+   "PCI config  R 0x34": 1.05,
+   "PCI config  R 0x60": 1.05,
+   "PCI config  R 0x61": 1.05,
+   "PCI config  R 0x68": 1.05,
+   "PCI config  R 0x69": 1.05,
+   "PCI config  R 0x78": 1.05,
+   "PCI config  R 0x79": 1.05,
+   "PCI config  R 0xac": 0.05,
+   "PCI config  R 0xb0": 0.05,
+   "PCI config  R 0xb4": 0.05,
+   "PCI config  R 0xb8": 0.05,
+   "PCI config  R 0xbc": 0.05,
+   "PCI config  R 0xc0": 0.05,
+   "PCI config  R 0xc4": 0.05,
+   "PCI config  R 0xc8": 0.05,
+   "PCI config  R 0xcc": 0.05,
+   "PCI config  R 0xd0": 0.05,
+   "PCI config  R 0xd4": 0.05,
+   "PCI config  R 0xd8": 0.05,
+   "PCI config  R 0xdc": 0.05,
+   "PCI config  R 0xe0": 0.05,
+   "PCI config  R 0xe4": 0.05,
+   "PCI config  R 0xe8": 0.05,
+   "PCI config  R 0xec": 0.05,
+   "PCI config  R 0xf0": 0.05,
+   "PCI config  R 0xf4": 0.05,
+   "PCI config  R 0xf8": 0.05,
+   "PCI config  R 0xfc": 0.05
+  },
+  "windows": {
+   "intr": 10.5,
+   "bar1pool": 3.0,
+   "tokens": 1.0
+  },
+  "rpcs": {},
+  "host_events": 1.75,
+  "syncs": 0.0,
+  "sync_calls": 0,
+  "sync_apply_us": 0,
+  "events": {
+   "host notifier events -> MSI": 0.75,
+   "host doorbells written (forwarded)": 1.0
+  }
+ },
+ "35": {
+  "name": "d2d_16M",
+  "reps": 20,
+  "traps_per_rep": 5.8,
+  "window_us_med": 3981.5,
+  "guest_us_med": 3888.75,
+  "classes": {
+   "bar1-write": 3.0,
+   "usermode-doorbell": 1.0,
+   "vf-intr-tree": 1.65,
+   "pcfg-mirror (intr re-arm)": 0.15
+  },
+  "class_us": {
+   "bar1-write": 168.95,
+   "usermode-doorbell": 48.35,
+   "vf-intr-tree": 70.1,
+   "pcfg-mirror (intr re-arm)": 5.75
+  },
+  "registers": {
+   "BAR1 [0, 32 MiB) W ": 2.0,
+   "BAR1 [0, 32 MiB) W USERD GPPut": 1.0,
+   "BAR0 0xbb0000 W 0xbb0090 NV_VIRTUAL_FUNCTION_DOORBELL": 1.0,
+   "BAR0 0xb81000 R 0xb81004 NV_VF_CPU_INTR_LEAF(i)": 0.25,
+   "BAR0 0xb81000 R 0xb81204 NV_VF_CPU_INTR_LEAF_EN_SET(i)": 0.25,
+   "BAR0 0xb81000 R 0xb81600 NV_VF_CPU_INTR_TOP(0)": 0.15,
+   "BAR0 0xb81000 R 0xb81000 NV_VF_CPU_INTR_LEAF(i)": 0.2,
+   "BAR0 0xb81000 R 0xb81200 NV_VF_CPU_INTR_LEAF_EN_SET(i)": 0.2,
+   "BAR0 0xb81000 W 0xb81000 NV_VF_CPU_INTR_LEAF(i)": 0.15,
+   "BAR0 0xb81000 R 0xb81010 NV_VF_CPU_INTR_LEAF(i)": 0.15,
+   "BAR0 0xb81000 R 0xb81008 NV_VF_CPU_INTR_LEAF(i)": 0.15,
+   "BAR0 0xb81000 R 0xb81018 NV_VF_CPU_INTR_LEAF(i)": 0.15,
+   "BAR0 0x088000 W 0x088704 NV_PCFG": 0.15
+  },
+  "windows": {
+   "bar1pool": 3.0,
+   "tokens": 1.0,
+   "intr": 1.65
+  },
+  "rpcs": {},
+  "host_events": 1.15,
+  "syncs": 0.0,
+  "sync_calls": 0,
+  "sync_apply_us": 0,
+  "events": {
+   "host doorbells written (forwarded)": 1.0,
+   "host notifier events -> MSI": 0.15
+  }
+ },
+ "36": {
+  "name": "h2d_pageable_1M",
+  "reps": 20,
+  "traps_per_rep": 4.35,
+  "window_us_med": 707.5,
+  "guest_us_med": 612.8,
+  "classes": {
+   "bar1-write": 3.0,
+   "usermode-doorbell": 1.0,
+   "vf-intr-tree": 0.3,
+   "pcfg-mirror (intr re-arm)": 0.05
+  },
+  "class_us": {
+   "bar1-write": 359.8,
+   "usermode-doorbell": 50.1,
+   "vf-intr-tree": 22.95,
+   "pcfg-mirror (intr re-arm)": 2.2
+  },
+  "registers": {
+   "BAR1 [0, 32 MiB) W ": 2.0,
+   "BAR1 [0, 32 MiB) W USERD GPPut": 1.0,
+   "BAR0 0xbb0000 W 0xbb0090 NV_VIRTUAL_FUNCTION_DOORBELL": 1.0,
+   "BAR0 0xb81000 R 0xb81204 NV_VF_CPU_INTR_LEAF_EN_SET(i)": 0.05,
+   "BAR0 0xb81000 R 0xb81010 NV_VF_CPU_INTR_LEAF(i)": 0.05,
+   "BAR0 0xb81000 R 0xb81008 NV_VF_CPU_INTR_LEAF(i)": 0.05,
+   "BAR0 0xb81000 R 0xb81018 NV_VF_CPU_INTR_LEAF(i)": 0.05,
+   "BAR0 0x088000 W 0x088704 NV_PCFG": 0.05,
+   "BAR0 0xb81000 R 0xb81600 NV_VF_CPU_INTR_TOP(0)": 0.05,
+   "BAR0 0xb81000 R 0xb81000 NV_VF_CPU_INTR_LEAF(i)": 0.05
+  },
+  "windows": {
+   "bar1pool": 3.0,
+   "tokens": 1.0,
+   "intr": 0.3
+  },
+  "rpcs": {},
+  "host_events": 1.05,
+  "syncs": 0.0,
+  "sync_calls": 0,
+  "sync_apply_us": 0,
+  "events": {
+   "host doorbells written (forwarded)": 1.0,
+   "host notifier events -> MSI": 0.05
+  }
+ },
+ "37": {
+  "name": "d2h_pageable_1M",
+  "reps": 20,
+  "traps_per_rep": 5.7,
+  "window_us_med": 719.5,
+  "guest_us_med": 670.9,
+  "classes": {
+   "bar1-write": 3.0,
+   "usermode-doorbell": 1.0,
+   "vf-intr-tree": 1.6,
+   "pcfg-mirror (intr re-arm)": 0.1
+  },
+  "class_us": {
+   "bar1-write": 262.9,
+   "usermode-doorbell": 49.5,
+   "vf-intr-tree": 78.9,
+   "pcfg-mirror (intr re-arm)": 3.7
+  },
+  "registers": {
+   "BAR1 [0, 32 MiB) W ": 1.9,
+   "BAR1 [0, 32 MiB) W USERD GPPut": 1.1,
+   "BAR0 0xbb0000 W 0xbb0090 NV_VIRTUAL_FUNCTION_DOORBELL": 1.0,
+   "BAR0 0xb81000 R 0xb81600 NV_VF_CPU_INTR_TOP(0)": 0.25,
+   "BAR0 0xb81000 R 0xb81000 NV_VF_CPU_INTR_LEAF(i)": 0.25,
+   "BAR0 0xb81000 R 0xb81200 NV_VF_CPU_INTR_LEAF_EN_SET(i)": 0.25,
+   "BAR0 0xb81000 R 0xb81004 NV_VF_CPU_INTR_LEAF(i)": 0.25,
+   "BAR0 0xb81000 R 0xb81204 NV_VF_CPU_INTR_LEAF_EN_SET(i)": 0.2,
+   "BAR0 0xb81000 W 0xb81000 NV_VF_CPU_INTR_LEAF(i)": 0.1,
+   "BAR0 0xb81000 R 0xb81010 NV_VF_CPU_INTR_LEAF(i)": 0.1,
+   "BAR0 0xb81000 R 0xb81008 NV_VF_CPU_INTR_LEAF(i)": 0.1,
+   "BAR0 0xb81000 R 0xb81018 NV_VF_CPU_INTR_LEAF(i)": 0.1,
+   "BAR0 0x088000 W 0x088704 NV_PCFG": 0.1
+  },
+  "windows": {
+   "bar1pool": 3.0,
+   "tokens": 1.0,
+   "intr": 1.6
+  },
+  "rpcs": {},
+  "host_events": 1.1,
+  "syncs": 0.0,
+  "sync_calls": 0,
+  "sync_apply_us": 0,
+  "events": {
+   "host doorbells written (forwarded)": 1.0,
+   "host notifier events -> MSI": 0.1
+  }
+ },
+ "40": {
+  "name": "cuStreamSynchronize_idle",
+  "reps": 40,
+  "traps_per_rep": 0.05,
+  "window_us_med": 54.5,
+  "guest_us_med": 8.25,
+  "classes": {
+   "vf-intr-tree": 0.05
+  },
+  "class_us": {
+   "vf-intr-tree": 2.325
+  },
+  "registers": {
+   "BAR0 0xb81000 R 0xb81200 NV_VF_CPU_INTR_LEAF_EN_SET(i)": 0.025,
+   "BAR0 0xb81000 R 0xb81018 NV_VF_CPU_INTR_LEAF(i)": 0.025
+  },
+  "windows": {
+   "intr": 0.05
+  },
+  "rpcs": {},
+  "host_events": 0.0,
+  "syncs": 0.0,
+  "sync_calls": 0,
+  "sync_apply_us": 0,
+  "events": {}
+ },
+ "41": {
+  "name": "cuEventRecord_Synchronize",
+  "reps": 40,
+  "traps_per_rep": 8.4,
+  "window_us_med": 864.0,
+  "guest_us_med": 802.9,
+  "classes": {
+   "bar1-write": 3.0,
+   "usermode-doorbell": 1.0,
+   "vf-intr-tree": 4.225,
+   "pcfg-mirror (intr re-arm)": 0.1,
+   "pmc-intr-en (RM lock)": 0.075
+  },
+  "class_us": {
+   "bar1-write": 147.475,
+   "usermode-doorbell": 48.075,
+   "vf-intr-tree": 258.825,
+   "pcfg-mirror (intr re-arm)": 2.7,
+   "pmc-intr-en (RM lock)": 2.325
+  },
+  "registers": {
+   "BAR1 [0, 32 MiB) W ": 1.95,
+   "BAR1 [0, 32 MiB) W USERD GPPut": 1.05,
+   "BAR0 0xbb0000 W 0xbb0090 NV_VIRTUAL_FUNCTION_DOORBELL": 1.0,
+   "BAR0 0xb81000 R 0xb81600 NV_VF_CPU_INTR_TOP(0)": 0.675,
+   "BAR0 0xb81000 R 0xb81000 NV_VF_CPU_INTR_LEAF(i)": 0.625,
+   "BAR0 0xb81000 R 0xb81200 NV_VF_CPU_INTR_LEAF_EN_SET(i)": 0.625,
+   "BAR0 0xb81000 R 0xb81004 NV_VF_CPU_INTR_LEAF(i)": 0.625,
+   "BAR0 0xb81000 R 0xb81204 NV_VF_CPU_INTR_LEAF_EN_SET(i)": 0.6,
+   "BAR0 0xb81000 W 0xb81000 NV_VF_CPU_INTR_LEAF(i)": 0.3,
+   "BAR0 0xb81000 R 0xb81010 NV_VF_CPU_INTR_LEAF(i)": 0.25,
+   "BAR0 0xb81000 R 0xb81008 NV_VF_CPU_INTR_LEAF(i)": 0.225,
+   "BAR0 0xb81000 R 0xb81018 NV_VF_CPU_INTR_LEAF(i)": 0.2,
+   "BAR0 0x088000 W 0x088704 NV_PCFG": 0.1,
+   "BAR0 0x000000 W 0x000160 latched": 0.05,
+   "BAR0 0x000000 W 0x000180 latched": 0.025,
+   "BAR0 0xb81000 W 0xb81208 NV_VF_CPU_INTR_LEAF_EN_SET(i)": 0.025,
+   "BAR0 0xb81000 W 0xb81210 NV_VF_CPU_INTR_LEAF_EN_SET(i)": 0.025,
+   "BAR0 0xb81000 W 0xb81608 NV_VF_CPU_INTR_TOP_EN_SET(0)": 0.05
+  },
+  "windows": {
+   "bar1pool": 3.0,
+   "tokens": 1.0,
+   "intr": 4.3
+  },
+  "rpcs": {},
+  "host_events": 1.3,
+  "syncs": 0.0,
+  "sync_calls": 0,
+  "sync_apply_us": 0,
+  "events": {
+   "host doorbells written (forwarded)": 1.0,
+   "host notifier events -> MSI": 0.3
+  }
+ },
+ "50": {
+  "name": "cuModuleLoad_cubin",
+  "reps": 20,
+  "traps_per_rep": 10.05,
+  "window_us_med": 1129.0,
+  "guest_us_med": 1177.45,
+  "classes": {
+   "bar1-write": 3.0,
+   "usermode-doorbell": 1.0,
+   "vf-intr-tree": 3.3,
+   "pcfg-mirror (intr re-arm)": 0.15,
+   "pci-config": 2.25,
+   "pmc-intr-en (RM lock)": 0.3,
+   "pmc page 0, other": 0.05
+  },
+  "class_us": {
+   "bar1-write": 244.5,
+   "usermode-doorbell": 50.25,
+   "vf-intr-tree": 229.15,
+   "pcfg-mirror (intr re-arm)": 4.35,
+   "pci-config": 77.5,
+   "pmc-intr-en (RM lock)": 7.7,
+   "pmc page 0, other": 1.2
+  },
+  "registers": {
+   "BAR1 [0, 32 MiB) W ": 2.0,
+   "BAR1 [0, 32 MiB) W USERD GPPut": 1.0,
+   "BAR0 0xbb0000 W 0xbb0090 NV_VIRTUAL_FUNCTION_DOORBELL": 1.0,
+   "BAR0 0xb81000 R 0xb81600 NV_VF_CPU_INTR_TOP(0)": 0.45,
+   "BAR0 0xb81000 R 0xb81000 NV_VF_CPU_INTR_LEAF(i)": 0.45,
+   "BAR0 0xb81000 R 0xb81200 NV_VF_CPU_INTR_LEAF_EN_SET(i)": 0.4,
+   "BAR0 0xb81000 R 0xb81004 NV_VF_CPU_INTR_LEAF(i)": 0.4,
+   "BAR0 0xb81000 R 0xb81204 NV_VF_CPU_INTR_LEAF_EN_SET(i)": 0.4,
+   "BAR0 0xb81000 W 0xb81000 NV_VF_CPU_INTR_LEAF(i)": 0.2,
+   "BAR0 0xb81000 R 0xb81010 NV_VF_CPU_INTR_LEAF(i)": 0.2,
+   "BAR0 0xb81000 R 0xb81008 NV_VF_CPU_INTR_LEAF(i)": 0.2,
+   "BAR0 0xb81000 R 0xb81018 NV_VF_CPU_INTR_LEAF(i)": 0.2,
+   "BAR0 0x088000 W 0x088704 NV_PCFG": 0.15,
+   "PCI config  R 0x6": 0.25,
+   "PCI config  R 0x34": 0.25,
+   "PCI config  R 0x60": 0.25,
+   "PCI config  R 0x61": 0.25,
+   "PCI config  R 0x68": 0.25,
+   "PCI config  R 0x69": 0.25,
+   "PCI config  R 0x78": 0.25,
+   "PCI config  R 0x79": 0.25,
+   "PCI config  R 0x3c": 0.05,
+   "PCI config  R 0x40": 0.05,
+   "PCI config  R 0x44": 0.05,
+   "PCI config  R 0x48": 0.05,
+   "PCI config  R 0x4c": 0.05,
+   "BAR0 0x000000 W 0x000180 latched": 0.15,
+   "BAR0 0x000000 W 0x000160 latched": 0.15,
+   "BAR0 0xb81000 W 0xb81408 NV_VF_CPU_INTR_LEAF_EN_CLEAR(i)": 0.05,
+   "BAR0 0xb81000 W 0xb81410 NV_VF_CPU_INTR_LEAF_EN_CLEAR(i)": 0.05,
+   "BAR0 0xb81000 W 0xb81610 NV_VF_CPU_INTR_TOP_EN_CLEAR(0)": 0.05,
+   "BAR0 0xb81000 W 0xb81608 NV_VF_CPU_INTR_TOP_EN_SET(0)": 0.15,
+   "BAR0 0x000000 R 0x000000 NV_PMC_BOOT_0": 0.05,
+   "BAR0 0xb81000 W 0xb81208 NV_VF_CPU_INTR_LEAF_EN_SET(i)": 0.05,
+   "BAR0 0xb81000 W 0xb81210 NV_VF_CPU_INTR_LEAF_EN_SET(i)": 0.05
+  },
+  "windows": {
+   "bar1pool": 3.0,
+   "tokens": 1.0,
+   "intr": 3.65
+  },
+  "rpcs": {},
+  "host_events": 1.25,
+  "syncs": 0.0,
+  "sync_calls": 0,
+  "sync_apply_us": 0,
+  "events": {
+   "host doorbells written (forwarded)": 1.0,
+   "host notifier events -> MSI": 0.25
+  }
+ },
+ "51": {
+  "name": "cuModuleUnload",
+  "reps": 20,
+  "traps_per_rep": 0.2,
+  "window_us_med": 70.0,
+  "guest_us_med": 26.349999999999998,
+  "classes": {
+   "vf-intr-tree": 0.2
+  },
+  "class_us": {
+   "vf-intr-tree": 7.2
+  },
+  "registers": {
+   "BAR0 0xb81000 R 0xb81200 NV_VF_CPU_INTR_LEAF_EN_SET(i)": 0.05,
+   "BAR0 0xb81000 W 0xb81000 NV_VF_CPU_INTR_LEAF(i)": 0.05,
+   "BAR0 0xb81000 R 0xb81204 NV_VF_CPU_INTR_LEAF_EN_SET(i)": 0.05,
+   "BAR0 0xb81000 R 0xb81000 NV_VF_CPU_INTR_LEAF(i)": 0.05
+  },
+  "windows": {
+   "intr": 0.2
+  },
+  "rpcs": {},
+  "host_events": 0.05,
+  "syncs": 0.0,
+  "sync_calls": 0,
+  "sync_apply_us": 0,
+  "events": {
+   "host notifier events -> MSI": 0.05
+  }
+ }
+}

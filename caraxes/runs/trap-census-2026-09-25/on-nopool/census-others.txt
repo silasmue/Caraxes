@@ -1,0 +1,2 @@
+other device pid 1568426 /mnt/vmstore/caraxes/vm2 cpu_ms 440 during the census
+other device pid 1572698 /mnt/vmstore/caraxes/vm5-615 cpu_ms 0 during the census

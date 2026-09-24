@@ -1,0 +1,4 @@
+# marker resource /sys/bus/pci/devices/0000:00:05.0/resource0
+OP name=cuInit id=2 reps=1 per_rep=1 med_us=43784.6 min_us=43784.6 max_us=43784.6
+OP name=cuInit id=2 reps=1 per_rep=1 med_us=14053.8 min_us=14053.8 max_us=14053.8
+OP name=cuInit id=2 reps=1 per_rep=1 med_us=34052.3 min_us=34052.3 max_us=34052.3

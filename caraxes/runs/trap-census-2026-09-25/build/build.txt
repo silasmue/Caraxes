@@ -1,0 +1,7 @@
+cuda.h /home/leandro/gpu/venv/lib/python3.12/site-packages/nvidia/cu13/include
+-rwxrwxr-x 1 leandro leandro 35064 Sep 24 22:25 census-cu
+gcc (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0
+ldd (Ubuntu GLIBC 2.39-0ubuntu8.8) 2.39
+CUBIN bytes=4712 out=census.cubin
+4612c18e519913f17f5628ca0042402726c72a13d302e355b96427dc2a090287  census-cu
+5a8a5cd0e8086924ec4be0d88fe985608fb1a46646d8ed9fa119bf4936f98271  census.cubin

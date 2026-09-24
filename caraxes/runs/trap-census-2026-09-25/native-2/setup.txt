@@ -1,0 +1,8 @@
+NVRM version: NVIDIA UNIX Open Kernel Module for x86_64  615.71.09  Release Build  (root@)  
+4612c18e519913f17f5628ca0042402726c72a13d302e355b96427dc2a090287  census-cu
+5a8a5cd0e8086924ec4be0d88fe985608fb1a46646d8ed9fa119bf4936f98271  census.cubin
+1f921680fc7a2c2e0978eb007cc0ab48d2f1a7cf404a196c9063a19a10aa228f  kernels.ptx
+2026-09-25T01:13:07+02:00
+50, 420 MHz, P8, 18 %, 2093 MiB
+1617614 /mnt/vmstore/caraxes/vm2/vfio-user-nvgpu --socket /mnt/vmstore/caraxes/vm2/gpu.sock --trace /mnt/vmstore/caraxes
+3.07 2.81 3.05
