@@ -1,0 +1,15 @@
+# SPDX-License-Identifier: MIT
+# command: cat /proc/driver/nvidia/gpus/0000:01:00.0/power
+Runtime D3 status:          Disabled by default
+Tegra iGPU Rail-Gating:     Disabled
+Video Memory:               Active
+
+GPU Hardware Support:
+ Video Memory Self Refresh: Not Supported
+ Video Memory Off:          Supported
+
+S0ix Power Management:
+ Platform Support:          Not Supported
+ Status:                    Disabled
+
+Notebook Dynamic Boost:     Not Supported

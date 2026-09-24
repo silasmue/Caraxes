@@ -1,0 +1,30 @@
+# SPDX-License-Identifier: MIT
+nvidia_drm.color_pipeline: Y
+nvidia_drm.fbdev: Y
+nvidia_drm.modeset: Y
+nvidia_drm.vblank: N
+nvidia_modeset.conceal_vrr_caps: N
+nvidia_modeset.config_file: (null)
+nvidia_modeset.debug: 0
+nvidia_modeset.debug_force_color_space: 0
+nvidia_modeset.disable_hdmi_frl: N
+nvidia_modeset.disable_vrr_memclk_switch: N
+nvidia_modeset.enable_overlay_layers: Y
+nvidia_modeset.enhanced_pcon_support: N
+nvidia_modeset.fail_alloc_core_channel: -1
+nvidia_modeset.fail_malloc: -1
+nvidia_modeset.force_frl_rate: 0
+nvidia_modeset.hdmi_deepcolor: Y
+nvidia_modeset.malloc_verbose: N
+nvidia_modeset.max_output_color_depth: 10
+nvidia_modeset.opportunistic_display_sync: Y
+nvidia_modeset.output_rounding_fix: Y
+=== card0 driver nvidia
+--- card0-DP-2 status=disconnected enabled=disabled dpms=On
+modes: 
+--- card0-DP-3 status=disconnected enabled=disabled dpms=On
+modes: 
+--- card0-DP-4 status=disconnected enabled=disabled dpms=On
+modes: 
+--- card0-HDMI-A-1 status=disconnected enabled=disabled dpms=On
+modes: 

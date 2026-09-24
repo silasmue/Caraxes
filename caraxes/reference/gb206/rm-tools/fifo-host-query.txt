@@ -1,0 +1,39 @@
+# SPDX-License-Identifier: MIT
+# fifo-host-query ; driver 615.71.09; ABI UNVERIFIED (no SDK headers for 615.71.09 in this checkout, see abi-check.txt)
+GPU_GET_ENGINES_V2 status=0x0
+engines count=10 list=GR0(0x1) COPY0(0x9) COPY4(0xd) COPY7(0x10) NVDEC0(0x13) NVENC0(0x1b) SW(0x22) SEC2(0x26) NVJPG0(0x2b) OFA0(0x33)
+engine GR0 type=0x1 fault_info_status=0x0 mmuFaultId=384 subctx=1 partners[rq0] status=0x0 [COPY0] partners[rq1] status=0x0 []
+engine COPY0 type=0x9 fault_info_status=0x0 mmuFaultId=65 subctx=0 partners[rq0] status=0x0 [GR0] partners[rq1] status=0x1f [] pce_mask_status=0x0 pceMask=0x2
+engine COPY4 type=0xd fault_info_status=0x0 mmuFaultId=69 subctx=0 partners[rq0] status=0x0 [] partners[rq1] status=0x1f [] pce_mask_status=0x0 pceMask=0x1
+engine COPY7 type=0x10 fault_info_status=0x0 mmuFaultId=72 subctx=0 partners[rq0] status=0x0 [] partners[rq1] status=0x1f [] pce_mask_status=0x0 pceMask=0x2
+engine NVDEC0 type=0x13 fault_info_status=0x0 mmuFaultId=28 subctx=0 partners[rq0] status=0x0 [] partners[rq1] status=0x1f []
+engine NVENC0 type=0x1b fault_info_status=0x0 mmuFaultId=44 subctx=0 partners[rq0] status=0x0 [] partners[rq1] status=0x1f []
+engine SW type=0x22 fault_info_status=0x0 mmuFaultId=4294967295 subctx=0 partners[rq0] status=0x0 [OFA0] partners[rq1] status=0x1f []
+engine SEC2 type=0x26 fault_info_status=0x0 mmuFaultId=6 subctx=0 partners[rq0] status=0x0 [] partners[rq1] status=0x1f []
+engine NVJPG0 type=0x2b fault_info_status=0x0 mmuFaultId=36 subctx=0 partners[rq0] status=0x0 [] partners[rq1] status=0x1f []
+engine OFA0 type=0x33 fault_info_status=0x0 mmuFaultId=48 subctx=0 partners[rq0] status=0x0 [] partners[rq1] status=0x1f []
+probe type0x40 type=0x40 fault_info_status=0x0 mmuFaultId=65 partners[rq0] status=0x0 n=1 partners[rq1] status=0x1f n=0
+probe type0x44 type=0x44 fault_info_status=0x0 mmuFaultId=69 partners[rq0] status=0x0 n=0 partners[rq1] status=0x1f n=0
+probe type0x47 type=0x47 fault_info_status=0x0 mmuFaultId=72 partners[rq0] status=0x0 n=0 partners[rq1] status=0x1f n=0
+CE_GET_ALL_CAPS status=0x0 present=0x91
+ce 0 caps0=0xe3 caps1=0x03 (caps0 bit0 GRCE, bit1 SHARED; ctrl2080ce.h:91-104)
+ce 4 caps0=0xe4 caps1=0x03 (caps0 bit0 GRCE, bit1 SHARED; ctrl2080ce.h:91-104)
+ce 7 caps0=0xea caps1=0x03 (caps0 bit0 GRCE, bit1 SHARED; ctrl2080ce.h:91-104)
+FIFO_GET_INFO status=0x0 index1=16384 index2=128 index3=64 index5=1024 index7=1 index10=8 (1 MAX_CHANNEL_GROUPS, 2 MAX_CHANNELS_PER_GROUP, 3 MAX_SUBCONTEXT_PER_GROUP, 5 DEFAULT_CHANNEL_TIMESLICE, 7 PER_RUNLIST_CHRAM, 10 MAX_LOWER_SUBCONTEXT)
+GPU_GET_CONSTRUCTED_FALCON_INFO status=0x0 num=12
+falcon 0 engDesc=0x8a20bf00 (class 0x8a20bf inst 0) ctxAttr=0x2 ctxBufferSize=0x1000 addrSpaceList=0x3 registerBase=0x9a4000
+falcon 1 engDesc=0x1cc27100 (class 0x1cc271 inst 0) ctxAttr=0x2 ctxBufferSize=0x1000 addrSpaceList=0x3 registerBase=0x651000
+falcon 2 engDesc=0x5ee8dc00 (class 0x5ee8dc inst 0) ctxAttr=0x2 ctxBufferSize=0x1000 addrSpaceList=0x3 registerBase=0x40c000
+falcon 3 engDesc=0x4781e800 (class 0x4781e8 inst 0) ctxAttr=0x2 ctxBufferSize=0x1000 addrSpaceList=0x3 registerBase=0x42f000
+falcon 4 engDesc=0x8f99e100 (class 0x8f99e1 inst 0) ctxAttr=0x2 ctxBufferSize=0x1000 addrSpaceList=0x3 registerBase=0x848000
+falcon 5 engDesc=0xf3d72200 (class 0xf3d722 inst 0) ctxAttr=0x2 ctxBufferSize=0x1000 addrSpaceList=0x3 registerBase=0x8f4000
+falcon 6 engDesc=0xe97b6c00 (class 0xe97b6c inst 0) ctxAttr=0x2 ctxBufferSize=0x1000 addrSpaceList=0x3 registerBase=0x1c8000
+falcon 7 engDesc=0x28c40800 (class 0x28c408 inst 0) ctxAttr=0x2 ctxBufferSize=0x10000 addrSpaceList=0x3 registerBase=0x840000
+falcon 8 engDesc=0x2b3a5400 (class 0x2b3a54 inst 0) ctxAttr=0x2 ctxBufferSize=0x1000 addrSpaceList=0x3 registerBase=0x9c0000
+falcon 9 engDesc=0xd3915800 (class 0xd39158 inst 0) ctxAttr=0x2 ctxBufferSize=0x1000 addrSpaceList=0x3 registerBase=0xffffffff
+falcon 10 engDesc=0xdd7bab00 (class 0xdd7bab inst 0) ctxAttr=0x2 ctxBufferSize=0x1000 addrSpaceList=0x3 registerBase=0x844000
+falcon 11 engDesc=0x4f32fd00 (class 0x4f32fd inst 0) ctxAttr=0x2 ctxBufferSize=0x1000 addrSpaceList=0x3 registerBase=0x0
+GPU_GET_HW_ENGINE_ID status=0x0
+GPU_GET_ENGINE_RUNLIST_PRI_BASE status=0x1b
+FIFO_GET_DEVICE_INFO_TABLE status=0x1f numEntries=0
+CE_GET_FAULT_METHOD_BUFFER_SIZE status=0x1b size=0x0

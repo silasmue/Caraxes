@@ -1,0 +1,5 @@
+# SPDX-License-Identifier: MIT
+# command: cat /proc/driver/nvidia/capabilities/mig/monitor
+DeviceFileMinor: 2
+DeviceFileMode: 292
+DeviceFileModify: 1

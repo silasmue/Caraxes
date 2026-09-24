@@ -1,0 +1,239 @@
+# SPDX-License-Identifier: MIT
+# nvidia-smi --query-gpu, one field per line
+timestamp: 2026/09/24 10:47:52.399
+driver_version: 615.71.09
+kmd_version: 615.71.09
+count: 1
+name: NVIDIA GeForce RTX 5060 Ti
+serial: <redacted>
+uuid: GPU-b595f0d6-daab-a1de-296d-39753ab594c6
+pci.bus_id: 00000000:01:00.0
+pci.domain: 0x0000
+pci.bus: 0x01
+pci.device: 0x00
+pci.device_id: 0x2D0410DE
+pci.sub_device_id: 0x8A081043
+vgpu_device_capability.homogeneous_placements: [N/A]
+pcie.link.gen.current: 1
+pcie.link.gen.gpucurrent: 1
+pcie.link.gen.max: 5
+pcie.link.gen.gpumax: 5
+pcie.link.gen.hostmax: 5
+pcie.link.width.current: 8
+pcie.link.width.max: 16
+index: 0
+display_mode: [Requested functionality has been deprecated]
+display_attached: No
+display_active: Disabled
+persistence_mode: Enabled
+addressing_mode: HMM
+accounting.mode: Disabled
+accounting.buffer_size: 4000
+driver_model.current: [N/A]
+driver_model.pending: [N/A]
+vbios_version: 98.06.1F.40.4A
+inforom.img: G005.0000.98.01
+inforom.oem: 2.1
+inforom.ecc: [N/A]
+inforom.pwr: [N/A]
+inforom.checksum_validation: valid
+gpu_recovery_action: None
+gom.current: [N/A]
+gom.pending: [N/A]
+fan.speed [%]: 0 %
+pstate: P8
+clocks_event_reasons.supported: 0x00000000000007FF
+clocks_event_reasons.active: 0x0000000000000400
+clocks_event_reasons.gpu_idle: Not Active
+clocks_event_reasons.applications_clocks_setting: Not Active
+clocks_event_reasons.sw_power_cap: Not Active
+clocks_event_reasons.hw_slowdown: Not Active
+clocks_event_reasons.hw_thermal_slowdown: Not Active
+clocks_event_reasons.hw_power_brake_slowdown: Not Active
+clocks_event_reasons.sw_thermal_slowdown: Not Active
+clocks_event_reasons.sync_boost: Not Active
+clocks_event_reasons.board_limit: Not Active
+clocks_event_reasons.reliability: Active
+clocks_event_reasons_counters.sw_power_cap [us]: 3376083 us
+clocks_event_reasons_counters.sync_boost [us]: 0 us
+clocks_event_reasons_counters.sw_thermal_slowdown [us]: 0 us
+clocks_event_reasons_counters.hw_thermal_slowdown [us]: 0 us
+clocks_event_reasons_counters.hw_power_brake_slowdown [us]: 0 us
+memory.total [MiB]: 16311 MiB
+memory.reserved [MiB]: 370 MiB
+memory.used [MiB]: 18 MiB
+memory.free [MiB]: 15924 MiB
+compute_mode: Default
+compute_cap: 12.0
+utilization.gpu [%]: 0 %
+utilization.memory [%]: 0 %
+utilization.encoder [%]: 0 %
+utilization.decoder [%]: 0 %
+utilization.jpeg [%]: 0 %
+utilization.ofa [%]: 0 %
+ecc.mode.current: [N/A]
+ecc.mode.pending: [N/A]
+ecc.errors.corrected.volatile.device_memory: [N/A]
+ecc.errors.corrected.volatile.dram: [N/A]
+ecc.errors.corrected.volatile.register_file: [N/A]
+ecc.errors.corrected.volatile.l1_cache: [N/A]
+ecc.errors.corrected.volatile.l2_cache: [N/A]
+ecc.errors.corrected.volatile.texture_memory: [N/A]
+ecc.errors.corrected.volatile.cbu: [N/A]
+ecc.errors.corrected.volatile.sram: [N/A]
+ecc.errors.corrected.volatile.total: [N/A]
+ecc.errors.corrected.aggregate.device_memory: [N/A]
+ecc.errors.corrected.aggregate.dram: [N/A]
+ecc.errors.corrected.aggregate.register_file: [N/A]
+ecc.errors.corrected.aggregate.l1_cache: [N/A]
+ecc.errors.corrected.aggregate.l2_cache: [N/A]
+ecc.errors.corrected.aggregate.texture_memory: [N/A]
+ecc.errors.corrected.aggregate.cbu: [N/A]
+ecc.errors.corrected.aggregate.sram: [N/A]
+ecc.errors.corrected.aggregate.total: [N/A]
+ecc.errors.uncorrected.volatile.device_memory: [N/A]
+ecc.errors.uncorrected.volatile.dram: [N/A]
+ecc.errors.uncorrected.volatile.register_file: [N/A]
+ecc.errors.uncorrected.volatile.l1_cache: [N/A]
+ecc.errors.uncorrected.volatile.l2_cache: [N/A]
+ecc.errors.uncorrected.volatile.texture_memory: [N/A]
+ecc.errors.uncorrected.volatile.cbu: [N/A]
+ecc.errors.uncorrected.volatile.sram: [N/A]
+ecc.errors.uncorrected.volatile.total: [N/A]
+ecc.errors.uncorrected.aggregate.device_memory: [N/A]
+ecc.errors.uncorrected.aggregate.dram: [N/A]
+ecc.errors.uncorrected.aggregate.register_file: [N/A]
+ecc.errors.uncorrected.aggregate.l1_cache: [N/A]
+ecc.errors.uncorrected.aggregate.l2_cache: [N/A]
+ecc.errors.uncorrected.aggregate.texture_memory: [N/A]
+ecc.errors.uncorrected.aggregate.cbu: [N/A]
+ecc.errors.uncorrected.aggregate.sram: [N/A]
+ecc.errors.uncorrected.aggregate.total: [N/A]
+ecc.errors.uncorrected.volatile.sram.parity: 0
+ecc.errors.uncorrected.volatile.sram.secded: 0
+ecc.errors.uncorrected.aggregate.sram.parity: 0
+ecc.errors.uncorrected.aggregate.sram.secded: 0
+ecc.errors.uncorrected.aggregate.sram.l2: 0
+ecc.errors.uncorrected.aggregate.sram.sm: 0
+ecc.errors.uncorrected.aggregate.sram.mcu: 0
+ecc.errors.uncorrected.aggregate.sram.pcie: 0
+ecc.errors.uncorrected.aggregate.sram.other: 0
+retired_pages.single_bit_ecc.count: [N/A]
+retired_pages.double_bit.count: [N/A]
+retired_pages.pending: [N/A]
+remapped_rows.correctable: 0
+remapped_rows.correctable_inactive: 0
+remapped_rows.uncorrectable: 0
+remapped_rows.uncorrectable_inactive: 0
+remapped_rows.pending: No
+remapped_rows.failure: No
+remapped_rows.histogram.max: 128
+remapped_rows.histogram.high: 0
+remapped_rows.histogram.partial: 0
+remapped_rows.histogram.low: 0
+remapped_rows.histogram.none: 0
+temperature.gpu: 26
+temperature.gpu.tlimit: 61
+temperature.memory: N/A
+temperature.gpu_max: [N/A]
+power.management: [Requested functionality has been deprecated]
+power.draw [W]: 3.62 W
+power.draw.average [W]: 3.62 W
+power.draw.instant [W]: 3.64 W
+power.limit [W]: 180.00 W
+enforced.power.limit [W]: 180.00 W
+power.default_limit [W]: 180.00 W
+power.min_limit [W]: 150.00 W
+power.max_limit [W]: 234.00 W
+module.power.draw.average [W]: [N/A]
+module.power.draw.instant [W]: [N/A]
+module.power.limit [W]: [N/A]
+module.enforced.power.limit [W]: [N/A]
+module.power.default_limit [W]: [N/A]
+module.power.min_limit [W]: [N/A]
+module.power.max_limit [W]: [N/A]
+gpu.base.current [W]: [N/A]
+gpu.base.requested [W]: [N/A]
+gpu.base.default [W]: [N/A]
+gpu.base.min [W]: [N/A]
+gpu.base.max [W]: [N/A]
+power_smoothing.tmp_floor [W]: [N/A]
+power_smoothing.tmp_ceil [W]: [N/A]
+power_smoothing.hw_lifetime_remaining_percent [%]: [N/A]
+power_smoothing.enabled: [N/A]
+power_smoothing.delayed_power_smoothing_supported: [N/A]
+power_smoothing.soc_power_smoothing_enabled: [N/A]
+power_smoothing.priv_level: [N/A]
+power_smoothing.imm_ramp_down: [N/A]
+power_smoothing.max_percent_tmp_floor [%]: [N/A]
+power_smoothing.min_percent_tmp_floor [%]: [N/A]
+power_smoothing.primary_power_floor [W]: [N/A]
+power_smoothing.secondary_power_floor [W]: [N/A]
+power_smoothing.min_primary_floor_activation_offset [W]: [N/A]
+power_smoothing.min_primary_floor_activation_point [W]: [N/A]
+power_smoothing.window_multiplier [ms]: [N/A]
+power_smoothing.num_preset_profiles: [N/A]
+power_smoothing.curr_profile.percent_tmp_floor [%]: [N/A]
+power_smoothing.curr_profile.ramp_up_rate [W/s]: [N/A]
+power_smoothing.curr_profile.ramp_down_rate [W/s]: [N/A]
+power_smoothing.curr_profile.ramp_down_hysteresis [ms]: [N/A]
+power_smoothing.curr_profile.secondary_power_floor [W]: [N/A]
+power_smoothing.curr_profile.primary_floor_act_window_multiplier: [N/A]
+power_smoothing.curr_profile.primary_floor_tar_window_multiplier: [N/A]
+power_smoothing.curr_profile.primary_floor_act_offset [W]: [N/A]
+power_smoothing.active_profile: [N/A]
+power_smoothing.admin_override.percent_tmp_floor [%]: [N/A]
+power_smoothing.admin_override.ramp_up_rate [W/s]: [N/A]
+power_smoothing.admin_override.ramp_down_rate [W/s]: [N/A]
+power_smoothing.admin_override.ramp_down_hysteresis [ms]: [N/A]
+power_smoothing.admin_override.secondary_power_floor [W]: [N/A]
+power_smoothing.admin_override.primary_floor_act_window_multiplier: [N/A]
+power_smoothing.admin_override.primary_floor_tar_window_multiplier: [N/A]
+power_smoothing.admin_override.primary_floor_act_offset [W]: [N/A]
+edpp_multiplier [%]: [N/A]
+adaptive_tgp_adjusted_base_power [W]: [N/A]
+clocks.current.graphics [MHz]: 225 MHz
+clocks.current.sm [MHz]: 225 MHz
+clocks.current.memory [MHz]: 405 MHz
+clocks.current.video [MHz]: 600 MHz
+clocks.applications.graphics [MHz]: [Requested functionality has been deprecated]
+clocks.applications.memory [MHz]: [Requested functionality has been deprecated]
+clocks.default_applications.graphics [MHz]: [Requested functionality has been deprecated]
+clocks.default_applications.memory [MHz]: [Requested functionality has been deprecated]
+clocks.max.graphics [MHz]: 3135 MHz
+clocks.max.sm [MHz]: 3135 MHz
+clocks.max.memory [MHz]: 14001 MHz
+mig.mode.current: [N/A]
+mig.mode.pending: [N/A]
+gsp.mode.current: Enabled
+gsp.mode.default: Enabled
+c2c.mode: Disabled
+protected_memory.total [MiB]: 0 MiB
+protected_memory.used [MiB]: 0 MiB
+protected_memory.free [MiB]: 0 MiB
+fabric.state: N/A
+fabric.status: N/A
+fabric.health.summary: N/A
+fabric.health.bandwidth: N/A
+fabric.health.route_recovery_in_progress: N/A
+fabric.health.route_unhealthy: N/A
+fabric.health.access_timeout_recovery: N/A
+fabric.health.incorrect_configuration: N/A
+fabric.health.partition_assigned: N/A
+fabric.health.gfm_state: N/A
+fabric.cliques.count: N/A
+fabric.cliques.entries: N/A
+platform.chassis_serial_number: <redacted>
+platform.slot_number: 0
+platform.tray_index: 0
+platform.host_id: 1
+platform.peer_type: Direct Connected
+platform.module_id: 1
+platform.gpu_fabric_guid: 0x0000000000000000
+hostname: [N/A]
+bbx.time_run [seconds]: 36191367 seconds
+remapped_banks.active_remappings: [N/A]
+remapped_banks.inactive_remappings: [N/A]
+remapped_banks.pending: [N/A]
+remapped_banks.histogram.max: [N/A]
+remapped_banks.histogram.none: [N/A]

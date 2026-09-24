@@ -1,0 +1,7 @@
+# SPDX-License-Identifier: MIT
+0000:01:00.0 chip=10de-2d04 architecture=Blackwell gsp_firmware_version=615.71.09 proc_gpu_firmware=615.71.09 family=unknown for chip 10de-2d04
+  GSP firmware is in use (nvidia-smi reports a GSP firmware version)
+  present: gsp_ga10x.bin
+  present: gsp_tu10x.bin
+# The family is derived from the chip name with the 610.57.04 mapping; check it against
+# nv-firmware.h of the running driver version when that differs.

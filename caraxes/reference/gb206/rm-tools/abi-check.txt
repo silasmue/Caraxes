@@ -1,0 +1,4 @@
+# SPDX-License-Identifier: MIT
+# command: ~/git/Caraxes/caraxes/tools/lab-abi-check.sh 615.71.09
+== 615.71.09: no complete SDK headers found (need nvos.h and ctrl/ctrl2080/ctrl2080ce.h)
+# exit status 2

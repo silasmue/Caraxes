@@ -1,0 +1,585 @@
+# SPDX-License-Identifier: MIT
+# source: sudo dmesg; filter (case-insensitive): nvrm|nvidia|xid|gsp|nouveau|nova|drm|vfio|iommu|dmar|amd-vi|resiz|bar ?[0-9]|pci 0000|efifb|simpledrm|vesafb|rom|01:00.0
+# first line of the log (time base):
+[    0.000000] BIOS-e820: [mem 0x000000fd00000000-0x000000ffffffffff]  device reserved
+# matching lines:
+[    0.000000] efi: Remove mem65: MMIO range=[0xe0000000-0xefffffff] (256MB) from e820 map
+[    0.000000] efi: Remove mem66: MMIO range=[0xfd000000-0xfedfffff] (30MB) from e820 map
+[    0.000000] efi: Not removing mem67: MMIO range=[0xfee00000-0xfee00fff] (4KB) from e820 map
+[    0.000000] efi: Remove mem68: MMIO range=[0xfee01000-0xffffffff] (17MB) from e820 map
+[    0.000000] efi: Remove mem70: MMIO range=[0x1060000000-0x10801fffff] (514MB) from e820 map
+[    0.000121] MTRR map: 5 entries (3 fixed + 2 variable; max 20), built from 9 variable MTRRs
+[    0.003089] esrt: Reserving ESRT space from 0x0000000081f6da98 to 0x0000000081f6dad0.
+[    0.125927] rcu: 	RCU restricting CPUs from NR_CPUS=8192 to nr_cpu_ids=24.
+[    0.128368] AMD-Vi: Using global IVHD EFR:0x246577efa2254afa, EFR2:0x0
+[    0.290917] PCI: Using host bridge windows from ACPI; if necessary, use "pci=nocrs" and report a bug
+[    0.301604] pci 0000:00:00.0: [1022:14d8] type 00 class 0x060000 conventional PCI endpoint
+[    0.301671] pci 0000:00:00.2: [1022:14d9] type 00 class 0x080600 conventional PCI endpoint
+[    0.301725] pci 0000:00:01.0: [1022:14da] type 00 class 0x060000 conventional PCI endpoint
+[    0.301775] pci 0000:00:01.1: [1022:14db] type 01 class 0x060400 PCIe Root Port
+[    0.301786] pci 0000:00:01.1: PCI bridge to [bus 01]
+[    0.301788] pci 0000:00:01.1:   bridge window [io  0xf000-0xffff]
+[    0.301790] pci 0000:00:01.1:   bridge window [mem 0xf4000000-0xf80fffff]
+[    0.301794] pci 0000:00:01.1:   bridge window [mem 0xf800000000-0xfc01ffffff 64bit pref]
+[    0.301841] pci 0000:00:01.1: PME# supported from D0 D3hot D3cold
+[    0.302051] pci 0000:00:02.0: [1022:14da] type 00 class 0x060000 conventional PCI endpoint
+[    0.302100] pci 0000:00:02.1: [1022:14db] type 01 class 0x060400 PCIe Root Port
+[    0.302111] pci 0000:00:02.1: PCI bridge to [bus 02-0c]
+[    0.302113] pci 0000:00:02.1:   bridge window [io  0xb000-0xdfff]
+[    0.302115] pci 0000:00:02.1:   bridge window [mem 0xf9000000-0xfa6fffff]
+[    0.302124] pci 0000:00:02.1: enabling Extended Tags
+[    0.302169] pci 0000:00:02.1: PME# supported from D0 D3hot D3cold
+[    0.302603] pci 0000:00:02.2: [1022:14db] type 01 class 0x060400 PCIe Root Port
+[    0.302614] pci 0000:00:02.2: PCI bridge to [bus 0d]
+[    0.302618] pci 0000:00:02.2:   bridge window [mem 0xfaf00000-0xfaffffff]
+[    0.302627] pci 0000:00:02.2: enabling Extended Tags
+[    0.302671] pci 0000:00:02.2: PME# supported from D0 D3hot D3cold
+[    0.302758] pci 0000:00:03.0: [1022:14da] type 00 class 0x060000 conventional PCI endpoint
+[    0.302805] pci 0000:00:04.0: [1022:14da] type 00 class 0x060000 conventional PCI endpoint
+[    0.302854] pci 0000:00:08.0: [1022:14da] type 00 class 0x060000 conventional PCI endpoint
+[    0.302900] pci 0000:00:08.1: [1022:14dd] type 01 class 0x060400 PCIe Root Port
+[    0.302908] pci 0000:00:08.1: PCI bridge to [bus 0e]
+[    0.302910] pci 0000:00:08.1:   bridge window [io  0xe000-0xefff]
+[    0.302911] pci 0000:00:08.1:   bridge window [mem 0xfa800000-0xfadfffff]
+[    0.302915] pci 0000:00:08.1:   bridge window [mem 0xfc10000000-0xfc1fffffff 64bit pref]
+[    0.302918] pci 0000:00:08.1: enabling Extended Tags
+[    0.302943] pci 0000:00:08.1: PME# supported from D0 D3hot D3cold
+[    0.303007] pci 0000:00:08.3: [1022:14dd] type 01 class 0x060400 PCIe Root Port
+[    0.303015] pci 0000:00:08.3: PCI bridge to [bus 0f]
+[    0.303018] pci 0000:00:08.3:   bridge window [mem 0xfae00000-0xfaefffff]
+[    0.303025] pci 0000:00:08.3: enabling Extended Tags
+[    0.303049] pci 0000:00:08.3: PME# supported from D0 D3hot D3cold
+[    0.303114] pci 0000:00:14.0: [1022:790b] type 00 class 0x0c0500 conventional PCI endpoint
+[    0.303176] pci 0000:00:14.3: [1022:790e] type 00 class 0x060100 conventional PCI endpoint
+[    0.303248] pci 0000:00:18.0: [1022:14e0] type 00 class 0x060000 conventional PCI endpoint
+[    0.303270] pci 0000:00:18.1: [1022:14e1] type 00 class 0x060000 conventional PCI endpoint
+[    0.303290] pci 0000:00:18.2: [1022:14e2] type 00 class 0x060000 conventional PCI endpoint
+[    0.303309] pci 0000:00:18.3: [1022:14e3] type 00 class 0x060000 conventional PCI endpoint
+[    0.303329] pci 0000:00:18.4: [1022:14e4] type 00 class 0x060000 conventional PCI endpoint
+[    0.303348] pci 0000:00:18.5: [1022:14e5] type 00 class 0x060000 conventional PCI endpoint
+[    0.303367] pci 0000:00:18.6: [1022:14e6] type 00 class 0x060000 conventional PCI endpoint
+[    0.303387] pci 0000:00:18.7: [1022:14e7] type 00 class 0x060000 conventional PCI endpoint
+[    0.303461] pci 0000:01:00.0: [10de:2d04] type 00 class 0x030000 PCIe Legacy Endpoint
+[    0.303478] pci 0000:01:00.0: BAR 0 [mem 0xf4000000-0xf7ffffff]
+[    0.303479] pci 0000:01:00.0: BAR 1 [mem 0xf800000000-0xfbffffffff 64bit pref]
+[    0.303481] pci 0000:01:00.0: BAR 3 [mem 0xfc00000000-0xfc01ffffff 64bit pref]
+[    0.303482] pci 0000:01:00.0: BAR 5 [io  0xf000-0xf07f]
+[    0.303483] pci 0000:01:00.0: ROM [mem 0xf8000000-0xf807ffff pref]
+[    0.303501] pci 0000:01:00.0: Enabling HDA controller
+[    0.303535] pci 0000:01:00.0: PME# supported from D0 D3hot
+[    0.303560] pci 0000:01:00.0: VF BAR 0 [mem 0x00000000-0x0003ffff 64bit pref]
+[    0.303561] pci 0000:01:00.0: VF BAR 0 [mem 0x00000000-0x0003ffff 64bit pref]: contains BAR 0 for 1 VFs
+[    0.303562] pci 0000:01:00.0: VF BAR 2 [mem 0x00000000-0x0fffffff 64bit pref]
+[    0.303563] pci 0000:01:00.0: VF BAR 2 [mem 0x00000000-0x0fffffff 64bit pref]: contains BAR 2 for 1 VFs
+[    0.303564] pci 0000:01:00.0: VF BAR 4 [mem 0x00000000-0x01ffffff 64bit pref]
+[    0.303564] pci 0000:01:00.0: VF BAR 4 [mem 0x00000000-0x01ffffff 64bit pref]: contains BAR 4 for 1 VFs
+[    0.303629] pci 0000:01:00.0: 252.056 Gb/s available PCIe bandwidth, limited by 32.0 GT/s PCIe x8 link at 0000:00:01.1 (capable of 504.112 Gb/s with 32.0 GT/s PCIe x16 link)
+[    0.303692] pci 0000:01:00.1: [10de:22eb] type 00 class 0x040300 PCIe Endpoint
+[    0.303708] pci 0000:01:00.1: BAR 0 [mem 0xf8080000-0xf8083fff]
+[    0.303800] pci 0000:00:01.1: PCI bridge to [bus 01]
+[    0.303862] pci 0000:02:00.0: [1022:43f4] type 01 class 0x060400 PCIe Switch Upstream Port
+[    0.303878] pci 0000:02:00.0: PCI bridge to [bus 03-0c]
+[    0.303882] pci 0000:02:00.0:   bridge window [io  0xb000-0xdfff]
+[    0.303883] pci 0000:02:00.0:   bridge window [mem 0xf9000000-0xfa6fffff]
+[    0.303897] pci 0000:02:00.0: enabling Extended Tags
+[    0.303940] pci 0000:02:00.0: PME# supported from D0 D3hot D3cold
+[    0.304515] pci 0000:00:02.1: PCI bridge to [bus 02-0c]
+[    0.304597] pci 0000:03:00.0: [1022:43f5] type 01 class 0x060400 PCIe Switch Downstream Port
+[    0.304613] pci 0000:03:00.0: PCI bridge to [bus 04]
+[    0.304631] pci 0000:03:00.0: enabling Extended Tags
+[    0.304679] pci 0000:03:00.0: PME# supported from D0 D3hot D3cold
+[    0.304792] pci 0000:03:01.0: [1022:43f5] type 01 class 0x060400 PCIe Switch Downstream Port
+[    0.304808] pci 0000:03:01.0: PCI bridge to [bus 05]
+[    0.304811] pci 0000:03:01.0:   bridge window [io  0xd000-0xdfff]
+[    0.304813] pci 0000:03:01.0:   bridge window [mem 0xfa600000-0xfa6fffff]
+[    0.304827] pci 0000:03:01.0: enabling Extended Tags
+[    0.304873] pci 0000:03:01.0: PME# supported from D0 D3hot D3cold
+[    0.305303] pci 0000:03:02.0: [1022:43f5] type 01 class 0x060400 PCIe Switch Downstream Port
+[    0.305319] pci 0000:03:02.0: PCI bridge to [bus 06]
+[    0.305322] pci 0000:03:02.0:   bridge window [io  0xc000-0xcfff]
+[    0.305324] pci 0000:03:02.0:   bridge window [mem 0xfa500000-0xfa5fffff]
+[    0.305338] pci 0000:03:02.0: enabling Extended Tags
+[    0.305384] pci 0000:03:02.0: PME# supported from D0 D3hot D3cold
+[    0.305814] pci 0000:03:03.0: [1022:43f5] type 01 class 0x060400 PCIe Switch Downstream Port
+[    0.305829] pci 0000:03:03.0: PCI bridge to [bus 07-08]
+[    0.305833] pci 0000:03:03.0:   bridge window [io  0xb000-0xbfff]
+[    0.305834] pci 0000:03:03.0:   bridge window [mem 0xf9000000-0xfa0fffff]
+[    0.305848] pci 0000:03:03.0: enabling Extended Tags
+[    0.305894] pci 0000:03:03.0: PME# supported from D0 D3hot D3cold
+[    0.306325] pci 0000:03:04.0: [1022:43f5] type 01 class 0x060400 PCIe Switch Downstream Port
+[    0.306341] pci 0000:03:04.0: PCI bridge to [bus 09]
+[    0.306359] pci 0000:03:04.0: enabling Extended Tags
+[    0.306407] pci 0000:03:04.0: PME# supported from D0 D3hot D3cold
+[    0.306522] pci 0000:03:08.0: [1022:43f5] type 01 class 0x060400 PCIe Switch Downstream Port
+[    0.306537] pci 0000:03:08.0: PCI bridge to [bus 0a]
+[    0.306542] pci 0000:03:08.0:   bridge window [mem 0xfa400000-0xfa4fffff]
+[    0.306556] pci 0000:03:08.0: enabling Extended Tags
+[    0.306602] pci 0000:03:08.0: PME# supported from D0 D3hot D3cold
+[    0.307033] pci 0000:03:0c.0: [1022:43f5] type 01 class 0x060400 PCIe Switch Downstream Port
+[    0.307049] pci 0000:03:0c.0: PCI bridge to [bus 0b]
+[    0.307053] pci 0000:03:0c.0:   bridge window [mem 0xfa300000-0xfa3fffff]
+[    0.307066] pci 0000:03:0c.0: enabling Extended Tags
+[    0.307096] pci 0000:03:0c.0: PME# supported from D0 D3hot D3cold
+[    0.307501] pci 0000:03:0d.0: [1022:43f5] type 01 class 0x060400 PCIe Switch Downstream Port
+[    0.307516] pci 0000:03:0d.0: PCI bridge to [bus 0c]
+[    0.307520] pci 0000:03:0d.0:   bridge window [mem 0xfa200000-0xfa2fffff]
+[    0.307533] pci 0000:03:0d.0: enabling Extended Tags
+[    0.307564] pci 0000:03:0d.0: PME# supported from D0 D3hot D3cold
+[    0.307947] pci 0000:02:00.0: PCI bridge to [bus 03-0c]
+[    0.307978] pci 0000:03:00.0: PCI bridge to [bus 04]
+[    0.308118] pci 0000:05:00.0: working around ROM BAR overlap defect
+[    0.308118] pci 0000:05:00.0: [8086:1533] type 00 class 0x020000 PCIe Endpoint
+[    0.308197] pci 0000:05:00.0: BAR 0 [mem 0xfa600000-0xfa67ffff]
+[    0.308202] pci 0000:05:00.0: BAR 2 [io  0xd000-0xd01f]
+[    0.308205] pci 0000:05:00.0: BAR 3 [mem 0xfa680000-0xfa683fff]
+[    0.308340] pci 0000:05:00.0: PME# supported from D0 D3hot D3cold
+[    0.308780] pci 0000:03:01.0: PCI bridge to [bus 05]
+[    0.308920] pci 0000:06:00.0: working around ROM BAR overlap defect
+[    0.308920] pci 0000:06:00.0: [8086:1533] type 00 class 0x020000 PCIe Endpoint
+[    0.308999] pci 0000:06:00.0: BAR 0 [mem 0xfa500000-0xfa57ffff]
+[    0.309004] pci 0000:06:00.0: BAR 2 [io  0xc000-0xc01f]
+[    0.309006] pci 0000:06:00.0: BAR 3 [mem 0xfa580000-0xfa583fff]
+[    0.309141] pci 0000:06:00.0: PME# supported from D0 D3hot D3cold
+[    0.309618] pci 0000:03:02.0: PCI bridge to [bus 06]
+[    0.309694] pci 0000:07:00.0: [1849:1150] type 01 class 0x060400 PCIe to PCI/PCI-X bridge
+[    0.309727] pci 0000:07:00.0: PCI bridge to [bus 08]
+[    0.309734] pci 0000:07:00.0:   bridge window [io  0xb000-0xbfff]
+[    0.309737] pci 0000:07:00.0:   bridge window [mem 0xf9000000-0xfa0fffff]
+[    0.309764] pci 0000:07:00.0: enabling Extended Tags
+[    0.309851] pci 0000:07:00.0: supports D1 D2
+[    0.309851] pci 0000:07:00.0: PME# supported from D0 D1 D2 D3hot D3cold
+[    0.309990] pci 0000:03:03.0: PCI bridge to [bus 07-08]
+[    0.310049] pci 0000:08:00.0: [1a03:2000] type 00 class 0x030000 conventional PCI endpoint
+[    0.310102] pci 0000:08:00.0: BAR 0 [mem 0xf9000000-0xf9ffffff]
+[    0.310104] pci 0000:08:00.0: BAR 1 [mem 0xfa000000-0xfa03ffff]
+[    0.310105] pci 0000:08:00.0: BAR 2 [io  0xb000-0xb07f]
+[    0.310124] pci 0000:08:00.0: Video device with shadowed ROM at [mem 0x000c0000-0x000dffff]
+[    0.310160] pci 0000:08:00.0: supports D1 D2
+[    0.310161] pci 0000:08:00.0: PME# supported from D0 D1 D2 D3hot D3cold
+[    0.310256] pci 0000:07:00.0: PCI bridge to [bus 08]
+[    0.310304] pci 0000:03:04.0: PCI bridge to [bus 09]
+[    0.310368] pci 0000:0a:00.0: [1c5c:1959] type 00 class 0x010802 PCIe Endpoint
+[    0.310406] pci 0000:0a:00.0: BAR 0 [mem 0xfa400000-0xfa403fff 64bit]
+[    0.310416] pci 0000:0a:00.0: enabling Extended Tags
+[    0.310864] pci 0000:03:08.0: PCI bridge to [bus 0a]
+[    0.310913] pci 0000:0b:00.0: [1022:43f7] type 00 class 0x0c0330 PCIe Legacy Endpoint
+[    0.310938] pci 0000:0b:00.0: BAR 0 [mem 0xfa300000-0xfa307fff 64bit]
+[    0.310945] pci 0000:0b:00.0: enabling Extended Tags
+[    0.310980] pci 0000:0b:00.0: PME# supported from D0 D3hot D3cold
+[    0.311287] pci 0000:03:0c.0: PCI bridge to [bus 0b]
+[    0.311336] pci 0000:0c:00.0: [1022:43f6] type 00 class 0x010601 PCIe Legacy Endpoint
+[    0.311363] pci 0000:0c:00.0: BAR 5 [mem 0xfa280000-0xfa2803ff]
+[    0.311364] pci 0000:0c:00.0: ROM [mem 0xfa200000-0xfa27ffff pref]
+[    0.311368] pci 0000:0c:00.0: enabling Extended Tags
+[    0.311397] pci 0000:0c:00.0: PME# supported from D0 D3hot D3cold
+[    0.311669] pci 0000:03:0d.0: PCI bridge to [bus 0c]
+[    0.311941] pci 0000:0d:00.0: [15b7:5017] type 00 class 0x010802 PCIe Endpoint
+[    0.311964] pci 0000:0d:00.0: BAR 0 [mem 0xfaf00000-0xfaf03fff 64bit]
+[    0.312102] pci 0000:00:02.2: PCI bridge to [bus 0d]
+[    0.312155] pci 0000:0e:00.0: [1002:13c0] type 00 class 0x030000 PCIe Legacy Endpoint
+[    0.312170] pci 0000:0e:00.0: BAR 0 [mem 0xfc10000000-0xfc1fffffff 64bit pref]
+[    0.312171] pci 0000:0e:00.0: BAR 2 [mem 0xfa800000-0xfa9fffff 64bit pref]
+[    0.312172] pci 0000:0e:00.0: BAR 4 [io  0xe000-0xe0ff]
+[    0.312173] pci 0000:0e:00.0: BAR 5 [mem 0xfad00000-0xfad7ffff]
+[    0.312176] pci 0000:0e:00.0: enabling Extended Tags
+[    0.312210] pci 0000:0e:00.0: PME# supported from D1 D2 D3hot D3cold
+[    0.312276] pci 0000:0e:00.1: [1002:1640] type 00 class 0x040300 PCIe Legacy Endpoint
+[    0.312290] pci 0000:0e:00.1: BAR 0 [mem 0xfadc8000-0xfadcbfff]
+[    0.312294] pci 0000:0e:00.1: enabling Extended Tags
+[    0.312316] pci 0000:0e:00.1: PME# supported from D1 D2 D3hot D3cold
+[    0.312356] pci 0000:0e:00.2: [1022:1649] type 00 class 0x108000 PCIe Endpoint
+[    0.312390] pci 0000:0e:00.2: BAR 2 [mem 0xfac00000-0xfacfffff]
+[    0.312392] pci 0000:0e:00.2: BAR 5 [mem 0xfadcc000-0xfadcdfff]
+[    0.312395] pci 0000:0e:00.2: enabling Extended Tags
+[    0.312451] pci 0000:0e:00.3: [1022:15b6] type 00 class 0x0c0330 PCIe Endpoint
+[    0.312466] pci 0000:0e:00.3: BAR 0 [mem 0xfab00000-0xfabfffff 64bit]
+[    0.312470] pci 0000:0e:00.3: enabling Extended Tags
+[    0.312493] pci 0000:0e:00.3: PME# supported from D0 D3hot D3cold
+[    0.312535] pci 0000:0e:00.4: [1022:15b7] type 00 class 0x0c0330 PCIe Endpoint
+[    0.312550] pci 0000:0e:00.4: BAR 0 [mem 0xfaa00000-0xfaafffff 64bit]
+[    0.312555] pci 0000:0e:00.4: enabling Extended Tags
+[    0.312577] pci 0000:0e:00.4: PME# supported from D0 D3hot D3cold
+[    0.312620] pci 0000:0e:00.5: [1022:15e2] type 00 class 0x048000 PCIe Endpoint
+[    0.312633] pci 0000:0e:00.5: BAR 0 [mem 0xfad80000-0xfadbffff]
+[    0.312638] pci 0000:0e:00.5: enabling Extended Tags
+[    0.312659] pci 0000:0e:00.5: PME# supported from D0 D3hot D3cold
+[    0.312701] pci 0000:0e:00.6: [1022:15e3] type 00 class 0x040300 PCIe Endpoint
+[    0.312715] pci 0000:0e:00.6: BAR 0 [mem 0xfadc0000-0xfadc7fff]
+[    0.312720] pci 0000:0e:00.6: enabling Extended Tags
+[    0.312741] pci 0000:0e:00.6: PME# supported from D0 D3hot D3cold
+[    0.312790] pci 0000:00:08.1: PCI bridge to [bus 0e]
+[    0.312816] pci 0000:0f:00.0: [1022:15b8] type 00 class 0x0c0330 PCIe Endpoint
+[    0.312835] pci 0000:0f:00.0: BAR 0 [mem 0xfae00000-0xfaefffff 64bit]
+[    0.312839] pci 0000:0f:00.0: enabling Extended Tags
+[    0.312867] pci 0000:0f:00.0: PME# supported from D0 D3hot D3cold
+[    0.312920] pci 0000:00:08.3: PCI bridge to [bus 0f]
+[    0.316544] iommu: Default domain type: Translated
+[    0.316544] iommu: DMA domain TLB invalidation policy: lazy mode
+[    0.323866] pci 0000:01:00.0: vgaarb: setting as boot VGA device
+[    0.323866] pci 0000:01:00.0: vgaarb: bridge control possible
+[    0.323866] pci 0000:01:00.0: vgaarb: VGA device added: decodes=io+mem,owns=none,locks=none
+[    0.323866] pci 0000:08:00.0: vgaarb: setting as boot VGA device (overriding previous)
+[    0.323866] pci 0000:08:00.0: vgaarb: bridge control possible
+[    0.323866] pci 0000:08:00.0: vgaarb: VGA device added: decodes=io+mem,owns=io+mem,locks=none
+[    0.323866] pci 0000:0e:00.0: vgaarb: bridge control possible
+[    0.323866] pci 0000:0e:00.0: vgaarb: VGA device added: decodes=io+mem,owns=none,locks=none
+[    0.345894] pci 0000:01:00.0: VF BAR 2 [mem size 0x10000000 64bit pref]: can't assign; no space
+[    0.345897] pci 0000:01:00.0: VF BAR 2 [mem size 0x10000000 64bit pref]: failed to assign
+[    0.345902] pci 0000:01:00.0: VF BAR 4 [mem size 0x02000000 64bit pref]: can't assign; no space
+[    0.345903] pci 0000:01:00.0: VF BAR 4 [mem size 0x02000000 64bit pref]: failed to assign
+[    0.345904] pci 0000:01:00.0: VF BAR 0 [mem 0xf80c0000-0xf80fffff 64bit pref]: assigned
+[    0.345907] pci 0000:00:01.1: PCI bridge to [bus 01]
+[    0.345909] pci 0000:00:01.1:   bridge window [io  0xf000-0xffff]
+[    0.345911] pci 0000:00:01.1:   bridge window [mem 0xf4000000-0xf80fffff]
+[    0.345912] pci 0000:00:01.1:   bridge window [mem 0xf800000000-0xfc01ffffff 64bit pref]
+[    0.345922] pci 0000:03:00.0: PCI bridge to [bus 04]
+[    0.345933] pci 0000:03:01.0: PCI bridge to [bus 05]
+[    0.345934] pci 0000:03:01.0:   bridge window [io  0xd000-0xdfff]
+[    0.345937] pci 0000:03:01.0:   bridge window [mem 0xfa600000-0xfa6fffff]
+[    0.345941] pci 0000:03:02.0: PCI bridge to [bus 06]
+[    0.345942] pci 0000:03:02.0:   bridge window [io  0xc000-0xcfff]
+[    0.345945] pci 0000:03:02.0:   bridge window [mem 0xfa500000-0xfa5fffff]
+[    0.345950] pci 0000:07:00.0: PCI bridge to [bus 08]
+[    0.345952] pci 0000:07:00.0:   bridge window [io  0xb000-0xbfff]
+[    0.345956] pci 0000:07:00.0:   bridge window [mem 0xf9000000-0xfa0fffff]
+[    0.345964] pci 0000:03:03.0: PCI bridge to [bus 07-08]
+[    0.345966] pci 0000:03:03.0:   bridge window [io  0xb000-0xbfff]
+[    0.345968] pci 0000:03:03.0:   bridge window [mem 0xf9000000-0xfa0fffff]
+[    0.345972] pci 0000:03:04.0: PCI bridge to [bus 09]
+[    0.345979] pci 0000:03:08.0: PCI bridge to [bus 0a]
+[    0.345981] pci 0000:03:08.0:   bridge window [mem 0xfa400000-0xfa4fffff]
+[    0.345986] pci 0000:03:0c.0: PCI bridge to [bus 0b]
+[    0.345988] pci 0000:03:0c.0:   bridge window [mem 0xfa300000-0xfa3fffff]
+[    0.345992] pci 0000:03:0d.0: PCI bridge to [bus 0c]
+[    0.345995] pci 0000:03:0d.0:   bridge window [mem 0xfa200000-0xfa2fffff]
+[    0.345999] pci 0000:02:00.0: PCI bridge to [bus 03-0c]
+[    0.346000] pci 0000:02:00.0:   bridge window [io  0xb000-0xdfff]
+[    0.346002] pci 0000:02:00.0:   bridge window [mem 0xf9000000-0xfa6fffff]
+[    0.346007] pci 0000:00:02.1: PCI bridge to [bus 02-0c]
+[    0.346007] pci 0000:00:02.1:   bridge window [io  0xb000-0xdfff]
+[    0.346009] pci 0000:00:02.1:   bridge window [mem 0xf9000000-0xfa6fffff]
+[    0.346019] pci 0000:00:02.2: PCI bridge to [bus 0d]
+[    0.346021] pci 0000:00:02.2:   bridge window [mem 0xfaf00000-0xfaffffff]
+[    0.346031] pci 0000:00:08.1: PCI bridge to [bus 0e]
+[    0.346037] pci 0000:00:08.1:   bridge window [io  0xe000-0xefff]
+[    0.346038] pci 0000:00:08.1:   bridge window [mem 0xfa800000-0xfadfffff]
+[    0.346039] pci 0000:00:08.1:   bridge window [mem 0xfc10000000-0xfc1fffffff 64bit pref]
+[    0.346041] pci 0000:00:08.3: PCI bridge to [bus 0f]
+[    0.346043] pci 0000:00:08.3:   bridge window [mem 0xfae00000-0xfaefffff]
+[    0.346047] pci 0000:00:01.1: bridge window [mem 0xf800000000-0xfc01ffffff 64bit pref]: releasing
+[    0.346054] pci 0000:00:01.1: bridge window [mem 0x1400000000-0x1813ffffff 64bit pref]: assigned
+[    0.346055] pci 0000:01:00.0: BAR 1 [mem 0x1400000000-0x17ffffffff 64bit pref]: assigned
+[    0.346059] pci 0000:01:00.0: VF BAR 2 [mem 0x1800000000-0x180fffffff 64bit pref]: assigned
+[    0.346061] pci 0000:01:00.0: BAR 3 [mem 0x1810000000-0x1811ffffff 64bit pref]: assigned
+[    0.346065] pci 0000:01:00.0: VF BAR 4 [mem 0x1812000000-0x1813ffffff 64bit pref]: assigned
+[    0.346066] pci 0000:00:01.1: PCI bridge to [bus 01]
+[    0.346067] pci 0000:00:01.1:   bridge window [io  0xf000-0xffff]
+[    0.346069] pci 0000:00:01.1:   bridge window [mem 0xf4000000-0xf80fffff]
+[    0.346070] pci 0000:00:01.1:   bridge window [mem 0x1400000000-0x1813ffffff 64bit pref]
+[    0.346079] pci 0000:03:00.0: PCI bridge to [bus 04]
+[    0.346090] pci 0000:03:01.0: PCI bridge to [bus 05]
+[    0.346091] pci 0000:03:01.0:   bridge window [io  0xd000-0xdfff]
+[    0.346093] pci 0000:03:01.0:   bridge window [mem 0xfa600000-0xfa6fffff]
+[    0.346098] pci 0000:03:02.0: PCI bridge to [bus 06]
+[    0.346099] pci 0000:03:02.0:   bridge window [io  0xc000-0xcfff]
+[    0.346101] pci 0000:03:02.0:   bridge window [mem 0xfa500000-0xfa5fffff]
+[    0.346105] pci 0000:07:00.0: PCI bridge to [bus 08]
+[    0.346107] pci 0000:07:00.0:   bridge window [io  0xb000-0xbfff]
+[    0.346111] pci 0000:07:00.0:   bridge window [mem 0xf9000000-0xfa0fffff]
+[    0.346120] pci 0000:03:03.0: PCI bridge to [bus 07-08]
+[    0.346121] pci 0000:03:03.0:   bridge window [io  0xb000-0xbfff]
+[    0.346123] pci 0000:03:03.0:   bridge window [mem 0xf9000000-0xfa0fffff]
+[    0.346127] pci 0000:03:04.0: PCI bridge to [bus 09]
+[    0.346133] pci 0000:03:08.0: PCI bridge to [bus 0a]
+[    0.346135] pci 0000:03:08.0:   bridge window [mem 0xfa400000-0xfa4fffff]
+[    0.346139] pci 0000:03:0c.0: PCI bridge to [bus 0b]
+[    0.346142] pci 0000:03:0c.0:   bridge window [mem 0xfa300000-0xfa3fffff]
+[    0.346146] pci 0000:03:0d.0: PCI bridge to [bus 0c]
+[    0.346148] pci 0000:03:0d.0:   bridge window [mem 0xfa200000-0xfa2fffff]
+[    0.346152] pci 0000:02:00.0: PCI bridge to [bus 03-0c]
+[    0.346153] pci 0000:02:00.0:   bridge window [io  0xb000-0xdfff]
+[    0.346156] pci 0000:02:00.0:   bridge window [mem 0xf9000000-0xfa6fffff]
+[    0.346160] pci 0000:00:02.1: PCI bridge to [bus 02-0c]
+[    0.346160] pci 0000:00:02.1:   bridge window [io  0xb000-0xdfff]
+[    0.346162] pci 0000:00:02.1:   bridge window [mem 0xf9000000-0xfa6fffff]
+[    0.346172] pci 0000:00:02.2: PCI bridge to [bus 0d]
+[    0.346174] pci 0000:00:02.2:   bridge window [mem 0xfaf00000-0xfaffffff]
+[    0.346184] pci 0000:00:08.1: PCI bridge to [bus 0e]
+[    0.346184] pci 0000:00:08.1:   bridge window [io  0xe000-0xefff]
+[    0.346186] pci 0000:00:08.1:   bridge window [mem 0xfa800000-0xfadfffff]
+[    0.346187] pci 0000:00:08.1:   bridge window [mem 0xfc10000000-0xfc1fffffff 64bit pref]
+[    0.346189] pci 0000:00:08.3: PCI bridge to [bus 0f]
+[    0.346190] pci 0000:00:08.3:   bridge window [mem 0xfae00000-0xfaefffff]
+[    0.346332] pci 0000:01:00.1: extending delay after power-on from D3hot to 20 msec
+[    0.346368] pci 0000:01:00.1: D0 power state depends on 0000:01:00.0
+[    0.346884] pci 0000:0e:00.1: D0 power state depends on 0000:0e:00.0
+[    0.347028] pci 0000:00:00.2: AMD-Vi: IOMMU performance counters supported
+[    0.347082] pci 0000:00:01.0: Adding to iommu group 0
+[    0.347090] pci 0000:00:01.1: Adding to iommu group 1
+[    0.347105] pci 0000:00:02.0: Adding to iommu group 2
+[    0.347113] pci 0000:00:02.1: Adding to iommu group 3
+[    0.347121] pci 0000:00:02.2: Adding to iommu group 4
+[    0.347130] pci 0000:00:03.0: Adding to iommu group 5
+[    0.347139] pci 0000:00:04.0: Adding to iommu group 6
+[    0.347154] pci 0000:00:08.0: Adding to iommu group 7
+[    0.347161] pci 0000:00:08.1: Adding to iommu group 8
+[    0.347168] pci 0000:00:08.3: Adding to iommu group 9
+[    0.347180] pci 0000:00:14.0: Adding to iommu group 10
+[    0.347186] pci 0000:00:14.3: Adding to iommu group 10
+[    0.347217] pci 0000:00:18.0: Adding to iommu group 11
+[    0.347224] pci 0000:00:18.1: Adding to iommu group 11
+[    0.347230] pci 0000:00:18.2: Adding to iommu group 11
+[    0.347237] pci 0000:00:18.3: Adding to iommu group 11
+[    0.347243] pci 0000:00:18.4: Adding to iommu group 11
+[    0.347249] pci 0000:00:18.5: Adding to iommu group 11
+[    0.347258] pci 0000:00:18.6: Adding to iommu group 11
+[    0.347264] pci 0000:00:18.7: Adding to iommu group 11
+[    0.347276] pci 0000:01:00.0: Adding to iommu group 12
+[    0.347283] pci 0000:01:00.1: Adding to iommu group 12
+[    0.347289] pci 0000:02:00.0: Adding to iommu group 13
+[    0.347297] pci 0000:03:00.0: Adding to iommu group 14
+[    0.347304] pci 0000:03:01.0: Adding to iommu group 15
+[    0.347310] pci 0000:03:02.0: Adding to iommu group 16
+[    0.347316] pci 0000:03:03.0: Adding to iommu group 17
+[    0.347323] pci 0000:03:04.0: Adding to iommu group 18
+[    0.347330] pci 0000:03:08.0: Adding to iommu group 19
+[    0.347337] pci 0000:03:0c.0: Adding to iommu group 20
+[    0.347343] pci 0000:03:0d.0: Adding to iommu group 21
+[    0.347347] pci 0000:05:00.0: Adding to iommu group 15
+[    0.347351] pci 0000:06:00.0: Adding to iommu group 16
+[    0.347354] pci 0000:07:00.0: Adding to iommu group 17
+[    0.347357] pci 0000:08:00.0: Adding to iommu group 17
+[    0.347358] pci 0000:0a:00.0: Adding to iommu group 19
+[    0.347358] pci 0000:0b:00.0: Adding to iommu group 20
+[    0.347358] pci 0000:0c:00.0: Adding to iommu group 21
+[    0.347377] pci 0000:0d:00.0: Adding to iommu group 22
+[    0.347399] pci 0000:0e:00.0: Adding to iommu group 23
+[    0.347407] pci 0000:0e:00.1: Adding to iommu group 24
+[    0.347414] pci 0000:0e:00.2: Adding to iommu group 25
+[    0.347421] pci 0000:0e:00.3: Adding to iommu group 26
+[    0.347429] pci 0000:0e:00.4: Adding to iommu group 27
+[    0.347437] pci 0000:0e:00.5: Adding to iommu group 28
+[    0.347444] pci 0000:0e:00.6: Adding to iommu group 29
+[    0.347451] pci 0000:0f:00.0: Adding to iommu group 30
+[    0.349543] AMD-Vi: Extended features (0x246577efa2254afa, 0x0): PPR NX GT [5] IA GA PC GA_vAPIC
+[    0.349548] AMD-Vi: Interrupt remapping enabled
+[    0.444265] AMD-Vi: Virtual APIC enabled
+[    0.444442] perf/amd_iommu: Detected AMD IOMMU #0 (2 banks, 4 counters/bank).
+[    0.511282] ACPI: bus type drm_connector registered
+[    0.577345] rtc_cmos 00:00: RTC can wake from S4
+[    0.578820] simple-framebuffer simple-framebuffer.0: [drm] Registered 1 planes with drm panic
+[    0.578839] [drm] Initialized simpledrm 1.0.0 for simple-framebuffer.0 on minor 0
+[    0.595952] simple-framebuffer simple-framebuffer.0: [drm] fb0: simpledrmdrmfb frame buffer device
+[    0.697798] ACPI: video: Video Device [VGA] (multi-head: yes  rom: no  post: no)
+[    1.988144] igb 0000:05:00.0 enp5s0: renamed from eth0
+[    1.988379] igb 0000:06:00.0 enp6s0: renamed from eth1
+[    2.060295] cdc_ether 1-9.3:2.0 enx227059cee0cd: renamed from usb0
+[    2.434109] systemd[1]: Starting <email> - Load Kernel Module drm...
+[    2.438160] systemd[1]: <email>: Deactivated successfully.
+[    2.438226] systemd[1]: Finished <email> - Load Kernel Module drm.
+[    2.482796] loop0: detected capacity change from 0 to 8
+[    2.483368] loop1: detected capacity change from 0 to 151512
+[    2.484257] loop2: detected capacity change from 0 to 151536
+[    2.484915] loop3: detected capacity change from 0 to 136904
+[    2.485566] loop4: detected capacity change from 0 to 136816
+[    2.486403] loop5: detected capacity change from 0 to 534712
+[    2.486888] loop6: detected capacity change from 0 to 534192
+[    2.487416] loop7: detected capacity change from 0 to 33688
+[    2.488260] loop8: detected capacity change from 0 to 33792
+[    2.488530] loop9: detected capacity change from 0 to 1088256
+[    2.597609] ast 0000:08:00.0: [drm] Using ASPEED DisplayPort transmitter
+[    2.600022] ast 0000:08:00.0: [drm] Registered 1 planes with drm panic
+[    2.643368] [drm] Initialized ast 0.1.0 for 0000:08:00.0 on minor 1
+[    2.643768] fbcon: astdrmfb (fb0) is primary device
+[    2.643822] ast 0000:08:00.0: [drm] fb0: astdrmfb frame buffer device
+[    2.678372] nvidia: loading out-of-tree module taints kernel.
+[    2.678379] nvidia: module verification failed: signature and/or required key missing - tainting kernel
+[    2.717521] nvidia-nvlink: Nvlink Core is being initialized, major device number 509
+[    2.720536] nvidia 0000:01:00.0: vgaarb: VGA decodes changed: olddecodes=io+mem,decodes=none:owns=none
+[    2.722422] input: HDA NVidia HDMI/DP,pcm=3 as /devices/pci0000:00/0000:00:01.1/0000:01:00.1/sound/card0/input9
+[    2.722584] input: HDA NVidia HDMI/DP,pcm=7 as /devices/pci0000:00/0000:00:01.1/0000:01:00.1/sound/card0/input10
+[    2.722631] input: HDA NVidia HDMI/DP,pcm=8 as /devices/pci0000:00/0000:00:01.1/0000:01:00.1/sound/card0/input11
+[    2.722659] input: HDA NVidia HDMI/DP,pcm=9 as /devices/pci0000:00/0000:00:01.1/0000:01:00.1/sound/card0/input12
+[    3.889008] NVRM: loading NVIDIA UNIX Open Kernel Module for x86_64  615.71.09  Release Build  (dvs-builder@U22-I3-F05-2-4)  Fri Sep  4 22:33:33 UTC 2026
+[    4.047938] nvidia-modeset: Loading NVIDIA UNIX Open Kernel Mode Setting Driver for x86_64  615.71.09  Release Build  (dvs-builder@U22-I3-F05-2-4)  Fri Sep  4 22:15:27 UTC 2026
+[    4.051809] [drm] [nvidia-drm] [GPU ID 0x00000100] Loading driver
+[    4.054658] amdgpu 0000:0e:00.0: Fetched VBIOS from VFCT
+[    4.054659] amdgpu 0000:0e:00.0: [drm] ATOM BIOS: 102-RAPHAEL-008
+[    4.061477] amdgpu 0000:0e:00.0: [drm] Detected VRAM RAM=2048M, BAR=2048M
+[    4.061478] amdgpu 0000:0e:00.0: [drm] RAM width 128bits DDR5
+[    4.061600] amdgpu 0000:0e:00.0: [drm] GART: num cpu pages 262144, num gpu pages 262144
+[    4.061799] amdgpu 0000:0e:00.0: [drm] PCIE GART of 1024M enabled (table at 0x000000F47FC00000).
+[    4.062128] amdgpu 0000:0e:00.0: [drm] Loading DMUB firmware via PSP: version=0x05001C00
+[    4.062485] amdgpu 0000:0e:00.0: [drm] use_doorbell being set to: [true]
+[    4.084593] amdgpu 0000:0e:00.0: reserve 0xa00000 from 0xf47e000000 for PSP TMR
+[    4.085689] [drm] Initialized nvidia-drm 0.0.0 for 0000:01:00.0 on minor 0
+[    4.086625] nvidia 0000:01:00.0: [drm] Cannot find any crtc or sizes
+[    4.158681] amdgpu 0000:0e:00.0: [drm] Display Core v3.2.369 initialized on DCN 3.1.5
+[    4.158683] amdgpu 0000:0e:00.0: [drm] DP-HDMI FRL PCON supported
+[    4.159446] amdgpu 0000:0e:00.0: [drm] DMUB hardware initialized: version=0x05001C00
+[    4.161042] amdgpu 0000:0e:00.0: [drm] HDMI-A-2: PSR support 0, DC PSR ver -1, sink PSR ver 0 DPCD caps 0x0 su_y_granularity 0
+[    4.161078] amdgpu 0000:0e:00.0: [drm] DP-5: PSR support 0, DC PSR ver -1, sink PSR ver 0 DPCD caps 0x0 su_y_granularity 0
+[    4.161124] amdgpu 0000:0e:00.0: [drm] DP-6: PSR support 0, DC PSR ver -1, sink PSR ver 0 DPCD caps 0x0 su_y_granularity 0
+[    4.161180] amdgpu 0000:0e:00.0: [drm] DP-7: PSR support 0, DC PSR ver -1, sink PSR ver 0 DPCD caps 0x0 su_y_granularity 0
+[    4.169668] amdgpu 0000:0e:00.0: [drm] Registered 4 planes with drm panic
+[    4.169669] [drm] Initialized amdgpu 3.64.0 for 0000:0e:00.0 on minor 2
+[    4.172057] amdgpu 0000:0e:00.0: [drm] Cannot find any crtc or sizes
+[    4.172070] [drm] pre_validate_dsc:1667 MST_DSC dsc precompute is not needed
+[   12.008310] vethdba53bd: entered promiscuous mode
+[   12.009216] veth41b12e6: entered promiscuous mode
+[   12.015331] veth115564b: entered promiscuous mode
+[   12.034135] veth559e8b0: entered promiscuous mode
+[   12.034375] veth13413c2: entered promiscuous mode
+[   12.036219] vethf0bbd7b: entered promiscuous mode
+[   12.038486] eth0: renamed from vethd10dec4
+[   12.039700] eth0: renamed from veth4858be0
+[   12.057094] veth6a9a158: entered promiscuous mode
+[   12.057307] vethcc741d1: entered promiscuous mode
+[   12.058405] eth0: renamed from vethdc9656b
+[   12.058965] eth0: renamed from vethf57b19e
+[   12.059148] eth0: renamed from veth520d79e
+[   12.059382] eth0: renamed from veth2600465
+[   12.072544] eth0: renamed from veth94b4352
+[   12.072723] veth7ac019b: entered promiscuous mode
+[   12.072783] eth0: renamed from vethf20de1d
+[   12.073158] veth534b0f8: entered promiscuous mode
+[   12.081898] veth8d3866a: entered promiscuous mode
+[   12.094521] veth5d6eb84: entered promiscuous mode
+[   12.095552] veth57b4bb7: entered promiscuous mode
+[   12.097280] eth0: renamed from vethd92298b
+[   12.098059] eth0: renamed from veth470d594
+[   12.098333] eth0: renamed from vethed48793
+[   12.114106] vetha92d005: entered promiscuous mode
+[   12.116018] eth0: renamed from veth2204c90
+[   12.116776] eth0: renamed from veth66364e3
+[   12.123112] veth59eb488: entered promiscuous mode
+[   12.131885] eth0: renamed from vethb8d5339
+[   12.132071] vethb02c784: entered promiscuous mode
+[   12.134816] eth0: renamed from veth42802d1
+[   12.144040] eth0: renamed from veth922eaf4
+[ 2653.048918] nvidia 0000:01:00.0: Using 52-bit DMA addresses
+[16254.724007] veth2204c90: renamed from eth0
+[16254.770904] veth5d6eb84 (unregistering): left promiscuous mode
+[16254.837832] vethf20de1d: renamed from eth0
+[16254.873120] vethcc741d1 (unregistering): left promiscuous mode
+[16254.892626] veth092baa8: entered promiscuous mode
+[16254.899510] eth0: renamed from vethd7c9fd0
+[16254.972029] veth9edb12f: entered promiscuous mode
+[16254.980015] eth0: renamed from veth8cea729
+[16255.621400] vethd92298b: renamed from eth0
+[16255.662842] veth8d3866a (unregistering): left promiscuous mode
+[16255.764480] veth0ba3290: entered promiscuous mode
+[16255.773338] eth0: renamed from veth2dff4b7
+[305108.377747] loop24: detected capacity change from 0 to 136784
+[305109.889954] loop3: detected capacity change from 0 to 17792
+[886810.920254] loop16: detected capacity change from 0 to 535104
+[906904.527868] loop5: detected capacity change from 0 to 17720
+[931504.392466] loop18: detected capacity change from 0 to 24232
+[1043404.223602] loop17: detected capacity change from 0 to 26008
+[1139105.028368] loop7: detected capacity change from 0 to 151512
+[1204977.944218] veth520d79e: renamed from eth0
+[1204977.998736] vethf0bbd7b (unregistering): left promiscuous mode
+[1204978.000065] vethb8d5339: renamed from eth0
+[1204978.032424] veth4858be0: renamed from eth0
+[1204978.055908] veth922eaf4: renamed from eth0
+[1204978.056036] vethf57b19e: renamed from eth0
+[1204978.078814] veth2600465: renamed from eth0
+[1204978.079297] vetha92d005 (unregistering): left promiscuous mode
+[1204978.148430] veth42802d1: renamed from eth0
+[1204978.177099] veth94b4352: renamed from eth0
+[1204978.177198] vethd7c9fd0: renamed from eth0
+[1204978.177293] veth470d594: renamed from eth0
+[1204978.213241] veth41b12e6 (unregistering): left promiscuous mode
+[1204978.213382] veth8cea729: renamed from eth0
+[1204978.213467] vethdc9656b: renamed from eth0
+[1204978.313959] veth66364e3: renamed from eth0
+[1204978.314098] veth2dff4b7: renamed from eth0
+[1204978.371747] veth13413c2 (unregistering): left promiscuous mode
+[1204978.405108] vethb02c784 (unregistering): left promiscuous mode
+[1204978.437118] veth559e8b0 (unregistering): left promiscuous mode
+[1204978.467125] veth59eb488 (unregistering): left promiscuous mode
+[1204978.496022] veth7ac019b (unregistering): left promiscuous mode
+[1204978.523009] veth115564b (unregistering): left promiscuous mode
+[1204978.555037] veth6a9a158 (unregistering): left promiscuous mode
+[1204978.582057] veth092baa8 (unregistering): left promiscuous mode
+[1204978.586716] vethd10dec4: renamed from eth0
+[1204978.602177] veth9edb12f (unregistering): left promiscuous mode
+[1204978.619187] veth0ba3290 (unregistering): left promiscuous mode
+[1204978.641856] veth57b4bb7 (unregistering): left promiscuous mode
+[1204978.665343] vethdba53bd (unregistering): left promiscuous mode
+[1204980.196897] vethed48793: renamed from eth0
+[1204980.237202] veth534b0f8 (unregistering): left promiscuous mode
+[1204980.946515] veth42debeb: entered promiscuous mode
+[1204980.975898] vethc45ba93: entered promiscuous mode
+[1204980.977713] eth0: renamed from veth76b7d08
+[1204980.979191] veth3a89120: entered promiscuous mode
+[1204980.993343] veth87f0ebe: entered promiscuous mode
+[1204980.998018] veth402120a: entered promiscuous mode
+[1204980.998508] eth0: renamed from veth763b4c0
+[1204981.015967] veth1d17125: entered promiscuous mode
+[1204981.017357] veth9011c0d: entered promiscuous mode
+[1204981.018797] eth0: renamed from veth646142f
+[1204981.018980] eth0: renamed from veth6f4af26
+[1204981.019263] eth0: renamed from veth3f73aea
+[1204981.038947] veth0a38418: entered promiscuous mode
+[1204981.041442] eth0: renamed from veth795e3bd
+[1204981.041655] vethc47ec05: entered promiscuous mode
+[1204981.044481] eth0: renamed from veth906bbfb
+[1204981.054333] veth4fec0c4: entered promiscuous mode
+[1204981.054590] vetha6da5f1: entered promiscuous mode
+[1204981.056574] eth0: renamed from vethdc905d3
+[1204981.057250] eth0: renamed from vethbc9d6ac
+[1204981.070240] veth7ca022c: entered promiscuous mode
+[1204981.071419] vethdbc4ec1: entered promiscuous mode
+[1204981.073302] eth0: renamed from vethe1dae06
+[1204981.073975] eth0: renamed from vethb69bb28
+[1204981.100890] vethecc4ed8: entered promiscuous mode
+[1204981.101554] veth3f6ce59: entered promiscuous mode
+[1204981.102511] eth0: renamed from vethf6f5728
+[1204981.102669] eth0: renamed from vethe96d4ac
+[1204981.127048] veth1bc57d2: entered promiscuous mode
+[1204981.129115] eth0: renamed from veth0be8f0e
+[1204981.129614] eth0: renamed from veth34b8122
+[1204981.135644] eth0: renamed from veth8612057
+# total lines 2312, matching 538, Xid lines 0
+# the 40 most frequent kinds of matching line (numbers folded to #):
+#   33	pci #:#:#.#: Adding to iommu group #
+#   33	pci #:#:#.#:   bridge window [mem #-#]
+#   24	pci #:#:#.#: PCI bridge to [bus #]
+#   24	pci #:#:#.#:   bridge window [io  #-#]
+#   17	loop#: detected capacity change from # to #
+#   14	pci #:#:#.#: PME# supported from D# D#hot D#cold
+#   12	pci #:#:#.#: enabling Extended Tags
+#   8	pci #:#:#.#: [#:#e#] type # class # conventional PCI endpoint
+#   8	pci #:#:#.#: PCI bridge to [bus #-#c]
+#   8	pci #:#:#.#: BAR # [mem #-#]
+#   7	pci #:#e:#.#: enabling Extended Tags
+#   7	pci #:#e:#.#: Adding to iommu group #
+#   6	pci #:#e:#.#: BAR # [mem #-#]
+#   6	pci #:#:#.#: [#:#f#] type # class # PCIe Switch Downstream Port
+#   6	pci #:#:#.#:   bridge window [mem #-# #bit pref]
+#   5	pci #:#:#.#: [#:#da] type # class # conventional PCI endpoint
+#   4	pci #:#e:#.#: PME# supported from D# D#hot D#cold
+#   4	pci #:#:#d.#: PCI bridge to [bus #c]
+#   4	pci #:#:#c.#: PCI bridge to [bus #b]
+#   4	pci #:#:#.#: PCI bridge to [bus #f]
+#   4	pci #:#:#.#: PCI bridge to [bus #e]
+#   4	pci #:#:#.#: PCI bridge to [bus #d]
+#   4	pci #:#:#.#: PCI bridge to [bus #a]
+#   4	pci #:#:#.#: PCI bridge to [bus #-#]
+#   4	pci #:#:#.#: BAR # [io  #-#]
+#   4	input: HDA NVidia HDMI/DP,pcm=# as /devices/pci#:#/#:#:#.#/#:#:#.#/sound/card#/input#
+#   4	efi: Remove mem#: MMIO range=[#-#] (#MB) from e# map
+#   3	pci #:#:#d.#:   bridge window [mem #-#]
+#   3	pci #:#:#c.#:   bridge window [mem #-#]
+#   3	pci #:#:#.#: [#:#db] type # class # PCIe Root Port
+#   3	pci #:#:#.#: VF BAR # [mem #-# #bit pref]: contains BAR # for # VFs
+#   3	pci #:#:#.#: VF BAR # [mem #-# #bit pref]: assigned
+#   3	pci #:#:#.#: VF BAR # [mem #-# #bit pref]
+#   3	amdgpu #:#e:#.#: [drm] DP-#: PSR support #, DC PSR ver -#, sink PSR ver # DPCD caps # su_y_granularity #
+#   2	veth#d#: renamed from eth#
+#   2	veth#a#: entered promiscuous mode
+#   2	pci #:#e:#.#: [#:#e#] type # class # PCIe Endpoint
+#   2	pci #:#e:#.#: [#:#b#] type # class # PCIe Endpoint
+#   2	pci #:#e:#.#: PME# supported from D# D# D#hot D#cold
+#   2	pci #:#e:#.#: BAR # [mem #-# #bit]

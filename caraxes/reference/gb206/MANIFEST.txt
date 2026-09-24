@@ -1,0 +1,39 @@
+# SPDX-License-Identifier: MIT
+# lab-capture 1 (2026-09-24)
+# created 2026-09-24T10:47:53+02:00 on korngold, kernel 7.0.0-31-generic, driver 615.71.09, chip 10de-2d04, 1 GPU(s): 0000:01:00.0
+# options: rom=1 sudo=1 (sudo -n works) rm_tools=1; runtime 2s
+# status: ok = complete, reduced = captured with less detail (usually for lack of sudo),
+#         skipped = not captured (reason given), failed = tried and failed
+# item                             status   path                                         note
+host.uname                         ok       host/uname.txt                               
+host.os-release                    ok       host/os-release.txt                          
+host.cmdline                       ok       host/cmdline.txt                             kernel command line (IOMMU, nvidia options)
+host.boot-time                     ok       host/boot-time.txt                           
+host.cpu                           ok       host/cpu.txt                                 
+host.modules                       ok       host/lsmod.txt                               loaded module list (/proc/modules)
+host.modinfo                       ok       host/modinfo-nvidia.txt                      module versions, licence (open or proprietary), firmware names
+host.proc-driver-nvidia            ok       host/proc-driver-nvidia/                     16 files: version, params, registry, gpus/*/information; driver 615.71.09
+host.sys-module                    ok       host/sys-module-nvidia.txt                   module parameters readable without root
+host.firmware                      ok       host/firmware-files.txt                      4 files in /usr/lib/firmware/nvidia/615.71.09 with size and sha256
+host.kernel-log                    ok       host/kernel-log.txt                          sudo dmesg; total lines 2312, matching 538, Xid lines 0
+host.lspci                         ok       host/lspci-nn.txt                            
+host.lspci-tree                    ok       host/lspci-tree.txt                          PCI topology
+host.iommu-groups                  ok       host/iommu-groups.txt                        
+0000:01:00.0.lspci-vvv             ok       gpu-0000_01_00.0/lspci-vvv.txt               as root: every capability decoded
+0000:01:00.0.lspci-functions       ok       gpu-0000_01_00.0/lspci-functions.txt         all functions of the slot (audio, USB, UCSI), as user
+0000:01:00.0.lspci-upstream        ok       gpu-0000_01_00.0/lspci-upstream.txt          upstream port 0000:00:01.1 (link partner)
+0000:01:00.0.config-space          ok       gpu-0000_01_00.0/config-space.txt            4096 bytes (lspci -xxxx as root)
+0000:01:00.0.bars                  ok       gpu-0000_01_00.0/bars.txt                    BAR sizes, resizable-BAR sizes
+0000:01:00.0.sysfs                 ok       gpu-0000_01_00.0/sysfs-attributes.txt        attribute files under /sys/bus/pci/devices/0000:01:00.0
+0000:01:00.0.proc-information      ok       gpu-0000_01_00.0/proc-information.txt        model, VBIOS version, GPU firmware version
+0000:01:00.0.nvidia-smi-q          ok       gpu-0000_01_00.0/nvidia-smi-q.txt            full -q, serial numbers redacted
+0000:01:00.0.nvidia-smi-q-xml      ok       gpu-0000_01_00.0/nvidia-smi-q.xml            same as XML, serial redacted
+0000:01:00.0.nvidia-smi-query-gpu  ok       gpu-0000_01_00.0/nvidia-smi-query-gpu.csv    one query, 237 fields (.txt: transposed), serial redacted
+0000:01:00.0.rom                   ok       gpu-0000_01_00.0/rom.bin                     162304 bytes; walk: PCI image chain complete (the last-image flag is inside the dump); FWSEC (0xE0) image absent (expected for a sysfs read: sysfs and the ROM BAR stop at the PCI last-image flag; the NVIDIA chain continues only through the BAR0 PROM window, which this kit does not read)
+0000:01:00.0.display               ok       gpu-0000_01_00.0/display/                    4 connectors, 0 EDIDs
+host.gsp-family                    ok       host/gsp-firmware.txt                        family=unknown
+rm-tools.abi-check                 ok       rm-tools/abi-check.txt                       UNVERIFIED (no SDK headers for 615.71.09 in this checkout, see abi-check.txt)
+rm-tools.lab-rm-query              ok       rm-tools/lab-rm-query.txt                    exit 0; ABI UNVERIFIED
+rm-tools.fifo-host-query           ok       rm-tools/fifo-host-query.txt                 exit 0; ABI UNVERIFIED
+rm-tools.host-facts                ok       rm-tools/host-facts.txt                      exit 0; ABI UNVERIFIED
+rm-tools.gsp-abi-sizes             skipped  -                                            needs an open-gpu-kernel-modules tree at 615.71.09 (--ogkm DIR); the vendored one is 610.57.04

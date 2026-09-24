@@ -1,0 +1,8 @@
+# SPDX-License-Identifier: MIT
+# command (development host, 2026-09-24): caraxes/tools/lab-abi-check.sh 615.71.09 with target/abi-headers/615.71.09
+# The lab machine had no SDK headers for 615.71.09; this is the check done at home for the rm-tools outputs of this capture.
+== 615.71.09: DIFFERS from 610.57.04 (2 items): the tools' output is unverified for this version
+   610.57.04: size   NV2080_CTRL_GPU_GET_PES_INFO_PARAMS                        56
+   615.71.09: size   NV2080_CTRL_GPU_GET_PES_INFO_PARAMS                        76
+   610.57.04: size   NV2080_CTRL_FIFO_GET_DEVICE_INFO_TABLE_PARAMS              3212
+   615.71.09: size   NV2080_CTRL_FIFO_GET_DEVICE_INFO_TABLE_PARAMS              3340

@@ -87,3 +87,4 @@ tmp.md
 caraxes/runs/**/*.trace
 caraxes/runs/**/device/
 caraxes/runs/**/transcript.log
+/caraxes/reference/gb206/rom.bin

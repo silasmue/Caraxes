@@ -1,0 +1,69 @@
+# SPDX-License-Identifier: MIT
+# /sys/bus/pci/devices/0000:01:00.0: readable attribute files; excluded: config rom resource[N] vpd reset remove rescan (binary, device access or write-only)
+aer_dev_correctable: RxErr 0 BadTLP 0 BadDLLP 0 Rollover 0 Timeout 0 NonFatalErr 0 CorrIntErr 0 HeaderOF 0 TOTAL_ERR_COR 0
+aer_dev_fatal: Undefined 0 DLP 0 SDES 0 TLP 0 FCP 0 CmpltTO 0 CmpltAbrt 0 UnxCmplt 0 RxOF 0 MalfTLP 0 ECRC 0 UnsupReq 0 ACSViol 0 UncorrIntErr 0 BlockedTLP 0 AtomicOpBlocked 0 TLPBlockedErr 0 PoisonTLPBlocked 0 DMWrReqBlocked 0 IDECheck 0 MisIDETLP 0 PCRC_CHECK 0 TLPXlatBlocked 0 TOTAL_ERR_FATAL 0
+aer_dev_nonfatal: Undefined 0 DLP 0 SDES 0 TLP 0 FCP 0 CmpltTO 0 CmpltAbrt 0 UnxCmplt 0 RxOF 0 MalfTLP 0 ECRC 0 UnsupReq 0 ACSViol 0 UncorrIntErr 0 BlockedTLP 0 AtomicOpBlocked 0 TLPBlockedErr 0 PoisonTLPBlocked 0 DMWrReqBlocked 0 IDECheck 0 MisIDETLP 0 PCRC_CHECK 0 TLPXlatBlocked 0 TOTAL_ERR_NONFATAL 0
+ari_enabled: 1
+boot_vga: 0
+broken_parity_status: 0
+class: 0x030000
+consistent_dma_mask_bits: 52
+current_link_speed: 2.5 GT/s PCIe
+current_link_width: 8
+d3cold_allowed: 1
+device: 0x2d04
+dma_mask_bits: 52
+driver_override: (null)
+enable: 1
+irq: 145
+local_cpulist: 0-23
+local_cpus: ffffff
+max_link_speed: 32.0 GT/s PCIe
+max_link_width: 16
+modalias: pci:v000010DEd00002D04sv00001043sd00008A08bc03sc00i00
+msi_bus: 1
+numa_node: -1
+power_state: D0
+resource: 0x00000000f4000000 0x00000000f7ffffff 0x0000000000040200 0x0000001400000000 0x00000017ffffffff 0x000000000014220c 0x0000000000000000 0x0000000000000000 0x0000000000000000 0x0000001810000000 0x0000001811ffffff 0x000000000014220c 0x0000000000000000 0x0000000000000000 0x0000000000000000 0x000000000000f000 0x000000000000f07f 0x0000000000040101 0x00000000f8000000 0x00000000f807ffff 0x0000000000046200 0x00000000f80c0000 0x00000000f80fffff 0x000000000014220c 0x0000000000000000 0x0000000000000000 0x0000000000000000 0x0000001800000000 0x000000180fffffff 0x000000000014220c 0x0000000000000000 0x0000000000000000 0x0000000000000000 0x0000001812000000 0x0000001813ffffff 0x000000000014220c 0x0000000000000000 0x0000000000000000 0x0000000000000000
+resource1_resize: 0000000000007fc0
+revision: 0xa1
+sriov_drivers_autoprobe: 1
+sriov_numvfs: 0
+sriov_offset: 2
+sriov_stride: 1
+sriov_totalvfs: 1
+sriov_vf_device: 2d04
+sriov_vf_total_msix: 0
+subsystem_device: 0x8a08
+subsystem_vendor: 0x1043
+uevent: DRIVER=nvidia PCI_CLASS=30000 PCI_ID=10DE:2D04 PCI_SUBSYS_ID=1043:8A08 PCI_SLOT_NAME=0000:01:00.0 MODALIAS=pci:v000010DEd00002D04sv00001043sd00008A08bc03sc00i00
+vendor: 0x10de
+power/async: enabled
+power/autosuspend_delay_ms: cat: '/sys/bus/pci/devices/0000:01:00.0/power/autosuspend_delay_ms': Input/output error
+power/control: auto
+power/runtime_active_kids: 0
+power/runtime_active_time: 1209620841
+power/runtime_enabled: enabled
+power/runtime_status: active
+power/runtime_suspended_time: 0
+power/runtime_usage: 2
+power/wakeup: disabled
+power/wakeup_abort_count: 
+power/wakeup_active: 
+power/wakeup_active_count: 
+power/wakeup_count: 
+power/wakeup_expire_count: 
+power/wakeup_last_time_ms: 
+power/wakeup_max_time_ms: 
+power/wakeup_total_time_ms: 
+link/clkpm: 0
+link/l1_aspm: 1
+aer/correctable_ratelimit_burst: 10
+aer/correctable_ratelimit_interval_ms: 5000
+aer/nonfatal_ratelimit_burst: 10
+aer/nonfatal_ratelimit_interval_ms: 5000
+driver -> nvidia
+iommu_group -> 12
+firmware_node -> device:3c
+msi_irqs: 8 vectors
+reset_method: flr bus

@@ -1,0 +1,10 @@
+# SPDX-License-Identifier: MIT
+# driver version: 615.71.09
+# versions present under /lib/firmware/nvidia: 615.71.09 ad102 ad103 ad104 ad106 ad107 ga100 ga102 ga103 ga104 ga106 ga107 gb100 gb102 gb202 gb203 gb205 gb206 gb207 gh100 gk20a gm200 gm204 gm206 gm20b gp100 gp102 gp104 gp106 gp107 gp108 gp10b gv100 tegra124 tegra186 tegra194 tegra210 tu102 tu104 tu106 tu10x tu116 tu117 
+# versions present under /usr/lib/firmware/nvidia: 615.71.09 ad102 ad103 ad104 ad106 ad107 ga100 ga102 ga103 ga104 ga106 ga107 gb100 gb102 gb202 gb203 gb205 gb206 gb207 gh100 gk20a gm200 gm204 gm206 gm20b gp100 gp102 gp104 gp106 gp107 gp108 gp10b gv100 tegra124 tegra186 tegra194 tegra210 tu102 tu104 tu106 tu10x tu116 tu117 
+# directory: /usr/lib/firmware/nvidia/615.71.09
+# size_bytes sha256 path
+27043992 c420726d2c76c55f028a59f67ebd7a906563ef807c945bb3baa9e88c36bf334b gsp_ga10x.bin
+22897536 78e0a2c8e4bd8a2faa1ff36137209669cdf60bd698b8f723dcf52869df82b909 gsp_tu10x.bin
+58215936 6d56802aaf58513a69b47a1dc123aeb078e486f245ea721381c43ad197782e10 ucodes_ga10x.bin
+8837632 36aa927eda920fe2648503ae73797d5239dd8b31583f484e22c5869c642d68b1 ucodes_tu10x.bin

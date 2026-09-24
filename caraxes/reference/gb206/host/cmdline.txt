@@ -1,0 +1,3 @@
+# SPDX-License-Identifier: MIT
+# command: cat /proc/cmdline
+BOOT_IMAGE=/boot/vmlinuz-7.0.0-31-generic root=UUID=f7844741-0c99-4e25-861d-6ec7eb39a3a3 ro quiet splash vt.handoff=7

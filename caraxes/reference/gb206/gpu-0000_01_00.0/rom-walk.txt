@@ -1,0 +1,10 @@
+# SPDX-License-Identifier: MIT
+file rom.bin: 162304 bytes, sha256 64bfafc40ba68d56bf938673b5d6bac380574f361ad51eb30c82d36a51826231
+image 0 @0x000000: sig 55AA, PCIR, vendor 10de device 2d04, code type 0x00 x86 PC-AT (base VBIOS), PCI length 64000 bytes, PCI last=False, NPDE rev 0x101, subimage 64000 bytes, NVIDIA last=False
+image 1 @0x00fa00: sig 55AA, PCIR, vendor 0000 device 0000, code type 0x03 EFI (GOP driver), PCI length 98304 bytes, PCI last=True, NPDE rev 0x100, subimage 98304 bytes, NVIDIA last=False
+images found: 2; PCI view (what sysfs and firmware see) ends at 0x27a00; NVIDIA view: chain continues at 0x27a00, past the end of the dump
+BIT header @0xdf0: version 0x0100, header 12, token size 6, tokens 20
+BIT tokens: 2(0x32)v1 B(0x42)v2 C(0x43)v2 D(0x44)v1 I(0x49)v1 M(0x4d)v2 N(0x4e)v0 P(0x50)v2 S(0x53)v2 T(0x54)v2 U(0x55)v1 V(0x56)v1 x(0x78)v1 d(0x64)v2 p(0x70)v2 u(0x75)v1 k(0x6b)v1 i(0x69)v2 E(0x45)v1 s(0x73)v1
+VBIOS version from BIT BIOSDATA: 98.06.1f.40.4a
+BIT FALCON_DATA v2: FalconUcodeTablePtr 0x447de -> in the NVIDIA extension image, which this dump does not contain
+VERDICT: PCI image chain complete (the last-image flag is inside the dump); FWSEC (0xE0) image absent (expected for a sysfs read: sysfs and the ROM BAR stop at the PCI last-image flag; the NVIDIA chain continues only through the BAR0 PROM window, which this kit does not read)

@@ -1,0 +1,25 @@
+# SPDX-License-Identifier: MIT
+# sysfs resource table (start end flags) with sizes
+resource0  start=0x00000000f4000000 end=0x00000000f7ffffff flags=0x0000000000040200 size=64 MiB (67108864 bytes)
+resource1  start=0x0000001400000000 end=0x00000017ffffffff flags=0x000000000014220c size=16384 MiB (17179869184 bytes)
+resource3  start=0x0000001810000000 end=0x0000001811ffffff flags=0x000000000014220c size=32 MiB (33554432 bytes)
+resource5  start=0x000000000000f000 end=0x000000000000f07f flags=0x0000000000040101 size=0 MiB (128 bytes)
+resource6  start=0x00000000f8000000 end=0x00000000f807ffff flags=0x0000000000046200 size=0 MiB (524288 bytes)
+resource7  start=0x00000000f80c0000 end=0x00000000f80fffff flags=0x000000000014220c size=0 MiB (262144 bytes)
+resource9  start=0x0000001800000000 end=0x000000180fffffff flags=0x000000000014220c size=256 MiB (268435456 bytes)
+resource11 start=0x0000001812000000 end=0x0000001813ffffff flags=0x000000000014220c size=32 MiB (33554432 bytes)
+# resizable BAR, sysfs resourceN_resize (bitmask of supported sizes, bit n = 2^n MiB)
+resource1_resize: 0000000000007fc0
+# from lspci (Region lines and the Resizable BAR capability)
+	Region 0: Memory at f4000000 (32-bit, non-prefetchable) [size=64M]
+	Region 1: Memory at 1400000000 (64-bit, prefetchable) [size=16G]
+	Region 3: Memory at 1810000000 (64-bit, prefetchable) [size=32M]
+	Region 5: I/O ports at f000 [size=128]
+	Expansion ROM at f8000000 [virtual] [disabled] [size=512K]
+	Capabilities: [134 v1] Physical Resizable BAR
+		BAR 1: current size: 16GB, supported: 64MB 128MB 256MB 512MB 1GB 2GB 4GB 8GB 16GB
+	Capabilities: [140 v1] Virtual Resizable BAR
+		BAR 2: current size: 256MB, supported: 64MB 128MB 256MB 512MB 1GB 2GB 4GB 8GB 16GB 256TB 512TB 1PB 2PB 4PB 8PB 16PB 32PB 64PB 128PB 256PB 512PB 1EB 2EB 4EB 8EB
+		Region 0: Memory at 00000000f80c0000 (64-bit, prefetchable)
+		Region 2: Memory at 0000001800000000 (64-bit, prefetchable)
+		Region 4: Memory at 0000001812000000 (64-bit, prefetchable)

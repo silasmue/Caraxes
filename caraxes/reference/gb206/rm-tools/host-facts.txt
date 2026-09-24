@@ -1,0 +1,62 @@
+# SPDX-License-Identifier: MIT
+# host-facts facts; driver 615.71.09; ABI UNVERIFIED (no SDK headers for 615.71.09 in this checkout, see abi-check.txt)
+client=0xc1d166fe device=0xcaf10001 subdevice=0xcaf10002
+H2 BUS_GET_PCI_BAR_INFO 0x20801803 status=0x0 pciBarCount=4
+H2   bar[0] flags=0x0 barSize=64 MiB barSizeBytes=0x4000000 barOffset=0xf4000000
+H2   bar[1] flags=0x0 barSize=16384 MiB barSizeBytes=0x400000000 barOffset=0x1400000000
+H2   bar[2] flags=0x0 barSize=32 MiB barSizeBytes=0x2000000 barOffset=0x1810000000
+H2   bar[3] flags=0x0 barSize=0 MiB barSizeBytes=0x0 barOffset=0x0
+H3 FB_GET_INFO_V2 0x20801303 status=0x0
+H3   index 0x05 BAR1_SIZE(KiB) = 16777216 (0x1000000)
+H3   index 0x07 RAM_SIZE(KiB) = 16702464 (0xfedc00)
+H3   index 0x08 TOTAL_RAM_SIZE(KiB) = 16702464 (0xfedc00)
+H3   index 0x09 HEAP_SIZE(KiB) = 16323712 (0xf91480)
+H3   index 0x0a MAPPABLE_HEAP_SIZE(KiB) = 0 (0x0)
+H3   index 0x10 FB_TAX_SIZE_KB = 0 (0x0)
+H3   index 0x11 HEAP_BASE_KB = 0 (0x0)
+H3   index 0x12 LARGEST_FREE_REGION_SIZE_KB = 16305280 (0xf8cc80)
+H3   index 0x13 LARGEST_FREE_REGION_BASE_KB = 18432 (0x4800)
+H3   index 0x16 HEAP_FREE(KiB) = 16306048 (0xf8cf80)
+H3   index 0x1d BAR1_AVAIL_SIZE(KiB) = 16774528 (0xfff580)
+H3   index 0x1e HEAP_START(KiB) = 0 (0x0)
+H3   index 0x1f BAR1_MAX_CONTIGUOUS_AVAIL_SIZE(KiB) = 16774528 (0xfff580)
+H3   index 0x20 USABLE_RAM_SIZE(KiB) = 16454080 (0xfb11c0)
+H3   index 0x27 HEAP_OFFLINE_SIZE(KiB) = 0 (0x0)
+H3   index 0x29 SUSPEND_RESUME_RSVD_SIZE(bytes) = 536870912 (0x20000000)
+H4 FB_GET_FB_REGION_INFO 0x20801320 status=0x0 numFBRegions=1
+H4   region[0] base=0x0 limit=0x3e451ffff (15941 MiB) reserved=0x0 performance=4 compressed=1 iso=1 protected=0 tag=0
+H5 GR_GET_GPC_MASK 0x2080122a status=0x0 gpcMask=0x7
+H5 GR_GET_GFX_GPC_AND_TPC_INFO 0x20801239 status=0x0 physGfxGpcMask=0x7 numGfxTpc=18
+H5   gpc 0: TPC_MASK status=0x0 tpcMask=0x3f; NUM_TPCS status=0x0 numTpcs=6; ZCULL_MASK status=0x0 zcullMask=0xf; PES_INFO status=0x1f numPesInGpc=0 activePesMask=0x0 maxTpcPerGpcCount=0 tpcToPesMap=[0,0,0,0,0,0,0,0,0,0]
+H5   gpc 1: TPC_MASK status=0x0 tpcMask=0x3f; NUM_TPCS status=0x0 numTpcs=6; ZCULL_MASK status=0x0 zcullMask=0xf; PES_INFO status=0x1f numPesInGpc=0 activePesMask=0x0 maxTpcPerGpcCount=0 tpcToPesMap=[0,0,0,0,0,0,0,0,0,0]
+H5   gpc 2: TPC_MASK status=0x0 tpcMask=0x3f; NUM_TPCS status=0x0 numTpcs=6; ZCULL_MASK status=0x0 zcullMask=0xf; PES_INFO status=0x1f numPesInGpc=0 activePesMask=0x0 maxTpcPerGpcCount=0 tpcToPesMap=[0,0,0,0,0,0,0,0,0,0]
+H6 CE_GET_ALL_CAPS 0x20802a0a status=0x0 present=0x91
+H6   ce 0 caps0=0xe3 caps1=0x03 [GRCE,SHARED,SYSMEM,P2P,BL_SIZE_GT_64K,NONPIPELINED_BL,PIPELINED_BL]
+H6   ce 4 caps0=0xe4 caps1=0x03 [SYSMEM_READ,SYSMEM,P2P,BL_SIZE_GT_64K,NONPIPELINED_BL,PIPELINED_BL]
+H6   ce 7 caps0=0xea caps1=0x03 [SHARED,SYSMEM_WRITE,SYSMEM,P2P,BL_SIZE_GT_64K,NONPIPELINED_BL,PIPELINED_BL]
+H7 MC_GET_STATIC_INTR_TABLE 0x2080170e status=0x0 numEntries=16
+H7   entry 0: nv2080IntrType=1 pmcIntrMask=0x0 intrVectorStall=0x84 intrVectorNonStall=0x84
+H7   entry 1: nv2080IntrType=2 pmcIntrMask=0x0 intrVectorStall=0x85 intrVectorNonStall=0x85
+H7   entry 2: nv2080IntrType=3 pmcIntrMask=0x0 intrVectorStall=0x86 intrVectorNonStall=0x86
+H7   entry 3: nv2080IntrType=4 pmcIntrMask=0x0 intrVectorStall=0x40 intrVectorNonStall=0x40
+H7   entry 4: nv2080IntrType=5 pmcIntrMask=0x0 intrVectorStall=0x83 intrVectorNonStall=0x83
+H7   entry 5: nv2080IntrType=6 pmcIntrMask=0x0 intrVectorStall=0x48 intrVectorNonStall=0x48
+H7   entry 6: nv2080IntrType=7 pmcIntrMask=0x0 intrVectorStall=0x94 intrVectorNonStall=0x94
+H7   entry 7: nv2080IntrType=8 pmcIntrMask=0x0 intrVectorStall=0x81 intrVectorNonStall=0x81
+H7   entry 8: nv2080IntrType=9 pmcIntrMask=0x0 intrVectorStall=0xffffffff intrVectorNonStall=0xffffffff
+H7   entry 9: nv2080IntrType=10 pmcIntrMask=0x0 intrVectorStall=0xffffffff intrVectorNonStall=0xffffffff
+H7   entry 10: nv2080IntrType=11 pmcIntrMask=0x0 intrVectorStall=0xffffffff intrVectorNonStall=0xffffffff
+H7   entry 11: nv2080IntrType=12 pmcIntrMask=0x0 intrVectorStall=0xffffffff intrVectorNonStall=0xffffffff
+H7   entry 12: nv2080IntrType=13 pmcIntrMask=0x0 intrVectorStall=0xffffffff intrVectorNonStall=0xffffffff
+H7   entry 13: nv2080IntrType=14 pmcIntrMask=0x0 intrVectorStall=0xffffffff intrVectorNonStall=0xffffffff
+H7   entry 14: nv2080IntrType=15 pmcIntrMask=0x0 intrVectorStall=0xffffffff intrVectorNonStall=0xffffffff
+H7   entry 15: nv2080IntrType=16 pmcIntrMask=0x0 intrVectorStall=0xffffffff intrVectorNonStall=0xffffffff
+H7 MC_GET_ENGINE_NOTIFICATION_INTR_VECTORS 0x2080170d status=0x56 numEntries=0
+H7 MC_GET_INTR_CATEGORY_SUBTREE_MAP 0x2080170f status=0x0
+H7   DEFAULT subtreeMask=0x0
+H7   ESCHED_DRIVEN_ENGINE subtreeMask=0x8
+H7   ESCHED_DRIVEN_ENGINE_NOTIFICATION subtreeMask=0x1
+H7   RUNLIST subtreeMask=0x10
+H7   RUNLIST_NOTIFICATION subtreeMask=0x20
+H7   UVM_OWNED subtreeMask=0x2
+H7   UVM_SHARED subtreeMask=0x4
