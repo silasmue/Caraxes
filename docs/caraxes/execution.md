@@ -250,8 +250,10 @@ semaphore (payload + GPU timestamp) in guest sysmem (measured, d-ce-diag / d-ce-
      so the unprivileged client may call it. A host failure is logged and the register still reads
      complete: the guest RM could only time out and continue. FB_FLUSH, PEERMEM_INVALIDATE and
      CLEAN_COMPTAGS complete with no host operation: there are no peers, and under D16 nothing
-     comptag-related reaches the host. Unit tests pass. The hardware run on vm2 (the sequence of
-     bench `v2-hang`) is pending: while vm1 held the one fixed reservation, vm2 could not take one.
+     comptag-related reaches the host. On vm2 the bench `v2-hang` sequence
+     (ten CUDA processes) then takes 8.8-10.2 s per process instead of ~69 s: each context's two
+     evicts are polled once and read complete, the guest logs no cache-op timeout, and the host
+     logs no Xid.
 
 
 Every Xid seen while iterating was contained to the device process (its pid), on our own

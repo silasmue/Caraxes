@@ -1,0 +1,10 @@
+04:31:49 [./nvprobe 1] 8806 ms: stage 0 ok (cuInit) stage 1 ok (context, sched=auto) rc=0 
+04:31:59 [./nvprobe 1] 9934 ms: stage 0 ok (cuInit) stage 1 ok (context, sched=auto) rc=0 
+04:32:09 [./nvprobe 3] 9811 ms: stage 1 ok (context, sched=auto) stage 2 ok (memory) stage 3 ok (kernel, result correct) rc=0 
+04:32:19 [./bench-cu init] 10202 ms: INIT cuinit_ms=222.473 devget_ms=0.001 ctxcreate_ms=5848.631 ctxdestroy_ms=3863.505 rc=0 
+04:32:28 [./nvprobe 1] 9464 ms: stage 0 ok (cuInit) stage 1 ok (context, sched=auto) rc=0 
+04:32:38 [./bench-cu init] 9976 ms: INIT cuinit_ms=230.580 devget_ms=0.001 ctxcreate_ms=5688.951 ctxdestroy_ms=3827.963 rc=0 
+04:32:48 [./nvprobe 3] 9916 ms: stage 1 ok (context, sched=auto) stage 2 ok (memory) stage 3 ok (kernel, result correct) rc=0 
+04:32:57 [./nvprobe 1] 9207 ms: stage 0 ok (cuInit) stage 1 ok (context, sched=auto) rc=0 
+04:33:07 [./nvprobe 3] 9411 ms: stage 1 ok (context, sched=auto) stage 2 ok (memory) stage 3 ok (kernel, result correct) rc=0 
+04:33:16 [./bench-cu init] 9293 ms: INIT cuinit_ms=189.922 devget_ms=0.002 ctxcreate_ms=5262.541 ctxdestroy_ms=3629.687 rc=0 

@@ -120,7 +120,7 @@ pub struct ChipDisplay {
     pub i2c_port: u32,
     pub vga_workspace_base: u32,
     pub intr_vector: u32,
-    /// The GSP stall vector (chips/<chip>/interrupts.toml): raised after the device
+    /// The GSP stall vector (`chips/<chip>/interrupts.toml`): raised after the device
     /// posts a hotplug event on the status queue.
     pub gsp_vector: u32,
     /// Per-head pixel clock cap (HEAD_CLK_CAP, display-scaling.md section 2.2), kHz.
