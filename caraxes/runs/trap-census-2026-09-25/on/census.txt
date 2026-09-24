@@ -1,0 +1,6 @@
+# marker resource /sys/bus/pci/devices/0000:00:05.0/resource0
+OP name=cuInit id=2 reps=1 per_rep=1 med_us=51408.0 min_us=51408.0 max_us=51408.0
+OP name=cuInit id=2 reps=1 per_rep=1 med_us=40574.0 min_us=40574.0 max_us=40574.0
+OP name=cuInit id=2 reps=1 per_rep=1 med_us=20633.1 min_us=20633.1 max_us=20633.1
+Read from remote host 192.168.103.23: Connection reset by peer
+client_loop: send disconnect: Broken pipe

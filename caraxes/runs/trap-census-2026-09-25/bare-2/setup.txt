@@ -1,0 +1,26 @@
+NVRM version: NVIDIA UNIX Open Kernel Module for x86_64  615.71.09  Release Build  (root@)  
+3235d99b124b4bf4cdd2d3426b3d7f4553e551d52123628af46b3d30c0d01ee4  /mnt/vmstore/caraxes/vfio-user-nvgpu-main-1ea2529
+bc9aaf8 generated tables regenerated after the round-2 D merge (surface.rs, dmodel.rs for both trees)
+4612c18e519913f17f5628ca0042402726c72a13d302e355b96427dc2a090287  census-cu
+5a8a5cd0e8086924ec4be0d88fe985608fb1a46646d8ed9fa119bf4936f98271  census.cubin
+1f921680fc7a2c2e0978eb007cc0ab48d2f1a7cf404a196c9063a19a10aa228f  kernels.ptx
+CARAXES_BOOT_MODEL=1
+CARAXES_DMA=register
+CARAXES_FB_MIB=1024
+CARAXES_GATE_FB_MIB=1024
+CARAXES_HOST_EXEC=1
+CARAXES_HOST_RM=1
+CARAXES_IP=192.168.103.23
+CARAXES_LEANDRO_TEST=/home/silas/git/Leandro-Test
+CARAXES_MAC=02:00:00:00:00:23
+CARAXES_MIRROR_CHANNELS=1
+CARAXES_MIRROR_GR_SHADOW=1
+CARAXES_RESERVE_SLOT=5
+CARAXES_RESERVE_VRAM=1
+CARAXES_SERVER=/mnt/vmstore/caraxes/vfio-user-nvgpu-main-1ea2529
+CARAXES_TAP=caraxes3
+LEA_CH=/mnt/vmstore/caraxes/vm1/ch-0006-v.sh
+VM=vm3
+2026-09-25T01:08:01+02:00
+3.78 2.92 3.21
+1597595 /mnt/vmstore/caraxes/vm2/vfio-user-nvgpu --socket /mnt/vmstore/caraxes/vm2/gpu.sock --trace /mnt/vmstore/caraxes

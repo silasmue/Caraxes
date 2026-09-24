@@ -1,0 +1,40 @@
+vfio-user-nvgpu: bar2 memfd: guest BAR2 [0, 0x2000000) offered as 2 sparse mmap area(s) of region 3 from a sealed memfd; trapped page(s) ["0xfea000"]; synced at the trapped pages, MMU invalidates, BAR2 binds and GSP doorbells and every doorbell (CARAXES_BAR2_MEMFD=1, docs/caraxes/bar2-memfd.md)
+vfio-user-nvgpu: intr page: BAR0 [0x0, 0x1000) and the interrupt tree [0xb81000, 0xb82000) offered as sparse mmap areas of region 0 from a memfd; the reactor applies the guest's stores (sleep bound 1 ms, retrigger watchdog 10 ms) (CARAXES_INTR_PAGE=1, docs/caraxes/intr-page.md)
+vfio-user-nvgpu: doorbell tokens: BAR0 0xbb0090, 4 bytes, 64 sub-region(s) with datamatch 0xca700000..=0xca70003f and one eventfd each, offered through VFIO_USER_DEVICE_GET_REGION_IO_FDS; a channel gets a pool token at its first (trapped) doorbell, written to its work-submit-token notifier entry (CARAXES_DOORBELL_TOKENS=64, docs/caraxes/doorbell-token-pool.md)
+vfio-user-nvgpu: doorbell poll: hybrid reader (CARAXES_DOORBELL_POLL=hybrid, CARAXES_DOORBELL_POLL_CPU=Auto)
+vfio-user-nvgpu: doorbell poll: reader pinned to CPU 11 (auto: 93 % idle over 1 s; not CPU 0; VMM vCPU threads of pid 1525154 on CPU(s) [3, 5, 6, 7, 12, 13, 14, 15] at the sample, avoided)
+vfio-user-nvgpu: mirror: chid 2: host channel 0x800000a5 freed after 1 doorbell(s), 21936 ms of life [host]
+vfio-user-nvgpu: mirror: chid 3: host channel 0x800000a9 freed after 1 doorbell(s), 21931 ms of life [host]
+vfio-user-nvgpu: mirror: chid 4: host channel 0x800000ad freed after 1 doorbell(s), 21926 ms of life [host]
+vfio-user-nvgpu: mirror: chid 5: host channel 0x800000b1 freed after 1 doorbell(s), 21920 ms of life [host]
+vfio-user-nvgpu: mirror: chid 6: host channel 0x800000b5 freed after 1 doorbell(s), 21915 ms of life [host]
+vfio-user-nvgpu: mirror: chid 7: host channel 0x800000b9 freed after 1 doorbell(s), 21908 ms of life [host]
+vfio-user-nvgpu: mirror: chid 8: host channel 0x800000bd freed after 1 doorbell(s), 21899 ms of life [host]
+vfio-user-nvgpu: mirror: chid 9: host channel 0x800000c1 freed after 1 doorbell(s), 21882 ms of life [host]
+vfio-user-nvgpu: mirror: chid 10: host channel 0x800000c6 freed after 1 doorbell(s), 21871 ms of life [host]
+vfio-user-nvgpu: mirror: chid 11: host channel 0x800000c9 freed after 1 doorbell(s), 21870 ms of life [host]
+vfio-user-nvgpu: mirror: chid 12: host channel 0x800000cc freed after 1 doorbell(s), 21868 ms of life [host]
+vfio-user-nvgpu: mirror: chid 13: host channel 0x800000cf freed after 1 doorbell(s), 21865 ms of life [host]
+vfio-user-nvgpu: mirror: chid 14: host channel 0x800000d3 freed after 1 doorbell(s), 21857 ms of life [host]
+vfio-user-nvgpu: mirror: chid 15: host channel 0x800000d6 freed after 1 doorbell(s), 21855 ms of life [host]
+vfio-user-nvgpu: mirror: chid 16: host channel 0x800000d9 freed after 1 doorbell(s), 21829 ms of life [host]
+vfio-user-nvgpu: mirror: chid 17: host channel 0x800000dc freed after 1 doorbell(s), 21829 ms of life [host]
+vfio-user-nvgpu: mirror: chid 18: host channel 0x800000e0 freed after 1 doorbell(s), 21827 ms of life [host]
+vfio-user-nvgpu: mirror: chid 19: host channel 0x800000e3 freed after 1 doorbell(s), 21828 ms of life [host]
+vfio-user-nvgpu: mirror: chid 20: host channel 0x800000e6 freed after 1 doorbell(s), 21829 ms of life [host]
+vfio-user-nvgpu: mirror: chid 21: host channel 0x800000e9 freed after 1 doorbell(s), 21830 ms of life [host]
+vfio-user-nvgpu: mirror: tsg 0xc1d00011/0x5c000012: host TSG 0x800000a3 (engineType 0x1) freed [host]
+vfio-user-nvgpu: mirror: tsg 0xc1d00011/0x5c00003b: host TSG 0x800000c4 (engineType 0xb) freed [host]
+vfio-user-nvgpu: mirror: tsg 0xc1d00011/0x5c000049: host TSG 0x800000d1 (engineType 0xc) freed [host]
+vfio-user-nvgpu: mirror: tsg 0xc1d00011/0x5c000057: host TSG 0x800000de (engineType 0xd) freed [host]
+vfio-user-nvgpu: mirror: shadow: VAS 0x8000007f of guest root 0x69800000 handed to the worker for an incremental teardown (19 resync(s) skipped clean on this thread) [host]
+vfio-user-nvgpu: mirror: shadow: VAS of guest root 0x69800000 freed: 6 syncs (0 skipped clean, 1 full walks, 44 table reads, 76 units diffed; max 93391 us, total 96 ms), 118 maps (15617 leaves), 4 unmaps (0 partial, 0 failed), 0 map-failed, 0 over budget, 0 refused by the filter, 36 region objects (1 freed, 0 refused), 0 per-leaf objects; 15365 leaves in 114 RM mappings at the end; mapped PAs so far: vidmem [0x69a00000, 0xa7330000); sysmem chunks 0x7ffa00000000:110; incremental teardown: 114 RM mapping(s) unmapped (0 failed) and 35 virtual object(s) freed in 4 step(s) of at most 64, the host RM lock released between steps, 16 ms in total [host]
+vfio-user-nvgpu: mirror: shadow: VAS of guest root 0x69800000 freed: 1 syncs (0 skipped clean, 0 full walks, 39 table reads, 36 units diffed; max 1345021 us, total 1345 ms), 15364 maps (15365 leaves), 0 unmaps (0 partial, 0 failed), 0 map-failed, 0 over budget, 0 refused by the filter, 35 region objects (0 freed, 0 refused), 0 per-leaf objects; 15365 leaves in 15364 RM mappings at the end; mapped PAs so far: vidmem [0x69a00000, 0x6a400000); sysmem chunks 0x7ffa00000000:15359; incremental teardown: 15364 RM mapping(s) unmapped (0 failed) and 35 virtual object(s) freed in 243 step(s) of at most 64, the host RM lock released between steps, 2212 ms in total [host]
+vfio-user-nvgpu: mirror: host doorbell object 0x8000003a freed: Ok(())
+vfio-user-nvgpu: mirror: host OS events freed, event thread stopped
+bar2 memfd: BAR2 [0, 0x2000000) in host RAM, trapped page(s) [0xfea000] with 872 access(es); 1904 sync(s) (167055 us total, 2254 us max), 174786 page compare(s), 442 dirty page(s), 332889 byte(s) written back, 0 alias conflict(s); 90 BAR2 table walk(s), 121 page(s) entered (119 loaded), 1 left; now 118 page(s) mapped at 120 BAR2 page(s), at most 118 live and 2 alias(es) of one page; 0 sysmem write-back(s) skipped (docs/caraxes/bar2-memfd.md)
+mirror: 40 channel(s) created, 40 freed, 0 live; 40 doorbell(s) forwarded, 0 TLB invalidate(s) (0 MEM_OP push(es), 0 slow), 0 refusal(s), longest mirror build 0 us; events raised 40081, MSIs 39886 (coalesced 6), host RC events 0
+doorbell tokens: 64 offered (0xca700000..), 40 handed out, 0 written again, 20 assigned at exit (peak 20); 0 eventfd wakeup(s) for 0 guest write(s); 0 pool token(s) trapped; 0 trapped ring(s) with a channel's own token after its hand-out; 0 stale; left on their own token: 0 without notifier, 0 notifier mismatch, 0 pool exhausted
+bar1 pool: guest BAR1 [0, 0x2000000) on the pool FB [0xa7600000, 0xa9600000); 5 poll(s), 16 unit walk(s); 0 page(s) in the pool now; moved in 0 cold + 0 behind the barrier, back 0 cold + 0 behind the barrier; 0 barrier(s) (0 refused, 0 TSG preempt(s)); 0 refused, 0 pending now, 0 sysmem page(s) in the area; copied 0 KiB in, 0 KiB back in 0 us; 0 page-table hazard(s); slowest poll 2341 us (docs/caraxes/bar1-pool.md)
+doorbell poll (tokens): hybrid (200 us idle), pinned to CPU 11; 29474081 loop iteration(s), 40075 with events, 397826 blocking wait(s); 0 eventfd event(s) for 0 guest write(s); ring to host doorbell: 0 ring(s), mean 0.00 us, p50 0.0 us, p99 0.0 us, max 0.0 us (0 ring(s) without a host doorbell); Device lock wait per wakeup: mean 0.00 us, p50 0.0 us, p99 0.0 us, max 0.0 us; reader CPU 16.683 s (4.0 %) in 416.4 s
+intr page: 80936 scan(s) with work (slowest 2277.7 us); guest stores applied: 39504 ack(s), 892 LEAF_EN_SET, 1805 LEAF_EN_CLEAR, 1292 TOP_EN_SET, 900 TOP_EN_CLEAR, 1 trigger(s); 40075 raise fold(s) (598 coalesced while pending, 26 pended again at the ack); MSIs: 39504 for raises, 4 re-arms (a set store while a vector is pending), 378 by the watchdog, 0 not written (MSI off or no eventfd); 86 compare-and-swap(s) lost to a guest store; inconsistencies: none
