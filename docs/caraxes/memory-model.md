@@ -130,11 +130,99 @@ the module path.
   the host owns the real flush register. 960 GiB lies above every host 32-bit IOVA and
   below the 64-bit ones, so a stray DMA there faults instead of reaching host memory.
 - **The risk (part 2).** Up to about 2 MiB of ordinary guest RAM around the pool (the
-  2 MiB rounding) shares the alias. A DMA buffer the guest places there would fault on the
-  physical GPU. The device's own table does not carry the alias: it never reads the flush
-  buffer, and an access would show as a refused address.
+  2 MiB rounding) shares the alias. Until 2026-09-24 the device's own table did not carry
+  the alias, and a DMA buffer the guest placed there faulted on the physical GPU. That
+  happened (Xid 31 in cuda-hostreg); the device now follows the alias, see "The alias in
+  the device" below.
 - **The clean fix.** A registered chunk below 2^40. That is possible only before the
   host's 64-bit switch, or with a host-side IOVA mapping (S4).
+
+### The alias in the device (Xid 31 in cuda-hostreg, 2026-09-24)
+
+**What happened.** The cuda gate of the 610 guest on vm1 (main 7621cfb, 1 GiB profile at
+slot 4; `caraxes/runs/gsp-bc-2026-09-24/gpu-vm1/`) failed cuda-hostreg with `D Memcpy HtoD
+(reg): 719 unspecified launch failure`. The host logged one Xid 31 on the device pid 508533:
+`MMU Fault: ENGINE CE2 HUBCLIENT_CE0 faulted @ 0x100_0bb0f000, FAULT_PTE
+ACCESS_TYPE_VIRT_READ`. The rerun of the same script and binary passed, with 0 Xid.
+
+**Cause.** The address is a GPU VA, not a sysmem address: hostregprobe's registered 2 MiB
+buffer was mapped at 0x1000ba00000 (`guest/cuda-hostreg.log` of the gate run), and
+0x1000bb0f000 is offset 0x10f000 into it. The device trace of the stage
+(`gate-cuda-2026-09-24-10/device/cuda-hostreg.trace:2998-3021` in the record) has 24
+lines `shadow: REFUSED leaf va 0x1000bb0f000 -> Sys(f0040b7000) ... sysmem outside the
+registered guest-RAM ranges`. The first refused leaf is the faulting VA. The refused IOVAs
+are all in the alias window, at offsets 0xa0000-0xb6000 and 0x40b7000-0x40bf000. That run's
+guest pool was `[0xba2b7000, 0xbe2b7000)`, aliased from GPA 0xba200000
+(`/mnt/vmstore/caraxes/vm1/probe-gspbc/dma.txt`). So the refused pages are exactly the two
+rounding margins `[0xba200000, 0xba2b7000)` and `[0xbe2b7000, 0xbe400000)`: ordinary guest
+pages that the kernel handed to the probe's `posix_memalign`. The guest translated them
+through its table to the alias, as it must.
+
+The device's own table has no alias. The shadow filter (`resolve_leaf`, shadow.rs:94)
+refused those leaves, as D16/D17 require for an address it cannot place. The shadow VA
+space then had no PTE there, and the copy engine faulted on the VM's own channel. The
+fault stayed on the device pid, so isolation held. Whether the probe gets margin pages
+depends on the guest's free lists, which is why the earlier gates and the rerun passed.
+The B and C changes (hostrm.rs, the forward table, the withheld resets) play no part:
+no control of the probe was refused, and the stage's only non-zero status is the usual
+`GPU_QUERY_ECC_STATUS -> 0x56`.
+
+**Fix** (commit "vfio-user-nvgpu: follow the guest's swiotlb alias").
+- The launcher already records the table it installs in the guest,
+  `$W/dma-ranges.guest`. It now writes the file atomically (tools/caraxes-vm.sh:371), and
+  `up` removes the previous boot's file (:186).
+- At every reset the device reads that file (device.rs:591 `load_guest_aliases`, called
+  from the function-level reset at :925 and the vfio-user reset at :986). The launcher's
+  `dma` step always resets the function after `insmod`.
+- `DmaTable::aliases_of` (dmamap.rs:228) accepts the guest's table only under three
+  conditions:
+  - it describes exactly the registered guest RAM;
+  - every entry either translates as the device's table does or lies wholly outside the
+    device's IOVAs;
+  - every alias names registered GPAs only.
+
+  Anything else gives an `ERROR dma table: guest table ... refused` line, and the aliases
+  stay off (the old behaviour). A missing file means no aliases.
+- `GuestMemory::translate` (guestmem.rs:100) also accepts an alias address. So the device's
+  own accesses follow it too: USERD, error notifiers, semaphores and sysmem page tables.
+- `GuestMemory::host_iova` (guestmem.rs:156) gives the registered host IOVA of the same
+  guest page. The shadow plan resolves every sysmem leaf through it (shadow.rs:133
+  `host_target`, used at :480), so an alias leaf maps from the registered descriptor at its
+  page's offset. The leaf keeps the guest's address as its identity for the diff.
+
+**Isolation.** An alias can only name pages of this VM's own registered guest RAM.
+`aliases_of` checks that each alias's GPA range is covered by the device's table and that
+no alias reuses an IOVA the device's table gives another meaning. The physical GPU still
+never sees an alias IOVA: the shadow maps the leaf from the guest-RAM descriptor. What
+changes for the GPU is that the shadow now maps pages the filter used to refuse. The pool
+itself is included, which also makes bounced DMA work.
+
+**Tests** (`cargo test -p vfio-user-nvgpu`, 287 unit tests pass):
+- `dmamap::tests::the_guest_alias_is_accepted_and_nothing_else`: the alias is accepted.
+  Refused are unregistered RAM, a missing chunk, and swapped chunks.
+- `guestmem::tests::the_guest_alias_reaches_the_same_pages`: reads through the alias, the
+  host IOVA and the entry bounds.
+- `shadow::tests::a_leaf_at_the_guest_alias_maps_from_the_registered_descriptor`: a plan
+  on the fake FB. Without the aliases the alias leaf is refused (the Xid case). With them
+  it maps from descriptor 7 at offset 0x20_1000, and a leaf past the entry stays refused.
+
+**Reproduction on the GPU.** The new probe `caraxes/tools/hostreg-margin.c` makes the case
+deterministic:
+1. It allocates guest RAM in 2 MiB chunks without THP.
+2. It reads the frames from `/proc/self/pagemap` and keeps the chunks that own margin pages.
+3. It registers each kept chunk (DEVICEMAP) and checks an HtoD/DtoH round trip byte by byte.
+
+Runs: `caraxes/runs/xid31-hostreg-2026-09-24/` (run.sh, `before` with the 7621cfb binary,
+`after` with the fix; record.md there):
+- **Before**, main 7621cfb, device pid 1131576: hostreg-margin failed with the case's own
+  numbers, `719 unspecified launch failure`, `bad=2088960`. The host logged two Xid 31 on
+  the device pid, `CE2 HUBCLIENT_CE0 ... FAULT_PTE`.
+- **After**, the fix, device pid 1151433:
+  - hostreg-margin passed 20 of 20, with 256-512 margin pages per iteration;
+  - hostregprobe passed 20 of 20;
+  - the full cuda gate passed 10 of 11 (cuda-managed has the 801 it has in every gate
+    that day);
+  - 0 host Xid.
 
 ## 3. Launcher
 

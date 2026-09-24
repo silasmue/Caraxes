@@ -1,0 +1,29 @@
+# SPDX-License-Identifier: MIT
+# Excerpt of caraxes/runs/gsp-bc-2026-09-24/gpu-vm1/gate-cuda-run/gate-cuda-2026-09-24-10/
+# device/cuda-hostreg.trace lines 2998-3030 (device traces are not committed): the failing
+# window, main 7621cfb, device pid 508533. The faulting VA 0x1000bb0f000 is the first refused leaf.
+   302879448 E boot: shadow: REFUSED leaf va 0x1000bb0f000 -> Sys(f0040b7000) size 0x1000 kind 0x6: sysmem outside the registered guest-RAM ranges (never mapped) [D16/D17]
+   302879449 E boot: shadow: REFUSED leaf va 0x1000bb12000 -> Sys(f0000b6000) size 0x1000 kind 0x6: sysmem outside the registered guest-RAM ranges (never mapped) [D16/D17]
+   302879450 E boot: shadow: REFUSED leaf va 0x1000bb19000 -> Sys(f0000b4000) size 0x1000 kind 0x6: sysmem outside the registered guest-RAM ranges (never mapped) [D16/D17]
+   302879452 E boot: shadow: REFUSED leaf va 0x1000bb1a000 -> Sys(f0000b5000) size 0x1000 kind 0x6: sysmem outside the registered guest-RAM ranges (never mapped) [D16/D17]
+   302879453 E boot: shadow: REFUSED leaf va 0x1000bb23000 -> Sys(f0000b0000) size 0x1000 kind 0x6: sysmem outside the registered guest-RAM ranges (never mapped) [D16/D17]
+   302879454 E boot: shadow: REFUSED leaf va 0x1000bb24000 -> Sys(f0000b1000) size 0x1000 kind 0x6: sysmem outside the registered guest-RAM ranges (never mapped) [D16/D17]
+   302879456 E boot: shadow: REFUSED leaf va 0x1000bb25000 -> Sys(f0000b2000) size 0x1000 kind 0x6: sysmem outside the registered guest-RAM ranges (never mapped) [D16/D17]
+   302879457 E boot: shadow: REFUSED leaf va 0x1000bb26000 -> Sys(f0000b3000) size 0x1000 kind 0x6: sysmem outside the registered guest-RAM ranges (never mapped) [D16/D17]
+   302879458 E boot: shadow: REFUSED leaf va 0x1000bb4f000 -> Sys(f0040b8000) size 0x1000 kind 0x6: sysmem outside the registered guest-RAM ranges (never mapped) [D16/D17]
+   302879459 E boot: shadow: REFUSED leaf va 0x1000bb50000 -> Sys(f0040b9000) size 0x1000 kind 0x6: sysmem outside the registered guest-RAM ranges (never mapped) [D16/D17]
+   302879461 E boot: shadow: REFUSED leaf va 0x1000bb51000 -> Sys(f0040ba000) size 0x1000 kind 0x6: sysmem outside the registered guest-RAM ranges (never mapped) [D16/D17]
+   302879462 E boot: shadow: REFUSED leaf va 0x1000bb52000 -> Sys(f0040bb000) size 0x1000 kind 0x6: sysmem outside the registered guest-RAM ranges (never mapped) [D16/D17]
+   302879468 E boot: shadow: REFUSED leaf va 0x1000bb53000 -> Sys(f0040bc000) size 0x1000 kind 0x6: sysmem outside the registered guest-RAM ranges (never mapped) [D16/D17]
+   302879469 E boot: shadow: REFUSED leaf va 0x1000bb54000 -> Sys(f0040bd000) size 0x1000 kind 0x6: sysmem outside the registered guest-RAM ranges (never mapped) [D16/D17]
+   302879470 E boot: shadow: REFUSED leaf va 0x1000bb55000 -> Sys(f0040be000) size 0x1000 kind 0x6: sysmem outside the registered guest-RAM ranges (never mapped) [D16/D17]
+   302879472 E boot: shadow: REFUSED leaf va 0x1000bb56000 -> Sys(f0040bf000) size 0x1000 kind 0x6: sysmem outside the registered guest-RAM ranges (never mapped) [D16/D17]
+   302879473 E boot: shadow: REFUSED leaf va 0x1000bb7f000 -> Sys(f0000a0000) size 0x1000 kind 0x6: sysmem outside the registered guest-RAM ranges (never mapped) [D16/D17]
+   302879474 E boot: shadow: REFUSED leaf va 0x1000bb80000 -> Sys(f0000a1000) size 0x1000 kind 0x6: sysmem outside the registered guest-RAM ranges (never mapped) [D16/D17]
+   302879475 E boot: shadow: REFUSED leaf va 0x1000bb81000 -> Sys(f0000a2000) size 0x1000 kind 0x6: sysmem outside the registered guest-RAM ranges (never mapped) [D16/D17]
+   302879477 E boot: shadow: REFUSED leaf va 0x1000bb82000 -> Sys(f0000a3000) size 0x1000 kind 0x6: sysmem outside the registered guest-RAM ranges (never mapped) [D16/D17]
+   302879478 E boot: shadow: REFUSED leaf va 0x1000bb83000 -> Sys(f0000a4000) size 0x1000 kind 0x6: sysmem outside the registered guest-RAM ranges (never mapped) [D16/D17]
+   302879479 E boot: shadow: REFUSED leaf va 0x1000bb84000 -> Sys(f0000a5000) size 0x1000 kind 0x6: sysmem outside the registered guest-RAM ranges (never mapped) [D16/D17]
+   302879480 E boot: shadow: REFUSED leaf va 0x1000bb85000 -> Sys(f0000a6000) size 0x1000 kind 0x6: sysmem outside the registered guest-RAM ranges (never mapped) [D16/D17]
+   302879482 E boot: shadow: REFUSED leaf va 0x1000bb86000 -> Sys(f0000a7000) size 0x1000 kind 0x6: sysmem outside the registered guest-RAM ranges (never mapped) [D16/D17]
+   302921116 E boot: shadow: sync 0 leaves walked in 1 unit(s), 0 table read(s) (0 set-A, 0 set-B excluded, 1 refused now) -> 463 unmapped, 0 mapped in 0 call(s), 0 failed, 0 over budget; mirrored 19367 leaves in 958 RM mapping(s) (981 before), 86 region object(s) + 0 leaf object(s); device live maps 958/32768; totals: 985 maps (20082 leaves), 27 unmaps (0 partial, 0 failed), 0 map-failed, 0 over 

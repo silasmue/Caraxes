@@ -1,0 +1,9 @@
+margins [0xba200000, 0xba2b7000) and [0xbe2b7000, 0xbe400000): 512 pages
+scanned 1471 chunks (2942 MiB): 467 margin pages in 6 chunks
+chunk 195: 3 margin pages (first GPA 0xba280000), dptr 0x1000bc00000: HtoD 0 ok, DtoH 0 ok, bad=0 correct
+chunk 196: 16 margin pages (first GPA 0xbe2e8000), dptr 0x1000bc00000: HtoD 0 ok, DtoH 0 ok, bad=0 correct
+chunk 197: 32 margin pages (first GPA 0xba2a0000), dptr 0x1000bc00000: HtoD 0 ok, DtoH 0 ok, bad=0 correct
+chunk 200: 32 margin pages (first GPA 0xbe2c0000), dptr 0x1000bc00000: HtoD 0 ok, DtoH 0 ok, bad=0 correct
+chunk 216: 128 margin pages (first GPA 0xba200000), dptr 0x1000bc00000: HtoD 0 ok, DtoH 0 ok, bad=0 correct
+chunk 232: 256 margin pages (first GPA 0xbe300000), dptr 0x1000bc00000: HtoD 0 ok, DtoH 0 ok, bad=0 correct
+PASS: 6 of 6 margin chunks round-tripped correctly

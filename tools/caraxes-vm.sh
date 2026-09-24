@@ -181,7 +181,9 @@ up() {
     [[ ${CARAXES_DISPLAY:-0} == 1 ]] && vbios+=(--display)
     [[ -n ${CARAXES_GUEST_ABI:-} ]] && vbios+=(--guest-abi "$CARAXES_GUEST_ABI")
     local server=$SERVER
-    rm -f "$W/dma-ranges"
+    # The guest's table of an earlier boot goes too: the device reads it at every reset
+    # (device.rs `load_guest_aliases`) and must not see one this guest has not installed.
+    rm -f "$W/dma-ranges" "$W/dma-ranges.guest"
     case ${CARAXES_DMA:-} in
         '') ;;
         register) vbios+=(--register-guest-ram --dma-ranges "$W/dma-ranges"); server=$(privileged_server)
@@ -363,7 +365,10 @@ dma_load() {
             || error "cannot alias the swiotlb pool $pool"
         echo "dma table: swiotlb pool [0x$lo, 0x$hi) aliased below 2^40"
     fi
-    echo "$ranges" > "$W/dma-ranges.guest"
+    # The device reads this at the reset below and translates the alias (its 2 MiB
+    # rounding holds ordinary guest pages too) to the same registered pages (memory-model.md
+    # §2, "The alias in the device"). Renamed into place, so it never reads half a table.
+    echo "$ranges" > "$W/dma-ranges.guest.tmp" && mv "$W/dma-ranges.guest.tmp" "$W/dma-ranges.guest"
     if ! do_ssh 'test -f caraxes_dma_range/caraxes_dma_range.ko'; then
         tar -C "$LEA_ROOT/guest-module" -cf - caraxes_dma_range | do_ssh 'rm -rf caraxes_dma_range && tar xf - && make -C caraxes_dma_range >/dev/null'
     fi

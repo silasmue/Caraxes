@@ -1,0 +1,2 @@
+margins [0xba200000, 0xba2b7000) and [0xbe2b7000, 0xbe400000): 512 pages
+scanned 1483 chunks (2966 MiB): 0 margin pages in 0 chunks

@@ -1,0 +1,4 @@
+margins [0xba200000, 0xba2b7000) and [0xbe2b7000, 0xbe400000): 512 pages
+scanned 1482 chunks (2964 MiB): 511 margin pages in 2 chunks
+chunk 181: 173 margin pages (first GPA 0xbe2b7000), dptr 0x1000bc00000: HtoD 719 unspecified launch failure, DtoH 719 unspecified launch failure, bad=2088960 WRONG
+FAIL: 0 of 2 margin chunks round-tripped correctly
