@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: MIT
 # SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
 # SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
-# Run the 17 software checks from a writable source checkout; no GPU or VM needed.
+# Run the 18 software checks from a writable source checkout; no GPU or VM needed.
 # Usage: tools/check.sh
 # Each check runs even if an earlier check fails. Exit 0 if all pass, 1 otherwise.
 set -uo pipefail
@@ -393,6 +393,32 @@ abi_generated() {
     echo "abi: no diff; $(lea_supported_drivers | wc -l) versions, each alone and all together"
 }
 
+# The recorded GSP ABI baseline (decision D20, docs/caraxes/gsp-abi-615.md): the tables
+# document must be the rendering of the 615.71.09 snapshot, and the snapshot must equal a
+# fresh one of the 615.71.09 tree on the driver side (sizes, layouts, routing, privilege,
+# numbers). The tree is $CARAXES_OGKM_615, else the Leandro checkout beside this repository,
+# else the NAS copy; without one (or without cc and clang) the drift half is skipped with a
+# note. A changed device answer is reported, not failed: rerun the snapshot to record it.
+gsp_abi_baseline() {
+    local snap=caraxes/abi/gsp-615.71.09 tables=docs/caraxes/gsp-abi-615-tables.md tree="" c common
+    python3 caraxes/tools/gsp-abi.py render "$snap" --check "$tables" || return 1
+    common=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null)
+    for c in "${CARAXES_OGKM_615:-}" "${common:+$common/../../Leandro/vendor/open-gpu-kernel-modules}" \
+             /mnt/vmstore/caraxes/ogkm-615.71.09; do
+        if [[ -n $c && -f $c/version.mk ]] && grep -qE '^NVIDIA_VERSION *= *615\.71\.09$' "$c/version.mk"; then
+            tree=$c; break
+        fi
+    done
+    if [[ -z $tree ]]; then
+        echo "note: no 615.71.09 tree found (CARAXES_OGKM_615, ../Leandro, /mnt/vmstore) -- drift check skipped"
+        return 0
+    fi
+    for c in cc clang; do
+        command -v "$c" >/dev/null 2>&1 || { echo "note: $c not installed -- drift check skipped"; return 0; }
+    done
+    python3 caraxes/tools/gsp-abi.py diff --strict "$snap" "$tree"
+}
+
 dangling_refs() {
     local J='JOURNA''L' P='prompt''s/' hits
     hits=$(git ls-files | grep -vE "^(vendor/|patches/|crates/vhost-user-nvrm/fuzz/corpus/|${P}|docs/${J}\.md$)" \
@@ -443,6 +469,7 @@ do_check() {
     step "licence"              licence_headers
     step "abi"                  abi_generated
     step "nix-sparse"           nix_sparse_dirs
+    step "gsp-abi"              gsp_abi_baseline
     step "dangling-refs"        dangling_refs
     step "no-markers"           no_markers
     echo

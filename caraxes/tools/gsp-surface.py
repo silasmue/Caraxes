@@ -130,6 +130,21 @@ GSP_CLIENT_SENDS = {
     "INVALIDATE_TLB": "maybe", "GPU_EXEC_REG_OPS": "maybe",
 }
 
+# The same for a 615 GSP client on TU106 (docs/caraxes/gsp-plan/rpc-functions.md sections 2
+# and 4.3): GSP_SET_SYSTEM_INFO, SET_REGISTRY, GET_GSP_STATIC_INFO and SET_GUEST_SYSTEM_INFO are
+# replaced by GMCAPI_CMD_GSP_INIT, UNLOADING_GUEST_DRIVER by GMCAPI_CMD_GSP_SUSPEND, and
+# INVALIDATE_TLB has no GSP-client path; ALLOC_MEMORY is sent at every boot.
+GSP_CLIENT_SENDS_615 = {
+    "GSP_RM_CONTROL": "sent", "GSP_RM_ALLOC": "sent", "FREE": "sent",
+    "CONTINUATION_RECORD": "sent (large RPCs)", "UPDATE_BAR_PDE": "sent",
+    "INIT_GSP_TRACE_CRASH_BUFFER": "sent (regkey)", "ALLOC_MEMORY": "sent (event import)",
+    "DUP_OBJECT": "sent", "IDLE_CHANNELS": "maybe", "GPU_EXEC_REG_OPS": "maybe",
+    "DUMP_PROTOBUF_COMPONENT": "sent (debug dump)", "ECC_NOTIFIER_WRITE_ACK": "sent (RC path)",
+    "MAP_MEMORY_DMA": "maybe", "UNMAP_MEMORY_DMA": "maybe",
+}
+# Crate modules whose FN_/EV_ constants the boot.rs dispatch uses by path.
+CRATE_RPC_MODULES = ["gsprpc.rs", "gspmem.rs", "events.rs"]
+
 # nova-core (drm-rust-next 896ed0833627, gsp/fw.rs MsgFunction and gsp/commands.rs
 # `const FUNCTION`): the functions it sends and the events it waits for; the other
 # entries of MsgFunction are only decoded. docs/caraxes/nova.md sections 1.6 and 2.1.
@@ -566,7 +581,8 @@ def crate_constants():
     files = [os.path.join(CRATE, "ver", "v610.rs")] + sorted(
         glob.glob(os.path.join(CRATE, "ver", "v610", "*.rs")))
     for p in files + [os.path.join(CRATE, m) for _, m in DISPATCH] + [
-            os.path.join(CRATE, "boot.rs"), os.path.join(CRATE, "rpc.rs")]:
+            os.path.join(CRATE, "boot.rs"), os.path.join(CRATE, "rpc.rs")] + [
+            os.path.join(CRATE, m) for m in CRATE_RPC_MODULES]:
         for m in re.finditer(r"\bconst (\w+): u32 = (0x[0-9A-Fa-f_]+|\d+);", read(p)):
             consts.setdefault(m.group(1), hexint(m.group(2)))
     return consts, files
@@ -720,8 +736,9 @@ def crate_handlers(consts):
             if module == "boot":
                 for name, val in ids:
                     if name.startswith("FN_") or name.startswith("EV_"):
-                        how = "consumed (no reply)" if btext.strip().startswith("None") \
-                            else "answered"
+                        consumed = btext.strip().startswith("None") or (
+                            re.search(r"^\s*None\s*$", btext, re.M) and "Some(" not in btext)
+                        how = "consumed (no reply)" if consumed else "answered"
                         fn_handlers[name[3:]].append({"how": how, "src": src})
                 continue
             prov, labels = classify_arm(btext, helpers, sconsts)
@@ -743,6 +760,14 @@ def crate_handlers(consts):
     # Events the device sends.
     boot = read(os.path.join(CRATE, "boot.rs"))
     ev_names = {v: k for k, v in consts.items() if k.startswith("EV_")}
+    # Events queued as Unsolicited::Event (events.rs, sent by the drain in boot.rs).
+    for m in re.finditer(r"Unsolicited::Event\(\s*(?:crate::events::)?(EV_\w+)",
+                         strip_tests(boot)):
+        val = consts.get(m.group(1))
+        if val is not None:
+            line = boot.count("\n", 0, m.start()) + 1
+            fn_handlers["EVENT:%#x" % val].append({"how": "sent by the device",
+                                                   "src": "%s:%d" % (rel(os.path.join(CRATE, "boot.rs")), line)})
     for m in re.finditer(r"RpcHeader::event\(\s*(?:rpc::|v::)?(\w+)", boot):
         val = consts.get(m.group(1))
         if val is not None:
@@ -1084,7 +1109,9 @@ def build():
     extra = sorted(v for v in handlers if v not in by_id and v >= 0x10000)
 
     for f in funcs:
-        f["gsp_client"] = GSP_CLIENT_SENDS.get(f["name"], "")
+        major = DRIVER.split(".")[0]
+        sends = GSP_CLIENT_SENDS_615 if major.isdigit() and int(major) >= 615 else GSP_CLIENT_SENDS
+        f["gsp_client"] = sends.get(f["name"], "")
         f["nova"] = "sends" if f["name"] in NOVA_SENDS else (
             "decodes" if f["name"] in NOVA_KNOWS else "")
         hs = fn_handlers.get(f["name"], [])

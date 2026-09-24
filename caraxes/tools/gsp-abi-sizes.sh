@@ -22,6 +22,8 @@
 #   --check         compile with the minimal set, with the full driver set,
 #                   and (if available) with the other of gcc/clang; fail if
 #                   any two outputs differ. Prints the output once.
+#   --print-flags   print the minimal flag set for OGKM_DIR, one per line, and
+#                   exit (caraxes/tools/gsp-abi.py compiles the RPC structs with it)
 #   CC=...          compiler for the minimal set (default: cc). The driver
 #                   set is always compiled with GCC (GCC=..., default gcc):
 #                   under clang it makes nvport pick atomic_c11.h, which
@@ -47,6 +49,7 @@ src="$here/gsp-abi-sizes.c"
 
 mode=minimal
 check=0
+print_flags=0
 abi=""
 ogkm="$root/vendor/open-gpu-kernel-modules"
 [ -z "${CARAXES_OGKM:-}" ] || ogkm=$(cd "$CARAXES_OGKM" && pwd)
@@ -54,8 +57,9 @@ while [ $# -gt 0 ]; do
     case "$1" in
         --driver-flags) mode=driver ;;
         --check)        check=1 ;;
+        --print-flags)  print_flags=1 ;;
         --abi)          abi=$2; shift ;;
-        -h|--help)      sed -n '4,30p' "$0"; exit 0 ;;
+        -h|--help)      sed -n '4,32p' "$0"; exit 0 ;;
         -*)             echo "unknown option: $1" >&2; exit 2 ;;
         *)              ogkm=$(cd "$1" && pwd) ;;
     esac
@@ -140,6 +144,8 @@ driver_flags() {
         -DPORT_ASSERT_FAILED_USES_STRINGS=1 \
         -DGSP_ABI="$gsp_abi"
 }
+
+if [ "$print_flags" = 1 ]; then minimal_flags; exit 0; fi
 
 tmp=$(mktemp -d "${TMPDIR:-/tmp}/gsp-abi-sizes.XXXXXX")
 trap 'rm -rf "$tmp"' EXIT

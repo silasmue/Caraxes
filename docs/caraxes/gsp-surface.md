@@ -596,6 +596,13 @@ weeks, and what remains is the engine and display modelling that the milestones 
 
 ## 615.71.09
 
+**Baseline.** 615.71.09 is the recorded GSP ABI baseline (D20): the machine-readable
+snapshot of this surface is `caraxes/abi/gsp-615.71.09/`, its tables are
+[gsp-abi-615-tables.md](gsp-abi-615-tables.md), and [gsp-abi-615.md](gsp-abi-615.md) has the
+stable and unstable layers, the 610-to-615 delta and the workflow for later drivers
+(`caraxes/tools/gsp-abi.py`). The counts below are those of the day they were taken; the
+snapshot has the current ones.
+
 The same script against the 615.71.09 tree (`/mnt/vmstore/caraxes/ogkm-615.71.09`, commit 61dcc93,
 see [blackwell-gb206.md](blackwell-gb206.md) §3.1), run on 2026-09-24 as
 `python3 caraxes/tools/gsp-surface.py --ogkm /mnt/vmstore/caraxes/ogkm-615.71.09` (or with
