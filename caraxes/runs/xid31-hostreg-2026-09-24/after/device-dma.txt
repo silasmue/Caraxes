@@ -1,0 +1,3 @@
+vfio-user-nvgpu: dma table: 0 range(s), identity; ranges=; published to /mnt/vmstore/caraxes/vm1/dma-ranges
+vfio-user-nvgpu: dma table: 2 range(s), host IOVAs; ranges=0:7ff7c0000000:c0000000,100000000:7ff8c0000000:40000000; published to /mnt/vmstore/caraxes/vm1/dma-ranges
+vfio-user-nvgpu: dma table: guest aliases from /mnt/vmstore/caraxes/vm1/dma-ranges.guest: GPA 0xba200000..0xbe400000 -> IOVA 0xf000000000..0xf004200000

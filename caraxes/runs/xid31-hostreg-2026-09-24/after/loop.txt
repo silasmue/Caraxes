@@ -1,0 +1,43 @@
+# SPDX-License-Identifier: MIT
+# i margin_rc margin_summary hostreg_correct(of 2)
+1 0 scanned 1467 chunks (2934 MiB): 512 margin pages in 5 chunks | 2
+PASS: 5 of 5 margin chunks round-tripped correctly
+2 0 scanned 1463 chunks (2926 MiB): 281 margin pages in 4 chunks | 2
+PASS: 4 of 4 margin chunks round-tripped correctly
+3 0 scanned 1472 chunks (2944 MiB): 296 margin pages in 4 chunks | 2
+PASS: 4 of 4 margin chunks round-tripped correctly
+4 0 scanned 1484 chunks (2968 MiB): 312 margin pages in 5 chunks | 2
+PASS: 5 of 5 margin chunks round-tripped correctly
+5 0 scanned 1476 chunks (2952 MiB): 449 margin pages in 7 chunks | 2
+PASS: 7 of 7 margin chunks round-tripped correctly
+6 0 scanned 1477 chunks (2954 MiB): 470 margin pages in 9 chunks | 2
+PASS: 9 of 9 margin chunks round-tripped correctly
+7 0 scanned 1483 chunks (2966 MiB): 441 margin pages in 7 chunks | 2
+PASS: 7 of 7 margin chunks round-tripped correctly
+8 0 scanned 1482 chunks (2964 MiB): 345 margin pages in 6 chunks | 2
+PASS: 6 of 6 margin chunks round-tripped correctly
+9 0 scanned 1483 chunks (2966 MiB): 495 margin pages in 11 chunks | 2
+PASS: 11 of 11 margin chunks round-tripped correctly
+10 0 scanned 1478 chunks (2956 MiB): 495 margin pages in 9 chunks | 2
+PASS: 9 of 9 margin chunks round-tripped correctly
+11 0 scanned 1472 chunks (2944 MiB): 489 margin pages in 7 chunks | 2
+PASS: 7 of 7 margin chunks round-tripped correctly
+12 0 scanned 1476 chunks (2952 MiB): 464 margin pages in 7 chunks | 2
+PASS: 7 of 7 margin chunks round-tripped correctly
+13 0 scanned 1471 chunks (2942 MiB): 408 margin pages in 5 chunks | 2
+PASS: 5 of 5 margin chunks round-tripped correctly
+14 0 scanned 1472 chunks (2944 MiB): 431 margin pages in 7 chunks | 2
+PASS: 7 of 7 margin chunks round-tripped correctly
+15 0 scanned 1474 chunks (2948 MiB): 489 margin pages in 8 chunks | 2
+PASS: 8 of 8 margin chunks round-tripped correctly
+16 0 scanned 1474 chunks (2948 MiB): 489 margin pages in 9 chunks | 2
+PASS: 9 of 9 margin chunks round-tripped correctly
+17 0 scanned 1476 chunks (2952 MiB): 488 margin pages in 8 chunks | 2
+PASS: 8 of 8 margin chunks round-tripped correctly
+18 0 scanned 1471 chunks (2942 MiB): 467 margin pages in 6 chunks | 2
+PASS: 6 of 6 margin chunks round-tripped correctly
+19 0 scanned 1472 chunks (2944 MiB): 256 margin pages in 5 chunks | 2
+PASS: 5 of 5 margin chunks round-tripped correctly
+20 0 scanned 1474 chunks (2948 MiB): 404 margin pages in 7 chunks | 2
+PASS: 7 of 7 margin chunks round-tripped correctly
+loop: hostreg-margin 20 of 20 passed (0 found no margin page), hostregprobe 20 of 20 passed

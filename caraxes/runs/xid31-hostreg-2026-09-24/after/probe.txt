@@ -1,0 +1,4 @@
+probe xid31: 93600 device accesses, guest log in /mnt/vmstore/caraxes/vm1/probe-xid31/guest-dmesg.txt
+[  133.645151] NVRM: GPU 0000:00:05.0: RmInitAdapter
+[  137.242158] NVRM: GPU 0000:00:05.0: RmInitAdapter succeeded!
+modprobe rc=0

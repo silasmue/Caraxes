@@ -1,0 +1,2 @@
+dma table: swiotlb pool [0x00000000ba2b7000, 0x00000000be2b7000) aliased below 2^40
+dma table: loaded (device=0000:00:05.0 driver=none map=ours ranges=4 installs=1 pinned=0 previous=none)

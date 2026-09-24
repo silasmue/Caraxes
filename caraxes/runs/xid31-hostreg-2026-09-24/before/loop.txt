@@ -1,0 +1,9 @@
+# SPDX-License-Identifier: MIT
+# i margin_rc margin_summary hostreg_correct(of 2)
+1 1 scanned 1482 chunks (2964 MiB): 511 margin pages in 2 chunks | 2
+FAIL: 0 of 2 margin chunks round-tripped correctly
+2 1 scanned 1486 chunks (2972 MiB): 340 margin pages in 3 chunks | 2
+FAIL: 0 of 3 margin chunks round-tripped correctly
+3 2 scanned 1483 chunks (2966 MiB): 0 margin pages in 0 chunks | 2
+scanned 1483 chunks (2966 MiB): 0 margin pages in 0 chunks
+loop: hostreg-margin 0 of 3 passed, hostregprobe 3 of 3 passed

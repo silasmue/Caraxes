@@ -1,0 +1,1 @@
+      1 vfio-user-nvgpu: dma table: guest aliases from /mnt/vmstore/caraxes/vm1/dma-ranges.guest: GPA 0xba200000..0xbe400000 -> IOVA 0xf000000000..0xf004200000
