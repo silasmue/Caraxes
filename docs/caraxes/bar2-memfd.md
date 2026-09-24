@@ -12,8 +12,8 @@ of a context creation (mapping.md §3). The code is in `crates/vfio-user-nvgpu`:
 - `main.rs`: setup, fail-closed.
 
 `shadow.rs`, `mirror.rs`, `ptcache.rs`, `msgq.rs`, `tokens.rs`, `poll.rs`, the display code and
-`patches/` are unchanged. Nothing here has run on a VM or on the host GPU. The measurement plan
-for the coordinator is in §7.
+`patches/` are unchanged. Written before any VM or GPU run; the measurement plan
+for the coordinator is in §7; the measurement is §8.
 
 Sources:
 
@@ -373,6 +373,29 @@ python3 "$R/caraxes/tools/bench-summary.py" "$M/off/v2" "$M/on/v2" > "$M/summary
 - If `on` is red where `off` is green, repeat `on` with `CARAXES_BAR2_MEMFD_SYNC_DOORBELL=1`. If
   that is green, a guest path writes tables through BAR2 without an invalidate before its
   doorbell (rule 2 of §3). Both results are worth keeping.
+
+## 8. Measured (night series, 2026-09-24/25, vm2)
+
+`caraxes/runs/bar2-memfd-2026-09-24/night/` (`run.sh`, `summary.md`; tables and reading in
+benchmark.md "Night series", Part 1). vm2, 610 guest, 1 GiB profile at slot 3, main 57693d8
+frozen, token pool 64, hybrid reactor, interrupt page on, host 615.71.09 with other VMs active.
+
+| Mode | Trapped BAR2 writes, one context creation | cuCtxCreate, ms (median, n=5) | cuCtxDestroy, ms |
+|---|---|---|---|
+| off, BAR1 pool | 96269 | 3793 | 1462 |
+| off, no pool (`alloc-path-2026-09-24/night/intr`) | - | 3863 | 1166 |
+| on, no pool | **0** (flush page 0xfea000 read 478 times, the only trapped BAR2 page) | **1077** (533 in the quieter stack runs of alloc-path.md §7) | **391** (150) |
+| on, BAR1 pool | 0 | hangs | - |
+
+- §7's expectations hold: no BAR2 write traps, only the flush page, 0 alias conflicts, 0 sysmem
+  write-backs skipped, cuda gate 10 of 11 scored (the known cuda-managed 801) and 0 host Xid on
+  vm2's device. cuCtxCreate lands at 0.5-1.1 s, the sub-second range §6 expected; the device's
+  sync work of one instance (last rep plus the cuda gate) was 35237 syncs and 7.6 s.
+- **With `CARAXES_BAR1_PASSTHROUGH=pool` the first context creation hangs** at the first GR
+  channel's doorbell, with host notifier 0x800000c firing continuously; the same with
+  `CARAXES_BAR2_MEMFD_SYNC_DOORBELL=1` and with the interrupt page off, so it is not rule 2 of
+  §3. Until that is found (the shared translation hook, `fb.rs:922`), the memfd runs without the
+  pool; the pool changed no number anyway (benchmark.md "Design H, the BAR1 pool, measured").
 
 ## README file-table row
 

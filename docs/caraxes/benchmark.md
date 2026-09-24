@@ -898,3 +898,128 @@ hybrid instead of spin reactor, 1 GiB at slot 3 instead of 2 GiB at slot 0, othe
 instead of a quiet host, n=3 instead of 5. Next: the same series with
 `CARAXES_BAR1_PASSTHROUGH=1` and the spin reactor on a quiet host, the like-for-like with the
 closing series.
+
+## Night series (2026-09-24 23:16 to 2026-09-25, vm2, host 615.71.09)
+
+The queued optimisation measurements, in order, on vm2 only: the 1 GiB profile at reservation
+slot 3, Cloud Hypervisor 0001-0006, token pool 64, and the frozen binaries of main 57693d8
+(`/mnt/vmstore/caraxes/vfio-user-nvgpu-main-57693d8` for the 610 guest,
+`-v615-57693d8` for the 615 guest). The common environment is
+`caraxes/runs/night-2026-09-24/env.sh`: hybrid reactor, interrupt page on, BAR1 pool, unless a
+part says otherwise. Every part ran under the host watch, and every host Xid line was checked
+against the device pids of the part (`device-pids.txt` in each run directory).
+
+Harness changes of the night, each commented in place:
+
+- `caraxes/tools/bench-run.sh` `v2_restart`: a reservation refused under the D11 headroom rule
+  (`hostmem.rs:1328`) is retried every five minutes, up to `V2_HEADROOM_RETRIES` (12) times,
+  instead of losing the rep. It never fired tonight.
+- `caraxes/runs/workload-2026-09-24/run.sh`: `WORKLOAD_ENV` names the environment file in place
+  of the mapping environment (vm2, slot 0, 2 GiB).
+- The run scripts of the night: `caraxes/runs/{bar2-memfd,alloc-path,bench-615,workload}-2026-09-24/night/run.sh`.
+
+### Part 1: BAR2 memfd, off against on (23:16-00:17, 610 guest, other VMs active)
+
+`caraxes/runs/bar2-memfd-2026-09-24/night/`, `summary.md` there. The host was busy: vm1, vm3,
+vm5-615 and later vm6 ran on the card, and another VM's device was active in 4 of 10 off runs
+and 8 of 10 on-nopool runs; the host load average was 5 to 12.
+
+| Mode | Trapped BAR2 writes in one context creation | Trapped BAR2 reads | Result |
+|---|---|---|---|
+| off (pool, memfd off) | 96269 | 478 (all the flush page 0xfea000) | series green |
+| on (pool, memfd on) | 0 | 430 (flush page) | the first `bench-cu init` hung in cuCtxCreate for 16 min |
+| on-syncdb (+ `CARAXES_BAR2_MEMFD_SYNC_DOORBELL=1`) | 0 | 352 | hung (timeout 120 s) |
+| on-nointr (pool, memfd on, interrupt page off) | 0 | 352 | hung (timeout 120 s) |
+| on-nopool (memfd on, no pool) | 0 | 478 | series green, cuda gate 10 of 11 scored (cuda-managed, the known 801 of managed memory) |
+
+| Row (median [min-max], n=5) | off (pool) | off-nopool | on-nopool | native (closing) | on-nopool / native |
+|---|---|---|---|---|---|
+| cuInit, ms | 187 [167-446] | 196 [144-240] | 71.6 [13.7-200] | 106 | 0.68 |
+| cuCtxCreate, ms | 3793 [2930-11185] | 3863 [3129-4900] | **1077** [763-1726] | 195 | 5.5 |
+| cuCtxDestroy, ms | 1462 [877-4920] | 1166 [946-1403] | **391** [149-726] | 92.6 | 4.2 |
+| cuMemAlloc 1 MiB, us | 194 [182-347] | 581 [199-1138] (n=4) | 284 [228-391] | 35.8 | 7.9 |
+| cuMemFree 1 MiB, us | 251 [247-464] | 680 [234-1680] (n=4) | 561 [349-703] | 27.1 | 21 |
+| cuMemAlloc 64 MiB, us | 5174 [4544-13151] | 5590 [4605-9301] (n=4) | **892** [780-4826] | 78.3 | 11 |
+| cuMemFree 64 MiB, us | 3372 [2679-9568] | 3945 [2694-6222] (n=4) | 1347 [1206-6930] | 92.6 | 15 |
+| init device CPU per run, ms | 2920 | 2320 | 720 | - | |
+| init VMM CPU per run, ms | 8590 | 6780 | 1190 | - | |
+
+off-nopool is the `intr` mode of part 2 (the same configuration, recorded there with the traced
+churn); its churn rep 4 lost its ssh connection mid-run and has no result.
+
+Reading:
+
+- The memfd does what bar2-memfd.md §6 expected: no BAR2 write traps any more, the flush page
+  is the only trapped BAR2 page, and cuCtxCreate drops from 3.8 s to about 1.1 s on this busy
+  host (0.53 s on the quieter host of part 2), cuCtxDestroy from 1.2-1.5 s to 0.4 s. The
+  device's exit summary of the on-nopool instance (the last rep plus the cuda gate): 35237 syncs,
+  7.6 s of sync time in all (32.7 ms the longest), 0 alias conflicts, 0 sysmem write-backs skipped.
+- **The memfd and the BAR1 pool do not work together.** With the pool every context creation
+  hangs at the first GR channel's doorbell: the guest's `bench-cu` spins in user space at 100 %
+  CPU, and the device logs host notifier 0x800000c firing continuously (157978 events and MSIs
+  to guest vector 4 in 16 minutes, `on/bar2-traps-whole-run.txt`, `on/trace-tail.txt.xz`;
+  18067 and 17677 in the 120 s of on-syncdb and on-nointr), from the first doorbell of chid 18
+  on. The pool itself moved no page (`on/device-summary.txt`: 0 pages in the pool, 2 polls).
+  Syncing at every doorbell does not help, and neither does turning the interrupt page off, so
+  rule 2 of bar2-memfd.md §3 is not the cause; the pool and the memfd share the translation hook
+  `FakeFb::backing` (`crates/vfio-user-nvgpu/src/fb.rs:922`, the pool's remap check at `:774`
+  and `:1107`), which is where to look. Not fixed here (no device code tonight); the allocation
+  part and the recommendation below run without the pool.
+- The two host Xid lines of part 1 (23:32:08 and 23:32:25, Xid 31, MMU fault on CE2) are
+  pid 1131576, vm1's device process at that time (`off/v2/churn-5.txt` procs line), not vm2's.
+
+### Part 2: the allocation path (00:24-01:17, 610 guest, no pool)
+
+`caraxes/runs/alloc-path-2026-09-24/night/`, alloc-path.md §6 in the night configuration
+without the pool (part 1): `off` is the 24-trap baseline (interrupt page off, memfd off, lazy
+off), `intr` the interrupt page alone, `stack-off` step 1 (interrupt page and memfd), `stack-on`
+step 1 plus `CARAXES_ALLOC_LAZY=1`. Per mode one traced `bench-cu-gap churn 1` (phases 300 ms
+apart) through `caraxes/tools/rpc-cost.py`, then init and churn with 5 reps and a restart per
+rep; the cuda gate in stack-on. Host load average 2.6 to 5.3; another VM active in 4 to 6 of
+10 runs per mode. 0 host Xid in all four modes.
+
+Series (median [min-max], n=5):
+
+| Row | off | intr | stack-off | stack-on | native (closing) | stack-on / native | closing v2 |
+|---|---|---|---|---|---|---|---|
+| cuMemAlloc 1 MiB, us | 972 [835-1689] | 581 [199-1138] | 297 [181-338] | **175** [166-222] | 35.8 | 4.9 | 830 |
+| cuMemFree 1 MiB, us | 1020 [899-1698] | 680 [234-1680] | 541 [292-561] | **401** [280-532] | 27.1 | 15 | 903 |
+| 64 x 1 MiB cycle, ms | 227 | 102 | 48.1 | **37.1** | 3.81 | 9.7 | 168 |
+| cuMemAlloc 64 MiB, us | 7337 [6452-8664] | 5590 | 650 [611-815] | **541** [529-588] | 78.3 | 6.9 | 6747 |
+| cuMemFree 64 MiB, us | 4926 | 3945 | 961 | **838** [808-892] | 92.6 | 9.0 | 4422 |
+| 8 x 64 MiB cycle, ms | 154 | 113 | 15.5 | **11.7** | 10.6 | 1.10 | 115 |
+| cuCtxCreate, ms | 3493 [3306-4305] | 3863 | 534 [471-1183] | **533** [389-943] | 195 | 2.7 | 3770 |
+| cuCtxDestroy, ms | 1272 | 1166 | 174 | **150** [119-240] | 92.6 | 1.6 | 1352 |
+| cuInit, ms | 209 | 196 | 44.3 | 51.3 | 106 | 0.48 | 151 |
+| churn device CPU per run, ms | 6830 | 4960 | 2410 | 1850 | - | | |
+| churn VMM CPU per run, ms | 21230 | 11610 | 3290 | 2170 | - | | |
+
+Trapped accesses per operation (rpc-cost.py section 4, one traced process per mode; the times
+are inflated by tracing, the counts are not):
+
+| Operation | off | intr | stack-off | stack-on | rpc-cost's projection for "both" from off |
+|---|---|---|---|---|---|
+| cuMemAlloc 1 MiB | 45.5 | 6.5 | 4.2 | 4.3 | 4.4 |
+| cuMemFree 1 MiB | 50.8 | 8.4 | 7.3 | 7.2 | 7.5 |
+| cuMemAlloc 64 MiB | 370.6 | 272.6 | 77.9 | 13.9 | 16.1 |
+| cuMemFree 64 MiB | 232.5 | 83.8 | 18.8 | 18.9 | 19.9 |
+
+Reading:
+
+- The baseline's 1 MiB allocation is 45.5 traps, not 24: the VF interrupt tree accounts for
+  24.4 of them (52 %) and the RM lock's interrupt-enable writes for 14.7, the MMU invalidate
+  2.5, BAR2 PTE writes 2.0 and the flush read 1.0 (`off/rpc-cost.md`). The interrupt page takes
+  39 of the 45.5, the memfd the BAR2 writes; what is left is the invalidate, the flush read and
+  one config-mirror re-arm, as alloc-path.md §2 step 3 predicted.
+- The measured counts match rpc-cost.py's projection within one trap per operation; for the
+  64 MiB allocation the lazy plans remove another 64 traps (77.9 to 13.9) that the projection
+  did not know about (the eager plan's work under the invalidate).
+- Step 1 takes cuMemAlloc 1 MiB from 972 to 297 us, the lazy plans to 175 us (4.9x native,
+  2x v1's 93 us); the 64 MiB allocation from 7.3 ms to 0.54 ms, and the 8 x 64 MiB churn cycle
+  is at 1.1x native. The free path stays at 15x native for 1 MiB (seven traps: the invalidate
+  twice, the flush read).
+- The lazy plans cut the device's CPU per churn run by a quarter (2410 to 1850 ms) and did not
+  change cuCtxCreate. Exit summary of the last stack-on instance: 8001 invalidates deferred,
+  planned in 330 batches at a doorbell and 407 at the 20 ms deadline, largest batch 68.
+- cuda gate in stack-on: 10 of 11 scored pass, cuda-managed fails with the known 801
+  (`stack-on/gate-cuda-2026-09-25/table.txt`), as in on-nopool of part 1.

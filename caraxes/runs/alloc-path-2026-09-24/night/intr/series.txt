@@ -1,0 +1,60 @@
+# series 2026-09-25T00:39:17+02:00 targets=[v2] reps=5 metrics=[init churn]
+# libdir v2 /opt/nvrm/lib
+# caraxes shell-rig-247-g57693d8-dirty leandro-test 3edea73-dirty
+# bin c5b48cf1181bfcfc251f12aa2b0eaeb074887efec4c479f36efe399cb1307a13  bench-cu
+# bin 2e7db7218ac29e0da0b22a4d30307ea1f675dc04912d6b34922708495595904d  convnet.py
+# bin 68449e9ec7b25613a65d096a6a42864c01fbf46ec47e540ce01f47184f0479ea  ctrlping
+# bin 138c5073848b2f3cf2beb4709376c7c49b420d88e836664584e5cf8bbfc7848c  ioctlping
+# bin 1f921680fc7a2c2e0978eb007cc0ab48d2f1a7cf404a196c9063a19a10aa228f  kernels.ptx
+# bin abdf09531ac015ba4e8e7550bda6eb43609c429d6e1240e7f8553841bfe06513  llamaprobe.py
+# bin 2735d2a9cd25c0753898188542dbeb4a8433609024aa48230b6803a4a8d96e66  nvprobe
+# bin 012bb008b87ec0a6ee4ef566e0b55f856df09d6a3e07e72fe5cde5a9043dd18a  pporl.py
+# bin 02b1d58fc1778a47f8940e7f89d2cabb44b64d078f5b54b5ca1fba9437073c4a  transformer.py
+# bin f0868123fca8e2c40138fda523e35fa76c015b97e232fc647fea0b6b49f33584  vrampress
+# time 2026-09-25T00:39:17+02:00
+# gpu 49, 930 MHz, 810 MHz, P5, 23 %, 5182 MiB, Disabled
+# procs 1399606:vm1-dev 1399617:vm1-vmm 1475654:vm5-615-dev 1475665:vm1-vmm 1479801:vm3-dev 1479821:vm1-vmm 1481624:vm2-dev 1481632:vm1-vmm 
+# loadavg 5.75 4.77 5.65
+00:39:23 v2  init            rep 1: INIT cuinit_ms=240.201 devget_ms=0.002 ctxcreate_ms=4497.264 ctxdestroy_ms=1403.159 # WALL wall_ms=6182 rc=0  | # MEAS dev_pid=1481624 dev_cpu_ms=3410 dev_rss_hwm_kb=5255552/8395544 vmm_cpu_ms=8390 others: vm1-dev=0ms vm1-vmm=10ms v
+00:39:37 v2  churn           rep 1: # WALL wall_ms=13253 rc=0  | # MEAS dev_pid=1481624 dev_cpu_ms=9040 dev_rss_hwm_kb=5255580/8395544 vmm_cpu_ms=16800 others: vm1-dev=0ms vm1-vmm=40ms 
+# 00:39:37 v2 restart before rep 2
+stopped
+dma table: 0:7ffb80000000:c0000000,100000000:7ffc80000000:40000000
+server pid 1492526, VM pid 1492536; logs in /mnt/vmstore/caraxes/vm2
+ssh up at 192.168.102.22
+[  132.567721] NVRM: GPU 0000:00:05.0: RmInitAdapter succeeded!
+modprobe rc=0
+v2 restarted: server pid 1492526
+00:42:05 v2  init            rep 2: INIT cuinit_ms=163.447 devget_ms=0.002 ctxcreate_ms=3862.834 ctxdestroy_ms=1227.396 # WALL wall_ms=5292 rc=0  | # MEAS dev_pid=1492526 dev_cpu_ms=2320 dev_rss_hwm_kb=5254328/8396000 vmm_cpu_ms=6780 others: vm1-dev=0ms vm1-vmm=10ms v
+00:42:17 v2  churn           rep 2: # WALL wall_ms=12096 rc=0  | # MEAS dev_pid=1492526 dev_cpu_ms=7740 dev_rss_hwm_kb=5255468/8396000 vmm_cpu_ms=16000 others: vm1-dev=0ms vm1-vmm=30ms 
+# 00:42:17 v2 restart before rep 3
+stopped
+dma table: 0:7ffb80000000:c0000000,100000000:7ffc80000000:40000000
+server pid 1501949, VM pid 1501960; logs in /mnt/vmstore/caraxes/vm2
+ssh up at 192.168.102.22
+[  132.271713] NVRM: GPU 0000:00:05.0: RmInitAdapter succeeded!
+modprobe rc=0
+v2 restarted: server pid 1501949
+00:44:44 v2  init            rep 3: INIT cuinit_ms=205.197 devget_ms=0.001 ctxcreate_ms=3147.900 ctxdestroy_ms=945.858 # WALL wall_ms=4326 rc=0  | # MEAS dev_pid=1501949 dev_cpu_ms=2280 dev_rss_hwm_kb=5254348/8395484 vmm_cpu_ms=5240 others: vm1-dev=0ms vm1-vmm=20ms v
+00:44:52 v2  churn           rep 3: # WALL wall_ms=7515 rc=0  | # MEAS dev_pid=1501949 dev_cpu_ms=4960 dev_rss_hwm_kb=5255372/8395484 vmm_cpu_ms=11610 others: vm1-dev=10ms vm1-vmm=10ms
+# 00:44:52 v2 restart before rep 4
+stopped
+dma table: 0:7ffb80000000:c0000000,100000000:7ffc80000000:40000000
+server pid 1511874, VM pid 1511885; logs in /mnt/vmstore/caraxes/vm2
+ssh up at 192.168.102.22
+[  132.909729] NVRM: GPU 0000:00:05.0: RmInitAdapter succeeded!
+modprobe rc=0
+v2 restarted: server pid 1511874
+00:47:20 v2  init            rep 4: INIT cuinit_ms=196.328 devget_ms=0.002 ctxcreate_ms=4900.239 ctxdestroy_ms=1165.730 # WALL wall_ms=6348 rc=0  | # MEAS dev_pid=1511874 dev_cpu_ms=3000 dev_rss_hwm_kb=5254144/6298380 vmm_cpu_ms=7570 others: vm1-dev=0ms vm1-vmm=10ms v
+00:47:22 v2  churn           rep 4:  | # MEAS dev_pid=1511874 dev_cpu_ms=690 dev_rss_hwm_kb=5254144/6298380 vmm_cpu_ms=2420 others: vm1-dev=0ms vm1-vmm=10ms vm
+# 00:47:22 v2 restart before rep 5
+stopped
+dma table: 0:7ffb80000000:c0000000,100000000:7ffc80000000:40000000
+server pid 1521451, VM pid 1521459; logs in /mnt/vmstore/caraxes/vm2
+ssh up at 192.168.102.22
+[  131.921354] NVRM: GPU 0000:00:05.0: RmInitAdapter succeeded!
+modprobe rc=0
+v2 restarted: server pid 1521451
+00:49:47 v2  init            rep 5: INIT cuinit_ms=143.970 devget_ms=0.002 ctxcreate_ms=3129.039 ctxdestroy_ms=1032.694 # WALL wall_ms=4328 rc=0  | # MEAS dev_pid=1521451 dev_cpu_ms=2200 dev_rss_hwm_kb=5254372/6298424 vmm_cpu_ms=4540 others: vm1-dev=0ms vm1-vmm=20ms v
+00:49:55 v2  churn           rep 5: # WALL wall_ms=7759 rc=0  | # MEAS dev_pid=1521451 dev_cpu_ms=4940 dev_rss_hwm_kb=5255572/6298424 vmm_cpu_ms=11390 others: vm1-dev=0ms vm1-vmm=10ms 
+# end 2026-09-25T00:49:55+02:00

@@ -1,0 +1,50 @@
+[  135.860825] NVRM: VM: nvidia_mmap_helper:559: 0x7c3d27ded000 - 0x7c3d27dee000, 0x00001000 bytes @ 0x0000000000000000, 0x0000000000000000, 0x000000001316d701
+[  135.860830] NVRM: VM: nvidia_mmap_helper:745: 0x00000000b15afe8d, 1 page(s), count = 3, page_table = 0x00000000da7ffe16
+[  135.864479] NVRM: VM: nv_alloc_pages: 1 pages, nodeid -1
+[  135.864480] NVRM: VM:    contig 0  cache_type 0
+[  135.864481] NVRM: VM: nv_alloc_system_pages: 1 order0 pages, 0 order
+[  135.864483] NVRM: VM: nv_mem_pool_alloc_pages: node=0 order=0: 0/1 pages allocated (0 already cleared, 0 left in pool)
+[  135.864488] NVRM: VM: nv_alloc_pages:3969: 0x00000000be969248, 1 page(s), count = 1, page_table = 0x0000000020e1ca82
+[  135.864511] NVRM: nvidia_open...
+[  135.864512] NVRM: nvidia_ctl_open
+[  135.864535] NVRM: VM: nvidia_mmap_helper:559: 0x7c3d27dee000 - 0x7c3d27def000, 0x00001000 bytes @ 0x0000000000000000, 0x0000000000000000, 0x0000000090468de6
+[  135.864538] NVRM: VM: nvidia_mmap_helper:745: 0x00000000be969248, 1 page(s), count = 3, page_table = 0x0000000020e1ca82
+[  135.868075] NVRM: VM: nv_alloc_pages: 1 pages, nodeid -1
+[  135.868076] NVRM: VM:    contig 0  cache_type 0
+[  135.868078] NVRM: VM: nv_alloc_system_pages: 1 order0 pages, 0 order
+[  135.868079] NVRM: VM: nv_mem_pool_alloc_pages: node=0 order=0: 0/1 pages allocated (0 already cleared, 0 left in pool)
+[  135.868085] NVRM: VM: nv_alloc_pages:3969: 0x00000000cc353134, 1 page(s), count = 1, page_table = 0x00000000697b4b79
+[  135.868106] NVRM: nvidia_open...
+[  135.868107] NVRM: nvidia_ctl_open
+[  135.868131] NVRM: VM: nvidia_mmap_helper:559: 0x7c3d27def000 - 0x7c3d27df0000, 0x00001000 bytes @ 0x0000000000000000, 0x0000000000000000, 0x0000000082162c4d
+[  135.868133] NVRM: VM: nvidia_mmap_helper:745: 0x00000000cc353134, 1 page(s), count = 3, page_table = 0x00000000697b4b79
+[  135.871787] NVRM: VM: nv_alloc_pages: 1 pages, nodeid -1
+[  135.871789] NVRM: VM:    contig 0  cache_type 0
+[  135.871791] NVRM: VM: nv_alloc_system_pages: 1 order0 pages, 0 order
+[  135.871793] NVRM: VM: nv_mem_pool_alloc_pages: node=0 order=0: 0/1 pages allocated (0 already cleared, 0 left in pool)
+[  135.871801] NVRM: VM: nv_alloc_pages:3969: 0x00000000c1019fdc, 1 page(s), count = 1, page_table = 0x0000000050a0d5ea
+[  135.871828] NVRM: nvidia_open...
+[  135.871829] NVRM: nvidia_ctl_open
+[  135.871856] NVRM: VM: nvidia_mmap_helper:559: 0x7c3d27df0000 - 0x7c3d27df1000, 0x00001000 bytes @ 0x0000000000000000, 0x0000000000000000, 0x00000000538f85a9
+[  135.871858] NVRM: VM: nvidia_mmap_helper:745: 0x00000000c1019fdc, 1 page(s), count = 3, page_table = 0x0000000050a0d5ea
+[  135.875399] NVRM: nvidia_open...
+[  135.875401] NVRM: GPU 0000:00:05.0: Opening GPU with minor number 0
+[  135.875654] NVRM: VM: nv_alloc_pages: 512 pages, nodeid -1
+[  135.875656] NVRM: VM:    contig 0  cache_type 0
+[  135.875664] NVRM: VM: nv_alloc_system_pages: 512 order0 pages, 0 order
+[  135.875666] NVRM: VM: nv_mem_pool_alloc_pages: node=0 order=0: 0/512 pages allocated (0 already cleared, 0 left in pool)
+[  135.877277] NVRM: VM: nv_alloc_pages:3969: 0x000000002816eaa7, 512 page(s), count = 1, page_table = 0x00000000f01e2f02
+[  135.877325] NVRM: nvidia_open...
+[  135.877326] NVRM: nvidia_ctl_open
+[  135.877348] NVRM: VM: nvidia_mmap_helper:559: 0x203e00000 - 0x204000000, 0x00200000 bytes @ 0x0000000000000000, 0x0000000000000000, 0x000000005d7797cc
+[  135.877391] NVRM: VM: nvidia_mmap_helper:745: 0x000000002816eaa7, 512 page(s), count = 3, page_table = 0x00000000f01e2f02
+== bench-cu
+pid 1695 ./bench-cu init 
+/proc/1695/task/1695 R 0
+/proc/1695/task/1698 S do_poll.constprop.0
+/proc/1695/task/1699 S futex_wait_queue
+/proc/1695/task/1700 S do_poll.constprop.0
+pid 3674 bash -c sudo dmesg | grep -v "NVRM: ioctl" | tail -40
+echo "== bench-cu"
+for p in $(pgrep -f 'bench-cu'); do echo "pid $p $(tr '\0' ' ' < /proc/$p/cmdline)"; for t in /proc/$p/task/*; do echo "$t $(cut -d' ' -f3 $t/stat) $(sudo cat $t/wchan)"; done; done 
+/proc/3674/task/3674 S pipe_read
