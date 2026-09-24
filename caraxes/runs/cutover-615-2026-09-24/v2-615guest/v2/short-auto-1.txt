@@ -1,0 +1,10 @@
+# target v2 metric short-auto rep 1
+# cmd NVPROBE_ITERS=100 NVPROBE_CYCLES=1000 NVPROBE_SCHED=auto ./nvprobe 4
+# device /mnt/vmstore/caraxes/vm2-615/vfio-user-nvgpu sha256 8fae5dcd58e0f5e6
+# time 2026-09-24T18:06:03+02:00
+# gpu 50, 540 MHz, 405 MHz, P8, 18 %, 5405 MiB, Disabled
+# procs 92503:vm0-dev 92527:vm1-vmm 92834:vm2-615-dev 92848:vm1-vmm 
+# loadavg 2.97 2.79 2.95
+ERROR cuInit: 803 system has unsupported display driver / cuda driver combination
+# WALL wall_ms=7 rc=1
+# MEAS dev_pid=92834 dev_cpu_ms=0 dev_rss_hwm_kb=5250636/5250636 vmm_cpu_ms=350 others: vm0-dev=40ms vm1-vmm=30ms 

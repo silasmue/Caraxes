@@ -1,0 +1,2 @@
+[  532.526718] NVRM: ioctl(0x29, 0xcc1f3680, 0x10)
+[  532.526928] NVRM: ioctl(0x29, 0xcc1f36a0, 0x10)

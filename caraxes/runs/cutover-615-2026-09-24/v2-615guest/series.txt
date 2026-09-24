@@ -1,0 +1,84 @@
+# series 2026-09-24T17:52:20+02:00 targets=[v2] reps=2 metrics=[init short-auto]
+# caraxes shell-rig-178-g6450203-dirty leandro-test 3edea73-dirty
+# bin c5b48cf1181bfcfc251f12aa2b0eaeb074887efec4c479f36efe399cb1307a13  bench-cu
+# bin 2e7db7218ac29e0da0b22a4d30307ea1f675dc04912d6b34922708495595904d  convnet.py
+# bin 68449e9ec7b25613a65d096a6a42864c01fbf46ec47e540ce01f47184f0479ea  ctrlping
+# bin 138c5073848b2f3cf2beb4709376c7c49b420d88e836664584e5cf8bbfc7848c  ioctlping
+# bin 1f921680fc7a2c2e0978eb007cc0ab48d2f1a7cf404a196c9063a19a10aa228f  kernels.ptx
+# bin abdf09531ac015ba4e8e7550bda6eb43609c429d6e1240e7f8553841bfe06513  llamaprobe.py
+# bin 2735d2a9cd25c0753898188542dbeb4a8433609024aa48230b6803a4a8d96e66  nvprobe
+# bin 012bb008b87ec0a6ee4ef566e0b55f856df09d6a3e07e72fe5cde5a9043dd18a  pporl.py
+# bin 02b1d58fc1778a47f8940e7f89d2cabb44b64d078f5b54b5ca1fba9437073c4a  transformer.py
+# bin f0868123fca8e2c40138fda523e35fa76c015b97e232fc647fea0b6b49f33584  vrampress
+# time 2026-09-24T17:52:20+02:00
+# gpu 52, 420 MHz, 810 MHz, P5, 1 %, 5414 MiB, Disabled
+# procs 64619:vm0-dev 64630:vm1-vmm 71392:vm2-615-dev 71404:vm1-vmm 
+# loadavg 3.96 4.23 3.41
+17:52:21 v2  init            rep 1: # WALL wall_ms=22 rc=1  | # MEAS dev_pid=71392 dev_cpu_ms=0 dev_rss_hwm_kb=5250124/5250124 vmm_cpu_ms=590 others: vm0-dev=70ms vm1-vmm=50ms 
+17:52:21 v2  short-auto      rep 1: # WALL wall_ms=6 rc=1  | # MEAS dev_pid=71392 dev_cpu_ms=0 dev_rss_hwm_kb=5250124/5250124 vmm_cpu_ms=610 others: vm0-dev=70ms vm1-vmm=70ms 
+17:52:22 v2  init            rep 2: # WALL wall_ms=6 rc=1  | # MEAS dev_pid=71392 dev_cpu_ms=0 dev_rss_hwm_kb=5250124/5250124 vmm_cpu_ms=560 others: vm0-dev=70ms vm1-vmm=70ms 
+17:52:22 v2  short-auto      rep 2: # WALL wall_ms=6 rc=1  | # MEAS dev_pid=71392 dev_cpu_ms=0 dev_rss_hwm_kb=5250124/5250124 vmm_cpu_ms=480 others: vm0-dev=70ms vm1-vmm=60ms 
+# end 2026-09-24T17:52:22+02:00
+# series 2026-09-24T17:56:16+02:00 targets=[v2] reps=2 metrics=[init short-auto]
+# caraxes shell-rig-178-g6450203-dirty leandro-test 3edea73-dirty
+# bin c5b48cf1181bfcfc251f12aa2b0eaeb074887efec4c479f36efe399cb1307a13  bench-cu
+# bin 2e7db7218ac29e0da0b22a4d30307ea1f675dc04912d6b34922708495595904d  convnet.py
+# bin 68449e9ec7b25613a65d096a6a42864c01fbf46ec47e540ce01f47184f0479ea  ctrlping
+# bin 138c5073848b2f3cf2beb4709376c7c49b420d88e836664584e5cf8bbfc7848c  ioctlping
+# bin 1f921680fc7a2c2e0978eb007cc0ab48d2f1a7cf404a196c9063a19a10aa228f  kernels.ptx
+# bin abdf09531ac015ba4e8e7550bda6eb43609c429d6e1240e7f8553841bfe06513  llamaprobe.py
+# bin 2735d2a9cd25c0753898188542dbeb4a8433609024aa48230b6803a4a8d96e66  nvprobe
+# bin 012bb008b87ec0a6ee4ef566e0b55f856df09d6a3e07e72fe5cde5a9043dd18a  pporl.py
+# bin 02b1d58fc1778a47f8940e7f89d2cabb44b64d078f5b54b5ca1fba9437073c4a  transformer.py
+# bin f0868123fca8e2c40138fda523e35fa76c015b97e232fc647fea0b6b49f33584  vrampress
+# time 2026-09-24T17:56:16+02:00
+# gpu 53, 420 MHz, 810 MHz, P5, 1 %, 5410 MiB, Disabled
+# procs 64619:vm0-dev 64630:vm1-vmm 76538:vm2-615-dev 76552:vm1-vmm 
+# loadavg 3.74 3.45 3.23
+17:56:17 v2  init            rep 1: # WALL wall_ms=26 rc=1  | # MEAS dev_pid=76538 dev_cpu_ms=100 dev_rss_hwm_kb=5250348/5250348 vmm_cpu_ms=560 others: vm0-dev=70ms vm1-vmm=60ms 
+17:56:17 v2  short-auto      rep 1: # WALL wall_ms=18 rc=1  | # MEAS dev_pid=76538 dev_cpu_ms=100 dev_rss_hwm_kb=5250348/5250348 vmm_cpu_ms=530 others: vm0-dev=60ms vm1-vmm=60ms 
+17:56:18 v2  init            rep 2: # WALL wall_ms=27 rc=1  | # MEAS dev_pid=76538 dev_cpu_ms=80 dev_rss_hwm_kb=5250348/5250348 vmm_cpu_ms=570 others: vm0-dev=70ms vm1-vmm=60ms 
+17:56:18 v2  short-auto      rep 2: # WALL wall_ms=27 rc=1  | # MEAS dev_pid=76538 dev_cpu_ms=110 dev_rss_hwm_kb=5250356/5250356 vmm_cpu_ms=530 others: vm0-dev=90ms vm1-vmm=110ms 
+# end 2026-09-24T17:56:18+02:00
+# series 2026-09-24T18:00:36+02:00 targets=[v2] reps=2 metrics=[init short-auto]
+# caraxes shell-rig-178-g6450203-dirty leandro-test 3edea73-dirty
+# bin c5b48cf1181bfcfc251f12aa2b0eaeb074887efec4c479f36efe399cb1307a13  bench-cu
+# bin 2e7db7218ac29e0da0b22a4d30307ea1f675dc04912d6b34922708495595904d  convnet.py
+# bin 68449e9ec7b25613a65d096a6a42864c01fbf46ec47e540ce01f47184f0479ea  ctrlping
+# bin 138c5073848b2f3cf2beb4709376c7c49b420d88e836664584e5cf8bbfc7848c  ioctlping
+# bin 1f921680fc7a2c2e0978eb007cc0ab48d2f1a7cf404a196c9063a19a10aa228f  kernels.ptx
+# bin abdf09531ac015ba4e8e7550bda6eb43609c429d6e1240e7f8553841bfe06513  llamaprobe.py
+# bin 2735d2a9cd25c0753898188542dbeb4a8433609024aa48230b6803a4a8d96e66  nvprobe
+# bin 012bb008b87ec0a6ee4ef566e0b55f856df09d6a3e07e72fe5cde5a9043dd18a  pporl.py
+# bin 02b1d58fc1778a47f8940e7f89d2cabb44b64d078f5b54b5ca1fba9437073c4a  transformer.py
+# bin f0868123fca8e2c40138fda523e35fa76c015b97e232fc647fea0b6b49f33584  vrampress
+# time 2026-09-24T18:00:36+02:00
+# gpu 51, 915 MHz, 810 MHz, P5, 28 %, 5360 MiB, Disabled
+# procs 64619:vm0-dev 64630:vm1-vmm 81650:vm2-615-dev 81664:vm1-vmm 
+# loadavg 3.91 3.16 3.11
+18:00:36 v2  init            rep 1:  | # MEAS dev_pid=81650 dev_cpu_ms=0 dev_rss_hwm_kb=5249884/5249884 vmm_cpu_ms=0 others: vm0-dev=20ms vm1-vmm=10ms 
+18:00:36 v2  short-auto      rep 1:  | # MEAS dev_pid=81650 dev_cpu_ms=0 dev_rss_hwm_kb=5249884/5249884 vmm_cpu_ms=0 others: vm0-dev=30ms vm1-vmm=20ms 
+18:00:36 v2  init            rep 2:  | # MEAS dev_pid=81650 dev_cpu_ms=0 dev_rss_hwm_kb=5249884/5249884 vmm_cpu_ms=0 others: vm0-dev=40ms vm1-vmm=20ms 
+18:00:37 v2  short-auto      rep 2:  | # MEAS dev_pid=81650 dev_cpu_ms=0 dev_rss_hwm_kb=5249884/5249884 vmm_cpu_ms=0 others: vm0-dev=30ms vm1-vmm=20ms 
+# end 2026-09-24T18:00:37+02:00
+# series 2026-09-24T18:06:03+02:00 targets=[v2] reps=2 metrics=[init short-auto]
+# caraxes shell-rig-179-g61e0b6a-dirty leandro-test 3edea73-dirty
+# bin c5b48cf1181bfcfc251f12aa2b0eaeb074887efec4c479f36efe399cb1307a13  bench-cu
+# bin 2e7db7218ac29e0da0b22a4d30307ea1f675dc04912d6b34922708495595904d  convnet.py
+# bin 68449e9ec7b25613a65d096a6a42864c01fbf46ec47e540ce01f47184f0479ea  ctrlping
+# bin 138c5073848b2f3cf2beb4709376c7c49b420d88e836664584e5cf8bbfc7848c  ioctlping
+# bin 1f921680fc7a2c2e0978eb007cc0ab48d2f1a7cf404a196c9063a19a10aa228f  kernels.ptx
+# bin abdf09531ac015ba4e8e7550bda6eb43609c429d6e1240e7f8553841bfe06513  llamaprobe.py
+# bin 2735d2a9cd25c0753898188542dbeb4a8433609024aa48230b6803a4a8d96e66  nvprobe
+# bin 012bb008b87ec0a6ee4ef566e0b55f856df09d6a3e07e72fe5cde5a9043dd18a  pporl.py
+# bin 02b1d58fc1778a47f8940e7f89d2cabb44b64d078f5b54b5ca1fba9437073c4a  transformer.py
+# bin f0868123fca8e2c40138fda523e35fa76c015b97e232fc647fea0b6b49f33584  vrampress
+# time 2026-09-24T18:06:03+02:00
+# gpu 50, 600 MHz, 405 MHz, P8, 18 %, 5409 MiB, Disabled
+# procs 92503:vm0-dev 92527:vm1-vmm 92834:vm2-615-dev 92848:vm1-vmm 
+# loadavg 2.97 2.79 2.95
+18:06:03 v2  init            rep 1: # WALL wall_ms=25 rc=1  | # MEAS dev_pid=92834 dev_cpu_ms=0 dev_rss_hwm_kb=5250636/5250636 vmm_cpu_ms=360 others: vm0-dev=50ms vm1-vmm=20ms 
+18:06:04 v2  short-auto      rep 1: # WALL wall_ms=7 rc=1  | # MEAS dev_pid=92834 dev_cpu_ms=0 dev_rss_hwm_kb=5250636/5250636 vmm_cpu_ms=350 others: vm0-dev=40ms vm1-vmm=30ms 
+18:06:04 v2  init            rep 2: # WALL wall_ms=7 rc=1  | # MEAS dev_pid=92834 dev_cpu_ms=0 dev_rss_hwm_kb=5250636/5250636 vmm_cpu_ms=350 others: vm0-dev=40ms vm1-vmm=20ms 
+18:06:04 v2  short-auto      rep 2: # WALL wall_ms=11 rc=1  | # MEAS dev_pid=92834 dev_cpu_ms=0 dev_rss_hwm_kb=5250636/5250636 vmm_cpu_ms=350 others: vm0-dev=40ms vm1-vmm=10ms 
+# end 2026-09-24T18:06:04+02:00

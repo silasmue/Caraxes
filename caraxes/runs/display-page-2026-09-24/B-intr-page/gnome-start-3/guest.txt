@@ -1,0 +1,5 @@
+== 2026-09-24T15:53:12Z start
+Type=wayland
+[  439.521284] caraxes-vm0 gnome-shell[4543]: Created gbm renderer for '/dev/dri/card0'
+page_flip_failed=0
+gnome-shell pid 4543; eglcore 6

@@ -1,0 +1,1 @@
+INIT cuinit_ms=196.573 devget_ms=0.001 ctxcreate_ms=2794.475 ctxdestroy_ms=1093.004
