@@ -795,14 +795,36 @@ def chip_rule_handlers(ctrl_by_name):
         dtext = read(dp)
         ack_block = dtext.split("pub const D_E_ACK: &[u32] = &[", 1)[-1].split("];", 1)[0]
         e_ack = {hexint(v) for v in re.findall(r"\b(0x[0-9A-Fa-f_]+)\b", ack_block)}
-        modelled = re.findall(r'"(\w+)"', read(os.path.join(CRATE, "dmodel.rs")).split(
+        dsrc = read(os.path.join(CRATE, "dmodel.rs"))
+        modelled = re.findall(r'"(\w+)"', dsrc.split(
             "pub const MODELLED: &[&str] = &[", 1)[-1].split("];", 1)[0])
+        # The models of round 2 (dmodel.rs, rc.rs, zbc.rs) answer their rows whatever the
+        # category the plan moves them to (MODELLED_HERE), and the getters that read their
+        # state (MODEL_GETTERS, categories A and B).
+        def const_list(const):
+            head = "pub const %s: &[&str] = &[" % const
+            return re.findall(r'"(\w+)"', dsrc.split(head, 1)[-1].split("];", 1)[0]) \
+                if head in dsrc else []
+        here = const_list("MODELLED_HERE")
+        for g in const_list("MODEL_GETTERS"):
+            cid = ctrl_by_name.get(g)
+            if cid is not None:
+                out[cid].append({"module": "ctrl", "provenance": "guest-derived",
+                                     "labels": ["guest (device model, dmodel.rs)"],
+                                     "guard": "D table",
+                                     "src": "crates/vfio-user-nvgpu/src/dmodel.rs"})
         rx_rule = re.compile(r'DRule \{\s*id: (0x[0-9A-Fa-f_]+),\s*name: "(\w+)",.*?'
                              r'answer: DAnswer::(\w+),.*?reclass: \'(.)\'', re.S)
         for m in rx_rule.finditer(dtext):
             # Controls the inventory names by handler (no #define, e.g. 0x20800A3E).
             d_names[m.group(2)] = hexint(m.group(1))
             kind, reclass = m.group(3), m.group(4)
+            if m.group(2) in here:
+                out[hexint(m.group(1))].append({"module": "ctrl", "provenance": "guest-derived",
+                                                "labels": ["guest (%s model, dmodel.rs)" % kind.lower()],
+                                                "guard": "D table",
+                                                "src": "crates/vfio-user-nvgpu/src/dmodel.rs"})
+                continue
             if reclass != "-":
                 continue
             if kind in D_RULE_LABELS:

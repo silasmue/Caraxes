@@ -975,3 +975,33 @@ same answers, no D id is in `FORWARD`, `LEGACY`, `BINAPI` or `MIRROR_FORWARDED`,
 classes are refused, the two layout changes come from the generated layouts, the E rows are
 families (GB206 with its six), and `HDCP_CTRL` per cmd, FEC, RG status, `DP_SET_WAR_FLAGS` and
 `PERF_NOTIFY_VIDEOEVENT` against the generated layouts.
+
+## After round 2 of D: the R2 paths, the open MODEL rows, the ZBC table (2026-09-24)
+
+Round 2 of [gsp-plan/d-device-model.md](gsp-plan/d-device-model.md) (§10 "Round 2"): the CUDA
+error and teardown paths of roadmap R2 (`src/rc.rs`), the open MODEL rows outside the display
+(`DState` in `src/dmodel.rs`) and the guest-local ZBC table (`src/zbc.rs`), answered by one
+hook in `Dispatcher::control` ahead of the rule table. `gsp-surface.py` counts the rows these
+models answer, whatever category the plan moves them to, and the three getters that read their
+state (`GET_ZBC_CLEAR_TABLE_ENTRY`, `GET_ZBC_CLEAR_TABLE`, `NV83DE DEBUG_GET_MODE_MMU_DEBUG`) as
+guest-derived (guard `D table`); `surface.rs` regenerates unchanged.
+
+**Counts** (`gsp-surface.py --ogkm <tree>` on this worktree; "before" is its parent 57693d8,
+which already carries the B and C work, so the "after D" column above is not the baseline):
+
+| Item | 610 before | 610 after | 615 before | 615 after |
+|---|---:|---:|---:|---:|
+| Routed controls handled | 720 | 743 | 734 | 757 |
+| (host / synthesized / guest / echo / refused) | 70/79/39/66/466 | 70/79/62/64/468 | 69/79/40/67/479 | 69/79/63/65/481 |
+| Routed controls unhandled | 109 | 86 | 110 | 87 |
+| (A / B / C / D / E) | 51/10/0/48/0 | 50/8/0/28/0 | 51/10/1/48/0 | 50/8/1/28/0 |
+
+The 23 newly handled controls are 18 D rows the models answer for the first time, the two
+timed-semaphore rows now refused until Q4, and the three getters (one A, two B). Two rows move
+from echo to guest-derived: `LOG_OOB_XID` and `GPUACCT_SET_ACCOUNTING_STATE` were acknowledged
+by the table and are now journalled or recorded. The 28 D controls still unhandled: the 12
+display MODEL rows (display branch), the C rows the models do not take (`IDLE_CHANNELS`,
+`DISABLE_USERMODE_CHANNELS`, `CHECK_ENGINE_CONTEXT`, `ZCULL_MODE`, `PREEMPTION_BIND`,
+`SETUP_BIND`, `BIF_INFO`, `GET_GENERIC_INFOFRAME`, `GET_MSA_ATTRIBUTES`,
+`TOGGLE_ACTIVE_CHANNEL_SCHEDULING`, the two `SET_TPC_PARTITION_MODE`) and the four open A
+rows (GSP_FB_STATS_GET among them).

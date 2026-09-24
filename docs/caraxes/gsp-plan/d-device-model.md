@@ -222,7 +222,7 @@ kernel = KERNEL_PRIVILEGED), then the analysis. Citations without a tree prefix 
 
 ### 6.1 FIFO, channels and TSGs (16)
 
-**Status (2026-09-24):** partial. R0 (5eac90a): the 4 host-global knobs DENY (STOP/START_RUNLIST, CONFIG_CTXSW_TIMEOUT, RUNLIST_SET_SCHED_POLICY, all NV_ERR_INSUFFICIENT_PERMISSIONS); the 8 E rows are refused by the families `legacy_uncalled`, `ampere_later` and `vgpu_paths`. Open: the 4 C rows (§10).
+**Status (2026-09-24):** partial. R0 (5eac90a): the 4 host-global knobs DENY (STOP/START_RUNLIST, CONFIG_CTXSW_TIMEOUT, RUNLIST_SET_SCHED_POLICY, all NV_ERR_INSUFFICIENT_PERMISSIONS); the 8 E rows are refused by the families `legacy_uncalled`, `ampere_later` and `vgpu_paths`. Round 2 (8b5fa9b): `FIFO_DISABLE_CHANNELS` modelled in rc.rs: every handle must be a channel of this guest (else NV_ERR_INVALID_CHANNEL, nothing done), a mirrored channel gets `GPFIFO_SCHEDULE` on its own host channel object and, with preemption, `PREEMPT` of its own host TSG; no runlist or subdevice-wide action. Open: `IDLE_CHANNELS`, `DISABLE_USERMODE_CHANNELS`, `CHECK_ENGINE_CONTEXT` (C rows, §10; the suspend pair is R4).
 
 | Control | Id | Bytes 610/615 | Priv | Answer | Rank | Truth | Caller and when (615 tree) |
 |---|---|---|---|---|---|---|---|
@@ -269,7 +269,7 @@ kernel = KERNEL_PRIVILEGED), then the analysis. Citations without a tree prefix 
 
 ### 6.2 GR, contexts and ZBC (18)
 
-**Status (2026-09-24):** partial. R0 (5eac90a): GR_SET_GPC_TILE_MAP REFUSE; 0x20800A3E is a controls.toml row (NOT_SUPPORTED as 0x20800A3F, §3); the 5 E rows are in `legacy_uncalled`. Open: the 8 MODEL rows (ZBC table 4, FECS trace 3, compute-mode rules 1) and the 3 C rows (§10).
+**Status (2026-09-24):** partial. R0 (5eac90a): GR_SET_GPC_TILE_MAP REFUSE; 0x20800A3E is a controls.toml row (NOT_SUPPORTED as 0x20800A3F, §3); the 5 E rows are in `legacy_uncalled`. Round 2: the four ZBC setters answered from a guest-local table per VM seeded by Q5, and `GET_ZBC_CLEAR_TABLE_ENTRY`/`GET_ZBC_CLEAR_TABLE` read from it (55d37b9, zbc.rs); the FECS trace setters recorded (5699cde); `GPU_SET_COMPUTE_MODE_RULES` per VM, illegal rules NV_ERR_INVALID_ARGUMENT (8b5fa9b). Open: the 3 C rows (ZCULL_MODE, PREEMPTION_BIND, SETUP_BIND; §10).
 
 | Control | Id | Bytes 610/615 | Priv | Answer | Rank | Truth | Caller and when (615 tree) |
 |---|---|---|---|---|---|---|---|
@@ -318,7 +318,7 @@ kernel = KERNEL_PRIVILEGED), then the analysis. Citations without a tree prefix 
 
 ### 6.3 Memory, caches and page tables (13)
 
-**Status (2026-09-24):** partial. R0 (5eac90a): the three DRAM setters DENY (NV_ERR_INSUFFICIENT_PERMISSIONS), CBC_OP ACK; the 5 E rows in `legacy_uncalled`, `ampere_later` and `hopper_platform`; GSP_FB_STATS_GET is an open controls.toml row (source: the fb.rs regions). Open: DMA_FLUSH, FLUSH_L2_ALL_RAMS and FBSR_INIT (MODEL).
+**Status (2026-09-24):** partial. R0 (5eac90a): the three DRAM setters DENY (NV_ERR_INSUFFICIENT_PERMISSIONS), CBC_OP ACK; the 5 E rows in `legacy_uncalled`, `ampere_later` and `hopper_platform`; GSP_FB_STATS_GET is an open controls.toml row (source: the fb.rs regions). Round 2 (5699cde): `DMA_FLUSH` (L2 bit: write back) and `FLUSH_L2_ALL_RAMS` (write back and evict) as `FB_FLUSH_GPU_CACHE` on the device's own subdevice, COMPTAG ignored (D16); `FBSR_INIT` recorded. Open: GSP_FB_STATS_GET (the A open row).
 
 | Control | Id | Bytes 610/615 | Priv | Answer | Rank | Truth | Caller and when (615 tree) |
 |---|---|---|---|---|---|---|---|
@@ -362,7 +362,7 @@ kernel = KERNEL_PRIVILEGED), then the analysis. Citations without a tree prefix 
 
 ### 6.4 Bus, BAR and P2P (24)
 
-**Status (2026-09-24):** partial. R0 (5eac90a): 12 DENY (NV_ERR_NOT_SUPPORTED) and 4 REFUSE answered, the 6 E rows in `vgpu_paths`, `ga10x_pcie_ro`, `windows_only` and `nvlink_sli`. Open: the 2 C rows (VALIDATE_MEM_MAP_REQUEST, BIF_INFO; §10).
+**Status (2026-09-24):** partial. R0 (5eac90a): 12 DENY (NV_ERR_NOT_SUPPORTED) and 4 REFUSE answered, the 6 E rows in `vgpu_paths`, `ga10x_pcie_ro`, `windows_only` and `nvlink_sli`. Round 2 (8b5fa9b): `GPU_VALIDATE_MEM_MAP_REQUEST` is the BAR0 map policy of rule 3, deny by default (NV_ERR_PROTECTION_FAULT; outside BAR0, empty and wrapping ranges too; the allow-list is empty). Open: BIF_INFO (C, config.rs).
 
 | Control | Id | Bytes 610/615 | Priv | Answer | Rank | Truth | Caller and when (615 tree) |
 |---|---|---|---|---|---|---|---|
@@ -439,7 +439,7 @@ Tests:
 
 ### 6.5 Display (107)
 
-**Status (2026-09-24):** partial. R0 (5eac90a): the board table of display/mod.rs answers 54 REFUSE (3 with NV_ERR_INVALID_ARGUMENT) and 9 ACK through the rule table, for the NV2080 and NV9072 display rows too; the 22 E rows are the families `frl`, `dp2x`, `display_later`, `display_embedded` and `windows_only`; GET_PINSET_COUNT and INTERNAL_DISP_PINSETS_TO_LOCKPINS are controls.toml rows, the adaptive-sync and the two VBIOS drive-table getters open rows with their source. R1 (ca598ec): `SPECIFIC_HDCP_CTRL` per cmd, `DP_CONFIGURE_FEC` into the link config, `GET_RG_STATUS`; `DP_SET_WAR_FLAGS` is an ACK row. Open: 12 MODEL rows (hotplug state and event config, lane data and test patterns, AUX I2C, IMP parameters and IS_MODE_POSSIBLE_OR_SETTINGS, RG scan line and underflow, NV9072 NOTIFY_ON_VBLANK) and the 2 C rows (§10).
+**Status (2026-09-24):** partial. R0 (5eac90a): the board table of display/mod.rs answers 54 REFUSE (3 with NV_ERR_INVALID_ARGUMENT) and 9 ACK through the rule table, for the NV2080 and NV9072 display rows too; the 22 E rows are the families `frl`, `dp2x`, `display_later`, `display_embedded` and `windows_only`; GET_PINSET_COUNT and INTERNAL_DISP_PINSETS_TO_LOCKPINS are controls.toml rows, the adaptive-sync and the two VBIOS drive-table getters open rows with their source. R1 (ca598ec): `SPECIFIC_HDCP_CTRL` per cmd, `DP_CONFIGURE_FEC` into the link config, `GET_RG_STATUS`; `DP_SET_WAR_FLAGS` is an ACK row. Open: 12 MODEL rows (hotplug state and event config, lane data and test patterns, AUX I2C, IMP parameters and IS_MODE_POSSIBLE_OR_SETTINGS, RG scan line and underflow, NV9072 NOTIFY_ON_VBLANK) and the 2 C rows (§10). Round 2 left the 12 MODEL rows to the display branch of the same night: they are answered in display/mod.rs `d_model`, which that branch owns.
 
 | Control | Id | Bytes 610/615 | Priv | Answer | Rank | Truth | Caller and when (615 tree) |
 |---|---|---|---|---|---|---|---|
@@ -718,7 +718,7 @@ Answer: MODEL:display-engine, new. A pending notify per DispSw fires at the next
 
 ### 6.6 Perf, clocks and power (21)
 
-**Status (2026-09-24):** partial. R0 (5eac90a): GPU_SET_POWER DENY, CLIENT_PERF_MODES_SET_CONTROL REFUSE; the 18 E rows are `notebook_power` (16) and `nvlink_sli` (boost sync, 2), and the three the plan ACKs (SET_POWERSTATE, SET_AUX_POWER_STATE, UNSET_DYNAMIC_BOOST_LIMIT) are acknowledged by the family rule (`D_E_ACK`). Open: RATED_TDP_SET_CONTROL (MODEL).
+**Status (2026-09-24):** done. R0 (5eac90a): GPU_SET_POWER DENY, CLIENT_PERF_MODES_SET_CONTROL REFUSE; the 18 E rows are `notebook_power` (16) and `nvlink_sli` (boost sync, 2), and the three the plan ACKs (SET_POWERSTATE, SET_AUX_POWER_STATE, UNSET_DYNAMIC_BOOST_LIMIT) are acknowledged by the family rule (`D_E_ACK`). Round 2 (5699cde): `RATED_TDP_SET_CONTROL` records the client slot and applies nothing; `RATED_TDP_GET_CONTROL` stays the host forward of category B until Q11 decides MODEL or REFUSE. Done.
 
 | Control | Id | Bytes 610/615 | Priv | Answer | Rank | Truth | Caller and when (615 tree) |
 |---|---|---|---|---|---|---|---|
@@ -803,7 +803,7 @@ Answer: MODEL:display-engine, new. A pending notify per DispSw fires at the next
 
 ### 6.8 ECC, RAS and RC recovery (15)
 
-**Status (2026-09-24):** partial. R0 (5eac90a): SET_RC_RECOVERY and SET_RC_INFO REFUSE, SET_RAM_SVOP_VALUES DENY, LOG_OOB_XID ACK; the 9 E rows in `ecc`, `row_remap`, `nvlink_sli` and `legacy_uncalled`. Open: the 2 C rows (§10).
+**Status (2026-09-24):** done. R0 (5eac90a): SET_RC_RECOVERY and SET_RC_INFO REFUSE, SET_RAM_SVOP_VALUES DENY, LOG_OOB_XID ACK; the 9 E rows in `ecc`, `row_remap`, `nvlink_sli` and `legacy_uncalled`. Round 2 (8b5fa9b): `INTERNAL_RC_WATCHDOG_TIMEOUT` RCs the guest's GR channels whose USERD GPGet stands behind GPPut (Xid 45, the device's choice; mirrors taken off the host runlist; no engine reset), `LOG_OOB_XID` journalled (ACK label, never the host's OOB log), `RC_SET_CLEAN_ERROR_HISTORY` clears the journal. Done; the guest's watchdog stays off (`RmRcWatchdog=0`), §10 Round 2 says what turning it on needs.
 
 | Control | Id | Bytes 610/615 | Priv | Answer | Rank | Truth | Caller and when (615 tree) |
 |---|---|---|---|---|---|---|---|
@@ -883,7 +883,7 @@ Answer: MODEL:display-engine, new. A pending notify per DispSw fires at the next
 
 ### 6.10 Events, interrupts and firmware tracing (7)
 
-**Status (2026-09-24):** partial. R0 (5eac90a): 4 REFUSE (GSP trace and uStreamer); the 2 E rows in `legacy_uncalled`. Open: GPU_REPORT_NON_REPLAYABLE_FAULT (C, §10).
+**Status (2026-09-24):** done. R0 (5eac90a): 4 REFUSE (GSP trace and uStreamer); the 2 E rows in `legacy_uncalled`. Round 2 (8b5fa9b): `GPU_REPORT_NON_REPLAYABLE_FAULT` finds the channel by the packet's instance block (recorded from the channel allocation), refuses an unknown one with NV_ERR_INVALID_ARGUMENT, and RCs a known one through the RC event path (Xid 31). Done.
 
 | Control | Id | Bytes 610/615 | Priv | Answer | Rank | Truth | Caller and when (615 tree) |
 |---|---|---|---|---|---|---|---|
@@ -1052,7 +1052,7 @@ Unit tests for the 615-only id: absent from the 610 ABI, 8 bytes in 615.
 
 ### 6.14 Timers (2)
 
-**Status (2026-09-24):** open. Both rows are MODEL (timed semaphore); measure first (§8 Q4).
+**Status (2026-09-24):** refused until Q4. Round 2 (5699cde): both rows REFUSE in d-controls.tsv, as the Measurements below say while no trace shows a 0x9074 object (none in the 79 native traces or any Caraxes run); the design stays the model for the day one appears.
 
 | Control | Id | Bytes 610/615 | Priv | Answer | Rank | Truth | Caller and when (615 tree) |
 |---|---|---|---|---|---|---|---|
@@ -1149,7 +1149,7 @@ Every I2C answer must stay consistent with "no ports". There is no GPIO or LED s
 
 ### 6.16 Profiling and SM debugger (53)
 
-**Status (2026-09-24):** partial. R0 (5eac90a): 25 REFUSE, 15 DENY (NV_ERR_INSUFFICIENT_PERMISSIONS for PERF_RESERVE_PERFMON_HW and PERMISSIONS_INIT, NOT_SUPPORTED otherwise), SM_DEBUG_MODE_DISABLE ACK; GSP_RM_ALLOC of 0x90CC, 0xB0CC, 0xB1CC and 0xB2CC answers NV_ERR_INSUFFICIENT_PERMISSIONS (`dmodel::alloc`); the 11 E rows in `legacy_uncalled`, `vgpu_paths`, `windows_only`, `blackwell` and `ampere_later`. Open: DEBUG_SET_MODE_MMU_DEBUG (the debugger-session model, R5).
+**Status (2026-09-24):** done. R0 (5eac90a): 25 REFUSE, 15 DENY (NV_ERR_INSUFFICIENT_PERMISSIONS for PERF_RESERVE_PERFMON_HW and PERMISSIONS_INIT, NOT_SUPPORTED otherwise), SM_DEBUG_MODE_DISABLE ACK; GSP_RM_ALLOC of 0x90CC, 0xB0CC, 0xB1CC and 0xB2CC answers NV_ERR_INSUFFICIENT_PERMISSIONS (`dmodel::alloc`); the 11 E rows in `legacy_uncalled`, `vgpu_paths`, `windows_only`, `blackwell` and `ampere_later`. Round 2 (5699cde): `DEBUG_SET_MODE_MMU_DEBUG` per debugger object, read back by `DEBUG_GET_MODE_MMU_DEBUG` (category B), a reused handle starts disabled. Done; the MIRROR tier stays not recommended.
 
 | Control | Id | Bytes 610/615 | Priv | Answer | Rank | Truth | Caller and when (615 tree) |
 |---|---|---|---|---|---|---|---|
@@ -1237,7 +1237,7 @@ Every I2C answer must stay consistent with "no ports". There is no GPIO or LED s
 
 ### 6.17 Other (GPU accounting) (2)
 
-**Status (2026-09-24):** done. R0 (5eac90a): GPUACCT_SET_ACCOUNTING_STATE ACK, GPUACCT_CLEAR_ACCOUNTING_DATA in `vgpu_paths`.
+**Status (2026-09-24):** done. R0 (5eac90a): GPUACCT_SET_ACCOUNTING_STATE ACK, GPUACCT_CLEAR_ACCOUNTING_DATA in `vgpu_paths`. Round 2 (8b5fa9b): SET_ACCOUNTING_STATE is per-VM state (`MODEL:gpuacct`, label `guest (accounting state of this VM recorded; no samples; never the host's)`), an unknown state NV_ERR_INVALID_ARGUMENT.
 
 | Control | Id | Bytes 610/615 | Priv | Answer | Rank | Truth | Caller and when (615 tree) |
 |---|---|---|---|---|---|---|---|
@@ -1317,7 +1317,7 @@ Depends on:
 - category C's RESET_CHANNEL on mirror channels;
 - the mirror (exists).
 
-**Status R2:** open. Q3 measured on the 610 guest (§10): a kill -9 of a CUDA process sends no D control.
+**Status R2:** done (8b5fa9b), §10 Round 2: items 1, 2, 4 and 5 answered and unit-tested, the RC reflection through the existing event path; item 3 implemented on the device side, the guest's watchdog still off. Q3 measured on the 610 guest (§10): a kill -9 of a CUDA process sends no D control; the round-2 gates on vm3 sent none either.
 
 **R3. Vulkan games (Shadow of the Tomb Raider, the decisive benchmark; 4 to 7 days).**
 - The ZBC table model (6.2): guest-local, seeded once from a read-only host sweep of
@@ -1331,7 +1331,7 @@ Depends on:
 Depends on: the D16 filter (ZBC kinds are compressible on Turing), the event emitter (NV9072,
 NV9074).
 
-**Status R3:** open; the display gate already sends `SET_ZBC_COLOR_CLEAR` (§10).
+**Status R3:** partial: the ZBC table model (55d37b9, pulled forward because the display gate sends `SET_ZBC_COLOR_CLEAR`, §10), seeded by the Q5 sweep. Open: PREEMPTION_BIND and ZCULL_MODE (C), NOTIFY_ON_VBLANK (display branch), the timed semaphore (Q4).
 
 **R4. Suspend and resume of the guest (3 to 5 days).**
 - `FIFO_DISABLE_USERMODE_CHANNELS` and `INTERNAL_FIFO_TOGGLE_ACTIVE_CHANNEL_SCHEDULING`, over the
@@ -1341,7 +1341,7 @@ NV9074).
 - None of the three milestones needs this step. It comes first when VM suspend or live migration
   becomes a goal.
 
-**Status R4:** open.
+**Status R4:** partial: `DMA_FLUSH` onto the host L2 flush and `FBSR_INIT` recorded (5699cde). Open: `DISABLE_USERMODE_CHANNELS` and `TOGGLE_ACTIVE_CHANNEL_SCHEDULING` (C rows), Q6.
 
 **R5. Tools (2 to 4 days, whenever convenient).**
 - The debugger-session model for `DEBUG_SET_MODE_MMU_DEBUG`, so that cuda-gdb starts (6.16).
@@ -1349,7 +1349,7 @@ NV9074).
 - The GSP trace and uStreamer refusals are already in R0.
 - Mirrored SM debugging with breakpoints (12 to 20 days) is not recommended.
 
-**Status R5:** open; the GSP trace and uStreamer refusals and the profiler class rule are in R0 (5eac90a).
+**Status R5:** partial; the GSP trace and uStreamer refusals and the profiler class rule are in R0 (5eac90a), the debugger session's MMU debug mode and the RATED_TDP requests in round 2 (5699cde). Open: Q8, Q11.
 
 **Nobody on this chip (move to E, 102 controls).**
 - Display (22): FRL, DP 2.x, shared generic packets, NV Display 5.0 SOR flush, Tegra DSI and
@@ -1430,7 +1430,8 @@ milestone path (R3).
 
 ## 10. Implementation status (2026-09-24)
 
-R0 (commit 5eac90a) and R1 (ca598ec) are implemented; the per-group and per-item status lines
+R0 (commit 5eac90a) and R1 (ca598ec) are implemented, and round 2 (R2, the open MODEL rows
+outside the display, the ZBC table; "Round 2" below); the per-group and per-item status lines
 above say what is left. Where things are:
 
 - `crates/vfio-user-nvgpu/src/dmodel.rs`: the hook after the chipctl rules in
@@ -1453,7 +1454,7 @@ above say what is left. Where things are:
   tables of `caraxes/reference/rtx2070/rom.bin`, not parsed; GSP_FB_STATS_GET: the fb.rs
   regions).
 
-Per-label counts of the rule table (615.71.09; 610.57.04 in brackets):
+Per-label counts of the rule table after R0 and R1 (615.71.09; 610.57.04 in brackets; after round 2 see below):
 
 | Label | Rows | Answered by |
 |---|---:|---|
@@ -1464,6 +1465,146 @@ Per-label counts of the rule table (615.71.09; 610.57.04 in brackets):
 | MODEL | 42 (42) | 3 by R1, 1 E row refused, 1 A open row, 10 C rows and 27 open rows unanswered |
 | MIRROR | 3 (3) | all C, unanswered |
 
+
+### Round 2 (2026-09-24, night)
+
+Commits 5db2329 (generators and tables), 8b5fa9b (R2), 5699cde (the open MODEL rows outside
+the display), 55d37b9 (the ZBC table); runs in `caraxes/runs/gsp-round2-d-2026-09-24/`. One
+hook in `Dispatcher::control` asks the models first (`DState::control`: `src/dmodel.rs`,
+`src/rc.rs`, `src/zbc.rs`), then the rule table; the allocation hook of R0 also records a
+channel's instance block and drops what the models kept for a reused handle; boot.rs posts the
+models' RCs on the existing RC event path (`scan_channel_errors`).
+
+**R2, per item.**
+
+1. `FIFO_DISABLE_CHANNELS`: done. Every (hClient, hChannel) must be a channel of this guest
+   (the registry, duplicates resolved), otherwise the request is refused whole with
+   NV_ERR_INVALID_CHANNEL and nothing is done. A channel on a host mirror gets
+   `NVA06F GPFIFO_SCHEDULE` (bEnable = !bDisable) on its own host channel object, and a disable
+   with preemption `NVA06C PREEMPT` (bWait) on its own host TSG: the per-object controls the
+   guest may already send (`MIRROR_FORWARDED`). Never `STOP_RUNLIST`, a runlist, engine or
+   subdevice-wide action. A software-executor channel records the state (it runs only at a
+   doorbell). The per-channel host control is inferred from the header
+   (`ctrla06fgpfifo.h:41-73`, "disabled and removed from runlist"); no run has sent the
+   control yet (Q3), so the host side is unit-tested with a fake mirror only.
+2. `GPU_REPORT_NON_REPLAYABLE_FAULT` and the RC reflection: done. The packet's instance block
+   (`clb069.h:35-40`) is looked up among the channels' `instanceMem`; an unknown one is
+   NV_ERR_INVALID_ARGUMENT. A known one: its mirror is taken off the host runlist, the RC is
+   journalled and goes to the guest as OS_ERROR_LOG (when `RmLogonRC` is on) and RC_TRIGGERED
+   in the guest ABI's layout (events.rs), Xid 31 (`ROBUST_CHANNEL_FIFO_ERROR_MMU_ERR_FLT`).
+   Boot-level test on the 615 transport harness, run in both builds. No guest run can send it yet: the guest's UVM sees no
+   non-replayable faults while the device raises none (`MMU_FAULT_QUEUED`, events.md R3).
+3. `INTERNAL_RC_WATCHDOG_TIMEOUT` and `INTERNAL_LOG_OOB_XID`: device side done. The timeout
+   RCs the guest's GR channels whose USERD GPGet stands behind GPPut at the next event scan
+   (Xid 45 `ROBUST_CHANNEL_PREEMPTIVE_REMOVAL`, the device's choice: no open source names what
+   GSP-RM reports), mirrors taken off the host runlist first, no engine reset; the status is
+   ignored by the caller. `LOG_OOB_XID` journals the guest's own Xid with a sanitized text and
+   keeps the plan's ACK label; nothing goes to the host's OOB log. `RC_SET_CLEAN_ERROR_HISTORY`
+   (C) clears the journal. **What a guest run with the watchdog on needs**, from
+   kernel-rm-hw-surface.md §KernelRc and `kernel_rc_watchdog.c:1200-1511` of 615:
+   - `RmRcWatchdog=0` removed from the guest's `NVreg_RegistryDwords` (the image's modprobe
+     options, quickstart.md:79);
+   - the software executor must run the watchdog channel, a bare GR channel (bare GR channels
+     stay off the mirror): `FERMI_TWOD_A` `SET_OBJECT`, `SET_NOTIFY_A/B`, `NOTIFY` with
+     `NOTIFY_TYPE_WRITE_ONLY` and `NO_OPERATION` on the 2D subchannel (`:1361-1366`). channel.rs
+     decodes no 0x902D method today, so the notifier would never be written, every interval
+     would time out and this model would RC the watchdog channel each time;
+   - the watchdog's vidmem USERD is written by the CPU through BAR1 and rung at `0xBB0090` with
+     its work-submit token (`:1467-1511`): the gate profile runs without the BAR1 area, so
+     that path has to be checked with it;
+   - with display on, a stalled vblank reaches `LOG_OOB_XID` as Xid 10 (6.8), which the
+     journal takes.
+   Measurement Q7 stays open until those are in.
+4. `GPU_SET_COMPUTE_MODE_RULES` and `GPUACCT_SET_ACCOUNTING_STATE`: done, per-VM state (the
+   kernel enforces the compute rule and keeps the accounting tables itself); illegal values
+   are NV_ERR_INVALID_ARGUMENT; neither reaches the host. The accounting row is
+   `MODEL:gpuacct` in d-controls.tsv now. No `UTIL_SAMPLES` events (the optional follow-up of
+   6.17).
+5. The BAR0 map policy `GPU_VALIDATE_MEM_MAP_REQUEST`: done, rule 3 of 6.4 with the guest BAR0
+   base the guest reported (`GspSystemInfo`): outside BAR0, empty, straddling and wrapping
+   ranges and every range inside (the allow-list is empty) answer NV_ERR_PROTECTION_FAULT.
+
+**The 27 open MODEL rows.**
+
+| Rows | Answer now | Commit |
+|---|---|---|
+| `SET_ZBC_COLOR_CLEAR`, `_DEPTH_CLEAR`, `_CLEAR_TABLE`, `_STENCIL_CLEAR` | the guest-local ZBC table (below) | 55d37b9 |
+| `GPU_SET_COMPUTE_MODE_RULES` | per-VM rule (R2 item 4) | 8b5fa9b |
+| `INTERNAL_GR_SET_FECS_TRACE_HW_ENABLE`, `_RD_OFFSET`, `_WR_OFFSET` | recorded; FECS tracing stays off (kgr.rs reports no FECS buffer) | 5699cde |
+| `DMA_FLUSH`, `INTERNAL_MEMSYS_FLUSH_L2_ALL_RAMS_AND_CACHES` | `FB_FLUSH_GPU_CACHE` on the device's own subdevice (write back; write back and evict); COMPTAG ignored (D16) | 5699cde |
+| `INTERNAL_FBSR_INIT` | recorded (the device's GSP state lives in the process) | 5699cde |
+| `PERF_RATED_TDP_SET_CONTROL` | the client slot recorded, never applied | 5699cde |
+| `NV83DE DEBUG_SET_MODE_MMU_DEBUG` | per debugger object, read back by `DEBUG_GET_MODE_MMU_DEBUG` | 5699cde |
+| `NV9074 FLUSH`, `RELEASE` | REFUSE until Q4 shows a 0x9074 object (6.14 Measurements) | 5699cde |
+| the 12 display rows (hotplug state and event config, lane data, test patterns, AUX I2C, IMP parameters, IS_MODE_POSSIBLE_OR_SETTINGS, RG scan line and underflow, NV9072 NOTIFY_ON_VBLANK) | unanswered here: answered in display/mod.rs `d_model`, which the display branch of the same night owns | none |
+
+No model needed data that no file has: the ZBC seed came from the Q5 sweep; the GB206 ZBC seed
+is open (no sweep of that chip), and its table starts empty.
+
+**The ZBC table and Q5.** One read-only sweep of the host's table on the RTX 2070 under
+615.71.09 (`q5-host-sweep/`, caraxes/tools/zbc-probe.rs without `--set`, an unprivileged RM
+client of its own): RM_ALLOC of NV01_ROOT_CLIENT, NV01_DEVICE_0, NV20_SUBDEVICE_0 and
+GF100_ZBC_CLEAR (all status 0), `GET_ZBC_CLEAR_TABLE_SIZE` for colour, depth and stencil (status
+0, indices 1-15 each), `GET_ZBC_CLEAR_TABLE_ENTRY` for all 45 indices (status 0 each), RM_FREE
+(status 0); no kernel line on the host. 20 entries were valid:
+
+| Table | Index | Format | Value | Kept |
+|---|---|---|---|---|
+| colour | 1 | 0x1 ZERO | FB 0, DS 0 | yes |
+| colour | 2 | 0x2 UNORM_ONE | FB 0xffffffff x4, DS 1.0 x4 | yes |
+| colour | 3 | 0x4 RF32_GF32_BF32_AF32 | FB 1.0 x4, DS 1.0 x4 | yes |
+| colour | 4-15 | 0x18 / 0x28 | twelve dark and light greys of the host desktop's clients | no |
+| depth | 1, 2 | 0x1 FP32 | 0.0, 1.0 | yes |
+| stencil | 1, 2, 3 | 0x1 U8 | 0, 1, 0xff | yes |
+
+Colour 1-3, depth 1-2 and stencil 1-3 equal the 10 native traces that read the table
+(`matrix/traces/610.57.04/control/*.jsonl`) and are GSP-RM's seed; colour 4-15 differ between
+the traces and the sweep (six of twelve changed): they are the host session's clear colours
+and would leak it, so `chips/tu106/zbc.toml` keeps the seed only. The setters add to this VM's
+table (an equal entry is referenced again, a full table is NV_ERR_INSUFFICIENT_RESOURCES),
+the indexed setter writes at its index, `GET_ZBC_CLEAR_TABLE_ENTRY` and the deprecated
+`GET_ZBC_CLEAR_TABLE` answer from it, `GET_ZBC_CLEAR_TABLE_SIZE` stays the chip-data row. The
+game half of Q5 (which colours SotTR sets) is not measured.
+
+**Label counts of the rule table** (d-controls.tsv through `gsp-dtable.py`; 610.57.04 in
+brackets):
+
+| Label | Before (57693d8) | After (55d37b9) | Answered by, after |
+|---|---:|---:|---|
+| REFUSE | 200 (198) | 202 (200) | 103 (101) by the table (the two NV9074 rows new), 95 by E families, 1 A row, 3 C rows unanswered |
+| DENY | 37 (37) | 37 (37) | the table |
+| ACK | 21 (20) | 20 (19) | 12 (11) by the table or the display board, `LOG_OOB_XID` by rc.rs with the ACK label, 6 E rows by the family rule, `RC_SET_CLEAN_ERROR_HISTORY` (C) by rc.rs |
+| TABLE | 5 (5) | 5 (5) | 2 controls.toml rows, 3 open rows |
+| MODEL | 42 (42) | 41 (41) | 14 by the round-2 models, 3 C rows by rc.rs and dmodel.rs (watchdog, fault, BAR0 policy), 3 by R1 (display), 12 display rows open (display branch), 7 C rows open, 1 A open row, 1 E row refused |
+| MIRROR | 3 (3) | 3 (3) | `FIFO_DISABLE_CHANNELS` by rc.rs; `IDLE_CHANNELS` and `PREEMPTION_BIND` open (C) |
+
+**Gates on vm3** (the environment of caraxes/runs/gsp-rpc-2026-09-24/run.sh gate610/gate615:
+1 GiB at reservation slot 5, token pool, hybrid reactor, no BAR1 area; `run.sh` of this
+directory, the ZBC probe after the gates; before = the parent 57693d8, after = 55d37b9):
+
+| Guest | Run | nvml gate | cuda gate | ZBC probe (`--set`) | Device pid | Host Xid (device / all) |
+|---|---|---|---|---|---|---|
+| 610.57.04 (vm3) | before | fail: power-number N/A, as in every 610 gate of the day | 10 of 12 scored pass; `cuda-managed` fails (AllocManaged 801 after `GPU_QUERY_ECC_STATUS` 0x56), `cuda-gdb` declared unsupported | not run | 1094752 | 0 / 0 |
+| 610.57.04 (vm3) | after | the same | the same | 45 entries answered, 8 valid; the 3 setters NV_OK; readback 3 of 3 | 1214008 | 0 / 0 |
+| 615.71.09 (vm3-615) | before | pass | the same as 610 | 45 `unanswered` (0x56); the 3 setters 0x56; readback 0 of 3 | 1138022 | 0 / 2 |
+| 615.71.09 (vm3-615) | after | pass | the same as 610 | as the 610 after run | 1250420 | 0 / 0 |
+
+Binaries: before 5d18010b (610) and 237030dc (615), after 18dc2fbe and b3262c05 (sha256 prefixes,
+`setup.txt` of each run). The control answers outside the ZBC controls are the same before and
+after (`device-trace-issues.txt`: the ECC, InfoROM and GSS-legacy refusals of the host).
+
+The gates send no D control and no ZBC control in any run (`device-dcontrols-gates.txt`
+empty): the cuda gate's torch stage does not reach the ZBC path, hence the probe. Its guest
+half (`--set`, allowed only under a hypervisor flag) goes through the device: before, every
+`GET_ZBC_CLEAR_TABLE_ENTRY` and all three setters were `unanswered` NOT_SUPPORTED; after, the
+sweep reads the 8 seeded entries, the three setters answer NV_OK and the readback finds all
+three values, none of it on the host.
+
+**Xids.** None on the device's pid in any of the four runs. During the 615 before run the
+host logged two Xid 31 (MMU fault, CE2 HUBCLIENT_CE0, FAULT_PTE) at 23:32:08 and 23:32:25 for
+pid 1131576 `vfio-user-nvgpu`, the device of another VM on the card (vm3-615's device was pid
+1138022; `gate615-before/host-xid.txt`). The Q5 sweep left no host kernel line. vm3 was down
+after every run.
 ### Rows for the category C work
 
 The 17 D rows the plan moves to C (d-controls.tsv `reclass` C). The rule table leaves them

@@ -52,12 +52,14 @@ pub mod privilege;
 pub mod poll;
 pub mod ptcache;
 pub mod public;
+pub mod rc;
 pub mod rpc;
 pub mod selftest;
 pub mod shadow;
 pub mod tokens;
 pub mod trace;
 pub mod uvm;
+pub mod zbc;
 pub mod ver;
 
 #[cfg(test)]

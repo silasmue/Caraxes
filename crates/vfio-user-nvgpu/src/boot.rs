@@ -398,6 +398,37 @@ impl BootModel {
         notes
     }
 
+    /// The RCs the category D models raised (rc.rs: a fault UVM reported, the RC watchdog)
+    /// go to the guest on the same path as a host mirror's error: OS_ERROR_LOG when the
+    /// guest logs RCs, then RC_TRIGGERED in the guest ABI's layout.
+    fn post_model_rcs(&mut self, mem: &GuestMemory) -> Vec<String> {
+        if self.ctrl.dstate.rc.pending.is_empty() {
+            return Vec::new();
+        }
+        let gm = crate::channel::GpuMem { fb: &mut self.fb, sys: mem };
+        let rcs = crate::rc::take(&mut self.ctrl, &gm);
+        let layout = crate::events::rc_layout(self.transport.guest_abi());
+        let mut items = Vec::new();
+        let mut notes = Vec::new();
+        for r in rcs {
+            notes.push(format!("chid {}: RC Xid {} from the D models: {} [guest channel]", r.chid, r.xid, r.text));
+            if self.registry.log_on_rc {
+                items.push(crate::events::Unsolicited::Event(
+                    crate::events::EV_OS_ERROR_LOG,
+                    crate::events::os_error_log(r.xid, 0, r.chid, &r.text),
+                ));
+            }
+            items.push(crate::events::Unsolicited::Event(
+                crate::events::EV_RC_TRIGGERED,
+                crate::events::rc_triggered(layout, r.engine_type, r.chid, r.xid),
+            ));
+        }
+        if !items.is_empty() {
+            notes.extend(self.post_unsolicited(mem, &items));
+        }
+        notes
+    }
+
     /// Look at the error notifiers of the guest's channels that run on host mirrors
     /// (events.rs): a write the host RM made there (it is the guest's own page, the
     /// mirror channel's `hObjectError`) becomes OS_ERROR_LOG and RC_TRIGGERED for that
@@ -405,6 +436,10 @@ impl BootModel {
     /// only: that subscription is host-global and never a source, events.rs) and at most
     /// every 100 ms otherwise when `periodic`.
     fn scan_channel_errors(&mut self, mem: &GuestMemory, periodic: bool) -> Vec<String> {
+        let model_rcs = self.post_model_rcs(mem);
+        if !model_rcs.is_empty() {
+            return model_rcs;
+        }
         let rc = self
             .exec
             .as_ref()
@@ -2452,6 +2487,85 @@ mod tests {
         assert!(g.mem.write(notifier, &n));
         g.b.rc_scan.1 = None;
         assert!(g.b.scan_channel_errors(&g.mem, true).is_empty());
+    }
+
+    /// The RC reflection of the D models (rc.rs): a non-replayable fault UVM reports on a
+    /// guest channel, then an RC watchdog timeout with that channel's USERD behind, each
+    /// reach the guest as OS_ERROR_LOG and RC_TRIGGERED for that chid on the next scan;
+    /// a fault on an instance block no channel has is refused and raises nothing.
+    #[test]
+    fn the_d_models_rc_reaches_the_guest() {
+        use nvrm_sys::RmAbi;
+        type Abi = v::RmAbi;
+        let mut g = Guest615::boot("dmodelrc");
+        let (c, inst) = (0xc1d0_0002u32, 0x0123_4000u64);
+        let mut p = vec![0u8; <Abi as RmAbi>::ALLOC_CHANNEL_PARAMS_SIZE as usize];
+        let put = |b: &mut [u8], o: usize, x: &[u8]| b[o..o + x.len()].copy_from_slice(x);
+        put(&mut p, <Abi as RmAbi>::ALLOC_CHANNEL_PARAMS_OFF_flags, &((1u32 << 21) | (6 << 8)).to_le_bytes());
+        put(&mut p, <Abi as RmAbi>::ALLOC_CHANNEL_PARAMS_OFF_engineType, &1u32.to_le_bytes());
+        let userd = <Abi as RmAbi>::ALLOC_CHANNEL_PARAMS_OFF_userdMem;
+        put(&mut p, userd + v::MEM_DESC_BASE, &0x30_0000u64.to_le_bytes());
+        put(&mut p, userd + v::MEM_DESC_ADDRESS_SPACE, &v::ADDR_FBMEM.to_le_bytes());
+        let im = <Abi as RmAbi>::ALLOC_CHANNEL_PARAMS_OFF_instanceMem;
+        put(&mut p, im + v::MEM_DESC_BASE, &inst.to_le_bytes());
+        put(&mut p, im + v::MEM_DESC_ADDRESS_SPACE, &v::ADDR_FBMEM.to_le_bytes());
+        let (notes, el) = g.rpc(rpc::FN_GSP_RM_ALLOC, &alloc_request(c, 0xcaf2_0000, 0xc46f, &p));
+        assert_eq!(Guest615::reply(&el, rpc::FN_GSP_RM_ALLOC).unwrap().0, 0, "{notes:?}");
+        let nr = crate::ver::Abi::active()
+            .d_rules
+            .iter()
+            .find(|r| r.name == "NV2080_CTRL_CMD_GPU_REPORT_NON_REPLAYABLE_FAULT")
+            .unwrap()
+            .id;
+        // The control's own status (rpc_gsp_rm_control `status`).
+        let st = |el: &[_]| {
+            let r = Guest615::reply(el, rpc::FN_GSP_RM_CONTROL).unwrap().1;
+            u32::from_le_bytes(r[v::RM_CONTROL_STATUS..v::RM_CONTROL_STATUS + 4].try_into().unwrap())
+        };
+        let packet = |inst: u64| {
+            let mut b = vec![0u8; 32];
+            b[0..4].copy_from_slice(&(inst as u32 & 0xFFFF_F000).to_le_bytes());
+            b[4..8].copy_from_slice(&((inst >> 32) as u32).to_le_bytes());
+            b
+        };
+        // An instance block of no channel: refused, nothing raised.
+        let (_, el) = g.rpc(rpc::FN_GSP_RM_CONTROL, &control_request(c, 0xcaf2_0001, nr, &packet(0x0999_0000)));
+        assert_ne!(st(&el), 0);
+        assert!(g.b.scan_channel_errors(&g.mem, false).is_empty());
+        // The channel's own instance block: NV_OK, then the RC on the next scan.
+        // (The RPC's own BAR0 writes run the scan: the RC may already be out.)
+        let (mut notes, el) = g.rpc(rpc::FN_GSP_RM_CONTROL, &control_request(c, 0xcaf2_0001, nr, &packet(inst)));
+        assert_eq!(st(&el), 0);
+        notes.extend(g.b.scan_channel_errors(&g.mem, false));
+        assert!(g.b.ctrl.dstate.rc.pending.is_empty(), "{notes:?}");
+        assert_eq!(g.b.ctrl.dstate.rc.journal.last().map(|r| (r.chid, r.xid)), Some((Some(6), 31)));
+        let el: Vec<_> = el.into_iter().chain(g.drain()).collect();
+        let rc = Guest615::reply(&el, crate::events::EV_RC_TRIGGERED).unwrap().1;
+        assert_eq!(u32::from_le_bytes(rc[4..8].try_into().unwrap()), 6);
+        assert_eq!(u32::from_le_bytes(rc[16..20].try_into().unwrap()), 31);
+        // The watchdog: the channel's USERD stands at GPGet 1 of GPPut 3.
+        g.b.write32(GSP_IRQSCLR, GSP_SWGEN0, &g.mem);
+        {
+            let mut gm = crate::channel::GpuMem { fb: &mut g.b.fb, sys: &g.mem };
+            assert!(gm.write(crate::fb::Target::Fb(0x30_0088), &1u32.to_le_bytes()));
+            assert!(gm.write(crate::fb::Target::Fb(0x30_008C), &3u32.to_le_bytes()));
+        }
+        let wd = crate::ver::Abi::active()
+            .d_rules
+            .iter()
+            .find(|r| r.name == "NV2080_CTRL_CMD_INTERNAL_RC_WATCHDOG_TIMEOUT")
+            .unwrap()
+            .id;
+        let (mut notes, el) = g.rpc(rpc::FN_GSP_RM_CONTROL, &control_request(c, 0xcaf2_0001, wd, &[]));
+        assert_eq!(st(&el), 0);
+        notes.extend(g.b.scan_channel_errors(&g.mem, false));
+        assert!(g.b.ctrl.dstate.rc.pending.is_empty(), "{notes:?}");
+        let last = g.b.ctrl.dstate.rc.journal.last().unwrap();
+        assert_eq!((last.chid, last.xid), (Some(6), 45));
+        assert!(last.text.contains("GPGet 1 of GPPut 3"), "{}", last.text);
+        let el: Vec<_> = el.into_iter().chain(g.drain()).collect();
+        let rc = Guest615::reply(&el, crate::events::EV_RC_TRIGGERED).unwrap().1;
+        assert_eq!(u32::from_le_bytes(rc[16..20].try_into().unwrap()), 45);
     }
 
     /// B3, B7 and B5 against the captured 615 guest: the opt-in and the registry of the

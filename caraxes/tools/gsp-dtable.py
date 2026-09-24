@@ -19,8 +19,9 @@ Writes crates/vfio-user-nvgpu/src/ver/v<major>/dmodel.rs with
   D_E_ACK          the ids of those whose plan answer is ACK: an absent family answers them
                    NV_OK with the request echoed (the kernel asserts or ignores the status);
   PROFILER_CLASSES the profiler classes whose allocation the device refuses (6.16);
-  D_ENUMS          the SDK enum values the modelled controls read or write (`ENUMS` below)
-                   and the NV statuses the device looks up by name (`STATUSES`).
+  D_ENUMS          the SDK enum values the modelled controls read or write (`ENUMS` below,
+                   the low bit of the `BITFIELDS`) and the NV statuses the device looks up by
+                   name (`STATUSES`).
 
 Ids come from the inventory (a TSV id that disagrees stops the generator), sizes from the
 TSV (compiler-measured by the plan, §9), statuses from the tree's nvstatuscodes.h, classes
@@ -231,16 +232,67 @@ PROFILER_CLASSES = ["GF100_PROFILER", "MAXWELL_PROFILER", "MAXWELL_PROFILER_CONT
 MODELLED = ["NV0073_CTRL_CMD_SPECIFIC_HDCP_CTRL", "NV0073_CTRL_CMD_DP_CONFIGURE_FEC",
             "NV5070_CTRL_CMD_GET_RG_STATUS"]
 
+# The controls the device models of round 2 answer (R2, the open MODEL rows, the ZBC table:
+# dmodel.rs `MODELLED_HERE`, rc.rs, zbc.rs), outside the display; their parameter structs are
+# laid out by ctrl-layouts.py like those of MODELLED.
+MODELLED_HERE = [
+    # R2: the CUDA error and teardown paths, nvidia-smi admin, the BAR0 mmap policy.
+    "NV2080_CTRL_CMD_FIFO_DISABLE_CHANNELS",
+    "NV2080_CTRL_CMD_GPU_REPORT_NON_REPLAYABLE_FAULT",
+    "NV2080_CTRL_CMD_INTERNAL_RC_WATCHDOG_TIMEOUT",
+    "NV2080_CTRL_CMD_INTERNAL_LOG_OOB_XID",
+    "NV2080_CTRL_CMD_RC_SET_CLEAN_ERROR_HISTORY",
+    "NV2080_CTRL_CMD_GPU_SET_COMPUTE_MODE_RULES",
+    "NV0000_CTRL_CMD_GPUACCT_SET_ACCOUNTING_STATE",
+    "NV2080_CTRL_CMD_GPU_VALIDATE_MEM_MAP_REQUEST",
+    # The ZBC table (6.2, R3 pulled forward).
+    "NV9096_CTRL_CMD_SET_ZBC_COLOR_CLEAR",
+    "NV9096_CTRL_CMD_SET_ZBC_DEPTH_CLEAR",
+    "NV9096_CTRL_CMD_SET_ZBC_CLEAR_TABLE",
+    "NV9096_CTRL_CMD_SET_ZBC_STENCIL_CLEAR",
+    # The other open MODEL rows outside the display.
+    "NV2080_CTRL_CMD_INTERNAL_GR_SET_FECS_TRACE_HW_ENABLE",
+    "NV2080_CTRL_CMD_INTERNAL_GR_SET_FECS_TRACE_RD_OFFSET",
+    "NV2080_CTRL_CMD_INTERNAL_GR_SET_FECS_TRACE_WR_OFFSET",
+    "NV0080_CTRL_CMD_DMA_FLUSH",
+    "NV2080_CTRL_CMD_INTERNAL_MEMSYS_FLUSH_L2_ALL_RAMS_AND_CACHES",
+    "NV2080_CTRL_CMD_INTERNAL_FBSR_INIT",
+    "NV2080_CTRL_CMD_PERF_RATED_TDP_SET_CONTROL",
+    "NV83DE_CTRL_CMD_DEBUG_SET_MODE_MMU_DEBUG",
+]
+
+# Parameter structs laid out beside those of the rows: the getters that answer from the
+# models (not D rows themselves: the ZBC getters of categories A and B, the MMU debug getter
+# of B), and the structs the FECS setters name through a typedef (ctrl2080internal.h:614,
+# :658, :662), which ctrl-layouts.py does not follow.
+MODEL_STRUCTS = ["NV9096_CTRL_GET_ZBC_CLEAR_TABLE_PARAMS",
+                 "NV9096_CTRL_GET_ZBC_CLEAR_TABLE_ENTRY_PARAMS",
+                 "NV83DE_CTRL_DEBUG_GET_MODE_MMU_DEBUG_PARAMS",
+                 "NV2080_CTRL_INTERNAL_GR_FECS_TRACE_HW_ENABLE_PARAMS",
+                 "NV2080_CTRL_INTERNAL_GR_FECS_TRACE_OFFSET_PARAMS"]
+
 # SDK enum values the models use: every `#define` whose name matches (header, regex).
 ENUMS = [
     ("ctrl/ctrl0073/ctrl0073specific.h", r"NV0073_CTRL_SPECIFIC_HDCP_CTRL_CMD_\w+"),
     ("ctrl/ctrl0073/ctrl0073specific.h", r"NV0073_CTRL_SPECIFIC_HDCP_CTRL_ERR_\w+_YES"),
     ("ctrl/ctrl5070/ctrl5070rg.h", r"NV5070_CTRL_CMD_GET_RG_STATUS_\w+_(?:NO|YES)"),
+    # Round 2 (dmodel.rs, rc.rs, zbc.rs).
+    ("ctrl/ctrl9096.h", r"NV9096_CTRL_ZBC_CLEAR_OBJECT_TYPE_\w+"),
+    ("ctrl/ctrl2080/ctrl2080gpu.h", r"NV2080_CTRL_GPU_COMPUTE_MODE_RULES_\w+"),
+    ("ctrl/ctrl0000/ctrl0000gpuacct.h", r"NV0000_CTRL_GPU_ACCOUNTING_STATE_\w+"),
+    ("ctrl/ctrl83de/ctrl83dedebug.h", r"NV83DE_CTRL_CMD_DEBUG_[GS]ET_MODE_MMU_DEBUG_\w+"),
+    ("nverror.h", r"ROBUST_CHANNEL_(?:FIFO_ERROR_MMU_ERR_FLT|PREEMPTIVE_REMOVAL)"),
+]
+
+# SDK bit fields the models test (`#define NAME hi:lo`): the value is the low bit.
+BITFIELDS = [
+    ("ctrl/ctrl0080/ctrl0080dma.h", r"NV0080_CTRL_DMA_FLUSH_TARGET_UNIT_(?:L2|COMPTAG|FB)"),
 ]
 
 # The NV statuses the device code looks up by name (nvstatuscodes.h).
 STATUSES = ["NV_OK", "NV_ERR_NOT_SUPPORTED", "NV_ERR_INVALID_ARGUMENT",
-            "NV_ERR_INSUFFICIENT_PERMISSIONS"]
+            "NV_ERR_INSUFFICIENT_PERMISSIONS", "NV_ERR_INSUFFICIENT_RESOURCES",
+            "NV_ERR_PROTECTION_FAULT", "NV_ERR_INVALID_CHANNEL"]
 
 ANSWER_KIND = {"REFUSE": "Refuse", "DENY": "Deny", "ACK": "Ack", "TABLE": "Table",
                "MODEL": "Model", "MIRROR": "Mirror"}
@@ -289,6 +341,10 @@ def enum_values(sdk):
             for m in re.finditer(r"#define\s+(%s)\s+\(?(0x[0-9A-Fa-f]+|\d+)U?\)?\s*$" % rx,
                                  f.read(), re.M):
                 out.append((m.group(1), int(m.group(2), 0)))
+    for hdr, rx in BITFIELDS:
+        with open(os.path.join(sdk, hdr), encoding="utf-8") as f:
+            for m in re.finditer(r"#define\s+(%s)\s+(\d+):(\d+)\s*$" % rx, f.read(), re.M):
+                out.append((m.group(1), int(m.group(3))))
     return out
 
 

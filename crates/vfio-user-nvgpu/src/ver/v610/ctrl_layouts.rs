@@ -11,6 +11,16 @@ use crate::ver::{CtrlField, CtrlLayout};
 
 pub const CTRL_LAYOUTS: &[CtrlLayout] = &[
     CtrlLayout {
+        name: "NV0000_CTRL_GPUACCT_SET_ACCOUNTING_STATE_PARAMS",
+        header: "ctrl0000/ctrl0000gpuacct.h",
+        size: 12,
+        fields: &[
+            CtrlField { path: "gpuId", offset: 0, size: 4, dims: &[] },
+            CtrlField { path: "pid", offset: 4, size: 4, dims: &[] },
+            CtrlField { path: "newState", offset: 8, size: 4, dims: &[] },
+        ],
+    },
+    CtrlLayout {
         name: "NV0073_CTRL_CMD_DP_CONFIGURE_FEC_PARAMS",
         header: "ctrl0073/ctrl0073dp.h",
         size: 12,
@@ -64,6 +74,14 @@ pub const CTRL_LAYOUTS: &[CtrlLayout] = &[
         ],
     },
     CtrlLayout {
+        name: "NV0080_CTRL_DMA_FLUSH_PARAMS",
+        header: "ctrl0080/ctrl0080dma.h",
+        size: 4,
+        fields: &[
+            CtrlField { path: "targetUnit", offset: 0, size: 4, dims: &[] },
+        ],
+    },
+    CtrlLayout {
         name: "NV0080_CTRL_NVDEC_GET_CAPS_PARAMS_V2",
         header: "ctrl0080/ctrl0080nvdec.h",
         size: 12,
@@ -112,6 +130,20 @@ pub const CTRL_LAYOUTS: &[CtrlLayout] = &[
         ],
     },
     CtrlLayout {
+        name: "NV2080_CTRL_FIFO_DISABLE_CHANNELS_PARAMS",
+        header: "ctrl2080/ctrl2080fifo.h",
+        size: 536,
+        fields: &[
+            CtrlField { path: "bDisable", offset: 0, size: 1, dims: &[] },
+            CtrlField { path: "numChannels", offset: 4, size: 4, dims: &[] },
+            CtrlField { path: "bOnlyDisableScheduling", offset: 8, size: 1, dims: &[] },
+            CtrlField { path: "bRewindGpPut", offset: 9, size: 1, dims: &[] },
+            CtrlField { path: "pRunlistPreemptEvent", offset: 16, size: 8, dims: &[] },
+            CtrlField { path: "hClientList[]", offset: 24, size: 4, dims: &[(4, 64)] },
+            CtrlField { path: "hChannelList[]", offset: 280, size: 4, dims: &[(4, 64)] },
+        ],
+    },
+    CtrlLayout {
         name: "NV2080_CTRL_GPU_GET_FIPS_STATUS_PARAMS",
         header: "ctrl2080/ctrl2080gpu.h",
         size: 1,
@@ -125,6 +157,33 @@ pub const CTRL_LAYOUTS: &[CtrlLayout] = &[
         size: 4,
         fields: &[
             CtrlField { path: "firstAsyncCEIdx", offset: 0, size: 4, dims: &[] },
+        ],
+    },
+    CtrlLayout {
+        name: "NV2080_CTRL_GPU_REPORT_NON_REPLAYABLE_FAULT_PARAMS",
+        header: "ctrl2080/ctrl2080gpu.h",
+        size: 32,
+        fields: &[
+            CtrlField { path: "faultPacket.data[]", offset: 0, size: 1, dims: &[(1, 32)] },
+        ],
+    },
+    CtrlLayout {
+        name: "NV2080_CTRL_GPU_SET_COMPUTE_MODE_RULES_PARAMS",
+        header: "ctrl2080/ctrl2080gpu.h",
+        size: 8,
+        fields: &[
+            CtrlField { path: "rules", offset: 0, size: 4, dims: &[] },
+            CtrlField { path: "flags", offset: 4, size: 4, dims: &[] },
+        ],
+    },
+    CtrlLayout {
+        name: "NV2080_CTRL_GPU_VALIDATE_MEM_MAP_REQUEST_PARAMS",
+        header: "ctrl2080/ctrl2080gpu.h",
+        size: 24,
+        fields: &[
+            CtrlField { path: "addressStart", offset: 0, size: 8, dims: &[] },
+            CtrlField { path: "addressLength", offset: 8, size: 8, dims: &[] },
+            CtrlField { path: "protection", offset: 16, size: 4, dims: &[] },
         ],
     },
     CtrlLayout {
@@ -151,6 +210,47 @@ pub const CTRL_LAYOUTS: &[CtrlLayout] = &[
             CtrlField { path: "masterScanLockPin", offset: 12, size: 4, dims: &[] },
             CtrlField { path: "bSlaveScanLock", offset: 16, size: 1, dims: &[] },
             CtrlField { path: "slaveScanLockPin", offset: 20, size: 4, dims: &[] },
+        ],
+    },
+    CtrlLayout {
+        name: "NV2080_CTRL_INTERNAL_FBSR_INIT_PARAMS",
+        header: "ctrl2080/ctrl2080internal.h",
+        size: 24,
+        fields: &[
+            CtrlField { path: "hClient", offset: 0, size: 4, dims: &[] },
+            CtrlField { path: "hSysMem", offset: 4, size: 4, dims: &[] },
+            CtrlField { path: "bEnteringGcoffState", offset: 8, size: 1, dims: &[] },
+            CtrlField { path: "sysmemAddrOfSuspendResumeData", offset: 16, size: 8, dims: &[] },
+        ],
+    },
+    CtrlLayout {
+        name: "NV2080_CTRL_INTERNAL_GR_FECS_TRACE_HW_ENABLE_PARAMS",
+        header: "ctrl2080/ctrl2080internal.h",
+        size: 24,
+        fields: &[
+            CtrlField { path: "grRouteInfo.flags", offset: 0, size: 4, dims: &[] },
+            CtrlField { path: "grRouteInfo.route", offset: 8, size: 8, dims: &[] },
+            CtrlField { path: "bEnable", offset: 16, size: 1, dims: &[] },
+        ],
+    },
+    CtrlLayout {
+        name: "NV2080_CTRL_INTERNAL_GR_FECS_TRACE_OFFSET_PARAMS",
+        header: "ctrl2080/ctrl2080internal.h",
+        size: 24,
+        fields: &[
+            CtrlField { path: "grRouteInfo.flags", offset: 0, size: 4, dims: &[] },
+            CtrlField { path: "grRouteInfo.route", offset: 8, size: 8, dims: &[] },
+            CtrlField { path: "offset", offset: 16, size: 4, dims: &[] },
+        ],
+    },
+    CtrlLayout {
+        name: "NV2080_CTRL_INTERNAL_LOG_OOB_XID_PARAMS",
+        header: "ctrl2080/ctrl2080internal.h",
+        size: 92,
+        fields: &[
+            CtrlField { path: "xid", offset: 0, size: 4, dims: &[] },
+            CtrlField { path: "message[]", offset: 4, size: 1, dims: &[(1, 81)] },
+            CtrlField { path: "len", offset: 88, size: 4, dims: &[] },
         ],
     },
     CtrlLayout {
@@ -196,6 +296,16 @@ pub const CTRL_LAYOUTS: &[CtrlLayout] = &[
         ],
     },
     CtrlLayout {
+        name: "NV2080_CTRL_PERF_RATED_TDP_CONTROL_PARAMS",
+        header: "ctrl2080/ctrl2080perf.h",
+        size: 12,
+        fields: &[
+            CtrlField { path: "client", offset: 0, size: 4, dims: &[] },
+            CtrlField { path: "input", offset: 4, size: 4, dims: &[] },
+            CtrlField { path: "vPstateType", offset: 8, size: 4, dims: &[] },
+        ],
+    },
+    CtrlLayout {
         name: "NV5070_CTRL_CMD_GET_RG_STATUS_PARAMS",
         header: "ctrl5070/ctrl5070rg.h",
         size: 20,
@@ -217,6 +327,54 @@ pub const CTRL_LAYOUTS: &[CtrlLayout] = &[
         ],
     },
     CtrlLayout {
+        name: "NV83DE_CTRL_DEBUG_GET_MODE_MMU_DEBUG_PARAMS",
+        header: "ctrl83de/ctrl83dedebug.h",
+        size: 4,
+        fields: &[
+            CtrlField { path: "value", offset: 0, size: 4, dims: &[] },
+        ],
+    },
+    CtrlLayout {
+        name: "NV83DE_CTRL_DEBUG_SET_MODE_MMU_DEBUG_PARAMS",
+        header: "ctrl83de/ctrl83dedebug.h",
+        size: 4,
+        fields: &[
+            CtrlField { path: "action", offset: 0, size: 4, dims: &[] },
+        ],
+    },
+    CtrlLayout {
+        name: "NV9096_CTRL_GET_ZBC_CLEAR_TABLE_ENTRY_PARAMS",
+        header: "ctrl9096.h",
+        size: 56,
+        fields: &[
+            CtrlField { path: "value.colorFB[]", offset: 0, size: 4, dims: &[(4, 4)] },
+            CtrlField { path: "value.colorDS[]", offset: 16, size: 4, dims: &[(4, 4)] },
+            CtrlField { path: "value.depth", offset: 32, size: 4, dims: &[] },
+            CtrlField { path: "value.stencil", offset: 36, size: 4, dims: &[] },
+            CtrlField { path: "format", offset: 40, size: 4, dims: &[] },
+            CtrlField { path: "index", offset: 44, size: 4, dims: &[] },
+            CtrlField { path: "bIndexValid", offset: 48, size: 1, dims: &[] },
+            CtrlField { path: "tableType", offset: 52, size: 4, dims: &[] },
+        ],
+    },
+    CtrlLayout {
+        name: "NV9096_CTRL_GET_ZBC_CLEAR_TABLE_PARAMS",
+        header: "ctrl9096.h",
+        size: 64,
+        fields: &[
+            CtrlField { path: "value.colorFB[]", offset: 0, size: 4, dims: &[(4, 4)] },
+            CtrlField { path: "value.colorDS[]", offset: 16, size: 4, dims: &[(4, 4)] },
+            CtrlField { path: "value.depth", offset: 32, size: 4, dims: &[] },
+            CtrlField { path: "value.stencil", offset: 36, size: 4, dims: &[] },
+            CtrlField { path: "indexSize", offset: 40, size: 4, dims: &[] },
+            CtrlField { path: "indexStart", offset: 44, size: 4, dims: &[] },
+            CtrlField { path: "indexEnd", offset: 48, size: 4, dims: &[] },
+            CtrlField { path: "indexUsed", offset: 52, size: 4, dims: &[] },
+            CtrlField { path: "format", offset: 56, size: 4, dims: &[] },
+            CtrlField { path: "valType", offset: 60, size: 4, dims: &[] },
+        ],
+    },
+    CtrlLayout {
         name: "NV9096_CTRL_GET_ZBC_CLEAR_TABLE_SIZE_PARAMS",
         header: "ctrl9096.h",
         size: 12,
@@ -224,6 +382,53 @@ pub const CTRL_LAYOUTS: &[CtrlLayout] = &[
             CtrlField { path: "indexStart", offset: 0, size: 4, dims: &[] },
             CtrlField { path: "indexEnd", offset: 4, size: 4, dims: &[] },
             CtrlField { path: "tableType", offset: 8, size: 4, dims: &[] },
+        ],
+    },
+    CtrlLayout {
+        name: "NV9096_CTRL_SET_ZBC_CLEAR_TABLE_PARAMS",
+        header: "ctrl9096.h",
+        size: 60,
+        fields: &[
+            CtrlField { path: "colorFB[]", offset: 0, size: 4, dims: &[(4, 4)] },
+            CtrlField { path: "colorDS[]", offset: 16, size: 4, dims: &[(4, 4)] },
+            CtrlField { path: "colorFormat", offset: 32, size: 4, dims: &[] },
+            CtrlField { path: "depth", offset: 36, size: 4, dims: &[] },
+            CtrlField { path: "depthFormat", offset: 40, size: 4, dims: &[] },
+            CtrlField { path: "stencil", offset: 44, size: 4, dims: &[] },
+            CtrlField { path: "stencilFormat", offset: 48, size: 4, dims: &[] },
+            CtrlField { path: "index", offset: 52, size: 4, dims: &[] },
+            CtrlField { path: "bSkipL2Table", offset: 56, size: 1, dims: &[] },
+        ],
+    },
+    CtrlLayout {
+        name: "NV9096_CTRL_SET_ZBC_COLOR_CLEAR_PARAMS",
+        header: "ctrl9096.h",
+        size: 40,
+        fields: &[
+            CtrlField { path: "colorFB[]", offset: 0, size: 4, dims: &[(4, 4)] },
+            CtrlField { path: "colorDS[]", offset: 16, size: 4, dims: &[(4, 4)] },
+            CtrlField { path: "format", offset: 32, size: 4, dims: &[] },
+            CtrlField { path: "bSkipL2Table", offset: 36, size: 1, dims: &[] },
+        ],
+    },
+    CtrlLayout {
+        name: "NV9096_CTRL_SET_ZBC_DEPTH_CLEAR_PARAMS",
+        header: "ctrl9096.h",
+        size: 12,
+        fields: &[
+            CtrlField { path: "depth", offset: 0, size: 4, dims: &[] },
+            CtrlField { path: "format", offset: 4, size: 4, dims: &[] },
+            CtrlField { path: "bSkipL2Table", offset: 8, size: 1, dims: &[] },
+        ],
+    },
+    CtrlLayout {
+        name: "NV9096_CTRL_SET_ZBC_STENCIL_CLEAR_PARAMS",
+        header: "ctrl9096.h",
+        size: 12,
+        fields: &[
+            CtrlField { path: "stencil", offset: 0, size: 4, dims: &[] },
+            CtrlField { path: "format", offset: 4, size: 4, dims: &[] },
+            CtrlField { path: "bSkipL2Table", offset: 8, size: 1, dims: &[] },
         ],
     },
     CtrlLayout {
@@ -265,6 +470,10 @@ pub const CTRL_LAYOUTS: &[CtrlLayout] = &[
 // The same structs as nvrm-sys binds them (sizes and top-level offsets).
 use core::mem::{offset_of, size_of};
 const _: () = {
+    assert!(size_of::<nvrm_sys::NV0000_CTRL_GPUACCT_SET_ACCOUNTING_STATE_PARAMS>() == 12);
+    assert!(offset_of!(nvrm_sys::NV0000_CTRL_GPUACCT_SET_ACCOUNTING_STATE_PARAMS, gpuId) == 0);
+    assert!(offset_of!(nvrm_sys::NV0000_CTRL_GPUACCT_SET_ACCOUNTING_STATE_PARAMS, pid) == 4);
+    assert!(offset_of!(nvrm_sys::NV0000_CTRL_GPUACCT_SET_ACCOUNTING_STATE_PARAMS, newState) == 8);
     assert!(size_of::<nvrm_sys::v610::NV0080_CTRL_NVDEC_GET_CAPS_PARAMS_V2>() == 12);
     assert!(offset_of!(nvrm_sys::v610::NV0080_CTRL_NVDEC_GET_CAPS_PARAMS_V2, capsTbl) == 0);
     assert!(offset_of!(nvrm_sys::v610::NV0080_CTRL_NVDEC_GET_CAPS_PARAMS_V2, instanceId) == 8);
@@ -280,10 +489,27 @@ const _: () = {
     assert!(offset_of!(nvrm_sys::v610::NV2080_CTRL_CMD_INTERNAL_CONTROL_GSP_TRACE_PARAMS, bufferSize) == 16);
     assert!(offset_of!(nvrm_sys::v610::NV2080_CTRL_CMD_INTERNAL_CONTROL_GSP_TRACE_PARAMS, bufferWatermark) == 20);
     assert!(offset_of!(nvrm_sys::v610::NV2080_CTRL_CMD_INTERNAL_CONTROL_GSP_TRACE_PARAMS, flag) == 24);
+    assert!(size_of::<nvrm_sys::NV2080_CTRL_FIFO_DISABLE_CHANNELS_PARAMS>() == 536);
+    assert!(offset_of!(nvrm_sys::NV2080_CTRL_FIFO_DISABLE_CHANNELS_PARAMS, bDisable) == 0);
+    assert!(offset_of!(nvrm_sys::NV2080_CTRL_FIFO_DISABLE_CHANNELS_PARAMS, numChannels) == 4);
+    assert!(offset_of!(nvrm_sys::NV2080_CTRL_FIFO_DISABLE_CHANNELS_PARAMS, bOnlyDisableScheduling) == 8);
+    assert!(offset_of!(nvrm_sys::NV2080_CTRL_FIFO_DISABLE_CHANNELS_PARAMS, bRewindGpPut) == 9);
+    assert!(offset_of!(nvrm_sys::NV2080_CTRL_FIFO_DISABLE_CHANNELS_PARAMS, pRunlistPreemptEvent) == 16);
+    assert!(offset_of!(nvrm_sys::NV2080_CTRL_FIFO_DISABLE_CHANNELS_PARAMS, hClientList) == 24);
+    assert!(offset_of!(nvrm_sys::NV2080_CTRL_FIFO_DISABLE_CHANNELS_PARAMS, hChannelList) == 280);
     assert!(size_of::<nvrm_sys::NV2080_CTRL_GPU_GET_FIPS_STATUS_PARAMS>() == 1);
     assert!(offset_of!(nvrm_sys::NV2080_CTRL_GPU_GET_FIPS_STATUS_PARAMS, bFipsEnabled) == 0);
     assert!(size_of::<nvrm_sys::NV2080_CTRL_GPU_GET_FIRST_ASYNC_CE_IDX_PARAMS>() == 4);
     assert!(offset_of!(nvrm_sys::NV2080_CTRL_GPU_GET_FIRST_ASYNC_CE_IDX_PARAMS, firstAsyncCEIdx) == 0);
+    assert!(size_of::<nvrm_sys::NV2080_CTRL_GPU_REPORT_NON_REPLAYABLE_FAULT_PARAMS>() == 32);
+    assert!(offset_of!(nvrm_sys::NV2080_CTRL_GPU_REPORT_NON_REPLAYABLE_FAULT_PARAMS, faultPacket) == 0);
+    assert!(size_of::<nvrm_sys::NV2080_CTRL_GPU_SET_COMPUTE_MODE_RULES_PARAMS>() == 8);
+    assert!(offset_of!(nvrm_sys::NV2080_CTRL_GPU_SET_COMPUTE_MODE_RULES_PARAMS, rules) == 0);
+    assert!(offset_of!(nvrm_sys::NV2080_CTRL_GPU_SET_COMPUTE_MODE_RULES_PARAMS, flags) == 4);
+    assert!(size_of::<nvrm_sys::NV2080_CTRL_GPU_VALIDATE_MEM_MAP_REQUEST_PARAMS>() == 24);
+    assert!(offset_of!(nvrm_sys::NV2080_CTRL_GPU_VALIDATE_MEM_MAP_REQUEST_PARAMS, addressStart) == 0);
+    assert!(offset_of!(nvrm_sys::NV2080_CTRL_GPU_VALIDATE_MEM_MAP_REQUEST_PARAMS, addressLength) == 8);
+    assert!(offset_of!(nvrm_sys::NV2080_CTRL_GPU_VALIDATE_MEM_MAP_REQUEST_PARAMS, protection) == 16);
     assert!(size_of::<nvrm_sys::NV2080_CTRL_GR_GFX_POOL_QUERY_SIZE_PARAMS>() == 40);
     assert!(offset_of!(nvrm_sys::NV2080_CTRL_GR_GFX_POOL_QUERY_SIZE_PARAMS, maxSlots) == 0);
     assert!(offset_of!(nvrm_sys::NV2080_CTRL_GR_GFX_POOL_QUERY_SIZE_PARAMS, slotStride) == 4);
@@ -298,6 +524,21 @@ const _: () = {
     assert!(offset_of!(nvrm_sys::NV2080_CTRL_INTERNAL_DISP_PINSETS_TO_LOCKPINS_PARAMS, masterScanLockPin) == 12);
     assert!(offset_of!(nvrm_sys::NV2080_CTRL_INTERNAL_DISP_PINSETS_TO_LOCKPINS_PARAMS, bSlaveScanLock) == 16);
     assert!(offset_of!(nvrm_sys::NV2080_CTRL_INTERNAL_DISP_PINSETS_TO_LOCKPINS_PARAMS, slaveScanLockPin) == 20);
+    assert!(size_of::<nvrm_sys::NV2080_CTRL_INTERNAL_FBSR_INIT_PARAMS>() == 24);
+    assert!(offset_of!(nvrm_sys::NV2080_CTRL_INTERNAL_FBSR_INIT_PARAMS, hClient) == 0);
+    assert!(offset_of!(nvrm_sys::NV2080_CTRL_INTERNAL_FBSR_INIT_PARAMS, hSysMem) == 4);
+    assert!(offset_of!(nvrm_sys::NV2080_CTRL_INTERNAL_FBSR_INIT_PARAMS, bEnteringGcoffState) == 8);
+    assert!(offset_of!(nvrm_sys::NV2080_CTRL_INTERNAL_FBSR_INIT_PARAMS, sysmemAddrOfSuspendResumeData) == 16);
+    assert!(size_of::<nvrm_sys::NV2080_CTRL_INTERNAL_GR_FECS_TRACE_HW_ENABLE_PARAMS>() == 24);
+    assert!(offset_of!(nvrm_sys::NV2080_CTRL_INTERNAL_GR_FECS_TRACE_HW_ENABLE_PARAMS, grRouteInfo) == 0);
+    assert!(offset_of!(nvrm_sys::NV2080_CTRL_INTERNAL_GR_FECS_TRACE_HW_ENABLE_PARAMS, bEnable) == 16);
+    assert!(size_of::<nvrm_sys::NV2080_CTRL_INTERNAL_GR_FECS_TRACE_OFFSET_PARAMS>() == 24);
+    assert!(offset_of!(nvrm_sys::NV2080_CTRL_INTERNAL_GR_FECS_TRACE_OFFSET_PARAMS, grRouteInfo) == 0);
+    assert!(offset_of!(nvrm_sys::NV2080_CTRL_INTERNAL_GR_FECS_TRACE_OFFSET_PARAMS, offset) == 16);
+    assert!(size_of::<nvrm_sys::NV2080_CTRL_INTERNAL_LOG_OOB_XID_PARAMS>() == 92);
+    assert!(offset_of!(nvrm_sys::NV2080_CTRL_INTERNAL_LOG_OOB_XID_PARAMS, xid) == 0);
+    assert!(offset_of!(nvrm_sys::NV2080_CTRL_INTERNAL_LOG_OOB_XID_PARAMS, message) == 4);
+    assert!(offset_of!(nvrm_sys::NV2080_CTRL_INTERNAL_LOG_OOB_XID_PARAMS, len) == 88);
     assert!(size_of::<nvrm_sys::NV2080_CTRL_INTERNAL_STATIC_GR_GET_FECS_TRACE_DEFINES_PARAMS>() == 256);
     assert!(offset_of!(nvrm_sys::NV2080_CTRL_INTERNAL_STATIC_GR_GET_FECS_TRACE_DEFINES_PARAMS, fecsTraceDefines) == 0);
     assert!(size_of::<nvrm_sys::NV2080_CTRL_MC_GET_ENGINE_NOTIFICATION_INTR_VECTORS_PARAMS>() == 2052);

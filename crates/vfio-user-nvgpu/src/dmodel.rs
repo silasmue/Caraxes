@@ -26,6 +26,8 @@
 //!
 //! The profiler classes (6.16) are refused at allocation: [`alloc`].
 
+use std::collections::BTreeMap;
+
 use crate::ctrl::Answer;
 use crate::ver::{Abi, DAnswer, DRule};
 
@@ -44,6 +46,476 @@ pub const MODELLED: &[&str] = &[
     "NV0073_CTRL_CMD_DP_CONFIGURE_FEC",
     "NV5070_CTRL_CMD_GET_RG_STATUS",
 ];
+
+/// The controls the models of round 2 answer (d-device-model.md R2, the open MODEL rows
+/// outside the display, the ZBC table): [`DState::control`], rc.rs, zbc.rs. The same list as
+/// `MODELLED_HERE` of caraxes/tools/gsp-dtable.py, which lays out their parameter structs.
+pub const MODELLED_HERE: &[&str] = &[
+    "NV2080_CTRL_CMD_FIFO_DISABLE_CHANNELS",
+    "NV2080_CTRL_CMD_GPU_REPORT_NON_REPLAYABLE_FAULT",
+    "NV2080_CTRL_CMD_INTERNAL_RC_WATCHDOG_TIMEOUT",
+    "NV2080_CTRL_CMD_INTERNAL_LOG_OOB_XID",
+    "NV2080_CTRL_CMD_RC_SET_CLEAN_ERROR_HISTORY",
+    "NV2080_CTRL_CMD_GPU_SET_COMPUTE_MODE_RULES",
+    "NV0000_CTRL_CMD_GPUACCT_SET_ACCOUNTING_STATE",
+    "NV2080_CTRL_CMD_GPU_VALIDATE_MEM_MAP_REQUEST",
+    "NV9096_CTRL_CMD_SET_ZBC_COLOR_CLEAR",
+    "NV9096_CTRL_CMD_SET_ZBC_DEPTH_CLEAR",
+    "NV9096_CTRL_CMD_SET_ZBC_CLEAR_TABLE",
+    "NV9096_CTRL_CMD_SET_ZBC_STENCIL_CLEAR",
+    "NV2080_CTRL_CMD_INTERNAL_GR_SET_FECS_TRACE_HW_ENABLE",
+    "NV2080_CTRL_CMD_INTERNAL_GR_SET_FECS_TRACE_RD_OFFSET",
+    "NV2080_CTRL_CMD_INTERNAL_GR_SET_FECS_TRACE_WR_OFFSET",
+    "NV0080_CTRL_CMD_DMA_FLUSH",
+    "NV2080_CTRL_CMD_INTERNAL_MEMSYS_FLUSH_L2_ALL_RAMS_AND_CACHES",
+    "NV2080_CTRL_CMD_INTERNAL_FBSR_INIT",
+    "NV2080_CTRL_CMD_PERF_RATED_TDP_SET_CONTROL",
+    "NV83DE_CTRL_CMD_DEBUG_SET_MODE_MMU_DEBUG",
+];
+
+/// Getters outside category D that answer from a model's state: the ZBC table entry
+/// (category B) and the deprecated combined ZBC getter (A), the MMU debug mode of a
+/// debugger session (B). `GET_ZBC_CLEAR_TABLE_SIZE` stays the chip-data row of chipctl.rs.
+pub const MODEL_GETTERS: &[&str] = &[
+    "NV9096_CTRL_CMD_GET_ZBC_CLEAR_TABLE_ENTRY",
+    "NV9096_CTRL_CMD_GET_ZBC_CLEAR_TABLE",
+    "NV83DE_CTRL_CMD_DEBUG_GET_MODE_MMU_DEBUG",
+];
+
+/// D9 labels of the small models.
+pub const COMPUTE_MODE: &str = "guest (compute mode of this VM; never the host's)";
+pub const GPUACCT: &str =
+    "guest (accounting state of this VM recorded; no samples; never the host's)";
+pub const BAR0_POLICY: &str = "guest (BAR0 map policy: deny by default)";
+pub const FECS: &str = "synthesized (FECS trace setters recorded; FECS tracing is off, kgr.rs)";
+pub const FLUSH: &str = "host (L2 flush on the device's own subdevice)";
+pub const SUSPEND: &str =
+    "guest (suspend recorded; the device's GSP state lives in the device process)";
+pub const RATED_TDP: &str = "guest (RATED_TDP request recorded; never applied to the host)";
+pub const DEBUGGER: &str =
+    "guest (debugger session: MMU debug mode recorded; a fault is RC'd as without)";
+
+/// What a D model may reach from the dispatcher for one control.
+pub struct DCtx<'a> {
+    /// The guest's channels, TSGs and VA spaces.
+    pub reg: &'a crate::channel::Registry,
+    /// The host mirrors of the guest's own channels and TSGs.
+    pub mirror: Option<&'a mut dyn crate::rc::MirrorOps>,
+    /// The device's host RM client (the L2 flush only).
+    pub host: Option<&'a mut (dyn crate::ctrl::HostRm + 'static)>,
+    /// The guest BAR0 (bus address as the guest reported it, size).
+    pub bar0: (u64, u64),
+    /// The object the control names (hClient, hObject).
+    pub object: (u32, u32),
+}
+
+/// The state of the D models of one VM (roadmap R2 and the open MODEL rows). Lives in the
+/// dispatcher; nothing of it is the host's, and nothing of it reaches the host but the L2
+/// flush and the per-channel controls on the guest's own mirrors (rc.rs).
+pub struct DState {
+    chip: &'static crate::chip::ChipData,
+    pub rc: crate::rc::RcState,
+    /// Created at the first ZBC control from the chip's defaults (zbc.rs).
+    pub zbc: Option<crate::zbc::ZbcTable>,
+    pub compute_mode: u32,
+    /// Accounting state by gpuId (`NV0000_CTRL_GPU_ACCOUNTING_STATE_*`).
+    pub gpuacct: BTreeMap<u32, u32>,
+    /// FECS trace: enable, read and write offset, as the guest kernel set them.
+    pub fecs: (bool, u32, u32),
+    /// The last FBSR_INIT: hClient, hSysMem, bEnteringGcoffState, suspend data address.
+    pub fbsr: Option<(u32, u32, bool, u64)>,
+    /// RATED_TDP client slots: client -> (action, vPstateType).
+    pub rated_tdp: BTreeMap<u32, (u32, u32)>,
+    /// MMU debug mode by debugger object (hClient, hObject).
+    pub mmu_debug: BTreeMap<(u32, u32), u32>,
+    /// BAR0 windows a non-root guest process may map ([offset, offset + size)): empty.
+    pub bar0_allow: Vec<(u64, u64)>,
+}
+
+fn rd32(b: &[u8], o: usize) -> u32 {
+    b.get(o..o + 4)
+        .map_or(0, |s| u32::from_le_bytes(s.try_into().unwrap()))
+}
+
+fn rd64(b: &[u8], o: usize) -> u64 {
+    b.get(o..o + 8)
+        .map_or(0, |s| u64::from_le_bytes(s.try_into().unwrap()))
+}
+
+fn wr32(b: &mut [u8], o: usize, v: u32) {
+    if let Some(s) = b.get_mut(o..o + 4) {
+        s.copy_from_slice(&v.to_le_bytes());
+    }
+}
+
+/// Offset of `path` in the version's generated layout of `st`.
+fn off(st: &str, path: &str) -> usize {
+    Abi::active()
+        .layout(st)
+        .unwrap_or_else(|| panic!("{st}: no generated layout"))
+        .resolve(path)
+        .unwrap_or_else(|e| panic!("{e}"))
+        .0
+}
+
+fn enum_(name: &str) -> u32 {
+    Abi::active()
+        .d_enum(name)
+        .unwrap_or_else(|| panic!("{name} is no enum of the generated D table"))
+}
+
+fn model(status: u32, params: &[u8], label: &'static str, note: String) -> Answer {
+    Answer {
+        status,
+        params: params.to_vec(),
+        label,
+        note,
+    }
+}
+
+/// The name of `cmd` if a model of this module answers it.
+fn modelled_name(cmd: u32) -> Option<&'static str> {
+    if let Some(r) = rule(cmd) {
+        return MODELLED_HERE.contains(&r.name).then_some(r.name);
+    }
+    Abi::active()
+        .routed
+        .iter()
+        .find(|r| r.id == cmd && MODEL_GETTERS.contains(&r.name))
+        .map(|r| r.name)
+}
+
+impl DState {
+    pub fn new(chip: &'static crate::chip::ChipData) -> Self {
+        DState {
+            chip,
+            rc: Default::default(),
+            zbc: None,
+            compute_mode: 0,
+            gpuacct: BTreeMap::new(),
+            fecs: (false, 0, 0),
+            fbsr: None,
+            rated_tdp: BTreeMap::new(),
+            mmu_debug: BTreeMap::new(),
+            bar0_allow: Vec::new(),
+        }
+    }
+
+    /// `GSP_RM_ALLOC`: the profiler classes are refused ([`alloc`]); a handle allocated
+    /// again drops what the models kept for its previous object; a channel's instance block
+    /// is recorded for the fault path (rc.rs).
+    pub fn alloc(
+        &mut self,
+        h_client: u32,
+        h_object: u32,
+        h_class: u32,
+        params: &[u8],
+    ) -> Option<Answer> {
+        if let Some(a) = alloc(h_class) {
+            return Some(a);
+        }
+        self.rc.forget(h_client, h_object);
+        self.mmu_debug.remove(&(h_client, h_object));
+        if h_class == self.chip.channel.gpfifo {
+            self.rc.record_channel(h_client, h_object, params);
+        }
+        None
+    }
+
+    /// The models' answer to `cmd`, or `None` (not modelled here).
+    pub fn control(&mut self, cx: &mut DCtx, cmd: u32, params: &[u8]) -> Option<Answer> {
+        let name = modelled_name(cmd)?;
+        let bad = status("NV_ERR_INVALID_ARGUMENT");
+        let a = match name {
+            "NV2080_CTRL_CMD_FIFO_DISABLE_CHANNELS" => {
+                self.rc
+                    .disable_channels(cx.reg, cx.mirror.as_deref_mut(), params)
+            }
+            "NV2080_CTRL_CMD_GPU_REPORT_NON_REPLAYABLE_FAULT" => {
+                self.rc
+                    .report_nr_fault(cx.reg, cx.mirror.as_deref_mut(), params)
+            }
+            "NV2080_CTRL_CMD_INTERNAL_RC_WATCHDOG_TIMEOUT" => self.rc.watchdog_timeout(params),
+            "NV2080_CTRL_CMD_INTERNAL_LOG_OOB_XID" => self.rc.log_oob_xid(params),
+            "NV2080_CTRL_CMD_RC_SET_CLEAN_ERROR_HISTORY" => self.rc.clean_history(params),
+            n if n.starts_with("NV9096_") => {
+                let chip = &self.chip.name;
+                let t = self
+                    .zbc
+                    .get_or_insert_with(|| crate::zbc::ZbcTable::for_chip(chip));
+                return crate::zbc::control(t, n, params);
+            }
+            // ctrl2080gpu.h:1217-1290: the four rules; the kernel stores and enforces the
+            // rule itself after the answer (subdevice_ctrl_gpu_kernel.c:2097-2121).
+            "NV2080_CTRL_CMD_GPU_SET_COMPUTE_MODE_RULES" => {
+                const P: &str = "NV2080_CTRL_GPU_SET_COMPUTE_MODE_RULES_PARAMS";
+                let rules = rd32(params, off(P, "rules"));
+                let legal = [
+                    "NV2080_CTRL_GPU_COMPUTE_MODE_RULES_NONE",
+                    "NV2080_CTRL_GPU_COMPUTE_MODE_RULES_EXCLUSIVE_COMPUTE",
+                    "NV2080_CTRL_GPU_COMPUTE_MODE_RULES_COMPUTE_PROHIBITED",
+                    "NV2080_CTRL_GPU_COMPUTE_MODE_RULES_EXCLUSIVE_COMPUTE_PROCESS",
+                ];
+                if legal.iter().any(|n| enum_(n) == rules) {
+                    let was = std::mem::replace(&mut self.compute_mode, rules);
+                    model(
+                        0,
+                        params,
+                        COMPUTE_MODE,
+                        format!("compute mode rules {was} -> {rules}"),
+                    )
+                } else {
+                    model(
+                        bad,
+                        params,
+                        COMPUTE_MODE,
+                        format!("compute mode rules {rules}: no such rule"),
+                    )
+                }
+            }
+            // ctrl0000gpuacct.h:40-77; the kernel keeps its own accounting tables and turns
+            // them on after NV_OK (client_resource.c:2061-2073).
+            "NV0000_CTRL_CMD_GPUACCT_SET_ACCOUNTING_STATE" => {
+                const P: &str = "NV0000_CTRL_GPUACCT_SET_ACCOUNTING_STATE_PARAMS";
+                let gpu = rd32(params, off(P, "gpuId"));
+                let state = rd32(params, off(P, "newState"));
+                let on = enum_("NV0000_CTRL_GPU_ACCOUNTING_STATE_ENABLED");
+                let disabled = enum_("NV0000_CTRL_GPU_ACCOUNTING_STATE_DISABLED");
+                if state != on && state != disabled {
+                    model(
+                        bad,
+                        params,
+                        GPUACCT,
+                        format!("accounting state {state} of gpu {gpu:#x}: no such state"),
+                    )
+                } else {
+                    self.gpuacct.insert(gpu, state);
+                    let what = if state == on { "enabled" } else { "disabled" };
+                    model(
+                        0,
+                        params,
+                        GPUACCT,
+                        format!("accounting of gpu {gpu:#x} {what}"),
+                    )
+                }
+            }
+            "NV2080_CTRL_CMD_GPU_VALIDATE_MEM_MAP_REQUEST" => self.bar0_policy(cx.bar0, params),
+            "NV2080_CTRL_CMD_INTERNAL_GR_SET_FECS_TRACE_HW_ENABLE" => {
+                let o = off(
+                    "NV2080_CTRL_INTERNAL_GR_FECS_TRACE_HW_ENABLE_PARAMS",
+                    "bEnable",
+                );
+                let en = params.get(o).copied().unwrap_or(0) != 0;
+                self.fecs.0 = en;
+                model(
+                    0,
+                    params,
+                    FECS,
+                    format!("FECS trace hardware enable {}", en as u8),
+                )
+            }
+            "NV2080_CTRL_CMD_INTERNAL_GR_SET_FECS_TRACE_RD_OFFSET"
+            | "NV2080_CTRL_CMD_INTERNAL_GR_SET_FECS_TRACE_WR_OFFSET" => {
+                let o = rd32(
+                    params,
+                    off("NV2080_CTRL_INTERNAL_GR_FECS_TRACE_OFFSET_PARAMS", "offset"),
+                );
+                let read = name.ends_with("RD_OFFSET");
+                if read {
+                    self.fecs.1 = o;
+                } else {
+                    self.fecs.2 = o;
+                }
+                let which = if read { "read" } else { "write" };
+                model(0, params, FECS, format!("FECS trace {which} offset {o:#x}"))
+            }
+            // ctrl0080dma.h:248-291: L2 is written back; COMPTAG has nothing to clean (no
+            // compression, D16); FB has nothing the device holds back.
+            "NV0080_CTRL_CMD_DMA_FLUSH" => {
+                let unit = rd32(params, off("NV0080_CTRL_DMA_FLUSH_PARAMS", "targetUnit"));
+                let l2 = (unit >> enum_("NV0080_CTRL_DMA_FLUSH_TARGET_UNIT_L2")) & 1 != 0;
+                let ops: &[crate::hostabi::L2Flush] = if l2 {
+                    &[crate::hostabi::L2Flush::WriteBack]
+                } else {
+                    &[]
+                };
+                let note = format!(
+                    "DMA flush targetUnit {unit:#x}: L2 {}, COMPTAG ignored (no compression, D16), FB nothing to flush",
+                    if l2 { "written back" } else { "not asked" }
+                );
+                self.flush(cx, ops, params, note)
+            }
+            "NV2080_CTRL_CMD_INTERNAL_MEMSYS_FLUSH_L2_ALL_RAMS_AND_CACHES" => {
+                let ops = [
+                    crate::hostabi::L2Flush::WriteBack,
+                    crate::hostabi::L2Flush::Invalidate,
+                ];
+                self.flush(
+                    cx,
+                    &ops,
+                    params,
+                    "flush L2 all RAMs and caches: write back and evict".into(),
+                )
+            }
+            "NV2080_CTRL_CMD_INTERNAL_FBSR_INIT" => {
+                const P: &str = "NV2080_CTRL_INTERNAL_FBSR_INIT_PARAMS";
+                let r = (
+                    rd32(params, off(P, "hClient")),
+                    rd32(params, off(P, "hSysMem")),
+                    params
+                        .get(off(P, "bEnteringGcoffState"))
+                        .copied()
+                        .unwrap_or(0)
+                        != 0,
+                    rd64(params, off(P, "sysmemAddrOfSuspendResumeData")),
+                );
+                self.fbsr = Some(r);
+                model(
+                    0,
+                    params,
+                    SUSPEND,
+                    format!(
+                        "FBSR init: sysmem {:#x}/{:#x}, GCOFF {}, suspend data {:#x}",
+                        r.0, r.1, r.2 as u8, r.3
+                    ),
+                )
+            }
+            // ctrl2080perf.h:212-255, :409-424: one slot per arbitration client.
+            "NV2080_CTRL_CMD_PERF_RATED_TDP_SET_CONTROL" => {
+                const P: &str = "NV2080_CTRL_PERF_RATED_TDP_CONTROL_PARAMS";
+                let client = rd32(params, off(P, "client"));
+                let input = rd32(params, off(P, "input"));
+                let vp = rd32(params, off(P, "vPstateType"));
+                self.rated_tdp.insert(client, (input, vp));
+                model(
+                    0,
+                    params,
+                    RATED_TDP,
+                    format!("RATED_TDP client {client}: action {input}, vPstate type {vp}"),
+                )
+            }
+            // ctrl83dedebug.h:96-153: per debugger session, SET ENABLE 1 / DISABLE 2, GET
+            // ENABLED 1 / DISABLED 2.
+            "NV83DE_CTRL_CMD_DEBUG_SET_MODE_MMU_DEBUG" => {
+                let action = rd32(
+                    params,
+                    off("NV83DE_CTRL_DEBUG_SET_MODE_MMU_DEBUG_PARAMS", "action"),
+                );
+                let en = enum_("NV83DE_CTRL_CMD_DEBUG_SET_MODE_MMU_DEBUG_ENABLE");
+                let dis = enum_("NV83DE_CTRL_CMD_DEBUG_SET_MODE_MMU_DEBUG_DISABLE");
+                if action != en && action != dis {
+                    model(
+                        bad,
+                        params,
+                        DEBUGGER,
+                        format!("MMU debug action {action}: no such action"),
+                    )
+                } else {
+                    self.mmu_debug.insert(cx.object, action);
+                    let what = if action == en { "enabled" } else { "disabled" };
+                    model(
+                        0,
+                        params,
+                        DEBUGGER,
+                        format!("MMU debug {what} on {:#x}/{:#x}", cx.object.0, cx.object.1),
+                    )
+                }
+            }
+            "NV83DE_CTRL_CMD_DEBUG_GET_MODE_MMU_DEBUG" => {
+                let en = self.mmu_debug.get(&cx.object)
+                    == Some(&enum_("NV83DE_CTRL_CMD_DEBUG_SET_MODE_MMU_DEBUG_ENABLE"));
+                let v = enum_(if en {
+                    "NV83DE_CTRL_CMD_DEBUG_GET_MODE_MMU_DEBUG_ENABLED"
+                } else {
+                    "NV83DE_CTRL_CMD_DEBUG_GET_MODE_MMU_DEBUG_DISABLED"
+                });
+                let mut b = params.to_vec();
+                wr32(
+                    &mut b,
+                    off("NV83DE_CTRL_DEBUG_GET_MODE_MMU_DEBUG_PARAMS", "value"),
+                    v,
+                );
+                Answer {
+                    status: 0,
+                    params: b,
+                    label: DEBUGGER,
+                    note: format!("MMU debug mode {v}"),
+                }
+            }
+            _ => return None,
+        };
+        Some(a)
+    }
+
+    /// The BAR0 map policy (6.4 rule 3): the kernel answers PTIMER, the usermode page and
+    /// PMC itself and sends only the other BAR0 ranges, with the absolute bus address
+    /// (subdevice_ctrl_gpu_kernel.c:2918-2995). A range outside BAR0, empty or wrapping is a
+    /// protection fault; inside, only an allow-list window is mapped, and the list is empty:
+    /// a non-root guest process never maps the registers the guest kernel owns.
+    fn bar0_policy(&self, bar0: (u64, u64), params: &[u8]) -> Answer {
+        const P: &str = "NV2080_CTRL_GPU_VALIDATE_MEM_MAP_REQUEST_PARAMS";
+        let fault = status("NV_ERR_PROTECTION_FAULT");
+        let start = rd64(params, off(P, "addressStart"));
+        let len = rd64(params, off(P, "addressLength"));
+        let (base, size) = bar0;
+        let range = start
+            .checked_sub(base)
+            .filter(|_| base != 0 && len != 0)
+            .and_then(|o| o.checked_add(len).filter(|&e| e <= size).map(|e| (o, e)));
+        let Some((o, e)) = range else {
+            return model(
+                fault,
+                params,
+                BAR0_POLICY,
+                format!("map {start:#x}+{len:#x}: outside the guest BAR0 {base:#x}+{size:#x}"),
+            );
+        };
+        if self.bar0_allow.iter().any(|&(a, n)| o >= a && e <= a + n) {
+            return model(
+                0,
+                params,
+                BAR0_POLICY,
+                format!("map BAR0 [{o:#x}, {e:#x}): in the allow-list"),
+            );
+        }
+        model(
+            fault,
+            params,
+            BAR0_POLICY,
+            format!("map BAR0 [{o:#x}, {e:#x}): not in the allow-list (empty)"),
+        )
+    }
+
+    /// The guest's cache operation as `FB_FLUSH_GPU_CACHE` on the device's own subdevice
+    /// (the flag bits of the host driver, as ctrl.rs `host_flush_gpu_cache`); NV_OK without
+    /// a host: then there is no physical L2 behind the device.
+    fn flush(
+        &mut self,
+        cx: &mut DCtx,
+        ops: &[crate::hostabi::L2Flush],
+        params: &[u8],
+        mut note: String,
+    ) -> Answer {
+        let Some(host) = cx.host.as_deref_mut() else {
+            note.push_str("; no host RM: nothing to flush");
+            return model(0, params, FLUSH, note);
+        };
+        let l = crate::hostabi::current();
+        for &op in ops {
+            let mut p = l.flush_gpu_cache(op);
+            let st = host.control(
+                crate::ver::active::NV20_SUBDEVICE_0,
+                crate::hostabi::CMD_FB_FLUSH_GPU_CACHE,
+                &mut p,
+            );
+            note.push_str(&format!(
+                "; host FB_FLUSH_GPU_CACHE flags {:#x}: status {st:#x}",
+                l.flush_gpu_cache_flags(op)
+            ));
+        }
+        model(0, params, FLUSH, note)
+    }
+}
 
 /// An NV status by name, from the version's nvstatuscodes.h (generated `D_ENUMS`).
 pub fn status(name: &str) -> u32 {
@@ -177,10 +649,11 @@ mod tests {
                 }
             }
         }
-        // Refuse, Deny, Ack, Table, Model, Mirror.
+        // Refuse, Deny, Ack, Table, Model, Mirror. Round 2 (d-device-model.md §10): the two
+        // timed-semaphore rows REFUSE until Q4 shows the class, GPU accounting a model.
         let by_name = |n: &str| ABIS.iter().find(|a| a.name == n).unwrap();
-        assert_eq!(counts(by_name("615")), [200, 37, 21, 5, 42, 3]);
-        assert_eq!(counts(by_name("610")), [198, 37, 20, 5, 42, 3]);
+        assert_eq!(counts(by_name("615")), [202, 37, 20, 5, 41, 3]);
+        assert_eq!(counts(by_name("610")), [200, 37, 19, 5, 41, 3]);
         for abi in ABIS {
             let re = |c: char| abi.d_rules.iter().filter(|r| r.reclass == c).count();
             assert_eq!((re('A'), re('C'), re('E')), (7, 17, 102), "{}", abi.name);
@@ -238,9 +711,11 @@ mod tests {
     }
 
     /// Through the dispatcher, every row that stays in D gets its label (REFUSE, DENY and
-    /// ACK answered here or by the display's board table, MODEL and MIRROR unanswered), the
-    /// moved rows are someone else's (E refused by the family rule, A by the chip table or
-    /// unanswered while open), and no D control reaches the host.
+    /// ACK answered here or by the display's board table, the modelled rows by their model,
+    /// the other MODEL and MIRROR rows unanswered), the moved rows are someone else's (E
+    /// refused by the family rule, A by the chip table or unanswered while open, C
+    /// unanswered unless modelled), and no D control reaches the host but the L2 flush of
+    /// the two flush rows.
     #[test]
     fn the_dispatcher_answers_every_d_control_by_its_rule() {
         let seen = Arc::new(Mutex::new(Vec::new()));
@@ -249,6 +724,15 @@ mod tests {
         for r in Abi::active().d_rules {
             let req = vec![0xA5u8; r.size.max(4)];
             let a = d.control(INTERNAL_CLIENT, INTERNAL_SUBDEVICE, r.id, &req);
+            if MODELLED_HERE.contains(&r.name) {
+                assert!(
+                    !["unanswered", REFUSED, DENIED].contains(&a.label),
+                    "{}: {}",
+                    r.name,
+                    a.label
+                );
+                continue;
+            }
             match (r.reclass, r.answer) {
                 ('-', DAnswer::Refuse) => {
                     assert_eq!((a.status, a.label), (r.status, REFUSED), "{}", r.name);
@@ -291,11 +775,14 @@ mod tests {
                 _ => unreachable!(),
             }
         }
+        let flush = crate::hostabi::CMD_FB_FLUSH_GPU_CACHE;
         assert!(
-            seen.lock().unwrap().is_empty(),
+            seen.lock().unwrap().iter().all(|&c| c == flush),
             "{:x?}",
             seen.lock().unwrap()
         );
+        // DMA_FLUSH with 0xA5 has the L2 bit: one write-back; FLUSH_L2_ALL_RAMS: two.
+        assert_eq!(seen.lock().unwrap().len(), 3);
     }
 
     /// The display's board table gives the display rows the same answer as the hook: with
@@ -528,5 +1015,189 @@ mod tests {
         for r in Abi::active().d_rules.iter().filter(|r| r.reclass == 'E') {
             assert!(answer(r.id, &[0u8; 8]).is_none(), "{}", r.name);
         }
+    }
+
+    fn id(name: &str) -> u32 {
+        Abi::active()
+            .d_rules
+            .iter()
+            .find(|r| r.name == name)
+            .map(|r| r.id)
+            .or_else(|| Abi::active().routed(name).map(|r| r.id))
+            .unwrap_or_else(|| panic!("{name}"))
+    }
+
+    fn params(st: &str, fields: &[(&str, u64)]) -> Vec<u8> {
+        let l = Abi::active().layout(st).unwrap();
+        let mut b = vec![0u8; l.size];
+        for &(f, x) in fields {
+            let (o, n) = l.resolve(f).unwrap();
+            b[o..o + n].copy_from_slice(&x.to_le_bytes()[..n]);
+        }
+        b
+    }
+
+    /// Compute mode (6.2) and GPU accounting (6.17): the legal values are recorded per VM,
+    /// anything else is an invalid argument, and neither reaches the host.
+    #[test]
+    fn compute_mode_and_accounting_are_this_vms() {
+        let seen = Arc::new(Mutex::new(Vec::new()));
+        let mut d = dispatcher(Some(Box::new(Rec(seen.clone()))));
+        let cm = id("NV2080_CTRL_CMD_GPU_SET_COMPUTE_MODE_RULES");
+        let p = params(
+            "NV2080_CTRL_GPU_SET_COMPUTE_MODE_RULES_PARAMS",
+            &[("rules", 2)],
+        );
+        let a = d.control(INTERNAL_CLIENT, INTERNAL_SUBDEVICE, cm, &p);
+        assert_eq!((a.status, a.label), (0, COMPUTE_MODE));
+        assert_eq!(d.dstate.compute_mode, 2);
+        let p = params(
+            "NV2080_CTRL_GPU_SET_COMPUTE_MODE_RULES_PARAMS",
+            &[("rules", 7)],
+        );
+        let a = d.control(INTERNAL_CLIENT, INTERNAL_SUBDEVICE, cm, &p);
+        assert_eq!(a.status, status("NV_ERR_INVALID_ARGUMENT"));
+        assert_eq!(d.dstate.compute_mode, 2);
+        let acct = id("NV0000_CTRL_CMD_GPUACCT_SET_ACCOUNTING_STATE");
+        let st = "NV0000_CTRL_GPUACCT_SET_ACCOUNTING_STATE_PARAMS";
+        let p = params(st, &[("gpuId", 0x500), ("newState", 0)]);
+        let a = d.control(INTERNAL_CLIENT, INTERNAL_CLIENT, acct, &p);
+        assert_eq!((a.status, a.label), (0, GPUACCT));
+        assert_eq!(d.dstate.gpuacct.get(&0x500), Some(&0));
+        let p = params(st, &[("gpuId", 0x500), ("newState", 9)]);
+        let a = d.control(INTERNAL_CLIENT, INTERNAL_CLIENT, acct, &p);
+        assert_eq!(a.status, status("NV_ERR_INVALID_ARGUMENT"));
+        assert!(seen.lock().unwrap().is_empty());
+    }
+
+    /// The BAR0 map policy (6.4): deny by default; outside BAR0, straddling its end, empty,
+    /// below it or wrapping is a protection fault too; an allow-list window maps.
+    #[test]
+    fn bar0_map_policy_denies_by_default() {
+        let mut d = dispatcher(None);
+        d.bar_offsets[0] = 0xE600_0000;
+        let vm = id("NV2080_CTRL_CMD_GPU_VALIDATE_MEM_MAP_REQUEST");
+        const P: &str = "NV2080_CTRL_GPU_VALIDATE_MEM_MAP_REQUEST_PARAMS";
+        let fault = status("NV_ERR_PROTECTION_FAULT");
+        let size = d.bar_sizes[0];
+        for (start, len) in [
+            (0xE600_0000 + 0x10_0000, 0x1000),
+            (0xE600_0000 + size - 0x800, 0x1000),
+            (0xE600_0000, 0),
+            (0xE500_0000, 0x1000),
+            (u64::MAX - 0x10, 0x1000),
+            (0xE600_0000 + 0x10_0000, u64::MAX),
+        ] {
+            let p = params(P, &[("addressStart", start), ("addressLength", len)]);
+            let a = d.control(INTERNAL_CLIENT, INTERNAL_SUBDEVICE, vm, &p);
+            assert_eq!(
+                (a.status, a.label),
+                (fault, BAR0_POLICY),
+                "{start:#x}+{len:#x}"
+            );
+        }
+        d.dstate.bar0_allow.push((0x10_0000, 0x1000));
+        let p = params(
+            P,
+            &[("addressStart", 0xE610_0000), ("addressLength", 0x1000)],
+        );
+        assert_eq!(
+            d.control(INTERNAL_CLIENT, INTERNAL_SUBDEVICE, vm, &p)
+                .status,
+            0
+        );
+    }
+
+    /// The debugger session's MMU debug mode (6.16): SET records per 83DE object, GET reads
+    /// it back (DISABLED before any SET), another object is not affected.
+    #[test]
+    fn mmu_debug_mode_round_trip() {
+        let mut d = dispatcher(None);
+        let set = id("NV83DE_CTRL_CMD_DEBUG_SET_MODE_MMU_DEBUG");
+        let get = id("NV83DE_CTRL_CMD_DEBUG_GET_MODE_MMU_DEBUG");
+        let rd = |a: &Answer| u32::from_le_bytes(a.params[..4].try_into().unwrap());
+        let a = d.control(0xC1, 0xDB, get, &[0u8; 4]);
+        assert_eq!((a.status, rd(&a)), (0, 2));
+        let a = d.control(0xC1, 0xDB, set, &1u32.to_le_bytes());
+        assert_eq!((a.status, a.label), (0, DEBUGGER));
+        assert_eq!(rd(&d.control(0xC1, 0xDB, get, &[0u8; 4])), 1);
+        assert_eq!(rd(&d.control(0xC1, 0xDC, get, &[0u8; 4])), 2);
+        let a = d.control(0xC1, 0xDB, set, &5u32.to_le_bytes());
+        assert_eq!(a.status, status("NV_ERR_INVALID_ARGUMENT"));
+        // A new object under the same handle starts disabled again.
+        d.alloc(0xC1, 0xDB, 0xCAF0_0001, 0x83DE, &[0u8; 16]);
+        assert_eq!(rd(&d.control(0xC1, 0xDB, get, &[0u8; 4])), 2);
+    }
+
+    /// ZBC through the dispatcher: a guest colour goes into this VM's table and comes back
+    /// through GET_ZBC_CLEAR_TABLE_ENTRY; no host control is issued.
+    #[test]
+    fn zbc_through_the_dispatcher_stays_off_the_host() {
+        let seen = Arc::new(Mutex::new(Vec::new()));
+        let mut d = dispatcher(Some(Box::new(Rec(seen.clone()))));
+        let set = id("NV9096_CTRL_CMD_SET_ZBC_COLOR_CLEAR");
+        let names: Vec<String> = (0..4).map(|i| format!("colorFB[{i}]")).collect();
+        let mut f: Vec<(&str, u64)> = names.iter().map(|n| (n.as_str(), 0x0A0B_0C0D)).collect();
+        f.push(("format", 0x28));
+        let p = params("NV9096_CTRL_SET_ZBC_COLOR_CLEAR_PARAMS", &f);
+        let a = d.control(0xC1, 0x9096, set, &p);
+        assert_eq!((a.status, a.label), (0, crate::zbc::RECORDED));
+        let get = id("NV9096_CTRL_CMD_GET_ZBC_CLEAR_TABLE_ENTRY");
+        let st = "NV9096_CTRL_GET_ZBC_CLEAR_TABLE_ENTRY_PARAMS";
+        let q = params(st, &[("tableType", 1), ("index", 4)]);
+        let a = d.control(0xC1, 0x9096, get, &q);
+        assert_eq!((a.status, a.label), (0, crate::zbc::READ));
+        assert_eq!(&a.params[..4], &0x0A0B_0C0Du32.to_le_bytes());
+        assert!(seen.lock().unwrap().is_empty());
+    }
+
+    /// The small recorders: FECS trace setters, FBSR_INIT, RATED_TDP; the flushes answer
+    /// NV_OK without a host (no physical L2 behind the device).
+    #[test]
+    fn recorders_and_flush_without_a_host() {
+        let mut d = dispatcher(None);
+        let (c, s) = (INTERNAL_CLIENT, INTERNAL_SUBDEVICE);
+        let p = params(
+            "NV2080_CTRL_INTERNAL_GR_FECS_TRACE_HW_ENABLE_PARAMS",
+            &[("bEnable", 1)],
+        );
+        d.control(
+            c,
+            s,
+            id("NV2080_CTRL_CMD_INTERNAL_GR_SET_FECS_TRACE_HW_ENABLE"),
+            &p,
+        );
+        let p = params(
+            "NV2080_CTRL_INTERNAL_GR_FECS_TRACE_OFFSET_PARAMS",
+            &[("offset", 0x40)],
+        );
+        d.control(
+            c,
+            s,
+            id("NV2080_CTRL_CMD_INTERNAL_GR_SET_FECS_TRACE_WR_OFFSET"),
+            &p,
+        );
+        assert_eq!(d.dstate.fecs, (true, 0, 0x40));
+        let p = params(
+            "NV2080_CTRL_INTERNAL_FBSR_INIT_PARAMS",
+            &[
+                ("hClient", 0xC1),
+                ("hSysMem", 0x77),
+                ("sysmemAddrOfSuspendResumeData", 0x1000),
+            ],
+        );
+        let a = d.control(c, s, id("NV2080_CTRL_CMD_INTERNAL_FBSR_INIT"), &p);
+        assert_eq!((a.status, a.label), (0, SUSPEND));
+        assert_eq!(d.dstate.fbsr, Some((0xC1, 0x77, false, 0x1000)));
+        let p = params(
+            "NV2080_CTRL_PERF_RATED_TDP_CONTROL_PARAMS",
+            &[("client", 2), ("input", 1)],
+        );
+        let a = d.control(c, s, id("NV2080_CTRL_CMD_PERF_RATED_TDP_SET_CONTROL"), &p);
+        assert_eq!((a.status, a.label), (0, RATED_TDP));
+        assert_eq!(d.dstate.rated_tdp.get(&2), Some(&(1, 0)));
+        let a = d.control(c, s, id("NV0080_CTRL_CMD_DMA_FLUSH"), &1u32.to_le_bytes());
+        assert_eq!((a.status, a.label), (0, FLUSH));
+        assert!(a.note.contains("no host RM"), "{}", a.note);
     }
 }
