@@ -362,12 +362,24 @@ they are not vm2's: its device sent the 615 flag words (0x29, 0x31) with NV_OK e
 vm0's device (pid 253268, another agent's) logs `FB_FLUSH_GPU_CACHE flags 0x8 failed: status 0x1f`,
 the 610 word on the 615 host.
 
-**Open: the bench series.** `bench-run.sh series` (init, short-auto) fails in runs 4 and 5 with
-`cuInit: 803 system has unsupported display driver / cuda driver combination` within 10 to 35 ms,
-while the gate's cuInit in the same VM passes. The series runs with `LD_LIBRARY_PATH=/opt/nvrm/lib`
-(`caraxes/tools/bench-run.sh:95`, :260), which in the 615 base image most likely still holds the
-610 user-space libraries (the v1 overlay had to repoint it to the 615 system libraries, (e) below).
-A harness setting, not a device fault; the first 615 benchmark needs it fixed.
+**Closed: the bench series** (commit a0bf4ef). `bench-run.sh series` (init, short-auto) failed in
+runs 4 to 6 with `cuInit: 803 system has unsupported display driver / cuda driver combination`
+within 10 to 35 ms, while the gate's cuInit in the same VM passed. Cause, read from the base
+images with `guestfish --ro`: the 615 image's `/opt/nvrm/lib` still holds the 610.57.04
+userspace (`libcuda.so.1 -> libcuda.so.610.57.04`), its `nvrm.conf` is renamed
+`nvrm.conf.disabled`, and the 615.71.09 libraries sit in `/usr/lib/x86_64-linux-gnu`
+(guest-driver-versions.md section 8). The gate's probes run without `LD_LIBRARY_PATH`
+(`tools/caraxes-guest-tests.sh:32` sets it only for nvidia-smi), so the linker cache hands them
+the 615 libcuda; bench-run.sh exported `LD_LIBRARY_PATH=/opt/nvrm/lib` for every guest
+target, so every bench binary loaded the 610 libcuda against the 615 kernel module. The 610
+image has the same `/opt/nvrm/lib` and an active `nvrm.conf`, so both paths agree there. Fix:
+bench-run.sh takes the v2 directory from `tools/lib/driver.sh` (`CARAXES_GUEST_LIBDIR`, 610
+`/opt/nvrm/lib`, 615 `/usr/lib/x86_64-linux-gnu`) like the gates, keeps `/opt/nvrm/lib` for v1
+(its 615 image repoints it, (e) below), records the directory in `series.txt`, and
+`bench-run.sh libdir v2` prints it; `tools/check.sh`'s bash step checks the three cases.
+Verified in `caraxes/runs/bench-615-2026-09-24/615/libcuda.txt` (the harness resolves
+`/usr/lib/x86_64-linux-gnu/libcuda.so.1`, the cache `libcuda.so.615.71.09`) and by the first 615
+series (benchmark.md "First 615 series"), every run rc 0.
 
 ## (e) v1 (Leandro)
 
@@ -483,4 +495,7 @@ host call, not a selection problem.
 4. The 0x20800A36 id reuse (`INTERNAL_GPU_GET_CHIP_INFO` on 610, `SYNC_FABRIC_PROBE_INFO` on
    615) is dispatched by the guest ABI now ((d), `ctrl.rs` `id_0a36`).
 5. The first 615 benchmark (P13 after the window) needs its own series; do not merge it with the
-   closing 610 one.
+   closing 610 one. First series done (benchmark.md "First 615 series",
+   `caraxes/runs/bench-615-2026-09-24/`): the 615 guest matches the 610 guest on the same
+   device configuration; a like-for-like with the closing series (P21 area, spin reactor, quiet
+   host) is still to run.

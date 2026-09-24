@@ -1,0 +1,21 @@
+# target v2 metric rl rep 2
+# cmd NVRL_EPISODES=50 $HOME/gpu/venv/bin/python $HOME/caraxes-tests/leandro-test/probe/python/rlprobe.py
+# device /mnt/vmstore/caraxes/vm2/vfio-user-nvgpu sha256 610c2f48fba49f5d
+# time 2026-09-24T19:27:07+02:00
+# gpu 49, 420 MHz, 405 MHz, P8, 7 %, 5211 MiB, Disabled
+# procs 433813:vm3-dev 433823:vm1-vmm 436562:vm0-dev 436585:vm1-vmm 447655:vm2-dev 447666:vm1-vmm 
+# loadavg 10.86 6.12 4.86
+rlprobe: stage=4 episodes=50 pin=False nonblock=False sync=False item=True
+stage0: cuInit ok, Leandro VFIO RTX 2070-1G
+stage1: policy on cuda:0
+stage2: rollout 25 steps, return=25
+stage3: update loss=2.271
+  ep   10  return=   11  mean10=  20.7
+  ep   20  return=   15  mean10=  14.4
+  ep   30  return=   13  mean10=  15.8
+  ep   40  return=   39  mean10=  28.3
+  ep   50  return=   38  mean10=  56.9
+stage4: 50 episodes in 22.4s, mean10=56.9
+transfers: H2D=1437 D2H=1437 (~128/s)
+# WALL wall_ms=42327 rc=0
+# MEAS dev_pid=447655 dev_cpu_ms=23500 dev_rss_hwm_kb=5255360/7346476 vmm_cpu_ms=63000 others: vm0-dev=20490ms vm1-vmm=25890ms vm3-dev=18200ms vm1-vmm=23270ms 

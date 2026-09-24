@@ -1,0 +1,19 @@
+# target v2 metric rl rep 3
+# cmd NVRL_EPISODES=50 $HOME/gpu/venv/bin/python $HOME/caraxes-tests/leandro-test/probe/python/rlprobe.py
+# device /mnt/vmstore/caraxes/vm2/vfio-user-nvgpu sha256 5f9f4470bb174999
+# time 2026-09-24T19:16:59+02:00
+# gpu 50, 315 MHz, 405 MHz, P8, 20 %, 4197 MiB, Disabled
+# procs 402214:vm0-dev 402239:vm1-vmm 403839:vm2-dev 403852:vm1-vmm 
+# loadavg 5.57 4.39 4.39
+/home/leandro/gpu/venv/lib/python3.12/site-packages/torch/cuda/__init__.py:188: UserWarning: CUDA initialization: CUDA unknown error - this may be due to an incorrectly set up environment, e.g. changing env variable CUDA_VISIBLE_DEVICES after program start. Setting the available devices to be zero. (Triggered internally at /__w/pytorch/pytorch/c10/cuda/CUDAFunctions.cpp:119.)
+  return torch._C._cuda_getDeviceCount() > 0
+rlprobe: stage=4 episodes=50 pin=False nonblock=False sync=False item=True
+Traceback (most recent call last):
+  File "/home/leandro/caraxes-tests/leandro-test/probe/python/rlprobe.py", line 203, in <module>
+    main()
+  File "/home/leandro/caraxes-tests/leandro-test/probe/python/rlprobe.py", line 159, in main
+    assert torch.cuda.is_available(), "no CUDA card visible"
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: no CUDA card visible
+# WALL wall_ms=5698 rc=1
+# MEAS dev_pid=403839 dev_cpu_ms=30 dev_rss_hwm_kb=5251216/5251216 vmm_cpu_ms=10920 others: vm1-vmm=3810ms vm0-dev=2810ms 

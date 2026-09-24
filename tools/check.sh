@@ -270,6 +270,18 @@ shell_syntax() {
               [[ -f "$p" ]] && head -c 64 "$p" | head -1 | grep -qE '^#!.*(bash|sh)$' && echo "$p"
           done)
 
+    # The benchmark harness picks the guest's libcuda directory by driver, as the gates do
+    # (610: /opt/nvrm/lib, 615: the system path; v1 always /opt/nvrm/lib). A fixed
+    # /opt/nvrm/lib gave cuInit 803 in the 615 guest (caraxes/runs/bench-615-2026-09-24/).
+    local b=caraxes/tools/bench-run.sh
+    if ! bash -n "$b"; then echo "syntax error: $b"; rc=1
+    elif [[ $(CARAXES_DRIVER=610 "$b" libdir v2) != /opt/nvrm/lib ||
+            $(CARAXES_DRIVER=615 "$b" libdir v2) != /usr/lib/x86_64-linux-gnu ||
+            $(CARAXES_DRIVER=615 "$b" libdir v1) != /opt/nvrm/lib ]] ||
+            CARAXES_DRIVER=599 "$b" libdir v2 >/dev/null 2>&1; then
+        echo "$b libdir: wrong guest library directory"; rc=1
+    fi
+
     # Match CI severity levels when ShellCheck is available.
     if command -v shellcheck >/dev/null 2>&1; then
         shellcheck -x -S error "${files[@]}" || rc=1

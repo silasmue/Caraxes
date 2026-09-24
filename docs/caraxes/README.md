@@ -738,3 +738,16 @@ the VM; then display, expected to be much easier than in v1.
   610 guest nvml as before (power N/A), cuda 10 of 11 (managed memory); 615 guest nvml pass,
   cuda blocked by the known `CE_GET_LCE_SHIM_INFO` gap of another branch. 0 host Xid. Open: B6
   (GSP-RM log lines), MMU_FAULT_QUEUED and the model-dependent events.
+  610 guest had 9; 0 Xid. The bench series' cuInit 803 was a harness setting, closed in the
+  next entry.
+- 2026-09-24: **First 615 benchmark series; bench-run.sh picks the guest libcuda by driver**
+  ([benchmark.md](benchmark.md) "First 615 series", [cutover-615.md](cutover-615.md) "Closed:
+  the bench series", records `caraxes/runs/bench-615-2026-09-24/`). The 615 base image keeps the
+  610.57.04 userspace in `/opt/nvrm/lib` with its linker entry disabled; the gate's probes find
+  the 615 libcuda through the linker cache, bench-run.sh forced `/opt/nvrm/lib` and got cuInit
+  803. bench-run.sh now takes the v2 directory from `tools/lib/driver.sh` like the gates (610
+  unchanged, v1 unchanged; `bench-run.sh libdir`, checked in `tools/check.sh`). On vm2 with the
+  1 GiB profile at slot 3, no P21 area, the 615 guest equals the 610 guest (short kernel 0.144
+  against 0.307 ms/launch on a busier host, rlprobe stage 4 15.2 against 20.4 s, cuCtxCreate
+  4349 against 4144 ms, PPO 6226 against 6718 steps/s); the gap to the closing series is the
+  missing P21 area. 0 Xid. Next: the like-for-like with the area and the spin reactor.

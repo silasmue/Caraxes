@@ -10,6 +10,8 @@
 #   bench-run.sh startup TARGET --out DIR [--reps 5]   modprobe (v2) / module load (v1) to first cuInit
 #   bench-run.sh v2-restart | v2-nodes     restart the v2 VM and device (down, up, probe, nodes) |
 #                                          only load nvidia-uvm and make the /dev/nvidia* nodes
+#   bench-run.sh libdir TARGET              print the guest LD_LIBRARY_PATH of v1|v2 (v2 per
+#                                          CARAXES_DRIVER, tools/lib/driver.sh)
 # V1_RESTART=1 / V2_RESTART=1: restart that path's VM and device process before every rep but the
 # first (v1: freed pinned registrations are kept until guest restart; v2: symmetric conditions).
 #
@@ -53,6 +55,25 @@ ALL_METRICS="launch-auto launch-blocking short-auto short-blocking copy mm rl in
 
 err() { echo "ERROR: $*" >&2; exit 1; }
 
+# The guest library directory (libcuda.so.1) per target. v2 follows the guest driver the
+# way the gates do (tools/lib/driver.sh: CARAXES_DRIVER=610|615, default DRIVER_VERSION;
+# CARAXES_GUEST_NVRM overrides): 610 keeps /opt/nvrm/lib, 615 takes the system path,
+# because the 615 base image still carries the 610.57.04 userspace in /opt/nvrm/lib
+# (docs/caraxes/guest-driver-versions.md section 8). A fixed /opt/nvrm/lib made every bench
+# binary of the 615 guest fail with cuInit 803 while the gate's cuInit passed (runs 4 to 6
+# in caraxes/runs/cutover-615-2026-09-24/v2-615guest*/v2/; verified in
+# caraxes/runs/bench-615-2026-09-24/). v1 keeps /opt/nvrm/lib: its 615 image repoints it
+# (docs/caraxes/v1-615-image.md). Empty when the driver selection fails (checked on use).
+V2_LIBDIR=$(LEA_ROOT=$ROOT; source "$ROOT/tools/lib/driver.sh" && caraxes_driver_select &&
+    printf '%s' "$CARAXES_GUEST_LIBDIR") || V2_LIBDIR=""
+guest_libdir() {
+    case $1 in
+        v2) [[ -n $V2_LIBDIR ]] || err "no guest library directory for v2 (tools/lib/driver.sh refused the driver)"
+            echo "$V2_LIBDIR" ;;
+        *) echo /opt/nvrm/lib ;;
+    esac
+}
+
 # The command of a metric, as a shell string run inside the target from its bench dir.
 metric_cmd() {
     local m=$1 py=$2 pyd=$3
@@ -92,7 +113,7 @@ target_exec() {
 target_prefix() {  # environment + cd for the run
     case $1 in
         native) echo "cd $BIN && export PYTHONDONTWRITEBYTECODE=1 NVPROBE_PTX=$BIN/kernels.ptx LLAMA_DIR=$LLAMA_DIST LLAMA_MODEL=$LLAMA_GGUF" ;;
-        *) echo 'cd ~/bench && export PYTHONDONTWRITEBYTECODE=1 LD_LIBRARY_PATH=/opt/nvrm/lib NVPROBE_PTX=$HOME/bench/kernels.ptx LLAMA_DIR=$HOME/bench-llama LLAMA_MODEL=$HOME/bench-llama/model.gguf' ;;
+        *) echo "cd ~/bench && export PYTHONDONTWRITEBYTECODE=1 LD_LIBRARY_PATH=$(guest_libdir "$1")"' NVPROBE_PTX=$HOME/bench/kernels.ptx LLAMA_DIR=$HOME/bench-llama LLAMA_MODEL=$HOME/bench-llama/model.gguf' ;;
     esac
 }
 target_py()   { [[ $1 == native ]] && echo "$HOSTPY" || echo '$HOME/gpu/venv/bin/python'; }
@@ -175,6 +196,7 @@ v2_restart() {
 }
 
 case ${1:-} in
+libdir) guest_libdir "${2:?target}" ;;
 v2-restart) v2_restart ;;
 v2-nodes) "$ROOT/tools/caraxes-vm.sh" ssh "$V2_NODES" ;;
 stage)
@@ -209,8 +231,11 @@ series)
         esac
     done
     [[ -n $out ]] || err "--out DIR"
+    # Fail before the first run when a guest target has no library directory.
+    for t in $targets; do [[ $t == native ]] || guest_libdir "$t" > /dev/null || exit 1; done
     mkdir -p "$out"
     { echo "# series $(date -Iseconds) targets=[$targets] reps=$reps metrics=[$metrics]"
+      for t in $targets; do [[ $t == native ]] || echo "# libdir $t $(guest_libdir "$t")"; done
       echo "# caraxes $(git -C "$ROOT" describe --always --dirty) leandro-test $(git -C "$LT" describe --always --dirty)"
       (cd "$BIN" && sha256sum *) | sed 's/^/# bin /'; conditions; } >> "$out/series.txt"
     for r in $(seq 1 "$reps"); do
@@ -254,10 +279,11 @@ startup)
                   sudo insmod ~/guest-module/virtio_nvrm/virtio_nvrm.ko; t1=$(date +%s%N)' ;;
         *) err "startup is v1|v2 only (the host modules are not touched)" ;;
     esac
+    libdir=$(guest_libdir "$t") || exit 1
     for r in $(seq 1 "$reps"); do
         f=$out/$t/startup-$r.txt
         { echo "# target $t metric startup rep $r"; conditions; } > "$f"
-        target_exec "$t" "cd ~/bench && export LD_LIBRARY_PATH=/opt/nvrm/lib; $load
+        target_exec "$t" "cd ~/bench && export LD_LIBRARY_PATH=$libdir; $load
             n=0; while :; do n=\$((n+1)); ./nvprobe 0 >/dev/null 2>&1 && break; [ \$n -ge 300 ] && break; sleep 0.05; done
             t2=\$(date +%s%N)
             echo \"STARTUP load_ms=\$(( (t1 - t0) / 1000000 )) load_to_cuinit_ms=\$(( (t2 - t0) / 1000000 )) attempts=\$n\"" >> "$f" 2>&1

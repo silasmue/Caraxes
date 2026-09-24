@@ -1,0 +1,74 @@
+# series 2026-09-24T19:11:57+02:00 targets=[v2] reps=3 metrics=[short-auto rl copy init]
+# libdir v2 /opt/nvrm/lib
+# caraxes shell-rig-213-ga0bf4ef leandro-test 3edea73-dirty
+# bin c5b48cf1181bfcfc251f12aa2b0eaeb074887efec4c479f36efe399cb1307a13  bench-cu
+# bin 2e7db7218ac29e0da0b22a4d30307ea1f675dc04912d6b34922708495595904d  convnet.py
+# bin 68449e9ec7b25613a65d096a6a42864c01fbf46ec47e540ce01f47184f0479ea  ctrlping
+# bin 138c5073848b2f3cf2beb4709376c7c49b420d88e836664584e5cf8bbfc7848c  ioctlping
+# bin 1f921680fc7a2c2e0978eb007cc0ab48d2f1a7cf404a196c9063a19a10aa228f  kernels.ptx
+# bin abdf09531ac015ba4e8e7550bda6eb43609c429d6e1240e7f8553841bfe06513  llamaprobe.py
+# bin 2735d2a9cd25c0753898188542dbeb4a8433609024aa48230b6803a4a8d96e66  nvprobe
+# bin 012bb008b87ec0a6ee4ef566e0b55f856df09d6a3e07e72fe5cde5a9043dd18a  pporl.py
+# bin 02b1d58fc1778a47f8940e7f89d2cabb44b64d078f5b54b5ca1fba9437073c4a  transformer.py
+# bin f0868123fca8e2c40138fda523e35fa76c015b97e232fc647fea0b6b49f33584  vrampress
+# time 2026-09-24T19:11:57+02:00
+# gpu 48, 315 MHz, 405 MHz, P8, 21 %, 2164 MiB, Disabled
+# procs 380805:vm2-dev 380816:vm1-vmm 
+# loadavg 1.89 3.41 4.30
+19:11:58 v2  short-auto      rep 1: # WALL wall_ms=34 rc=1  | # MEAS dev_pid=380805 dev_cpu_ms=0 dev_rss_hwm_kb=5251336/5251336 vmm_cpu_ms=400 others: 
+19:12:04 v2  rl              rep 1: # WALL wall_ms=6150 rc=1  | # MEAS dev_pid=380805 dev_cpu_ms=30 dev_rss_hwm_kb=5251336/5251336 vmm_cpu_ms=11320 others: 
+19:12:05 v2  copy            rep 1: # WALL wall_ms=48 rc=1  | # MEAS dev_pid=380805 dev_cpu_ms=0 dev_rss_hwm_kb=5251336/5251336 vmm_cpu_ms=520 others: 
+19:12:06 v2  init            rep 1: # WALL wall_ms=21 rc=1  | # MEAS dev_pid=380805 dev_cpu_ms=0 dev_rss_hwm_kb=5251336/5251336 vmm_cpu_ms=540 others: 
+# 19:12:06 v2 restart before rep 2
+stopped
+dma table: 0:7ffe80000000:c0000000,100000000:7fff80000000:40000000
+server pid 392928, VM pid 392939; logs in /mnt/vmstore/caraxes/vm2
+ssh up at 192.168.102.22
+[  133.800428] NVRM: GPU 0000:00:05.0: RmInitAdapter failed! (0x62:0x40:2119)
+modprobe rc=0
+v2 restarted: server pid 392928
+19:14:28 v2  short-auto      rep 2: # WALL wall_ms=45 rc=1  | # MEAS dev_pid=392928 dev_cpu_ms=0 dev_rss_hwm_kb=5251308/5251308 vmm_cpu_ms=410 others: vm1-vmm=260ms vm0-dev=170ms 
+19:14:34 v2  rl              rep 2: # WALL wall_ms=5456 rc=1  | # MEAS dev_pid=392928 dev_cpu_ms=30 dev_rss_hwm_kb=5251308/5251308 vmm_cpu_ms=10990 others: vm1-vmm=1650ms vm0-dev=1070m
+19:14:34 v2  copy            rep 2: # WALL wall_ms=7 rc=1  | # MEAS dev_pid=392928 dev_cpu_ms=0 dev_rss_hwm_kb=5251308/5251308 vmm_cpu_ms=370 others: vm1-vmm=0ms vm0-dev=20ms 
+19:14:35 v2  init            rep 2: # WALL wall_ms=8 rc=1  | # MEAS dev_pid=392928 dev_cpu_ms=0 dev_rss_hwm_kb=5251308/5251308 vmm_cpu_ms=360 others: vm1-vmm=0ms vm0-dev=10ms 
+# 19:14:35 v2 restart before rep 3
+stopped
+dma table: 0:7ffe80000000:c0000000,100000000:7fff80000000:40000000
+server pid 403839, VM pid 403852; logs in /mnt/vmstore/caraxes/vm2
+ssh up at 192.168.102.22
+[  136.006360] NVRM: GPU 0000:00:05.0: RmInitAdapter failed! (0x62:0x40:2119)
+modprobe rc=0
+v2 restarted: server pid 403839
+19:16:59 v2  short-auto      rep 3: # WALL wall_ms=49 rc=1  | # MEAS dev_pid=403839 dev_cpu_ms=0 dev_rss_hwm_kb=5251216/5251216 vmm_cpu_ms=410 others: vm1-vmm=270ms vm0-dev=200ms 
+19:17:05 v2  rl              rep 3: # WALL wall_ms=5698 rc=1  | # MEAS dev_pid=403839 dev_cpu_ms=30 dev_rss_hwm_kb=5251216/5251216 vmm_cpu_ms=10920 others: vm1-vmm=3810ms vm0-dev=2810m
+19:17:05 v2  copy            rep 3: # WALL wall_ms=8 rc=1  | # MEAS dev_pid=403839 dev_cpu_ms=0 dev_rss_hwm_kb=5251216/5251216 vmm_cpu_ms=360 others: vm1-vmm=250ms vm0-dev=180ms 
+19:17:06 v2  init            rep 3: # WALL wall_ms=9 rc=1  | # MEAS dev_pid=403839 dev_cpu_ms=0 dev_rss_hwm_kb=5251216/5251216 vmm_cpu_ms=330 others: vm1-vmm=240ms vm0-dev=180ms 
+# end 2026-09-24T19:17:06+02:00
+# series 2026-09-24T19:17:06+02:00 targets=[v2] reps=2 metrics=[ppo]
+# libdir v2 /opt/nvrm/lib
+# caraxes shell-rig-213-ga0bf4ef leandro-test 3edea73-dirty
+# bin c5b48cf1181bfcfc251f12aa2b0eaeb074887efec4c479f36efe399cb1307a13  bench-cu
+# bin 2e7db7218ac29e0da0b22a4d30307ea1f675dc04912d6b34922708495595904d  convnet.py
+# bin 68449e9ec7b25613a65d096a6a42864c01fbf46ec47e540ce01f47184f0479ea  ctrlping
+# bin 138c5073848b2f3cf2beb4709376c7c49b420d88e836664584e5cf8bbfc7848c  ioctlping
+# bin 1f921680fc7a2c2e0978eb007cc0ab48d2f1a7cf404a196c9063a19a10aa228f  kernels.ptx
+# bin abdf09531ac015ba4e8e7550bda6eb43609c429d6e1240e7f8553841bfe06513  llamaprobe.py
+# bin 2735d2a9cd25c0753898188542dbeb4a8433609024aa48230b6803a4a8d96e66  nvprobe
+# bin 012bb008b87ec0a6ee4ef566e0b55f856df09d6a3e07e72fe5cde5a9043dd18a  pporl.py
+# bin 02b1d58fc1778a47f8940e7f89d2cabb44b64d078f5b54b5ca1fba9437073c4a  transformer.py
+# bin f0868123fca8e2c40138fda523e35fa76c015b97e232fc647fea0b6b49f33584  vrampress
+# time 2026-09-24T19:17:06+02:00
+# gpu 49, 315 MHz, 405 MHz, P8, 23 %, 4192 MiB, Disabled
+# procs 402214:vm0-dev 402239:vm1-vmm 403839:vm2-dev 403852:vm1-vmm 
+# loadavg 5.44 4.38 4.39
+19:17:08 v2  ppo             rep 1: # WALL wall_ms=1656 rc=1  | # MEAS dev_pid=403839 dev_cpu_ms=10 dev_rss_hwm_kb=5251216/5251216 vmm_cpu_ms=3790 others: vm1-vmm=1120ms vm0-dev=810ms 
+# 19:17:08 v2 restart before rep 2
+stopped
+dma table: 0:7ffe80000000:c0000000,100000000:7fff80000000:40000000
+server pid 417328, VM pid 417339; logs in /mnt/vmstore/caraxes/vm2
+ssh up at 192.168.102.22
+[  134.666155] NVRM: GPU 0000:00:05.0: RmInitAdapter failed! (0x62:0x40:2119)
+modprobe rc=0
+v2 restarted: server pid 417328
+19:19:35 v2  ppo             rep 2: # WALL wall_ms=4747 rc=1  | # MEAS dev_pid=417328 dev_cpu_ms=20 dev_rss_hwm_kb=5251256/5251256 vmm_cpu_ms=9900 others: vm1-vmm=720ms vm1-vmm=2500ms 
+# end 2026-09-24T19:19:35+02:00
