@@ -1,0 +1,23 @@
+# SPDX-License-Identifier: MIT
+# cuda gate, gate-cuda-2026-09-24-4, VM vm2-615: result per test; device = RPCs the device did not answer NV_OK in the test's window
+TEST                             RESULT SCORED GUEST ERROR | LAST FAILED RM CALL (guest tracer) | DEVICE
+cuda-init                        fail  yes    exit 1: ERROR cuInit: 999 unknown error | RM_CONTROL 0xcb330101 -> 0x2f | none
+cuda-context                     fail  yes    exit 1: ERROR cuInit: 999 unknown error | RM_CONTROL 0xcb330101 -> 0x2f | none
+cuda-core                        fail  yes    exit 1: ERROR cuInit: 999 unknown error | RM_CONTROL 0xcb330101 -> 0x2f | none
+cuda-jit                         fail  yes    exit 1: ERROR cuInit: 999 unknown error | RM_CONTROL 0xcb330101 -> 0x2f | none
+cuda-launch                      fail  yes    exit 1: ERROR cuInit: 999 unknown error | RM_CONTROL 0xcb330101 -> 0x2f | none
+cuda-managed                     fail  yes    exit 1: ERROR cuInit: 999 unknown error | RM_CONTROL 0xcb330101 -> 0x2f | none
+cuda-hostreg                     fail  yes    exit 1: A cuInit : 999 unknown error | RM_CONTROL 0xcb330101 -> 0x2f | none
+cuda-torch                       fail  yes    exit 1: AssertionError: no CUDA device visible | RM_CONTROL 0xcb330101 -> 0x2f | none
+cuda-gdb                         skip  yes    declared-unsupported: workload not procurable in this environment -- no cuda-gdb (CUDA_GDB) | - | none
+rlprobe                          fail  yes    exit 1: AssertionError: no CUDA card visible | RM_CONTROL 0xcb330101 -> 0x2f | none
+convburn                         fail  yes    exit 1: RuntimeError: CUDA unknown error - this may be due to an incorrectly set up environment, e.g. changing env variable CUDA_VISIBLE_DEVICES after program start. Setting the available devices to be zero. | RM_CONTROL 0xcb330101 -> 0x2f | none
+robustness                       fail  yes    0 of 3 runs correct (ERROR cuInit: 999 unknown error); refcnt 2 -> 3 | - | none
+suite-test_async_streams         fail  no     exit 1: RuntimeError: CUDA unknown error - this may be due to an incorrectly set up environment, e.g. changing env variable CUDA_VISIBLE_DEVICES after program start. Setting the available devices to be zero. | - | none
+suite-test_cuda_graphs           fail  no     exit 1: RuntimeError: CUDA unknown error - this may be due to an incorrectly set up environment, e.g. changing env variable CUDA_VISIBLE_DEVICES after program start. Setting the available devices to be zero. | - | none
+suite-test_high_freq_event_polling fail  no     exit 1: RuntimeError: CUDA unknown error - this may be due to an incorrectly set up environment, e.g. changing env variable CUDA_VISIBLE_DEVICES after program start. Setting the available devices to be zero. | - | none
+suite-test_multi_process_cuda    fail  no     exit 1: RuntimeError: CUDA unknown error - this may be due to an incorrectly set up environment, e.g. changing env variable CUDA_VISIBLE_DEVICES after program start. Setting the available devices to be zero. | - | none
+suite-test_nvrtc                 skip  no     missing module: cupy | - | none
+suite-test_uvm_migration         skip  no     missing module: cupy | - | none
+suite-test_vram_churn            fail  no     exit 1: RuntimeError: CUDA unknown error - this may be due to an incorrectly set up environment, e.g. changing env variable CUDA_VISIBLE_DEVICES after program start. Setting the available devices to be zero. | - | none
+suite-rapids_cuml_cudf           skip  no     missing module: cudf | - | none

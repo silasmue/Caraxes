@@ -1,0 +1,23 @@
+# SPDX-License-Identifier: MIT
+# cuda gate, gate-cuda-2026-09-24-3, VM vm2: result per test; device = RPCs the device did not answer NV_OK in the test's window
+TEST                             RESULT SCORED GUEST ERROR | LAST FAILED RM CALL (guest tracer) | DEVICE
+cuda-init                        pass  yes    stage 0 ok (cuInit) | - | NV2080_CTRL_CMD_GPU_QUERY_ECC_STATUS=0x56 x1
+cuda-context                     pass  yes    stage 1 ok (context, sched=auto) | - | NV2080_CTRL_CMD_GPU_QUERY_ECC_STATUS=0x56 x1
+cuda-core                        pass  yes    nvprobe 2: device memory written, read back and compared | - | NV2080_CTRL_CMD_GPU_QUERY_ECC_STATUS=0x56 x1
+cuda-jit                         pass  yes    nvprobe 3: PTX compiled by the driver, kernel launched, result verified | - | NV2080_CTRL_CMD_GPU_QUERY_ECC_STATUS=0x56 x1
+cuda-launch                      pass  yes    nvprobe 4 (blocking): 100 kernel launches completed and verified | - | NV2080_CTRL_CMD_GPU_QUERY_ECC_STATUS=0x56 x1
+cuda-managed                     fail  yes    exit 1: ERROR AllocManaged a: 801 operation not supported | RM_CONTROL NV2080_CTRL_CMD_GPU_QUERY_ECC_STATUS -> 0x56 | NV2080_CTRL_CMD_GPU_QUERY_ECC_STATUS=0x56 x2
+cuda-hostreg                     pass  yes    hostregprobe: 2 pinned-memory roundtrips (HostRegister and HostAlloc) compared byte for byte | - | NV2080_CTRL_CMD_GPU_QUERY_ECC_STATUS=0x56 x1
+cuda-torch                       pass  yes    torchprobe stage 5 with NVTORCH_CONV=1: cuDNN convolution result verified by the probe | - | NV2080_CTRL_CMD_GPU_QUERY_ECC_STATUS=0x56 x1
+cuda-gdb                         skip  yes    declared-unsupported: workload not procurable in this environment -- no cuda-gdb (CUDA_GDB) | - | none
+rlprobe                          pass  yes    mean10=56.9 (pinned) | - | NV2080_CTRL_CMD_GPU_QUERY_ECC_STATUS=0x56 x1
+convburn                         pass  yes    acc=3.041451216e+00 | - | NV2080_CTRL_CMD_GPU_QUERY_ECC_STATUS=0x56 x1
+robustness                       pass  yes    2 in parallel ok, next run after SIGKILL ok, nvidia.ko pinned by an open FD | - | NV2080_CTRL_CMD_GPU_QUERY_ECC_STATUS=0x56 x4
+suite-test_async_streams         pass  no     async streams ok, duration: 21.8138s | - | NV2080_CTRL_CMD_GPU_QUERY_ECC_STATUS=0x56 x1
+suite-test_cuda_graphs           pass  no     CUDA graphs test ok | - | NV2080_CTRL_CMD_GPU_QUERY_ECC_STATUS=0x56 x1
+suite-test_high_freq_event_polling pass  no     high-frequency event test ok | - | NV2080_CTRL_CMD_GPU_QUERY_ECC_STATUS=0x56 x1
+suite-test_multi_process_cuda    pass  no     [W924 15:47:28.066512391 CudaIPCTypes.cpp:16] Producer process has been terminated before all shared CUDA tensors released. See Note [Sharing CUDA tensors] | - | NV2080_CTRL_CMD_GPU_QUERY_ECC_STATUS=0x56 x2
+suite-test_nvrtc                 skip  no     missing module: cupy | - | none
+suite-test_uvm_migration         skip  no     missing module: cupy | - | none
+suite-test_vram_churn            pass  no     VRAM churn test ok (no leak, no crash) | - | NV2080_CTRL_CMD_GPU_QUERY_ECC_STATUS=0x56 x1
+suite-rapids_cuml_cudf           skip  no     missing module: cudf | - | none

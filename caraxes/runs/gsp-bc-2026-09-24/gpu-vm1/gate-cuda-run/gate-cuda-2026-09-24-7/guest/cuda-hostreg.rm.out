@@ -1,0 +1,4 @@
+# SPDX-License-Identifier: MIT
+# cuda gate gate-cuda-2026-09-24-7: guest/cuda-hostreg.rm.out
+A cuInit                : 100 no CUDA-capable device is detected
+ERROR: hostregprobe exited 1

@@ -1,0 +1,4 @@
+2.13.0+cu130 13.0
+Leandro VFIO RTX 2070-1G
+(7, 5)
+_CudaDeviceProperties(name='Leandro VFIO RTX 2070-1G', major=7, minor=5, total_memory=855MB, multi_processor_count=36, uuid=7fc490a1-b1e9-81e2-363d-50dc8f183234, pci_bus_id=0, pci_device_id=5, pci_domain_id=0, L2_cache_size=4MB)

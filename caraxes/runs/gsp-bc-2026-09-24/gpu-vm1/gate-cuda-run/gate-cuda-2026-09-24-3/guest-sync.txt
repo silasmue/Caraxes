@@ -1,0 +1,18 @@
+# SPDX-License-Identifier: MIT
+# caraxes-tests sync, 2026-09-24T15:41:59+00:00
+leandro-test 3edea730c2d8-dirty (from /home/silas/git/Leandro-Test)
+caraxes shell-rig-176-gb4ebc4c9d986
+kernel 6.8.0-136-generic; Ubuntu 24.04.4 LTS
+nvidia.ko 610.57.04
+libcuda libcuda.so.610.57.04
+cuda.h /home/leandro/gpu/venv/lib/python3.12/site-packages/nvidia/cu13/include/cuda.h CUDA_VERSION 13000
+gcc 13.3.0; python 3.12.3
+venv /home/leandro/gpu/venv: numpy=2.5.2 nvidia-cuda-runtime=13.0.96 nvidia-cudnn-cu13=9.20.0.48 torch=2.13.0 triton=3.7.1 
+nvcc missing
+ffmpeg missing
+strace /usr/bin/strace
+cuda-gdb missing
+vulkaninfo /usr/bin/vulkaninfo
+clinfo missing
+glxinfo /usr/bin/glxinfo
+built: nvprobe managedprobe hostregprobe oomprobe vrampress rmdirect ctrlping ioctlping

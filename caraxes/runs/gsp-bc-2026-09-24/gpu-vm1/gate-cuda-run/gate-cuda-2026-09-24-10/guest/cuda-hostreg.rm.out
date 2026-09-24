@@ -1,0 +1,16 @@
+# SPDX-License-Identifier: MIT
+# cuda gate gate-cuda-2026-09-24-10: guest/cuda-hostreg.rm.out
+A cuInit                : 0 ok
+A cuCtxCreate           : 0 ok
+B HostRegister(0)       : 0 ok
+B GetDevicePointer      : 0 ok dptr=0x1000ba00000
+B Unregister            : 0 ok
+C HostRegister(DEVMAP)  : 0 ok
+C GetDevicePointer      : 0 ok dptr=0x1000ba00000
+D Memcpy HtoD (reg)     : 0 ok
+D Roundtrip             : 0 ok bad=0 correct
+E HostAlloc(DEVMAP)     : 0 ok p=0x1000ba00000
+E GetDevicePointer      : 0 ok dptr=0x1000ba00000
+E Roundtrip             : 0 ok bad=0 correct
+DONE
+CRITERION: hostregprobe: 2 pinned-memory roundtrips (HostRegister and HostAlloc) compared byte for byte

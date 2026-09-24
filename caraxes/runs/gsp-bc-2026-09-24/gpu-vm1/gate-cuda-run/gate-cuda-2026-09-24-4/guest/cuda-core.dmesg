@@ -1,0 +1,4 @@
+# SPDX-License-Identifier: MIT
+# cuda gate gate-cuda-2026-09-24-4: guest/cuda-core.dmesg
+[  139.442690] NVRM: GPU 0000:00:05.0: GPU failed probe-time init, open returning -EIO
+[  139.456672] NVRM: GPU 0000:00:05.0: GPU failed probe-time init, open returning -EIO
