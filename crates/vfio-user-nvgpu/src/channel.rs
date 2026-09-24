@@ -264,6 +264,9 @@ pub struct Registry {
     /// the page directory (`None`: all), for the host mirrors of the same page
     /// directories (part 2); drained by the dispatcher after each doorbell.
     pub tlb_invalidates: Vec<Option<u64>>,
+    /// The doorbell token pool (`CARAXES_DOORBELL_TOKENS`, tokens.rs): which channel
+    /// holds which pool token.
+    pub tokens: Option<crate::tokens::TokenPool>,
 }
 
 fn rd32(b: &[u8], off: usize) -> u32 {
@@ -305,6 +308,7 @@ impl Registry {
             start: Some(std::time::Instant::now()),
             doorbells: 0,
             tlb_invalidates: Vec::new(),
+            tokens: None,
         }
     }
 
@@ -586,10 +590,17 @@ impl Registry {
                     launches_refused: 0,
                     tlb_invalidates: Vec::new(),
                 };
-                let note = format!(
+                let mut note = format!(
                     "channel {h_object:#x} chid {chid} engineType {:#x} gpfifo va {:#x} x {} userd {:?} vaspace {:?} errorNotifier {:?} [guest]",
                     ch.engine_type, ch.gpfifo_va, ch.gpfifo_entries, ch.userd, ch.vas, ch.error_notifier
                 );
+                // A ChID the guest reuses without a FREE the device saw: the old
+                // channel's pool token must not ring the new one.
+                if let Some(t) = self.tokens.as_mut().and_then(|p| p.release(chid)) {
+                    note.push_str(&format!(
+                        "; doorbell token {t:#x} of the previous chid {chid} released"
+                    ));
+                }
                 self.channels.insert(chid, ch);
                 Some(note)
             }
@@ -613,8 +624,14 @@ impl Registry {
     /// Forget a freed object (a freed client takes its objects with it).
     pub fn record_free(&mut self, h_client: u32, h_object: u32) {
         let all = h_client == h_object;
-        self.channels
-            .retain(|_, c| c.h_client != h_client || !(all || c.h_object == h_object));
+        let gone = |c: &Channel| c.h_client == h_client && (all || c.h_object == h_object);
+        // A freed channel gives its doorbell token back (docs/caraxes/doorbell-token-pool.md).
+        if let Some(pool) = self.tokens.as_mut() {
+            for c in self.channels.values().filter(|c| gone(c)) {
+                pool.release(c.chid);
+            }
+        }
+        self.channels.retain(|_, c| !gone(c));
         self.tsgs
             .retain(|(c, h), _| *c != h_client || !(all || *h == h_object));
         self.vaspaces
@@ -1749,6 +1766,107 @@ mod tests {
         // A second doorbell with nothing new does nothing; an unknown chid is reported.
         assert_eq!(reg.doorbell(&mut mem, 9).len(), 1);
         assert!(reg.doorbell(&mut mem, 77)[1].contains("no such channel"));
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// The doorbell token pool through the dispatcher (docs/caraxes/doorbell-token-pool.md):
+    /// the first ring traps with the guest token and hands out a pool token through the
+    /// work-submit-token notifier entry; later rings by pool token (eventfd or trapped)
+    /// reach the same channel; stale, mismatched and freed cases fail closed.
+    #[test]
+    fn token_pool_hands_out_and_rings_by_token() {
+        use crate::tokens::{TokenPool, NOTIFIER_TOKEN_OFFSET, TOKEN_BASE};
+        let (mut fb, sys, path, _root) = world("tokens");
+        let f = crate::fixture::rtx2070();
+        let mut d = crate::ctrl::Dispatcher::new(f.chip.data(), &f.identity(4 << 30), None);
+        d.channels.tokens = Some(TokenPool::new(4));
+        let reg = &mut d.channels;
+        reg.record_alloc(1, 0x10, 0x20, FERMI_VASPACE_A, &[]);
+        let mut pdes = vec![0u8; 40 + 24 * 6];
+        pdes[40..48].copy_from_slice(&0x10000u64.to_le_bytes());
+        pdes[56..60].copy_from_slice(&1u32.to_le_bytes());
+        reg.record_server_reserved_pdes(1, 0x20, &pdes);
+        let mut tsg = vec![0u8; 20];
+        tsg[8..12].copy_from_slice(&0x20u32.to_le_bytes());
+        reg.record_alloc(1, 0x10, 0x30, KEPLER_CHANNEL_GROUP_A, &tsg);
+        // Channel 9 with its error notifier in guest RAM; channel 10 with one whose
+        // work-submit-token entry holds something else.
+        let with_notifier = |chid: u32, userd: u64, notifier: u64| {
+            let mut p = channel_params(chid, 0x1000_0000, userd, 0);
+            let o = <Abi as RmAbi>::ALLOC_CHANNEL_PARAMS_OFF_errorNotifierMem;
+            p[o + v::MEM_DESC_BASE..o + v::MEM_DESC_BASE + 8]
+                .copy_from_slice(&notifier.to_le_bytes());
+            p[o + v::MEM_DESC_ADDRESS_SPACE..o + v::MEM_DESC_ADDRESS_SPACE + 4]
+                .copy_from_slice(&ADDR_SYSMEM.to_le_bytes());
+            p
+        };
+        let (n9, n10) = (0x4008_0000u64, 0x4008_1000u64);
+        let c9 = with_notifier(9, 0x20_0000, n9);
+        let c10 = with_notifier(10, 0x20_1000, n10);
+        reg.record_alloc(1, 0x30, 0x40, TURING_CHANNEL_GPFIFO_A, &c9)
+            .unwrap();
+        reg.record_alloc(1, 0x30, 0x41, TURING_CHANNEL_GPFIFO_A, &c10)
+            .unwrap();
+        // The guest RM wrote each channel's token into entry 1 (kchannelNotifyWorkSubmitToken).
+        let (t9, t10) = ((1u32 << 16) | 9, (1u32 << 16) | 10);
+        assert!(sys.write(n9 + NOTIFIER_TOKEN_OFFSET, &t9.to_le_bytes()));
+        assert!(sys.write(n10 + NOTIFIER_TOKEN_OFFSET, &0x1234u32.to_le_bytes()));
+        // Two NOP control entries for channel 9, published one at a time.
+        fb.write(0x100000, &[0u8; 16]);
+        fb.write(0x20_0000 + USERD_GP_PUT, &1u32.to_le_bytes());
+        let mut mem = GpuMem {
+            fb: &mut fb,
+            sys: &sys,
+        };
+
+        // First ring: trapped, the guest's own token; the entry now holds pool slot 0.
+        let notes = d.doorbell(&mut mem, t9);
+        let handed = |n: &String| n.contains("chid 9 gets pool token 0xca700000");
+        assert!(notes.iter().any(handed), "{notes:#?}");
+        assert_eq!(sys.read_u32(n9 + NOTIFIER_TOKEN_OFFSET), Some(TOKEN_BASE));
+        assert_eq!(mem.read_u32(Target::Fb(0x20_0000 + USERD_GP_GET)), Some(1));
+
+        // Next ring through the eventfd: the token names chid 9, which runs entry 1.
+        mem.fb.write(0x20_0000 + USERD_GP_PUT, &2u32.to_le_bytes());
+        let notes = d.doorbell_pool(&mut mem, TOKEN_BASE, false);
+        assert!(notes[0].contains("(eventfd) -> chid 9"), "{notes:#?}");
+        assert_eq!(mem.read_u32(Target::Fb(0x20_0000 + USERD_GP_GET)), Some(2));
+        // The same token as a trapped write (its ioeventfd not registered) goes the same way.
+        let notes = d.doorbell(&mut mem, TOKEN_BASE);
+        assert!(notes[0].contains("(trapped) -> chid 9"), "{notes:#?}");
+        // The guest ringing its own token again (a ring that does not read the notifier):
+        // counted, the entry is not written again.
+        d.doorbell(&mut mem, t9);
+        assert_eq!(sys.read_u32(n9 + NOTIFIER_TOKEN_OFFSET), Some(TOKEN_BASE));
+        // Someone (the host RM for a mirror) wrote the entry again: the next ring with
+        // that token gets the same pool token written back.
+        assert!(sys.write(n9 + NOTIFIER_TOKEN_OFFSET, &t9.to_le_bytes()));
+        let notes = d.doorbell(&mut mem, t9);
+        let back = |n: &String| n.contains("chid 9 gets back its pool token 0xca700000");
+        assert!(notes.iter().any(back), "{notes:#?}");
+        assert_eq!(sys.read_u32(n9 + NOTIFIER_TOKEN_OFFSET), Some(TOKEN_BASE));
+        // An unassigned pool token is stale and rings nothing.
+        let notes = d.doorbell(&mut mem, TOKEN_BASE + 1);
+        assert!(notes[0].contains("stale"), "{notes:#?}");
+
+        // Channel 10's entry does not hold the token it rang: no pool token for it.
+        let notes = d.doorbell(&mut mem, t10);
+        let kept = |n: &String| n.contains("keeps its own token");
+        assert!(notes.iter().any(kept), "{notes:#?}");
+        assert_eq!(sys.read_u32(n10 + NOTIFIER_TOKEN_OFFSET), Some(0x1234));
+
+        // Freeing channel 9 frees its token; a ring of it is then stale.
+        d.free(1, 0x40);
+        let notes = d.doorbell_pool(&mut mem, TOKEN_BASE, false);
+        assert!(notes[0].contains("stale"), "{notes:#?}");
+        let p = d.channels.tokens.as_ref().unwrap();
+        assert_eq!(p.assigned(), 0);
+        let s = &p.stats;
+        assert_eq!((s.handed_out, s.trapped_pool_rings, s.stale), (1, 2, 2));
+        assert_eq!(
+            (s.own_token_after_handout, s.rewritten, s.mismatch),
+            (1, 1, 1)
+        );
         let _ = std::fs::remove_file(&path);
     }
 

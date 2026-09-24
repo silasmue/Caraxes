@@ -298,6 +298,9 @@ impl BootModel {
         if let Some(m) = &self.ctrl.mirror {
             s.push(m.summary());
         }
+        if let Some(p) = &self.ctrl.channels.tokens {
+            s.push(p.summary());
+        }
         if self.ctrl.display.enabled {
             s.push(self.ctrl.display.engine.summary());
         }
@@ -356,6 +359,27 @@ impl BootModel {
         self
     }
 
+    /// The doorbell token pool of `n` tokens (`CARAXES_DOORBELL_TOKENS`, tokens.rs). Call
+    /// after `with_host` and `with_exec`, which build the dispatcher.
+    pub fn with_doorbell_tokens(mut self, n: usize) -> Self {
+        self.ctrl.channels.tokens = Some(crate::tokens::TokenPool::new(n));
+        self
+    }
+
+    /// A ring of pool token `token` through its ioeventfd (device.rs `doorbell_tokens`).
+    pub fn doorbell_token(&mut self, mem: &GuestMemory, token: u32) -> Vec<String> {
+        let mut gm = crate::channel::GpuMem {
+            fb: &mut self.fb,
+            sys: mem,
+        };
+        self.ctrl.doorbell_pool(&mut gm, token, false)
+    }
+
+    /// The doorbell token pool's counters, for the eventfd reader.
+    pub fn token_pool_mut(&mut self) -> Option<&mut crate::tokens::TokenPool> {
+        self.ctrl.channels.tokens.as_mut()
+    }
+
     pub fn chip(&self) -> &'static dyn Chip {
         self.chip
     }
@@ -382,6 +406,12 @@ impl BootModel {
     pub fn reset(&mut self) {
         let host = self.ctrl.take_host();
         let exec = self.exec.take();
+        // The pool's size and counters survive; every assignment goes with the channels.
+        let tokens = self.ctrl.channels.tokens.take().map(|p| {
+            let mut fresh = crate::tokens::TokenPool::new(p.len());
+            fresh.stats = p.stats;
+            fresh
+        });
         // The old mirror frees its host objects when the old model drops (Mirror::drop).
         let mut fresh = BootModel::new(self.chip, self.layout, self.identity.clone());
         if let Some(h) = host {
@@ -398,6 +428,7 @@ impl BootModel {
             };
         }
         self.fb.carry_bar1_passthrough(&fresh.fb);
+        fresh.ctrl.channels.tokens = tokens;
         *self = fresh;
     }
 

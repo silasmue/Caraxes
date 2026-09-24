@@ -176,6 +176,12 @@ impl Dispatcher {
     /// A doorbell write: a channel the mirror takes runs on the physical GPU (created
     /// on first use), every other channel on the software executor.
     pub fn doorbell(&mut self, gm: &mut crate::channel::GpuMem, token: u32) -> Vec<String> {
+        // A pool token (tokens.rs) that reached the device as a trapped write: its
+        // ioeventfd was not registered. Same channel, same path as through the eventfd.
+        let pool_token = |p: &crate::tokens::TokenPool| p.contains(token);
+        if self.channels.tokens.as_ref().is_some_and(pool_token) {
+            return self.doorbell_pool(gm, token, true);
+        }
         // NV_CTRL_VF_DOORBELL_VECTOR 11:0 is the ChID (tu102/dev_ctrl.h:36-37) of a guest
         // token; a mirrored channel's guest reads the *host* token back from its notifier
         // page (`Mirror::chid_of_host_token`) and rings that from its second submission on.
@@ -183,7 +189,134 @@ impl Dispatcher {
             Some(c) => (c, true),
             None => (token & 0xFFF, false),
         };
-        self.doorbell_chid(gm, token, chid, via_host_token)
+        let mut notes = self.doorbell_chid(gm, token, chid, via_host_token);
+        notes.extend(self.hand_out_token(gm, chid, token));
+        notes
+    }
+
+    /// A ring of pool token `token` (docs/caraxes/doorbell-token-pool.md): through its
+    /// eventfd (`trapped` false, device.rs `doorbell_tokens`) or as a trapped write. The
+    /// pool names the channel; an unassigned token is stale and rings nothing (a doorbell
+    /// only makes the engine look at GPPut, so nothing the guest relies on is lost).
+    pub fn doorbell_pool(
+        &mut self,
+        gm: &mut crate::channel::GpuMem,
+        token: u32,
+        trapped: bool,
+    ) -> Vec<String> {
+        let Some(pool) = self.channels.tokens.as_mut() else {
+            return vec![format!("doorbell token {token:#x}: no pool")];
+        };
+        if trapped {
+            pool.stats.trapped_pool_rings += 1;
+        }
+        let Some(chid) = pool.chid(token) else {
+            pool.note_stale(token, if trapped { "trapped" } else { "eventfd" });
+            return vec![format!(
+                "doorbell token {token:#x}: not assigned to any channel (stale), dropped"
+            )];
+        };
+        let mut notes = vec![format!(
+            "doorbell token {token:#x} ({}) -> chid {chid}",
+            if trapped { "trapped" } else { "eventfd" }
+        )];
+        // The software executor decodes a token as ChID 11:0, runlist 22:16; ring the
+        // channel with a guest token of it (runlist 0, as the token-less path does).
+        notes.extend(self.doorbell_chid(gm, chid, chid, false));
+        notes
+    }
+
+    /// After a trapped doorbell of `chid` with its own token `rung` (the guest's, or the
+    /// host token a mirror's host RM wrote): give the channel a pool token and write it
+    /// into the channel's work-submit-token notifier entry, where libcuda reads the token
+    /// it rings (kernel_channel.c:3225-3286 `kchannelCtrlCmdGpfifoGetWorkSubmitToken`,
+    /// :4015-4030 `kchannelNotifyWorkSubmitToken`; execution.md §6). Only a notifier entry
+    /// that holds `rung` or the mirror's host token is overwritten; otherwise the channel
+    /// keeps its own token and every ring of it traps, as without the pool. A channel
+    /// that holds a pool token and rings its own token again gets the pool token written
+    /// again if the entry was overwritten since (the host RM rewrites it when a mirror
+    /// asks for the host token), and is only counted if the entry still holds the pool
+    /// token (a ring that does not read the notifier: nvidia-uvm keeps the token of its
+    /// channel allocation).
+    fn hand_out_token(
+        &mut self,
+        gm: &mut crate::channel::GpuMem,
+        chid: u32,
+        rung: u32,
+    ) -> Vec<String> {
+        // The channel's error notifier: `None` for a channel the guest never announced.
+        let notifier = self.channels.channel(chid).map(|c| c.error_notifier);
+        let Some(pool) = self.channels.tokens.as_mut() else {
+            return Vec::new();
+        };
+        let held = pool.token_of(chid);
+        let Some(notifier) = notifier else {
+            return Vec::new();
+        };
+        let Some(notifier) = notifier else {
+            pool.stats.no_notifier += 1;
+            return vec![format!(
+                "doorbell tokens: chid {chid} has no error notifier; it keeps token {rung:#x} (trapped)"
+            )];
+        };
+        use crate::fb::Target;
+        use crate::tokens::NOTIFIER_TOKEN_OFFSET as AT;
+        let at = match notifier {
+            Target::Fb(pa) => Target::Fb(pa + AT),
+            Target::Sys(pa) => Target::Sys(pa + AT),
+            other => other,
+        };
+        let host = self
+            .mirror
+            .as_ref()
+            .and_then(|m| m.channel(chid))
+            .map(|h| h.token);
+        let current = gm.read_u32(at);
+        if held.is_some() && current == held {
+            pool.stats.own_token_after_handout += 1;
+            return Vec::new();
+        }
+        if current.is_none() || (current != Some(rung) && current != host) {
+            pool.stats.mismatch += 1;
+            let why = format!(
+                "chid {chid}: work-submit-token entry at {at:?} holds {current:x?}, not the rung token {rung:#x}{}",
+                host.map_or(String::new(), |h| format!(" or the host token {h:#x}"))
+            );
+            pool.note_refused(why.clone());
+            return vec![format!(
+                "doorbell tokens: {why}; it keeps its own token (trapped)"
+            )];
+        }
+        let Some(token) = pool.assign(chid) else {
+            pool.stats.exhausted += 1;
+            return vec![format!(
+                "doorbell tokens: pool of {} exhausted; chid {chid} keeps token {rung:#x} (trapped)",
+                pool.len()
+            )];
+        };
+        if !gm.write(at, &token.to_le_bytes()) {
+            pool.release(chid);
+            pool.stats.mismatch += 1;
+            return vec![format!(
+                "doorbell tokens: chid {chid}: write of {token:#x} to {at:?} failed; it keeps its own token (trapped)"
+            )];
+        }
+        if matches!(at, crate::fb::Target::Fb(_)) {
+            gm.fb.flush();
+        }
+        if held.is_some() {
+            pool.stats.rewritten += 1;
+        } else {
+            pool.stats.handed_out += 1;
+        }
+        vec![format!(
+            "doorbell tokens: chid {chid} {} pool token {token:#x} (was {rung:#x}{}), written to its work-submit-token notifier entry at {at:?} [synthesized]",
+            if held.is_some() { "gets back its" } else { "gets" },
+            match host {
+                Some(h) if current == Some(h) => format!("; the entry held the host token {h:#x}"),
+                _ => String::new(),
+            }
+        )]
     }
 
     /// The token-less doorbell (the ioeventfd path, device.rs `doorbell_ioeventfd`): KVM

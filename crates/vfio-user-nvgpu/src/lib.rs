@@ -39,6 +39,7 @@ pub mod ptcache;
 pub mod rpc;
 pub mod selftest;
 pub mod shadow;
+pub mod tokens;
 pub mod trace;
 pub mod uvm;
 pub mod ver;

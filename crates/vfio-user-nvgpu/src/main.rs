@@ -21,8 +21,9 @@ use vfio_user_nvgpu::chip::{self, Chip};
 use vfio_user_nvgpu::config::{parse_dump, ConfigSpace};
 use vfio_bindings::bindings::vfio::VFIO_PCI_BAR0_REGION_INDEX;
 use vfio_user_nvgpu::device::{
-    doorbell_ioeventfd_requested, doorbell_sub_region, irqs, region_size, regions_with,
-    spawn_doorbell_reader, Bar1Area, Device, GuestRam, SharedDevice, DOORBELL_IOEVENTFD_ENV,
+    doorbell_ioeventfd_requested, doorbell_sub_region, doorbell_token_sub_regions, irqs,
+    region_size, regions_with, spawn_doorbell_reader, spawn_token_reader, Bar1Area, Device,
+    GuestRam, SharedDevice, DOORBELL_IOEVENTFD_ENV,
 };
 use vfio_user_nvgpu::fb::FbLayout;
 use vfio_user_nvgpu::hostmem::HostMemory;
@@ -31,6 +32,7 @@ use vfio_user_nvgpu::intr::IntrShared;
 use vfio_user_nvgpu::privilege::Privilege;
 use vfio_user_nvgpu::rpc::StaticIdentity;
 use vfio_user_nvgpu::selftest;
+use vfio_user_nvgpu::tokens;
 use vfio_user_nvgpu::trace::Trace;
 use vfio_user_nvgpu::ver;
 
@@ -83,7 +85,14 @@ vfio-user-nvgpu --selftest <socket> [--board-data <name|file>] [--chip <chip>] [
 Environment: CARAXES_DOORBELL_IOEVENTFD=1 offers the usermode doorbell register as an
   ioeventfd sub-region (VFIO_USER_DEVICE_GET_REGION_IO_FDS; needs patch 0005 in Cloud
   Hypervisor, a client without it keeps trapping); the eventfd carries no token, so a
-  wakeup rings every channel whose GPPut moved since its last doorbell
+  wakeup rings every channel whose GPPut moved since its last doorbell. Refused with
+  CARAXES_BAR1_PASSTHROUGH=1.
+  CARAXES_DOORBELL_TOKENS=N (1-253, or on = 64) offers the doorbell register as N
+  ioeventfd sub-regions with KVM datamatch, one eventfd per device-chosen token; a
+  channel's first doorbell traps and hands it a pool token through its work-submit-token
+  notifier entry, every later ring ends in the token's eventfd (needs patch 0005 and a
+  client announcing max_msg_fds; docs/caraxes/doorbell-token-pool.md). Excludes
+  CARAXES_DOORBELL_IOEVENTFD=1; combines with CARAXES_BAR1_PASSTHROUGH=1
 Paths default relative to LEA_ROOT or the current directory.";
 
 struct Args {
@@ -281,6 +290,30 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
     // The eventfd does not carry the token: the reader rings the channels whose GPPut
     // moved since their last doorbell (`Dispatcher::doorbell_pending`), on every path.
     let doorbell_ioeventfd = doorbell_ioeventfd_requested();
+    // The datamatch token pool: one eventfd per pool token, so the eventfd names the
+    // channel (docs/caraxes/doorbell-token-pool.md).
+    let doorbell_tokens = tokens::requested().map_err(anyhow::Error::msg)?;
+    if doorbell_tokens.is_some() && doorbell_ioeventfd {
+        // Both would be ioeventfds of the one doorbell register: KVM refuses a wildcard
+        // next to datamatch entries at the same address and length (EEXIST;
+        // caraxes/runs/doorbell-tokens-2026-09-24/kvm-ioeventfd-probe.txt, cases b, c).
+        bail!("{DOORBELL_IOEVENTFD_ENV}=1 and {}=N exclude each other: choose the token-less ioeventfd or the token pool", tokens::TOKENS_ENV);
+    }
+    if doorbell_tokens.is_some() && !a.boot_model {
+        bail!(
+            "{}=N needs --boot-model (the channels live in the boot model)",
+            tokens::TOKENS_ENV
+        );
+    }
+    if doorbell_ioeventfd && vfio_user_nvgpu::fb::bar1_passthrough_config().is_some() {
+        // The token-less ioeventfd path rings the channels whose GPPut moved, read from the
+        // FB store's watched copy that the trapped BAR1 writes keep current; with the
+        // passthrough area those writes bypass the device, the copy stays stale, no channel
+        // is ever rung and the guest waits forever (caraxes/runs/p21-bar1-2026-09-24/
+        // B-on-with-ioeventfd-hung). The token pool (CARAXES_DOORBELL_TOKENS=N) needs no
+        // GPPut: the eventfd names the channel, so it combines with the area.
+        bail!("{DOORBELL_IOEVENTFD_ENV}=1 is refused together with CARAXES_BAR1_PASSTHROUGH=1: the ioeventfd carries no token and the passthrough area hides the GPPut writes the token-less path relies on; use the token pool ({}=N) instead", tokens::TOKENS_ENV);
+    }
     let cfg = config_space(a)?;
     let rom = std::fs::read(&a.rom).with_context(|| {
         format!(
@@ -427,6 +460,9 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
             );
             bar1_export = Some(ex);
         }
+        if let Some(n) = doorbell_tokens {
+            model = model.with_doorbell_tokens(n);
+        }
         bar0 = bar0.with_boot_model(model);
     }
     let guest_ram = match (&host_mem, a.register_guest_ram, a.identity_dma_table) {
@@ -475,6 +511,28 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
     } else {
         None
     };
+    let token_readers = match doorbell_tokens {
+        Some(n) => {
+            let offset = chip.data().registers.usermode_doorbell;
+            let mut readers = Vec::with_capacity(n);
+            for (sub_region, reader) in
+                doorbell_token_sub_regions(offset, n).context("doorbell token eventfds")?
+            {
+                server
+                    .add_ioeventfd(VFIO_PCI_BAR0_REGION_INDEX, sub_region)
+                    .map_err(|e| anyhow::anyhow!("doorbell token sub-region: {e}"))?;
+                readers.push(reader);
+            }
+            eprintln!(
+                "vfio-user-nvgpu: doorbell tokens: BAR0 {offset:#x}, 4 bytes, {n} sub-region(s) with datamatch {:#x}..={:#x} and one eventfd each, offered through VFIO_USER_DEVICE_GET_REGION_IO_FDS; a channel gets a pool token at its first (trapped) doorbell, written to its work-submit-token notifier entry ({}={n}, docs/caraxes/doorbell-token-pool.md)",
+                tokens::TOKEN_BASE,
+                tokens::TOKEN_BASE + n as u32 - 1,
+                tokens::TOKENS_ENV
+            );
+            Some((offset, readers))
+        }
+        None => None,
+    };
     eprintln!(
         "vfio-user-nvgpu: {} (BOOT_0 {:#010x}, driver {}) on {}, boot model {}, FB {} MiB, ROM {} bytes, PROM image {} bytes, trace {}",
         chip.data().short_name,
@@ -493,6 +551,9 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
     let device = Arc::new(Mutex::new(device));
     if let Some((offset, reader)) = doorbell {
         spawn_doorbell_reader(device.clone(), offset, reader).context("doorbell reader")?;
+    }
+    if let Some((offset, readers)) = token_readers {
+        spawn_token_reader(device.clone(), offset, readers).context("doorbell token reader")?;
     }
     let result = server
         .run(&mut SharedDevice(device.clone()))
