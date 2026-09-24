@@ -10,6 +10,38 @@ Target driver 615.71.09 (guest and host), 610.57.04
 noted where it differs. Tree paths are relative to the open-gpu-kernel-modules root; "610:" marks a
 610.57.04 location. Device paths are `crates/vfio-user-nvgpu/src/...`.
 
+## Status (implementation of 2026-09-24)
+
+Commits on the implementation branch; the table of what is raised and from which trigger is
+the module comment of `crates/vfio-user-nvgpu/src/events.rs`. Run records:
+`caraxes/runs/gsp-rpc-2026-09-24/`.
+
+- Status GMCAPI request send path (the transport finding): **done**, 4bacf2a
+  (`QueueStateV2::send_gmcapi_request`: id without the response flag, sequence 0).
+- Status `rpc_rc_triggered_v17_02` per layout (64 bytes on 615, 48 on 610): **done**, 4bacf2a
+  (`events::rc_layout` by the transport's guest ABI).
+- Status R1 `RC_TRIGGERED` and R2 `OS_ERROR_LOG`: **partial**, 4bacf2a. Raised from the error
+  notifier of a guest channel on a host mirror: the host RM writes it because the mirror
+  channel's `hObjectError` is the guest's own page, so only this device's channels can raise
+  it; one RC per channel lifetime; `RmLogonRC=0` drops the Xid line (fc9b537). The host-global
+  subdevice RC subscription (`mirror.rs`, `NV2080_NOTIFIERS_RC_ERROR`) is only a wake-up for
+  that scan, never a source. Not yet: the software executor's own faults, M1's per-channel
+  host event.
+- Status R3 `MMU_FAULT_QUEUED` (GMCAPI 0x40001): **open**. The send path exists; no fault
+  packets are produced (the executor raises no faults, the host fault buffer is not per client).
+- Status R4 `PMU_HALTED`: **open** (no lost-GPU decision in the device).
+- Status R5 `RECOVERY_ACTION`, R10 `GSP_POST_NOCAT_RECORD`, R12 `UPDATE_GSP_TRACE`, R14: **done
+  by decision**: never sent.
+- Status R6 general `POST_EVENT` registry: **open** (hotplug only, as before).
+- Status R7 `SEMAPHORE_SCHEDULE_CALLBACK`, R8 `TIMED_SEMAPHORE_RELEASE`, R9 `FECS_ERROR`, R11
+  `GPUACCT_PERFMON_UTIL_SAMPLES`: **open**, each needs a model the device does not have
+  (0x9072 methods at vblank, 0x9074 methods on a device timer, a FECS trace, per-context busy
+  accounting).
+- Status R13 `GSP_RESUME_DONE` (GMCAPI 0x10005): **done** on the device side, fc9b537
+  (unit-tested; guest suspend in the VMM is untested, boot-exchange.md open question 4).
+- Status SWGEN0 without the display: **done**, 4bacf2a (GSP IRQSTAT/MASK/DEST in the boot
+  model, the GSP stall vector raised through the interrupt tree).
+
 ## Method
 
 The event list is the `E(...)` block of `src/nvidia/inc/kernel/vgpu/rpc_global_enums.h:255-301`

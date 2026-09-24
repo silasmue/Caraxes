@@ -211,6 +211,11 @@ pub struct Channel {
     /// The VAS the channel runs in: its own `hVASpace` or its TSG's.
     pub vas: Option<(u32, u32)>,
     pub error_notifier: Option<Target>,
+    /// 615: the internal TSG the kernel created for a bare channel
+    /// (`NV_KERNELCHANNEL_ALLOC_INTERNALFLAGS_INTERNAL_TSG_ID` 23:8, `_VALID` 24,
+    /// src/nvidia/generated/g_kernel_channel_nvoc.h:199-202 of 615;
+    /// kernel_channel.c:2786-2799), which GSP-RM creates under that id.
+    pub internal_tsg_id: Option<u32>,
     gp_get: u32,
     /// USERD GPPut as read at the channel's last doorbell on any path (software, shadow,
     /// mirror): the token-less ioeventfd doorbell path rings a channel only when the
@@ -247,6 +252,11 @@ pub struct Registry {
     server_pdes: BTreeMap<(u32, u32), Vec<u8>>,
     /// (hClient, hTsg) → (hVASpace (0: the device's default VAS), engineType).
     tsgs: BTreeMap<(u32, u32), (u32, u32)>,
+    /// 615: the TSG id (grpID) the kernel assigned and GSP-RM takes over
+    /// (`NV_KERNELCHANNELGROUP_ALLOC_INTERNALFLAGS_TSG_ID` 15:0, `_VALID` 16,
+    /// g_kernel_channel_group_nvoc.h:123-129; set at kernel_channel_group_api.c:442-455,
+    /// honoured by the GSP build at :273-285), by (hClient, hTsg).
+    tsg_ids: BTreeMap<(u32, u32), u32>,
     /// (hClient, hCtxShare) → hVASpace (`FERMI_CONTEXT_SHARE_A`): GR channels name their
     /// VAS only through their context share (cuda-lookahead.md §5 item 2).
     ctxshares: BTreeMap<(u32, u32), u32>,
@@ -301,6 +311,7 @@ impl Registry {
             vas_params: BTreeMap::new(),
             server_pdes: BTreeMap::new(),
             tsgs: BTreeMap::new(),
+            tsg_ids: BTreeMap::new(),
             ctxshares: BTreeMap::new(),
             aliases: BTreeMap::new(),
             promoted: BTreeMap::new(),
@@ -526,8 +537,19 @@ impl Registry {
                 let vas = rd32(params, TSG_HVASPACE);
                 let engine = rd32(params, TSG_ENGINE_TYPE);
                 self.tsgs.insert((h_client, h_object), (vas, engine));
+                // 615 appends internalFlags (28 bytes; 610 has 20 and no such field).
+                let off = <Abi as RmAbi>::TSG_PARAMS_OFF_internalFlags;
+                let grp = (<Abi as RmAbi>::TSG_PARAMS_SIZE as usize >= off + 4
+                    && params.len() >= off + 4)
+                    .then(|| rd32(params, off))
+                    .filter(|f| f & (1 << 16) != 0)
+                    .map(|f| f & 0xFFFF);
+                if let Some(id) = grp {
+                    self.tsg_ids.insert((h_client, h_object), id);
+                }
                 Some(format!(
-                    "tsg {h_object:#x} engineType {engine:#x} vaspace {vas:#x} [guest]"
+                    "tsg {h_object:#x} engineType {engine:#x} vaspace {vas:#x}{} [guest]",
+                    grp.map_or(String::new(), |id| format!(" grpID {id} (kernel-assigned)"))
                 ))
             }
             c if c == self.classes.gpfifo => {
@@ -578,6 +600,12 @@ impl Registry {
                         params,
                         <Abi as RmAbi>::ALLOC_CHANNEL_PARAMS_OFF_errorNotifierMem,
                     ),
+                    internal_tsg_id: Some(rd32(
+                        params,
+                        <Abi as RmAbi>::ALLOC_CHANNEL_PARAMS_OFF_internalFlags,
+                    ))
+                    .filter(|f| f & (1 << 24) != 0)
+                    .map(|f| (f >> 8) & 0xFFFF),
                     gp_get: 0,
                     gp_put_seen: 0,
                     resume: None,
@@ -591,8 +619,15 @@ impl Registry {
                     tlb_invalidates: Vec::new(),
                 };
                 let mut note = format!(
-                    "channel {h_object:#x} chid {chid} engineType {:#x} gpfifo va {:#x} x {} userd {:?} vaspace {:?} errorNotifier {:?} [guest]",
-                    ch.engine_type, ch.gpfifo_va, ch.gpfifo_entries, ch.userd, ch.vas, ch.error_notifier
+                    "channel {h_object:#x} chid {chid} engineType {:#x} gpfifo va {:#x} x {} userd {:?} vaspace {:?} errorNotifier {:?}{} [guest]",
+                    ch.engine_type,
+                    ch.gpfifo_va,
+                    ch.gpfifo_entries,
+                    ch.userd,
+                    ch.vas,
+                    ch.error_notifier,
+                    ch.internal_tsg_id
+                        .map_or(String::new(), |id| format!(" internal TSG {id}"))
                 );
                 // A ChID the guest reuses without a FREE the device saw: the old
                 // channel's pool token must not ring the new one.
@@ -621,6 +656,17 @@ impl Registry {
         }
     }
 
+    /// The TSG id the kernel assigned to TSG `key` (615), or the internal TSG of a bare
+    /// channel `key`.
+    pub fn tsg_id(&self, key: (u32, u32)) -> Option<u32> {
+        self.tsg_ids.get(&key).copied().or_else(|| {
+            self.channels
+                .values()
+                .find(|c| (c.h_client, c.h_object) == key)
+                .and_then(|c| c.internal_tsg_id)
+        })
+    }
+
     /// Forget a freed object (a freed client takes its objects with it).
     pub fn record_free(&mut self, h_client: u32, h_object: u32) {
         let all = h_client == h_object;
@@ -633,6 +679,8 @@ impl Registry {
         }
         self.channels.retain(|_, c| !gone(c));
         self.tsgs
+            .retain(|(c, h), _| *c != h_client || !(all || *h == h_object));
+        self.tsg_ids
             .retain(|(c, h), _| *c != h_client || !(all || *h == h_object));
         self.vaspaces
             .retain(|(c, h), _| *c != h_client || !(all || *h == h_object));
@@ -1915,6 +1963,30 @@ mod tests {
         reg.note_rung(&mem, 9);
         assert!(!reg.pending(&mem, 9));
         let _ = std::fs::remove_file(&path);
+    }
+
+    /// 615: the kernel's TSG id from the TSG's internalFlags and the internal TSG of a
+    /// bare channel; 610 has neither (its TSG params end before internalFlags).
+    #[test]
+    fn kernel_tsg_ids_are_carried() {
+        let mut reg = Registry::new(classes());
+        let off = <Abi as RmAbi>::TSG_PARAMS_OFF_internalFlags;
+        let mut tsg = vec![0u8; <Abi as RmAbi>::TSG_PARAMS_SIZE as usize];
+        let has = tsg.len() >= off + 4;
+        if has {
+            // TSG_ID 7, TSG_ID_VALID, GSP_OWNED (g_kernel_channel_group_nvoc.h:123-129).
+            tsg[off..off + 4].copy_from_slice(&(7u32 | 1 << 16 | 1 << 17).to_le_bytes());
+        }
+        let note = reg.record_alloc(1, 0x10, 0x30, KEPLER_CHANNEL_GROUP_A, &tsg).unwrap();
+        assert_eq!(reg.tsg_id((1, 0x30)), has.then_some(7), "{note}");
+        let mut ch = channel_params(3, 0x1000_0000, 0x20_0000, 0);
+        let f = <Abi as RmAbi>::ALLOC_CHANNEL_PARAMS_OFF_internalFlags;
+        ch[f..f + 4].copy_from_slice(&(12u32 << 8 | 1 << 24).to_le_bytes());
+        let note = reg.record_alloc(1, 0x10, 0x40, TURING_CHANNEL_GPFIFO_A, &ch).unwrap();
+        assert!(note.contains("internal TSG 12"), "{note}");
+        assert_eq!(reg.tsg_id((1, 0x40)), Some(12));
+        reg.record_free(1, 0x30);
+        assert_eq!(reg.tsg_id((1, 0x30)), None);
     }
 
     #[test]

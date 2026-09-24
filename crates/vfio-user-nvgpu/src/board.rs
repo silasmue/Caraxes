@@ -61,6 +61,20 @@ pub struct Board {
     /// subsystem; `config::ID_BYTES`) are laid over `config`, relative to `LEA_ROOT`: the
     /// costume board's 5060 Ti ids on the TU106 layout (docs/caraxes/costume-5060.md).
     pub ids_from: Option<String>,
+    /// The card's SKU strings for the 615 static configuration (`[sku]`), when a capture
+    /// of the physical card names them.
+    pub sku: Option<BoardSku>,
+}
+
+/// `NVGMC_SC_CHIP_SKU` and `_CHIP_SKU_MODIFIER` of the `GSP_INIT` response
+/// (interface/gmcapi/gmcapi_gsp_config.h:141-142 of 615.71.09), from a capture of the
+/// physical card, with the capture named in `source`.
+#[derive(Clone, Debug, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct BoardSku {
+    pub chip_sku: String,
+    pub chip_sku_modifier: String,
+    pub source: String,
 }
 
 #[derive(Deserialize)]
@@ -79,6 +93,7 @@ struct BoardFile {
     msix: bool,
     #[serde(default)]
     ids_from: Option<String>,
+    sku: Option<BoardSku>,
 }
 
 #[derive(Deserialize)]
@@ -181,6 +196,7 @@ impl Board {
             display: f.display,
             msix: f.msix,
             ids_from: f.ids_from,
+            sku: f.sku,
         })
     }
 

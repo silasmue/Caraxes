@@ -126,6 +126,10 @@ impl Falcon {
         self.resets
     }
 
+    pub fn riscv_active(&self) -> bool {
+        self.riscv_active
+    }
+
     pub fn set_riscv_active(&mut self, active: bool) {
         self.riscv_active = active;
     }

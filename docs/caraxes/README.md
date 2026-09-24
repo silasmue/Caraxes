@@ -723,3 +723,18 @@ the VM; then display, expected to be much easier than in v1.
   - **GPU gates.** They could not run: the host RM refused vm5's reservation at slot 6 and the
     device failed closed. In pure emulation, the nvml and cuda rows were unchanged before and
     after.
+- 2026-09-24: **GSP plan implemented, RPCs, events, classes, boot exchange**
+  ([gsp-plan/](gsp-plan/README.md), a "Status" section per document; runs in
+  `caraxes/runs/gsp-rpc-2026-09-24/`). `ALLOC_MEMORY` is answered from a registry of the
+  guest's pages, so the 615 operational-event import completes (0x90CD, 0x90D0 and their
+  controls answered); the six conditional RPCs and `UNLOADING_GUEST_DRIVER` get the plan's
+  answers; the v2 transport sends GMCAPI requests, `RC_TRIGGERED` (64 bytes on 615, 48 on 610)
+  and `OS_ERROR_LOG` come from the error notifiers of host-mirrored channels (never from the
+  host-global RC subscription); classes outside the TU106 class database are refused as GSP-RM
+  refuses them; the kernel's TSG ids are recorded; `GSP_INIT` carries the static keys with a
+  source, three registry keys are honoured, Booter Load is told from Unload by its own signal,
+  the unstable-interface opt-in is checked, and a PM suspend resumes with `GSP_RESUME_DONE`
+  (unit-tested only). Pure-emulation 615 boot: init done, no new refusal. GPU gates on vm3:
+  610 guest nvml as before (power N/A), cuda 10 of 11 (managed memory); 615 guest nvml pass,
+  cuda blocked by the known `CE_GET_LCE_SHIM_INFO` gap of another branch. 0 host Xid. Open: B6
+  (GSP-RM log lines), MMU_FAULT_QUEUED and the model-dependent events.

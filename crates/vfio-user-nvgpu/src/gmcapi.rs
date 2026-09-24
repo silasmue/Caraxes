@@ -457,6 +457,10 @@ pub mod sc {
     /// U32 keys (IMM32 or SEQ32).
     pub const SKU_BOARD_ID: u16 = 0x0001;
     pub const CHIP_SUB_REV: u16 = 0x0004;
+    pub const EMULATION_REV1: u16 = 0x0005;
+    pub const GC6_RTD3_TOTAL_BOARD_POWER: u16 = 0x0030;
+    pub const GC6_RTD3_PERST_DELAY: u16 = 0x0031;
+    pub const SRIOV_MAX_GFID: u16 = 0x0200;
     pub const FB_REGION_COUNT: u16 = 0x0010;
     pub const FB_REGION_PERFORMANCE: u16 = 0x0011;
     pub const FB_REGION_FLAGS: u16 = 0x0012;
@@ -464,6 +468,7 @@ pub mod sc {
     pub const FB_REGION_FLAGS_IS_ISO_SUPPORTED: u32 = 1 << 1;
     pub const FB_REGION_FLAGS_IS_PROTECTED: u32 = 1 << 2;
     pub const FB_REGION_TAG: u16 = 0x0013;
+    pub const FB_REGION_TAG_NONE: u32 = 0;
     pub const VBIOS_SUB_VENDOR: u16 = 0x0050;
     pub const VBIOS_SUB_DEVICE: u16 = 0x0051;
     pub const VBIOS_REVISION: u16 = 0x0052;
@@ -482,12 +487,18 @@ pub mod sc {
     pub const FB_REGION_RESERVED: u16 = 0x1013;
     pub const BAR1_PDE_BASE: u16 = 0x1020;
     pub const BAR2_PDE_BASE: u16 = 0x1021;
+    pub const WPR_LAYOUT_NON_WPR_HEAP_OFFSET: u16 = 0x1080;
+    pub const WPR_LAYOUT_FRTS_OFFSET: u16 = 0x1081;
+    /// SRIOV_BAR0_SIZE, then BAR1 and BAR2 at the next keys.
+    pub const SRIOV_BAR0_SIZE: u16 = 0x1200;
     /// U64 array, index = the first NVGMC_ENGINE_TYPE.
     pub const ENGINE_MASK: u16 = 0x1100;
     /// Byte arrays (ARRAY8).
     pub const GPU_NAME_STRING: u16 = 0x2000;
     pub const GPU_SHORT_NAME_STRING: u16 = 0x2001;
     pub const GPU_GID_SHA1: u16 = 0x2002;
+    pub const CHIP_SKU: u16 = 0x2003;
+    pub const CHIP_SKU_MODIFIER: u16 = 0x2004;
     /// `NV2080_CTRL_CMD_FB_GET_FB_REGION_INFO_MAX_ENTRIES`, the bound of FB_REGION_COUNT
     /// (kernel_gsp.c:7762, sdk/ctrl/ctrl2080/ctrl2080fb.h).
     pub const FB_REGION_MAX: u32 = 16;
@@ -578,6 +589,8 @@ pub struct SystemInfo {
     pub driver_name: Option<String>,
     pub driver_version: Option<String>,
     pub changelist: Option<u32>,
+    /// `NVGMC_SI_UNSTABLE_INTERFACE_SUPPORT`: RPC 0:0, EVENTS 1:1 (gspboot.rs).
+    pub unstable: Option<u32>,
     pub registry: Vec<(String, RegValue)>,
     /// Keys in the request, SEQ runs counted per key.
     pub keys: usize,
@@ -615,6 +628,7 @@ impl SystemInfo {
                 si::KERNEL_DRIVER_NAME => s.driver_name = v.as_str(),
                 si::KERNEL_DRIVER_VERSION_STRING => s.driver_version = v.as_str(),
                 si::KERNEL_DRIVER_CHANGELIST => s.changelist = v.as_u32(),
+                si::UNSTABLE_INTERFACE_SUPPORT => s.unstable = v.as_u32(),
                 si::REGKEY_NAME => name = v.as_str(),
                 si::REGKEY_VALUE_U32 | si::REGKEY_VALUE_STRING | si::REGKEY_VALUE_BINARY => {
                     let n = name.take().ok_or_else(|| {

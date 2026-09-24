@@ -81,6 +81,9 @@ pub struct BootModel {
     pub unanswered: Vec<String>,
     /// A request split over CONTINUATION_RECORDs that is still being assembled.
     pending: Option<(crate::msgq::Message, usize)>,
+    /// Memory registered with `ALLOC_MEMORY` and the GSP-side event buffers on it
+    /// (gspmem.rs, docs/caraxes/gsp-plan/rpc-functions.md §4.1).
+    pub gspmem: crate::gspmem::GspMemory,
     /// Phase-5 answers (docs/caraxes/phase5-rpcs.md).
     pub ctrl: Dispatcher,
     /// The fake framebuffer (docs/caraxes/fb-model.md).
@@ -104,6 +107,23 @@ pub struct BootModel {
     exec: Option<(Arc<Mutex<HostMemory>>, Arc<IntrShared>)>,
     /// GSP IRQSTAT.SWGEN0 raised for an event the device posted unasked (display hotplug).
     gsp_swgen0: bool,
+    /// The device posted an unsolicited message at least once: SWGEN0 reads routed to the
+    /// host in the GSP falcon's IRQMASK/IRQDEST (events.rs).
+    events_posted: bool,
+    /// The error notifiers of the guest channels on host mirrors (events.rs
+    /// `ChannelWatch`), by (hClient, hChannel).
+    watch: BTreeMap<(u32, u32), crate::events::ChannelWatch>,
+    /// The host RC counter at the last notifier scan, and when that scan ran.
+    rc_scan: (u64, Option<std::time::Instant>),
+    /// The registry keys the device honours (gspboot.rs, B3).
+    registry: crate::gspboot::RegistryPolicy,
+    /// What the 615 client opted in to at GSP_INIT (B7); `None` before GSP_INIT and on
+    /// the 610 transport, which has no such opt-in.
+    unstable: Option<crate::gspboot::Unstable>,
+    /// The flags of the last GSP_SUSPEND, until the next boot or resume (B5).
+    suspended: Option<u64>,
+    /// The argument of the last Booter Unload: 0 or the suspend's GspFwSRMeta (B5).
+    sr_meta_pa: Option<u64>,
     /// The CPU-GSP transport this model serves: the emulated version's
     /// (`ver::active::GSP_TRANSPORT`) unless [`BootModel::with_transport`] says otherwise.
     transport: GspTransport,
@@ -161,6 +181,7 @@ impl BootModel {
             system_info: None,
             unanswered: Vec::new(),
             pending: None,
+            gspmem: crate::gspmem::GspMemory::new(),
             fb: FakeFb::for_layout(&layout).with_mmu_format(&d.gmmu.mmu_format),
             // Reset value as the VBIOS leaves it: the last MiB of FB (fb-model.md §4c).
             bar0_window: ((fb_bytes - (1 << 20)) >> 16) as u32,
@@ -177,6 +198,13 @@ impl BootModel {
             vf: crate::uvm::VfRegs::new(d),
             exec: None,
             gsp_swgen0: false,
+            events_posted: false,
+            watch: BTreeMap::new(),
+            rc_scan: (0, None),
+            registry: crate::gspboot::RegistryPolicy::default(),
+            unstable: None,
+            suspended: None,
+            sr_meta_pa: None,
             transport: v::GSP_TRANSPORT,
             cpu_cmd_head: 0,
         }
@@ -245,7 +273,207 @@ impl BootModel {
         if crate::display::engine::ticker().command_pending() {
             self.post_display_command(mem);
         }
-        self.ctrl.display.tick(&mut self.fb, mem)
+        let mut notes = self.ctrl.display.tick(&mut self.fb, mem);
+        notes.extend(self.scan_channel_errors(mem, true));
+        notes
+    }
+
+    /// Send unsolicited messages (events.rs) on the status queue and raise GSP
+    /// IRQSTAT.SWGEN0 with the GSP stall vector, as the GSP does for any message it
+    /// posts unasked (kgspService_TU102). Without linked queues nothing is sent.
+    pub fn post_unsolicited(
+        &mut self,
+        mem: &GuestMemory,
+        items: &[crate::events::Unsolicited],
+    ) -> Vec<String> {
+        use crate::events::Unsolicited;
+        let mut notes = Vec::new();
+        let Some(mut queues) = self.queues.take() else {
+            notes.push(format!(
+                "events: {} message(s) before the GSP queues exist; not sent",
+                items.len()
+            ));
+            return notes;
+        };
+        let mut sent = 0;
+        {
+            let qm = QueueMemory::new(mem, &self.pages);
+            for u in items {
+                // B7: RM events only to a client that opted in to them.
+                if let (Unsolicited::Event(..), Some(o)) = (u, self.unstable) {
+                    if !o.events {
+                        notes.push(format!("{}: not sent, the client did not opt in to events", u.name()));
+                        continue;
+                    }
+                }
+                let (r, len) = match u {
+                    Unsolicited::Event(f, p) => {
+                        (queues.send(&qm, &RpcHeader::event(*f, p.len()), p), p.len())
+                    }
+                    Unsolicited::Gmcapi(id, p) => (queues.send_gmcapi_request(&qm, *id, p), p.len()),
+                };
+                match r {
+                    Ok(seq) => {
+                        sent += 1;
+                        notes.push(format!("tx seq {seq} {} ({len} bytes) [unsolicited]", u.name()));
+                    }
+                    Err(e) => notes.push(format!("{}: {e}", u.name())),
+                }
+            }
+        }
+        self.queues = Some(queues);
+        if sent > 0 {
+            self.gsp_swgen0 = true;
+            self.events_posted = true;
+            let raised = if self.ctrl.display.enabled {
+                crate::display::engine::ticker().raise_gsp()
+            } else {
+                let d = self.chip.data();
+                let gsp = v::MC_ENGINE_IDX
+                    .iter()
+                    .find(|(n, _)| *n == "GSP")
+                    .map(|&(_, i)| i);
+                match d
+                    .interrupts
+                    .entries
+                    .iter()
+                    .find(|e| Some(e.mc_idx as u32) == gsp)
+                {
+                    Some(e) => {
+                        self.intr.trigger(e.vector_stall);
+                        true
+                    }
+                    None => false,
+                }
+            };
+            notes.push(format!("events: {sent} sent, SWGEN0 set, GSP vector raised {raised}"));
+        }
+        notes
+    }
+
+    /// A Booter Load that resumes a PM suspend (B5, boot-exchange.md §5): the last
+    /// GSP_SUSPEND carried PM_TRANSITION, the queues are kept, and the RMARGS the libos
+    /// arguments name say IN_PM_TRANSITION (kernel_gsp.c:6192-6197).
+    fn resuming(&self, mem: &GuestMemory) -> bool {
+        let pm = self
+            .suspended
+            .is_some_and(|f| f & crate::gspboot::SUSPEND_PM_TRANSITION != 0);
+        if !pm || self.queues.is_none() || self.transport != GspTransport::MsgqV2 {
+            return false;
+        }
+        let Some(pa) = self.fw.libos_args_pa() else {
+            return false;
+        };
+        let mut probe = Vec::new();
+        Self::find_rmargs(mem, pa, &mut probe)
+            .ok()
+            .and_then(|r| crate::gspboot::resume_args(mem, r))
+            .is_some_and(|(in_pm, _, _)| in_pm)
+    }
+
+    /// The resume: no relink (the kernel does not link again, "GSP-RM will restore queue
+    /// state", kernel_gsp_tu102.c:464-466), the processor-suspended bit cleared, and
+    /// GSP_RESUME_DONE (flags 0: no D3hot) as a GMCAPI request, which
+    /// `kgspWaitForRmResumeDone` waits for (kernel_gsp.c:7135-7160) in place of GSP_INIT.
+    fn resume(&mut self, mem: &GuestMemory, pa: u64) -> Vec<String> {
+        let mut notes = Vec::new();
+        let flags = self.suspended.take().unwrap_or(0);
+        let m0 = self.fw.read32(GSP_MAILBOX0).unwrap_or(0);
+        self.fw.write32(GSP_MAILBOX0, m0 & !GSP_PROCESSOR_SUSPENDED, mem);
+        let args = self
+            .fw
+            .libos_args_pa()
+            .and_then(|l| Self::find_rmargs(mem, l, &mut Vec::new()).ok())
+            .and_then(|r| crate::gspboot::resume_args(mem, r));
+        notes.push(format!(
+            "resume: booter load argument {pa:#x}, suspend flags {flags:#x}, RMARGS IN_PM_TRANSITION/oldLevel/flags {args:?}; queues kept, no relink"
+        ));
+        notes.extend(self.post_unsolicited(
+            mem,
+            &[crate::events::Unsolicited::Gmcapi(
+                crate::events::GMCAPI_GSP_RESUME_DONE,
+                crate::events::resume_done(false),
+            )],
+        ));
+        notes
+    }
+
+    /// Look at the error notifiers of the guest's channels that run on host mirrors
+    /// (events.rs): a write the host RM made there (it is the guest's own page, the
+    /// mirror channel's `hObjectError`) becomes OS_ERROR_LOG and RC_TRIGGERED for that
+    /// guest channel, once per channel. Runs when the host RC counter moved (a wake-up
+    /// only: that subscription is host-global and never a source, events.rs) and at most
+    /// every 100 ms otherwise when `periodic`.
+    fn scan_channel_errors(&mut self, mem: &GuestMemory, periodic: bool) -> Vec<String> {
+        let rc = self
+            .exec
+            .as_ref()
+            .map_or(0, |(_, s)| s.rc_events.load(std::sync::atomic::Ordering::Relaxed));
+        let due = periodic
+            && self
+                .rc_scan
+                .1
+                .is_none_or(|t| t.elapsed() >= std::time::Duration::from_millis(100));
+        if rc == self.rc_scan.0 && !due {
+            return Vec::new();
+        }
+        self.rc_scan = (rc, Some(std::time::Instant::now()));
+        let layout = crate::events::rc_layout(self.transport.guest_abi());
+        let mut items = Vec::new();
+        let mut notes = Vec::new();
+        let mut live = std::collections::BTreeSet::new();
+        let chans: Vec<_> = self
+            .ctrl
+            .channels
+            .channels()
+            .filter(|c| c.mirrored)
+            .filter_map(|c| {
+                c.error_notifier
+                    .map(|t| (c.h_client, c.h_object, c.chid, c.engine_type, t))
+            })
+            .collect();
+        for (hc, ho, chid, eng, t) in chans {
+            live.insert((hc, ho));
+            let mut now = [0u8; crate::events::NOTIFIER_SIZE];
+            let gm = crate::channel::GpuMem {
+                fb: &mut self.fb,
+                sys: mem,
+            };
+            if !gm.read(t, &mut now) {
+                continue;
+            }
+            let w = self
+                .watch
+                .entry((hc, ho))
+                .or_insert(crate::events::ChannelWatch {
+                    baseline: now,
+                    raised: false,
+                });
+            if let Some((xid, info16)) = crate::events::notifier_error(w, &now) {
+                let text = format!(
+                    "Caraxes: channel {chid} (engine type {eng:#x}) error, info16 {info16:#x} (host mirror)"
+                );
+                notes.push(format!(
+                    "chid {chid}: error notifier written (exceptType {xid}, info16 {info16:#x}): OS_ERROR_LOG and RC_TRIGGERED to the guest [guest channel, host mirror]"
+                ));
+                // RmLogonRC = 0: no Xid line (gspboot.rs, B3).
+                if self.registry.log_on_rc {
+                    items.push(crate::events::Unsolicited::Event(
+                        crate::events::EV_OS_ERROR_LOG,
+                        crate::events::os_error_log(xid, 0, chid, &text),
+                    ));
+                }
+                items.push(crate::events::Unsolicited::Event(
+                    crate::events::EV_RC_TRIGGERED,
+                    crate::events::rc_triggered(layout, eng, chid, xid),
+                ));
+            }
+        }
+        self.watch.retain(|k, _| live.contains(k));
+        if !items.is_empty() {
+            notes.extend(self.post_unsolicited(mem, &items));
+        }
+        notes
     }
 
     /// A BAR0 write to the display (display/mod.rs).
@@ -446,7 +674,9 @@ impl BootModel {
             fb: &mut self.fb,
             sys: mem,
         };
-        self.ctrl.doorbell_pool(&mut gm, token, false)
+        let mut notes = self.ctrl.doorbell_pool(&mut gm, token, false);
+        notes.extend(self.scan_channel_errors(mem, false));
+        notes
     }
 
     /// The first host doorbell write since the last call (ctrl.rs `host_doorbell_at`).
@@ -641,7 +871,20 @@ impl BootModel {
             // The operation completed when the write started it: PENDING and
             // OUTSTANDING read EMPTY/FALSE (execution.md §6, "L2 cache operations").
             Some(Reg::L2Op(_)) => self.l2_ops.get(&off).copied().unwrap_or(0) & !L2_OP_BUSY,
-            None => return self.fw.read32(off),
+            None => {
+                // SWGEN0 of an unsolicited message (events.rs), as display_read32 shows
+                // it for the display's events.
+                let v = self.fw.read32(off)?;
+                return Some(match off {
+                    GSP_IRQSTAT if self.gsp_swgen0 => v | GSP_SWGEN0,
+                    GSP_IRQMASK | GSP_IRQDEST | GSP_RISCV_IRQMASK | GSP_RISCV_IRQDEST
+                        if self.events_posted =>
+                    {
+                        v | GSP_SWGEN0
+                    }
+                    _ => v,
+                });
+            }
         })
     }
 
@@ -655,6 +898,10 @@ impl BootModel {
         if let Some((_, shared)) = &self.exec {
             notes.extend(shared.take_notes());
         }
+        if off == GSP_IRQSCLR && v & GSP_SWGEN0 != 0 {
+            self.gsp_swgen0 = false;
+        }
+        notes.extend(self.scan_channel_errors(mem, false));
         if self.intr.handles(off) {
             notes.extend(self.intr.write32(off, v));
             return Some(notes);
@@ -751,7 +998,19 @@ impl BootModel {
                 let w = self.fw.write32(off, v, mem)?;
                 notes.extend(w.notes);
                 match w.event {
+                    Some(BootEvent::BooterUnload { arg }) => {
+                        // B5: nothing to save; the device's state lives in its process.
+                        self.sr_meta_pa = Some(arg);
+                        notes.push(format!(
+                            "booter unload: argument {arg:#x}{}",
+                            if arg != 0 { " (GspFwSRMeta of a suspend: recorded, nothing to save)" } else { "" }
+                        ));
+                    }
+                    Some(BootEvent::WprMeta { pa }) if self.resuming(mem) => {
+                        notes.extend(self.resume(mem, pa));
+                    }
                     Some(BootEvent::WprMeta { pa }) => {
+                        self.suspended = None;
                         self.wpr_meta_pa = Some(pa);
                         match WprLayout::read(mem, pa) {
                             Ok(w) => {
@@ -819,7 +1078,9 @@ impl BootModel {
             fb: &mut self.fb,
             sys: mem,
         };
-        self.ctrl.doorbell_pending(&mut gm)
+        let mut notes = self.ctrl.doorbell_pending(&mut gm);
+        notes.extend(self.scan_channel_errors(mem, false));
+        notes
     }
 
     /// Find RMARGS through the libos init arguments, link the queues on the first
@@ -917,6 +1178,11 @@ impl BootModel {
                         {
                             v::RM_ALLOC_PARAMS + size_at(v::RM_ALLOC_PARAMS_SIZE)
                         }
+                        // A page list above maxRpcSize arrives split too (_issuePteDescRpc,
+                        // rpc.c:2334-2347 of 615): the fixed part plus pteDesc.length PFNs.
+                        crate::gspmem::FN_ALLOC_MEMORY => {
+                            crate::gspmem::alloc_memory_size(&msg.payload).unwrap_or(0)
+                        }
                         _ => 0,
                     };
                     // Only a first record at the maxRpcSize cap can be split (rpc.c:2082-2092);
@@ -944,6 +1210,20 @@ impl BootModel {
                     if msg.checksum_ok { "ok" } else { "BAD" },
                     rpc::describe(h.function, &msg.payload)
                 ));
+                // B7: a 615 client that did not opt in to the unstable RPC interface
+                // speaks GMCAPI only (gmcapi_system_info.h:200-203; boot-exchange.md
+                // §3.4): its RM RPCs are refused.
+                if msg.gmcapi.is_none() && self.unstable.is_some_and(|o| !o.rpc) {
+                    notes.push(format!(
+                        "{}: refused, the client did not opt in to RM RPCs (NVGMC_SI_UNSTABLE_INTERFACE_SUPPORT)",
+                        rpc::function_name(h.function)
+                    ));
+                    match queues.send(&qm, &RpcHeader::reply(&h, rpc::NV_ERR_NOT_SUPPORTED, 0), &[]) {
+                        Ok(seq) => notes.push(format!("tx seq {seq} reply result {:#x}", rpc::NV_ERR_NOT_SUPPORTED)),
+                        Err(e) => notes.push(format!("send: {e}")),
+                    }
+                    continue;
+                }
                 let reply: Option<(u32, Vec<u8>)> = match h.function {
                     rpc::FN_GSP_SET_SYSTEM_INFO => {
                         // BAR addresses for BUS_GET_PCI_BAR_INFO come from here.
@@ -966,10 +1246,13 @@ impl BootModel {
                         // sets in the GSP's MAILBOX0 (kernel_gsp.c:5889-5907,
                         // kernel_gsp_tu102.c:218-255 of 615); without it the unload
                         // waits out its timeout.
+                        let flags = crate::gspboot::suspend_flags(&msg.payload);
+                        self.suspended = Some(flags);
                         let m0 = self.fw.read32(GSP_MAILBOX0).unwrap_or(0);
                         self.fw.write32(GSP_MAILBOX0, m0 | GSP_PROCESSOR_SUSPENDED, mem);
                         notes.push(format!(
-                            "gmcapi GSP_SUSPEND: no response (fire and forget); MAILBOX0 {m0:#x} -> {:#x} (processor suspended)",
+                            "gmcapi GSP_SUSPEND flags {}: no response (fire and forget); MAILBOX0 {m0:#x} -> {:#x} (processor suspended)",
+                            crate::gspboot::describe_suspend(flags),
                             m0 | GSP_PROCESSOR_SUSPENDED
                         ));
                         None
@@ -1016,7 +1299,19 @@ impl BootModel {
                         let params = p.get(at..at + size).unwrap_or(&[]);
                         // Controls only newer chips' kernels send come from the chip first
                         // (chip/physical.rs), the rest from the dispatcher.
-                        let a = match crate::chip::physical::answer(self.chip.data(), cmd, params) {
+                        // The event-buffer controls on GSP-side event buffers (gspmem.rs).
+                        let gm = self
+                            .gspmem
+                            .control(w(v::RM_CONTROL_H_CLIENT), h_object, cmd, params)
+                            .map(|r| crate::ctrl::Answer {
+                                status: r.status,
+                                params: r.params,
+                                label: "guest (GSP-side event buffer, gspmem.rs)",
+                                note: r.note,
+                            });
+                        let a = match gm
+                            .or_else(|| crate::chip::physical::answer(self.chip.data(), cmd, params))
+                        {
                             Some(a) => a,
                             None => {
                                 self.ctrl
@@ -1065,9 +1360,36 @@ impl BootModel {
                             .or_else(|| msg.slot_payload.get(at..at + size))
                             .unwrap_or(&[]);
                         let h_client = w(v::RM_ALLOC_H_CLIENT);
-                        let a = self
+                        // The event-buffer classes the 615 event import allocates on GSP
+                        // (gspmem.rs) are checked against the registered memory first.
+                        // Classes GSP-RM would refuse are refused first (classes.rs).
+                        let under_channel = self
                             .ctrl
-                            .alloc(h_client, h_object, h_parent, h_class, params);
+                            .channels
+                            .channels()
+                            .any(|c| c.h_client == h_client && c.h_object == h_parent);
+                        let refused =
+                            crate::classes::refusal(self.chip.data(), h_class, under_channel);
+                        let a = match refused {
+                            Some((status, note)) => crate::ctrl::Answer {
+                                status,
+                                params: params.to_vec(),
+                                label: "synthesized (refused as GSP-RM refuses it, classes.rs)",
+                                note,
+                            },
+                            None => match self
+                            .gspmem
+                            .alloc(h_client, h_parent, h_object, h_class, params)
+                        {
+                            Some(r) => crate::ctrl::Answer {
+                                status: r.status,
+                                params: r.params,
+                                label: "guest (GSP-side event buffer, gspmem.rs)",
+                                note: r.note,
+                            },
+                            None => self.ctrl.alloc(h_client, h_object, h_parent, h_class, params),
+                        },
+                        };
                         notes.push(format!(
                             "alloc: {} -> status {:#x} [{}]",
                             a.note, a.status, a.label
@@ -1110,6 +1432,9 @@ impl BootModel {
                         let (h_client, h_object) = (w(v::FREE_H_ROOT), w(v::FREE_H_OBJECT));
                         let a = self.ctrl.free(h_client, h_object);
                         notes.push(format!("{} [{}]", a.note, a.label));
+                        if let Some(n) = self.gspmem.free(h_client, h_object) {
+                            notes.push(format!("free {h_client:#x}/{h_object:#x}: {n} [guest]"));
+                        }
                         let mut reply = p.clone();
                         if reply.len() >= v::FREE_SIZE {
                             let st = v::FREE_STATUS;
@@ -1136,6 +1461,91 @@ impl BootModel {
                         }
                         notes.push(format!("dup object: {note}: ok [guest, recorded]"));
                         Some((rpc::NV_OK, reply))
+                    }
+                    crate::gspmem::FN_ALLOC_MEMORY => {
+                        // rpc_alloc_memory_v13_01: GSP-RM creates a memory-list object under
+                        // the same handles (mem.c:513-585 of 615); the kernel reads only the
+                        // status (rpc.c:3486-3530). Recorded, pages checked (gspmem.rs).
+                        let fb_bytes = self.fb_bytes();
+                        let (st, note) = self.gspmem.alloc_memory(&msg.payload, mem, fb_bytes);
+                        notes.push(note);
+                        // One record back, whatever the request's length: the send is
+                        // not bidirectional (rpc.c:2362), a continuation would be unread.
+                        let n = msg.payload.len().min(crate::gspmem::AM_SIZE);
+                        Some((st, msg.payload[..n].to_vec()))
+                    }
+                    crate::gsprpc::FN_IDLE_CHANNELS => {
+                        // Resolved through the channel registry, idle when USERD GPGet
+                        // caught up with GPPut (gsprpc.rs; rpc-functions.md §4.2).
+                        let chans = &self.ctrl.channels;
+                        let fb = &mut self.fb;
+                        let (st, note) = crate::gsprpc::idle_channels(&msg.payload, |c, h| {
+                            let ch = chans.channels().find(|x| x.h_client == c && x.h_object == h)?;
+                            let word = |off: u64| match ch.userd {
+                                Some(crate::fb::Target::Fb(pa)) => Some(crate::fb::Target::Fb(pa + off)),
+                                Some(crate::fb::Target::Sys(pa)) => Some(crate::fb::Target::Sys(pa + off)),
+                                _ => None,
+                            };
+                            let gm = crate::channel::GpuMem { fb: &mut *fb, sys: mem };
+                            // NV_RAMUSERD GP_GET 0x88, GP_PUT 0x8C (clc46f.h:61-62).
+                            let (get, put) = match (word(0x88), word(0x8C)) {
+                                (Some(g), Some(p)) => (gm.read_u32(g).unwrap_or(0), gm.read_u32(p).unwrap_or(0)),
+                                _ => (0, 0),
+                            };
+                            Some(crate::gsprpc::ChannelIdle {
+                                chid: ch.chid,
+                                mirrored: ch.mirrored,
+                                gp_get: get,
+                                gp_put: put,
+                            })
+                        });
+                        notes.push(note);
+                        Some((st, msg.payload.clone()))
+                    }
+                    crate::gsprpc::FN_GPU_EXEC_REG_OPS => {
+                        // The device's own identity registers only; never a host register.
+                        let id = self.chip.data().identity;
+                        let (st, out, note) = crate::gsprpc::exec_reg_ops(&msg.payload, |off| match off {
+                            0x0 => Some(id.boot_0),
+                            0x4 => Some(id.boot_1),
+                            0xA00 => Some(id.boot_42),
+                            _ => None,
+                        });
+                        notes.push(note);
+                        Some((st, out))
+                    }
+                    crate::gsprpc::FN_DUMP_PROTOBUF_COMPONENT => {
+                        let (st, out, note) = crate::gsprpc::dump_protobuf_component(&msg.payload);
+                        notes.push(note);
+                        Some((st, out))
+                    }
+                    crate::gsprpc::FN_ECC_NOTIFIER_WRITE_ACK => {
+                        // Asynchronous, no reply (rpc.c:11166-11184 of 615): the kernel's
+                        // answer to ECC_POSSIBLE_ERR_FAST_PATH, which the device never sends.
+                        notes.push("ecc notifier write ack: consumed, no reply (asynchronous) [guest]".into());
+                        None
+                    }
+                    crate::gsprpc::FN_MAP_MEMORY_DMA | crate::gsprpc::FN_UNMAP_MEMORY_DMA => {
+                        let (st, note) = crate::gsprpc::map_memory_dma(h.function);
+                        notes.push(note);
+                        Some((st, msg.payload.clone()))
+                    }
+                    crate::gsprpc::FN_UNLOADING_GUEST_DRIVER => {
+                        // The 610 and nova-core (r570) unload: the facts of GSP_SUSPEND as
+                        // an RPC (rpc_unloading_guest_driver_v1F_07: bInPMTransition,
+                        // bGc6Entering, newLevel), answered NV_OK, then the same
+                        // processor-suspended bit (rpc-functions.md §4.3).
+                        let p = &msg.payload;
+                        let m0 = self.fw.read32(GSP_MAILBOX0).unwrap_or(0);
+                        self.fw.write32(GSP_MAILBOX0, m0 | GSP_PROCESSOR_SUSPENDED, mem);
+                        notes.push(format!(
+                            "unloading guest driver: bInPMTransition {} bGc6Entering {} newLevel {}; MAILBOX0 {m0:#x} -> {:#x} (processor suspended) [guest]",
+                            p.first().copied().unwrap_or(0),
+                            p.get(1).copied().unwrap_or(0),
+                            u32::from_le_bytes(p.get(4..8).and_then(|s| s.try_into().ok()).unwrap_or([0; 4])),
+                            m0 | GSP_PROCESSOR_SUSPENDED
+                        ));
+                        Some((rpc::NV_OK, msg.payload.clone()))
                     }
                     rpc::FN_INIT_GSP_TRACE_CRASH_BUFFER => {
                         let p = &msg.payload;
@@ -1514,6 +1924,17 @@ impl BootModel {
         for (name, value) in &si.registry {
             notes.push(format!("registry {name} = {value:?}"));
         }
+        let (policy, honoured) = crate::gspboot::registry_policy(&si.registry);
+        notes.extend(honoured);
+        self.registry = policy;
+        let opt = crate::gspboot::Unstable::from_key(si.unstable);
+        notes.push(format!(
+            "unstable interfaces: key {:?}, RM RPCs {}, RM events {}",
+            si.unstable,
+            if opt.rpc { "opted in" } else { "NOT opted in: refused" },
+            if opt.events { "opted in" } else { "NOT opted in: not sent" }
+        ));
+        self.unstable = Some(opt);
         self.system_info = Some(msg.payload.clone());
         let (image, labels) = rpc::build_static_info(
             self.chip.data(),
@@ -1524,7 +1945,11 @@ impl BootModel {
         for l in labels {
             notes.push(format!("static-info {} = {} [{}]", l.field, l.value, l.source));
         }
-        let (out, keys) = rpc::static_info_nvkv(&image, self.chip.data());
+        let extra = rpc::StaticExtra {
+            wpr_offsets: self.wpr.as_ref().map(|w| (w.non_wpr_heap_offset, w.frts_offset)),
+            sku: self.identity.sku.as_ref(),
+        };
+        let (out, keys) = rpc::static_info_nvkv(&image, self.chip.data(), &extra);
         for k in keys {
             notes.push(format!("static-info key {k}"));
         }
@@ -1731,6 +2156,357 @@ mod tests {
         b.reset();
         assert_eq!(b.transport(), GspTransport::MsgqV2, "a reset keeps the transport");
         let _ = std::fs::remove_file(&path);
+    }
+
+    /// The captured 615 guest past `GMCAPI_CMD_GSP_INIT`, with the CPU's side of both
+    /// queues (msgq/v2.rs `Cpu`): what the tests of the RPCs that follow the init send
+    /// their requests through.
+    pub(crate) struct Guest615 {
+        pub b: BootModel,
+        pub mem: GuestMemory,
+        pub path: std::path::PathBuf,
+        pages: Vec<u64>,
+        cpu: crate::msgq::v2::tests::Cpu,
+        sequence: u32,
+    }
+
+    const CMD_HEAD: u64 = 0x0011_0C00;
+    const MSGQ_HEAD: u64 = 0x0011_0C80;
+    const MSGQ_TAIL: u64 = 0x0011_0C84;
+
+    impl Guest615 {
+        pub fn boot(tag: &str) -> Self {
+            let (mem, path) = guest_615(tag);
+            let f = crate::fixture::rtx2070();
+            let mut b = BootModel::new(f.chip, crate::fb::FbLayout::plain(4 << 30), f.identity(4 << 30))
+                .with_transport(GspTransport::MsgqV2);
+            b.write32(CMD_HEAD, 0, &mem);
+            booter_load(&mut b, &mem);
+            let slot0 = std::fs::read(
+                "../../caraxes/runs/guest-driver-2026-09-24/615.71.09/linked/gmcapi-gsp-init-slot0.bin",
+            )
+            .unwrap();
+            assert!(mem.write(0x88a0_0000 + 0x2000, &slot0));
+            b.write32(MSGQ_TAIL, 0, &mem);
+            b.write32(CMD_HEAD, 1, &mem);
+            let pages = QueueMemory::read_page_table(&mem, 0x88a0_0000, 129).unwrap();
+            let cpu = crate::msgq::v2::tests::Cpu {
+                hdr: crate::msgq::v2::TxHeaderV2::standard(0x40000),
+                write_ptr: 1,
+                read_ptr: 0,
+            };
+            let mut g = Guest615 { b, mem, path, pages, cpu, sequence: 1 };
+            let init = g.drain();
+            assert_eq!(init.len(), 1, "the GSP_INIT response");
+            g
+        }
+
+        /// Every element the device published since the last call, as (NVDM type, body).
+        pub fn drain(&mut self) -> Vec<(u32, Vec<u8>)> {
+            let head = self.b.read32(MSGQ_HEAD).unwrap();
+            let mut out = Vec::new();
+            {
+                let qm = QueueMemory::new(&self.mem, &self.pages);
+                while let Some(e) = self.cpu.receive(&qm, head) {
+                    out.push(e);
+                }
+            }
+            self.b.write32(MSGQ_TAIL, self.cpu.read_ptr, &self.mem);
+            out
+        }
+
+        /// Send one element of type `nvdm` and return the device's notes and every
+        /// element it published.
+        pub fn send(&mut self, nvdm: u32, body: &[u8]) -> (Vec<String>, Vec<(u32, Vec<u8>)>) {
+            {
+                let qm = QueueMemory::new(&self.mem, &self.pages);
+                self.cpu.send(&qm, nvdm, body);
+            }
+            let notes = self.b.write32(CMD_HEAD, self.cpu.write_ptr, &self.mem).unwrap();
+            (notes, self.drain())
+        }
+
+        /// Send one RPC and return the device's notes and every element it published.
+        pub fn rpc(&mut self, function: u32, payload: &[u8]) -> (Vec<String>, Vec<(u32, Vec<u8>)>) {
+            let h = RpcHeader {
+                header_version: v::RPC_HEADER_VERSION,
+                signature: v::RPC_SIGNATURE,
+                length: (v::RPC_HEADER_SIZE + payload.len()) as u32,
+                function,
+                rpc_result: 0xFFFF_FFFF,
+                rpc_result_private: 0xFFFF_FFFF,
+                sequence: self.sequence,
+                u: 0,
+            };
+            self.sequence += 1;
+            let mut body = h.encode().to_vec();
+            body.extend_from_slice(payload);
+            self.send(crate::msgq::v2::NVDM_TYPE_RM_RPC, &body)
+        }
+
+        /// The RPC element for `function` among `elements`: (rpc_result, payload).
+        pub fn reply(elements: &[(u32, Vec<u8>)], function: u32) -> Option<(u32, Vec<u8>)> {
+            elements.iter().find_map(|(t, body)| {
+                let h = RpcHeader::parse(body);
+                (*t == crate::msgq::v2::NVDM_TYPE_RM_RPC && h.function == function)
+                    .then(|| (h.rpc_result, body[v::RPC_HEADER_SIZE..h.length as usize].to_vec()))
+            })
+        }
+    }
+
+    impl Drop for Guest615 {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_file(&self.path);
+        }
+    }
+
+    /// A `GSP_RM_ALLOC` request of client `c` under parent `c`.
+    pub(crate) fn alloc_request(c: u32, h: u32, class: u32, params: &[u8]) -> Vec<u8> {
+        let mut p = vec![0u8; v::RM_ALLOC_PARAMS];
+        for (o, x) in [
+            (v::RM_ALLOC_H_CLIENT, c),
+            (v::RM_ALLOC_H_PARENT, c),
+            (v::RM_ALLOC_H_OBJECT, h),
+            (v::RM_ALLOC_H_CLASS, class),
+            (v::RM_ALLOC_PARAMS_SIZE, params.len() as u32),
+        ] {
+            p[o..o + 4].copy_from_slice(&x.to_le_bytes());
+        }
+        p.extend_from_slice(params);
+        p
+    }
+
+    /// A `GSP_RM_CONTROL` request.
+    pub(crate) fn control_request(c: u32, h: u32, cmd: u32, params: &[u8]) -> Vec<u8> {
+        let mut p = vec![0u8; v::RM_CONTROL_PARAMS];
+        for (o, x) in [
+            (v::RM_CONTROL_H_CLIENT, c),
+            (v::RM_CONTROL_H_OBJECT, h),
+            (v::RM_CONTROL_CMD, cmd),
+            (v::RM_CONTROL_PARAMS_SIZE, params.len() as u32),
+        ] {
+            p[o..o + 4].copy_from_slice(&x.to_le_bytes());
+        }
+        p.extend_from_slice(params);
+        p
+    }
+
+    /// B1: the operational-event import of 615 (gpu_op_event_import.c:593-685) through
+    /// the queue: the header buffer's `ALLOC_MEMORY` of the first 615 boot
+    /// (transport-615-2026-09-24/boot/device-events.txt:517) is answered NV_OK, and the
+    /// event buffer, its enable and its bind follow on the registered memory.
+    #[test]
+    fn alloc_memory_and_the_event_import_through_the_queue() {
+        let mut g = Guest615::boot("allocmem");
+        let (c, d, s) = (0xc1e0_0007u32, 0xcaf0_0000u32, 0xcaf0_0001u32);
+        let am = |h: u32, len: u64, pfn: u64| {
+            let mut p = vec![0u8; crate::gspmem::AM_PTES + 8];
+            for (o, v) in [(0, c), (4, d), (8, h), (12, 0x81), (16, 0x4c00_0000), (24, 6)] {
+                p[o..o + 4].copy_from_slice(&v.to_le_bytes());
+            }
+            p[32..40].copy_from_slice(&len.to_le_bytes());
+            p[40..44].copy_from_slice(&1u32.to_le_bytes());
+            p[48..52].copy_from_slice(&(1u32 << 16).to_le_bytes());
+            p[56..64].copy_from_slice(&pfn.to_le_bytes());
+            p
+        };
+        // Header, records and vardata in the captured guest's mapped RAM.
+        for (h, len, pfn) in [(0xcaf0_0002u32, 32u64, 0x88a70u64), (0xcaf0_0003, 0x4000, 0x88a71), (0xcaf0_0004, 0x1000, 0x88a75)] {
+            let (notes, el) = g.rpc(crate::gspmem::FN_ALLOC_MEMORY, &am(h, len, pfn));
+            let (st, reply) = Guest615::reply(&el, crate::gspmem::FN_ALLOC_MEMORY).unwrap();
+            assert_eq!(st, 0, "{notes:?}");
+            assert_eq!(reply.len(), crate::gspmem::AM_SIZE);
+            assert!(notes.iter().any(|n| n.contains("ALLOC_MEMORY (4)")), "{notes:?}");
+        }
+        // A page the guest does not have: refused, nothing mapped.
+        let (_, el) = g.rpc(crate::gspmem::FN_ALLOC_MEMORY, &am(0xcaf0_0009, 0x1000, 0x7_0000_0000));
+        assert_eq!(
+            Guest615::reply(&el, crate::gspmem::FN_ALLOC_MEMORY).unwrap().0,
+            crate::gspmem::NV_ERR_INVALID_ADDRESS
+        );
+        // Step 5b: NV_EVENT_BUFFER on the three, allocated by GSP_RM_ALLOC.
+        let mut eb = vec![0u8; crate::gspmem::EB_PARAMS_SIZE];
+        for (o, x) in [(16, 64u32), (20, 256), (32, 0x1000), (52, s), (60, 0xcaf0_0002), (64, 0xcaf0_0003), (68, 0xcaf0_0004)] {
+            eb[o..o + 4].copy_from_slice(&x.to_le_bytes());
+        }
+        let (notes, el) = g.rpc(rpc::FN_GSP_RM_ALLOC, &alloc_request(c, 0xcaf0_0006, 0x90cd, &eb));
+        assert_eq!(Guest615::reply(&el, rpc::FN_GSP_RM_ALLOC).unwrap().0, 0, "{notes:?}");
+        // Step 7: ENABLE_EVENTS, a GSP_RM_CONTROL on the buffer.
+        let ctl = control_request(c, 0xcaf0_0006, 0x90cd_0101, &[1, 0, 0, 0, 1, 0, 0, 0]);
+        let (notes, el) = g.rpc(rpc::FN_GSP_RM_CONTROL, &ctl);
+        let (_, reply) = Guest615::reply(&el, rpc::FN_GSP_RM_CONTROL).unwrap();
+        let st = u32::from_le_bytes(reply[v::RM_CONTROL_STATUS..][..4].try_into().unwrap());
+        assert_eq!(st, 0, "{notes:?}");
+        // Step 8: the bind names the buffer; bindId comes back.
+        let mut bind = vec![0u8; crate::gspmem::BIND_PARAMS_SIZE];
+        bind[..4].copy_from_slice(&0xcaf0_0006u32.to_le_bytes());
+        bind[4] = 1;
+        let (notes, el) = g.rpc(rpc::FN_GSP_RM_ALLOC, &alloc_request(c, 0xcaf0_0005, 0x90d0, &bind));
+        let (st, reply) = Guest615::reply(&el, rpc::FN_GSP_RM_ALLOC).unwrap();
+        assert_eq!(st, 0, "{notes:?}");
+        assert_ne!(reply[v::RM_ALLOC_PARAMS + crate::gspmem::BIND_BIND_ID], 0);
+        // Teardown frees the client: every registration goes.
+        let mut free = vec![0u8; v::FREE_SIZE];
+        free[v::FREE_H_ROOT..][..4].copy_from_slice(&c.to_le_bytes());
+        free[v::FREE_H_OBJECT..][..4].copy_from_slice(&c.to_le_bytes());
+        let (notes, _) = g.rpc(rpc::FN_FREE, &free);
+        assert!(notes.iter().any(|n| n.contains("GSP memory object(s) of the client")), "{notes:?}");
+        assert!(g.b.gspmem.memories.is_empty() && g.b.gspmem.buffers.is_empty());
+        assert!(g.b.unanswered.is_empty(), "{:?}", g.b.unanswered);
+    }
+
+    /// The conditional RPCs through the queue (gsprpc.rs): each gets the answer of
+    /// rpc-functions.md §4.2, none lands in `unanswered`, the asynchronous ECC ack gets
+    /// no reply.
+    #[test]
+    fn conditional_rpcs_through_the_queue() {
+        use crate::gsprpc as g;
+        let mut q = Guest615::boot("condrpc");
+        // DUMP_PROTOBUF_COMPONENT: an empty blob.
+        let mut dump = vec![0u8; g::DUMP_FIXED];
+        dump[g::DUMP_BUFFER_SIZE..][..4].copy_from_slice(&0xFFD0u32.to_le_bytes());
+        let (_, el) = q.rpc(g::FN_DUMP_PROTOBUF_COMPONENT, &dump);
+        let (st, reply) = Guest615::reply(&el, g::FN_DUMP_PROTOBUF_COMPONENT).unwrap();
+        assert_eq!((st, &reply[g::DUMP_BUFFER_SIZE..g::DUMP_BUFFER_SIZE + 4]), (0, &[0u8; 4][..]));
+        // ECC_NOTIFIER_WRITE_ACK: consumed, nothing sent back.
+        let (notes, el) = q.rpc(g::FN_ECC_NOTIFIER_WRITE_ACK, &[]);
+        assert!(el.is_empty() && notes.iter().any(|n| n.contains("no reply")), "{notes:?}");
+        // GPU_EXEC_REG_OPS: BOOT_0 from the chip's identity, the rest NOACCESS.
+        let mut ops = vec![0u8; g::REGOPS_OPERATIONS + 2 * g::REGOP_SIZE];
+        ops[g::REGOPS_COUNT..][..4].copy_from_slice(&2u32.to_le_bytes());
+        ops[g::REGOPS_OPERATIONS + g::REGOP_SIZE + g::REGOP_OFFSET..][..4]
+            .copy_from_slice(&0x0010_0000u32.to_le_bytes());
+        let (_, el) = q.rpc(g::FN_GPU_EXEC_REG_OPS, &ops);
+        let (st, reply) = Guest615::reply(&el, g::FN_GPU_EXEC_REG_OPS).unwrap();
+        assert_eq!(st, 0);
+        let lo = u32::from_le_bytes(reply[g::REGOPS_OPERATIONS + g::REGOP_VALUE_LO..][..4].try_into().unwrap());
+        assert_eq!(lo, q.b.chip.data().identity.boot_0);
+        assert_eq!(reply[g::REGOPS_OPERATIONS + g::REGOP_SIZE + g::REGOP_STATUS], g::REG_OP_STATUS_NOACCESS);
+        // IDLE_CHANNELS of a channel the device does not know.
+        let mut idle = vec![0u8; g::IDLE_LIST + g::IDLE_ENTRY];
+        idle[g::IDLE_NCHANNELS..][..4].copy_from_slice(&1u32.to_le_bytes());
+        let (_, el) = q.rpc(g::FN_IDLE_CHANNELS, &idle);
+        assert_eq!(Guest615::reply(&el, g::FN_IDLE_CHANNELS).unwrap().0, crate::gspmem::NV_ERR_INVALID_OBJECT_HANDLE);
+        // MAP_MEMORY_DMA: refused, named.
+        let (notes, el) = q.rpc(g::FN_MAP_MEMORY_DMA, &[0u8; 56]);
+        assert_eq!(Guest615::reply(&el, g::FN_MAP_MEMORY_DMA).unwrap().0, crate::gspmem::NV_ERR_NOT_SUPPORTED);
+        assert!(notes.iter().any(|n| n.contains("RMSplitVasMgmtServerClientRm")), "{notes:?}");
+        // UNLOADING_GUEST_DRIVER: NV_OK and the processor-suspended bit.
+        let (_, el) = q.rpc(g::FN_UNLOADING_GUEST_DRIVER, &[0u8; 8]);
+        assert_eq!(Guest615::reply(&el, g::FN_UNLOADING_GUEST_DRIVER).unwrap().0, 0);
+        assert_eq!(q.b.fw.read32(GSP_MAILBOX0).unwrap() & GSP_PROCESSOR_SUSPENDED, GSP_PROCESSOR_SUSPENDED);
+        assert!(q.b.unanswered.is_empty(), "{:?}", q.b.unanswered);
+    }
+
+    /// Events from a host-mirrored channel's error notifier (events.rs): the host RM's
+    /// write into the guest's own notifier page becomes OS_ERROR_LOG then the 64-byte
+    /// 615 RC_TRIGGERED for that guest chid, once, with SWGEN0 up until the kernel
+    /// clears it.
+    #[test]
+    fn a_mirrored_channel_error_reaches_the_guest_once() {
+        use nvrm_sys::RmAbi;
+        type Abi = v::RmAbi;
+        let mut g = Guest615::boot("rcevent");
+        let (c, notifier) = (0xc1d0_0001u32, 0x88a7_8000u64);
+        let mut p = vec![0u8; <Abi as RmAbi>::ALLOC_CHANNEL_PARAMS_SIZE as usize];
+        let put = |b: &mut [u8], o: usize, x: &[u8]| b[o..o + x.len()].copy_from_slice(x);
+        let flags = (1u32 << 21) | (5 << 8);
+        put(&mut p, <Abi as RmAbi>::ALLOC_CHANNEL_PARAMS_OFF_flags, &flags.to_le_bytes());
+        put(&mut p, <Abi as RmAbi>::ALLOC_CHANNEL_PARAMS_OFF_gpFifoEntries, &32u32.to_le_bytes());
+        put(&mut p, <Abi as RmAbi>::ALLOC_CHANNEL_PARAMS_OFF_engineType, &1u32.to_le_bytes());
+        let userd = <Abi as RmAbi>::ALLOC_CHANNEL_PARAMS_OFF_userdMem;
+        put(&mut p, userd + v::MEM_DESC_BASE, &0x20_0000u64.to_le_bytes());
+        put(&mut p, userd + v::MEM_DESC_ADDRESS_SPACE, &v::ADDR_FBMEM.to_le_bytes());
+        let err = <Abi as RmAbi>::ALLOC_CHANNEL_PARAMS_OFF_errorNotifierMem;
+        put(&mut p, err + v::MEM_DESC_BASE, &notifier.to_le_bytes());
+        put(&mut p, err + v::MEM_DESC_ADDRESS_SPACE, &v::ADDR_SYSMEM.to_le_bytes());
+        let (notes, el) = g.rpc(rpc::FN_GSP_RM_ALLOC, &alloc_request(c, 0xcaf1_0000, 0xc46f, &p));
+        assert_eq!(Guest615::reply(&el, rpc::FN_GSP_RM_ALLOC).unwrap().0, 0, "{notes:?}");
+        g.b.ctrl.channels.channel_mut(5).unwrap().mirrored = true;
+        // First look: the notifier is the baseline; nothing to report.
+        assert!(g.b.scan_channel_errors(&g.mem, true).is_empty());
+        g.b.rc_scan.1 = None;
+        // The host RM's RC write: info32 31 (MMU fault), status 0xFFFF.
+        let mut n = [0u8; 16];
+        n[8] = 31;
+        n[14] = 0xFF;
+        n[15] = 0xFF;
+        assert!(g.mem.write(notifier, &n));
+        let notes = g.b.scan_channel_errors(&g.mem, true);
+        assert!(notes.iter().any(|s| s.contains("chid 5: error notifier written (exceptType 31")), "{notes:?}");
+        assert_eq!(g.b.read32(GSP_IRQSTAT).unwrap() & GSP_SWGEN0, GSP_SWGEN0);
+        let el = g.drain();
+        let oel = Guest615::reply(&el, crate::events::EV_OS_ERROR_LOG).unwrap().1;
+        assert_eq!(u32::from_le_bytes(oel[..4].try_into().unwrap()), 31);
+        let rc = Guest615::reply(&el, crate::events::EV_RC_TRIGGERED).unwrap().1;
+        assert_eq!(rc.len(), 64);
+        assert_eq!(
+            (u32::from_le_bytes(rc[0..4].try_into().unwrap()), u32::from_le_bytes(rc[4..8].try_into().unwrap())),
+            (1, 5)
+        );
+        // The kernel clears SWGEN0; the guest kernel's own notifier write after the RC
+        // raises nothing more.
+        g.b.write32(GSP_IRQSCLR, GSP_SWGEN0, &g.mem);
+        assert_eq!(g.b.read32(GSP_IRQSTAT).unwrap() & GSP_SWGEN0, 0);
+        n[0] = 1;
+        assert!(g.mem.write(notifier, &n));
+        g.b.rc_scan.1 = None;
+        assert!(g.b.scan_channel_errors(&g.mem, true).is_empty());
+    }
+
+    /// B3, B7 and B5 against the captured 615 guest: the opt-in and the registry of the
+    /// captured GSP_INIT, a refusal for a client without the RPC opt-in, then a PM
+    /// suspend (GSP_SUSPEND with PM_TRANSITION, Booter Unload) and the resume (Booter
+    /// Load with IN_PM_TRANSITION in RMARGS): no relink, GSP_RESUME_DONE as a GMCAPI
+    /// request, the suspended bit cleared.
+    #[test]
+    fn opt_in_registry_suspend_and_resume() {
+        use crate::gspboot::{Unstable, SUSPEND_PM_TRANSITION};
+        let mut g = Guest615::boot("resume");
+        assert_eq!(g.b.unstable, Some(Unstable { rpc: true, events: true }));
+        assert!(g.b.registry.log_on_rc, "RmLogonRC = 1 in the captured registry");
+        // GSP_SUSPEND with PM_TRANSITION (kernel_gsp.c:5866-5892).
+        let hdr = crate::gmcapi::Header {
+            command: crate::gmcapi::CMD_GSP_SUSPEND,
+            size: 8,
+            sequence: 9,
+            request_or_status: 0,
+        };
+        let mut body = hdr.encode().to_vec();
+        body.extend_from_slice(&SUSPEND_PM_TRANSITION.to_le_bytes());
+        let (notes, el) = g.send(crate::msgq::v2::NVDM_TYPE_GMCAPI, &body);
+        assert!(el.is_empty(), "fire and forget");
+        assert!(notes.iter().any(|n| n.contains("GSP_SUSPEND flags 0x1 PM_TRANSITION")), "{notes:?}");
+        assert_ne!(g.b.fw.read32(GSP_MAILBOX0).unwrap() & GSP_PROCESSOR_SUSPENDED, 0);
+        // Booter Unload (SEC2 run with argument 0), then the resume's Booter Load.
+        let sec2 = 0x0084_0000u64;
+        g.b.write32(sec2 + falcon::MAILBOX0, 0, &g.mem);
+        g.b.write32(sec2 + falcon::MAILBOX1, 0, &g.mem);
+        let notes = g.b.write32(sec2 + falcon::CPUCTL, 2, &g.mem).unwrap();
+        assert!(notes.iter().any(|n| n.contains("booter unload done")), "{notes:?}");
+        let rmargs = 0x0769_e000 + crate::msgq::v2::ARGS_FLAGS;
+        let f = g.mem.read_u64(rmargs).unwrap();
+        assert!(g.mem.write(rmargs, &(f | crate::gspboot::ARGS_FLAG_IN_PM_TRANSITION).to_le_bytes()));
+        let head_before = g.b.read32(0x0011_0C80).unwrap();
+        let notes = booter_load(&mut g.b, &g.mem);
+        assert!(notes.iter().any(|n| n.starts_with("resume: booter load")), "{notes:?}");
+        assert!(!notes.iter().any(|n| n.starts_with("queues linked")), "{notes:?}");
+        assert_eq!(g.b.fw.read32(GSP_MAILBOX0).unwrap() & GSP_PROCESSOR_SUSPENDED, 0);
+        let el = g.drain();
+        assert_eq!(el.len(), 1, "GSP_RESUME_DONE");
+        let rd = crate::gmcapi::Header::parse(&el[0].1).unwrap();
+        assert_eq!((el[0].0, rd.command, rd.sequence, rd.size), (crate::msgq::v2::NVDM_TYPE_GMCAPI, 0x0001_0005, 0, 8));
+        assert_eq!(g.b.read32(0x0011_0C80).unwrap(), head_before + 1, "the pointers continued");
+        // The link survives: an RPC after the resume is answered.
+        let (_, el) = g.rpc(crate::gsprpc::FN_DUMP_PROTOBUF_COMPONENT, &[0u8; 16]);
+        assert_eq!(Guest615::reply(&el, crate::gsprpc::FN_DUMP_PROTOBUF_COMPONENT).unwrap().0, 0);
+        // B7: a client without the RPC opt-in gets its RPCs refused.
+        g.b.unstable = Some(Unstable { rpc: false, events: false });
+        let (_, el) = g.rpc(crate::gsprpc::FN_DUMP_PROTOBUF_COMPONENT, &[0u8; 16]);
+        assert_eq!(
+            Guest615::reply(&el, crate::gsprpc::FN_DUMP_PROTOBUF_COMPONENT).unwrap().0,
+            rpc::NV_ERR_NOT_SUPPORTED
+        );
     }
 
     /// Fail closed: a 610 device facing the captured 615 guest does not link anything

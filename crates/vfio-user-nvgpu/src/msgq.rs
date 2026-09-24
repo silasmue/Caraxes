@@ -808,6 +808,23 @@ impl QueueState {
         Ok(seq)
     }
 
+    /// Send a GMCAPI request of the GSP-to-CPU direction (msgq/v2.rs
+    /// `QueueStateV2::send_gmcapi_request`); GMCAPI exists only on message queue v2
+    /// (driver 615 on).
+    pub fn send_gmcapi_request(
+        &mut self,
+        qm: &QueueMemory,
+        id: u32,
+        params: &[u8],
+    ) -> Result<u32, String> {
+        match self.v2.as_deref_mut() {
+            Some(q) => q.send_gmcapi_request(qm, id, params),
+            None => Err(format!(
+                "GMCAPI request {id:#x}: the 610 transport (message queue v0) has no GMCAPI"
+            )),
+        }
+    }
+
     /// Write held elements while there is room, each one followed by the publish
     /// of the write pointer (release: its slots are visible first).
     fn flush(&mut self, qm: &QueueMemory) -> Result<(), String> {

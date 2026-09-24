@@ -1,0 +1,22 @@
+NVRM version: NVIDIA UNIX Open Kernel Module for x86_64  615.71.09  Release Build  (root@)  
+d09c7d93c7b5852e15f865b8c5c56fe810140d4c47e255bd0c488d40f3d4d4e5  /home/silas/git/Caraxes/.claude/worktrees/agent-a1ee7df21cd778e99/target/rpc/release/vfio-user-nvgpu
+fc9b537 vfio-user-nvgpu: the 615 boot exchange: static keys, registry, Booter Load, opt-in, suspend and resume
+CARAXES_BOOT_MODEL=1
+CARAXES_DMA=register
+CARAXES_DOORBELL_POLL=hybrid
+CARAXES_DOORBELL_TOKENS=64
+CARAXES_FB_MIB=1024
+CARAXES_GATE_FB_MIB=1024
+CARAXES_GATE_RUNS=/home/silas/git/Caraxes/.claude/worktrees/agent-a1ee7df21cd778e99/caraxes/runs/gsp-rpc-2026-09-24/gate610
+CARAXES_HOST_EXEC=1
+CARAXES_HOST_RM=1
+CARAXES_IP=192.168.103.23
+CARAXES_MAC=02:00:00:00:00:23
+CARAXES_MIRROR_CHANNELS=1
+CARAXES_MIRROR_GR_SHADOW=1
+CARAXES_RESERVE_SLOT=5
+CARAXES_RESERVE_VRAM=1
+CARAXES_SERVER=/home/silas/git/Caraxes/.claude/worktrees/agent-a1ee7df21cd778e99/target/rpc/release/vfio-user-nvgpu
+CARAXES_TAP=caraxes3
+LEA_CH=/mnt/vmstore/caraxes/vm1/ch-0006-v.sh
+VM=vm3

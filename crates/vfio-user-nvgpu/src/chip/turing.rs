@@ -107,6 +107,9 @@ pub struct TuringBoot {
     fb_bytes: u64,
     wpr2: (u32, u32),
     frts_offset: Option<u64>,
+    /// GSP-RM was loaded by a Booter Load and not unloaded since: what tells Booter
+    /// Unload from Booter Load when the mailboxes do not (B4).
+    loaded: bool,
 }
 
 impl TuringBoot {
@@ -121,6 +124,7 @@ impl TuringBoot {
             fb_bytes,
             wpr2: (0, 0),
             frts_offset: None,
+            loaded: false,
         }
     }
 
@@ -232,16 +236,32 @@ impl FirmwareBoot for TuringBoot {
         } else if self.in_block(&self.d.sec2, off) {
             match self.sec2.write32(off - self.d.sec2.base, v) {
                 Some(Event::Reset) => w.notes.push(format!("sec2 reset {}", self.sec2.resets())),
-                Some(Event::Halted { run }) if run >= 2 => {
+                // Booter Load or Unload by its own signal, not by the SEC2 run count
+                // (docs/caraxes/gsp-plan/boot-exchange.md §4): the Load argument is the
+                // GspFwWprMeta (its magic, gsp_fw_wpr_meta.h:214), the Unload argument 0
+                // or a GspFwSRMeta, which a resume's Load passes too
+                // (kernel_gsp_tu102.c:346-366, 491-515); without the WPR meta magic the
+                // state decides: an Unload needs a loaded GSP-RM. A reload without a
+                // function-level reset (Load, Unload, Load) is then read right.
+                Some(Event::Halted { run })
+                    if self.loaded && {
+                        let (m0, m1) = self.sec2.mailbox();
+                        let pa = ((m1 as u64) << 32) | m0 as u64;
+                        mem.read_u64(pa) != Some(crate::ver::active::WPR_META_MAGIC)
+                    } =>
+                {
                     // Booter Unload: WPR2 is torn down and the RISC-V core stops
                     // (`kgspExecuteBooterUnloadIfNeeded_TU102` checks WPR2 afterwards).
-                    let (_, m1) = self.sec2.mailbox();
+                    let (m0, m1) = self.sec2.mailbox();
+                    let arg = ((m1 as u64) << 32) | m0 as u64;
                     self.sec2.set_mailbox(0, m1);
                     self.wpr2 = (0, 0);
                     self.gsp.set_riscv_active(false);
+                    self.loaded = false;
                     w.notes.push(format!(
-                        "sec2 start {run}: booter unload done, WPR2 down, gsp riscv stopped"
+                        "sec2 start {run}: booter unload done (argument {arg:#x}), WPR2 down, gsp riscv stopped"
                     ));
+                    w.event = Some(BootEvent::BooterUnload { arg });
                 }
                 Some(Event::Halted { run }) => {
                     // Booter-Load: MAILBOX0/1 carried the GspFwWprMeta PA; a zero in
@@ -251,6 +271,7 @@ impl FirmwareBoot for TuringBoot {
                     let pa = ((m1 as u64) << 32) | m0 as u64;
                     self.sec2.set_mailbox(0, m1);
                     self.gsp.set_riscv_active(true);
+                    self.loaded = true;
                     w.notes.push(format!(
                         "sec2 start {run}: booter done, wpr meta PA {pa:#x} ({}), gsp riscv active",
                         if mem.covers(pa, 256) {
@@ -348,7 +369,25 @@ mod tests {
         // Booter Unload: WPR2 down.
         let w = b.write32(sec2 + falcon::CPUCTL, 2, &mem).unwrap();
         assert!(w.notes[0].contains("booter unload done"), "{w:?}");
+        assert_eq!(w.event, Some(BootEvent::BooterUnload { arg: 0x1_0000_0000 }));
         assert_eq!(b.read32(d.wpr2_addr_lo), Some(0));
         assert_eq!(b.read32(gsp + falcon::RISCV_STATUS), Some(0));
+
+        // B4: a reload without a function-level reset. The teardown resets the GSP
+        // falcon first (kgspTeardown_TU102), the next boot runs FWSEC-FRTS again and
+        // then Booter Load: read as a Load, not as a third SEC2 run.
+        b.write32(gsp + falcon::ENGINE, 1, &mem);
+        b.write32(gsp + falcon::ENGINE, 0, &mem);
+        b.write32(sec2 + falcon::MAILBOX0, 0x7654_3000, &mem);
+        b.write32(sec2 + falcon::MAILBOX1, 0x1, &mem);
+        let w = b.write32(sec2 + falcon::CPUCTL, 2, &mem).unwrap();
+        assert!(w.notes[0].contains("sec2 start 3: booter done"), "{w:?}");
+        assert_eq!(w.event, Some(BootEvent::WprMeta { pa: 0x1_7654_3000 }));
+        assert_eq!(b.read32(gsp + falcon::RISCV_STATUS), Some(1));
+        // And its Unload again after a falcon reset of the teardown: GSP-RM is loaded.
+        b.write32(gsp + falcon::ENGINE, 1, &mem);
+        b.write32(gsp + falcon::ENGINE, 0, &mem);
+        let w = b.write32(sec2 + falcon::CPUCTL, 2, &mem).unwrap();
+        assert!(w.notes[0].contains("sec2 start 4: booter unload done"), "{w:?}");
     }
 }

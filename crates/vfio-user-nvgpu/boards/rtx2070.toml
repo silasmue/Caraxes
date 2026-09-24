@@ -33,6 +33,17 @@ bars = [
 # Expansion ROM BAR size (the card decodes 512 KiB).
 rom_bar_size = 0x8_0000
 
+# The card's SKU strings for the 615 static configuration (NVGMC_SC_CHIP_SKU and
+# _CHIP_SKU_MODIFIER, docs/caraxes/gsp-plan/boot-exchange.md §3.1), from the card's
+# "GPU Part Number 1F02-400-A1" (caraxes/reference/rtx2070/nvidia-smi-q.txt:37): the
+# PCI device id, then chipSKU, then chipSKUMod (the split is inferred from the three
+# fields of NV2080_CTRL_BIOS_GET_SKU_INFO the kernel fills from the static
+# configuration, subdevice_ctrl_gpu_kernel.c:3859 of 615.71.09).
+[sku]
+chip_sku = "400"
+chip_sku_modifier = "A1"
+source = "caraxes/reference/rtx2070/nvidia-smi-q.txt:37, GPU Part Number 1F02-400-A1"
+
 # The board's display outputs (decision D15: DisplayPort SST, one connector per head;
 # docs/caraxes/display-ab.md). Synthetic: the physical card has DP, HDMI and USB-C
 # outputs, none of which is reproduced. display_id is the NV0073 display id (one bit),

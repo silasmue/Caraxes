@@ -98,6 +98,9 @@ pub enum BootEvent {
     WprMeta { pa: u64 },
     /// The CPU rang the GSP command-queue doorbell; the libos init arguments are at `pa`.
     CmdQueueDoorbell { libos_args_pa: u64 },
+    /// Booter Unload ran with `arg` in the SEC2 mailboxes: 0, or the `GspFwSRMeta` of a
+    /// suspend (`_kgspGetBooterUnloadArgs`, kernel_gsp_tu102.c:491-515 of 615).
+    BooterUnload { arg: u64 },
 }
 
 /// The three boot registers that select the chip and the runtime variant
@@ -127,6 +130,9 @@ pub struct ChipData {
     pub ce: Ce,
     pub gr: Gr,
     pub channel: ChannelClasses,
+    /// The classes the kernel RM allows on this chip (`[classes]` of chip.toml,
+    /// classes.rs); `None` for a chip without the table: every class is acknowledged.
+    pub classes: Option<ClassDb>,
     pub device_info: DeviceInfo,
     pub interrupts: Interrupts,
     /// BAR0 names for the trace, first match wins.
@@ -328,6 +334,15 @@ pub struct ChannelClasses {
     pub compute: u32,
 }
 
+/// The chip's class database: the generic list plus the chip's no-engine and engine
+/// lists of the generated `g_gpu_class_list.c` (classes.rs).
+#[derive(Clone, Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ClassDb {
+    pub source: String,
+    pub ids: Vec<u32>,
+}
+
 /// The FIFO device-info table (`FIFO_GET_DEVICE_INFO_TABLE`).
 #[derive(Clone, Debug)]
 pub struct DeviceInfo {
@@ -403,6 +418,8 @@ struct ChipFile {
     ce: Ce,
     gr: Gr,
     channel: ChannelClasses,
+    #[serde(default)]
+    classes: Option<ClassDb>,
     features: crate::chipctl::FeaturesFile,
 }
 
@@ -600,6 +617,7 @@ impl ChipData {
             ce: c.ce,
             gr: c.gr,
             channel: c.channel,
+            classes: c.classes,
             device_info: DeviceInfo {
                 label: di.label,
                 engines,
