@@ -3,7 +3,7 @@
 <!-- SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR -->
 # Caraxes roadmap: done, in progress, next, later
 
-Snapshot of 2026-09-24, 11:20. The decisions and ideas it refers to are in [README.md](README.md).
+Snapshot of 2026-09-24, 10:30. The decisions and ideas it refers to are in [README.md](README.md).
 
 ## Done
 
