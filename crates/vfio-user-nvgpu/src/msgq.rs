@@ -29,11 +29,28 @@ use crate::guestmem::GuestMemory;
 /// the queues of a 615 guest ([`QueueState::from_v2`]).
 pub mod v2;
 
-/// The element and RPC header constants of the emulated driver version.
-pub use crate::ver::active::{
+/// The element and RPC header constants of message queue v0, the 610 queue: taken from
+/// `ver::v610`, not `ver::active`, since a `--features v615` build names the v2 element
+/// header there (24 bytes, `msgq::v2`) and a 615 guest never runs this transport.
+pub use crate::ver::v610::{
     ELEMENT_HEADER_SIZE, MCTP_HEADER, MSGQ_FLAGS_SWAP_RX, NVDM_HEADER, RPC_HEADER_SIZE,
     RPC_HEADER_VERSION, RPC_SIGNATURE,
 };
+
+/// The element layout of the v0 path: the 610 element (16-byte header) whatever version
+/// the build emulates, or the pre-610 one when `CARAXES_GUEST_ABI=595` selects it.
+/// `ver::element_layout()` alone would give the 24-byte v2 header in a `--features v615`
+/// build and misread every v0 element; in a default build both are the same.
+fn v0_element_layout() -> crate::ver::ElementLayout {
+    use crate::ver::ElementLayout;
+    match crate::ver::element_layout() {
+        ElementLayout::PRE_610 => ElementLayout::PRE_610,
+        _ => ElementLayout {
+            header_size: ELEMENT_HEADER_SIZE,
+            ..ElementLayout::EMULATED
+        },
+    }
+}
 
 const PAGE: u64 = 4096;
 
@@ -409,7 +426,7 @@ impl Message {
         let rej = self.rejected.as_ref()?;
         Some(if !rej.answerable {
             ReplyTo::Nobody
-        } else if self.header.function == crate::ver::active::FN_CONTINUATION_RECORD {
+        } else if self.header.function == crate::ver::v610::FN_CONTINUATION_RECORD {
             ReplyTo::PendingRequest
         } else {
             ReplyTo::Itself
@@ -595,7 +612,7 @@ impl QueueState {
         ) {
             return Err("command slot unreadable".into());
         }
-        let el = crate::ver::element_layout();
+        let el = v0_element_layout();
         let seq_num = u32_at(&first, el.seq_off);
         let header = RpcHeader::parse(&first[el.header_size..]);
         let answerable =
@@ -739,7 +756,7 @@ impl QueueState {
         if self.failed.is_some() {
             return Err(self.failed_error());
         }
-        let el = crate::ver::element_layout();
+        let el = v0_element_layout();
         let total = el.header_size + RPC_HEADER_SIZE + payload.len();
         let msg_size = self.stat.msg_size as usize;
         let slots = total.div_ceil(msg_size) as u32;
@@ -1199,7 +1216,7 @@ pub(crate) mod tests {
         let mut torn = element(0, &request(5), &[7u8; 64]);
         torn[48 + 3] ^= 0x40;
         cpu_raw(&qm, &mut cmd, &torn);
-        let fn_cont = crate::ver::active::FN_CONTINUATION_RECORD;
+        let fn_cont = crate::ver::v610::FN_CONTINUATION_RECORD;
         let mut cont = element(1, &request(fn_cont), &[7u8; 64]);
         cont[48] ^= 1;
         cpu_raw(&qm, &mut cmd, &cont);
