@@ -257,6 +257,65 @@ impl ReservationMapper {
     }
 }
 
+/// P21 (docs/caraxes/bar1-passthrough.md): a dma-buf of one piece of the reservation,
+/// exported with mmap allowed, which the device hands to the VMM as the mmap descriptor
+/// of the guest's BAR1 region. Why a dma-buf and not the `RM_MAP_MEMORY` fd of
+/// [`Window`]: its mmap accepts a non-zero page offset (nv-dmabuf.c `nv_dma_buf_mmap`),
+/// and it holds a duplicate of the reservation handle and its host BAR1 mapping for as
+/// long as the VMM keeps the descriptor or a mapping of it (`nv_dma_buf_vma_open` /
+/// `_release`), so the host can never hand that BAR1 range or that VRAM to anyone else
+/// while the guest can still reach it, even when this process dies first. An
+/// `RM_MAP_MEMORY` mapping is released with its client regardless of other processes'
+/// mappings (`nv_free_user_mapping` is empty, nv-usermap.c).
+pub struct Bar1Export {
+    fd: std::os::fd::OwnedFd,
+    /// FB address of the first byte, and the length.
+    pub fb: u64,
+    pub len: u64,
+}
+
+impl Bar1Export {
+    /// The dma-buf descriptor, for the region table (`ServerRegion::mmap_fd`).
+    pub fn raw_fd(&self) -> std::os::fd::RawFd {
+        self.fd.as_raw_fd()
+    }
+}
+
+/// `NV_ESC_EXPORT_TO_DMABUF_FD` of `[offset, offset + len)` of the memory object
+/// `handle` of client `root`, one object, mmap allowed (nv-dmabuf.c `nv_dma_buf_export`,
+/// osapi.c `RmDmabufVerifyMemHandle`: vidmem, OS-page aligned, inside the object).
+fn export_dmabuf(
+    gpu: &NvDevice,
+    root: u32,
+    handle: u32,
+    offset: u64,
+    len: u64,
+) -> Result<std::os::fd::OwnedFd> {
+    use std::os::fd::FromRawFd;
+    let mut p = sys::nv_ioctl_export_to_dma_buf_fd {
+        fd: -1,
+        hClient: root,
+        totalObjects: 1,
+        numObjects: 1,
+        index: 0,
+        totalSize: len,
+        mappingType: 0, // NV_DMABUF_EXPORT_MAPPING_TYPE_DEFAULT
+        bAllowMmap: 1,
+        ..Default::default()
+    };
+    p.handles[0] = handle;
+    p.offsets[0] = offset;
+    p.sizes[0] = len;
+    // SAFETY: the escape's own parameter struct (nv-ioctl.h), plain data.
+    unsafe { gpu.ioctl_raw(sys::NV_ESC_EXPORT_TO_DMABUF_FD, &mut p) }
+        .map_err(|e| anyhow::anyhow!("NV_ESC_EXPORT_TO_DMABUF_FD: {e}"))?;
+    if p.status != sys::NV_OK || p.fd < 0 {
+        bail!("NV_ESC_EXPORT_TO_DMABUF_FD: status {:#x}, fd {}", p.status, p.fd);
+    }
+    // SAFETY: the driver installed a new descriptor for us (dma_buf_fd, nv-dmabuf.c).
+    Ok(unsafe { std::os::fd::OwnedFd::from_raw_fd(p.fd) })
+}
+
 /// One host OS event: a private ctl fd the event is bound to (`allocate_os_event`,
 /// osapi.c:598-635: the event lives on the file the escape was issued on, `fd` is an id),
 /// the `NV01_EVENT_OS_EVENT` object and the notifier it is armed on.
@@ -1074,6 +1133,26 @@ impl HostMemory {
             device: self.device,
             handle: r.handle,
         })
+    }
+
+    /// P21: export `[fb, fb + len)` of the reservation as a dma-buf for the guest's
+    /// BAR1 region (`Bar1Export`). The range must lie inside the reservation; the
+    /// caller has checked it against the usable part (`fb::bar1_passthrough_area`).
+    pub fn export_bar1_passthrough(&self, fb: u64, len: u64) -> Result<Bar1Export> {
+        let r = self
+            .reservation
+            .as_ref()
+            .context("BAR1 passthrough needs the reservation")?;
+        if fb < r.base || fb + len > r.base + r.size || len == 0 {
+            bail!(
+                "BAR1 passthrough [{fb:#x}, {:#x}) is not inside the reservation [{:#x}, {:#x})",
+                fb + len,
+                r.base,
+                r.base + r.size
+            );
+        }
+        let fd = export_dmabuf(&self._gpu, self.rm.root(), r.handle, fb - r.base, len)?;
+        Ok(Bar1Export { fd, fb, len })
     }
 
     /// The host doorbell page: `VOLTA_USERMODE_A` under the subdevice, mapped write-only

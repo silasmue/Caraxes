@@ -21,8 +21,8 @@ use vfio_user_nvgpu::chip::{self, Chip};
 use vfio_user_nvgpu::config::{parse_dump, ConfigSpace};
 use vfio_bindings::bindings::vfio::VFIO_PCI_BAR0_REGION_INDEX;
 use vfio_user_nvgpu::device::{
-    doorbell_ioeventfd_requested, doorbell_sub_region, irqs, regions, spawn_doorbell_reader,
-    Device, GuestRam, SharedDevice, DOORBELL_IOEVENTFD_ENV,
+    doorbell_ioeventfd_requested, doorbell_sub_region, irqs, region_size, regions_with,
+    spawn_doorbell_reader, Bar1Area, Device, GuestRam, SharedDevice, DOORBELL_IOEVENTFD_ENV,
 };
 use vfio_user_nvgpu::fb::FbLayout;
 use vfio_user_nvgpu::hostmem::HostMemory;
@@ -327,6 +327,9 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
     };
     let intr_shared = IntrShared::new();
     let mut layout = FbLayout::plain(a.fb_mib << 20);
+    // P21: the dma-buf behind the guest's BAR1 passthrough area, held for the process's
+    // life (docs/caraxes/bar1-passthrough.md §6).
+    let mut bar1_export = None;
     if a.reserve_vram {
         let hm = host_mem.as_ref().expect("opened above");
         let mut h = hm.lock().unwrap();
@@ -401,6 +404,29 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
                 (wlen >> 20) * wn
             );
         }
+        if let Some((off, len)) = vfio_user_nvgpu::fb::bar1_passthrough_config() {
+            if !a.host_exec {
+                bail!(
+                    "CARAXES_BAR1_PASSTHROUGH=1 needs host execution (the FB on the reserved VRAM)"
+                );
+            }
+            let bar1 = region_size(&a.board_data, 1);
+            let (fb0, len) = vfio_user_nvgpu::fb::bar1_passthrough_area(&layout, off, len, bar1)
+                .map_err(anyhow::Error::msg)?;
+            let hm = host_mem.as_ref().expect("checked in parse_args");
+            let ex = hm
+                .lock()
+                .unwrap()
+                .export_bar1_passthrough(fb0, len)
+                .context("BAR1 passthrough (CARAXES_BAR1_PASSTHROUGH=1)")?;
+            let (_, root) = layout.bar_roots().expect("a reserved layout");
+            model.fb.set_bar1_passthrough(root, fb0, len);
+            eprintln!(
+                "vfio-user-nvgpu: bar1 passthrough: guest BAR1 [0, {len:#x}) offered as one sparse mmap area of region 1, backed by a dma-buf of FB [{fb0:#x}, {:#x}) (reservation offset {off:#x}); {len:#x} of host BAR1 held while the client maps it (CARAXES_BAR1_PASSTHROUGH=1, docs/caraxes/bar1-passthrough.md)",
+                fb0 + len
+            );
+            bar1_export = Some(ex);
+        }
         bar0 = bar0.with_boot_model(model);
     }
     let guest_ram = match (&host_mem, a.register_guest_ram, a.identity_dma_table) {
@@ -430,7 +456,11 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
                 .with_context(|| format!("remove stale {}", socket.display()))?;
         }
     }
-    let mut server = Server::new(socket, true, irqs(), regions(&a.board_data))
+    let bar1_area = bar1_export.as_ref().map(|e| Bar1Area {
+        fd: e.raw_fd(),
+        len: e.len,
+    });
+    let mut server = Server::new(socket, true, irqs(), regions_with(&a.board_data, bar1_area))
         .map_err(|e| anyhow::anyhow!("vfio-user server: {e}"))?;
     let doorbell = if doorbell_ioeventfd {
         let offset = chip.data().registers.usermode_doorbell;
