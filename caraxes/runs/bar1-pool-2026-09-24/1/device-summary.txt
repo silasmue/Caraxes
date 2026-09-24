@@ -1,0 +1,14 @@
+vfio-user-nvgpu: bar1 passthrough: guest BAR1 [0, 0x100000) offered as one sparse mmap area of region 1, backed by a dma-buf of FB [0x169980000, 0x169a80000) (reservation offset 0x980000); 0x100000 of host BAR1 held while the client maps it (CARAXES_BAR1_PASSTHROUGH=1, docs/caraxes/bar1-passthrough.md)
+vfio-user-nvgpu: bar1 passthrough: check 4: 128 page(s) of guest BAR1 [0, 0x100000) mapped, 128 at the area's FB 0x169980000 + offset, 0 elsewhere
+vfio-user-nvgpu: bar1 passthrough: check 34: 0 page(s) of guest BAR1 [0, 0x100000) mapped, 0 at the area's FB 0x169980000 + offset, 0 elsewhere
+vfio-user-nvgpu: bar1 passthrough: check 36: 64 page(s) of guest BAR1 [0, 0x100000) mapped, 64 at the area's FB 0x169980000 + offset, 0 elsewhere
+vfio-user-nvgpu: bar1 passthrough: check 37: 112 page(s) of guest BAR1 [0, 0x100000) mapped, 112 at the area's FB 0x169980000 + offset, 0 elsewhere
+vfio-user-nvgpu: bar1 passthrough: check 38: 128 page(s) of guest BAR1 [0, 0x100000) mapped, 128 at the area's FB 0x169980000 + offset, 0 elsewhere
+vfio-user-nvgpu: bar1 passthrough: check 51: 0 page(s) of guest BAR1 [0, 0x100000) mapped, 0 at the area's FB 0x169980000 + offset, 0 elsewhere
+vfio-user-nvgpu: bar1 passthrough: check 56: 128 page(s) of guest BAR1 [0, 0x100000) mapped, 128 at the area's FB 0x169980000 + offset, 0 elsewhere
+vfio-user-nvgpu: bar1 passthrough: check 77: 0 page(s) of guest BAR1 [0, 0x100000) mapped, 0 at the area's FB 0x169980000 + offset, 0 elsewhere
+vfio-user-nvgpu: bar1 passthrough: check 81: 128 page(s) of guest BAR1 [0, 0x100000) mapped, 128 at the area's FB 0x169980000 + offset, 0 elsewhere
+vfio-user-nvgpu: bar1 passthrough: check 94: 0 page(s) of guest BAR1 [0, 0x100000) mapped, 0 at the area's FB 0x169980000 + offset, 0 elsewhere
+vfio-user-nvgpu: bar1 passthrough: check 100: 128 page(s) of guest BAR1 [0, 0x100000) mapped, 128 at the area's FB 0x169980000 + offset, 0 elsewhere
+vfio-user-nvgpu: bar1 passthrough: check 115: 0 page(s) of guest BAR1 [0, 0x100000) mapped, 0 at the area's FB 0x169980000 + offset, 0 elsewhere
+bar1 passthrough: guest BAR1 [0, 0x100000) on FB 0x169980000; 120 check(s), last: 0 page(s) mapped, 0 matched, 0 elsewhere; 0 mismatched page(s) and 0 page-table hazard(s) over the run (docs/caraxes/bar1-passthrough.md)

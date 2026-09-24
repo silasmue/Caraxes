@@ -1,0 +1,1 @@
+vfio-user-nvgpu: bar1 passthrough: guest BAR1 [0, 0x100000) offered as one sparse mmap area of region 1, backed by a dma-buf of FB [0x169980000, 0x169a80000) (reservation offset 0x980000); 0x100000 of host BAR1 held while the client maps it (CARAXES_BAR1_PASSTHROUGH=1, docs/caraxes/bar1-passthrough.md)

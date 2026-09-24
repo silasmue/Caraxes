@@ -1,0 +1,17 @@
+ssh: connect to host 192.168.102.22 port 22: No route to host
+stopped
+dma table: 0:7ff940000000:c0000000,100000000:7ffa40000000:40000000
+server pid 3246020, VM pid 3246042; logs in /mnt/vmstore/caraxes/vm2
+ssh up at 192.168.102.22
+[  131.757948] NVRM: GPU 0000:00:05.0: RmInitAdapter succeeded!
+modprobe rc=0
+v2 restarted: server pid 3246020
+tar: ./llamaprobe.py: time stamp 2026-09-24 14:24:09 is 0.059380638 s in the future
+tar: ./pporl.py: time stamp 2026-09-24 14:24:09 is 0.059256118 s in the future
+tar: ./convnet.py: time stamp 2026-09-24 14:24:09 is 0.059098368 s in the future
+tar: ./transformer.py: time stamp 2026-09-24 14:24:09 is 0.059014078 s in the future
+c5b48cf1181bfcfc251f12aa2b0eaeb074887efec4c479f36efe399cb1307a13  bench-cu
+2735d2a9cd25c0753898188542dbeb4a8433609024aa48230b6803a4a8d96e66  nvprobe
+138c5073848b2f3cf2beb4709376c7c49b420d88e836664584e5cf8bbfc7848c  ioctlping
+68449e9ec7b25613a65d096a6a42864c01fbf46ec47e540ce01f47184f0479ea  ctrlping
+1f921680fc7a2c2e0978eb007cc0ab48d2f1a7cf404a196c9063a19a10aa228f  kernels.ptx

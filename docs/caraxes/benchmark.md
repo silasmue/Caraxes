@@ -770,3 +770,33 @@ pageable, so they do not go through the 1 MiB area; v2 pays about 0.75 ms per en
 step over native, of which the two copies are the larger part (the closing series has pageable
 1 MiB copies at 0.62 of native and small ones worse). v1 sits at 0.69 with a wide spread. The
 full-length run (420 s, the solve time) is part of the workload gate.
+
+## Design H, the BAR1 pool, measured (2026-09-24, 16:04-16:40, vm2)
+
+`caraxes/runs/bar1-pool-2026-09-24/`: the 1 MiB area (mode 1) against the 64 MiB pool
+(mode pool), token pool and spin reactor on, 5 reps of copy, rl and short-auto, 2 of PPO.
+
+| Value | 1 MiB area | 64 MiB pool |
+|---|---|---|
+| h2d pinned 1 MiB, GB/s | 6.11 | 6.08 |
+| h2d pageable 1 MiB | 4.58 | 4.58 |
+| h2d pinned 16 MiB | 6.58 | 6.57 |
+| d2d 1 / 16 / 256 MiB, GB/s | 69 / 16.0 / 193 | 65 / 17.3 / 193 |
+| rlprobe stage 4, transfers per second | 2.30 s, 1263 | 2.30 s, 1267 |
+| PPO steps per second (2 reps) | 71994, 66773 | 70433, 66032 |
+| short kernel, ms/launch | 0.015 | 0.020 |
+| pool mechanics | - | 2560 pages moved in, 2560 back (1536 behind the barrier), 64 barriers, 172 TSG preempts, 20 refused, 0 hazards, 10 MiB copied each way in 199 ms |
+| host Xid | 0 | 0 |
+
+Reading: the pool works mechanically but changes no number, so the CUDA copies below 16 MiB
+do not go through guest BAR1 at all (they are copy-engine work on the mirror channel), and
+the gap has another cause. The d2d row says which: 1 MiB takes 16 us (66 GB/s), 256 MiB 1.4 ms
+(193 GB/s, native), but 16 MiB takes 1.0 ms, a fixed stall of about 0.9 ms per copy. That is
+the length of a trapped guest interrupt handling (about 70 register accesses at 23-27 us,
+display-e.md): a copy longer than libcuda's spin window waits for the completion interrupt,
+and its delivery pays the trapped interrupt path. The same applies to the pinned 1 MiB copies
+(170 us against 85 native) and to the synchronous D2H of PPO and rlprobe. The interrupt page
+(intr-page.md, merged 8cfe26f, measured only on the display so far) is therefore the next
+measurement for the copy rows, not the pool; H stays as an option for guest BAR1 traffic
+(display scanout imports, the console mapping) and for Ampere and later, where the pool has
+no host BAR1 limit.
