@@ -17,8 +17,9 @@
 #                   recorded as skipped)
 #   --no-rm-tools   skip part 2 (the RM query tools built with rustc)
 #   --ogkm DIR      open-gpu-kernel-modules tree at the running driver version, for
-#                   gsp-abi-sizes in part 2 (default: vendor/open-gpu-kernel-modules
-#                   when its version matches); the field lists follow the running
+#                   gsp-abi-sizes in part 2 (default: $CARAXES_OGKM, else
+#                   vendor/open-gpu-kernel-modules when its version.mk matches the
+#                   running driver); the field lists follow the running
 #                   driver's major version (gsp-abi-sizes.sh --abi: 610 lists below
 #                   615, 615 lists from 615 on)
 #   --walk-rom FILE only run the ROM image chain walk on FILE and exit
@@ -51,10 +52,10 @@ only_bdf=""
 want_rom=0
 no_sudo=0
 rm_tools=1
-ogkm_dir=""
+ogkm_dir=${CARAXES_OGKM:-}
 walk_only=""
 
-usage() { sed -n '4,36p' "$0"; }
+usage() { sed -n '4,37p' "$0"; }
 
 while [ $# -gt 0 ]; do
     case $1 in
@@ -742,11 +743,12 @@ else
     # 3. gsp-abi-sizes: struct layouts of the driver version (no GPU access)
     tree=""
     if [ -n "$ogkm_dir" ]; then tree=$ogkm_dir
-    elif [ "$drv" = 610.57.04 ] && [ -f "$repo/vendor/open-gpu-kernel-modules/src/nvidia/inc/kernel/gpu/gsp/gsp_static_config.h" ]; then
+    elif vend_ver=$(sed -n 's/^NVIDIA_VERSION *= *//p' "$repo/vendor/open-gpu-kernel-modules/version.mk" 2>/dev/null);
+         [ -n "$drv" ] && [ "$drv" = "$vend_ver" ] && [ -f "$repo/vendor/open-gpu-kernel-modules/src/nvidia/inc/kernel/gpu/gsp/gsp_static_config.h" ]; then
         tree="$repo/vendor/open-gpu-kernel-modules"
     fi
     if [ -z "$tree" ]; then
-        item rm-tools.gsp-abi-sizes skipped - "needs an open-gpu-kernel-modules tree at ${drv:-the running version} (--ogkm DIR); the vendored one is 610.57.04"
+        item rm-tools.gsp-abi-sizes skipped - "needs an open-gpu-kernel-modules tree at ${drv:-the running version} (--ogkm DIR or CARAXES_OGKM); the vendored one is ${vend_ver:-unknown}"
     elif ! have cc; then
         item rm-tools.gsp-abi-sizes skipped - "no C compiler"
     elif abiargs=(); [ -n "$drv" ] && abiargs=(--abi "${drv%%.*}");

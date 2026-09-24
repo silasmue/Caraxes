@@ -21,6 +21,7 @@ python3 caraxes/tools/gsp-surface.py --full          # plus every control, by ca
 python3 caraxes/tools/gsp-surface.py --json out.json # the raw inventory
 python3 caraxes/tools/gsp-surface.py --explain       # how each handled id was read
 python3 caraxes/tools/gsp-surface.py --top 30        # unhandled, ranked by call sites and traces
+python3 caraxes/tools/gsp-surface.py --ogkm DIR      # another driver tree (or CARAXES_OGKM=DIR)
 ```
 
 ## Summary
@@ -580,3 +581,105 @@ weeks, and what remains is the engine and display modelling that the milestones 
    hidden in a helper function is not seen, so a few vGPU-only sends may still be counted.
 5. For category A the one-time capture of the real card touches the host GPU through its RM;
    it needs the operator's go-ahead like every host read.
+
+## 615.71.09
+
+The same script against the 615.71.09 tree (`/mnt/vmstore/caraxes/ogkm-615.71.09`, commit 61dcc93,
+see [blackwell-gb206.md](blackwell-gb206.md) §3.1), run on 2026-09-24 as
+`python3 caraxes/tools/gsp-surface.py --ogkm /mnt/vmstore/caraxes/ogkm-615.71.09` (or with
+`CARAXES_OGKM` set; the version comes from the tree's `version.mk`). The 610 column is a run of
+the same day against the same crate, so the two differ only by the tree. Both columns are without
+native traces (there are none for 615, and the run checkout had none for 610); the 610 numbers
+equal the tables above, except that the crate now names 24 classes (21 above). The crate side is
+still the `ver/v610` module in both runs: "handled" means "the 610 device has an arm for this id".
+File paths in this section are in the 615 tree (`src/...`, and bare header names under
+`src/common/sdk/nvidia/inc/ctrl/`), except `ver/`, `ctrl.rs` and `display/` (the crate,
+`crates/vfio-user-nvgpu/src`) and those marked 610.
+
+| Item | 610.57.04 | 615.71.09 |
+|---|---:|---:|
+| Exported controls (unique ids) | 1377 | 1397 |
+| Controls that reach GSP | 829 | 844 |
+| of which INTERNAL | 239 | 246 |
+| of which sent explicitly by kernel RM | 257 | 260 |
+| Routed controls the device handles | 171 | 170 |
+| (host-forwarded / synthesized / guest-derived / echo / refused) | 37/56/21/46/11 | 36/56/21/46/11 |
+| Routed controls unhandled | 658 | 674 |
+| (A / B / C / D / E) | 62/71/30/306/189 | 62/71/32/309/200 |
+| Handled ids outside the export tables | 38 | 38 |
+| RPC functions | 230 | 232 |
+| of which a GSP client sends / the device handles | 20 / 11 | 20 / 11 (see note 1) |
+| RPC events | 41 | 45 |
+| of which the CPU side dispatches / the device sends | 37 / 2 | 36 / 2 |
+| Classes in resource_list.h / reach GSP on alloc / crate names | 222 / 149 / 24 | 224 / 149 / 24 |
+
+Id sets: 1376 ids in both, one only in 610 (`NV0000_CTRL_CMD_GPU_DISABLE_NVLINK_INIT` 0x00000281, not
+routed), 21 only in 615 (15 of them routed: NVLink metrics and LFM, vGPU-manager scrub and CE
+utilities, `NV0073_CTRL_CMD_SPECIFIC_HDCP_KEY_DECRYPTION` 0x007302B2, `NV0073_CTRL_CMD_DP_SET_WAR_FLAGS`
+0x00731391, `NV0090_CTRL_CMD_PROGRAM_SYSMEM_PROMOTE` 0x0090010E,
+`NV2080_CTRL_CMD_INTERNAL_PERF_CLIENT_PERF_MODES_SET_CONTROL` 0x20800B20; the `--full` list names
+all). New RPC functions 230, 231 (`CTRL_FIFO_VGPU_SWRUNLIST_SUBMIT`, `_CHANNEL_UPDATE`,
+`src/nvidia/inc/kernel/vgpu/rpc_global_enums.h:240-241`), new events 0x102A to 0x102D
+(`rpc_global_enums.h:297-300`, all dispatched), new classes 0x90D0 and 0xD0CD
+(`src/nvidia/src/kernel/rmapi/resource_list.h:144, 282`, neither reaches GSP). The dispatcher
+(`src/nvidia/src/kernel/gpu/gsp/kernel_gsp.c:1556`) no longer lists GSP_INIT_DONE,
+MMU_FAULT_QUEUED, VGPU_GSP_PLUGIN_TRIGGERED, GSP_LOAD_EXEC_GENERIC_BOOTLOADER and
+GSP_LOAD_EXEC_HS_BINARY (37 - 5 + 4 = 36), and `rpc_gsp_set_system_info_v17_00` is gone.
+
+**Controls whose id changed.**
+
+| Control | 610.57.04 | 615.71.09 | Device today |
+|---|---|---|---|
+| `NV2080_CTRL_CMD_INTERNAL_GPU_GET_CHIP_INFO` | 0x20800A36, 88-byte params | removed; 0x20800A36 is now `NV2080_CTRL_CMD_INTERNAL_GPU_SYNC_FABRIC_PROBE_INFO` (`src/common/sdk/nvidia/inc/ctrl/ctrl2080/ctrl2080internal.h:585`), sent by kernel RM through the physical RM API (`src/nvidia/src/kernel/gpu/gpu_fabric_probe.c:1938`) | synthesized as chip info (`ver/v610.rs:323`); the script counts it as handled on 615, but the answer is for the wrong control (§3.4 of blackwell-gb206.md) |
+| `NV2080_CTRL_CMD_NVLINK_GET_REMAP_TABLE_INFO_V2` | 0x208030A1 | 0x208030A2 (`ctrl2080nvlink.h:3573`) | unhandled (E) |
+| `NV2080_CTRL_NVLINK_GET_UPDATE_NVLE_LIDS_V2` | 0x208030A2 | 0x208030A3 (`ctrl2080nvlink.h:3604`) | unhandled (E) |
+| `NV2080_CTRL_CMD_NVLINK_SET_BW_MODE_ASYNC` | none | 0x208030A1, the old REMAP_TABLE_INFO_V2 id (`ctrl2080nvlink.h:2892`), not routed | none |
+
+**Routing changed for a handled control.** `NV2080_CTRL_CMD_GPU_GET_VMMU_SEGMENT_SIZE` 0x2080017E: flags
+0x10448 (ROUTE_TO_PHYSICAL) in 610, 0x50B in 615 (`src/nvidia/generated/g_subdevice_nvoc.c:4943`); the
+kernel RM answers it itself (`src/nvidia/src/kernel/gpu/subdevice/subdevice_ctrl_gpu_kernel.c:2626`)
+and the 610 explicit send (`gpu.c:936` in 610) is gone. The device's host-forward arm
+(`ctrl.rs:996`) is dead for 615; this is the 171 to 170 and the host-forwarded 37 to 36. Also newly
+routed but unhandled: `NV2080_CTRL_CMD_NVLINK_GET_SUPPORTED_COUNTERS` 0x20803074 and
+`NV_EVENT_BUFFER_CTRL_CMD_UPDATE_GET` 0x90CD0102.
+
+**Controls whose parameter size changed.** `sizeof` of all 1261 distinct parameter structs of the
+ids present in both trees, compiled against each tree's SDK headers (`cc -std=gnu11 -DNV_LINUX`);
+25 differ. Those the device handles or that reach GSP:
+
+| Control | Id | 610 | 615 | Struct (615) | Device today |
+|---|---|---:|---:|---|---|
+| `NV0073_CTRL_CMD_SYSTEM_GET_ACTIVE` | 0x0073010C | 16 | 20 | `ctrl0073/ctrl0073system.h:664-670` (`staleSorIndex` appended) | synthesized (`display/mod.rs:612`); not in blackwell-gb206.md §3.4, which covered `ver/v610.rs` only, not `ver/v610/display.rs` |
+| `NV2080_CTRL_CMD_FIFO_GET_DEVICE_INFO_TABLE` | 0x20801112 | 3212 | 3340 | `ctrl2080/ctrl2080fifo.h:556` | synthesized |
+| `NV2080_CTRL_CMD_INTERNAL_GET_PCIE_P2P_CAPS` | 0x20800AB8 | 3 | 4 | `ctrl2080/ctrl2080internal.h:2576` | synthesized |
+| `NV2080_CTRL_CMD_INTERNAL_NVLINK_GET_NVLINK_DEVICE_INFO` | 0x20800A87 | 1088 | 1072 | `ctrl2080/ctrl2080internal.h:5010` | refused |
+| `NV2080_CTRL_CMD_INTERNAL_STATIC_KGR_GET_FLOORSWEEPING_MASKS` | 0x20800A26 | 10688 | 10848 | `ctrl2080/ctrl2080internal.h:338` | host-forwarded |
+| `NV2080_CTRL_CMD_INTERNAL_STATIC_KGR_GET_GLOBAL_SM_ORDER` | 0x20800A22 | 73760 | 81952 | `ctrl2080/ctrl2080internal.h:247` | host-forwarded |
+| `NV2080_CTRL_CMD_NVLINK_GET_COUNTERS_V2` | 0x20803050 | 28712 | 28720 | `ctrl2080/ctrl2080nvlink.h:1110` | unhandled (E) |
+| `NV2080_CTRL_CMD_NVLINK_CLEAR_COUNTERS_V2` | 0x20803051 | 40 | 48 | `ctrl2080/ctrl2080nvlink.h:1136` | unhandled (E) |
+| `NV2080_CTRL_CMD_NVLINK_GET_SUPPORTED_COUNTERS` | 0x20803074 | 16 | 24 | `ctrl2080/ctrl2080nvlink.h:2698` | unhandled (E, routed from 615) |
+| `NV2080_CTRL_CMD_NVLINK_PROCESS_INIT_DISABLED_LINKS` | 0x2080303B | 32 | 24 | `ctrl2080/ctrl2080nvlink.h:2393` | unhandled (E) |
+| `NV2080_CTRL_CMD_VGPU_MGR_INTERNAL_PGPU_ADD_VGPU_TYPE` | 0x20804003 | 694280 | 695432 | `ctrl2080/ctrl2080vgpumgrinternal.h:148` | unhandled (E) |
+| `NVB0CC_CTRL_CMD_INTERNAL_PERMISSIONS_INIT` | 0xB0CC0203 | 7 | 6 | `ctrlb0cc/ctrlb0ccinternal.h:157` | unhandled (D) |
+
+Not routed (kernel-side or vGPU host), size changed: `NV2080_CTRL_CMD_GPU_GET_PES_INFO` 0x20800168
+56 to 76 (`ctrl2080gpu.h:2222`), `NV2080_CTRL_CMD_GR_GET_GLOBAL_SM_ORDER` 0x2080121B 9240 to 10264
+(`ctrl2080gr.h:1233`), `NV2080_CTRL_CMD_GET_GPU_FABRIC_PROBE_INFO` 0x208001A3 56 to 320,
+`NV2080_CTRL_CMD_GPU_GET_ENGINE_LOAD_TIMES` 0x2080019B 2608 to 2624,
+`NV2080_CTRL_CMD_EVENT_RATS_GSP_TRACE_BIND_EVTBUF` 0x2080030A 24 to 32,
+`NV2080_CTRL_CMD_FLA_GET_FABRIC_MEM_STATS` 0x20803504 16 to 32, `NV2080_CTRL_CMD_NVLINK_SET_BW_MODE`
+0x20803086 8 to 2, `NV0000_CTRL_CMD_SYSTEM_NVPCF_GET_POWER_MODE_INFO` 0x0000013B 884 to 876,
+`NV0000_CTRL_CMD_SYSTEM_READ_CPER` 0x00000149 1056 to 1064, `NV00FD_CTRL_CMD_ATTACH_REMOTE_GPU`
+0x00FD0106 40 to 48, and three NVA081 vGPU-config controls (0xA0810101, 0xA0810103, 0xA0810124). The
+PES_INFO and FIFO_GET_DEVICE_INFO_TABLE changes are also what `caraxes/tools/lab-abi-check.sh`
+reports for the host query tools (2 items differ from 610.57.04).
+
+All seven control rows of blackwell-gb206.md §3.4 are confirmed with the same sizes; the new
+findings are `SYSTEM_GET_ACTIVE` (handled), the VMMU_SEGMENT_SIZE routing change and the NVLink id
+shift. Equal sizes with changed field layout are not detected by this comparison.
+
+Notes. (1) The "a GSP client sends" set is the 610 source survey kept as a constant in the script
+(`GSP_CLIENT_SENDS`); on 615, GSP_SET_SYSTEM_INFO and SET_REGISTRY are deprecated and replaced by
+GMCAPI_CMD_GSP_INIT (blackwell-gb206.md §3.3), so 20 overstates what a 615 kernel RM sends. (2) The
+A to E classification is the same heuristic; the 16 new unhandled controls fall into C (2), D (3)
+and E (11).
