@@ -95,6 +95,7 @@ driver recognizes and initializes a Turing/RTX 2070-like device. Windows later.
 | [workload-gate.md](workload-gate.md) | The workload gate (2026-09-24, prepared, not run): real workloads beside the micro rows, native against v2 (v1 on a 610 host only): PPO CartPole at 420 s, llama.cpp pp512/tg128 with and without CUDA graphs (host-built llama-bench for sm_75, Llama 3.2 1B Q4_K_M), a GPT-style training loop, ResNet-18 training; the one-command runner `caraxes/runs/workload-2026-09-24/run.sh`, how to read the ratios, the table to fill |
 | [intr-page.md](intr-page.md) | The interrupt page (`CARAXES_INTR_PAGE=1`, `_SLEEP_MS`, `_RETRIGGER_MS`): BAR0 page 0 and the VF CPU interrupt tree page offered as sparse mmap areas of region 0 from a memfd, the reactor applying the guest's acks and enable writes by polling (tag bits and sentinels so every store is visible, a retrigger watchdog for what stays ambiguous); per-frame register census of series F (437 of 662 Mutter traps are these two pages), the expected 662 to about 225, what stays trapped |
 | [alloc-path.md](alloc-path.md) | Where cuMemAlloc/cuMemFree time goes (830/903 us, 6.7 ms for 64 MiB): no memory RPC reaches the device, the cost is the guest RM's trapped traffic (24 traps per mapping change: 18 RM-lock interrupt-enable writes, 5 MMU invalidate, 1 flush; plus BAR2 PTE writes), the device's host calls sit in the worker; the four steps (existing intr page + BAR2 memfd, lazy shadow plans, invalidate and flush page as memory, region-object free list) with expected cost and isolation argument; `CARAXES_ALLOC_LAZY=1` built (`lazy.rs`), `caraxes/tools/rpc-cost.py`, `BENCH_CU_PHASE_GAP_MS`, measurement plan (subagent report) |
+| [optimization-backlog.md](optimization-backlog.md) | Trap census of 2026-09-25 (vm3, main 1ea2529): every CUDA driver-API operation alone (`caraxes/tools/census-cu.c` with BAR0 scratch markers, `census-table.py`), traps by BAR, page and register, RPC and host RM work, guest against native, with no window, with interrupt page + BAR1 pool + token pool, and with the BAR2 memfd; findings (memfd plus pool hangs the first cuCtxCreate, memfd alone takes cuCtxCreate 4.1 s to 0.87 s, submissions and copies trap 0 times with the windows, 140-160 MSI re-arm traps per second, non-trap stalls); the ranked backlog with mechanism, saving, risk and estimate; the ReBAR note; the order for the next three days |
 | [open-questions.md](open-questions.md) | Unresolved questions, numbered |
 
 Reference dumps of the physical RTX 2070 live in `caraxes/reference/rtx2070/`
@@ -811,3 +812,19 @@ the VM; then display, expected to be much easier than in v1.
   device's pid (two Xid 31 of another VM's device during the 615 before run). What the guest
   watchdog needs before `RmRcWatchdog=0` can go: 2D-class NOTIFY in the software executor, the
   BAR1 USERD path (Q7).
+- 2026-09-25: **Trap census and optimisation backlog** ([optimization-backlog.md](optimization-backlog.md),
+  records `caraxes/runs/trap-census-2026-09-25/`). Every CUDA operation alone on vm3 (main
+  1ea2529, 610 guest, 1 GiB slot 5) with the device trace and marker writes, in four
+  configurations plus native. With the interrupt page, BAR1 pool (32 MiB) and token pool, a
+  launch, a copy, an event and a synchronise trap 0 times net, and PPO submits 28000 times per second
+  without a trap. What traps is the context lifetime (75k and 21.5k BAR2-dominated traps for
+  cuCtxCreate and cuCtxDestroy), the host registrations (807-1049 per 1 MiB), and one MSI re-arm per
+  interrupt (140-160/s). `CARAXES_BAR2_MEMFD=1` together with the BAR1 pool hangs the first
+  cuCtxCreate, also with `_SYNC_DOORBELL=1`: the shadow's first walk finds 15617 of 16128 leaves.
+  Without the pool the memfd takes cuInit 177 to 20 ms, cuCtxCreate 4.1 s to 0.87 s and cuCtxDestroy
+  1.24 s to 0.18 s, and 1 MiB host registration from 39 to 1.7 ms. What is left of the context
+  creation is about 6000 host RM map calls in the shadow worker. Stalls without traps: D2D 16 MiB
+  3.85 ms against 0.25, H2D 16 MiB 1.9-5.2 ms against 1.3, GR operations 10-30 ms while another VM
+  holds the engine. Backlog top five: memfd with the pool, the shadow's map work at context
+  creation, the invalidate and flush page as memory with a cheaper sync, the MSI re-arm as an
+  ioeventfd, and progress-gated interrupt forwarding. 0 host Xid.
