@@ -37,3 +37,5 @@ rm-tools.lab-rm-query              ok       rm-tools/lab-rm-query.txt           
 rm-tools.fifo-host-query           ok       rm-tools/fifo-host-query.txt                 exit 0; ABI UNVERIFIED
 rm-tools.host-facts                ok       rm-tools/host-facts.txt                      exit 0; ABI UNVERIFIED
 rm-tools.gsp-abi-sizes             skipped  -                                            needs an open-gpu-kernel-modules tree at 615.71.09 (--ogkm DIR); the vendored one is 610.57.04
+
+Scrubbed 2026-09-24 in the repository: the lab host name and the GPU UUID are replaced by placeholders (lab-host, GPU-0000...); SHA256SUMS regenerated after the scrub. Per-card values never enter the device identity (docs/caraxes/costume-5060.md).
