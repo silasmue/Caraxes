@@ -1,0 +1,20 @@
+# series 2026-09-24T15:06:17+02:00 targets=[native v1 v2] reps=2 metrics=[ppo]
+# caraxes shell-rig-137-gd731d03-dirty leandro-test 3edea73-dirty
+# bin c5b48cf1181bfcfc251f12aa2b0eaeb074887efec4c479f36efe399cb1307a13  bench-cu
+# bin 68449e9ec7b25613a65d096a6a42864c01fbf46ec47e540ce01f47184f0479ea  ctrlping
+# bin 138c5073848b2f3cf2beb4709376c7c49b420d88e836664584e5cf8bbfc7848c  ioctlping
+# bin 1f921680fc7a2c2e0978eb007cc0ab48d2f1a7cf404a196c9063a19a10aa228f  kernels.ptx
+# bin 2735d2a9cd25c0753898188542dbeb4a8433609024aa48230b6803a4a8d96e66  nvprobe
+# bin 012bb008b87ec0a6ee4ef566e0b55f856df09d6a3e07e72fe5cde5a9043dd18a  pporl.py
+# bin f0868123fca8e2c40138fda523e35fa76c015b97e232fc647fea0b6b49f33584  vrampress
+# time 2026-09-24T15:06:17+02:00
+# gpu 49, 300 MHz, 405 MHz, P8, 12 %, 3054 MiB, Disabled
+# procs 2898487:bench-v1-dev 2910543:bench-v1-dev 2944156:-dev 2988425:bench-v1-dev 2988434:bench-v1-vmm 3013278:vm2-dev 3013289:vm1-vmm 
+# loadavg 4.98 3.59 3.15
+15:07:21 native ppo             rep 1: # WALL wall_ms=63529 rc=0  | # MEAS dev_pid=- dev_cpu_ms=0 dev_rss_hwm_kb=-/- vmm_cpu_ms=0 others: bench-v1-dev=0ms bench-v1-dev=0ms bench-v1-vmm=250
+15:08:25 v1  ppo             rep 1: # WALL wall_ms=63373 rc=0  | # MEAS dev_pid=2988425 dev_cpu_ms=390 dev_rss_hwm_kb=525712/564716 vmm_cpu_ms=59480 others: bench-v1-dev=0ms bench-v1-de
+15:09:39 v2  ppo             rep 1: # WALL wall_ms=72495 rc=0  | # MEAS dev_pid=3013278 dev_cpu_ms=74780 dev_rss_hwm_kb=5253300/9443132 vmm_cpu_ms=69600 others: bench-v1-dev=0ms bench-v
+15:10:42 native ppo             rep 2: # WALL wall_ms=63111 rc=0  | # MEAS dev_pid=- dev_cpu_ms=0 dev_rss_hwm_kb=-/- vmm_cpu_ms=0 others: bench-v1-dev=0ms bench-v1-dev=0ms bench-v1-vmm=130
+15:11:46 v1  ppo             rep 2: # WALL wall_ms=63102 rc=0  | # MEAS dev_pid=2988425 dev_cpu_ms=370 dev_rss_hwm_kb=542096/583044 vmm_cpu_ms=61840 others: bench-v1-dev=0ms bench-v1-de
+15:12:54 v2  ppo             rep 2: # WALL wall_ms=67589 rc=0  | # MEAS dev_pid=3013278 dev_cpu_ms=73430 dev_rss_hwm_kb=5254484/9443132 vmm_cpu_ms=69250 others: bench-v1-dev=0ms bench-v
+# end 2026-09-24T15:12:54+02:00

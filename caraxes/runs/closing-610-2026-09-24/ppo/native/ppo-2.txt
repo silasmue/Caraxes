@@ -1,0 +1,31 @@
+# target native metric ppo rep 2
+# cmd /home/silas/git/Leandro/vendor/hostvenv/bin/python ./pporl.py --seconds 60
+# time 2026-09-24T15:09:39+02:00
+# gpu 54, 420 MHz, 405 MHz, P8, 4 %, 3038 MiB, Disabled
+# procs 2898487:bench-v1-dev 2910543:bench-v1-dev 2944156:-dev 2988425:bench-v1-dev 2988434:bench-v1-vmm 3013278:vm2-dev 3013289:vm1-vmm 
+# loadavg 5.41 4.71 3.68
+device: NVIDIA GeForce RTX 2070
+parallel environments: 128
+runtime: 60 seconds
+    5.0s | steps     491520 |     98138 steps/s | episodes   17383 | reward100    39.0
+   10.2s | steps    1081344 |    105498 steps/s | episodes   26034 | reward100    72.0
+   15.4s | steps    1671168 |    108386 steps/s | episodes   30374 | reward100   133.0
+   20.6s | steps    2260992 |    109612 steps/s | episodes   33207 | reward100   266.1
+   25.8s | steps    2850816 |    110602 steps/s | episodes   35190 | reward100   231.8
+   30.9s | steps    3440640 |    111169 steps/s | episodes   37001 | reward100   349.9
+   36.1s | steps    4030464 |    111633 steps/s | episodes   38700 | reward100   265.7
+   41.3s | steps    4620288 |    111914 steps/s | episodes   40331 | reward100   300.1
+   46.5s | steps    5210112 |    112117 steps/s | episodes   41787 | reward100   407.2
+   51.6s | steps    5799936 |    112486 steps/s | episodes   43217 | reward100   408.9
+   56.6s | steps    6356992 |    112245 steps/s | episodes   44626 | reward100   453.6
+
+=== final ===
+runtime:       60.13 s
+steps:         6750208
+episodes:      45672
+steps/s:       112259
+reward100:     400.5
+solve time:    not solved
+# PPO steps_per_s=112259 solve_s=-1 episodes=45672 reward100=400.5 envs=128 rollout=256
+# WALL wall_ms=63111 rc=0
+# MEAS dev_pid=- dev_cpu_ms=0 dev_rss_hwm_kb=-/- vmm_cpu_ms=0 others: bench-v1-dev=0ms bench-v1-dev=0ms bench-v1-vmm=130ms bench-v1-dev=0ms vm1-vmm=4080ms vm2-dev=65370ms -dev=0ms 

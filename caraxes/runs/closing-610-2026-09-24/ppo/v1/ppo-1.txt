@@ -1,0 +1,29 @@
+# target v1 metric ppo rep 1
+# cmd $HOME/gpu/venv/bin/python ./pporl.py --seconds 60
+# device /home/silas/git/Caraxes/target/bench/release/vhost-user-nvrm sha256 736ffc900ef62831
+# time 2026-09-24T15:07:21+02:00
+# gpu 55, 1410 MHz, 7000 MHz, P0, 13 %, 3054 MiB, Disabled
+# procs 2898487:bench-v1-dev 2910543:bench-v1-dev 2944156:-dev 2988425:bench-v1-dev 2988434:bench-v1-vmm 3013278:vm2-dev 3013289:vm1-vmm 
+# loadavg 4.94 3.83 3.26
+device: Leandro RTX 2070
+parallel environments: 128
+runtime: 60 seconds
+   20.2s | steps      32768 |      1620 steps/s | episodes    1456 | reward100    24.0
+   25.5s | steps     557056 |     21887 steps/s | episodes   18664 | reward100    45.9
+   30.5s | steps    1048576 |     34342 steps/s | episodes   25610 | reward100    99.4
+   35.8s | steps    1540096 |     42988 steps/s | episodes   29542 | reward100   155.2
+   41.3s | steps    1835008 |     44472 steps/s | episodes   31244 | reward100   248.9
+   46.5s | steps    2260992 |     48671 steps/s | episodes   33207 | reward100   266.1
+   51.5s | steps    2719744 |     52817 steps/s | episodes   34747 | reward100   288.9
+   56.9s | steps    3112960 |     54718 steps/s | episodes   35949 | reward100   359.0
+
+=== final ===
+runtime:       60.22 s
+steps:         3407872
+episodes:      36869
+steps/s:       56592
+reward100:     254.6
+solve time:    not solved
+# PPO steps_per_s=56592 solve_s=-1 episodes=36869 reward100=254.6 envs=128 rollout=256
+# WALL wall_ms=63373 rc=0
+# MEAS dev_pid=2988425 dev_cpu_ms=390 dev_rss_hwm_kb=525712/564716 vmm_cpu_ms=59480 others: bench-v1-dev=0ms bench-v1-dev=0ms vm1-vmm=47510ms vm2-dev=61070ms -dev=10ms 

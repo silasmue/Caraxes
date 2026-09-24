@@ -749,3 +749,24 @@ page-table writes, the memfd route for BAR2 is the answer), the copies below 16 
 of native (the 1 MiB area covers GPFIFO and USERD only, design H extends it), the d2d 16 MiB
 median is an outlier band worth a look (two reps at native speed, three at 16 GB/s), and
 matmul tracks the allocation and copy costs of each size.
+
+### PPO CartPole right after the closing series (2026-09-24, 15:05-15:13)
+
+The operator's PPO probe (`caraxes/tools/pporl.py`, metric `ppo`: 128 vectorized CartPole
+environments on the CPU, the actor-critic and the PPO update on the GPU, one small pageable
+host-to-device copy of the observations and one synchronous device-to-host copy of the
+actions per environment step, 4 epochs over 32768 samples per rollout), 60 s per run, 2 reps,
+same targets and configuration as the closing series. `caraxes/runs/closing-610-2026-09-24/ppo/`.
+
+| Value | native | v1 | v2 closing | v1 / native | v2 / native |
+|---|---|---|---|---|---|
+| environment steps per second | 107663, 112259 | 56592, 95928 | 61082, 72977 | 0.69 | 0.61 |
+| per environment step (128 envs), ms | 1.16 | 1.68 | 1.91 | | |
+| reward100 after 60 s (learning, not a time) | 212, 400 | 255, 397 | 348, 417 | | |
+| solved (mean100 at least 475) within 60 s | no | no | no | | |
+
+Reading: PPO's step is about ten small launches plus two small copies, and the copies are
+pageable, so they do not go through the 1 MiB area; v2 pays about 0.75 ms per environment
+step over native, of which the two copies are the larger part (the closing series has pageable
+1 MiB copies at 0.62 of native and small ones worse). v1 sits at 0.69 with a wide spread. The
+full-length run (420 s, the solve time) is part of the workload gate.
