@@ -1,8 +1,9 @@
 # SPDX-License-Identifier: MIT
 #
-# DRAFT from the lab capture caraxes/reference/gb206/rm-tools/fifo-host-query.txt
-# (RTX 5060 Ti, driver 615.71.09; docs/caraxes/blackwell-gb206.md). Same format as
-# chips/tu106/device-info.toml; not loaded by any code.
+# The GB206 FIFO device-info table, from the lab capture
+# caraxes/reference/gb206/rm-tools/fifo-host-query.txt (RTX 5060 Ti, driver 615.71.09;
+# docs/caraxes/blackwell-gb206.md). Same format as chips/tu106/device-info.toml; loaded
+# by src/chip/gb206.rs.
 #
 # Host columns (from the capture): the engine list (GET_ENGINES_V2, :4), the MMU fault
 # ids (GET_ENGINE_FAULT_INFO, :5-14), the runqueue partner of GR0 (COPY0 in rq0,
@@ -15,7 +16,7 @@
 # so the real table was not seen. A second capture with a 615 build of the tool would
 # give runlists and PBDMAs directly.
 #
-# Names not in src/ver/v610.rs yet: RM engine types COPY7 (0x10), NVJPEG0 (0x36),
+# Names added to src/ver/v610.rs for this table: RM engine types COPY7 (0x10), NVJPEG0 (0x36),
 # OFA0 (0x3E) (src/nvidia/inc/kernel/gpu/gpu_engine_type.h); MC indices CE7 (22),
 # NVJPEG0 (= MC_ENGINE_IDX_NVJPG), OFA0 (81) (src/nvidia/inc/kernel/gpu/intr/engine_idx.h:61,92-93,125);
 # ENG_DESC classes OBJNVJPG 0x2B3A54 and OBJOFA 0xDD7BAB (generated/g_eng_desc_nvoc.h:825,865).
