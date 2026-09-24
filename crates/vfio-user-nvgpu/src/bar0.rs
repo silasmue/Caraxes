@@ -349,7 +349,7 @@ mod tests {
         for reg in [
             0x70000u64, 0x70004, 0x70008, 0x7000C, 0x70010, 0xB80F00, 0xB80F04,
         ] {
-            bar0.read(&cfg, reg, &mut b);
+            bar0.read(&cfg, &mem, reg, &mut b);
             assert_eq!(u32::from_le_bytes(b), 0, "{reg:#x} before any operation");
             // PENDING_BUSY, as kmemsysCacheOp_GM200 writes it.
             assert_eq!(
@@ -357,11 +357,11 @@ mod tests {
                 WriteEffect::Model,
                 "{reg:#x}"
             );
-            bar0.read(&cfg, reg, &mut b);
+            bar0.read(&cfg, &mem, reg, &mut b);
             assert_eq!(u32::from_le_bytes(b) & 0b11, 0, "{reg:#x} still busy");
             // Bits outside PENDING/OUTSTANDING keep what was written.
             bar0.write(&mut cfg, &mem, reg, &0x7u32.to_le_bytes());
-            bar0.read(&cfg, reg, &mut b);
+            bar0.read(&cfg, &mem, reg, &mut b);
             assert_eq!(u32::from_le_bytes(b), 0x4, "{reg:#x}");
         }
         assert_eq!(bar0.name(0x70010), Some("NV_UFLUSH_L2_FLUSH_DIRTY"));
@@ -378,7 +378,7 @@ mod tests {
             bar0.write(&mut cfg, &mem, 0x70014, &1u32.to_le_bytes()),
             WriteEffect::Latched
         );
-        bar0.read(&cfg, 0x70014, &mut b);
+        bar0.read(&cfg, &mem, 0x70014, &mut b);
         assert_eq!(u32::from_le_bytes(b), 1);
     }
 }
