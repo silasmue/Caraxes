@@ -44,6 +44,11 @@
 # call; CARAXES_BAR_TLB=0 walks the BAR tables at every trapped access; CARAXES_CE_SHADOW=0
 # runs copy-engine channels on the guest's own (unfiltered) tables; CARAXES_LINEAR_IOVA=0 keeps
 # the independent 1 GiB chunks instead of IOVA = GPA + one offset.
+# Guest driver ABI (docs/caraxes/gsp-transport-615.md): CARAXES_GUEST_ABI=610 (the default
+# build) or 615 (message queue v2 and GMCAPI init: the binary of `cargo build --release -p
+# vfio-user-nvgpu --features v615 --target-dir target/v615`, the default SERVER then) is
+# passed to the device as --guest-abi, which refuses a binary built for another ABI (fail
+# closed); 595 is the pre-610 element experiment of docs/caraxes/guest-driver-versions.md.
 # State lives under $CARAXES_STORE/$VM (default /mnt/vmstore/caraxes/vm0, falling
 # back to target/caraxes/$VM when the store is absent): rootfs.qcow2 (overlay on
 # LEA_BASE_IMAGE), seed.img (cloud-init), gpu.sock, gpu-trace.log, serial.log.
@@ -70,6 +75,9 @@ KERNEL=${CARAXES_KERNEL:-$LEA_VM_DIR/guest-image/vmlinuz}
 INITRD=${CARAXES_INITRD:-$LEA_VM_DIR/guest-image/initrd}
 SSH_KEY=${CARAXES_SSH_KEY:-$LEA_VM_DIR/id_leandro}
 SERVER=${CARAXES_SERVER:-$LEA_ROOT/target/release/vfio-user-nvgpu}
+if [[ ${CARAXES_GUEST_ABI:-} == 615 && -z ${CARAXES_SERVER:-} ]]; then
+    SERVER=$LEA_ROOT/target/v615/release/vfio-user-nvgpu
+fi
 # The settings the guest-visible identity follows (`up` and `name` pass the same ones).
 IDENTITY=()
 [[ -n ${CARAXES_FB_MIB:-} ]] && IDENTITY+=(--fb-mib "$CARAXES_FB_MIB")
@@ -108,6 +116,7 @@ up() {
         vbios+=(--reserve-slot "$CARAXES_RESERVE_SLOT")
     [[ ${CARAXES_HOST_EXEC:-0} == 1 ]] && vbios+=(--host-exec)
     [[ ${CARAXES_DISPLAY:-0} == 1 ]] && vbios+=(--display)
+    [[ -n ${CARAXES_GUEST_ABI:-} ]] && vbios+=(--guest-abi "$CARAXES_GUEST_ABI")
     local server=$SERVER
     rm -f "$W/dma-ranges"
     case ${CARAXES_DMA:-} in

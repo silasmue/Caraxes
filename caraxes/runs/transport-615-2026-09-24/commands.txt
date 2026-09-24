@@ -1,0 +1,28 @@
+# SPDX-License-Identifier: MIT
+# The 615 transport runs of 2026-09-24 (docs/caraxes/experiments.md, "615 transport";
+# docs/caraxes/gsp-transport-615.md). vm3, pure emulation: no reservation, no host
+# execution, the host RM opened only for the forwarded controls.
+
+# The v615 device (guest ABI 615; the default build stays 610):
+cargo build --release -p vfio-user-nvgpu --features v615 --target-dir target/v615
+
+# boot/: the 615.71.09 overlay vm3/g615 loads nvidia at boot, so the first boot is the probe.
+VM=vm3/g615 CARAXES_TAP=caraxes3 CARAXES_IP=192.168.103.23 CARAXES_MAC=02:00:00:00:00:23 \
+  CARAXES_HOST_RM=1 CARAXES_BOOT_MODEL=1 CARAXES_GUEST_ABI=615 tools/caraxes-vm.sh up
+VM=vm3/g615 CARAXES_IP=192.168.103.23 tools/caraxes-vm.sh wait
+VM=vm3/g615 CARAXES_IP=192.168.103.23 tools/caraxes-vm.sh ssh 'nvidia-smi; nvidia-smi -q'
+# boot/guest.txt: the guest's NVRM lines (VM and ioctl debug lines dropped) and nvidia-smi -q;
+# boot/device-events.txt: the device trace's E lines; boot/gpu.log: the device log.
+
+# reload-a/ (device before MAILBOX0 bit 31 on GSP_SUSPEND) and reload-b/ (after):
+VM=vm3/g615 CARAXES_IP=192.168.103.23 tools/caraxes-vm.sh ssh \
+  'sudo systemctl stop nvidia-persistenced; sudo rmmod nvidia_modeset'
+VM=vm3/g615 CARAXES_TAP=caraxes3 CARAXES_IP=192.168.103.23 CARAXES_MAC=02:00:00:00:00:23 \
+  CARAXES_GUEST_ABI=615 tools/caraxes-vm.sh probe t615-reload      # reload-a
+VM=vm3/g615 CARAXES_TAP=caraxes3 CARAXES_IP=192.168.103.23 CARAXES_MAC=02:00:00:00:00:23 \
+  CARAXES_GUEST_ABI=615 tools/caraxes-vm.sh probe t615-reload-b    # reload-b
+# reload-*/guest-dmesg.txt: the probe's guest log without VM and ioctl debug lines;
+# reload-*/device-events.txt: the probe window's E lines without set_irqs;
+# reload-b/nvidia-smi.txt: nvidia-smi and nvidia-smi -q after the reload.
+
+VM=vm3/g615 CARAXES_IP=192.168.103.23 tools/caraxes-vm.sh down
