@@ -1,0 +1,8 @@
+# SPDX-License-Identifier: MIT
+== 1. missing base
+ERROR: games base <scratch>/none.qcow2 missing
+rc=1
+== 2. writer lock held by another VM (live pid)
+ERROR: vm-other (pid 312904) is writing the games base <scratch>/base.qcow2 (/mnt/vmstore/caraxes/locks/games-489e58d8ae8499bc.writer); an overlay now would read a moving base
+rc=1
+no vm4 device started

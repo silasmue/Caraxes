@@ -1,0 +1,17 @@
+== sessions
+46 1000 leandro - - active no -
+== processes
+   2150     173 gdm3
+== session type
+Name=leandro
+Type=tty
+Class=user
+State=active
+== kms
+usage: kmsgrab pixel [WxH] | sample X Y ... | info (No such file or directory)
+== gnome-shell / mutter log (errors, KMS, flips, gamma)
+== counts
+page_flip_failed=0
+== dmesg
+[  253.804772] [drm] [nvidia-drm] [GPU ID 0x00000006] Loading driver
+[  254.020641] [drm:nv_drm_dev_load [nvidia_drm]] *ERROR* [nvidia-drm] [GPU ID 0x00000006] Failed to allocate NvKmsKapiDevice

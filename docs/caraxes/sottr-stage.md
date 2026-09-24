@@ -1,0 +1,226 @@
+<!-- SPDX-License-Identifier: MIT -->
+# The SotTR stage: Shadow of the Tomb Raider in a Caraxes VM
+
+Written 2026-09-24. This is roadmap item 2 ([roadmap.md](roadmap.md)): the game workload is the
+benchmark that decides. The stage gives the operator a VM with 3 GiB in which to start, play
+and measure Shadow of the Tomb Raider, streamed to Moonlight on this host. The GPU run is the
+operator's. What ran here is the plumbing test in pure emulation (section 6).
+
+Scripts and evidence: [caraxes/runs/sottr-2026-09-24/](../../caraxes/runs/sottr-2026-09-24/)
+(its `README.md` is the operator's page).
+
+## 1. What was prepared
+
+| Piece | Where | What it does |
+|---|---|---|
+| Games disk in the launcher | `tools/caraxes-vm.sh:67-77` (header), `:152-156`, `:196`, `:201-204`, `:242-304` (`games_lock_file`, `games_users`, `games_prepare`), `:371-377` (`down`) | `CARAXES_GAMES_DISK=<base.qcow2>` attaches a thin overlay `$W/games.qcow2` as a third `--disk` (vdc). The overlay is made once and kept across up/down. `CARAXES_GAMES_DISK_RW=1` attaches the base for writing, but only when no running Cloud Hypervisor has it or an overlay on it and no other VM holds the writer lock |
+| Stage environment | `caraxes/runs/sottr-2026-09-24/env.sh` | vm4 with the settings of section 5 |
+| Start | `up.sh` | overlay and seed on the first start, the guest preparation, driver, display, GNOME, Sunshine; host watch, 1 Hz sampler, NAT |
+| Stream | `stream.sh` | Sunshine up if needed, pairing only when needed, and a Moonlight window on the operator's desktop |
+| Stop | `down.sh` | Moonlight quit, then only the recorded pid is ended; logs collected, VM down, NAT removed |
+| Guest preparation | `guest/sottr-prepare.sh` | one-time steps, each with a marker in `/var/lib/caraxes-sottr` |
+| Guest session | `guest/sottr-session.sh` | GNOME, Sunshine start/stop, status |
+| Host sampler | `host-sampler.sh` | v1's sottr-4q columns at 1 Hz for one VM |
+
+### The writer lock
+
+The directory of the v1 base, `/mnt/vmstore/leandro/vm`, is read-only for Caraxes, so the lock
+cannot sit next to the base. It lives in the Caraxes store:
+`/mnt/vmstore/caraxes/locks/games-<hash>.writer`. The hash is the first 16 hex digits of the
+sha256 of the base's real path. The file holds `<vm> <pid> <disk>`. `up` writes it with
+noclobber and rewrites it with the Cloud Hypervisor pid (`tools/caraxes-vm.sh:201-204`). `down`
+removes the VM's own lock. A lock whose pid is gone is stale and is removed at the next `up`.
+
+The lock alone does not cover v1: v1's `--games-init` writes the base without it. The launcher
+therefore also reads the disks of every running Cloud Hypervisor (`/proc/<pid>/cmdline`, then
+`qemu-img info -U --backing-chain`). A writer start is refused if any running VM has the base
+or an overlay on it. An overlay start is refused while any running VM has the base itself as a
+disk. This is the rule of v1's `lea_games_writer_other_than`
+(`../Leandro-Test/scripts/lib/rig.sh:837-857`) plus the lock. One caveat remains, as in v1: an
+overlay made before the base was last written reads garbage afterwards. The writer path prints
+a note when the VM has an old overlay (delete it).
+
+## 2. The library on the v1 disk
+
+`/mnt/vmstore/leandro/vm/games.qcow2` (read with `guestfish --ro`): ext4, label `LEAGAMES`,
+200 GiB virtual. The top level holds `SteamLibrary/`, a second Steam library folder that the
+operator added in v1 (`libraryfolder.vdf` with its own `contentid`), and `lost+found`. Under
+`SteamLibrary/steamapps/`:
+
+- appmanifests of 7 apps: Shadow of the Tomb Raider (750920, 37.96 GB, `StateFlags 4`, fully
+  installed), 3DMark Demo (231350), Proton Experimental, Proton Hotfix and the Steam Linux
+  Runtimes 4, sniper and soldier;
+- `common/Shadow of the Tomb Raider/`: `ShadowOfTheTombRaider.sh`, `bin/ShadowOfTheTombRaider`
+  (ELF 64-bit), `lib/`, `share/`, Feral's `CheckVulkanDriver` and crash reporter. **This is the
+  native Feral Linux port (Vulkan), not the Windows build under Proton.** Properties >
+  Compatibility must stay off. `compatdata/750920` also exists, left over from a Proton attempt
+  in v1. The native game does not use it;
+- the game binary resolves all its libraries in the guest except `libopenal.so.1`. Steam's own
+  runtime supplies that library when Steam starts the game (plumbing `c2-steam-runtime.txt`).
+
+## 3. The guest side
+
+### 3.1 Image and one-time preparation
+
+vm4 is an overlay on the 610.57.04 base image
+(`guest-baked-20260801-610.57.04-20260820-105733.qcow2`). The 615.71.09 image is not usable
+here: it lacks the 615 GL, EGL and Vulkan userspace (guest-driver-versions.md section 8).
+The base has no NVIDIA kernel modules and no GSP firmware (quickstart.md section 2).
+`sottr-prepare.sh` therefore repeats what vm0 carries. vm0's overlay was read with
+`guestfish --ro`:
+
+- `modules`: the four-module build of `ogkm-610.57.04.tar.zst` (sha256 4e0f09ed...) against
+  6.8.0-136, `modules_install`, `depmod`, as for vm0 (experiments.md "D0", display phases C/D).
+  This takes about 10 minutes once;
+- `firmware`: `gsp_tu10x.bin` 610.57.04 (sha256 d157e3b7...). The host now has only 615.71.09,
+  so `up.sh` copies the firmware out of vm3's 610 overlay with `guestfish --ro` into
+  `$W/gsp_tu10x-610.57.04.bin` and checks its sha256;
+- `modprobe`: vm0's `/etc/modprobe.d/caraxes.conf` and `caraxes-display.conf`, verbatim;
+- `display`: `gdm-wayland-setup.sh` and `nvidia-egl-setup.sh on` (display-e.md section 2), plus
+  `multi-user.target` as the default target, as on vm0 (the base boots to `graphical.target`,
+  and gdm3 is started by hand after the display modules are loaded); `kmsgrab` built;
+- `sunshine`: vm0's uinput udev rule and the user in `input`. The Sunshine package already
+  carries `cap_sys_admin,cap_sys_nice=p` (plumbing `prepare.txt`), so Sunshine runs as the
+  desktop user with KMS capture inside the session, audio included;
+- `games`: the v1 mount (`../Leandro-Test/scripts/lib/provision.sh:656-742`):
+  `LABEL=LEAGAMES /games ext4 defaults,nofail,x-systemd.device-timeout=10 0 2` in fstab,
+  mounted at boot by systemd's fstab generator. Unlike v1 there are no `steamapps -> /games`
+  symlinks: the library is `/games/SteamLibrary`, a folder of its own;
+- `steam`: see 3.2.
+
+### 3.2 Steam
+
+The Ubuntu launcher `/usr/games/steam` (steam-installer 1.0.0.79) uses
+`~/.steam/debian-installation` as the root of a new installation. At the first start it asks
+through zenity (the default button is Cancel), downloads `steam_1.0.0.79.tar.gz` from
+repo.steampowered.com, unpacks the bootstrap, and then the client updates itself. Every step
+after the dialog needs the internet, hence the NAT of `up.sh`. Tap networks have none by default
+(caraxes/runs/guest-driver-2026-09-24/commands.txt line 23).
+
+Steam adopts an existing library folder when that folder is listed in `libraryfolders.vdf` in
+its root. `sottr-prepare.sh` writes `steamapps/libraryfolders.vdf` and `config/libraryfolders.vdf`
+under `~/.steam/debian-installation`. Entry 0 is the root. Entry 1 is `/games/SteamLibrary`
+with the `contentid` from the disk's `libraryfolder.vdf` and the app sizes of its manifests.
+It also makes the launcher's control links `~/.steam/steam` and `~/.steam/root`, and adds
+`~/.config/autostart/steam.desktop`, so that the streamed desktop opens with Steam. v1 started
+Steam over ssh with the session's environment (provision.sh:1913-1931); autostart puts Steam
+in the session without that. The operator's login stays the operator's: no account data is
+prepared. If Steam still lists the game as not installed, the fallback is Settings > Storage >
+Add Drive > `/games/SteamLibrary`.
+
+Steam's pressure-vessel needs unprivileged user namespaces, so v1's
+`kernel.apparmor_restrict_unprivileged_userns = 0` is set (provision.sh:1839-1848). The
+library's sniper runtime ran a command inside its container in vm4 ("Steam Runtime 3 (sniper)",
+plumbing `c2-steam-runtime.txt`).
+
+## 4. The operator's steps
+
+The commands are in the run folder's README. In short:
+
+```
+caraxes/runs/sottr-2026-09-24/up.sh       # refuses while vm0, vm2 or vm2-615 runs
+caraxes/runs/sottr-2026-09-24/stream.sh   # pairs if needed, opens the Moonlight window
+caraxes/runs/sottr-2026-09-24/down.sh
+```
+
+In the stream, click Install in the Steam installer, log in, check that the game shows as
+installed, start it (native, no Proton), and run the in-game benchmark (Graphics > Run
+Benchmark) at 1280x720 and at 1920x1080 with the same preset. Note the result screen.
+
+Pairing (`stream.sh`, from `../Leandro-Test/scripts/bench.sh:1031-1042` with the retries of
+`caraxes/runs/display-f-2026-09-24/stream.sh`): `moonlight list <ip>` succeeds when the host is
+already paired, and then nothing happens. Otherwise `moonlight pair <ip> --pin 4321` runs in
+the background, and the PIN is posted to `https://<ip>:47990/api/pin` with the web login
+`lea`/`leastream` (v1's `config.sh:204-206`) until Sunshine answers `"status":true`. The window
+is `moonlight stream <ip> Desktop --display-mode windowed` at 1920x1080, 60 fps, 20 Mbit/s,
+detached with `setsid nohup`, in the operator's Wayland session (`WAYLAND_DISPLAY=wayland-1`,
+`DISPLAY=:0`). Its pid is kept in `$W/moonlight.pid`. `down.sh` runs `moonlight quit <ip>`
+first, which makes the client print its session summary, and then ends only that pid.
+
+## 5. Settings
+
+| Setting | Value | Source |
+|---|---|---|
+| VM, tap, IP, MAC | vm4, `caraxes3` (host 192.168.103.1), 192.168.103.24, 02:00:00:00:00:24 | `caraxes3` is vm3's tap (p20.sh:30); no running VM used it. caraxes0 is vm0, caraxes1 vm1, caraxes2 vm2, caraxes5 the v1 bench VM. `up.sh` refuses a tap in use, so vm3 must be down |
+| Memory, vCPUs | 8 GiB, 8 | SotTR's minimum is 8 GB. v1's sottr-4q VMs had 8 GiB |
+| Profile, slot | 3072 MiB (`Leandro VFIO RTX 2070-3G`), `CARAXES_RESERVE_SLOT=0` = the top 3 GiB | README D11 and P20. vm0 (2 GiB) and vm2 (2 GiB) overlap it and must be down. vm1 (1 GiB, slot 4 = top-5G..top-4G) does not |
+| Host execution | `CARAXES_HOST_RM=1 CARAXES_HOST_EXEC=1 CARAXES_MIRROR_CHANNELS=1 CARAXES_MIRROR_GR_SHADOW=1 CARAXES_MIRROR_BARE_CE=1 CARAXES_RESERVE_VRAM=1 CARAXES_DMA=register CARAXES_BOOT_MODEL=1` | intr-page-2026-09-24/env.sh |
+| Display | `CARAXES_DISPLAY=1 CARAXES_INTR_PAGE=1 CARAXES_DISPLAY_PAGE=1` | configuration C of display-page-2026-09-24 (display gate 11/11) |
+| Doorbell | `CARAXES_DOORBELL_TOKENS=64 CARAXES_DOORBELL_POLL=hybrid CARAXES_DOORBELL_POLL_IDLE_US=200` | the same. The interrupt page needs the polling reactor (the device refuses otherwise, even in emulation) |
+| BAR1 pool | off | not in the display series. bar1-pool.md: never run on a VM with the display |
+| Device binary | `/mnt/vmstore/caraxes/vfio-user-nvgpu-main-3cb33af` (sha256 44a261bb...) | main 3cb33af: display page, interrupt page, the FB_FLUSH_GPU_CACHE fix for the 615 host, GSP E+A, LCE shim. The display series' frozen fepage binary predates the flush fix |
+| Cloud Hypervisor | `/mnt/vmstore/caraxes/vm1/ch-0006-v.sh` (v53 + 0001-0006) | the token pool needs 0006 |
+| Guest driver | 610.57.04 (the device's emulated ABI) | DRIVER_VERSION |
+| Games disk | `CARAXES_GAMES_DISK=/mnt/vmstore/leandro/vm/games.qcow2` as overlay `/mnt/vmstore/caraxes/vm4/games.qcow2` | section 1 |
+| Sunshine | `capture = kms`, `encoder = software` (libx264), web login `lea`/`leastream`, PIN 4321, app `Desktop` | display-e.md section 7. NVENC needs roadmap item 3 |
+| Host watch | `bench-hostwatch.sh` every 5 s, `KILL=$W/gpu.pid SLOW=3` | a game must not slow the host desktop (the P20 lesson) |
+| NAT | MASQUERADE 192.168.103.0/24 out of the uplink, FORWARD accept -s/-d, removed by `down.sh` | v1's `rig.sh net up` (rig.sh:355-392). `SOTTR_NAT=0` keeps the guest offline |
+
+## 6. The plumbing test (pure emulation, 2026-09-24 18:32 to 18:55)
+
+`SOTTR_EMULATION=1 CARAXES_MEM=6G` (6 GiB because vm0 and vm1 were running on the host), the
+launcher of this branch. There was no host RM, no reservation and no NAT. Evidence is in
+`caraxes/runs/sottr-2026-09-24/plumbing/`.
+
+| Check | Result |
+|---|---|
+| Overlay, seed, games overlay | made; `games disk: new overlay /mnt/vmstore/caraxes/vm4/games.qcow2` (21.8 MiB after the test) |
+| Boot, cloud-init | ssh up at 192.168.103.24, hostname `caraxes-vm4` |
+| Preparation | all seven steps; five modules installed; firmware sha256 d157e3b7...; about 10 minutes in total |
+| Driver | `RmInitAdapter succeeded!`, `modprobe rc=0`; the interrupt page, the display page and the token pool announced by the device |
+| Games disk | `/dev/vdc` at `/games` (196G, 137G free), from fstab at the second boot; `Shadow of the Tomb Raider` in `common/` |
+| Steam | launcher waiting at its installer dialog under Xvfb (offline, no download possible); `libraryfolders.vdf` with the 7 apps; sniper runtime container runs |
+| Display, GNOME | **not in pure emulation**: nvidia-drm refuses with `Failed to allocate NvKmsKapiDevice`, so there is no card0, no KMS and no GNOME. The display needs the host RM, as in display phases C to E |
+| Sunshine (stage config) | refuses correctly without gnome-shell |
+| Pairing and Moonlight (`stream.sh`) | against a stand-in Sunshine (`capture = x11` on Xvfb, the same login and state directory): paired through the API at the first attempt; the Moonlight window opened on this desktop; 57.07 FPS incoming and decoded, host latency avg 18.7 ms, 0 % network drops |
+| `down.sh` | `moonlight quit` printed the summary; the recorded pid was ended with SIGTERM (it did not exit within 10 s); VM stopped; 0 host Xid lines |
+| Second boot with the main 3cb33af binary | `binary-check.txt`: the same flags accepted, `RmInitAdapter succeeded!`, `/games` mounted, default target `multi-user.target` |
+| Launcher refusals | `games-refusals.txt`: a missing base is refused. An overlay start while another VM holds the writer lock is refused. No device was started |
+
+vm4's overlay is left prepared, so the operator's first start skips the build. The host's
+Moonlight is paired with vm4's Sunshine (its state is in the guest's `~/.config/sunshine`). The
+display series' EGL mode is set per start by `up.sh` (`on` on the GPU).
+
+Deviation during the test: one check command reached vm0 instead of vm4 (the environment was not
+sourced): `systemctl get-default` and `sudo systemctl set-default multi-user.target`. vm0 was
+already at `multi-user.target`, so nothing changed there.
+
+## 7. What is measured, and the comparison with v1
+
+Per session (`session-<time>/`, table in the run folder's README): host watch (host nvidia-smi
+latency, host kernel log volume, Xid), a 1 Hz host CSV with v1's columns
+(`../Leandro/docs/measurements/sottr-4q/sample.sh`: card memory used and free, utilisation,
+clocks, temperature, power, encoder and decoder use, host RAM, plus the device process's VRAM
+and the CPU seconds of the device and Cloud Hypervisor), the device's summary lines, Sunshine's
+log, the guest's kernel log and journal, host Xid lines. The operator records the game's
+benchmark screen and Moonlight's session summary.
+
+v1's reference (`../Leandro/docs/measurements/sottr-4q/README.md`) is **two** `RTX2070-4Q`
+guests of 3072 MiB running the benchmark at the same time. Both completed at 720p. At 1080p the
+second scene failed to load: card peak 7771 MiB, 1 MiB free, per-guest charge up to 3184 MiB
+(110 MiB over the profile), host RAM exhausted with two 8 GiB VMs. The first Caraxes run is
+**one** guest, so the comparison is:
+
+- the per-guest numbers: VRAM held against the 3072 MiB profile (on Caraxes the reservation is
+  fixed at the profile size, and a guest cannot exceed it: the device's FB is the reservation),
+  encoder use, stream frame rate and host latency (v1: NVENC on the host driver, Caraxes: x264
+  in the guest until roadmap item 3);
+- whether the 1080p scene loads, with the reservation in place of v1's charge accounting;
+- the benchmark's own FPS at 720p and 1080p. v1's README gives no FPS, so the first Caraxes
+  numbers are the reference for the second guest.
+
+The concurrent run (two game VMs as in sottr-4q) needs two 3 GiB slots (slots 0 and 1 of a
+3 GiB profile, the top 6 GiB). With the 1 GiB desktop floor that leaves nothing for vm1, so
+all other VMs must be down. It is the next step after the single run.
+
+## 8. Open points
+
+- The stream uses libx264 on the guest's vCPUs (display-e.md section 7 measured 26 FPS with
+  2.09 cores for the desktop). A game at 1080p60 competes with x264 for the 8 vCPUs, so the
+  measured game FPS includes that. NVENC (roadmap item 3) removes it.
+- The Steam client (its UI, the 32-bit parts) runs on GNOME's Xwayland. Whether its UI renders
+  on the NVIDIA GLX or falls back to software rendering is not known yet.
+- Audio through Sunshine: Sunshine runs in the user's session, but the guest has no sound card;
+  Sunshine's own virtual sink is what Moonlight plays.
+- The Xid 31 at one GNOME start (display-e.md section 9) may show up here too; `down.sh` records
+  host Xid lines.

@@ -1,0 +1,22 @@
+# SPDX-License-Identifier: MIT
+# 2026-09-24T18:48:27+02:00 guest script: c2-steam-runtime.sh
+Removed "/etc/systemd/system/default.target".
+Created symlink /etc/systemd/system/default.target → /usr/lib/systemd/system/multi-user.target.
+== the game binary: resolved libraries, and those left to the Steam runtime
+49
+	libopenal.so.1 => not found
+== the sniper runtime of the library
+#Name	Version		Runtime	Runtime_Version	Comment
+depot	3.0.20260805.254768			# Overall version number
+pressure-vessel	0.20260805.0			
+PRETTY_NAME="Steam Runtime 3 (sniper)"
+NAME="Steam Runtime"
+inside-container-ok
+== the Steam launcher, offline, under Xvfb for 20 s
+launcher rc=124 (124: still waiting at the timeout)
+Warning: --icon-name is deprecated and will be removed in a future version of zenity; Treating as --icon.
+libEGL warning: DRI3 error: Could not get DRI3 device
+libEGL warning: Ensure your X server supports DRI3 to get accelerated rendering
+config
+steamapps
+rc=0

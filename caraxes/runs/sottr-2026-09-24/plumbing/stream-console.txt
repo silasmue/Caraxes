@@ -1,0 +1,4 @@
+sunshine listens on 192.168.103.24:47989
+moonlight: pairing with 192.168.103.24 (PIN 4321 through Sunshine's API)
+moonlight: paired
+moonlight pid 290611, log /home/silas/git/Caraxes/.claude/worktrees/agent-afc40e05cffbb43bc/caraxes/runs/sottr-2026-09-24/plumbing/moonlight.log; close the window or run down.sh to end the stream

@@ -1,0 +1,13 @@
+# SPDX-License-Identifier: MIT
+# 2026-09-24T18:49:06+02:00 guest script: c3-sunshine-x11.sh
+no gnome-shell: run the gnome step first
+stage sunshine-start rc=1 (expected 1: no gnome-shell)
+stand-in sunshine pid 25241
+[2026-09-24 16:49:10.098]: Info: Found H.264 encoder: libx264 [software]
+[2026-09-24 16:49:09.972]: Info: config: 'capture' = x11
+[2026-09-24 16:49:09.973]: Info: Detected display: screen (id: 0)screen connected: true
+[2026-09-24 16:49:10.001]: Info: Screencasting with X11
+[2026-09-24 16:49:10.098]: Info: Screencasting with X11
+[2026-09-24 16:49:10.098]: Info: // Testing for available encoders, this may generate errors. You can safely ignore those errors. //
+[2026-09-24 16:49:10.098]: Info: // Ignore any errors mentioned above, they are not relevant. //
+rc=0

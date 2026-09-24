@@ -1,0 +1,11 @@
+cat: '/sys/class/drm/card0-*/status': No such file or directory
+display-up.sh: line 22: /sys/class/drm/card0-*/modes: No such file or directory
+card0-*  
+# CARAXES display-cd phase D: Mesa EGL/GBM with kms_swrast (no GPU execution on vm0)
+__EGL_VENDOR_LIBRARY_FILENAMES=/usr/share/glvnd/egl_vendor.d/50_mesa.json
+MESA_LOADER_DRIVER_OVERRIDE=kms_swrast
+no /usr/lib/x86_64-linux-gnu/gbm/nvidia-drm_gbm.so
+nvidia_uvm           2043904  0
+nvidia_drm            147456  0
+nvidia_modeset       1490944  1 nvidia_drm
+nvidia              16379904  2 nvidia_uvm,nvidia_modeset
