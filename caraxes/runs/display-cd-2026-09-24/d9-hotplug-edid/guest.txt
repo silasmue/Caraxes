@@ -1,0 +1,14 @@
+# SPDX-License-Identifier: MIT
+before: status connected, edid 673ddd0c5f72 0 B, modes: 1920x1080 1920x1080 1920x1080 1280x720 1280x720 640x480 
+after: status connected, edid 5bb810ebabcc 0 B, modes: 1920x1080 1920x1080 1920x1080 1280x720 1280x720 800x600 640x480 
+== udev (kernel, drm)
+KERNEL[185.838220] change   /devices/pci0000:00/0000:00:05.0/drm/card0 (drm)
+== edid-decode (name, established)
+  Vendor & Product Identification:
+    Manufacturer: CRX
+    DMT 0x09:   800x600    60.316541 Hz   4:3     37.879 kHz     40.000000 MHz
+    Display Product Name: 'Caraxes DP2'
+== dmesg
+[  162.166647] [drm] [nvidia-drm] [GPU ID 0x00000005] Loading driver
+[  163.124416] [drm] Initialized nvidia-drm 0.0.0 20160202 for 0000:00:05.0 on minor 0
+exit=0

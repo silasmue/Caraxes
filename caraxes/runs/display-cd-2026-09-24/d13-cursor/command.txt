@@ -1,0 +1,3 @@
+# SPDX-License-Identifier: MIT
+# 2026-09-24T02:16:22+02:00 VM=vm0 guest command (timeout 200s):
+sudo dmesg -C; (sudo timeout -s INT 60 modetest -M nvidia-drm -s 127@61:640x480 -C > /tmp/modetest-cursor.txt 2>&1 < /dev/null &) ; sleep 55; tail -5 /tmp/modetest-cursor.txt; sudo dmesg | grep -v "NVRM: VM:" | grep -E "WARNING|ERROR|timeout" | tail -3; echo done

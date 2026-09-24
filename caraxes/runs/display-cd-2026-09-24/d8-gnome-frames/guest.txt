@@ -1,0 +1,32 @@
+# SPDX-License-Identifier: MIT
+		values: 4294967296 9223372036854775807
+		value: 4294967296
+	46 NV_CRTC_REGAMMA_LUT:
+		value:
+	47 NV_CRTC_REGAMMA_LUT_SIZE:
+		values: 0 4294967295
+		value: 1024
+	25 DEGAMMA_LUT:
+		value:
+	26 DEGAMMA_LUT_SIZE:
+		values: 0 4294967295
+		value: 1024
+		value:
+	28 GAMMA_LUT:
+	29 GAMMA_LUT_SIZE:
+		values: 0 4294967295
+		value: 1024
+		values: 4294967296 9223372036854775807
+		value: 4294967296
+	46 NV_CRTC_REGAMMA_LUT:
+globals: wp_presentation yes
+surface 64x64, damage 8x8 per frame, 20.0 s
+FRAMES callbacks intervals=0
+PRESENTED feedback intervals=0
+presented=0 discarded=0 refresh_ns=0 (0.000 Hz) flags=0x0 (vsync 0 hw_clock 0 hw_completion 0)
+Hint: You are currently not seeing messages from other users and the system.
+      Users in groups 'adm', 'systemd-journal' can see all messages.
+      Pass -q to turn off this notice.
+Journal file /var/log/journal/82d61c142b384b48bf1ff52bdb4fffd4/user-1000@00065c24a254c7d2-f82a1a3ad1340b6f.journal~ is truncated, ignoring file.
+0
+exit=1

@@ -390,7 +390,7 @@ impl ServerBackend for Device {
         match region {
             VFIO_PCI_CONFIG_REGION_INDEX => self.cfg.read(offset as usize, data),
             VFIO_PCI_BAR0_REGION_INDEX => {
-                self.bar0.read(&self.cfg, offset, data);
+                self.bar0.read(&self.cfg, &self.mem, offset, data);
                 note = self.bar0.name(offset);
             }
             VFIO_PCI_ROM_REGION_INDEX => {

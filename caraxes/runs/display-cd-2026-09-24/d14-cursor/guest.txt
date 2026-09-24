@@ -1,0 +1,7 @@
+# SPDX-License-Identifier: MIT
+RESULT flips=10 completed=10 timeouts=0 mode=640x480@60 period_ms=16.683 mean_ms=16.669 rate_hz=59.99 min_ms=16.590 max_ms=16.712 rms_dev_ms=0.042 total_s=0.150
+CURSOR set: ok
+CURSOR moves=60 of 60
+CURSOR off: ok
+done
+exit=0

@@ -1,0 +1,1 @@
+host: wrote 'edid-alt' to /mnt/vmstore/caraxes/vm0/display-ctl at 2026-09-24T01:34:19+02:00

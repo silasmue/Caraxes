@@ -1,0 +1,3 @@
+# SPDX-License-Identifier: MIT
+# 2026-09-24T01:18:30+02:00 VM=vm0 guest command (timeout 300s):
+sudo systemctl stop gdm3; sleep 3; sudo sed -i "s/^\[debug\]/[debug]\nEnable=true/" /etc/gdm3/custom.conf; grep -A2 "^\[debug\]" /etc/gdm3/custom.conf; T=$(date +%s); sudo systemctl start gdm3; sleep 90; sudo journalctl --no-pager --since @$T | grep -iE "wayland|session.*fail|gnome-shell\[|mutter|egl|gbm|kms|x11|xorg" | grep -vE "keysym|Overwriting|Initializing extension|gdm-x-session\[[0-9]+\]: \(II\)" | cut -c1-230 | head -80

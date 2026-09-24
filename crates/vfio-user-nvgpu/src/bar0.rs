@@ -130,7 +130,7 @@ impl Bar0 {
 
     /// The dword at the aligned offset `reg`. One fetch per dword, because
     /// falcon data ports advance on every read.
-    fn dword_at(&mut self, cfg: &ConfigSpace, reg: u64) -> u32 {
+    fn dword_at(&mut self, cfg: &ConfigSpace, mem: &GuestMemory, reg: u64) -> u32 {
         if self.pcfg.contains(&reg) {
             return cfg.dword((reg - self.pcfg.start) as usize);
         }
@@ -152,7 +152,7 @@ impl Bar0 {
             _ => {
                 // The display engine's registers and pages (display/mod.rs) come first:
                 // the fuse there overrides the chip's boot constant.
-                if let Some(v) = self.boot.as_mut().and_then(|b| b.ctrl.display.read32(reg)) {
+                if let Some(v) = self.boot.as_mut().and_then(|b| b.display_read32(reg, mem)) {
                     return v;
                 }
                 if let Some(v) = self.boot.as_mut().and_then(|b| b.read32(reg)) {
@@ -165,12 +165,12 @@ impl Bar0 {
 
     /// Fill `buf` with the bytes at `offset`. Any size and alignment is accepted;
     /// the driver uses 1, 2, 4 and 8-byte accesses.
-    pub fn read(&mut self, cfg: &ConfigSpace, offset: u64, buf: &mut [u8]) {
+    pub fn read(&mut self, cfg: &ConfigSpace, mem: &GuestMemory, offset: u64, buf: &mut [u8]) {
         let mut i = 0usize;
         while i < buf.len() {
             let off = offset + i as u64;
             let reg = off & !3;
-            let v = self.dword_at(cfg, reg).to_le_bytes();
+            let v = self.dword_at(cfg, mem, reg).to_le_bytes();
             let start = (off & 3) as usize;
             let n = (4 - start).min(buf.len() - i);
             buf[i..i + n].copy_from_slice(&v[start..start + n]);
@@ -197,7 +197,7 @@ impl Bar0 {
         if let Some(boot) = self.boot.as_mut() {
             if data.len() == 4 && offset % 4 == 0 {
                 let v = u32::from_le_bytes([data[0], data[1], data[2], data[3]]);
-                if let Some(notes) = boot.ctrl.display.write32(offset, v, mem) {
+                if let Some(notes) = boot.display_write32(offset, v, mem) {
                     self.notes.extend(notes);
                     return WriteEffect::Model;
                 }
@@ -249,20 +249,20 @@ mod tests {
         let (mut bar0, mut cfg) = parts();
         let mem = GuestMemory::new();
         let mut b = [0u8; 4];
-        bar0.read(&cfg, NV_PMC_BOOT_0, &mut b);
+        bar0.read(&cfg, &GuestMemory::new(), NV_PMC_BOOT_0, &mut b);
         assert_eq!(u32::from_le_bytes(b), 0x1660_00A1);
-        bar0.read(&cfg, NV_PMC_BOOT_42, &mut b);
+        bar0.read(&cfg, &GuestMemory::new(), NV_PMC_BOOT_42, &mut b);
         assert_eq!(u32::from_le_bytes(b), 0x166A_1000);
-        bar0.read(&cfg, NV_PMC_BOOT_0 + 2, &mut b[..2]);
+        bar0.read(&cfg, &GuestMemory::new(), NV_PMC_BOOT_0 + 2, &mut b[..2]);
         assert_eq!(u16::from_le_bytes([b[0], b[1]]), 0x1660);
         let mut eight = [0u8; 8];
-        bar0.read(&cfg, NV_PMC_BOOT_0, &mut eight);
+        bar0.read(&cfg, &GuestMemory::new(), NV_PMC_BOOT_0, &mut eight);
         assert_eq!(u64::from_le_bytes(eight), 0x1660_00A1);
-        bar0.read(&cfg, NV_PCFG, &mut b);
+        bar0.read(&cfg, &GuestMemory::new(), NV_PCFG, &mut b);
         assert_eq!(u32::from_le_bytes(b), 0x1F02_10DE);
-        bar0.read(&cfg, NV_PROM_DATA, &mut b);
+        bar0.read(&cfg, &GuestMemory::new(), NV_PROM_DATA, &mut b);
         assert_eq!(b, [0x55, 0xAA, 0x7F, 0xFF]);
-        bar0.read(&cfg, NV_PROM_DATA + 1, &mut b[..2]);
+        bar0.read(&cfg, &GuestMemory::new(), NV_PROM_DATA + 1, &mut b[..2]);
         assert_eq!(&b[..2], &[0xAA, 0x7F]);
         assert_eq!(
             bar0.write(&mut cfg, &mem, NV_PCFG + 0x6A, &[0x01]),
@@ -273,26 +273,26 @@ mod tests {
             bar0.write(&mut cfg, &mem, 0x100C10, &0x228370u32.to_le_bytes()),
             WriteEffect::Latched
         );
-        bar0.read(&cfg, 0x100C10, &mut b);
+        bar0.read(&cfg, &GuestMemory::new(), 0x100C10, &mut b);
         assert_eq!(u32::from_le_bytes(b), 0x228370);
         assert_eq!(
             bar0.write(&mut cfg, &mem, 0x100C11, &[0x11]),
             WriteEffect::Latched
         );
-        bar0.read(&cfg, 0x100C10, &mut b);
+        bar0.read(&cfg, &GuestMemory::new(), 0x100C10, &mut b);
         assert_eq!(u32::from_le_bytes(b), 0x221170);
         assert_eq!(
             bar0.write(&mut cfg, &mem, NV_PMC_BOOT_0, &[0xFF; 4]),
             WriteEffect::Dropped
         );
-        bar0.read(&cfg, NV_PMC_BOOT_0, &mut b);
+        bar0.read(&cfg, &GuestMemory::new(), NV_PMC_BOOT_0, &mut b);
         assert_eq!(u32::from_le_bytes(b), 0x1660_00A1);
         let mut full = Bar0::new(
             bar0.chip(),
             vec![0x55, 0xAA],
             Some(vec![0x55, 0xAA, 0x01, 0x02]),
         );
-        full.read(&cfg, NV_PROM_DATA + 2, &mut b[..2]);
+        full.read(&cfg, &GuestMemory::new(), NV_PROM_DATA + 2, &mut b[..2]);
         assert_eq!(&b[..2], &[0x01, 0x02]);
         assert_eq!(full.rom().len(), 2);
         assert_eq!(bar0.name(0x1478), Some("NV_PBUS_SW_SCRATCH(i)"));
@@ -312,16 +312,16 @@ mod tests {
             f.identity(4 << 30),
         ));
         let mut b = [0u8; 4];
-        bar0.read(&cfg, 0x100CE0, &mut b);
+        bar0.read(&cfg, &GuestMemory::new(), 0x100CE0, &mut b);
         assert_eq!(u32::from_le_bytes(b), 0x4A);
-        bar0.read(&cfg, 0x110100, &mut b);
+        bar0.read(&cfg, &GuestMemory::new(), 0x110100, &mut b);
         assert_eq!(u32::from_le_bytes(b), 0x10);
         assert_eq!(
             bar0.write(&mut cfg, &mem, 0x1103C0, &1u32.to_le_bytes()),
             WriteEffect::Model
         );
         assert_eq!(bar0.take_notes(), vec!["gsp reset 1".to_string()]);
-        bar0.read(&cfg, 0x110100, &mut b);
+        bar0.read(&cfg, &GuestMemory::new(), 0x110100, &mut b);
         assert_eq!(u32::from_le_bytes(b), 0);
         // Registers the model does not own still latch.
         assert_eq!(

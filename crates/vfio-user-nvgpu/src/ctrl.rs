@@ -514,6 +514,9 @@ impl Dispatcher {
         params: &[u8],
     ) -> Answer {
         self.objects.insert((h_client, h_object), h_class);
+        // Hotplug events are kept for the display's POST_EVENT (display/mod.rs).
+        self.display
+            .record_event(h_client, h_object, h_class, params);
         // Display classes (display/mod.rs): recorded with their channel state.
         if let Some(a) = self.display.alloc(h_class, params) {
             return a;

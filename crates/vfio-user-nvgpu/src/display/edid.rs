@@ -119,6 +119,19 @@ pub fn monitor_edid() -> Vec<u8> {
     b
 }
 
+/// The EDID of a second monitor on the same connector (phase D's EDID-change hotplug,
+/// docs/caraxes/display-cd.md): product 3, name "Caraxes DP2", and 800x600 at 60 Hz
+/// added to the established timings, so the new mode list tells the two apart.
+pub fn monitor_edid_alt() -> Vec<u8> {
+    let mut b = monitor_edid();
+    b[10] = 0x03;
+    b[11] = 0x00;
+    b[35] |= 0x01;
+    b[108..126].copy_from_slice(&name_descriptor("Caraxes DP2"));
+    b[127] = checksum_byte(&b[..127]);
+    b
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

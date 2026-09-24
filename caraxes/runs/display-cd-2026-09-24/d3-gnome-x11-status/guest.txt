@@ -1,0 +1,41 @@
+# SPDX-License-Identifier: MIT
+== sessions
+95 1000 leandro seat0 tty2 active no -
+98 1000 leandro -     -    active no -
+== processes
+   7141     259 gdm3
+   7157     259 gdm-session-wor
+   7170     259 gdm-x-session
+   7402     228 gnome-shell
+   7446     227 mutter-x11-fram
+   7450     227 colord
+   7507     223 gnome-shell-cal
+   7579     222 gsd-color
+== session type
+Name=leandro
+Type=x11
+Class=user
+State=active
+Name=leandro
+Type=tty
+Class=user
+State=active
+== kms
+GRAB crtc 61 fb 130 1920x1080 format XR24 modifier 0x0 pitch 7680 handle 1 mode 1920x1080@60
+== gnome-shell / mutter log (errors, KMS, flips, gamma)
+[ 1475.443757] caraxes-vm0 /usr/libexec/gdm-x-session[7211]: Errors from xkbcomp are not fatal to the X server
+[ 1475.461016] caraxes-vm0 /usr/libexec/gdm-x-session[7172]: (**) Option "xkb_model" "pc105"
+[ 1500.381975] caraxes-vm0 /usr/libexec/gdm-x-session[7172]: (II) modeset(0): Disabling kernel dirty updates, not required.
+[ 1503.928679] caraxes-vm0 /usr/libexec/gdm-x-session[7172]: (II) modeset(0): EDID vendor "CRX", prod id 2
+[ 1503.929076] caraxes-vm0 /usr/libexec/gdm-x-session[7172]: (II) modeset(0): Printing DDC gathered Modelines:
+[ 1503.929076] caraxes-vm0 /usr/libexec/gdm-x-session[7172]: (II) modeset(0): Modeline "1920x1080"x0.0  148.50  1920 2008 2052 2200  1080 1084 1089 1125 +hsync +vsync (67.5 kHz eP)
+GRAB crtc 61 fb 130 1920x1080 format XR24 modifier 0x0 pitch 7680 handle 1 mode 1920x1080@60
+SAMPLE 960 540 0xfffafafa
+SAMPLE 100 1070 0xff45132e
+SAMPLE 1900 20 0xff171717
+Type=x11
+cp: warning: behavior of -n is non-portable and may change in future; use --update=none instead
+[User]
+Session=ubuntu-wayland
+Icon=/home/leandro/.face
+exit=0

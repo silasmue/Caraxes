@@ -1,0 +1,65 @@
+# SPDX-License-Identifier: MIT
+# display gate gate-display-2026-09-24-3: compositor.txt
+weston up (pid 3516) after       0 s
+globals: wp_presentation yes
+first frame callback after 25.8 s
+surface 64x64, damage 8x8 per frame, 30.0 s
+FRAMES callbacks intervals=1777 mean_ms=16.808 rate_hz=59.50 min_ms=11.365 max_ms=40.186 sd_ms=1.585
+PRESENTED feedback intervals=1777 mean_ms=16.808 rate_hz=59.49 min_ms=13.483 max_ms=49.997 sd_ms=1.633
+presented=1783 discarded=0 refresh_ns=16666666 (60.000 Hz) flags=0x7 (vsync 1 hw_clock 1 hw_completion 1)
+wlframes exit 0
+---- weston.log (tail)
+Date: 2026-09-24 UTC
+[00:07:32.828] weston 13.0.0
+               https://wayland.freedesktop.org
+               Bug reports to: https://gitlab.freedesktop.org/wayland/weston/issues/
+               Build: 13.0.0
+[00:07:32.829] Command line: weston --backend=drm --renderer=pixman --continue-without-input --shell=kiosk --config=/tmp/weston-pace/weston.ini --socket=wayland-1 --log=/tmp/weston-pace/weston.log --debug
+[00:07:32.829] OS: Linux, 6.8.0-136-generic, #136-Ubuntu SMP PREEMPT_DYNAMIC Wed Jul  1 21:53:05 UTC 2026, x86_64
+[00:07:32.829] Flight recorder: enabled
+[00:07:32.829] Using config file '/tmp/weston-pace/weston.ini'
+[00:07:32.830] Output repaint window is 7 ms maximum.
+[00:07:32.831] Loading module '/usr/lib/x86_64-linux-gnu/libweston-13/drm-backend.so'
+[00:07:32.836] initializing drm backend
+[00:07:32.836] Trying libseat launcher...
+[00:07:32.836] [libseat/libseat.c:62] Seat opened with backend 'noop'
+[00:07:32.836] libseat: session control granted
+[00:07:32.837] using /dev/dri/card0
+[00:07:32.837] DRM: supports atomic modesetting
+[00:07:32.837] DRM: supports GBM modifiers
+[00:07:32.837] DRM: does not support async page flipping
+[00:07:32.837] DRM: supports picture aspect ratio
+[00:07:32.837] Using Pixman renderer
+[00:07:32.847] event0  - Power Button: is tagged by udev as: Keyboard
+[00:07:32.847] event0  - Power Button: device is a keyboard
+[00:07:32.858] libinput: configuring device "Power Button".
+[00:07:32.906] DRM: head 'DP-1' found, connector 127 is connected, EDID make 'CRX', model 'Caraxes DP', serial ''
+               Supported EOTF modes: SDR
+[00:07:32.906] Registered plugin API 'weston_drm_output_api_v1' of size 40
+[00:07:32.906] Registered plugin API 'weston_drm_virtual_output_api_v2' of size 48
+[00:07:32.906] Color manager: no-op
+[00:07:32.907] Output 'DP-1' attempts EOTF mode: SDR
+[00:07:32.907] Output 'DP-1' using color profile: stock sRGB color profile
+[00:07:32.998] DRM: output DP-1 uses shadow framebuffer.
+[00:07:32.998] Output DP-1 (crtc 118) video modes:
+               1920x1080@60.0, preferred, current, 148.5 MHz
+               1920x1080@59.9, 148.3 MHz
+               1920x1080@50.0, 148.5 MHz
+               1280x720@60.0, 74.2 MHz
+               1280x720@59.9, 74.2 MHz
+               640x480@59.9, 25.2 MHz
+[00:07:32.998] associating input device event0 with output DP-1 (none by udev)
+[00:07:32.998] Output 'DP-1' enabled with head(s) DP-1
+[00:07:32.998] Compositor capabilities:
+               arbitrary surface rotation: yes
+               screen capture uses y-flip: no
+               cursor planes: yes
+               arbitrary resolutions: no
+               view mask clipping: yes
+               explicit sync: no
+               color operations: no
+               presentation clock: CLOCK_MONOTONIC, id 1
+               presentation clock resolution: 0.000000001 s
+[00:07:32.999] Loading module '/usr/lib/x86_64-linux-gnu/weston/kiosk-shell.so'
+[00:09:29.156] caught signal 15
+[00:09:29.157] event0  - Power Button: device removed

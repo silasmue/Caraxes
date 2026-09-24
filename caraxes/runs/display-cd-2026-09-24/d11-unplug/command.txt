@@ -1,0 +1,3 @@
+# SPDX-License-Identifier: MIT
+# 2026-09-24T01:44:36+02:00 VM=vm0 guest command (timeout 120s):
+sudo bash ./cx/hotplug-watch.sh 40

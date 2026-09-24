@@ -1,0 +1,3 @@
+# SPDX-License-Identifier: MIT
+# 2026-09-24T00:44:01+02:00 VM=vm0 guest command (timeout 200s):
+sudo bash ./cx/sunshine-kms.sh 640x480 45

@@ -1,0 +1,12 @@
+# SPDX-License-Identifier: MIT
+weston up (pid 1588) after       0 s
+surface 64x64, damage 8x8 per frame, 15.0 s
+FRAMES callbacks intervals=648 mean_ms=16.837 rate_hz=59.39 min_ms=11.714 max_ms=35.170 sd_ms=1.889
+PRESENTED feedback intervals=648 mean_ms=16.836 rate_hz=59.40 min_ms=12.352 max_ms=36.413 sd_ms=1.674
+presented=654 discarded=0 refresh_ns=16683350 (59.940 Hz) flags=0x7 (vsync 1 hw_clock 1 hw_completion 1)
+wlframes exit 0
+               arbitrary surface rotation: yes
+FRAMES callbacks intervals=65 mean_ms=16.943 rate_hz=59.02 min_ms=14.485 max_ms=27.317 sd_ms=1.665
+wlframes exit 0
+dmesg-checked
+exit=0

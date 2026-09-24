@@ -1,0 +1,77 @@
+# SPDX-License-Identifier: MIT
+weston up (pid 1884) after       0 s
+presentation-shm exit 124 (10 lines)
+presentation-shm exiting
+     1: f2c 237855 ms, c2p 4938 ms, f2p 242793 ms, p2p     0 us, t2p 4938163, [sce_], seq 0
+     2: f2c 4907 ms, c2p 933 ms, f2p 5840 ms, p2p 918973 us, t2p 933044, [sce_], seq 0
+     3: f2c 909 ms, c2p 1143 ms, f2p 2052 ms, p2p 1133052 us, t2p 1143087, [sce_], seq 0
+     4: f2c 1126 ms, c2p 958 ms, f2p 2084 ms, p2p 950960 us, t2p 958182, [sce_], seq 0
+     5: f2c 940 ms, c2p 845 ms, f2p 1785 ms, p2p 834381 us, t2p 845439, [sce_], seq 0
+     6: f2c 824 ms, c2p 828 ms, f2p 1652 ms, p2p 817154 us, t2p 827338, [sce_], seq 0
+clean up feedback 8
+...
+     2: f2c 4907 ms, c2p 933 ms, f2p 5840 ms, p2p 918973 us, t2p 933044, [sce_], seq 0
+     3: f2c 909 ms, c2p 1143 ms, f2p 2052 ms, p2p 1133052 us, t2p 1143087, [sce_], seq 0
+     4: f2c 1126 ms, c2p 958 ms, f2p 2084 ms, p2p 950960 us, t2p 958182, [sce_], seq 0
+     5: f2c 940 ms, c2p 845 ms, f2p 1785 ms, p2p 834381 us, t2p 845439, [sce_], seq 0
+     6: f2c 824 ms, c2p 828 ms, f2p 1652 ms, p2p 817154 us, t2p 827338, [sce_], seq 0
+clean up feedback 8
+clean up feedback 7
+clean up feedback 6
+PRESENT frames=1 p2p_mean_ms=817154.000 rate_hz=0.00 min_ms=817154.000 max_ms=817154.000 sd_ms=0.000
+---- weston.log (tail)
+Date: 2026-09-23 UTC
+[22:21:12.277] weston 13.0.0
+               https://wayland.freedesktop.org
+               Bug reports to: https://gitlab.freedesktop.org/wayland/weston/issues/
+               Build: 13.0.0
+[22:21:12.277] Command line: weston --backend=drm --renderer=pixman --continue-without-input --shell=kiosk --config=/tmp/weston-pace/weston.ini --socket=wayland-1 --log=/tmp/weston-pace/weston.log --debug
+[22:21:12.277] OS: Linux, 6.8.0-136-generic, #136-Ubuntu SMP PREEMPT_DYNAMIC Wed Jul  1 21:53:05 UTC 2026, x86_64
+[22:21:12.277] Flight recorder: enabled
+[22:21:12.277] Using config file '/tmp/weston-pace/weston.ini'
+[22:21:12.277] Output repaint window is 7 ms maximum.
+[22:21:12.277] Loading module '/usr/lib/x86_64-linux-gnu/libweston-13/drm-backend.so'
+[22:21:12.278] initializing drm backend
+[22:21:12.278] Trying libseat launcher...
+[22:21:12.278] [libseat/libseat.c:62] Seat opened with backend 'noop'
+[22:21:12.278] libseat: session control granted
+[22:21:12.278] using /dev/dri/card0
+[22:21:12.278] DRM: supports atomic modesetting
+[22:21:12.278] DRM: supports GBM modifiers
+[22:21:12.278] DRM: does not support async page flipping
+[22:21:12.278] DRM: supports picture aspect ratio
+[22:21:12.278] Using Pixman renderer
+[22:21:12.280] event0  - Power Button: is tagged by udev as: Keyboard
+[22:21:12.281] event0  - Power Button: device is a keyboard
+[22:21:12.283] libinput: configuring device "Power Button".
+[22:21:12.329] DRM: head 'DP-1' found, connector 127 is connected, EDID make 'CRX', model 'Caraxes DP', serial ''
+               Supported EOTF modes: SDR
+[22:21:12.329] Registered plugin API 'weston_drm_output_api_v1' of size 40
+[22:21:12.329] Registered plugin API 'weston_drm_virtual_output_api_v2' of size 48
+[22:21:12.329] Color manager: no-op
+[22:21:12.329] Output 'DP-1' attempts EOTF mode: SDR
+[22:21:12.329] Output 'DP-1' using color profile: stock sRGB color profile
+[22:21:12.388] DRM: output DP-1 uses shadow framebuffer.
+[22:21:12.388] Output DP-1 (crtc 118) video modes:
+               1920x1080@60.0, preferred, 148.5 MHz
+               1920x1080@59.9, 148.3 MHz
+               1920x1080@50.0, 148.5 MHz
+               1280x720@60.0, 74.2 MHz
+               1280x720@59.9, 74.2 MHz
+               640x480@59.9, current, 25.2 MHz
+[22:21:12.388] associating input device event0 with output DP-1 (none by udev)
+[22:21:12.388] Output 'DP-1' enabled with head(s) DP-1
+[22:21:12.388] Compositor capabilities:
+               arbitrary surface rotation: yes
+               screen capture uses y-flip: no
+               cursor planes: yes
+               arbitrary resolutions: no
+               view mask clipping: yes
+               explicit sync: no
+               color operations: no
+               presentation clock: CLOCK_MONOTONIC, id 1
+               presentation clock resolution: 0.000000001 s
+[22:21:12.389] Loading module '/usr/lib/x86_64-linux-gnu/weston/kiosk-shell.so'
+[22:21:28.458] caught signal 15
+[22:21:28.458] event0  - Power Button: device removed
+exit=0

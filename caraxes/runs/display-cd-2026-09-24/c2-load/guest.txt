@@ -1,0 +1,19 @@
+# SPDX-License-Identifier: MIT
+connected
+  mode 0: 1920x1080@60 clock 148500 htotal 2200 vtotal 1125
+  mode 1: 1920x1080@60 clock 148350 htotal 2200 vtotal 1125
+  mode 2: 1920x1080@50 clock 148500 htotal 2640 vtotal 1125
+  mode 3: 1280x720@60 clock 74250 htotal 1650 vtotal 750
+  mode 4: 1280x720@60 clock 74180 htotal 1650 vtotal 750
+  mode 5: 640x480@60 clock 25175 htotal 800 vtotal 525
+connector 127 crtc 61 mode 1920x1080@60 (clock 148500 kHz, period 16.667 ms)
+SETCRTC ok in 0.041 s
+RESULT flips=120 completed=120 timeouts=0 mode=1920x1080@60 period_ms=16.667 mean_ms=16.667 rate_hz=60.00 min_ms=15.926 max_ms=17.319 rms_dev_ms=0.176 total_s=1.983
+GETCRTC: fb 131 (expected 131), mode_valid 1, 1920x1080
+[  152.835931] nvidia-nvlink: Nvlink Core is being initialized, major device number 239
+[  152.843736] nvidia 0000:00:05.0: vgaarb: VGA decodes changed: olddecodes=none,decodes=none:owns=none
+[  155.506660] NVRM: loading NVIDIA UNIX Open Kernel Module for x86_64  610.57.04  Release Build  (leandro@caraxes-vm0)  Wed Sep 23 19:24:02 UTC 2026
+[  157.789309] nvidia-modeset: Loading NVIDIA UNIX Open Kernel Mode Setting Driver for x86_64  610.57.04  Release Build  (leandro@caraxes-vm0)  Wed Sep 23 19:23:25 UTC 2026
+[  157.821501] [drm] [nvidia-drm] [GPU ID 0x00000005] Loading driver
+[  158.501356] [drm] Initialized nvidia-drm 0.0.0 20160202 for 0000:00:05.0 on minor 0
+exit=0

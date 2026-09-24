@@ -21,8 +21,11 @@
 # rlprobe, convburn, robustness; the probe/suites unscored) one test per ssh call and
 # prints a per-test table with the failing call, its error code and the device RPCs
 # that did not answer NV_OK. gpu runs the guest-side stages of v1's gpu gate (smi,
-# memory, kernel, torch, robustness, own, encode). vdisplay and display report "not
-# applicable yet" (exit 2) with the reason. Material comes from
+# memory, kernel, torch, robustness, own, encode). vdisplay and display run v1's display
+# gates adapted to the device's DisplayPort monitor and to Wayland (docs/caraxes/display-cd.md):
+# vdisplay setup/route/device/edid/pixel/flips/teardown, display rig/connector/edid/modeset/
+# compositor (Weston)/capture (KMS readback, Sunshine capture=kms)/kernel; they need the
+# device started with CARAXES_DISPLAY=1. Material comes from
 # `tools/caraxes-vm.sh sync-tests`; raw output goes to caraxes/runs/gate-<name>-<date>/.
 # CARAXES_GATE_NATIVE=1 lets gpu run the native torch reference on the host card
 # (LEA_HOSTVENV); otherwise caraxes/reference/rtx2070/torch-native.txt is used.
@@ -38,7 +41,7 @@ WANT_NAME=${CARAXES_GATE_NAME:-$("$VMSH" name 2>/dev/null)}
 WANT_MIB=${CARAXES_GATE_FB_MIB:-4096}
 TOL=${CARAXES_GATE_TEMP_TOL:-4}
 
-usage() { sed -n '9,29p' "$0" | sed 's/^# \{0,1\}//' >&"$(( ${1:-0} ? 2 : 1 ))"; exit "${1:-0}"; }
+usage() { sed -n '9,31p' "$0" | sed 's/^# \{0,1\}//' >&"$(( ${1:-0} ? 2 : 1 ))"; exit "${1:-0}"; }
 say() { printf 'caraxes-gate: %s\n' "$*" >&2; }
 jstr() { local s=${1//\\/\\\\}; s=${s//\"/\\\"}; printf '"%s"' "$s"; }
 
@@ -429,28 +432,254 @@ gate_gpu() {
     else g_finish "failed: ${G_FAILED[*]}; logs in ${RUN#"$LEA_ROOT"/}/"; fi
 }
 
-# vdisplay and display: v1's display gates stand on virtio_nvrm's virtual display and on
-# nvidia-modeset/nvidia-drm. Caraxes serves no display engine yet, so both say why they
-# do not run, with what the guest has as facts.
-gate_display_like() {
-    g_begin "$1"
+# vdisplay and display: v1's display gates (../Leandro-Test scripts/test.sh:452-1128)
+# adapted to the Caraxes display engine and to Wayland (docs/caraxes/display-cd.md,
+# testing.md). The connector is the device's DisplayPort monitor (display-ab.md), so the
+# v1 stages about virtio_nvrm's tables and module parameters become the device's control
+# route; X becomes Weston on the DRM backend; the X capture becomes a KMS readback and
+# Sunshine with capture=kms. Stages that need the GPU to execute work (Vulkan swapchain,
+# presentation, ray tracing, fence events) run only when the device executes on the host
+# (--host-exec); otherwise they are listed in the facts as not run, with the reason.
+DISP_SRC=$LEA_ROOT/crates/vfio-user-nvgpu/guest
+DISP_DIR=$GUEST_TESTS/caraxes/display
+# The device's EDID as the guest must see it: the golden file the unit test
+# display::edid::tests::edid_is_what_the_guest_exposed compares with edid.rs.
+DISP_EDID=$LEA_ROOT/caraxes/runs/display-ab-2026-09-23/guest-card0-DP-1.edid.bin
+DISP_W=1920 DISP_H=1080 DISP_HZ=60
+# kmsgrab pixel's pattern at 640x480, FNV-1a 64 over the rows (display-cd.md, run c13).
+DISP_PIXEL_REF_640x480=0x727dcdf3e49208c5
+
+# Copy and build the display probes in the guest (drm-modeset.c from Leandro-Test,
+# kmsflip, kmsgrab, wlframes and the scripts from crates/vfio-user-nvgpu/guest).
+display_material() {
+    local f files=(kmsflip.c kmsgrab.c wlframes.c build-wl.sh display-up.sh weston-pace.sh sunshine-kms.sh)
+    for f in "${files[@]}"; do [[ -f $DISP_SRC/$f ]] || return 1; done
+    { tar -C "$DISP_SRC" -cf - "${files[@]}"; } | gsh "mkdir -p $DISP_DIR && tar -C $DISP_DIR -xf -" || return 1
+    gsh "cat > $DISP_DIR/drm-modeset.c" < "$LEA_TEST/scripts/guest/drm-modeset.c" || return 1
+    gsh "cd $DISP_DIR && bash ./build-wl.sh >build.log 2>&1 && gcc -O2 -Wall -Wextra -o drm-modeset drm-modeset.c >>build.log 2>&1" \
+        || { gsh "tail -20 $DISP_DIR/build.log"; return 1; }
+}
+
+# Shared by both gates: guest, device with a display engine, modules, material, card,
+# connector, EDID. Emits the stages setup/route/device/edid (vdisplay names) or
+# rig/card/connector/edid (display names) through the two name arguments.
+display_common() {
+    local kind=$1 out
     gsh true 2>/dev/null || g_skip "guest not reachable; start it with tools/caraxes-vm.sh up && tools/caraxes-vm.sh wait"
+    [[ -r $TRACE ]] || g_skip "device trace $TRACE not readable"
+    grep -q 'display engine present' "$CARAXES_STORE/$VM/gpu.log" 2>/dev/null \
+        || g_skip "the device runs without a display engine (start it with CARAXES_DISPLAY=1, docs/caraxes/display-ab.md)"
+    gsh 'grep -q "^nvidia " /proc/modules' || g_skip "nvidia.ko not loaded; run tools/caraxes-vm.sh probe"
+    [[ -f $LEA_TEST/scripts/guest/drm-modeset.c ]] || g_skip "no Leandro-Test checkout at $LEA_TEST"
+    [[ -f $DISP_EDID ]] || g_skip "$DISP_EDID missing"
     g_fact vm "$VM"
-    g_fact modeset_module "$(gsh 'modinfo -F filename nvidia-modeset 2>/dev/null || echo none')"
-    g_fact drm_module "$(gsh 'modinfo -F filename nvidia-drm 2>/dev/null || echo none')"
-    g_fact loaded "$(gsh "grep -oE '^nvidia[a-z_-]*' /proc/modules | tr '\n' ' '")"
-    g_fact dri_nodes "$(gsh 'ls /dev/dri 2>/dev/null | tr "\n" " "')"
-    case $1 in
-        vdisplay) g_skip "not applicable yet: v1 vdisplay tests virtio_nvrm's virtual display (module parameter vdisplay=1, the module's EDID, a frame read back through nvidia-drm on the v1 transport). Caraxes has no display engine in the device (no display class, no connector, no EDID source) and nvidia-modeset/nvidia-drm are out of scope until the compute path works (kickoff.md section 6)" ;;
-        *) g_skip "not applicable yet: v1 display needs nvidia-drm with a connector and modeset on the device (plus X, Vulkan presentation and Sunshine/Moonlight in the guest image). Caraxes serves no display engine yet and nvidia-modeset/nvidia-drm are out of scope until the compute path works (kickoff.md section 6)" ;;
-    esac
+    g_fact caraxes "$(git -C "$LEA_ROOT" describe --always --dirty --abbrev=12 2>/dev/null)"
+    g_fact device "$(grep -m1 -o 'TU106.*FB [0-9]* MiB' "$CARAXES_STORE/$VM/gpu.log" 2>/dev/null)"
+    display_material || g_skip "the display probes do not build in the guest (see above)"
+
+    # ---- setup / rig: nvidia-modeset and nvidia-drm modeset=1 on the device
+    out=$(gsh "sudo bash $DISP_DIR/display-up.sh" 2>&1)
+    echo "$out" > "$RUN/setup.txt"
+    g_fact modules "$(gsh "grep -oE '^nvidia[a-z_-]*' /proc/modules | tr '\n' ' '")"
+    g_fact drm_modeset "$(gsh 'sudo cat /sys/module/nvidia_drm/parameters/modeset 2>/dev/null')"
+    if gsh 'test -e /dev/dri/card0 && grep -q "^nvidia_drm " /proc/modules'; then
+        g_pass "$2" "nvidia-modeset + nvidia-drm modeset=$(gsh 'sudo cat /sys/module/nvidia_drm/parameters/modeset') on the device's display engine"
+    else
+        g_fail "$2" "nvidia-drm did not load or made no card -- see $RUN/setup.txt"; g_finish "no DRM device"
+    fi
+
+    # ---- route (vdisplay only; the v1 table checksum stage): every display control the
+    # guest sent was answered by the device model, none unanswered, none forwarded.
+    if [[ $kind == vdisplay ]]; then
+        local un total
+        un=$(grep -cE ' E boot: ctrl 0x(73|5070|c37)[0-9a-f]+:.*\[unanswered' "$TRACE")
+        total=$(grep -cE ' E boot: ctrl 0x(73|5070|c37|20800a)[0-9a-f]+:' "$TRACE")
+        g_fact display_controls "$total"
+        g_fact display_controls_unanswered "$un"
+        grep -E ' E boot: ctrl 0x(73|5070|c37)[0-9a-f]+:.*\[unanswered' "$TRACE" | tail -20 > "$RUN/route-unanswered.txt"
+        if [[ $un -eq 0 && $total -gt 0 ]]; then
+            g_pass route "$total display controls in the device trace, all answered by the display model (none unanswered, none host-forwarded)"
+        else
+            g_fail route "$un of $total display controls unanswered -- see $RUN/route-unanswered.txt"
+        fi
+    fi
+
+    # ---- device / card + connector
+    local node conns nconn conn status modes
+    node=$(gsh "sudo $DISP_DIR/drm-modeset --find" 2>/dev/null | tr -d '\r')
+    g_fact drm_node "${node:-none}"
+    conns=$(gsh "ls -d /sys/class/drm/${node##*/}-*/ 2>/dev/null")
+    nconn=$(grep -c . <<< "${conns:-}")
+    conn=$(head -1 <<< "${conns:-}")
+    status=$(gsh "cat ${conn}status" 2>/dev/null)
+    modes=$(gsh "cat ${conn}modes" 2>/dev/null | tr '\n' ' ')
+    g_fact connectors "$nconn"
+    g_fact connector "$(basename "${conn:-none}")"
+    g_fact connector_status "${status:-unknown}"
+    g_fact connector_modes "${modes:-none}"
+    if [[ -n $node && $nconn -eq 1 && $status == connected && $modes == *"${DISP_W}x${DISP_H}"* ]]; then
+        g_pass "$3" "$node (nvidia-drm), $(basename "$conn") connected, modes: $modes"
+    else
+        g_fail "$3" "node '${node:-none}', $nconn connector(s), status '$status', modes '$modes' (wanted one connected connector offering ${DISP_W}x${DISP_H})"
+        [[ $kind == vdisplay ]] && g_finish "no usable connector"
+    fi
+
+    # ---- edid: byte-identical to the device's EDID, and conformant for edid-decode
+    "$VMSH" ssh "sudo cat ${conn}edid" > "$RUN/guest-edid.bin" 2>/dev/null
+    g_fact edid_bytes "$(stat -c%s "$RUN/guest-edid.bin" 2>/dev/null)"
+    local conform="not checked"
+    if command -v edid-decode >/dev/null; then
+        if edid-decode --check "$RUN/guest-edid.bin" > "$RUN/edid-decode.txt" 2>&1; then conform=pass; else conform=FAIL; fi
+    fi
+    g_fact edid_decode "$conform"
+    if cmp -s "$RUN/guest-edid.bin" "$DISP_EDID" && [[ $conform != FAIL ]]; then
+        g_pass edid "$(stat -c%s "$RUN/guest-edid.bin") bytes, identical to the device's EDID (${DISP_EDID#"$LEA_ROOT"/}), edid-decode --check: $conform"
+    else
+        g_fail edid "connector EDID differs from the device's or edid-decode says non-conformant ($conform) -- see $RUN/"
+        [[ $kind == vdisplay ]] && g_finish "EDID wrong"
+    fi
+    DISP_CONN=$conn
+}
+
+# The device-side record of what a head scans out after $1 (trace line number).
+display_latched() {
+    tail -n +"$1" "$TRACE" | grep -o 'display: window [0-9]* latch [^[]*' | grep -v 'surface none' | tail -1
+}
+
+gate_vdisplay() {
+    g_begin vdisplay
+    set -o pipefail
+    display_common vdisplay setup device
+    # ---- pixel: a frame written through BAR1 into a dumb buffer, scanned out, read back
+    # through GETFB2 (the export path a KMS grabber uses) and hashed; the device's latched
+    # surface must name the same buffer geometry. 640x480 keeps the BAR1 cost to seconds.
+    local start pix hash lat
+    start=$(wc -l < "$TRACE")
+    pix=$(gsh "sudo timeout 300 $DISP_DIR/kmsgrab pixel 640x480" 2>&1)
+    echo "$pix" > "$RUN/pixel.txt"
+    hash=$(sed -n 's/.*readback=\(0x[0-9a-f]*\).*/\1/p' <<< "$pix")
+    lat=$(display_latched "$start")
+    echo "$lat" > "$RUN/pixel-latched.txt"
+    g_fact frame_hash "${hash:-unknown}"
+    g_fact frame_ref "$DISP_PIXEL_REF_640x480"
+    g_fact bar1_write_MBps "$(sed -n 's/.*write_MBps=\([0-9.]*\).*/\1/p' <<< "$pix")"
+    g_fact bar1_read_MBps "$(sed -n 's/.*read_MBps=\([0-9.]*\).*/\1/p' <<< "$pix")"
+    g_fact device_latched "${lat:-none}"
+    if grep -q "written=$DISP_PIXEL_REF_640x480 readback=$DISP_PIXEL_REF_640x480" <<< "$pix" \
+        && [[ $lat == *"640x480 format 0xe6 pitch pitch 40 "* ]]; then
+        g_pass pixel "640x480 written and read back through GETFB2 as $hash (= reference); the device latched a 640x480 X8R8G8B8 pitch surface of 2560 bytes per row"
+    else
+        g_fail pixel "readback ${hash:-none} vs reference $DISP_PIXEL_REF_640x480, device latched '${lat:-nothing}' -- see $RUN/pixel.txt"
+    fi
+    # ---- flips: page flips complete once per refresh of the mode (display-connector.md §2)
+    local fl rate
+    fl=$(gsh "sudo timeout 60 $DISP_DIR/kmsflip --mode ${DISP_W}x${DISP_H}@$DISP_HZ --flips 120" 2>&1)
+    echo "$fl" > "$RUN/flips.txt"
+    rate=$(sed -n 's/^RESULT.* rate_hz=\([0-9.]*\).*/\1/p' <<< "$fl")
+    g_fact flip_rate_hz "${rate:-unknown}"
+    g_fact flip_result "$(grep '^RESULT' <<< "$fl")"
+    if grep -q 'completed=120 timeouts=0' <<< "$fl" && [[ -n $rate ]] && awk "BEGIN{exit !($rate >= $DISP_HZ - 0.5 && $rate <= $DISP_HZ + 0.5)}"; then
+        g_pass flips "120 page flips at ${DISP_W}x${DISP_H}@$DISP_HZ, all completed, $rate Hz"
+    else
+        g_fail flips "flips: $(grep '^RESULT' <<< "$fl") -- see $RUN/flips.txt"
+    fi
+    display_kernel teardown
+    g_fact run_dir "${RUN#"$LEA_ROOT"/}"
+    g_finish "${DISP_W}x${DISP_H} on ${DISP_CONN:-?}: controls answered, EDID identical to the device's, frame $hash round-tripped, flips at ${rate:-?} Hz; details in ${RUN#"$LEA_ROOT"/}/"
+}
+
+# ---- kernel / teardown: no oops, no refused op, only the known flip WARNING
+display_kernel() {
+    local oops warns unknown
+    gsh 'sudo dmesg' > "$RUN/dmesg.txt" 2>/dev/null
+    oops=$(grep -cE "BUG:|Oops:|kernel NULL pointer" "$RUN/dmesg.txt")
+    warns=$(grep -c "WARNING:" "$RUN/dmesg.txt")
+    unknown=$(grep "WARNING:" "$RUN/dmesg.txt" | grep -vcE 'nvidia-drm-crtc\.h:355')
+    g_fact dmesg_oops "$oops"
+    g_fact dmesg_warnings "$warns"
+    g_fact dmesg_flip_timeouts "$(grep -c 'Flip event timeout' "$RUN/dmesg.txt")"
+    if [[ $oops -eq 0 && $unknown -eq 0 ]]; then
+        g_pass "$1" "no oops, $warns WARNING(s) (all the known flip one), $(grep -c 'Flip event timeout' "$RUN/dmesg.txt") flip event timeout(s)"
+    else
+        g_fail "$1" "$oops oops, $unknown unknown WARNING(s) -- see $RUN/dmesg.txt"
+    fi
+}
+
+gate_display() {
+    g_begin display
+    display_common display rig connector
+    local W=$DISP_W H=$DISP_H
+    # ---- modeset: v1's drm-modeset, unchanged criteria
+    local ms
+    gsh 'sudo pkill -x weston 2>/dev/null; sudo pkill -x gnome-shell 2>/dev/null; true'
+    # v1 allowed 45 s; drm-modeset fills two 1080p buffers through BAR1 first (2 x 8 MB at
+    # about 0.4 MB/s, display-cd.md), so the budget is 300 s.
+    ms=$(gsh "sudo timeout 300 $DISP_DIR/drm-modeset --flips 30 /dev/dri/card0" 2>&1)
+    echo "$ms" > "$RUN/modeset.txt"
+    if grep -q "mode_valid 1" <<< "$ms" &&
+       grep -qE "PAGE_FLIP: ([0-9]+) issued, \1 completed, 0 timed out" <<< "$ms" &&
+       grep -qE "after flip: fb ([0-9]+) \(expected \1\)" <<< "$ms"; then
+        g_pass modeset "mode taken, 30 flips all completed, CRTC names the new framebuffer"
+    else
+        g_fail modeset "see $RUN/modeset.txt"
+    fi
+    # ---- compositor (replaces v1's X): Weston, DRM backend, atomic KMS; a Wayland client's
+    # frame callbacks and wp_presentation feedback run at the mode's refresh.
+    local co fr pr refresh
+    co=$(gsh "sudo SETTLE=${CARAXES_GATE_SETTLE:-60} timeout 700 bash $DISP_DIR/weston-pace.sh ${W}x${H}@$DISP_HZ 30" 2>&1)
+    echo "$co" > "$RUN/compositor.txt"
+    fr=$(sed -n 's/^FRAMES callbacks.* rate_hz=\([0-9.]*\).*/\1/p' <<< "$co")
+    pr=$(sed -n 's/^PRESENTED feedback.* rate_hz=\([0-9.]*\).*/\1/p' <<< "$co")
+    refresh=$(sed -n 's/.*refresh_ns=\([0-9]*\).*/\1/p' <<< "$co")
+    g_fact frame_callback_hz "${fr:-unknown}"
+    g_fact presentation_hz "${pr:-unknown}"
+    g_fact presentation_refresh_ns "${refresh:-unknown}"
+    g_fact compositor "$(grep -m1 -o 'weston [0-9.]*' <<< "$co") $(grep -m1 -o 'DRM: supports atomic modesetting' <<< "$co")"
+    if [[ -n $fr && -n $pr ]] && grep -q 'discarded=0' <<< "$co" &&
+       awk "BEGIN{exit !($fr >= $DISP_HZ - 0.5 && $fr <= $DISP_HZ + 0.5 && $pr >= $DISP_HZ - 0.5 && $pr <= $DISP_HZ + 0.5)}" &&
+       [[ ${refresh:-0} -gt 16600000 && ${refresh:-0} -lt 16700000 ]]; then
+        g_pass compositor "Weston (DRM backend, atomic) at ${W}x${H}@$DISP_HZ: frame callbacks $fr Hz, presentation $pr Hz, refresh ${refresh} ns, none discarded"
+    else
+        g_fail compositor "frame callbacks ${fr:-none} Hz, presentation ${pr:-none} Hz, refresh ${refresh:-none} ns (wanted $DISP_HZ +- 0.5) -- see $RUN/compositor.txt"
+    fi
+    # ---- capture + stream: under Weston with a client, read the scanout the way a KMS
+    # grabber does (GETFB2 + map: the client's grey at the screen centre), and run Sunshine
+    # with capture=kms: it must find the monitor over DRM and pass its encoder test on
+    # captured frames. Moonlight reception is not part of this stage.
+    local cap cx cy
+    cx=320 cy=240
+    cap=$(gsh "sudo SETTLE=8 timeout 300 bash $DISP_DIR/sunshine-kms.sh 640x480 40" 2>&1)
+    echo "$cap" > "$RUN/capture.txt"
+    g_fact sunshine "$(grep -c 'Found monitor for DRM screencasting' <<< "$cap") KMS monitor finds, encoder: $(grep -m1 -o 'Found H.264 encoder: [^ ]*' <<< "$cap")"
+    g_fact capture_sample "$(grep -m1 "^SAMPLE $cx $cy" <<< "$cap")"
+    if grep -q 'Found monitor for DRM screencasting' <<< "$cap" && grep -q 'Found H.264 encoder' <<< "$cap" &&
+       grep -qE "^SAMPLE $cx $cy 0x..808080" <<< "$cap"; then
+        g_pass capture "the scanout read through GETFB2 shows the client's grey at the centre; Sunshine capture=kms found the DP-1 monitor and encoded captured frames (libx264)"
+    else
+        g_fail capture "KMS readback or Sunshine capture=kms did not see the client -- see $RUN/capture.txt"
+    fi
+    # ---- the GPU-execution stages of v1 (swapchain, present, rt, events): only with host
+    # execution. The rendering path of Weston above is the CPU (pixman).
+    if grep -q 'host execution on' "$CARAXES_STORE/$VM/gpu.log" 2>/dev/null; then
+        g_fact gpu_stages "host execution on; the Wayland Vulkan stages are not written yet"
+    else
+        g_fact gpu_stages_not_run "swapchain present rt events: they need the GPU to execute (Vulkan device, WSI, fences); this device runs without host execution (E5b, --host-exec), which is not allowed on vm0 yet"
+    fi
+    display_kernel kernel
+    g_fact run_dir "${RUN#"$LEA_ROOT"/}"
+    if ((${#G_FAILED[@]} == 0)); then
+        g_finish "card0 ${W}x${H}@$DISP_HZ on the device's DP monitor: EDID identical, modeset+30 flips, Weston frame callbacks ${fr:-?} Hz, KMS capture and Sunshine capture=kms; GPU-execution stages not run (facts); details in ${RUN#"$LEA_ROOT"/}/"
+    else
+        g_finish "failed: ${G_FAILED[*]}; logs in ${RUN#"$LEA_ROOT"/}/"
+    fi
 }
 
 case ${1:-} in
     nvml) gate_nvml ;;
     cuda) shift; gate_cuda "$@" ;;
     gpu) gate_gpu ;;
-    vdisplay|display) gate_display_like "$1" ;;
+    vdisplay) gate_vdisplay ;;
+    display) gate_display ;;
     -h|--help) usage 0 ;;
     *) usage 2 ;;
 esac

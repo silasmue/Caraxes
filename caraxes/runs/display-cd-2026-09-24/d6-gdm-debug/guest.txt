@@ -1,0 +1,83 @@
+# SPDX-License-Identifier: MIT
+Journal file /var/log/journal/82d61c142b384b48bf1ff52bdb4fffd4/user-1000@00065c24a254c7d2-f82a1a3ad1340b6f.journal~ is truncated, ignoring file.
+Sep 23 23:18:52 caraxes-vm0 systemd[11031]: Reached target gnome-session-wayland.target - GNOME Wayland Session.
+Sep 23 23:18:52 caraxes-vm0 gnome-session[11252]: gnome-session-binary[11252]: GnomeDesktop-WARNING: Could not create transient scope for PID 11270: GDBus.Error:org.freedesktop.DBus.Error.UnixProcessIdUnknown: Failed to set unit p
+Sep 23 23:18:52 caraxes-vm0 gnome-session-binary[11252]: GnomeDesktop-WARNING: Could not create transient scope for PID 11270: GDBus.Error:org.freedesktop.DBus.Error.UnixProcessIdUnknown: Failed to set unit properties: No such pro
+Sep 23 23:18:52 caraxes-vm0 systemd[11031]: Starting org.gnome.Shell@wayland.service - GNOME Shell on Wayland...
+Sep 23 23:18:52 caraxes-vm0 systemd[11031]: org.gnome.Shell@x11.service - GNOME Shell on X11 was skipped because of an unmet condition check (ConditionEnvironment=XDG_SESSION_TYPE=x11).
+Sep 23 23:18:52 caraxes-vm0 gnome-session[11252]: gnome-session-binary[11252]: GnomeDesktop-WARNING: Could not create transient scope for PID 11285: GDBus.Error:org.freedesktop.DBus.Error.UnixProcessIdUnknown: Failed to set unit p
+Sep 23 23:18:52 caraxes-vm0 gnome-session-binary[11252]: GnomeDesktop-WARNING: Could not create transient scope for PID 11285: GDBus.Error:org.freedesktop.DBus.Error.UnixProcessIdUnknown: Failed to set unit properties: No such pro
+Sep 23 23:18:52 caraxes-vm0 gnome-shell[11286]: Running GNOME Shell (using mutter 46.2) as a Wayland display server
+Sep 23 23:18:52 caraxes-vm0 gnome-shell[11286]: Made thread 'KMS thread' realtime scheduled
+Sep 23 23:18:52 caraxes-vm0 gnome-shell[11286]: libEGL warning: Not allowed to force software rendering when API explicitly selects a hardware device.
+Sep 23 23:18:52 caraxes-vm0 gnome-shell[11286]: libEGL warning: pci id for fd 17: 10de:1f02, driver (null)
+Sep 23 23:18:52 caraxes-vm0 kernel: gnome-shell[11286]: segfault at 8 ip 000077af54ef9c2f sp 00007fff890a96f0 error 4 in libgallium-25.2.8-0ubuntu0.24.04.2.so[77af54ecf000+1813000] likely on CPU 7 (core 7, socket 0)
+Sep 23 23:18:53 caraxes-vm0 systemd[11031]: org.gnome.Shell@wayland.service: Main process exited, code=dumped, status=11/SEGV
+Sep 23 23:18:53 caraxes-vm0 systemd[11031]: org.gnome.Shell@wayland.service: Failed with result 'core-dump'.
+Sep 23 23:18:53 caraxes-vm0 systemd[11031]: Failed to start org.gnome.Shell@wayland.service - GNOME Shell on Wayland.
+Sep 23 23:18:53 caraxes-vm0 systemd[11031]: org.gnome.Shell@wayland.service: Triggering OnFailure= dependencies.
+Sep 23 23:18:53 caraxes-vm0 systemd[11031]: Stopped target gnome-session-wayland.target - GNOME Wayland Session.
+Sep 23 23:18:54 caraxes-vm0 gdm3[11157]: Gdm: GdmDisplay: Session never registered, failing
+Sep 23 23:18:54 caraxes-vm0 systemd[11031]: Reached target gnome-session-wayland.target - GNOME Wayland Session.
+Sep 23 23:18:54 caraxes-vm0 systemd[11031]: Starting org.gnome.Shell@wayland.service - GNOME Shell on Wayland...
+Sep 23 23:18:54 caraxes-vm0 systemd[11031]: org.gnome.Shell@x11.service - GNOME Shell on X11 was skipped because of an unmet condition check (ConditionEnvironment=XDG_SESSION_TYPE=x11).
+Sep 23 23:18:54 caraxes-vm0 gnome-session[11529]: gnome-session-binary[11529]: GnomeDesktop-WARNING: Could not create transient scope for PID 11554: GDBus.Error:org.freedesktop.DBus.Error.UnixProcessIdUnknown: Failed to set unit p
+Sep 23 23:18:54 caraxes-vm0 gnome-session-binary[11529]: GnomeDesktop-WARNING: Could not create transient scope for PID 11554: GDBus.Error:org.freedesktop.DBus.Error.UnixProcessIdUnknown: Failed to set unit properties: No such pro
+Sep 23 23:18:54 caraxes-vm0 gnome-shell[11555]: Running GNOME Shell (using mutter 46.2) as a Wayland display server
+Sep 23 23:18:54 caraxes-vm0 gnome-shell[11555]: Made thread 'KMS thread' realtime scheduled
+Sep 23 23:18:54 caraxes-vm0 gnome-shell[11555]: libEGL warning: Not allowed to force software rendering when API explicitly selects a hardware device.
+Sep 23 23:18:54 caraxes-vm0 gnome-shell[11555]: libEGL warning: pci id for fd 17: 10de:1f02, driver (null)
+Sep 23 23:18:54 caraxes-vm0 kernel: gnome-shell[11555]: segfault at 8 ip 00007764e94f9c2f sp 00007fff382fd3b0 error 4 in libgallium-25.2.8-0ubuntu0.24.04.2.so[7764e94cf000+1813000] likely on CPU 7 (core 7, socket 0)
+Sep 23 23:18:55 caraxes-vm0 systemd[11031]: org.gnome.Shell@wayland.service: Main process exited, code=dumped, status=11/SEGV
+Sep 23 23:18:56 caraxes-vm0 systemd[11031]: org.gnome.Shell@wayland.service: Failed with result 'core-dump'.
+Sep 23 23:18:56 caraxes-vm0 systemd[11031]: Failed to start org.gnome.Shell@wayland.service - GNOME Shell on Wayland.
+Sep 23 23:18:56 caraxes-vm0 systemd[11031]: org.gnome.Shell@wayland.service: Triggering OnFailure= dependencies.
+Sep 23 23:18:56 caraxes-vm0 systemd[11031]: Stopped target gnome-session-wayland.target - GNOME Wayland Session.
+Sep 23 23:18:56 caraxes-vm0 gdm3[11157]: Gdm: GdmDisplay: Session never registered, failing
+Sep 23 23:18:56 caraxes-vm0 systemd[11031]: Reached target gnome-session-wayland.target - GNOME Wayland Session.
+Sep 23 23:18:56 caraxes-vm0 systemd[11031]: Starting org.gnome.Shell@wayland.service - GNOME Shell on Wayland...
+Sep 23 23:18:56 caraxes-vm0 systemd[11031]: org.gnome.Shell@x11.service - GNOME Shell on X11 was skipped because of an unmet condition check (ConditionEnvironment=XDG_SESSION_TYPE=x11).
+Sep 23 23:18:56 caraxes-vm0 gnome-session[11712]: gnome-session-binary[11712]: GnomeDesktop-WARNING: Could not create transient scope for PID 11743: GDBus.Error:org.freedesktop.DBus.Error.UnixProcessIdUnknown: Failed to set unit p
+Sep 23 23:18:56 caraxes-vm0 gnome-session-binary[11712]: GnomeDesktop-WARNING: Could not create transient scope for PID 11743: GDBus.Error:org.freedesktop.DBus.Error.UnixProcessIdUnknown: Failed to set unit properties: No such pro
+Sep 23 23:18:56 caraxes-vm0 gnome-shell[11742]: Running GNOME Shell (using mutter 46.2) as a Wayland display server
+Sep 23 23:18:56 caraxes-vm0 gnome-shell[11742]: Made thread 'KMS thread' realtime scheduled
+Sep 23 23:18:56 caraxes-vm0 gnome-shell[11742]: libEGL warning: Not allowed to force software rendering when API explicitly selects a hardware device.
+Sep 23 23:18:56 caraxes-vm0 gnome-shell[11742]: libEGL warning: pci id for fd 17: 10de:1f02, driver (null)
+Sep 23 23:18:56 caraxes-vm0 kernel: gnome-shell[11742]: segfault at 8 ip 000073d5454f9c2f sp 00007ffd9f1b4ac0 error 4 in libgallium-25.2.8-0ubuntu0.24.04.2.so[73d5454cf000+1813000] likely on CPU 7 (core 7, socket 0)
+Sep 23 23:18:57 caraxes-vm0 systemd[11031]: org.gnome.Shell@wayland.service: Main process exited, code=dumped, status=11/SEGV
+Sep 23 23:18:57 caraxes-vm0 systemd[11031]: org.gnome.Shell@wayland.service: Failed with result 'core-dump'.
+Sep 23 23:18:57 caraxes-vm0 systemd[11031]: Failed to start org.gnome.Shell@wayland.service - GNOME Shell on Wayland.
+Sep 23 23:18:57 caraxes-vm0 systemd[11031]: org.gnome.Shell@wayland.service: Triggering OnFailure= dependencies.
+Sep 23 23:18:57 caraxes-vm0 systemd[11031]: Stopped target gnome-session-wayland.target - GNOME Wayland Session.
+Sep 23 23:18:58 caraxes-vm0 gdm3[11157]: Gdm: GdmDisplay: Session never registered, failing
+Sep 23 23:18:58 caraxes-vm0 systemd[11031]: Reached target gnome-session-wayland.target - GNOME Wayland Session.
+Sep 23 23:18:58 caraxes-vm0 systemd[11031]: Starting org.gnome.Shell@wayland.service - GNOME Shell on Wayland...
+Sep 23 23:18:58 caraxes-vm0 systemd[11031]: org.gnome.Shell@x11.service - GNOME Shell on X11 was skipped because of an unmet condition check (ConditionEnvironment=XDG_SESSION_TYPE=x11).
+Sep 23 23:18:58 caraxes-vm0 gnome-session[11980]: gnome-session-binary[11980]: GnomeDesktop-WARNING: Could not create transient scope for PID 12004: GDBus.Error:org.freedesktop.DBus.Error.UnixProcessIdUnknown: Failed to set unit p
+Sep 23 23:18:58 caraxes-vm0 gnome-session-binary[11980]: GnomeDesktop-WARNING: Could not create transient scope for PID 12004: GDBus.Error:org.freedesktop.DBus.Error.UnixProcessIdUnknown: Failed to set unit properties: No such pro
+Sep 23 23:18:58 caraxes-vm0 gnome-shell[12005]: Running GNOME Shell (using mutter 46.2) as a Wayland display server
+Sep 23 23:18:58 caraxes-vm0 gnome-shell[12005]: Made thread 'KMS thread' realtime scheduled
+Sep 23 23:18:58 caraxes-vm0 gnome-shell[12005]: libEGL warning: Not allowed to force software rendering when API explicitly selects a hardware device.
+Sep 23 23:18:58 caraxes-vm0 gnome-shell[12005]: libEGL warning: pci id for fd 17: 10de:1f02, driver (null)
+Sep 23 23:18:58 caraxes-vm0 kernel: gnome-shell[12005]: segfault at 8 ip 00007b36154f9c2f sp 00007fff2ba4e530 error 4 in libgallium-25.2.8-0ubuntu0.24.04.2.so[7b36154cf000+1813000] likely on CPU 7 (core 7, socket 0)
+Sep 23 23:19:00 caraxes-vm0 systemd[11031]: org.gnome.Shell@wayland.service: Main process exited, code=dumped, status=11/SEGV
+Sep 23 23:19:00 caraxes-vm0 systemd[11031]: org.gnome.Shell@wayland.service: Failed with result 'core-dump'.
+Sep 23 23:19:00 caraxes-vm0 systemd[11031]: Failed to start org.gnome.Shell@wayland.service - GNOME Shell on Wayland.
+Sep 23 23:19:00 caraxes-vm0 systemd[11031]: org.gnome.Shell@wayland.service: Triggering OnFailure= dependencies.
+Sep 23 23:19:00 caraxes-vm0 systemd[11031]: Stopped target gnome-session-wayland.target - GNOME Wayland Session.
+Sep 23 23:19:00 caraxes-vm0 gdm3[11157]: Gdm: GdmDisplay: Session never registered, failing
+Sep 23 23:19:00 caraxes-vm0 systemd[11031]: Reached target gnome-session-wayland.target - GNOME Wayland Session.
+Sep 23 23:19:00 caraxes-vm0 systemd[11031]: Starting org.gnome.Shell@wayland.service - GNOME Shell on Wayland...
+Sep 23 23:19:00 caraxes-vm0 systemd[11031]: org.gnome.Shell@x11.service - GNOME Shell on X11 was skipped because of an unmet condition check (ConditionEnvironment=XDG_SESSION_TYPE=x11).
+Sep 23 23:19:00 caraxes-vm0 gnome-session[12161]: gnome-session-binary[12161]: GnomeDesktop-WARNING: Could not create transient scope for PID 12192: GDBus.Error:org.freedesktop.DBus.Error.UnixProcessIdUnknown: Failed to set unit p
+Sep 23 23:19:00 caraxes-vm0 gnome-session-binary[12161]: GnomeDesktop-WARNING: Could not create transient scope for PID 12192: GDBus.Error:org.freedesktop.DBus.Error.UnixProcessIdUnknown: Failed to set unit properties: No such pro
+Sep 23 23:19:00 caraxes-vm0 gnome-shell[12193]: Running GNOME Shell (using mutter 46.2) as a Wayland display server
+Sep 23 23:19:00 caraxes-vm0 gnome-shell[12193]: Made thread 'KMS thread' realtime scheduled
+Sep 23 23:19:00 caraxes-vm0 gnome-shell[12193]: libEGL warning: Not allowed to force software rendering when API explicitly selects a hardware device.
+Sep 23 23:19:00 caraxes-vm0 gnome-shell[12193]: libEGL warning: pci id for fd 17: 10de:1f02, driver (null)
+Sep 23 23:19:00 caraxes-vm0 kernel: gnome-shell[12193]: segfault at 8 ip 00007370c94f9c2f sp 00007ffe6846bd90 error 4 in libgallium-25.2.8-0ubuntu0.24.04.2.so[7370c94cf000+1813000] likely on CPU 7 (core 7, socket 0)
+Sep 23 23:19:02 caraxes-vm0 systemd[11031]: org.gnome.Shell@wayland.service: Main process exited, code=dumped, status=11/SEGV
+Sep 23 23:19:02 caraxes-vm0 systemd[11031]: org.gnome.Shell@wayland.service: Failed with result 'core-dump'.
+Sep 23 23:19:02 caraxes-vm0 systemd[11031]: Failed to start org.gnome.Shell@wayland.service - GNOME Shell on Wayland.
+Sep 23 23:19:02 caraxes-vm0 systemd[11031]: org.gnome.Shell@wayland.service: Triggering OnFailure= dependencies.
+exit=0

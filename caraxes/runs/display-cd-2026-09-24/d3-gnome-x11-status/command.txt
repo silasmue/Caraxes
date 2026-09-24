@@ -1,0 +1,3 @@
+# SPDX-License-Identifier: MIT
+# 2026-09-24T01:07:04+02:00 VM=vm0 guest command (timeout 120s):
+sudo bash ./cx/gnome-check.sh status | head -30; sudo ./cx/kmsgrab sample 960 540 100 1070 1900 20; loginctl show-session $(loginctl list-sessions --no-legend | awk "/seat0/{print \$1}") -p Type; sudo systemctl stop gdm3; sleep 3; sudo cp -n /var/lib/AccountsService/users/leandro /var/lib/AccountsService/users/leandro.caraxes-orig; sudo sed -i "s/^Session=ubuntu-xorg/Session=ubuntu-wayland/; /^XSession=/d" /var/lib/AccountsService/users/leandro; sudo cat /var/lib/AccountsService/users/leandro | head -3; sync

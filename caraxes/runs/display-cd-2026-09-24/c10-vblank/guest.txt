@@ -1,0 +1,9 @@
+# SPDX-License-Identifier: MIT
+open /dev/nvidia-modeset: No such file or directory
+ 36:          0       7055          0          0          0          0          0          0  PCI-MSI-0000:00:05.0   0-edge      nvidia
+[ 1062.363715]  ? __pfx_kthread+0x10/0x10
+[ 1062.363716]  ? ret_from_fork_asm+0x1b/0x30
+[ 1062.363720]  </TASK>
+[ 1062.363721] ---[ end trace 0000000000000000 ]---
+[ 1068.289166] [drm:nv_drm_atomic_commit [nvidia_drm]] *ERROR* [nvidia-drm] [GPU ID 0x00000005] Flip event timeout on head 0
+exit=0

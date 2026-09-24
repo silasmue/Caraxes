@@ -1,0 +1,73 @@
+# SPDX-License-Identifier: MIT
+# events of the device trace (full window: /mnt/vmstore/caraxes/vm0/display-cd/d11-unplug/device-trace-full.txt)
+   813821228 E boot: doorbell 1103: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   813821229 E boot: rx seq 1102 GSP_RM_CONTROL (76) sequence 1100 length 88 checksum ok: hClient=0xc1d00008 hObject=0x1000d cmd=0x730401 paramsSize=16 rpcFlags=0x0
+   813821230 E boot: ctrl 0x730401: hotplug/unplug state: plug 0x0 unplug 0x100 (cleared) -> status 0x0 [synthesized (dp-sink model behind the connector)]
+   813821232 E boot: tx seq 1103 reply GSP_RM_CONTROL sequence 1100 result 0x0 length 88
+   813821809 E boot: doorbell 1104: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   813821818 E boot: rx seq 1103 GSP_RM_CONTROL (76) sequence 1101 length 128 checksum ok: hClient=0xc1d00008 hObject=0x1000d cmd=0x73028b paramsSize=56 rpcFlags=0x0
+   813821819 E boot: ctrl 0x73028b: or info of 0x100: SOR0 DP_A, chip, static -> status 0x0 [synthesized (board connector table, boards/rtx2070.toml [display])]
+   813821821 E boot: tx seq 1104 reply GSP_RM_CONTROL sequence 1101 result 0x0 length 128
+   813822431 E boot: doorbell 1105: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   813822432 E boot: rx seq 1104 GSP_RM_CONTROL (76) sequence 1102 length 120 checksum ok: hClient=0xc1d00008 hObject=0x1000d cmd=0x731341 paramsSize=48 rpcFlags=0x1
+   813822433 E boot: ctrl 0x731341: aux 0x100: nr 000 1 -> err timeout (no sink: replyType TIMEOUT) -> status 0x0 [synthesized (dp-sink model behind the connector, NV0073 AUX adapter)]
+   813822435 E boot: tx seq 1105 reply GSP_RM_CONTROL sequence 1102 result 0x0 length 120
+   813823072 E boot: doorbell 1106: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   813823073 E boot: rx seq 1105 GSP_RM_CONTROL (76) sequence 1103 length 2680 checksum ok: hClient=0xc1d00008 hObject=0x1000d cmd=0x730282 paramsSize=2608 rpcFlags=0x0
+   813823080 E boot: ctrl 0x730282: display control 0x730282 (2608 bytes): not modelled -> status 0x56 [unanswered]
+   813823082 E boot: tx seq 1106 reply GSP_RM_CONTROL sequence 1103 result 0x0 length 2680
+   813823788 E boot: doorbell 1107: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   813823789 E boot: rx seq 1106 GSP_RM_CONTROL (76) sequence 1104 length 92 checksum ok: hClient=0xc1d00008 hObject=0x1000d cmd=0x73028a paramsSize=20 rpcFlags=0x0
+   813823791 E boot: ctrl 0x73028a: pclk limit of 0x100: 1080000 kHz (link budget at 24 bpp) -> status 0x0 [synthesized (the display.toml [link] profile)]
+   813823792 E boot: tx seq 1107 reply GSP_RM_CONTROL sequence 1104 result 0x0 length 92
+   813824327 E boot: display channel 0xc57d/0 kick 3: PUT 0xfc8, 505 method(s), 0 UPDATE(s), 0 raster method(s); GET := PUT [guest]
+   813824388 E boot: display channel 0xc57d/0 kick 4: PUT 0x0, 0 method(s), 0 UPDATE(s), 0 raster method(s); GET := PUT [guest]
+   813824592 E boot: display channel 0xc57d/0 kick 5: PUT 0xfc8, 505 method(s), 0 UPDATE(s), 0 raster method(s); GET := PUT [guest]
+   813824653 E boot: display channel 0xc57d/0 kick 6: PUT 0x0, 0 method(s), 0 UPDATE(s), 0 raster method(s); GET := PUT [guest]
+   813825111 E boot: display channel 0xc57e/0 kick 3: PUT 0xfc8, 505 method(s), 0 UPDATE(s), 0 raster method(s); GET := PUT [guest]
+   813825191 E boot: display channel 0xc57e/0 kick 4: PUT 0x0, 0 method(s), 0 UPDATE(s), 0 raster method(s); GET := PUT [guest]
+   813825399 E boot: display channel 0xc57e/0 kick 5: PUT 0xfc8, 505 method(s), 0 UPDATE(s), 0 raster method(s); GET := PUT [guest]
+   813825459 E boot: display channel 0xc57e/0 kick 6: PUT 0x0, 0 method(s), 0 UPDATE(s), 0 raster method(s); GET := PUT [guest]
+   813825642 E boot: display channel 0xc57e/2 kick 3: PUT 0xfc8, 505 method(s), 0 UPDATE(s), 0 raster method(s); GET := PUT [guest]
+   813825701 E boot: display channel 0xc57e/2 kick 4: PUT 0x0, 0 method(s), 0 UPDATE(s), 0 raster method(s); GET := PUT [guest]
+   813825913 E boot: display channel 0xc57e/2 kick 5: PUT 0xfc8, 505 method(s), 0 UPDATE(s), 0 raster method(s); GET := PUT [guest]
+   813825983 E boot: display channel 0xc57e/2 kick 6: PUT 0x0, 0 method(s), 0 UPDATE(s), 0 raster method(s); GET := PUT [guest]
+   813826226 E boot: display channel 0xc57e/4 kick 3: PUT 0xfc8, 505 method(s), 0 UPDATE(s), 0 raster method(s); GET := PUT [guest]
+   813826290 E boot: display channel 0xc57e/4 kick 4: PUT 0x0, 0 method(s), 0 UPDATE(s), 0 raster method(s); GET := PUT [guest]
+   813826495 E boot: display channel 0xc57e/4 kick 5: PUT 0xfc8, 505 method(s), 0 UPDATE(s), 0 raster method(s); GET := PUT [guest]
+   813826556 E boot: display channel 0xc57e/4 kick 6: PUT 0x0, 0 method(s), 0 UPDATE(s), 0 raster method(s); GET := PUT [guest]
+   813826745 E boot: display channel 0xc57e/6 kick 3: PUT 0xfc8, 505 method(s), 0 UPDATE(s), 0 raster method(s); GET := PUT [guest]
+   813826805 E boot: display channel 0xc57e/6 kick 4: PUT 0x0, 0 method(s), 0 UPDATE(s), 0 raster method(s); GET := PUT [guest]
+   813827044 E boot: display channel 0xc57e/6 kick 5: PUT 0xfc8, 505 method(s), 0 UPDATE(s), 0 raster method(s); GET := PUT [guest]
+   813827103 E boot: display channel 0xc57e/6 kick 6: PUT 0x0, 0 method(s), 0 UPDATE(s), 0 raster method(s); GET := PUT [guest]
+   813827662 E boot: doorbell 1108: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   813827664 E boot: rx seq 1107 GSP_RM_CONTROL (76) sequence 1105 length 92 checksum ok: hClient=0xc1d00008 hObject=0x10012 cmd=0xc3700104 paramsSize=20 rpcFlags=0x0
+   813827665 E boot: ctrl 0xc3700104: channel info: class 0xc57e instance 0: IDLE (GET == PUT) -> status 0x0 [guest (recorded from the request)]
+   813827666 E boot: tx seq 1108 reply GSP_RM_CONTROL sequence 1105 result 0x0 length 92
+   813828401 E boot: doorbell 1109: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   813828402 E boot: rx seq 1108 GSP_RM_CONTROL (76) sequence 1106 length 92 checksum ok: hClient=0xc1d00008 hObject=0x10012 cmd=0xc3700104 paramsSize=20 rpcFlags=0x0
+   813828403 E boot: ctrl 0xc3700104: channel info: class 0xc57e instance 2: IDLE (GET == PUT) -> status 0x0 [guest (recorded from the request)]
+   813828405 E boot: tx seq 1109 reply GSP_RM_CONTROL sequence 1106 result 0x0 length 92
+   813829144 E boot: doorbell 1110: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   813829146 E boot: rx seq 1109 GSP_RM_CONTROL (76) sequence 1107 length 92 checksum ok: hClient=0xc1d00008 hObject=0x10012 cmd=0xc3700104 paramsSize=20 rpcFlags=0x0
+   813829147 E boot: ctrl 0xc3700104: channel info: class 0xc57e instance 4: IDLE (GET == PUT) -> status 0x0 [guest (recorded from the request)]
+   813829148 E boot: tx seq 1110 reply GSP_RM_CONTROL sequence 1107 result 0x0 length 92
+   813829842 E boot: doorbell 1111: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   813829844 E boot: rx seq 1110 GSP_RM_CONTROL (76) sequence 1108 length 92 checksum ok: hClient=0xc1d00008 hObject=0x10012 cmd=0xc3700104 paramsSize=20 rpcFlags=0x0
+   813829845 E boot: ctrl 0xc3700104: channel info: class 0xc57e instance 6: IDLE (GET == PUT) -> status 0x0 [guest (recorded from the request)]
+   813829846 E boot: tx seq 1111 reply GSP_RM_CONTROL sequence 1108 result 0x0 length 92
+   813830550 E boot: doorbell 1112: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   813830551 E boot: rx seq 1111 GSP_RM_CONTROL (76) sequence 1109 length 88 checksum ok: hClient=0xc1d00008 hObject=0x1000d cmd=0x7302a4 paramsSize=16 rpcFlags=0x0
+   813830552 E boot: ctrl 0x7302a4: control 0x7302a4 on 0x0 -> status 0x0 [synthesized (acknowledged; no display state behind it yet)]
+   813830553 E boot: tx seq 1112 reply GSP_RM_CONTROL sequence 1109 result 0x0 length 88
+   813831249 E boot: doorbell 1113: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   813831251 E boot: rx seq 1112 GSP_RM_CONTROL (76) sequence 1110 length 92 checksum ok: hClient=0xc1d00008 hObject=0x10012 cmd=0xc3700104 paramsSize=20 rpcFlags=0x0
+   813831252 E boot: ctrl 0xc3700104: channel info: class 0xc57d instance 0: IDLE (GET == PUT) -> status 0x0 [guest (recorded from the request)]
+   813831253 E boot: tx seq 1113 reply GSP_RM_CONTROL sequence 1110 result 0x0 length 92
+   813831881 E boot: display channel 0xc57d/0 kick 7: PUT 0x210, 66 method(s), 1 UPDATE(s), 0 raster method(s); core methods 0x2e14=0xb8000 0x2214=0xb901b 0x2614=0xb901b 0x2a14=0xb901b 0x2e14=0xb901b 0x2214=0xba064 0x2614=0xba064 0x2a14=0xba064 0x2e14=0xba064 0x2214=0xbb014 0x2614=0xbb014 0x2a14=0xbb014 0x2e14=0xbb014 0x2214=0xbc000 0x2614=0xbc000 0x2a14=0xbc000 0x2e14=0xbc000 0x2214=0xbd019 0x2614=0xbd019 0x2a14=0xbd019 0x2e14=0xbd019 0x2214=0xbe066 0x2614=0xbe066 0x2a14=0xbe066 0x2e14=0xbe066 0x2214=0xbf016 0x2614=0xbf016 0x2a14=0xbf016 0x2e14=0xbf016 0x2220=0xff 0x2224=0x0 0x2620=0xff 0x2624=0x0 0x2a20=0xff 0x2a24=0x0 0x2e20=0xff 0x2e24=0x0 0x1000=0x0 0x1080=0x0 0x1100=0x1 0x1180=0x1 0x1200=0x2 0x1280=0x2 0x1300=0x3 0x1380=0x3 0x1010=0x10110000 0x1004=0x0 0x1090=0x10110000 0x1084=0x0 0x1110=0x10110000 0x1104=0x0 0x1190=0x10110000 0x1184=0x0 0x1210=0x10110000 0x1204=0x0 0x1290=0x10110000 0x1284=0x0 0x1310=0x10110000 0x1304=0x0 0x1390=0x10110000 0x1384=0x0 0x208=0x10014 0x20c=0x1001 0x218=0x0; GET := PUT [guest]
+   813831947 E boot: display channel 0xc57d/0 kick 8: PUT 0x220, 2 method(s), 0 UPDATE(s), 0 raster method(s); GET := PUT [guest]
+   813832214 E msi: signalled (Ok(()))
+   813832374 E boot: doorbell 1114: libos args PA 0x11d6a9000 (mapped), wpr meta PA 0x11d6a8000
+   813832375 E boot: rx seq 1113 GSP_RM_CONTROL (76) sequence 1111 length 88 checksum ok: hClient=0xc1d00008 hObject=0x1000d cmd=0x7302a4 paramsSize=16 rpcFlags=0x0
+   813832377 E boot: ctrl 0x7302a4: control 0x7302a4 on 0x0 -> status 0x0 [synthesized (acknowledged; no display state behind it yet)]
+   813832378 E boot: tx seq 1114 reply GSP_RM_CONTROL sequence 1111 result 0x0 length 88

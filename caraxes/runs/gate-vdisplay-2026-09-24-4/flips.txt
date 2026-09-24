@@ -1,0 +1,12 @@
+# SPDX-License-Identifier: MIT
+# vdisplay gate gate-vdisplay-2026-09-24-4: flips.txt
+  mode 0: 1920x1080@60 clock 148500 htotal 2200 vtotal 1125
+  mode 1: 1920x1080@60 clock 148350 htotal 2200 vtotal 1125
+  mode 2: 1920x1080@50 clock 148500 htotal 2640 vtotal 1125
+  mode 3: 1280x720@60 clock 74250 htotal 1650 vtotal 750
+  mode 4: 1280x720@60 clock 74180 htotal 1650 vtotal 750
+  mode 5: 640x480@60 clock 25175 htotal 800 vtotal 525
+connector 127 crtc 61 mode 1920x1080@60 (clock 148500 kHz, period 16.667 ms)
+SETCRTC ok in 0.026 s
+RESULT flips=120 completed=120 timeouts=0 mode=1920x1080@60 period_ms=16.667 mean_ms=16.662 rate_hz=60.02 min_ms=14.959 max_ms=18.276 rms_dev_ms=0.366 total_s=1.983
+GETCRTC: fb 131 (expected 131), mode_valid 1, 1920x1080

@@ -1,0 +1,17 @@
+# SPDX-License-Identifier: MIT
+# display gate gate-display-2026-09-24-2: modeset.txt
+node /dev/dri/card0, driver "nvidia-drm"
+crtcs 4, connectors 1
+connector 127: connection 1 (1 = connected), 6 modes
+  mode 0: 1920x1080@60
+  mode 1: 1920x1080@60
+  mode 2: 1920x1080@50
+  mode 3: 1280x720@60
+buffers 1920x1080
+  fb 130 and fb 132, pitch 7680, 8294400 bytes each
+SETCRTC ok
+GETCRTC: fb 130, mode_valid 1, 1920x1080
+flipping 30 times, 500 ms timeout each
+PAGE_FLIP: 30 issued, 30 completed, 0 timed out
+after flip: fb 130 (expected 130)
+done
