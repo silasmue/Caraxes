@@ -263,7 +263,12 @@ mod tests {
                 }
                 // The display models (MODELLED) need the display, which this dispatcher
                 // has switched off: unanswered here, answered in the next test.
-                ('-', _) | ('C', _) => assert_eq!(a.label, "unanswered", "{}", r.name),
+                ('-', _) => assert_eq!(a.label, "unanswered", "{}", r.name),
+                // The C rows are the C table's (public.rs, gsp-plan round 2).
+                ('C', _) => {
+                    assert!(crate::ver::active::public::public_control(r.id).is_some(), "{}", r.name);
+                    assert_ne!(a.label, "unanswered", "{}", r.name);
+                }
                 ('E', _) => {
                     let acked = chip.features.acked.contains_key(&r.id);
                     assert_eq!(

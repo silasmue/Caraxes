@@ -128,6 +128,9 @@ pub struct Dispatcher {
     pub reservation: Option<(u64, u64)>,
     /// What the guest set on its channels and TSGs (public.rs, gsp-plan/c-guest-state.md).
     pub guest_attrs: crate::public::GuestAttrs,
+    /// The emulated PCIe Link Control register as the guest last left it (device.rs sets
+    /// it after every config-space write): `NV208F BIF_INFO` answers from it (public.rs).
+    pub link_control: u16,
 }
 
 /// Controls on a guest channel or TSG that a host mirror can take (mirror.rs
@@ -178,6 +181,7 @@ impl Dispatcher {
             display: crate::display::Display::new(),
             reservation: None,
             guest_attrs: Default::default(),
+            link_control: 0,
         }
     }
 
@@ -947,6 +951,8 @@ impl Dispatcher {
                 .as_mut()
                 .map(|f| f as &mut dyn crate::public::MirrorObjects),
             attrs: &mut self.guest_attrs,
+            reg: Some(&self.channels),
+            link_control: self.link_control,
         };
         if let Some(a) = crate::public::answer(&mut pctx, cmd, params) {
             return a;

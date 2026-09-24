@@ -825,6 +825,11 @@ impl ServerBackend for Device {
         let note = match region {
             VFIO_PCI_CONFIG_REGION_INDEX => {
                 self.cfg.write(offset as usize, data);
+                // NV208F BIF_INFO answers from the guest's Link Control (public.rs).
+                let lnk = self.cfg.link_control();
+                if let Some(b) = self.bar0.boot_mut() {
+                    b.ctrl.link_control = lnk;
+                }
                 None
             }
             VFIO_PCI_BAR0_REGION_INDEX => {

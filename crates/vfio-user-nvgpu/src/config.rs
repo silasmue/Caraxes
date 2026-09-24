@@ -272,6 +272,12 @@ impl ConfigSpace {
         })
     }
 
+    /// The PCIe capability's Link Control register (PCIe base spec 7.5.3.7: ASPM Control
+    /// 1:0).
+    pub fn link_control(&self) -> u16 {
+        self.word(self.cap_pcie + 0x10)
+    }
+
     pub fn byte(&self, off: usize) -> u8 {
         self.bytes.get(off).copied().unwrap_or(0xFF)
     }
