@@ -31,9 +31,18 @@ use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
+use super::fe_page::{FeIrq, FePage};
 use crate::fb::FakeFb;
 use crate::guestmem::GuestMemory;
 use crate::intr::IntrShared;
+
+/// Where the display's interrupt status lives.
+enum IrqHome {
+    /// In the engine: the guest's accesses trap (the default).
+    Local(FeIrq),
+    /// In the display page, shared with the reactor (`CARAXES_DISPLAY_PAGE=1`).
+    Page(Arc<FePage>),
+}
 
 /// Heads the register file covers (`__SIZE_1` of the head-indexed registers).
 pub const MAX_HEADS: usize = 8;
@@ -117,6 +126,9 @@ struct TickHead {
     t0_ns: AtomicU64,
     /// The head has work at its ticks: a pending presentation or vblank enabled.
     want: AtomicBool,
+    /// Vblank enabled through the display page (fe_page.rs), where the guest's enable
+    /// store reaches the reactor, not the engine.
+    vblank: AtomicBool,
 }
 
 /// State shared with the ticker thread; the server thread writes it.
@@ -135,7 +147,16 @@ pub struct Ticker {
     /// Vectors the ticker raised, and MSIs written for them.
     pub raised: AtomicU64,
     pub msis: AtomicU64,
+    /// The display page (`CARAXES_DISPLAY_PAGE=1`, fe_page.rs): the guest's reads no
+    /// longer trap, so the clock advances the engine itself at every tick through this
+    /// (main.rs: lock the device, `Device::display_tick`) before it raises the vector.
+    driver: Mutex<Option<Arc<Driver>>>,
+    /// Ticks handed to the driver.
+    pub driven: AtomicU64,
 }
+
+/// What the display clock runs at a tick when the engine does not advance on reads.
+pub type Driver = dyn Fn() + Send + Sync;
 
 static TICKER: OnceLock<Arc<Ticker>> = OnceLock::new();
 
@@ -167,6 +188,32 @@ impl Ticker {
         self.gsp_vector.store(gsp_vector, Ordering::Relaxed);
     }
 
+    /// Advance the engine at every tick from now on (the display page, fe_page.rs).
+    pub fn set_driver(&self, driver: Arc<Driver>) {
+        *self.driver.lock().unwrap() = Some(driver);
+    }
+
+    /// Vblank enabled or disabled on head `h` by a guest store in the display page.
+    pub fn set_vblank(&self, h: usize, on: bool) {
+        if let Some(t) = self.heads.get(h) {
+            if t.vblank.swap(on, Ordering::SeqCst) != on && on {
+                self.wake();
+            }
+        }
+    }
+
+    /// The tick's work: the driver first if there is one (the page is written), then the
+    /// raise, as the trapped path raises at every tick with work: a `LAST_DATA` the guest
+    /// left pending (vblank callbacks still queued) is serviced again at the next frame.
+    fn fire(&self) {
+        let d = self.driver.lock().unwrap().clone();
+        if let Some(d) = d {
+            self.driven.fetch_add(1, Ordering::Relaxed);
+            d();
+        }
+        self.raise();
+    }
+
     /// Whether a connector command waits for the server thread (cheap).
     pub fn command_pending(&self) -> bool {
         self.command_pending.load(Ordering::Acquire)
@@ -193,8 +240,9 @@ impl Ticker {
         *self.command.lock().unwrap() = Some(text);
         self.command_pending.store(true, Ordering::Release);
         // Any register read of the guest makes the server thread act on it; the display
-        // vector gets the guest's attention even when nothing else runs.
-        self.raise();
+        // vector gets the guest's attention even when nothing else runs. With the display
+        // page those reads do not trap: the driver acts on it.
+        self.fire();
     }
 
     pub fn intr(&self) -> Option<Arc<IntrShared>> {
@@ -246,7 +294,8 @@ impl Ticker {
             let mut fire = false;
             for (h, t) in self.heads.iter().enumerate() {
                 let p = t.period_ns.load(Ordering::SeqCst);
-                if p == 0 || !t.want.load(Ordering::SeqCst) {
+                let work = t.want.load(Ordering::SeqCst) || t.vblank.load(Ordering::SeqCst);
+                if p == 0 || !work {
                     continue;
                 }
                 let t0 = t.t0_ns.load(Ordering::SeqCst);
@@ -266,7 +315,7 @@ impl Ticker {
                 next = Some(next.map_or(d, |x: u64| x.min(d)));
             }
             if fire {
-                self.raise();
+                self.fire();
             }
             let now = now_ns();
             match next {
@@ -452,10 +501,8 @@ pub struct Window {
 pub struct Engine {
     pub heads: Vec<Head>,
     pub windows: Vec<Window>,
-    evt_timing: [u32; MAX_HEADS],
-    en_timing: [u32; MAX_HEADS],
-    awaken_win: u32,
-    awaken_other: u32,
+    /// The interrupt status: here, or in the display page (fe_page.rs).
+    irq: IrqHome,
     /// Display instance memory base in FB (from `WRITE_INST_MEM`).
     pub inst: Option<u64>,
     pub core_updates: u64,
@@ -470,10 +517,7 @@ impl Engine {
         let e = Engine {
             heads: vec![Head::default(); heads.min(MAX_HEADS)],
             windows: vec![Window::default(); windows.min(MAX_WINDOWS)],
-            evt_timing: [0; MAX_HEADS],
-            en_timing: [0; MAX_HEADS],
-            awaken_win: 0,
-            awaken_other: 0,
+            irq: IrqHome::Local(FeIrq::new(heads)),
             inst: None,
             core_updates: 0,
             core_notifier_writes: 0,
@@ -496,27 +540,40 @@ impl Engine {
 
     // ---- interrupt state
 
-    fn rm_stat_timing(&self, h: usize) -> u32 {
-        self.evt_timing[h] & self.en_timing[h]
+    /// Hand the interrupt status to the display page (`CARAXES_DISPLAY_PAGE=1`): from now
+    /// on it lives there, the guest reads it from memory and the reactor applies its
+    /// stores (fe_page.rs).
+    pub fn attach_page(&mut self, page: Arc<FePage>) {
+        page.attach(self.irq());
+        self.irq = IrqHome::Page(page);
+        self.sync_ticker();
     }
 
-    fn dispatch(&self) -> u32 {
-        (0..self.heads.len())
-            .filter(|&h| self.rm_stat_timing(h) != 0)
-            .fold(0, |m, h| m | 1 << h)
+    /// Whether the status lives in the display page.
+    pub fn paged(&self) -> bool {
+        matches!(self.irq, IrqHome::Page(_))
     }
 
-    fn ctrl_disp(&self) -> u32 {
-        if self.awaken_win | self.awaken_other != 0 {
-            CTRL_DISP_AWAKEN
-        } else {
-            0
+    /// The interrupt status (a copy).
+    pub fn irq(&self) -> FeIrq {
+        match &self.irq {
+            IrqHome::Local(i) => i.clone(),
+            IrqHome::Page(p) => p.irq(),
+        }
+    }
+
+    /// Change the status; with the page, the guest's stores are applied first and the
+    /// page is written after (fe_page.rs `FePage::update`).
+    fn with_irq<R>(&mut self, f: impl FnOnce(&mut FeIrq) -> R) -> R {
+        match &mut self.irq {
+            IrqHome::Local(i) => f(i),
+            IrqHome::Page(p) => p.update(f),
         }
     }
 
     /// Whether the display interrupt line is asserted.
     pub fn pending(&self) -> bool {
-        self.dispatch() != 0 || self.ctrl_disp() != 0
+        self.irq().pending()
     }
 
     fn signal(&mut self) {
@@ -526,13 +583,17 @@ impl Engine {
     }
 
     fn sync_ticker(&self) {
+        let irq = self.irq();
         for (h, head) in self.heads.iter().enumerate() {
             let flips = self
                 .windows
                 .iter()
                 .any(|w| w.head == Some(h) && !w.pending.is_empty());
-            let want = head.active && (flips || self.en_timing[h] & LAST_DATA != 0);
+            let want = head.active && (flips || irq.en[h] & LAST_DATA != 0);
             ticker().set_want(h, want);
+            if self.paged() {
+                ticker().set_vblank(h, irq.en[h] & LAST_DATA != 0);
+            }
         }
     }
 
@@ -574,20 +635,21 @@ impl Engine {
     pub fn read32(&self, off: u64, now: u64) -> Option<u32> {
         let idx = |base: u64, stride: u64| ((off - base) / stride) as usize;
         let head = |h: usize| self.heads.get(h);
+        let irq = self.irq();
         Some(match off {
             o if (FE_EVT_STAT_HEAD_TIMING..FE_EVT_STAT_HEAD_TIMING + 32).contains(&o) => {
-                self.evt_timing[idx(FE_EVT_STAT_HEAD_TIMING, 4)]
+                irq.evt[idx(FE_EVT_STAT_HEAD_TIMING, 4)]
             }
             o if (FE_RM_INTR_STAT_HEAD_TIMING..FE_RM_INTR_STAT_HEAD_TIMING + 32).contains(&o) => {
-                self.rm_stat_timing(idx(FE_RM_INTR_STAT_HEAD_TIMING, 4))
+                irq.rm_stat(idx(FE_RM_INTR_STAT_HEAD_TIMING, 4))
             }
             o if (FE_RM_INTR_EN_HEAD_TIMING..FE_RM_INTR_EN_HEAD_TIMING + 32).contains(&o) => {
-                self.en_timing[idx(FE_RM_INTR_EN_HEAD_TIMING, 4)]
+                irq.en[idx(FE_RM_INTR_EN_HEAD_TIMING, 4)]
             }
-            FE_RM_INTR_DISPATCH => self.dispatch(),
-            FE_RM_INTR_STAT_CTRL_DISP => self.ctrl_disp(),
-            FE_EVT_STAT_AWAKEN_WIN => self.awaken_win,
-            FE_EVT_STAT_AWAKEN_OTHER => self.awaken_other,
+            FE_RM_INTR_DISPATCH => irq.dispatch(),
+            FE_RM_INTR_STAT_CTRL_DISP => irq.ctrl_disp(),
+            FE_EVT_STAT_AWAKEN_WIN => irq.awaken_win,
+            FE_EVT_STAT_AWAKEN_OTHER => irq.awaken_other,
             o if on_head_page(o, FE_CORE_HEAD_STATE) => {
                 let h = idx(FE_CORE_HEAD_STATE, HEAD_STRIDE);
                 if head(h).is_some_and(|h| h.active) {
@@ -612,13 +674,13 @@ impl Engine {
         let idx = |base: u64| ((off - base) / 4) as usize;
         let note = match off {
             o if (FE_EVT_STAT_HEAD_TIMING..FE_EVT_STAT_HEAD_TIMING + 32).contains(&o) => {
-                self.evt_timing[idx(FE_EVT_STAT_HEAD_TIMING)] &= !v;
+                let h = idx(FE_EVT_STAT_HEAD_TIMING);
+                self.with_irq(|i| i.evt[h] &= !v);
                 None
             }
             o if (FE_RM_INTR_EN_HEAD_TIMING..FE_RM_INTR_EN_HEAD_TIMING + 32).contains(&o) => {
                 let h = idx(FE_RM_INTR_EN_HEAD_TIMING);
-                let was = self.en_timing[h];
-                self.en_timing[h] = v;
+                let was = self.with_irq(|i| std::mem::replace(&mut i.en[h], v));
                 self.sync_ticker();
                 (was != v).then(|| {
                     format!(
@@ -632,11 +694,11 @@ impl Engine {
                 })
             }
             FE_EVT_STAT_AWAKEN_WIN => {
-                self.awaken_win &= !v;
+                self.with_irq(|i| i.awaken_win &= !v);
                 None
             }
             FE_EVT_STAT_AWAKEN_OTHER => {
-                self.awaken_other &= !v;
+                self.with_irq(|i| i.awaken_other &= !v);
                 None
             }
             o if Self::handles(o) => {
@@ -654,7 +716,11 @@ impl Engine {
     /// Advance every active head to `now`: latch presentations, count frames, set
     /// `LAST_DATA`, and raise the vector when something became pending.
     pub fn catch_up(&mut self, now: u64, fb: &mut FakeFb, mem: &GuestMemory) {
-        let before = (self.dispatch(), self.awaken_win, self.awaken_other);
+        let snap = |e: &Self| {
+            let i = e.irq();
+            (i.dispatch(), i.awaken_win, i.awaken_other)
+        };
+        let before = snap(self);
         for h in 0..self.heads.len() {
             let (active, p, t0) = {
                 let hd = &self.heads[h];
@@ -686,10 +752,14 @@ impl Engine {
                         self.try_latch(w, tick, tick_ns, false, fb, mem);
                     }
                 }
-                if self.en_timing[h] & LAST_DATA != 0 && self.evt_timing[h] & LAST_DATA == 0 {
+                let newly = self.with_irq(|i| {
+                    let newly = i.en[h] & LAST_DATA != 0 && i.evt[h] & LAST_DATA == 0;
+                    i.evt[h] |= LAST_DATA;
+                    newly
+                });
+                if newly {
                     self.vblank_raised += 1;
                 }
-                self.evt_timing[h] |= LAST_DATA;
             }
             // Rate report every 600 ticks (10 s at 60 Hz).
             let hd = &mut self.heads[h];
@@ -708,7 +778,7 @@ impl Engine {
             }
         }
         self.sync_ticker();
-        if (self.dispatch(), self.awaken_win, self.awaken_other) != before {
+        if snap(self) != before {
             self.signal();
         }
     }
@@ -773,7 +843,7 @@ impl Engine {
         // being disabled (no notifier, no surface) raises one.
         let was_active = self.windows[w].latched.mem.is_some();
         if was_active && f.notifier.is_none_or(|(_, awaken)| awaken) {
-            self.awaken_win |= 1 << w;
+            self.with_irq(|i| i.awaken_win |= 1 << w);
         }
         let win = &mut self.windows[w];
         let changed = win.latched != f.surface;
@@ -926,7 +996,7 @@ impl Engine {
                     self.note(line);
                 }
                 if ctrl & 1 == 1 {
-                    self.awaken_other |= 1;
+                    self.with_irq(|i| i.awaken_other |= 1);
                 }
             }
         }
@@ -1302,5 +1372,101 @@ mod tests {
         e.core_update(&armed, 70, &mut fb, &mem);
         assert!(!e.heads[0].active);
         assert_eq!(e.read32(FE_CORE_HEAD_STATE, 0), Some(0));
+    }
+
+    /// The display page (fe_page.rs): the clock's catch-up writes the vblank and the
+    /// AWAKEN marker into the page itself (the guest's reads no longer trap and no
+    /// longer advance it), and the guest's stores in the page reach the engine's status.
+    #[test]
+    fn page_mode_the_clock_writes_the_page() {
+        use crate::display::fe_page::{FePage, AWAKEN_CORE, TAG};
+        use std::sync::atomic::AtomicU64;
+        let intr = crate::intr_page::IntrPage::create(
+            16 << 20,
+            0x00B8_1000,
+            crate::fixture::rtx2070().chip.data().identity,
+            IntrShared::new(),
+            crate::intr_page::Config::default(),
+        )
+        .unwrap();
+        let raised = Arc::new(AtomicU64::new(0));
+        let r = raised.clone();
+        let fe = FePage::create_with(
+            &intr,
+            Box::new(move || {
+                r.fetch_add(1, Ordering::Relaxed);
+            }),
+        )
+        .unwrap();
+        let mut fb = FakeFb::new(16 << 20);
+        let mut e = engine_with_head(&mut fb);
+        let mem = GuestMemory::new();
+        // The core notifier's WRITE_AWAKEN of the modeset moves into the page as a marker.
+        e.attach_page(fe.clone());
+        assert!(e.paged());
+        assert_eq!(fe.read32(FE_EVT_STAT_AWAKEN_OTHER), AWAKEN_CORE | TAG);
+        assert_eq!(fe.read32(FE_RM_INTR_STAT_CTRL_DISP), CTRL_DISP_AWAKEN);
+        fe.write(FE_EVT_STAT_AWAKEN_OTHER, &AWAKEN_CORE.to_le_bytes());
+        assert!(fe.scan());
+        assert_eq!(e.irq().awaken_other, 0);
+        // The guest enables vblank on head 0 through the page; the engine sees it.
+        fe.write(FE_RM_INTR_EN_HEAD_TIMING, &LAST_DATA.to_le_bytes());
+        fe.scan();
+        assert_eq!(e.read32(FE_RM_INTR_EN_HEAD_TIMING, 0), Some(LAST_DATA));
+        let (t0, p) = (e.heads[0].t0_ns, e.heads[0].period_ns);
+        // The clock's tick: LAST_DATA and DISPATCH in the page, no guest read needed.
+        e.catch_up(t0 + p, &mut fb, &mem);
+        assert_eq!(fe.read32(FE_EVT_STAT_HEAD_TIMING), LAST_DATA | TAG);
+        assert_eq!(fe.read32(FE_RM_INTR_STAT_HEAD_TIMING), LAST_DATA);
+        assert_eq!(fe.read32(FE_RM_INTR_DISPATCH), 1);
+        assert_eq!(e.vblank_raised, 1);
+        // A flip away from a scanned-out surface: the window's AWAKEN under a marker.
+        for (m, v) in [
+            (W_SET_CONTEXT_DMA_NOTIFIER, 0x20),
+            (W_SET_NOTIFIER_CONTROL, 1 | (1 << 4)),
+            (W_SET_CONTEXT_DMA_ISO, 0x40),
+            (W_SET_SIZE, 1920 | (1080 << 16)),
+            (W_SET_PRESENT_CONTROL, 1),
+        ] {
+            e.window_method(0, m, v);
+        }
+        e.window_update(0, t0 + p + 1, &mut fb, &mem);
+        e.catch_up(t0 + 2 * p, &mut fb, &mem);
+        e.window_update(0, t0 + 2 * p + 1, &mut fb, &mem);
+        e.catch_up(t0 + 3 * p, &mut fb, &mem);
+        assert_eq!(fe.read32(FE_EVT_STAT_AWAKEN_WIN), 1);
+        assert_eq!(fe.read32(FE_EVT_STAT_AWAKEN_OTHER), AWAKEN_CORE | TAG);
+        // The guest's pass: vblank ack, the window echo, CORE_RESET.
+        fe.write(FE_EVT_STAT_HEAD_TIMING, &LAST_DATA.to_le_bytes());
+        fe.write(FE_EVT_STAT_AWAKEN_WIN, &1u32.to_le_bytes());
+        fe.write(FE_EVT_STAT_AWAKEN_OTHER, &AWAKEN_CORE.to_le_bytes());
+        fe.scan();
+        assert!(!e.pending());
+        assert_eq!(fe.read32(FE_RM_INTR_DISPATCH), 0);
+        assert_eq!(fe.read32(FE_RM_INTR_STAT_CTRL_DISP), 0);
+        assert_eq!(raised.load(Ordering::Relaxed), 0, "nothing left asserted");
+    }
+
+    /// With a driver the clock runs it at every tick before the raise; a head with only
+    /// vblank enabled through the page ticks too.
+    #[test]
+    fn the_clock_drives_the_engine_with_the_page() {
+        use std::sync::atomic::AtomicU64;
+        let t = Arc::new(Ticker::default());
+        let n = Arc::new(AtomicU64::new(0));
+        let c = n.clone();
+        t.set_driver(Arc::new(move || {
+            c.fetch_add(1, Ordering::Relaxed);
+        }));
+        t.set_head(0, 1_000_000, now_ns());
+        t.set_vblank(0, true);
+        let me = t.clone();
+        std::thread::spawn(move || me.run());
+        let deadline = Instant::now() + Duration::from_secs(5);
+        while n.load(Ordering::Relaxed) < 5 && Instant::now() < deadline {
+            std::thread::sleep(Duration::from_millis(2));
+        }
+        assert!(n.load(Ordering::Relaxed) >= 5);
+        assert_eq!(t.driven.load(Ordering::Relaxed), n.load(Ordering::Relaxed));
     }
 }

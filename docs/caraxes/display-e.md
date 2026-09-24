@@ -258,13 +258,73 @@ id), and `RmInitAdapter` succeeded there.
 - **One GR MMU fault at GNOME's start (f2, 13:20:35)**: Xid 31 `FAULT_PTE`
   `ACCESS_TYPE_VIRT_WRITE` by `GPCCLIENT_PROP_0` at VA 0x1_202c0000, channel 0x32, device pid;
   one host RC event, the session came up and ran the demos. It did not recur at the four later
-  GNOME starts (f3b, f5, f6, f7). In the trace a shadow plan that maps 8 leaves is logged 5 us
-  after the RC and 350 us after the doorbell that preceded it; the worker's log lines are
-  stamped when the server thread drains them, so the order cannot be read from the trace alone.
-  The guest's last two MMU invalidates of that root (pdb 0xe90f0000) came 81 ms before the
-  doorbell. For the mapping package: check that the doorbell's barrier covers every plan of that
-  root (evidence `f2-demos-gnome/device-events.txt.xz` around trace time 811347420, device log
-  `HOST RC EVENT ... exceptType 0x1f`).
+  GNOME starts (f3b, f5, f6, f7). The same Xid (channel 0x32, root 0xe90f0000, PROP_0
+  `FAULT_PTE` at VA 0x1_20281000) came at GNOME's start of run B1 of the interrupt page series
+  (intr-page.md §9). **Finding (2026-09-24 evening): the fault comes before the doorbell, while
+  the worker is still applying a plan of that root. The doorbell barrier holds. The GPPut store
+  that precedes the doorbell does not wait for it.**
+  - The order can be read from the trace after all. The worker's plan lines and the event
+    thread's RC line both go through `IntrShared::note`, one `Vec` (intr.rs:119-121; worker
+    mirror.rs:2063-2065, event thread mirror.rs:2258-2267). The time stamp is the drain time, but
+    the order within a drained batch is the real order.
+  - f2 (`f2-demos-gnome/device-events.txt.xz`, trace µs):
+    - 811261509: doorbell 40 of guest chid 2 (host token 0x32). The doorbell's own resync
+      maps 8 leaves.
+    - 811263297 and 811266380: two MMU invalidates of pdb 0xe90f0000, which submit plan A
+      (19 leaves walked, 8 mapped) and plan B (293 walked, 1 mapped) to the worker.
+    - Then 80 ms without a line: the server thread waits in the barrier of doorbell 41
+      (mirror.rs:491-494, `ShadowWorker::wait_all`).
+    - 811347069: doorbell 41 forwarded.
+    - One drained batch follows, in this order: the host RC event (exceptType 0x1f), then
+      plan A done ("apply 75719 us after 10 us in the worker's queue"), then plan B done
+      ("apply 7796 us after 72804 us in the worker's queue").
+    - So the RC came before plan A finished, at about 811339 ms. That is before doorbell 41
+      was forwarded.
+    - Channel 0x32 is the only GR shadow root at that point.
+  - B1 (`B1-page-on-uncoalesced/traps-mutter/device-events.txt`) has the same shape.
+    - 159834178: an invalidate submits an 8-leaf plan.
+    - 159921544: doorbell 30 forwarded, 87 ms later.
+    - 159924437: the RC, noted before that plan's line ("apply 74082 us").
+  - A doorbell cannot pass an unapplied plan. Every submit runs on the server thread, and
+    `wait_all` (mirror.rs:2099-2109) waits for a single global sequence number. It therefore
+    covers every root and every job, the doorbell's own resync included (mirror.rs:491 then
+    :494). A leaf of another root is not the cause either: only one shadow root existed at
+    either fault, and the barrier is global anyway.
+  - **The gap.** The host channel runs on the guest's own USERD (the host RM's clear and the
+    restore, mirror.rs:543-560 and :796-805). The guest's GPPut store (USERD + 0x8C, a trapped
+    BAR1 write: device.rs:843, boot.rs:384-389 `bar_access`, fb.rs:1481-1512 `bar_access`) reaches VRAM at once,
+    with no barrier. The guest's order is: page tables, invalidate (plan queued), GPFIFO entry,
+    GPPut, doorbell. A host channel that is still loaded can fetch the new GPPut without a
+    doorbell. Doorbells 31 to 40 came in quick succession before 41, so the channel was
+    likely loaded. This mechanism is inferred, not observed. The plan lines do not name their
+    VAs, so whether plan A maps 0x1_202c0000 is likely (its 8 leaves are the same shape as the
+    first-doorbell plans) but not shown.
+  - **Fix (in this package, small).** `BootModel::gp_put_barrier` (boot.rs:401-428) runs before a
+    trapped BAR1 write, and only while the worker has plans pending
+    (`Mirror::shadow_pending`). When the write covers the GPPut dword of a mirrored channel's
+    USERD (`Mirror::mirrored_userds`, `stores_gp_put`), it waits for the worker as the
+    doorbell does. The wait is traced as an event, `shadow: BAR1 write ...: fb ... (GPPut of a
+    mirrored channel held N us until the shadow worker applied its plans)`. In steady state no
+    plan is pending (0 per Mutter frame, §6), so it costs nothing there. Test:
+    `boot::tests::gp_put_stores_of_mirrored_channels_are_found`. It does not cover a USERD
+    that does not trap. The P21 BAR1 pool keeps a mirrored channel's USERD page trapped
+    (bar1pool.rs:15-22, :457-458), but the P21 whole-BAR1 passthrough does not. There, the
+    safe version is the barrier at the invalidate (a `wait_all` at the end of
+    `mirror_shadow_resync`), which costs the invalidate the apply time (13-75 ms in these
+    plans).
+  - **The BAR2 memfd.** f2 and B1 ran without `CARAXES_BAR2_MEMFD`. The page-table writes were
+    trapped (the plans read 0 tables), and the invalidate syncs the BAR2 memfd before its walk
+    (boot.rs:718, then the resync at :725-734). With the memfd, the invalidate stays the
+    sync point, so the display path does not need
+    `CARAXES_BAR2_MEMFD_SYNC_DOORBELL=1`: flips and scanout imports reach the GPU only through
+    GR/CE pushes after the guest's invalidate. That flag would not close this gap either,
+    because the gap is after the sync.
+  - Measurement: five fresh GNOME starts per configuration in
+    `caraxes/runs/display-page-2026-09-24/series.sh` (intr-page.md §6a). The fix predicts 0
+    Xid. The barrier's events show how often a GPPut store met a pending plan. The reference
+    without the fix is f2 and B1, one Xid in six GNOME starts. A negative result needs the
+    counter-check: `CARAXES_SHADOW_WORKER=0` (plans synchronous at the invalidate) should also
+    give 0 Xid.
 - Mutter at 30-41 Hz: interrupt servicing, §6.
 - The stream at 26 FPS: the per-frame capture import and x264, §7; NVENC needs an NVENC mirror.
 - es2gears_wayland and eglgears_wayland run but print no frame rate.
