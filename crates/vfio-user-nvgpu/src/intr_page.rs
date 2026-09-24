@@ -214,10 +214,6 @@ impl Model {
         t
     }
 
-    fn asserted(&self) -> bool {
-        self.top() & self.top_en != 0
-    }
-
     /// The word the page shows for watched word `i`.
     fn display(&self, i: usize) -> u32 {
         match i {
@@ -255,6 +251,11 @@ const ODD_NAMES: [&str; 6] = [
 
 struct State {
     model: Model,
+    /// The leaf enables of the kernel table (`enable_vectors`), kept across a reset.
+    table_en: [u32; LEAVES],
+    /// Vectors raised again while still pending (coalesced, as `IntrShared::raise` does
+    /// while the guest has not looked): the ack that clears them pends them anew.
+    again: [u32; LEAVES],
     /// When an enabled vector was last seen pending with no ack or MSI since (watchdog).
     stale_since: Option<Instant>,
     logged: u32,
@@ -271,6 +272,8 @@ pub struct Stats {
     pub top_en_clear: AtomicU64,
     pub triggers: AtomicU64,
     pub raised: AtomicU64,
+    pub coalesced: AtomicU64,
+    pub again: AtomicU64,
     pub msi_raise: AtomicU64,
     pub msi_edge: AtomicU64,
     pub msi_watchdog: AtomicU64,
@@ -358,6 +361,8 @@ impl IntrPage {
             shared,
             state: Mutex::new(State {
                 model: Model::default(),
+                table_en: [0; LEAVES],
+                again: [0; LEAVES],
                 stale_since: None,
                 logged: 0,
             }),
@@ -449,7 +454,11 @@ impl IntrPage {
     /// constants, the tree page showing the initial displays.
     pub fn reset(&self) {
         let mut st = self.lock();
-        st.model = Model::default();
+        st.model = Model {
+            leaf_en: st.table_en,
+            ..Model::default()
+        };
+        st.again = [0; LEAVES];
         st.stale_since = None;
         for off in (0..PAGE).step_by(4) {
             self.pmc.word(off).store(0, Ordering::Relaxed);
@@ -486,6 +495,18 @@ impl IntrPage {
                 }
             }
         }
+    }
+
+    /// The vectors of the chip's kernel table (stall and non-stall; vector 0 counts): the
+    /// leaf enables the page reports from the start (§3 of docs/caraxes/intr-page.md).
+    pub fn enable_vectors(&self, vectors: &[u32]) {
+        {
+            let mut st = self.lock();
+            for &v in vectors.iter().filter(|&&v| v < 256 && v % 32 != 31) {
+                st.table_en[(v / 32) as usize] |= 1 << (v % 32);
+            }
+        }
+        self.reset();
     }
 
     /// The model as the reactor last applied it (tests, summary).
@@ -531,82 +552,100 @@ impl IntrPage {
         let w: [u32; WATCHED] = std::array::from_fn(|i| self.watched(i).load(Ordering::Acquire));
         let exp: [u32; WATCHED] = std::array::from_fn(|i| self.expected[i].load(Ordering::Relaxed));
         let changed = |i: usize| w[i] != exp[i];
-        let mut level = st.model.asserted();
-        let mut edge = false;
-        let step = |m: &Model, level: &mut bool, edge: &mut bool| {
-            let a = m.asserted();
-            if a && !*level {
-                *edge = true;
-            }
-            *level = a;
-        };
-        // 1. The clears of a lock acquire.
+        // 1. Enable stores. The leaf enables are reported, not modelled (docs/caraxes/
+        // intr-page.md §3): the page shows every vector of the kernel table and every bit
+        // the guest ever set, because the guest's per-vector enable loops at state load
+        // store faster than any scan and lose all but the last value (series B on vm0:
+        // LEAF_EN_SET(0) read 0x1 instead of 0xff, the non-stall vectors never showed in
+        // TOP, the compositor stalled). Clears are counted and dropped. Every set store is
+        // the guest re-enabling (a lock release, intrSetDisplayInterruptEnable,
+        // intrEnableTopNonstall): a re-arm, as the edge of the trapped tree is.
+        let mut rearm_by_set = false;
         for i in 0..LEAVES {
             if w[W_EN_CLEAR + i] != 0 {
-                st.model.leaf_en[i] &= !w[W_EN_CLEAR + i];
                 bump(&self.stats.en_clear);
+            }
+            if changed(W_EN_SET + i) {
+                let v = w[W_EN_SET + i];
+                if v & TAG != 0 {
+                    self.odd(&mut st, Odd::TagInEnable);
+                }
+                st.model.leaf_en[i] |= v & !TAG;
+                rearm_by_set = true;
+                bump(&self.stats.en_set);
             }
         }
         if w[W_TOP_EN_CLEAR] != 0 {
             st.model.top_en &= !w[W_TOP_EN_CLEAR];
             bump(&self.stats.top_en_clear);
         }
-        step(&st.model, &mut level, &mut edge);
-        // 2. The sets of a release.
-        for i in 0..LEAVES {
-            let v = w[W_EN_SET + i];
-            if changed(W_EN_SET + i) {
-                if v & TAG != 0 {
-                    self.odd(&mut st, Odd::TagInEnable);
-                }
-                st.model.leaf_en[i] |= v & !TAG;
-                bump(&self.stats.en_set);
-            }
-        }
         if changed(W_TOP_EN_SET) {
             st.model.top_en |= w[W_TOP_EN_SET] & SUBTREES;
+            rearm_by_set = true;
             bump(&self.stats.top_en_set);
         }
-        step(&st.model, &mut level, &mut edge);
         // 3. Acks: the word lost the tag, the word is the mask.
         let mut acked = false;
+        let mut rearm = false;
         for i in 0..LEAVES {
             let v = w[W_LEAF + i];
             if changed(W_LEAF + i) {
                 if v & TAG != 0 {
                     self.odd(&mut st, Odd::TagInLeaf);
                 }
-                st.model.leaf[i] &= !(v & !TAG);
+                let mask = v & !TAG;
+                st.model.leaf[i] &= !mask;
                 acked = true;
                 bump(&self.stats.acks);
+                // A raise that came while the bit was pending may be after the guest's
+                // read: pend it again, with its own MSI (below).
+                let again = st.again[i] & mask;
+                st.again[i] &= !again;
+                st.model.leaf[i] |= again;
+                if again != 0 {
+                    rearm = true;
+                    bump(&self.stats.again);
+                }
             }
         }
-        step(&st.model, &mut level, &mut edge);
-        // 4. Triggers, as IntrTree::trigger (an edge when it asserts).
+        // 4. Triggers: a newly pending vector, with its MSI as a raise.
         if changed(W_TRIGGER) {
             let v = w[W_TRIGGER] & 0xFFF;
             if v < 256 && v % 32 != 31 {
-                st.model.leaf[(v / 32) as usize] |= 1 << (v % 32);
+                let (l, b) = ((v / 32) as usize, 1u32 << (v % 32));
+                if st.model.leaf[l] & b == 0 {
+                    rearm = true;
+                }
+                st.model.leaf[l] |= b;
                 bump(&self.stats.triggers);
             } else {
                 self.odd(&mut st, Odd::BadTrigger);
             }
         }
-        step(&st.model, &mut level, &mut edge);
         if changed(W_TOP) {
             self.odd(&mut st, Odd::TopStore);
         }
         // 5. Vectors raised by other threads; their MSI is the raise's, not an edge.
-        let mut raise_msi = false;
+        // A vector still pending in the page costs no second MSI (the guest has not
+        // acked it; `IntrShared::raise` coalesces the same way while the guest has not
+        // looked); it is remembered and pended again at its ack.
+        let mut raise_msi = rearm;
         if self.shared.page_raised.swap(false, Ordering::AcqRel) {
+            self.shared.page_msi.store(false, Ordering::Release);
             for i in 0..LEAVES {
                 let p = self.shared.take_pending(i) & !TAG;
                 if p != 0 {
+                    let newly = p & !st.model.leaf[i];
+                    st.again[i] |= p & st.model.leaf[i];
                     st.model.leaf[i] |= p;
                     bump(&self.stats.raised);
+                    if newly != 0 {
+                        raise_msi = true;
+                    } else {
+                        bump(&self.stats.coalesced);
+                    }
                 }
             }
-            raise_msi = self.shared.page_msi.swap(false, Ordering::AcqRel);
         }
         between();
         // Write the displays: compare-and-swap from what was read, so a store that
@@ -623,6 +662,8 @@ impl IntrPage {
             }
             self.expected[i].store(d, Ordering::Relaxed);
         }
+        // The re-arm: a set store while an enabled vector is pending.
+        let edge = rearm_by_set && !raise_msi && st.model.top() != 0;
         let mut msi = false;
         if edge || raise_msi {
             // The page stores above come first; the eventfd write follows them.
@@ -722,7 +763,7 @@ impl IntrPage {
             .map(|(what, n)| format!("{} x {what}", l(n)))
             .collect();
         format!(
-            "intr page: {} scan(s) with work (slowest {:.1} us); guest stores applied: {} ack(s), {} LEAF_EN_SET, {} LEAF_EN_CLEAR, {} TOP_EN_SET, {} TOP_EN_CLEAR, {} trigger(s); {} raise fold(s); MSIs: {} for raises, {} on edges, {} by the watchdog, {} not written (MSI off or no eventfd); {} compare-and-swap(s) lost to a guest store; inconsistencies: {}\n",
+            "intr page: {} scan(s) with work (slowest {:.1} us); guest stores applied: {} ack(s), {} LEAF_EN_SET, {} LEAF_EN_CLEAR, {} TOP_EN_SET, {} TOP_EN_CLEAR, {} trigger(s); {} raise fold(s) ({} coalesced while pending, {} pended again at the ack); MSIs: {} for raises, {} re-arms (a set store while a vector is pending), {} by the watchdog, {} not written (MSI off or no eventfd); {} compare-and-swap(s) lost to a guest store; inconsistencies: {}\n",
             l(&s.scans),
             l(&s.slow_ns_max) as f64 / 1000.0,
             l(&s.acks),
@@ -732,6 +773,8 @@ impl IntrPage {
             l(&s.top_en_clear),
             l(&s.triggers),
             l(&s.raised),
+            l(&s.coalesced),
+            l(&s.again),
             l(&s.msi_raise),
             l(&s.msi_edge),
             l(&s.msi_watchdog),
@@ -826,7 +869,6 @@ fn count(f: &mut File) -> u64 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::intr::IntrTree;
 
     const BASE: u64 = 0x00B8_1000;
 
@@ -935,75 +977,88 @@ mod tests {
         assert!(p.summary().contains("1 ack(s)"));
     }
 
-    /// The same sequence of guest writes through the trapped tree and through the page
-    /// (scanned after every store) ends in the same model, TOP and MSI count; a lock
-    /// cycle whose clear and set land in one scan still makes its edge.
+    /// A host event for a vector the page still shows pending costs no MSI (series B on
+    /// vm0 without this: 14825 host events became as many MSIs in one Mutter window and
+    /// the compositor stalled); the ack that clears it pends it again with one MSI, so an
+    /// event after the guest's read is not lost.
     #[test]
-    fn page_matches_the_trapped_tree() {
+    fn raises_while_pending_coalesce_until_the_ack() {
         let (p, shared, mut msi, _) = page(Config::default());
-        let mut t = IntrTree::new(BASE, 0x800);
-        let mut trapped_msis = 0;
-        // Vector 156 (display, leaf 4 bit 28) and 192 (GSP, leaf 6 bit 0) pending.
-        let seq: &[(u64, u32)] = &[
-            (LEAF_TRIGGER, 156),
-            (LEAF_TRIGGER, 192),
-            (LEAF_EN_SET + 16, 0x1000_0000),
-            (LEAF_EN_SET + 24, 0x1),
-            (TOP_EN_SET, 0xFFFF_FFFE),
-            (TOP_EN_SET, 0x1),
-            // Lock acquire, release.
-            (LEAF_EN_CLEAR + 8, 0x3),
-            (LEAF_EN_CLEAR + 16, 0xFFFF_FFFF),
-            (TOP_EN_CLEAR, 0x8),
-            (LEAF_EN_SET + 8, 0x3),
-            (LEAF_EN_SET + 16, 0x1000_0000),
-            (TOP_EN_SET, 0xFFFF_FFFE),
-            // Acks.
-            (LEAF + 16, 0x1000_0000),
-            (LEAF + 24, 0x1),
-        ];
-        let mut page_msis = 0;
-        for &(r, v) in seq {
-            t.write32(BASE + r, v);
-            if t.take_msi() {
-                trapped_msis += 1;
-            }
-            store(&p, r, v);
-            p.scan();
-            page_msis += count(&mut msi);
-        }
-        assert_eq!(page_msis, trapped_msis);
-        let m = p.model();
-        for i in 0..LEAVES as u64 {
-            assert_eq!(
-                m.leaf[i as usize],
-                t.read32(BASE + LEAF + 4 * i),
-                "leaf {i}"
-            );
-            assert_eq!(
-                m.leaf_en[i as usize],
-                t.read32(BASE + LEAF_EN_SET + 4 * i),
-                "en {i}"
-            );
-        }
-        assert_eq!(m.top_en, t.read32(BASE + TOP_EN_SET) & SUBTREES);
-        assert_eq!(load(&p, TOP), t.read32(BASE + TOP));
-        // A lock cycle whose three clears and three sets all land before one scan, with
-        // the GSP vector pending: the trapped tree makes an edge at TOP_EN_SET, so does
-        // the page.
-        t.write32(BASE + LEAF_TRIGGER, 192);
-        store(&p, LEAF_TRIGGER, 192);
-        p.scan();
-        assert_eq!(count(&mut msi) as usize, usize::from(t.take_msi()));
-        for &(r, v) in &seq[6..12] {
-            t.write32(BASE + r, v);
-            store(&p, r, v);
-        }
-        assert!(t.take_msi());
+        assert!(shared.raise(4));
         assert!(p.scan().msi);
         assert_eq!(count(&mut msi), 1);
-        assert_eq!(p.model().top_en & 0x8, 0x8);
-        let _ = shared;
+        for _ in 0..100 {
+            assert!(shared.raise(4));
+            assert!(!p.scan().msi);
+        }
+        assert_eq!(count(&mut msi), 0);
+        assert_eq!(p.stats.coalesced.load(Ordering::Relaxed), 100);
+        // The ack: pended again, one MSI.
+        store(&p, LEAF, 0x10);
+        assert!(p.scan().msi);
+        assert_eq!(count(&mut msi), 1);
+        assert_eq!(load(&p, LEAF), 0x10 | TAG);
+        // The second ack with nothing new: cleared, no MSI.
+        store(&p, LEAF, 0x10);
+        assert!(!p.scan().msi);
+        assert_eq!(load(&p, LEAF), TAG);
+        assert_eq!(p.stats.again.load(Ordering::Relaxed), 1);
+    }
+
+    /// The leaf enables are reported, not modelled: the guest's per-vector enable loop
+    /// at state load (eight stores to one register before one scan) still shows the whole
+    /// table, a bit outside the table is learned, clears are dropped. A set store while a
+    /// vector is pending is a re-arm (one MSI), also when a whole lock cycle lands between
+    /// two scans; without a pending vector it is nothing.
+    #[test]
+    fn enables_are_reported_and_a_release_rearms() {
+        let (p, shared, mut msi, _) = page(Config::default());
+        p.enable_vectors(&[1, 2, 3, 4, 5, 6, 7, 0, 64, 65, 156, 192, 193]);
+        assert_eq!(load(&p, LEAF_EN_SET), 0xFF);
+        assert_eq!(load(&p, LEAF_EN_SET + 16), 0x1000_0000);
+        for b in 0..8 {
+            store(&p, LEAF_EN_SET, 1 << b);
+        }
+        store(&p, LEAF_EN_SET + 16, 1 << 1);
+        assert!(!p.scan().msi, "nothing pending: no re-arm");
+        assert_eq!(load(&p, LEAF_EN_SET), 0xFF);
+        assert_eq!(
+            load(&p, LEAF_EN_SET + 16),
+            0x1000_0002,
+            "the self-test's vector 129 learned"
+        );
+        store(&p, LEAF_EN_CLEAR + 16, 0xFFFF_FFFF);
+        p.scan();
+        assert_eq!(
+            load(&p, LEAF_EN_SET + 16),
+            0x1000_0002,
+            "clears are dropped"
+        );
+        assert_eq!(load(&p, LEAF_EN_CLEAR + 16), 0);
+        // The GSP vector pending, its raise MSI taken.
+        assert!(shared.raise(192));
+        assert!(p.scan().msi);
+        assert_eq!(count(&mut msi), 1);
+        assert_eq!(load(&p, TOP), 1 << 3);
+        // A lock cycle between two scans: acquire, release (0xfffffffe then 0x1).
+        store(&p, LEAF_EN_CLEAR + 8, 0x3);
+        store(&p, TOP_EN_CLEAR, 0x8);
+        store(&p, LEAF_EN_SET + 8, 0x3);
+        store(&p, TOP_EN_SET, 0xFFFF_FFFE);
+        store(&p, TOP_EN_SET, 0x1);
+        assert!(p.scan().msi, "the release re-arms");
+        assert_eq!(count(&mut msi), 1);
+        assert_eq!(p.stats.msi_edge.load(Ordering::Relaxed), 1);
+        // The ack; the next release has nothing pending.
+        store(&p, LEAF + 24, 0x1);
+        p.scan();
+        store(&p, TOP_EN_SET, 0xFFFF_FFFE);
+        assert!(!p.scan().msi);
+        assert_eq!(count(&mut msi), 0);
+        // Reset keeps the table's enables.
+        p.reset();
+        assert_eq!(load(&p, LEAF_EN_SET), 0xFF);
+        assert_eq!(p.model().leaf, [0; LEAVES]);
     }
 
     #[test]
@@ -1053,6 +1108,7 @@ mod tests {
             .summary()
             .contains("inconsistencies: 1 x a store to the read-only TOP"));
         // MSI off: the vector stays pending and nothing is written.
+        count(&mut msi);
         p.shared.msi_enabled.store(false, Ordering::Relaxed);
         store(&p, LEAF_EN_SET, 0xFF);
         store(&p, TOP_EN_SET, 1);

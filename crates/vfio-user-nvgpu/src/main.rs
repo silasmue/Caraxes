@@ -563,6 +563,7 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
                 &vectors,
             )
             .map_err(|e| anyhow::anyhow!("{}=1: {e}", intr_page::INTR_PAGE_ENV))?;
+            page.enable_vectors(&vectors);
             bar0 = bar0.with_intr_page(page.clone());
             eprintln!(
                 "vfio-user-nvgpu: intr page: BAR0 [0x0, 0x1000) and the interrupt tree [{:#x}, {:#x}) offered as sparse mmap areas of region 0 from a memfd; the reactor applies the guest's stores (sleep bound {} ms, retrigger watchdog {}) ({}=1, docs/caraxes/intr-page.md)",
