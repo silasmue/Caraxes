@@ -555,6 +555,14 @@ the VM; then display, expected to be much easier than in v1.
   first Blackwell identity needs new names and an FSP model, not a new ABI version; 615.71.09
   is a new GSP transport altogether. Open with the operator: MSI-X and the BAR1 size of the
   synthetic GB206, a second capture, the guest driver version for Blackwell.
+- 2026-09-24: **Zero-trap submission measured** ([doorbell-token-pool.md](doorbell-token-pool.md),
+  benchmark.md, `caraxes/runs/doorbell-tokens-gpu-2026-09-24/`): the P21 area plus the datamatch
+  token pool (64 tokens, one eventfd each, handed to a channel at its first trapped ring through
+  the notifier entry) on Cloud Hypervisor 0001-0006: 120 trapped doorbells in a run of 284612
+  guest doorbell writes, 0 trapped BAR1 accesses, short kernel 0.050 to 0.018 ms per launch,
+  rlprobe stage 4 11.2 s to 3.0 s (native 1.3 s, v1 3.4 s), transfers 257 to 970 per second,
+  0 Xid. In pure emulation before that: 253 datamatch ioeventfds registered, nvprobe 2 with 20
+  channels each trapping exactly once.
 - 2026-09-24: **P21 BAR1 passthrough, prototype on the GPU path** ([bar1-passthrough.md](bar1-passthrough.md),
   benchmark.md, `caraxes/runs/p21-bar1-2026-09-24/`): guest BAR1's first MiB as one sparse
   mmap area of region 1 backed by an NVIDIA dma-buf of the reservation piece the traces showed,

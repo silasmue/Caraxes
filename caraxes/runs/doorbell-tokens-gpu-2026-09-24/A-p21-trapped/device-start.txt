@@ -1,0 +1,1 @@
+/mnt/vmstore/caraxes/vm1/gpu.log:vfio-user-nvgpu: bar1 passthrough: guest BAR1 [0, 0x100000) offered as one sparse mmap area of region 1, backed by a dma-buf of FB [0xa9980000, 0xa9a80000) (reservation offset 0x980000); 0x100000 of host BAR

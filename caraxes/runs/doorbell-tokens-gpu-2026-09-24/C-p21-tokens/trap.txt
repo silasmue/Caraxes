@@ -1,0 +1,2 @@
+TRAP n=20000 woff=0xbb0090 roff=0 value=0x166000a1 wval=0x12345 write_p50_us=36.8 write_p99_us=328.0 read_p50_us=28.8 read_p99_us=209.6
+TRAP n=20000 woff=0xbb0090 roff=0 value=0x166000a1 wval=0xca70003f write_p50_us=5.8 write_p99_us=26.1 read_p50_us=26.5 read_p99_us=189.2

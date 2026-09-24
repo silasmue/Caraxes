@@ -652,3 +652,33 @@ watched copy, which the passthrough area bypasses; 20040 wakeups rang nothing), 
 refuses both switches together until the datamatch token pool exists
 ([doorbell-token-pool.md](doorbell-token-pool.md) when it lands): with it, a submission takes
 no exit at all.
+
+## Zero-trap submission: P21 area plus the doorbell token pool (2026-09-24, 13:09-13:17, vm1)
+
+The datamatch token pool of [doorbell-token-pool.md](doorbell-token-pool.md) (main 0d00b26,
+frozen device `/mnt/vmstore/caraxes/vm1/vfio-user-nvgpu-tokens`, Cloud Hypervisor v53.0 with
+patches 0001-0006, `CARAXES_BAR1_PASSTHROUGH=1`, `CARAXES_DOORBELL_TOKENS=64`) on vm1 with the
+1 GiB profile at slot 4; vm2 was up with its device idle and the bench-v1 VM idle, vm0 down, so
+the host was quieter than at noon but not quiet. A and C ran minutes apart.
+`caraxes/runs/doorbell-tokens-gpu-2026-09-24/`.
+
+| Value | A: P21 area, trapped doorbell | C: P21 area, token pool |
+|---|---|---|
+| short kernel, ms/launch (3 reps, first cold) | 0.280, 0.050, 0.058 | 0.024, 0.018, 0.053 |
+| rlprobe stage 4 (3 reps) | 11.2 s, 11.8 s, 8.6 s | 3.0 s, 3.0 s, 2.9 s |
+| rlprobe transfers per second | 244, 334, 257 | 952, 973, 994 |
+| trapped BAR1 accesses in the first MiB | 0 | 0 |
+| trapped doorbells over the run | 304732 (all) | 120 (one per channel, its first ring) |
+| eventfd wakeups / guest doorbell writes | - | 264444 / 284612 |
+| pool tokens handed out / peak assigned | - | 120 / 20 |
+| pool tokens that trapped, own-token rings after hand-out | - | 0, 0 |
+| P21 checks | 0 mismatched, 0 hazards | 146 checks, 0 mismatched, 0 hazards |
+| host Xid | 0 | 0 |
+
+Reading: with the area and the pool a CUDA submission takes no exit at all after a channel's
+first ring; the short kernel is at 18 to 24 us per launch (native 6 to 9 us on the same
+harness, v1 8 to 11), and rlprobe's stage 4 is at 3.0 s against native 1.3 s and v1 3.4 s, with
+transfers at about 970 per second against 2266 native. The 19778 "stale" eventfd wakeups are the
+bench-trap writes of the unassigned pool token, as designed. What remains between C and native
+is the device's own work per submission (eventfd wakeup, the host doorbell write, mirror
+bookkeeping) and the small copies outside the 1 MiB area (design H).
