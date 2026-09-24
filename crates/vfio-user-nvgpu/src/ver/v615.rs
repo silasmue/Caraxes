@@ -73,12 +73,17 @@ pub const MQ_STAT_QUEUE_OFFSET: u64 = crate::msgq::v2::ARGS_MQ_STAT_QUEUE_OFFSET
 /// `NV2080_CTRL_CMD_INTERNAL_GPU_GET_CHIP_INFO` does not exist in 615: its id 0x20800A36
 /// is `NV2080_CTRL_CMD_INTERNAL_GPU_SYNC_FABRIC_PROBE_INFO` now
 /// (sdk/ctrl/ctrl2080/ctrl2080internal.h:572-585), and the chip sub-revision travels as
-/// `NVGMC_SC_CHIP_SUB_REV` (interface/gmcapi/gmcapi_gsp_config.h:33). The dispatcher's
-/// chip-info handler (ctrl.rs) must not answer a fabric-probe call with chip info, so
-/// the command it matches is a value no control carries (class 0xFFFF does not exist).
-pub const CMD_INTERNAL_GPU_GET_CHIP_INFO: u32 = u32::MAX;
-/// The id 0x20800A36 carries in 615, for the trace and the test below.
+/// `NVGMC_SC_CHIP_SUB_REV` (interface/gmcapi/gmcapi_gsp_config.h:33). ctrl.rs dispatches
+/// the id by [`CTRL_0A36`], so a fabric-probe call is never answered with chip info.
+pub const CTRL_0A36: super::Id0A36 = super::Id0A36::SyncFabricProbeInfo;
+/// The id 0x20800A36 carries in 615 (the same number as 610's
+/// `CMD_INTERNAL_GPU_GET_CHIP_INFO`, which this module inherits).
 pub const CMD_INTERNAL_GPU_SYNC_FABRIC_PROBE_INFO: u32 = 0x2080_0A36;
+/// `NV2080_CTRL_CMD_INTERNAL_GPU_SYNC_FABRIC_PROBE_INFO_PARAMS` {linkMaskToBeReduced}: the
+/// kernel pushes the fabric manager's NVLink mask to GSP (src/kernel/gpu/gpu_fabric_probe.c:
+/// 1912-1943) and only logs a failure.
+pub const FABRIC_PROBE_INFO_SIZE: usize =
+    size_of::<ffi::NV2080_CTRL_CMD_INTERNAL_GPU_SYNC_FABRIC_PROBE_INFO_PARAMS>();
 
 /// `NV2080_CTRL_FIFO_GET_DEVICE_INFO_TABLE_PARAMS` (sdk/ctrl/ctrl2080/ctrl2080fifo.h):
 /// `engineData` grew from 16 to 17 words (`ENGINE_INFO_TYPE_IS_PREEMPTABLE`,
@@ -334,14 +339,13 @@ mod tests {
     /// The reused id is not answered as chip info (docs/caraxes/blackwell-gb206.md §3.4).
     #[test]
     fn the_reused_chip_info_id_is_not_chip_info() {
-        assert_ne!(
-            CMD_INTERNAL_GPU_GET_CHIP_INFO,
-            CMD_INTERNAL_GPU_SYNC_FABRIC_PROBE_INFO
-        );
+        assert_eq!(CTRL_0A36, crate::ver::Id0A36::SyncFabricProbeInfo);
+        assert_eq!(super::super::v610::CTRL_0A36, crate::ver::Id0A36::GetChipInfo);
         assert_eq!(
             super::super::v610::CMD_INTERNAL_GPU_GET_CHIP_INFO,
             CMD_INTERNAL_GPU_SYNC_FABRIC_PROBE_INFO
         );
+        assert_eq!(FABRIC_PROBE_INFO_SIZE, 16);
         assert_eq!(DRIVER_VERSION, nvrm_sys::DriverVersion::V615.as_str());
         assert_eq!(GSP_TRANSPORT.guest_abi(), 615);
     }

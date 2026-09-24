@@ -367,7 +367,11 @@ pub const CTXSHARE_HVASPACE: usize = 0;
 // ---------------------------------------------------------------------------------
 // Controls of the phase-5 dispatcher (ctrl.rs; sdk/ctrl/ctrl2080/*.h).
 
+/// 0x20800A36 is `INTERNAL_GPU_GET_CHIP_INFO` in this version (ctrl2080internal.h:574-592);
+/// 615 reuses the id (`ver::v615`), so ctrl.rs answers it by [`CTRL_0A36`].
 pub const CMD_INTERNAL_GPU_GET_CHIP_INFO: u32 = 0x2080_0A36;
+/// What 0x20800A36 names in this version.
+pub const CTRL_0A36: super::Id0A36 = super::Id0A36::GetChipInfo;
 pub const CMD_INTERNAL_GPU_GET_USER_REGISTER_ACCESS_MAP: u32 = 0x2080_0A41;
 pub const CMD_GPU_GET_CONSTRUCTED_FALCON_INFO: u32 = 0x2080_01B0;
 pub const CMD_INTERNAL_NVLINK_GET_NVLINK_DEVICE_INFO: u32 = 0x2080_0A87;
