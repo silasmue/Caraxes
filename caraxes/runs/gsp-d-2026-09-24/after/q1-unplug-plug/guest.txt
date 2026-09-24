@@ -1,0 +1,12 @@
+before: status connected, edid 673ddd0c5f72 0 B, modes: 1920x1080 1920x1080 1920x1080 1280x720 1280x720 640x480 
+after: status connected, edid 673ddd0c5f72 0 B, modes: 1920x1080 1920x1080 1920x1080 1280x720 1280x720 640x480 
+== udev (kernel, drm)
+KERNEL[586.353998] change   /devices/pci0000:00/0000:00:05.0/drm/card0 (drm)
+KERNEL[586.354214] change   /devices/pci0000:00/0000:00:05.0/drm/card0 (drm)
+KERNEL[600.391385] change   /devices/pci0000:00/0000:00:05.0/drm/card0 (drm)
+KERNEL[600.399049] change   /devices/pci0000:00/0000:00:05.0/drm/card0 (drm)
+== edid-decode (name, established)
+  Vendor & Product Identification:
+    Manufacturer: CRX
+    Display Product Name: 'Caraxes DP'
+== dmesg

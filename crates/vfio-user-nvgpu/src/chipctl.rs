@@ -19,6 +19,11 @@
 //! Both rules run in `Dispatcher::control` (ctrl.rs) after the display, kgr, cuda, uvm and
 //! nvml handlers and before the match of ctrl.rs; the tables are checked at load against
 //! the generated surface, so neither rule takes a control another handler answers.
+//!
+//! The category D controls that belong to E or A (docs/caraxes/gsp-plan/d-device-model.md
+//! §7) join both rules: their families (`Abi::d_families`, generated from d-controls.tsv
+//! into `src/ver/v<major>/dmodel.rs`) are named in `[features]` like the others, and
+//! controls.toml takes the D rows the plan moves to A.
 
 use std::collections::BTreeMap;
 
@@ -29,6 +34,9 @@ use crate::ver::{active as v, Abi};
 
 /// The D9 label of a category E refusal.
 pub const REFUSED: &str = "refused (feature absent on this chip)";
+/// The D9 label of a control of an absent family the plan acknowledges (the kernel asserts
+/// on a failure or ignores the status; `Abi::d_e_ack`).
+pub const ACKED: &str = "synthesized (acknowledged, no effect; feature absent on this chip)";
 
 // ---------------------------------------------------------------------------------
 // Category E: the feature families.
@@ -63,6 +71,8 @@ pub struct Features {
     pub refused: BTreeMap<u32, (&'static str, &'static str)>,
     /// Control id -> (family, control name, label), answered NV_OK with zeros.
     pub empty_ok: BTreeMap<u32, (&'static str, &'static str, String)>,
+    /// Control id -> (family, control name), answered NV_OK with the request echoed.
+    pub acked: BTreeMap<u32, (&'static str, &'static str)>,
 }
 
 impl Features {
@@ -70,21 +80,18 @@ impl Features {
     /// present, no unknown name, and every `empty_ok` control must belong to an absent
     /// family.
     pub fn resolve(abi: &'static Abi, f: &FeaturesFile) -> Result<Features, String> {
+        let families = || abi.families.iter().chain(abi.d_families);
         for n in f.absent.iter().chain(&f.present) {
-            if !abi.families.iter().any(|fam| fam.name == n) {
+            if !families().any(|fam| fam.name == n) {
                 return Err(format!(
                     "[features]: {n:?} is no feature family of driver {} ({})",
                     abi.driver,
-                    abi.families
-                        .iter()
-                        .map(|f| f.name)
-                        .collect::<Vec<_>>()
-                        .join(", ")
+                    families().map(|f| f.name).collect::<Vec<_>>().join(", ")
                 ));
             }
         }
         let mut out = Features::default();
-        for fam in abi.families {
+        for fam in families() {
             let a = f.absent.iter().any(|n| n == fam.name);
             let p = f.present.iter().any(|n| n == fam.name);
             if a == p {
@@ -111,6 +118,11 @@ impl Features {
                 })?;
             out.refused.remove(&id);
             out.empty_ok.insert(id, (fam, name, e.label.clone()));
+        }
+        for id in abi.d_e_ack {
+            if let Some(x) = out.refused.remove(id) {
+                out.acked.insert(*id, x);
+            }
         }
         Ok(out)
     }
@@ -145,6 +157,10 @@ struct ControlFile {
     /// The inventory's category of a control the GSP plan found to be chip or board data
     /// (docs/caraxes/gsp-plan/b-host-forwardable.md §3 S: "B"); the entry must name it.
     moved_from: Option<String>,
+    /// An open row: the control belongs here, but its value is in neither the chip files
+    /// nor the card's captured facts yet; the text names the source that would supply it.
+    /// Checked (the name must be a control this table may take), not answered.
+    open: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -192,6 +208,8 @@ pub struct ControlEntry {
 #[derive(Clone, Debug, Default)]
 pub struct ControlTable {
     pub entries: BTreeMap<u32, ControlEntry>,
+    /// The open rows (id, name): listed, not answered.
+    pub open: Vec<(u32, &'static str)>,
 }
 
 fn enum_value(name: &str) -> Result<u64, String> {
@@ -261,7 +279,9 @@ impl ControlTable {
                     c.moved_from, r.category
                 )));
             }
-            if (r.category != 'A' && !moved) || r.other {
+            // The category D rows the plan moves to A (d-controls.tsv `reclass`).
+            let d_to_a = r.category == 'D' && abi.d_rule(r.id).is_some_and(|d| d.reclass == 'A');
+            if (r.category != 'A' && !moved && !d_to_a) || r.other {
                 return Err(err(format!(
                     "category {}{}, not an unanswered category A control",
                     r.category,
@@ -271,6 +291,13 @@ impl ControlTable {
                         ""
                     }
                 )));
+            }
+            if let Some(src) = &c.open {
+                if src.trim().is_empty() {
+                    return Err(err("an open row must name the source of its value".into()));
+                }
+                out.open.push((r.id, r.name));
+                continue;
             }
             let layout = abi
                 .layout(&c.params)
@@ -380,6 +407,17 @@ pub fn answer(chip: &'static crate::chip::ChipData, cmd: u32, params: &[u8]) -> 
             ),
         });
     }
+    if let Some(&(family, name)) = chip.features.acked.get(&cmd) {
+        return Some(Answer {
+            status: v::NV_OK,
+            params: params.to_vec(),
+            label: ACKED,
+            note: format!(
+                "{name} ({cmd:#x}): family {family} absent on {}, acknowledged (d-controls.tsv ACK)",
+                chip.name
+            ),
+        });
+    }
     if let Some((family, name, label)) = chip.features.empty_ok.get(&cmd) {
         return Some(Answer {
             status: v::NV_OK,
@@ -461,12 +499,20 @@ mod tests {
             }
         }
         assert_eq!((ABIS[0].e_inventory, ABIS[1].e_inventory), (189, 200));
-        // TU106 lacks every family, so the chip's rule covers the whole E count.
+        // TU106 lacks every family, so the chip's rule covers the whole E count and the
+        // D rows that belong to E.
         let f = &tu106().features;
+        let abi = Abi::active();
+        let d_e = abi
+            .d_families
+            .iter()
+            .map(|f| f.controls.len())
+            .sum::<usize>();
         assert_eq!(
-            f.refused.len() + f.empty_ok.len(),
-            Abi::active().e_inventory
+            f.refused.len() + f.empty_ok.len() + f.acked.len(),
+            abi.e_inventory + d_e
         );
+        assert_eq!(f.acked.len(), abi.d_e_ack.len());
     }
 
     /// Every id of the family list resolves to the rule through the dispatcher, and none
@@ -524,6 +570,7 @@ mod tests {
         let all: Vec<toml::Value> = Abi::active()
             .families
             .iter()
+            .chain(Abi::active().d_families)
             .map(|f| toml::Value::String(f.name.into()))
             .collect();
         let mut t: toml::Table = toml::from_str(include_str!("../chips/tu106/chip.toml")).unwrap();
@@ -539,6 +586,7 @@ mod tests {
         let present: &'static crate::chip::ChipData =
             Box::leak(Box::new(crate::chip::ChipData::load(&files).unwrap()));
         assert!(present.features.refused.is_empty() && present.features.empty_ok.is_empty());
+        assert!(present.features.acked.is_empty());
         let seen = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
         let mut d = dispatcher(present, Some(Box::new(Rec(seen.clone()))));
         for fam in Abi::active().families {
@@ -626,9 +674,21 @@ mod tests {
     fn table_fields_exist_in_every_abi() {
         for abi in ABIS {
             let t = ControlTable::resolve(abi, TU106_CONTROLS).unwrap();
-            // 8 category A entries and the 5 of b-host-forwardable.md §3 S.
-            assert_eq!(t.entries.len(), 13, "{}", abi.name);
+            // 8 category A entries, the 5 of b-host-forwardable.md §3 S and the 3 D rows the
+            // plan moves to A (d-device-model.md §3 and §7).
+            assert_eq!(t.entries.len(), 16, "{}", abi.name);
+            // The D rows moved to A whose value has no source in the files yet.
+            assert_eq!(t.open.len(), 4, "{}", abi.name);
         }
+        // An open row must name its source.
+        let blank = TU106_CONTROLS.replace(
+            "open = \"the device's GSP heap regions of src/fb.rs (reserved, reserved heap, heap free) with a zero owner table\"",
+            "open = \" \"",
+        );
+        assert_ne!(blank, TU106_CONTROLS);
+        assert!(ControlTable::resolve(Abi::active(), &blank)
+            .unwrap_err()
+            .contains("source"));
         let abi = Abi::active();
         let bad = TU106_CONTROLS.replace("firstAsyncCEIdx", "firstAsyncCeIndex");
         assert!(ControlTable::resolve(abi, &bad)
@@ -652,7 +712,7 @@ mod tests {
         );
         assert_eq!(
             ControlTable::resolve(abi, &limited).unwrap().entries.len(),
-            12
+            15
         );
         // A B control without `moved_from` is refused, and so is a wrong `moved_from`.
         let bad = TU106_CONTROLS.replace(

@@ -1,0 +1,18 @@
+kill -9 1712 after 8 s
+churn exit 1
+bash: line 1: kill: (1712) - No such process
+ERROR cuInit: 100 no CUDA-capable device is detected
+ERROR cuInit: 100 no CUDA-capable device is detected
+init exit 1
+[  134.290994] NVRM: VM: nv_alloc_contig_pages: 8 pages
+[  134.291000] NVRM: VM: nv_alloc_system_pages: 8 order0 pages, 3 order
+[  134.291005] NVRM: VM: nv_alloc_pages:3969: 0x00000000510e2599, 8 page(s), count = 1, page_table = 0x000000005a494432
+[  134.291023] NVRM: VM: nv_alloc_pages: 8 pages, nodeid -1
+[  134.291024] NVRM: VM:    contig 1  cache_type 0
+[  134.291025] NVRM: VM: nv_alloc_contig_pages: 8 pages
+[  134.291026] NVRM: VM: nv_alloc_system_pages: 8 order0 pages, 3 order
+[  134.291029] NVRM: VM: nv_alloc_pages:3969: 0x00000000370c8350, 8 page(s), count = 1, page_table = 0x000000004e69de64
+[  134.339487] NVRM: initializing rc timer
+[  134.339494] NVRM: rc timer initialized
+[  134.341366] NVRM: GPU 0000:00:05.0: RmInitAdapter succeeded!
+[  134.342119] NVRM: loading NVIDIA UNIX Open Kernel Module for x86_64  610.57.04  Release Build  (leandro@caraxes-vm0)  Wed Sep 23 19:24:02 UTC 2026

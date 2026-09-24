@@ -222,6 +222,8 @@ kernel = KERNEL_PRIVILEGED), then the analysis. Citations without a tree prefix 
 
 ### 6.1 FIFO, channels and TSGs (16)
 
+**Status (2026-09-24):** partial. R0 (5eac90a): the 4 host-global knobs DENY (STOP/START_RUNLIST, CONFIG_CTXSW_TIMEOUT, RUNLIST_SET_SCHED_POLICY, all NV_ERR_INSUFFICIENT_PERMISSIONS); the 8 E rows are refused by the families `legacy_uncalled`, `ampere_later` and `vgpu_paths`. Open: the 4 C rows (§10).
+
 | Control | Id | Bytes 610/615 | Priv | Answer | Rank | Truth | Caller and when (615 tree) |
 |---|---|---|---|---|---|---|---|
 | `NV0080_CTRL_CMD_FIFO_SET_CHANNEL_PROPERTIES` | 0x0080170F | 16/16 | user | REFUSE | 5 | none | no caller in the tree (kernel-open, nvidia-modeset, src/common, UVM grep empty); user-space callers closed, none in the 79 native traces |
@@ -266,6 +268,8 @@ kernel = KERNEL_PRIVILEGED), then the analysis. Citations without a tree prefix 
 **Measurements.** (a) Guest: start cuda-core, kill -9 it mid-kernel, read the device trace for 0x2080110B and its channel list (no host access needed; software mode first). (b) Guest: `echo mem > /sys/power/state` with `NVreg_PreserveVideoMemoryAllocations=1`, pure emulation: records the order of 0x20801117, 0x20800AC3, 0x20800AC2.
 
 ### 6.2 GR, contexts and ZBC (18)
+
+**Status (2026-09-24):** partial. R0 (5eac90a): GR_SET_GPC_TILE_MAP REFUSE; 0x20800A3E is a controls.toml row (NOT_SUPPORTED as 0x20800A3F, §3); the 5 E rows are in `legacy_uncalled`. Open: the 8 MODEL rows (ZBC table 4, FECS trace 3, compute-mode rules 1) and the 3 C rows (§10).
 
 | Control | Id | Bytes 610/615 | Priv | Answer | Rank | Truth | Caller and when (615 tree) |
 |---|---|---|---|---|---|---|---|
@@ -314,6 +318,8 @@ kernel = KERNEL_PRIVILEGED), then the analysis. Citations without a tree prefix 
 
 ### 6.3 Memory, caches and page tables (13)
 
+**Status (2026-09-24):** partial. R0 (5eac90a): the three DRAM setters DENY (NV_ERR_INSUFFICIENT_PERMISSIONS), CBC_OP ACK; the 5 E rows in `legacy_uncalled`, `ampere_later` and `hopper_platform`; GSP_FB_STATS_GET is an open controls.toml row (source: the fb.rs regions). Open: DMA_FLUSH, FLUSH_L2_ALL_RAMS and FBSR_INIT (MODEL).
+
 | Control | Id | Bytes 610/615 | Priv | Answer | Rank | Truth | Caller and when (615 tree) |
 |---|---|---|---|---|---|---|---|
 | `NV0080_CTRL_CMD_DMA_FLUSH` | 0x00801805 | 4/4 | user | MODEL:l2-flush | 3 | host RO | no caller in the tree (kernel-open, nvidia-modeset, src/common, UVM grep empty); user-space callers closed, none in the 79 native traces; the kernel body src/nvidia/src/kernel/gpu/mem_mgr/dma.c:663-726 (610 :659) runs only on a vGPU guest (flag PHYSICAL_IMPLEMENTED_ON_VGPU_GUEST 0x40000), a GSP client routes it |
@@ -355,6 +361,8 @@ kernel = KERNEL_PRIVILEGED), then the analysis. Citations without a tree prefix 
 **Measurements.** (a) Guest suspend with preserved vidmem in pure emulation: does 0x20800AC2 arrive and what memlist size; does the resume path need anything back from GSP. (b) None on the host: every host-facing row here is a write the device must not issue, or the existing flush.
 
 ### 6.4 Bus, BAR and P2P (24)
+
+**Status (2026-09-24):** partial. R0 (5eac90a): 12 DENY (NV_ERR_NOT_SUPPORTED) and 4 REFUSE answered, the 6 E rows in `vgpu_paths`, `ga10x_pcie_ro`, `windows_only` and `nvlink_sli`. Open: the 2 C rows (VALIDATE_MEM_MAP_REQUEST, BIF_INFO; §10).
 
 | Control | Id | Bytes 610/615 | Priv | Answer | Rank | Truth | Caller and when (615 tree) |
 |---|---|---|---|---|---|---|---|
@@ -430,6 +438,8 @@ Tests:
 4. Consistency check, from files only: LnkCtl ASPM bits in `config-space.txt` versus the host-forwarded link fields that nvidia-smi shows in the guest. Makes sure `BIF_INFO` and the forwarded telemetry do not contradict each other.
 
 ### 6.5 Display (107)
+
+**Status (2026-09-24):** partial. R0 (5eac90a): the board table of display/mod.rs answers 54 REFUSE (3 with NV_ERR_INVALID_ARGUMENT) and 9 ACK through the rule table, for the NV2080 and NV9072 display rows too; the 22 E rows are the families `frl`, `dp2x`, `display_later`, `display_embedded` and `windows_only`; GET_PINSET_COUNT and INTERNAL_DISP_PINSETS_TO_LOCKPINS are controls.toml rows, the adaptive-sync and the two VBIOS drive-table getters open rows with their source. R1 (ca598ec): `SPECIFIC_HDCP_CTRL` per cmd, `DP_CONFIGURE_FEC` into the link config, `GET_RG_STATUS`; `DP_SET_WAR_FLAGS` is an ACK row. Open: 12 MODEL rows (hotplug state and event config, lane data and test patterns, AUX I2C, IMP parameters and IS_MODE_POSSIBLE_OR_SETTINGS, RG scan line and underflow, NV9072 NOTIFY_ON_VBLANK) and the 2 C rows (§10).
 
 | Control | Id | Bytes 610/615 | Priv | Answer | Rank | Truth | Caller and when (615 tree) |
 |---|---|---|---|---|---|---|---|
@@ -708,6 +718,8 @@ Answer: MODEL:display-engine, new. A pending notify per DispSw fires at the next
 
 ### 6.6 Perf, clocks and power (21)
 
+**Status (2026-09-24):** partial. R0 (5eac90a): GPU_SET_POWER DENY, CLIENT_PERF_MODES_SET_CONTROL REFUSE; the 18 E rows are `notebook_power` (16) and `nvlink_sli` (boost sync, 2), and the three the plan ACKs (SET_POWERSTATE, SET_AUX_POWER_STATE, UNSET_DYNAMIC_BOOST_LIMIT) are acknowledged by the family rule (`D_E_ACK`). Open: RATED_TDP_SET_CONTROL (MODEL).
+
 | Control | Id | Bytes 610/615 | Priv | Answer | Rank | Truth | Caller and when (615 tree) |
 |---|---|---|---|---|---|---|---|
 | `NV2080_CTRL_CMD_GPU_SET_POWER` | 0x20800112 | 12/12 | user | DENY | 3 | none | no caller in the tree; no hit in the 79 native traces or the Caraxes runs |
@@ -758,6 +770,8 @@ Answer: MODEL:display-engine, new. A pending notify per DispSw fires at the next
 
 ### 6.7 Thermal and fan (2)
 
+**Status (2026-09-24):** done. R0 (5eac90a): both rows are in `notebook_power`.
+
 | Control | Id | Bytes 610/615 | Priv | Answer | Rank | Truth | Caller and when (615 tree) |
 |---|---|---|---|---|---|---|---|
 | `NV2080_CTRL_CMD_INTERNAL_THERM_PFM_REQ_HNDLR_STATE_INIT_SYNC` | 0x20800ACD | 16/16 | internal | REFUSE | 4 | none | 615 src/nvidia/src/kernel/platform/platform_request_handler.c:510-523 (pfmreqhndlrStateInit, GPS_2X only); sent only after pfmreqhndlrInitGpu finds the ACPI GPS/GPS_2X _DSM on the GPU (615 src/nvidia/src/kernel/platform/platform_request_handler.c:96-104); a QEMU guest has no such _DSM, so never sent |
@@ -788,6 +802,8 @@ Answer: MODEL:display-engine, new. A pending notify per DispSw fires at the next
 **Measurements.** Optional: in a guest, confirm that no GPU _DSM with the GPS GUID exists (`acpidump` of the guest, or NVRM PRH messages at ResmanDebugLevel), which makes the whole PRH family unreachable. No host read is needed.
 
 ### 6.8 ECC, RAS and RC recovery (15)
+
+**Status (2026-09-24):** partial. R0 (5eac90a): SET_RC_RECOVERY and SET_RC_INFO REFUSE, SET_RAM_SVOP_VALUES DENY, LOG_OOB_XID ACK; the 9 E rows in `ecc`, `row_remap`, `nvlink_sli` and `legacy_uncalled`. Open: the 2 C rows (§10).
 
 | Control | Id | Bytes 610/615 | Priv | Answer | Rank | Truth | Caller and when (615 tree) |
 |---|---|---|---|---|---|---|---|
@@ -833,6 +849,8 @@ Answer: MODEL:display-engine, new. A pending notify per DispSw fires at the next
 
 ### 6.9 Engines CE/NVENC/NVDEC/OFA (1)
 
+**Status (2026-09-24):** done. R0 (5eac90a): PERF_NOTIFY_VIDEOEVENT ACK (tested in R1, ca598ec).
+
 | Control | Id | Bytes 610/615 | Priv | Answer | Rank | Truth | Caller and when (615 tree) |
 |---|---|---|---|---|---|---|---|
 | `NV2080_CTRL_CMD_PERF_NOTIFY_VIDEOEVENT` | 0x2080205D | 4/4 | user | ACK | 2 | none | no caller in the tree (kernel-open, nvidia-modeset, src/common, UVM grep empty); user-space callers closed, none in the 79 native traces (not in the nvenc.jsonl or nvdec.jsonl traces) |
@@ -864,6 +882,8 @@ Answer: MODEL:display-engine, new. A pending notify per DispSw fires at the next
 **Measurements.** Guest: run Sunshine (or `ffmpeg -c:v h264_nvenc`) on the device and check whether 0x2080205D appears in the device trace; if it never does, the row is dormant.
 
 ### 6.10 Events, interrupts and firmware tracing (7)
+
+**Status (2026-09-24):** partial. R0 (5eac90a): 4 REFUSE (GSP trace and uStreamer); the 2 E rows in `legacy_uncalled`. Open: GPU_REPORT_NON_REPLAYABLE_FAULT (C, §10).
 
 | Control | Id | Bytes 610/615 | Priv | Answer | Rank | Truth | Caller and when (615 tree) |
 |---|---|---|---|---|---|---|---|
@@ -900,6 +920,8 @@ Answer: MODEL:display-engine, new. A pending notify per DispSw fires at the next
 **Measurements.** (a) Guest: provoke a fatal non-replayable fault under UVM and check that 0x20800177 arrives with a packet whose instance block matches a registry channel. (b) None on the host.
 
 ### 6.11 vGPU, SR-IOV and MIG internals (8)
+
+**Status (2026-09-24):** partial. R0 (5eac90a): the 5 E rows are `mig_partitioning` (4) and `blackwell` (CMC). Open: the 3 C rows (§10).
 
 | Control | Id | Bytes 610/615 | Priv | Answer | Rank | Truth | Caller and when (615 tree) |
 |---|---|---|---|---|---|---|---|
@@ -938,6 +960,8 @@ Answer: MODEL:display-engine, new. A pending notify per DispSw fires at the next
 
 ### 6.12 NVLink, C2C and SLI bridge (3)
 
+**Status (2026-09-24):** done. R0 (5eac90a): the 3 rows are in `nvlink_sli`.
+
 | Control | Id | Bytes 610/615 | Priv | Answer | Rank | Truth | Caller and when (615 tree) |
 |---|---|---|---|---|---|---|---|
 | `NV2080_CTRL_CMD_INTERNAL_DETECT_HS_VIDEO_BRIDGE` | 0x20800ADD | 0/0 | internal | REFUSE | 5 | none | 615 src/nvidia/src/kernel/gpu_mgr/gpu_mgr_sli.c:411 (gpumgrDetectHighSpeedVideoBridges, from :253), reached only by SLI link detection with at least two GPUs (gpu_mgr_sli.c:114-122, platform/sli/sli.c:148) |
@@ -974,6 +998,8 @@ Answer: MODEL:display-engine, new. A pending notify per DispSw fires at the next
 **Measurements.** None needed. The absence is structural (HAL stub, GPU count).
 
 ### 6.13 Security, fuses and protected memory (4)
+
+**Status (2026-09-24):** done. R0 (5eac90a): SETUP_VPR_REGION and HDCP_KEY_DECRYPTION REFUSE, PATCH_PBR_FOR_MINING DENY, DRAM encryption in `blackwell`.
 
 | Control | Id | Bytes 610/615 | Priv | Answer | Rank | Truth | Caller and when (615 tree) |
 |---|---|---|---|---|---|---|---|
@@ -1026,6 +1052,8 @@ Unit tests for the 615-only id: absent from the 610 ABI, 8 bytes in 615.
 
 ### 6.14 Timers (2)
 
+**Status (2026-09-24):** open. Both rows are MODEL (timed semaphore); measure first (§8 Q4).
+
 | Control | Id | Bytes 610/615 | Priv | Answer | Rank | Truth | Caller and when (615 tree) |
 |---|---|---|---|---|---|---|---|
 | `NV9074_CTRL_CMD_FLUSH` | 0x90740101 | 16/16 | user | MODEL:timed-semaphore | 2 | pure emulation | kernel body 615 src/nvidia/src/kernel/gpu/timed_semaphore.c:272-299, but flags 0x48 route it to GSP in GSP-client mode (615 src/nvidia/generated/g_timed_sema_nvoc.c:202); user space unknown (no 0x9074 object in the 79 native traces) |
@@ -1058,6 +1086,8 @@ Unit tests for the 615-only id: absent from the 610 ABI, 8 bytes in 615.
 - Guest, once the model exists: the RELEASE/FLUSH test program above, comparing the notifier timestamp to waitTimestamp (lateness bounded by the device poll interval).
 
 ### 6.15 GPIO and I2C (12)
+
+**Status (2026-09-24):** done. R0 (5eac90a): 8 REFUSE; the 4 SLI GPIO rows are in `nvlink_sli`.
 
 | Control | Id | Bytes 610/615 | Priv | Answer | Rank | Truth | Caller and when (615 tree) |
 |---|---|---|---|---|---|---|---|
@@ -1118,6 +1148,8 @@ Every I2C answer must stay consistent with "no ports". There is no GPIO or LED s
 2. Guest sweep: `nvidia-settings -q all` and `ddcutil detect` in the Wayland guest, and `sensors-detect --auto`. Record the device trace to confirm which I2C or ILLUM controls a stock desktop actually sends, and that none arrive once port info says none.
 
 ### 6.16 Profiling and SM debugger (53)
+
+**Status (2026-09-24):** partial. R0 (5eac90a): 25 REFUSE, 15 DENY (NV_ERR_INSUFFICIENT_PERMISSIONS for PERF_RESERVE_PERFMON_HW and PERMISSIONS_INIT, NOT_SUPPORTED otherwise), SM_DEBUG_MODE_DISABLE ACK; GSP_RM_ALLOC of 0x90CC, 0xB0CC, 0xB1CC and 0xB2CC answers NV_ERR_INSUFFICIENT_PERMISSIONS (`dmodel::alloc`); the 11 E rows in `legacy_uncalled`, `vgpu_paths`, `windows_only`, `blackwell` and `ampere_later`. Open: DEBUG_SET_MODE_MMU_DEBUG (the debugger-session model, R5).
 
 | Control | Id | Bytes 610/615 | Priv | Answer | Rank | Truth | Caller and when (615 tree) |
 |---|---|---|---|---|---|---|---|
@@ -1205,6 +1237,8 @@ Every I2C answer must stay consistent with "no ports". There is no GPIO or LED s
 
 ### 6.17 Other (GPU accounting) (2)
 
+**Status (2026-09-24):** done. R0 (5eac90a): GPUACCT_SET_ACCOUNTING_STATE ACK, GPUACCT_CLEAR_ACCOUNTING_DATA in `vgpu_paths`.
+
 | Control | Id | Bytes 610/615 | Priv | Answer | Rank | Truth | Caller and when (615 tree) |
 |---|---|---|---|---|---|---|---|
 | `NV0000_CTRL_CMD_GPUACCT_SET_ACCOUNTING_STATE` | 0x00000B01 | 12/12 | admin | ACK | 2 | guest state | 615 src/nvidia/src/kernel/rmapi/client_resource.c:2046-2059 sends the same cmd to GSP in GSP-client mode, then :2061-2073 flips the kernel's own gpuacct state (gpuacctEnableAccounting, 615 src/nvidia/src/kernel/diagnostics/gpu_acct.c:1558); user space: nvidia-smi --accounting-mode (privileged, flag 0x4); no trace hit |
@@ -1255,6 +1289,8 @@ After R0 the only remaining `unanswered` answers in D are the MODEL and MIRROR r
 also moves the 102 E rows into the E family rules and the 7 A rows into the table handler, so it
 overlaps with the E and A work that is running now.
 
+**Status R0:** done (5eac90a). `crates/vfio-user-nvgpu/src/dmodel.rs` with the table `src/ver/v610/dmodel.rs` and `v615/dmodel.rs`, generated by `caraxes/tools/gsp-dtable.py` from d-controls.tsv and the tree's inventory. 615: 101 REFUSE, 37 DENY and 14 ACK answered with their D9 labels (the display rows by the board table of display/mod.rs), the 102 E rows as 16 families in `[features]`, the 7 A rows as 3 controls.toml rows and 4 open rows, the 17 C rows listed in §10; the guard test and the profiler class rule are in; the two layout changes are in the generated `ctrl_layouts.rs`. After R0 the `unanswered` D answers are the MODEL rows, the C rows and the open A rows.
+
 **R1. Wayland/KMS display with NVENC (display goal; 1 to 2 days on top of R0).**
 - `SPECIFIC_HDCP_CTRL` per cmd (6.5): needed now, it is hit on every unplug.
 - `DP_SET_WAR_FLAGS` ACK: needed with the move to the 615 guest (D19).
@@ -1262,6 +1298,8 @@ overlaps with the E and A work that is running now.
 - Later, with milestone G (4K144 with DSC): `DP_CONFIGURE_FEC` (6.5), then `GET_RG_STATUS` if the
   mode needs 2Heads1OR.
 - Depends on: the `ver/v615` display module, the DP sink model (exists).
+
+**Status R1:** done (ca598ec): `HDCP_CTRL` per cmd, `DP_SET_WAR_FLAGS` and `PERF_NOTIFY_VIDEOEVENT` ACK, `DP_CONFIGURE_FEC` and `GET_RG_STATUS`. Q1 measured on the 610 guest (§10): the unplug sends `HDCP_CTRL` DISABLE_AUTHENTICATION, now answered, and no other D control.
 
 **R2. Linux CUDA client, error and teardown paths (5 to 9 days).** In order:
 1. `FIFO_DISABLE_CHANNELS` on the guest's own mirror channels (6.1; really C), for a CUDA process
@@ -1279,6 +1317,8 @@ Depends on:
 - category C's RESET_CHANNEL on mirror channels;
 - the mirror (exists).
 
+**Status R2:** open. Q3 measured on the 610 guest (§10): a kill -9 of a CUDA process sends no D control.
+
 **R3. Vulkan games (Shadow of the Tomb Raider, the decisive benchmark; 4 to 7 days).**
 - The ZBC table model (6.2): guest-local, seeded once from a read-only host sweep of
   `GET_ZBC_CLEAR_TABLE_*`, never written to the host's global table, and also answering the
@@ -1291,6 +1331,8 @@ Depends on:
 Depends on: the D16 filter (ZBC kinds are compressible on Turing), the event emitter (NV9072,
 NV9074).
 
+**Status R3:** open; the display gate already sends `SET_ZBC_COLOR_CLEAR` (§10).
+
 **R4. Suspend and resume of the guest (3 to 5 days).**
 - `FIFO_DISABLE_USERMODE_CHANNELS` and `INTERNAL_FIFO_TOGGLE_ACTIVE_CHANNEL_SCHEDULING`, over the
   guest's mirror channels only (6.1, 6.11).
@@ -1299,11 +1341,15 @@ NV9074).
 - None of the three milestones needs this step. It comes first when VM suspend or live migration
   becomes a goal.
 
+**Status R4:** open.
+
 **R5. Tools (2 to 4 days, whenever convenient).**
 - The debugger-session model for `DEBUG_SET_MODE_MMU_DEBUG`, so that cuda-gdb starts (6.16).
 - `PERF_RATED_TDP_SET_CONTROL` as recorded requests (6.6).
 - The GSP trace and uStreamer refusals are already in R0.
 - Mirrored SM debugging with breakpoints (12 to 20 days) is not recommended.
+
+**Status R5:** open; the GSP trace and uStreamer refusals and the profiler class rule are in R0 (5eac90a).
 
 **Nobody on this chip (move to E, 102 controls).**
 - Display (22): FRL, DP 2.x, shared generic packets, NV Display 5.0 SOR flush, Tegra DSI and
@@ -1322,6 +1368,8 @@ NV9074).
   and its GPIOs, DRAM encryption.
 - Other (1): GPU accounting clear.
 - The per-control reason is in the `reclass` column of d-controls.tsv.
+
+**Status (nobody on this chip):** done (5eac90a): 16 families beside the E families (`frl`, `dp2x`, `display_later`, `display_embedded`, `notebook_power`, `ecc`, `row_remap`, `mig_partitioning`, `nvlink_sli`, `ampere_later`, `ga10x_pcie_ro`, `hopper_platform`, `blackwell`, `vgpu_paths`, `windows_only`, `legacy_uncalled`); TU106 names all absent, GB206 has `frl`, `dp2x`, `display_later`, `ampere_later`, `row_remap` and `blackwell`.
 
 **Dependencies between groups.**
 - 6.1 FIFO and 6.11 vGPU share the suspend path.
@@ -1379,3 +1427,95 @@ milestone path (R3).
 - Per-control reading (answer, rank, client, caller, gsp, truth, risk, reclass): five read-only
   helper agents, one per slice, each over the 615 tree with 610 lines where the code differs;
   collected in d-controls.tsv. The group sections in §6 are theirs, edited for form.
+
+## 10. Implementation status (2026-09-24)
+
+R0 (commit 5eac90a) and R1 (ca598ec) are implemented; the per-group and per-item status lines
+above say what is left. Where things are:
+
+- `crates/vfio-user-nvgpu/src/dmodel.rs`: the hook after the chipctl rules in
+  `Dispatcher::control` (REFUSE, DENY and ACK rows that stay in D), the profiler class refusal
+  in `Dispatcher::alloc`, the tests (coverage against the inventory, statuses, dispatcher walk
+  without host calls, the board table, the forward-list guard, the layout changes, the E
+  families).
+- `src/ver/v610/dmodel.rs`, `src/ver/v615/dmodel.rs`: the rule table per driver version,
+  generated by `caraxes/tools/gsp-dtable.py` from this directory's `d-controls.tsv`; the E
+  families are named there (`FAMILIES` of the generator), the header-block citations come from
+  the TSV's `define_*` columns.
+- `src/display/mod.rs`: the board table's D rows (the fallback asks the rule table, the NV2080
+  and NV9072 display rows included), and the R1 models `hdcp_ctrl`, `configure_fec`,
+  `rg_status` over the generated layouts (`ctrl_layouts.rs`, laid out by `ctrl-layouts.py`
+  for the D structs with a layout change or a model).
+- `chips/tu106/chip.toml`, `chips/gb206/chip.toml` `[features]`: the 16 families;
+  `chips/tu106/controls.toml`: the A rows (0x20800A3E, the two pinset controls) and the open
+  A rows with their source (DEFAULT_ADAPTIVESYNC_DISPLAY: Q12;
+  DP_GET_PREEMPHASIS_DRIVECURRENT_POSTCURSOR2_DATA and DP_GET_LEVEL_INFO_TABLE_DATA: the VBIOS DP
+  tables of `caraxes/reference/rtx2070/rom.bin`, not parsed; GSP_FB_STATS_GET: the fb.rs
+  regions).
+
+Per-label counts of the rule table (615.71.09; 610.57.04 in brackets):
+
+| Label | Rows | Answered by |
+|---|---:|---|
+| REFUSE | 200 (198) | 101 (99) by the table, 95 by E families, 1 A row (0x20800A3E), 3 C rows unanswered |
+| DENY | 37 (37) | the table |
+| ACK | 21 (20) | 14 (13) by the table, 6 E rows acknowledged by the family rule, 1 C row unanswered |
+| TABLE | 5 (5) | 2 controls.toml rows, 3 open rows |
+| MODEL | 42 (42) | 3 by R1, 1 E row refused, 1 A open row, 10 C rows and 27 open rows unanswered |
+| MIRROR | 3 (3) | all C, unanswered |
+
+### Rows for the category C work
+
+The 17 D rows the plan moves to C (d-controls.tsv `reclass` C). The rule table leaves them
+unanswered (`unanswered`, NV_ERR_NOT_SUPPORTED) for the B and C work; none may go to the host
+as it is (the guard test covers FORWARD, LEGACY, BINAPI and MIRROR_FORWARDED).
+
+| Id | Control | Plan answer | Why C |
+|---|---|---|---|
+| 0x00801714 | `NV0080_CTRL_CMD_FIFO_IDLE_CHANNELS` | MIRROR | resolves through the channel registry |
+| 0x2080110B | `NV2080_CTRL_CMD_FIFO_DISABLE_CHANNELS` | MIRROR | every target is a guest channel handle |
+| 0x20801117 | `NV2080_CTRL_CMD_FIFO_DISABLE_USERMODE_CHANNELS` | MODEL:channel-registry | acts on the guest channel set only |
+| 0x208F0401 | `NV208F_CTRL_CMD_FIFO_CHECK_ENGINE_CONTEXT` | MODEL:channel-registry | the registry (GR context promoted or not) |
+| 0x20801205 | `NV2080_CTRL_CMD_GR_CTXSW_ZCULL_MODE` | MODEL:channel-registry | per guest channel, as ZCULL_BIND |
+| 0x20801211 | `NV2080_CTRL_CMD_GR_CTXSW_PREEMPTION_BIND` | MIRROR | per guest channel |
+| 0x2080123A | `NV2080_CTRL_CMD_GR_CTXSW_SETUP_BIND` | REFUSE | per guest channel once the host shows a Setup buffer |
+| 0x20800198 | `NV2080_CTRL_CMD_GPU_VALIDATE_MEM_MAP_REQUEST` | MODEL:bar0-map-policy | the guest BAR0 base and the device's register map |
+| 0x208F0704 | `NV208F_CTRL_CMD_BIF_INFO` | MODEL:config-space | LnkCtl ASPM bits of the emulated PCIe capability |
+| 0x0073137E | `NV0073_CTRL_CMD_DP_GET_GENERIC_INFOFRAME` | MODEL:display-engine | readback of the guest's own head |
+| 0x0073137F | `NV0073_CTRL_CMD_DP_GET_MSA_ATTRIBUTES` | MODEL:display-engine | the guest-programmed raster and MSA properties |
+| 0x20800A6A | `NV2080_CTRL_CMD_INTERNAL_RC_WATCHDOG_TIMEOUT` | MODEL:channel-registry | which guest channel is stuck; recovery through RESET_CHANNEL |
+| 0x20802207 | `NV2080_CTRL_CMD_RC_SET_CLEAN_ERROR_HISTORY` | ACK | the device's own RC journal |
+| 0x20800177 | `NV2080_CTRL_CMD_GPU_REPORT_NON_REPLAYABLE_FAULT` | MODEL:channel-registry | RC of a guest channel |
+| 0x00801108 | `NV0080_CTRL_CMD_GR_SET_TPC_PARTITION_MODE` | REFUSE | targets a guest TSG |
+| 0x20800AC3 | `NV2080_CTRL_CMD_INTERNAL_FIFO_TOGGLE_ACTIVE_CHANNEL_SCHEDULING` | MODEL:channel-registry | the suspend path over the guest channel set |
+| 0x2080122C | `NV2080_CTRL_CMD_GR_SET_TPC_PARTITION_MODE` | REFUSE | targets a guest TSG |
+
+### Measurements Q1 and Q3 (guest runs, vm0, 2026-09-24)
+
+`caraxes/runs/gsp-d-2026-09-24/` (series.sh, env.sh: the display page series' environment at
+slot 0 with the 2 GiB profile, interrupt page and display page on, 610.57.04 guest; dscan.py
+lists the D controls of each trace window). No host read was made.
+
+- **Q1, DP unplug and plug** (`after/q1-unplug-plug/`; `unplug` and `plug` written into the
+  device's control file 10 s and 24 s into `hotplug-watch.sh 40`, `after/q1-host.txt`). 178
+  control answers in the window, one D control: `SPECIFIC_HDCP_CTRL` once, on the unplug, with
+  cmd `DISABLE_AUTHENTICATION` (8), now answered NV_OK, err 0, label `synthesized (connector
+  without HDCP: not capable, not authenticated)` (`after/q1-unplug-plug/dscan.txt`); the plug
+  sends none. No `unanswered` answer of any control in the window. `DP_SET_WAR_FLAGS` did not
+  appear, as expected for a 610 guest (the control exists only in 615); the 615 half of Q1
+  needs a 615 guest with the display engine, which vm0 is not.
+- **Q3, kill -9 of a CUDA process** (`q3/`): the cuda gate (10 of 12 scored pass; its
+  robustness stage runs the next CUDA process after a SIGKILL; `cuda-managed` fails on
+  `GPU_QUERY_ECC_STATUS`, as in every cuda gate of the day, gate-cuda-2026-09-24-*), then
+  `bench-cu churn` killed with SIGKILL after 8 s mid-run and `bench-cu init` right after (exit
+  0). 1042 and 87 control answers in the two windows, no D control among them: no 0x2080110B
+  `FIFO_DISABLE_CHANNELS`, no 0x20800177 `GPU_REPORT_NON_REPLAYABLE_FAULT`; the teardown is object
+  frees (142 in the kill window). So the kernel's teardown of a killed process that does not
+  unregister a UVM VA space with live channels does not reach D; `FIFO_DISABLE_CHANNELS` stays
+  the path of a VA-space unregister with live channels (6.1), which neither run produced. The
+  fatal non-replayable fault half of Q3 was not run: caraxes/tools has no probe that provokes one.
+- **Found in passing:** the display gate sends `NV9096_CTRL_CMD_SET_ZBC_COLOR_CLEAR` 0x90960101
+  three times in its last minute (the GPU stages), answered `unanswered` NOT_SUPPORTED before and
+  after this change (`before/gate-dscan.txt`, `after/gate-dscan.txt`), next to 18
+  `GET_ZBC_CLEAR_TABLE_ENTRY` 0x90960107 (category A). So a Wayland/Vulkan client reaches the ZBC
+  group already; the ZBC table model of 6.2 (R3) is nearer than the plan's rank said.

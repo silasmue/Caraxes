@@ -398,6 +398,8 @@ save/restore and migrate set is live migration: refuse until migration is a goal
 
 ### D. Needs device modelling (306)
 
+Status 2026-09-24: 308 in 615.71.09; the rule table and three display models answer 260 of them, 48 remain (section "After D" at the end; plan: [gsp-plan/d-device-model.md](gsp-plan/d-device-model.md)).
+
 **What.** Everything that acts on engines, links or power, or reads state only the engine has.
 By class: DispCommon 87 and NvDispApi 16 (DP link training and configuration, HDMI, HDCP, PSR,
 VRR, lock pins, audio), Subdevice 119 (GR context-switch binds, FIFO disable and scheduling,
@@ -895,3 +897,81 @@ guest-object rules and refusals ([gsp-plan/b-host-forwardable.md](gsp-plan/b-hos
 **The generated tables.** `src/ver/v6*/surface.rs` still mark the newly handled rows
 `other: false`. They regenerate with `other: true` once `caraxes/tools/gsp-tables.py` is run
 again, which this change leaves for the merge.
+## After D: the rule table and the display models (2026-09-24)
+
+Category D (305 controls in 610.57.04, 308 in 615.71.09 at the time of the plan) is answered
+by the rule table of [gsp-plan/d-device-model.md](gsp-plan/d-device-model.md) (roadmap R0,
+commit 5eac90a) and three display models (R1, ca598ec). One hook in `Dispatcher::control`
+after the chipctl rules (`crates/vfio-user-nvgpu/src/dmodel.rs`), one in `Dispatcher::alloc`
+for the profiler classes; the display's board table asks the same table for its D rows.
+
+**How the table is made.** `caraxes/tools/gsp-dtable.py --ogkm <tree>` reads the plan's
+per-control table (`docs/caraxes/gsp-plan/d-controls.tsv`) and the tree's inventory and writes
+`src/ver/v<major>/dmodel.rs`: one `DRule` per D control no other handler answers (id checked
+against the inventory, answer kind, model name, the NV status from the tree's
+`nvstatuscodes.h`, the category it moves to, rank, parameter size), the families of the rows
+that move to E, the ids of those the plan acknowledges (`D_E_ACK`), the profiler classes and
+the SDK enum values the display models use. `ctrl-layouts.py` lays out the D structs with a
+610/615 layout change (`INTERNAL_CONTROL_GSP_TRACE`, `NVB0CC_INTERNAL_PERMISSIONS_INIT`) and
+those of the models. `gsp-surface.py` counts the table's REFUSE, DENY and ACK rows and the
+modelled controls as handled (guard `D table`); `gsp-tables.py` treats that guard like the E
+and A rules, so `surface.rs` regenerates identically.
+
+| Answer (615) | Rows | Where |
+|---|---:|---|
+| REFUSE (feature absent on this board), 3 with NV_ERR_INVALID_ARGUMENT | 101 | dmodel.rs; the 54 display rows through the board table of display/mod.rs |
+| DENY (refused, isolation), 9 with NV_ERR_INSUFFICIENT_PERMISSIONS | 37 | dmodel.rs |
+| ACK (acknowledged, no effect) | 14 | dmodel.rs, 9 display rows through the board table |
+| MODEL, modelled (R1) | 3 | display/mod.rs: `SPECIFIC_HDCP_CTRL` per cmd, `DP_CONFIGURE_FEC`, `GET_RG_STATUS` |
+| MODEL, open | 27 | unanswered: ZBC, FECS trace, flushes, FBSR, timers, the debugger session, 12 display |
+| moved to E | 102 | 16 families in `[features]` (below); 6 acknowledged where absent |
+| moved to A | 7 | `chips/tu106/controls.toml`: 3 rows, 4 open rows naming their source |
+| moved to C | 17 | unanswered, listed in d-device-model.md §10 for the category C work |
+
+610 has the same rows less the three 615-only controls (`DP_SET_WAR_FLAGS` ACK,
+`HDCP_KEY_DECRYPTION` and `CLIENT_PERF_MODES_SET_CONTROL` REFUSE). `GSP_RM_ALLOC` of
+`GF100_PROFILER` 0x90CC, `MAXWELL_PROFILER` 0xB0CC, `_CONTEXT` 0xB1CC and `_DEVICE` 0xB2CC answers
+NV_ERR_INSUFFICIENT_PERMISSIONS.
+
+The families of the D rows that belong to E (same in both versions; TU106 names all absent,
+GB206 has `frl`, `dp2x`, `display_later`, `ampere_later`, `row_remap` and `blackwell`):
+
+| Family | Controls | What | Control blocks (615 headers) |
+|---|---:|---|---|
+| `frl` | 4 | HDMI FRL | `ctrl0073common.h:102`, `ctrl0073specific.h:2398-2716` |
+| `dp2x` | 6 | DP 2.x UHBR, cable id | `ctrl0073dp.h:2898-3598` |
+| `display_later` | 4 | shared generic packets, NV Display 5.0 SOR flush | `ctrl0073specific.h:2848-2946`, `ctrlc370or.h:73` |
+| `display_embedded` | 6 | DSI, serializer timings, safety region RAM and interrupts, LVDS | `ctrl0073dfp.h:1177-1611`, `ctrl5070or.h:101-277` |
+| `notebook_power` | 18 | platform request handler, Dynamic Boost, AUX power, AC/battery, GCX | `ctrl2080internal.h:1670-3440`, `ctrl2080perf.h:166-189` |
+| `ecc` | 4 | ECC configuration, reset, kill-pointer injection | `ctrl2080gpu.h:1366-1397`, `ctrl208ffb.h:351-459` |
+| `row_remap` | 2 | DRAM row and bank remapping | `ctrl208ffb.h:629-810` |
+| `mig_partitioning` | 4 | MIG partitioning internals | `ctrl2080internal.h:845-2021` |
+| `nvlink_sli` | 13 | NVLink peers, fabric recovery, SLI bridge and GPIOs, boost sync | `ctrl0080internal.h:106`, `ctrl2080bus.h:1495-1543`, `ctrl2080gpio.h:37-64`, `ctrl2080internal.h:901-3946` |
+| `ampere_later` | 3 | faulted-bit clear path, raw compression mode, access-bit buffer | `ctrl2080fifo.h:583`, `ctrl2080internal.h:2377`, `ctrlc763.h:164` |
+| `ga10x_pcie_ro` | 1 | PCIe relaxed ordering (GA100-GA107 HAL) | `ctrl2080internal.h:2584` |
+| `hopper_platform` | 2 | C2C probe filter, CC memory transfer | `ctrl2080internal.h:2171-3832` |
+| `blackwell` | 5 | CMC, DRAM encryption, MMU GCC debug, HES | `ctrl2080fb.h:2826`, `ctrl2080internal.h:5343`, `ctrl83dedebug.h:1191`, `ctrlb0ccprofiler.h:544-566` |
+| `vgpu_paths` | 7 | vGPU host or guest only | `ctrl0000gpuacct.h:246`, `ctrl2080fifo.h:978`, `ctrl2080internal.h:2499-2524`, `ctrlb0ccinternal.h:58`, `ctrlb0ccprofiler.h:112-175` |
+| `windows_only` | 5 | Windows-only notifications and debugger contexts | `ctrl0073system.h:2377`, `ctrl2080internal.h:3459`, `ctrl5070chnc.h:1052`, `ctrl83dedebug.h:1250-1273` |
+| `legacy_uncalled` | 18 | verification-only, superseded, uncalled | `ctrl0080dma.h:753`, `ctrl0080fifo.h:274`, `ctrl2080fifo.h:58-715`, `ctrl2080gr.h:1328-1410`, `ctrl2080internal.h:1487-5602`, `ctrl5080.h:87-202` and 4 more |
+| **total** | **102** | | |
+
+**Counts** (`gsp-surface.py` against this tree, 2026-09-24; the same method as the table
+above, "after" is after E and A):
+
+| Item | 610 after E, A | 610 after D | 615 after E, A | 615 after D |
+|---|---:|---:|---:|---:|
+| Routed controls handled | 373 | 630 | 383 | 643 |
+| (host / synthesized / guest / echo / refused) | 40/64/23/47/199 | 40/69/23/66/432 | 39/64/23/47/210 | 39/69/23/67/445 |
+| Routed controls unhandled | 456 | 199 | 461 | 201 |
+| (A / B / C / D / E) | 52/70/29/305/0 | 52/70/29/48/0 | 52/70/31/308/0 | 52/70/31/48/0 |
+
+The 48 D controls still unhandled are the 27 open MODEL rows, the 17 rows of category C and the
+4 open A rows; the inventory keeps calling them D because its heuristic does. Tests
+(`dmodel::tests`, `display::tests`): the table covers exactly the inventory's unanswered D in
+both ABIs with the plan's counts, the statuses are the plan's, every D control goes through
+the dispatcher to its rule without reaching the host, the display board table gives the
+same answers, no D id is in `FORWARD`, `LEGACY`, `BINAPI` or `MIRROR_FORWARDED`, the profiler
+classes are refused, the two layout changes come from the generated layouts, the E rows are
+families (GB206 with its six), and `HDCP_CTRL` per cmd, FEC, RG status, `DP_SET_WAR_FLAGS` and
+`PERF_NOTIFY_VIDEOEVENT` against the generated layouts.

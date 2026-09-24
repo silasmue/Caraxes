@@ -1,0 +1,8 @@
+== after2 up at 2026-09-24 19:46:00 (/mnt/vmstore/caraxes/vm0/vfio-user-nvgpu-gspd)
+device pid 558559
+== /home/silas/git/Caraxes/.claude/worktrees/agent-a25cf04a900b964bc/caraxes/runs/gsp-d-2026-09-24/after2/gate-trace.txt.xz: 2605 control answers, 1 distinct D ids, 21 unanswered answers (2 ids)
+D 0x90960101 NV9096_CTRL_CMD_SET_ZBC_COLOR_CLEAR                     x3   plan MODEL:zbc-table              -> status 0x56 [unanswered]
+unanswered 0x90960101 x3 (D)
+unanswered 0x90960107 x18
+watch: none of 0x2080110b FIFO_DISABLE_CHANNELS, 0x20800177 GPU_REPORT_NON_REPLAYABLE_FAULT
+after2: host Xid lines 0; vm0 processes after down: 0

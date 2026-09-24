@@ -28,6 +28,7 @@ pub mod device;
 pub mod display;
 pub mod dmamap;
 pub mod events;
+pub mod dmodel;
 pub mod falcon;
 pub mod fb;
 pub mod gmcapi;

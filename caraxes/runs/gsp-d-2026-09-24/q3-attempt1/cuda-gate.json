@@ -1,0 +1,2 @@
+{"gate":"cuda","result":"skip","dur_s":0,"reason":"the guest runner differs from tools/caraxes-guest-tests.sh; run tools/caraxes-vm.sh sync-tests","facts":{"stages":[],"failed":[]}}
+cuda gate rc=2

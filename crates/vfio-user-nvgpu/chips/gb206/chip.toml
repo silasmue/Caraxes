@@ -180,6 +180,20 @@ compute = 0xCEC0
 # :62-63 "Virtualization Mode None", :274 "Global Fabric Manager State N/A"), and the
 # device presents it without Confidential Computing, SPDM, CCU or a G-SYNC board. HSHUB is
 # absent with NVLink and C2C; revisit if a GB206 capture answers an HSHUB control.
+#
+# The category D families (chips/tu106/chip.toml, src/ver/v<major>/dmodel.rs): GB206 has
+# what Blackwell brings. Present: HDMI FRL and DP 2.x (the GB20x display), the later
+# display features (NVC370 SET_SOR_FLUSH_MODE is "NV Display 5.0+ (GB20X+ and T264+)", 615
+# ctrl/ctrlc370/ctrlc370or.h:36-73; shared generic packets from the C8 HAL on), the
+# Ampere-and-later features, row remapping (caraxes/reference/gb206/gpu-0000_01_00.0/
+# nvidia-smi-q.txt:181-183, "Remapped Rows" with counters) and the Blackwell features (DRAM
+# encryption is reported, :148-150 "Disabled", GSP-lite CMC, HES on GB20x per 615
+# src/nvidia/generated/g_kern_hwpm_nvoc.c:244-253, MMU GCC debug). Absent: ECC (:151-153
+# "ECC Mode N/A"), the GA100-GA107 relaxed-ordering HAL, the Hopper/Grace platform (C2C,
+# Confidential Computing), MIG, NVLink and SLI, notebook power (a desktop board), embedded
+# display, vGPU-only paths, Windows-only paths and the uncalled legacy controls.
 [features]
-absent = ["rm_test", "nvlink", "hshub", "fabric", "c2c", "gsync", "vgpu", "mig", "cc", "spdm", "ccu", "internal_uncalled"]
-present = []
+absent = ["rm_test", "nvlink", "hshub", "fabric", "c2c", "gsync", "vgpu", "mig", "cc", "spdm", "ccu", "internal_uncalled",
+    "display_embedded", "notebook_power", "ecc", "mig_partitioning", "nvlink_sli", "ga10x_pcie_ro", "hopper_platform",
+    "vgpu_paths", "windows_only", "legacy_uncalled"]
+present = ["frl", "dp2x", "display_later", "ampere_later", "row_remap", "blackwell"]

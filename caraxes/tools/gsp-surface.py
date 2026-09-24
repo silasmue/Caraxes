@@ -54,8 +54,12 @@ How the crate side is read (heuristic, see --explain):
   The two table rules of chipctl.rs count as handled too: the category E families of the
   tree's src/ver/v<major>/surface.rs that chips/tu106/chip.toml [features] names absent
   (refused, or synthesized for its `empty_ok` controls), and the entries of
-  chips/tu106/controls.toml (synthesized). Every routed control carries its heuristic
-  category as `class_category` in the JSON, handled or not (caraxes/tools/gsp-tables.py).
+  chips/tu106/controls.toml (synthesized; open rows are not answered). The category D rule
+  table of dmodel.rs counts as handled for its REFUSE, DENY and ACK rows that stay in D and
+  for the controls it names MODELLED (src/ver/v<major>/dmodel.rs, caraxes/tools/gsp-dtable.py,
+  guard "D table"); its families of D rows moved to E count like the E families. Every
+  routed control carries its heuristic category as `class_category` in the JSON, handled or
+  not (caraxes/tools/gsp-tables.py).
 
 Categories for unhandled controls (name and flag heuristics, see classify()):
   A chip data        answerable from the chip/board tables (static getters, CACHEABLE)
@@ -752,6 +756,19 @@ CHIP_DIR = os.path.join(ROOT, "crates", "vfio-user-nvgpu", "chips", "tu106")
 E_RULE_LABEL = "refused (feature absent on this chip)"
 
 
+D_RULE_LABELS = {"Refuse": ("refused", "refused (feature absent on this board)"),
+                 "Deny": ("refused", "refused (isolation)"),
+                 "Ack": ("echo", "synthesized (acknowledged, no effect)")}
+E_ACK_LABEL = "synthesized (acknowledged, no effect; feature absent on this chip)"
+
+
+def dmodel_file():
+    """The generated D rule table of the tree's driver version (src/ver/v<major>/dmodel.rs,
+    written by caraxes/tools/gsp-dtable.py), or None."""
+    p = os.path.join(CRATE, "ver", "v%s" % DRIVER.split(".")[0], "dmodel.rs")
+    return p if os.path.exists(p) else None
+
+
 def surface_file():
     """The generated surface table of the tree's driver version (src/ver/v<major>/surface.rs,
     written by caraxes/tools/gsp-tables.py), or None."""
@@ -771,14 +788,42 @@ def chip_rule_handlers(ctrl_by_name):
     feats = tomllib.loads(read(chip_p)).get("features", {})
     absent = set(feats.get("absent", []))
     empty_ok = {e["name"]: e["label"] for e in feats.get("empty_ok", [])}
-    sp = surface_file()
-    if sp:
+    dp = dmodel_file()
+    e_ack = set()
+    d_names = {}
+    if dp:
+        dtext = read(dp)
+        ack_block = dtext.split("pub const D_E_ACK: &[u32] = &[", 1)[-1].split("];", 1)[0]
+        e_ack = {hexint(v) for v in re.findall(r"\b(0x[0-9A-Fa-f_]+)\b", ack_block)}
+        modelled = re.findall(r'"(\w+)"', read(os.path.join(CRATE, "dmodel.rs")).split(
+            "pub const MODELLED: &[&str] = &[", 1)[-1].split("];", 1)[0])
+        rx_rule = re.compile(r'DRule \{\s*id: (0x[0-9A-Fa-f_]+),\s*name: "(\w+)",.*?'
+                             r'answer: DAnswer::(\w+),.*?reclass: \'(.)\'', re.S)
+        for m in rx_rule.finditer(dtext):
+            # Controls the inventory names by handler (no #define, e.g. 0x20800A3E).
+            d_names[m.group(2)] = hexint(m.group(1))
+            kind, reclass = m.group(3), m.group(4)
+            if reclass != "-":
+                continue
+            if kind in D_RULE_LABELS:
+                prov, label = D_RULE_LABELS[kind]
+            elif m.group(2) in modelled:
+                prov, label = "synthesized", "synthesized (%s model, display/mod.rs)" % kind.lower()
+            else:
+                continue
+            out[hexint(m.group(1))].append({"module": "ctrl", "provenance": prov,
+                                            "labels": [label], "guard": "D table",
+                                            "src": "crates/vfio-user-nvgpu/src/dmodel.rs"})
+    for sp in [f for f in (surface_file(), dp) if f]:
         rx = re.compile(r'Family \{\s*name: "(\w+)",.*?controls: &\[(.*?)\],\s*\}', re.S)
         for m in rx.finditer(read(sp)):
             if m.group(1) not in absent:
                 continue
             for val, name in re.findall(r'\((0x[0-9A-Fa-f_]+), "(\w+)"\)', m.group(2)):
-                if name in empty_ok:
+                if hexint(val) in e_ack:
+                    h = {"module": "ctrl", "provenance": "echo", "labels": [E_ACK_LABEL],
+                         "guard": "E family %s (acknowledged)" % m.group(1), "src": rule_src}
+                elif name in empty_ok:
                     h = {"module": "ctrl", "provenance": "synthesized",
                          "labels": [empty_ok[name]], "src": rel(chip_p),
                          "guard": "E family %s (NV_OK, empty)" % m.group(1)}
@@ -789,7 +834,9 @@ def chip_rule_handlers(ctrl_by_name):
     ctl_p = os.path.join(CHIP_DIR, "controls.toml")
     if os.path.exists(ctl_p):
         for e in tomllib.loads(read(ctl_p)).get("control", []):
-            val = ctrl_by_name.get(e["name"])
+            if "open" in e:
+                continue
+            val = ctrl_by_name.get(e["name"], d_names.get(e["name"]))
             if val is None or DRIVER.split(".")[0] not in e.get("abi", ["610", "615"]):
                 continue
             labels = [c["label"] for c in e.get("case", []) if "label" in c] or [e["label"]]

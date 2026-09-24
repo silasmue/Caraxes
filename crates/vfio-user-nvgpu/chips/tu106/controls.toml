@@ -176,3 +176,67 @@ params = "NV2080_CTRL_GR_GFX_POOL_QUERY_SIZE_PARAMS"
 moved_from = "B"
 status = "NOT_SUPPORTED"
 label = "refused (no caller in either tree: kernel-privileged GR_GFX_POOL_QUERY_SIZE, E by gsp-plan B)"
+# ---- The category D rows the plan moves to A (docs/caraxes/gsp-plan/d-device-model.md §3
+# and §7, d-controls.tsv `reclass` A). They are D in the inventory; the table takes them
+# because the D rule table (src/ver/v<major>/dmodel.rs) marks them A. `open` rows name the
+# source that would supply the value; until then they are not answered (NOT_SUPPORTED,
+# `unanswered`).
+
+# 0x20800A3E is the legacy, non-KGR form of the static FECS trace getter (plan §3): the same
+# answer as 0x20800A3F, which kgr.rs refuses on purpose while FECS tracing is off
+# (src/kgr.rs:452-458; a refusal leaves pFecsTraceDefines NULL, 615
+# src/nvidia/src/kernel/gpu/gr/kernel_graphics.c:1492-1502). The kernel never sends 0x3E.
+[[control]]
+name = "subdeviceCtrlCmdGrStaticGetFecsTraceDefines"
+params = "NV2080_CTRL_INTERNAL_STATIC_GR_GET_FECS_TRACE_DEFINES_PARAMS"
+label = "chip (FECS tracing off: the answer of 0x20800A3F, kgr.rs:452)"
+status = "NOT_SUPPORTED"
+
+# No SLI or framelock connector on the board: chip.toml [features] names the SLI bridge
+# (nvlink_sli) and the G-SYNC board (gsync) absent, so there are no pinsets and no pinset
+# maps to scan-lock pins (615 ctrl/ctrl5070/ctrl5070chnc.h:744, ctrl2080internal.h:3467).
+[[control]]
+name = "NV5070_CTRL_CMD_GET_PINSET_COUNT"
+params = "NV5070_CTRL_GET_PINSET_COUNT_PARAMS"
+inputs = ["base.subdeviceIndex"]
+label = "board (no SLI or framelock connector: chip.toml [features] nvlink_sli and gsync absent)"
+fields = { pinsetCount = 0 }
+
+[[control]]
+name = "NV2080_CTRL_CMD_INTERNAL_DISP_PINSETS_TO_LOCKPINS"
+params = "NV2080_CTRL_INTERNAL_DISP_PINSETS_TO_LOCKPINS_PARAMS"
+inputs = ["pinSetIn", "pinSetOut"]
+label = "board (no pinsets: no scan lock through a pin; chip.toml [features] nvlink_sli and gsync absent)"
+fields = { bMasterScanLock = 0, bSlaveScanLock = 0 }
+
+# Open: the value is a lookup in RM's adaptive-sync default list, keyed by the EDID
+# manufacturer and product id (615 ctrl/ctrl0073/ctrl0073specific.h:3036-3049), closed firmware.
+[[control]]
+name = "NV0073_CTRL_CMD_SPECIFIC_DEFAULT_ADAPTIVESYNC_DISPLAY"
+params = "NV0073_CTRL_SPECIFIC_DEFAULT_ADAPTIVESYNC_DISPLAY_PARAMS"
+label = "board"
+open = "RM's default adaptive-sync list: the host read of d-device-model.md §8 Q12 with the synthetic EDID's manufacturer and product id (expected FALSE)"
+
+# Open: the VBIOS DP drive tables of the card (615 ctrl/ctrl0073/ctrl0073dp.h:1008, :3314).
+# The ROM is captured (caraxes/reference/rtx2070/rom.bin) but its DP tables are not parsed.
+[[control]]
+name = "NV0073_CTRL_CMD_DP_GET_PREEMPHASIS_DRIVECURRENT_POSTCURSOR2_DATA"
+params = "NV0073_CTRL_DP_GET_PREEMPHASIS_DRIVECURRENT_POSTCURSOR2_DATA_PARAMS"
+label = "card"
+open = "the pre-emphasis, drive-current, postcursor2 and TxPu table of the card's VBIOS (caraxes/reference/rtx2070/rom.bin, DP tables not parsed yet)"
+
+[[control]]
+name = "NV0073_CTRL_CMD_DP_GET_LEVEL_INFO_TABLE_DATA"
+params = "NV0073_CTRL_DP_GET_LEVEL_INFO_TABLE_DATA_PARAMS"
+label = "card"
+open = "the per-link-rate DP drive table of the card's VBIOS (caraxes/reference/rtx2070/rom.bin, DP tables not parsed yet)"
+
+# Open: the reserved and heap sizes are the device's own GSP regions (src/fb.rs layout),
+# the heap free a constant and the owner table zeros (d-controls.tsv note; kernel twin 615
+# src/nvidia/src/kernel/gpu/mem_mgr/mem_mgr_ctrl.c:920-957); the layout of the 4848-byte
+# block and the region sizes still have to be tied to fb.rs.
+[[control]]
+name = "NV2080_CTRL_CMD_GSP_FB_STATS_GET"
+params = "NV2080_CTRL_CMD_RM_FB_STATS_ENTRY"
+label = "chip"
+open = "the device's GSP heap regions of src/fb.rs (reserved, reserved heap, heap free) with a zero owner table"
