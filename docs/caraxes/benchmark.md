@@ -800,3 +800,61 @@ and its delivery pays the trapped interrupt path. The same applies to the pinned
 measurement for the copy rows, not the pool; H stays as an option for guest BAR1 traffic
 (display scanout imports, the console mapping) and for Ampere and later, where the pool has
 no host BAR1 limit.
+
+## First 615 series (2026-09-24, 18:54-19:37, vm2, host 615.71.09, other VMs active)
+
+The first numbers of a 615.71.09 guest, and the 610.57.04 guest on the same VM slot for the
+comparison, both on the 615.71.09 host. `caraxes/runs/bench-615-2026-09-24/run.sh` with the
+environment of the 615 guest's cuda gate runs (`caraxes/runs/cutover-615-2026-09-24/v2-615guest-run.sh`):
+vm2, 1 GiB profile at reservation slot 3, token pool (64) and hybrid reactor, no P21 area
+(`CARAXES_BAR1_PASSTHROUGH` unset), restart per rep; short-auto, rl, copy and init with 3 reps,
+PPO (60 s) with 2. The device is built from the worktree at a0bf4ef: the v615-feature build for
+the 615 guest, the default build for the 610 guest (a v615 build serves guest ABI 615 unless
+told otherwise; the first 610 attempt with it, `610-v615build/`, got cuInit 999 in every run).
+It needed the harness fix of that commit: bench-run.sh now takes the guest's libcuda directory
+from the driver (cutover-615.md, "Closed: the bench series"). vm0 and vm1 (and later vm3) ran on
+the card at the same time: 5 of 14 runs of the 615 guest and 9 of 14 of the 610 guest had
+another VM's device process active, and the host load average reached 10.9 during the 610
+part. 0 Xid over both parts and the failed attempt; host watch 0 alerts, nvidia-smi at most
+0.15 s. Full tables: `615/summary.md`, `610/summary.md`, and `comparison.md` (both against the
+closing series' native and v2 columns).
+
+| Metric | native (closing) | v2 closing (610 host) | 610 guest | 615 guest | 615 / 610 guest |
+|---|---|---|---|---|---|
+| short kernel, ms/launch, auto | 0.006 | 0.015 | 0.307 [0.157-0.382] | 0.144 [0.127-0.148] | 0.47 |
+| rlprobe stage 4, s | 1.20 | 2.10 | 20.4 [19.5-22.4] | 15.2 [15.0-20.2] | 0.75 |
+| rlprobe transfers per second | 2350 | 1340 | 141 | 189 | 1.34 |
+| rlprobe process wall, s | 4.64 | 12.2 | 41.0 | 27.5 | 0.67 |
+| rlprobe mean10 (reward) | 56.9 | 56.9 | 56.9 | 56.9 | 1 |
+| copy h2d pinned 1 MiB, GB/s | 12.1 | 6.06 | 3.90 | 3.85 | 0.99 |
+| copy h2d pageable 1 MiB | 7.25 | 4.50 | 2.92 | 2.65 | 0.91 |
+| copy h2d pinned 16 MiB | 13.0 | 6.57 | 6.28 | 6.29 | 1.00 |
+| copy d2d 16 MiB | 183 | 16.5 | 14.5 | 14.1 | 0.97 |
+| copy h2d pinned 256 MiB | 13.1 | 13.1 | 12.9 | 12.8 | 0.99 |
+| copy h2d pageable 256 MiB | 9.27 | 8.86 | 4.43 | 3.32 | 0.75 |
+| copy d2d 256 MiB | 186 | 190 | 177 | 175 | 0.99 |
+| cuInit, ms | 106 | 151 | 212 | 135 | 0.64 |
+| cuCtxCreate, ms | 195 | 3770 | 4144 | 4349 | 1.05 |
+| cuCtxDestroy, ms | 92.6 | 1352 | 1350 | 1517 | 1.12 |
+| PPO environment steps per second (2 reps) | 107663, 112259 | 61082, 72977 | 6964, 6471 | 5727, 6726 | 0.93 |
+| PPO reward100 after 60 s | 212, 400 | 348, 417 | 36.8, 36.8 | 30.2, 36.8 | |
+
+Medians with [min-max] where the spread matters; the native and closing columns are the
+closing series (§ "Closing series on driver 610.57.04" and its PPO table), not rerun here.
+
+Reading: the 615 guest costs nothing against the 610 guest on the same device configuration.
+The ranges overlap in every row but the short kernel, and where the 615 guest is ahead (short
+kernel, rlprobe) the 610 part had the busier host. The distance to the closing v2 column is the
+configuration, not the driver: without the P21 area every submission traps its GPFIFO and
+USERD writes, and the submission rows are those of the no-area run of § "P21 BAR1 passthrough"
+(short kernel 0.153 and 0.161 ms, rlprobe stage 4 19.6 and 18.3 s, 144 transfers per second);
+PPO, a few launches and two small copies per environment step, runs at about 0.1 of closing.
+The context rows (cuCtxCreate about 20x native), the 16 MiB copies and the pinned and d2d
+256 MiB copies match the closing series on both guests. Lower on both guests and not isolated
+here (the area, the 1 GiB profile and the concurrent VMs all differ): the 1 MiB copies (3.9
+against 6.1 GB/s pinned, d2d 9 to 10 against 62) and the pageable 256 MiB copies (3.3 to 4.4
+against 8.9 GB/s). Profiles differ from the closing series in: host driver, P21 area off,
+hybrid instead of spin reactor, 1 GiB at slot 3 instead of 2 GiB at slot 0, other VMs active
+instead of a quiet host, n=3 instead of 5. Next: the same series with
+`CARAXES_BAR1_PASSTHROUGH=1` and the spin reactor on a quiet host, the like-for-like with the
+closing series.
