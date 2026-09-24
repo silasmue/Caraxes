@@ -543,3 +543,49 @@ stretches every RPC's latency. That is a latency risk, not a wedge.
    would the device's `msgq.rs` need for a guest on r000 (D14, nova.md)?
 7. Threads outside nova-gpu (kvm@, dri-devel@) that did not surface through web search, since
    lore's search refused plain requests; and the message-id of the GSP_VF_INFO patch.
+
+## 7. What changed after the cross-check
+
+The four queue findings of §4 (item 3) and §5 are fixed in `D/msgq.rs`, with the smallest
+caller change in `D/boot.rs` (`service_queues`). Commits: `72864ab` (ordering) and `9e938f5`
+(wedges, checksum, wrap). Each item has a unit test in `D/msgq.rs`.
+
+1. **Ordering.** The four pointer words are 32-bit atomics in the shared mapping
+   (`QueueMemory::load_acquire`, `store_release`). The guest's write pointer and its read
+   pointer for our queue are loaded with `Acquire` before any slot is touched; our read
+   pointer and our write pointer are stored with `Release` after the slots are copied or
+   written. This replaces the single `fence(SeqCst)` in `send` and the plain accesses in
+   `receive`. Test: `pointer_words_are_acquire_release` checks the access order.
+2. **Wedges.** (a) A write pointer at or past `msgCount` fails the queue: one error-level
+   log line, and every later `receive` and `send` returns the same error until
+   `BootModel::reset` drops the queue state (a function-level reset or a driver reload
+   relinks on the next doorbell). (b) An RPC length below the RPC header is skipped by its
+   declared size (one slot) and rejected; a length past `queueElementSizeMax` (64 KiB,
+   `message_queue_cpu.c:89`) or past the slots the guest published fails the queue as in
+   (a), since there is no trustworthy place to resume. (c) A full status queue holds the
+   element with its sequence number and checksum already final; nothing is written past a
+   held element, so order is kept. Every doorbell and every later `send` retries; an element
+   still held after a retry is logged at error level; at most 64 elements wait, beyond that
+   `send` refuses with an error-level log. The trace gains `status queue: ... held` lines.
+3. **Bad checksum.** The element is consumed, counted, logged and not dispatched. The device
+   answers a rejected element with a bare reply (no payload) whose `rpc_result` is
+   `NV_ERR_INVALID_DATA` (0x25) for a bad checksum, the status the guest's own receive path
+   uses for the same condition (`message_queue_cpu.c:709-735`), or
+   `NV_ERR_INVALID_PARAM_STRUCT` (0x3A) for a bad length (`:491-496`). The guest returns
+   such a result as the RPC's status (`rpc.c:2011-2027`, large requests `:2230-2241`) and
+   copies no control parameters back (`rpc.c:10868-10898`). The reply goes to the element's
+   own function and sequence; for a torn continuation record, to the request being
+   assembled; when signature or header version are wrong, to nobody (the guest's RPC times
+   out). `Message::reply_to` carries the rule and the citations.
+4. **Wrap.** `seq_before(a, b)` is the upstream rule: `a` is before `b` when `b - a`
+   modulo 2^32 lies in `1..2^31`. Ring pointers are compared only through
+   `ring_distance`, never with `<`. The guest's element `seqNum` is now compared with the
+   expected one: a mismatch is logged and counted but still dispatched, because a driver
+   reload without a device reset restarts the guest's count at 0.
+
+On the healthy path nothing a guest can observe changes: same elements, same sequence
+numbers, same pointer values, same replies. Differences appear only for a malformed or
+stuck queue: a bad-checksum or short request now gets an error reply instead of a normal
+answer; a bad write pointer or an overlong element now stops all RPC service instead of
+stalling the one queue position; a full status queue delivers the reply late instead of
+never.
