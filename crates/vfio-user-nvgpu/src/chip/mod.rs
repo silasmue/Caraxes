@@ -18,11 +18,14 @@ use serde::Deserialize;
 
 use crate::guestmem::GuestMemory;
 
+pub mod boot_fsp;
+pub mod physical;
+pub mod gb206;
 pub mod tu106;
 pub mod turing;
 
 /// Every chip this build can present, by `--chip` name.
-pub const CHIPS: &[&str] = &["tu106"];
+pub const CHIPS: &[&str] = &["tu106", "gb206"];
 
 /// A chip the device can present.
 pub trait Chip: Sync {
@@ -37,6 +40,7 @@ pub trait Chip: Sync {
 pub fn by_name(name: &str) -> Result<&'static dyn Chip, String> {
     match name {
         "tu106" => tu106::get(),
+        "gb206" => gb206::get(),
         other => Err(format!(
             "unknown chip {other:?}; this build knows {}",
             CHIPS.join(", ")
@@ -236,6 +240,12 @@ pub struct Gmmu {
 
 /// The GMMU formats `fb.rs` implements.
 pub const MMU_FORMATS: &[&str] = &["gmmu-v2-49bit"];
+
+/// GMMU formats fb.rs's own walker does not know. `gmmu-v3-57bit` (Hopper and Blackwell)
+/// is walked by [`crate::gmmu_v3`] for the BAR1/BAR2 apertures and the leaf enumeration
+/// (fb.rs `with_mmu_format`); the incremental shadow walker (ptcache.rs), used only with
+/// host execution, stays v2 (versatility.md, "GMMU format").
+pub const MMU_FORMATS_UNWALKED: &[&str] = &["gmmu-v3-57bit"];
 
 #[derive(Clone, Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -437,7 +447,8 @@ impl ChipData {
         let regmap: RegmapFile = parse("regmap.toml", f.regmap)?;
         let di: DeviceInfoFile = parse("device-info.toml", f.device_info)?;
         let intr: InterruptsFile = parse("interrupts.toml", f.interrupts)?;
-        if !MMU_FORMATS.contains(&c.gmmu.mmu_format.as_str()) {
+        let format = c.gmmu.mmu_format.as_str();
+        if !MMU_FORMATS.contains(&format) && !MMU_FORMATS_UNWALKED.contains(&format) {
             return Err(format!(
                 "chip {}: GMMU format {:?} is not implemented (fb.rs knows {})",
                 c.name,

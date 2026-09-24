@@ -1,67 +1,92 @@
 # SPDX-License-Identifier: MIT
 #
-# DRAFT for the GB206 firmware-boot model (docs/caraxes/blackwell-gb206.md, "Boot model").
-# NOT in the format of chips/tu106/boot.toml: that file feeds src/chip/turing.rs
-# (GFW poll, FWSEC-FRTS, SEC2 Booter), none of which a GB20x guest runs. This file
-# lists the facts a new FirmwareBoot (src/chip/hopper.rs of versatility.md) needs, in a
-# proposed schema; nothing loads it. Values come from the 610.57.04 sources (the guest
-# driver), not from the capture: the capture reads no register.
-# Paths are relative to vendor/open-gpu-kernel-modules/src.
+# The GB206 firmware-boot model (src/chip/boot_fsp.rs): the registers and constants of
+# the FSP Chain-of-Trust boot a 610.57.04 guest runs on GB20x, without any firmware
+# running (docs/caraxes/gsp-boot-blackwell.md). Values come from the 610.57.04 sources
+# (the guest driver), not from the capture: the capture reads no register. Paths are
+# relative to vendor/open-gpu-kernel-modules/src; headers to
+# src/common/inc/swref/published/.
 #
-# Sequence of a 610.57.04 guest on GB206 (kgspBootstrap_GH100 is the GB20x HAL,
-# nvidia/generated/g_kernel_gsp_nvoc.c:731-748; nvidia/src/kernel/gpu/gsp/arch/hopper/kernel_gsp_gh100.c:853-990):
-#  1. kfspWaitForSecureBoot_GB202 polls NV_THERM_I2CS_SCRATCH for 0xFF
-#     (nvidia/src/kernel/gpu/fsp/arch/blackwell/kern_fsp_gb202.c:48-100).
-#  2. With an FSP (KernelFsp exists for GB206, generated/g_kern_fsp_nvoc.c:234), the CPU
-#     sends the NVDM COT payload to FSP over the FSP EMEM queue
-#     (kfspSendBootCommands_GH100, kern_fsp_gh100.c:1500-1530; payload fields
-#     :1030-1046, :1341-1458: gspFmcSysmemOffset, frtsSysmem/VidmemOffset and Size,
-#     gspBootArgsSysmemOffset -> GSP_FMC_BOOT_PARAMS) and reads FSP's NVDM response
-#     from the FSP message queue. The MNOC mailbox is used instead only with
-#     PDB_PROP_KFSP_USE_MNOC_CPU (kern_fsp_gb100.c:311-330); keep it off.
-#  3. kfspWaitForGspTargetMaskReleased_GH100: GSP HWCFG2 reads non-zero and not
-#     0xBADF41xx (kern_fsp_gh100.c:1069-1100).
-#  4. kgspSendInitRpcs queues the init RPCs before GSP runs (kernel_gsp_gh100.c:958).
-#  5. _kgspLockdownReleasedOrFmcError: HWCFG2.RISCV_BR_PRIV_LOCKDOWN = UNLOCK
-#     (kernel_gsp_gh100.c:542, 968); then MAILBOX0 must read 0 (:980-995).
-#  6. From here the generic queue service applies (WprMeta from GSP_FMC_BOOT_PARAMS,
-#     CmdQueueDoorbell at NV_PGSP_QUEUE_HEAD(0)).
+# Sequence (kgspBootstrap_GH100 is the GB206 HAL, nvidia/generated/g_kernel_gsp_nvoc.c:748;
+# nvidia/src/kernel/gpu/gsp/arch/hopper/kernel_gsp_gh100.c:853-1037), in the order of
+# docs/caraxes/gsp-boot-blackwell.md section 2:
+#  1. kfspWaitForSecureBoot_GB202 polls NV_THERM_I2CS_SCRATCH for 0xFF (twice).
+#  2. FSP messages over EMEM channel 0: CAPS_QUERY (clock boost), CLOCK_BOOST, COT.
+#  3. kfspWaitForGspTargetMaskReleased_GH100: GSP HWCFG2 non-zero, not 0xBADF41xx.
+#  4. kgspSendInitRpcs rings NV_PGSP_QUEUE_HEAD(0) before the lockdown is released.
+#  5. _kgspLockdownReleasedOrFmcError: HWCFG2.RISCV_BR_PRIV_LOCKDOWN = UNLOCK, MAILBOX0 0.
+#  6. kflcnIsRiscvActive_GA102: NV_PRISCV_RISCV_CPUCTL.ACTIVE_STAT; then the queues.
 
-[gsp]
-# NV_PGSP 0x110000-0x113FFF (common/inc/swref/published/hopper/gh100/dev_gsp.h:25).
-base = 0x0011_0000
-# NV_PFALCON_FALCON_MAILBOX0/1 and HWCFG2, relative (hopper/gh100/dev_falcon_v4.h:27,30,39).
-mailbox0 = 0x40
-mailbox1 = 0x44
-hwcfg2 = 0xF4
-# HWCFG2.RISCV_BR_PRIV_LOCKDOWN bit 13 (dev_falcon_v4.h:79).
-hwcfg2_lockdown_bit = 13
-# NV_PGSP_QUEUE_HEAD(0)/TAIL(0), MSGQ_HEAD(0)/TAIL(0): the TU102 layout, also for GB206
-# (gpuGetGspMsgQueueRegisters_TU102 in the 615.71.09 HAL table for GB206; turing/tu102/dev_gsp.h:38-47).
-queue_head = 0x0011_0C00
-queue_tail = 0x0011_0C04
-msgq_head = 0x0011_0C80
-msgq_tail = 0x0011_0C84
+# The GSP falcon (kgspConfigureFalcon_GA102, g_kernel_gsp_nvoc.c:605): NV_PGSP 0x110000
+# (hopper/gh100/dev_gsp.h:25), RISC-V block 0x111000 (ampere/ga102/dev_riscv_pri.h:27),
+# FBIF 0x110600. IMEM/DMEM sizes as TU106 (not read on this path).
+gsp = { base = 0x0011_0000, imem_blocks = 0x100, dmem_blocks = 0x100, riscv = true, halted = true }
+falcon_block_size = 0x2000
+# NV_PGSP_QUEUE_HEAD(0) (turing/tu102/dev_gsp.h:38; kgspSetCmdQueueHead_TU102 is the GB206
+# HAL, g_kernel_gsp_nvoc.c:706).
+gsp_queue_head = 0x0011_0C00
+# NV_PRISCV_RISCV_CPUCTL = 0x111000 + 0x388 (ampere/ga102/dev_riscv_pri.h:32-34), read by
+# kflcnIsRiscvActive_GA102 (nvidia/src/kernel/gpu/falcon/arch/ampere/kernel_falcon_ga102.c:47-56;
+# HAL nvidia/generated/g_kernel_falcon_nvoc.c:403).
+gsp_riscv_cpuctl = 0x0011_1388
+
+# Registers that read a fixed value; writes are dropped ("read-only").
+const = [
+    # NV_FUSE_ZB_OPT_SECURE_GSP_DEBUG_DIS = NV_FUSE0_PRI_BASE 0x820000
+    # (hopper/gh100/hwproject.h:31) + 0x74C (blackwell/gb100/dev_fuse_zb.h:41-43): 1 = debug
+    # disabled, a production part (kgspIsDebugModeEnabled_GB100, kernel_gsp_gb100.c:296).
+    { name = "NV_FUSE_ZB_OPT_SECURE_GSP_DEBUG_DIS", offset = 0x0082_074C, value = 1 },
+    # NV_FUSE_ZB_FEATURE_READOUT 0x820000 + 0x3814 (dev_fuse_zb.h:26-29): ECC_DRAM (bit 16)
+    # off, as a GeForce board (kmemsysCheckReadoutEccEnablement_GB100, kern_mem_sys_gb100.c:216).
+    { name = "NV_FUSE_ZB_FEATURE_READOUT", offset = 0x0082_3814, value = 0 },
+]
 
 [fsp]
-# NV_THERM_I2CS_SCRATCH, FSP_BOOT_COMPLETE_STATUS_SUCCESS = 0xFF
-# (blackwell/gb202/dev_therm.h:27, dev_therm_addendum.h:27-30).
-boot_complete = { offset = 0x00AD_00BC, value = 0xFF }
-# FSP EMEM port and queues, GH100 layout used by kern_fsp_gh100.c:42 for GB20x too
-# (hopper/gh100/dev_fsp_pri.h:26-57).
+# NV_THERM_I2CS_SCRATCH, FSP_BOOT_COMPLETE_STATUS_SUCCESS = 0xFF over all 32 bits
+# (blackwell/gb202/dev_therm.h:27, dev_therm_addendum.h:27-29;
+# nvidia/src/kernel/gpu/fsp/arch/blackwell/kern_fsp_gb202.c:50-63).
+boot_complete = { name = "NV_THERM_I2CS_SCRATCH (FSP_BOOT_COMPLETE)", offset = 0x00AD_00BC, value = 0xFF }
+# The EMEM port and queues of channel FSP_EMEM_CHANNEL_RM = 0 (fsp/fsp_emem_channels.h:34-37),
+# GH100 layout, used on GB206 through the GB100 wrappers with MNOC off
+# (hopper/gh100/dev_fsp_pri.h:26-60, included by kern_fsp_gh100.c:42;
+# kern_fsp_gb100.c:311-420; the MNOC switch is a registry key only, kern_fsp.c:170-181).
 ememc = 0x008F_2AC0
 ememd = 0x008F_2AC4
 queue_head = 0x008F_2C00
 queue_tail = 0x008F_2C04
 msgq_head = 0x008F_2C80
 msgq_tail = 0x008F_2C84
-# NV_PFSP_FALCON_COMMON_SCRATCH_GROUP_2(0..3), read for error reports
-# (blackwell/gb202/dev_fsp_pri.h:27).
-scratch_group_2 = 0x008F_0320
+# FSP_EMEM_CHANNEL_RM_SIZE (fsp/fsp_emem_channels.h:37): the largest packet either way.
+emem_bytes = 1024
 
-# OPEN(source): WPR2 (kgspIsWpr2Up_GB100, g_kernel_gsp_nvoc.c:1341, reads
-# NV_HUBMMU_PRI_MMU_WPR2_ADDR_HI = HUBMMU base + 0xA828, blackwell/gb100/dev_hubmmu_base.h:91-94;
-# the HUBMMU base for GB202), the local-memory-range register, the FB layout of
-# kgspCalculateFbLayout for GB20x, the fuse/debug and reset-PLM registers
-# (versatility.md "Blackwell" checklist), the FSP NVDM response format
-# (nvidia/arch/nvalloc/common/inc/fsp/nvdm_payload_cmd_response.h).
+[timer]
+# NV_PGC6_SCI_SEC_TIMER_TIME_0/1 and NV_PGC6_SCI_SYS_TIMER_OFFSET_0/1
+# (hopper/gh100/dev_gc6_island.h:27-43), read and written by tmrSetCurrentTime_GH100
+# (nvidia/src/kernel/gpu/timer/arch/hopper/timer_gh100.c:40-100), the GB206 HAL
+# (generated/g_objtmr_nvoc.c:442). The heartbeats are NV_PGSP_MAILBOX(i) 0x110804 + 4i
+# (hopper/gh100/dev_gsp.h:39) with i = NV_PGSP_MAILBOX_REGISTER_GSPRM_HEARTBEAT 0 and
+# _LIBOS_HEARTBEAT 1 (generated/g_kernel_gsp_nvoc.h:384-385), read by
+# kgspReadMailbox_TU102 (nvidia/src/kernel/gpu/gsp/arch/turing/kernel_gsp_tu102.c:1318-1326).
+sec_time_0 = 0x0011_8F54
+sec_time_1 = 0x0011_8F58
+sys_offset_0 = 0x0011_8DF4
+sys_offset_1 = 0x0011_8DF8
+heartbeat = [0x0011_0804, 0x0011_0808]
+
+[acr]
+# NV_HUBMMU_PRI_MMU_WPR2_ADDR_LO/HI = NV_HUBMMU0_PRI_BASE 0x880000
+# (blackwell/gb100/hwproject.h:36) + 0xA824/0xA828, VAL 31:4 in 4 KiB units
+# (blackwell/gb100/dev_hubmmu_base.h:91-95), read by kgspIsWpr2Up_GB100
+# (nvidia/src/kernel/gpu/gsp/arch/blackwell/kernel_gsp_gb100.c:332; HAL
+# g_kernel_gsp_nvoc.c:1341). HI must read 0 before the boot (kernel_gsp.c:4805-4811).
+wpr2_addr_lo = 0x0088_A824
+wpr2_addr_hi = 0x0088_A828
+wpr2_addr_shift = 4
+# NV_USABLE_FB_SIZE_IN_MB = NV_PGC6_AON_SECURE_SCRATCH_GROUP_42 0x1183A4
+# (ampere/ga102/dev_gc6_island.h:34, dev_gc6_island_addendum.h:33), read by
+# kmemsysReadUsableFbSize_GA102 (the GB206 HAL, g_kern_mem_sys_nvoc.c:370) for the heap
+# estimate; the model answers the FB size the device presents.
+usable_fb_size_mb = 0x0011_83A4
+# The GSP-FW heap ACR reserves when the meta asks for none (synthesized; the CPU always
+# sends kgspGetFwHeapSize, kernel_gsp_gh100.c:365).
+default_heap_size = 0x0400_0000
