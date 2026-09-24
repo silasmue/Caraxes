@@ -1,0 +1,21 @@
+NVRM version: NVIDIA UNIX Open Kernel Module for x86_64  615.71.09  Release Build  (root@)  
+281ff29296911668d6f3a02f7f1a1ab0680f8fdd585387e6c4ff30b5a4ca2637  /home/silas/git/Caraxes/.claude/worktrees/agent-a41f06dbabfac7ef9/target/v615/release/vfio-user-nvgpu
+68a09e7 vfio-user-nvgpu: answer CE_GET_LCE_SHIM_INFO (615 libcuda asks it at cuInit)
+CARAXES_BOOT_MODEL=1
+CARAXES_DMA=register
+CARAXES_DOORBELL_POLL=hybrid
+CARAXES_DOORBELL_TOKENS=64
+CARAXES_DRIVER=615
+CARAXES_FB_MIB=1024
+CARAXES_GATE_FB_MIB=1024
+CARAXES_HOST_EXEC=1
+CARAXES_HOST_RM=1
+CARAXES_IP=192.168.102.22
+CARAXES_MAC=02:00:00:00:00:22
+CARAXES_MIRROR_CHANNELS=1
+CARAXES_MIRROR_GR_SHADOW=1
+CARAXES_RESERVE_SLOT=3
+CARAXES_RESERVE_VRAM=1
+CARAXES_SERVER=/home/silas/git/Caraxes/.claude/worktrees/agent-a41f06dbabfac7ef9/target/v615/release/vfio-user-nvgpu
+CARAXES_TAP=caraxes2
+LEA_CH=/mnt/vmstore/caraxes/vm1/ch-0006-v.sh
