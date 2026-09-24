@@ -309,6 +309,11 @@ pub struct PoolStats {
     /// Remapped pages that are guest page-table pages the shadow watches (guest writes
     /// through the area bypass its write tracking).
     pub table_hazards: u64,
+    /// Pages moved into the pool while guest BAR2 maps them too (the BAR2 memfd holds
+    /// them by guest address): the device's reads and writes and the memfd's write-back
+    /// agree (bar2-memfd.md §8), but a guest CPU write through the area reaches the guest's
+    /// BAR2 view of the page only after a device write of the same bytes.
+    pub bar2_aliased: u64,
     pub first: Vec<String>,
 }
 
@@ -425,7 +430,7 @@ impl Bar1Pool {
         let s = &self.stats;
         let (pool0, len) = self.table.pool();
         format!(
-            "bar1 pool: guest BAR1 [0, {len:#x}) on the pool FB [{pool0:#x}, {:#x}); {} poll(s), {} unit walk(s); {} page(s) in the pool now; moved in {} cold + {} behind the barrier, back {} cold + {} behind the barrier; {} barrier(s) ({} refused, {} TSG preempt(s)); {} refused, {} pending now, {} sysmem page(s) in the area; copied {} KiB in, {} KiB back in {} us; {} page-table hazard(s); slowest poll {} us (docs/caraxes/bar1-pool.md)",
+            "bar1 pool: guest BAR1 [0, {len:#x}) on the pool FB [{pool0:#x}, {:#x}); {} poll(s), {} unit walk(s); {} page(s) in the pool now; moved in {} cold + {} behind the barrier, back {} cold + {} behind the barrier; {} barrier(s) ({} refused, {} TSG preempt(s)); {} refused, {} pending now, {} sysmem page(s) in the area; copied {} KiB in, {} KiB back in {} us; {} page-table hazard(s); {} page(s) also behind the BAR2 memfd; slowest poll {} us (docs/caraxes/bar1-pool.md)",
             pool0 + len,
             s.polls,
             s.units_walked,
@@ -444,6 +449,7 @@ impl Bar1Pool {
             s.bytes_out >> 10,
             s.copy_us,
             s.table_hazards,
+            s.bar2_aliased,
             s.max_poll_us
         )
     }
@@ -832,6 +838,18 @@ pub fn poll(fb: &mut FakeFb, gpu: &mut dyn PoolGpu) -> bool {
             pool.stats.copy_us += tc.elapsed().as_micros();
         }
         fb.forget_watched_page(op.x >> 12);
+        if op.install && matches!(fb.backing(op.x), crate::fb::Backing::Bar2Memfd(_)) {
+            let mut guard = fb.pool_mut();
+            let pool = guard.as_mut().expect("on");
+            pool.stats.bar2_aliased += 1;
+            pool.finding(
+                false,
+                format!(
+                    "FB {:#x} (guest BAR1 {:#x}) is behind the BAR2 memfd as well: device accesses and write-backs go to its pool page, guest BAR2 reads see guest area writes only after a device write",
+                    op.x, op.g
+                ),
+            );
+        }
         if is_warm {
             moved_warm += 1;
         }
@@ -1336,5 +1354,115 @@ mod tests {
         fb.write_u64(pt + 8 * 7, pte(BASE + 0x40_0000));
         assert!(poll(&mut fb, &mut NoGpu));
         assert_eq!(stats(&fb).units_walked, w0 + 1);
+    }
+
+    /// The BAR2 memfd beside the pool (docs/caraxes/bar2-memfd.md §8): `setup()` plus guest
+    /// BAR2 tables in the carve-out whose small table maps BAR2 page 1 to the BAR1 small
+    /// table `pt`, page 2 to `x` and page 3 to itself; then the memfd on and synced. Returns
+    /// the FB, `pt`, the pool base, the BAR2 root and the guest's view of the memfd.
+    fn setup_with_memfd(x: u64) -> (FakeFb, u64, u64, u64, crate::bar2area::SharedView) {
+        use crate::bar2area::{Bar2Area, Config};
+        let (mut fb, pt, pool0) = setup();
+        let (bar2, _) = layout().bar_roots().unwrap();
+        let (pd2, pd1, pd0, pt2) = (BASE + 0x6000, BASE + 0x7000, BASE + 0x8000, BASE + 0x9000);
+        fb.write_u64(bar2, vid(pd2));
+        fb.write_u64(pd2, vid(pd1));
+        fb.write_u64(pd1, vid(pd0));
+        fb.write_u64(pd0 + 8, vid(pt2));
+        fb.write_u64(pt2 + 8, pte(pt));
+        fb.write_u64(pt2 + 8 * 2, pte(x));
+        fb.write_u64(pt2 + 8 * 3, pte(pt2));
+        let cfg = Config {
+            traps: vec![0x1f000],
+            sync_doorbell: false,
+        };
+        let area = Bar2Area::create(0x20000, &cfg).unwrap();
+        let guest = area.mem.map_again().unwrap();
+        fb.set_bar2_area(area).unwrap();
+        assert!(fb.bar2_sync(Some(bar2), None));
+        assert!(matches!(fb.backing(pt), crate::fb::Backing::Bar2Memfd(0x1000)));
+        assert!(matches!(fb.backing(x), crate::fb::Backing::Bar2Memfd(0x2000)));
+        // The first poll walks every unit of the area (nothing mapped yet).
+        assert!(poll(&mut fb, &mut NoGpu));
+        (fb, pt, pool0, bar2, guest)
+    }
+
+    /// The census's hang (optimization-backlog.md §3.1): with the memfd, the guest RM
+    /// writes the BAR1 PTEs of the area through BAR2 into the memfd. The sync finds them,
+    /// and the pool must see them as it sees a trapped write, or it never moves the page:
+    /// the guest's CPU writes then reach only the pool page while the GPU reads the guest
+    /// page, and the shadow maps the 2 MiB leaf over `x` whole (1 leaf) instead of split
+    /// around its pool page (512 leaves: the 511 the census's first walk missed).
+    #[test]
+    fn with_the_bar2_memfd_the_pool_sees_bar1_ptes_written_through_bar2() {
+        let x = BASE + 0x10_0000;
+        let (mut fb, _pt, pool0, bar2, guest) = setup_with_memfd(x);
+        // A context's GMMU tree with one 2 MiB leaf over [BASE, BASE + 2 MiB), x inside.
+        let (croot, cpd2, cpd1, cpd0) = (BASE + 0xA000, BASE + 0xB000, BASE + 0xC000, BASE + 0xD000);
+        fb.write_u64(croot, vid(cpd2));
+        fb.write_u64(cpd2, vid(cpd1));
+        fb.write_u64(cpd1, vid(cpd0));
+        fb.write_u64(cpd0, pte(BASE) | (0x06 << 56));
+        let root = Target::Fb(croot);
+        fb.walk_update(None, root, false, 1 << 20);
+        let shadow_sees = |fb: &FakeFb| fb.remap_leaves(fb.with_walk(root, |c| c.unit_leaves(0).to_vec()).unwrap()).len();
+        assert_eq!(shadow_sees(&fb), 1);
+        // The guest maps area page 5 to x through BAR2 (the memfd page of the BAR1 table),
+        // then flushes: the sync writes it back, and the next trapped BAR0 write polls.
+        guest.store_word(1, 5, pte(x));
+        fb.bar2_sync(Some(bar2), None);
+        assert!(poll(&mut fb, &mut NoGpu));
+        assert_eq!(stats(&fb).installs_cold, 1);
+        assert_eq!(fb.remap(x), pool0 + 0x5000);
+        assert_eq!(shadow_sees(&fb), 512);
+        // Unmapped the same way: the page moves back.
+        guest.store_word(1, 5, 0);
+        fb.bar2_sync(Some(bar2), None);
+        assert!(poll(&mut fb, &mut NoGpu));
+        assert_eq!(stats(&fb).releases_cold, 1);
+        assert_eq!(fb.remap(x), x);
+        assert_eq!(shadow_sees(&fb), 1);
+    }
+
+    /// A page both in the pool and behind BAR2: the memfd holds the guest's newest bytes
+    /// of the guest page `x` (its key is the guest FB address, the one the guest's BAR2
+    /// tables name), the store holds them at the pool page. Reads look in the memfd by the
+    /// guest address first; the sync writes back to where the page lives now; a device
+    /// write reaches the guest's BAR2 view by the guest address and VRAM at the pool page.
+    #[test]
+    fn a_page_in_the_pool_and_behind_bar2_reads_and_writes_through_one_order() {
+        let x = BASE + 0x10_0000;
+        let (mut fb, pt, pool0, bar2, guest) = setup_with_memfd(x);
+        fb.write_u64(x, 0x1111);
+        assert_eq!(guest.load_word(2, 0), 0x1111);
+        // A trapped write of the BAR1 PTE (not through the memfd): the pool takes x.
+        fb.write_u64(pt + 8 * 5, pte(x));
+        assert!(poll(&mut fb, &mut NoGpu));
+        let p = pool0 + 0x5000;
+        assert_eq!(fb.remap(x), p);
+        assert_eq!(fb.read_u64(p), Some(0x1111));
+        // The guest writes x through BAR2: before the sync, device reads of x see the
+        // memfd; after it, the pool page (what the GPU reads) has it too.
+        guest.store_word(2, 1, 0x2222);
+        assert_eq!(fb.read_u64(x + 8), Some(0x2222));
+        fb.bar2_sync(Some(bar2), None);
+        assert_eq!(fb.read_u64(p + 8), Some(0x2222));
+        // A device write of x reaches the guest's BAR2 view and the pool page.
+        fb.write_u64(x + 16, 0x3333);
+        assert_eq!(guest.load_word(2, 2), 0x3333);
+        assert_eq!(fb.read_u64(p + 16), Some(0x3333));
+        // Back out of the pool: x in the store has everything.
+        fb.write_u64(pt + 8 * 5, 0);
+        assert!(poll(&mut fb, &mut NoGpu));
+        assert_eq!(fb.remap(x), x);
+        guest.store_word(2, 3, 0x4444);
+        fb.bar2_sync(Some(bar2), None);
+        // BAR2 re-pointed away from x: x leaves the memfd and the store is read.
+        guest.store_word(3, 2, 0);
+        fb.bar2_sync(Some(bar2), None);
+        assert_eq!(fb.backing(x), crate::fb::Backing::Store);
+        for (i, v) in [0x1111u64, 0x2222, 0x3333, 0x4444].into_iter().enumerate() {
+            assert_eq!(fb.read_u64(x + 8 * i as u64), Some(v));
+        }
     }
 }

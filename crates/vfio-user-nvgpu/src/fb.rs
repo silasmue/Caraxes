@@ -940,6 +940,15 @@ impl FakeFb {
                 pt.walk_dirty = true;
             }
         }
+        // The BAR1 pool follows the guest's BAR1 tables over its area as `note_write` tells
+        // it; with the memfd the guest RM writes those tables through BAR2, so the sync is
+        // the only one that sees them. Without this the pool never moved a page and the
+        // first cuCtxCreate hung (optimization-backlog.md §3.1, bar2-memfd.md §8).
+        if let Some(p) = self.pool.borrow_mut().as_mut() {
+            for &page in pages {
+                p.note_table_write(page, page);
+            }
+        }
         {
             let wp = self.watched_pages.borrow();
             if pages.iter().any(|p| wp.contains(p)) {
@@ -990,7 +999,13 @@ impl FakeFb {
         let Some(a) = self.bar2.as_deref_mut() else {
             return false;
         };
-        let r = a.sync(&mut *self.store, size, root, sys);
+        // Write-backs and loads go where the page lives now: its pool page when the BAR1
+        // pool holds it (bar2-memfd.md §8).
+        let pool = self.pool.borrow();
+        let table = pool.as_ref().map(|p| &p.table).filter(|t| !t.is_empty());
+        let tr = |pa: u64| table.map_or(pa, |t| t.translate(pa));
+        let r = a.sync(&mut *self.store, size, root, sys, &tr);
+        drop(pool);
         if !r.dirty.is_empty() {
             // The written-back bytes must reach VRAM before the GPU can be told to read
             // them (the RPC and invalidate paths that follow a sync).
@@ -1014,7 +1029,11 @@ impl FakeFb {
     pub fn carry_bar2_area(&mut self, to: &mut FakeFb) {
         let size = self.size;
         if let Some(mut a) = self.bar2.take() {
-            a.sync(&mut *self.store, size, None, None);
+            let pool = self.pool.borrow();
+            let table = pool.as_ref().map(|p| &p.table).filter(|t| !t.is_empty());
+            let tr = |pa: u64| table.map_or(pa, |t| t.translate(pa));
+            a.sync(&mut *self.store, size, None, None, &tr);
+            drop(pool);
             self.store.flush();
             a.reset_mapping();
             to.bar2 = Some(a);
@@ -1104,17 +1123,21 @@ impl FakeFb {
         if pa + buf.len() as u64 > self.size {
             return false;
         }
-        // Design H (bar1pool.rs) may remap `pa` to pool pages; the BAR2 memfd (bar2area.rs)
-        // may back a page in RAM. The remap decides the address, the backing decides where
-        // that address is read from.
-        let bar2 = self.bar2.as_deref().filter(|a| a.has_live());
-        let rd = |hpa: u64, b: &mut [u8]| match bar2 {
-            Some(a) => a.read_through(&*self.store, hpa, b),
-            None => self.store.read(hpa, b),
-        };
-        match self.pool.borrow().as_ref().map(|p| &p.table).filter(|t| !t.is_empty()) {
-            None => rd(pa, buf),
-            Some(t) => t.for_each_piece(pa, buf.len(), |hpa, off, n| rd(hpa, &mut buf[off..off + n])),
+        // The BAR2 memfd (bar2area.rs) is keyed by the guest FB address and holds the
+        // guest's newest bytes of a page behind BAR2: it is asked first, with `pa`. Every
+        // other page is in the store where design H (bar1pool.rs) puts it: its pool page
+        // when remapped, else `pa` (bar2-memfd.md §8).
+        let pool = self.pool.borrow();
+        let table = pool.as_ref().map(|p| &p.table).filter(|t| !t.is_empty());
+        match (self.bar2.as_deref().filter(|a| a.has_live()), table) {
+            (Some(a), t) => {
+                let tr = |x: u64| t.map_or(x, |t| t.translate(x));
+                a.read_through(&*self.store, &tr, pa, buf)
+            }
+            (None, None) => self.store.read(pa, buf),
+            (None, Some(t)) => t.for_each_piece(pa, buf.len(), |hpa, off, n| {
+                self.store.read(hpa, &mut buf[off..off + n])
+            }),
         }
         true
     }
@@ -1126,22 +1149,20 @@ impl FakeFb {
         }
         self.filter.before_write(pa, data);
         self.note_write(pa, data);
-        // The same order as `read`: the BAR1 pool remap gives the addresses, every piece is
-        // written to VRAM for the GPU and, when the BAR2 memfd is on, to the memfd for the
-        // guest's BAR2 view (write-through).
+        // The same order as `read`: VRAM for the GPU at the address the BAR1 pool's remap
+        // gives, and, when the BAR2 memfd is on, the memfd for the guest's BAR2 view by the
+        // guest address, its key (write-through).
         let pool = self.pool.borrow();
         let table = pool.as_ref().map(|p| &p.table).filter(|t| !t.is_empty());
         let store = &mut self.store;
-        let mut bar2 = self.bar2.as_deref_mut();
-        let mut wr = |hpa: u64, d: &[u8]| {
-            store.write(hpa, d);
-            if let Some(a) = bar2.as_deref_mut() {
-                a.device_write(hpa, d);
-            }
-        };
         match table {
-            None => wr(pa, data),
-            Some(t) => t.for_each_piece(pa, data.len(), |hpa, off, n| wr(hpa, &data[off..off + n])),
+            None => store.write(pa, data),
+            Some(t) => t.for_each_piece(pa, data.len(), |hpa, off, n| {
+                store.write(hpa, &data[off..off + n])
+            }),
+        }
+        if let Some(a) = self.bar2.as_deref_mut() {
+            a.device_write(pa, data);
         }
         true
     }

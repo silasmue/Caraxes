@@ -559,12 +559,25 @@ fn page_bytes(a: &mut PageBuf) -> &mut [u8; 4096] {
     unsafe { &mut *(a as *mut PageBuf as *mut [u8; 4096]) }
 }
 
-/// Read `[pa, pa + buf.len())` of the FB: mapped pages from their BAR2 page in the memfd,
-/// the rest from the store.
+/// Where the store holds guest FB address `pa` now: the BAR1 pool's remap
+/// ([`crate::fb::FakeFb::remap`]) when both are on, else `pa` itself. The memfd is keyed by
+/// the guest FB address (what the guest's BAR2 tables name); every store access of this
+/// file goes through the translation, so a page that is both behind BAR2 and in the pool
+/// is read from and written back to its pool page (docs/caraxes/bar2-memfd.md §8).
+pub type Translate<'a> = &'a dyn Fn(u64) -> u64;
+
+/// No pool: the store holds every page at its guest address.
+pub fn identity(pa: u64) -> u64 {
+    pa
+}
+
+/// Read `[pa, pa + buf.len())` of the FB (guest addresses): mapped pages from their BAR2
+/// page in the memfd, the rest from the store at `tr(address)`.
 fn read_through(
     remap: &RemapTable,
     mem: &SharedView,
     store: &dyn FbStore,
+    tr: Translate,
     pa: u64,
     buf: &mut [u8],
 ) {
@@ -575,7 +588,7 @@ fn read_through(
         let n = (PAGE - in_page).min((buf.len() - done) as u64) as usize;
         match remap.home(a / PAGE) {
             Some(va) => mem.read(va * PAGE + in_page, &mut buf[done..done + n]),
-            None => store.read(a, &mut buf[done..done + n]),
+            None => store.read(tr(a), &mut buf[done..done + n]),
         }
         done += n;
     }
@@ -586,6 +599,7 @@ struct Reader<'a> {
     remap: &'a RemapTable,
     mem: &'a SharedView,
     store: &'a dyn FbStore,
+    tr: Translate<'a>,
     fb_size: u64,
     sys: Option<&'a GuestMemory>,
 }
@@ -595,7 +609,7 @@ impl TableReader for Reader<'_> {
         let mut b = vec![0u8; n * 8];
         match table {
             Target::Fb(pa) if pa + b.len() as u64 <= self.fb_size => {
-                read_through(self.remap, self.mem, self.store, pa, &mut b)
+                read_through(self.remap, self.mem, self.store, self.tr, pa, &mut b)
             }
             Target::Sys(pa) => {
                 if !self.sys?.read(pa, &mut b) {
@@ -713,11 +727,14 @@ impl Bar2Area {
         self.remap.home(pa / PAGE).map(|va| va * PAGE + pa % PAGE)
     }
 
-    pub fn read_through(&self, store: &dyn FbStore, pa: u64, buf: &mut [u8]) {
-        read_through(&self.remap, self.mem.view(), store, pa, buf);
+    /// Read guest FB `[pa, pa + buf.len())`: the memfd for pages behind BAR2 (by guest
+    /// address), the store at `tr(address)` for the rest.
+    pub fn read_through(&self, store: &dyn FbStore, tr: Translate, pa: u64, buf: &mut [u8]) {
+        read_through(&self.remap, self.mem.view(), store, tr, pa, buf);
     }
 
-    /// See [`RemapTable::device_write`].
+    /// See [`RemapTable::device_write`]; `pa` is the guest FB address (before the pool's
+    /// remap), the memfd's key.
     pub fn device_write(&mut self, pa: u64, data: &[u8]) {
         if self.remap.device_write(&self.mem.view, pa, data) {
             self.stats.device_writes += 1;
@@ -751,13 +768,15 @@ impl Bar2Area {
     /// The sync (docs/caraxes/bar2-memfd.md §1): scan and write back, then follow the
     /// BAR2 tables of `root` if one of their pages changed. `store` is the FB store,
     /// `fb_size` the FB address space, `sys` guest RAM (for sysmem pages mapped through
-    /// BAR2).
+    /// BAR2), `tr` where the store holds a guest FB address now (the BAR1 pool's remap, or
+    /// [`identity`]): write-backs and loads go there, at the moment of the sync.
     pub fn sync(
         &mut self,
         store: &mut dyn FbStore,
         fb_size: u64,
         root: Option<u64>,
         sys: Option<&GuestMemory>,
+        tr: Translate,
     ) -> SyncReport {
         let t0 = std::time::Instant::now();
         let mut rep = SyncReport::default();
@@ -765,7 +784,7 @@ impl Bar2Area {
         let scan = self.remap.scan(
             &self.mem.view,
             &mut |key, off, bytes| match target_of(key) {
-                Target::Fb(pa) => store.write(pa + off as u64, bytes),
+                Target::Fb(pa) => store.write(tr(pa) + off as u64, bytes),
                 Target::Sys(pa) => match sys {
                     Some(m) => {
                         m.write(pa + off as u64, bytes);
@@ -790,7 +809,7 @@ impl Bar2Area {
             }
         }
         if let Some(root) = root {
-            self.follow_tables(store, fb_size, root, sys, &mut rep);
+            self.follow_tables(store, fb_size, root, sys, tr, &mut rep);
         }
         self.stats.max_live = self.stats.max_live.max(self.remap.live_pages() as u64);
         self.stats.max_aliases = self.stats.max_aliases.max(self.remap.max_aliases() as u64);
@@ -807,6 +826,7 @@ impl Bar2Area {
         fb_size: u64,
         root: u64,
         sys: Option<&GuestMemory>,
+        tr: Translate,
         rep: &mut SyncReport,
     ) {
         if self.cache_root.get() != root {
@@ -829,6 +849,7 @@ impl Bar2Area {
                     remap: &self.remap,
                     mem: &self.mem.view,
                     store,
+                    tr,
                     fb_size,
                     sys,
                 };
@@ -844,7 +865,7 @@ impl Bar2Area {
             drop(guard);
             self.stats.walks += 1;
             for (u, leaves) in work {
-                self.apply_unit(u, &leaves, store, fb_size, sys, rep);
+                self.apply_unit(u, &leaves, store, fb_size, sys, tr, rep);
             }
             return;
         }
@@ -859,6 +880,7 @@ impl Bar2Area {
                     remap: &self.remap,
                     mem: &self.mem.view,
                     store,
+                    tr,
                     fb_size,
                     sys,
                 };
@@ -871,11 +893,12 @@ impl Bar2Area {
         };
         self.stats.walks += 1;
         for (u, leaves) in work {
-            self.apply_unit(u, &leaves, store, fb_size, sys, rep);
+            self.apply_unit(u, &leaves, store, fb_size, sys, tr, rep);
         }
     }
 
     /// Re-point every BAR2 page of the 2 MiB unit at `unit` from its leaves.
+    #[allow(clippy::too_many_arguments)]
     fn apply_unit(
         &mut self,
         unit: u64,
@@ -883,6 +906,7 @@ impl Bar2Area {
         store: &dyn FbStore,
         fb_size: u64,
         sys: Option<&GuestMemory>,
+        tr: Translate,
         rep: &mut SyncReport,
     ) {
         if unit >= self.size {
@@ -921,7 +945,7 @@ impl Bar2Area {
             loads += 1;
             let mut b = vec![0u8; PAGE as usize];
             match target_of(key) {
-                Target::Fb(pa) => store.read(pa, &mut b),
+                Target::Fb(pa) => store.read(tr(pa), &mut b),
                 Target::Sys(pa) => {
                     if !sys.is_some_and(|m| m.read(pa, &mut b)) {
                         b.fill(0);
