@@ -1,0 +1,127 @@
+# SPDX-License-Identifier: MIT
+# SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
+# SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
+#
+# TU106: answers to category A controls ("pure chip data", docs/caraxes/gsp-surface.md
+# §3.A), one [[control]] per control, served by the table-driven handler of
+# src/chipctl.rs. The handler starts from a zeroed parameter block of the request's size,
+# copies the `inputs` back from the request, writes `fields` (and the `fields` of the first
+# `case` whose `when` matches the request), and answers NV_OK with the entry's label (D9:
+# `card` where a capture of the real RTX 2070 supplied the value, `chip` where the chip's
+# own tables or its source do, `board` for board data). A request no case matches is not
+# answered by the table (it falls through to the dispatcher's default, NOT_SUPPORTED).
+#
+#   name     the control, resolved to its id through the version's surface table
+#            (src/ver/v<major>/surface.rs); it must be a routed category A control
+#   params   the parameter struct; fields are resolved by name through the version's
+#            compiler-measured layout table (src/ver/v<major>/ctrl_layouts.rs,
+#            caraxes/tools/ctrl-layouts.py), never by typed offsets
+#   fields   "path" = value; a path names a scalar (`numEntries`, `capsTbl[4]`,
+#            `entries[2].nv2080EngineType`); a value is a number or "ENUM:NAME" for a
+#            driver enum the version module knows (NV2080_ENGINE_TYPE, RM_ENGINE_TYPE,
+#            MC_ENGINE_IDX, NV2080_INTR_CATEGORY)
+#   abi      the guest ABIs the entry applies to (default both, "610" and "615")
+#
+# The trace paths are the native control traces of the RTX 2070 on driver 610.57.04
+# (matrix/traces/610.57.04/control/<probe>.jsonl:<line of the `out` record>); the control
+# ids and layouts of these entries are the same in 615.71.09.
+
+# Vulkan device enumeration and NVDEC (docs/caraxes/gsp-surface.md §6 item 7). capsTbl
+# bytes 0 and 4 set, the rest 0, for instance 0 in all six captures.
+[[control]]
+name = "NV0080_CTRL_CMD_NVDEC_GET_CAPS_V2"
+params = "NV0080_CTRL_NVDEC_GET_CAPS_PARAMS_V2"
+inputs = ["instanceId"]
+label = "card (NVDEC caps table 01 00 00 00 16 00 00 00; native traces nvdec.jsonl:2192, vk-enum.jsonl:590)"
+fields = { "capsTbl[0]" = 0x01, "capsTbl[4]" = 0x16 }
+
+# NVENC: the card's 6-byte caps table is all zero (NV0080_CTRL_CMD_NVENC_GET_CAPS 0x801B01,
+# whose nested table the tracer dumps: capsTblSize 6, nested 000000000000;
+# nvdec.jsonl:2195, vk-enum.jsonl:593); the V2 form carries the same table inline.
+[[control]]
+name = "NV0080_CTRL_CMD_NVENC_GET_CAPS_V2"
+params = "NV0080_CTRL_NVENC_GET_CAPS_V2_PARAMS"
+inputs = ["instanceId"]
+label = "card (NVENC caps table all zero; native traces nvdec.jsonl:2195, vk-enum.jsonl:593, the V1 control)"
+
+# The ZBC clear table ranges every GL, EGL and Vulkan client queries (§6 item 4): indices
+# 1 to 15 for colour, depth and stencil (ctrl9096.h:372-376: COLOR 1, DEPTH 2, STENCIL 3),
+# identical in all 72 captures (e.g. gl-enum.jsonl:1465, 1513, 1561).
+[[control]]
+name = "NV9096_CTRL_CMD_GET_ZBC_CLEAR_TABLE_SIZE"
+params = "NV9096_CTRL_GET_ZBC_CLEAR_TABLE_SIZE_PARAMS"
+inputs = ["tableType"]
+label = "card (ZBC table indices 1-15 per type; native traces gl-enum.jsonl:1465, 1513, 1561)"
+[[control.case]]
+when = { tableType = 1 }
+fields = { indexStart = 1, indexEnd = 15 }
+[[control.case]]
+when = { tableType = 2 }
+fields = { indexStart = 1, indexEnd = 15 }
+[[control.case]]
+when = { tableType = 3 }
+fields = { indexStart = 1, indexEnd = 15 }
+
+# The interrupt subtree of each category (ctrl2080mc.h:337-369): the same map the device
+# gives the kernel in INTERNAL_INTR_GET_KERNEL_TABLE (chips/tu106/interrupts.toml
+# `subtree`; categories ESCHED_DRIVEN_ENGINE 1, ESCHED_DRIVEN_ENGINE_NOTIFICATION 2,
+# UVM_OWNED 5, UVM_SHARED 6). chipctl.rs's tests check the two agree.
+[[control]]
+name = "NV2080_CTRL_CMD_MC_GET_INTR_CATEGORY_SUBTREE_MAP"
+params = "NV2080_CTRL_MC_GET_INTR_CATEGORY_SUBTREE_MAP_PARAMS"
+label = "chip (the subtree map of chips/tu106/interrupts.toml)"
+fields = { "subtreeMap[1].subtreeMask" = 0x8, "subtreeMap[2].subtreeMask" = 0x1, "subtreeMap[5].subtreeMask" = 0x2, "subtreeMap[6].subtreeMask" = 0x4 }
+
+# The static (non-engine) interrupts of the device (ctrl2080mc.h:276-328; NV2080_INTR_TYPE
+# NON_REPLAYABLE_FAULT 1, REPLAYABLE_FAULT 4, ACCESS_CNTR 6, TMR 7 at :298-305), with the
+# vectors chips/tu106/interrupts.toml gives the same interrupts; pmcIntrMask 0 (Turing
+# routes by vector). Only the static interrupts the device raises are listed.
+[[control]]
+name = "NV2080_CTRL_CMD_MC_GET_STATIC_INTR_TABLE"
+params = "NV2080_CTRL_MC_GET_STATIC_INTR_TABLE_PARAMS"
+label = "chip (the static interrupts of chips/tu106/interrupts.toml)"
+[control.fields]
+numEntries = 4
+"entries[0].nv2080IntrType" = 1
+"entries[0].intrVectorStall" = 195
+"entries[1].nv2080IntrType" = 4
+"entries[1].intrVectorStall" = 64
+"entries[2].nv2080IntrType" = 6
+"entries[2].intrVectorStall" = 65
+"entries[3].nv2080IntrType" = 7
+"entries[3].intrVectorStall" = 194
+"entries[3].intrVectorNonStall" = 3
+
+# The non-stall (notification) vector of each engine that has one in the device's
+# interrupt layout (ctrl2080mc.h:243-274): GR0 and CE2-CE4, the engines the host mirror
+# runs (chips/tu106/interrupts.toml, E5b part 2).
+[[control]]
+name = "NV2080_CTRL_CMD_MC_GET_ENGINE_NOTIFICATION_INTR_VECTORS"
+params = "NV2080_CTRL_MC_GET_ENGINE_NOTIFICATION_INTR_VECTORS_PARAMS"
+label = "chip (the engine non-stall vectors of chips/tu106/interrupts.toml)"
+[control.fields]
+numEntries = 4
+"entries[0].nv2080EngineType" = "NV2080_ENGINE_TYPE:GR0"
+"entries[0].notificationIntrVector" = 4
+"entries[1].nv2080EngineType" = "NV2080_ENGINE_TYPE:COPY2"
+"entries[1].notificationIntrVector" = 5
+"entries[2].nv2080EngineType" = "NV2080_ENGINE_TYPE:COPY3"
+"entries[2].notificationIntrVector" = 6
+"entries[3].nv2080EngineType" = "NV2080_ENGINE_TYPE:COPY4"
+"entries[3].notificationIntrVector" = 7
+
+# No decompression LCE on Turing (chip.toml [ce] decomp_lce = false; kernel_ce.c of 610
+# :1172-1197): the mask is 0 for every shim instance.
+[[control]]
+name = "NV2080_CTRL_CMD_CE_GET_DECOMP_LCE_MASK"
+params = "NV2080_CTRL_CE_GET_DECOMP_LCE_MASK_PARAMS"
+inputs = ["shimInstance"]
+label = "chip (no decompression LCE on Turing, chip.toml [ce])"
+
+# CE0 and CE1 are the graphics CEs on GR's runlist 0; CE2 is the first CE with a runlist
+# of its own (chips/tu106/device-info.toml: ce0/ce1 runlist 0, ce2 runlist 1).
+[[control]]
+name = "NV2080_CTRL_CMD_GPU_GET_FIRST_ASYNC_CE_IDX"
+params = "NV2080_CTRL_GPU_GET_FIRST_ASYNC_CE_IDX_PARAMS"
+label = "chip (first async CE is CE2, chips/tu106/device-info.toml)"
+fields = { firstAsyncCEIdx = 2 }

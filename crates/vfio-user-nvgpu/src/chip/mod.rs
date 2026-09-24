@@ -131,6 +131,10 @@ pub struct ChipData {
     pub interrupts: Interrupts,
     /// BAR0 names for the trace, first match wins.
     pub regmap: Vec<RegName>,
+    /// The feature families the chip lacks (category E, chipctl.rs).
+    pub features: crate::chipctl::Features,
+    /// The chip-data answers of category A (`controls.toml`, chipctl.rs).
+    pub controls: crate::chipctl::ControlTable,
 }
 
 impl ChipData {
@@ -351,6 +355,7 @@ pub struct ChipFiles<'a> {
     pub regmap: &'a str,
     pub device_info: &'a str,
     pub interrupts: &'a str,
+    pub controls: &'a str,
 }
 
 // The file formats. Driver enums are strings here and numbers in [`ChipData`].
@@ -372,6 +377,7 @@ struct ChipFile {
     ce: Ce,
     gr: Gr,
     channel: ChannelClasses,
+    features: crate::chipctl::FeaturesFile,
 }
 
 #[derive(Deserialize)]
@@ -578,6 +584,14 @@ impl ChipData {
                 subtrees,
             },
             regmap: regmap.register,
+            // Category E families and the category A table, for the emulated driver
+            // version's control ids and layouts (chipctl.rs).
+            features: crate::chipctl::Features::resolve(crate::ver::Abi::active(), &c.features)
+                .map_err(|e| format!("chip.toml {e}"))?,
+            controls: crate::chipctl::ControlTable::resolve(
+                crate::ver::Abi::active(),
+                f.controls,
+            )?,
         })
     }
 }

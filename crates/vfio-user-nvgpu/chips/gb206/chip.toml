@@ -173,3 +173,13 @@ gpfifo = 0xCA6F
 copy = 0xCAB5
 uvm_sw = 0xC076
 compute = 0xCEC0
+
+# The feature families of category E (chips/tu106/chip.toml, src/chipctl.rs). The GB206
+# GeForce has no NVLink, fabric, C2C or MIG and is no vGPU host
+# (caraxes/reference/gb206/gpu-0000_01_00.0/nvidia-smi-q.txt:22-24 "MIG Mode N/A",
+# :62-63 "Virtualization Mode None", :274 "Global Fabric Manager State N/A"), and the
+# device presents it without Confidential Computing, SPDM, CCU or a G-SYNC board. HSHUB is
+# absent with NVLink and C2C; revisit if a GB206 capture answers an HSHUB control.
+[features]
+absent = ["rm_test", "nvlink", "hshub", "fabric", "c2c", "gsync", "vgpu", "mig", "cc", "spdm", "ccu", "internal_uncalled"]
+present = []

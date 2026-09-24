@@ -923,6 +923,11 @@ impl Dispatcher {
         ) {
             return a;
         }
+        // Category E refusals per feature family and the category A chip-data table
+        // (chipctl.rs, docs/caraxes/gsp-surface.md §3).
+        if let Some(a) = crate::chipctl::answer(self.chip, cmd, params) {
+            return a;
+        }
         match cmd {
             // 0x20800A36: chip info for a 610 guest, the fabric-probe sync for a 615
             // guest (the id was reused; `ver::Id0A36`).
@@ -1352,7 +1357,9 @@ mod tests {
             &[0u8; 72],
         );
         assert_eq!(&a.params[6..15], v::DRIVER_VERSION.as_bytes());
-        let a = d.control(INTERNAL_CLIENT, 0xCA7A_0003, 0x2080_0BAD, &[0u8; 8]);
+        // An id no driver version defines (0x20800BAD is INTERNAL_NVLINK_RESUME_DISABLE_
+        // CHANNELS in 615, refused by the NVLink family rule of chipctl.rs).
+        let a = d.control(INTERNAL_CLIENT, 0xCA7A_0003, 0x2080_0FFF, &[0u8; 8]);
         assert_eq!(a.label, "unanswered");
 
         let a = d.alloc(0x1, 0x1, 0, NV01_ROOT, &[0u8; 8]);
