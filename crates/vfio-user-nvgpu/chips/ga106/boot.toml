@@ -1,0 +1,21 @@
+# SPDX-License-Identifier: MIT
+# SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
+#
+# The GA106 overlay on chips/tu106/boot.toml (src/chip/derived.rs). Empty until a run shows
+# what the GA102-family boot HAL reads differently (docs/caraxes/other-architectures.md
+# section 1: kgspBootstrap, the FWSEC-FRTS preparation, the VBIOS extraction and the Booter
+# flow are the TU102 ones; kgspExecuteHsFalcon_GA102 and kgspConfigureFalcon_GA102 differ).
+
+# NV_USABLE_FB_SIZE_IN_MB = NV_PGC6_AON_SECURE_SCRATCH_GROUP_42 0x1183A4
+# (ampere/ga102/dev_gc6_island.h:34, dev_gc6_island_addendum.h:33), which the GA102 memsys HAL
+# reads for the FB size (kmemsysReadUsableFbSize_GA102, kern_mem_sys_ga102.c:37-52). Second
+# wall of the pure-emulation run (2026-09-25): read as 0 it made the FB 0 bytes, and FWSEC's
+# WPR2 was "initialized at an unexpected location: 0x0003fe00 (expected 0xfffffe00)"
+# (kernel_gsp_frts_tu102.c, kgspExecuteFwsec_TU102).
+usable_fb_size_mb = 0x0011_83A4
+
+# The GSP-RM and libos heartbeats NV_PGSP_MAILBOX(0/1) 0x110804/0x110808
+# (ampere/ga102/dev_gsp.h:35; NV_PGSP_MAILBOX_REGISTER_GSPRM_HEARTBEAT 0, _LIBOS_HEARTBEAT 1,
+# generated/g_kernel_gsp_nvoc.h:384-385). Third wall of the GA106 pure-emulation run
+# (2026-09-25): "GSP RM heartbeat timed out ... heartbeat 0" (kernel_gsp.c:2296).
+heartbeat = [0x0011_0804, 0x0011_0808]

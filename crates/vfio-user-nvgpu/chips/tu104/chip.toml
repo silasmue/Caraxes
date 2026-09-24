@@ -1,0 +1,24 @@
+# SPDX-License-Identifier: MIT
+# SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
+#
+# Costume ladder rung 1 (docs/caraxes/costume-ladder.md): TU104, the RTX 2080's chip,
+# presented over the TU106 of the house. An overlay on chips/tu106 (src/chip/derived.rs):
+# only the lines below are the costume, every other table (register map, device info,
+# interrupts, controls, the Turing boot model, GMMU v2, the class database) is TU106's.
+# Paths are relative to vendor/open-gpu-kernel-modules at 610.57.04.
+base = "tu106"
+name = "tu104"
+short_name = "TU104"
+
+# PMC_BOOT_0/BOOT_42 of TU104 revision A1, encoded as chips/tu106/chip.toml encodes TU106:
+# architecture 0x16 (TU100), implementation 4 (NV_PMC_BOOT_42_CHIP_ID_TU104 = 0x164,
+# turing/tu102/dev_boot.h and nv_ref.h:97-150). Invented where no card was read: the
+# revision A1 is TU106's.
+[identity]
+boot_0 = 0x1640_00A1
+boot_1 = 0x0000_0000
+boot_42 = 0x164A_1000
+
+# The class database stays TU106's: the TU104 no-engine and engine lists of the 610 tree
+# (src/nvidia/generated/g_gpu_class_list.c:163-267) differ from TU106's (:270-375) only in
+# the number of NVDEC instances (two on TU104, three on TU106), not in any class id.

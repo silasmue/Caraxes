@@ -14,6 +14,12 @@ driver passes.
 Usage:
   synth-vbios.py ROM_IN IMAGE_OUT        generate, then run the oracle on the result
   synth-vbios.py --verify IMAGE          run the oracle only
+  synth-vbios.py --desc v3 ROM_IN IMAGE_OUT
+                                         the costume ladder's Ampere/Ada image
+                                         (docs/caraxes/costume-ladder.md): the FWSEC
+                                         entry carries a FALCON_UCODE_DESC_V3 (boot from
+                                         HS, what kgspExecuteHsFalcon_GA102 runs) instead
+                                         of the Turing V2 (boot with loader)
 
 All "file:line" references are relative to
 vendor/open-gpu-kernel-modules/src/nvidia/ and describe the 610.57.04 sources:
@@ -120,6 +126,17 @@ DMEM_CMD_IN_SIZE = 0x40
 DMEM_CMD_OUT = 0xC0
 DMEM_CMD_OUT_SIZE = 0x40
 DMEM_MAPPER_SIGNATURE = 0x50414D44   # "DMAP"; not checked by the kernel
+# V3 (boot from HS, costume ladder): the RSA3K signature the kernel copies into DMEM at
+# PKCDataOffset (frts.c:390-391) needs 384 bytes after the command buffers, so the DMEM
+# image grows to 0x300; one signature, for fuse version 0 (the device's
+# NV_FUSE_OPT_FPF_GSP_UCODE1_VERSION reads 0, kernel_gsp_ga100.c:59-84, so
+# SignatureVersions bit 0 selects it, frts.c:357-372). The signature bytes are zero:
+# invented, nothing ever checks them (the device fakes FWSEC's effects).
+DMEM_PKC_V3 = 0x100
+DMEM_LOAD_SIZE_V3 = 0x300
+V3_UCODE_ID = 1            # kgspReadUcodeFuseVersion_GA100 indexes ucodeId - 1
+V3_ENGINE_ID_MASK = 0x0400 # written to NV_PFALCON2_FALCON_BROM_ENGIDMASK only; invented
+
 DMEM_MAPPER_VERSION = 3
 
 PROM_ERASED = 0xFF         # what our device returns beyond the image (E0)
@@ -532,9 +549,8 @@ def verify(image_bytes, use_debug=False, frts_offset=0x1FF00000, quiet=False):
             % ((v >> 32) & 0xFF, (v >> 24) & 0xFF, (v >> 16) & 0xFF, (v >> 8) & 0xFF, v & 0xFF))
     log("FWSEC desc: version %d, image offset 0x%x, size %d, application id 0x%02x"
         % (d["version"], d["offset"], d["size"], d["appid"]))
-    if d["version"] != 2:
-        raise DriverError(NV_ERR_NOT_SUPPORTED, "kernel_gsp_falcon_tu102.c:408",
-                          "V3 (boot-from-HS) descriptor cannot execute on TU10x")
+    if d["version"] == 3:
+        return verify_v3(vb, d, frts_offset, log)
     u = fill_from_desc_v2(vb, d)
     for k in ("StoredSize", "UncompressedSize", "VirtualEntry", "InterfaceOffset", "IMEMPhysBase",
               "IMEMLoadSize", "IMEMVirtBase", "IMEMSecBase", "IMEMSecSize", "DMEMOffset",
@@ -568,20 +584,58 @@ def verify(image_bytes, use_debug=False, frts_offset=0x1FF00000, quiet=False):
     return ex, d, u
 
 
+def verify_v3(vb, d, frts_offset, log):
+    """The GA102-family path: s_vbiosFillFlcnUcodeFromDescV3 (fwsec.c:866-1000) and the
+    BOOT_FROM_HS branch of s_prepareForFwsec_TU102 (frts.c:341-395)."""
+    (vdesc, stored, pkc, ifoff, imem_phys, imem_load, imem_virt, dmem_phys, dmem_load,
+     engmask, ucode_id, sig_count, sig_versions, _res) = d["fields"]
+    size = align_up(stored, 256)                                     # fwsec.c:909
+    data_off = imem_load                                             # fwsec.c:914
+    image_off = d["offset"] + d["size"]                              # fwsec.c:929
+    n = len(vb)
+    if image_off >= n or image_off + size > n:                       # fwsec.c:930-941
+        raise DriverError(NV_ERR_INVALID_OFFSET, "fwsec.c:932/940", "image beyond biosSize")
+    if imem_load > size or data_off >= size or data_off + dmem_load > size:  # fwsec.c:944-959
+        raise DriverError(NV_ERR_INVALID_OFFSET, "fwsec.c:946-958", "IMEM/DMEM placement")
+    if data_off + pkc >= size or data_off + pkc + BCRT30_RSA3K_SIG_SIZE > size:  # fwsec.c:962-973
+        raise DriverError(NV_ERR_INVALID_OFFSET, "fwsec.c:964/972", "signature placement")
+    sig_total = d["size"] - FALCON_UCODE_DESC_V3_SIZE_44            # fwsec.c:981
+    log("V3 desc: StoredSize 0x%x PKCDataOffset 0x%x InterfaceOffset 0x%x IMEM 0x%x@0x%x "
+        "DMEM 0x%x@0x%x EngineIdMask 0x%x UcodeId %d SignatureCount %d SignatureVersions 0x%x; "
+        "signatures %d bytes" % (stored, pkc, ifoff, imem_load, imem_phys, dmem_load, dmem_phys,
+                                 engmask, ucode_id, sig_count, sig_versions, sig_total))
+    fuse = 0                                                         # the device reads 0
+    want = 1 << fuse                                                 # frts.c:359
+    if want & sig_versions == 0:                                     # frts.c:362-365
+        raise DriverError(NV_ERR_NOT_SUPPORTED, "frts.c:364", "no signature for fuse version 0")
+    if sig_total < BCRT30_RSA3K_SIG_SIZE:                            # frts.c:374-383
+        raise DriverError(NV_ERR_INVALID_OFFSET, "frts.c:376", "signature beyond the desc")
+    buf = bytearray(vb[image_off + data_off:image_off + data_off + dmem_load])
+    cmd = frts_cmd_bytes(frts_offset)
+    mapper, cin, cin_size = patch_interface(buf, dmem_load, ifoff, DMEM_MAPPER_CMD_FRTS, cmd, log)
+    log("RESULT FRTS command @data+0x%x; frtsRegionOffset4K @data+0x%x = 0x%x"
+        % (cin, cin + 0x20, u32(buf, cin + 0x20)))
+    log("OK: every kernel-side check of the GA102-family FWSEC path passes")
+    return None, d, {"dataOffset": data_off, "dmemSize": dmem_load}
+
+
 # --------------------------------------------------------------------------
 # Generator
 # --------------------------------------------------------------------------
 
-def build_ext_image(table_rel, appid, device_id):
+def build_ext_image(table_rel, appid, device_id, desc_version=2):
     """Build the NVIDIA extension image.  table_rel is where the unchanged BIT
     FALCON_DATA pointer lands inside this image."""
     if table_rel < EXT_HDR_END:
         raise SystemExit("ucode table would land at ext+0x%x, inside the ROM/PCIR/NPDE headers" % table_rel)
     table_len = 6 + 6                                       # header + one entry
     desc_rel = align_up(table_rel + table_len, 0x100)
-    code_rel = desc_rel + FALCON_UCODE_DESC_V2_SIZE_60      # fwsec.c:765: code follows desc
+    v3 = desc_version == 3
+    desc_size = FALCON_UCODE_DESC_V3_SIZE_44 + BCRT30_RSA3K_SIG_SIZE if v3 else FALCON_UCODE_DESC_V2_SIZE_60
+    dmem_size = DMEM_LOAD_SIZE_V3 if v3 else DMEM_LOAD_SIZE
+    code_rel = desc_rel + desc_size                         # fwsec.c:765/929: code follows desc
     data_rel = code_rel + IMEM_LOAD_SIZE                    # DMEMOffset = IMEMLoadSize
-    end_rel = data_rel + DMEM_LOAD_SIZE
+    end_rel = data_rel + dmem_size
     size = align_up(end_rel + 1, PCI_ROM_IMAGE_BLOCK_SIZE)  # +1 keeps a byte for the checksum
     blocks = size // PCI_ROM_IMAGE_BLOCK_SIZE
     img = bytearray(size)
@@ -599,30 +653,48 @@ def build_ext_image(table_rel, appid, device_id):
                      EXT_NPDE_LEN, blocks, PCI_LAST_IMAGE, 0)
     # Falcon ucode table header + one entry (fwsec.c:100-123)
     struct.pack_into("<6B", img, table_rel, FALCON_UCODE_TABLE_HDR_V1_VERSION, 6, 6, 1,
-                     2, FALCON_UCODE_DESC_V2_SIZE_60)
+                     desc_version, FALCON_UCODE_DESC_V3_SIZE_44 if v3 else FALCON_UCODE_DESC_V2_SIZE_60)
     # DescPtr is relative to expansionRomOffset like the table pointer; the
     # caller converts (desc_rel) into that space.
     img_meta = {"table_rel": table_rel, "desc_rel": desc_rel, "code_rel": code_rel,
                 "data_rel": data_rel, "end_rel": end_rel, "size": size, "blocks": blocks,
                 "npde_rel": npde}
-    # FALCON_UCODE_DESC_V2 (fwsec.c:148-165)
-    vdesc = 0x1 | (2 << 8) | (FALCON_UCODE_DESC_V2_SIZE_60 << 16)   # fwsec.c:129-140
-    struct.pack_into("<15I", img, desc_rel,
-                     vdesc,
-                     IMEM_LOAD_SIZE + DMEM_LOAD_SIZE,    # StoredSize (unchecked for V2)
-                     IMEM_LOAD_SIZE + DMEM_LOAD_SIZE,    # UncompressedSize (unchecked)
-                     0,                                  # VirtualEntry -> codeEntry (unused by loader)
-                     DMEM_IF_HDR,                        # InterfaceOffset (DMEM-relative)
-                     0,                                  # IMEMPhysBase -> imemNsPa
-                     IMEM_LOAD_SIZE,                     # IMEMLoadSize
-                     0,                                  # IMEMVirtBase
-                     IMEM_NS_SIZE,                       # IMEMSecBase -> imemSecPa = 0x100
-                     IMEM_SEC_SIZE,                      # IMEMSecSize
-                     IMEM_LOAD_SIZE,                     # DMEMOffset (from code start)
-                     0,                                  # DMEMPhysBase -> dmemPa
-                     DMEM_LOAD_SIZE,                     # DMEMLoadSize
-                     IMEM_LOAD_SIZE,                     # altIMEMLoadSize (unused)
-                     DMEM_LOAD_SIZE)                     # altDMEMLoadSize (unused)
+    if v3:
+        # FALCON_UCODE_DESC_V3 (fwsec.c:170-185) plus one zero RSA3K signature
+        vdesc = 0x1 | (3 << 8) | (desc_size << 16)                  # fwsec.c:129-140
+        struct.pack_into("<9IHBBHH", img, desc_rel,
+                         vdesc,
+                         IMEM_LOAD_SIZE + dmem_size,         # StoredSize -> ucode size
+                         DMEM_PKC_V3,                        # PKCDataOffset (DMEM-relative)
+                         DMEM_IF_HDR,                        # InterfaceOffset (DMEM-relative)
+                         0,                                  # IMEMPhysBase
+                         IMEM_LOAD_SIZE,                     # IMEMLoadSize
+                         0,                                  # IMEMVirtBase -> BOOTVEC
+                         0,                                  # DMEMPhysBase
+                         dmem_size,                          # DMEMLoadSize
+                         V3_ENGINE_ID_MASK, V3_UCODE_ID,
+                         1,                                  # SignatureCount
+                         0x1,                                # SignatureVersions: fuse version 0
+                         0)
+    else:
+        # FALCON_UCODE_DESC_V2 (fwsec.c:148-165)
+        vdesc = 0x1 | (2 << 8) | (FALCON_UCODE_DESC_V2_SIZE_60 << 16)   # fwsec.c:129-140
+        struct.pack_into("<15I", img, desc_rel,
+                         vdesc,
+                         IMEM_LOAD_SIZE + DMEM_LOAD_SIZE,    # StoredSize (unchecked for V2)
+                         IMEM_LOAD_SIZE + DMEM_LOAD_SIZE,    # UncompressedSize (unchecked)
+                         0,                                  # VirtualEntry -> codeEntry (unused by loader)
+                         DMEM_IF_HDR,                        # InterfaceOffset (DMEM-relative)
+                         0,                                  # IMEMPhysBase -> imemNsPa
+                         IMEM_LOAD_SIZE,                     # IMEMLoadSize
+                         0,                                  # IMEMVirtBase
+                         IMEM_NS_SIZE,                       # IMEMSecBase -> imemSecPa = 0x100
+                         IMEM_SEC_SIZE,                      # IMEMSecSize
+                         IMEM_LOAD_SIZE,                     # DMEMOffset (from code start)
+                         0,                                  # DMEMPhysBase -> dmemPa
+                         DMEM_LOAD_SIZE,                     # DMEMLoadSize
+                         IMEM_LOAD_SIZE,                     # altIMEMLoadSize (unused)
+                         DMEM_LOAD_SIZE)                     # altDMEMLoadSize (unused)
     # Dummy code: zeros (never executed; the device fakes FWSEC's effects).
     # DMEM image: application interface, DMEM mapper, command buffers (frts.c:64-99)
     d = data_rel
@@ -647,7 +719,7 @@ def build_ext_image(table_rel, appid, device_id):
     return img, img_meta, appid
 
 
-def generate(rom_in, out_path, appid):
+def generate(rom_in, out_path, appid, desc_version=2):
     rom = open(rom_in, "rb").read()
     print("== input %s: %d bytes ==" % (rom_in, len(rom)))
     if u16(rom, 0) not in VALID_ROM_SIGS:
@@ -704,7 +776,7 @@ def generate(rom_in, out_path, appid):
     table_abs = exp_off + table_ptr
     table_rel = table_abs - ext_off
     device_id = u16(rom, u16(rom, 0x18) + 6)
-    ext, meta, appid = build_ext_image(table_rel, appid, device_id)
+    ext, meta, appid = build_ext_image(table_rel, appid, device_id, desc_version)
     # entry: DescPtr is relative to expansionRomOffset (fwsec.c:629, 671)
     desc_ptr = ext_off + meta["desc_rel"] - exp_off
     struct.pack_into("<BBI", ext, table_rel + 6, appid, 0x00, desc_ptr)
@@ -728,6 +800,9 @@ def main():
                     help="FWSEC application id: 0x05 (default, any fuse), 0x85 (prod), 0x45 (debug)")
     ap.add_argument("--debug-fuse", action="store_true",
                     help="oracle: pretend NV_FUSE_OPT_SECURE_GSP_DEBUG_DIS (0x2174C) bit 0 = 0")
+    ap.add_argument("--desc", choices=["v2", "v3"], default="v2",
+                    help="FWSEC descriptor: v2 (Turing, boot with loader; default) or v3 (GA102/AD10x, "
+                         "boot from HS; the costume ladder)")
     ap.add_argument("--frts-offset", type=lambda s: int(s, 0), default=0x1FF00000,
                     help="oracle: sample frtsOffset for the FRTS command (default 0x1FF00000)")
     a = ap.parse_args()
@@ -740,7 +815,7 @@ def main():
         else:
             if len(a.paths) != 2:
                 ap.error("generation takes ROM_IN IMAGE_OUT")
-            out = generate(a.paths[0], a.paths[1], a.appid)
+            out = generate(a.paths[0], a.paths[1], a.appid, 3 if a.desc == "v3" else 2)
             print()
             verify(out, a.debug_fuse, a.frts_offset)
     except DriverError as e:

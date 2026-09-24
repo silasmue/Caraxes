@@ -68,6 +68,17 @@ pub struct TuringBootData {
     pub fwsec_data_frts_offset_4k: u64,
     pub vga_workspace_size: u64,
     pub wpr_end_align: u64,
+    /// `NV_USABLE_FB_SIZE_IN_MB` (ampere/ga102/dev_gc6_island.h), when the chip's memsys HAL
+    /// reads the FB size there (`kmemsysReadUsableFbSize_GA102`, kern_mem_sys_ga102.c:37-52)
+    /// instead of `NV_PFB_PRI_MMU_LOCAL_MEMORY_RANGE`: the GA10x and AD10x costumes.
+    #[serde(default)]
+    pub usable_fb_size_mb: Option<u64>,
+    /// `NV_PGSP_MAILBOX(GSPRM_HEARTBEAT)` and `(LIBOS_HEARTBEAT)` (0x110804 + 4i,
+    /// ampere/ga102/dev_gsp.h:35), when the chip's GSP-RM (libos 3, GA102 on) keeps
+    /// heartbeats the kernel checks (`_kgspIsHeartbeatTimedOut`, kernel_gsp.c:2264-2303): the
+    /// device's PTIMER time in ms, as the FSP model answers them.
+    #[serde(default)]
+    pub heartbeat: Option<[u64; 2]>,
     #[serde(rename = "const")]
     pub consts: Vec<ConstReg>,
 }
@@ -110,6 +121,9 @@ pub struct TuringBoot {
     /// GSP-RM was loaded by a Booter Load and not unloaded since: what tells Booter
     /// Unload from Booter Load when the mailboxes do not (B4).
     loaded: bool,
+    /// The time base of the heartbeats: created with the model, as the device's PTIMER
+    /// (channel.rs `Registry::now_ns`, created by the same `BootModel::new`).
+    clock: std::time::Instant,
 }
 
 impl TuringBoot {
@@ -125,6 +139,7 @@ impl TuringBoot {
             wpr2: (0, 0),
             frts_offset: None,
             loaded: false,
+            clock: std::time::Instant::now(),
         }
     }
 
@@ -142,11 +157,18 @@ impl TuringBoot {
 
     /// The FWSEC-FRTS side effects: WPR2 window as the CPU asked for it.
     fn fwsec_done(&mut self, mem: &GuestMemory) -> Vec<String> {
-        let dmem = self.gsp.dmem();
-        let at = self.d.bl_desc_data_dma_base as usize;
-        let lo = u32::from_le_bytes(dmem[at..][..4].try_into().unwrap());
-        let hi = u32::from_le_bytes(dmem[at + 4..][..4].try_into().unwrap());
-        let data_pa = ((hi as u64) << 32) | lo as u64;
+        // Boot from HS (GA102 family): the DMEM image was DMAed from guest memory; boot with
+        // loader (TU10x): the loader descriptor in DMEM names the data buffer.
+        let data_pa = match self.gsp.dmem_dma_src() {
+            Some(pa) => pa,
+            None => {
+                let dmem = self.gsp.dmem();
+                let at = self.d.bl_desc_data_dma_base as usize;
+                let lo = u32::from_le_bytes(dmem[at..][..4].try_into().unwrap());
+                let hi = u32::from_le_bytes(dmem[at + 4..][..4].try_into().unwrap());
+                ((hi as u64) << 32) | lo as u64
+            }
+        };
         let (frts_offset, how) = match mem.read_u32(data_pa + self.d.fwsec_data_frts_offset_4k) {
             Some(v) if v != 0 => ((v as u64) << 12, "from the FWSEC command in guest RAM"),
             _ => (self.fallback_frts_offset(), "fallback from the FB size"),
@@ -187,6 +209,8 @@ impl FirmwareBoot for TuringBoot {
 
     fn handles(&self, off: u64) -> bool {
         off == self.d.local_memory_range
+            || Some(off) == self.d.usable_fb_size_mb
+            || self.d.heartbeat.is_some_and(|h| h.contains(&off))
             || off == self.d.wpr2_addr_lo
             || off == self.d.wpr2_addr_hi
             || self.constant(off).is_some()
@@ -201,6 +225,10 @@ impl FirmwareBoot for TuringBoot {
         Some(match off {
             o if o == self.d.local_memory_range => {
                 local_memory_range(self.fb_bytes).map_or(0, |(v, _)| v)
+            }
+            o if Some(o) == self.d.usable_fb_size_mb => (self.fb_bytes >> 20) as u32,
+            o if self.d.heartbeat.is_some_and(|h| h.contains(&o)) => {
+                (self.clock.elapsed().as_millis() as u64) as u32
             }
             o if o == self.d.wpr2_addr_lo => self.wpr2.0,
             o if o == self.d.wpr2_addr_hi => self.wpr2.1,

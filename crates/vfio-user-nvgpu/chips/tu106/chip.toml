@@ -143,6 +143,16 @@ per_subctx_header = { value = true, label = "synthesized (bPerSubCtxheaderSuppor
 # INTERNAL_GPU_GET_SMC_MODE (K2, subdevice_ctrl_gpu_kernel.c:255-289): TU106 has no MIG.
 mig = false
 smc_label = "synthesized (SMC/MIG unsupported on TU106)"
+# INTERNAL_STATIC_KGR_GET_INFO without a host GR (pure emulation, kgr.rs): the TU106 facts
+# of the lab capture as [NV0080_CTRL_GR_INFO_INDEX_*, data] (ctrl0080gr.h:102-160), the rest
+# 0. MAX_SUBCONTEXT_COUNT 0x2C = 64 (FIFO_GET_INFO index 3,
+# caraxes/runs/lab-selftest-2026-09-24/lab-capture-tu106-manacor-20260924-075835/rm-tools/
+# fifo-host-query.txt:22), LITTER_NUM_GPCS 0x14 = 3 and LITTER_NUM_TPC_PER_GPC 0x17 = 6
+# (host-facts.txt:28-32 of the same capture), SM_PER_TPC 0x20 = 2 and SM_VERSION 0x0C =
+# 0x0705 (compute capability 7.5, caraxes/reference/rtx2070 and costume-5060.md section 4).
+# Without it pGrInfo stays NULL and the scrubber's first channel group fails at module
+# load (kernel_channel_group_api.c:914; docs/caraxes/costume-ladder.md, baseline).
+emulated_info = { entries = [[0x2C, 64], [0x14, 3], [0x17, 6], [0x20, 2], [0x0C, 0x0705]], label = "host (TU106 lab capture: subcontexts, GPC/TPC counts, CC 7.5) + synthesized (rest 0)" }
 
 # The classes the channel emulation executes for this chip (src/channel.rs):
 # TURING_CHANNEL_GPFIFO_A (clc46f.h), TURING_DMA_COPY_A (clc5b5.h), GP100_UVM_SW, and

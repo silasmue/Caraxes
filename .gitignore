@@ -82,6 +82,8 @@ tmp.md
 /vendor/open-gpu-kernel-modules-615
 /caraxes/reference/rtx2070/rom.bin
 /caraxes/reference/rtx2070/synth-vbios.bin
+# The costume ladder's Ampere/Ada image: caraxes/tools/synth-vbios.py --desc v3 rom.bin <this>
+/caraxes/reference/rtx2070/synth-vbios-fwsec-v3.bin
 
 # Caraxes raw device traces stay on disk (evidence notes are committed, multi-GB traces are not)
 caraxes/runs/**/*.trace

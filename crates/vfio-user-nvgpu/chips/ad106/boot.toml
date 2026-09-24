@@ -1,0 +1,41 @@
+# SPDX-License-Identifier: MIT
+# SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
+#
+# The AD106 overlay on chips/tu106/boot.toml (src/chip/derived.rs). Empty until a run shows
+# what the AD102-family boot HAL reads differently (docs/caraxes/other-architectures.md
+# section 1: as GA10x, plus kgspExecuteScrubberIfNeeded_AD102).
+
+# NV_USABLE_FB_SIZE_IN_MB 0x1183A4, as chips/ga106/boot.toml (the AD10x memsys HAL reads the
+# FB size there as GA10x does, kern_mem_sys_ga102.c:37-52).
+usable_fb_size_mb = 0x0011_83A4
+
+# The GSP-RM and libos heartbeats NV_PGSP_MAILBOX(0/1) 0x110804/0x110808
+# (ampere/ga102/dev_gsp.h:35; NV_PGSP_MAILBOX_REGISTER_GSPRM_HEARTBEAT 0, _LIBOS_HEARTBEAT 1,
+# generated/g_kernel_gsp_nvoc.h:384-385). Third wall of the GA106 pure-emulation run
+# (2026-09-25): "GSP RM heartbeat timed out ... heartbeat 0" (kernel_gsp.c:2296).
+heartbeat = [0x0011_0804, 0x0011_0808]
+
+# The TU106 constants (chips/tu106/boot.toml; an overlay array replaces the base's) plus the
+# Ada scrubber handoff.
+const = [
+    # Level 0 may write PTIMER_TIME_0/1 (timer_gv100.c:56); all levels enabled.
+    { name = "NV_PTIMER_TIME_PRIV_LEVEL_MASK", offset = 0x0000_9430, value = 0xFF },
+    { name = "NV_PBUS_VBIOS_SCRATCH(0xE)", offset = 0x0000_1438, value = 0 },
+    { name = "NV_PBUS_VBIOS_SCRATCH(0x15)", offset = 0x0000_1454, value = 0 },
+    # DATA_ENABLE is 0 (gm107/dev_fuse.h:29): TU106 has a display engine. The display
+    # model (src/display) answers this register first: 0 with --display, 1 (no display,
+    # the headless profile of E0-E5) without it.
+    { name = "NV_FUSE_STATUS_OPT_DISPLAY", offset = 0x0002_1C04, value = 0 },
+    # Production part: `_DATA_NO` = 1 is "debug disabled" (kernel_gsp_ga100.c:46-48).
+    { name = "NV_FUSE_OPT_SECURE_GSP_DEBUG_DIS", offset = 0x0002_174C, value = 1 },
+    # FWSEC lowered the read-protection PLM (kern_gpu_tu102.c:395-417).
+    { name = "NV_PGC6_AON_SECURE_SCRATCH_GROUP_05_PRIV_LEVEL_MASK", offset = 0x0011_8128, value = 1 },
+    # GFW_BOOT_PROGRESS_COMPLETED (dev_gc6_island_addendum.h:32).
+    { name = "NV_PGC6_AON_SECURE_SCRATCH_GROUP_05(0) GFW_BOOT", offset = 0x0011_8234, value = 0xFF },
+    # AD10x: the scrubber that runs on SEC2 before GSP-RM (kgspExecuteScrubberIfNeeded_AD102,
+    # kernel_gsp_ad102.c:49-90) is skipped when NV_PGC6_BSI_VPR_SECURE_SCRATCH_15
+    # (= NV_PGC6_BSI_SECURE_SCRATCH_15 0x1180FC, ada/ad102/dev_gc6_island.h:27,
+    # dev_gc6_island_addendum.h:27-29) reads SCRUBBER_HANDOFF 31:29 >= DONE (3): the post-GFW
+    # state of a card whose devinit scrubbed. Invented for the costume (no AD10x was read).
+    { name = "NV_PGC6_BSI_VPR_SECURE_SCRATCH_15 (SCRUBBER_HANDOFF_DONE)", offset = 0x0011_80FC, value = 0x6000_0000 },
+]

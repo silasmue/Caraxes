@@ -1,0 +1,41 @@
+# SPDX-License-Identifier: MIT
+# SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
+#
+# Costume ladder rung 3 (docs/caraxes/costume-ladder.md): an RTX 4060 Ti (AD106, Ada) over
+# the TU106 of the house, the same way as rung 2: the Ada identity and classes
+# (chips/ad106), the PCI device id 10de:2803 ("NVIDIA GeForce RTX 4060 Ti",
+# g_nv_name_released.h:756 of 610.57.04), the RTX 2070 board otherwise.
+name = "RTX 4060 Ti"
+chip = "ad106"
+host_chip = "tu106"
+config = "caraxes/reference/rtx2070/config-space.txt"
+rom = "caraxes/reference/rtx2070/rom.bin"
+vbios_version = "90.06.3D.00.76"
+
+bars = [
+    { kind = "mem32", size = 0x100_0000, prefetch = false },
+    { kind = "mem64", size = 0x1000_0000, prefetch = true },
+    { kind = "mem64", size = 0x200_0000, prefetch = true },
+    { kind = "io", size = 0x80 },
+]
+rom_bar_size = 0x8_0000
+
+# [guest, host]: Ada keeps AMPERE_CHANNEL_GPFIFO_A and AMPERE_DMA_COPY_B; ADA_COMPUTE_A ->
+# TURING_COMPUTE_A, ADA_A -> TURING_A (g_allclasses.h of 610.57.04).
+class_map = [
+    [0xC56F, 0xC46F],
+    [0xC9C0, 0xC5C0],
+    [0xC7B5, 0xC5B5],
+    [0xC997, 0xC597],
+    [0xC561, 0xC461],
+]
+
+[ids]
+device = 0x2803
+source = "g_nv_name_released.h:756 of 610.57.04 (RTX 4060 Ti); no capture"
+
+[display]
+label = "board (rtx4060ti-on-tu106: the RTX 2070 board's DisplayPort SST connector on SOR0)"
+connector = [
+    { display_id = 0x100, sor = 0, index = 0, kind = "DP" },
+]

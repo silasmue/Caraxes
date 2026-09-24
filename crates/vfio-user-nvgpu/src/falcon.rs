@@ -21,6 +21,23 @@ pub const CPUCTL: u64 = 0x100;
 pub const BOOTVEC: u64 = 0x104;
 pub const HWCFG: u64 = 0x108;
 pub const DMACTL: u64 = 0x10C;
+/// `NV_PFALCON_FALCON_DMATRFCMD` (ampere/ga102/dev_falcon_v4.h:57-71): `_FULL` 0:0 and
+/// `_IDLE` 1:1 read-only. The GA102-family HS path (`kgspExecuteHsFalcon_GA102`,
+/// kernel_gsp_falcon_ga102.c:184) DMAs the ucode itself and polls FULL false before and
+/// IDLE true after each transfer (`s_dmaPoll_GA102`); the model never moves the bytes (the
+/// ucode never runs) and reports every transfer done at once.
+pub const DMATRFCMD: u64 = 0x118;
+const DMATRFCMD_IDLE: u32 = 1 << 1;
+const DMATRFCMD_FULL: u32 = 1 << 0;
+/// `_IMEM` 4:4: the transfer goes to IMEM (else DMEM).
+const DMATRFCMD_IMEM: u32 = 1 << 4;
+/// `NV_PFALCON_FALCON_DMATRFBASE` (the source PA >> 8, low 32 bits), `_DMATRFMOFFS` (the
+/// falcon-memory offset), `_DMATRFFBOFFS` (the offset added to the base) and `_DMATRFBASE1`
+/// (bits 40:32 of the base >> 8) (ampere/ga102/dev_falcon_v4.h:53-78).
+pub const DMATRFBASE: u64 = 0x110;
+pub const DMATRFMOFFS: u64 = 0x114;
+pub const DMATRFFBOFFS: u64 = 0x11C;
+pub const DMATRFBASE1: u64 = 0x128;
 pub const CPUCTL_ALIAS: u64 = 0x130;
 pub const IMEMC0: u64 = 0x180;
 pub const IMEMD0: u64 = 0x184;
@@ -32,6 +49,11 @@ pub const FBIF_TRANSCFG0: u64 = 0x600;
 pub const FBIF_CTL: u64 = 0x624;
 /// `NV_PRISCV_RISCV_CPUCTL` relative to the falcon base (RISC-V block at +0x1000).
 pub const RISCV_STATUS: u64 = 0x1240;
+/// `NV_PRISCV_RISCV_CPUCTL` (the RISC-V block at +0x1000, ampere/ga102/dev_riscv_pri.h:32-34):
+/// `ACTIVE_STAT` 7:7, which the GA102-family HAL reads for "RISC-V running"
+/// (`kflcnIsRiscvActive_GA102`, kernel_falcon_ga102.c:47-56) where TU102 reads RISCV_STATUS.
+pub const RISCV_CPUCTL: u64 = 0x1388;
+const RISCV_CPUCTL_ACTIVE_STAT: u32 = 1 << 7;
 /// Size of the block in bytes (falcon, FBIF and the RISC-V block).
 pub const BLOCK_SIZE: u64 = 0x2000;
 
@@ -65,6 +87,10 @@ pub struct Falcon {
     runs: u32,
     resets: u32,
     regs: BTreeMap<u64, u32>,
+    /// The guest PA the first DMEM transfer since the last reset read from, minus its
+    /// falcon offset: where the ucode's DMEM image starts in guest memory (the FWSEC data
+    /// image of the GA102-family boot, which DMAs instead of loading through the ports).
+    dmem_dma_src: Option<u64>,
 }
 
 impl Falcon {
@@ -90,7 +116,13 @@ impl Falcon {
             runs: 0,
             resets: 0,
             regs: BTreeMap::new(),
+            dmem_dma_src: None,
         }
+    }
+
+    /// Where the DMEM image of the last DMA-loaded ucode starts in guest memory.
+    pub fn dmem_dma_src(&self) -> Option<u64> {
+        self.dmem_dma_src
     }
 
     pub fn imem(&self) -> &[u8] {
@@ -153,6 +185,7 @@ impl Falcon {
         self.halted = false;
         self.riscv_active = false;
         self.resets += 1;
+        self.dmem_dma_src = None;
         let engine = self.reg(ENGINE);
         self.regs.clear();
         self.regs.insert(ENGINE, engine);
@@ -166,8 +199,10 @@ impl Falcon {
             HWCFG => self.hwcfg(),
             HWCFG2 => u32::from(self.riscv_capable) * HWCFG2_RISCV,
             DMACTL => 0,
+            DMATRFCMD => (self.reg(DMATRFCMD) & !DMATRFCMD_FULL) | DMATRFCMD_IDLE,
             DEBUGINFO => 0,
             RISCV_STATUS => u32::from(self.riscv_active),
+            RISCV_CPUCTL => u32::from(self.riscv_active) * RISCV_CPUCTL_ACTIVE_STAT,
             o if (IMEMC0..IMEMC0 + 64).contains(&o) && (o - IMEMC0) % 16 == 0 => {
                 self.imemc[((o - IMEMC0) / 16) as usize]
             }
@@ -252,7 +287,19 @@ impl Falcon {
                 }
                 None
             }
-            HWCFG | HWCFG2 | DEBUGINFO | RISCV_STATUS => None,
+            DMATRFCMD => {
+                // s_dmaTransfer_GA102 (kernel_gsp_falcon_ga102.c:117-152): source
+                // (BASE1:BASE << 8) + FBOFFS into falcon memory at MOFFS; the first DMEM
+                // chunk locates the image. Nothing is copied: the ucode never runs.
+                if v & DMATRFCMD_IMEM == 0 && self.dmem_dma_src.is_none() {
+                    let base = ((self.reg(DMATRFBASE1) as u64 & 0x1FF) << 32 | self.reg(DMATRFBASE) as u64) << 8;
+                    let src = base + self.reg(DMATRFFBOFFS) as u64;
+                    self.dmem_dma_src = src.checked_sub(self.reg(DMATRFMOFFS) as u64);
+                }
+                self.regs.insert(DMATRFCMD, v);
+                None
+            }
+            HWCFG | HWCFG2 | DEBUGINFO | RISCV_STATUS | RISCV_CPUCTL => None,
             o => {
                 self.regs.insert(o, v);
                 None
