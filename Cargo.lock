@@ -794,8 +794,6 @@ dependencies = [
 [[package]]
 name = "vfio_user"
 version = "0.1.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ea835ab081b29468de55d5066532fc19c99a3ed04b57ea66dfea40559b651070"
 dependencies = [
  "bitflags 2.13.1",
  "enumn",

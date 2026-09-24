@@ -1,0 +1,8 @@
+# gpu-trace.log of run A: lines at BAR0 0xbb0090 (count, first 3, last 3)
+20000
+   218038685 W bar0 0x00bb0090 4  0x0          NV_VIRTUAL_FUNCTION_DOORBELL (usermode)
+   218040630 W bar0 0x00bb0090 4  0x1          NV_VIRTUAL_FUNCTION_DOORBELL (usermode)
+   218040701 W bar0 0x00bb0090 4  0x2          NV_VIRTUAL_FUNCTION_DOORBELL (usermode)
+   219668530 W bar0 0x00bb0090 4  0x4e1d       NV_VIRTUAL_FUNCTION_DOORBELL (usermode)
+   219668587 W bar0 0x00bb0090 4  0x4e1e       NV_VIRTUAL_FUNCTION_DOORBELL (usermode)
+   219668642 W bar0 0x00bb0090 4  0x4e1f       NV_VIRTUAL_FUNCTION_DOORBELL (usermode)

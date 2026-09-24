@@ -1,0 +1,13 @@
+UVM_INITIALIZE flags 0x0: ioctl 0 rmStatus 0x0
+UVM_REGISTER_GPU GPU-9bd7b93d-3d23-c074-6704-984ef33ab7a7 ...
+UVM_REGISTER_GPU: ioctl 0 rmStatus 0x0 numaEnabled 0 numaNodeId -1
+UVM_UNREGISTER_GPU: ioctl 0 rmStatus 0x0
+uvm-register rc=0
+[  203.001438] NVRM: nvidia_open...
+[  203.001447] NVRM: nvidia_ctl_open
+[  203.001451] NVRM: nvidia_open...
+[  203.001452] NVRM: GPU 0000:00:05.0: Opening GPU with minor number 0
+[  203.001532] NVRM: GPU 0000:00:05.0: Opening GPU with minor number 0
+[  203.588205] NVRM: nvidia_close on GPU with minor number 0
+[  203.588210] NVRM: nvidia_close on GPU with minor number 255
+[  203.588211] NVRM: nvidia_ctl_close

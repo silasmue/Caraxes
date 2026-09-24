@@ -1,0 +1,887 @@
+From ba20497bce4961cf9709ce41d94b50a0eecf2acf Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Silas=20M=C3=BCller?= <dev@silasmueller.de>
+Date: Thu, 24 Sep 2026 09:56:02 +0200
+Subject: [PATCH] pci: vfio-user: register the server's region I/O fds as
+ ioeventfds
+
+The vfio-user protocol lets a server name sub-regions of a region whose
+accesses the client should deliver through file descriptors instead of
+VFIO_USER_REGION_WRITE messages (vfio-user specification, "Region I/O via
+file descriptors" and VFIO_USER_DEVICE_GET_REGION_IO_FDS). For an
+ioeventfd sub-region the client registers the descriptor with
+KVM_IOEVENTFD, so that a guest write there signals the server without an
+exit to the VMM. Cloud Hypervisor never asked, so every BAR write of a
+vfio-user device took a VM exit and a socket round trip, including
+doorbell registers that need no reply.
+
+After mapping a vfio-user device's BARs, ask the server for each BAR's
+region I/O fds and register every ioeventfd sub-region that passes the
+checks the specification leaves to the client ("it is the client's
+responsibility to verify the requested values"):
+
+- type ioeventfd; ioregionfd sub-regions are skipped (KVM has no
+  ioregionfd), as are types the specification does not define;
+- flags from KVM_IOEVENTFD_FLAG_DATAMATCH and _PIO; _VIRTIO_CCW_NOTIFY
+  (s390) is skipped; _PIO must match the BAR type;
+- size 0, 1, 2, 4 or 8 (KVM_IOEVENTFD's len); with DATAMATCH a non-zero
+  size that holds the datamatch value;
+- fd_index within the descriptors received;
+- the sub-region inside the BAR, and clear of mmap()ed areas and of the
+  MSI-X table and PBA, which the VMM has to keep seeing.
+
+The ioeventfd is registered at the BAR's guest address plus the
+sub-region offset, with the length and datamatch as given, moved when
+the guest moves the BAR, and unregistered when the device goes away. A
+skipped sub-region or a failed registration is logged and the range
+stays trapped. A server that answers the request with an error, such as
+one that does not implement it, is logged once and the device works as
+before.
+
+The hypervisor Vm trait gains register_ioevent_exact() and
+unregister_ioevent_exact(), which pass KVM_IOEVENTFD's len and datamatch
+through. register_ioevent() ties the length to the datamatch type (0, 4
+or 8 bytes) and unregister_ioevent() only removes an ioeventfd without
+datamatch. KVM implements the new calls; other hypervisors refuse them,
+which leaves the ranges trapped.
+
+The request and the reply's wire format are the vfio_user crate's.
+Client::get_region_io_fds() is in no release yet (proposed to
+rust-vmm/vfio), so the workspace takes vfio_user from a path beside this
+tree through [patch.crates-io]: 0.1.6 with the change, locked to the
+vm-memory 0.17.1 and vfio-bindings 0.6.2 the rest of the tree uses.
+
+The crate accepts a reply only in the specification's layout (40-byte
+entries, datamatch at offset 32, types ioeventfd and ioregionfd). A reply
+in another form, such as libvfio-user's 48-byte ioeventfd entries with
+datamatch at offset 40, is logged and leaves that region trapped; no
+ioeventfd is registered from it.
+
+Tests: the sub-region checks, accepted and refused cases; a reply built
+byte by byte in the specification's layout, and one in libvfio-user's,
+through the crate's parser.
+
+SPDX-License-Identifier: Apache-2.0
+Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>
+---
+ Cargo.lock                |  16 +-
+ Cargo.toml                |   6 +
+ hypervisor/src/kvm/mod.rs |  83 ++++++-
+ hypervisor/src/vm.rs      |  27 ++
+ pci/src/vfio.rs           |  10 +
+ pci/src/vfio_user.rs      | 506 +++++++++++++++++++++++++++++++++++++-
+ 6 files changed, 638 insertions(+), 10 deletions(-)
+
+diff --git a/Cargo.lock b/Cargo.lock
+index d67f3382f..873d877c4 100644
+--- a/Cargo.lock
++++ b/Cargo.lock
+@@ -756,6 +756,17 @@ dependencies = [
+  "syn",
+ ]
+ 
++[[package]]
++name = "enumn"
++version = "0.1.14"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "2f9ed6b3789237c8a0c1c505af1c7eb2c560df6186f01b098c3a1064ea532f38"
++dependencies = [
++ "proc-macro2",
++ "quote",
++ "syn",
++]
++
+ [[package]]
+ name = "env_filter"
+ version = "2.0.0"
+@@ -2576,11 +2587,10 @@ dependencies = [
+ 
+ [[package]]
+ name = "vfio_user"
+-version = "0.1.3"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "731c2582dd43f4f174ab47b4c933a1a9bb872d9d1b7f54c5867e12dbc1491b75"
++version = "0.1.6"
+ dependencies = [
+  "bitflags 2.13.0",
++ "enumn",
+  "libc",
+  "log",
+  "serde",
+diff --git a/Cargo.toml b/Cargo.toml
+index 51d05f9e3..2ad3faf3d 100644
+--- a/Cargo.toml
++++ b/Cargo.toml
+@@ -143,3 +143,9 @@ unnecessary_semicolon = "deny"
+ [workspace.lints.rust]
+ # `level = warn` is irrelevant here but mandatory for rustc/cargo
+ unexpected_cfgs = { level = "warn", check-cfg = ['cfg(devcli_testenv)'] }
++
++# vfio_user with VFIO_USER_DEVICE_GET_REGION_IO_FDS, which no release has yet
++# (proposed to rust-vmm/vfio). The path is the Caraxes vendored copy next to
++# this tree: vendor/vfio-user-rs beside vendor/cloud-hypervisor.
++[patch.crates-io]
++vfio_user = { path = "../vfio-user-rs" }
+diff --git a/hypervisor/src/kvm/mod.rs b/hypervisor/src/kvm/mod.rs
+index 5c66aba2f..8703d5d0a 100644
+--- a/hypervisor/src/kvm/mod.rs
++++ b/hypervisor/src/kvm/mod.rs
+@@ -16,6 +16,7 @@ use std::collections::HashMap;
+ use std::mem::offset_of;
+ #[cfg(feature = "sev_snp")]
+ use std::num;
++use std::os::fd::AsRawFd as _;
+ #[cfg(feature = "sev_snp")]
+ use std::os::fd::FromRawFd;
+ use std::os::fd::OwnedFd;
+@@ -148,7 +149,6 @@ pub use kvm_ioctls::{self, Cap, Kvm, VcpuExit};
+ use log::error;
+ use thiserror::Error;
+ use vfio_ioctls::VfioDeviceFd;
+-#[cfg(target_arch = "x86_64")]
+ use vmm_sys_util::ioctl::ioctl_with_ref;
+ #[cfg(target_arch = "x86_64")]
+ use vmm_sys_util::{fam::FamStruct, ioctl_io_nr, ioctl_iow_nr};
+@@ -207,6 +207,16 @@ ioctl_iow_nr!(
+     kvm_bindings::kvm_device_attr
+ );
+ 
++// kvm-ioctls derives the length of an ioeventfd from its datamatch type (0, 4 or
++// 8 bytes) and deassigns without datamatch only; register_ioevent_exact() needs
++// every length KVM accepts.
++vmm_sys_util::ioctl_iow_nr!(
++    KVM_IOEVENTFD,
++    kvm_bindings::KVMIO,
++    0x79,
++    kvm_bindings::kvm_ioeventfd
++);
++
+ #[cfg(feature = "sev_snp")]
+ use igvm_defs::PAGE_SIZE_4K;
+ #[cfg(feature = "sev_snp")]
+@@ -644,6 +654,48 @@ pub struct KvmVm {
+ }
+ 
+ impl KvmVm {
++    /// KVM_IOEVENTFD with `len` and `datamatch` as given (Documentation/virt/kvm/api.rst,
++    /// "KVM_IOEVENTFD"). A deassign must repeat the arguments of the assign.
++    fn ioeventfd(
++        &self,
++        fd: &EventFd,
++        addr: &IoEventAddress,
++        len: u32,
++        datamatch: Option<u64>,
++        deassign: bool,
++    ) -> io::Result<()> {
++        let mut flags = 0;
++        if datamatch.is_some() {
++            flags |= 1 << kvm_bindings::kvm_ioeventfd_flag_nr_datamatch;
++        }
++        if deassign {
++            flags |= 1 << kvm_bindings::kvm_ioeventfd_flag_nr_deassign;
++        }
++        let addr = match *addr {
++            IoEventAddress::Pio(pio) => {
++                flags |= 1 << kvm_bindings::kvm_ioeventfd_flag_nr_pio;
++                pio
++            }
++            IoEventAddress::Mmio(mmio) => mmio,
++        };
++        let ioeventfd = kvm_bindings::kvm_ioeventfd {
++            datamatch: datamatch.unwrap_or(0),
++            addr,
++            len,
++            fd: fd.as_raw_fd(),
++            flags,
++            ..Default::default()
++        };
++        // SAFETY: the fd is a VM fd and `ioeventfd` a valid kvm_ioeventfd, which the
++        // kernel only reads; the result is checked.
++        let ret = unsafe { ioctl_with_ref(&*self.fd, KVM_IOEVENTFD(), &ioeventfd) };
++        if ret == 0 {
++            Ok(())
++        } else {
++            Err(io::Error::last_os_error())
++        }
++    }
++
+     ///
+     /// Creates an emulated device in the kernel.
+     ///
+@@ -1003,6 +1055,35 @@ impl vm::Vm for KvmVm {
+             .map_err(|e| vm::HypervisorVmError::UnregisterIoEvent(e.into()))
+     }
+ 
++    ///
++    /// Registers an event for writes of exactly `len` bytes at `addr`, optionally
++    /// only for writes of `datamatch`.
++    ///
++    fn register_ioevent_exact(
++        &self,
++        fd: &EventFd,
++        addr: &IoEventAddress,
++        len: u32,
++        datamatch: Option<u64>,
++    ) -> vm::Result<()> {
++        self.ioeventfd(fd, addr, len, datamatch, false)
++            .map_err(|e| vm::HypervisorVmError::RegisterIoEvent(e.into()))
++    }
++
++    ///
++    /// Unregisters an event registered with `register_ioevent_exact`.
++    ///
++    fn unregister_ioevent_exact(
++        &self,
++        fd: &EventFd,
++        addr: &IoEventAddress,
++        len: u32,
++        datamatch: Option<u64>,
++    ) -> vm::Result<()> {
++        self.ioeventfd(fd, addr, len, datamatch, true)
++            .map_err(|e| vm::HypervisorVmError::UnregisterIoEvent(e.into()))
++    }
++
+     ///
+     /// Constructs a routing entry
+     ///
+diff --git a/hypervisor/src/vm.rs b/hypervisor/src/vm.rs
+index 9c78c3b00..8b6f23ccd 100644
+--- a/hypervisor/src/vm.rs
++++ b/hypervisor/src/vm.rs
+@@ -362,6 +362,33 @@ pub trait Vm: Send + Sync + Any {
+     ) -> Result<()>;
+     /// Unregister an event from a certain address it has been previously registered to.
+     fn unregister_ioevent(&self, fd: &EventFd, addr: &IoEventAddress) -> Result<()>;
++    /// Registers an event for writes of exactly `len` bytes at `addr` (0: any
++    /// length), and with `datamatch` only for writes of that value: the fields of
++    /// KVM_IOEVENTFD as given. `register_ioevent` derives the length from the
++    /// datamatch type instead.
++    fn register_ioevent_exact(
++        &self,
++        _fd: &EventFd,
++        _addr: &IoEventAddress,
++        _len: u32,
++        _datamatch: Option<u64>,
++    ) -> Result<()> {
++        Err(HypervisorVmError::RegisterIoEvent(anyhow::anyhow!(
++            "ioeventfds of a given length are not supported"
++        )))
++    }
++    /// Unregister an event registered with `register_ioevent_exact`, with the same arguments.
++    fn unregister_ioevent_exact(
++        &self,
++        _fd: &EventFd,
++        _addr: &IoEventAddress,
++        _len: u32,
++        _datamatch: Option<u64>,
++    ) -> Result<()> {
++        Err(HypervisorVmError::UnregisterIoEvent(anyhow::anyhow!(
++            "ioeventfds of a given length are not supported"
++        )))
++    }
+     /// Construct a routing entry
+     fn make_routing_entry(&self, gsi: u32, config: &InterruptSourceConfig) -> IrqRoutingEntry;
+     /// Sets the GSI routing table entries, overwriting any previously set
+diff --git a/pci/src/vfio.rs b/pci/src/vfio.rs
+index 365f4bd08..425e4569b 100644
+--- a/pci/src/vfio.rs
++++ b/pci/src/vfio.rs
+@@ -203,6 +203,16 @@ impl VfioMsix {
+ 
+         bar_index == table_bir && offset >= table_offset && offset < table_offset + table_size
+     }
++
++    /// Whether `[offset, offset + len)` of BAR `bar_index` overlaps the MSI-X
++    /// table or the PBA, which the VMM emulates and must keep trapping.
++    pub(crate) fn overlaps(&self, bar_index: u32, offset: u64, len: u64) -> bool {
++        let hit = |bir: u32, (start, size): (u64, u64)| {
++            bir == bar_index && offset < start + size && start < offset + len
++        };
++        hit(self.cap.table_bir(), self.cap.table_range())
++            || hit(self.cap.pba_bir(), self.cap.pba_range())
++    }
+ }
+ 
+ pub(crate) struct Interrupt {
+diff --git a/pci/src/vfio_user.rs b/pci/src/vfio_user.rs
+index df0f65458..a61baa1c4 100644
+--- a/pci/src/vfio_user.rs
++++ b/pci/src/vfio_user.rs
+@@ -4,17 +4,20 @@
+ //
+ 
+ use std::any::Any;
+-use std::os::fd::AsFd;
++use std::os::fd::{AsFd, FromRawFd, IntoRawFd};
+ use std::os::unix::prelude::AsRawFd;
+ use std::sync::{Arc, Barrier, Mutex};
+ use std::{io, result};
+ 
+-use hypervisor::HypervisorVmError;
+-use log::{error, info};
++use hypervisor::{HypervisorVmError, IoEventAddress};
++use log::{error, info, warn};
+ use thiserror::Error;
+ use vfio_bindings::bindings::vfio::*;
+ use vfio_ioctls::VfioIrq;
+-use vfio_user::{Client, Error as VfioUserError};
++use vfio_user::{
++    Client, Error as VfioUserError, IOEVENTFD_FLAG_DATAMATCH, IOEVENTFD_FLAG_PIO,
++    IOEVENTFD_FLAG_VIRTIO_CCW_NOTIFY, RegionIoFds, SubRegionIoFd,
++};
+ use vm_allocator::{AddressAllocator, MemorySlotAllocator, SystemAllocator};
+ use vm_device::dma_mapping::ExternalDmaMapping;
+ use vm_device::interrupt::{InterruptManager, InterruptSourceGroup, MsiIrqGroupConfig};
+@@ -31,8 +34,8 @@ use crate::vfio::{
+     UserMemoryRegion, VFIO_COMMON_ID, Vfio, VfioCommon, VfioCommonConfig, VfioError,
+ };
+ use crate::{
+-    BarReprogrammingParams, PciBarConfiguration, PciBdf, PciDevice, PciDeviceError, PciSubclass,
+-    VfioPciError,
++    BarReprogrammingParams, PciBarConfiguration, PciBarRegionType, PciBdf, PciDevice,
++    PciDeviceError, PciSubclass, VfioPciError,
+ };
+ 
+ pub struct VfioUserPciDevice {
+@@ -41,6 +44,178 @@ pub struct VfioUserPciDevice {
+     client: Arc<Mutex<Client>>,
+     common: VfioCommon,
+     memory_slot_allocator: MemorySlotAllocator,
++    region_io_eventfds: Vec<RegionIoEventFd>,
++}
++
++/// An ioeventfd sub-region that passed [`check_sub_region`]. The fields come from
++/// the vfio-user specification (vfio-user.rst, QEMU docs/interop/vfio-user.rst),
++/// "Sub-Region IO FD info format (ioeventfd)".
++#[derive(Debug, PartialEq, Eq)]
++struct IoEventFdSpec {
++    /// offset (entry offset 0): start of the sub-region within the region.
++    offset: u64,
++    /// size (entry offset 8), used as KVM_IOEVENTFD `len`: 0 (any access size),
++    /// 1, 2, 4 or 8.
++    len: u32,
++    /// datamatch (entry offset 32), when flags (entry offset 24) has
++    /// KVM_IOEVENTFD_FLAG_DATAMATCH.
++    datamatch: Option<u64>,
++    /// flags (entry offset 24) has KVM_IOEVENTFD_FLAG_PIO.
++    pio: bool,
++    /// fd_index (entry offset 16): the descriptor in the reply's ancillary data.
++    fd_index: u32,
++}
++
++/// An ioeventfd the server offered with VFIO_USER_DEVICE_GET_REGION_IO_FDS, as
++/// registered with the hypervisor.
++struct RegionIoEventFd {
++    /// Region (BAR) index.
++    index: u32,
++    spec: IoEventFdSpec,
++    /// The eventfd; sub-regions that name the same fd_index share it.
++    event: Arc<EventFd>,
++    /// Guest address of the sub-region.
++    addr: u64,
++}
++
++impl RegionIoEventFd {
++    fn io_addr(&self) -> IoEventAddress {
++        if self.spec.pio {
++            IoEventAddress::Pio(self.addr)
++        } else {
++            IoEventAddress::Mmio(self.addr)
++        }
++    }
++
++    fn register(&self, vm: &dyn hypervisor::Vm) -> Result<(), HypervisorVmError> {
++        vm.register_ioevent_exact(
++            &self.event,
++            &self.io_addr(),
++            self.spec.len,
++            self.spec.datamatch,
++        )
++    }
++
++    fn unregister(&self, vm: &dyn hypervisor::Vm) -> Result<(), HypervisorVmError> {
++        vm.unregister_ioevent_exact(
++            &self.event,
++            &self.io_addr(),
++            self.spec.len,
++            self.spec.datamatch,
++        )
++    }
++}
++
++/// What a VFIO_USER_DEVICE_GET_REGION_IO_FDS request for one region gave.
++#[derive(Debug)]
++enum RegionIoFdsOutcome {
++    /// A reply in the specification's form.
++    Reply(RegionIoFds),
++    /// A reply not in the specification's form (for example libvfio-user's
++    /// 48-byte ioeventfd entries): the region stays trapped.
++    Refused(&'static str),
++    /// An error reply: the server does not provide region I/O fds.
++    Unsupported(u32),
++}
++
++fn region_io_fds_outcome(
++    result: Result<RegionIoFds, VfioUserError>,
++) -> Result<RegionIoFdsOutcome, VfioUserError> {
++    match result {
++        Ok(reply) => Ok(RegionIoFdsOutcome::Reply(reply)),
++        Err(VfioUserError::InvalidReply(_, why)) => Ok(RegionIoFdsOutcome::Refused(why)),
++        Err(VfioUserError::ErrorReply { errno, .. }) => Ok(RegionIoFdsOutcome::Unsupported(errno)),
++        Err(e) => Err(e),
++    }
++}
++
++/// Check a sub-region the server offered for a region of `region_size` bytes (an
++/// I/O port BAR if `io_region`), received with `fds` descriptors. vfio-user.rst,
++/// "VFIO_USER_DEVICE_GET_REGION_IO_FDS", leaves this to the client ("it is the
++/// client's responsibility to verify the requested values"); the size and
++/// datamatch rules are those of KVM_IOEVENTFD, to which "Sub-Region IO FD info
++/// format (ioeventfd)" refers. `must_trap(offset, len)` says whether the VMM must
++/// keep seeing accesses to a range.
++fn check_sub_region(
++    sub_region: &SubRegionIoFd,
++    fds: usize,
++    region_size: u64,
++    io_region: bool,
++    must_trap: impl Fn(u64, u64) -> bool,
++) -> Result<IoEventFdSpec, String> {
++    let (offset, size, fd_index, flags, datamatch) = match *sub_region {
++        SubRegionIoFd::IoEventFd {
++            offset,
++            size,
++            fd_index,
++            flags,
++            datamatch,
++        } => (offset, size, fd_index, flags, datamatch),
++        // "Sub-Region IO FD info format (ioregionfd)" needs KVM ioregionfd, which
++        // is not in Linux.
++        SubRegionIoFd::IoRegionFd { offset, .. } => {
++            return Err(format!(
++                "ioregionfd at {offset:#x}: not supported (KVM has no ioregionfd)"
++            ));
++        }
++    };
++    // "flags is any of" DATAMATCH, PIO, VIRTIO_CCW_NOTIFY.
++    let known = IOEVENTFD_FLAG_DATAMATCH | IOEVENTFD_FLAG_PIO | IOEVENTFD_FLAG_VIRTIO_CCW_NOTIFY;
++    if flags & !known != 0 {
++        return Err(format!("flags {flags:#x}: not the specification's"));
++    }
++    // KVM_IOEVENTFD_FLAG_VIRTIO_CCW_NOTIFY is for s390 subchannels.
++    if flags & IOEVENTFD_FLAG_VIRTIO_CCW_NOTIFY != 0 {
++        return Err("VIRTIO_CCW_NOTIFY: s390 only".into());
++    }
++    let pio = flags & IOEVENTFD_FLAG_PIO != 0;
++    if pio != io_region {
++        return Err(format!(
++            "PIO flag {} for {} BAR",
++            if pio { "set" } else { "clear" },
++            if io_region { "an I/O port" } else { "a memory" }
++        ));
++    }
++    // KVM_IOEVENTFD: "len" of 0, 1, 2, 4 or 8; "size ... may be zero if the
++    // access size is not relevant".
++    let len = match size {
++        0 | 1 | 2 | 4 | 8 => size as u32,
++        _ => return Err(format!("size {size}: KVM takes 0, 1, 2, 4 or 8")),
++    };
++    let datamatch = if flags & IOEVENTFD_FLAG_DATAMATCH != 0 {
++        if len == 0 {
++            return Err("datamatch with size 0".into());
++        }
++        if len < 8 && datamatch >> (8 * len) != 0 {
++            return Err(format!("datamatch {datamatch:#x} wider than {len} bytes"));
++        }
++        Some(datamatch)
++    } else {
++        None
++    };
++    // "fd_index is the index in the ancillary data of the FD".
++    if fd_index as usize >= fds {
++        return Err(format!("fd_index {fd_index} with {fds} descriptor(s)"));
++    }
++    // "the requested offset does not exceed the region's bounds".
++    let end = offset
++        .checked_add(size.max(1))
++        .filter(|&end| end <= region_size)
++        .ok_or_else(|| {
++            format!("{offset:#x}+{size:#x} outside the region of {region_size:#x} bytes")
++        })?;
++    if must_trap(offset, end - offset) {
++        return Err(format!(
++            "{offset:#x}+{size:#x} overlaps a mapped area or the MSI-X table or PBA"
++        ));
++    }
++    Ok(IoEventFdSpec {
++        offset,
++        len,
++        datamatch,
++        pio,
++        fd_index,
++    })
+ }
+ 
+ #[derive(Error, Debug)]
+@@ -59,6 +234,8 @@ pub enum VfioUserPciDeviceError {
+     CreateVfioCommon(#[source] VfioPciError),
+     #[error("Other OS error")]
+     Other(#[source] io::Error),
++    #[error("Failed to get the region I/O fds")]
++    RegionIoFds(#[source] VfioUserError),
+ }
+ 
+ #[derive(Copy, Clone)]
+@@ -114,6 +291,7 @@ impl VfioUserPciDevice {
+             client,
+             common,
+             memory_slot_allocator,
++            region_io_eventfds: Vec::new(),
+         })
+     }
+ 
+@@ -207,9 +385,114 @@ impl VfioUserPciDevice {
+             }
+         }
+ 
++        self.map_region_io_fds()
++    }
++
++    /// Ask the server for each BAR's region I/O fds
++    /// (VFIO_USER_DEVICE_GET_REGION_IO_FDS) and register the ioeventfds it
++    /// offers, so that guest writes there signal the server without exiting to
++    /// the VMM. A server that refuses the request keeps every access trapped.
++    fn map_region_io_fds(&mut self) -> Result<(), VfioUserPciDeviceError> {
++        for i in 0..self.common.mmio_regions.len() {
++            let region = &self.common.mmio_regions[i];
++            let index = region.index;
++            let start = region.start.raw_value();
++            let length = region.length;
++            let io_region = region.type_ == PciBarRegionType::IoRegion;
++            let mapped: Vec<(u64, u64)> = region
++                .user_memory_regions
++                .iter()
++                .map(|r| (r.start - start, r.mapping.len() as u64))
++                .collect();
++
++            let result = self.client.lock().unwrap().get_region_io_fds(index);
++            let reply = match region_io_fds_outcome(result)
++                .map_err(VfioUserPciDeviceError::RegionIoFds)?
++            {
++                RegionIoFdsOutcome::Reply(reply) => reply,
++                RegionIoFdsOutcome::Refused(why) => {
++                    warn!(
++                        "{}: region {index}: region I/O fds reply not in the vfio-user specification's form ({why}); the region stays trapped",
++                        self.id
++                    );
++                    continue;
++                }
++                RegionIoFdsOutcome::Unsupported(errno) => {
++                    info!(
++                        "{}: the server provides no region I/O fds (error reply for region {index}, errno {errno}); BAR writes stay trapped",
++                        self.id
++                    );
++                    return Ok(());
++                }
++            };
++
++            let events: Vec<Arc<EventFd>> = reply
++                .fds
++                .into_iter()
++                // SAFETY: into_raw_fd() hands over the descriptor the File owned
++                .map(|f| Arc::new(unsafe { EventFd::from_raw_fd(f.into_raw_fd()) }))
++                .collect();
++            let msix = self.common.interrupt.msix.as_ref();
++            let must_trap = |offset: u64, len: u64| {
++                mapped
++                    .iter()
++                    .any(|&(s, l)| offset < s + l && s < offset + len)
++                    || msix.is_some_and(|m| m.overlaps(index, offset, len))
++            };
++            for sub_region in &reply.sub_regions {
++                let spec = match check_sub_region(
++                    sub_region,
++                    events.len(),
++                    length,
++                    io_region,
++                    must_trap,
++                ) {
++                    Ok(spec) => spec,
++                    Err(why) => {
++                        warn!("{}: region {index}: sub-region not used: {why}", self.id);
++                        continue;
++                    }
++                };
++                let io_eventfd = RegionIoEventFd {
++                    index,
++                    addr: start + spec.offset,
++                    event: events[spec.fd_index as usize].clone(),
++                    spec,
++                };
++                match io_eventfd.register(self.vm.as_ref()) {
++                    Ok(()) => {
++                        info!(
++                            "{}: region {index} offset {:#x}: ioeventfd at {:#x}, len {}, datamatch {:?}",
++                            self.id,
++                            io_eventfd.spec.offset,
++                            io_eventfd.addr,
++                            io_eventfd.spec.len,
++                            io_eventfd.spec.datamatch
++                        );
++                        self.region_io_eventfds.push(io_eventfd);
++                    }
++                    Err(e) => warn!(
++                        "{}: region {index} offset {:#x}: ioeventfd not registered: {e}",
++                        self.id, io_eventfd.spec.offset
++                    ),
++                }
++            }
++        }
++
+         Ok(())
+     }
+ 
++    fn unmap_region_io_fds(&mut self) {
++        for io_eventfd in self.region_io_eventfds.drain(..) {
++            if let Err(e) = io_eventfd.unregister(self.vm.as_ref()) {
++                error!(
++                    "Could not unregister the ioeventfd at 0x{:x}: {e}",
++                    io_eventfd.addr
++                );
++            }
++        }
++    }
++
+     fn unmap_mmio_regions(&mut self) {
+         for mmio_region in self.common.mmio_regions.iter_mut() {
+             for user_memory_region in mmio_region.user_memory_regions.drain(..) {
+@@ -472,6 +755,20 @@ impl PciDevice for VfioUserPciDevice {
+                     }
+                     .map_err(io::Error::other)?;
+                 }
++
++                for io_eventfd in self
++                    .region_io_eventfds
++                    .iter_mut()
++                    .filter(|e| e.index == mmio_region.index)
++                {
++                    io_eventfd
++                        .unregister(self.vm.as_ref())
++                        .map_err(io::Error::other)?;
++                    io_eventfd.addr = new_base + io_eventfd.spec.offset;
++                    io_eventfd
++                        .register(self.vm.as_ref())
++                        .map_err(io::Error::other)?;
++                }
+                 info!("Moved bar 0x{old_base:x} -> 0x{new_base:x}");
+             }
+         }
+@@ -486,6 +783,7 @@ impl PciDevice for VfioUserPciDevice {
+ 
+ impl Drop for VfioUserPciDevice {
+     fn drop(&mut self) {
++        self.unmap_region_io_fds();
+         self.unmap_mmio_regions();
+ 
+         if let Some(msix) = &self.common.interrupt.msix
+@@ -583,3 +881,199 @@ impl<M: GuestAddressSpace + Sync + Send> ExternalDmaMapping for VfioUserDmaMappi
+             .map_err(|e| io::Error::other(format!("Error unmapping region: {e}")))
+     }
+ }
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++
++    fn ioeventfd(
++        offset: u64,
++        size: u64,
++        fd_index: u32,
++        flags: u32,
++        datamatch: u64,
++    ) -> SubRegionIoFd {
++        SubRegionIoFd::IoEventFd {
++            offset,
++            size,
++            fd_index,
++            flags,
++            datamatch,
++        }
++    }
++
++    // A 16 MiB memory BAR, one descriptor received, nothing mapped.
++    fn check(sub_region: &SubRegionIoFd) -> Result<IoEventFdSpec, String> {
++        check_sub_region(sub_region, 1, 0x100_0000, false, |_, _| false)
++    }
++
++    #[test]
++    fn sub_region_is_used_as_offered() {
++        assert_eq!(
++            check(&ioeventfd(0xbb_0090, 4, 0, 0, 0)),
++            Ok(IoEventFdSpec {
++                offset: 0xbb_0090,
++                len: 4,
++                datamatch: None,
++                pio: false,
++                fd_index: 0,
++            })
++        );
++        assert_eq!(
++            check(&ioeventfd(0x90, 2, 0, IOEVENTFD_FLAG_DATAMATCH, 0xffff)),
++            Ok(IoEventFdSpec {
++                offset: 0x90,
++                len: 2,
++                datamatch: Some(0xffff),
++                pio: false,
++                fd_index: 0,
++            })
++        );
++        // Without the flag the datamatch field is not used; size 0 is any size.
++        assert_eq!(
++            check(&ioeventfd(0x90, 0, 0, 0, 0x1234)).unwrap().datamatch,
++            None
++        );
++        assert_eq!(
++            check(&ioeventfd(
++                0xff_fff8,
++                8,
++                0,
++                IOEVENTFD_FLAG_DATAMATCH,
++                u64::MAX
++            ))
++            .unwrap()
++            .len,
++            8
++        );
++        // PIO on an I/O port BAR.
++        assert!(
++            check_sub_region(
++                &ioeventfd(4, 1, 0, IOEVENTFD_FLAG_PIO, 0),
++                1,
++                0x100,
++                true,
++                |_, _| false
++            )
++            .unwrap()
++            .pio
++        );
++    }
++
++    #[test]
++    fn sub_region_is_refused() {
++        let refused = [
++            (
++                SubRegionIoFd::IoRegionFd {
++                    offset: 0,
++                    size: 4,
++                    fd_index: 0,
++                    flags: 0,
++                    user_data: 0,
++                },
++                "ioregionfd",
++            ),
++            // KVM_IOEVENTFD_FLAG_DEASSIGN is not a sub-region flag.
++            (ioeventfd(0, 4, 0, 1 << 2, 0), "flags 0x4"),
++            (
++                ioeventfd(0, 4, 0, IOEVENTFD_FLAG_VIRTIO_CCW_NOTIFY, 0),
++                "VIRTIO_CCW_NOTIFY",
++            ),
++            (ioeventfd(0, 4, 0, IOEVENTFD_FLAG_PIO, 0), "PIO flag set"),
++            (ioeventfd(0, 3, 0, 0, 0), "size 3"),
++            (ioeventfd(0, 0x1000, 0, 0, 0), "size 4096"),
++            (
++                ioeventfd(0, 0, 0, IOEVENTFD_FLAG_DATAMATCH, 0),
++                "datamatch with size 0",
++            ),
++            (
++                ioeventfd(0, 2, 0, IOEVENTFD_FLAG_DATAMATCH, 0x1_0000),
++                "wider than 2 bytes",
++            ),
++            (ioeventfd(0, 4, 1, 0, 0), "fd_index 1"),
++            // libvfio-user's index for a sub-region without a descriptor.
++            (ioeventfd(0, 4, u32::MAX, 0, 0), "fd_index 4294967295"),
++            (ioeventfd(0xff_fffe, 4, 0, 0, 0), "outside"),
++            (ioeventfd(0x100_0000, 0, 0, 0, 0), "outside"),
++            (ioeventfd(u64::MAX, 8, 0, 0, 0), "outside"),
++        ];
++        for (sub_region, why) in refused {
++            let e = check(&sub_region).unwrap_err();
++            assert!(e.contains(why), "{e:?} does not say {why:?}");
++        }
++
++        // A range the VMM must keep trapping (mapped, or MSI-X).
++        let trapped = |offset: u64, len: u64| offset < 0x3000 && 0x2000 < offset + len;
++        let at =
++            |offset| check_sub_region(&ioeventfd(offset, 4, 0, 0, 0), 1, 0x1_0000, false, trapped);
++        assert!(at(0x1ffe).unwrap_err().contains("overlaps"));
++        assert!(at(0x2ffc).unwrap_err().contains("overlaps"));
++        at(0x1ffc).unwrap();
++        at(0x3000).unwrap();
++    }
++
++    /// A reply payload, byte by byte per vfio-user.rst,
++    /// "VFIO_USER_DEVICE_GET_REGION_IO_FDS", "Reply": argsz 0, flags 4, index 8,
++    /// count 12, sub-regions from 16.
++    fn reply(argsz: u32, count: u32, entries: &[u8]) -> Vec<u8> {
++        let mut payload = Vec::new();
++        for field in [argsz, 0, 0, count] {
++            payload.extend_from_slice(&field.to_ne_bytes());
++        }
++        payload.extend_from_slice(entries);
++        payload
++    }
++
++    #[test]
++    fn reply_in_the_specification_layout_is_used() {
++        // "Sub-Region IO FD info format (ioeventfd)": offset 0, size 8, fd_index
++        // 16, type 20, flags 24, padding 28, datamatch 32; 40 bytes.
++        let mut entry = [0u8; 40];
++        entry[0..8].copy_from_slice(&0xbb_0090u64.to_ne_bytes());
++        entry[8..16].copy_from_slice(&4u64.to_ne_bytes());
++        entry[24..28].copy_from_slice(&IOEVENTFD_FLAG_DATAMATCH.to_ne_bytes());
++        entry[32..40].copy_from_slice(&7u64.to_ne_bytes());
++        let parsed = vfio_user::parse_region_io_fds_reply(656, 0, &reply(56, 1, &entry));
++        let Ok(vfio_user::RegionIoFdsReply::Complete { sub_regions }) = parsed else {
++            panic!("{parsed:?}");
++        };
++        assert_eq!(
++            check(&sub_regions[0]),
++            Ok(IoEventFdSpec {
++                offset: 0xbb_0090,
++                len: 4,
++                datamatch: Some(7),
++                pio: false,
++                fd_index: 0,
++            })
++        );
++    }
++
++    /// libvfio-user (include/vfio-user.h:178-187 at 803924493a7c) sends 48-byte
++    /// ioeventfd entries: gpa_offset 0, size 8, fd_index 16, type 20, flags 24,
++    /// shadow_mem_fd_index 28, shadow_offset 32, datamatch 40. The reply is
++    /// refused and the region stays trapped; no ioeventfd is registered.
++    #[test]
++    fn libvfio_user_reply_keeps_the_region_trapped() {
++        let mut entry = [0u8; 48];
++        entry[0..8].copy_from_slice(&0xbb_0090u64.to_ne_bytes());
++        entry[8..16].copy_from_slice(&4u64.to_ne_bytes());
++        entry[24..28].copy_from_slice(&IOEVENTFD_FLAG_DATAMATCH.to_ne_bytes());
++        entry[40..48].copy_from_slice(&7u64.to_ne_bytes());
++        let parsed = vfio_user::parse_region_io_fds_reply(656, 0, &reply(64, 1, &entry));
++        let result = parsed.map(|_| -> RegionIoFds { panic!("accepted a 48-byte entry") });
++        assert!(matches!(
++            region_io_fds_outcome(result),
++            Ok(RegionIoFdsOutcome::Refused(_))
++        ));
++
++        // An error reply means the server has none: stop asking.
++        assert!(matches!(
++            region_io_fds_outcome(Err(VfioUserError::ErrorReply {
++                command: vfio_user::Command::GetRegionIoFds,
++                errno: 0,
++            })),
++            Ok(RegionIoFdsOutcome::Unsupported(0))
++        ));
++    }
++}
+-- 
+2.55.0
+

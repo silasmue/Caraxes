@@ -1,0 +1,2 @@
+TRAP n=20000 woff=0x1400 boot0=0x166000a1 write_p50_us=26.7 write_p99_us=82.1 read_p50_us=28.1 read_p99_us=82.6
+TRAP n=20000 woff=0xbb0090 boot0=0x166000a1 write_p50_us=3.9 write_p99_us=10.3 read_p50_us=29.5 read_p99_us=72.1

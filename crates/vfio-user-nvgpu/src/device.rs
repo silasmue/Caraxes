@@ -6,11 +6,18 @@
 //! mappings are mapped as guest RAM ([`GuestMemory`]) and, from E5b on, registered
 //! with the host RM, which gives the guest DMA table ([`GuestRam`],
 //! docs/caraxes/memory-model.md §2). Interrupt eventfds are kept for MSI.
+//!
+//! With `CARAXES_DOORBELL_IOEVENTFD=1` the usermode doorbell register is offered to the
+//! client as an ioeventfd sub-region (`VFIO_USER_DEVICE_GET_REGION_IO_FDS`,
+//! patches/README.md, patch 0005): guest writes there signal an eventfd instead of
+//! arriving as `VFIO_USER_REGION_WRITE`, and a reader thread rings the device.
 
 use std::fs::File;
+use std::io::Read;
 use std::mem::size_of;
+use std::os::fd::{FromRawFd, OwnedFd};
 use std::path::PathBuf;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
 use vfio_bindings::bindings::vfio::{
     vfio_region_info, VFIO_IRQ_INFO_EVENTFD, VFIO_IRQ_INFO_NORESIZE, VFIO_IRQ_SET_ACTION_TRIGGER,
@@ -18,7 +25,9 @@ use vfio_bindings::bindings::vfio::{
     VFIO_PCI_INTX_IRQ_INDEX, VFIO_PCI_MSI_IRQ_INDEX, VFIO_PCI_NUM_IRQS, VFIO_PCI_NUM_REGIONS,
     VFIO_PCI_ROM_REGION_INDEX, VFIO_REGION_INFO_FLAG_READ, VFIO_REGION_INFO_FLAG_WRITE,
 };
-use vfio_user::{DmaMapFlags, DmaUnmapFlags, IrqInfo, ServerBackend, ServerRegion};
+use vfio_user::{
+    DmaMapFlags, DmaUnmapFlags, IoEventFdSubRegion, IrqInfo, ServerBackend, ServerRegion,
+};
 
 use crate::bar0::{Bar0, WriteEffect};
 use crate::board::Board;
@@ -63,6 +72,115 @@ pub struct Device {
     ranges: Vec<DmaRange>,
     /// The vectors and MSI state the host event thread raises through (E5b part 2).
     intr: Option<Arc<IntrShared>>,
+    /// Doorbell ioeventfd: wakeups of the reader thread and guest writes they counted.
+    doorbell_wakeups: u64,
+    doorbell_writes: u64,
+}
+
+/// The switch for the doorbell ioeventfd.
+pub const DOORBELL_IOEVENTFD_ENV: &str = "CARAXES_DOORBELL_IOEVENTFD";
+
+/// Whether `CARAXES_DOORBELL_IOEVENTFD=1` is set.
+pub fn doorbell_ioeventfd_requested() -> bool {
+    std::env::var(DOORBELL_IOEVENTFD_ENV).is_ok_and(|v| v.trim() == "1")
+}
+
+/// The doorbell sub-region to offer on BAR0 and the eventfd's reading end. `offset` is
+/// the chip's `registers.usermode_doorbell` (`NOTIFY_CHANNEL_PENDING`, a 32-bit
+/// register), so the size is 4. There is no datamatch: Cloud Hypervisor's client
+/// announces `max_msg_fds` 1, so a region gets at most one eventfd, and per-token
+/// datamatch entries would share it without naming the token either.
+pub fn doorbell_sub_region(offset: u64) -> std::io::Result<(IoEventFdSubRegion, File)> {
+    // SAFETY: a plain syscall; the result is checked before use.
+    let raw = unsafe { libc::eventfd(0, libc::EFD_CLOEXEC) };
+    if raw < 0 {
+        return Err(std::io::Error::last_os_error());
+    }
+    // SAFETY: a new descriptor that nothing else owns.
+    let fd = unsafe { OwnedFd::from_raw_fd(raw) };
+    let reader = File::from(fd.try_clone()?);
+    let sub_region = IoEventFdSubRegion {
+        offset,
+        size: 4,
+        flags: 0,
+        datamatch: 0,
+        fd: Arc::new(fd),
+    };
+    Ok((sub_region, reader))
+}
+
+fn lock(device: &Mutex<Device>) -> MutexGuard<'_, Device> {
+    device.lock().unwrap_or_else(PoisonError::into_inner)
+}
+
+/// Read the doorbell eventfd and ring the device for as long as the process runs.
+pub fn spawn_doorbell_reader(
+    device: Arc<Mutex<Device>>,
+    doorbell: u64,
+    eventfd: File,
+) -> std::io::Result<()> {
+    std::thread::Builder::new()
+        .name("doorbell-ioeventfd".into())
+        .spawn(move || {
+            let mut count = [0u8; 8];
+            loop {
+                match (&eventfd).read_exact(&mut count) {
+                    Ok(()) => {
+                        lock(&device).doorbell_ioeventfd(doorbell, u64::from_ne_bytes(count))
+                    }
+                    Err(e) if e.kind() == std::io::ErrorKind::Interrupted => continue,
+                    Err(e) => {
+                        eprintln!("vfio-user-nvgpu: doorbell ioeventfd: {e}; reader ends");
+                        return;
+                    }
+                }
+            }
+        })?;
+    Ok(())
+}
+
+/// The device as the vfio-user server loop sees it when the doorbell reader thread
+/// shares it.
+pub struct SharedDevice(pub Arc<Mutex<Device>>);
+
+impl ServerBackend for SharedDevice {
+    fn region_read(&mut self, region: u32, offset: u64, data: &mut [u8]) -> std::io::Result<()> {
+        lock(&self.0).region_read(region, offset, data)
+    }
+
+    fn region_write(&mut self, region: u32, offset: u64, data: &[u8]) -> std::io::Result<()> {
+        lock(&self.0).region_write(region, offset, data)
+    }
+
+    fn dma_map(
+        &mut self,
+        flags: DmaMapFlags,
+        offset: u64,
+        address: u64,
+        size: u64,
+        fd: Option<File>,
+    ) -> std::io::Result<()> {
+        lock(&self.0).dma_map(flags, offset, address, size, fd)
+    }
+
+    fn dma_unmap(&mut self, flags: DmaUnmapFlags, address: u64, size: u64) -> std::io::Result<()> {
+        lock(&self.0).dma_unmap(flags, address, size)
+    }
+
+    fn reset(&mut self) -> std::io::Result<()> {
+        lock(&self.0).reset()
+    }
+
+    fn set_irqs(
+        &mut self,
+        index: u32,
+        flags: u32,
+        start: u32,
+        count: u32,
+        fds: Vec<File>,
+    ) -> std::io::Result<()> {
+        lock(&self.0).set_irqs(index, flags, start, count, fds)
+    }
 }
 
 /// Size of each vfio region of `board`, by index (BAR0..5, ROM, config, VGA).
@@ -137,6 +255,30 @@ impl Device {
             dma_ranges: None,
             ranges: Vec::new(),
             intr: None,
+            doorbell_wakeups: 0,
+            doorbell_writes: 0,
+        }
+    }
+
+    /// Guest writes to the doorbell register that arrived through the ioeventfd:
+    /// `writes` of them since the last wakeup. KVM does not pass the written token on
+    /// (no datamatch), so every recorded channel is rung through the BAR0 write path a
+    /// trapped doorbell takes; a channel without new GPFIFO entries runs nothing.
+    pub fn doorbell_ioeventfd(&mut self, doorbell: u64, writes: u64) {
+        self.doorbell_wakeups += 1;
+        self.doorbell_writes += writes;
+        let chids: Vec<u32> = self
+            .bar0
+            .boot()
+            .map(|b| b.ctrl.channels.channels().map(|c| c.chid).collect())
+            .unwrap_or_default();
+        self.trace.event(&format!(
+            "doorbell ioeventfd: {writes} guest write(s) to BAR0 {doorbell:#x} signalled; ringing {} recorded channel(s) {chids:?}",
+            chids.len()
+        ));
+        for chid in chids {
+            // region_write() never fails for BAR0.
+            let _ = self.region_write(VFIO_PCI_BAR0_REGION_INDEX, doorbell, &chid.to_le_bytes());
         }
     }
 
@@ -306,6 +448,12 @@ impl Device {
 
     pub fn summary(&self) -> String {
         let mut s = self.trace.summary();
+        if self.doorbell_wakeups > 0 {
+            s.push_str(&format!(
+                "doorbell ioeventfd: {} guest write(s) in {} wakeup(s)\n",
+                self.doorbell_writes, self.doorbell_wakeups
+            ));
+        }
         let (n, first) = self.mem.misses();
         if self.mem.table().is_some() || n > 0 {
             s.push_str(&format!(

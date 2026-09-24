@@ -9,7 +9,7 @@
 //! (docs/caraxes/vfio-user.md); the run recipe is in docs/caraxes/kickoff.md.
 
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, PoisonError};
 
 use anyhow::{bail, Context, Result};
 use nvrm_abi::naming::{self, NameFormat};
@@ -19,7 +19,11 @@ use vfio_user_nvgpu::board::{Board, BOARDS};
 use vfio_user_nvgpu::boot::BootModel;
 use vfio_user_nvgpu::chip::{self, Chip};
 use vfio_user_nvgpu::config::{parse_dump, ConfigSpace};
-use vfio_user_nvgpu::device::{irqs, regions, Device, GuestRam};
+use vfio_bindings::bindings::vfio::VFIO_PCI_BAR0_REGION_INDEX;
+use vfio_user_nvgpu::device::{
+    doorbell_ioeventfd_requested, doorbell_sub_region, irqs, regions, spawn_doorbell_reader,
+    Device, GuestRam, SharedDevice, DOORBELL_IOEVENTFD_ENV,
+};
 use vfio_user_nvgpu::fb::FbLayout;
 use vfio_user_nvgpu::hostmem::HostMemory;
 use vfio_user_nvgpu::hostrm::HostRmClient;
@@ -76,6 +80,9 @@ vfio-user-nvgpu --selftest <socket> [--board-data <name|file>] [--chip <chip>] [
              [display] connectors, each connector backed by a DisplayPort sink model; without
              it the device is headless (fuse 1), as in E0-E5
   --selftest connect to a running server and verify the E0 device model
+Environment: CARAXES_DOORBELL_IOEVENTFD=1 offers the usermode doorbell register as an
+  ioeventfd sub-region (VFIO_USER_DEVICE_GET_REGION_IO_FDS; needs patch 0005 in Cloud
+  Hypervisor, a client without it keeps trapping); not with --host-exec
 Paths default relative to LEA_ROOT or the current directory.";
 
 struct Args {
@@ -270,6 +277,12 @@ fn spawn_signal_thread(hm: Arc<Mutex<HostMemory>>) -> Result<()> {
 }
 
 fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
+    let doorbell_ioeventfd = doorbell_ioeventfd_requested();
+    if doorbell_ioeventfd && a.host_exec {
+        // The eventfd does not carry the token, so every recorded channel is rung,
+        // and a mirrored channel is created at its first doorbell (ctrl.rs).
+        bail!("{DOORBELL_IOEVENTFD_ENV}=1 is refused with --host-exec: the ioeventfd loses the doorbell token, and ringing every channel would create host mirror channels the guest never rang");
+    }
     let cfg = config_space(a)?;
     let rom = std::fs::read(&a.rom).with_context(|| {
         format!(
@@ -419,8 +432,21 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
                 .with_context(|| format!("remove stale {}", socket.display()))?;
         }
     }
-    let server = Server::new(socket, true, irqs(), regions(&a.board_data))
+    let mut server = Server::new(socket, true, irqs(), regions(&a.board_data))
         .map_err(|e| anyhow::anyhow!("vfio-user server: {e}"))?;
+    let doorbell = if doorbell_ioeventfd {
+        let offset = chip.data().registers.usermode_doorbell;
+        let (sub_region, reader) = doorbell_sub_region(offset).context("doorbell eventfd")?;
+        server
+            .add_ioeventfd(VFIO_PCI_BAR0_REGION_INDEX, sub_region)
+            .map_err(|e| anyhow::anyhow!("doorbell sub-region: {e}"))?;
+        eprintln!(
+            "vfio-user-nvgpu: doorbell ioeventfd: BAR0 {offset:#x}, 4 bytes, no datamatch, offered through VFIO_USER_DEVICE_GET_REGION_IO_FDS ({DOORBELL_IOEVENTFD_ENV}=1)"
+        );
+        Some((offset, reader))
+    } else {
+        None
+    };
     eprintln!(
         "vfio-user-nvgpu: {} (BOOT_0 {:#010x}, driver {}) on {}, boot model {}, FB {} MiB, ROM {} bytes, PROM image {} bytes, trace {}",
         chip.data().short_name,
@@ -436,9 +462,14 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
             .map(|p| p.display().to_string())
             .unwrap_or_else(|| "off".into())
     );
+    let device = Arc::new(Mutex::new(device));
+    if let Some((offset, reader)) = doorbell {
+        spawn_doorbell_reader(device.clone(), offset, reader).context("doorbell reader")?;
+    }
     let result = server
-        .run(&mut device)
+        .run(&mut SharedDevice(device.clone()))
         .map_err(|e| anyhow::anyhow!("vfio-user server: {e}"));
+    let mut device = device.lock().unwrap_or_else(PoisonError::into_inner);
     // The client is gone: free the descriptors and the reservation before exiting.
     device.shutdown();
     let mut closed = None;

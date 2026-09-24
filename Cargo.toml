@@ -36,5 +36,12 @@ nvrm-sys   = { path = "crates/nvrm-sys" }
 nvrm-abi = { path = "crates/nvrm-abi" }
 nvrm-wire = { path = "crates/nvrm-wire" }
 
+# vfio_user 0.1.6 plus VFIO_USER_DEVICE_GET_REGION_IO_FDS (vendor/vfio-user-rs,
+# README.caraxes.md there; patches/vfio-user-rs/ holds the diff, an upstream
+# candidate for rust-vmm/vfio). Patched Cloud Hypervisor (patches/0005) builds
+# against the same copy.
+[patch.crates-io]
+vfio_user = { path = "vendor/vfio-user-rs" }
+
 [profile.release]
 debug = 1

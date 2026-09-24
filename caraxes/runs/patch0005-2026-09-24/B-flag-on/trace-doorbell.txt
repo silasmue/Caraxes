@@ -1,0 +1,19 @@
+# gpu-trace.log of run B up to the end of the uvm step
+# W bar0 0x00bb0090 lines by value:
+  20006 0x1
+      7 0x2
+      6 0x3
+      5 0x4
+      4 0x5
+      3 0x6
+      2 0x7
+# doorbell ioeventfd events: 20006
+# W bar0 0x00bb0090 lines NOT directly preceded by an ioeventfd event or another re-ring:
+0
+# first 3 and last 3 events:
+   169275688 E doorbell ioeventfd: 1 guest write(s) to BAR0 0xbb0090 signalled; ringing 1 recorded channel(s) [1]
+   169275794 E doorbell ioeventfd: 1 guest write(s) to BAR0 0xbb0090 signalled; ringing 1 recorded channel(s) [1]
+   169275837 E doorbell ioeventfd: 1 guest write(s) to BAR0 0xbb0090 signalled; ringing 1 recorded channel(s) [1]
+   204577625 E doorbell ioeventfd: 1 guest write(s) to BAR0 0xbb0090 signalled; ringing 6 recorded channel(s) [1, 2, 3, 4, 5, 6]
+   204611428 E doorbell ioeventfd: 1 guest write(s) to BAR0 0xbb0090 signalled; ringing 7 recorded channel(s) [1, 2, 3, 4, 5, 6, 7]
+   204611612 E doorbell ioeventfd: 1 guest write(s) to BAR0 0xbb0090 signalled; ringing 7 recorded channel(s) [1, 2, 3, 4, 5, 6, 7]

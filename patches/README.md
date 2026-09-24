@@ -1,21 +1,23 @@
 <!-- SPDX-License-Identifier: MIT -->
 # Cloud Hypervisor patches
 
-Apply patches 0001-0003, in order (0004 is optional and independent: it applies before or after them), to the tag in [CH_VERSION](../CH_VERSION),
+Apply patches 0001-0003, in order (0004 and 0005 are optional and independent: each applies before or after the others), to the tag in [CH_VERSION](../CH_VERSION),
 currently `v53.0`. `tools/build.sh ch` fetches, patches and builds it. The
 [manual setup](../docs/VM-PREPARATION.md#build-and-patch-cloud-hypervisor)
 shows the equivalent commands. The patches are `git format-patch` output, so
 `git apply` and `git am` both accept them.
 
 The patches extend Cloud Hypervisor's generic vhost-user device
-(`--generic-vhost-user`) and the vhost-user backend channel. None of them
-refers to NVIDIA or to Leandro; virtio-nvrm is one user.
+(`--generic-vhost-user`) and the vhost-user backend channel; 0005 extends the
+vfio-user client (`--user-device`). None of them refers to NVIDIA or to Leandro;
+virtio-nvrm is one user, the Caraxes device another.
 
 | Patch | Change | Files |
 |---|---|---|
 | [0001](0001-generic-vhost-user-shmem.patch) | VIRTIO Shared Memory Regions: `SHMEM` negotiation, `GET_SHMEM_CONFIG`, `SHMEM_MAP`/`SHMEM_UNMAP`; vhost-user frontend on `vhost` 0.17 | `Cargo.toml`, `Cargo.lock`, `virtio-devices/Cargo.toml`, `virtio-devices/src/vhost_user/*.rs`, `virtio-devices/src/lib.rs`, `virtio-devices/src/transport/pci_device.rs`, `vmm/src/device_manager.rs` |
 | [0002](0002-generic-vhost-user-device-features.patch) | Offer the device-specific feature bits | `virtio-devices/src/vhost_user/generic_vhost_user.rs` |
 | [0003](0003-generic-vhost-user-refused-request.patch) | Keep serving the backend channel after a refused request | `virtio-devices/src/vhost_user/mod.rs` |
+| [0005](0005-vfio-user-region-io-fds.patch) | vfio-user region I/O fds: request `VFIO_USER_DEVICE_GET_REGION_IO_FDS` for each BAR and register the server's ioeventfd sub-regions with KVM (exact length and datamatch), moved with the BAR, removed with the device; a server that refuses keeps every BAR trapped. Builds against [../vendor/vfio-user-rs](../vendor/vfio-user-rs/README.caraxes.md) beside the tree ([Patch 0005](#patch-0005-vfio-user-region-io-fds)); tested in [../caraxes/runs/patch0005-2026-09-24](../caraxes/runs/patch0005-2026-09-24) | `Cargo.toml`, `Cargo.lock`, `hypervisor/src/vm.rs`, `hypervisor/src/kvm/mod.rs`, `pci/src/vfio.rs`, `pci/src/vfio_user.rs` |
 | [0004](0004-acpi-dma-host-bridge.patch) | Emit an ACPI `_DMA` object on a PCI segment's host bridge from `--pci-segment pci_segment=<id>,dma_ranges=[<cpu>:<dma>:<size>,...]`; nothing changes without the option ([ACPI-DMA.md](ACPI-DMA.md)); Caraxes only, tested in [../caraxes/runs/acpi-dma-2026-09-23](../caraxes/runs/acpi-dma-2026-09-23) | `vmm/src/api/openapi/cloud-hypervisor.yaml`, `vmm/src/config.rs`, `vmm/src/device_manager.rs`, `vmm/src/pci_segment.rs`, `vmm/src/vm_config.rs` |
 
 [REVIEW-vhost-user.md](REVIEW-vhost-user.md) lists what the previous version of
@@ -27,10 +29,22 @@ this series got wrong and why each point changed.
 |---|---|---|
 | vhost-user | QEMU `docs/interop/vhost-user.rst` at `1276e6c85dcc` (2026-09-11), sha256 `684b11b15330ee23f2922aab9abd116efa1f48eb15b1b02b0233418e1a224257` | "Message Specification" (header), "MMAP request", "VIRTIO Shared Memory Region configuration", "Back-end communication", "Protocol features", `VHOST_USER_GET_SHMEM_CONFIG`, `VHOST_USER_BACKEND_SHMEM_MAP`, `VHOST_USER_BACKEND_SHMEM_UNMAP`, "VHOST_USER_PROTOCOL_F_REPLY_ACK" |
 | VIRTIO | 1.4 cs01 (oasis-tcs/virtio-spec `v1.4-cs01`, `917e900e0246`) | 2.2 "Feature Bits", "Shared Memory Regions" and "Addressing within regions", PCI "Shared memory capability" |
+| vfio-user (0005) | QEMU `docs/interop/vfio-user.rst` at tag `v11.1.1`, vendored as `vendor/qemu-vfio-user/vfio-user.rst`, sha256 `cd05c1570caddb18bfa6a39406d92f7d0eb124cd99ca2ab4f7ff9ace0ac38ff0` | "Region I/O via file descriptors", "Message sizes", "Commands", "Header", `VFIO_USER_VERSION` (capability `max_msg_fds`), `VFIO_USER_DEVICE_GET_REGION_IO_FDS` ("Request", "Reply", "Sub-Region IO FD info format (ioeventfd)" and "(ioregionfd)") |
+| Linux KVM API (0005) | `Documentation/virt/kvm/api.rst`, `KVM_IOEVENTFD` (4.59 in the text the specification links); values from the host's `<linux/kvm.h>` | `kvm_ioeventfd` (`datamatch`, `addr`, `len`, `fd`, `flags`), `KVM_IOEVENTFD_FLAG_DATAMATCH` (bit 0), `_PIO` (bit 1), `_DEASSIGN` (bit 2), `_VIRTIO_CCW_NOTIFY` (bit 3) |
 
 The vhost-user specification is not vendored in this repository. It was
 fetched from `https://gitlab.com/qemu-project/qemu/-/raw/1276e6c85dcc/docs/interop/vhost-user.rst`.
 `VHOST_USER_PROTOCOL_F_SHMEM` has been bit 22 since `588acb45c29f` added it.
+
+The vfio-user specification was fetched as a single file with the QEMU v11.1.1
+client sources into the git-ignored `vendor/qemu-vfio-user`
+([docs/caraxes/environment.md](../docs/caraxes/environment.md)); the tag's commit
+id was not recorded with it, the tag and the sha256 above identify the text. It is
+the current home of the specification: `vendor/libvfio-user` (nutanix/libvfio-user
+at `803924493a7c`, 2026-09-08) no longer carries `docs/vfio-user.rst`. libvfio-user
+(server, `lib/libvfio-user.c`) and the rust-vmm crate are reference implementations,
+not specifications; QEMU v11.1.1's client (`vendor/qemu-vfio-user`) defines the
+command number (`protocol.h`) but never sends the request.
 
 ## Crate versions
 
@@ -53,6 +67,18 @@ corrects this (rust-vmm/vhost#367). Therefore:
 
 Both ends must be updated together: a 0.16 peer and a 0.17 peer never
 negotiate SHMEM (see [Compatibility](#compatibility)).
+
+Patch 0005 needs `vfio_user` with `Client::get_region_io_fds()`, which no release
+has. The patch adds `[patch.crates-io] vfio_user = { path = "../vfio-user-rs" }`:
+[vendor/vfio-user-rs](../vendor/vfio-user-rs/README.caraxes.md) is 0.1.6 plus the
+change ([vfio-user-rs/](vfio-user-rs/), an upstream candidate for rust-vmm/vfio),
+with its `vfio-bindings` requirement widened to admit the 0.6.2 that v53.0's
+`vfio-ioctls` 0.7.0 pins. `Cargo.lock` replaces `vfio_user` 0.1.3 by that path
+package, adds `enumn` 0.1.14, and keeps `vfio_user` on `vm-memory` 0.17.1 (the
+version v53.0's own `vfio_user` used; 0001 adds 0.18.0 for the vhost frontend).
+`tools/build.sh ch` builds `vendor/cloud-hypervisor`, beside which the path
+resolves; another checkout needs a `../vfio-user-rs` link to it. The Caraxes
+workspace uses the same copy for the device.
 
 ## Message formats
 
@@ -99,6 +125,57 @@ The configuration is valid for the lifetime of the connection.
 | 16 | 8 | shm_offset | offset from the start of region `shmid`; page aligned |
 | 24 | 8 | len | bytes; non-zero, page aligned |
 | 32 | 8 | flags | bit 0: 1 = read-write, 0 = read-only; other bits must be 0 |
+
+### vfio-user header (16 bytes, every message; patch 0005)
+
+vfio-user.rst, "Header". Offsets are from the start of the message; the message
+formats below give payload offsets, from the end of this header.
+
+| Offset | Size | Field | Value |
+|---:|---:|---|---|
+| 0 | 2 | Message ID | chosen by the sender, echoed in the reply |
+| 2 | 2 | Command | `VFIO_USER_DEVICE_GET_REGION_IO_FDS` = 6 ("Commands") |
+| 4 | 4 | Message size | whole message including the header |
+| 8 | 4 | Flags | bits 0-3 Type (0 command, 1 reply), bit 4 No_reply, bit 5 Error |
+| 12 | 4 | Error | errno in an error reply, may be 0; reserved in a command |
+
+"If an error occurs, the reply message must only include the reply header."
+
+### `VFIO_USER_DEVICE_GET_REGION_IO_FDS` request (payload 16 bytes)
+
+| Offset | Size | Field | Value sent by the client |
+|---:|---:|---|---|
+| 0 | 4 | argsz | maximum reply payload size: 656 (16 + 16 * 40) first; the argsz a truncated reply names on the one retry; always below 65536 |
+| 4 | 4 | flags | 0 ("The client must set flags to zero") |
+| 8 | 4 | index | the region (BAR index) |
+| 12 | 4 | count | 0 ("all other fields must be zero") |
+
+### `VFIO_USER_DEVICE_GET_REGION_IO_FDS` reply
+
+| Offset | Size | Field | Meaning |
+|---:|---:|---|---|
+| 0 | 4 | argsz | size of the full payload: 16 + count * 40. Above the request's argsz: only these 16 bytes are sent, and the client asks again with this argsz ("Message sizes") |
+| 4 | 4 | flags | 0 ("flags must be zero") |
+| 8 | 4 | index | the region queried |
+| 12 | 4 | count | number of entries |
+| 16 + 40 * i | 40 | sub-region i | an entry below |
+
+Ancillary data: the descriptors the entries' `fd_index` values name, as
+`SCM_RIGHTS`, at most the client's `max_msg_fds` (`VFIO_USER_VERSION`; 1 when the
+client does not say, which is Cloud Hypervisor's case). Entries may share a
+descriptor.
+
+### Sub-Region IO FD info, ioeventfd (type 0) and ioregionfd (type 1), 40 bytes
+
+| Offset | Size | ioeventfd | ioregionfd |
+|---:|---:|---|---|
+| 0 | 8 | offset: start within the region | offset |
+| 8 | 8 | size: KVM_IOEVENTFD `len`; 0 = any access size | size |
+| 16 | 4 | fd_index: index into the ancillary descriptors | fd_index |
+| 20 | 4 | type: `VFIO_USER_IO_FD_TYPE_IOEVENTFD` = 0 | `VFIO_USER_IO_FD_TYPE_IOREGIONFD` = 1 |
+| 24 | 4 | flags: `KVM_IOEVENTFD_FLAG_DATAMATCH` 0x1, `_PIO` 0x2, `_VIRTIO_CCW_NOTIFY` 0x8 | `KVM_IOREGION_PIO`, `KVM_IOREGION_POSTED_WRITES` |
+| 28 | 4 | padding | padding |
+| 32 | 8 | datamatch | user_data |
 
 ## Patch 0001: VIRTIO Shared Memory Regions
 
@@ -236,6 +313,210 @@ fail when there are no resources available"), so a refusal is an outcome of
 the request, not a channel failure. The change applies to every vhost-user
 device's backend channel; only devices whose handler can refuse (the generic
 device's SHMEM handlers, and config-change signalling) are affected.
+
+## Patch 0005: vfio-user region I/O fds
+
+The vfio-user specification lets a server name sub-regions of a region whose
+accesses the client should deliver through file descriptors instead of
+`VFIO_USER_REGION_WRITE` ("Region I/O via file descriptors"). For an ioeventfd
+sub-region the client registers the descriptor with `KVM_IOEVENTFD` ("a client
+could configure KVM with the requested ioeventfd via a KVM_IOEVENTFD ioctl()"), so
+a guest write there signals the server without an exit to the VMM. Cloud
+Hypervisor v53.0 never sent the request. Citations below are to vfio-user.rst
+(see [Specifications](#specifications)) unless another source is named.
+
+### What the client does
+
+1. `VfioUserPciDevice::map_mmio_regions()` (called by `device_manager` after the
+   BARs are allocated, also on restore) maps the mmap-able areas as before, then,
+   for each BAR in order, sends the request (message formats above) through
+   `vfio_user::Client::get_region_io_fds()`.
+2. The outcome:
+
+   | Outcome | Meaning | What happens |
+   |---|---|---|
+   | reply in the specification's form | the crate's parser accepted it | each entry is checked (next table) and registered |
+   | `Error::InvalidReply` | a well-framed reply not in the specification's form: argsz other than 16 + count * 40 or than the payload size, flags not 0, another index, a type other than 0 or 1, more than the fixed part in a truncated reply, truncated twice or argsz above 65535 | logged (`region I/O fds reply not in the vfio-user specification's form`), this BAR stays trapped, the next BAR is asked |
+   | `Error::ErrorReply` | the Error bit is set | logged once (`the server provides no region I/O fds`), no further BAR is asked; every BAR stays trapped |
+   | any other error | socket failure, or a message that is not the reply (the stream is out of step) | device creation fails (`VfioUserMapRegion`) |
+
+3. Each ioeventfd entry must pass these checks ("it is the client's responsibility
+   to verify the requested values"); a failing entry is logged and its range stays
+   trapped:
+
+   | Check | Source |
+   |---|---|
+   | type 1 (ioregionfd) is skipped | Linux has no KVM ioregionfd ("FIXME: update with final API docs") |
+   | flags only `DATAMATCH`, `PIO`, `VIRTIO_CCW_NOTIFY`; `VIRTIO_CCW_NOTIFY` skipped | "flags is any of"; the CCW flag is for s390 subchannels |
+   | `PIO` set exactly for an I/O port BAR | an MMIO BAR address is not a port and vice versa |
+   | size 0, 1, 2, 4 or 8 | `KVM_IOEVENTFD` `len`; "size ... may be zero if the access size is not relevant" |
+   | with `DATAMATCH`: size not 0, datamatch fits in size bytes | `KVM_IOEVENTFD` rejects datamatch with len 0 and compares the written value of len bytes |
+   | fd_index below the number of descriptors received | "fd_index is the index in the ancillary data" |
+   | offset + max(size, 1) within the BAR | "that the requested offset does not exceed the region's bounds" |
+   | not overlapping an mmap()ed area or the MSI-X table or PBA | an mmap()ed range never exits, so the ioeventfd would never fire; the VMM emulates MSI-X and must see those writes |
+
+4. Registration: `KVM_IOEVENTFD` with `addr` = BAR guest address + offset, `len` =
+   size, `datamatch` and `KVM_IOEVENTFD_FLAG_DATAMATCH` when the entry's flags have
+   it, `KVM_IOEVENTFD_FLAG_PIO` for an I/O BAR. Entries naming the same fd_index
+   share one `EventFd`. A failed registration (for example `EEXIST`) is logged; the
+   range stays trapped.
+5. When the guest moves a BAR, its ioeventfds are deassigned and assigned at the new
+   address. When the device goes away (hot-unplug or VM shutdown, `Drop`), all are
+   deassigned with the arguments of the assign.
+6. `hypervisor::Vm` gains `register_ioevent_exact()` and `unregister_ioevent_exact()`
+   with `len` and `datamatch` as given. The existing `register_ioevent()` takes the
+   length from the datamatch type (0 without, 4 or 8 with) and
+   `unregister_ioevent()` only removes an ioeventfd without datamatch; KVM matches a
+   deassign on address, length and datamatch. KVM implements the new calls with a raw
+   `KVM_IOEVENTFD` ioctl; other hypervisors keep the default, which refuses, so their
+   BARs stay trapped.
+
+The server side (the vendored crate): `Server::add_ioeventfd()` declares ioeventfd
+sub-regions; the request is refused with `EINVAL` for flags or count not 0, an index
+beyond the regions or argsz below 16, answered with count 0 for a region without
+sub-regions, with the fixed part alone when the reply exceeds argsz, and otherwise
+with 40-byte type-0 entries and one descriptor per distinct eventfd, leaving out
+sub-regions whose descriptor would exceed the client's `max_msg_fds`.
+
+### Field by field
+
+"Client" is patch 0005 with the crate's client, "Server" the crate's server,
+"libvfio-user" nutanix/libvfio-user at `803924493a7c` (`include/vfio-user.h`,
+`lib/libvfio-user.c` `handle_device_get_region_io_fds`, lines 548-652). The one
+row where the reference server disagrees with the specification's layout is
+marked **differs**.
+
+| Item | vfio-user.rst | Client | Server | libvfio-user |
+|---|---|---|---|---|
+| command number | "Commands": 6 | 6 | 6 | 6 (`vfio-user.h:63`) |
+| reply header | "Header": ID and command echoed, Type 1 | checked; a mismatch is out of step | echoed | echoed |
+| error reply | "Header": Error bit, errno may be 0; header only | `ErrorReply`, stop asking | errno `EINVAL` for bad input, 0 otherwise | errno |
+| request argsz | "Request": maximum reply payload; "Message sizes" | 656, then the argsz a truncated reply names, below 65536 | below 16 refused | below 16 or above its maximum transfer size refused |
+| request flags, count | "Request": zero | 0, 0 | not 0 refused | not 0 refused |
+| request index | "Request": region queried | BAR index | beyond the regions refused | beyond the regions refused; a region without flags refused |
+| reply argsz | "Reply": fixed part + array | must be 16 + count * 40 and the payload size | 16 + count * 40 | 16 + count * 48 (**differs**) |
+| truncated reply | "Message sizes": argsz needed, payload not included | fixed part only, one retry | fixed part, argsz needed, count | same as Server |
+| reply flags, index, count | "Reply": flags 0, index queried, count entries | checked | 0, echoed, count | 0, echoed, count |
+| entry i | "Reply": `i * ((argsz - 32) / count)`, 40 bytes currently | 16 + 40 * i | 16 + 40 * i | 16 + 48 * i (**differs**) |
+| offset, 0 (8) | "(ioeventfd)": within the region | within the BAR, clear of mmap and MSI-X | declared within the region | `gpa_offset`, 0 |
+| size, 8 (8) | "(ioeventfd)": length, may be 0 | KVM `len` 0, 1, 2, 4, 8 | as declared | 8 |
+| fd_index, 16 (4) | "(ioeventfd)": index in the ancillary data, may be shared | below the descriptors received | per distinct eventfd | same; `UINT32_MAX` for a sub-region without descriptor |
+| type, 20 (4) | "(ioeventfd)", "(ioregionfd)": no numbers | 0 or 1, else the reply is refused | 0 | 0, 1, or 2 = `IOEVENTFD_SHADOW` (`vfio-user.h:174-176`) |
+| flags, 24 (4) | "(ioeventfd)": DATAMATCH, PIO, VIRTIO_CCW_NOTIFY | see the checks | only those three | as given |
+| padding, 28 (4) | "(ioeventfd)": padding | ignored | 0 | `shadow_mem_fd_index` (**differs**) |
+| datamatch, 32 (8) | "(ioeventfd)": datamatch | with DATAMATCH | written at 32 | `shadow_offset` at 32, datamatch at 40 (**differs**) |
+| ioregionfd entry | "(ioregionfd)": user_data at 32 | parsed, skipped | never sent | same 40-byte struct (`vfio-user.h:189-197`), 48 apart in the reply's union; not implemented (`docs/ioregionfd.md`) |
+| descriptors | "Reply": at least one, may be shared | those named by fd_index | one per distinct eventfd, none with count 0 | same |
+| descriptors per message | `VFIO_USER_VERSION`: `max_msg_fds`, 1 when absent | the crate announces 1 | honoured | parsed (`tran.c:71-99`), not applied to this reply |
+
+### Ambiguities and the reading chosen
+
+1. **Entry offset.** "each array entry i is at offset i * ((argsz - 32) / count)"
+   contradicts the reply table, where the array starts at offset 16: for one
+   40-byte entry argsz is 56 and the formula gives 24. libvfio-user places the
+   array directly after the 16-byte fixed part (`sizeof(vfio_user_region_io_fds_reply_t)`,
+   `lib/libvfio-user.c:620`) and its test client reads entries from there
+   (`test/py/test_device_get_region_io_fds.py`). Entries are at 16 + 40 * i.
+2. **Entry size.** "currently this is 40 bytes for both IO FD types, but this is not
+   to be relied on". The only implementation that sends another size changes the
+   meaning of bytes 28 to 40, so a larger entry cannot be read safely by position.
+   Decision (coordinator, 2026-09-24): accept exactly 40 bytes and fail closed; a
+   reply of another size leaves the region trapped.
+3. **Type numbers.** The specification names `VFIO_USER_IO_FD_TYPE_IOEVENTFD` and
+   `_IOREGIONFD` without values; 0 and 1 are libvfio-user's (`vfio-user.h:174-175`).
+4. **Flag values.** The specification names the `KVM_IOEVENTFD_FLAG_*` constants;
+   the values are `<linux/kvm.h>`'s.
+5. **size.** "the length of the sub-region" and a pointer to `KVM_IOEVENTFD` for the
+   ioeventfd fields. Read as KVM's `len` (an access width), since a KVM ioeventfd
+   matches one address and one width; other sizes are skipped.
+6. **"at least one file descriptor"** cannot hold with count 0; neither
+   implementation sends one then.
+7. **count in a truncated reply.** "the number of sub-regions in the array", but the
+   array is left out; libvfio-user sends the total, so does the server, and the
+   client does not use it.
+8. **A region without sub-regions.** Not stated; libvfio-user refuses a region
+   without flags. The server answers count 0 for every valid index.
+9. **`max_msg_fds` against distinct descriptors.** Not stated for this reply. The
+   server leaves out the sub-regions that would need more; they stay trapped.
+
+### Deviations of the reference implementations
+
+- **libvfio-user ioeventfd entry** (`include/vfio-user.h:178-187` at
+  `803924493a7c`): `gpa_offset` 0, `size` 8, `fd_index` 16, `type` 20, `flags` 24,
+  `shadow_mem_fd_index` 28, `shadow_offset` 32, `datamatch` 40, 48 bytes, and the
+  reply's array is a union of it with the 40-byte ioregionfd entry, so entries are 48
+  bytes apart. The fields serve libvfio-user's shadow ioeventfd (type 2,
+  `vfio-user.h:176`), which `docs/shadow_ioeventfd.md` says needs unmerged KVM and
+  QEMU patches. The specification has padding at 28 and datamatch at 32 in a 40-byte
+  entry. Read by the specification, a libvfio-user entry's datamatch would be taken
+  from `shadow_offset`, which could swallow guest writes of the wrong value. Our
+  client refuses such a reply (the region stays trapped) and our server never sends
+  that layout or type 2: **on this one message neither end is wire-compatible with
+  libvfio-user until the specification adopts that layout.** Everything else in this
+  patch works with a libvfio-user server.
+- **libvfio-user `fd_index` `UINT32_MAX`** for a sub-region declared with fd -1 (its
+  test `test_device_get_region_io_fds_invalid_fd`); not in the specification. The
+  client skips the entry.
+- **libvfio-user and `max_msg_fds`:** parsed, not applied to this reply.
+- **rust-vmm `vfio_user` servers up to 0.1.6** answer `UnsupportedCommand` before
+  reading the request's 16-byte payload, then parse that payload as the next header
+  (command = argsz >> 16 = 0) and send a second error reply, to a command never sent.
+  The crate's client keeps argsz below 65536 so that header is harmless, follows an
+  error reply with a `VFIO_USER_DEVICE_GET_INFO` round trip and drops one such stray
+  header-only error reply. With a conforming server nothing is dropped.
+- **QEMU v11.1.1** (`vendor/qemu-vfio-user`) defines command 6 but never sends it, so
+  there is no reference client for the request; the client side follows the
+  specification text and libvfio-user's test client.
+
+### Use by the Caraxes device
+
+`CARAXES_DOORBELL_IOEVENTFD=1` makes `vfio-user-nvgpu` declare one ioeventfd
+sub-region on BAR0: offset = the chip's `registers.usermode_doorbell` (0xbb0090 on
+TU106, `NOTIFY_CHANNEL_PENDING`), size 4, no datamatch. Cloud Hypervisor announces
+`max_msg_fds` 1, so one eventfd per region is all a reply can carry, and per-token
+datamatch entries would share it without naming the token. A reader thread reads the
+eventfd; KVM drops the written token, so the thread rings every recorded channel
+through the BAR0 write path a trapped doorbell takes (a channel without new GPFIFO
+entries runs nothing). The flag is refused with `--host-exec`, where a first doorbell
+creates a host mirror channel. `crates/vfio-user-nvgpu/src/{device.rs,main.rs}`.
+
+### Compatibility
+
+- A server that does not implement the request: one log line, every BAR trapped, the
+  device works as before (vm3 run S with a vfio_user 0.1.6 server).
+- A libvfio-user server with ioeventfd sub-regions: the region stays trapped (unit
+  tests with its byte layout; not run against libvfio-user).
+- A Cloud Hypervisor without 0005 and a server with sub-regions: never asked; the
+  sub-regions are written through `VFIO_USER_REGION_WRITE` as before.
+- Hypervisors other than KVM: every BAR trapped.
+- `tools/build.sh ch` globs `patches/[0-9][0-9][0-9][0-9]-*.patch`, so its next run
+  applies 0005 too; it builds against `vendor/vfio-user-rs`.
+
+### Verification (2026-09-24)
+
+Tree: v53.0 + 0001-0005 (`git am` of the five files), `cargo build --offline --locked
+--release --bin cloud-hypervisor`: builds, no warnings, `cloud-hypervisor
+v53.0-5-gba20497bc`. v53.0 + 0005 alone: applies with `git apply` and builds.
+
+| Command | Result |
+|---|---|
+| `cargo test -p vmm --features kvm --lib` | 89 passed (as with 0004) |
+| `cargo test -p pci --lib` | 28 passed, 4 new: `vfio_user::tests::sub_region_is_used_as_offered`, `sub_region_is_refused`, `reply_in_the_specification_layout_is_used` (a hand-built reply in the specification's bytes through the crate's parser and the checks), `libvfio_user_reply_keeps_the_region_trapped` (a hand-built 48-byte libvfio-user reply is refused, the region stays trapped) |
+| `cargo test -p hypervisor --features kvm --lib` | 1 passed |
+| `cargo clippy -p pci -p hypervisor -p vmm --features kvm --all-targets` | only the unfulfilled lint expectation at `vmm/src/lib.rs:775` that v53.0 has |
+| `cargo test -p vfio_user` (rust-vmm/vfio at `a38ee7a3eeb5` + the crate patch) | 10 passed, 7 new: parser on the specification's bytes, on a libvfio-user reply, truncated and malformed replies, the server's reply bytes, a client/server round trip (descriptor sharing, truncation and retry, `max_msg_fds`, error reply and reuse), a server without the request |
+| `cargo test -p vfio-user-nvgpu` (Caraxes, vendored crate) | 97 passed |
+
+Functional check in vm3, pure emulation (`CARAXES_HOST_RM=1 CARAXES_BOOT_MODEL=1`),
+[../caraxes/runs/patch0005-2026-09-24](../caraxes/runs/patch0005-2026-09-24)
+(`commands.txt`):
+
+| Run | Result |
+|---|---|
+| S: patched CH, stock server (vfio_user 0.1.6) | the stray reply (`message_id: 656, command: 0`) dropped, one line `the server provides no region I/O fds`, driver loads |
+| A: new server, flag off | no sub-regions; driver loads; bench-trap doorbell (0xbb0090) write p50 28.2 us, scratch 26.7 us; 20000 trapped doorbell writes in the device trace |
+| B: new server, `CARAXES_DOORBELL_IOEVENTFD=1` | CH: `ioeventfd at 0xe6bb0090, len 4, datamatch None`; driver loads; bench-trap doorbell write p50 3.9 us (p99 10.3), scratch still 26.7 us; no doorbell write arrived as a region write, 20000 counted by the eventfd; UVM GPU registration (`uvm-register`) succeeds with its 7 doorbells through the eventfd |
+| B, removal and re-add | hot-remove: no unregister error, the server exits; re-add with a new server registers the same address, length and (no) datamatch again without `EEXIST`, so the first was deassigned; doorbell write p50 3.9 us on the re-added device |
 
 ## How Leandro uses the series
 

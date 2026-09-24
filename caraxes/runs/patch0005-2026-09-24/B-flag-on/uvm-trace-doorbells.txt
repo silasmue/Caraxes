@@ -1,0 +1,186 @@
+   204190468 E boot: doorbell 98: libos args PA 0x127eb6000 (mapped), wpr meta PA 0x127eb5000
+   204190596 E boot: doorbell 99: libos args PA 0x127eb6000 (mapped), wpr meta PA 0x127eb5000
+   204191341 E boot: doorbell 100: libos args PA 0x127eb6000 (mapped), wpr meta PA 0x127eb5000
+   204203228 E boot: doorbell 101: libos args PA 0x127eb6000 (mapped), wpr meta PA 0x127eb5000
+   204204394 E boot: doorbell 102: libos args PA 0x127eb6000 (mapped), wpr meta PA 0x127eb5000
+   204204707 E boot: doorbell 103: libos args PA 0x127eb6000 (mapped), wpr meta PA 0x127eb5000
+   204206992 E boot: doorbell 104: libos args PA 0x127eb6000 (mapped), wpr meta PA 0x127eb5000
+   204207134 E boot: doorbell 105: libos args PA 0x127eb6000 (mapped), wpr meta PA 0x127eb5000
+   204207938 E boot: doorbell 106: libos args PA 0x127eb6000 (mapped), wpr meta PA 0x127eb5000
+   204210902 E boot: doorbell 107: libos args PA 0x127eb6000 (mapped), wpr meta PA 0x127eb5000
+   204215528 E boot: doorbell 108: libos args PA 0x127eb6000 (mapped), wpr meta PA 0x127eb5000
+   204217832 E boot: doorbell 109: libos args PA 0x127eb6000 (mapped), wpr meta PA 0x127eb5000
+   204220256 E boot: doorbell 110: libos args PA 0x127eb6000 (mapped), wpr meta PA 0x127eb5000
+   204223534 E boot: doorbell 111: libos args PA 0x127eb6000 (mapped), wpr meta PA 0x127eb5000
+   204272472 E boot: doorbell 112: libos args PA 0x127eb6000 (mapped), wpr meta PA 0x127eb5000
+   204323101 E boot: doorbell 113: libos args PA 0x127eb6000 (mapped), wpr meta PA 0x127eb5000
+   204323236 E boot: doorbell 114: libos args PA 0x127eb6000 (mapped), wpr meta PA 0x127eb5000
+   204323364 E boot: doorbell 115: libos args PA 0x127eb6000 (mapped), wpr meta PA 0x127eb5000
+   204323500 E boot: doorbell 116: libos args PA 0x127eb6000 (mapped), wpr meta PA 0x127eb5000
+   204323631 E boot: doorbell 117: libos args PA 0x127eb6000 (mapped), wpr meta PA 0x127eb5000
+   204323781 E boot: doorbell 118: libos args PA 0x127eb6000 (mapped), wpr meta PA 0x127eb5000
+   204323910 E boot: doorbell 119: libos args PA 0x127eb6000 (mapped), wpr meta PA 0x127eb5000
+   204324058 E boot: doorbell 120: libos args PA 0x127eb6000 (mapped), wpr meta PA 0x127eb5000
+   204324202 E boot: doorbell 121: libos args PA 0x127eb6000 (mapped), wpr meta PA 0x127eb5000
+   204324339 E boot: doorbell 122: libos args PA 0x127eb6000 (mapped), wpr meta PA 0x127eb5000
+   204325126 E boot: doorbell 123: libos args PA 0x127eb6000 (mapped), wpr meta PA 0x127eb5000
+   204325297 E boot: doorbell 124: libos args PA 0x127eb6000 (mapped), wpr meta PA 0x127eb5000
+   204325860 E boot: doorbell 125: libos args PA 0x127eb6000 (mapped), wpr meta PA 0x127eb5000
+   204326022 E boot: doorbell 126: libos args PA 0x127eb6000 (mapped), wpr meta PA 0x127eb5000
+   204326748 E boot: doorbell 127: libos args PA 0x127eb6000 (mapped), wpr meta PA 0x127eb5000
+   204327450 E boot: doorbell 128: libos args PA 0x127eb6000 (mapped), wpr meta PA 0x127eb5000
+   204328613 E boot: doorbell 129: libos args PA 0x127eb6000 (mapped), wpr meta PA 0x127eb5000
+   204328791 E boot: doorbell 130: libos args PA 0x127eb6000 (mapped), wpr meta PA 0x127eb5000
+   204330133 E boot: doorbell 131: libos args PA 0x127eb6000 (mapped), wpr meta PA 0x127eb5000
+   204330356 E boot: doorbell 132: libos args PA 0x127eb6000 (mapped), wpr meta PA 0x127eb5000
+   204331189 E boot: doorbell 133: libos args PA 0x127eb6000 (mapped), wpr meta PA 0x127eb5000
+   204331493 E boot: doorbell 134: libos args PA 0x127eb6000 (mapped), wpr meta PA 0x127eb5000
+   204331654 E boot: doorbell 135: libos args PA 0x127eb6000 (mapped), wpr meta PA 0x127eb5000
+   204413112 E boot: doorbell 136: libos args PA 0x127eb6000 (mapped), wpr meta PA 0x127eb5000
+   204413913 E boot: doorbell 137: libos args PA 0x127eb6000 (mapped), wpr meta PA 0x127eb5000
+   204414677 E boot: doorbell 138: libos args PA 0x127eb6000 (mapped), wpr meta PA 0x127eb5000
+   204416154 E boot: doorbell 139: libos args PA 0x127eb6000 (mapped), wpr meta PA 0x127eb5000
+   204416157 E boot: ctrl 0xa06f0103: gpfifo schedule 0xcaf00012: bEnable 1 -> status 0x0 [synthesized (the emulated channel runs on its doorbell)]
+   204416717 E doorbell ioeventfd: 1 guest write(s) to BAR0 0xbb0090 signalled; ringing 2 recorded channel(s) [1, 2]
+   204416737 W bar0 0x00bb0090 4  0x1          NV_VIRTUAL_FUNCTION_DOORBELL (usermode)
+   204416738 E boot: doorbell 20000: token 0x1 chid 1 runlist 0
+   204416769 W bar0 0x00bb0090 4  0x2          NV_VIRTUAL_FUNCTION_DOORBELL (usermode)
+   204416778 E boot: doorbell 20001: token 0x2 chid 2 runlist 0
+   204416779 E boot: chid 2 gp 0: pushbuffer va 0x120000000 10 dwords
+   204461750 E boot: doorbell 140: libos args PA 0x127eb6000 (mapped), wpr meta PA 0x127eb5000
+   204462550 E boot: doorbell 141: libos args PA 0x127eb6000 (mapped), wpr meta PA 0x127eb5000
+   204463303 E boot: doorbell 142: libos args PA 0x127eb6000 (mapped), wpr meta PA 0x127eb5000
+   204464832 E boot: doorbell 143: libos args PA 0x127eb6000 (mapped), wpr meta PA 0x127eb5000
+   204464835 E boot: ctrl 0xa06f0103: gpfifo schedule 0xcaf0001d: bEnable 1 -> status 0x0 [synthesized (the emulated channel runs on its doorbell)]
+   204465361 E doorbell ioeventfd: 1 guest write(s) to BAR0 0xbb0090 signalled; ringing 3 recorded channel(s) [1, 2, 3]
+   204465381 W bar0 0x00bb0090 4  0x1          NV_VIRTUAL_FUNCTION_DOORBELL (usermode)
+   204465383 E boot: doorbell 20002: token 0x1 chid 1 runlist 0
+   204465386 W bar0 0x00bb0090 4  0x2          NV_VIRTUAL_FUNCTION_DOORBELL (usermode)
+   204465388 E boot: doorbell 20003: token 0x2 chid 2 runlist 0
+   204465417 W bar0 0x00bb0090 4  0x3          NV_VIRTUAL_FUNCTION_DOORBELL (usermode)
+   204465418 E boot: doorbell 20004: token 0x3 chid 3 runlist 0
+   204465419 E boot: chid 3 gp 0: pushbuffer va 0x120100000 10 dwords
+   204465799 E boot: doorbell 144: libos args PA 0x127eb6000 (mapped), wpr meta PA 0x127eb5000
+   204466136 E boot: doorbell 145: libos args PA 0x127eb6000 (mapped), wpr meta PA 0x127eb5000
+   204466314 E boot: doorbell 146: libos args PA 0x127eb6000 (mapped), wpr meta PA 0x127eb5000
+   204497938 E boot: doorbell 147: libos args PA 0x127eb6000 (mapped), wpr meta PA 0x127eb5000
+   204498718 E boot: doorbell 148: libos args PA 0x127eb6000 (mapped), wpr meta PA 0x127eb5000
+   204499502 E boot: doorbell 149: libos args PA 0x127eb6000 (mapped), wpr meta PA 0x127eb5000
+   204501186 E boot: doorbell 150: libos args PA 0x127eb6000 (mapped), wpr meta PA 0x127eb5000
+   204501189 E boot: ctrl 0xa06f0103: gpfifo schedule 0xcaf00028: bEnable 1 -> status 0x0 [synthesized (the emulated channel runs on its doorbell)]
+   204502159 E doorbell ioeventfd: 1 guest write(s) to BAR0 0xbb0090 signalled; ringing 4 recorded channel(s) [1, 2, 3, 4]
+   204502183 W bar0 0x00bb0090 4  0x1          NV_VIRTUAL_FUNCTION_DOORBELL (usermode)
+   204502185 E boot: doorbell 20005: token 0x1 chid 1 runlist 0
+   204502188 W bar0 0x00bb0090 4  0x2          NV_VIRTUAL_FUNCTION_DOORBELL (usermode)
+   204502189 E boot: doorbell 20006: token 0x2 chid 2 runlist 0
+   204502192 W bar0 0x00bb0090 4  0x3          NV_VIRTUAL_FUNCTION_DOORBELL (usermode)
+   204502193 E boot: doorbell 20007: token 0x3 chid 3 runlist 0
+   204502219 W bar0 0x00bb0090 4  0x4          NV_VIRTUAL_FUNCTION_DOORBELL (usermode)
+   204502221 E boot: doorbell 20008: token 0x4 chid 4 runlist 0
+   204502222 E boot: chid 4 gp 0: pushbuffer va 0x120200000 10 dwords
+   204541513 E boot: doorbell 151: libos args PA 0x127eb6000 (mapped), wpr meta PA 0x127eb5000
+   204542644 E boot: doorbell 152: libos args PA 0x127eb6000 (mapped), wpr meta PA 0x127eb5000
+   204543602 E boot: doorbell 153: libos args PA 0x127eb6000 (mapped), wpr meta PA 0x127eb5000
+   204545502 E boot: doorbell 154: libos args PA 0x127eb6000 (mapped), wpr meta PA 0x127eb5000
+   204545505 E boot: ctrl 0xa06f0103: gpfifo schedule 0xcaf00033: bEnable 1 -> status 0x0 [synthesized (the emulated channel runs on its doorbell)]
+   204545978 E doorbell ioeventfd: 1 guest write(s) to BAR0 0xbb0090 signalled; ringing 5 recorded channel(s) [1, 2, 3, 4, 5]
+   204546001 W bar0 0x00bb0090 4  0x1          NV_VIRTUAL_FUNCTION_DOORBELL (usermode)
+   204546003 E boot: doorbell 20009: token 0x1 chid 1 runlist 0
+   204546006 W bar0 0x00bb0090 4  0x2          NV_VIRTUAL_FUNCTION_DOORBELL (usermode)
+   204546007 E boot: doorbell 20010: token 0x2 chid 2 runlist 0
+   204546010 W bar0 0x00bb0090 4  0x3          NV_VIRTUAL_FUNCTION_DOORBELL (usermode)
+   204546011 E boot: doorbell 20011: token 0x3 chid 3 runlist 0
+   204546013 W bar0 0x00bb0090 4  0x4          NV_VIRTUAL_FUNCTION_DOORBELL (usermode)
+   204546014 E boot: doorbell 20012: token 0x4 chid 4 runlist 0
+   204546036 W bar0 0x00bb0090 4  0x5          NV_VIRTUAL_FUNCTION_DOORBELL (usermode)
+   204546038 E boot: doorbell 20013: token 0x5 chid 5 runlist 0
+   204546039 E boot: chid 5 gp 0: pushbuffer va 0x120300000 10 dwords
+   204546338 E boot: doorbell 155: libos args PA 0x127eb6000 (mapped), wpr meta PA 0x127eb5000
+   204546531 E boot: doorbell 156: libos args PA 0x127eb6000 (mapped), wpr meta PA 0x127eb5000
+   204546664 E boot: doorbell 157: libos args PA 0x127eb6000 (mapped), wpr meta PA 0x127eb5000
+   204574219 E boot: doorbell 158: libos args PA 0x127eb6000 (mapped), wpr meta PA 0x127eb5000
+   204574872 E boot: doorbell 159: libos args PA 0x127eb6000 (mapped), wpr meta PA 0x127eb5000
+   204575501 E boot: doorbell 160: libos args PA 0x127eb6000 (mapped), wpr meta PA 0x127eb5000
+   204577136 E boot: doorbell 161: libos args PA 0x127eb6000 (mapped), wpr meta PA 0x127eb5000
+   204577140 E boot: ctrl 0xa06f0103: gpfifo schedule 0xcaf0003e: bEnable 1 -> status 0x0 [synthesized (the emulated channel runs on its doorbell)]
+   204577625 E doorbell ioeventfd: 1 guest write(s) to BAR0 0xbb0090 signalled; ringing 6 recorded channel(s) [1, 2, 3, 4, 5, 6]
+   204577645 W bar0 0x00bb0090 4  0x1          NV_VIRTUAL_FUNCTION_DOORBELL (usermode)
+   204577647 E boot: doorbell 20014: token 0x1 chid 1 runlist 0
+   204577650 W bar0 0x00bb0090 4  0x2          NV_VIRTUAL_FUNCTION_DOORBELL (usermode)
+   204577651 E boot: doorbell 20015: token 0x2 chid 2 runlist 0
+   204577653 W bar0 0x00bb0090 4  0x3          NV_VIRTUAL_FUNCTION_DOORBELL (usermode)
+   204577655 E boot: doorbell 20016: token 0x3 chid 3 runlist 0
+   204577657 W bar0 0x00bb0090 4  0x4          NV_VIRTUAL_FUNCTION_DOORBELL (usermode)
+   204577658 E boot: doorbell 20017: token 0x4 chid 4 runlist 0
+   204577660 W bar0 0x00bb0090 4  0x5          NV_VIRTUAL_FUNCTION_DOORBELL (usermode)
+   204577662 E boot: doorbell 20018: token 0x5 chid 5 runlist 0
+   204577682 W bar0 0x00bb0090 4  0x6          NV_VIRTUAL_FUNCTION_DOORBELL (usermode)
+   204577683 E boot: doorbell 20019: token 0x6 chid 6 runlist 0
+   204577684 E boot: chid 6 gp 0: pushbuffer va 0x120400000 10 dwords
+   204607738 E boot: doorbell 162: libos args PA 0x127eb6000 (mapped), wpr meta PA 0x127eb5000
+   204608600 E boot: doorbell 163: libos args PA 0x127eb6000 (mapped), wpr meta PA 0x127eb5000
+   204609378 E boot: doorbell 164: libos args PA 0x127eb6000 (mapped), wpr meta PA 0x127eb5000
+   204610886 E boot: doorbell 165: libos args PA 0x127eb6000 (mapped), wpr meta PA 0x127eb5000
+   204610889 E boot: ctrl 0xa06f0103: gpfifo schedule 0xcaf00049: bEnable 1 -> status 0x0 [synthesized (the emulated channel runs on its doorbell)]
+   204611428 E doorbell ioeventfd: 1 guest write(s) to BAR0 0xbb0090 signalled; ringing 7 recorded channel(s) [1, 2, 3, 4, 5, 6, 7]
+   204611460 W bar0 0x00bb0090 4  0x1          NV_VIRTUAL_FUNCTION_DOORBELL (usermode)
+   204611462 E boot: doorbell 20020: token 0x1 chid 1 runlist 0
+   204611466 W bar0 0x00bb0090 4  0x2          NV_VIRTUAL_FUNCTION_DOORBELL (usermode)
+   204611467 E boot: doorbell 20021: token 0x2 chid 2 runlist 0
+   204611470 W bar0 0x00bb0090 4  0x3          NV_VIRTUAL_FUNCTION_DOORBELL (usermode)
+   204611471 E boot: doorbell 20022: token 0x3 chid 3 runlist 0
+   204611474 W bar0 0x00bb0090 4  0x4          NV_VIRTUAL_FUNCTION_DOORBELL (usermode)
+   204611475 E boot: doorbell 20023: token 0x4 chid 4 runlist 0
+   204611478 W bar0 0x00bb0090 4  0x5          NV_VIRTUAL_FUNCTION_DOORBELL (usermode)
+   204611480 E boot: doorbell 20024: token 0x5 chid 5 runlist 0
+   204611482 W bar0 0x00bb0090 4  0x6          NV_VIRTUAL_FUNCTION_DOORBELL (usermode)
+   204611484 E boot: doorbell 20025: token 0x6 chid 6 runlist 0
+   204611502 W bar0 0x00bb0090 4  0x7          NV_VIRTUAL_FUNCTION_DOORBELL (usermode)
+   204611504 E boot: doorbell 20026: token 0x7 chid 7 runlist 0
+   204611506 E boot: chid 7 gp 0: pushbuffer va 0x120500000 10 dwords
+   204611612 E doorbell ioeventfd: 1 guest write(s) to BAR0 0xbb0090 signalled; ringing 7 recorded channel(s) [1, 2, 3, 4, 5, 6, 7]
+   204611618 W bar0 0x00bb0090 4  0x1          NV_VIRTUAL_FUNCTION_DOORBELL (usermode)
+   204611621 E boot: doorbell 20027: token 0x1 chid 1 runlist 0
+   204611624 W bar0 0x00bb0090 4  0x2          NV_VIRTUAL_FUNCTION_DOORBELL (usermode)
+   204611626 E boot: doorbell 20028: token 0x2 chid 2 runlist 0
+   204611630 W bar0 0x00bb0090 4  0x3          NV_VIRTUAL_FUNCTION_DOORBELL (usermode)
+   204611632 E boot: doorbell 20029: token 0x3 chid 3 runlist 0
+   204611635 W bar0 0x00bb0090 4  0x4          NV_VIRTUAL_FUNCTION_DOORBELL (usermode)
+   204611637 E boot: doorbell 20030: token 0x4 chid 4 runlist 0
+   204611641 W bar0 0x00bb0090 4  0x5          NV_VIRTUAL_FUNCTION_DOORBELL (usermode)
+   204611643 E boot: doorbell 20031: token 0x5 chid 5 runlist 0
+   204611667 W bar0 0x00bb0090 4  0x6          NV_VIRTUAL_FUNCTION_DOORBELL (usermode)
+   204611670 E boot: doorbell 20032: token 0x6 chid 6 runlist 0
+   204611672 E boot: chid 6 gp 1: pushbuffer va 0x120600000 26 dwords
+   204611680 W bar0 0x00bb0090 4  0x7          NV_VIRTUAL_FUNCTION_DOORBELL (usermode)
+   204611682 E boot: doorbell 20033: token 0x7 chid 7 runlist 0
+   204612302 E boot: doorbell 166: libos args PA 0x127eb6000 (mapped), wpr meta PA 0x127eb5000
+   204626611 E boot: doorbell 167: libos args PA 0x127eb6000 (mapped), wpr meta PA 0x127eb5000
+   204627520 E boot: doorbell 168: libos args PA 0x127eb6000 (mapped), wpr meta PA 0x127eb5000
+   204633515 E boot: doorbell 169: libos args PA 0x127eb6000 (mapped), wpr meta PA 0x127eb5000
+   204642802 E boot: doorbell 170: libos args PA 0x127eb6000 (mapped), wpr meta PA 0x127eb5000
+   204643583 E boot: doorbell 171: libos args PA 0x127eb6000 (mapped), wpr meta PA 0x127eb5000
+   204680425 E boot: doorbell 172: libos args PA 0x127eb6000 (mapped), wpr meta PA 0x127eb5000
+   204689083 E boot: doorbell 173: libos args PA 0x127eb6000 (mapped), wpr meta PA 0x127eb5000
+   204689899 E boot: doorbell 174: libos args PA 0x127eb6000 (mapped), wpr meta PA 0x127eb5000
+   204690534 E boot: doorbell 175: libos args PA 0x127eb6000 (mapped), wpr meta PA 0x127eb5000
+   204696528 E boot: doorbell 176: libos args PA 0x127eb6000 (mapped), wpr meta PA 0x127eb5000
+   204706155 E boot: doorbell 177: libos args PA 0x127eb6000 (mapped), wpr meta PA 0x127eb5000
+   204706770 E boot: doorbell 178: libos args PA 0x127eb6000 (mapped), wpr meta PA 0x127eb5000
+   204711983 E boot: doorbell 179: libos args PA 0x127eb6000 (mapped), wpr meta PA 0x127eb5000
+   204722351 E boot: doorbell 180: libos args PA 0x127eb6000 (mapped), wpr meta PA 0x127eb5000
+   204724207 E boot: doorbell 181: libos args PA 0x127eb6000 (mapped), wpr meta PA 0x127eb5000
+   204725178 E boot: doorbell 182: libos args PA 0x127eb6000 (mapped), wpr meta PA 0x127eb5000
+   204730500 E boot: doorbell 183: libos args PA 0x127eb6000 (mapped), wpr meta PA 0x127eb5000
+   204741240 E boot: doorbell 184: libos args PA 0x127eb6000 (mapped), wpr meta PA 0x127eb5000
+   204742361 E boot: doorbell 185: libos args PA 0x127eb6000 (mapped), wpr meta PA 0x127eb5000
+   204746933 E boot: doorbell 186: libos args PA 0x127eb6000 (mapped), wpr meta PA 0x127eb5000
+   204755889 E boot: doorbell 187: libos args PA 0x127eb6000 (mapped), wpr meta PA 0x127eb5000
+   204759316 E boot: doorbell 188: libos args PA 0x127eb6000 (mapped), wpr meta PA 0x127eb5000
+   204767807 E boot: doorbell 189: libos args PA 0x127eb6000 (mapped), wpr meta PA 0x127eb5000
+   204768965 E boot: doorbell 190: libos args PA 0x127eb6000 (mapped), wpr meta PA 0x127eb5000
+   204770149 E boot: doorbell 191: libos args PA 0x127eb6000 (mapped), wpr meta PA 0x127eb5000
+   204771316 E boot: doorbell 192: libos args PA 0x127eb6000 (mapped), wpr meta PA 0x127eb5000
+   204773675 E boot: doorbell 193: libos args PA 0x127eb6000 (mapped), wpr meta PA 0x127eb5000
+   204774233 E boot: doorbell 194: libos args PA 0x127eb6000 (mapped), wpr meta PA 0x127eb5000
+   204774353 E boot: doorbell 195: libos args PA 0x127eb6000 (mapped), wpr meta PA 0x127eb5000

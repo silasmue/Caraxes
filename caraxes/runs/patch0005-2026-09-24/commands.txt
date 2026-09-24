@@ -1,0 +1,91 @@
+# SPDX-License-Identifier: MIT
+# Patch 0005 (vfio-user region I/O fds) functional check in vm3, 2026-09-24, pure emulation
+# (no CARAXES_RESERVE_VRAM, no CARAXES_HOST_EXEC, no CARAXES_DMA). Times in ch.log are seconds
+# since Cloud Hypervisor start; gpu-trace.log times are microseconds since server start.
+# Tree: fd1e5e7 plus uncommitted work (patches/0005, vendor/vfio-user-rs, device.rs, main.rs,
+# Cargo.toml, and other agents' changes in crates/vfio-user-nvgpu, tools/caraxes-vm.sh).
+
+== Inputs
+- Cloud Hypervisor: v53.0 + patches 0001-0005, commit ba20497bc in /mnt/vmstore/caraxes/ch-0005
+  (git am of patches/000[1-5]-*.patch reproduces it), cargo build --offline --locked --release,
+  frozen as /mnt/vmstore/caraxes/vm3/cloud-hypervisor-0005, "cloud-hypervisor v53.0-5-gba20497bc",
+  sha256 c86623610647879e6a075126c1db2b6de428b52564dfe21a42bf43296d5c1e63. Run through
+  /mnt/vmstore/caraxes/vm3/ch-0005-v.sh (adds -v) as LEA_CH, so that INFO lines are logged.
+  vfio_user comes from vendor/vfio-user-rs through the symlink /mnt/vmstore/caraxes/vfio-user-rs.
+- Device, new: target/release/vfio-user-nvgpu built 2026-09-24 ~10:00 local with the vendored
+  vfio_user, frozen as /mnt/vmstore/caraxes/vm3/vfio-user-nvgpu-0005,
+  sha256 d28cddffb4746ef8a619912b41f0ec91f9f9fa38c341b633d072a12dcb6ce08e. It contains the
+  uncommitted work of other agents in crates/vfio-user-nvgpu as of that time.
+- Device, stock: /mnt/vmstore/caraxes/vm3/vfio-user-nvgpu as left there at 08:16 (vfio_user 0.1.6
+  from crates.io, no GET_REGION_IO_FDS), sha256 1908c29ca6a110c4d057dd0db024f13235283aaa418a2217bd86861841ca67e2.
+- Guest: vm3 as prepared for the ACPI _DMA tests (caraxes/runs/acpi-dma-2026-09-23/commands.txt),
+  stock kernel 6.8.0-136-generic, nvidia 610.57.04 open modules.
+- bench: caraxes/tools/bench-trap.c with the optional third argument (write offset) added for this
+  check; 0x1400 is the latched scratch register, 0xbb0090 the usermode doorbell
+  (NV_VIRTUAL_FUNCTION_DOORBELL, chip registers.usermode_doorbell).
+- Host GPU: the device opens the host RM as an unprivileged client (CARAXES_HOST_RM=1, as asked);
+  nothing else on the host GPU was touched.
+
+== Environment (every run): source env.sh (VM=vm3 CARAXES_TAP=caraxes3 CARAXES_IP=192.168.103.23
+   CARAXES_MAC=02:00:00:00:00:23 CARAXES_HOST_RM=1 CARAXES_BOOT_MODEL=1 LEA_CH=.../ch-0005-v.sh)
+
+== Run S: patched Cloud Hypervisor, stock server
+  export CARAXES_SERVER=/mnt/vmstore/caraxes/vm3/vfio-user-nvgpu; unset CARAXES_DOORBELL_IOEVENTFD
+  tools/caraxes-vm.sh up && tools/caraxes-vm.sh wait
+  tools/caraxes-vm.sh probe p0005-S-stock
+  tools/caraxes-vm.sh down
+  Result (S-stock-server/): the server logs "Error handling command: 6: Unsupported command:
+  GetRegionIoFds" and then "Error handling command: 0: Unsupported command: Unknown" (it took the
+  unread 16-byte payload for a header); Cloud Hypervisor logs "Dropping an error reply to a command
+  that was not sent: Header { message_id: 656, command: 0, ... }" (656 = the request's argsz) and
+  once "gpu0: the server provides no region I/O fds (error reply for region 0, errno 0); BAR writes
+  stay trapped". The guest driver loads: "RmInitAdapter succeeded!", modprobe rc=0.
+
+== Run A: patched Cloud Hypervisor, new server, flag off (the trap baseline)
+  export CARAXES_SERVER=/mnt/vmstore/caraxes/vm3/vfio-user-nvgpu-0005; unset CARAXES_DOORBELL_IOEVENTFD
+  tools/caraxes-vm.sh up && tools/caraxes-vm.sh wait
+  tools/caraxes-vm.sh probe p0005-A-off
+  tools/caraxes-vm.sh ssh 'mkdir -p ~/bench && cat > ~/bench/bench-trap.c' < caraxes/tools/bench-trap.c
+  tools/caraxes-vm.sh ssh 'cd ~/bench && gcc -O2 -o bench-trap bench-trap.c && for off in 0x1400 0xbb0090; do sudo ./bench-trap /sys/bus/pci/devices/0000:00:05.0/resource0 20000 $off; done'
+  tools/caraxes-vm.sh down
+  Result (A-flag-off/): no region I/O fd line in ch.log (the server answers count 0 for every BAR);
+  the driver loads; bench-trap: scratch write p50 26.7 us, doorbell write p50 28.2 us; the device
+  trace has 20000 "W bar0 0x00bb0090" accesses carrying the bench's values 0..19999 (trapped).
+
+== Run B: patched Cloud Hypervisor, new server, CARAXES_DOORBELL_IOEVENTFD=1
+  export CARAXES_SERVER=/mnt/vmstore/caraxes/vm3/vfio-user-nvgpu-0005 CARAXES_DOORBELL_IOEVENTFD=1
+  tools/caraxes-vm.sh up && tools/caraxes-vm.sh wait
+  tools/caraxes-vm.sh probe p0005-B-on
+  (bench-trap as in run A)
+  tools/caraxes-vm.sh uvm p0005-B-uvm
+  Result (B-flag-on/):
+  - gpu.log: "doorbell ioeventfd: BAR0 0xbb0090, 4 bytes, no datamatch, offered through
+    VFIO_USER_DEVICE_GET_REGION_IO_FDS"; ch.log: "gpu0: region 0 offset 0xbb0090: ioeventfd at
+    0xe6bb0090, len 4, datamatch None".
+  - The driver loads (RmInitAdapter succeeded, modprobe rc=0).
+  - bench-trap: scratch write p50 26.7 us (still trapped), doorbell write p50 3.9 us, p99 10.3 us.
+  - Device trace: 20006 "E doorbell ioeventfd" events; every "W bar0 0x00bb0090" line is the reader
+    thread re-ringing a recorded channel right after such an event (values are the channels' chids,
+    0x1 20006 times = one per event, 0x2-0x7 during uvm); none carries a bench value, i.e. no guest
+    doorbell write arrived as VFIO_USER_REGION_WRITE (trace-doorbell.txt).
+  - uvm: UVM_INITIALIZE, UVM_REGISTER_GPU and UVM_UNREGISTER_GPU return 0, uvm-register rc=0,
+    7 pushes executed; the driver's 7 doorbells arrived as 7 eventfd wakeups (uvm-trace-doorbells.txt).
+
+== Removal and re-add (B-removal-readd/), continuing run B
+  tools/caraxes-vm.sh ssh 'sudo rmmod nvidia_uvm nvidia'
+  curl -s --unix-socket /mnt/vmstore/caraxes/vm3/ch.sock -X PUT http://localhost/api/v1/vm.remove-device -d '{"id":"gpu0"}'   -> 204
+  ch.log: "device-removed id = gpu0"; no "Could not unregister" line; the server logs
+  "doorbell ioeventfd: 20007 guest write(s) in 20006 wakeup(s)" and exits.
+  A new server: CARAXES_DOORBELL_IOEVENTFD=1 vfio-user-nvgpu-0005 --socket $W/gpu2.sock --trace $W/gpu-trace-readd.log
+    --config caraxes/reference/rtx2070/config-space.txt --rom .../rom.bin --vbios .../synth-vbios.bin --boot-model --host-rm
+  curl ... vm.add-user-device -d '{"socket":"/mnt/vmstore/caraxes/vm3/gpu2.sock","id":"gpu1"}'   -> 200, bdf 0000:00:05.0
+  ch.log: "gpu1: region 0 offset 0xbb0090: ioeventfd at 0xe6bb0090, len 4, datamatch None". KVM refuses a
+  second ioeventfd with the same address and length and no datamatch (EEXIST), so the one of gpu0 was
+  deassigned at removal.
+  tools/caraxes-vm.sh ssh 'sudo modprobe nvidia; cd ~/bench && sudo ./bench-trap .../resource0 2000 0xbb0090'
+  -> RmInitAdapter succeeded; doorbell write p50 3.9 us; 1999 wakeups for 2000 writes.
+  tools/caraxes-vm.sh down
+
+  ch.log of run B: 58864 "Unmasking IRQ 0" lines were compressed into one note. They fall between
+  rmmod nvidia (MSI off, INTx on, 243 s) and the removal (248 s): v53.0's VfioCommon::read_bar and
+  write_bar unmask INTx on every BAR access, and the driver's teardown makes that many. Not from 0005.
