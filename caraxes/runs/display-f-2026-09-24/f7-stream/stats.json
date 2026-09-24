@@ -1,0 +1,40 @@
+{
+  "incoming_fps": [
+    "25.85"
+  ],
+  "decoding_fps": [
+    "25.85"
+  ],
+  "rendering_fps": [
+    "25.67"
+  ],
+  "host_latency": [
+    "50.6",
+    "494.9",
+    "101.3"
+  ],
+  "decode_time": [
+    "0.56"
+  ],
+  "net_latency": [
+    "9"
+  ],
+  "drop_network": [
+    "0.00"
+  ],
+  "drop_jitter": [
+    "0.35"
+  ],
+  "bitrate_mbps": null,
+  "capture": "kms",
+  "encoder": "software",
+  "encoder_line": "[2026-09-24 11:49:09.244]: Info: Found H.264 encoder: libx264 [software]",
+  "bitrate_kbps": 20000,
+  "resolution": "1920x1080",
+  "fps": 60,
+  "seconds": 60,
+  "sunshine_alive_at_end": true,
+  "valid": true,
+  "guest_cpu_percent": 26.14,
+  "guest_cpu_cores": 2.091
+}

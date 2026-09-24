@@ -1,0 +1,28 @@
+window 10 s [1277760852, 1287760852) us; presented frames (latches with a surface): window 6: 585; per-frame base: window 6 = 585 (58.50 Hz)
+what                                                              count  per frame
+BAR0 writes, all                                                  19505      33.34
+  interrupt enable/clear (VF CPU_INTR)                             7761      13.27
+  0x160/0x180 (latched)                                            5812       9.94
+  other 0x88704 NV_PCFG (config mirror)                            2935       5.02
+  doorbell (usermode NOTIFY_CHANNEL_PENDING)                       1168       2.00
+  other 0x696000                                                    649       1.11
+  other 0x61180c                                                    595       1.02
+  other 0x611858                                                    585       1.00
+BAR0 reads, all                                                   71166     121.65
+  0x611ec0                                                        24552      41.97
+  NV_VF_CPU_INTR_LEAF                                             20305      34.71
+  NV_VF_CPU_INTR_LEAF_EN_SET                                       7708      13.18
+  NV_VIRTUAL_FUNCTION_TIME_0/1                                     5235       8.95
+  NV_VF_CPU_INTR_TOP                                               4862       8.31
+BAR1 writes, all                                                   1168       2.00
+  USERD GPPut (offset 0x8c)                                        1168       2.00
+BAR1 reads                                                            0       0.00
+BAR2 writes, all                                                      0       0.00
+BAR2 reads                                                            0       0.00
+all trapped accesses                                              91839     156.99
+MSIs signalled                                                        9       0.02
+display channel kicks                                               649       1.11
+forwarded doorbells (host doorbell rung)                           1168       2.00
+host notifier events (no MSI)                                       419       0.72
+host notifier events -> MSI                                        2083       3.56
+shadow plans applied (sync lines)                                     0       0.00

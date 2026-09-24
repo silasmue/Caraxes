@@ -1,0 +1,5 @@
+# SPDX-License-Identifier: MIT
+# 2026-09-24 13:20:29 guest command:
+bash caraxes-f/demos-gnome.sh f2
+rc=0
+full trace 5889871 lines, events only kept

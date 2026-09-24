@@ -1,0 +1,7 @@
+# SPDX-License-Identifier: MIT
+# f5/f5b launch (13:32): the series-F environment plus
+#   LEA_CH=/mnt/vmstore/caraxes/vm3/ch-0005-v.sh CARAXES_DOORBELL_IOEVENTFD=1
+# (not combined with CARAXES_BAR1_PASSTHROUGH). What the two sides logged at attach:
+device gpu.log: vfio-user-nvgpu: doorbell ioeventfd: BAR0 0xbb0090, 4 bytes, no datamatch, offered through VFIO_USER_DEVICE_GET_REGION_IO_FDS (CARAXES_DOORBELL_IOEVENTFD=1)
+cloud-hypervisor ch.log: 4.292549s: <vmm> INFO:pci/src/vfio_user.rs:464 -- gpu0: region 0 offset 0xbb0090: ioeventfd at 0xe6bb0090, len 4, datamatch None
+guest: RmInitAdapter succeeded; display-up card0-DP-1 connected 1920x1080

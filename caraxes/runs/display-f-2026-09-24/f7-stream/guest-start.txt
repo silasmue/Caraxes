@@ -1,0 +1,6 @@
+was_up=0
+[2026-09-24 11:49:09.244]: Info: Found H.264 encoder: libx264 [software]
+[2026-09-24 11:49:05.909]: Info: config: 'capture' = kms
+[2026-09-24 11:49:05.909]: Debug: Monitor description
+[2026-09-24 11:49:05.946]: Info: Screencasting with KMS
+[2026-09-24 11:49:05.946]: Info: Found monitor for DRM screencasting
