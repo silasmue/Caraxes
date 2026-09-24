@@ -767,6 +767,7 @@ def chip_rule_handlers(ctrl_by_name):
     empty_ok = {e["name"]: e["label"] for e in feats.get("empty_ok", [])}
     dp = dmodel_file()
     e_ack = set()
+    d_names = {}
     if dp:
         dtext = read(dp)
         ack_block = dtext.split("pub const D_E_ACK: &[u32] = &[", 1)[-1].split("];", 1)[0]
@@ -776,6 +777,8 @@ def chip_rule_handlers(ctrl_by_name):
         rx_rule = re.compile(r'DRule \{\s*id: (0x[0-9A-Fa-f_]+),\s*name: "(\w+)",.*?'
                              r'answer: DAnswer::(\w+),.*?reclass: \'(.)\'', re.S)
         for m in rx_rule.finditer(dtext):
+            # Controls the inventory names by handler (no #define, e.g. 0x20800A3E).
+            d_names[m.group(2)] = hexint(m.group(1))
             kind, reclass = m.group(3), m.group(4)
             if reclass != "-":
                 continue
@@ -810,7 +813,7 @@ def chip_rule_handlers(ctrl_by_name):
         for e in tomllib.loads(read(ctl_p)).get("control", []):
             if "open" in e:
                 continue
-            val = ctrl_by_name.get(e["name"])
+            val = ctrl_by_name.get(e["name"], d_names.get(e["name"]))
             if val is None or DRIVER.split(".")[0] not in e.get("abi", ["610", "615"]):
                 continue
             labels = [c["label"] for c in e.get("case", []) if "label" in c] or [e["label"]]

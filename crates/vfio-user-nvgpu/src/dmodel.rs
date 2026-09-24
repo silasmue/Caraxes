@@ -18,7 +18,7 @@
 //! * `ACK`: NV_OK, request echoed, label [`ACKNOWLEDGED`].
 //!
 //! Not here: the rows that move to E (feature families, chipctl.rs and `[features]` of the
-//! chip file), to A (chips/<chip>/controls.toml) and to C (the guest-state work of category
+//! chip file), to A (`chips/<chip>/controls.toml`) and to C (the guest-state work of category
 //! C, listed in the plan); `MODEL` and `MIRROR` rows without a model stay `unanswered`. The
 //! display rows are answered by the display's board table (display/mod.rs), which asks
 //! [`answer`] for its fallback; this hook in `Dispatcher::control` answers them only when
