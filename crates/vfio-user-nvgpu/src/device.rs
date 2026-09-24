@@ -843,6 +843,12 @@ impl ServerBackend for Device {
                         let t = boot.bar_access(mem, region, offset, &mut d, true);
                         self.trace
                             .access(Dir::Write, region, offset, data, Some(&t));
+                        if t.contains(crate::boot::GP_PUT_HELD) {
+                            // The GPPut barrier (boot.rs `gp_put_barrier`) as an event, so
+                            // the event-only windows show it too.
+                            self.trace
+                                .event(&format!("shadow: BAR{region} write {offset:#x}: {t}"));
+                        }
                         return Ok(());
                     }
                     None => Some("dropped"),

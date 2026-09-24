@@ -125,6 +125,18 @@ const GSP_SWGEN0: u32 = 1 << 6;
 /// `NV_VGPU_MSG_EVENT_POST_EVENT` (rpc_global_enums.h).
 const POST_EVENT: u32 = 0x1003;
 
+/// The trace's words for a GPPut store the barrier held (device.rs makes it an event).
+pub const GP_PUT_HELD: &str = "GPPut of a mirrored channel held";
+
+/// Whether a store of `len` bytes at FB `pa` writes the GPPut dword (USERD + 0x8C,
+/// `clc46f.h:61-62`) of one of the channels whose USERD is at `userds`.
+pub(crate) fn stores_gp_put(userds: &[u64], pa: u64, len: usize) -> bool {
+    const GP_PUT: u64 = 0x8C;
+    userds
+        .iter()
+        .any(|&u| pa < u + GP_PUT + 4 && u + GP_PUT < pa + len as u64)
+}
+
 impl BootModel {
     /// The model for `layout`: the firmware boot reports its address space as the FB
     /// size (`LOCAL_MEMORY_RANGE`), the fake FB spans it, and the static info takes the
@@ -227,6 +239,15 @@ impl BootModel {
         self.ctrl.display.read32_io(off, &mut self.fb, mem)
     }
 
+    /// The display clock's tick with the display page (display/mod.rs `Display::tick`):
+    /// a waiting connector command first, as a trapped display read would do.
+    pub fn display_tick(&mut self, mem: &GuestMemory) -> Vec<String> {
+        if crate::display::engine::ticker().command_pending() {
+            self.post_display_command(mem);
+        }
+        self.ctrl.display.tick(&mut self.fb, mem)
+    }
+
     /// A BAR0 write to the display (display/mod.rs).
     pub fn display_write32(&mut self, off: u64, v: u32, mem: &GuestMemory) -> Option<Vec<String>> {
         if off == GSP_IRQSCLR && v & GSP_SWGEN0 != 0 {
@@ -239,15 +260,6 @@ impl BootModel {
     }
 
     /// Act on a host-side connector command (display/mod.rs `connector_command`): post
-    /// The display clock's tick with the display page (display/mod.rs `Display::tick`):
-    /// a waiting connector command first, as a trapped display read would do.
-    pub fn display_tick(&mut self, mem: &GuestMemory) -> Vec<String> {
-        if crate::display::engine::ticker().command_pending() {
-            self.post_display_command(mem);
-        }
-        self.ctrl.display.tick(&mut self.fb, mem)
-    }
-
     /// one `POST_EVENT` (0x1003, `rpc_post_event_v17_00`) per registered hotplug event.
     fn post_display_command(&mut self, mem: &GuestMemory) {
         let Some(cmd) = crate::display::engine::ticker().take_command() else {
@@ -369,9 +381,14 @@ impl BootModel {
             self.fb.bar2_note_trapped();
             self.fb.bar2_sync(Some(root), Some(mem));
         }
+        let held = if write && bar == 1 {
+            self.gp_put_barrier(root, offset, data.len())
+        } else {
+            String::new()
+        };
         let t = self.fb.bar_access(mem, root, offset, data, write);
         match t {
-            Target::Fb(pa) => format!("fb {pa:#x}"),
+            Target::Fb(pa) => format!("fb {pa:#x}{held}"),
             Target::Sys(pa) => format!("sys {pa:#x}"),
             Target::Sparse => "sparse".into(),
             Target::Unmapped { level } => {
@@ -379,6 +396,33 @@ impl BootModel {
                 format!("UNMAPPED (level {level})")
             }
         }
+    }
+
+    /// The ordering rule of the doorbell (mirror.rs `gr_shadow_doorbell`) for the store
+    /// that really starts the work: a guest GPPut store into a mirrored channel's USERD
+    /// reaches the host channel's USERD at once, and a loaded host channel may fetch it
+    /// before the doorbell. So the store waits until the shadow worker applied every plan
+    /// submitted so far (display-e.md §9). Returns the trace's note, empty when it did
+    /// not wait.
+    fn gp_put_barrier(&mut self, root: u64, va: u64, len: usize) -> String {
+        let Some(m) = self.ctrl.mirror.as_ref() else {
+            return String::new();
+        };
+        if !m.shadow_pending() {
+            return String::new();
+        }
+        let Target::Fb(pa) = self.fb.bar_translate(root, va) else {
+            return String::new();
+        };
+        if !stores_gp_put(&m.mirrored_userds(&self.ctrl.channels), pa, len) {
+            return String::new();
+        }
+        let t0 = std::time::Instant::now();
+        m.shadow_barrier();
+        format!(
+            " ({GP_PUT_HELD} {} us until the shadow worker applied its plans)",
+            t0.elapsed().as_micros()
+        )
     }
 
     /// Give the device a host RM connection for the forwardable RPCs.
@@ -1700,5 +1744,22 @@ mod tests {
         assert!(!notes.iter().any(|n| n.contains("queues linked")), "{notes:?}");
         assert_eq!(b.read32(0x0011_0C80), Some(0));
         let _ = std::fs::remove_file(&path);
+    }
+
+    /// The GPPut barrier's decision (display-e.md §9): a store that covers USERD + 0x8C of
+    /// a mirrored channel waits for the shadow worker; GPGet, the rest of USERD and other
+    /// channels' USERD do not.
+    #[test]
+    fn gp_put_stores_of_mirrored_channels_are_found() {
+        let userds = [0xE918_FE00u64, 0x1_0000_0000];
+        assert!(stores_gp_put(&userds, 0xE918_FE8C, 4), "the guest's 32-bit GPPut store");
+        assert!(stores_gp_put(&userds, 0xE918_FE88, 8), "GPGet and GPPut in one store");
+        assert!(stores_gp_put(&userds, 0xE918_FE8E, 1), "a byte of GPPut");
+        assert!(stores_gp_put(&userds, 0x1_0000_008C, 4), "the second channel");
+        assert!(!stores_gp_put(&userds, 0xE918_FE88, 4), "GPGet alone");
+        assert!(!stores_gp_put(&userds, 0xE918_FE90, 4), "past GPPut");
+        assert!(!stores_gp_put(&userds, 0xE918_FE40, 4), "elsewhere in USERD");
+        assert!(!stores_gp_put(&userds, 0xE919_008C, 4), "a channel that is not mirrored");
+        assert!(!stores_gp_put(&[], 0xE918_FE8C, 4), "no mirrored channel");
     }
 }

@@ -431,6 +431,26 @@ impl Mirror {
         self.worker.wait_all();
     }
 
+    /// Whether the worker has plans submitted and not yet applied (the GPPut barrier,
+    /// boot.rs `bar_access`).
+    pub fn shadow_pending(&self) -> bool {
+        self.worker.pending()
+    }
+
+    /// The FB addresses of every mirrored channel's USERD. The host channel reads its
+    /// GPPut there (the restore in `gr_shadow_doorbell`), so a guest GPPut store there must
+    /// wait for the worker as the doorbell does: a loaded host channel can fetch the new
+    /// GPPut without a doorbell (docs/caraxes/display-e.md §9, the Xid 31 of f2 and B1).
+    pub fn mirrored_userds(&self, reg: &Registry) -> Vec<u64> {
+        self.channels
+            .keys()
+            .filter_map(|chid| match reg.channel(*chid).and_then(|c| c.userd) {
+                Some(Target::Fb(u)) => Some(u),
+                _ => None,
+            })
+            .collect()
+    }
+
     /// Free a shadow VAS whose last channel and TSG are gone.
     fn reap_shadows(&mut self, fb: Option<&crate::fb::FakeFb>, notes: &mut Vec<String>) {
         let empty: Vec<u64> = self
@@ -2069,6 +2089,11 @@ impl ShadowWorker {
         if !self.enabled {
             self.wait_all();
         }
+    }
+
+    /// Jobs submitted and not yet done.
+    fn pending(&self) -> bool {
+        self.thread.is_some() && *self.done.0.lock().unwrap() < self.submitted
     }
 
     /// Block until every job submitted so far is done.
