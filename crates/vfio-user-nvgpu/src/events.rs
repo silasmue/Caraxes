@@ -12,10 +12,11 @@
 //!
 //! | Event | Raised | Trigger |
 //! |---|---|---|
-//! | POST_EVENT 0x1003 | yes | the display model's hotplug (boot.rs `post_display_command`) |
+//! | POST_EVENT 0x1003 | yes | the display model's hotplug (boot.rs `post_display_command`); the 615 operational-event import's callback event after the device wrote a GOE record into its buffer ([`post_event`], gspmem.rs `GspMemory::produce`) |
 //! | RC_TRIGGERED 0x1004, OS_ERROR_LOG 0x1006 | yes | the host RM's error write into the error notifier of a guest channel that runs on a host mirror: the notifier is the guest's own page (the mirror's `hObjectError`, mirror.rs), so only this device's channels can write it; one RC per channel until the guest frees it ([`ChannelWatch`]) |
 //! | GSP_RESUME_DONE (GMCAPI 0x10005) | yes | the device's own resume (boot.rs, B5) |
-//! | MMU_FAULT_QUEUED (GMCAPI 0x40001) | no | needs fault packets in the shadow buffer UVM registered; the software executor produces no faults and the host's fault buffer is not per client (events.md R3) |
+//! | Operational event records (615) | yes | a GOE record per RC the device raises (engine error, translation fault for Xid 31) into the import's registered guest buffer, then POST_EVENT; `CARAXES_GOE_SELFTEST=<s>` adds a SIMULATED debug record every `s` seconds for the guest probe |
+//! | MMU_FAULT_QUEUED (GMCAPI 0x40001) | no | a packet in UVM's shadow buffer needs a fault of a UVM-owned channel; per source: the software executor raises no faults (channel.rs); the per-VM mirror faults are of channels UVM does not own (UVM's own channels carry GP100_UVM_SW and stay in software, mirror.rs `eligible`), so they are RCs (Xid 31, R1) with the host's fault record read back from the own mirror channel (`Mirror::mmu_fault_info`) into GET_MMU_FAULT_INFO; the host's fault buffer is host-global and stays out (events.md R3) |
 //! | SEMAPHORE_SCHEDULE_CALLBACK 0x100b | no | needs GF100_DISP_SW (0x9072) methods executed at the display's vblank; the executor does not decode them (events.md R7) |
 //! | TIMED_SEMAPHORE_RELEASE 0x1018 | no | needs GF100_TIMED_SEMAPHORE_SW (0x9074) methods executed against a device timer (R8) |
 //! | GPUACCT_PERFMON_UTIL_SAMPLES 0x1008 | no | needs per-context busy accounting of the guest's own channels, which the device does not keep (R11) |
@@ -162,6 +163,18 @@ pub fn resume_done(d3hot: bool) -> Vec<u8> {
     (d3hot as u64).to_le_bytes().to_vec()
 }
 
+/// `rpc_post_event_v17_00` {hClient @0, hEvent @4, notifyIndex @8, data @12, info16 @16,
+/// status @20, eventDataSize @24, bNotifyList @28, eventData[] @29}, 32 bytes without
+/// event data (g_rpc-structures.h:1495-1506): a wake-up of the one event `h_event` of
+/// `h_client` (`bNotifyList` 0: kernel_gsp.c:693-705 finds the event by handle and calls
+/// its callback, which for the 615 import queues the drain, gpu_op_event_import.c:977).
+pub fn post_event(h_client: u32, h_event: u32) -> Vec<u8> {
+    let mut b = vec![0u8; 32];
+    put32(&mut b, 0, h_client);
+    put32(&mut b, 4, h_event);
+    b
+}
+
 /// One unsolicited message.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Unsolicited {
@@ -201,6 +214,14 @@ mod tests {
         assert_eq!(&e[OEL_ERR_STRING..OEL_ERR_STRING + 9], b"MMU fault");
         assert_eq!(e[OS_ERROR_LOG_SIZE - 1], 0, "terminated");
         assert_eq!(resume_done(false), vec![0; 8]);
+    }
+
+    #[test]
+    fn post_event_names_one_event() {
+        let b = post_event(0xc1e0_0007, 0xcaf0_0010);
+        assert_eq!(b.len(), 32);
+        assert_eq!(&b[0..8], &[0x07, 0x00, 0xe0, 0xc1, 0x10, 0x00, 0xf0, 0xca]);
+        assert!(b[8..].iter().all(|&x| x == 0), "notifyIndex 0, no data, bNotifyList 0");
     }
 
     #[test]
