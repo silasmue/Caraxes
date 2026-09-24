@@ -33,6 +33,8 @@ pub struct Ctx<'a> {
     pub reservation: Option<(u64, u64)>,
     /// The engines the device presents (the GPUMON filter zeroes the others).
     pub chip: &'static crate::chip::ChipData,
+    /// The device clock, in ns (`channel::Registry::now_ns`).
+    pub now_ns: u64,
 }
 
 fn get32(b: &[u8], off: usize) -> u32 {
@@ -67,11 +69,17 @@ pub fn answer(ctx: &mut Ctx<'_>, cmd: u32, params: &[u8]) -> Option<Answer> {
     }
     Some(match row.rule {
         Rule::Filtered(f) => filtered(ctx, row, f, params),
-        Rule::Device(d) => device(row, d, params),
+        Rule::Device(d) => device(ctx, row, d, params),
+        Rule::Refuse(label) => Answer {
+            status: NV_ERR_NOT_SUPPORTED,
+            params: params.to_vec(),
+            label,
+            note: format!("{} ({cmd:#x}): not supported, never forwarded", row.name),
+        },
     })
 }
 
-fn device(row: &PublicControl, d: Dev, params: &[u8]) -> Answer {
+fn device(ctx: &Ctx<'_>, row: &PublicControl, d: Dev, params: &[u8]) -> Answer {
     let n = params.len();
     let (status, b, label, what): (u32, Vec<u8>, &'static str, String) = match d {
         Dev::RmHeapStats => (
@@ -79,6 +87,65 @@ fn device(row: &PublicControl, d: Dev, params: &[u8]) -> Answer {
             vec![0u8; n],
             "synthesized (the device's own GSP heap view: no RM heap, all 0; the host GSP is never asked, decision D9/Q-B6)",
             "rm heap stats: zeros".into(),
+        ),
+        Dev::TimeCorrelation => {
+            // Every requested sample from the one device clock: the emulated GSP's OS
+            // time and the device PTIMER (usermode TIME_0/1, uvm.rs) are the same base,
+            // so cpuTime = gpuTime. The host's GSP clock and PTIMER are never read.
+            let mut b = params.to_vec();
+            let count = (b[p::TIME_CORR_SAMPLE_COUNT] as usize).min(p::TIME_CORR_MAX_SAMPLES);
+            b[p::TIME_CORR_SAMPLES..].fill(0);
+            for i in 0..count {
+                let o = p::TIME_CORR_SAMPLES + 16 * i;
+                put64(&mut b, o, ctx.now_ns);
+                put64(&mut b, o + 8, ctx.now_ns);
+            }
+            (
+                NV_OK,
+                b,
+                "synthesized (the device's own clock: GSP OS time and PTIMER are one time base)",
+                format!("cpuClkId {:#x}, {count} sample(s) at {} ns", params[0], ctx.now_ns),
+            )
+        }
+        Dev::NbsiNotFound => {
+            let mut b = params.to_vec();
+            b[p::NBSI_V2_RET_SIZE - p::NBSI_V2_RET_BUF_LEN..p::NBSI_V2_RET_SIZE].fill(0);
+            put32(&mut b, p::NBSI_V2_RET_SIZE, 0);
+            put32(&mut b, p::NBSI_V2_ERROR_CODE, p::NBSI_NOT_FOUND);
+            (
+                NV_OK,
+                b,
+                "synthesized (the synthesized VBIOS has no NBSI: NOT_FOUND, retSize 0)",
+                "nbsi v2: not found".into(),
+            )
+        }
+        Dev::I2cNoPorts => (
+            NV_OK,
+            vec![0u8; n],
+            "synthesized (no I2C ports, as I2C_GET_PORT_INFO answers)",
+            "i2c port speed: no ports".into(),
+        ),
+        Dev::RcRecoveryEnabled => {
+            let mut b = vec![0u8; n];
+            put32(&mut b, 0, p::RC_RECOVERY_ENABLED);
+            (
+                NV_OK,
+                b,
+                "synthesized (the device's RC policy: recovery enabled)",
+                "rc recovery: enabled".into(),
+            )
+        }
+        Dev::NoCompTags => (
+            NV_OK,
+            vec![0u8; n],
+            "synthesized (no compression, D16: numCompTags 0)",
+            "ctags for cbc eviction: none".into(),
+        ),
+        Dev::NoEcc => (
+            NV_ERR_NOT_SUPPORTED,
+            params.to_vec(),
+            "synthesized (NOT_SUPPORTED: no ECC on this board, as the host answers the ECC getters, Q-B1)",
+            "sram unique uncorrected counts: no ECC".into(),
         ),
     };
     Answer {
@@ -303,6 +370,7 @@ mod tests {
             host: Some(&mut h),
             reservation: res,
             chip: tu106(),
+            now_ns: 0,
         };
         let size = p::public_control(cmd).unwrap().size;
         let a = answer(&mut ctx, cmd, &vec![0u8; size]).unwrap();
@@ -420,6 +488,7 @@ mod tests {
             host: Some(&mut h),
             reservation: Some(RES),
             chip: tu106(),
+            now_ns: 0,
         };
         let a = answer(&mut ctx, 0x2080_1322, &[0u8; 2048]).unwrap();
         assert_eq!(a.status, NV_ERR_INVALID_PARAM_STRUCT);
@@ -522,6 +591,7 @@ mod tests {
             host: Some(&mut h),
             reservation: Some(RES),
             chip: tu106(),
+            now_ns: 0,
         };
         let a = answer(&mut ctx, 0x2080_3602, &b).unwrap();
         assert!(seen.lock().unwrap().is_empty());
@@ -606,5 +676,101 @@ mod tests {
         for id in f1 {
             assert!(FORWARD.iter().any(|(c, _)| *c == id), "{id:#x}");
         }
+    }
+
+    fn ask(cmd: u32, params: &[u8], now_ns: u64) -> (Answer, Vec<(u32, u32)>) {
+        let seen = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+        let mut h = Canned(vec![0x5A; 65536], seen.clone());
+        let mut ctx = Ctx {
+            host: Some(&mut h),
+            reservation: Some(RES),
+            chip: tu106(),
+            now_ns,
+        };
+        let a = answer(&mut ctx, cmd, params).unwrap();
+        let s = seen.lock().unwrap().clone();
+        (a, s)
+    }
+
+    /// The S rows: answered by the device, never sent to the host.
+    #[test]
+    fn device_rows_never_reach_the_host() {
+        // Time correlation: every requested sample is the device clock.
+        let mut t = vec![0u8; p::TIME_CORR_SIZE];
+        t[0] = 0x14; // _GSP_OS on _PROCESSOR_GSP
+        t[1] = 3;
+        let (a, seen) = ask(0x2080_0406, &t, 123_456);
+        assert!(seen.is_empty());
+        assert_eq!(a.status, NV_OK);
+        for i in 0..3 {
+            let o = p::TIME_CORR_SAMPLES + 16 * i;
+            assert_eq!((get64(&a.params, o), get64(&a.params, o + 8)), (123_456, 123_456));
+        }
+        assert_eq!(get64(&a.params, p::TIME_CORR_SAMPLES + 48), 0);
+        // NBSI: not found, nothing returned.
+        let (a, seen) = ask(0x2080_080E, &vec![0x77u8; p::NBSI_V2_SIZE], 0);
+        assert!(seen.is_empty());
+        assert_eq!(get32(&a.params, p::NBSI_V2_ERROR_CODE), p::NBSI_NOT_FOUND);
+        assert_eq!(get32(&a.params, p::NBSI_V2_RET_SIZE), 0);
+        let buf = p::NBSI_V2_RET_SIZE - p::NBSI_V2_RET_BUF_LEN;
+        assert!(a.params[buf..p::NBSI_V2_RET_SIZE].iter().all(|&x| x == 0));
+        assert!(a.params[..buf].iter().all(|&x| x == 0x77), "the request is kept");
+        // RC recovery, comptags, I2C port speed, SRAM ECC.
+        let (a, _) = ask(0x2080_220E, &[0u8; 4], 0);
+        assert_eq!(get32(&a.params, 0), p::RC_RECOVERY_ENABLED);
+        let (a, _) = ask(0x2080_1338, &vec![0xFFu8; p::CTAGS_SIZE], 0);
+        assert!(a.params.iter().all(|&x| x == 0));
+        let (a, _) = ask(0x402C_0103, &[0xFFu8; 64], 0);
+        assert!(a.params.iter().all(|&x| x == 0));
+        let (a, seen) = ask(0x2080_3402, &[0u8; 16], 0);
+        assert!(seen.is_empty());
+        assert_eq!(a.status, NV_ERR_NOT_SUPPORTED);
+    }
+
+    /// The 13 R rows and the 4 GPUACCT rows: NOT_SUPPORTED with a label, request echoed,
+    /// no host call.
+    #[test]
+    fn refusals_are_labelled_and_local() {
+        let refused: Vec<&PublicControl> = p::PUBLIC
+            .iter()
+            .filter(|c| matches!(c.rule, Rule::Refuse(_)))
+            .collect();
+        assert_eq!(refused.len(), 13 + 4);
+        for c in refused {
+            let (a, seen) = ask(c.id, &[0xA5; 24], 0);
+            assert!(seen.is_empty(), "{}", c.name);
+            assert_eq!(a.status, NV_ERR_NOT_SUPPORTED, "{}", c.name);
+            assert!(a.label.starts_with("refused ("), "{}", c.name);
+            assert_eq!(a.params, [0xA5; 24], "{}", c.name);
+        }
+    }
+
+    /// GPU_QUERY_ILLUM_SUPPORT and GPU_GET_ILLUM, the rows seen in the run logs: plain
+    /// forwards whose host status and bytes reach the guest unchanged.
+    #[test]
+    fn illum_rows_are_forwarded_as_is() {
+        use crate::ctrl::{Dispatcher, INTERNAL_CLIENT, INTERNAL_SUBDEVICE};
+        struct Illum;
+        impl HostRm for Illum {
+            fn control(&mut self, class: u32, cmd: u32, b: &mut [u8]) -> u32 {
+                assert_eq!(class, NV20_SUBDEVICE_0);
+                match cmd {
+                    0x2080_0153 => NV_OK, // the host card: attribute 0, not supported (Q-B1)
+                    0x2080_0154 => NV_ERR_NOT_SUPPORTED,
+                    _ => {
+                        b.fill(0xEE);
+                        0xFFFF
+                    }
+                }
+            }
+        }
+        let f = crate::fixture::rtx2070();
+        let mut d = Dispatcher::new(f.chip.data(), &f.identity(4 << 30), Some(Box::new(Illum)));
+        let a = d.control(INTERNAL_CLIENT, INTERNAL_SUBDEVICE, 0x2080_0153, &[0u8; 8]);
+        assert_eq!((a.status, &a.params[..]), (NV_OK, &[0u8; 8][..]));
+        assert_eq!(a.label, "host (forwarded as-is, public control)");
+        let a = d.control(INTERNAL_CLIENT, INTERNAL_SUBDEVICE, 0x2080_0154, &[0u8; 8]);
+        assert_eq!(a.status, NV_ERR_NOT_SUPPORTED);
+        assert_eq!(a.label, "host (forwarded as-is, public control)");
     }
 }

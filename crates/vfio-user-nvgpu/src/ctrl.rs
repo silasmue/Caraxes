@@ -927,6 +927,7 @@ impl Dispatcher {
             host: self.host.as_deref_mut(),
             reservation: self.reservation,
             chip: self.chip,
+            now_ns: self.channels.now_ns(),
         };
         if let Some(a) = crate::public::answer(&mut pctx, cmd, params) {
             return a;

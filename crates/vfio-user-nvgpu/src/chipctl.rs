@@ -142,6 +142,9 @@ struct ControlFile {
     status: Option<String>,
     /// The guest ABIs the entry applies to; default all.
     abi: Option<Vec<String>>,
+    /// The inventory's category of a control the GSP plan found to be chip or board data
+    /// (docs/caraxes/gsp-plan/b-host-forwardable.md §3 S: "B"); the entry must name it.
+    moved_from: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -248,7 +251,17 @@ impl ControlTable {
             let r = abi
                 .routed(&c.name)
                 .ok_or_else(|| err("not a control that reaches GSP".into()))?;
-            if r.category != 'A' || r.other {
+            let moved = c
+                .moved_from
+                .as_deref()
+                .is_some_and(|m| m == "B" && r.category == 'B');
+            if c.moved_from.is_some() && !moved {
+                return Err(err(format!(
+                    "moved_from {:?}, but the inventory says category {}",
+                    c.moved_from, r.category
+                )));
+            }
+            if (r.category != 'A' && !moved) || r.other {
                 return Err(err(format!(
                     "category {}{}, not an unanswered category A control",
                     r.category,
@@ -613,7 +626,8 @@ mod tests {
     fn table_fields_exist_in_every_abi() {
         for abi in ABIS {
             let t = ControlTable::resolve(abi, TU106_CONTROLS).unwrap();
-            assert_eq!(t.entries.len(), 8, "{}", abi.name);
+            // 8 category A entries and the 5 of b-host-forwardable.md §3 S.
+            assert_eq!(t.entries.len(), 13, "{}", abi.name);
         }
         let abi = Abi::active();
         let bad = TU106_CONTROLS.replace("firstAsyncCEIdx", "firstAsyncCeIndex");
@@ -638,8 +652,20 @@ mod tests {
         );
         assert_eq!(
             ControlTable::resolve(abi, &limited).unwrap().entries.len(),
-            7
+            12
         );
+        // A B control without `moved_from` is refused, and so is a wrong `moved_from`.
+        let bad = TU106_CONTROLS.replace(
+            "name = \"NV2080_CTRL_GPU_GET_FIPS_STATUS\"\nparams = \"NV2080_CTRL_GPU_GET_FIPS_STATUS_PARAMS\"\nmoved_from = \"B\"",
+            "name = \"NV2080_CTRL_GPU_GET_FIPS_STATUS\"\nparams = \"NV2080_CTRL_GPU_GET_FIPS_STATUS_PARAMS\"",
+        );
+        assert_ne!(bad, TU106_CONTROLS);
+        assert!(ControlTable::resolve(abi, &bad).unwrap_err().contains("category B"));
+        let bad = TU106_CONTROLS.replace(
+            "name = \"NV2080_CTRL_CMD_GPU_GET_FIRST_ASYNC_CE_IDX\"",
+            "moved_from = \"B\"\nname = \"NV2080_CTRL_CMD_GPU_GET_FIRST_ASYNC_CE_IDX\"",
+        );
+        assert!(ControlTable::resolve(abi, &bad).unwrap_err().contains("moved_from"));
     }
 
     fn put32(b: &mut [u8], off: usize, x: u32) {

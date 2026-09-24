@@ -28,6 +28,15 @@ pub const CTRL_LAYOUTS: &[CtrlLayout] = &[
         ],
     },
     CtrlLayout {
+        name: "NV2080_CTRL_BIOS_GET_UEFI_SUPPORT_PARAMS",
+        header: "ctrl2080/ctrl2080bios.h",
+        size: 8,
+        fields: &[
+            CtrlField { path: "version", offset: 0, size: 4, dims: &[] },
+            CtrlField { path: "flags", offset: 4, size: 4, dims: &[] },
+        ],
+    },
+    CtrlLayout {
         name: "NV2080_CTRL_CE_GET_DECOMP_LCE_MASK_PARAMS",
         header: "ctrl2080/ctrl2080ce.h",
         size: 16,
@@ -37,11 +46,32 @@ pub const CTRL_LAYOUTS: &[CtrlLayout] = &[
         ],
     },
     CtrlLayout {
+        name: "NV2080_CTRL_GPU_GET_FIPS_STATUS_PARAMS",
+        header: "ctrl2080/ctrl2080gpu.h",
+        size: 1,
+        fields: &[
+            CtrlField { path: "bFipsEnabled", offset: 0, size: 1, dims: &[] },
+        ],
+    },
+    CtrlLayout {
         name: "NV2080_CTRL_GPU_GET_FIRST_ASYNC_CE_IDX_PARAMS",
         header: "ctrl2080/ctrl2080gpu.h",
         size: 4,
         fields: &[
             CtrlField { path: "firstAsyncCEIdx", offset: 0, size: 4, dims: &[] },
+        ],
+    },
+    CtrlLayout {
+        name: "NV2080_CTRL_GR_GFX_POOL_QUERY_SIZE_PARAMS",
+        header: "ctrl2080/ctrl2080gr.h",
+        size: 40,
+        fields: &[
+            CtrlField { path: "maxSlots", offset: 0, size: 4, dims: &[] },
+            CtrlField { path: "slotStride", offset: 4, size: 4, dims: &[] },
+            CtrlField { path: "ctrlStructSize", offset: 8, size: 8, dims: &[] },
+            CtrlField { path: "ctrlStructAlign", offset: 16, size: 8, dims: &[] },
+            CtrlField { path: "poolSize", offset: 24, size: 8, dims: &[] },
+            CtrlField { path: "poolAlign", offset: 32, size: 8, dims: &[] },
         ],
     },
     CtrlLayout {
@@ -84,6 +114,26 @@ pub const CTRL_LAYOUTS: &[CtrlLayout] = &[
             CtrlField { path: "tableType", offset: 8, size: 4, dims: &[] },
         ],
     },
+    CtrlLayout {
+        name: "NV90E6_CTRL_MASTER_GET_ERROR_INTR_OFFSET_MASK_PARAMS",
+        header: "ctrl90e6.h",
+        size: 16,
+        fields: &[
+            CtrlField { path: "offset", offset: 0, size: 4, dims: &[] },
+            CtrlField { path: "mask", offset: 4, size: 4, dims: &[] },
+            CtrlField { path: "eccMask", offset: 8, size: 4, dims: &[] },
+            CtrlField { path: "nvlinkMask", offset: 12, size: 4, dims: &[] },
+        ],
+    },
+    CtrlLayout {
+        name: "NV90E6_CTRL_MASTER_GET_VIRTUAL_FUNCTION_ERROR_CONT_INTR_MASK_PARAMS",
+        header: "ctrl90e6.h",
+        size: 8,
+        fields: &[
+            CtrlField { path: "eccMask", offset: 0, size: 4, dims: &[] },
+            CtrlField { path: "nvlinkMask", offset: 4, size: 4, dims: &[] },
+        ],
+    },
 ];
 
 // The same structs as nvrm-sys binds them (sizes and top-level offsets).
@@ -95,8 +145,20 @@ const _: () = {
     assert!(size_of::<nvrm_sys::v610::NV0080_CTRL_NVENC_GET_CAPS_V2_PARAMS>() == 12);
     assert!(offset_of!(nvrm_sys::v610::NV0080_CTRL_NVENC_GET_CAPS_V2_PARAMS, capsTbl) == 0);
     assert!(offset_of!(nvrm_sys::v610::NV0080_CTRL_NVENC_GET_CAPS_V2_PARAMS, instanceId) == 8);
+    assert!(size_of::<nvrm_sys::NV2080_CTRL_BIOS_GET_UEFI_SUPPORT_PARAMS>() == 8);
+    assert!(offset_of!(nvrm_sys::NV2080_CTRL_BIOS_GET_UEFI_SUPPORT_PARAMS, version) == 0);
+    assert!(offset_of!(nvrm_sys::NV2080_CTRL_BIOS_GET_UEFI_SUPPORT_PARAMS, flags) == 4);
+    assert!(size_of::<nvrm_sys::NV2080_CTRL_GPU_GET_FIPS_STATUS_PARAMS>() == 1);
+    assert!(offset_of!(nvrm_sys::NV2080_CTRL_GPU_GET_FIPS_STATUS_PARAMS, bFipsEnabled) == 0);
     assert!(size_of::<nvrm_sys::NV2080_CTRL_GPU_GET_FIRST_ASYNC_CE_IDX_PARAMS>() == 4);
     assert!(offset_of!(nvrm_sys::NV2080_CTRL_GPU_GET_FIRST_ASYNC_CE_IDX_PARAMS, firstAsyncCEIdx) == 0);
+    assert!(size_of::<nvrm_sys::NV2080_CTRL_GR_GFX_POOL_QUERY_SIZE_PARAMS>() == 40);
+    assert!(offset_of!(nvrm_sys::NV2080_CTRL_GR_GFX_POOL_QUERY_SIZE_PARAMS, maxSlots) == 0);
+    assert!(offset_of!(nvrm_sys::NV2080_CTRL_GR_GFX_POOL_QUERY_SIZE_PARAMS, slotStride) == 4);
+    assert!(offset_of!(nvrm_sys::NV2080_CTRL_GR_GFX_POOL_QUERY_SIZE_PARAMS, ctrlStructSize) == 8);
+    assert!(offset_of!(nvrm_sys::NV2080_CTRL_GR_GFX_POOL_QUERY_SIZE_PARAMS, ctrlStructAlign) == 16);
+    assert!(offset_of!(nvrm_sys::NV2080_CTRL_GR_GFX_POOL_QUERY_SIZE_PARAMS, poolSize) == 24);
+    assert!(offset_of!(nvrm_sys::NV2080_CTRL_GR_GFX_POOL_QUERY_SIZE_PARAMS, poolAlign) == 32);
     assert!(size_of::<nvrm_sys::NV2080_CTRL_MC_GET_ENGINE_NOTIFICATION_INTR_VECTORS_PARAMS>() == 2052);
     assert!(offset_of!(nvrm_sys::NV2080_CTRL_MC_GET_ENGINE_NOTIFICATION_INTR_VECTORS_PARAMS, numEntries) == 0);
     assert!(offset_of!(nvrm_sys::NV2080_CTRL_MC_GET_ENGINE_NOTIFICATION_INTR_VECTORS_PARAMS, entries) == 4);

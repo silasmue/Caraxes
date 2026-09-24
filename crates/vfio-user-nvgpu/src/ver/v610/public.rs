@@ -20,6 +20,8 @@ pub enum Rule {
     Filtered(Filter),
     /// Answered from the device's own model; never forwarded.
     Device(Dev),
+    /// NOT_SUPPORTED with the label, request echoed; never forwarded.
+    Refuse(&'static str),
 }
 
 /// Answers the device owns (b-host-forwardable.md §3 S, and the decisions recorded there).
@@ -28,6 +30,20 @@ pub enum Dev {
     /// `GSP_GET_RM_HEAP_STATS`: the device's own GSP heap view (decision under D9, Q-B6):
     /// the emulated GSP has no RM heap, so every number is 0; the host GSP is not asked.
     RmHeapStats,
+    /// `TIMER_GET_GPU_CPU_TIME_CORRELATION_INFO`: samples of the device's own clock (the
+    /// emulated GSP's OS time and the device PTIMER are one time base).
+    TimeCorrelation,
+    /// `BIOS_GET_NBSI_V2`: the synthesized VBIOS has no NBSI: `errorCode` NOT_FOUND.
+    NbsiNotFound,
+    /// `I2C_GET_PORT_SPEED`: no I2C ports (as `I2C_GET_PORT_INFO`, ctrl.rs): all 0.
+    I2cNoPorts,
+    /// `GET_RC_RECOVERY`: the device's policy, recovery enabled.
+    RcRecoveryEnabled,
+    /// `FB_GET_CTAGS_FOR_CBC_EVICTION`: no comptags (D16: no compression reaches the host).
+    NoCompTags,
+    /// `ECC_GET_SRAM_UNIQUE_UNCORR_COUNTS`: this board has no ECC; NOT_SUPPORTED as the
+    /// host answers the other ECC getters (Q-B1).
+    NoEcc,
 }
 
 /// The output filters of forwarded controls (b-host-forwardable.md §3 F2 and §6).
@@ -88,7 +104,39 @@ pub const PUBLIC: &[PublicControl] = &[
     // answer: the guest's GSP is the device, not the host's (decision recorded in
     // b-host-forwardable.md, Q-B6).
     row(0x2080_3602, "GSP_GET_RM_HEAP_STATS", RM_HEAP_STATS_SIZE, Rule::Device(Dev::RmHeapStats)),
+    // Group S: device-owned answers (the other five are chip data in chips/tu106/controls.toml).
+    row(0x2080_0406, "TIMER_GET_GPU_CPU_TIME_CORRELATION_INFO", TIME_CORR_SIZE, Rule::Device(Dev::TimeCorrelation)),
+    row(0x2080_080E, "BIOS_GET_NBSI_V2", NBSI_V2_SIZE, Rule::Device(Dev::NbsiNotFound)),
+    row(0x402C_0103, "I2C_GET_PORT_SPEED", 64, Rule::Device(Dev::I2cNoPorts)),
+    row(0x2080_220E, "GET_RC_RECOVERY", 4, Rule::Device(Dev::RcRecoveryEnabled)),
+    row(0x2080_1338, "FB_GET_CTAGS_FOR_CBC_EVICTION", CTAGS_SIZE, Rule::Device(Dev::NoCompTags)),
+    row(0x2080_3402, "ECC_GET_SRAM_UNIQUE_UNCORR_COUNTS", 0, Rule::Device(Dev::NoEcc)),
+    // Group R: refused (b-host-forwardable.md §3 R).
+    row(0x2080_110E, "FIFO_OBJSCHED_SW_GET_LOG", 0, Rule::Refuse(REFUSED_SCHED_LOG)),
+    row(0x2080_1827, "BUS_GET_UPHY_DLN_CFG_SPACE", 0, Rule::Refuse("refused (raw PHY register read)")),
+    row(0x2080_1828, "BUS_GET_EOM_STATUS", 0, Rule::Refuse("refused (eye measurement: acts on the physical link)")),
+    row(0x208F_1101, "NV208F GPU_GET_RAM_SVOP_VALUES", 0, Rule::Refuse("refused (diag class, not opened on the host)")),
+    row(0xB0CC_0109, "NVB0CC PMA_STREAM_UPDATE_GET_PUT", 0, Rule::Refuse(REFUSED_PROFILER)),
+    row(0xB0CC_010D, "NVB0CC GET_TOTAL_HS_CREDITS", 0, Rule::Refuse(REFUSED_PROFILER)),
+    row(0xB0CC_010F, "NVB0CC GET_HS_CREDITS", 0, Rule::Refuse(REFUSED_PROFILER)),
+    row(0xB0CC_0115, "NVB0CC GET_CHIPLET_HS_CREDIT_POOL", 0, Rule::Refuse(REFUSED_PROFILER)),
+    row(0xB0CC_0116, "NVB0CC GET_HS_CREDITS_MAPPING", 0, Rule::Refuse(REFUSED_PROFILER)),
+    row(0xB0CC_0118, "NVB0CC GET_DYNAMIC_MMA_BOOST_STATUS", 0, Rule::Refuse(REFUSED_PROFILER)),
+    row(0x2080_0181, "GPU_GET_PARTITION_CAPACITY", 0, Rule::Refuse("refused (MIG absent on this chip)")),
+    row(0x2080_2069, "PERF_GET_TEGRA_PERFMON_SAMPLE", 0, Rule::Refuse("refused (Tegra only)")),
+    row(0x2080_81F5, "GPU_GET_UNIT_FS_INFO_FROM_DIELET", 0, Rule::Refuse("refused (no dielets on this chip)")),
+    // Group N: the guest kernel answers GPU accounting itself on a GSP client (SR-IOV
+    // only sends them, gpu_registry.c:133); should one arrive, the host's accounting is
+    // on the D9 deny list.
+    row(0x0000_0B02, "NV0000 GPUACCT_GET_ACCOUNTING_STATE", 0, Rule::Refuse(REFUSED_ACCOUNTING)),
+    row(0x0000_0B03, "NV0000 GPUACCT_GET_PROC_ACCOUNTING_INFO", 0, Rule::Refuse(REFUSED_ACCOUNTING)),
+    row(0x0000_0B04, "NV0000 GPUACCT_GET_ACCOUNTING_PIDS", 0, Rule::Refuse(REFUSED_ACCOUNTING)),
+    row(0x0000_0B06, "NV0000 GPUACCT_GET_PROC_ACCOUNTING_INFO_V2", 0, Rule::Refuse(REFUSED_ACCOUNTING)),
 ];
+
+pub const REFUSED_PROFILER: &str = "refused (profiler: profiling is refused, gsp-surface.md §3 D rule 4)";
+pub const REFUSED_SCHED_LOG: &str = "refused (host scheduler log: every tenant's scheduling)";
+pub const REFUSED_ACCOUNTING: &str = "refused (host accounting: host PIDs, D9 deny list)";
 
 /// The row of `id`, if the table has one.
 pub fn public_control(id: u32) -> Option<&'static PublicControl> {
@@ -171,6 +219,32 @@ pub const GPUMON_ENGINE_PROC: std::ops::Range<usize> = 8..128;
 /// then the managed size, largest free chunk and two snapshots; 88 bytes.
 pub const RM_HEAP_STATS_SIZE: usize = 88;
 
+/// `NV2080_CTRL_TIMER_GET_GPU_CPU_TIME_CORRELATION_INFO_PARAMS` (ctrl2080tmr.h:201-205):
+/// `cpuClkId` u8 @0, `sampleCount` u8 @1, `samples[16]` of `{cpuTime u64, gpuTime u64}` @8;
+/// 264 bytes.
+pub const TIME_CORR_SIZE: usize = 264;
+pub const TIME_CORR_SAMPLE_COUNT: usize = 1;
+pub const TIME_CORR_SAMPLES: usize = 8;
+pub const TIME_CORR_MAX_SAMPLES: usize = 16;
+
+/// `NV2080_CTRL_BIOS_GET_NBSI_V2_PARAMS` (ctrl2080bios.h:258-265): `module`, `path`,
+/// `valueName`, `retBuf`, then `retSize` @1300 and `errorCode` @1304; 1308 bytes.
+pub const NBSI_V2_SIZE: usize = 1308;
+/// `retBuf[NV2080_BIOS_GET_NBSI_MAX_RET_SIZE]` (0x100, ctrl2080bios.h:254) ends at `retSize`.
+pub const NBSI_V2_RET_BUF_LEN: usize = 0x100;
+pub const NBSI_V2_RET_SIZE: usize = 1300;
+pub const NBSI_V2_ERROR_CODE: usize = 1304;
+/// `NV2080_CTRL_BIOS_GET_NBSI_NOT_FOUND` (ctrl2080bios.h:237).
+pub const NBSI_NOT_FOUND: u32 = 0xFFFF_FFFF;
+
+/// `NV2080_CTRL_CMD_RC_RECOVERY_ENABLED` (ctrl2080rc.h:272).
+pub const RC_RECOVERY_ENABLED: u32 = 1;
+
+/// `NV2080_CTRL_FB_GET_CTAGS_FOR_CBC_EVICTION_PARAMS` (ctrl2080fb.h:1559-1562):
+/// `pCompTags[127]`, `numCompTags` @508; 512 bytes.
+pub const CTAGS_SIZE: usize = 512;
+pub const CTAGS_NUM: usize = 508;
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -217,6 +291,14 @@ mod tests {
             GPUMON_SIZE
         );
         assert_eq!(GPUMON_ENGINES.last().unwrap().1 + 128, GPUMON_SAMPLE_SIZE);
+    }
+
+    #[test]
+    fn b_s_layouts() {
+        // Not bound by nvrm-sys: the cc measurement of the module header, restated.
+        assert_eq!(TIME_CORR_SAMPLES + 16 * TIME_CORR_MAX_SAMPLES, TIME_CORR_SIZE);
+        assert_eq!(NBSI_V2_ERROR_CODE + 4, NBSI_V2_SIZE);
+        assert_eq!(CTAGS_NUM + 4, CTAGS_SIZE);
     }
 
     #[test]

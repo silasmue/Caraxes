@@ -125,3 +125,54 @@ name = "NV2080_CTRL_CMD_GPU_GET_FIRST_ASYNC_CE_IDX"
 params = "NV2080_CTRL_GPU_GET_FIRST_ASYNC_CE_IDX_PARAMS"
 label = "chip (first async CE is CE2, chips/tu106/device-info.toml)"
 fields = { firstAsyncCEIdx = 2 }
+
+# ---------------------------------------------------------------------------------------
+# Five controls the GSP surface inventory sorts into category B that are chip or board data
+# (docs/caraxes/gsp-plan/b-host-forwardable.md §3 S): `moved_from = "B"` names the
+# inventory's category, which chipctl.rs accepts in place of A for these rows only.
+
+# FIPS mode is a Hopper+ Confidential Computing platform mode; TU106 has none (plan §2 row
+# 14). PRIVILEGED on the host, so the unprivileged host client could not forward it.
+[[control]]
+name = "NV2080_CTRL_GPU_GET_FIPS_STATUS"
+params = "NV2080_CTRL_GPU_GET_FIPS_STATUS_PARAMS"
+moved_from = "B"
+label = "chip (no FIPS mode on TU106: bFipsEnabled 0)"
+
+# The UEFI image of the VBIOS the guest reads through the PROM window: the synthesized image
+# keeps the captured EFI image (code type 3 at 0xEC00, docs/caraxes/vbios-synthesis.md §1),
+# so PRESENCE_YES (flags 1:0 = 1, ctrl2080bios.h:470-472). RUNNING (2:2) and IS_EFI_INIT
+# (3:3) are 0: no UEFI GOP runs on the emulated function (the VM boots its kernel directly).
+# The version is 0: the device does not parse it from the image (Q-B5 open).
+[[control]]
+name = "NV2080_CTRL_CMD_BIOS_GET_UEFI_SUPPORT"
+params = "NV2080_CTRL_BIOS_GET_UEFI_SUPPORT_PARAMS"
+moved_from = "B"
+label = "board (the synthesized VBIOS carries the captured EFI image: present, not running; version not parsed)"
+fields = { flags = 1 }
+
+# The error interrupt register of a GF100_SUBDEVICE_MASTER mapping and the ECC and NVLink
+# bits in it (ctrl90e6.h:65-97). This GeForce board has no ECC and TU106 no NVLink, so both
+# masks are 0 and no read of `offset` can signal an error; `offset` stays 0. A Turing NVML
+# expects an answer (rmapi_utils.c:245-247 silences the refusal only below Turing).
+[[control]]
+name = "NV90E6_CTRL_CMD_MASTER_GET_ERROR_INTR_OFFSET_MASK"
+params = "NV90E6_CTRL_MASTER_GET_ERROR_INTR_OFFSET_MASK_PARAMS"
+moved_from = "B"
+label = "chip (no ECC, no NVLink: every error mask 0)"
+
+# The VF error-containment masks (ctrl90e6.h:101-135): no ECC and no NVLink, both 0.
+[[control]]
+name = "NV90E6_CTRL_CMD_MASTER_GET_VIRTUAL_FUNCTION_ERROR_CONT_INTR_MASK"
+params = "NV90E6_CTRL_MASTER_GET_VIRTUAL_FUNCTION_ERROR_CONT_INTR_MASK_PARAMS"
+moved_from = "B"
+label = "chip (no ECC, no NVLink: both masks 0)"
+
+# Kernel-privileged (flags 0x40) with no caller in either tree (plan §2 row 24): E by the
+# plan's reading, refused as the E families are.
+[[control]]
+name = "NV2080_CTRL_CMD_GR_GFX_POOL_QUERY_SIZE"
+params = "NV2080_CTRL_GR_GFX_POOL_QUERY_SIZE_PARAMS"
+moved_from = "B"
+status = "NOT_SUPPORTED"
+label = "refused (no caller in either tree: kernel-privileged GR_GFX_POOL_QUERY_SIZE, E by gsp-plan B)"
