@@ -25,6 +25,9 @@
 //! | `NV_CHANNEL_GROUP_ALLOCATION_PARAMETERS` | 20 | 28 | TSG alloc (invalidate.rs, mirror.rs) | [`HostLayouts::tsg_params`] |
 //! | `NV2080_CTRL_GPU_GET_PES_INFO_PARAMS` | 56 | 76 | `GPU_GET_PES_INFO` (kgr.rs floorsweeping) | `pes_info_*` |
 //! | `NV2080_CTRL_GR_GET_GLOBAL_SM_ORDER_PARAMS` | 9240 | 10264 | `GR_GET_GLOBAL_SM_ORDER` (kgr.rs) | [`HostLayouts::sm_order_to_guest`] |
+//! | GSS legacy pmgr 0x18 (0x2080A618) | 20000 | 20512 | forwarded for nvidia-smi (nvml.rs) | [`HostLayouts::legacy`] |
+//! | GSS legacy thermal 0x36 (0x20808536) | 25552 | 24532 | forwarded for nvidia-smi (nvml.rs) | [`HostLayouts::legacy`] |
+//! | GSS legacy perf 0xf1 (0x2080A0F1) | none | 9216 | forwarded for nvidia-smi (nvml.rs) | [`HostLayouts::legacy`] |
 //! | `NV_CHANNEL_ALLOC_PARAMS` | 376 | 376 | channel alloc | [`ChannelAllocParams`], equality asserted at compile time |
 //!
 //! The other rows of docs/caraxes/blackwell-gb206.md §3.4 are guest-facing only:
@@ -45,6 +48,14 @@
 //! [`translate_sm_order`] moves every per-SM field by name from one [`SmOrderLayout`] to
 //! the other, so the four combinations of a 610 or 615 guest on a 610 or 615 host take
 //! one path (kgr.rs `global_sm_order`).
+//!
+//! The GSS legacy rows have no layout in either version's open headers (their numbers
+//! are not defined there; matrix/catalog-610.57.04.md:384, :419), so they cannot be
+//! translated field by field. The sizes are the ones each driver's own `nvidia-smi -q`
+//! sends: 610.57.04 from caraxes/runs/e4-2026-09-23/nvml-it3-trace-smiq.txt:2759, :2807,
+//! 615.71.09 from caraxes/runs/transport-615-2026-09-24/boot/device-events.txt:734,
+//! :1150, :1166. When the guest's size is not the host's, nvml.rs answers NOT_SUPPORTED
+//! instead of sending the host a buffer it would refuse (docs/caraxes/cutover-615.md (d)).
 //!
 //! Selection: `CARAXES_HOST_ABI=610|615` if set (an explicit override, logged
 //! with the running version beside it), otherwise the running driver's version
@@ -124,7 +135,15 @@ pub struct HostLayouts {
     /// `NV2080_CTRL_GR_GET_GLOBAL_SM_ORDER_PARAMS` (ctrl2080gr.h; 615 inserts
     /// `virtualDpcId` after `virtualGpcId` in every SM entry).
     pub sm_order: SmOrderLayout,
+    /// GSS legacy controls whose params size depends on the host driver, or that only
+    /// this host driver has: (command, params size, name). See [`HOST_SIZED_LEGACY`].
+    pub legacy: &'static [(u32, usize, &'static str)],
 }
+
+/// Every command that appears in some host's [`HostLayouts::legacy`] table. nvml.rs
+/// answers these by the selected host's table: forwarded when the guest's size is the
+/// host's, NOT_SUPPORTED otherwise and on a host that has no such control.
+pub const HOST_SIZED_LEGACY: &[u32] = &[0x2080_A618, 0x2080_8536, 0x2080_A0F1];
 
 /// One global-SM-order layout: the host's public `NV2080_CTRL_GR_GET_GLOBAL_SM_ORDER_PARAMS`
 /// or the guest's internal `NV2080_CTRL_INTERNAL_STATIC_GR_GLOBAL_SM_ORDER`. Both are
@@ -210,6 +229,10 @@ pub static HOST_610: HostLayouts = HostLayouts {
     sm_order: sm_order_layout!(v610::NV2080_CTRL_GR_GET_GLOBAL_SM_ORDER_PARAMS, Sm610;
         gpcId, localTpcId, localSmId, globalTpcId, virtualGpcId, migratableTpcId, ugpuId,
         physicalCpcId, virtualTpcId),
+    legacy: &[
+        (0x2080_A618, 20000, "pmgr 0x18"),
+        (0x2080_8536, 25552, "thermal 0x36"),
+    ],
 };
 
 pub static HOST_615: HostLayouts = HostLayouts {
@@ -224,6 +247,11 @@ pub static HOST_615: HostLayouts = HostLayouts {
     sm_order: sm_order_layout!(v615::NV2080_CTRL_GR_GET_GLOBAL_SM_ORDER_PARAMS, Sm615;
         gpcId, localTpcId, localSmId, globalTpcId, virtualGpcId, virtualDpcId,
         migratableTpcId, ugpuId, physicalCpcId, virtualTpcId),
+    legacy: &[
+        (0x2080_A618, 20512, "pmgr 0x18"),
+        (0x2080_8536, 24532, "thermal 0x36"),
+        (0x2080_A0F1, 9216, "perf 0xf1"),
+    ],
 };
 
 // The map lengths are array lengths the bindings cannot give as constants; pin
@@ -263,11 +291,20 @@ impl HostLayouts {
         translate_sm_order(&self.sm_order, host, guest_layout, guest);
     }
 
+    /// The params size this host driver expects for a host-sized GSS legacy control
+    /// ([`HOST_SIZED_LEGACY`]), and its name; `None` if this host has no such control.
+    pub fn legacy_size(&self, cmd: u32) -> Option<(usize, &'static str)> {
+        self.legacy
+            .iter()
+            .find(|(c, _, _)| *c == cmd)
+            .map(|(_, n, name)| (*n, *name))
+    }
+
     /// One line for the device log: what was selected and the sizes it implies.
     pub fn describe(&self) -> String {
         format!(
             "host ABI {}: TSG params {} bytes, GPU_GET_PES_INFO {} (tpcToPesMap[{}]), \
-             GR_GET_GLOBAL_SM_ORDER {} (SM entry {}), channel params {}",
+             GR_GET_GLOBAL_SM_ORDER {} (SM entry {}), channel params {}, GSS legacy [{}]",
             self.driver(),
             self.tsg_size,
             self.pes_info_size,
@@ -275,6 +312,11 @@ impl HostLayouts {
             self.sm_order.size,
             self.sm_order.entry_size,
             size_of::<ChannelAllocParams>(),
+            self.legacy
+                .iter()
+                .map(|(_, n, name)| format!("{name} {n}"))
+                .collect::<Vec<_>>()
+                .join(", "),
         )
     }
 }
@@ -437,6 +479,9 @@ mod tests {
             offset_of!(v610::NV2080_CTRL_GR_GET_GLOBAL_SM_ORDER_PARAMS, globalSmId),
             0
         );
+        assert_eq!(l.legacy_size(0x2080_A618), Some((20000, "pmgr 0x18")));
+        assert_eq!(l.legacy_size(0x2080_8536), Some((25552, "thermal 0x36")));
+        assert_eq!(l.legacy_size(0x2080_A0F1), None);
         assert_eq!(size_of::<ChannelAllocParams>(), 376);
     }
 
@@ -481,6 +526,9 @@ mod tests {
             offset_of!(v615::NV2080_CTRL_GR_GET_GLOBAL_SM_ORDER_PARAMS, globalSmId),
             0
         );
+        assert_eq!(l.legacy_size(0x2080_A618), Some((20512, "pmgr 0x18")));
+        assert_eq!(l.legacy_size(0x2080_8536), Some((24532, "thermal 0x36")));
+        assert_eq!(l.legacy_size(0x2080_A0F1), Some((9216, "perf 0xf1")));
         assert_eq!(size_of::<v615::NV_CHANNEL_ALLOC_PARAMS>(), 376);
     }
 
@@ -574,6 +622,20 @@ mod tests {
         assert_eq!(&b[20..], &[0u8; 8]);
     }
 
+    /// Every host-sized legacy command is in [`HOST_SIZED_LEGACY`], and every entry of
+    /// that list is in some host's table.
+    #[test]
+    fn host_sized_legacy_is_the_union_of_the_tables() {
+        for l in [&HOST_610, &HOST_615] {
+            for (c, _, _) in l.legacy {
+                assert!(HOST_SIZED_LEGACY.contains(c), "{c:#x}");
+            }
+        }
+        for c in HOST_SIZED_LEGACY {
+            assert!(HOST_610.legacy_size(*c).is_some() || HOST_615.legacy_size(*c).is_some());
+        }
+    }
+
     /// Host bytes in which every field of every SM names itself: SM `sm`, field `name`
     /// holds [`tag`]; numSm 36, numTpc 18.
     fn tagged(l: &SmOrderLayout) -> Vec<u8> {
@@ -633,6 +695,18 @@ mod tests {
         assert_eq!(HOST_615.sm_order.fields_not_in(&G610), ["virtualDpcId"]);
         assert_eq!(G615.fields_not_in(&HOST_610.sm_order), ["virtualDpcId"]);
         assert!(HOST_610.sm_order.fields_not_in(&G615).is_empty());
+    }
+
+    /// The start-up line names the legacy sizes (docs/caraxes/cutover-615.md §0).
+    #[test]
+    fn describe_names_the_sizes() {
+        assert_eq!(
+            HOST_615.describe(),
+            "host ABI 615.71.09: TSG params 28 bytes, GPU_GET_PES_INFO 76 (tpcToPesMap[15]), \
+             GR_GET_GLOBAL_SM_ORDER 10264 (SM entry 20), channel params 376, GSS legacy \
+             [pmgr 0x18 20512, thermal 0x36 24532, perf 0xf1 9216]"
+        );
+        assert!(HOST_610.describe().ends_with("GSS legacy [pmgr 0x18 20000, thermal 0x36 25552]"));
     }
 
     #[test]

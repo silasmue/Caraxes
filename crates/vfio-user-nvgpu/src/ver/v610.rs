@@ -938,6 +938,12 @@ pub const FORWARD: &[(u32, &str)] = &[
     (0x2080_1322, "FB_GET_OFFLINED_PAGES"),
     (0x2080_1344, "FB_GET_REMAPPED_ROWS"),
     (0x2080_1357, "FB_QUERY_DRAM_ENCRYPTION_INFOROM_SUPPORT"),
+    // Sent by the 615 guest's nvidia-smi (caraxes/runs/transport-615-2026-09-24/boot/
+    // device-events.txt:1114, 8208 bytes). Not new in 615: 610.57.04 has the same control
+    // and layout (sdk/ctrl/ctrl2080/ctrl2080fb.h:2990-3014; `nvrm_sys::v610` and `v615`
+    // both 8208 bytes, hostabi.rs tests), NON_PRIVILEGED and ROUTE_TO_PHYSICAL (flags 0x58,
+    // g_subdevice_nvoc.c), so both host drivers answer it.
+    (0x2080_1361, "FB_GET_REMAPPED_BANKS"),
     (0x2080_1813, "BUS_GET_PEX_COUNTERS"),
     (0x2080_1819, "BUS_GET_PEX_UTIL_COUNTERS"),
     (0x2080_1823, "BUS_GET_INFO_V2"),
@@ -965,7 +971,8 @@ pub const LEGACY: &[(u32, usize, &str)] = &[
     // size of THERMAL_SYSTEM_EXECUTE_V2 but not its instruction list.
     (0x2080_852E, 1432, "thermal 0x2e"),
     (0x2080_852F, 844, "thermal 0x2f"),
-    (0x2080_8536, 25552, "thermal 0x36"),
+    // thermal 0x36 (0x20808536), pmgr 0x18 (0x2080A618) and perf 0xf1 (0x2080A0F1) have a
+    // size that depends on the host driver: hostabi.rs `HostLayouts::legacy`.
     (0x2080_853A, 15352, "thermal 0x3a"),
     (0x2080_8542, 504, "thermal 0x42"),
     (0x2080_8546, 24, "thermal 0x46"),
@@ -987,7 +994,6 @@ pub const LEGACY: &[(u32, usize, &str)] = &[
     (0x2080_A0F2, 96, "perf 0xf2"),
     (0x2080_A612, 54352, "pmgr 0x12"),
     (0x2080_A613, 79936, "pmgr 0x13"),
-    (0x2080_A618, 20000, "pmgr 0x18"),
     (0x2080_A61A, 13840, "pmgr 0x1a"),
     (0x2080_A61F, 8, "pmgr 0x1f"),
     (0x2080_A63C, 28, "pmgr 0x3c"),
