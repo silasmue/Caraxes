@@ -158,9 +158,9 @@ From `caraxes/abi/gsp-615.71.09/` (the tables are in
 | Controls (unique ids) | 1377 | 1397 |
 | routed to GSP | 829 | 844 |
 | of which INTERNAL | 239 | 246 |
-| routed, answered by the device | 720 | 734 |
+| routed, answered by the device | 743 | 757 |
 | (host-forwarded / synthesized / guest-derived / echo / refused) | 70 / 79 / 39 / 66 / 466 | 69 / 79 / 40 / 67 / 479 |
-| routed, unhandled | 109 | 110 |
+| routed, unhandled | 86 | 87 |
 | (A / B / C / D / E) | 51 / 10 / 0 / 48 / 0 | 51 / 10 / 1 / 48 / 0 |
 | RPC functions | 230 | 232 |
 | sent by a GSP client (610 survey; 615: rpc-functions.md §2) | 20 | 14 |
@@ -173,14 +173,15 @@ From `caraxes/abi/gsp-615.71.09/` (the tables are in
 | Boot and transport types | 35 | 41 |
 | of which `NV_ABI_STABLE` | 0 | 17 (12 structs, 5 enums) |
 
-Which rule answers the 734 routed controls of 615 (`controls.tsv`, column `answered_by`): the
+Which rule answers the 757 routed controls of 615 (`controls.tsv`, column `answered_by`): the
 category E feature families 302 (refused per chip, `chipctl.rs`), the D rule table 155
 (`dmodel.rs`), the display 71, the B and C table 61 (`public.rs`), the `FORWARD` list 43, the
 match arms of `ctrl.rs` 28, `uvm.rs` 17, `kgr.rs` 16, the A chip table 16, the rest in `cuda.rs`
-and `nvml.rs`. The 110 unhandled are the open items of [gsp-surface.md](gsp-surface.md) "After
-D": 51 A rows waiting for a capture, 10 B rows moved to C, the 615-only
-`NV_EVENT_BUFFER_CTRL_CMD_UPDATE_GET`, and 48 D rows (27 open models, 17 C rows, 4 open A
-rows). The classes named or acknowledged are 50 of the 53 in TU106's database; the other 3 are
+and `nvml.rs` (the per-rule split of the first snapshot, before round 2 of D; the snapshot was
+regenerated after that merge and `controls.tsv` carries the current split). The 87 unhandled are
+the open items of [gsp-surface.md](gsp-surface.md) "After round 2 of D": the A rows waiting for a
+capture, the B rows moved to C, the 615-only `NV_EVENT_BUFFER_CTRL_CMD_UPDATE_GET`, and the D rows
+still open (the display rows the display branch answers, the C rows, the open A rows). The classes named or acknowledged are 50 of the 53 in TU106's database; the other 3 are
 the profiler classes, refused at allocation, and the 96 GSP-bound classes outside the database
 are refused as GSP-RM refuses them. The class counts differ from
 [gsp-plan/classes.md](gsp-plan/classes.md) (143 sendable, 48 on TU106) because that document
