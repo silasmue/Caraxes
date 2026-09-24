@@ -13,6 +13,7 @@
 //! GSP message queues and RPC service, the phase-5 dispatcher and the fake FB.
 
 pub mod bar0;
+pub mod bar2area;
 pub mod board;
 pub mod boot;
 pub mod channel;

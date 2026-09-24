@@ -630,6 +630,17 @@ struct Bar1Pt {
     stats: Bar1PtStats,
 }
 
+/// Where the bytes of an FB page live right now ([`FakeFb::backing`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Backing {
+    /// The FB store: the reserved VRAM (or host RAM without a reservation).
+    Store,
+    /// The BAR2 memfd at this offset: the page is mapped through guest BAR2 while
+    /// `CARAXES_BAR2_MEMFD=1` (docs/caraxes/bar2-memfd.md), so the guest's current
+    /// content is there; VRAM catches up at the next sync.
+    Bar2Memfd(u64),
+}
+
 pub struct FakeFb {
     size: u64,
     store: Box<dyn FbStore>,
@@ -663,6 +674,9 @@ pub struct FakeFb {
     watched_pages: RefCell<std::collections::HashSet<u64>>,
     /// P21: the BAR1 passthrough area and its check, when on.
     bar1_pt: RefCell<Option<Bar1Pt>>,
+    /// `CARAXES_BAR2_MEMFD=1`: guest BAR2 as a memfd (bar2area.rs); the FB pages mapped
+    /// through BAR2 live there ([`Self::backing`]).
+    bar2: Option<Box<crate::bar2area::Bar2Area>>,
     /// The guest's page tables are in the GMMU v3 format (Hopper and Blackwell,
     /// `gmmu-v3-57bit`): the walks below hand over to [`crate::gmmu_v3`]; false keeps the
     /// v2 walker of this file.
@@ -692,6 +706,7 @@ impl FakeFb {
             watched: RefCell::new(HashMap::new()),
             watched_pages: RefCell::new(std::collections::HashSet::new()),
             bar1_pt: RefCell::new(None),
+            bar2: None,
             mmu_v3: false,
         }
     }
@@ -707,6 +722,12 @@ impl FakeFb {
     /// it from the store, later calls answer from the copy `note_write` keeps current.
     /// `None` when `pa` is outside the store.
     pub fn watched_dword(&self, pa: u64) -> Option<u32> {
+        if matches!(self.backing(pa), Backing::Bar2Memfd(_)) {
+            // The guest writes this page through the BAR2 memfd without the device
+            // seeing it: no copy can stay current, and the memfd is RAM, so read it.
+            let mut b = [0u8; 4];
+            return self.read(pa, &mut b).then(|| u32::from_le_bytes(b));
+        }
         if let Some(v) = self.watched.borrow().get(&pa) {
             return Some(*v);
         }
@@ -823,6 +844,9 @@ impl FakeFb {
                 self.bar_tlb_stats.set((h, m, f + 1));
             }
         }
+        if let Some(a) = self.bar2.as_deref() {
+            a.note_table_write(pa, data);
+        }
         let mut walks = self.walks.borrow_mut();
         if walks.is_empty() {
             return;
@@ -833,6 +857,111 @@ impl FakeFb {
                     c.note_write(page, pa, data);
                 }
             }
+        }
+    }
+
+    /// Where FB address `pa` lives right now: the one translation every FB access of the
+    /// device goes through ([`Self::read`], [`Self::write`]). Today the only other home
+    /// is the BAR2 memfd (`CARAXES_BAR2_MEMFD=1`, bar2area.rs).
+    pub fn backing(&self, pa: u64) -> Backing {
+        match self.bar2.as_deref().and_then(|a| a.backing(pa)) {
+            Some(off) => Backing::Bar2Memfd(off),
+            None => Backing::Store,
+        }
+    }
+
+    /// FB pages (4 KiB page numbers) whose content changed behind the device: guest
+    /// writes through the BAR2 memfd that a sync found. Everything a trapped write of the
+    /// same page would have told `note_write`, but of unknown content: the shadow's walk
+    /// caches re-read the page (from the memfd, RAM speed), the BAR TLB and the watched
+    /// dwords drop what they held for it, the P21 check walks again.
+    pub fn note_pages_changed(&self, pages: &[u64]) {
+        if pages.is_empty() {
+            return;
+        }
+        if let Some(pt) = self.bar1_pt.borrow_mut().as_mut() {
+            if pages.iter().any(|p| pt.table_pages.contains(p)) {
+                pt.walk_dirty = true;
+            }
+        }
+        {
+            let wp = self.watched_pages.borrow();
+            if pages.iter().any(|p| wp.contains(p)) {
+                self.watched
+                    .borrow_mut()
+                    .retain(|k, _| !pages.contains(&(k >> 12)));
+            }
+        }
+        {
+            let mut tp = self.bar_tlb_pages.borrow_mut();
+            if pages.iter().any(|p| tp.contains(p)) {
+                tp.clear();
+                self.bar_tlb.borrow_mut().clear();
+                let (h, m, f) = self.bar_tlb_stats.get();
+                self.bar_tlb_stats.set((h, m, f + 1));
+            }
+        }
+        for c in self.walks.borrow_mut().values_mut() {
+            for &p in pages {
+                if c.watches(p) {
+                    c.mark_dirty(p);
+                }
+            }
+        }
+    }
+
+    /// Put guest BAR2 in the memfd `area` (docs/caraxes/bar2-memfd.md). Refused for the
+    /// GMMU v3 format, whose tables the BAR2 walk (ptcache.rs, v2 geometry) cannot read.
+    pub fn set_bar2_area(&mut self, area: crate::bar2area::Bar2Area) -> Result<(), String> {
+        if self.mmu_v3 {
+            return Err("the BAR2 memfd follows GMMU v2 tables only (this chip uses v3)".into());
+        }
+        self.bar2 = Some(Box::new(area));
+        Ok(())
+    }
+
+    /// The BAR2 memfd, when on.
+    pub fn bar2_area(&self) -> Option<&crate::bar2area::Bar2Area> {
+        self.bar2.as_deref()
+    }
+
+    /// A sync of the BAR2 memfd (bar2area.rs `Bar2Area::sync`): guest writes found by the
+    /// dirty scan are written back to VRAM and reported to the caches, then the BAR2
+    /// tables under `root` (the BAR2 page directory) are followed. Returns false when the
+    /// memfd is off.
+    pub fn bar2_sync(&mut self, root: Option<u64>, sys: Option<&GuestMemory>) -> bool {
+        let size = self.size;
+        let Some(a) = self.bar2.as_deref_mut() else {
+            return false;
+        };
+        let r = a.sync(&mut *self.store, size, root, sys);
+        if !r.dirty.is_empty() {
+            // The written-back bytes must reach VRAM before the GPU can be told to read
+            // them (the RPC and invalidate paths that follow a sync).
+            self.store.flush();
+        }
+        self.note_pages_changed(&r.dirty);
+        true
+    }
+
+    /// Count an access of a trapped BAR2 page.
+    pub fn bar2_note_trapped(&self) {
+        if let Some(a) = self.bar2.as_deref() {
+            a.note_trapped();
+        }
+    }
+
+    /// Move the BAR2 memfd to `to` (the fresh model of a function-level reset): the VMM
+    /// keeps the memfd mapped across the reset. What the guest wrote is written back
+    /// first; the fresh model starts with nothing mapped and walks the BAR2 tables again
+    /// at its first sync.
+    pub fn carry_bar2_area(&mut self, to: &mut FakeFb) {
+        let size = self.size;
+        if let Some(mut a) = self.bar2.take() {
+            a.sync(&mut *self.store, size, None, None);
+            self.store.flush();
+            a.reset_mapping();
+            to.bar2 = Some(a);
         }
     }
 
@@ -919,7 +1048,10 @@ impl FakeFb {
         if pa + buf.len() as u64 > self.size {
             return false;
         }
-        self.store.read(pa, buf);
+        match self.bar2.as_deref() {
+            Some(a) if a.has_live() => a.read_through(&*self.store, pa, buf),
+            _ => self.store.read(pa, buf),
+        }
         true
     }
 
@@ -931,6 +1063,10 @@ impl FakeFb {
         self.filter.before_write(pa, data);
         self.note_write(pa, data);
         self.store.write(pa, data);
+        if let Some(a) = self.bar2.as_deref_mut() {
+            // Write-through: VRAM for the GPU, the memfd for the guest's BAR2 view.
+            a.device_write(pa, data);
+        }
         true
     }
 
@@ -1746,6 +1882,93 @@ mod tests {
         assert!(fresh.poll_bar1_passthrough());
         let st = fresh.bar1_passthrough_stats().unwrap();
         assert_eq!((st.mapped, st.mismatch_events, st.table_hazards), (0, 1, 1));
+    }
+
+    /// The BAR2 memfd end to end on the fake FB: the remap follows the guest's BAR2 tables
+    /// (written through their own self-mapping in the memfd), the dirty scan feeds the
+    /// shadow's walk cache, pages leaving BAR2 are back in the store, device writes reach
+    /// the guest's view, and the trapped page is never mapped.
+    #[test]
+    fn bar2_memfd_follows_the_bar2_tables_and_feeds_the_walk_cache() {
+        use crate::bar2area::{Bar2Area, Config};
+        let vid = |a: u64| ((a >> 12) << 8) | 0b010;
+        let pte = |a: u64| ((a >> 12) << 8) | (0x06 << 56) | 1;
+        let mut fb = FakeFb::new(64 << 20);
+        // BAR2 tables: root 0x10000 -> 0x11000 -> 0x12000 -> PD0 0x13000 -> PT 0x14000.
+        let root = 0x10000;
+        fb.write_u64(root, vid(0x11000));
+        fb.write_u64(0x11000, vid(0x12000));
+        fb.write_u64(0x12000, vid(0x13000));
+        fb.write_u64(0x13008, vid(0x14000));
+        let bar2_pte = |fb: &mut FakeFb, page: u64, pa: u64| fb.write_u64(0x14000 + 8 * page, pte(pa));
+        // BAR2 page 1 maps the PT itself; pages 2..=6 a channel's tables at 0x30000..;
+        // the trapped page 0x1f maps 0x70000.
+        bar2_pte(&mut fb, 1, 0x14000);
+        for i in 0..5 {
+            bar2_pte(&mut fb, 2 + i, 0x30000 + i * 0x1000);
+        }
+        bar2_pte(&mut fb, 0x1f, 0x70000);
+        // The channel's tree: 0x30000 -> 0x31000 -> 0x32000 -> 0x33000 -> PT 0x34000,
+        // one leaf at VA 0x3000.
+        fb.write_u64(0x30000, vid(0x31000));
+        fb.write_u64(0x31000, vid(0x32000));
+        fb.write_u64(0x32000, vid(0x33000));
+        fb.write_u64(0x33008, vid(0x34000));
+        fb.write_u64(0x34000 + 8 * 3, pte(0x50000));
+        fb.write_u64(0x60008, 0x6060);
+
+        let cfg = Config {
+            traps: vec![0x1f000],
+            sync_doorbell: false,
+        };
+        let area = Bar2Area::create(0x20000, &cfg).unwrap();
+        let guest = area.mem.map_again().unwrap();
+        fb.set_bar2_area(area).unwrap();
+        assert!(fb.bar2_sync(Some(root), None));
+        // Live: the PT at BAR2 page 1, the channel tables at 2..=6; not the trapped page.
+        assert_eq!(fb.backing(0x14000), Backing::Bar2Memfd(0x1000));
+        assert_eq!(fb.backing(0x34018), Backing::Bar2Memfd(0x6018));
+        assert_eq!(fb.backing(0x70000), Backing::Store);
+        assert_eq!(guest.load_word(6, 3), pte(0x50000));
+
+        let croot = Target::Fb(0x30000);
+        let u = fb.walk_update(None, croot, false, 1 << 20);
+        assert!(u.full);
+        assert_eq!(fb.with_walk(croot, |c| c.leaf_count()), Some(1));
+        // The guest writes a PTE through BAR2: the device does not see it until a sync.
+        guest.store_word(6, 5, pte(0x51000));
+        assert!(!fb.tables_dirty(croot));
+        fb.bar2_sync(Some(root), None);
+        assert!(fb.tables_dirty(croot));
+        let u = fb.walk_update(None, croot, false, 1 << 20);
+        assert!(!u.full);
+        assert_eq!(u.changed, vec![0]);
+        assert_eq!(u.reads, 1); // the dirty page, read again from the memfd
+        assert_eq!(fb.with_walk(croot, |c| c.leaf_count()), Some(2));
+
+        // The guest re-points BAR2 page 6 at 0x60000 through the self-mapped PT.
+        guest.store_word(1, 6, pte(0x60000));
+        fb.bar2_sync(Some(root), None);
+        assert_eq!(fb.backing(0x34000), Backing::Store);
+        assert_eq!(fb.backing(0x60000), Backing::Bar2Memfd(0x6000));
+        // 0x60000 was loaded into the memfd; 0x34000 is back in the store with the write.
+        assert_eq!(guest.load_word(6, 1), 0x6060);
+        assert_eq!(fb.read_u64(0x34000 + 8 * 5), Some(pte(0x51000)));
+        // A device write (PRAMIN, an RPC) reaches the guest's BAR2 view and the store,
+        // and is not taken for a guest write.
+        fb.write_u64(0x60010, 0xABC);
+        assert_eq!(guest.load_word(6, 2), 0xABC);
+        let before = fb.bar2_area().unwrap().stats().dirty;
+        fb.bar2_sync(Some(root), None);
+        assert_eq!(fb.bar2_area().unwrap().stats().dirty, before);
+
+        // A function-level reset carries the area over with nothing mapped; the next sync
+        // maps again from the tables, which are in the store.
+        let mut fresh = FakeFb::new(64 << 20);
+        fb.carry_bar2_area(&mut fresh);
+        assert!(fb.bar2_area().is_none());
+        assert!(!fresh.bar2_area().unwrap().has_live());
+        assert_eq!(fb.read_u64(0x14000 + 8 * 6), Some(pte(0x60000)));
     }
 
     #[test]
