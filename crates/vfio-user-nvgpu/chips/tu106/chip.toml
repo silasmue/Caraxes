@@ -64,6 +64,19 @@ access_counter_info = 0x00B8_311C
 usermode_time_0 = 0x00BB_0080
 usermode_time_1 = 0x00BB_0084
 usermode_doorbell = 0x00BB_0090
+# The L2 cache operations (docs/caraxes/execution.md §6, "L2 cache operations"): the RM
+# writes PENDING (bit 0) to start one and polls PENDING|OUTSTANDING (bits 1:0) until
+# both clear (gm200/dev_flush.h:26-54; kmemsysDoCacheOp_GM107). On Turing the sysmem
+# and peer invalidates go through the VF window (kmemsysWriteL2SysmemInvalidateReg_TU102,
+# BAR0 0xB80000 + tu102/dev_vm.h:29-30); the NV_UFLUSH_* originals are kept as well.
+# Forwarded to the host with host execution on: FLUSH_DIRTY (write-back) and
+# SYSMEM_INVALIDATE (invalidate, which the host RM promotes to write-back + invalidate).
+l2_flush_dirty = 0x0007_0010
+l2_sysmem_invalidate = [0x0007_0004, 0x00B8_0F00]
+# Completed without a host operation: NV_UFLUSH_FB_FLUSH (sysmembar; the host issues
+# its own before every cache op), L2_PEERMEM_INVALIDATE (no peers) and
+# L2_CLEAN_COMPTAGS (D16: no guest comptag line ever reaches the host).
+l2_ops_local = [0x0007_0000, 0x0007_0008, 0x0007_000C, 0x00B8_0F04]
 
 # engineCaps[3] of GspStaticConfigInfo: the NV2080_ENGINE_TYPE bits of the TU106
 # engines (kern_gpu_tu102.c:177-205; cl2080_notification.h).

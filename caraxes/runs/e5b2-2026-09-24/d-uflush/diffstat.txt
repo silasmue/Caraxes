@@ -1,0 +1,12 @@
+ crates/vfio-user-nvgpu/chips/tu106/chip.toml   | 13 ++++
+ crates/vfio-user-nvgpu/chips/tu106/regmap.toml |  7 +++
+ crates/vfio-user-nvgpu/src/bar0.rs             | 52 ++++++++++++++++
+ crates/vfio-user-nvgpu/src/boot.rs             | 78 ++++++++++++++++++++++++
+ crates/vfio-user-nvgpu/src/chip/mod.rs         |  6 ++
+ crates/vfio-user-nvgpu/src/chip/tu106.rs       |  2 +-
+ crates/vfio-user-nvgpu/src/ctrl.rs             | 54 +++++++++++++++++
+ crates/vfio-user-nvgpu/src/hostmem.rs          | 84 ++++++++++++++++++++++----
+ crates/vfio-user-nvgpu/src/main.rs             | 14 ++++-
+ crates/vfio-user-nvgpu/src/ver/v610.rs         | 18 ++++++
+ tools/caraxes-vm.sh                            | 10 ++-
+ 11 files changed, 320 insertions(+), 18 deletions(-)

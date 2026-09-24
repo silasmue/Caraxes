@@ -329,4 +329,56 @@ mod tests {
             WriteEffect::Latched
         );
     }
+
+    /// The L2 cache-operation registers (`NV_UFLUSH_*`, gm200/dev_flush.h, and the
+    /// Turing VF-window sysmem/peer invalidates, tu102/dev_vm.h:29-30) are not latched:
+    /// a write of PENDING_BUSY starts the operation, and PENDING (0:0) and OUTSTANDING
+    /// (1:1) read back as done, so kmemsysDoCacheOp_GM107's poll ends at once. Latched,
+    /// they read back busy forever (a 30 s RM timeout per operation, bench v2-hang).
+    #[test]
+    fn l2_cache_operations_complete() {
+        let (bar0, mut cfg) = parts();
+        let mem = GuestMemory::new();
+        let f = crate::fixture::rtx2070();
+        let mut bar0 = bar0.with_boot_model(BootModel::new(
+            f.chip,
+            crate::fb::FbLayout::plain(4 << 30),
+            f.identity(4 << 30),
+        ));
+        let mut b = [0u8; 4];
+        for reg in [
+            0x70000u64, 0x70004, 0x70008, 0x7000C, 0x70010, 0xB80F00, 0xB80F04,
+        ] {
+            bar0.read(&cfg, reg, &mut b);
+            assert_eq!(u32::from_le_bytes(b), 0, "{reg:#x} before any operation");
+            // PENDING_BUSY, as kmemsysCacheOp_GM200 writes it.
+            assert_eq!(
+                bar0.write(&mut cfg, &mem, reg, &1u32.to_le_bytes()),
+                WriteEffect::Model,
+                "{reg:#x}"
+            );
+            bar0.read(&cfg, reg, &mut b);
+            assert_eq!(u32::from_le_bytes(b) & 0b11, 0, "{reg:#x} still busy");
+            // Bits outside PENDING/OUTSTANDING keep what was written.
+            bar0.write(&mut cfg, &mem, reg, &0x7u32.to_le_bytes());
+            bar0.read(&cfg, reg, &mut b);
+            assert_eq!(u32::from_le_bytes(b), 0x4, "{reg:#x}");
+        }
+        assert_eq!(bar0.name(0x70010), Some("NV_UFLUSH_L2_FLUSH_DIRTY"));
+        assert_eq!(
+            bar0.name(0xB80F00),
+            Some("NV_VIRTUAL_FUNCTION_PRIV_L2_SYSMEM_INVALIDATE")
+        );
+        // Two starts per register (both writes set PENDING); without host execution
+        // nothing is forwarded.
+        let c = bar0.boot().unwrap().l2_op_counts;
+        assert_eq!(c, (14, 0, 0));
+        // Neighbours still latch (the default is unchanged).
+        assert_eq!(
+            bar0.write(&mut cfg, &mem, 0x70014, &1u32.to_le_bytes()),
+            WriteEffect::Latched
+        );
+        bar0.read(&cfg, 0x70014, &mut b);
+        assert_eq!(u32::from_le_bytes(b), 1);
+    }
 }

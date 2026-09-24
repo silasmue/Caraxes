@@ -1,0 +1,7 @@
+test hostmem::slot_tests::slots_stack_downward ... ok
+test ctrl::tests::flush_gpu_cache_parameters ... ok
+test bar0::tests::l2_cache_operations_complete ... ok
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 68 filtered out; finished in 0.01s
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 2 filtered out; finished in 0.00s
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s

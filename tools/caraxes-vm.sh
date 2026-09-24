@@ -15,13 +15,15 @@
 # through the PROM window (default: caraxes/reference/rtx2070/synth-vbios.bin when
 # present, else the PCI-visible rom.bin). CARAXES_BOOT_MODEL=1 attaches the E2 boot
 # model; CARAXES_FB_MIB sets the framebuffer size the guest is told; CARAXES_HOST_RM=1
-# lets the device open the host RM and forward the forwardable RPCs.
+# lets the device open the host RM and forward the forwardable RPCs. CARAXES_SERVER
+# overrides the device binary (default target/release/vfio-user-nvgpu).
 # CARAXES_NAME_FORMAT=transport names the card "Leandro VFIO RTX 2070-4G" instead of the
 # default "Leandro RTX 2070-4G" (nvrm_abi::naming, docs/caraxes/identity-profile.md);
 # `name` prints the guest-visible name the device presents with the current settings.
 # E5b part 1 (docs/caraxes/memory-model.md): CARAXES_RESERVE_VRAM=1 makes the device hold
 # the profile's size of host VRAM at a fixed address for its life (refused when the host
-# would keep less than 1 GiB free); CARAXES_DMA=register registers guest RAM with the host
+# would keep less than 1 GiB free); CARAXES_RESERVE_SLOT=<n> places it n profile sizes
+# below the top of the host FB (P20: one slot per VM; default 0 = the top); CARAXES_DMA=register registers guest RAM with the host
 # RM and publishes the IOVA table in $W/dma-ranges (the device then needs CAP_SYS_ADMIN
 # permitted: a copy of the binary in $W gets the file capability cap_sys_admin+p through
 # `sudo -n setcap`), CARAXES_DMA=identity publishes an identity table. `dma` (also run by
@@ -57,7 +59,7 @@ MAC=${CARAXES_MAC:-02:00:00:00:00:20}
 KERNEL=${CARAXES_KERNEL:-$LEA_VM_DIR/guest-image/vmlinuz}
 INITRD=${CARAXES_INITRD:-$LEA_VM_DIR/guest-image/initrd}
 SSH_KEY=${CARAXES_SSH_KEY:-$LEA_VM_DIR/id_leandro}
-SERVER=$LEA_ROOT/target/release/vfio-user-nvgpu
+SERVER=${CARAXES_SERVER:-$LEA_ROOT/target/release/vfio-user-nvgpu}
 # The settings the guest-visible identity follows (`up` and `name` pass the same ones).
 IDENTITY=()
 [[ -n ${CARAXES_FB_MIB:-} ]] && IDENTITY+=(--fb-mib "$CARAXES_FB_MIB")
@@ -92,6 +94,8 @@ up() {
     vbios+=("${IDENTITY[@]}")
     [[ ${CARAXES_HOST_RM:-0} == 1 ]] && vbios+=(--host-rm)
     [[ ${CARAXES_RESERVE_VRAM:-0} == 1 ]] && vbios+=(--reserve-vram)
+    [[ ${CARAXES_RESERVE_VRAM:-0} == 1 && -n ${CARAXES_RESERVE_SLOT:-} ]] &&
+        vbios+=(--reserve-slot "$CARAXES_RESERVE_SLOT")
     [[ ${CARAXES_HOST_EXEC:-0} == 1 ]] && vbios+=(--host-exec)
     [[ ${CARAXES_DISPLAY:-0} == 1 ]] && vbios+=(--display)
     local server=$SERVER

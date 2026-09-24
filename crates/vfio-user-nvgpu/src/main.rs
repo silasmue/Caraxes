@@ -34,7 +34,7 @@ const USAGE: &str = "\
 vfio-user-nvgpu --socket <path> [--trace <file>] [--board-data <name|file>] [--chip <chip>]
                 [--config <dump>] [--rom <rom.bin>] [--vbios <image>] [--vbios-version <v>]
                 [--boot-model] [--fb-mib <n>] [--board <name>] [--host-rm]
-                [--reserve-vram] [--register-guest-ram | --identity-dma-table] [--dma-ranges <file>]
+                [--reserve-vram [--reserve-slot <n>]] [--register-guest-ram | --identity-dma-table] [--dma-ranges <file>]
                 [--host-exec] [--profile <size>] [--name-format <legacy|transport>] [--display]
 vfio-user-nvgpu --print-name [--board-data <name|file>] [--board <name>] [--fb-mib <n> | --profile <size>]
                 [--name-format <legacy|transport>]
@@ -60,6 +60,8 @@ vfio-user-nvgpu --selftest <socket> [--board-data <name|file>] [--chip <chip>] [
   --reserve-vram  hold the profile's size of host VRAM at a fixed address at the top of the host FB
              heap for the device's life and give the guest FB addresses inside it (E5b,
              docs/caraxes/memory-model.md); refused when the host would keep less than 1 GiB free
+  --reserve-slot <n>  place the reservation n profile sizes below the top (P20: one slot per
+             VM, 2 MiB aligned; default 0 = the top); refused when the slot leaves the heap
   --register-guest-ram  register guest RAM with the host RM in 1 GiB chunks at DMA_MAP and translate
              every guest DMA address through the resulting IOVA table (needs CAP_SYS_ADMIN
              permitted: file capability cap_sys_admin+p, or start with sudo -n)
@@ -90,6 +92,7 @@ struct Args {
     host_rm: bool,
     display: bool,
     reserve_vram: bool,
+    reserve_slot: u32,
     register_guest_ram: bool,
     identity_dma_table: bool,
     dma_ranges: Option<PathBuf>,
@@ -130,6 +133,7 @@ fn parse_args() -> Result<Args> {
         host_rm: false,
         display: false,
         reserve_vram: false,
+        reserve_slot: 0,
         register_guest_ram: false,
         identity_dma_table: false,
         dma_ranges: None,
@@ -163,6 +167,9 @@ fn parse_args() -> Result<Args> {
             "--host-rm" => a.host_rm = true,
             "--display" => a.display = true,
             "--reserve-vram" => a.reserve_vram = true,
+            "--reserve-slot" => {
+                a.reserve_slot = value()?.parse().context("--reserve-slot needs a number")?
+            }
             "--register-guest-ram" => a.register_guest_ram = true,
             "--identity-dma-table" => a.identity_dma_table = true,
             "--dma-ranges" => a.dma_ranges = Some(PathBuf::from(value()?)),
@@ -195,6 +202,9 @@ fn parse_args() -> Result<Args> {
     }
     if a.register_guest_ram && a.identity_dma_table {
         bail!("--register-guest-ram and --identity-dma-table exclude each other");
+    }
+    if a.reserve_slot != 0 && !a.reserve_vram {
+        bail!("--reserve-slot needs --reserve-vram");
     }
     if a.reserve_vram && !a.boot_model {
         bail!("--reserve-vram needs --boot-model (the FB layout lives in the boot model)");
@@ -302,7 +312,7 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
     if a.reserve_vram {
         let hm = host_mem.as_ref().expect("opened above");
         let mut h = hm.lock().unwrap();
-        match h.reserve(a.fb_mib << 20) {
+        match h.reserve(a.fb_mib << 20, a.reserve_slot) {
             Ok(log) => log
                 .iter()
                 .for_each(|l| eprintln!("vfio-user-nvgpu: hostmem: {l}")),

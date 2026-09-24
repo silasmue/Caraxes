@@ -228,6 +228,30 @@ semaphore (payload + GPU timestamp) in guest sysmem (measured, d-ce-diag / d-ce-
      at the second context's GPFIFO). `mirror.rs` keeps a `ShadowSpace` per guest root (the VAS,
      its set-B exclusions, its chids and TSGs), freed when its last channel and TSG are freed;
      the cuda gate's robustness stage passes after the change, 0 Xid.
+   - *L2 cache operations* (2026-09-24, `boot.rs` `l2_op`, `caraxes/runs/e5b2-2026-09-24/d-uflush/`).
+     After a few CUDA processes every `cuCtxCreate` took ~68 s (bench `v2-hang`): the guest RM
+     logged `kmemsysDoCacheOp_GM107: timeout error waiting for reg 0x70010 update` and `... 0x70004`
+     twice per context. A GPU-cached (vol=0) sysmem mapping makes the RM evict system memory from
+     L2 (`kmemsysNeedInvalidateGpuCacheOnMap_GV100`, `kmemsysCacheOp_GM200`). It writes
+     `PENDING_BUSY` to `NV_UFLUSH_L2_FLUSH_DIRTY` 0x70010, then to `L2_SYSMEM_INVALIDATE`, and polls
+     `PENDING|OUTSTANDING` (bits 1:0, gm200/dev_flush.h). On Turing, `L2_SYSMEM_INVALIDATE` is the
+     VF-window alias 0xB80F00 (`kmemsysWriteL2SysmemInvalidateReg_TU102`); the log prints the
+     `reg` argument 0x70004. One 30 s timeout covers both writes. The BAR0 default latched the
+     written 1, so the poll never ended. The latch lives in the device process, so it survives FLR
+     and rmmod. Why the first contexts escape it is not established; the device trace of a
+     reproduction would show the first cached sysmem map (evidence `source-trace.txt`).
+     The boot model now owns the block (chip.toml `l2_flush_dirty`, `l2_sysmem_invalidate`,
+     `l2_ops_local`): a write with PENDING starts the operation and both busy bits read back
+     clear. With host execution on, the guest's sysmem lines really sit in the physical L2, so
+     FLUSH_DIRTY and SYSMEM_INVALIDATE first run on the physical GPU as
+     `NV2080_CTRL_CMD_FB_FLUSH_GPU_CACHE` on the device's own subdevice (full cache, sysmem
+     aperture; FLUSH_DIRTY sends write-back, SYSMEM_INVALIDATE sends invalidate, which the host RM
+     turns into write-back + invalidate). The control is exported NON_PRIVILEGED (flags 0x10118),
+     so the unprivileged client may call it. A host failure is logged and the register still reads
+     complete: the guest RM could only time out and continue. FB_FLUSH, PEERMEM_INVALIDATE and
+     CLEAN_COMPTAGS complete with no host operation: there are no peers, and under D16 nothing
+     comptag-related reaches the host. Unit tests pass. The hardware run on vm2 (the sequence of
+     bench `v2-hang`) is pending: while vm1 held the one fixed reservation, vm2 could not take one.
 
 
 Every Xid seen while iterating was contained to the device process (its pid), on our own

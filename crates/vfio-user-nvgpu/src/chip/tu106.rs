@@ -83,7 +83,7 @@ mod tests {
             Some("NV_PROM_DATA (VBIOS window)")
         );
         assert_eq!(c.register_name(0x12345), None);
-        assert_eq!(c.regmap.len(), 45);
+        assert_eq!(c.regmap.len(), 52);
     }
 
     /// The tables resolve to exactly the numbers the E4/E5a device answered with.

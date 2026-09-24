@@ -479,6 +479,19 @@ impl Dispatcher {
             .unwrap_or_default()
     }
 
+    /// The guest's L2 cache operation, honoured on the physical GPU with
+    /// `NV2080_CTRL_CMD_FB_FLUSH_GPU_CACHE` (full cache, system-memory aperture, `flags`
+    /// the write-back/invalidate bits) on the device's own subdevice. `None` without a
+    /// host RM connection, otherwise the host's NV status.
+    pub fn host_flush_gpu_cache(&mut self, flags: u32) -> Option<u32> {
+        let host = self.host.as_mut()?;
+        let mut p = vec![0u8; v::FLUSH_GPU_CACHE_PARAMS_SIZE];
+        let f = v::FLUSH_GPU_CACHE_APERTURE_SYSTEM_MEMORY | v::FLUSH_GPU_CACHE_FULL_CACHE | flags;
+        let o = v::FLUSH_GPU_CACHE_FLAGS;
+        p[o..o + 4].copy_from_slice(&f.to_le_bytes());
+        Some(host.control(NV20_SUBDEVICE_0, v::CMD_FB_FLUSH_GPU_CACHE, &mut p))
+    }
+
     /// The guest kernel's TLB invalidate for `pdb`: forwarded to the mirror VA spaces.
     pub fn mirror_invalidate(&mut self, fb: &mut crate::fb::FakeFb, pdb: Option<u64>) -> usize {
         self.mirror
@@ -1108,6 +1121,47 @@ mod tests {
         assert_eq!(
             seen.lock().unwrap().as_slice(),
             &[NV01_DEVICE_0, crate::nvml::NV2081_BINAPI]
+        );
+    }
+
+    /// The guest's L2 cache operations reach the host as FB_FLUSH_GPU_CACHE on the
+    /// device's subdevice: full cache, sysmem aperture, the operation's flag bits.
+    #[test]
+    fn flush_gpu_cache_parameters() {
+        type Seen = std::sync::Arc<std::sync::Mutex<Vec<(u32, u32, usize, u32)>>>;
+        struct Rec(Seen);
+        impl HostRm for Rec {
+            fn control(&mut self, class: u32, cmd: u32, p: &mut [u8]) -> u32 {
+                let o = v::FLUSH_GPU_CACHE_FLAGS;
+                let flags = u32::from_le_bytes(p[o..o + 4].try_into().unwrap());
+                self.0.lock().unwrap().push((class, cmd, p.len(), flags));
+                NV_OK
+            }
+        }
+        assert_eq!(
+            dispatcher(None).host_flush_gpu_cache(v::FLUSH_GPU_CACHE_WRITE_BACK),
+            None
+        );
+        let seen: Seen = Default::default();
+        let mut d = dispatcher(Some(Box::new(Rec(seen.clone()))));
+        assert_eq!(
+            d.host_flush_gpu_cache(v::FLUSH_GPU_CACHE_WRITE_BACK),
+            Some(NV_OK)
+        );
+        assert_eq!(
+            d.host_flush_gpu_cache(v::FLUSH_GPU_CACHE_INVALIDATE),
+            Some(NV_OK)
+        );
+        // ctrl2080fb.h: APERTURE 1:0 = SYSTEM_MEMORY, WRITE_BACK 2:2, INVALIDATE 3:3,
+        // FLUSH_MODE 4:4 = FULL_CACHE; 500 addresses + 4 + 4 + 8 + 4, 8-aligned.
+        assert_eq!(v::FLUSH_GPU_CACHE_PARAMS_SIZE, 4024);
+        assert_eq!(v::FLUSH_GPU_CACHE_FLAGS, 4016);
+        assert_eq!(
+            seen.lock().unwrap().as_slice(),
+            &[
+                (NV20_SUBDEVICE_0, 0x2080_130E, 4024, 0x15),
+                (NV20_SUBDEVICE_0, 0x2080_130E, 4024, 0x19)
+            ]
         );
     }
 }

@@ -148,6 +148,9 @@ tools/caraxes-vm.sh wait; tools/caraxes-vm.sh probe <label>     # or: dma, then 
 ```
 
 - `up` adds `--reserve-vram`, and `--register-guest-ram --dma-ranges $W/dma-ranges`.
+  `CARAXES_RESERVE_SLOT=<n>` adds `--reserve-slot n`: the range moves n profile sizes below
+  the top, `[E-(n+1)S, E-nS)` (P20, one slot per VM; 0, the default, is the top). The 1 GiB
+  headroom rule is unchanged, and a slot below the heap base is refused.
   It then waits for the complete table.
 - `dma` runs inside `probe` and `uvm`, before `modprobe`. When the loaded table
   differs, it does `rmmod nvidia_uvm nvidia caraxes_dma_range`, then `insmod

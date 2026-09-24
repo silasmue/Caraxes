@@ -182,6 +182,31 @@ const SAMPLE_STEP: u64 = 128 * MIB;
 /// Heap attribution tag of the reservation (as host-facts.rs).
 const OWNER_TAG: u32 = u32::from_le_bytes(*b"cara");
 
+/// The fixed range of reservation slot `slot` for a profile of `s` bytes (a multiple of
+/// 2 MiB) in the host heap region `[heap_base, region_end)`: slot 0 ends at the region
+/// end aligned down to 2 MiB, slot n lies n profile sizes below it (P20). Refused when
+/// the slot does not fit above `heap_base`.
+pub fn slot_range(
+    heap_base: u64,
+    region_end: u64,
+    s: u64,
+    slot: u32,
+) -> Result<(u64, u64), String> {
+    let top = region_end & !(HUGE - 1);
+    let fit = (slot as u64)
+        .checked_mul(s)
+        .and_then(|below| top.checked_sub(below))
+        .and_then(|e| e.checked_sub(s).map(|b| (b, e)));
+    match fit {
+        Some((b, e)) if b >= heap_base => Ok((b, e)),
+        _ => Err(format!(
+            "refused: slot {slot} of a {} MiB profile ({} MiB below the top) does not fit in the host's FB heap region [{heap_base:#x}, {region_end:#x})",
+            s / MIB,
+            (slot as u64 + 1).saturating_mul(s) / MIB
+        )),
+    }
+}
+
 /// The fixed-address VRAM range held for the VM.
 #[derive(Clone, Debug)]
 pub struct Reservation {
@@ -805,8 +830,9 @@ impl HostMemory {
     /// of host-facts.md §3: `[E - S, E)` with E the region end aligned down to 2 MiB,
     /// refused unless `S + 1 GiB` is free by both `HEAP_FREE` and nvidia-smi, fixed
     /// address and physically contiguous, no floating fallback, the reply checked.
-    /// Returns the log lines.
-    pub fn reserve(&mut self, size: u64) -> Result<Vec<String>> {
+    /// `slot` n places it n profile sizes lower, `[E - (n+1)S, E - nS)` (P20: one slot
+    /// per VM, stacked downward; slot 0 is the range above). Returns the log lines.
+    pub fn reserve(&mut self, size: u64, slot: u32) -> Result<Vec<String>> {
         let mut log = Vec::new();
         if self.reservation.is_some() {
             bail!("a reservation is already held");
@@ -826,14 +852,8 @@ impl HostMemory {
             .rfind(|r| r.2 == 0)
             .context("the host reports no non-reserved FB region")?;
         let region_end = heap_limit + 1;
-        let e = region_end & !(HUGE - 1);
-        let base = match e.checked_sub(s) {
-            Some(b) if b >= heap_base => b,
-            _ => bail!(
-                "refused: the profile ({} MiB) is larger than the host's FB heap region [{heap_base:#x}, {region_end:#x})",
-                s / MIB
-            ),
-        };
+        let (base, e) =
+            slot_range(heap_base, region_end, s, slot).map_err(|e| anyhow::anyhow!(e))?;
         let info = self.fb_info(&[
             v::FB_INFO_TOTAL_RAM_SIZE,
             v::FB_INFO_HEAP_FREE,
@@ -852,7 +872,7 @@ impl HostMemory {
         let smi_free = smi_free()?;
         let f = heap_free.min(smi_free);
         log.push(format!(
-            "host VRAM: total {} MiB, HEAP_FREE {} MiB, nvidia-smi free {} MiB, {largest}; request {} MiB at [{base:#x}, {e:#x}) (heap region end {region_end:#x})",
+            "host VRAM: total {} MiB, HEAP_FREE {} MiB, nvidia-smi free {} MiB, {largest}; request {} MiB at [{base:#x}, {e:#x}) (slot {slot}, heap region end {region_end:#x})",
             total / MIB,
             heap_free / MIB,
             smi_free / MIB,
@@ -904,7 +924,7 @@ impl HostMemory {
             );
         }
         log.push(format!(
-            "reserved host VRAM [{base:#x}, {:#x}) ({} MiB), handle {h:#x}, attr {:#x} attr2 {:#x}, contiguous, in {alloc_ms} ms",
+            "reserved host VRAM [{base:#x}, {:#x}) ({} MiB, slot {slot}), handle {h:#x}, attr {:#x} attr2 {:#x}, contiguous, in {alloc_ms} ms",
             base + s,
             s / MIB,
             p.attr,
@@ -1170,5 +1190,45 @@ impl Drop for HostMemory {
         for l in self.shutdown() {
             eprintln!("vfio-user-nvgpu: hostmem: {l}");
         }
+    }
+}
+
+#[cfg(test)]
+mod slot_tests {
+    use super::*;
+
+    /// P20 placement: slot n is n profile sizes below slot 0, 2 MiB aligned, and a slot
+    /// that leaves the heap region is refused. Numbers from the RTX 2070 host
+    /// (bench v2-hang gpu log: heap region [0x3600000, 0x1e918ffff]).
+    #[test]
+    fn slots_stack_downward() {
+        let (heap, end) = (0x360_0000u64, 0x1_e919_0000u64);
+        // Slot 0 is today's range (the 2026-09-24 log: [0xe9000000, 0x1e9000000)).
+        assert_eq!(
+            slot_range(heap, end, 4 * GIB, 0),
+            Ok((0xe900_0000, 0x1_e900_0000))
+        );
+        assert_eq!(
+            slot_range(heap, end, 2 * GIB, 0),
+            Ok((0x1_6900_0000, 0x1_e900_0000))
+        );
+        assert_eq!(
+            slot_range(heap, end, 2 * GIB, 1),
+            Ok((0xe900_0000, 0x1_6900_0000))
+        );
+        assert_eq!(
+            slot_range(heap, end, 2 * GIB, 2),
+            Ok((0x6900_0000, 0xe900_0000))
+        );
+        // 2.5 GiB (odd sizes are tested, D11): slot 1 ends where slot 0 begins.
+        let s = 2560 * MIB;
+        let (b0, _) = slot_range(heap, end, s, 0).unwrap();
+        let (b1, e1) = slot_range(heap, end, s, 1).unwrap();
+        assert_eq!((e1, b0 - b1), (b0, s));
+        assert_eq!(b1 % HUGE, 0);
+        // Beyond the heap base: refused, never clamped.
+        assert!(slot_range(heap, end, 4 * GIB, 1).is_err());
+        assert!(slot_range(heap, end, 2 * GIB, 3).is_err());
+        assert!(slot_range(heap, end, 2 * GIB, u32::MAX).is_err());
     }
 }

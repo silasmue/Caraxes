@@ -1,0 +1,20 @@
+
+== check.sh ==
+PASS  cargo test  (6s)
+PASS  cargo test (release)  (13s)
+PASS  cargo test --doc  (4s)
+PASS  cargo doc  (1s)
+PASS  clippy  (3s)
+PASS  clippy (all features)  (4s)
+PASS  nvrm-genhdr  (0s)
+PASS  c-interpreter  (1s)
+PASS  edid  (0s)
+PASS  class-sizes  (2s)
+PASS  kapi-abi  (1s)
+PASS  bash -n  (0s)
+PASS  licence  (1s)
+PASS  abi  (44s)
+PASS  nix-sparse  (0s)
+PASS  dangling-refs  (3s)
+PASS  no-markers  (2s)
+exit 0

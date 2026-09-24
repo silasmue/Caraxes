@@ -11,6 +11,7 @@
 //! service (docs/caraxes/gsp-rpc-protocol.md, docs/caraxes/phase5-rpcs.md). Message
 //! layouts are the emulated driver version's ([`crate::ver`]).
 
+use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex};
 
 use crate::chip::{BootEvent, Chip, ChipData, FirmwareBoot, Registers};
@@ -34,7 +35,25 @@ enum Reg {
     MmuInvalidateUpperPdb,
     MmuInvalidate,
     UsermodeDoorbell,
+    /// An L2 cache-operation register (`NV_UFLUSH_*` and the VF-window aliases).
+    L2Op(L2Op),
 }
+
+/// What an L2 cache-operation register does when the guest starts it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum L2Op {
+    /// `L2_FLUSH_DIRTY`: write back every dirty line.
+    FlushDirty,
+    /// `L2_SYSMEM_INVALIDATE`: invalidate the lines caching system memory.
+    SysmemInvalidate,
+    /// FB_FLUSH, PEERMEM_INVALIDATE, CLEAN_COMPTAGS: completed without a host operation.
+    Local,
+}
+
+/// `_PENDING` (0:0) and `_OUTSTANDING` (1:1) of every `NV_UFLUSH_*` cache-operation
+/// register (gm200/dev_flush.h:26-54): the RM writes `PENDING_BUSY` to start the
+/// operation and polls both bits until they read 0 (kmemsysDoCacheOp_GM107).
+const L2_OP_BUSY: u32 = 0b11;
 
 /// `NV_RAMUSERD` is 512 bytes (dev_ram.ref; 8 channels per 4 KiB page): what GSP-RM
 /// clears when it takes over a client-provided USERD.
@@ -68,6 +87,10 @@ pub struct BootModel {
     /// `NV_PBUS_BAR0_WINDOW`: BASE[23:0] in 64 KiB units, TARGET[25:24].
     bar0_window: u32,
     mmu_invalidate: (u32, u32, u32),
+    /// Last value written to each L2 cache-operation register (busy bits masked on read).
+    l2_ops: BTreeMap<u64, u32>,
+    /// L2 cache operations started / forwarded to the host / host failures (trace).
+    pub l2_op_counts: (u64, u64, u64),
     bar2_block: u32,
     pub bar_faults: u32,
     /// The CPU interrupt tree (MSI source).
@@ -108,6 +131,8 @@ impl BootModel {
             // Reset value as the VBIOS leaves it: the last MiB of FB (fb-model.md §4c).
             bar0_window: ((fb_bytes - (1 << 20)) >> 16) as u32,
             mmu_invalidate: (0, 0, 0),
+            l2_ops: BTreeMap::new(),
+            l2_op_counts: (0, 0, 0),
             bar2_block: 0,
             bar_faults: 0,
             intr: IntrTree::new(r.intr_tree, r.intr_tree_size),
@@ -280,8 +305,52 @@ impl BootModel {
             o if o == r.mmu_invalidate_upper_pdb => Reg::MmuInvalidateUpperPdb,
             o if o == r.mmu_invalidate => Reg::MmuInvalidate,
             o if o == r.usermode_doorbell => Reg::UsermodeDoorbell,
+            o if o == r.l2_flush_dirty => Reg::L2Op(L2Op::FlushDirty),
+            o if r.l2_sysmem_invalidate.contains(&o) => Reg::L2Op(L2Op::SysmemInvalidate),
+            o if r.l2_ops_local.contains(&o) => Reg::L2Op(L2Op::Local),
             _ => return None,
         })
+    }
+
+    /// Start the L2 cache operation `op` (the guest wrote `PENDING_BUSY`). With host
+    /// execution on, the guest's work runs on the physical GPU and its sysmem lines sit
+    /// in the physical L2, so FLUSH_DIRTY and SYSMEM_INVALIDATE are honoured there with
+    /// `FB_FLUSH_GPU_CACHE` before the register reports completion. Without host
+    /// execution there is no cache behind the model and the operation completes at once.
+    /// A host failure is logged and still reported complete: the guest RM cannot act on
+    /// a timeout either (it logs and continues), and a wedged poll costs 30 s per op.
+    fn l2_op(&mut self, op: L2Op) -> String {
+        use crate::ver::active::{FLUSH_GPU_CACHE_INVALIDATE, FLUSH_GPU_CACHE_WRITE_BACK};
+        self.l2_op_counts.0 += 1;
+        let flags = match op {
+            L2Op::FlushDirty => FLUSH_GPU_CACHE_WRITE_BACK,
+            // The host RM promotes a sysmem invalidate to an evict (kmemsysCacheOp_GM200).
+            L2Op::SysmemInvalidate => FLUSH_GPU_CACHE_INVALIDATE,
+            L2Op::Local => return format!("l2 {op:?}: complete (no host operation)"),
+        };
+        if self.exec.is_none() {
+            return format!("l2 {op:?}: complete (no host execution, no cache behind the model)");
+        }
+        let t = std::time::Instant::now();
+        match self.ctrl.host_flush_gpu_cache(flags) {
+            Some(0) => {
+                self.l2_op_counts.1 += 1;
+                format!(
+                    "l2 {op:?}: FB_FLUSH_GPU_CACHE flags {:#x} NV_OK in {} us [host GPU]",
+                    flags,
+                    t.elapsed().as_micros()
+                )
+            }
+            Some(st) => {
+                self.l2_op_counts.2 += 1;
+                let m = format!(
+                    "l2 {op:?}: FB_FLUSH_GPU_CACHE flags {flags:#x} failed: status {st:#x}; reported complete"
+                );
+                eprintln!("vfio-user-nvgpu: {m}");
+                m
+            }
+            None => format!("l2 {op:?}: complete (no host RM connection)"),
+        }
     }
 
     fn in_pramin(&self, off: u64) -> bool {
@@ -328,6 +397,9 @@ impl BootModel {
             Some(Reg::MmuInvalidate) => self.mmu_invalidate.2 & !(1 << 31),
             // Write-only doorbell (`clc361.h:33`); reads return 0.
             Some(Reg::UsermodeDoorbell) => 0,
+            // The operation completed when the write started it: PENDING and
+            // OUTSTANDING read EMPTY/FALSE (execution.md §6, "L2 cache operations").
+            Some(Reg::L2Op(_)) => self.l2_ops.get(&off).copied().unwrap_or(0) & !L2_OP_BUSY,
             None => return self.fw.read32(off),
         })
     }
@@ -370,6 +442,12 @@ impl BootModel {
             Some(Reg::MmuInvalidatePdb) => self.mmu_invalidate.0 = v,
             Some(Reg::MmuInvalidateUpperPdb) => self.mmu_invalidate.1 = v,
             Some(Reg::Bar1Block) => notes.push("read-only".into()),
+            Some(Reg::L2Op(op)) => {
+                self.l2_ops.insert(off, v);
+                if v & 1 != 0 {
+                    notes.push(self.l2_op(op));
+                }
+            }
             Some(Reg::UsermodeDoorbell) => {
                 // A channel's work submit token (kernel_fifo_tu102.c:75-130): a mirrored
                 // channel rings the host doorbell (E5b part 2), the others run their

@@ -1,0 +1,27 @@
+Root cause, read from vendor/open-gpu-kernel-modules (610.57.04), 2026-09-24
+
+Trigger (TU106, Volta+ HAL): dmaAllocMapping_GM107 -> kmemsysNeedInvalidateGpuCacheOnMap_GV100
+  (virt_mem_allocator_gm107.c:2377; kern_mem_sys_gv100.c:88-104): a GPU-cached (vol=0) mapping of
+  SYS_COH/SYS_NONCOH/PEER memory -> kmemsysCacheOp_HAL(.., FB_CACHE_SYSTEM_MEMORY, FB_CACHE_EVICT).
+  Same from nv_gpu_ops.c:4405 (UVM external mappings), memdescFlushGpuCaches (mem_desc.c:2039),
+  NV0080_CTRL_CMD_DMA_FLUSH (dma.c:706), NV0041 surface flush (mem_ctrl.c:378).
+  The unmap path (bNeedL2InvalidateAtUnmap) is T194-only; not Turing.
+  In the bench v2-hang dmesg the stall follows ioctl 0x57 (NV_ESC_RM_MAP_MEMORY_DMA).
+kmemsysCacheOp_GM200 (kern_mem_sys_gm200.c:84-110), SYSTEM_MEMORY + EVICT:
+  1. NV_UFLUSH_L2_FLUSH_DIRTY 0x70010 <- PENDING_BUSY (1); poll PENDING|OUTSTANDING (0x3)
+  2. L2_SYSMEM_INVALIDATE <- PENDING_BUSY; on Turing kmemsysWriteL2SysmemInvalidateReg_TU102
+     writes NV_VIRTUAL_FUNCTION_PRIV_L2_SYSMEM_INVALIDATE = BAR0 0xB80000 + 0xF00
+     (tu102/dev_vm.h:29); the RM log prints the reg argument (0x70004).
+  One RMTIMEOUT (GPU_TIMEOUT_DEFAULT, 30 s here) covers both: FLUSH_DIRTY spins 30 s
+  (cnt=842607), SYSMEM_INVALIDATE times out on its first poll (cnt=1). Two EVICTs per
+  context -> ~60 s + normal ~8 s = the 68 s cuCtxCreate.
+Field layout: gm200/dev_flush.h:26-54, PENDING 0:0 (RW), OUTSTANDING 1:1 (R).
+Device before the fix: bar0.rs latched writes and read them back -> PENDING stays 1 forever;
+the latch is in the device process, so FLR / rmmod / modprobe do not clear it.
+
+Host control: NV2080_CTRL_CMD_FB_FLUSH_GPU_CACHE 0x2080130e (ctrl2080fb.h:624-695), export
+flags 0x10118 = NON_PRIVILEGED | GPU_LOCK_DEVICE_ONLY | API_LOCK_READONLY |
+GSP_PLUGIN_FOR_VGPU_GSP (g_subdevice_nvoc.c entry [394]; control.h) -> callable by the device's
+unprivileged client. kmemsysFlushGpuCache_IMPL (kern_mem_sys_ctrl.c:1447-1560):
+APERTURE_SYSTEM_MEMORY + WRITE_BACK -> FB_CACHE_WRITEBACK -> host FLUSH_DIRTY;
++ INVALIDATE -> FB_CACHE_INVALIDATE, promoted to EVICT by kmemsysCacheOp_GM200.

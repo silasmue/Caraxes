@@ -164,6 +164,12 @@ pub struct Registers {
     pub usermode_time_0: u64,
     pub usermode_time_1: u64,
     pub usermode_doorbell: u64,
+    /// `NV_UFLUSH_L2_FLUSH_DIRTY`.
+    pub l2_flush_dirty: u64,
+    /// `NV_UFLUSH_L2_SYSMEM_INVALIDATE` and its VF-window alias.
+    pub l2_sysmem_invalidate: [u64; 2],
+    /// The other cache-operation registers, completed without a host operation.
+    pub l2_ops_local: [u64; 4],
 }
 
 /// A value with the provenance label its answer carries (decision D9).
