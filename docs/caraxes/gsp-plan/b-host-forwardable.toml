@@ -1,0 +1,740 @@
+# SPDX-License-Identifier: MIT
+# SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
+# SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
+# Category B of docs/caraxes/gsp-surface.md §3 as the table-driven form proposed in
+# docs/caraxes/gsp-plan/b-host-forwardable.md §4. Reference data, not read by the crate.
+# size610/size615: sizeof of the params struct compiled against each tree's SDK headers
+# (cc -std=gnu11 -DNV_LINUX); equal for every row, and the struct text (with every
+# nested type and array bound) is identical in both trees.
+# group: F1 forward as-is, F2 forward with filter, S device-owned answer, G guest object
+# (C plan), R refuse, N never sent here. target: host object the forward uses.
+
+[[control]]
+name = "NV0000_CTRL_CMD_GPUACCT_GET_ACCOUNTING_STATE"
+id = 0x00000B02
+size610 = 12
+size615 = 12
+flags = 0x10008
+group = "N"
+target = "none"
+filter = "none"
+moveto = "E"
+
+[[control]]
+name = "NV0000_CTRL_CMD_GPUACCT_GET_PROC_ACCOUNTING_INFO"
+id = 0x00000B03
+size610 = 48
+size615 = 48
+flags = 0x10008
+group = "N"
+target = "none"
+filter = "none"
+moveto = "E"
+
+[[control]]
+name = "NV0000_CTRL_CMD_GPUACCT_GET_ACCOUNTING_PIDS"
+id = 0x00000B04
+size610 = 16012
+size615 = 16012
+flags = 0x10008
+group = "N"
+target = "none"
+filter = "none"
+moveto = "E"
+
+[[control]]
+name = "NV0000_CTRL_CMD_GPUACCT_GET_PROC_ACCOUNTING_INFO_V2"
+id = 0x00000B06
+size610 = 64
+size615 = 64
+flags = 0x10008
+group = "N"
+target = "none"
+filter = "none"
+moveto = "E"
+
+[[control]]
+name = "NV0090_CTRL_CMD_GET_MMU_DEBUG_MODE"
+id = 0x00900105
+size610 = 1
+size615 = 1
+flags = 0x10008
+group = "G"
+target = "none"
+filter = "none"
+moveto = "C"
+
+[[control]]
+name = "NV2080_CTRL_CMD_GPU_QUERY_ECC_CONFIGURATION"
+id = 0x20800133
+size610 = 8
+size615 = 8
+flags = 0x40048
+group = "F1"
+target = "subdevice"
+filter = "none"
+
+[[control]]
+name = "NV2080_CTRL_CMD_GPU_QUERY_ILLUM_SUPPORT"
+id = 0x20800153
+size610 = 8
+size615 = 8
+flags = 0x40048
+group = "F1"
+target = "subdevice"
+filter = "none"
+
+[[control]]
+name = "NV2080_CTRL_CMD_GPU_GET_ILLUM"
+id = 0x20800154
+size610 = 8
+size615 = 8
+flags = 0x48
+group = "F1"
+target = "subdevice"
+filter = "none"
+
+[[control]]
+name = "NV2080_CTRL_CMD_GPU_QUERY_SCRUBBER_STATUS"
+id = 0x2080015F
+size610 = 24
+size615 = 24
+flags = 0x40048
+group = "F2"
+target = "subdevice"
+filter = "reservation_range(8, 16)"
+
+[[control]]
+name = "NV2080_CTRL_CMD_GPU_QUERY_FUNCTION_STATUS"
+id = 0x20800173
+size610 = 12
+size615 = 12
+flags = 0x48
+group = "F1"
+target = "subdevice"
+filter = "none"
+
+[[control]]
+name = "NV2080_CTRL_CMD_GPU_GET_PARTITION_CAPACITY"
+id = 0x20800181
+size610 = 280
+size615 = 280
+flags = 0x40048
+group = "R"
+target = "none"
+filter = "none"
+moveto = "E"
+
+[[control]]
+name = "NV2080_CTRL_CMD_GPU_GET_RESET_STATUS"
+id = 0x208001AB
+size610 = 1
+size615 = 1
+flags = 0x158
+group = "F1"
+target = "subdevice"
+filter = "none"
+
+[[control]]
+name = "NV2080_CTRL_CMD_GPU_GET_DRAIN_AND_RESET_STATUS"
+id = 0x208001AE
+size610 = 1
+size615 = 1
+flags = 0x48
+group = "F1"
+target = "subdevice"
+filter = "none"
+
+[[control]]
+name = "NV2080_CTRL_GPU_GET_FIPS_STATUS"
+id = 0x208001E4
+size610 = 1
+size615 = 1
+flags = 0x44
+group = "S"
+target = "none"
+filter = "none"
+moveto = "A"
+
+[[control]]
+name = "NV2080_CTRL_CMD_TIMER_GET_GPU_CPU_TIME_CORRELATION_INFO"
+id = 0x20800406
+size610 = 264
+size615 = 264
+flags = 0x108
+group = "S"
+target = "none"
+filter = "none"
+
+[[control]]
+name = "NV2080_CTRL_CMD_BIOS_GET_POST_TIME"
+id = 0x20800809
+size610 = 8
+size615 = 8
+flags = 0x40048
+group = "F1"
+target = "subdevice"
+filter = "none"
+
+[[control]]
+name = "NV2080_CTRL_CMD_BIOS_GET_UEFI_SUPPORT"
+id = 0x2080080B
+size610 = 8
+size615 = 8
+flags = 0x48
+group = "S"
+target = "none"
+filter = "none"
+moveto = "A"
+
+[[control]]
+name = "NV2080_CTRL_CMD_BIOS_GET_NBSI_V2"
+id = 0x2080080E
+size610 = 1308
+size615 = 1308
+flags = 0x48
+group = "S"
+target = "none"
+filter = "none"
+
+[[control]]
+name = "NV2080_CTRL_CMD_CLK_PMUMON_CLK_DOMAINS_GET_SAMPLES"
+id = 0x20801037
+size610 = 6024
+size615 = 6024
+flags = 0x40048
+group = "F1"
+target = "subdevice"
+filter = "none"
+
+[[control]]
+name = "NV2080_CTRL_CMD_FIFO_OBJSCHED_SW_GET_LOG"
+id = 0x2080110E
+size610 = 24024
+size615 = 24024
+flags = 0x48
+group = "R"
+target = "none"
+filter = "none"
+
+[[control]]
+name = "NV2080_CTRL_CMD_FIFO_OBJSCHED_GET_STATE"
+id = 0x20801120
+size610 = 20
+size615 = 20
+flags = 0x48
+group = "F1"
+target = "subdevice"
+filter = "none"
+
+[[control]]
+name = "NV2080_CTRL_CMD_GR_GET_CTXSW_STATS"
+id = 0x20801215
+size610 = 32
+size615 = 32
+flags = 0x48
+group = "G"
+target = "none"
+filter = "none"
+moveto = "C"
+
+[[control]]
+name = "NV2080_CTRL_CMD_GR_GET_CURRENT_RESIDENT_CHANNEL"
+id = 0x2080121C
+size610 = 24
+size615 = 24
+flags = 0x48
+group = "G"
+target = "none"
+filter = "none"
+moveto = "C"
+
+[[control]]
+name = "NV2080_CTRL_CMD_GR_GFX_POOL_QUERY_SIZE"
+id = 0x2080121F
+size610 = 40
+size615 = 40
+flags = 0x40
+group = "S"
+target = "none"
+filter = "none"
+moveto = "E"
+
+[[control]]
+name = "NV2080_CTRL_CMD_GR_GET_CTXSW_MODES"
+id = 0x20801235
+size610 = 24
+size615 = 24
+flags = 0x48
+group = "G"
+target = "none"
+filter = "none"
+moveto = "C"
+
+[[control]]
+name = "NV2080_CTRL_CMD_FB_GET_CALIBRATION_LOCK_FAILED"
+id = 0x2080130C
+size610 = 24
+size615 = 24
+flags = 0x48
+group = "F1"
+target = "subdevice"
+filter = "none"
+
+[[control]]
+name = "NV2080_CTRL_CMD_FB_GET_LTC_INFO_FOR_FBP"
+id = 0x20801328
+size610 = 20
+size615 = 20
+flags = 0x50158
+group = "F1"
+target = "subdevice"
+filter = "none"
+
+[[control]]
+name = "NV2080_CTRL_CMD_FB_GET_CTAGS_FOR_CBC_EVICTION"
+id = 0x20801338
+size610 = 512
+size615 = 512
+flags = 0x44
+group = "S"
+target = "none"
+filter = "none"
+
+[[control]]
+name = "NV2080_CTRL_CMD_FB_GET_ROW_REMAPPER_HISTOGRAM"
+id = 0x20801347
+size610 = 20
+size615 = 20
+flags = 0x58
+group = "F1"
+target = "subdevice"
+filter = "none"
+
+[[control]]
+name = "NV2080_CTRL_CMD_FB_GET_DYNAMIC_OFFLINED_PAGES"
+id = 0x20801348
+size610 = 1040
+size615 = 1040
+flags = 0x50048
+group = "F2"
+target = "subdevice"
+filter = "offlined_pages_in_reservation"
+
+[[control]]
+name = "NV2080_CTRL_CMD_FB_QUERY_DRAM_ENCRYPTION_PENDING_CONFIGURATION"
+id = 0x20801355
+size610 = 4
+size615 = 4
+flags = 0x40048
+group = "F1"
+target = "subdevice"
+filter = "none"
+
+[[control]]
+name = "NV2080_CTRL_CMD_FB_QUERY_DRAM_ENCRYPTION_STATUS"
+id = 0x20801358
+size610 = 4
+size615 = 4
+flags = 0x40048
+group = "F1"
+target = "subdevice"
+filter = "none"
+
+[[control]]
+name = "NV2080_CTRL_CMD_BUS_GET_PEX_LANE_COUNTERS"
+id = 0x20801816
+size610 = 18
+size615 = 18
+flags = 0x48
+group = "F1"
+target = "subdevice"
+filter = "none"
+
+[[control]]
+name = "NV2080_CTRL_CMD_BUS_GET_PCIE_LTR_LATENCY"
+id = 0x20801817
+size610 = 12
+size615 = 12
+flags = 0x48
+group = "F1"
+target = "subdevice"
+filter = "none"
+
+[[control]]
+name = "NV2080_CTRL_CMD_BUS_GET_UPHY_DLN_CFG_SPACE"
+id = 0x20801827
+size610 = 12
+size615 = 12
+flags = 0x48
+group = "R"
+target = "none"
+filter = "none"
+
+[[control]]
+name = "NV2080_CTRL_CMD_BUS_GET_EOM_STATUS"
+id = 0x20801828
+size610 = 76
+size615 = 76
+flags = 0x48
+group = "R"
+target = "none"
+filter = "none"
+
+[[control]]
+name = "NV2080_CTRL_CMD_PERF_GET_LEVEL_INFO_V2"
+id = 0x2080200B
+size610 = 780
+size615 = 780
+flags = 0x50048
+group = "F1"
+target = "subdevice"
+filter = "none"
+
+[[control]]
+name = "NV2080_CTRL_CMD_PERF_GET_POWERSTATE"
+id = 0x2080205A
+size610 = 4
+size615 = 4
+flags = 0x40048
+group = "F1"
+target = "subdevice"
+filter = "none"
+
+[[control]]
+name = "NV2080_CTRL_CMD_PERF_GET_TEGRA_PERFMON_SAMPLE"
+id = 0x20802069
+size610 = 8
+size615 = 8
+flags = 0x48
+group = "R"
+target = "none"
+filter = "none"
+moveto = "E"
+
+[[control]]
+name = "NV2080_CTRL_CMD_PERF_RATED_TDP_GET_CONTROL"
+id = 0x2080206E
+size610 = 12
+size615 = 12
+flags = 0x4a
+group = "F1"
+target = "subdevice"
+filter = "none"
+
+[[control]]
+name = "NV2080_CTRL_CMD_PERF_GET_GPUMON_PERFMON_UTIL_SAMPLES_V2"
+id = 0x20802096
+size610 = 55888
+size615 = 55888
+flags = 0x50008
+group = "F2"
+target = "subdevice"
+filter = "gpumon_process_fields"
+
+[[control]]
+name = "NV2080_CTRL_CMD_RC_GET_ERROR_COUNT"
+id = 0x20802205
+size610 = 4
+size615 = 4
+flags = 0x8
+group = "G"
+target = "none"
+filter = "none"
+moveto = "C"
+
+[[control]]
+name = "NV2080_CTRL_CMD_GET_RC_RECOVERY"
+id = 0x2080220E
+size610 = 4
+size615 = 4
+flags = 0x40154
+group = "S"
+target = "none"
+filter = "none"
+
+[[control]]
+name = "NV2080_CTRL_CMD_RC_GET_ERROR_V2"
+id = 0x20802213
+size610 = 8200
+size615 = 8200
+flags = 0x8
+group = "G"
+target = "none"
+filter = "none"
+moveto = "C"
+
+[[control]]
+name = "NV2080_CTRL_CMD_FLCN_GET_DMEM_USAGE"
+id = 0x20803101
+size610 = 12
+size615 = 12
+flags = 0x48
+group = "F1"
+target = "subdevice"
+filter = "none"
+
+[[control]]
+name = "NV2080_CTRL_CMD_ECC_GET_CLIENT_EXPOSED_COUNTERS"
+id = 0x20803400
+size610 = 96
+size615 = 96
+flags = 0x48
+group = "F1"
+target = "subdevice"
+filter = "none"
+
+[[control]]
+name = "NV2080_CTRL_CMD_ECC_GET_VOLATILE_COUNTS"
+id = 0x20803401
+size610 = 40
+size615 = 40
+flags = 0x48
+group = "F1"
+target = "subdevice"
+filter = "none"
+
+[[control]]
+name = "NV2080_CTRL_CMD_ECC_GET_SRAM_UNIQUE_UNCORR_COUNTS"
+id = 0x20803402
+size610 = 16804
+size615 = 16804
+flags = 0x44
+group = "S"
+target = "none"
+filter = "none"
+
+[[control]]
+name = "NV2080_CTRL_CMD_ECC_GET_REPAIR_STATUS"
+id = 0x20803404
+size610 = 2
+size615 = 2
+flags = 0x48
+group = "F1"
+target = "subdevice"
+filter = "none"
+
+[[control]]
+name = "NV2080_CTRL_CMD_ECC_GET_UNREPAIRABLE_MEMORY_FLAG"
+id = 0x20803406
+size610 = 1
+size615 = 1
+flags = 0x48
+group = "F1"
+target = "subdevice"
+filter = "none"
+
+[[control]]
+name = "NV2080_CTRL_CMD_GSP_GET_RM_HEAP_STATS"
+id = 0x20803602
+size610 = 88
+size615 = 88
+flags = 0x48
+group = "F2"
+target = "subdevice"
+filter = "gfid_zero"
+
+[[control]]
+name = "NV2080_CTRL_CMD_GSP_GET_LIBOS_HEAP_STATS"
+id = 0x20803604
+size610 = 1040
+size615 = 1040
+flags = 0x248
+group = "F1"
+target = "subdevice"
+filter = "none"
+
+[[control]]
+name = "NV2080_CTRL_CMD_GPU_IS_RESET_COUPLED"
+id = 0x208081F3
+size610 = 1
+size615 = 1
+flags = 0x48
+group = "F1"
+target = "subdevice"
+filter = "none"
+
+[[control]]
+name = "NV2080_CTRL_CMD_GPU_GET_UNIT_FS_INFO_FROM_DIELET"
+id = 0x208081F5
+size610 = 16
+size615 = 16
+flags = 0x48
+group = "R"
+target = "none"
+filter = "none"
+moveto = "E"
+
+[[control]]
+name = "NV208F_CTRL_CMD_FIFO_GET_CHANNEL_STATE"
+id = 0x208F0403
+size610 = 16
+size615 = 16
+flags = 0x10008
+group = "G"
+target = "none"
+filter = "none"
+moveto = "C"
+
+[[control]]
+name = "NV208F_CTRL_CMD_GPU_GET_RAM_SVOP_VALUES"
+id = 0x208F1101
+size610 = 16
+size615 = 16
+flags = 0x48
+group = "R"
+target = "none"
+filter = "none"
+
+[[control]]
+name = "NV402C_CTRL_CMD_I2C_GET_PORT_SPEED"
+id = 0x402C0103
+size610 = 64
+size615 = 64
+flags = 0x48
+group = "S"
+target = "none"
+filter = "none"
+
+[[control]]
+name = "NV83DE_CTRL_CMD_DEBUG_GET_MODE_MMU_DEBUG"
+id = 0x83DE0308
+size610 = 4
+size615 = 4
+flags = 0x10248
+group = "G"
+target = "none"
+filter = "none"
+moveto = "C"
+
+[[control]]
+name = "NV83DE_CTRL_CMD_DEBUG_GET_MODE_ERRBAR_DEBUG"
+id = 0x83DE0320
+size610 = 4
+size615 = 4
+flags = 0x48
+group = "G"
+target = "none"
+filter = "none"
+moveto = "C"
+
+[[control]]
+name = "NV83DE_CTRL_CMD_DEBUG_GET_SINGLE_SM_DEBUGGER_STATUS"
+id = 0x83DE0325
+size610 = 12
+size615 = 12
+flags = 0x48
+group = "G"
+target = "none"
+filter = "none"
+moveto = "C"
+
+[[control]]
+name = "NV83DE_CTRL_CMD_DEBUG_GET_MODE_MMU_GCC_DEBUG"
+id = 0x83DE032B
+size610 = 4
+size615 = 4
+flags = 0x248
+group = "G"
+target = "none"
+filter = "none"
+moveto = "C"
+
+[[control]]
+name = "NV9096_CTRL_CMD_GET_ZBC_CLEAR_TABLE_ENTRY"
+id = 0x90960107
+size610 = 56
+size615 = 56
+flags = 0x10248
+group = "G"
+target = "none"
+filter = "none"
+moveto = "C"
+
+[[control]]
+name = "NV90E6_CTRL_CMD_MASTER_GET_ERROR_INTR_OFFSET_MASK"
+id = 0x90E60101
+size610 = 16
+size615 = 16
+flags = 0x48
+group = "S"
+target = "none"
+filter = "none"
+moveto = "A"
+
+[[control]]
+name = "NV90E6_CTRL_CMD_MASTER_GET_VIRTUAL_FUNCTION_ERROR_CONT_INTR_MASK"
+id = 0x90E60102
+size610 = 8
+size615 = 8
+flags = 0x10248
+group = "S"
+target = "none"
+filter = "none"
+moveto = "A"
+
+[[control]]
+name = "NVB0CC_CTRL_CMD_PMA_STREAM_UPDATE_GET_PUT"
+id = 0xB0CC0109
+size610 = 48
+size615 = 48
+flags = 0x50048
+group = "R"
+target = "none"
+filter = "none"
+moveto = "D"
+
+[[control]]
+name = "NVB0CC_CTRL_CMD_GET_TOTAL_HS_CREDITS"
+id = 0xB0CC010D
+size610 = 4
+size615 = 4
+flags = 0x10248
+group = "R"
+target = "none"
+filter = "none"
+moveto = "D"
+
+[[control]]
+name = "NVB0CC_CTRL_CMD_GET_HS_CREDITS"
+id = 0xB0CC010F
+size610 = 256
+size615 = 256
+flags = 0x10248
+group = "R"
+target = "none"
+filter = "none"
+moveto = "D"
+
+[[control]]
+name = "NVB0CC_CTRL_CMD_GET_CHIPLET_HS_CREDIT_POOL"
+id = 0xB0CC0115
+size610 = 124
+size615 = 124
+flags = 0x10248
+group = "R"
+target = "none"
+filter = "none"
+moveto = "D"
+
+[[control]]
+name = "NVB0CC_CTRL_CMD_GET_HS_CREDITS_MAPPING"
+id = 0xB0CC0116
+size610 = 194
+size615 = 194
+flags = 0x10248
+group = "R"
+target = "none"
+filter = "none"
+moveto = "D"
+
+[[control]]
+name = "NVB0CC_CTRL_CMD_GET_DYNAMIC_MMA_BOOST_STATUS"
+id = 0xB0CC0118
+size610 = 1
+size615 = 1
+flags = 0x48
+group = "R"
+target = "none"
+filter = "none"
+moveto = "D"

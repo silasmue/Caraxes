@@ -1,4 +1,6 @@
 <!-- SPDX-License-Identifier: MIT -->
+<!-- SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de> -->
+<!-- SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR -->
 # GSP plan: preparing a full implementation of the GSP surface on 615.71.09
 
 The research programme after D19 and P23 ([../README.md](../README.md)): everything a GSP-RM
@@ -13,3 +15,5 @@ per document.
 | [events.md](events.md) | The 45 events of 615 (36 dispatched) and the GMCAPI GSP-to-CPU commands: payloads (`RC_TRIGGERED` grew from 48 to 64 bytes under the same version name), kernel handlers, which a TU106 Linux client needs, what the device sends (POST_EVENT for hotplug only), contained recipes for host-mirrored errors, events never to send, measurements M1-M10 |
 | [classes.md](classes.md) | The classes whose allocation reaches GSP: 143 a GSP client can send (of 149 flagged) plus the kernel's own 0x90CD/0x90D0 of the event import, 48 on TU106, 36 allocated by a stock stack; alloc parameter layouts 610/615 (only the TSG params changed), how real GSP-RM refuses a foreign class, the device's echo, recipes, FREE and DUP_OBJECT gaps |
 | [boot-exchange.md](boot-exchange.md) | The 615 boot exchange in order (queue construction to `GSP_INIT` and the first RPCs), teardown and reload, suspend and resume (`GSP_RESUME_DONE`), GC6/RTD3 (not used on a desktop TU106), what `NV_ABI_STABLE` covers and what the tree says about stability (the RM RPC layer is an opt-in "unstable interface"), the per-step device status and the gap list B1-B7 |
+| [b-host-forwardable.md](b-host-forwardable.md) | category B, 70 controls: per control: class, params and size in both trees (no layout differences), route on the real card, what the host answer is, the isolation filter, known clients, a one-line recipe; six groups (26 forward as-is, 4 forward filtered, 11 device-owned, 12 moved to C, 13 refused, 4 never sent here), the table-driven form with three worked examples, the order, open questions with measurements; machine-readable rows in [b-host-forwardable.toml](b-host-forwardable.toml) |
+| [c-guest-state.md](c-guest-state.md) | category C, 31 controls (29 in 610) plus 12 from B: per control: route, the guest state the answer derives from, where it lives in the device (module and struct), what is missing, the answer and a test recipe; seven groups, the attribute record and table form, the missing pieces by module, the order, open questions with measurements |
