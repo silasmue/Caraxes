@@ -30,6 +30,7 @@ pub mod falcon;
 pub mod fb;
 pub mod gmcapi;
 pub mod gspmem;
+pub mod gsprpc;
 pub mod gmmu_v3;
 pub mod guestmem;
 pub mod hostabi;

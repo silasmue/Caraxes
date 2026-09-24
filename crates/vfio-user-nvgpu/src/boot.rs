@@ -1182,6 +1182,79 @@ impl BootModel {
                         let n = msg.payload.len().min(crate::gspmem::AM_SIZE);
                         Some((st, msg.payload[..n].to_vec()))
                     }
+                    crate::gsprpc::FN_IDLE_CHANNELS => {
+                        // Resolved through the channel registry, idle when USERD GPGet
+                        // caught up with GPPut (gsprpc.rs; rpc-functions.md §4.2).
+                        let chans = &self.ctrl.channels;
+                        let fb = &mut self.fb;
+                        let (st, note) = crate::gsprpc::idle_channels(&msg.payload, |c, h| {
+                            let ch = chans.channels().find(|x| x.h_client == c && x.h_object == h)?;
+                            let word = |off: u64| match ch.userd {
+                                Some(crate::fb::Target::Fb(pa)) => Some(crate::fb::Target::Fb(pa + off)),
+                                Some(crate::fb::Target::Sys(pa)) => Some(crate::fb::Target::Sys(pa + off)),
+                                _ => None,
+                            };
+                            let gm = crate::channel::GpuMem { fb: &mut *fb, sys: mem };
+                            // NV_RAMUSERD GP_GET 0x88, GP_PUT 0x8C (clc46f.h:61-62).
+                            let (get, put) = match (word(0x88), word(0x8C)) {
+                                (Some(g), Some(p)) => (gm.read_u32(g).unwrap_or(0), gm.read_u32(p).unwrap_or(0)),
+                                _ => (0, 0),
+                            };
+                            Some(crate::gsprpc::ChannelIdle {
+                                chid: ch.chid,
+                                mirrored: ch.mirrored,
+                                gp_get: get,
+                                gp_put: put,
+                            })
+                        });
+                        notes.push(note);
+                        Some((st, msg.payload.clone()))
+                    }
+                    crate::gsprpc::FN_GPU_EXEC_REG_OPS => {
+                        // The device's own identity registers only; never a host register.
+                        let id = self.chip.data().identity;
+                        let (st, out, note) = crate::gsprpc::exec_reg_ops(&msg.payload, |off| match off {
+                            0x0 => Some(id.boot_0),
+                            0x4 => Some(id.boot_1),
+                            0xA00 => Some(id.boot_42),
+                            _ => None,
+                        });
+                        notes.push(note);
+                        Some((st, out))
+                    }
+                    crate::gsprpc::FN_DUMP_PROTOBUF_COMPONENT => {
+                        let (st, out, note) = crate::gsprpc::dump_protobuf_component(&msg.payload);
+                        notes.push(note);
+                        Some((st, out))
+                    }
+                    crate::gsprpc::FN_ECC_NOTIFIER_WRITE_ACK => {
+                        // Asynchronous, no reply (rpc.c:11166-11184 of 615): the kernel's
+                        // answer to ECC_POSSIBLE_ERR_FAST_PATH, which the device never sends.
+                        notes.push("ecc notifier write ack: consumed, no reply (asynchronous) [guest]".into());
+                        None
+                    }
+                    crate::gsprpc::FN_MAP_MEMORY_DMA | crate::gsprpc::FN_UNMAP_MEMORY_DMA => {
+                        let (st, note) = crate::gsprpc::map_memory_dma(h.function);
+                        notes.push(note);
+                        Some((st, msg.payload.clone()))
+                    }
+                    crate::gsprpc::FN_UNLOADING_GUEST_DRIVER => {
+                        // The 610 and nova-core (r570) unload: the facts of GSP_SUSPEND as
+                        // an RPC (rpc_unloading_guest_driver_v1F_07: bInPMTransition,
+                        // bGc6Entering, newLevel), answered NV_OK, then the same
+                        // processor-suspended bit (rpc-functions.md §4.3).
+                        let p = &msg.payload;
+                        let m0 = self.fw.read32(GSP_MAILBOX0).unwrap_or(0);
+                        self.fw.write32(GSP_MAILBOX0, m0 | GSP_PROCESSOR_SUSPENDED, mem);
+                        notes.push(format!(
+                            "unloading guest driver: bInPMTransition {} bGc6Entering {} newLevel {}; MAILBOX0 {m0:#x} -> {:#x} (processor suspended) [guest]",
+                            p.first().copied().unwrap_or(0),
+                            p.get(1).copied().unwrap_or(0),
+                            u32::from_le_bytes(p.get(4..8).and_then(|s| s.try_into().ok()).unwrap_or([0; 4])),
+                            m0 | GSP_PROCESSOR_SUSPENDED
+                        ));
+                        Some((rpc::NV_OK, msg.payload.clone()))
+                    }
                     rpc::FN_INIT_GSP_TRACE_CRASH_BUFFER => {
                         let p = &msg.payload;
                         let (a, s) = (v::CRASH_BUFFER_PA, v::CRASH_BUFFER_SIZE);
@@ -1973,6 +2046,49 @@ mod tests {
         assert!(notes.iter().any(|n| n.contains("GSP memory object(s) of the client")), "{notes:?}");
         assert!(g.b.gspmem.memories.is_empty() && g.b.gspmem.buffers.is_empty());
         assert!(g.b.unanswered.is_empty(), "{:?}", g.b.unanswered);
+    }
+
+    /// The conditional RPCs through the queue (gsprpc.rs): each gets the answer of
+    /// rpc-functions.md §4.2, none lands in `unanswered`, the asynchronous ECC ack gets
+    /// no reply.
+    #[test]
+    fn conditional_rpcs_through_the_queue() {
+        use crate::gsprpc as g;
+        let mut q = Guest615::boot("condrpc");
+        // DUMP_PROTOBUF_COMPONENT: an empty blob.
+        let mut dump = vec![0u8; g::DUMP_FIXED];
+        dump[g::DUMP_BUFFER_SIZE..][..4].copy_from_slice(&0xFFD0u32.to_le_bytes());
+        let (_, el) = q.rpc(g::FN_DUMP_PROTOBUF_COMPONENT, &dump);
+        let (st, reply) = Guest615::reply(&el, g::FN_DUMP_PROTOBUF_COMPONENT).unwrap();
+        assert_eq!((st, &reply[g::DUMP_BUFFER_SIZE..g::DUMP_BUFFER_SIZE + 4]), (0, &[0u8; 4][..]));
+        // ECC_NOTIFIER_WRITE_ACK: consumed, nothing sent back.
+        let (notes, el) = q.rpc(g::FN_ECC_NOTIFIER_WRITE_ACK, &[]);
+        assert!(el.is_empty() && notes.iter().any(|n| n.contains("no reply")), "{notes:?}");
+        // GPU_EXEC_REG_OPS: BOOT_0 from the chip's identity, the rest NOACCESS.
+        let mut ops = vec![0u8; g::REGOPS_OPERATIONS + 2 * g::REGOP_SIZE];
+        ops[g::REGOPS_COUNT..][..4].copy_from_slice(&2u32.to_le_bytes());
+        ops[g::REGOPS_OPERATIONS + g::REGOP_SIZE + g::REGOP_OFFSET..][..4]
+            .copy_from_slice(&0x0010_0000u32.to_le_bytes());
+        let (_, el) = q.rpc(g::FN_GPU_EXEC_REG_OPS, &ops);
+        let (st, reply) = Guest615::reply(&el, g::FN_GPU_EXEC_REG_OPS).unwrap();
+        assert_eq!(st, 0);
+        let lo = u32::from_le_bytes(reply[g::REGOPS_OPERATIONS + g::REGOP_VALUE_LO..][..4].try_into().unwrap());
+        assert_eq!(lo, q.b.chip.data().identity.boot_0);
+        assert_eq!(reply[g::REGOPS_OPERATIONS + g::REGOP_SIZE + g::REGOP_STATUS], g::REG_OP_STATUS_NOACCESS);
+        // IDLE_CHANNELS of a channel the device does not know.
+        let mut idle = vec![0u8; g::IDLE_LIST + g::IDLE_ENTRY];
+        idle[g::IDLE_NCHANNELS..][..4].copy_from_slice(&1u32.to_le_bytes());
+        let (_, el) = q.rpc(g::FN_IDLE_CHANNELS, &idle);
+        assert_eq!(Guest615::reply(&el, g::FN_IDLE_CHANNELS).unwrap().0, crate::gspmem::NV_ERR_INVALID_OBJECT_HANDLE);
+        // MAP_MEMORY_DMA: refused, named.
+        let (notes, el) = q.rpc(g::FN_MAP_MEMORY_DMA, &[0u8; 56]);
+        assert_eq!(Guest615::reply(&el, g::FN_MAP_MEMORY_DMA).unwrap().0, crate::gspmem::NV_ERR_NOT_SUPPORTED);
+        assert!(notes.iter().any(|n| n.contains("RMSplitVasMgmtServerClientRm")), "{notes:?}");
+        // UNLOADING_GUEST_DRIVER: NV_OK and the processor-suspended bit.
+        let (_, el) = q.rpc(g::FN_UNLOADING_GUEST_DRIVER, &[0u8; 8]);
+        assert_eq!(Guest615::reply(&el, g::FN_UNLOADING_GUEST_DRIVER).unwrap().0, 0);
+        assert_eq!(q.b.fw.read32(GSP_MAILBOX0).unwrap() & GSP_PROCESSOR_SUSPENDED, GSP_PROCESSOR_SUSPENDED);
+        assert!(q.b.unanswered.is_empty(), "{:?}", q.b.unanswered);
     }
 
     /// Fail closed: a 610 device facing the captured 615 guest does not link anything

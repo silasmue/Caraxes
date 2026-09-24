@@ -44,7 +44,7 @@ pub fn function_name(f: u32) -> &'static str {
         f @ crate::gmcapi::CMD_GSP_INIT..=crate::gmcapi::CMD_GSP_RESUME_DONE => {
             crate::gmcapi::command_name(f)
         }
-        _ => "?",
+        f => crate::gsprpc::function_name(f).unwrap_or("?"),
     }
 }
 
