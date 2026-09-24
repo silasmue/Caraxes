@@ -29,6 +29,18 @@
 //! | GSS legacy thermal 0x36 (0x20808536) | 25552 | 24532 | forwarded for nvidia-smi (nvml.rs) | [`HostLayouts::legacy`] |
 //! | GSS legacy perf 0xf1 (0x2080A0F1) | none | 9216 | forwarded for nvidia-smi (nvml.rs) | [`HostLayouts::legacy`] |
 //! | `NV_CHANNEL_ALLOC_PARAMS` | 376 | 376 | channel alloc | [`ChannelAllocParams`], equality asserted at compile time |
+//! | `NV2080_CTRL_FB_FLUSH_GPU_CACHE_PARAMS` `flags` bits | APERTURE 1:0 | APERTURE 2:0 | `FB_FLUSH_GPU_CACHE` (guest L2 ops, boot.rs) | [`HostLayouts::flush_gpu_cache`] |
+//!
+//! The flush row is not a struct layout (the struct is 4024 bytes on both, in
+//! `nvrm_sys::stable`) but a flag-word layout the bindings cannot carry: 615 widens
+//! `_FLAGS_APERTURE` from 1:0 to 2:0 (adds DIRTY_MEMORY 3 and COMPTAG_MEMORY 4) and
+//! moves WRITE_BACK, INVALIDATE, FLUSH_MODE and FB_FLUSH up by one bit (610
+//! sdk/ctrl/ctrl2080/ctrl2080fb.h:681-696, 615 ctrl2080fb.h:682-699). A 610 word on the
+//! 615 host fails: WRITE_BACK|FULL_CACHE|SYSMEM (0x15) reads as aperture 5, "Invalid
+//! aperture."; INVALIDATE|FULL_CACHE|SYSMEM (0x19) reads as aperture 1, WRITE_BACK and
+//! INVALIDATE, FLUSH_MODE ADDRESS_ARRAY with `addressArraySize` 0, "Invalid array size"
+//! (615 src/nvidia/src/kernel/gpu/mem_sys/kern_mem_sys_ctrl.c:1393-1413, :1435-1447;
+//! the same checks in 610 kern_mem_sys_ctrl.c:1483-1494, :1516-1528).
 //!
 //! The other rows of docs/caraxes/blackwell-gb206.md §3.4 are guest-facing only:
 //! `FIFO_GET_DEVICE_INFO_TABLE` (3212/3340) is answered from the chip's table,
@@ -138,6 +150,39 @@ pub struct HostLayouts {
     /// GSS legacy controls whose params size depends on the host driver, or that only
     /// this host driver has: (command, params size, name). See [`HOST_SIZED_LEGACY`].
     pub legacy: &'static [(u32, usize, &'static str)],
+    /// The `NV2080_CTRL_FB_FLUSH_GPU_CACHE_FLAGS` bits of this host driver.
+    pub flush: FlushFlags,
+}
+
+/// `NV2080_CTRL_CMD_FB_FLUSH_GPU_CACHE` (ctrl2080fb.h, both versions): public and
+/// NON_PRIVILEGED (export flags 0x10118, g_subdevice_nvoc.c), so the device's
+/// unprivileged client may issue it on its own subdevice.
+pub const CMD_FB_FLUSH_GPU_CACHE: u32 = 0x2080_130E;
+/// `NV2080_CTRL_FB_FLUSH_GPU_CACHE_PARAMS`: the same on every version (`nvrm_sys::stable`).
+pub const FLUSH_GPU_CACHE_PARAMS_SIZE: usize =
+    size_of::<nvrm_sys::stable::NV2080_CTRL_FB_FLUSH_GPU_CACHE_PARAMS>();
+pub const FLUSH_GPU_CACHE_FLAGS_OFF: usize =
+    offset_of!(nvrm_sys::stable::NV2080_CTRL_FB_FLUSH_GPU_CACHE_PARAMS, flags);
+
+/// The flag values of `NV2080_CTRL_FB_FLUSH_GPU_CACHE_FLAGS` one host driver defines,
+/// each already shifted to its field: `_APERTURE_SYSTEM_MEMORY`, `_WRITE_BACK_YES`,
+/// `_INVALIDATE_YES`, `_FLUSH_MODE_FULL_CACHE`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct FlushFlags {
+    pub aperture_sysmem: u32,
+    pub write_back: u32,
+    pub invalidate: u32,
+    pub full_cache: u32,
+}
+
+/// The guest's L2 operation as the host is asked to perform it (boot.rs `l2_op`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum L2Flush {
+    /// FLUSH_DIRTY: write back.
+    WriteBack,
+    /// SYSMEM_INVALIDATE: invalidate (the host RM promotes it to an evict,
+    /// kmemsysCacheOp_GM200).
+    Invalidate,
 }
 
 /// Every command that appears in some host's [`HostLayouts::legacy`] table. nvml.rs
@@ -233,6 +278,14 @@ pub static HOST_610: HostLayouts = HostLayouts {
         (0x2080_A618, 20000, "pmgr 0x18"),
         (0x2080_8536, 25552, "thermal 0x36"),
     ],
+    // 610 sdk/ctrl/ctrl2080/ctrl2080fb.h:681-693: APERTURE 1:0, WRITE_BACK 2:2,
+    // INVALIDATE 3:3, FLUSH_MODE 4:4.
+    flush: FlushFlags {
+        aperture_sysmem: 1,
+        write_back: 1 << 2,
+        invalidate: 1 << 3,
+        full_cache: 1 << 4,
+    },
 };
 
 pub static HOST_615: HostLayouts = HostLayouts {
@@ -252,6 +305,14 @@ pub static HOST_615: HostLayouts = HostLayouts {
         (0x2080_8536, 24532, "thermal 0x36"),
         (0x2080_A0F1, 9216, "perf 0xf1"),
     ],
+    // 615 sdk/ctrl/ctrl2080/ctrl2080fb.h:682-695: APERTURE 2:0, WRITE_BACK 3:3,
+    // INVALIDATE 4:4, FLUSH_MODE 5:5.
+    flush: FlushFlags {
+        aperture_sysmem: 1,
+        write_back: 1 << 3,
+        invalidate: 1 << 4,
+        full_cache: 1 << 5,
+    },
 };
 
 // The map lengths are array lengths the bindings cannot give as constants; pin
@@ -298,6 +359,28 @@ impl HostLayouts {
             .iter()
             .find(|(c, _, _)| *c == cmd)
             .map(|(_, n, name)| (*n, *name))
+    }
+
+    /// The `flags` word of `FB_FLUSH_GPU_CACHE` for `op` on this host: full cache,
+    /// system-memory aperture, the operation's bit; FB_FLUSH NO, as the device sent
+    /// it on the 610 host. `addressArraySize`, `addressAlign` and
+    /// `memBlockSizeBytes` stay 0, which FULL_CACHE ignores.
+    pub fn flush_gpu_cache_flags(&self, op: L2Flush) -> u32 {
+        let f = &self.flush;
+        f.aperture_sysmem
+            | f.full_cache
+            | match op {
+                L2Flush::WriteBack => f.write_back,
+                L2Flush::Invalidate => f.invalidate,
+            }
+    }
+
+    /// The whole `NV2080_CTRL_FB_FLUSH_GPU_CACHE_PARAMS` block for `op`: zero but for
+    /// [`Self::flush_gpu_cache_flags`].
+    pub fn flush_gpu_cache(&self, op: L2Flush) -> Vec<u8> {
+        let mut b = vec![0u8; FLUSH_GPU_CACHE_PARAMS_SIZE];
+        put32(&mut b, FLUSH_GPU_CACHE_FLAGS_OFF, self.flush_gpu_cache_flags(op));
+        b
     }
 
     /// One line for the device log: what was selected and the sizes it implies.
@@ -698,6 +781,69 @@ mod tests {
     }
 
     /// The start-up line names the legacy sizes (docs/caraxes/cutover-615.md §0).
+    /// Decode a flush `flags` word as `kmemsysFlushGpuCache_IMPL` does on 615 (615
+    /// kern_mem_sys_ctrl.c:1375-1466): (aperture, write back, invalidate, full cache).
+    fn decode_615(f: u32) -> (u32, bool, bool, bool) {
+        (f & 7, f >> 3 & 1 == 1, f >> 4 & 1 == 1, f >> 5 & 1 == 1)
+    }
+
+    /// The same on 610 (610 kern_mem_sys_ctrl.c:1464-1547).
+    fn decode_610(f: u32) -> (u32, bool, bool, bool) {
+        (f & 3, f >> 2 & 1 == 1, f >> 3 & 1 == 1, f >> 4 & 1 == 1)
+    }
+
+    /// FB_FLUSH_GPU_CACHE per host: the parameter block is the same 4024 bytes on both
+    /// (bindings v610 and v615), the flags word is the host's own. The 610 words sent to
+    /// a 615 host are the two refusals of caraxes/runs/cutover-615-2026-09-24.
+    #[test]
+    fn flush_gpu_cache_per_host() {
+        use v610::NV2080_CTRL_FB_FLUSH_GPU_CACHE_PARAMS as P610;
+        use v615::NV2080_CTRL_FB_FLUSH_GPU_CACHE_PARAMS as P615;
+        for (size, flags, count) in [
+            (size_of::<P610>(), offset_of!(P610, flags), offset_of!(P610, addressArraySize)),
+            (size_of::<P615>(), offset_of!(P615, flags), offset_of!(P615, addressArraySize)),
+        ] {
+            assert_eq!((size, flags, count), (4024, 4016, 4000));
+        }
+        assert_eq!(FLUSH_GPU_CACHE_PARAMS_SIZE, 4024);
+        assert_eq!(FLUSH_GPU_CACHE_FLAGS_OFF, 4016);
+
+        let words = |l: &HostLayouts| {
+            (
+                l.flush_gpu_cache_flags(L2Flush::WriteBack),
+                l.flush_gpu_cache_flags(L2Flush::Invalidate),
+            )
+        };
+        assert_eq!(words(&HOST_610), (0x15, 0x19));
+        assert_eq!(words(&HOST_615), (0x29, 0x31));
+
+        // Each host reads its own word as sysmem, full cache, the one operation.
+        let (wb, inv) = words(&HOST_610);
+        assert_eq!(decode_610(wb), (1, true, false, true));
+        assert_eq!(decode_610(inv), (1, false, true, true));
+        let (wb, inv) = words(&HOST_615);
+        assert_eq!(decode_615(wb), (1, true, false, true));
+        assert_eq!(decode_615(inv), (1, false, true, true));
+        // The 610 words on 615: aperture 5 ("Invalid aperture."), and an evict in
+        // ADDRESS_ARRAY mode with no addresses ("Invalid array size (0x0)").
+        let (wb, inv) = words(&HOST_610);
+        assert_eq!(decode_615(wb).0, 5);
+        assert_eq!(decode_615(inv), (1, true, true, false));
+
+        // The block: zero except the flags word (addressArraySize 0, FULL_CACHE).
+        for l in [&HOST_610, &HOST_615] {
+            for op in [L2Flush::WriteBack, L2Flush::Invalidate] {
+                let b = l.flush_gpu_cache(op);
+                assert_eq!(b.len(), 4024);
+                assert_eq!(
+                    u32::from_le_bytes(b[4016..4020].try_into().unwrap()),
+                    l.flush_gpu_cache_flags(op)
+                );
+                assert!(b[..4016].iter().chain(&b[4020..]).all(|&x| x == 0));
+            }
+        }
+    }
+
     #[test]
     fn describe_names_the_sizes() {
         assert_eq!(

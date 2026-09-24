@@ -41,6 +41,7 @@ What differs on the host side, measured from the generated bindings (`nvrm_sys::
 | `NV2080_CTRL_GPU_GET_PES_INFO_PARAMS` | 56 | 76 (`tpcToPesMap[15]`) | floorsweeping masks (`kgr.rs` `floorsweeping`) |
 | `NV2080_CTRL_GR_GET_GLOBAL_SM_ORDER_PARAMS` | 9240 | 10264 (`virtualDpcId` per SM) | global SM order (`kgr.rs` `global_sm_order`, translated field by field) |
 | `NV_CHANNEL_ALLOC_PARAMS` | 376 | 376 | unchanged; equality asserted at compile time |
+| `NV2080_CTRL_FB_FLUSH_GPU_CACHE_PARAMS` `flags` | APERTURE 1:0, WB 2, INV 3, FULL_CACHE 4 | APERTURE 2:0, WB 3, INV 4, FULL_CACHE 5 | the guest's L2 operations (`boot.rs` `l2_op`); the struct is 4024 bytes on both, the flag bits moved |
 | GSS legacy pmgr 0x18 (0x2080A618) | 20000 | 20512 | nvidia-smi power (`nvml.rs` `host_sized_legacy`); no layout in any open header, forwarded only when the guest's size is the host's |
 | GSS legacy thermal 0x36 (0x20808536) | 25552 | 24532 | nvidia-smi thermal (the same rule) |
 | GSS legacy perf 0xf1 (0x2080A0F1) | not sent | 9216 | nvidia-smi of a 615 guest (the same rule; NOT_SUPPORTED on the 610 host) |
@@ -148,7 +149,22 @@ Coordinator, one VM, on the frozen device binary. The guest is unchanged (610 im
      `zeros (host status ...)` means the 10264-byte call was refused;
    - `host TSG ... [host]` and `inv-tsg` without `KEPLER_CHANNEL_GROUP_A: ...` errors: the
      28-byte TSG parameters are accepted;
-   - no `unanswered` control that the 610 run answered (compare with the last 610 `gpu.log`).
+   - no `unanswered` control that the 610 run answered (compare with the last 610 `gpu.log`);
+   - the guest's L2 operations (from the module load on, and in every CUDA and display
+     gate): `l2 FlushDirty: FB_FLUSH_GPU_CACHE flags 0x29 NV_OK in ... us [host GPU]` and
+     `l2 SysmemInvalidate: FB_FLUSH_GPU_CACHE flags 0x31 NV_OK in ... us [host GPU]`, and no
+     `FB_FLUSH_GPU_CACHE flags ... failed: status 0x1f`. On the 610 host the words are 0x15
+     and 0x19. The host kernel log of the run (`sudo dmesg`, read only) must be free of
+     `kmemsysFlushGpuCache_IMPL: Invalid aperture` and `Invalid array size`. Those two came
+     in pairs, one per forwarded flush, in the first 615 run
+     (`caraxes/runs/cutover-615-2026-09-24/v2-610guest/`, every flush of both operations
+     refused with 0x1f), because a device built before the fix sent the 610 flag
+     word: 615 widens `_FLAGS_APERTURE` from 1:0 to 2:0 and moves WRITE_BACK, INVALIDATE and
+     FLUSH_MODE up by one bit (610 `ctrl2080fb.h:681-696`, 615 `ctrl2080fb.h:682-699`). The
+     handler's checks are unchanged (610 `kern_mem_sys_ctrl.c:1464-1547`, 615
+     `kern_mem_sys_ctrl.c:1375-1466`), so 0x15 read as aperture 5 and 0x19 as an evict in
+     ADDRESS_ARRAY mode with no addresses. The device now takes the words from the host
+     layouts (`hostabi.rs` `HostLayouts::flush_gpu_cache`, test `flush_gpu_cache_per_host`).
 4. **nvml gate**: `tools/caraxes-gate.sh nvml`. It compares the guest's nvidia-smi (610) with
    the host's nvidia-smi (now 615). The name and 4096 MiB come from the device; temperature,
    power and utilization are forwarded. Watch the BINAPI path (`nvml.rs`, `CMD_BINAPI_0108`):
