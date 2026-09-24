@@ -35,6 +35,32 @@ pub use v610 as active;
 #[cfg(not(feature = "v610"))]
 compile_error!("vfio-user-nvgpu needs a driver-version feature (v610)");
 
+/// How the CPU and the emulated GSP exchange messages: what a version module names in
+/// `GSP_TRANSPORT`, what the boot model links and serves (boot.rs, msgq.rs).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum GspTransport {
+    /// Up to 610: message queue v0 with the read and write pointers in the shared queue
+    /// headers, checksummed and sequence-numbered elements, and the init RPCs
+    /// GSP_SET_SYSTEM_INFO, SET_REGISTRY, GET_GSP_STATIC_INFO and the GSP_INIT_DONE event
+    /// (docs/caraxes/gsp-rpc-protocol.md).
+    MsgqV1,
+    /// From 615: message queue v2 with the pointers in `NV_PGSP_QUEUE_HEAD/TAIL(0)` and
+    /// `NV_PGSP_MSGQ_HEAD/TAIL(0)`, MCTP-framed elements without checksum or sequence
+    /// number, and one `GMCAPI_CMD_GSP_INIT` with NVKV-encoded request and response
+    /// (docs/caraxes/gsp-transport-615.md; `msgq::v2`, `gmcapi`).
+    MsgqV2,
+}
+
+impl GspTransport {
+    /// The guest ABI a transport stands for, as `--guest-abi` and `CARAXES_GUEST_ABI` name it.
+    pub fn guest_abi(self) -> u32 {
+        match self {
+            GspTransport::MsgqV1 => 610,
+            GspTransport::MsgqV2 => 615,
+        }
+    }
+}
+
 /// The compiler-measured layout tables of docs/caraxes/gsp-abi-610.md (a), parsed
 /// for the tests: `(struct, field) -> offset`, and `struct -> sizeof`.
 #[cfg(test)]

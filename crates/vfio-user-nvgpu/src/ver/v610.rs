@@ -26,6 +26,10 @@ pub type RmAbi = nvrm_sys::V610;
 /// The display control vocabulary (src/ver/v610/display.rs).
 pub mod display;
 
+/// The CPU-GSP transport of this version: message queue v0, checksummed elements, the
+/// four init RPCs (docs/caraxes/gsp-rpc-protocol.md).
+pub const GSP_TRANSPORT: super::GspTransport = super::GspTransport::MsgqV1;
+
 // ---------------------------------------------------------------------------------
 // NV_STATUS values (src/common/sdk/nvidia/inc/nvstatuscodes.h).
 

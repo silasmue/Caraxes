@@ -25,6 +25,7 @@ pub mod display;
 pub mod dmamap;
 pub mod falcon;
 pub mod fb;
+pub mod gmcapi;
 pub mod guestmem;
 pub mod hostmem;
 pub mod hostrm;
