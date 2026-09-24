@@ -1268,6 +1268,32 @@ Tree: branch `worktree-agent-adbfba499c7110889` from `5de9b40`. VM: vm0, device
   `/dev/nvidiactl`, `/dev/nvidia0` made by `guest/display-up.sh`.
 - **Host GPU reads:** none beyond the device's nvml forwarding client.
 
+### Display phase E (2026-09-24)
+
+The guest's compositors and clients render on the physical GPU through the shadow GR path; the
+write-up is [display-e.md](display-e.md). vm0, slot 1, 2 GiB profile, host execution, `--display`
+(configuration: `caraxes/runs/display-f-2026-09-24/env.sh`). Series E (e1-e31) by the first
+display agent, evidence `caraxes/runs/display-e-2026-09-24/`; series F (f0-f7) on main `8cca8e6`,
+evidence `caraxes/runs/display-f-2026-09-24/`. Every host Xid is on the device's pid.
+
+| Attempt (time) | Hypothesis | Change | Result | Exception | Evidence |
+|---|---|---|---|---|---|
+| e1-e3 (08:39) | the NVIDIA EGL answers on the device | none | `eglInitialize failed`: phase D's Mesa pin, no `nvidia-drm_gbm.so` | none | `e1-e3` |
+| e4-e7 (08:40-08:53) | Weston's GL renderer comes up once the GL driver's controls are answered | `nvidia-egl-setup.sh`; `FB_GET_GPU_CACHE_INFO`, `FIFO_GET_ENGINE_CONTEXT_PROPERTIES` forwarded, channel `BIND` recorded | `EGL_BAD_ACCESS` (e5), then the GL renderer on `Leandro VFIO RTX 2070-2G` | none | `e4-e7` |
+| e8-e12 (08:53-09:05) | a GPU clear lands | `eglprobe.c`; `ACTIVE_DISPLAY_DEVICES` reports `numHeads`; `ZCULL_BIND`, BINAPI 0x0107 | Weston GL 60.00 Hz, but the readback is wrong (0-60k of 2.07M pixels) | none | `e8-e12` |
+| e13 (09:09) | the GL driver's bare CE channels carry the clear | `CARAXES_MIRROR_BARE_CE=1` | **`GPU-RENDERED-OK`**, the first GPU-rendered frame | none | `e13-eglprobe-bare-ce/` |
+| e14-e17 (09:10-09:25) | Weston GL at 1080p | size-0 global context buffers excluded from set A | e14 2 x Xid 31 `PRIV_VIOLATION` at 0x1_20800000; after the fix 56.45 Hz, eglprobe 1080p ok, full-screen damage 52.35 Hz | Xid 31 (e14) | `e14-e17` |
+| e18-e19 (09:26-09:32) | GNOME on the NVIDIA EGL | depth/stencil kinds carried as a kind override | e18 28 lines `Xid 13 3D-Z KIND Violation`; e19 clean | Xid 13 (e18) | `e18-e19` |
+| e20-e25 (09:38-09:51) | v1's Vulkan stages and KMS capture | `vkprobe-wl.c`, `nvidia-uvm` in `display-up.sh`, block-linear `kmsgrab` | swapchain, present 43.6-44.4 FPS, RT device after `/dev/nvidia-uvm`, fence 0.1-1 ms; capture `0x00808080` | none | `e20-e25`, gates 5-7 |
+| e26-e29 (09:54-10:11) | the classic demos | `demos.sh` | Weston vkcube-wayland 33.9, glxgears 54-56, glmark2 1216; GNOME 22.8, 14-21, 31 | none | `e26-e29` |
+| e30-e31 (10:23-10:32) | the mapping worker helps the display | merge of `b58cb12` | Weston 59.5 Hz, present 52.4-53.2 FPS, Mutter 47.1 Hz (38.6); the display gate **passes 11/11** (`gate-display-2026-09-24-7`) | none | `e30-e31` |
+| f1 (13:15) | the demos on the current main beat e27 | none (main `8cca8e6`) | Weston: vkcube-wayland 44.1, vkcube 37.6, glxgears 57-60, simple-egl 59-60, glmark2 **1804** | none | `f1-demos-weston/` |
+| f2 (13:20) | the same in GNOME | none | vkcube-wayland 31.1, vkcube 29.9, glxgears 33-37, simple-egl 22-33, glmark2 34 | 1 Xid 31 `FAULT_PTE` PROP write at 0x1_202c0000 during GNOME's start (display-e.md §9) | `f2-demos-gnome/` |
+| f3, f3b, f4 (13:26-13:30) | what still traps per presented frame | full trace, wlframes 14 s, 10 s window (`caraxes/tools/trap-table.py`) | Weston 157 traps per frame at 58.4 Hz, Mutter 662-712 at 30.0-41.5 Hz; 2-3 doorbells, 2-3 GPPut, 0 GPFIFO BAR1 writes, 0 shadow plans; the rest is interrupt servicing and 71 BAR2 PTE writes (Mutter) | none | `f3-traps-mutter/`, `f3b-*`, `f4-*` |
+| f5, f5b (13:34) | the doorbell ioeventfd lifts Mutter | patched Cloud Hypervisor `ch-0005-v.sh`, `CARAXES_DOORBELL_IOEVENTFD=1` | doorbell traps 3 -> 0 per frame, callbacks 35.2 / 37.6 Hz (without: 30.0 / 41.5): no measurable effect | none | `f5-*`, `f5b-*` |
+| f6 (13:40) | a pointer without patching Cloud Hypervisor | `CARAXES_INPUT=fifo`: vhost-user-input over `--generic-vhost-user device_type=18` | the guest sees `caraxes-vm0-pointer` (mouse and keyboard) on seat0; 180 of 180 host events arrived; the GPU moves to 00:06.0 | none | `f6-pointer/` |
+| f7 (13:49) | the stream stage delivers a desktop | Sunshine kms + libx264 as root, Moonlight on the host, bench.sh's summary | valid: 25.85 FPS, host latency avg 101 ms, 0.00 % / 0.35 % drops, 9.8 Mbit/s, 2.09 guest cores; the two runs before failed at pairing (Sunshine's login written to root's default state, fixed) | none | `f7-stream/` |
+
 ### P20: parallelism proof (2026-09-24)
 
 Two reserving VMs, vm1 on slot 0 and vm2 on slot 1, each with a 2 GiB profile, run in the green

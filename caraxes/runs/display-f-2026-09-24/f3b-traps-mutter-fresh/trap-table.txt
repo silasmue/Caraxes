@@ -1,0 +1,33 @@
+window 10 s [1376643060, 1386643060) us; presented frames (latches with a surface): window 6: 406; per-frame base: window 6 = 406 (40.60 Hz)
+what                                                              count  per frame
+BAR0 writes, all                                                 152128     374.70
+  0x160/0x180 (latched)                                           74450     183.37
+  interrupt enable/clear (VF CPU_INTR)                            69594     171.41
+  other 0x88704 NV_PCFG (config mirror)                            2988       7.36
+  MMU invalidate (VF PRIV_MMU_INVALIDATE, 3 writes each)           2430       5.99
+  doorbell (usermode NOTIFY_CHANNEL_PENDING)                       1218       3.00
+  other 0x61180c                                                    591       1.46
+  other 0x696000                                                    451       1.11
+  other 0x611858                                                    406       1.00
+BAR0 reads, all                                                   77157     190.04
+  0x611ec0                                                        28704      70.70
+  NV_VF_CPU_INTR_LEAF                                             20694      50.97
+  NV_VF_CPU_INTR_LEAF_EN_SET                                       6900      17.00
+  NV_VIRTUAL_FUNCTION_TIME_0/1                                     5982      14.73
+  NV_VF_CPU_INTR_TOP                                               4713      11.61
+BAR1 writes, all                                                   1218       3.00
+  USERD GPPut (offset 0x8c)                                        1218       3.00
+BAR1 reads                                                            0       0.00
+BAR2 writes, all                                                  28764      70.85
+  page 0x23000                                                    12964      31.93
+  page 0x39000                                                    12150      29.93
+  page 0x25000                                                     2030       5.00
+BAR2 reads                                                         9318      22.95
+all trapped accesses                                             268585     661.54
+MSIs signalled                                                     1019       2.51
+display channel kicks                                               451       1.11
+forwarded doorbells (host doorbell rung)                           1218       3.00
+guest MMU invalidates seen                                          810       2.00
+host notifier events (no MSI)                                       332       0.82
+host notifier events -> MSI                                        1913       4.71
+shadow plans applied (sync lines)                                     0       0.00

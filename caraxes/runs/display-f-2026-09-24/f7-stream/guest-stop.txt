@@ -1,0 +1,14 @@
+sunshine_alive_at_end=1
+[2026-09-24 11:49:09.244]: Info: // Ignore any errors mentioned above, they are not relevant. //
+[2026-09-24 11:49:09.255]: Warning: Failed to create system tray
+[2026-09-24 11:49:09.255]: Error: System tray is not initialized
+[2026-09-24 11:50:27.942]: Info: // Testing for available encoders, this may generate errors. You can safely ignore those errors. //
+[2026-09-24 11:50:27.942]: Info: // Ignore any errors mentioned above, they are not relevant. //
+[2026-09-24 11:50:28.451]: Debug: PulseAudio context failed
+[2026-09-24 11:50:28.451]: Error: Couldn't connect to pulseaudio: Access denied
+[2026-09-24 11:50:28.451]: Error: Unable to initialize audio capture. The stream will not have audio.
+== glxgears (content)
+145 frames in 5.0 seconds = 28.915 FPS
+71 frames in 5.0 seconds = 14.119 FPS
+139 frames in 5.0 seconds = 27.701 FPS
+148 frames in 5.0 seconds = 29.593 FPS

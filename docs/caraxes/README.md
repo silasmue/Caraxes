@@ -70,6 +70,7 @@ driver recognizes and initializes a Turing/RTX 2070-like device. Windows later.
 | [display-scaling.md](display-scaling.md) | Second display study: the connectors compared for an emulated link (DVI-D, HDMI, DP SST/MST, eDP, virtual), the guest-side limits vs the device-answered ones (IMP, caps page, DPCD), 4K144 arithmetic (DP HBR3 x4 plus DSC), multi-head (4 heads, 8 windows), NVENC and VRAM as the real limits, vGPU comparison, product view, phases E-H to 4 x 4K144 at 17-27 agent-days total (operator's question 2026-09-23) |
 | [display-d0.md](display-d0.md) | D0 run on vm0: nvidia-modeset loads headless with zero display RPCs (confirmed on the whole trace, not just the run's own window); nvidia-drm fails to build against the guest kernel's DRM headers; Xorg untested, no NVIDIA X driver in the guest image; what D1 needs first |
 | [display-adapter.md](display-adapter.md) | Side package B: where DP AUX and every NV0073/NV5070/NVC370/NVC372 control on the DP connector, EDID, link, head and modeset paths terminates (local, GSP_RM_CONTROL, local plus internal control; none by MMIO), with ids, struct sizes and consumed reply fields; the SST EDID lifecycle and per-displayId state; class list and HAL selection; channel allocation, BAR0 pages, C57D/C57E method basics and the minimal decoder; the ordered phase A/B checklist to the first EDID read; gates D0-D6 per phase; the three riskiest ABI details |
+| [display-e.md](display-e.md) | Display phase E on vm0 (2026-09-24): the stock NVIDIA EGL/GL/Vulkan stack rendering on the physical GPU through the shadow GR path, Weston and GNOME on it, the display gate 11/11 with host execution; series E (e1-e31, reconstructed from its evidence) and series F: the classic demos (Weston glmark2 1804, vkcube 44 FPS), the per-frame trap table (Weston 157, Mutter about 670 traps per frame, mostly interrupt servicing; the doorbell ioeventfd removes the 3 doorbell traps and does not move Mutter), the stream stage (Sunshine kms + x264, Moonlight 25.9 FPS), the virtio-input pointer (`CARAXES_INPUT=fifo`), what the NVENC mirror would change |
 | [display-ab.md](display-ab.md) | Display phases A and B on vm0 (D15): the display in the GSP role (`--display`; `src/display/`, `chips/tu106/display.toml`, the board's `[display]` connector, the `crates/dp-sink` sink behind an NV0073 AUX adapter); gate D3 passed (`card0-DP-1` connected, EDID byte-identical and edid-decode clean, 1080p60/720p60/1080p50, the over-budget 8K120 VIC pruned, no modeset); every display RPC/control in order with its answer and label (D2); the recorded AUX capture replaced the hand-written transcript; what phase C needs (core notifier, window completion, four modeset-path controls) |
 | [experiments.md](experiments.md) | The experiment ladder, starting with the smallest one, each with a falsifiable expectation |
 | [kickoff.md](kickoff.md) | The brief for the implementation sessions: rules, reading order, E0 step by step, run recipe, parked ideas |
@@ -606,3 +607,19 @@ the VM; then display, expected to be much easier than in v1.
   vm1 reached RmInitAdapter, `nvidia-smi -q` ("Leandro VFIO RTX 5060 Ti-4G", 4096 MiB, VBIOS
   98.06.1F.40.4A) and UVM's first BLACKWELL_CHANNEL_GPFIFO_B allocation; no host GPU was
   touched. Next: the CA6F/CAB5 method subsets (the first push hangs), full KGR static info.
+- 2026-09-24: **Display phase E: a GPU-rendered Wayland desktop** ([display-e.md](display-e.md),
+  experiments.md "Display phase E", evidence `caraxes/runs/display-e-2026-09-24/` and
+  `caraxes/runs/display-f-2026-09-24/`). The stock NVIDIA EGL/GL/Vulkan stack renders on the
+  RTX 2070 through the shadow GR path (bare CE channels mirrored, size-0 context buffers
+  excluded, depth kinds carried); Weston GL at 58-60 Hz, GNOME on the NVIDIA EGL, the display
+  gate passes 11/11 with host execution (`gate-display-2026-09-24-7`). Series F on main
+  `8cca8e6`: demos on Weston vkcube-wayland 44.1 FPS (33.9), glxgears 57-60, glmark2 1804 (1216);
+  on GNOME 31.1 (22.8), 33-37 (14-21), glmark2 34. Per presented frame Weston traps 157 times,
+  Mutter about 670: 2-3 doorbells and GPPut writes, no GPFIFO BAR1 write, no shadow plan; the
+  rest is the guest RM servicing interrupts (about 70 traps per MSI) and, for Mutter, 71 BAR2 PTE
+  writes, about Mutter's whole frame budget at 23-27 us per trap. The doorbell ioeventfd removes
+  the doorbell traps and leaves Mutter at 35-38 Hz (30-41 without). Stream stage (Sunshine
+  `capture=kms` + libx264, Moonlight on the host, bench.sh's summary): valid, 25.85 FPS, host
+  latency avg 101 ms, 0 % network drops, 9.8 Mbit/s, 2.09 guest cores. Pointer:
+  `CARAXES_INPUT=fifo` adds virtio-input through `--generic-vhost-user` without a hypervisor
+  patch. 1 Xid 31 (device pid) at one GNOME start, open (display-e.md §9).

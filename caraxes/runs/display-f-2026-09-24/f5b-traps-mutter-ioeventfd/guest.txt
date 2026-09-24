@@ -1,0 +1,5 @@
+== 2026-09-24T11:34:50Z load 0.59 0.30 0.11 1/636 2861
+first frame callback after 0.1 s
+FRAMES callbacks intervals=511 mean_ms=26.593 rate_hz=37.60 min_ms=10.928 max_ms=244.806 sd_ms=21.338
+PRESENTED feedback intervals=510 mean_ms=26.610 rate_hz=37.58 min_ms=3.855 max_ms=269.358 sd_ms=21.761
+presented=516 discarded=0 refresh_ns=16666667 (60.000 Hz) flags=0x7 (vsync 1 hw_clock 1 hw_completion 1)

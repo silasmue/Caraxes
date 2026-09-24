@@ -1,0 +1,15 @@
+evdev events recorded on /dev/input/event1: 180
+     60 type 2 code 1 value 6
+     60 type 2 code 0 value 12
+     60 type 0 code 0 value 0
+== udev / libinput view
+E: DEVNAME=/dev/input/event1
+E: ID_INPUT=1
+E: ID_INPUT_MOUSE=1
+E: ID_INPUT_KEYBOARD=1
+== the session's seat
+         ├─/sys/devices/LNXSYSTM:00/LNXSYBUS:00/PNP0C0C:00/input/input0
+         │ input:input0 "Power Button"
+         ├─/sys/devices/pci0000:00/0000:00:05.0/virtio4/input/input1
+         │ input:input1 "caraxes-vm0-pointer"
+         └─/sys/devices/virtual/misc/uinput

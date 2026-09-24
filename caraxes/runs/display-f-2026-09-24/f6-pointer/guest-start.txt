@@ -1,0 +1,5 @@
+Type=wayland
+[  189.614484] caraxes-vm0 gnome-shell[1959]: Created gbm renderer for '/dev/dri/card0'
+page_flip_failed=0
+node /dev/input/event1
+recording
