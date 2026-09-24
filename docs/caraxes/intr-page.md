@@ -215,7 +215,7 @@ too (`bar0.rs`), so the reactor sees them like a guest store and the model has o
   display model's clock (`display/mod.rs:1232-1236`, `catch_up` before the read), and its
   status registers are write-1-to-clear with the model's own state behind them. It could become a
   third page only if the display clock thread wrote its status into the page itself; that is the
-  next step (phase 2), not this change.
+  next step (phase 2), not this change. Done since as `CARAXES_DISPLAY_PAGE=1` (§10).
 - **The usermode page (0xbb0000)**: the doorbell must trap into its ioeventfd sub-regions, and
   `TIME_0/1` (14.7 reads per frame) are answered from the clock at the moment of the read.
 - **`NV_PCFG` (0x88000)**: writes land in config space (`bar0.rs` `WriteEffect::Mirror`).
@@ -296,13 +296,49 @@ With both, a Mutter frame is left with the usermode page (`TIME_0/1`, 14.7 reads
 the clock), `NV_PCFG` writes (7.4), the MMU invalidate (6) and the doorbell (0 with the token
 pool): about 30-40 traps, below the operator's 100.
 
+**State of the first row (2026-09-24 evening):** implemented behind `CARAXES_DISPLAY_PAGE=1`
+(§10), not yet measured. The same package found the Xid 31 at GNOME's start to be a GPPut store
+that the host channel can see before the doorbell barrier, and added a barrier to that store
+(display-e.md §9). The BAR2 row is open here. docs/caraxes/bar2-memfd.md (`CARAXES_BAR2_MEMFD=1`)
+serves the BAR2 window from memory and may already take most of those 94 accesses, but this
+series does not include it.
+
+**Measurement on vm0** (about 40 minutes, the card and vm0 from the coordinator). Freeze the
+binary of this branch, then run the series from the worktree root:
+
+```
+cp target/fepage/release/vfio-user-nvgpu /mnt/vmstore/caraxes/vm0/vfio-user-nvgpu-fepage
+caraxes/runs/display-page-2026-09-24/series.sh B C
+```
+
+`env.sh` there is the interrupt page series' environment (vm0, slot 1, 2 GiB, host execution,
+display engine, Cloud Hypervisor 0001-0006, `CARAXES_DOORBELL_TOKENS=64`,
+`CARAXES_DOORBELL_POLL=hybrid`) with that binary. Configuration B is `CARAXES_INTR_PAGE=1` (the
+reference, B3's configuration with the GPPut barrier); C adds `CARAXES_DISPLAY_PAGE=1`. Per
+configuration it takes:
+- five fresh GNOME starts (`guest/gnome-restart.sh`: gdm3 stopped, started, 20 s), each its
+  own window with `host-xid.txt` and the count of `GPPut of a mirrored channel held` events;
+- the Mutter and Weston trap windows (`run.sh --full`, `trap-table.py --pages`, wlframes'
+  `FRAMES`/`PRESENTED` lines for the frame callbacks);
+- the display gate (`caraxes-gate.sh display`, 11 stages);
+- the device's summary lines (`intr page:`, `display page:`).
+
+Pass criteria:
+- C's page 0x611000 rows are gone from the trap table; Mutter is about 132 traps per frame
+  (B about 230), Weston about 20 (B about 103).
+- Callbacks are at 59.7 Hz or better.
+- The gate passes 11/11.
+- `display page:` shows as many markers as `CORE_RESET` acks and `inconsistencies: none`.
+- There are 0 host Xid lines in the ten GNOME starts.
+
 ## 7. Switches
 
 | Variable | Default | Meaning |
 |---|---|---|
 | `CARAXES_INTR_PAGE` | off | `1`: offer page 0 and the VF interrupt tree page as memory (needs `CARAXES_DOORBELL_POLL=spin\|hybrid`) |
 | `CARAXES_INTR_PAGE_SLEEP_MS` | 1 | hybrid: the longest blocking wait of the reactor while the page is on |
-| `CARAXES_INTR_PAGE_RETRIGGER_MS` | 10 | the watchdog period; 0 turns the watchdog off |
+| `CARAXES_INTR_PAGE_RETRIGGER_MS` | 10 | the watchdog period; 0 turns the watchdog off (also for the display page's markers) |
+| `CARAXES_DISPLAY_PAGE` | off | `1`: offer the display front-end page 0x611000 as memory too (needs `CARAXES_INTR_PAGE=1` and `--display`, §10) |
 
 The exit summary adds `intr page: ...` with the scans that found work, the guest stores applied
 per register kind, the vectors raised through the page, MSIs by cause (raise, edge, watchdog),
@@ -400,3 +436,168 @@ What B1 and B2 showed, and what changed (commit 08651c9):
 Pending: the display gate with the page on (B3 ran without it because of the host upgrade
 window), a second pass of A and B3 for the run-to-run spread (series F had Mutter at 30-41 Hz
 between runs; A here was 48.8 Hz), and spin instead of hybrid.
+
+## 10. The display front-end page (`CARAXES_DISPLAY_PAGE=1`)
+
+Written 2026-09-24 (evening) for the first row of §6a. Implementation:
+`crates/vfio-user-nvgpu/src/display/fe_page.rs` (new), the display engine's status moved behind
+it (`display/engine.rs` `IrqHome`, `Engine::attach_page`), the display clock's driver
+(`Ticker::set_driver`, `Device::display_tick`), the reactor hook (`intr_page.rs`
+`PageHook::with_display`). Default off; it needs `CARAXES_INTR_PAGE=1` (the same memfd and
+the same reactor) and `--display`.
+
+**Design in five sentences.** BAR0 page 0x611000 becomes a third sparse mmap area of the
+interrupt page's memfd, and the display's interrupt status (`FeIrq`: `EVT_STAT_HEAD_TIMING`,
+`RM_INTR_EN_HEAD_TIMING`, `AWAKEN_WIN/OTHER`) moves out of the engine into the page's own
+lock, so the reactor can apply the guest's stores without the device lock. Because the guest's
+status reads no longer trap and so no longer advance the clock, the display clock thread
+runs the engine's catch-up itself at every tick (under the device lock: latches, notifiers,
+`LAST_DATA`, AWAKEN), writes the page details first and summaries last, and only then raises
+vector 156, whose MSI the reactor writes after the tree page (§3). The reactor scans the 28
+watched words every iteration and applies `LAST_DATA_RESET` and the other write-1-to-clear
+acks and the vblank enables. Two registers carry a tag bit (bit 31, no field) so their acks
+change the word. The window AWAKEN, whose ack is an echo that memory cannot see, is published
+with a CORE marker whose `CORE_RESET` acknowledges exactly the window bits shown. Everything
+else in the page stays latched memory (as trapped), and the other display pages (core and
+window USERD, `RG_DPCA`, `FE_CORE_HEAD_STATE`) stay trapped.
+
+### 10.1 What the guest touches in the page
+
+B3 (intr-page-2026-09-24, interrupt page on), Mutter window, 597 frames; Weston window, 600
+frames; values from the full trace:
+
+| Register (dev_disp.h v03_00) | Access, value | Mutter per frame | Weston per frame | Reader |
+|---|---|---|---|---|
+| `FE_RM_INTR_DISPATCH` 0x611ec0 | R 0x0 / R 0x8 (head 3) | 54.61 / 24.08 | 65.53 in all | `kheadReadPendingRgLineIntr_v03_00`, `kheadReadPendingVblank_v03_00` (kern_disp_0300.c:434-525), once each per head (4 heads) and pass, and `kdispReadPendingVblank_IMPL` again in every loop step of `kdispServiceLowLatencyIntrs_KERNEL` (kern_disp.c:1618, :1673) |
+| `FE_RM_INTR_STAT_CTRL_DISP` 0x611c30 | R 0x0 / R 0x100 (AWAKEN) | 6.83 / 1.00 | 6.19 | `kdispHandleWinSemEvt_v04_01` (kern_disp_0401.c:41-51) and `kdispServiceAwakenIntr_v03_00` (kern_disp_0300.c:715-747) per pass |
+| `FE_RM_INTR_STAT_HEAD_TIMING(3)` 0x611c0c | R 0x2 | 6.02 | 6.00 | after a DISPATCH hit |
+| `FE_EVT_STAT_HEAD_TIMING(3)` 0x61180c | R 0x2, W 0x2 | 1.00, 1.00 | 1.00, 1.00 | `kheadResetPendingLastData_v03_00`: reads, discards, writes `LAST_DATA_RESET` |
+| `FE_EVT_STAT_AWAKEN_WIN` 0x611858 | R 0x40, W 0x40 (window 6) | 1.00, 1.00 | 1.00, 1.00 | `kdispReadAwakenChannelNumMask_v03_00` (:542-590), `_kdispResetAwakenChannelNumMask` (:597-624) |
+| `FE_EVT_STAT_AWAKEN_OTHER` 0x61185c | R 0x0 | 1.00 | (in the rest) | the same call, core class |
+| **the page** | | **95.54 R + 2.00 W = 97.5** | **80.72 R + 2.00 W = 82.7** | |
+
+Over the whole Mutter trace the only other writes are one `RM_INTR_EN_HEAD_TIMING(3)` store of
+`LAST_DATA` (the vblank enable) and one `AWAKEN_OTHER` `CORE_RESET` (the modeset's core
+notifier). No other register of 0x611000-0x611fff is read or written.
+
+### 10.2 The watched words and what shows there
+
+| Register | Page shows | A guest store is | Applied as |
+|---|---|---|---|
+| `EVT_STAT_HEAD_TIMING(h)`, 8 | pending \| TAG (bit 31) | a word without TAG (the guest writes `LAST_DATA_RESET`, `RG_LINE_*_RESET`, `VBLANK_RESET`: kern_disp_0300.c:467-488, :527-539) | write 1 to clear |
+| `RM_INTR_EN_HEAD_TIMING(h)`, 8 | the enable | a changed word (a store of the same value is a no-op) | the enable; the clock's vblank flag (`Ticker::set_vblank`) |
+| `RM_INTR_STAT_HEAD_TIMING(h)`, 8 | `evt & en` | read-only | restored, counted |
+| `RM_INTR_DISPATCH` | heads with `evt & en` | read-only | restored, counted |
+| `RM_INTR_STAT_CTRL_DISP` | `AWAKEN` while a marker is out | read-only | restored, counted |
+| `EVT_STAT_AWAKEN_WIN` | the window bits of the outstanding marker, else 0 | the echo is invisible; another word means a pass echoed an earlier marker's bits | restored, counted (the residual case below) |
+| `EVT_STAT_AWAKEN_OTHER` | `CORE` while a marker is out \| TAG | `CORE_RESET` (0x1) | the marker's ack: the shown window bits and the core awaken are cleared |
+
+**Why the window AWAKEN needs a marker.** All 32 bits of `AWAKEN_WIN` are channels
+(dev_disp.h:271-278), and the guest writes back exactly the mask it read (kern_disp_0300.c:
+563-575 builds it from the 32 bits, :611-624 writes it). The page shows that mask and the guest
+stores the same word, so the ack is never seen, and no bit is free for a tag: a tag bit is part
+of the mask and comes back with the echo. Getting the ack wrong has visible effects. Each window
+awaken is one `NVKMS_EVENT_TYPE_FLIP_OCCURRED` (nvkms-evo.c:4994-5009). Each event completes the
+oldest pending nvidia-drm flip of the head (nvidia-drm-modeset.c:642-690). So a lost awaken
+stalls the compositor, and a repeated one completes the next flip early.
+
+**The marker rule.** When awakens wait and no marker is out, the page shows them in
+`AWAKEN_WIN`, `CORE` in `AWAKEN_OTHER` and `AWAKEN` in `STAT_CTRL_DISP`, in that store order.
+`kdispServiceAwakenIntr_v03_00` reads `STAT_CTRL_DISP`, then `AWAKEN_WIN` (and acks it with the
+echo), then `AWAKEN_OTHER`, and acks `CORE` with 0x1 (kern_disp_0300.c:726-748). That last
+store changes the word (the page shows `CORE | TAG`), and it follows the window read in the
+same call. So it acknowledges exactly the window bits shown: they are frozen while the marker is
+out, and awakens that come meanwhile wait for the next marker, raised when this one is acked.
+The extra core awaken does nothing in the guest. `_kdispHandleAwakenChnMask` finds the core
+channel in use and notifies its event list (kern_disp_0300.c:680-694), and that list is empty:
+NVKMS registers its completion callbacks on the layer channels (nvkms-evo.c:5019-5049), and
+nothing else on the core channel. The core notifier's own `WRITE_AWAKEN` (engine.rs
+`core_update`) is the same bit and rides on the same marker.
+
+**The residual window of the marker rule.** A second display pass that starts after the
+guest's `CORE_RESET` and before the reactor has seen it reads the old window bits again, handles
+them a second time, and echoes them over the next marker's bits. The echo is seen and counted
+(`an AWAKEN_WIN store that is not the echo`), but the extra flip event has already reached the
+guest. The window is one reactor iteration, because a hybrid reactor spins while a marker is
+out (`FePage::busy`, up to `MARKER_SPIN` = 20 ms). In practice no second pass fits in it. The
+rest of the first pass runs after the ack: the head loop's dozen `DISPATCH` reads, the return,
+and the GPU lock release. The passes are serialized (kern_disp.c:1160, the low-latency lock),
+and each needs a new interrupt or DPC. The count in the exit summary is the check. Any value
+above zero is a finding, and then the safe version is a Cloud Hypervisor slot that is read-only
+for this page (writes exit and trap), which needs a patch beyond 0006.
+
+### 10.3 Order between the clock, the page and the MSI
+
+1. The display clock thread wakes at a tick of a head that has work: a pending presentation or
+   vblank enabled, including an enable made through the page (`TickHead::vblank`). It calls the
+   driver, which locks the device and runs `Display::tick` (`Engine::catch_up`).
+2. Each status change goes through `FePage::update` under the page lock. The guest's unapplied
+   stores are applied first, then the change, then the display values are written. A word is
+   written by compare-and-swap from what was read, so a guest store that lands in between is
+   kept for the next scan. Details come before summaries: `EVT_STAT` before `RM_INTR_STAT`
+   before `DISPATCH`, and `AWAKEN_WIN` before `AWAKEN_OTHER` before `STAT_CTRL_DISP`.
+3. Then vector 156 is raised: by `Engine::signal` when the status changed, and by the clock
+   after the driver at every tick with work, as the trapped path raises at every tick (a
+   `LAST_DATA` the guest leaves pending while vblank callbacks are queued is serviced again at
+   the next frame). The raise (`Ticker::raise`, `IntrShared::raise`) in page mode wakes the
+   reactor. The reactor folds the vector into the tree page and writes the
+   MSI after it (§3 step 5). Program order and x86 store order mean the guest's handler reads
+   the display page as the clock left it.
+4. The guest's acks are applied by the reactor (`PageHook::poll`, display page first, then the
+   tree). An ack that leaves the line asserted raises the vector again, which is the trapped
+   path's level rule (`Engine::write32`). A pending ack is applied before the next clock
+   change: an ack that races a tick clears that tick's bit too, as hardware merges them.
+5. Connector commands (`display-ctl`) are applied by the driver as well (`BootModel::display_tick`),
+   because a display read no longer reaches the server thread.
+
+The trapped path is unchanged with the switch off: `IrqHome::Local`, a catch-up at every
+display read.
+
+### 10.4 Fail-closed rules
+
+Start-up refusals:
+- `CARAXES_DISPLAY_PAGE=1` without `CARAXES_INTR_PAGE=1` or without `--display`.
+- The display engine does not model exactly the 28 watched words of the page, or any other
+  model (the boot model's `owns_register`) owns a word of it (`FePage::check`, run on TU106
+  in the tests).
+- The page is not a free page of the memfd (`IntrPage::map_page`).
+
+At run time, each case is counted, logged once to the trace, and restored:
+- a store to `DISPATCH`, `RM_INTR_STAT` or `STAT_CTRL_DISP`;
+- a store with TAG (the bit is ignored and the rest applied);
+- an `AWAKEN_WIN` word that is not the echo;
+- `CORE_RESET` with no marker out;
+- an `AWAKEN_OTHER` store without `CORE_RESET`.
+
+The watchdog raises vector 156 again when a marker has been out for
+`CARAXES_INTR_PAGE_RETRIGGER_MS` (10 ms), at most once per period. This makes an awaken that
+the guest missed late rather than lost.
+
+### 10.5 Tests and expected effect
+
+Tests (`cargo test -p vfio-user-nvgpu`, 200 passed; 9 of them are new for the page, and one more is the GPPut barrier of display-e.md §9):
+- `display::fe_page::switch_needs_the_interrupt_page_and_the_display`
+- `initial_page_and_the_area`: the rest of the page is latched memory; `map_page` refuses the
+  intr pages, an unaligned page and a page outside BAR0.
+- `vblank_through_the_page`: the clock's store before the raise; `LAST_DATA_RESET` through
+  memory; two acks in one scan; the level rule.
+- `awaken_marker`: echo invisible; `CORE_RESET` acks exactly the shown bits; queued awakens
+  get the next marker with one raise; the core notifier's awaken.
+- `fail_closed_cases`
+- `racing_store_and_watchdog`
+- `tu106_page_check`
+- `display::engine::page_mode_the_clock_writes_the_page`: catch-up writes vblank and the
+  window AWAKEN marker into the page; guest acks through memory clear the engine's status.
+- `display::engine::the_clock_drives_the_engine_with_the_page`: a head with only a page-enabled
+  vblank ticks, and the driver runs instead of the raise.
+
+Build, clippy (both variants of `tools/check.sh`) and `cargo doc -D warnings` are clean with
+`CARGO_TARGET_DIR=target/fepage`.
+
+Expected on vm0, from 10.1:
+- Mutter: 229.8 to about **132** traps per frame.
+- Weston: 103.0 to about **20** traps per frame.
+
+The exit summary's `display page:` line must show `markers` equal to `acked by CORE_RESET`
+(within one at exit), and `inconsistencies: none`. Not measured yet (no VM in this package);
+the command is in §6a.
