@@ -439,7 +439,8 @@ gate_gpu() {
 # route; X becomes Weston on the DRM backend; the X capture becomes a KMS readback and
 # Sunshine with capture=kms. Stages that need the GPU to execute work (Vulkan swapchain,
 # presentation, ray tracing, fence events) run only when the device executes on the host
-# (--host-exec); otherwise they are listed in the facts as not run, with the reason.
+# (--host-exec; display-e.md: Weston then renders with GL on the NVIDIA EGL stack);
+# otherwise they are listed in the facts as not run, with the reason.
 DISP_SRC=$LEA_ROOT/crates/vfio-user-nvgpu/guest
 DISP_DIR=$GUEST_TESTS/caraxes/display
 # The device's EDID as the guest must see it: the golden file the unit test
@@ -452,12 +453,17 @@ DISP_PIXEL_REF_640x480=0x727dcdf3e49208c5
 # Copy and build the display probes in the guest (drm-modeset.c from Leandro-Test,
 # kmsflip, kmsgrab, wlframes and the scripts from crates/vfio-user-nvgpu/guest).
 display_material() {
-    local f files=(kmsflip.c kmsgrab.c wlframes.c build-wl.sh display-up.sh weston-pace.sh sunshine-kms.sh)
+    local f files=(kmsflip.c kmsgrab.c wlframes.c build-wl.sh display-up.sh weston-pace.sh sunshine-kms.sh
+        weston-run.sh vkprobe-wl.c)
     for f in "${files[@]}"; do [[ -f $DISP_SRC/$f ]] || return 1; done
     { tar -C "$DISP_SRC" -cf - "${files[@]}"; } | gsh "mkdir -p $DISP_DIR && tar -C $DISP_DIR -xf -" || return 1
     gsh "cat > $DISP_DIR/drm-modeset.c" < "$LEA_TEST/scripts/guest/drm-modeset.c" || return 1
+    gsh "cat > $DISP_DIR/fencetime.c" < "$LEA_TEST/scripts/guest/fencetime.c" || return 1
     gsh "cd $DISP_DIR && bash ./build-wl.sh >build.log 2>&1 && gcc -O2 -Wall -Wextra -o drm-modeset drm-modeset.c >>build.log 2>&1" \
         || { gsh "tail -20 $DISP_DIR/build.log"; return 1; }
+    # The Vulkan probes need libvulkan-dev in the guest (display-e.md: installed offline);
+    # without it the GPU stages report the missing build, the others still run.
+    gsh "cd $DISP_DIR && rm -f vkprobe-wl fencetime && gcc -O2 -Wall -I. -o vkprobe-wl vkprobe-wl.c xdg-shell-protocol.c -lvulkan -lwayland-client >>build.log 2>&1 && gcc -O2 -o fencetime fencetime.c -lvulkan >>build.log 2>&1" || true
 }
 
 # Shared by both gates: guest, device with a display engine, modules, material, card,
@@ -605,10 +611,93 @@ display_kernel() {
     fi
 }
 
+# v1's swapchain, present, rt and events stages on Wayland (display-e.md). Each probe runs
+# as a client of its own Weston (GL renderer) through weston-run.sh.
+display_gpu_stages() {
+    local run="sudo REPAINT_WINDOW=12 timeout 300 bash $DISP_DIR/weston-run.sh ${DISP_W}x${DISP_H}@$DISP_HZ gl"
+    # pfps and med stay global: the gate's summary line quotes them.
+    local sw line pres pline rt rline ft vals n max poll
+    if ! gsh "test -x $DISP_DIR/vkprobe-wl -a -x $DISP_DIR/fencetime"; then
+        gsh "tail -20 $DISP_DIR/build.log" > "$RUN/vk-build.txt" 2>&1
+        for s in swapchain present rt events; do
+            g_fail "$s" "vkprobe-wl or fencetime did not build in the guest (libvulkan-dev?) -- see $RUN/vk-build.txt"
+        done
+        return
+    fi
+    # ---- swapchain: the VkResult of vkCreateSwapchainKHR, not the exit code
+    sw=$(gsh "$run $DISP_DIR/vkprobe-wl" 2>&1)
+    echo "$sw" > "$RUN/swapchain.txt"
+    line=$(grep 'vkCreateSwapchainKHR' <<< "$sw" | head -1)
+    g_fact vk_device "$(grep -m1 -o 'device 0: .*' <<< "$sw")"
+    if grep -q WESTON-DOWN <<< "$sw"; then
+        g_fail swapchain "Weston (GL renderer) did not start -- see $RUN/swapchain.txt"
+    elif [[ -z $line ]]; then
+        g_fail swapchain "vkprobe-wl stopped before the swapchain -- see $RUN/swapchain.txt"
+    elif ! grep -q VK_SUCCESS <<< "$line"; then
+        g_fail swapchain "$(sed 's/  */ /g;s/^ //' <<< "$line")"
+    else
+        g_pass swapchain "vkCreateSwapchainKHR returned VK_SUCCESS on a Wayland surface under Weston (GL renderer)"
+    fi
+    # ---- present: 120 frames, all VK_SUCCESS, at the display's 60 Hz (50-75 FPS)
+    pres=$(gsh "$run $DISP_DIR/vkprobe-wl --present 120" 2>&1)
+    echo "$pres" > "$RUN/present.txt"
+    pline=$(grep 'presented' <<< "$pres" | head -1)
+    pfps=$(sed -n 's/.*, \([0-9.]*\) FPS.*/\1/p' <<< "$pline")
+    g_fact present_fps "${pfps:-unknown}"
+    if [[ -z $pline ]]; then
+        g_fail present "vkprobe-wl presented nothing -- see $RUN/present.txt"
+    elif ! grep -q 'all VK_SUCCESS' <<< "$pline"; then
+        g_fail present "$(sed 's/  */ /g;s/^ //' <<< "$pline")"
+    elif [[ -z $pfps ]] || awk "BEGIN{exit !($pfps < 50 || $pfps > 75)}"; then
+        g_fail present "120 frames presented but at ${pfps:-?} FPS -- not this display's 60 Hz"
+    else
+        g_pass present "120 frames, all VK_SUCCESS, $pfps FPS at the display's 60 Hz"
+    fi
+    # ---- rt: vkCreateDevice with VK_KHR_acceleration_structure (needs /dev/nvidia-uvm)
+    rt=$(gsh "$run $DISP_DIR/vkprobe-wl --rt" 2>&1)
+    echo "$rt" > "$RUN/rt.txt"
+    rline=$(grep 'vkCreateDevice' <<< "$rt" | head -1)
+    if [[ -z $rline ]]; then
+        g_fail rt "vkprobe-wl stopped before vkCreateDevice -- see $RUN/rt.txt"
+    elif ! grep -q VK_SUCCESS <<< "$rline"; then
+        g_fail rt "$(sed 's/  */ /g;s/^ //' <<< "$rline")"
+    else
+        g_pass rt "vkCreateDevice with VK_KHR_acceleration_structure returned VK_SUCCESS"
+    fi
+    # ---- events: empty submit to fence; the median separates a wakeup from v1's 10 ms poll
+    ft=$(gsh "timeout 60 $DISP_DIR/fencetime" 2>&1)
+    echo "$ft" > "$RUN/events.txt"
+    vals=$(grep -oE '^[0-9. ]+' <<< "$ft" | tr ' ' '\n' | grep -E '^[0-9]+\.[0-9]+$' | sort -g)
+    n=$(grep -c . <<< "$vals")
+    med=$(sed -n "$(( (n + 1) / 2 ))p" <<< "$vals")
+    max=$(tail -1 <<< "$vals")
+    poll=$(awk '$1 >= 9.0' <<< "$vals" | wc -l)
+    g_fact fence_median_ms "${med:-unknown}"
+    g_fact fence_poll_hits "$poll"
+    if [[ -z $med ]]; then
+        g_fail events "fencetime printed no timings -- see $RUN/events.txt"
+    elif awk "BEGIN{exit !($med >= 1.0)}"; then
+        g_fail events "median wait $med ms over $n samples -- a poll, not a wakeup"
+    elif ((poll > n / 2)); then
+        g_fail events "$poll of $n waits at the 10 ms poll"
+    else
+        g_pass events "median wait $med ms over $n samples (worst $max), the GR completion arrives as the forwarded non-stall interrupt"
+    fi
+}
+
 gate_display() {
     g_begin display
     display_common display rig connector
     local W=$DISP_W H=$DISP_H
+    # With host execution the compositor renders on the GPU (NVIDIA EGL, Weston's GL
+    # renderer) and waits for the GPU's completion before a flip: 12 ms repaint window
+    # instead of Weston's 7 (display-e.md). Without it, pixman into BAR1 as in display-cd.
+    local hostexec=0 wenv="WESTON_RENDERER=pixman"
+    if grep -q 'host execution on' "$CARAXES_STORE/$VM/gpu.log" 2>/dev/null; then
+        hostexec=1 wenv="WESTON_RENDERER=gl REPAINT_WINDOW=12"
+    fi
+    g_fact host_execution "$hostexec"
+    g_fact compositor_env "$wenv"
     # ---- modeset: v1's drm-modeset, unchanged criteria
     local ms
     gsh 'sudo pkill -x weston 2>/dev/null; sudo pkill -x gnome-shell 2>/dev/null; true'
@@ -626,7 +715,7 @@ gate_display() {
     # ---- compositor (replaces v1's X): Weston, DRM backend, atomic KMS; a Wayland client's
     # frame callbacks and wp_presentation feedback run at the mode's refresh.
     local co fr pr refresh
-    co=$(gsh "sudo SETTLE=${CARAXES_GATE_SETTLE:-60} timeout 700 bash $DISP_DIR/weston-pace.sh ${W}x${H}@$DISP_HZ 30" 2>&1)
+    co=$(gsh "sudo $wenv SETTLE=${CARAXES_GATE_SETTLE:-$((hostexec ? 5 : 60))} timeout 700 bash $DISP_DIR/weston-pace.sh ${W}x${H}@$DISP_HZ 30" 2>&1)
     echo "$co" > "$RUN/compositor.txt"
     fr=$(sed -n 's/^FRAMES callbacks.* rate_hz=\([0-9.]*\).*/\1/p' <<< "$co")
     pr=$(sed -n 's/^PRESENTED feedback.* rate_hz=\([0-9.]*\).*/\1/p' <<< "$co")
@@ -648,7 +737,7 @@ gate_display() {
     # captured frames. Moonlight reception is not part of this stage.
     local cap cx cy
     cx=320 cy=240
-    cap=$(gsh "sudo SETTLE=8 timeout 300 bash $DISP_DIR/sunshine-kms.sh 640x480 40" 2>&1)
+    cap=$(gsh "sudo $wenv SETTLE=8 timeout 300 bash $DISP_DIR/sunshine-kms.sh 640x480 40" 2>&1)
     echo "$cap" > "$RUN/capture.txt"
     g_fact sunshine "$(grep -c 'Found monitor for DRM screencasting' <<< "$cap") KMS monitor finds, encoder: $(grep -m1 -o 'Found H.264 encoder: [^ ]*' <<< "$cap")"
     g_fact capture_sample "$(grep -m1 "^SAMPLE $cx $cy" <<< "$cap")"
@@ -658,17 +747,19 @@ gate_display() {
     else
         g_fail capture "KMS readback or Sunshine capture=kms did not see the client -- see $RUN/capture.txt"
     fi
-    # ---- the GPU-execution stages of v1 (swapchain, present, rt, events): only with host
-    # execution. The rendering path of Weston above is the CPU (pixman).
-    if grep -q 'host execution on' "$CARAXES_STORE/$VM/gpu.log" 2>/dev/null; then
-        g_fact gpu_stages "host execution on; the Wayland Vulkan stages are not written yet"
+    # ---- the GPU-execution stages of v1 (swapchain, present, rt, events), with host
+    # execution only: v1's vkprobe on Wayland (vkprobe-wl.c, a Wayland surface instead of
+    # the X window) under Weston's GL renderer, and v1's fencetime unchanged. The
+    # criteria are v1's (Leandro-Test scripts/test.sh:921-1045).
+    if ((hostexec)); then
+        display_gpu_stages
     else
-        g_fact gpu_stages_not_run "swapchain present rt events: they need the GPU to execute (Vulkan device, WSI, fences); this device runs without host execution (E5b, --host-exec), which is not allowed on vm0 yet"
+        g_fact gpu_stages_not_run "swapchain present rt events: they need the GPU to execute (Vulkan device, WSI, fences); this device runs without host execution (E5b, --host-exec)"
     fi
     display_kernel kernel
     g_fact run_dir "${RUN#"$LEA_ROOT"/}"
     if ((${#G_FAILED[@]} == 0)); then
-        g_finish "card0 ${W}x${H}@$DISP_HZ on the device's DP monitor: EDID identical, modeset+30 flips, Weston frame callbacks ${fr:-?} Hz, KMS capture and Sunshine capture=kms; GPU-execution stages not run (facts); details in ${RUN#"$LEA_ROOT"/}/"
+        g_finish "card0 ${W}x${H}@$DISP_HZ on the device's DP monitor: EDID identical, modeset+30 flips, Weston frame callbacks ${fr:-?} Hz, KMS capture and Sunshine capture=kms; $( ((hostexec)) && echo "Vulkan swapchain, ${pfps:-?} FPS presented, RT device, fence median ${med:-?} ms" || echo "GPU-execution stages not run (facts)"); details in ${RUN#"$LEA_ROOT"/}/"
     else
         g_finish "failed: ${G_FAILED[*]}; logs in ${RUN#"$LEA_ROOT"/}/"
     fi

@@ -925,6 +925,7 @@ impl HostMemory {
         va: u64,
         page_size: u32,
         snoop: bool,
+        kind: Option<u8>,
     ) -> Status {
         use nvrm_abi::nvgpu::nvos46_flags as f;
         let mut p = sys::NVOS46_PARAMETERS::default();
@@ -942,6 +943,12 @@ impl HostMemory {
                 f::CACHE_SNOOP_DISABLE
             })
             | f::DMA_OFFSET_FIXED.set(f::DMA_OFFSET_FIXED_TRUE);
+        // A guest depth/stencil kind (shadow.rs `kind_override`): NVOS46_FLAGS_PAGE_KIND_OVERRIDE
+        // (nvos.h:2114) with `kindOverride` (nvos.h:2178).
+        if let Some(k) = kind {
+            p.flags |= f::PAGE_KIND_OVERRIDE.set(1);
+            p.kindOverride = k as u32;
+        }
         p.dmaOffset = va;
         // SAFETY: NVOS46 is the escape ABI; plain-data params, no host pointers.
         // The caller (shadow.rs) logs a refusal once per leaf, with VA, PA and reason.

@@ -1,0 +1,4 @@
+# SPDX-License-Identifier: MIT
+# host kernel log, Xid lines since 2026-09-24 09:10:18
+Sep 24 09:10:20 manacor kernel: NVRM: Xid (PCI:0000:2d:00): 31, pid=2035086, name=vfio-user-nvgpu, channel 0x00000033, intr 00000000. MMU Fault: ENGINE GRAPHICS GPC0 GPCCLIENT_PROP_0 faulted @ 0x1_20800000. Fault is of type FAULT_PRIV_VIOLATION ACCESS_TYPE_VIRT_WRITE
+Sep 24 09:11:06 manacor kernel: NVRM: Xid (PCI:0000:2d:00): 31, pid=2035086, name=vfio-user-nvgpu, channel 0x00000033, intr 00000000. MMU Fault: ENGINE GRAPHICS GPC0 GPCCLIENT_PROP_0 faulted @ 0x1_20800000. Fault is of type FAULT_PRIV_VIOLATION ACCESS_TYPE_VIRT_WRITE

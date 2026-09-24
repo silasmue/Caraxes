@@ -1,0 +1,4 @@
+0.47 0.51 0.29 1/282 5109
+first frame callback after 0.1 s
+FRAMES callbacks intervals=1785 mean_ms=16.730 rate_hz=59.77 min_ms=7.072 max_ms=62.809 sd_ms=2.572
+PRESENTED feedback intervals=1785 mean_ms=16.734 rate_hz=59.76 min_ms=9.403 max_ms=66.600 sd_ms=1.729

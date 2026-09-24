@@ -1,0 +1,4 @@
+[06:43:21.803] EGL error state: EGL_BAD_ACCESS (0x3002)
+[06:43:21.803] fatal: failed to create compositor backend
+-rw-r--r-- 1 root root 83344 Sep 24 06:43 /tmp/weston-rm.txt
+-rw-r--r-- 1 root root 78275 Sep 24 06:43 /tmp/weston-rm.txt.jsonl

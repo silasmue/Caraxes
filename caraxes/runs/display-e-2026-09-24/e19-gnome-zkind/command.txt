@@ -1,0 +1,5 @@
+# SPDX-License-Identifier: MIT
+# 2026-09-24 09:32:33 guest command:
+unset DISPLAY; cd caraxes-guest; cp ../cx/kmsgrab . 2>/dev/null; sudo bash gnome-check.sh start 90 | grep -E "Type=|Added device|gbm renderer|EGL|page_flip|GRAB|WARNING"; P=$(pgrep -u leandro -x gnome-shell | head -1); sudo grep -oE "libnvidia-eglcore[^ ]*|libgallium[^ ]*" /proc/$P/maps | sort -u; U=$(id -u leandro); echo "load $(cat /proc/loadavg)"; echo "== wlframes under Mutter"; sudo -u leandro XDG_RUNTIME_DIR=/run/user/$U WAYLAND_DISPLAY=wayland-0 timeout 120 ./wlframes 20 64 8; echo "wlframes rc=$?"
+rc=0
+full trace 1304749 lines, events only kept

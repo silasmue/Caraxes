@@ -1,0 +1,4 @@
+vfio-user-nvgpu: mirror: HOST RC EVENT on a mirrored engine: notify 0x25 exceptType 0xd info16 0xe9 [host]
+vfio-user-nvgpu: mirror: HOST RC EVENT on a mirrored engine: notify 0x25 exceptType 0xd info16 0xe9 [host]
+vfio-user-nvgpu: mirror: HOST RC EVENT on a mirrored engine: notify 0x25 exceptType 0xd info16 0xe9 [host]
+vfio-user-nvgpu: mirror: HOST RC EVENT on a mirrored engine: notify 0x25 exceptType 0xd info16 0xe9 [host]

@@ -1,0 +1,412 @@
+[  408.977422] NVRM: nvidia_open...
+[  408.977430] NVRM: nvidia_ctl_open
+[  408.977474] NVRM: ioctl(0xd2, 0x9a0f630, 0x48)
+[  408.977528] NVRM: ioctl(0xd6, 0x9a0f730, 0x8)
+[  408.977567] NVRM: ioctl(0xc8, 0xb9f0c2e0, 0x900)
+[  408.977617] NVRM: ioctl(0x2b, 0x9a0f7c0, 0x30)
+[  408.978372] NVRM: ioctl(0x2a, 0x9a0ee90, 0x20)
+[  408.978465] NVRM: ioctl(0x2a, 0x9a0ee90, 0x20)
+[  408.978479] NVRM: ioctl(0x2a, 0x9a0ee90, 0x20)
+[  408.978521] NVRM: ioctl(0x2b, 0x9a0f9c0, 0x30)
+[  408.979136] NVRM: ioctl(0x2a, 0x9a0dc10, 0x20)
+[  408.979196] NVRM: ioctl(0x29, 0x9a0faa0, 0x10)
+[  408.979727] NVRM: ioctl(0x2a, 0x9a0ee80, 0x20)
+[  408.979781] NVRM: nvidia_open...
+[  408.979783] NVRM: GPU 0000:00:05.0: Opening GPU with minor number 0
+[  408.979802] NVRM: ioctl(0x2a, 0x9a0ee80, 0x20)
+[  408.979817] NVRM: ioctl(0x2a, 0x9a0eca0, 0x20)
+[  408.979839] NVRM: ioctl(0x2a, 0x9a0eca0, 0x20)
+[  408.979872] NVRM: nvidia_open...
+[  408.979874] NVRM: GPU 0000:00:05.0: Opening GPU with minor number 0
+[  408.979880] NVRM: ioctl(0xc9, 0x9a0f7b0, 0x4)
+[  408.979892] NVRM: ioctl(0xd7, 0x9a0f540, 0x230)
+[  408.980431] NVRM: ioctl(0x2a, 0x9a0ed20, 0x20)
+[  408.980452] NVRM: ioctl(0x2b, 0x9a0f860, 0x30)
+[  408.981306] NVRM: ioctl(0x2a, 0x9a0eda0, 0x20)
+[  408.981324] NVRM: ioctl(0x2a, 0x9a0eca0, 0x20)
+[  408.981336] NVRM: ioctl(0x2a, 0x9a0eca0, 0x20)
+[  408.981376] NVRM: nvidia_open...
+[  408.981377] NVRM: GPU 0000:00:05.0: Opening GPU with minor number 0
+[  408.981385] NVRM: ioctl(0xc9, 0x9a0f7b0, 0x4)
+[  408.981395] NVRM: ioctl(0x2b, 0x9a0f860, 0x30)
+[  408.982028] NVRM: ioctl(0x2b, 0x9a0f7c0, 0x30)
+[  409.054364] NVRM: ioctl(0x2a, 0x9a0ee50, 0x20)
+[  409.054392] NVRM: ioctl(0x2a, 0x9a0ee20, 0x20)
+[  409.054420] NVRM: ioctl(0x4a, 0x9a0f9b0, 0xb8)
+[  409.054747] NVRM: VM: nv_alloc_pages: 1 pages, nodeid -1
+[  409.054752] NVRM: VM:    contig 0  cache_type 1
+[  409.054763] NVRM: VM: nv_alloc_system_pages: 1 order0 pages, 0 order
+[  409.054769] NVRM: VM: nv_mem_pool_alloc_pages: node=0 order=0: 1/1 pages allocated (1 already cleared, 0 left in pool)
+[  409.054961] NVRM: VM: nv_alloc_pages:3969: 0x00000000dcd16794, 1 page(s), count = 1, page_table = 0x00000000d957c08c
+[  409.055252] NVRM: ioctl(0x2a, 0x9a0e200, 0x20)
+[  409.055274] NVRM: ioctl(0x2a, 0x9a0e200, 0x20)
+[  409.055300] NVRM: ioctl(0x2a, 0x9a0e200, 0x20)
+[  409.055324] NVRM: nvidia_open...
+[  409.055325] NVRM: nvidia_ctl_open
+[  409.055333] NVRM: ioctl(0xd4, 0x9a0ecd0, 0x80)
+[  409.055340] NVRM: GPU 0000:00:05.0: Opening GPU with minor number 0
+[  409.055826] NVRM: ioctl(0x2a, 0x9a0ee80, 0x20)
+[  409.058107] NVRM: ioctl(0x29, 0x9a0f890, 0x10)
+[  409.058614] NVRM: ioctl(0x2a, 0x9a0f010, 0x20)
+[  409.058958] NVRM: ioctl(0x2b, 0x9a0fba0, 0x30)
+[  409.059921] NVRM: ioctl(0x2b, 0x9a0eb70, 0x30)
+[  409.060453] NVRM: ioctl(0x2a, 0x9a0dcc0, 0x20)
+[  409.060470] NVRM: ioctl(0x2a, 0x9a0dcc0, 0x20)
+[  409.060538] NVRM: nvidia_open...
+[  409.060540] NVRM: GPU 0000:00:05.0: Opening GPU with minor number 0
+[  409.060548] NVRM: ioctl(0xc9, 0x9a0e7d0, 0x4)
+[  409.060579] NVRM: ioctl(0x2b, 0x9a0e880, 0x30)
+[  409.061313] NVRM: ioctl(0x2a, 0x9a0dea0, 0x20)
+[  409.061327] NVRM: ioctl(0x2a, 0x9a0ddc0, 0x20)
+[  409.061351] NVRM: ioctl(0x2a, 0x9a0dcc0, 0x20)
+[  409.061363] NVRM: ioctl(0x2a, 0x9a0dcc0, 0x20)
+[  409.061403] NVRM: nvidia_open...
+[  409.061404] NVRM: GPU 0000:00:05.0: Opening GPU with minor number 0
+[  409.061411] NVRM: ioctl(0xc9, 0x9a0e7d0, 0x4)
+[  409.061422] NVRM: ioctl(0x2b, 0x9a0e880, 0x30)
+[  409.062271] NVRM: ioctl(0x2a, 0x9a0dea0, 0x20)
+[  409.063459] NVRM: ioctl(0x2a, 0x9a0dea0, 0x20)
+[  409.063481] NVRM: ioctl(0x2a, 0x9a0dea0, 0x20)
+[  409.064683] NVRM: ioctl(0x2a, 0x9a0dea0, 0x20)
+[  409.064708] NVRM: ioctl(0x2b, 0x9a0e880, 0x30)
+[  409.066153] NVRM: ioctl(0x34, 0x9a0e8e0, 0x1c)
+[  409.067592] NVRM: ioctl(0x2b, 0x9a0e880, 0x30)
+[  409.069062] NVRM: ioctl(0x2a, 0x9a0e170, 0x20)
+[  409.069087] NVRM: ioctl(0x2a, 0x9a0e170, 0x20)
+[  409.069109] NVRM: ioctl(0x2a, 0x9a0e170, 0x20)
+[  409.069123] NVRM: ioctl(0x2a, 0x9a0e170, 0x20)
+[  409.070302] NVRM: ioctl(0x2a, 0x9a0e170, 0x20)
+[  409.070325] NVRM: ioctl(0x2a, 0x9a0e170, 0x20)
+[  409.071526] NVRM: ioctl(0x2a, 0x9a0e170, 0x20)
+[  409.072718] NVRM: ioctl(0x2a, 0x9a0df70, 0x20)
+[  409.073904] NVRM: ioctl(0x2a, 0x9a0df70, 0x20)
+[  409.073919] NVRM: ioctl(0x2a, 0x9a0e170, 0x20)
+[  409.075863] NVRM: ioctl(0x2a, 0x9a0e170, 0x20)
+[  409.078371] NVRM: ioctl(0x2a, 0x9a0e170, 0x20)
+[  409.079827] NVRM: ioctl(0x29, 0x9a0fc20, 0x10)
+[  409.082846] NVRM: ioctl(0x29, 0x9a108b0, 0x10)
+[  409.084300] NVRM: ioctl(0x29, 0x9a108b0, 0x10)
+[  409.090080] NVRM: nvidia_close on GPU with minor number 0
+[  409.090087] NVRM: nvidia_close on GPU with minor number 0
+[  409.090169] NVRM: ioctl(0x29, 0x9a10900, 0x10)
+[  409.091344] NVRM: nvidia_close on GPU with minor number 255
+[  409.091347] NVRM: nvidia_ctl_close
+[  409.092027] NVRM: VM: nv_free_pages: 0x1
+[  409.092029] NVRM: VM: nv_free_pages:3992: 0x00000000dcd16794, 1 page(s), count = 1, page_table = 0x00000000d957c08c
+[  409.092093] NVRM: VM: nv_mem_pool_free_pages: node=0 order=0: 1/1 pages added to pool (1 now in pool)
+[  409.092100] NVRM: VM: nv_free_system_pages: 1/1 order0 pages
+[  409.097908] NVRM: ioctl(0x29, 0x9a10850, 0x10)
+[  409.099796] NVRM: ioctl(0x29, 0x9a10870, 0x10)
+[  409.101278] NVRM: nvidia_close on GPU with minor number 0
+[  409.101286] NVRM: nvidia_close on GPU with minor number 0
+[  409.101296] NVRM: ioctl(0x2a, 0x9a0fe60, 0x20)
+[  409.101335] NVRM: nvidia_close on GPU with minor number 0
+[  409.101381] NVRM: ioctl(0x29, 0x9a10930, 0x10)
+[  409.101891] NVRM: nvidia_close on GPU with minor number 255
+[  409.101893] NVRM: nvidia_ctl_close
+[  409.147943] NVRM: VM: nv_free_pages: 0x1
+[  409.147947] NVRM: VM: nv_free_pages:3992: 0x00000000a7a6b0cb, 1 page(s), count = 1, page_table = 0x00000000fa0b682f
+[  409.148017] NVRM: VM: nv_mem_pool_free_pages: node=0 order=0: 1/1 pages added to pool (2 now in pool)
+[  409.148025] NVRM: VM: nv_free_system_pages: 1/1 order0 pages
+[  409.149501] NVRM: VM: nv_free_pages: 0x1
+[  409.149504] NVRM: VM: nv_free_pages:3992: 0x00000000dfd60f3c, 1 page(s), count = 1, page_table = 0x0000000036059a83
+[  409.149535] NVRM: VM: nv_mem_pool_free_pages: node=0 order=0: 1/1 pages added to pool (3 now in pool)
+[  409.149540] NVRM: VM: nv_free_system_pages: 1/1 order0 pages
+[  409.153247] NVRM: VM: nv_free_pages: 0x1
+[  409.153249] NVRM: VM: nv_free_pages:3992: 0x000000008a1edd24, 1 page(s), count = 1, page_table = 0x000000004936328e
+[  409.155227] NVRM: VM: nv_mem_pool_free_pages: node=0 order=0: 1/1 pages added to pool (4 now in pool)
+[  409.155238] NVRM: VM: nv_free_system_pages: 1/1 order0 pages
+[  409.156863] NVRM: VM: nv_free_pages: 0x1
+[  409.156865] NVRM: VM: nv_free_pages:3992: 0x00000000b5426c5e, 1 page(s), count = 1, page_table = 0x000000005caf7d38
+[  409.157220] NVRM: VM: nv_mem_pool_free_pages: node=0 order=0: 1/1 pages added to pool (5 now in pool)
+[  409.157224] NVRM: VM: nv_free_system_pages: 1/1 order0 pages
+[  409.160217] NVRM: VM: nv_free_pages: 0x1
+[  409.160219] NVRM: VM: nv_free_pages:3992: 0x0000000035d741f6, 1 page(s), count = 1, page_table = 0x00000000f7cbc4b7
+[  409.162222] NVRM: VM: nv_mem_pool_free_pages: node=0 order=0: 1/1 pages added to pool (6 now in pool)
+[  409.162226] NVRM: VM: nv_free_system_pages: 1/1 order0 pages
+[  409.163922] NVRM: VM: nv_free_pages: 0x1
+[  409.163925] NVRM: VM: nv_free_pages:3992: 0x0000000040b49c43, 1 page(s), count = 1, page_table = 0x000000007cfb908b
+[  409.163947] NVRM: VM: nv_mem_pool_free_pages: node=0 order=0: 1/1 pages added to pool (7 now in pool)
+[  409.163955] NVRM: VM: nv_free_system_pages: 1/1 order0 pages
+[  409.167370] NVRM: VM: nv_free_pages: 0x1
+[  409.167372] NVRM: VM: nv_free_pages:3992: 0x0000000094e220b1, 1 page(s), count = 1, page_table = 0x000000009526edec
+[  409.167397] NVRM: VM: nv_mem_pool_free_pages: node=0 order=0: 1/1 pages added to pool (8 now in pool)
+[  409.167402] NVRM: VM: nv_free_system_pages: 1/1 order0 pages
+[  409.169106] NVRM: VM: nv_free_pages: 0x1
+[  409.169108] NVRM: VM: nv_free_pages:3992: 0x00000000fc107d04, 1 page(s), count = 1, page_table = 0x000000006b10ca03
+[  409.169131] NVRM: VM: nv_mem_pool_free_pages: node=0 order=0: 1/1 pages added to pool (9 now in pool)
+[  409.169135] NVRM: VM: nv_free_system_pages: 1/1 order0 pages
+[  409.172111] NVRM: VM: nv_free_pages: 0x1
+[  409.172114] NVRM: VM: nv_free_pages:3992: 0x000000002760ef56, 1 page(s), count = 1, page_table = 0x00000000f4e91d16
+[  409.172135] NVRM: VM: nv_mem_pool_free_pages: node=0 order=0: 1/1 pages added to pool (10 now in pool)
+[  409.172139] NVRM: VM: nv_free_system_pages: 1/1 order0 pages
+[  409.173844] NVRM: VM: nv_free_pages: 0x1
+[  409.173847] NVRM: VM: nv_free_pages:3992: 0x0000000027a04674, 1 page(s), count = 1, page_table = 0x000000008680ad22
+[  409.173871] NVRM: VM: nv_mem_pool_free_pages: node=0 order=0: 1/1 pages added to pool (11 now in pool)
+[  409.173876] NVRM: VM: nv_free_system_pages: 1/1 order0 pages
+[  409.176805] NVRM: VM: nv_free_pages: 0x1
+[  409.176808] NVRM: VM: nv_free_pages:3992: 0x00000000b4519114, 1 page(s), count = 1, page_table = 0x000000000808514c
+[  409.176833] NVRM: VM: nv_mem_pool_free_pages: node=0 order=0: 1/1 pages added to pool (12 now in pool)
+[  409.176837] NVRM: VM: nv_free_system_pages: 1/1 order0 pages
+[  409.178477] NVRM: VM: nv_free_pages: 0x1
+[  409.178479] NVRM: VM: nv_free_pages:3992: 0x000000002862eb89, 1 page(s), count = 1, page_table = 0x0000000043fbe10c
+[  409.178506] NVRM: VM: nv_mem_pool_free_pages: node=0 order=0: 1/1 pages added to pool (13 now in pool)
+[  409.178510] NVRM: VM: nv_free_system_pages: 1/1 order0 pages
+[  409.181352] NVRM: VM: nv_free_pages: 0x1
+[  409.181355] NVRM: VM: nv_free_pages:3992: 0x0000000081eefa4c, 1 page(s), count = 1, page_table = 0x00000000d4b70582
+[  409.181381] NVRM: VM: nv_mem_pool_free_pages: node=0 order=0: 1/1 pages added to pool (14 now in pool)
+[  409.181385] NVRM: VM: nv_free_system_pages: 1/1 order0 pages
+[  409.183065] NVRM: VM: nv_free_pages: 0x1
+[  409.183068] NVRM: VM: nv_free_pages:3992: 0x00000000e1ec8738, 1 page(s), count = 1, page_table = 0x000000007fb5fddb
+[  409.183092] NVRM: VM: nv_mem_pool_free_pages: node=0 order=0: 1/1 pages added to pool (15 now in pool)
+[  409.183104] NVRM: VM: nv_free_system_pages: 1/1 order0 pages
+[  409.186015] NVRM: VM: nv_free_pages: 0x1
+[  409.186017] NVRM: VM: nv_free_pages:3992: 0x00000000124f2ac9, 1 page(s), count = 1, page_table = 0x000000006f7c27b0
+[  409.186041] NVRM: VM: nv_mem_pool_free_pages: node=0 order=0: 1/1 pages added to pool (16 now in pool)
+[  409.186045] NVRM: VM: nv_free_system_pages: 1/1 order0 pages
+[  409.187733] NVRM: VM: nv_free_pages: 0x1
+[  409.187735] NVRM: VM: nv_free_pages:3992: 0x0000000040a14edb, 1 page(s), count = 1, page_table = 0x000000007e4592ea
+[  409.187763] NVRM: VM: nv_mem_pool_free_pages: node=0 order=0: 1/1 pages added to pool (17 now in pool)
+[  409.187767] NVRM: VM: nv_free_system_pages: 1/1 order0 pages
+[  409.190713] NVRM: VM: nv_free_pages: 0x1
+[  409.190717] NVRM: VM: nv_free_pages:3992: 0x00000000215a571e, 1 page(s), count = 1, page_table = 0x00000000fee64506
+[  409.190743] NVRM: VM: nv_mem_pool_free_pages: node=0 order=0: 1/1 pages added to pool (18 now in pool)
+[  409.190747] NVRM: VM: nv_free_system_pages: 1/1 order0 pages
+[  409.192427] NVRM: VM: nv_free_pages: 0x1
+[  409.192429] NVRM: VM: nv_free_pages:3992: 0x00000000ba9de406, 1 page(s), count = 1, page_table = 0x00000000f6cffe54
+[  409.192456] NVRM: VM: nv_mem_pool_free_pages: node=0 order=0: 1/1 pages added to pool (19 now in pool)
+[  409.192460] NVRM: VM: nv_free_system_pages: 1/1 order0 pages
+[  409.195331] NVRM: VM: nv_free_pages: 0x1
+[  409.195333] NVRM: VM: nv_free_pages:3992: 0x0000000066fcce3c, 1 page(s), count = 1, page_table = 0x000000005c03cfea
+[  409.195361] NVRM: VM: nv_mem_pool_free_pages: node=0 order=0: 1/1 pages added to pool (20 now in pool)
+[  409.195365] NVRM: VM: nv_free_system_pages: 1/1 order0 pages
+[  409.196757] NVRM: VM: nv_free_pages: 0x1
+[  409.196759] NVRM: VM: nv_free_pages:3992: 0x0000000048c9027e, 1 page(s), count = 1, page_table = 0x0000000006aa2c2d
+[  409.196784] NVRM: VM: nv_mem_pool_free_pages: node=0 order=0: 1/1 pages added to pool (21 now in pool)
+[  409.196788] NVRM: VM: nv_free_system_pages: 1/1 order0 pages
+[  409.199248] NVRM: VM: nv_free_pages: 0x1
+[  409.199250] NVRM: VM: nv_free_pages:3992: 0x000000000b694cb1, 1 page(s), count = 1, page_table = 0x0000000069b80f59
+[  409.199279] NVRM: VM: nv_mem_pool_free_pages: node=0 order=0: 1/1 pages added to pool (22 now in pool)
+[  409.199283] NVRM: VM: nv_free_system_pages: 1/1 order0 pages
+[  409.200670] NVRM: VM: nv_free_pages: 0x1
+[  409.200672] NVRM: VM: nv_free_pages:3992: 0x00000000104574ae, 1 page(s), count = 1, page_table = 0x00000000e2a89965
+[  409.200700] NVRM: VM: nv_mem_pool_free_pages: node=0 order=0: 1/1 pages added to pool (23 now in pool)
+[  409.200704] NVRM: VM: nv_free_system_pages: 1/1 order0 pages
+[  409.206869] NVRM: VM: nv_free_pages: 0x1
+[  409.206873] NVRM: VM: nv_free_pages:3992: 0x00000000349211f4, 1 page(s), count = 1, page_table = 0x00000000bd396573
+[  409.207016] NVRM: VM: nv_mem_pool_free_pages: node=0 order=0: 1/1 pages added to pool (24 now in pool)
+[  409.207021] NVRM: VM: nv_free_system_pages: 1/1 order0 pages
+[  409.210540] NVRM: VM: nv_free_pages: 0x1
+[  409.210542] NVRM: VM: nv_free_pages:3992: 0x000000000bd2f762, 1 page(s), count = 1, page_table = 0x0000000017521506
+[  409.210574] NVRM: VM: nv_mem_pool_free_pages: node=0 order=0: 1/1 pages added to pool (25 now in pool)
+[  409.210579] NVRM: VM: nv_free_system_pages: 1/1 order0 pages
+[  409.216692] NVRM: VM: nv_free_pages: 0x1
+[  409.216694] NVRM: VM: nv_free_pages:3992: 0x000000007e75f8b5, 1 page(s), count = 1, page_table = 0x00000000ff9dd4c4
+[  409.216722] NVRM: VM: nv_mem_pool_free_pages: node=0 order=0: 1/1 pages added to pool (26 now in pool)
+[  409.216727] NVRM: VM: nv_free_system_pages: 1/1 order0 pages
+[  409.220237] NVRM: VM: nv_free_pages: 0x1
+[  409.220239] NVRM: VM: nv_free_pages:3992: 0x00000000ba00c056, 1 page(s), count = 1, page_table = 0x000000001f15c012
+[  409.220273] NVRM: VM: nv_mem_pool_free_pages: node=0 order=0: 1/1 pages added to pool (27 now in pool)
+[  409.220278] NVRM: VM: nv_free_system_pages: 1/1 order0 pages
+[  409.226390] NVRM: VM: nv_free_pages: 0x1
+[  409.226392] NVRM: VM: nv_free_pages:3992: 0x000000008eaca52f, 1 page(s), count = 1, page_table = 0x000000006fdf9236
+[  409.226420] NVRM: VM: nv_mem_pool_free_pages: node=0 order=0: 1/1 pages added to pool (28 now in pool)
+[  409.226425] NVRM: VM: nv_free_system_pages: 1/1 order0 pages
+[  409.229903] NVRM: VM: nv_free_pages: 0x1
+[  409.229905] NVRM: VM: nv_free_pages:3992: 0x0000000033d62814, 1 page(s), count = 1, page_table = 0x000000006a67ded2
+[  409.229935] NVRM: VM: nv_mem_pool_free_pages: node=0 order=0: 1/1 pages added to pool (29 now in pool)
+[  409.229945] NVRM: VM: nv_free_system_pages: 1/1 order0 pages
+[  409.236483] NVRM: VM: nv_free_pages: 0x1
+[  409.236485] NVRM: VM: nv_free_pages:3992: 0x00000000c111e414, 1 page(s), count = 1, page_table = 0x000000005575a2c5
+[  409.236515] NVRM: VM: nv_mem_pool_free_pages: node=0 order=0: 1/1 pages added to pool (30 now in pool)
+[  409.236519] NVRM: VM: nv_free_system_pages: 1/1 order0 pages
+[  409.240080] NVRM: VM: nv_free_pages: 0x1
+[  409.240082] NVRM: VM: nv_free_pages:3992: 0x00000000756b6f75, 1 page(s), count = 1, page_table = 0x0000000069178716
+[  409.240115] NVRM: VM: nv_mem_pool_free_pages: node=0 order=0: 1/1 pages added to pool (31 now in pool)
+[  409.240130] NVRM: VM: nv_free_system_pages: 1/1 order0 pages
+[  409.246213] NVRM: VM: nv_free_pages: 0x1
+[  409.246215] NVRM: VM: nv_free_pages:3992: 0x0000000045c8fe7c, 1 page(s), count = 1, page_table = 0x000000009c20633f
+[  409.246251] NVRM: VM: nv_mem_pool_free_pages: node=0 order=0: 1/1 pages added to pool (32 now in pool)
+[  409.246256] NVRM: VM: nv_free_system_pages: 1/1 order0 pages
+[  409.249751] NVRM: VM: nv_free_pages: 0x1
+[  409.249753] NVRM: VM: nv_free_pages:3992: 0x000000003eb6ddcc, 1 page(s), count = 1, page_table = 0x00000000ebe85469
+[  409.249782] NVRM: VM: nv_mem_pool_free_pages: node=0 order=0: 1/1 pages added to pool (33 now in pool)
+[  409.249794] NVRM: VM: nv_free_system_pages: 1/1 order0 pages
+[  409.257249] NVRM: VM: nv_free_pages: 0x1
+[  409.257251] NVRM: VM: nv_free_pages:3992: 0x00000000b69ccd8c, 1 page(s), count = 1, page_table = 0x00000000310eb108
+[  409.257282] NVRM: VM: nv_mem_pool_free_pages: node=0 order=0: 1/1 pages added to pool (34 now in pool)
+[  409.257286] NVRM: VM: nv_free_system_pages: 1/1 order0 pages
+[  409.258726] NVRM: VM: nv_free_pages: 0x1
+[  409.258728] NVRM: VM: nv_free_pages:3992: 0x00000000bd8c7793, 1 page(s), count = 1, page_table = 0x0000000085779119
+[  409.258752] NVRM: VM: nv_mem_pool_free_pages: node=0 order=0: 1/1 pages added to pool (35 now in pool)
+[  409.258757] NVRM: VM: nv_free_system_pages: 1/1 order0 pages
+[  409.263007] NVRM: VM: nv_alloc_pages: 1 pages, nodeid -1
+[  409.263009] NVRM: VM:    contig 0  cache_type 2
+[  409.263012] NVRM: VM: nv_alloc_system_pages: 1 order0 pages, 0 order
+[  409.263014] NVRM: VM: nv_mem_pool_alloc_pages: node=0 order=0: 1/1 pages allocated (1 already cleared, 34 left in pool)
+[  409.263075] NVRM: VM: nv_alloc_pages:3969: 0x00000000dcd16794, 1 page(s), count = 1, page_table = 0x00000000d957c08c
+[  409.264484] NVRM: VM: nv_alloc_pages: 1 pages, nodeid -1
+[  409.264487] NVRM: VM:    contig 0  cache_type 2
+[  409.264488] NVRM: VM: nv_alloc_system_pages: 1 order0 pages, 0 order
+[  409.264490] NVRM: VM: nv_mem_pool_alloc_pages: node=0 order=0: 1/1 pages allocated (1 already cleared, 33 left in pool)
+[  409.264515] NVRM: VM: nv_alloc_pages:3969: 0x0000000092c5b2ad, 1 page(s), count = 1, page_table = 0x00000000dbeb5f5d
+[  409.276681] NVRM: VM: nv_alloc_pages: 1 pages, nodeid -1
+[  409.276684] NVRM: VM:    contig 0  cache_type 2
+[  409.276686] NVRM: VM: nv_alloc_system_pages: 1 order0 pages, 0 order
+[  409.276688] NVRM: VM: nv_mem_pool_alloc_pages: node=0 order=0: 1/1 pages allocated (1 already cleared, 32 left in pool)
+[  409.276721] NVRM: VM: nv_alloc_pages:3969: 0x000000000d3f55e7, 1 page(s), count = 1, page_table = 0x00000000b180f3f8
+[  409.278159] NVRM: VM: nv_alloc_pages: 1 pages, nodeid -1
+[  409.278161] NVRM: VM:    contig 0  cache_type 2
+[  409.278163] NVRM: VM: nv_alloc_system_pages: 1 order0 pages, 0 order
+[  409.278164] NVRM: VM: nv_mem_pool_alloc_pages: node=0 order=0: 1/1 pages allocated (1 already cleared, 31 left in pool)
+[  409.278192] NVRM: VM: nv_alloc_pages:3969: 0x0000000093350711, 1 page(s), count = 1, page_table = 0x00000000a1174aa8
+[  409.281117] NVRM: VM: nv_alloc_pages: 1 pages, nodeid -1
+[  409.281119] NVRM: VM:    contig 0  cache_type 2
+[  409.281121] NVRM: VM: nv_alloc_system_pages: 1 order0 pages, 0 order
+[  409.281122] NVRM: VM: nv_mem_pool_alloc_pages: node=0 order=0: 1/1 pages allocated (1 already cleared, 30 left in pool)
+[  409.281151] NVRM: VM: nv_alloc_pages:3969: 0x0000000018738d49, 1 page(s), count = 1, page_table = 0x0000000006e802d1
+[  409.282666] NVRM: VM: nv_alloc_pages: 1 pages, nodeid -1
+[  409.282671] NVRM: VM:    contig 0  cache_type 2
+[  409.282680] NVRM: VM: nv_alloc_system_pages: 1 order0 pages, 0 order
+[  409.282683] NVRM: VM: nv_mem_pool_alloc_pages: node=0 order=0: 1/1 pages allocated (1 already cleared, 29 left in pool)
+[  409.282715] NVRM: VM: nv_alloc_pages:3969: 0x0000000004b54d2a, 1 page(s), count = 1, page_table = 0x00000000ad8e63f9
+[  409.285630] NVRM: VM: nv_alloc_pages: 1 pages, nodeid -1
+[  409.285633] NVRM: VM:    contig 0  cache_type 2
+[  409.285635] NVRM: VM: nv_alloc_system_pages: 1 order0 pages, 0 order
+[  409.285637] NVRM: VM: nv_mem_pool_alloc_pages: node=0 order=0: 1/1 pages allocated (1 already cleared, 28 left in pool)
+[  409.285666] NVRM: VM: nv_alloc_pages:3969: 0x0000000054af7682, 1 page(s), count = 1, page_table = 0x00000000ef9bcae2
+[  409.287221] NVRM: VM: nv_alloc_pages: 1 pages, nodeid -1
+[  409.287224] NVRM: VM:    contig 0  cache_type 2
+[  409.287225] NVRM: VM: nv_alloc_system_pages: 1 order0 pages, 0 order
+[  409.287227] NVRM: VM: nv_mem_pool_alloc_pages: node=0 order=0: 1/1 pages allocated (1 already cleared, 27 left in pool)
+[  409.287255] NVRM: VM: nv_alloc_pages:3969: 0x000000004b4ba563, 1 page(s), count = 1, page_table = 0x0000000057c57dad
+[  409.290816] NVRM: VM: nv_alloc_pages: 1 pages, nodeid -1
+[  409.290819] NVRM: VM:    contig 0  cache_type 2
+[  409.290821] NVRM: VM: nv_alloc_system_pages: 1 order0 pages, 0 order
+[  409.290823] NVRM: VM: nv_mem_pool_alloc_pages: node=0 order=0: 1/1 pages allocated (1 already cleared, 26 left in pool)
+[  409.290850] NVRM: VM: nv_alloc_pages:3969: 0x00000000f21f3f9d, 1 page(s), count = 1, page_table = 0x00000000c538ad99
+[  409.292472] NVRM: VM: nv_alloc_pages: 1 pages, nodeid -1
+[  409.292475] NVRM: VM:    contig 0  cache_type 2
+[  409.292476] NVRM: VM: nv_alloc_system_pages: 1 order0 pages, 0 order
+[  409.292478] NVRM: VM: nv_mem_pool_alloc_pages: node=0 order=0: 1/1 pages allocated (1 already cleared, 25 left in pool)
+[  409.292506] NVRM: VM: nv_alloc_pages:3969: 0x00000000356e691c, 1 page(s), count = 1, page_table = 0x00000000871ed6bf
+[  409.295319] NVRM: VM: nv_alloc_pages: 1 pages, nodeid -1
+[  409.295322] NVRM: VM:    contig 0  cache_type 2
+[  409.295323] NVRM: VM: nv_alloc_system_pages: 1 order0 pages, 0 order
+[  409.295325] NVRM: VM: nv_mem_pool_alloc_pages: node=0 order=0: 1/1 pages allocated (1 already cleared, 24 left in pool)
+[  409.295352] NVRM: VM: nv_alloc_pages:3969: 0x00000000ba9e6e64, 1 page(s), count = 1, page_table = 0x00000000c5d29569
+[  409.296908] NVRM: VM: nv_alloc_pages: 1 pages, nodeid -1
+[  409.296911] NVRM: VM:    contig 0  cache_type 2
+[  409.296912] NVRM: VM: nv_alloc_system_pages: 1 order0 pages, 0 order
+[  409.296914] NVRM: VM: nv_mem_pool_alloc_pages: node=0 order=0: 1/1 pages allocated (1 already cleared, 23 left in pool)
+[  409.296938] NVRM: VM: nv_alloc_pages:3969: 0x000000001a5c40d6, 1 page(s), count = 1, page_table = 0x00000000a396d90f
+[  409.300184] NVRM: VM: nv_alloc_pages: 1 pages, nodeid -1
+[  409.300187] NVRM: VM:    contig 0  cache_type 2
+[  409.300188] NVRM: VM: nv_alloc_system_pages: 1 order0 pages, 0 order
+[  409.300190] NVRM: VM: nv_mem_pool_alloc_pages: node=0 order=0: 1/1 pages allocated (1 already cleared, 22 left in pool)
+[  409.300221] NVRM: VM: nv_alloc_pages:3969: 0x00000000da1e2750, 1 page(s), count = 1, page_table = 0x00000000cd5155eb
+[  409.301750] NVRM: VM: nv_alloc_pages: 1 pages, nodeid -1
+[  409.301753] NVRM: VM:    contig 0  cache_type 2
+[  409.301755] NVRM: VM: nv_alloc_system_pages: 1 order0 pages, 0 order
+[  409.301756] NVRM: VM: nv_mem_pool_alloc_pages: node=0 order=0: 1/1 pages allocated (1 already cleared, 21 left in pool)
+[  409.301779] NVRM: VM: nv_alloc_pages:3969: 0x00000000dff6542a, 1 page(s), count = 1, page_table = 0x00000000b0977876
+[  409.304574] NVRM: VM: nv_alloc_pages: 1 pages, nodeid -1
+[  409.304577] NVRM: VM:    contig 0  cache_type 2
+[  409.304578] NVRM: VM: nv_alloc_system_pages: 1 order0 pages, 0 order
+[  409.304584] NVRM: VM: nv_mem_pool_alloc_pages: node=0 order=0: 1/1 pages allocated (1 already cleared, 20 left in pool)
+[  409.304608] NVRM: VM: nv_alloc_pages:3969: 0x0000000096ced225, 1 page(s), count = 1, page_table = 0x00000000a9dd82ae
+[  409.306165] NVRM: VM: nv_alloc_pages: 1 pages, nodeid -1
+[  409.306168] NVRM: VM:    contig 0  cache_type 2
+[  409.306170] NVRM: VM: nv_alloc_system_pages: 1 order0 pages, 0 order
+[  409.306171] NVRM: VM: nv_mem_pool_alloc_pages: node=0 order=0: 1/1 pages allocated (1 already cleared, 19 left in pool)
+[  409.306200] NVRM: VM: nv_alloc_pages:3969: 0x00000000b931b7e5, 1 page(s), count = 1, page_table = 0x00000000a67aa744
+[  409.309347] NVRM: VM: nv_alloc_pages: 1 pages, nodeid -1
+[  409.309350] NVRM: VM:    contig 0  cache_type 2
+[  409.309351] NVRM: VM: nv_alloc_system_pages: 1 order0 pages, 0 order
+[  409.309353] NVRM: VM: nv_mem_pool_alloc_pages: node=0 order=0: 1/1 pages allocated (1 already cleared, 18 left in pool)
+[  409.309382] NVRM: VM: nv_alloc_pages:3969: 0x00000000d06f422d, 1 page(s), count = 1, page_table = 0x000000009af12949
+[  409.310884] NVRM: VM: nv_alloc_pages: 1 pages, nodeid -1
+[  409.310886] NVRM: VM:    contig 0  cache_type 2
+[  409.310888] NVRM: VM: nv_alloc_system_pages: 1 order0 pages, 0 order
+[  409.310889] NVRM: VM: nv_mem_pool_alloc_pages: node=0 order=0: 1/1 pages allocated (1 already cleared, 17 left in pool)
+[  409.310917] NVRM: VM: nv_alloc_pages:3969: 0x00000000366041cf, 1 page(s), count = 1, page_table = 0x00000000a6a68292
+[  409.313763] NVRM: VM: nv_alloc_pages: 1 pages, nodeid -1
+[  409.313765] NVRM: VM:    contig 0  cache_type 2
+[  409.313767] NVRM: VM: nv_alloc_system_pages: 1 order0 pages, 0 order
+[  409.313769] NVRM: VM: nv_mem_pool_alloc_pages: node=0 order=0: 1/1 pages allocated (1 already cleared, 16 left in pool)
+[  409.313795] NVRM: VM: nv_alloc_pages:3969: 0x00000000123900f0, 1 page(s), count = 1, page_table = 0x00000000d76ff018
+[  409.315323] NVRM: VM: nv_alloc_pages: 1 pages, nodeid -1
+[  409.315325] NVRM: VM:    contig 0  cache_type 2
+[  409.315327] NVRM: VM: nv_alloc_system_pages: 1 order0 pages, 0 order
+[  409.315328] NVRM: VM: nv_mem_pool_alloc_pages: node=0 order=0: 1/1 pages allocated (1 already cleared, 15 left in pool)
+[  409.315355] NVRM: VM: nv_alloc_pages:3969: 0x00000000a58533a6, 1 page(s), count = 1, page_table = 0x000000006a0ddb31
+[  409.318522] NVRM: VM: nv_alloc_pages: 1 pages, nodeid -1
+[  409.318524] NVRM: VM:    contig 0  cache_type 2
+[  409.318526] NVRM: VM: nv_alloc_system_pages: 1 order0 pages, 0 order
+[  409.318528] NVRM: VM: nv_mem_pool_alloc_pages: node=0 order=0: 1/1 pages allocated (1 already cleared, 14 left in pool)
+[  409.318558] NVRM: VM: nv_alloc_pages:3969: 0x00000000c0df50de, 1 page(s), count = 1, page_table = 0x000000004101fdf4
+[  409.320281] NVRM: VM: nv_alloc_pages: 1 pages, nodeid -1
+[  409.320284] NVRM: VM:    contig 0  cache_type 2
+[  409.320286] NVRM: VM: nv_alloc_system_pages: 1 order0 pages, 0 order
+[  409.320287] NVRM: VM: nv_mem_pool_alloc_pages: node=0 order=0: 1/1 pages allocated (1 already cleared, 13 left in pool)
+[  409.320314] NVRM: VM: nv_alloc_pages:3969: 0x00000000eac45577, 1 page(s), count = 1, page_table = 0x00000000ae9380aa
+[  409.323260] NVRM: VM: nv_alloc_pages: 1 pages, nodeid -1
+[  409.323263] NVRM: VM:    contig 0  cache_type 2
+[  409.323264] NVRM: VM: nv_alloc_system_pages: 1 order0 pages, 0 order
+[  409.323266] NVRM: VM: nv_mem_pool_alloc_pages: node=0 order=0: 1/1 pages allocated (1 already cleared, 12 left in pool)
+[  409.323294] NVRM: VM: nv_alloc_pages:3969: 0x0000000097496ae0, 1 page(s), count = 1, page_table = 0x00000000701eed94
+[  409.324897] NVRM: VM: nv_alloc_pages: 1 pages, nodeid -1
+[  409.324900] NVRM: VM:    contig 0  cache_type 2
+[  409.324901] NVRM: VM: nv_alloc_system_pages: 1 order0 pages, 0 order
+[  409.324903] NVRM: VM: nv_mem_pool_alloc_pages: node=0 order=0: 1/1 pages allocated (1 already cleared, 11 left in pool)
+[  409.324930] NVRM: VM: nv_alloc_pages:3969: 0x000000006c3cd290, 1 page(s), count = 1, page_table = 0x0000000005cc39b6
+[  409.328338] NVRM: VM: nv_alloc_pages: 1 pages, nodeid -1
+[  409.328340] NVRM: VM:    contig 0  cache_type 2
+[  409.328342] NVRM: VM: nv_alloc_system_pages: 1 order0 pages, 0 order
+[  409.328343] NVRM: VM: nv_mem_pool_alloc_pages: node=0 order=0: 1/1 pages allocated (1 already cleared, 10 left in pool)
+[  409.328376] NVRM: VM: nv_alloc_pages:3969: 0x00000000b670ba18, 1 page(s), count = 1, page_table = 0x00000000d30c5f57
+[  409.329918] NVRM: VM: nv_alloc_pages: 1 pages, nodeid -1
+[  409.329921] NVRM: VM:    contig 0  cache_type 2
+[  409.329923] NVRM: VM: nv_alloc_system_pages: 1 order0 pages, 0 order
+[  409.329924] NVRM: VM: nv_mem_pool_alloc_pages: node=0 order=0: 1/1 pages allocated (1 already cleared, 9 left in pool)
+[  409.329955] NVRM: VM: nv_alloc_pages:3969: 0x00000000bf8797e8, 1 page(s), count = 1, page_table = 0x000000004382a758
+[  409.332901] NVRM: VM: nv_alloc_pages: 1 pages, nodeid -1
+[  409.332903] NVRM: VM:    contig 0  cache_type 2
+[  409.332905] NVRM: VM: nv_alloc_system_pages: 1 order0 pages, 0 order
+[  409.332907] NVRM: VM: nv_mem_pool_alloc_pages: node=0 order=0: 1/1 pages allocated (1 already cleared, 8 left in pool)
+[  409.332973] NVRM: VM: nv_alloc_pages:3969: 0x00000000003922ea, 1 page(s), count = 1, page_table = 0x0000000069553efc
+[  409.334524] NVRM: VM: nv_alloc_pages: 1 pages, nodeid -1
+[  409.334526] NVRM: VM:    contig 0  cache_type 2
+[  409.334528] NVRM: VM: nv_alloc_system_pages: 1 order0 pages, 0 order
+[  409.334530] NVRM: VM: nv_mem_pool_alloc_pages: node=0 order=0: 1/1 pages allocated (1 already cleared, 7 left in pool)
+[  409.334557] NVRM: VM: nv_alloc_pages:3969: 0x000000004d59eb71, 1 page(s), count = 1, page_table = 0x00000000b696e96c
+[  409.337814] NVRM: VM: nv_alloc_pages: 1 pages, nodeid -1
+[  409.337817] NVRM: VM:    contig 0  cache_type 2
+[  409.337818] NVRM: VM: nv_alloc_system_pages: 1 order0 pages, 0 order
+[  409.337820] NVRM: VM: nv_mem_pool_alloc_pages: node=0 order=0: 1/1 pages allocated (1 already cleared, 6 left in pool)
+[  409.337848] NVRM: VM: nv_alloc_pages:3969: 0x00000000eb4324b7, 1 page(s), count = 1, page_table = 0x000000006b82562c
+[  409.339453] NVRM: VM: nv_alloc_pages: 1 pages, nodeid -1
+[  409.339455] NVRM: VM:    contig 0  cache_type 2
+[  409.339457] NVRM: VM: nv_alloc_system_pages: 1 order0 pages, 0 order
+[  409.339458] NVRM: VM: nv_mem_pool_alloc_pages: node=0 order=0: 1/1 pages allocated (1 already cleared, 5 left in pool)
+[  409.339486] NVRM: VM: nv_alloc_pages:3969: 0x000000003cdabe09, 1 page(s), count = 1, page_table = 0x00000000fbf45849
+[  409.342390] NVRM: VM: nv_alloc_pages: 1 pages, nodeid -1
+[  409.342393] NVRM: VM:    contig 0  cache_type 2
+[  409.342395] NVRM: VM: nv_alloc_system_pages: 1 order0 pages, 0 order
+[  409.342397] NVRM: VM: nv_mem_pool_alloc_pages: node=0 order=0: 1/1 pages allocated (1 already cleared, 4 left in pool)
+[  409.342426] NVRM: VM: nv_alloc_pages:3969: 0x00000000e5a19584, 1 page(s), count = 1, page_table = 0x0000000087e0f662
+[  409.344268] NVRM: VM: nv_alloc_pages: 1 pages, nodeid -1
+[  409.344271] NVRM: VM:    contig 0  cache_type 2
+[  409.344273] NVRM: VM: nv_alloc_system_pages: 1 order0 pages, 0 order
+[  409.344275] NVRM: VM: nv_mem_pool_alloc_pages: node=0 order=0: 1/1 pages allocated (1 already cleared, 3 left in pool)
+[  409.344301] NVRM: VM: nv_alloc_pages:3969: 0x0000000085b7fb41, 1 page(s), count = 1, page_table = 0x000000003eb22ad8
+[  409.347910] NVRM: VM: nv_alloc_pages: 1 pages, nodeid -1
+[  409.347913] NVRM: VM:    contig 0  cache_type 2
+[  409.347918] NVRM: VM: nv_alloc_system_pages: 1 order0 pages, 0 order
+[  409.347920] NVRM: VM: nv_mem_pool_alloc_pages: node=0 order=0: 1/1 pages allocated (1 already cleared, 2 left in pool)
+[  409.347952] NVRM: VM: nv_alloc_pages:3969: 0x00000000a3d8473e, 1 page(s), count = 1, page_table = 0x000000008078cd9e
+[  409.349718] NVRM: VM: nv_alloc_pages: 1 pages, nodeid -1
+[  409.349725] NVRM: VM:    contig 0  cache_type 2
+[  409.349727] NVRM: VM: nv_alloc_system_pages: 1 order0 pages, 0 order
+[  409.349728] NVRM: VM: nv_mem_pool_alloc_pages: node=0 order=0: 1/1 pages allocated (1 already cleared, 1 left in pool)
+[  409.349752] NVRM: VM: nv_alloc_pages:3969: 0x000000004e2a8421, 1 page(s), count = 1, page_table = 0x000000006ccfa128

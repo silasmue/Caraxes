@@ -1,0 +1,5 @@
+# SPDX-License-Identifier: MIT
+# 2026-09-24 09:59:41 guest command:
+unset DISPLAY; cd caraxes-guest; bash demos.sh weston; rm -rf ~/demo-out; mkdir -p ~/demo-out; cp /tmp/demo-*.txt ~/demo-out/
+rc=0
+full trace 4589701 lines, events only kept

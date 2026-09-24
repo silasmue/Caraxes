@@ -1,0 +1,5 @@
+# SPDX-License-Identifier: MIT
+# 2026-09-24 10:23:22 guest command:
+unset DISPLAY; cd caraxes-guest; bash display-e-measure.sh
+rc=0
+full trace 2940909 lines, events only kept

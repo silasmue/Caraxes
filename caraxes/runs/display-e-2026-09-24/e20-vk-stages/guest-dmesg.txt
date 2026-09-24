@@ -1,0 +1,13 @@
+[  532.656774] NVRM: VM: nv_free_system_pages: 1/1 order0 pages
+[  532.667774] NVRM: ioctl(0x29, 0xa805a970, 0x10)
+[  532.669712] NVRM: ioctl(0x29, 0xa805a990, 0x10)
+[  532.673014] NVRM: nvidia_close on GPU with minor number 0
+[  532.673028] NVRM: nvidia_close on GPU with minor number 0
+[  532.673031] NVRM: ioctl(0x2a, 0xa8059f80, 0x20)
+[  532.673051] NVRM: nvidia_close on GPU with minor number 0
+[  532.673148] NVRM: ioctl(0x29, 0xa805aa50, 0x10)
+[  532.673873] NVRM: nvidia_close on GPU with minor number 255
+[  532.673877] NVRM: nvidia_ctl_close
+[  532.686158] NVRM: nvidia_close on GPU with minor number 0
+[  532.686314] NVRM: nvidia_close on GPU with minor number 255
+[  532.686317] NVRM: nvidia_ctl_close

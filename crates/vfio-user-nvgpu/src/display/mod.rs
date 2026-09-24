@@ -518,11 +518,18 @@ impl Display {
             | d::CMD_INTERNAL_DISPLAY_POST_MODESET => {
                 ok(b, ACK, format!("internal display control {cmd:#x}"))
             }
-            d::CMD_INTERNAL_DISPLAY_GET_ACTIVE_DISPLAY_DEVICES => ok(
-                vec![0u8; n],
-                SYNTH,
-                "active display devices: none (nothing lit)",
-            ),
+            // `{displayMask, numHeads}` (ctrl2080internal.h:1544-1548). `numHeads` is the head
+            // count, not the lit heads: the kernel's DispSw (GF100_DISP_SW, disp_sw.c:86)
+            // refuses a logical head at or above it with INSUFFICIENT_RESOURCES, and the
+            // NVIDIA GL/EGL driver allocates one per head (display-e.md). The mask names
+            // the connected displays.
+            d::CMD_INTERNAL_DISPLAY_GET_ACTIVE_DISPLAY_DEVICES => {
+                let mut b = vec![0u8; n];
+                let (mask, heads) = (self.connected_mask(), self.chip().heads);
+                put32(&mut b, 0, mask);
+                put32(&mut b, 4, heads);
+                ok(b, SYNTH, format!("active display devices: mask {mask:#x}, {heads} heads"))
+            }
             d::CMD_INTERNAL_DISPLAY_CHANNEL_PUSHBUFFER => {
                 let ch = Channel {
                     hclass: get32(params, d::PUSHBUFFER_HCLASS),

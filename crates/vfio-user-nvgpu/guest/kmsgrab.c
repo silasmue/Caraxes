@@ -12,6 +12,9 @@
  *                            they match, 1 when not, 2 when the chain refused.
  *   kmsgrab sample X Y ...   read pixels of the framebuffer the first active CRTC scans out
  *                            now (what a KMS grabber such as Sunshine capture=kms reads).
+ *                            A GPU-rendered scanout (NVIDIA EGL/GBM) is block-linear
+ *                            (DRM_FORMAT_MOD_NVIDIA_BLOCK_LINEAR_2D); its pixel address is
+ *                            computed through the GOB layout (display-e.md).
  *   kmsgrab info             print the active CRTC's framebuffer (GETFB2).
  */
 #include <errno.h>
@@ -72,6 +75,36 @@ static int active_fb(int fd, uint32_t *crtc_out, struct drm_mode_fb_cmd2 *fb2, s
 	}
 	errno = ENOENT;
 	return -1;
+}
+
+/* The byte offset of pixel (x, y) in a buffer with modifier `mod`: pitch-linear, or NVIDIA
+ * block-linear (drm_fourcc.h: vendor 0x03, bit 4 set, log2 block height in GOBs in bits
+ * 3:0). A GOB is 64 bytes x 8 rows (512 bytes) with the sector swizzle of nouveau's
+ * nv50 tiling; a block is one GOB wide and 2^h GOBs tall; blocks run left to right, then
+ * down. */
+static size_t pixel_offset(uint64_t mod, uint32_t pitch, unsigned x, unsigned y)
+{
+	size_t xb = (size_t)x * 4, gob, blk_rows, h;
+
+	if ((mod >> 56) != 0x03 || !(mod & 0x10))
+		return (size_t)y * pitch + xb;
+	h = mod & 0xf;
+	blk_rows = (size_t)8 << h;
+	gob = ((xb & 63) >> 5) << 8 | ((y & 7) >> 1) << 6 | ((xb & 31) >> 4) << 5 | (y & 1) << 4 | (xb & 15);
+	return (y / blk_rows) * ((size_t)pitch / 64) * (512 << h) + (xb / 64) * (512 << h) +
+	       ((y % blk_rows) / 8) * 512 + gob;
+}
+
+/* Bytes to map: the height rounded up to a whole block for block-linear. */
+static size_t map_size(uint64_t mod, uint32_t pitch, uint32_t height)
+{
+	size_t rows = height;
+
+	if ((mod >> 56) == 0x03 && (mod & 0x10)) {
+		size_t blk = (size_t)8 << (mod & 0xf);
+		rows = (rows + blk - 1) / blk * blk;
+	}
+	return (size_t)pitch * rows;
 }
 
 static void *map_handle(int fd, uint32_t handle, size_t size)
@@ -229,7 +262,7 @@ int main(int argc, char **argv)
 			printf("GRAB no handle (not master and no CAP_SYS_ADMIN?)\n");
 			return 2;
 		}
-		p = map_handle(fd, fb2.handles[0], (size_t)fb2.pitches[0] * fb2.height);
+		p = map_handle(fd, fb2.handles[0], map_size(fb2.modifier[0], fb2.pitches[0], fb2.height));
 		if (!p) {
 			printf("GRAB map failed (not a dumb buffer?)\n");
 			return 2;
@@ -237,7 +270,8 @@ int main(int argc, char **argv)
 		for (i = 2; i + 1 < argc; i += 2) {
 			unsigned x = atoi(argv[i]), y = atoi(argv[i + 1]);
 			if (x < fb2.width && y < fb2.height)
-				printf("SAMPLE %u %u 0x%08x\n", x, y, p[(size_t)y * fb2.pitches[0] / 4 + x]);
+				printf("SAMPLE %u %u 0x%08x\n", x, y,
+				       p[pixel_offset(fb2.modifier[0], fb2.pitches[0], x, y) / 4]);
 		}
 	}
 	return 0;

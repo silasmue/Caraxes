@@ -1,0 +1,15 @@
+load 0.12 0.11 0.04 1/259 2376
+EGL 1.5 vendor NVIDIA version 1.5
+GL vendor NVIDIA Corporation renderer Leandro VFIO RTX 2070-2G/PCIe/SSE2 version OpenGL ES 3.2 NVIDIA 610.57.04
+gl error 0
+FRAMES 120 at 1920x1080: clear+finish mean 1.782 ms min 0.424 max 79.589; total 0.214 s
+READBACK 155.535 ms; centre pixel 0xff00ff00; pixels equal to green 2073600 of 2073600 (GPU-RENDERED-OK)
+weston up (pid 2388) after       1 s
+first frame callback after 0.6 s
+surface 1080x1080, damage 1080x1080 per frame, 20.0 s
+FRAMES callbacks intervals=1017 mean_ms=19.104 rate_hz=52.35 min_ms=11.926 max_ms=341.666 sd_ms=13.414
+PRESENTED feedback intervals=1016 mean_ms=19.100 rate_hz=52.36 min_ms=12.839 max_ms=350.198 sd_ms=13.818
+presented=1022 discarded=0 refresh_ns=16666666 (60.000 Hz) flags=0x7 (vsync 1 hw_clock 1 hw_completion 1)
+wlframes exit 0
+               surfaceless context: yes
+               arbitrary surface rotation: yes
