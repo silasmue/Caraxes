@@ -51,6 +51,14 @@ Snapshot of 2026-09-24, 10:30. The decisions and ideas it refers to are in [READ
 
 ## Next (this week)
 
+Operator's order of 2026-09-24, 14:25: tonight the host upgrade to 615.71.09 with the cut-over
+checks (cutover-615.md), the workload gate (the PPO probe at full length, llama.cpp inference, a
+transformer training step, a cuDNN convnet, against native and v1) and the game; the display
+interrupt path (interrupt registers in a memfd page polled by the pinned reactor, the first
+form of P24) when time allows, else next week. The doorbell reactor modes stay as options,
+hybrid proposed as the later default.
+
+
 1. P21: BAR1 window passthrough (operator's order). Prototype G measured 2026-09-24 (three of
    four submission traps gone, rlprobe stage 4 halved). The datamatch token pool was designed
    and built 2026-09-24 behind `CARAXES_DOORBELL_TOKENS=N` ([doorbell-token-pool.md](doorbell-token-pool.md),

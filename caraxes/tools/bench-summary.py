@@ -54,6 +54,13 @@ def parse(target, f):
         if x: put("stage4 (50 training episodes)", x.group(1), "s", "low")
         x = re.search(r"~(\d+)/s", t)
         if x: put("H2D+D2H transfers per second", x.group(1), "1/s", "high")
+    elif m == "ppo":
+        x = re.search(r"# PPO steps_per_s=(\d+) solve_s=([-0-9.]+) episodes=(\d+) reward100=([0-9.]+)", t)
+        if x:
+            put("environment steps per second", x.group(1), "1/s", "high")
+            if float(x.group(2)) >= 0:
+                put("time to solved (mean100 >= 475)", x.group(2), "s", "low")
+            put("reward100 at the end (not a time)", x.group(4), "", "info")
     elif m == "init":
         x = re.search(r"INIT cuinit_ms=([0-9.]+) devget_ms=[0-9.]+ ctxcreate_ms=([0-9.]+) ctxdestroy_ms=([0-9.]+)", t)
         if x:
@@ -156,6 +163,7 @@ TITLES = [
     ("copy", "(2) Copy bandwidth, synchronous cuMemcpy (bench-cu copy)"),
     ("mm", "(3) Matmul throughput, fp32 torch.mm (mmsweep)"),
     ("rl", "(4) rlprobe, 50 REINFORCE episodes"),
+    ("ppo", "(4) PPO CartPole, 128 vector environments, one H2D and one synchronous D2H per step (pporl, 60 s)"),
     ("startup", "(5) Module load to first successful cuInit (in the guest)"),
     ("init", "(5) cuInit / cuCtxCreate inside one process (bench-cu init)"),
     ("time0", "(5) nvprobe 0 process, bash time"),

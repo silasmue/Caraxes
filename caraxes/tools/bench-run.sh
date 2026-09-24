@@ -22,7 +22,8 @@
 # short-{auto,blocking} (nvprobe 4, NVPROBE_CYCLES=1000), copy (bench-cu copy), mm (mmsweep
 # 1024/2048/4096), rl (rlprobe 50 episodes), init (bench-cu init), time0/time1 (bash time of
 # nvprobe 0 / 1; the host has no /usr/bin/time), ioctl (ioctlping 10000), ctrl (ctrlping 2000 x 64/512/4096/16384),
-# churn (bench-cu churn 20).
+# churn (bench-cu churn 20), ppo (caraxes/tools/pporl.py, PPO CartPole with 128 vector envs for
+# PPO_SECONDS, default 60: steps per second and time to solved; not in ALL_METRICS).
 # The rep loop is outermost and the targets interleave inside it, so drift (temperature,
 # desktop load) spreads over all targets. Each run writes DIR/<target>/<metric>-<rep>.txt:
 # "# " header lines (time, target, command, GPU state, running VMs), the raw output, then
@@ -56,6 +57,7 @@ metric_cmd() {
         ioctl)           echo './ioctlping 10000' ;;
         ctrl)            echo './ctrlping 2000 64 512 4096 16384' ;;
         churn)           echo './bench-cu churn 20' ;;
+        ppo)             echo "$py ./pporl.py --seconds ${PPO_SECONDS:-60}" ;;
         *) err "unknown metric $m" ;;
     esac
 }
@@ -160,6 +162,7 @@ v2-nodes) "$ROOT/tools/caraxes-vm.sh" ssh "$V2_NODES" ;;
 stage)
     t=${2:?target}
     [[ $t == native ]] && exit 0
+    cp "$ROOT/caraxes/tools/pporl.py" "$BIN/pporl.py"   # the PPO probe travels with the binaries (metric ppo)
     tar -C "$BIN" -cf - . | target_exec "$t" 'mkdir -p ~/bench && tar -xf - -C ~/bench && cd ~/bench && sha256sum bench-cu nvprobe ioctlping ctrlping kernels.ptx'
     ;;
 series)
