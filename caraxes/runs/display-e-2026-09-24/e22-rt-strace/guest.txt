@@ -1,0 +1,22 @@
+  vkCreateDevice                             VK_ERROR_INITIALIZATION_FAILED
+command exit 1
+4156  futex(0x7fff4cb09944, FUTEX_UNLOCK_PI_PRIVATE) = -1 EPERM (Operation not permitted)
+4156  unlink("/dev/char/195:255")       = -1 EACCES (Permission denied)
+4156  unlink("/dev/char/195:0")         = -1 EACCES (Permission denied)
+4156  unlink("/dev/char/195:0")         = -1 EACCES (Permission denied)
+4156  unlink("/dev/char/195:0")         = -1 EACCES (Permission denied)
+4156  unlink("/dev/char/195:0")         = -1 EACCES (Permission denied)
+4156  unlink("/dev/char/195:0")         = -1 EACCES (Permission denied)
+4156  unlink("/dev/char/195:255")       = -1 EACCES (Permission denied)
+4156  unlink("/dev/char/195:254")       = -1 EACCES (Permission denied)
+4156  unlink("/dev/char/195:0")         = -1 EACCES (Permission denied)
+4156  unlink("/dev/char/195:0")         = -1 EACCES (Permission denied)
+4156  unlink("/dev/char/195:254")       = -1 EACCES (Permission denied)
+4156  openat(AT_FDCWD, "/dev/udmabuf", O_RDWR) = -1 EACCES (Permission denied)
+4156  unlink("/dev/char/195:255")       = -1 EACCES (Permission denied)
+4156  unlink("/dev/char/195:255")       = -1 EACCES (Permission denied)
+4156  access("/sys/module/nvidia_uvm/initstate", R_OK) = -1 ENOENT (No such file or directory)
+4156  openat(AT_FDCWD, "/dev/nvidia-uvm", O_RDWR|O_CLOEXEC) = -1 ENOENT (No such file or directory)
+crw-rw-rw- 1 root root 195, 254 Sep 24 07:32 /dev/nvidia-modeset
+crw-rw-rw- 1 root root 195,   0 Sep 24 07:32 /dev/nvidia0
+crw-rw-rw- 1 root root 195, 255 Sep 24 07:32 /dev/nvidiactl

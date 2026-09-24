@@ -1,0 +1,21 @@
+GRAB crtc 118 fb 134 640x480 format XR24 modifier 0x300000000606014 pitch 2560 handle 1 mode 640x480@60
+GRAB crtc 118 fb 134 640x480 format XR24 modifier 0x300000000606014 pitch 2560 handle 1 mode 640x480@60
+SAMPLE 320 240 0x00808080
+SAMPLE 4 4 0x00202020
+sunshine exit 124
+/tmp/sunshine-cx/sunshine.log:[2026-09-24 07:52:01.114]: Info: Found monitor for DRM screencasting
+/tmp/sunshine-cx/sunshine.log:[2026-09-24 07:52:01.114]: Info: Found connector ID [127]
+/tmp/sunshine-cx/sunshine.log:[2026-09-24 07:52:01.114]: Info: Found cursor plane [112]
+/tmp/sunshine-cx/sunshine.log:[2026-09-24 07:52:02.821]: Info: Found monitor for DRM screencasting
+/tmp/sunshine-cx/sunshine.log:[2026-09-24 07:52:02.821]: Info: Found connector ID [127]
+/tmp/sunshine-cx/sunshine.log:[2026-09-24 07:52:02.822]: Info: Found cursor plane [112]
+/tmp/sunshine-cx/sunshine.log:[2026-09-24 07:52:02.940]: Info: Found H.264 encoder: libx264 [software]
+/tmp/sunshine-cx/stdout.txt:[2026-09-24 07:52:01.114]: Info: Found monitor for DRM screencasting
+/tmp/sunshine-cx/stdout.txt:[2026-09-24 07:52:01.114]: Info: Found connector ID [127]
+/tmp/sunshine-cx/stdout.txt:[2026-09-24 07:52:01.114]: Info: Found cursor plane [112]
+/tmp/sunshine-cx/stdout.txt:[2026-09-24 07:52:02.821]: Info: Found monitor for DRM screencasting
+/tmp/sunshine-cx/stdout.txt:[2026-09-24 07:52:02.821]: Info: Found connector ID [127]
+/tmp/sunshine-cx/stdout.txt:[2026-09-24 07:52:02.822]: Info: Found cursor plane [112]
+/tmp/sunshine-cx/stdout.txt:[2026-09-24 07:52:02.940]: Info: Found H.264 encoder: libx264 [software]
+FRAMES callbacks intervals=2897 mean_ms=17.224 rate_hz=58.06 min_ms=8.917 max_ms=117.073 sd_ms=4.442
+wlframes exit 0

@@ -1,0 +1,5 @@
+0.54 0.44 0.22 1/292 4730
+  presented 120 frames, all VK_SUCCESS, 44.4 FPS
+command exit 0
+  presented 120 frames, all VK_SUCCESS, 43.9 FPS
+command exit 0

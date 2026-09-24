@@ -1,0 +1,5 @@
+# SPDX-License-Identifier: MIT
+# 2026-09-24 09:38:18 guest command:
+unset DISPLAY; cd caraxes-guest; echo "== swapchain"; sudo timeout 120 bash weston-run.sh 1920x1080@60 gl ./vkprobe-wl; echo "== present"; sudo timeout 200 bash weston-run.sh 1920x1080@60 gl ./vkprobe-wl --present 120 | tail -4; echo "== rt"; sudo timeout 120 bash weston-run.sh 1920x1080@60 gl ./vkprobe-wl --rt | tail -5; echo "== events"; timeout 60 ./fencetime
+rc=0
+full trace 635615 lines, events only kept

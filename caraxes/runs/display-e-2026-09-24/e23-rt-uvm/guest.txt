@@ -1,0 +1,5 @@
+crw-rw-rw- 1 root root 237, 0 Sep 24 07:41 /dev/nvidia-uvm
+crw-rw-rw- 1 root root 237, 1 Sep 24 07:41 /dev/nvidia-uvm-tools
+  vkCreateSwapchainKHR                       VK_SUCCESS
+  swapchain created
+command exit 0
