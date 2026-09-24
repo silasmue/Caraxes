@@ -738,55 +738,31 @@ pub const CMD_GPU_GET_PES_INFO: u32 = 0x2080_0168;
 pub const GR_ROUTED_SIZE: usize = 24;
 pub const GR_ROUTED_ARG: usize = 16;
 pub const GR_ROUTED_OUT: usize = 20;
-pub const PES_INFO_SIZE: usize = size_of::<ffi::NV2080_CTRL_GPU_GET_PES_INFO_PARAMS>();
-pub const PES_INFO_NUM_PES: usize =
-    offset_of!(ffi::NV2080_CTRL_GPU_GET_PES_INFO_PARAMS, numPesInGpc);
-pub const PES_INFO_TPC_TO_PES_MAP: usize =
-    offset_of!(ffi::NV2080_CTRL_GPU_GET_PES_INFO_PARAMS, tpcToPesMap);
-pub const PES_INFO_MAP_LEN: usize = 10;
+// `GPU_GET_PES_INFO` and the public `GR_GET_GLOBAL_SM_ORDER` are host calls: their
+// layouts are the HOST driver's and live in hostabi.rs (`HostLayouts`), chosen at run
+// time. What follows is the guest's side.
+
+/// Entries of the guest's `tpcToPesMap` in `NV2080_CTRL_INTERNAL_STATIC_GR_FLOORSWEEPING_MASKS`
+/// (ten in 610; the tests pin it to the struct).
+pub const FS_TPC_TO_PES_MAP_LEN: usize = 10;
+const _: () = assert!(FS_TPC_TO_PES_MAP + 4 * FS_TPC_TO_PES_MAP_LEN == FS_NUM_PES_PER_GPC);
 
 /// NV2080_CTRL_INTERNAL_STATIC_GR_GLOBAL_SM_ORDER (ctrl2080internal.h:223-238): 512 SMs
-/// of nine u16, then numSm and numTpc.
-pub const SM_ENTRY: usize = 18;
-/// One SM of the host's public NV2080_CTRL_GR_GET_GLOBAL_SM_ORDER_PARAMS (the host driver
-/// is this version): nine u16. A guest version with a wider entry converts
-/// (kgr.rs, docs/caraxes/gsp-transport-615.md §7).
-pub const HOST_SM_ENTRY: usize = size_of::<ffi::NV2080_CTRL_GR_GET_GLOBAL_SM_ORDER_PARAMS__bindgen_ty_1>();
-/// `numSm` in the host's public struct (numTpc follows).
-pub const HOST_SM_ORDER_NUM_SM: usize =
-    offset_of!(ffi::NV2080_CTRL_GR_GET_GLOBAL_SM_ORDER_PARAMS, numSm);
-/// Where a guest SM entry has the field the host entry lacks: nowhere in this version
-/// (the entry is the host's).
-pub const SM_ENTRY_WIDENED_AT: usize = SM_ENTRY;
-pub const SM_ORDER_ELEM: usize = size_of::<ffi::NV2080_CTRL_INTERNAL_STATIC_GR_GLOBAL_SM_ORDER>();
-pub const SM_ORDER_NUM_SM: usize =
-    offset_of!(ffi::NV2080_CTRL_INTERNAL_STATIC_GR_GLOBAL_SM_ORDER, numSm);
-pub const SM_ORDER_NUM_TPC: usize =
-    offset_of!(ffi::NV2080_CTRL_INTERNAL_STATIC_GR_GLOBAL_SM_ORDER, numTpc);
-/// The nine u16 of one internal SM entry, by name, for the translation from the
-/// host's public layout (hostabi.rs `sm_order_to_guest`: a 615 host adds
-/// `virtualDpcId`, which this guest does not have).
-pub const SM_ENTRY_FIELDS: &[(&str, usize)] = {
-    type E = ffi::NV2080_CTRL_INTERNAL_STATIC_GR_GLOBAL_SM_ORDER__bindgen_ty_1;
-    &[
-        ("gpcId", offset_of!(E, gpcId)),
-        ("localTpcId", offset_of!(E, localTpcId)),
-        ("localSmId", offset_of!(E, localSmId)),
-        ("globalTpcId", offset_of!(E, globalTpcId)),
-        ("virtualGpcId", offset_of!(E, virtualGpcId)),
-        ("migratableTpcId", offset_of!(E, migratableTpcId)),
-        ("ugpuId", offset_of!(E, ugpuId)),
-        ("physicalCpcId", offset_of!(E, physicalCpcId)),
-        ("virtualTpcId", offset_of!(E, virtualTpcId)),
-    ]
-};
-const _: () = assert!(
-    SM_ENTRY == size_of::<ffi::NV2080_CTRL_INTERNAL_STATIC_GR_GLOBAL_SM_ORDER__bindgen_ty_1>()
+/// of nine u16, then numSm and numTpc. The host's public struct is translated into it
+/// field by name (hostabi.rs `translate_sm_order`, kgr.rs `global_sm_order`).
+pub const SM_ORDER_GUEST: crate::hostabi::SmOrderLayout = crate::hostabi::sm_order_layout!(
+    ffi::NV2080_CTRL_INTERNAL_STATIC_GR_GLOBAL_SM_ORDER,
+    ffi::NV2080_CTRL_INTERNAL_STATIC_GR_GLOBAL_SM_ORDER__bindgen_ty_1;
+    gpcId, localTpcId, localSmId, globalTpcId, virtualGpcId, migratableTpcId, ugpuId,
+    physicalCpcId, virtualTpcId
 );
+pub const SM_ENTRY: usize = SM_ORDER_GUEST.entry_size;
+pub const SM_ORDER_ELEM: usize = SM_ORDER_GUEST.size;
+pub const SM_ORDER_NUM_SM: usize = SM_ORDER_GUEST.num_sm;
+pub const SM_ORDER_NUM_TPC: usize = SM_ORDER_GUEST.num_tpc;
+const _: () = assert!(SM_ORDER_GUEST.fields.len() * 2 == SM_ENTRY);
 pub const SM_ORDER_PARAMS: usize =
     size_of::<ffi::NV2080_CTRL_INTERNAL_STATIC_GR_GET_GLOBAL_SM_ORDER_PARAMS>();
-/// NV2080_CTRL_GR_GET_GLOBAL_SM_ORDER_PARAMS (ctrl2080gr.h:1213-1229).
-pub const PUB_SM_ORDER: usize = size_of::<ffi::NV2080_CTRL_GR_GET_GLOBAL_SM_ORDER_PARAMS>();
 
 /// NV2080_CTRL_INTERNAL_STATIC_GR_ZCULL_INFO; the public ZCULL_INFO is the same 10 x u32.
 pub const ZCULL_ELEM: usize = size_of::<ffi::NV2080_CTRL_GR_GET_ZCULL_INFO_PARAMS>();

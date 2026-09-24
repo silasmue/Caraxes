@@ -41,6 +41,11 @@
 //! `ctrl2080ce.h`, `ctrla06fgpfifo.h`, `ctrlc36f.h`, `ctrl90f1.h`: no layout
 //! difference; `ctrl2080event.h` changes only the RATS trace bind, unused).
 //!
+//! The guest's side of the SM order is the guest ABI's (`ver::active::SM_ORDER_GUEST`);
+//! [`translate_sm_order`] moves every per-SM field by name from one [`SmOrderLayout`] to
+//! the other, so the four combinations of a 610 or 615 guest on a 610 or 615 host take
+//! one path (kgr.rs `global_sm_order`).
+//!
 //! Selection: `CARAXES_HOST_ABI=610|615` if set (an explicit override, logged
 //! with the running version beside it), otherwise the running driver's version
 //! string, matched EXACTLY (`nvrm_sys::DriverVersion::from_version_string`).
@@ -118,19 +123,76 @@ pub struct HostLayouts {
     pub pes_info_map_len: usize,
     /// `NV2080_CTRL_GR_GET_GLOBAL_SM_ORDER_PARAMS` (ctrl2080gr.h; 615 inserts
     /// `virtualDpcId` after `virtualGpcId` in every SM entry).
-    pub sm_order_size: usize,
-    pub sm_order_entry_size: usize,
-    pub sm_order_entries: usize,
-    pub sm_order_num_sm: usize,
-    pub sm_order_num_tpc: usize,
-    /// The u16 fields of one SM entry: name and offset within the entry.
-    pub sm_order_entry_fields: &'static [(&'static str, usize)],
+    pub sm_order: SmOrderLayout,
 }
 
-macro_rules! sm_fields {
-    ($t:ty; $($f:ident),* $(,)?) => {
-        &[$((stringify!($f), offset_of!($t, $f))),*]
+/// One global-SM-order layout: the host's public `NV2080_CTRL_GR_GET_GLOBAL_SM_ORDER_PARAMS`
+/// or the guest's internal `NV2080_CTRL_INTERNAL_STATIC_GR_GLOBAL_SM_ORDER`. Both are
+/// `globalSmId[entries]` of u16 fields, then `numSm` and `numTpc` (u16 each).
+#[derive(Debug, PartialEq, Eq)]
+pub struct SmOrderLayout {
+    /// The whole struct (the public one ends with `grRouteInfo`).
+    pub size: usize,
+    pub entry_size: usize,
+    pub entries: usize,
+    /// The u16 fields of one SM entry: name and offset within the entry.
+    pub fields: &'static [(&'static str, usize)],
+    pub num_sm: usize,
+    pub num_tpc: usize,
+}
+
+/// An [`SmOrderLayout`] from a generated struct and its entry type, with the entry's
+/// field names listed (every field is a u16; the tests check that the list covers the
+/// entry). Used here for the host's public struct and in `src/ver` for the guest's
+/// internal element.
+macro_rules! sm_order_layout {
+    ($outer:ty, $entry:ty; $($f:ident),* $(,)?) => {
+        $crate::hostabi::SmOrderLayout {
+            size: ::core::mem::size_of::<$outer>(),
+            entry_size: ::core::mem::size_of::<$entry>(),
+            entries: ::core::mem::offset_of!($outer, numSm) / ::core::mem::size_of::<$entry>(),
+            fields: &[$((stringify!($f), ::core::mem::offset_of!($entry, $f))),*],
+            num_sm: ::core::mem::offset_of!($outer, numSm),
+            num_tpc: ::core::mem::offset_of!($outer, numTpc),
+        }
     };
+}
+pub(crate) use sm_order_layout;
+
+impl SmOrderLayout {
+    /// The field names of `self` that `other` lacks.
+    pub fn fields_not_in(&self, other: &SmOrderLayout) -> Vec<&'static str> {
+        self.fields
+            .iter()
+            .filter(|(n, _)| !other.fields.iter().any(|(m, _)| m == n))
+            .map(|(n, _)| *n)
+            .collect()
+    }
+}
+
+/// Copy a global SM order from layout `from` (bytes `src`) into layout `to` (bytes
+/// `dst`, at least `to.num_tpc + 2` long): every field of `to` is taken from the field
+/// of the same name in `from`; a field `from` lacks stays as `dst` has it (zero), a
+/// field `to` lacks is dropped. Then `numSm` and `numTpc`.
+pub fn translate_sm_order(from: &SmOrderLayout, src: &[u8], to: &SmOrderLayout, dst: &mut [u8]) {
+    let pairs: Vec<(usize, usize)> = to
+        .fields
+        .iter()
+        .filter_map(|(name, t)| {
+            from.fields
+                .iter()
+                .find(|(n, _)| n == name)
+                .map(|(_, f)| (*f, *t))
+        })
+        .collect();
+    for sm in 0..from.entries.min(to.entries) {
+        let (f0, t0) = (sm * from.entry_size, sm * to.entry_size);
+        for (f, t) in &pairs {
+            dst[t0 + t..t0 + t + 2].copy_from_slice(&src[f0 + f..f0 + f + 2]);
+        }
+    }
+    dst[to.num_sm..to.num_sm + 2].copy_from_slice(&src[from.num_sm..from.num_sm + 2]);
+    dst[to.num_tpc..to.num_tpc + 2].copy_from_slice(&src[from.num_tpc..from.num_tpc + 2]);
 }
 
 type Sm610 = v610::NV2080_CTRL_GR_GET_GLOBAL_SM_ORDER_PARAMS__bindgen_ty_1;
@@ -145,13 +207,9 @@ pub static HOST_610: HostLayouts = HostLayouts {
     pes_info_num_pes: offset_of!(v610::NV2080_CTRL_GPU_GET_PES_INFO_PARAMS, numPesInGpc),
     pes_info_tpc_to_pes_map: offset_of!(v610::NV2080_CTRL_GPU_GET_PES_INFO_PARAMS, tpcToPesMap),
     pes_info_map_len: 10,
-    sm_order_size: size_of::<v610::NV2080_CTRL_GR_GET_GLOBAL_SM_ORDER_PARAMS>(),
-    sm_order_entry_size: size_of::<Sm610>(),
-    sm_order_entries: 512,
-    sm_order_num_sm: offset_of!(v610::NV2080_CTRL_GR_GET_GLOBAL_SM_ORDER_PARAMS, numSm),
-    sm_order_num_tpc: offset_of!(v610::NV2080_CTRL_GR_GET_GLOBAL_SM_ORDER_PARAMS, numTpc),
-    sm_order_entry_fields: sm_fields!(Sm610; gpcId, localTpcId, localSmId, globalTpcId,
-        virtualGpcId, migratableTpcId, ugpuId, physicalCpcId, virtualTpcId),
+    sm_order: sm_order_layout!(v610::NV2080_CTRL_GR_GET_GLOBAL_SM_ORDER_PARAMS, Sm610;
+        gpcId, localTpcId, localSmId, globalTpcId, virtualGpcId, migratableTpcId, ugpuId,
+        physicalCpcId, virtualTpcId),
 };
 
 pub static HOST_615: HostLayouts = HostLayouts {
@@ -163,13 +221,9 @@ pub static HOST_615: HostLayouts = HostLayouts {
     pes_info_num_pes: offset_of!(v615::NV2080_CTRL_GPU_GET_PES_INFO_PARAMS, numPesInGpc),
     pes_info_tpc_to_pes_map: offset_of!(v615::NV2080_CTRL_GPU_GET_PES_INFO_PARAMS, tpcToPesMap),
     pes_info_map_len: 15,
-    sm_order_size: size_of::<v615::NV2080_CTRL_GR_GET_GLOBAL_SM_ORDER_PARAMS>(),
-    sm_order_entry_size: size_of::<Sm615>(),
-    sm_order_entries: 512,
-    sm_order_num_sm: offset_of!(v615::NV2080_CTRL_GR_GET_GLOBAL_SM_ORDER_PARAMS, numSm),
-    sm_order_num_tpc: offset_of!(v615::NV2080_CTRL_GR_GET_GLOBAL_SM_ORDER_PARAMS, numTpc),
-    sm_order_entry_fields: sm_fields!(Sm615; gpcId, localTpcId, localSmId, globalTpcId,
-        virtualGpcId, virtualDpcId, migratableTpcId, ugpuId, physicalCpcId, virtualTpcId),
+    sm_order: sm_order_layout!(v615::NV2080_CTRL_GR_GET_GLOBAL_SM_ORDER_PARAMS, Sm615;
+        gpcId, localTpcId, localSmId, globalTpcId, virtualGpcId, virtualDpcId,
+        migratableTpcId, ugpuId, physicalCpcId, virtualTpcId),
 };
 
 // The map lengths are array lengths the bindings cannot give as constants; pin
@@ -201,35 +255,12 @@ impl HostLayouts {
         b
     }
 
-    /// Translate a host `GR_GET_GLOBAL_SM_ORDER` reply into the guest's
-    /// per-SM layout: every guest field is copied from the host field of the
-    /// same name (a field the host lacks stays 0, one the guest lacks is
-    /// dropped: 615's `virtualDpcId` for a 610 guest), then `numSm`/`numTpc`.
-    /// `guest` is the guest's element (entries, then numSm and numTpc).
-    pub fn sm_order_to_guest(
-        &self,
-        host: &[u8],
-        guest: &mut [u8],
-        guest_entry_size: usize,
-        guest_fields: &[(&str, usize)],
-        guest_num_sm: usize,
-        guest_num_tpc: usize,
-    ) {
-        let rd16 = |b: &[u8], o: usize| [b[o], b[o + 1]];
-        for sm in 0..self.sm_order_entries {
-            let (h0, g0) = (sm * self.sm_order_entry_size, sm * guest_entry_size);
-            for (name, g_off) in guest_fields {
-                if let Some((_, h_off)) = self.sm_order_entry_fields.iter().find(|(n, _)| n == name)
-                {
-                    let v = rd16(host, h0 + h_off);
-                    guest[g0 + g_off..g0 + g_off + 2].copy_from_slice(&v);
-                }
-            }
-        }
-        let v = rd16(host, self.sm_order_num_sm);
-        guest[guest_num_sm..guest_num_sm + 2].copy_from_slice(&v);
-        let v = rd16(host, self.sm_order_num_tpc);
-        guest[guest_num_tpc..guest_num_tpc + 2].copy_from_slice(&v);
+    /// Translate a host `GR_GET_GLOBAL_SM_ORDER` reply (this host's layout) into the
+    /// guest's internal element (`guest`, laid out as `guest_layout`, the guest ABI's):
+    /// field by name, see [`translate_sm_order`]. 615's `virtualDpcId` is dropped for a
+    /// 610 guest and stays 0 for a 615 guest on a 610 host (no DPC before Blackwell).
+    pub fn sm_order_to_guest(&self, host: &[u8], guest: &mut [u8], guest_layout: &SmOrderLayout) {
+        translate_sm_order(&self.sm_order, host, guest_layout, guest);
     }
 
     /// One line for the device log: what was selected and the sizes it implies.
@@ -241,8 +272,8 @@ impl HostLayouts {
             self.tsg_size,
             self.pes_info_size,
             self.pes_info_map_len,
-            self.sm_order_size,
-            self.sm_order_entry_size,
+            self.sm_order.size,
+            self.sm_order.entry_size,
             size_of::<ChannelAllocParams>(),
         )
     }
@@ -396,16 +427,16 @@ mod tests {
             size_of::<v610::NV2080_CTRL_GR_GET_GLOBAL_SM_ORDER_PARAMS>(),
             9240
         );
+        let o = &l.sm_order;
         assert_eq!(
-            (
-                l.sm_order_size,
-                l.sm_order_entry_size,
-                l.sm_order_num_sm,
-                l.sm_order_num_tpc
-            ),
-            (9240, 18, 9216, 9218)
+            (o.size, o.entry_size, o.entries, o.num_sm, o.num_tpc),
+            (9240, 18, 512, 9216, 9218)
         );
-        assert_eq!(l.sm_order_entry_fields.len(), 9);
+        assert_eq!(o.fields.len() * 2, o.entry_size, "every u16 of the entry is named");
+        assert_eq!(
+            offset_of!(v610::NV2080_CTRL_GR_GET_GLOBAL_SM_ORDER_PARAMS, globalSmId),
+            0
+        );
         assert_eq!(size_of::<ChannelAllocParams>(), 376);
     }
 
@@ -439,16 +470,17 @@ mod tests {
             size_of::<v615::NV2080_CTRL_GR_GET_GLOBAL_SM_ORDER_PARAMS>(),
             10264
         );
+        let o = &l.sm_order;
         assert_eq!(
-            (
-                l.sm_order_size,
-                l.sm_order_entry_size,
-                l.sm_order_num_sm,
-                l.sm_order_num_tpc
-            ),
-            (10264, 20, 10240, 10242)
+            (o.size, o.entry_size, o.entries, o.num_sm, o.num_tpc),
+            (10264, 20, 512, 10240, 10242)
         );
-        assert_eq!(l.sm_order_entry_fields[5], ("virtualDpcId", 10));
+        assert_eq!(o.fields.len() * 2, o.entry_size, "every u16 of the entry is named");
+        assert_eq!(o.fields[5], ("virtualDpcId", 10));
+        assert_eq!(
+            offset_of!(v615::NV2080_CTRL_GR_GET_GLOBAL_SM_ORDER_PARAMS, globalSmId),
+            0
+        );
         assert_eq!(size_of::<v615::NV_CHANNEL_ALLOC_PARAMS>(), 376);
     }
 
@@ -542,59 +574,65 @@ mod tests {
         assert_eq!(&b[20..], &[0u8; 8]);
     }
 
-    /// A guest element laid out as 610's internal SM order.
-    fn guest_610() -> (usize, Vec<(&'static str, usize)>, usize, usize, usize) {
-        (
-            18,
-            HOST_610.sm_order_entry_fields.to_vec(),
-            9216,
-            9218,
-            9220,
-        )
-    }
-
-    #[test]
-    fn sm_order_610_host_is_a_plain_copy() {
-        let (es, fields, nsm, ntpc, elem) = guest_610();
-        let host: Vec<u8> = (0..HOST_610.sm_order_size)
-            .map(|i| (i * 7 + 3) as u8)
-            .collect();
-        let mut g = vec![0u8; elem];
-        HOST_610.sm_order_to_guest(&host, &mut g, es, &fields, nsm, ntpc);
-        assert_eq!(&g[..], &host[..elem]);
-    }
-
-    #[test]
-    fn sm_order_615_host_drops_virtual_dpc_id() {
-        let (es, fields, nsm, ntpc, elem) = guest_610();
-        let l = &HOST_615;
-        let mut host = vec![0u8; l.sm_order_size];
-        for sm in 0..512usize {
-            for (i, _) in l.sm_order_entry_fields.iter().enumerate() {
-                let o = sm * 20 + 2 * i;
-                // field i of SM sm = sm * 16 + i, with virtualDpcId (i = 5) = 0xDDDD
-                let v: u16 = if i == 5 { 0xDDDD } else { (sm * 16 + i) as u16 };
-                host[o..o + 2].copy_from_slice(&v.to_le_bytes());
+    /// Host bytes in which every field of every SM names itself: SM `sm`, field `name`
+    /// holds [`tag`]; numSm 36, numTpc 18.
+    fn tagged(l: &SmOrderLayout) -> Vec<u8> {
+        let mut b = vec![0u8; l.size];
+        for sm in 0..l.entries {
+            for (name, off) in l.fields {
+                let o = sm * l.entry_size + off;
+                b[o..o + 2].copy_from_slice(&tag(sm, name).to_le_bytes());
             }
         }
-        host[10240..10242].copy_from_slice(&36u16.to_le_bytes());
-        host[10242..10244].copy_from_slice(&18u16.to_le_bytes());
-        let mut g = vec![0u8; elem];
-        l.sm_order_to_guest(&host, &mut g, es, &fields, nsm, ntpc);
-        let rd = |o: usize| u16::from_le_bytes([g[o], g[o + 1]]);
-        for sm in [0usize, 1, 35, 511] {
-            // guest fields 0..=4 are host 0..=4; guest 5..=8 are host 6..=9
-            for gi in 0..9 {
-                let hi = if gi < 5 { gi } else { gi + 1 };
-                assert_eq!(
-                    rd(sm * 18 + 2 * gi) as usize,
-                    sm * 16 + hi,
-                    "sm {sm} field {gi}"
-                );
+        b[l.num_sm..l.num_sm + 2].copy_from_slice(&36u16.to_le_bytes());
+        b[l.num_tpc..l.num_tpc + 2].copy_from_slice(&18u16.to_le_bytes());
+        b
+    }
+
+    /// A value that names its SM and field, the same in either layout: the SM in the
+    /// high bits, the field's position in 615's entry (the superset) in the low four.
+    pub(crate) fn tag(sm: usize, name: &str) -> u16 {
+        let i = HOST_615.sm_order.fields.iter().position(|(n, _)| *n == name).unwrap();
+        ((sm as u16) << 4) | (i as u16 + 1)
+    }
+
+    /// The four combinations, built from the generated modules' sizes and field
+    /// offsets: every field the guest has holds the host's value of the same name,
+    /// `virtualDpcId` is 0 where only the guest has it, and nothing else is written.
+    #[test]
+    fn sm_order_all_four_combinations() {
+        use guest_layouts::{GUEST_SM_ORDER_610 as G610, GUEST_SM_ORDER_615 as G615};
+        assert_eq!((G610.size, G610.entry_size, G610.num_sm, G610.num_tpc), (9220, 18, 9216, 9218));
+        assert_eq!((G615.size, G615.entry_size, G615.num_sm, G615.num_tpc), (10244, 20, 10240, 10242));
+        for g in [&G610, &G615] {
+            assert_eq!(g.entries, 512);
+            assert_eq!(g.fields.len() * 2, g.entry_size, "every u16 of the entry is named");
+        }
+        for (h, g) in [(&HOST_610, &G610), (&HOST_615, &G610), (&HOST_610, &G615), (&HOST_615, &G615)] {
+            let what = format!("host {} entry {}, guest entry {}", h.driver(), h.sm_order.entry_size, g.entry_size);
+            let host = tagged(&h.sm_order);
+            let mut out = vec![0u8; g.size];
+            h.sm_order_to_guest(&host, &mut out, g);
+            let rd = |o: usize| u16::from_le_bytes([out[o], out[o + 1]]);
+            for sm in [0usize, 1, 35, 511] {
+                for (name, off) in g.fields {
+                    let want = if h.sm_order.fields.iter().any(|(n, _)| n == name) {
+                        tag(sm, name)
+                    } else {
+                        0
+                    };
+                    assert_eq!(rd(sm * g.entry_size + off), want, "{what}: sm {sm} {name}");
+                }
+            }
+            assert_eq!((rd(g.num_sm), rd(g.num_tpc)), (36, 18), "{what}");
+            // Same layout on both sides: the translation is a plain copy.
+            if h.sm_order.entry_size == g.entry_size {
+                assert_eq!(&out[..], &host[..g.size], "{what}");
             }
         }
-        assert!(!g.chunks(2).any(|c| c == [0xDD, 0xDD]));
-        assert_eq!((rd(9216), rd(9218)), (36, 18));
+        assert_eq!(HOST_615.sm_order.fields_not_in(&G610), ["virtualDpcId"]);
+        assert_eq!(G615.fields_not_in(&HOST_610.sm_order), ["virtualDpcId"]);
+        assert!(HOST_610.sm_order.fields_not_in(&G615).is_empty());
     }
 
     #[test]
@@ -643,4 +681,26 @@ mod tests {
         // No test installs a selection, so the default is what every other test sees.
         assert_eq!(current().version, DriverVersion::V610);
     }
+}
+
+/// The guest's internal SM-order element of both guest ABIs, from the generated modules,
+/// for the tests of all four guest and host combinations (a build emulates one guest ABI,
+/// `ver::active::SM_ORDER_GUEST`, which the tests compare with the matching one here).
+#[cfg(test)]
+pub(crate) mod guest_layouts {
+    use super::SmOrderLayout;
+    use nvrm_sys::{v610, v615};
+
+    pub static GUEST_SM_ORDER_610: SmOrderLayout = sm_order_layout!(
+        v610::NV2080_CTRL_INTERNAL_STATIC_GR_GLOBAL_SM_ORDER,
+        v610::NV2080_CTRL_INTERNAL_STATIC_GR_GLOBAL_SM_ORDER__bindgen_ty_1;
+        gpcId, localTpcId, localSmId, globalTpcId, virtualGpcId, migratableTpcId, ugpuId,
+        physicalCpcId, virtualTpcId
+    );
+    pub static GUEST_SM_ORDER_615: SmOrderLayout = sm_order_layout!(
+        v615::NV2080_CTRL_INTERNAL_STATIC_GR_GLOBAL_SM_ORDER,
+        v615::NV2080_CTRL_INTERNAL_STATIC_GR_GLOBAL_SM_ORDER__bindgen_ty_1;
+        gpcId, localTpcId, localSmId, globalTpcId, virtualGpcId, virtualDpcId,
+        migratableTpcId, ugpuId, physicalCpcId, virtualTpcId
+    );
 }

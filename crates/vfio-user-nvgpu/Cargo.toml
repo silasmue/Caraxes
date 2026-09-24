@@ -45,7 +45,8 @@ default = ["v610"]
 v610 = ["nvrm-sys/v610"]
 # The guest runs driver 615.71.09 (docs/caraxes/gsp-transport-615.md): `ver::active` is
 # `ver::v615`, the transport is message queue v2 with the GMCAPI init. It implies v610,
-# whose layouts the host side keeps (the host driver stays 610.57.04). Build with
+# whose module v615 builds on; the host side follows the running host driver either way
+# (src/hostabi.rs). Build with
 # `cargo build --release -p vfio-user-nvgpu --features v615 --target-dir target/v615`;
 # tools/caraxes-vm.sh picks that binary for CARAXES_GUEST_ABI=615.
 v615 = ["v610", "nvrm-sys/v615"]
