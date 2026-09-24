@@ -1,0 +1,258 @@
+[  417.928804]  ? __pfx_kthread+0x10/0x10
+[  417.928805]  ? ret_from_fork_asm+0x1b/0x30
+[  417.928809]  </TASK>
+[  417.928809] ---[ end trace 0000000000000000 ]---
+[  418.761271] NVRM: ioctl(0x4a, 0xc0d9aca0, 0xb8)
+[  418.761303] NVRM: VM: nv_alloc_pages: 512 pages, nodeid -1
+[  418.761305] NVRM: VM:    contig 0  cache_type 2
+[  418.761309] NVRM: VM: nv_alloc_system_pages: 512 order0 pages, 0 order
+[  418.761311] NVRM: VM: nv_mem_pool_alloc_pages: node=0 order=0: 0/512 pages allocated (0 already cleared, 0 left in pool)
+[  418.762032] NVRM: VM: nv_alloc_pages:4133: 0x00000000ce072f8d, 512 page(s), count = 1, page_table = 0x000000007d620408
+[  418.762121] NVRM: ioctl(0x2a, 0xc0d9a050, 0x20)
+[  418.762153] NVRM: nvidia_open...
+[  418.762155] NVRM: nvidia_ctl_open
+[  418.762159] NVRM: ioctl(0x4e, 0xc0d9ab20, 0x38)
+[  418.762195] NVRM: VM: nvidia_mmap_helper:560: 0x769f74000000 - 0x769f74200000, 0x00200000 bytes @ 0x0000000000000000, 0x0000000000000000, 0x000000001430d6ec
+[  418.762257] NVRM: VM: nvidia_mmap_helper:747: 0x00000000ce072f8d, 512 page(s), count = 3, page_table = 0x000000007d620408
+[  418.762270] NVRM: ioctl(0x4a, 0xc0d9aad0, 0xb8)
+[  418.783577] NVRM: ioctl(0x57, 0xc0d9a9c0, 0x40)
+[  419.929343] NVRM: ioctl(0x58, 0xc0d9a970, 0x30)
+[  419.929869] NVRM: ioctl(0x29, 0xc0d9a9b0, 0x10)
+[  419.930767] NVRM: ioctl(0x4f, 0xc0d9a9d0, 0x20)
+[  419.930800] NVRM: VM: nvidia_vma_release:101: 0x769f961b6000 - 0x769f961ba000, 0x00004000 bytes @ 0x0000000000000000, 0x00000000883fff2c, 0x0000000011d06816
+[  419.930805] NVRM: VM: nv_alloc_release:1679: 0x00000000883fff2c, 4 page(s), count = 3, page_table = 0x000000001b041097
+[  419.930809] NVRM: nvidia_close on GPU with minor number 255
+[  419.930810] NVRM: nvidia_ctl_close
+[  419.930811] NVRM: VM: nv_alloc_release:1679: 0x00000000883fff2c, 4 page(s), count = 2, page_table = 0x000000001b041097
+[  419.930816] NVRM: ioctl(0x29, 0xc0d9a9d0, 0x10)
+[  419.930831] NVRM: VM: nv_free_pages: 0x4 at = ffff8f44c25e2000
+[  419.930832] NVRM: VM: nv_free_pages:4156: 0x00000000883fff2c, 4 page(s), count = 1, page_table = 0x000000001b041097
+[  419.931070] NVRM: VM: nv_mem_pool_free_pages: at = ffff8f44c25e2000, at->order = 0, at->num_pages = 4,                 pool_order = 0: 4/4 pages added to pool (4 now in pool)
+[  419.931078] NVRM: VM: nv_free_system_pages: 4/4 order0 pages
+[  421.842804] ------------[ cut here ]------------
+[  421.842811] WARNING: CPU: 1 PID: 1694 at /root/nvdrm-615/nvidia-drm/nvidia-drm-crtc.h:368 __nv_drm_handle_flip_event+0x1d5/0x1f0 [nvidia_drm]
+[  421.842826] Modules linked in: snd_seq_dummy snd_hrtimer snd_seq_midi snd_seq_midi_event snd_rawmidi snd_seq snd_seq_device snd_timer snd soundcore nvidia_uvm(OE) nvidia_drm(OE) nvidia_modeset(OE) video wmi nvidia(OE) ecc caraxes_dma_range(OE) nls_iso8859_1 kvm_amd ccp binfmt_misc kvm irqbypass sch_fq_codel msr dm_multipath parport_pc ppdev lp parport efi_pstore nfnetlink dmi_sysfs ip_tables x_tables autofs4 btrfs blake2b_generic raid10 raid456 async_raid6_recov async_memcpy async_pq async_xor async_tx xor raid6_pq libcrc32c raid1 raid0 crct10dif_pclmul crc32_pclmul polyval_clmulni polyval_generic ghash_clmulni_intel sha256_ssse3 sha1_ssse3 virtio_rng aesni_intel crypto_simd cryptd
+[  421.842866] CPU: 1 PID: 1694 Comm: nvidia-modeset/ Tainted: G        W  OE      6.8.0-136-generic #136-Ubuntu
+[  421.842869] Hardware name: Cloud Hypervisor cloud-hypervisor, BIOS 0 
+[  421.842870] RIP: 0010:__nv_drm_handle_flip_event+0x1d5/0x1f0 [nvidia_drm]
+[  421.842877] Code: fc ff ff 0f b6 15 e3 b5 00 00 80 fa 01 0f 87 61 70 00 00 83 e2 01 74 96 4c 89 e7 e8 55 c2 b4 f4 eb 8c 4c 89 ef e8 5b b8 0d f5 <0f> 0b e9 9e fe ff ff 4c 89 ef e8 3c c2 b4 f4 e9 41 ff ff ff 0f 1f
+[  421.842878] RSP: 0018:ffffd2a2c10bbd98 EFLAGS: 00010246
+[  421.842880] RAX: 0000000000000000 RBX: ffff8f44c93a1018 RCX: 0000000000000000
+[  421.842881] RDX: 0000000000000000 RSI: 0000000000000000 RDI: 0000000000000000
+[  421.842882] RBP: ffffd2a2c10bbde0 R08: 0000000000000000 R09: 0000000000000000
+[  421.842883] R10: 0000000000000000 R11: 0000000000000000 R12: ffff8f44c93a1000
+[  421.842884] R13: ffff8f44c93a1048 R14: ffff8f44ca07d200 R15: ffff8f44c963e000
+[  421.842886] FS:  0000000000000000(0000) GS:ffff8f44fba80000(0000) knlGS:0000000000000000
+[  421.842888] CS:  0010 DS: 0000 ES: 0000 CR0: 0000000080050033
+[  421.842889] CR2: 00003fc5ab299000 CR3: 000000010824e000 CR4: 0000000000350ef0
+[  421.842892] Call Trace:
+[  421.842894]  <TASK>
+[  421.842895]  ? _raw_spin_unlock_irqrestore+0x11/0x60
+[  421.842907]  nv_drm_handle_flip_occurred+0x52/0x80 [nvidia_drm]
+[  421.842912]  nv_drm_event_callback+0xfb/0x120 [nvidia_drm]
+[  421.842916]  nvKmsKapiHandleEventQueueChange+0xba/0x110 [nvidia_modeset]
+[  421.842949]  ? nvkms_kapi_event_kthread_q_callback+0xe/0x20 [nvidia_modeset]
+[  421.842971]  ? _main_loop+0x82/0x140 [nvidia_modeset]
+[  421.842994]  ? __pfx__main_loop+0x10/0x10 [nvidia_modeset]
+[  421.843017]  ? kthread+0xf2/0x120
+[  421.843021]  ? __pfx_kthread+0x10/0x10
+[  421.843022]  ? ret_from_fork+0x47/0x70
+[  421.843025]  ? __pfx_kthread+0x10/0x10
+[  421.843027]  ? ret_from_fork_asm+0x1b/0x30
+[  421.843030]  </TASK>
+[  421.843031] ---[ end trace 0000000000000000 ]---
+[  422.599757] NVRM: ioctl(0x58, 0x443acf20, 0x30)
+[  422.600443] NVRM: ioctl(0x29, 0x443acf10, 0x10)
+[  422.601016] NVRM: ioctl(0x4a, 0xc0d98cc0, 0xb8)
+[  422.601089] NVRM: ioctl(0x4a, 0xc0d98af0, 0xb8)
+[  422.601135] NVRM: ioctl(0x57, 0xc0d989e0, 0x40)
+[  422.616809] NVRM: ioctl(0x4a, 0xc0d98a60, 0xb8)
+[  422.616868] NVRM: ioctl(0x57, 0xc0d98850, 0x40)
+[  422.618308] NVRM: ioctl(0x4a, 0xc0d98b20, 0xb8)
+[  422.618391] NVRM: ioctl(0x57, 0xc0d98910, 0x40)
+[  422.619011] NVRM: ioctl(0x4a, 0xc0d989b0, 0xb8)
+[  422.619034] NVRM: ioctl(0x4a, 0xc0d987e0, 0xb8)
+[  422.619078] NVRM: ioctl(0x57, 0xc0d986d0, 0x40)
+[  422.620642] NVRM: ioctl(0x4a, 0xc0d98cc0, 0xb8)
+[  422.621006] NVRM: ioctl(0x4a, 0xc0d98af0, 0xb8)
+[  422.621031] NVRM: ioctl(0x57, 0xc0d989e0, 0x40)
+[  422.621445] NVRM: ioctl(0x4a, 0xc0d98a60, 0xb8)
+[  422.621467] NVRM: ioctl(0x57, 0xc0d98850, 0x40)
+[  422.622029] NVRM: ioctl(0x4a, 0xc0d98b20, 0xb8)
+[  422.622077] NVRM: ioctl(0x57, 0xc0d98910, 0x40)
+[  422.622436] NVRM: ioctl(0x4a, 0xc0d989b0, 0xb8)
+[  422.622458] NVRM: ioctl(0x4a, 0xc0d987e0, 0xb8)
+[  422.622478] NVRM: ioctl(0x57, 0xc0d986d0, 0x40)
+[  422.623626] NVRM: ioctl(0x4a, 0xc0d98870, 0xb8)
+[  422.623655] NVRM: ioctl(0x4a, 0xc0d986a0, 0xb8)
+[  422.623675] NVRM: ioctl(0x57, 0xc0d98590, 0x40)
+[  422.624148] NVRM: ioctl(0x4a, 0xc0d98cc0, 0xb8)
+[  422.624173] NVRM: ioctl(0x4a, 0xc0d98af0, 0xb8)
+[  422.624192] NVRM: ioctl(0x57, 0xc0d989e0, 0x40)
+[  422.624579] NVRM: ioctl(0x4a, 0xc0d98a60, 0xb8)
+[  422.624601] NVRM: ioctl(0x57, 0xc0d98850, 0x40)
+[  422.625184] NVRM: ioctl(0x4a, 0xc0d98b20, 0xb8)
+[  422.625211] NVRM: ioctl(0x57, 0xc0d98910, 0x40)
+[  422.625556] NVRM: ioctl(0x4a, 0xc0d989b0, 0xb8)
+[  422.625577] NVRM: ioctl(0x4a, 0xc0d987e0, 0xb8)
+[  422.625596] NVRM: ioctl(0x57, 0xc0d986d0, 0x40)
+[  422.626748] NVRM: ioctl(0x4a, 0xc0d98cc0, 0xb8)
+[  422.626824] NVRM: ioctl(0x4a, 0xc0d98af0, 0xb8)
+[  422.626845] NVRM: ioctl(0x57, 0xc0d989e0, 0x40)
+[  422.627281] NVRM: ioctl(0x4a, 0xc0d98a60, 0xb8)
+[  422.627302] NVRM: ioctl(0x57, 0xc0d98850, 0x40)
+[  422.627709] NVRM: ioctl(0x4a, 0xc0d98b20, 0xb8)
+[  422.627733] NVRM: ioctl(0x57, 0xc0d98910, 0x40)
+[  422.628037] NVRM: ioctl(0x4a, 0xc0d989b0, 0xb8)
+[  422.628073] NVRM: ioctl(0x4a, 0xc0d987e0, 0xb8)
+[  422.628092] NVRM: ioctl(0x57, 0xc0d986d0, 0x40)
+[  422.629138] NVRM: ioctl(0x4a, 0xc0d98870, 0xb8)
+[  422.629166] NVRM: ioctl(0x4a, 0xc0d986a0, 0xb8)
+[  422.629186] NVRM: ioctl(0x57, 0xc0d98590, 0x40)
+[  422.661700] NVRM: ioctl(0x58, 0xc0d992a0, 0x30)
+[  422.663755] NVRM: ioctl(0x29, 0xc0d992e0, 0x10)
+[  422.664920] NVRM: ioctl(0x29, 0xc0d99300, 0x10)
+[  422.664951] NVRM: ioctl(0x58, 0xc0d99380, 0x30)
+[  422.665368] NVRM: ioctl(0x29, 0xc0d99370, 0x10)
+[  422.665560] NVRM: ioctl(0x4a, 0xc0d98cc0, 0xb8)
+[  422.665593] NVRM: ioctl(0x4a, 0xc0d98af0, 0xb8)
+[  422.665617] NVRM: ioctl(0x57, 0xc0d989e0, 0x40)
+[  422.665973] NVRM: ioctl(0x4a, 0xc0d98a60, 0xb8)
+[  422.665994] NVRM: ioctl(0x57, 0xc0d98850, 0x40)
+[  422.666581] NVRM: ioctl(0x4a, 0xc0d98b20, 0xb8)
+[  422.666606] NVRM: ioctl(0x57, 0xc0d98910, 0x40)
+[  422.666904] NVRM: ioctl(0x4a, 0xc0d989b0, 0xb8)
+[  422.666925] NVRM: ioctl(0x4a, 0xc0d987e0, 0xb8)
+[  422.666945] NVRM: ioctl(0x57, 0xc0d986d0, 0x40)
+[  422.667913] NVRM: ioctl(0x58, 0xc0d992a0, 0x30)
+[  422.668803] NVRM: ioctl(0x29, 0xc0d992e0, 0x10)
+[  422.669559] NVRM: ioctl(0x29, 0xc0d99300, 0x10)
+[  422.669579] NVRM: ioctl(0x58, 0xc0d99380, 0x30)
+[  422.669888] NVRM: ioctl(0x29, 0xc0d99370, 0x10)
+[  422.670000] NVRM: ioctl(0x4a, 0xc0d98cc0, 0xb8)
+[  422.670025] NVRM: ioctl(0x4a, 0xc0d98af0, 0xb8)
+[  422.670063] NVRM: ioctl(0x57, 0xc0d989e0, 0x40)
+[  422.670553] NVRM: ioctl(0x4a, 0xc0d98a60, 0xb8)
+[  422.670575] NVRM: ioctl(0x57, 0xc0d98850, 0x40)
+[  422.670950] NVRM: ioctl(0x4a, 0xc0d98b20, 0xb8)
+[  422.670975] NVRM: ioctl(0x57, 0xc0d98910, 0x40)
+[  422.671378] NVRM: ioctl(0x4a, 0xc0d989b0, 0xb8)
+[  422.671401] NVRM: ioctl(0x4a, 0xc0d987e0, 0xb8)
+[  422.671420] NVRM: ioctl(0x57, 0xc0d986d0, 0x40)
+[  422.672438] NVRM: ioctl(0x58, 0xc0d99540, 0x30)
+[  422.672779] NVRM: ioctl(0x29, 0xc0d99530, 0x10)
+[  422.672808] NVRM: ioctl(0x58, 0xc0d99540, 0x30)
+[  422.673180] NVRM: ioctl(0x29, 0xc0d99530, 0x10)
+[  422.673360] NVRM: ioctl(0x4a, 0xc0d98870, 0xb8)
+[  422.673384] NVRM: ioctl(0x4a, 0xc0d986a0, 0xb8)
+[  422.673406] NVRM: ioctl(0x57, 0xc0d98590, 0x40)
+[  422.685058] NVRM: ioctl(0x58, 0xc0d992a0, 0x30)
+[  422.685952] NVRM: ioctl(0x29, 0xc0d992e0, 0x10)
+[  422.687068] NVRM: ioctl(0x29, 0xc0d99300, 0x10)
+[  422.687096] NVRM: ioctl(0x58, 0xc0d99380, 0x30)
+[  422.687420] NVRM: ioctl(0x29, 0xc0d99370, 0x10)
+[  422.687541] NVRM: ioctl(0x4a, 0xc0d98cc0, 0xb8)
+[  422.687573] NVRM: ioctl(0x4a, 0xc0d98af0, 0xb8)
+[  422.687598] NVRM: ioctl(0x57, 0xc0d989e0, 0x40)
+[  422.687964] NVRM: ioctl(0x4a, 0xc0d98a60, 0xb8)
+[  422.687984] NVRM: ioctl(0x57, 0xc0d98850, 0x40)
+[  422.688481] NVRM: ioctl(0x4a, 0xc0d98b20, 0xb8)
+[  422.688505] NVRM: ioctl(0x57, 0xc0d98910, 0x40)
+[  422.688814] NVRM: ioctl(0x4a, 0xc0d989b0, 0xb8)
+[  422.688834] NVRM: ioctl(0x4a, 0xc0d987e0, 0xb8)
+[  422.688852] NVRM: ioctl(0x57, 0xc0d986d0, 0x40)
+[  422.689760] NVRM: ioctl(0x58, 0xc0d992a0, 0x30)
+[  422.690613] NVRM: ioctl(0x29, 0xc0d992e0, 0x10)
+[  422.691671] NVRM: ioctl(0x29, 0xc0d99300, 0x10)
+[  422.691692] NVRM: ioctl(0x58, 0xc0d99380, 0x30)
+[  422.692004] NVRM: ioctl(0x29, 0xc0d99370, 0x10)
+[  422.692110] NVRM: ioctl(0x4a, 0xc0d98cc0, 0xb8)
+[  422.692141] NVRM: ioctl(0x4a, 0xc0d98af0, 0xb8)
+[  422.692163] NVRM: ioctl(0x57, 0xc0d989e0, 0x40)
+[  422.692794] NVRM: ioctl(0x4a, 0xc0d98a60, 0xb8)
+[  422.692825] NVRM: ioctl(0x57, 0xc0d98850, 0x40)
+[  422.693330] NVRM: ioctl(0x4a, 0xc0d98b20, 0xb8)
+[  422.693600] NVRM: ioctl(0x57, 0xc0d98910, 0x40)
+[  422.693925] NVRM: ioctl(0x4a, 0xc0d989b0, 0xb8)
+[  422.693947] NVRM: ioctl(0x4a, 0xc0d987e0, 0xb8)
+[  422.693966] NVRM: ioctl(0x57, 0xc0d986d0, 0x40)
+[  422.695022] NVRM: ioctl(0x58, 0xc0d99540, 0x30)
+[  422.695385] NVRM: ioctl(0x29, 0xc0d99530, 0x10)
+[  422.695492] NVRM: ioctl(0x58, 0xc0d99540, 0x30)
+[  422.695848] NVRM: ioctl(0x29, 0xc0d99530, 0x10)
+[  422.695993] NVRM: ioctl(0x4a, 0xc0d98870, 0xb8)
+[  422.696017] NVRM: ioctl(0x4a, 0xc0d986a0, 0xb8)
+[  422.696036] NVRM: ioctl(0x57, 0xc0d98590, 0x40)
+[  422.704316] NVRM: ioctl(0x58, 0xc0d9b0a0, 0x30)
+[  422.705383] NVRM: ioctl(0x29, 0xc0d9b0e0, 0x10)
+[  422.706277] NVRM: ioctl(0x29, 0xc0d9b100, 0x10)
+[  422.706300] NVRM: ioctl(0x58, 0xc0d9b180, 0x30)
+[  422.706641] NVRM: ioctl(0x29, 0xc0d9b170, 0x10)
+[  422.706678] NVRM: ioctl(0x58, 0xc0d9b0a0, 0x30)
+[  422.707479] NVRM: ioctl(0x29, 0xc0d9b0e0, 0x10)
+[  422.708281] NVRM: ioctl(0x29, 0xc0d9b100, 0x10)
+[  422.708300] NVRM: ioctl(0x58, 0xc0d9b180, 0x30)
+[  422.708664] NVRM: ioctl(0x29, 0xc0d9b170, 0x10)
+[  422.708698] NVRM: ioctl(0x58, 0xc0d9b1f0, 0x30)
+[  422.709130] NVRM: ioctl(0x29, 0xc0d9b1e0, 0x10)
+[  422.709168] NVRM: ioctl(0x58, 0xc0d9b1f0, 0x30)
+[  422.709694] NVRM: ioctl(0x29, 0xc0d9b1e0, 0x10)
+[  422.709743] NVRM: ioctl(0x58, 0xc0d9b0a0, 0x30)
+[  422.710610] NVRM: ioctl(0x29, 0xc0d9b0e0, 0x10)
+[  422.711440] NVRM: ioctl(0x29, 0xc0d9b100, 0x10)
+[  422.711461] NVRM: ioctl(0x58, 0xc0d9b180, 0x30)
+[  422.711823] NVRM: ioctl(0x29, 0xc0d9b170, 0x10)
+[  422.712106] NVRM: ioctl(0x58, 0xc0d9b0a0, 0x30)
+[  422.712864] NVRM: ioctl(0x29, 0xc0d9b0e0, 0x10)
+[  422.713774] NVRM: ioctl(0x29, 0xc0d9b100, 0x10)
+[  422.713793] NVRM: ioctl(0x58, 0xc0d9b180, 0x30)
+[  422.714229] NVRM: ioctl(0x29, 0xc0d9b170, 0x10)
+[  422.714261] NVRM: ioctl(0x58, 0xc0d9b1f0, 0x30)
+[  422.714615] NVRM: ioctl(0x29, 0xc0d9b1e0, 0x10)
+[  422.714642] NVRM: ioctl(0x58, 0xc0d9b1f0, 0x30)
+[  422.714996] NVRM: ioctl(0x29, 0xc0d9b1e0, 0x10)
+[  422.716886] NVRM: ioctl(0x4a, 0xc0d98870, 0xb8)
+[  422.716924] NVRM: ioctl(0x4a, 0xc0d986a0, 0xb8)
+[  422.716948] NVRM: ioctl(0x57, 0xc0d98590, 0x40)
+[  422.732150] NVRM: ioctl(0x58, 0xc0d969b0, 0x30)
+[  422.733259] NVRM: ioctl(0x29, 0xc0d969a0, 0x10)
+[  422.734389] NVRM: ioctl(0x4a, 0xc0d99850, 0xb8)
+[  422.734427] NVRM: ioctl(0x4a, 0xc0d99680, 0xb8)
+[  422.734464] NVRM: ioctl(0x57, 0xc0d99570, 0x40)
+[  422.734865] NVRM: ioctl(0x4a, 0xc0d995f0, 0xb8)
+[  422.734888] NVRM: ioctl(0x57, 0xc0d993e0, 0x40)
+[  422.735497] NVRM: ioctl(0x4a, 0xc0d996b0, 0xb8)
+[  422.735525] NVRM: ioctl(0x57, 0xc0d994a0, 0x40)
+[  422.737434] NVRM: ioctl(0x4a, 0xc0d99540, 0xb8)
+[  422.737457] NVRM: ioctl(0x4a, 0xc0d99370, 0xb8)
+[  422.737478] NVRM: ioctl(0x57, 0xc0d99260, 0x40)
+[  422.738450] NVRM: ioctl(0x58, 0xc0d99f80, 0x30)
+[  422.738963] NVRM: ioctl(0x29, 0xc0d99f70, 0x10)
+[  422.748048] NVRM: ioctl(0x58, 0xc0d99e30, 0x30)
+[  422.748891] NVRM: ioctl(0x29, 0xc0d99e70, 0x10)
+[  422.749926] NVRM: ioctl(0x29, 0xc0d99e90, 0x10)
+[  422.749950] NVRM: ioctl(0x58, 0xc0d99f10, 0x30)
+[  422.750462] NVRM: ioctl(0x29, 0xc0d99f00, 0x10)
+[  422.750587] NVRM: ioctl(0x4a, 0xc0d99850, 0xb8)
+[  422.750615] NVRM: ioctl(0x4a, 0xc0d99680, 0xb8)
+[  422.750639] NVRM: ioctl(0x57, 0xc0d99570, 0x40)
+[  422.751293] NVRM: ioctl(0x4a, 0xc0d995f0, 0xb8)
+[  422.751318] NVRM: ioctl(0x57, 0xc0d993e0, 0x40)
+[  422.755098] NVRM: ioctl(0x4a, 0xc0d996b0, 0xb8)
+[  422.755124] NVRM: ioctl(0x57, 0xc0d994a0, 0x40)
+[  422.755481] NVRM: ioctl(0x4a, 0xc0d99540, 0xb8)
+[  422.755502] NVRM: ioctl(0x4a, 0xc0d99370, 0xb8)
+[  422.755522] NVRM: ioctl(0x57, 0xc0d99260, 0x40)
+[  422.756832] NVRM: ioctl(0x58, 0xc0d99f80, 0x30)
+[  422.758023] NVRM: ioctl(0x29, 0xc0d99f70, 0x10)
+[  422.777003] NVRM: ioctl(0x58, 0xc0d98bb0, 0x30)
+[  422.777948] NVRM: ioctl(0x29, 0xc0d98bf0, 0x10)
+[  422.778905] NVRM: ioctl(0x29, 0xc0d98c10, 0x10)
+[  422.778938] NVRM: ioctl(0x58, 0xc0d98c90, 0x30)
+[  422.779381] NVRM: ioctl(0x29, 0xc0d98c80, 0x10)
+[  422.796553] NVRM: ioctl(0x58, 0xc0d9a9b0, 0x30)
+[  422.796881] NVRM: ioctl(0x29, 0xc0d9a9f0, 0x10)
+[  422.797103] NVRM: ioctl(0x29, 0xc0d9aa10, 0x10)
+[  422.797127] NVRM: ioctl(0x58, 0xc0d9a9b0, 0x30)
+[  422.797471] NVRM: ioctl(0x29, 0xc0d9a9f0, 0x10)
+[  422.797672] NVRM: ioctl(0x29, 0xc0d9aa10, 0x10)

@@ -1,0 +1,5 @@
+# SPDX-License-Identifier: MIT
+# 2026-09-25 00:06:48 guest command:
+sudo bash d615/hotplug-watch.sh 40
+rc=0
+full trace 12100 lines kept (device-trace.txt.xz)

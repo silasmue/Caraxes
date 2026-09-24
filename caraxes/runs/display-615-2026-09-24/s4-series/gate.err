@@ -1,0 +1,13 @@
+  GATE rig: PASS  (nvidia-modeset + nvidia-drm modeset=Y on the device's display engine)
+  GATE connector: PASS  (/dev/dri/card0 (nvidia-drm), card0-DP-1 connected, modes: 1920x1080 1920x1080 1920x1080 1280x720 1280x720 640x480 )
+  GATE edid: PASS  (256 bytes, identical to the device's EDID (caraxes/runs/display-ab-2026-09-23/guest-card0-DP-1.edid.bin), edid-decode --check: pass)
+  GATE modeset: PASS  (mode taken, 30 flips all completed, CRTC names the new framebuffer)
+  GATE compositor: PASS  (Weston (DRM backend, atomic) at 1920x1080@60: frame callbacks 59.83 Hz, presentation 59.83 Hz, refresh 16666666 ns, none discarded)
+  GATE capture: PASS  (the scanout read through GETFB2 shows the client's grey at the centre; Sunshine capture=kms found the DP-1 monitor and encoded captured frames (libx264))
+  GATE swapchain: PASS  (vkCreateSwapchainKHR returned VK_SUCCESS on a Wayland surface under Weston (GL renderer))
+  GATE present: PASS  (120 frames, all VK_SUCCESS, 55.7 FPS at the display's 60 Hz)
+  GATE rt: PASS  (vkCreateDevice with VK_KHR_acceleration_structure returned VK_SUCCESS)
+  GATE events: PASS  (median wait 0.14 ms over 10 samples (worst 0.36), the GR completion arrives as the forwarded non-stall interrupt)
+  GATE kernel: PASS  (no oops, 0 WARNING(s) (all the known flip one), 0 flip event timeout(s))
+
+DISPLAY-GATE: PASS (rig connector edid modeset compositor capture swapchain present rt events kernel)

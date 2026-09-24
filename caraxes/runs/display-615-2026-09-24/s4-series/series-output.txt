@@ -1,0 +1,50 @@
+== s4-series up at 2026-09-24 23:59:06
+device pid 1268521
+probe d615-s4-series: 93622 device accesses, guest log in /mnt/vmstore/caraxes/vm0-615/probe-d615-s4-series/guest-dmesg.txt
+[  130.207645] NVRM: GPU 0000:00:05.0: RmInitAdapter
+[  133.181006] NVRM: GPU 0000:00:05.0: RmInitAdapter succeeded!
+modprobe rc=0
+s4-series/display-up: rc=0, trace 17542 lines, host Xid lines 0
+card0-DP-1 connected 1920x1080 1920x1080 1920x1080 1280x720 1280x720 640x480 
+PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
+# CARAXES display-e: EGL/GBM on the NVIDIA driver (host execution on)
+lrwxrwxrwx 1 root root 41 Sep 24 22:01 /usr/lib/x86_64-linux-gnu/gbm/nvidia-drm_gbm.so -> /opt/nvrm-gl/lib/libnvidia-allocator.so.1
+nvidia_uvm           2068480  0
+nvidia_drm            151552  0
+nvidia_modeset       1556480  1 nvidia_drm
+video                  77824  1 nvidia_modeset
+nvidia              16875520  2 nvidia_uvm,nvidia_modeset
+ecc                    45056  1 nvidia
+s4-series/gnome-start-1: rc=0, trace 181388 lines, host Xid lines 0
+Type=wayland
+gnome-shell pid 2115; eglcore 6
+s4-series/gnome-start-2: rc=0, trace 222403 lines, host Xid lines 0
+Type=wayland
+gnome-shell pid 3396; eglcore 6
+s4-series/gnome-start-3: rc=0, trace 223099 lines, host Xid lines 0
+Type=wayland
+gnome-shell pid 4553; eglcore 6
+s4-series/traps-mutter: rc=0, trace 149041 lines, host Xid lines 0
+s4-series/traps-weston: rc=0, trace 107207 lines, host Xid lines 0
+FRAMES callbacks intervals=808 mean_ms=17.060 rate_hz=58.62 min_ms=3.481 max_ms=187.919 sd_ms=7.695
+PRESENTED feedback intervals=807 mean_ms=17.059 rate_hz=58.62 min_ms=12.431 max_ms=176.036 sd_ms=6.353
+window 10 s [422633625, 432633625) us; presented frames (latches with a surface): window 6: 594; per-frame base: window 6 = 594 (59.40 Hz)
+all trapped accesses                                              82516     138.92
+FRAMES callbacks intervals=832 mean_ms=16.726 rate_hz=59.79 min_ms=9.189 max_ms=51.346 sd_ms=1.978
+PRESENTED feedback intervals=832 mean_ms=16.726 rate_hz=59.79 min_ms=10.861 max_ms=49.968 sd_ms=1.362
+window 10 s [447668896, 457668896) us; presented frames (latches with a surface): window 6: 600; per-frame base: window 6 = 600 (60.00 Hz)
+all trapped accesses                                              17547      29.25
+s4-series/q1-unplug-plug: rc=0, trace 12100 lines, host Xid lines 0
+== /home/silas/git/Caraxes/.claude/worktrees/agent-ae3c158a1a2db0810/caraxes/runs/display-615-2026-09-24/s4-series/q1-unplug-plug/device-trace.txt.xz: 181 control answers, 2 distinct D ids, 0 unanswered answers (0 ids)
+D 0x00730282 NV0073_CTRL_CMD_SPECIFIC_HDCP_CTRL                      x1   plan MODEL:display-connector      -> status 0x0 [synthesized (connector without HDCP: not capable, not authenticated)]
+D 0x00731391 NV0073_CTRL_CMD_DP_SET_WAR_FLAGS                        x2   plan ACK                          -> status 0x0 [synthesized (acknowledged, no effect)]
+watch: none of 0x2080110b FIFO_DISABLE_CHANNELS, 0x20800177 GPU_REPORT_NON_REPLAYABLE_FAULT
+"result":"pass"
+"detail":"card0 1920x1080@60 on the device's DP monitor: EDID identical, modeset+30 flips, Weston frame callbacks 59.83 Hz, KMS capture and Sunshine capture=kms; Vulkan swapchain, 55.7 FPS presented, RT device, fence median 0.14 ms; details in .claude/worktrees/agent-ae3c158a1a2db0810/caraxes/runs/display-615-2026-09-24/s4-series/gate-display-2026-09-25/"
+== /home/silas/git/Caraxes/.claude/worktrees/agent-ae3c158a1a2db0810/caraxes/runs/display-615-2026-09-24/s4-series/gate-trace.txt.xz: 3138 control answers, 2 distinct D ids, 813 unanswered answers (2 ids)
+D 0x00731391 NV0073_CTRL_CMD_DP_SET_WAR_FLAGS                        x7   plan ACK                          -> status 0x0 [synthesized (acknowledged, no effect)]
+D 0x90960101 NV9096_CTRL_CMD_SET_ZBC_COLOR_CLEAR                     x3   plan MODEL:zbc-table              -> status 0x56 [unanswered]
+unanswered 0x90960101 x3 (D)
+unanswered 0x90960107 x810
+watch: none of 0x2080110b FIFO_DISABLE_CHANNELS, 0x20800177 GPU_REPORT_NON_REPLAYABLE_FAULT
+s4-series: host Xid lines 0; vm0 processes after down: 0

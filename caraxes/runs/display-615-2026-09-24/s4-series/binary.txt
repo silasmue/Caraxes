@@ -1,0 +1,2 @@
+b1ab7f49efde68abe8b0084e5624fa7934f6d3fb48d2fcb585890e6013517c4c  /home/silas/git/Caraxes/.claude/worktrees/agent-ae3c158a1a2db0810/target/disp615/release/vfio-user-nvgpu
+11dabe5 display, ver/v615: the 615 display vocabulary, GET_ACTIVE and DP_SET_WAR_FLAGS

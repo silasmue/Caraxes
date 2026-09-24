@@ -1,0 +1,4 @@
+== /home/silas/git/Caraxes/.claude/worktrees/agent-ae3c158a1a2db0810/caraxes/runs/display-615-2026-09-24/s4-series/q1-unplug-plug/device-trace.txt.xz: 181 control answers, 2 distinct D ids, 0 unanswered answers (0 ids)
+D 0x00730282 NV0073_CTRL_CMD_SPECIFIC_HDCP_CTRL                      x1   plan MODEL:display-connector      -> status 0x0 [synthesized (connector without HDCP: not capable, not authenticated)]
+D 0x00731391 NV0073_CTRL_CMD_DP_SET_WAR_FLAGS                        x2   plan ACK                          -> status 0x0 [synthesized (acknowledged, no effect)]
+watch: none of 0x2080110b FIFO_DISABLE_CHANNELS, 0x20800177 GPU_REPORT_NON_REPLAYABLE_FAULT
