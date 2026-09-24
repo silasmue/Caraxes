@@ -79,6 +79,9 @@ pub struct Device {
     /// Doorbell ioeventfd: wakeups of the reader thread and guest writes they counted.
     doorbell_wakeups: u64,
     doorbell_writes: u64,
+    /// MSI re-arm ioeventfd (`CARAXES_MSI_REARM_IOEVENTFD=1`): wakeups and guest writes.
+    rearm_wakeups: u64,
+    rearm_writes: u64,
 }
 
 /// The switch for the doorbell ioeventfd.
@@ -87,6 +90,26 @@ pub const DOORBELL_IOEVENTFD_ENV: &str = "CARAXES_DOORBELL_IOEVENTFD";
 /// Whether `CARAXES_DOORBELL_IOEVENTFD=1` is set.
 pub fn doorbell_ioeventfd_requested() -> bool {
     std::env::var(DOORBELL_IOEVENTFD_ENV).is_ok_and(|v| v.trim() == "1")
+}
+
+/// The switch for the MSI re-arm ioeventfd (docs/caraxes/intr-page.md §4).
+pub const MSI_REARM_IOEVENTFD_ENV: &str = "CARAXES_MSI_REARM_IOEVENTFD";
+
+/// `NV_XVE_CYA_2` inside the `NV_PCFG` config-space mirror: the RM's MSI re-arm, written
+/// once per interrupt service with the value ignored (docs/caraxes/kernel-rm-hw-surface.md:119,
+/// `kernel_bif_gm107.c:136-151`).
+pub const NV_XVE_CYA_2: u64 = 0x704;
+
+/// Whether `CARAXES_MSI_REARM_IOEVENTFD=1` is set.
+pub fn msi_rearm_ioeventfd_requested() -> bool {
+    std::env::var(MSI_REARM_IOEVENTFD_ENV).is_ok_and(|v| v.trim() == "1")
+}
+
+/// The MSI re-arm sub-region at BAR0 `offset` (the `NV_PCFG` base plus [`NV_XVE_CYA_2`]):
+/// 4 bytes, no datamatch (the value is ignored), and the eventfd's reading end. The shape
+/// is the token-less doorbell's ([`doorbell_sub_region`]).
+pub fn msi_rearm_sub_region(offset: u64) -> std::io::Result<(IoEventFdSubRegion, File)> {
+    doorbell_sub_region(offset)
 }
 
 /// The doorbell sub-region to offer on BAR0 and the eventfd's reading end. `offset` is
@@ -144,24 +167,45 @@ pub fn spawn_token_reader(
     readers: Vec<File>,
     reactor: crate::poll::Reactor,
 ) -> std::io::Result<Arc<crate::poll::ReaderStats>> {
-    spawn_token_reader_hooked(device, doorbell, readers, reactor, None)
+    spawn_token_reader_hooked(device, doorbell, readers, reactor, None, None)
 }
 
 /// As [`spawn_token_reader`], with a hook the reactor runs on every iteration (the
-/// interrupt page, intr_page.rs).
+/// interrupt page, intr_page.rs). `rearm`: the MSI re-arm eventfd as one more reader after
+/// the tokens' (`CARAXES_MSI_REARM_IOEVENTFD=1`), `(BAR0 offset, eventfd)`; its wakeups go
+/// to [`Device::msi_rearm_ioeventfd`], never to a token.
 pub fn spawn_token_reader_hooked(
     device: Arc<Mutex<Device>>,
     doorbell: u64,
-    readers: Vec<File>,
+    mut readers: Vec<File>,
     reactor: crate::poll::Reactor,
     hook: Option<Box<dyn crate::poll::Hook>>,
+    rearm: Option<(u64, File)>,
 ) -> std::io::Result<Arc<crate::poll::ReaderStats>> {
+    let tokens = readers.len();
+    let rearm_at = rearm.map(|(offset, fd)| {
+        readers.push(fd);
+        offset
+    });
     reactor.spawn_hooked(
         readers,
         move |rings, seen, st| {
             let mut d = lock(&device);
             st.lock_wait.record(seen.elapsed());
-            d.doorbell_tokens(doorbell, rings, &mut |host| st.ring(seen, host));
+            match rearm_at {
+                None => d.doorbell_tokens(doorbell, rings, &mut |host| st.ring(seen, host)),
+                Some(offset) => {
+                    for r in rings {
+                        if r.0 < tokens {
+                            d.doorbell_tokens(doorbell, std::slice::from_ref(r), &mut |host| {
+                                st.ring(seen, host)
+                            });
+                        } else {
+                            d.msi_rearm_ioeventfd(offset, r.1);
+                        }
+                    }
+                }
+            }
         },
         hook,
     )
@@ -451,7 +495,27 @@ impl Device {
             intr: None,
             doorbell_wakeups: 0,
             doorbell_writes: 0,
+            rearm_wakeups: 0,
+            rearm_writes: 0,
         }
+    }
+
+    /// Guest writes to the MSI re-arm register (`NV_XVE_CYA_2`, BAR0 `offset`) that arrived
+    /// through its ioeventfd (`CARAXES_MSI_REARM_IOEVENTFD=1`, intr-page.md §4): `writes` of
+    /// them since the last wakeup. The value is ignored, so this does exactly what one
+    /// trapped write does (`region_write` on BAR0): the config mirror write
+    /// (no writable bit at `NV_XVE_CYA_2`, as for the trapped one) and the steps after
+    /// every trapped BAR0 write (`after_bar0_write`: the P21 check, the BAR1
+    /// pool's poll, a pending MSI of the model, the MSI enable). Several writes between two
+    /// wakeups are one re-arm: each would repeat the same idempotent steps.
+    pub fn msi_rearm_ioeventfd(&mut self, offset: u64, writes: u64) {
+        self.rearm_wakeups += 1;
+        self.rearm_writes += writes;
+        let effect = self.bar0.write(&mut self.cfg, &self.mem, offset, &0u32.to_le_bytes());
+        self.trace.event(&format!(
+            "msi re-arm (eventfd): {writes} guest write(s) to BAR0 {offset:#x} (NV_XVE_CYA_2) signalled ({effect:?})"
+        ));
+        self.after_bar0_write();
     }
 
     /// Guest writes to the doorbell register that arrived through the ioeventfd:
@@ -749,6 +813,12 @@ impl Device {
                 self.doorbell_writes, self.doorbell_wakeups
             ));
         }
+        if self.rearm_wakeups > 0 {
+            s.push_str(&format!(
+                "msi re-arm ioeventfd: {} guest write(s) in {} wakeup(s)\n",
+                self.rearm_writes, self.rearm_wakeups
+            ));
+        }
         let (n, first) = self.mem.misses();
         if self.mem.table().is_some() || n > 0 {
             s.push_str(&format!(
@@ -910,29 +980,10 @@ impl ServerBackend for Device {
         };
         self.trace.access(Dir::Write, region, offset, data, note);
         if region == VFIO_PCI_BAR0_REGION_INDEX {
-            // P21: the guest flushes and invalidates through BAR0 after changing a BAR1
-            // mapping and before it uses the mapping.
-            if let Some(b) = self.bar0.boot() {
-                b.fb.poll_bar1_passthrough();
-            }
-            // P21 design H: the same point moves pages into and out of the BAR1 pool.
-            if let Some(b) = self.bar0.boot_mut() {
-                crate::bar1pool::poll_model(b, &self.mem);
-            }
+            self.after_bar0_write();
+        } else {
+            self.after_write();
         }
-        for n in self.bar0.take_notes() {
-            self.trace.event(&format!("boot: {n}"));
-        }
-        if self.cfg.take_flr() {
-            self.trace
-                .event("flr: function-level reset, device model back to its initial state");
-            self.bar0.reset();
-            self.load_guest_aliases();
-        }
-        if self.bar0.boot_mut().is_some_and(|b| b.take_msi()) {
-            self.raise_msi();
-        }
-        self.sync_msi_enabled();
         Ok(())
     }
 
@@ -1019,9 +1070,123 @@ impl ServerBackend for Device {
     }
 }
 
+impl Device {
+    /// The steps after every trapped BAR0 write (and after an MSI re-arm that came through
+    /// its ioeventfd, [`Device::msi_rearm_ioeventfd`]), then `after_write`.
+    fn after_bar0_write(&mut self) {
+        // P21: the guest flushes and invalidates through BAR0 after changing a BAR1
+        // mapping and before it uses the mapping.
+        if let Some(b) = self.bar0.boot() {
+            b.fb.poll_bar1_passthrough();
+        }
+        // P21 design H: the same point moves pages into and out of the BAR1 pool.
+        if let Some(b) = self.bar0.boot_mut() {
+            crate::bar1pool::poll_model(b, &self.mem);
+        }
+        self.after_write();
+    }
+
+    /// The steps after every trapped write of BAR0 or config space: the model's notes, a
+    /// function-level reset, a pending MSI, the MSI enable.
+    fn after_write(&mut self) {
+        for n in self.bar0.take_notes() {
+            self.trace.event(&format!("boot: {n}"));
+        }
+        if self.cfg.take_flr() {
+            self.trace
+                .event("flr: function-level reset, device model back to its initial state");
+            self.bar0.reset();
+            self.load_guest_aliases();
+        }
+        if self.bar0.boot_mut().is_some_and(|b| b.take_msi()) {
+            self.raise_msi();
+        }
+        self.sync_msi_enabled();
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn rtx2070_device() -> Device {
+        let dump = include_str!("../../../caraxes/reference/rtx2070/config-space.txt");
+        let board = crate::board::Board::load("rtx2070").unwrap();
+        let chip = crate::chip::by_name(&board.chip).unwrap();
+        let cfg = ConfigSpace::from_dump(
+            crate::config::parse_dump(dump).unwrap(),
+            board.bars,
+            board.rom_bar_size,
+        )
+        .unwrap();
+        let mut rom = vec![0x55u8, 0xAA, 0x76];
+        rom.resize(512, 0);
+        Device::new(cfg, Bar0::new(chip, rom, None), Trace::new(None).unwrap())
+    }
+
+    /// The MSI re-arm ioeventfd (intr-page.md §4): 4 bytes at `NV_PCFG` + `NV_XVE_CYA_2`
+    /// without datamatch, accepted by the server beside the token pool's sub-regions; the
+    /// token reactor hands its wakeups to `msi_rearm_ioeventfd` and never to a token, and a
+    /// re-arm through it leaves config space as the trapped write does.
+    #[test]
+    fn the_msi_rearm_ioeventfd_is_read_by_the_token_reactor() {
+        use std::io::Write;
+        let board = crate::board::Board::load("rtx2070").unwrap();
+        let chip = crate::chip::by_name(&board.chip).unwrap();
+        let at = chip.data().bar0.pcfg + NV_XVE_CYA_2;
+        assert_eq!(at, 0x88704);
+        let (rearm, rearm_reader) = msi_rearm_sub_region(at).unwrap();
+        assert_eq!((rearm.offset, rearm.size, rearm.flags, rearm.datamatch), (at, 4, 0, 0));
+        let rearm_writer = File::from(rearm.fd.try_clone().unwrap());
+        let subs = doorbell_token_sub_regions(0xbb_0090, 2).unwrap();
+        let path = std::env::temp_dir().join(format!("nvgpu-rearm-{}.sock", std::process::id()));
+        let _ = std::fs::remove_file(&path);
+        let mut server = vfio_user::Server::new(&path, false, irqs(), regions(&board)).unwrap();
+        let mut token_writers = Vec::new();
+        let mut token_readers = Vec::new();
+        for (s, r) in subs {
+            token_writers.push(File::from(s.fd.try_clone().unwrap()));
+            token_readers.push(r);
+            server.add_ioeventfd(VFIO_PCI_BAR0_REGION_INDEX, s).unwrap();
+        }
+        server.add_ioeventfd(VFIO_PCI_BAR0_REGION_INDEX, rearm).unwrap();
+        drop(server);
+        let _ = std::fs::remove_file(&path);
+
+        // A trapped re-arm and one through the eventfd leave the same config space.
+        let mut trapped = rtx2070_device();
+        let before: Vec<u32> = (0..0x1000).step_by(4).map(|o| trapped.cfg.dword(o)).collect();
+        trapped.region_write(VFIO_PCI_BAR0_REGION_INDEX, at, &[0; 4]).unwrap();
+        let after: Vec<u32> = (0..0x1000).step_by(4).map(|o| trapped.cfg.dword(o)).collect();
+        assert_eq!(before, after);
+
+        // Written before the reactor starts, so both re-arms are one wakeup.
+        (&rearm_writer).write_all(&1u64.to_ne_bytes()).unwrap();
+        (&rearm_writer).write_all(&1u64.to_ne_bytes()).unwrap();
+        (&token_writers[1]).write_all(&1u64.to_ne_bytes()).unwrap();
+        let device = Arc::new(Mutex::new(rtx2070_device()));
+        let reactor = crate::poll::Reactor::new("test", crate::poll::Config::default(), None).unwrap();
+        let stats = spawn_token_reader_hooked(
+            device.clone(),
+            0xbb_0090,
+            token_readers,
+            reactor,
+            None,
+            Some((at, rearm_reader)),
+        )
+        .unwrap();
+        let t0 = std::time::Instant::now();
+        while stats.events.load(std::sync::atomic::Ordering::Relaxed) < 2 {
+            assert!(t0.elapsed() < std::time::Duration::from_secs(5), "reactor did not read");
+            std::thread::sleep(std::time::Duration::from_millis(1));
+        }
+        stats.stop.store(true, std::sync::atomic::Ordering::Relaxed);
+        let d = lock(&device);
+        assert_eq!((d.rearm_wakeups, d.rearm_writes), (1, 2));
+        let cfg: Vec<u32> = (0..0x1000).step_by(4).map(|o| d.cfg.dword(o)).collect();
+        assert_eq!(cfg, before);
+        assert!(d.summary().contains("msi re-arm ioeventfd: 2 guest write(s) in 1 wakeup(s)"));
+    }
 
     /// The pool's sub-regions: one per token at the doorbell, size 4, DATAMATCH with the
     /// token, each with its own eventfd; the vendored server accepts all of them (no two

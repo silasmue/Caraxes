@@ -22,8 +22,10 @@ use vfio_user_nvgpu::config::{self as pci_config, ConfigSpace};
 use vfio_bindings::bindings::vfio::VFIO_PCI_BAR0_REGION_INDEX;
 use vfio_user_nvgpu::device::{
     doorbell_ioeventfd_requested, doorbell_sub_region, doorbell_token_sub_regions, irqs,
-    region_size, regions_with_pages, spawn_doorbell_reader_hooked, spawn_token_reader_hooked,
-    Bar0Areas, Bar1Area, Bar2Region, Device, GuestRam, SharedDevice, DOORBELL_IOEVENTFD_ENV,
+    msi_rearm_ioeventfd_requested, msi_rearm_sub_region, region_size, regions_with_pages,
+    spawn_doorbell_reader_hooked, spawn_token_reader_hooked, Bar0Areas, Bar1Area, Bar2Region,
+    Device, GuestRam, SharedDevice, DOORBELL_IOEVENTFD_ENV, MSI_REARM_IOEVENTFD_ENV,
+    NV_XVE_CYA_2,
 };
 use vfio_user_nvgpu::display::fe_page::{self, FePage};
 use vfio_user_nvgpu::fb::FbLayout;
@@ -108,6 +110,11 @@ Environment: CARAXES_DOORBELL_IOEVENTFD=1 offers the usermode doorbell register 
   notifier entry, every later ring ends in the token's eventfd (needs patch 0005 and a
   client announcing max_msg_fds; docs/caraxes/doorbell-token-pool.md). Excludes
   CARAXES_DOORBELL_IOEVENTFD=1; combines with CARAXES_BAR1_PASSTHROUGH=1.
+  CARAXES_MSI_REARM_IOEVENTFD=1 offers the MSI re-arm register (NV_XVE_CYA_2 in the NV_PCFG
+  mirror, BAR0 0x88704 on Turing, value ignored) as one more ioeventfd sub-region, no
+  datamatch, read by the token pool's reactor, which does what the trapped write does
+  (docs/caraxes/intr-page.md §4); needs CARAXES_DOORBELL_TOKENS=N. A client that does not
+  register it keeps trapping the write.
   CARAXES_DOORBELL_POLL=off|spin|hybrid chooses how the thread that reads those eventfds
   waits: off blocks in epoll_wait (default), spin polls with epoll_wait timeout 0 and
   never sleeps, hybrid spins CARAXES_DOORBELL_POLL_IDLE_US (default 200) after the last
@@ -349,6 +356,15 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
         // next to datamatch entries at the same address and length (EEXIST;
         // caraxes/runs/doorbell-tokens-2026-09-24/kvm-ioeventfd-probe.txt, cases b, c).
         bail!("{DOORBELL_IOEVENTFD_ENV}=1 and {}=N exclude each other: choose the token-less ioeventfd or the token pool", tokens::TOKENS_ENV);
+    }
+    // The MSI re-arm write as an ioeventfd, read by the token pool's reactor
+    // (docs/caraxes/intr-page.md §4).
+    let msi_rearm = msi_rearm_ioeventfd_requested();
+    if msi_rearm && doorbell_tokens.is_none() {
+        bail!(
+            "{MSI_REARM_IOEVENTFD_ENV}=1 needs the token pool's reactor to read its eventfd: {}=N",
+            tokens::TOKENS_ENV
+        );
     }
     // How the doorbell eventfds are read (docs/caraxes/doorbell-poll.md).
     let poll = vfio_user_nvgpu::poll::requested().map_err(anyhow::Error::msg)?;
@@ -810,6 +826,27 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
         }
         None => None,
     };
+    let rearm = if msi_rearm {
+        let b = &chip.data().bar0;
+        if b.pcfg_size < NV_XVE_CYA_2 + 4 {
+            bail!(
+                "{MSI_REARM_IOEVENTFD_ENV}=1: this chip's NV_PCFG mirror ({:#x} bytes at {:#x}) has no NV_XVE_CYA_2",
+                b.pcfg_size,
+                b.pcfg
+            );
+        }
+        let offset = b.pcfg + NV_XVE_CYA_2;
+        let (sub_region, reader) = msi_rearm_sub_region(offset).context("MSI re-arm eventfd")?;
+        server
+            .add_ioeventfd(VFIO_PCI_BAR0_REGION_INDEX, sub_region)
+            .map_err(|e| anyhow::anyhow!("MSI re-arm sub-region: {e}"))?;
+        eprintln!(
+            "vfio-user-nvgpu: msi re-arm ioeventfd: BAR0 {offset:#x} (NV_XVE_CYA_2), 4 bytes, no datamatch, offered through VFIO_USER_DEVICE_GET_REGION_IO_FDS and read by the token pool's reactor; a client that does not register it keeps trapping the write ({MSI_REARM_IOEVENTFD_ENV}=1, docs/caraxes/intr-page.md §4)"
+        );
+        Some((offset, reader))
+    } else {
+        None
+    };
     eprintln!(
         "vfio-user-nvgpu: guest ABI {} ({:?})",
         a.guest_abi,
@@ -864,6 +901,7 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
                 token_eventfds,
                 token_reactor,
                 page_hook.take(),
+                rearm,
             )
             .context("doorbell token reader")?,
         ));
