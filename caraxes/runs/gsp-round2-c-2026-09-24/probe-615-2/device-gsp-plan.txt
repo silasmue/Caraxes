@@ -1,0 +1,43 @@
+   143498625 E boot: registry RmLogonRC = 1: honoured, an RC carries the Xid line (OS_ERROR_LOG)
+   144837090 E boot: rx seq 125 ALLOC_MEMORY (4) sequence 90 length 96 checksum ok: 64 bytes: 0700e0c10000f0ca0200f0ca810000000000004c000000000600000000000000
+   144837093 E boot: tx seq 90 reply ALLOC_MEMORY sequence 90 result 0x0 length 88
+   144837314 E boot: rx seq 126 ALLOC_MEMORY (4) sequence 91 length 96 checksum ok: 64 bytes: 0700e0c10000f0ca0300f0ca810000000000004c000000000600000000000000
+   144837316 E boot: tx seq 91 reply ALLOC_MEMORY sequence 91 result 0x0 length 88
+   144837620 E boot: rx seq 127 ALLOC_MEMORY (4) sequence 92 length 96 checksum ok: 64 bytes: 0700e0c10000f0ca0400f0ca810000000000004c000000000600000000000000
+   144837622 E boot: tx seq 92 reply ALLOC_MEMORY sequence 92 result 0x0 length 88
+   144837804 E boot: alloc: event buffer 0xc1e00007/0xcaf00006 under 0xc1e00007: 256 records of 104 bytes, vardata 0x10000, memories 0xcaf00002/0xcaf00003/0xcaf00004; the device is the producer of the operational events it raises [guest, recorded] -> status 0x0 [guest (GSP-side event buffer, gspmem.rs)]
+   144839210 E boot: ctrl 0x90cd0101: event buffer 0xc1e00007/0xcaf00006 control 0x90cd0101: enable events true policy 1 [guest] -> status 0x0 [guest (GSP-side event buffer, gspmem.rs)]
+   144839348 E boot: alloc: operational event bind 0xc1e00007/0xcaf00005: event buffer 0xcaf00006 format 1 scope device, bindId 1; the device's own operational events go there [guest, recorded] -> status 0x0 [guest (GSP-side event buffer, gspmem.rs)]
+   144839442 E boot: goe record CARAXES-TEST code 1 for bind 0xc1e00007/0xcaf00005: slot 0 cursor 1, vardata [0x0, 0x60), recordPut 1, POST_EVENT [guest memory]
+   144839443 E boot: tx seq 96 event POST_EVENT (32 bytes) [unsolicited]
+   144841413 E boot: ctrl 0x90cd0102: event buffer 0xc1e00007/0xcaf00006 control 0x90cd0102: update get 1/96 (put 1/96, 1 record(s) written) [guest] -> status 0x0 [guest (GSP-side event buffer, gspmem.rs)]
+   149945562 E boot: goe record CARAXES-TEST code 1 for bind 0xc1e00007/0xcaf00005: slot 1 cursor 2, vardata [0x60, 0xc0), recordPut 2, POST_EVENT [guest memory]
+   149945563 E boot: tx seq 150 event POST_EVENT (32 bytes) [unsolicited]
+   149949365 E boot: ctrl 0x90cd0102: event buffer 0xc1e00007/0xcaf00006 control 0x90cd0102: update get 2/192 (put 2/192, 2 record(s) written) [guest] -> status 0x0 [guest (GSP-side event buffer, gspmem.rs)]
+   155065548 E boot: goe record CARAXES-TEST code 1 for bind 0xc1e00007/0xcaf00005: slot 2 cursor 3, vardata [0xc0, 0x120), recordPut 3, POST_EVENT [guest memory]
+   155065550 E boot: tx seq 158 event POST_EVENT (32 bytes) [unsolicited]
+   155067477 E boot: ctrl 0x90cd0102: event buffer 0xc1e00007/0xcaf00006 control 0x90cd0102: update get 3/288 (put 3/288, 3 record(s) written) [guest] -> status 0x0 [guest (GSP-side event buffer, gspmem.rs)]
+   160185624 E boot: goe record CARAXES-TEST code 1 for bind 0xc1e00007/0xcaf00005: slot 3 cursor 4, vardata [0x120, 0x180), recordPut 4, POST_EVENT [guest memory]
+   160185626 E boot: tx seq 169 event POST_EVENT (32 bytes) [unsolicited]
+   160187693 E boot: ctrl 0x90cd0102: event buffer 0xc1e00007/0xcaf00006 control 0x90cd0102: update get 4/384 (put 4/384, 4 record(s) written) [guest] -> status 0x0 [guest (GSP-side event buffer, gspmem.rs)]
+   165305778 E boot: goe record CARAXES-TEST code 1 for bind 0xc1e00007/0xcaf00005: slot 4 cursor 5, vardata [0x180, 0x1e0), recordPut 5, POST_EVENT [guest memory]
+   165305779 E boot: tx seq 180 event POST_EVENT (32 bytes) [unsolicited]
+   165308225 E boot: ctrl 0x90cd0102: event buffer 0xc1e00007/0xcaf00006 control 0x90cd0102: update get 5/480 (put 5/480, 5 record(s) written) [guest] -> status 0x0 [guest (GSP-side event buffer, gspmem.rs)]
+   170425703 E boot: goe record CARAXES-TEST code 1 for bind 0xc1e00007/0xcaf00005: slot 5 cursor 6, vardata [0x1e0, 0x240), recordPut 6, POST_EVENT [guest memory]
+   170425706 E boot: tx seq 191 event POST_EVENT (32 bytes) [unsolicited]
+   170427698 E boot: ctrl 0x90cd0102: event buffer 0xc1e00007/0xcaf00006 control 0x90cd0102: update get 6/576 (put 6/576, 6 record(s) written) [guest] -> status 0x0 [guest (GSP-side event buffer, gspmem.rs)]
+   175545727 E boot: goe record CARAXES-TEST code 1 for bind 0xc1e00007/0xcaf00005: slot 6 cursor 7, vardata [0x240, 0x2a0), recordPut 7, POST_EVENT [guest memory]
+   175545729 E boot: tx seq 202 event POST_EVENT (32 bytes) [unsolicited]
+   175548147 E boot: ctrl 0x90cd0102: event buffer 0xc1e00007/0xcaf00006 control 0x90cd0102: update get 7/672 (put 7/672, 7 record(s) written) [guest] -> status 0x0 [guest (GSP-side event buffer, gspmem.rs)]
+   180666091 E boot: goe record CARAXES-TEST code 1 for bind 0xc1e00007/0xcaf00005: slot 7 cursor 8, vardata [0x2a0, 0x300), recordPut 8, POST_EVENT [guest memory]
+   180666093 E boot: tx seq 213 event POST_EVENT (32 bytes) [unsolicited]
+   180672572 E boot: ctrl 0x90cd0102: event buffer 0xc1e00007/0xcaf00006 control 0x90cd0102: update get 8/768 (put 8/768, 8 record(s) written) [guest] -> status 0x0 [guest (GSP-side event buffer, gspmem.rs)]
+   185786169 E boot: goe record CARAXES-TEST code 1 for bind 0xc1e00007/0xcaf00005: slot 8 cursor 9, vardata [0x300, 0x360), recordPut 9, POST_EVENT [guest memory]
+   185786183 E boot: tx seq 224 event POST_EVENT (32 bytes) [unsolicited]
+   185791181 E boot: ctrl 0x90cd0102: event buffer 0xc1e00007/0xcaf00006 control 0x90cd0102: update get 9/864 (put 9/864, 9 record(s) written) [guest] -> status 0x0 [guest (GSP-side event buffer, gspmem.rs)]
+   190905826 E boot: goe record CARAXES-TEST code 1 for bind 0xc1e00007/0xcaf00005: slot 9 cursor 10, vardata [0x360, 0x3c0), recordPut 10, POST_EVENT [guest memory]
+   190905828 E boot: tx seq 235 event POST_EVENT (32 bytes) [unsolicited]
+   190914490 E boot: ctrl 0x90cd0102: event buffer 0xc1e00007/0xcaf00006 control 0x90cd0102: update get 10/960 (put 10/960, 10 record(s) written) [guest] -> status 0x0 [guest (GSP-side event buffer, gspmem.rs)]
+   196025863 E boot: goe record CARAXES-TEST code 1 for bind 0xc1e00007/0xcaf00005: slot 10 cursor 11, vardata [0x3c0, 0x420), recordPut 11, POST_EVENT [guest memory]
+   196025864 E boot: tx seq 246 event POST_EVENT (32 bytes) [unsolicited]
+   196028840 E boot: ctrl 0x90cd0102: event buffer 0xc1e00007/0xcaf00006 control 0x90cd0102: update get 11/1056 (put 11/1056, 11 record(s) written) [guest] -> status 0x0 [guest (GSP-side event buffer, gspmem.rs)]

@@ -130,6 +130,9 @@ pub struct Dispatcher {
     pub guest_attrs: crate::public::GuestAttrs,
     /// The category D models of this VM (dmodel.rs, rc.rs, zbc.rs; gsp-plan/d-device-model.md).
     pub dstate: crate::dmodel::DState,
+    /// The emulated PCIe Link Control register as the guest last left it (device.rs sets
+    /// it after every config-space write): `NV208F BIF_INFO` answers from it (public.rs).
+    pub link_control: u16,
 }
 
 /// Controls on a guest channel or TSG that a host mirror can take (mirror.rs
@@ -181,6 +184,7 @@ impl Dispatcher {
             reservation: None,
             guest_attrs: Default::default(),
             dstate: crate::dmodel::DState::new(chip),
+            link_control: 0,
         }
     }
 
@@ -951,6 +955,8 @@ impl Dispatcher {
                 .as_mut()
                 .map(|f| f as &mut dyn crate::public::MirrorObjects),
             attrs: &mut self.guest_attrs,
+            reg: Some(&self.channels),
+            link_control: self.link_control,
         };
         if let Some(a) = crate::public::answer(&mut pctx, cmd, params) {
             return a;

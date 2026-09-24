@@ -1631,6 +1631,16 @@ as it is (the guard test covers FORWARD, LEGACY, BINAPI and MIRROR_FORWARDED).
 | 0x20800AC3 | `NV2080_CTRL_CMD_INTERNAL_FIFO_TOGGLE_ACTIVE_CHANNEL_SCHEDULING` | MODEL:channel-registry | the suspend path over the guest channel set |
 | 0x2080122C | `NV2080_CTRL_CMD_GR_SET_TPC_PARTITION_MODE` | REFUSE | targets a guest TSG |
 
+**Status (2026-09-25, GSP plan round 2).** All 17 are rows of the C table (`PUBLIC_C`,
+`src/ver/v610/public.rs`, answered by `src/public.rs` ahead of this table): 9 done, 8 partial,
+per row in [c-guest-state.md](c-guest-state.md) §8 "Round 2". None reaches a host object other
+than the guest channel's own mirror; the rule table still lists them with reclass C and
+`dmodel::tests` checks that each is answered by the C table. Partial: the three scheduling
+switches (the software executor does not consult the device's flags), `PREEMPTION_BIND`
+(recorded, not forwarded until the D17 VA check exists), the two DP readbacks (the display
+model keeps no SDP or MSA capture), the watchdog timeout and the non-replayable fault report
+(journal only).
+
 ### Measurements Q1 and Q3 (guest runs, vm0, 2026-09-24)
 
 `caraxes/runs/gsp-d-2026-09-24/` (series.sh, env.sh: the display page series' environment at

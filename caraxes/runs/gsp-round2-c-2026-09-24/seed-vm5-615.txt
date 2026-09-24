@@ -1,0 +1,11 @@
+mkfs.fat: Warning: lowercase labels might not work properly on some systems
+ Volume in drive : is cidata     
+ Volume Serial Number is 3C26-5FC2
+Directory for ::/
+
+USER-D~1           833 2026-09-24  23:18  user-data
+META-D~1            68 2026-09-24  23:18  meta-data
+NETWOR~1            25 2026-09-24  23:18  network-config
+        3 files                 926 bytes
+                          1 455 616 bytes free
+

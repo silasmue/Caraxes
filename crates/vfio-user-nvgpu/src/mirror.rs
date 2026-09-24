@@ -84,6 +84,27 @@ const CMD_GET_WORK_SUBMIT_TOKEN: u32 = 0xC36F_0108;
 /// `NV0080_CTRL_CMD_DMA_INVALIDATE_TLB` (ctrl0080dma.h:484), NON_PRIVILEGED (0x10008):
 /// `{hVASpace, flags}`.
 const CMD_DMA_INVALIDATE_TLB: u32 = 0x0080_180C;
+/// `NV0080_CTRL_CMD_FIFO_IDLE_CHANNELS` and `NV0080_CTRL_FIFO_IDLE_CHANNELS_PARAMS`
+/// {numChannels @0, hChannels[4096] @4, flags @16388, timeout @16392}, 16396 bytes
+/// (ctrl0080fifo.h:391-401, the same in 610 and 615).
+pub const CMD_FIFO_IDLE_CHANNELS: u32 = 0x0080_1714;
+pub const IDLE_PARAMS_SIZE: usize = 16396;
+pub const IDLE_MAX_CHANNELS: usize = 4096;
+pub const IDLE_PARAMS_FLAGS: usize = 4 + 4 * IDLE_MAX_CHANNELS;
+pub const IDLE_PARAMS_TIMEOUT: usize = IDLE_PARAMS_FLAGS + 4;
+/// `NV2080_CTRL_CMD_FIFO_DISABLE_CHANNELS` and its params {bDisable @0, numChannels @4,
+/// bOnlyDisableScheduling @8, bRewindGpPut @9, pRunlistPreemptEvent @16,
+/// hClientList[64] @24, hChannelList[64] @280}, 536 bytes (ctrl2080fifo.h:235-251).
+pub const CMD_FIFO_DISABLE_CHANNELS: u32 = 0x2080_110B;
+pub const DISABLE_PARAMS_SIZE: usize = 536;
+pub const DISABLE_MAX_ENTRIES: usize = 64;
+pub const DISABLE_CLIENT_LIST: usize = 24;
+pub const DISABLE_CHANNEL_LIST: usize = DISABLE_CLIENT_LIST + 4 * DISABLE_MAX_ENTRIES;
+/// `NV2080_CTRL_CMD_GR_GET_CURRENT_RESIDENT_CHANNEL` (ctrl2080gr.h:1246).
+pub const CMD_GR_GET_CURRENT_RESIDENT_CHANNEL: u32 = 0x2080_121C;
+/// `NV906F_CTRL_CMD_GET_MMU_FAULT_INFO`, 104 bytes (ctrl906f.h:175-220).
+pub const CMD_GET_MMU_FAULT_INFO: u32 = 0x906F_0106;
+pub const MMU_FAULT_INFO_SIZE: usize = 104;
 /// `NVC361_NOTIFY_CHANNEL_PENDING` inside the usermode page (clc361.h:33).
 const DOORBELL_OFFSET: usize = 0x90;
 /// `NV90F1_CTRL_VASPACE_COPY_SERVER_RESERVED_PDES_PARAMS`: hSubDevice @0, subDeviceId @4
@@ -116,13 +137,105 @@ struct ShadowSpace {
     vas: u32,
     exclude: Vec<(u64, u64)>,
     chids: std::collections::BTreeSet<u32>,
-    tsgs: std::collections::BTreeSet<(u32, u32)>,
+    tsgs: std::collections::BTreeSet<TsgKey>,
 }
 
 struct HostTsg {
     handle: u32,
     vas: (u32, u32),
     engine: u32,
+    /// The guest object the host TSG stands for: the guest TSG `(hClient, hTsg)`, or the
+    /// channel itself for a bare channel's own TSG.
+    guest: (u32, u32),
+}
+
+/// The key of the host TSG map (docs/caraxes/gsp-plan/classes.md §8, TSG): the kernel's
+/// TSG id where the kernel assigns one and GSP-RM takes it over, the guest handle
+/// otherwise.
+///
+/// * `Grp(id)`: a 615 kernel assigns every GSP-client TSG its grpID in `internalFlags`
+///   (`TSG_ID` 15:0 with `TSG_ID_VALID` 16, g_kernel_channel_group_nvoc.h:123-129, set at
+///   kernel_channel_group_api.c:442-455), and the GSP build creates the TSG under that
+///   fixed id (`kchangrpInit(..., bFixedTsgID, requestedTsgID, ...)`, :273-285). A bare
+///   channel's internal TSG is named the same way by the channel's `INTERNAL_TSG_ID` 23:8
+///   with `_VALID` 24 (g_kernel_channel_nvoc.h:199-202, kernel_channel.c:2786-2799). The id
+///   is what GSP-RM knows the TSG by, so every guest handle of one TSG (the kernel's and a
+///   duplicate) and a bare channel's internal TSG meet at one host TSG.
+/// * `Handle(hClient, hObject)`: a 610 kernel sends no id (its TSG parameters end before
+///   `internalFlags`), so the guest TSG handle, or a bare channel's own handle, is the key.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum TsgKey {
+    Grp(u32),
+    Handle(u32, u32),
+}
+
+impl std::fmt::Display for TsgKey {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            TsgKey::Grp(id) => write!(f, "grpID {id}"),
+            TsgKey::Handle(c, o) => write!(f, "{c:#x}/{o:#x}"),
+        }
+    }
+}
+
+/// The host TSG key of guest channel `ch`, whether it is a bare channel (no guest TSG
+/// parent), and the guest object the host TSG stands for (the TSG, or the bare channel).
+pub fn tsg_key_of(reg: &Registry, ch: &Channel) -> (TsgKey, bool, (u32, u32)) {
+    let parent = (ch.h_client, ch.h_parent);
+    if reg.tsg(parent).is_some() {
+        let key = reg
+            .tsg_id(parent)
+            .map_or(TsgKey::Handle(parent.0, parent.1), TsgKey::Grp);
+        return (key, false, parent);
+    }
+    let own = (ch.h_client, ch.h_object);
+    let key = ch
+        .internal_tsg_id
+        .map_or(TsgKey::Handle(own.0, own.1), TsgKey::Grp);
+    (key, true, own)
+}
+
+/// The host TSG key of a guest TSG handle (or a bare channel's handle), when the registry
+/// knows the object.
+pub fn tsg_key_of_guest(reg: &Registry, obj: (u32, u32)) -> Option<TsgKey> {
+    if reg.tsg(obj).is_some() {
+        return Some(reg.tsg_id(obj).map_or(TsgKey::Handle(obj.0, obj.1), TsgKey::Grp));
+    }
+    let ch = reg
+        .channels()
+        .find(|c| (c.h_client, c.h_object) == obj)?;
+    match tsg_key_of(reg, ch) {
+        (k, true, _) => Some(k),
+        _ => None,
+    }
+}
+
+/// What to do with an existing host TSG under the key a new guest TSG maps to.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum TsgReuse {
+    /// The same guest TSG (or a channel of it): join the host TSG.
+    Join,
+    /// The key's host TSG stands for a guest TSG the registry no longer knows (its FREE
+    /// did not reach the mirror): free it, then build a new one.
+    Stale,
+    /// Two live guest TSGs claim one kernel id: the kernel never does this (its grpID
+    /// allocator is a bitmap); refused, the channel stays in software.
+    Collision,
+}
+
+/// The decision for an existing host TSG that stands for `existing` when guest object
+/// `wanted` maps to the same key.
+pub fn tsg_reuse(reg: &Registry, existing: (u32, u32), wanted: (u32, u32)) -> TsgReuse {
+    if existing == wanted {
+        return TsgReuse::Join;
+    }
+    let live = reg.tsg(existing).is_some()
+        || reg.channels().any(|c| (c.h_client, c.h_object) == existing);
+    if live {
+        TsgReuse::Collision
+    } else {
+        TsgReuse::Stale
+    }
 }
 
 /// What one channel build yields: the host channel, its engine objects, the token.
@@ -131,7 +244,7 @@ type Built = (u32, Vec<(u32, u32)>, u32);
 /// The host side of one guest channel.
 pub struct HostChannel {
     pub handle: u32,
-    pub tsg: (u32, u32),
+    pub tsg: TsgKey,
     pub token: u32,
     /// `(class, host handle)` of the replayed engine objects.
     pub objects: Vec<(u32, u32)>,
@@ -168,7 +281,8 @@ pub struct Mirror {
     end: u64,
     reservation: u32,
     vas: BTreeMap<(u32, u32), HostVas>,
-    tsgs: BTreeMap<(u32, u32), HostTsg>,
+    /// By [`TsgKey`]: the kernel's TSG id on a 615 guest, the guest handle on 610.
+    tsgs: BTreeMap<TsgKey, HostTsg>,
     /// By guest ChID.
     channels: BTreeMap<u32, HostChannel>,
     /// Replay the guest's VA-space controls to make GR channels schedulable on the host
@@ -606,13 +720,8 @@ impl Mirror {
             }
         }
         // A bare CE channel (`bare_ce`, the GL driver's) gets a host TSG of its own, keyed
-        // by its handle, on the channel's own engine.
-        let bare = reg.tsg((ch.h_client, ch.h_parent)).is_none();
-        let tsg_key = if bare {
-            (ch.h_client, ch.h_object)
-        } else {
-            (ch.h_client, ch.h_parent)
-        };
+        // by its internal TSG id (615) or its handle, on the channel's own engine.
+        let (tsg_key, bare, tsg_guest) = tsg_key_of(reg, &ch);
         // The host RM clears the channel's USERD when it creates the mirror; the guest has
         // already written its GPFIFO entry and GPPut for the submission that rang this
         // doorbell. Save them now and restore them after the alloc, or the GR PBDMA sees
@@ -688,6 +797,14 @@ impl Mirror {
             self.worker.submit(Job::Apply(plan, Instant::now()));
         }
         self.worker.wait_all();
+        if let Err(e) = self.check_tsg_reuse(reg, tsg_key, tsg_guest, &mut notes) {
+            notes.push(format!("shadow: chid {chid}: {e}"));
+            return notes;
+        }
+        // A stale host TSG under the key was dropped from the shadow space's set too.
+        if let Some(sp) = self.shadows.get_mut(&root) {
+            sp.tsgs.insert(tsg_key);
+        }
         let mut h = self.hm.lock().unwrap();
         // One host TSG per guest TSG, on the shadow VAS (GR0): the guest's GR channels
         // of one group (CUDA's chids 2-9, one TSG, one context share) share one GR
@@ -697,15 +814,15 @@ impl Mirror {
         let tsg = match self.tsgs.get(&tsg_key) {
             Some(t) => {
                 notes.push(format!(
-                    "shadow: chid {chid} joins host TSG {:#x} of guest TSG {:#x} [host]",
-                    t.handle, tsg_key.1
+                    "shadow: chid {chid} joins host TSG {:#x} of guest TSG {:#x} ({tsg_key}) [host]",
+                    t.handle, tsg_guest.1
                 ));
                 t.handle
             }
             None => {
                 let gr = v::lookup(v::NV2080_ENGINE_TYPES, "GR0").unwrap_or(1);
                 // The guest TSG's engine: GR0 for a compute channel, COPYn for a CE one.
-                let engine_type = match reg.tsg(tsg_key) {
+                let engine_type = match reg.tsg(tsg_guest) {
                     Some((_, e)) if e != 0 => e,
                     _ if bare && ch.engine_type != 0 => ch.engine_type,
                     _ => gr,
@@ -726,15 +843,16 @@ impl Mirror {
                     }
                 };
                 notes.push(format!(
-                    "shadow: host TSG {tsg:#x} for guest TSG {:#x} on VAS {vas_handle:#x} [host]",
-                    tsg_key.1
+                    "shadow: host TSG {tsg:#x} for guest TSG {:#x} ({tsg_key}) on VAS {vas_handle:#x} [host]",
+                    tsg_guest.1
                 ));
                 self.tsgs.insert(
                     tsg_key,
                     HostTsg {
                         handle: tsg,
-                        vas: tsg_key,
+                        vas: tsg_guest,
                         engine: engine_type,
+                        guest: tsg_guest,
                     },
                 );
                 tsg
@@ -1272,9 +1390,41 @@ impl Mirror {
         notes
     }
 
+    /// Before a channel joins or builds the host TSG under `key`: an entry that stands for
+    /// a guest TSG the registry no longer knows is freed (its FREE never reached the
+    /// mirror, and the kernel reuses its id); two live guest TSGs under one kernel id are
+    /// refused.
+    fn check_tsg_reuse(
+        &mut self,
+        reg: &Registry,
+        key: TsgKey,
+        guest: (u32, u32),
+        notes: &mut Vec<String>,
+    ) -> Result<(), String> {
+        let Some(existing) = self.tsgs.get(&key).map(|t| t.guest) else {
+            return Ok(());
+        };
+        match tsg_reuse(reg, existing, guest) {
+            TsgReuse::Join => Ok(()),
+            TsgReuse::Stale => {
+                notes.push(format!(
+                    "tsg {key}: host TSG of the freed guest TSG {:#x}/{:#x} dropped before guest TSG {:#x}/{:#x} takes the id [host]",
+                    existing.0, existing.1, guest.0, guest.1
+                ));
+                self.free_tsg(key, notes);
+                Ok(())
+            }
+            TsgReuse::Collision => Err(format!(
+                "tsg {key}: guest TSGs {:#x}/{:#x} and {:#x}/{:#x} are both live under one kernel TSG id; refused, stays with the software executor",
+                existing.0, existing.1, guest.0, guest.1
+            )),
+        }
+    }
+
     fn ensure_tsg(
         &mut self,
-        key: (u32, u32),
+        key: TsgKey,
+        guest: (u32, u32),
         vas_key: (u32, u32),
         vas_handle: u32,
         engine: u32,
@@ -1301,8 +1451,8 @@ impl Mirror {
                 )
             })?;
         notes.push(format!(
-            "tsg {:#x}/{:#x}: host TSG {handle:#x} engineType {engine:#x} on vaspace {vas_handle:#x} [host]",
-            key.0, key.1
+            "tsg {:#x}/{:#x} ({key}): host TSG {handle:#x} engineType {engine:#x} on vaspace {vas_handle:#x} [host]",
+            guest.0, guest.1
         ));
         drop(h);
         self.tsgs.insert(
@@ -1311,6 +1461,7 @@ impl Mirror {
                 handle,
                 vas: vas_key,
                 engine,
+                guest,
             },
         );
         Ok(handle)
@@ -1349,13 +1500,9 @@ impl Mirror {
         let t0 = Instant::now();
         let (root, vas_key) = self.eligible(reg, chid)?;
         let ch: Channel = reg.channel(chid).ok_or("no such channel")?.clone();
-        // A bare CE channel (`bare_ce`) gets a host TSG of its own, keyed by its handle.
-        let bare = reg.tsg((ch.h_client, ch.h_parent)).is_none();
-        let tsg_key = if bare {
-            (ch.h_client, ch.h_object)
-        } else {
-            (ch.h_client, ch.h_parent)
-        };
+        // A bare CE channel (`bare_ce`) gets a host TSG of its own, keyed by its internal
+        // TSG id (615) or its handle.
+        let (tsg_key, bare, tsg_guest) = tsg_key_of(reg, &ch);
         // The guest's recorded promote entries for this channel (c2 replay input).
         let promote_entries: Vec<crate::channel::PromoteEntry> = reg
             .promoted((ch.h_client, ch.h_object))
@@ -1364,13 +1511,15 @@ impl Mirror {
         let engine = if bare {
             ch.engine_type
         } else {
-            reg.tsg(tsg_key).ok_or("no TSG")?.1
+            reg.tsg(tsg_guest).ok_or("no TSG")?.1
         };
         self.ensure_events(&mut notes);
         self.ensure_invalidator(gm.fb, &mut notes);
         let entries = reg.root_entries(vas_key);
         let vas_handle = self.ensure_vas(vas_key, root, entries, &mut notes)?;
-        let tsg_handle = self.ensure_tsg(tsg_key, vas_key, vas_handle, engine, &mut notes)?;
+        self.check_tsg_reuse(reg, tsg_key, tsg_guest, &mut notes)?;
+        let tsg_handle =
+            self.ensure_tsg(tsg_key, tsg_guest, vas_key, vas_handle, engine, &mut notes)?;
 
         let mut h = self.hm.lock().unwrap();
         let mut owned: Vec<u32> = Vec::new();
@@ -1716,7 +1865,12 @@ impl Mirror {
         cmd: u32,
         params: &[u8],
     ) -> Option<(u32, String)> {
-        let target = if let Some(t) = self.tsgs.get(&(h_client, h_object)) {
+        // A TSG (or a bare channel's own TSG) by its key: the kernel's id on 615.
+        let tsg = reg
+            .tsg(reg.resolve((h_client, h_object)))
+            .and_then(|_| tsg_key_of_guest(reg, reg.resolve((h_client, h_object))))
+            .and_then(|k| self.tsgs.get(&k));
+        let target = if let Some(t) = tsg {
             Some(("tsg", t.handle))
         } else {
             reg.channels()
@@ -1734,6 +1888,201 @@ impl Mirror {
                 status_name(st)
             ),
         ))
+    }
+
+    /// The host channel handle of guest channel `(hClient, hChannel)`: the mirror's own
+    /// host object, found through the registry by the guest's handle; `None` when the
+    /// channel has no mirror.
+    pub fn host_channel_of(&self, reg: &Registry, h_client: u32, h_channel: u32) -> Option<(u32, u32)> {
+        let c = reg
+            .channels()
+            .find(|c| c.h_client == h_client && c.h_object == h_channel)?;
+        self.channels.get(&c.chid).map(|hc| (c.chid, hc.handle))
+    }
+
+    /// `IDLE_CHANNELS` for the guest channels `list` that run on a host mirror (gsprpc.rs,
+    /// public.rs): `NV0080_CTRL_CMD_FIFO_IDLE_CHANNELS` (ctrl0080fifo.h:367-401; export
+    /// flags 0x109: NON_PRIVILEGED, g_device_nvoc.c) on the mirror's own host device, over
+    /// the mirror's own host channel handles of the same host client only; the host RM
+    /// deschedules them and waits for their pending work (kernel_fifo_ctrl.c:131-186
+    /// forwards it to the host GSP). Channels of the list without a mirror are left out;
+    /// `None` when none has one. `timeout_us` is the caller's, already capped.
+    pub fn idle_channels(
+        &self,
+        reg: &Registry,
+        list: &[(u32, u32)],
+        flags: u32,
+        timeout_us: u32,
+    ) -> Option<(u32, String)> {
+        let hosts: Vec<(u32, u32)> = list
+            .iter()
+            .filter_map(|&(c, h)| self.host_channel_of(reg, c, h))
+            .take(IDLE_MAX_CHANNELS)
+            .collect();
+        if hosts.is_empty() {
+            return None;
+        }
+        let mut p = vec![0u8; IDLE_PARAMS_SIZE];
+        p[0..4].copy_from_slice(&(hosts.len() as u32).to_le_bytes());
+        for (i, (_, handle)) in hosts.iter().enumerate() {
+            p[4 + 4 * i..8 + 4 * i].copy_from_slice(&handle.to_le_bytes());
+        }
+        p[IDLE_PARAMS_FLAGS..IDLE_PARAMS_FLAGS + 4].copy_from_slice(&flags.to_le_bytes());
+        p[IDLE_PARAMS_TIMEOUT..IDLE_PARAMS_TIMEOUT + 4].copy_from_slice(&timeout_us.to_le_bytes());
+        let h = self.hm.lock().unwrap();
+        let t0 = Instant::now();
+        let st = h.control(h.device(), CMD_FIFO_IDLE_CHANNELS, &mut p);
+        let chids: Vec<String> = hosts
+            .iter()
+            .map(|(c, handle)| format!("chid {c} (host {handle:#x})"))
+            .collect();
+        Some((
+            st,
+            format!(
+                "NV0080 FIFO_IDLE_CHANNELS on the mirror's host device for {}: {} in {} us [host]",
+                chids.join(", "),
+                status_name(st),
+                t0.elapsed().as_micros()
+            ),
+        ))
+    }
+
+    /// `NV2080_CTRL_CMD_FIFO_DISABLE_CHANNELS` (ctrl2080fifo.h:235-261; export flags
+    /// 0x10108: NON_PRIVILEGED) on the mirror's own host subdevice for the guest channels of
+    /// `list` that have a mirror: `hClientList` is the mirror's own host client,
+    /// `hChannelList` its own host channels, in batches of 64. `pRunlistPreemptEvent` is a
+    /// kernel pointer and never passed (NULL); `bRewindGpPut` is never set (the host would
+    /// rewrite the guest's USERD). `None` when no channel of the list has a mirror.
+    pub fn set_scheduling(
+        &self,
+        reg: &Registry,
+        list: &[(u32, u32)],
+        disable: bool,
+        only_scheduling: bool,
+    ) -> Option<(u32, String)> {
+        let hosts: Vec<(u32, u32)> = list
+            .iter()
+            .filter_map(|&(c, h)| self.host_channel_of(reg, c, h))
+            .collect();
+        if hosts.is_empty() {
+            return None;
+        }
+        let h = self.hm.lock().unwrap();
+        let mut worst = sys::NV_OK;
+        let mut parts = Vec::new();
+        for batch in hosts.chunks(DISABLE_MAX_ENTRIES) {
+            let mut p = vec![0u8; DISABLE_PARAMS_SIZE];
+            p[0] = disable as u8;
+            p[4..8].copy_from_slice(&(batch.len() as u32).to_le_bytes());
+            p[8] = only_scheduling as u8;
+            for (i, (_, handle)) in batch.iter().enumerate() {
+                let c = DISABLE_CLIENT_LIST + 4 * i;
+                let o = DISABLE_CHANNEL_LIST + 4 * i;
+                p[c..c + 4].copy_from_slice(&h.root().to_le_bytes());
+                p[o..o + 4].copy_from_slice(&handle.to_le_bytes());
+            }
+            let st = h.control(h.subdevice(), CMD_FIFO_DISABLE_CHANNELS, &mut p);
+            if st != sys::NV_OK {
+                worst = st;
+            }
+            let chids: Vec<String> = batch.iter().map(|(c, _)| c.to_string()).collect();
+            parts.push(format!("chids {}: {}", chids.join(","), status_name(st)));
+        }
+        Some((
+            worst,
+            format!(
+                "NV2080 FIFO_DISABLE_CHANNELS bDisable {disable} bOnlyDisableScheduling {only_scheduling} on the mirror's own host channels ({}) [host]",
+                parts.join("; ")
+            ),
+        ))
+    }
+
+    /// A subdevice control that names guest channel `(h_client, h_channel)` in its
+    /// parameters (`hChannel` at `channel_off`, `hClient` at `client_off` when the struct
+    /// has one), issued on the mirror's own host subdevice with the mirror's own host
+    /// channel and client handles in their place; the guest's handles are put back in the
+    /// answer. `None` when the channel has no mirror. Used for the getters of
+    /// gsp-plan/c-guest-state.md §3 (B3, B4) on the device's own channel only.
+    pub fn channel_query(
+        &self,
+        reg: &Registry,
+        h_client: u32,
+        h_channel: u32,
+        cmd: u32,
+        params: &[u8],
+        (channel_off, client_off): (usize, Option<usize>),
+    ) -> Option<(u32, Vec<u8>, String)> {
+        let (chid, handle) = self.host_channel_of(reg, h_client, h_channel)?;
+        let mut p = params.to_vec();
+        let h = self.hm.lock().unwrap();
+        p.get_mut(channel_off..channel_off + 4)?
+            .copy_from_slice(&handle.to_le_bytes());
+        if let Some(o) = client_off {
+            p.get_mut(o..o + 4)?.copy_from_slice(&h.root().to_le_bytes());
+        }
+        let st = h.control(h.subdevice(), cmd, &mut p);
+        p[channel_off..channel_off + 4].copy_from_slice(&h_channel.to_le_bytes());
+        if let Some(o) = client_off {
+            p[o..o + 4].copy_from_slice(&h_client.to_le_bytes());
+        }
+        Some((
+            st,
+            p,
+            format!(
+                "control {cmd:#x} on the mirror's host subdevice for chid {chid} (host channel {handle:#x}): {} [host]",
+                status_name(st)
+            ),
+        ))
+    }
+
+    /// `NV2080_CTRL_CMD_GR_GET_CURRENT_RESIDENT_CHANNEL` (ctrl2080gr.h:1236-1253; export
+    /// flags 0x48: NON_PRIVILEGED) on the mirror's own host subdevice: the host ChID
+    /// resident on GR, mapped to the guest ChID of this device's mirror channel whose host
+    /// work-submit token names it (VECTOR 11:0 is the host ChID,
+    /// kernel_fifo_tu102.c:60-104). `(status, Some(guest chid))` only for one of this VM's
+    /// mirrors; another tenant's ChID never leaves this function. A read of host
+    /// scheduling state, reported in the note. `None` without a mirror channel.
+    pub fn resident_guest_chid(&self, params: &[u8]) -> Option<(u32, Option<u32>, String)> {
+        if self.channels.is_empty() {
+            return None;
+        }
+        let mut p = params.to_vec();
+        let st = {
+            let h = self.hm.lock().unwrap();
+            h.control(h.subdevice(), CMD_GR_GET_CURRENT_RESIDENT_CHANNEL, &mut p)
+        };
+        let host = u32::from_le_bytes(p.get(0..4)?.try_into().ok()?);
+        let guest = (st == sys::NV_OK)
+            .then(|| {
+                self.channels
+                    .iter()
+                    .find(|(_, c)| c.token & 0xFFF == host & 0xFFF)
+                    .map(|(chid, _)| *chid)
+            })
+            .flatten();
+        Some((
+            st,
+            guest,
+            format!(
+                "GR_GET_CURRENT_RESIDENT_CHANNEL on the mirror's host subdevice: {}; {} [host read]",
+                status_name(st),
+                match guest {
+                    Some(c) => format!("one of this VM's mirrors, guest chid {c}"),
+                    None => "no mirror of this VM resident".into(),
+                }
+            ),
+        ))
+    }
+
+    /// `NV906F_CTRL_CMD_GET_MMU_FAULT_INFO` (ctrl906f.h:175-220; export flags 0x10048:
+    /// NON_PRIVILEGED) on the mirror's own host channel of guest chid `chid`: the fault the
+    /// host RM recorded for that channel. The mirror runs in the guest's own VA space, so
+    /// the address is the guest's VA (c-guest-state.md Q-C3). `None` without a mirror.
+    pub fn mmu_fault_info(&self, chid: u32) -> Option<(u32, Vec<u8>)> {
+        let hc = self.channels.get(&chid)?;
+        let mut p = vec![0u8; MMU_FAULT_INFO_SIZE];
+        let st = self.hm.lock().unwrap().control(hc.handle, CMD_GET_MMU_FAULT_INFO, &mut p);
+        Some((st, p))
     }
 
     fn free_channel(&mut self, chid: u32, notes: &mut Vec<String>) {
@@ -1755,7 +2104,7 @@ impl Mirror {
         }
     }
 
-    fn free_tsg(&mut self, key: (u32, u32), notes: &mut Vec<String>) {
+    fn free_tsg(&mut self, key: TsgKey, notes: &mut Vec<String>) {
         let chids: Vec<u32> = self
             .channels
             .iter()
@@ -1769,13 +2118,13 @@ impl Mirror {
             let r = self.hm.lock().unwrap().free_object(t.handle);
             notes.push(match r {
                 Ok(()) => format!(
-                    "tsg {:#x}/{:#x}: host TSG {:#x} (engineType {:#x}) freed [host]",
-                    key.0, key.1, t.handle, t.engine
+                    "tsg {:#x}/{:#x} ({key}): host TSG {:#x} (engineType {:#x}) freed [host]",
+                    t.guest.0, t.guest.1, t.handle, t.engine
                 ),
                 Err(st) => format!(
-                    "tsg {:#x}/{:#x}: ERROR freeing host TSG {:#x}: {}",
-                    key.0,
-                    key.1,
+                    "tsg {:#x}/{:#x} ({key}): ERROR freeing host TSG {:#x}: {}",
+                    t.guest.0,
+                    t.guest.1,
                     t.handle,
                     status_name(st)
                 ),
@@ -1788,7 +2137,7 @@ impl Mirror {
     }
 
     fn drop_vas(&mut self, key: (u32, u32), notes: &mut Vec<String>) {
-        let tsgs: Vec<(u32, u32)> = self
+        let tsgs: Vec<TsgKey> = self
             .tsgs
             .iter()
             .filter(|(_, t)| t.vas == key)
@@ -1886,6 +2235,16 @@ impl Mirror {
         notes
     }
 
+    /// The key of the host TSG that stands for guest object `obj` (a guest TSG, or a bare
+    /// channel with its own host TSG). A FREE names the guest's handle; a duplicate handle
+    /// of the TSG is not the TSG and frees nothing.
+    fn tsg_standing_for(&self, obj: (u32, u32)) -> Option<TsgKey> {
+        self.tsgs
+            .iter()
+            .find(|(_, t)| t.guest == obj)
+            .map(|(k, _)| *k)
+    }
+
     /// The guest freed `h_object` of `h_client` (or the client itself): free the host
     /// mirrors that stood for it, channels before TSGs before VA spaces.
     pub fn free_object(&mut self, reg: &Registry, h_client: u32, h_object: u32) -> Vec<String> {
@@ -1900,11 +2259,11 @@ impl Mirror {
             for k in keys {
                 self.drop_vas(k, &mut notes);
             }
-            let tsgs: Vec<(u32, u32)> = self
+            let tsgs: Vec<TsgKey> = self
                 .tsgs
-                .keys()
-                .filter(|k| k.0 == h_client)
-                .copied()
+                .iter()
+                .filter(|(_, t)| t.guest.0 == h_client)
+                .map(|(k, _)| *k)
                 .collect();
             for k in tsgs {
                 self.free_tsg(k, &mut notes);
@@ -1926,13 +2285,13 @@ impl Mirror {
             let chid = c.chid;
             self.free_channel(chid, &mut notes);
             // A bare CE channel's own host TSG goes with it.
-            if self.tsgs.contains_key(&(h_client, h_object)) {
-                self.free_tsg((h_client, h_object), &mut notes);
+            if let Some(k) = self.tsg_standing_for((h_client, h_object)) {
+                self.free_tsg(k, &mut notes);
             }
             return notes;
         }
-        if self.tsgs.contains_key(&(h_client, h_object)) {
-            self.free_tsg((h_client, h_object), &mut notes);
+        if let Some(k) = self.tsg_standing_for((h_client, h_object)) {
+            self.free_tsg(k, &mut notes);
             return notes;
         }
         let key = reg.resolve((h_client, h_object));
@@ -1950,7 +2309,7 @@ impl Mirror {
         for c in chids {
             self.free_channel(c, &mut notes);
         }
-        let tsgs: Vec<(u32, u32)> = self.tsgs.keys().copied().collect();
+        let tsgs: Vec<TsgKey> = self.tsgs.keys().copied().collect();
         for t in tsgs {
             self.free_tsg(t, &mut notes);
         }
@@ -2372,5 +2731,97 @@ mod tests {
         }
         assert_eq!(NOTIFIER_GRAPHICS | EVENT_NONSTALL, 0x0800_000C);
         assert_eq!(SETPD_SIZE, 32);
+    }
+
+    type Abi = v::RmAbi;
+
+    fn registry() -> Registry {
+        Registry::new(crate::fixture::rtx2070().chip.data().channel)
+    }
+
+    /// A TSG with the kernel's id `grp` in internalFlags (a 615 layout; the 610 struct has
+    /// no such field, so the id is dropped there, as a 610 kernel sends none).
+    fn tsg_params(grp: Option<u32>) -> Vec<u8> {
+        let mut b = vec![0u8; <Abi as nvrm_sys::RmAbi>::TSG_PARAMS_SIZE as usize];
+        let off = <Abi as nvrm_sys::RmAbi>::TSG_PARAMS_OFF_internalFlags;
+        if let (Some(id), true) = (grp, b.len() >= off + 4) {
+            b[off..off + 4].copy_from_slice(&(id | 1 << 16 | 1 << 17).to_le_bytes());
+        }
+        b
+    }
+
+    /// A channel with `chid` in its flags and, for a bare channel, the kernel's internal TSG
+    /// id `itsg` in internalFlags.
+    fn channel_params(chid: u32, itsg: Option<u32>) -> Vec<u8> {
+        let mut b = vec![0u8; <Abi as nvrm_sys::RmAbi>::ALLOC_CHANNEL_PARAMS_SIZE as usize];
+        let flags = ((chid / 8) << 12) | ((chid % 8) << 8);
+        let o = <Abi as nvrm_sys::RmAbi>::ALLOC_CHANNEL_PARAMS_OFF_flags;
+        b[o..o + 4].copy_from_slice(&flags.to_le_bytes());
+        if let Some(id) = itsg {
+            let f = <Abi as nvrm_sys::RmAbi>::ALLOC_CHANNEL_PARAMS_OFF_internalFlags;
+            b[f..f + 4].copy_from_slice(&(id << 8 | 1 << 24).to_le_bytes());
+        }
+        b
+    }
+
+    fn with_615_id() -> bool {
+        <Abi as nvrm_sys::RmAbi>::TSG_PARAMS_SIZE as usize
+            >= <Abi as nvrm_sys::RmAbi>::TSG_PARAMS_OFF_internalFlags + 4
+    }
+
+    /// Item 3 of the GSP plan round 2 (classes.md §8, TSG): the host TSG map is keyed by the
+    /// kernel's TSG id where the kernel sends one (615), by the guest handle otherwise
+    /// (610); the key does not depend on the order of channel and TSG allocations, and a
+    /// bare channel's internal TSG is keyed by its own id.
+    #[test]
+    fn host_tsg_key_is_the_kernel_tsg_id() {
+        let gpfifo = crate::fixture::rtx2070().chip.data().channel.gpfifo;
+        let grp = |id: u32, c: u32, h: u32| {
+            if with_615_id() {
+                TsgKey::Grp(id)
+            } else {
+                TsgKey::Handle(c, h)
+            }
+        };
+        // Order 1: TSG 0x30 (grpID 7), then its channels 2 and 3.
+        let mut reg = registry();
+        reg.record_alloc(1, 0x10, 0x30, v::KEPLER_CHANNEL_GROUP_A, &tsg_params(Some(7)));
+        reg.record_alloc(1, 0x30, 0x40, gpfifo, &channel_params(2, None));
+        reg.record_alloc(1, 0x30, 0x41, gpfifo, &channel_params(3, None));
+        let k2 = tsg_key_of(&reg, reg.channel(2).unwrap());
+        let k3 = tsg_key_of(&reg, reg.channel(3).unwrap());
+        assert_eq!(k2, (grp(7, 1, 0x30), false, (1, 0x30)));
+        assert_eq!(k2, k3, "the channels of one TSG meet at one host TSG");
+        assert_eq!(tsg_key_of_guest(&reg, (1, 0x30)), Some(grp(7, 1, 0x30)));
+        // Order 2: a second TSG (grpID 8) allocated after a bare channel with internal TSG 9,
+        // then a channel of the second TSG; the keys follow the ids, not the order.
+        reg.record_alloc(1, 0x10, 0x50, gpfifo, &channel_params(4, Some(9)));
+        reg.record_alloc(1, 0x10, 0x31, v::KEPLER_CHANNEL_GROUP_A, &tsg_params(Some(8)));
+        reg.record_alloc(1, 0x31, 0x42, gpfifo, &channel_params(5, None));
+        let bare = tsg_key_of(&reg, reg.channel(4).unwrap());
+        assert!(bare.1);
+        assert_eq!(bare.2, (1, 0x50));
+        if with_615_id() {
+            assert_eq!(bare.0, TsgKey::Grp(9), "a bare channel's internal TSG id");
+        }
+        assert_eq!(tsg_key_of(&reg, reg.channel(5).unwrap()).0, grp(8, 1, 0x31));
+        assert_ne!(k2.0, tsg_key_of(&reg, reg.channel(5).unwrap()).0);
+        // A channel of a TSG under another client with the same handle is another TSG.
+        reg.record_alloc(2, 0x10, 0x30, v::KEPLER_CHANNEL_GROUP_A, &tsg_params(Some(10)));
+        reg.record_alloc(2, 0x30, 0x40, gpfifo, &channel_params(6, None));
+        assert_eq!(tsg_key_of(&reg, reg.channel(6).unwrap()).0, grp(10, 2, 0x30));
+        // Reuse: the same guest TSG joins; a freed TSG's id taken by a new TSG is stale; two
+        // live TSGs under one id collide.
+        assert_eq!(tsg_reuse(&reg, (1, 0x30), (1, 0x30)), TsgReuse::Join);
+        assert_eq!(tsg_reuse(&reg, (1, 0x30), (1, 0x31)), TsgReuse::Collision);
+        reg.record_free(1, 0x30);
+        reg.record_alloc(1, 0x10, 0x32, v::KEPLER_CHANNEL_GROUP_A, &tsg_params(Some(7)));
+        assert_eq!(tsg_reuse(&reg, (1, 0x30), (1, 0x32)), TsgReuse::Stale);
+        assert_eq!(tsg_key_of_guest(&reg, (1, 0x32)), Some(grp(7, 1, 0x32)));
+        assert_eq!(tsg_key_of_guest(&reg, (1, 0x30)), None);
+        // Keys sort and print.
+        assert!(TsgKey::Grp(1) < TsgKey::Handle(0, 0));
+        assert_eq!(TsgKey::Grp(7).to_string(), "grpID 7");
+        assert_eq!(TsgKey::Handle(1, 0x30).to_string(), "0x1/0x30");
     }
 }

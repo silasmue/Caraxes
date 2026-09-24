@@ -436,6 +436,34 @@ impl BootModel {
     /// only: that subscription is host-global and never a source, events.rs) and at most
     /// every 100 ms otherwise when `periodic`.
     fn scan_channel_errors(&mut self, mem: &GuestMemory, periodic: bool) -> Vec<String> {
+        // `CARAXES_GOE_SELFTEST`: a SIMULATED operational event for the guest probe
+        // (gspmem.rs `SelfTest`, caraxes/tools/goe-probe.sh).
+        let mut goe_notes = Vec::new();
+        if let Some(n) = self.gspmem.selftest_due() {
+            let ev = crate::gspmem::OpEvent::selftest(n, self.ctrl.channels.now_ns() / 1000);
+            let (wake, n) = self.gspmem.produce(mem, &ev);
+            goe_notes.extend(n);
+            let items: Vec<_> = wake
+                .into_iter()
+                .map(|(c, e)| {
+                    crate::events::Unsolicited::Event(
+                        crate::events::EV_POST_EVENT,
+                        crate::events::post_event(c, e),
+                    )
+                })
+                .collect();
+            if !items.is_empty() {
+                goe_notes.extend(self.post_unsolicited(mem, &items));
+            }
+        }
+        let mut notes = self.scan_channel_errors_inner(mem, periodic);
+        goe_notes.append(&mut notes);
+        goe_notes
+    }
+
+    fn scan_channel_errors_inner(&mut self, mem: &GuestMemory, periodic: bool) -> Vec<String> {
+        // The category D models' RCs (rc.rs: watchdog timeout, non-replayable fault reports)
+        // go out first; the channel scan runs when there are none.
         let model_rcs = self.post_model_rcs(mem);
         if !model_rcs.is_empty() {
             return model_rcs;
@@ -502,6 +530,33 @@ impl BootModel {
                     crate::events::EV_RC_TRIGGERED,
                     crate::events::rc_triggered(layout, eng, chid, xid),
                 ));
+                // The device's RC journal and fault record (public.rs): an MMU fault's
+                // details are the host's record of the channel's own mirror (a read of the
+                // device's own host channel, NV906F GET_MMU_FAULT_INFO).
+                let fault = (xid == crate::gspmem::XID_MMU_FAULT)
+                    .then(|| self.ctrl.mirror.as_ref().and_then(|m| m.mmu_fault_info(chid)))
+                    .flatten();
+                if let Some((st, _)) = &fault {
+                    notes.push(format!(
+                        "chid {chid}: GET_MMU_FAULT_INFO on its own host mirror channel: status {st:#x} [host read]"
+                    ));
+                }
+                let fault = fault.filter(|(st, _)| *st == 0).map(|(_, p)| p);
+                self.ctrl
+                    .guest_attrs
+                    .record_rc((hc, ho), chid, xid, fault, text.clone());
+                // The 615 operational-event import: a GOE record and its wake-up.
+                if self.gspmem.has_goe_bind() {
+                    let ev = crate::gspmem::OpEvent::rc(xid, self.ctrl.channels.now_ns() / 1000, text.clone());
+                    let (wake, n) = self.gspmem.produce(mem, &ev);
+                    notes.extend(n);
+                    for (c, e) in wake {
+                        items.push(crate::events::Unsolicited::Event(
+                            crate::events::EV_POST_EVENT,
+                            crate::events::post_event(c, e),
+                        ));
+                    }
+                }
             }
         }
         self.watch.retain(|k, _| live.contains(k));
@@ -1511,9 +1566,15 @@ impl BootModel {
                     }
                     crate::gsprpc::FN_IDLE_CHANNELS => {
                         // Resolved through the channel registry, idle when USERD GPGet
-                        // caught up with GPPut (gsprpc.rs; rpc-functions.md §4.2).
+                        // caught up with GPPut; mirrored channels through the host RM's
+                        // idle on the mirror's own host objects (gsprpc.rs; rpc-functions.md
+                        // §4.2).
                         let chans = &self.ctrl.channels;
+                        let mirror = self.ctrl.mirror.as_ref();
                         let fb = &mut self.fb;
+                        let host_idle = |l: &[(u32, u32)], f: u32, t: u32| {
+                            mirror.and_then(|m| m.idle_channels(chans, l, f, t))
+                        };
                         let (st, note) = crate::gsprpc::idle_channels(&msg.payload, |c, h| {
                             let ch = chans.channels().find(|x| x.h_client == c && x.h_object == h)?;
                             let word = |off: u64| match ch.userd {
@@ -1533,7 +1594,7 @@ impl BootModel {
                                 gp_get: get,
                                 gp_put: put,
                             })
-                        });
+                        }, host_idle);
                         notes.push(note);
                         Some((st, msg.payload.clone()))
                     }

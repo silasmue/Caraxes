@@ -1,0 +1,52 @@
+built
+goe-probe: driver 615.71.09
+goe-probe: control GPU_GET_PROBED_IDS     0x00000214: ret 0 status 0
+goe-probe: control GPU_ATTACH_IDS         0x00000215: ret 0 status 0
+goe-probe: alloc device                   class 0x0080: ret 0 status 0
+goe-probe: alloc subdevice                class 0x2080: ret 0 status 0
+goe-probe: control GPU_GET_GID_INFO       0x2080014a: ret 0 status 0
+goe-probe: alloc header memory            class 0x90ce: ret 0 status 0
+goe-probe: map header memory              ret 0 status 0
+goe-probe: alloc record memory            class 0x90ce: ret 0 status 0
+goe-probe: map record memory              ret 0 status 0
+goe-probe: alloc vardata memory           class 0x90ce: ret 0 status 0
+goe-probe: map vardata memory             ret 0 status 0
+goe-probe: header 0x7a6f0bae7000 records 0x7a6f0bae5000 vardata 0x7a6f0bae1000
+goe-probe: alloc event buffer             class 0x90cd: ret 0 status 0
+goe-probe: control ENABLE_EVENTS          0x90cd0101: ret 0 status 0
+goe-probe: alloc GOE bind                 class 0x90d0: ret 0 status 0
+goe-probe: bound (bindId 0); waiting 45 s for operational events
+goe-probe: record type 17 subtype 1 varData 0x60 trace 0x200000000000003 instance 3 ts 13708506 us
+goe-probe:   module 'CARAXES-TEST' category 0xffff code 1 severity 10 attributes 0x20 group-attributes 0x4 bindId 0 cursor 3
+goe-probe:   contexts 1 size 96 group 0/1 scope 1 originator 2 logLevel 20 source 0 uuid 7fc490a1...
+goe-probe:   context type 0x8001 version 0x100 size 61: Xid 0 'Caraxes device self-test operational event 3 (simulated)'
+goe-probe: record type 17 subtype 1 varData 0xc0 trace 0x200000000000004 instance 4 ts 18828457 us
+goe-probe:   module 'CARAXES-TEST' category 0xffff code 1 severity 10 attributes 0x20 group-attributes 0x4 bindId 0 cursor 4
+goe-probe:   contexts 1 size 96 group 0/1 scope 1 originator 2 logLevel 20 source 0 uuid 7fc490a1...
+goe-probe:   context type 0x8001 version 0x100 size 61: Xid 0 'Caraxes device self-test operational event 4 (simulated)'
+goe-probe: record type 17 subtype 1 varData 0x120 trace 0x200000000000005 instance 5 ts 23948465 us
+goe-probe:   module 'CARAXES-TEST' category 0xffff code 1 severity 10 attributes 0x20 group-attributes 0x4 bindId 0 cursor 5
+goe-probe:   contexts 1 size 96 group 0/1 scope 1 originator 2 logLevel 20 source 0 uuid 7fc490a1...
+goe-probe:   context type 0x8001 version 0x100 size 61: Xid 0 'Caraxes device self-test operational event 5 (simulated)'
+goe-probe: record type 17 subtype 1 varData 0x180 trace 0x200000000000006 instance 6 ts 29068538 us
+goe-probe:   module 'CARAXES-TEST' category 0xffff code 1 severity 10 attributes 0x20 group-attributes 0x4 bindId 0 cursor 6
+goe-probe:   contexts 1 size 96 group 0/1 scope 1 originator 2 logLevel 20 source 0 uuid 7fc490a1...
+goe-probe:   context type 0x8001 version 0x100 size 61: Xid 0 'Caraxes device self-test operational event 6 (simulated)'
+goe-probe: record type 17 subtype 1 varData 0x1e0 trace 0x200000000000007 instance 7 ts 34188559 us
+goe-probe:   module 'CARAXES-TEST' category 0xffff code 1 severity 10 attributes 0x20 group-attributes 0x4 bindId 0 cursor 7
+goe-probe:   contexts 1 size 96 group 0/1 scope 1 originator 2 logLevel 20 source 0 uuid 7fc490a1...
+goe-probe:   context type 0x8001 version 0x100 size 61: Xid 0 'Caraxes device self-test operational event 7 (simulated)'
+goe-probe: record type 17 subtype 1 varData 0x240 trace 0x200000000000008 instance 8 ts 39308586 us
+goe-probe:   module 'CARAXES-TEST' category 0xffff code 1 severity 10 attributes 0x20 group-attributes 0x4 bindId 0 cursor 8
+goe-probe:   contexts 1 size 96 group 0/1 scope 1 originator 2 logLevel 20 source 0 uuid 7fc490a1...
+goe-probe:   context type 0x8001 version 0x100 size 61: Xid 0 'Caraxes device self-test operational event 8 (simulated)'
+goe-probe: record type 17 subtype 1 varData 0x2a0 trace 0x200000000000009 instance 9 ts 44428662 us
+goe-probe:   module 'CARAXES-TEST' category 0xffff code 1 severity 10 attributes 0x20 group-attributes 0x4 bindId 0 cursor 9
+goe-probe:   contexts 1 size 96 group 0/1 scope 1 originator 2 logLevel 20 source 0 uuid 7fc490a1...
+goe-probe:   context type 0x8001 version 0x100 size 61: Xid 0 'Caraxes device self-test operational event 9 (simulated)'
+goe-probe: record type 17 subtype 1 varData 0x300 trace 0x20000000000000a instance 10 ts 49548655 us
+goe-probe:   module 'CARAXES-TEST' category 0xffff code 1 severity 10 attributes 0x20 group-attributes 0x4 bindId 0 cursor 10
+goe-probe:   contexts 1 size 96 group 0/1 scope 1 originator 2 logLevel 20 source 0 uuid 7fc490a1...
+goe-probe:   context type 0x8001 version 0x100 size 62: Xid 0 'Caraxes device self-test operational event 10 (simulated)'
+goe-probe: 8 record(s); header recordCount 0 drops 0/0
+goe-probe rc=0

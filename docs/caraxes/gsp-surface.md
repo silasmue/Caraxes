@@ -1012,3 +1012,24 @@ display MODEL rows (display branch), the C rows the models do not take (`IDLE_CH
 `SETUP_BIND`, `BIF_INFO`, `GET_GENERIC_INFOFRAME`, `GET_MSA_ATTRIBUTES`,
 `TOGGLE_ACTIVE_CHANNEL_SCHEDULING`, the two `SET_TPC_PARTITION_MODE`) and the four open A
 rows (GSP_FB_STATS_GET among them).
+## After the GSP plan round 2, category C (2026-09-25)
+
+The 17 D rows the plan moved to C and nine of the ten open B rows are rows of the C table
+(`PUBLIC_C`, [gsp-plan/c-guest-state.md](gsp-plan/c-guest-state.md) §8 "Round 2",
+[gsp-plan/b-host-forwardable.md](gsp-plan/b-host-forwardable.md) §8); the tenth, the ZBC table
+entry, belongs to the ZBC model. `gsp-surface.py --ogkm <tree>` against the base of the round
+(57693d8, main after the D, display and transport work of 2026-09-24) and against the round's
+tree; the "before" column therefore differs from the "after D" column above by the work merged
+in between.
+
+| Item | 610 before | 610 after | 615 before | 615 after |
+|---|---:|---:|---:|---:|
+| Routed controls handled | 720 | 746 | 734 | 760 |
+| (host / synthesized / guest / echo / refused) | 70/79/39/66/466 | 70/81/55/66/474 | 69/79/40/67/479 | 69/81/56/67/487 |
+| Routed controls unhandled | 109 | 83 | 110 | 84 |
+| (A / B / C / D) | 51/10/0/48 | 51/1/0/31 | 51/10/1/48 | 51/1/1/31 |
+
+The one C control left on 615 is `NV_EVENT_BUFFER_CTRL_CMD_UPDATE_GET`: it is answered by
+`gspmem.rs` from the boot model, ahead of the dispatcher, which the inventory's reader does
+not look at. The one B control is `GET_ZBC_CLEAR_TABLE_ENTRY`. The 31 D controls are the open
+MODEL rows and the open A rows.

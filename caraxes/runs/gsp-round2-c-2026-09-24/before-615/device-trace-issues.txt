@@ -1,0 +1,25 @@
+     22 ctrl 0x2080012f: GPU_QUERY_ECC_STATUS: host status 0x56 -> status 0x56 [host (forwarded as-is, public control)]
+      8 ctrl 0x20808546: GSS legacy thermal 0x46: host status 0x56 -> status 0x56 [host (GSS legacy, forwarded opaquely; command and size from a native host trace)]
+      5 ctrl 0x20810110: binapi 0x20810110: host status 0x56 -> status 0x56 [host (BINAPI object of the host client, forwarded opaquely)]
+      3 ctrl 0x20801357: FB_QUERY_DRAM_ENCRYPTION_INFOROM_SUPPORT: host status 0x56 -> status 0x56 [host (forwarded as-is, public control)]
+      3 ctrl 0x20800157: GPU_QUERY_INFOROM_ECC_SUPPORT: host status 0x56 -> status 0x56 [host (forwarded as-is, public control)]
+      2 ctrl 0x208f1105: diag verify inforom: not supported -> status 0x56 [synthesized (NOT_SUPPORTED: no InfoROM verification, diag class not forwarded)]
+      1 ctrl 0x90e70113: inforom 0x90e70113: not supported -> status 0x56 [synthesized (NOT_SUPPORTED, as the host card answers; no BBX)]
+      1 ctrl 0x90e70102: inforom 0x90e70102: not supported -> status 0x56 [synthesized (NOT_SUPPORTED, as the host card answers; no BBX)]
+      1 ctrl 0x20810111: binapi 0x20810111: host status 0x56 -> status 0x56 [host (BINAPI object of the host client, forwarded opaquely)]
+      1 ctrl 0x2080a63c: GSS legacy pmgr 0x3c: host status 0x56 -> status 0x56 [host (GSS legacy, forwarded opaquely; command and size from a native host trace)]
+      1 ctrl 0x2080a0f1: GSS legacy perf 0xf1 (9216 bytes, host 615.71.09): host status 0x56 -> status 0x56 [host (GSS legacy, forwarded opaquely; the running host driver's size)]
+      1 ctrl 0x20809038: GSS legacy clk 0x38: host status 0x56 -> status 0x56 [host (GSS legacy, forwarded opaquely; command and size from a native host trace)]
+      1 ctrl 0x20801361: FB_GET_REMAPPED_BANKS: host status 0x56 -> status 0x56 [host (forwarded as-is, public control)]
+      1 ctrl 0x20801344: FB_GET_REMAPPED_ROWS (0x20801344): host status 0x56; 0 host entries withheld, flags 0x0 -> status 0x56 [host (forwarded, filtered: remapped rows cannot be placed in the reservation, empty list; card flags kept)]
+      1 ctrl 0x20801322: FB_GET_OFFLINED_PAGES (0x20801322): host status 0x56; 0 of 0 host entries inside the reservation Some((129800000, 169800000)) -> status 0x56 [host (forwarded, filtered: offlined pages inside the VM's reservation; guest FB address = host VRAM address)]
+      1 ctrl 0x20800b05: kgr SM issue throttle ctrl: not supported, not forwarded -> status 0x56 [synthesized (NOT_SUPPORTED; forwarding makes the host driver assert)]
+      1 ctrl 0x20800a3f: kgr FECS trace defines: not supported; there is no public host control for them (phase5 row 50); pFecsTraceDefines stays NULL -> status 0x56 [synthesized (NOT_SUPPORTED, tolerated: kernel_graphics.c:1498-1501)]
+      1 ctrl 0x20800a32: kgr context buffers info: 19 engines from host, 7 not supported -> status 0x0 [host (GR_GET_ENGINE_CONTEXT_PROPERTIES per engineId, NOT_SUPPORTED -> NV_U32_MAX)]
+      1 ctrl 0x20800a30: kgr PPC masks: not supported; the public GR_GET_PPC_MASK 0x20801233 is one GPC per call ({grRouteInfo, gpcId, ppcMask}, ctrl2080gr.h:1810-1814), not the internal mask[64] layout -> status 0x56 [synthesized (NOT_SUPPORTED, tolerated: kernel_graphics.c:1320-1327)]
+      1    502843929 E boot: shadow: VAS of guest root 0x129800000 freed: 32 syncs (0 skipped clean, 0 full walks, 15 table reads, 489 units diffed; max 85525 us, total 329 ms), 5065 maps (20684 leaves), 30 unmaps (0 partial, 0 failed), 0 map-failed, 0 over budget, 1 refused by the filter, 381 regio
+      1    500961722 E boot: shadow: sync 0 leaves walked in 1 unit(s), 0 table read(s) (0 set-A, 0 set-B excluded, 1 refused now) -> 1 unmapped, 0 mapped in 0 call(s), 0 failed, 0 over budget; mirrored 20654 leaves in 5035 RM mapping(s) (5036 before), 351 region object(s) + 0 leaf object(s); device
+      1    500851136 E boot: shadow: sync 512 leaves walked in 1 unit(s), 1 table read(s) (512 set-A, 0 set-B excluded, 1 refused now) -> 0 unmapped, 512 mapped in 144 call(s), 0 failed, 0 over budget; mirrored 20655 leaves in 5036 RM mapping(s) (4892 before), 352 region object(s) + 0 leaf object(s)
+      1    500687710 E boot: shadow: sync 1 leaves walked in 1 unit(s), 0 table read(s) (1 set-A, 0 set-B excluded, 1 refused now) -> 0 unmapped, 1 mapped in 1 call(s), 0 failed, 0 over budget; mirrored 20143 leaves in 4892 RM mapping(s) (4891 before), 351 region object(s) + 0 leaf object(s); device
+      1    500007160 E boot: shadow: sync 512 leaves walked in 1 unit(s), 1 table read(s) (512 set-A, 0 set-B excluded, 1 refused now) -> 0 unmapped, 512 mapped in 141 call(s), 0 failed, 0 over budget; mirrored 20142 leaves in 4891 RM mapping(s) (4750 before), 350 region object(s) + 0 leaf object(s)
+      1    499896273 E boot: shadow: sync 35 leaves walked in 35 unit(s), 0 table read(s) (35 set-A, 0 set-B excluded, 1 refused now) -> 0 unmapped, 35 mapped in 35 call(s), 0 failed, 0 over budget; mirrored 19630 leaves in 4750 RM mapping(s) (4715 before), 349 region object(s) + 0 leaf object(s); d

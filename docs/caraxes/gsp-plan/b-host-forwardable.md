@@ -482,10 +482,15 @@ trees). The handler is `src/public.rs`, which runs in `Dispatcher::control` befo
 | F1 | 26 | 26 | 0 | 0 |
 | F2 | 4 | 4 | 0 | 0 |
 | S | 11 | 10 | 1 | 0 |
-| G | 12 | 2 | 0 | 10 |
+| G | 12 | 11 | 0 | 1 |
 | R | 13 | 13 | 0 | 0 |
 | N | 4 | 4 | 0 | 0 |
-| **all** | **70** | **59** | **1** | **10** |
+| **all** | **70** | **68** | **1** | **1** |
+
+Round 2 (2026-09-25, this file's rows 5, 22, 23, 25, 55 and 58-61; details in
+[c-guest-state.md](c-guest-state.md) §8, "Round 2"): nine of the ten open G rows are rows of
+`PUBLIC_C`. Row 62, the ZBC table entry, belongs to the ZBC model of the D plan (R3) and
+stays open here.
 
 **What each group became.**
 
@@ -587,7 +592,7 @@ and it should move to the device.
 | 2 | `NV0000_GPUACCT_GET_PROC_ACCOUNTING_INFO` | N | done | d1ce87f | refused with a label |
 | 3 | `NV0000_GPUACCT_GET_ACCOUNTING_PIDS` | N | done | d1ce87f | refused with a label |
 | 4 | `NV0000_GPUACCT_GET_PROC_ACCOUNTING_INFO_V2` | N | done | d1ce87f | refused with a label |
-| 5 | `NV0090_GET_MMU_DEBUG_MODE` | G | open | - | C plan B2: per-TSG debug flag |
+| 5 | `NV0090_GET_MMU_DEBUG_MODE` | G | done | 8989bbc | C plan B2: `bMode` 0 from device state (the device never enables MMU debug; the SM debugger setters are refused); not forwarded |
 | 6 | `NV2080_GPU_QUERY_ECC_CONFIGURATION` | F1 | done | c6b98ee | FORWARD row, host 0x56 on a zeroed request (Q-B1) |
 | 7 | `NV2080_GPU_QUERY_ILLUM_SUPPORT` | F1 | done | c6b98ee | FORWARD row, host 0x0 on a zeroed request (Q-B1) |
 | 8 | `NV2080_GPU_GET_ILLUM` | F1 | done | c6b98ee | FORWARD row, host 0x56 on a zeroed request (Q-B1) |
@@ -604,10 +609,10 @@ and it should move to the device.
 | 19 | `NV2080_CLK_PMUMON_CLK_DOMAINS_GET_SAMPLES` | F1 | done | c6b98ee | FORWARD row, host 0x56 on a zeroed request (Q-B1) |
 | 20 | `NV2080_FIFO_OBJSCHED_SW_GET_LOG` | R | done | d1ce87f | refused with a label |
 | 21 | `NV2080_FIFO_OBJSCHED_GET_STATE` | F1 | done | c6b98ee | FORWARD row, host 0x1f on a zeroed request (Q-B1) |
-| 22 | `NV2080_GR_GET_CTXSW_STATS` | G | open | - | C plan B3: hChannel rewrite on the mirror's subdevice |
-| 23 | `NV2080_GR_GET_CURRENT_RESIDENT_CHANNEL` | G | open | - | C plan B5: host-ChID to guest-ChID map |
+| 22 | `NV2080_GR_GET_CTXSW_STATS` | G | done | 8989bbc | C plan B3: mirrored channel: hChannel rewritten to its own host channel on the mirror's subdevice; software channel: zeros |
+| 23 | `NV2080_GR_GET_CURRENT_RESIDENT_CHANNEL` | G | done | 8989bbc | C plan B5: the host's resident ChID (a host read on the mirror's subdevice) mapped through the mirrors' work-submit tokens; a guest ChID only for this VM's own mirror, else 0xFFFFFFFF |
 | 24 | `NV2080_GR_GFX_POOL_QUERY_SIZE` | S | done | d1ce87f | controls.toml, refused (no caller) |
-| 25 | `NV2080_GR_GET_CTXSW_MODES` | G | open | - | C plan B4 |
+| 25 | `NV2080_GR_GET_CTXSW_MODES` | G | done | 8989bbc | C plan B4: mirrored: the own mirror's modes; software: the recorded zcull and preemption modes, PM and SMPC off |
 | 26 | `NV2080_FB_GET_CALIBRATION_LOCK_FAILED` | F1 | done | c6b98ee | FORWARD row, host 0x0 on a zeroed request (Q-B1) |
 | 27 | `NV2080_FB_GET_LTC_INFO_FOR_FBP` | F1 | done | c6b98ee | FORWARD row, host 0x0 on a zeroed request (Q-B1) |
 | 28 | `NV2080_FB_GET_CTAGS_FOR_CBC_EVICTION` | S | done | d1ce87f | numCompTags 0 (D16) |
@@ -637,13 +642,13 @@ and it should move to the device.
 | 52 | `NV2080_GSP_GET_LIBOS_HEAP_STATS` | F1 | done | c6b98ee | FORWARD row, host 0x56 on a zeroed request (Q-B1) |
 | 53 | `NV2080_GPU_IS_RESET_COUPLED` | F1 | done | c6b98ee | FORWARD row, host 0x0 on a zeroed request (Q-B1) |
 | 54 | `NV2080_GPU_GET_UNIT_FS_INFO_FROM_DIELET` | R | done | d1ce87f | refused with a label |
-| 55 | `NV208F_FIFO_GET_CHANNEL_STATE` | G | open | - | C plan B8: scheduled flag per channel |
+| 55 | `NV208F_FIFO_GET_CHANNEL_STATE` | G | done | 8989bbc | C plan B8: `bEnabled`/`bScheduled` from the device's scheduling flags (DISABLE_CHANNELS, DISABLE_USERMODE_CHANNELS, the toggle), `bDeferRC` 0 |
 | 56 | `NV208F_GPU_GET_RAM_SVOP_VALUES` | R | done | d1ce87f | refused with a label |
 | 57 | `NV402C_I2C_GET_PORT_SPEED` | S | done | d1ce87f | zeros: no I2C ports |
-| 58 | `NV83DE_DEBUG_GET_MODE_MMU_DEBUG` | G | open | - | C plan B9: debugger defaults |
-| 59 | `NV83DE_DEBUG_GET_MODE_ERRBAR_DEBUG` | G | open | - | C plan B10 |
-| 60 | `NV83DE_DEBUG_GET_SINGLE_SM_DEBUGGER_STATUS` | G | open | - | C plan B11 |
-| 61 | `NV83DE_DEBUG_GET_MODE_MMU_GCC_DEBUG` | G | open | - | C plan B12 |
+| 58 | `NV83DE_DEBUG_GET_MODE_MMU_DEBUG` | G | done | 8989bbc | refused NOT_SUPPORTED: no debugger session model (its setter `SET_MODE_MMU_DEBUG` is the open MODEL row of D R5) |
+| 59 | `NV83DE_DEBUG_GET_MODE_ERRBAR_DEBUG` | G | done | 8989bbc | DISABLED: its setter is refused (D REFUSE), so no session has it on |
+| 60 | `NV83DE_DEBUG_GET_SINGLE_SM_DEBUGGER_STATUS` | G | done | 8989bbc | refused NOT_SUPPORTED: per-SM run-control state needs a session with SM debug mode (refused, D 6.16) |
+| 61 | `NV83DE_DEBUG_GET_MODE_MMU_GCC_DEBUG` | G | done | 8989bbc | refused NOT_SUPPORTED: Blackwell onwards, absent on TU106 (its setter is in the `blackwell` family) |
 | 62 | `NV9096_GET_ZBC_CLEAR_TABLE_ENTRY` | G | open | - | C plan B1: a device ZBC table; its defaults need Q-B3 (not permitted in this package) |
 | 63 | `NV90E6_MASTER_GET_ERROR_INTR_OFFSET_MASK` | S | done | d1ce87f | controls.toml, chip: masks 0 (no ECC, no NVLink), offset 0 |
 | 64 | `NV90E6_MASTER_GET_VIRTUAL_FUNCTION_ERROR_CONT_INTR_MASK` | S | done | d1ce87f | controls.toml, chip: both masks 0 |

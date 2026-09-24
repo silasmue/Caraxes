@@ -32,10 +32,15 @@ Run records: `caraxes/runs/gsp-rpc-2026-09-24/`.
   memory), duplicate handle and foreign class refused, `FREE` drops it, a page list above
   `maxRpcSize` is reassembled by `pteDesc.length`. The event import's next steps (0x90CD, its
   `ENABLE_EVENTS`/`UPDATE_GET`, 0x90D0) are answered on it (classes.md).
-- Status `IDLE_CHANNELS` (22): **partial**, caf007d. Resolved through the channel registry,
-  idle when USERD GPGet equals GPPut; a mirrored channel is polled for min(timeout, 50 ms)
-  instead of an idle call on the host RM; unknown handles `NV_ERR_INVALID_OBJECT_HANDLE`,
-  busy `NV_ERR_TIMEOUT` (`gsprpc.rs`).
+- Status `IDLE_CHANNELS` (22): **done**, caf007d and round 2 (2026-09-25). Resolved through
+  the channel registry; unknown handles `NV_ERR_INVALID_OBJECT_HANDLE` before any host call;
+  a software channel is idle when USERD GPGet equals GPPut; the mirrored channels of the list
+  go in one call to the host RM's own idle, `NV0080_CTRL_CMD_FIFO_IDLE_CHANNELS` (export flags
+  0x109, NON_PRIVILEGED) on the device's own host device with the mirror's own host channel
+  handles, the request's flags and the timeout capped at 50 ms (`Mirror::idle_channels`); the
+  host's `NV_ERR_TIMEOUT` is the guest's, another host status falls back to polling the
+  USERD for min(timeout, 50 ms) (`gsprpc.rs`). The same host call answers the control form
+  `NV0080_CTRL_CMD_FIFO_IDLE_CHANNELS` (c-guest-state.md §8, round 2).
 - Status `GPU_EXEC_REG_OPS` (50): **done**, caf007d. Never forwarded; 32-bit global reads of
   the chip's identity registers (BOOT_0, BOOT_1, BOOT_42) answered from the model, every other
   operation `REG_OP_STATUS_NOACCESS` with the call `NV_OK`.

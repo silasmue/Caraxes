@@ -1,0 +1,115 @@
+== before-610
+  nvml: fail (failed: power-number)
+  cuda-init fail: exit 0: 
+  cuda-context fail: exit 0: 
+  cuda-core fail: exit 1: ERROR: no 'stage 2 ok' in the output
+  cuda-jit fail: exit 1: ERROR: no 'stage 3 ok' in the output
+  cuda-launch fail: exit 1: ERROR: no 'stage 4 ok' in the output
+  cuda-managed fail: exit 1: ERROR: managedprobe did not report a correct stage-2 result
+  cuda-hostreg fail: exit 1: ERROR: hostregprobe: 0 of 2 roundtrips reported 'bad=0 correc
+  cuda-torch pass: torchprobe stage 5 with NVTORCH_CONV=1: cuDNN convolution result verifi
+  cuda-gdb skip: declared-unsupported: workload not procurable in this environment -- no c
+  rlprobe pass: mean10=56.9 (pinned)
+  convburn pass: acc=3.041450977e+00
+  robustness fail: 0 of 3 runs correct (); refcnt 1 -> 2
+  suite-test_async_streams fail: exit 1: torch.OutOfMemoryError: CUDA out of memory. Tried
+  suite-test_cuda_graphs pass: CUDA graphs test ok
+  suite-test_high_freq_event_polling pass: high-frequency event test ok
+  suite-test_multi_process_cuda pass: [W924 21:27:24.410682785 CudaIPCTypes.cpp:16] Produc
+  suite-test_nvrtc skip: missing module: cupy
+  suite-test_uvm_migration skip: missing module: cupy
+  suite-test_vram_churn pass: VRAM churn test ok (no leak, no crash)
+  suite-rapids_cuml_cudf skip: missing module: cudf
+  host Xid lines: 0
+== after-610
+  nvml: fail (failed: power-number)
+  cuda-init fail: exit 0: 
+  cuda-context fail: exit 0: 
+  cuda-core fail: exit 1: ERROR: no 'stage 2 ok' in the output
+  cuda-jit fail: exit 1: ERROR: no 'stage 3 ok' in the output
+  cuda-launch fail: exit 1: ERROR: no 'stage 4 ok' in the output
+  cuda-managed fail: exit 1: ERROR: managedprobe did not report a correct stage-2 result
+  cuda-hostreg fail: exit 1: ERROR: hostregprobe: 0 of 2 roundtrips reported 'bad=0 correc
+  cuda-torch pass: torchprobe stage 5 with NVTORCH_CONV=1: cuDNN convolution result verifi
+  cuda-gdb skip: declared-unsupported: workload not procurable in this environment -- no c
+  rlprobe pass: mean10=56.9 (pinned)
+  convburn pass: acc=3.041450977e+00
+  robustness fail: 0 of 3 runs correct (); refcnt 1 -> 2
+  suite-test_async_streams fail: exit 1: torch.OutOfMemoryError: CUDA out of memory. Tried
+  suite-test_cuda_graphs pass: CUDA graphs test ok
+  suite-test_high_freq_event_polling pass: high-frequency event test ok
+  suite-test_multi_process_cuda pass: [W924 22:35:03.262874829 CudaIPCTypes.cpp:16] Produc
+  suite-test_nvrtc skip: missing module: cupy
+  suite-test_uvm_migration skip: missing module: cupy
+  suite-test_vram_churn pass: VRAM churn test ok (no leak, no crash)
+  suite-rapids_cuml_cudf skip: missing module: cudf
+  host Xid lines: 0
+== before-615
+  nvml: pass (identity device-owned, telemetry forwarded and consistent with the host)
+  cuda-init pass: stage 0 ok (cuInit)
+  cuda-context pass: stage 1 ok (context, sched=auto)
+  cuda-core pass: nvprobe 2: device memory written, read back and compared
+  cuda-jit pass: nvprobe 3: PTX compiled by the driver, kernel launched, result verified
+  cuda-launch pass: nvprobe 4 (blocking): 100 kernel launches completed and verified
+  cuda-managed fail: exit 1: ERROR AllocManaged a: 801 operation not supported
+  cuda-hostreg pass: hostregprobe: 2 pinned-memory roundtrips (HostRegister and HostAlloc)
+  cuda-torch pass: torchprobe stage 5 with NVTORCH_CONV=1: cuDNN convolution result verifi
+  cuda-gdb skip: declared-unsupported: workload not procurable in this environment -- no c
+  rlprobe pass: mean10=56.9 (pinned)
+  convburn pass: acc=3.041450977e+00
+  robustness pass: 2 in parallel ok, next run after SIGKILL ok, nvidia.ko pinned by an ope
+  suite-test_async_streams fail: exit 1: torch.OutOfMemoryError: CUDA out of memory. Tried
+  suite-test_cuda_graphs pass: CUDA graphs test ok
+  suite-test_high_freq_event_polling pass: high-frequency event test ok
+  suite-test_multi_process_cuda pass: [W924 21:35:51.896406490 CudaIPCTypes.cpp:16] Produc
+  suite-test_nvrtc skip: missing module: cupy
+  suite-test_uvm_migration skip: missing module: cupy
+  suite-test_vram_churn pass: VRAM churn test ok (no leak, no crash)
+  suite-rapids_cuml_cudf skip: missing module: cudf
+  host Xid lines: 2
+== after-615
+  nvml: pass (identity device-owned, telemetry forwarded and consistent with the host)
+  cuda-init pass: stage 0 ok (cuInit)
+  cuda-context pass: stage 1 ok (context, sched=auto)
+  cuda-core pass: nvprobe 2: device memory written, read back and compared
+  cuda-jit pass: nvprobe 3: PTX compiled by the driver, kernel launched, result verified
+  cuda-launch pass: nvprobe 4 (blocking): 100 kernel launches completed and verified
+  cuda-managed fail: exit 1: ERROR AllocManaged a: 801 operation not supported
+  cuda-hostreg pass: hostregprobe: 2 pinned-memory roundtrips (HostRegister and HostAlloc)
+  cuda-torch pass: torchprobe stage 5 with NVTORCH_CONV=1: cuDNN convolution result verifi
+  cuda-gdb skip: declared-unsupported: workload not procurable in this environment -- no c
+  rlprobe pass: mean10=56.9 (pinned)
+  convburn pass: acc=3.041450977e+00
+  robustness pass: 2 in parallel ok, next run after SIGKILL ok, nvidia.ko pinned by an ope
+  suite-test_async_streams fail: exit 1: torch.OutOfMemoryError: CUDA out of memory. Tried
+  suite-test_cuda_graphs pass: CUDA graphs test ok
+  suite-test_high_freq_event_polling pass: high-frequency event test ok
+  suite-test_multi_process_cuda pass: [W924 22:42:42.747159754 CudaIPCTypes.cpp:16] Produc
+  suite-test_nvrtc skip: missing module: cupy
+  suite-test_uvm_migration skip: missing module: cupy
+  suite-test_vram_churn pass: VRAM churn test ok (no leak, no crash)
+  suite-rapids_cuml_cudf skip: missing module: cudf
+  host Xid lines: 0
+== probe-615
+  nvml: pass (identity device-owned, telemetry forwarded and consistent with the host)
+  cuda-init pass: stage 0 ok (cuInit)
+  cuda-context pass: stage 1 ok (context, sched=auto)
+  cuda-core pass: nvprobe 2: device memory written, read back and compared
+  cuda-jit pass: nvprobe 3: PTX compiled by the driver, kernel launched, result verified
+  cuda-launch pass: nvprobe 4 (blocking): 100 kernel launches completed and verified
+  cuda-managed fail: exit 1: ERROR AllocManaged a: 801 operation not supported
+  cuda-hostreg pass: hostregprobe: 2 pinned-memory roundtrips (HostRegister and HostAlloc)
+  cuda-torch pass: torchprobe stage 5 with NVTORCH_CONV=1: cuDNN convolution result verifi
+  cuda-gdb skip: declared-unsupported: workload not procurable in this environment -- no c
+  rlprobe pass: mean10=56.9 (pinned)
+  convburn pass: acc=3.041450977e+00
+  robustness pass: 2 in parallel ok, next run after SIGKILL ok, nvidia.ko pinned by an ope
+  suite-test_async_streams fail: exit 1: torch.OutOfMemoryError: CUDA out of memory. Tried
+  suite-test_cuda_graphs pass: CUDA graphs test ok
+  suite-test_high_freq_event_polling pass: high-frequency event test ok
+  suite-test_multi_process_cuda pass: [W924 22:50:57.573236978 CudaIPCTypes.cpp:16] Produc
+  suite-test_nvrtc skip: missing module: cupy
+  suite-test_uvm_migration skip: missing module: cupy
+  suite-test_vram_churn pass: VRAM churn test ok (no leak, no crash)
+  suite-rapids_cuml_cudf skip: missing module: cudf
+  host Xid lines: 0

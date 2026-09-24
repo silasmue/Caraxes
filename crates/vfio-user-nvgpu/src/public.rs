@@ -31,6 +31,28 @@ use crate::ver::active::{NV20_SUBDEVICE_0, NV_ERR_NOT_SUPPORTED, NV_OK};
 /// `NV_ERR_INVALID_PARAM_STRUCT` (nvstatuscodes.h:87): a guest buffer of another size
 /// than the version's struct is refused, never forwarded.
 pub const NV_ERR_INVALID_PARAM_STRUCT: u32 = 0x3A;
+// Further statuses the C rows answer (nvstatuscodes.h:52, 62, 80, 124, 130).
+pub const NV_ERR_INVALID_ARGUMENT: u32 = 0x1F;
+pub const NV_ERR_INVALID_CHANNEL: u32 = 0x21;
+pub const NV_ERR_INVALID_OBJECT_HANDLE: u32 = 0x33;
+pub const NV_ERR_PROTECTION_FAULT: u32 = 0x5F;
+pub const NV_ERR_TIMEOUT: u32 = 0x65;
+
+/// The guest channel `(h_client, h_channel)` in the registry.
+fn channel_of(
+    reg: Option<&crate::channel::Registry>,
+    h_client: u32,
+    h_channel: u32,
+) -> Option<&crate::channel::Channel> {
+    reg?.channels()
+        .find(|c| c.h_client == h_client && c.h_object == h_channel)
+}
+
+/// A user channel in the device's view: a channel of a guest TSG (the kernel's own
+/// golden-context and WAR channels are bare, mirror.rs `eligible`).
+fn usermode(reg: Option<&crate::channel::Registry>, c: &crate::channel::Channel) -> bool {
+    reg.is_some_and(|r| r.tsg((c.h_client, c.h_parent)).is_some())
+}
 
 /// What the rows need from the dispatcher.
 pub struct Ctx<'a> {
@@ -50,14 +72,48 @@ pub struct Ctx<'a> {
     pub mirror: Option<&'a mut dyn MirrorObjects>,
     /// What the guest set on its objects.
     pub attrs: &'a mut GuestAttrs,
+    /// The guest's channels and TSGs (`channel::Registry`), for the rows that name a guest
+    /// channel in their params.
+    pub reg: Option<&'a crate::channel::Registry>,
+    /// The emulated PCIe Link Control register (config.rs), for `NV208F BIF_INFO`.
+    pub link_control: u16,
 }
 
-/// The host mirror of a guest channel or TSG, looked up by the guest's own handles.
+/// The host mirror of a guest channel or TSG, looked up by the guest's own handles. Every
+/// method acts on the mirror's own host objects of the guest objects it is given, never on
+/// another host handle; `None` means no object of the call has a mirror.
 pub trait MirrorObjects {
     /// Issue `cmd` on the host object that mirrors the guest object `(h_client,
     /// h_object)`: (host status, note), or `None` when the object has no mirror.
     fn forward(&mut self, h_client: u32, h_object: u32, cmd: u32, params: &[u8])
         -> Option<(u32, String)>;
+    /// The host RM's idle of the mirrored channels of `list` (mirror.rs `idle_channels`).
+    fn idle(&mut self, _list: &[(u32, u32)], _flags: u32, _timeout_us: u32) -> Option<(u32, String)> {
+        None
+    }
+    /// Disable or enable scheduling of the mirrored channels of `list` (mirror.rs
+    /// `set_scheduling`).
+    fn schedule(&mut self, _list: &[(u32, u32)], _disable: bool, _only: bool) -> Option<(u32, String)> {
+        None
+    }
+    /// A subdevice getter naming a guest channel, on its mirror (mirror.rs
+    /// `channel_query`).
+    fn channel_query(
+        &mut self,
+        _h_client: u32,
+        _h_channel: u32,
+        _cmd: u32,
+        _params: &[u8],
+        _channel_off: usize,
+        _client_off: Option<usize>,
+    ) -> Option<(u32, Vec<u8>, String)> {
+        None
+    }
+    /// The guest ChID of this VM's mirror resident on GR, if one is (mirror.rs
+    /// `resident_guest_chid`).
+    fn resident(&mut self, _params: &[u8]) -> Option<(u32, Option<u32>, String)> {
+        None
+    }
 }
 
 /// [`MirrorObjects`] over the device's mirror (`Mirror::forward_control`: the TSG by its
@@ -78,13 +134,59 @@ impl MirrorObjects for MirrorFwd<'_> {
         self.mirror
             .forward_control(self.reg, h_client, h_object, cmd, params)
     }
+
+    fn idle(&mut self, list: &[(u32, u32)], flags: u32, timeout_us: u32) -> Option<(u32, String)> {
+        self.mirror.idle_channels(self.reg, list, flags, timeout_us)
+    }
+
+    fn schedule(&mut self, list: &[(u32, u32)], disable: bool, only: bool) -> Option<(u32, String)> {
+        self.mirror.set_scheduling(self.reg, list, disable, only)
+    }
+
+    fn channel_query(
+        &mut self,
+        h_client: u32,
+        h_channel: u32,
+        cmd: u32,
+        params: &[u8],
+        channel_off: usize,
+        client_off: Option<usize>,
+    ) -> Option<(u32, Vec<u8>, String)> {
+        self.mirror
+            .channel_query(self.reg, h_client, h_channel, cmd, params, (channel_off, client_off))
+    }
+
+    fn resident(&mut self, params: &[u8]) -> Option<(u32, Option<u32>, String)> {
+        self.mirror.resident_guest_chid(params)
+    }
 }
 
-/// Per guest object: what its controls recorded (c-guest-state.md §4 `ObjAttrs`).
+/// Per guest object: what its controls recorded (c-guest-state.md §4 `ObjAttrs`), and the
+/// device-wide channel state the C rows keep: the scheduling flags and the RC journal.
 #[derive(Default, Debug)]
 pub struct GuestAttrs {
     objects: BTreeMap<(u32, u32), Attrs>,
+    /// `FIFO_DISABLE_USERMODE_CHANNELS`: the guest's user channels are off (suspend).
+    pub usermode_disabled: bool,
+    /// `INTERNAL_FIFO_TOGGLE_ACTIVE_CHANNEL_SCHEDULING`: every active channel is off.
+    pub scheduling_disabled: bool,
+    /// The RC errors the device reported to this guest (RC_TRIGGERED, boot.rs), and the
+    /// ones the guest reported to the device (watchdog, non-replayable fault).
+    pub journal: Vec<RcRecord>,
 }
+
+/// One entry of the device's RC journal for this guest.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct RcRecord {
+    /// The guest channel, when the error names one.
+    pub chid: Option<u32>,
+    /// The Xid (exceptType) the device reported, 0 for a guest report.
+    pub xid: u32,
+    pub what: String,
+}
+
+/// The oldest records go first once the journal holds this many.
+pub const RC_JOURNAL_MAX: usize = 256;
 
 #[derive(Default, Debug, Clone)]
 pub struct Attrs {
@@ -92,14 +194,41 @@ pub struct Attrs {
     pub recorded: BTreeMap<u32, Vec<u8>>,
     /// Resets of the channel the device answered or forwarded.
     pub resets: u32,
-    /// The last MMU fault of the channel as `GET_MMU_FAULT_INFO` returns it; nothing
-    /// records one yet (the RC events are the RPC plan's).
+    /// The last MMU fault of the channel as `GET_MMU_FAULT_INFO` returns it: the host's
+    /// answer on the channel's own mirror, read when the device raised an RC for it
+    /// (boot.rs `scan_channel_errors`).
     pub last_fault: Option<Vec<u8>>,
+    /// `FIFO_DISABLE_CHANNELS`: the channel's scheduling is disabled.
+    pub disabled: bool,
 }
 
 impl GuestAttrs {
     pub fn get(&self, key: (u32, u32)) -> Option<&Attrs> {
         self.objects.get(&key)
+    }
+
+    /// An RC the device raised for guest channel `key` (chid `chid`, Xid `xid`), with the
+    /// fault its mirror reported when there is one: journal entry and fault record.
+    pub fn record_rc(&mut self, key: (u32, u32), chid: u32, xid: u32, fault: Option<Vec<u8>>, what: String) {
+        if let Some(f) = fault {
+            self.objects.entry(key).or_default().last_fault = Some(f);
+        }
+        self.journal_push(RcRecord { chid: Some(chid), xid, what });
+    }
+
+    fn journal_push(&mut self, r: RcRecord) {
+        if self.journal.len() >= RC_JOURNAL_MAX {
+            self.journal.remove(0);
+        }
+        self.journal.push(r);
+    }
+
+    /// Whether the guest channel `key` is enabled in the device's view: not disabled by
+    /// itself, by the usermode switch (a channel of a TSG) or by the device-wide toggle.
+    pub fn channel_enabled(&self, key: (u32, u32), usermode: bool) -> bool {
+        !(self.scheduling_disabled
+            || (usermode && self.usermode_disabled)
+            || self.get(key).is_some_and(|a| a.disabled))
     }
 
     /// `FREE` of an object (and of everything a freed client owned).
@@ -205,11 +334,16 @@ fn guest(ctx: &mut Ctx<'_>, row: &PublicControl, g: Guest, params: &[u8]) -> Ans
             "guest (the device defers no RC: bDeferRCPending 0)",
             "no deferred RC".into(),
         ),
-        Guest::RcErrorCount => ok(
-            vec![0u8; n],
-            "guest (the device's RC journal for this guest: no RC error reported)",
-            "error count 0".into(),
-        ),
+        Guest::RcErrorCount => {
+            let count = ctx.attrs.journal.len() as u32;
+            let mut b = vec![0u8; n];
+            put32(&mut b, 0, count);
+            ok(
+                b,
+                "guest (the device's RC journal for this guest)",
+                format!("error count {count}"),
+            )
+        }
         Guest::RcErrorV2 => {
             let mut b = vec![0u8; n];
             b[..4].copy_from_slice(&params[..4]);
@@ -278,6 +412,343 @@ fn guest(ctx: &mut Ctx<'_>, row: &PublicControl, g: Guest, params: &[u8]) -> Ans
                 "recorded only".into(),
             )
         }
+        Guest::ChannelRecord { h_client: client_off, h_channel } => {
+            let c = client_off.map_or(h_client, |o| get32(params, o));
+            let h = get32(params, h_channel);
+            if channel_of(ctx.reg, c, h).is_none() {
+                return err(
+                    row,
+                    NV_ERR_INVALID_OBJECT_HANDLE,
+                    params,
+                    "guest (the params name no channel of this device)",
+                    format!("{c:#x}/{h:#x}"),
+                );
+            }
+            ctx.attrs
+                .objects
+                .entry((c, h))
+                .or_default()
+                .recorded
+                .insert(row.id, params.to_vec());
+            ok(
+                params.to_vec(),
+                "guest (recorded on the named guest channel, never forwarded: the mirror channel keeps the host's defaults)",
+                format!("channel {c:#x}/{h:#x}: recorded"),
+            )
+        }
+        Guest::IdleChannels => {
+            let num = get32(params, 0) as usize;
+            if num > p::IDLE_CHANNELS_MAX {
+                return err(row, NV_ERR_INVALID_ARGUMENT, params, "guest (more channels than the struct holds)", format!("{num} channels"));
+            }
+            let (flags, timeout) = (
+                get32(params, p::IDLE_CHANNELS_FLAGS),
+                get32(params, p::IDLE_CHANNELS_TIMEOUT),
+            );
+            let mut mirrored = Vec::new();
+            for i in 0..num {
+                let h = get32(params, 4 + 4 * i);
+                match channel_of(ctx.reg, h_client, h) {
+                    None => {
+                        return err(
+                            row,
+                            NV_ERR_INVALID_OBJECT_HANDLE,
+                            params,
+                            "guest (the list names no channel of this device)",
+                            format!("{h_client:#x}/{h:#x}"),
+                        )
+                    }
+                    Some(c) if c.mirrored => mirrored.push((h_client, h)),
+                    Some(_) => {}
+                }
+            }
+            if mirrored.is_empty() {
+                return ok(
+                    params.to_vec(),
+                    "guest (software channels are idle: the executor runs a push to completion at its doorbell)",
+                    format!("{num} channel(s) idle"),
+                );
+            }
+            let capped = (crate::gsprpc::IDLE_WAIT_CAP.as_micros() as u32).min(timeout);
+            let host = ctx
+                .mirror
+                .as_deref_mut()
+                .and_then(|m| m.idle(&mirrored, flags, capped));
+            let (status, label, what) = match host {
+                Some((NV_OK, note)) => (NV_OK, "host (the host RM's idle on the guest channels' own mirrors)", note),
+                Some((NV_ERR_TIMEOUT, note)) => (NV_ERR_TIMEOUT, "host (the host RM's idle on the own mirrors timed out)", note),
+                Some((st, note)) => (
+                    NV_ERR_TIMEOUT,
+                    "host (the host RM refused the idle of the own mirrors: not shown idle)",
+                    format!("host status {st:#x}: {note}"),
+                ),
+                None => (NV_OK, "guest (no host mirror object: nothing runs on the host)", "no host object".into()),
+            };
+            Answer {
+                status,
+                params: params.to_vec(),
+                label,
+                note: format!("{} ({:#x}): {num} channel(s), {} mirrored, timeout {timeout} us capped at {capped} us: {what}", row.name, row.id, mirrored.len()),
+            }
+        }
+        Guest::DisableChannels => {
+            let disable = params[0] != 0;
+            let num = get32(params, 4) as usize;
+            let only = params[8] != 0;
+            if num > p::DISABLE_CHANNELS_MAX {
+                return err(row, NV_ERR_INVALID_ARGUMENT, params, "guest (more channels than the struct holds)", format!("{num} channels"));
+            }
+            let mut list = Vec::new();
+            let mut mirrored = Vec::new();
+            for i in 0..num {
+                let c = get32(params, p::DISABLE_CHANNELS_CLIENTS + 4 * i);
+                let h = get32(params, p::DISABLE_CHANNELS_CHANNELS + 4 * i);
+                match channel_of(ctx.reg, c, h) {
+                    None => {
+                        return err(
+                            row,
+                            NV_ERR_INVALID_OBJECT_HANDLE,
+                            params,
+                            "guest (the list names no channel of this device)",
+                            format!("{c:#x}/{h:#x}"),
+                        )
+                    }
+                    Some(ch) => {
+                        list.push((c, h));
+                        if ch.mirrored {
+                            mirrored.push((c, h));
+                        }
+                    }
+                }
+            }
+            for &k in &list {
+                ctx.attrs.objects.entry(k).or_default().disabled = disable;
+            }
+            let host = if mirrored.is_empty() {
+                None
+            } else {
+                ctx.mirror
+                    .as_deref_mut()
+                    .and_then(|m| m.schedule(&mirrored, disable, only))
+            };
+            ok(
+                params.to_vec(),
+                if host.is_some() {
+                    "host (recorded; the guest channels' own mirrors disabled or enabled on the host, the guest sees NV_OK)"
+                } else {
+                    "guest (recorded on the guest channels; no mirror)"
+                },
+                format!(
+                    "bDisable {disable} bOnlyDisableScheduling {only} on {} channel(s), {} mirrored; pRunlistPreemptEvent and bRewindGpPut never passed{}",
+                    list.len(),
+                    mirrored.len(),
+                    host.map_or(String::new(), |(st, n)| format!("; host status {st:#x}: {n}"))
+                ),
+            )
+        }
+        Guest::DisableUsermode | Guest::ToggleScheduling => {
+            let disable = params[0] != 0;
+            let all = matches!(g, Guest::ToggleScheduling);
+            if all {
+                ctx.attrs.scheduling_disabled = disable;
+            } else {
+                ctx.attrs.usermode_disabled = disable;
+            }
+            let mirrored: Vec<(u32, u32)> = ctx
+                .reg
+                .map(|r| {
+                    r.channels()
+                        .filter(|c| c.mirrored && (all || usermode(ctx.reg, c)))
+                        .map(|c| (c.h_client, c.h_object))
+                        .collect()
+                })
+                .unwrap_or_default();
+            let host = if mirrored.is_empty() {
+                None
+            } else {
+                ctx.mirror
+                    .as_deref_mut()
+                    .and_then(|m| m.schedule(&mirrored, disable, all))
+            };
+            ok(
+                params.to_vec(),
+                if host.is_some() {
+                    "host (the device's scheduling flag over the guest's channels; their own mirrors on the host, never another host channel)"
+                } else {
+                    "guest (the device's scheduling flag over the guest's channels; no mirror)"
+                },
+                format!(
+                    "{} {}; {} mirror channel(s){}",
+                    if all { "active channels" } else { "user channels" },
+                    if disable { "disabled" } else { "enabled" },
+                    mirrored.len(),
+                    host.map_or(String::new(), |(st, n)| format!("; host status {st:#x}: {n}"))
+                ),
+            )
+        }
+        Guest::CheckEngineContext => {
+            let (h, engine) = (get32(params, 0), get32(params, p::CHECK_CTX_ENGINE));
+            if engine != p::NV2080_ENGINE_TYPE_GRAPHICS {
+                return err(row, NV_ERR_INVALID_ARGUMENT, params, "guest (only the graphics engine has a context here)", format!("engine {engine:#x}"));
+            }
+            let Some(c) = channel_of(ctx.reg, h_client, h) else {
+                return err(row, NV_ERR_INVALID_CHANNEL, params, "guest (no channel of this device)", format!("{h_client:#x}/{h:#x}"));
+            };
+            let reg = ctx.reg.expect("resolved above");
+            let promoted = |k: (u32, u32)| reg.promoted(k).is_some_and(|m| !m.is_empty());
+            let exists = promoted((c.h_client, c.h_object)) || promoted((c.h_client, c.h_parent));
+            let mut b = params.to_vec();
+            b[p::CHECK_CTX_EXISTS] = exists as u8;
+            ok(
+                b,
+                "guest (the GR context the guest promoted for the channel or its TSG, channel.rs record_promote_ctx)",
+                format!("chid {}: exists {exists}", c.chid),
+            )
+        }
+        Guest::WatchdogTimeout => {
+            ctx.attrs.journal_push(RcRecord {
+                chid: None,
+                xid: 0,
+                what: "RC watchdog timeout reported by the guest kernel".into(),
+            });
+            ok(
+                params.to_vec(),
+                "guest (recorded in the device's RC journal; no host engine is reset, the recovery is the guest's RESET_CHANNEL)",
+                format!("journal {} record(s)", ctx.attrs.journal.len()),
+            )
+        }
+        Guest::RcCleanHistory => {
+            let n = ctx.attrs.journal.len();
+            ctx.attrs.journal.clear();
+            ok(
+                params.to_vec(),
+                "guest (the device's RC journal for this guest emptied; the host's history is never touched)",
+                format!("{n} record(s) dropped"),
+            )
+        }
+        Guest::NonReplayableFault => {
+            // The GMMU fault packet (32 bytes): instance pointer @0, fault address @8,
+            // timestamp @16, info @28 (clc369.h NVC369_BUF_ENTRY_*).
+            let (inst, addr, info) = (get64(params, 0), get64(params, 8), get32(params, 28));
+            ctx.attrs.journal_push(RcRecord {
+                chid: None,
+                xid: 0,
+                what: format!("non-replayable fault reported by the guest: inst {inst:#x} addr {addr:#x} info {info:#x}"),
+            });
+            ok(
+                params.to_vec(),
+                "guest (the guest's fault packet recorded in the device's RC journal; never passed to the host GMMU)",
+                format!("inst {inst:#x} addr {addr:#x}"),
+            )
+        }
+        Guest::MmuDebugMode => ok(
+            vec![0u8; n],
+            "guest (the TSG's MMU debug mode: the device never enables one, the SM debugger setters are refused)",
+            "bMode 0".into(),
+        ),
+        Guest::CtxswStats | Guest::CtxswModes => {
+            let h = get32(params, 0);
+            let Some(c) = channel_of(ctx.reg, h_client, h) else {
+                return err(row, NV_ERR_INVALID_OBJECT_HANDLE, params, "guest (no channel of this device)", format!("{h_client:#x}/{h:#x}"));
+            };
+            if c.mirrored {
+                if let Some((st, out, note)) = ctx
+                    .mirror
+                    .as_deref_mut()
+                    .and_then(|m| m.channel_query(h_client, h, row.id, params, 0, None))
+                {
+                    return Answer {
+                        status: st,
+                        params: out,
+                        label: "host (the guest channel's own mirror, hChannel rewritten to it on the mirror's subdevice)",
+                        note: format!("{} ({:#x}) chid {}: {note}", row.name, row.id, c.chid),
+                    };
+                }
+            }
+            let mut b = vec![0u8; n];
+            b[..4].copy_from_slice(&h.to_le_bytes());
+            if matches!(g, Guest::CtxswStats) {
+                b[4..8].copy_from_slice(&params[4..8]);
+                return ok(b, "guest (a software channel never context-switches: zeros)", format!("chid {}", c.chid));
+            }
+            let rec = ctx.attrs.get((h_client, h)).map(|a| &a.recorded);
+            let zcull = rec.and_then(|r| r.get(&0x2080_1205)).map_or(0, |z| get32(z, p::ZCULL_MODE_MODE));
+            let bind = rec.and_then(|r| r.get(&0x2080_1211));
+            let gfxp = bind.map_or(0, |b| get32(b, p::PREEMPTION_BIND_GFXP));
+            let cilp = bind.map_or(0, |b| get32(b, p::PREEMPTION_BIND_CILP));
+            put32(&mut b, p::CTXSW_MODES_ZCULL, zcull);
+            put32(&mut b, p::CTXSW_MODES_CILP, cilp);
+            put32(&mut b, p::CTXSW_MODES_GFXP, gfxp);
+            ok(
+                b,
+                "guest (the modes the guest set on the software channel; PM and SMPC off)",
+                format!("chid {}: zcull {zcull} cilp {cilp} gfxp {gfxp}", c.chid),
+            )
+        }
+        Guest::ResidentChannel => {
+            let mut b = params.to_vec();
+            let host = ctx.mirror.as_deref_mut().and_then(|m| m.resident(params));
+            let (chid, what) = match host {
+                Some((NV_OK, Some(g), note)) => (g, note),
+                Some((_, _, note)) => (u32::MAX, note),
+                None => (u32::MAX, "no mirror channel: no guest channel runs on the physical GR".into()),
+            };
+            put32(&mut b, 0, chid);
+            ok(
+                b,
+                "guest (a guest ChID only when one of this VM's own mirrors is resident; never another tenant's)",
+                format!("chID {chid:#x}: {what}"),
+            )
+        }
+        Guest::ChannelState => {
+            let (h, c) = (get32(params, 0), get32(params, 4));
+            let Some(ch) = channel_of(ctx.reg, c, h) else {
+                return err(row, NV_ERR_INVALID_CHANNEL, params, "guest (no channel of this device)", format!("{c:#x}/{h:#x}"));
+            };
+            let enabled = ctx.attrs.channel_enabled((c, h), usermode(ctx.reg, ch));
+            let mut b = params.to_vec();
+            b[8..16].fill(0);
+            b[p::CHANNEL_STATE_ENABLED] = enabled as u8;
+            b[p::CHANNEL_STATE_SCHEDULED] = enabled as u8;
+            ok(
+                b,
+                "guest (the device's scheduling state of the channel; bCpuMap and bRunlistSet are the kernel's, bDeferRC 0)",
+                format!("chid {} enabled {enabled}", ch.chid),
+            )
+        }
+        Guest::ErrbarDebugMode => {
+            let mut b = vec![0u8; n];
+            put32(&mut b, 0, p::ERRBAR_DEBUG_DISABLED);
+            ok(
+                b,
+                "guest (disabled: SET_MODE_ERRBAR_DEBUG is refused, so no session enables it)",
+                "errbar debug disabled".into(),
+            )
+        }
+        Guest::TsgInfo => match ctx.reg.and_then(|r| r.tsg_id(ctx.key)) {
+            Some(id) => {
+                let mut b = vec![0u8; n];
+                put32(&mut b, 0, id);
+                ok(b, "guest (the kernel's TSG id, internalFlags TSG_ID)", format!("tsgID {id}"))
+            }
+            None => err(
+                row,
+                NV_ERR_NOT_SUPPORTED,
+                params,
+                "guest (no kernel TSG id recorded: a 610 kernel sends none)",
+                format!("{h_client:#x}/{h_object:#x}"),
+            ),
+        },
+    }
+}
+
+/// A refusal of a C row with its status, the request echoed.
+fn err(row: &PublicControl, status: u32, params: &[u8], label: &'static str, what: String) -> Answer {
+    Answer {
+        status,
+        params: params.to_vec(),
+        label,
+        note: format!("{} ({:#x}): {what}: status {status:#x}", row.name, row.id),
     }
 }
 
@@ -349,6 +820,39 @@ fn device(ctx: &Ctx<'_>, row: &PublicControl, d: Dev, params: &[u8]) -> Answer {
             "synthesized (NOT_SUPPORTED: no ECC on this board, as the host answers the ECC getters, Q-B1)",
             "sram unique uncorrected counts: no ECC".into(),
         ),
+        Dev::MemMapDenied => (
+            NV_ERR_PROTECTION_FAULT,
+            params.to_vec(),
+            "synthesized (the device's BAR0 map: nothing beyond the timer, usermode and MC ranges the kernel allows itself)",
+            format!("start {:#x} length {:#x}: denied", get64(params, 0), get64(params, 8)),
+        ),
+        Dev::BifInfo => {
+            let index = get32(params, 0);
+            let lnk = ctx.link_control as u32;
+            let bit = match index {
+                p::BIF_INFO_L0S => Some(lnk & 1),
+                p::BIF_INFO_L1 => Some((lnk >> 1) & 1),
+                _ => None,
+            };
+            match bit {
+                Some(v) => {
+                    let mut b = params.to_vec();
+                    put32(&mut b, 4, v);
+                    (
+                        NV_OK,
+                        b,
+                        "synthesized (the ASPM enables of the emulated PCIe Link Control register)",
+                        format!("index {index}: {v} (LnkCtl {lnk:#x})"),
+                    )
+                }
+                None => (
+                    NV_ERR_INVALID_ARGUMENT,
+                    params.to_vec(),
+                    "synthesized (BIF info index other than L0S_ENABLED and L1_ENABLED)",
+                    format!("index {index}"),
+                ),
+            }
+        }
     };
     Answer {
         status,
@@ -577,6 +1081,8 @@ mod tests {
             key: (0, 0),
             mirror: None,
             attrs: &mut GuestAttrs::default(),
+            reg: None,
+            link_control: 0,
         };
         let size = p::public_control(cmd).unwrap().size;
         let a = answer(&mut ctx, cmd, &vec![0u8; size]).unwrap();
@@ -699,6 +1205,8 @@ mod tests {
             key: (0, 0),
             mirror: None,
             attrs: &mut GuestAttrs::default(),
+            reg: None,
+            link_control: 0,
         };
         let a = answer(&mut ctx, 0x2080_1322, &[0u8; 2048]).unwrap();
         assert_eq!(a.status, NV_ERR_INVALID_PARAM_STRUCT);
@@ -806,6 +1314,8 @@ mod tests {
             key: (0, 0),
             mirror: None,
             attrs: &mut GuestAttrs::default(),
+            reg: None,
+            link_control: 0,
         };
         let a = answer(&mut ctx, 0x2080_3602, &b).unwrap();
         assert!(seen.lock().unwrap().is_empty());
@@ -904,6 +1414,8 @@ mod tests {
             key: (0, 0),
             mirror: None,
             attrs: &mut GuestAttrs::default(),
+            reg: None,
+            link_control: 0,
         };
         let a = answer(&mut ctx, cmd, params).unwrap();
         let s = seen.lock().unwrap().clone();
@@ -1034,6 +1546,8 @@ mod tests {
             key: obj,
             mirror: Some(&mut m),
             attrs,
+            reg: None,
+            link_control: 0x3,
         };
         let a = answer(&mut ctx, cmd, params).unwrap();
         assert!(
@@ -1153,7 +1667,9 @@ mod tests {
             .iter()
             .filter(|c| matches!(c.rule, Rule::Refuse(_)))
             .collect();
-        assert_eq!(refused.len(), 8 + 5 + 2);
+        // V, K, X; then the round-2 refusals: SETUP_BIND, the two DP readbacks, the two TPC
+        // partition setters and the three debugger getters without a session model.
+        assert_eq!(refused.len(), 8 + 5 + 2 + 8);
         for c in refused {
             let (a, calls) = guest_call(&mut attrs, &[CH], CH, c.id, &[0x3C; 16]);
             assert!(calls.is_empty(), "{}", c.name);
@@ -1180,7 +1696,9 @@ mod tests {
             let a = d.control(CH.0, CH.1, c.id, &vec![0u8; size]);
             assert_ne!(a.label, "unanswered", "{}", c.name);
             assert!(
-                a.label.starts_with("guest (") || a.label.starts_with("refused ("),
+                a.label.starts_with("guest (")
+                    || a.label.starts_with("refused (")
+                    || a.label.starts_with("synthesized ("),
                 "{}: {}",
                 c.name,
                 a.label
@@ -1189,5 +1707,414 @@ mod tests {
         assert!(d.guest_attrs.get(CH).is_some());
         d.free(CH.0, CH.1);
         assert!(d.guest_attrs.get(CH).is_none());
+    }
+
+    // ---------------------------------------------------------------------------------
+    // Round 2 (the 17 C rows of the D plan, the open B rows, the TSG id).
+
+    use crate::ver::active as va;
+    type Abi = va::RmAbi;
+
+    /// Guest client 0xC1: TSG 0x30 (kernel id 7 on 615) with channel 0x40 (chid 2, host
+    /// mirror) and channel 0x41 (chid 3, software); a bare kernel channel 0x50 (chid 4).
+    fn world() -> crate::channel::Registry {
+        let chip = crate::fixture::rtx2070().chip.data();
+        let mut reg = crate::channel::Registry::new(chip.channel);
+        let mut tsg = vec![0u8; <Abi as nvrm_sys::RmAbi>::TSG_PARAMS_SIZE as usize];
+        let off = <Abi as nvrm_sys::RmAbi>::TSG_PARAMS_OFF_internalFlags;
+        if tsg.len() >= off + 4 {
+            tsg[off..off + 4].copy_from_slice(&(7u32 | 1 << 16).to_le_bytes());
+        }
+        reg.record_alloc(0xC1, 0xC1, 0x30, va::KEPLER_CHANNEL_GROUP_A, &tsg);
+        let ch = |chid: u32| {
+            let mut b = vec![0u8; <Abi as nvrm_sys::RmAbi>::ALLOC_CHANNEL_PARAMS_SIZE as usize];
+            let o = <Abi as nvrm_sys::RmAbi>::ALLOC_CHANNEL_PARAMS_OFF_flags;
+            b[o..o + 4].copy_from_slice(&(((chid / 8) << 12) | ((chid % 8) << 8)).to_le_bytes());
+            b
+        };
+        reg.record_alloc(0xC1, 0x30, 0x40, chip.channel.gpfifo, &ch(2));
+        reg.record_alloc(0xC1, 0x30, 0x41, chip.channel.gpfifo, &ch(3));
+        reg.record_alloc(0xC1, 0xC1, 0x50, chip.channel.gpfifo, &ch(4));
+        reg.channel_mut(2).unwrap().mirrored = true;
+        reg
+    }
+
+    /// A mirror that holds a host twin of chid 2 (guest 0xC1/0x40) only and records every
+    /// call it gets.
+    #[derive(Default)]
+    struct Mirror2 {
+        calls: Vec<String>,
+        idle_status: u32,
+    }
+    impl MirrorObjects for Mirror2 {
+        fn forward(&mut self, _: u32, o: u32, cmd: u32, _: &[u8]) -> Option<(u32, String)> {
+            (o == 0x40).then(|| {
+                self.calls.push(format!("forward {cmd:#x}"));
+                (NV_OK, String::new())
+            })
+        }
+        fn idle(&mut self, list: &[(u32, u32)], flags: u32, t: u32) -> Option<(u32, String)> {
+            self.calls.push(format!("idle {list:x?} {flags:#x} {t}"));
+            Some((self.idle_status, "fake host idle".into()))
+        }
+        fn schedule(&mut self, list: &[(u32, u32)], d: bool, only: bool) -> Option<(u32, String)> {
+            self.calls.push(format!("schedule {list:x?} {d} {only}"));
+            Some((NV_OK, "fake host disable".into()))
+        }
+        fn channel_query(
+            &mut self,
+            c: u32,
+            h: u32,
+            cmd: u32,
+            params: &[u8],
+            off: usize,
+            client_off: Option<usize>,
+        ) -> Option<(u32, Vec<u8>, String)> {
+            if (c, h) != (0xC1, 0x40) {
+                return None;
+            }
+            self.calls.push(format!("query {cmd:#x} {off} {client_off:?}"));
+            let mut b = params.to_vec();
+            b[8..12].copy_from_slice(&77u32.to_le_bytes());
+            Some((NV_OK, b, "fake host counters".into()))
+        }
+        fn resident(&mut self, _: &[u8]) -> Option<(u32, Option<u32>, String)> {
+            self.calls.push("resident".into());
+            Some((NV_OK, Some(2), "fake: host chid of chid 2".into()))
+        }
+    }
+
+    /// One control on object `obj` with the registry of [`world`], a host RM that fails the
+    /// test when called, and `m` as the mirror.
+    fn round2(
+        attrs: &mut GuestAttrs,
+        reg: &crate::channel::Registry,
+        m: &mut Mirror2,
+        obj: (u32, u32),
+        cmd: u32,
+        params: &[u8],
+    ) -> Answer {
+        let seen = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+        let mut h = Canned(vec![0; 65536], seen.clone());
+        let mut ctx = Ctx {
+            host: Some(&mut h),
+            reservation: Some(RES),
+            chip: tu106(),
+            now_ns: 0,
+            object: obj,
+            key: obj,
+            mirror: Some(m),
+            attrs,
+            reg: Some(reg),
+            link_control: 0x2,
+        };
+        let a = answer(&mut ctx, cmd, params).unwrap();
+        assert!(seen.lock().unwrap().is_empty(), "{cmd:#x} reached the host RM client");
+        a
+    }
+
+    const SUB: (u32, u32) = (0xC1, 0x5C00_0100);
+
+    /// The 17 category C rows of d-device-model.md §10 are rows of the C table, and the
+    /// category D rule table leaves each of them to it.
+    #[test]
+    fn the_17_d_plan_c_rows_are_c_rows() {
+        let ids = [
+            0x0080_1714u32, 0x2080_110B, 0x2080_1117, 0x208F_0401, 0x2080_1205, 0x2080_1211,
+            0x2080_123A, 0x2080_0198, 0x208F_0704, 0x0073_137E, 0x0073_137F, 0x2080_0A6A,
+            0x2080_2207, 0x2080_0177, 0x0080_1108, 0x2080_0AC3, 0x2080_122C,
+        ];
+        for id in ids {
+            assert!(p::PUBLIC_C.iter().any(|c| c.id == id), "{id:#x}");
+            let r = crate::dmodel::rule(id).unwrap_or_else(|| panic!("{id:#x} not in D"));
+            assert_eq!(r.reclass, 'C', "{id:#x}");
+        }
+        let c_rows = crate::ver::Abi::active()
+            .d_rules
+            .iter()
+            .filter(|r| r.reclass == 'C')
+            .count();
+        assert_eq!(c_rows, ids.len());
+    }
+
+    /// FIFO_IDLE_CHANNELS: software channels are idle; mirrored ones go to the host idle
+    /// with the capped timeout, whose NV_OK and NV_ERR_TIMEOUT are the guest's, another
+    /// status is not idle; an unknown channel is 0x33 before any host call.
+    #[test]
+    fn idle_channels_control() {
+        let reg = world();
+        let mut attrs = GuestAttrs::default();
+        let req = |hs: &[u32], timeout: u32| {
+            let mut b = vec![0u8; p::IDLE_CHANNELS_SIZE];
+            put32(&mut b, 0, hs.len() as u32);
+            for (i, h) in hs.iter().enumerate() {
+                put32(&mut b, 4 + 4 * i, *h);
+            }
+            put32(&mut b, p::IDLE_CHANNELS_FLAGS, 0x5);
+            put32(&mut b, p::IDLE_CHANNELS_TIMEOUT, timeout);
+            b
+        };
+        let mut m = Mirror2::default();
+        let a = round2(&mut attrs, &reg, &mut m, SUB, 0x0080_1714, &req(&[0x41], 1_000_000));
+        assert_eq!(a.status, NV_OK);
+        assert!(m.calls.is_empty(), "software only: no host call");
+        let a = round2(&mut attrs, &reg, &mut m, SUB, 0x0080_1714, &req(&[0x41, 0x40], 1_000_000));
+        assert_eq!(a.status, NV_OK, "{}", a.note);
+        assert_eq!(m.calls, ["idle [(c1, 40)] 0x5 50000"]);
+        let mut m = Mirror2 { idle_status: NV_ERR_TIMEOUT, ..Default::default() };
+        let a = round2(&mut attrs, &reg, &mut m, SUB, 0x0080_1714, &req(&[0x40], 300));
+        assert_eq!(a.status, NV_ERR_TIMEOUT);
+        assert_eq!(m.calls, ["idle [(c1, 40)] 0x5 300"]);
+        let mut m = Mirror2 { idle_status: 0x56, ..Default::default() };
+        let a = round2(&mut attrs, &reg, &mut m, SUB, 0x0080_1714, &req(&[0x40], 300));
+        assert_eq!(a.status, NV_ERR_TIMEOUT, "a refused host idle is not idle");
+        let mut m = Mirror2::default();
+        let a = round2(&mut attrs, &reg, &mut m, SUB, 0x0080_1714, &req(&[0x40, 0x99], 300));
+        assert_eq!(a.status, NV_ERR_INVALID_OBJECT_HANDLE);
+        assert!(m.calls.is_empty());
+    }
+
+    /// FIFO_DISABLE_CHANNELS, DISABLE_USERMODE_CHANNELS and the scheduling toggle: the
+    /// device's flags, the host only for the channels' own mirrors.
+    #[test]
+    fn scheduling_rows_act_on_the_guest_channel_set() {
+        let reg = world();
+        let mut attrs = GuestAttrs::default();
+        let mut m = Mirror2::default();
+        let state = |attrs: &mut GuestAttrs, _: &mut Mirror2, h: u32| {
+            let user = h != 0x50;
+            let e = attrs.channel_enabled((0xC1, h), user) as u8;
+            (e, e)
+        };
+        assert_eq!(state(&mut attrs, &mut m, 0x41), (1, 1));
+        let mut d = vec![0u8; p::DISABLE_CHANNELS_SIZE];
+        d[0] = 1;
+        put32(&mut d, 4, 2);
+        d[8] = 1;
+        d[16..24].fill(0xEE); // pRunlistPreemptEvent: never passed on
+        for (i, h) in [0x40u32, 0x41].iter().enumerate() {
+            put32(&mut d, p::DISABLE_CHANNELS_CLIENTS + 4 * i, 0xC1);
+            put32(&mut d, p::DISABLE_CHANNELS_CHANNELS + 4 * i, *h);
+        }
+        let a = round2(&mut attrs, &reg, &mut m, SUB, 0x2080_110B, &d);
+        assert_eq!(a.status, NV_OK, "{}", a.note);
+        assert_eq!(m.calls, ["schedule [(c1, 40)] true true"], "only the mirrored channel");
+        assert_eq!(state(&mut attrs, &mut m, 0x41), (0, 0));
+        assert_eq!(state(&mut attrs, &mut m, 0x50), (1, 1));
+        // Unknown channel in the list: 0x33, nothing recorded or sent.
+        m.calls.clear();
+        put32(&mut d, p::DISABLE_CHANNELS_CHANNELS + 4, 0x99);
+        let a = round2(&mut attrs, &reg, &mut m, SUB, 0x2080_110B, &d);
+        assert_eq!(a.status, NV_ERR_INVALID_OBJECT_HANDLE);
+        assert!(m.calls.is_empty());
+        // Usermode: the TSG's channels, not the kernel's bare channel.
+        d[0] = 0;
+        put32(&mut d, 4, 1);
+        let a = round2(&mut attrs, &reg, &mut m, SUB, 0x2080_110B, &d);
+        assert_eq!(a.status, NV_OK);
+        m.calls.clear();
+        let a = round2(&mut attrs, &reg, &mut m, SUB, 0x2080_1117, &[1]);
+        assert_eq!(a.status, NV_OK);
+        assert_eq!(m.calls, ["schedule [(c1, 40)] true false"]);
+        assert_eq!(state(&mut attrs, &mut m, 0x40), (0, 0));
+        assert_eq!(state(&mut attrs, &mut m, 0x50), (1, 1), "the kernel's own channel stays");
+        round2(&mut attrs, &reg, &mut m, SUB, 0x2080_1117, &[0]);
+        // The device-wide toggle: every channel.
+        m.calls.clear();
+        round2(&mut attrs, &reg, &mut m, SUB, 0x2080_0AC3, &[1]);
+        assert_eq!(m.calls, ["schedule [(c1, 40)] true true"]);
+        assert_eq!(state(&mut attrs, &mut m, 0x50), (0, 0));
+        round2(&mut attrs, &reg, &mut m, SUB, 0x2080_0AC3, &[0]);
+        assert_eq!(state(&mut attrs, &mut m, 0x40), (1, 1));
+    }
+
+    /// CHECK_ENGINE_CONTEXT, ZCULL_MODE, PREEMPTION_BIND, GET_CTXSW_MODES and _STATS:
+    /// software channels answer from the device's records, the mirrored one through its
+    /// own mirror; the bind setters are recorded, never forwarded.
+    #[test]
+    fn context_rows() {
+        let reg = world();
+        let mut attrs = GuestAttrs::default();
+        let mut m = Mirror2::default();
+        let mut c = vec![0u8; 12];
+        put32(&mut c, 0, 0x41);
+        put32(&mut c, 4, p::NV2080_ENGINE_TYPE_GRAPHICS);
+        let a = round2(&mut attrs, &reg, &mut m, SUB, 0x208F_0401, &c);
+        assert_eq!((a.status, a.params[p::CHECK_CTX_EXISTS]), (NV_OK, 0));
+        put32(&mut c, 4, 0x13);
+        assert_eq!(round2(&mut attrs, &reg, &mut m, SUB, 0x208F_0401, &c).status, NV_ERR_INVALID_ARGUMENT);
+        put32(&mut c, 0, 0x99);
+        put32(&mut c, 4, p::NV2080_ENGINE_TYPE_GRAPHICS);
+        assert_eq!(round2(&mut attrs, &reg, &mut m, SUB, 0x208F_0401, &c).status, NV_ERR_INVALID_CHANNEL);
+        // Zcull mode and preemption bind on chid 3, read back by GET_CTXSW_MODES.
+        let mut z = vec![0u8; 16];
+        put32(&mut z, 0, 0x41);
+        put32(&mut z, p::ZCULL_MODE_MODE, 2);
+        assert_eq!(round2(&mut attrs, &reg, &mut m, SUB, 0x2080_1205, &z).status, NV_OK);
+        let mut pb = vec![0u8; p::PREEMPTION_BIND_SIZE];
+        put32(&mut pb, 4, 0xC1);
+        put32(&mut pb, 8, 0x41);
+        put32(&mut pb, p::PREEMPTION_BIND_GFXP, 1);
+        put32(&mut pb, p::PREEMPTION_BIND_CILP, 2);
+        assert_eq!(round2(&mut attrs, &reg, &mut m, SUB, 0x2080_1211, &pb).status, NV_OK);
+        // The bind on the mirrored channel is recorded too, and not forwarded.
+        put32(&mut pb, 8, 0x40);
+        assert_eq!(round2(&mut attrs, &reg, &mut m, SUB, 0x2080_1211, &pb).status, NV_OK);
+        assert!(m.calls.is_empty(), "{:?}", m.calls);
+        let rec = &attrs.get((0xC1, 0x41)).unwrap().recorded;
+        assert_eq!(get32(&rec[&0x2080_1205], p::ZCULL_MODE_MODE), 2);
+        assert_eq!(get32(&rec[&0x2080_1211], p::PREEMPTION_BIND_CILP), 2);
+        // The Setup bind and the TPC partition setters are refused locally.
+        for id in [0x2080_123Au32, 0x0080_1108, 0x2080_122C, 0x0073_137E, 0x0073_137F] {
+            let a = round2(&mut attrs, &reg, &mut m, SUB, id, &[0x11; 16]);
+            assert_eq!(a.status, NV_ERR_NOT_SUPPORTED, "{id:#x}");
+            assert!(a.label.starts_with("refused ("), "{id:#x}");
+        }
+        assert!(m.calls.is_empty());
+    }
+
+    /// VALIDATE_MEM_MAP_REQUEST is a protection fault; BIF_INFO reads the emulated LnkCtl.
+    #[test]
+    fn device_state_rows() {
+        let reg = world();
+        let mut attrs = GuestAttrs::default();
+        let mut m = Mirror2::default();
+        let a = round2(&mut attrs, &reg, &mut m, SUB, 0x2080_0198, &[0u8; 24]);
+        assert_eq!(a.status, NV_ERR_PROTECTION_FAULT);
+        // link_control 0x2: L1 enabled, L0s not.
+        let a = round2(&mut attrs, &reg, &mut m, SUB, 0x208F_0704, &[0u8; 8]);
+        assert_eq!((a.status, get32(&a.params, 4)), (NV_OK, 0));
+        let mut b = [0u8; 8];
+        put32(&mut b, 0, p::BIF_INFO_L1);
+        let a = round2(&mut attrs, &reg, &mut m, SUB, 0x208F_0704, &b);
+        assert_eq!((a.status, get32(&a.params, 4)), (NV_OK, 1));
+        put32(&mut b, 0, 7);
+        assert_eq!(round2(&mut attrs, &reg, &mut m, SUB, 0x208F_0704, &b).status, NV_ERR_INVALID_ARGUMENT);
+    }
+
+    /// The RC journal: the device's RCs (boot.rs) and the guest's reports are counted,
+    /// SET_CLEAN_ERROR_HISTORY empties it; the fault record feeds GET_MMU_FAULT_INFO.
+    #[test]
+    fn rc_journal() {
+        let reg = world();
+        let mut attrs = GuestAttrs::default();
+        let mut m = Mirror2::default();
+        let count = |attrs: &mut GuestAttrs, m: &mut Mirror2| {
+            get32(&round2(attrs, &reg, m, SUB, 0x2080_2205, &[0u8; 4]).params, 0)
+        };
+        assert_eq!(count(&mut attrs, &mut m), 0);
+        let mut fault = vec![0u8; p::MMU_FAULT_INFO_SIZE];
+        fault[0..8].copy_from_slice(&0x7f00_1000u64.to_le_bytes());
+        attrs.record_rc((0xC1, 0x40), 2, 31, Some(fault.clone()), "mirror fault".into());
+        round2(&mut attrs, &reg, &mut m, SUB, 0x2080_0A6A, &[]);
+        let mut pkt = [0u8; 32];
+        pkt[8..16].copy_from_slice(&0xdead_0000u64.to_le_bytes());
+        round2(&mut attrs, &reg, &mut m, SUB, 0x2080_0177, &pkt);
+        assert_eq!(count(&mut attrs, &mut m), 3);
+        assert!(attrs.journal[2].what.contains("0xdead0000"), "{:?}", attrs.journal);
+        let a = round2(&mut attrs, &reg, &mut m, (0xC1, 0x40), 0x906F_0106, &[0u8; p::MMU_FAULT_INFO_SIZE]);
+        assert_eq!(a.params, fault, "the recorded fault of the channel");
+        round2(&mut attrs, &reg, &mut m, SUB, 0x2080_2207, &[]);
+        assert_eq!(count(&mut attrs, &mut m), 0);
+        for i in 0..RC_JOURNAL_MAX + 3 {
+            attrs.record_rc((0xC1, 0x41), 3, i as u32, None, String::new());
+        }
+        assert_eq!(attrs.journal.len(), RC_JOURNAL_MAX);
+        assert_eq!(attrs.journal[0].xid, 3, "the oldest go first");
+    }
+
+    /// The open B rows: MMU debug mode 0, resident channel only for an own mirror, the
+    /// debugger getters (ERRBAR disabled; MMU debug and per-SM status need the R5 session
+    /// model, GCC is not on this chip), and the TSG's kernel id.
+    #[test]
+    fn b_rows_from_device_state() {
+        let reg = world();
+        let mut attrs = GuestAttrs::default();
+        let mut m = Mirror2::default();
+        // GET_CTXSW_MODES of a software channel: what ZCULL_MODE and PREEMPTION_BIND
+        // recorded; PM and SMPC off.
+        let mut z = vec![0u8; 16];
+        put32(&mut z, 0, 0x41);
+        put32(&mut z, p::ZCULL_MODE_MODE, 2);
+        round2(&mut attrs, &reg, &mut m, SUB, 0x2080_1205, &z);
+        let mut pb = vec![0u8; p::PREEMPTION_BIND_SIZE];
+        put32(&mut pb, 4, 0xC1);
+        put32(&mut pb, 8, 0x41);
+        put32(&mut pb, p::PREEMPTION_BIND_GFXP, 1);
+        put32(&mut pb, p::PREEMPTION_BIND_CILP, 2);
+        round2(&mut attrs, &reg, &mut m, SUB, 0x2080_1211, &pb);
+        let mut q = vec![0xEEu8; 24];
+        put32(&mut q, 0, 0x41);
+        let a = round2(&mut attrs, &reg, &mut m, SUB, 0x2080_1235, &q);
+        assert_eq!(a.status, NV_OK);
+        assert_eq!(
+            (get32(&a.params, p::CTXSW_MODES_ZCULL), get32(&a.params, p::CTXSW_MODES_CILP), get32(&a.params, p::CTXSW_MODES_GFXP)),
+            (2, 2, 1)
+        );
+        assert_eq!((get32(&a.params, 8), get32(&a.params, 12)), (0, 0), "PM and SMPC off");
+        // GET_CTXSW_STATS: zeros for software, the mirror's for the mirrored channel.
+        let mut st = vec![0xEEu8; 32];
+        put32(&mut st, 0, 0x41);
+        let a = round2(&mut attrs, &reg, &mut m, SUB, 0x2080_1215, &st);
+        assert_eq!(get32(&a.params, 0), 0x41);
+        assert!(a.params[8..].iter().all(|&x| x == 0));
+        put32(&mut st, 0, 0x40);
+        let a = round2(&mut attrs, &reg, &mut m, SUB, 0x2080_1215, &st);
+        assert_eq!((a.status, get32(&a.params, 8)), (NV_OK, 77));
+        assert_eq!(get32(&a.params, 0), 0x40, "the guest's handle comes back");
+        assert_eq!(m.calls, ["query 0x20801215 0 None"]);
+        m.calls.clear();
+        // FIFO_GET_CHANNEL_STATE: the device's scheduling flags.
+        let state = |attrs: &mut GuestAttrs, m: &mut Mirror2, h: u32| {
+            let mut b = vec![0u8; 16];
+            put32(&mut b, 0, h);
+            put32(&mut b, 4, 0xC1);
+            let a = round2(attrs, &reg, m, (0xC1, 0x208F_0001), 0x208F_0403, &b);
+            (a.status, a.params[p::CHANNEL_STATE_ENABLED], a.params[p::CHANNEL_STATE_SCHEDULED])
+        };
+        assert_eq!(state(&mut attrs, &mut m, 0x41), (NV_OK, 1, 1));
+        round2(&mut attrs, &reg, &mut m, SUB, 0x2080_1117, &[1]);
+        assert_eq!(state(&mut attrs, &mut m, 0x41), (NV_OK, 0, 0));
+        assert_eq!(state(&mut attrs, &mut m, 0x50), (NV_OK, 1, 1), "the kernel's own channel");
+        assert_eq!(state(&mut attrs, &mut m, 0x99).0, NV_ERR_INVALID_CHANNEL);
+        m.calls.clear();
+        let a = round2(&mut attrs, &reg, &mut m, (0xC1, 0x30), 0x0090_0105, &[1]);
+        assert_eq!((a.status, a.params[0]), (NV_OK, 0));
+        let a = round2(&mut attrs, &reg, &mut m, SUB, 0x2080_121C, &[0xAA; 24]);
+        assert_eq!((a.status, get32(&a.params, 0)), (NV_OK, 2));
+        assert_eq!(a.params[8..], [0xAA; 16], "grRouteInfo kept");
+        assert_eq!(m.calls, ["resident"]);
+        // No mirror: no guest channel is resident on the physical GR.
+        let seen = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+        let mut h = Canned(vec![0; 64], seen.clone());
+        let mut ctx = Ctx {
+            host: Some(&mut h),
+            reservation: None,
+            chip: tu106(),
+            now_ns: 0,
+            object: SUB,
+            key: SUB,
+            mirror: None,
+            attrs: &mut attrs,
+            reg: Some(&reg),
+            link_control: 0,
+        };
+        let a = answer(&mut ctx, 0x2080_121C, &[0u8; 24]).unwrap();
+        assert_eq!(get32(&a.params, 0), u32::MAX);
+        assert!(seen.lock().unwrap().is_empty());
+        let a = round2(&mut attrs, &reg, &mut m, (0xC1, 0x83DE), 0x83DE_0320, &[0xFF; 4]);
+        assert_eq!((a.status, get32(&a.params, 0)), (NV_OK, p::ERRBAR_DEBUG_DISABLED));
+        for id in [0x83DE_0308u32, 0x83DE_0325, 0x83DE_032B] {
+            let a = round2(&mut attrs, &reg, &mut m, (0xC1, 0x83DE), id, &[0x5A; 12]);
+            assert_eq!(a.status, NV_ERR_NOT_SUPPORTED, "{id:#x}");
+            assert_eq!(a.params, [0x5A; 12], "{id:#x}: echoed");
+        }
+        // GET_INFO: the kernel's TSG id (615) or no id (610).
+        let a = round2(&mut attrs, &reg, &mut m, (0xC1, 0x30), 0xA06C_0106, &[0; 4]);
+        if reg.tsg_id((0xC1, 0x30)).is_some() {
+            assert_eq!((a.status, get32(&a.params, 0)), (NV_OK, 7));
+        } else {
+            assert_eq!(a.status, NV_ERR_NOT_SUPPORTED);
+        }
     }
 }

@@ -23,9 +23,13 @@ Commits on the implementation branch. Run records: `caraxes/runs/gsp-rpc-2026-09
 - Status 0x90CD `NV_EVENT_BUFFER` and 0x90D0 `NV_OPERATIONAL_EVENT_BUFFER_BIND` of the 615
   event import (§3): **done**, 29f3366 (validated against the `ALLOC_MEMORY` registry, the
   device is a producer that writes no records).
-- Status TSG `internalFlags` grpID (§7 item 2, §8 TSG): **partial**, 4e34617. Recorded per TSG
-  (`Registry::tsg_id`) and logged; not yet the key of the host TSG map.
-- Status channel `INTERNAL_TSG_ID` (§7 item 1): **partial**, 4e34617. Recorded per channel.
+- Status TSG `internalFlags` grpID (§7 item 2, §8 TSG): **done**, 4e34617 and round 2
+  (2026-09-25). Recorded per TSG (`Registry::tsg_id`); the key of the host TSG map
+  (`mirror::TsgKey::Grp`, the guest handle on 610); a freed TSG whose id a new one takes is
+  dropped first, two live TSGs under one id are refused; `NVA06C_CTRL_CMD_GET_INFO` answers it
+  (public.rs). Test `mirror::tests::host_tsg_key_is_the_kernel_tsg_id`.
+- Status channel `INTERNAL_TSG_ID` (§7 item 1): **done**, round 2. It keys a bare channel's own
+  host TSG.
 - Status the other §8 recipes (parent checks of root/device/subdevice, UVM retainer
   validation, duplicated TSG/ctxshare aliasing, SW-class channels kept off the host):
   **open**.
