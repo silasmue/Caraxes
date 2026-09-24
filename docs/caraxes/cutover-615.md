@@ -41,6 +41,9 @@ What differs on the host side, measured from the generated bindings (`nvrm_sys::
 | `NV2080_CTRL_GPU_GET_PES_INFO_PARAMS` | 56 | 76 (`tpcToPesMap[15]`) | floorsweeping masks (`kgr.rs` `floorsweeping`) |
 | `NV2080_CTRL_GR_GET_GLOBAL_SM_ORDER_PARAMS` | 9240 | 10264 (`virtualDpcId` per SM) | global SM order (`kgr.rs` `global_sm_order`, translated field by field) |
 | `NV_CHANNEL_ALLOC_PARAMS` | 376 | 376 | unchanged; equality asserted at compile time |
+| GSS legacy pmgr 0x18 (0x2080A618) | 20000 | 20512 | nvidia-smi power (`nvml.rs` `host_sized_legacy`); no layout in any open header, forwarded only when the guest's size is the host's |
+| GSS legacy thermal 0x36 (0x20808536) | 25552 | 24532 | nvidia-smi thermal (the same rule) |
+| GSS legacy perf 0xf1 (0x2080A0F1) | not sent | 9216 | nvidia-smi of a 615 guest (the same rule; NOT_SUPPORTED on the 610 host) |
 
 The other §3.4 rows of blackwell-gb206.md (FIFO device-info table, KGR SM order and
 floorsweeping, PCIe P2P caps, NVLink device info) are guest-facing: the device builds them for
@@ -54,11 +57,13 @@ The line to look for in `$W/gpu.log` (`W=/mnt/vmstore/caraxes/<vm>`), printed on
 starts with `CARAXES_HOST_RM=1`, `CARAXES_RESERVE_VRAM=1` or `CARAXES_DMA=register`:
 
 ```
-vfio-user-nvgpu: host ABI 615.71.09: TSG params 28 bytes, GPU_GET_PES_INFO 76 (tpcToPesMap[15]), GR_GET_GLOBAL_SM_ORDER 10264 (SM entry 20), channel params 376 (chosen by running driver 615.71.09 (/proc/driver/nvidia/version)); guest ABI 610.57.04
+vfio-user-nvgpu: host ABI 615.71.09: TSG params 28 bytes, GPU_GET_PES_INFO 76 (tpcToPesMap[15]), GR_GET_GLOBAL_SM_ORDER 10264 (SM entry 20), channel params 376, GSS legacy [pmgr 0x18 20512, thermal 0x36 24532, perf 0xf1 9216] (chosen by running driver 615.71.09 (/proc/driver/nvidia/version)); guest ABI 610.57.04
 ```
 
 Before the upgrade the same line says `host ABI 610.57.04: TSG params 20 bytes, GPU_GET_PES_INFO
-56 (tpcToPesMap[10]), GR_GET_GLOBAL_SM_ORDER 9240 (SM entry 18)`.
+56 (tpcToPesMap[10]), GR_GET_GLOBAL_SM_ORDER 9240 (SM entry 18), channel params 376, GSS legacy
+[pmgr 0x18 20000, thermal 0x36 25552]`. A device binary built before the join of section (d)
+prints the line without the `GSS legacy [...]` part.
 
 ## (a) Before the upgrade (coordinator, then operator)
 
@@ -138,8 +143,9 @@ Coordinator, one VM, on the frozen device binary. The guest is unchanged (610 im
    driver 615.71.09`. Then, from the guest's module load:
    - `kgr floorsweeping masks from host: gpcMask 0x7, tpc mask/count per GPC [...]`: three
      GPCs as on 610 (TU106); a `host status 0x...` here means a PES or GPC control failed;
-   - `kgr global SM order: 36 SMs from host` (TU106 has 36 SMs); `zeros (host status ...)` means
-     the 10264-byte call was refused;
+   - `kgr global SM order: 36 SMs from host` (TU106 has 36 SMs), followed by `(host 615.71.09
+     entry 20 to guest entry 18, dropped virtualDpcId)` in a binary with the join of (d);
+     `zeros (host status ...)` means the 10264-byte call was refused;
    - `host TSG ... [host]` and `inv-tsg` without `KEPLER_CHANNEL_GROUP_A: ...` errors: the
      28-byte TSG parameters are accepted;
    - no `unanswered` control that the 610 run answered (compare with the last 610 `gpu.log`).
@@ -147,6 +153,14 @@ Coordinator, one VM, on the frozen device binary. The guest is unchanged (610 im
    the host's nvidia-smi (now 615). The name and 4096 MiB come from the device; temperature,
    power and utilization are forwarded. Watch the BINAPI path (`nvml.rs`, `CMD_BINAPI_0108`):
    it forwards an undocumented control and is the most likely place for a 615 difference.
+   Expected loss with a binary that has the join of (d): the 610 guest's pmgr 0x18 (20000
+   bytes) and thermal 0x36 (25552) do not match the 615 host's 20512 and 24532, no open header
+   defines either layout, so the device answers them NOT_SUPPORTED instead of forwarding
+   (`ctrl 0x2080a618: GSS legacy pmgr 0x18: guest params 20000 bytes, host 615.71.09 takes
+   20512; not sent -> status 0x56 [synthesized (NOT_SUPPORTED: GSS legacy params differ ...)]`).
+   The guest's power draw then reads N/A, and the gate's `power-number` check fails for this
+   combination only; that is the documented loss, not a regression. An older binary forwards
+   them and the host refuses with 0x1f (`ERR!` in nvidia-smi), with the same verdict.
 5. **cuda gate**: `tools/caraxes-gate.sh cuda`. The first CUDA context exercises the TSG and
    channel allocations, the SM order and the floorsweeping masks.
 6. **display gate**: restart with `CARAXES_DISPLAY=1`, then `tools/caraxes-gate.sh vdisplay`
@@ -160,12 +174,74 @@ Coordinator, one VM, on the frozen device binary. The guest is unchanged (610 im
 ## (d) The 615 guest, when the transport lands
 
 Merge note (13:10): the 615 guest transport (msgq v2, GMCAPI init, `ver/v615`) and the
-host-ABI selection (`hostabi.rs`) are both on main now, merged from two branches. Their
-SM-order paths in kgr.rs meet as follows: a 615 guest on a 610 host takes the widened path
-(guest entry 20, host entry 18), a 610 guest on a 615 host takes `HostLayouts`; a 615 guest
-on a 615 host still uses the widened path with 610 host constants and needs the two paths
-joined (open item 1 of [gsp-transport-615.md](gsp-transport-615.md)). Tonight's first test
-is the 610 guest, which is unaffected.
+host-ABI selection (`hostabi.rs`) are both on main now, merged from two branches.
+
+Join (evening, this section's checks below): the host-facing items of open item 1 of
+[gsp-transport-615.md](gsp-transport-615.md) are done in code, for every combination of a 610
+or 615 guest (`ver::active`, build time) on a 610 or 615 host (`hostabi::current()`, start-up):
+
+- **SM order.** One path, `kgr.rs` `global_sm_order`: the host call is sized by the host
+  (`HostLayouts::sm_order`, 9240 or 10264 bytes), the reply is translated field by name into the
+  guest's element (`ver::active::SM_ORDER_GUEST`, nine u16 per SM on 610, ten on 615;
+  `hostabi::translate_sm_order`). `virtualDpcId` is dropped for a 610 guest and 0 for a 615
+  guest on a 610 host. The widened path (`sm_order_widened`, 610 host constants) is gone. Tests:
+  `hostabi::tests::sm_order_all_four_combinations`, `kgr::tests::global_sm_order_all_four_combinations`
+  (all four from the generated `nvrm_sys::v610`/`v615` sizes and offsets, in either build).
+  The guest's floorsweeping `tpcToPesMap` length follows the guest ABI too (10 or 15,
+  `FS_TPC_TO_PES_MAP_LEN`).
+- **pmgr 0x18 and thermal 0x36.** No layout for either in the open headers of 610 or 615
+  (matrix/catalog-610.57.04.md:384, :419; no definition in the 615 tree), so a field-by-field
+  translation is not possible. `HostLayouts::legacy` carries each host driver's size (610 from
+  the 610 host's own nvidia-smi, e4 trace; 615 from the 615 guest's nvidia-smi, transport-615
+  run). Same size: forwarded as before. Different size: NOT_SUPPORTED, not sent (`nvml.rs`
+  `host_sized_legacy`). The loss: power draw (pmgr 0x18) and the thermal 0x36 reading are N/A
+  whenever guest and host driver differ; both work when they are the same version.
+- **perf 0xf1 (0x2080A0F1, 9216 bytes).** In the 615 host's table: forwarded on a 615 host,
+  NOT_SUPPORTED with the label `synthesized (NOT_SUPPORTED: no such GSS legacy control measured
+  for the host driver)` on a 610 host.
+- **FB_GET_REMAPPED_BANKS (0x20801361, 8208 bytes).** Not new in 615: 610.57.04 has the same
+  control and layout (610 `ctrl2080fb.h:2990-3014`, `nvrm_sys::v610` and `v615` both 8208,
+  NON_PRIVILEGED and ROUTE_TO_PHYSICAL in both `g_subdevice_nvoc.c`). It is therefore in the
+  `FORWARD` table for both hosts (decision D9: forward where the layout is the same on both
+  sides); whatever the host answers goes back to the guest.
+- **0x20800A36.** Dispatched by the guest ABI (`ver::Id0A36`, `CTRL_0A36`, `ctrl.rs`
+  `id_0a36`): chip info for a 610 guest; for a 615 guest `INTERNAL_GPU_SYNC_FABRIC_PROBE_INFO`
+  (16 bytes), answered NV_OK as an echo (no NVLink fabric on TU106, nothing to the host).
+
+### Checks on the 615 host
+
+For the 615 guest on the 615 host (vm4 below, `CARAXES_DRIVER=615`, `CARAXES_HOST_RM=1`, and for
+the cuda gate `CARAXES_RESERVE_VRAM=1 CARAXES_DMA=register CARAXES_HOST_EXEC=1`). Every `ctrl`
+line is the device's per-control line, `ctrl <cmd>: <note> -> status <st> [<label>]`
+(`boot.rs:929`), in `$W/gpu.log`.
+
+| What | Gate | Line that verifies it |
+|---|---|---|
+| selection | start-up, before any gate | `host ABI 615.71.09: ... GR_GET_GLOBAL_SM_ORDER 10264 (SM entry 20), channel params 376, GSS legacy [pmgr 0x18 20512, thermal 0x36 24532, perf 0xf1 9216] (chosen by running driver 615.71.09 ...); guest ABI 615.71.09` |
+| SM order, 615 on 615 | module load, then `tools/caraxes-gate.sh cuda` (the first CUDA context reads it) | `ctrl 0x20800a22: kgr global SM order: 36 SMs from host (host 615.71.09 entry 20 to guest entry 20) -> status 0x0 [host (GR_GET_GLOBAL_SM_ORDER, translated field by field from the host's layout)]`; no `dropped` and no `0 (not in the host's)` in it; `zeros (host status ...)` is a failure |
+| floorsweeping map | module load, cuda gate | `kgr floorsweeping masks from host: gpcMask 0x7, tpc mask/count per GPC [...]` with three GPCs, as in (c) 3 |
+| pmgr 0x18 | `tools/caraxes-gate.sh nvml`, check `power-number` passes | `ctrl 0x2080a618: GSS legacy pmgr 0x18 (20512 bytes, host 615.71.09): host status 0x0 -> status 0x0 [host (GSS legacy, forwarded opaquely; the running host driver's size)]` |
+| thermal 0x36 | nvml gate (`nvidia-smi -q`) | `ctrl 0x20808536: GSS legacy thermal 0x36 (24532 bytes, host 615.71.09): host status 0x0 -> ...` |
+| perf 0xf1 | nvml gate | `ctrl 0x2080a0f1: GSS legacy perf 0xf1 (9216 bytes, host 615.71.09): host status 0x...`; whatever the status, the label is `host (...)`, not `unanswered` |
+| FB_GET_REMAPPED_BANKS | nvml gate | `ctrl 0x20801361: FB_GET_REMAPPED_BANKS: host status 0x... -> ... [host (forwarded as-is, public control)]`, not `unanswered` |
+| 0x20800A36 | module load (only sent on NVLink-fabric systems; the transport-615 run never sent it) | if present: `ctrl 0x20800a36: sync fabric probe info (16 bytes): nothing to apply, no NVLink fabric -> status 0x0`; `grep 'ctrl 0x20800a36' $W/gpu.log \| grep -c 'chip info'` prints 0 |
+| nothing new unanswered | after the gates | `grep 'unanswered' $W/gpu.log` names none of 0x2080a618, 0x20808536, 0x2080a0f1, 0x20801361 |
+
+The other combinations, when they are run: a 610 guest on the 615 host is (c), with the SM-order
+note `(host 615.71.09 entry 20 to guest entry 18, dropped virtualDpcId)` and pmgr 0x18 and
+thermal 0x36 NOT_SUPPORTED (c) 4. A 615 guest on the 610 host (after a rollback, (f)) logs
+`(host 610.57.04 entry 18 to guest entry 20, virtualDpcId 0 (not in the host's))`, pmgr 0x18 and
+thermal 0x36 NOT_SUPPORTED (`guest params 20512 bytes, host 610.57.04 takes 20000; not sent`),
+and perf 0xf1 NOT_SUPPORTED (`not in host 610.57.04's own nvidia-smi; not sent`).
+
+Offline, without VM or GPU, both builds: `CARGO_TARGET_DIR=target/h615 cargo test -p
+vfio-user-nvgpu` and the same with `--features v615` run the combination tests above
+(`hostabi::`, `kgr::`, `nvml::tests::host_sized_legacy_follows_the_host`,
+`ctrl::tests::id_0a36_follows_the_guest_abi`). In the `v615` build six `msgq::tests` fail by
+construction: they drive the message queue v0 with the 615 element header size that `msgq.rs`
+imports from `ver::active` (24 instead of 16), unchanged by this work.
+
+### Bringing up the 615 guest
 
 Only after `ver/v615` (msgq v2 with register-held pointers, MCTP-framed elements,
 `GMCAPI_CMD_GSP_INIT` with NVKV static info; guest-driver-versions.md §5.4) is merged:
@@ -237,6 +313,6 @@ host call, not a selection problem.
    "615.71.09"); the device's host-forward branch (`ctrl.rs:996`) still works, it only no longer
    reaches GSP on the host.
 4. The 0x20800A36 id reuse (`INTERNAL_GPU_GET_CHIP_INFO` on 610, `SYNC_FABRIC_PROBE_INFO` on
-   615) is a guest-ABI matter for `ver/v615`, not for tonight.
+   615) is dispatched by the guest ABI now ((d), `ctrl.rs` `id_0a36`).
 5. The first 615 benchmark (P13 after the window) needs its own series; do not merge it with the
    closing 610 one.

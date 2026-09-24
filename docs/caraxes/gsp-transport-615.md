@@ -435,9 +435,9 @@ The seven control parameter structs (blackwell-gb206.md §3.4, sizes from `nvrm_
 | Control | 610 | 615 | Guest-facing or host-facing in the device | Device with a 615 guest |
 |---|---:|---:|---|---|
 | `FIFO_GET_DEVICE_INFO_TABLE` 0x20801112 | 3212 | 3340 | guest (answered from chip data) | `DEVINFO_*` from `nvrm_sys::v615`: entry 104 bytes, `engineData[17]` (`ENGINE_INFO_TYPE_IS_PREEMPTABLE` appended, `src/nvidia/inc/kernel/gpu/fifo/engine_info.h:98-103`, 0 on Turing) |
-| `GPU_GET_PES_INFO` 0x20800168 | 56 | 76 | host (the device queries the 610 host for the floorsweeping masks) | kept at the host's 610 layout |
-| `GR_GET_GLOBAL_SM_ORDER` 0x2080121B | 9240 | 10264 | host (query) | kept at 610 |
-| `INTERNAL_STATIC_KGR_GET_GLOBAL_SM_ORDER` 0x20800A22 | 73760 | 81952 | guest | `SM_ORDER_*` from v615: `virtualDpcId` inserted after `virtualGpcId` (ten u16 per SM instead of nine); `kgr::sm_order_widened` copies each host entry around it and leaves it 0 (no DPC before Blackwell) |
+| `GPU_GET_PES_INFO` 0x20800168 | 56 | 76 | host (the device queries the host for the floorsweeping masks) | the running host's layout (`hostabi.rs`) |
+| `GR_GET_GLOBAL_SM_ORDER` 0x2080121B | 9240 | 10264 | host (query) | the running host's layout (`hostabi.rs`) |
+| `INTERNAL_STATIC_KGR_GET_GLOBAL_SM_ORDER` 0x20800A22 | 73760 | 81952 | guest | `SM_ORDER_*` from v615: `virtualDpcId` inserted after `virtualGpcId` (ten u16 per SM instead of nine); `kgr::global_sm_order` translates the host's entries field by name (`hostabi::translate_sm_order`); on a 610 host it stays 0 (no DPC before Blackwell) |
 | `INTERNAL_STATIC_KGR_GET_FLOORSWEEPING_MASKS` 0x20800A26 | 10688 | 10848 | guest | `FS_*` from v615 |
 | `INTERNAL_GET_PCIE_P2P_CAPS` 0x20800AB8 | 3 | 4 | guest | `bSkipChipsetCheck` appended; the two status bytes stay at 1 and 2 |
 | `INTERNAL_NVLINK_GET_NVLINK_DEVICE_INFO` 0x20800A87 | 1088 | 1072 | guest | answered `NV_ERR_NOT_SUPPORTED` as in 610 (the size does not matter) |
@@ -448,14 +448,16 @@ end. The two fields the device reads stay at their offsets, and the test checks 
 **The reused id 0x20800A36.** In 610 it is `INTERNAL_GPU_GET_CHIP_INFO`. In 615 that control no
 longer exists, and 0x20800A36 is `INTERNAL_GPU_SYNC_FABRIC_PROBE_INFO`
 (`sdk/ctrl/ctrl2080/ctrl2080internal.h:572-585`). The chip sub-revision travels as
-`NVGMC_SC_CHIP_SUB_REV` instead. `ver::v615` sets the dispatcher's chip-info command to a value no
-control carries (class 0xFFFF), so a fabric-probe call is never answered as chip info. In the
-runs the 615 guest never sent 0x20800A36.
+`NVGMC_SC_CHIP_SUB_REV` instead. Each version module names what the id means (`CTRL_0A36`,
+`ver::Id0A36`) and `ctrl.rs` `id_0a36` dispatches by it: chip info for a 610 guest, an NV_OK echo
+for the 615 fabric-probe sync (no NVLink fabric on TU106), so a fabric-probe call is never
+answered as chip info. In the runs the 615 guest never sent 0x20800A36.
 
 **Guest ABI and host ABI.** `ver::v615` is the 610 module with the 615 guest-facing layouts
-overridden. The layouts of controls the device sends to the host stay 610: `PES_INFO_*`,
-`PUB_SM_ORDER`, `HOST_SM_ENTRY`, `FLUSH_GPU_CACHE_*` and the GR routed queries. The host driver
-stays 610.57.04 until the operator upgrades it. The test
+overridden. The layouts of controls the device sends to the host are not in `src/ver`: they
+follow the running host driver (`hostabi.rs`: PES info, the public SM order, the TSG
+allocation, the host-sized GSS legacy controls); `FLUSH_GPU_CACHE_*` and the GR routed queries
+are the same on both. The test
 `versioned_layouts_are_overridden_where_they_differ` compares every per-version binding the 610
 module computes from with its 615 twin. It fails when a regenerated binding moves a layout that
 is not overridden. Controls the device forwards opaquely are the exception: the `nvidia-smi`
@@ -529,13 +531,13 @@ Sizes of the GSP structs from gsp-abi-610.md (a) and Appendix A; control structs
 | `GspFwWprMeta` | 256 | 256 (`pagingConfig`) | shared offsets |
 | `GSP_FMC_INIT_PARAMS` / `GSP_FMC_BOOT_PARAMS` | 4 / 88 | 8 / 256 | not on Turing |
 | `NV2080_CTRL_FIFO_GET_DEVICE_INFO_TABLE_PARAMS` | 3212 | 3340 | `ver::v615` |
-| `NV2080_CTRL_GPU_GET_PES_INFO_PARAMS` | 56 | 76 | host query, 610 |
-| `NV2080_CTRL_GR_GET_GLOBAL_SM_ORDER_PARAMS` | 9240 | 10264 | host query, 610 |
-| `NV2080_CTRL_INTERNAL_STATIC_GR_GET_GLOBAL_SM_ORDER_PARAMS` | 73760 | 81952 | `ver::v615`, `kgr::sm_order_widened` |
+| `NV2080_CTRL_GPU_GET_PES_INFO_PARAMS` | 56 | 76 | host query, the running host's (`hostabi.rs`) |
+| `NV2080_CTRL_GR_GET_GLOBAL_SM_ORDER_PARAMS` | 9240 | 10264 | host query, the running host's (`hostabi.rs`) |
+| `NV2080_CTRL_INTERNAL_STATIC_GR_GET_GLOBAL_SM_ORDER_PARAMS` | 73760 | 81952 | `ver::v615` `SM_ORDER_GUEST`, `kgr::global_sm_order` |
 | `NV2080_CTRL_INTERNAL_STATIC_GR_GET_FLOORSWEEPING_MASKS_PARAMS` | 10688 | 10848 | `ver::v615` |
 | `NV2080_CTRL_INTERNAL_GET_PCIE_P2P_CAPS_PARAMS` | 3 | 4 | `ver::v615` |
 | `NV2080_CTRL_INTERNAL_NVLINK_GET_NVLINK_DEVICE_INFO_PARAMS` | 1088 | 1072 | not supported, as 610 |
-| `NV2080_CTRL_INTERNAL_GPU_GET_CHIP_INFO_PARAMS` (0x20800A36) | 88 | removed (id reused) | handler not reachable |
+| `NV2080_CTRL_INTERNAL_GPU_GET_CHIP_INFO_PARAMS` (0x20800A36) | 88 | removed (id reused for the 16-byte `SYNC_FABRIC_PROBE_INFO`) | `ctrl.rs` `id_0a36` by `CTRL_0A36` |
 | `NV_CHANNEL_GROUP_ALLOCATION_PARAMETERS` | 20 | 28 | offsets unchanged |
 | `NV_CHANNEL_ALLOC_PARAMS` | `nvrm_sys::V610` | `nvrm_sys::V615` | `ver::v615::RmAbi` |
 
@@ -549,9 +551,9 @@ Files (`crates/vfio-user-nvgpu`):
 | `src/gmcapi.rs` | `GMCAPI_HEADER`, NVKV decode and encode, the SI and SC key tables, `SystemInfo`, engine masks |
 | `src/boot.rs` | additive: the transport field, the register hooks, the link at Booter-Load, the `GSP_INIT` and `GSP_SUSPEND` arms, `gsp_init` |
 | `src/rpc.rs` | `static_info_nvkv`; GMCAPI names in `function_name` and `describe` |
-| `src/ver/mod.rs`, `src/ver/v615.rs`, `src/ver/v610.rs` | `GspTransport`, `check_guest_abi`, the `v615` module; v610 gained `GSP_TRANSPORT`, `HOST_SM_ENTRY`, `HOST_SM_ORDER_NUM_SM`, `SM_ENTRY_WIDENED_AT` |
+| `src/ver/mod.rs`, `src/ver/v615.rs`, `src/ver/v610.rs` | `GspTransport`, `check_guest_abi`, the `v615` module; v610 gained `GSP_TRANSPORT` (and later `SM_ORDER_GUEST`, `CTRL_0A36`, `FS_TPC_TO_PES_MAP_LEN`) |
 | `src/chip/mod.rs`, `src/chip/turing.rs`, `chips/tu106/boot.toml` | `FirmwareBoot::libos_args_pa` and `queue_registers`; the three pointer registers |
-| `src/kgr.rs` | the widened SM order (only when the guest entry is wider than the host's) |
+| `src/kgr.rs` | the SM order translated field by name for any guest and host pair (docs/caraxes/cutover-615.md (d)) |
 | `src/main.rs`, `tools/caraxes-vm.sh`, `Cargo.toml` | `--guest-abi`, `CARAXES_GUEST_ABI=615`, feature `v615 = ["v610", "nvrm-sys/v615"]` |
 
 Tests (the default build runs all of them; the 615 transport code does not depend on the
@@ -591,11 +593,12 @@ Open items:
    - perf 0x2080A0F1 (not in the open headers, like its neighbour 0x2080A0F2 of the `LEGACY`
      list)
 
-   All four are host-facing. They belong in the host-side selection another package built
-   (`hostabi.rs`, which picks the host layouts by the running host driver). After the host
-   moves to 615.71.09 the two sizes match the guest's again. The two new controls then need a
-   forward entry with their 615 sizes. Until then a per-control translation would be the only
-   way.
+   All four are host-facing. Done (cutover-615.md (d)): the two sizes are per host driver in
+   `hostabi.rs` `HostLayouts::legacy`; neither layout is in any open header, so a mismatched
+   size is answered NOT_SUPPORTED instead of translated (power N/A while guest and host
+   driver differ). perf 0xf1 is forwarded on a 615 host and NOT_SUPPORTED on a 610 host.
+   FB_GET_REMAPPED_BANKS is not new in 615 (610 `ctrl2080fb.h:2990` has it with the same
+   8208-byte layout) and is in the `FORWARD` table for both hosts.
 2. `ALLOC_MEMORY` (RPC 4) from the new `goeimport` path is answered `NV_ERR_NOT_SUPPORTED`. The
    kernel logs `_goeimportSetupTransport: goeimport: step 3a failed (0x56)` and continues.
 3. Suspend and resume (`GMCAPI_CMD_GSP_RESUME_DONE`, the `IN_PM_TRANSITION` flag) are not
