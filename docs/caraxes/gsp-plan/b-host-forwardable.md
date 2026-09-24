@@ -17,6 +17,10 @@ are, 4 with an output filter). The heuristic misplaces the rest:
 
 ## Summary
 
+- **Status (2026-09-24).** 59 of the 70 are done, 1 is partial and 10 are open. The open ones
+  are the guest-object rows moved to the C plan. The two forwards of §6 are filtered. Details
+  in §8.
+
 - **The set.** 70 controls in both trees, the same 70. The script's categories are the same
   for 610.57.04 and 615.71.09. gsp-surface.md counted 71 because `FB_GET_REMAPPED_BANKS` has
   been forwarded since (commit e2ef5af). Regenerate with
@@ -398,12 +402,14 @@ failure.
   (subdevice_ctrl_timer_kernel.c:318-343, both trees). The native NVML trace uses cpuClkId
   0x01 (OSTIME, CPU; matrix/traces/610.57.04/control/nvml.jsonl:105). The Wayland presentation
   clock depends on the guest kernel's own timer reads, not on this control.
+  Status: gsp-surface.md §6 row 2 corrected on 2026-09-24; the device answers a GSP-clock request from its own clock (§8).
 - **Two rows forwarded today return host FB addresses.** `FB_GET_OFFLINED_PAGES` 0x20801322
   returns `pageAddressWithEccOn/Off` per entry (ctrl2080fb.h:996 in 610, :999 in 615;
   params :1080 / :1083). `FB_GET_REMAPPED_ROWS` 0x20801344 is the same kind of data. Both are
   in `FORWARD` (ver/v610.rs:921-930) without a reservation filter. On a card with retired
   pages, the guest would see host addresses outside its reservation. The F2 `OfflinedPages`
   filter applies to them as well: it is the D9 cut-down item for this pair.
+  Status: done in feff894. Both rows are filtered forwards (§8).
 - **Heuristic corrections for `classify()`** in caraxes/tools/gsp-surface.py:
   - A control with a handle-carrying params struct (`hChannel`, `hClient`) or on
     ZbcApi/KernelSMDebuggerSession is C, not B.
@@ -426,6 +432,7 @@ off limits otherwise), and every host read must be reported.
   zeroed buffer of the size in the table, and record status and output bytes. The result is
   kept as chip data next to the host facts. It also decides whether the scrubber and offlined
   filters ever see an address.
+  Status: answered 2026-09-24 by a read-only sweep (§8, caraxes/runs/gsp-bc-2026-09-24/qb1-sweep).
 - **Q-B2. Which NVML-list controls does nvidia-smi really send?** The rmapi_utils.c list is
   indirect evidence. Measurement, with no host touch beyond the usual gate: in the 615 guest,
   `nvidia-smi -q`, `nvidia-smi -q -d ECC,PAGE_RETIREMENT,ROW_REMAPPER` and `nvidia-smi pmon -c 1`,
@@ -446,9 +453,203 @@ off limits otherwise), and every host read must be reported.
   carry the host's UEFI image and NBSI? Measurement: compare the host's
   `BIOS_GET_UEFI_SUPPORT` and `BIOS_GET_NBSI_V2` answers (Q-B1 sweep) with a parse of the
   synthesized image. If they match, the two controls can be F1.
+  Status: open. `BIOS_GET_UEFI_SUPPORT` answers from the board data with version 0 (§8); the comparison was outside this package's host reads.
 - **Q-B6. GSP heap statistics.** Do the host GSP's heap numbers belong in the guest at all? The
   guest's GSP is the device. This is an operator decision under D9 (generous first, cut
   later). Measurement for the decision: the Q-B1 answer for `gfid` 0.
+  Status: decided 2026-09-24. The guest gets the device's own heap view, and the host's numbers are not forwarded (§8).
 - **Q-B7. Does any guest client ask for the GSP clock?** No known client does. Measurement: the
   device logs `cpuClkId` of every `TIMER_GET_GPU_CPU_TIME_CORRELATION_INFO` it receives in the
   display and cuda gates. No host touch.
+
+## 8. Status (2026-09-24)
+
+Implemented in `crates/vfio-user-nvgpu` in four commits:
+
+- feff894: the isolation fix of §6;
+- c6b98ee: F1, F2 and the guard;
+- d1ce87f: S, R and N;
+- b49cc5c: the two RC rows of G, with the C plan.
+
+The rows that are not plain forwards live in one table, `PUBLIC` in
+`src/ver/v610/public.rs`, shared by the 615 module (every struct has the same layout in both
+trees). The handler is `src/public.rs`, which runs in `Dispatcher::control` before nvml.rs.
+
+**Counts.**
+
+| Group | Rows | Done | Partial | Open |
+|---|---:|---:|---:|---:|
+| F1 | 26 | 26 | 0 | 0 |
+| F2 | 4 | 4 | 0 | 0 |
+| S | 11 | 10 | 1 | 0 |
+| G | 12 | 2 | 0 | 10 |
+| R | 13 | 13 | 0 | 0 |
+| N | 4 | 4 | 0 | 0 |
+| **all** | **70** | **59** | **1** | **10** |
+
+**What each group became.**
+
+- **F1.** The 26 rows are in `FORWARD` (ver/v610.rs), including `GPU_QUERY_ILLUM_SUPPORT` and
+  `GPU_GET_ILLUM`, the rows seen in the run logs. A test pins that their host status and bytes
+  reach the guest unchanged.
+- **F2.** Three rows are filtered forwards: the scrubber range, the dynamic offlined pages and
+  the GPUMON process fields.
+  - The GPUMON filter works on all 72 ring slots, not only the first `count`, because
+    `tracker` can point anywhere.
+  - It also zeroes the utilization of nvjpg and nvofa, which TU106 does not have. nvenc and
+    nvdec stay, because the device presents them (chips/tu106/device-info.toml).
+- **S.** Five rows are rows of `chips/tu106/controls.toml`: FIPS status, UEFI support, the two
+  NV90E6 masks, and `GR_GFX_POOL_QUERY_SIZE`, refused.
+  - chipctl.rs accepts them only with `moved_from = "B"`, which must match the inventory's
+    category.
+  - The other six are device handlers in public.rs.
+  - UEFI support is partial. The device answers PRESENCE_YES, because the synthesized VBIOS
+    keeps the captured EFI image. It answers not running, and version 0, because the device
+    does not parse the version from the image. Q-B5 is open.
+- **R and N.** NOT_SUPPORTED, request echoed, with one of the labels `refused (host scheduler
+  log ...)`, `(raw PHY register read)`, `(eye measurement ...)`, `(diag class ...)`,
+  `(profiler ...)`, `(MIG absent ...)`, `(Tegra only)`, `(no dielets ...)` or `(host accounting
+  ...)`.
+- **The two forwards of §6.** `FB_GET_OFFLINED_PAGES` and `FB_GET_REMAPPED_ROWS` left
+  `FORWARD` and are filtered forwards.
+  - Offlined pages keep only the entries whose pages lie in the reservation. Guest FB address
+    X is host VRAM address X, so a kept page is already the guest's FB offset. The pending
+    flags stay only for a kept pending page.
+  - Remapped rows name DRAM rows, not FB addresses. So the list is emptied and the card-level
+    flags stay.
+  - Without a reservation, both lists are empty.
+  - The test `offlined_pages_outside_the_reservation_never_reach_the_guest` (public.rs)
+    checks every address of all 64 slots.
+
+**The guard for hostrm.rs:84.**
+
+- `HostRmClient::control` now refuses a class other than subdevice, device or BINAPI. It no
+  longer issues the control on the host root client (`hostrm::host_object`).
+- `FORWARD` and `Dispatcher::forward_or` pick the host object by the control's interface
+  class (`hostrm::class_of_control`), not by the guest object's class.
+- The test `every_forward_targets_subdevice_device_or_binapi` (public.rs) drives every
+  `FORWARD` row and every filtered row through the dispatcher, on a subdevice, a diag object
+  and a ZBC object. It checks that the host saw exactly the object the id addresses.
+
+**Decision under D9 (Q-B6), taken 2026-09-24 by the operator.** `GSP_GET_RM_HEAP_STATS` is
+not forwarded. The guest's GSP is the device, and the guest gets the device's own heap view:
+the emulated GSP has no RM heap, so all numbers are 0 with NV_OK. The host GSP's heap numbers,
+which the Q-B1 sweep shows the host would give, never reach the guest. The plan's F2 recipe
+(pin `gfid` to 0, then forward) is dropped. `GSP_GET_LIBOS_HEAP_STATS` stays F1 as planned;
+the host answers it NOT_SUPPORTED (Q-B1). Should it ever answer, the same reasoning applies
+and it should move to the device.
+
+**Q-B1, answered (read-only sweep, 2026-09-24 19:08).**
+
+- Method: `cargo run --release -p vfio-user-nvgpu --example qb1-sweep`, on the subdevice of
+  the device's own unprivileged host RM client, host driver 615.71.09. Each of the 30 F1/F2
+  getters was issued once, with a zeroed buffer of the struct's size. No other control and
+  no other object were used.
+- Record: caraxes/runs/gsp-bc-2026-09-24/qb1-sweep/sweep.tsv (every control with its status).
+  No kernel log line and no Xid in the window.
+- NV_OK (15): `GPU_QUERY_ILLUM_SUPPORT` (all 0), `GPU_QUERY_SCRUBBER_STATUS`,
+  `GPU_QUERY_FUNCTION_STATUS`, `GPU_GET_RESET_STATUS`, `FB_GET_CALIBRATION_LOCK_FAILED`,
+  `FB_GET_LTC_INFO_FOR_FBP`, `FB_GET_DYNAMIC_OFFLINED_PAGES`, `BUS_GET_PEX_LANE_COUNTERS`,
+  `BUS_GET_PCIE_LTR_LATENCY`, `PERF_GET_LEVEL_INFO_V2`, `PERF_GET_POWERSTATE`,
+  `PERF_RATED_TDP_GET_CONTROL`, `ECC_GET_REPAIR_STATUS`, `GPU_IS_RESET_COUPLED` and
+  `GSP_GET_RM_HEAP_STATS`.
+- NOT_SUPPORTED 0x56 (11): the ECC getters (`QUERY_ECC_CONFIGURATION`,
+  `CLIENT_EXPOSED_COUNTERS`, `VOLATILE_COUNTS`, `UNREPAIRABLE_MEMORY_FLAG`), `GPU_GET_ILLUM`,
+  `GPU_GET_DRAIN_AND_RESET_STATUS`, `CLK_PMUMON_CLK_DOMAINS_GET_SAMPLES`,
+  `FB_GET_ROW_REMAPPER_HISTOGRAM`, both DRAM encryption queries and
+  `GSP_GET_LIBOS_HEAP_STATS`.
+- INVALID_ARGUMENT 0x1f (3), because a zeroed request is not a valid one:
+  `FIFO_OBJSCHED_GET_STATE`, `PERF_GET_GPUMON_PERFMON_UTIL_SAMPLES_V2` and
+  `FLCN_GET_DMEM_USAGE`.
+- NV_ERR_GENERIC 0xffff (1): `BIOS_GET_POST_TIME`.
+- What the filters see:
+  - The scrubber reports status 1 over [0x10000000, 0x1effff000). That range covers far more
+    than any reservation, so the clamp is needed on this card.
+  - The dynamic offlined list is empty, so its filter has nothing to cut here.
+
+**Verification.**
+
+- Unit tests: `cargo test -p vfio-user-nvgpu`, default and `--features v615`.
+- Clippy as tools/check.sh runs it.
+- The GPU gates on vm5 could not run. The host RM refused the reservation at slot 6
+  ([0x29800000, 0x69800000), NV_ERR_NO_MEMORY; the largest free region was 2052 to 3072 MiB
+  higher up while the other VMs ran), and the device failed closed. Both phases were run in
+  pure emulation instead (caraxes/runs/gsp-bc-2026-09-24, `compare-emu.md`). The nvml and
+  cuda rows are identical before and after, with no new refusal and no changed answer. In
+  pure emulation neither nvidia-smi nor cuInit reaches a B or C row, so this shows the absence
+  of regressions only.
+
+**Per row.**
+
+| # | Control | Group | Status | Commit | Note |
+|---|---|---|---|---|---|
+| 1 | `NV0000_GPUACCT_GET_ACCOUNTING_STATE` | N | done | d1ce87f | refused with a label |
+| 2 | `NV0000_GPUACCT_GET_PROC_ACCOUNTING_INFO` | N | done | d1ce87f | refused with a label |
+| 3 | `NV0000_GPUACCT_GET_ACCOUNTING_PIDS` | N | done | d1ce87f | refused with a label |
+| 4 | `NV0000_GPUACCT_GET_PROC_ACCOUNTING_INFO_V2` | N | done | d1ce87f | refused with a label |
+| 5 | `NV0090_GET_MMU_DEBUG_MODE` | G | open | - | C plan B2: per-TSG debug flag |
+| 6 | `NV2080_GPU_QUERY_ECC_CONFIGURATION` | F1 | done | c6b98ee | FORWARD row, host 0x56 on a zeroed request (Q-B1) |
+| 7 | `NV2080_GPU_QUERY_ILLUM_SUPPORT` | F1 | done | c6b98ee | FORWARD row, host 0x0 on a zeroed request (Q-B1) |
+| 8 | `NV2080_GPU_GET_ILLUM` | F1 | done | c6b98ee | FORWARD row, host 0x56 on a zeroed request (Q-B1) |
+| 9 | `NV2080_GPU_QUERY_SCRUBBER_STATUS` | F2 | done | c6b98ee | filtered: scrub range clamped to the reservation (Q-B1: the host reports status 1 over [0x10000000, 0x1effff000)) |
+| 10 | `NV2080_GPU_QUERY_FUNCTION_STATUS` | F1 | done | c6b98ee | FORWARD row, host 0x0 on a zeroed request (Q-B1) |
+| 11 | `NV2080_GPU_GET_PARTITION_CAPACITY` | R | done | d1ce87f | refused with a label |
+| 12 | `NV2080_GPU_GET_RESET_STATUS` | F1 | done | c6b98ee | FORWARD row, host 0x0 on a zeroed request (Q-B1) |
+| 13 | `NV2080_GPU_GET_DRAIN_AND_RESET_STATUS` | F1 | done | c6b98ee | FORWARD row, host 0x56 on a zeroed request (Q-B1) |
+| 14 | `NV2080_GPU_GET_FIPS_STATUS` | S | done | d1ce87f | controls.toml, chip: bFipsEnabled 0 |
+| 15 | `NV2080_TIMER_GET_GPU_CPU_TIME_CORRELATION_INFO` | S | done | d1ce87f | device clock for every sample (§6: no known client asks for the GSP clock) |
+| 16 | `NV2080_BIOS_GET_POST_TIME` | F1 | done | c6b98ee | FORWARD row, host 0xffff on a zeroed request (Q-B1) |
+| 17 | `NV2080_BIOS_GET_UEFI_SUPPORT` | S | partial | d1ce87f | controls.toml, board: PRESENCE_YES, not running; version 0 until Q-B5 compares it with the image |
+| 18 | `NV2080_BIOS_GET_NBSI_V2` | S | done | d1ce87f | NV_OK, errorCode NOT_FOUND, retSize 0 |
+| 19 | `NV2080_CLK_PMUMON_CLK_DOMAINS_GET_SAMPLES` | F1 | done | c6b98ee | FORWARD row, host 0x56 on a zeroed request (Q-B1) |
+| 20 | `NV2080_FIFO_OBJSCHED_SW_GET_LOG` | R | done | d1ce87f | refused with a label |
+| 21 | `NV2080_FIFO_OBJSCHED_GET_STATE` | F1 | done | c6b98ee | FORWARD row, host 0x1f on a zeroed request (Q-B1) |
+| 22 | `NV2080_GR_GET_CTXSW_STATS` | G | open | - | C plan B3: hChannel rewrite on the mirror's subdevice |
+| 23 | `NV2080_GR_GET_CURRENT_RESIDENT_CHANNEL` | G | open | - | C plan B5: host-ChID to guest-ChID map |
+| 24 | `NV2080_GR_GFX_POOL_QUERY_SIZE` | S | done | d1ce87f | controls.toml, refused (no caller) |
+| 25 | `NV2080_GR_GET_CTXSW_MODES` | G | open | - | C plan B4 |
+| 26 | `NV2080_FB_GET_CALIBRATION_LOCK_FAILED` | F1 | done | c6b98ee | FORWARD row, host 0x0 on a zeroed request (Q-B1) |
+| 27 | `NV2080_FB_GET_LTC_INFO_FOR_FBP` | F1 | done | c6b98ee | FORWARD row, host 0x0 on a zeroed request (Q-B1) |
+| 28 | `NV2080_FB_GET_CTAGS_FOR_CBC_EVICTION` | S | done | d1ce87f | numCompTags 0 (D16) |
+| 29 | `NV2080_FB_GET_ROW_REMAPPER_HISTOGRAM` | F1 | done | c6b98ee | FORWARD row, host 0x56 on a zeroed request (Q-B1) |
+| 30 | `NV2080_FB_GET_DYNAMIC_OFFLINED_PAGES` | F2 | done | c6b98ee | filtered: entries inside the reservation (Q-B1: 0 entries on this card) |
+| 31 | `NV2080_FB_QUERY_DRAM_ENCRYPTION_PENDING_CONFIGURATION` | F1 | done | c6b98ee | FORWARD row, host 0x56 on a zeroed request (Q-B1) |
+| 32 | `NV2080_FB_QUERY_DRAM_ENCRYPTION_STATUS` | F1 | done | c6b98ee | FORWARD row, host 0x56 on a zeroed request (Q-B1) |
+| 33 | `NV2080_BUS_GET_PEX_LANE_COUNTERS` | F1 | done | c6b98ee | FORWARD row, host 0x0 on a zeroed request (Q-B1) |
+| 34 | `NV2080_BUS_GET_PCIE_LTR_LATENCY` | F1 | done | c6b98ee | FORWARD row, host 0x0 on a zeroed request (Q-B1) |
+| 35 | `NV2080_BUS_GET_UPHY_DLN_CFG_SPACE` | R | done | d1ce87f | refused with a label |
+| 36 | `NV2080_BUS_GET_EOM_STATUS` | R | done | d1ce87f | refused with a label |
+| 37 | `NV2080_PERF_GET_LEVEL_INFO_V2` | F1 | done | c6b98ee | FORWARD row, host 0x0 on a zeroed request (Q-B1) |
+| 38 | `NV2080_PERF_GET_POWERSTATE` | F1 | done | c6b98ee | FORWARD row, host 0x0 on a zeroed request (Q-B1) |
+| 39 | `NV2080_PERF_GET_TEGRA_PERFMON_SAMPLE` | R | done | d1ce87f | refused with a label |
+| 40 | `NV2080_PERF_RATED_TDP_GET_CONTROL` | F1 | done | c6b98ee | FORWARD row, host 0x0 on a zeroed request (Q-B1) |
+| 41 | `NV2080_PERF_GET_GPUMON_PERFMON_UTIL_SAMPLES_V2` | F2 | done | c6b98ee | filtered: process fields zeroed in all 72 slots, nvjpg/nvofa utilization zeroed (Q-B1: host 0x1f for a zeroed request) |
+| 42 | `NV2080_RC_GET_ERROR_COUNT` | G | done | b49cc5c | C plan B6: the device's RC journal, count 0 |
+| 43 | `NV2080_GET_RC_RECOVERY` | S | done | d1ce87f | rcEnable ENABLED |
+| 44 | `NV2080_RC_GET_ERROR_V2` | G | done | b49cc5c | C plan B7: no record, outputRecordSize 0 |
+| 45 | `NV2080_FLCN_GET_DMEM_USAGE` | F1 | done | c6b98ee | FORWARD row, host 0x1f on a zeroed request (Q-B1) |
+| 46 | `NV2080_ECC_GET_CLIENT_EXPOSED_COUNTERS` | F1 | done | c6b98ee | FORWARD row, host 0x56 on a zeroed request (Q-B1) |
+| 47 | `NV2080_ECC_GET_VOLATILE_COUNTS` | F1 | done | c6b98ee | FORWARD row, host 0x56 on a zeroed request (Q-B1) |
+| 48 | `NV2080_ECC_GET_SRAM_UNIQUE_UNCORR_COUNTS` | S | done | d1ce87f | NOT_SUPPORTED: no ECC on this board |
+| 49 | `NV2080_ECC_GET_REPAIR_STATUS` | F1 | done | c6b98ee | FORWARD row, host 0x0 on a zeroed request (Q-B1) |
+| 50 | `NV2080_ECC_GET_UNREPAIRABLE_MEMORY_FLAG` | F1 | done | c6b98ee | FORWARD row, host 0x56 on a zeroed request (Q-B1) |
+| 51 | `NV2080_GSP_GET_RM_HEAP_STATS` | F2 | done | c6b98ee | device answer, not forwarded: all 0 (decision D9/Q-B6, §8) |
+| 52 | `NV2080_GSP_GET_LIBOS_HEAP_STATS` | F1 | done | c6b98ee | FORWARD row, host 0x56 on a zeroed request (Q-B1) |
+| 53 | `NV2080_GPU_IS_RESET_COUPLED` | F1 | done | c6b98ee | FORWARD row, host 0x0 on a zeroed request (Q-B1) |
+| 54 | `NV2080_GPU_GET_UNIT_FS_INFO_FROM_DIELET` | R | done | d1ce87f | refused with a label |
+| 55 | `NV208F_FIFO_GET_CHANNEL_STATE` | G | open | - | C plan B8: scheduled flag per channel |
+| 56 | `NV208F_GPU_GET_RAM_SVOP_VALUES` | R | done | d1ce87f | refused with a label |
+| 57 | `NV402C_I2C_GET_PORT_SPEED` | S | done | d1ce87f | zeros: no I2C ports |
+| 58 | `NV83DE_DEBUG_GET_MODE_MMU_DEBUG` | G | open | - | C plan B9: debugger defaults |
+| 59 | `NV83DE_DEBUG_GET_MODE_ERRBAR_DEBUG` | G | open | - | C plan B10 |
+| 60 | `NV83DE_DEBUG_GET_SINGLE_SM_DEBUGGER_STATUS` | G | open | - | C plan B11 |
+| 61 | `NV83DE_DEBUG_GET_MODE_MMU_GCC_DEBUG` | G | open | - | C plan B12 |
+| 62 | `NV9096_GET_ZBC_CLEAR_TABLE_ENTRY` | G | open | - | C plan B1: a device ZBC table; its defaults need Q-B3 (not permitted in this package) |
+| 63 | `NV90E6_MASTER_GET_ERROR_INTR_OFFSET_MASK` | S | done | d1ce87f | controls.toml, chip: masks 0 (no ECC, no NVLink), offset 0 |
+| 64 | `NV90E6_MASTER_GET_VIRTUAL_FUNCTION_ERROR_CONT_INTR_MASK` | S | done | d1ce87f | controls.toml, chip: both masks 0 |
+| 65 | `NVB0CC_PMA_STREAM_UPDATE_GET_PUT` | R | done | d1ce87f | refused with a label |
+| 66 | `NVB0CC_GET_TOTAL_HS_CREDITS` | R | done | d1ce87f | refused with a label |
+| 67 | `NVB0CC_GET_HS_CREDITS` | R | done | d1ce87f | refused with a label |
+| 68 | `NVB0CC_GET_CHIPLET_HS_CREDIT_POOL` | R | done | d1ce87f | refused with a label |
+| 69 | `NVB0CC_GET_HS_CREDITS_MAPPING` | R | done | d1ce87f | refused with a label |
+| 70 | `NVB0CC_GET_DYNAMIC_MMA_BOOST_STATUS` | R | done | d1ce87f | refused with a label |

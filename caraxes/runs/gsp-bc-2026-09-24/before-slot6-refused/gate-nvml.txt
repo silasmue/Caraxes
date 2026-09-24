@@ -1,0 +1,1 @@
+{"gate":"nvml","verdict":"skip","reason":"guest not reachable; start it with tools/caraxes-vm.sh up && tools/caraxes-vm.sh wait","guest":{},"host":{},"checks":[]}

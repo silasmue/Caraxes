@@ -26,6 +26,10 @@ pub type RmAbi = nvrm_sys::V610;
 /// The display control vocabulary (src/ver/v610/display.rs).
 pub mod display;
 
+/// The public controls of the GSP plan that are not a plain forward: filtered forwards,
+/// device-owned answers, guest-object controls and refusals (src/ver/v610/public.rs).
+pub mod public;
+
 /// The CPU-GSP transport of this version: message queue v0, checksummed elements, the
 /// four init RPCs (docs/caraxes/gsp-rpc-protocol.md).
 pub const GSP_TRANSPORT: super::GspTransport = super::GspTransport::MsgqV1;
@@ -952,8 +956,8 @@ pub const FORWARD: &[(u32, &str)] = &[
     (0x2080_014B, "GPU_GET_INFOROM_OBJECT_VERSION"),
     (0x2080_0156, "GPU_GET_INFOROM_IMAGE_VERSION"),
     (0x2080_0157, "GPU_QUERY_INFOROM_ECC_SUPPORT"),
-    (0x2080_1322, "FB_GET_OFFLINED_PAGES"),
-    (0x2080_1344, "FB_GET_REMAPPED_ROWS"),
+    // FB_GET_OFFLINED_PAGES 0x20801322 and FB_GET_REMAPPED_ROWS 0x20801344 carry host FB
+    // pages and DRAM rows: filtered forwards of `public::PUBLIC` since 2026-09-24.
     (0x2080_1357, "FB_QUERY_DRAM_ENCRYPTION_INFOROM_SUPPORT"),
     // Sent by the 615 guest's nvidia-smi (caraxes/runs/transport-615-2026-09-24/boot/
     // device-events.txt:1114, 8208 bytes). Not new in 615: 610.57.04 has the same control
@@ -974,6 +978,39 @@ pub const FORWARD: &[(u32, &str)] = &[
     (0x2080_3801, "GRMGR_GET_GR_FS_INFO"),
     (0x2080_2068, "PERF_GET_CURRENT_PSTATE"),
     (0x2080_2087, "PERF_GET_VID_ENG_PERFMON_SAMPLE"),
+    // Group F1 of docs/caraxes/gsp-plan/b-host-forwardable.md (§2, §3): NON_PRIVILEGED
+    // ROUTE_TO_PHYSICAL subdevice getters whose answer is card truth, with no handle,
+    // address, PID or other client's state; the params have the same sizeof and text in
+    // 610.57.04 and 615.71.09 (§2). NOT_SUPPORTED from a GeForce host is passed on: it is
+    // what the real card says.
+    (0x2080_0133, "GPU_QUERY_ECC_CONFIGURATION"),
+    // Seen in the 595 guest's nvidia-smi run (caraxes/runs/guest-driver-2026-09-24/
+    // 595-static/device-events.txt:12, unanswered until 2026-09-24): the board LED.
+    (0x2080_0153, "GPU_QUERY_ILLUM_SUPPORT"),
+    (0x2080_0154, "GPU_GET_ILLUM"),
+    (0x2080_0173, "GPU_QUERY_FUNCTION_STATUS"),
+    (0x2080_01AB, "GPU_GET_RESET_STATUS"),
+    (0x2080_01AE, "GPU_GET_DRAIN_AND_RESET_STATUS"),
+    (0x2080_0809, "BIOS_GET_POST_TIME"),
+    (0x2080_1037, "CLK_PMUMON_CLK_DOMAINS_GET_SAMPLES"),
+    (0x2080_1120, "FIFO_OBJSCHED_GET_STATE"),
+    (0x2080_130C, "FB_GET_CALIBRATION_LOCK_FAILED"),
+    (0x2080_1328, "FB_GET_LTC_INFO_FOR_FBP"),
+    (0x2080_1347, "FB_GET_ROW_REMAPPER_HISTOGRAM"),
+    (0x2080_1355, "FB_QUERY_DRAM_ENCRYPTION_PENDING_CONFIGURATION"),
+    (0x2080_1358, "FB_QUERY_DRAM_ENCRYPTION_STATUS"),
+    (0x2080_1816, "BUS_GET_PEX_LANE_COUNTERS"),
+    (0x2080_1817, "BUS_GET_PCIE_LTR_LATENCY"),
+    (0x2080_200B, "PERF_GET_LEVEL_INFO_V2"),
+    (0x2080_205A, "PERF_GET_POWERSTATE"),
+    (0x2080_206E, "PERF_RATED_TDP_GET_CONTROL"),
+    (0x2080_3101, "FLCN_GET_DMEM_USAGE"),
+    (0x2080_3400, "ECC_GET_CLIENT_EXPOSED_COUNTERS"),
+    (0x2080_3401, "ECC_GET_VOLATILE_COUNTS"),
+    (0x2080_3404, "ECC_GET_REPAIR_STATUS"),
+    (0x2080_3406, "ECC_GET_UNREPAIRABLE_MEMORY_FLAG"),
+    (0x2080_3604, "GSP_GET_LIBOS_HEAP_STATS"),
+    (0x2080_81F3, "GPU_IS_RESET_COUPLED"),
 ];
 
 /// GSS-legacy controls (NV2080 categories 0x85 THERMAL, 0x90 CLK, 0xA0 PERF, 0xA6

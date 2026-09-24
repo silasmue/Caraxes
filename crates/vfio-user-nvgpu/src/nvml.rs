@@ -32,7 +32,7 @@ use crate::ctrl::{Answer, HostRm};
 use crate::hostabi::{HostLayouts, HOST_SIZED_LEGACY};
 // The control numbers, lists and layouts of the emulated driver version (src/ver).
 use crate::ver::active::{
-    self as v, INDEX_FORWARD_TO_PHYSICAL, INFO_CHIP_UNIQUE_HI, INFO_CHIP_UNIQUE_LO, NV01_DEVICE_0,
+    self as v, INDEX_FORWARD_TO_PHYSICAL, INFO_CHIP_UNIQUE_HI, INFO_CHIP_UNIQUE_LO,
     NV20_SUBDEVICE_0, NV_ERR_NOT_SUPPORTED, NV_OK, SMC_MODE_UNSUPPORTED,
 };
 pub use crate::ver::active::{
@@ -139,11 +139,15 @@ pub fn answer(
     let host = &mut host;
 
     if let Some((_, name)) = FORWARD.iter().find(|(c, _)| *c == cmd) {
-        // Device-class controls go to the host device, everything else to the subdevice.
-        let target = if cmd >> 16 == 0x0080 {
-            NV01_DEVICE_0
-        } else {
-            NV20_SUBDEVICE_0
+        // The host object the id addresses (NV0080 the device, NV2080 the subdevice); a
+        // row of any other class is never sent (public.rs guard test).
+        let Some(target) = crate::hostrm::class_of_control(cmd) else {
+            return Some(answer_with(
+                NV_ERR_NOT_SUPPORTED,
+                params.to_vec(),
+                "refused (no host object for this control's class)",
+                format!("{name}: not forwarded"),
+            ));
         };
         return Some(forward(
             host,
@@ -412,6 +416,7 @@ fn fb_get_info_v2(host: &mut Host<'_>, params: &[u8], profile: &Profile) -> Answ
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::ver::active::NV01_DEVICE_0;
 
     fn chip() -> &'static ChipData {
         crate::fixture::rtx2070().chip.data()

@@ -527,8 +527,18 @@ def parse_traces():
 
 DISPATCH = [  # module, relative path, order in Dispatcher::control (ctrl.rs)
     ("display", "display/mod.rs"), ("kgr", "kgr.rs"), ("cuda", "cuda.rs"),
-    ("uvm", "uvm.rs"), ("nvml", "nvml.rs"), ("ctrl", "ctrl.rs"),
+    ("uvm", "uvm.rs"), ("public", "public.rs"), ("nvml", "nvml.rs"), ("ctrl", "ctrl.rs"),
 ]
+# The rule kinds of the GSP plan's table (src/ver/v610/public.rs `PUBLIC`, `PUBLIC_C`,
+# answered by public.rs): provenance per `Rule::` variant, and per `Dev::` answer where it
+# differs (a device NOT_SUPPORTED is a refusal).
+PUBLIC_RULES = {
+    "Filtered": ("host-forwarded", "host (forwarded, filtered)"),
+    "Device": ("synthesized", "synthesized (device-owned answer)"),
+    "Refuse": ("refused", "refused (table rule)"),
+    "Guest": ("guest-derived", "guest (the guest object's record or its own mirror)"),
+}
+PUBLIC_REFUSING_DEV = {"NoEcc"}
 TABLES = {  # table name -> (provenance, label)
     "FORWARD": ("host-forwarded", "host (forwarded as-is, public control)"),
     "LEGACY": ("host-forwarded", "host (GSS legacy, forwarded opaquely)"),
@@ -653,6 +663,19 @@ def crate_handlers(consts):
                     handlers[val].append({"module": module, "provenance": prov,
                                           "labels": [label], "guard": name,
                                           "src": "%s:%d" % (rel(path), line)})
+        # The GSP plan's table (src/ver/v610/public.rs): one `row(id, name, size, Rule::X(..))`
+        # or `PublicControl { id: .., rule: Rule::X(..) }` per control.
+        if path.endswith(os.path.join("ver", "v610", "public.rs")):
+            rx_row = re.compile(r"(?:row\(\s*|id:\s*)(0x[0-9A-Fa-f_]+)\b.*?Rule::(\w+)\((?:Dev::(\w+))?",
+                                re.S)
+            for m in rx_row.finditer(t):
+                prov, label = PUBLIC_RULES[m.group(2)]
+                if m.group(3) in PUBLIC_REFUSING_DEV:
+                    prov = "refused"
+                line = t.count("\n", 0, m.start()) + 1
+                handlers[hexint(m.group(1))].append({
+                    "module": "public", "provenance": prov, "labels": [label],
+                    "guard": "public table", "src": "%s:%d" % (rel(path), line)})
         # Match arms.
         if "/ver/" in path:
             continue

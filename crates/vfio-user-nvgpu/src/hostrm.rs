@@ -72,16 +72,49 @@ impl HostRmClient {
     }
 }
 
+/// The host objects the client holds. A control is issued only on one of them; there is
+/// no route to the host root client (a control of another class used to land there, on
+/// the wrong object; gsp-plan/b-host-forwardable.md §1).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum HostObject {
+    Subdevice,
+    Device,
+    Binapi,
+}
+
+/// The host object for a guest object's class, `None` for every other class.
+pub fn host_object(class: u32) -> Option<HostObject> {
+    match class {
+        NV20_SUBDEVICE_0 => Some(HostObject::Subdevice),
+        NV01_DEVICE_0 => Some(HostObject::Device),
+        NV2081_BINAPI => Some(HostObject::Binapi),
+        _ => None,
+    }
+}
+
+/// The class of the host object a control is addressed to by its id: the interface class
+/// in bits 31:16 (NV0080 device, NV2080 subdevice, NV2081 BINAPI). `None` for a control of
+/// any other class, which the device never forwards.
+pub fn class_of_control(cmd: u32) -> Option<u32> {
+    let class = match cmd >> 16 {
+        0x0080 => NV01_DEVICE_0,
+        0x2080 => NV20_SUBDEVICE_0,
+        0x2081 => NV2081_BINAPI,
+        _ => return None,
+    };
+    host_object(class).map(|_| class)
+}
+
 impl HostRm for HostRmClient {
     fn control(&mut self, class: u32, cmd: u32, params: &mut [u8]) -> u32 {
-        let object = match class {
-            NV20_SUBDEVICE_0 => self.subdevice,
-            NV01_DEVICE_0 => self.device,
-            NV2081_BINAPI => match self.binapi() {
+        let object = match host_object(class) {
+            Some(HostObject::Subdevice) => self.subdevice,
+            Some(HostObject::Device) => self.device,
+            Some(HostObject::Binapi) => match self.binapi() {
                 Some(h) => h,
                 None => return NV_ERR_NOT_SUPPORTED,
             },
-            _ => self.rm.root(),
+            None => return NV_ERR_NOT_SUPPORTED,
         };
         let mut p = sys::NVOS54_PARAMETERS::default();
         p.hClient = self.rm.root();
@@ -101,5 +134,26 @@ impl HostRm for HostRmClient {
             Ok(()) => p.status as u32,
             Err(_) => 0xFFFF_FFFF,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Only the three objects the client holds are reachable; the root client is not.
+    #[test]
+    fn only_subdevice_device_and_binapi() {
+        assert_eq!(host_object(NV20_SUBDEVICE_0), Some(HostObject::Subdevice));
+        assert_eq!(host_object(NV01_DEVICE_0), Some(HostObject::Device));
+        assert_eq!(host_object(NV2081_BINAPI), Some(HostObject::Binapi));
+        for class in [0u32, 0x41, 0x9096, 0x90E6, 0x208F, 0x402C, 0xB0CC, 0x906F] {
+            assert_eq!(host_object(class), None, "{class:#x}");
+        }
+        assert_eq!(class_of_control(0x0080_0294), Some(NV01_DEVICE_0));
+        assert_eq!(class_of_control(0x2080_0153), Some(NV20_SUBDEVICE_0));
+        assert_eq!(class_of_control(0x2081_0108), Some(NV2081_BINAPI));
+        assert_eq!(class_of_control(0x0000_0B02), None);
+        assert_eq!(class_of_control(0x90E6_0101), None);
     }
 }

@@ -123,6 +123,11 @@ pub struct Dispatcher {
     pub host_doorbell_at: Option<std::time::Instant>,
     /// The display engine in the GSP role (display/mod.rs, docs/caraxes/display-ab.md).
     pub display: crate::display::Display,
+    /// The VM's VRAM reservation `[B, E)` (fb.rs `FbLayout`): the filtered forwards of
+    /// public.rs pass on only host FB addresses inside it.
+    pub reservation: Option<(u64, u64)>,
+    /// What the guest set on its channels and TSGs (public.rs, gsp-plan/c-guest-state.md).
+    pub guest_attrs: crate::public::GuestAttrs,
 }
 
 /// Controls on a guest channel or TSG that a host mirror can take (mirror.rs
@@ -171,7 +176,15 @@ impl Dispatcher {
             mirror_diag: std::env::var("CARAXES_MIRROR_DIAG").as_deref() == Ok("1"),
             host_doorbell_at: None,
             display: crate::display::Display::new(),
+            reservation: None,
+            guest_attrs: Default::default(),
         }
+    }
+
+    /// The dispatcher of a device holding the VRAM reservation `r` (`FbLayout::reservation`).
+    pub fn with_reservation(mut self, r: Option<(u64, u64)>) -> Self {
+        self.reservation = r;
+        self
     }
 
     pub fn take_host(&mut self) -> Option<Box<dyn HostRm>> {
@@ -776,6 +789,7 @@ impl Dispatcher {
             None => Vec::new(),
         };
         self.channels.record_free(h_client, h_object);
+        self.guest_attrs.free(h_client, h_object);
         if h_object == h_client {
             self.objects.retain(|(c, _), _| *c != h_client);
         }
@@ -912,6 +926,27 @@ impl Dispatcher {
             .or_else(|| self.objects.get(&(INTERNAL_CLIENT, h_object)))
             .copied()
             .unwrap_or(NV20_SUBDEVICE_0);
+        // The GSP plan's table-driven public controls (public.rs, docs/caraxes/gsp-plan/).
+        let key = self.channels.resolve((h_client, h_object));
+        let mut fwd = self.mirror.as_mut().map(|mirror| crate::public::MirrorFwd {
+            mirror,
+            reg: &self.channels,
+        });
+        let mut pctx = crate::public::Ctx {
+            host: self.host.as_deref_mut(),
+            reservation: self.reservation,
+            chip: self.chip,
+            now_ns: self.channels.now_ns(),
+            object: (h_client, h_object),
+            key,
+            mirror: fwd
+                .as_mut()
+                .map(|f| f as &mut dyn crate::public::MirrorObjects),
+            attrs: &mut self.guest_attrs,
+        };
+        if let Some(a) = crate::public::answer(&mut pctx, cmd, params) {
+            return a;
+        }
         // nvidia-smi telemetry and identity (docs/caraxes/nvml.md) live in nvml.rs.
         if let Some(a) = crate::nvml::answer(
             self.chip,
@@ -1215,13 +1250,23 @@ impl Dispatcher {
         }
     }
 
+    /// Forward `cmd` to the host object its id addresses (hostrm.rs `class_of_control`),
+    /// not to the guest object's class: a control on any other object is never sent.
     fn forward_or(
         &mut self,
-        class: u32,
+        _class: u32,
         cmd: u32,
         params: &[u8],
         fallback: impl FnOnce(usize) -> Answer,
     ) -> Answer {
+        let Some(class) = crate::hostrm::class_of_control(cmd) else {
+            return Answer {
+                status: NV_ERR_NOT_SUPPORTED,
+                params: params.to_vec(),
+                label: "refused (no host object for this control's class)",
+                note: format!("control {cmd:#x}: not forwarded"),
+            };
+        };
         match self.host.as_mut() {
             Some(host) => {
                 let mut b = params.to_vec();

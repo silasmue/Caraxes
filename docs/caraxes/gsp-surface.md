@@ -533,7 +533,7 @@ DP 2.x, HDMI FRL on Ampere classes, P2P between two GPUs and FLA).
 | # | Control | Cat | Why next (call sites) |
 |---|---|---|---|
 | 1 | `NVA06F_CTRL_CMD_BIND` 0xA06F0104 | C | sent by the kernel RM when a channel is bound to an engine's runlist on a GSP client (`kernel_channel.c:2810-2828`); callers include nvidia-modeset's push channels (`src/common/unix/nvidia-push/src/nvidia-push-init.c:340`) and CeUtils (`mem_utils.c:1972`); in every EGL, GL, Vulkan and NVDEC/NVENC trace. The first control a Wayland compositor on EGL needs. |
-| 2 | `NV2080_CTRL_CMD_TIMER_GET_GPU_CPU_TIME_CORRELATION_INFO` 0x20800406 | B | nvidia-modeset `nvUpdateGpuCpuTimeDiff` (`nvkms-evo.c:8877`) at device allocation (`:5569`), at modeset (`nvkms-modeset.c:3002`) and on a refresh timer (`nvkms-evo.c:8904`); the kernel sends it to GSP (`subdevice_ctrl_timer_kernel.c:338`). A failure zeroes the GPU-CPU time offset, which skews vblank and flip timestamps, the Wayland presentation clock. Answer from the device's own PTIMER, not the host's. |
+| 2 | `NV2080_CTRL_CMD_TIMER_GET_GPU_CPU_TIME_CORRELATION_INFO` 0x20800406 | B | **Corrected 2026-09-24: this control does not reach the device from nvidia-modeset.** `nvUpdateGpuCpuTimeDiff` (`nvkms-evo.c:8821-8837` of 615, :8864-8880 of 610) asks for `_PROCESSOR_CPU`, and the kernel answers every CPU-clock request itself; it sends only a `_PROCESSOR_GSP` request to GSP (`subdevice_ctrl_timer_kernel.c:318-343`, both trees). NVML asks for OSTIME on the CPU (`nvml.jsonl:105`). So the vblank and flip timestamps do not depend on the device. No client is known to ask for the GSP clock; the device answers one from its own clock (gsp-plan/b-host-forwardable.md §6, §8). |
 | 3 | `NV2080_CTRL_CMD_GR_CTXSW_ZCULL_BIND` 0x20801208 | D | every GL, EGL and Vulkan trace; ROUTE_TO_PHYSICAL (flags 0x90348). Echo for software channels, mirror for host ones. |
 | 4 | `NV9096_CTRL_CMD_GET_ZBC_CLEAR_TABLE_SIZE` / `_ENTRY` 0x90960106/7 | A/B | every GL, EGL and Vulkan trace, on the `GF100_ZBC_CLEAR` object; the table size is chip data, the entries are the guest's own ZBC state once SET_ZBC_* is modelled. |
 | 5 | `NV0080_CTRL_CMD_FIFO_GET_ENGINE_CONTEXT_PROPERTIES` 0x00801707 | A | every GL, EGL and Vulkan trace; per-engine context buffer sizes, chip data (the host answer can be captured once). |
@@ -835,3 +835,53 @@ in shim 0 at their own index, the same as the chip table,
 above moves by one (`gsp-surface.py --ogkm` against the 610 vendor tree and
 `/mnt/vmstore/caraxes/ogkm-615.71.09`, rerun after the change): 374 and 384 routed controls
 handled, host-forwarded 41 and 40, unhandled 455 and 460, A unhandled 51 on both.
+## After B and C (2026-09-24)
+
+Categories B and C are implemented as plain forwards, filtered forwards, device answers,
+guest-object rules and refusals ([gsp-plan/b-host-forwardable.md](gsp-plan/b-host-forwardable.md)
+§8, [gsp-plan/c-guest-state.md](gsp-plan/c-guest-state.md) §8).
+
+- **Where they live.**
+  - The 26 plain forwards are in `FORWARD`.
+  - Everything else is one table: `PUBLIC` and `PUBLIC_C` in `src/ver/v610/public.rs`,
+    answered by `src/public.rs`, which runs after uvm.rs and before nvml.rs.
+  - Five rows the inventory calls B are chip or board data in `chips/tu106/controls.toml`,
+    accepted by chipctl.rs through `moved_from = "B"`.
+- **How the inventory reads it.** `caraxes/tools/gsp-surface.py` reads the table's rows: a
+  filtered forward counts as host-forwarded, a device answer as synthesized, a refusal as
+  refused, and a guest rule as guest-derived.
+- **Counts.** `gsp-surface.py --ogkm <tree>` on the worktree after commit b49cc5c. The
+  "before" columns are the "after" columns of the E and A table above.
+
+| Item | 610 before | 610 after | 615 before | 615 after |
+|---|---:|---:|---:|---:|
+| Routed controls handled | 373 | 462 | 383 | 473 |
+| (host / synthesized / guest / echo / refused) | 40/64/23/47/199 | 69/74/39/47/233 | 39/64/23/47/210 | 68/74/40/47/244 |
+| Routed controls unhandled | 456 | 367 | 461 | 371 |
+| (A / B / C / D / E) | 52/70/29/305/0 | 52/10/0/305/0 | 52/70/31/308/0 | 52/10/1/308/0 |
+
+**What remains open.**
+
+- **B: 10 controls.** These are the guest-object rows the plan moved to C (§3 B1 to B5, B8 to
+  B12): the ZBC table entry, the MMU debug mode, the GR context-switch statistics, modes and
+  resident channel, the diag channel state, and the four debugger getters.
+- **C: 1 control, on 615 only.** `NV_EVENT_BUFFER_CTRL_CMD_UPDATE_GET` depends on
+  `ALLOC_MEMORY` and the event-buffer model of the RPC plan.
+- **Partial rows.**
+  - The resets of a channel without a host mirror are recorded but do not reset the software
+    executor.
+  - `BIOS_GET_UEFI_SUPPORT` answers version 0.
+
+**Two changes to what already existed.**
+
+- **Two forwards are now filtered.** `FB_GET_OFFLINED_PAGES` and `FB_GET_REMAPPED_ROWS` were
+  plain forwards and handed the guest host FB pages and DRAM rows. They are now filtered
+  forwards: the pages inside the reservation are kept, and the remapped rows are withheld.
+- **No route to the host root client.** `HostRmClient::control` used to issue a control of
+  any other class on the host root client, the wrong object (hostrm.rs:84). It now refuses
+  every class but subdevice, device and BINAPI. Every forward picks its host object by the
+  control's interface class.
+
+**The generated tables.** `src/ver/v6*/surface.rs` still mark the newly handled rows
+`other: false`. They regenerate with `other: true` once `caraxes/tools/gsp-tables.py` is run
+again, which this change leaves for the merge.

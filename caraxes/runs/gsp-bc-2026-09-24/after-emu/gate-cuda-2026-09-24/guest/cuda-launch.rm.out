@@ -1,0 +1,4 @@
+# SPDX-License-Identifier: MIT
+# cuda gate gate-cuda-2026-09-24: guest/cuda-launch.rm.out
+ERROR cuInit: 100 no CUDA-capable device is detected
+ERROR: nvprobe 4 exited 1
