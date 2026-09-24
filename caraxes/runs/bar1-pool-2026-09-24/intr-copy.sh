@@ -7,7 +7,7 @@
 set -uo pipefail
 R=/home/silas/git/Caraxes; M=$R/caraxes/runs/intr-copy-2026-09-24; mkdir -p "$M"; cd "$R"
 source "$R/caraxes/runs/mapping-2026-09-24/env.sh"
-export CARAXES_SERVER=${CARAXES_SERVER:-/mnt/vmstore/caraxes/vfio-user-nvgpu-bar2-f343f87} LEA_CH=/mnt/vmstore/caraxes/vm1/ch-0006-v.sh
+export CARAXES_SERVER=${CARAXES_SERVER:-/mnt/vmstore/caraxes/vfio-user-nvgpu-main-f48a655} LEA_CH=/mnt/vmstore/caraxes/vm1/ch-0006-v.sh
 export CARAXES_BAR1_PASSTHROUGH=1 CARAXES_DOORBELL_TOKENS=64 CARAXES_DOORBELL_POLL=hybrid
 unset CARAXES_DOORBELL_IOEVENTFD
 for mode in ${MODES:-off on}; do
