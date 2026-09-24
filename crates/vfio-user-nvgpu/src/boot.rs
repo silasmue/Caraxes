@@ -827,8 +827,17 @@ impl BootModel {
                         Some(self.gsp_init(&msg, &mut notes))
                     }
                     crate::gmcapi::CMD_GSP_SUSPEND if msg.gmcapi.is_some() => {
-                        // Fire and forget (gmcapi_table.h:109-116 of 615): no response.
-                        notes.push("gmcapi GSP_SUSPEND: acknowledged without a response (fire and forget)".into());
+                        // Fire and forget (gmcapi_table.h:109-116 of 615): no response. The
+                        // kernel then waits for the processor-suspended bit that libos
+                        // sets in the GSP's MAILBOX0 (kernel_gsp.c:5889-5907,
+                        // kernel_gsp_tu102.c:218-255 of 615); without it the unload
+                        // waits out its timeout.
+                        let m0 = self.fw.read32(GSP_MAILBOX0).unwrap_or(0);
+                        self.fw.write32(GSP_MAILBOX0, m0 | GSP_PROCESSOR_SUSPENDED, mem);
+                        notes.push(format!(
+                            "gmcapi GSP_SUSPEND: no response (fire and forget); MAILBOX0 {m0:#x} -> {:#x} (processor suspended)",
+                            m0 | GSP_PROCESSOR_SUSPENDED
+                        ));
                         None
                     }
                     rpc::FN_SET_GUEST_SYSTEM_INFO => {
@@ -1157,6 +1166,12 @@ impl BootModel {
         Ok(notes)
     }
 }
+
+/// The GSP falcon's MAILBOX0 (NV_PGSP_FALCON_MAILBOX0, turing/tu102/dev_gsp.h) and the
+/// `INTERRUPT_PROCESSOR_SUSPENDED_VALUE` libos reports in it (kernel_gsp_tu102.c:218-221
+/// of 615).
+const GSP_MAILBOX0: u64 = 0x0011_0040;
+const GSP_PROCESSOR_SUSPENDED: u32 = 0x8000_0000;
 
 /// `NV_ERR_BUFFER_TOO_SMALL` and `NV_ERR_INVALID_ARGUMENT` (sdk/nvstatuscodes.h).
 const NV_ERR_BUFFER_TOO_SMALL: u32 = 0x02;
