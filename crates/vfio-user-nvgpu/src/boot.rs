@@ -550,20 +550,20 @@ impl BootModel {
     /// A host failure is logged and still reported complete: the guest RM cannot act on
     /// a timeout either (it logs and continues), and a wedged poll costs 30 s per op.
     fn l2_op(&mut self, op: L2Op) -> String {
-        use crate::ver::active::{FLUSH_GPU_CACHE_INVALIDATE, FLUSH_GPU_CACHE_WRITE_BACK};
+        use crate::hostabi::L2Flush;
         self.l2_op_counts.0 += 1;
-        let flags = match op {
-            L2Op::FlushDirty => FLUSH_GPU_CACHE_WRITE_BACK,
+        let flush = match op {
+            L2Op::FlushDirty => L2Flush::WriteBack,
             // The host RM promotes a sysmem invalidate to an evict (kmemsysCacheOp_GM200).
-            L2Op::SysmemInvalidate => FLUSH_GPU_CACHE_INVALIDATE,
+            L2Op::SysmemInvalidate => L2Flush::Invalidate,
             L2Op::Local => return format!("l2 {op:?}: complete (no host operation)"),
         };
         if self.exec.is_none() {
             return format!("l2 {op:?}: complete (no host execution, no cache behind the model)");
         }
         let t = std::time::Instant::now();
-        match self.ctrl.host_flush_gpu_cache(flags) {
-            Some(0) => {
+        match self.ctrl.host_flush_gpu_cache(flush) {
+            Some((flags, 0)) => {
                 self.l2_op_counts.1 += 1;
                 format!(
                     "l2 {op:?}: FB_FLUSH_GPU_CACHE flags {:#x} NV_OK in {} us [host GPU]",
@@ -571,7 +571,7 @@ impl BootModel {
                     t.elapsed().as_micros()
                 )
             }
-            Some(st) => {
+            Some((flags, st)) => {
                 self.l2_op_counts.2 += 1;
                 let m = format!(
                     "l2 {op:?}: FB_FLUSH_GPU_CACHE flags {flags:#x} failed: status {st:#x}; reported complete"

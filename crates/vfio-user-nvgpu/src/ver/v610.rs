@@ -444,23 +444,8 @@ pub const USER_REG_MAP_SIZE: usize = offset_of!(
     userRegisterAccessMapSize
 );
 
-/// `NV2080_CTRL_CMD_FB_FLUSH_GPU_CACHE` (sdk/ctrl/ctrl2080/ctrl2080fb.h:624-695): public
-/// and NON_PRIVILEGED (export flags 0x10118, g_subdevice_nvoc.c), so the device's
-/// unprivileged client may issue it on its own subdevice. Used to honour the guest's
-/// L2 cache operations on the physical GPU (boot.rs, execution.md §6).
-pub const CMD_FB_FLUSH_GPU_CACHE: u32 = 0x2080_130E;
-pub const FLUSH_GPU_CACHE_PARAMS_SIZE: usize =
-    size_of::<ffi::NV2080_CTRL_FB_FLUSH_GPU_CACHE_PARAMS>();
-pub const FLUSH_GPU_CACHE_FLAGS: usize =
-    offset_of!(ffi::NV2080_CTRL_FB_FLUSH_GPU_CACHE_PARAMS, flags);
-/// `_FLAGS_APERTURE` 1:0 = SYSTEM_MEMORY (1).
-pub const FLUSH_GPU_CACHE_APERTURE_SYSTEM_MEMORY: u32 = 1;
-/// `_FLAGS_WRITE_BACK` 2:2 = YES.
-pub const FLUSH_GPU_CACHE_WRITE_BACK: u32 = 1 << 2;
-/// `_FLAGS_INVALIDATE` 3:3 = YES.
-pub const FLUSH_GPU_CACHE_INVALIDATE: u32 = 1 << 3;
-/// `_FLAGS_FLUSH_MODE` 4:4 = FULL_CACHE (no address array).
-pub const FLUSH_GPU_CACHE_FULL_CACHE: u32 = 1 << 4;
+// `NV2080_CTRL_CMD_FB_FLUSH_GPU_CACHE` is a HOST call whose flag bits moved in 615:
+// crate::hostabi (`HostLayouts::flush_gpu_cache`), not the guest ABI.
 
 /// `NV2080_CTRL_FIFO_GET_DEVICE_INFO_TABLE_PARAMS` (ctrl2080fifo.h:535-576).
 pub const DEVINFO_PARAMS_SIZE: usize =

@@ -23,8 +23,9 @@
 //! 3. The layouts of controls the device sends to the HOST are not this module's: they
 //!    follow the running host driver (610.57.04 or 615.71.09), chosen at start-up by
 //!    `crate::hostabi` (`GPU_GET_PES_INFO`, the public `GR_GET_GLOBAL_SM_ORDER`, the TSG
-//!    allocation, the host-sized GSS legacy controls). The rest of what the device sends
-//!    to the host (`FLUSH_GPU_CACHE_*`, the GR routed queries) is the same in both.
+//!    allocation, the host-sized GSS legacy controls, the `FB_FLUSH_GPU_CACHE` flag
+//!    bits). The rest of what the device sends to the host (the GR routed queries) is
+//!    the same in both.
 //!
 //! `GspStaticConfigInfo` and `GspSystemInfo` are no longer on the wire in 615
 //! (kernel_gsp.c:5314-5361). The device still builds its static info as the 610 struct
