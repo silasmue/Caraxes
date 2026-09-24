@@ -1,0 +1,40 @@
+# SPDX-License-Identifier: MIT
+# lab-capture 1 (2026-09-24)
+# created 2026-09-24T07:59:56+02:00 on manacor, kernel 7.2.4-arch1-2, driver 610.57.04, chip tu106, 1 GPU(s): 0000:2d:00.0
+# options: rom=1 sudo=0 (--no-sudo given) rm_tools=1; runtime 81s
+# status: ok = complete, reduced = captured with less detail (usually for lack of sudo),
+#         skipped = not captured (reason given), failed = tried and failed
+# item                             status   path                                         note
+host.uname                         ok       host/uname.txt                               
+host.os-release                    ok       host/os-release.txt                          
+host.cmdline                       ok       host/cmdline.txt                             kernel command line (IOMMU, nvidia options)
+host.boot-time                     ok       host/boot-time.txt                           
+host.cpu                           ok       host/cpu.txt                                 
+host.modules                       ok       host/lsmod.txt                               loaded module list (/proc/modules)
+host.modinfo                       ok       host/modinfo-nvidia.txt                      module versions, licence (open or proprietary), firmware names
+host.proc-driver-nvidia            ok       host/proc-driver-nvidia/                     15 files: version, params, registry, gpus/*/information; driver 610.57.04
+host.sys-module                    ok       host/sys-module-nvidia.txt                   module parameters readable without root
+host.firmware                      ok       host/firmware-files.txt                      4 files in /usr/lib/firmware/nvidia/610.57.04 with size and sha256
+host.firmware-tu106                ok       host/firmware-files.txt                      linux-firmware files for tu106 (31 files)
+host.kernel-log                    ok       host/kernel-log.txt                          journalctl -k -b 0 (as user); total lines 8409308, matching 8409301, Xid lines 0
+host.lspci                         ok       host/lspci-nn.txt                            
+host.lspci-tree                    ok       host/lspci-tree.txt                          PCI topology
+host.iommu-groups                  ok       host/iommu-groups.txt                        
+0000:2d:00.0.lspci-vvv             reduced  gpu-0000_2d_00.0/lspci-vvv.txt               as user: capabilities past 0x40 show <access denied>; run with sudo for the full list
+0000:2d:00.0.lspci-functions       ok       gpu-0000_2d_00.0/lspci-functions.txt         all functions of the slot (audio, USB, UCSI), as user
+0000:2d:00.0.lspci-upstream        ok       gpu-0000_2d_00.0/lspci-upstream.txt          upstream port 0000:00:03.1 (link partner)
+0000:2d:00.0.config-space          reduced  gpu-0000_2d_00.0/config-space.txt            64 bytes only: the kernel shows unprivileged readers the first 64 bytes; the extended space needs sudo
+0000:2d:00.0.bars                  ok       gpu-0000_2d_00.0/bars.txt                    BAR sizes, resizable-BAR sizes
+0000:2d:00.0.sysfs                 ok       gpu-0000_2d_00.0/sysfs-attributes.txt        attribute files under /sys/bus/pci/devices/0000:2d:00.0
+0000:2d:00.0.proc-information      ok       gpu-0000_2d_00.0/proc-information.txt        model, VBIOS version, GPU firmware version
+0000:2d:00.0.nvidia-smi-q          ok       gpu-0000_2d_00.0/nvidia-smi-q.txt            full -q, serial numbers redacted
+0000:2d:00.0.nvidia-smi-q-xml      ok       gpu-0000_2d_00.0/nvidia-smi-q.xml            same as XML, serial redacted
+0000:2d:00.0.nvidia-smi-query-gpu  ok       gpu-0000_2d_00.0/nvidia-smi-query-gpu.csv    one query, 225 fields (.txt: transposed), serial redacted
+0000:2d:00.0.rom                   skipped  -                                            --rom needs sudo (--no-sudo given)
+0000:2d:00.0.display               ok       gpu-0000_2d_00.0/display/                    4 connectors, 2 EDIDs
+host.gsp-family                    ok       host/gsp-firmware.txt                        family=tu10x
+rm-tools.abi-check                 ok       rm-tools/abi-check.txt                       verified (running driver is 610.57.04, the version the tools were written for)
+rm-tools.lab-rm-query              ok       rm-tools/lab-rm-query.txt                    exit 0; ABI verified
+rm-tools.fifo-host-query           ok       rm-tools/fifo-host-query.txt                 exit 0; ABI verified
+rm-tools.host-facts                ok       rm-tools/host-facts.txt                      exit 0; ABI verified
+rm-tools.gsp-abi-sizes             ok       rm-tools/gsp-abi-sizes.md                    tree vendor/open-gpu-kernel-modules

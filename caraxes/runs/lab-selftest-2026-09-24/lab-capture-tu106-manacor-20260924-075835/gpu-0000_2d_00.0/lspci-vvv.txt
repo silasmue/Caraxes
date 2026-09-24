@@ -1,0 +1,18 @@
+# SPDX-License-Identifier: MIT
+# command: lspci -vvv -nn -s 0000:2d:00.0
+2d:00.0 VGA compatible controller [0300]: NVIDIA Corporation TU106 [GeForce RTX 2070] [10de:1f02] (rev a1) (prog-if 00 [VGA controller])
+	Subsystem: Gigabyte Technology Co., Ltd Device [1458:4011]
+	Control: I/O+ Mem+ BusMaster+ SpecCycle- MemWINV- VGASnoop- ParErr- Stepping- SERR- FastB2B- DisINTx+
+	Status: Cap+ 66MHz- UDF- FastB2B- ParErr- DEVSEL=fast >TAbort- <TAbort+ <MAbort- >SERR- <PERR- INTx-
+	Latency: 0
+	Interrupts: pin B disabled, MSI(X) routed to IRQ 101
+	IOMMU group: 28
+	Region 0: Memory at fb000000 (32-bit, non-prefetchable) [size=16M]
+	Region 1: Memory at 7fe0000000 (64-bit, prefetchable) [size=256M]
+	Region 3: Memory at 7ff0000000 (64-bit, prefetchable) [size=32M]
+	Region 5: I/O ports at f000 [size=128]
+	Expansion ROM at fc000000 [disabled] [size=512K]
+	Capabilities: <access denied>
+	Kernel driver in use: nvidia
+	Kernel modules: nouveau, nvidia_drm, nvidia
+

@@ -1,0 +1,43 @@
+# SPDX-License-Identifier: MIT
+== lab-capture 1 (2026-09-24), 2026-09-24T07:58:35+02:00, host manacor
+== output ~/git/Caraxes/caraxes/runs/lab-selftest-2026-09-24/lab-capture-tu106-manacor-20260924-075835
+== sudo: no (--no-sudo given)
+[ok] host.uname
+[ok] host.os-release
+[ok] host.cmdline: kernel command line (IOMMU, nvidia options)
+[ok] host.boot-time
+[ok] host.cpu
+[ok] host.modules: loaded module list (/proc/modules)
+[ok] host.modinfo: module versions, licence (open or proprietary), firmware names
+[ok] host.proc-driver-nvidia: 15 files: version, params, registry, gpus/*/information; driver 610.57.04
+[ok] host.sys-module: module parameters readable without root
+[ok] host.firmware: 4 files in /usr/lib/firmware/nvidia/610.57.04 with size and sha256
+[ok] host.firmware-tu106: linux-firmware files for tu106 (31 files)
+[ok] host.kernel-log: journalctl -k -b 0 (as user); total lines 8409308, matching 8409301, Xid lines 0
+[ok] host.lspci
+[ok] host.lspci-tree: PCI topology
+[ok] host.iommu-groups
+== GPU 0000:2d:00.0 (tu106)
+[reduced] 0000:2d:00.0.lspci-vvv: as user: capabilities past 0x40 show <access denied>; run with sudo for the full list
+[ok] 0000:2d:00.0.lspci-functions: all functions of the slot (audio, USB, UCSI), as user
+[ok] 0000:2d:00.0.lspci-upstream: upstream port 0000:00:03.1 (link partner)
+[reduced] 0000:2d:00.0.config-space: 64 bytes only: the kernel shows unprivileged readers the first 64 bytes; the extended space needs sudo
+[ok] 0000:2d:00.0.bars: BAR sizes, resizable-BAR sizes
+[ok] 0000:2d:00.0.sysfs: attribute files under /sys/bus/pci/devices/0000:2d:00.0
+[ok] 0000:2d:00.0.proc-information: model, VBIOS version, GPU firmware version
+[ok] 0000:2d:00.0.nvidia-smi-q: full -q, serial numbers redacted
+[ok] 0000:2d:00.0.nvidia-smi-q-xml: same as XML, serial redacted
+[ok] 0000:2d:00.0.nvidia-smi-query-gpu: one query, 225 fields (.txt: transposed), serial redacted
+[skipped] 0000:2d:00.0.rom: --rom needs sudo (--no-sudo given)
+[ok] 0000:2d:00.0.display: 4 connectors, 2 EDIDs
+[ok] host.gsp-family: family=tu10x
+[ok] rm-tools.abi-check: verified (running driver is 610.57.04, the version the tools were written for)
+[ok] rm-tools.lab-rm-query: exit 0; ABI verified
+[ok] rm-tools.fifo-host-query: exit 0; ABI verified
+[ok] rm-tools.host-facts: exit 0; ABI verified
+[ok] rm-tools.gsp-abi-sizes: tree vendor/open-gpu-kernel-modules
+== tarball verified: 53 files, all sums match
+== counts:  30 ok  2 reduced  1 skipped 
+== directory ~/git/Caraxes/caraxes/runs/lab-selftest-2026-09-24/lab-capture-tu106-manacor-20260924-075835
+== tarball   ~/git/Caraxes/caraxes/runs/lab-selftest-2026-09-24/lab-capture-tu106-manacor-20260924-075835.tar.gz (84K), sha256 ee065853344f7f2035c41c888ec429325619e845fefa32f27a2a9b7d16d39d12
+== bring back the tarball and its .sha256; see docs/caraxes/lab-blackwell.md

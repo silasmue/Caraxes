@@ -1,0 +1,8 @@
+# SPDX-License-Identifier: MIT
+# command: lspci -xxxx -s 0000:2d:00.0
+2d:00.0 VGA compatible controller: NVIDIA Corporation TU106 [GeForce RTX 2070] (rev a1)
+00: de 10 02 1f 07 04 10 10 a1 00 00 03 00 00 80 00
+10: 00 00 00 fb 0c 00 00 e0 7f 00 00 00 0c 00 00 f0
+20: 7f 00 00 00 01 f0 00 00 00 00 00 00 58 14 11 40
+30: 00 00 00 fc 60 00 00 00 00 00 00 00 ff 01 00 00
+

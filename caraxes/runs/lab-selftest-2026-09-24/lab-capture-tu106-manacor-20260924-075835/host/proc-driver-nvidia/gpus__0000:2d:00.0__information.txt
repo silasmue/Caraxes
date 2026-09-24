@@ -1,0 +1,13 @@
+# SPDX-License-Identifier: MIT
+# command: cat /proc/driver/nvidia/gpus/0000:2d:00.0/information
+Model: 		 NVIDIA GeForce RTX 2070
+IRQ:   		 101
+GPU UUID: 	 GPU-41f54c36-8418-25f3-8ab0-801d98eddb4d
+Video BIOS: 	 90.06.3d.00.76
+Bus Type: 	 PCIe
+DMA Size: 	 47 bits
+DMA Mask: 	 0x7fffffffffff
+Bus Location: 	 0000:2d:00.0
+Device Minor: 	 0
+GPU Firmware: 	 610.57.04
+GPU Excluded:	 No

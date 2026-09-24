@@ -1,0 +1,7 @@
+# SPDX-License-Identifier: MIT
+0000:2d:00.0 chip=tu106 architecture=Turing gsp_firmware_version=610.57.04 proc_gpu_firmware=610.57.04 family=tu10x (gsp_tu10x.bin, LIBOS2)
+  GSP firmware is in use (nvidia-smi reports a GSP firmware version)
+  present: gsp_ga10x.bin
+  present: gsp_tu10x.bin
+# The family is derived from the chip name with the 610.57.04 mapping; check it against
+# nv-firmware.h of the running driver version when that differs.

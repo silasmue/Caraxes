@@ -1,0 +1,40 @@
+# SPDX-License-Identifier: MIT
+# fifo-host-query ; driver 610.57.04; ABI verified (running driver is 610.57.04, the version the tools were written for)
+GPU_GET_ENGINES_V2 status=0x0
+engines count=9 list=GR0(0x1) COPY0(0x9) COPY1(0xa) COPY2(0xb) COPY3(0xc) COPY4(0xd) NVDEC0(0x13) NVENC0(0x1b) SW(0x22)
+engine GR0 type=0x1 fault_info_status=0x0 mmuFaultId=64 subctx=1 partners[rq0] status=0x0 [COPY0] partners[rq1] status=0x0 [COPY1]
+engine COPY0 type=0x9 fault_info_status=0x0 mmuFaultId=15 subctx=0 partners[rq0] status=0x0 [GR0] partners[rq1] status=0x1f [] pce_mask_status=0x0 pceMask=0x1
+engine COPY1 type=0xa fault_info_status=0x0 mmuFaultId=16 subctx=0 partners[rq0] status=0x0 [GR0] partners[rq1] status=0x1f [] pce_mask_status=0x0 pceMask=0x1
+engine COPY2 type=0xb fault_info_status=0x0 mmuFaultId=17 subctx=0 partners[rq0] status=0x0 [] partners[rq1] status=0x1f [] pce_mask_status=0x0 pceMask=0x4
+engine COPY3 type=0xc fault_info_status=0x0 mmuFaultId=18 subctx=0 partners[rq0] status=0x0 [] partners[rq1] status=0x1f [] pce_mask_status=0x0 pceMask=0x8
+engine COPY4 type=0xd fault_info_status=0x0 mmuFaultId=19 subctx=0 partners[rq0] status=0x0 [] partners[rq1] status=0x1f [] pce_mask_status=0x0 pceMask=0x2
+engine NVDEC0 type=0x13 fault_info_status=0x0 mmuFaultId=10 subctx=0 partners[rq0] status=0x0 [] partners[rq1] status=0x1f []
+engine NVENC0 type=0x1b fault_info_status=0x0 mmuFaultId=11 subctx=0 partners[rq0] status=0x0 [] partners[rq1] status=0x1f []
+engine SW type=0x22 fault_info_status=0x0 mmuFaultId=4294967295 subctx=0 partners[rq0] status=0x0 [] partners[rq1] status=0x1f []
+probe NVDEC1 type=0x14 fault_info_status=0x0 mmuFaultId=25 partners[rq0] status=0x0 n=0 partners[rq1] status=0x1f n=0
+probe NVDEC2 type=0x15 fault_info_status=0x0 mmuFaultId=26 partners[rq0] status=0x0 n=0 partners[rq1] status=0x1f n=0
+probe SEC2 type=0x26 fault_info_status=0x0 mmuFaultId=14 partners[rq0] status=0x0 n=0 partners[rq1] status=0x1f n=0
+probe type0x40 type=0x40 fault_info_status=0x0 mmuFaultId=15 partners[rq0] status=0x0 n=1 partners[rq1] status=0x1f n=0
+probe type0x41 type=0x41 fault_info_status=0x0 mmuFaultId=16 partners[rq0] status=0x0 n=1 partners[rq1] status=0x1f n=0
+probe type0x42 type=0x42 fault_info_status=0x0 mmuFaultId=17 partners[rq0] status=0x0 n=0 partners[rq1] status=0x1f n=0
+probe type0x43 type=0x43 fault_info_status=0x0 mmuFaultId=18 partners[rq0] status=0x0 n=0 partners[rq1] status=0x1f n=0
+probe type0x44 type=0x44 fault_info_status=0x0 mmuFaultId=19 partners[rq0] status=0x0 n=0 partners[rq1] status=0x1f n=0
+CE_GET_ALL_CAPS status=0x0 present=0x1f
+ce 0 caps0=0xe3 caps1=0x03 (caps0 bit0 GRCE, bit1 SHARED; ctrl2080ce.h:91-104)
+ce 1 caps0=0xe3 caps1=0x03 (caps0 bit0 GRCE, bit1 SHARED; ctrl2080ce.h:91-104)
+ce 2 caps0=0xe0 caps1=0x03 (caps0 bit0 GRCE, bit1 SHARED; ctrl2080ce.h:91-104)
+ce 3 caps0=0xe0 caps1=0x03 (caps0 bit0 GRCE, bit1 SHARED; ctrl2080ce.h:91-104)
+ce 4 caps0=0xe0 caps1=0x03 (caps0 bit0 GRCE, bit1 SHARED; ctrl2080ce.h:91-104)
+FIFO_GET_INFO status=0x0 index1=4096 index2=128 index3=64 index5=1024 index7=0 index10=64 (1 MAX_CHANNEL_GROUPS, 2 MAX_CHANNELS_PER_GROUP, 3 MAX_SUBCONTEXT_PER_GROUP, 5 DEFAULT_CHANNEL_TIMESLICE, 7 PER_RUNLIST_CHRAM, 10 MAX_LOWER_SUBCONTEXT)
+GPU_GET_CONSTRUCTED_FALCON_INFO status=0x0 num=7
+falcon 0 engDesc=0x8a20bf00 (class 0x8a20bf inst 0) ctxAttr=0x2 ctxBufferSize=0x1000 addrSpaceList=0x3 registerBase=0x9a4000
+falcon 1 engDesc=0x5ee8dc00 (class 0x5ee8dc inst 0) ctxAttr=0x2 ctxBufferSize=0x1000 addrSpaceList=0x3 registerBase=0x409000
+falcon 2 engDesc=0x4781e800 (class 0x4781e8 inst 0) ctxAttr=0x2 ctxBufferSize=0x1000 addrSpaceList=0x3 registerBase=0x41a000
+falcon 3 engDesc=0x8f99e100 (class 0x8f99e1 inst 0) ctxAttr=0x2 ctxBufferSize=0x1000 addrSpaceList=0x3 registerBase=0x830000
+falcon 4 engDesc=0xf3d72200 (class 0xf3d722 inst 0) ctxAttr=0x1 ctxBufferSize=0x1000 addrSpaceList=0x3 registerBase=0x10a000
+falcon 5 engDesc=0xe97b6c00 (class 0xe97b6c inst 0) ctxAttr=0x2 ctxBufferSize=0x1000 addrSpaceList=0x3 registerBase=0x1c8000
+falcon 6 engDesc=0x28c40800 (class 0x28c408 inst 0) ctxAttr=0x2 ctxBufferSize=0x10000 addrSpaceList=0x3 registerBase=0x840000
+GPU_GET_HW_ENGINE_ID status=0x56
+GPU_GET_ENGINE_RUNLIST_PRI_BASE status=0x1b
+FIFO_GET_DEVICE_INFO_TABLE status=0x1b numEntries=0
+CE_GET_FAULT_METHOD_BUFFER_SIZE status=0x1b size=0x0

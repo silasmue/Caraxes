@@ -1,0 +1,4 @@
+# SPDX-License-Identifier: MIT
+# command: cat /proc/driver/nvidia/version
+NVRM version: NVIDIA UNIX Open Kernel Module for x86_64  610.57.04  Release Build  (root@)  
+GCC version:  gcc version 16.2.1 20260810 (GCC) 

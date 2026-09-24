@@ -1,0 +1,5 @@
+# SPDX-License-Identifier: MIT
+# command: cat /proc/driver/nvidia/capabilities/profiler-device
+DeviceFileMinor: 4324
+DeviceFileMode: 256
+DeviceFileModify: 1

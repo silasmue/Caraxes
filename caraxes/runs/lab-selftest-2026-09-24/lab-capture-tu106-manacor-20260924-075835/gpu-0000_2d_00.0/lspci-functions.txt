@@ -1,0 +1,54 @@
+# SPDX-License-Identifier: MIT
+# command: lspci -vvv -nn -s 0000:2d:00
+2d:00.0 VGA compatible controller [0300]: NVIDIA Corporation TU106 [GeForce RTX 2070] [10de:1f02] (rev a1) (prog-if 00 [VGA controller])
+	Subsystem: Gigabyte Technology Co., Ltd Device [1458:4011]
+	Control: I/O+ Mem+ BusMaster+ SpecCycle- MemWINV- VGASnoop- ParErr- Stepping- SERR- FastB2B- DisINTx+
+	Status: Cap+ 66MHz- UDF- FastB2B- ParErr- DEVSEL=fast >TAbort- <TAbort+ <MAbort- >SERR- <PERR- INTx-
+	Latency: 0
+	Interrupts: pin B disabled, MSI(X) routed to IRQ 101
+	IOMMU group: 28
+	Region 0: Memory at fb000000 (32-bit, non-prefetchable) [size=16M]
+	Region 1: Memory at 7fe0000000 (64-bit, prefetchable) [size=256M]
+	Region 3: Memory at 7ff0000000 (64-bit, prefetchable) [size=32M]
+	Region 5: I/O ports at f000 [size=128]
+	Expansion ROM at fc000000 [disabled] [size=512K]
+	Capabilities: <access denied>
+	Kernel driver in use: nvidia
+	Kernel modules: nouveau, nvidia_drm, nvidia
+
+2d:00.1 Audio device [0403]: NVIDIA Corporation TU106 High Definition Audio Controller [10de:10f9] (rev a1) (prog-if 00 [HDA compatible])
+	Subsystem: Gigabyte Technology Co., Ltd Device [1458:4011]
+	Control: I/O- Mem+ BusMaster+ SpecCycle- MemWINV- VGASnoop- ParErr- Stepping- SERR- FastB2B- DisINTx-
+	Status: Cap+ 66MHz- UDF- FastB2B- ParErr- DEVSEL=fast >TAbort- <TAbort- <MAbort- >SERR- <PERR- INTx-
+	Latency: 0, Cache Line Size: 64 bytes
+	Interrupts: pin C routed to IRQ 102
+	IOMMU group: 28
+	Region 0: Memory at fc080000 (32-bit, non-prefetchable) [size=16K]
+	Capabilities: <access denied>
+	Kernel driver in use: snd_hda_intel
+	Kernel modules: snd_hda_intel
+
+2d:00.2 USB controller [0c03]: NVIDIA Corporation TU106 USB 3.1 Host Controller [10de:1ada] (rev a1) (prog-if 30 [XHCI])
+	Subsystem: Gigabyte Technology Co., Ltd Device [1458:4011]
+	Control: I/O- Mem+ BusMaster- SpecCycle- MemWINV- VGASnoop- ParErr- Stepping- SERR- FastB2B- DisINTx+
+	Status: Cap+ 66MHz- UDF- FastB2B- ParErr- DEVSEL=fast >TAbort- <TAbort- <MAbort- >SERR- <PERR- INTx-
+	Interrupts: pin D disabled, MSI(X) routed to IRQ 56
+	IOMMU group: 28
+	Region 0: Memory at 7ff2000000 (64-bit, prefetchable) [size=256K]
+	Region 3: Memory at 7ff2040000 (64-bit, prefetchable) [size=64K]
+	Capabilities: <access denied>
+	Kernel driver in use: xhci_hcd
+	Kernel modules: xhci_pci
+
+2d:00.3 Serial bus controller [0c80]: NVIDIA Corporation TU106 USB Type-C UCSI Controller [10de:1adb] (rev a1)
+	Subsystem: Gigabyte Technology Co., Ltd Device [1458:4011]
+	Control: I/O- Mem+ BusMaster+ SpecCycle- MemWINV- VGASnoop- ParErr- Stepping- SERR- FastB2B- DisINTx+
+	Status: Cap+ 66MHz- UDF- FastB2B- ParErr- DEVSEL=fast >TAbort- <TAbort- <MAbort- >SERR- <PERR- INTx-
+	Latency: 0, Cache Line Size: 64 bytes
+	Interrupts: pin E disabled, MSI(X) routed to IRQ 99
+	IOMMU group: 28
+	Region 0: Memory at fc084000 (32-bit, non-prefetchable) [size=4K]
+	Capabilities: <access denied>
+	Kernel driver in use: nvidia-gpu
+	Kernel modules: i2c_nvidia_gpu
+

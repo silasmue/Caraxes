@@ -1,0 +1,20 @@
+# SPDX-License-Identifier: MIT
+# command: lspci -vvv -nn -s 0000:00:03.1
+00:03.1 PCI bridge [0604]: Advanced Micro Devices, Inc. [AMD] Starship/Matisse GPP Bridge [1022:1483] (prog-if 00 [Normal decode])
+	Subsystem: Advanced Micro Devices, Inc. [AMD] Device [1022:1453]
+	Control: I/O+ Mem+ BusMaster+ SpecCycle- MemWINV- VGASnoop- ParErr- Stepping- SERR- FastB2B- DisINTx+
+	Status: Cap+ 66MHz- UDF- FastB2B- ParErr- DEVSEL=fast >TAbort- <TAbort- <MAbort- >SERR- <PERR- INTx-
+	Latency: 0, Cache Line Size: 64 bytes
+	Interrupts: MSI(X) routed to IRQ 30
+	IOMMU group: 5
+	Bus: primary=00, secondary=2d, subordinate=2d, sec-latency=0
+	I/O behind bridge: f000-ffff [size=4K] [16-bit]
+	Memory behind bridge: fb000000-fc0fffff [size=17M] [32-bit]
+	Prefetchable memory behind bridge: 7fe0000000-7ff20fffff [size=289M] [32-bit]
+	Secondary status: 66MHz- FastB2B- ParErr- DEVSEL=fast >TAbort- <TAbort- <MAbort- <SERR- <PERR-
+	BridgeCtl: Parity- SERR+ NoISA- VGA- VGA16+ MAbort- >Reset- FastB2B-
+		PriDiscTmr- SecDiscTmr- DiscTmrStat- DiscTmrSERREn-
+	Capabilities: <access denied>
+	Kernel driver in use: pcieport
+	Kernel modules: shpchp
+

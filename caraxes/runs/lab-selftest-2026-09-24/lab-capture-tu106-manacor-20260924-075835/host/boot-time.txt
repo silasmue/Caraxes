@@ -1,0 +1,6 @@
+# SPDX-License-Identifier: MIT
+# command: sh -c echo "booted: $(uptime -s 2>/dev/null)"; cat /proc/uptime; command -v systemd-analyze >/dev/null && systemd-analyze 2>&1 | head -5
+booted: 2026-09-22 18:09:14
+136160.64 1766567.94
+Startup finished in 24.307s (firmware) + 9.547s (loader) + 1.233s (kernel) + 1.561s (initrd) + 2min 3.427s (userspace) = 2min 40.078s 
+graphical.target reached after 2min 3.427s in userspace.

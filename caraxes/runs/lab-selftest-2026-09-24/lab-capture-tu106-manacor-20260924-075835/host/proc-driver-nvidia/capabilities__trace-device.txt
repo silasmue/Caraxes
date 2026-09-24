@@ -1,0 +1,5 @@
+# SPDX-License-Identifier: MIT
+# command: cat /proc/driver/nvidia/capabilities/trace-device
+DeviceFileMinor: 4326
+DeviceFileMode: 256
+DeviceFileModify: 1

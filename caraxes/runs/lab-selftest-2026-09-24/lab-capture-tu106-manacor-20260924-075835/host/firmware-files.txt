@@ -1,0 +1,43 @@
+# SPDX-License-Identifier: MIT
+# driver version: 610.57.04
+# versions present under /lib/firmware/nvidia: 610.57.04 ad102 ad103 ad104 ad106 ad107 ga100 ga102 ga103 ga104 ga106 ga107 gb100 gb102 gb202 gb203 gb205 gb206 gb207 gh100 gk20a gm200 gm204 gm206 gm20b gp100 gp102 gp104 gp106 gp107 gp108 gp10b gv100 tegra124 tegra186 tegra194 tegra210 tu102 tu104 tu106 tu10x tu116 tu117 
+# versions present under /usr/lib/firmware/nvidia: 610.57.04 ad102 ad103 ad104 ad106 ad107 ga100 ga102 ga103 ga104 ga106 ga107 gb100 gb102 gb202 gb203 gb205 gb206 gb207 gh100 gk20a gm200 gm204 gm206 gm20b gp100 gp102 gp104 gp106 gp107 gp108 gp10b gv100 tegra124 tegra186 tegra194 tegra210 tu102 tu104 tu106 tu10x tu116 tu117 
+# directory: /usr/lib/firmware/nvidia/610.57.04
+# size_bytes sha256 path
+84310168 c0156954f3e048d56011524e0c2ae2881bb6db8173b53f9b2f4eb94197f02999 gsp_ga10x.bin
+29381504 d157e3b7dd5da2ca8d1ccb6ca98958f9e35d10a9ef7326277ebac133e4b0d1a7 gsp_tu10x.bin
+31744 3a36ceb211c20694f3d2e33ade2bbd2c3ae0b61ba2f28eaff4362aac547a632c ucodes_ga10x.bin
+12032 dcbdf512ab09b7f6d946e7f415bcfbc9137f5db1cf0c3c576f4b34b5275acb38 ucodes_tu10x.bin
+# linux-firmware directory for tu106: /lib/firmware/nvidia/tu106 (symlinks resolved)
+# size_bytes sha256 path -> target
+328 bf37abb866ed59cfd77ea8c056058f5f8c0f9d59bbadc5482034d538c8a4de48 acr/bl.bin.zst -> /usr/lib/firmware/nvidia/gp102/acr/bl.bin.zst
+15345 c89605acbbcc446144da8736ea4b77465bd6eff6828ae03769946f100008606e acr/ucode_ahesasc.bin.zst -> /usr/lib/firmware/nvidia/tu102/acr/ucode_ahesasc.bin.zst
+10629 f3380bc70370a2b4a4ca0ab81f921b375a7665720bc8d97624e927a668aa4847 acr/ucode_asb.bin.zst -> /usr/lib/firmware/nvidia/tu102/acr/ucode_asb.bin.zst
+10016 933074d48a7504d276ae5d4bd43f2398682b014801e1ffaf0c841e349178021c acr/ucode_unload.bin.zst -> /usr/lib/firmware/nvidia/tu102/acr/ucode_unload.bin.zst
+327 011d62c32c2f482edc5184ea1ee7c26c3b158ebd0e40fb9372192707c6fa896c acr/unload_bl.bin.zst -> /usr/lib/firmware/nvidia/gp102/acr/unload_bl.bin.zst
+224 0e619ce2bfc6bbf6bb14cc909e7a37cb2384b3e44a8be06d05b39767114af3f4 gr/fecs_bl.bin.zst -> /usr/lib/firmware/nvidia/gv100/gr/fecs_bl.bin.zst
+706 a993aede172744b50dbfac008467a3b35937f3c99a4ee6c2cd40984f65b88e0e gr/fecs_data.bin.zst -> /usr/lib/firmware/nvidia/tu106/gr/fecs_data.bin.zst
+15597 b0ec07a88c6dcbc333a255d84c3494cbc6204ede28e684579d7066f876ec2da7 gr/fecs_inst.bin.zst -> /usr/lib/firmware/nvidia/tu106/gr/fecs_inst.bin.zst
+109 270218d92112f412d22ae6dba9cf62ac59db82903e7c42097a0a334e07864661 gr/fecs_sig.bin.zst -> /usr/lib/firmware/nvidia/tu106/gr/fecs_sig.bin.zst
+224 4801299a6066a357f30ae6363966ff41f562e980fbadcc5016f7ff9b839c4fcb gr/gpccs_bl.bin.zst -> /usr/lib/firmware/nvidia/gp107/gr/gpccs_bl.bin.zst
+713 4d07e0b0523585bc8f5d281a6f104f34cc417aaf232e8252753a93ef77416815 gr/gpccs_data.bin.zst -> /usr/lib/firmware/nvidia/tu106/gr/gpccs_data.bin.zst
+6219 a07339abbf7483041575ea626b1179e85c45a3f9d9d8cc9960921a0bcd0feba6 gr/gpccs_inst.bin.zst -> /usr/lib/firmware/nvidia/tu106/gr/gpccs_inst.bin.zst
+111 a609b12f04e2aeb147e834e7f5c5d5fad2b5fc85b3b0075c9a116b8a04ec45cd gr/gpccs_sig.bin.zst -> /usr/lib/firmware/nvidia/tu106/gr/gpccs_sig.bin.zst
+1919 be26250cac3e798fe9a04e14baf1275c9aeea3f2dee9bcbc76561f14aa2ed064 gr/sw_bundle_init.bin.zst -> /usr/lib/firmware/nvidia/tu102/gr/sw_bundle_init.bin.zst
+1266 4b01e34423991f0cafd1fd3c89364fd7b2dec0520eafc3a66e16a7c582501327 gr/sw_ctx.bin.zst -> /usr/lib/firmware/nvidia/tu102/gr/sw_ctx.bin.zst
+2835 bf682397bf442f3aa376ad8f5b3476e2857bd2e224fd9bbf1a5a3647d8a7c08f gr/sw_method_init.bin.zst -> /usr/lib/firmware/nvidia/tu102/gr/sw_method_init.bin.zst
+864 aa6430d3093a56dc9a9b339d4fc90ca98583f2be917c42e61d9907b4b17f1e72 gr/sw_nonctx.bin.zst -> /usr/lib/firmware/nvidia/tu102/gr/sw_nonctx.bin.zst
+92 a8ee413ced7eee1d5b7f2845c3baa418337e4600e2a83a35da0854e25b69d59a gr/sw_veid_bundle_init.bin.zst -> /usr/lib/firmware/nvidia/tu102/gr/sw_veid_bundle_init.bin.zst
+32470 f00dfc24ef1d7495884f926207903600c5d7ca94fdaa42dea2ed700c75f12865 gsp/booter_load-535.113.01.bin.zst -> /usr/lib/firmware/nvidia/tu102/gsp/booter_load-535.113.01.bin.zst
+33612 8900cddb081fa8231470c58761a4c405171a4cb8d489ce50ca6e637165ed2ef4 gsp/booter_load-570.144.bin.zst -> /usr/lib/firmware/nvidia/tu102/gsp/booter_load-570.144.bin.zst
+18024 ca59839df5b980d8d2a4c6351b8fb96d94bd686054e5fdbe9d92d56348486402 gsp/booter_unload-535.113.01.bin.zst -> /usr/lib/firmware/nvidia/tu102/gsp/booter_unload-535.113.01.bin.zst
+18964 b98c2d4add1df7a1a77c9e0a4b5c85d0e38e0f4b477be09cca5507f5b8f948a1 gsp/booter_unload-570.144.bin.zst -> /usr/lib/firmware/nvidia/tu102/gsp/booter_unload-570.144.bin.zst
+825 b6c308e0087a38837a91f6b3190aecaad46a0f6b3fd5d2e03a4b8022c87a6ba8 gsp/bootloader-535.113.01.bin.zst -> /usr/lib/firmware/nvidia/tu102/gsp/bootloader-535.113.01.bin.zst
+825 b6c308e0087a38837a91f6b3190aecaad46a0f6b3fd5d2e03a4b8022c87a6ba8 gsp/bootloader-570.144.bin.zst -> /usr/lib/firmware/nvidia/tu102/gsp/bootloader-535.113.01.bin.zst
+326 e56d1f7ad0a8dafd6ede71140080cc3e0f209dead801769cb8a333974bb541df gsp/gen_bootloader-570.144.bin.zst -> /usr/lib/firmware/nvidia/tu102/gsp/gen_bootloader-570.144.bin.zst
+13184930 cf96a2ad20ed6820aec0f1473c66e93186d1b0c37ea5eb51ce054667a0391805 gsp/gsp-535.113.01.bin.zst -> /usr/lib/firmware/nvidia/tu102/gsp/gsp-535.113.01.bin.zst
+14017460 7f42f62b8257bf26a22ae09ec2e3b43ef2bccd45afe5b674bbf53aa4e8e7bd8c gsp/gsp-570.144.bin.zst -> /usr/lib/firmware/nvidia/tu102/gsp/gsp-570.144.bin.zst
+3994 6a039bd1cd1ceaafd8713d540d1ec623e7d83748cd6a343c73162b052c6a8973 nvdec/scrubber.bin.zst -> /usr/lib/firmware/nvidia/tu102/nvdec/scrubber.bin.zst
+123 c432fb8c989d749cf4046db2f35011528b0b8375dc9c58fef00424b210933ff8 sec2/desc.bin.zst -> /usr/lib/firmware/nvidia/tu102/sec2/desc.bin.zst
+13110 8d8797d821ac955825bb40ccb12108348422144cdb7919c952e40cc443f0395b sec2/image.bin.zst -> /usr/lib/firmware/nvidia/tu102/sec2/image.bin.zst
+135 59243de3e173148abb8acddd39f6f6470da9984d4cd9bd87355941b951f6d30f sec2/sig.bin.zst -> /usr/lib/firmware/nvidia/tu102/sec2/sig.bin.zst
