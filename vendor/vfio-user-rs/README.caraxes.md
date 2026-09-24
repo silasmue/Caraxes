@@ -12,11 +12,12 @@ rust-vmm/vfio at `a38ee7a3eeb542624dd007e6b005e0de4fc59582` ("vfio-user: Prepare
 package's, unchanged. The crate's own licence is Apache-2.0 (`Cargo.toml`), with the
 BSD-3-Clause file shipped by upstream.
 
-Two changes, each available as a patch:
+Three changes, each available as a patch:
 
 | Change | Files | Patch | Upstream |
 |---|---|---|---|
 | `VFIO_USER_DEVICE_GET_REGION_IO_FDS`: `Client::get_region_io_fds()`, `parse_region_io_fds_reply()`, `Server::add_ioeventfd()` and the server's reply; tests | `src/lib.rs`, `CHANGELOG.md` | [../../patches/vfio-user-rs/0001-vfio-user-support-VFIO_USER_DEVICE_GET_REGION_IO_FDS.patch](../../patches/vfio-user-rs/0001-vfio-user-support-VFIO_USER_DEVICE_GET_REGION_IO_FDS.patch), `git format-patch` against `a38ee7a3eeb5` (paths `vfio-user/...`) | candidate for rust-vmm/vfio |
+| One eventfd per ioeventfd sub-region: the client announces `max_msg_fds` 253 (`SCM_MAX_FD`) and receives that many; the server sends at most 253; `add_ioeventfd()` accepts datamatch sub-regions at one offset and refuses what KVM would refuse as a duplicate; tests | `src/lib.rs`, `CHANGELOG.md` | [../../patches/vfio-user-rs/0002-vfio-user-one-eventfd-per-ioeventfd-sub-region.patch](../../patches/vfio-user-rs/0002-vfio-user-one-eventfd-per-ioeventfd-sub-region.patch), on top of 0001 | with 0001, as one change |
 | `vfio-bindings` requirement `=0.6.3` widened to `>=0.6.2, <=0.6.3` | `Cargo.toml` | the diff below | local only |
 
 ```diff
@@ -67,5 +68,6 @@ are in [../../patches/README.md](../../patches/README.md), "Patch 0005". In shor
 
 `cargo test -p vfio_user` in a checkout of rust-vmm/vfio at `a38ee7a3eeb5` with the
 patch applied: 10 passed (7 new), `cargo clippy -p vfio_user --all-targets -D warnings`
-clean. This directory is not a workspace member, so the tests are not run from the
+clean. With patch 0002 as well (`/mnt/vmstore/caraxes/vfio-rs-0006`): 14 passed (4 new),
+clippy and rustfmt clean. This directory is not a workspace member, so the tests are not run from the
 Caraxes workspace; `src/lib.rs` here is byte-identical to the tested file.

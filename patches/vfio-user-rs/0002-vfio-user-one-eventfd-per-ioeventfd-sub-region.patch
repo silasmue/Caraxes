@@ -1,0 +1,432 @@
+From 33a1fbbdac02cd5490f1a570a10f1dd2df1303e8 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Silas=20M=C3=BCller?= <dev@silasmueller.de>
+Date: Thu, 24 Sep 2026 12:12:47 +0200
+Subject: [PATCH] vfio-user: one eventfd per ioeventfd sub-region, datamatch at
+ one offset
+
+VFIO_USER_DEVICE_GET_REGION_IO_FDS lets a server offer several ioeventfd
+sub-regions at one offset that differ only in datamatch
+(KVM_IOEVENTFD_FLAG_DATAMATCH). KVM then signals the eventfd of the
+value the guest wrote, so the server learns which value was written
+without a VFIO_USER_REGION_WRITE, but only if every value has its own
+eventfd. The reply carries the descriptors as SCM_RIGHTS data, at most
+the client's max_msg_fds ("VFIO_USER_VERSION", capabilities: "Maximum
+number of file descriptors that can be received by the sender in one
+message ... If not specified then the receiver must assume a value of
+1"). The client left the capability out, so a server could hand it one
+eventfd per reply.
+
+Client: announce max_msg_fds 253 and receive that many descriptors
+with a reply. 253 is Linux's SCM_MAX_FD (include/net/scm.h), the most
+one Unix socket message can carry.
+
+Server: never send more than SCM_MAX_FD descriptors in one reply,
+whatever the client announced (sendmsg() refuses more); in
+add_ioeventfd(), require an access size of 1, 2, 4 or 8 with a datamatch
+that fits it, and refuse a sub-region that KVM_IOEVENTFD would refuse
+with EEXIST as a duplicate of an earlier one of the same region (same
+offset and I/O space, and a size of 0 on either side or the same size
+with a wildcard on either side or the same datamatch), so that every
+sub-region offered can be registered.
+
+Tests: a hand-built reply in the specification's layout with datamatch
+entries at one offset; the declaration rules; the descriptor limits
+(max_msg_fds 1, 64, 253 and 1000); a round trip of 253 datamatch
+sub-regions at one offset with 253 eventfds, each received descriptor
+checked against its token's eventfd.
+
+Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>
+---
+ vfio-user/CHANGELOG.md |  10 ++
+ vfio-user/src/lib.rs   | 291 +++++++++++++++++++++++++++++++++++++++--
+ 2 files changed, 292 insertions(+), 9 deletions(-)
+
+diff --git a/vfio-user/CHANGELOG.md b/vfio-user/CHANGELOG.md
+index 9a6dbc7..8e2df7e 100644
+--- a/vfio-user/CHANGELOG.md
++++ b/vfio-user/CHANGELOG.md
+@@ -2,8 +2,18 @@
+ 
+ ## Changed
+ 
++- The client announces `max_msg_fds` 253 (`SCM_MAX_FD`, the most one Unix
++  socket message carries) instead of leaving the capability out, and receives
++  that many descriptors with a reply, so that a server can give every ioeventfd
++  sub-region its own eventfd.
++
+ ## Added
+ 
++- `Server::add_ioeventfd()` accepts several sub-regions at one offset told
++  apart by datamatch, checks that a datamatch fits the access size, and refuses
++  a sub-region that `KVM_IOEVENTFD` would refuse as a duplicate. The server
++  never sends more than `SCM_MAX_FD` descriptors in one reply.
++
+ - Support `VFIO_USER_DEVICE_GET_REGION_IO_FDS` with ioeventfd sub-regions:
+   `Client::get_region_io_fds()` requests and parses the reply in the
+   specification's layout, `Server::add_ioeventfd()` declares sub-regions and
+diff --git a/vfio-user/src/lib.rs b/vfio-user/src/lib.rs
+index baab79e..65388b9 100644
+--- a/vfio-user/src/lib.rs
++++ b/vfio-user/src/lib.rs
+@@ -295,8 +295,23 @@ const REGION_IO_FDS_MAX_ARGSZ: u32 = 0xffff;
+ /// argsz of the first request: room for 16 entries.
+ const REGION_IO_FDS_FIRST_ARGSZ: u32 = REGION_IO_FDS_INFO_SIZE + 16 * SUB_REGION_IO_FD_INFO_SIZE;
+ 
+-/// File descriptors accepted with one reply (the server side receives 16 too).
+-const MAX_RECEIVED_FDS: usize = 16;
++/// Linux's limit on the descriptors of one `SCM_RIGHTS` message (`SCM_MAX_FD`,
++/// include/net/scm.h: 253); `sendmsg()` refuses more. No reply carries more,
++/// whatever `max_msg_fds` says.
++pub const SCM_MAX_FD: u32 = 253;
++
++/// The client's `max_msg_fds` (vfio-user.rst, "VFIO_USER_VERSION", capabilities:
++/// "Maximum number of file descriptors that can be received by the sender in one
++/// message. Optional. If not specified then the receiver must assume a value of
++/// 1"): as many as Linux delivers with one message, so that a server can hand
++/// over one eventfd per ioeventfd sub-region, for example one per datamatch
++/// value at the same offset.
++pub const CLIENT_MAX_MSG_FDS: u32 = SCM_MAX_FD;
++
++/// File descriptors the client accepts with one reply: its `max_msg_fds`. A
++/// reply with more is cut by the kernel (`MSG_CTRUNC`); vmm-sys-util's
++/// `recv_with_fds` then closes them and fails. The server side receives 16.
++const MAX_RECEIVED_FDS: usize = CLIENT_MAX_MSG_FDS as usize;
+ 
+ /// Reply payload the client reads and drops to stay in step when a server sends
+ /// more than it asked for (the default max_data_xfer_size, vfio-user.rst,
+@@ -643,7 +658,14 @@ impl Client {
+     }
+ 
+     fn negotiate_version(&mut self) -> Result<(), Error> {
+-        let caps = CapabilitiesData::default();
++        // "VFIO_USER_VERSION", capabilities: max_msg_fds is what this side can
++        // receive in one message; the other capabilities keep their defaults.
++        let caps = CapabilitiesData {
++            capabilities: Capabilities {
++                max_msg_fds: CLIENT_MAX_MSG_FDS,
++                ..Default::default()
++            },
++        };
+ 
+         let version_data = serde_json::to_string(&caps).map_err(Error::SerializeCapabilites)?;
+ 
+@@ -1382,6 +1404,20 @@ pub struct ServerRegion {
+     pub mmap_fd: Option<RawFd>,
+ }
+ 
++/// Whether KVM would refuse `b` as a duplicate of `a` (both of one region):
++/// `KVM_IOEVENTFD` returns `EEXIST` for a second ioeventfd at the same address
++/// in the same I/O space when either has length 0, or both have the same length
++/// and either has no datamatch or both have the same datamatch (Linux
++/// virt/kvm/eventfd.c, `ioeventfd_check_collision`).
++fn ioeventfds_collide(a: &IoEventFdSubRegion, b: &IoEventFdSubRegion) -> bool {
++    let wildcard = |s: &IoEventFdSubRegion| s.flags & IOEVENTFD_FLAG_DATAMATCH == 0;
++    a.offset == b.offset
++        && a.flags & IOEVENTFD_FLAG_PIO == b.flags & IOEVENTFD_FLAG_PIO
++        && (a.size == 0
++            || b.size == 0
++            || (a.size == b.size && (wildcard(a) || wildcard(b) || a.datamatch == b.datamatch)))
++}
++
+ pub struct Server {
+     listener: UnixListener,
+     path: Option<PathBuf>,
+@@ -1449,6 +1485,16 @@ impl Server {
+     /// The sub-region must lie within the region ("offset is the offset of the
+     /// start of the sub-region within the region") and `flags` must be a
+     /// combination of the `IOEVENTFD_FLAG_*` values ("flags is any of").
++    ///
++    /// Several sub-regions may start at the same offset when each carries
++    /// `IOEVENTFD_FLAG_DATAMATCH` with its own datamatch: KVM then signals the
++    /// eventfd of the value written, so the server learns the value without a
++    /// `VFIO_USER_REGION_WRITE`. The fields follow `KVM_IOEVENTFD`, to which
++    /// "Sub-Region IO FD info format (ioeventfd)" refers: with DATAMATCH the size
++    /// is the access width (1, 2, 4 or 8) and the datamatch fits in it. A
++    /// sub-region KVM would refuse as a duplicate of an earlier one of the same
++    /// region ([`ioeventfds_collide`]) is refused here, so that every sub-region
++    /// offered can be registered.
+     pub fn add_ioeventfd(
+         &mut self,
+         index: u32,
+@@ -1465,6 +1511,23 @@ impl Server {
+         if end > region.region_info.size || sub_region.flags & !IOEVENTFD_FLAGS != 0 {
+             return Err(Error::InvalidInput);
+         }
++        if sub_region.flags & IOEVENTFD_FLAG_DATAMATCH != 0 {
++            let fits = match sub_region.size {
++                8 => true,
++                1 | 2 | 4 => sub_region.datamatch >> (8 * sub_region.size) == 0,
++                _ => false,
++            };
++            if !fits {
++                return Err(Error::InvalidInput);
++            }
++        }
++        if self
++            .io_fds
++            .iter()
++            .any(|(i, s)| *i == index && ioeventfds_collide(s, &sub_region))
++        {
++            return Err(Error::InvalidInput);
++        }
+         self.io_fds.push((index, sub_region));
+         Ok(())
+     }
+@@ -1477,7 +1540,12 @@ impl Server {
+     /// only the fixed part is sent, with the argsz needed ("Message sizes").
+     /// Only ioeventfd entries (type 0) are ever sent.
+     fn region_io_fds_reply(&self, index: u32, argsz: u32) -> (Vec<u8>, Vec<RawFd>) {
+-        let max_fds = self.client_max_msg_fds.load(Ordering::Relaxed) as usize;
++        // One message carries at most SCM_MAX_FD descriptors, whatever the
++        // client announced.
++        let max_fds = self
++            .client_max_msg_fds
++            .load(Ordering::Relaxed)
++            .min(SCM_MAX_FD) as usize;
+         let mut fds: Vec<RawFd> = Vec::new();
+         let mut entries = Vec::new();
+         for (_, sub_region) in self.io_fds.iter().filter(|(i, _)| *i == index) {
+@@ -2462,7 +2530,7 @@ mod tests {
+ 
+         // 20 sub-regions on one eventfd (more than the client's first argsz
+         // holds), then one on a second eventfd, which the client's max_msg_fds
+-        // of 1 leaves out.
++        // (CLIENT_MAX_MSG_FDS) admits.
+         let shared = Arc::new(eventfd());
+         let observer = File::from(shared.try_clone().unwrap());
+         for i in 0..20u64 {
+@@ -2497,9 +2565,19 @@ mod tests {
+ 
+         let r = client.get_region_io_fds(0).unwrap();
+         assert_eq!(r.index, 0);
+-        assert_eq!(r.sub_regions.len(), 20);
+-        assert_eq!(r.fds.len(), 1);
+-        for (i, s) in r.sub_regions.iter().enumerate() {
++        assert_eq!(r.sub_regions.len(), 21);
++        assert_eq!(r.fds.len(), 2);
++        assert_eq!(
++            r.sub_regions[20],
++            SubRegionIoFd::IoEventFd {
++                offset: 0x200,
++                size: 0,
++                fd_index: 1,
++                flags: 0,
++                datamatch: 0,
++            }
++        );
++        for (i, s) in r.sub_regions[..20].iter().enumerate() {
+             assert_eq!(
+                 *s,
+                 SubRegionIoFd::IoEventFd {
+@@ -2526,12 +2604,207 @@ mod tests {
+             client.get_region_io_fds(7),
+             Err(Error::ErrorReply { command: Command::GetRegionIoFds, errno }) if errno == EINVAL as u32
+         ));
+-        assert_eq!(client.get_region_io_fds(0).unwrap().sub_regions.len(), 20);
++        assert_eq!(client.get_region_io_fds(0).unwrap().sub_regions.len(), 21);
++
++        client.shutdown().unwrap();
++        thread.join().unwrap().unwrap();
++    }
++
++    fn datamatch_sub_region(offset: u64, size: u64, datamatch: u64) -> IoEventFdSubRegion {
++        IoEventFdSubRegion {
++            offset,
++            size,
++            flags: IOEVENTFD_FLAG_DATAMATCH,
++            datamatch,
++            fd: Arc::new(eventfd()),
++        }
++    }
++
++    /// Several sub-regions at one offset, told apart by datamatch (a token pool
++    /// on one doorbell register): what KVM_IOEVENTFD would refuse as a duplicate
++    /// is refused when declared, the rest is accepted.
++    #[test]
++    fn test_add_ioeventfd_datamatch_at_one_offset() {
++        let path =
++            std::env::temp_dir().join(format!("vfio-user-io-fds-dm-{}.sock", std::process::id()));
++        let _ = std::fs::remove_file(&path);
++        let mut server = Server::new(&path, false, Vec::new(), vec![region(0, 0x1000)]).unwrap();
++        for token in 0..4u64 {
++            server
++                .add_ioeventfd(0, datamatch_sub_region(0x90, 4, 0xca70_0000 + token))
++                .unwrap();
++        }
++        // The same datamatch again, a wildcard or an any-size entry at the same
++        // offset: KVM would answer EEXIST.
++        let refused = [
++            datamatch_sub_region(0x90, 4, 0xca70_0002),
++            IoEventFdSubRegion {
++                offset: 0x90,
++                size: 4,
++                flags: 0,
++                datamatch: 0,
++                fd: Arc::new(eventfd()),
++            },
++            IoEventFdSubRegion {
++                offset: 0x90,
++                size: 0,
++                flags: 0,
++                datamatch: 0,
++                fd: Arc::new(eventfd()),
++            },
++            // DATAMATCH needs an access width, and the value must fit it.
++            datamatch_sub_region(0x100, 0, 1),
++            datamatch_sub_region(0x100, 3, 1),
++            datamatch_sub_region(0x100, 2, 0x1_0000),
++            datamatch_sub_region(0x100, 4, 0x1_0000_0000),
++        ];
++        for s in refused {
++            assert!(matches!(
++                server.add_ioeventfd(0, s),
++                Err(Error::InvalidInput)
++            ));
++        }
++        // Another width at the same offset, or the same value at another offset,
++        // is a different ioeventfd for KVM.
++        server
++            .add_ioeventfd(0, datamatch_sub_region(0x90, 8, 0xca70_0000))
++            .unwrap();
++        server
++            .add_ioeventfd(0, datamatch_sub_region(0x94, 4, 0xca70_0000))
++            .unwrap();
++        assert_eq!(server.io_fds.len(), 6);
++        let _ = std::fs::remove_file(&path);
++    }
+ 
++    /// A reply never carries more descriptors than the client's max_msg_fds nor
++    /// more than SCM_MAX_FD; sub-regions beyond are left out (they stay trapped).
++    #[test]
++    fn test_region_io_fds_reply_descriptor_limits() {
++        let path =
++            std::env::temp_dir().join(format!("vfio-user-io-fds-lim-{}.sock", std::process::id()));
++        let _ = std::fs::remove_file(&path);
++        let mut server = Server::new(&path, false, Vec::new(), vec![region(0, 0x1000)]).unwrap();
++        for token in 0..300u64 {
++            server
++                .add_ioeventfd(0, datamatch_sub_region(0x90, 4, token))
++                .unwrap();
++        }
++        let argsz = REGION_IO_FDS_MAX_ARGSZ;
++        for (announced, expected) in [(1u32, 1usize), (64, 64), (253, 253), (1000, 253)] {
++            server
++                .client_max_msg_fds
++                .store(announced, Ordering::Relaxed);
++            let (payload, fds) = server.region_io_fds_reply(0, argsz);
++            assert_eq!(fds.len(), expected, "max_msg_fds {announced}");
++            match parse_region_io_fds_reply(argsz, 0, &payload).unwrap() {
++                RegionIoFdsReply::Complete { sub_regions } => {
++                    assert_eq!(sub_regions.len(), expected);
++                    for (i, s) in sub_regions.iter().enumerate() {
++                        assert_eq!(
++                            *s,
++                            SubRegionIoFd::IoEventFd {
++                                offset: 0x90,
++                                size: 4,
++                                fd_index: i as u32,
++                                flags: IOEVENTFD_FLAG_DATAMATCH,
++                                datamatch: i as u64,
++                            }
++                        );
++                    }
++                }
++                r => panic!("{r:?}"),
++            }
++        }
++        let _ = std::fs::remove_file(&path);
++    }
++
++    /// The whole path of a token pool: the client announces max_msg_fds
++    /// CLIENT_MAX_MSG_FDS, the server offers SCM_MAX_FD datamatch sub-regions at
++    /// one offset with one eventfd each (and one more, left out), and every
++    /// received descriptor is the eventfd of its entry's datamatch.
++    #[test]
++    fn test_region_io_fds_round_trip_one_eventfd_per_datamatch() {
++        let path =
++            std::env::temp_dir().join(format!("vfio-user-io-fds-pool-{}.sock", std::process::id()));
++        let _ = std::fs::remove_file(&path);
++        let mut server =
++            Server::new(&path, false, Vec::new(), vec![region(0, 0x100_0000)]).unwrap();
++        let mut observers = Vec::new();
++        for token in 0..=SCM_MAX_FD as u64 {
++            let s = datamatch_sub_region(0xbb_0090, 4, 0xca70_0000 + token);
++            observers.push(File::from(s.fd.try_clone().unwrap()));
++            server.add_ioeventfd(0, s).unwrap();
++        }
++        let thread = std::thread::spawn(move || server.run(&mut NullBackend));
++        let mut client = Client::new(&path).unwrap();
++        let r = client.get_region_io_fds(0).unwrap();
++        assert_eq!(r.sub_regions.len(), SCM_MAX_FD as usize);
++        assert_eq!(r.fds.len(), SCM_MAX_FD as usize);
++        for (i, s) in r.sub_regions.iter().enumerate() {
++            let SubRegionIoFd::IoEventFd {
++                offset,
++                size,
++                fd_index,
++                flags,
++                datamatch,
++            } = *s
++            else {
++                panic!("{s:?}");
++            };
++            assert_eq!(
++                (offset, size, flags),
++                (0xbb_0090, 4, IOEVENTFD_FLAG_DATAMATCH)
++            );
++            assert_eq!(datamatch, 0xca70_0000 + i as u64);
++            // Signal the received descriptor; the server's eventfd of that token
++            // counts it.
++            (&r.fds[fd_index as usize])
++                .write_all(&(i as u64 + 1).to_ne_bytes())
++                .unwrap();
++            let mut value = [0u8; 8];
++            (&observers[i]).read_exact(&mut value).unwrap();
++            assert_eq!(u64::from_ne_bytes(value), i as u64 + 1);
++        }
+         client.shutdown().unwrap();
+         thread.join().unwrap().unwrap();
+     }
+ 
++    /// A hand-built reply in the specification's layout with several datamatch
++    /// entries at one offset, each naming its own descriptor.
++    #[test]
++    fn test_parse_region_io_fds_reply_datamatch_pool() {
++        let entries: Vec<Vec<u8>> = (0..3u32)
++            .map(|i| {
++                spec_entry(
++                    0xbb_0090,
++                    4,
++                    i,
++                    VFIO_USER_IO_FD_TYPE_IOEVENTFD,
++                    IOEVENTFD_FLAG_DATAMATCH,
++                    0,
++                    0xca70_0000 + u64::from(i),
++                )
++            })
++            .collect();
++        let payload = spec_reply(16 + 3 * 40, 0, 0, 3, &entries);
++        let reply = parse_region_io_fds_reply(REGION_IO_FDS_FIRST_ARGSZ, 0, &payload).unwrap();
++        let RegionIoFdsReply::Complete { sub_regions } = reply else {
++            panic!("{reply:?}");
++        };
++        for (i, s) in sub_regions.iter().enumerate() {
++            assert_eq!(
++                *s,
++                SubRegionIoFd::IoEventFd {
++                    offset: 0xbb_0090,
++                    size: 4,
++                    fd_index: i as u32,
++                    flags: IOEVENTFD_FLAG_DATAMATCH,
++                    datamatch: 0xca70_0000 + i as u64,
++                }
++            );
++        }
++    }
++
+     /// A server that does not implement the request (vfio_user up to 0.1.6):
+     /// it answers before reading the payload, then answers the payload as if
+     /// it were a message header.
+-- 
+2.55.0
+

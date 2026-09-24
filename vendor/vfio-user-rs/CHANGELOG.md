@@ -2,7 +2,17 @@
 
 ## Changed
 
+- The client announces `max_msg_fds` 253 (`SCM_MAX_FD`, the most one Unix
+  socket message carries) instead of leaving the capability out, and receives
+  that many descriptors with a reply, so that a server can give every ioeventfd
+  sub-region its own eventfd.
+
 ## Added
+
+- `Server::add_ioeventfd()` accepts several sub-regions at one offset told
+  apart by datamatch, checks that a datamatch fits the access size, and refuses
+  a sub-region that `KVM_IOEVENTFD` would refuse as a duplicate. The server
+  never sends more than `SCM_MAX_FD` descriptors in one reply.
 
 - Support `VFIO_USER_DEVICE_GET_REGION_IO_FDS` with ioeventfd sub-regions:
   `Client::get_region_io_fds()` requests and parses the reply in the
