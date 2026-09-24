@@ -534,6 +534,12 @@ impl BootModel {
         (self.regs.pramin..self.regs.pramin + self.regs.pramin_size).contains(&off)
     }
 
+    /// Whether the model answers the BAR0 dword `off` (the interrupt page's start-up
+    /// check, intr_page.rs).
+    pub fn owns_register(&self, off: u64) -> bool {
+        self.handles(off)
+    }
+
     fn handles(&self, off: u64) -> bool {
         self.reg(off).is_some()
             || self.vf.handles(off)

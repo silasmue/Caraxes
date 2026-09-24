@@ -12,13 +12,13 @@ use std::fs::File;
 use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 
-const LEAF: u64 = 0x000;
-const LEAF_EN_SET: u64 = 0x200;
-const LEAF_EN_CLEAR: u64 = 0x400;
-const TOP: u64 = 0x600;
-const TOP_EN_SET: u64 = 0x608;
-const TOP_EN_CLEAR: u64 = 0x610;
-const LEAF_TRIGGER: u64 = 0x640;
+pub(crate) const LEAF: u64 = 0x000;
+pub(crate) const LEAF_EN_SET: u64 = 0x200;
+pub(crate) const LEAF_EN_CLEAR: u64 = 0x400;
+pub(crate) const TOP: u64 = 0x600;
+pub(crate) const TOP_EN_SET: u64 = 0x608;
+pub(crate) const TOP_EN_CLEAR: u64 = 0x610;
+pub(crate) const LEAF_TRIGGER: u64 = 0x640;
 pub const LEAVES: usize = 8;
 
 /// Vectors raised from outside the server thread (E5b part 2: the host OS-event thread
@@ -37,6 +37,15 @@ pub struct IntrShared {
     pub rc_events: AtomicU64,
     /// Lines the event thread wants in the trace (drained by the server thread).
     pub notes: Mutex<Vec<String>>,
+    /// The interrupt page (`CARAXES_INTR_PAGE=1`, intr_page.rs): when set, a raise does
+    /// not write the MSI itself but hands the vector to the reactor, which writes the
+    /// page first and then the MSI.
+    page: Mutex<Option<File>>,
+    page_mode: AtomicBool,
+    /// A vector was raised since the reactor last folded them in.
+    pub(crate) page_raised: AtomicBool,
+    /// A raise asked for an MSI (the trapped path would have written one).
+    pub(crate) page_msi: AtomicBool,
 }
 
 impl IntrShared {
@@ -67,6 +76,33 @@ impl IntrShared {
                 return false;
             }
         }
+        if self.page_mode.load(Ordering::SeqCst) {
+            // The reactor folds the vector into the page and signals the MSI after it.
+            self.page_msi.store(true, Ordering::SeqCst);
+            self.page_raised.store(true, Ordering::SeqCst);
+            if let Some(w) = self.page.lock().unwrap().as_mut() {
+                let _ = w.write_all(&1u64.to_ne_bytes());
+            }
+            return true;
+        }
+        self.signal_msi()
+    }
+
+    /// Hand raises to the interrupt page's reactor from now on: `wake` is an eventfd in
+    /// the reactor's epoll set (intr_page.rs).
+    pub fn attach_page(&self, wake: File) {
+        *self.page.lock().unwrap() = Some(wake);
+        self.page_mode.store(true, Ordering::SeqCst);
+    }
+
+    /// Whether raises go to the interrupt page.
+    pub fn page_mode(&self) -> bool {
+        self.page_mode.load(Ordering::Relaxed)
+    }
+
+    /// Write the MSI eventfd when the guest has MSI enabled; whether it was written.
+    pub fn signal_msi(&self) -> bool {
+        use std::io::Write;
         if !self.msi_enabled.load(Ordering::Relaxed) {
             return false;
         }
@@ -88,7 +124,7 @@ impl IntrShared {
         std::mem::take(&mut *self.notes.lock().unwrap())
     }
 
-    fn take_pending(&self, leaf: usize) -> u32 {
+    pub(crate) fn take_pending(&self, leaf: usize) -> u32 {
         self.pending[leaf].swap(0, Ordering::SeqCst)
     }
 }

@@ -1,0 +1,28 @@
+window 10 s [239561977, 249561977) us; presented frames (latches with a surface): window 6: 600; per-frame base: window 6 = 600 (60.00 Hz)
+what                                                              count  per frame
+BAR0 writes, all                                                   6626      11.04
+  other 0x88704 NV_PCFG (config mirror)                            4759       7.93
+  other 0x696000                                                    667       1.11
+  other 0x611858                                                    600       1.00
+  other 0x61180c                                                    600       1.00
+BAR0 reads, all                                                   53957      89.93
+  0x611ec0                                                        39318      65.53
+  NV_VIRTUAL_FUNCTION_TIME_0/1                                     5391       8.98
+  0x611c30                                                         3714       6.19
+  0x611c0c                                                         3600       6.00
+  0x611858                                                          600       1.00
+BAR1 writes, all                                                   1200       2.00
+  USERD GPPut (offset 0x8c)                                        1200       2.00
+BAR1 reads                                                            0       0.00
+BAR2 writes, all                                                      0       0.00
+BAR2 reads                                                            0       0.00
+all trapped accesses                                              61783     102.97
+display channel kicks                                               667       1.11
+forwarded doorbells (host doorbell rung)                           1198       2.00
+shadow plans applied (sync lines)                                     0       0.00
+BAR0 page 0x611000 reads                                          48432      80.72
+BAR0 page 0xbb0000 reads                                           5391       8.98
+BAR0 page 0x088000 writes                                          4759       7.93
+BAR0 page 0x611000 writes                                          1200       2.00
+BAR0 page 0x696000 writes                                           667       1.11
+BAR0 page 0x696000 reads                                            134       0.22

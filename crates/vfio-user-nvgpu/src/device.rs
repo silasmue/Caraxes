@@ -144,11 +144,27 @@ pub fn spawn_token_reader(
     readers: Vec<File>,
     reactor: crate::poll::Reactor,
 ) -> std::io::Result<Arc<crate::poll::ReaderStats>> {
-    reactor.spawn(readers, move |rings, seen, st| {
-        let mut d = lock(&device);
-        st.lock_wait.record(seen.elapsed());
-        d.doorbell_tokens(doorbell, rings, &mut |host| st.ring(seen, host));
-    })
+    spawn_token_reader_hooked(device, doorbell, readers, reactor, None)
+}
+
+/// As [`spawn_token_reader`], with a hook the reactor runs on every iteration (the
+/// interrupt page, intr_page.rs).
+pub fn spawn_token_reader_hooked(
+    device: Arc<Mutex<Device>>,
+    doorbell: u64,
+    readers: Vec<File>,
+    reactor: crate::poll::Reactor,
+    hook: Option<Box<dyn crate::poll::Hook>>,
+) -> std::io::Result<Arc<crate::poll::ReaderStats>> {
+    reactor.spawn_hooked(
+        readers,
+        move |rings, seen, st| {
+            let mut d = lock(&device);
+            st.lock_wait.record(seen.elapsed());
+            d.doorbell_tokens(doorbell, rings, &mut |host| st.ring(seen, host));
+        },
+        hook,
+    )
 }
 
 fn lock(device: &Mutex<Device>) -> MutexGuard<'_, Device> {
@@ -163,14 +179,29 @@ pub fn spawn_doorbell_reader(
     eventfd: File,
     reactor: crate::poll::Reactor,
 ) -> std::io::Result<Arc<crate::poll::ReaderStats>> {
-    reactor.spawn(vec![eventfd], move |rings, seen, st| {
-        let mut d = lock(&device);
-        st.lock_wait.record(seen.elapsed());
-        for &(_, writes) in rings {
-            let host = d.doorbell_ioeventfd(doorbell, writes);
-            st.ring(seen, host);
-        }
-    })
+    spawn_doorbell_reader_hooked(device, doorbell, eventfd, reactor, None)
+}
+
+/// As [`spawn_doorbell_reader`], with a reactor hook (the interrupt page).
+pub fn spawn_doorbell_reader_hooked(
+    device: Arc<Mutex<Device>>,
+    doorbell: u64,
+    eventfd: File,
+    reactor: crate::poll::Reactor,
+    hook: Option<Box<dyn crate::poll::Hook>>,
+) -> std::io::Result<Arc<crate::poll::ReaderStats>> {
+    reactor.spawn_hooked(
+        vec![eventfd],
+        move |rings, seen, st| {
+            let mut d = lock(&device);
+            st.lock_wait.record(seen.elapsed());
+            for &(_, writes) in rings {
+                let host = d.doorbell_ioeventfd(doorbell, writes);
+                st.ring(seen, host);
+            }
+        },
+        hook,
+    )
 }
 
 /// The device as the vfio-user server loop sees it when the doorbell reader thread
@@ -246,7 +277,47 @@ pub struct Bar1Area {
 /// `VFIO_USER_DEVICE_GET_REGION_INFO` and of the sparse mmap areas); the rest of BAR1
 /// stays trapped.
 pub fn regions_with(board: &Board, bar1: Option<Bar1Area>) -> Vec<ServerRegion> {
-    regions_with_bar2(board, bar1, None)
+    regions_with_pages(board, bar1, None, None)
+}
+
+/// The interrupt page (docs/caraxes/intr-page.md §2): region 0 mmap-able from the memfd
+/// `fd` over the sparse `areas` (offset, size) only.
+#[derive(Clone, Copy, Debug)]
+pub struct Bar0Areas {
+    pub fd: std::os::fd::RawFd,
+    pub areas: [(u64, u64); 2],
+}
+
+/// The region table with the P21 BAR1 area and the interrupt page's BAR0 areas, each when
+/// given: region 0 gets `VFIO_REGION_INFO_FLAG_MMAP`, file offset 0 and the two sparse
+/// areas (vfio-user.rst:861-877, :943-947); everything outside them stays trapped.
+pub fn regions_with_pages(
+    board: &Board,
+    bar1: Option<Bar1Area>,
+    bar2: Option<&Bar2Region>,
+    bar0: Option<Bar0Areas>,
+) -> Vec<ServerRegion> {
+    let mut r = regions_with_bar2(board, bar1, bar2);
+    if let Some(a) = bar0 {
+        let size = region_size(board, VFIO_PCI_BAR0_REGION_INDEX);
+        if a.areas.iter().all(|&(o, l)| l > 0 && o + l <= size) {
+            let b0 = &mut r[VFIO_PCI_BAR0_REGION_INDEX as usize];
+            b0.region_info.flags |= VFIO_REGION_INFO_FLAG_MMAP;
+            b0.region_info.offset = 0;
+            b0.sparse_areas = a
+                .areas
+                .iter()
+                .map(|&(offset, size)| SparseArea {
+                    area: vfio_bindings::bindings::vfio::vfio_region_sparse_mmap_area {
+                        offset,
+                        size,
+                    },
+                })
+                .collect();
+            b0.mmap_fd = Some(a.fd);
+        }
+    }
+    r
 }
 
 /// `CARAXES_BAR2_MEMFD=1` (docs/caraxes/bar2-memfd.md): region 3 (BAR2) offered for mmap
@@ -915,6 +986,53 @@ mod tests {
         assert!(server
             .add_ioeventfd(VFIO_PCI_BAR0_REGION_INDEX, wildcard)
             .is_err());
+        drop(server);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// The interrupt page's areas: region 0 mmap-able at file offset 0 over exactly the
+    /// two pages, next to the doorbell's ioeventfd sub-regions, which the server still
+    /// accepts; every other region as before.
+    #[test]
+    fn bar0_areas_make_region_0_mmapable_over_two_pages() {
+        let board = crate::board::Board::load("rtx2070").unwrap();
+        let plain = regions(&board);
+        let areas = Bar0Areas {
+            fd: 9,
+            areas: [(0, 0x1000), (0xb8_1000, 0x1000)],
+        };
+        let r = regions_with_pages(&board, None, None, Some(areas));
+        let b0 = &r[VFIO_PCI_BAR0_REGION_INDEX as usize];
+        assert_eq!(b0.mmap_fd, Some(9));
+        assert_ne!(b0.region_info.flags & VFIO_REGION_INFO_FLAG_MMAP, 0);
+        assert_ne!(b0.region_info.flags & VFIO_REGION_INFO_FLAG_WRITE, 0);
+        assert_eq!(b0.region_info.offset, 0);
+        assert_eq!(b0.region_info.size, 16 << 20);
+        let got: Vec<(u64, u64)> = b0
+            .sparse_areas
+            .iter()
+            .map(|a| (a.area.offset, a.area.size))
+            .collect();
+        assert_eq!(got, vec![(0, 0x1000), (0xb8_1000, 0x1000)]);
+        for i in 1..r.len() {
+            assert_eq!(r[i].region_info.flags, plain[i].region_info.flags);
+            assert!(r[i].mmap_fd.is_none());
+        }
+        // Areas outside the BAR are not offered.
+        let bad = Bar0Areas {
+            fd: 9,
+            areas: [(0, 0x1000), (16 << 20, 0x1000)],
+        };
+        let r = regions_with_pages(&board, None, None, Some(bad));
+        assert!(r[0].mmap_fd.is_none());
+        // The doorbell's sub-regions still declare next to the areas.
+        let path = std::env::temp_dir().join(format!("nvgpu-intrpage-{}.sock", std::process::id()));
+        let _ = std::fs::remove_file(&path);
+        let r = regions_with_pages(&board, None, None, Some(areas));
+        let mut server = vfio_user::Server::new(&path, false, irqs(), r).unwrap();
+        for (s, _) in doorbell_token_sub_regions(0xbb_0090, 4).unwrap() {
+            server.add_ioeventfd(VFIO_PCI_BAR0_REGION_INDEX, s).unwrap();
+        }
         drop(server);
         let _ = std::fs::remove_file(&path);
     }

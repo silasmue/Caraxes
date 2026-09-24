@@ -34,6 +34,7 @@ pub mod hostabi;
 pub mod hostmem;
 pub mod hostrm;
 pub mod intr;
+pub mod intr_page;
 pub mod invalidate;
 pub mod kgr;
 pub mod mirror;

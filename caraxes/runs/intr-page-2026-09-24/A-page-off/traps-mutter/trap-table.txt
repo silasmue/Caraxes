@@ -1,0 +1,48 @@
+window 10 s [213210230, 223210230) us; presented frames (latches with a surface): window 6: 492; per-frame base: window 6 = 492 (49.20 Hz)
+what                                                              count  per frame
+BAR0 writes, all                                                 181311     368.52
+  0x160/0x180 (latched)                                           89728     182.37
+  interrupt enable/clear (VF CPU_INTR)                            83599     169.92
+  other 0x88704 NV_PCFG (config mirror)                            3378       6.87
+  MMU invalidate (VF PRIV_MMU_INVALIDATE, 3 writes each)           2964       6.02
+  other 0x61180c                                                    600       1.22
+  other 0x696000                                                    547       1.11
+  other 0x611858                                                    492       1.00
+  other 0x110c00 NV_PGSP_QUEUE_HEAD/TAIL                              1       0.00
+BAR0 reads, all                                                   83704     170.13
+  0x611ec0                                                        30128      61.24
+  NV_VF_CPU_INTR_LEAF                                             22978      46.70
+  NV_VF_CPU_INTR_LEAF_EN_SET                                       7708      15.67
+  NV_VIRTUAL_FUNCTION_TIME_0/1                                     6555      13.32
+  NV_VF_CPU_INTR_TOP                                               5305      10.78
+BAR1 writes, all                                                   1479       3.01
+  USERD GPPut (offset 0x8c)                                        1479       3.01
+BAR1 reads                                                            0       0.00
+BAR2 writes, all                                                  36495      74.18
+  page 0x23000                                                    15750      32.01
+  page 0x39000                                                    14760      30.00
+  page 0x25000                                                     2465       5.01
+BAR2 reads                                                        11331      23.03
+all trapped accesses                                             314320     638.86
+MSIs signalled                                                     1132       2.30
+display channel kicks                                               547       1.11
+forwarded doorbells (host doorbell rung)                           1472       2.99
+guest MMU invalidates seen                                          988       2.01
+host notifier events (no MSI)                                       389       0.79
+host notifier events -> MSI                                        2020       4.11
+shadow plans applied (sync lines)                                     2       0.00
+BAR0 page 0x000000 writes                                         89728     182.37
+BAR0 page 0xb81000 writes                                         83599     169.92
+BAR0 page 0x611000 reads                                          37877      76.99
+BAR0 page 0xb81000 reads                                          35991      73.15
+BAR0 page 0xbb0000 reads                                           6555      13.32
+BAR0 page 0x088000 writes                                          3378       6.87
+BAR0 page 0xb83000 writes                                          2964       6.02
+BAR0 page 0xb83000 reads                                           1976       4.02
+BAR0 page 0x000000 reads                                           1190       2.42
+BAR0 page 0x611000 writes                                          1092       2.22
+BAR0 page 0x696000 writes                                           547       1.11
+BAR0 page 0x696000 reads                                            110       0.22
+  server-thread walk per plan: p50 46.0 us, max 49 us, sum 92 us (0 us per frame)
+  worker apply per plan: p50 11480.0 us, max 22586 us, sum 22960 us (47 us per frame)
+  queued before apply: p50 13.5 us, max 14 us

@@ -1,0 +1,5 @@
+# SPDX-License-Identifier: MIT
+# 2026-09-24 15:44:01 guest command:
+bash caraxes-f/trap-mutter.sh 14
+rc=0
+full trace 180370 lines kept (device-trace.txt.xz)

@@ -1,0 +1,4 @@
+probe intrpage-B-page-on: 93474 device accesses, guest log in /mnt/vmstore/caraxes/vm0/probe-intrpage-B-page-on/guest-dmesg.txt
+[  128.823938] NVRM: GPU 0000:00:05.0: RmInitAdapter
+[  131.482406] NVRM: GPU 0000:00:05.0: RmInitAdapter succeeded!
+modprobe rc=0

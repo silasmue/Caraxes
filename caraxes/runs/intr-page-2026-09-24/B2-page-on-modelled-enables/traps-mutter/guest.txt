@@ -1,0 +1,8 @@
+Type=wayland
+[  158.199898] caraxes-vm0 gnome-shell[2095]: Created gbm renderer for '/dev/dri/card0'
+page_flip_failed=0
+== 2026-09-24T13:45:07Z load 1.07 0.60 0.24 1/640 2952
+first frame callback after 5.6 s
+FRAMES callbacks intervals=0
+PRESENTED feedback intervals=0
+presented=2 discarded=1 refresh_ns=16666667 (60.000 Hz) flags=0x7 (vsync 1 hw_clock 1 hw_completion 1)

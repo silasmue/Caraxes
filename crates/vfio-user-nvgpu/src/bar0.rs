@@ -59,6 +59,9 @@ pub struct Bar0 {
     latched: BTreeMap<u64, u32>,
     boot: Option<BootModel>,
     notes: Vec<String>,
+    /// `CARAXES_INTR_PAGE=1`: page 0 and the interrupt tree's page are memory the guest
+    /// maps (intr_page.rs); a trapped access there goes to that memory too.
+    page: Option<std::sync::Arc<crate::intr_page::IntrPage>>,
 }
 
 impl Bar0 {
@@ -76,7 +79,27 @@ impl Bar0 {
             latched: BTreeMap::new(),
             boot: None,
             notes: Vec::new(),
+            page: None,
         }
+    }
+
+    /// Serve the interrupt page's two pages from its memory (intr_page.rs).
+    pub fn with_intr_page(mut self, page: std::sync::Arc<crate::intr_page::IntrPage>) -> Self {
+        self.page = Some(page);
+        self
+    }
+
+    /// Whether a register model answers the dword at `off` (the interrupt page's start-up
+    /// check): the config mirror, the PROM window, the boot constants, the boot model's
+    /// registers and the display engine (NV_PDISP [0x610000, 0x700000),
+    /// `turing/tu102/dev_disp.h`, and the display fuse, display/mod.rs).
+    pub fn model_owns(&self, off: u64) -> bool {
+        self.pcfg.contains(&off)
+            || self.prom.contains(&off)
+            || matches!(off, NV_PMC_BOOT_0 | NV_PMC_BOOT_1 | NV_PMC_BOOT_42)
+            || (0x0061_0000..0x0070_0000).contains(&off)
+            || off == 0x0002_1C04
+            || self.boot.as_ref().is_some_and(|b| b.owns_register(off))
     }
 
     /// Attach the E2 boot model.
@@ -118,6 +141,9 @@ impl Bar0 {
     /// registers and the boot model return to their initial state.
     pub fn reset(&mut self) {
         self.latched.clear();
+        if let Some(p) = &self.page {
+            p.reset();
+        }
         if let Some(b) = self.boot.as_mut() {
             b.reset();
         }
@@ -131,6 +157,9 @@ impl Bar0 {
     /// The dword at the aligned offset `reg`. One fetch per dword, because
     /// falcon data ports advance on every read.
     fn dword_at(&mut self, cfg: &ConfigSpace, mem: &GuestMemory, reg: u64) -> u32 {
+        if let Some(p) = self.page.as_ref().filter(|p| p.covers(reg)) {
+            return p.read32(reg);
+        }
         if self.pcfg.contains(&reg) {
             return cfg.dword((reg - self.pcfg.start) as usize);
         }
@@ -185,6 +214,11 @@ impl Bar0 {
         offset: u64,
         data: &[u8],
     ) -> WriteEffect {
+        if let Some(p) = self.page.as_ref().filter(|p| p.covers(offset)) {
+            // The reactor applies it as it applies the guest's own stores.
+            p.write(offset, data);
+            return WriteEffect::Model;
+        }
         if self.pcfg.contains(&offset) {
             cfg.write((offset - self.pcfg.start) as usize, data);
             return WriteEffect::Mirror;
