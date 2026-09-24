@@ -19,6 +19,36 @@ Short paths as in [rpc-functions.md](rpc-functions.md): `kernel_gsp.c` is
 `src/chip/turing.rs`. "run" is `caraxes/runs/transport-615-2026-09-24/boot/device-events.txt`,
 the first 615 boot on the device.
 
+## Status (implementation of 2026-09-24)
+
+Commits on the implementation branch. Run records: `caraxes/runs/gsp-rpc-2026-09-24/`.
+
+- Status B1 `ALLOC_MEMORY`: **done**, 29f3366 (rpc-functions.md status).
+- Status B2 static configuration keys: **partial**, fc9b537. Sent with a source: from the chip
+  `EMULATION_REV1` 0, `SRIOV_MAX_GFID` and `SRIOV_BAR0/1/2_SIZE` 0, `GC6_RTD3_*` 0; per region
+  `FB_REGION_TAG` NONE; from the guest's `GspFwWprMeta` `WPR_LAYOUT_NON_WPR_HEAP_OFFSET` and
+  `_FRTS_OFFSET`; from the card `CHIP_SKU` "400" and `CHIP_SKU_MODIFIER` "A1"
+  (`boards/rtx2070.toml` `[sku]`, `caraxes/reference/rtx2070/nvidia-smi-q.txt:37`). Not sent:
+  `CHIP_SUB_REV`, `SKU_BOARD_ID`, `SKU_CONFIG_VERSION`, `SKU_BUSINESS_CYCLE`, `PROJECT*`, `CDP`
+  (no capture carries them, open question 1), `PDI` and `ECID_INFO` (identifiers of the host
+  card; the guest's identity is the profile's), `VMMU_SEGMENT_SIZE`.
+- Status B3 registry: **done**, fc9b537. Honoured: `RmLogonRC` (the Xid line with an RC),
+  `RMSplitVasMgmtServerClientRm` (warns that `MAP/UNMAP_MEMORY_DMA` will come and be
+  refused), `EnableGpuFirmwareLogs`; every other key traced (`crates/vfio-user-nvgpu/src/gspboot.rs`).
+- Status B4 Booter Load by its own signal: **done**, fc9b537. The WPR meta magic in the SEC2
+  mailboxes, else whether GSP-RM is loaded; Load, Unload, Load on one model is unit-tested.
+- Status B5 suspend and resume: **partial** (device side done, fc9b537). `GSP_SUSPEND` flags
+  read; Booter Unload records its argument; a Booter Load after a `PM_TRANSITION` suspend with
+  `IN_PM_TRANSITION` in RMARGS keeps the queues, clears the suspended bit and sends
+  `GSP_RESUME_DONE` as a GMCAPI request. Unit test only; guest suspend in the VMM is open
+  question 4, not tested on the GPU.
+- Status B6 GSP-RM log buffers: **open**. A libos log record names its metadata in the
+  firmware ELF's logging section (`kernel_gsp.c:4199`, `src/common/uproc/os/common/include/libos_log.h:77-85`),
+  which the device never loads; a line needs the per-version metadata addresses of the
+  guest's `gsp_tu10x.bin`.
+- Status B7 unstable-interface opt-in: **done**, fc9b537. A 615 client without the RPC bit
+  gets its RM RPCs refused `NV_ERR_NOT_SUPPORTED`, without the EVENTS bit no RM event is sent.
+
 ## 1. What `NV_ABI_STABLE` covers, and what NVIDIA says about it
 
 **The tag.** `src/common/sdk/nvidia/inc/nvtypes.h:521-533`: "This tag can be applied to a type

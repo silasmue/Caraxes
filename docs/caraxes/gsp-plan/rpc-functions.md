@@ -22,6 +22,35 @@ short forms: `rpc.c` is `src/nvidia/src/kernel/vgpu/rpc.c`; `rpc.h`, `rpc_vgpu.h
 where it differs. Device paths are `crates/vfio-user-nvgpu/src/...` at the worktree base of
 this plan (commit 61e0b6a).
 
+## Status (implementation of 2026-09-24)
+
+Commits on the implementation branch; the device paths are `crates/vfio-user-nvgpu/src/...`.
+Run records: `caraxes/runs/gsp-rpc-2026-09-24/`.
+
+- Status `ALLOC_MEMORY` (4): **done**, 29f3366. Registry per (hClient, hMemory) with the page
+  list (`gspmem.rs`), pages checked against guest RAM (system memory) or the device's FB (FB
+  memory), duplicate handle and foreign class refused, `FREE` drops it, a page list above
+  `maxRpcSize` is reassembled by `pteDesc.length`. The event import's next steps (0x90CD, its
+  `ENABLE_EVENTS`/`UPDATE_GET`, 0x90D0) are answered on it (classes.md).
+- Status `IDLE_CHANNELS` (22): **partial**, caf007d. Resolved through the channel registry,
+  idle when USERD GPGet equals GPPut; a mirrored channel is polled for min(timeout, 50 ms)
+  instead of an idle call on the host RM; unknown handles `NV_ERR_INVALID_OBJECT_HANDLE`,
+  busy `NV_ERR_TIMEOUT` (`gsprpc.rs`).
+- Status `GPU_EXEC_REG_OPS` (50): **done**, caf007d. Never forwarded; 32-bit global reads of
+  the chip's identity registers (BOOT_0, BOOT_1, BOOT_42) answered from the model, every other
+  operation `REG_OP_STATUS_NOACCESS` with the call `NV_OK`.
+- Status `DUMP_PROTOBUF_COMPONENT` (78): **done**, caf007d. `NV_OK`, empty blob.
+- Status `ECC_NOTIFIER_WRITE_ACK` (202): **done**, caf007d. Consumed, no reply.
+- Status `MAP_MEMORY_DMA`/`UNMAP_MEMORY_DMA` (14/15): **done** (refusal kept), caf007d. The
+  note names `RMSplitVasMgmtServerClientRm`; no longer counted as unanswered; the registry key
+  itself is honoured at `GSP_INIT` (fc9b537).
+- Status `UNLOADING_GUEST_DRIVER` (47, 610/nova-core): **done**, caf007d. `NV_OK` plus the
+  processor-suspended bit.
+- Status `GSP_SUSPEND` flags (§5): **done**, fc9b537. Read and logged; a PM transition keeps
+  the model for the resume (boot-exchange.md B5).
+- Status open question 2 (what the import does after `ALLOC_MEMORY`): answered by the 615 run
+  of `caraxes/runs/gsp-rpc-2026-09-24/emu615/` (see its README entry).
+
 ## 1. Method
 
 - **The enum.** `rpc_global_enums.h:10-242` (615) lists 232 functions, 0 to 231; 610 has 230

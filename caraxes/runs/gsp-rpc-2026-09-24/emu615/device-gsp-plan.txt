@@ -1,0 +1,20 @@
+   132951849 E boot: gmcapi GSP_INIT system info: 142 keys: driver "NVRM" "615.71.09" cl 0, PCI Some(520229086)/Some(1074861144) rev Some(161), bars 0xe6000000/0x3fffe0000000/0x3ffffc000000/0x0, bdf 0x5, mirror (Some(557056), Some(4096)), maxUserVa 0x7ffffffff000, page Some(4096), 44 registry entries, 38 other keys
+   132951925 E boot: registry EnableGpuFirmwareLogs = 2: honoured, GSP-RM log lines written
+   132951926 E boot: registry RmLogonRC = 1: honoured, an RC carries the Xid line (OS_ERROR_LOG)
+   132951928 E boot: unstable interfaces: key Some(3), RM RPCs opted in, RM events opted in
+   132951976 E boot: static-info key EMULATION_REV1 0, SRIOV_MAX_GFID 0, SRIOV_BAR0/1/2_SIZE 0, GC6_RTD3_* 0 [chip: TU106 silicon, no SR-IOV, no GC6]
+   132951977 E boot: static-info key WPR_LAYOUT_NON_WPR_HEAP_OFFSET 0xf7d00000, WPR_LAYOUT_FRTS_OFFSET 0xffe00000 [guest, GspFwWprMeta]
+   132951979 E boot: static-info key CHIP_SKU "400", CHIP_SKU_MODIFIER "A1" [card, caraxes/reference/rtx2070/nvidia-smi-q.txt:37, GPU Part Number 1F02-400-A1]
+   132951980 E boot: gmcapi GSP_INIT: 560 bytes of NVKV static info
+   134751526 E boot: rx seq 125 ALLOC_MEMORY (4) sequence 90 length 96 checksum ok: 64 bytes: 0700e0c10000f0ca0200f0ca810000000000004c000000000600000000000000
+   134751527 E boot: alloc memory 0xc1e00007/0xcaf00002 under 0xcaf00000 class 0x81 flags 0x4c000000 length 0x1000 adjust 0x0 format 6 pages 1 (pageCount 1): registered, first page 0x1316bf000 [guest, recorded; no host mapping]
+   134751529 E boot: tx seq 90 reply ALLOC_MEMORY sequence 90 result 0x0 length 88
+   134751708 E boot: rx seq 126 ALLOC_MEMORY (4) sequence 91 length 96 checksum ok: 64 bytes: 0700e0c10000f0ca0300f0ca810000000000004c000000000600000000000000
+   134751709 E boot: alloc memory 0xc1e00007/0xcaf00003 under 0xcaf00000 class 0x81 flags 0x4c000000 length 0x7000 adjust 0x0 format 6 pages 1 (pageCount 1): registered, first page 0x123480000 [guest, recorded; no host mapping]
+   134751710 E boot: tx seq 91 reply ALLOC_MEMORY sequence 91 result 0x0 length 88
+   134751908 E boot: rx seq 127 ALLOC_MEMORY (4) sequence 92 length 96 checksum ok: 64 bytes: 0700e0c10000f0ca0400f0ca810000000000004c000000000600000000000000
+   134751910 E boot: alloc memory 0xc1e00007/0xcaf00004 under 0xcaf00000 class 0x81 flags 0x4c000000 length 0x10000 adjust 0x0 format 6 pages 1 (pageCount 1): registered, first page 0x1317a0000 [guest, recorded; no host mapping]
+   134751911 E boot: tx seq 92 reply ALLOC_MEMORY sequence 92 result 0x0 length 88
+   134752124 E boot: alloc: event buffer 0xc1e00007/0xcaf00006 under 0xc1e00007: 256 records of 104 bytes, vardata 0x10000, memories 0xcaf00002/0xcaf00003/0xcaf00004; the device is the producer and writes no records [guest, recorded] -> status 0x0 [guest (GSP-side event buffer, gspmem.rs)]
+   134753491 E boot: ctrl 0x90cd0101: event buffer 0xc1e00007/0xcaf00006 control 0x90cd0101: enable events true policy 1 [guest] -> status 0x0 [guest (GSP-side event buffer, gspmem.rs)]
+   134753642 E boot: alloc: operational event bind 0xc1e00007/0xcaf00005: event buffer 0xcaf00006 format 1 scope device, bindId 1; no operational events are produced [guest, recorded] -> status 0x0 [guest (GSP-side event buffer, gspmem.rs)]

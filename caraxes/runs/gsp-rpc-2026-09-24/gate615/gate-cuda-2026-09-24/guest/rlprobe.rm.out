@@ -1,0 +1,10 @@
+# SPDX-License-Identifier: MIT
+# cuda gate gate-cuda-2026-09-24: guest/rlprobe.rm.out
+rlprobe: stage=4 episodes=50 pin=True nonblock=False sync=False item=True
+Traceback (most recent call last):
+  File "/home/leandro/caraxes-tests/leandro-test/probe/python/rlprobe.py", line 203, in <module>
+    main()
+  File "/home/leandro/caraxes-tests/leandro-test/probe/python/rlprobe.py", line 159, in main
+    assert torch.cuda.is_available(), "no CUDA card visible"
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: no CUDA card visible

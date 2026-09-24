@@ -34,6 +34,12 @@ python3 caraxes/tools/gsp-surface.py --ogkm DIR      # another driver tree (or C
   guest-derived 21, echo 46, refused 11), plus 38 GSS-legacy and BINAPI ids outside the export
   tables (all host-forwarded). 11 of the 20 RPC functions. 2 of the 37 events (GSP_INIT_DONE,
   POST_EVENT). All 149 GSP-bound classes are acknowledged; 21 are modelled or recorded by number.
+  *Updated 2026-09-24 (GSP plan implementation, [gsp-plan/](gsp-plan/README.md) status lines):*
+  19 of the 20 RPC functions get their answer (INVALIDATE_TLB, a vGPU-only path per
+  gsp-plan/rpc-functions.md, stays unanswered; MAP/UNMAP_MEMORY_DMA are answered with a named
+  refusal), which covers all 14 functions and both GMCAPI commands a 615 GSP client uses on
+  TU106; 4 of the 37 events (plus RC_TRIGGERED and OS_ERROR_LOG) and the GMCAPI request
+  GSP_RESUME_DONE; classes outside the chip's class database are refused.
 - **Unhandled: 658 routed controls.** A pure chip data 62, B host-forwardable 71, C guest-state
   derived 30, D needs device modelling 306, E never expected from a stock client 189.
 - **What that means in work.** A and E are cheap and mechanical (a table-driven answer and a
@@ -193,7 +199,7 @@ Only functions a GSP-client kernel RM sends, nova-core uses, or the device handl
 | 1 | SET_GUEST_SYSTEM_INFO | v03_00 | sent | decodes | answered (`crates/vfio-user-nvgpu/src/boot.rs:780`) |
 | 2 | ALLOC_ROOT | v07_00 | - | decodes | not sent to GSP by either client |
 | 3 | ALLOC_DEVICE | - | - | decodes | not sent to GSP by either client |
-| 4 | ALLOC_MEMORY | v13_01 | sent (memRegisterWithGsp) | decodes | **unhandled** |
+| 4 | ALLOC_MEMORY | v13_01 | sent (memRegisterWithGsp) | decodes | answered, registry (`crates/vfio-user-nvgpu/src/gspmem.rs`) |
 | 5 | ALLOC_CTX_DMA | - | - | decodes | not sent to GSP by either client |
 | 6 | ALLOC_CHANNEL_DMA | v1F_04 | - | decodes | not sent to GSP by either client |
 | 7 | MAP_MEMORY | - | - | decodes | not sent to GSP by either client |
@@ -201,12 +207,12 @@ Only functions a GSP-client kernel RM sends, nova-core uses, or the device handl
 | 9 | ALLOC_OBJECT | v25_08, v26_00, v27_00, v29_06, v2B_04, v2C_01 | - | decodes | not sent to GSP by either client |
 | 10 | FREE | v03_00 | sent | decodes | answered (`crates/vfio-user-nvgpu/src/boot.rs:902`) |
 | 11 | LOG | v03_00 | - | decodes | not sent to GSP by either client |
-| 14 | MAP_MEMORY_DMA | v2C_05 | maybe | - | **unhandled** |
-| 15 | UNMAP_MEMORY_DMA | v2C_05 | maybe | - | **unhandled** |
+| 14 | MAP_MEMORY_DMA | v2C_05 | maybe | - | refused by design, named (`crates/vfio-user-nvgpu/src/gsprpc.rs`) |
+| 15 | UNMAP_MEMORY_DMA | v2C_05 | maybe | - | refused by design, named (`crates/vfio-user-nvgpu/src/gsprpc.rs`) |
 | 21 | DUP_OBJECT | v03_00 | sent | - | answered (`crates/vfio-user-nvgpu/src/boot.rs:917`) |
-| 22 | IDLE_CHANNELS | v03_00 | maybe | - | **unhandled** |
-| 47 | UNLOADING_GUEST_DRIVER | v1F_07 | sent (unload) | sends | **unhandled** |
-| 50 | GPU_EXEC_REG_OPS | v12_01 | maybe | - | **unhandled** |
+| 22 | IDLE_CHANNELS | v03_00 | maybe | - | answered (`crates/vfio-user-nvgpu/src/gsprpc.rs`) |
+| 47 | UNLOADING_GUEST_DRIVER | v1F_07 | sent (unload) | sends | answered (`crates/vfio-user-nvgpu/src/boot.rs`) |
+| 50 | GPU_EXEC_REG_OPS | v12_01 | maybe | - | answered from the device's model (`crates/vfio-user-nvgpu/src/gsprpc.rs`) |
 | 51 | GET_STATIC_INFO | - | - | decodes | not sent to GSP by either client |
 | 65 | GET_GSP_STATIC_INFO | v14_00 | sent | sends | answered (`crates/vfio-user-nvgpu/src/boot.rs:793`) |
 | 70 | UPDATE_BAR_PDE | v15_00 | sent | - | answered (`crates/vfio-user-nvgpu/src/boot.rs:946`) |
@@ -215,10 +221,10 @@ Only functions a GSP-client kernel RM sends, nova-core uses, or the device handl
 | 73 | SET_REGISTRY | - | sent | sends | consumed (no reply) (`crates/vfio-user-nvgpu/src/boot.rs:779`) |
 | 74 | GSP_INIT_POST_OBJGPU | - | - | decodes | not sent to GSP by either client |
 | 76 | GSP_RM_CONTROL | v03_00 | sent | decodes | answered (`crates/vfio-user-nvgpu/src/boot.rs:808`) |
-| 78 | DUMP_PROTOBUF_COMPONENT | v18_12 | sent (debug dump) | - | **unhandled** |
+| 78 | DUMP_PROTOBUF_COMPONENT | v18_12 | sent (debug dump) | - | answered, empty (`crates/vfio-user-nvgpu/src/gsprpc.rs`) |
 | 103 | GSP_RM_ALLOC | v03_00 | sent | - | answered (`crates/vfio-user-nvgpu/src/boot.rs:845`) |
 | 200 | INVALIDATE_TLB | v23_03 | maybe | - | **unhandled** |
-| 202 | ECC_NOTIFIER_WRITE_ACK | - | sent (RC path) | - | **unhandled** |
+| 202 | ECC_NOTIFIER_WRITE_ACK | - | sent (RC path) | - | consumed, no reply (`crates/vfio-user-nvgpu/src/boot.rs`) |
 | 228 | INIT_GSP_TRACE_CRASH_BUFFER | v03_00 | sent (regkey) | - | answered (`crates/vfio-user-nvgpu/src/boot.rs:937`) |
 
 ### RPC events (GSP to CPU)
@@ -228,9 +234,9 @@ Only functions a GSP-client kernel RM sends, nova-core uses, or the device handl
 | 0x1001 | GSP_INIT_DONE | yes | waits | yes |
 | 0x1002 | GSP_RUN_CPU_SEQUENCER | no | waits | no |
 | 0x1003 | POST_EVENT | yes | decodes | yes |
-| 0x1004 | RC_TRIGGERED | yes | decodes | no |
+| 0x1004 | RC_TRIGGERED | yes | decodes | yes (host-mirrored channels, `crates/vfio-user-nvgpu/src/events.rs`) |
 | 0x1005 | MMU_FAULT_QUEUED | yes | decodes | no |
-| 0x1006 | OS_ERROR_LOG | yes | decodes | no |
+| 0x1006 | OS_ERROR_LOG | yes | decodes | yes (host-mirrored channels, `crates/vfio-user-nvgpu/src/events.rs`) |
 | 0x1007 | RG_LINE_INTR | no | - | no |
 | 0x1008 | GPUACCT_PERFMON_UTIL_SAMPLES | yes | - | no |
 | 0x1009 | SIM_READ | yes | - | no |
@@ -440,7 +446,9 @@ chip file, so a chip that has the feature (TU102 has NVLink, GA100 has MIG) turn
 
 ## 4. RPC functions, events and classes
 
-**Functions.** Of the 20 functions a GSP client sends, the device answers 11. Missing:
+**Functions.** Of the 20 functions a GSP client sends, the device answers 11. Missing (2026-09-24:
+all rows but INVALIDATE_TLB are answered now, commits 29f3366 and caf007d; see
+[gsp-plan/rpc-functions.md](gsp-plan/rpc-functions.md) "Status"):
 
 | # | Function | When the Linux driver sends it | Recipe |
 |---|---|---|---|
@@ -456,7 +464,9 @@ chip file, so a chip that has the feature (TU102 has NVLink, GA100 has MIG) turn
 Unanswered functions are already answered NOT_SUPPORTED and collected in `boot.rs`
 `unanswered`, so none of them hangs the queue. About 2 days.
 
-**Events.** The device sends GSP_INIT_DONE and POST_EVENT. The CPU side dispatches 37 events
+**Events.** The device sends GSP_INIT_DONE and POST_EVENT (2026-09-24: also RC_TRIGGERED and
+OS_ERROR_LOG from the error notifiers of host-mirrored channels, and the GMCAPI request
+GSP_RESUME_DONE; commit 4bacf2a, [gsp-plan/events.md](gsp-plan/events.md) "Status"). The CPU side dispatches 37 events
 (`kernel_gsp.c:1399`); the ones a complete device needs are how GSP reports trouble:
 RC_TRIGGERED (0x1004) and OS_ERROR_LOG (0x1006, the Xid) for a channel error, MMU_FAULT_QUEUED
 (0x1005) for a non-replayable fault, and FECS_ERROR (0x1021) and RECOVERY_ACTION (0x1022). Without

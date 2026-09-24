@@ -9,6 +9,27 @@ Part of the GSP plan ([README.md](README.md)). The transport of an allocation is
 the device crate at the base commit of this plan (61e0b6a). Line numbers of `resource_list.h`
 are the `RS_ENTRY(` line.
 
+## Status (implementation of 2026-09-24)
+
+Commits on the implementation branch. Run records: `caraxes/runs/gsp-rpc-2026-09-24/`.
+
+- Status refusal of classes outside the chip's class database (§5): **done**, 4e34617. The
+  TU106 database (101 classes of `g_gpu_class_list.c`) is `[classes]` of
+  `chips/tu106/chip.toml`; outside it `NV_ERR_NOT_SUPPORTED`, under a channel
+  `NV_ERR_INVALID_CLASS` (`crates/vfio-user-nvgpu/src/classes.rs`). Refused inside the
+  database as well: 0x0001 and 0x0041 (0x22), 0x503B, 0xA0BC, 0xA0BD, and the profiler classes
+  0x90CC, 0xB1CC, 0xB2CC, 0x844C (0x56). The stock classes stay accepted (unit test lists
+  them); a chip without the table keeps the acknowledgement.
+- Status 0x90CD `NV_EVENT_BUFFER` and 0x90D0 `NV_OPERATIONAL_EVENT_BUFFER_BIND` of the 615
+  event import (§3): **done**, 29f3366 (validated against the `ALLOC_MEMORY` registry, the
+  device is a producer that writes no records).
+- Status TSG `internalFlags` grpID (§7 item 2, §8 TSG): **partial**, 4e34617. Recorded per TSG
+  (`Registry::tsg_id`) and logged; not yet the key of the host TSG map.
+- Status channel `INTERNAL_TSG_ID` (§7 item 1): **partial**, 4e34617. Recorded per channel.
+- Status the other §8 recipes (parent checks of root/device/subdevice, UVM retainer
+  validation, duplicated TSG/ctxshare aliasing, SW-class channels kept off the host):
+  **open**.
+
 ## 1. Method
 
 1. Class set. `caraxes/tools/gsp-surface.py --ogkm t615 --json` (and the same for t610) parses the
