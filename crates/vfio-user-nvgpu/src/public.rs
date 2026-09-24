@@ -31,11 +31,10 @@ use crate::ver::active::{NV20_SUBDEVICE_0, NV_ERR_NOT_SUPPORTED, NV_OK};
 /// `NV_ERR_INVALID_PARAM_STRUCT` (nvstatuscodes.h:87): a guest buffer of another size
 /// than the version's struct is refused, never forwarded.
 pub const NV_ERR_INVALID_PARAM_STRUCT: u32 = 0x3A;
-// Further statuses the C rows answer (nvstatuscodes.h:52, 62, 80, 124, 130).
+// Further statuses the C rows answer (nvstatuscodes.h:60, 62, 80, 130).
 pub const NV_ERR_INVALID_ARGUMENT: u32 = 0x1F;
 pub const NV_ERR_INVALID_CHANNEL: u32 = 0x21;
 pub const NV_ERR_INVALID_OBJECT_HANDLE: u32 = 0x33;
-pub const NV_ERR_PROTECTION_FAULT: u32 = 0x5F;
 pub const NV_ERR_TIMEOUT: u32 = 0x65;
 
 /// The guest channel `(h_client, h_channel)` in the registry.
@@ -46,12 +45,6 @@ fn channel_of(
 ) -> Option<&crate::channel::Channel> {
     reg?.channels()
         .find(|c| c.h_client == h_client && c.h_object == h_channel)
-}
-
-/// A user channel in the device's view: a channel of a guest TSG (the kernel's own
-/// golden-context and WAR channels are bare, mirror.rs `eligible`).
-fn usermode(reg: Option<&crate::channel::Registry>, c: &crate::channel::Channel) -> bool {
-    reg.is_some_and(|r| r.tsg((c.h_client, c.h_parent)).is_some())
 }
 
 /// What the rows need from the dispatcher.
@@ -72,6 +65,8 @@ pub struct Ctx<'a> {
     pub mirror: Option<&'a mut dyn MirrorObjects>,
     /// What the guest set on its objects.
     pub attrs: &'a mut GuestAttrs,
+    /// The device's RC journal and scheduling flags (rc.rs, shared with the D models).
+    pub rc: &'a mut crate::rc::RcState,
     /// The guest's channels and TSGs (`channel::Registry`), for the rows that name a guest
     /// channel in their params.
     pub reg: Option<&'a crate::channel::Registry>,
@@ -161,32 +156,13 @@ impl MirrorObjects for MirrorFwd<'_> {
     }
 }
 
-/// Per guest object: what its controls recorded (c-guest-state.md §4 `ObjAttrs`), and the
-/// device-wide channel state the C rows keep: the scheduling flags and the RC journal.
+/// Per guest object: what its controls recorded (c-guest-state.md §4 `ObjAttrs`). The
+/// device-wide channel state (the RC journal and the scheduling flags) is rc.rs's
+/// `RcState`, one for the C rows and the D models.
 #[derive(Default, Debug)]
 pub struct GuestAttrs {
     objects: BTreeMap<(u32, u32), Attrs>,
-    /// `FIFO_DISABLE_USERMODE_CHANNELS`: the guest's user channels are off (suspend).
-    pub usermode_disabled: bool,
-    /// `INTERNAL_FIFO_TOGGLE_ACTIVE_CHANNEL_SCHEDULING`: every active channel is off.
-    pub scheduling_disabled: bool,
-    /// The RC errors the device reported to this guest (RC_TRIGGERED, boot.rs), and the
-    /// ones the guest reported to the device (watchdog, non-replayable fault).
-    pub journal: Vec<RcRecord>,
 }
-
-/// One entry of the device's RC journal for this guest.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct RcRecord {
-    /// The guest channel, when the error names one.
-    pub chid: Option<u32>,
-    /// The Xid (exceptType) the device reported, 0 for a guest report.
-    pub xid: u32,
-    pub what: String,
-}
-
-/// The oldest records go first once the journal holds this many.
-pub const RC_JOURNAL_MAX: usize = 256;
 
 #[derive(Default, Debug, Clone)]
 pub struct Attrs {
@@ -198,8 +174,6 @@ pub struct Attrs {
     /// answer on the channel's own mirror, read when the device raised an RC for it
     /// (boot.rs `scan_channel_errors`).
     pub last_fault: Option<Vec<u8>>,
-    /// `FIFO_DISABLE_CHANNELS`: the channel's scheduling is disabled.
-    pub disabled: bool,
 }
 
 impl GuestAttrs {
@@ -207,28 +181,11 @@ impl GuestAttrs {
         self.objects.get(&key)
     }
 
-    /// An RC the device raised for guest channel `key` (chid `chid`, Xid `xid`), with the
-    /// fault its mirror reported when there is one: journal entry and fault record.
-    pub fn record_rc(&mut self, key: (u32, u32), chid: u32, xid: u32, fault: Option<Vec<u8>>, what: String) {
-        if let Some(f) = fault {
-            self.objects.entry(key).or_default().last_fault = Some(f);
-        }
-        self.journal_push(RcRecord { chid: Some(chid), xid, what });
-    }
-
-    fn journal_push(&mut self, r: RcRecord) {
-        if self.journal.len() >= RC_JOURNAL_MAX {
-            self.journal.remove(0);
-        }
-        self.journal.push(r);
-    }
-
-    /// Whether the guest channel `key` is enabled in the device's view: not disabled by
-    /// itself, by the usermode switch (a channel of a TSG) or by the device-wide toggle.
-    pub fn channel_enabled(&self, key: (u32, u32), usermode: bool) -> bool {
-        !(self.scheduling_disabled
-            || (usermode && self.usermode_disabled)
-            || self.get(key).is_some_and(|a| a.disabled))
+    /// The fault record of guest channel `key` for an RC the device raised (the host's
+    /// `GET_MMU_FAULT_INFO` answer on the channel's own mirror, boot.rs); the RC itself
+    /// goes into rc.rs's journal.
+    pub fn set_fault(&mut self, key: (u32, u32), fault: Vec<u8>) {
+        self.objects.entry(key).or_default().last_fault = Some(fault);
     }
 
     /// `FREE` of an object (and of everything a freed client owned).
@@ -335,24 +292,44 @@ fn guest(ctx: &mut Ctx<'_>, row: &PublicControl, g: Guest, params: &[u8]) -> Ans
             "no deferred RC".into(),
         ),
         Guest::RcErrorCount => {
-            let count = ctx.attrs.journal.len() as u32;
+            let count = ctx.rc.journal.len() as u32;
             let mut b = vec![0u8; n];
             put32(&mut b, 0, count);
             ok(
                 b,
-                "guest (the device's RC journal for this guest)",
+                "guest (the device's RC journal for this guest, rc.rs)",
                 format!("error count {count}"),
             )
         }
         Guest::RcErrorV2 => {
+            // kernel_rc_ctrl.c:186-283 (krcSubdeviceCtrlCmdRcGetErrorV2): record
+            // `whichBuffer` (0 the oldest) is an `RmProtoBuf_RECORD` header followed by a
+            // `Dcl.ErrorBlock` message that holds the element's error blocks. The device's
+            // records carry no GPU dump blocks, so the message is empty: the header alone,
+            // dwSize 0; outputRecordSize 0 where there is no such record.
+            let which = get32(params, 0);
             let mut b = vec![0u8; n];
             b[..4].copy_from_slice(&params[..4]);
-            put32(&mut b, p::RC_ERROR_V2_OUTPUT_SIZE, 0);
-            ok(
-                b,
-                "guest (the device's RC journal for this guest: no record)",
-                format!("record {}: none", get32(params, 0)),
-            )
+            let (label, what) = match ctx.rc.journal.get(which as usize) {
+                Some(r) => {
+                    let h = p::RC_ERROR_V2_RECORD;
+                    b[h] = p::RC_RECORD_GROUP_RM;
+                    b[h + 1] = p::RC_RECORD_TYPE_PROTOBUF;
+                    b[h + 2..h + 4]
+                        .copy_from_slice(&(p::RC_PROTOBUF_RECORD_SIZE as u16).to_le_bytes());
+                    put32(&mut b, h + 4, 0);
+                    put32(&mut b, p::RC_ERROR_V2_OUTPUT_SIZE, p::RC_PROTOBUF_RECORD_SIZE as u32);
+                    (
+                        "guest (a record of the device's RC journal, rc.rs: the protobuf record header, no error blocks)",
+                        format!("record {which}: Xid {} chid {:?}", r.xid, r.chid),
+                    )
+                }
+                None => (
+                    "guest (the device's RC journal, rc.rs: no such record)",
+                    format!("record {which}: none of {}", ctx.rc.journal.len()),
+                ),
+            };
+            ok(b, label, what)
         }
         Guest::Record { max_level } => {
             ctx.attrs
@@ -491,74 +468,19 @@ fn guest(ctx: &mut Ctx<'_>, row: &PublicControl, g: Guest, params: &[u8]) -> Ans
                 note: format!("{} ({:#x}): {num} channel(s), {} mirrored, timeout {timeout} us capped at {capped} us: {what}", row.name, row.id, mirrored.len()),
             }
         }
-        Guest::DisableChannels => {
-            let disable = params[0] != 0;
-            let num = get32(params, 4) as usize;
-            let only = params[8] != 0;
-            if num > p::DISABLE_CHANNELS_MAX {
-                return err(row, NV_ERR_INVALID_ARGUMENT, params, "guest (more channels than the struct holds)", format!("{num} channels"));
-            }
-            let mut list = Vec::new();
-            let mut mirrored = Vec::new();
-            for i in 0..num {
-                let c = get32(params, p::DISABLE_CHANNELS_CLIENTS + 4 * i);
-                let h = get32(params, p::DISABLE_CHANNELS_CHANNELS + 4 * i);
-                match channel_of(ctx.reg, c, h) {
-                    None => {
-                        return err(
-                            row,
-                            NV_ERR_INVALID_OBJECT_HANDLE,
-                            params,
-                            "guest (the list names no channel of this device)",
-                            format!("{c:#x}/{h:#x}"),
-                        )
-                    }
-                    Some(ch) => {
-                        list.push((c, h));
-                        if ch.mirrored {
-                            mirrored.push((c, h));
-                        }
-                    }
-                }
-            }
-            for &k in &list {
-                ctx.attrs.objects.entry(k).or_default().disabled = disable;
-            }
-            let host = if mirrored.is_empty() {
-                None
-            } else {
-                ctx.mirror
-                    .as_deref_mut()
-                    .and_then(|m| m.schedule(&mirrored, disable, only))
-            };
-            ok(
-                params.to_vec(),
-                if host.is_some() {
-                    "host (recorded; the guest channels' own mirrors disabled or enabled on the host, the guest sees NV_OK)"
-                } else {
-                    "guest (recorded on the guest channels; no mirror)"
-                },
-                format!(
-                    "bDisable {disable} bOnlyDisableScheduling {only} on {} channel(s), {} mirrored; pRunlistPreemptEvent and bRewindGpPut never passed{}",
-                    list.len(),
-                    mirrored.len(),
-                    host.map_or(String::new(), |(st, n)| format!("; host status {st:#x}: {n}"))
-                ),
-            )
-        }
         Guest::DisableUsermode | Guest::ToggleScheduling => {
             let disable = params[0] != 0;
             let all = matches!(g, Guest::ToggleScheduling);
             if all {
-                ctx.attrs.scheduling_disabled = disable;
+                ctx.rc.scheduling_disabled = disable;
             } else {
-                ctx.attrs.usermode_disabled = disable;
+                ctx.rc.usermode_disabled = disable;
             }
             let mirrored: Vec<(u32, u32)> = ctx
                 .reg
                 .map(|r| {
                     r.channels()
-                        .filter(|c| c.mirrored && (all || usermode(ctx.reg, c)))
+                        .filter(|c| c.mirrored && (all || crate::rc::usermode(r, c)))
                         .map(|c| (c.h_client, c.h_object))
                         .collect()
                 })
@@ -603,42 +525,6 @@ fn guest(ctx: &mut Ctx<'_>, row: &PublicControl, g: Guest, params: &[u8]) -> Ans
                 b,
                 "guest (the GR context the guest promoted for the channel or its TSG, channel.rs record_promote_ctx)",
                 format!("chid {}: exists {exists}", c.chid),
-            )
-        }
-        Guest::WatchdogTimeout => {
-            ctx.attrs.journal_push(RcRecord {
-                chid: None,
-                xid: 0,
-                what: "RC watchdog timeout reported by the guest kernel".into(),
-            });
-            ok(
-                params.to_vec(),
-                "guest (recorded in the device's RC journal; no host engine is reset, the recovery is the guest's RESET_CHANNEL)",
-                format!("journal {} record(s)", ctx.attrs.journal.len()),
-            )
-        }
-        Guest::RcCleanHistory => {
-            let n = ctx.attrs.journal.len();
-            ctx.attrs.journal.clear();
-            ok(
-                params.to_vec(),
-                "guest (the device's RC journal for this guest emptied; the host's history is never touched)",
-                format!("{n} record(s) dropped"),
-            )
-        }
-        Guest::NonReplayableFault => {
-            // The GMMU fault packet (32 bytes): instance pointer @0, fault address @8,
-            // timestamp @16, info @28 (clc369.h NVC369_BUF_ENTRY_*).
-            let (inst, addr, info) = (get64(params, 0), get64(params, 8), get32(params, 28));
-            ctx.attrs.journal_push(RcRecord {
-                chid: None,
-                xid: 0,
-                what: format!("non-replayable fault reported by the guest: inst {inst:#x} addr {addr:#x} info {info:#x}"),
-            });
-            ok(
-                params.to_vec(),
-                "guest (the guest's fault packet recorded in the device's RC journal; never passed to the host GMMU)",
-                format!("inst {inst:#x} addr {addr:#x}"),
             )
         }
         Guest::MmuDebugMode => ok(
@@ -705,7 +591,8 @@ fn guest(ctx: &mut Ctx<'_>, row: &PublicControl, g: Guest, params: &[u8]) -> Ans
             let Some(ch) = channel_of(ctx.reg, c, h) else {
                 return err(row, NV_ERR_INVALID_CHANNEL, params, "guest (no channel of this device)", format!("{c:#x}/{h:#x}"));
             };
-            let enabled = ctx.attrs.channel_enabled((c, h), usermode(ctx.reg, ch));
+            let reg = ctx.reg.expect("resolved above");
+            let enabled = ctx.rc.channel_enabled(reg, ch);
             let mut b = params.to_vec();
             b[8..16].fill(0);
             b[p::CHANNEL_STATE_ENABLED] = enabled as u8;
@@ -819,12 +706,6 @@ fn device(ctx: &Ctx<'_>, row: &PublicControl, d: Dev, params: &[u8]) -> Answer {
             params.to_vec(),
             "synthesized (NOT_SUPPORTED: no ECC on this board, as the host answers the ECC getters, Q-B1)",
             "sram unique uncorrected counts: no ECC".into(),
-        ),
-        Dev::MemMapDenied => (
-            NV_ERR_PROTECTION_FAULT,
-            params.to_vec(),
-            "synthesized (the device's BAR0 map: nothing beyond the timer, usermode and MC ranges the kernel allows itself)",
-            format!("start {:#x} length {:#x}: denied", get64(params, 0), get64(params, 8)),
         ),
         Dev::BifInfo => {
             let index = get32(params, 0);
@@ -1081,6 +962,7 @@ mod tests {
             key: (0, 0),
             mirror: None,
             attrs: &mut GuestAttrs::default(),
+            rc: &mut crate::rc::RcState::default(),
             reg: None,
             link_control: 0,
         };
@@ -1205,6 +1087,7 @@ mod tests {
             key: (0, 0),
             mirror: None,
             attrs: &mut GuestAttrs::default(),
+            rc: &mut crate::rc::RcState::default(),
             reg: None,
             link_control: 0,
         };
@@ -1314,6 +1197,7 @@ mod tests {
             key: (0, 0),
             mirror: None,
             attrs: &mut GuestAttrs::default(),
+            rc: &mut crate::rc::RcState::default(),
             reg: None,
             link_control: 0,
         };
@@ -1414,6 +1298,7 @@ mod tests {
             key: (0, 0),
             mirror: None,
             attrs: &mut GuestAttrs::default(),
+            rc: &mut crate::rc::RcState::default(),
             reg: None,
             link_control: 0,
         };
@@ -1546,6 +1431,7 @@ mod tests {
             key: obj,
             mirror: Some(&mut m),
             attrs,
+            rc: &mut crate::rc::RcState::default(),
             reg: None,
             link_control: 0x3,
         };
@@ -1668,8 +1554,9 @@ mod tests {
             .filter(|c| matches!(c.rule, Rule::Refuse(_)))
             .collect();
         // V, K, X; then the round-2 refusals: SETUP_BIND, the two DP readbacks, the two TPC
-        // partition setters and the three debugger getters without a session model.
-        assert_eq!(refused.len(), 8 + 5 + 2 + 8);
+        // partition setters and the two debugger getters without a session model (the MMU
+        // debug mode getter is dmodel.rs's).
+        assert_eq!(refused.len(), 8 + 5 + 2 + 7);
         for c in refused {
             let (a, calls) = guest_call(&mut attrs, &[CH], CH, c.id, &[0x3C; 16]);
             assert!(calls.is_empty(), "{}", c.name);
@@ -1714,6 +1601,14 @@ mod tests {
 
     use crate::ver::active as va;
     type Abi = va::RmAbi;
+
+    /// The device state the C rows reach: the per-object records and rc.rs's journal and
+    /// scheduling flags.
+    #[derive(Default)]
+    struct St {
+        attrs: GuestAttrs,
+        rc: crate::rc::RcState,
+    }
 
     /// Guest client 0xC1: TSG 0x30 (kernel id 7 on 615) with channel 0x40 (chid 2, host
     /// mirror) and channel 0x41 (chid 3, software); a bare kernel channel 0x50 (chid 4).
@@ -1787,7 +1682,7 @@ mod tests {
     /// One control on object `obj` with the registry of [`world`], a host RM that fails the
     /// test when called, and `m` as the mirror.
     fn round2(
-        attrs: &mut GuestAttrs,
+        st: &mut St,
         reg: &crate::channel::Registry,
         m: &mut Mirror2,
         obj: (u32, u32),
@@ -1804,7 +1699,8 @@ mod tests {
             object: obj,
             key: obj,
             mirror: Some(m),
-            attrs,
+            attrs: &mut st.attrs,
+            rc: &mut st.rc,
             reg: Some(reg),
             link_control: 0x2,
         };
@@ -1815,26 +1711,33 @@ mod tests {
 
     const SUB: (u32, u32) = (0xC1, 0x5C00_0100);
 
-    /// The 17 category C rows of d-device-model.md §10 are rows of the C table, and the
-    /// category D rule table leaves each of them to it.
+    /// The 17 category C rows of d-device-model.md §10: twelve are rows of the C table and
+    /// have left the D rule table (the generator drops a control another handler answers);
+    /// five are answered by the D models (rc.rs, dmodel.rs), have no C row and keep their D
+    /// rule with reclass C (the reconciliation of 2026-09-25).
     #[test]
     fn the_17_d_plan_c_rows_are_c_rows() {
-        let ids = [
-            0x0080_1714u32, 0x2080_110B, 0x2080_1117, 0x208F_0401, 0x2080_1205, 0x2080_1211,
-            0x2080_123A, 0x2080_0198, 0x208F_0704, 0x0073_137E, 0x0073_137F, 0x2080_0A6A,
-            0x2080_2207, 0x2080_0177, 0x0080_1108, 0x2080_0AC3, 0x2080_122C,
+        let c_table = [
+            0x0080_1714u32, 0x2080_1117, 0x208F_0401, 0x2080_1205, 0x2080_1211, 0x2080_123A,
+            0x208F_0704, 0x0073_137E, 0x0073_137F, 0x0080_1108, 0x2080_0AC3, 0x2080_122C,
         ];
-        for id in ids {
+        let d_models = [0x2080_110Bu32, 0x2080_0177, 0x2080_0A6A, 0x2080_2207, 0x2080_0198];
+        for id in c_table {
             assert!(p::PUBLIC_C.iter().any(|c| c.id == id), "{id:#x}");
+            assert!(crate::dmodel::rule(id).is_none(), "{id:#x} still in D");
+        }
+        for id in d_models {
+            assert!(p::public_control(id).is_none(), "{id:#x} has a C row");
             let r = crate::dmodel::rule(id).unwrap_or_else(|| panic!("{id:#x} not in D"));
             assert_eq!(r.reclass, 'C', "{id:#x}");
+            assert!(crate::dmodel::MODELLED_HERE.contains(&r.name), "{id:#x}");
         }
         let c_rows = crate::ver::Abi::active()
             .d_rules
             .iter()
             .filter(|r| r.reclass == 'C')
             .count();
-        assert_eq!(c_rows, ids.len());
+        assert_eq!(c_rows, d_models.len());
     }
 
     /// FIFO_IDLE_CHANNELS: software channels are idle; mirrored ones go to the host idle
@@ -1843,7 +1746,7 @@ mod tests {
     #[test]
     fn idle_channels_control() {
         let reg = world();
-        let mut attrs = GuestAttrs::default();
+        let mut attrs = St::default();
         let req = |hs: &[u32], timeout: u32| {
             let mut b = vec![0u8; p::IDLE_CHANNELS_SIZE];
             put32(&mut b, 0, hs.len() as u32);
@@ -1874,48 +1777,31 @@ mod tests {
         assert!(m.calls.is_empty());
     }
 
-    /// FIFO_DISABLE_CHANNELS, DISABLE_USERMODE_CHANNELS and the scheduling toggle: the
-    /// device's flags, the host only for the channels' own mirrors.
+    /// DISABLE_USERMODE_CHANNELS and the scheduling toggle write the device's one set of
+    /// scheduling flags (rc.rs), which FIFO_DISABLE_CHANNELS (the D model) writes too; the
+    /// host only for the channels' own mirrors.
     #[test]
     fn scheduling_rows_act_on_the_guest_channel_set() {
         let reg = world();
-        let mut attrs = GuestAttrs::default();
+        let mut attrs = St::default();
         let mut m = Mirror2::default();
-        let state = |attrs: &mut GuestAttrs, _: &mut Mirror2, h: u32| {
-            let user = h != 0x50;
-            let e = attrs.channel_enabled((0xC1, h), user) as u8;
+        let state = |attrs: &mut St, _: &mut Mirror2, h: u32| {
+            let c = reg.channels().find(|c| c.h_object == h).unwrap();
+            let e = attrs.rc.channel_enabled(&reg, c) as u8;
             (e, e)
         };
         assert_eq!(state(&mut attrs, &mut m, 0x41), (1, 1));
-        let mut d = vec![0u8; p::DISABLE_CHANNELS_SIZE];
-        d[0] = 1;
-        put32(&mut d, 4, 2);
-        d[8] = 1;
-        d[16..24].fill(0xEE); // pRunlistPreemptEvent: never passed on
-        for (i, h) in [0x40u32, 0x41].iter().enumerate() {
-            put32(&mut d, p::DISABLE_CHANNELS_CLIENTS + 4 * i, 0xC1);
-            put32(&mut d, p::DISABLE_CHANNELS_CHANNELS + 4 * i, *h);
-        }
-        let a = round2(&mut attrs, &reg, &mut m, SUB, 0x2080_110B, &d);
-        assert_eq!(a.status, NV_OK, "{}", a.note);
-        assert_eq!(m.calls, ["schedule [(c1, 40)] true true"], "only the mirrored channel");
+        // FIFO_DISABLE_CHANNELS has no C row: the D model answers it (rc.rs).
+        assert!(p::public_control(0x2080_110B).is_none());
+        attrs.rc.disabled.insert((0xC1, 0x41));
         assert_eq!(state(&mut attrs, &mut m, 0x41), (0, 0));
         assert_eq!(state(&mut attrs, &mut m, 0x50), (1, 1));
-        // Unknown channel in the list: 0x33, nothing recorded or sent.
-        m.calls.clear();
-        put32(&mut d, p::DISABLE_CHANNELS_CHANNELS + 4, 0x99);
-        let a = round2(&mut attrs, &reg, &mut m, SUB, 0x2080_110B, &d);
-        assert_eq!(a.status, NV_ERR_INVALID_OBJECT_HANDLE);
-        assert!(m.calls.is_empty());
+        attrs.rc.disabled.clear();
         // Usermode: the TSG's channels, not the kernel's bare channel.
-        d[0] = 0;
-        put32(&mut d, 4, 1);
-        let a = round2(&mut attrs, &reg, &mut m, SUB, 0x2080_110B, &d);
-        assert_eq!(a.status, NV_OK);
-        m.calls.clear();
         let a = round2(&mut attrs, &reg, &mut m, SUB, 0x2080_1117, &[1]);
         assert_eq!(a.status, NV_OK);
         assert_eq!(m.calls, ["schedule [(c1, 40)] true false"]);
+        assert!(attrs.rc.usermode_disabled);
         assert_eq!(state(&mut attrs, &mut m, 0x40), (0, 0));
         assert_eq!(state(&mut attrs, &mut m, 0x50), (1, 1), "the kernel's own channel stays");
         round2(&mut attrs, &reg, &mut m, SUB, 0x2080_1117, &[0]);
@@ -1923,6 +1809,7 @@ mod tests {
         m.calls.clear();
         round2(&mut attrs, &reg, &mut m, SUB, 0x2080_0AC3, &[1]);
         assert_eq!(m.calls, ["schedule [(c1, 40)] true true"]);
+        assert!(attrs.rc.scheduling_disabled);
         assert_eq!(state(&mut attrs, &mut m, 0x50), (0, 0));
         round2(&mut attrs, &reg, &mut m, SUB, 0x2080_0AC3, &[0]);
         assert_eq!(state(&mut attrs, &mut m, 0x40), (1, 1));
@@ -1934,7 +1821,7 @@ mod tests {
     #[test]
     fn context_rows() {
         let reg = world();
-        let mut attrs = GuestAttrs::default();
+        let mut attrs = St::default();
         let mut m = Mirror2::default();
         let mut c = vec![0u8; 12];
         put32(&mut c, 0, 0x41);
@@ -1961,7 +1848,7 @@ mod tests {
         put32(&mut pb, 8, 0x40);
         assert_eq!(round2(&mut attrs, &reg, &mut m, SUB, 0x2080_1211, &pb).status, NV_OK);
         assert!(m.calls.is_empty(), "{:?}", m.calls);
-        let rec = &attrs.get((0xC1, 0x41)).unwrap().recorded;
+        let rec = &attrs.attrs.get((0xC1, 0x41)).unwrap().recorded;
         assert_eq!(get32(&rec[&0x2080_1205], p::ZCULL_MODE_MODE), 2);
         assert_eq!(get32(&rec[&0x2080_1211], p::PREEMPTION_BIND_CILP), 2);
         // The Setup bind and the TPC partition setters are refused locally.
@@ -1973,14 +1860,14 @@ mod tests {
         assert!(m.calls.is_empty());
     }
 
-    /// VALIDATE_MEM_MAP_REQUEST is a protection fault; BIF_INFO reads the emulated LnkCtl.
+    /// BIF_INFO reads the emulated LnkCtl (VALIDATE_MEM_MAP_REQUEST is the D model's BAR0
+    /// policy, dmodel.rs).
     #[test]
     fn device_state_rows() {
         let reg = world();
-        let mut attrs = GuestAttrs::default();
+        let mut attrs = St::default();
         let mut m = Mirror2::default();
-        let a = round2(&mut attrs, &reg, &mut m, SUB, 0x2080_0198, &[0u8; 24]);
-        assert_eq!(a.status, NV_ERR_PROTECTION_FAULT);
+        assert!(p::public_control(0x2080_0198).is_none());
         // link_control 0x2: L1 enabled, L0s not.
         let a = round2(&mut attrs, &reg, &mut m, SUB, 0x208F_0704, &[0u8; 8]);
         assert_eq!((a.status, get32(&a.params, 4)), (NV_OK, 0));
@@ -1992,44 +1879,61 @@ mod tests {
         assert_eq!(round2(&mut attrs, &reg, &mut m, SUB, 0x208F_0704, &b).status, NV_ERR_INVALID_ARGUMENT);
     }
 
-    /// The RC journal: the device's RCs (boot.rs) and the guest's reports are counted,
-    /// SET_CLEAN_ERROR_HISTORY empties it; the fault record feeds GET_MMU_FAULT_INFO.
+    /// The RC journal is rc.rs's: what the device raised and the guest logged is counted by
+    /// RC_GET_ERROR_COUNT and returned by RC_GET_ERROR_V2 (the record header, no error
+    /// blocks); the fault record feeds GET_MMU_FAULT_INFO.
     #[test]
     fn rc_journal() {
         let reg = world();
-        let mut attrs = GuestAttrs::default();
+        let mut attrs = St::default();
         let mut m = Mirror2::default();
-        let count = |attrs: &mut GuestAttrs, m: &mut Mirror2| {
+        let count = |attrs: &mut St, m: &mut Mirror2| {
             get32(&round2(attrs, &reg, m, SUB, 0x2080_2205, &[0u8; 4]).params, 0)
+        };
+        let v2 = |attrs: &mut St, m: &mut Mirror2, which: u32| {
+            let mut q = vec![0xEEu8; p::RC_ERROR_V2_SIZE];
+            put32(&mut q, 0, which);
+            round2(attrs, &reg, m, SUB, 0x2080_2213, &q)
         };
         assert_eq!(count(&mut attrs, &mut m), 0);
         let mut fault = vec![0u8; p::MMU_FAULT_INFO_SIZE];
         fault[0..8].copy_from_slice(&0x7f00_1000u64.to_le_bytes());
-        attrs.record_rc((0xC1, 0x40), 2, 31, Some(fault.clone()), "mirror fault".into());
-        round2(&mut attrs, &reg, &mut m, SUB, 0x2080_0A6A, &[]);
-        let mut pkt = [0u8; 32];
-        pkt[8..16].copy_from_slice(&0xdead_0000u64.to_le_bytes());
-        round2(&mut attrs, &reg, &mut m, SUB, 0x2080_0177, &pkt);
-        assert_eq!(count(&mut attrs, &mut m), 3);
-        assert!(attrs.journal[2].what.contains("0xdead0000"), "{:?}", attrs.journal);
+        attrs.attrs.set_fault((0xC1, 0x40), fault.clone());
+        attrs.rc.record(Some(2), 31, "mirror fault".into());
+        attrs.rc.record(None, 13, "guest xid".into());
+        assert_eq!(count(&mut attrs, &mut m), 2);
+        let a = v2(&mut attrs, &mut m, 1);
+        assert_eq!(a.status, NV_OK);
+        assert_eq!(get32(&a.params, 0), 1, "whichBuffer kept");
+        assert_eq!(get32(&a.params, p::RC_ERROR_V2_OUTPUT_SIZE), p::RC_PROTOBUF_RECORD_SIZE as u32);
+        let h = p::RC_ERROR_V2_RECORD;
+        assert_eq!(
+            (a.params[h], a.params[h + 1], a.params[h + 2], get32(&a.params, h + 4)),
+            (p::RC_RECORD_GROUP_RM, p::RC_RECORD_TYPE_PROTOBUF, 8, 0)
+        );
+        assert!(a.params[h + 8..].iter().all(|&x| x == 0));
+        let a = v2(&mut attrs, &mut m, 2);
+        assert_eq!(get32(&a.params, p::RC_ERROR_V2_OUTPUT_SIZE), 0, "no third record");
         let a = round2(&mut attrs, &reg, &mut m, (0xC1, 0x40), 0x906F_0106, &[0u8; p::MMU_FAULT_INFO_SIZE]);
         assert_eq!(a.params, fault, "the recorded fault of the channel");
-        round2(&mut attrs, &reg, &mut m, SUB, 0x2080_2207, &[]);
+        // The clean-history control is the D model's (rc.rs), not a C row.
+        assert!(p::public_control(0x2080_2207).is_none());
+        attrs.rc.clean_history(&[]);
         assert_eq!(count(&mut attrs, &mut m), 0);
-        for i in 0..RC_JOURNAL_MAX + 3 {
-            attrs.record_rc((0xC1, 0x41), 3, i as u32, None, String::new());
+        for i in 0..crate::rc::RC_LOG_MAX + 3 {
+            attrs.rc.record(Some(3), i as u32, String::new());
         }
-        assert_eq!(attrs.journal.len(), RC_JOURNAL_MAX);
-        assert_eq!(attrs.journal[0].xid, 3, "the oldest go first");
+        assert_eq!(count(&mut attrs, &mut m), crate::rc::RC_LOG_MAX as u32);
+        assert_eq!(attrs.rc.journal[0].xid, 3, "the oldest go first");
     }
 
     /// The open B rows: MMU debug mode 0, resident channel only for an own mirror, the
-    /// debugger getters (ERRBAR disabled; MMU debug and per-SM status need the R5 session
-    /// model, GCC is not on this chip), and the TSG's kernel id.
+    /// debugger getters (ERRBAR disabled; per-SM status needs the R5 session model, GCC is
+    /// not on this chip; the MMU debug mode is dmodel.rs's), and the TSG's kernel id.
     #[test]
     fn b_rows_from_device_state() {
         let reg = world();
-        let mut attrs = GuestAttrs::default();
+        let mut attrs = St::default();
         let mut m = Mirror2::default();
         // GET_CTXSW_MODES of a software channel: what ZCULL_MODE and PREEMPTION_BIND
         // recorded; PM and SMPC off.
@@ -2065,7 +1969,7 @@ mod tests {
         assert_eq!(m.calls, ["query 0x20801215 0 None"]);
         m.calls.clear();
         // FIFO_GET_CHANNEL_STATE: the device's scheduling flags.
-        let state = |attrs: &mut GuestAttrs, m: &mut Mirror2, h: u32| {
+        let state = |attrs: &mut St, m: &mut Mirror2, h: u32| {
             let mut b = vec![0u8; 16];
             put32(&mut b, 0, h);
             put32(&mut b, 4, 0xC1);
@@ -2095,7 +1999,8 @@ mod tests {
             object: SUB,
             key: SUB,
             mirror: None,
-            attrs: &mut attrs,
+            attrs: &mut attrs.attrs,
+            rc: &mut attrs.rc,
             reg: Some(&reg),
             link_control: 0,
         };
@@ -2104,7 +2009,9 @@ mod tests {
         assert!(seen.lock().unwrap().is_empty());
         let a = round2(&mut attrs, &reg, &mut m, (0xC1, 0x83DE), 0x83DE_0320, &[0xFF; 4]);
         assert_eq!((a.status, get32(&a.params, 0)), (NV_OK, p::ERRBAR_DEBUG_DISABLED));
-        for id in [0x83DE_0308u32, 0x83DE_0325, 0x83DE_032B] {
+        // DEBUG_GET_MODE_MMU_DEBUG is the debugger-session record of dmodel.rs.
+        assert!(p::public_control(0x83DE_0308).is_none());
+        for id in [0x83DE_0325u32, 0x83DE_032B] {
             let a = round2(&mut attrs, &reg, &mut m, (0xC1, 0x83DE), id, &[0x5A; 12]);
             assert_eq!(a.status, NV_ERR_NOT_SUPPORTED, "{id:#x}");
             assert_eq!(a.params, [0x5A; 12], "{id:#x}: echoed");

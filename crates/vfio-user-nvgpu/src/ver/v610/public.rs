@@ -40,9 +40,9 @@ pub enum Guest {
     MmuFaultInfo,
     /// `GET_DEFER_RC_STATE`: the device defers no RC.
     DeferRcState,
-    /// `RC_GET_ERROR_COUNT`: the device's RC journal for this guest (empty).
+    /// `RC_GET_ERROR_COUNT`: the number of records in the device's RC journal (rc.rs).
     RcErrorCount,
-    /// `RC_GET_ERROR_V2`: the journal's records (none).
+    /// `RC_GET_ERROR_V2`: record `whichBuffer` of the device's RC journal (rc.rs).
     RcErrorV2,
     /// Record the setting, and forward it to the object's mirror when there is one. A u32
     /// level @0 above `max_level` is recorded only.
@@ -57,11 +57,9 @@ pub enum Guest {
     /// `NV0080 FIFO_IDLE_CHANNELS`: the listed guest channels; software channels are idle,
     /// mirrored ones go to the host RM's idle on the mirror's own channels.
     IdleChannels,
-    /// `NV2080 FIFO_DISABLE_CHANNELS`: the listed guest channels' scheduling flag;
-    /// mirrored ones on their own host twins.
-    DisableChannels,
     /// `NV2080 FIFO_DISABLE_USERMODE_CHANNELS`: every guest channel of a TSG (the kernel's
-    /// own bare channels stay), mirrored ones on their own host twins.
+    /// own bare channels stay), mirrored ones on their own host twins; the flag is the
+    /// device's one set of scheduling flags (rc.rs `Sched`).
     DisableUsermode,
     /// `INTERNAL_FIFO_TOGGLE_ACTIVE_CHANNEL_SCHEDULING`: the device's scheduling flag over
     /// the guest channel set, mirrored ones on their own host twins.
@@ -69,12 +67,6 @@ pub enum Guest {
     /// `NV208F FIFO_CHECK_ENGINE_CONTEXT`: whether the guest promoted a GR context for the
     /// channel (or its TSG).
     CheckEngineContext,
-    /// `INTERNAL_RC_WATCHDOG_TIMEOUT`: recorded in the device's RC journal.
-    WatchdogTimeout,
-    /// `RC_SET_CLEAN_ERROR_HISTORY`: the device's RC journal emptied.
-    RcCleanHistory,
-    /// `GPU_REPORT_NON_REPLAYABLE_FAULT`: the packet recorded in the RC journal.
-    NonReplayableFault,
     /// `NV0090 GET_MMU_DEBUG_MODE`: the TSG's MMU debug mode (the device never enables
     /// one).
     MmuDebugMode,
@@ -114,10 +106,6 @@ pub enum Dev {
     /// `ECC_GET_SRAM_UNIQUE_UNCORR_COUNTS`: this board has no ECC; NOT_SUPPORTED as the
     /// host answers the other ECC getters (Q-B1).
     NoEcc,
-    /// `GPU_VALIDATE_MEM_MAP_REQUEST`: the device's BAR0 has nothing a user may map beyond
-    /// what the kernel allows itself (timer, usermode, MC; subdevice_ctrl_gpu_kernel.c:
-    /// 2934-2966): `NV_ERR_PROTECTION_FAULT`.
-    MemMapDenied,
     /// `NV208F BIF_INFO`: the ASPM enables of the emulated PCIe Link Control register.
     BifInfo,
 }
@@ -254,34 +242,32 @@ pub const PUBLIC_C: &[PublicControl] = &[
     // Group X: the INTERNAL TSG controls; a GSP client sends the public forms.
     row(0xA06C_0201, "NVA06C INTERNAL_GPFIFO_SCHEDULE", 0, Rule::Refuse(REFUSED_INTERNAL_TSG)),
     row(0xA06C_0202, "NVA06C INTERNAL_SET_TIMESLICE", 0, Rule::Refuse(REFUSED_INTERNAL_TSG)),
-    // The 17 category C rows of the D plan (d-device-model.md §10, "Rows for the category C
+    // The category C rows of the D plan (d-device-model.md §10, "Rows for the category C
     // work"): device state and the guest's own mirror objects only, never a host-global
-    // action.
+    // action. Five of the 17 are the D models' (rc.rs, dmodel.rs; the reconciliation of
+    // 2026-09-25): FIFO_DISABLE_CHANNELS, GPU_REPORT_NON_REPLAYABLE_FAULT,
+    // INTERNAL_RC_WATCHDOG_TIMEOUT, RC_SET_CLEAN_ERROR_HISTORY and
+    // GPU_VALIDATE_MEM_MAP_REQUEST have no row here.
     row(0x0080_1714, "NV0080 FIFO_IDLE_CHANNELS", IDLE_CHANNELS_SIZE, Rule::Guest(Guest::IdleChannels)),
-    row(0x2080_110B, "FIFO_DISABLE_CHANNELS", DISABLE_CHANNELS_SIZE, Rule::Guest(Guest::DisableChannels)),
     row(0x2080_1117, "FIFO_DISABLE_USERMODE_CHANNELS", 1, Rule::Guest(Guest::DisableUsermode)),
     row(0x2080_0AC3, "INTERNAL_FIFO_TOGGLE_ACTIVE_CHANNEL_SCHEDULING", 1, Rule::Guest(Guest::ToggleScheduling)),
     row(0x208F_0401, "NV208F FIFO_CHECK_ENGINE_CONTEXT", 12, Rule::Guest(Guest::CheckEngineContext)),
     row(0x2080_1205, "GR_CTXSW_ZCULL_MODE", 16, Rule::Guest(Guest::ChannelRecord { h_client: None, h_channel: 0 })),
     row(0x2080_1211, "GR_CTXSW_PREEMPTION_BIND", PREEMPTION_BIND_SIZE, Rule::Guest(Guest::ChannelRecord { h_client: Some(4), h_channel: 8 })),
     row(0x2080_123A, "GR_CTXSW_SETUP_BIND", 0, Rule::Refuse(REFUSED_SETUP_BIND)),
-    row(0x2080_0198, "GPU_VALIDATE_MEM_MAP_REQUEST", 24, Rule::Device(Dev::MemMapDenied)),
     row(0x208F_0704, "NV208F BIF_INFO", 8, Rule::Device(Dev::BifInfo)),
     row(0x0073_137E, "NV0073 DP_GET_GENERIC_INFOFRAME", 0, Rule::Refuse(REFUSED_DISPLAY_CAPTURE)),
     row(0x0073_137F, "NV0073 DP_GET_MSA_ATTRIBUTES", 0, Rule::Refuse(REFUSED_DISPLAY_CAPTURE)),
-    row(0x2080_0A6A, "INTERNAL_RC_WATCHDOG_TIMEOUT", 0, Rule::Guest(Guest::WatchdogTimeout)),
-    row(0x2080_2207, "RC_SET_CLEAN_ERROR_HISTORY", 0, Rule::Guest(Guest::RcCleanHistory)),
-    row(0x2080_0177, "GPU_REPORT_NON_REPLAYABLE_FAULT", 32, Rule::Guest(Guest::NonReplayableFault)),
     row(0x0080_1108, "NV0080 GR_SET_TPC_PARTITION_MODE", 0, Rule::Refuse(REFUSED_TPC_PARTITION)),
     row(0x2080_122C, "GR_SET_TPC_PARTITION_MODE", 0, Rule::Refuse(REFUSED_TPC_PARTITION)),
-    // The open category B rows moved here (c-guest-state.md §3 B2-B5, B8-B12; B1, the ZBC
-    // table entry, belongs to the ZBC model).
+    // The open category B rows moved here (c-guest-state.md §3 B2-B5, B8, B10-B12; B1, the
+    // ZBC table entry, belongs to the ZBC model, B9 `NV83DE DEBUG_GET_MODE_MMU_DEBUG` to the
+    // debugger-session record of dmodel.rs, which its setter fills).
     row(0x0090_0105, "NV0090 GET_MMU_DEBUG_MODE", 1, Rule::Guest(Guest::MmuDebugMode)),
     row(0x2080_1215, "GR_GET_CTXSW_STATS", 32, Rule::Guest(Guest::CtxswStats)),
     row(0x2080_1235, "GR_GET_CTXSW_MODES", 24, Rule::Guest(Guest::CtxswModes)),
     row(0x2080_121C, "GR_GET_CURRENT_RESIDENT_CHANNEL", 24, Rule::Guest(Guest::ResidentChannel)),
     row(0x208F_0403, "NV208F FIFO_GET_CHANNEL_STATE", 16, Rule::Guest(Guest::ChannelState)),
-    row(0x83DE_0308, "NV83DE DEBUG_GET_MODE_MMU_DEBUG", 0, Rule::Refuse(REFUSED_DEBUG_SESSION)),
     row(0x83DE_0320, "NV83DE DEBUG_GET_MODE_ERRBAR_DEBUG", 4, Rule::Guest(Guest::ErrbarDebugMode)),
     row(0x83DE_0325, "NV83DE DEBUG_GET_SINGLE_SM_DEBUGGER_STATUS", 0, Rule::Refuse(REFUSED_SM_DEBUGGER_STATUS)),
     row(0x83DE_032B, "NV83DE DEBUG_GET_MODE_MMU_GCC_DEBUG", 0, Rule::Refuse(REFUSED_MMU_GCC)),
@@ -297,8 +283,6 @@ pub const REFUSED_DISPLAY_CAPTURE: &str =
     "refused (readback of the guest's own head: the display model keeps no SDP or MSA capture yet; display-engine state, d-device-model.md 6.5)";
 pub const REFUSED_TPC_PARTITION: &str =
     "refused (TPC partition mode of a guest TSG: unmeasured on the host, never forwarded; d-device-model.md 6.11)";
-pub const REFUSED_DEBUG_SESSION: &str =
-    "refused (no debugger session model: SET_MODE_MMU_DEBUG is not modelled yet, d-device-model.md R5)";
 pub const REFUSED_SM_DEBUGGER_STATUS: &str =
     "refused (per-SM debugger status needs a debugger session with SM run control; the SM debugger is refused, d-device-model.md 6.16 and R5)";
 pub const REFUSED_MMU_GCC: &str =
@@ -310,13 +294,6 @@ pub const IDLE_CHANNELS_SIZE: usize = 16396;
 pub const IDLE_CHANNELS_MAX: usize = 4096;
 pub const IDLE_CHANNELS_FLAGS: usize = 4 + 4 * IDLE_CHANNELS_MAX;
 pub const IDLE_CHANNELS_TIMEOUT: usize = IDLE_CHANNELS_FLAGS + 4;
-/// `NV2080_CTRL_FIFO_DISABLE_CHANNELS_PARAMS` (ctrl2080fifo.h:241-251): `bDisable` @0,
-/// `numChannels` @4, `bOnlyDisableScheduling` @8, `bRewindGpPut` @9,
-/// `pRunlistPreemptEvent` @16, `hClientList[64]` @24, `hChannelList[64]` @280; 536 bytes.
-pub const DISABLE_CHANNELS_SIZE: usize = 536;
-pub const DISABLE_CHANNELS_MAX: usize = 64;
-pub const DISABLE_CHANNELS_CLIENTS: usize = 24;
-pub const DISABLE_CHANNELS_CHANNELS: usize = DISABLE_CHANNELS_CLIENTS + 4 * DISABLE_CHANNELS_MAX;
 /// `NV2080_CTRL_GR_CTXSW_PREEMPTION_BIND_PARAMS` (ctrl2080gr.h:921-929): `flags` @0,
 /// `hClient` @4, `hChannel` @8, `vMemPtrs[9]` @16, `gfxpPreemptMode` @88,
 /// `cilpPreemptMode` @92, `grRouteInfo` @96; 112 bytes.
@@ -360,6 +337,14 @@ pub const MMU_FAULT_INFO_SIZE: usize = 104;
 /// `outputRecordSize` @4, `recordBuffer` @8; 8200 bytes.
 pub const RC_ERROR_V2_SIZE: usize = 8200;
 pub const RC_ERROR_V2_OUTPUT_SIZE: usize = 4;
+pub const RC_ERROR_V2_RECORD: usize = 8;
+/// `RmProtoBuf_RECORD` (rmcd.h:108-111): the `NVCD_RECORD` header (nvcd.h:119-124:
+/// `cRecordGroup` @0, `cRecordType` @1, `wRecordSize` u16 @2) and `dwSize` @4, the length
+/// of the protobuf message after it; 8 bytes. `RmGroup` 1 (nvcd.h:105), `RmProtoBuf` 131
+/// (rmcd.h:84).
+pub const RC_PROTOBUF_RECORD_SIZE: usize = 8;
+pub const RC_RECORD_GROUP_RM: u8 = 1;
+pub const RC_RECORD_TYPE_PROTOBUF: u8 = 131;
 
 pub const REFUSED_PROFILER: &str = "refused (profiler: profiling is refused, gsp-surface.md §3 D rule 4)";
 pub const REFUSED_SCHED_LOG: &str = "refused (host scheduler log: every tenant's scheduling)";

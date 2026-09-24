@@ -189,7 +189,10 @@ impl DState {
     pub fn new(chip: &'static crate::chip::ChipData) -> Self {
         DState {
             chip,
-            rc: Default::default(),
+            rc: crate::rc::RcState {
+                selftest: crate::rc::SelfTest::from_env(),
+                ..Default::default()
+            },
             zbc: None,
             compute_mode: 0,
             gpuacct: BTreeMap::new(),
@@ -650,13 +653,16 @@ mod tests {
             }
         }
         // Refuse, Deny, Ack, Table, Model, Mirror. Round 2 (d-device-model.md §10): the two
-        // timed-semaphore rows REFUSE until Q4 shows the class, GPU accounting a model.
+        // timed-semaphore rows REFUSE until Q4 shows the class, GPU accounting a model. The
+        // reconciliation of 2026-09-25: of the 17 rows moved to C, the twelve the C table
+        // answers (public.rs) have left this table (3 REFUSE, 7 MODEL, 2 MIRROR); the five
+        // the D models answer stay, with reclass C.
         let by_name = |n: &str| ABIS.iter().find(|a| a.name == n).unwrap();
-        assert_eq!(counts(by_name("615")), [202, 37, 20, 5, 41, 3]);
-        assert_eq!(counts(by_name("610")), [200, 37, 19, 5, 41, 3]);
+        assert_eq!(counts(by_name("615")), [199, 37, 20, 5, 34, 1]);
+        assert_eq!(counts(by_name("610")), [197, 37, 19, 5, 34, 1]);
         for abi in ABIS {
             let re = |c: char| abi.d_rules.iter().filter(|r| r.reclass == c).count();
-            assert_eq!((re('A'), re('C'), re('E')), (7, 17, 102), "{}", abi.name);
+            assert_eq!((re('A'), re('C'), re('E')), (7, 5, 102), "{}", abi.name);
         }
     }
 
@@ -748,11 +754,9 @@ mod tests {
                 // The display models (MODELLED) need the display, which this dispatcher
                 // has switched off: unanswered here, answered in the next test.
                 ('-', _) => assert_eq!(a.label, "unanswered", "{}", r.name),
-                // The C rows are the C table's (public.rs, gsp-plan round 2).
-                ('C', _) => {
-                    assert!(crate::ver::active::public::public_control(r.id).is_some(), "{}", r.name);
-                    assert_ne!(a.label, "unanswered", "{}", r.name);
-                }
+                // A C row left in this table is a D model's (above); the C table's rows
+                // (public.rs) are no D rules any more (the reconciliation of 2026-09-25).
+                ('C', _) => panic!("{}: a C row no D model answers", r.name),
                 ('E', _) => {
                     let acked = chip.features.acked.contains_key(&r.id);
                     assert_eq!(
@@ -1019,6 +1023,102 @@ mod tests {
     fn e_rows_have_no_other_handler() {
         for r in Abi::active().d_rules.iter().filter(|r| r.reclass == 'E') {
             assert!(answer(r.id, &[0u8; 8]).is_none(), "{}", r.name);
+        }
+    }
+
+    /// The guard of the reconciliation (2026-09-25): no control id is answered by two of
+    /// the three table-driven handlers, the GSP plan's table (public.rs: `PUBLIC` and
+    /// `PUBLIC_C`), the chip-data and feature-family rules (chipctl.rs: controls.toml of
+    /// every chip, the E families and the D rows moved to E) and the D models with the rule
+    /// table (dmodel.rs, rc.rs, zbc.rs: the rows that stay in D or are C rows a model
+    /// answers, and the model getters). Walked per ABI over the generated tables, then,
+    /// for the ABI of this build, through the three handlers themselves (a handler that
+    /// answers is one that returns `Some`).
+    #[test]
+    fn no_control_is_answered_by_two_tables() {
+        use crate::ver::active::public as p;
+        let public: BTreeSet<u32> = p::PUBLIC.iter().chain(p::PUBLIC_C).map(|c| c.id).collect();
+        let chips: Vec<&'static crate::chip::ChipData> = crate::chip::CHIPS
+            .iter()
+            .map(|n| crate::chip::by_name(n).unwrap().data())
+            .collect();
+        for abi in ABIS {
+            let mut chipctl: BTreeSet<u32> = abi
+                .families
+                .iter()
+                .chain(abi.d_families)
+                .flat_map(|f| f.controls.iter().map(|c| c.0))
+                .collect();
+            for chip in &chips {
+                chipctl.extend(chip.controls.entries.keys());
+            }
+            let mut d: BTreeSet<u32> = abi
+                .d_rules
+                .iter()
+                .filter(|r| "-C".contains(r.reclass))
+                .map(|r| r.id)
+                .collect();
+            d.extend(
+                MODELLED_HERE
+                    .iter()
+                    .chain(MODEL_GETTERS)
+                    .filter_map(|n| abi.routed(n).map(|r| r.id)),
+            );
+            for (a, an, b, bn) in [
+                (&public, "public.rs", &chipctl, "chipctl.rs"),
+                (&public, "public.rs", &d, "dmodel.rs/rc.rs"),
+                (&chipctl, "chipctl.rs", &d, "dmodel.rs/rc.rs"),
+            ] {
+                let both: Vec<String> = a.intersection(b).map(|id| format!("{id:#x}")).collect();
+                assert!(both.is_empty(), "{}: answered by {an} and by {bn}: {both:?}", abi.name);
+            }
+        }
+        // The handlers of this build.
+        let reg = crate::channel::Registry::new(tu106().channel);
+        let buf = vec![0u8; 1 << 16];
+        let abi = Abi::active();
+        let ids: BTreeSet<u32> = abi
+            .routed
+            .iter()
+            .map(|r| r.id)
+            .chain(public.iter().copied())
+            .collect();
+        for chip in &chips {
+            for &id in &ids {
+                let size = p::public_control(id).map_or(buf.len(), |c| if c.size == 0 { 16 } else { c.size });
+                let mut attrs = crate::public::GuestAttrs::default();
+                let mut rc = crate::rc::RcState::default();
+                let mut ctx = crate::public::Ctx {
+                    host: None,
+                    reservation: None,
+                    chip,
+                    now_ns: 0,
+                    object: (INTERNAL_CLIENT, INTERNAL_SUBDEVICE),
+                    key: (INTERNAL_CLIENT, INTERNAL_SUBDEVICE),
+                    mirror: None,
+                    attrs: &mut attrs,
+                    rc: &mut rc,
+                    reg: Some(&reg),
+                    link_control: 0,
+                };
+                let by_public = crate::public::answer(&mut ctx, id, &buf[..size]).is_some();
+                let by_chipctl = crate::chipctl::answer(chip, id, &buf).is_some();
+                let mut cx = DCtx {
+                    reg: &reg,
+                    mirror: None,
+                    host: None,
+                    bar0: (0xE000_0000, 16 << 20),
+                    object: (INTERNAL_CLIENT, INTERNAL_SUBDEVICE),
+                };
+                let by_d = DState::new(chip).control(&mut cx, id, &buf).is_some()
+                    || answer(id, &buf).is_some();
+                assert!(
+                    [by_public, by_chipctl, by_d].iter().filter(|&&x| x).count() <= 1,
+                    "{} on {}: {id:#x} answered by public.rs {by_public}, chipctl.rs {by_chipctl}, dmodel.rs/rc.rs {by_d}",
+                    abi.name,
+                    chip.name
+                );
+            }
         }
     }
 
