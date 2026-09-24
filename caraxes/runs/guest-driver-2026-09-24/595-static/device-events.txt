@@ -1,0 +1,18 @@
+# SPDX-License-Identifier: MIT
+# device events: rejected/unanswered controls and the oversized reply
+49878:    41518872 E boot: guest driver "595.91.07" is not the emulated 610.57.04 (build with its ver module)
+81472:    42563185 E boot: ctrl 0x20800a30: kgr PPC masks: not supported; the public GR_GET_PPC_MASK 0x20801233 is one GPC per call ({grRouteInfo, gpcId, ppcMask}, ctrl2080gr.h:1810-1814), not the internal mask[64] layout -> status 0x56 [synthesized (NOT_SUPPORTED, tolerated: kernel_graphics.c:1320-1327)]
+81512:    42564220 E boot: ctrl 0x20800b05: kgr SM issue throttle ctrl: not supported, not forwarded -> status 0x56 [synthesized (NOT_SUPPORTED; forwarding makes the host driver assert)]
+81528:    42564476 E boot: ctrl 0x20800a3f: kgr FECS trace defines: not supported; there is no public host control for them (phase5 row 50); pFecsTraceDefines stays NULL -> status 0x56 [synthesized (NOT_SUPPORTED, tolerated: kernel_graphics.c:1498-1501)]
+81544:    42565096 E boot: ctrl 0x20800a32: kgr context buffers info: 19 engines from host, 7 not supported -> status 0x0 [host (GR_GET_ENGINE_CONTEXT_PROPERTIES per engineId, NOT_SUPPORTED -> NV_U32_MAX)]
+98617:   214017697 E boot: ctrl 0x20810103: control 0x20810103 on 0x1000003 (class 0x2081, 1 bytes): not supported -> status 0x56 [unanswered]
+99316:   214044666 E boot: ctrl 0x2080012f: GPU_QUERY_ECC_STATUS: host status 0x56 -> status 0x56 [host (forwarded as-is, public control)]
+99394:   214048835 E boot: ctrl 0x2080a0a4: GSS legacy perf 0xa4: host status 0x1f (params 0 bytes, host trace had 67396) -> status 0x1f [host (GSS legacy, forwarded opaquely; command and size from a native host trace)]
+99395:   214048837 E boot: send: element of 65568 bytes does not fit the status queue
+278967:   220459419 E boot: ctrl 0x20800153: control 0x20800153 on 0x1000002 (class 0x2080, 8 bytes): not supported -> status 0x56 [unanswered]
+279019:   220460589 E boot: ctrl 0x2080a088: control 0x2080a088 on 0x1000002 (class 0x2080, 12 bytes): not supported -> status 0x56 [unanswered]
+279045:   220461147 E boot: ctrl 0x20808524: control 0x20808524 on 0x1000002 (class 0x2080, 4 bytes): not supported -> status 0x56 [unanswered]
+280908:   220505475 E boot: ctrl 0x2080852e: GSS legacy thermal 0x2e: host status 0x1f (params 596 bytes, host trace had 1432) -> status 0x1f [host (GSS legacy, forwarded opaquely; command and size from a native host trace)]
+283392:   220568289 E boot: ctrl 0xa06f0104: control 0xa06f0104 on 0x1000012 (class 0xc46f, 4 bytes): not supported -> status 0x56 [unanswered]
+286772:   221872128 E boot: send: element of 65568 bytes does not fit the status queue
+484500:   229674554 E boot: send: element of 65568 bytes does not fit the status queue

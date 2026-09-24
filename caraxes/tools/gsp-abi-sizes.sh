@@ -8,9 +8,11 @@
 #   caraxes/tools/gsp-abi-sizes.sh [--driver-flags] [--check] [--abi N] [OGKM_DIR]
 #
 #   OGKM_DIR        default: vendor/open-gpu-kernel-modules
-#   --abi N         driver major version whose field lists to use: below 615
-#                   the 610.57.04 lists, 615 and above the 615.71.09 lists
-#                   (GSP_ABI in gsp-abi-sizes.c). Default: the major version
+#   --abi N         driver major version whose field lists to use: below 610
+#                   the 595.91.07 lists (pre-MCTP queue element, no vbios
+#                   revisions in GspStaticConfigInfo), 610 to 614 the 610.57.04
+#                   lists, 615 and above the 615.71.09 lists (GSP_ABI in
+#                   gsp-abi-sizes.c). Default: the major version
 #                   in OGKM_DIR/version.mk. A mismatch with the tree is
 #                   reported on stderr; the tree's headers decide whether it
 #                   compiles.
@@ -65,14 +67,14 @@ C="$S/common"
 [ -f "$N/inc/kernel/gpu/gsp/gsp_static_config.h" ] ||
     { echo "not an open-gpu-kernel-modules tree: $ogkm" >&2; exit 2; }
 
-# The field-list variant (GSP_ABI): 610 below driver major 615, 615 from there on.
+# The field-list variant (GSP_ABI): 595 below driver major 610, 610 below 615, 615 from there on.
 tree_major=$(sed -n 's/^NVIDIA_VERSION *= *\([0-9]*\)\..*/\1/p' "$ogkm/version.mk" 2>/dev/null)
 [ -n "$abi" ] || abi=$tree_major
 case $abi in ''|*[!0-9]*) echo "cannot tell the driver major version (--abi N)" >&2; exit 2 ;; esac
 if [ -n "$tree_major" ] && [ "$abi" != "$tree_major" ]; then
     echo "warning: --abi $abi but the tree is major $tree_major" >&2
 fi
-if [ "$abi" -ge 615 ]; then gsp_abi=615; else gsp_abi=610; fi
+if [ "$abi" -ge 615 ]; then gsp_abi=615; elif [ "$abi" -ge 610 ]; then gsp_abi=610; else gsp_abi=595; fi
 
 if [ "$(uname -m)" != x86_64 ]; then
     echo "warning: host is $(uname -m); the kernel module whose layout matters is x86_64" >&2

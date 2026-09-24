@@ -538,11 +538,12 @@ impl QueueState {
         ) {
             return Err("command slot unreadable".into());
         }
-        let seq_num = u32_at(&first, 12);
-        let header = RpcHeader::parse(&first[ELEMENT_HEADER_SIZE..]);
+        let el = crate::ver::element_layout();
+        let seq_num = u32_at(&first, el.seq_off);
+        let header = RpcHeader::parse(&first[el.header_size..]);
         let answerable =
             header.signature == RPC_SIGNATURE && header.header_version == RPC_HEADER_VERSION;
-        let total = ELEMENT_HEADER_SIZE + header.length as usize;
+        let total = el.header_size + header.length as usize;
         let declared = total.div_ceil(msg_size) as u64;
         if total > MAX_ELEMENT_SIZE || declared > available as u64 {
             // Wedge (b), not skippable: the declared size runs past what the CPU
@@ -592,8 +593,8 @@ impl QueueState {
         }
         let padded = total.div_ceil(8) * 8;
         let checksum_ok = checksum32(&raw[..padded.min(raw.len())]) == 0;
-        let payload = raw[ELEMENT_HEADER_SIZE + RPC_HEADER_SIZE..total].to_vec();
-        let slot_payload = raw[ELEMENT_HEADER_SIZE + RPC_HEADER_SIZE..].to_vec();
+        let payload = raw[el.header_size + RPC_HEADER_SIZE..total].to_vec();
+        let slot_payload = raw[el.header_size + RPC_HEADER_SIZE..].to_vec();
         let slot = self.read_ptr;
         self.consume(qm, slots);
         if seq_num != self.rx_seq {
@@ -673,7 +674,8 @@ impl QueueState {
         if self.failed.is_some() {
             return Err(self.failed_error());
         }
-        let total = ELEMENT_HEADER_SIZE + RPC_HEADER_SIZE + payload.len();
+        let el = crate::ver::element_layout();
+        let total = el.header_size + RPC_HEADER_SIZE + payload.len();
         let msg_size = self.stat.msg_size as usize;
         let slots = total.div_ceil(msg_size) as u32;
         if total > MAX_ELEMENT_SIZE || slots >= self.stat.msg_count {
@@ -692,16 +694,22 @@ impl QueueState {
             return Err(e);
         }
         let mut raw = vec![0u8; slots as usize * msg_size];
-        put_u32(&mut raw, 0, MCTP_HEADER);
-        put_u32(&mut raw, 4, NVDM_HEADER);
-        put_u32(&mut raw, 12, self.tx_seq);
+        if el.mctp {
+            put_u32(&mut raw, 0, MCTP_HEADER);
+            put_u32(&mut raw, 4, NVDM_HEADER);
+        }
+        put_u32(&mut raw, el.seq_off, self.tx_seq);
+        if let Some(off) = el.elem_count_off {
+            put_u32(&mut raw, off, slots);
+        }
         let mut h = *header;
         h.length = (RPC_HEADER_SIZE + payload.len()) as u32;
-        raw[16..48].copy_from_slice(&h.encode());
-        raw[48..48 + payload.len()].copy_from_slice(payload);
+        let rpc = el.header_size;
+        raw[rpc..rpc + RPC_HEADER_SIZE].copy_from_slice(&h.encode());
+        raw[rpc + RPC_HEADER_SIZE..rpc + RPC_HEADER_SIZE + payload.len()].copy_from_slice(payload);
         let padded = total.div_ceil(8) * 8;
         let sum = checksum32(&raw[..padded]);
-        put_u32(&mut raw, 8, sum);
+        put_u32(&mut raw, el.checksum_off, sum);
         debug_assert_eq!(checksum32(&raw[..padded]), 0);
         let seq = self.tx_seq;
         self.tx_seq = self.tx_seq.wrapping_add(1);

@@ -1,0 +1,36 @@
+# SPDX-License-Identifier: MIT
+# 595.91.07 guest, stock device: boot kernel log, NVRM and nvidia lines
+[   76.271918] nvidia: loading out-of-tree module taints kernel.
+[   76.271933] nvidia: module verification failed: signature and/or required key missing - tainting kernel
+[   76.616451] nvidia-nvlink: Nvlink Core is being initialized, major device number 239
+[   76.616462] NVRM: probing 0x10de 0x1f02, class 0x30000
+[   77.130934] nvidia 0000:00:05.0: enabling device (0000 -> 0003)
+[   77.133856] NVRM: resizable BAR disabled by regkey, skipping
+[   77.133861] NVRM: No clk handles for the dev
+[   77.134287] nvidia 0000:00:05.0: vgaarb: VGA decodes changed: olddecodes=io+mem,decodes=none:owns=none
+[   77.134410] NVRM: PCI:0000:00:05.0 (10de:1f02): BAR0 @ 0xe6000000 (16MB)
+[   77.134413] NVRM: PCI:0000:00:05.0 (10de:1f02): BAR1 @ 0x3fffe0000000 (256MB)
+[   77.134448] NVRM: Failed to evaluate _PR3 object
+[   77.136548] NVRM: pciPbiReadUuid: Could not acquire pciPbi mutex
+[   77.136652] NVRM: Starting device 0000:00:05.0
+[   77.139829] NVRM: GPU 0000:00:05.0: RmInitAdapter
+[   77.139833] NVRM: GPU 0000:00:05.0: RmSetupRegisters for 0x10de:0x1f02
+[   77.139835] NVRM: GPU 0000:00:05.0: pci config info:
+[   77.139836] NVRM: GPU 0000:00:05.0:    registers look  like: 0xe6000000 0x1000000NVRM: GPU 0000:00:05.0:    fb        looks like: 0x3fffe0000000 0x10000000
+[   77.186945] NVRM: GPU 0000:00:05.0: Successfully mapped framebuffer and registers
+[   77.186953] NVRM: GPU 0000:00:05.0: final mappings:
+[   77.186954] NVRM: GPU 0000:00:05.0:     regs: 0xe6000000 0x1000000 0x0000000086ac0138
+[  109.194440] NVRM: GPU0 GspMsgQueueReceiveStatus: Incorrect message length 0
+[  109.194558] NVRM: GPU0 nvCheckOkFailedNoLog: Check failed: Invalid structure parameter [NV_ERR_INVALID_PARAM_STRUCT] (0x0000003A) returned from rpcRecvPoll(pGpu, pRpc, NV_VGPU_MSG_EVENT_GSP_INIT_DONE, 0) @ kernel_gsp.c:6105
+[  109.194563] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Invalid structure parameter [NV_ERR_INVALID_PARAM_STRUCT] (0x0000003A) returned from kgspWaitForRmInitDone(pGpu, pKernelGsp) @ kernel_gsp_tu102.c:569
+[  109.196405] NVRM: GPU0 _kgspBootGspRm: unexpected WPR2 already up, cannot proceed with booting GSP
+[  109.196408] NVRM: GPU0 _kgspBootGspRm: (the GPU is likely in a bad state and may need to be reset)
+[  109.196454] NVRM: GPU0 RmInitAdapter: Cannot initialize GSP firmware RM
+[  109.200570] NVRM: GPU 0000:00:05.0: Tearing down registers
+[  109.200580] NVRM: GPU 0000:00:05.0: RmInitAdapter failed! (0x62:0x40:2168)
+[  109.201724] NVRM: GPU 0000:00:05.0: rm_init_adapter failed, device minor number 0
+[  109.207393] NVRM: Device start failed for 0000:00:05.0 (ret=-5)
+[  109.208676] nvidia: probe of 0000:00:05.0 failed with error -1
+[  109.208767] NVRM: loading NVIDIA UNIX Open Kernel Module for x86_64  595.91.07  Release Build  (dvs-builder@U22-I3-B08-02-2)  Wed Jul 29 03:01:16 UTC 2026
+[  109.504340] nvidia-modeset: Loading NVIDIA UNIX Open Kernel Mode Setting Driver for x86_64  595.91.07  Release Build  (dvs-builder@U22-I3-B08-02-2)  Wed Jul 29 02:47:37 UTC 2026
+[  109.521327] [drm] [nvidia-drm] No NVIDIA GPUs found

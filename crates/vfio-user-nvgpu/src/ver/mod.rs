@@ -85,3 +85,85 @@ pub(crate) mod measured {
         Tables { sizes, fields }
     }
 }
+
+/// Queue-element layout of the guest's driver. The build emulates one version, but
+/// the element header is the first thing a guest of another version disagrees on
+/// (docs/caraxes/guest-driver-versions.md): before 610 it is `authTagBuffer[16]`,
+/// `aadBuffer[16]`, `checkSum`, `seqNum`, `elemCount` and the RPC header at 0x30
+/// (595.91.07 `message_queue_priv.h:43-51`); from 610 on `mctpHeader`,
+/// `nvdmHeader`, `checkSum`, `seqNum` and the payload at 0x10 (610.57.04
+/// `message_queue_priv.h:52-67`). Experiment only: `CARAXES_GUEST_ABI=595` selects
+/// the older layout; unset, the device uses the emulated version's.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ElementLayout {
+    /// Bytes before the RPC header (`queueElementHdrSize`).
+    pub header_size: usize,
+    pub checksum_off: usize,
+    pub seq_off: usize,
+    /// `elemCount`, which the pre-610 receiver reads instead of deriving it.
+    pub elem_count_off: Option<usize>,
+    /// Whether the element carries `mctpHeader`/`nvdmHeader` at 0 and 4.
+    pub mctp: bool,
+}
+
+impl ElementLayout {
+    /// `maxRpcSize` = `queueElementSizeMax` (16 pages) minus the element header
+    /// (message_queue_priv.h `gspMsgQueueGetMaxRpcSize`): 65520 from 610 on, 65488
+    /// before. The first record of a large RPC is exactly this long.
+    pub fn max_rpc_size(&self) -> usize {
+        0x10000 - self.header_size
+    }
+
+    pub const EMULATED: ElementLayout = ElementLayout {
+        header_size: active::ELEMENT_HEADER_SIZE,
+        checksum_off: 8,
+        seq_off: 12,
+        elem_count_off: None,
+        mctp: true,
+    };
+    pub const PRE_610: ElementLayout = ElementLayout {
+        header_size: 0x30,
+        checksum_off: 0x20,
+        seq_off: 0x24,
+        elem_count_off: Some(0x28),
+        mctp: false,
+    };
+}
+
+/// The layout selected by `CARAXES_GUEST_ABI` (read once).
+pub fn element_layout() -> ElementLayout {
+    static L: std::sync::OnceLock<ElementLayout> = std::sync::OnceLock::new();
+    *L.get_or_init(|| match std::env::var("CARAXES_GUEST_ABI").as_deref() {
+        Ok("595") => {
+            log::warn!("CARAXES_GUEST_ABI=595: pre-610 GSP queue elements (experiment)");
+            ElementLayout::PRE_610
+        }
+        _ => ElementLayout::EMULATED,
+    })
+}
+
+/// `GspStaticConfigInfo` as a pre-610 guest reads it (`CARAXES_GUEST_ABI=595`):
+/// 595.91.07 lacks `vbiosRevision`/`vbiosOemRevision` (610: 0x5fc, 0x600),
+/// `bSysL2CacheCoherentMode` (610: 0x616) and `bBusResetRequired` (610: 0x638), so
+/// its tail sits 8 bytes lower and the struct is 0x638 bytes, not 0x640
+/// (gsp-abi-sizes of both trees, docs/caraxes/guest-driver-versions.md). Everything
+/// before 0x5fc is identical. Unchanged for the emulated version.
+pub fn static_info_for_guest(info: Vec<u8>) -> Vec<u8> {
+    if element_layout() != ElementLayout::PRE_610 || info.len() != 0x640 {
+        return info;
+    }
+    let mut out = vec![0u8; 0x638];
+    // (610 offset, 595 offset, length)
+    for (from, to, len) in [
+        (0x000, 0x000, 0x5fc), // everything up to vbiosRevision
+        (0x604, 0x5fc, 3),     // bPageRetirementSupported .. bClRootportNeedsNosnoopWAR
+        (0x608, 0x600, 12),    // hInternalClient/Device/Subdevice
+        (0x614, 0x60c, 2),     // bSelfHostedMode, bAtsSupported
+        (0x617, 0x60e, 2),     // bIsGpuUefi, bIsEfiInit
+        (0x61c, 0x610, 12),    // ecidInfo
+        (0x628, 0x620, 16),    // fwWprLayoutOffset
+    ] {
+        out[to..to + len].copy_from_slice(&info[from..from + len]);
+    }
+    out
+}

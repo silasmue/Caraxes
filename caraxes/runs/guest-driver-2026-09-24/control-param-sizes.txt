@@ -1,0 +1,57 @@
+# SPDX-License-Identifier: MIT
+# sizeof of the control parameter structs the device's handlers use (ffi:: names in src/ver/v610.rs and src/*.rs), compiled against target/abi-headers/<version> SDK headers
+struct                                                                           610.57.04 595.91.07 610.43.02
+NV2080_CTRL_BIOS_GET_INFO_V2_PARAMS                                                   124      124      124
+NV2080_CTRL_BIOS_INFO                                                                   8        8        8
+NV2080_CTRL_BUS_GET_PCI_BAR_INFO_PARAMS                                               200      200      200
+NV2080_CTRL_BUS_PCI_BAR_INFO                                                           24       24       24
+NV2080_CTRL_CMD_FB_GET_FB_REGION_INFO_PARAMS                                          904      904      904
+NV2080_CTRL_FB_FLUSH_GPU_CACHE_PARAMS                                                4024     4024     4024
+NV2080_CTRL_FIFO_DEVICE_ENTRY                                                         100      100      100
+NV2080_CTRL_FIFO_GET_DEVICE_INFO_TABLE_PARAMS                                        3212     3212     3212
+NV2080_CTRL_GPU_GET_CHIP_DETAILS_PARAMS                                                16       16       16
+NV2080_CTRL_GPU_GET_INFO_V2_PARAMS                                                    580      564      580   differs
+NV2080_CTRL_GPU_GET_PES_INFO_PARAMS                                                    56       56       56
+NV2080_CTRL_GR_GET_CAPS_V2_PARAMS                                                      48       48       48
+NV2080_CTRL_GR_GET_ENGINE_CONTEXT_PROPERTIES_PARAMS                                    32       32       32
+NV2080_CTRL_GR_GET_GLOBAL_SM_ORDER_PARAMS                                            9240     9240     9240
+NV2080_CTRL_GR_GET_INFO_V2_PARAMS                                                     528      496      528   differs
+NV2080_CTRL_GR_GET_ROP_INFO_PARAMS                                                     12       12       12
+NV2080_CTRL_GR_GET_SM_ISSUE_RATE_MODIFIER_PARAMS                                       32       32       32
+NV2080_CTRL_GR_GET_SM_ISSUE_RATE_MODIFIER_V2_PARAMS                                  2044     2044     2044
+NV2080_CTRL_GR_GET_ZCULL_INFO_PARAMS                                                   40       40       40
+NV2080_CTRL_INTERNAL_FIFO_GET_NUM_CHANNELS_PARAMS                                       8        8        8
+NV2080_CTRL_INTERNAL_GET_PCIE_P2P_CAPS_PARAMS                                           3        3        3
+NV2080_CTRL_INTERNAL_GMMU_GET_STATIC_INFO_PARAMS                                       16       16       16
+NV2080_CTRL_INTERNAL_GMMU_REGISTER_CLIENT_SHADOW_FAULT_BUFFER_PARAMS                24032    24032    24032
+NV2080_CTRL_INTERNAL_GMMU_REGISTER_FAULT_BUFFER_PARAMS                               2064     2064     2064
+NV2080_CTRL_INTERNAL_GPU_GET_CHIP_INFO_PARAMS                                          88       88       88
+NV2080_CTRL_INTERNAL_GPU_GET_USER_REGISTER_ACCESS_MAP_PARAMS                        20492     8204    20492   differs
+NV2080_CTRL_INTERNAL_GR_FECS_TRACE_HW_ENABLE_PARAMS                                    24       24       24
+NV2080_CTRL_INTERNAL_INIT_USER_SHARED_DATA_PARAMS                                      16       16       16
+NV2080_CTRL_INTERNAL_INTR_GET_KERNEL_TABLE_ENTRY                                       16       16       16
+NV2080_CTRL_INTERNAL_INTR_GET_KERNEL_TABLE_PARAMS                                    2112     2112     2112
+NV2080_CTRL_INTERNAL_MEMSYS_GET_STATIC_CONFIG_PARAMS                                   40       40       40
+NV2080_CTRL_INTERNAL_STATIC_GRMGR_GET_SKYLINE_INFO_PARAMS                             724      436      724   differs
+NV2080_CTRL_INTERNAL_STATIC_GR_CAPS                                                    23       23       23
+NV2080_CTRL_INTERNAL_STATIC_GR_FLOORSWEEPING_MASKS                                   1336      696     1336   differs
+NV2080_CTRL_INTERNAL_STATIC_GR_GET_CAPS_PARAMS                                        184      184      184
+NV2080_CTRL_INTERNAL_STATIC_GR_GET_CONTEXT_BUFFERS_INFO_PARAMS                       1664     1664     1664
+NV2080_CTRL_INTERNAL_STATIC_GR_GET_FECS_RECORD_SIZE_PARAMS                             32       32       32
+NV2080_CTRL_INTERNAL_STATIC_GR_GET_FECS_TRACE_DEFINES_PARAMS                          256      256      256
+NV2080_CTRL_INTERNAL_STATIC_GR_GET_FLOORSWEEPING_MASKS_PARAMS                       10688     5568    10688   differs
+NV2080_CTRL_INTERNAL_STATIC_GR_GET_GLOBAL_SM_ORDER_PARAMS                           73760    34592    73760   differs
+NV2080_CTRL_INTERNAL_STATIC_GR_GET_INFO_PARAMS                                       4032     3776     4032   differs
+NV2080_CTRL_INTERNAL_STATIC_GR_GET_PDB_PROPERTIES_PARAMS                                8        8        8
+NV2080_CTRL_INTERNAL_STATIC_GR_GET_PPC_MASKS_PARAMS                                  2048     1024     2048   differs
+NV2080_CTRL_INTERNAL_STATIC_GR_GET_ROP_INFO_PARAMS                                     96       96       96
+NV2080_CTRL_INTERNAL_STATIC_GR_GET_SM_ISSUE_RATE_MODIFIER_PARAMS                       72       72       72
+NV2080_CTRL_INTERNAL_STATIC_GR_GET_SM_ISSUE_RATE_MODIFIER_V2_PARAMS                 16352    16352    16352
+NV2080_CTRL_INTERNAL_STATIC_GR_GET_ZCULL_INFO_PARAMS                                  320      320      320
+NV2080_CTRL_INTERNAL_STATIC_GR_GLOBAL_SM_ORDER                                       9220     4324     9220   differs
+NV2080_CTRL_INTERNAL_STATIC_GR_INFO                                                   504      472      504   differs
+NV2080_CTRL_INTERNAL_UVM_REGISTER_ACCESS_CNTR_BUFFER_PARAMS                           520      520      520
+NV2080_INTR_CATEGORY_SUBTREE_MAP                                                        8        8        8
+NV90F1_CTRL_VASPACE_COPY_SERVER_RESERVED_PDES_PARAMS                                  184      184      184
+NV_CHANNEL_GROUP_ALLOCATION_PARAMETERS                                                 20       20       20
+NV_MEMORY_DESC_PARAMS                                                                  24       24       24

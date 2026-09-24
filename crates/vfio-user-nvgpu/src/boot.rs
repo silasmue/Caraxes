@@ -765,7 +765,9 @@ impl BootModel {
                     };
                     // Only a first record at the maxRpcSize cap can be split (rpc.c:2082-2092);
                     // client allocations legitimately carry fewer bytes than paramsSize.
-                    if msg.header.length as usize >= v::MAX_RPC_SIZE && needed > msg.payload.len() {
+                    if msg.header.length as usize >= crate::ver::element_layout().max_rpc_size()
+                        && needed > msg.payload.len()
+                    {
                         notes.push(format!(
                             "large request {}: {} of {needed} bytes, waiting for continuation records",
                             rpc::function_name(msg.header.function),
@@ -822,7 +824,7 @@ impl BootModel {
                                 l.field, l.value, l.source
                             ));
                         }
-                        Some((rpc::NV_OK, info))
+                        Some((rpc::NV_OK, crate::ver::static_info_for_guest(info)))
                     }
                     rpc::FN_GSP_RM_CONTROL => {
                         // rpc_gsp_rm_control_v03_00 (docs/caraxes/gsp-abi-610.md).
@@ -1004,8 +1006,8 @@ impl BootModel {
                 if let Some((result, payload)) = reply {
                     // The reply takes the request's shape: at most 65520 bytes per record,
                     // continuation records with the following sequence numbers.
-                    const MAX_RPC: usize = v::MAX_RPC_SIZE;
-                    let first_len = payload.len().min(MAX_RPC - v::RPC_HEADER_SIZE);
+                    let max_rpc: usize = crate::ver::element_layout().max_rpc_size();
+                    let first_len = payload.len().min(max_rpc - v::RPC_HEADER_SIZE);
                     let hdr = RpcHeader::reply(&h, result, first_len);
                     match queues.send(&qm, &hdr, &payload[..first_len]) {
                         Ok(seq) => notes.push(format!(
@@ -1019,7 +1021,7 @@ impl BootModel {
                     let mut sent = first_len;
                     let mut sequence = h.sequence;
                     while sent < payload.len() {
-                        let chunk = (payload.len() - sent).min(MAX_RPC - v::RPC_HEADER_SIZE);
+                        let chunk = (payload.len() - sent).min(max_rpc - v::RPC_HEADER_SIZE);
                         sequence = sequence.wrapping_add(1);
                         let cont = RpcHeader {
                             function: rpc::FN_CONTINUATION_RECORD,

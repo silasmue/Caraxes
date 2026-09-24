@@ -1,0 +1,18 @@
+# SPDX-License-Identifier: MIT
+# 595.91.07 guest, CARAXES_GUEST_ABI=595 with element, static info and maxRpcSize switches: kernel journal excerpt
+522:[   24.502032] caraxes-vm3 kernel: NVRM: GPU 0000:00:05.0: RmInitAdapter
+531:[   35.132097] caraxes-vm3 kernel: NVRM: GPU 0000:00:05.0: RmInitAdapter succeeded!
+534:[   35.175162] caraxes-vm3 kernel: [drm] [nvidia-drm] [GPU ID 0x00000005] Loading driver
+537:[   35.195388] caraxes-vm3 kernel: [drm] Initialized nvidia-drm 0.0.0 20160202 for 0000:00:05.0 on minor 0
+539:[   35.195402] caraxes-vm3 kernel: nvidia 0000:00:05.0: [drm] No compatible format found
+540:[   35.195404] caraxes-vm3 kernel: nvidia 0000:00:05.0: [drm] Cannot find any crtc or sizes
+679:[  180.780950] caraxes-vm3 kernel: NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Call not supported [NV_ERR_NOT_SUPPORTED] (0x00000056) returned from status @ kernel_channel.c:2828
+680:[  180.781009] caraxes-vm3 kernel: NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Call not supported [NV_ERR_NOT_SUPPORTED] (0x00000056) returned from kchannelBindToRunlist(pKernelChannel, localRmEngineType, engineDesc) @ kernel_channel.c:3172
+820:[  191.773166] caraxes-vm3 kernel: NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Call not supported [NV_ERR_NOT_SUPPORTED] (0x00000056) returned from status @ kernel_channel.c:2828
+821:[  191.773215] caraxes-vm3 kernel: NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Call not supported [NV_ERR_NOT_SUPPORTED] (0x00000056) returned from kchannelBindToRunlist(pKernelChannel, localRmEngineType, engineDesc) @ kernel_channel.c:3172
+960:[  194.116987] caraxes-vm3 kernel: NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Call not supported [NV_ERR_NOT_SUPPORTED] (0x00000056) returned from status @ kernel_channel.c:2828
+961:[  194.117056] caraxes-vm3 kernel: NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Call not supported [NV_ERR_NOT_SUPPORTED] (0x00000056) returned from kchannelBindToRunlist(pKernelChannel, localRmEngineType, engineDesc) @ kernel_channel.c:3172
+1100:[  196.083709] caraxes-vm3 kernel: NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Call not supported [NV_ERR_NOT_SUPPORTED] (0x00000056) returned from status @ kernel_channel.c:2828
+1101:[  196.083741] caraxes-vm3 kernel: NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Call not supported [NV_ERR_NOT_SUPPORTED] (0x00000056) returned from kchannelBindToRunlist(pKernelChannel, localRmEngineType, engineDesc) @ kernel_channel.c:3172
+1240:[  197.625069] caraxes-vm3 kernel: NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Call not supported [NV_ERR_NOT_SUPPORTED] (0x00000056) returned from status @ kernel_channel.c:2828
+1241:[  197.625153] caraxes-vm3 kernel: NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Call not supported [NV_ERR_NOT_SUPPORTED] (0x00000056) returned from kchannelBindToRunlist(pKernelChannel, localRmEngineType, engineDesc) @ kernel_channel.c:3172

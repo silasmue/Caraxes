@@ -1,0 +1,152 @@
+# SPDX-License-Identifier: MIT
+# device events of the whole boot (deduplicated by control)
+34862:    33591581 E boot: fwsec: data buffer PA 0x105b66000, frtsOffset 0xffe00000 (from the FWSEC command in guest RAM), WPR2 lo 0xffe000 hi 0xffeff0
+49854:    34040501 E boot: wpr meta: fbSize 0x100000000 gspFwRsvdStart 0xf7600000 nonWprHeap 0xf7600000+0x100000 wprStart 0xf7700000 frtsOffset 0xffe00000 wprEnd 0xfff00000 vgaWorkspace 0xfff00000
+49859:    34040667 E boot: doorbell 1: libos args PA 0x1034b4000 (mapped), wpr meta PA 0x103838000
+49860:    34040668 E boot: libos arg 0: "LOGINIT" pa 0x118860000 size 0x10000
+49861:    34040670 E boot: libos arg 1: "LOGRM" pa 0x118870000 size 0x10000
+49862:    34040671 E boot: libos arg 2: "RMARGS" pa 0x105869000 size 0x1000
+49863:    34040672 E boot: rmargs: sharedMemPhysAddr 0x118a00000 pages 129 cmdQueueOffset 0x1000 statQueueOffset 0x41000
+49864:    34040673 E boot: queues linked: cmd TxHeader { version: 0, size: 262144, msg_size: 4096, msg_count: 63, write_ptr: 1, flags: 1, rx_hdr_off: 32, entry_off: 4096 }; status header written (size 0x40000, 63 slots)
+49865:    34040674 E boot: tx seq 0 event GSP_INIT_DONE
+49866:    34040676 E boot: rx seq 0 GSP_SET_SYSTEM_INFO (72) sequence 0 length 976 checksum ok: gpuPhysAddr=0xe6000000 gpuPhysFbAddr=0x3fffe0000000 gpuPhysInstAddr=0x3ffffc000000 bdf=0x5 pciConfigMirror=0x88000+0x1000 PCIDeviceID=0x1f0210de PCISubDeviceID=0x40111458 rev=0xa1 maxUserVa=0x7ffffffff000 hostPageSize=0x1000
+49868:    34040721 E boot: doorbell 2: libos args PA 0x1034b4000 (mapped), wpr meta PA 0x103838000
+49869:    34040722 E boot: rx seq 1 SET_REGISTRY (73) sequence 0 length 1591 checksum ok: size=1559 entries=42
+49876:    34040934 E boot: doorbell 3: libos args PA 0x1034b4000 (mapped), wpr meta PA 0x103838000
+49877:    34040935 E boot: rx seq 2 SET_GUEST_SYSTEM_INFO (1) sequence 0 length 824 checksum ok: vgx 0x2d.0x3 driver="595.91.07"
+49878:    34040937 E boot: guest driver "595.91.07" is not the emulated 610.57.04 (build with its ver module)
+49879:    34040938 E boot: tx seq 1 reply SET_GUEST_SYSTEM_INFO sequence 0 result 0x0 length 824
+49884:    34041074 E boot: doorbell 4: libos args PA 0x1034b4000 (mapped), wpr meta PA 0x103838000
+49885:    34041075 E boot: rx seq 3 GET_GSP_STATIC_INFO (65) sequence 1 length 1624 checksum ok: 1592 bytes: 0000000000000000000000000000000000000000000000000000000000000000
+49886:    34041076 E boot: static-info gidInfo.data[0..16] = 9bd7b93d3d23c0746704984ef33ab7a7 [synthesized (E4: per-VM UUID)]
+49887:    34041077 E boot: static-info fbRegionInfoParams = 2 regions: usable [0x0, 0xf7600000), reserved [0xf7600000, 0x100000000) [guest (WPR meta gspFwRsvdStart)]
+49888:    34041079 E boot: static-info engineCaps = 0x81bfe02 0xc4 0x0 (GR0, CE0-8, NVDEC0/1, NVENC0, SW, SEC2, HOST) [synthesized (TU106 child list; E4: host GET_ENGINES_V2)]
+49889:    34041080 E boot: static-info fb_length = 0x100000000 [profile]
+49890:    34041081 E boot: static-info gpuNameString = Leandro VFIO RTX 2070-4G [profile (guest_card_name)]
+49891:    34041082 E boot: static-info gpuShortNameString = TU106 [card]
+49892:    34041083 E boot: static-info bar1PdeBase/bar2PdeBase = 0xf7601000/0xf7600000 [guest (WPR meta nonWprHeapOffset; docs/caraxes/fb-model.md)]
+49893:    34041084 E boot: static-info vbios* = valid, subsystem 0x1458:0x4011, revision 0x90063d00, oem 0x76 [card (config space, VBIOS BIT)]
+49894:    34041086 E boot: static-info hInternalClient/Device/Subdevice = 0xca7a0001/2/3 [synthesized (device-owned handles)]
+49895:    34041087 E boot: static-info branding, power, platform flags, SKU, PDI, ECID, bBusResetRequired = 0 [synthesized (desktop GeForce; E4: host controls)]
+49896:    34041088 E boot: tx seq 2 reply GET_GSP_STATIC_INFO sequence 1 result 0x0 length 1624
+49901:    34041343 E boot: doorbell 5: libos args PA 0x1034b4000 (mapped), wpr meta PA 0x103838000
+49902:    34041344 E boot: rx seq 4 INIT_GSP_TRACE_CRASH_BUFFER (228) sequence 2 length 48 checksum ok: 16 bytes: 00809818010000004006000000000000
+49903:    34041346 E boot: init gsp trace crash buffer: pa 0x118988000 size 0x640 [guest, recorded]
+49904:    34041347 E boot: tx seq 3 reply INIT_GSP_TRACE_CRASH_BUFFER sequence 2 result 0x0 length 48
+49918:    34041632 E boot: doorbell 6: libos args PA 0x1034b4000 (mapped), wpr meta PA 0x103838000
+49919:    34041634 E boot: rx seq 5 GSP_RM_CONTROL (76) sequence 3 length 160 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20800a36 paramsSize=88 rpcFlags=0x0
+49920:    34041635 E boot: ctrl 0x20800a36: chip info -> status 0x0 [card (config space) + synthesized regBases (kern_gpu_tu102.c:275-306)]
+49921:    34041636 E boot: tx seq 4 reply GSP_RM_CONTROL sequence 3 result 0x0 length 160
+49926:    34041812 E boot: doorbell 7: libos args PA 0x1034b4000 (mapped), wpr meta PA 0x103838000
+49927:    34041813 E boot: rx seq 6 GSP_RM_CONTROL (76) sequence 4 length 8276 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20800a41 paramsSize=8204 rpcFlags=0x0
+49928:    34041815 E boot: ctrl 0x20800a41: user register access map -> status 0x0 [synthesized (allow-all map, gpu_register_access_map.c:260-298)]
+49929:    34041816 E boot: tx seq 5 reply GSP_RM_CONTROL sequence 4 result 0x0 length 8276
+49934:    34043222 E boot: doorbell 8: libos args PA 0x1034b4000 (mapped), wpr meta PA 0x103838000
+49935:    34043223 E boot: rx seq 7 GSP_RM_CONTROL (76) sequence 5 length 1356 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x208001b0 paramsSize=1284 rpcFlags=0x0
+49936:    34043224 E boot: ctrl 0x208001b0: control 0x208001b0 forwarded to the host: status 0x0 -> status 0x0 [host (forwarded as-is)]
+49937:    34043225 E boot: tx seq 6 reply GSP_RM_CONTROL sequence 5 result 0x0 length 1356
+49942:    34043563 E boot: doorbell 9: libos args PA 0x1034b4000 (mapped), wpr meta PA 0x103838000
+49943:    34043565 E boot: rx seq 8 GSP_RM_CONTROL (76) sequence 6 length 1356 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x208001b0 paramsSize=1284 rpcFlags=0x0
+49945:    34043567 E boot: tx seq 7 reply GSP_RM_CONTROL sequence 6 result 0x0 length 1356
+49950:    34043761 E boot: doorbell 10: libos args PA 0x1034b4000 (mapped), wpr meta PA 0x103838000
+49951:    34043762 E boot: rx seq 9 GSP_RM_CONTROL (76) sequence 7 length 3284 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20801112 paramsSize=3212 rpcFlags=0x0
+49952:    34043763 E boot: ctrl 0x20801112: fifo device info table: 12 entries -> status 0x0 [host (engines, fault ids, PBDMA counts) + synthesized (runlists, PBDMA ids; fifo-device-info.md)]
+49953:    34043765 E boot: tx seq 8 reply GSP_RM_CONTROL sequence 7 result 0x0 length 3284
+49958:    34043939 E boot: doorbell 11: libos args PA 0x1034b4000 (mapped), wpr meta PA 0x103838000
+49959:    34043940 E boot: rx seq 10 GSP_RM_CONTROL (76) sequence 8 length 2184 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20800a5c paramsSize=2112 rpcFlags=0x0
+49960:    34043942 E boot: ctrl 0x20800a5c: interrupt kernel table: 11 entries -> status 0x0 [synthesized (TU102-style subtree map; E4: host MC_GET_STATIC_INTR_TABLE; E5b part 2: GR0/CE2-CE4 non-stall vectors)]
+49961:    34043943 E boot: tx seq 9 reply GSP_RM_CONTROL sequence 8 result 0x0 length 2184
+49966:    34044076 E boot: doorbell 12: libos args PA 0x1034b4000 (mapped), wpr meta PA 0x103838000
+49967:    34044077 E boot: rx seq 11 GSP_RM_CONTROL (76) sequence 9 length 112 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20800a1c paramsSize=40 rpcFlags=0x0
+49968:    34044079 E boot: ctrl 0x20800a1c: memsys static config -> status 0x0 [synthesized (TU106: 4 MiB L2, 8 LTC x 2 LTS, GDDR6; E4: host FB_GET_INFO_V2)]
+49969:    34044080 E boot: tx seq 10 reply GSP_RM_CONTROL sequence 9 result 0x0 length 112
+49974:    34044201 E boot: doorbell 13: libos args PA 0x1034b4000 (mapped), wpr meta PA 0x103838000
+49975:    34044202 E boot: rx seq 12 GSP_RM_CONTROL (76) sequence 10 length 272 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20801803 paramsSize=200 rpcFlags=0x0
+49976:    34044203 E boot: ctrl 0x20801803: pci bar info: 4 bars -> status 0x0 [guest (BAR addresses from GspSystemInfo) + card (emulated BAR sizes)]
+49977:    34044204 E boot: tx seq 11 reply GSP_RM_CONTROL sequence 10 result 0x0 length 272
+50070:    34045679 E boot: doorbell 14: libos args PA 0x1034b4000 (mapped), wpr meta PA 0x103838000
+50071:    34045680 E boot: rx seq 13 GSP_RM_CONTROL (76) sequence 11 length 76 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20800aac paramsSize=4 rpcFlags=0x0
+50072:    34045681 E boot: ctrl 0x20800aac: bif static info: all false -> status 0x0 [synthesized (single function, no gen4, no C2C)]
+50073:    34045682 E boot: tx seq 12 reply GSP_RM_CONTROL sequence 11 result 0x0 length 76
+50078:    34045824 E boot: doorbell 15: libos args PA 0x1034b4000 (mapped), wpr meta PA 0x103838000
+50079:    34045825 E boot: rx seq 14 GSP_RM_CONTROL (76) sequence 12 length 80 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20800a61 paramsSize=8 rpcFlags=0x0
+50080:    34045826 E boot: ctrl 0x20800a61: fifo num channels: 512 -> status 0x0 [synthesized (512 channels; E4: host FIFO_GET_INFO)]
+50081:    34045828 E boot: tx seq 13 reply GSP_RM_CONTROL sequence 12 result 0x0 length 80
+50086:    34045936 E boot: doorbell 16: libos args PA 0x1034b4000 (mapped), wpr meta PA 0x103838000
+50087:    34045938 E boot: rx seq 15 GSP_RM_CONTROL (76) sequence 13 length 76 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20802a08 paramsSize=4 rpcFlags=0x0
+50088:    34045939 E boot: ctrl 0x20802a08: ce fault method buffer size -> status 0x0 [synthesized (32 KiB fault method buffer; fifo-device-info.md §4a)]
+50089:    34045940 E boot: tx seq 14 reply GSP_RM_CONTROL sequence 13 result 0x0 length 76
+50094:    34047198 E boot: doorbell 17: libos args PA 0x1034b4000 (mapped), wpr meta PA 0x103838000
+50095:    34047199 E boot: rx seq 16 GSP_RM_CONTROL (76) sequence 14 length 88 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20800afe paramsSize=16 rpcFlags=0x0
+50096:    34047200 E boot: ctrl 0x20800afe: init user shared data: pa 0x1188a2000 -> status 0x0 [guest (RUSD page recorded)]
+50097:    34047201 E boot: tx seq 15 reply GSP_RM_CONTROL sequence 14 result 0x0 length 88
+50102:    34047336 E boot: doorbell 18: libos args PA 0x1034b4000 (mapped), wpr meta PA 0x103838000
+50103:    34047338 E boot: rx seq 17 GSP_RM_CONTROL (76) sequence 15 length 88 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20800aff paramsSize=16 rpcFlags=0x0
+50104:    34047339 E boot: ctrl 0x20800aff: user shared data poll: ok -> status 0x0 [synthesized]
+50105:    34047340 E boot: tx seq 16 reply GSP_RM_CONTROL sequence 15 result 0x0 length 88
+50110:    34047496 E boot: doorbell 19: libos args PA 0x1034b4000 (mapped), wpr meta PA 0x103838000
+50111:    34047498 E boot: rx seq 18 GSP_RM_ALLOC (103) sequence 16 length 64 checksum ok: hClient=0xc1e00001 hParent=0x0 hObject=0x0 hClass=0x0 paramsSize=120 flags=0x0
+50112:    34047499 E boot: alloc: alloc NV01_ROOT 0x0 object 0x0 under 0x0 -> status 0x0 [synthesized (object recorded, no host object yet)]
+50113:    34047500 E boot: tx seq 17 reply GSP_RM_ALLOC sequence 16 result 0x0 length 184
+50118:    34047609 E boot: doorbell 20: libos args PA 0x1034b4000 (mapped), wpr meta PA 0x103838000
+50119:    34047610 E boot: rx seq 19 GSP_RM_ALLOC (103) sequence 17 length 64 checksum ok: hClient=0xc1e00001 hParent=0xc1e00001 hObject=0xcaf00000 hClass=0x80 paramsSize=56 flags=0x0
+50120:    34047611 E boot: alloc: alloc NV01_DEVICE_0 0x80 object 0xcaf00000 under 0xc1e00001 -> status 0x0 [synthesized (object recorded, no host object yet)]
+50121:    34047613 E boot: tx seq 18 reply GSP_RM_ALLOC sequence 17 result 0x0 length 120
+50126:    34047737 E boot: doorbell 21: libos args PA 0x1034b4000 (mapped), wpr meta PA 0x103838000
+50127:    34047738 E boot: rx seq 20 GSP_RM_ALLOC (103) sequence 18 length 64 checksum ok: hClient=0xc1e00001 hParent=0xcaf00000 hObject=0xcaf00001 hClass=0x2080 paramsSize=4 flags=0x0
+50128:    34047740 E boot: alloc: alloc NV20_SUBDEVICE_0 0x2080 object 0xcaf00001 under 0xcaf00000 -> status 0x0 [synthesized (object recorded, no host object yet)]
+50129:    34047741 E boot: tx seq 19 reply GSP_RM_ALLOC sequence 18 result 0x0 length 68
+50134:    34047863 E boot: doorbell 22: libos args PA 0x1034b4000 (mapped), wpr meta PA 0x103838000
+50135:    34047864 E boot: rx seq 21 GSP_RM_ALLOC (103) sequence 19 length 64 checksum ok: hClient=0xc1e00001 hParent=0xcaf00001 hObject=0xcaf00003 hClass=0x7e paramsSize=24 flags=0x0
+50136:    34047869 E boot: alloc: alloc NV01_EVENT_KERNEL_CALLBACK_EX 0x7e object 0xcaf00003 under 0xcaf00001 -> status 0x0 [synthesized (object recorded, no host object yet)]
+50137:    34047870 E boot: tx seq 20 reply GSP_RM_ALLOC sequence 19 result 0x0 length 88
+50142:    34047985 E boot: doorbell 23: libos args PA 0x1034b4000 (mapped), wpr meta PA 0x103838000
+50143:    34047986 E boot: rx seq 22 GSP_RM_CONTROL (76) sequence 20 length 92 checksum ok: hClient=0xc1e00001 hObject=0xcaf00001 cmd=0x20800301 paramsSize=20 rpcFlags=0x0
+50144:    34047987 E boot: ctrl 0x20800301: event set notification: ok -> status 0x0 [synthesized (event registered, never raised yet)]
+50145:    34047988 E boot: tx seq 21 reply GSP_RM_CONTROL sequence 20 result 0x0 length 92
+50150:    34048121 E boot: doorbell 24: libos args PA 0x1034b4000 (mapped), wpr meta PA 0x103838000
+50151:    34048122 E boot: rx seq 23 GSP_RM_CONTROL (76) sequence 21 length 88 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20800a59 paramsSize=16 rpcFlags=0x0
+50152:    34048124 E boot: ctrl 0x20800a59: gmmu static info -> status 0x0 [synthesized (256-entry fault buffers)]
+50153:    34048125 E boot: tx seq 22 reply GSP_RM_CONTROL sequence 21 result 0x0 length 88
+67643:    34623607 E boot: doorbell 25: libos args PA 0x1034b4000 (mapped), wpr meta PA 0x103838000
+67644:    34623609 E boot: rx seq 24 UPDATE_BAR_PDE (70) sequence 22 length 56 checksum ok: 24 bytes: 010000000000000002e3750f000000002f00000000000000
+67645:    34623610 E boot: update bar pde: barType 1 entryValue 0xf75e302 levelShift 47 -> PDE3[0] at Some(4150263808) stored true [guest]
+67646:    34623611 E boot: tx seq 23 reply UPDATE_BAR_PDE sequence 22 result 0x0 length 56
+67705:    34625144 E boot: doorbell 26: libos args PA 0x1034b4000 (mapped), wpr meta PA 0x103838000
+67706:    34625146 E boot: rx seq 25 GSP_RM_CONTROL (76) sequence 23 length 72 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20800a70 paramsSize=0 rpcFlags=0x0
+67707:    34625147 E boot: ctrl 0x20800a70: bus flush with sysmembar: ok -> status 0x0 [synthesized (nothing to flush)]
+67708:    34625148 E boot: tx seq 24 reply GSP_RM_CONTROL sequence 23 result 0x0 length 72
+67721:    34625468 E boot: doorbell 27: libos args PA 0x1034b4000 (mapped), wpr meta PA 0x103838000
+67722:    34625470 E boot: rx seq 26 GSP_RM_CONTROL (76) sequence 24 length 72 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20800a70 paramsSize=0 rpcFlags=0x0
+67724:    34625472 E boot: tx seq 25 reply GSP_RM_CONTROL sequence 24 result 0x0 length 72
+67752:    34626124 E boot: doorbell 28: libos args PA 0x1034b4000 (mapped), wpr meta PA 0x103838000
+67753:    34626125 E boot: rx seq 27 GSP_RM_CONTROL (76) sequence 25 length 76 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20800a6c paramsSize=4 rpcFlags=0x0
+67754:    34626126 E boot: ctrl 0x20800a6c: l2 invalidate/evict: ok -> status 0x0 [synthesized (no cache to evict)]
+67755:    34626128 E boot: tx seq 26 reply GSP_RM_CONTROL sequence 25 result 0x0 length 76
+67770:    34626481 E boot: doorbell 29: libos args PA 0x1034b4000 (mapped), wpr meta PA 0x103838000
+67771:    34626482 E boot: rx seq 28 GSP_RM_CONTROL (76) sequence 26 length 76 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20800a6c paramsSize=4 rpcFlags=0x0
+67773:    34626485 E boot: tx seq 27 reply GSP_RM_CONTROL sequence 26 result 0x0 length 76
+67797:    34627053 E boot: doorbell 30: libos args PA 0x1034b4000 (mapped), wpr meta PA 0x103838000
+67798:    34627054 E boot: rx seq 29 GSP_RM_CONTROL (76) sequence 27 length 76 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20800a6c paramsSize=4 rpcFlags=0x0
+67800:    34627057 E boot: tx seq 28 reply GSP_RM_CONTROL sequence 27 result 0x0 length 76
+67810:    34627314 E boot: doorbell 31: libos args PA 0x1034b4000 (mapped), wpr meta PA 0x103838000
+67811:    34627315 E boot: rx seq 30 GSP_RM_CONTROL (76) sequence 28 length 88 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20800a80 paramsSize=16 rpcFlags=0x0
+67812:    34627317 E boot: ctrl 0x20800a80: perf boost sync info: zeros -> status 0x0 [synthesized (no boost sync)]
+67813:    34627318 E boot: tx seq 29 reply GSP_RM_CONTROL sequence 28 result 0x0 length 88
+67818:    34627441 E boot: doorbell 32: libos args PA 0x1034b4000 (mapped), wpr meta PA 0x103838000
+67819:    34627442 E boot: rx seq 31 GSP_RM_CONTROL (76) sequence 29 length 80 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20800a61 paramsSize=8 rpcFlags=0x0
+67821:    34627444 E boot: tx seq 30 reply GSP_RM_CONTROL sequence 29 result 0x0 length 80
+67826:    34627606 E boot: doorbell 33: libos args PA 0x1034b4000 (mapped), wpr meta PA 0x103838000
+67827:    34627607 E boot: rx seq 32 GSP_RM_ALLOC (103) sequence 30 length 64 checksum ok: hClient=0xc1e00002 hParent=0x0 hObject=0x0 hClass=0x0 paramsSize=120 flags=0x0
+67829:    34627609 E boot: tx seq 31 reply GSP_RM_ALLOC sequence 30 result 0x0 length 184
+67834:    34627726 E boot: doorbell 34: libos args PA 0x1034b4000 (mapped), wpr meta PA 0x103838000
+67835:    34627728 E boot: rx seq 33 GSP_RM_ALLOC (103) sequence 31 length 64 checksum ok: hClient=0xc1e00002 hParent=0xc1e00002 hObject=0xcaf00000 hClass=0x80 paramsSize=56 flags=0x0
+67837:    34627730 E boot: tx seq 32 reply GSP_RM_ALLOC sequence 31 result 0x0 length 120
+67842:    34627849 E boot: doorbell 35: libos args PA 0x1034b4000 (mapped), wpr meta PA 0x103838000
+67843:    34627850 E boot: rx seq 34 GSP_RM_ALLOC (103) sequence 32 length 64 checksum ok: hClient=0xc1e00002 hParent=0xcaf00000 hObject=0xcaf00001 hClass=0x2080 paramsSize=4 flags=0x0
+67845:    34627853 E boot: tx seq 33 reply GSP_RM_ALLOC sequence 32 result 0x0 length 68
+68365:    34639877 E boot: doorbell 36: libos args PA 0x1034b4000 (mapped), wpr meta PA 0x103838000
+68366:    34639878 E boot: rx seq 35 GSP_RM_CONTROL (76) sequence 33 length 88 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20800a80 paramsSize=16 rpcFlags=0x0
+68368:    34639881 E boot: tx seq 34 reply GSP_RM_CONTROL sequence 33 result 0x0 length 88
+68373:    34639996 E boot: doorbell 37: libos args PA 0x1034b4000 (mapped), wpr meta PA 0x103838000
+68374:    34639997 E boot: rx seq 36 GSP_RM_CONTROL (76) sequence 34 length 100 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20802a0f paramsSize=28 rpcFlags=0x0

@@ -1,0 +1,137 @@
+# SPDX-License-Identifier: MIT
+# Guest driver versions against the 610.57.04 device (docs/caraxes/guest-driver-versions.md), vm3,
+# 2026-09-24 11:05-12:30 local, pure emulation (CARAXES_HOST_RM=1 CARAXES_BOOT_MODEL=1; no
+# CARAXES_RESERVE_VRAM, CARAXES_HOST_EXEC or CARAXES_DMA; default Cloud Hypervisor). The device's
+# gpu-trace.log times are microseconds since server start.
+
+== Inputs
+- Tree: 22f3609 (after 3bcfb35), plus this run's uncommitted changes: crates/vfio-user-nvgpu/src/ver/mod.rs
+  (ElementLayout, element_layout(), static_info_for_guest()), msgq.rs and boot.rs (use them; default
+  unchanged), caraxes/tools/gsp-abi-sizes.{c,sh} (GSP_ABI 595 field lists for majors below 610).
+- Device binaries (frozen copies, all built from this tree with cargo build --release -p vfio-user-nvgpu):
+  stock (before the switches)  sha256 a638933c1beb46e2700a15e87b430a7d759ca50db82c642bd8940fe5f9bd2ae0
+  with all three 595 switches   sha256 f42ba30217d22966c88325033262f33bfb315e818cf652f9357c7f9901384c48
+  (intermediate builds: element switch only ffe59d01..., element + static info fbbdf2af...).
+- Guest: vm3's overlay /mnt/vmstore/caraxes/vm3/rootfs.qcow2 (610.57.04 from NVIDIA's package, modules in
+  /lib/modules/6.8.0-136-generic/updates, userspace in /opt/nvrm) is only ever a BACKING file here; every
+  experiment runs in a fresh overlay on top of it, selected with VM=vm3/<name> (the launcher's state dir
+  is $CARAXES_STORE/$VM, so a subdirectory works unchanged):
+    W=/mnt/vmstore/caraxes/vm3/<name>; mkdir -p $W
+    qemu-img create -f qcow2 -F qcow2 -b /mnt/vmstore/caraxes/vm3/rootfs.qcow2 $W/rootfs.qcow2
+    cp /mnt/vmstore/caraxes/vm3/seed.img $W/
+  vm3/guestdrv: 595.91.07 and then 610.43.02 (Ubuntu archive). vm3/g615: 615.71.09 (NVIDIA CUDA repo).
+- Network: the guest has no route to the internet (no NAT for 192.168.103.0/24). Package indexes and .debs
+  were fetched on the host with plain curl GETs from archive.ubuntu.com, security.ubuntu.com and
+  developer.download.nvidia.com (no credentials, no identifiers) and copied into the guest:
+  indexes to /var/lib/apt/lists (the names apt uses), .debs to /var/cache/apt/archives, then
+  apt-get install --no-download (apt checks the hashes from the indexes).
+
+== Environment (every run)
+  export VM=vm3/<name> CARAXES_TAP=caraxes3 CARAXES_IP=192.168.103.23 CARAXES_MAC=02:00:00:00:00:23 \
+         CARAXES_HOST_RM=1 CARAXES_BOOT_MODEL=1 CARAXES_SERVER=<frozen binary>
+  unset CARAXES_RESERVE_VRAM CARAXES_HOST_EXEC CARAXES_DMA LEA_CH
+
+== Run 0: baseline, 610.57.04 (base-610.57.04/)
+  VM=vm3/guestdrv, stock device: tools/caraxes-vm.sh up && tools/caraxes-vm.sh wait && tools/caraxes-vm.sh probe base610
+  Result: RmInitAdapter succeeded, modprobe rc=0.
+
+== What Ubuntu 24.04 offers (host-side index read, then in the guest)
+  for s in noble noble-updates noble-backports noble-security; do ... curl .../dists/$s/InRelease and
+      .../dists/$s/{main,restricted,universe,multiverse}/binary-amd64/Packages.xz ...; done
+  guest: apt-cache policy nvidia-driver-610-open nvidia-driver-595-open; ubuntu-drivers devices
+  Result: newest -open in the archive is nvidia-driver-610-open 610.57.04-0ubuntu0.24.04.3 (noble-updates),
+  i.e. the host's version; 610.43.02 in noble-security; ubuntu-drivers marks nvidia-driver-595-open
+  (595.91.07) "recommended" for 10de:1f02. Prebuilt linux-modules-nvidia-595-open-6.8.0-136-generic is
+  595.84 (depends on nvidia-kernel-common-595 <= 595.84-1), so 595.91.07 goes through DKMS.
+
+== Run 1: 595.91.07 (Ubuntu's recommendation), stock device (595-stock/)
+  guest: apt-get install -y --print-uris nvidia-driver-595-open nvidia-dkms-595-open  -> 22 .debs, 316 MB
+  host: curl each URI into $W/debs-595; copy into the guest cache
+  guest: sudo mv /lib/modules/6.8.0-136-generic/updates/nvidia*.ko /root/nvidia-610-modules/
+         sudo mv /etc/ld.so.conf.d/nvrm{,-gl}.conf{,.disabled}; sudo ldconfig      (the /opt/nvrm 610 libs)
+         sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-download nvidia-driver-595-open nvidia-dkms-595-open
+         modinfo -F version nvidia -> 595.91.07 (/lib/modules/6.8.0-136-generic/updates/dkms/nvidia.ko.zst);
+         /lib/firmware/nvidia/595.91.07/gsp_tu10x.bin present
+  tools/caraxes-vm.sh down; tools/caraxes-vm.sh up && tools/caraxes-vm.sh wait
+  (nvidia autoloads at boot through nvidia-drm although /etc/modprobe.d blacklists nvidia; the probe
+  command then cannot unload it, so the boot log is the evidence: ssh 'sudo dmesg')
+  Result: guest "GspMsgQueueReceiveStatus: Incorrect message length 0", rpcRecvPoll(GSP_INIT_DONE) fails
+  with NV_ERR_INVALID_PARAM_STRUCT at kernel_gsp.c:6105; device "GSP command queue: bad rpc length 0 in
+  command slot 0 (seqNum 0), element skipped".
+
+== Run 2-4: 595.91.07 with the version switches (CARAXES_GUEST_ABI=595)
+  export CARAXES_GUEST_ABI=595 CARAXES_SERVER=<binary with the switches>; down; up; wait; sleep 60-90
+  guest: sudo journalctl -k -b -o short-monotonic; nvidia-smi; nvidia-smi -q
+  Run 2 (595-element/): element layout only -> GSP boots, GET_GSP_STATIC_INFO answered, then
+     GPU_GET_CONSTRUCTED_FALCON_INFO with hClient=0x76 hObject=0xca7a0001 -> NOT_SUPPORTED, RmInitAdapter
+     failed (0x23:0x56:1330).
+  Run 3 (595-static/): + GspStaticConfigInfo remap -> RmInitAdapter succeeded, nvidia-drm up,
+     nvidia-smi shows the card; the GSS legacy control 0x2080a0a4 (67396 bytes) was split at 610's
+     maxRpcSize -> device "send: element of 65568 bytes does not fit the status queue", guest Xid 119
+     (RPC timeout) and Xid 154 (in the GUEST).
+  Run 4 (595-switches/): + maxRpcSize from the element layout -> RmInitAdapter succeeded, no Xid,
+     nvidia-smi: "Leandro VFIO RTX 2070-4G", 49 C, P8, 4096 MiB, GSP Firmware Version 610.57.04.
+     Remaining asserts: kchannelBindToRunlist NOT_SUPPORTED (NVA06F_CTRL_CMD_BIND 0xa06f0104 unanswered)
+     from gdm's Xorg (the -driver- metapackage pulls xserver-xorg-video-nvidia-595); not a version issue.
+
+== Run 5: 610.43.02 (Ubuntu noble-security), stock device, no switch (610.43.02/)
+  guest: printf 'Package: *610*\nPin: version 610.43.02-0ubuntu0.24.04.1\nPin-Priority: 1001\n' > /etc/apt/preferences.d/caraxes-610-43
+         apt-get install --print-uris nvidia-driver-610-open nvidia-dkms-610-open -> 16 .debs (replaces 595)
+         sudo systemctl stop gdm3 nvidia-persistenced; apt-get install -y --no-download ...
+  unset CARAXES_GUEST_ABI; CARAXES_SERVER=<stock>; down; up; wait
+  Result: RmInitAdapter succeeded; nvidia-smi 610.43.02 shows the card (55 %, 49 C, P8, 29 W / 175 W);
+  device notes 'guest driver "610.43.02" is not the emulated 610.57.04'; same BIND asserts from gdm.
+
+== Static comparisons (no guest)
+  git clone --depth 1 --branch 595.91.07 https://github.com/NVIDIA/open-gpu-kernel-modules /mnt/vmstore/caraxes/ogkm-595.91.07
+  git clone --depth 1 --branch 610.43.02 https://github.com/NVIDIA/open-gpu-kernel-modules /mnt/vmstore/caraxes/ogkm-610.43.02
+  (615.71.09 was already at /mnt/vmstore/caraxes/ogkm-615.71.09)
+  caraxes/tools/gsp-abi-sizes.sh vendor/open-gpu-kernel-modules > abi-610.57.04.md   (byte-identical before/after the 595 switch)
+  caraxes/tools/gsp-abi-sizes.sh /mnt/vmstore/caraxes/ogkm-595.91.07 > abi-595.91.07.md
+  caraxes/tools/gsp-abi-sizes.sh /mnt/vmstore/caraxes/ogkm-610.43.02 > abi-610.43.02.md
+  caraxes/tools/gsp-abi-sizes.sh /mnt/vmstore/caraxes/ogkm-615.71.09 > abi-615.71.09.md
+  control structs: for v in 610.57.04 595.91.07 610.43.02; do I=target/abi-headers/$v/src/common/sdk/nvidia/inc;
+      cc -DNV_LINUX -D__linux__ -I$I -I$I/ctrl -Itarget/abi-headers/$v/src/common/inc \
+         -Itarget/abi-headers/$v/src/nvidia/arch/nvalloc/unix/include -o cs-$v ctrlsizes.c && ./cs-$v; done
+      -> control-param-sizes.txt (11 of 54 differ between 610.57.04 and 595.91.07, none for 610.43.02)
+  control ids: the 100 CMD_* constants of src/ver/v610.rs exist with the same value in the 595.91.07
+  and 610.43.02 SDK headers; RPC function numbers identical except that 610 adds
+  CTRL_GPU_SET_MIGRATION_BLOCK = 229 (rpc_global_enums.h), not used by the device.
+
+== Run 6-8: 615.71.09 (NVIDIA CUDA repository for ubuntu2404, as on korngold: DKMS build under
+   updates/dkms, caraxes/reference/gb206/host/modinfo-nvidia.txt), fresh overlay vm3/g615
+  host: curl https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/x86_64/{InRelease,Packages.gz,cuda-keyring_1.1-1_all.deb}
+  guest: dpkg -i cuda-keyring_1.1-1_all.deb; lists copied as
+         developer.download.nvidia.com_compute_cuda_repos_ubuntu2404_x86%5f64_{InRelease,Packages}
+         mv the 610 modules and the /opt/nvrm ld.so entries aside (as in run 1)
+         P="nvidia-headless-open nvidia-headless-no-dkms-open nvidia-dkms-open nvidia-kernel-common
+            nvidia-kernel-source-open libnvidia-compute nvidia-firmware nvidia-modprobe" (each =615.71.09-2ubuntu1)
+         apt-get install --print-uris $P -> 13 .debs, 200 MB (host curl), apt-get install -y --no-download $P
+         result: nvidia 615.71.09 (DKMS, updates/dkms), /lib/firmware/nvidia/615.71.09/{gsp,ucodes}_{tu10x,ga10x}.bin,
+         /usr/bin/nvidia-smi, libcuda.so.1 and libnvidia-ml.so.1 615.71.09 in /lib/x86_64-linux-gnu.
+         Headless on purpose: no Xorg driver, so gdm does not start an X session on the device.
+         /etc/modprobe.d keeps "blacklist nvidia"; the driver is loaded by the probe command.
+  export VM=vm3/g615 CARAXES_SERVER=<stock>; unset CARAXES_GUEST_ABI; up; wait
+  Run 6: tools/caraxes-vm.sh probe g615-first
+  Run 7 (615.71.09/unlinked/):
+     python3 caraxes/runs/guest-driver-2026-09-24/capture615.py $(cat $W/gpu.pid) $W/gpu-trace.log $W/capture-615 180 &
+     tools/caraxes-vm.sh probe g615-capture2
+     (read-only: guest RAM through /proc/<device pid>/fd/<dma_map fd>, the device's own mapping)
+  Run 8 (615.71.09/linked/):
+     LINK=1 python3 caraxes/runs/guest-driver-2026-09-24/capture615.py ... $W/capture-615-link 180 &
+     tools/caraxes-vm.sh probe g615-link2
+     (LINK=1 additionally writes one 32-byte 615 msgqTxHeader into the guest's status queue, the part
+     the GSP plays in msgqTxCreate, so that the guest sends GMCAPI_CMD_GSP_INIT; the device is not changed)
+     python3 caraxes/runs/guest-driver-2026-09-24/nvkv-decode.py $W/capture-615-link/cmd-queue-slots.bin \
+         /mnt/vmstore/caraxes/ogkm-615.71.09 > 615.71.09/linked/gmcapi-gsp-init-decoded.txt
+  tools/caraxes-vm.sh down
+
+== Host checks
+  journalctl -k --since "2026-09-24 11:00" | grep -c "NVRM: Xid" -> 0 (the Xid 119/154 of run 3 were in the guest).
+  Nothing executed on the host GPU; the only host RM use is the device's unprivileged client (--host-rm).
+
+== State left behind
+  vm3/rootfs.qcow2 untouched (mtime 2026-09-24 10:11, before this run).
+  /mnt/vmstore/caraxes/vm3/g615: the 615.71.09 guest (overlay on vm3/rootfs.qcow2), stopped; VM=vm3/g615.
+  /mnt/vmstore/caraxes/vm3/guestdrv: the 595/610.43.02 overlay, stopped; its deletion was refused by the
+  session's permission check, so it is still there (3.7 GiB, safe to delete: rm -rf that directory).

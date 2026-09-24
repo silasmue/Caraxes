@@ -1,0 +1,17 @@
+regions: [0x0+0xc0000000 fd 9], [0x100000000+0x40000000 fd 10]
+mailbox0/1 (libos init args PA): {'110040': 124375040, '110044': 0}
+libos-init-args.bin: 4096 bytes at PA 0x769d000
+  libos arg 0: id8 0x004c4f47494e4954 "LOGINIT" pa 0x1da90000 size 0x10000 kind 1 loc 1
+  libos arg 1: id8 0x0000004c4f47524d "LOGRM" pa 0x1dae0000 size 0x10000 kind 1 loc 1
+  libos arg 2: id8 0x0000524d41524753 "RMARGS" pa 0x769e000 size 0x1000 kind 1 loc 1
+gsp-arguments-cached.bin: 4096 bytes at PA 0x769e000
+  GSP_ARGUMENTS_CACHED magic 0x20505347 size 0xb8 flags 0x2
+  messageQueueInitArguments flags=0x0 sharedMemPhysAddr=0x88a00000 cmdQueueOffset=0x1000 statQueueOffset=0x41000 queueElementHdrSize=0x18 queueElementSizeMin=0x1000 queueElementSizeMax=0x10000 queueHeaderAlign=0x4 queueElementAlign=0xc pageTableEntryCount=0x81
+queue-page-table.bin: 1032 bytes at PA 0x88a00000
+  page table: 129 entries, first ['0x88a00000', '0x88a01000', '0x88a02000', '0x88a03000']
+  cmd queue header (offset 0x1000): 0200000000000400001000003f00000000100000000000000000000000000000
+    as 615 msgqTxHeader: versionMajor 2 versionMinor 0 size 0x40000 msgSize 0x1000 msgCount 63 entryOff 0x1000 reserved 0x0
+    cmd slot 0 (first 64 bytes): 00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+  stat queue header (offset 0x41000): 0000000000000000000000000000000000000000000000000000000000000000
+    as 615 msgqTxHeader: versionMajor 0 versionMinor 0 size 0x0 msgSize 0x0 msgCount 0 entryOff 0x0 reserved 0x0
+wpr-meta.bin: 256 bytes at PA 0x769c000

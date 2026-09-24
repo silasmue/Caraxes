@@ -1,0 +1,47 @@
+# SPDX-License-Identifier: MIT
+# 595.91.07 guest, element layout only: device events up to the failing control
+34862:    51158608 E boot: fwsec: data buffer PA 0x10a039000, frtsOffset 0xffe00000 (from the FWSEC command in guest RAM), WPR2 lo 0xffe000 hi 0xffeff0
+49854:    51595240 E boot: wpr meta: fbSize 0x100000000 gspFwRsvdStart 0xf7600000 nonWprHeap 0xf7600000+0x100000 wprStart 0xf7700000 frtsOffset 0xffe00000 wprEnd 0xfff00000 vgaWorkspace 0xfff00000
+49859:    51595424 E boot: doorbell 1: libos args PA 0x113970000 (mapped), wpr meta PA 0x11396f000
+49860:    51595425 E boot: libos arg 0: "LOGINIT" pa 0x105750000 size 0x10000
+49861:    51595427 E boot: libos arg 1: "LOGRM" pa 0x105720000 size 0x10000
+49862:    51595428 E boot: libos arg 2: "RMARGS" pa 0x113972000 size 0x1000
+49863:    51595429 E boot: rmargs: sharedMemPhysAddr 0x113c00000 pages 129 cmdQueueOffset 0x1000 statQueueOffset 0x41000
+49864:    51595430 E boot: queues linked: cmd TxHeader { version: 0, size: 262144, msg_size: 4096, msg_count: 63, write_ptr: 1, flags: 1, rx_hdr_off: 32, entry_off: 4096 }; status header written (size 0x40000, 63 slots)
+49865:    51595431 E boot: tx seq 0 event GSP_INIT_DONE
+49866:    51595433 E boot: rx seq 0 GSP_SET_SYSTEM_INFO (72) sequence 0 length 976 checksum ok: gpuPhysAddr=0xe6000000 gpuPhysFbAddr=0x3fffe0000000 gpuPhysInstAddr=0x3ffffc000000 bdf=0x5 pciConfigMirror=0x88000+0x1000 PCIDeviceID=0x1f0210de PCISubDeviceID=0x40111458 rev=0xa1 maxUserVa=0x7ffffffff000 hostPageSize=0x1000
+49868:    51595471 E boot: doorbell 2: libos args PA 0x113970000 (mapped), wpr meta PA 0x11396f000
+49869:    51595472 E boot: rx seq 1 SET_REGISTRY (73) sequence 0 length 1591 checksum ok: size=1559 entries=42
+49876:    51595689 E boot: doorbell 3: libos args PA 0x113970000 (mapped), wpr meta PA 0x11396f000
+49877:    51595690 E boot: rx seq 2 SET_GUEST_SYSTEM_INFO (1) sequence 0 length 824 checksum ok: vgx 0x2d.0x3 driver="595.91.07"
+49878:    51595691 E boot: guest driver "595.91.07" is not the emulated 610.57.04 (build with its ver module)
+49879:    51595692 E boot: tx seq 1 reply SET_GUEST_SYSTEM_INFO sequence 0 result 0x0 length 824
+49884:    51595822 E boot: doorbell 4: libos args PA 0x113970000 (mapped), wpr meta PA 0x11396f000
+49885:    51595823 E boot: rx seq 3 GET_GSP_STATIC_INFO (65) sequence 1 length 1624 checksum ok: 1592 bytes: 0000000000000000000000000000000000000000000000000000000000000000
+49886:    51595824 E boot: static-info gidInfo.data[0..16] = 9bd7b93d3d23c0746704984ef33ab7a7 [synthesized (E4: per-VM UUID)]
+49887:    51595826 E boot: static-info fbRegionInfoParams = 2 regions: usable [0x0, 0xf7600000), reserved [0xf7600000, 0x100000000) [guest (WPR meta gspFwRsvdStart)]
+49888:    51595827 E boot: static-info engineCaps = 0x81bfe02 0xc4 0x0 (GR0, CE0-8, NVDEC0/1, NVENC0, SW, SEC2, HOST) [synthesized (TU106 child list; E4: host GET_ENGINES_V2)]
+49889:    51595828 E boot: static-info fb_length = 0x100000000 [profile]
+49890:    51595829 E boot: static-info gpuNameString = Leandro VFIO RTX 2070-4G [profile (guest_card_name)]
+49891:    51595830 E boot: static-info gpuShortNameString = TU106 [card]
+49892:    51595831 E boot: static-info bar1PdeBase/bar2PdeBase = 0xf7601000/0xf7600000 [guest (WPR meta nonWprHeapOffset; docs/caraxes/fb-model.md)]
+49893:    51595833 E boot: static-info vbios* = valid, subsystem 0x1458:0x4011, revision 0x90063d00, oem 0x76 [card (config space, VBIOS BIT)]
+49894:    51595834 E boot: static-info hInternalClient/Device/Subdevice = 0xca7a0001/2/3 [synthesized (device-owned handles)]
+49895:    51595835 E boot: static-info branding, power, platform flags, SKU, PDI, ECID, bBusResetRequired = 0 [synthesized (desktop GeForce; E4: host controls)]
+49896:    51595836 E boot: tx seq 2 reply GET_GSP_STATIC_INFO sequence 1 result 0x0 length 1632
+49901:    51597230 E boot: doorbell 5: libos args PA 0x113970000 (mapped), wpr meta PA 0x11396f000
+49902:    51597232 E boot: rx seq 4 INIT_GSP_TRACE_CRASH_BUFFER (228) sequence 2 length 48 checksum ok: 16 bytes: 00b04f11010000004006000000000000
+49903:    51597233 E boot: init gsp trace crash buffer: pa 0x1114fb000 size 0x640 [guest, recorded]
+49904:    51597234 E boot: tx seq 3 reply INIT_GSP_TRACE_CRASH_BUFFER sequence 2 result 0x0 length 48
+49918:    51597616 E boot: doorbell 6: libos args PA 0x113970000 (mapped), wpr meta PA 0x11396f000
+49919:    51597617 E boot: rx seq 5 GSP_RM_CONTROL (76) sequence 3 length 160 checksum ok: hClient=0x76 hObject=0xca7a0001 cmd=0x20800a36 paramsSize=88 rpcFlags=0x0
+49920:    51597618 E boot: ctrl 0x20800a36: chip info -> status 0x0 [card (config space) + synthesized regBases (kern_gpu_tu102.c:275-306)]
+49921:    51597619 E boot: tx seq 4 reply GSP_RM_CONTROL sequence 3 result 0x0 length 160
+49926:    51597773 E boot: doorbell 7: libos args PA 0x113970000 (mapped), wpr meta PA 0x11396f000
+49927:    51597774 E boot: rx seq 6 GSP_RM_CONTROL (76) sequence 4 length 8276 checksum ok: hClient=0x76 hObject=0xca7a0001 cmd=0x20800a41 paramsSize=8204 rpcFlags=0x0
+49928:    51597775 E boot: ctrl 0x20800a41: user register access map -> status 0x0 [synthesized (allow-all map, gpu_register_access_map.c:260-298)]
+49929:    51597776 E boot: tx seq 5 reply GSP_RM_CONTROL sequence 4 result 0x0 length 8276
+49934:    51598594 E boot: doorbell 8: libos args PA 0x113970000 (mapped), wpr meta PA 0x11396f000
+49935:    51598595 E boot: rx seq 7 GSP_RM_CONTROL (76) sequence 5 length 1356 checksum ok: hClient=0x76 hObject=0xca7a0001 cmd=0x208001b0 paramsSize=1284 rpcFlags=0x0
+49936:    51598596 E boot: ctrl 0x208001b0: control 0x208001b0 forwarded to the host: status 0x56 -> status 0x56 [host (forwarded as-is)]
+49937:    51598597 E boot: tx seq 6 reply GSP_RM_CONTROL sequence 5 result 0x0 length 1356
