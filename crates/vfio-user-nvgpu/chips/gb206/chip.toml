@@ -1,0 +1,127 @@
+# SPDX-License-Identifier: MIT
+#
+# DRAFT from the lab capture caraxes/reference/gb206/ (RTX 5060 Ti, driver 615.71.09,
+# host korngold, 2026-09-24; docs/caraxes/blackwell-gb206.md). Not loaded by any code:
+# src/chip knows only tu106, and several required keys of ChipData are still open
+# (commented "OPEN(...)" below with where the value has to come from). Same format as
+# chips/tu106/chip.toml. Paths without a prefix are relative to
+# vendor/open-gpu-kernel-modules (610.57.04), the guest driver this draft targets.
+# Driver enums are given by name; names marked "not in src/ver/v610.rs" must be
+# added to the version module before ChipData::load accepts this file.
+
+name = "gb206"
+# rm-tools/lab-rm-query.txt:6 GPU_GET_SHORT_NAME_STRING short="GB206-A" (the host's
+# GSP answer; TU106 uses the bare chip name, the device may do the same).
+short_name = "GB206"
+
+# rm-tools/lab-rm-query.txt:3 MC_GET_ARCH_INFO: architecture 0x1B0 (GB20x),
+# implementation 0x6, revision 0xA1, chip_id 0x1B6; composed as for TU106
+# (src/common/inc/swref/published/nv_ref.h:97-150): BOOT_0 = architecture 0x1B in
+# 28:24, implementation 6 in 23:20, major A in 7:4, minor 1 in 3:0; BOOT_42 = chip id
+# 0x1B6 in 29:20, major A in 19:16, minor 1 in 15:12. halmgrGetHalForGpu picks the
+# GB206 HAL from BOOT_42 (arch/nvalloc/unix/src/osapi.c:3726-3753). Composed, not
+# read from the card (the capture reads no register).
+[identity]
+boot_0 = 0x1B60_00A1
+boot_1 = 0x0000_0000
+boot_42 = 0x1B6A_1000
+
+# OPEN(source): the Blackwell BAR0 layout moved. The PCI config mirror (NV_PCFG on
+# Turing at 0x88000) is in published/blackwell/gb202/dev_xtl_ep_pcfg_gpu.h; the PROM
+# window is not needed for boot on GB20x (kgspExtractVbiosFromRom is the stub
+# _395e98/_5baef9 for GH100 and later, generated/g_kernel_gsp_nvoc.c:1388-1402).
+# [bar0]
+# pcfg = OPEN(dev_xtl_ep_pcfg_gpu.h)
+# pcfg_size = 0x1000
+# prom = OPEN
+# prom_size = OPEN
+
+# OPEN(source): every [registers] offset has to be re-derived for GB20x. Pointers:
+# BAR0 window is NV_XAL_EP_ZB_BAR0_WINDOW (0xD40 relative to the XAL ZB base,
+# published/blackwell/gb100/dev_nv_xal_ep_zb.h:40); the usermode window is
+# DRF_BASE(NV_VIRTUAL_FUNCTION) through GPU_GET_VREG_OFFSET
+# (src/kernel/gpu/arch/blackwell/kern_gpu_gb100.c:1804-1822) and its doorbell is at
+# +0x30090 (published/blackwell/gb202/dev_vm.h:27); the channel class
+# BLACKWELL_USERMODE_A is 0xC761 (rm-tools/lab-rm-query.txt:104).
+# [registers]
+
+# engineCaps: the NV2080_ENGINE_TYPE list of the host's GET_ENGINES_V2
+# (rm-tools/fifo-host-query.txt:4). "NVJPEG0" (0x2B) and "OFA0" (0x33) are not in
+# src/ver/v610.rs NV2080_ENGINE_TYPES yet (values: sdk/class/cl2080_notification.h:330,339).
+# OPEN: TU106 also lists HOST (0x27); check the GB20x child list before adding it.
+[engine_caps]
+types = ["GR0", "COPY0", "COPY4", "COPY7", "NVDEC0", "NVENC0", "SW", "SEC2", "NVJPEG0", "OFA0"]
+summary = "GR0, CE0/4/7, NVDEC0, NVENC0, SW, SEC2, NVJPG0, OFA0"
+source = "host (GB206 GET_ENGINES_V2, caraxes/reference/gb206/rm-tools/fifo-host-query.txt:4)"
+
+# OPEN(source): regBases per gpuGetRegBaseOffset_GB100 (kern_gpu_gb100.c:1804-1822):
+# TIMER = NV_PTIMER0_PRI_BASE, USERMODE = the NV_VIRTUAL_FUNCTION base; both need the
+# GB202 header values. Note: 615.71.09 removes INTERNAL_GPU_GET_CHIP_INFO (its id
+# 0x20800A36 is reused for INTERNAL_GPU_SYNC_FABRIC_PROBE_INFO,
+# 615 ctrl2080internal.h:585); only a 610 guest asks for it.
+# [chip_info]
+# timer_base = OPEN
+# usermode_base = OPEN
+# label = "card (config space) + synthesized regBases (kern_gpu_gb100.c:1804-1822)"
+
+[user_register_access_map]
+value = 0x8_0000
+label = "synthesized (allow-all map, gpu_register_access_map.c:260-298; unchanged from TU106, recheck the GB20x size)"
+
+# INTERNAL_MEMSYS_GET_STATIC_CONFIG. The capture has no memsys facts: RAM type, L2
+# size and LTC counts are not in nvidia-smi -q or the rm-tools output. GDDR7 is the
+# product's memory (not captured); "GDDR7" = 0x15 (sdk/ctrl/ctrl2080/ctrl2080fb.h:423)
+# is not in src/ver/v610.rs RAM_TYPES yet.
+[memsys]
+disable_compbit_backing = true
+# l2_cache_size = OPEN(second capture: FB_GET_INFO_V2 L2_CACHE_SIZE, or source)
+fbpa_present = true
+compr_page_size = 0x1_0000
+compr_page_shift = 16
+ram_type = "GDDR7"
+# ltc_count = OPEN(second capture: FB_GET_INFO_V2 LTC_COUNT/LTS_COUNT)
+# lts_per_ltc_count = OPEN
+label = "draft (GB206: GDDR7 from the product; L2/LTC open; caraxes/reference/gb206)"
+
+# FIFO_GET_INFO on the host (rm-tools/fifo-host-query.txt:22): MAX_CHANNEL_GROUPS
+# 16384, MAX_CHANNELS_PER_GROUP 128, MAX_SUBCONTEXT_PER_GROUP 64, default timeslice
+# 1024 us, PER_RUNLIST_CHRAM 1, MAX_LOWER_SUBCONTEXT 8. The per-runlist channel count
+# of INTERNAL_FIFO_GET_NUM_CHANNELS is not captured.
+# CE_GET_FAULT_METHOD_BUFFER_SIZE was refused on the host (status 0x1B,
+# NV_ERR_INSUFFICIENT_PERMISSIONS, fifo-host-query.txt:39).
+[fifo]
+# num_channels = { value = OPEN(source: kfifoGetNumChannels for GB202), label = "..." }
+# fault_method_buffer_size = { value = OPEN(source), label = "..." }
+
+# Hopper and later use the 5-level, 57-bit GMMU format (versatility.md, "GMMU format");
+# fb.rs implements only gmmu-v2-49bit. The host reports 52-bit DMA
+# (gpu-0000_01_00.0/proc-information.txt:8-9) where TU106 has 47.
+[gmmu]
+# mmu_format = "gmmu-v3-57bit"   (name to be defined with the new walker)
+# fault_buffer_entries = OPEN(source/host INTERNAL_GMMU_GET_STATIC_INFO)
+# fault_entry_size = 32
+label = "draft (GB206 GMMU, format open)"
+
+# Three LCEs present (CE_GET_ALL_CAPS present=0x91: CE0, CE4, CE7;
+# rm-tools/host-facts.txt:33-36). Whether one of them is a decompression LCE on GB20x
+# is not in the capture.
+[ce]
+# decomp_lce = OPEN(source: kceGetDecompLce / CE_IS_DECOMP_LCE_ENABLED on GB202)
+decomp_label = "draft (GB206 decompression LCE open)"
+
+# GR: 3 GPCs x 6 TPCs = 18 TPCs, ZCULL mask 0xF per GPC (rm-tools/host-facts.txt:28-32).
+# GeForce: no MIG (nvidia-smi-q.txt:22-24 MIG Mode N/A).
+[gr]
+# per_subctx_header = { value = OPEN(source: g_kernel_graphics_nvoc.c for GB206), label = "..." }
+mig = false
+smc_label = "host (MIG N/A on the GB206 GeForce, caraxes/reference/gb206/gpu-0000_01_00.0/nvidia-smi-q.txt:22-24)"
+
+# Channel classes the card exposes (rm-tools/lab-rm-query.txt): BLACKWELL_CHANNEL_GPFIFO_B
+# 0xCA6F (:110; _A 0xC96F at :109), BLACKWELL_DMA_COPY_B 0xCAB5 (:118), GP100_UVM_SW
+# 0xC076 (:88), BLACKWELL_COMPUTE_B 0xCEC0 (:125); 3D is BLACKWELL_B 0xCE97 (:124).
+# channel.rs decodes only clc46f/clc5b5: both classes need their method subset checked.
+[channel]
+gpfifo = 0xCA6F
+copy = 0xCAB5
+uvm_sw = 0xC076
+compute = 0xCEC0

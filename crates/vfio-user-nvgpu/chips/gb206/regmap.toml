@@ -1,0 +1,27 @@
+# SPDX-License-Identifier: MIT
+#
+# DRAFT: GB206 BAR0 register names for the trace, same format as
+# chips/tu106/regmap.toml; not loaded by any code (docs/caraxes/blackwell-gb206.md).
+# Only the registers whose GB20x offset is known from the 610.57.04 headers the guest
+# driver uses are listed (see chips/gb206/boot.toml for the sources); the rest of the
+# Blackwell map (XAL/XTL ZB windows, HUBMMU, the VF window) is OPEN.
+# MSI-X: the card's MSI-X table and PBA live in BAR0 at 0xB90000 and 0xBA0000
+# (caraxes/reference/gb206/gpu-0000_01_00.0/lspci-vvv.txt:49-51).
+
+register = [
+    { lo = 0x0000_0000, hi = 0x0000_0004, name = "NV_PMC_BOOT_0" },
+    { lo = 0x0000_0004, hi = 0x0000_0008, name = "NV_PMC_BOOT_1" },
+    { lo = 0x0000_0A00, hi = 0x0000_0A04, name = "NV_PMC_BOOT_42" },
+    { lo = 0x0011_0040, hi = 0x0011_0048, name = "NV_PGSP_FALCON_MAILBOX0/1" },
+    { lo = 0x0011_00F4, hi = 0x0011_00F8, name = "NV_PGSP_FALCON_HWCFG2 (target mask, lockdown)" },
+    { lo = 0x0011_0C00, hi = 0x0011_0C40, name = "NV_PGSP_QUEUE_HEAD/TAIL" },
+    { lo = 0x0011_0C80, hi = 0x0011_0CC0, name = "NV_PGSP_MSGQ_HEAD/TAIL" },
+    { lo = 0x0011_0000, hi = 0x0011_4000, name = "NV_PGSP (GSP falcon/RISC-V)" },
+    { lo = 0x008F_0320, hi = 0x008F_0330, name = "NV_PFSP_FALCON_COMMON_SCRATCH_GROUP_2(i)" },
+    { lo = 0x008F_2AC0, hi = 0x008F_2B00, name = "NV_PFSP_EMEMC/EMEMD(i)" },
+    { lo = 0x008F_2C00, hi = 0x008F_2C40, name = "NV_PFSP_QUEUE_HEAD/TAIL" },
+    { lo = 0x008F_2C80, hi = 0x008F_2CC0, name = "NV_PFSP_MSGQ_HEAD/TAIL" },
+    { lo = 0x00AD_00BC, hi = 0x00AD_00C0, name = "NV_THERM_I2CS_SCRATCH (FSP_BOOT_COMPLETE)" },
+    { lo = 0x00B9_0000, hi = 0x00BA_0000, name = "MSI-X table (config capability 0xB0)" },
+    { lo = 0x00BA_0000, hi = 0x00BA_1000, name = "MSI-X PBA" },
+]

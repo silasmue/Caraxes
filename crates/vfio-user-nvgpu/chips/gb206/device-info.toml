@@ -1,0 +1,38 @@
+# SPDX-License-Identifier: MIT
+#
+# DRAFT from the lab capture caraxes/reference/gb206/rm-tools/fifo-host-query.txt
+# (RTX 5060 Ti, driver 615.71.09; docs/caraxes/blackwell-gb206.md). Same format as
+# chips/tu106/device-info.toml; not loaded by any code.
+#
+# Host columns (from the capture): the engine list (GET_ENGINES_V2, :4), the MMU fault
+# ids (GET_ENGINE_FAULT_INFO, :5-14), the runqueue partner of GR0 (COPY0 in rq0,
+# :5-6: GR0 and CE0 form the GRCE pair), and the PCE masks (:6-8).
+# Synthesized columns (runlist, PBDMA ids, PBDMA fault ids) follow the TU106 rule of
+# docs/caraxes/fifo-device-info.md and are NOT checked against the GB20x kernel
+# constraints yet (kfifo GB202 HALs, src/kernel/gpu/fifo/arch/blackwell/kernel_fifo_gb202.c).
+# The host's own FIFO_GET_DEVICE_INFO_TABLE was refused (status 0x1F, :38): its
+# parameter struct grew from 3212 to 3340 bytes in 615.71.09 (rm-tools/abi-check-home.txt:7-8),
+# so the real table was not seen. A second capture with a 615 build of the tool would
+# give runlists and PBDMAs directly.
+#
+# Names not in src/ver/v610.rs yet: RM engine types COPY7 (0x10), NVJPEG0 (0x36),
+# OFA0 (0x3E) (src/nvidia/inc/kernel/gpu/gpu_engine_type.h); MC indices CE7 (22),
+# NVJPEG0 (= MC_ENGINE_IDX_NVJPG), OFA0 (81) (src/nvidia/inc/kernel/gpu/intr/engine_idx.h:61,92-93,125);
+# ENG_DESC classes OBJNVJPG 0x2B3A54 and OBJOFA 0xDD7BAB (generated/g_eng_desc_nvoc.h:825,865).
+#
+# dev_type 19 = LCE as on TU106 (OPEN: check the GB20x device-info type numbering).
+
+label = "host (engines, fault ids, GRCE pairing) + synthesized (runlists, PBDMA ids; unverified for GB20x)"
+
+engine = [
+    { name = "gr0", eng_desc = ["Graphics", 0], rm_engine_type = "GR0", runlist = 0, mmu_fault_id = 384, mc = "GR0", instance = 0, host_driven = 1, dev_type = 0, pbdma = [[0, 32], [1, 33]] },
+    { name = "ce0", eng_desc = ["OBJCE", 0], rm_engine_type = "COPY0", runlist = 0, mmu_fault_id = 65, mc = "CE0", instance = 0, host_driven = 1, dev_type = 19, pbdma = [[0, 32]] },
+    { name = "ce4", eng_desc = ["OBJCE", 4], rm_engine_type = "COPY4", runlist = 1, mmu_fault_id = 69, mc = "CE4", instance = 4, host_driven = 1, dev_type = 19, pbdma = [[2, 34]] },
+    { name = "ce7", eng_desc = ["OBJCE", 7], rm_engine_type = "COPY7", runlist = 2, mmu_fault_id = 72, mc = "CE7", instance = 7, host_driven = 1, dev_type = 19, pbdma = [[3, 35]] },
+    { name = "nvdec0", eng_desc = ["OBJBSP", 0], rm_engine_type = "NVDEC0", runlist = 3, mmu_fault_id = 28, mc = "NVDEC0", instance = 0, host_driven = 1, dev_type = 0, pbdma = [[4, 36]] },
+    { name = "nvenc0", eng_desc = ["OBJMSENC", 0], rm_engine_type = "NVENC0", runlist = 4, mmu_fault_id = 44, mc = "NVENC0", instance = 0, host_driven = 1, dev_type = 0, pbdma = [[5, 37]] },
+    { name = "sec2", eng_desc = ["OBJSEC2", 0], rm_engine_type = "SEC2", runlist = 5, mmu_fault_id = 6, mc = "SEC2", instance = 0, host_driven = 1, dev_type = 0, pbdma = [[6, 38]] },
+    { name = "nvjpg0", eng_desc = ["OBJNVJPG", 0], rm_engine_type = "NVJPEG0", runlist = 6, mmu_fault_id = 36, mc = "NVJPEG0", instance = 0, host_driven = 1, dev_type = 0, pbdma = [[7, 39]] },
+    { name = "ofa0", eng_desc = ["OBJOFA", 0], rm_engine_type = "OFA0", runlist = 7, mmu_fault_id = 48, mc = "OFA0", instance = 0, host_driven = 1, dev_type = 0, pbdma = [[8, 40]] },
+    { name = "sw", eng_desc = ["OBJSWENG", 0], rm_engine_type = "SW", runlist = 0, mmu_fault_id = 0xFFFF_FFFF, mc = "NULL", instance = 0, host_driven = 0, dev_type = 0, pbdma = [] },
+]

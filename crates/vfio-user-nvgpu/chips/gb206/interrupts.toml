@@ -1,0 +1,41 @@
+# SPDX-License-Identifier: MIT
+#
+# DRAFT from the lab capture caraxes/reference/gb206/rm-tools/host-facts.txt H7
+# (RTX 5060 Ti, driver 615.71.09; docs/caraxes/blackwell-gb206.md). Same format as
+# chips/tu106/interrupts.toml; not loaded by any code.
+#
+# What the capture gives: MC_GET_STATIC_INTR_TABLE (:37-53, the vectors the host RM
+# reports for the UVM/fault/timer/doorbell types, NV2080_INTR_TYPE_* of
+# sdk/ctrl/ctrl2080/ctrl2080mc.h:295-303) and MC_GET_INTR_CATEGORY_SUBTREE_MAP
+# (:55-62). What it does not give: the kernel table's GSP, FIFO, engine and display
+# vectors (INTERNAL_INTR_GET_KERNEL_TABLE is answered by physical RM; the GB20x values
+# come from the intr HALs in the source, OPEN). MC_GET_ENGINE_NOTIFICATION_INTR_VECTORS
+# is not supported on the host (status 0x56, :54).
+#
+# Host vectors, type -> stall = non-stall:
+#   1 NON_REPLAYABLE_FAULT 0x84 (132), 2 NON_REPLAYABLE_FAULT_ERROR 0x85, 3 INFO_FAULT 0x86,
+#   4 REPLAYABLE_FAULT 0x40 (64), 5 REPLAYABLE_FAULT_ERROR 0x83, 6 ACCESS_CNTR 0x48 (72),
+#   7 TMR 0x94 (148), 8 CPU_DOORBELL 0x81 (129); types 9-16 (GRn_FECS_LOG) unused (0xFFFFFFFF).
+# TU106 for comparison (chips/tu106/interrupts.toml): REPLAYABLE_FAULT 64,
+# ACCESS_CNTR 65, NON_REPLAYABLE_FAULT 195, TMR 194.
+
+label = "host (GB206 MC_GET_STATIC_INTR_TABLE, subtree map) + open (GSP, FIFO, engine vectors)"
+
+entry = [
+    { mc = "REPLAYABLE_FAULT", vector_stall = 64, vector_nonstall = 64 },
+    { mc = "ACCESS_CNTR", vector_stall = 72, vector_nonstall = 72 },
+    { mc = "NON_REPLAYABLE_FAULT", vector_stall = 132, vector_nonstall = 132 },
+    { mc = "TMR", vector_stall = 148, vector_nonstall = 148 },
+    # OPEN(source): GSP, FIFO, GR0, CE0/4/7, DISP and the notification vectors.
+]
+
+# subtreeMap[category] = subtree bitmask (host-facts.txt:56-62). RUNLIST and
+# RUNLIST_NOTIFICATION are new against TU106 (subtrees 4 and 5).
+subtree = [
+    { category = "ESCHED_DRIVEN_ENGINE", mask = 0x8 },
+    { category = "ESCHED_DRIVEN_ENGINE_NOTIFICATION", mask = 0x1 },
+    { category = "RUNLIST", mask = 0x10 },
+    { category = "RUNLIST_NOTIFICATION", mask = 0x20 },
+    { category = "UVM_OWNED", mask = 0x2 },
+    { category = "UVM_SHARED", mask = 0x4 },
+]

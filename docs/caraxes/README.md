@@ -74,6 +74,7 @@ driver recognizes and initializes a Turing/RTX 2070-like device. Windows later.
 | [kickoff.md](kickoff.md) | The brief for the implementation sessions: rules, reading order, E0 step by step, run recipe, parked ideas |
 | [parallel.md](parallel.md) | P20, the parallelism proof: two reserving VMs in fixed slots run the cuda gate concurrently beside the desktop; isolation by construction and by pattern test, the host's scrub on free proven for the reservation, fail-closed teardown, the D11 refusal of a third VM; the BAR1 leak and deadlock found and fixed, and two open sysmem-path findings (mapping scale, the chunk-crossing hole) |
 | [nova-vgpu-upstream.md](nova-vgpu-upstream.md) | The upstream nova-core vGPU manager series (v2, 32 patches, 2026-09-14) read patch by patch against the device: plugin ABI and RPC discipline, VRAM/channel allocation, CeUtils scrubbing and fail-closed teardown, VMMU segment, FIFO engine table, VF routing, migration, logging; ranked actionable differences and a cross-check of the GSP message queues (subagent report, P19) |
+| [blackwell-gb206.md](blackwell-gb206.md) | The Blackwell lab capture (RTX 5060 Ti, GB206, driver 615.71.09, korngold, 2026-09-24, filed under `caraxes/reference/gb206/`) read item by item against TU106; the D14 work list for a GB206 identity with five draft chip tables under `chips/gb206/`; the 610.57.04 driver supports GB206 (gsp_ga10x firmware, boots GSP through FSP, no ROM parsing); 615.71.09 redesigns the CPU-GSP transport (queue v2 in registers, MCTP-framed elements, one GMCAPI init instead of the four init RPCs) and changes seven control structs; the 615 gsp-abi-sizes record; a nine-step N-gate plan of 27 to 39 days that stops at "driver up" without a Blackwell card here (subagent report) |
 | [gsp-surface.md](gsp-surface.md) | P23, the GSP surface of 610.57.04 from source: 829 of 1377 exported controls reach GSP, the device handles 171 with D9 provenance, the 658 unhandled sorted into five categories (pure chip data, host-forwardable, guest-state derived, needs modelling, never expected on TU106) with a recipe and estimate each, the 20 RPC functions and 41 events a GSP client uses, the top ten a Linux CUDA or display client hits next, what Windows and nova-core share; produced by `caraxes/tools/gsp-surface.py` (subagent report, 2026-09-24) |
 | [open-questions.md](open-questions.md) | Unresolved questions, numbered |
 
@@ -540,6 +541,18 @@ the VM; then display, expected to be much easier than in v1.
     device and stalled the host RM for minutes at teardown (the desktop's electron GPU process
     restarted); and a guest buffer crossing a 1 GiB GPA chunk makes CE page tables point past the
     VM's registered guest RAM, which the host IOMMU blocked (parallel.md §8).
+- 2026-09-24: **Blackwell capture filed and read** ([blackwell-gb206.md](blackwell-gb206.md),
+  `caraxes/reference/gb206/`): the operator's lab run on an RTX 5060 Ti with driver 615.71.09
+  came back complete; 610.57.04 already supports GB206 and boots its GSP through FSP, so a
+  first Blackwell identity needs new names and an FSP model, not a new ABI version; 615.71.09
+  is a new GSP transport altogether. Open with the operator: MSI-X and the BAR1 size of the
+  synthetic GB206, a second capture, the guest driver version for Blackwell.
+- 2026-09-24: **Doorbell over KVM ioeventfd on the GPU path** (patch 0005, device 3bcfb35 plus
+  the watched GPPut copy; vm1 under load, `caraxes/runs/doorbell-2026-09-24-vm1-watch/`): the
+  doorbell write falls from 29.3 us to 3.9 us p50, no trapped doorbell in 196k submissions, the
+  token-less scan costs 1.07 us per wakeup on 19 channels after the watched copy (31 us before
+  it, through uncached BAR1 reads), the short kernel goes from 0.159-0.176 to 0.144-0.153 ms per
+  launch; the remaining three BAR1 traps per submission are P21's.
 - 2026-09-24: **P17 default switched**: both devices now name the card
   `Leandro <Transport> <Personality>-<Profile>` by default (`Leandro VFIO RTX 2070-4G`,
   `Leandro VirtIO RTX 2070-4G`); the legacy `Leandro RTX 2070-4G` stays an explicit opt-in
