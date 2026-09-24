@@ -1,0 +1,11 @@
+# target v1 metric churn rep 3
+# cmd ./bench-cu churn 20
+# device /home/silas/git/Caraxes/target/bench/release/vhost-user-nvrm sha256 736ffc900ef62831
+# time 2026-09-24T14:42:13+02:00
+# gpu 56, 1875 MHz, 7000 MHz, P0, 11 %, 3053 MiB, Disabled
+# procs 2898487:bench-v1-dev 2910543:bench-v1-dev 2937937:bench-v1-dev 2937945:bench-v1-vmm 2942280:vm2-dev 2942293:vm1-vmm 2944156:-dev 
+# loadavg 4.23 3.39 2.90
+CHURN blocks=64 block_mib=1 cycles=20 alloc_med_us=89.8 free_med_us=54.3 cycle_med_ms=8.879 total_ms=196.5
+CHURN blocks=8 block_mib=64 cycles=20 alloc_med_us=189.0 free_med_us=152.5 cycle_med_ms=2.931 total_ms=120.4
+# WALL wall_ms=655 rc=0
+# MEAS dev_pid=2937937 dev_cpu_ms=410 dev_rss_hwm_kb=501192/548168 vmm_cpu_ms=750 others: vm1-vmm=950ms bench-v1-dev=0ms bench-v1-dev=0ms -dev=0ms vm2-dev=1000ms 

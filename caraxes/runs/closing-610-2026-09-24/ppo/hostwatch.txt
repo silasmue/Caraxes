@@ -1,0 +1,10 @@
+# SPDX-License-Identifier: MIT
+# host watch from 2026-09-24T15:03:51+02:00: interval 5s, slow above 2s, kill none
+# time smi_s used_mib klog_lines_interval xid_lines_interval
+15:03:51 0.032 3054 0 0
+15:03:57 0.121 3054 4196 0
+15:04:02 0.027 3054 2905 0
+15:04:07 0.020 3055 3539 0
+15:04:12 0.025 3054 3675 0
+15:04:17 0.020 3054 3539 0
+15:04:22 0.021 3054 3641 0

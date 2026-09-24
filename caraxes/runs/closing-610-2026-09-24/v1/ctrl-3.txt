@@ -1,0 +1,13 @@
+# target v1 metric ctrl rep 3
+# cmd ./ctrlping 2000 64 512 4096 16384
+# device /home/silas/git/Caraxes/target/bench/release/vhost-user-nvrm sha256 736ffc900ef62831
+# time 2026-09-24T14:42:11+02:00
+# gpu 53, 315 MHz, 405 MHz, P8, 9 %, 3054 MiB, Disabled
+# procs 2898487:bench-v1-dev 2910543:bench-v1-dev 2937937:bench-v1-dev 2937945:bench-v1-vmm 2942280:vm2-dev 2942293:vm1-vmm 2944156:-dev 
+# loadavg 4.16 3.36 2.89
+ctrlping bytes=232 n=2000 fails=0 p50_us=18.12 p90_us=23.79 p99_us=36.35 mean_us=22.14
+ctrlping bytes=1576 n=2000 fails=0 p50_us=23.43 p90_us=28.51 p99_us=265.23 mean_us=28.27
+ctrlping bytes=12328 n=2000 fails=0 p50_us=27.96 p90_us=34.54 p99_us=50.27 mean_us=31.14
+ctrlping bytes=49192 n=2000 fails=0 p50_us=47.71 p90_us=52.58 p99_us=85.41 mean_us=47.32
+# WALL wall_ms=270 rc=0
+# MEAS dev_pid=2937937 dev_cpu_ms=150 dev_rss_hwm_kb=490952/537840 vmm_cpu_ms=460 others: vm1-vmm=640ms bench-v1-dev=0ms bench-v1-dev=0ms -dev=0ms vm2-dev=630ms 

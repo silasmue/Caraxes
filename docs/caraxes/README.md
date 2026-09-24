@@ -580,6 +580,12 @@ the VM; then display, expected to be much easier than in v1.
 
   About 3.6 us per ring remain inside the device (shadow re-sync, flush, mirror bookkeeping).
   Removing the KVM exit is P24.
+- 2026-09-24: **Closing series on 610.57.04** (benchmark.md, `caraxes/runs/closing-610-2026-09-24/`):
+  native, v1, v2 interleaved, N=5, quiet host, v2 with the mapping package, the P21 area, the
+  token pool and the pinned spin reactor: short kernel 0.015 ms against native 0.006 (this
+  morning 0.257), rlprobe stage 4 2.10 s against native 1.20 and v1 1.50 (this morning 20 s),
+  launch 30M-cycle 1.06x, cuCtxCreate 3.8 s (19x, the BAR2 page-table writes), allocations 23x,
+  copies below 16 MiB at half of native, 0 Xid. The last table before the host moves to 615.
 - 2026-09-24: **Zero-trap submission measured** ([doorbell-token-pool.md](doorbell-token-pool.md),
   benchmark.md, `caraxes/runs/doorbell-tokens-gpu-2026-09-24/`): the P21 area plus the datamatch
   token pool (64 tokens, one eventfd each, handed to a channel at its first trapped ring through

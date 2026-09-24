@@ -1,0 +1,5 @@
+vfio-user-nvgpu: host ABI 610.57.04: TSG params 20 bytes, GPU_GET_PES_INFO 56 (tpcToPesMap[10]), GR_GET_GLOBAL_SM_ORDER 9240 (SM entry 18), channel params 376 (chosen by running driver 610.57.04 (/proc/driver/nvidia/version)); guest ABI 610.57.04
+vfio-user-nvgpu: bar1 passthrough: guest BAR1 [0, 0x100000) offered as one sparse mmap area of region 1, backed by a dma-buf of FB [0x169980000, 0x169a80000) (reservation offset 0x980000); 0x100000 of host BAR1 held while the client maps it (CARAXES_BAR1_PASSTHROUGH=1, docs/caraxes/bar1-passthrough.
+vfio-user-nvgpu: doorbell tokens: BAR0 0xbb0090, 4 bytes, 64 sub-region(s) with datamatch 0xca700000..=0xca70003f and one eventfd each, offered through VFIO_USER_DEVICE_GET_REGION_IO_FDS; a channel gets a pool token at its first (trapped) doorbell, written to its work-submit-token notifier entry (CA
+vfio-user-nvgpu: doorbell poll: spin reader (CARAXES_DOORBELL_POLL=spin, CARAXES_DOORBELL_POLL_CPU=Auto)
+vfio-user-nvgpu: doorbell poll: reader pinned to CPU 15 (auto: 96 % idle over 1 s; not CPU 0; VMM vCPU threads of pid 2893785 on CPU(s) [0, 1, 2, 4, 5, 6, 7, 13] at the sample, avoided)

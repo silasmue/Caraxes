@@ -1,0 +1,274 @@
+# series 2026-09-24T14:18:24+02:00 targets=[native v1 v2] reps=5 metrics=[launch-auto launch-blocking short-auto short-blocking copy mm rl init time0 time1 ioctl ctrl churn]
+# caraxes shell-rig-135-g81054f0 leandro-test 3edea73-dirty
+# bin c5b48cf1181bfcfc251f12aa2b0eaeb074887efec4c479f36efe399cb1307a13  bench-cu
+# bin 68449e9ec7b25613a65d096a6a42864c01fbf46ec47e540ce01f47184f0479ea  ctrlping
+# bin 138c5073848b2f3cf2beb4709376c7c49b420d88e836664584e5cf8bbfc7848c  ioctlping
+# bin 1f921680fc7a2c2e0978eb007cc0ab48d2f1a7cf404a196c9063a19a10aa228f  kernels.ptx
+# bin 2735d2a9cd25c0753898188542dbeb4a8433609024aa48230b6803a4a8d96e66  nvprobe
+# bin f0868123fca8e2c40138fda523e35fa76c015b97e232fc647fea0b6b49f33584  vrampress
+# time 2026-09-24T14:18:24+02:00
+# gpu 49, 300 MHz, 405 MHz, P8, 12 %, 3038 MiB, Disabled
+# procs 2342749:bench-v1-dev 2342757:bench-v1-vmm 2893765:vm2-dev 2893785:vm1-vmm 2898487:bench-v1-dev 
+# loadavg 2.96 2.12 2.34
+14:18:26 native launch-auto     rep 1: MSPERLAUNCH=16.283 # WALL wall_ms=2055 rc=0  | # MEAS dev_pid=- dev_cpu_ms=0 dev_rss_hwm_kb=-/- vmm_cpu_ms=0 others: bench-v1-dev=0ms bench-v1-dev=0ms bench-v1-vmm=0ms
+14:18:29 v1  launch-auto     rep 1: MSPERLAUNCH=16.362 # WALL wall_ms=2006 rc=0  | # MEAS dev_pid=2898487 dev_cpu_ms=0 dev_rss_hwm_kb=3204/3204 vmm_cpu_ms=0 others: bench-v1-dev=220ms bench-v1-vmm=2060ms
+14:18:36 v2  launch-auto     rep 1: MSPERLAUNCH=17.294 # WALL wall_ms=6205 rc=0  | # MEAS dev_pid=2893765 dev_cpu_ms=8590 dev_rss_hwm_kb=5252772/9442908 vmm_cpu_ms=11250 others: bench-v1-dev=0ms bench-v1
+14:18:38 native launch-blocking rep 1: MSPERLAUNCH=16.088 # WALL wall_ms=1913 rc=0  | # MEAS dev_pid=- dev_cpu_ms=0 dev_rss_hwm_kb=-/- vmm_cpu_ms=0 others: bench-v1-dev=0ms bench-v1-dev=0ms bench-v1-vmm=10m
+14:18:49 v1  launch-blocking rep 1: MSPERLAUNCH=100.275 # WALL wall_ms=10531 rc=0  | # MEAS dev_pid=2898487 dev_cpu_ms=0 dev_rss_hwm_kb=3204/3204 vmm_cpu_ms=0 others: bench-v1-dev=250ms bench-v1-vmm=540ms 
+14:18:56 v2  launch-blocking rep 1: MSPERLAUNCH=17.636 # WALL wall_ms=6963 rc=0  | # MEAS dev_pid=2893765 dev_cpu_ms=9840 dev_rss_hwm_kb=5253948/9442908 vmm_cpu_ms=8920 others: bench-v1-dev=0ms bench-v1-
+14:18:57 native short-auto      rep 1: MSPERLAUNCH=0.006 # WALL wall_ms=440 rc=0  | # MEAS dev_pid=- dev_cpu_ms=0 dev_rss_hwm_kb=-/- vmm_cpu_ms=0 others: bench-v1-dev=0ms bench-v1-dev=0ms bench-v1-vmm=0ms
+14:18:58 v1  short-auto      rep 1: MSPERLAUNCH=0.008 # WALL wall_ms=628 rc=0  | # MEAS dev_pid=2898487 dev_cpu_ms=0 dev_rss_hwm_kb=3204/3204 vmm_cpu_ms=0 others: bench-v1-dev=290ms bench-v1-vmm=290ms 
+14:19:03 v2  short-auto      rep 1: MSPERLAUNCH=0.017 # WALL wall_ms=4740 rc=0  | # MEAS dev_pid=2893765 dev_cpu_ms=6980 dev_rss_hwm_kb=5253948/9442908 vmm_cpu_ms=7870 others: bench-v1-dev=0ms bench-v1-
+14:19:03 native short-blocking  rep 1: MSPERLAUNCH=0.024 # WALL wall_ms=407 rc=0  | # MEAS dev_pid=- dev_cpu_ms=0 dev_rss_hwm_kb=-/- vmm_cpu_ms=0 others: bench-v1-dev=0ms bench-v1-dev=0ms bench-v1-vmm=0ms
+14:19:04 v1  short-blocking  rep 1: MSPERLAUNCH=0.017 # WALL wall_ms=410 rc=0  | # MEAS dev_pid=2898487 dev_cpu_ms=0 dev_rss_hwm_kb=3204/3204 vmm_cpu_ms=0 others: bench-v1-dev=230ms bench-v1-vmm=290ms 
+14:19:11 v2  short-blocking  rep 1: MSPERLAUNCH=0.580 # WALL wall_ms=5875 rc=0  | # MEAS dev_pid=2893765 dev_cpu_ms=8650 dev_rss_hwm_kb=5253960/9442908 vmm_cpu_ms=8270 others: bench-v1-dev=0ms bench-v1-
+14:19:13 native copy            rep 1: # WALL wall_ms=2188 rc=0  | # MEAS dev_pid=- dev_cpu_ms=0 dev_rss_hwm_kb=-/- vmm_cpu_ms=0 others: bench-v1-dev=0ms bench-v1-dev=0ms bench-v1-vmm=0ms
+14:19:20 v1  copy            rep 1: # WALL wall_ms=7064 rc=0  | # MEAS dev_pid=2898487 dev_cpu_ms=0 dev_rss_hwm_kb=3204/3204 vmm_cpu_ms=0 others: bench-v1-dev=320ms bench-v1-vmm=3070ms
+14:19:39 v2  copy            rep 1: # WALL wall_ms=17887 rc=0  | # MEAS dev_pid=2893765 dev_cpu_ms=24660 dev_rss_hwm_kb=5264996/9442908 vmm_cpu_ms=30480 others: bench-v1-dev=0ms bench-v
+14:19:42 native mm              rep 1: mmsweep: N=1024     0.44ms/mm   4894.4 GFLOP/s chk=-3.498482e+04 vram=24MiB mmsweep: N=2048     3.22ms/mm   5329.3 GFLOP/s chk=1.067825e+04 vram=72MiB | # MEAS dev_pid=- dev_cpu_ms=0 dev_rss_hwm_kb=-/- vmm_cpu_ms=0 others: bench-v1-dev=0ms bench-v1-dev=0ms bench-v1-vmm=20m
+14:19:48 v1  mm              rep 1: mmsweep: N=1024     0.41ms/mm   5191.5 GFLOP/s chk=-3.498482e+04 vram=24MiB mmsweep: N=2048     3.11ms/mm   5524.1 GFLOP/s chk=1.067825e+04 vram=72MiB | # MEAS dev_pid=2898487 dev_cpu_ms=0 dev_rss_hwm_kb=3204/3204 vmm_cpu_ms=0 others: bench-v1-dev=310ms bench-v1-vmm=3770ms
+14:20:00 v2  mm              rep 1: mmsweep: N=1024     1.57ms/mm   1364.8 GFLOP/s chk=-3.498482e+04 vram=24MiB mmsweep: N=2048     7.09ms/mm   2421.7 GFLOP/s chk=1.067825e+04 vram=72MiB | # MEAS dev_pid=2893765 dev_cpu_ms=15090 dev_rss_hwm_kb=5264340/9442908 vmm_cpu_ms=20020 others: bench-v1-dev=0ms bench-v
+14:20:05 native rl              rep 1:   ep   10  return=   11  mean10=  20.7   ep   20  return=   15  mean10=  14.4   ep   30  return=   13  mean10=  15.8  | # MEAS dev_pid=- dev_cpu_ms=0 dev_rss_hwm_kb=-/- vmm_cpu_ms=0 others: bench-v1-dev=0ms bench-v1-dev=0ms bench-v1-vmm=20m
+14:20:16 v1  rl              rep 1:   ep   10  return=   11  mean10=  20.7   ep   20  return=   15  mean10=  14.4   ep   30  return=   13  mean10=  15.8  | # MEAS dev_pid=2898487 dev_cpu_ms=0 dev_rss_hwm_kb=3204/3204 vmm_cpu_ms=0 others: bench-v1-dev=350ms bench-v1-vmm=6690ms
+14:20:29 v2  rl              rep 1:   ep   10  return=   11  mean10=  20.7   ep   20  return=   15  mean10=  14.4   ep   30  return=   13  mean10=  15.8  | # MEAS dev_pid=2893765 dev_cpu_ms=15520 dev_rss_hwm_kb=5264340/9442908 vmm_cpu_ms=24600 others: bench-v1-dev=0ms bench-v
+14:20:30 native init            rep 1: INIT cuinit_ms=94.953 devget_ms=0.001 ctxcreate_ms=190.053 ctxdestroy_ms=99.896 # WALL wall_ms=463 rc=0  | # MEAS dev_pid=- dev_cpu_ms=0 dev_rss_hwm_kb=-/- vmm_cpu_ms=0 others: bench-v1-dev=0ms bench-v1-dev=0ms bench-v1-vmm=0ms
+14:20:31 v1  init            rep 1: INIT cuinit_ms=33.283 devget_ms=0.001 ctxcreate_ms=156.886 ctxdestroy_ms=85.616 # WALL wall_ms=329 rc=0  | # MEAS dev_pid=2898487 dev_cpu_ms=0 dev_rss_hwm_kb=3204/3204 vmm_cpu_ms=0 others: bench-v1-dev=210ms bench-v1-vmm=550ms 
+14:20:37 v2  init            rep 1: INIT cuinit_ms=176.666 devget_ms=0.005 ctxcreate_ms=3769.615 ctxdestroy_ms=1381.536 # WALL wall_ms=5350 rc=0  | # MEAS dev_pid=2893765 dev_cpu_ms=8140 dev_rss_hwm_kb=5264340/9442908 vmm_cpu_ms=8200 others: bench-v1-dev=0ms bench-v1-
+14:20:37 native time0           rep 1: # cmd TIMEFORMAT='TIME wall_s=%3R user_s=%3U sys_s=%3S'; time ./nvprobe 0 TIME wall_s=0.207 user_s=0.003 sys_s=0.144 # WALL wall_ms=211 rc=0  | # MEAS dev_pid=- dev_cpu_ms=0 dev_rss_hwm_kb=-/- vmm_cpu_ms=0 others: bench-v1-dev=0ms bench-v1-dev=0ms bench-v1-vmm=0ms
+14:20:38 v1  time0           rep 1: # cmd TIMEFORMAT='TIME wall_s=%3R user_s=%3U sys_s=%3S'; time ./nvprobe 0 TIME wall_s=0.166 user_s=0.000 sys_s=0.005 # WALL wall_ms=168 rc=0  | # MEAS dev_pid=2898487 dev_cpu_ms=0 dev_rss_hwm_kb=3204/3204 vmm_cpu_ms=0 others: bench-v1-dev=110ms bench-v1-vmm=150ms 
+14:20:38 v2  time0           rep 1: # cmd TIMEFORMAT='TIME wall_s=%3R user_s=%3U sys_s=%3S'; time ./nvprobe 0 TIME wall_s=0.177 user_s=0.002 sys_s=0.175 # WALL wall_ms=180 rc=0  | # MEAS dev_pid=2893765 dev_cpu_ms=800 dev_rss_hwm_kb=5264340/9442908 vmm_cpu_ms=650 others: bench-v1-dev=0ms bench-v1-de
+14:20:39 native time1           rep 1: # cmd TIMEFORMAT='TIME wall_s=%3R user_s=%3U sys_s=%3S'; time ./nvprobe 1 TIME wall_s=0.409 user_s=0.020 sys_s=0.329 # WALL wall_ms=412 rc=0  | # MEAS dev_pid=- dev_cpu_ms=0 dev_rss_hwm_kb=-/- vmm_cpu_ms=0 others: bench-v1-dev=0ms bench-v1-dev=0ms bench-v1-vmm=0ms
+14:20:39 v1  time1           rep 1: # cmd TIMEFORMAT='TIME wall_s=%3R user_s=%3U sys_s=%3S'; time ./nvprobe 1 TIME wall_s=0.328 user_s=0.017 sys_s=0.025 # WALL wall_ms=331 rc=0  | # MEAS dev_pid=2898487 dev_cpu_ms=0 dev_rss_hwm_kb=3204/3204 vmm_cpu_ms=0 others: bench-v1-dev=230ms bench-v1-vmm=250ms 
+14:20:44 v2  time1           rep 1: # cmd TIMEFORMAT='TIME wall_s=%3R user_s=%3U sys_s=%3S'; time ./nvprobe 1 TIME wall_s=4.229 user_s=0.056 sys_s=4.173 # WALL wall_ms=4232 rc=0  | # MEAS dev_pid=2893765 dev_cpu_ms=6330 dev_rss_hwm_kb=5264340/9442908 vmm_cpu_ms=7150 others: bench-v1-dev=0ms bench-v1-
+14:20:44 native ioctl           rep 1: ioctlping n=10000 pause_us=0 fails=0 min_us=2.18 p10_us=2.58 p50_us=2.92 p90_us=3.51 p99_us=5.55 max_us=88.05 mean_us=3.01 # WALL wall_ms=35 rc=0  | # MEAS dev_pid=- dev_cpu_ms=0 dev_rss_hwm_kb=-/- vmm_cpu_ms=0 others: bench-v1-dev=0ms bench-v1-dev=0ms bench-v1-vmm=0ms
+14:20:45 v1  ioctl           rep 1: ioctlping n=10000 pause_us=0 fails=0 min_us=12.79 p10_us=13.57 p50_us=13.90 p90_us=23.20 p99_us=65.52 max_us=1616.58 mean_us=17.66 # WALL wall_ms=186  | # MEAS dev_pid=2898487 dev_cpu_ms=0 dev_rss_hwm_kb=3204/3204 vmm_cpu_ms=0 others: bench-v1-dev=90ms bench-v1-vmm=500ms v
+14:20:46 v2  ioctl           rep 1: ioctlping n=10000 pause_us=0 fails=0 min_us=1.52 p10_us=1.55 p50_us=1.72 p90_us=2.57 p99_us=5.19 max_us=90.70 mean_us=2.10 # WALL wall_ms=26 rc=0  | # MEAS dev_pid=2893765 dev_cpu_ms=270 dev_rss_hwm_kb=5264340/9442908 vmm_cpu_ms=410 others: bench-v1-dev=0ms bench-v1-de
+14:20:46 native ctrl            rep 1: ctrlping bytes=232 n=2000 fails=0 p50_us=5.41 p90_us=5.58 p99_us=6.47 mean_us=5.50 ctrlping bytes=1576 n=2000 fails=0 p50_us=6.67 p90_us=6.85 p99_us=8 | # MEAS dev_pid=- dev_cpu_ms=0 dev_rss_hwm_kb=-/- vmm_cpu_ms=0 others: bench-v1-dev=0ms bench-v1-dev=0ms bench-v1-vmm=0ms
+14:20:47 v1  ctrl            rep 1: ctrlping bytes=232 n=2000 fails=0 p50_us=23.94 p90_us=29.19 p99_us=58.32 mean_us=27.84 ctrlping bytes=1576 n=2000 fails=0 p50_us=22.65 p90_us=25.93 p9 | # MEAS dev_pid=2898487 dev_cpu_ms=0 dev_rss_hwm_kb=3204/3204 vmm_cpu_ms=0 others: bench-v1-dev=130ms bench-v1-vmm=650ms 
+14:20:47 v2  ctrl            rep 1: ctrlping bytes=232 n=2000 fails=0 p50_us=2.91 p90_us=2.99 p99_us=4.80 mean_us=3.32 ctrlping bytes=1576 n=2000 fails=0 p50_us=2.92 p90_us=2.99 p99_us=4 | # MEAS dev_pid=2893765 dev_cpu_ms=260 dev_rss_hwm_kb=5264340/9442908 vmm_cpu_ms=440 others: bench-v1-dev=0ms bench-v1-de
+14:20:48 native churn           rep 1: # WALL wall_ms=683 rc=0  | # MEAS dev_pid=- dev_cpu_ms=0 dev_rss_hwm_kb=-/- vmm_cpu_ms=0 others: bench-v1-dev=0ms bench-v1-dev=0ms bench-v1-vmm=0ms
+14:20:49 v1  churn           rep 1: # WALL wall_ms=678 rc=0  | # MEAS dev_pid=2898487 dev_cpu_ms=0 dev_rss_hwm_kb=3204/3204 vmm_cpu_ms=0 others: bench-v1-dev=410ms bench-v1-vmm=540ms 
+14:21:01 v2  churn           rep 1: # WALL wall_ms=11404 rc=0  | # MEAS dev_pid=2893765 dev_cpu_ms=17780 dev_rss_hwm_kb=5264340/9442908 vmm_cpu_ms=18650 others: bench-v1-dev=0ms bench-v
+# 14:21:01 v1 restart before rep 2
+stopped (hypervisor 2898498, backend 2898487)
+ssh: connect to host 192.168.105.25 port 22: No route to host
+no ssh
+cloud-hypervisor:   0.018994s: <vmm> WARN:vmm/src/device_manager.rs:2770 -- DEPRECATION: auto-detection of disk image type is deprecated and will be removed in a future release. Please specify image type explicitly.
+cloud-hypervisor:   0.019035s: <vmm> WARN:vmm/src/device_manager.rs:2775 -- No image_type specified - detected as raw. Configuration updated to persist type across reboots and migrations.
+cloud-hypervisor:   0.019051s: <vmm> WARN:vmm/src/device_manager.rs:2783 -- Autodetected raw image type. Disabling sector 0 writes.
+cloud-hypervisor:   0.019070s: <vmm> WARN:virtio-devices/src/block.rs:859 -- sparse=on requested but backend does not support sparse operations
+cloud-hypervisor:   0.033152s: <main> ERROR:/home/silas/git/Caraxes/vendor/cloud-hypervisor/cloud-hypervisor/src/lib.rs:24 -- Fatal error: VmBoot(VmBoot(DeviceManager(CreateVirtioNet(OpenTap(TapOpen(ConfigureTap(Os { code: 16, kind: ResourceBusy, message: "Device or resource busy" })))))))
+Error: Cloud Hypervisor exited with the following chain of errors:
+  0: Error booting VM
+  1: The VM could not boot
+  2: Error from device manager
+  3: Cannot create virtio-net device
+  4: Failed to open taps
+  5: Open tap device failed
+  6: Unable to configure tap interface
+  7: Device or resource busy (os error 16)
+# 14:28:20 v2 restart before rep 2
+stopped
+dma table: 0:7ff940000000:c0000000,100000000:7ffa40000000:40000000
+server pid 2924513, VM pid 2924524; logs in /mnt/vmstore/caraxes/vm2
+ssh up at 192.168.102.22
+[  131.563393] NVRM: GPU 0000:00:05.0: RmInitAdapter succeeded!
+modprobe rc=0
+v2 restarted: server pid 2924513
+14:30:43 native launch-auto     rep 2: MSPERLAUNCH=16.245 # WALL wall_ms=2074 rc=0  | # MEAS dev_pid=- dev_cpu_ms=0 dev_rss_hwm_kb=-/- vmm_cpu_ms=0 others: bench-v1-dev=0ms vm2-dev=2150ms bench-v1-dev=0ms v
+14:30:46 v1  launch-auto     rep 2:  | # MEAS dev_pid=2910543 dev_cpu_ms=0 dev_rss_hwm_kb=3232/3232 vmm_cpu_ms=0 others: bench-v1-dev=0ms vm2-dev=3170ms vm1-vm
+14:30:53 v2  launch-auto     rep 2: MSPERLAUNCH=17.028 # WALL wall_ms=6124 rc=0  | # MEAS dev_pid=2924513 dev_cpu_ms=8300 dev_rss_hwm_kb=5253156/9442876 vmm_cpu_ms=10920 others: bench-v1-dev=0ms bench-v1
+14:30:55 native launch-blocking rep 2: MSPERLAUNCH=16.123 # WALL wall_ms=1919 rc=0  | # MEAS dev_pid=- dev_cpu_ms=0 dev_rss_hwm_kb=-/- vmm_cpu_ms=0 others: bench-v1-dev=0ms vm2-dev=2070ms bench-v1-dev=0ms v
+14:30:58 v1  launch-blocking rep 2:  | # MEAS dev_pid=2910543 dev_cpu_ms=0 dev_rss_hwm_kb=3232/3232 vmm_cpu_ms=0 others: bench-v1-dev=0ms vm2-dev=3190ms vm1-vm
+14:31:05 v2  launch-blocking rep 2: MSPERLAUNCH=18.001 # WALL wall_ms=7084 rc=0  | # MEAS dev_pid=2924513 dev_cpu_ms=10110 dev_rss_hwm_kb=5254296/9442876 vmm_cpu_ms=10570 others: bench-v1-dev=0ms bench-v
+14:31:06 native short-auto      rep 2: MSPERLAUNCH=0.008 # WALL wall_ms=400 rc=0  | # MEAS dev_pid=- dev_cpu_ms=0 dev_rss_hwm_kb=-/- vmm_cpu_ms=0 others: bench-v1-dev=0ms vm2-dev=930ms bench-v1-dev=0ms vm
+14:31:09 v1  short-auto      rep 2:  | # MEAS dev_pid=2910543 dev_cpu_ms=0 dev_rss_hwm_kb=3232/3232 vmm_cpu_ms=0 others: bench-v1-dev=0ms vm2-dev=4020ms vm1-vm
+14:31:14 v2  short-auto      rep 2: MSPERLAUNCH=0.355 # WALL wall_ms=4807 rc=0  | # MEAS dev_pid=2924513 dev_cpu_ms=7010 dev_rss_hwm_kb=5254356/9442876 vmm_cpu_ms=8040 others: bench-v1-dev=0ms bench-v1-
+14:31:15 native short-blocking  rep 2: MSPERLAUNCH=0.015 # WALL wall_ms=449 rc=0  | # MEAS dev_pid=- dev_cpu_ms=0 dev_rss_hwm_kb=-/- vmm_cpu_ms=0 others: bench-v1-dev=0ms vm2-dev=550ms bench-v1-dev=0ms vm
+14:31:18 v1  short-blocking  rep 2:  | # MEAS dev_pid=2910543 dev_cpu_ms=0 dev_rss_hwm_kb=3232/3232 vmm_cpu_ms=0 others: bench-v1-dev=0ms vm2-dev=3280ms vm1-vm
+14:31:24 v2  short-blocking  rep 2: MSPERLAUNCH=0.060 # WALL wall_ms=5399 rc=0  | # MEAS dev_pid=2924513 dev_cpu_ms=8390 dev_rss_hwm_kb=5254380/9442876 vmm_cpu_ms=8060 others: bench-v1-dev=0ms bench-v1-
+14:31:27 native copy            rep 2: # WALL wall_ms=2319 rc=0  | # MEAS dev_pid=- dev_cpu_ms=0 dev_rss_hwm_kb=-/- vmm_cpu_ms=0 others: bench-v1-dev=0ms vm2-dev=3910ms bench-v1-dev=0ms v
+14:31:30 v1  copy            rep 2:  | # MEAS dev_pid=2910543 dev_cpu_ms=0 dev_rss_hwm_kb=3232/3232 vmm_cpu_ms=0 others: bench-v1-dev=0ms vm2-dev=3310ms vm1-vm
+14:31:48 v2  copy            rep 2: # WALL wall_ms=17750 rc=0  | # MEAS dev_pid=2924513 dev_cpu_ms=24690 dev_rss_hwm_kb=5265400/9442876 vmm_cpu_ms=29950 others: bench-v1-dev=0ms bench-v
+14:31:51 native mm              rep 2: mmsweep: N=1024     0.45ms/mm   4741.1 GFLOP/s chk=-3.498482e+04 vram=24MiB mmsweep: N=2048     3.13ms/mm   5492.1 GFLOP/s chk=1.067825e+04 vram=72MiB | # MEAS dev_pid=- dev_cpu_ms=0 dev_rss_hwm_kb=-/- vmm_cpu_ms=0 others: bench-v1-dev=0ms vm2-dev=2590ms bench-v1-dev=0ms v
+14:31:54 v1  mm              rep 2:  | # MEAS dev_pid=2910543 dev_cpu_ms=0 dev_rss_hwm_kb=3232/3232 vmm_cpu_ms=0 others: bench-v1-dev=0ms vm2-dev=3270ms vm1-vm
+14:32:05 v2  mm              rep 2: mmsweep: N=1024     1.55ms/mm   1385.7 GFLOP/s chk=-3.498482e+04 vram=24MiB mmsweep: N=2048     7.41ms/mm   2319.4 GFLOP/s chk=1.067825e+04 vram=72MiB | # MEAS dev_pid=2924513 dev_cpu_ms=14110 dev_rss_hwm_kb=5264732/9442876 vmm_cpu_ms=19880 others: bench-v1-dev=0ms bench-v
+14:32:10 native rl              rep 2:   ep   10  return=   11  mean10=  20.7   ep   20  return=   15  mean10=  14.4   ep   30  return=   13  mean10=  15.8  | # MEAS dev_pid=- dev_cpu_ms=0 dev_rss_hwm_kb=-/- vmm_cpu_ms=0 others: bench-v1-dev=0ms vm2-dev=6050ms bench-v1-dev=0ms v
+14:32:13 v1  rl              rep 2:  | # MEAS dev_pid=2910543 dev_cpu_ms=0 dev_rss_hwm_kb=3232/3232 vmm_cpu_ms=0 others: bench-v1-dev=0ms vm2-dev=3240ms vm1-vm
+14:32:26 v2  rl              rep 2:   ep   10  return=   11  mean10=  20.7   ep   20  return=   15  mean10=  14.4   ep   30  return=   13  mean10=  15.8  | # MEAS dev_pid=2924513 dev_cpu_ms=14810 dev_rss_hwm_kb=5264732/9442876 vmm_cpu_ms=22810 others: bench-v1-dev=0ms bench-v
+14:32:26 native init            rep 2: INIT cuinit_ms=105.925 devget_ms=0.001 ctxcreate_ms=195.447 ctxdestroy_ms=92.600 # WALL wall_ms=449 rc=0  | # MEAS dev_pid=- dev_cpu_ms=0 dev_rss_hwm_kb=-/- vmm_cpu_ms=0 others: bench-v1-dev=0ms vm2-dev=580ms bench-v1-dev=0ms vm
+14:32:29 v1  init            rep 2:  | # MEAS dev_pid=2910543 dev_cpu_ms=0 dev_rss_hwm_kb=3232/3232 vmm_cpu_ms=0 others: bench-v1-dev=0ms vm2-dev=3310ms vm1-vm
+14:32:35 v2  init            rep 2: INIT cuinit_ms=149.163 devget_ms=0.001 ctxcreate_ms=3855.104 ctxdestroy_ms=1351.905 # WALL wall_ms=5371 rc=0  | # MEAS dev_pid=2924513 dev_cpu_ms=8320 dev_rss_hwm_kb=5264736/9442876 vmm_cpu_ms=7570 others: bench-v1-dev=0ms bench-v1-
+14:32:36 native time0           rep 2: # cmd TIMEFORMAT='TIME wall_s=%3R user_s=%3U sys_s=%3S'; time ./nvprobe 0 TIME wall_s=0.229 user_s=0.002 sys_s=0.156 # WALL wall_ms=232 rc=0  | # MEAS dev_pid=- dev_cpu_ms=0 dev_rss_hwm_kb=-/- vmm_cpu_ms=0 others: bench-v1-dev=0ms vm2-dev=580ms bench-v1-dev=0ms vm
+14:32:39 v1  time0           rep 2: # cmd TIMEFORMAT='TIME wall_s=%3R user_s=%3U sys_s=%3S'; time ./nvprobe 0  | # MEAS dev_pid=2910543 dev_cpu_ms=0 dev_rss_hwm_kb=3232/3232 vmm_cpu_ms=0 others: bench-v1-dev=0ms vm2-dev=4510ms vm1-vm
+14:32:40 v2  time0           rep 2: # cmd TIMEFORMAT='TIME wall_s=%3R user_s=%3U sys_s=%3S'; time ./nvprobe 0 TIME wall_s=0.170 user_s=0.002 sys_s=0.168 # WALL wall_ms=175 rc=0  | # MEAS dev_pid=2924513 dev_cpu_ms=490 dev_rss_hwm_kb=5264736/9442876 vmm_cpu_ms=270 others: bench-v1-dev=0ms bench-v1-de
+14:32:40 native time1           rep 2: # cmd TIMEFORMAT='TIME wall_s=%3R user_s=%3U sys_s=%3S'; time ./nvprobe 1 TIME wall_s=0.445 user_s=0.018 sys_s=0.337 # WALL wall_ms=448 rc=0  | # MEAS dev_pid=- dev_cpu_ms=0 dev_rss_hwm_kb=-/- vmm_cpu_ms=0 others: bench-v1-dev=0ms vm2-dev=560ms bench-v1-dev=0ms vm
+14:32:43 v1  time1           rep 2: # cmd TIMEFORMAT='TIME wall_s=%3R user_s=%3U sys_s=%3S'; time ./nvprobe 1  | # MEAS dev_pid=2910543 dev_cpu_ms=0 dev_rss_hwm_kb=3232/3232 vmm_cpu_ms=0 others: bench-v1-dev=0ms vm2-dev=3310ms vm1-vm
+14:32:48 v2  time1           rep 2: # cmd TIMEFORMAT='TIME wall_s=%3R user_s=%3U sys_s=%3S'; time ./nvprobe 1 TIME wall_s=3.883 user_s=0.047 sys_s=3.854 # WALL wall_ms=3886 rc=0  | # MEAS dev_pid=2924513 dev_cpu_ms=6050 dev_rss_hwm_kb=5264736/9442876 vmm_cpu_ms=3120 others: bench-v1-dev=0ms bench-v1-
+14:32:48 native ioctl           rep 2: ioctlping n=10000 pause_us=0 fails=0 min_us=2.22 p10_us=2.57 p50_us=2.59 p90_us=2.62 p99_us=3.24 max_us=63.29 mean_us=2.71 # WALL wall_ms=32 rc=0  | # MEAS dev_pid=- dev_cpu_ms=0 dev_rss_hwm_kb=-/- vmm_cpu_ms=0 others: bench-v1-dev=0ms vm2-dev=110ms bench-v1-dev=0ms vm
+14:32:51 v1  ioctl           rep 2:  | # MEAS dev_pid=2910543 dev_cpu_ms=0 dev_rss_hwm_kb=3232/3232 vmm_cpu_ms=0 others: bench-v1-dev=0ms vm2-dev=3310ms vm1-vm
+14:32:52 v2  ioctl           rep 2: ioctlping n=10000 pause_us=0 fails=0 min_us=1.23 p10_us=1.27 p50_us=1.55 p90_us=1.96 p99_us=2.76 max_us=2524.34 mean_us=2.42 # WALL wall_ms=29 rc=0  | # MEAS dev_pid=2924513 dev_cpu_ms=230 dev_rss_hwm_kb=5264736/9442876 vmm_cpu_ms=200 others: bench-v1-dev=0ms bench-v1-de
+14:32:52 native ctrl            rep 2: ctrlping bytes=232 n=2000 fails=0 p50_us=4.31 p90_us=4.33 p99_us=5.42 mean_us=4.39 ctrlping bytes=1576 n=2000 fails=0 p50_us=4.30 p90_us=4.33 p99_us=5 | # MEAS dev_pid=- dev_cpu_ms=0 dev_rss_hwm_kb=-/- vmm_cpu_ms=0 others: bench-v1-dev=0ms vm2-dev=130ms bench-v1-dev=0ms vm
+14:32:55 v1  ctrl            rep 2:  | # MEAS dev_pid=2910543 dev_cpu_ms=0 dev_rss_hwm_kb=3232/3232 vmm_cpu_ms=0 others: bench-v1-dev=0ms vm2-dev=3260ms vm1-vm
+14:32:56 v2  ctrl            rep 2: ctrlping bytes=232 n=2000 fails=0 p50_us=2.46 p90_us=3.28 p99_us=6.99 mean_us=2.74 ctrlping bytes=1576 n=2000 fails=0 p50_us=2.48 p90_us=2.87 p99_us=3 | # MEAS dev_pid=2924513 dev_cpu_ms=500 dev_rss_hwm_kb=5264736/9442876 vmm_cpu_ms=490 others: bench-v1-dev=0ms bench-v1-de
+14:32:57 native churn           rep 2: # WALL wall_ms=686 rc=0  | # MEAS dev_pid=- dev_cpu_ms=0 dev_rss_hwm_kb=-/- vmm_cpu_ms=0 others: bench-v1-dev=0ms vm2-dev=810ms bench-v1-dev=0ms vm
+14:33:00 v1  churn           rep 2:  | # MEAS dev_pid=2910543 dev_cpu_ms=0 dev_rss_hwm_kb=3232/3232 vmm_cpu_ms=0 others: bench-v1-dev=0ms vm2-dev=3270ms vm1-vm
+14:33:10 v2  churn           rep 2: # WALL wall_ms=10048 rc=0  | # MEAS dev_pid=2924513 dev_cpu_ms=15950 dev_rss_hwm_kb=5264736/9442876 vmm_cpu_ms=7460 others: bench-v1-dev=0ms bench-v1
+# 14:33:10 v1 restart before rep 3
+ssh: connect to host 192.168.105.25 port 22: No route to host
+stopped (hypervisor 2910553, backend 2910543)
+backend pid 2937937, hypervisor pid 2937945, ssh up at 192.168.105.25
+[  133.876662] virtio_nvrm: ready (nodes on, 1 GPU, max_pin 1024 MiB)
+virtio_nvrm           139264  0
+# 14:35:28 v2 restart before rep 3
+stopped
+dma table: 0:7ff940000000:c0000000,100000000:7ffa40000000:40000000
+server pid 2942280, VM pid 2942293; logs in /mnt/vmstore/caraxes/vm2
+ssh up at 192.168.102.22
+[  131.803141] NVRM: GPU 0000:00:05.0: RmInitAdapter succeeded!
+modprobe rc=0
+v2 restarted: server pid 2942280
+14:37:52 native launch-auto     rep 3: MSPERLAUNCH=16.418 # WALL wall_ms=2033 rc=0  | # MEAS dev_pid=- dev_cpu_ms=0 dev_rss_hwm_kb=-/- vmm_cpu_ms=0 others: bench-v1-vmm=0ms bench-v1-dev=0ms vm1-vmm=540ms be
+14:37:54 v1  launch-auto     rep 3: MSPERLAUNCH=15.996 # WALL wall_ms=2006 rc=0  | # MEAS dev_pid=2937937 dev_cpu_ms=200 dev_rss_hwm_kb=48472/93168 vmm_cpu_ms=2410 others: vm1-vmm=2580ms bench-v1-dev=0ms
+14:38:01 v2  launch-auto     rep 3: MSPERLAUNCH=18.342 # WALL wall_ms=6350 rc=0  | # MEAS dev_pid=2942280 dev_cpu_ms=8270 dev_rss_hwm_kb=5253156/9443088 vmm_cpu_ms=11230 others: bench-v1-vmm=30ms bench-v
+14:38:03 native launch-blocking rep 3: MSPERLAUNCH=16.106 # WALL wall_ms=1958 rc=0  | # MEAS dev_pid=- dev_cpu_ms=0 dev_rss_hwm_kb=-/- vmm_cpu_ms=0 others: bench-v1-vmm=0ms bench-v1-dev=0ms vm1-vmm=2120ms b
+14:38:14 v1  launch-blocking rep 3: MSPERLAUNCH=100.271 # WALL wall_ms=10423 rc=0  | # MEAS dev_pid=2937937 dev_cpu_ms=240 dev_rss_hwm_kb=83300/115748 vmm_cpu_ms=310 others: vm1-vmm=11050ms bench-v1-dev=0m
+14:38:22 v2  launch-blocking rep 3: MSPERLAUNCH=18.135 # WALL wall_ms=7033 rc=0  | # MEAS dev_pid=2942280 dev_cpu_ms=9860 dev_rss_hwm_kb=5254344/9443088 vmm_cpu_ms=9780 others: bench-v1-vmm=30ms bench-v1
+14:38:22 native short-auto      rep 3: MSPERLAUNCH=0.006 # WALL wall_ms=386 rc=0  | # MEAS dev_pid=- dev_cpu_ms=0 dev_rss_hwm_kb=-/- vmm_cpu_ms=0 others: bench-v1-vmm=0ms bench-v1-dev=0ms vm1-vmm=500ms be
+14:38:23 v1  short-auto      rep 3: MSPERLAUNCH=0.014 # WALL wall_ms=515 rc=0  | # MEAS dev_pid=2937937 dev_cpu_ms=290 dev_rss_hwm_kb=114024/160804 vmm_cpu_ms=390 others: vm1-vmm=870ms bench-v1-dev=0ms
+14:38:28 v2  short-auto      rep 3: MSPERLAUNCH=0.014 # WALL wall_ms=4528 rc=0  | # MEAS dev_pid=2942280 dev_cpu_ms=6650 dev_rss_hwm_kb=5254344/9443088 vmm_cpu_ms=7620 others: bench-v1-vmm=20ms bench-v1
+14:38:29 native short-blocking  rep 3: MSPERLAUNCH=0.026 # WALL wall_ms=467 rc=0  | # MEAS dev_pid=- dev_cpu_ms=0 dev_rss_hwm_kb=-/- vmm_cpu_ms=0 others: bench-v1-vmm=0ms bench-v1-dev=0ms vm1-vmm=610ms be
+14:38:30 v1  short-blocking  rep 3: MSPERLAUNCH=0.023 # WALL wall_ms=355 rc=0  | # MEAS dev_pid=2937937 dev_cpu_ms=220 dev_rss_hwm_kb=126312/171156 vmm_cpu_ms=290 others: vm1-vmm=650ms bench-v1-dev=0ms
+14:38:35 v2  short-blocking  rep 3: MSPERLAUNCH=0.039 # WALL wall_ms=5188 rc=0  | # MEAS dev_pid=2942280 dev_cpu_ms=8230 dev_rss_hwm_kb=5254368/9443088 vmm_cpu_ms=8440 others: bench-v1-vmm=20ms bench-v1
+14:38:38 native copy            rep 3: # WALL wall_ms=2168 rc=0  | # MEAS dev_pid=- dev_cpu_ms=0 dev_rss_hwm_kb=-/- vmm_cpu_ms=0 others: bench-v1-vmm=10ms bench-v1-dev=0ms vm1-vmm=2270ms 
+14:38:41 v1  copy            rep 3: # WALL wall_ms=3167 rc=0  | # MEAS dev_pid=2937937 dev_cpu_ms=300 dev_rss_hwm_kb=431452/431452 vmm_cpu_ms=2840 others: vm1-vmm=3410ms bench-v1-dev=0
+14:38:59 v2  copy            rep 3: # WALL wall_ms=17406 rc=0  | # MEAS dev_pid=2942280 dev_cpu_ms=24030 dev_rss_hwm_kb=5265752/9443088 vmm_cpu_ms=29500 others: bench-v1-vmm=140ms bench
+14:39:01 native mm              rep 3: mmsweep: N=1024     0.42ms/mm   5155.6 GFLOP/s chk=-3.498482e+04 vram=24MiB mmsweep: N=2048     2.82ms/mm   6093.2 GFLOP/s chk=1.067825e+04 vram=72MiB | # MEAS dev_pid=- dev_cpu_ms=0 dev_rss_hwm_kb=-/- vmm_cpu_ms=0 others: bench-v1-vmm=10ms bench-v1-dev=0ms vm1-vmm=2230ms 
+14:39:25 v1  mm              rep 3: mmsweep: N=1024     0.40ms/mm   5330.9 GFLOP/s chk=-3.498482e+04 vram=24MiB mmsweep: N=2048     3.06ms/mm   5614.7 GFLOP/s chk=1.067825e+04 vram=72MiB | # MEAS dev_pid=2937937 dev_cpu_ms=330 dev_rss_hwm_kb=449884/492704 vmm_cpu_ms=22190 others: vm1-vmm=23380ms bench-v1-dev
+14:39:37 v2  mm              rep 3: mmsweep: N=1024     1.60ms/mm   1340.3 GFLOP/s chk=-3.498482e+04 vram=24MiB mmsweep: N=2048     8.40ms/mm   2044.9 GFLOP/s chk=1.067825e+04 vram=72MiB | # MEAS dev_pid=2942280 dev_cpu_ms=14960 dev_rss_hwm_kb=5265516/9443088 vmm_cpu_ms=21040 others: bench-v1-vmm=140ms bench
+14:39:42 native rl              rep 3:   ep   10  return=   11  mean10=  20.7   ep   20  return=   15  mean10=  14.4   ep   30  return=   13  mean10=  15.8  | # MEAS dev_pid=- dev_cpu_ms=0 dev_rss_hwm_kb=-/- vmm_cpu_ms=0 others: bench-v1-vmm=10ms bench-v1-dev=0ms vm1-vmm=4800ms 
+14:41:41 v1  rl              rep 3:   ep   10  return=   11  mean10=  20.7   ep   20  return=   15  mean10=  14.4   ep   30  return=   13  mean10=  15.8  | # MEAS dev_pid=2937937 dev_cpu_ms=430 dev_rss_hwm_kb=468324/507180 vmm_cpu_ms=113330 others: vm1-vmm=119450ms bench-v1-d
+14:41:55 v2  rl              rep 3:   ep   10  return=   11  mean10=  20.7   ep   20  return=   15  mean10=  14.4   ep   30  return=   13  mean10=  15.8  | # MEAS dev_pid=2942280 dev_cpu_ms=15360 dev_rss_hwm_kb=5264712/9443088 vmm_cpu_ms=24140 others: bench-v1-vmm=140ms bench
+14:41:55 native init            rep 3: INIT cuinit_ms=93.895 devget_ms=0.001 ctxcreate_ms=191.643 ctxdestroy_ms=92.739 # WALL wall_ms=427 rc=0  | # MEAS dev_pid=- dev_cpu_ms=0 dev_rss_hwm_kb=-/- vmm_cpu_ms=0 others: bench-v1-vmm=0ms bench-v1-dev=0ms vm1-vmm=580ms be
+14:41:56 v1  init            rep 3: INIT cuinit_ms=40.985 devget_ms=0.001 ctxcreate_ms=170.050 ctxdestroy_ms=79.067 # WALL wall_ms=370 rc=0  | # MEAS dev_pid=2937937 dev_cpu_ms=220 dev_rss_hwm_kb=480612/527500 vmm_cpu_ms=850 others: vm1-vmm=1130ms bench-v1-dev=0m
+14:42:02 v2  init            rep 3: INIT cuinit_ms=150.877 devget_ms=0.001 ctxcreate_ms=3703.897 ctxdestroy_ms=1168.345 # WALL wall_ms=5053 rc=0  | # MEAS dev_pid=2942280 dev_cpu_ms=8010 dev_rss_hwm_kb=5264712/9443088 vmm_cpu_ms=8150 others: bench-v1-vmm=10ms bench-v1
+14:42:02 native time0           rep 3: # cmd TIMEFORMAT='TIME wall_s=%3R user_s=%3U sys_s=%3S'; time ./nvprobe 0 TIME wall_s=0.205 user_s=0.003 sys_s=0.158 # WALL wall_ms=208 rc=0  | # MEAS dev_pid=- dev_cpu_ms=0 dev_rss_hwm_kb=-/- vmm_cpu_ms=0 others: bench-v1-vmm=0ms bench-v1-dev=0ms vm1-vmm=330ms be
+14:42:03 v1  time0           rep 3: # cmd TIMEFORMAT='TIME wall_s=%3R user_s=%3U sys_s=%3S'; time ./nvprobe 0 TIME wall_s=0.164 user_s=0.002 sys_s=0.004 # WALL wall_ms=167 rc=0  | # MEAS dev_pid=2937937 dev_cpu_ms=100 dev_rss_hwm_kb=480612/527500 vmm_cpu_ms=140 others: vm1-vmm=550ms bench-v1-dev=0ms
+14:42:04 v2  time0           rep 3: # cmd TIMEFORMAT='TIME wall_s=%3R user_s=%3U sys_s=%3S'; time ./nvprobe 0 TIME wall_s=0.194 user_s=0.001 sys_s=0.193 # WALL wall_ms=198 rc=0  | # MEAS dev_pid=2942280 dev_cpu_ms=830 dev_rss_hwm_kb=5264712/9443088 vmm_cpu_ms=700 others: bench-v1-vmm=0ms bench-v1-de
+14:42:04 native time1           rep 3: # cmd TIMEFORMAT='TIME wall_s=%3R user_s=%3U sys_s=%3S'; time ./nvprobe 1 TIME wall_s=0.384 user_s=0.025 sys_s=0.315 # WALL wall_ms=388 rc=0  | # MEAS dev_pid=- dev_cpu_ms=0 dev_rss_hwm_kb=-/- vmm_cpu_ms=0 others: bench-v1-vmm=0ms bench-v1-dev=0ms vm1-vmm=500ms be
+14:42:05 v1  time1           rep 3: # cmd TIMEFORMAT='TIME wall_s=%3R user_s=%3U sys_s=%3S'; time ./nvprobe 1 TIME wall_s=0.393 user_s=0.028 sys_s=0.019 # WALL wall_ms=396 rc=0  | # MEAS dev_pid=2937937 dev_cpu_ms=250 dev_rss_hwm_kb=490852/537840 vmm_cpu_ms=250 others: vm1-vmm=660ms bench-v1-dev=0ms
+14:42:10 v2  time1           rep 3: # cmd TIMEFORMAT='TIME wall_s=%3R user_s=%3U sys_s=%3S'; time ./nvprobe 1 TIME wall_s=4.172 user_s=0.045 sys_s=4.125 # WALL wall_ms=4176 rc=0  | # MEAS dev_pid=2942280 dev_cpu_ms=6310 dev_rss_hwm_kb=5264712/9443088 vmm_cpu_ms=6650 others: bench-v1-vmm=10ms bench-v1
+14:42:10 native ioctl           rep 3: ioctlping n=10000 pause_us=0 fails=0 min_us=2.53 p10_us=2.56 p50_us=2.59 p90_us=2.62 p99_us=3.20 max_us=112.74 mean_us=2.63 # WALL wall_ms=31 rc=0  | # MEAS dev_pid=- dev_cpu_ms=0 dev_rss_hwm_kb=-/- vmm_cpu_ms=0 others: bench-v1-vmm=0ms bench-v1-dev=0ms vm1-vmm=140ms be
+14:42:10 v1  ioctl           rep 3: ioctlping n=10000 pause_us=0 fails=0 min_us=12.80 p10_us=14.24 p50_us=22.31 p90_us=29.64 p99_us=43.81 max_us=541.63 mean_us=22.94 # WALL wall_ms=238 r | # MEAS dev_pid=2937937 dev_cpu_ms=100 dev_rss_hwm_kb=490852/537840 vmm_cpu_ms=460 others: vm1-vmm=580ms bench-v1-dev=0ms
+14:42:11 v2  ioctl           rep 3: ioctlping n=10000 pause_us=0 fails=0 min_us=1.22 p10_us=1.27 p50_us=1.87 p90_us=4.03 p99_us=7.31 max_us=52.94 mean_us=2.31 # WALL wall_ms=31 rc=0  | # MEAS dev_pid=2942280 dev_cpu_ms=240 dev_rss_hwm_kb=5264712/9443088 vmm_cpu_ms=450 others: bench-v1-vmm=0ms bench-v1-de
+14:42:11 native ctrl            rep 3: ctrlping bytes=232 n=2000 fails=0 p50_us=5.45 p90_us=5.62 p99_us=6.68 mean_us=5.55 ctrlping bytes=1576 n=2000 fails=0 p50_us=5.46 p90_us=5.62 p99_us=6 | # MEAS dev_pid=- dev_cpu_ms=0 dev_rss_hwm_kb=-/- vmm_cpu_ms=0 others: bench-v1-vmm=0ms bench-v1-dev=0ms vm1-vmm=160ms be
+14:42:12 v1  ctrl            rep 3: ctrlping bytes=232 n=2000 fails=0 p50_us=18.12 p90_us=23.79 p99_us=36.35 mean_us=22.14 ctrlping bytes=1576 n=2000 fails=0 p50_us=23.43 p90_us=28.51 p9 | # MEAS dev_pid=2937937 dev_cpu_ms=150 dev_rss_hwm_kb=490952/537840 vmm_cpu_ms=460 others: vm1-vmm=640ms bench-v1-dev=0ms
+14:42:12 v2  ctrl            rep 3: ctrlping bytes=232 n=2000 fails=0 p50_us=2.32 p90_us=2.85 p99_us=4.09 mean_us=2.57 ctrlping bytes=1576 n=2000 fails=0 p50_us=2.87 p90_us=4.56 p99_us=2 | # MEAS dev_pid=2942280 dev_cpu_ms=260 dev_rss_hwm_kb=5264712/9443088 vmm_cpu_ms=430 others: bench-v1-vmm=0ms bench-v1-de
+14:42:13 native churn           rep 3: # WALL wall_ms=750 rc=0  | # MEAS dev_pid=- dev_cpu_ms=0 dev_rss_hwm_kb=-/- vmm_cpu_ms=0 others: bench-v1-vmm=0ms bench-v1-dev=0ms vm1-vmm=910ms be
+14:42:14 v1  churn           rep 3: # WALL wall_ms=655 rc=0  | # MEAS dev_pid=2937937 dev_cpu_ms=410 dev_rss_hwm_kb=501192/548168 vmm_cpu_ms=750 others: vm1-vmm=950ms bench-v1-dev=0ms
+14:42:26 v2  churn           rep 3: # WALL wall_ms=11430 rc=0  | # MEAS dev_pid=2942280 dev_cpu_ms=17550 dev_rss_hwm_kb=5264712/9443088 vmm_cpu_ms=18910 others: bench-v1-vmm=130ms bench
+# 14:42:26 v1 restart before rep 4
+stopped (hypervisor 2937945, backend 2937937)
+backend pid 2961706, hypervisor pid 2961718, ssh up at 192.168.105.25
+[  252.679318] virtio_nvrm: ready (nodes on, 1 GPU, max_pin 1024 MiB)
+virtio_nvrm           139264  0
+# 14:46:50 v2 restart before rep 4
+stopped
+dma table: 0:7ff940000000:c0000000,100000000:7ffa40000000:40000000
+server pid 2969829, VM pid 2969840; logs in /mnt/vmstore/caraxes/vm2
+ssh up at 192.168.102.22
+[  132.721076] NVRM: GPU 0000:00:05.0: RmInitAdapter succeeded!
+modprobe rc=0
+v2 restarted: server pid 2969829
+14:49:14 native launch-auto     rep 4: MSPERLAUNCH=16.160 # WALL wall_ms=2060 rc=0  | # MEAS dev_pid=- dev_cpu_ms=0 dev_rss_hwm_kb=-/- vmm_cpu_ms=0 others: bench-v1-dev=0ms bench-v1-dev=0ms bench-v1-dev=0ms
+14:49:17 v1  launch-auto     rep 4: MSPERLAUNCH=15.965 # WALL wall_ms=2053 rc=0  | # MEAS dev_pid=2961706 dev_cpu_ms=220 dev_rss_hwm_kb=83260/117652 vmm_cpu_ms=4390 others: bench-v1-dev=0ms bench-v1-dev=
+14:49:24 v2  launch-auto     rep 4: MSPERLAUNCH=17.599 # WALL wall_ms=6329 rc=0  | # MEAS dev_pid=2969829 dev_cpu_ms=8350 dev_rss_hwm_kb=5253164/9443184 vmm_cpu_ms=11310 others: bench-v1-dev=0ms bench-v1
+14:49:26 native launch-blocking rep 4: MSPERLAUNCH=16.096 # WALL wall_ms=1914 rc=0  | # MEAS dev_pid=- dev_cpu_ms=0 dev_rss_hwm_kb=-/- vmm_cpu_ms=0 others: bench-v1-dev=0ms bench-v1-dev=0ms bench-v1-dev=0ms
+14:49:37 v1  launch-blocking rep 4: MSPERLAUNCH=100.240 # WALL wall_ms=10454 rc=0  | # MEAS dev_pid=2961706 dev_cpu_ms=250 dev_rss_hwm_kb=97612/144276 vmm_cpu_ms=500 others: bench-v1-dev=0ms bench-v1-dev=0
+14:49:44 v2  launch-blocking rep 4: MSPERLAUNCH=18.629 # WALL wall_ms=7076 rc=0  | # MEAS dev_pid=2969829 dev_cpu_ms=9940 dev_rss_hwm_kb=5254328/9443184 vmm_cpu_ms=10180 others: bench-v1-dev=0ms bench-v1
+14:49:45 native short-auto      rep 4: MSPERLAUNCH=0.009 # WALL wall_ms=416 rc=0  | # MEAS dev_pid=- dev_cpu_ms=0 dev_rss_hwm_kb=-/- vmm_cpu_ms=0 others: bench-v1-dev=0ms bench-v1-dev=0ms bench-v1-dev=0ms
+14:49:46 v1  short-auto      rep 4: MSPERLAUNCH=0.009 # WALL wall_ms=463 rc=0  | # MEAS dev_pid=2961706 dev_cpu_ms=280 dev_rss_hwm_kb=109904/156688 vmm_cpu_ms=270 others: bench-v1-dev=0ms bench-v1-dev=
+14:49:50 v2  short-auto      rep 4: MSPERLAUNCH=0.015 # WALL wall_ms=4436 rc=0  | # MEAS dev_pid=2969829 dev_cpu_ms=6570 dev_rss_hwm_kb=5254328/9443184 vmm_cpu_ms=7560 others: bench-v1-dev=0ms bench-v1-
+14:49:51 native short-blocking  rep 4: MSPERLAUNCH=0.021 # WALL wall_ms=452 rc=0  | # MEAS dev_pid=- dev_cpu_ms=0 dev_rss_hwm_kb=-/- vmm_cpu_ms=0 others: bench-v1-dev=0ms bench-v1-dev=0ms bench-v1-dev=0ms
+14:49:52 v1  short-blocking  rep 4: MSPERLAUNCH=0.033 # WALL wall_ms=332 rc=0  | # MEAS dev_pid=2961706 dev_cpu_ms=220 dev_rss_hwm_kb=124240/171024 vmm_cpu_ms=250 others: bench-v1-dev=0ms bench-v1-dev=
+14:49:58 v2  short-blocking  rep 4: MSPERLAUNCH=0.100 # WALL wall_ms=5447 rc=0  | # MEAS dev_pid=2969829 dev_cpu_ms=8490 dev_rss_hwm_kb=5254392/9443184 vmm_cpu_ms=8710 others: bench-v1-dev=0ms bench-v1-
+14:50:00 native copy            rep 4: # WALL wall_ms=2306 rc=0  | # MEAS dev_pid=- dev_cpu_ms=0 dev_rss_hwm_kb=-/- vmm_cpu_ms=0 others: bench-v1-dev=0ms bench-v1-dev=0ms bench-v1-dev=0ms
+14:50:03 v1  copy            rep 4: # WALL wall_ms=2126 rc=0  | # MEAS dev_pid=2961706 dev_cpu_ms=310 dev_rss_hwm_kb=425300/426896 vmm_cpu_ms=1930 others: bench-v1-dev=0ms bench-v1-dev
+14:50:22 v2  copy            rep 4: # WALL wall_ms=19065 rc=0  | # MEAS dev_pid=2969829 dev_cpu_ms=26060 dev_rss_hwm_kb=5265752/9443184 vmm_cpu_ms=31240 others: bench-v1-dev=0ms bench-v
+14:50:25 native mm              rep 4: mmsweep: N=1024     0.45ms/mm   4720.0 GFLOP/s chk=-3.498482e+04 vram=24MiB mmsweep: N=2048     3.13ms/mm   5493.8 GFLOP/s chk=1.067825e+04 vram=72MiB | # MEAS dev_pid=- dev_cpu_ms=0 dev_rss_hwm_kb=-/- vmm_cpu_ms=0 others: bench-v1-dev=0ms bench-v1-dev=0ms bench-v1-dev=0ms
+14:50:41 v1  mm              rep 4: mmsweep: N=1024     0.46ms/mm   4715.1 GFLOP/s chk=-3.498482e+04 vram=24MiB mmsweep: N=2048     3.11ms/mm   5522.2 GFLOP/s chk=1.067825e+04 vram=72MiB | # MEAS dev_pid=2961706 dev_cpu_ms=350 dev_rss_hwm_kb=443732/486288 vmm_cpu_ms=15440 others: bench-v1-dev=0ms bench-v1-de
+14:50:53 v2  mm              rep 4: mmsweep: N=1024     5.66ms/mm    379.4 GFLOP/s chk=-3.498482e+04 vram=24MiB mmsweep: N=2048     7.75ms/mm   2217.3 GFLOP/s chk=1.067825e+04 vram=72MiB | # MEAS dev_pid=2969829 dev_cpu_ms=15400 dev_rss_hwm_kb=5265416/9443184 vmm_cpu_ms=21300 others: bench-v1-dev=0ms bench-v
+14:50:58 native rl              rep 4:   ep   10  return=   11  mean10=  20.7   ep   20  return=   15  mean10=  14.4   ep   30  return=   13  mean10=  15.8  | # MEAS dev_pid=- dev_cpu_ms=0 dev_rss_hwm_kb=-/- vmm_cpu_ms=0 others: bench-v1-dev=0ms bench-v1-dev=0ms bench-v1-dev=0ms
+14:52:38 v1  rl              rep 4:   ep   10  return=   11  mean10=  20.7   ep   20  return=   15  mean10=  14.4   ep   30  return=   13  mean10=  15.8  | # MEAS dev_pid=2961706 dev_cpu_ms=490 dev_rss_hwm_kb=462168/500624 vmm_cpu_ms=96040 others: bench-v1-dev=0ms bench-v1-de
+14:52:50 v2  rl              rep 4:   ep   10  return=   11  mean10=  20.7   ep   20  return=   15  mean10=  14.4   ep   30  return=   13  mean10=  15.8  | # MEAS dev_pid=2969829 dev_cpu_ms=14140 dev_rss_hwm_kb=5264744/9443184 vmm_cpu_ms=11420 others: bench-v1-dev=0ms bench-v
+14:52:51 native init            rep 4: INIT cuinit_ms=117.042 devget_ms=0.001 ctxcreate_ms=196.702 ctxdestroy_ms=91.412 # WALL wall_ms=462 rc=0  | # MEAS dev_pid=- dev_cpu_ms=0 dev_rss_hwm_kb=-/- vmm_cpu_ms=0 others: bench-v1-dev=0ms bench-v1-dev=0ms bench-v1-dev=0ms
+14:52:52 v1  init            rep 4: INIT cuinit_ms=36.761 devget_ms=0.002 ctxcreate_ms=160.095 ctxdestroy_ms=85.090 # WALL wall_ms=338 rc=0  | # MEAS dev_pid=2961706 dev_cpu_ms=210 dev_rss_hwm_kb=474456/521192 vmm_cpu_ms=770 others: bench-v1-dev=0ms bench-v1-dev=
+14:52:57 v2  init            rep 4: INIT cuinit_ms=148.111 devget_ms=0.001 ctxcreate_ms=3537.172 ctxdestroy_ms=1104.463 # WALL wall_ms=4804 rc=0  | # MEAS dev_pid=2969829 dev_cpu_ms=7420 dev_rss_hwm_kb=5264744/9443184 vmm_cpu_ms=3000 others: bench-v1-dev=0ms bench-v1-
+14:52:57 native time0           rep 4: # cmd TIMEFORMAT='TIME wall_s=%3R user_s=%3U sys_s=%3S'; time ./nvprobe 0 TIME wall_s=0.231 user_s=0.004 sys_s=0.178 # WALL wall_ms=234 rc=0  | # MEAS dev_pid=- dev_cpu_ms=0 dev_rss_hwm_kb=-/- vmm_cpu_ms=0 others: bench-v1-dev=0ms bench-v1-dev=0ms bench-v1-dev=0ms
+14:52:58 v1  time0           rep 4: # cmd TIMEFORMAT='TIME wall_s=%3R user_s=%3U sys_s=%3S'; time ./nvprobe 0 TIME wall_s=0.191 user_s=0.003 sys_s=0.002 # WALL wall_ms=194 rc=0  | # MEAS dev_pid=2961706 dev_cpu_ms=140 dev_rss_hwm_kb=480600/521192 vmm_cpu_ms=140 others: bench-v1-dev=0ms bench-v1-dev=
+14:52:59 v2  time0           rep 4: # cmd TIMEFORMAT='TIME wall_s=%3R user_s=%3U sys_s=%3S'; time ./nvprobe 0 TIME wall_s=0.199 user_s=0.000 sys_s=0.198 # WALL wall_ms=202 rc=0  | # MEAS dev_pid=2969829 dev_cpu_ms=850 dev_rss_hwm_kb=5264744/9443184 vmm_cpu_ms=270 others: bench-v1-dev=0ms bench-v1-de
+14:52:59 native time1           rep 4: # cmd TIMEFORMAT='TIME wall_s=%3R user_s=%3U sys_s=%3S'; time ./nvprobe 1 TIME wall_s=0.415 user_s=0.020 sys_s=0.341 # WALL wall_ms=419 rc=0  | # MEAS dev_pid=- dev_cpu_ms=0 dev_rss_hwm_kb=-/- vmm_cpu_ms=0 others: bench-v1-dev=0ms bench-v1-dev=0ms bench-v1-dev=0ms
+14:53:00 v1  time1           rep 4: # cmd TIMEFORMAT='TIME wall_s=%3R user_s=%3U sys_s=%3S'; time ./nvprobe 1 TIME wall_s=0.358 user_s=0.017 sys_s=0.021 # WALL wall_ms=361 rc=0  | # MEAS dev_pid=2961706 dev_cpu_ms=230 dev_rss_hwm_kb=494936/541856 vmm_cpu_ms=230 others: bench-v1-dev=0ms bench-v1-dev=
+14:53:04 v2  time1           rep 4: # cmd TIMEFORMAT='TIME wall_s=%3R user_s=%3U sys_s=%3S'; time ./nvprobe 1 TIME wall_s=3.768 user_s=0.056 sys_s=3.712 # WALL wall_ms=3772 rc=0  | # MEAS dev_pid=2969829 dev_cpu_ms=5820 dev_rss_hwm_kb=5264744/9443184 vmm_cpu_ms=2850 others: bench-v1-dev=0ms bench-v1-
+14:53:05 native ioctl           rep 4: ioctlping n=10000 pause_us=0 fails=0 min_us=2.48 p10_us=3.09 p50_us=3.16 p90_us=3.71 p99_us=15.25 max_us=48.91 mean_us=3.66 # WALL wall_ms=42 rc=0  | # MEAS dev_pid=- dev_cpu_ms=0 dev_rss_hwm_kb=-/- vmm_cpu_ms=0 others: bench-v1-dev=0ms bench-v1-dev=0ms bench-v1-dev=0ms
+14:53:05 v1  ioctl           rep 4: ioctlping n=10000 pause_us=0 fails=0 min_us=15.73 p10_us=19.88 p50_us=20.33 p90_us=21.33 p99_us=30.46 max_us=342.66 mean_us=20.92 # WALL wall_ms=219 r | # MEAS dev_pid=2961706 dev_cpu_ms=110 dev_rss_hwm_kb=494936/541856 vmm_cpu_ms=560 others: bench-v1-dev=0ms bench-v1-dev=
+14:53:06 v2  ioctl           rep 4: ioctlping n=10000 pause_us=0 fails=0 min_us=1.24 p10_us=1.28 p50_us=1.49 p90_us=2.20 p99_us=3.24 max_us=1424.78 mean_us=2.06 # WALL wall_ms=25 rc=0  | # MEAS dev_pid=2969829 dev_cpu_ms=230 dev_rss_hwm_kb=5264744/9443184 vmm_cpu_ms=200 others: bench-v1-dev=0ms bench-v1-de
+14:53:06 native ctrl            rep 4: ctrlping bytes=232 n=2000 fails=0 p50_us=5.47 p90_us=5.60 p99_us=7.06 mean_us=5.20 ctrlping bytes=1576 n=2000 fails=0 p50_us=4.28 p90_us=4.31 p99_us=5 | # MEAS dev_pid=- dev_cpu_ms=0 dev_rss_hwm_kb=-/- vmm_cpu_ms=0 others: bench-v1-dev=0ms bench-v1-dev=0ms bench-v1-dev=0ms
+14:53:06 v1  ctrl            rep 4: ctrlping bytes=232 n=2000 fails=0 p50_us=20.77 p90_us=21.91 p99_us=46.63 mean_us=21.61 ctrlping bytes=1576 n=2000 fails=0 p50_us=22.68 p90_us=25.34 p9 | # MEAS dev_pid=2961706 dev_cpu_ms=130 dev_rss_hwm_kb=497084/541856 vmm_cpu_ms=370 others: bench-v1-dev=0ms bench-v1-dev=
+14:53:07 v2  ctrl            rep 4: ctrlping bytes=232 n=2000 fails=0 p50_us=2.40 p90_us=2.45 p99_us=3.07 mean_us=2.46 ctrlping bytes=1576 n=2000 fails=0 p50_us=2.39 p90_us=2.44 p99_us=3 | # MEAS dev_pid=2969829 dev_cpu_ms=260 dev_rss_hwm_kb=5264744/9443184 vmm_cpu_ms=210 others: bench-v1-dev=0ms bench-v1-de
+14:53:08 native churn           rep 4: # WALL wall_ms=697 rc=0  | # MEAS dev_pid=- dev_cpu_ms=0 dev_rss_hwm_kb=-/- vmm_cpu_ms=0 others: bench-v1-dev=0ms bench-v1-dev=0ms bench-v1-dev=0ms
+14:53:09 v1  churn           rep 4: # WALL wall_ms=595 rc=0  | # MEAS dev_pid=2961706 dev_cpu_ms=380 dev_rss_hwm_kb=507324/554272 vmm_cpu_ms=420 others: bench-v1-dev=0ms bench-v1-dev=
+14:53:19 v2  churn           rep 4: # WALL wall_ms=9412 rc=0  | # MEAS dev_pid=2969829 dev_cpu_ms=15330 dev_rss_hwm_kb=5264748/9443184 vmm_cpu_ms=7490 others: bench-v1-dev=0ms bench-v1
+# 14:53:19 v1 restart before rep 5
+stopped (hypervisor 2961718, backend 2961706)
+backend pid 2988425, hypervisor pid 2988434, ssh up at 192.168.105.25
+[  133.333161] virtio_nvrm: ready (nodes on, 1 GPU, max_pin 1024 MiB)
+virtio_nvrm           139264  0
+# 14:55:54 v2 restart before rep 5
+stopped
+dma table: 0:7ff940000000:c0000000,100000000:7ffa40000000:40000000
+server pid 2992790, VM pid 2992801; logs in /mnt/vmstore/caraxes/vm2
+ssh up at 192.168.102.22
+[  131.774154] NVRM: GPU 0000:00:05.0: RmInitAdapter succeeded!
+modprobe rc=0
+v2 restarted: server pid 2992790
+14:58:17 native launch-auto     rep 5: MSPERLAUNCH=16.514 # WALL wall_ms=2103 rc=0  | # MEAS dev_pid=- dev_cpu_ms=0 dev_rss_hwm_kb=-/- vmm_cpu_ms=0 others: vm2-dev=2190ms bench-v1-dev=0ms bench-v1-dev=0ms b
+14:58:20 v1  launch-auto     rep 5: MSPERLAUNCH=15.978 # WALL wall_ms=2047 rc=0  | # MEAS dev_pid=2988425 dev_cpu_ms=220 dev_rss_hwm_kb=48400/84900 vmm_cpu_ms=2500 others: vm2-dev=2740ms bench-v1-dev=0ms
+14:58:27 v2  launch-auto     rep 5: MSPERLAUNCH=17.313 # WALL wall_ms=5990 rc=0  | # MEAS dev_pid=2992790 dev_cpu_ms=7980 dev_rss_hwm_kb=5253204/9443064 vmm_cpu_ms=10650 others: bench-v1-dev=0ms bench-v1
+14:58:29 native launch-blocking rep 5: MSPERLAUNCH=16.100 # WALL wall_ms=1928 rc=0  | # MEAS dev_pid=- dev_cpu_ms=0 dev_rss_hwm_kb=-/- vmm_cpu_ms=0 others: vm2-dev=2070ms bench-v1-dev=0ms bench-v1-dev=0ms b
+14:58:39 v1  launch-blocking rep 5: MSPERLAUNCH=100.286 # WALL wall_ms=10425 rc=0  | # MEAS dev_pid=2988425 dev_cpu_ms=230 dev_rss_hwm_kb=79132/117736 vmm_cpu_ms=340 others: vm2-dev=11030ms bench-v1-dev=0m
+14:58:47 v2  launch-blocking rep 5: MSPERLAUNCH=17.826 # WALL wall_ms=6909 rc=0  | # MEAS dev_pid=2992790 dev_cpu_ms=9660 dev_rss_hwm_kb=5254276/9443064 vmm_cpu_ms=9920 others: bench-v1-dev=0ms bench-v1-
+14:58:47 native short-auto      rep 5: MSPERLAUNCH=0.006 # WALL wall_ms=442 rc=0  | # MEAS dev_pid=- dev_cpu_ms=0 dev_rss_hwm_kb=-/- vmm_cpu_ms=0 others: vm2-dev=1030ms bench-v1-dev=0ms bench-v1-dev=0ms b
+14:58:48 v1  short-auto      rep 5: MSPERLAUNCH=0.009 # WALL wall_ms=461 rc=0  | # MEAS dev_pid=2988425 dev_cpu_ms=280 dev_rss_hwm_kb=105760/148508 vmm_cpu_ms=350 others: vm2-dev=1440ms bench-v1-dev=0m
+14:58:54 v2  short-auto      rep 5: MSPERLAUNCH=0.015 # WALL wall_ms=5023 rc=0  | # MEAS dev_pid=2992790 dev_cpu_ms=7400 dev_rss_hwm_kb=5254276/9443064 vmm_cpu_ms=8310 others: bench-v1-dev=0ms bench-v1-
+14:58:55 native short-blocking  rep 5: MSPERLAUNCH=0.018 # WALL wall_ms=480 rc=0  | # MEAS dev_pid=- dev_cpu_ms=0 dev_rss_hwm_kb=-/- vmm_cpu_ms=0 others: vm2-dev=610ms bench-v1-dev=0ms bench-v1-dev=0ms be
+14:58:56 v1  short-blocking  rep 5: MSPERLAUNCH=4.417 # WALL wall_ms=780 rc=0  | # MEAS dev_pid=2988425 dev_cpu_ms=220 dev_rss_hwm_kb=120096/164888 vmm_cpu_ms=240 others: vm2-dev=1140ms bench-v1-dev=0m
+14:59:02 v2  short-blocking  rep 5: MSPERLAUNCH=0.323 # WALL wall_ms=5385 rc=0  | # MEAS dev_pid=2992790 dev_cpu_ms=8130 dev_rss_hwm_kb=5254348/9443064 vmm_cpu_ms=8540 others: bench-v1-dev=0ms bench-v1-
+14:59:04 native copy            rep 5: # WALL wall_ms=2188 rc=0  | # MEAS dev_pid=- dev_cpu_ms=0 dev_rss_hwm_kb=-/- vmm_cpu_ms=0 others: vm2-dev=3730ms bench-v1-dev=0ms bench-v1-dev=0ms b
+14:59:07 v1  copy            rep 5: # WALL wall_ms=2195 rc=0  | # MEAS dev_pid=2988425 dev_cpu_ms=310 dev_rss_hwm_kb=419108/420988 vmm_cpu_ms=1940 others: vm2-dev=2550ms bench-v1-dev=0
+14:59:25 v2  copy            rep 5: # WALL wall_ms=18252 rc=0  | # MEAS dev_pid=2992790 dev_cpu_ms=25010 dev_rss_hwm_kb=5265460/9443064 vmm_cpu_ms=30840 others: bench-v1-dev=0ms bench-v
+14:59:28 native mm              rep 5: mmsweep: N=1024     0.41ms/mm   5264.1 GFLOP/s chk=-3.498482e+04 vram=24MiB mmsweep: N=2048     3.08ms/mm   5572.3 GFLOP/s chk=1.067825e+04 vram=72MiB | # MEAS dev_pid=- dev_cpu_ms=0 dev_rss_hwm_kb=-/- vmm_cpu_ms=0 others: vm2-dev=2270ms bench-v1-dev=0ms bench-v1-dev=0ms b
+14:59:40 v1  mm              rep 5: mmsweep: N=1024     0.44ms/mm   4923.9 GFLOP/s chk=-3.498482e+04 vram=24MiB mmsweep: N=2048     3.06ms/mm   5616.4 GFLOP/s chk=1.067825e+04 vram=72MiB | # MEAS dev_pid=2988425 dev_cpu_ms=310 dev_rss_hwm_kb=443684/484588 vmm_cpu_ms=12030 others: vm2-dev=12180ms bench-v1-dev
+14:59:51 v2  mm              rep 5: mmsweep: N=1024     1.65ms/mm   1304.3 GFLOP/s chk=-3.498482e+04 vram=24MiB mmsweep: N=2048     7.64ms/mm   2247.9 GFLOP/s chk=1.067825e+04 vram=72MiB | # MEAS dev_pid=2992790 dev_cpu_ms=14650 dev_rss_hwm_kb=5264844/9443064 vmm_cpu_ms=20430 others: bench-v1-dev=0ms bench-v
+14:59:56 native rl              rep 5:   ep   10  return=   11  mean10=  20.7   ep   20  return=   15  mean10=  14.4   ep   30  return=   13  mean10=  15.8  | # MEAS dev_pid=- dev_cpu_ms=0 dev_rss_hwm_kb=-/- vmm_cpu_ms=0 others: vm2-dev=5880ms bench-v1-dev=0ms bench-v1-dev=0ms b
+15:01:48 v1  rl              rep 5:   ep   10  return=   11  mean10=  20.7   ep   20  return=   15  mean10=  14.4   ep   30  return=   13  mean10=  15.8  | # MEAS dev_pid=2988425 dev_cpu_ms=450 dev_rss_hwm_kb=464172/503048 vmm_cpu_ms=106960 others: vm2-dev=106620ms bench-v1-d
+15:02:01 v2  rl              rep 5:   ep   10  return=   11  mean10=  20.7   ep   20  return=   15  mean10=  14.4   ep   30  return=   13  mean10=  15.8  | # MEAS dev_pid=2992790 dev_cpu_ms=14780 dev_rss_hwm_kb=5264844/9443064 vmm_cpu_ms=23240 others: bench-v1-dev=0ms bench-v
+15:02:01 native init            rep 5: INIT cuinit_ms=116.190 devget_ms=0.001 ctxcreate_ms=197.341 ctxdestroy_ms=89.159 # WALL wall_ms=450 rc=0  | # MEAS dev_pid=- dev_cpu_ms=0 dev_rss_hwm_kb=-/- vmm_cpu_ms=0 others: vm2-dev=580ms bench-v1-dev=0ms bench-v1-dev=0ms be
+15:02:03 v1  init            rep 5: INIT cuinit_ms=33.581 devget_ms=0.001 ctxcreate_ms=169.024 ctxdestroy_ms=88.775 # WALL wall_ms=346 rc=0  | # MEAS dev_pid=2988425 dev_cpu_ms=220 dev_rss_hwm_kb=480556/527616 vmm_cpu_ms=840 others: vm2-dev=1070ms bench-v1-dev=0m
+15:02:09 v2  init            rep 5: INIT cuinit_ms=154.158 devget_ms=0.001 ctxcreate_ms=4049.031 ctxdestroy_ms=1382.873 # WALL wall_ms=5605 rc=0  | # MEAS dev_pid=2992790 dev_cpu_ms=8620 dev_rss_hwm_kb=5264844/9443064 vmm_cpu_ms=8630 others: bench-v1-dev=0ms bench-v1-
+15:02:09 native time0           rep 5: # cmd TIMEFORMAT='TIME wall_s=%3R user_s=%3U sys_s=%3S'; time ./nvprobe 0 TIME wall_s=0.225 user_s=0.002 sys_s=0.154 # WALL wall_ms=228 rc=0  | # MEAS dev_pid=- dev_cpu_ms=0 dev_rss_hwm_kb=-/- vmm_cpu_ms=0 others: vm2-dev=650ms bench-v1-dev=0ms bench-v1-dev=0ms be
+15:02:10 v1  time0           rep 5: # cmd TIMEFORMAT='TIME wall_s=%3R user_s=%3U sys_s=%3S'; time ./nvprobe 0 TIME wall_s=0.154 user_s=0.002 sys_s=0.004 # WALL wall_ms=157 rc=0  | # MEAS dev_pid=2988425 dev_cpu_ms=110 dev_rss_hwm_kb=480556/527616 vmm_cpu_ms=150 others: vm2-dev=860ms bench-v1-dev=0ms
+15:02:10 v2  time0           rep 5: # cmd TIMEFORMAT='TIME wall_s=%3R user_s=%3U sys_s=%3S'; time ./nvprobe 0 TIME wall_s=0.185 user_s=0.002 sys_s=0.183 # WALL wall_ms=188 rc=0  | # MEAS dev_pid=2992790 dev_cpu_ms=820 dev_rss_hwm_kb=5264792/9443064 vmm_cpu_ms=660 others: bench-v1-dev=0ms bench-v1-de
+15:02:11 native time1           rep 5: # cmd TIMEFORMAT='TIME wall_s=%3R user_s=%3U sys_s=%3S'; time ./nvprobe 1 TIME wall_s=0.399 user_s=0.021 sys_s=0.315 # WALL wall_ms=403 rc=0  | # MEAS dev_pid=- dev_cpu_ms=0 dev_rss_hwm_kb=-/- vmm_cpu_ms=0 others: vm2-dev=530ms bench-v1-dev=0ms bench-v1-dev=0ms be
+15:02:12 v1  time1           rep 5: # cmd TIMEFORMAT='TIME wall_s=%3R user_s=%3U sys_s=%3S'; time ./nvprobe 1 TIME wall_s=0.354 user_s=0.019 sys_s=0.025 # WALL wall_ms=359 rc=0  | # MEAS dev_pid=2988425 dev_cpu_ms=250 dev_rss_hwm_kb=496940/541952 vmm_cpu_ms=260 others: vm2-dev=680ms bench-v1-dev=0ms
+15:02:17 v2  time1           rep 5: # cmd TIMEFORMAT='TIME wall_s=%3R user_s=%3U sys_s=%3S'; time ./nvprobe 1 TIME wall_s=4.565 user_s=0.060 sys_s=4.503 # WALL wall_ms=4568 rc=0  | # MEAS dev_pid=2992790 dev_cpu_ms=6870 dev_rss_hwm_kb=5264792/9443064 vmm_cpu_ms=7570 others: bench-v1-dev=0ms bench-v1-
+15:02:17 native ioctl           rep 5: ioctlping n=10000 pause_us=0 fails=0 min_us=3.12 p10_us=3.19 p50_us=3.33 p90_us=3.73 p99_us=5.20 max_us=19.15 mean_us=3.45 # WALL wall_ms=40 rc=0  | # MEAS dev_pid=- dev_cpu_ms=0 dev_rss_hwm_kb=-/- vmm_cpu_ms=0 others: vm2-dev=150ms bench-v1-dev=0ms bench-v1-dev=0ms be
+15:02:18 v1  ioctl           rep 5: ioctlping n=10000 pause_us=0 fails=0 min_us=16.46 p10_us=18.31 p50_us=20.39 p90_us=27.42 p99_us=49.14 max_us=2871.70 mean_us=26.40 # WALL wall_ms=278  | # MEAS dev_pid=2988425 dev_cpu_ms=130 dev_rss_hwm_kb=496940/541952 vmm_cpu_ms=570 others: vm2-dev=580ms bench-v1-dev=0ms
+15:02:18 v2  ioctl           rep 5: ioctlping n=10000 pause_us=0 fails=0 min_us=1.50 p10_us=1.54 p50_us=2.47 p90_us=2.60 p99_us=4.39 max_us=48.14 mean_us=2.21 # WALL wall_ms=28 rc=0  | # MEAS dev_pid=2992790 dev_cpu_ms=270 dev_rss_hwm_kb=5264792/9443064 vmm_cpu_ms=510 others: bench-v1-dev=0ms bench-v1-de
+15:02:18 native ctrl            rep 5: ctrlping bytes=232 n=2000 fails=0 p50_us=4.22 p90_us=4.27 p99_us=5.40 mean_us=4.31 ctrlping bytes=1576 n=2000 fails=0 p50_us=4.20 p90_us=4.25 p99_us=5 | # MEAS dev_pid=- dev_cpu_ms=0 dev_rss_hwm_kb=-/- vmm_cpu_ms=0 others: vm2-dev=150ms bench-v1-dev=0ms bench-v1-dev=0ms be
+15:02:19 v1  ctrl            rep 5: ctrlping bytes=232 n=2000 fails=0 p50_us=22.26 p90_us=27.42 p99_us=63.60 mean_us=23.80 ctrlping bytes=1576 n=2000 fails=0 p50_us=23.34 p90_us=25.22 p9 | # MEAS dev_pid=2988425 dev_cpu_ms=130 dev_rss_hwm_kb=497040/541952 vmm_cpu_ms=380 others: vm2-dev=790ms bench-v1-dev=0ms
+15:02:20 v2  ctrl            rep 5: ctrlping bytes=232 n=2000 fails=0 p50_us=2.92 p90_us=3.03 p99_us=8.08 mean_us=3.08 ctrlping bytes=1576 n=2000 fails=0 p50_us=2.36 p90_us=2.42 p99_us=3 | # MEAS dev_pid=2992790 dev_cpu_ms=250 dev_rss_hwm_kb=5264792/9443064 vmm_cpu_ms=450 others: bench-v1-dev=0ms bench-v1-de
+15:02:21 native churn           rep 5: # WALL wall_ms=707 rc=0  | # MEAS dev_pid=- dev_cpu_ms=0 dev_rss_hwm_kb=-/- vmm_cpu_ms=0 others: vm2-dev=870ms bench-v1-dev=0ms bench-v1-dev=0ms be
+15:02:22 v1  churn           rep 5: # WALL wall_ms=765 rc=0  | # MEAS dev_pid=2988425 dev_cpu_ms=400 dev_rss_hwm_kb=507280/554352 vmm_cpu_ms=750 others: vm2-dev=1040ms bench-v1-dev=0m
+15:02:33 v2  churn           rep 5: # WALL wall_ms=11270 rc=0  | # MEAS dev_pid=2992790 dev_cpu_ms=17160 dev_rss_hwm_kb=5264792/9443064 vmm_cpu_ms=18920 others: bench-v1-dev=0ms bench-v
+# end 2026-09-24T15:02:33+02:00

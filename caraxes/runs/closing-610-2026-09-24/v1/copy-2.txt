@@ -1,0 +1,9 @@
+# target v1 metric copy rep 2
+# cmd ./bench-cu copy 10
+# device /home/silas/git/Caraxes/target/bench/release/vhost-user-nvrm sha256 736ffc900ef62831
+# time 2026-09-24T14:31:27+02:00
+# gpu 55, 1875 MHz, 7000 MHz, P0, 67 %, 3038 MiB, Disabled
+# procs 2898487:bench-v1-dev 2910543:bench-v1-dev 2924513:vm2-dev 2924524:vm1-vmm 
+# loadavg 3.96 2.66 2.57
+ssh: connect to host 192.168.105.25 port 22: No route to host
+# MEAS dev_pid=2910543 dev_cpu_ms=0 dev_rss_hwm_kb=3232/3232 vmm_cpu_ms=0 others: bench-v1-dev=0ms vm2-dev=3310ms vm1-vmm=3300ms 

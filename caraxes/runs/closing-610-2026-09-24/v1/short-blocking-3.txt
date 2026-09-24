@@ -1,0 +1,16 @@
+# target v1 metric short-blocking rep 3
+# cmd NVPROBE_ITERS=100 NVPROBE_CYCLES=1000 NVPROBE_SCHED=blocking ./nvprobe 4
+# device /home/silas/git/Caraxes/target/bench/release/vhost-user-nvrm sha256 736ffc900ef62831
+# time 2026-09-24T14:38:29+02:00
+# gpu 55, 1860 MHz, 7000 MHz, P0, 7 %, 3038 MiB, Disabled
+# procs 2898487:bench-v1-dev 2910543:bench-v1-dev 2937937:bench-v1-dev 2937945:bench-v1-vmm 2942280:vm2-dev 2942293:vm1-vmm 2944156:-dev 
+# loadavg 2.66 2.58 2.57
+stage 0 ok (cuInit)
+stage 1 ok (context, sched=blocking)
+stage 2 ok (memory)
+stage 3 ok (kernel, result correct)
+stage 4 ok (100 launches, 0.023 ms/launch, sched=blocking)
+ITERS=100
+MSPERLAUNCH=0.023
+# WALL wall_ms=355 rc=0
+# MEAS dev_pid=2937937 dev_cpu_ms=220 dev_rss_hwm_kb=126312/171156 vmm_cpu_ms=290 others: vm1-vmm=650ms bench-v1-dev=0ms bench-v1-dev=0ms -dev=0ms vm2-dev=700ms 

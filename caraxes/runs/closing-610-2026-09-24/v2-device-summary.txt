@@ -1,0 +1,3 @@
+vfio-user-nvgpu: bar1 passthrough: check 222: 0 page(s) of guest BAR1 [0, 0x100000) mapped, 0 at the area's FB 0x169980000 + offset, 0 elsewhere
+vfio-user-nvgpu: bar1 passthrough: check 227: 128 page(s) of guest BAR1 [0, 0x100000) mapped, 128 at the area's FB 0x169980000 + offset, 0 elsewhere
+vfio-user-nvgpu: bar1 passthrough: check 290: 0 page(s) of guest BAR1 [0, 0x100000) mapped, 0 at the area's FB 0x169980000 + offset, 0 elsewhere

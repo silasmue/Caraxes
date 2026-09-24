@@ -1,0 +1,10 @@
+# target v1 metric init rep 4
+# cmd ./bench-cu init
+# device /home/silas/git/Caraxes/target/bench/release/vhost-user-nvrm sha256 736ffc900ef62831
+# time 2026-09-24T14:52:51+02:00
+# gpu 55, 1800 MHz, 7000 MHz, P0, 9 %, 3038 MiB, Disabled
+# procs 2898487:bench-v1-dev 2910543:bench-v1-dev 2944156:-dev 2961706:bench-v1-dev 2961718:bench-v1-vmm 2969829:vm2-dev 2969840:vm1-vmm 
+# loadavg 3.04 3.27 3.08
+INIT cuinit_ms=36.761 devget_ms=0.002 ctxcreate_ms=160.095 ctxdestroy_ms=85.090
+# WALL wall_ms=338 rc=0
+# MEAS dev_pid=2961706 dev_cpu_ms=210 dev_rss_hwm_kb=474456/521192 vmm_cpu_ms=770 others: bench-v1-dev=0ms bench-v1-dev=0ms vm2-dev=1040ms -dev=0ms vm1-vmm=60ms 

@@ -1,0 +1,15 @@
+backend pid 2898487, hypervisor pid 2898498, ssh up at 192.168.105.25
+warning: the compiler differs from the one used to build the kernel
+  The kernel was built by: x86_64-linux-gnu-gcc-13 (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0
+  You are using:           gcc-13 (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0
+Skipping BTF generation for /home/leandro/guest-module/nvrm_nodes/nvrm_nodes.ko due to unavailability of vmlinux
+warning: the compiler differs from the one used to build the kernel
+  The kernel was built by: x86_64-linux-gnu-gcc-13 (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0
+  You are using:           gcc-13 (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0
+Skipping BTF generation for /home/leandro/guest-module/virtio_nvrm/virtio_nvrm.ko due to unavailability of vmlinux
+insmod: ERROR: could not insert module /home/leandro/guest-module/nvrm_nodes/nvrm_nodes.ko: File exists
+c5b48cf1181bfcfc251f12aa2b0eaeb074887efec4c479f36efe399cb1307a13  bench-cu
+2735d2a9cd25c0753898188542dbeb4a8433609024aa48230b6803a4a8d96e66  nvprobe
+138c5073848b2f3cf2beb4709376c7c49b420d88e836664584e5cf8bbfc7848c  ioctlping
+68449e9ec7b25613a65d096a6a42864c01fbf46ec47e540ce01f47184f0479ea  ctrlping
+1f921680fc7a2c2e0978eb007cc0ab48d2f1a7cf404a196c9063a19a10aa228f  kernels.ptx

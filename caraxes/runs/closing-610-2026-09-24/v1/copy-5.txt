@@ -1,0 +1,27 @@
+# target v1 metric copy rep 5
+# cmd ./bench-cu copy 10
+# device /home/silas/git/Caraxes/target/bench/release/vhost-user-nvrm sha256 736ffc900ef62831
+# time 2026-09-24T14:59:04+02:00
+# gpu 56, 1875 MHz, 7000 MHz, P0, 77 %, 3039 MiB, Disabled
+# procs 2898487:bench-v1-dev 2910543:bench-v1-dev 2944156:-dev 2988425:bench-v1-dev 2988434:bench-v1-vmm 2992790:vm2-dev 2992801:vm1-vmm 
+# loadavg 3.10 2.54 2.75
+BW dir=h2d mem=pinned size_mib=1 reps=50 med_us=85.8 min_us=85.4 gbps=12.216
+BW dir=d2h mem=pinned size_mib=1 reps=50 med_us=84.8 min_us=84.5 gbps=12.362
+BW dir=d2d mem=device size_mib=1 reps=50 med_us=7.3 min_us=6.7 gbps=143.053
+BW dir=h2d mem=pageable size_mib=1 reps=50 med_us=141.4 min_us=140.4 gbps=7.416
+BW dir=d2h mem=pageable size_mib=1 reps=50 med_us=169.6 min_us=161.8 gbps=6.182
+CHECK size_mib=1 bad_words=0
+BW dir=h2d mem=pinned size_mib=16 reps=20 med_us=1286.2 min_us=1283.5 gbps=13.044
+BW dir=d2h mem=pinned size_mib=16 reps=20 med_us=1279.2 min_us=1276.9 gbps=13.116
+BW dir=d2d mem=device size_mib=16 reps=20 med_us=94.3 min_us=92.1 gbps=177.885
+BW dir=h2d mem=pageable size_mib=16 reps=20 med_us=1871.1 min_us=1647.5 gbps=8.966
+BW dir=d2h mem=pageable size_mib=16 reps=20 med_us=1909.0 min_us=1831.4 gbps=8.788
+CHECK size_mib=16 bad_words=0
+BW dir=h2d mem=pinned size_mib=256 reps=10 med_us=20460.8 min_us=20449.6 gbps=13.120
+BW dir=d2h mem=pinned size_mib=256 reps=10 med_us=20379.7 min_us=20364.3 gbps=13.172
+BW dir=d2d mem=device size_mib=256 reps=10 med_us=1464.7 min_us=1399.1 gbps=183.273
+BW dir=h2d mem=pageable size_mib=256 reps=10 med_us=29800.0 min_us=27872.0 gbps=9.008
+BW dir=d2h mem=pageable size_mib=256 reps=10 med_us=30131.6 min_us=28967.5 gbps=8.909
+CHECK size_mib=256 bad_words=0
+# WALL wall_ms=2195 rc=0
+# MEAS dev_pid=2988425 dev_cpu_ms=310 dev_rss_hwm_kb=419108/420988 vmm_cpu_ms=1940 others: vm2-dev=2550ms bench-v1-dev=0ms bench-v1-dev=0ms -dev=0ms vm1-vmm=2530ms 

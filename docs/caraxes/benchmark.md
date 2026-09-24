@@ -704,3 +704,48 @@ Reading:
 - Pinning cuts the tail: p99 21.8 us unpinned against 5.4 us pinned in the first pass, while
   another VM's device was busy.
 - Hybrid gives most of the gain at 3 % of a core.
+
+## Closing series on driver 610.57.04 (2026-09-24, 14:15-15:03, quiet host)
+
+The last table before the host moves to 615.71.09 (D19). native, v1 and v2 interleaved, N=5,
+restart per rep on both paths, no other VM; v2 = main 81054f0 (frozen
+`/mnt/vmstore/caraxes/vfio-user-nvgpu-closing-610-81054f0`) with the mapping package, the
+P21 area, the doorbell token pool (64) and the spin reactor pinned to a core, on Cloud
+Hypervisor v53.0 with patches 0001-0006; vm2 at slot 0 with the 2 GiB profile. The
+"loaded" marks of the summary for native and v1 come from v2's spinning reactor thread (a
+whole core by design), not from another VM. Full tables:
+`caraxes/runs/closing-610-2026-09-24/summary.md`; 0 Xid over the series.
+
+| Metric | native | v1 | v2 closing | v2 / native | v2 this morning |
+|---|---|---|---|---|---|
+| short kernel, ms/launch, auto | 0.006 | 0.009 | 0.015 | 2.5 | 0.257 (43x) |
+| short kernel, blocking | 0.021 | 0.028 | 0.100 | 4.8 | 0.251 |
+| launch 30M-cycle, auto | 16.3 | 16.0 | 17.3 | 1.06 | 17.6 |
+| launch 30M-cycle, blocking | 16.1 | 100 | 18.0 | 1.12 | 18.7 |
+| rlprobe stage 4, s | 1.20 | 1.50 | 2.10 | 1.75 | 20 (15.5x) |
+| rlprobe transfers per second | 2350 | 1930 | 1340 | 0.57 | 150 |
+| rlprobe process wall, s | 4.64 | 105 | 12.2 | 2.6 | 33 |
+| cuMemAlloc 1 MiB, us | 35.8 | 93.4 | 830 | 23 | 18900 |
+| cuMemFree 1 MiB, us | 27.1 | 52.5 | 903 | 33 | 20800 |
+| cuMemAlloc 64 MiB, us | 78.3 | 184 | 6747 | 86 | 61000 |
+| cuCtxCreate, ms | 195 | 165 | 3770 | 19 | 4727 |
+| cuCtxDestroy, ms | 92.6 | 85.4 | 1352 | 15 | 3390 |
+| cuInit, ms | 106 | 35.2 | 151 | 1.4 | 149 |
+| module load to first cuInit, ms | - | 218 | 3509 | - | 3236 |
+| copy h2d pinned 1 MiB, GB/s | 12.1 | 12.2 | 6.06 | 0.50 | 3.33 (0.28x) |
+| copy h2d pageable 1 MiB | 7.25 | 7.42 | 4.50 | 0.62 | 2.84 |
+| copy h2d pinned 16 MiB | 13.0 | 13.0 | 6.57 | 0.50 | 3.13 |
+| copy d2d 16 MiB | 183 | 178 | 16.5 (16 to 167) | 0.09 | 79 |
+| matmul N=1024, GFLOP/s | 4894 | 5058 | 1340 | 0.27 | 1203 |
+| matmul N=2048 | 5494 | 5569 | 2248 | 0.41 | 781 (0.14x) |
+| matmul N=4096 | 6052 | 6163 | 4433 | 0.73 | 5288 |
+
+Reading, against the table of the morning (§ above, v2 at 8d44ee6): the submission path is
+done (short kernel 43x to 2.5x of native, rlprobe stage 4 15.5x to 1.75x, now ahead of v1's
+process wall by its pinned-page leak and behind v1's stage 4 by 0.6 s), allocations are 20x
+faster but still 23x native (the RM round trip per allocation through the emulated GSP), the
+context lifetime is the largest remaining gap (cuCtxCreate 19x: the 96k trapped BAR2
+page-table writes, the memfd route for BAR2 is the answer), the copies below 16 MiB sit at half
+of native (the 1 MiB area covers GPFIFO and USERD only, design H extends it), the d2d 16 MiB
+median is an outlier band worth a look (two reps at native speed, three at 16 GB/s), and
+matmul tracks the allocation and copy costs of each size.

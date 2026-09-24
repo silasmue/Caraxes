@@ -1,0 +1,27 @@
+# target v2 metric copy rep 3
+# cmd ./bench-cu copy 10
+# device /mnt/vmstore/caraxes/vm2/vfio-user-nvgpu sha256 a3984fd107e1c80e
+# time 2026-09-24T14:38:41+02:00
+# gpu 57, 1875 MHz, 7000 MHz, P0, 75 %, 3038 MiB, Disabled
+# procs 2898487:bench-v1-dev 2910543:bench-v1-dev 2937937:bench-v1-dev 2937945:bench-v1-vmm 2942280:vm2-dev 2942293:vm1-vmm 2944156:-dev 
+# loadavg 2.87 2.63 2.59
+BW dir=h2d mem=pinned size_mib=1 reps=50 med_us=334.2 min_us=332.0 gbps=3.137
+BW dir=d2h mem=pinned size_mib=1 reps=50 med_us=326.7 min_us=326.2 gbps=3.210
+BW dir=d2d mem=device size_mib=1 reps=50 med_us=21.9 min_us=21.4 gbps=47.836
+BW dir=h2d mem=pageable size_mib=1 reps=50 med_us=394.6 min_us=388.6 gbps=2.657
+BW dir=d2h mem=pageable size_mib=1 reps=50 med_us=406.7 min_us=401.7 gbps=2.578
+CHECK size_mib=1 bad_words=0
+BW dir=h2d mem=pinned size_mib=16 reps=20 med_us=5137.2 min_us=5123.6 gbps=3.266
+BW dir=d2h mem=pinned size_mib=16 reps=20 med_us=5202.3 min_us=1295.5 gbps=3.225
+BW dir=d2d mem=device size_mib=16 reps=20 med_us=100.7 min_us=94.4 gbps=166.573
+BW dir=h2d mem=pageable size_mib=16 reps=20 med_us=1655.0 min_us=1513.9 gbps=10.138
+BW dir=d2h mem=pageable size_mib=16 reps=20 med_us=1921.2 min_us=1869.2 gbps=8.733
+CHECK size_mib=16 bad_words=0
+BW dir=h2d mem=pinned size_mib=256 reps=10 med_us=20496.6 min_us=20460.6 gbps=13.097
+BW dir=d2h mem=pinned size_mib=256 reps=10 med_us=20365.7 min_us=20356.6 gbps=13.181
+BW dir=d2d mem=device size_mib=256 reps=10 med_us=1406.7 min_us=1349.7 gbps=190.824
+BW dir=h2d mem=pageable size_mib=256 reps=10 med_us=30357.0 min_us=28504.6 gbps=8.843
+BW dir=d2h mem=pageable size_mib=256 reps=10 med_us=30699.6 min_us=29323.0 gbps=8.744
+CHECK size_mib=256 bad_words=0
+# WALL wall_ms=17406 rc=0
+# MEAS dev_pid=2942280 dev_cpu_ms=24030 dev_rss_hwm_kb=5265752/9443088 vmm_cpu_ms=29500 others: bench-v1-vmm=140ms bench-v1-dev=0ms bench-v1-dev=0ms bench-v1-dev=0ms -dev=0ms 
