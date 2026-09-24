@@ -1,0 +1,1 @@
+vfio-user-nvgpu: doorbell tokens: BAR0 0xbb0090, 4 bytes, 253 sub-region(s) with datamatch 0xca700000..=0xca7000fc and one eventfd each, offered through VFIO_USER_DEVICE_GET_REGION_IO_FDS; a channel gets a pool token at its first (trapped) doorbell, written to its work-submit-token notifier entry (CARAXES_DOORBELL_TOKENS=253, docs/caraxes/doorbell-token-pool.md)

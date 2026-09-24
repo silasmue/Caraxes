@@ -1,0 +1,5 @@
+cloud-hypervisor:   9.160535s: <vcpu5> INFO:vmm/src/vm.rs:510 -- Guest PIO write to unregistered address 0x27a
+cloud-hypervisor:   9.160558s: <vcpu5> INFO:vmm/src/vm.rs:500 -- Guest PIO read from unregistered address 0x27a
+cloud-hypervisor:   9.160581s: <vcpu5> INFO:vmm/src/vm.rs:510 -- Guest PIO write to unregistered address 0x278
+cloud-hypervisor:   9.160603s: <vcpu5> INFO:vmm/src/vm.rs:500 -- Guest PIO read from unregistered address 0x278
+cloud-hypervisor: 211.296371s: <vcpu4> INFO:event_monitor/src/lib.rs:113 -- Event: source = vm event = device-removed id = gpu0, bdf = 0000:00:05.0

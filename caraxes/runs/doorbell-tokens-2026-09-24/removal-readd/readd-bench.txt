@@ -1,0 +1,6 @@
+modprobe rc=0
+[  152.308378] NVRM: GPU 0000:00:05.0: RmInitAdapter succeeded!
+[  211.195691] NVRM: GPU 0000:00:05.0: RmInitAdapter
+[  214.161550] NVRM: GPU 0000:00:05.0: RmInitAdapter succeeded!
+TRAP n=2000 woff=0xbb0090 roff=0 value=0x166000a1 wval=0xca700000 write_p50_us=3.8 write_p99_us=6.1 read_p50_us=27.3 read_p99_us=46.5
+TRAP n=2000 woff=0xbb0090 roff=0 value=0x166000a1 wval=0xca70003f write_p50_us=5.6 write_p99_us=9.4 read_p50_us=26.6 read_p99_us=62.0

@@ -1,0 +1,23 @@
+# gpu-trace.log of run T (whole run): trapped doorbell writes (W bar0 0x00bb0090) by value
+  20000 0x12345
+      1 0x9
+      1 0x8
+      1 0x7
+      1 0x6
+      1 0x5
+      1 0x4
+      1 0x30015
+      1 0x30014
+      1 0x30013
+      1 0x30012
+      1 0x3
+      1 0x20011
+      1 0x20010
+      1 0x2000f
+      1 0x2000e
+      1 0x2
+      1 0x1000d
+      1 0x1000c
+      1 0x1000b
+      1 0x1000a
+eventfd wakeup events: 39845

@@ -1,0 +1,29 @@
+# gpu-trace.log during nvprobe 2
+hand-outs:
+      1 doorbell tokens: chid 10 gets pool token 0xca700008 (was 0x1000a)
+      1 doorbell tokens: chid 11 gets pool token 0xca700009 (was 0x1000b)
+      1 doorbell tokens: chid 12 gets pool token 0xca70000a (was 0x1000c)
+      1 doorbell tokens: chid 13 gets pool token 0xca70000b (was 0x1000d)
+      1 doorbell tokens: chid 14 gets pool token 0xca700004 (was 0x2000e)
+      1 doorbell tokens: chid 15 gets pool token 0xca700005 (was 0x2000f)
+      1 doorbell tokens: chid 16 gets pool token 0xca700006 (was 0x20010)
+      1 doorbell tokens: chid 17 gets pool token 0xca700007 (was 0x20011)
+      1 doorbell tokens: chid 18 gets pool token 0xca700000 (was 0x30012)
+      1 doorbell tokens: chid 19 gets pool token 0xca700001 (was 0x30013)
+      1 doorbell tokens: chid 2 gets pool token 0xca70000c (was 0x2)
+      1 doorbell tokens: chid 20 gets pool token 0xca700002 (was 0x30014)
+      1 doorbell tokens: chid 21 gets pool token 0xca700003 (was 0x30015)
+      1 doorbell tokens: chid 3 gets pool token 0xca70000d (was 0x3)
+      1 doorbell tokens: chid 4 gets pool token 0xca70000e (was 0x4)
+      1 doorbell tokens: chid 5 gets pool token 0xca70000f (was 0x5)
+      1 doorbell tokens: chid 6 gets pool token 0xca700010 (was 0x6)
+      1 doorbell tokens: chid 7 gets pool token 0xca700011 (was 0x7)
+      1 doorbell tokens: chid 8 gets pool token 0xca700012 (was 0x8)
+      1 doorbell tokens: chid 9 gets pool token 0xca700013 (was 0x9)
+refusals:
+rings by pool token (eventfd):
+     95 doorbell token 0xca700008 (eventfd) -> chid 10
+    101 doorbell token 0xca70000c (eventfd) -> chid 2
+rings by pool token (trapped):
+trapped doorbell writes by value:
+     20 4

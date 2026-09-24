@@ -1,0 +1,2 @@
+server pid 2717877, VM pid 2717884; logs in /mnt/vmstore/caraxes/vm1
+ssh up at 192.168.101.21

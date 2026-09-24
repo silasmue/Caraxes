@@ -1,0 +1,95 @@
+# SPDX-License-Identifier: MIT
+# Doorbell token pool (docs/caraxes/doorbell-token-pool.md), 2026-09-24.
+# 1. KVM probe on the host (no VM, no GPU).
+# 2. Functional check in vm1, pure emulation: no CARAXES_RESERVE_VRAM, no CARAXES_HOST_EXEC,
+#    no CARAXES_DMA. Run in the slot the coordinator gave, 13:05-13:09; vm1 was down before
+#    and after.
+
+== Inputs
+- Cloud Hypervisor: v53.0 + 0001-0006 in /mnt/vmstore/caraxes/ch-0006, a clone of ch-0005
+  (ba20497bc), plus 0006 = 88e92aded (branch patch0006).
+  - Built with vfio_user from this tree's vendor/vfio-user-rs (crate patches 0001 and 0002):
+    cargo build --offline --locked --release --bin cloud-hypervisor \
+      --config 'patch.crates-io.vfio_user.path="<tree>/vendor/vfio-user-rs"'
+  - "cloud-hypervisor v53.0-6-g88e92aded", frozen as /mnt/vmstore/caraxes/vm1/cloud-hypervisor-0006,
+    sha256 bac378f31ff769d5a89cf33f1a6ba077381ed500443d5905e24957a4e79fccc5.
+  - Run through /mnt/vmstore/caraxes/vm1/ch-0006-v.sh (adds -v) as LEA_CH.
+- Device: target/release/vfio-user-nvgpu of this tree (572525f plus the uncommitted token-pool
+  work), frozen as /mnt/vmstore/caraxes/vm1/vfio-user-nvgpu-tokens,
+  sha256 5291d5ba7688f24ff4ab34761242ab8fd43ab3c199215a5fd564b22c823c6363.
+- Guest: vm1 as left by the earlier runs, nvidia 610.57.04 open modules, ~/bench/nvprobe
+  already in the image.
+- The VM script and the ROM are the main checkout's (/home/silas/git/Caraxes/tools/caraxes-vm.sh,
+  caraxes/reference/rtx2070).
+- Host GPU: the device opens the host RM as an unprivileged client (CARAXES_HOST_RM=1, as asked);
+  nothing else on the host GPU was touched.
+
+== 1. KVM probe (kvm-ioeventfd-probe.txt)
+  gcc -O2 -Wall -o <scratch>/kvm-ioeventfd-probe caraxes/tools/kvm-ioeventfd-probe.c
+  timeout 300 <scratch>/kvm-ioeventfd-probe > kvm-ioeventfd-probe.txt 2>&1
+  Result:
+  - 4096 datamatch ioeventfds at one address, all registered (NR_IOBUS_DEVS 1000 does not count
+    them).
+  - EEXIST: the same datamatch twice, a wildcard next to datamatch entries (either order), len 0
+    next to len 4. len 8 next to len 4 is accepted. A deassign that matches nothing gets ENOENT.
+  - Per write: matched about 1.24 us plus about 25 ns per entry passed in registration order;
+    unmatched is the whole scan plus the exit to userspace (4.8 us at N=0, 10.8 us at N=253).
+
+== 2. vm1 (run.sh, output run.log)
+  source env.sh    (VM=vm1 CARAXES_TAP=caraxes1 CARAXES_IP=192.168.101.21 CARAXES_MAC=02:00:00:00:00:21
+                    CARAXES_HOST_RM=1 CARAXES_BOOT_MODEL=1, LEA_CH and CARAXES_SERVER as above)
+  bash run.sh
+
+ T: CARAXES_DOORBELL_TOKENS=253; caraxes-vm.sh up, wait, probe tok-T; bench-trap; nvprobe 2
+  - Handshake: the server logs "Received client version ... max_msg_fds: 253" (T/gpu.log).
+  - gpu.log: "doorbell tokens: BAR0 0xbb0090, 4 bytes, 253 sub-region(s) with datamatch
+    0xca700000..=0xca7000fc and one eventfd each ...".
+  - ch.log: 253 lines "gpu0: region 0 offset 0xbb0090: ioeventfd at 0xe6bb0090, len 4, datamatch
+    Some(0xca7000..)", and "gpu0: region 0: 253 of 253 sub-region(s) registered as ioeventfds,
+    253 descriptor(s) received, 253 with datamatch in [0xca700000, 0xca7000fc]"
+    (T/ch-ioeventfd.txt).
+  - Driver: RmInitAdapter succeeded, modprobe rc=0 (T/probe.txt, T/guest-dmesg.txt).
+  - bench-trap (T/bench-trap.txt), 20000 writes each, write p50 / p99:
+      0xca700000 (slot 0)       4.1 / 8.8 us
+      0xca7000fc (slot 252)    11.2 / 20.0 us   (the KVM scan of 252 entries)
+      0x12345 (outside pool)   36.1 / 108.3 us  (trapped, after the 253-entry scan)
+      scratch 0x1400           25.5 / 66.5 us   (trapped; no ioeventfd at that address)
+    Device side: the 40000 pool-token writes were counted by the eventfds (39649 wakeups).
+    No channel held those slots at that moment, so each ring was stale and dropped. All 20000
+    trapped doorbell lines carry 0x12345.
+    (T/bench-trace-summary.txt was written with the wrong trace column for the value histogram
+    and shows "4", the access size. The corrected histogram over the whole run is
+    T/trapped-doorbells-by-value.txt.)
+  - nvprobe 2 (cuInit, context, cuMemAlloc + H2D/D2H compare): stage 0, 1, 2 ok, rc=0
+    (T/nvprobe2.txt).
+    - 20 channels (chid 2-21) each trapped once with the guest RM's own token (0x2..0x9,
+      0x1000a..0x1000d, 0x2000e..0x20011, 0x30012..0x30015).
+    - Each got a pool token written over that token in its work-submit-token entry (sysmem
+      notifier + 0x18).
+    - Every later ring came through the eventfd: token 0xca700008 -> chid 10 95 times,
+      0xca70000c -> chid 2 101 times.
+    - 0 trapped rings with an own token after the hand-out (libcuda read the new token before its
+      next submission), 0 mismatches, 0 channels without a notifier, 0 pool tokens trapped
+      (T/nvprobe2-trace-summary.txt, T/trace-token-events.txt, T/trapped-doorbells-by-value.txt).
+  - Exit summary (T/gpu.log): "doorbell tokens: 253 offered, 20 handed out, 0 written again,
+    0 assigned at exit (peak 20); 39845 eventfd wakeup(s) for 40196 guest write(s); 0 pool
+    token(s) trapped; 0 trapped ring(s) with a channel's own token after its hand-out; 39649
+    stale (the bench); left on their own token: 0 without notifier, 0 notifier mismatch, 0 pool
+    exhausted". Every token was released when nvprobe's channels were freed.
+
+ Hot-remove and re-add (removal-readd/)
+  caraxes-vm.sh ssh 'sudo rmmod nvidia_uvm; sudo rmmod nvidia'                 -> rc=0
+  curl --unix-socket $W/ch.sock -X PUT .../vm.remove-device -d '{"id":"gpu0"}'  -> 204
+  - ch.log "device-removed id = gpu0", no "Could not unregister" line; the server exits.
+  - A new server, CARAXES_DOORBELL_TOKENS=64 vfio-user-nvgpu-tokens --socket $W/gpu2.sock ...
+    --boot-model --host-rm, added with vm.add-user-device (id gpu1) -> 200, bdf 0000:00:05.0.
+  - ch.log: 64 datamatch lines at the same address 0xe6bb0090, "64 of 64 sub-region(s)
+    registered ... datamatch in [0xca700000, 0xca70003f]".
+  - Slots 0-63 were registered again without EEXIST, so the 253 of gpu0 had been deassigned.
+  - modprobe nvidia rc=0, RmInitAdapter succeeded.
+  - bench-trap 2000 writes: slot 0 p50 3.8 us, slot 63 p50 5.6 us.
+  - caraxes-vm.sh down; the re-added server's summary: 64 offered, 3966 wakeups for 4000
+    writes, all stale (the bench).
+
+== GPU measurement with P21 (the coordinator's)
+  docs/caraxes/doorbell-token-pool.md, section "GPU measurement".

@@ -1,0 +1,4 @@
+stage 0 ok (cuInit)
+stage 1 ok (context, sched=auto)
+stage 2 ok (memory)
+nvprobe 2 rc=0

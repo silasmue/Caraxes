@@ -1,0 +1,60 @@
+== 4. Host ==
+    kernel release: 7.2.4-arch1-2 (x86_64)
+    online CPUs: 16
+    KVM_GET_API_VERSION=12 KVM_CAP_IOEVENTFD=1
+    note: the host may be under load from other VMs; timings are wall clock
+
+== 1. Capacity: datamatch ioeventfds at one MMIO address ==
+    addr=0xe6bb0090 len=4 datamatch=0xca700000+i, up to 4096
+    registered: 4096
+    no failure up to 4096
+    registration time: mean 19.9 us, first 16 mean 1.6 us, last 16 mean 33.6 us
+    deassigned 4096, failures 0, mean 27.2 us per deassign
+
+== 2. Collision rules at one address (fresh VM per case) ==
+    addr=0xe6bb0090, X=0xca700000
+  (a) same (addr, len 4, datamatch) twice, two eventfds
+    assign len4 dm=X fd1                               ret=0
+    assign len4 dm=X fd2                               ret=-1 errno=EEXIST
+  (b) wildcard len 4 after datamatch entries
+    assign len4 dm=X                                   ret=0
+    assign len4 dm=X+1                                 ret=0
+    assign len4 wildcard                               ret=-1 errno=EEXIST
+  (c) datamatch after a wildcard
+    assign len4 wildcard                               ret=0
+    assign len4 dm=X                                   ret=-1 errno=EEXIST
+  (d) len 8 datamatch where len 4 datamatch entries exist
+    assign len4 dm=X                                   ret=0
+    assign len4 dm=X+1                                 ret=0
+    assign len8 dm=X                                   ret=0
+  (e) len 0 (any size, no datamatch) where len 4 datamatch exists
+    KVM_CAP_IOEVENTFD_ANY_LENGTH = 1
+    assign len4 dm=X                                   ret=0
+    assign len0 (no datamatch)                         ret=-1 errno=EEXIST
+    control: assign len0 at addr+0x100 alone           ret=0
+  (f) deassign of a datamatch that was never assigned
+    assign len4 dm=X fd1                               ret=0
+    deassign len4 dm=X+5 fd1 (never assigned)          ret=-1 errno=ENOENT
+    deassign len4 dm=X fd2 (right dm, wrong fd)        ret=-1 errno=ENOENT
+    deassign len4 dm=X fd1 (correct)                   ret=0
+    deassign len4 dm=X fd1 again                       ret=-1 errno=ENOENT
+
+== 3. Exit-path cost per guest MMIO write (M=200000 writes, 3 reps) ==
+    addr=0x20090 (outside the 64 KiB RAM slot), len 4, 32-bit writes
+    N=0 (all exit to userspace)  min  4736.6 ns  median  4841.8 ns  userspace exits/run 200000
+    assign N=1 dm=0xCA700000                           ret=0
+    N=1 matched                  min  1237.9 ns  median  1243.8 ns  userspace exits/run 0  eventfd counter per run: 200000 200000 200000 (expect 200000)
+    N=1 unmatched                min  4778.4 ns  median  4781.1 ns  userspace exits/run 200000
+    N=16 match first             min  1257.5 ns  median  1259.5 ns  userspace exits/run 0  eventfd counter per run: 200000 200000 200000 (expect 200000)
+    N=16 match last              min  1565.9 ns  median  1574.3 ns  userspace exits/run 0  eventfd counter per run: 200000 200000 200000 (expect 200000)
+    N=16 unmatched               min  5134.3 ns  median  5161.2 ns  userspace exits/run 200000
+    N=64 match first             min  1288.1 ns  median  1288.6 ns  userspace exits/run 0  eventfd counter per run: 200000 200000 200000 (expect 200000)
+    N=64 match last              min  2701.7 ns  median  2717.0 ns  userspace exits/run 0  eventfd counter per run: 200000 200000 200000 (expect 200000)
+    N=64 unmatched               min  6274.5 ns  median  6288.2 ns  userspace exits/run 200000
+    N=253 match first            min  1410.6 ns  median  1425.7 ns  userspace exits/run 0  eventfd counter per run: 200000 200000 200000 (expect 200000)
+    N=253 match last             min  7127.8 ns  median  7199.9 ns  userspace exits/run 0  eventfd counter per run: 200000 200000 200000 (expect 200000)
+    N=253 unmatched              min 10768.4 ns  median 10847.3 ns  userspace exits/run 200000
+    N=1000 match first           min  2048.0 ns  median  2084.7 ns  userspace exits/run 0  eventfd counter per run: 200000 200000 200000 (expect 200000)
+    N=1000 match last            min 26323.9 ns  median 27224.4 ns  userspace exits/run 0  eventfd counter per run: 200000 200000 200000 (expect 200000)
+    N=1000 unmatched             min 30219.7 ns  median 34898.7 ns  userspace exits/run 200000
+

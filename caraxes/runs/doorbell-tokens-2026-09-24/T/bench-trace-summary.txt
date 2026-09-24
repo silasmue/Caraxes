@@ -1,0 +1,8 @@
+# gpu-trace.log during the bench: trapped doorbell writes by value, then eventfd events
+  20000 4
+trapped doorbell lines: 20000
+eventfd events: 39649, by token:
+  19993 guest write(s) of token 0xca700000
+  19656 guest write(s) of token 0xca7000fc
+writes counted by the eventfds: 40000
+stale notes: 39649

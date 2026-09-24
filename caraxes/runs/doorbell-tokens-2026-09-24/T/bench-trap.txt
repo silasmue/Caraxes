@@ -1,0 +1,4 @@
+TRAP n=20000 woff=0xbb0090 roff=0 value=0x166000a1 wval=0xca700000 write_p50_us=4.1 write_p99_us=8.8 read_p50_us=27.7 read_p99_us=77.9
+TRAP n=20000 woff=0xbb0090 roff=0 value=0x166000a1 wval=0xca7000fc write_p50_us=11.2 write_p99_us=20.0 read_p50_us=26.8 read_p99_us=69.4
+TRAP n=20000 woff=0xbb0090 roff=0 value=0x166000a1 wval=0x12345 write_p50_us=36.1 write_p99_us=108.3 read_p50_us=27.9 read_p99_us=82.0
+TRAP n=20000 woff=0x1400 roff=0 value=0x166000a1 write_p50_us=25.5 write_p99_us=66.5 read_p50_us=26.7 read_p99_us=67.2

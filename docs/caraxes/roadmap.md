@@ -57,7 +57,12 @@ Snapshot of 2026-09-24, 10:30. The decisions and ideas it refers to are in [READ
    (the device hands the guest device-chosen work-submit tokens through the notifier page it
    already writes, one eventfd per token declared at start because the client asks for the
    sub-regions once, KVM holds about a thousand per VM; the vendored client must accept more
-   than one descriptor per reply).
+   than one descriptor per reply). Designed and built 2026-09-24 behind
+   `CARAXES_DOORBELL_TOKENS=N` ([doorbell-token-pool.md](doorbell-token-pool.md), patch 0006,
+   crate patch 0002): the bound is 253 tokens (`SCM_MAX_FD`, one reply), not KVM's count,
+   which leaves ioeventfds out of `NR_IOBUS_DEVS`; default 64 because KVM scans the entries of
+   one address at about 25 ns each. Pure emulation verified; the GPU measurement with P21 is
+   next.
 2. The game benchmark: Shadow of the Tomb Raider in the Caraxes guest at 720p and 1080p,
    streamed through Sunshine to Moonlight on the host with the v1 stream measurement, one guest
    and then two concurrently against [sottr-4q](../measurements/sottr-4q/README.md); the guest

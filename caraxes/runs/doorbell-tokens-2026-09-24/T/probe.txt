@@ -1,0 +1,4 @@
+probe tok-T: 233816 device accesses, guest log in /mnt/vmstore/caraxes/vm1/probe-tok-T/guest-dmesg.txt
+[  143.355228] NVRM: GPU 0000:00:05.0: RmInitAdapter
+[  152.308378] NVRM: GPU 0000:00:05.0: RmInitAdapter succeeded!
+modprobe rc=0
