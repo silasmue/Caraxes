@@ -117,6 +117,10 @@ pub struct Dispatcher {
     pub mirror: Option<crate::mirror::Mirror>,
     /// `CARAXES_MIRROR_DIAG=1`: run the per-doorbell push diagnostic (slow; investigation).
     mirror_diag: bool,
+    /// When the first host doorbell write since the last `take` happened (the mirror's
+    /// doorbell counter moved): the end of the ring-to-host-doorbell time the doorbell
+    /// reactor measures (poll.rs, docs/caraxes/doorbell-poll.md).
+    pub host_doorbell_at: Option<std::time::Instant>,
     /// The display engine in the GSP role (display/mod.rs, docs/caraxes/display-ab.md).
     pub display: crate::display::Display,
 }
@@ -165,6 +169,7 @@ impl Dispatcher {
             uvm: crate::uvm::UvmBuffers::default(),
             mirror: None,
             mirror_diag: std::env::var("CARAXES_MIRROR_DIAG").as_deref() == Ok("1"),
+            host_doorbell_at: None,
             display: crate::display::Display::new(),
         }
     }
@@ -360,8 +365,13 @@ impl Dispatcher {
         };
         // A GR channel under CARAXES_MIRROR_GR_SHADOW runs on the host-managed shadow VAS
         // (D17 route 4 stage 1, shadow.rs), built at its first doorbell.
+        let host_doorbells = m.stats.doorbells;
         if m.is_shadow(&self.channels, chid) {
             let mut notes = m.gr_shadow_doorbell(&self.channels, gm, chid);
+            // The host doorbell write is the last step of a built shadow channel's ring.
+            if m.stats.doorbells != host_doorbells {
+                self.host_doorbell_at.get_or_insert_with(std::time::Instant::now);
+            }
             if let Some(c) = self.channels.channel_mut(chid) {
                 c.mirrored = true;
             }
@@ -420,7 +430,10 @@ impl Dispatcher {
                 // fetches them (execution.md: a stale fetch is a PBENTRY fault).
                 gm.fb.flush();
                 match m.doorbell(chid) {
-                    Ok(n) => notes.push(n),
+                    Ok(n) => {
+                        self.host_doorbell_at.get_or_insert_with(std::time::Instant::now);
+                        notes.push(n)
+                    }
                     Err(e) => notes.push(format!("mirror: doorbell chid {chid}: {e}")),
                 }
                 // The per-doorbell push diagnostic (GPGet poll, entry decode, semaphore

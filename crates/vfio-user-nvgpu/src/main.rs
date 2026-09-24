@@ -97,7 +97,14 @@ Environment: CARAXES_DOORBELL_IOEVENTFD=1 offers the usermode doorbell register 
   channel's first doorbell traps and hands it a pool token through its work-submit-token
   notifier entry, every later ring ends in the token's eventfd (needs patch 0005 and a
   client announcing max_msg_fds; docs/caraxes/doorbell-token-pool.md). Excludes
-  CARAXES_DOORBELL_IOEVENTFD=1; combines with CARAXES_BAR1_PASSTHROUGH=1
+  CARAXES_DOORBELL_IOEVENTFD=1; combines with CARAXES_BAR1_PASSTHROUGH=1.
+  CARAXES_DOORBELL_POLL=off|spin|hybrid chooses how the thread that reads those eventfds
+  waits: off blocks in epoll_wait (default), spin polls with epoll_wait timeout 0 and
+  never sleeps, hybrid spins CARAXES_DOORBELL_POLL_IDLE_US (default 200) after the last
+  event and then blocks. spin and hybrid pin the reader to CARAXES_DOORBELL_POLL_CPU=<n>,
+  or to a core chosen at start (auto, the default: not CPU 0, not a vCPU thread's, the
+  highest-numbered idle one), or not at all (none). Needs one of the two above
+  (docs/caraxes/doorbell-poll.md)
 Paths default relative to LEA_ROOT or the current directory.";
 
 struct Args {
@@ -319,6 +326,23 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
         // caraxes/runs/doorbell-tokens-2026-09-24/kvm-ioeventfd-probe.txt, cases b, c).
         bail!("{DOORBELL_IOEVENTFD_ENV}=1 and {}=N exclude each other: choose the token-less ioeventfd or the token pool", tokens::TOKENS_ENV);
     }
+    // How the doorbell eventfds are read (docs/caraxes/doorbell-poll.md).
+    let poll = vfio_user_nvgpu::poll::requested().map_err(anyhow::Error::msg)?;
+    if poll.mode != vfio_user_nvgpu::poll::Mode::Off && doorbell_tokens.is_none() && !doorbell_ioeventfd {
+        bail!(
+            "{}={} needs a doorbell eventfd to poll: {}=N or {DOORBELL_IOEVENTFD_ENV}=1",
+            vfio_user_nvgpu::poll::POLL_ENV,
+            poll.mode.name(),
+            tokens::TOKENS_ENV
+        );
+    }
+    // Refuse at start when a poll mode cannot pin its reader (no core to choose).
+    let reactor = |name| {
+        vfio_user_nvgpu::poll::Reactor::new(name, poll, Some(socket.to_path_buf()))
+            .map_err(anyhow::Error::msg)
+    };
+    let token_reactor = reactor("tokens")?;
+    let ioeventfd_reactor = reactor("ioeventfd")?;
     if doorbell_tokens.is_some() && !a.boot_model {
         bail!(
             "{}=N needs --boot-model (the channels live in the boot model)",
@@ -586,11 +610,30 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
             .unwrap_or_else(|| "off".into())
     );
     let device = Arc::new(Mutex::new(device));
+    let mut readers = Vec::new();
     if let Some((offset, reader)) = doorbell {
-        spawn_doorbell_reader(device.clone(), offset, reader).context("doorbell reader")?;
+        readers.push((
+            "ioeventfd",
+            spawn_doorbell_reader(device.clone(), offset, reader, ioeventfd_reactor)
+                .context("doorbell reader")?,
+        ));
     }
-    if let Some((offset, readers)) = token_readers {
-        spawn_token_reader(device.clone(), offset, readers).context("doorbell token reader")?;
+    if let Some((offset, token_eventfds)) = token_readers {
+        readers.push((
+            "tokens",
+            spawn_token_reader(device.clone(), offset, token_eventfds, token_reactor)
+                .context("doorbell token reader")?,
+        ));
+    }
+    if poll.mode != vfio_user_nvgpu::poll::Mode::Off {
+        eprintln!(
+            "vfio-user-nvgpu: doorbell poll: {} reader ({}={}, {}={:?})",
+            poll.mode.name(),
+            vfio_user_nvgpu::poll::POLL_ENV,
+            poll.mode.name(),
+            vfio_user_nvgpu::poll::POLL_CPU_ENV,
+            poll.pin
+        );
     }
     let result = server
         .run(&mut SharedDevice(device.clone()))
@@ -612,6 +655,9 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
         closed = c;
     }
     eprint!("{}", device.summary());
+    for (name, st) in &readers {
+        eprint!("{}", st.summary(name));
+    }
     if let Some(why) = closed {
         // Fail closed (P20 item 4a): never report a clean exit when host state the GPU
         // could still reach was kept; the fd close at exit hands it to the host RM.

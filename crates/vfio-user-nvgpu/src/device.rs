@@ -16,7 +16,6 @@
 //! and one epoll loop rings the channel that holds the token signalled.
 
 use std::fs::File;
-use std::io::Read;
 use std::mem::size_of;
 use std::os::fd::{FromRawFd, OwnedFd};
 use std::path::PathBuf;
@@ -137,102 +136,41 @@ pub fn doorbell_token_sub_regions(
 
 /// Wait on the pool's eventfds with one epoll loop and ring the channel of every token
 /// signalled, for as long as the process runs. `readers[i]` is the eventfd of slot i.
+/// `reactor` says how the loop waits (`CARAXES_DOORBELL_POLL`, poll.rs): blocked in
+/// `epoll_wait`, spinning, or hybrid. The Device lock is taken once per wakeup, as before.
 pub fn spawn_token_reader(
     device: Arc<Mutex<Device>>,
     doorbell: u64,
     readers: Vec<File>,
-) -> std::io::Result<()> {
-    use std::os::fd::AsRawFd;
-    // SAFETY: a plain syscall; the result is checked before use.
-    let ep = unsafe { libc::epoll_create1(libc::EPOLL_CLOEXEC) };
-    if ep < 0 {
-        return Err(std::io::Error::last_os_error());
-    }
-    // SAFETY: a new descriptor that nothing else owns.
-    let ep = unsafe { OwnedFd::from_raw_fd(ep) };
-    for (slot, r) in readers.iter().enumerate() {
-        let mut ev = libc::epoll_event {
-            events: libc::EPOLLIN as u32,
-            u64: slot as u64,
-        };
-        // SAFETY: both descriptors are open; `ev` lives across the call.
-        if unsafe { libc::epoll_ctl(ep.as_raw_fd(), libc::EPOLL_CTL_ADD, r.as_raw_fd(), &mut ev) }
-            < 0
-        {
-            return Err(std::io::Error::last_os_error());
-        }
-    }
-    std::thread::Builder::new()
-        .name("doorbell-tokens".into())
-        .spawn(move || {
-            let mut events = vec![libc::epoll_event { events: 0, u64: 0 }; readers.len().max(1)];
-            loop {
-                // SAFETY: `events` has room for the count passed.
-                let n = unsafe {
-                    libc::epoll_wait(
-                        ep.as_raw_fd(),
-                        events.as_mut_ptr(),
-                        events.len() as i32,
-                        -1,
-                    )
-                };
-                if n < 0 {
-                    let e = std::io::Error::last_os_error();
-                    if e.kind() == std::io::ErrorKind::Interrupted {
-                        continue;
-                    }
-                    eprintln!("vfio-user-nvgpu: doorbell tokens: epoll_wait: {e}; reader ends, pool tokens are no longer rung");
-                    return;
-                }
-                // Read every signalled eventfd first (EPOLLIN: the read does not
-                // block), then ring under one lock.
-                let mut rings = Vec::with_capacity(n as usize);
-                for ev in &events[..n as usize] {
-                    let slot = ev.u64 as usize;
-                    let mut count = [0u8; 8];
-                    match (&readers[slot]).read_exact(&mut count) {
-                        Ok(()) => rings.push((slot, u64::from_ne_bytes(count))),
-                        Err(e) if e.kind() == std::io::ErrorKind::Interrupted => {}
-                        Err(e) => {
-                            eprintln!("vfio-user-nvgpu: doorbell tokens: slot {slot}: {e}; reader ends");
-                            return;
-                        }
-                    }
-                }
-                lock(&device).doorbell_tokens(doorbell, &rings);
-            }
-        })?;
-    Ok(())
+    reactor: crate::poll::Reactor,
+) -> std::io::Result<Arc<crate::poll::ReaderStats>> {
+    reactor.spawn(readers, move |rings, seen, st| {
+        let mut d = lock(&device);
+        st.lock_wait.record(seen.elapsed());
+        d.doorbell_tokens(doorbell, rings, &mut |host| st.ring(seen, host));
+    })
 }
 
 fn lock(device: &Mutex<Device>) -> MutexGuard<'_, Device> {
     device.lock().unwrap_or_else(PoisonError::into_inner)
 }
 
-/// Read the doorbell eventfd and ring the device for as long as the process runs.
+/// Read the doorbell eventfd (the token-less one) and ring the device for as long as
+/// the process runs, through the same reactor as the token pool (one eventfd).
 pub fn spawn_doorbell_reader(
     device: Arc<Mutex<Device>>,
     doorbell: u64,
     eventfd: File,
-) -> std::io::Result<()> {
-    std::thread::Builder::new()
-        .name("doorbell-ioeventfd".into())
-        .spawn(move || {
-            let mut count = [0u8; 8];
-            loop {
-                match (&eventfd).read_exact(&mut count) {
-                    Ok(()) => {
-                        lock(&device).doorbell_ioeventfd(doorbell, u64::from_ne_bytes(count))
-                    }
-                    Err(e) if e.kind() == std::io::ErrorKind::Interrupted => continue,
-                    Err(e) => {
-                        eprintln!("vfio-user-nvgpu: doorbell ioeventfd: {e}; reader ends");
-                        return;
-                    }
-                }
-            }
-        })?;
-    Ok(())
+    reactor: crate::poll::Reactor,
+) -> std::io::Result<Arc<crate::poll::ReaderStats>> {
+    reactor.spawn(vec![eventfd], move |rings, seen, st| {
+        let mut d = lock(&device);
+        st.lock_wait.record(seen.elapsed());
+        for &(_, writes) in rings {
+            let host = d.doorbell_ioeventfd(doorbell, writes);
+            st.ring(seen, host);
+        }
+    })
 }
 
 /// The device as the vfio-user server loop sees it when the doorbell reader thread
@@ -399,14 +337,19 @@ impl Device {
     /// (no datamatch), so every channel with GPFIFO entries published since its last
     /// doorbell is rung the way its token would ring it (`Dispatcher::doorbell_pending`:
     /// software, shadow or host mirror); a channel the guest never rang is not pending
-    /// and gets no host mirror.
-    pub fn doorbell_ioeventfd(&mut self, doorbell: u64, writes: u64) {
+    /// and gets no host mirror. Returns when the first host doorbell was written, if one
+    /// was.
+    pub fn doorbell_ioeventfd(&mut self, doorbell: u64, writes: u64) -> Option<std::time::Instant> {
         self.doorbell_wakeups += 1;
         self.doorbell_writes += writes;
         let mem = &self.mem;
-        let notes = match self.bar0.boot_mut() {
-            Some(boot) => boot.doorbell_pending(mem),
-            None => vec!["no boot model, nothing rung".into()],
+        let (notes, host) = match self.bar0.boot_mut() {
+            Some(boot) => {
+                boot.take_host_doorbell();
+                let n = boot.doorbell_pending(mem);
+                (n, boot.take_host_doorbell())
+            }
+            None => (vec!["no boot model, nothing rung".into()], None),
         };
         self.trace.event(&format!(
             "doorbell ioeventfd: {writes} guest write(s) to BAR0 {doorbell:#x} signalled"
@@ -414,11 +357,20 @@ impl Device {
         for n in notes {
             self.trace.event(&n);
         }
+        host
     }
 
     /// Pool tokens whose ioeventfds fired: `(slot, guest writes counted)` each. The
     /// eventfd names the token, the pool names the channel (`Dispatcher::doorbell_pool`).
-    pub fn doorbell_tokens(&mut self, doorbell: u64, rings: &[(usize, u64)]) {
+    /// `rung` is called once per token with when its host doorbell was written, if it was
+    /// (the reactor's ring-to-host-doorbell time, poll.rs); the trace notes are written
+    /// after all tokens are rung.
+    pub fn doorbell_tokens(
+        &mut self,
+        doorbell: u64,
+        rings: &[(usize, u64)],
+        rung: &mut dyn FnMut(Option<std::time::Instant>),
+    ) {
         let mem = &self.mem;
         let Some(boot) = self.bar0.boot_mut() else {
             self.trace
@@ -435,7 +387,9 @@ impl Device {
             notes.push(format!(
                 "doorbell ioeventfd: {writes} guest write(s) of token {token:#x} to BAR0 {doorbell:#x} signalled"
             ));
+            boot.take_host_doorbell();
             notes.extend(boot.doorbell_token(mem, token));
+            rung(boot.take_host_doorbell());
         }
         for n in notes {
             self.trace.event(&n);
@@ -872,6 +826,7 @@ mod tests {
     /// collide for KVM) and refuses a token-less entry next to them.
     #[test]
     fn token_sub_regions_one_eventfd_per_token() {
+        use std::io::Read;
         use std::os::fd::AsRawFd;
         let subs = doorbell_token_sub_regions(0xbb_0090, 8).unwrap();
         assert_eq!(subs.len(), 8);
