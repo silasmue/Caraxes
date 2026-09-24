@@ -1,0 +1,2 @@
+== /home/silas/git/Caraxes/.claude/worktrees/agent-a25cf04a900b964bc/caraxes/runs/gsp-d-2026-09-24/q3/q3-kill9/device-trace.txt.xz: 0 control answers, 0 distinct D ids, 0 unanswered answers (0 ids)
+watch: none of 0x2080110b FIFO_DISABLE_CHANNELS, 0x20800177 GPU_REPORT_NON_REPLAYABLE_FAULT

@@ -663,3 +663,20 @@ the VM; then display, expected to be much easier than in v1.
   offsets are generated per driver version from the SDK headers. One correction is already known:
   `CE_GET_LCE_SHIM_INFO` sits in the `internal_uncalled` family, but the 615 user space calls it
   during cuInit (cutover-615.md, run 4); it moves out with the 615 cuInit work.
+- 2026-09-24: **GSP surface, category D rule table and display models** (gsp-plan R0 and R1,
+  [gsp-plan/d-device-model.md](gsp-plan/d-device-model.md) §10, [gsp-surface.md](gsp-surface.md)
+  "After D"). `src/dmodel.rs` gives the D controls the plan's labelled answer from a table
+  generated per driver version out of `d-controls.tsv` (`caraxes/tools/gsp-dtable.py`): on 615,
+  101 REFUSE, 37 DENY and 14 ACK answered, the display rows through the display's board table;
+  the 102 rows that belong to E are 16 new families in `[features]` (GB206 declares six present),
+  the 7 A rows are controls.toml rows or open rows naming their source, the 17 C rows are listed
+  for the C work; the profiler classes are refused at allocation (INSUFFICIENT_PERMISSIONS), and
+  no D id may enter a forward list (guard test). R1: `HDCP_CTRL` per cmd, `DP_CONFIGURE_FEC`,
+  `GET_RG_STATUS`, `DP_SET_WAR_FLAGS` and `PERF_NOTIFY_VIDEOEVENT` ACK. Routed controls answered:
+  373 to 630 on 610, 383 to 643 on 615; D unanswered 305/308 to 48. On vm0 (610 guest,
+  `caraxes/runs/gsp-d-2026-09-24/`): display gate 11/11 before and after (one rerun: the first
+  after-run failed only the fence-timing stage under two other VMs, with identical control
+  answers); the unplug sends exactly `HDCP_CTRL` DISABLE_AUTHENTICATION, now answered; a kill -9
+  of a CUDA process sends no D control (no 0x2080110B, no 0x20800177); the display gate itself
+  sends `SET_ZBC_COLOR_CLEAR` three times (ZBC model, R3). No host Xid on the device's pid (one
+  Xid 31 on vm1's device in the same hour).

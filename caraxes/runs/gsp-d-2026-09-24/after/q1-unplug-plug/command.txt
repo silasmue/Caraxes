@@ -1,0 +1,4 @@
+# SPDX-License-Identifier: MIT
+# 2026-09-24 19:31:21 guest command:
+sudo bash gspd/hotplug-watch.sh 40
+rc=0

@@ -1,0 +1,4 @@
+# SPDX-License-Identifier: MIT
+# 2026-09-24 19:34:50 guest command:
+cd ~/bench && (./bench-cu churn 100000 > /tmp/churn.txt 2>&1 & p=$!; sleep 8; echo "kill -9 $p after 8 s"; kill -9 $p; wait $p; echo "churn exit $?"; tail -2 /tmp/churn.txt; sleep 3; ./bench-cu init; echo "init exit $?"; sudo dmesg | grep -E "NVRM|Xid" | tail -12)
+rc=0

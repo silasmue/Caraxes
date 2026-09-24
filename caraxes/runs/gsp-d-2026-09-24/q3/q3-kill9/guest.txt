@@ -1,0 +1,17 @@
+kill -9 4393 after 8 s
+bash: line 1:  4393 Killed                  ./bench-cu churn 100000 > /tmp/churn.txt 2>&1
+churn exit 137
+INIT cuinit_ms=105.918 devget_ms=0.001 ctxcreate_ms=3268.606 ctxdestroy_ms=756.628
+init exit 0
+[  505.642780] NVRM: ioctl(0x58, 0x81f2d940, 0x30)
+[  505.661056] NVRM: ioctl(0x29, 0x81f2d870, 0x10)
+[  505.661275] NVRM: ioctl(0x29, 0x81f2d920, 0x10)
+[  505.661573] NVRM: ioctl(0x2a, 0x81f2cd60, 0x20)
+[  505.661784] NVRM: nvidia_close on GPU with minor number 0
+[  505.661787] NVRM: nvidia_close on GPU with minor number 0
+[  505.661789] NVRM: nvidia_close on GPU with minor number 0
+[  505.662869] NVRM: nvidia_close on GPU with minor number 0
+[  505.662872] NVRM: nvidia_close on GPU with minor number 255
+[  505.662873] NVRM: nvidia_ctl_close
+[  505.662879] NVRM: nvidia_close on GPU with minor number 255
+[  505.662880] NVRM: nvidia_ctl_close

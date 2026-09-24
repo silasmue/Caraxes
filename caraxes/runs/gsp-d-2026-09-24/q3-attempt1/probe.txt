@@ -1,0 +1,4 @@
+probe gspd-q3: 93474 device accesses, guest log in /mnt/vmstore/caraxes/vm0/probe-gspd-q3/guest-dmesg.txt
+[  131.584785] NVRM: GPU 0000:00:05.0: RmInitAdapter
+[  134.341366] NVRM: GPU 0000:00:05.0: RmInitAdapter succeeded!
+modprobe rc=0
