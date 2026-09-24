@@ -85,6 +85,7 @@ driver recognizes and initializes a Turing/RTX 2070-like device. Windows later.
 | [blackwell-gate.md](blackwell-gate.md) | The Blackwell N gate in pure emulation: the GB206 identity (`--board-data rtx5060ti`, `CARAXES_CHIP=gb206`), stages N0 (device) to N4 (first channel allocation), the predicted walls, preconditions and the exact vm3 launcher command; defined 2026-09-24, not run yet |
 | [cutover-615.md](cutover-615.md) | The checklist for the host driver upgrade 610.57.04 to 615.71.09 (2026-09-24): the device's run-time host-ABI selection (`hostabi.rs`, `CARAXES_HOST_ABI`, the log line to look for), then in order the 610 closing benchmark and frozen binaries, the operator's upgrade checks, the 610 guest on the 615 host (nvml, cuda, display gates), the 615 guest once `ver/v615` lands (`CARAXES_DRIVER=615`), v1's wait for L615, rollback, open points |
 | [gsp-surface.md](gsp-surface.md) | P23, the GSP surface of 610.57.04 from source: 829 of 1377 exported controls reach GSP, the device handles 171 with D9 provenance, the 658 unhandled sorted into five categories (pure chip data, host-forwardable, guest-state derived, needs modelling, never expected on TU106) with a recipe and estimate each, the 20 RPC functions and 41 events a GSP client uses, the top ten a Linux CUDA or display client hits next, what Windows and nova-core share; produced by `caraxes/tools/gsp-surface.py` (subagent report, 2026-09-24) |
+| [doorbell-poll.md](doorbell-poll.md) | The doorbell reactor (`CARAXES_DOORBELL_POLL=off\|spin\|hybrid`, `_POLL_CPU`, `_POLL_IDLE_US`): one thread polls the token pool's eventfds instead of sleeping in `epoll_wait`, pinned to an automatically chosen core; the vm1 measurement of blocking, spin unpinned, spin pinned and hybrid (short kernel 0.026 to 0.014 ms, rlprobe stage 4 2.7 to 2.1 s, hybrid at 3 % of a core), host tuning recommendations for the reactor core, and what P24 would change |
 | [open-questions.md](open-questions.md) | Unresolved questions, numbered |
 
 Reference dumps of the physical RTX 2070 live in `caraxes/reference/rtx2070/`
@@ -567,6 +568,18 @@ the VM; then display, expected to be much easier than in v1.
   first Blackwell identity needs new names and an FSP model, not a new ABI version; 615.71.09
   is a new GSP transport altogether. Open with the operator: MSI-X and the BAR1 size of the
   synthetic GB206, a second capture, the guest driver version for Blackwell.
+- 2026-09-24: **Doorbell reactor measured** ([doorbell-poll.md](doorbell-poll.md), benchmark.md,
+  `caraxes/runs/doorbell-poll-2026-09-24/`): `CARAXES_DOORBELL_POLL=spin|hybrid` polls the pool's
+  eventfds on a pinned core instead of waking a blocked thread. On vm1 with P21 and 64 tokens,
+  in the clean second pass:
+  - short kernel 0.024-0.027 ms (blocking reader) to 0.014-0.015 ms per launch;
+  - rlprobe stage 4 2.7 s to 2.1 s (spin) and 2.3 s (hybrid);
+  - ring-to-host-doorbell p99 9.8 us to 4.9 us pinned, 7.1 us unpinned;
+  - reader CPU 96 % of a core in spin and 3 % in hybrid with 200 us idle;
+  - no contention on the Device mutex (p99 wait under 1 us), 0 Xid.
+
+  About 3.6 us per ring remain inside the device (shadow re-sync, flush, mirror bookkeeping).
+  Removing the KVM exit is P24.
 - 2026-09-24: **Zero-trap submission measured** ([doorbell-token-pool.md](doorbell-token-pool.md),
   benchmark.md, `caraxes/runs/doorbell-tokens-gpu-2026-09-24/`): the P21 area plus the datamatch
   token pool (64 tokens, one eventfd each, handed to a channel at its first trapped ring through

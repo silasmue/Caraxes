@@ -385,6 +385,11 @@ impl BootModel {
         self.ctrl.doorbell_pool(&mut gm, token, false)
     }
 
+    /// The first host doorbell write since the last call (ctrl.rs `host_doorbell_at`).
+    pub fn take_host_doorbell(&mut self) -> Option<std::time::Instant> {
+        self.ctrl.host_doorbell_at.take()
+    }
+
     /// The doorbell token pool's counters, for the eventfd reader.
     pub fn token_pool_mut(&mut self) -> Option<&mut crate::tokens::TokenPool> {
         self.ctrl.channels.tokens.as_mut()

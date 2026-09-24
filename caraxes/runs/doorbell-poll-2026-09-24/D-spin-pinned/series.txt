@@ -1,0 +1,19 @@
+# series 2026-09-24T13:53:51+02:00 targets=[v2] reps=3 metrics=[short-auto rl]
+# caraxes shell-rig-127-g9e28ea4 leandro-test 3edea73-dirty
+# bin c5b48cf1181bfcfc251f12aa2b0eaeb074887efec4c479f36efe399cb1307a13  bench-cu
+# bin 68449e9ec7b25613a65d096a6a42864c01fbf46ec47e540ce01f47184f0479ea  ctrlping
+# bin 138c5073848b2f3cf2beb4709376c7c49b420d88e836664584e5cf8bbfc7848c  ioctlping
+# bin 1f921680fc7a2c2e0978eb007cc0ab48d2f1a7cf404a196c9063a19a10aa228f  kernels.ptx
+# bin 2735d2a9cd25c0753898188542dbeb4a8433609024aa48230b6803a4a8d96e66  nvprobe
+# bin f0868123fca8e2c40138fda523e35fa76c015b97e232fc647fea0b6b49f33584  vrampress
+# time 2026-09-24T13:53:51+02:00
+# gpu 49, 300 MHz, 405 MHz, P8, 13 %, 2112 MiB, Disabled
+# procs 2342749:bench-v1-dev 2342757:bench-v1-vmm 2844435:vm1-dev 2844446:vm1-vmm 
+# loadavg 2.10 3.47 3.55
+13:53:55 v2  short-auto      rep 1: MSPERLAUNCH=0.014 # WALL wall_ms=4041 rc=0  | # MEAS dev_pid=2844435 dev_cpu_ms=6030 dev_rss_hwm_kb=5253240/9442916 vmm_cpu_ms=2970 others: bench-v1-dev=0ms bench-v1-
+13:54:12 v2  rl              rep 1:   ep   10  return=   11  mean10=  20.7   ep   20  return=   15  mean10=  14.4   ep   30  return=   13  mean10=  15.8  | # MEAS dev_pid=2844435 dev_cpu_ms=20560 dev_rss_hwm_kb=5254400/9442916 vmm_cpu_ms=29380 others: bench-v1-dev=0ms bench-v
+13:54:18 v2  short-auto      rep 2: MSPERLAUNCH=0.014 # WALL wall_ms=4785 rc=0  | # MEAS dev_pid=2844435 dev_cpu_ms=7710 dev_rss_hwm_kb=5254368/9442916 vmm_cpu_ms=7760 others: bench-v1-dev=0ms bench-v1-
+13:54:30 v2  rl              rep 2:   ep   10  return=   11  mean10=  20.7   ep   20  return=   15  mean10=  14.4   ep   30  return=   13  mean10=  15.8  | # MEAS dev_pid=2844435 dev_cpu_ms=14960 dev_rss_hwm_kb=5254452/9442916 vmm_cpu_ms=20370 others: bench-v1-dev=0ms bench-v
+13:54:35 v2  short-auto      rep 3: MSPERLAUNCH=0.020 # WALL wall_ms=4801 rc=0  | # MEAS dev_pid=2844435 dev_cpu_ms=8050 dev_rss_hwm_kb=5254472/9442916 vmm_cpu_ms=8080 others: bench-v1-dev=0ms bench-v1-
+13:54:46 v2  rl              rep 3:   ep   10  return=   11  mean10=  20.7   ep   20  return=   15  mean10=  14.4   ep   30  return=   13  mean10=  15.8  | # MEAS dev_pid=2844435 dev_cpu_ms=14570 dev_rss_hwm_kb=5254500/9442916 vmm_cpu_ms=19880 others: bench-v1-dev=0ms bench-v
+# end 2026-09-24T13:54:46+02:00

@@ -682,3 +682,25 @@ transfers at about 970 per second against 2266 native. The 19778 "stale" eventfd
 bench-trap writes of the unassigned pool token, as designed. What remains between C and native
 is the device's own work per submission (eventfd wakeup, the host doorbell write, mirror
 bookkeeping) and the small copies outside the 1 MiB area (design H).
+
+## Doorbell reactor: blocking, spinning and hybrid reader (2026-09-24, 13:44-14:12, vm1)
+
+The reactor of [doorbell-poll.md](doorbell-poll.md) (device b6b52a4, frozen at
+`/mnt/vmstore/caraxes/vm1/vfio-user-nvgpu-poll`), in the setup of the previous section:
+P21 area, 64 pool tokens, Cloud Hypervisor 0001-0006. The table shows the second of two passes,
+run in reverse order with no other device active; vm0 was up but idle.
+`caraxes/runs/doorbell-poll-2026-09-24/pass2/`.
+
+| Value | C: blocking | D0: spin, unpinned | D: spin, pinned (CPU 14) | E: hybrid 200 us, pinned (CPU 14) |
+|---|---|---|---|---|
+| short kernel, ms/launch (3 reps) | 0.024, 0.027, 0.026 | 0.020, 0.088, 0.014 | 0.021, 0.014, 0.015 | 0.014, 0.014, 0.014 |
+| rlprobe stage 4, median | 2.7 s | 2.3 s | 2.1 s | 2.3 s |
+| rlprobe transfers per second, median | 1062 | 1270 | 1375 | 1257 |
+| ring to host doorbell, p50 / p99 | 4.1 / 9.8 us | 3.6 / 7.1 us | 3.6 / 4.9 us | 3.6 / 6.9 us |
+| reader CPU | 1.4 % | 97.6 % | 96.0 % | 3.1 % |
+
+Reading:
+- The scheduler wake-up of the blocked reader cost about 10 to 12 us per launch.
+- Pinning cuts the tail: p99 21.8 us unpinned against 5.4 us pinned in the first pass, while
+  another VM's device was busy.
+- Hybrid gives most of the gain at 3 % of a core.
