@@ -1,0 +1,28 @@
+WESTON-DOWN
+Date: 2026-09-24 UTC
+[06:40:48.821] weston 13.0.0
+               https://wayland.freedesktop.org
+               Bug reports to: https://gitlab.freedesktop.org/wayland/weston/issues/
+               Build: 13.0.0
+[06:40:48.821] Command line: weston --backend=drm --renderer=gl --continue-without-input --shell=kiosk --config=/tmp/weston-pace/weston.ini --socket=wayland-1 --log=/tmp/weston-pace/weston.log --debug
+[06:40:48.821] OS: Linux, 6.8.0-136-generic, #136-Ubuntu SMP PREEMPT_DYNAMIC Wed Jul  1 21:53:05 UTC 2026, x86_64
+[06:40:48.821] Flight recorder: enabled
+[06:40:48.821] Using config file '/tmp/weston-pace/weston.ini'
+[06:40:48.821] Output repaint window is 7 ms maximum.
+[06:40:48.822] Loading module '/usr/lib/x86_64-linux-gnu/libweston-13/drm-backend.so'
+[06:40:48.827] initializing drm backend
+[06:40:48.827] Trying libseat launcher...
+[06:40:48.827] [libseat/libseat.c:62] Seat opened with backend 'noop'
+[06:40:48.827] libseat: session control granted
+[06:40:48.828] using /dev/dri/card0
+[06:40:48.828] DRM: supports atomic modesetting
+[06:40:48.828] DRM: supports GBM modifiers
+[06:40:48.828] DRM: does not support async page flipping
+[06:40:48.828] DRM: supports picture aspect ratio
+[06:40:48.828] Loading module '/usr/lib/x86_64-linux-gnu/libweston-13/gl-renderer.so'
+[06:40:48.932] failed to initialize display
+[06:40:48.932] EGL error state: EGL_BAD_ACCESS (0x3002)
+[06:40:48.932] failed to initialize egl
+[06:40:48.933] fatal: failed to create compositor backend
+WARNING: debug protocol has been enabled. This is a potential denial-of-service attack vector and information leak.
+Internal warning: debug scope 'drm-backend' has not been destroyed.

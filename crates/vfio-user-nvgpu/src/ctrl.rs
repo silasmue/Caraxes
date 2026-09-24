@@ -17,7 +17,7 @@ use crate::ver::active as v;
 pub use crate::ver::active::{
     CMD_BIOS_GET_INFO_V2, CMD_BUS_GET_PCI_BAR_INFO, CMD_CE_GET_FAULT_METHOD_BUFFER_SIZE,
     CMD_CE_UPDATE_CLASS_DB, CMD_CE_UPDATE_PCE_LCE_MAPPINGS_V2, CMD_EVENT_SET_NOTIFICATION,
-    CMD_FIFO_GET_DEVICE_INFO_TABLE, CMD_GPU_GET_CONSTRUCTED_FALCON_INFO,
+    CMD_FB_GET_GPU_CACHE_INFO, CMD_FIFO_GET_DEVICE_INFO_TABLE, CMD_FIFO_GET_ENGINE_CONTEXT_PROPERTIES, CMD_GR_CTXSW_ZCULL_BIND, CMD_GPU_GET_CONSTRUCTED_FALCON_INFO,
     CMD_GPU_GET_OEM_BOARD_INFO, CMD_GPU_GET_VMMU_SEGMENT_SIZE, CMD_GSP_GET_FEATURES,
     CMD_I2C_GET_PORT_INFO, CMD_INTERNAL_BIF_GET_STATIC_INFO, CMD_INTERNAL_BUS_FLUSH_WITH_SYSMEMBAR,
     CMD_INTERNAL_CE_GET_PCE_CONFIG_FOR_LCE_TYPE, CMD_INTERNAL_FIFO_GET_NUM_CHANNELS,
@@ -960,6 +960,40 @@ impl Dispatcher {
                 label: "synthesized fallback (no host: no VMMU)",
                 note: "vmmu segment size: not supported".into(),
             }),
+            // The L2 state of the card: forwarded (the host answers for the same silicon),
+            // else the Turing default (powered, write-back, no bypass, full RCM).
+            CMD_FB_GET_GPU_CACHE_INFO => self.forward_or(class, cmd, params, |n| {
+                let mut b = vec![0u8; n];
+                if n >= 8 {
+                    put32(&mut b, 4, v::GPU_CACHE_INFO_WRITE_MODE_WRITEBACK);
+                }
+                Answer::ok(b, "synthesized fallback (L2 enabled, write-back)", "gpu cache info")
+            }),
+            // Context-buffer sizes are the silicon's: forwarded to the host's device.
+            CMD_FIFO_GET_ENGINE_CONTEXT_PROPERTIES => self.forward_or(class, cmd, params, |n| Answer {
+                status: NV_ERR_NOT_SUPPORTED,
+                params: vec![0u8; n],
+                label: "synthesized fallback (no host: sizes unknown)",
+                note: "engine context properties: not supported".into(),
+            }),
+            // The zcull save buffer of a guest 3D channel: recorded. The host context of a
+            // mirrored channel keeps its default zcull mode (GLOBAL), which only matters when
+            // the channel is preempted mid-frame (display-e.md, open items).
+            CMD_GR_CTXSW_ZCULL_BIND => {
+                let g32 = |o: usize| params.get(o..o + 4).map_or(0, |b| u32::from_le_bytes(b.try_into().unwrap()));
+                let g64 = |o: usize| params.get(o..o + 8).map_or(0, |b| u64::from_le_bytes(b.try_into().unwrap()));
+                Answer::ok(
+                    params.to_vec(),
+                    "guest (recorded; not applied to the host context)",
+                    format!(
+                        "gr ctxsw zcull bind: client {:#x} channel {:#x} va {:#x} mode {}",
+                        g32(0),
+                        g32(4),
+                        g64(8),
+                        g32(16)
+                    ),
+                )
+            }
             _ => Answer {
                 status: NV_ERR_NOT_SUPPORTED,
                 params: params.to_vec(),

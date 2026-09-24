@@ -12,7 +12,8 @@ use crate::ctrl::{Answer, HostRm};
 use crate::ver::active::{self as v, NV20_SUBDEVICE_0, NV_ERR_NOT_SUPPORTED, NV_OK};
 pub use crate::ver::active::{
     CMD_CE_GET_ALL_CAPS, CMD_CE_GET_ALL_PHYSICAL_CAPS, CMD_CE_GET_CAPS_V2, CMD_CE_GET_CE_PCE_MASK,
-    CMD_CE_GET_PHYSICAL_CAPS, CMD_CE_IS_DECOMP_LCE_ENABLED, CMD_CHANNEL_GPFIFO_SCHEDULE,
+    CMD_CE_GET_PHYSICAL_CAPS, CMD_CE_IS_DECOMP_LCE_ENABLED, CMD_CHANNEL_BIND,
+    CMD_CHANNEL_GPFIFO_SCHEDULE,
     CMD_DMA_SET_PAGE_DIRECTORY, CMD_DMA_UNSET_PAGE_DIRECTORY,
     CMD_INTERNAL_GMMU_REGISTER_CLIENT_SHADOW_FAULT_BUFFER, CMD_INTERNAL_GMMU_REGISTER_FAULT_BUFFER,
     CMD_INTERNAL_GMMU_UNREGISTER_CLIENT_SHADOW_FAULT_BUFFER,
@@ -295,6 +296,15 @@ pub fn answer(
             format!(
                 "gpfifo schedule {h_object:#x}: bEnable {}",
                 params.first().copied().unwrap_or(0)
+            ),
+        ),
+        // kernel_channel_api.c `kchannelCtrlCmdBind`: the engine is the TSG's (GR for the
+        // GL driver's channels); a host mirror binds at its engine object's allocation.
+        CMD_CHANNEL_BIND => ok(
+            "guest (recorded; the host mirror binds with its engine object)",
+            format!(
+                "channel bind {h_object:#x}: engineType {:#x}",
+                params.get(..4).map_or(0, |b| u32::from_le_bytes(b.try_into().unwrap()))
             ),
         ),
         // kernel_channel_group_api.c:426-505: guest-sysmem method buffers.

@@ -1,0 +1,4 @@
+# SPDX-License-Identifier: MIT
+# 2026-09-24 09:09:18 guest command:
+unset DISPLAY; cd caraxes-guest; timeout 300 ./eglprobe 640 480 3; echo rc=$?
+rc=0

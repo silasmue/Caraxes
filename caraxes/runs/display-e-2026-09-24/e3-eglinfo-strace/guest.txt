@@ -1,0 +1,48 @@
+error: XDG_RUNTIME_DIR is invalid or not set in the environment.
+error: XDG_RUNTIME_DIR is invalid or not set in the environment.
+error: XDG_RUNTIME_DIR is invalid or not set in the environment.
+error: XDG_RUNTIME_DIR is invalid or not set in the environment.
+error: XDG_RUNTIME_DIR is invalid or not set in the environment.
+timeout: the monitored command dumped core
+2668  openat(AT_FDCWD, "/etc/glvnd/egl_vendor.d", O_RDONLY|O_NONBLOCK|O_CLOEXEC|O_DIRECTORY) = 3
+2668  openat(AT_FDCWD, "/usr/share/glvnd/egl_vendor.d", O_RDONLY|O_NONBLOCK|O_CLOEXEC|O_DIRECTORY) = 3
+2668  openat(AT_FDCWD, "/usr/share/glvnd/egl_vendor.d/10_nvidia.json", O_RDONLY) = 3
+2668  openat(AT_FDCWD, "/opt/nvrm-gl/lib/libEGL_nvidia.so.0", O_RDONLY|O_CLOEXEC) = 3
+2668  openat(AT_FDCWD, "/opt/nvrm-gl/lib/libnvidia-glsi.so.610.57.04", O_RDONLY|O_CLOEXEC) = 3
+2668  openat(AT_FDCWD, "/usr/share/egl/egl_external_platform.d", O_RDONLY|O_NONBLOCK|O_CLOEXEC|O_DIRECTORY) = 3
+2668  openat(AT_FDCWD, "/usr/share/egl/egl_external_platform.d/09_nvidia_wayland2.json", O_RDONLY) = 3
+2668  openat(AT_FDCWD, "/opt/nvrm-gl/lib/libnvidia-egl-wayland2.so.1", O_RDONLY|O_CLOEXEC) = 3
+2668  openat(AT_FDCWD, "/lib/x86_64-linux-gnu/libgbm.so.1", O_RDONLY|O_CLOEXEC) = 3
+2668  openat(AT_FDCWD, "/opt/nvrm-gl/lib/libnvidia-eglcore.so.610.57.04", O_RDONLY|O_CLOEXEC) = 3
+2668  openat(AT_FDCWD, "/opt/nvrm-gl/lib/libnvidia-gpucomp.so.610.57.04", O_RDONLY|O_CLOEXEC) = 3
+2668  openat(AT_FDCWD, "/usr/share/egl/egl_external_platform.d/10_nvidia_wayland.json", O_RDONLY) = 3
+2668  openat(AT_FDCWD, "/opt/nvrm-gl/lib/libnvidia-egl-wayland.so.1", O_RDONLY|O_CLOEXEC) = 3
+2668  openat(AT_FDCWD, "/usr/share/egl/egl_external_platform.d/15_nvidia_gbm.json", O_RDONLY) = 3
+2668  openat(AT_FDCWD, "/opt/nvrm-gl/lib/libnvidia-egl-gbm.so.1", O_RDONLY|O_CLOEXEC) = 3
+2668  openat(AT_FDCWD, "/usr/share/egl/egl_external_platform.d/20_nvidia_xcb.json", O_RDONLY) = 3
+2668  openat(AT_FDCWD, "/opt/nvrm-gl/lib/libnvidia-egl-xcb.so.1", O_RDONLY|O_CLOEXEC) = 3
+2668  openat(AT_FDCWD, "/lib/x86_64-linux-gnu/libxcb-dri3.so.0", O_RDONLY|O_CLOEXEC) = 3
+2668  openat(AT_FDCWD, "/usr/share/egl/egl_external_platform.d/20_nvidia_xlib.json", O_RDONLY) = 3
+2668  openat(AT_FDCWD, "/opt/nvrm-gl/lib/libnvidia-egl-xlib.so.1", O_RDONLY|O_CLOEXEC) = 3
+2668  openat(AT_FDCWD, "/usr/share/glvnd/egl_vendor.d/50_mesa.json", O_RDONLY) = 3
+2668  openat(AT_FDCWD, "/dev/dri", O_RDONLY|O_NONBLOCK|O_CLOEXEC|O_DIRECTORY) = 3
+2668  openat(AT_FDCWD, "/dev/dri/renderD128", O_RDWR|O_CLOEXEC) = 3
+2668  openat(AT_FDCWD, "/usr/lib/x86_64-linux-gnu/gbm/nvidia-drm_gbm.so", O_RDONLY|O_CLOEXEC) = 4
+2668  openat(AT_FDCWD, "/proc/driver/nvidia/params", O_RDONLY) = 4
+2668  openat(AT_FDCWD, "/dev/nvidiactl", O_RDWR) = 4
+2668  openat(AT_FDCWD, "/proc/driver/nvidia/params", O_RDONLY) = 5
+2668  openat(AT_FDCWD, "/dev/nvidia0", O_RDWR|O_CLOEXEC) = 5
+2668  openat(AT_FDCWD, "/proc/driver/nvidia/params", O_RDONLY) = 6
+2668  openat(AT_FDCWD, "/dev/nvidia0", O_RDWR|O_CLOEXEC) = 6
+2668  openat(AT_FDCWD, "/proc/driver/nvidia/params", O_RDONLY) = 7
+2668  openat(AT_FDCWD, "/dev/nvidia0", O_RDWR|O_CLOEXEC) = 7
+2668  openat(AT_FDCWD, "/dev/nvidiactl", O_RDWR|O_CLOEXEC) = 8
+2668  openat(AT_FDCWD, "/dev/dri", O_RDONLY|O_NONBLOCK|O_CLOEXEC|O_DIRECTORY) = 9
+2668  openat(AT_FDCWD, "/dev/dri/renderD128", O_RDWR|O_CLOEXEC) = 10
+2668  openat(AT_FDCWD, "/dev/dri", O_RDONLY|O_NONBLOCK|O_CLOEXEC|O_DIRECTORY) = 9
+2668  openat(AT_FDCWD, "/dev/dri/renderD128", O_RDWR|O_CLOEXEC) = 11
+2668  openat(AT_FDCWD, "/dev/dri", O_RDONLY|O_NONBLOCK|O_CLOEXEC|O_DIRECTORY) = 9
+2668  openat(AT_FDCWD, "/dev/dri/renderD128", O_RDWR|O_CLOEXEC) = 11
+2668  openat(AT_FDCWD, "/proc/driver/nvidia/params", O_RDONLY) = 9
+===
+2668  futex(0x7ffcd30d3be4, FUTEX_UNLOCK_PI_PRIVATE) = -1 EPERM (Operation not permitted)

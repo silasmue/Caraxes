@@ -337,6 +337,20 @@ pub const CMD_INTERNAL_MEMSYS_L2_INVALIDATE_EVICT: u32 = 0x2080_0A6C;
 pub const CMD_INTERNAL_PERF_GPU_BOOST_SYNC_GET_INFO: u32 = 0x2080_0A80;
 pub const CMD_INTERNAL_FIFO_GET_NUM_CHANNELS: u32 = 0x2080_0A61;
 pub const CMD_GPU_GET_VMMU_SEGMENT_SIZE: u32 = 0x2080_017E;
+/// `NV2080_CTRL_CMD_FB_GET_GPU_CACHE_INFO` (sdk/ctrl/ctrl2080/ctrl2080fb.h:822-846), export
+/// flags 0x40148 (NON_PRIVILEGED): `{powerState, writeMode, bypassMode, rcmState}`. The
+/// NVIDIA EGL/GL driver asks it at `eglInitialize` and gives up on an error (display-e.md).
+pub const CMD_FB_GET_GPU_CACHE_INFO: u32 = 0x2080_1315;
+/// `NV0080_CTRL_CMD_FIFO_GET_ENGINE_CONTEXT_PROPERTIES` (sdk/ctrl/ctrl0080/ctrl0080fifo.h:119),
+/// export flags 0x50148 (NON_PRIVILEGED): `{engineId, alignment, size}` of an engine's
+/// context buffer. The GL driver sizes its 3D context buffers with it (display-e.md).
+pub const CMD_FIFO_GET_ENGINE_CONTEXT_PROPERTIES: u32 = 0x0080_1707;
+/// `NV2080_CTRL_CMD_GR_CTXSW_ZCULL_BIND` (sdk/ctrl/ctrl2080/ctrl2080gr.h:600-621), export flags
+/// 0x90348: `{hClient, hChannel, vMemPtr (u64 at 8), zcullMode (at 16)}`; the GL driver binds
+/// a zcull buffer to its 3D channel (display-e.md).
+pub const CMD_GR_CTXSW_ZCULL_BIND: u32 = 0x2080_1208;
+/// `WRITE_MODE_WRITEBACK` (ctrl2080fb.h:838); the other fields' 0 is ENABLED, DISABLED, FULL.
+pub const GPU_CACHE_INFO_WRITE_MODE_WRITEBACK: u32 = 1;
 pub const CMD_INTERNAL_BUS_FLUSH_WITH_SYSMEMBAR: u32 = 0x2080_0A70;
 pub const CMD_INTERNAL_CE_GET_PCE_CONFIG_FOR_LCE_TYPE: u32 = 0x2080_2A0F;
 pub const CMD_CE_UPDATE_CLASS_DB: u32 = 0x2080_2A06;
@@ -790,8 +804,9 @@ pub const CMD_DIAG_GPU_VERIFY_INFOROM: u32 = 0x208F_1105;
 /// NV2081_BINAPI commands (the class forwards any command to GSP, binary_api.c:60-118;
 /// none is named in the open headers). 0x0108 (992 bytes) is in the host's own
 /// `nvidia-smi -q` trace; 0x0110 (1 byte) and 0x0111 (4 bytes) are what the guest's
-/// `nvidia-smi` adds.
-pub const BINAPI: &[u32] = &[CMD_BINAPI_0108, 0x2081_0110, 0x2081_0111];
+/// `nvidia-smi` adds; 0x0107 (2 bytes) is what the NVIDIA GL/EGL driver asks at context
+/// creation (display-e.md).
+pub const BINAPI: &[u32] = &[0x2081_0107, CMD_BINAPI_0108, 0x2081_0110, 0x2081_0111];
 
 /// `INDEX_FORWARD_TO_PHYSICAL` (subdevice_ctrl_gpu_kernel.c:86): the guest kernel marks
 /// the GET_INFO_V2 indices it cannot serve; the physical side clears the bit.
@@ -955,6 +970,9 @@ pub const CMD_DMA_SET_PAGE_DIRECTORY: u32 = 0x0080_1813;
 pub const CMD_DMA_UNSET_PAGE_DIRECTORY: u32 = 0x0080_1814;
 pub const CMD_VASPACE_COPY_SERVER_RESERVED_PDES: u32 = 0x90F1_0106;
 pub const CMD_CHANNEL_GPFIFO_SCHEDULE: u32 = 0xA06F_0103;
+/// `NVA06F_CTRL_CMD_BIND` (sdk/ctrl/ctrla06f/ctrla06fgpfifo.h), `{engineType}`: the NVIDIA
+/// GL/EGL driver binds its channel to GR before allocating the 3D object (display-e.md).
+pub const CMD_CHANNEL_BIND: u32 = 0xA06F_0104;
 pub const CMD_TSG_GPFIFO_SCHEDULE: u32 = 0xA06C_0101;
 pub const CMD_TSG_INTERNAL_PROMOTE_FAULT_METHOD_BUFFERS: u32 = 0xA06C_010A;
 

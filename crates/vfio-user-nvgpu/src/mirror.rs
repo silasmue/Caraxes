@@ -199,6 +199,11 @@ pub struct Mirror {
     /// (`shadow.rs`, D17 route 4 stage 1) — the host RM owns the GR context there and the
     /// guest's set-A is mirrored in at its own VAs. The GR launch experiment.
     shadow_probe: bool,
+    /// `CARAXES_MIRROR_BARE_CE=1` (display-e.md): a bare copy-engine channel (no guest TSG,
+    /// the NVIDIA GL/EGL driver's CE channels) is mirrored in a host TSG of its own, keyed
+    /// by the channel's handle. Bare GR channels (the kernel's golden-context and WAR
+    /// channels) stay in software either way.
+    bare_ce: bool,
     /// One shadow VAS per guest root (per CUDA context: two processes use the same VAs
     /// for different pages, measured in the gpu gate's robustness stage), built at the
     /// first GR channel of that root and freed when its last channel and TSG are gone.
@@ -260,6 +265,7 @@ impl Mirror {
             invalidator: None,
             memop_invalidate: std::env::var("CARAXES_MEMOP_INVALIDATE").as_deref() != Ok("0"),
             shadow_probe: std::env::var("CARAXES_MIRROR_GR_SHADOW").as_deref() == Ok("1"),
+            bare_ce: std::env::var("CARAXES_MIRROR_BARE_CE").as_deref() == Ok("1"),
             shadows: BTreeMap::new(),
             next_event_id: 0x1000,
             stats: MirrorStats::default(),
@@ -669,7 +675,10 @@ impl Mirror {
             return Err("host channel execution off (CARAXES_MIRROR_CHANNELS=1 to enable); channel work runs on the software executor over the VRAM store".into());
         }
         let ch = reg.channel(chid).ok_or("no such channel")?;
-        if reg.tsg((ch.h_client, ch.h_parent)).is_none() {
+        let gr0 = v::lookup(v::NV2080_ENGINE_TYPES, "GR0").unwrap_or(1);
+        if reg.tsg((ch.h_client, ch.h_parent)).is_none()
+            && !(self.bare_ce && ch.engine_type != gr0 && ch.engine_type != 0)
+        {
             return Err("bare channel (no TSG): stays with the software executor".into());
         }
         // nvidia-uvm's own channels bind GP100_UVM_SW on subchannel 5; the host refuses
@@ -1082,13 +1091,23 @@ impl Mirror {
         let t0 = Instant::now();
         let (root, vas_key) = self.eligible(reg, chid)?;
         let ch: Channel = reg.channel(chid).ok_or("no such channel")?.clone();
-        let tsg_key = (ch.h_client, ch.h_parent);
+        // A bare CE channel (`bare_ce`) gets a host TSG of its own, keyed by its handle.
+        let bare = reg.tsg((ch.h_client, ch.h_parent)).is_none();
+        let tsg_key = if bare {
+            (ch.h_client, ch.h_object)
+        } else {
+            (ch.h_client, ch.h_parent)
+        };
         // The guest's recorded promote entries for this channel (c2 replay input).
         let promote_entries: Vec<crate::channel::PromoteEntry> = reg
             .promoted((ch.h_client, ch.h_object))
             .map(|m| m.values().cloned().collect())
             .unwrap_or_default();
-        let (_, engine) = reg.tsg(tsg_key).ok_or("no TSG")?;
+        let engine = if bare {
+            ch.engine_type
+        } else {
+            reg.tsg(tsg_key).ok_or("no TSG")?.1
+        };
         self.ensure_events(&mut notes);
         self.ensure_invalidator(gm.fb, &mut notes);
         let entries = reg.root_entries(vas_key);
@@ -1644,6 +1663,10 @@ impl Mirror {
         {
             let chid = c.chid;
             self.free_channel(chid, &mut notes);
+            // A bare CE channel's own host TSG goes with it.
+            if self.tsgs.contains_key(&(h_client, h_object)) {
+                self.free_tsg((h_client, h_object), &mut notes);
+            }
             return notes;
         }
         if self.tsgs.contains_key(&(h_client, h_object)) {

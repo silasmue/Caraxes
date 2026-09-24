@@ -1,0 +1,21 @@
+== device
+Unknown platform: device
+Usage: eglinfo [-h] [-B] [-s] [-v] [-l] [-a <api>] [-p <platform>]
+	 -h 	 This message.
+	 -B 	 Brief output, print only the basics.
+	 -s 	 Print a single extension per line.
+	 -v 	 Print visuals info in verbose form.
+	 -l 	 Print interesting OpenGL limits.
+	 -a 	 Print information for a specific API, if supported.
+		 (gl, glcore, gles)
+	 -p 	 Print information for a specific platform, if supported.
+		 (android, gbm, wayland, x11, surfaceless)
+== surfaceless
+Surfaceless platform:
+eglinfo: eglInitialize failed
+
+== gbm
+GBM platform:
+eglinfo: eglInitialize failed
+
+/usr/bin/strace
