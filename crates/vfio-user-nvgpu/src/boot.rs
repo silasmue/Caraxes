@@ -1476,9 +1476,15 @@ impl BootModel {
                     }
                     crate::gsprpc::FN_IDLE_CHANNELS => {
                         // Resolved through the channel registry, idle when USERD GPGet
-                        // caught up with GPPut (gsprpc.rs; rpc-functions.md §4.2).
+                        // caught up with GPPut; mirrored channels through the host RM's
+                        // idle on the mirror's own host objects (gsprpc.rs; rpc-functions.md
+                        // §4.2).
                         let chans = &self.ctrl.channels;
+                        let mirror = self.ctrl.mirror.as_ref();
                         let fb = &mut self.fb;
+                        let host_idle = |l: &[(u32, u32)], f: u32, t: u32| {
+                            mirror.and_then(|m| m.idle_channels(chans, l, f, t))
+                        };
                         let (st, note) = crate::gsprpc::idle_channels(&msg.payload, |c, h| {
                             let ch = chans.channels().find(|x| x.h_client == c && x.h_object == h)?;
                             let word = |off: u64| match ch.userd {
@@ -1498,7 +1504,7 @@ impl BootModel {
                                 gp_get: get,
                                 gp_put: put,
                             })
-                        });
+                        }, host_idle);
                         notes.push(note);
                         Some((st, msg.payload.clone()))
                     }

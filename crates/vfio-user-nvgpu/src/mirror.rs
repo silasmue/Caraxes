@@ -84,6 +84,27 @@ const CMD_GET_WORK_SUBMIT_TOKEN: u32 = 0xC36F_0108;
 /// `NV0080_CTRL_CMD_DMA_INVALIDATE_TLB` (ctrl0080dma.h:484), NON_PRIVILEGED (0x10008):
 /// `{hVASpace, flags}`.
 const CMD_DMA_INVALIDATE_TLB: u32 = 0x0080_180C;
+/// `NV0080_CTRL_CMD_FIFO_IDLE_CHANNELS` and `NV0080_CTRL_FIFO_IDLE_CHANNELS_PARAMS`
+/// {numChannels @0, hChannels[4096] @4, flags @16388, timeout @16392}, 16396 bytes
+/// (ctrl0080fifo.h:391-401, the same in 610 and 615).
+pub const CMD_FIFO_IDLE_CHANNELS: u32 = 0x0080_1714;
+pub const IDLE_PARAMS_SIZE: usize = 16396;
+pub const IDLE_MAX_CHANNELS: usize = 4096;
+pub const IDLE_PARAMS_FLAGS: usize = 4 + 4 * IDLE_MAX_CHANNELS;
+pub const IDLE_PARAMS_TIMEOUT: usize = IDLE_PARAMS_FLAGS + 4;
+/// `NV2080_CTRL_CMD_FIFO_DISABLE_CHANNELS` and its params {bDisable @0, numChannels @4,
+/// bOnlyDisableScheduling @8, bRewindGpPut @9, pRunlistPreemptEvent @16,
+/// hClientList[64] @24, hChannelList[64] @280}, 536 bytes (ctrl2080fifo.h:235-251).
+pub const CMD_FIFO_DISABLE_CHANNELS: u32 = 0x2080_110B;
+pub const DISABLE_PARAMS_SIZE: usize = 536;
+pub const DISABLE_MAX_ENTRIES: usize = 64;
+pub const DISABLE_CLIENT_LIST: usize = 24;
+pub const DISABLE_CHANNEL_LIST: usize = DISABLE_CLIENT_LIST + 4 * DISABLE_MAX_ENTRIES;
+/// `NV2080_CTRL_CMD_GR_GET_CURRENT_RESIDENT_CHANNEL` (ctrl2080gr.h:1246).
+pub const CMD_GR_GET_CURRENT_RESIDENT_CHANNEL: u32 = 0x2080_121C;
+/// `NV906F_CTRL_CMD_GET_MMU_FAULT_INFO`, 104 bytes (ctrl906f.h:175-220).
+pub const CMD_GET_MMU_FAULT_INFO: u32 = 0x906F_0106;
+pub const MMU_FAULT_INFO_SIZE: usize = 104;
 /// `NVC361_NOTIFY_CHANNEL_PENDING` inside the usermode page (clc361.h:33).
 const DOORBELL_OFFSET: usize = 0x90;
 /// `NV90F1_CTRL_VASPACE_COPY_SERVER_RESERVED_PDES_PARAMS`: hSubDevice @0, subDeviceId @4
@@ -1867,6 +1888,201 @@ impl Mirror {
                 status_name(st)
             ),
         ))
+    }
+
+    /// The host channel handle of guest channel `(hClient, hChannel)`: the mirror's own
+    /// host object, found through the registry by the guest's handle; `None` when the
+    /// channel has no mirror.
+    pub fn host_channel_of(&self, reg: &Registry, h_client: u32, h_channel: u32) -> Option<(u32, u32)> {
+        let c = reg
+            .channels()
+            .find(|c| c.h_client == h_client && c.h_object == h_channel)?;
+        self.channels.get(&c.chid).map(|hc| (c.chid, hc.handle))
+    }
+
+    /// `IDLE_CHANNELS` for the guest channels `list` that run on a host mirror (gsprpc.rs,
+    /// public.rs): `NV0080_CTRL_CMD_FIFO_IDLE_CHANNELS` (ctrl0080fifo.h:367-401; export
+    /// flags 0x109: NON_PRIVILEGED, g_device_nvoc.c) on the mirror's own host device, over
+    /// the mirror's own host channel handles of the same host client only; the host RM
+    /// deschedules them and waits for their pending work (kernel_fifo_ctrl.c:131-186
+    /// forwards it to the host GSP). Channels of the list without a mirror are left out;
+    /// `None` when none has one. `timeout_us` is the caller's, already capped.
+    pub fn idle_channels(
+        &self,
+        reg: &Registry,
+        list: &[(u32, u32)],
+        flags: u32,
+        timeout_us: u32,
+    ) -> Option<(u32, String)> {
+        let hosts: Vec<(u32, u32)> = list
+            .iter()
+            .filter_map(|&(c, h)| self.host_channel_of(reg, c, h))
+            .take(IDLE_MAX_CHANNELS)
+            .collect();
+        if hosts.is_empty() {
+            return None;
+        }
+        let mut p = vec![0u8; IDLE_PARAMS_SIZE];
+        p[0..4].copy_from_slice(&(hosts.len() as u32).to_le_bytes());
+        for (i, (_, handle)) in hosts.iter().enumerate() {
+            p[4 + 4 * i..8 + 4 * i].copy_from_slice(&handle.to_le_bytes());
+        }
+        p[IDLE_PARAMS_FLAGS..IDLE_PARAMS_FLAGS + 4].copy_from_slice(&flags.to_le_bytes());
+        p[IDLE_PARAMS_TIMEOUT..IDLE_PARAMS_TIMEOUT + 4].copy_from_slice(&timeout_us.to_le_bytes());
+        let h = self.hm.lock().unwrap();
+        let t0 = Instant::now();
+        let st = h.control(h.device(), CMD_FIFO_IDLE_CHANNELS, &mut p);
+        let chids: Vec<String> = hosts
+            .iter()
+            .map(|(c, handle)| format!("chid {c} (host {handle:#x})"))
+            .collect();
+        Some((
+            st,
+            format!(
+                "NV0080 FIFO_IDLE_CHANNELS on the mirror's host device for {}: {} in {} us [host]",
+                chids.join(", "),
+                status_name(st),
+                t0.elapsed().as_micros()
+            ),
+        ))
+    }
+
+    /// `NV2080_CTRL_CMD_FIFO_DISABLE_CHANNELS` (ctrl2080fifo.h:235-261; export flags
+    /// 0x10108: NON_PRIVILEGED) on the mirror's own host subdevice for the guest channels of
+    /// `list` that have a mirror: `hClientList` is the mirror's own host client,
+    /// `hChannelList` its own host channels, in batches of 64. `pRunlistPreemptEvent` is a
+    /// kernel pointer and never passed (NULL); `bRewindGpPut` is never set (the host would
+    /// rewrite the guest's USERD). `None` when no channel of the list has a mirror.
+    pub fn set_scheduling(
+        &self,
+        reg: &Registry,
+        list: &[(u32, u32)],
+        disable: bool,
+        only_scheduling: bool,
+    ) -> Option<(u32, String)> {
+        let hosts: Vec<(u32, u32)> = list
+            .iter()
+            .filter_map(|&(c, h)| self.host_channel_of(reg, c, h))
+            .collect();
+        if hosts.is_empty() {
+            return None;
+        }
+        let h = self.hm.lock().unwrap();
+        let mut worst = sys::NV_OK;
+        let mut parts = Vec::new();
+        for batch in hosts.chunks(DISABLE_MAX_ENTRIES) {
+            let mut p = vec![0u8; DISABLE_PARAMS_SIZE];
+            p[0] = disable as u8;
+            p[4..8].copy_from_slice(&(batch.len() as u32).to_le_bytes());
+            p[8] = only_scheduling as u8;
+            for (i, (_, handle)) in batch.iter().enumerate() {
+                let c = DISABLE_CLIENT_LIST + 4 * i;
+                let o = DISABLE_CHANNEL_LIST + 4 * i;
+                p[c..c + 4].copy_from_slice(&h.root().to_le_bytes());
+                p[o..o + 4].copy_from_slice(&handle.to_le_bytes());
+            }
+            let st = h.control(h.subdevice(), CMD_FIFO_DISABLE_CHANNELS, &mut p);
+            if st != sys::NV_OK {
+                worst = st;
+            }
+            let chids: Vec<String> = batch.iter().map(|(c, _)| c.to_string()).collect();
+            parts.push(format!("chids {}: {}", chids.join(","), status_name(st)));
+        }
+        Some((
+            worst,
+            format!(
+                "NV2080 FIFO_DISABLE_CHANNELS bDisable {disable} bOnlyDisableScheduling {only_scheduling} on the mirror's own host channels ({}) [host]",
+                parts.join("; ")
+            ),
+        ))
+    }
+
+    /// A subdevice control that names guest channel `(h_client, h_channel)` in its
+    /// parameters (`hChannel` at `channel_off`, `hClient` at `client_off` when the struct
+    /// has one), issued on the mirror's own host subdevice with the mirror's own host
+    /// channel and client handles in their place; the guest's handles are put back in the
+    /// answer. `None` when the channel has no mirror. Used for the getters of
+    /// gsp-plan/c-guest-state.md §3 (B3, B4) on the device's own channel only.
+    pub fn channel_query(
+        &self,
+        reg: &Registry,
+        h_client: u32,
+        h_channel: u32,
+        cmd: u32,
+        params: &[u8],
+        (channel_off, client_off): (usize, Option<usize>),
+    ) -> Option<(u32, Vec<u8>, String)> {
+        let (chid, handle) = self.host_channel_of(reg, h_client, h_channel)?;
+        let mut p = params.to_vec();
+        let h = self.hm.lock().unwrap();
+        p.get_mut(channel_off..channel_off + 4)?
+            .copy_from_slice(&handle.to_le_bytes());
+        if let Some(o) = client_off {
+            p.get_mut(o..o + 4)?.copy_from_slice(&h.root().to_le_bytes());
+        }
+        let st = h.control(h.subdevice(), cmd, &mut p);
+        p[channel_off..channel_off + 4].copy_from_slice(&h_channel.to_le_bytes());
+        if let Some(o) = client_off {
+            p[o..o + 4].copy_from_slice(&h_client.to_le_bytes());
+        }
+        Some((
+            st,
+            p,
+            format!(
+                "control {cmd:#x} on the mirror's host subdevice for chid {chid} (host channel {handle:#x}): {} [host]",
+                status_name(st)
+            ),
+        ))
+    }
+
+    /// `NV2080_CTRL_CMD_GR_GET_CURRENT_RESIDENT_CHANNEL` (ctrl2080gr.h:1236-1253; export
+    /// flags 0x48: NON_PRIVILEGED) on the mirror's own host subdevice: the host ChID
+    /// resident on GR, mapped to the guest ChID of this device's mirror channel whose host
+    /// work-submit token names it (VECTOR 11:0 is the host ChID,
+    /// kernel_fifo_tu102.c:60-104). `(status, Some(guest chid))` only for one of this VM's
+    /// mirrors; another tenant's ChID never leaves this function. A read of host
+    /// scheduling state, reported in the note. `None` without a mirror channel.
+    pub fn resident_guest_chid(&self, params: &[u8]) -> Option<(u32, Option<u32>, String)> {
+        if self.channels.is_empty() {
+            return None;
+        }
+        let mut p = params.to_vec();
+        let st = {
+            let h = self.hm.lock().unwrap();
+            h.control(h.subdevice(), CMD_GR_GET_CURRENT_RESIDENT_CHANNEL, &mut p)
+        };
+        let host = u32::from_le_bytes(p.get(0..4)?.try_into().ok()?);
+        let guest = (st == sys::NV_OK)
+            .then(|| {
+                self.channels
+                    .iter()
+                    .find(|(_, c)| c.token & 0xFFF == host & 0xFFF)
+                    .map(|(chid, _)| *chid)
+            })
+            .flatten();
+        Some((
+            st,
+            guest,
+            format!(
+                "GR_GET_CURRENT_RESIDENT_CHANNEL on the mirror's host subdevice: {}; {} [host read]",
+                status_name(st),
+                match guest {
+                    Some(c) => format!("one of this VM's mirrors, guest chid {c}"),
+                    None => "no mirror of this VM resident".into(),
+                }
+            ),
+        ))
+    }
+
+    /// `NV906F_CTRL_CMD_GET_MMU_FAULT_INFO` (ctrl906f.h:175-220; export flags 0x10048:
+    /// NON_PRIVILEGED) on the mirror's own host channel of guest chid `chid`: the fault the
+    /// host RM recorded for that channel. The mirror runs in the guest's own VA space, so
+    /// the address is the guest's VA (c-guest-state.md Q-C3). `None` without a mirror.
+    pub fn mmu_fault_info(&self, chid: u32) -> Option<(u32, Vec<u8>)> {
+        let hc = self.channels.get(&chid)?;
+        let mut p = vec![0u8; MMU_FAULT_INFO_SIZE];
+        let st = self.hm.lock().unwrap().control(hc.handle, CMD_GET_MMU_FAULT_INFO, &mut p);
+        Some((st, p))
     }
 
     fn free_channel(&mut self, chid: u32, notes: &mut Vec<String>) {
