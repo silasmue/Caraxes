@@ -659,6 +659,18 @@ the VM; then display, expected to be much easier than in v1.
   189 (200) controls of category E are refused with NOT_SUPPORTED as feature families a chip
   declares absent (`chips/tu106/chip.toml` `[features]`, `src/chipctl.rs`); 8 of category A are
   filled from the card's native traces and the chip files (`chips/tu106/controls.toml`); ids and
-  offsets are generated per driver version from the SDK headers. One correction is already known:
-  `CE_GET_LCE_SHIM_INFO` sits in the `internal_uncalled` family, but the 615 user space calls it
-  during cuInit (cutover-615.md, run 4); it moves out with the 615 cuInit work.
+  offsets are generated per driver version from the SDK headers. One correction:
+  `CE_GET_LCE_SHIM_INFO` was in no E family but counted as unanswered category A; the 615 user
+  space calls it during cuInit (cutover-615.md, run 4), and it is answered now (entry below).
+- 2026-09-24: **615 guest on the 615 host: cuInit passes, cuda gate at the 610 guest's result**
+  ([cutover-615.md](cutover-615.md) "The 615 guest on the 615 host", records
+  `caraxes/runs/cutover-615-2026-09-24/v2-615guest-r5/` and `-r6/`). Run 4 failed every cuda stage
+  with `cuInit: 100`: the 615 libcuda asks `NV2080_CTRL_CMD_CE_GET_LCE_SHIM_INFO` per CE, a control
+  610 exports PRIVILEGED and 615 NON_PRIVILEGED (same 12-byte struct), and the device refused it.
+  It is now forwarded to a 615 host and answered from the chip's shim table otherwise (`cuda.rs`,
+  `hostabi::HostLayouts::lce_shim_info_public`, `chips/tu106/chip.toml` `[ce] lce_shim`); the
+  host's answers equal the table (shim 0, local index = LCE). `GPU_QUERY_ECC_STATUS` stays
+  forwarded; its 0x56 is the card's (no ECC), as for the 610 guest. Run 5 on a 1 GiB profile:
+  nvml pass, cuda 10 of 12 scored pass (cuda-managed 801 as on 610, cuda-gdb unsupported), the
+  610 guest had 9; 0 Xid. Open: the bench series still fails with cuInit 803 through
+  `LD_LIBRARY_PATH=/opt/nvrm/lib`, a harness setting.
