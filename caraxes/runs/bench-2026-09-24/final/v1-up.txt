@@ -1,0 +1,3 @@
+backend pid 1511955, hypervisor pid 1511972, ssh up at 192.168.105.25
+[  187.704857] virtio_nvrm: ready (nodes on, 1 GPU, max_pin 1024 MiB)
+virtio_nvrm           139264  0

@@ -1,0 +1,10 @@
+# target v1 metric init rep 5
+# cmd ./bench-cu init
+# device /mnt/vmstore/leandro/build-refactor-thesis/target/bench/release/vhost-user-nvrm sha256 736ffc900ef62831
+# time 2026-09-24T05:46:53+02:00
+# gpu 54, 1710 MHz, 7000 MHz, P0, 12 %, 5243 MiB, Disabled
+# procs 1219347:vm0-dev 1219355:vm0-vmm 1614455:bench-v1-dev 1614464:bench-v1-vmm 1618554:vm1-dev 1618563:vm1-vmm 
+# loadavg 3.11 2.92 2.79
+INIT cuinit_ms=30.378 devget_ms=0.001 ctxcreate_ms=158.093 ctxdestroy_ms=73.934
+# WALL wall_ms=335 rc=0
+# MEAS dev_pid=1614455 dev_cpu_ms=210 dev_rss_hwm_kb=475372/521856 vmm_cpu_ms=790 others: vm1-vmm=40ms vm0-vmm=0ms vm0-dev=0ms vm1-dev=20ms 

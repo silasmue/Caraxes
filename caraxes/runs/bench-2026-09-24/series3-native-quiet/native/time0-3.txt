@@ -1,0 +1,10 @@
+# target native metric time0 rep 3
+# cmd TIMEFORMAT='TIME wall_s=%3R user_s=%3U sys_s=%3S'; time ./nvprobe 0
+# time 2026-09-24T03:12:03+02:00
+# gpu 56, 1410 MHz, 7000 MHz, P0, 9 %, 1135 MiB, Disabled
+# procs 1219347:vm0-dev 1219355:vm0-vmm 
+# loadavg 2.36 1.73 1.62
+stage 0 ok (cuInit)
+TIME wall_s=0.109 user_s=0.003 sys_s=0.046
+# WALL wall_ms=111 rc=0
+# MEAS dev_pid=- dev_cpu_ms=0 dev_rss_hwm_kb=-/- vmm_cpu_ms=0 others: vm0-vmm=0ms vm0-dev=0ms 

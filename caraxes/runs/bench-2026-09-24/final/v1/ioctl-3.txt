@@ -1,0 +1,11 @@
+# target v1 metric ioctl rep 3
+# cmd ./ioctlping 10000
+# device /mnt/vmstore/leandro/build-refactor-thesis/target/bench/release/vhost-user-nvrm sha256 736ffc900ef62831
+# time 2026-09-24T05:19:54+02:00
+# gpu 52, 315 MHz, 405 MHz, P8, 12 %, 5247 MiB, Disabled
+# procs 1219347:vm0-dev 1219355:vm0-vmm 1560910:bench-v1-dev 1560918:bench-v1-vmm 1565289:vm1-dev 1565298:vm1-vmm 
+# loadavg 3.16 3.16 2.81
+version reply=1 str=610.57.04
+ioctlping n=10000 pause_us=0 fails=0 min_us=12.82 p10_us=13.56 p50_us=16.00 p90_us=18.64 p99_us=40.33 max_us=349.30 mean_us=16.92
+# WALL wall_ms=177 rc=0
+# MEAS dev_pid=1560910 dev_cpu_ms=100 dev_rss_hwm_kb=455908/502568 vmm_cpu_ms=350 others: vm1-vmm=20ms vm0-vmm=0ms vm0-dev=0ms vm1-dev=10ms 

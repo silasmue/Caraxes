@@ -1,0 +1,65 @@
+# series 2026-09-24T06:12:36+02:00 targets=[native v2] reps=3 metrics=[launch-auto launch-blocking short-auto short-blocking copy mm]
+# caraxes shell-rig-61-g8d44ee6-dirty leandro-test e046e04-dirty
+# bin c5b48cf1181bfcfc251f12aa2b0eaeb074887efec4c479f36efe399cb1307a13  bench-cu
+# bin 68449e9ec7b25613a65d096a6a42864c01fbf46ec47e540ce01f47184f0479ea  ctrlping
+# bin 138c5073848b2f3cf2beb4709376c7c49b420d88e836664584e5cf8bbfc7848c  ioctlping
+# bin 1f921680fc7a2c2e0978eb007cc0ab48d2f1a7cf404a196c9063a19a10aa228f  kernels.ptx
+# bin 2735d2a9cd25c0753898188542dbeb4a8433609024aa48230b6803a4a8d96e66  nvprobe
+# bin f0868123fca8e2c40138fda523e35fa76c015b97e232fc647fea0b6b49f33584  vrampress
+# time 2026-09-24T06:12:36+02:00
+# gpu 50, 300 MHz, 405 MHz, P8, 12 %, 5244 MiB, Disabled
+# procs 1219347:vm0-dev 1219355:vm0-vmm 1670983:vm1-dev 1670992:vm1-vmm 
+# loadavg 1.55 2.65 2.89
+06:12:39 native launch-auto     rep 1: MSPERLAUNCH=16.365 # WALL wall_ms=2071 rc=0  | # MEAS dev_pid=- dev_cpu_ms=0 dev_rss_hwm_kb=-/- vmm_cpu_ms=0 others: vm1-dev=0ms vm1-vmm=110ms vm0-vmm=0ms vm0-dev=0ms 
+06:12:57 v2  launch-auto     rep 1: MSPERLAUNCH=43.672 # WALL wall_ms=18399 rc=0  | # MEAS dev_pid=1670983 dev_cpu_ms=13750 dev_rss_hwm_kb=4206196/4206388 vmm_cpu_ms=10610 others: vm0-vmm=40ms vm0-dev=10m
+06:12:59 native launch-blocking rep 1: MSPERLAUNCH=16.283 # WALL wall_ms=2041 rc=0  | # MEAS dev_pid=- dev_cpu_ms=0 dev_rss_hwm_kb=-/- vmm_cpu_ms=0 others: vm1-dev=90ms vm1-vmm=2260ms vm0-vmm=0ms vm0-dev=0m
+06:13:26 v2  launch-blocking rep 1: MSPERLAUNCH=101.807 # WALL wall_ms=25627 rc=0  | # MEAS dev_pid=1670983 dev_cpu_ms=22050 dev_rss_hwm_kb=4207068/4207068 vmm_cpu_ms=18750 others: vm0-vmm=60ms vm0-dev=20m
+06:13:26 native short-auto      rep 1: MSPERLAUNCH=0.006 # WALL wall_ms=409 rc=0  | # MEAS dev_pid=- dev_cpu_ms=0 dev_rss_hwm_kb=-/- vmm_cpu_ms=0 others: vm1-dev=10ms vm1-vmm=520ms vm0-vmm=0ms vm0-dev=0ms
+06:13:46 v2  short-auto      rep 1: MSPERLAUNCH=44.518 # WALL wall_ms=19181 rc=0  | # MEAS dev_pid=1670983 dev_cpu_ms=16120 dev_rss_hwm_kb=4207120/4207120 vmm_cpu_ms=19680 others: vm0-vmm=40ms vm0-dev=10m
+06:13:46 native short-blocking  rep 1: MSPERLAUNCH=0.018 # WALL wall_ms=425 rc=0  | # MEAS dev_pid=- dev_cpu_ms=0 dev_rss_hwm_kb=-/- vmm_cpu_ms=0 others: vm1-dev=20ms vm1-vmm=540ms vm0-vmm=0ms vm0-dev=0ms
+06:14:14 v2  short-blocking  rep 1: MSPERLAUNCH=109.965 # WALL wall_ms=26765 rc=0  | # MEAS dev_pid=1670983 dev_cpu_ms=22790 dev_rss_hwm_kb=4207180/4207180 vmm_cpu_ms=26730 others: vm0-vmm=60ms vm0-dev=20m
+06:14:16 native copy            rep 1: # WALL wall_ms=2158 rc=0  | # MEAS dev_pid=- dev_cpu_ms=0 dev_rss_hwm_kb=-/- vmm_cpu_ms=0 others: vm1-dev=90ms vm1-vmm=2270ms vm0-vmm=0ms vm0-dev=0m
+06:15:06 v2  copy            rep 1: # WALL wall_ms=49687 rc=0  | # MEAS dev_pid=1670983 dev_cpu_ms=35330 dev_rss_hwm_kb=4219712/4228068 vmm_cpu_ms=46210 others: vm0-vmm=100ms vm0-dev=20
+06:15:08 native mm              rep 1: mmsweep: N=1024     0.41ms/mm   5282.8 GFLOP/s chk=-3.498482e+04 vram=24MiB mmsweep: N=2048     3.27ms/mm   5248.9 GFLOP/s chk=1.067825e+04 vram=72MiB | # MEAS dev_pid=- dev_cpu_ms=0 dev_rss_hwm_kb=-/- vmm_cpu_ms=0 others: vm1-dev=80ms vm1-vmm=2310ms vm0-vmm=0ms vm0-dev=0m
+06:15:46 v2  mm              rep 1: mmsweep: N=1024    93.07ms/mm     23.1 GFLOP/s chk=-3.498482e+04 vram=24MiB mmsweep: N=2048   125.63ms/mm    136.7 GFLOP/s chk=1.067825e+04 vram=72MiB | # MEAS dev_pid=1670983 dev_cpu_ms=28780 dev_rss_hwm_kb=4219712/4228068 vmm_cpu_ms=33150 others: vm0-vmm=70ms vm0-dev=20m
+# 06:15:46 v2 restart before rep 2
+stopped
+dma table: 0:7fff80000000:40000000,40000000:7ffec0000000:40000000,80000000:7ffe80000000:40000000,100000000:7ffe00000000:40000000
+server pid 1680717, VM pid 1680726; logs in /mnt/vmstore/caraxes/vm1
+ssh up at 192.168.101.21
+[  131.323068] NVRM: GPU 0000:00:05.0: RmInitAdapter succeeded!
+modprobe rc=0
+v2 restarted: server pid 1680717
+06:18:06 native launch-auto     rep 2: MSPERLAUNCH=16.281 # WALL wall_ms=2043 rc=0  | # MEAS dev_pid=- dev_cpu_ms=0 dev_rss_hwm_kb=-/- vmm_cpu_ms=0 others: vm0-vmm=10ms vm1-vmm=110ms vm0-dev=0ms vm1-dev=0ms
+06:18:24 v2  launch-auto     rep 2: MSPERLAUNCH=44.405 # WALL wall_ms=17929 rc=0  | # MEAS dev_pid=1680717 dev_cpu_ms=13430 dev_rss_hwm_kb=4206600/4206600 vmm_cpu_ms=12500 others: vm0-vmm=40ms vm0-dev=10m
+06:18:27 native launch-blocking rep 2: MSPERLAUNCH=16.295 # WALL wall_ms=2042 rc=0  | # MEAS dev_pid=- dev_cpu_ms=0 dev_rss_hwm_kb=-/- vmm_cpu_ms=0 others: vm0-vmm=0ms vm1-vmm=2190ms vm0-dev=0ms vm1-dev=100
+06:18:50 v2  launch-blocking rep 2: MSPERLAUNCH=89.105 # WALL wall_ms=23388 rc=0  | # MEAS dev_pid=1680717 dev_cpu_ms=19990 dev_rss_hwm_kb=4207168/4207168 vmm_cpu_ms=18940 others: vm0-vmm=50ms vm0-dev=20m
+06:18:51 native short-auto      rep 2: MSPERLAUNCH=0.006 # WALL wall_ms=417 rc=0  | # MEAS dev_pid=- dev_cpu_ms=0 dev_rss_hwm_kb=-/- vmm_cpu_ms=0 others: vm0-vmm=0ms vm1-vmm=500ms vm0-dev=0ms vm1-dev=20ms
+06:19:11 v2  short-auto      rep 2: MSPERLAUNCH=43.764 # WALL wall_ms=19164 rc=0  | # MEAS dev_pid=1680717 dev_cpu_ms=16080 dev_rss_hwm_kb=4207216/4207216 vmm_cpu_ms=17710 others: vm0-vmm=30ms vm0-dev=0ms
+06:19:11 native short-blocking  rep 2: MSPERLAUNCH=0.020 # WALL wall_ms=407 rc=0  | # MEAS dev_pid=- dev_cpu_ms=0 dev_rss_hwm_kb=-/- vmm_cpu_ms=0 others: vm0-vmm=10ms vm1-vmm=530ms vm0-dev=0ms vm1-dev=20m
+06:19:40 v2  short-blocking  rep 2: MSPERLAUNCH=126.964 # WALL wall_ms=28222 rc=0  | # MEAS dev_pid=1680717 dev_cpu_ms=24760 dev_rss_hwm_kb=4207288/4207288 vmm_cpu_ms=20850 others: vm0-vmm=50ms vm0-dev=20m
+06:19:42 native copy            rep 2: # WALL wall_ms=2119 rc=0  | # MEAS dev_pid=- dev_cpu_ms=0 dev_rss_hwm_kb=-/- vmm_cpu_ms=0 others: vm0-vmm=10ms vm1-vmm=2230ms vm0-dev=0ms vm1-dev=70
+06:20:31 v2  copy            rep 2: # WALL wall_ms=48419 rc=0  | # MEAS dev_pid=1680717 dev_cpu_ms=33990 dev_rss_hwm_kb=4219728/4228180 vmm_cpu_ms=50120 others: vm0-vmm=100ms vm0-dev=20
+06:20:33 native mm              rep 2: mmsweep: N=1024     0.41ms/mm   5269.8 GFLOP/s chk=-3.498482e+04 vram=24MiB mmsweep: N=2048     3.09ms/mm   5550.9 GFLOP/s chk=1.067825e+04 vram=72MiB | # MEAS dev_pid=- dev_cpu_ms=0 dev_rss_hwm_kb=-/- vmm_cpu_ms=0 others: vm0-vmm=0ms vm1-vmm=2270ms vm0-dev=0ms vm1-dev=90m
+06:21:10 v2  mm              rep 2: mmsweep: N=1024    92.78ms/mm     23.1 GFLOP/s chk=-3.498482e+04 vram=24MiB mmsweep: N=2048   108.09ms/mm    158.9 GFLOP/s chk=1.067825e+04 vram=72MiB | # MEAS dev_pid=1680717 dev_cpu_ms=28690 dev_rss_hwm_kb=4219728/4228180 vmm_cpu_ms=16620 others: vm0-vmm=60ms vm0-dev=20m
+# 06:21:10 v2 restart before rep 3
+stopped
+dma table: 0:7fff80000000:40000000,40000000:7ffec0000000:40000000,80000000:7ffe80000000:40000000,100000000:7ffe00000000:40000000
+server pid 1690294, VM pid 1690307; logs in /mnt/vmstore/caraxes/vm1
+ssh up at 192.168.101.21
+[  131.543836] NVRM: GPU 0000:00:05.0: RmInitAdapter succeeded!
+modprobe rc=0
+v2 restarted: server pid 1690294
+06:23:30 native launch-auto     rep 3: MSPERLAUNCH=16.476 # WALL wall_ms=2087 rc=0  | # MEAS dev_pid=- dev_cpu_ms=0 dev_rss_hwm_kb=-/- vmm_cpu_ms=0 others: vm0-vmm=0ms vm1-dev=0ms vm1-vmm=110ms vm0-dev=0ms 
+06:23:49 v2  launch-auto     rep 3: MSPERLAUNCH=46.818 # WALL wall_ms=18728 rc=0  | # MEAS dev_pid=1690294 dev_cpu_ms=13700 dev_rss_hwm_kb=4206644/4206644 vmm_cpu_ms=14100 others: vm0-vmm=40ms vm0-dev=20m
+06:23:52 native launch-blocking rep 3: MSPERLAUNCH=16.329 # WALL wall_ms=2083 rc=0  | # MEAS dev_pid=- dev_cpu_ms=0 dev_rss_hwm_kb=-/- vmm_cpu_ms=0 others: vm0-vmm=0ms vm1-dev=110ms vm1-vmm=2300ms vm0-dev=0
+06:24:15 v2  launch-blocking rep 3: MSPERLAUNCH=87.767 # WALL wall_ms=22898 rc=0  | # MEAS dev_pid=1690294 dev_cpu_ms=19880 dev_rss_hwm_kb=4207228/4207228 vmm_cpu_ms=20330 others: vm0-vmm=50ms vm0-dev=10m
+06:24:16 native short-auto      rep 3: MSPERLAUNCH=0.006 # WALL wall_ms=412 rc=0  | # MEAS dev_pid=- dev_cpu_ms=0 dev_rss_hwm_kb=-/- vmm_cpu_ms=0 others: vm0-vmm=0ms vm1-dev=20ms vm1-vmm=480ms vm0-dev=0ms
+06:24:35 v2  short-auto      rep 3: MSPERLAUNCH=43.056 # WALL wall_ms=19206 rc=0  | # MEAS dev_pid=1690294 dev_cpu_ms=16080 dev_rss_hwm_kb=4207288/4207288 vmm_cpu_ms=15890 others: vm0-vmm=50ms vm0-dev=10m
+06:24:36 native short-blocking  rep 3: MSPERLAUNCH=0.015 # WALL wall_ms=446 rc=0  | # MEAS dev_pid=- dev_cpu_ms=0 dev_rss_hwm_kb=-/- vmm_cpu_ms=0 others: vm0-vmm=0ms vm1-dev=10ms vm1-vmm=560ms vm0-dev=0ms
+06:25:04 v2  short-blocking  rep 3: MSPERLAUNCH=117.670 # WALL wall_ms=27684 rc=0  | # MEAS dev_pid=1690294 dev_cpu_ms=23900 dev_rss_hwm_kb=4207356/4207356 vmm_cpu_ms=20560 others: vm0-vmm=50ms vm0-dev=20m
+06:25:06 native copy            rep 3: # WALL wall_ms=2176 rc=0  | # MEAS dev_pid=- dev_cpu_ms=0 dev_rss_hwm_kb=-/- vmm_cpu_ms=0 others: vm0-vmm=0ms vm1-dev=90ms vm1-vmm=2350ms vm0-dev=0m
+06:25:55 v2  copy            rep 3: # WALL wall_ms=48052 rc=0  | # MEAS dev_pid=1690294 dev_cpu_ms=34010 dev_rss_hwm_kb=4218680/4228176 vmm_cpu_ms=48940 others: vm0-vmm=90ms vm0-dev=20m
+06:25:57 native mm              rep 3: mmsweep: N=1024     0.47ms/mm   4565.3 GFLOP/s chk=-3.498482e+04 vram=24MiB mmsweep: N=2048     3.05ms/mm   5630.3 GFLOP/s chk=1.067825e+04 vram=72MiB | # MEAS dev_pid=- dev_cpu_ms=0 dev_rss_hwm_kb=-/- vmm_cpu_ms=0 others: vm0-vmm=0ms vm1-dev=100ms vm1-vmm=2310ms vm0-dev=0
+06:26:35 v2  mm              rep 3: mmsweep: N=1024    93.05ms/mm     23.1 GFLOP/s chk=-3.498482e+04 vram=24MiB mmsweep: N=2048   110.66ms/mm    155.2 GFLOP/s chk=1.067825e+04 vram=72MiB | # MEAS dev_pid=1690294 dev_cpu_ms=28610 dev_rss_hwm_kb=4218680/4228176 vmm_cpu_ms=31700 others: vm0-vmm=70ms vm0-dev=20m
+# end 2026-09-24T06:26:35+02:00

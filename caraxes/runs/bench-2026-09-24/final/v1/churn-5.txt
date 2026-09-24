@@ -1,0 +1,11 @@
+# target v1 metric churn rep 5
+# cmd ./bench-cu churn 20
+# device /mnt/vmstore/leandro/build-refactor-thesis/target/bench/release/vhost-user-nvrm sha256 736ffc900ef62831
+# time 2026-09-24T05:47:18+02:00
+# gpu 55, 1875 MHz, 7000 MHz, P0, 13 %, 5243 MiB, Disabled
+# procs 1219347:vm0-dev 1219355:vm0-vmm 1614455:bench-v1-dev 1614464:bench-v1-vmm 1618554:vm1-dev 1618563:vm1-vmm 
+# loadavg 3.06 2.93 2.80
+CHURN blocks=64 block_mib=1 cycles=20 alloc_med_us=103.1 free_med_us=46.3 cycle_med_ms=7.955 total_ms=172.9
+CHURN blocks=8 block_mib=64 cycles=20 alloc_med_us=181.8 free_med_us=131.4 cycle_med_ms=9.172 total_ms=167.3
+# WALL wall_ms=674 rc=0
+# MEAS dev_pid=1614455 dev_cpu_ms=380 dev_rss_hwm_kb=500296/547048 vmm_cpu_ms=650 others: vm1-vmm=50ms vm0-vmm=10ms vm0-dev=0ms vm1-dev=30ms 

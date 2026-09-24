@@ -1,0 +1,11 @@
+# target v2 metric ioctl rep 4
+# cmd ./ioctlping 10000
+# device  sha256 
+# time 2026-09-24T05:35:24+02:00
+# gpu 52, 315 MHz, 405 MHz, P8, 12 %, 5244 MiB, Disabled
+# procs 1219347:vm0-dev 1219355:vm0-vmm 1586258:bench-v1-dev 1586269:bench-v1-vmm 1590433:vm1-dev 1590442:vm1-vmm 
+# loadavg 2.81 2.90 2.81
+version reply=1 str=610.57.04
+ioctlping n=10000 pause_us=0 fails=0 min_us=1.25 p10_us=1.28 p50_us=1.43 p90_us=1.85 p99_us=3.08 max_us=47.82 mean_us=1.54
+# WALL wall_ms=20 rc=0
+# MEAS dev_pid=1590433 dev_cpu_ms=10 dev_rss_hwm_kb=4219640/4221592 vmm_cpu_ms=190 others: bench-v1-dev=0ms vm0-vmm=0ms bench-v1-vmm=0ms vm0-dev=0ms 

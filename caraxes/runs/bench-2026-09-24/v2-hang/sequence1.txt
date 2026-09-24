@@ -1,0 +1,7 @@
+23:19:20 [./nvprobe 1] rc=124 68712 ms: stage 0 ok (cuInit)
+23:20:28 [./nvprobe 1] rc=124 68017 ms: stage 0 ok (cuInit)
+23:21:37 [./nvprobe 3] rc=124 68665 ms: stage 0 ok (cuInit)
+23:22:46 [./bench-cu init] rc=124 68641 ms: 
+23:23:54 [./nvprobe 1] rc=124 68679 ms: stage 0 ok (cuInit)
+23:25:04 [./bench-cu init] rc=124 69095 ms: 
+23:26:13 [./nvprobe 3] rc=124 69637 ms: stage 0 ok (cuInit)

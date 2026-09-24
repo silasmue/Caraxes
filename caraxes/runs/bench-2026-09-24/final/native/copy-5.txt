@@ -1,0 +1,26 @@
+# target native metric copy rep 5
+# cmd ./bench-cu copy 10
+# time 2026-09-24T05:43:13+02:00
+# gpu 52, 315 MHz, 405 MHz, P8, 14 %, 5244 MiB, Disabled
+# procs 1219347:vm0-dev 1219355:vm0-vmm 1614455:bench-v1-dev 1614464:bench-v1-vmm 1618554:vm1-dev 1618563:vm1-vmm 
+# loadavg 3.68 2.85 2.74
+BW dir=h2d mem=pinned size_mib=1 reps=50 med_us=86.8 min_us=86.3 gbps=12.078
+BW dir=d2h mem=pinned size_mib=1 reps=50 med_us=85.3 min_us=84.8 gbps=12.288
+BW dir=d2d mem=device size_mib=1 reps=50 med_us=7.8 min_us=7.5 gbps=134.952
+BW dir=h2d mem=pageable size_mib=1 reps=50 med_us=142.2 min_us=140.8 gbps=7.375
+BW dir=d2h mem=pageable size_mib=1 reps=50 med_us=161.9 min_us=160.0 gbps=6.476
+CHECK size_mib=1 bad_words=0
+BW dir=h2d mem=pinned size_mib=16 reps=20 med_us=1286.2 min_us=1282.9 gbps=13.044
+BW dir=d2h mem=pinned size_mib=16 reps=20 med_us=1278.0 min_us=1277.4 gbps=13.128
+BW dir=d2d mem=device size_mib=16 reps=20 med_us=92.0 min_us=90.9 gbps=182.428
+BW dir=h2d mem=pageable size_mib=16 reps=20 med_us=1582.1 min_us=1387.3 gbps=10.605
+BW dir=d2h mem=pageable size_mib=16 reps=20 med_us=1837.8 min_us=1820.3 gbps=9.129
+CHECK size_mib=16 bad_words=0
+BW dir=h2d mem=pinned size_mib=256 reps=10 med_us=20459.7 min_us=20452.5 gbps=13.120
+BW dir=d2h mem=pinned size_mib=256 reps=10 med_us=20372.0 min_us=20353.2 gbps=13.177
+BW dir=d2d mem=device size_mib=256 reps=10 med_us=1444.8 min_us=1409.0 gbps=185.790
+BW dir=h2d mem=pageable size_mib=256 reps=10 med_us=30366.5 min_us=27573.8 gbps=8.840
+BW dir=d2h mem=pageable size_mib=256 reps=10 med_us=28875.2 min_us=28117.9 gbps=9.296
+CHECK size_mib=256 bad_words=0
+# WALL wall_ms=2260 rc=0
+# MEAS dev_pid=- dev_cpu_ms=0 dev_rss_hwm_kb=-/- vmm_cpu_ms=0 others: vm1-vmm=2360ms vm0-vmm=10ms bench-v1-vmm=130ms vm0-dev=0ms bench-v1-dev=0ms vm1-dev=90ms 

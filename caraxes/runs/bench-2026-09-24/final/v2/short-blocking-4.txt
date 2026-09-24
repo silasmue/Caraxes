@@ -1,0 +1,16 @@
+# target v2 metric short-blocking rep 4
+# cmd NVPROBE_ITERS=100 NVPROBE_CYCLES=1000 NVPROBE_SCHED=blocking ./nvprobe 4
+# device  sha256 
+# time 2026-09-24T05:29:48+02:00
+# gpu 54, 1410 MHz, 7000 MHz, P0, 2 %, 5247 MiB, Disabled
+# procs 1219347:vm0-dev 1219355:vm0-vmm 1586258:bench-v1-dev 1586269:bench-v1-vmm 1590433:vm1-dev 1590442:vm1-vmm 
+# loadavg 2.66 2.59 2.67
+stage 0 ok (cuInit)
+stage 1 ok (context, sched=blocking)
+stage 2 ok (memory)
+stage 3 ok (kernel, result correct)
+stage 4 ok (100 launches, 0.275 ms/launch, sched=blocking)
+ITERS=100
+MSPERLAUNCH=0.275
+# WALL wall_ms=8615 rc=0
+# MEAS dev_pid=1590433 dev_cpu_ms=5840 dev_rss_hwm_kb=4207184/4207184 vmm_cpu_ms=11430 others: bench-v1-dev=0ms vm0-vmm=20ms bench-v1-vmm=20ms vm0-dev=0ms 

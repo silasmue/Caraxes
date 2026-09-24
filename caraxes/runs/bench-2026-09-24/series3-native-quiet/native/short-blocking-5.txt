@@ -1,0 +1,15 @@
+# target native metric short-blocking rep 5
+# cmd NVPROBE_ITERS=100 NVPROBE_CYCLES=1000 NVPROBE_SCHED=blocking ./nvprobe 4
+# time 2026-09-24T03:12:24+02:00
+# gpu 61, 1875 MHz, 7000 MHz, P0, 92 %, 1135 MiB, Disabled
+# procs 1219347:vm0-dev 1219355:vm0-vmm 
+# loadavg 2.38 1.78 1.64
+stage 0 ok (cuInit)
+stage 1 ok (context, sched=blocking)
+stage 2 ok (memory)
+stage 3 ok (kernel, result correct)
+stage 4 ok (100 launches, 0.014 ms/launch, sched=blocking)
+ITERS=100
+MSPERLAUNCH=0.014
+# WALL wall_ms=282 rc=0
+# MEAS dev_pid=- dev_cpu_ms=0 dev_rss_hwm_kb=-/- vmm_cpu_ms=0 others: vm0-vmm=0ms vm0-dev=0ms 

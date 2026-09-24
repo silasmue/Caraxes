@@ -1,0 +1,8 @@
+# target v2 metric init rep 3
+# cmd ./bench-cu init
+# time 2026-09-24T02:04:09+02:00
+# gpu 54, 1860 MHz, 7000 MHz, P0, 11 %, 5232 MiB, Disabled
+# procs 1216071:-dev 1216073:-dev 1216074:-dev 1219347:vm0-dev 1219355:vm0-vmm 1220183:vm1-dev 1220191:vm1-vmm 
+# loadavg 4.21 4.28 4.38
+ssh: connect to host 192.168.101.21 port 22: No route to host
+# MEAS dev_pid=1220183 dev_cpu_ms=0 dev_rss_hwm_kb=1051692/1054256 vmm_cpu_ms=10 others: vm0-vmm=900ms -dev=0ms vm0-dev=550ms -dev=0ms -dev=0ms 

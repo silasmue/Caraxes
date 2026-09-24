@@ -28,3 +28,34 @@ caraxes/tools/bench-run.sh startup v1 --out $B/series1b
 V1_RESTART=1 caraxes/tools/bench-run.sh series --targets "native v1" --reps 5 --out $B/series1b
 caraxes/tools/bench-v1vm.sh down        # host memory: swap full, RAM 25/31 GiB
 python3 caraxes/tools/bench-summary.py $B/series1b/native $B/series1b/v1 > $B/summary-series1b.md
+
+## v2 on vm1 after "vm2 free" (main 223075d, target/release/vfio-user-nvgpu sha256 d140e7cb...)
+source $B/v2.env                       # VM=vm1, green configuration, CARAXES_FB_MIB=4096
+tools/caraxes-vm.sh up && tools/caraxes-vm.sh wait 120 && tools/caraxes-vm.sh probe bench-load1     # $B/v2-up2/run.txt
+tools/caraxes-vm.sh sync-tests && caraxes/tools/bench-run.sh stage v2
+tools/caraxes-vm.sh ssh 'bash -s' < $B/v2-nodes.sh          # nvidia-uvm + /dev/nvidia* (no nvidia-modprobe in the image)
+# context creation ~68 s (NV_UFLUSH timeouts): $B/v2-hang/sequence1.txt (after FLR + reload), then a fresh device:
+tools/caraxes-vm.sh down; tools/caraxes-vm.sh up; tools/caraxes-vm.sh wait 120; tools/caraxes-vm.sh probe bench-load3   # $B/v2-up3
+# 8 x nvprobe 1, timed: $B/v2-hang/sequence2-fresh.txt; one under strace + guest dmesg: $B/v2-hang/nvprobe1-*.txt
+caraxes/tools/bench-run.sh startup v2 --out $B/series2
+V2_RESTART=1 caraxes/tools/bench-run.sh series --targets "native v2" --reps 5 --out $B/series2
+
+## Split of series2 by device build (04:20): rep 2 moved to $B/series2-rep2-build-c09fcccc (README there)
+## Native-only reference on the quiet host
+caraxes/tools/bench-run.sh series --targets native --reps 5 --out $B/series3-native-quiet
+
+## Final series ("quiet host"), main 8d44ee6, device sha256 249c15ca...
+cargo build --release -p vfio-user-nvgpu
+source $B/v2.env; tools/caraxes-vm.sh up && tools/caraxes-vm.sh wait 120 && tools/caraxes-vm.sh probe bench-final && caraxes/tools/bench-run.sh v2-nodes   # $B/final/v2-up.txt
+caraxes/tools/bench-v1vm.sh up && caraxes/tools/bench-v1vm.sh modules                       # $B/final/v1-up.txt
+caraxes/tools/bench-run.sh startup v1 --out $B/final; caraxes/tools/bench-run.sh startup v2 --out $B/final
+V1_RESTART=1 V2_RESTART=1 caraxes/tools/bench-run.sh series --targets "native v1 v2" --reps 5 --out $B/final
+python3 caraxes/tools/bench-summary.py $B/final/v1 $B/final/v2 $B/final/native > $B/summary-final.md
+
+## Always-resync rows (v1 VM powered off)
+caraxes/tools/bench-v1vm.sh down
+export CARAXES_SHADOW_ALWAYS_RESYNC=1; caraxes/tools/bench-run.sh v2-restart
+V2_RESTART=1 caraxes/tools/bench-run.sh series --targets "native v2" --reps 5 --metrics "launch-auto launch-blocking short-auto short-blocking copy mm rl" --out $B/final-always-resync
+# stopped after rep 1: its v2 rlprobe hit the 900 s timeout; three more reps without rlprobe:
+caraxes/tools/bench-run.sh v2-restart
+V2_RESTART=1 caraxes/tools/bench-run.sh series --targets "native v2" --reps 3 --metrics "launch-auto launch-blocking short-auto short-blocking copy mm" --out $B/final-always-resync-b

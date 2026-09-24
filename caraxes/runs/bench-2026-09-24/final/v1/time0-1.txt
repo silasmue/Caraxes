@@ -1,0 +1,11 @@
+# target v1 metric time0 rep 1
+# cmd TIMEFORMAT='TIME wall_s=%3R user_s=%3U sys_s=%3S'; time ./nvprobe 0
+# device /mnt/vmstore/leandro/build-refactor-thesis/target/bench/release/vhost-user-nvrm sha256 736ffc900ef62831
+# time 2026-09-24T04:53:19+02:00
+# gpu 52, 315 MHz, 405 MHz, P8, 12 %, 5247 MiB, Disabled
+# procs 1219347:vm0-dev 1219355:vm0-vmm 1504742:vm1-dev 1504748:vm1-vmm 1511955:bench-v1-dev 1511972:bench-v1-vmm 
+# loadavg 2.27 2.69 2.54
+stage 0 ok (cuInit)
+TIME wall_s=0.165 user_s=0.000 sys_s=0.005
+# WALL wall_ms=168 rc=0
+# MEAS dev_pid=1511955 dev_cpu_ms=130 dev_rss_hwm_kb=388104/434136 vmm_cpu_ms=150 others: vm0-vmm=0ms vm1-vmm=0ms vm0-dev=0ms vm1-dev=0ms 

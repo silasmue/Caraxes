@@ -1,0 +1,27 @@
+# target v1 metric copy rep 2
+# cmd ./bench-cu copy 10
+# device /mnt/vmstore/leandro/build-refactor-thesis/target/bench/release/vhost-user-nvrm sha256 736ffc900ef62831
+# time 2026-09-24T05:01:46+02:00
+# gpu 57, 1875 MHz, 7000 MHz, P0, 75 %, 5232 MiB, Disabled
+# procs 1219347:vm0-dev 1219355:vm0-vmm 1536383:bench-v1-dev 1536395:bench-v1-vmm 1541029:vm1-dev 1541038:vm1-vmm 
+# loadavg 2.69 2.27 2.35
+BW dir=h2d mem=pinned size_mib=1 reps=50 med_us=86.3 min_us=85.4 gbps=12.155
+BW dir=d2h mem=pinned size_mib=1 reps=50 med_us=84.9 min_us=84.4 gbps=12.349
+BW dir=d2d mem=device size_mib=1 reps=50 med_us=7.1 min_us=6.7 gbps=147.169
+BW dir=h2d mem=pageable size_mib=1 reps=50 med_us=142.7 min_us=140.9 gbps=7.349
+BW dir=d2h mem=pageable size_mib=1 reps=50 med_us=161.4 min_us=159.3 gbps=6.497
+CHECK size_mib=1 bad_words=0
+BW dir=h2d mem=pinned size_mib=16 reps=20 med_us=1291.5 min_us=1283.1 gbps=12.990
+BW dir=d2h mem=pinned size_mib=16 reps=20 med_us=1293.6 min_us=1281.7 gbps=12.969
+BW dir=d2d mem=device size_mib=16 reps=20 med_us=101.8 min_us=93.1 gbps=164.846
+BW dir=h2d mem=pageable size_mib=16 reps=20 med_us=1947.2 min_us=1744.1 gbps=8.616
+BW dir=d2h mem=pageable size_mib=16 reps=20 med_us=2153.6 min_us=1976.4 gbps=7.790
+CHECK size_mib=16 bad_words=0
+BW dir=h2d mem=pinned size_mib=256 reps=10 med_us=20454.0 min_us=20446.3 gbps=13.124
+BW dir=d2h mem=pinned size_mib=256 reps=10 med_us=20358.9 min_us=20349.6 gbps=13.185
+BW dir=d2d mem=device size_mib=256 reps=10 med_us=1447.0 min_us=1404.0 gbps=185.514
+BW dir=h2d mem=pageable size_mib=256 reps=10 med_us=28748.0 min_us=27926.6 gbps=9.338
+BW dir=d2h mem=pageable size_mib=256 reps=10 med_us=31893.2 min_us=29219.0 gbps=8.417
+CHECK size_mib=256 bad_words=0
+# WALL wall_ms=13100 rc=0
+# MEAS dev_pid=1536383 dev_cpu_ms=280 dev_rss_hwm_kb=340980/342376 vmm_cpu_ms=13020 others: vm0-vmm=20ms vm0-dev=10ms vm1-vmm=13760ms vm1-dev=550ms 

@@ -1,0 +1,20 @@
+# target v2 metric rl rep 1
+# cmd NVRL_EPISODES=50 $HOME/gpu/venv/bin/python $HOME/caraxes-tests/leandro-test/probe/python/rlprobe.py
+# time 2026-09-24T01:49:12+02:00
+# gpu 52, 1410 MHz, 7000 MHz, P0, 14 %, 5248 MiB, Disabled
+# procs 1129900:vm1-dev 1129909:vm1-vmm 1135767:vm0-dev 1135830:vm0-vmm 
+# loadavg 2.73 4.23 4.96
+rlprobe: stage=4 episodes=50 pin=False nonblock=False sync=False item=True
+stage0: cuInit ok, Leandro RTX 2070-4G
+stage1: policy on cuda:0
+stage2: rollout 25 steps, return=25
+stage3: update loss=2.271
+  ep   10  return=   11  mean10=  20.7
+  ep   20  return=   15  mean10=  14.4
+  ep   30  return=   13  mean10=  15.8
+  ep   40  return=   39  mean10=  28.3
+  ep   50  return=   38  mean10=  56.9
+stage4: 50 episodes in 17.8s, mean10=56.9
+transfers: H2D=1437 D2H=1437 (~161/s)
+# WALL wall_ms=91842 rc=0
+# MEAS dev_pid=1129900 dev_cpu_ms=38650 dev_rss_hwm_kb=3368908/4206376 vmm_cpu_ms=62480 others: vm0-dev=-51260ms vm0-vmm=-88890ms 

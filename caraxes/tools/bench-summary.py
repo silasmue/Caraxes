@@ -3,10 +3,11 @@
 """bench-summary: tables for docs/caraxes/benchmark.md from bench-run.sh output.
 
 Usage: bench-summary.py TARGETDIR... [--busy 0.2]
-Each TARGETDIR is DIR/<target> written by caraxes/tools/bench-run.sh (series or startup);
-the target (native, v1, v2) is its basename, a later directory of the same target replaces
-an earlier one. Per value: median over the reps, spread = min-max, n; ratio = median /
-native median. A run counts as "loaded" when another VM's device process (vfio-user-nvgpu or
+Each TARGETDIR is SERIES/<target> written by caraxes/tools/bench-run.sh (series or startup);
+the target (native, v1, v2) is its basename, one column per argument in the given order.
+Per value: median over the reps, spread = min-max, n; ratio = median / median of the native
+column of the same series (the run interleaved with it), else of the series whose name is a
+prefix of this one followed by '-', else of the first native column. A run counts as "loaded" when another VM's device process (vfio-user-nvgpu or
 vhost-user-nvrm of a VM that is not the target) used more than --busy (fraction of one CPU,
 default 0.2) during it: that VM was active at the same time. The host load average at
 the start of each run is summarised too. Prints Markdown.
@@ -99,16 +100,29 @@ def parse(target, f):
         if wall and any(v / wall > busy_frac for v in busy):
             loaded[target][0] += 1
 
+# One column per argument. A column's label is its target, plus its series directory when
+# the same target appears twice (two native references); its ratio uses the native column
+# of the same series directory, else the first native column.
+cols = []
 for a in args:
     p = Path(a)
-    tgt = p.name
-    if tgt in data:  # replace
-        data[tgt] = defaultdict(list); loaded[tgt] = [0, 0]
-    src[tgt] = str(p)
-    for f in sorted(p.glob("*-*.txt")):
-        parse(tgt, f)
-
-targets = [t for t in ("v1", "v2", "native") if t in data]
+    cols.append((p.name, p.parent.name, str(p)))
+dup = {t for t, _, _ in cols if [c[0] for c in cols].count(t) > 1}
+targets = []
+for t, ser, path in cols:
+    lab = f"{t} ({ser})" if t in dup else t
+    targets.append(lab)
+    src[lab] = path
+    for f in sorted(Path(path).glob("*-*.txt")):
+        parse(lab, f)
+natref = {}
+for (t, ser, _), lab in zip(cols, targets):
+    if t == "native":
+        continue
+    same = [l for (t2, s2, _), l in zip(cols, targets) if t2 == "native" and s2 == ser]
+    pref = [l for (t2, s2, _), l in zip(cols, targets) if t2 == "native" and ser.startswith(s2 + "-")]
+    anyn = [l for (t2, _, _), l in zip(cols, targets) if t2 == "native"]
+    natref[lab] = (same or pref or anyn or [None])[0]
 
 def fmt(v):
     if v >= 100: return f"{v:.0f}"
@@ -156,15 +170,15 @@ order = [g for g, _ in TITLES if g in groups] + [g for g in groups if g not in d
 for g in order:
     ks = groups[g]
     print(f"### {dict(TITLES).get(g, g)}\n")
-    hdr = "| value | unit | " + " | ".join(targets) + " | " + " | ".join(f"{t}/native" for t in targets if t != "native") + " |"
+    hdr = "| value | unit | " + " | ".join(targets) + " | " + " | ".join(f"{t} / {natref[t]}" for t in targets if t in natref) + " |"
     print(hdr); print("|" + "---|" * (hdr.count("|") - 1))
     for k in ks:
         _, name, unit, better = k
         row = [cell(data[t].get(k, [])) for t in targets]
         rat = []
-        nat = data["native"].get(k) if "native" in data else None
         for t in targets:
-            if t == "native": continue
+            if t not in natref: continue
+            nat = data[natref[t]].get(k) if natref[t] else None
             v = data[t].get(k)
             rat.append(f"{statistics.median(v) / statistics.median(nat):.2f}" if v and nat and statistics.median(nat) else "-")
         print(f"| {name} | {unit}{' (' + better + ' is better)' if better in ('low','high') else ''} | " + " | ".join(row) + " | " + " | ".join(rat) + " |")

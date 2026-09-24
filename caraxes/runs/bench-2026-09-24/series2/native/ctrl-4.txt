@@ -1,0 +1,12 @@
+# target native metric ctrl rep 4
+# cmd ./ctrlping 2000 64 512 4096 16384
+# time 2026-09-24T02:06:39+02:00
+# gpu 52, 315 MHz, 405 MHz, P8, 15 %, 5232 MiB, Disabled
+# procs 1216071:-dev 1216073:-dev 1216074:-dev 1219347:vm0-dev 1219355:vm0-vmm 1230139:vm1-dev 1230145:vm1-vmm 
+# loadavg 12.49 8.00 5.75
+ctrlping bytes=232 n=2000 fails=0 p50_us=5.41 p90_us=5.48 p99_us=6.87 mean_us=5.55
+ctrlping bytes=1576 n=2000 fails=0 p50_us=5.43 p90_us=5.87 p99_us=6.44 mean_us=5.44
+ctrlping bytes=12328 n=2000 fails=0 p50_us=4.50 p90_us=4.71 p99_us=5.29 mean_us=4.56
+ctrlping bytes=49192 n=2000 fails=0 p50_us=4.30 p90_us=4.89 p99_us=5.51 mean_us=4.47
+# WALL wall_ms=46 rc=0
+# MEAS dev_pid=- dev_cpu_ms=0 dev_rss_hwm_kb=-/- vmm_cpu_ms=0 others: vm0-vmm=110ms vm1-vmm=0ms -dev=0ms vm1-dev=0ms vm0-dev=80ms -dev=0ms -dev=0ms 

@@ -1,0 +1,13 @@
+# target v1 metric ctrl rep 2
+# cmd ./ctrlping 2000 64 512 4096 16384
+# device /mnt/vmstore/leandro/build-refactor-thesis/target/bench/release/vhost-user-nvrm sha256 736ffc900ef62831
+# time 2026-09-24T05:06:20+02:00
+# gpu 52, 300 MHz, 405 MHz, P8, 12 %, 5247 MiB, Disabled
+# procs 1219347:vm0-dev 1219355:vm0-vmm 1536383:bench-v1-dev 1536395:bench-v1-vmm 1541029:vm1-dev 1541038:vm1-vmm 
+# loadavg 3.11 2.79 2.57
+ctrlping bytes=232 n=2000 fails=0 p50_us=21.55 p90_us=28.07 p99_us=38.20 mean_us=22.50
+ctrlping bytes=1576 n=2000 fails=0 p50_us=16.93 p90_us=22.23 p99_us=31.09 mean_us=19.13
+ctrlping bytes=12328 n=2000 fails=0 p50_us=25.91 p90_us=32.21 p99_us=60.40 mean_us=28.06
+ctrlping bytes=49192 n=2000 fails=0 p50_us=46.82 p90_us=54.85 p99_us=161.76 mean_us=51.54
+# WALL wall_ms=256 rc=0
+# MEAS dev_pid=1536383 dev_cpu_ms=130 dev_rss_hwm_kb=393796/440168 vmm_cpu_ms=380 others: vm0-vmm=0ms vm0-dev=0ms vm1-vmm=30ms vm1-dev=10ms 

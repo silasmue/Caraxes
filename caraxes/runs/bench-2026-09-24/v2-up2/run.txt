@@ -1,0 +1,21 @@
+start 2026-09-24 00:51:03
+CARAXES_BOOT_MODEL=1
+CARAXES_DMA=register
+CARAXES_FB_MIB=4096
+CARAXES_HOST_EXEC=1
+CARAXES_HOST_RM=1
+CARAXES_IP=192.168.101.21
+CARAXES_MAC=02:00:00:00:00:21
+CARAXES_MIRROR_CHANNELS=1
+CARAXES_MIRROR_GR_SHADOW=1
+CARAXES_RESERVE_VRAM=1
+CARAXES_TAP=caraxes1
+git shell-rig-51-g223075d
+d140e7cb4eb2560fc6cd3eb7b5561b1c0178fc2e6a65baa16b8c9d71d2e65c68  target/release/vfio-user-nvgpu
+dma table: 0:7fff80000000:40000000,40000000:7fff40000000:40000000,80000000:7ffec0000000:40000000,100000000:7ffe80000000:40000000
+server pid 1073753, VM pid 1073762; logs in /mnt/vmstore/caraxes/vm1
+ssh up at 192.168.101.21
+probe bench-load1: 93583 device accesses, guest log in /mnt/vmstore/caraxes/vm1/probe-bench-load1/guest-dmesg.txt
+[  133.582233] NVRM: GPU 0000:00:05.0: RmInitAdapter
+[  136.736048] NVRM: GPU 0000:00:05.0: RmInitAdapter succeeded!
+modprobe rc=0

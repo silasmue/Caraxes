@@ -1,0 +1,8 @@
+# target v2 metric mm rep 3
+# cmd NVMM_SIZES=1024,2048,4096 NVMM_ITERS=10 $HOME/gpu/venv/bin/python $HOME/caraxes-tests/leandro-test/probe/python/mmsweep.py
+# time 2026-09-24T02:03:54+02:00
+# gpu 55, 1860 MHz, 7000 MHz, P0, 31 %, 5247 MiB, Disabled
+# procs 1216071:-dev 1216073:-dev 1216074:-dev 1219347:vm0-dev 1219355:vm0-vmm 1220183:vm1-dev 1220191:vm1-vmm 
+# loadavg 4.10 4.26 4.37
+ssh: connect to host 192.168.101.21 port 22: No route to host
+# MEAS dev_pid=1220183 dev_cpu_ms=0 dev_rss_hwm_kb=1054024/1054256 vmm_cpu_ms=10 others: vm0-vmm=30ms -dev=0ms vm0-dev=0ms -dev=0ms -dev=0ms 

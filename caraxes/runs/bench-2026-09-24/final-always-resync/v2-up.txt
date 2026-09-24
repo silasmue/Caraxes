@@ -1,0 +1,7 @@
+stopped
+dma table: 0:7fff80000000:40000000,40000000:7ffec0000000:40000000,80000000:7ffe80000000:40000000,100000000:7ffe00000000:40000000
+server pid 1638283, VM pid 1638289; logs in /mnt/vmstore/caraxes/vm1
+ssh up at 192.168.101.21
+[  131.811550] NVRM: GPU 0000:00:05.0: RmInitAdapter succeeded!
+modprobe rc=0
+v2 restarted: server pid 1638283

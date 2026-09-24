@@ -1,0 +1,16 @@
+# target v1 metric launch-blocking rep 5
+# cmd NVPROBE_ITERS=100 NVPROBE_SCHED=blocking ./nvprobe 4
+# device /mnt/vmstore/leandro/build-refactor-thesis/target/bench/release/vhost-user-nvrm sha256 736ffc900ef62831
+# time 2026-09-24T05:42:28+02:00
+# gpu 56, 1875 MHz, 7000 MHz, P0, 77 %, 5244 MiB, Disabled
+# procs 1219347:vm0-dev 1219355:vm0-vmm 1614455:bench-v1-dev 1614464:bench-v1-vmm 1618554:vm1-dev 1618563:vm1-vmm 
+# loadavg 3.51 2.69 2.68
+stage 0 ok (cuInit)
+stage 1 ok (context, sched=blocking)
+stage 2 ok (memory)
+stage 3 ok (kernel, result correct)
+stage 4 ok (100 launches, 100.271 ms/launch, sched=blocking)
+ITERS=100
+MSPERLAUNCH=100.271
+# WALL wall_ms=10446 rc=0
+# MEAS dev_pid=1614455 dev_cpu_ms=240 dev_rss_hwm_kb=110188/150768 vmm_cpu_ms=9580 others: vm1-vmm=10850ms vm0-vmm=30ms vm0-dev=0ms vm1-dev=420ms 

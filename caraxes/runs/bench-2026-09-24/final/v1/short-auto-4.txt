@@ -1,0 +1,16 @@
+# target v1 metric short-auto rep 4
+# cmd NVPROBE_ITERS=100 NVPROBE_CYCLES=1000 NVPROBE_SCHED=auto ./nvprobe 4
+# device /mnt/vmstore/leandro/build-refactor-thesis/target/bench/release/vhost-user-nvrm sha256 736ffc900ef62831
+# time 2026-09-24T05:29:26+02:00
+# gpu 55, 1800 MHz, 7000 MHz, P0, 6 %, 5247 MiB, Disabled
+# procs 1219347:vm0-dev 1219355:vm0-vmm 1586258:bench-v1-dev 1586269:bench-v1-vmm 1590433:vm1-dev 1590442:vm1-vmm 
+# loadavg 2.46 2.55 2.66
+stage 0 ok (cuInit)
+stage 1 ok (context, sched=auto)
+stage 2 ok (memory)
+stage 3 ok (kernel, result correct)
+stage 4 ok (100 launches, 0.007 ms/launch, sched=auto)
+ITERS=100
+MSPERLAUNCH=0.007
+# WALL wall_ms=329 rc=0
+# MEAS dev_pid=1586258 dev_cpu_ms=200 dev_rss_hwm_kb=89704/134428 vmm_cpu_ms=560 others: vm0-vmm=0ms vm1-vmm=780ms vm1-dev=30ms vm0-dev=0ms 

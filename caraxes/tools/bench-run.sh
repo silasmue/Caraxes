@@ -7,6 +7,10 @@
 #   bench-run.sh stage  TARGET                  copy target/bench/bin/* into the guest's ~/bench
 #   bench-run.sh series --targets "native v1 v2" --out DIR [--reps 5] [--metrics "..."]
 #   bench-run.sh startup TARGET --out DIR [--reps 5]   modprobe (v2) / module load (v1) to first cuInit
+#   bench-run.sh v2-restart | v2-nodes     restart the v2 VM and device (down, up, probe, nodes) |
+#                                          only load nvidia-uvm and make the /dev/nvidia* nodes
+# V1_RESTART=1 / V2_RESTART=1: restart that path's VM and device process before every rep but the
+# first (v1: freed pinned registrations are kept until guest restart; v2: symmetric conditions).
 #
 # Targets: native (this host, target/bench/bin, host venv ../Leandro/vendor/hostvenv),
 # v1 (caraxes/tools/bench-v1vm.sh, 192.168.105.25), v2 (tools/caraxes-vm.sh with VM, CARAXES_IP ...
@@ -113,6 +117,12 @@ run_one() {  # target metric rep dir
     {
         echo "# target $t metric $m rep $r"
         echo "# cmd $cmd"
+        # /proc/<pid>/exe of the capability-carrying v2 binary is not readable; hash the
+        # file its command line names.
+        if [[ $dev != - ]]; then
+            local exe; exe=$(tr '\0' '\n' < "/proc/$dev/cmdline" | head -1)
+            echo "# device $exe sha256 $(sha256sum < "$exe" | cut -c1-16)"
+        fi
         conditions
     } > "$f"
     d0=$(ticks "$dev"); v0=$(ticks "$vmm")
@@ -126,7 +136,27 @@ run_one() {  # target metric rep dir
         "$(tail -1 "$f" | cut -c1-120)"
 }
 
+# Guest part of a v2 driver load: nvidia-uvm and the device nodes (the image has no
+# nvidia-modprobe; the nodes tools/caraxes-vm.sh uvm makes, plus nvidia-uvm-tools).
+V2_NODES='sudo modprobe nvidia-uvm
+    [ -e /dev/nvidiactl ] || sudo mknod -m 666 /dev/nvidiactl c 195 255
+    [ -e /dev/nvidia0 ] || sudo mknod -m 666 /dev/nvidia0 c 195 0
+    u=$(grep nvidia-uvm /proc/devices | cut -d" " -f1); sudo rm -f /dev/nvidia-uvm /dev/nvidia-uvm-tools
+    sudo mknod -m 666 /dev/nvidia-uvm c $u 0; sudo mknod -m 666 /dev/nvidia-uvm-tools c $u 1'
+v2_restart() {
+    "$ROOT/tools/caraxes-vm.sh" ssh sync || true
+    "$ROOT/tools/caraxes-vm.sh" down
+    # `up` gives the guest-RAM registration 60 s; under memory pressure that can be too
+    # short (series2): one more attempt after a clean stop.
+    "$ROOT/tools/caraxes-vm.sh" up || { "$ROOT/tools/caraxes-vm.sh" down; sleep 5; "$ROOT/tools/caraxes-vm.sh" up; } &&
+        "$ROOT/tools/caraxes-vm.sh" wait 120 &&
+        "$ROOT/tools/caraxes-vm.sh" probe "bench-$(date +%H%M%S)" | tail -n 2 &&
+        "$ROOT/tools/caraxes-vm.sh" ssh "$V2_NODES" && echo "v2 restarted: server pid $(cat "${CARAXES_STORE:-/mnt/vmstore/caraxes}/$VM/gpu.pid")"
+}
+
 case ${1:-} in
+v2-restart) v2_restart ;;
+v2-nodes) "$ROOT/tools/caraxes-vm.sh" ssh "$V2_NODES" ;;
 stage)
     t=${2:?target}
     [[ $t == native ]] && exit 0
@@ -155,6 +185,11 @@ series)
               "$ROOT/caraxes/tools/bench-v1vm.sh" down && "$ROOT/caraxes/tools/bench-v1vm.sh" up &&
               "$ROOT/caraxes/tools/bench-v1vm.sh" modules 2>&1 | grep -E "ready|virtio_nvrm "; } >> "$out/series.txt" 2>&1
         fi
+        # v2 (docs/caraxes/benchmark.md): with V2_RESTART=1 the v2 VM and its device process
+        # restart before every rep after the first, symmetric with V1_RESTART.
+        if [[ ${V2_RESTART:-0} == 1 && $r -gt 1 && " $targets " == *" v2 "* ]]; then
+            { echo "# $(date +%T) v2 restart before rep $r"; v2_restart; } >> "$out/series.txt" 2>&1
+        fi
         for m in $metrics; do
             for t in $targets; do run_one "$t" "$m" "$r" "$out" | tee -a "$out/series.txt"; done
         done
@@ -175,7 +210,7 @@ startup)
     case $t in
         v2) load='for m in nvidia_uvm nvidia; do lsmod | grep -q "^$m " && sudo rmmod $m; done
                   for d in /sys/bus/pci/devices/*; do [ "$(cat $d/vendor)" = 0x10de ] && echo 1 | sudo tee $d/reset >/dev/null; done
-                  t0=$(date +%s%N); sudo modprobe nvidia; t1=$(date +%s%N)' ;;
+                  t0=$(date +%s%N); sudo modprobe nvidia; '"$V2_NODES"'; t1=$(date +%s%N)' ;;
         v1) load='sudo rmmod virtio_nvrm; sudo rmmod nvrm_nodes
                   t0=$(date +%s%N); sudo insmod ~/guest-module/nvrm_nodes/nvrm_nodes.ko create_nodes=0
                   sudo ~/guest-module/nvrm_nodes/nvrm-nodes-tool provision params ~/gpu/params.txt >/dev/null
