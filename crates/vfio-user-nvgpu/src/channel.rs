@@ -212,6 +212,10 @@ pub struct Channel {
     pub vas: Option<(u32, u32)>,
     pub error_notifier: Option<Target>,
     gp_get: u32,
+    /// USERD GPPut as read at the channel's last doorbell on any path (software, shadow,
+    /// mirror): the token-less ioeventfd doorbell path rings a channel only when the
+    /// guest published GPFIFO entries since ([`Registry::pending`]).
+    gp_put_seen: u32,
     /// Resume point after a host semaphore acquire that was not yet satisfied:
     /// the pushbuffer dword index of the blocking method within entry `gp_get`.
     resume: Option<usize>,
@@ -338,6 +342,44 @@ impl Registry {
 
     pub fn channel_mut(&mut self, chid: u32) -> Option<&mut Channel> {
         self.channels.get_mut(&chid)
+    }
+
+    /// The channel and its USERD GPPut as the guest published it, when both are known.
+    fn gp_put_of(&self, mem: &GpuMem, chid: u32) -> Option<(&Channel, u32)> {
+        let ch = self.channels.get(&chid)?;
+        let at = match ch.userd? {
+            Target::Fb(pa) => Target::Fb(pa + USERD_GP_PUT),
+            Target::Sys(pa) => Target::Sys(pa + USERD_GP_PUT),
+            t => t,
+        };
+        Some((ch, mem.read_u32(at)?))
+    }
+
+    /// Whether the guest has published GPFIFO entries the device has neither run nor
+    /// forwarded: for a software channel GPGet is behind GPPut, for a mirrored one GPPut
+    /// moved since its last doorbell ([`Self::note_rung`]). A channel the guest never
+    /// rang has GPPut 0 on both sides and is not pending, so the token-less ioeventfd
+    /// doorbell path (device.rs `doorbell_ioeventfd`) never creates a host mirror for
+    /// it. One FB-store or guest-RAM read per call.
+    pub fn pending(&self, mem: &GpuMem, chid: u32) -> bool {
+        let Some((ch, gp_put)) = self.gp_put_of(mem, chid) else {
+            return false;
+        };
+        if ch.mirrored {
+            gp_put != ch.gp_put_seen
+        } else {
+            ch.gp_get != gp_put % ch.gpfifo_entries.max(1)
+        }
+    }
+
+    /// Record the guest's GPPut at a doorbell of `chid`: every doorbell path calls this
+    /// before it rings, and [`Self::pending`] compares against it.
+    pub fn note_rung(&mut self, mem: &GpuMem, chid: u32) {
+        if let Some((_, gp_put)) = self.gp_put_of(mem, chid) {
+            if let Some(ch) = self.channels.get_mut(&chid) {
+                ch.gp_put_seen = gp_put;
+            }
+        }
     }
 
     /// `(hVASpace, engineType)` of a guest TSG.
@@ -531,6 +573,7 @@ impl Registry {
                         <Abi as RmAbi>::ALLOC_CHANNEL_PARAMS_OFF_errorNotifierMem,
                     ),
                     gp_get: 0,
+                    gp_put_seen: 0,
                     resume: None,
                     objects: [0; 8],
                     ce: CeState::default(),
@@ -1704,6 +1747,53 @@ mod tests {
         // A second doorbell with nothing new does nothing; an unknown chid is reported.
         assert_eq!(reg.doorbell(&mut mem, 9).len(), 1);
         assert!(reg.doorbell(&mut mem, 77)[1].contains("no such channel"));
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn pending_follows_gpput_on_both_paths() {
+        let (mut fb, sys, path, _root) = world("pending");
+        let mut reg = Registry::new(classes());
+        reg.record_alloc(1, 0x10, 0x20, FERMI_VASPACE_A, &[]);
+        let mut pdes = vec![0u8; 40 + 24 * 6];
+        pdes[40..48].copy_from_slice(&0x10000u64.to_le_bytes());
+        pdes[56..60].copy_from_slice(&1u32.to_le_bytes());
+        reg.record_server_reserved_pdes(1, 0x20, &pdes);
+        let mut tsg = vec![0u8; 20];
+        tsg[8..12].copy_from_slice(&0x20u32.to_le_bytes());
+        reg.record_alloc(1, 0x10, 0x30, KEPLER_CHANNEL_GROUP_A, &tsg);
+        reg.record_alloc(
+            1,
+            0x30,
+            0x40,
+            TURING_CHANNEL_GPFIFO_A,
+            &channel_params(9, 0x1000_0000, 0x20_0000, 0),
+        )
+        .unwrap();
+        // GPFIFO entry 0: a NOP control entry, so the software executor consumes it.
+        fb.write(0x100000, &0u64.to_le_bytes());
+        let mut mem = GpuMem {
+            fb: &mut fb,
+            sys: &sys,
+        };
+        // Never rung, GPPut 0: not pending; an unknown chid is not pending either.
+        assert!(!reg.pending(&mem, 9));
+        assert!(!reg.pending(&mem, 77));
+        // The guest publishes one entry: pending until the software executor ran it.
+        mem.fb.write(0x20_0000 + USERD_GP_PUT, &1u32.to_le_bytes());
+        assert!(reg.pending(&mem, 9));
+        reg.note_rung(&mem, 9);
+        assert!(reg.pending(&mem, 9), "a software channel is pending until GPGet catches up");
+        reg.doorbell(&mut mem, 9);
+        assert!(!reg.pending(&mem, 9));
+        // A mirrored channel: the host runs it, so GPGet stays; pending means GPPut moved
+        // since the last doorbell.
+        reg.channel_mut(9).unwrap().mirrored = true;
+        assert!(!reg.pending(&mem, 9));
+        mem.fb.write(0x20_0000 + USERD_GP_PUT, &2u32.to_le_bytes());
+        assert!(reg.pending(&mem, 9));
+        reg.note_rung(&mem, 9);
+        assert!(!reg.pending(&mem, 9));
         let _ = std::fs::remove_file(&path);
     }
 

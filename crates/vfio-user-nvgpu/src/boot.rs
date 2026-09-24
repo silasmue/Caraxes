@@ -653,6 +653,16 @@ impl BootModel {
         Some(notes)
     }
 
+    /// A token-less doorbell from the ioeventfd path (device.rs): ring every channel with
+    /// newly published GPFIFO entries (`Dispatcher::doorbell_pending`).
+    pub fn doorbell_pending(&mut self, mem: &GuestMemory) -> Vec<String> {
+        let mut gm = crate::channel::GpuMem {
+            fb: &mut self.fb,
+            sys: mem,
+        };
+        self.ctrl.doorbell_pending(&mut gm)
+    }
+
     /// Find RMARGS through the libos init arguments, link the queues on the first
     /// doorbell, then answer everything in the command queue.
     fn service_queues(&mut self, mem: &GuestMemory, libos_args_pa: u64) -> Vec<String> {

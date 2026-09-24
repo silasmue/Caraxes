@@ -262,23 +262,23 @@ impl Device {
 
     /// Guest writes to the doorbell register that arrived through the ioeventfd:
     /// `writes` of them since the last wakeup. KVM does not pass the written token on
-    /// (no datamatch), so every recorded channel is rung through the BAR0 write path a
-    /// trapped doorbell takes; a channel without new GPFIFO entries runs nothing.
+    /// (no datamatch), so every channel with GPFIFO entries published since its last
+    /// doorbell is rung the way its token would ring it (`Dispatcher::doorbell_pending`:
+    /// software, shadow or host mirror); a channel the guest never rang is not pending
+    /// and gets no host mirror.
     pub fn doorbell_ioeventfd(&mut self, doorbell: u64, writes: u64) {
         self.doorbell_wakeups += 1;
         self.doorbell_writes += writes;
-        let chids: Vec<u32> = self
-            .bar0
-            .boot()
-            .map(|b| b.ctrl.channels.channels().map(|c| c.chid).collect())
-            .unwrap_or_default();
+        let mem = &self.mem;
+        let notes = match self.bar0.boot_mut() {
+            Some(boot) => boot.doorbell_pending(mem),
+            None => vec!["no boot model, nothing rung".into()],
+        };
         self.trace.event(&format!(
-            "doorbell ioeventfd: {writes} guest write(s) to BAR0 {doorbell:#x} signalled; ringing {} recorded channel(s) {chids:?}",
-            chids.len()
+            "doorbell ioeventfd: {writes} guest write(s) to BAR0 {doorbell:#x} signalled"
         ));
-        for chid in chids {
-            // region_write() never fails for BAR0.
-            let _ = self.region_write(VFIO_PCI_BAR0_REGION_INDEX, doorbell, &chid.to_le_bytes());
+        for n in notes {
+            self.trace.event(&n);
         }
     }
 

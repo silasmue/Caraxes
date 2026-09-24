@@ -52,7 +52,12 @@ Snapshot of 2026-09-24, 11:20. The decisions and ideas it refers to are in [READ
 ## Next (this week)
 
 1. P21: BAR1 window passthrough (operator's order); also the prerequisite for asset streaming
-   in a game.
+   in a game. With it the submission path has no trap left but the token-less doorbell scan,
+   so the follow-up to patch 0005 comes right behind: a token pool with datamatch ioeventfds
+   (the device hands the guest device-chosen work-submit tokens through the notifier page it
+   already writes, one eventfd per token declared at start because the client asks for the
+   sub-regions once, KVM holds about a thousand per VM; the vendored client must accept more
+   than one descriptor per reply).
 2. The game benchmark: Shadow of the Tomb Raider in the Caraxes guest at 720p and 1080p,
    streamed through Sunshine to Moonlight on the host with the v1 stream measurement, one guest
    and then two concurrently against [sottr-4q](../measurements/sottr-4q/README.md); the guest

@@ -82,7 +82,8 @@ vfio-user-nvgpu --selftest <socket> [--board-data <name|file>] [--chip <chip>] [
   --selftest connect to a running server and verify the E0 device model
 Environment: CARAXES_DOORBELL_IOEVENTFD=1 offers the usermode doorbell register as an
   ioeventfd sub-region (VFIO_USER_DEVICE_GET_REGION_IO_FDS; needs patch 0005 in Cloud
-  Hypervisor, a client without it keeps trapping); not with --host-exec
+  Hypervisor, a client without it keeps trapping); the eventfd carries no token, so a
+  wakeup rings every channel whose GPPut moved since its last doorbell
 Paths default relative to LEA_ROOT or the current directory.";
 
 struct Args {
@@ -277,12 +278,9 @@ fn spawn_signal_thread(hm: Arc<Mutex<HostMemory>>) -> Result<()> {
 }
 
 fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
+    // The eventfd does not carry the token: the reader rings the channels whose GPPut
+    // moved since their last doorbell (`Dispatcher::doorbell_pending`), on every path.
     let doorbell_ioeventfd = doorbell_ioeventfd_requested();
-    if doorbell_ioeventfd && a.host_exec {
-        // The eventfd does not carry the token, so every recorded channel is rung,
-        // and a mirrored channel is created at its first doorbell (ctrl.rs).
-        bail!("{DOORBELL_IOEVENTFD_ENV}=1 is refused with --host-exec: the ioeventfd loses the doorbell token, and ringing every channel would create host mirror channels the guest never rang");
-    }
     let cfg = config_space(a)?;
     let rom = std::fs::read(&a.rom).with_context(|| {
         format!(

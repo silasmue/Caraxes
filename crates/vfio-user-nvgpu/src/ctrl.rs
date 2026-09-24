@@ -176,15 +176,54 @@ impl Dispatcher {
     /// A doorbell write: a channel the mirror takes runs on the physical GPU (created
     /// on first use), every other channel on the software executor.
     pub fn doorbell(&mut self, gm: &mut crate::channel::GpuMem, token: u32) -> Vec<String> {
-        let Some(m) = self.mirror.as_mut() else {
-            return self.channels.doorbell(gm, token);
-        };
         // NV_CTRL_VF_DOORBELL_VECTOR 11:0 is the ChID (tu102/dev_ctrl.h:36-37) of a guest
         // token; a mirrored channel's guest reads the *host* token back from its notifier
         // page (`Mirror::chid_of_host_token`) and rings that from its second submission on.
-        let (chid, via_host_token) = match m.chid_of_host_token(token) {
+        let (chid, via_host_token) = match self.mirror.as_ref().and_then(|m| m.chid_of_host_token(token)) {
             Some(c) => (c, true),
             None => (token & 0xFFF, false),
+        };
+        self.doorbell_chid(gm, token, chid, via_host_token)
+    }
+
+    /// The token-less doorbell (the ioeventfd path, device.rs `doorbell_ioeventfd`): KVM
+    /// signals that the guest wrote the doorbell register but not what, so every channel
+    /// with GPFIFO entries published since its last doorbell (`Registry::pending`, one
+    /// USERD read each) is rung the way its own token would ring it. A channel the guest
+    /// never rang is never pending, so no host mirror is created for it. The note reports
+    /// the scan so the cost per wakeup is visible in the trace.
+    pub fn doorbell_pending(&mut self, gm: &mut crate::channel::GpuMem) -> Vec<String> {
+        let t0 = std::time::Instant::now();
+        let chids: Vec<u32> = self.channels.channels().map(|c| c.chid).collect();
+        let pending: Vec<u32> = chids
+            .iter()
+            .copied()
+            .filter(|c| self.channels.pending(gm, *c))
+            .collect();
+        let mut notes = vec![format!(
+            "doorbell (ioeventfd, no token): {} of {} recorded channel(s) pending {pending:?}, scan {} us",
+            pending.len(),
+            chids.len(),
+            t0.elapsed().as_micros()
+        )];
+        for chid in pending {
+            // A guest token of this channel: ChID in 11:0, runlist 0 (the runlist id only
+            // reaches the notes).
+            notes.extend(self.doorbell_chid(gm, chid, chid, false));
+        }
+        notes
+    }
+
+    fn doorbell_chid(
+        &mut self,
+        gm: &mut crate::channel::GpuMem,
+        token: u32,
+        chid: u32,
+        via_host_token: bool,
+    ) -> Vec<String> {
+        self.channels.note_rung(gm, chid);
+        let Some(m) = self.mirror.as_mut() else {
+            return self.channels.doorbell(gm, token);
         };
         // A GR channel under CARAXES_MIRROR_GR_SHADOW runs on the host-managed shadow VAS
         // (D17 route 4 stage 1, shadow.rs), built at its first doorbell.
