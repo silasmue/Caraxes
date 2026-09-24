@@ -22,8 +22,14 @@ pub struct HostRmClient {
 
 impl HostRmClient {
     /// Open the host RM and allocate the device's own root, device 0 and subdevice 0.
+    ///
+    /// Refused unless start-up selected the host ABI (hostabi.rs `select`): that
+    /// check replaces `RmClient::new`'s assertion that the running driver is the
+    /// build's default (610.57.04), which would panic on a 615.71.09 host.
     pub fn open() -> anyhow::Result<Self> {
-        let mut rm = RmClient::new().map_err(|e| anyhow::anyhow!("host RM client: {e}"))?;
+        crate::hostabi::selected().map_err(|e| anyhow::anyhow!(e))?;
+        let mut rm = RmClient::open_without_version_check()
+            .map_err(|e| anyhow::anyhow!("host RM client: {e}"))?;
         let gpu = NvDevice::open_gpu(0).map_err(|e| anyhow::anyhow!("open /dev/nvidia0: {e}"))?;
         let root = rm.root();
         let device = rm.next_handle();

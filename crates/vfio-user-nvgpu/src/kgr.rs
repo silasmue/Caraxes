@@ -80,7 +80,10 @@ pub use crate::ver::active::{
     PUB_SMIR_DATA, PUB_SM_ORDER, ROP_ELEM, ROP_PARAMS, SMIR_ELEM, SMIR_PARAMS, SM_ENTRY,
     SM_ORDER_ELEM, SM_ORDER_NUM_SM, SM_ORDER_PARAMS, ZCULL_ELEM, ZCULL_PARAMS,
 };
-use crate::ver::active::{NV20_SUBDEVICE_0, NV_ERR_NOT_SUPPORTED, NV_OK};
+use crate::hostabi::HostLayouts;
+use crate::ver::active::{
+    NV20_SUBDEVICE_0, NV_ERR_NOT_SUPPORTED, NV_OK, SM_ENTRY_FIELDS, SM_ORDER_NUM_TPC,
+};
 
 /// The host RM as the handlers see it (the device's own boxed client).
 type Host<'a> = Option<&'a mut (dyn HostRm + 'static)>;
@@ -162,7 +165,14 @@ fn host_ok(host: &mut Host<'_>, cmd: u32, buf: &mut [u8]) -> Result<(), Option<u
 
 /// Row 41 from the host's public GR controls (module doc): element 0 of the internal
 /// struct and a short summary. Any host error fails the whole assembly.
-fn floorsweeping(host: &mut Host<'_>) -> Result<(Vec<u8>, String), Option<u32>> {
+///
+/// `GPU_GET_PES_INFO` is laid out as the HOST driver has it (hostabi.rs: 56 bytes
+/// with `tpcToPesMap[10]` on 610, 76 with `[15]` on 615); the map copied into the
+/// guest's element is the shorter of the two.
+fn floorsweeping(
+    host: &mut Host<'_>,
+    hl: &HostLayouts,
+) -> Result<(Vec<u8>, String), Option<u32>> {
     use crate::ver::active as v;
     let mut p = vec![0u8; v::GR_ROUTED_SIZE];
     host_ok(host, v::CMD_GR_GET_GPC_MASK, &mut p)?;
@@ -192,19 +202,19 @@ fn floorsweeping(host: &mut Host<'_>) -> Result<(Vec<u8>, String), Option<u32>> 
             e => return Err(e),
         };
         put32(&mut b, v::FS_ZCULL_MASK + 4 * g, zcull);
-        let mut p = vec![0u8; v::PES_INFO_SIZE];
+        let mut p = vec![0u8; hl.pes_info_size];
         put32(&mut p, 0, g as u32);
         host_ok(host, v::CMD_GPU_GET_PES_INFO, &mut p)?;
         put32(
             &mut b,
             v::FS_NUM_PES_PER_GPC + 4 * g,
-            get32(&p, v::PES_INFO_NUM_PES),
+            get32(&p, hl.pes_info_num_pes),
         );
         if g == 0 {
             // One map in the internal struct; the host fills it from GPC 0's
             // (subdevice_ctrl_gpu_kernel.c:2021-2028 serves it for any gpcId).
-            let (src, dst) = (v::PES_INFO_TPC_TO_PES_MAP, v::FS_TPC_TO_PES_MAP);
-            let len = 4 * v::PES_INFO_MAP_LEN;
+            let (src, dst) = (hl.pes_info_tpc_to_pes_map, v::FS_TPC_TO_PES_MAP);
+            let len = 4 * v::PES_INFO_MAP_LEN.min(hl.pes_info_map_len);
             b[dst..dst + len].copy_from_slice(&p[src..src + len]);
         }
     }
@@ -219,6 +229,25 @@ fn floorsweeping(host: &mut Host<'_>) -> Result<(Vec<u8>, String), Option<u32>> 
             tpcs.join(" ")
         ),
     ))
+}
+
+/// Row 40 from the host's public `GR_GET_GLOBAL_SM_ORDER`, laid out as the HOST
+/// driver has it (hostabi.rs: 9240 bytes on 610, 10264 on 615 with `virtualDpcId`
+/// in every SM entry), translated field by field into element 0 of the guest's
+/// internal struct.
+fn global_sm_order(host: &mut Host<'_>, hl: &HostLayouts) -> Result<Vec<u8>, Option<u32>> {
+    let mut p = vec![0u8; hl.sm_order_size];
+    host_ok(host, CMD_GR_GET_GLOBAL_SM_ORDER, &mut p)?;
+    let mut b = vec![0u8; SM_ORDER_PARAMS];
+    hl.sm_order_to_guest(
+        &p,
+        &mut b[..SM_ORDER_ELEM],
+        SM_ENTRY,
+        SM_ENTRY_FIELDS,
+        SM_ORDER_NUM_SM,
+        SM_ORDER_NUM_TPC,
+    );
+    Ok(b)
 }
 
 fn why(e: Option<u32>) -> String {
@@ -238,6 +267,7 @@ pub fn answer(
     host: Option<&mut Box<dyn HostRm>>,
 ) -> Option<Answer> {
     let n = params.len();
+    let hl = crate::hostabi::current();
     let mut host: Host<'_> = host.map(|b| b.as_mut());
     let host = &mut host;
     let a = match cmd {
@@ -290,7 +320,7 @@ pub fn answer(
                 ),
             }
         }
-        CMD_INTERNAL_STATIC_KGR_GET_FLOORSWEEPING_MASKS => match floorsweeping(host) {
+        CMD_INTERNAL_STATIC_KGR_GET_FLOORSWEEPING_MASKS => match floorsweeping(host, hl) {
             // E5c: CUDA's compute object needs numGpcs > 0 (kernel_graphics_object.c:192),
             // and GR_GET_GPC_MASK/TPC_MASK are served from this field (kgr.c:3465-3554).
             Ok((b, gpcs)) => ok(
@@ -311,7 +341,7 @@ pub fn answer(
             // 9220 bytes are the internal element field by field (same nine u16 per
             // SM, numSm, numTpc); the host fills them from its own static info
             // (kgr.c:3176-3192).
-            match forward_elem(host, CMD_GR_GET_GLOBAL_SM_ORDER, PUB_SM_ORDER, 0, SM_ORDER_ELEM, SM_ORDER_PARAMS) {
+            match global_sm_order(host, hl) {
                 Ok(b) => {
                     let num_sm = u16::from_le_bytes([b[SM_ORDER_NUM_SM], b[SM_ORDER_NUM_SM + 1]]);
                     ok(b, n, "host (GR_GET_GLOBAL_SM_ORDER)", format!("kgr global SM order: {num_sm} SMs from host"))
@@ -1060,6 +1090,85 @@ mod tests {
         );
         assert!(p[FS_ELEM..].iter().all(|&x| x == 0));
         assert!(a.label.starts_with("host"));
+    }
+
+    /// A host with the given layouts: PES info and SM order sized as that driver
+    /// has them (a wrong size is what a 615 host would refuse or misread).
+    struct SizedHost(&'static crate::hostabi::HostLayouts);
+
+    /// A value that names its SM and field, the same on either host layout.
+    fn tag(sm: usize, name: &str) -> u16 {
+        ((sm as u16) << 8) | name.bytes().map(u16::from).sum::<u16>() & 0xff
+    }
+
+    impl HostRm for SizedHost {
+        fn control(&mut self, class: u32, cmd: u32, p: &mut [u8]) -> u32 {
+            use crate::ver::active as v;
+            assert_eq!(class, NV20_SUBDEVICE_0);
+            let l = self.0;
+            match cmd {
+                v::CMD_GR_GET_GPC_MASK => put32(p, 16, 0x1),
+                v::CMD_GR_GET_TPC_MASK => put32(p, 20, 0xf),
+                v::CMD_GR_GET_NUM_TPCS_FOR_GPC => put32(p, 4, 4),
+                v::CMD_GR_GET_ZCULL_MASK => put32(p, 4, 0x3),
+                v::CMD_GPU_GET_PES_INFO => {
+                    assert_eq!(p.len(), l.pes_info_size);
+                    put32(p, l.pes_info_num_pes, 2);
+                    for i in 0..l.pes_info_map_len {
+                        put32(p, l.pes_info_tpc_to_pes_map + 4 * i, 0x100 + i as u32);
+                    }
+                }
+                v::CMD_GR_GET_GFX_GPC_AND_TPC_INFO => put32(p, 16, 0x1),
+                CMD_GR_GET_GLOBAL_SM_ORDER => {
+                    assert_eq!(p.len(), l.sm_order_size);
+                    for sm in 0..2usize {
+                        for (name, off) in l.sm_order_entry_fields {
+                            let v = if *name == "virtualDpcId" { 0xDDDD } else { tag(sm, name) };
+                            let o = sm * l.sm_order_entry_size + off;
+                            p[o..o + 2].copy_from_slice(&v.to_le_bytes());
+                        }
+                    }
+                    p[l.sm_order_num_sm..l.sm_order_num_sm + 2].copy_from_slice(&2u16.to_le_bytes());
+                    p[l.sm_order_num_tpc..l.sm_order_num_tpc + 2].copy_from_slice(&1u16.to_le_bytes());
+                }
+                c => panic!("unexpected {c:#x}"),
+            }
+            NV_OK
+        }
+    }
+
+    /// Both host selections against this build's guest layout: the host calls are
+    /// sized by the host (56/76 bytes PES info, 9240/10264 SM order) and the guest
+    /// element is the same either way.
+    #[test]
+    fn host_selection_610_and_615() {
+        use crate::hostabi::{HOST_610, HOST_615};
+        use crate::ver::active as v;
+        let mut out = Vec::new();
+        for l in [&HOST_610, &HOST_615] {
+            let mut h: Box<dyn HostRm> = Box::new(SizedHost(l));
+            let mut host: Host<'_> = Some(h.as_mut());
+            let (fs, _) = floorsweeping(&mut host, l).unwrap();
+            assert_eq!(fs.len(), FS_PARAMS);
+            assert_eq!(get32(&fs, v::FS_NUM_PES_PER_GPC), 2);
+            // The guest's map has 10 entries; 615's five extra are not copied (the
+            // word after the map is numPesPerGpc[0], checked above as 2).
+            for i in 0..v::PES_INFO_MAP_LEN {
+                assert_eq!(get32(&fs, v::FS_TPC_TO_PES_MAP + 4 * i), 0x100 + i as u32);
+            }
+            assert_eq!(v::FS_TPC_TO_PES_MAP + 4 * v::PES_INFO_MAP_LEN, v::FS_NUM_PES_PER_GPC);
+            let sm = global_sm_order(&mut host, l).unwrap();
+            assert_eq!(sm.len(), SM_ORDER_PARAMS);
+            let rd = |o: usize| u16::from_le_bytes([sm[o], sm[o + 1]]);
+            assert_eq!((rd(SM_ORDER_NUM_SM), rd(SM_ORDER_NUM_TPC)), (2, 1));
+            for (name, off) in SM_ENTRY_FIELDS {
+                assert_eq!(rd(SM_ENTRY + off), tag(1, name), "{name}");
+            }
+            assert!(!sm.chunks(2).any(|c| c == [0xDD, 0xDD]));
+            out.push((fs, sm));
+        }
+        assert_eq!(out[0].0, out[1].0);
+        assert_eq!(out[0].1, out[1].1);
     }
 
     struct PanicHost;
