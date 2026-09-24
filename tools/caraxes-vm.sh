@@ -4,7 +4,7 @@
 # SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 # Run one Caraxes guest: the synthetic GPU (vfio-user-nvgpu) plus Cloud Hypervisor
 # attaching it with --user-device. Experiment ladder: docs/caraxes/experiments.md.
-# Usage: tools/caraxes-vm.sh up|down|status|wait|ssh [command...]|serial|probe [label]
+# Usage: tools/caraxes-vm.sh up|down|status|wait|ssh [command...]|input [line...]|serial|probe [label]
 #        |uvm [label] [flags]|dma|name
 # `probe` reloads nvidia.ko in the guest and saves the guest log and the device trace
 # of that window under $W/probe-<label>/. `uvm` (experiment E5a, docs/caraxes/uvm.md)
@@ -44,6 +44,13 @@
 # call; CARAXES_BAR_TLB=0 walks the BAR tables at every trapped access; CARAXES_CE_SHADOW=0
 # runs copy-engine channels on the guest's own (unfiltered) tables; CARAXES_LINEAR_IOVA=0 keeps
 # the independent 1 GiB chunks instead of IOVA = GPA + one offset.
+# CARAXES_INPUT=fifo gives the guest a virtio-input device (docs/caraxes/display-e.md §8)
+# without patching Cloud Hypervisor: a vhost-user-input backend (CARAXES_INPUT_SERVER, default
+# vhost-user-input from PATH, else the Leandro build) serves it on $W/input.sock and Cloud
+# Hypervisor attaches it with --generic-vhost-user device_type=18 (virtio-input). The backend
+# reads `type code value` lines from the FIFO $W/input.fifo, so the host can move the guest
+# pointer (tools/caraxes-vm.sh input <line>...); CARAXES_INPUT=evdev:/dev/input/eventN forwards
+# a host device instead (never the operator's own devices without asking).
 # State lives under $CARAXES_STORE/$VM (default /mnt/vmstore/caraxes/vm0, falling
 # back to target/caraxes/$VM when the store is absent): rootfs.qcow2 (overlay on
 # LEA_BASE_IMAGE), seed.img (cloud-init), gpu.sock, gpu-trace.log, serial.log.
@@ -140,6 +147,11 @@ up() {
     for _ in $(seq 50); do [[ -S $W/gpu.sock ]] && break; sleep 0.1; done
     [[ -S $W/gpu.sock ]] || { cat "$W/gpu.log"; error "server did not create $W/gpu.sock"; }
 
+    local input=()
+    if [[ -n ${CARAXES_INPUT:-} ]]; then
+        input_up
+        input=(--generic-vhost-user "device_type=18,socket=$W/input.sock,queue_sizes=[64,64]")
+    fi
     "$LEA_CH" --api-socket "$W/ch.sock" \
         --cpus boot="${CARAXES_CPUS:-8}" --memory size="${CARAXES_MEM:-4G}",shared=on \
         --kernel "$KERNEL" --initramfs "$INITRD" \
@@ -147,7 +159,7 @@ up() {
         --disk path="$W/rootfs.qcow2",image_type=qcow2,backing_files=on \
                path="$W/seed.img",readonly=on \
         --net tap="$TAP",mac="$MAC" \
-        --user-device socket="$W/gpu.sock",id=gpu0 \
+        --user-device socket="$W/gpu.sock",id=gpu0 "${input[@]}" \
         --serial file="$W/serial.log" --console off \
         > "$W/ch.log" 2>&1 &
     echo $! > "$W/ch.pid"
@@ -233,8 +245,38 @@ down() {
     if alive "$W/ch.pid"; then kill "$(cat "$W/ch.pid")" 2>/dev/null || true; fi
     for _ in $(seq 50); do alive "$W/gpu.pid" || break; sleep 0.1; done
     if alive "$W/gpu.pid"; then kill "$(cat "$W/gpu.pid")" 2>/dev/null || true; fi
-    rm -f "$W/ch.pid" "$W/gpu.pid"
+    if alive "$W/input.pid"; then kill "$(cat "$W/input.pid")" 2>/dev/null || true; fi
+    rm -f "$W/ch.pid" "$W/gpu.pid" "$W/input.pid"
     echo "stopped"
+}
+
+# The virtio-input backend (CARAXES_INPUT, see the header): one vhost-user-input per VM
+# start, serving exactly one connection, like the GPU server.
+input_up() {
+    local bin=${CARAXES_INPUT_SERVER:-}
+    [[ -n $bin ]] || bin=$(command -v vhost-user-input || true)
+    [[ -n $bin ]] || bin=/mnt/vmstore/leandro/build-refactor-thesis/target/release/vhost-user-input
+    [[ -x $bin ]] || error "vhost-user-input missing (CARAXES_INPUT_SERVER)"
+    local src
+    case $CARAXES_INPUT in
+        fifo) src=(--fifo "$W/input.fifo") ;;
+        evdev:*) src=(--evdev "${CARAXES_INPUT#evdev:}") ;;
+        *) error "CARAXES_INPUT must be fifo or evdev:/dev/input/eventN" ;;
+    esac
+    alive "$W/input.pid" && kill "$(cat "$W/input.pid")" 2>/dev/null
+    rm -f "$W/input.sock"
+    "$bin" --socket "$W/input.sock" "${src[@]}" --name "caraxes-$VM-pointer" > "$W/input.log" 2>&1 &
+    echo $! > "$W/input.pid"
+    for _ in $(seq 50); do [[ -S $W/input.sock ]] && break; sleep 0.1; done
+    [[ -S $W/input.sock ]] || { cat "$W/input.log"; error "vhost-user-input did not create $W/input.sock"; }
+}
+
+# Feed `type code value` lines to the guest's virtio-input device (CARAXES_INPUT=fifo), each
+# argument one line, for example a relative move right and a left click:
+#   tools/caraxes-vm.sh input '2 0 40' '0 0 0' '1 272 1' '0 0 0' '1 272 0' '0 0 0'
+input_send() {
+    [[ -p $W/input.fifo ]] || error "no $W/input.fifo (start the VM with CARAXES_INPUT=fifo)"
+    printf '%s\n' "$@" > "$W/input.fifo"
 }
 
 status() {
@@ -384,6 +426,7 @@ case ${1:-} in
     status) status ;;
     wait) wait_ssh "${2:-90}" ;;
     ssh) shift; do_ssh "$@" ;;
+    input) shift; input_send "$@" ;;
     serial) tail -n "${2:-40}" "$W/serial.log" ;;
     name) [[ -x $SERVER ]] || error "$SERVER missing: cargo build --release -p vfio-user-nvgpu"
           "$SERVER" --print-name "${IDENTITY[@]}" ;;
