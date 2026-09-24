@@ -385,21 +385,94 @@ fn rg_status_reports_unlocked_heads() {
 }
 
 /// DP_SET_WAR_FLAGS (615 only, every plug and unplug, dp_connectorimpl.cpp:8048, :8475) is
-/// acknowledged by the board table; the 610 ABI has no such control.
+/// acknowledged as the D rule table says and recorded per connector
+/// (docs/caraxes/display-615.md §3.2); the 610 ABI has no such control.
 #[test]
-fn dp_set_war_flags_is_acknowledged() {
+fn dp_set_war_flags_is_recorded_per_connector() {
     let mut disp = display();
-    match d_id("NV0073_CTRL_CMD_DP_SET_WAR_FLAGS") {
-        Some((id, size)) => {
-            let mut p = vec![0u8; size];
-            put32(&mut p, 4, DP);
-            let a = disp.control(id, &p).unwrap();
-            assert_eq!(
-                (a.status, a.label, &a.params),
-                (NV_OK, crate::dmodel::ACKNOWLEDGED, &p)
-            );
+    let Some(id) = d::CMD_DP_SET_WAR_FLAGS else {
+        assert_eq!(crate::ver::active::DRIVER_VERSION, "610.57.04");
+        assert!(d_id("NV0073_CTRL_CMD_DP_SET_WAR_FLAGS").is_none());
+        return;
+    };
+    let (rid, size) = d_id("NV0073_CTRL_CMD_DP_SET_WAR_FLAGS").unwrap();
+    assert_eq!((rid, size), (id, 16));
+    let war = |did: u32, war: u32, on: bool| {
+        let mut p = vec![0u8; size];
+        put32(&mut p, d::WAR_FLAGS_DISPLAY_ID, did);
+        put32(&mut p, d::WAR_FLAGS_WAR_ID, war);
+        p[d::WAR_FLAGS_ENABLE] = on as u8;
+        p
+    };
+    // The DP library's call: clear SW_AUTO_READ on the connector: the rule table's ACK
+    // (request echoed), the flag recorded, the WAR named in the note.
+    let ack = crate::dmodel::ACKNOWLEDGED;
+    let p = war(DP, d::DP_WAR_SW_AUTO_READ_ENABLE, false);
+    let a = disp.control(id, &p).unwrap();
+    assert_eq!((a.status, a.label, &a.params), (NV_OK, ack, &p));
+    assert!(!disp.connector(DP).unwrap().sw_auto_read_war);
+    let a = disp
+        .control(id, &war(DP, d::DP_WAR_SW_AUTO_READ_ENABLE, true))
+        .unwrap();
+    assert_eq!((a.status, a.label), (NV_OK, ack));
+    assert!(disp.connector(DP).unwrap().sw_auto_read_war);
+    assert!(
+        a.note.contains("SW_AUTO_READ_ENABLE 1 on 0x100 (was 0"),
+        "{}",
+        a.note
+    );
+    // The header's NV_ERR_INVALID_ARGUMENT cases are named, not recorded (the row is ACK).
+    let a = disp
+        .control(id, &war(0x800, d::DP_WAR_SW_AUTO_READ_ENABLE, false))
+        .unwrap();
+    assert_eq!(a.status, NV_OK);
+    assert!(a.note.contains("0x800 is not a connector"), "{}", a.note);
+    let a = disp.control(id, &war(DP, 2, false)).unwrap();
+    assert!(a.note.contains("unknown warId 2"), "{}", a.note);
+    assert!(disp.connector(DP).unwrap().sw_auto_read_war);
+}
+
+/// SYSTEM_GET_ACTIVE: no firmware-lit head, so from 615 on no stale head either: the output
+/// flag GOP_STALE_HEAD_NEEDS_CLEANUP is cleared and `staleSorIndex` is 0, whatever the
+/// caller left in them; the input flag CLIENT is kept.
+#[test]
+fn get_active_reports_no_head_and_no_stale_head() {
+    let mut disp = display();
+    let mut p = vec![0xAAu8; d::GET_ACTIVE_SIZE];
+    put32(&mut p, d::GET_ACTIVE_HEAD, 1);
+    put32(&mut p, d::GET_ACTIVE_FLAGS, 0x3);
+    let a = disp.control(d::CMD_SYSTEM_GET_ACTIVE, &p).unwrap();
+    assert_eq!(a.status, NV_OK);
+    assert_eq!(a.params.len(), d::GET_ACTIVE_SIZE);
+    assert_eq!(get32(&a.params, d::GET_ACTIVE_DISPLAY_ID), 0);
+    assert_eq!(
+        get32(&a.params, d::GET_ACTIVE_FLAGS),
+        0x3 & !d::GET_ACTIVE_FLAGS_GOP_STALE_HEAD
+    );
+    match d::GET_ACTIVE_STALE_SOR_INDEX {
+        Some(o) => {
+            assert_eq!((o, d::GET_ACTIVE_SIZE, get32(&a.params, o)), (16, 20, 0));
+            assert_eq!(get32(&a.params, d::GET_ACTIVE_FLAGS), 0x1);
         }
-        None => assert_eq!(crate::ver::active::DRIVER_VERSION, "610.57.04"),
+        None => assert_eq!(d::GET_ACTIVE_SIZE, 16),
+    }
+}
+
+/// DP_GET_CAPS: 615's `bIsInternalDpTunnelingSupported` (33, former padding) reads 0 (no
+/// on-SOC USB4 tunnel), and DSC stays at 36 in both ABIs.
+#[test]
+fn dp_caps_claim_no_internal_dp_tunneling() {
+    let mut disp = display();
+    let mut p = vec![0xFFu8; d::DP_CAPS_SIZE];
+    put32(&mut p, 0, 0);
+    put32(&mut p, 4, 0);
+    let a = disp.control(d::CMD_DP_GET_CAPS, &p).unwrap();
+    assert_eq!(
+        a.params[d::DP_CAPS_DSC_SUPPORTED],
+        disp.chip().link.dsc as u8
+    );
+    if let Some(o) = d::DP_CAPS_INTERNAL_DP_TUNNELING {
+        assert_eq!((o, a.params[o]), (33, 0));
     }
 }
 

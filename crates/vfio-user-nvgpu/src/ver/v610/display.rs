@@ -140,7 +140,14 @@ pub const CONNECT_STATE_RETRY_TIME_MS: usize = 12;
 pub const HEAD_ROUTING_DISPLAY_MASK: usize = 4;
 pub const HEAD_ROUTING_MAP: usize = 16;
 pub const GET_ACTIVE_HEAD: usize = 4;
+pub const GET_ACTIVE_FLAGS: usize = 8;
 pub const GET_ACTIVE_DISPLAY_ID: usize = 12;
+/// `NV0073_CTRL_SYSTEM_GET_ACTIVE_PARAMS` (16): ends at `displayId`.
+pub const GET_ACTIVE_SIZE: usize = 16;
+/// The output flag `GOP_STALE_HEAD_NEEDS_CLEANUP` and its `staleSorIndex` exist from 615 on
+/// (ver/v615/display.rs); 610 has neither.
+pub const GET_ACTIVE_FLAGS_GOP_STALE_HEAD: u32 = 0;
+pub const GET_ACTIVE_STALE_SOR_INDEX: Option<usize> = None;
 pub const GET_SCANLINE_CURRENT: usize = 8;
 pub const HOTPLUG_UNPLUG_PLUG_MASK: usize = 8;
 pub const HOTPLUG_UNPLUG_UNPLUG_MASK: usize = 12;
@@ -248,6 +255,15 @@ pub const DP_CAPS_DSC_RATE_BUFFER_KB: usize = 48;
 pub const DP_CAPS_DSC_BPP_PRECISION: usize = 52;
 pub const DP_CAPS_DSC_MAX_HZT_SLICES: usize = 56;
 pub const DP_CAPS_DSC_LINE_BUFFER_BIT_DEPTH: usize = 60;
+/// `bIsInternalDpTunnelingSupported` exists from 615 on (ver/v615/display.rs).
+pub const DP_CAPS_INTERNAL_DP_TUNNELING: Option<usize> = None;
+/// `NV0073_CTRL_CMD_DP_SET_WAR_FLAGS` exists from 615 on (ver/v615/display.rs).
+pub const CMD_DP_SET_WAR_FLAGS: Option<u32> = None;
+pub const WAR_FLAGS_DISPLAY_ID: usize = 4;
+pub const WAR_FLAGS_WAR_ID: usize = 8;
+pub const WAR_FLAGS_ENABLE: usize = 12;
+/// `NV0073_CTRL_DP_WAR_SW_AUTO_READ_ENABLE`, the one WAR id (615 ctrl0073dp.h:3771).
+pub const DP_WAR_SW_AUTO_READ_ENABLE: u32 = 1;
 /// `NV0073_CTRL_CMD_DP_GET_CAPS_MAX_LINK_RATE_*` (2:0): 1 RBR .. 4 HBR3.
 pub const DP_CAPS_MAX_LINK_RATE_8_10: u32 = 4;
 /// `DP_VERSIONS_SUPPORTED`: DP1_2 bit 0, DP1_4 bit 1.

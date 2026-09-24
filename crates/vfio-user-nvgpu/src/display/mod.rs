@@ -247,6 +247,10 @@ pub struct Connector {
     /// Hotplug masks not yet read through `INTERNAL_GET_HOTPLUG_UNPLUG_STATE`.
     pub pending_plug: bool,
     pub pending_unplug: bool,
+    /// `DP_SET_WAR_FLAGS` `SW_AUTO_READ_ENABLE` (615 on): the DP library asks for software
+    /// DPCD auto-read on a DP-tunneling port. The AUX model reads in software anyway, so
+    /// the flag is only recorded.
+    pub sw_auto_read_war: bool,
 }
 
 /// A display channel: its pushbuffer (from `INTERNAL_DISPLAY_CHANNEL_PUSHBUFFER`) and
@@ -434,6 +438,7 @@ impl Display {
                 last_answer: None,
                 pending_plug: false,
                 pending_unplug: false,
+                sw_auto_read_war: false,
             });
         }
         disp.enabled = true;
@@ -663,8 +668,16 @@ impl Display {
                     format!("head routing map: {asked:#x} -> map {map:#x} (fits {fits})"),
                 )
             }
+            // No head is lit by firmware, so no head is stale either: from 615 on the output
+            // flag GOP_STALE_HEAD_NEEDS_CLEANUP stays NO and `staleSorIndex` 0
+            // (615 ctrl0073system.h:638-678; ver/v615/display.rs).
             d::CMD_SYSTEM_GET_ACTIVE => {
                 put32(&mut b, d::GET_ACTIVE_DISPLAY_ID, 0);
+                let flags = get32(params, d::GET_ACTIVE_FLAGS) & !d::GET_ACTIVE_FLAGS_GOP_STALE_HEAD;
+                put32(&mut b, d::GET_ACTIVE_FLAGS, flags);
+                if let Some(o) = d::GET_ACTIVE_STALE_SOR_INDEX {
+                    put32(&mut b, o, 0);
+                }
                 ok(
                     b,
                     SYNTH,
@@ -1015,6 +1028,8 @@ impl Display {
             // HDCP, panel, mux, pinsets or DP 2.x, so the rule table's REFUSE and ACK rows are
             // this board's answers. The rows the plan moves to A or E are the chip tables'
             // (chipctl.rs), the MODEL rows without a model stay unanswered.
+            // DP_SET_WAR_FLAGS (615 on): the rule table's ACK, the WAR recorded per connector.
+            c if d::CMD_DP_SET_WAR_FLAGS == Some(c) => self.set_war_flags(c, params),
             // The D rows with a model here (roadmap R1): HDCP per sub-command, FEC, RG status.
             c if crate::dmodel::rule(c).is_some_and(|r| crate::dmodel::MODELLED.contains(&r.name)) => {
                 self.d_model(c, params)
@@ -1123,6 +1138,47 @@ impl Display {
             HDCP,
             format!("hdcp ctrl of {did:#x}: cmd {sub_name} ({sub}): {what}"),
         )
+    }
+
+    /// `DP_SET_WAR_FLAGS` (615 ctrl0073dp.h:3734-3773): one DP software workaround per call
+    /// on the root port. The only WAR id, `SW_AUTO_READ_ENABLE`, disables the hardware's
+    /// automatic DPCD read on a DP-tunneling port in favour of a software read (bug 6102109);
+    /// the DP library clears it after every OUI handshake and at every unplug
+    /// (dp_connectorimpl.cpp:8048, :8475) and sets it only for one Realtek sink behind a
+    /// USB4 tunnel (dp_wardatabase.cpp:130-140). The AUX model has no hardware auto-read, so
+    /// the flag is recorded per connector and changes nothing. The status and label are the
+    /// D rule table's ACK row (ver/v615/dmodel.rs; dmodel.rs checks every display row against
+    /// it); the note names the WAR, and a request the header calls NV_ERR_INVALID_ARGUMENT
+    /// (not a connector, unknown WAR id) is named there too but still acknowledged, as the
+    /// row says, until the row becomes a MODEL row of the control tables.
+    fn set_war_flags(&mut self, cmd: u32, params: &[u8]) -> Answer {
+        let mut a = crate::dmodel::answer(cmd, params).unwrap_or_else(|| {
+            ok(
+                params.to_vec(),
+                ACK,
+                format!("display control {cmd:#x}: DP_SET_WAR_FLAGS"),
+            )
+        });
+        let did = get32(params, d::WAR_FLAGS_DISPLAY_ID);
+        let war = get32(params, d::WAR_FLAGS_WAR_ID);
+        let on = params.get(d::WAR_FLAGS_ENABLE).copied().unwrap_or(0) != 0;
+        let what = match self.connector(did) {
+            None => {
+                format!("displayId {did:#x} is not a connector (the header's INVALID_ARGUMENT)")
+            }
+            Some(_) if war != d::DP_WAR_SW_AUTO_READ_ENABLE => {
+                format!("unknown warId {war} (the header's INVALID_ARGUMENT)")
+            }
+            Some(c) => {
+                let was = std::mem::replace(&mut c.sw_auto_read_war, on);
+                format!(
+                    "SW_AUTO_READ_ENABLE {} on {did:#x} (was {}; AUX reads are software, nothing to switch)",
+                    on as u8, was as u8
+                )
+            }
+        };
+        a.note = format!("dp war flags: {what}; {}", a.note);
+        a
     }
 
     /// `DP_CONFIGURE_FEC` (ctrl0073dp.h:2271-2303): FEC on the trained link when the link
