@@ -10,6 +10,8 @@
  *                             memory; synchronous cuMemcpy*, each copy timed alone
  *   bench-cu churn [cycles]   fixed VRAM churn: per cycle 64 x 1 MiB and 8 x 64 MiB
  *                             cuMemAlloc then cuMemFree in reverse order
+ *                             (BENCH_CU_PHASE_GAP_MS: sleeps between the phases, for
+ *                             a device trace; see phase_gap)
  *
  * Output: one "KEY k=v ..." line per result on stdout (medians of the reps within
  * the run); errors on stderr, exit 1. Build (guest):
@@ -164,10 +166,29 @@ static int do_copy(int reps_base)
 	return 0;
 }
 
+/*
+ * BENCH_CU_PHASE_GAP_MS=N (default 0: none): churn sleeps N ms after the context
+ * creation, after every alloc and free loop, so a device trace splits into its phases
+ * (caraxes/tools/rpc-cost.py --gap-ms, docs/caraxes/alloc-path.md). The sleeps are
+ * outside every timed operation and taken out of the cycle time.
+ */
+static double phase_gap(void)
+{
+	const char *e = getenv("BENCH_CU_PHASE_GAP_MS");
+	long ms = e ? atol(e) : 0;
+	if (ms <= 0)
+		return 0;
+	double a = now_us();
+	struct timespec ts = { ms / 1000, (ms % 1000) * 1000000L };
+	nanosleep(&ts, NULL);
+	return now_us() - a;
+}
+
 static int do_churn(int cycles)
 {
 	ck(cuInit(0), "cuInit");
 	CUcontext ctx = make_ctx();
+	phase_gap();
 	struct {
 		int n;
 		size_t mib;
@@ -186,12 +207,14 @@ static int do_churn(int cycles)
 				ck(cuMemAlloc(&d[i], pat[p].mib << 20), "churn alloc");
 				ta[k + i] = now_us() - a;
 			}
+			double slept = phase_gap();
 			for (int i = n - 1; i >= 0; i--) {
 				double a = now_us();
 				ck(cuMemFree(d[i]), "churn free");
 				tf[k + i] = now_us() - a;
 			}
-			tc[c] = now_us() - c0;
+			tc[c] = now_us() - c0 - slept;
+			phase_gap();
 			k += n;
 		}
 		double sum = 0;
