@@ -141,10 +141,10 @@ page, chosen so that any store of the guest changes the word:
 | Register | Page shows | A guest store is seen as | Applied as |
 |---|---|---|---|
 | `LEAF(i)` | pending bits \| TAG (bit 31) | the word lost TAG; the word is the mask | write 1 to clear |
-| `LEAF_EN_SET(i)` | the enable mask (exact: the guest reads it) | the word differs from the mask | set bits |
-| `LEAF_EN_CLEAR(i)` | 0 | a word other than 0 | clear bits |
+| `LEAF_EN_SET(i)` | the kernel table's vectors of leaf i plus every bit the guest ever set (reported, not modelled; see below) | the word differs from the mask | learn new bits; a re-arm |
+| `LEAF_EN_CLEAR(i)` | 0 | a word other than 0 | counted, dropped |
 | `TOP(0)` | pending subtrees (leaf & enable), no TAG | a change (a store to a read-only register) | restored, noted |
-| `TOP_EN_SET(0)` | top enable (subtree bits 0-3) \| bit 31 | the word differs | set bits 0-3 |
+| `TOP_EN_SET(0)` | top enable (subtree bits 0-3) \| bit 31 | the word differs | set bits 0-3; a re-arm |
 | `TOP_EN_CLEAR(0)` | 0 | a word other than 0 | clear bits |
 | `LEAF_TRIGGER` | 0xffffffff (vector field 0xfff, no vector) | another word | raise vector `v & 0xfff` |
 | page 0 `BOOT_0/1/42` | the chip's constants | a change | restored, noted (writes are dropped when trapped) |
@@ -160,6 +160,20 @@ TAG. `TOP` is computed without TAG. For `TOP_EN_SET` the guest's only read tests
 (`intr_nonstall_tu102.c:65`), and its stores (0xfffffffe, 0x1, the retrigger masks of
 `intr_tu102.c:1094-1160`) never equal a word with bit 31 and nothing above bit 3.
 
+**Leaf enables are reported, not modelled** (changed after the first run on vm0, §9). The
+guest enables its vectors one store per vector at state load (`intr_tu102.c:340`, `NVBIT(leafBit)`
+in a loop), eight stores to one register within nanoseconds. A scan sees only the last, so a
+modelled enable kept one bit of eight: `LEAF_EN_SET(0)` read 0x1 instead of 0xff in the guest,
+the non-stall vectors never reached `TOP`, and Mutter and Weston stalled after their first
+frame (run B2). The page therefore shows, from the start, every vector of the kernel table
+(`IntrPage::enable_vectors`, the stall and non-stall vectors of `interrupts.toml`) and learns
+every further bit the guest sets (the self-test's vector 129); clears are counted and dropped.
+Delivery never depended on the enables in the trapped path either (`IntrShared::raise` signals
+regardless), and the guest's stall servicing ignores them (`intr_tu102.c:964-969`); what the
+toggles do in hardware, re-arm the interrupt at a lock release, is kept as its own rule: any
+detected set store (`LEAF_EN_SET` or `TOP_EN_SET`, one of which every release writes) while a
+table vector is pending signals the MSI again.
+
 **The scan.** Every reactor iteration compares the 28 watched words with the display values it
 wrote last (one load each, no lock; about 20 ns). On a difference, or when another thread raised
 a vector, it takes the page lock and:
@@ -168,10 +182,11 @@ a vector, it takes the page lock and:
 2. applies them in the order of a lock cycle: `LEAF_EN_CLEAR` and `TOP_EN_CLEAR` first, then
    `LEAF_EN_SET` and `TOP_EN_SET`, then the acks, then triggers, then the vectors raised by other
    threads (`IntrShared`, the host event thread and the display clock);
-3. decides the MSI as the trapped path does, on an edge of `TOP & TOP_EN` (`IntrTree::edge`),
-   evaluated after each of those phases, so a clear and a set seen in one scan still make the
-   edge they made when trapped; and, as the trapped path's `IntrShared::raise` does, on every
-   vector raised from another thread that was not already pending;
+3. decides the MSI: for a vector raised by another thread or triggered that was not pending in
+   the page (a raise of a vector still pending is coalesced and remembered; the ack that clears
+   it pends it again with one MSI, so an event after the guest's read is not lost: run B1
+   without this turned 14825 host events into as many MSIs in one Mutter window); and for a
+   re-arm (a set store while a vector is pending);
 4. writes the new display values with a compare-and-swap from the value it read, so a guest store
    that lands in between is not overwritten but found by the next iteration;
 5. then, with the page written, signals the MSI eventfd. The page stores come before the
@@ -249,7 +264,7 @@ most one MSI per period and counts them; a count above zero in a measurement is 
 ## 6. Expected effect and latency
 
 Traps per frame, from §1: Mutter f3b 661.5 - 437.1 = **224.4**, f3 711.7 - 460.6 = **251.1**,
-Weston f4 157.0 - 81.4 = **75.6**. At 23-27 us per trap (mapping.md, c0/c1) that is 10-12 ms of
+Weston f4 157.0 - 81.4 = **75.6** (measured in §9: Mutter 229.8, Weston 103.0). At 23-27 us per trap (mapping.md, c0/c1) that is 10-12 ms of
 vCPU exits less per Mutter frame, out of 15-19 ms. The operator's "below 100" needs two more
 steps: the display FE page (-91 per Mutter frame, §4) and Mutter's BAR2 PTE churn (-94);
 together about 40 per frame.
@@ -266,6 +281,20 @@ Latency of one interrupt, raise to handler:
 The budget for a hybrid reactor: the handler runs within microseconds of the MSI, inside the
 200 us window the MSI opened, so in the common case hybrid equals spin; the 1 ms sleep bound
 covers acks and enables that come later, the 10 ms watchdog covers the ambiguous cases.
+
+## 6a. Next steps: the two remaining sources
+
+After this change a Mutter frame still traps about 225 times (f3b). Two sources make up 185 of
+them, and each needs its own change:
+
+| Next step | Traps per frame (f3b / f3 / f4) | What it takes | Estimate |
+|---|---|---|---|
+| **Display FE interrupt page** (0x611000): `NV_PDISP_FE_RM_INTR_DISPATCH` 0x611ec0 (70.7 reads per Mutter frame), `FE_RM_INTR_STAT_CTRL_DISP` 0x611c30, `FE_RM_INTR_STAT_HEAD_TIMING` 0x611c0c, `FE_EVT_STAT_HEAD_TIMING` 0x61180c (write 1 to clear), `FE_EVT_STAT_AWAKEN_WIN` 0x611858 (`display/engine.rs:44-51`) | 91.3 / 113.6 / 56.3 | a third sparse area. Today a read of these registers advances the display clock first (`catch_up`, `display/mod.rs:1232-1236`), so the status is computed at the moment of the read. With the page, the display clock thread (`display/engine.rs`) must write the status into the page at every event (vblank, awaken, channel completion) before it raises vector 156, and the reactor must apply the write-1-to-clear stores with the same visibility rules as here (a sentinel or tag bit per register, checked against `dev_disp.h`). The page must not hold any other display register with a synchronous answer (the check of §5 on 0x611000-0x611fff). | Mutter 225 to about 134, Weston 76 to about 20; 1-2 days, most of it the display engine's event path |
+| **Mutter's BAR2 page-table churn** (region 3): 71 PTE/PDE writes (pages 0x23000 and 0x39000 of the BAR2 window, each PTE written twice) and 23 reads per frame, plus 6 MMU invalidate writes | 93.8 / 94.3 / 0 | first find which guest mapping the RM rebuilds per frame for Mutter and not for Weston (the PTEs map FB 0x168c50000 onwards; `fb 0x168dd09a8` PDEs), then either keep that mapping alive (a guest-side cause: map once, which is outside the device) or serve the BAR2 window's table pages as memory with the write-through shadow of the mapping package seeing the stores at the next MMU invalidate (the invalidate stays trapped and is the natural sync point, mapping.md). | Mutter 134 to about 40; 1 day to identify the mapping, 2-3 days for a memory-backed BAR2 table window with its consistency rules |
+
+With both, a Mutter frame is left with the usermode page (`TIME_0/1`, 14.7 reads, answered from
+the clock), `NV_PCFG` writes (7.4), the MMU invalidate (6) and the doorbell (0 with the token
+pool): about 30-40 traps, below the operator's 100.
 
 ## 7. Switches
 
@@ -300,14 +329,15 @@ compare-and-swap retries, and the inconsistencies.
   on the token or ioeventfd reactor, the summary line.
 - `caraxes/tools/trap-table.py --pages`: the per-page rows of §1 for the measurement.
 
-**Tests** (`cargo test -p vfio-user-nvgpu`, 172 passed, 11 of them new; the same in release):
+**Tests** (`cargo test -p vfio-user-nvgpu`, 173 passed, 12 of them new, after the fixes of §9):
 
 | Test | What it shows |
 |---|---|
 | `intr_page::switch_and_settings` | the three variables, refusals of settings without the switch and of bad numbers |
 | `intr_page::initial_displays_and_page_zero` | the initial page: TAG in the leaves and `TOP_EN_SET`, 0 in the clears, the trigger sentinel, the boot constants; page 0's lock writes need no work |
 | `intr_page::raise_writes_the_page_then_the_msi_and_the_ack_clears_it` | a raise from another thread is coalesced before the fold, the page shows the bit before the MSI eventfd is written, an enable makes the trapped path's edge, the ack `NVBIT(4)` through the page clears it, the next raise signals again |
-| `intr_page::page_matches_the_trapped_tree` | the same write sequence (triggers, enables, a lock cycle, acks) through `IntrTree` and through the page gives the same leaves, enables, `TOP` and MSI count; a whole lock cycle between two scans still makes its edge |
+| `intr_page::enables_are_reported_and_a_release_rearms` | the per-vector enable loop of state load before one scan still shows the whole table, a bit outside the table is learned, clears are dropped; a lock cycle between two scans with a pending vector re-arms (one MSI), a release with nothing pending does not; reset keeps the table's enables |
+| `intr_page::raises_while_pending_coalesce_until_the_ack` | 100 raises of a pending vector cost no MSI; the ack pends it again with one MSI; the next ack clears it |
 | `intr_page::fail_closed_cases` | stores to `TOP`, a boot constant and a tree hole are restored, triggers outside the vectors or at a tag are ignored, a leaf store with TAG applies the rest, MSI off writes nothing, each counted once, reset restores everything |
 | `intr_page::watchdog_turns_a_lost_enable_into_a_late_interrupt` | 0xfffffffe and 0x1 to `TOP_EN_SET` before one scan lose the stall enable; the watchdog signals after 10 ms, at most once per period, restores the top enable, stops after the ack; off means never |
 | `intr_page::a_store_racing_the_write_back_is_kept` | a guest store between the snapshot and the write-back survives the compare-and-swap and is applied by the next scan |
@@ -320,4 +350,53 @@ compare-and-swap retries, and the inconsistencies.
 `--all-features` (`-D warnings` and the allowances of `tools/check.sh`) and `cargo doc` with
 `-D warnings` are clean (`CARGO_TARGET_DIR=target/intr`).
 
-**Measurement**: pending the coordinator's vm0 window (§9 when taken).
+**Measurement**: §9.
+
+## 9. Measurement on vm0 (2026-09-24, 15:16-16:03)
+
+Environment: `caraxes/runs/intr-page-2026-09-24/env.sh` (run directories `A-page-off`, `B1-page-on-uncoalesced`, `B2-page-on-modelled-enables`, `B3-page-on`; series F's vm0 configuration: slot 1,
+2 GiB profile, host execution, display engine) plus the token pool (`CARAXES_DOORBELL_TOKENS=64`),
+the hybrid reactor (`CARAXES_DOORBELL_POLL=hybrid`, 200 us, pinned automatically) and Cloud
+Hypervisor 0001-0006 (`/mnt/vmstore/caraxes/vm1/ch-0006-v.sh`); `series.sh` per configuration:
+up, probe, display-up, the Mutter and Weston trap windows (wlframes 14 s, `trap-table.py
+--pages`), the display gate, down. Frozen binaries in `/mnt/vmstore/caraxes/vm0/`:
+`vfio-user-nvgpu-intrpage` (commit 00cc12c, runs A, B1), `-intrpage2` (coalescing, B2),
+`-intrpage3` (commit 08651c9, B3).
+
+| Run | Build | Mutter: traps per frame / callbacks | Weston: traps per frame / callbacks | Gate | Host Xid |
+|---|---|---|---|---|---|
+| A, page off | 00cc12c | **638.9** / **48.83 Hz** | 155.4 / 59.71 Hz | pass 11/11 (compositor 59.87 Hz, present 55.1 FPS, fence median 0.56 ms) | 0 |
+| B1, page on | 00cc12c | stalled after the first frame (0 intervals) | stalled | fail (compositor, capture, present, events) | 1: Xid 31 `GPCCLIENT_PROP_0` at GNOME's start, device pid (the known one of display-e.md §9) |
+| B2, page on | + coalescing | stalled after the first frame | stalled | fail | 0 |
+| B3, page on | 08651c9 | **229.8** / **59.71 Hz** | **103.0** / 59.78 Hz | not run (time) | 0 |
+
+B3 in detail (per frame; A in brackets): Mutter BAR0 writes 18.7 (368.5), reads 111.6 (170.1),
+BAR2 96.5 (97.2); pages 0x000000 and 0xb81000 have no trapped access left (in A
+182.37 + 2.42 + 169.92 + 73.15 = 427.9 per frame); what remains is the display FE page
+0x611000 (95.5 reads, 2.0 writes), BAR2 (73.5 writes, 23.0 reads), the usermode page (11.8
+`TIME` reads), `NV_PCFG` (9.6), the MMU invalidate (10.0). Mutter now presents at the full
+59.7 Hz: frame callbacks 48.83 to 59.71 Hz, max interval 102.6 ms. Weston's rate was already 60 Hz;
+its traps go from 155.4 to 103.0 (expected 76: the display page's reads rose from 52.8 to 80.7 per
+frame with more interrupts serviced per frame). The device's summary for B3 (254.6 s):
+106222 scans with work, slowest 89.2 us; 30624 acks, 28869 `LEAF_EN_SET`, 45237 `LEAF_EN_CLEAR`,
+42765 `TOP_EN_SET`, 22145 `TOP_EN_CLEAR`; 32602 raise folds (8262 coalesced while pending, 6283
+pended again at the ack); MSIs 29926 for raises, 17286 re-arms, 26 by the watchdog; 4482
+compare-and-swaps lost to a guest store and applied at the next scan; no inconsistency. The
+hybrid reactor used 5.1 % of a core (13.1 s in 254.6 s) with the page on.
+
+What B1 and B2 showed, and what changed (commit 08651c9):
+
+- **B1: raises were not coalesced.** In the trapped path a raised vector stays in `IntrShared`
+  until the guest's next trapped tree access; with the page the reactor folds it within
+  microseconds, so every host event became an MSI (14825 in the Mutter window; 175145 MSIs over
+  the run). Now a raise of a vector the page still shows pending costs no MSI and is pended again
+  when the guest acks it.
+- **B2: modelled leaf enables lose the guest's enable loop.** A guest read of the page during
+  the stall (`guest/peek-tree.py`, read-only, through `resource0`) showed `LEAF_EN_SET(0)` 0x1,
+  `LEAF_EN_SET(6)` 0x80, leaf 0 bit 4 pending and `TOP` 0: of the eight per-vector stores of state
+  load only one survived per register, so the non-stall vectors never reached `TOP`. The leaf
+  enables are now reported (§3).
+
+Pending: the display gate with the page on (B3 ran without it because of the host upgrade
+window), a second pass of A and B3 for the run-to-run spread (series F had Mutter at 30-41 Hz
+between runs; A here was 48.8 Hz), and spin instead of hybrid.

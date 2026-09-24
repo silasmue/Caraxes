@@ -1,0 +1,37 @@
+window 10 s [277891940, 287891940) us; presented frames (latches with a surface): window 6: 2; per-frame base: window 6 = 2 (0.20 Hz)
+what                                                              count  per frame
+BAR0 writes, all                                                   3630    1815.00
+  other 0x88704 NV_PCFG (config mirror)                            3022    1511.00
+  other 0x61180c                                                    600     300.00
+  MMU invalidate (VF PRIV_MMU_INVALIDATE, 3 writes each)              3       1.50
+  other 0x696000                                                      3       1.50
+  other 0x611858                                                      2       1.00
+BAR0 reads, all                                                   33807   16903.50
+  0x611ec0                                                        24169   12084.50
+  NV_VIRTUAL_FUNCTION_TIME_0/1                                     3606    1803.00
+  0x611c0c                                                         3601    1800.50
+  0x611c30                                                         1821     910.50
+  0x61180c                                                          600     300.00
+BAR1 writes, all                                                      4       2.00
+  USERD GPPut (offset 0x8c)                                           4       2.00
+BAR1 reads                                                            0       0.00
+BAR2 writes, all                                                     43      21.50
+  page 0x39000                                                       20      10.00
+  page 0x23000                                                       16       8.00
+  page 0x25000                                                        5       2.50
+BAR2 reads                                                           12       6.00
+all trapped accesses                                              37496   18748.00
+display channel kicks                                                 3       1.50
+forwarded doorbells (host doorbell rung)                              4       2.00
+guest MMU invalidates seen                                            1       0.50
+host notifier events -> MSI                                         764     382.00
+shadow plans applied (sync lines)                                     0       0.00
+BAR0 page 0x611000 reads                                          30195   15097.50
+BAR0 page 0xbb0000 reads                                           3606    1803.00
+BAR0 page 0x088000 writes                                          3022    1511.00
+BAR0 page 0x611000 writes                                           602     301.00
+BAR0 page 0xb83000 writes                                             3       1.50
+BAR0 page 0x696000 writes                                             3       1.50
+BAR0 page 0xb83000 reads                                              2       1.00
+BAR0 page 0x001000 reads                                              2       1.00
+BAR0 page 0x696000 reads                                              2       1.00

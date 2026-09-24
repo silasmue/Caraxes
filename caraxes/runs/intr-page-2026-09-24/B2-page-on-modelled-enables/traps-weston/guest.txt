@@ -1,0 +1,5 @@
+== 2026-09-24T13:45:53Z load 1.07 0.70 0.29 1/441 3383
+first frame callback after 5.1 s
+FRAMES callbacks intervals=0
+PRESENTED feedback intervals=0
+presented=0 discarded=0 refresh_ns=0 (0.000 Hz) flags=0x0 (vsync 0 hw_clock 0 hw_completion 0)

@@ -1,0 +1,64 @@
+# SPDX-License-Identifier: MIT
+# display gate gate-display-2026-09-24: capture.txt
+GRAB crtc 118 fb 134 640x480 format XR24 modifier 0x300000000606014 pitch 2560 handle 1 mode 640x480@60
+GRAB crtc 118 fb 134 640x480 format XR24 modifier 0x300000000606014 pitch 2560 handle 1 mode 640x480@60
+SAMPLE 320 240 0x00808080
+SAMPLE 4 4 0x00202020
+sunshine exit 124
+/tmp/sunshine-cx/sunshine.log:[2026-09-24 13:23:45.192]: Info: config: 'capture' = kms
+/tmp/sunshine-cx/sunshine.log:[2026-09-24 13:23:45.192]: Info: config: 'encoder' = software
+/tmp/sunshine-cx/sunshine.log:[2026-09-24 13:23:45.193]: Info: /dev/dri/card0 -> nvidia-drm
+/tmp/sunshine-cx/sunshine.log:[2026-09-24 13:23:45.194]: Debug: plane->possible_crtcs == 8
+/tmp/sunshine-cx/sunshine.log:[2026-09-24 13:23:45.194]: Error: [wayland] Environment variable WAYLAND_DISPLAY has not been defined
+/tmp/sunshine-cx/sunshine.log:[2026-09-24 13:23:45.194]: Debug: Monitor description
+/tmp/sunshine-cx/sunshine.log:[2026-09-24 13:23:45.239]: Info: Trying encoder [software]
+/tmp/sunshine-cx/sunshine.log:[2026-09-24 13:23:45.239]: Info: Screencasting with KMS
+/tmp/sunshine-cx/sunshine.log:[2026-09-24 13:23:45.239]: Info: /dev/dri/card0 -> nvidia-drm
+/tmp/sunshine-cx/sunshine.log:[2026-09-24 13:23:45.239]: Info: Found monitor for DRM screencasting
+/tmp/sunshine-cx/sunshine.log:[2026-09-24 13:23:45.239]: Debug: plane->possible_crtcs == 8
+/tmp/sunshine-cx/sunshine.log:[2026-09-24 13:23:45.239]: Info: Found connector ID [127]
+/tmp/sunshine-cx/sunshine.log:[2026-09-24 13:23:45.239]: Info: Found cursor plane [112]
+/tmp/sunshine-cx/sunshine.log:[2026-09-24 13:23:46.321]: Info: Creating encoder [libx264]
+/tmp/sunshine-cx/sunshine.log:[2026-09-24 13:23:46.366]: Info: Creating encoder [libx264]
+/tmp/sunshine-cx/sunshine.log:[2026-09-24 13:23:46.391]: Info: Screencasting with KMS
+/tmp/sunshine-cx/sunshine.log:[2026-09-24 13:23:46.391]: Info: /dev/dri/card0 -> nvidia-drm
+/tmp/sunshine-cx/sunshine.log:[2026-09-24 13:23:46.391]: Info: Found monitor for DRM screencasting
+/tmp/sunshine-cx/sunshine.log:[2026-09-24 13:23:46.391]: Debug: plane->possible_crtcs == 8
+/tmp/sunshine-cx/sunshine.log:[2026-09-24 13:23:46.391]: Info: Found connector ID [127]
+/tmp/sunshine-cx/sunshine.log:[2026-09-24 13:23:46.392]: Info: Found cursor plane [112]
+/tmp/sunshine-cx/sunshine.log:[2026-09-24 13:23:46.421]: Info: // Testing for available encoders, this may generate errors. You can safely ignore those errors. //
+/tmp/sunshine-cx/sunshine.log:[2026-09-24 13:23:46.421]: Info: // Ignore any errors mentioned above, they are not relevant. //
+/tmp/sunshine-cx/sunshine.log:[2026-09-24 13:23:46.421]: Info: Found H.264 encoder: libx264 [software]
+/tmp/sunshine-cx/sunshine.log:[2026-09-24 13:23:46.487]: Error: System tray is not initialized
+/tmp/sunshine-cx/sunshine.log:[2026-09-24 13:24:25.122]: Error: Couldn't accept incoming connections: Operation canceled
+/tmp/sunshine-cx/stdout.txt:[2026-09-24 13:23:45.189320] [0x00007bbb54065000] [info]    config: 'encoder' = software
+/tmp/sunshine-cx/stdout.txt:[2026-09-24 13:23:45.189322] [0x00007bbb54065000] [info]    config: 'capture' = kms
+/tmp/sunshine-cx/stdout.txt:[2026-09-24 13:23:45.192]: Info: config: 'capture' = kms
+/tmp/sunshine-cx/stdout.txt:[2026-09-24 13:23:45.192]: Info: config: 'encoder' = software
+/tmp/sunshine-cx/stdout.txt:[2026-09-24 13:23:45.193]: Info: /dev/dri/card0 -> nvidia-drm
+/tmp/sunshine-cx/stdout.txt:[2026-09-24 13:23:45.194]: Debug: plane->possible_crtcs == 8
+/tmp/sunshine-cx/stdout.txt:[2026-09-24 13:23:45.194]: Error: [wayland] Environment variable WAYLAND_DISPLAY has not been defined
+/tmp/sunshine-cx/stdout.txt:[2026-09-24 13:23:45.194]: Debug: Monitor description
+/tmp/sunshine-cx/stdout.txt:[2026-09-24 13:23:45.239]: Info: Trying encoder [software]
+/tmp/sunshine-cx/stdout.txt:[2026-09-24 13:23:45.239]: Info: Screencasting with KMS
+/tmp/sunshine-cx/stdout.txt:[2026-09-24 13:23:45.239]: Info: /dev/dri/card0 -> nvidia-drm
+/tmp/sunshine-cx/stdout.txt:[2026-09-24 13:23:45.239]: Info: Found monitor for DRM screencasting
+/tmp/sunshine-cx/stdout.txt:[2026-09-24 13:23:45.239]: Debug: plane->possible_crtcs == 8
+/tmp/sunshine-cx/stdout.txt:[2026-09-24 13:23:45.239]: Info: Found connector ID [127]
+/tmp/sunshine-cx/stdout.txt:[2026-09-24 13:23:45.239]: Info: Found cursor plane [112]
+/tmp/sunshine-cx/stdout.txt:[2026-09-24 13:23:46.321]: Info: Creating encoder [libx264]
+/tmp/sunshine-cx/stdout.txt:[2026-09-24 13:23:46.366]: Info: Creating encoder [libx264]
+/tmp/sunshine-cx/stdout.txt:[2026-09-24 13:23:46.391]: Info: Screencasting with KMS
+/tmp/sunshine-cx/stdout.txt:[2026-09-24 13:23:46.391]: Info: /dev/dri/card0 -> nvidia-drm
+/tmp/sunshine-cx/stdout.txt:[2026-09-24 13:23:46.391]: Info: Found monitor for DRM screencasting
+/tmp/sunshine-cx/stdout.txt:[2026-09-24 13:23:46.391]: Debug: plane->possible_crtcs == 8
+/tmp/sunshine-cx/stdout.txt:[2026-09-24 13:23:46.391]: Info: Found connector ID [127]
+/tmp/sunshine-cx/stdout.txt:[2026-09-24 13:23:46.392]: Info: Found cursor plane [112]
+/tmp/sunshine-cx/stdout.txt:[2026-09-24 13:23:46.421]: Info: // Testing for available encoders, this may generate errors. You can safely ignore those errors. //
+/tmp/sunshine-cx/stdout.txt:[2026-09-24 13:23:46.421]: Info: // Ignore any errors mentioned above, they are not relevant. //
+/tmp/sunshine-cx/stdout.txt:[2026-09-24 13:23:46.421]: Info: Found H.264 encoder: libx264 [software]
+/tmp/sunshine-cx/stdout.txt:[2026-09-24 13:23:46.487]: Error: System tray is not initialized
+/tmp/sunshine-cx/stdout.txt:[2026-09-24 13:24:25.122]: Error: Couldn't accept incoming connections: Operation canceled
+FRAMES callbacks intervals=3563 mean_ms=16.814 rate_hz=59.47 min_ms=8.612 max_ms=133.259 sd_ms=3.105
+PRESENTED feedback intervals=3562 mean_ms=16.814 rate_hz=59.47 min_ms=10.964 max_ms=132.903 sd_ms=2.707
+wlframes exit 0

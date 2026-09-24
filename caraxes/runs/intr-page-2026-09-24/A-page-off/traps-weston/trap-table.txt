@@ -1,0 +1,36 @@
+window 10 s [241176553, 251176553) us; presented frames (latches with a surface): window 6: 600; per-frame base: window 6 = 600 (60.00 Hz)
+what                                                              count  per frame
+BAR0 writes, all                                                  19148      31.91
+  interrupt enable/clear (VF CPU_INTR)                             8095      13.49
+  0x160/0x180 (latched)                                            6048      10.08
+  other 0x88704 NV_PCFG (config mirror)                            3138       5.23
+  other 0x696000                                                    667       1.11
+  other 0x61180c                                                    600       1.00
+  other 0x611858                                                    600       1.00
+BAR0 reads, all                                                   72913     121.52
+  0x611ec0                                                        24399      40.66
+  NV_VF_CPU_INTR_LEAF                                             21238      35.40
+  NV_VF_CPU_INTR_LEAF_EN_SET                                       8124      13.54
+  NV_VIRTUAL_FUNCTION_TIME_0/1                                     5391       8.98
+  NV_VF_CPU_INTR_TOP                                               5169       8.62
+BAR1 writes, all                                                   1200       2.00
+  USERD GPPut (offset 0x8c)                                        1200       2.00
+BAR1 reads                                                            0       0.00
+BAR2 writes, all                                                      0       0.00
+BAR2 reads                                                            0       0.00
+all trapped accesses                                              93261     155.44
+display channel kicks                                               667       1.11
+forwarded doorbells (host doorbell rung)                           1198       2.00
+host notifier events (no MSI)                                       362       0.60
+host notifier events -> MSI                                        2108       3.51
+shadow plans applied (sync lines)                                     0       0.00
+BAR0 page 0xb81000 reads                                          34531      57.55
+BAR0 page 0x611000 reads                                          31648      52.75
+BAR0 page 0xb81000 writes                                          8095      13.49
+BAR0 page 0x000000 writes                                          6048      10.08
+BAR0 page 0xbb0000 reads                                           5391       8.98
+BAR0 page 0x088000 writes                                          3138       5.23
+BAR0 page 0x000000 reads                                           1209       2.02
+BAR0 page 0x611000 writes                                          1200       2.00
+BAR0 page 0x696000 writes                                           667       1.11
+BAR0 page 0x696000 reads                                            134       0.22

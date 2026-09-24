@@ -1,0 +1,3 @@
+dma table: 0:7ff940000000:c0000000,100000000:7ffa40000000:40000000
+server pid 3199930, VM pid 3199942; logs in /mnt/vmstore/caraxes/vm0
+ssh up at 192.168.100.20

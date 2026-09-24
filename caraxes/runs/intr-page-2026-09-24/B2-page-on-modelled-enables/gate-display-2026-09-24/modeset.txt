@@ -1,0 +1,19 @@
+# SPDX-License-Identifier: MIT
+# display gate gate-display-2026-09-24: modeset.txt
+node /dev/dri/card0, driver "nvidia-drm"
+crtcs 4, connectors 1
+connector 127: connection 1 (1 = connected), 6 modes
+  mode 0: 1920x1080@60
+  mode 1: 1920x1080@60
+  mode 2: 1920x1080@50
+  mode 3: 1280x720@60
+buffers 1920x1080
+  fb 130 and fb 132, pitch 7680, 8294400 bytes each
+SETCRTC ok
+GETCRTC: fb 130, mode_valid 1, 1920x1080
+flipping 30 times, 500 ms timeout each
+  flip 8: NO COMPLETION within 500 ms  (issued 9, completed 8 so far)
+PAGE_FLIP: 9 issued, 8 completed, 1 timed out
+the completion for flip 8 never arrived -- this is what strands a compositor's repaint loop
+after flip: fb 132 (expected 132)
+done

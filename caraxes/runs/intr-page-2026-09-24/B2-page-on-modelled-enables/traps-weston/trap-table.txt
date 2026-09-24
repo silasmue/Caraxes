@@ -1,0 +1,36 @@
+window 10 s [259694637, 269694637) us; presented frames (latches with a surface): ; per-frame base: window None = 0 (0.00 Hz)
+what                                                              count  per frame
+BAR0 writes, all                                                    497          -
+  MMU invalidate (VF PRIV_MMU_INVALIDATE, 3 writes each)            276          -
+  other 0x88704 NV_PCFG (config mirror)                             122          -
+  other 0x61180c                                                     52          -
+  other 0x110c00 NV_PGSP_QUEUE_HEAD/TAIL                             43          -
+  other 0x611d8c                                                      4          -
+BAR0 reads, all                                                    2895          -
+  0x611ec0                                                         1816          -
+  NV_VIRTUAL_FUNCTION_TIME_0/1                                      288          -
+  0x611c0c                                                          283          -
+  NV_VIRTUAL_FUNCTION_PRIV_MMU_INVALIDATE                           184          -
+  0x611c30                                                          131          -
+BAR1 writes, all                                                      0          -
+BAR1 reads                                                            0          -
+BAR2 writes, all                                                   9755          -
+  page 0x84000                                                     1024          -
+  page 0x7f000                                                     1024          -
+  page 0x80000                                                     1024          -
+BAR2 reads                                                          303          -
+all trapped accesses                                              13450          -
+guest MMU invalidates seen                                           92          -
+host notifier events -> MSI                                         351          -
+shadow plans applied (sync lines)                                     2          -
+BAR0 page 0x611000 reads                                           2294          -
+BAR0 page 0xbb0000 reads                                            288          -
+BAR0 page 0xb83000 writes                                           276          -
+BAR0 page 0xb83000 reads                                            184          -
+BAR0 page 0x110000 reads                                            129          -
+BAR0 page 0x088000 writes                                           122          -
+BAR0 page 0x611000 writes                                            56          -
+BAR0 page 0x110000 writes                                            43          -
+
+
+  queued before apply: p50 1768.0 us, max 2747 us
