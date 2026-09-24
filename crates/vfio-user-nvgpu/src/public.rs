@@ -1668,8 +1668,8 @@ mod tests {
             .filter(|c| matches!(c.rule, Rule::Refuse(_)))
             .collect();
         // V, K, X; then the round-2 refusals: SETUP_BIND, the two DP readbacks, the two TPC
-        // partition setters.
-        assert_eq!(refused.len(), 8 + 5 + 2 + 5);
+        // partition setters and the three debugger getters without a session model.
+        assert_eq!(refused.len(), 8 + 5 + 2 + 8);
         for c in refused {
             let (a, calls) = guest_call(&mut attrs, &[CH], CH, c.id, &[0x3C; 16]);
             assert!(calls.is_empty(), "{}", c.name);
@@ -2021,5 +2021,100 @@ mod tests {
         }
         assert_eq!(attrs.journal.len(), RC_JOURNAL_MAX);
         assert_eq!(attrs.journal[0].xid, 3, "the oldest go first");
+    }
+
+    /// The open B rows: MMU debug mode 0, resident channel only for an own mirror, the
+    /// debugger getters (ERRBAR disabled; MMU debug and per-SM status need the R5 session
+    /// model, GCC is not on this chip), and the TSG's kernel id.
+    #[test]
+    fn b_rows_from_device_state() {
+        let reg = world();
+        let mut attrs = GuestAttrs::default();
+        let mut m = Mirror2::default();
+        // GET_CTXSW_MODES of a software channel: what ZCULL_MODE and PREEMPTION_BIND
+        // recorded; PM and SMPC off.
+        let mut z = vec![0u8; 16];
+        put32(&mut z, 0, 0x41);
+        put32(&mut z, p::ZCULL_MODE_MODE, 2);
+        round2(&mut attrs, &reg, &mut m, SUB, 0x2080_1205, &z);
+        let mut pb = vec![0u8; p::PREEMPTION_BIND_SIZE];
+        put32(&mut pb, 4, 0xC1);
+        put32(&mut pb, 8, 0x41);
+        put32(&mut pb, p::PREEMPTION_BIND_GFXP, 1);
+        put32(&mut pb, p::PREEMPTION_BIND_CILP, 2);
+        round2(&mut attrs, &reg, &mut m, SUB, 0x2080_1211, &pb);
+        let mut q = vec![0xEEu8; 24];
+        put32(&mut q, 0, 0x41);
+        let a = round2(&mut attrs, &reg, &mut m, SUB, 0x2080_1235, &q);
+        assert_eq!(a.status, NV_OK);
+        assert_eq!(
+            (get32(&a.params, p::CTXSW_MODES_ZCULL), get32(&a.params, p::CTXSW_MODES_CILP), get32(&a.params, p::CTXSW_MODES_GFXP)),
+            (2, 2, 1)
+        );
+        assert_eq!((get32(&a.params, 8), get32(&a.params, 12)), (0, 0), "PM and SMPC off");
+        // GET_CTXSW_STATS: zeros for software, the mirror's for the mirrored channel.
+        let mut st = vec![0xEEu8; 32];
+        put32(&mut st, 0, 0x41);
+        let a = round2(&mut attrs, &reg, &mut m, SUB, 0x2080_1215, &st);
+        assert_eq!(get32(&a.params, 0), 0x41);
+        assert!(a.params[8..].iter().all(|&x| x == 0));
+        put32(&mut st, 0, 0x40);
+        let a = round2(&mut attrs, &reg, &mut m, SUB, 0x2080_1215, &st);
+        assert_eq!((a.status, get32(&a.params, 8)), (NV_OK, 77));
+        assert_eq!(get32(&a.params, 0), 0x40, "the guest's handle comes back");
+        assert_eq!(m.calls, ["query 0x20801215 0 None"]);
+        m.calls.clear();
+        // FIFO_GET_CHANNEL_STATE: the device's scheduling flags.
+        let state = |attrs: &mut GuestAttrs, m: &mut Mirror2, h: u32| {
+            let mut b = vec![0u8; 16];
+            put32(&mut b, 0, h);
+            put32(&mut b, 4, 0xC1);
+            let a = round2(attrs, &reg, m, (0xC1, 0x208F_0001), 0x208F_0403, &b);
+            (a.status, a.params[p::CHANNEL_STATE_ENABLED], a.params[p::CHANNEL_STATE_SCHEDULED])
+        };
+        assert_eq!(state(&mut attrs, &mut m, 0x41), (NV_OK, 1, 1));
+        round2(&mut attrs, &reg, &mut m, SUB, 0x2080_1117, &[1]);
+        assert_eq!(state(&mut attrs, &mut m, 0x41), (NV_OK, 0, 0));
+        assert_eq!(state(&mut attrs, &mut m, 0x50), (NV_OK, 1, 1), "the kernel's own channel");
+        assert_eq!(state(&mut attrs, &mut m, 0x99).0, NV_ERR_INVALID_CHANNEL);
+        m.calls.clear();
+        let a = round2(&mut attrs, &reg, &mut m, (0xC1, 0x30), 0x0090_0105, &[1]);
+        assert_eq!((a.status, a.params[0]), (NV_OK, 0));
+        let a = round2(&mut attrs, &reg, &mut m, SUB, 0x2080_121C, &[0xAA; 24]);
+        assert_eq!((a.status, get32(&a.params, 0)), (NV_OK, 2));
+        assert_eq!(a.params[8..], [0xAA; 16], "grRouteInfo kept");
+        assert_eq!(m.calls, ["resident"]);
+        // No mirror: no guest channel is resident on the physical GR.
+        let seen = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+        let mut h = Canned(vec![0; 64], seen.clone());
+        let mut ctx = Ctx {
+            host: Some(&mut h),
+            reservation: None,
+            chip: tu106(),
+            now_ns: 0,
+            object: SUB,
+            key: SUB,
+            mirror: None,
+            attrs: &mut attrs,
+            reg: Some(&reg),
+            link_control: 0,
+        };
+        let a = answer(&mut ctx, 0x2080_121C, &[0u8; 24]).unwrap();
+        assert_eq!(get32(&a.params, 0), u32::MAX);
+        assert!(seen.lock().unwrap().is_empty());
+        let a = round2(&mut attrs, &reg, &mut m, (0xC1, 0x83DE), 0x83DE_0320, &[0xFF; 4]);
+        assert_eq!((a.status, get32(&a.params, 0)), (NV_OK, p::ERRBAR_DEBUG_DISABLED));
+        for id in [0x83DE_0308u32, 0x83DE_0325, 0x83DE_032B] {
+            let a = round2(&mut attrs, &reg, &mut m, (0xC1, 0x83DE), id, &[0x5A; 12]);
+            assert_eq!(a.status, NV_ERR_NOT_SUPPORTED, "{id:#x}");
+            assert_eq!(a.params, [0x5A; 12], "{id:#x}: echoed");
+        }
+        // GET_INFO: the kernel's TSG id (615) or no id (610).
+        let a = round2(&mut attrs, &reg, &mut m, (0xC1, 0x30), 0xA06C_0106, &[0; 4]);
+        if reg.tsg_id((0xC1, 0x30)).is_some() {
+            assert_eq!((a.status, get32(&a.params, 0)), (NV_OK, 7));
+        } else {
+            assert_eq!(a.status, NV_ERR_NOT_SUPPORTED);
+        }
     }
 }

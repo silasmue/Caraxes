@@ -274,6 +274,21 @@ pub const PUBLIC_C: &[PublicControl] = &[
     row(0x2080_0177, "GPU_REPORT_NON_REPLAYABLE_FAULT", 32, Rule::Guest(Guest::NonReplayableFault)),
     row(0x0080_1108, "NV0080 GR_SET_TPC_PARTITION_MODE", 0, Rule::Refuse(REFUSED_TPC_PARTITION)),
     row(0x2080_122C, "GR_SET_TPC_PARTITION_MODE", 0, Rule::Refuse(REFUSED_TPC_PARTITION)),
+    // The open category B rows moved here (c-guest-state.md §3 B2-B5, B8-B12; B1, the ZBC
+    // table entry, belongs to the ZBC model).
+    row(0x0090_0105, "NV0090 GET_MMU_DEBUG_MODE", 1, Rule::Guest(Guest::MmuDebugMode)),
+    row(0x2080_1215, "GR_GET_CTXSW_STATS", 32, Rule::Guest(Guest::CtxswStats)),
+    row(0x2080_1235, "GR_GET_CTXSW_MODES", 24, Rule::Guest(Guest::CtxswModes)),
+    row(0x2080_121C, "GR_GET_CURRENT_RESIDENT_CHANNEL", 24, Rule::Guest(Guest::ResidentChannel)),
+    row(0x208F_0403, "NV208F FIFO_GET_CHANNEL_STATE", 16, Rule::Guest(Guest::ChannelState)),
+    row(0x83DE_0308, "NV83DE DEBUG_GET_MODE_MMU_DEBUG", 0, Rule::Refuse(REFUSED_DEBUG_SESSION)),
+    row(0x83DE_0320, "NV83DE DEBUG_GET_MODE_ERRBAR_DEBUG", 4, Rule::Guest(Guest::ErrbarDebugMode)),
+    row(0x83DE_0325, "NV83DE DEBUG_GET_SINGLE_SM_DEBUGGER_STATUS", 0, Rule::Refuse(REFUSED_SM_DEBUGGER_STATUS)),
+    row(0x83DE_032B, "NV83DE DEBUG_GET_MODE_MMU_GCC_DEBUG", 0, Rule::Refuse(REFUSED_MMU_GCC)),
+    // The TSG's kernel id (classes.md §8, TSG): a GSP client answers GET_INFO itself
+    // (kernel_channel_group_api.c:1386-1401, flags 0x8), so this row only keeps the answer
+    // consistent should one arrive.
+    row(0xA06C_0106, "NVA06C GET_INFO", 4, Rule::Guest(Guest::TsgInfo)),
 ];
 
 pub const REFUSED_SETUP_BIND: &str =
