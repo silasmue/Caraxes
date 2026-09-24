@@ -287,6 +287,14 @@ impl BootModel {
         s.push(format!(
             "bar tlb: {h} hit(s), {m} walk(s), {f} flush(es) by a table write (docs/caraxes/mapping.md §3)"
         ));
+        if let (Some((fb0, len)), Some(st)) =
+            (self.fb.bar1_passthrough(), self.fb.bar1_passthrough_stats())
+        {
+            s.push(format!(
+                "bar1 passthrough: guest BAR1 [0, {len:#x}) on FB {fb0:#x}; {} check(s), last: {} page(s) mapped, {} matched, {} elsewhere; {} mismatched page(s) and {} page-table hazard(s) over the run (docs/caraxes/bar1-passthrough.md)",
+                st.checks, st.mapped, st.matched, st.mismatched, st.mismatch_events, st.table_hazards
+            ));
+        }
         if let Some(m) = &self.ctrl.mirror {
             s.push(m.summary());
         }
@@ -389,6 +397,7 @@ impl BootModel {
                 }
             };
         }
+        self.fb.carry_bar1_passthrough(&fresh.fb);
         *self = fresh;
     }
 

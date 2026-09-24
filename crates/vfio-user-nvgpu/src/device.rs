@@ -23,10 +23,12 @@ use vfio_bindings::bindings::vfio::{
     vfio_region_info, VFIO_IRQ_INFO_EVENTFD, VFIO_IRQ_INFO_NORESIZE, VFIO_IRQ_SET_ACTION_TRIGGER,
     VFIO_IRQ_SET_DATA_EVENTFD, VFIO_PCI_BAR0_REGION_INDEX, VFIO_PCI_CONFIG_REGION_INDEX,
     VFIO_PCI_INTX_IRQ_INDEX, VFIO_PCI_MSI_IRQ_INDEX, VFIO_PCI_NUM_IRQS, VFIO_PCI_NUM_REGIONS,
-    VFIO_PCI_ROM_REGION_INDEX, VFIO_REGION_INFO_FLAG_READ, VFIO_REGION_INFO_FLAG_WRITE,
+    VFIO_PCI_ROM_REGION_INDEX, VFIO_REGION_INFO_FLAG_MMAP, VFIO_REGION_INFO_FLAG_READ,
+    VFIO_REGION_INFO_FLAG_WRITE,
 };
 use vfio_user::{
     DmaMapFlags, DmaUnmapFlags, IoEventFdSubRegion, IrqInfo, ServerBackend, ServerRegion,
+    SparseArea,
 };
 
 use crate::bar0::{Bar0, WriteEffect};
@@ -195,6 +197,23 @@ pub fn region_size(board: &Board, index: u32) -> u64 {
 
 /// The region table announced to the client: everything trapped, nothing mmap-able.
 pub fn regions(board: &Board) -> Vec<ServerRegion> {
+    regions_with(board, None)
+}
+
+/// P21 (docs/caraxes/bar1-passthrough.md §6): guest BAR1 `[0, len)` offered for mmap
+/// from the dma-buf `fd` of the reservation piece behind it.
+#[derive(Clone, Copy, Debug)]
+pub struct Bar1Area {
+    pub fd: std::os::fd::RawFd,
+    pub len: u64,
+}
+
+/// The region table, with BAR1 `[0, area.len)` mmap-able when `bar1` is given: region 1
+/// gets `VFIO_REGION_INFO_FLAG_MMAP`, file offset 0 and one sparse area `[0, len)`, so
+/// the client mmaps the descriptor at offset 0 + 0 (vfio-user.rst, "offset" of
+/// `VFIO_USER_DEVICE_GET_REGION_INFO` and of the sparse mmap areas); the rest of BAR1
+/// stays trapped.
+pub fn regions_with(board: &Board, bar1: Option<Bar1Area>) -> Vec<ServerRegion> {
     (0..VFIO_PCI_NUM_REGIONS)
         .map(|index| {
             let size = region_size(board, index);
@@ -203,6 +222,27 @@ pub fn regions(board: &Board) -> Vec<ServerRegion> {
                 flags |= VFIO_REGION_INFO_FLAG_READ;
                 if index != VFIO_PCI_ROM_REGION_INDEX {
                     flags |= VFIO_REGION_INFO_FLAG_WRITE;
+                }
+            }
+            if let (1, Some(a)) = (index, bar1) {
+                if a.len > 0 && a.len <= size {
+                    return ServerRegion {
+                        region_info: vfio_region_info {
+                            argsz: size_of::<vfio_region_info>() as u32,
+                            flags: flags | VFIO_REGION_INFO_FLAG_MMAP,
+                            index,
+                            size,
+                            offset: 0,
+                            ..Default::default()
+                        },
+                        sparse_areas: vec![SparseArea {
+                            area: vfio_bindings::bindings::vfio::vfio_region_sparse_mmap_area {
+                                offset: 0,
+                                size: a.len,
+                            },
+                        }],
+                        mmap_fd: Some(a.fd),
+                    };
                 }
             }
             ServerRegion {
@@ -599,6 +639,13 @@ impl ServerBackend for Device {
             _ => Some("dropped"),
         };
         self.trace.access(Dir::Write, region, offset, data, note);
+        if region == VFIO_PCI_BAR0_REGION_INDEX {
+            // P21: the guest flushes and invalidates through BAR0 after changing a BAR1
+            // mapping and before it uses the mapping.
+            if let Some(b) = self.bar0.boot() {
+                b.fb.poll_bar1_passthrough();
+            }
+        }
         for n in self.bar0.take_notes() {
             self.trace.event(&format!("boot: {n}"));
         }
@@ -693,5 +740,39 @@ impl ServerBackend for Device {
         }
         self.sync_msi_enabled();
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn bar1_area_makes_region_1_mmapable_at_offset_zero() {
+        let board = crate::board::Board::load("rtx2070").unwrap();
+        let plain = regions(&board);
+        assert!(plain
+            .iter()
+            .all(|r| r.mmap_fd.is_none() && r.sparse_areas.is_empty()));
+        assert_eq!(plain[1].region_info.flags & VFIO_REGION_INFO_FLAG_MMAP, 0);
+
+        let area = |len| Some(Bar1Area { fd: 7, len });
+        let r = regions_with(&board, area(2 << 20));
+        let b1 = &r[1];
+        assert_eq!(b1.mmap_fd, Some(7));
+        assert_ne!(b1.region_info.flags & VFIO_REGION_INFO_FLAG_MMAP, 0);
+        assert_eq!(b1.region_info.offset, 0);
+        assert_eq!(b1.region_info.size, 256 << 20);
+        assert_eq!(b1.sparse_areas.len(), 1);
+        assert_eq!(b1.sparse_areas[0].area.offset, 0);
+        assert_eq!(b1.sparse_areas[0].area.size, 2 << 20);
+        // Every other region is as before.
+        for i in [0usize, 2, 3, 4, 5, 6, 7, 8] {
+            assert_eq!(r[i].region_info.flags, plain[i].region_info.flags);
+            assert!(r[i].mmap_fd.is_none());
+        }
+        // An area larger than the BAR is not offered.
+        let r = regions_with(&board, area(512 << 20));
+        assert!(r[1].mmap_fd.is_none());
     }
 }

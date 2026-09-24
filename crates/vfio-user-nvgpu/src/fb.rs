@@ -15,7 +15,7 @@
 //! reservation.
 
 use std::cell::{Cell, RefCell};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use crate::guestmem::GuestMemory;
 
@@ -302,6 +302,70 @@ pub fn bar1_budget() -> (usize, usize) {
     (len, n)
 }
 
+/// P21 switch (docs/caraxes/bar1-passthrough.md §6): `CARAXES_BAR1_PASSTHROUGH=1` maps
+/// guest BAR1 `[0, len)` straight onto the reservation piece at `base + fb_offset`.
+/// `CARAXES_BAR1_PT_MIB` (a power of two, 1..=64, default 1) sets `len`,
+/// `CARAXES_BAR1_PT_FB_OFFSET` (hex or decimal, 64 KiB aligned, default 0x980000, the
+/// layout every traced run showed) the offset from the reservation base.
+/// Returns `(fb_offset, len)` when on.
+pub fn bar1_passthrough_config() -> Option<(u64, u64)> {
+    if std::env::var("CARAXES_BAR1_PASSTHROUGH").as_deref() != Ok("1") {
+        return None;
+    }
+    let len = std::env::var("CARAXES_BAR1_PT_MIB")
+        .ok()
+        .and_then(|v| v.parse::<u64>().ok())
+        .filter(|m| m.is_power_of_two() && (1..=64).contains(m))
+        .map_or(MIB, |m| m * MIB);
+    let off = std::env::var("CARAXES_BAR1_PT_FB_OFFSET")
+        .ok()
+        .and_then(|v| parse_u64(&v))
+        .unwrap_or(BAR1_PT_FB_OFFSET);
+    Some((off, len))
+}
+
+/// Where libcuda's channel buffers (GPFIFO and USERD, the only guest BAR1 traffic in
+/// every trace) sat relative to the reservation base in every traced run: guest BAR1
+/// offset X maps FB `base + 0x980000 + X` (docs/caraxes/bar1-passthrough.md §2).
+pub const BAR1_PT_FB_OFFSET: u64 = 0x98_0000;
+
+fn parse_u64(v: &str) -> Option<u64> {
+    let v = v.trim();
+    match v.strip_prefix("0x").or_else(|| v.strip_prefix("0X")) {
+        Some(h) => u64::from_str_radix(h, 16).ok(),
+        None => v.parse().ok(),
+    }
+}
+
+/// The FB range `[fb0, fb0 + len)` the passthrough area maps, checked: inside the
+/// usable part of the reservation (never the device-owned carve-out with the BAR root
+/// page directories), 64 KiB aligned, and no larger than the guest's BAR1 (`bar1`).
+pub fn bar1_passthrough_area(
+    layout: &FbLayout,
+    fb_offset: u64,
+    len: u64,
+    bar1: u64,
+) -> Result<(u64, u64), String> {
+    let (lo, hi) = layout
+        .usable()
+        .ok_or("BAR1 passthrough needs a VRAM reservation (--reserve-vram)")?;
+    if len == 0 || len > bar1 || len % (64 << 10) != 0 || fb_offset % (64 << 10) != 0 {
+        return Err(format!(
+            "BAR1 passthrough: area {len:#x} at reservation offset {fb_offset:#x} must be 64 KiB aligned and at most the BAR1 size {bar1:#x}"
+        ));
+    }
+    let fb0 = lo
+        .checked_add(fb_offset)
+        .filter(|&a| a.checked_add(len).is_some_and(|e| e <= hi))
+        .ok_or_else(|| {
+            format!(
+                "BAR1 passthrough: [{:#x}, +{len:#x}) is not inside the usable reservation [{lo:#x}, {hi:#x})",
+                lo.wrapping_add(fb_offset)
+            )
+        })?;
+    Ok((fb0, len))
+}
+
 impl VramStore {
     pub fn new(src: Box<dyn WindowSource>, base: u64, end: u64) -> Self {
         let (len, n) = bar1_budget();
@@ -523,6 +587,49 @@ impl FbStore for VramStore {
     }
 }
 
+/// Counters of the BAR1 passthrough check (P21, docs/caraxes/bar1-passthrough.md §6).
+#[derive(Default, Debug, Clone, PartialEq, Eq)]
+pub struct Bar1PtStats {
+    /// Checks run (each one walks the guest's BAR1 tables over the passthrough area).
+    pub checks: u64,
+    /// Pages the guest maps inside the area, at the last check.
+    pub mapped: u64,
+    /// Of those, pages whose guest translation is the area's own (`fb0 + offset`).
+    pub matched: u64,
+    /// Of those, pages the guest maps elsewhere (a guest CPU access reaches the wrong
+    /// page of its own reservation), at the last check.
+    pub mismatched: u64,
+    /// Distinct mismatched pages seen over the device's life.
+    pub mismatch_events: u64,
+    /// Distinct pages reachable through the area that are guest page-table pages the
+    /// shadow watches (a write there bypasses [`FakeFb::write`]).
+    pub table_hazards: u64,
+    /// The first few findings, for the log.
+    pub first: Vec<String>,
+}
+
+/// The state of the P21 BAR1 passthrough: the guest BAR1 range `[0, len)` is mapped by
+/// the VMM straight onto the reservation piece `[fb0, fb0 + len)` (a dma-buf of it,
+/// hostmem.rs `export_bar1_passthrough`), so guest accesses there never reach the
+/// device. That is correct only while every page the guest maps in the range points at
+/// `fb0 + offset`, and safe for the shadow only while no page reachable through it is a
+/// watched page-table page. Both are checked whenever the guest changes the BAR1 tables
+/// over the range or the shadow's set of table pages changes.
+struct Bar1Pt {
+    root: u64,
+    fb0: u64,
+    len: u64,
+    /// The BAR1 table pages the last area walk read (a write to one re-arms the walk).
+    table_pages: HashSet<u64>,
+    /// `(guest BAR1 offset, target)` of every mapped 4 KiB page of the area.
+    mapped: Vec<(u64, Target)>,
+    reported: HashSet<u64>,
+    hazards: HashSet<u64>,
+    walk_dirty: bool,
+    hazard_dirty: bool,
+    stats: Bar1PtStats,
+}
+
 pub struct FakeFb {
     size: u64,
     store: Box<dyn FbStore>,
@@ -547,6 +654,8 @@ pub struct FakeFb {
     bar_tlb_pages: RefCell<std::collections::HashSet<u64>>,
     bar_tlb_on: bool,
     pub bar_tlb_stats: Cell<(u64, u64, u64)>,
+    /// P21: the BAR1 passthrough area and its check, when on.
+    bar1_pt: RefCell<Option<Bar1Pt>>,
 }
 
 impl Default for FakeFb {
@@ -569,6 +678,7 @@ impl FakeFb {
             bar_tlb_pages: RefCell::new(std::collections::HashSet::new()),
             bar_tlb_on: std::env::var("CARAXES_BAR_TLB").as_deref() != Ok("0"),
             bar_tlb_stats: Cell::new((0, 0, 0)),
+            bar1_pt: RefCell::new(None),
         }
     }
 
@@ -614,7 +724,14 @@ impl FakeFb {
                 c.reread = std::env::var("CARAXES_SHADOW_REREAD").as_deref() == Ok("1");
                 c
             });
-        c.update(&reader, full)
+        let before = c.table_pages();
+        let u = c.update(&reader, full);
+        if c.table_pages() != before || u.full {
+            if let Some(pt) = self.bar1_pt.borrow_mut().as_mut() {
+                pt.hazard_dirty = true;
+            }
+        }
+        u
     }
 
     /// Run `f` on the cached walk of `root` (after [`Self::walk_update`]).
@@ -628,6 +745,11 @@ impl FakeFb {
 
     fn note_write(&self, pa: u64, data: &[u8]) {
         let last = (pa + data.len().max(1) as u64 - 1) >> 12;
+        if let Some(pt) = self.bar1_pt.borrow_mut().as_mut() {
+            if !pt.walk_dirty && (pa >> 12..=last).any(|p| pt.table_pages.contains(&p)) {
+                pt.walk_dirty = true;
+            }
+        }
         {
             let mut tp = self.bar_tlb_pages.borrow_mut();
             if !tp.is_empty() && (pa >> 12..=last).any(|p| tp.contains(&p)) {
@@ -1109,6 +1231,206 @@ impl FakeFb {
         }
         t
     }
+
+    /// Turn on the P21 check for the passthrough area: guest BAR1 `[0, len)` is backed
+    /// by the reservation piece `[fb0, fb0 + len)`, the guest's BAR1 tables are rooted at
+    /// `root`. The first [`Self::poll_bar1_passthrough`] walks the area.
+    pub fn set_bar1_passthrough(&mut self, root: u64, fb0: u64, len: u64) {
+        *self.bar1_pt.borrow_mut() = Some(Bar1Pt {
+            root,
+            fb0,
+            len,
+            table_pages: HashSet::new(),
+            mapped: Vec::new(),
+            reported: HashSet::new(),
+            hazards: HashSet::new(),
+            walk_dirty: true,
+            hazard_dirty: true,
+            stats: Bar1PtStats::default(),
+        });
+    }
+
+    /// Move the passthrough state to `to` (the fresh model of a function-level reset):
+    /// the VMM keeps the area mapped across the reset, so the check must go on. The
+    /// counters carry over; the next poll walks the area again.
+    pub fn carry_bar1_passthrough(&self, to: &FakeFb) {
+        if let Some(mut pt) = self.bar1_pt.borrow_mut().take() {
+            pt.table_pages.clear();
+            pt.mapped.clear();
+            pt.walk_dirty = true;
+            pt.hazard_dirty = true;
+            *to.bar1_pt.borrow_mut() = Some(pt);
+        }
+    }
+
+    /// `(fb0, len)` of the passthrough area, when on.
+    pub fn bar1_passthrough(&self) -> Option<(u64, u64)> {
+        self.bar1_pt.borrow().as_ref().map(|p| (p.fb0, p.len))
+    }
+
+    /// The check's counters, when on.
+    pub fn bar1_passthrough_stats(&self) -> Option<Bar1PtStats> {
+        self.bar1_pt.borrow().as_ref().map(|p| p.stats.clone())
+    }
+
+    /// Every mapped 4 KiB page of the BAR1 range `[0, len)` under `root`, and the table
+    /// pages the walk read. Reads each table once per 2 MiB unit (the area is one or a
+    /// few PD0 entries), not five qwords per page: BAR1 reads of VRAM are uncached.
+    fn area_walk(&self, root: u64, len: u64) -> (Vec<(u64, Target)>, HashSet<u64>) {
+        let mut out = Vec::new();
+        let mut pages = HashSet::from([root >> 12]);
+        let note = |pages: &mut HashSet<u64>, t: Target| {
+            if let Target::Fb(pa) = t {
+                pages.insert(pa >> 12);
+            }
+        };
+        let mut unit = 0u64;
+        while unit < len {
+            let va = unit;
+            unit += 0x20_0000;
+            let Some(e3) = self.read_u64(root + 8 * ((va >> 47) & 3)) else {
+                continue;
+            };
+            let Some(pd2) = Self::next_table(e3) else {
+                continue;
+            };
+            note(&mut pages, pd2);
+            let Some(e2) = self.table_u64(None, pd2, 8 * ((va >> 38) & 0x1FF)) else {
+                continue;
+            };
+            let Some(pd1) = Self::next_table(e2) else {
+                continue;
+            };
+            note(&mut pages, pd1);
+            let Some(e1) = self.table_u64(None, pd1, 8 * ((va >> 29) & 0x1FF)) else {
+                continue;
+            };
+            let Some(pd0) = Self::next_table(e1) else {
+                continue;
+            };
+            note(&mut pages, pd0);
+            let idx0 = (va >> 21) & 0xFF;
+            let (Some(lo), Some(hi)) = (
+                self.table_u64(None, pd0, 16 * idx0),
+                self.table_u64(None, pd0, 16 * idx0 + 8),
+            ) else {
+                continue;
+            };
+            let n = ((len - va).min(0x20_0000) >> 12) as usize;
+            if lo & 1 == 1 {
+                // A 2 MiB page: every 4 KiB page of the unit at its offset.
+                for i in 0..n as u64 {
+                    let t = Self::decode_pte(lo, i << 12);
+                    if matches!(t, Target::Fb(_) | Target::Sys(_)) {
+                        out.push((va + (i << 12), t));
+                    }
+                }
+                continue;
+            }
+            let big_t = Self::big_table(lo);
+            let small_t = Self::next_table(hi);
+            if let Some(t) = big_t {
+                note(&mut pages, t);
+            }
+            if let Some(t) = small_t {
+                note(&mut pages, t);
+            }
+            let big = big_t.and_then(|t| self.table_block(None, t, 32));
+            let small = small_t.and_then(|t| self.table_block(None, t, 512));
+            for i in 0..n {
+                let g = va + ((i as u64) << 12);
+                // walk_in's precedence: the small PTE unless it is invalid and a big
+                // table exists, then the big PTE.
+                let from_small = small
+                    .as_ref()
+                    .map(|pt| Self::decode_pte(pt[i], 0))
+                    .filter(|t| !matches!(t, Target::Unmapped { .. }) || big.is_none());
+                let t = match from_small {
+                    Some(t) => t,
+                    None => match &big {
+                        Some(bt) => Self::decode_pte(bt[i >> 4], (g & 0xFFFF) & !0xFFF),
+                        None => Target::Unmapped { level: 0 },
+                    },
+                };
+                if matches!(t, Target::Fb(_) | Target::Sys(_)) {
+                    out.push((g, t));
+                }
+            }
+        }
+        (out, pages)
+    }
+
+    /// Run the P21 check if the guest changed the BAR1 tables over the area or the
+    /// shadow's table pages changed since the last run. Cheap when nothing changed (two
+    /// flags); called after trapped BAR0 writes, which is where the guest flushes and
+    /// invalidates after a BAR1 mapping change and before it uses the mapping. Findings
+    /// are logged (the first 16) and counted; the area itself cannot be withdrawn from
+    /// the VMM (vfio-user has no revocation), so a mismatch is reported, not repaired.
+    /// Returns whether a check ran.
+    pub fn poll_bar1_passthrough(&self) -> bool {
+        let (root, len, walk) = match self.bar1_pt.borrow().as_ref() {
+            Some(p) if p.walk_dirty || p.hazard_dirty => (p.root, p.len, p.walk_dirty),
+            _ => return false,
+        };
+        let walked = walk.then(|| self.area_walk(root, len));
+        let mut guard = self.bar1_pt.borrow_mut();
+        let Some(pt) = guard.as_mut() else {
+            return false;
+        };
+        pt.stats.checks += 1;
+        let mut log = Vec::new();
+        if let Some((mapped, pages)) = walked {
+            pt.table_pages = pages;
+            pt.mapped = mapped;
+            pt.walk_dirty = false;
+            let (mut ok, mut bad) = (0u64, 0u64);
+            for &(g, t) in &pt.mapped {
+                let want = pt.fb0 + g;
+                if t == Target::Fb(want) {
+                    ok += 1;
+                    continue;
+                }
+                bad += 1;
+                if pt.reported.insert(g) {
+                    pt.stats.mismatch_events += 1;
+                    log.push(format!(
+                        "guest BAR1 {g:#x} maps {t:?}, the passthrough area gives FB {want:#x}: guest CPU accesses of this page reach the wrong page of its own reservation"
+                    ));
+                }
+            }
+            let changed = pt.stats.mapped != pt.mapped.len() as u64 || pt.stats.mismatched != bad;
+            pt.stats.mapped = pt.mapped.len() as u64;
+            pt.stats.matched = ok;
+            pt.stats.mismatched = bad;
+            if changed {
+                eprintln!(
+                    "vfio-user-nvgpu: bar1 passthrough: check {}: {} page(s) of guest BAR1 [0, {:#x}) mapped, {} at the area's FB {:#x} + offset, {} elsewhere",
+                    pt.stats.checks, pt.stats.mapped, pt.len, ok, pt.fb0, bad
+                );
+            }
+        }
+        {
+            let walks = self.walks.borrow();
+            for &(g, t) in &pt.mapped {
+                let Target::Fb(pa) = t else { continue };
+                let page = pa >> 12;
+                if walks.values().any(|c| c.watches(page)) && pt.hazards.insert(page) {
+                    pt.stats.table_hazards += 1;
+                    log.push(format!(
+                        "guest BAR1 {g:#x} reaches FB {pa:#x}, a page-table page the shadow watches: guest writes there bypass the shadow's write tracking (CARAXES_SHADOW_ALWAYS_RESYNC=1 is the safe setting while this persists)"
+                    ));
+                }
+            }
+        }
+        pt.hazard_dirty = false;
+        for l in log {
+            if pt.stats.first.len() < 16 {
+                eprintln!("vfio-user-nvgpu: ERROR: bar1 passthrough: {l}");
+                pt.stats.first.push(l);
+            }
+        }
+        true
+    }
 }
 
 /// The FB store (and guest RAM for sysmem tables) as the incremental walker's reader.
@@ -1225,6 +1547,103 @@ mod tests {
         assert_eq!(u.changed, vec![0]);
         assert!(!fb.tables_dirty(Target::Fb(root)));
         assert_eq!(fb.with_walk(Target::Fb(root), |c| c.leaf_count()), Some(4));
+    }
+
+    #[test]
+    fn bar1_passthrough_area_stays_in_the_usable_reservation() {
+        // The 2 GiB profile at slot 0 on the RTX 2070 host: reservation [0x169000000,
+        // 0x1e9000000), usable up to the 2 MiB carve-out.
+        let l = FbLayout::reserved(2 << 30, 8 << 30, 0x1_6900_0000, 0x1_E900_0000).unwrap();
+        let bar1 = 256 << 20;
+        assert_eq!(
+            bar1_passthrough_area(&l, BAR1_PT_FB_OFFSET, 2 << 20, bar1),
+            Ok((0x1_6998_0000, 2 << 20))
+        );
+        // Unaligned, too large for the BAR, or reaching into the carve-out: refused.
+        assert!(bar1_passthrough_area(&l, 0x98_1000, 2 << 20, bar1).is_err());
+        assert!(bar1_passthrough_area(&l, 0, 512 << 20, bar1).is_err());
+        let usable = l.usable().unwrap();
+        let last = usable.1 - usable.0 - (2 << 20);
+        assert!(bar1_passthrough_area(&l, last, 2 << 20, bar1).is_ok());
+        assert!(bar1_passthrough_area(&l, last + (64 << 10), 2 << 20, bar1).is_err());
+        assert!(bar1_passthrough_area(&l, u64::MAX & !0xFFFF, 2 << 20, bar1).is_err());
+        // No reservation, no passthrough.
+        assert!(bar1_passthrough_area(&FbLayout::plain(2 << 30), 0, 2 << 20, bar1).is_err());
+        assert_eq!(parse_u64("0x980000"), Some(0x98_0000));
+        assert_eq!(parse_u64("4096"), Some(4096));
+        assert_eq!(parse_u64("zz"), None);
+    }
+
+    #[test]
+    fn bar1_passthrough_check_follows_the_guest_bar1_tables() {
+        let mut fb = FakeFb::new(64 << 20);
+        let (root, pd2, pd1, pd0) = (0x10000u64, 0x11000u64, 0x12000u64, 0x13000u64);
+        let (pt_small, pt_big) = (0x14000u64, 0x15000u64);
+        let vid = |addr: u64| ((addr >> 12) << 8) | 0b010;
+        let pte = |pa: u64| ((pa >> 12) << 8) | 1;
+        fb.write_u64(root, vid(pd2));
+        fb.write_u64(pd2, vid(pd1));
+        fb.write_u64(pd1, vid(pd0));
+        fb.write_u64(pd0, ((pt_big >> 8) << 4) | 0b010);
+        fb.write_u64(pd0 + 8, vid(pt_small));
+        let fb0 = 0x100_0000u64;
+        // BAR1 0x80000 and 0x81000 on the area's own pages: correct.
+        fb.write_u64(pt_small + 8 * 0x80, pte(fb0 + 0x8_0000));
+        fb.write_u64(pt_small + 8 * 0x81, pte(fb0 + 0x8_1000));
+        fb.set_bar1_passthrough(root, fb0, 2 << 20);
+        assert_eq!(fb.bar1_passthrough(), Some((fb0, 2 << 20)));
+        assert!(fb.poll_bar1_passthrough());
+        let st = fb.bar1_passthrough_stats().unwrap();
+        assert_eq!(
+            (st.checks, st.mapped, st.matched, st.mismatched),
+            (1, 2, 2, 0)
+        );
+        // Nothing changed: no second walk.
+        assert!(!fb.poll_bar1_passthrough());
+        // A data write elsewhere does not re-arm it.
+        fb.write_u64(fb0 + 0x8_0000, 0xdead);
+        assert!(!fb.poll_bar1_passthrough());
+        // The guest maps BAR1 0x82000 somewhere else: a mismatch, counted once.
+        fb.write_u64(pt_small + 8 * 0x82, pte(0x30_0000));
+        assert!(fb.poll_bar1_passthrough());
+        let st = fb.bar1_passthrough_stats().unwrap();
+        assert_eq!(
+            (st.mapped, st.matched, st.mismatched, st.mismatch_events),
+            (3, 2, 1, 1)
+        );
+        fb.write_u64(pt_small + 8 * 0x83, pte(fb0 + 0x8_3000));
+        assert!(fb.poll_bar1_passthrough());
+        let st = fb.bar1_passthrough_stats().unwrap();
+        assert_eq!((st.mapped, st.mismatched, st.mismatch_events), (4, 1, 1));
+        // A 64 KiB big page at BAR1 0x10000 on the area's own page: all 16 small pages match.
+        fb.write_u64(pt_big + 8, pte(fb0 + 0x1_0000));
+        assert!(fb.poll_bar1_passthrough());
+        let st = fb.bar1_passthrough_stats().unwrap();
+        assert_eq!((st.mapped, st.matched), (20, 19));
+        // A page-table page the shadow watches becomes reachable through the area: the
+        // guest maps its own table page (a watched root's PT) at BAR1 0x84000.
+        let r2 = fb0 + 0x8_4000;
+        let (r2pd2, r2pd1, r2pd0, r2pt) = (0x21000u64, 0x22000u64, 0x23000u64, 0x24000u64);
+        fb.write_u64(r2, vid(r2pd2));
+        fb.write_u64(r2pd2, vid(r2pd1));
+        fb.write_u64(r2pd1, vid(r2pd0));
+        fb.write_u64(r2pd0 + 8, vid(r2pt));
+        fb.write_u64(r2pt, pte(0x40_0000));
+        let mem = GuestMemory::new();
+        fb.walk_update(Some(&mem), Target::Fb(r2), false, 1 << 20);
+        fb.write_u64(pt_small + 8 * 0x84, pte(r2));
+        assert!(fb.poll_bar1_passthrough());
+        let st = fb.bar1_passthrough_stats().unwrap();
+        assert_eq!(st.table_hazards, 1);
+        assert_eq!(st.first.len(), 2);
+        // The state survives a model reset and walks again on the fresh model.
+        let fresh = FakeFb::new(64 << 20);
+        fb.carry_bar1_passthrough(&fresh);
+        assert_eq!(fb.bar1_passthrough(), None);
+        assert_eq!(fresh.bar1_passthrough(), Some((fb0, 2 << 20)));
+        assert!(fresh.poll_bar1_passthrough());
+        let st = fresh.bar1_passthrough_stats().unwrap();
+        assert_eq!((st.mapped, st.mismatch_events, st.table_hazards), (0, 1, 1));
     }
 
     #[test]
