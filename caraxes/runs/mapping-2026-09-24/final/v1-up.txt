@@ -1,0 +1,15 @@
+backend pid 2199740, hypervisor pid 2199754, ssh up at 192.168.105.25
+warning: the compiler differs from the one used to build the kernel
+  The kernel was built by: x86_64-linux-gnu-gcc-13 (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0
+  You are using:           gcc-13 (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0
+Skipping BTF generation for /home/leandro/guest-module/nvrm_nodes/nvrm_nodes.ko due to unavailability of vmlinux
+warning: the compiler differs from the one used to build the kernel
+  The kernel was built by: x86_64-linux-gnu-gcc-13 (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0
+  You are using:           gcc-13 (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0
+Skipping BTF generation for /home/leandro/guest-module/virtio_nvrm/virtio_nvrm.ko due to unavailability of vmlinux
+nvrm-nodes-tool: /proc/driver/nvidia/params set (1078 bytes)
+[  142.410013] virtio_nvrm: tables v1 accepted -- 9240 bytes, checksum 0x43ee86ab (100 ioctls, 128 classes, 50 controls, 17 nested)
+[  142.410220] virtio_nvrm: ready (nodes on, 1 GPU, max_pin 1024 MiB)
+[  142.410537] virtio_nvrm: balloon off (display_reserve_mib=-1, display=0)
+virtio_nvrm           139264  0
+nvrm_nodes             16384  0

@@ -71,6 +71,12 @@ impl Window {
         // ~250 ms per GR doorbell, d-gr-launch7), bytes only at unaligned edges.
         unsafe {
             let mut i = 0;
+            // Bulk reads (whole table pages, the shadow walk): streaming 16-byte loads
+            // (`movntdqa`) fetch full lines from the write-combined BAR1 mapping instead of
+            // one bus round trip per qword (docs/caraxes/mapping.md §1).
+            if buf.len() >= 64 && (at % 16) == 0 && std::is_x86_feature_detected!("sse4.1") {
+                i = stream_read(self.ptr.add(at), buf);
+            }
             while i < buf.len() {
                 if (at + i) % 8 == 0 && buf.len() - i >= 8 {
                     let q = std::ptr::read_volatile(self.ptr.add(at + i) as *const u64);
@@ -129,6 +135,28 @@ impl Window {
             }
         }
     }
+}
+
+/// Copy the 16-byte-aligned prefix of `buf.len()` bytes from `src` with streaming loads;
+/// returns the bytes copied (a multiple of 16).
+///
+/// # Safety
+/// `src..src + buf.len()` must be a readable mapping, `src` 16-byte aligned, and the CPU
+/// must have SSE4.1.
+#[target_feature(enable = "sse4.1")]
+unsafe fn stream_read(src: *const u8, buf: &mut [u8]) -> usize {
+    use std::arch::x86_64::{__m128i, _mm_storeu_si128, _mm_stream_load_si128};
+    let n = buf.len() & !15;
+    let mut i = 0;
+    while i < n {
+        // SAFETY: inside the mapping and aligned per the caller; the store goes to `buf`.
+        unsafe {
+            let v = _mm_stream_load_si128(src.add(i) as *const __m128i);
+            _mm_storeu_si128(buf.as_mut_ptr().add(i) as *mut __m128i, v);
+        }
+        i += 16;
+    }
+    n
 }
 
 impl Drop for Window {
@@ -358,6 +386,68 @@ pub struct Descriptor {
     pub range: DmaRange,
 }
 
+/// A hole filler: `len` bytes of VA at `va` backed by one 2 MiB memfd page mapped over
+/// and over, registered as a descriptor so the IOVA allocator places the next chunk
+/// below it (docs/caraxes/mapping.md §5).
+pub struct Filler {
+    pub handle: u32,
+    pub gpa: u64,
+    pub iova: u64,
+    va: *mut libc::c_void,
+    len: usize,
+    _memfd: std::fs::File,
+}
+
+// SAFETY: the filler's mapping is only touched by the RM (pinned) and unmapped on drop.
+unsafe impl Send for Filler {}
+
+impl Filler {
+    fn new(gpa: u64, len: u64) -> Result<Self> {
+        use std::os::fd::FromRawFd;
+        const PIECE: usize = 2 << 20;
+        let len = len as usize;
+        // SAFETY: memfd_create with a static name; the fd is owned by the File below.
+        let fd = unsafe { libc::memfd_create(c"caraxes-filler".as_ptr(), libc::MFD_CLOEXEC) };
+        if fd < 0 {
+            bail!("memfd_create: {}", std::io::Error::last_os_error());
+        }
+        // SAFETY: fd is a fresh memfd owned from here on.
+        let memfd = unsafe { std::fs::File::from_raw_fd(fd) };
+        memfd.set_len(PIECE as u64)?;
+        // SAFETY: an anonymous PROT_NONE reservation, then MAP_FIXED pieces inside it.
+        let va = unsafe {
+            libc::mmap(std::ptr::null_mut(), len, libc::PROT_NONE,
+                libc::MAP_PRIVATE | libc::MAP_ANONYMOUS | libc::MAP_NORESERVE, -1, 0)
+        };
+        if va == libc::MAP_FAILED {
+            bail!("filler reservation: {}", std::io::Error::last_os_error());
+        }
+        for i in 0..len.div_ceil(PIECE) {
+            let n = PIECE.min(len - i * PIECE);
+            // SAFETY: inside the reservation above.
+            let p = unsafe {
+                libc::mmap(va.cast::<u8>().add(i * PIECE).cast(), n,
+                    libc::PROT_READ | libc::PROT_WRITE, libc::MAP_SHARED | libc::MAP_FIXED,
+                    memfd.as_raw_fd(), 0)
+            };
+            if p == libc::MAP_FAILED {
+                let e = std::io::Error::last_os_error();
+                // SAFETY: the reservation made above.
+                unsafe { libc::munmap(va, len) };
+                bail!("filler piece {i}: {e}");
+            }
+        }
+        Ok(Filler { handle: 0, gpa, iova: 0, va, len, _memfd: memfd })
+    }
+}
+
+impl Drop for Filler {
+    fn drop(&mut self) {
+        // SAFETY: the mapping made in `new`; the descriptor over it is freed before.
+        unsafe { libc::munmap(self.va, self.len) };
+    }
+}
+
 pub struct HostMemory {
     rm: RmClient,
     /// The GPU node the device allocation needs open, and the node registered to the
@@ -369,6 +459,14 @@ pub struct HostMemory {
     privilege: Privilege,
     reservation: Option<Reservation>,
     descriptors: Vec<Descriptor>,
+    /// Hole fillers of the linear registration (`register_linear`): descriptors over a
+    /// device-owned 2 MiB page mapped many times, which only hold the IOVA space between
+    /// guest RAM zones so the zones above keep IOVA = GPA + one offset. Never in the
+    /// shadow filter's ranges and never in the guest's table.
+    fillers: Vec<Filler>,
+    /// Guest RAM zones mapped by the client but not registered yet (the linear
+    /// registration waits for all of them, `CARAXES_GUEST_RAM_BYTES`).
+    pending: Vec<(u64, u64, usize)>,
     /// The mirror objects of E5b part 2 (`(parent, handle, what)`, allocation order):
     /// freed LIFO before the descriptors, so no host channel can still use an IOVA
     /// when its pages are unpinned (docs/caraxes/memory-model.md §4).
@@ -539,6 +637,8 @@ impl HostMemory {
             privilege,
             reservation: None,
             descriptors: Vec::new(),
+            fillers: Vec::new(),
+            pending: Vec::new(),
             live: Vec::new(),
             pins_at_open: foll_pins(),
             shut: false,
@@ -1285,6 +1385,245 @@ impl HostMemory {
         size: u64,
         host_va: *mut u8,
     ) -> Result<(Vec<DmaRange>, Vec<String>)> {
+        let total = std::env::var("CARAXES_GUEST_RAM_BYTES")
+            .ok()
+            .and_then(|v| v.parse::<u64>().ok())
+            .filter(|_| std::env::var("CARAXES_LINEAR_IOVA").as_deref() != Ok("0"));
+        let Some(total) = total else {
+            return self.register_chunks(gpa, size, host_va);
+        };
+        self.pending.push((gpa, size, host_va as usize));
+        let have: u64 = self.pending.iter().map(|z| z.1).sum();
+        if have < total {
+            return Ok((
+                Vec::new(),
+                vec![format!(
+                    "guest RAM {gpa:#x}+{size:#x}: registration deferred until all {} MiB are mapped ({} MiB so far), so the whole guest gets one IOVA offset",
+                    total / MIB,
+                    have / MIB
+                )],
+            ));
+        }
+        let zones = std::mem::take(&mut self.pending);
+        match self.register_linear(&zones) {
+            Ok(r) => Ok(r),
+            Err(e) => {
+                // Fall back to the per-zone chunks (descending IOVAs): the guest still
+                // runs, and a buffer crossing a chunk stays refused by the filter.
+                let mut log = vec![format!(
+                    "ERROR hostmem: linear registration failed ({e:#}); falling back to independent 1 GiB chunks (a guest buffer crossing a chunk boundary keeps no valid IOVA and is refused)"
+                )];
+                let mut ranges = Vec::new();
+                for (g, sz, va) in zones {
+                    let (r, l) = self.register_chunks(g, sz, va as *mut u8)?;
+                    ranges.extend(r);
+                    log.extend(l);
+                }
+                Ok((ranges, log))
+            }
+        }
+    }
+
+    /// Register every guest RAM zone so that IOVA = GPA + one offset for the whole guest
+    /// (docs/caraxes/mapping.md §5, parallel.md §8.2). A descriptor gets one IOVA range,
+    /// size-aligned and allocated top-down (sysmem-iova.md §1.4, §2), so the 1 GiB chunks
+    /// are registered from the highest GPA down, and the holes between zones get filler
+    /// descriptors of the same size: each chunk then lands right below the previous one.
+    /// The result is checked (every chunk's IOVA minus its GPA must be the same); on a
+    /// mismatch everything is freed and an error returned.
+    fn register_linear(
+        &mut self,
+        zones: &[(u64, u64, usize)],
+    ) -> Result<(Vec<DmaRange>, Vec<String>)> {
+        let mut log = Vec::new();
+        let total: u64 = zones.iter().map(|z| z.1).sum();
+        let avail = meminfo_kib("MemAvailable:") * KIB;
+        if avail < total + RAM_FLOOR {
+            bail!(
+                "refused: pinning {} MiB of guest RAM would leave the host {} MiB available, below the {} MiB floor",
+                total / MIB,
+                avail.saturating_sub(total) / MIB,
+                RAM_FLOOR / MIB
+            );
+        }
+        let mut zs = zones.to_vec();
+        zs.sort_by_key(|z| z.0);
+        for z in &zs {
+            if z.0 % HUGE != 0 || z.1 % HUGE != 0 {
+                bail!("guest RAM region {:#x}+{:#x} is not 2 MiB aligned", z.0, z.1);
+            }
+        }
+        // Pieces: (gpa, len, Some(host va) for guest RAM, None for a hole filler).
+        let mut pieces: Vec<(u64, u64, Option<usize>)> = Vec::new();
+        let split = |a: u64, b: u64, va: Option<usize>, out: &mut Vec<(u64, u64, Option<usize>)>| {
+            let mut at = a;
+            while at < b {
+                let end = ((at / CHUNK + 1) * CHUNK).min(b);
+                out.push((at, end - at, va.map(|v| v + (at - a) as usize)));
+                at = end;
+            }
+        };
+        for (i, z) in zs.iter().enumerate() {
+            split(z.0, z.0 + z.1, Some(z.2), &mut pieces);
+            if let Some(n) = zs.get(i + 1) {
+                if n.0 > z.0 + z.1 {
+                    split(z.0 + z.1, n.0, None, &mut pieces);
+                }
+            }
+        }
+        pieces.sort_by_key(|p| std::cmp::Reverse(p.0));
+        let pins0 = foll_pins();
+        let t = Instant::now();
+        let mut descs: Vec<Descriptor> = Vec::new();
+        let mut fillers: Vec<Filler> = Vec::new();
+        // Pieces placed out of line (another allocation of the host sat in between) stay
+        // registered until the end, so the restarted sequence lands below them; then they
+        // are freed.
+        let mut stale: Vec<u32> = Vec::new();
+        let mut stale_fillers: Vec<Filler> = Vec::new();
+        let mut restarts = 0usize;
+        let result: Result<()> = (|| {
+            let mut i = 0usize;
+            while i < pieces.len() {
+                let (gpa, len, va) = pieces[i];
+                let tc = Instant::now();
+                let (h, filler) = match va {
+                    Some(va) => (self.os_descriptor(va as *mut u8, len)?, None),
+                    None => {
+                        let f = Filler::new(gpa, len)?;
+                        (self.os_descriptor(f.va.cast(), len)?, Some(f))
+                    }
+                };
+                let reg_ms = tc.elapsed().as_millis();
+                let mut offsets: Vec<u64> = (0..len).step_by(SAMPLE_STEP as usize).collect();
+                offsets.push(len - 4096);
+                let answers = match self.phys_attr(h, &offsets) {
+                    Ok(a) => a,
+                    Err(e) => {
+                        let _ = self.free_descriptor(h);
+                        return Err(e);
+                    }
+                };
+                let base = answers[0].1;
+                if let Some((o, (st, iova, ap))) = offsets
+                    .iter()
+                    .zip(&answers)
+                    .find(|(&o, &(st, iova, ap))| st != 0 || ap != 1 || iova != base + o)
+                {
+                    let _ = self.free_descriptor(h);
+                    bail!("refused: GPA {gpa:#x}+{len:#x} is not one IOVA range: offset {o:#x} gave status {st:#x} aperture {ap} IOVA {iova:#x} (base {base:#x})");
+                }
+                let expect = descs
+                    .first()
+                    .map(|d| d.range.iova.wrapping_sub(d.range.gpa))
+                    .or_else(|| fillers.first().map(|f| f.iova.wrapping_sub(f.gpa)));
+                if let Some(off) = expect.filter(|off| base.wrapping_sub(gpa) != *off) {
+                    restarts += 1;
+                    log.push(format!(
+                        "linear registration: GPA {gpa:#x} landed at IOVA {base:#x} (offset {:#x}, not {off:#x}): a host allocation sits in between; restart {restarts} below it",
+                        base.wrapping_sub(gpa)
+                    ));
+                    stale.push(h);
+                    stale.extend(descs.drain(..).map(|d| d.handle));
+                    for mut f in fillers.drain(..) {
+                        stale.push(f.handle);
+                        f.handle = 0;
+                        stale_fillers.push(f);
+                    }
+                    if let Some(f) = filler {
+                        stale_fillers.push(f);
+                    }
+                    if restarts > 4 {
+                        bail!("no run of {} free adjacent IOVA slots after {restarts} restarts", pieces.len());
+                    }
+                    i = 0;
+                    continue;
+                }
+                match filler {
+                    Some(mut f) => {
+                        f.handle = h;
+                        f.iova = base;
+                        log.push(format!(
+                            "hole filler GPA {gpa:#x}..{:#x} -> IOVA {base:#x}..{:#x} (descriptor {h:#x} over one device-owned 2 MiB page, {reg_ms} ms; never in the guest's table or the filter)",
+                            gpa + len,
+                            base + len
+                        ));
+                        fillers.push(f);
+                    }
+                    None => {
+                        let range = DmaRange { gpa, iova: base, size: len };
+                        log.push(format!(
+                            "placed guest RAM chunk {range} (descriptor {h:#x}, {reg_ms} ms, {} IOVA samples = base + offset)",
+                            offsets.len()
+                        ));
+                        descs.push(Descriptor { handle: h, range });
+                    }
+                }
+                i += 1;
+            }
+            Ok(())
+        })();
+        for h in stale.drain(..) {
+            let _ = self.free_descriptor(h);
+        }
+        drop(stale_fillers);
+        let mut offs: Vec<u64> = descs.iter().map(|d| d.range.iova.wrapping_sub(d.range.gpa)).collect();
+        offs.extend(fillers.iter().map(|f| f.iova.wrapping_sub(f.gpa)));
+        offs.sort_unstable();
+        offs.dedup();
+        let linear = offs.len() == 1;
+        if result.is_err() || !linear {
+            for d in descs {
+                let _ = self.free_descriptor(d.handle);
+            }
+            for f in fillers {
+                let _ = self.free_descriptor(f.handle);
+            }
+            result.map_err(|e| anyhow::anyhow!("{e:#}; placements: {}", log.join(" | ")))?;
+            bail!("the chunks did not land adjacent: {} distinct IOVA - GPA offsets {:x?}; placements: {}", offs.len(), offs, log.join(" | "));
+        }
+        let pins1 = foll_pins();
+        log.push(format!(
+            "guest RAM {} MiB in {} zone(s): {} chunk(s) + {} hole filler(s) registered from the top GPA down in {} ms ({restarts} restart(s)); IOVA = GPA + {:#x} for the whole guest; pinned now {} MiB; host foll_pin acquired +{} released +{}; privileged windows so far {}",
+            total / MIB,
+            zs.len(),
+            descs.len(),
+            fillers.len(),
+            t.elapsed().as_millis(),
+            offs[0],
+            (self.pinned_bytes() + total) / MIB,
+            pins1.0 - pins0.0,
+            pins1.1 - pins0.1,
+            self.privilege.windows()
+        ));
+        descs.sort_by_key(|d| d.range.gpa);
+        for d in &descs {
+            log.push(format!(
+                "registered guest RAM chunk {} (descriptor {:#x}, linear)",
+                d.range, d.handle
+            ));
+        }
+        // The guest's table: one entry per contiguous stretch of guest RAM.
+        let mut ranges: Vec<DmaRange> = Vec::new();
+        for d in &descs {
+            match ranges.last_mut() {
+                Some(l) if l.gpa + l.size == d.range.gpa && l.iova + l.size == d.range.iova => {
+                    l.size += d.range.size
+                }
+                _ => ranges.push(d.range),
+            }
+        }
+        self.descriptors.extend(descs);
+        self.fillers.extend(fillers);
+        Ok((ranges, log))
+    }
+
+    fn register_chunks(
+        &mut self,
+        gpa: u64,
+        size: u64,
+        host_va: *mut u8,
+    ) -> Result<(Vec<DmaRange>, Vec<String>)> {
         let mut log = Vec::new();
         if size % HUGE != 0 || gpa % HUGE != 0 {
             bail!("guest RAM region {gpa:#x}+{size:#x} is not 2 MiB aligned (the guest module needs 2 MiB multiples)");
@@ -1495,6 +1834,13 @@ impl TeardownOps for HostMemory {
     }
 
     fn free_reservation(&mut self, log: &mut Vec<String>) -> bool {
+        // The hole fillers hold only device-owned pages: freed with the guest RAM.
+        for f in std::mem::take(&mut self.fillers) {
+            match self.free_descriptor(f.handle) {
+                Ok(()) => log.push(format!("freed hole filler descriptor {:#x} (GPA {:#x}, IOVA {:#x})", f.handle, f.gpa, f.iova)),
+                Err(e) => log.push(format!("ERROR freeing hole filler {:#x}: {e}", f.handle)),
+            }
+        }
         let Some(r) = self.reservation.clone() else {
             return true;
         };

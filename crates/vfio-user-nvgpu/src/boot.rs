@@ -283,6 +283,10 @@ impl BootModel {
                 st.maps, st.map_failures, st.evictions, st.stalls, st.reads, st.bytes_read, st.writes, st.bytes_written
             ));
         }
+        let (h, m, f) = self.fb.bar_tlb_stats.get();
+        s.push(format!(
+            "bar tlb: {h} hit(s), {m} walk(s), {f} flush(es) by a table write (docs/caraxes/mapping.md §3)"
+        ));
         if let Some(m) = &self.ctrl.mirror {
             s.push(m.summary());
         }

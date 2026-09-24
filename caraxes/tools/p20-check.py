@@ -79,7 +79,7 @@ def main():
                     ok = False
                     say(f"FAIL guest RAM IOVA ranges overlap: {b:#x}+{s:#x} / {ob:#x}+{os_:#x}")
         shadow = (d / "shadow.txt").read_text(errors="replace") if (d / "shadow.txt").exists() else ""
-        syncs = re.findall(r"mapped PAs so far: vidmem (none|\[(0x[0-9a-f]+), (0x[0-9a-f]+)\)); sysmem chunks ([^\n]*)", shadow)
+        syncs = re.findall(r"mapped PAs so far: vidmem (none|\[(0x[0-9a-f]+), (0x[0-9a-f]+)\)); sysmem chunks ([^;\n]*)", shadow)
         lo = hi = None
         sys_bases = {}
         for whole, a, b, sc in syncs:
