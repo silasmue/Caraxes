@@ -11,7 +11,7 @@
 //! kinds of difference exist between the two versions for what the device speaks:
 //!
 //! 1. The CPU-GSP transport and the init handshake are new code, not a layout change:
-//!    [`GSP_TRANSPORT`] selects `msgq::v2` and the GMCAPI init path (`gmcapi`) in the
+//!    `GSP_TRANSPORT` selects `msgq::v2` and the GMCAPI init path (`gmcapi`) in the
 //!    boot model. The transport and boot structures are `NV_ABI_STABLE` from 615 on
 //!    (sdk/nvtypes.h:520-533), so their layouts live with the transport code, not
 //!    here; the numbers below that repeat them are the ones generic code reads

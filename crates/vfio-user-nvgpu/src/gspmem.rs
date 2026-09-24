@@ -200,10 +200,10 @@ pub const RECORD_SUBTYPE_GOE_V1: u16 = 1;
 pub const VARDATA_GRANULARITY: u32 = 32;
 pub const VARDATA_START_ZERO: u32 = 1;
 /// `sizeof(NV_GPU_OPERATIONAL_EVENT_RECORD)` (cl90d0.h:280-291): the operational record
-/// (80 bytes: header, traceId @8, instanceId @16, timestamp @24, moduleSignature[16] @32,
+/// (80 bytes: header, traceId @8, instanceId @16, timestamp @24, moduleSignature\[16\] @32,
 /// eventCategory @48, moduleEventCode @50, severity @52, attributes @53,
 /// groupAttributes @54, bindId @55, cursorValue @56, numContexts @64, totalContextSize
-/// @68, groupCperSize @72, groupSize @76, groupIndex @77), then deviceUuid[16] @80,
+/// @68, groupCperSize @72, groupSize @76, groupIndex @77), then deviceUuid\[16\] @80,
 /// scope @96, originator @97, moduleInstance @98, chipletId @99, migAttribution @100,
 /// logLevel @101, reportingSource @102.
 pub const GOE_RECORD_SIZE: usize = 104;
