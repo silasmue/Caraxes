@@ -1083,6 +1083,69 @@ scoped CAP_SYS_ADMIN window, the reservation, the registration. No register acce
 module change, no passthrough. `caraxes/tools/host-kick.rs` (a doorbell diagnostic) touches
 only the usermode doorbell of its own throwaway channel.
 
+## 615 transport (2026-09-24)
+
+- **Goal (decision D19, the 615 baseline):** a 615.71.09 guest boots against the device:
+  message queue v2 with the pointers in registers, MCTP-framed elements, `GMCAPI_CMD_GSP_INIT`
+  with NVKV system info and static info, the 615 boot arguments, and the 615 control layouts
+  where they differ ([gsp-transport-615.md](gsp-transport-615.md)). The 610 path stays as it
+  was. Target: `RmInitAdapter succeeded!` with the 615 guest, and `nvidia-smi` answering.
+- **Starting point:** the 610 device stops the 615 guest at `GspStatusQueueInit: msgqRxLink
+  failed: -7` ([guest-driver-versions.md](guest-driver-versions.md) §5.1). The pre-boot
+  `QUEUE_HEAD(0) = 0` counts as a doorbell, and the 615 `GSP_ARGUMENTS_CACHED` is read with the
+  610 offsets.
+- **What changed in `crates/vfio-user-nvgpu`:** `msgq/v2.rs` (behind `QueueState`), `gmcapi.rs`,
+  `ver/v615.rs` (feature `v615`, which implies `v610`; the host side keeps the 610 layouts) and
+  additive hooks in `boot.rs` (link at Booter-Load, the register pointers, the `GSP_INIT` and
+  `GSP_SUSPEND` arms). `rpc::static_info_nvkv` encodes the static info. `kgr.rs` widens the SM
+  order. `main.rs` gained `--guest-abi` (fail closed), and `tools/caraxes-vm.sh` gained
+  `CARAXES_GUEST_ABI=615`. The chip data gained the three pointer registers. The file list is
+  in gsp-transport-615.md §10.
+- **Expected:** the status header lands before the guest's 4 s link window closes, `GSP_INIT`
+  is answered with static info the kernel's key handler accepts, and the phase-5 RPCs follow
+  unchanged in their RPC headers. A falsifier would be a key refused by
+  `_kgspStaticInfoKeyHandler` (`GSP_INIT` failing with 0x1f), a control layout mismatch showing
+  up as an assert or a failed `RmInitAdapter`, or the queues wedging on the pointer semantics.
+- **Unit tests:** `cargo test -p vfio-user-nvgpu`: 119 library tests and the 2 protocol tests
+  pass. That is the 102 existing ones unchanged and 17 new ones: `msgq::v2` 7,
+  `gmcapi` 6, `rpc::tests::static_info_as_nvkv_keys`, `boot::tests::boot_615_link_and_gsp_init_from_the_captured_guest`,
+  `boot::tests::a_610_device_names_a_615_guest` and `ver::abi_tests`. The 615 transport tests
+  run in the default build. With `--features v615` the three `ver::v615` tests pass as well
+  (Appendix A of gsp-transport-615.md, the versioned layouts, the reused id); 111 of 122 pass
+  there. The 11 that fail are pinned to 610 numbers by construction: the six v0 queue tests
+  (their element header is 24 bytes in that build), four kgr layout pins and mocks, and the
+  `GSP_GET_FEATURES` version string in `ctrl::tests::answers_have_the_request_size`. The clippy line
+  (with and without `--all-features`) and `cargo doc` are clean for the crate.
+- **Run** (vm3, pure emulation, no reservation, no host execution; the 615.71.09 overlay
+  `vm3/g615` of guest-driver-versions.md §7):
+  `cargo build --release -p vfio-user-nvgpu --features v615 --target-dir target/v615`, then
+  `VM=vm3/g615 CARAXES_TAP=caraxes3 CARAXES_IP=192.168.103.23 CARAXES_MAC=02:00:00:00:00:23
+  CARAXES_HOST_RM=1 CARAXES_BOOT_MODEL=1 CARAXES_GUEST_ABI=615 tools/caraxes-vm.sh up; wait`.
+  The guest image loads nvidia at boot (nvidia-persistenced), so the first boot is the first
+  probe. For a reload: stop nvidia-persistenced, `rmmod nvidia_modeset`, then
+  `tools/caraxes-vm.sh probe <label>`. Evidence is in `caraxes/runs/transport-615-2026-09-24/`.
+- **Observed (target reached on the first run):**
+
+  | Run | Result | Evidence |
+  |---|---|---|
+  | boot | pre-boot doorbell ignored (`queues: not linked yet`); linked at Booter-Load (`rmargs (615): size 184 flags 0x2 ... pages 129`, `queues linked (v2)`); `GMCAPI_GSP_INIT` (2368 bytes, 142 keys, 44 registry entries, driver "615.71.09") answered with 424 bytes of NVKV static info; 162 requests up to and including `nvidia-smi`; guest `RmInitAdapter succeeded!` 19.6 s after `RmInitAdapter` (the known PROM read of the VBIOS, as in 610) | `boot/guest.txt`, `boot/device-events.txt`, `boot/gpu.log` |
+  | `nvidia-smi` | answers: `Leandro VFIO RTX 2070-4G`, 4096 MiB, KMD 615.71.09, CUDA UMD 13.4, UUID `GPU-9bd7b93d-3d23-c074-6704-984ef33ab7a7` (the 610 one); power reads `ERR!` | `boot/guest.txt` (`nvidia-smi -q`) |
+  | reload a (probe `t615-reload`, device before the suspend fix) | `GMCAPI_GSP_SUSPEND` received; the guest then polled MAILBOX0 for 6 s for the processor-suspended bit, then Booter-Unload; function-level reset; relinked at the next Booter-Load; `RmInitAdapter succeeded!` | `reload-a/` |
+  | reload b (probe `t615-reload-b`, MAILBOX0 bit 31 set on `GSP_SUSPEND`) | the unload continues at once (GSP reset 0.2 ms after `GSP_SUSPEND`); `RmInitAdapter` to `succeeded!` in 2.9 s; `nvidia-smi` and `nvidia-smi -q` answer | `reload-b/` |
+
+- **The walls after init, all non-fatal:**
+  1. `ALLOC_MEMORY` (RPC 4) from the new `goeimport` path is answered `NV_ERR_NOT_SUPPORTED`,
+     and the guest logs `_goeimportSetupTransport: goeimport: step 3a failed (0x56)` and goes on.
+  2. Power `ERR!` in `nvidia-smi`: the GSS legacy controls forwarded opaquely carry 615 sizes
+     that the 610 host refuses with 0x1f (`pmgr 0x18`: 20512 bytes against the host's 20000;
+     `thermal 0x36`: 24532 against 25552). Unanswered and new: `FB_GET_REMAPPED_BANKS`
+     0x20801361 and perf 0x2080A0F1.
+  3. The guest never sent 0x20800A36 (the id 610 used for chip info), and no RPC was rejected
+     by the v2 framing checks.
+- **Host GPU and host state touched:** RM API only, from the device's unprivileged client (the
+  forwarded controls of `CARAXES_HOST_RM=1`). No reservation, no registration, no host
+  execution, no register access, no module change. vm3 was stopped after the runs.
+
 ## Reference captures on the real card (opt-in, desktop off)
 
 - **R1: full VBIOS through the PROM window.** Boot a VM with the real card via

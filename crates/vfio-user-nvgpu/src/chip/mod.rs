@@ -57,6 +57,30 @@ pub trait FirmwareBoot: Send {
     /// Write an owned register (`None` when not owned). Firmware side effects that
     /// the generic model has to act on come back as a [`BootEvent`].
     fn write32(&mut self, off: u64, v: u32, mem: &GuestMemory) -> Option<BootWrite>;
+    /// Where the CPU put the libos init arguments for the GSP-RM it boots (on Turing
+    /// the GSP falcon's MAILBOX0/1, `kgspProgramLibosBootArgsAddr_TU102`). The 615
+    /// transport links its queues when GSP-RM starts, before any doorbell
+    /// (docs/caraxes/gsp-transport-615.md §3). `None` when the model does not know.
+    fn libos_args_pa(&self) -> Option<u64> {
+        None
+    }
+    /// The four registers that hold the message-queue pointers from driver 615 on
+    /// (message queue v2), when the chip has them.
+    fn queue_registers(&self) -> Option<QueueRegisters> {
+        None
+    }
+}
+
+/// `NV_PGSP_QUEUE_HEAD/TAIL(0)` and `NV_PGSP_MSGQ_HEAD/TAIL(0)`: the CPU writes the
+/// command queue's write pointer to `cmd_head` and the status queue's read pointer to
+/// `msg_tail`, and reads the GSP's pointers from `cmd_tail` and `msg_head`
+/// (msgq_priv.h:55-63 and kern_gpu_tu102.c:596-605 of 615).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct QueueRegisters {
+    pub cmd_head: u64,
+    pub cmd_tail: u64,
+    pub msg_head: u64,
+    pub msg_tail: u64,
 }
 
 /// What a firmware-boot register write did.

@@ -24,6 +24,11 @@ use std::sync::atomic::{AtomicU32, Ordering};
 
 use crate::guestmem::GuestMemory;
 
+/// Message queue v2, the transport from driver 615 on (docs/caraxes/gsp-transport-615.md):
+/// a second implementation behind [`QueueState`], selected when the boot model links
+/// the queues of a 615 guest ([`QueueState::from_v2`]).
+pub mod v2;
+
 /// The element and RPC header constants of the emulated driver version.
 pub use crate::ver::active::{
     ELEMENT_HEADER_SIZE, MCTP_HEADER, MSGQ_FLAGS_SWAP_RX, NVDM_HEADER, RPC_HEADER_SIZE,
@@ -362,6 +367,12 @@ pub struct Message {
     /// answers it with [`Rejection::status`] when it is answerable, and never acts on
     /// its payload.
     pub rejected: Option<Rejection>,
+    /// The `GMCAPI_HEADER` of a GMCAPI request (message queue v2 only). The header's
+    /// `function` then holds the GMCAPI command id and `sequence` its sequence: GMCAPI
+    /// ids start above 0xFFFF so that the two share one namespace
+    /// (interface/gmcapi/gmcapi_base.h:76-80 of 615), and a reply sent with that
+    /// function goes out as the GMCAPI response ([`v2::QueueStateV2::send`]).
+    pub gmcapi: Option<crate::gmcapi::Header>,
 }
 
 /// Which request the error reply for a rejected element answers.
@@ -433,6 +444,9 @@ pub struct QueueState {
     held: std::collections::VecDeque<Vec<u8>>,
     /// Flushes in a row that left held elements behind (1 = the first attempt).
     held_stalls: u32,
+    /// The message queue v2 state when the guest speaks the 615 transport: every
+    /// method below delegates to it, and the v0 fields above stay unused.
+    v2: Option<Box<v2::QueueStateV2>>,
 }
 
 impl QueueState {
@@ -474,7 +488,47 @@ impl QueueState {
             seq_mismatches: 0,
             held: Default::default(),
             held_stalls: 0,
+            v2: None,
         })
+    }
+
+    /// The queues of a 615 guest: the v2 state behind this interface. The v0 fields
+    /// describe no queue and are not used.
+    pub fn from_v2(q: v2::QueueStateV2) -> Self {
+        let none = TxHeader {
+            version: 0,
+            size: 0,
+            msg_size: 0,
+            msg_count: 0,
+            write_ptr: 0,
+            flags: 0,
+            rx_hdr_off: 0,
+            entry_off: 0,
+        };
+        QueueState {
+            cmd_off: q.cmd_off,
+            stat_off: q.stat_off,
+            cmd: none,
+            stat: none,
+            read_ptr: 0,
+            tx_seq: 0,
+            rx_seq: 0,
+            failed: None,
+            rejected: 0,
+            seq_mismatches: 0,
+            held: Default::default(),
+            held_stalls: 0,
+            v2: Some(Box::new(q)),
+        }
+    }
+
+    /// The v2 state, when these are the queues of a 615 guest.
+    pub fn v2(&self) -> Option<&v2::QueueStateV2> {
+        self.v2.as_deref()
+    }
+
+    pub fn v2_mut(&mut self) -> Option<&mut v2::QueueStateV2> {
+        self.v2.as_deref_mut()
     }
 
     fn slot_off(base: u64, hdr: &TxHeader, slot: u32) -> u64 {
@@ -513,6 +567,9 @@ impl QueueState {
     /// dispatched. `Err` is either transient (queue memory unreadable) or, once
     /// [`QueueState::failed`] is set, final.
     pub fn receive(&mut self, qm: &QueueMemory) -> Result<Option<Message>, String> {
+        if let Some(q) = self.v2.as_deref_mut() {
+            return q.receive(qm);
+        }
         if self.failed.is_some() {
             return Err(self.failed_error());
         }
@@ -578,6 +635,7 @@ impl QueueState {
                     answerable,
                     reason,
                 }),
+                gmcapi: None,
             }));
         }
         let mut raw = first;
@@ -634,6 +692,7 @@ impl QueueState {
             checksum_ok,
             slots,
             rejected,
+            gmcapi: None,
         }))
     }
 
@@ -654,6 +713,9 @@ impl QueueState {
 
     /// Elements waiting for room in the status queue.
     pub fn held(&self) -> usize {
+        if let Some(q) = self.v2.as_deref() {
+            return q.held();
+        }
         self.held.len()
     }
 
@@ -671,6 +733,9 @@ impl QueueState {
         header: &RpcHeader,
         payload: &[u8],
     ) -> Result<u32, String> {
+        if let Some(q) = self.v2.as_deref_mut() {
+            return q.send(qm, header, payload);
+        }
         if self.failed.is_some() {
             return Err(self.failed_error());
         }
@@ -765,6 +830,9 @@ impl QueueState {
     /// Returns a trace line when anything was held. An element still held after a
     /// retry is logged at error level once per stall (in `flush`).
     pub fn retry_held(&mut self, qm: &QueueMemory) -> Option<String> {
+        if let Some(q) = self.v2.as_deref_mut() {
+            return q.retry_held(qm);
+        }
         if self.held.is_empty() {
             return None;
         }

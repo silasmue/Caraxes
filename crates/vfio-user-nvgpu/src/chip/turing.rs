@@ -51,6 +51,15 @@ pub struct TuringBootData {
     pub sec2: FalconSpec,
     pub falcon_block_size: u64,
     pub gsp_queue_head: u64,
+    /// `NV_PGSP_QUEUE_TAIL(0)`, `NV_PGSP_MSGQ_HEAD(0)`, `NV_PGSP_MSGQ_TAIL(0)`: the
+    /// pointer registers of message queue v2 (driver 615 on); absent in a chip file
+    /// written for 610 only.
+    #[serde(default)]
+    pub gsp_queue_tail: Option<u64>,
+    #[serde(default)]
+    pub gsp_msgq_head: Option<u64>,
+    #[serde(default)]
+    pub gsp_msgq_tail: Option<u64>,
     pub local_memory_range: u64,
     pub wpr2_addr_lo: u64,
     pub wpr2_addr_hi: u64,
@@ -158,6 +167,20 @@ impl TuringBoot {
 }
 
 impl FirmwareBoot for TuringBoot {
+    fn libos_args_pa(&self) -> Option<u64> {
+        let (m0, m1) = self.gsp.mailbox();
+        Some(((m1 as u64) << 32) | m0 as u64).filter(|&pa| pa != 0)
+    }
+
+    fn queue_registers(&self) -> Option<super::QueueRegisters> {
+        Some(super::QueueRegisters {
+            cmd_head: self.d.gsp_queue_head,
+            cmd_tail: self.d.gsp_queue_tail?,
+            msg_head: self.d.gsp_msgq_head?,
+            msg_tail: self.d.gsp_msgq_tail?,
+        })
+    }
+
     fn handles(&self, off: u64) -> bool {
         off == self.d.local_memory_range
             || off == self.d.wpr2_addr_lo

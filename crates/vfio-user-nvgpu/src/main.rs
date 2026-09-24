@@ -40,6 +40,7 @@ vfio-user-nvgpu --socket <path> [--trace <file>] [--board-data <name|file>] [--c
                 [--boot-model] [--fb-mib <n>] [--board <name>] [--host-rm]
                 [--reserve-vram [--reserve-slot <n>]] [--register-guest-ram | --identity-dma-table] [--dma-ranges <file>]
                 [--host-exec] [--profile <size>] [--name-format <legacy|transport>] [--display]
+                [--guest-abi <595|610|615>]
 vfio-user-nvgpu --print-name [--board-data <name|file>] [--board <name>] [--fb-mib <n> | --profile <size>]
                 [--name-format <legacy|transport>]
 vfio-user-nvgpu --selftest <socket> [--board-data <name|file>] [--chip <chip>] [--config <dump>]
@@ -80,6 +81,10 @@ vfio-user-nvgpu --selftest <socket> [--board-data <name|file>] [--chip <chip>] [
              [display] connectors, each connector backed by a DisplayPort sink model; without
              it the device is headless (fuse 1), as in E0-E5
   --selftest connect to a running server and verify the E0 device model
+  --guest-abi  the guest driver's GSP ABI this device must serve (default: CARAXES_GUEST_ABI, else
+             the build's): 610 needs a default build, 615 a `--features v615` build (message
+             queue v2, GMCAPI init; docs/caraxes/gsp-transport-615.md), 595 a 610 build with
+             CARAXES_GUEST_ABI=595; anything else is refused (fail closed)
 Environment: CARAXES_DOORBELL_IOEVENTFD=1 offers the usermode doorbell register as an
   ioeventfd sub-region (VFIO_USER_DEVICE_GET_REGION_IO_FDS; needs patch 0005 in Cloud
   Hypervisor, a client without it keeps trapping); the eventfd carries no token, so a
@@ -108,6 +113,7 @@ struct Args {
     selftest: Option<PathBuf>,
     name_format: NameFormat,
     print_name: bool,
+    guest_abi: u32,
 }
 
 fn parse_args() -> Result<Args> {
@@ -150,7 +156,9 @@ fn parse_args() -> Result<Args> {
         name_format: NameFormat::from_env()?,
         print_name: false,
         board_data: board_data.clone(),
+        guest_abi: 0,
     };
+    let mut guest_abi_flag = None;
     let mut it = args.into_iter();
     while let Some(flag) = it.next() {
         let mut value = || {
@@ -196,6 +204,9 @@ fn parse_args() -> Result<Args> {
                     .map_err(|e| anyhow::anyhow!("--name-format: {e}"))?
             }
             "--print-name" => a.print_name = true,
+            "--guest-abi" => {
+                guest_abi_flag = Some(value()?.parse().context("--guest-abi needs 595, 610 or 615")?)
+            }
             "-h" | "--help" => {
                 println!("{USAGE}");
                 std::process::exit(0);
@@ -204,6 +215,11 @@ fn parse_args() -> Result<Args> {
         }
     }
     a.chip = chip::by_name(&chip_name).map_err(|e| anyhow::anyhow!("--chip: {e}"))?;
+    a.guest_abi = ver::check_guest_abi(
+        guest_abi_flag,
+        std::env::var("CARAXES_GUEST_ABI").ok().as_deref(),
+    )
+    .map_err(|e| anyhow::anyhow!("--guest-abi: {e}"))?;
     a.board_data = board_data;
     if a.socket.is_none() && a.selftest.is_none() && !a.print_name {
         bail!("{USAGE}");
@@ -500,6 +516,11 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
     } else {
         None
     };
+    eprintln!(
+        "vfio-user-nvgpu: guest ABI {} ({:?})",
+        a.guest_abi,
+        ver::active::GSP_TRANSPORT
+    );
     eprintln!(
         "vfio-user-nvgpu: {} (BOOT_0 {:#010x}, driver {}) on {}, boot model {}, FB {} MiB, ROM {} bytes, PROM image {} bytes, trace {}",
         chip.data().short_name,

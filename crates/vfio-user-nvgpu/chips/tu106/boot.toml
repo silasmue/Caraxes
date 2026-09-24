@@ -17,6 +17,14 @@ sec2 = { base = 0x0084_0000, imem_blocks = 0x100, dmem_blocks = 0x100, riscv = f
 falcon_block_size = 0x2000
 # NV_PGSP_QUEUE_HEAD(0): the command-queue doorbell (kgspSetCmdQueueHead_TU102).
 gsp_queue_head = 0x0011_0C00
+# From driver 615 the pointers of both message queues live in registers
+# (docs/caraxes/gsp-transport-615.md §2): the CPU writes the command queue's write
+# pointer to QUEUE_HEAD(0) above and the status queue's read pointer to MSGQ_TAIL(0), and
+# reads the GSP's from QUEUE_TAIL(0) and MSGQ_HEAD(0) (turing/tu102/dev_gsp.h:38-47,
+# kern_gpu_tu102.c:596-605 of 615).
+gsp_queue_tail = 0x0011_0C04
+gsp_msgq_head = 0x0011_0C80
+gsp_msgq_tail = 0x0011_0C84
 
 # NV_PFB_PRI_MMU_LOCAL_MEMORY_RANGE, encoded as kern_mem_sys_gp102.c:47-50.
 local_memory_range = 0x0010_0CE0

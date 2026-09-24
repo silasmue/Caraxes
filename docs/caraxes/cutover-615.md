@@ -159,6 +159,14 @@ Coordinator, one VM, on the frozen device binary. The guest is unchanged (610 im
 
 ## (d) The 615 guest, when the transport lands
 
+Merge note (13:10): the 615 guest transport (msgq v2, GMCAPI init, `ver/v615`) and the
+host-ABI selection (`hostabi.rs`) are both on main now, merged from two branches. Their
+SM-order paths in kgr.rs meet as follows: a 615 guest on a 610 host takes the widened path
+(guest entry 20, host entry 18), a 610 guest on a 615 host takes `HostLayouts`; a 615 guest
+on a 615 host still uses the widened path with 610 host constants and needs the two paths
+joined (open item 1 of [gsp-transport-615.md](gsp-transport-615.md)). Tonight's first test
+is the 610 guest, which is unaffected.
+
 Only after `ver/v615` (msgq v2 with register-held pointers, MCTP-framed elements,
 `GMCAPI_CMD_GSP_INIT` with NVKV static info; guest-driver-versions.md §5.4) is merged:
 

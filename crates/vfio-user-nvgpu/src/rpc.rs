@@ -38,6 +38,11 @@ pub fn function_name(f: u32) -> &'static str {
         FN_GSP_RM_ALLOC => "GSP_RM_ALLOC",
         FN_INIT_GSP_TRACE_CRASH_BUFFER => "INIT_GSP_TRACE_CRASH_BUFFER",
         EV_GSP_INIT_DONE => "GSP_INIT_DONE",
+        // The GMCAPI commands of the GSP management category share the namespace above
+        // 0xFFFF (615 on, gmcapi.rs).
+        f @ crate::gmcapi::CMD_GSP_INIT..=crate::gmcapi::CMD_GSP_RESUME_DONE => {
+            crate::gmcapi::command_name(f)
+        }
         _ => "?",
     }
 }
@@ -106,6 +111,11 @@ pub fn describe(function: u32, payload: &[u8]) -> String {
             "size={} entries={}",
             u32_at(payload, v::REGISTRY_SIZE),
             u32_at(payload, v::REGISTRY_NUM_ENTRIES)
+        ),
+        crate::gmcapi::CMD_GSP_INIT => format!(
+            "{} bytes of NVKV system info ({} words)",
+            payload.len(),
+            payload.len() / 8
         ),
         _ => {
             let head: Vec<String> = payload.iter().take(32).map(|b| format!("{b:02x}")).collect();
@@ -510,9 +520,212 @@ fn hex(b: &[u8]) -> String {
     b.iter().map(|x| format!("{x:02x}")).collect()
 }
 
+/// `[0x1, 0x2]`, on one line (the trace is one line per event).
+fn hex_list<T: std::fmt::LowerHex>(v: &[T]) -> String {
+    let items: Vec<String> = v.iter().map(|x| format!("{x:#x}")).collect();
+    format!("[{}]", items.join(", "))
+}
+
+/// The static configuration of the 615 transport: the `GspStaticConfigInfo` image of
+/// [`build_static_info`] (the same values and provenance labels as the 610 reply)
+/// encoded as the NVGMC_SC keys of the `GMCAPI_CMD_GSP_INIT` response, which
+/// `_kgspStaticInfoKeyHandler` decodes into the kernel's own `GspStaticConfigInfo`
+/// (kernel_gsp.c:7729-7862 of 615; key table gmcapi_gsp_config.h:30-148).
+///
+/// Every key carries the value type and index the handler validates, or the whole
+/// init fails (gmcapi.rs `sc`). `FB_REGION_COUNT` comes before the indexed region
+/// keys, which the handler bounds by it (kernel_gsp.c:7762-7768, 7830-7835). The engine
+/// list goes out as NVGMC engine masks (`gmcapi::engine_masks`). Fields the 610 reply
+/// left zero (branding, power and misc features, SKU, PDI, ECID) are sent as zero
+/// words or not at all; the kernel zeroes the struct before decoding
+/// (kernel_gsp.c:7872). `VGX_VERSION` is not sent: the kernel keeps the RPC version it
+/// was built with (rpc_common.c:100-104). Returns the payload and one trace line per key.
+pub fn static_info_nvkv(image: &[u8], chip: &ChipData) -> (Vec<u8>, Vec<String>) {
+    use crate::gmcapi::{engine_masks, sc, Encoder};
+    let mut e = Encoder::new();
+    let mut notes = Vec::new();
+    let name = cstr(image, v::SI_GPU_NAME, v::SI_NAME_LEN);
+    let short = cstr(image, v::SI_GPU_SHORT_NAME, v::SI_NAME_LEN);
+    e.string8(0, sc::GPU_NAME_STRING, &name);
+    e.string8(0, sc::GPU_SHORT_NAME_STRING, &short);
+    notes.push(format!("GPU_NAME_STRING {name:?}, GPU_SHORT_NAME_STRING {short:?}"));
+    let gid_len = (u32_at(image, v::SI_GID_LENGTH) as usize).min(16);
+    let gid = &image[v::SI_GID_DATA..v::SI_GID_DATA + gid_len];
+    e.array8(0, sc::GPU_GID_SHA1, gid);
+    notes.push(format!("GPU_GID_SHA1 {}", hex(gid)));
+    let handles = [
+        u32_at(image, v::SI_H_INTERNAL_CLIENT),
+        u32_at(image, v::SI_H_INTERNAL_DEVICE),
+        u32_at(image, v::SI_H_INTERNAL_SUBDEVICE),
+    ];
+    e.seq32(0, sc::INTERNAL_CLIENT_HANDLE, &handles);
+    notes.push(format!("INTERNAL_CLIENT/DEVICE/SUBDEVICE_HANDLE {}", hex_list(&handles)));
+    if image[v::SI_VBIOS_VALID] != 0 {
+        let vbios = [
+            u32_at(image, v::SI_VBIOS_SUB_VENDOR),
+            u32_at(image, v::SI_VBIOS_SUB_DEVICE),
+            u32_at(image, v::SI_VBIOS_REVISION),
+            u32_at(image, v::SI_VBIOS_OEM_REVISION),
+        ];
+        e.seq32(0, sc::VBIOS_SUB_VENDOR, &vbios);
+        notes.push(format!("VBIOS_SUB_VENDOR/SUB_DEVICE/REVISION/OEM_REVISION {}", hex_list(&vbios)));
+    }
+    let regions = u32_at(image, v::SI_NUM_FB_REGIONS).min(sc::FB_REGION_MAX);
+    e.imm32(0, sc::FB_REGION_COUNT, regions);
+    for i in 0..regions as usize {
+        let o = v::SI_FB_REGIONS + i * v::FB_REGION_SIZE;
+        let r = [
+            u64_at(image, o + v::FB_REGION_BASE),
+            u64_at(image, o + v::FB_REGION_LIMIT),
+            u64_at(image, o + v::FB_REGION_RESERVED),
+        ];
+        let perf = u32_at(image, o + v::FB_REGION_PERFORMANCE);
+        let mut flags = 0;
+        if image[o + v::FB_REGION_SUPPORT_COMPRESSED] != 0 {
+            flags |= sc::FB_REGION_FLAGS_IS_COMPRESSION_SUPPORTED;
+        }
+        if image[o + v::FB_REGION_SUPPORT_ISO] != 0 {
+            flags |= sc::FB_REGION_FLAGS_IS_ISO_SUPPORTED;
+        }
+        e.seq64(i as u16, sc::FB_REGION_BASE, &r);
+        e.imm32(i as u16, sc::FB_REGION_PERFORMANCE, perf);
+        e.imm32(i as u16, sc::FB_REGION_FLAGS, flags);
+        notes.push(format!(
+            "FB_REGION[{i}] base {:#x} limit {:#x} reserved {:#x} performance {perf} flags {flags:#x}",
+            r[0], r[1], r[2]
+        ));
+    }
+    let fb_length = u64_at(image, v::SI_FB_LENGTH);
+    e.seq64(0, sc::FB_LENGTH, &[fb_length]);
+    let pdes = [u64_at(image, v::SI_BAR1_PDE_BASE), u64_at(image, v::SI_BAR2_PDE_BASE)];
+    e.seq64(0, sc::BAR1_PDE_BASE, &pdes);
+    notes.push(format!("FB_LENGTH {fb_length:#x}, BAR1/BAR2_PDE_BASE {:#x}/{:#x}", pdes[0], pdes[1]));
+    let misc = u64::from(image[v::SI_BUS_RESET_REQUIRED] != 0) << 5;
+    e.seq64(0, sc::BRANDING, &[0, misc, 0]);
+    notes.push(format!("BRANDING 0, MISC_FEATURES {misc:#x}, POWER_FEATURES 0"));
+    let caps: Vec<u32> = (0..v::ENGINE_CAPS_WORDS * 32)
+        .filter(|&b| u32_at(image, v::SI_ENGINE_CAPS + 4 * (b / 32)) & (1 << (b % 32)) != 0)
+        .map(|b| b as u32)
+        .collect();
+    let (first, masks, unmapped) = engine_masks(&caps);
+    e.array64(first, sc::ENGINE_MASK, &masks);
+    notes.push(format!(
+        "ENGINE_MASK from type {first}: {} ({}{})",
+        hex_list(&masks),
+        chip.engine_caps.summary,
+        if unmapped.is_empty() {
+            String::new()
+        } else {
+            format!("; no NVGMC id for NV2080 types {}", hex_list(&unmapped))
+        }
+    ));
+    (e.to_bytes(), notes)
+}
+
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
+
+    /// The key checks of `_kgspStaticInfoKeyHandler` (kernel_gsp.c:7729-7862 of 615),
+    /// for every key the table has: the value type, index 0 for plain keys, an index
+    /// below FB_REGION_COUNT (sent first) for the region keys, the array bounds of the
+    /// struct fields (names 64 bytes, GID data 256, ECID two words). An error is what
+    /// makes the kernel's GSP_INIT fail.
+    pub(crate) fn kernel_accepts(words: &[u64]) -> Result<Vec<crate::gmcapi::Entry>, String> {
+        use crate::gmcapi::{decode, sc, Value};
+        let entries = decode(words)?;
+        let mut regions: Option<u32> = None;
+        for e in &entries {
+            let (k, i) = (e.key, e.index as u32);
+            let single = |ok: bool| if ok && i == 0 { Ok(()) } else { Err(()) };
+            let r = match (k, &e.value) {
+                (sc::FB_REGION_COUNT, Value::U32(n)) if i == 0 && *n <= sc::FB_REGION_MAX => {
+                    regions = Some(*n);
+                    Ok(())
+                }
+                (0x0011..=0x0013, Value::U32(_)) => {
+                    if i < regions.unwrap_or(0) { Ok(()) } else { Err(()) }
+                }
+                (0x1011..=0x1013, Value::U64(_)) => {
+                    if i < regions.unwrap_or(0) { Ok(()) } else { Err(()) }
+                }
+                (0x0001..=0x0005 | 0x0030 | 0x0031 | 0x0050..=0x0053 | 0x0200 | 0x0210 | 0x0FF0..=0x0FF2, v) => {
+                    single(matches!(v, Value::U32(_)))
+                }
+                (0x0020 | 0x1000..=0x1002 | 0x1010 | 0x1020 | 0x1021 | 0x1050 | 0x1080 | 0x1081 | 0x1200..=0x1202, v) => {
+                    single(matches!(v, Value::U64(_)))
+                }
+                (0x2000 | 0x2001, Value::U8s(b)) => single(!b.is_empty()),
+                (0x2002, Value::U8s(b)) => single(b.len() <= 256),
+                (0x2003..=0x2008, Value::U8s(_)) => single(true),
+                (0x1040, Value::U64s(v)) => single(v.len() <= 2),
+                (sc::ENGINE_MASK, Value::U64s(_)) => Ok(()),
+                // A key of the table with the wrong type, index or count.
+                (0x0010..=0x0013 | 0x1011..=0x1013 | 0x1040 | 0x1100 | 0x2000..=0x2008, _) => {
+                    Err(())
+                }
+                _ => Ok(()), // not a key of the table: ignored (kernel_gsp.c:7850-7853)
+            };
+            r.map_err(|_| format!("the kernel refuses key {k:#06x} index {i} value {}", e.value))?;
+        }
+        Ok(entries)
+    }
+
+    #[test]
+    fn static_info_as_nvkv_keys() {
+        use crate::gmcapi::{sc, words, Value};
+        let f = crate::fixture::rtx2070();
+        let id = f.identity(4 << 30);
+        let wpr = WprLayout {
+            fb_size: 4 << 30,
+            gsp_fw_rsvd_start: 0xF760_0000,
+            non_wpr_heap_offset: 0xF760_0000,
+            non_wpr_heap_size: 0x10_0000,
+            gsp_fw_wpr_start: 0xF770_0000,
+            frts_offset: 0xFFE0_0000,
+            gsp_fw_wpr_end: 0xFFF0_0000,
+            vga_workspace_offset: 0xFFF0_0000,
+        };
+        let (img, _) = build_static_info(f.chip.data(), &id, Some(&wpr), &FbLayout::plain(4 << 30));
+        let (bytes, notes) = static_info_nvkv(&img, f.chip.data());
+        assert!(bytes.len() <= crate::gmcapi::GSP_INIT_MAX_RESPONSE);
+        let entries = kernel_accepts(&words(&bytes)).unwrap();
+        let get = |k: u16, i: u16| {
+            entries
+                .iter()
+                .find(|e| e.key == k && e.index == i)
+                .map(|e| e.value.clone())
+                .unwrap_or_else(|| panic!("key {k:#x}[{i}] missing"))
+        };
+        assert_eq!(get(sc::GPU_NAME_STRING, 0).as_str().as_deref(), Some("Leandro VFIO RTX 2070-4G"));
+        assert_eq!(get(sc::GPU_SHORT_NAME_STRING, 0).as_str().as_deref(), Some("TU106"));
+        assert_eq!(get(sc::GPU_GID_SHA1, 0), Value::U8s(id.gid.to_vec()));
+        assert_eq!(get(sc::FB_LENGTH, 0), Value::U64(4 << 30));
+        assert_eq!(get(sc::FB_REGION_COUNT, 0), Value::U32(2));
+        assert_eq!(get(sc::FB_REGION_LIMIT, 0), Value::U64(0xF75F_FFFF));
+        assert_eq!(get(sc::FB_REGION_RESERVED, 1), Value::U64((4u64 << 30) - 0xF760_0000));
+        // ISO only: no compression (build_static_info, fb-model.md).
+        assert_eq!(get(sc::FB_REGION_FLAGS, 0), Value::U32(sc::FB_REGION_FLAGS_IS_ISO_SUPPORTED));
+        assert_eq!(get(sc::BAR2_PDE_BASE, 0), Value::U64(0xF760_0000));
+        assert_eq!(get(sc::INTERNAL_CLIENT_HANDLE, 0), Value::U32(0xCA7A_0001));
+        assert_eq!(get(sc::INTERNAL_SUBDEVICE_HANDLE, 0), Value::U32(0xCA7A_0003));
+        assert_eq!(get(sc::VBIOS_SUB_VENDOR, 0), Value::U32(0x1458));
+        assert_eq!(get(sc::VBIOS_REVISION, 0), Value::U32(0x9006_3D00));
+        // GR0, COPY0-8, NVDEC0-1, NVENC0, SW, SEC2, HOST as NVGMC masks from type GR.
+        match get(sc::ENGINE_MASK, 1) {
+            Value::U64s(m) => assert_eq!(&m[..4], &[1, 0x1FF, 0b11, 1]),
+            v => panic!("{v:?}"),
+        }
+        assert!(notes.iter().any(|n| n.starts_with("ENGINE_MASK from type 1")), "{notes:?}");
+        // What the kernel refuses, the check refuses: a region key before the count, a
+        // U64 key sent as U32.
+        let mut bad = crate::gmcapi::Encoder::new();
+        bad.seq64(0, sc::FB_REGION_BASE, &[0, 1, 2]);
+        assert!(kernel_accepts(bad.words()).is_err());
+        let mut bad = crate::gmcapi::Encoder::new();
+        bad.imm32(0, sc::FB_LENGTH, 1);
+        assert!(kernel_accepts(bad.words()).is_err());
+    }
 
     #[test]
     fn static_info_with_a_reservation() {
