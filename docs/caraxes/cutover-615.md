@@ -358,7 +358,7 @@ The VM is down. To bring it back up: `V=/mnt/vmstore/caraxes/bench-v1-615 NVRM=/
 then the manual `modules` step from `commands.txt` section 4. With the new script this overlay is refused,
 because it sits on the base image. Use the image below.
 
-**Follow-ups done (2026-09-24, not yet booted), in [v1-615-image.md](v1-615-image.md):**
+**Follow-ups done and booted (2026-09-24, 18:24: smi PASS, 14 of 14 cuda rows pass on the 615 image; the record is `caraxes/runs/v1-615-image-2026-09-24/`), in [v1-615-image.md](v1-615-image.md):**
 
 1. There is now a standalone image, `/mnt/vmstore/caraxes/images/guest-v1-2026-09-24-615.71.09.qcow2` (sha256
    `cba67208...71f5d`). It was flattened from this overlay. `nvidia-modprobe` is now a local dpkg diversion,

@@ -121,7 +121,7 @@ not change what the bench measures. It only makes `gpu-kernel` and `cuda-managed
 log line in the hot path is a measurement error (`rig.sh:603-605`). Other `LEA_*` host switches pass through from
 the caller's environment, as before.
 
-## 4. Boot and gates (to run, not yet run)
+## 4. Boot and gates (run on 2026-09-24, 18:12 to 18:24)
 
 From the main Caraxes checkout (the default `CH` lives there), in bash, with the tap `caraxes5` present:
 
@@ -138,3 +138,9 @@ caraxes/tools/bench-v1vm.sh down
 
 Expected: `smi PASS` without touching `nvidia-modprobe`, and 14 of 14 cuda rows pass, `gpu-kernel` and
 `cuda-managed` included, without a backend restart. `v1-gates.sh` exits with the number of failed rows.
+
+Result (`caraxes/runs/v1-615-image-2026-09-24/run.log`, `smi/`, `cuda/rows.tsv`): `smi PASS`, nvidia-smi
+identical to the native host run with the masks, driver 615.71.09, the guest sees "Leandro VirtIO RTX 2070";
+14 of 14 cuda rows pass, `gpu-kernel` and `cuda-managed` included (managedprobe stage 2, bad=0), rlprobe
+mean10 56.9, convburn acc 3.041451216; `v1-gates.sh` exit 0; the VM came down cleanly. The run shared the card
+with vm1 (1 GiB, slot 4) and the host desktop.

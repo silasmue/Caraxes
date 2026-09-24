@@ -1,0 +1,12 @@
+driver               615 (615.71.09), /mnt/vmstore/leandro/wt-615/DRIVER_VERSION
+host-driver          615.71.09
+LEA_V1_ROOT          /mnt/vmstore/leandro/wt-615
+nvrm_wire.h          615.71.09
+LEA_V1_BASE          /mnt/vmstore/caraxes/images/guest-v1-2026-09-24-615.71.09.qcow2
+LEA_V1_SEED          /mnt/vmstore/caraxes/images/guest-v1-2026-09-24-615.71.09.seed.img
+V                    /mnt/vmstore/caraxes/bench-v1-615.71.09
+NVRM                 /mnt/vmstore/leandro/l615-host-bin-8c0d2b2/vhost-user-nvrm
+CH                   /home/silas/git/Caraxes/vendor/cloud-hypervisor/target/release/cloud-hypervisor
+kernel               /mnt/vmstore/leandro/vm/guest-image
+LEA_MANAGED_COMPAT   1
+guest                leandro@192.168.105.25 tap caraxes5 mac 02:00:00:00:00:25

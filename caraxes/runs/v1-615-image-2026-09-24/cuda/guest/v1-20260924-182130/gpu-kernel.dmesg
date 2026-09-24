@@ -1,0 +1,2 @@
+[  146.558329] virtio_nvrm: 2359296 pages would blow the limit of 1024 MiB -- knob: module parameter max_pin_mib
+[  146.979691] virtio_nvrm: 2359296 pages would blow the limit of 1024 MiB -- knob: module parameter max_pin_mib
