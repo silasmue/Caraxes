@@ -1,7 +1,7 @@
 <!-- SPDX-License-Identifier: MIT -->
 # Cloud Hypervisor patches
 
-Apply patches 0001-0003, in order (0004 and 0005 are optional and independent: each applies before or after the others), to the tag in [CH_VERSION](../CH_VERSION),
+Apply patches 0001-0003, in order (0004 and 0005 are optional and independent: each applies before or after the others; 0006 needs 0005), to the tag in [CH_VERSION](../CH_VERSION),
 currently `v53.0`. `tools/build.sh ch` fetches, patches and builds it. The
 [manual setup](../docs/VM-PREPARATION.md#build-and-patch-cloud-hypervisor)
 shows the equivalent commands. The patches are `git format-patch` output, so
@@ -18,6 +18,7 @@ virtio-nvrm is one user, the Caraxes device another.
 | [0002](0002-generic-vhost-user-device-features.patch) | Offer the device-specific feature bits | `virtio-devices/src/vhost_user/generic_vhost_user.rs` |
 | [0003](0003-generic-vhost-user-refused-request.patch) | Keep serving the backend channel after a refused request | `virtio-devices/src/vhost_user/mod.rs` |
 | [0005](0005-vfio-user-region-io-fds.patch) | vfio-user region I/O fds: request `VFIO_USER_DEVICE_GET_REGION_IO_FDS` for each BAR and register the server's ioeventfd sub-regions with KVM (exact length and datamatch), moved with the BAR, removed with the device; a server that refuses keeps every BAR trapped. Builds against [../vendor/vfio-user-rs](../vendor/vfio-user-rs/README.caraxes.md) beside the tree ([Patch 0005](#patch-0005-vfio-user-region-io-fds)); tested in [../caraxes/runs/patch0005-2026-09-24](../caraxes/runs/patch0005-2026-09-24) | `Cargo.toml`, `Cargo.lock`, `hypervisor/src/vm.rs`, `hypervisor/src/kvm/mod.rs`, `pci/src/vfio.rs`, `pci/src/vfio_user.rs` |
+| [0006](0006-vfio-user-region-io-fds-summary.patch) | One INFO line per region for its ioeventfds (registered of offered, descriptors received, datamatch range) and a test of a reply with 253 datamatch sub-regions at one offset, one descriptor each; with the vendored crate's client now announcing `max_msg_fds` 253 ([../vendor/vfio-user-rs](../vendor/vfio-user-rs/README.caraxes.md), crate patch 0002) a server can tell the values written to one register apart ([Patch 0006](#patch-0006-datamatch-sub-regions-at-one-offset), [../docs/caraxes/doorbell-token-pool.md](../docs/caraxes/doorbell-token-pool.md)); tested in [../caraxes/runs/doorbell-tokens-2026-09-24](../caraxes/runs/doorbell-tokens-2026-09-24). To be folded into 0005 before upstreaming | `pci/src/vfio_user.rs` |
 | [0004](0004-acpi-dma-host-bridge.patch) | Emit an ACPI `_DMA` object on a PCI segment's host bridge from `--pci-segment pci_segment=<id>,dma_ranges=[<cpu>:<dma>:<size>,...]`; nothing changes without the option ([ACPI-DMA.md](ACPI-DMA.md)); Caraxes only, tested in [../caraxes/runs/acpi-dma-2026-09-23](../caraxes/runs/acpi-dma-2026-09-23) | `vmm/src/api/openapi/cloud-hypervisor.yaml`, `vmm/src/config.rs`, `vmm/src/device_manager.rs`, `vmm/src/pci_segment.rs`, `vmm/src/vm_config.rs` |
 
 [REVIEW-vhost-user.md](REVIEW-vhost-user.md) lists what the previous version of
@@ -407,7 +408,7 @@ marked **differs**.
 | datamatch, 32 (8) | "(ioeventfd)": datamatch | with DATAMATCH | written at 32 | `shadow_offset` at 32, datamatch at 40 (**differs**) |
 | ioregionfd entry | "(ioregionfd)": user_data at 32 | parsed, skipped | never sent | same 40-byte struct (`vfio-user.h:189-197`), 48 apart in the reply's union; not implemented (`docs/ioregionfd.md`) |
 | descriptors | "Reply": at least one, may be shared | those named by fd_index | one per distinct eventfd, none with count 0 | same |
-| descriptors per message | `VFIO_USER_VERSION`: `max_msg_fds`, 1 when absent | the crate announces 1 | honoured | parsed (`tran.c:71-99`), not applied to this reply |
+| descriptors per message | `VFIO_USER_VERSION`: `max_msg_fds`, 1 when absent | the crate left it out (so 1); since crate patch 0002 it announces 253 (`SCM_MAX_FD`) and receives that many | honoured, and never more than 253 | parsed (`tran.c:71-99`), not applied to this reply |
 
 ### Ambiguities and the reading chosen
 
@@ -472,9 +473,11 @@ marked **differs**.
 
 `CARAXES_DOORBELL_IOEVENTFD=1` makes `vfio-user-nvgpu` declare one ioeventfd
 sub-region on BAR0: offset = the chip's `registers.usermode_doorbell` (0xbb0090 on
-TU106, `NOTIFY_CHANNEL_PENDING`), size 4, no datamatch. Cloud Hypervisor announces
-`max_msg_fds` 1, so one eventfd per region is all a reply can carry, and per-token
-datamatch entries would share it without naming the token. A reader thread reads the
+TU106, `NOTIFY_CHANNEL_PENDING`), size 4, no datamatch. With 0005 alone the crate's
+client announced no `max_msg_fds` (so 1), one eventfd per region was all a reply could
+carry, and per-token datamatch entries would have shared it without naming the token
+(the token pool, `CARAXES_DOORBELL_TOKENS=N`, needs crate patch 0002: [Patch
+0006](#patch-0006-datamatch-sub-regions-at-one-offset)). A reader thread reads the
 eventfd; KVM drops the written token, so the thread rings every recorded channel
 through the BAR0 write path a trapped doorbell takes (a channel without new GPFIFO
 entries runs nothing). The flag is refused with `--host-exec`, where a first doorbell
@@ -517,6 +520,80 @@ Functional check in vm3, pure emulation (`CARAXES_HOST_RM=1 CARAXES_BOOT_MODEL=1
 | A: new server, flag off | no sub-regions; driver loads; bench-trap doorbell (0xbb0090) write p50 28.2 us, scratch 26.7 us; 20000 trapped doorbell writes in the device trace |
 | B: new server, `CARAXES_DOORBELL_IOEVENTFD=1` | CH: `ioeventfd at 0xe6bb0090, len 4, datamatch None`; driver loads; bench-trap doorbell write p50 3.9 us (p99 10.3), scratch still 26.7 us; no doorbell write arrived as a region write, 20000 counted by the eventfd; UVM GPU registration (`uvm-register`) succeeds with its 7 doorbells through the eventfd |
 | B, removal and re-add | hot-remove: no unregister error, the server exits; re-add with a new server registers the same address, length and (no) datamatch again without `EEXIST`, so the first was deassigned; doorbell write p50 3.9 us on the re-added device |
+
+## Patch 0006: datamatch sub-regions at one offset
+
+A server may offer several ioeventfd sub-regions at one offset that differ only in
+datamatch, each with its own eventfd. KVM then signals the eventfd of the value the
+guest wrote, and the server knows the value without a `VFIO_USER_REGION_WRITE`. The
+Caraxes doorbell token pool uses this: one sub-region per device-chosen work-submit
+token ([../docs/caraxes/doorbell-token-pool.md](../docs/caraxes/doorbell-token-pool.md)).
+
+What the specification allows, with vfio-user.rst lines:
+
+| Item | vfio-user.rst | Reading |
+|---|---|---|
+| descriptors per message | `max_msg_fds`: "Maximum number of file descriptors that can be received by the sender in one message. Optional. If not specified then the receiver must assume a value of 1" (:515-519) | the client announces what it can receive; a server sends no more |
+| descriptors in the reply | "at least one file descriptor ... more than one sub-region may share the same file descriptor" (:1025-1027) | sharing is allowed, not required: one per sub-region is in the specification |
+| sub-regions at one offset | entries of offset, size, fd_index, type, flags (DATAMATCH, PIO, VIRTIO_CCW_NOTIFY), datamatch (:1036-1073); nothing restricts offsets to be distinct; "it is the client's responsibility to verify the requested values" (:1029) | allowed; KVM decides which pairs collide |
+| reply size | one message | Linux carries at most `SCM_MAX_FD` = 253 descriptors in one `SCM_RIGHTS` message (`include/net/scm.h:18`), so 253 sub-regions with distinct eventfds per region |
+
+What 0005 did with such a reply: every entry is checked on its own, the overlap check is
+against mmap()ed areas and the MSI-X table and PBA only, `fd_index` must be below the
+descriptors received, and a duplicate that KVM refuses (`EEXIST`) is logged and stays
+trapped. So Cloud Hypervisor needed no new check. The limit was the crate: its client
+left `max_msg_fds` out (every server had to assume 1) and received at most 16
+descriptors (a reply with more fails the receive, vmm-sys-util `recv_with_fds`
+`MSG_CTRUNC`, and device creation with it).
+
+The change:
+
+- Crate ([vfio-user-rs/0002](vfio-user-rs/0002-vfio-user-one-eventfd-per-ioeventfd-sub-region.patch),
+  `vendor/vfio-user-rs`): the client announces `max_msg_fds` 253 (`CLIENT_MAX_MSG_FDS` =
+  `SCM_MAX_FD`) and receives that many; the server never sends more than 253 whatever the
+  client announced; `Server::add_ioeventfd` requires a width of 1, 2, 4 or 8 with a
+  datamatch that fits and refuses a sub-region KVM would refuse as a duplicate
+  (`ioeventfds_collide`: same offset and I/O space, and a size of 0 on either side or the
+  same size with a wildcard on either side or the same datamatch; measured on the host's
+  KVM, [../caraxes/runs/doorbell-tokens-2026-09-24/kvm-ioeventfd-probe.txt](../caraxes/runs/doorbell-tokens-2026-09-24/kvm-ioeventfd-probe.txt) §2).
+- Cloud Hypervisor (0006, `pci/src/vfio_user.rs`): after a region's entries are
+  registered, one INFO line `<id>: region <i>: <r> of <n> sub-region(s) registered as
+  ioeventfds, <d> descriptor(s) received, <m> with datamatch in [<lo>, <hi>]`
+  (`region_io_fds_summary`); per-entry lines as in 0005. Test
+  `vfio_user::tests::datamatch_entries_at_one_offset_are_used`: a hand-built reply of 253
+  entries at one offset in the specification's bytes, each with DATAMATCH and its own
+  fd_index, through the crate's parser and `check_sub_region`; an fd_index beyond the
+  descriptors is refused; the summary line.
+
+Why 0006 and not an amended 0005: 0005 is verified and recorded as it stands and the
+coordinator's runs use its binary; the functional change is in the crate that 0005 builds
+against by path. Neither is upstreamed; before upstreaming 0006 folds into 0005, and crate
+patches 0001 and 0002 into one rust-vmm/vfio change.
+
+KVM facts the design relies on (probe on the host, Linux 7.2.4): ioeventfds do not count
+against `NR_IOBUS_DEVS` (4096 datamatch entries at one address registered); a write is
+compared against the entries of its address in registration order, about 25 ns per entry
+passed, so a value that matches none pays for all of them before it exits.
+
+### Verification (2026-09-24)
+
+Tree: `/mnt/vmstore/caraxes/ch-0006`, a clone of ch-0005 (v53.0 + 0001-0005, `ba20497bc`)
+plus 0006 (`88e92aded`, branch `patch0006`), built against the worktree's
+`vendor/vfio-user-rs` with `--config 'patch.crates-io.vfio_user.path="<tree>/vendor/vfio-user-rs"'`
+(the tree's own `../vfio-user-rs` is the main checkout's symlink); `cloud-hypervisor
+v53.0-6-g88e92aded`, no warnings.
+
+| Command | Result |
+|---|---|
+| `cargo test -p vmm --features kvm --lib` | 89 passed (as with 0005) |
+| `cargo test -p pci --lib` | 29 passed, 1 new (`datamatch_entries_at_one_offset_are_used`) |
+| `cargo test -p hypervisor --features kvm --lib` | 1 passed |
+| `cargo clippy -p pci -p hypervisor -p vmm --features kvm --all-targets` | only the unfulfilled lint expectation at `vmm/src/lib.rs:775` that v53.0 has |
+| `cargo test -p vfio_user` (rust-vmm/vfio at `a38ee7a3eeb5` + crate patches 0001 and 0002, `/mnt/vmstore/caraxes/vfio-rs-0006`) | 14 passed, 4 new: declaration rules at one offset, descriptor limits (`max_msg_fds` 1, 64, 253, 1000), a round trip of 253 datamatch sub-regions with 253 eventfds (each received descriptor checked against its token's eventfd), a hand-built reply with datamatch entries at one offset; clippy `-D warnings` clean, rustfmt clean |
+
+Functional check in vm1, pure emulation: see
+[../caraxes/runs/doorbell-tokens-2026-09-24](../caraxes/runs/doorbell-tokens-2026-09-24)
+(`commands.txt`) and [../docs/caraxes/doorbell-token-pool.md](../docs/caraxes/doorbell-token-pool.md), "Verification".
 
 ## How Leandro uses the series
 

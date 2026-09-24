@@ -1,0 +1,166 @@
+From 88e92aded4b22f197756dc47e308dbb665577ba1 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Silas=20M=C3=BCller?= <dev@silasmueller.de>
+Date: Thu, 24 Sep 2026 12:16:08 +0200
+Subject: [PATCH] pci: vfio-user: one line per region for its ioeventfds
+
+A vfio-user server may offer several ioeventfd sub-regions at one offset
+that differ only in datamatch, each with its own eventfd
+(VFIO_USER_DEVICE_GET_REGION_IO_FDS, "Sub-Region IO FD info format
+(ioeventfd)"; "more than one sub-region may share the same file
+descriptor", so sharing is optional). KVM then signals the eventfd of
+the value the guest wrote, and the server knows which value it was
+without a VFIO_USER_REGION_WRITE. The checks of the previous patch
+already take such a reply: every entry is checked on its own, the
+overlap check is against mapped areas and the MSI-X table and PBA only,
+and KVM refuses an exact duplicate with EEXIST, which is logged. The
+number of entries is bounded by the reply's argsz (below 65536) and the
+number of descriptors by the client's max_msg_fds, which the vfio_user
+crate beside the tree now announces as 253 (SCM_MAX_FD); before, it
+left the capability out, so a server could send one descriptor per
+reply.
+
+Add one INFO line per region after its entries were registered: how
+many of the sub-regions offered were registered, how many descriptors
+the reply carried, and the range of datamatch values. With a few hundred
+datamatch entries on one register this is the line to read.
+
+Test: a hand-built reply in the specification's layout with 253
+datamatch entries at one offset, each naming its own descriptor, through
+the crate's parser and the checks; an fd_index beyond the descriptors
+received is refused; the summary line with and without datamatch.
+
+Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>
+---
+ pci/src/vfio_user.rs | 97 ++++++++++++++++++++++++++++++++++++++++++++
+ 1 file changed, 97 insertions(+)
+
+diff --git a/pci/src/vfio_user.rs b/pci/src/vfio_user.rs
+index a61baa1c4..950081ef3 100644
+--- a/pci/src/vfio_user.rs
++++ b/pci/src/vfio_user.rs
+@@ -218,6 +218,33 @@ fn check_sub_region(
+     })
+ }
+ 
++/// One line per region for its ioeventfds: how many of the `offered` sub-regions
++/// were registered, how many descriptors the reply carried (at most the
++/// client's max_msg_fds, vfio-user.rst "VFIO_USER_VERSION"), and the range of
++/// datamatch values. A server that tells writes to one register apart by value
++/// offers one sub-region and one eventfd per value at the same offset
++/// ("Sub-Region IO FD info format (ioeventfd)", datamatch; "more than one
++/// sub-region may share the same file descriptor", so sharing is optional).
++fn region_io_fds_summary<'a>(
++    offered: usize,
++    fds: usize,
++    registered: impl Iterator<Item = &'a IoEventFdSpec>,
++) -> String {
++    let registered: Vec<&IoEventFdSpec> = registered.collect();
++    let datamatch: Vec<u64> = registered.iter().filter_map(|s| s.datamatch).collect();
++    let mut line = format!(
++        "{} of {offered} sub-region(s) registered as ioeventfds, {fds} descriptor(s) received",
++        registered.len()
++    );
++    if let (Some(lo), Some(hi)) = (datamatch.iter().min(), datamatch.iter().max()) {
++        line.push_str(&format!(
++            ", {} with datamatch in [{lo:#x}, {hi:#x}]",
++            datamatch.len()
++        ));
++    }
++    line
++}
++
+ #[derive(Error, Debug)]
+ pub enum VfioUserPciDeviceError {
+     #[error("Client error")]
+@@ -439,6 +466,7 @@ impl VfioUserPciDevice {
+                     .any(|&(s, l)| offset < s + l && s < offset + len)
+                     || msix.is_some_and(|m| m.overlaps(index, offset, len))
+             };
++            let first = self.region_io_eventfds.len();
+             for sub_region in &reply.sub_regions {
+                 let spec = match check_sub_region(
+                     sub_region,
+@@ -477,6 +505,17 @@ impl VfioUserPciDevice {
+                     ),
+                 }
+             }
++            if !reply.sub_regions.is_empty() {
++                info!(
++                    "{}: region {index}: {}",
++                    self.id,
++                    region_io_fds_summary(
++                        reply.sub_regions.len(),
++                        events.len(),
++                        self.region_io_eventfds[first..].iter().map(|e| &e.spec),
++                    )
++                );
++            }
+         }
+ 
+         Ok(())
+@@ -1076,4 +1115,62 @@ mod tests {
+             Ok(RegionIoFdsOutcome::Unsupported(0))
+         ));
+     }
++
++    /// A server that tells the values written to one register apart: as many
++    /// ioeventfd entries at one offset as the reply may carry descriptors
++    /// (SCM_MAX_FD, the client's max_msg_fds), each with DATAMATCH, its own
++    /// datamatch and its own fd_index. Every entry passes the checks with the
++    /// descriptors received; an fd_index beyond them does not.
++    #[test]
++    fn datamatch_entries_at_one_offset_are_used() {
++        let n = vfio_user::CLIENT_MAX_MSG_FDS;
++        assert_eq!(n, vfio_user::SCM_MAX_FD);
++        let mut entries = Vec::new();
++        for i in 0..n {
++            // "Sub-Region IO FD info format (ioeventfd)": offset 0, size 8,
++            // fd_index 16, type 20 (0), flags 24, padding 28, datamatch 32.
++            let mut entry = [0u8; 40];
++            entry[0..8].copy_from_slice(&0xbb_0090u64.to_ne_bytes());
++            entry[8..16].copy_from_slice(&4u64.to_ne_bytes());
++            entry[16..20].copy_from_slice(&i.to_ne_bytes());
++            entry[24..28].copy_from_slice(&IOEVENTFD_FLAG_DATAMATCH.to_ne_bytes());
++            entry[32..40].copy_from_slice(&(0xca70_0000 + u64::from(i)).to_ne_bytes());
++            entries.extend_from_slice(&entry);
++        }
++        let argsz = 16 + 40 * n;
++        let parsed = vfio_user::parse_region_io_fds_reply(argsz, 0, &reply(argsz, n, &entries));
++        let Ok(vfio_user::RegionIoFdsReply::Complete { sub_regions }) = parsed else {
++            panic!("{parsed:?}");
++        };
++        let specs: Vec<IoEventFdSpec> = sub_regions
++            .iter()
++            .map(|s| check_sub_region(s, n as usize, 0x100_0000, false, |_, _| false).unwrap())
++            .collect();
++        for (i, spec) in specs.iter().enumerate() {
++            assert_eq!(
++                *spec,
++                IoEventFdSpec {
++                    offset: 0xbb_0090,
++                    len: 4,
++                    datamatch: Some(0xca70_0000 + i as u64),
++                    pio: false,
++                    fd_index: i as u32,
++                }
++            );
++        }
++        assert_eq!(
++            region_io_fds_summary(n as usize, n as usize, specs.iter()),
++            "253 of 253 sub-region(s) registered as ioeventfds, 253 descriptor(s) received, 253 with datamatch in [0xca700000, 0xca7000fc]"
++        );
++        // One descriptor fewer than the entries name: the last entry is not used.
++        let e =
++            check_sub_region(&sub_regions[252], 252, 0x100_0000, false, |_, _| false).unwrap_err();
++        assert!(e.contains("fd_index 252 with 252 descriptor(s)"), "{e}");
++        // Without datamatch the summary says nothing about it.
++        let wildcard = check(&ioeventfd(0xbb_0090, 4, 0, 0, 0)).unwrap();
++        assert_eq!(
++            region_io_fds_summary(1, 1, [&wildcard].into_iter()),
++            "1 of 1 sub-region(s) registered as ioeventfds, 1 descriptor(s) received"
++        );
++    }
+ }
+-- 
+2.55.0
+
