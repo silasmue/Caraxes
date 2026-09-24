@@ -648,3 +648,9 @@ the VM; then display, expected to be much easier than in v1.
   latency avg 101 ms, 0 % network drops, 9.8 Mbit/s, 2.09 guest cores. Pointer:
   `CARAXES_INPUT=fifo` adds virtio-input through `--generic-vhost-user` without a hypervisor
   patch. 1 Xid 31 (device pid) at one GNOME start, open (display-e.md §9).
+- 2026-09-24: **Display front-end page measured on vm0** ([intr-page.md](intr-page.md) §10.6,
+  `caraxes/runs/display-page-2026-09-24/`). With the interrupt page and the display page
+  (`CARAXES_DISPLAY_PAGE=1`) Mutter goes from 230 to 140 trapped accesses per frame at 59.9 Hz
+  and Weston from 106 to 31 at 57.4 Hz; five GNOME starts per series, 7615 awaken markers all
+  acked through the page, `inconsistencies: none`, 0 host Xid. Weston's remaining eleven traps
+  per frame and its wider frame spread are the next look.

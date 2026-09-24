@@ -599,5 +599,28 @@ Expected on vm0, from 10.1:
 - Weston: 103.0 to about **20** traps per frame.
 
 The exit summary's `display page:` line must show `markers` equal to `acked by CORE_RESET`
-(within one at exit), and `inconsistencies: none`. Not measured yet (no VM in this package);
-the command is in §6a.
+(within one at exit), and `inconsistencies: none`. Measured in §10.6.
+
+### 10.6 Measurement on vm0 (2026-09-24, series B and C)
+
+`caraxes/runs/display-page-2026-09-24/series.sh` ran the display gate, five GNOME starts and the
+per-frame trap tables of Mutter and Weston, first with the interrupt page alone (B), then with the
+display page as well (C), on the device built from main with both pages (the frozen binary
+`vfio-user-nvgpu-fepage` of vm0; `series.log`, `B-intr-page/`, `C-display-page/`).
+
+| Series | Mutter: traps per frame / callbacks | Weston: traps per frame / callbacks | GNOME starts | Host Xid |
+|---|---|---|---|---|
+| B: interrupt page | 230.24 / 59.72 Hz (sd 3.56 ms) | 106.46 / 59.71 Hz (sd 1.51 ms) | 5 of 5 | 0 |
+| C: plus the display page | 139.86 / 59.86 Hz (sd 2.90 ms) | 31.08 / 57.41 Hz (sd 4.11 ms) | 5 of 5 | 0 |
+
+- Mutter loses 90 traps per frame (39 percent), a little short of the expected 132: the page
+  removes the front-end interrupt traffic, and what stays is the BAR2 page-table churn and the
+  channel work of §6a.
+- Weston loses 75 per frame (71 percent), against an expected 20: eleven traps per frame stay,
+  and its frame rate sits at 57.4 Hz with a wider spread (sd 4.1 ms against 1.5 ms in B). The
+  trap table of `C-display-page/traps-weston/` names them; that is the next thing to look at.
+- The device's exit summary of C: 41335 display-page scans with work, 33668 EVT_STAT acks and
+  28 RM_INTR_EN stores applied from the page, 7615 awaken markers and 7615 acked by
+  `CORE_RESET` (longest 10.3 ms), `inconsistencies: none`; the interrupt page: 772184 scans,
+  296318 acks, `inconsistencies: none` (`C-display-page/device-summary.txt`).
+- GPPut barrier waits per GNOME start: 23 to 36 in C, 21 to 33 in B (display-e.md §9).
