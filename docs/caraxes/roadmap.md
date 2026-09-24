@@ -71,7 +71,11 @@ hybrid proposed as the later default.
 2. The game benchmark: Shadow of the Tomb Raider in the Caraxes guest at 720p and 1080p,
    streamed through Sunshine to Moonlight on the host with the v1 stream measurement, one guest
    and then two concurrently against [sottr-4q](../measurements/sottr-4q/README.md); the guest
-   needs the game installed (v1 image or a Steam login by the operator).
+   needs the game installed (v1 image or a Steam login by the operator). **Prepared 2026-09-24**
+   ([sottr-stage.md](sottr-stage.md)): vm4 with 3 GiB at slot 0 and v1's Steam library as an
+   overlay; `caraxes/runs/sottr-2026-09-24/up.sh`, `stream.sh`, `down.sh`; plumbing passed in
+   pure emulation. Next: the operator's GPU run once vm0 and vm2 are down (Steam login, the
+   benchmark at 720p and 1080p), then two game VMs at slots 0 and 1 of 3 GiB.
 3. NVENC through a mirror for Sunshine hardware encoding (pulled forward from later: the game
    comparison with v1 needs it); the Moonlight stream stage.
 4. D19, the move to driver 615.71.09 before P23: the device's 615 transport (agent running:
