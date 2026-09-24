@@ -205,6 +205,8 @@ pub struct StaticIdentity {
     pub vbios_label: &'static str,
     /// Sizes of the BARs that open a region (BAR0, BAR1, BAR3, BAR5).
     pub bar_sizes: Vec<u64>,
+    /// The card's SKU strings (board data `[sku]`), for the 615 static configuration.
+    pub sku: Option<crate::board::BoardSku>,
 }
 
 impl StaticIdentity {
@@ -250,6 +252,7 @@ impl StaticIdentity {
                     .into_boxed_str(),
             ),
             bar_sizes: board.region_bar_sizes(),
+            sku: board.sku.clone(),
         }
     }
 
@@ -547,7 +550,11 @@ fn hex_list<T: std::fmt::LowerHex>(v: &[T]) -> String {
 /// words or not at all; the kernel zeroes the struct before decoding
 /// (kernel_gsp.c:7872). `VGX_VERSION` is not sent: the kernel keeps the RPC version it
 /// was built with (rpc_common.c:100-104). Returns the payload and one trace line per key.
-pub fn static_info_nvkv(image: &[u8], chip: &ChipData) -> (Vec<u8>, Vec<String>) {
+pub fn static_info_nvkv(
+    image: &[u8],
+    chip: &ChipData,
+    extra: &StaticExtra,
+) -> (Vec<u8>, Vec<String>) {
     use crate::gmcapi::{engine_masks, sc, Encoder};
     let mut e = Encoder::new();
     let mut notes = Vec::new();
@@ -597,6 +604,8 @@ pub fn static_info_nvkv(image: &[u8], chip: &ChipData) -> (Vec<u8>, Vec<String>)
         e.seq64(i as u16, sc::FB_REGION_BASE, &r);
         e.imm32(i as u16, sc::FB_REGION_PERFORMANCE, perf);
         e.imm32(i as u16, sc::FB_REGION_FLAGS, flags);
+        // No region is a GSP carve-out or a reserved heap of the device's layout.
+        e.imm32(i as u16, sc::FB_REGION_TAG, sc::FB_REGION_TAG_NONE);
         notes.push(format!(
             "FB_REGION[{i}] base {:#x} limit {:#x} reserved {:#x} performance {perf} flags {flags:#x}",
             r[0], r[1], r[2]
@@ -626,7 +635,51 @@ pub fn static_info_nvkv(image: &[u8], chip: &ChipData) -> (Vec<u8>, Vec<String>)
             format!("; no NVGMC id for NV2080 types {}", hex_list(&unmapped))
         }
     ));
+    // B2 (docs/caraxes/gsp-plan/boot-exchange.md §3.1): the keys with a source. The
+    // chip's: silicon, not an emulation model (EMULATION_REV1 0); no SR-IOV on TU106
+    // (the `vgpu` family is absent, chip.toml `[features]`: SRIOV_MAX_GFID and the three
+    // VF BAR sizes 0); a desktop part without GC6 (POWER_FEATURES 0 above, so the RTD3
+    // GC6 board power and PERST# delay are 0).
+    e.imm32(0, sc::EMULATION_REV1, 0);
+    e.imm32(0, sc::SRIOV_MAX_GFID, 0);
+    e.seq64(0, sc::SRIOV_BAR0_SIZE, &[0, 0, 0]);
+    e.imm32(0, sc::GC6_RTD3_TOTAL_BOARD_POWER, 0);
+    e.imm32(0, sc::GC6_RTD3_PERST_DELAY, 0);
+    notes.push(format!(
+        "EMULATION_REV1 0, SRIOV_MAX_GFID 0, SRIOV_BAR0/1/2_SIZE 0, GC6_RTD3_* 0 [chip: {} silicon, no SR-IOV, no GC6]",
+        chip.short_name
+    ));
+    // The guest's: the WPR layout it computed itself (GspFwWprMeta at Booter Load).
+    if let Some((heap, frts)) = extra.wpr_offsets {
+        e.seq64(0, sc::WPR_LAYOUT_NON_WPR_HEAP_OFFSET, &[heap, frts]);
+        notes.push(format!(
+            "WPR_LAYOUT_NON_WPR_HEAP_OFFSET {heap:#x}, WPR_LAYOUT_FRTS_OFFSET {frts:#x} [guest, GspFwWprMeta]"
+        ));
+    }
+    // The card's: the SKU strings of the capture the board data names.
+    if let Some(s) = extra.sku {
+        let z = |t: &str| t.bytes().chain([0]).collect::<Vec<u8>>();
+        e.array8(0, sc::CHIP_SKU, &z(&s.chip_sku));
+        e.array8(0, sc::CHIP_SKU_MODIFIER, &z(&s.chip_sku_modifier));
+        notes.push(format!(
+            "CHIP_SKU {:?}, CHIP_SKU_MODIFIER {:?} [card, {}]",
+            s.chip_sku, s.chip_sku_modifier, s.source
+        ));
+    }
+    // Not sent, with the reason: CHIP_SUB_REV, SKU_BOARD_ID, SKU_CONFIG_VERSION,
+    // SKU_BUSINESS_CYCLE, PROJECT*, CDP (no capture of the card carries them); PDI and
+    // ECID_INFO (per-card identifiers of the physical card: the guest's identity is the
+    // profile's, not the host card's); VMMU_SEGMENT_SIZE (the host's, forwarded as a
+    // control on 610; 0 without SR-IOV); VGX_VERSION (see above).
     (e.to_bytes(), notes)
+}
+
+/// What the 615 static configuration takes beyond the `GspStaticConfigInfo` image.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct StaticExtra<'a> {
+    /// `nonWprHeapOffset` and `frtsOffset` of the guest's `GspFwWprMeta`.
+    pub wpr_offsets: Option<(u64, u64)>,
+    pub sku: Option<&'a crate::board::BoardSku>,
 }
 
 #[cfg(test)]
@@ -694,7 +747,13 @@ pub(crate) mod tests {
             vga_workspace_offset: 0xFFF0_0000,
         };
         let (img, _) = build_static_info(f.chip.data(), &id, Some(&wpr), &FbLayout::plain(4 << 30));
-        let (bytes, notes) = static_info_nvkv(&img, f.chip.data());
+        let sku = crate::board::BoardSku {
+            chip_sku: "400".into(),
+            chip_sku_modifier: "A1".into(),
+            source: "test".into(),
+        };
+        let extra = StaticExtra { wpr_offsets: Some((0xE000_0000, 0xFFE0_0000)), sku: Some(&sku) };
+        let (bytes, notes) = static_info_nvkv(&img, f.chip.data(), &extra);
         assert!(bytes.len() <= crate::gmcapi::GSP_INIT_MAX_RESPONSE);
         let entries = kernel_accepts(&words(&bytes)).unwrap();
         let get = |k: u16, i: u16| {
@@ -724,6 +783,18 @@ pub(crate) mod tests {
             v => panic!("{v:?}"),
         }
         assert!(notes.iter().any(|n| n.starts_with("ENGINE_MASK from type 1")), "{notes:?}");
+        // B2: the keys with a source.
+        assert_eq!(get(sc::FB_REGION_TAG, 1), Value::U32(sc::FB_REGION_TAG_NONE));
+        assert_eq!(get(sc::EMULATION_REV1, 0), Value::U32(0));
+        assert_eq!(get(sc::SRIOV_MAX_GFID, 0), Value::U32(0));
+        assert_eq!(get(sc::SRIOV_BAR0_SIZE + 2, 0), Value::U64(0));
+        assert_eq!(get(sc::GC6_RTD3_PERST_DELAY, 0), Value::U32(0));
+        assert_eq!(get(sc::WPR_LAYOUT_FRTS_OFFSET, 0), Value::U64(0xFFE0_0000));
+        assert_eq!(get(sc::CHIP_SKU, 0), Value::U8s(b"400\0".to_vec()));
+        assert_eq!(get(sc::CHIP_SKU_MODIFIER, 0), Value::U8s(b"A1\0".to_vec()));
+        // The board data carries the card's SKU with its capture.
+        let s = id.sku.as_ref().expect("rtx2070 [sku]");
+        assert_eq!((s.chip_sku.as_str(), s.chip_sku_modifier.as_str()), ("400", "A1"));
         // What the kernel refuses, the check refuses: a region key before the count, a
         // U64 key sent as U32.
         let mut bad = crate::gmcapi::Encoder::new();

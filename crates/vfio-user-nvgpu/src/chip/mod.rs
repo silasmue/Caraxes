@@ -98,6 +98,9 @@ pub enum BootEvent {
     WprMeta { pa: u64 },
     /// The CPU rang the GSP command-queue doorbell; the libos init arguments are at `pa`.
     CmdQueueDoorbell { libos_args_pa: u64 },
+    /// Booter Unload ran with `arg` in the SEC2 mailboxes: 0, or the `GspFwSRMeta` of a
+    /// suspend (`_kgspGetBooterUnloadArgs`, kernel_gsp_tu102.c:491-515 of 615).
+    BooterUnload { arg: u64 },
 }
 
 /// The three boot registers that select the chip and the runtime variant

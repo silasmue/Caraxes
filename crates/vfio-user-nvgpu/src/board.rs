@@ -57,6 +57,20 @@ pub struct Board {
     /// Present the MSI-X capability of the capture. `false` (the default) unlinks it
     /// from the capability chain; `true` is refused until the device implements MSI-X.
     pub msix: bool,
+    /// The card's SKU strings for the 615 static configuration (`[sku]`), when a capture
+    /// of the physical card names them.
+    pub sku: Option<BoardSku>,
+}
+
+/// `NVGMC_SC_CHIP_SKU` and `_CHIP_SKU_MODIFIER` of the `GSP_INIT` response
+/// (interface/gmcapi/gmcapi_gsp_config.h:141-142 of 615.71.09), from a capture of the
+/// physical card, with the capture named in `source`.
+#[derive(Clone, Debug, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct BoardSku {
+    pub chip_sku: String,
+    pub chip_sku_modifier: String,
+    pub source: String,
 }
 
 #[derive(Deserialize)]
@@ -73,6 +87,8 @@ struct BoardFile {
     display: Option<toml::Value>,
     #[serde(default)]
     msix: bool,
+    #[serde(default)]
+    sku: Option<BoardSku>,
 }
 
 #[derive(Deserialize)]
@@ -168,6 +184,7 @@ impl Board {
             rom_bar_size: f.rom_bar_size,
             display: f.display,
             msix: f.msix,
+            sku: f.sku,
         })
     }
 

@@ -31,6 +31,7 @@ pub mod events;
 pub mod falcon;
 pub mod fb;
 pub mod gmcapi;
+pub mod gspboot;
 pub mod gspmem;
 pub mod gsprpc;
 pub mod gmmu_v3;

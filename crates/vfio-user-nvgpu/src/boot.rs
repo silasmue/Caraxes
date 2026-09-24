@@ -115,6 +115,15 @@ pub struct BootModel {
     watch: BTreeMap<(u32, u32), crate::events::ChannelWatch>,
     /// The host RC counter at the last notifier scan, and when that scan ran.
     rc_scan: (u64, Option<std::time::Instant>),
+    /// The registry keys the device honours (gspboot.rs, B3).
+    registry: crate::gspboot::RegistryPolicy,
+    /// What the 615 client opted in to at GSP_INIT (B7); `None` before GSP_INIT and on
+    /// the 610 transport, which has no such opt-in.
+    unstable: Option<crate::gspboot::Unstable>,
+    /// The flags of the last GSP_SUSPEND, until the next boot or resume (B5).
+    suspended: Option<u64>,
+    /// The argument of the last Booter Unload: 0 or the suspend's GspFwSRMeta (B5).
+    sr_meta_pa: Option<u64>,
     /// The CPU-GSP transport this model serves: the emulated version's
     /// (`ver::active::GSP_TRANSPORT`) unless [`BootModel::with_transport`] says otherwise.
     transport: GspTransport,
@@ -192,6 +201,10 @@ impl BootModel {
             events_posted: false,
             watch: BTreeMap::new(),
             rc_scan: (0, None),
+            registry: crate::gspboot::RegistryPolicy::default(),
+            unstable: None,
+            suspended: None,
+            sr_meta_pa: None,
             transport: v::GSP_TRANSPORT,
             cpu_cmd_head: 0,
         }
@@ -286,6 +299,13 @@ impl BootModel {
         {
             let qm = QueueMemory::new(mem, &self.pages);
             for u in items {
+                // B7: RM events only to a client that opted in to them.
+                if let (Unsolicited::Event(..), Some(o)) = (u, self.unstable) {
+                    if !o.events {
+                        notes.push(format!("{}: not sent, the client did not opt in to events", u.name()));
+                        continue;
+                    }
+                }
                 let (r, len) = match u {
                     Unsolicited::Event(f, p) => {
                         (queues.send(&qm, &RpcHeader::event(*f, p.len()), p), p.len())
@@ -328,6 +348,53 @@ impl BootModel {
             };
             notes.push(format!("events: {sent} sent, SWGEN0 set, GSP vector raised {raised}"));
         }
+        notes
+    }
+
+    /// A Booter Load that resumes a PM suspend (B5, boot-exchange.md §5): the last
+    /// GSP_SUSPEND carried PM_TRANSITION, the queues are kept, and the RMARGS the libos
+    /// arguments name say IN_PM_TRANSITION (kernel_gsp.c:6192-6197).
+    fn resuming(&self, mem: &GuestMemory) -> bool {
+        let pm = self
+            .suspended
+            .is_some_and(|f| f & crate::gspboot::SUSPEND_PM_TRANSITION != 0);
+        if !pm || self.queues.is_none() || self.transport != GspTransport::MsgqV2 {
+            return false;
+        }
+        let Some(pa) = self.fw.libos_args_pa() else {
+            return false;
+        };
+        let mut probe = Vec::new();
+        Self::find_rmargs(mem, pa, &mut probe)
+            .ok()
+            .and_then(|r| crate::gspboot::resume_args(mem, r))
+            .is_some_and(|(in_pm, _, _)| in_pm)
+    }
+
+    /// The resume: no relink (the kernel does not link again, "GSP-RM will restore queue
+    /// state", kernel_gsp_tu102.c:464-466), the processor-suspended bit cleared, and
+    /// GSP_RESUME_DONE (flags 0: no D3hot) as a GMCAPI request, which
+    /// `kgspWaitForRmResumeDone` waits for (kernel_gsp.c:7135-7160) in place of GSP_INIT.
+    fn resume(&mut self, mem: &GuestMemory, pa: u64) -> Vec<String> {
+        let mut notes = Vec::new();
+        let flags = self.suspended.take().unwrap_or(0);
+        let m0 = self.fw.read32(GSP_MAILBOX0).unwrap_or(0);
+        self.fw.write32(GSP_MAILBOX0, m0 & !GSP_PROCESSOR_SUSPENDED, mem);
+        let args = self
+            .fw
+            .libos_args_pa()
+            .and_then(|l| Self::find_rmargs(mem, l, &mut Vec::new()).ok())
+            .and_then(|r| crate::gspboot::resume_args(mem, r));
+        notes.push(format!(
+            "resume: booter load argument {pa:#x}, suspend flags {flags:#x}, RMARGS IN_PM_TRANSITION/oldLevel/flags {args:?}; queues kept, no relink"
+        ));
+        notes.extend(self.post_unsolicited(
+            mem,
+            &[crate::events::Unsolicited::Gmcapi(
+                crate::events::GMCAPI_GSP_RESUME_DONE,
+                crate::events::resume_done(false),
+            )],
+        ));
         notes
     }
 
@@ -389,10 +456,13 @@ impl BootModel {
                 notes.push(format!(
                     "chid {chid}: error notifier written (exceptType {xid}, info16 {info16:#x}): OS_ERROR_LOG and RC_TRIGGERED to the guest [guest channel, host mirror]"
                 ));
-                items.push(crate::events::Unsolicited::Event(
-                    crate::events::EV_OS_ERROR_LOG,
-                    crate::events::os_error_log(xid, 0, chid, &text),
-                ));
+                // RmLogonRC = 0: no Xid line (gspboot.rs, B3).
+                if self.registry.log_on_rc {
+                    items.push(crate::events::Unsolicited::Event(
+                        crate::events::EV_OS_ERROR_LOG,
+                        crate::events::os_error_log(xid, 0, chid, &text),
+                    ));
+                }
                 items.push(crate::events::Unsolicited::Event(
                     crate::events::EV_RC_TRIGGERED,
                     crate::events::rc_triggered(layout, eng, chid, xid),
@@ -926,7 +996,19 @@ impl BootModel {
                 let w = self.fw.write32(off, v, mem)?;
                 notes.extend(w.notes);
                 match w.event {
+                    Some(BootEvent::BooterUnload { arg }) => {
+                        // B5: nothing to save; the device's state lives in its process.
+                        self.sr_meta_pa = Some(arg);
+                        notes.push(format!(
+                            "booter unload: argument {arg:#x}{}",
+                            if arg != 0 { " (GspFwSRMeta of a suspend: recorded, nothing to save)" } else { "" }
+                        ));
+                    }
+                    Some(BootEvent::WprMeta { pa }) if self.resuming(mem) => {
+                        notes.extend(self.resume(mem, pa));
+                    }
                     Some(BootEvent::WprMeta { pa }) => {
+                        self.suspended = None;
                         self.wpr_meta_pa = Some(pa);
                         match WprLayout::read(mem, pa) {
                             Ok(w) => {
@@ -1126,6 +1208,20 @@ impl BootModel {
                     if msg.checksum_ok { "ok" } else { "BAD" },
                     rpc::describe(h.function, &msg.payload)
                 ));
+                // B7: a 615 client that did not opt in to the unstable RPC interface
+                // speaks GMCAPI only (gmcapi_system_info.h:200-203; boot-exchange.md
+                // §3.4): its RM RPCs are refused.
+                if msg.gmcapi.is_none() && self.unstable.is_some_and(|o| !o.rpc) {
+                    notes.push(format!(
+                        "{}: refused, the client did not opt in to RM RPCs (NVGMC_SI_UNSTABLE_INTERFACE_SUPPORT)",
+                        rpc::function_name(h.function)
+                    ));
+                    match queues.send(&qm, &RpcHeader::reply(&h, rpc::NV_ERR_NOT_SUPPORTED, 0), &[]) {
+                        Ok(seq) => notes.push(format!("tx seq {seq} reply result {:#x}", rpc::NV_ERR_NOT_SUPPORTED)),
+                        Err(e) => notes.push(format!("send: {e}")),
+                    }
+                    continue;
+                }
                 let reply: Option<(u32, Vec<u8>)> = match h.function {
                     rpc::FN_GSP_SET_SYSTEM_INFO => {
                         // BAR addresses for BUS_GET_PCI_BAR_INFO come from here.
@@ -1148,10 +1244,13 @@ impl BootModel {
                         // sets in the GSP's MAILBOX0 (kernel_gsp.c:5889-5907,
                         // kernel_gsp_tu102.c:218-255 of 615); without it the unload
                         // waits out its timeout.
+                        let flags = crate::gspboot::suspend_flags(&msg.payload);
+                        self.suspended = Some(flags);
                         let m0 = self.fw.read32(GSP_MAILBOX0).unwrap_or(0);
                         self.fw.write32(GSP_MAILBOX0, m0 | GSP_PROCESSOR_SUSPENDED, mem);
                         notes.push(format!(
-                            "gmcapi GSP_SUSPEND: no response (fire and forget); MAILBOX0 {m0:#x} -> {:#x} (processor suspended)",
+                            "gmcapi GSP_SUSPEND flags {}: no response (fire and forget); MAILBOX0 {m0:#x} -> {:#x} (processor suspended)",
+                            crate::gspboot::describe_suspend(flags),
                             m0 | GSP_PROCESSOR_SUSPENDED
                         ));
                         None
@@ -1823,6 +1922,17 @@ impl BootModel {
         for (name, value) in &si.registry {
             notes.push(format!("registry {name} = {value:?}"));
         }
+        let (policy, honoured) = crate::gspboot::registry_policy(&si.registry);
+        notes.extend(honoured);
+        self.registry = policy;
+        let opt = crate::gspboot::Unstable::from_key(si.unstable);
+        notes.push(format!(
+            "unstable interfaces: key {:?}, RM RPCs {}, RM events {}",
+            si.unstable,
+            if opt.rpc { "opted in" } else { "NOT opted in: refused" },
+            if opt.events { "opted in" } else { "NOT opted in: not sent" }
+        ));
+        self.unstable = Some(opt);
         self.system_info = Some(msg.payload.clone());
         let (image, labels) = rpc::build_static_info(
             self.chip.data(),
@@ -1833,7 +1943,11 @@ impl BootModel {
         for l in labels {
             notes.push(format!("static-info {} = {} [{}]", l.field, l.value, l.source));
         }
-        let (out, keys) = rpc::static_info_nvkv(&image, self.chip.data());
+        let extra = rpc::StaticExtra {
+            wpr_offsets: self.wpr.as_ref().map(|w| (w.non_wpr_heap_offset, w.frts_offset)),
+            sku: self.identity.sku.as_ref(),
+        };
+        let (out, keys) = rpc::static_info_nvkv(&image, self.chip.data(), &extra);
         for k in keys {
             notes.push(format!("static-info key {k}"));
         }
@@ -2336,6 +2450,61 @@ mod tests {
         assert!(g.mem.write(notifier, &n));
         g.b.rc_scan.1 = None;
         assert!(g.b.scan_channel_errors(&g.mem, true).is_empty());
+    }
+
+    /// B3, B7 and B5 against the captured 615 guest: the opt-in and the registry of the
+    /// captured GSP_INIT, a refusal for a client without the RPC opt-in, then a PM
+    /// suspend (GSP_SUSPEND with PM_TRANSITION, Booter Unload) and the resume (Booter
+    /// Load with IN_PM_TRANSITION in RMARGS): no relink, GSP_RESUME_DONE as a GMCAPI
+    /// request, the suspended bit cleared.
+    #[test]
+    fn opt_in_registry_suspend_and_resume() {
+        use crate::gspboot::{Unstable, SUSPEND_PM_TRANSITION};
+        let mut g = Guest615::boot("resume");
+        assert_eq!(g.b.unstable, Some(Unstable { rpc: true, events: true }));
+        assert!(g.b.registry.log_on_rc, "RmLogonRC = 1 in the captured registry");
+        // GSP_SUSPEND with PM_TRANSITION (kernel_gsp.c:5866-5892).
+        let hdr = crate::gmcapi::Header {
+            command: crate::gmcapi::CMD_GSP_SUSPEND,
+            size: 8,
+            sequence: 9,
+            request_or_status: 0,
+        };
+        let mut body = hdr.encode().to_vec();
+        body.extend_from_slice(&SUSPEND_PM_TRANSITION.to_le_bytes());
+        let (notes, el) = g.send(crate::msgq::v2::NVDM_TYPE_GMCAPI, &body);
+        assert!(el.is_empty(), "fire and forget");
+        assert!(notes.iter().any(|n| n.contains("GSP_SUSPEND flags 0x1 PM_TRANSITION")), "{notes:?}");
+        assert_ne!(g.b.fw.read32(GSP_MAILBOX0).unwrap() & GSP_PROCESSOR_SUSPENDED, 0);
+        // Booter Unload (SEC2 run with argument 0), then the resume's Booter Load.
+        let sec2 = 0x0084_0000u64;
+        g.b.write32(sec2 + falcon::MAILBOX0, 0, &g.mem);
+        g.b.write32(sec2 + falcon::MAILBOX1, 0, &g.mem);
+        let notes = g.b.write32(sec2 + falcon::CPUCTL, 2, &g.mem).unwrap();
+        assert!(notes.iter().any(|n| n.contains("booter unload done")), "{notes:?}");
+        let rmargs = 0x0769_e000 + crate::msgq::v2::ARGS_FLAGS;
+        let f = g.mem.read_u64(rmargs).unwrap();
+        assert!(g.mem.write(rmargs, &(f | crate::gspboot::ARGS_FLAG_IN_PM_TRANSITION).to_le_bytes()));
+        let head_before = g.b.read32(0x0011_0C80).unwrap();
+        let notes = booter_load(&mut g.b, &g.mem);
+        assert!(notes.iter().any(|n| n.starts_with("resume: booter load")), "{notes:?}");
+        assert!(!notes.iter().any(|n| n.starts_with("queues linked")), "{notes:?}");
+        assert_eq!(g.b.fw.read32(GSP_MAILBOX0).unwrap() & GSP_PROCESSOR_SUSPENDED, 0);
+        let el = g.drain();
+        assert_eq!(el.len(), 1, "GSP_RESUME_DONE");
+        let rd = crate::gmcapi::Header::parse(&el[0].1).unwrap();
+        assert_eq!((el[0].0, rd.command, rd.sequence, rd.size), (crate::msgq::v2::NVDM_TYPE_GMCAPI, 0x0001_0005, 0, 8));
+        assert_eq!(g.b.read32(0x0011_0C80).unwrap(), head_before + 1, "the pointers continued");
+        // The link survives: an RPC after the resume is answered.
+        let (_, el) = g.rpc(crate::gsprpc::FN_DUMP_PROTOBUF_COMPONENT, &[0u8; 16]);
+        assert_eq!(Guest615::reply(&el, crate::gsprpc::FN_DUMP_PROTOBUF_COMPONENT).unwrap().0, 0);
+        // B7: a client without the RPC opt-in gets its RPCs refused.
+        g.b.unstable = Some(Unstable { rpc: false, events: false });
+        let (_, el) = g.rpc(crate::gsprpc::FN_DUMP_PROTOBUF_COMPONENT, &[0u8; 16]);
+        assert_eq!(
+            Guest615::reply(&el, crate::gsprpc::FN_DUMP_PROTOBUF_COMPONENT).unwrap().0,
+            rpc::NV_ERR_NOT_SUPPORTED
+        );
     }
 
     /// Fail closed: a 610 device facing the captured 615 guest does not link anything
