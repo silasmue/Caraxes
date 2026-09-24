@@ -1,0 +1,3 @@
+bash: line 1: nvidia-smi: command not found
+bash: line 1: nvidia-smi: command not found
+bash: line 1: nvidia-smi: command not found

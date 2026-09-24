@@ -1,0 +1,15 @@
+host watch pid 122251 -> /home/silas/git/Caraxes/.claude/worktrees/agent-a4241e1dd656562eb/caraxes/runs/costume-2026-09-24/hostwatch.txt
+probe rc=0
+synced into 192.168.101.21:/home/leandro/caraxes-tests
+nvml gate rc=1
+caraxes-gate: FAIL power-number: Instantaneous Power Draw 'N/A'
+{"gate":"nvml","verdict":"fail","reason":"failed: power-number","guest":{"name":"Leandro VFIO RTX 5060 Ti-1G","total_mib":"1024","reserved_mib":"169","used_mib":"0","free_mib":"856","temp":"54 C","pst
+cuda gate rc=1
+
+CUDA-GATE: FAIL -- cuda-managed
+{"gate":"cuda","result":"fail","dur_s":408,"reason":"failed: cuda-managed","facts":{"stages":["cuda-init","cuda-context","cuda-core","cuda-jit","cuda-launch","cuda-managed","cuda-hostreg","cuda-torch"
+18:28:16 v2  rl              rep 1:   ep   10  return=   11  mean10=  20.7   ep   20  return=   15  mean10=  14.4   ep   30  return=   13  mean10=  15.8  | # MEAS dev_pid=122287 dev_cpu_ms=24860 dev_rss_hwm_kb=2914604/5331484 vmm_cpu_ms=27290 others: vm1-vmm=200ms vm2-615-dev
+18:28:23 v2  short-auto      rep 2: MSPERLAUNCH=0.136 # WALL wall_ms=5917 rc=0  | # MEAS dev_pid=122287 dev_cpu_ms=3090 dev_rss_hwm_kb=2914604/5331484 vmm_cpu_ms=3620 others: vm1-vmm=30ms vm2-615-dev=25
+18:28:56 v2  rl              rep 2:   ep   10  return=   11  mean10=  20.7   ep   20  return=   15  mean10=  14.4   ep   30  return=   13  mean10=  15.8  | # MEAS dev_pid=122287 dev_cpu_ms=23510 dev_rss_hwm_kb=2914604/5331484 vmm_cpu_ms=23780 others: vm1-vmm=1910ms vm2-615-de
+host watch: 129 samples, nvidia-smi max 0.151s mean 0.034s, 0 kernel log lines, 0 Xid lines, 0 alerts
+costume run done 2026-09-24T18:28:57+02:00; Xid lines 0, device pid 122287
