@@ -325,8 +325,12 @@ the forwarded interleave level at MEDIUM: a higher level is recorded only.
   own host channel object, as it would for any host process on its own channel. But
   `engineID` is the guest's, and the host GSP's engine reset can still disturb other tenants
   of that engine, the host desktop included. This was not measured, because no GPU run was
-  possible. Check it in the fault gate (Q-C1) before relying on it. The fallback is to answer
-  the reset from the device, as for a software channel.
+  possible. Decision at the merge (2026-09-24, main): the three reset controls are never
+  forwarded; the device records the reset and answers NV_OK, the mirror channel is left alone
+  (`public.rs`, `Guest::Reset`). A guest-named engine reset must not reach a host engine; if
+  the fault gate (Q-C1) shows that a guest needs the real reset, it goes through the device's
+  own RC path on its own mirror channel, with the engine taken from the mirror, not from the
+  guest.
 - **The M rows have not been seen on the card.** Their mirror forwards were not exercised,
   because the GPU gates could not run (see b-host-forwardable.md §8, Verification), so Q-C6
   is still open. The guest sees NV_OK and the host status goes to the log, as for

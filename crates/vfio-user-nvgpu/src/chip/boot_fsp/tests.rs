@@ -382,7 +382,9 @@ fn heartbeats_are_fresh_in_the_kernels_time_base() {
         let current_ms = (ptimer.elapsed().as_nanos() as u64 / 1_000_000) as u32;
         let with_offset = heartbeat.wrapping_add((offset / 1_000_000) as u32);
         let diff = current_ms.wrapping_sub(with_offset);
-        assert!(diff <= 2 || diff >= u32::MAX - 2, "diff {diff} ms");
+        // 100 ms of scheduling jitter is allowed: the test runs beside builds and VMs, and the
+        // kernel's heartbeat timeout is seconds (kernel_gsp.c:2264-2300).
+        assert!(diff <= 100 || diff >= u32::MAX - 100, "diff {diff} ms");
     }
     assert_eq!(b.rd(0x11_8DF8), (offset >> 32) as u32);
 }

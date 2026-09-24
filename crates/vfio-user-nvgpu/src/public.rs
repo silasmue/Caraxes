@@ -174,22 +174,18 @@ fn guest(ctx: &mut Ctx<'_>, row: &PublicControl, g: Guest, params: &[u8]) -> Ans
             a.resets += 1;
             a.last_fault = None;
             let resets = a.resets;
-            match ctx
-                .mirror
-                .as_deref_mut()
-                .and_then(|m| m.forward(h_client, h_object, host_cmd, params))
-            {
-                Some((st, note)) => ok(
-                    params.to_vec(),
-                    "host (reset on the guest's own mirror channel; the guest sees NV_OK)",
-                    format!("reset {resets}, as {host_cmd:#x}: {note}; host status {st:#x}"),
-                ),
-                None => ok(
-                    params.to_vec(),
-                    "guest (no mirror: reset recorded by the device; the software executor keeps no fault state)",
-                    format!("reset {resets}, no host object"),
-                ),
-            }
+            // Never forwarded: on the host, RESET_CHANNEL also resets the engine the
+            // guest names (ctrl906f.h:105-124), and a host engine reset reaches every
+            // tenant of that engine, the host desktop included. The reset is recorded
+            // and the guest sees NV_OK; the mirror channel is not touched
+            // (gsp-plan/c-guest-state.md §8; the host command would have been
+            // `host_cmd`).
+            let _ = (h_client, h_object);
+            ok(
+                params.to_vec(),
+                "guest (reset recorded by the device, never forwarded: a guest-named engine reset must not reach a host engine)",
+                format!("reset {resets}, host command {host_cmd:#x} withheld"),
+            )
         }
         Guest::MmuFaultInfo => {
             let fault = ctx.attrs.get(ctx.key).and_then(|a| a.last_fault.clone());
@@ -1051,10 +1047,11 @@ mod tests {
     const CH: (u32, u32) = (0xC1, 0x5C00_0010);
     const OTHER: (u32, u32) = (0xC1, 0x5C00_0020);
 
-    /// The resets act on the guest's own mirror channel only, as the public control; a
-    /// channel without a mirror is answered by the device.
+    /// The resets are recorded by the device and never forwarded, with or without a mirror
+    /// channel: on the host a channel reset also resets the engine the guest names
+    /// (c-guest-state.md §8).
     #[test]
-    fn resets_go_to_the_own_mirror_channel_only() {
+    fn resets_never_reach_the_host() {
         let mut attrs = GuestAttrs::default();
         for (cmd, host_cmd, size) in [
             (0x906F_0102u32, 0x906F_0102u32, 16usize),
@@ -1063,13 +1060,14 @@ mod tests {
         ] {
             let (a, calls) = guest_call(&mut attrs, &[CH, OTHER], CH, cmd, &vec![1u8; size]);
             assert_eq!(a.status, NV_OK);
-            assert_eq!(calls, [(CH.0, CH.1, host_cmd)], "{cmd:#x}");
-            assert!(a.label.starts_with("host (reset"), "{}", a.label);
-            // No mirror: the device answers, nothing goes anywhere.
+            assert!(calls.is_empty(), "{cmd:#x} reached the mirror as {host_cmd:#x}");
+            assert!(a.label.starts_with("guest (reset recorded"), "{}", a.label);
+            assert!(a.note.contains(&format!("{host_cmd:#x}")), "{}", a.note);
+            // No mirror: the same answer.
             let (a, calls) = guest_call(&mut attrs, &[OTHER], CH, cmd, &vec![1u8; size]);
             assert_eq!(a.status, NV_OK);
             assert!(calls.is_empty());
-            assert!(a.label.starts_with("guest (no mirror"), "{}", a.label);
+            assert!(a.label.starts_with("guest (reset recorded"), "{}", a.label);
         }
         assert_eq!(attrs.get(CH).unwrap().resets, 6);
     }
