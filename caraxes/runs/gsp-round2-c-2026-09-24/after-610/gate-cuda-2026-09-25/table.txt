@@ -1,0 +1,23 @@
+# SPDX-License-Identifier: MIT
+# cuda gate, gate-cuda-2026-09-25, VM vm5: result per test; device = RPCs the device did not answer NV_OK in the test's window
+TEST                             RESULT SCORED GUEST ERROR | LAST FAILED RM CALL (guest tracer) | DEVICE
+cuda-init                        fail  yes    exit 0:  | no RM call traced | none
+cuda-context                     fail  yes    exit 0:  | no RM call traced | none
+cuda-core                        fail  yes    exit 1: ERROR: no 'stage 2 ok' in the output | no RM call traced | none
+cuda-jit                         fail  yes    exit 1: ERROR: no 'stage 3 ok' in the output | no RM call traced | none
+cuda-launch                      fail  yes    exit 1: ERROR: no 'stage 4 ok' in the output | no RM call traced | none
+cuda-managed                     fail  yes    exit 1: ERROR: managedprobe did not report a correct stage-2 result | no RM call traced | none
+cuda-hostreg                     fail  yes    exit 1: ERROR: hostregprobe: 0 of 2 roundtrips reported 'bad=0 correct' | no RM call traced | none
+cuda-torch                       pass  yes    torchprobe stage 5 with NVTORCH_CONV=1: cuDNN convolution result verified by the probe | - | NV2080_CTRL_CMD_GPU_QUERY_ECC_STATUS=0x56 x1
+cuda-gdb                         skip  yes    declared-unsupported: workload not procurable in this environment -- no cuda-gdb (CUDA_GDB) | - | none
+rlprobe                          pass  yes    mean10=56.9 (pinned) | - | NV2080_CTRL_CMD_GPU_QUERY_ECC_STATUS=0x56 x1
+convburn                         pass  yes    acc=3.041450977e+00 | - | NV2080_CTRL_CMD_GPU_QUERY_ECC_STATUS=0x56 x1
+robustness                       fail  yes    0 of 3 runs correct (); refcnt 1 -> 2 | - | none
+suite-test_async_streams         fail  no     exit 1: torch.OutOfMemoryError: CUDA out of memory. Tried to allocate 256.00 MiB. GPU 0 has a total capacity of 855.75 MiB of which 222.94 MiB is free. Including non-PyTorch memory, this process has 628.00 MiB memory in use. Of the allocated memory 512.00 MiB is allocated by PyTorch, and 0 bytes is reserved | - | NV2080_CTRL_CMD_GPU_QUERY_ECC_STATUS=0x56 x1
+suite-test_cuda_graphs           pass  no     CUDA graphs test ok | - | NV2080_CTRL_CMD_GPU_QUERY_ECC_STATUS=0x56 x1
+suite-test_high_freq_event_polling pass  no     high-frequency event test ok | - | NV2080_CTRL_CMD_GPU_QUERY_ECC_STATUS=0x56 x1
+suite-test_multi_process_cuda    pass  no     [W924 22:35:03.262874829 CudaIPCTypes.cpp:16] Producer process has been terminated before all shared CUDA tensors released. See Note [Sharing CUDA tensors] | - | NV2080_CTRL_CMD_GPU_QUERY_ECC_STATUS=0x56 x2
+suite-test_nvrtc                 skip  no     missing module: cupy | - | none
+suite-test_uvm_migration         skip  no     missing module: cupy | - | none
+suite-test_vram_churn            pass  no     VRAM churn test ok (no leak, no crash) | - | NV2080_CTRL_CMD_GPU_QUERY_ECC_STATUS=0x56 x1
+suite-rapids_cuml_cudf           skip  no     missing module: cudf | - | none

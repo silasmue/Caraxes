@@ -1,0 +1,4 @@
+# SPDX-License-Identifier: MIT
+# cuda gate gate-cuda-2026-09-24: guest/cuda-managed.rm.out
+
+ERROR: managedprobe did not report a correct stage-2 result

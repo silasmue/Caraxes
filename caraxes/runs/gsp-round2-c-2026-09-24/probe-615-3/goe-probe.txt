@@ -1,0 +1,18 @@
+built
+goe-probe: driver 615.71.09
+goe-probe: control GPU_GET_PROBED_IDS     0x00000214: ret 0 status 0
+goe-probe: control GPU_ATTACH_IDS         0x00000215: ret 0 status 0
+goe-probe: alloc device                   class 0x0080: ret 0 status 0
+goe-probe: alloc subdevice                class 0x2080: ret 0 status 0
+goe-probe: control GPU_GET_GID_INFO       0x2080014a: ret 0 status 0
+goe-probe: alloc header memory            class 0x003e: ret 0 status 0
+goe-probe: map header memory              ret 0 status 0
+goe-probe: alloc record memory            class 0x003e: ret 0 status 0
+goe-probe: map record memory              ret 0 status 0
+goe-probe: alloc vardata memory           class 0x003e: ret 0 status 0
+goe-probe: map vardata memory             ret 0 status 0
+goe-probe: header 0x70222c43b000 records 0x70222c439000 vardata 0x70222c435000
+goe-probe: alloc event buffer             class 0x90cd: ret 0 status 0
+goe-probe: control ENABLE_EVENTS          0x90cd0101: ret 0 status 0
+goe-probe: alloc GOE bind                 class 0x90d0: ret 0 status 0x1f
+goe-probe rc=1

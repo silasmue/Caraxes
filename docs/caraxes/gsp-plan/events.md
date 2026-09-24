@@ -27,8 +27,22 @@ the module comment of `crates/vfio-user-nvgpu/src/events.rs`. Run records:
   subdevice RC subscription (`mirror.rs`, `NV2080_NOTIFIERS_RC_ERROR`) is only a wake-up for
   that scan, never a source. Not yet: the software executor's own faults, M1's per-channel
   host event.
-- Status R3 `MMU_FAULT_QUEUED` (GMCAPI 0x40001): **open**. The send path exists; no fault
-  packets are produced (the executor raises no faults, the host fault buffer is not per client).
+- Status R3 `MMU_FAULT_QUEUED` (GMCAPI 0x40001): **not raised, per source (round 2,
+  2026-09-25)**. The send path exists; the event announces a packet in UVM's shadow buffer,
+  which only a fault of a UVM-owned channel produces. Software executor: raises no faults
+  (channel.rs), so no packet. Per-VM mirror faults: the mirrored channels are not UVM's (UVM's
+  own channels carry GP100_UVM_SW and stay in software, mirror.rs `eligible`), so a mirror
+  fault is an RC (R1, Xid 31), and its details come from the host's record of the channel's own
+  mirror (`NV906F_CTRL_CMD_GET_MMU_FAULT_INFO` on the device's own host channel,
+  `Mirror::mmu_fault_info`), which now feeds the guest's `GET_MMU_FAULT_INFO` and the RC
+  journal. Host fault buffer: host-global, stays out.
+- Status operational-event records (615 import, round 2): **done**. For every RC the device
+  raises (R1) it writes a GOE record (`GPU-RC`, engine error or translation fault for Xid 31,
+  recoverable, one legacy-Xid context with the Xid and its text) into the import's registered
+  guest buffer (`gspmem.rs` `GspMemory::produce`: vardata, record, then `recordPut`) and wakes
+  the kernel with `POST_EVENT` on the import's callback event (the bind's handle), once until
+  the drain's `UPDATE_GET`. `CARAXES_GOE_SELFTEST=<s>` adds a SIMULATED debug record every `s`
+  seconds for the guest probe `caraxes/tools/goe-probe.sh`.
 - Status R4 `PMU_HALTED`: **open** (no lost-GPU decision in the device).
 - Status R5 `RECOVERY_ACTION`, R10 `GSP_POST_NOCAT_RECORD`, R12 `UPDATE_GSP_TRACE`, R14: **done
   by decision**: never sent.

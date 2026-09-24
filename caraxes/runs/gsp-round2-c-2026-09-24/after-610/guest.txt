@@ -1,0 +1,61 @@
+bash: line 1: nvidia-smi: command not found
+[  131.690245] NVRM: VM: nv_alloc_pages:3969: 0x00000000a2419473, 16 page(s), count = 1, page_table = 0x0000000090b8ccb1
+[  131.690256] NVRM: VM: nv_alloc_pages: 1 pages, nodeid -1
+[  131.690257] NVRM: VM:    contig 1  cache_type 0
+[  131.690257] NVRM: VM: nv_alloc_contig_pages: 1 pages
+[  131.690258] NVRM: VM: nv_alloc_system_pages: 1 order0 pages, 0 order
+[  131.690259] NVRM: VM: nv_mem_pool_alloc_pages: node=0 order=0: 0/1 pages allocated (0 already cleared, 0 left in pool)
+[  131.690264] NVRM: VM: nv_alloc_pages:3969: 0x0000000033cf07b4, 1 page(s), count = 1, page_table = 0x000000003178bba6
+[  132.810068] NVRM: VM: nv_alloc_pages: 16 pages, nodeid -1
+[  132.810075] NVRM: VM:    contig 1  cache_type 0
+[  132.810083] NVRM: VM: nv_alloc_contig_pages: 16 pages
+[  132.810086] NVRM: VM: nv_alloc_system_pages: 16 order0 pages, 4 order
+[  132.810088] NVRM: VM: nv_mem_pool_alloc_pages: node=0 order=4: 0/1 pages allocated (0 already cleared, 0 left in pool)
+[  132.810147] NVRM: VM: nv_alloc_pages:3969: 0x000000009dd81eaa, 16 page(s), count = 1, page_table = 0x00000000f3099e58
+[  132.915340] NVRM: VM: nv_alloc_pages: 1 pages, nodeid -1
+[  132.915346] NVRM: VM:    contig 0  cache_type 1
+[  132.915350] NVRM: VM: nv_alloc_system_pages: 1 order0 pages, 0 order
+[  132.915352] NVRM: VM: nv_mem_pool_alloc_pages: node=0 order=0: 0/1 pages allocated (0 already cleared, 0 left in pool)
+[  132.915433] NVRM: VM: nv_alloc_pages:3969: 0x0000000048224685, 1 page(s), count = 1, page_table = 0x0000000017abf84e
+[  132.948095] NVRM: VM: nv_alloc_pages: 8 pages, nodeid -1
+[  132.948101] NVRM: VM:    contig 1  cache_type 0
+[  132.948105] NVRM: VM: nv_alloc_contig_pages: 8 pages
+[  132.948107] NVRM: VM: nv_alloc_system_pages: 8 order0 pages, 3 order
+[  132.948147] NVRM: VM: nv_alloc_pages:3969: 0x00000000f62e78bb, 8 page(s), count = 1, page_table = 0x00000000e6b44cc2
+[  132.948168] NVRM: VM: nv_alloc_pages: 8 pages, nodeid -1
+[  132.948169] NVRM: VM:    contig 1  cache_type 0
+[  132.948170] NVRM: VM: nv_alloc_contig_pages: 8 pages
+[  132.948171] NVRM: VM: nv_alloc_system_pages: 8 order0 pages, 3 order
+[  132.948195] NVRM: VM: nv_alloc_pages:3969: 0x00000000b2b96599, 8 page(s), count = 1, page_table = 0x000000009f976037
+[  133.134894] NVRM: VM: nv_free_pages: 0x8
+[  133.134901] NVRM: VM: nv_free_pages:3992: 0x00000000f62e78bb, 8 page(s), count = 1, page_table = 0x00000000e6b44cc2
+[  133.134905] NVRM: VM: nv_free_contig_pages: 8 pages
+[  133.134908] NVRM: VM: nv_free_system_pages: 8/8 order0 pages
+[  133.134911] NVRM: VM: nv_free_pages: 0x8
+[  133.134912] NVRM: VM: nv_free_pages:3992: 0x00000000b2b96599, 8 page(s), count = 1, page_table = 0x000000009f976037
+[  133.134913] NVRM: VM: nv_free_contig_pages: 8 pages
+[  133.134914] NVRM: VM: nv_free_system_pages: 8/8 order0 pages
+[  133.137782] NVRM: VM: nv_free_pages: 0x1
+[  133.137784] NVRM: VM: nv_free_pages:3992: 0x0000000048224685, 1 page(s), count = 1, page_table = 0x0000000017abf84e
+[  133.138051] NVRM: VM: nv_mem_pool_free_pages: node=0 order=0: 1/1 pages added to pool (1 now in pool)
+[  133.138083] NVRM: VM: nv_free_system_pages: 1/1 order0 pages
+[  133.202117] NVRM: VM: nv_alloc_pages: 1 pages, nodeid -1
+[  133.202121] NVRM: VM:    contig 0  cache_type 1
+[  133.202123] NVRM: VM: nv_alloc_system_pages: 1 order0 pages, 0 order
+[  133.202125] NVRM: VM: nv_mem_pool_alloc_pages: node=0 order=0: 1/1 pages allocated (1 already cleared, 0 left in pool)
+[  133.202176] NVRM: VM: nv_alloc_pages:3969: 0x0000000048224685, 1 page(s), count = 1, page_table = 0x0000000017abf84e
+[  133.237967] NVRM: VM: nv_alloc_pages: 8 pages, nodeid -1
+[  133.237977] NVRM: VM:    contig 1  cache_type 0
+[  133.237980] NVRM: VM: nv_alloc_contig_pages: 8 pages
+[  133.237981] NVRM: VM: nv_alloc_system_pages: 8 order0 pages, 3 order
+[  133.237987] NVRM: VM: nv_alloc_pages:3969: 0x00000000b2b96599, 8 page(s), count = 1, page_table = 0x000000009f976037
+[  133.238004] NVRM: VM: nv_alloc_pages: 8 pages, nodeid -1
+[  133.238005] NVRM: VM:    contig 1  cache_type 0
+[  133.238006] NVRM: VM: nv_alloc_contig_pages: 8 pages
+[  133.238007] NVRM: VM: nv_alloc_system_pages: 8 order0 pages, 3 order
+[  133.238010] NVRM: VM: nv_alloc_pages:3969: 0x00000000f62e78bb, 8 page(s), count = 1, page_table = 0x00000000e6b44cc2
+[  133.284561] NVRM: initializing rc timer
+[  133.284565] NVRM: rc timer initialized
+[  133.287256] NVRM: GPU 0000:00:05.0: RmInitAdapter succeeded!
+[  133.287833] nvidia 0000:00:05.0: nvidia bound, DMA range map in place; unload blocked until it unbinds
+[  133.287909] NVRM: loading NVIDIA UNIX Open Kernel Module for x86_64  610.57.04  Release Build  (leandro@caraxes-vm3)  Wed Sep 23 13:37:27 UTC 2026

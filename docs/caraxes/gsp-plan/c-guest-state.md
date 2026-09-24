@@ -18,8 +18,9 @@ Section 3 adds the twelve controls that
 
 ## Summary
 
-- **Status (2026-09-24).** 27 of the 31 controls of §2 are done, 3 are partial and 1 is open;
-  2 of the 12 from B are done. Details in §8.
+- **Status (2026-09-25, after round 2).** 28 of the 31 controls of §2 are done and 3 are
+  partial; 11 of the 12 from B are done (B1, the ZBC entry, is the ZBC model's); the 17 rows
+  the D plan moved here are rows of the table, 9 done and 8 partial. Details in §8.
 
 - **The set.** 31 controls in 615.71.09, 29 in 610.57.04. The two 615-only controls are:
   - `NV0090_CTRL_CMD_PROGRAM_SYSMEM_PROMOTE`, new in 615;
@@ -299,9 +300,12 @@ Implemented in `crates/vfio-user-nvgpu` in commit b49cc5c.
 | K | 5 | 5 | 0 | 0 |
 | X | 2 | 2 | 0 | 0 |
 | V | 8 | 8 | 0 | 0 |
-| EB | 1 | 0 | 0 | 1 |
-| **§2 total** | **31** | **27** | **3** | **1** |
-| from B (§3) | 12 | 2 | 0 | 10 |
+| EB | 1 | 1 | 0 | 0 |
+| **§2 total** | **31** | **28** | **3** | **0** |
+| from B (§3) | 12 | 11 | 0 | 1 |
+| from D (d-device-model.md §10) | 17 | 9 | 8 | 0 |
+
+(EB, B2-B5, B8-B12 and the D rows: round 2 below.)
 
 **Decision Q-C7, taken 2026-09-24 by the operator.** `NVA06C_CTRL_CMD_MAKE_REALTIME` and
 `NVA06F_CTRL_CMD_RESTART_RUNLIST` are recorded and never forwarded. A guest must not outrank
@@ -355,8 +359,8 @@ the forwarded interleave level at MEDIUM: a higher level is recorded only.
 | 10 | `NV9067_CTRL_CMD_SET_CWD_WATERMARK` | K | done | b49cc5c | refused |
 | 11 | `NV906F_CTRL_CMD_RESET_CHANNEL` | RC | partial | b49cc5c | as 6 |
 | 12 | `NV906F_CTRL_CMD_GET_DEFER_RC_STATE` | RC | done | b49cc5c | bDeferRCPending 0 |
-| 13 | `NV906F_CTRL_CMD_GET_MMU_FAULT_INFO` | RC | done | b49cc5c | the device's fault record (zeros until the RC events fill it) |
-| 14 | `NV_EVENT_BUFFER_CTRL_CMD_UPDATE_GET` | EB | open | - | depends on ALLOC_MEMORY (the RPC plan's event-buffer model) |
+| 13 | `NV906F_CTRL_CMD_GET_MMU_FAULT_INFO` | RC | done | b49cc5c, round 2 | the device's fault record: for an Xid 31 the device raised, the host's record of the channel's own mirror (round 2) |
+| 14 | `NV_EVENT_BUFFER_CTRL_CMD_UPDATE_GET` | EB | done | 29f3366, round 2 | gspmem.rs: the drain's get pointers, bounded by the ring; clears the producer's notify latch; the records are the device's own operational events (round 2) |
 | 15 | `NVA06C_CTRL_CMD_SET_INTERLEAVE_LEVEL` | M | done | b49cc5c | recorded; forwarded up to MEDIUM |
 | 16 | `NVA06C_CTRL_CMD_PROGRAM_VIDMEM_PROMOTE` | M | done | b49cc5c | recorded, forwarded when mirrored |
 | 17 | `NVA06C_CTRL_CMD_MAKE_REALTIME` | L | done | b49cc5c | recorded, never forwarded (Q-C7) |
@@ -377,11 +381,71 @@ reset but does not act on it.
 | # | Control | Status | Commit | Note |
 |---|---|---|---|---|
 | B1 | `NV9096_CTRL_CMD_GET_ZBC_CLEAR_TABLE_ENTRY` | open | - | needs a device ZBC table; its defaults need Q-B3, not permitted in this package |
-| B2 | `NV0090_CTRL_CMD_GET_MMU_DEBUG_MODE` | open | - | |
-| B3 | `NV2080_CTRL_CMD_GR_GET_CTXSW_STATS` | open | - | |
-| B4 | `NV2080_CTRL_CMD_GR_GET_CTXSW_MODES` | open | - | |
-| B5 | `NV2080_CTRL_CMD_GR_GET_CURRENT_RESIDENT_CHANNEL` | open | - | |
+| B2 | `NV0090_CTRL_CMD_GET_MMU_DEBUG_MODE` | done | round 2 | `bMode` 0: the device never enables MMU debug; not forwarded (the host TSG's mode is the same default) |
+| B3 | `NV2080_CTRL_CMD_GR_GET_CTXSW_STATS` | done | round 2 | mirror: `hChannel` rewritten to the own host channel on the mirror's subdevice; software: zeros |
+| B4 | `NV2080_CTRL_CMD_GR_GET_CTXSW_MODES` | done | round 2 | mirror: as B3; software: recorded zcull and preemption modes |
+| B5 | `NV2080_CTRL_CMD_GR_GET_CURRENT_RESIDENT_CHANNEL` | done | round 2 | guest ChID only for this VM's own mirror (host read, reported), else 0xFFFFFFFF |
 | B6 | `NV2080_CTRL_CMD_RC_GET_ERROR_COUNT` | done | b49cc5c | the device's journal: 0 |
 | B7 | `NV2080_CTRL_CMD_RC_GET_ERROR_V2` | done | b49cc5c | no record, outputRecordSize 0 |
-| B8 | `NV208F_CTRL_CMD_FIFO_GET_CHANNEL_STATE` | open | - | |
-| B9-B12 | `NV83DE_CTRL_CMD_DEBUG_GET_*` | open | - | debugger defaults |
+| B8 | `NV208F_CTRL_CMD_FIFO_GET_CHANNEL_STATE` | done | round 2 | the device's scheduling flags |
+| B9 | `NV83DE_CTRL_CMD_DEBUG_GET_MODE_MMU_DEBUG` | done | round 2 | refused NOT_SUPPORTED: no debugger session model yet (R5) |
+| B10 | `NV83DE_CTRL_CMD_DEBUG_GET_MODE_ERRBAR_DEBUG` | done | round 2 | DISABLED (its setter is refused) |
+| B11 | `NV83DE_CTRL_CMD_DEBUG_GET_SINGLE_SM_DEBUGGER_STATUS` | done | round 2 | refused NOT_SUPPORTED: needs SM run control of a session |
+| B12 | `NV83DE_CTRL_CMD_DEBUG_GET_MODE_MMU_GCC_DEBUG` | done | round 2 | refused NOT_SUPPORTED: not on TU106 |
+
+### Round 2 (2026-09-25)
+
+Commits 672d561 (TSG key), 5591b9c (IDLE_CHANNELS and the mirror's host calls), e52824f (the
+17 D-plan rows), 8989bbc (the B rows), 1f8d564 (operational-event records); runs in
+`caraxes/runs/gsp-round2-c-2026-09-24/`. Everything lives where §8 says: rows of `PUBLIC_C`
+(`src/ver/v610/public.rs`), handlers in `src/public.rs`, the host side only through the
+guest object's own mirror (`public::MirrorObjects`, implemented by `mirror.rs`).
+
+**What the rows keep.** `GuestAttrs` gained the device-wide channel state: a per-channel
+`disabled` flag, the usermode and active-channel scheduling flags, and the RC journal
+(`RcRecord`, at most 256 entries: the RCs the device raised, boot.rs, and the guest's reports).
+`RC_GET_ERROR_COUNT` counts it, `RC_SET_CLEAN_ERROR_HISTORY` empties it. The public context
+now carries the channel registry (for rows that name a channel in their params) and the
+emulated Link Control register (config.rs, set by device.rs at every config write).
+
+**The debugger getters (B9-B12) and the session model.** B10 has a device answer because its
+setter is refused. B9 and B11 are refused because their answer is session state the device
+does not model. The minimal session model of the D plan's R5 would need, per `GT200_DEBUGGER`
+object: the guest object it debugs (`hAppClient`, `hClass3dObject` of its alloc params), the
+MMU debug action last set by `SET_MODE_MMU_DEBUG` (ENABLE/DISABLE, cuda-gdb sends ENABLE right
+after the alloc), freed with the object; B9 then answers that action. B11 needs more: SM debug
+mode on the session's context and the stop/trap state of each SM, which only a mirrored
+session (the host `GT200_DEBUGGER` on the mirror's compute object) could report; until then it
+stays refused. B12 is Blackwell-only.
+
+**The 17 rows of d-device-model.md §10.**
+
+| Id | Control | Status | Answer |
+|---|---|---|---|
+| 0x00801714 | `NV0080 FIFO_IDLE_CHANNELS` | done | each handle resolved in the caller's client (0x33 otherwise); software channels idle; mirrored ones through the host RM's `FIFO_IDLE_CHANNELS` on the mirror's own device and channels, timeout capped at 50 ms (the RPC's recipe, rpc-functions.md) |
+| 0x2080110B | `FIFO_DISABLE_CHANNELS` | partial | every (hClient, hChannel) resolved (0x33 otherwise), the channel's flag recorded; mirrored ones disabled or enabled on their own host twins (`bOnlyDisableScheduling` passed, `pRunlistPreemptEvent` and `bRewindGpPut` never); the software executor does not consult the flag yet |
+| 0x20801117 | `FIFO_DISABLE_USERMODE_CHANNELS` | partial | the device's usermode flag (channels of a guest TSG; the kernel's bare channels stay); mirrored ones on their own twins; the executor does not consult the flag |
+| 0x20800AC3 | `INTERNAL_FIFO_TOGGLE_ACTIVE_CHANNEL_SCHEDULING` | partial | the device-wide flag; every mirror channel on its own twin (scheduling only); the doorbell path does not consult it yet (a dropped doorbell would need a replay at re-enable) |
+| 0x208F0401 | `NV208F FIFO_CHECK_ENGINE_CONTEXT` | done | `exists` from the GR context the guest promoted for the channel or its TSG; engine other than GRAPHICS 0x1F, unknown channel 0x21 |
+| 0x20801205 | `GR_CTXSW_ZCULL_MODE` | done | recorded on the named channel, never forwarded; GET_CTXSW_MODES reads it |
+| 0x20801211 | `GR_CTXSW_PREEMPTION_BIND` | partial | recorded on the named channel; not forwarded: the plan's MIRROR recipe needs the D17 check that the nine buffer VAs are mapped in the channel's VA space, and a host GR context switch into unmapped GfxP/CILP buffers would fault the host engine |
+| 0x2080123A | `GR_CTXSW_SETUP_BIND` | done | refused (the plan's REFUSE; TU106's GRAPHICS_SETUP context property unmeasured) |
+| 0x20800198 | `GPU_VALIDATE_MEM_MAP_REQUEST` | done | `NV_ERR_PROTECTION_FAULT`: the kernel allows the timer, usermode and MC ranges itself (subdevice_ctrl_gpu_kernel.c:2934-2966); the device's BAR0 has nothing more a user may map |
+| 0x208F0704 | `NV208F BIF_INFO` | done | L0s/L1 enables from the emulated Link Control; other indices 0x1F |
+| 0x0073137E | `NV0073 DP_GET_GENERIC_INFOFRAME` | partial | refused with a label: the display model keeps no SDP capture yet (display-engine state, the display branch) |
+| 0x0073137F | `NV0073 DP_GET_MSA_ATTRIBUTES` | partial | as above, for the MSA attributes |
+| 0x20800A6A | `INTERNAL_RC_WATCHDOG_TIMEOUT` | partial | recorded in the RC journal, NV_OK; no stuck-channel search, no host engine reset (the device boots the guest with RmRcWatchdog=0) |
+| 0x20802207 | `RC_SET_CLEAN_ERROR_HISTORY` | done | the device's journal emptied, the host's never touched |
+| 0x20800177 | `GPU_REPORT_NON_REPLAYABLE_FAULT` | partial | the packet (instance, address, info) recorded in the journal; no channel by instance block (the registry does not record instance memory), never passed to the host GMMU |
+| 0x00801108 | `NV0080 GR_SET_TPC_PARTITION_MODE` | done | refused (the plan's REFUSE) |
+| 0x2080122C | `GR_SET_TPC_PARTITION_MODE` | done | refused (the plan's REFUSE) |
+
+`NVA06C_CTRL_CMD_GET_INFO` (answered by the kernel itself on a GSP client) got a row too: the
+kernel's TSG id the device recorded (classes.md §8, TSG), NOT_SUPPORTED on 610.
+
+**Tests.** `public::tests`: `the_17_d_plan_c_rows_are_c_rows`, `idle_channels_control`,
+`scheduling_rows_act_on_the_guest_channel_set`, `context_rows`, `device_state_rows`,
+`rc_journal`, `b_rows_from_device_state` (a registry with a TSG, a mirrored and a software
+channel and a bare kernel channel; a host RM client that fails the test when called; a fake
+mirror that records every host call); `dmodel::tests` checks that every D row moved to C is
+answered by this table.

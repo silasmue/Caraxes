@@ -1,0 +1,80 @@
+Thu Sep 24 22:45:24 2026       
++-----------------------------------------------------------------------------------------+
+| NVIDIA-SMI 615.71.09              KMD Version: 615.71.09     CUDA UMD Version: 13.4     |
++-----------------------------------------+------------------------+----------------------+
+| GPU  Name                 Persistence-M | Bus-Id          Disp.A | Volatile Uncorr. ECC |
+| Fan  Temp   Perf          Pwr:Usage/Cap |           Memory-Usage | GPU-Util  Compute M. |
+|                                         |                        |               MIG M. |
+|=========================================+========================+======================|
+|   0  Leandro VFIO RTX 2070-1G       Off |   00000000:00:05.0 Off |                  N/A |
+| 62%   49C    P8             30W /  175W |       0MiB /   1024MiB |     18%      Default |
+|                                         |                        |                  N/A |
++-----------------------------------------+------------------------+----------------------+
+
++-----------------------------------------------------------------------------------------+
+| Processes:                                                                              |
+|  GPU   GI   CI              PID   Type   Process name                        GPU Memory |
+|        ID   ID                                                               Usage      |
+|=========================================================================================|
+|  No running processes found                                                             |
++-----------------------------------------------------------------------------------------+
+[  132.322813] NVRM: VM: nv_free_contig_pages: 8 pages
+[  132.322817] NVRM: VM: nv_free_system_pages: 8/8 order0 pages
+[  132.322820] NVRM: VM: nv_free_pages: 0x8 at = ffff8ad4c8c18400
+[  132.322821] NVRM: VM: nv_free_pages:4156: 0x00000000cf27cad4, 8 page(s), count = 1, page_table = 0x00000000d38ceacc
+[  132.322823] NVRM: VM: nv_free_contig_pages: 8 pages
+[  132.322824] NVRM: VM: nv_free_system_pages: 8/8 order0 pages
+[  132.324655] NVRM: VM: nv_free_pages: 0x1 at = ffff8ad4c8c18600
+[  132.324658] NVRM: VM: nv_free_pages:4156: 0x000000004b44d49e, 1 page(s), count = 1, page_table = 0x0000000085b8c4fd
+[  132.324923] NVRM: VM: nv_mem_pool_free_pages: at = ffff8ad4c8c18600, at->order = 0, at->num_pages = 1,                 pool_order = 0: 1/1 pages added to pool (1 now in pool)
+[  132.324931] NVRM: VM: nv_free_system_pages: 1/1 order0 pages
+[  132.399484] NVRM: VM: nv_alloc_pages: 1 pages, nodeid -1
+[  132.399491] NVRM: VM:    contig 0  cache_type 1
+[  132.399495] NVRM: VM: nv_alloc_system_pages: 1 order0 pages, 0 order
+[  132.399499] NVRM: VM: nv_mem_pool_alloc_pages: node=0 order=0: 1/1 pages allocated (1 already cleared, 0 left in pool)
+[  132.399556] NVRM: VM: nv_alloc_pages:4133: 0x0000000041e85be7, 1 page(s), count = 1, page_table = 0x000000009670bd4b
+[  132.432612] NVRM: VM: nv_alloc_pages: 8 pages, nodeid -1
+[  132.432619] NVRM: VM:    contig 1  cache_type 0
+[  132.432622] NVRM: VM: nv_alloc_contig_pages: 8 pages
+[  132.432625] NVRM: VM: nv_alloc_system_pages: 8 order0 pages, 3 order
+[  132.432630] NVRM: VM: nv_alloc_pages:4133: 0x00000000265a3999, 8 page(s), count = 1, page_table = 0x00000000c26f4c33
+[  132.432654] NVRM: VM: nv_alloc_pages: 8 pages, nodeid -1
+[  132.432654] NVRM: VM:    contig 1  cache_type 0
+[  132.432655] NVRM: VM: nv_alloc_contig_pages: 8 pages
+[  132.432656] NVRM: VM: nv_alloc_system_pages: 8 order0 pages, 3 order
+[  132.432683] NVRM: VM: nv_alloc_pages:4133: 0x00000000ca783353, 8 page(s), count = 1, page_table = 0x00000000a1ebae7c
+[  132.477596] NVRM: VM: nv_alloc_pages: 1 pages, nodeid -1
+[  132.477602] NVRM: VM:    contig 1  cache_type 1
+[  132.477606] NVRM: VM: nv_alloc_contig_pages: 1 pages
+[  132.477608] NVRM: VM: nv_alloc_system_pages: 1 order0 pages, 0 order
+[  132.477610] NVRM: VM: nv_mem_pool_alloc_pages: node=0 order=0: 0/1 pages allocated (0 already cleared, 0 left in pool)
+[  132.477691] NVRM: VM: nv_alloc_pages:4133: 0x00000000b16c3ea1, 1 page(s), count = 1, page_table = 0x00000000458001f6
+[  132.477855] NVRM: VM: nv_alloc_pages: 7 pages, nodeid -1
+[  132.477857] NVRM: VM:    contig 1  cache_type 1
+[  132.477859] NVRM: VM: nv_alloc_contig_pages: 7 pages
+[  132.477860] NVRM: VM: nv_alloc_system_pages: 7 order0 pages, 3 order
+[  132.477901] NVRM: VM: nv_alloc_pages:4133: 0x00000000def2c3c8, 7 page(s), count = 1, page_table = 0x00000000ee031a4d
+[  132.478054] NVRM: VM: nv_alloc_pages: 16 pages, nodeid -1
+[  132.478056] NVRM: VM:    contig 1  cache_type 1
+[  132.478057] NVRM: VM: nv_alloc_contig_pages: 16 pages
+[  132.478059] NVRM: VM: nv_alloc_system_pages: 16 order0 pages, 4 order
+[  132.478060] NVRM: VM: nv_mem_pool_alloc_pages: node=0 order=4: 0/1 pages allocated (0 already cleared, 0 left in pool)
+[  132.478124] NVRM: VM: nv_alloc_pages:4133: 0x0000000044ae07d7, 16 page(s), count = 1, page_table = 0x000000001caa7cee
+[  132.485037] NVRM: initializing rc timer
+[  132.485040] NVRM: rc timer initialized
+[  132.488709] NVRM: GPU 0000:00:05.0: RmInitAdapter succeeded!
+[  132.489324] nvidia 0000:00:05.0: nvidia bound, DMA range map in place; unload blocked until it unbinds
+[  132.489419] NVRM: loading NVIDIA UNIX Open Kernel Module for x86_64  615.71.09  Release Build  (dvs-builder@U22-I3-F05-2-4)  Fri Sep  4 22:33:33 UTC 2026
+[  134.784980] NVRM: nvidia_open...
+[  134.785005] NVRM: nvidia_ctl_open
+[  134.786466] NVRM: nvidia_open...
+[  134.786468] NVRM: GPU 0000:00:05.0: Opening GPU with minor number 0
+[  134.894397] NVRM: nvidia_open...
+[  134.894435] NVRM: GPU 0000:00:05.0: Opening GPU with minor number 0
+[  134.898215] NVRM: nvidia_open...
+[  134.898217] NVRM: GPU 0000:00:05.0: Opening GPU with minor number 0
+[  134.978847] NVRM: nvidia_close on GPU with minor number 0
+[  134.979817] NVRM: nvidia_close on GPU with minor number 0
+[  134.979834] NVRM: nvidia_close on GPU with minor number 0
+[  134.980402] NVRM: nvidia_close on GPU with minor number 255
+[  134.980406] NVRM: nvidia_ctl_close

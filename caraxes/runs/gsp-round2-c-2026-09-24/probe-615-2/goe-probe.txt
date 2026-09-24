@@ -1,0 +1,9 @@
+built
+goe-probe: driver 615.71.09
+goe-probe: control GPU_GET_PROBED_IDS     0x00000214: ret 0 status 0
+goe-probe: control GPU_ATTACH_IDS         0x00000215: ret 0 status 0
+goe-probe: alloc device                   class 0x0080: ret 0 status 0
+goe-probe: alloc subdevice                class 0x2080: ret 0 status 0
+goe-probe: control GPU_GET_GID_INFO       0x2080014a: ret 0 status 0
+goe-probe: alloc event buffer             class 0x90cd: ret 0 status 0x56
+goe-probe rc=1

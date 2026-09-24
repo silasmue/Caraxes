@@ -1,0 +1,4 @@
+# SPDX-License-Identifier: MIT
+# cuda gate gate-cuda-2026-09-25: guest/cuda-hostreg.rm.out
+
+ERROR: hostregprobe: 0 of 2 roundtrips reported 'bad=0 correct'

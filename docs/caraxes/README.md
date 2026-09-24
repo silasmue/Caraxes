@@ -768,3 +768,32 @@ the VM; then display, expected to be much easier than in v1.
   of a CUDA process sends no D control (no 0x2080110B, no 0x20800177); the display gate itself
   sends `SET_ZBC_COLOR_CLEAR` three times (ZBC model, R3). No host Xid on the device's pid (one
   Xid 31 on vm1's device in the same hour).
+- 2026-09-25: **GSP plan round 2, category C** ([gsp-plan/c-guest-state.md](gsp-plan/c-guest-state.md)
+  §8 "Round 2", [gsp-plan/b-host-forwardable.md](gsp-plan/b-host-forwardable.md) §8,
+  [gsp-surface.md](gsp-surface.md) "After the GSP plan round 2"; runs
+  `caraxes/runs/gsp-round2-c-2026-09-24/`). Routed controls answered: 720 to 746 on the 610
+  ABI, 734 to 760 on 615.
+  - **The 17 C rows of the D plan** are rows of `PUBLIC_C`: 9 done, 8 partial (the three
+    scheduling switches act on the own mirrors, but the software executor does not consult the
+    flags; `PREEMPTION_BIND` recorded, not forwarded until the D17 VA check; the two DP
+    readbacks wait for display-engine state; watchdog and non-replayable fault go to the
+    device's RC journal only). Nothing reaches a host object other than the guest channel's own
+    mirror.
+  - **Nine of the ten open B rows** answer from channel and context state; the debugger
+    getters without a session model are refused (MMU debug, per-SM status), ERRBAR is disabled,
+    GCC is absent on TU106. The ZBC entry stays with the ZBC model.
+  - **TSG id.** The kernel's grpID keys the host TSG map on 615 (the guest handle on 610); a
+    bare channel's internal TSG id keys its own host TSG.
+  - **IDLE_CHANNELS** idles mirrored channels through the host RM's `FIFO_IDLE_CHANNELS` on
+    the device's own mirror objects (timeout capped at 50 ms), unknown channels 0x33.
+  - **Operational events.** Every RC the device raises becomes a GOE record in the 615
+    import's registered buffer plus `POST_EVENT`; the kernel drains and answers `UPDATE_GET`
+    (71 of 71 self-test records in the probe run), and a guest tool bound to the kernel's log
+    (`caraxes/tools/goe-probe.sh`) receives them. `MMU_FAULT_QUEUED` stays unsent, per source
+    (no executor faults, mirror faults are RCs of non-UVM channels, the host fault buffer is
+    host-global).
+  - **Gates on vm5 (1 GiB, slot 2), before and after identical:** 615 guest nvml pass, cuda 10
+    pass with cuda-managed failing (801); 610 guest nvml power N/A as before, cuda: torch,
+    rlprobe and convburn pass, the nvprobe-based tests print nothing on vm5's 610 image both
+    times. No Xid on the device's pid (two Xid 31 in one window belonged to another run's
+    device).

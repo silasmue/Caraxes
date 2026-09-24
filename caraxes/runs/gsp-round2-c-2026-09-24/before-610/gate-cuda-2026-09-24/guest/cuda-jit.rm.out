@@ -1,0 +1,4 @@
+# SPDX-License-Identifier: MIT
+# cuda gate gate-cuda-2026-09-24: guest/cuda-jit.rm.out
+
+ERROR: no 'stage 3 ok' in the output

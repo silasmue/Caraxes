@@ -1,0 +1,24 @@
+NVRM version: NVIDIA UNIX Open Kernel Module for x86_64  615.71.09  Release Build  (root@)  
+9fe1d64a3e0d5b0c704f26245795d70cb4f91ad5d7c7ae048844ca3810585994  /tmp/claude-1000/-home-silas-git-Caraxes/43784b5f-fc25-49bd-8e67-5dbab7e19aca/scratchpad/r2c/bin/vfio-user-nvgpu-615
+1f8d564 gspmem, events: operational-event records for the RCs the device raises
+CARAXES_BOOT_MODEL=1
+CARAXES_DMA=register
+CARAXES_DOORBELL_POLL=hybrid
+CARAXES_DOORBELL_TOKENS=64
+CARAXES_DRIVER=615
+CARAXES_FB_MIB=1024
+CARAXES_GATE_FB_MIB=1024
+CARAXES_GATE_RUNS=/home/silas/git/Caraxes/.claude/worktrees/agent-a9a22a025c9e09a21/caraxes/runs/gsp-round2-c-2026-09-24/probe-615-4
+CARAXES_GOE_SELFTEST=5
+CARAXES_HOST_EXEC=1
+CARAXES_HOST_RM=1
+CARAXES_IP=192.168.105.26
+CARAXES_MAC=02:00:00:00:00:26
+CARAXES_MIRROR_CHANNELS=1
+CARAXES_MIRROR_GR_SHADOW=1
+CARAXES_RESERVE_SLOT=2
+CARAXES_RESERVE_VRAM=1
+CARAXES_SERVER=/tmp/claude-1000/-home-silas-git-Caraxes/43784b5f-fc25-49bd-8e67-5dbab7e19aca/scratchpad/r2c/bin/vfio-user-nvgpu-615
+CARAXES_TAP=caraxes5
+LEA_CH=/mnt/vmstore/caraxes/vm1/ch-0006-v.sh
+VM=vm5-615

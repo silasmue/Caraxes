@@ -1,0 +1,1 @@
+      1 vfio-user-nvgpu: hostmem: ERROR hostmem: linear registration failed (no run of 5 free adjacent IOVA slots after 5 restarts; placements: placed guest RAM chunk GPA 0x100000000..0x140000000 -> IOVA 0x7fff80000000..0x7fffc0000000 (descriptor 0x80000004, 648 ms, 9 IOVA samples = base + offset) |

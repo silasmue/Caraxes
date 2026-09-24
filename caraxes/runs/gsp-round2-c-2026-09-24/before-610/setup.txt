@@ -1,0 +1,22 @@
+NVRM version: NVIDIA UNIX Open Kernel Module for x86_64  615.71.09  Release Build  (root@)  
+97c731ac577c3ddba6163e59de4702dd299c002fc1fa3601d3a37fc85f1f37cc  /home/silas/git/Caraxes/.claude/worktrees/agent-a9a22a025c9e09a21/target/round2c-base/release/vfio-user-nvgpu
+57693d8 Merge branch 'worktree-agent-a25cf04a900b964bc'
+CARAXES_BOOT_MODEL=1
+CARAXES_DMA=register
+CARAXES_DOORBELL_POLL=hybrid
+CARAXES_DOORBELL_TOKENS=64
+CARAXES_FB_MIB=1024
+CARAXES_GATE_FB_MIB=1024
+CARAXES_GATE_RUNS=/home/silas/git/Caraxes/.claude/worktrees/agent-a9a22a025c9e09a21/caraxes/runs/gsp-round2-c-2026-09-24/before-610
+CARAXES_HOST_EXEC=1
+CARAXES_HOST_RM=1
+CARAXES_IP=192.168.105.26
+CARAXES_MAC=02:00:00:00:00:26
+CARAXES_MIRROR_CHANNELS=1
+CARAXES_MIRROR_GR_SHADOW=1
+CARAXES_RESERVE_SLOT=2
+CARAXES_RESERVE_VRAM=1
+CARAXES_SERVER=/home/silas/git/Caraxes/.claude/worktrees/agent-a9a22a025c9e09a21/target/round2c-base/release/vfio-user-nvgpu
+CARAXES_TAP=caraxes5
+LEA_CH=/mnt/vmstore/caraxes/vm1/ch-0006-v.sh
+VM=vm5
