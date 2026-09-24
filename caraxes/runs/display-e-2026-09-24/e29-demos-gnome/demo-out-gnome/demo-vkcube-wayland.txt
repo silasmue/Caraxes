@@ -1,0 +1,2 @@
+Selected GPU 0: Leandro VFIO RTX 2070-2G, type: DiscreteGpu
+ELAPSED 57.762

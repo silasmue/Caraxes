@@ -1,0 +1,34 @@
+== weston, 2026-09-24T07:59:42Z, load 0.52 0.67 0.52 1/283 8441
+vulkaninfo: exit 0 wall 14.430854779 s
+	apiVersion         = 1.4.341
+	deviceName         = Leandro VFIO RTX 2070-2G
+	driverName         = NVIDIA
+	driverInfo         = 610.57.04
+	apiVersion         = 1.4.318
+	deviceName         = llvmpipe (LLVM 20.1.2, 256 bits)
+	driverName         = llvmpipe
+	driverInfo         = Mesa 25.2.8-0ubuntu0.24.04.2 (LLVM 20.1.2)
+eglinfo: exit 0 wall 7.999413252 s
+EGL vendor string: NVIDIA
+OpenGL core profile renderer: Leandro VFIO RTX 2070-2G/PCIe/SSE2
+OpenGL core profile version: 4.6.0 NVIDIA 610.57.04
+OpenGL core profile shading language version: 4.60 NVIDIA
+OpenGL compatibility profile renderer: Leandro VFIO RTX 2070-2G/PCIe/SSE2
+OpenGL compatibility profile version: 4.6.0 NVIDIA 610.57.04
+glxinfo: exit 0 wall 12.264528601 s
+direct rendering: Yes
+OpenGL vendor string: NVIDIA Corporation
+OpenGL renderer string: Leandro VFIO RTX 2070-2G/PCIe/SSE2
+OpenGL core profile version string: 4.6.0 NVIDIA 610.57.04
+vkcube-wayland: exit 0 wall 44.596313236 s
+DEMO vkcube-wayland frames=1320 elapsed_s=38.851 fps=33.9 Selected GPU 0: Leandro VFIO RTX 2070-2G, type: DiscreteGpu
+vkcube-xwayland: exit 0 wall 48.353176108 s
+DEMO vkcube-xwayland frames=1320 elapsed_s=39.793 fps=33.1 Selected GPU 0: Leandro VFIO RTX 2070-2G, type: DiscreteGpu
+glxgears: exit 124 wall 32.887936350 s
+DEMO glxgears 87 frames in 5.0 seconds = 17.353 FPS;269 frames in 5.0 seconds = 53.637 FPS;278 frames in 5.0 seconds = 55.600 FPS;
+eglgears_wayland: exit 124 wall 29.113285400 s
+DEMO eglgears_wayland 
+es2gears_wayland: exit 124 wall 28.560744076 s
+DEMO es2gears_wayland 
+glmark2-wayland: exit 0 wall 87.145379671 s
+DEMO glmark2-wayland  GL_RENDERER: Leandro VFIO RTX 2070-2G/PCIe/SSE2; glmark2 Score: 1216 ;

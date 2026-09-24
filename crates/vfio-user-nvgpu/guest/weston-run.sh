@@ -11,7 +11,7 @@ set -u
 MODE=$1 RENDERER=$2
 shift 2
 D=/tmp/weston-run
-rm -rf "$D"; mkdir -p "$D"; chmod 755 "$D"
+rm -rf "$D"; mkdir -p "$D"; chmod 1777 "$D"
 export XDG_RUNTIME_DIR=$D
 cat > "$D/weston.ini" <<EOF
 [core]
@@ -25,19 +25,28 @@ panel-position=none
 name=DP-1
 mode=$MODE
 EOF
+# XWAYLAND=1 starts Weston's Xwayland too (DISPLAY :0 for X clients).
+XW=()
+[ "${XWAYLAND:-0}" = 1 ] && XW=(--xwayland)
 LIBSEAT_BACKEND=noop weston --backend=drm --renderer="$RENDERER" --continue-without-input \
-    --shell=kiosk --config="$D/weston.ini" --socket=wayland-1 --log="$D/weston.log" \
+    --shell=kiosk --config="$D/weston.ini" --socket=wayland-1 --log="$D/weston.log" "${XW[@]}" \
     > "$D/weston.out" 2>&1 &
 WPID=$!
 for _ in $(seq 120); do [ -S "$D/wayland-1" ] && break; sleep 0.5; done
 [ -S "$D/wayland-1" ] || { echo "WESTON-DOWN"; tail -30 "$D/weston.log" "$D/weston.out"; kill $WPID 2>/dev/null; exit 1; }
 chmod 777 "$D/wayland-1"
 echo "weston up (pid $WPID, renderer $RENDERER, $MODE); $(grep -m1 -o 'GL renderer: .*' "$D/weston.log")"
+# Weston's Xwayland runs as root with host-based access control: admit the client's user.
+if [ "${XWAYLAND:-0}" = 1 ] && [ -n "${SUDO_USER:-}" ]; then
+    for _ in $(seq 20); do DISPLAY=:0 xhost "+si:localuser:$SUDO_USER" >/dev/null 2>&1 && break; sleep 0.5; done
+fi
 sleep "${SETTLE:-2}"
+XD=()
+[ "${XWAYLAND:-0}" = 1 ] && XD=(DISPLAY=:0)
 if [ -n "${SUDO_USER:-}" ]; then
-    sudo -u "$SUDO_USER" env XDG_RUNTIME_DIR=$D WAYLAND_DISPLAY=wayland-1 "$@"
+    sudo -u "$SUDO_USER" env XDG_RUNTIME_DIR=$D WAYLAND_DISPLAY=wayland-1 "${XD[@]}" "$@"
 else
-    WAYLAND_DISPLAY=wayland-1 "$@"
+    env WAYLAND_DISPLAY=wayland-1 "${XD[@]}" "$@"
 fi
 rc=$?
 echo "command exit $rc"

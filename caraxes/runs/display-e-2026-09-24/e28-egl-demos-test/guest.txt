@@ -1,0 +1,19 @@
+DEMO vkcube-wayland frames=720 elapsed_s=37.504 fps=19.1 Selected GPU 0: Leandro VFIO RTX 2070-2G, type: DiscreteGpu
+DEMO vkcube-xwayland frames=720 elapsed_s=55.386 fps=12.9 Selected GPU 0: Leandro VFIO RTX 2070-2G, type: DiscreteGpu
+DEMO glxgears 53 frames in 5.0 seconds = 10.577 FPS;
+DEMO es2gears_wayland 
+DEMO weston-simple-egl 272 frames in 5 seconds: 54.400002 fps;291 frames in 5 seconds: 58.200001 fps;
+DEMO glmark2-wayland  GL_RENDERER: Leandro VFIO RTX 2070-2G/PCIe/SSE2; glmark2 Score: 555 ;
+==> /tmp/demo-es2gears_wayland.txt <==
+EGL_VERSION = 1.5
+vertex shader info: 
+fragment shader info: 
+info: 
+command exit 124
+
+==> /tmp/demo-weston-simple-egl.txt <==
+weston up (pid 9548, renderer gl, 1920x1080@60); GL renderer: Leandro VFIO RTX 2070-2G/PCIe/SSE2
+has EGL_EXT_buffer_age and EGL_KHR_swap_buffers_with_damage
+272 frames in 5 seconds: 54.400002 fps
+291 frames in 5 seconds: 58.200001 fps
+command exit 124
