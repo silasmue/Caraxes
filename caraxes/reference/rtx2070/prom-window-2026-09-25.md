@@ -1,3 +1,4 @@
+<!-- SPDX-License-Identifier: MIT -->
 # PROM window of the host RTX 2070 (2026-09-25)
 
 `prom-window-2026-09-25.bin`: 1048576 bytes, BAR0 0x300000-0x3fffff (`NV_PROM_DATA`), little-endian dwords.
