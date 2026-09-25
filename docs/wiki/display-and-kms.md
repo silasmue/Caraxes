@@ -13,7 +13,7 @@ emulates a DisplayPort monitor in the GSP role, so the stock `nvidia-modeset` an
 
 - `nvidia-modeset` (nvkms, `src/nvidia-modeset/`) owns heads, windows, SORs and connectors
   through the NV0073 display-common controls and the display channels (core and window
-  channels of the display IP, `NVC37D`/`NVC37E` classes on Turing's display v04.00); `nvidia-drm`
+  channels of the display IP, `NVC57D` and `NVC57E` on Turing's display v04.00); `nvidia-drm`
   exposes KMS on top.
 - Detection and EDID: DP AUX through `NV0073_CTRL_CMD_DP_AUXCH_CTRL`, DPCD reads, link
   training (`nvkms-dpy.c`, `nvkms-rm.c`); mode validation through `IS_MODE_POSSIBLE`
