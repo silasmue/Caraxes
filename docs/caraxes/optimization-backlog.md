@@ -413,7 +413,15 @@ calls.
   invalidate page) traps per frame, at 60 Hz. Weston 31.08 to 17.11 to 15 to 17.5. What stays:
   23 flush reads (cheap), 16 `TIME_0/1` reads (item 8), 1.3 display kicks. Weston's frame
   rate follows the other VMs' load (52 to 60 Hz with the same binary). The stretch is in the
-  guest's response to the vblank interrupt (§11.4), not in a trap.
+  guest's response to the vblank interrupt (§11.4), not in a trap: the guest services every
+  interrupt on vCPU 1 (§11.9).
+  - Open: with the pool poll after a page trigger (f37b354) Mutter ran at 52 and 48 Hz (I, I2)
+    against 60 Hz in F to H, and its PTE batch grew from about 1 to about 3 ms (§11.8). The A/B
+    (series.sh J1 K1 J2 K2) waits for the GPU. The poll already returns at once when no unit
+    is dirty (bar1pool.rs:674), and it cannot move after `TRIGGER` clears: the guest may use a
+    new BAR1 mapping, an untrapped pool page, right after the invalidate returns. If the A/B
+    blames it, the work to cut is the walk and the page moves inside it.
+  - The `TIME_0/1` reads are a fixed 925 per second, not per frame (§11.7).
 - **Item 4: done** (commit 0c2cb79, `CARAXES_MSI_REARM_IOEVENTFD=1`, intr-page.md §4,
   `caraxes/runs/opt-msi-ioeventfd-2026-09-25/`).
   - The re-arm write is an ioeventfd without datamatch, read by the token pool's reactor, which

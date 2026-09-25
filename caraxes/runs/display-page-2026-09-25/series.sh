@@ -15,7 +15,12 @@
 #   H  G without the spin window (the A/B for it)
 #   I  H with the pool poll after a page trigger (binary vfio-user-nvgpu-desk-i): the windows of
 #      this branch as they are recommended (deferral on = 2 ms, invalidate page, no spin)
-#   I2 I again, with the guest's interrupt placement recorded (guest/irq-info.sh)
+#   I2 I again, with the guest's interrupt placement recorded (guest/irq-info.sh); binary
+#      vfio-user-nvgpu-desk-i2, the same code built at the successor's start
+#   J1 J2  the A/B for the pool poll after a page trigger (f37b354), interleaved with K1 K2 in
+#      one session: J is H's binary and configuration (no poll after a trigger), K this
+#      branch's binary with the watchdog counters (vfio-user-nvgpu-desk-k) and I's
+#      configuration; one GNOME start each and no gate (GNOME_STARTS=1 SKIP_GATE=1)
 # Per configuration, with the host watch around it: up (a refused reservation is retried every
 # 5 minutes), probe, display-up, GNOME_STARTS fresh GNOME starts, the trap windows (run.sh --full,
 # trap-table.py --pages --regs): Mutter with wlframes, the clients vkcube and glmark2 under Mutter
@@ -45,6 +50,12 @@ for cfg in "$@"; do
         I|I2) export CARAXES_SERVER=${CARAXES_SERVER_I:-/mnt/vmstore/caraxes/vm0/vfio-user-nvgpu-desk-i}
            export CARAXES_BAR2_FLUSH_DEFER_US=on CARAXES_INVALIDATE_PAGE=1
            name=I-windows; [[ $cfg == I2 ]] && name=I2-windows-rerun ;;
+        J1|J2) export CARAXES_SERVER=${CARAXES_SERVER_G:-/mnt/vmstore/caraxes/vm0/vfio-user-nvgpu-desk-g}
+           export CARAXES_BAR2_FLUSH_DEFER_US=2000 CARAXES_INVALIDATE_PAGE=1
+           unset CARAXES_INTR_PAGE_VBLANK_SPIN_US; name=$cfg-no-poll-after-trigger ;;
+        K1|K2) export CARAXES_SERVER=${CARAXES_SERVER_K:-/mnt/vmstore/caraxes/vm0/vfio-user-nvgpu-desk-k}
+           export CARAXES_BAR2_FLUSH_DEFER_US=on CARAXES_INVALIDATE_PAGE=1
+           unset CARAXES_INTR_PAGE_VBLANK_SPIN_US; name=$cfg-poll-after-trigger ;;
         G|H) export CARAXES_SERVER=${CARAXES_SERVER_G:-/mnt/vmstore/caraxes/vm0/vfio-user-nvgpu-desk-g}
            export CARAXES_BAR2_FLUSH_DEFER_US=2000 CARAXES_INVALIDATE_PAGE=1
            if [[ $cfg == G ]]; then
@@ -112,7 +123,7 @@ for cfg in "$@"; do
     fi
     pid=$(cat "$W/gpu.pid" 2>/dev/null)
     "${VMSH[@]}" down > "$D/down.txt" 2>&1
-    grep -E '^intr page:|^display page|^invalidate page:|^display engine:|^bar2 flush deferral|^reactor wake-up|bar2 memfd|doorbell poll \(|msi re-arm|^vfio-user-nvgpu: (intr|display|invalidate) page' "$W/gpu.log" | cut -c1-1600 > "$D/device-summary.txt"
+    grep -E '^intr page:|^bar1 pool:|^display page|^invalidate page:|^display engine:|^bar2 flush deferral|^reactor wake-up|bar2 memfd|doorbell poll \(|msi re-arm|^vfio-user-nvgpu: (intr|display|invalidate) page' "$W/gpu.log" | cut -c1-1600 > "$D/device-summary.txt"
     caraxes/tools/bench-hostwatch.sh stop "$D"
     { echo "# host kernel log, Xid lines since $t0 (device pid $pid)"
       journalctl -k --since "$t0" --no-pager -g 'Xid' 2>/dev/null | grep -v '^-- No entries'; } > "$D/host-xid.txt"

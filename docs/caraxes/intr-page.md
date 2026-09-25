@@ -863,8 +863,122 @@ need the doorbell register to exit (tokens.rs header), and a sparse area is neve
 | G | F + counters + spin 1.5 ms | 40.11, 60.05 Hz sd 1.88 | 17.08, 52.45 Hz sd 6.61 | 53.2 | 2715 | fail: compositor 54.09, capture | 0 |
 | H | G without spin | 39.76, 59.98 Hz sd 3.36 | 15.16, 59.94 Hz sd 1.92 | 52.1 | 924 | fail: compositor 55.02, capture | 0 |
 | I | H + the pool poll after a page trigger (f37b354), deferral `on` | 42.79, 52.15 Hz sd 9.36 (host 57 % busy) | 15.64, 59.93 Hz sd 2.04 | 36.5 | 610 | fail: compositor 55.77, present 23 FPS, events 3.16 ms; capture passes | 0 |
-@@SERIES_I2@@
+| I2 | I again (binary `vfio-user-nvgpu-desk-i2`, I's code rebuilt), guest interrupt placement recorded | 43.76, 47.83 Hz sd 4.20 (host 30 % busy) | 15.68, 59.58 Hz sd 2.20 | 44.9 | 1698 | stopped (slot 0 for the operator's game VM) | 0 |
 
 Every host Xid line of the session names another agent's device pid (F: vm2, pid 3245134);
 none named a vm0 device. E ran with vm3, vm5, a v1 VM and a smoke device up; the frame rates
 of E are the load's, not the deferral's.
+
+### 11.7 Per-frame trap tables of every series
+
+Per presented frame of window 6 (`trap-table.py --pages --regs`, one 10 s window each; the
+columns are the rows of §11.5; the numbers are the sums of the `per register` rows of each
+`trap-table.txt`, `analysis/tab.py` run from `caraxes/runs/`). Rate: the client's frame callbacks (Mutter,
+Weston) or the application's own FPS (vkcube, glmark2), and the latch rate of window 6.
+
+Mutter (wlframes):
+
+| Series | all | BAR2 W | flush R | `TIME_0/1` | `NV_PCFG` | invalidate | kicks | BAR1 | callbacks | latches |
+|---|---|---|---|---|---|---|---|---|---|---|
+| B | 230.24 | 73.60 | 23.02 | - | - | - | - | 3.00 | 59.72 Hz sd 3.56 | 59.6 Hz |
+| C | 139.86 | 73.60 | 23.02 | 16.69 | 12.17 | 10.03 | 1.33 | 3.00 | 59.86 Hz sd 2.90 | 59.7 Hz |
+| D | 50.50 | 0 | 23.06 | 16.04 | 0 | 10.05 | 1.33 | 0 | 60.12 Hz sd 2.49 | 59.9 Hz sd 0.10 |
+| E | 55.00 | 0 | 23.01 | 20.61 | 0 | 10.01 | 1.34 | 0 | 48.38 Hz sd 11.16 | 44.2 Hz sd 11.86 |
+| F | 40.47 | 0 | 22.98 | 16.14 | 0 | 0 | 1.33 | 0 | 60.06 Hz sd 1.72 | 60.1 Hz sd 0.03 |
+| D2 | 51.09 | 0 | 23.02 | 16.68 | 0 | 10.04 | 1.33 | 0 | 60.10 Hz sd 3.03 | 60.0 Hz sd 0.24 |
+| G | 40.11 | 0 | 23.02 | 15.75 | 0 | 0 | 1.33 | 0 | 60.05 Hz sd 1.88 | 60.0 Hz sd 0.03 |
+| H | 39.76 | 0 | 22.98 | 15.43 | 0 | 0 | 1.33 | 0 | 59.98 Hz sd 3.36 | 60.1 Hz sd 0.14 |
+| I | 42.79 | 0 | 23.04 | 18.39 | 0 | 0 | 1.33 | 0 | 52.15 Hz sd 9.36 | 49.8 Hz sd 8.76 |
+| I2 | 43.76 | 0 | 23.02 | 19.38 | 0 | 0 | 1.33 | 0 | 47.83 Hz sd 4.20 | 47.7 Hz sd 7.50 |
+
+(B and C: the trap tables of 2026-09-24 name the registers differently; C's `TIME`, `NV_PCFG`
+and invalidate numbers are those of §11.1, B's are not split.)
+
+Weston (wlframes):
+
+| Series | all | `TIME_0/1` | kicks | other | callbacks | latches |
+|---|---|---|---|---|---|---|
+| B | 106.46 | | | | 59.71 Hz sd 1.51 | 59.9 Hz |
+| C | 31.08 | | 1.33 | | 57.42 Hz sd 4.11 | 57.0 Hz |
+| D | 17.11 | 15.75 | 1.33 | 0.03 | 52.24 Hz sd 6.36 | 52.6 Hz sd 6.04 |
+| E | 15.63 | 14.30 | 1.33 | 0 | 58.64 Hz sd 4.47 | 58.3 Hz sd 3.69 |
+| F | 17.53 | 16.19 | 1.33 | 0.01 | 43.38 Hz (4.3 s stall) | 40.1 Hz |
+| D2 | 15.38 | 14.05 | 1.33 | 0 | 60.00 Hz sd 1.39 | 60.0 Hz sd 0.20 |
+| G | 17.08 | 15.73 | 1.33 | 0.02 | 52.45 Hz sd 6.61 | 52.9 Hz sd 6.17 |
+| H | 15.16 | 13.83 | 1.33 | 0 | 59.94 Hz sd 1.92 | 60.0 Hz sd 0.25 |
+| I | 15.64 | 14.31 | 1.33 | 0 | 59.93 Hz sd 2.04 | 60.0 Hz sd 0.17 |
+| I2 | 15.68 | 14.34 | 1.33 | 0.01 | 59.58 Hz sd 2.20 | 59.5 Hz sd 1.52 |
+
+vkcube and glmark2 (build scene) under Mutter, the third and fourth workload (the image's
+`firefox` is the snap stub, so no browser):
+
+| Series | vkcube all | flush R | `TIME` | invalidate | FPS | glmark2 all | flush R | `TIME` | invalidate | FPS |
+|---|---|---|---|---|---|---|---|---|---|---|
+| D | 56.78 | 23.00 | 22.44 | 10.00 | 45.8 | 53.50 | 23.39 | 17.70 | 11.06 | 1608 |
+| E | 54.84 | 23.00 | 20.51 | 10.00 | 45.0 | 53.36 | 23.25 | 18.15 | 10.61 | 518 |
+| F | 46.89 | 22.95 | 22.61 | 0 | 40.3 | 42.21 | 23.97 | 16.89 | 0 | 1964 |
+| D2 | 53.42 | 23.00 | 19.08 | 10.00 | 51.0 | 52.78 | 23.45 | 16.89 | 11.10 | 935 |
+| G | 42.33 | 23.00 | 17.99 | 0 | 53.2 | 41.60 | 23.95 | 16.31 | 0 | 2715 |
+| H | 43.34 | 23.00 | 19.01 | 0 | 52.1 | 43.42 | 23.46 | 18.46 | 0 | 924 |
+| I | 52.02 | 24.20 | 25.96 | 0 | 36.5 | 42.03 | 23.34 | 17.35 | 0 | 610 |
+| I2 | 46.07 | 23.66 | 20.73 | 0 | 44.9 | 42.07 | 23.71 | 17.03 | 0 | 1698 |
+
+Every series keeps 1.33 display kicks per frame; BAR2 writes, BAR1 accesses and `NV_PCFG` are 0
+from D on. Two readings of the table:
+- The `TIME_0/1` reads come at a fixed rate, about 925 per second in every Mutter window (H
+  15.43 x 60, I2 19.38 x 47.7), not per frame. They rise per frame whenever the frame rate
+  falls, so they are not what slows a frame.
+- The flush reads are exactly 23 per Mutter frame in every series: the guest RM's PTE batch of
+  the scanout surfaces (§11.1), the only per-frame trap source Mutter has left besides `TIME`.
+
+### 11.8 Series I2 and Mutter's rate with the branch's windows
+
+I2 repeated I with a fresh build of the branch (vm0, 2026-09-25 09:53 to 10:03, host 26 to 30 %
+busy, vm2 and vm3 up; vm2's VMM used 35 s of CPU in Mutter's 10 s window). Weston ran at
+59.58 Hz, vkcube at 44.9 FPS and glmark2 at 1698 FPS with 59.6 Hz latches, but Mutter's own
+window ran at 47.83 Hz, as I's did (52.15 Hz). F, G and H, with the same windows but without
+the pool poll after a page trigger (f37b354), held Mutter at 60 Hz. The device's own waits did
+not grow in I2 (`doorbell poll (tokens)` line: device lock wait per wakeup p99 22 us against H's
+149 us; ring to host doorbell p50 10.4 us; invalidate mean 781 us against H's 716 us), so the
+pool poll's cost is not visible in them. Per frame (`analysis/invgap.py`,
+`batch.py` and `phase.py` over the Mutter traces):
+
+| Mutter | F | G | H | I | I2 |
+|---|---|---|---|---|---|
+| PTE batch, first flush read to the display kick, p50 / p90 (ms) | 0.79 / 1.48 | 0.86 / 1.80 | 1.12 / 3.05 | 2.28 / 11.0 | 2.96 / 6.81 |
+| an invalidate trigger to the guest's next access, p50 / p90 (ms) | 0.23 / 0.45 | 0.25 / 0.48 | 0.28 / 0.87 | 0.75 / 3.36 | 0.49 / 1.02 |
+| last flush read to the reactor's trigger event, p50 / p90 (ms) | 0.19 / 0.77 | 0.19 / 0.77 | 0.28 / 0.90 | 0.50 / 2.27 | 0.22 / 0.98 |
+
+The trigger-to-next-access time is what the guest's vCPU spins on `TRIGGER`: it doubled from H
+to I2 and tripled to I, and the whole PTE batch grew from about 1 ms to about 3 ms. That is the
+step f37b354 added (the pool's walk and page moves inside the trigger, before `TRIGGER`
+clears). In I2 Mutter's frame also changed shape: its render doorbell now comes about 16 ms
+before the PTE batch instead of 1 ms (p50 16.5 against 0.8 to 1.4 ms in F to I), so the batch
+and the kick fall at the end of the frame and 120 of 476 latch intervals ran over 20 ms. Whether
+that is the poll or the other VMs' GPU work cannot be split from one run: the A/B is prepared in
+`series.sh` (J1 K1 J2 K2 interleaved: H's binary without the poll against this branch's with
+it) and waits for the GPU (the operator's game session holds slot 0).
+
+The watchdog lines added for it (8801bfe): `invalidate page: ... N at 1 ms or more` and an
+inconsistency for a trigger held past the guest RM's 4 s timeout; `bar2 flush deferral: ...
+N paid after 2x the bound or later`. I's run had a 10.3 s invalidate and a 144 ms debt, which
+the old summary showed only as maxima.
+
+### 11.9 Where the guest's interrupt lands (I2, `irq-info/guest.txt`)
+
+- The device's MSI is irq 36, affinity 0-7, effective CPU 1 only (62893 interrupts on CPU 1, 0
+  elsewhere); its thread `irq/36-nvidia` runs SCHED_FIFO 50 on CPU 1; `irqbalance` is inactive
+  and the guest has no cpuidle driver (a halted vCPU waits in the host's KVM halt).
+- So every vblank, every GPU notifier and every GSP event is serviced by one vCPU. When the
+  host deschedules that vCPU's thread (the other VMs' VMMs used 20 to 66 s of CPU in some 10 s
+  windows, §11.4), the interrupt waits for it. That is the tail §11.4 measured from the raise to
+  the guest's `EVT_STAT` ack: in I2 37 % of the vblanks at 1 ms or more, p99 16 ms (I 41 %, G 17 %,
+  H 21 %).
+- Weston's 57.4 Hz and 4.1 ms spread in C are this tail: Weston starts its repaint a fixed time
+  after the vblank it is told of, so a late vblank delivery starts the frame late (14 ms instead
+  of 5, §11.4), and the frame misses the next tick. No trap stretches it: Weston traps 15 to 17
+  times per frame from D on, 14 to 16 of them `TIME` reads at about 20 us each.
+- What would shorten it lies outside the device: pinning vm0's vCPU 1 on the host, or spreading
+  the guest's MSI (the device offers one vector). It is not a device change, so it is left for
+  the operator (and for the game VM, which has the same single vector).
+

@@ -1075,3 +1075,23 @@ the VM; then display, expected to be much easier than in v1.
     - 331 idle MSIs per second from other VMs' work.
   - **Findings.** `cuMemAllocAsync` is refused (801). An illegal address reaches the guest as
     LAUNCH_FAILED (719), with no RC event and host Xid 31 on the device's pid.
+- 2026-09-25: **The desktop with the recommended configuration and the next windows**
+  ([intr-page.md](intr-page.md) §11, records `caraxes/runs/display-page-2026-09-25/`).
+  - **Setup.** vm0, 610 guest, 2 GiB at slot 0, the recommended configuration of the morning
+    matrix; per series Mutter, vkcube and glmark2 under Mutter (no browser: the image's
+    `firefox` is the snap stub) and Weston, `trap-table.py --pages --regs`.
+  - **Traps per Mutter frame.** 139.86 (C) to 50.50 with the memfd and the re-arm (D), to 40 with
+    the flush deferral (`CARAXES_BAR2_FLUSH_DEFER_US=on`, 2 ms) and the MMU invalidate page
+    (`CARAXES_INVALIDATE_PAGE=1`, `inv_page.rs`) in F to H. What stays: 23 flush reads (now
+    without a sync), `TIME_0/1` at a fixed 925 per second, 1.33 display kicks. Weston 31.08 to 15
+    to 17.5. No display FE page register traps any more.
+  - **Frame timing.** Mutter 60 Hz with sd 1.7 to 1.9 ms in F and G (C: sd 2.9). Weston's
+    stretched frames (C: 57.4 Hz, sd 4.1) are late vblank deliveries: the guest services every
+    interrupt on vCPU 1, and with other VMs loading the host 17 to 41 % of the vblanks reach
+    the guest's ack 1 ms or more late. No trap stretches them.
+  - **Open.** With the pool poll after a page trigger (f37b354, needed for the gate's KMS
+    readback) Mutter ran at 52 and 48 Hz (I, I2) and its PTE batch grew from 1 to 3 ms; the A/B
+    is prepared (series.sh J/K) and waits for the GPU. Watchdog counters for slow triggers and
+    overdue flush debts (8801bfe).
+  - **Xid.** 0 on vm0's device in every series; the only Xid lines of the session were vm2's
+    (pid 3245134, Xid 109, series F).
