@@ -1,0 +1,1 @@
+bar0 config-mirror writes: 478951 (the MSI re-arm among them), no BAR1 pool poll after them; 0 pool poll(s) held the device over 2 ms (docs/caraxes/sottr-stage.md §11)

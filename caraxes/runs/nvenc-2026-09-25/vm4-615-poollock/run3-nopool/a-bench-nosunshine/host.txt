@@ -1,0 +1,33 @@
+== host
+4376 MiB, 3404 MiB
+MemAvailable:   12530208 kB
+4.56 3.40 3.66 4/1936 3031966
+    BAR1 Memory Usage
+        Total                                          : 256 MiB
+        Used                                           : 88 MiB
+        Free                                           : 168 MiB
+== device threads (pid 3004181)
+    PID USER      PR  NI    VIRT    RES    SHR S  %CPU  %MEM     TIME+ COMMAND
+3004189 silas     20   0 9957228   9.0g   9.0g S  37.0  28.9   3:41.63 doorbel+
+3004181 silas     20   0 9957228   9.0g   9.0g S   9.0  28.9   1:39.14 vfio-us+
+3004184 silas     20   0 9957228   9.0g   9.0g S   0.0  28.9   0:00.00 signals
+3004187 silas     20   0 9957228   9.0g   9.0g S   0.0  28.9   0:00.65 display+
+3004190 silas     20   0 9957228   9.0g   9.0g S   0.0  28.9   0:00.00 soak
+3011175 silas     20   0 9957228   9.0g   9.0g S   0.0  28.9   0:01.31 shadow-+
+3011617 silas     20   0 9957228   9.0g   9.0g S   0.0  28.9   0:01.10 host-ev+
+
+== cloud-hypervisor threads (pid 3004192)
+    PID USER      PR  NI    VIRT    RES    SHR S  %CPU  %MEM     TIME+ COMMAND
+3004600 silas     20   0 9459220   4.9g   4.9g S   9.0  15.7   0:36.29 vcpu1
+3004605 silas     20   0 9459220   4.9g   4.9g S   5.0  15.7   0:41.06 vcpu6
+3004601 silas     20   0 9459220   4.9g   4.9g S   4.0  15.7   0:33.58 vcpu2
+3004602 silas     20   0 9459220   4.9g   4.9g S   3.0  15.7   0:28.53 vcpu3
+3004603 silas     20   0 9459220   4.9g   4.9g S   3.0  15.7   0:31.73 vcpu4
+3004606 silas     20   0 9459220   4.9g   4.9g S   3.0  15.7   0:34.60 vcpu7
+3004599 silas     20   0 9459220   4.9g   4.9g S   2.0  15.7   0:38.67 vcpu0
+3004604 silas     20   0 9459220   4.9g   4.9g S   2.0  15.7   0:34.99 vcpu5
+3004192 silas     20   0 9459220   4.9g   4.9g S   0.0  15.7   0:00.00 cloud-h+
+3004198 silas     20   0 9459220   4.9g   4.9g S   0.0  15.7   0:00.07 vmm
+3004199 silas     20   0 9459220   4.9g   4.9g S   0.0  15.7   0:00.00 http-se+
+3004201 silas     20   0 9459220   4.9g   4.9g S   0.0  15.7   0:00.00 vmm_sig+
+3004607 silas     20   0 9459220   4.9g   4.9g S   0.0  15.7   0:00.00 kvm-nx-+

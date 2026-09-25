@@ -1,0 +1,1264 @@
+[2026-09-25 19:11:42.819]: Info: Sunshine version: 2026.516.143833 commit: 14ffa6fdaa53f7b51512be2b3d24f3939695403c
+[2026-09-25 19:11:42.819]: Info: Package Publisher: LizardByte
+[2026-09-25 19:11:42.819]: Info: Publisher Website: https://app.lizardbyte.dev
+[2026-09-25 19:11:42.819]: Info: Get support: https://app.lizardbyte.dev/support
+[2026-09-25 19:11:42.819]: Info: config: 'min_log_level' = 1
+[2026-09-25 19:11:42.819]: Info: config: 'capture' = kms
+[2026-09-25 19:11:42.819]: Info: config: 'encoder' = nvenc
+[2026-09-25 19:11:42.819]: Info: config: 'sw_preset' = ultrafast
+[2026-09-25 19:11:42.819]: Info: config: 'log_path' = /home/leandro/.config/sunshine/sunshine.log
+[2026-09-25 19:11:42.819]: Info: config: 'sw_tune' = zerolatency
+[2026-09-25 19:11:42.819]: Info: config: 'file_apps' = /home/leandro/.config/sunshine/apps.json
+[2026-09-25 19:11:42.819]: Info: /dev/dri/card0 -> nvidia-drm
+[2026-09-25 19:11:42.820]: Debug: Opening render node: /dev/dri/renderD128
+[2026-09-25 19:11:42.820]: Debug: crtc(0, 0)
+[2026-09-25 19:11:42.820]: Debug: crtc(1920, 1080)
+[2026-09-25 19:11:42.820]: Debug: plane->possible_crtcs == 1
+[2026-09-25 19:11:42.820]: Debug: x(0) y(0) crtc_x(0) crtc_y(0) crtc_id(66)
+[2026-09-25 19:11:42.820]: Debug: Resolution: 1920x1080: Pitch: 7680: Offset: 0
+[2026-09-25 19:11:42.820]: Debug: Format [AR15, XR15, RG16, AR24, XR24, AB30, XB30, AB24, XB24, AB4H, AB48, YUYV, UYVY, NV42, NV24, NV61, NV16, NV21, NV12, P210, P010, P012, XB4H]
+[2026-09-25 19:11:42.820]: Info: [wayland] Found display [wayland-0]
+[2026-09-25 19:11:42.820]: Info: [wayland] Found display [wayland-0]
+[2026-09-25 19:11:42.820]: Debug: [wayland] Available interface: wl_compositor(1) version 6
+[2026-09-25 19:11:42.820]: Debug: [wayland] Available interface: wl_eglstream_display(2) version 1
+[2026-09-25 19:11:42.820]: Debug: [wayland] Available interface: wl_drm(3) version 2
+[2026-09-25 19:11:42.820]: Debug: [wayland] Available interface: wl_shm(4) version 1
+[2026-09-25 19:11:42.820]: Debug: [wayland] Available interface: wl_output(5) version 4
+[2026-09-25 19:11:42.820]: Info: [wayland] Found interface: wl_output(5) version 4
+[2026-09-25 19:11:42.820]: Debug: [wayland] Available interface: zxdg_output_manager_v1(6) version 3
+[2026-09-25 19:11:42.820]: Info: [wayland] Found interface: zxdg_output_manager_v1(6) version 3
+[2026-09-25 19:11:42.820]: Debug: [wayland] Available interface: wl_data_device_manager(7) version 3
+[2026-09-25 19:11:42.820]: Debug: [wayland] Available interface: zwp_primary_selection_device_manager_v1(8) version 1
+[2026-09-25 19:11:42.820]: Debug: [wayland] Available interface: wl_subcompositor(9) version 1
+[2026-09-25 19:11:42.820]: Debug: [wayland] Available interface: xdg_wm_base(10) version 6
+[2026-09-25 19:11:42.820]: Debug: [wayland] Available interface: gtk_shell1(11) version 5
+[2026-09-25 19:11:42.820]: Debug: [wayland] Available interface: wp_viewporter(12) version 1
+[2026-09-25 19:11:42.820]: Debug: [wayland] Available interface: wp_fractional_scale_manager_v1(13) version 1
+[2026-09-25 19:11:42.820]: Debug: [wayland] Available interface: zwp_pointer_gestures_v1(14) version 3
+[2026-09-25 19:11:42.820]: Debug: [wayland] Available interface: zwp_tablet_manager_v2(15) version 1
+[2026-09-25 19:11:42.820]: Debug: [wayland] Available interface: wl_seat(16) version 8
+[2026-09-25 19:11:42.820]: Debug: [wayland] Available interface: zwp_relative_pointer_manager_v1(17) version 1
+[2026-09-25 19:11:42.820]: Debug: [wayland] Available interface: zwp_pointer_constraints_v1(18) version 1
+[2026-09-25 19:11:42.820]: Debug: [wayland] Available interface: zxdg_exporter_v2(19) version 1
+[2026-09-25 19:11:42.820]: Debug: [wayland] Available interface: zxdg_importer_v2(20) version 1
+[2026-09-25 19:11:42.820]: Debug: [wayland] Available interface: zxdg_exporter_v1(21) version 1
+[2026-09-25 19:11:42.820]: Debug: [wayland] Available interface: zxdg_importer_v1(22) version 1
+[2026-09-25 19:11:42.820]: Debug: [wayland] Available interface: zwp_linux_dmabuf_v1(23) version 5
+[2026-09-25 19:11:42.820]: Info: [wayland] Found interface: zwp_linux_dmabuf_v1(23) version 5
+[2026-09-25 19:11:42.820]: Debug: [wayland] Available interface: wp_single_pixel_buffer_manager_v1(24) version 1
+[2026-09-25 19:11:42.820]: Debug: [wayland] Available interface: zwp_keyboard_shortcuts_inhibit_manager_v1(25) version 1
+[2026-09-25 19:11:42.820]: Debug: [wayland] Available interface: zwp_text_input_manager_v3(26) version 1
+[2026-09-25 19:11:42.820]: Debug: [wayland] Available interface: wp_presentation(27) version 1
+[2026-09-25 19:11:42.820]: Debug: [wayland] Available interface: xdg_activation_v1(28) version 1
+[2026-09-25 19:11:42.820]: Debug: [wayland] Available interface: zwp_idle_inhibit_manager_v1(29) version 1
+[2026-09-25 19:11:42.820]: Info: [wayland] Resolution: 1920x1080
+[2026-09-25 19:11:42.820]: Info: [wayland] Offset: 0x0
+[2026-09-25 19:11:42.820]: Info: [wayland] Logical size: 1920x1080
+[2026-09-25 19:11:42.820]: Info: [wayland] Name: DP-1
+[2026-09-25 19:11:42.820]: Info: [wayland] Found monitor: Cyrix Corporation 24"
+[2026-09-25 19:11:42.820]: Info: -------- Start of KMS monitor list --------
+[2026-09-25 19:11:42.820]: Info: Monitor 0 is DP-1: Cyrix Corporation 24"
+[2026-09-25 19:11:42.820]: Info: --------- End of KMS monitor list ---------
+[2026-09-25 19:11:42.820]: Debug: Monitor description
+[2026-09-25 19:11:42.820]: Debug: Resolution: 1920x1080
+[2026-09-25 19:11:42.820]: Debug: Offset: 0x0
+[2026-09-25 19:11:42.820]: Debug: Desktop resolution: 1920x1080
+[2026-09-25 19:11:42.907]: Info: Trying encoder [nvenc]
+[2026-09-25 19:11:42.907]: Info: Screencasting with KMS
+[2026-09-25 19:11:42.907]: Info: /dev/dri/card0 -> nvidia-drm
+[2026-09-25 19:11:42.907]: Debug: Opening render node: /dev/dri/renderD128
+[2026-09-25 19:11:42.907]: Info: Found monitor for DRM screencasting
+[2026-09-25 19:11:42.907]: Debug: crtc(0, 0)
+[2026-09-25 19:11:42.907]: Debug: crtc(1920, 1080)
+[2026-09-25 19:11:42.907]: Debug: plane->possible_crtcs == 1
+[2026-09-25 19:11:42.907]: Debug: x(0) y(0) crtc_x(0) crtc_y(0) crtc_id(66)
+[2026-09-25 19:11:42.907]: Debug: Resolution: 1920x1080: Pitch: 7680: Offset: 0
+[2026-09-25 19:11:42.907]: Debug: Format [AR15, XR15, RG16, AR24, XR24, AB30, XB30, AB24, XB24, AB4H, AB48, YUYV, UYVY, NV42, NV24, NV61, NV16, NV21, NV12, P210, P010, P012, XB4H]
+[2026-09-25 19:11:42.907]: Info: Found connector ID [132]
+[2026-09-25 19:11:42.907]: Info: Found cursor plane [60]
+[2026-09-25 19:11:42.907]: Info: Creating encoder [h264_nvenc]
+[2026-09-25 19:11:42.907]: Info: Color coding: SDR (Rec. 601)
+[2026-09-25 19:11:42.907]: Info: Color depth: 8-bit
+[2026-09-25 19:11:42.907]: Info: Color range: JPEG
+[2026-09-25 19:11:42.960]: Debug: Found CUDA device with PCI bus ID: 0000:00:06.0
+[2026-09-25 19:11:42.960]: Debug: Found DRM primary node: card0
+[2026-09-25 19:11:43.016]: Debug: EGL: [NVIDIA]: version [1.5]
+[2026-09-25 19:11:43.016]: Debug: API's supported: [OpenGL_ES OpenGL]
+[2026-09-25 19:11:43.016]: Debug: EGL: High priority context supported
+[2026-09-25 19:11:43.069]: Info: EGL: context priority set to HIGH
+[2026-09-25 19:11:43.429]: Debug: GL: vendor: NVIDIA Corporation
+[2026-09-25 19:11:43.429]: Debug: GL: renderer: Leandro VFIO RTX 2070-3G/PCIe/SSE2
+[2026-09-25 19:11:43.429]: Debug: GL: version: 4.6.0 NVIDIA 615.71.09
+[2026-09-25 19:11:43.429]: Debug: GL: shader: 4.60 NVIDIA
+[2026-09-25 19:11:44.575]: Info: Streaming bitrate is 1000000
+[2026-09-25 19:11:44.576]: Debug: [h264_nvenc @ 0x586e03e0fc40] Loaded Nvenc version 13.1
+[2026-09-25 19:11:44.576]: Debug: [h264_nvenc @ 0x586e03e0fc40] Nvenc initialized successfully
+[2026-09-25 19:11:45.030]: Debug: Frame 1: IDR Keyframe (AV_FRAME_FLAG_KEY)
+[2026-09-25 19:11:45.288]: Debug: [h264_nvenc @ 0x586e03e0fc40] Nvenc unloaded
+[2026-09-25 19:11:45.354]: Info: Creating encoder [hevc_nvenc]
+[2026-09-25 19:11:45.354]: Info: Color coding: SDR (Rec. 601)
+[2026-09-25 19:11:45.354]: Info: Color depth: 8-bit
+[2026-09-25 19:11:45.354]: Info: Color range: JPEG
+[2026-09-25 19:11:45.354]: Debug: Found CUDA device with PCI bus ID: 0000:00:06.0
+[2026-09-25 19:11:45.354]: Debug: Found DRM primary node: card0
+[2026-09-25 19:11:45.355]: Debug: EGL: [NVIDIA]: version [1.5]
+[2026-09-25 19:11:45.355]: Debug: API's supported: [OpenGL_ES OpenGL]
+[2026-09-25 19:11:45.356]: Debug: EGL: High priority context supported
+[2026-09-25 19:11:45.356]: Info: EGL: context priority set to HIGH
+[2026-09-25 19:11:45.361]: Debug: GL: vendor: NVIDIA Corporation
+[2026-09-25 19:11:45.361]: Debug: GL: renderer: Leandro VFIO RTX 2070-3G/PCIe/SSE2
+[2026-09-25 19:11:45.361]: Debug: GL: version: 4.6.0 NVIDIA 615.71.09
+[2026-09-25 19:11:45.361]: Debug: GL: shader: 4.60 NVIDIA
+[2026-09-25 19:11:45.361]: Info: Streaming bitrate is 1000000
+[2026-09-25 19:11:45.362]: Debug: [hevc_nvenc @ 0x586e03e0fc40] Loaded Nvenc version 13.1
+[2026-09-25 19:11:45.362]: Debug: [hevc_nvenc @ 0x586e03e0fc40] Nvenc initialized successfully
+[2026-09-25 19:11:45.811]: Debug: Frame 1: IDR Keyframe (AV_FRAME_FLAG_KEY)
+[2026-09-25 19:11:46.027]: Debug: [hevc_nvenc @ 0x586e03e0fc40] Nvenc unloaded
+[2026-09-25 19:11:46.098]: Info: Creating encoder [av1_nvenc]
+[2026-09-25 19:11:46.098]: Info: Color coding: SDR (Rec. 601)
+[2026-09-25 19:11:46.098]: Info: Color depth: 8-bit
+[2026-09-25 19:11:46.098]: Info: Color range: JPEG
+[2026-09-25 19:11:46.098]: Debug: Found CUDA device with PCI bus ID: 0000:00:06.0
+[2026-09-25 19:11:46.098]: Debug: Found DRM primary node: card0
+[2026-09-25 19:11:46.099]: Debug: EGL: [NVIDIA]: version [1.5]
+[2026-09-25 19:11:46.099]: Debug: API's supported: [OpenGL_ES OpenGL]
+[2026-09-25 19:11:46.099]: Debug: EGL: High priority context supported
+[2026-09-25 19:11:46.099]: Info: EGL: context priority set to HIGH
+[2026-09-25 19:11:46.103]: Debug: GL: vendor: NVIDIA Corporation
+[2026-09-25 19:11:46.103]: Debug: GL: renderer: Leandro VFIO RTX 2070-3G/PCIe/SSE2
+[2026-09-25 19:11:46.103]: Debug: GL: version: 4.6.0 NVIDIA 615.71.09
+[2026-09-25 19:11:46.103]: Debug: GL: shader: 4.60 NVIDIA
+[2026-09-25 19:11:46.103]: Info: Streaming bitrate is 1000000
+[2026-09-25 19:11:46.104]: Debug: [av1_nvenc @ 0x586e03e0fc40] Loaded Nvenc version 13.1
+[2026-09-25 19:11:46.104]: Debug: [av1_nvenc @ 0x586e03e0fc40] Nvenc initialized successfully
+[2026-09-25 19:11:46.128]: Warning: [av1_nvenc @ 0x586e03e0fc40] Codec not supported
+[2026-09-25 19:11:46.128]: Error: [av1_nvenc @ 0x586e03e0fc40] Provided device doesn't support required NVENC features
+[2026-09-25 19:11:46.164]: Debug: [av1_nvenc @ 0x586e03e0fc40] Nvenc unloaded
+[2026-09-25 19:11:46.164]: Error: Could not open codec [av1_nvenc]: Function not implemented
+[2026-09-25 19:11:46.170]: Info: Screencasting with KMS
+[2026-09-25 19:11:46.170]: Info: /dev/dri/card0 -> nvidia-drm
+[2026-09-25 19:11:46.170]: Debug: Opening render node: /dev/dri/renderD128
+[2026-09-25 19:11:46.171]: Info: Found monitor for DRM screencasting
+[2026-09-25 19:11:46.171]: Debug: crtc(0, 0)
+[2026-09-25 19:11:46.171]: Debug: crtc(1920, 1080)
+[2026-09-25 19:11:46.171]: Debug: plane->possible_crtcs == 1
+[2026-09-25 19:11:46.171]: Debug: x(0) y(0) crtc_x(0) crtc_y(0) crtc_id(66)
+[2026-09-25 19:11:46.171]: Debug: Resolution: 1920x1080: Pitch: 7680: Offset: 0
+[2026-09-25 19:11:46.171]: Debug: Format [AR15, XR15, RG16, AR24, XR24, AB30, XB30, AB24, XB24, AB4H, AB48, YUYV, UYVY, NV42, NV24, NV61, NV16, NV21, NV12, P210, P010, P012, XB4H]
+[2026-09-25 19:11:46.171]: Info: Found connector ID [132]
+[2026-09-25 19:11:46.171]: Info: Found cursor plane [60]
+[2026-09-25 19:11:46.171]: Info: Creating encoder [hevc_nvenc]
+[2026-09-25 19:11:46.171]: Info: Color coding: SDR (Rec. 709)
+[2026-09-25 19:11:46.171]: Info: Color depth: 10-bit
+[2026-09-25 19:11:46.171]: Info: Color range: JPEG
+[2026-09-25 19:11:46.171]: Debug: Found CUDA device with PCI bus ID: 0000:00:06.0
+[2026-09-25 19:11:46.171]: Debug: Found DRM primary node: card0
+[2026-09-25 19:11:46.171]: Debug: EGL: [NVIDIA]: version [1.5]
+[2026-09-25 19:11:46.171]: Debug: API's supported: [OpenGL_ES OpenGL]
+[2026-09-25 19:11:46.171]: Debug: EGL: High priority context supported
+[2026-09-25 19:11:46.172]: Info: EGL: context priority set to HIGH
+[2026-09-25 19:11:46.178]: Debug: GL: vendor: NVIDIA Corporation
+[2026-09-25 19:11:46.178]: Debug: GL: renderer: Leandro VFIO RTX 2070-3G/PCIe/SSE2
+[2026-09-25 19:11:46.178]: Debug: GL: version: 4.6.0 NVIDIA 615.71.09
+[2026-09-25 19:11:46.178]: Debug: GL: shader: 4.60 NVIDIA
+[2026-09-25 19:11:46.179]: Info: Streaming bitrate is 1000000
+[2026-09-25 19:11:46.179]: Debug: [hevc_nvenc @ 0x586e03e0fc40] Loaded Nvenc version 13.1
+[2026-09-25 19:11:46.179]: Debug: [hevc_nvenc @ 0x586e03e0fc40] Nvenc initialized successfully
+[2026-09-25 19:11:46.669]: Debug: Frame 1: IDR Keyframe (AV_FRAME_FLAG_KEY)
+[2026-09-25 19:11:47.003]: Debug: [hevc_nvenc @ 0x586e03e0fc40] Nvenc unloaded
+[2026-09-25 19:11:47.025]: Info: // Testing for available encoders, this may generate errors. You can safely ignore those errors. //
+[2026-09-25 19:11:47.025]: Info: 
+[2026-09-25 19:11:47.025]: Info: // Ignore any errors mentioned above, they are not relevant. //
+[2026-09-25 19:11:47.025]: Info: 
+[2026-09-25 19:11:47.025]: Debug: ------  h264 ------
+[2026-09-25 19:11:47.025]: Debug: PASSED: supported
+[2026-09-25 19:11:47.025]: Debug: REF_FRAMES_RESTRICT: supported
+[2026-09-25 19:11:47.025]: Debug: DYNAMIC_RANGE: unsupported
+[2026-09-25 19:11:47.025]: Debug: YUV444: unsupported
+[2026-09-25 19:11:47.025]: Debug: VUI_PARAMETERS: supported
+[2026-09-25 19:11:47.025]: Debug: -------------------
+[2026-09-25 19:11:47.025]: Info: Found H.264 encoder: h264_nvenc [nvenc]
+[2026-09-25 19:11:47.025]: Debug: ------  hevc ------
+[2026-09-25 19:11:47.025]: Debug: PASSED: supported
+[2026-09-25 19:11:47.025]: Debug: REF_FRAMES_RESTRICT: supported
+[2026-09-25 19:11:47.025]: Debug: DYNAMIC_RANGE: supported
+[2026-09-25 19:11:47.025]: Debug: YUV444: unsupported
+[2026-09-25 19:11:47.025]: Debug: VUI_PARAMETERS: supported
+[2026-09-25 19:11:47.025]: Debug: -------------------
+[2026-09-25 19:11:47.025]: Info: Found HEVC encoder: hevc_nvenc [nvenc]
+[2026-09-25 19:11:47.026]: Info: Starting system tray
+[2026-09-25 19:11:47.029]: Info: Adding avahi service caraxes-vm4-615
+[2026-09-25 19:11:47.033]: Info: Configuration UI available at [https://localhost:47990]
+[2026-09-25 19:11:47.067]: Info: System tray created
+[2026-09-25 19:11:47.067]: Info: Starting main loop
+[2026-09-25 19:11:47.963]: Info: Avahi service caraxes-vm4-615 successfully established.
+[2026-09-25 19:13:04.416]: Debug: TUNNEL :: NONE
+[2026-09-25 19:13:04.416]: Debug: METHOD :: GET
+[2026-09-25 19:13:04.416]: Debug: DESTINATION :: /serverinfo
+[2026-09-25 19:13:04.416]: Debug: User-Agent -- Mozilla/5.0
+[2026-09-25 19:13:04.416]: Debug: Accept-Language -- de-DE,en,*
+[2026-09-25 19:13:04.416]: Debug: Accept-Encoding -- zstd, br, gzip, deflate
+[2026-09-25 19:13:04.416]: Debug: Connection -- Keep-Alive
+[2026-09-25 19:13:04.416]: Debug: Host -- 192.168.103.24:47989
+[2026-09-25 19:13:04.416]: Debug:  [--] 
+[2026-09-25 19:13:04.417]: Debug: uuid -- 8906db6085d04cd987d801539ff0f391
+[2026-09-25 19:13:04.417]: Debug: uniqueid -- 0123456789ABCDEF
+[2026-09-25 19:13:04.417]: Debug:  [--] 
+[2026-09-25 19:13:04.427]: Debug: TUNNEL :: NONE
+[2026-09-25 19:13:04.427]: Debug: METHOD :: GET
+[2026-09-25 19:13:04.427]: Debug: DESTINATION :: /serverinfo
+[2026-09-25 19:13:04.427]: Debug: User-Agent -- Mozilla/5.0
+[2026-09-25 19:13:04.427]: Debug: Accept-Language -- de-DE,en,*
+[2026-09-25 19:13:04.427]: Debug: Accept-Encoding -- zstd, br, gzip, deflate
+[2026-09-25 19:13:04.427]: Debug: Connection -- Keep-Alive
+[2026-09-25 19:13:04.427]: Debug: Host -- 192.168.103.24:47989
+[2026-09-25 19:13:04.427]: Debug:  [--] 
+[2026-09-25 19:13:04.427]: Debug: uuid -- c6efdb94a6084d1f8706c56edc64f531
+[2026-09-25 19:13:04.427]: Debug: uniqueid -- 0123456789ABCDEF
+[2026-09-25 19:13:04.427]: Debug:  [--] 
+[2026-09-25 19:13:04.427]: Debug: TUNNEL :: NONE
+[2026-09-25 19:13:04.427]: Debug: METHOD :: GET
+[2026-09-25 19:13:04.427]: Debug: DESTINATION :: /serverinfo
+[2026-09-25 19:13:04.427]: Debug: User-Agent -- Mozilla/5.0
+[2026-09-25 19:13:04.427]: Debug: Accept-Language -- de-DE,en,*
+[2026-09-25 19:13:04.427]: Debug: Accept-Encoding -- zstd, br, gzip, deflate
+[2026-09-25 19:13:04.427]: Debug: Connection -- Keep-Alive
+[2026-09-25 19:13:04.427]: Debug: Host -- 192.168.103.24:47989
+[2026-09-25 19:13:04.427]: Debug:  [--] 
+[2026-09-25 19:13:04.427]: Debug: uuid -- 87578403a2944ffbaf85eacae1d06db5
+[2026-09-25 19:13:04.427]: Debug: uniqueid -- 0123456789ABCDEF
+[2026-09-25 19:13:04.427]: Debug:  [--] 
+[2026-09-25 19:13:04.434]: Debug: TUNNEL :: NONE
+[2026-09-25 19:13:04.434]: Debug: METHOD :: GET
+[2026-09-25 19:13:04.434]: Debug: DESTINATION :: /serverinfo
+[2026-09-25 19:13:04.434]: Debug: User-Agent -- Mozilla/5.0
+[2026-09-25 19:13:04.434]: Debug: Accept-Language -- de-DE,en,*
+[2026-09-25 19:13:04.434]: Debug: Accept-Encoding -- zstd, br, gzip, deflate
+[2026-09-25 19:13:04.434]: Debug: Connection -- Keep-Alive
+[2026-09-25 19:13:04.434]: Debug: Host -- 192.168.103.24:47989
+[2026-09-25 19:13:04.434]: Debug:  [--] 
+[2026-09-25 19:13:04.434]: Debug: uuid -- aca82da253f54abe9017ecfbe708fd75
+[2026-09-25 19:13:04.434]: Debug: uniqueid -- 0123456789ABCDEF
+[2026-09-25 19:13:04.434]: Debug:  [--] 
+[2026-09-25 19:13:04.437]: Debug: /CN=NVIDIA GameStream Client -- verified
+[2026-09-25 19:13:04.437]: Debug: /CN=NVIDIA GameStream Client -- verified
+[2026-09-25 19:13:04.437]: Debug: TUNNEL :: HTTPS
+[2026-09-25 19:13:04.437]: Debug: METHOD :: GET
+[2026-09-25 19:13:04.437]: Debug: DESTINATION :: /serverinfo
+[2026-09-25 19:13:04.437]: Debug: User-Agent -- Mozilla/5.0
+[2026-09-25 19:13:04.437]: Debug: Accept-Language -- de-DE,en,*
+[2026-09-25 19:13:04.437]: Debug: Accept-Encoding -- zstd, br, gzip, deflate
+[2026-09-25 19:13:04.437]: Debug: Connection -- Keep-Alive
+[2026-09-25 19:13:04.437]: Debug: Host -- 192.168.103.24:47984
+[2026-09-25 19:13:04.437]: Debug:  [--] 
+[2026-09-25 19:13:04.437]: Debug: uuid -- 6b12bedf35ef426d84291967eb6c3615
+[2026-09-25 19:13:04.437]: Debug: uniqueid -- 0123456789ABCDEF
+[2026-09-25 19:13:04.437]: Debug:  [--] 
+[2026-09-25 19:13:04.437]: Debug: TUNNEL :: HTTPS
+[2026-09-25 19:13:04.437]: Debug: METHOD :: GET
+[2026-09-25 19:13:04.437]: Debug: DESTINATION :: /serverinfo
+[2026-09-25 19:13:04.437]: Debug: User-Agent -- Mozilla/5.0
+[2026-09-25 19:13:04.437]: Debug: Accept-Language -- de-DE,en,*
+[2026-09-25 19:13:04.437]: Debug: Accept-Encoding -- zstd, br, gzip, deflate
+[2026-09-25 19:13:04.437]: Debug: Connection -- Keep-Alive
+[2026-09-25 19:13:04.437]: Debug: Host -- 192.168.103.24:47984
+[2026-09-25 19:13:04.437]: Debug:  [--] 
+[2026-09-25 19:13:04.437]: Debug: uuid -- 7360f4968d0344de9376d97225e2decc
+[2026-09-25 19:13:04.437]: Debug: uniqueid -- 0123456789ABCDEF
+[2026-09-25 19:13:04.437]: Debug:  [--] 
+[2026-09-25 19:13:08.095]: Debug: TUNNEL :: NONE
+[2026-09-25 19:13:08.096]: Debug: METHOD :: GET
+[2026-09-25 19:13:08.096]: Debug: DESTINATION :: /serverinfo
+[2026-09-25 19:13:08.096]: Debug: User-Agent -- Mozilla/5.0
+[2026-09-25 19:13:08.096]: Debug: Accept-Language -- de-DE,en,*
+[2026-09-25 19:13:08.096]: Debug: Accept-Encoding -- zstd, br, gzip, deflate
+[2026-09-25 19:13:08.096]: Debug: Connection -- Keep-Alive
+[2026-09-25 19:13:08.096]: Debug: Host -- 192.168.103.24:47989
+[2026-09-25 19:13:08.096]: Debug:  [--] 
+[2026-09-25 19:13:08.096]: Debug: uuid -- d1b4f8b221184d6a889338174172962f
+[2026-09-25 19:13:08.096]: Debug: uniqueid -- 0123456789ABCDEF
+[2026-09-25 19:13:08.096]: Debug:  [--] 
+[2026-09-25 19:13:08.097]: Debug: TUNNEL :: NONE
+[2026-09-25 19:13:08.097]: Debug: METHOD :: GET
+[2026-09-25 19:13:08.097]: Debug: DESTINATION :: /serverinfo
+[2026-09-25 19:13:08.097]: Debug: User-Agent -- Mozilla/5.0
+[2026-09-25 19:13:08.097]: Debug: Accept-Language -- de-DE,en,*
+[2026-09-25 19:13:08.097]: Debug: Accept-Encoding -- zstd, br, gzip, deflate
+[2026-09-25 19:13:08.097]: Debug: Connection -- Keep-Alive
+[2026-09-25 19:13:08.097]: Debug: Host -- 192.168.103.24:47989
+[2026-09-25 19:13:08.097]: Debug:  [--] 
+[2026-09-25 19:13:08.097]: Debug: uuid -- 0bfd9f92975044ee8198854a3627b06c
+[2026-09-25 19:13:08.097]: Debug: uniqueid -- 0123456789ABCDEF
+[2026-09-25 19:13:08.097]: Debug:  [--] 
+[2026-09-25 19:13:08.097]: Debug: TUNNEL :: NONE
+[2026-09-25 19:13:08.097]: Debug: METHOD :: GET
+[2026-09-25 19:13:08.097]: Debug: DESTINATION :: /serverinfo
+[2026-09-25 19:13:08.097]: Debug: User-Agent -- Mozilla/5.0
+[2026-09-25 19:13:08.097]: Debug: Accept-Language -- de-DE,en,*
+[2026-09-25 19:13:08.097]: Debug: Accept-Encoding -- zstd, br, gzip, deflate
+[2026-09-25 19:13:08.097]: Debug: Connection -- Keep-Alive
+[2026-09-25 19:13:08.097]: Debug: Host -- 192.168.103.24:47989
+[2026-09-25 19:13:08.097]: Debug:  [--] 
+[2026-09-25 19:13:08.097]: Debug: uuid -- 2118e3b09d3444d2a388e9ee1134bb93
+[2026-09-25 19:13:08.097]: Debug: uniqueid -- 0123456789ABCDEF
+[2026-09-25 19:13:08.097]: Debug:  [--] 
+[2026-09-25 19:13:08.102]: Debug: /CN=NVIDIA GameStream Client -- verified
+[2026-09-25 19:13:08.103]: Debug: TUNNEL :: HTTPS
+[2026-09-25 19:13:08.103]: Debug: METHOD :: GET
+[2026-09-25 19:13:08.103]: Debug: DESTINATION :: /serverinfo
+[2026-09-25 19:13:08.103]: Debug: User-Agent -- Mozilla/5.0
+[2026-09-25 19:13:08.103]: Debug: Accept-Language -- de-DE,en,*
+[2026-09-25 19:13:08.103]: Debug: Accept-Encoding -- zstd, br, gzip, deflate
+[2026-09-25 19:13:08.103]: Debug: Connection -- Keep-Alive
+[2026-09-25 19:13:08.103]: Debug: Host -- 192.168.103.24:47984
+[2026-09-25 19:13:08.103]: Debug:  [--] 
+[2026-09-25 19:13:08.103]: Debug: uuid -- dc1dfc2837354c72a36c908e0d82786b
+[2026-09-25 19:13:08.103]: Debug: uniqueid -- 0123456789ABCDEF
+[2026-09-25 19:13:08.103]: Debug:  [--] 
+[2026-09-25 19:13:08.103]: Debug: /CN=NVIDIA GameStream Client -- verified
+[2026-09-25 19:13:08.103]: Debug: TUNNEL :: HTTPS
+[2026-09-25 19:13:08.103]: Debug: METHOD :: GET
+[2026-09-25 19:13:08.103]: Debug: DESTINATION :: /serverinfo
+[2026-09-25 19:13:08.103]: Debug: User-Agent -- Mozilla/5.0
+[2026-09-25 19:13:08.103]: Debug: Accept-Language -- de-DE,en,*
+[2026-09-25 19:13:08.103]: Debug: Accept-Encoding -- zstd, br, gzip, deflate
+[2026-09-25 19:13:08.103]: Debug: Connection -- Keep-Alive
+[2026-09-25 19:13:08.103]: Debug: Host -- 192.168.103.24:47984
+[2026-09-25 19:13:08.103]: Debug:  [--] 
+[2026-09-25 19:13:08.103]: Debug: uuid -- 7503f983fcbe43c3a28f9bd83fa8316f
+[2026-09-25 19:13:08.103]: Debug: uniqueid -- 0123456789ABCDEF
+[2026-09-25 19:13:08.103]: Debug:  [--] 
+[2026-09-25 19:13:08.103]: Debug: TUNNEL :: NONE
+[2026-09-25 19:13:08.103]: Debug: METHOD :: GET
+[2026-09-25 19:13:08.103]: Debug: DESTINATION :: /serverinfo
+[2026-09-25 19:13:08.103]: Debug: User-Agent -- Mozilla/5.0
+[2026-09-25 19:13:08.103]: Debug: Accept-Language -- de-DE,en,*
+[2026-09-25 19:13:08.103]: Debug: Accept-Encoding -- zstd, br, gzip, deflate
+[2026-09-25 19:13:08.103]: Debug: Connection -- Keep-Alive
+[2026-09-25 19:13:08.103]: Debug: Host -- 192.168.103.24:47989
+[2026-09-25 19:13:08.103]: Debug:  [--] 
+[2026-09-25 19:13:08.103]: Debug: uuid -- 48a0589653254352b18c364d1a414617
+[2026-09-25 19:13:08.103]: Debug: uniqueid -- 0123456789ABCDEF
+[2026-09-25 19:13:08.103]: Debug:  [--] 
+[2026-09-25 19:13:08.108]: Debug: /CN=NVIDIA GameStream Client -- verified
+[2026-09-25 19:13:08.108]: Debug: TUNNEL :: HTTPS
+[2026-09-25 19:13:08.108]: Debug: METHOD :: GET
+[2026-09-25 19:13:08.108]: Debug: DESTINATION :: /applist
+[2026-09-25 19:13:08.108]: Debug: User-Agent -- Mozilla/5.0
+[2026-09-25 19:13:08.108]: Debug: Accept-Language -- de-DE,en,*
+[2026-09-25 19:13:08.108]: Debug: Accept-Encoding -- zstd, br, gzip, deflate
+[2026-09-25 19:13:08.108]: Debug: Connection -- Keep-Alive
+[2026-09-25 19:13:08.108]: Debug: Host -- 192.168.103.24:47984
+[2026-09-25 19:13:08.108]: Debug:  [--] 
+[2026-09-25 19:13:08.108]: Debug: uuid -- 86740b0862b94ebf820ba4b5c715da2c
+[2026-09-25 19:13:08.108]: Debug: uniqueid -- 0123456789ABCDEF
+[2026-09-25 19:13:08.108]: Debug:  [--] 
+[2026-09-25 19:13:08.196]: Debug: TUNNEL :: NONE
+[2026-09-25 19:13:08.196]: Debug: METHOD :: GET
+[2026-09-25 19:13:08.196]: Debug: DESTINATION :: /serverinfo
+[2026-09-25 19:13:08.196]: Debug: User-Agent -- Mozilla/5.0
+[2026-09-25 19:13:08.196]: Debug: Accept-Language -- de-DE,en,*
+[2026-09-25 19:13:08.196]: Debug: Accept-Encoding -- zstd, br, gzip, deflate
+[2026-09-25 19:13:08.196]: Debug: Connection -- Keep-Alive
+[2026-09-25 19:13:08.196]: Debug: Host -- 192.168.103.24:47989
+[2026-09-25 19:13:08.196]: Debug:  [--] 
+[2026-09-25 19:13:08.196]: Debug: uuid -- 11bef7e094b7482d8d03dac401fcbcf1
+[2026-09-25 19:13:08.196]: Debug: uniqueid -- 0123456789ABCDEF
+[2026-09-25 19:13:08.196]: Debug:  [--] 
+[2026-09-25 19:13:08.196]: Debug: TUNNEL :: NONE
+[2026-09-25 19:13:08.196]: Debug: METHOD :: GET
+[2026-09-25 19:13:08.196]: Debug: DESTINATION :: /serverinfo
+[2026-09-25 19:13:08.196]: Debug: User-Agent -- Mozilla/5.0
+[2026-09-25 19:13:08.196]: Debug: Accept-Language -- de-DE,en,*
+[2026-09-25 19:13:08.196]: Debug: Accept-Encoding -- zstd, br, gzip, deflate
+[2026-09-25 19:13:08.196]: Debug: Connection -- Keep-Alive
+[2026-09-25 19:13:08.196]: Debug: Host -- 192.168.103.24:47989
+[2026-09-25 19:13:08.196]: Debug:  [--] 
+[2026-09-25 19:13:08.196]: Debug: uuid -- ae0055c167244ddfa378622f796fd48b
+[2026-09-25 19:13:08.196]: Debug: uniqueid -- 0123456789ABCDEF
+[2026-09-25 19:13:08.196]: Debug:  [--] 
+[2026-09-25 19:13:08.201]: Debug: /CN=NVIDIA GameStream Client -- verified
+[2026-09-25 19:13:08.201]: Debug: TUNNEL :: HTTPS
+[2026-09-25 19:13:08.201]: Debug: METHOD :: GET
+[2026-09-25 19:13:08.201]: Debug: DESTINATION :: /serverinfo
+[2026-09-25 19:13:08.201]: Debug: User-Agent -- Mozilla/5.0
+[2026-09-25 19:13:08.201]: Debug: Accept-Language -- de-DE,en,*
+[2026-09-25 19:13:08.201]: Debug: Accept-Encoding -- zstd, br, gzip, deflate
+[2026-09-25 19:13:08.201]: Debug: Connection -- Keep-Alive
+[2026-09-25 19:13:08.201]: Debug: Host -- 192.168.103.24:47984
+[2026-09-25 19:13:08.201]: Debug:  [--] 
+[2026-09-25 19:13:08.201]: Debug: uuid -- bcc852bee36f40a89e8e605846340544
+[2026-09-25 19:13:08.201]: Debug: uniqueid -- 0123456789ABCDEF
+[2026-09-25 19:13:08.201]: Debug:  [--] 
+[2026-09-25 19:13:08.201]: Debug: TUNNEL :: NONE
+[2026-09-25 19:13:08.201]: Debug: METHOD :: GET
+[2026-09-25 19:13:08.201]: Debug: DESTINATION :: /serverinfo
+[2026-09-25 19:13:08.201]: Debug: User-Agent -- Mozilla/5.0
+[2026-09-25 19:13:08.201]: Debug: Accept-Language -- de-DE,en,*
+[2026-09-25 19:13:08.201]: Debug: Accept-Encoding -- zstd, br, gzip, deflate
+[2026-09-25 19:13:08.201]: Debug: Connection -- Keep-Alive
+[2026-09-25 19:13:08.201]: Debug: Host -- 192.168.103.24:47989
+[2026-09-25 19:13:08.201]: Debug:  [--] 
+[2026-09-25 19:13:08.201]: Debug: uuid -- 86b31322fa1a46c09c14db0bffd6c5a8
+[2026-09-25 19:13:08.201]: Debug: uniqueid -- 0123456789ABCDEF
+[2026-09-25 19:13:08.201]: Debug:  [--] 
+[2026-09-25 19:13:08.207]: Debug: /CN=NVIDIA GameStream Client -- verified
+[2026-09-25 19:13:08.207]: Debug: TUNNEL :: HTTPS
+[2026-09-25 19:13:08.207]: Debug: METHOD :: GET
+[2026-09-25 19:13:08.207]: Debug: DESTINATION :: /applist
+[2026-09-25 19:13:08.207]: Debug: User-Agent -- Mozilla/5.0
+[2026-09-25 19:13:08.207]: Debug: Accept-Language -- de-DE,en,*
+[2026-09-25 19:13:08.207]: Debug: Accept-Encoding -- zstd, br, gzip, deflate
+[2026-09-25 19:13:08.207]: Debug: Connection -- Keep-Alive
+[2026-09-25 19:13:08.207]: Debug: Host -- 192.168.103.24:47984
+[2026-09-25 19:13:08.208]: Debug:  [--] 
+[2026-09-25 19:13:08.208]: Debug: uuid -- 938e30f7a18246bda9c73eb2c0209209
+[2026-09-25 19:13:08.208]: Debug: uniqueid -- 0123456789ABCDEF
+[2026-09-25 19:13:08.208]: Debug:  [--] 
+[2026-09-25 19:13:11.211]: Debug: TUNNEL :: NONE
+[2026-09-25 19:13:11.211]: Debug: METHOD :: GET
+[2026-09-25 19:13:11.211]: Debug: DESTINATION :: /serverinfo
+[2026-09-25 19:13:11.211]: Debug: User-Agent -- Mozilla/5.0
+[2026-09-25 19:13:11.211]: Debug: Accept-Language -- de-DE,en,*
+[2026-09-25 19:13:11.211]: Debug: Accept-Encoding -- zstd, br, gzip, deflate
+[2026-09-25 19:13:11.211]: Debug: Connection -- Keep-Alive
+[2026-09-25 19:13:11.211]: Debug: Host -- 192.168.103.24:47989
+[2026-09-25 19:13:11.211]: Debug:  [--] 
+[2026-09-25 19:13:11.211]: Debug: uuid -- 00385ed53f4a40268796a2d81d541aa4
+[2026-09-25 19:13:11.211]: Debug: uniqueid -- 0123456789ABCDEF
+[2026-09-25 19:13:11.211]: Debug:  [--] 
+[2026-09-25 19:13:11.216]: Debug: /CN=NVIDIA GameStream Client -- verified
+[2026-09-25 19:13:11.216]: Debug: TUNNEL :: HTTPS
+[2026-09-25 19:13:11.216]: Debug: METHOD :: GET
+[2026-09-25 19:13:11.216]: Debug: DESTINATION :: /serverinfo
+[2026-09-25 19:13:11.216]: Debug: User-Agent -- Mozilla/5.0
+[2026-09-25 19:13:11.216]: Debug: Accept-Language -- de-DE,en,*
+[2026-09-25 19:13:11.216]: Debug: Accept-Encoding -- zstd, br, gzip, deflate
+[2026-09-25 19:13:11.216]: Debug: Connection -- Keep-Alive
+[2026-09-25 19:13:11.216]: Debug: Host -- 192.168.103.24:47984
+[2026-09-25 19:13:11.216]: Debug:  [--] 
+[2026-09-25 19:13:11.216]: Debug: uuid -- 6222b8e9a2b447d4a5569fbc37ad3b7b
+[2026-09-25 19:13:11.216]: Debug: uniqueid -- 0123456789ABCDEF
+[2026-09-25 19:13:11.216]: Debug:  [--] 
+[2026-09-25 19:13:13.105]: Debug: TUNNEL :: NONE
+[2026-09-25 19:13:13.105]: Debug: METHOD :: GET
+[2026-09-25 19:13:13.105]: Debug: DESTINATION :: /serverinfo
+[2026-09-25 19:13:13.105]: Debug: User-Agent -- Mozilla/5.0
+[2026-09-25 19:13:13.105]: Debug: Accept-Language -- de-DE,en,*
+[2026-09-25 19:13:13.105]: Debug: Accept-Encoding -- zstd, br, gzip, deflate
+[2026-09-25 19:13:13.105]: Debug: Connection -- Keep-Alive
+[2026-09-25 19:13:13.105]: Debug: Host -- 192.168.103.24:47989
+[2026-09-25 19:13:13.105]: Debug:  [--] 
+[2026-09-25 19:13:13.105]: Debug: uuid -- 4295a0b92e9b418ca08f0b801ba1aadf
+[2026-09-25 19:13:13.105]: Debug: uniqueid -- 0123456789ABCDEF
+[2026-09-25 19:13:13.105]: Debug:  [--] 
+[2026-09-25 19:13:13.109]: Debug: TUNNEL :: NONE
+[2026-09-25 19:13:13.109]: Debug: METHOD :: GET
+[2026-09-25 19:13:13.109]: Debug: DESTINATION :: /serverinfo
+[2026-09-25 19:13:13.109]: Debug: User-Agent -- Mozilla/5.0
+[2026-09-25 19:13:13.109]: Debug: Accept-Language -- de-DE,en,*
+[2026-09-25 19:13:13.109]: Debug: Accept-Encoding -- zstd, br, gzip, deflate
+[2026-09-25 19:13:13.109]: Debug: Connection -- Keep-Alive
+[2026-09-25 19:13:13.110]: Debug: Host -- 192.168.103.24:47989
+[2026-09-25 19:13:13.110]: Debug:  [--] 
+[2026-09-25 19:13:13.110]: Debug: uuid -- d29144a812514188831f65cbcbc7ffe5
+[2026-09-25 19:13:13.110]: Debug: uniqueid -- 0123456789ABCDEF
+[2026-09-25 19:13:13.110]: Debug:  [--] 
+[2026-09-25 19:13:14.220]: Debug: TUNNEL :: NONE
+[2026-09-25 19:13:14.220]: Debug: METHOD :: GET
+[2026-09-25 19:13:14.220]: Debug: DESTINATION :: /serverinfo
+[2026-09-25 19:13:14.220]: Debug: User-Agent -- Mozilla/5.0
+[2026-09-25 19:13:14.220]: Debug: Accept-Language -- de-DE,en,*
+[2026-09-25 19:13:14.220]: Debug: Accept-Encoding -- zstd, br, gzip, deflate
+[2026-09-25 19:13:14.220]: Debug: Connection -- Keep-Alive
+[2026-09-25 19:13:14.220]: Debug: Host -- 192.168.103.24:47989
+[2026-09-25 19:13:14.220]: Debug:  [--] 
+[2026-09-25 19:13:14.220]: Debug: uuid -- a33f12630a514800837714b883541372
+[2026-09-25 19:13:14.220]: Debug: uniqueid -- 0123456789ABCDEF
+[2026-09-25 19:13:14.220]: Debug:  [--] 
+[2026-09-25 19:13:14.225]: Debug: /CN=NVIDIA GameStream Client -- verified
+[2026-09-25 19:13:14.226]: Debug: TUNNEL :: HTTPS
+[2026-09-25 19:13:14.226]: Debug: METHOD :: GET
+[2026-09-25 19:13:14.226]: Debug: DESTINATION :: /serverinfo
+[2026-09-25 19:13:14.226]: Debug: User-Agent -- Mozilla/5.0
+[2026-09-25 19:13:14.226]: Debug: Accept-Language -- de-DE,en,*
+[2026-09-25 19:13:14.226]: Debug: Accept-Encoding -- zstd, br, gzip, deflate
+[2026-09-25 19:13:14.226]: Debug: Connection -- Keep-Alive
+[2026-09-25 19:13:14.226]: Debug: Host -- 192.168.103.24:47984
+[2026-09-25 19:13:14.226]: Debug:  [--] 
+[2026-09-25 19:13:14.226]: Debug: uuid -- e0c8521a137b424ea24cd3064c6c3186
+[2026-09-25 19:13:14.226]: Debug: uniqueid -- 0123456789ABCDEF
+[2026-09-25 19:13:14.226]: Debug:  [--] 
+[2026-09-25 19:13:17.229]: Debug: TUNNEL :: NONE
+[2026-09-25 19:13:17.229]: Debug: METHOD :: GET
+[2026-09-25 19:13:17.229]: Debug: DESTINATION :: /serverinfo
+[2026-09-25 19:13:17.229]: Debug: User-Agent -- Mozilla/5.0
+[2026-09-25 19:13:17.229]: Debug: Accept-Language -- de-DE,en,*
+[2026-09-25 19:13:17.229]: Debug: Accept-Encoding -- zstd, br, gzip, deflate
+[2026-09-25 19:13:17.229]: Debug: Connection -- Keep-Alive
+[2026-09-25 19:13:17.229]: Debug: Host -- 192.168.103.24:47989
+[2026-09-25 19:13:17.229]: Debug:  [--] 
+[2026-09-25 19:13:17.229]: Debug: uuid -- 02ffb191d4c44beb86685e013bbac40d
+[2026-09-25 19:13:17.229]: Debug: uniqueid -- 0123456789ABCDEF
+[2026-09-25 19:13:17.229]: Debug:  [--] 
+[2026-09-25 19:13:17.234]: Debug: /CN=NVIDIA GameStream Client -- verified
+[2026-09-25 19:13:17.234]: Debug: TUNNEL :: HTTPS
+[2026-09-25 19:13:17.234]: Debug: METHOD :: GET
+[2026-09-25 19:13:17.234]: Debug: DESTINATION :: /serverinfo
+[2026-09-25 19:13:17.234]: Debug: User-Agent -- Mozilla/5.0
+[2026-09-25 19:13:17.234]: Debug: Accept-Language -- de-DE,en,*
+[2026-09-25 19:13:17.234]: Debug: Accept-Encoding -- zstd, br, gzip, deflate
+[2026-09-25 19:13:17.234]: Debug: Connection -- Keep-Alive
+[2026-09-25 19:13:17.234]: Debug: Host -- 192.168.103.24:47984
+[2026-09-25 19:13:17.234]: Debug:  [--] 
+[2026-09-25 19:13:17.234]: Debug: uuid -- a004d92f4536441991aa89fc6f391438
+[2026-09-25 19:13:17.234]: Debug: uniqueid -- 0123456789ABCDEF
+[2026-09-25 19:13:17.234]: Debug:  [--] 
+[2026-09-25 19:13:18.013]: Debug: TUNNEL :: NONE
+[2026-09-25 19:13:18.013]: Debug: METHOD :: GET
+[2026-09-25 19:13:18.013]: Debug: DESTINATION :: /serverinfo
+[2026-09-25 19:13:18.013]: Debug: User-Agent -- Mozilla/5.0
+[2026-09-25 19:13:18.013]: Debug: Accept-Language -- de-DE,en,*
+[2026-09-25 19:13:18.013]: Debug: Accept-Encoding -- zstd, br, gzip, deflate
+[2026-09-25 19:13:18.013]: Debug: Connection -- Keep-Alive
+[2026-09-25 19:13:18.013]: Debug: Host -- 192.168.103.24:47989
+[2026-09-25 19:13:18.013]: Debug:  [--] 
+[2026-09-25 19:13:18.013]: Debug: uuid -- c32be685d35249bb96d57133870769a5
+[2026-09-25 19:13:18.013]: Debug: uniqueid -- 0123456789ABCDEF
+[2026-09-25 19:13:18.013]: Debug:  [--] 
+[2026-09-25 19:13:18.017]: Debug: TUNNEL :: NONE
+[2026-09-25 19:13:18.017]: Debug: METHOD :: GET
+[2026-09-25 19:13:18.017]: Debug: DESTINATION :: /serverinfo
+[2026-09-25 19:13:18.017]: Debug: User-Agent -- Mozilla/5.0
+[2026-09-25 19:13:18.017]: Debug: Accept-Language -- de-DE,en,*
+[2026-09-25 19:13:18.017]: Debug: Accept-Encoding -- zstd, br, gzip, deflate
+[2026-09-25 19:13:18.017]: Debug: Connection -- Keep-Alive
+[2026-09-25 19:13:18.017]: Debug: Host -- 192.168.103.24:47989
+[2026-09-25 19:13:18.017]: Debug:  [--] 
+[2026-09-25 19:13:18.017]: Debug: uuid -- 6f587ca6739e4e66aa677b728289aae9
+[2026-09-25 19:13:18.017]: Debug: uniqueid -- 0123456789ABCDEF
+[2026-09-25 19:13:18.017]: Debug:  [--] 
+[2026-09-25 19:13:20.238]: Debug: TUNNEL :: NONE
+[2026-09-25 19:13:20.238]: Debug: METHOD :: GET
+[2026-09-25 19:13:20.238]: Debug: DESTINATION :: /serverinfo
+[2026-09-25 19:13:20.238]: Debug: User-Agent -- Mozilla/5.0
+[2026-09-25 19:13:20.238]: Debug: Accept-Language -- de-DE,en,*
+[2026-09-25 19:13:20.238]: Debug: Accept-Encoding -- zstd, br, gzip, deflate
+[2026-09-25 19:13:20.238]: Debug: Connection -- Keep-Alive
+[2026-09-25 19:13:20.238]: Debug: Host -- 192.168.103.24:47989
+[2026-09-25 19:13:20.238]: Debug:  [--] 
+[2026-09-25 19:13:20.238]: Debug: uuid -- c079fcaab45543fe8a7ec1c051ad6f94
+[2026-09-25 19:13:20.239]: Debug: uniqueid -- 0123456789ABCDEF
+[2026-09-25 19:13:20.239]: Debug:  [--] 
+[2026-09-25 19:13:20.244]: Debug: /CN=NVIDIA GameStream Client -- verified
+[2026-09-25 19:13:20.244]: Debug: TUNNEL :: HTTPS
+[2026-09-25 19:13:20.244]: Debug: METHOD :: GET
+[2026-09-25 19:13:20.244]: Debug: DESTINATION :: /serverinfo
+[2026-09-25 19:13:20.244]: Debug: User-Agent -- Mozilla/5.0
+[2026-09-25 19:13:20.244]: Debug: Accept-Language -- de-DE,en,*
+[2026-09-25 19:13:20.244]: Debug: Accept-Encoding -- zstd, br, gzip, deflate
+[2026-09-25 19:13:20.244]: Debug: Connection -- Keep-Alive
+[2026-09-25 19:13:20.244]: Debug: Host -- 192.168.103.24:47984
+[2026-09-25 19:13:20.244]: Debug:  [--] 
+[2026-09-25 19:13:20.244]: Debug: uuid -- 03ad4c3c330a4aba86f04b56e4fd7c54
+[2026-09-25 19:13:20.244]: Debug: uniqueid -- 0123456789ABCDEF
+[2026-09-25 19:13:20.244]: Debug:  [--] 
+[2026-09-25 19:13:22.601]: Debug: /CN=NVIDIA GameStream Client -- verified
+[2026-09-25 19:13:22.601]: Debug: TUNNEL :: HTTPS
+[2026-09-25 19:13:22.601]: Debug: METHOD :: GET
+[2026-09-25 19:13:22.601]: Debug: DESTINATION :: /launch
+[2026-09-25 19:13:22.601]: Debug: User-Agent -- Mozilla/5.0
+[2026-09-25 19:13:22.601]: Debug: Accept-Language -- de-DE,en,*
+[2026-09-25 19:13:22.601]: Debug: Accept-Encoding -- zstd, br, gzip, deflate
+[2026-09-25 19:13:22.601]: Debug: Connection -- Keep-Alive
+[2026-09-25 19:13:22.601]: Debug: Host -- 192.168.103.24:47984
+[2026-09-25 19:13:22.601]: Debug:  [--] 
+[2026-09-25 19:13:22.601]: Debug: uniqueid -- 0123456789ABCDEF
+[2026-09-25 19:13:22.601]: Debug: additionalStates -- 1
+[2026-09-25 19:13:22.601]: Debug: uuid -- f434471dda574496a8b5d6221d74534b
+[2026-09-25 19:13:22.601]: Debug: appid -- 958645192
+[2026-09-25 19:13:22.601]: Debug: mode -- 1920x1080x60
+[2026-09-25 19:13:22.601]: Debug: sops -- 1
+[2026-09-25 19:13:22.601]: Debug: rikey -- c1ba5b169221503b957bb57fae225582
+[2026-09-25 19:13:22.601]: Debug: surroundAudioInfo -- 196610
+[2026-09-25 19:13:22.601]: Debug: rikeyid -- -706736406
+[2026-09-25 19:13:22.601]: Debug: remoteControllersBitmap -- 0
+[2026-09-25 19:13:22.601]: Debug: corever -- 1
+[2026-09-25 19:13:22.601]: Debug: gcmap -- 0
+[2026-09-25 19:13:22.601]: Debug: localAudioPlayMode -- 0
+[2026-09-25 19:13:22.601]: Debug: gcpersist -- 0
+[2026-09-25 19:13:22.601]: Debug:  [--] 
+[2026-09-25 19:13:22.601]: Info: Trying encoder [nvenc]
+[2026-09-25 19:13:22.601]: Info: Screencasting with KMS
+[2026-09-25 19:13:22.601]: Info: /dev/dri/card0 -> nvidia-drm
+[2026-09-25 19:13:22.601]: Debug: Opening render node: /dev/dri/renderD128
+[2026-09-25 19:13:22.601]: Info: Found monitor for DRM screencasting
+[2026-09-25 19:13:22.601]: Debug: crtc(0, 0)
+[2026-09-25 19:13:22.601]: Debug: crtc(1920, 1080)
+[2026-09-25 19:13:22.601]: Debug: plane->possible_crtcs == 1
+[2026-09-25 19:13:22.601]: Debug: x(0) y(0) crtc_x(0) crtc_y(0) crtc_id(66)
+[2026-09-25 19:13:22.601]: Debug: Resolution: 1920x1080: Pitch: 7680: Offset: 0
+[2026-09-25 19:13:22.601]: Debug: Format [AR15, XR15, RG16, AR24, XR24, AB30, XB30, AB24, XB24, AB4H, AB48, YUYV, UYVY, NV42, NV24, NV61, NV16, NV21, NV12, P210, P010, P012, XB4H]
+[2026-09-25 19:13:22.601]: Info: Found connector ID [132]
+[2026-09-25 19:13:22.601]: Info: Found cursor plane [60]
+[2026-09-25 19:13:22.601]: Info: Creating encoder [h264_nvenc]
+[2026-09-25 19:13:22.601]: Info: Color coding: SDR (Rec. 601)
+[2026-09-25 19:13:22.601]: Info: Color depth: 8-bit
+[2026-09-25 19:13:22.601]: Info: Color range: JPEG
+[2026-09-25 19:13:22.601]: Debug: Found CUDA device with PCI bus ID: 0000:00:06.0
+[2026-09-25 19:13:22.601]: Debug: Found DRM primary node: card0
+[2026-09-25 19:13:22.602]: Debug: EGL: [NVIDIA]: version [1.5]
+[2026-09-25 19:13:22.602]: Debug: API's supported: [OpenGL_ES OpenGL]
+[2026-09-25 19:13:22.602]: Debug: EGL: High priority context supported
+[2026-09-25 19:13:22.603]: Info: EGL: context priority set to HIGH
+[2026-09-25 19:13:22.811]: Debug: GL: vendor: NVIDIA Corporation
+[2026-09-25 19:13:22.811]: Debug: GL: renderer: Leandro VFIO RTX 2070-3G/PCIe/SSE2
+[2026-09-25 19:13:22.811]: Debug: GL: version: 4.6.0 NVIDIA 615.71.09
+[2026-09-25 19:13:22.811]: Debug: GL: shader: 4.60 NVIDIA
+[2026-09-25 19:13:22.812]: Info: Streaming bitrate is 1000000
+[2026-09-25 19:13:22.812]: Debug: [h264_nvenc @ 0x711a144016c0] Loaded Nvenc version 13.1
+[2026-09-25 19:13:22.812]: Debug: [h264_nvenc @ 0x711a144016c0] Nvenc initialized successfully
+[2026-09-25 19:13:22.969]: Debug: TUNNEL :: NONE
+[2026-09-25 19:13:22.969]: Debug: METHOD :: GET
+[2026-09-25 19:13:22.969]: Debug: DESTINATION :: /serverinfo
+[2026-09-25 19:13:22.969]: Debug: User-Agent -- Mozilla/5.0
+[2026-09-25 19:13:22.969]: Debug: Accept-Language -- de-DE,en,*
+[2026-09-25 19:13:22.969]: Debug: Accept-Encoding -- zstd, br, gzip, deflate
+[2026-09-25 19:13:22.970]: Debug: Connection -- Keep-Alive
+[2026-09-25 19:13:22.970]: Debug: Host -- 192.168.103.24:47989
+[2026-09-25 19:13:22.970]: Debug:  [--] 
+[2026-09-25 19:13:22.970]: Debug: uuid -- 2d242a637c024a13a011783e4edeaa0a
+[2026-09-25 19:13:22.970]: Debug: uniqueid -- 0123456789ABCDEF
+[2026-09-25 19:13:22.970]: Debug:  [--] 
+[2026-09-25 19:13:23.249]: Debug: TUNNEL :: NONE
+[2026-09-25 19:13:23.249]: Debug: METHOD :: GET
+[2026-09-25 19:13:23.249]: Debug: DESTINATION :: /serverinfo
+[2026-09-25 19:13:23.249]: Debug: User-Agent -- Mozilla/5.0
+[2026-09-25 19:13:23.249]: Debug: Accept-Language -- de-DE,en,*
+[2026-09-25 19:13:23.249]: Debug: Accept-Encoding -- zstd, br, gzip, deflate
+[2026-09-25 19:13:23.249]: Debug: Connection -- Keep-Alive
+[2026-09-25 19:13:23.249]: Debug: Host -- 192.168.103.24:47989
+[2026-09-25 19:13:23.250]: Debug:  [--] 
+[2026-09-25 19:13:23.250]: Debug: uuid -- 6245026f33a44fa7aa9c40f2a42d9264
+[2026-09-25 19:13:23.250]: Debug: uniqueid -- 0123456789ABCDEF
+[2026-09-25 19:13:23.250]: Debug:  [--] 
+[2026-09-25 19:13:23.450]: Debug: Frame 1: IDR Keyframe (AV_FRAME_FLAG_KEY)
+[2026-09-25 19:13:23.713]: Debug: [h264_nvenc @ 0x711a144016c0] Nvenc unloaded
+[2026-09-25 19:13:23.789]: Info: Creating encoder [hevc_nvenc]
+[2026-09-25 19:13:23.789]: Info: Color coding: SDR (Rec. 601)
+[2026-09-25 19:13:23.789]: Info: Color depth: 8-bit
+[2026-09-25 19:13:23.789]: Info: Color range: JPEG
+[2026-09-25 19:13:23.789]: Debug: Found CUDA device with PCI bus ID: 0000:00:06.0
+[2026-09-25 19:13:23.789]: Debug: Found DRM primary node: card0
+[2026-09-25 19:13:23.790]: Debug: EGL: [NVIDIA]: version [1.5]
+[2026-09-25 19:13:23.790]: Debug: API's supported: [OpenGL_ES OpenGL]
+[2026-09-25 19:13:23.790]: Debug: EGL: High priority context supported
+[2026-09-25 19:13:23.790]: Info: EGL: context priority set to HIGH
+[2026-09-25 19:13:23.793]: Debug: GL: vendor: NVIDIA Corporation
+[2026-09-25 19:13:23.793]: Debug: GL: renderer: Leandro VFIO RTX 2070-3G/PCIe/SSE2
+[2026-09-25 19:13:23.793]: Debug: GL: version: 4.6.0 NVIDIA 615.71.09
+[2026-09-25 19:13:23.793]: Debug: GL: shader: 4.60 NVIDIA
+[2026-09-25 19:13:23.794]: Info: Streaming bitrate is 1000000
+[2026-09-25 19:13:23.794]: Debug: [hevc_nvenc @ 0x711a144016c0] Loaded Nvenc version 13.1
+[2026-09-25 19:13:23.794]: Debug: [hevc_nvenc @ 0x711a144016c0] Nvenc initialized successfully
+[2026-09-25 19:13:24.198]: Debug: Frame 1: IDR Keyframe (AV_FRAME_FLAG_KEY)
+[2026-09-25 19:13:24.377]: Debug: [hevc_nvenc @ 0x711a144016c0] Nvenc unloaded
+[2026-09-25 19:13:24.424]: Info: Creating encoder [av1_nvenc]
+[2026-09-25 19:13:24.424]: Info: Color coding: SDR (Rec. 601)
+[2026-09-25 19:13:24.424]: Info: Color depth: 8-bit
+[2026-09-25 19:13:24.424]: Info: Color range: JPEG
+[2026-09-25 19:13:24.424]: Debug: Found CUDA device with PCI bus ID: 0000:00:06.0
+[2026-09-25 19:13:24.424]: Debug: Found DRM primary node: card0
+[2026-09-25 19:13:24.425]: Debug: EGL: [NVIDIA]: version [1.5]
+[2026-09-25 19:13:24.425]: Debug: API's supported: [OpenGL_ES OpenGL]
+[2026-09-25 19:13:24.425]: Debug: EGL: High priority context supported
+[2026-09-25 19:13:24.425]: Info: EGL: context priority set to HIGH
+[2026-09-25 19:13:24.431]: Debug: GL: vendor: NVIDIA Corporation
+[2026-09-25 19:13:24.431]: Debug: GL: renderer: Leandro VFIO RTX 2070-3G/PCIe/SSE2
+[2026-09-25 19:13:24.431]: Debug: GL: version: 4.6.0 NVIDIA 615.71.09
+[2026-09-25 19:13:24.431]: Debug: GL: shader: 4.60 NVIDIA
+[2026-09-25 19:13:24.431]: Info: Streaming bitrate is 1000000
+[2026-09-25 19:13:24.432]: Debug: [av1_nvenc @ 0x711a144016c0] Loaded Nvenc version 13.1
+[2026-09-25 19:13:24.432]: Debug: [av1_nvenc @ 0x711a144016c0] Nvenc initialized successfully
+[2026-09-25 19:13:24.470]: Warning: [av1_nvenc @ 0x711a144016c0] Codec not supported
+[2026-09-25 19:13:24.470]: Error: [av1_nvenc @ 0x711a144016c0] Provided device doesn't support required NVENC features
+[2026-09-25 19:13:24.487]: Debug: [av1_nvenc @ 0x711a144016c0] Nvenc unloaded
+[2026-09-25 19:13:24.487]: Error: Could not open codec [av1_nvenc]: Function not implemented
+[2026-09-25 19:13:24.503]: Info: Screencasting with KMS
+[2026-09-25 19:13:24.503]: Info: /dev/dri/card0 -> nvidia-drm
+[2026-09-25 19:13:24.503]: Debug: Opening render node: /dev/dri/renderD128
+[2026-09-25 19:13:24.503]: Info: Found monitor for DRM screencasting
+[2026-09-25 19:13:24.503]: Debug: crtc(0, 0)
+[2026-09-25 19:13:24.503]: Debug: crtc(1920, 1080)
+[2026-09-25 19:13:24.503]: Debug: plane->possible_crtcs == 1
+[2026-09-25 19:13:24.503]: Debug: x(0) y(0) crtc_x(0) crtc_y(0) crtc_id(66)
+[2026-09-25 19:13:24.504]: Debug: Resolution: 1920x1080: Pitch: 7680: Offset: 0
+[2026-09-25 19:13:24.504]: Debug: Format [AR15, XR15, RG16, AR24, XR24, AB30, XB30, AB24, XB24, AB4H, AB48, YUYV, UYVY, NV42, NV24, NV61, NV16, NV21, NV12, P210, P010, P012, XB4H]
+[2026-09-25 19:13:24.504]: Info: Found connector ID [132]
+[2026-09-25 19:13:24.504]: Info: Found cursor plane [60]
+[2026-09-25 19:13:24.504]: Info: Creating encoder [hevc_nvenc]
+[2026-09-25 19:13:24.504]: Info: Color coding: SDR (Rec. 709)
+[2026-09-25 19:13:24.504]: Info: Color depth: 10-bit
+[2026-09-25 19:13:24.504]: Info: Color range: JPEG
+[2026-09-25 19:13:24.504]: Debug: Found CUDA device with PCI bus ID: 0000:00:06.0
+[2026-09-25 19:13:24.504]: Debug: Found DRM primary node: card0
+[2026-09-25 19:13:24.507]: Debug: EGL: [NVIDIA]: version [1.5]
+[2026-09-25 19:13:24.507]: Debug: API's supported: [OpenGL_ES OpenGL]
+[2026-09-25 19:13:24.507]: Debug: EGL: High priority context supported
+[2026-09-25 19:13:24.508]: Info: EGL: context priority set to HIGH
+[2026-09-25 19:13:24.515]: Debug: GL: vendor: NVIDIA Corporation
+[2026-09-25 19:13:24.515]: Debug: GL: renderer: Leandro VFIO RTX 2070-3G/PCIe/SSE2
+[2026-09-25 19:13:24.515]: Debug: GL: version: 4.6.0 NVIDIA 615.71.09
+[2026-09-25 19:13:24.515]: Debug: GL: shader: 4.60 NVIDIA
+[2026-09-25 19:13:24.515]: Info: Streaming bitrate is 1000000
+[2026-09-25 19:13:24.516]: Debug: [hevc_nvenc @ 0x711a144016c0] Loaded Nvenc version 13.1
+[2026-09-25 19:13:24.516]: Debug: [hevc_nvenc @ 0x711a144016c0] Nvenc initialized successfully
+[2026-09-25 19:13:25.400]: Debug: Frame 1: IDR Keyframe (AV_FRAME_FLAG_KEY)
+[2026-09-25 19:13:25.637]: Debug: [hevc_nvenc @ 0x711a144016c0] Nvenc unloaded
+[2026-09-25 19:13:25.675]: Info: // Testing for available encoders, this may generate errors. You can safely ignore those errors. //
+[2026-09-25 19:13:25.675]: Info: 
+[2026-09-25 19:13:25.675]: Info: // Ignore any errors mentioned above, they are not relevant. //
+[2026-09-25 19:13:25.675]: Info: 
+[2026-09-25 19:13:25.675]: Debug: ------  h264 ------
+[2026-09-25 19:13:25.675]: Debug: PASSED: supported
+[2026-09-25 19:13:25.675]: Debug: REF_FRAMES_RESTRICT: supported
+[2026-09-25 19:13:25.675]: Debug: DYNAMIC_RANGE: unsupported
+[2026-09-25 19:13:25.675]: Debug: YUV444: unsupported
+[2026-09-25 19:13:25.675]: Debug: VUI_PARAMETERS: supported
+[2026-09-25 19:13:25.675]: Debug: -------------------
+[2026-09-25 19:13:25.675]: Info: Found H.264 encoder: h264_nvenc [nvenc]
+[2026-09-25 19:13:25.675]: Debug: ------  hevc ------
+[2026-09-25 19:13:25.675]: Debug: PASSED: supported
+[2026-09-25 19:13:25.675]: Debug: REF_FRAMES_RESTRICT: supported
+[2026-09-25 19:13:25.675]: Debug: DYNAMIC_RANGE: supported
+[2026-09-25 19:13:25.675]: Debug: YUV444: unsupported
+[2026-09-25 19:13:25.675]: Debug: VUI_PARAMETERS: supported
+[2026-09-25 19:13:25.675]: Debug: -------------------
+[2026-09-25 19:13:25.675]: Info: Found HEVC encoder: hevc_nvenc [nvenc]
+[2026-09-25 19:13:25.675]: Info: Executing [Desktop]
+[2026-09-25 19:13:25.677]: Debug: handle_read_encrypted_header(): Handle read of size: 24 bytes
+[2026-09-25 19:13:25.677]: Debug: handle_read_encrypted(): Handle read of size: 106 bytes
+[2026-09-25 19:13:25.677]: Debug: type [REQUEST]
+[2026-09-25 19:13:25.677]: Debug: sequence number [1]
+[2026-09-25 19:13:25.677]: Debug: protocol :: RTSP/1.0
+[2026-09-25 19:13:25.677]: Debug: payload :: 
+[2026-09-25 19:13:25.677]: Debug: command :: OPTIONS
+[2026-09-25 19:13:25.677]: Debug: target :: rtspenc://192.168.103.24:48010
+[2026-09-25 19:13:25.677]: Debug: CSeq :: 1
+[2026-09-25 19:13:25.677]: Debug: X-GS-ClientVersion :: 14
+[2026-09-25 19:13:25.677]: Debug: Host :: 192.168.103.24
+[2026-09-25 19:13:25.677]: Debug: ---Begin MessageBuffer---
+OPTIONS
+---End MessageBuffer---
+[2026-09-25 19:13:25.677]: Debug: ---Begin Response---
+RTSP/1.0 200 OK
+CSeq: 1
+
+
+
+---End Response---
+[2026-09-25 19:13:25.677]: Debug: handle_read_encrypted_header(): Handle read of size: 24 bytes
+[2026-09-25 19:13:25.677]: Debug: handle_read_encrypted(): Handle read of size: 182 bytes
+[2026-09-25 19:13:25.677]: Debug: type [REQUEST]
+[2026-09-25 19:13:25.677]: Debug: sequence number [2]
+[2026-09-25 19:13:25.677]: Debug: protocol :: RTSP/1.0
+[2026-09-25 19:13:25.677]: Debug: payload :: 
+[2026-09-25 19:13:25.677]: Debug: command :: DESCRIBE
+[2026-09-25 19:13:25.677]: Debug: target :: rtspenc://192.168.103.24:48010
+[2026-09-25 19:13:25.677]: Debug: CSeq :: 2
+[2026-09-25 19:13:25.677]: Debug: X-GS-ClientVersion :: 14
+[2026-09-25 19:13:25.677]: Debug: Host :: 192.168.103.24
+[2026-09-25 19:13:25.677]: Debug: Accept :: application/sdp
+[2026-09-25 19:13:25.677]: Debug: If-Modified-Since :: Thu, 01 Jan 1970 00:00:00 GMT
+[2026-09-25 19:13:25.677]: Debug: ---Begin MessageBuffer---
+DESCRIBE
+---End MessageBuffer---
+[2026-09-25 19:13:25.677]: Debug: ---Begin Response---
+RTSP/1.0 200 OK
+CSeq: 2
+
+
+a=x-ss-general.featureFlags:3
+a=x-ss-general.encryptionSupported:5
+a=x-ss-general.encryptionRequested:1
+sprop-parameter-sets=AAAAAU
+a=fmtp:97 surround-params=21101
+a=fmtp:97 surround-params=21101
+a=fmtp:97 surround-params=642012453
+a=fmtp:97 surround-params=660012345
+a=fmtp:97 surround-params=85301245367
+a=fmtp:97 surround-params=88001234567
+
+---End Response---
+[2026-09-25 19:13:25.678]: Debug: handle_read_encrypted_header(): Handle read of size: 24 bytes
+[2026-09-25 19:13:25.678]: Debug: handle_read_encrypted(): Handle read of size: 190 bytes
+[2026-09-25 19:13:25.678]: Debug: type [REQUEST]
+[2026-09-25 19:13:25.678]: Debug: sequence number [3]
+[2026-09-25 19:13:25.678]: Debug: protocol :: RTSP/1.0
+[2026-09-25 19:13:25.678]: Debug: payload :: 
+[2026-09-25 19:13:25.678]: Debug: command :: SETUP
+[2026-09-25 19:13:25.678]: Debug: target :: streamid=audio/0/0
+[2026-09-25 19:13:25.678]: Debug: CSeq :: 3
+[2026-09-25 19:13:25.678]: Debug: X-GS-ClientVersion :: 14
+[2026-09-25 19:13:25.678]: Debug: Host :: 192.168.103.24
+[2026-09-25 19:13:25.678]: Debug: Transport :: unicast;X-GS-ClientPort=50000-50001
+[2026-09-25 19:13:25.678]: Debug: If-Modified-Since :: Thu, 01 Jan 1970 00:00:00 GMT
+[2026-09-25 19:13:25.678]: Debug: ---Begin MessageBuffer---
+SETUP
+---End MessageBuffer---
+[2026-09-25 19:13:25.678]: Debug: ---Begin Response---
+RTSP/1.0 200 OK
+CSeq: 3
+Session: DEADBEEFCAFE;timeout = 90
+Transport: server_port=48000
+X-SS-Ping-Payload: BE6FBC0454F4B08A
+
+
+
+---End Response---
+[2026-09-25 19:13:25.678]: Debug: handle_read_encrypted_header(): Handle read of size: 24 bytes
+[2026-09-25 19:13:25.678]: Debug: handle_read_encrypted(): Handle read of size: 213 bytes
+[2026-09-25 19:13:25.678]: Debug: type [REQUEST]
+[2026-09-25 19:13:25.678]: Debug: sequence number [4]
+[2026-09-25 19:13:25.678]: Debug: protocol :: RTSP/1.0
+[2026-09-25 19:13:25.678]: Debug: payload :: 
+[2026-09-25 19:13:25.678]: Debug: command :: SETUP
+[2026-09-25 19:13:25.678]: Debug: target :: streamid=video/0/0
+[2026-09-25 19:13:25.678]: Debug: CSeq :: 4
+[2026-09-25 19:13:25.678]: Debug: X-GS-ClientVersion :: 14
+[2026-09-25 19:13:25.678]: Debug: Host :: 192.168.103.24
+[2026-09-25 19:13:25.678]: Debug: Session :: DEADBEEFCAFE
+[2026-09-25 19:13:25.678]: Debug: Transport :: unicast;X-GS-ClientPort=50000-50001
+[2026-09-25 19:13:25.678]: Debug: If-Modified-Since :: Thu, 01 Jan 1970 00:00:00 GMT
+[2026-09-25 19:13:25.678]: Debug: ---Begin MessageBuffer---
+SETUP
+---End MessageBuffer---
+[2026-09-25 19:13:25.678]: Debug: ---Begin Response---
+RTSP/1.0 200 OK
+CSeq: 4
+Session: DEADBEEFCAFE;timeout = 90
+Transport: server_port=47998
+X-SS-Ping-Payload: BE6FBC0454F4B08A
+
+
+
+---End Response---
+[2026-09-25 19:13:25.678]: Debug: handle_read_encrypted_header(): Handle read of size: 24 bytes
+[2026-09-25 19:13:25.678]: Debug: handle_read_encrypted(): Handle read of size: 216 bytes
+[2026-09-25 19:13:25.678]: Debug: type [REQUEST]
+[2026-09-25 19:13:25.678]: Debug: sequence number [5]
+[2026-09-25 19:13:25.678]: Debug: protocol :: RTSP/1.0
+[2026-09-25 19:13:25.678]: Debug: payload :: 
+[2026-09-25 19:13:25.678]: Debug: command :: SETUP
+[2026-09-25 19:13:25.678]: Debug: target :: streamid=control/13/0
+[2026-09-25 19:13:25.678]: Debug: CSeq :: 5
+[2026-09-25 19:13:25.678]: Debug: X-GS-ClientVersion :: 14
+[2026-09-25 19:13:25.678]: Debug: Host :: 192.168.103.24
+[2026-09-25 19:13:25.678]: Debug: Session :: DEADBEEFCAFE
+[2026-09-25 19:13:25.678]: Debug: Transport :: unicast;X-GS-ClientPort=50000-50001
+[2026-09-25 19:13:25.678]: Debug: If-Modified-Since :: Thu, 01 Jan 1970 00:00:00 GMT
+[2026-09-25 19:13:25.678]: Debug: ---Begin MessageBuffer---
+SETUP
+---End MessageBuffer---
+[2026-09-25 19:13:25.678]: Debug: ---Begin Response---
+RTSP/1.0 200 OK
+CSeq: 5
+Session: DEADBEEFCAFE;timeout = 90
+Transport: server_port=47999
+X-SS-Connect-Data: 1750956367
+
+
+
+---End Response---
+[2026-09-25 19:13:25.678]: Debug: handle_read_encrypted_header(): Handle read of size: 24 bytes
+[2026-09-25 19:13:25.678]: Debug: handle_read_encrypted(): Handle read of size: 1673 bytes
+[2026-09-25 19:13:25.678]: Debug: type [REQUEST]
+[2026-09-25 19:13:25.678]: Debug: sequence number [6]
+[2026-09-25 19:13:25.678]: Debug: protocol :: RTSP/1.0
+[2026-09-25 19:13:25.678]: Debug: payload :: v=0
+o=android 0 14 IN IPv4 192.168.103.24
+s=NVIDIA Streaming Client
+a=x-ml-general.featureFlags:3 
+a=x-ss-general.encryptionEnabled:5 
+a=x-ss-video[0].chromaSamplingType:0 
+a=x-nv-video[0].clientViewportWd:1920 
+a=x-nv-video[0].clientViewportHt:1080 
+a=x-nv-video[0].maxFPS:60 
+a=x-nv-video[0].packetSize:1392 
+a=x-nv-video[0].rateControlMode:4 
+a=x-nv-video[0].timeoutLengthMs:7000 
+a=x-nv-video[0].framesWithInvalidRefThreshold:0 
+a=x-nv-video[0].initialBitrateKbps:16000 
+a=x-nv-video[0].initialPeakBitrateKbps:16000 
+a=x-nv-vqos[0].bw.minimumBitrateKbps:16000 
+a=x-nv-vqos[0].bw.maximumBitrateKbps:16000 
+a=x-ml-video.configuredBitrateKbps:20000 
+a=x-nv-vqos[0].fec.enable:1 
+a=x-nv-vqos[0].videoQualityScoreUpdateTime:5000 
+a=x-nv-vqos[0].qosTrafficType:5 
+a=x-nv-aqos.qosTrafficType:4 
+a=x-nv-general.featureFlags:167 
+a=x-nv-general.useReliableUdp:13 
+a=x-nv-vqos[0].fec.minRequiredFecPackets:2 
+a=x-nv-vqos[0].bllFec.enable:0 
+a=x-nv-vqos[0].drc.enable:0 
+a=x-nv-general.enableRecoveryMode:0 
+a=x-nv-video[0].videoEncoderSlicesPerFrame:4 
+a=x-nv-clientSupportHevc:0 
+a=x-nv-vqos[0].bitStreamFormat:0 
+a=x-nv-video[0].dynamicRangeMode:0 
+a=x-nv-video[0].maxNumReferenceFrames:1 
+a=x-nv-video[0].clientRefreshRateX100:0 
+a=x-nv-audio.surround.numChannels:2 
+a=x-nv-audio.surround.channelMask:3 
+a=x-nv-audio.surround.enable:0 
+a=x-nv-audio.surround.AudioQuality:0 
+a=x-nv-aqos.packetDuration:5 
+a=x-nv-video[0].encoderCscMode:3 
+t=0 0
+m=video 47998  
+[2026-09-25 19:13:25.678]: Debug: command :: ANNOUNCE
+[2026-09-25 19:13:25.678]: Debug: target :: streamid=control/13/0
+[2026-09-25 19:13:25.678]: Debug: CSeq :: 6
+[2026-09-25 19:13:25.678]: Debug: X-GS-ClientVersion :: 14
+[2026-09-25 19:13:25.678]: Debug: Host :: 192.168.103.24
+[2026-09-25 19:13:25.678]: Debug: Session :: DEADBEEFCAFE
+[2026-09-25 19:13:25.678]: Debug: Content-type :: application/sdp
+[2026-09-25 19:13:25.678]: Debug: Content-length :: 1499
+[2026-09-25 19:13:25.678]: Debug: ---Begin MessageBuffer---
+ANNOUNCE
+---End MessageBuffer---
+[2026-09-25 19:13:25.678]: Debug: Found Host: 192.168.103.24
+[2026-09-25 19:13:25.678]: Debug: Client configured bitrate is 20000 Kbps
+[2026-09-25 19:13:25.678]: Debug: Final adjusted video encoding bitrate is 14988 Kbps
+[2026-09-25 19:13:25.678]: Info: New streaming session started [active sessions: 1]
+[2026-09-25 19:13:25.680]: Debug: Expecting incoming session connections from 192.168.103.1
+[2026-09-25 19:13:25.684]: Debug: RTKit: Could not set priority: GDBus.Error:org.freedesktop.DBus.Error.AccessDenied: Operation not permitted
+[2026-09-25 19:13:25.684]: Warning: setpriority failed for nice -10: Permission denied
+[2026-09-25 19:13:25.687]: Debug: RTKit: Could not set priority: GDBus.Error:org.freedesktop.DBus.Error.AccessDenied: Operation not permitted
+[2026-09-25 19:13:25.687]: Warning: setpriority failed for nice -10: Permission denied
+[2026-09-25 19:13:25.689]: Debug: RTKit: Could not set priority: GDBus.Error:org.freedesktop.DBus.Error.AccessDenied: Operation not permitted
+[2026-09-25 19:13:25.689]: Warning: setpriority failed for nice -15: Permission denied
+[2026-09-25 19:13:25.713]: Debug: ---Begin Response---
+RTSP/1.0 200 OK
+CSeq: 6
+
+
+
+---End Response---
+[2026-09-25 19:13:25.716]: Debug: handle_read_encrypted_header(): Handle read of size: 24 bytes
+[2026-09-25 19:13:25.716]: Debug: handle_read_encrypted(): Handle read of size: 97 bytes
+[2026-09-25 19:13:25.716]: Debug: type [REQUEST]
+[2026-09-25 19:13:25.716]: Debug: sequence number [7]
+[2026-09-25 19:13:25.716]: Debug: protocol :: RTSP/1.0
+[2026-09-25 19:13:25.716]: Debug: payload :: 
+[2026-09-25 19:13:25.716]: Debug: command :: PLAY
+[2026-09-25 19:13:25.716]: Debug: target :: /
+[2026-09-25 19:13:25.716]: Debug: CSeq :: 7
+[2026-09-25 19:13:25.716]: Debug: X-GS-ClientVersion :: 14
+[2026-09-25 19:13:25.716]: Debug: Host :: 192.168.103.24
+[2026-09-25 19:13:25.716]: Debug: Session :: DEADBEEFCAFE
+[2026-09-25 19:13:25.716]: Debug: ---Begin MessageBuffer---
+PLAY
+---End MessageBuffer---
+[2026-09-25 19:13:25.716]: Debug: ---Begin Response---
+RTSP/1.0 200 OK
+CSeq: 7
+
+
+
+---End Response---
+[2026-09-25 19:13:25.716]: Debug: Initialized new control stream session by connect data match [v2]
+[2026-09-25 19:13:25.716]: Debug: Control local address [192.168.103.24]
+[2026-09-25 19:13:25.716]: Debug: Control peer address [192.168.103.1:8937]
+[2026-09-25 19:13:25.716]: Info: CLIENT CONNECTED
+[2026-09-25 19:13:25.716]: Debug: type [IDX_REQUEST_IDR_FRAME]
+[2026-09-25 19:13:25.716]: Debug: type [IDX_START_B]
+[2026-09-25 19:13:25.717]: Debug: RAISE: 192.168.103.1:57814 :: VIDEO
+[2026-09-25 19:13:25.717]: Debug: Received ping [v2] from 192.168.103.1:57814 [0100000041383042344634353430434246364542]
+[2026-09-25 19:13:25.717]: Debug: Start capturing Video
+[2026-09-25 19:13:25.717]: Info: /dev/dri/card0 -> nvidia-drm
+[2026-09-25 19:13:25.717]: Debug: Opening render node: /dev/dri/renderD128
+[2026-09-25 19:13:25.717]: Debug: crtc(0, 0)
+[2026-09-25 19:13:25.717]: Debug: crtc(1920, 1080)
+[2026-09-25 19:13:25.717]: Debug: plane->possible_crtcs == 1
+[2026-09-25 19:13:25.717]: Debug: x(0) y(0) crtc_x(0) crtc_y(0) crtc_id(66)
+[2026-09-25 19:13:25.717]: Debug: Resolution: 1920x1080: Pitch: 7680: Offset: 0
+[2026-09-25 19:13:25.717]: Debug: Format [AR15, XR15, RG16, AR24, XR24, AB30, XB30, AB24, XB24, AB4H, AB48, YUYV, UYVY, NV42, NV24, NV61, NV16, NV21, NV12, P210, P010, P012, XB4H]
+[2026-09-25 19:13:25.717]: Info: [wayland] Found display [wayland-0]
+[2026-09-25 19:13:25.720]: Debug: RTKit: Could not set priority: GDBus.Error:org.freedesktop.DBus.Error.AccessDenied: Operation not permitted
+[2026-09-25 19:13:25.720]: Warning: setpriority failed for nice -10: Permission denied
+[2026-09-25 19:13:25.730]: Debug: [wayland] Available interface: wl_compositor(1) version 6
+[2026-09-25 19:13:25.730]: Debug: [wayland] Available interface: wl_eglstream_display(2) version 1
+[2026-09-25 19:13:25.730]: Debug: [wayland] Available interface: wl_drm(3) version 2
+[2026-09-25 19:13:25.730]: Debug: [wayland] Available interface: wl_shm(4) version 1
+[2026-09-25 19:13:25.730]: Debug: [wayland] Available interface: wl_output(5) version 4
+[2026-09-25 19:13:25.730]: Info: [wayland] Found interface: wl_output(5) version 4
+[2026-09-25 19:13:25.730]: Debug: [wayland] Available interface: zxdg_output_manager_v1(6) version 3
+[2026-09-25 19:13:25.730]: Info: [wayland] Found interface: zxdg_output_manager_v1(6) version 3
+[2026-09-25 19:13:25.730]: Debug: [wayland] Available interface: wl_data_device_manager(7) version 3
+[2026-09-25 19:13:25.730]: Debug: [wayland] Available interface: zwp_primary_selection_device_manager_v1(8) version 1
+[2026-09-25 19:13:25.730]: Debug: [wayland] Available interface: wl_subcompositor(9) version 1
+[2026-09-25 19:13:25.730]: Debug: [wayland] Available interface: xdg_wm_base(10) version 6
+[2026-09-25 19:13:25.730]: Debug: [wayland] Available interface: gtk_shell1(11) version 5
+[2026-09-25 19:13:25.730]: Debug: [wayland] Available interface: wp_viewporter(12) version 1
+[2026-09-25 19:13:25.730]: Debug: [wayland] Available interface: wp_fractional_scale_manager_v1(13) version 1
+[2026-09-25 19:13:25.730]: Debug: [wayland] Available interface: zwp_pointer_gestures_v1(14) version 3
+[2026-09-25 19:13:25.730]: Debug: [wayland] Available interface: zwp_tablet_manager_v2(15) version 1
+[2026-09-25 19:13:25.730]: Debug: [wayland] Available interface: wl_seat(16) version 8
+[2026-09-25 19:13:25.730]: Debug: [wayland] Available interface: zwp_relative_pointer_manager_v1(17) version 1
+[2026-09-25 19:13:25.730]: Debug: [wayland] Available interface: zwp_pointer_constraints_v1(18) version 1
+[2026-09-25 19:13:25.730]: Debug: [wayland] Available interface: zxdg_exporter_v2(19) version 1
+[2026-09-25 19:13:25.730]: Debug: [wayland] Available interface: zxdg_importer_v2(20) version 1
+[2026-09-25 19:13:25.730]: Debug: [wayland] Available interface: zxdg_exporter_v1(21) version 1
+[2026-09-25 19:13:25.730]: Debug: [wayland] Available interface: zxdg_importer_v1(22) version 1
+[2026-09-25 19:13:25.730]: Debug: [wayland] Available interface: zwp_linux_dmabuf_v1(23) version 5
+[2026-09-25 19:13:25.730]: Info: [wayland] Found interface: zwp_linux_dmabuf_v1(23) version 5
+[2026-09-25 19:13:25.730]: Debug: [wayland] Available interface: wp_single_pixel_buffer_manager_v1(24) version 1
+[2026-09-25 19:13:25.730]: Debug: [wayland] Available interface: zwp_keyboard_shortcuts_inhibit_manager_v1(25) version 1
+[2026-09-25 19:13:25.730]: Debug: [wayland] Available interface: zwp_text_input_manager_v3(26) version 1
+[2026-09-25 19:13:25.730]: Debug: [wayland] Available interface: wp_presentation(27) version 1
+[2026-09-25 19:13:25.730]: Debug: [wayland] Available interface: xdg_activation_v1(28) version 1
+[2026-09-25 19:13:25.730]: Debug: [wayland] Available interface: zwp_idle_inhibit_manager_v1(29) version 1
+[2026-09-25 19:13:25.731]: Debug: --begin relative mouse move packet--
+deltaX [1]
+deltaY [1]
+--end relative mouse move packet--
+[2026-09-25 19:13:25.741]: Debug: --begin relative mouse move packet--
+deltaX [-1]
+deltaY [-1]
+--end relative mouse move packet--
+[2026-09-25 19:13:26.024]: Info: [wayland] Resolution: 1920x1080
+[2026-09-25 19:13:26.024]: Info: [wayland] Offset: 0x0
+[2026-09-25 19:13:26.024]: Info: [wayland] Logical size: 1920x1080
+[2026-09-25 19:13:26.024]: Info: [wayland] Name: DP-1
+[2026-09-25 19:13:26.024]: Info: [wayland] Found monitor: Cyrix Corporation 24"
+[2026-09-25 19:13:26.024]: Info: -------- Start of KMS monitor list --------
+[2026-09-25 19:13:26.024]: Info: Monitor 0 is DP-1: Cyrix Corporation 24"
+[2026-09-25 19:13:26.024]: Info: --------- End of KMS monitor list ---------
+[2026-09-25 19:13:26.024]: Debug: Monitor description
+[2026-09-25 19:13:26.024]: Debug: Resolution: 1920x1080
+[2026-09-25 19:13:26.024]: Debug: Offset: 0x0
+[2026-09-25 19:13:26.024]: Debug: Desktop resolution: 1920x1080
+[2026-09-25 19:13:26.024]: Info: Screencasting with KMS
+[2026-09-25 19:13:26.024]: Info: /dev/dri/card0 -> nvidia-drm
+[2026-09-25 19:13:26.024]: Debug: Opening render node: /dev/dri/renderD128
+[2026-09-25 19:13:26.024]: Info: Found monitor for DRM screencasting
+[2026-09-25 19:13:26.024]: Debug: crtc(0, 0)
+[2026-09-25 19:13:26.024]: Debug: crtc(1920, 1080)
+[2026-09-25 19:13:26.024]: Debug: plane->possible_crtcs == 1
+[2026-09-25 19:13:26.024]: Debug: x(0) y(0) crtc_x(0) crtc_y(0) crtc_id(66)
+[2026-09-25 19:13:26.024]: Debug: Resolution: 1920x1080: Pitch: 7680: Offset: 0
+[2026-09-25 19:13:26.024]: Debug: Format [AR15, XR15, RG16, AR24, XR24, AB30, XB30, AB24, XB24, AB4H, AB48, YUYV, UYVY, NV42, NV24, NV61, NV16, NV21, NV12, P210, P010, P012, XB4H]
+[2026-09-25 19:13:26.024]: Info: Found connector ID [132]
+[2026-09-25 19:13:26.025]: Info: Found cursor plane [60]
+[2026-09-25 19:13:26.025]: Info: Creating encoder [h264_nvenc]
+[2026-09-25 19:13:26.025]: Info: Color coding: SDR (Rec. 709)
+[2026-09-25 19:13:26.025]: Info: Color depth: 8-bit
+[2026-09-25 19:13:26.025]: Info: Color range: JPEG
+[2026-09-25 19:13:26.025]: Debug: Found CUDA device with PCI bus ID: 0000:00:06.0
+[2026-09-25 19:13:26.025]: Debug: Found DRM primary node: card0
+[2026-09-25 19:13:26.029]: Debug: EGL: [NVIDIA]: version [1.5]
+[2026-09-25 19:13:26.030]: Debug: API's supported: [OpenGL_ES OpenGL]
+[2026-09-25 19:13:26.030]: Debug: EGL: High priority context supported
+[2026-09-25 19:13:26.030]: Info: EGL: context priority set to HIGH
+[2026-09-25 19:13:26.030]: Debug: RTKit: Could not set priority: GDBus.Error:org.freedesktop.DBus.Error.AccessDenied: Operation not permitted
+[2026-09-25 19:13:26.030]: Warning: setpriority failed for nice -15: Permission denied
+[2026-09-25 19:13:26.179]: Debug: RAISE: 192.168.103.1:49441 :: AUDIO
+[2026-09-25 19:13:26.179]: Debug: Received ping [v2] from 192.168.103.1:49441 [0200000041383042344634353430434246364542]
+[2026-09-25 19:13:26.179]: Debug: Start capturing Audio
+[2026-09-25 19:13:26.182]: Debug: Connecting to pulseaudio
+[2026-09-25 19:13:26.197]: Debug: null-sink args: rate=48000 sink_name=sink-sunshine-stereo format=float channels=2 channel_map=front-left,front-right sink_properties=device.description=sink-sunshine-stereo
+[2026-09-25 19:13:26.201]: Debug: null-sink args: rate=48000 sink_name=sink-sunshine-surround51 format=float channels=6 channel_map=front-left,front-right,front-center,lfe,rear-left,rear-right sink_properties=device.description=sink-sunshine-surround51
+[2026-09-25 19:13:26.202]: Debug: null-sink args: rate=48000 sink_name=sink-sunshine-surround71 format=float channels=8 channel_map=front-left,front-right,front-center,lfe,rear-left,rear-right,side-left,side-right sink_properties=device.description=sink-sunshine-surround71
+[2026-09-25 19:13:26.223]: Info: Setting default sink to: [sink-sunshine-stereo]
+[2026-09-25 19:13:26.223]: Info: Found default monitor by name: sink-sunshine-stereo.monitor
+[2026-09-25 19:13:26.253]: Debug: RTKit: Could not set priority: GDBus.Error:org.freedesktop.DBus.Error.AccessDenied: Operation not permitted
+[2026-09-25 19:13:26.253]: Warning: setpriority failed for nice -15: Permission denied
+[2026-09-25 19:13:26.255]: Debug: RTKit: Could not set priority: GDBus.Error:org.freedesktop.DBus.Error.AccessDenied: Operation not permitted
+[2026-09-25 19:13:26.255]: Warning: setpriority failed for nice -10: Permission denied
+[2026-09-25 19:13:26.256]: Info: Opus initialized: 48 kHz, 2 channels, 512 kbps (total), LOWDELAY
+[2026-09-25 19:13:26.921]: Debug: GL: vendor: NVIDIA Corporation
+[2026-09-25 19:13:26.921]: Debug: GL: renderer: Leandro VFIO RTX 2070-3G/PCIe/SSE2
+[2026-09-25 19:13:26.921]: Debug: GL: version: 4.6.0 NVIDIA 615.71.09
+[2026-09-25 19:13:26.921]: Debug: GL: shader: 4.60 NVIDIA
+[2026-09-25 19:13:26.923]: Info: Streaming bitrate is 14988000
+[2026-09-25 19:13:26.923]: Debug: [h264_nvenc @ 0x7119f83c4700] Loaded Nvenc version 13.1
+[2026-09-25 19:13:26.923]: Debug: [h264_nvenc @ 0x7119f83c4700] Nvenc initialized successfully
+[2026-09-25 19:13:27.019]: Debug: Sent HDR mode: false
+[2026-09-25 19:13:27.701]: Info: Minimum FPS target set to ~30fps (33.3333ms)
+[2026-09-25 19:13:28.005]: Debug: Frame 1: IDR Keyframe (AV_FRAME_FLAG_KEY)
+[2026-09-25 19:13:29.160]: Debug: type [IDX_REQUEST_IDR_FRAME]
+[2026-09-25 19:13:29.237]: Debug: Frame 12: IDR Keyframe (AV_FRAME_FLAG_KEY)
+[2026-09-25 19:13:46.064]: Debug: Frame capture sleep overshoot (min/max/avg): 0.02ms/16.66ms/0.30ms
+[2026-09-25 19:13:48.087]: Debug: Frame processing latency (min/max/avg): 28.10ms/224.30ms/74.36ms
+[2026-09-25 19:13:48.087]: Debug: Network: each FEC block latency (min/max/avg): 0.01ms/0.05ms/0.01ms
+[2026-09-25 19:13:48.087]: Debug: Network: each send_batch() latency (min/max/avg): 0.04ms/2.44ms/0.10ms
+[2026-09-25 19:13:48.087]: Debug: Network: frame's overall network latency (min/max/avg): 0.05ms/2.46ms/0.13ms
+[2026-09-25 19:14:06.085]: Debug: Frame capture sleep overshoot (min/max/avg): 0.02ms/13.67ms/0.29ms
+[2026-09-25 19:14:08.094]: Debug: Frame processing latency (min/max/avg): 35.90ms/242.40ms/76.66ms
+[2026-09-25 19:14:08.094]: Debug: Network: each FEC block latency (min/max/avg): 0.01ms/0.06ms/0.01ms
+[2026-09-25 19:14:08.094]: Debug: Network: each send_batch() latency (min/max/avg): 0.03ms/1.55ms/0.07ms
+[2026-09-25 19:14:08.094]: Debug: Network: frame's overall network latency (min/max/avg): 0.05ms/1.58ms/0.09ms
+[2026-09-25 19:14:26.097]: Debug: Frame capture sleep overshoot (min/max/avg): 0.03ms/23.37ms/0.27ms
+[2026-09-25 19:14:28.120]: Debug: Frame processing latency (min/max/avg): 32.60ms/169.00ms/70.87ms
+[2026-09-25 19:14:28.120]: Debug: Network: each FEC block latency (min/max/avg): 0.01ms/1.69ms/0.02ms
+[2026-09-25 19:14:28.120]: Debug: Network: each send_batch() latency (min/max/avg): 0.02ms/1.94ms/0.07ms
+[2026-09-25 19:14:28.120]: Debug: Network: frame's overall network latency (min/max/avg): 0.05ms/1.96ms/0.10ms
+[2026-09-25 19:14:46.114]: Debug: Frame capture sleep overshoot (min/max/avg): 0.02ms/19.25ms/0.40ms
+[2026-09-25 19:14:48.144]: Debug: Frame processing latency (min/max/avg): 40.30ms/260.70ms/86.66ms
+[2026-09-25 19:14:48.144]: Debug: Network: each FEC block latency (min/max/avg): 0.01ms/0.32ms/0.01ms
+[2026-09-25 19:14:48.144]: Debug: Network: each send_batch() latency (min/max/avg): 0.02ms/4.45ms/0.09ms
+[2026-09-25 19:14:48.144]: Debug: Network: frame's overall network latency (min/max/avg): 0.05ms/4.48ms/0.12ms
+[2026-09-25 19:15:06.125]: Debug: Frame capture sleep overshoot (min/max/avg): 0.02ms/35.66ms/0.58ms
+[2026-09-25 19:15:08.173]: Debug: Frame processing latency (min/max/avg): 40.50ms/242.10ms/104.41ms
+[2026-09-25 19:15:08.173]: Debug: Network: each FEC block latency (min/max/avg): 0.01ms/0.02ms/0.01ms
+[2026-09-25 19:15:08.173]: Debug: Network: each send_batch() latency (min/max/avg): 0.04ms/1.87ms/0.08ms
+[2026-09-25 19:15:08.173]: Debug: Network: frame's overall network latency (min/max/avg): 0.05ms/1.90ms/0.10ms
+[2026-09-25 19:15:26.140]: Debug: Frame capture sleep overshoot (min/max/avg): 0.04ms/11.17ms/0.23ms
+[2026-09-25 19:15:28.192]: Debug: Frame processing latency (min/max/avg): 33.30ms/313.40ms/78.11ms
+[2026-09-25 19:15:28.192]: Debug: Network: each FEC block latency (min/max/avg): 0.01ms/0.10ms/0.01ms
+[2026-09-25 19:15:28.192]: Debug: Network: each send_batch() latency (min/max/avg): 0.03ms/2.56ms/0.09ms
+[2026-09-25 19:15:28.192]: Debug: Network: frame's overall network latency (min/max/avg): 0.05ms/2.58ms/0.11ms
+[2026-09-25 19:15:46.157]: Debug: Frame capture sleep overshoot (min/max/avg): 0.04ms/14.04ms/0.27ms
+[2026-09-25 19:15:48.204]: Debug: Frame processing latency (min/max/avg): 35.60ms/250.60ms/78.75ms
+[2026-09-25 19:15:48.204]: Debug: Network: each FEC block latency (min/max/avg): 0.01ms/0.11ms/0.01ms
+[2026-09-25 19:15:48.204]: Debug: Network: each send_batch() latency (min/max/avg): 0.04ms/0.38ms/0.07ms
+[2026-09-25 19:15:48.204]: Debug: Network: frame's overall network latency (min/max/avg): 0.05ms/1.04ms/0.09ms
+[2026-09-25 19:16:06.175]: Debug: Frame capture sleep overshoot (min/max/avg): 0.03ms/24.38ms/0.47ms
+[2026-09-25 19:16:08.270]: Debug: Frame processing latency (min/max/avg): 52.90ms/252.20ms/131.78ms
+[2026-09-25 19:16:08.270]: Debug: Network: each FEC block latency (min/max/avg): 0.01ms/0.04ms/0.01ms
+[2026-09-25 19:16:08.270]: Debug: Network: each send_batch() latency (min/max/avg): 0.02ms/0.38ms/0.07ms
+[2026-09-25 19:16:08.270]: Debug: Network: frame's overall network latency (min/max/avg): 0.04ms/0.41ms/0.09ms
+[2026-09-25 19:16:26.190]: Debug: Frame capture sleep overshoot (min/max/avg): 0.04ms/20.12ms/0.28ms
+[2026-09-25 19:16:28.377]: Debug: Frame processing latency (min/max/avg): 36.40ms/274.10ms/88.06ms
+[2026-09-25 19:16:28.378]: Debug: Network: each FEC block latency (min/max/avg): 0.01ms/1.17ms/0.02ms
+[2026-09-25 19:16:28.378]: Debug: Network: each send_batch() latency (min/max/avg): 0.02ms/1.78ms/0.08ms
+[2026-09-25 19:16:28.378]: Debug: Network: frame's overall network latency (min/max/avg): 0.04ms/1.89ms/0.11ms
+[2026-09-25 19:16:46.195]: Debug: Frame capture sleep overshoot (min/max/avg): 0.03ms/25.70ms/0.42ms
+[2026-09-25 19:16:48.412]: Debug: Frame processing latency (min/max/avg): 31.70ms/308.30ms/96.20ms
+[2026-09-25 19:16:48.412]: Debug: Network: each FEC block latency (min/max/avg): 0.01ms/1.30ms/0.02ms
+[2026-09-25 19:16:48.412]: Debug: Network: each send_batch() latency (min/max/avg): 0.03ms/1.74ms/0.08ms
+[2026-09-25 19:16:48.412]: Debug: Network: frame's overall network latency (min/max/avg): 0.05ms/1.76ms/0.11ms
+[2026-09-25 19:17:06.212]: Debug: Frame capture sleep overshoot (min/max/avg): 0.06ms/15.64ms/0.29ms
+[2026-09-25 19:17:08.470]: Debug: Frame processing latency (min/max/avg): 42.40ms/238.40ms/95.84ms
+[2026-09-25 19:17:08.471]: Debug: Network: each FEC block latency (min/max/avg): 0.01ms/0.04ms/0.01ms
+[2026-09-25 19:17:08.471]: Debug: Network: each send_batch() latency (min/max/avg): 0.03ms/0.55ms/0.06ms
+[2026-09-25 19:17:08.471]: Debug: Network: frame's overall network latency (min/max/avg): 0.06ms/0.57ms/0.09ms
+[2026-09-25 19:17:26.224]: Debug: Frame capture sleep overshoot (min/max/avg): 0.05ms/43.38ms/0.25ms
+[2026-09-25 19:17:28.510]: Debug: Frame processing latency (min/max/avg): 36.70ms/244.10ms/81.05ms
+[2026-09-25 19:17:28.510]: Debug: Network: each FEC block latency (min/max/avg): 0.01ms/0.72ms/0.01ms
+[2026-09-25 19:17:28.510]: Debug: Network: each send_batch() latency (min/max/avg): 0.04ms/2.14ms/0.09ms
+[2026-09-25 19:17:28.510]: Debug: Network: frame's overall network latency (min/max/avg): 0.06ms/2.16ms/0.11ms
+[2026-09-25 19:17:46.241]: Debug: Frame capture sleep overshoot (min/max/avg): 0.03ms/31.04ms/0.43ms
+[2026-09-25 19:17:48.551]: Debug: Frame processing latency (min/max/avg): 32.00ms/207.30ms/88.97ms
+[2026-09-25 19:17:48.551]: Debug: Network: each FEC block latency (min/max/avg): 0.01ms/0.22ms/0.01ms
+[2026-09-25 19:17:48.551]: Debug: Network: each send_batch() latency (min/max/avg): 0.02ms/1.27ms/0.07ms
+[2026-09-25 19:17:48.551]: Debug: Network: frame's overall network latency (min/max/avg): 0.04ms/1.48ms/0.10ms
+[2026-09-25 19:18:06.246]: Debug: Frame capture sleep overshoot (min/max/avg): 0.03ms/22.78ms/0.40ms
+[2026-09-25 19:18:08.653]: Debug: Frame processing latency (min/max/avg): 38.50ms/220.90ms/95.99ms
+[2026-09-25 19:18:08.653]: Debug: Network: each FEC block latency (min/max/avg): 0.01ms/1.35ms/0.02ms
+[2026-09-25 19:18:08.653]: Debug: Network: each send_batch() latency (min/max/avg): 0.04ms/2.79ms/0.09ms
+[2026-09-25 19:18:08.653]: Debug: Network: frame's overall network latency (min/max/avg): 0.06ms/2.83ms/0.13ms
+[2026-09-25 19:18:26.247]: Debug: Frame capture sleep overshoot (min/max/avg): 0.06ms/27.61ms/0.39ms
+[2026-09-25 19:18:28.665]: Debug: Frame processing latency (min/max/avg): 37.30ms/338.00ms/87.25ms
+[2026-09-25 19:18:28.665]: Debug: Network: each FEC block latency (min/max/avg): 0.01ms/0.03ms/0.01ms
+[2026-09-25 19:18:28.665]: Debug: Network: each send_batch() latency (min/max/avg): 0.04ms/1.23ms/0.07ms
+[2026-09-25 19:18:28.665]: Debug: Network: frame's overall network latency (min/max/avg): 0.06ms/1.28ms/0.10ms
+[2026-09-25 19:18:46.263]: Debug: Frame capture sleep overshoot (min/max/avg): 0.03ms/19.41ms/0.40ms
+[2026-09-25 19:18:48.706]: Debug: Frame processing latency (min/max/avg): 41.00ms/284.10ms/97.77ms
+[2026-09-25 19:18:48.706]: Debug: Network: each FEC block latency (min/max/avg): 0.01ms/0.37ms/0.01ms
+[2026-09-25 19:18:48.706]: Debug: Network: each send_batch() latency (min/max/avg): 0.02ms/1.64ms/0.08ms
+[2026-09-25 19:18:48.706]: Debug: Network: frame's overall network latency (min/max/avg): 0.04ms/1.71ms/0.12ms
+[2026-09-25 19:19:06.280]: Debug: Frame capture sleep overshoot (min/max/avg): 0.03ms/32.38ms/0.39ms
+[2026-09-25 19:19:08.730]: Debug: Frame processing latency (min/max/avg): 40.90ms/265.40ms/105.87ms
+[2026-09-25 19:19:08.730]: Debug: Network: each FEC block latency (min/max/avg): 0.01ms/1.60ms/0.02ms
+[2026-09-25 19:19:08.730]: Debug: Network: each send_batch() latency (min/max/avg): 0.04ms/1.48ms/0.11ms
+[2026-09-25 19:19:08.730]: Debug: Network: frame's overall network latency (min/max/avg): 0.06ms/2.47ms/0.15ms
+[2026-09-25 19:19:26.286]: Debug: Frame capture sleep overshoot (min/max/avg): 0.03ms/18.48ms/0.45ms
+[2026-09-25 19:19:28.731]: Debug: Frame processing latency (min/max/avg): 49.10ms/283.90ms/128.76ms
+[2026-09-25 19:19:28.731]: Debug: Network: each FEC block latency (min/max/avg): 0.01ms/0.09ms/0.01ms
+[2026-09-25 19:19:28.731]: Debug: Network: each send_batch() latency (min/max/avg): 0.02ms/1.77ms/0.10ms
+[2026-09-25 19:19:28.731]: Debug: Network: frame's overall network latency (min/max/avg): 0.05ms/1.82ms/0.14ms
+[2026-09-25 19:19:46.302]: Debug: Frame capture sleep overshoot (min/max/avg): 0.04ms/16.72ms/0.27ms
+[2026-09-25 19:19:48.816]: Debug: Frame processing latency (min/max/avg): 40.80ms/254.00ms/85.21ms
+[2026-09-25 19:19:48.816]: Debug: Network: each FEC block latency (min/max/avg): 0.01ms/1.45ms/0.02ms
+[2026-09-25 19:19:48.816]: Debug: Network: each send_batch() latency (min/max/avg): 0.02ms/1.91ms/0.08ms
+[2026-09-25 19:19:48.816]: Debug: Network: frame's overall network latency (min/max/avg): 0.04ms/1.93ms/0.11ms
+[2026-09-25 19:20:06.323]: Debug: Frame capture sleep overshoot (min/max/avg): 0.04ms/19.23ms/0.33ms
+[2026-09-25 19:20:08.820]: Debug: Frame processing latency (min/max/avg): 44.70ms/221.80ms/103.13ms
+[2026-09-25 19:20:08.821]: Debug: Network: each FEC block latency (min/max/avg): 0.01ms/0.03ms/0.01ms
+[2026-09-25 19:20:08.821]: Debug: Network: each send_batch() latency (min/max/avg): 0.04ms/0.90ms/0.08ms
+[2026-09-25 19:20:08.821]: Debug: Network: frame's overall network latency (min/max/avg): 0.06ms/0.94ms/0.11ms
+[2026-09-25 19:20:26.336]: Debug: Frame capture sleep overshoot (min/max/avg): 0.03ms/22.31ms/0.38ms
+[2026-09-25 19:20:28.823]: Debug: Frame processing latency (min/max/avg): 34.50ms/352.80ms/102.03ms
+[2026-09-25 19:20:28.823]: Debug: Network: each FEC block latency (min/max/avg): 0.01ms/0.11ms/0.01ms
+[2026-09-25 19:20:28.823]: Debug: Network: each send_batch() latency (min/max/avg): 0.03ms/1.48ms/0.08ms
+[2026-09-25 19:20:28.823]: Debug: Network: frame's overall network latency (min/max/avg): 0.05ms/1.50ms/0.10ms
+[2026-09-25 19:20:46.338]: Debug: Frame capture sleep overshoot (min/max/avg): 0.03ms/13.13ms/0.27ms
+[2026-09-25 19:20:48.831]: Debug: Frame processing latency (min/max/avg): 41.30ms/230.90ms/100.86ms
+[2026-09-25 19:20:48.833]: Debug: Network: each FEC block latency (min/max/avg): 0.01ms/0.05ms/0.01ms
+[2026-09-25 19:20:48.833]: Debug: Network: each send_batch() latency (min/max/avg): 0.04ms/1.20ms/0.07ms
+[2026-09-25 19:20:48.833]: Debug: Network: frame's overall network latency (min/max/avg): 0.06ms/1.25ms/0.09ms
+[2026-09-25 19:21:06.354]: Debug: Frame capture sleep overshoot (min/max/avg): 0.05ms/23.28ms/0.33ms
+[2026-09-25 19:21:08.865]: Debug: Frame processing latency (min/max/avg): 42.50ms/242.00ms/92.12ms
+[2026-09-25 19:21:08.866]: Debug: Network: each FEC block latency (min/max/avg): 0.01ms/0.90ms/0.02ms
+[2026-09-25 19:21:08.866]: Debug: Network: each send_batch() latency (min/max/avg): 0.02ms/0.65ms/0.07ms
+[2026-09-25 19:21:08.866]: Debug: Network: frame's overall network latency (min/max/avg): 0.05ms/1.01ms/0.10ms
+[2026-09-25 19:21:26.371]: Debug: Frame capture sleep overshoot (min/max/avg): 0.03ms/12.83ms/0.26ms
+[2026-09-25 19:21:28.907]: Debug: Frame processing latency (min/max/avg): 35.50ms/200.90ms/75.53ms
+[2026-09-25 19:21:28.907]: Debug: Network: each FEC block latency (min/max/avg): 0.01ms/0.15ms/0.01ms
+[2026-09-25 19:21:28.907]: Debug: Network: each send_batch() latency (min/max/avg): 0.03ms/1.45ms/0.06ms
+[2026-09-25 19:21:28.907]: Debug: Network: frame's overall network latency (min/max/avg): 0.05ms/1.54ms/0.08ms
+[2026-09-25 19:21:46.388]: Debug: Frame capture sleep overshoot (min/max/avg): 0.04ms/17.81ms/0.24ms
+[2026-09-25 19:21:48.936]: Debug: Frame processing latency (min/max/avg): 33.40ms/235.20ms/80.10ms
+[2026-09-25 19:21:48.936]: Debug: Network: each FEC block latency (min/max/avg): 0.01ms/0.09ms/0.01ms
+[2026-09-25 19:21:48.936]: Debug: Network: each send_batch() latency (min/max/avg): 0.04ms/1.74ms/0.07ms
+[2026-09-25 19:21:48.936]: Debug: Network: frame's overall network latency (min/max/avg): 0.05ms/2.23ms/0.10ms
+[2026-09-25 19:22:06.404]: Debug: Frame capture sleep overshoot (min/max/avg): 0.04ms/16.03ms/0.25ms
+[2026-09-25 19:22:08.971]: Debug: Frame processing latency (min/max/avg): 33.70ms/235.70ms/73.21ms
+[2026-09-25 19:22:08.971]: Debug: Network: each FEC block latency (min/max/avg): 0.01ms/0.12ms/0.01ms
+[2026-09-25 19:22:08.971]: Debug: Network: each send_batch() latency (min/max/avg): 0.04ms/1.28ms/0.07ms
+[2026-09-25 19:22:08.971]: Debug: Network: frame's overall network latency (min/max/avg): 0.05ms/1.42ms/0.09ms
+[2026-09-25 19:22:26.421]: Debug: Frame capture sleep overshoot (min/max/avg): 0.06ms/21.11ms/0.28ms
+[2026-09-25 19:22:29.014]: Debug: Frame processing latency (min/max/avg): 36.20ms/283.80ms/73.94ms
+[2026-09-25 19:22:29.014]: Debug: Network: each FEC block latency (min/max/avg): 0.01ms/0.12ms/0.01ms
+[2026-09-25 19:22:29.015]: Debug: Network: each send_batch() latency (min/max/avg): 0.03ms/1.55ms/0.08ms
+[2026-09-25 19:22:29.015]: Debug: Network: frame's overall network latency (min/max/avg): 0.05ms/1.57ms/0.10ms
+[2026-09-25 19:22:46.438]: Debug: Frame capture sleep overshoot (min/max/avg): 0.04ms/19.56ms/0.26ms
+[2026-09-25 19:22:49.086]: Debug: Frame processing latency (min/max/avg): 35.40ms/223.60ms/77.73ms
+[2026-09-25 19:22:49.086]: Debug: Network: each FEC block latency (min/max/avg): 0.01ms/0.06ms/0.01ms
+[2026-09-25 19:22:49.086]: Debug: Network: each send_batch() latency (min/max/avg): 0.03ms/2.73ms/0.08ms
+[2026-09-25 19:22:49.086]: Debug: Network: frame's overall network latency (min/max/avg): 0.05ms/2.75ms/0.11ms
+[2026-09-25 19:23:06.438]: Debug: Frame capture sleep overshoot (min/max/avg): 0.05ms/32.02ms/0.34ms
+[2026-09-25 19:23:09.128]: Debug: Frame processing latency (min/max/avg): 35.70ms/299.40ms/91.55ms
+[2026-09-25 19:23:09.128]: Debug: Network: each FEC block latency (min/max/avg): 0.01ms/0.04ms/0.01ms
+[2026-09-25 19:23:09.128]: Debug: Network: each send_batch() latency (min/max/avg): 0.02ms/1.11ms/0.07ms
+[2026-09-25 19:23:09.128]: Debug: Network: frame's overall network latency (min/max/avg): 0.04ms/1.13ms/0.10ms
+[2026-09-25 19:23:26.454]: Debug: Frame capture sleep overshoot (min/max/avg): 0.03ms/10.14ms/0.27ms
+[2026-09-25 19:23:29.199]: Debug: Frame processing latency (min/max/avg): 36.80ms/184.00ms/87.06ms
+[2026-09-25 19:23:29.199]: Debug: Network: each FEC block latency (min/max/avg): 0.01ms/0.07ms/0.01ms
+[2026-09-25 19:23:29.199]: Debug: Network: each send_batch() latency (min/max/avg): 0.04ms/2.14ms/0.07ms
+[2026-09-25 19:23:29.200]: Debug: Network: frame's overall network latency (min/max/avg): 0.05ms/2.15ms/0.09ms
+[2026-09-25 19:23:46.471]: Debug: Frame capture sleep overshoot (min/max/avg): 0.03ms/20.56ms/0.34ms
+[2026-09-25 19:23:49.217]: Debug: Frame processing latency (min/max/avg): 37.40ms/246.80ms/80.51ms
+[2026-09-25 19:23:49.217]: Debug: Network: each FEC block latency (min/max/avg): 0.01ms/0.24ms/0.01ms
+[2026-09-25 19:23:49.217]: Debug: Network: each send_batch() latency (min/max/avg): 0.03ms/13.98ms/0.13ms
+[2026-09-25 19:23:49.217]: Debug: Network: frame's overall network latency (min/max/avg): 0.04ms/14.00ms/0.15ms
+[2026-09-25 19:23:55.621]: Info: Terminate handler called
+[2026-09-25 19:23:55.621]: Debug: Waiting for video to end...
+[2026-09-25 19:23:55.621]: Error: Couldn't accept incoming connections: Operation canceled
+[2026-09-25 19:23:55.644]: Info: Setting default sink to: [auto_null]
+[2026-09-25 19:23:55.645]: Error: Couldn't set default-sink [auto_null]: No such entity
+[2026-09-25 19:23:55.657]: Debug: PulseAudio context terminated
+[2026-09-25 19:23:55.681]: Info: Main loop has exited
+[2026-09-25 19:23:56.408]: Debug: [h264_nvenc @ 0x7119f83c4700] Nvenc unloaded
+[2026-09-25 19:23:56.591]: Debug: Waiting for audio to end...
+[2026-09-25 19:23:56.591]: Debug: Waiting for control to end...
+[2026-09-25 19:23:56.591]: Debug: Resetting Input...
+[2026-09-25 19:23:56.591]: Debug: Session ended
+[2026-09-25 19:23:56.591]: Debug: Waiting for main listening thread to end...
+[2026-09-25 19:23:56.591]: Debug: Waiting for main video thread to end...
+[2026-09-25 19:23:56.591]: Debug: Waiting for main audio thread to end...
+[2026-09-25 19:23:56.591]: Debug: Waiting for main control thread to end...
+[2026-09-25 19:23:56.591]: Debug: All broadcasting threads ended

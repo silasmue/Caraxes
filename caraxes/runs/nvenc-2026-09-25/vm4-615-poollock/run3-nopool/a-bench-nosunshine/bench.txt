@@ -1,0 +1,64 @@
+== vulkaninfo
+GPU0:
+	apiVersion         = 1.4.351
+	deviceType         = PHYSICAL_DEVICE_TYPE_DISCRETE_GPU
+	deviceName         = Leandro VFIO RTX 2070-3G
+	driverName         = NVIDIA
+	driverInfo         = 615.71.09
+GPU1:
+	apiVersion         = 1.4.318
+	deviceType         = PHYSICAL_DEVICE_TYPE_CPU
+	deviceName         = llvmpipe (LLVM 20.1.2, 256 bits)
+	driverName         = llvmpipe
+	driverInfo         = Mesa 25.2.8-0ubuntu0.24.04.2 (LLVM 20.1.2)
+== vkmark
+ERROR:             VkInstanceCreateInfo::pApplicationInfo::apiVersion has value of 0 which is not permitted. If apiVersion is not 0, then it must be greater than or equal to the value of VK_API_VERSION_1_0 [VUID-VkApplicationInfo-apiVersion]
+Authorization required, but no authorization protocol specified
+=======================================================
+    vkmark 2017.08
+=======================================================
+    Vendor ID:      0x10DE
+    Device ID:      0x1F02
+    Device Name:    Leandro VFIO RTX 2070-3G
+    Driver Version: 2580660800
+    Device UUID:    5589416e20b1efc444ed60259e8e3409
+=======================================================
+[vertex] device-local=true: FPS: 48 FrameTime: 20.833 ms
+[vertex] device-local=false: FPS: 52 FrameTime: 19.231 ms
+[texture] anisotropy=0: FPS: 52 FrameTime: 19.231 ms
+[texture] anisotropy=16: FPS: 52 FrameTime: 19.231 ms
+[shading] shading=gouraud: FPS: 52 FrameTime: 19.231 ms
+[shading] shading=blinn-phong-inf: FPS: 52 FrameTime: 19.231 ms
+[shading] shading=phong: FPS: 52 FrameTime: 19.231 ms
+[shading] shading=cel: FPS: 51 FrameTime: 19.608 ms
+[effect2d] kernel=edge: FPS: 51 FrameTime: 19.608 ms
+[effect2d] kernel=blur: FPS: 46 FrameTime: 21.739 ms
+[desktop] <default>: FPS: 49 FrameTime: 20.408 ms
+[cube] <default>: FPS: 51 FrameTime: 19.608 ms
+[clear] <default>: FPS: 49 FrameTime: 20.408 ms
+=======================================================
+                                   vkmark Score: 50
+=======================================================
+rc=0
+== glmark2
+=======================================================
+    glmark2 2023.01
+=======================================================
+    OpenGL Information
+    GL_VENDOR:      NVIDIA Corporation
+    GL_RENDERER:    Leandro VFIO RTX 2070-3G/PCIe/SSE2
+    GL_VERSION:     OpenGL ES 3.2 NVIDIA 615.71.09
+    Surface Config: buf=32 r=8 g=8 b=8 a=8 depth=24 stencil=0 samples=0
+    Surface Size:   800x600 windowed
+=======================================================
+[build] <default>: FPS: 62 FrameTime: 16.131 ms
+[texture] <default>: FPS: 66 FrameTime: 15.283 ms
+[shading] <default>: FPS: 57 FrameTime: 17.810 ms
+[bump] <default>: FPS: 46 FrameTime: 21.913 ms
+[effect2d] <default>: FPS: 55 FrameTime: 18.372 ms
+[refract] <default>: FPS: 62 FrameTime: 16.319 ms
+[terrain] <default>: FPS: 66 FrameTime: 15.157 ms
+=======================================================
+                                  glmark2 Score: 58 
+=======================================================
+rc=0
