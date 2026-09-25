@@ -92,3 +92,18 @@
 - Not done:
   - GR_GET_CTX_BUFFER_SIZE/INFO and GR_GET_INFO_V2: blocked when the session tried to read their layouts.
   - The RM_USER_SHARED_DATA (0x00de) allocation and data poll: outside the standing approval, which covers only client, device and subdevice allocation plus GET controls. Both wait for the user.
+
+## Third follow-up: identification only, nothing replayed
+
+- Command ids looked up in the 615 SDK headers (`vendor/nvidia-rm-headers/615.71.09`, a partial set), with the 610 tree as fallback.
+- Not found in any ctrl2080*.h or ctrl0073*.h, so not sent (unknown): 0x2080a70a, 0x2080a709, 0x2080a801, 0x2080a02f, 0x20803c01, 0x20808524, 0x73117a.
+- Found; all three are pure queries (params in the table below):
+
+| id | name | header | params |
+|---|---|---|---|
+| 0x73013d | NV0073_CTRL_CMD_SYSTEM_QUERY_DISPLAY_IDS_WITH_MUX | ctrl0073system.h:1714 (615) | {subDeviceInstance, muxDisplayMask out}, 8 bytes |
+| 0x73014b | NV0073_CTRL_CMD_SYSTEM_CHECK_SIDEBAND_I2C_SUPPORT | ctrl0073system.h:1901 (615) | {subDeviceInstance, bIsSidebandI2cSupported out}, 8 bytes |
+| 0x730285 | NV0073_CTRL_CMD_SPECIFIC_GET_ACPI_DOD_DISPLAY_PORT_ATTACHMENT | ctrl0073specific.h:1604 (610 only; not in the vendored 615 subset) | {subDeviceInstance, displayId, dispPortAttachment out}, 12 bytes |
+
+- The Y14 trace logs no request bytes for these three, only the size. The board model has one display id, 0x100.
+- The replay did not run. The session's permission system denied the step that adds the NV04_DISPLAY_COMMON calls to the tool, so there are no card answers for these controls.
