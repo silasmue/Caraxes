@@ -760,6 +760,15 @@ impl Mirror {
                 ));
                 if let Some(fb) = fb {
                     fb.unwatch_tables(Target::Fb(r));
+                    // The counters so far, once per guest context (a CUDA process): what a
+                    // loop of workloads reads per iteration (docs/caraxes/bar1-pool.md §9).
+                    if let Some(p) = fb.bar1_pool_summary() {
+                        eprintln!(
+                            "vfio-user-nvgpu: at {} root {r:#x} gone: {p}; {}",
+                            crate::untrapped::wall(),
+                            self.hold.summary(self.hold_on)
+                        );
+                    }
                 }
             }
         }
