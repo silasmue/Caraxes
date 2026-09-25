@@ -1,0 +1,139 @@
+[  481.222545] NVRM: VM: nv_free_pages: 0x80
+[  481.222546] NVRM: VM: nv_free_pages:3992: 0x0000000033babed1, 128 page(s), count = 1, page_table = 0x000000001c531c44
+[  481.222617] NVRM: VM: nv_mem_pool_free_pages: node=0 order=0: 128/128 pages added to pool (3825 now in pool)
+[  481.222623] NVRM: VM: nv_free_system_pages: 128/128 order0 pages
+[  481.222642] NVRM: VM: nv_free_pages: 0x80
+[  481.222643] NVRM: VM: nv_free_pages:3992: 0x00000000d75453c9, 128 page(s), count = 1, page_table = 0x000000004ed9680b
+[  481.222703] NVRM: VM: nv_mem_pool_free_pages: node=0 order=0: 128/128 pages added to pool (3953 now in pool)
+[  481.222729] NVRM: VM: nv_free_system_pages: 128/128 order0 pages
+[  481.222745] NVRM: VM: nv_free_pages: 0x4
+[  481.222746] NVRM: VM: nv_free_pages:3992: 0x000000005eb1a19c, 4 page(s), count = 1, page_table = 0x00000000dd741af4
+[  481.222977] NVRM: VM: nv_mem_pool_free_pages: node=0 order=0: 4/4 pages added to pool (3957 now in pool)
+[  481.222979] NVRM: VM: nv_free_system_pages: 4/4 order0 pages
+[  481.222992] NVRM: VM: nv_free_pages: 0x1
+[  481.222995] NVRM: VM: nv_free_pages:3992: 0x00000000ebeae966, 1 page(s), count = 1, page_table = 0x00000000aa920341
+[  481.223003] NVRM: VM: nv_mem_pool_free_pages: node=0 order=0: 1/1 pages added to pool (3958 now in pool)
+[  481.223005] NVRM: VM: nv_free_system_pages: 1/1 order0 pages
+[  481.223020] NVRM: VM: nv_free_pages: 0x80
+[  481.223021] NVRM: VM: nv_free_pages:3992: 0x00000000c7fbb2c9, 128 page(s), count = 1, page_table = 0x000000007365fabf
+[  481.223112] NVRM: VM: nv_mem_pool_free_pages: node=0 order=0: 128/128 pages added to pool (4086 now in pool)
+[  481.223119] NVRM: VM: nv_free_system_pages: 128/128 order0 pages
+[  481.223880] NVRM: VM: nvidia_vma_release:101: 0x785582e19000 - 0x785582e1a000, 0x00001000 bytes @ 0x0000000000000000, 0x00000000cdd81d2f, 0x000000000493fa73
+[  481.223885] NVRM: VM: nv_alloc_release:1633: 0x00000000cdd81d2f, 1 page(s), count = 7, page_table = 0x00000000e65f3e0d
+[  481.223913] NVRM: nvidia_close on GPU with minor number 255
+[  481.223916] NVRM: nvidia_ctl_close
+[  481.223917] NVRM: VM: nv_alloc_release:1633: 0x00000000cdd81d2f, 1 page(s), count = 6, page_table = 0x00000000e65f3e0d
+[  481.223942] NVRM: VM: nvidia_vma_release:101: 0x785580761000 - 0x785580771000, 0x00010000 bytes @ 0x0000000000000000, 0x0000000000000000, 0x0000000086a24b2c
+[  481.223946] NVRM: nvidia_close on GPU with minor number 0
+[  481.223951] NVRM: nvidia_close on GPU with minor number 0
+[  481.223954] NVRM: nvidia_close on GPU with minor number 0
+[  481.223987] NVRM: ioctl(0x58, 0x327c8670, 0x30)
+[  481.223995] NVRM: ioctl(0x29, 0x2ac6d690, 0x10)
+[  481.224964] NVRM: ioctl(0x29, 0x327c86b0, 0x10)
+[  481.225001] NVRM: ioctl(0x29, 0x327c8730, 0x10)
+[  481.225028] NVRM: nvidia_close on GPU with minor number 255
+[  481.225030] NVRM: nvidia_ctl_close
+[  481.225130] NVRM: ioctl(0x41, 0x2ac6d540, 0x38)
+[  481.225152] NVRM: ioctl(0x2a, 0x2ac6cba0, 0x20)
+[  481.225257] NVRM: ioctl(0x29, 0x2ac6d590, 0x10)
+[  481.225740] NVRM: ioctl(0x29, 0x2ac6d590, 0x10)
+[  481.227637] NVRM: nvidia_close on GPU with minor number 0
+[  481.227650] NVRM: nvidia_close on GPU with minor number 0
+[  481.228078] NVRM: ioctl(0x29, 0x2ac6d660, 0x10)
+[  481.228123] NVRM: nvidia_close on GPU with minor number 255
+[  481.228128] NVRM: nvidia_ctl_close
+[  481.228240] NVRM: VM: nv_free_pages: 0x1
+[  481.228242] NVRM: VM: nv_free_pages:3992: 0x00000000daf4acc5, 1 page(s), count = 1, page_table = 0x0000000086adeffe
+[  481.228535] NVRM: VM: nv_mem_pool_free_pages: node=0 order=0: 1/1 pages added to pool (4087 now in pool)
+[  481.228561] NVRM: VM: nv_free_system_pages: 1/1 order0 pages
+[  481.228581] NVRM: ioctl(0x29, 0x2ac6d5b0, 0x10)
+[  481.230091] NVRM: ioctl(0x29, 0x2ac6d5d0, 0x10)
+[  481.230292] NVRM: ioctl(0x4a, 0x327c5ac0, 0xb8)
+[  481.234295] NVRM: nvidia_close on GPU with minor number 0
+[  481.234304] NVRM: nvidia_close on GPU with minor number 0
+[  481.234312] NVRM: ioctl(0x2a, 0x2ac6cbc0, 0x20)
+[  481.234441] NVRM: ioctl(0x57, 0x327c58c0, 0x40)
+[  481.234453] NVRM: nvidia_close on GPU with minor number 0
+[  481.234516] NVRM: ioctl(0x29, 0x2ac6d690, 0x10)
+[  481.239180] NVRM: nvidia_close on GPU with minor number 255
+[  481.239183] NVRM: nvidia_ctl_close
+[  481.239613] NVRM: ioctl(0x4a, 0x327c5af0, 0xb8)
+[  481.239661] NVRM: ioctl(0x57, 0x327c58f0, 0x40)
+[  481.242179] NVRM: ioctl(0x4a, 0x327c5980, 0xb8)
+[  481.242216] NVRM: ioctl(0x4a, 0x327c57b0, 0xb8)
+[  481.242248] NVRM: ioctl(0x57, 0x327c56a0, 0x40)
+[  481.243372] NVRM: ioctl(0x4a, 0x327c5ac0, 0xb8)
+[  481.243405] NVRM: ioctl(0x57, 0x327c58c0, 0x40)
+[  481.244314] NVRM: ioctl(0x4a, 0x327c5af0, 0xb8)
+[  481.244345] NVRM: ioctl(0x57, 0x327c58f0, 0x40)
+[  481.245159] NVRM: ioctl(0x4a, 0x327c5980, 0xb8)
+[  481.245187] NVRM: ioctl(0x4a, 0x327c57b0, 0xb8)
+[  481.245213] NVRM: ioctl(0x57, 0x327c56a0, 0x40)
+[  481.246991] NVRM: ioctl(0x4a, 0x327c53a0, 0xb8)
+[  481.247042] NVRM: ioctl(0x4a, 0x327c51d0, 0xb8)
+[  481.247080] NVRM: ioctl(0x57, 0x327c50c0, 0x40)
+[  481.248453] NVRM: ioctl(0x4a, 0x327c5ac0, 0xb8)
+[  481.248496] NVRM: ioctl(0x57, 0x327c58c0, 0x40)
+[  481.249381] NVRM: ioctl(0x4a, 0x327c5af0, 0xb8)
+[  481.249405] NVRM: ioctl(0x57, 0x327c58f0, 0x40)
+[  481.251546] NVRM: ioctl(0x4a, 0x327c5980, 0xb8)
+[  481.251598] NVRM: ioctl(0x4a, 0x327c57b0, 0xb8)
+[  481.251641] NVRM: ioctl(0x57, 0x327c56a0, 0x40)
+[  481.254202] NVRM: ioctl(0x4a, 0x327c5ac0, 0xb8)
+[  481.254866] NVRM: ioctl(0x57, 0x327c58c0, 0x40)
+[  481.256311] NVRM: ioctl(0x4a, 0x327c5af0, 0xb8)
+[  481.256352] NVRM: ioctl(0x57, 0x327c58f0, 0x40)
+[  481.259247] NVRM: ioctl(0x4a, 0x327c5980, 0xb8)
+[  481.259306] NVRM: ioctl(0x4a, 0x327c57b0, 0xb8)
+[  481.259357] NVRM: ioctl(0x57, 0x327c56a0, 0x40)
+[  481.261629] NVRM: ioctl(0x4a, 0x327c53a0, 0xb8)
+[  481.261680] NVRM: ioctl(0x4a, 0x327c51d0, 0xb8)
+[  481.261734] NVRM: ioctl(0x57, 0x327c50c0, 0x40)
+[  481.273482] NVRM: ioctl(0x58, 0x327c8100, 0x30)
+[  481.274953] NVRM: ioctl(0x29, 0x327c8140, 0x10)
+[  481.276150] NVRM: ioctl(0x29, 0x327c8160, 0x10)
+[  481.276189] NVRM: ioctl(0x58, 0x327c81e0, 0x30)
+[  481.277250] NVRM: ioctl(0x29, 0x327c81d0, 0x10)
+[  481.277365] NVRM: ioctl(0x58, 0x327c8100, 0x30)
+[  481.278469] NVRM: ioctl(0x29, 0x327c8140, 0x10)
+[  481.279250] NVRM: ioctl(0x29, 0x327c8160, 0x10)
+[  481.279274] NVRM: ioctl(0x58, 0x327c81e0, 0x30)
+[  481.282914] NVRM: ioctl(0x29, 0x327c81d0, 0x10)
+[  481.283012] NVRM: ioctl(0x58, 0x327c8250, 0x30)
+[  481.284505] NVRM: ioctl(0x29, 0x327c8240, 0x10)
+[  481.284566] NVRM: ioctl(0x58, 0x327c8250, 0x30)
+[  481.285633] NVRM: ioctl(0x29, 0x327c8240, 0x10)
+[  481.285848] NVRM: ioctl(0x58, 0x327c8100, 0x30)
+[  481.287320] NVRM: ioctl(0x29, 0x327c8140, 0x10)
+[  481.289135] NVRM: ioctl(0x29, 0x327c8160, 0x10)
+[  481.289176] NVRM: ioctl(0x58, 0x327c81e0, 0x30)
+[  481.290076] NVRM: ioctl(0x29, 0x327c81d0, 0x10)
+[  481.290164] NVRM: ioctl(0x58, 0x327c8100, 0x30)
+[  481.291403] NVRM: ioctl(0x29, 0x327c8140, 0x10)
+[  481.292028] NVRM: ioctl(0x29, 0x327c8160, 0x10)
+[  481.292061] NVRM: ioctl(0x58, 0x327c81e0, 0x30)
+[  481.293391] NVRM: ioctl(0x29, 0x327c81d0, 0x10)
+[  481.293489] NVRM: ioctl(0x58, 0x327c8250, 0x30)
+[  481.294819] NVRM: ioctl(0x29, 0x327c8240, 0x10)
+[  481.294870] NVRM: ioctl(0x58, 0x327c8250, 0x30)
+[  481.296193] NVRM: ioctl(0x29, 0x327c8240, 0x10)
+[  481.302055] NVRM: ioctl(0x58, 0x327c68d0, 0x30)
+[  481.302640] NVRM: ioctl(0x29, 0x327c6910, 0x10)
+[  481.302674] NVRM: ioctl(0x29, 0x327c6990, 0x10)
+[  481.304293] NVRM: ioctl(0x4a, 0x327c53a0, 0xb8)
+[  481.305212] NVRM: ioctl(0x4a, 0x327c51d0, 0xb8)
+[  481.305250] NVRM: ioctl(0x57, 0x327c50c0, 0x40)
+[  481.398263] NVRM: ioctl(0x4a, 0x327c6650, 0xb8)
+[  481.398893] NVRM: ioctl(0x57, 0x327c6450, 0x40)
+[  481.401761] NVRM: ioctl(0x4a, 0x327c6680, 0xb8)
+[  481.401808] NVRM: ioctl(0x57, 0x327c6480, 0x40)
+[  481.403958] NVRM: ioctl(0x4a, 0x327c6510, 0xb8)
+[  481.404560] NVRM: ioctl(0x4a, 0x327c6340, 0xb8)
+[  481.404606] NVRM: ioctl(0x57, 0x327c6230, 0x40)
+[  481.409260] NVRM: ioctl(0x58, 0x327c6fe0, 0x30)
+[  481.411932] NVRM: ioctl(0x29, 0x327c6fd0, 0x10)
+[  481.421412] NVRM: ioctl(0x58, 0x327c44c0, 0x30)
+[  481.422983] NVRM: ioctl(0x29, 0x327c4500, 0x10)
+[  481.423600] NVRM: ioctl(0x29, 0x327c4520, 0x10)
+[  481.423634] NVRM: ioctl(0x58, 0x327c45a0, 0x30)
+[  481.424633] NVRM: ioctl(0x29, 0x327c4590, 0x10)

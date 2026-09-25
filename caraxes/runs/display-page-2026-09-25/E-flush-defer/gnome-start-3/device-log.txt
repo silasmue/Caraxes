@@ -1,0 +1,4 @@
+vfio-user-nvgpu: bar1 pool: 127 page(s) the GPU maps moved behind the barrier (1 host channel(s) idle, 1 TSG(s) preempted); shadow(s) of root(s) {169bed000} re-synced and the worker drained before the guest continues
+vfio-user-nvgpu: bar1 pool: 2 page(s) the GPU maps moved behind the barrier (1 host channel(s) idle, 1 TSG(s) preempted); shadow(s) of root(s) {169bed000} re-synced and the worker drained before the guest continues
+vfio-user-nvgpu: bar1 pool: 1 page(s) the GPU maps moved behind the barrier (0 host channel(s) idle, 0 TSG(s) preempted); shadow(s) of root(s) {169bed000} re-synced and the worker drained before the guest continues
+vfio-user-nvgpu: ERROR untrapped GPPut: at 1790317512.607 chid 2's host channel ran ahead of its doorbell (GPGet 8178, forwarded up to 8175, GPPut 8178) with plans pending (lazy true, worker false, 0 unwaited invalidate plan(s) since the forward); USERD untrapped true

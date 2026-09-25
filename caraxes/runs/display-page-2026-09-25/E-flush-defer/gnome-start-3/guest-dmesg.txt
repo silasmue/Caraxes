@@ -1,0 +1,8 @@
+[  327.653664]  ? ret_from_fork+0x47/0x70
+[  327.653668]  ? __pfx_kthread+0x10/0x10
+[  327.653670]  ? ret_from_fork_asm+0x1b/0x30
+[  327.653674]  </TASK>
+[  327.653704] ---[ end trace 0000000000000000 ]---
+[  327.723473] NVRM: ioctl(0x4a, 0x327c53a0, 0xb8)
+[  327.724404] NVRM: ioctl(0x4a, 0x327c51d0, 0xb8)
+[  327.724470] NVRM: ioctl(0x57, 0x327c50c0, 0x40)
