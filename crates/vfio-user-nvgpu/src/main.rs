@@ -61,7 +61,9 @@ vfio-user-nvgpu --selftest <socket> [--board-data <name|file>] [--chip <chip>] [
   --chip     the chip to present, tu106 or gb206 (or a costume-ladder chip: tu104, ga106, ad106, gh100) (default: the board's, tu106 for rtx2070, gb206 for rtx5060ti)
   --config   lspci -xxxx dump of the card (default: the board's, caraxes/reference/rtx2070/config-space.txt)
   --rom      PCI-visible ROM image for the expansion ROM region (default: the board's, caraxes/reference/rtx2070/rom.bin)
-  --vbios    image served through the BAR0 PROM window (default: the --rom image)
+  --vbios    image served through the BAR0 PROM window at its own offsets (default: the
+             --rom image); it starts with 55 AA or, like the card's window, with an IFR
+             header that leads to the PCI image chain
   --vbios-version  VBIOS version NN.NN.NN.NN.NN of the static info (default: the board's, 90.06.3D.00.76)
   --boot-model  attach the boot model (falcons, GFW/fuse/FB-size/WPR2 registers, GSP message queues)
   --fb-mib   framebuffer size the guest is told, in MiB (default: LEA_VRAM_PROFILE_MIB or 4096)
@@ -594,11 +596,27 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
     let vbios = match &a.vbios {
         Some(p) => {
             let img = std::fs::read(p).with_context(|| format!("read {}", p.display()))?;
-            if img.len() < 2 || img[0] != 0x55 || img[1] != 0xAA {
-                bail!(
-                    "{} does not start with the 55 AA ROM signature",
+            // Served byte for byte at its PROM offsets. An image that starts with 55 AA
+            // is taken as before; otherwise the PCI image chain must be found the way the
+            // RM finds it (the card's window: an IFR header at 0, the chain at 0x28600;
+            // vbios.rs).
+            let starts = img.len() >= 2 && img[0] == 0x55 && img[1] == 0xAA;
+            match vfio_user_nvgpu::vbios::locate(&img) {
+                Some(i) => eprintln!(
+                    "vfio-user-nvgpu: PROM image {}: PCI image {:04x}:{:04x} at {:#x} ({:?}), {:#x} bytes, BIT {}",
+                    p.display(),
+                    i.vendor,
+                    i.device,
+                    i.offset,
+                    i.how,
+                    i.len,
+                    i.bit.map_or_else(|| "none".into(), |b| format!("at image + {b:#x}"))
+                ),
+                None if starts => {}
+                None => bail!(
+                    "{} neither starts with the 55 AA ROM signature nor holds a PCI image the IFR header or a 512-byte scan finds",
                     p.display()
-                );
+                ),
             }
             Some(img)
         }

@@ -258,8 +258,16 @@ impl Bar0 {
         &self.rom
     }
 
+    /// The image behind the PROM window, byte for byte at its window offsets.
     pub fn vbios(&self) -> &[u8] {
         &self.vbios
+    }
+
+    /// The first PCI image of the PROM window image, located as the RM does (at 0, through
+    /// the IFR header, or by scanning; vbios.rs): what the device derives from the VBIOS
+    /// for itself starts there, not at offset 0.
+    pub fn vbios_image(&self) -> Option<crate::vbios::PciImage> {
+        crate::vbios::locate(&self.vbios)
     }
 
     /// Device reset (vfio-user reset or a PCI function-level reset): latched
@@ -569,6 +577,31 @@ mod tests {
         assert_eq!(house.len(), 7941);
         assert!(house.check_identity(0x1660_00A1).is_ok());
         assert_eq!(house.get(0x1373A0), Some(0xA));
+    }
+
+    /// The card's PROM window (IFR header at 0, the image chain at 0x28600) is served at
+    /// its real offsets; the device locates its PCI image through the IFR.
+    #[test]
+    fn the_ifr_headed_prom_window_is_served_as_on_the_card() {
+        let window =
+            include_bytes!("../../../caraxes/reference/rtx2070/prom-window-2026-09-25.bin");
+        let f = crate::fixture::rtx2070();
+        let mut bar0 = Bar0::new(f.chip, vec![0x55, 0xAA], Some(window.to_vec()));
+        let cfg = f.config();
+        let mut b = [0u8; 4];
+        bar0.read(&cfg, &GuestMemory::new(), NV_PROM_DATA, &mut b);
+        assert_eq!(&b, b"NVGI");
+        bar0.read(&cfg, &GuestMemory::new(), NV_PROM_DATA + 0x28600, &mut b);
+        assert_eq!(b[..2], [0x55, 0xAA]);
+        bar0.read(&cfg, &GuestMemory::new(), NV_PROM_DATA + 0x78000, &mut b);
+        assert_eq!(&b, b"NVGI", "the second copy");
+        bar0.read(&cfg, &GuestMemory::new(), NV_PROM_DATA + 0xFFFFC, &mut b);
+        assert_eq!(u32::from_le_bytes(b), 0xFFFF_FFFF);
+        let i = bar0.vbios_image().unwrap();
+        assert_eq!((i.offset, i.device, i.bit), (0x28600, 0x1F02, Some(0x1B0)));
+        // An image that starts with 55 AA is found at 0, as before.
+        let plain = Bar0::new(f.chip, window[0x28600..0x48200].to_vec(), None);
+        assert_eq!(plain.vbios_image().unwrap().offset, 0);
     }
 
     /// A falcon-block register the model has no value for falls through to the capture
