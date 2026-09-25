@@ -2308,8 +2308,10 @@ mod tests {
     /// without reply, then the events GSP_RUN_CPU_SEQUENCER (empty) and GSP_INIT_DONE in
     /// that order, GET_GSP_STATIC_INFO answered with the 1656-byte 570 layout and the name
     /// at 1260, UNLOADING_GUEST_DRIVER with the processor-suspended bit, and a re-probe
-    /// (new Booter Load, fresh queues) that links again.
+    /// (new Booter Load, fresh queues) that links again. A 610 build only: the 615 build's
+    /// RMARGS offsets are 615's, and `check_guest_abi` refuses 570 there.
     #[test]
+    #[cfg(not(feature = "v615"))]
     fn nova_570_boot_through_the_queue() {
         use crate::msgq::tests::queue_fixture;
         crate::ver::TEST_GUEST.with(|c| c.set(Some(Some(570))));

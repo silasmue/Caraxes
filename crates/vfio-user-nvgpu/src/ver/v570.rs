@@ -5,11 +5,11 @@
 //! (`drivers/gpu/nova-core/gsp/fw/r570_144.rs`, `FIRMWARE_VERSION = "570.144"`), as far as
 //! the device answers it (docs/caraxes/nova-guest.md). Not a full version module: nova sends
 //! no RM alloc or control, so only the boot exchange differs from the emulated 610 module,
-//! and a 610 build serves it under `CARAXES_GUEST_ABI=570` ([`super::older_guest`]):
+//! and a 610 build serves it under `CARAXES_GUEST_ABI=570` ([`crate::ver::older_guest`]):
 //!
 //! - the queue element: the pre-610 layout (`super::ElementLayout::PRE_610`);
-//! - the GSP_RUN_CPU_SEQUENCER event before GSP_INIT_DONE ([`super::link_events`]);
-//! - `GspStaticConfigInfo` in the 570.144 layout ([`static_info`], the generated table
+//! - the GSP_RUN_CPU_SEQUENCER event before GSP_INIT_DONE ([`crate::ver::link_events`]);
+//! - `GspStaticConfigInfo` in the 570.144 layout ([`crate::ver::v570::static_info`], the generated table
 //!   of `caraxes/tools/gsp-remap.py` over the snapshots `caraxes/abi/gsp-610.57.04` and
 //!   `caraxes/abi/gsp-570.144`).
 //!
