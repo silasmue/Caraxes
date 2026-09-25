@@ -44,7 +44,9 @@ EOF
     sunshine --creds "${SUN_USER:-lea}" "${SUN_PASS:-leastream}" "$DIR/sunshine.conf" >/dev/null 2>&1
     # shellcheck disable=SC2046
     setsid nohup env $(senv) sunshine "$DIR/sunshine.conf" > "$DIR/stdout.log" 2>&1 < /dev/null &
-    for _ in $(seq 60); do (exec 3<>/dev/tcp/127.0.0.1/47989) 2>/dev/null && break; sleep 1; done
+    # Up to 180 s: with encoder = nvenc Sunshine probes nvenc, then vulkan (four device creations
+    # of about 15 s each on the device) and vaapi before libx264; 70 s on vm4-615 (2026-09-25).
+    for _ in $(seq 180); do (exec 3<>/dev/tcp/127.0.0.1/47989) 2>/dev/null && break; sleep 1; done
     pgrep -x sunshine > /dev/null || { echo 'sunshine did not start'; tail -20 "$DIR/sunshine.log" "$DIR/stdout.log"; exit 1; }
     (exec 3<>/dev/tcp/127.0.0.1/47989) 2>/dev/null || { echo 'sunshine never opened 47989'; tail -20 "$DIR/sunshine.log"; exit 1; }
     echo "sunshine pid $(pgrep -x sunshine | head -1), listening on 47989 (web UI 47990)"
@@ -77,7 +79,7 @@ checks-session)
     pgrep -x gnome-shell >/dev/null || { echo "no gnome-shell: run the gnome step first"; exit 1; }
     echo "== vkcube"
     # shellcheck disable=SC2046
-    env $(senv) timeout 60 vkcube --wsi wayland --c 300 2>&1 | tail -8; echo "rc=${PIPESTATUS[0]}"
+    env $(senv) timeout 60 vkcube --c 300 2>&1 | tail -8; echo "rc=${PIPESTATUS[0]}"
     echo "== sniper"
     R=""
     for d in /games/SteamLibrary/steamapps/common/SteamLinuxRuntime_sniper "$HOME"/.steam/debian-installation/steamapps/common/SteamLinuxRuntime_sniper; do

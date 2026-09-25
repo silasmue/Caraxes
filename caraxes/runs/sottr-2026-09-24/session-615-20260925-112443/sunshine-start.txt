@@ -1,0 +1,21 @@
+sunshine never opened 47989
+[2026-09-25 09:30:33.500]: Info: Encoder [vulkan] failed
+[2026-09-25 09:30:33.500]: Info: Trying encoder [vaapi]
+[2026-09-25 09:30:33.500]: Info: Screencasting with KMS
+[2026-09-25 09:30:33.501]: Info: /dev/dri/card0 -> nvidia-drm
+[2026-09-25 09:30:33.501]: Debug: Opening render node: /dev/dri/renderD128
+[2026-09-25 09:30:33.501]: Debug: "card0" is an NVIDIA card, skipping for VAAPI
+[2026-09-25 09:30:33.501]: Error: Couldn't find monitor [0]
+[2026-09-25 09:30:33.501]: Info: /dev/dri/card0 -> nvidia-drm
+[2026-09-25 09:30:33.501]: Debug: Opening render node: /dev/dri/renderD128
+[2026-09-25 09:30:33.501]: Debug: "card0" is an NVIDIA card, skipping for VAAPI
+[2026-09-25 09:30:33.501]: Error: Couldn't find monitor [0]
+[2026-09-25 09:30:33.701]: Info: Screencasting with KMS
+[2026-09-25 09:30:33.701]: Info: /dev/dri/card0 -> nvidia-drm
+[2026-09-25 09:30:33.701]: Debug: Opening render node: /dev/dri/renderD128
+[2026-09-25 09:30:33.701]: Debug: "card0" is an NVIDIA card, skipping for VAAPI
+[2026-09-25 09:30:33.701]: Error: Couldn't find monitor [0]
+[2026-09-25 09:30:33.701]: Info: /dev/dri/card0 -> nvidia-drm
+[2026-09-25 09:30:33.701]: Debug: Opening render node: /dev/dri/renderD128
+[2026-09-25 09:30:33.701]: Debug: "card0" is an NVIDIA card, skipping for VAAPI
+[2026-09-25 09:30:33.701]: Error: Couldn't find monitor [0]
