@@ -1,0 +1,4 @@
+probe desk-F-invalidate-page: 68734 device accesses, guest log in /mnt/vmstore/caraxes/vm0/probe-desk-F-invalidate-page/guest-dmesg.txt
+[  130.214297] NVRM: GPU 0000:00:05.0: RmInitAdapter
+[  132.620164] NVRM: GPU 0000:00:05.0: RmInitAdapter succeeded!
+modprobe rc=0
