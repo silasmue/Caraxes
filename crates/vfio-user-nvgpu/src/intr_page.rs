@@ -804,6 +804,10 @@ pub struct PageHook {
     page: Arc<IntrPage>,
     /// The display page (`CARAXES_DISPLAY_PAGE=1`, display/fe_page.rs), scanned first.
     fe: Option<Arc<crate::display::fe_page::FePage>>,
+    /// The BAR2 flush deferral (`CARAXES_BAR2_FLUSH_DEFER_US`, bar2area.rs `Owed`): while
+    /// a sync is owed the reactor spins, and at the bound it runs the payer (main.rs:
+    /// lock the device, `Device::bar2_pay_owed`).
+    owed: Option<(Arc<crate::bar2area::Owed>, Arc<Payer>)>,
     wake: File,
     iterations: u32,
     last_tick: Instant,
@@ -825,6 +829,7 @@ impl PageHook {
             PageHook {
                 page,
                 fe: None,
+                owed: None,
                 wake,
                 iterations: 0,
                 last_tick: Instant::now(),
@@ -841,7 +846,31 @@ impl PageHook {
         self.fe = Some(fe);
         self
     }
+
+    /// Watch the BAR2 flush deferral: spin while a sync is owed, run `pay` at the bound.
+    pub fn with_bar2_owed(mut self, owed: Arc<crate::bar2area::Owed>, pay: Arc<Payer>) -> Self {
+        self.owed = Some((owed, pay));
+        self
+    }
+
+    /// The deferral's part of an iteration: whether a sync is owed (work, so a hybrid
+    /// reactor keeps spinning), after paying it when its bound ran out.
+    fn poll_owed(&self) -> bool {
+        let Some((o, pay)) = &self.owed else {
+            return false;
+        };
+        if !o.owed() {
+            return false;
+        }
+        if o.due(crate::bar2area::mono_ns()) {
+            pay();
+        }
+        true
+    }
 }
+
+/// What the reactor runs to pay an owed BAR2 sync (it takes the device lock).
+pub type Payer = dyn Fn() + Send + Sync;
 
 impl crate::poll::Hook for PageHook {
     fn poll(&mut self, woken: bool) -> bool {
@@ -852,6 +881,7 @@ impl crate::poll::Hook for PageHook {
             .as_ref()
             .is_some_and(|f| f.scan() | f.busy(Instant::now()));
         work |= self.page.scan().work;
+        work |= self.poll_owed();
         self.iterations = self.iterations.wrapping_add(1);
         if woken || self.iterations % TICK_ITERATIONS == 0 {
             let now = Instant::now();
@@ -930,6 +960,40 @@ mod tests {
 
     fn load(p: &IntrPage, reg: u64) -> u32 {
         p.tree.word(reg).load(Ordering::Acquire)
+    }
+
+    /// The BAR2 flush deferral in the reactor: an owed sync keeps it spinning (work) and
+    /// is paid through the payer once its bound ran out, exactly once.
+    #[test]
+    fn the_reactor_pays_an_owed_bar2_sync_at_its_bound() {
+        use crate::poll::Hook;
+        use std::sync::atomic::AtomicUsize;
+        let shared = IntrShared::new();
+        let p = IntrPage::create(16 << 20, BASE, identity(), shared, Config::default()).unwrap();
+        let (hook, _wake) = PageHook::new(p).unwrap();
+        let owed = crate::bar2area::Owed::new(2000);
+        let calls = Arc::new(AtomicUsize::new(0));
+        let pay = {
+            let (o, c) = (owed.clone(), calls.clone());
+            Arc::new(move || {
+                c.fetch_add(1, Ordering::SeqCst);
+                o.paid(crate::bar2area::Payer::Reactor, crate::bar2area::mono_ns());
+            })
+        };
+        let mut hook = hook.with_bar2_owed(owed.clone(), pay);
+        // Nothing owed: no work from the deferral.
+        assert!(!hook.poll_owed());
+        owed.owe(crate::bar2area::mono_ns());
+        // Owed and not yet due: work (spin), no payment.
+        assert!(hook.poll(false));
+        assert_eq!(calls.load(Ordering::SeqCst), 0);
+        std::thread::sleep(Duration::from_millis(3));
+        assert!(hook.poll(false));
+        assert_eq!(calls.load(Ordering::SeqCst), 1);
+        assert!(!owed.owed());
+        assert!(!hook.poll_owed());
+        assert_eq!(calls.load(Ordering::SeqCst), 1);
+        assert_eq!(owed.paid_reactor.load(Ordering::Relaxed), 1);
     }
 
     #[test]

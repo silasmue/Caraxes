@@ -758,8 +758,15 @@ impl BootModel {
         if bar == 3 && self.fb.bar2_area().is_some() {
             // With the BAR2 memfd only the trapped pages reach here: the guest RM's flush
             // read (kbusFlushSingle_GV100), its point for "BAR2 writes visible to the GPU".
+            // With the deferral the sync is owed and paid by what consumes the data
+            // (docs/caraxes/intr-page.md §11.2).
             self.fb.bar2_note_trapped();
-            self.fb.bar2_sync(Some(root), Some(mem));
+            self.fb.bar2_flush(Some(root), Some(mem));
+        } else {
+            // A BAR1 access may be a GPPut store that starts work reading BAR2 data.
+            let bar2 = self.bar_root(3);
+            self.fb
+                .bar2_pay(bar2, Some(mem), crate::bar2area::Payer::Access);
         }
         let held = if write && bar == 1 {
             self.gp_put_barrier(mem, root, offset, data.len())
@@ -1061,6 +1068,15 @@ impl BootModel {
         if off == GSP_IRQSCLR && v & GSP_SWGEN0 != 0 {
             self.gsp_swgen0 = false;
         }
+        // A sync the flush reads owe is paid before any trapped write may start work on
+        // BAR2 data; the invalidate's words are exempt, its trigger syncs itself
+        // (docs/caraxes/intr-page.md §11.2).
+        if !matches!(
+            self.reg(off),
+            Some(Reg::MmuInvalidatePdb | Reg::MmuInvalidateUpperPdb | Reg::MmuInvalidate)
+        ) {
+            self.bar2_pay_owed(mem, crate::bar2area::Payer::Access);
+        }
         notes.extend(self.scan_channel_errors(mem, false));
         if self.intr.handles(off) {
             notes.extend(self.intr.write32(off, v));
@@ -1228,6 +1244,13 @@ impl BootModel {
             let root = self.bar_root(3);
             self.fb.bar2_sync(root, Some(mem));
         }
+        self.bar2_pay_owed(mem, crate::bar2area::Payer::Access);
+    }
+
+    /// Pay a sync the deferred flush reads owe (bar2area.rs `Owed`); `by` says who.
+    pub fn bar2_pay_owed(&mut self, mem: &GuestMemory, by: crate::bar2area::Payer) -> bool {
+        let root = self.bar_root(3);
+        self.fb.bar2_pay(root, Some(mem), by)
     }
 
     /// A token-less doorbell from the ioeventfd path (device.rs): ring every channel with

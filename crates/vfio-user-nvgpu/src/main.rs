@@ -733,7 +733,7 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
         _ => None,
     };
     // The reactor's side of the page; from here on raises go through it.
-    let mut page_hook: Option<Box<dyn vfio_user_nvgpu::poll::Hook>> = match &intr_page {
+    let page_hook: Option<PageHook> = match &intr_page {
         Some(p) => {
             let (hook, wake) = PageHook::new(p.clone()).context("intr page wake eventfd")?;
             intr_shared.attach_page(wake);
@@ -741,10 +741,27 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
                 Some(f) => hook.with_display(f.clone()),
                 None => hook,
             };
-            Some(Box::new(hook))
+            Some(hook)
         }
         None => None,
     };
+    // The BAR2 flush deferral (docs/caraxes/intr-page.md §11.2) needs the reactor that
+    // pays an owed sync at its bound: refused without the interrupt page.
+    let bar2_owed = bar0.boot().and_then(|b| b.fb.bar2_owed());
+    if let Some(o) = &bar2_owed {
+        if page_hook.is_none() {
+            bail!(
+                "{}: needs {}=1 (the reactor pays an owed sync at the bound)",
+                vfio_user_nvgpu::bar2area::FLUSH_DEFER_ENV,
+                intr_page::INTR_PAGE_ENV
+            );
+        }
+        eprintln!(
+            "vfio-user-nvgpu: bar2 flush deferral: a flush read owes its sync; paid by the next trapped write, BAR1 access or doorbell, by the MMU invalidate or GSP doorbell sync, or by the reactor after {} us ({}, docs/caraxes/intr-page.md §11.2)",
+            o.defer_ns / 1000,
+            vfio_user_nvgpu::bar2area::FLUSH_DEFER_ENV
+        );
+    }
     let guest_ram = match (&host_mem, a.register_guest_ram, a.identity_dma_table) {
         (Some(hm), true, _) => GuestRam::Register(hm.clone()),
         (_, _, true) => GuestRam::Identity,
@@ -868,6 +885,23 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
             .unwrap_or_else(|| "off".into())
     );
     let device = Arc::new(Mutex::new(device));
+    let mut page_hook: Option<Box<dyn vfio_user_nvgpu::poll::Hook>> = page_hook.map(|h| {
+        let h = match &bar2_owed {
+            Some(o) => {
+                let d = device.clone();
+                h.with_bar2_owed(
+                    o.clone(),
+                    Arc::new(move || {
+                        d.lock()
+                            .unwrap_or_else(PoisonError::into_inner)
+                            .bar2_pay_owed()
+                    }),
+                )
+            }
+            None => h,
+        };
+        Box::new(h) as Box<dyn vfio_user_nvgpu::poll::Hook>
+    });
     if fe.is_some() {
         // The display clock advances the engine at its ticks (the guest's status reads
         // no longer trap and so no longer do it).
@@ -950,6 +984,9 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
     }
     if let Some(f) = &fe {
         eprint!("{}", f.summary());
+    }
+    if let Some(o) = &bar2_owed {
+        eprintln!("{}", o.summary());
     }
     if let Some(why) = closed {
         // Fail closed (P20 item 4a): never report a clean exit when host state the GPU

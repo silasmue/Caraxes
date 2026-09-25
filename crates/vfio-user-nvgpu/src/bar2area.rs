@@ -30,6 +30,9 @@ use std::cell::{Cell, RefCell};
 use std::collections::{BTreeMap, HashMap};
 use std::fs::File;
 use std::os::fd::{AsRawFd, FromRawFd, RawFd};
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Arc, OnceLock};
+use std::time::Instant;
 
 use crate::fb::{FbStore, Target};
 use crate::guestmem::GuestMemory;
@@ -47,6 +50,14 @@ pub const ENV: &str = "CARAXES_BAR2_MEMFD";
 pub const TRAP_ENV: &str = "CARAXES_BAR2_MEMFD_TRAP";
 /// `1`: sync before every doorbell as well (the reference for the doorbell rule).
 pub const SYNC_DOORBELL_ENV: &str = "CARAXES_BAR2_MEMFD_SYNC_DOORBELL";
+/// Microseconds a flush read's sync may be deferred (docs/caraxes/intr-page.md §11.2):
+/// unset or `0` syncs at every flush read as before; `on` is [`DEFAULT_FLUSH_DEFER_US`].
+pub const FLUSH_DEFER_ENV: &str = "CARAXES_BAR2_FLUSH_DEFER_US";
+/// The deferral bound of `CARAXES_BAR2_FLUSH_DEFER_US=on`.
+pub const DEFAULT_FLUSH_DEFER_US: u64 = 200;
+/// The longest deferral accepted: the reactor's sleep bound is a millisecond, and an
+/// owed sync keeps it spinning, so a longer bound buys nothing but latency.
+pub const MAX_FLUSH_DEFER_US: u64 = 5000;
 /// The guest RM's BAR2 flush page: `pReadToFlush`, a persistent (top-down) BAR2 mapping
 /// made once at boot (kern_bus_gv100.c:85-87); BAR2 0xfea000 in every device trace of
 /// driver 610.57.04 (`caraxes/runs/mapping-2026-09-24/p3-profile/init-trace.txt`: 472
@@ -63,6 +74,9 @@ pub struct Config {
     /// BAR2 offsets of the trapped pages.
     pub traps: Vec<u64>,
     pub sync_doorbell: bool,
+    /// `CARAXES_BAR2_FLUSH_DEFER_US`: a flush read owes a sync instead of running one,
+    /// paid within this many microseconds ([`Owed`]).
+    pub flush_defer_us: Option<u64>,
 }
 
 /// `Some` when `CARAXES_BAR2_MEMFD=1`; an error for a malformed trap list.
@@ -77,7 +91,132 @@ pub fn config() -> Result<Option<Config>, String> {
     Ok(Some(Config {
         traps,
         sync_doorbell: std::env::var(SYNC_DOORBELL_ENV).as_deref() == Ok("1"),
+        flush_defer_us: parse_flush_defer(std::env::var(FLUSH_DEFER_ENV).ok().as_deref())?,
     }))
+}
+
+/// `CARAXES_BAR2_FLUSH_DEFER_US`: `None` for unset, empty, `0` or `off`.
+pub fn parse_flush_defer(v: Option<&str>) -> Result<Option<u64>, String> {
+    let Some(v) = v.map(str::trim).filter(|v| !v.is_empty()) else {
+        return Ok(None);
+    };
+    match v {
+        "0" | "off" => Ok(None),
+        "on" | "1" => Ok(Some(DEFAULT_FLUSH_DEFER_US)),
+        v => v
+            .parse::<u64>()
+            .ok()
+            .filter(|&us| us <= MAX_FLUSH_DEFER_US)
+            .map(Some)
+            .ok_or_else(|| {
+                format!(
+                    "{FLUSH_DEFER_ENV}={v:?}: microseconds, 2 to {MAX_FLUSH_DEFER_US}, or on or off"
+                )
+            }),
+    }
+}
+
+/// Nanoseconds since the first call (a monotonic clock that is never 0 afterwards).
+pub fn mono_ns() -> u64 {
+    static EPOCH: OnceLock<Instant> = OnceLock::new();
+    EPOCH.get_or_init(Instant::now).elapsed().as_nanos() as u64 + 1
+}
+
+/// Where an owed sync was paid (the exit summary's split).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Payer {
+    /// A trapped access that may make the GPU or the device use BAR2 data: a BAR0 write
+    /// other than the invalidate's address words, a BAR1 access, a doorbell.
+    Access,
+    /// The reactor, when the bound ran out with no such access.
+    Reactor,
+    /// A sync that ran anyway (MMU invalidate, BAR2 bind, GSP doorbell).
+    Sync,
+}
+
+/// The flush-read deferral (`CARAXES_BAR2_FLUSH_DEFER_US`, docs/caraxes/intr-page.md
+/// §11.2). The guest RM reads the flush page after every BAR2 write it wants the GPU to
+/// see (kbusFlushSingle_GV100), Mutter about 23 times per frame, each after one PTE pair;
+/// a sync at each costs about 60 us on top of the trap. The data only matters when
+/// something consumes it: the MMU invalidate and the GSP doorbell sync anyway, a doorbell
+/// or another trapped write pays what is owed first, and the reactor pays it when the
+/// bound runs out. Shared between the device (behind its lock) and the reactor
+/// (lock-free reads of `since`).
+#[derive(Debug)]
+pub struct Owed {
+    /// [`mono_ns`] of the first flush read not yet synced, 0 when nothing is owed.
+    since: AtomicU64,
+    /// The bound in nanoseconds.
+    pub defer_ns: u64,
+    pub deferred: AtomicU64,
+    pub paid_access: AtomicU64,
+    pub paid_reactor: AtomicU64,
+    pub paid_sync: AtomicU64,
+    /// The longest time a sync was owed, in nanoseconds.
+    pub max_owed_ns: AtomicU64,
+}
+
+impl Owed {
+    pub fn new(defer_us: u64) -> Arc<Self> {
+        Arc::new(Owed {
+            since: AtomicU64::new(0),
+            defer_ns: defer_us * 1000,
+            deferred: AtomicU64::new(0),
+            paid_access: AtomicU64::new(0),
+            paid_reactor: AtomicU64::new(0),
+            paid_sync: AtomicU64::new(0),
+            max_owed_ns: AtomicU64::new(0),
+        })
+    }
+
+    /// A flush read owes a sync (the first one starts the clock).
+    pub fn owe(&self, now: u64) {
+        self.deferred.fetch_add(1, Ordering::Relaxed);
+        let _ = self
+            .since
+            .compare_exchange(0, now.max(1), Ordering::AcqRel, Ordering::Acquire);
+    }
+
+    /// Whether a sync is owed.
+    pub fn owed(&self) -> bool {
+        self.since.load(Ordering::Acquire) != 0
+    }
+
+    /// Whether the bound ran out at `now` (the reactor's check, lock-free).
+    pub fn due(&self, now: u64) -> bool {
+        let t = self.since.load(Ordering::Acquire);
+        t != 0 && now.saturating_sub(t) >= self.defer_ns
+    }
+
+    /// A sync ran (the caller holds the device): nothing is owed any more. Returns
+    /// whether something was.
+    pub fn paid(&self, by: Payer, now: u64) -> bool {
+        let t = self.since.swap(0, Ordering::AcqRel);
+        if t == 0 {
+            return false;
+        }
+        self.max_owed_ns
+            .fetch_max(now.saturating_sub(t), Ordering::Relaxed);
+        match by {
+            Payer::Access => &self.paid_access,
+            Payer::Reactor => &self.paid_reactor,
+            Payer::Sync => &self.paid_sync,
+        }
+        .fetch_add(1, Ordering::Relaxed);
+        true
+    }
+
+    pub fn summary(&self) -> String {
+        format!(
+            "bar2 flush deferral: bound {} us; {} flush read(s) deferred, owed syncs paid by {} trapped access(es) or doorbell(s), {} by the reactor at the bound, {} by a sync that ran anyway; longest owed {} us",
+            self.defer_ns / 1000,
+            self.deferred.load(Ordering::Relaxed),
+            self.paid_access.load(Ordering::Relaxed),
+            self.paid_reactor.load(Ordering::Relaxed),
+            self.paid_sync.load(Ordering::Relaxed),
+            self.max_owed_ns.load(Ordering::Relaxed) / 1000
+        )
+    }
 }
 
 fn parse_traps(v: &str) -> Result<Vec<u64>, String> {
@@ -670,6 +809,8 @@ pub struct Bar2Area {
     /// Trapped pages (page numbers), ascending.
     traps: Vec<u64>,
     pub sync_doorbell: bool,
+    /// `CARAXES_BAR2_FLUSH_DEFER_US`: the flush reads owe their sync.
+    pub owed: Option<Arc<Owed>>,
     pub remap: RemapTable,
     cache: RefCell<Option<WalkCache>>,
     cache_root: Cell<u64>,
@@ -692,6 +833,7 @@ impl Bar2Area {
             size,
             traps,
             sync_doorbell: cfg.sync_doorbell,
+            owed: cfg.flush_defer_us.map(Owed::new),
             remap: RemapTable::default(),
             cache: RefCell::new(None),
             cache_root: Cell::new(u64::MAX),
@@ -779,6 +921,9 @@ impl Bar2Area {
         tr: Translate,
     ) -> SyncReport {
         let t0 = std::time::Instant::now();
+        if let Some(o) = &self.owed {
+            o.paid(Payer::Sync, mono_ns());
+        }
         let mut rep = SyncReport::default();
         let mut sys_skipped = 0u64;
         let scan = self.remap.scan(
@@ -1014,6 +1159,42 @@ impl Bar2Area {
             s.max_aliases,
             s.sys_skipped
         )
+    }
+}
+
+#[cfg(test)]
+mod defer_tests {
+    use super::*;
+
+    #[test]
+    fn flush_defer_switch() {
+        assert_eq!(parse_flush_defer(None), Ok(None));
+        assert_eq!(parse_flush_defer(Some("")), Ok(None));
+        assert_eq!(parse_flush_defer(Some("0")), Ok(None));
+        assert_eq!(parse_flush_defer(Some("off")), Ok(None));
+        assert_eq!(parse_flush_defer(Some("on")), Ok(Some(DEFAULT_FLUSH_DEFER_US)));
+        assert_eq!(parse_flush_defer(Some(" 500 ")), Ok(Some(500)));
+        assert!(parse_flush_defer(Some("5001")).is_err());
+        assert!(parse_flush_defer(Some("-3")).is_err());
+        assert!(parse_flush_defer(Some("fast")).is_err());
+    }
+
+    #[test]
+    fn owed_clock_starts_at_the_first_flush() {
+        let o = Owed::new(100);
+        assert!(!o.owed());
+        assert!(!o.due(u64::MAX));
+        o.owe(1_000);
+        o.owe(50_000);
+        assert!(o.owed());
+        // The bound counts from the first flush read.
+        assert!(!o.due(100_999));
+        assert!(o.due(101_000));
+        assert!(o.paid(Payer::Reactor, 151_000));
+        assert!(!o.paid(Payer::Reactor, 152_000));
+        assert_eq!(o.max_owed_ns.load(Ordering::Relaxed), 150_000);
+        assert_eq!(o.paid_reactor.load(Ordering::Relaxed), 1);
+        assert_eq!(o.deferred.load(Ordering::Relaxed), 2);
     }
 }
 

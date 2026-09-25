@@ -805,6 +805,15 @@ impl Device {
         }
     }
 
+    /// The reactor found a deferred flush sync at its bound (bar2area.rs `Owed`,
+    /// docs/caraxes/intr-page.md §11.2): pay it.
+    pub fn bar2_pay_owed(&mut self) {
+        let mem = &self.mem;
+        if let Some(b) = self.bar0.boot_mut() {
+            b.bar2_pay_owed(mem, crate::bar2area::Payer::Reactor);
+        }
+    }
+
     pub fn summary(&self) -> String {
         let mut s = self.trace.summary();
         if self.doorbell_wakeups > 0 {
