@@ -306,3 +306,27 @@ For the weekend goal (a plain Ubuntu VM with `apt install nvidia-driver-*` works
   Sunshine's own virtual sink is what Moonlight plays.
 - The Xid 31 at one GNOME start (display-e.md section 9) may show up here too; `down.sh` records
   host Xid lines.
+
+## 10. Mouse and input (2026-09-25)
+
+Findings from the operator's tests on vm4-615 (plain configuration, then the reactor paths without
+the pool).
+
+- **What the absolute mouse is.** Moonlight's remote-desktop mode sends absolute positions;
+  Sunshine injects them through a uinput pointer device with `EV_ABS` (grid 19200 x 12000, scaled
+  to the display), which libinput and Mutter list as "Mouse passthrough (absolute)".
+- **Packets stop at the window edge.** Moonlight sends only while the host pointer is inside its
+  window. With a lagging stream the guest pointer trails the host pointer, the host pointer slips
+  over the edge, and the guest sees nothing: Sunshine's log showed a gap of one minute between
+  bursts of 50 to 180 packets per second.
+- **Where the lag came from.**
+  - Plain configuration: every MSI re-arm (about 1000 per second) and every clock read (about 500
+    per second) trapped; the guest's interrupt path stalls on each trap.
+  - Host load 17 on 16 threads (three agent builds plus the software decoder): Mutter logged
+    "event processing lagging behind by 26ms, your system is too slow".
+  - The software cursor: every pointer motion is a compositor repaint, so a cursor move costs the
+    whole capture, encode, network and decode pipeline.
+- **Next.** The game runs Moonlight in relative mode (`SOTTR_MOUSE=--no-absolute-mouse`); the
+  desktop keeps the absolute mode. Measure again with the pool fix (`bar1-pool.md` section 10)
+  and the reactor paths, with no builds on the host. Pinning the guest's interrupt vCPU on the
+  host is the next lever (`intr-page.md`, the Weston late-vblank finding).
