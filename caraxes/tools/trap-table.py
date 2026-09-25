@@ -15,10 +15,13 @@ The window ends 1 s before the last latch of a scanout surface in the trace (the
 stops, the compositor idles) and is --secs long. A presented frame is one latch of a
 window with a surface (display: window N latch ... surface fb ...).
 
-Usage: trap-table.py <device-trace.txt[.xz]> [--secs 10] [--json out.json] [--pages]
+Usage: trap-table.py <device-trace.txt[.xz]> [--secs 10] [--json out.json] [--pages] [--regs]
 
 --pages adds the BAR0 accesses per 4 KiB page and per frame (docs/caraxes/intr-page.md §1:
 with CARAXES_INTR_PAGE=1 pages 0x000000 and 0xb81000 are memory and drop out).
+
+--regs adds every trapped register (BAR, offset, read or write) per frame with its name, and
+the frame-time spread of the main window's latches (docs/caraxes/intr-page.md §11).
 """
 import argparse
 import collections
@@ -58,6 +61,7 @@ def main():
     ap.add_argument("--secs", type=float, default=10.0)
     ap.add_argument("--json")
     ap.add_argument("--pages", action="store_true", help="BAR0 accesses per 4 KiB page")
+    ap.add_argument("--regs", action="store_true", help="every trapped register per frame")
     a = ap.parse_args()
 
     rows = []
@@ -78,6 +82,9 @@ def main():
     start = end - int(a.secs * 1e6)
 
     frames = collections.Counter()
+    latch_ts = collections.defaultdict(list)
+    regs = collections.Counter()
+    reg_name = {}
     w0 = collections.Counter()
     r0 = collections.Counter()
     w1 = collections.Counter()
@@ -97,6 +104,7 @@ def main():
             m = LATCH.search(ln)
             if m and m.group(2) != "none":
                 frames[int(m.group(1))] += 1
+                latch_ts[int(m.group(1))].append(ts)
             if "doorbell: guest" in ln:
                 ev["forwarded doorbells (host doorbell rung)"] += 1
             elif "event: host notifier" in ln:
@@ -120,6 +128,10 @@ def main():
         name = p[6].split()[0] if len(p) > 6 and p[6].strip() else ""
         # p[5] is the value; p[6] the register name / fb annotation
         name = ln.split(None, 6)[6].strip() if len(p) > 6 else ""
+        key = (region, kind, off)
+        regs[key] += 1
+        if key not in reg_name:
+            reg_name[key] = name.split("(")[0].strip()
         if region == "bar0":
             pages[(off & ~0xFFF, kind)] += 1
         if kind == "W" and region == "bar0":
@@ -174,6 +186,19 @@ def main():
     if a.pages:
         for (pg, kind), n in sorted(pages.items(), key=lambda x: -x[1])[:12]:
             row(f"BAR0 page {pg:#08x} {'reads' if kind == 'R' else 'writes'}", n)
+    if a.regs:
+        bars = {"bar0": "BAR0", "bar1": "BAR1", "bar3": "BAR2"}
+        print("per register (BAR, access, offset, name):")
+        for (region, kind, off), n in regs.most_common(40):
+            what = f"  {bars.get(region, region)} {kind} {off:#010x} {reg_name[(region, kind, off)][:34]}"
+            row(what, n)
+        ts = latch_ts.get(main_win, [])
+        if len(ts) > 2:
+            d = [(b - x) / 1000 for x, b in zip(ts, ts[1:])]
+            print(f"latch intervals of window {main_win}: {len(d)}, mean {statistics.mean(d):.3f} ms, "
+                  f"sd {statistics.pstdev(d):.3f} ms, min {min(d):.3f} ms, max {max(d):.3f} ms, "
+                  f"over 20 ms {sum(1 for x in d if x > 20)}")
+            out["latch_interval_ms"] = d
     if walk:
         tot_w, tot_a = sum(walk), sum(apply_)
         print(f"  server-thread walk per plan: p50 {statistics.median(walk)} us, max {max(walk)} us, "

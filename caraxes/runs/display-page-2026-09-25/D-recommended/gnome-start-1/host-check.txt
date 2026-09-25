@@ -1,0 +1,3 @@
+# SPDX-License-Identifier: MIT
+since 2026-09-25 08:06:02: host kernel log lines 1
+nvidia-smi: 3155 MiB, 4624 MiB
