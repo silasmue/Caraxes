@@ -622,8 +622,10 @@ pub fn poll_model(b: &mut crate::boot::BootModel, mem: &GuestMemory) -> bool {
     if b.fb.bar1_pool().is_none() {
         return false;
     }
+    let held = |fb: &FakeFb| fb.pool_mut().as_ref().map_or(0, |p| p.table.len());
+    let before = held(&b.fb);
     let reg = &b.ctrl.channels;
-    match b.ctrl.mirror.as_mut() {
+    let ran = match b.ctrl.mirror.as_mut() {
         Some(m) => {
             let mut gpu = MirrorGpu {
                 mirror: m,
@@ -633,7 +635,16 @@ pub fn poll_model(b: &mut crate::boot::BootModel, mem: &GuestMemory) -> bool {
             poll(&mut b.fb, &mut gpu)
         }
         None => poll(&mut b.fb, &mut NoGpu),
+    };
+    // The pool emptied (a guest context went away): the counters so far, once per context,
+    // for a loop of workloads to read per iteration (docs/caraxes/bar1-pool.md §9).
+    if before > 0 && held(&b.fb) == 0 {
+        if let Some(s) = b.fb.bar1_pool_summary() {
+            let hold = b.ctrl.mirror.as_ref().map(|m| m.hold_summary()).unwrap_or_default();
+            eprintln!("vfio-user-nvgpu: at {} pool empty: {s}; {hold}", crate::untrapped::wall());
+        }
     }
+    ran
 }
 
 /// One unit's walk: its mapped pages and the table pages read.

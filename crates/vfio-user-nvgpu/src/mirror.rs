@@ -602,6 +602,11 @@ impl Mirror {
         }
     }
 
+    /// The untrapped-GPPut counters (untrapped.rs), for the pool's per-context line.
+    pub fn hold_summary(&self) -> String {
+        self.hold.summary(self.hold_on)
+    }
+
     /// Whether plans are pending: deferred by lazy mode, or submitted and not yet applied.
     pub fn plans_pending(&self) -> bool {
         self.lazy.is_pending() || self.worker.pending()
@@ -760,15 +765,6 @@ impl Mirror {
                 ));
                 if let Some(fb) = fb {
                     fb.unwatch_tables(Target::Fb(r));
-                    // The counters so far, once per guest context (a CUDA process): what a
-                    // loop of workloads reads per iteration (docs/caraxes/bar1-pool.md §9).
-                    if let Some(p) = fb.bar1_pool_summary() {
-                        eprintln!(
-                            "vfio-user-nvgpu: at {} root {r:#x} gone: {p}; {}",
-                            crate::untrapped::wall(),
-                            self.hold.summary(self.hold_on)
-                        );
-                    }
                 }
             }
         }
