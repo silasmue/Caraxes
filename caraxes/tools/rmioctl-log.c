@@ -87,6 +87,20 @@ int ioctl(int fd, unsigned long req, ...)
         for (uint32_t i = 0; b && i < p->paramsSize && i < 32; i++)
             fprintf(stderr, "%02x", b[i]);
         fputc('\n', stderr);
+        // NV0080_CTRL_CMD_GPU_GET_CLASSLIST (0x800201): numClasses @0, classList (NvP64) @8.
+        if (p->cmd == 0x800201 && p->status == 0 && b && p->paramsSize >= 16) {
+            uint32_t n;
+            uint64_t lp;
+            memcpy(&n, b, 4);
+            memcpy(&lp, b + 8, 8);
+            const uint32_t *l = (const uint32_t *)(uintptr_t)lp;
+            if (l) {
+                fprintf(stderr, "RMCLASSES %u:", n);
+                for (uint32_t i = 0; i < n && i < 512; i++)
+                    fprintf(stderr, " %04x", l[i]);
+                fputc('\n', stderr);
+            }
+        }
     } else if (_IOC_NR(req) == ESC_RM_ALLOC && _IOC_SIZE(req) >= sizeof(struct nvos64)) {
         struct nvos64 *p = arg;
         fprintf(stderr, "RMALLOC class=%#06x parent=%#x new=%#x status=%#x\n", p->hClass,

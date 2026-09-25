@@ -721,19 +721,41 @@ pub fn gmc_engine_id(nv2080: u32) -> Option<(u16, u16)> {
     })
 }
 
+/// The NVGMC engine id of an `RM_ENGINE_TYPE` number (gpu_engine_type.h:33-110, the RM
+/// column of `_NV_ENGINE_MAPPINGS`). `None` for a type the device never presents.
+pub fn gmc_engine_id_of_rm_type(rm: u32) -> Option<(u16, u16)> {
+    Some(match rm {
+        0x01..=0x08 => (ENGINE_TYPE_GR, (rm - 0x01) as u16),
+        0x09..=0x1C => (ENGINE_TYPE_COPY, (rm - 0x09) as u16),
+        0x1D..=0x24 => (ENGINE_TYPE_NVDEC, (rm - 0x1D) as u16),
+        0x25..=0x28 => (ENGINE_TYPE_NVENC, (rm - 0x25) as u16),
+        0x2D => (ENGINE_TYPE_SW, 0),
+        0x31 => (ENGINE_TYPE_SEC2, 0),
+        0x32 => (ENGINE_TYPE_HOST, 0),
+        _ => return None,
+    })
+}
+
 /// The `NVGMC_SC_ENGINE_MASK` value for a list of `NV2080_ENGINE_TYPE` numbers: one u64
-/// per engine type from `ENGINE_TYPE_GR` on, bit n for engine index n; what
-/// `gpuGetGMCEngineIdMasksFromRmEngineTypeCaps` builds on the GSP side
-/// (gpu_engine_type.c:296-310) and `gpuGetRmEngineTypeCapsFromGMCEngineIdMasks` reads
-/// back (:255-277, called from kernel_gsp.c:7837-7843 with the key index as the first
-/// type). Returns the first type (the key index) and the masks, and the numbers that
-/// have no GMC id.
+/// per engine type from `ENGINE_TYPE_GR` on, bit n for engine index n. Returns the first
+/// type (the key index) and the masks, and the numbers that have no GMC id.
+///
+/// The 615 kernel decodes the key into `GspStaticConfigInfo.engineCaps` as RM engine
+/// types (`gpuGetRmEngineTypeCapsFromGMCEngineIdMasks`, kernel_gsp.c:7837-7843), but its
+/// one reader treats that array as `NV2080_ENGINE_TYPE` caps and converts it once more
+/// (`gpuCheckEngineWithOrderList_KERNEL`, gpu.c:6733-6749, through
+/// `gpuGetRmEngineTypeCapMask`). So the bit the kernel must see for an engine is its
+/// NV2080 number, and each NV2080 number `t` is encoded here as the GMC id of the RM type
+/// `t`. For GR0 and CE0-9 both numberings coincide, which is why GR and CE worked with the
+/// plain mapping; NVDEC and NVENC did not: the 615 guest dropped NVC4B0 and NVC4B7 from
+/// its class DB and listed no video engine (rmlog-615, NVENC refused as an unsupported
+/// device).
 pub fn engine_masks(nv2080_types: &[u32]) -> (u16, Vec<u64>, Vec<u32>) {
     let first = ENGINE_TYPE_GR;
     let mut masks = vec![0u64; (ENGINE_TYPE_COUNT - first) as usize];
     let mut unmapped = Vec::new();
     for &t in nv2080_types {
-        match gmc_engine_id(t) {
+        match gmc_engine_id_of_rm_type(t) {
             Some((ty, idx)) if idx < 64 => masks[(ty - first) as usize] |= 1 << idx,
             _ => unmapped.push(t),
         }
@@ -873,16 +895,29 @@ mod tests {
         let (first, masks, unmapped) = engine_masks(&tu106);
         assert_eq!(first, ENGINE_TYPE_GR);
         assert!(unmapped.is_empty());
+        // The 615 kernel's two steps: the key to RM-type bits (GMC id -> RM type), then that
+        // array read as NV2080 bits (gpu.c:6733-6749). What it ends up checking must be the
+        // NV2080 list itself, video engines included.
+        let mut seen: Vec<u32> = Vec::new();
+        for (i, m) in masks.iter().enumerate() {
+            for j in 0..64u16 {
+                if m & (1 << j) != 0 {
+                    let id = (first + i as u16, j);
+                    let rm = (1..0x40).find(|r| gmc_engine_id_of_rm_type(*r) == Some(id)).unwrap();
+                    seen.push(rm);
+                }
+            }
+        }
+        seen.sort();
+        assert_eq!(seen, tu106.to_vec());
+        // As the key goes out: NVDEC0/1 and NVENC0 ride as COPY10, COPY11 and COPY18,
+        // SW as NVDEC5, SEC2 and HOST as NVENC1 and NVENC2.
         let m = |t: u16| masks[(t - first) as usize];
         assert_eq!(m(ENGINE_TYPE_GR), 0b1);
-        assert_eq!(m(ENGINE_TYPE_COPY), 0x1FF);
-        assert_eq!(m(ENGINE_TYPE_NVDEC), 0b11);
-        assert_eq!(m(ENGINE_TYPE_NVENC), 0b1);
-        assert_eq!(
-            (m(ENGINE_TYPE_SW), m(ENGINE_TYPE_SEC2), m(ENGINE_TYPE_HOST)),
-            (1, 1, 1)
-        );
-        assert_eq!(masks.len(), (ENGINE_TYPE_HOST - first + 1) as usize);
+        assert_eq!(m(ENGINE_TYPE_COPY), 0x1FF | 1 << 10 | 1 << 11 | 1 << 18);
+        assert_eq!(m(ENGINE_TYPE_NVDEC), 1 << 5);
+        assert_eq!(m(ENGINE_TYPE_NVENC), 0b110);
+        assert_eq!(masks.len(), (ENGINE_TYPE_NVENC - first + 1) as usize);
         assert_eq!(gmc_engine_id(0x34), Some((ENGINE_TYPE_COPY, 10)));
         assert_eq!(gmc_engine_id(0x28), None);
     }
