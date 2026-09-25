@@ -1,0 +1,4 @@
+nat: 192.168.102.0/24 out of enp39s0, 3 rule(s) added
+nat: removed -t nat -D POSTROUTING -s 192.168.102.0/24 -o enp39s0 -j MASQUERADE
+nat: removed -D FORWARD -s 192.168.102.0/24 -j ACCEPT
+nat: removed -D FORWARD -d 192.168.102.0/24 -j ACCEPT
