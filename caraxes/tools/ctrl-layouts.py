@@ -20,7 +20,10 @@ offsets of its top-level fields equal the nvrm-sys binding, so the two generated
 cannot drift apart (decision D14; the handler is chipctl.rs).
 
 Usage:
-  python3 caraxes/tools/ctrl-layouts.py --ogkm DIR [--out FILE]
+  python3 caraxes/tools/ctrl-layouts.py --ogkm DIR [--out FILE] [--skip-missing]
+
+--skip-missing leaves out a table struct the tree does not define instead of failing (an
+older tree such as 570.144, for caraxes/tools/gsp-abi.py snapshots).
 
 Needs clang and a C compiler (cc); python 3.11 or later, standard library only.
 """
@@ -140,6 +143,8 @@ def leaves(records, rec, prefix_c, prefix_path, dims):
 def nvrm_sys_path(name, version_mod):
     for f, path in ((os.path.join(NVRM_SYS, version_mod + ".rs"), "nvrm_sys::%s::%s" % (version_mod, name)),
                     (os.path.join(NVRM_SYS, "stable.rs"), "nvrm_sys::%s" % name)):
+        if not os.path.exists(f):  # no nvrm-sys module for this version (570)
+            continue
         with open(f, encoding="utf-8") as fh:
             if re.search(r"pub struct %s \{" % re.escape(name), fh.read()):
                 return path
@@ -150,19 +155,23 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--ogkm", required=True)
     ap.add_argument("--out")
+    ap.add_argument("--skip-missing", action="store_true")
     a = ap.parse_args()
     ogkm = os.path.abspath(a.ogkm)
     with open(os.path.join(ogkm, "version.mk")) as f:
         driver = re.search(r"^NVIDIA_VERSION\s*=\s*(\S+)", f.read(), re.M).group(1)
     major = driver.split(".")[0]
     sdk = os.path.join(ogkm, "src", "common", "sdk", "nvidia", "inc")
-    names = wanted_structs()
+    names = []
     headers = {}
-    for n in names:
+    for n in wanted_structs():
         h = header_of(sdk, n)
         if h is None:
+            if a.skip_missing:
+                continue
             sys.exit("%s: no header of %s defines it" % (driver, n))
         headers[n] = h
+        names.append(n)
     for n in d_structs():
         h = header_of(sdk, n)
         if h is not None and n not in headers:
