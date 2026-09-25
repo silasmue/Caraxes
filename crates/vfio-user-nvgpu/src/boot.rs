@@ -1741,6 +1741,16 @@ impl BootModel {
                                 self.fb.unwatch_tables(crate::fb::Target::Fb(r));
                             }
                         }
+                        // Set-B ranges held until a host TSG's free (mirror.rs `held_at_free`)
+                        // went back to set A: map the guest's pages there now, after the host
+                        // context at those VAs is gone.
+                        {
+                            let mut gm = crate::channel::GpuMem {
+                                fb: &mut self.fb,
+                                sys: mem,
+                            };
+                            notes.extend(self.ctrl.mirror_resync_released(&mut gm));
+                        }
                         if h_object == h_client {
                             crate::profile::client_close(h_client);
                         }

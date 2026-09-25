@@ -769,6 +769,19 @@ impl Dispatcher {
             .unwrap_or_default()
     }
 
+    /// Re-sync the shadow roots whose held set-B ranges a host TSG free released
+    /// (mirror.rs `take_released_roots`), right after the guest's FREE.
+    pub fn mirror_resync_released(&mut self, gm: &mut crate::channel::GpuMem) -> Vec<String> {
+        let reg = &self.channels;
+        let Some(m) = self.mirror.as_mut() else {
+            return Vec::new();
+        };
+        m.take_released_roots()
+            .into_iter()
+            .flat_map(|r| m.shadow_resync(reg, gm, Some(r)))
+            .collect()
+    }
+
     /// The guest's L2 cache operation, honoured on the physical GPU with
     /// `NV2080_CTRL_CMD_FB_FLUSH_GPU_CACHE` (full cache, system-memory aperture, the
     /// operation's bit) on the device's own subdevice. The flag bits are the host
