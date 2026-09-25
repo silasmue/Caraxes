@@ -1,0 +1,1 @@
+{"gate":"display","result":"fail","dur_s":5,"reason":"exited before the verdict (pending status 0)","facts":{"stages":[],"failed":[],"vm":"vm0","caraxes":"shell-rig-371-g0c81846ccf78-dirty","device":"TU106 (BOOT_0 0x166000a1, driver 610.57.04) on /mnt/vmstore/caraxes/vm0/gpu.sock, boot model on, FB 2048 MiB"}}

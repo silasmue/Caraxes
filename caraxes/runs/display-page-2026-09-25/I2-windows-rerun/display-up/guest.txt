@@ -1,0 +1,10 @@
+card0-DP-1 connected 1920x1080 1920x1080 1920x1080 1280x720 1280x720 640x480 
+PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
+# CARAXES display-e: EGL/GBM on the NVIDIA driver (host execution on)
+lrwxrwxrwx 1 root root 41 Sep 25 07:56 /usr/lib/x86_64-linux-gnu/gbm/nvidia-drm_gbm.so -> /opt/nvrm-gl/lib/libnvidia-allocator.so.1
+nvidia_uvm           2043904  0
+nvidia_drm            147456  0
+nvidia_modeset       1490944  1 nvidia_drm
+video                  77824  1 nvidia_modeset
+nvidia              16379904  2 nvidia_uvm,nvidia_modeset
+ecc                    45056  1 nvidia

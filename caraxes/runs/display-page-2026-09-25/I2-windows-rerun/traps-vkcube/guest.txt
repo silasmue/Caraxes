@@ -1,0 +1,2 @@
+== 2026-09-25T08:01:24Z vkcube load 0.68 0.67 0.36 1/637 6008
+APP vkcube frames=960 elapsed_s=21.365 fps=44.93 Selected GPU 0: Leandro VFIO RTX 2070-2G, type: DiscreteGpu

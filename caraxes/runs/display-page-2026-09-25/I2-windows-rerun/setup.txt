@@ -1,7 +1,7 @@
 NVRM version: NVIDIA UNIX Open Kernel Module for x86_64  615.71.09  Release Build  (root@)  
-17c728f511bcd9325e347939551e9f6ed30281d3ba295c851287f83dc98d64a9  /mnt/vmstore/caraxes/vm0/vfio-user-nvgpu-desk-i
-2026-09-25T09:33:05+02:00
-15.13 21.18 18.42
+b2d4091c29d869eedc3aeb361810e43684d8620345bd608f23cb5ef13990eef6  /mnt/vmstore/caraxes/vm0/vfio-user-nvgpu-desk-i2
+2026-09-25T09:53:38+02:00
+31.79 25.87 21.34
 CARAXES_ALLOC_LAZY=1
 CARAXES_BAR1_PASSTHROUGH=pool
 CARAXES_BAR1_POOL_MIB=32
@@ -28,7 +28,8 @@ CARAXES_MIRROR_GR_SHADOW=1
 CARAXES_MSI_REARM_IOEVENTFD=1
 CARAXES_RESERVE_SLOT=0
 CARAXES_RESERVE_VRAM=1
-CARAXES_SERVER=/mnt/vmstore/caraxes/vm0/vfio-user-nvgpu-desk-i
+CARAXES_SERVER=/mnt/vmstore/caraxes/vm0/vfio-user-nvgpu-desk-i2
+CARAXES_SERVER_I=/mnt/vmstore/caraxes/vm0/vfio-user-nvgpu-desk-i2
 CARAXES_TAP=caraxes0
 LEA_CH=/mnt/vmstore/caraxes/vm1/ch-0006-v.sh
 VM=vm0

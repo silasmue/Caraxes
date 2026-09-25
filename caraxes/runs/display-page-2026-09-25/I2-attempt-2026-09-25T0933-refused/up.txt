@@ -1,0 +1,2 @@
+ERROR: DMA table in /mnt/vmstore/caraxes/vm0/dma-ranges covers 0 of 4294967296 bytes
+stopped
