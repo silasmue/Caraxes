@@ -24,12 +24,23 @@ export CARAXES_DOORBELL_TOKENS=64 CARAXES_DOORBELL_POLL=hybrid CARAXES_DOORBELL_
 export CARAXES_INTR_PAGE=1 CARAXES_DISPLAY_PAGE=1
 # Not in the display series, so not here: the BAR1 pool (docs/caraxes/bar1-pool.md, never run on
 # a VM with the display), BAR1 passthrough, ioeventfd doorbells, the 615 guest ABI.
-unset CARAXES_BAR1_PASSTHROUGH CARAXES_BAR1_POOL_MIB CARAXES_DOORBELL_IOEVENTFD CARAXES_GUEST_ABI
+# 2026-09-25: the recommended configuration of the morning matrix (benchmark.md "Morning matrix",
+# the 610 display gate passed 11 of 11 with it): the BAR1 pool (128 MiB, the game VM is alone on
+# the host's BAR1), the BAR2 memfd, the MSI re-arm ioeventfd and the lazy allocation plans, on the
+# main b22ab48 build with the pool's untrapped-GPPut hold (bar1-pool.md §9). SOTTR_PLAIN=1 restores
+# the display-series configuration C the stage was first tested with.
+if [[ ${SOTTR_PLAIN:-0} == 1 ]]; then
+    unset CARAXES_BAR1_PASSTHROUGH CARAXES_BAR1_POOL_MIB CARAXES_BAR2_MEMFD CARAXES_MSI_REARM_IOEVENTFD CARAXES_ALLOC_LAZY
+else
+    export CARAXES_BAR1_PASSTHROUGH=pool CARAXES_BAR1_POOL_MIB=${SOTTR_POOL_MIB:-128}
+    export CARAXES_BAR2_MEMFD=1 CARAXES_MSI_REARM_IOEVENTFD=1 CARAXES_ALLOC_LAZY=1
+fi
+unset CARAXES_DOORBELL_IOEVENTFD CARAXES_GUEST_ABI
 unset CARAXES_DRIVER CARAXES_GAMES_DISK_RW CARAXES_INPUT
 # The device of main 3cb33af (display page, interrupt page, the FB_FLUSH_GPU_CACHE fix for the
 # 615 host, GSP E+A, LCE shim). Not the display series' frozen fepage binary: it predates the
 # flush fix and floods the 615 host's log with kmemsysFlushGpuCache "Invalid aperture".
-export CARAXES_SERVER=${SOTTR_SERVER:-/mnt/vmstore/caraxes/vfio-user-nvgpu-main-3cb33af}
+export CARAXES_SERVER=${SOTTR_SERVER:-/mnt/vmstore/caraxes/vfio-user-nvgpu-main-b22ab48}
 export LEA_CH=/mnt/vmstore/caraxes/vm1/ch-0006-v.sh
 # The v1 Steam library (ext4, label LEAGAMES, /SteamLibrary on it); vm4 gets $W/games.qcow2.
 export CARAXES_GAMES_DISK=${SOTTR_GAMES_BASE:-/mnt/vmstore/leandro/vm/games.qcow2}
