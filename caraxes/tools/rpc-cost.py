@@ -55,6 +55,22 @@ SYNC = re.compile(
     r"shadow: sync (\d+) leaves walked.*?-> (\d+) unmapped, (\d+) mapped in (\d+) call\(s\)"
     r".*?walk (\d+) us, apply (\d+) us(?: after (\d+) us in the worker's queue)?, sync (\d+) us"
 )
+# The shadow's host RM calls by kind (shadow.rs RmCalls::line, from 2026-09-25): on every sync
+# line, and on a VAS teardown line (the last one there is the teardown's own).
+RMCALLS = re.compile(r"RM calls (\d+): (.*?); regions reused (\d+), pooled (\d+)")
+RMPAIR = re.compile(r"([a-z][a-z ]*?) (\d+) \((\d+) us\)")
+RMCALL_HIST = collections.OrderedDict()
+
+
+def rm_calls(text):
+    """Add the RM calls of a sync or teardown line to RMCALL_HIST (kind -> [calls, us])."""
+    found = list(RMCALLS.finditer(text))
+    if not found:
+        return
+    for m in RMPAIR.finditer(found[-1].group(2)):
+        h = RMCALL_HIST.setdefault(m.group(1), [0, 0])
+        h[0] += int(m.group(2))
+        h[1] += int(m.group(3))
 
 # What an allocation, a free or a submission traps on (the rest is interrupt servicing).
 ACTIVITY = {
@@ -232,6 +248,9 @@ def parse(args):
             r = SYNC.search(text)
             if r:
                 syncs.append(tuple(int(x) if x is not None else 0 for x in r.groups()))
+                rm_calls(text)
+            elif "shadow: VAS of guest root" in text and "freed:" in text:
+                rm_calls(text)
     return whole, segments, rpc_done, invals, syncs, episodes, (t_first, t_last)
 
 
@@ -334,6 +353,13 @@ def main():
               f"{sum(cols[2])} mapped in {sum(cols[3])} RM map call(s); walk median {statistics.median(cols[4]):.0f} us "
               f"(server thread), apply median {statistics.median(cols[5]):.0f} us p90 {pct(cols[5], 0.9):.0f} us "
               f"total {sum(cols[5]) / 1000:.1f} ms (worker), queued median {statistics.median(cols[6]):.0f} us.")
+    if RMCALL_HIST:
+        print("\nThe shadow's host RM calls by kind (plans and VAS teardowns in the window):\n")
+        print("| kind | calls | ms | us per call |\n|---|---|---|---|")
+        for k, (n, us) in RMCALL_HIST.items():
+            print(f"| {k} | {n} | {us / 1000:.1f} | {us / n if n else 0:.0f} |")
+        print(f"| total | {sum(v[0] for v in RMCALL_HIST.values())} | "
+              f"{sum(v[1] for v in RMCALL_HIST.values()) / 1000:.1f} | - |")
     print()
     if episodes:
         print("Episodes from one channel-VAS invalidate to the next (one guest mapping change each), "
