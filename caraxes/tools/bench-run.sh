@@ -198,6 +198,11 @@ v2_restart() {
     local n=0 log=${CARAXES_STORE:-/mnt/vmstore/caraxes}/$VM/gpu.log
     "$ROOT/tools/caraxes-vm.sh" ssh sync || true
     "$ROOT/tools/caraxes-vm.sh" down
+    # Morning matrix 2026-09-25: with V2_LOG_KEEP=FILE (set by `series` per rep) keep the
+    # stopped device's log, whose exit summary (the BAR1 pool's page movements, the doorbell
+    # and mirror counters) the next `up` would truncate. The workload gate's Xid 31 came in a
+    # rep whose summary was lost that way (caraxes/runs/matrix-2026-09-25/workload-615/xid31-note.txt).
+    [[ -n ${V2_LOG_KEEP:-} ]] && cp "$log" "$V2_LOG_KEEP" 2>/dev/null
     # Night shift 2026-09-24 (docs/caraxes/benchmark.md "Night series"): with other VMs on the
     # card the device may refuse its reservation under the D11 headroom rule (hostmem.rs:1328,
     # "below the 1024 MiB headroom"); wait five minutes and try again, up to
@@ -267,7 +272,8 @@ series)
         # v2 (docs/caraxes/benchmark.md): with V2_RESTART=1 the v2 VM and its device process
         # restart before every rep after the first, symmetric with V1_RESTART.
         if [[ ${V2_RESTART:-0} == 1 && $r -gt 1 && " $targets " == *" v2 "* ]]; then
-            { echo "# $(date +%T) v2 restart before rep $r"; v2_restart; } >> "$out/series.txt" 2>&1
+            { echo "# $(date +%T) v2 restart before rep $r"
+              V2_LOG_KEEP="$out/v2-device-rep$((r - 1)).txt" v2_restart; } >> "$out/series.txt" 2>&1
         fi
         for m in $metrics; do
             for t in $targets; do run_one "$t" "$m" "$r" "$out" | tee -a "$out/series.txt"; done
