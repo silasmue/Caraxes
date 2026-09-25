@@ -26,6 +26,9 @@ args=(--boot-model --display --fb-mib "${WIN_GPU_FB_MIB:-1024}")
 # WIN_GPU_BOARD: a board-data file for a costume (crates/vfio-user-nvgpu/boards/tesla-t4-on-tu106.toml:
 # the card as a Tesla T4 for the data-centre driver's TCC path).
 [[ -n ${WIN_GPU_BOARD:-} ]] && args+=(--board-data "$WIN_GPU_BOARD")
+# WIN_GPU_REGS: a captured-register file for the table (bar0-registers-t4-costume.txt next to this
+# script for the Tesla T4 costume, whose chip identity refuses the RTX 2070's own capture).
+[[ -n ${WIN_GPU_REGS:-} ]] && args+=(--bar0-registers "$WIN_GPU_REGS")
 [[ -n ${CARAXES_GUEST_ABI:-} ]] && args+=(--guest-abi "$CARAXES_GUEST_ABI")
 LEA_ROOT=$LEA_ROOT "$SERVER" --socket "$W/gpu.sock" --trace "$W/gpu-trace.log" \
     --config "$CONFIG" --rom "$REF/rom.bin" "${args[@]}" > "$W/gpu.log" 2>&1 &
