@@ -54,7 +54,7 @@ pub const SYNC_DOORBELL_ENV: &str = "CARAXES_BAR2_MEMFD_SYNC_DOORBELL";
 /// unset or `0` syncs at every flush read as before; `on` is [`DEFAULT_FLUSH_DEFER_US`].
 pub const FLUSH_DEFER_ENV: &str = "CARAXES_BAR2_FLUSH_DEFER_US";
 /// The deferral bound of `CARAXES_BAR2_FLUSH_DEFER_US=on`.
-pub const DEFAULT_FLUSH_DEFER_US: u64 = 200;
+pub const DEFAULT_FLUSH_DEFER_US: u64 = 2000;
 /// The longest deferral accepted: the reactor's sleep bound is a millisecond, and an
 /// owed sync keeps it spinning, so a longer bound buys nothing but latency.
 pub const MAX_FLUSH_DEFER_US: u64 = 5000;
