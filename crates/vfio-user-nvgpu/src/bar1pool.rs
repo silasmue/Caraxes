@@ -43,6 +43,12 @@ pub const MAX_POOL_MIB: u64 = 128;
 /// Host BAR1 one device may hold with a pool: the pool plus its window budget
 /// (`CARAXES_BAR1_WINDOWS` x `CARAXES_BAR1_WINDOW_MIB`, 64 MiB by default).
 pub const MAX_HOST_BAR1: u64 = 192 * MIB;
+/// Host BAR1 a new pool must leave free for the host's own clients (the desktop's Vulkan
+/// fails at vkCreateDevice without it, 2026-09-25: a game VM's 128 MiB pool plus a second
+/// device's pool exhausted the 256 MiB); `CARAXES_HOST_BAR1_FLOOR_MIB` overrides it, 0
+/// turns the check off.
+pub const HOST_BAR1_FLOOR_MIB: u64 = 96;
+pub const HOST_BAR1_FLOOR_ENV: &str = "CARAXES_HOST_BAR1_FLOOR_MIB";
 /// Refused remaps are retried at most this often (at the next trapped BAR0 write after).
 pub const RETRY_EVERY: Duration = Duration::from_millis(1);
 /// Findings logged at most (the counters are complete).
@@ -108,6 +114,69 @@ pub fn check_size(layout: &FbLayout, pool: u64, bar1: u64, windows: u64) -> Resu
             "BAR1 pool {} MiB: more than a quarter of the usable FB ({} MiB)",
             pool / MIB,
             (hi - lo) / MIB
+        ));
+    }
+    Ok(())
+}
+
+/// `CARAXES_HOST_BAR1_FLOOR_MIB` (unset: [`HOST_BAR1_FLOOR_MIB`]), in bytes.
+pub fn host_bar1_floor(v: Option<&str>) -> Result<u64, String> {
+    match v.map(str::trim).filter(|v| !v.is_empty()) {
+        None => Ok(HOST_BAR1_FLOOR_MIB * MIB),
+        Some(v) => v
+            .parse::<u64>()
+            .map(|m| m * MIB)
+            .map_err(|_| format!("{HOST_BAR1_FLOOR_ENV}={v:?}: a number of MiB")),
+    }
+}
+
+/// `(total, used, free)` in bytes from the "BAR1 Memory Usage" block of
+/// `nvidia-smi -q -d MEMORY` (the first GPU's).
+pub fn parse_smi_bar1(out: &str) -> Option<(u64, u64, u64)> {
+    let mut lines = out.lines().skip_while(|l| l.trim() != "BAR1 Memory Usage").skip(1);
+    let mut field = |name: &str| -> Option<u64> {
+        let l = lines.next()?;
+        let (k, v) = l.split_once(':')?;
+        if k.trim() != name {
+            return None;
+        }
+        let v = v.trim().strip_suffix("MiB")?.trim().parse::<u64>().ok()?;
+        Some(v * MIB)
+    };
+    Some((field("Total")?, field("Used")?, field("Free")?))
+}
+
+/// The host's free BAR1, read with `nvidia-smi -q -d MEMORY` (read-only; the host
+/// driver's own accounting of its BAR1 heap).
+pub fn host_bar1_free() -> Result<u64, String> {
+    let out = std::process::Command::new("nvidia-smi")
+        .args(["-q", "-d", "MEMORY"])
+        .output()
+        .map_err(|e| format!("nvidia-smi: {e}"))?;
+    if !out.status.success() {
+        return Err(format!("nvidia-smi -q -d MEMORY: {}", out.status));
+    }
+    parse_smi_bar1(&String::from_utf8_lossy(&out.stdout))
+        .map(|(_, _, free)| free)
+        .ok_or_else(|| "nvidia-smi -q -d MEMORY: no BAR1 Memory Usage block".into())
+}
+
+/// The host BAR1 floor (D11's rule for VRAM, applied to BAR1): a pool of `need` bytes
+/// (the pool and its window budget) is refused unless the host keeps `floor` free after
+/// it. Fail closed: an unknown free size (`Err`) refuses too; a floor of 0 skips the check.
+pub fn check_host_bar1(need: u64, free: Result<u64, String>, floor: u64) -> Result<(), String> {
+    if floor == 0 {
+        return Ok(());
+    }
+    let free = free.map_err(|e| {
+        format!("host BAR1 floor: the host's free BAR1 is unknown ({e}); refused ({HOST_BAR1_FLOOR_ENV}=0 skips the check)")
+    })?;
+    if free < need + floor {
+        return Err(format!(
+            "host BAR1 floor: the pool and its windows need {} MiB, the host has {} MiB free and must keep {} MiB ({HOST_BAR1_FLOOR_ENV})",
+            need / MIB,
+            free / MIB,
+            floor / MIB
         ));
     }
     Ok(())
@@ -1007,6 +1076,29 @@ fn check_hazards(fb: &FakeFb) {
             );
             p.finding(true, line);
         }
+    }
+}
+
+#[cfg(test)]
+mod floor_tests {
+    use super::*;
+
+    /// The host BAR1 floor: parsed from nvidia-smi's MEMORY block, refused below the
+    /// floor and when the free size is unknown, skipped at floor 0.
+    #[test]
+    fn host_bar1_floor_fails_closed() {
+        let out = "GPU 00000000:2D:00.0\n    FB Memory Usage\n        Total : 8192 MiB\n        Used : 4223 MiB\n        Free : 3556 MiB\n    BAR1 Memory Usage\n        Total                                          : 256 MiB\n        Used                                           : 165 MiB\n        Free                                           : 91 MiB\n";
+        assert_eq!(parse_smi_bar1(out), Some((256 * MIB, 165 * MIB, 91 * MIB)));
+        assert_eq!(parse_smi_bar1("no such block"), None);
+        assert_eq!(host_bar1_floor(None), Ok(96 * MIB));
+        assert_eq!(host_bar1_floor(Some("0")), Ok(0));
+        assert!(host_bar1_floor(Some("lots")).is_err());
+        // The morning's case: 91 MiB free, a 32 MiB pool with 64 MiB of windows.
+        let e = check_host_bar1(96 * MIB, Ok(91 * MIB), 96 * MIB).unwrap_err();
+        assert!(e.contains("need 96 MiB, the host has 91 MiB free and must keep 96 MiB"), "{e}");
+        assert!(check_host_bar1(96 * MIB, Ok(192 * MIB), 96 * MIB).is_ok());
+        assert!(check_host_bar1(96 * MIB, Err("x".into()), 96 * MIB).is_err());
+        assert!(check_host_bar1(96 * MIB, Err("x".into()), 0).is_ok());
     }
 }
 
