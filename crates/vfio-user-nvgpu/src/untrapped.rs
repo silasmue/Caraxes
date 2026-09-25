@@ -57,6 +57,18 @@ pub fn must_hold(pdb: Option<u64>, untrapped: &BTreeSet<u64>) -> bool {
     }
 }
 
+/// Whether an invalidate the rule plans now must also wait for the worker's apply: only
+/// when a plan it submitted may add or change a mapping (`Plan::adds`). A plan that only
+/// removes mappings cannot make a host channel that runs ahead meet a VA the guest maps
+/// and the shadow does not (the FAULT_PDE of bar1-pool.md §9): until the worker applies it,
+/// the shadow holds every mapping of the guest's new tables with the same target, and
+/// more. The extra mappings are ones the guest dropped: the guest issues no work on them,
+/// and each was validated into this VM's reservation or registered RAM when it was made
+/// (D16/D17), so a stale one reaches only this VM's memory, as under lazy mode's deferral.
+pub fn must_wait(adds: bool) -> bool {
+    adds
+}
+
 /// Whether a host channel fetched GPFIFO entries the device never forwarded: at a doorbell,
 /// its GPGet `get` has moved past `fwd`, the GPPut the device saw at its last forward,
 /// towards the guest's current GPPut `put`, on a ring of `entries` entries.
@@ -75,6 +87,10 @@ pub struct HoldStats {
     pub held: u64,
     pub held_total: Duration,
     pub held_max: Duration,
+    /// Invalidates of such a root whose plans only removed mappings: planned now and not
+    /// waited for ([`must_wait`]), and the planning time.
+    pub passed: u64,
+    pub passed_total: Duration,
     /// Doorbells whose host channel had run ahead of them, and of those the ones that found
     /// plans pending (lazy or in the worker).
     pub ahead: u64,
@@ -87,6 +103,11 @@ impl HoldStats {
         self.held += 1;
         self.held_total += d;
         self.held_max = self.held_max.max(d);
+    }
+
+    pub fn note_passed(&mut self, d: Duration) {
+        self.passed += 1;
+        self.passed_total += d;
     }
 
     /// A doorbell that found its host channel ahead; `pending` whether plans were pending.
@@ -106,11 +127,13 @@ impl HoldStats {
 
     pub fn summary(&self, on: bool) -> String {
         format!(
-            "untrapped GPPut: rule {} ({ENV}); {} invalidate(s) held until applied ({} ms in total, longest {} us); {} doorbell(s) found the host channel ahead of them, {} of them with plans pending (docs/caraxes/bar1-pool.md §9)",
+            "untrapped GPPut: rule {} ({ENV}); {} invalidate(s) held until applied ({} ms in total, longest {} us); {} only removed mappings and were not held ({} ms planning); {} doorbell(s) found the host channel ahead of them, {} of them with plans pending (docs/caraxes/bar1-pool.md §9)",
             if on { "on" } else { "OFF" },
             self.held,
             self.held_total.as_millis(),
             self.held_max.as_micros(),
+            self.passed,
+            self.passed_total.as_millis(),
             self.ahead,
             self.ahead_pending
         )
@@ -182,5 +205,80 @@ mod tests {
         s.note_held(Duration::from_micros(100));
         assert_eq!((s.held, s.held_max), (2, Duration::from_micros(300)));
         assert!(s.summary(true).contains("2 invalidate(s) held"));
+        s.note_passed(Duration::from_micros(40));
+        assert_eq!((s.held, s.passed), (2, 1));
+        assert!(s.summary(true).contains("1 only removed mappings and were not held"));
+    }
+
+    /// The scenario of bar1-pool.md §9 with the refinement. A shadow root whose channel's
+    /// USERD is untrapped holds a buffer; the guest frees it (an invalidate that only
+    /// removes leaves), then allocates a fresh 2 MiB region and launches a kernel that
+    /// writes it (an invalidate that adds a PDE). A host channel that runs ahead meets the
+    /// shadow as it was before the invalidate's plan was applied: after the free that
+    /// shadow still holds every leaf of the guest's tables with the same target (no fault
+    /// possible, so no wait), after the allocation it lacks the fresh region's PDE (the
+    /// FAULT_PDE on a GR write, so the invalidate is held).
+    #[test]
+    fn a_plan_that_only_removes_mappings_cannot_fault_a_run_ahead_channel() {
+        use crate::fb::{FakeFb, Target};
+        use crate::guestmem::GuestMemory;
+        use crate::shadow::ShadowFront;
+        const BASE: u64 = 0x1_0000_0000;
+        const END: u64 = 0x2_0000_0000;
+        let mut fb = FakeFb::new(END + (64 << 20));
+        let vid = |a: u64| ((a >> 12) << 8) | 0b010;
+        let pte = |a: u64| ((a >> 12) << 8) | 1 | (6u64 << 56);
+        let (root, pd2, pd1, pd0) = (BASE, BASE + 0x1000, BASE + 0x2000, BASE + 0x3000);
+        let (pt_a, pt_c) = (BASE + 0x4000, BASE + 0x5000);
+        fb.write_u64(root, vid(pd2));
+        fb.write_u64(pd2, vid(pd1));
+        fb.write_u64(pd1, vid(pd0));
+        // Region 0 (VA 0 .. 2 MiB): the pushbuffer at VA 0x1000 and a buffer at 0x2000.
+        fb.write_u64(pd0 + 8, vid(pt_a));
+        fb.write_u64(pt_a + 8, pte(BASE + 0x10_0000));
+        fb.write_u64(pt_a + 16, pte(BASE + 0x11_0000));
+        let mem = GuestMemory::new();
+        let mut front = ShadowFront::new(root);
+        let leaves = |fb: &FakeFb| -> Vec<(u64, Target, u64)> {
+            fb.with_walk(Target::Fb(root), |c| c.all_leaves())
+                .unwrap_or_default()
+                .into_iter()
+                .map(|(va, t, size, _)| (va, t, size))
+                .collect()
+        };
+        // Would a GPU write at `va` resolve in `shadow` to what the guest's tables say?
+        let resolves = |shadow: &[(u64, Target, u64)], guest: &[(u64, Target, u64)], va: u64| {
+            let g = guest.iter().find(|(v, _, s)| va >= *v && va < v + s);
+            let m = shadow.iter().find(|(v, _, s)| va >= *v && va < v + s);
+            g.is_some() && g == m
+        };
+        let first = front.plan(&fb, &mem, BASE, END, 1, &[], &[]).unwrap();
+        assert!(first.adds, "the first plan maps everything");
+        let mirrored = leaves(&fb); // what the worker holds once `first` is applied
+
+        // cuMemFree of the buffer: its PTE cleared, the invalidate follows.
+        fb.write_u64(pt_a + 16, 0);
+        let free = front.plan(&fb, &mem, BASE, END, 1, &[], &[]).unwrap();
+        assert!(!free.adds && !must_wait(free.adds), "a free is not held");
+        let guest = leaves(&fb);
+        // Every VA the guest still maps resolves in the shadow before the free is applied.
+        for (va, _, _) in &guest {
+            assert!(resolves(&mirrored, &guest, *va), "{va:#x} would fault");
+        }
+        let mirrored = guest.clone(); // the free applied
+
+        // cuMemAlloc of a fresh 2 MiB region (VA 2 MiB .. 4 MiB, a new PD0 entry) and a
+        // kernel that writes it: the §9 case.
+        fb.write_u64(pd0 + 16 + 8, vid(pt_c));
+        fb.write_u64(pt_c, pte(BASE + 0x40_0000));
+        let alloc = front.plan(&fb, &mem, BASE, END, 1, &[], &[]).unwrap();
+        assert!(alloc.adds && must_wait(alloc.adds), "an allocation is held");
+        let guest = leaves(&fb);
+        assert!(!resolves(&mirrored, &guest, 0x20_0000), "unheld: FAULT_PDE at the fresh region");
+
+        // A remap of the same VA to another page is a change, and held too.
+        fb.write_u64(pt_a + 8, pte(BASE + 0x12_0000));
+        let remap = front.plan(&fb, &mem, BASE, END, 1, &[], &[]).unwrap();
+        assert!(remap.adds);
     }
 }

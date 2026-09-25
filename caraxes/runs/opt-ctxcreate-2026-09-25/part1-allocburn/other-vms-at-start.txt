@@ -1,0 +1,7 @@
+3204008 /mnt/vmstore/caraxes/vm5/vfio-user-nvgpu --socket /mnt/vmstore/caraxes/vm5/gpu.sock --trace /mnt/vmstore/caraxes/vm5/gpu-trace.log --config /home/silas/
+3204019 /mnt/vmstore/caraxes/vm1/cloud-hypervisor-0006 -v --api-socket /mnt/vmstore/caraxes/vm5/ch.sock --cpus boot=8 --memory size=4G,shared=on --kernel /mnt/v
+3204191 /home/silas/git/Caraxes/.claude/worktrees/agent-a82d4f7ad1327ad63/target/bisect/release/vfio-user-nvgpu --socket /mnt/vmstore/caraxes/vm7/gpu.sock --tra
+3204196 /mnt/vmstore/leandro/cloud-hypervisor/bin/cloud-hypervisor --api-socket /mnt/vmstore/caraxes/vm7/ch.sock --cpus boot=8 --memory size=4G,shared=on --kern
+3208281 target/cov/release/vfio-user-nvgpu --socket target/smoke/s.sock --trace target/smoke/t.log --config caraxes/reference/rtx2070/config-space.txt --rom car
+3209114 /mnt/vmstore/caraxes/vm0/vfio-user-nvgpu --socket /mnt/vmstore/caraxes/vm0/gpu.sock --trace /mnt/vmstore/caraxes/vm0/gpu-trace.log --config /home/silas/
+3209188 /mnt/vmstore/caraxes/vm1/cloud-hypervisor-0006 -v --api-socket /mnt/vmstore/caraxes/vm0/ch.sock --cpus boot=8 --memory size=4G,shared=on --kernel /mnt/v

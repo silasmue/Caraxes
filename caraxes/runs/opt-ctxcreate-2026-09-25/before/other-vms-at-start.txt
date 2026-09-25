@@ -1,0 +1,2 @@
+3137852 /mnt/vmstore/caraxes/vm0/vfio-user-nvgpu --socket /mnt/vmstore/caraxes/vm0/gpu.sock --trace /mnt/vmstore/caraxes/vm0/gpu-trace.log --config /home/silas/
+3137873 /mnt/vmstore/caraxes/vm1/cloud-hypervisor-0006 -v --api-socket /mnt/vmstore/caraxes/vm0/ch.sock --cpus boot=8 --memory size=4G,shared=on --kernel /mnt/v

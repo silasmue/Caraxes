@@ -118,6 +118,17 @@ fn leaf(pte: u64, va: u64, size: u64) -> Option<Leaf> {
     Some((va, t, size, kind))
 }
 
+/// Whether `new` holds a leaf that `old` does not (the same VA and size with another
+/// target or kind counts as new): the leaves of one unit before and after an update.
+pub fn leaves_grew(old: &[Leaf], new: &[Leaf]) -> bool {
+    let mut o: Vec<&Leaf> = old.iter().collect();
+    o.sort_unstable_by_key(|l| (l.0, l.2));
+    new.iter().any(|l| match o.binary_search_by_key(&(l.0, l.2), |x| (x.0, x.2)) {
+        Ok(i) => *o[i] != *l,
+        Err(_) => true,
+    })
+}
+
 /// The 4096 bytes of a table page copy (little-endian qwords on x86).
 fn bytemuck_bytes(a: &mut [u64; 512]) -> &mut [u8; 4096] {
     // SAFETY: [u64; 512] and [u8; 4096] have the same size, u8 has no alignment
@@ -136,6 +147,11 @@ pub struct Update {
     pub reads: usize,
     /// Dirty table pages the update started from.
     pub dirty_pages: usize,
+    /// Whether a changed unit holds a leaf it did not hold before the update (a new
+    /// mapping, or one whose target, size or kind changed). `false` means the update only
+    /// removed leaves: every leaf now cached was cached, unchanged, before it
+    /// (docs/caraxes/bar1-pool.md §9, the hold refinement). A full walk counts as growing.
+    pub grew: bool,
 }
 
 /// The cached walk of one guest root.
@@ -161,6 +177,9 @@ pub struct WalkCache {
     /// seen. `CARAXES_SHADOW_REREAD=1` drops a dirty page's copy instead (re-read from VRAM).
     raw: HashMap<u64, Box<[u64; 512]>>,
     pub reread: bool,
+    /// During an incremental update: the leaves of every unit as they were before the
+    /// update first dropped it (for [`Update::grew`]).
+    before: Option<HashMap<u64, Vec<Leaf>>>,
 }
 
 impl WalkCache {
@@ -179,6 +198,7 @@ impl WalkCache {
             reads: 0,
             raw: HashMap::new(),
             reread: false,
+            before: None,
         }
     }
 
@@ -304,6 +324,7 @@ impl WalkCache {
             self.walk_dir(r, 3, 0, root, &mut changed);
             self.built = true;
         } else {
+            self.before = Some(HashMap::new());
             let pages = std::mem::take(&mut self.dirty);
             let mut work: BTreeSet<Use> = BTreeSet::new();
             for p in &pages {
@@ -339,11 +360,21 @@ impl WalkCache {
         }
         let uses = &self.uses;
         self.raw.retain(|p, _| uses.contains_key(p));
+        // A full walk, or a truncated cache (it may have left new leaves out), counts as
+        // growing.
+        let before = self.before.take();
+        let grew = self.truncated
+            || before.is_none_or(|b| {
+                changed
+                    .iter()
+                    .any(|u| leaves_grew(b.get(u).map_or(&[][..], |v| v.as_slice()), self.unit_leaves(*u)))
+            });
         Update {
             full,
             changed: changed.into_iter().collect(),
             reads: self.reads,
             dirty_pages,
+            grew,
         }
     }
 
@@ -474,6 +505,9 @@ impl WalkCache {
 
     fn drop_unit(&mut self, va: u64, changed: &mut BTreeSet<u64>) {
         if let Some(u) = self.units.remove(&va) {
+            if let Some(b) = self.before.as_mut() {
+                b.entry(va).or_insert_with(|| u.leaves.clone());
+            }
             for p in &u.pages {
                 self.drop_use(*p, Use::Unit(va));
             }
@@ -698,5 +732,62 @@ mod tests {
         small.update(&m, false);
         assert!(small.truncated);
         assert_eq!(small.leaf_count(), 0);
+    }
+
+    /// The hold refinement (bar1-pool.md §9): an update that only takes leaves away does
+    /// not grow; a new leaf, a changed target and a subtree walked again do.
+    #[test]
+    fn an_update_that_only_removes_leaves_does_not_grow() {
+        let m = tree();
+        let mut c = WalkCache::new(Target::Fb(0x10000), 1 << 20);
+        assert!(c.update(&m, false).grew, "the first (full) walk grows");
+        // A freed small page.
+        m.w(0x14000 + 8 * 3, 0);
+        c.mark_dirty(0x14);
+        let u = c.update(&m, false);
+        assert_eq!((u.changed.clone(), u.grew), (vec![0], false));
+        // A new small page.
+        m.w(0x14000 + 8 * 7, pte(0x23000));
+        c.mark_dirty(0x14);
+        assert!(c.update(&m, false).grew);
+        // The same slot at another target: a change grows.
+        m.w(0x14000 + 8 * 7, pte(0x24000));
+        c.mark_dirty(0x14);
+        assert!(c.update(&m, false).grew);
+        // Kind only.
+        m.w(0x14000 + 8 * 7, pte(0x24000) & !(0xFF << 56) | (0x07 << 56));
+        c.mark_dirty(0x14);
+        assert!(c.update(&m, false).grew);
+        // An unchanged rewrite neither changes nor grows.
+        c.mark_dirty(0x14);
+        let u = c.update(&m, false);
+        assert!(u.changed.is_empty() && !u.grew);
+        // The whole PD1 entry cleared: everything below is dropped, nothing grows.
+        m.w(0x12000, 0);
+        c.mark_dirty(0x12);
+        let u = c.update(&m, false);
+        assert!(!u.changed.is_empty() && !u.grew);
+        // Back: the subtree's leaves are new again.
+        m.w(0x12000, vid(0x13000));
+        c.mark_dirty(0x12);
+        assert!(c.update(&m, false).grew);
+        // A PDE rewritten to an identical table drops and walks the subtree again: the
+        // leaves are the same, so it does not grow.
+        m.w(0x11000, vid(0x12000) | (1 << 40));
+        c.mark_dirty(0x11);
+        let u = c.update(&m, false);
+        assert!(!u.grew, "{u:?}");
+    }
+
+    #[test]
+    fn leaves_grew_compares_whole_leaves() {
+        let a = (0x1000, Target::Fb(0x20000), 0x1000, 6);
+        let b = (0x2000, Target::Fb(0x21000), 0x1000, 6);
+        assert!(!leaves_grew(&[a, b], &[b]));
+        assert!(!leaves_grew(&[b, a], &[a, b]));
+        assert!(leaves_grew(&[a], &[a, b]));
+        assert!(leaves_grew(&[a], &[(0x1000, Target::Fb(0x30000), 0x1000, 6)]));
+        assert!(leaves_grew(&[a], &[(0x1000, Target::Fb(0x20000), 0x1_0000, 6)]));
+        assert!(!leaves_grew(&[], &[]));
     }
 }

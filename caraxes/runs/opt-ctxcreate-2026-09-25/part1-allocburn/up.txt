@@ -1,0 +1,7 @@
+dma table: 0:7ff980000000:c0000000,100000000:7ffa80000000:40000000
+server pid 3211046, VM pid 3211074; logs in /mnt/vmstore/caraxes/vm3
+ssh up at 192.168.103.23
+probe ctx-part1-allocburn: 68867 device accesses, guest log in /mnt/vmstore/caraxes/vm3/probe-ctx-part1-allocburn/guest-dmesg.txt
+[  129.438602] NVRM: GPU 0000:00:05.0: RmInitAdapter
+[  131.751420] NVRM: GPU 0000:00:05.0: RmInitAdapter succeeded!
+modprobe rc=0

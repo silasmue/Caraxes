@@ -424,7 +424,8 @@ then on, 0 Xid): cuMemAlloc 64 x 1 MiB 175 to 200 us, cuMemFree 282 to 312 us; c
 16.3 ms; the short-kernel launch unchanged (0.019 to 0.020 ms). Large allocations pay the apply
 time of their mappings that lazy mode used to hide. A cheaper variant that stays fail closed:
 hold only plans that map something new (an unmap may stay deferred, the guest issues no work on
-a VA it freed, and a stale shadow mapping still points into this VM's reservation); not built.
+a VA it freed, and a stale shadow mapping still points into this VM's reservation); built
+the same day, §9.1.
 
 Tests (`cargo test -p vfio-user-nvgpu`, 349 plus 2):
 - `untrapped::tests::an_invalidate_of_a_root_with_an_untrapped_userd_is_held`,

@@ -138,6 +138,10 @@ struct ShadowSpace {
     exclude: Vec<(u64, u64)>,
     chids: std::collections::BTreeSet<u32>,
     tsgs: std::collections::BTreeSet<TsgKey>,
+    /// Built ahead of its first channel (ctx-create.md, `CARAXES_SHADOW_PREFETCH`): the
+    /// guest's invalidates of this root are planned at once and applied in the background
+    /// until the first channel's creation, which waits for the rest as before.
+    prefetched: bool,
 }
 
 struct HostTsg {
@@ -268,6 +272,17 @@ pub struct MirrorStats {
     pub invalidates: u64,
     pub refusals: u64,
     pub max_create_us: u128,
+    /// Shadow VASes built ahead of their first channel, and the plans made for them then.
+    pub prefetch_spaces: u64,
+    pub prefetch_plans: u64,
+    /// Shadow channel builds (the first doorbell of a channel) and their time by phase, in
+    /// us: the plan and the wait for the worker, the host TSG, the channel, its engine
+    /// objects, scheduling and the work-submit token, the doorbell.
+    pub builds: u64,
+    pub build_us: [u128; 6],
+    /// Host channel and TSG frees at the guest's frees, and their time in us.
+    pub frees: [u64; 2],
+    pub free_us: [u128; 2],
 }
 
 /// The event thread: one OS event per engine notifier plus the RC notifier.
@@ -340,6 +355,10 @@ pub struct Mirror {
     /// `CARAXES_ALLOC_LAZY=1` (lazy.rs, docs/caraxes/alloc-path.md): a guest MMU invalidate
     /// defers its plan to the next shadow doorbell or channel creation.
     lazy: crate::lazy::LazyPlans,
+    /// `CARAXES_SHADOW_PREFETCH` (default on; `0` off): build a root's shadow VAS when the
+    /// guest invalidates the root of a VAS its TSGs run on, before the first channel
+    /// (ctx-create.md).
+    prefetch_on: bool,
     /// The rule for a mirrored channel whose GPPut store does not trap (untrapped.rs,
     /// `CARAXES_SHADOW_UNTRAPPED_HOLD`, default on) and its counters.
     hold_on: bool,
@@ -357,6 +376,13 @@ pub struct Mirror {
 // SAFETY: the doorbell mapping (`CpuMap`, a raw pointer) is only ever written from the
 // server thread that owns the device; the event thread holds no reference to it.
 unsafe impl Send for Mirror {}
+
+/// Whether an invalidate of `root` may build a shadow VAS ahead of its first channel: the
+/// root lies in the reservation and is the root of a VAS a guest TSG runs on
+/// (`Registry::tsg_roots`).
+fn prefetch_candidate(root: u64, base: u64, end: u64, tsg_roots: &std::collections::BTreeSet<u64>) -> bool {
+    root >= base && root + PAGE <= end && tsg_roots.contains(&root)
+}
 
 fn status_name(st: u32) -> String {
     match nvrm_abi::status_name(st) {
@@ -446,6 +472,7 @@ impl Mirror {
                     true
                 }
             },
+            prefetch_on: std::env::var("CARAXES_SHADOW_PREFETCH").map_or(true, |v| v.trim() != "0"),
             hold: crate::untrapped::HoldStats::default(),
             unwaited: 0,
             descs: None,
@@ -525,9 +552,15 @@ impl Mirror {
         gm: &mut GpuMem,
         root: Option<u64>,
     ) -> Vec<String> {
+        self.resync(gm, root).0
+    }
+
+    /// [`Self::shadow_resync`], and whether a submitted plan may add or change a mapping
+    /// (`Plan::adds`; the hold refinement of untrapped.rs).
+    fn resync(&mut self, gm: &mut GpuMem, root: Option<u64>) -> (Vec<String>, bool) {
         let (base, end, reservation) = (self.base, self.end, self.reservation);
         let descs = self.descs();
-        let mut out = Vec::new();
+        let mut adds = false;
         for (r, sp) in self.shadows.iter_mut() {
             if root.is_some_and(|x| x != *r) {
                 continue;
@@ -537,6 +570,7 @@ impl Mirror {
                     .plan(gm.fb, gm.sys, base, end, reservation, &sp.exclude, &descs)
             {
                 if !plan.is_empty() {
+                    adds |= plan.adds;
                     self.worker.submit(Job::Apply(plan, Instant::now()));
                 }
             }
@@ -544,8 +578,7 @@ impl Mirror {
         if !self.worker.enabled {
             self.worker.wait_all();
         }
-        out.append(&mut Vec::new());
-        out
+        (Vec::new(), adds)
     }
 
     /// A guest MMU invalidate of `pdb` (`None`: `ALL_PDB`): re-sync the shadows now, or,
@@ -557,18 +590,124 @@ impl Mirror {
         gm: &mut GpuMem,
         pdb: Option<u64>,
     ) -> Vec<String> {
-        use crate::lazy::OnInvalidate;
-        // A root whose channel's GPPut store does not trap (untrapped.rs): the invalidate is
-        // the last point before the host channel may run the guest's next work, so the plan
-        // is made and applied before the guest continues, with everything deferred so far.
-        if self.hold_on && crate::untrapped::must_hold(pdb, &self.untrapped_roots(reg, gm.fb)) {
-            let t0 = Instant::now();
-            let mut notes = self.flush_lazy(reg, gm);
-            notes.extend(self.shadow_resync(reg, gm, pdb));
-            self.worker.wait_all();
-            self.hold.note_held(t0.elapsed());
+        // A root whose shadow is built ahead of its first channel: planned now, applied in
+        // the background (no channel runs on it yet).
+        if let Some(notes) = pdb.and_then(|r| self.prefetch(reg, gm, r)) {
             return notes;
         }
+        // A root whose channel's GPPut store does not trap (untrapped.rs): the invalidate is
+        // the last point before the host channel may run the guest's next work. Its plan is
+        // made now, with what lazy mode deferred for such roots, and the guest continues
+        // only after the worker applied it when it may add or change a mapping; a plan that
+        // only removes mappings is submitted without the wait (untrapped.rs `must_wait`).
+        if self.hold_on {
+            let untrapped = self.untrapped_roots(reg, gm.fb);
+            if crate::untrapped::must_hold(pdb, &untrapped) {
+                let t0 = Instant::now();
+                let mut roots: std::collections::BTreeSet<u64> = match pdb {
+                    Some(r) => [r].into(),
+                    None => untrapped.clone(),
+                };
+                roots.extend(self.lazy.take_roots(&untrapped));
+                let mut notes = Vec::new();
+                let mut adds = false;
+                for r in &roots {
+                    let (n, a) = self.resync(gm, Some(*r));
+                    notes.extend(n);
+                    adds |= a;
+                }
+                // ALL_PDB: every other root as without the rule; the roots planned above are
+                // owed nothing by the deferred batch.
+                if pdb.is_none() {
+                    notes.extend(self.invalidate_unheld(reg, gm, None));
+                    self.lazy.exempt(&roots);
+                }
+                if crate::untrapped::must_wait(adds) {
+                    self.worker.wait_all();
+                    self.hold.note_held(t0.elapsed());
+                } else {
+                    self.hold.note_passed(t0.elapsed());
+                }
+                return notes;
+            }
+        }
+        self.invalidate_unheld(reg, gm, pdb)
+    }
+
+    /// The prefetch (ctx-create.md): at a guest invalidate of `root`, the root of a VAS a
+    /// guest TSG runs on and that has no shadow channel yet, build the root's shadow VAS if
+    /// needed and plan the root without waiting for the worker. The first channel's
+    /// creation then plans only what changed since and waits for the worker as before, so
+    /// the host channel still starts on a mirror that matches the guest's tables; the plans
+    /// are filtered like every other (D16/D17). `None`: not a prefetch case.
+    fn prefetch(&mut self, reg: &Registry, gm: &mut GpuMem, root: u64) -> Option<Vec<String>> {
+        if !self.prefetch_on || !self.shadow_probe {
+            return None;
+        }
+        let mut notes = Vec::new();
+        match self.shadows.get(&root) {
+            Some(sp) if !sp.prefetched => return None,
+            Some(_) => {}
+            None => {
+                if !prefetch_candidate(root, self.base, self.end, &reg.tsg_roots()) {
+                    return None;
+                }
+                let mut h = self.hm.lock().unwrap();
+                let sv = crate::shadow::ShadowVas::new(&mut h, self.map_budget.clone()).ok()?;
+                drop(h);
+                notes.push(format!(
+                    "shadow: host-managed VAS {:#x} for guest root {root:#x}, ahead of its first channel [host]",
+                    sv.vas
+                ));
+                let vas = sv.vas;
+                self.worker.submit(Job::Create(root, Box::new(sv)));
+                self.shadows.insert(
+                    root,
+                    ShadowSpace {
+                        front: crate::shadow::ShadowFront::new(root),
+                        vas,
+                        exclude: Vec::new(),
+                        chids: Default::default(),
+                        tsgs: Default::default(),
+                        prefetched: true,
+                    },
+                );
+                self.stats.prefetch_spaces += 1;
+            }
+        }
+        self.stats.prefetch_plans += 1;
+        notes.extend(self.resync(gm, Some(root)).0);
+        Some(notes)
+    }
+
+    /// Hand the shadow VASes built ahead of a channel that none will use any more (their
+    /// root is no longer the root of a guest TSG's VAS, `gone` being freed now) to the
+    /// worker's teardown.
+    fn reap_prefetched(&mut self, reg: &Registry, gone: (u32, u32), notes: &mut Vec<String>) {
+        let live = reg.tsg_roots_except(gone);
+        let stale: Vec<u64> = self
+            .shadows
+            .iter()
+            .filter(|(r, sp)| sp.prefetched && !live.contains(r))
+            .map(|(r, _)| *r)
+            .collect();
+        for r in stale {
+            if let Some(sp) = self.shadows.get_mut(&r) {
+                sp.prefetched = false;
+            }
+        }
+        self.reap_shadows(None, notes);
+    }
+
+    /// An invalidate outside the untrapped-GPPut rule: eager, deferred or flushed at the
+    /// lazy deadline.
+    fn invalidate_unheld(
+        &mut self,
+        reg: &Registry,
+        gm: &mut GpuMem,
+        pdb: Option<u64>,
+    ) -> Vec<String> {
+        use crate::lazy::OnInvalidate;
         // A plan submitted here is not waited for before the guest continues (the evidence
         // counter of `note_ran_ahead`).
         match self.lazy.on_invalidate(pdb, Instant::now()) {
@@ -625,6 +764,15 @@ impl Mirror {
         self.lazy.is_pending() || self.worker.pending()
     }
 
+    /// Whether plans that may add or change a mapping of `root` are pending: deferred by lazy
+    /// mode for it (not walked yet, so they may), or submitted with `Plan::adds` and not yet
+    /// applied (any root: the worker applies in order). A
+    /// submitted plan that only removes mappings leaves the shadow a superset of the guest's
+    /// tables (untrapped.rs), so a host channel that ran ahead of it met every mapping.
+    fn adding_plans_pending(&self, root: u64) -> bool {
+        self.lazy.owes_plan(root) || self.worker.pending_adds()
+    }
+
     /// The trapped GPPut store's barrier (boot.rs `gp_put_barrier`): plan what lazy mode
     /// deferred and wait until the worker applied every plan.
     pub fn plans_barrier(&mut self, reg: &Registry, gm: &mut GpuMem) -> Vec<String> {
@@ -678,13 +826,10 @@ impl Mirror {
         }
         // Plans deferred now, being applied now, or submitted without a wait since the last
         // forward: the entries the host channel fetched may have met an older mirror.
-        let pending = self.plans_pending() || since > 0;
-        let (lazy, worker) = (self.lazy.is_pending(), self.worker.pending());
-        let untrapped = self
-            .channels
-            .get(&chid)
-            .and_then(|c| c.shadow_root)
-            .is_some_and(|r| self.untrapped_roots(reg, gm.fb).contains(&r));
+        let root = hc.shadow_root?;
+        let pending = self.adding_plans_pending(root) || since > 0;
+        let (lazy, worker) = (self.lazy.owes_plan(root), self.worker.pending_adds());
+        let untrapped = self.untrapped_roots(reg, gm.fb).contains(&root);
         let line = self.hold.note_ahead(pending, || {
             format!(
                 "untrapped GPPut: at {} chid {chid}'s host channel ran ahead of its doorbell (GPGet {get}, forwarded up to {fwd}, GPPut {put}) with plans pending (lazy {lazy}, worker {worker}, {since} unwaited invalidate plan(s) since the forward); USERD untrapped {untrapped}",
@@ -768,7 +913,7 @@ impl Mirror {
         let empty: Vec<u64> = self
             .shadows
             .iter()
-            .filter(|(_, sp)| sp.chids.is_empty() && sp.tsgs.is_empty())
+            .filter(|(_, sp)| sp.chids.is_empty() && sp.tsgs.is_empty() && !sp.prefetched)
             .map(|(r, _)| *r)
             .collect();
         for r in empty {
@@ -879,6 +1024,8 @@ impl Mirror {
                 gm.read_u32(at(0x8C)),
             )
         });
+        let t_build = Instant::now();
+        let mut lap = [0u128; 6];
         self.ensure_events(&mut Vec::new());
         let mut notes = lazy_notes;
         notes.push(format!(
@@ -902,6 +1049,7 @@ impl Mirror {
                         exclude: Vec::new(),
                         chids: Default::default(),
                         tsgs: Default::default(),
+                        prefetched: false,
                     });
                 }
                 Err(st) => {
@@ -918,6 +1066,7 @@ impl Mirror {
         }
         sp.chids.insert(chid);
         sp.tsgs.insert(tsg_key);
+        sp.prefetched = false;
         let exclude = sp.exclude.clone();
         // Mirror the guest's set-A before the channel/GPFIFO VA is validated against the
         // VAS: plan here, apply in the worker, and wait for it.
@@ -936,6 +1085,7 @@ impl Mirror {
             self.worker.submit(Job::Apply(plan, Instant::now()));
         }
         self.worker.wait_all();
+        lap[0] = t_build.elapsed().as_micros();
         if let Err(e) = self.check_tsg_reuse(reg, tsg_key, tsg_guest, &mut notes) {
             notes.push(format!("shadow: chid {chid}: {e}"));
             return notes;
@@ -997,6 +1147,7 @@ impl Mirror {
                 tsg
             }
         };
+        lap[1] = t_build.elapsed().as_micros();
         // P21 design H: a USERD page the guest maps into the BAR1 pool area lives at its
         // pool page (fb.rs `remap`).
         let userd = match ch.userd.map(|t| match t {
@@ -1068,6 +1219,7 @@ impl Mirror {
             }
         };
         notes.push(format!("shadow: host GR channel {channel:#x} in TSG {tsg:#x} on VAS {vas_handle:#x}, gpfifo va {:#x} [host]", ch.gpfifo_va));
+        lap[2] = t_build.elapsed().as_micros();
         // The guest's engine objects; the compute object makes the host RM build set B.
         let mut objects = Vec::new();
         for (class, params) in &ch.engine_objects {
@@ -1090,6 +1242,7 @@ impl Mirror {
             notes.push("shadow: no engine object; not scheduling".into());
             return notes;
         }
+        lap[3] = t_build.elapsed().as_micros();
         let mut sched = [1u8, 0, 0];
         let st = h.control(channel, CMD_GPFIFO_SCHEDULE, &mut sched);
         if st != sys::NV_OK {
@@ -1106,6 +1259,7 @@ impl Mirror {
             return notes;
         }
         let token = u32::from_le_bytes(tok);
+        lap[4] = t_build.elapsed().as_micros();
         self.stats.channels_created += 1;
         self.channels.insert(
             chid,
@@ -1142,6 +1296,8 @@ impl Mirror {
             Ok(n) => notes.push(n),
             Err(e) => notes.push(format!("shadow: doorbell chid {chid}: {e}")),
         }
+        lap[5] = t_build.elapsed().as_micros();
+        notes.push(self.note_build(chid, lap));
         // One-shot USERD read (no poll): GPGet advancing past GPPut's start means the GR
         // PBDMA fetched the guest's first push; GPGet stuck at 0 means it never fetched
         // (scheduling/token). Distinguishes a completion-delivery hang from a fetch hang.
@@ -1162,6 +1318,21 @@ impl Mirror {
             ));
         }
         notes
+    }
+
+    /// Count a shadow channel build (`lap`: the elapsed time at the end of each phase, us)
+    /// and its trace line, which ctx-create.md's phase table reads.
+    fn note_build(&mut self, chid: u32, lap: [u128; 6]) -> String {
+        let mut d = [0u128; 6];
+        for i in 0..6 {
+            d[i] = lap[i].saturating_sub(if i == 0 { 0 } else { lap[i - 1] });
+            self.stats.build_us[i] += d[i];
+        }
+        self.stats.builds += 1;
+        format!(
+            "shadow: chid {chid} built in {} us: plan and apply {} us, TSG {} us, channel {} us, objects {} us, schedule and token {} us, doorbell {} us [host]",
+            lap[5], d[0], d[1], d[2], d[3], d[4], d[5]
+        )
     }
 
     /// The guest channel whose host mirror owns work-submit token `token`. The host RM
@@ -2235,11 +2406,15 @@ impl Mirror {
             sp.chids.remove(&chid);
         }
         if let Some(hc) = self.channels.remove(&chid) {
+            let t0 = Instant::now();
             let r = self.hm.lock().unwrap().free_object(hc.handle);
+            let us = t0.elapsed().as_micros();
+            self.stats.frees[0] += 1;
+            self.stats.free_us[0] += us;
             self.stats.channels_freed += 1;
             notes.push(match r {
                 Ok(()) => format!(
-                    "chid {chid}: host channel {:#x} freed after {} doorbell(s), {} ms of life [host]",
+                    "chid {chid}: host channel {:#x} freed in {us} us after {} doorbell(s), {} ms of life [host]",
                     hc.handle,
                     hc.doorbells,
                     hc.created.elapsed().as_millis()
@@ -2260,7 +2435,10 @@ impl Mirror {
             self.free_channel(c, notes);
         }
         if let Some(t) = self.tsgs.remove(&key) {
+            let t0 = Instant::now();
             let r = self.hm.lock().unwrap().free_object(t.handle);
+            self.stats.frees[1] += 1;
+            self.stats.free_us[1] += t0.elapsed().as_micros();
             notes.push(match r {
                 Ok(()) => format!(
                     "tsg {:#x}/{:#x} ({key}): host TSG {:#x} (engineType {:#x}) freed [host]",
@@ -2393,6 +2571,14 @@ impl Mirror {
     /// The guest freed `h_object` of `h_client` (or the client itself): free the host
     /// mirrors that stood for it, channels before TSGs before VA spaces.
     pub fn free_object(&mut self, reg: &Registry, h_client: u32, h_object: u32) -> Vec<String> {
+        let mut notes = self.free_object_inner(reg, h_client, h_object);
+        if self.shadows.values().any(|sp| sp.prefetched) {
+            self.reap_prefetched(reg, (h_client, h_object), &mut notes);
+        }
+        notes
+    }
+
+    fn free_object_inner(&mut self, reg: &Registry, h_client: u32, h_object: u32) -> Vec<String> {
         let mut notes = Vec::new();
         if h_client == h_object {
             let keys: Vec<(u32, u32)> = self
@@ -2465,6 +2651,7 @@ impl Mirror {
         for sp in self.shadows.values_mut() {
             sp.chids.clear();
             sp.tsgs.clear();
+            sp.prefetched = false;
         }
         self.reap_shadows(None, &mut notes);
         // Every teardown queued above finishes before the descriptors can be freed.
@@ -2496,10 +2683,33 @@ impl Mirror {
         notes
     }
 
+    /// The prefetch and channel-build counters (ctx-create.md).
+    pub fn build_summary(&self) -> String {
+        let s = &self.stats;
+        let b = &s.build_us;
+        format!(
+            "prefetch {} ({} shadow VAS(es) ahead of their first channel, {} plan(s)); {} shadow channel build(s): plan and apply {} ms, TSG {} ms, channel {} ms, objects {} ms, schedule and token {} ms, doorbell {} ms; host frees: {} channel(s) {} ms, {} TSG(s) {} ms",
+            if self.prefetch_on { "on" } else { "OFF" },
+            s.prefetch_spaces,
+            s.prefetch_plans,
+            s.builds,
+            b[0] / 1000,
+            b[1] / 1000,
+            b[2] / 1000,
+            b[3] / 1000,
+            b[4] / 1000,
+            b[5] / 1000,
+            s.frees[0],
+            s.free_us[0] / 1000,
+            s.frees[1],
+            s.free_us[1] / 1000
+        )
+    }
+
     pub fn summary(&self) -> String {
         let s = &self.stats;
         format!(
-            "mirror: {} channel(s) created, {} freed, {} live; {} doorbell(s) forwarded, {} TLB invalidate(s) ({} MEM_OP push(es), {} slow), {} refusal(s), longest mirror build {} us; events raised {}, MSIs {} (coalesced {}), host RC events {}{}; {}",
+            "mirror: {} channel(s) created, {} freed, {} live; {} doorbell(s) forwarded, {} TLB invalidate(s) ({} MEM_OP push(es), {} slow), {} refusal(s), longest mirror build {} us; events raised {}, MSIs {} (coalesced {}), host RC events {}{}; {}; {}",
             s.channels_created,
             s.channels_freed,
             self.channels.len(),
@@ -2518,6 +2728,7 @@ impl Mirror {
             } else {
                 String::new()
             },
+            self.build_summary(),
             self.hold.summary(self.hold_on)
         )
     }
@@ -2545,6 +2756,8 @@ struct ShadowWorker {
     tx: Option<std::sync::mpsc::Sender<(u64, Job)>>,
     done: Arc<(Mutex<u64>, std::sync::Condvar)>,
     submitted: u64,
+    /// The sequence number of the last job that may add a mapping.
+    adds_seq: u64,
     enabled: bool,
     notes: Arc<Mutex<Vec<String>>>,
     /// No teardown in progress.
@@ -2659,6 +2872,7 @@ impl ShadowWorker {
             done,
             idle,
             submitted: 0,
+            adds_seq: 0,
             enabled: std::env::var("CARAXES_SHADOW_WORKER").as_deref() != Ok("0"),
             notes,
             thread,
@@ -2667,6 +2881,10 @@ impl ShadowWorker {
 
     fn submit(&mut self, job: Job) {
         self.submitted += 1;
+        // A plan that may add a mapping, or a fresh VAS (its first plan follows).
+        if !matches!(&job, Job::Apply(p, _) if !p.adds) && !matches!(job, Job::Free(_)) {
+            self.adds_seq = self.submitted;
+        }
         if let Some(tx) = &self.tx {
             let _ = tx.send((self.submitted, job));
         }
@@ -2678,6 +2896,11 @@ impl ShadowWorker {
     /// Jobs submitted and not yet done.
     fn pending(&self) -> bool {
         self.thread.is_some() && *self.done.0.lock().unwrap() < self.submitted
+    }
+
+    /// A job that may add a mapping (`adds_seq`) submitted and not yet done.
+    fn pending_adds(&self) -> bool {
+        self.thread.is_some() && *self.done.0.lock().unwrap() < self.adds_seq
     }
 
     /// Block until every job submitted so far is done.
@@ -2919,6 +3142,18 @@ mod tests {
     /// kernel's TSG id where the kernel sends one (615), by the guest handle otherwise
     /// (610); the key does not depend on the order of channel and TSG allocations, and a
     /// bare channel's internal TSG is keyed by its own id.
+    /// A shadow is built ahead of its first channel only for a root in the reservation that
+    /// a guest TSG runs on: never for the guest RM's own roots or one outside this VM.
+    #[test]
+    fn only_a_tsg_root_in_the_reservation_is_prefetched() {
+        let (base, end) = (0x1_0000_0000u64, 0x1_4000_0000u64);
+        let roots: std::collections::BTreeSet<u64> = [base + 0x69_8000, end].into();
+        assert!(prefetch_candidate(base + 0x69_8000, base, end, &roots));
+        assert!(!prefetch_candidate(base + 0xa9_6000, base, end, &roots), "not a TSG's root");
+        assert!(!prefetch_candidate(end, base, end, &roots), "outside the reservation");
+        assert!(!prefetch_candidate(base - PAGE, base, end, &[base - PAGE].into()));
+    }
+
     #[test]
     fn host_tsg_key_is_the_kernel_tsg_id() {
         let gpfifo = crate::fixture::rtx2070().chip.data().channel.gpfifo;
