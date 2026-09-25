@@ -1,0 +1,9 @@
+# target v2 metric rl rep 2
+# cmd NVRL_EPISODES=50 $HOME/gpu/venv/bin/python $HOME/caraxes-tests/leandro-test/probe/python/rlprobe.py
+# device /mnt/vmstore/caraxes/vm5/vfio-user-nvgpu sha256 4f432f286ef410b9
+# time 2026-09-25T08:30:53+02:00
+# gpu 63, 1365 MHz, 7000 MHz, P0, 26 %, 5173 MiB, Disabled
+# procs 3208281:-dev 3209114:vm0-dev 3209188:vm1-vmm 3211046:vm3-dev 3211074:vm1-vmm 3245134:vm2-dev 3245147:vm1-vmm 3260008:vm7-vmm 
+# loadavg 14.98 10.70 8.18
+ssh: connect to host 192.168.105.26 port 22: No route to host
+# MEAS dev_pid=3259664 dev_cpu_ms=-7460 dev_rss_hwm_kb=-/- vmm_cpu_ms=0 others: vm1-vmm=800ms vm7-vmm=2600ms vm3-dev=690ms vm1-vmm=-153430ms vm0-dev=1780ms -dev=0ms vm2-dev=2230ms vm1-vmm=5670ms 

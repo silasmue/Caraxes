@@ -241,12 +241,21 @@ impl Dispatcher {
                 "doorbell token {token:#x}: not assigned to any channel (stale), dropped"
             )];
         };
-        let mut notes = vec![format!(
-            "doorbell token {token:#x} ({}) -> chid {chid}",
-            if trapped { "trapped" } else { "eventfd" }
-        )];
+        let note = |token: u32, chid: u32| {
+            format!(
+                "doorbell token {token:#x} ({}) -> chid {chid}",
+                if trapped { "trapped" } else { "eventfd" }
+            )
+        };
         // The software executor decodes a token as ChID 11:0, runlist 22:16; ring the
         // channel with a guest token of it (runlist 0, as the token-less path does).
+        if crate::launch::fast() {
+            // The fast ring path formats the note after the host doorbell.
+            let mut notes = self.doorbell_chid(gm, chid, chid, false);
+            notes.insert(0, note(token, chid));
+            return notes;
+        }
+        let mut notes = vec![note(token, chid)];
         notes.extend(self.doorbell_chid(gm, chid, chid, false));
         notes
     }

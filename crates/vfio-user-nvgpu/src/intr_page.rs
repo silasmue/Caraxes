@@ -682,6 +682,9 @@ impl IntrPage {
             // The page stores above come first; the eventfd write follows them.
             std::sync::atomic::fence(Ordering::SeqCst);
             msi = self.shared.signal_msi();
+            if msi && raise_msi {
+                crate::launch::msi_for_raise();
+            }
             if msi {
                 bump(if edge {
                     &self.stats.msi_edge

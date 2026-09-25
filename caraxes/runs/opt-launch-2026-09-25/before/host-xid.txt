@@ -1,0 +1,1 @@
+# host kernel log, Xid lines since 2026-09-25 08:10:00 (last device pid 3260972; each rep's pid in */v2-device-rep*.txt)

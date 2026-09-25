@@ -308,6 +308,8 @@ pub struct VramStore {
     stall_limit: Cell<u64>,
     outside: RefCell<HostRamStore>,
     stats: RefCell<VramStats>,
+    /// A store went through a window since the last flush (launch.rs `flush_needed`).
+    dirty: Cell<bool>,
 }
 
 /// The default window: 32 MiB. BAR1 is a shared host resource (256 MiB on this card,
@@ -435,6 +437,7 @@ impl VramStore {
             window_len: Cell::new(window_len),
             stall_limit: Cell::new(0),
             outside: RefCell::new(HostRamStore::default()),
+            dirty: Cell::new(true),
             stats: RefCell::new(VramStats::default()),
         }
     }
@@ -607,6 +610,7 @@ impl FbStore for VramStore {
             st.writes += 1;
             st.bytes_written += data.len() as u64;
         }
+        self.dirty.set(true);
         let len = data.len();
         self.pieces(pa, len, |w, a, n, done| match w {
             Piece::Window(i) => self.windows.borrow()[i]
@@ -626,9 +630,13 @@ impl FbStore for VramStore {
     }
 
     fn flush(&self) {
+        if !crate::launch::flush_needed(self.dirty.get()) {
+            return;
+        }
         for slot in self.windows.borrow().iter() {
             slot.win.flush();
         }
+        self.dirty.set(false);
     }
 }
 
@@ -2246,6 +2254,81 @@ mod tests {
                 pages: self.pages.clone(),
             }))
         }
+    }
+
+    /// A window source whose windows count their flushes.
+    struct CountingWindows {
+        flushes: std::sync::Arc<std::sync::atomic::AtomicU64>,
+        pages: std::sync::Arc<std::sync::Mutex<HostRamStore>>,
+    }
+
+    struct CountingWindow {
+        inner: RamWindow,
+        flushes: std::sync::Arc<std::sync::atomic::AtomicU64>,
+    }
+
+    impl WindowBacking for CountingWindow {
+        fn offset(&self) -> u64 {
+            self.inner.offset()
+        }
+        fn len(&self) -> usize {
+            self.inner.len()
+        }
+        fn read(&self, off: u64, buf: &mut [u8]) {
+            self.inner.read(off, buf)
+        }
+        fn write(&self, off: u64, data: &[u8]) {
+            self.inner.write(off, data)
+        }
+        fn flush(&self) {
+            self.flushes
+                .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        }
+    }
+
+    impl WindowSource for CountingWindows {
+        fn map(&mut self, offset: u64, len: usize) -> Result<Box<dyn WindowBacking>, u32> {
+            Ok(Box::new(CountingWindow {
+                inner: RamWindow {
+                    offset,
+                    len,
+                    pages: self.pages.clone(),
+                },
+                flushes: self.flushes.clone(),
+            }))
+        }
+    }
+
+    /// The ordering rule of the fast ring path (launch.rs `FAST_ENV`): a store of the device
+    /// through a window is always flushed before the next host doorbell; only a flush with
+    /// nothing stored since the last one is skipped, and with the switch off every flush runs.
+    #[test]
+    fn fast_flush_never_skips_a_device_store() {
+        use std::sync::atomic::Ordering::Relaxed;
+        let (base, end) = (0xE900_0000u64, 0xE900_0000u64 + (64 << 20));
+        let flushes = std::sync::Arc::new(std::sync::atomic::AtomicU64::new(0));
+        let src = CountingWindows {
+            flushes: flushes.clone(),
+            pages: Default::default(),
+        };
+        let mut s = VramStore::with_budget(Box::new(src), base, end, 32 << 20, 2);
+        crate::launch::set_fast_here(true);
+        s.write(base + 0x1000, &1u32.to_le_bytes());
+        s.write(base + (40 << 20), &2u32.to_le_bytes());
+        s.flush();
+        assert_eq!(flushes.load(Relaxed), 2, "both windows drained after the stores");
+        s.flush();
+        assert_eq!(flushes.load(Relaxed), 2, "nothing stored since: skipped");
+        let mut b = [0u8; 4];
+        s.read(base + 0x1000, &mut b);
+        s.flush();
+        assert_eq!(flushes.load(Relaxed), 2, "a read stores nothing");
+        s.write(base + 0x2000, &3u32.to_le_bytes());
+        s.flush();
+        assert_eq!(flushes.load(Relaxed), 4, "a new store is drained again");
+        crate::launch::set_fast_here(false);
+        s.flush();
+        assert_eq!(flushes.load(Relaxed), 6, "switch off: every flush runs");
     }
 
     #[test]

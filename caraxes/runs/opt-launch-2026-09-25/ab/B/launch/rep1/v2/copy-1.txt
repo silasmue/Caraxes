@@ -1,0 +1,27 @@
+# target v2 metric copy rep 1
+# cmd ./bench-cu copy 10
+# device /mnt/vmstore/caraxes/vm5/vfio-user-nvgpu sha256 8ba83e2f8383fe1d
+# time 2026-09-25T08:44:16+02:00
+# gpu 51, 1170 MHz, 7000 MHz, P0, 12 %, 6233 MiB, Disabled
+# procs 3208281:-dev 3300975:vm3-dev 3300989:vm1-vmm 3302263:vm5-dev 3302271:vm1-vmm 3307252:vm2-dev 3307265:vm1-vmm 3307923:vm0-dev 3307941:vm1-vmm 3308996:vm7-bare-dev 3309002:vm7-bare-vmm 
+# loadavg 5.95 7.01 7.64
+BW dir=h2d mem=pinned size_mib=1 reps=50 med_us=172.2 min_us=170.7 gbps=6.091
+BW dir=d2h mem=pinned size_mib=1 reps=50 med_us=168.8 min_us=167.7 gbps=6.212
+BW dir=d2d mem=device size_mib=1 reps=50 med_us=15.0 min_us=14.6 gbps=70.115
+BW dir=h2d mem=pageable size_mib=1 reps=50 med_us=238.3 min_us=226.3 gbps=4.401
+BW dir=d2h mem=pageable size_mib=1 reps=50 med_us=260.5 min_us=243.7 gbps=4.026
+CHECK size_mib=1 bad_words=0
+BW dir=h2d mem=pinned size_mib=16 reps=20 med_us=2572.1 min_us=2550.1 gbps=6.523
+BW dir=d2h mem=pinned size_mib=16 reps=20 med_us=2548.1 min_us=2528.3 gbps=6.584
+BW dir=d2d mem=device size_mib=16 reps=20 med_us=1103.8 min_us=903.4 gbps=15.199
+BW dir=h2d mem=pageable size_mib=16 reps=20 med_us=2672.2 min_us=2650.4 gbps=6.278
+BW dir=d2h mem=pageable size_mib=16 reps=20 med_us=2490.2 min_us=2041.7 gbps=6.737
+CHECK size_mib=16 bad_words=0
+BW dir=h2d mem=pinned size_mib=256 reps=10 med_us=20559.9 min_us=20467.8 gbps=13.056
+BW dir=d2h mem=pinned size_mib=256 reps=10 med_us=20415.4 min_us=20395.4 gbps=13.149
+BW dir=d2d mem=device size_mib=256 reps=10 med_us=1378.6 min_us=1356.6 gbps=194.721
+BW dir=h2d mem=pageable size_mib=256 reps=10 med_us=32975.8 min_us=30252.2 gbps=8.140
+BW dir=d2h mem=pageable size_mib=256 reps=10 med_us=32803.3 min_us=31059.1 gbps=8.183
+CHECK size_mib=256 bad_words=0
+# WALL wall_ms=5435 rc=0
+# MEAS dev_pid=3302263 dev_cpu_ms=3360 dev_rss_hwm_kb=4217452/9445220 vmm_cpu_ms=7200 others: vm1-vmm=5540ms vm7-bare-dev=2000ms vm2-dev=870ms vm7-bare-vmm=3740ms vm0-dev=120ms vm1-vmm=60ms vm3-dev=3330ms -dev=0ms vm1-vmm=50ms 

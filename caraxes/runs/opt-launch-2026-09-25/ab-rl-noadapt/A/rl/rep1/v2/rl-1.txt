@@ -1,0 +1,7 @@
+# target v2 metric rl rep 1
+# cmd NVRL_EPISODES=50 $HOME/gpu/venv/bin/python $HOME/caraxes-tests/leandro-test/probe/python/rlprobe.py
+# device /mnt/vmstore/caraxes/vm5/vfio-user-nvgpu sha256 4f432f286ef410b9
+# time 2026-09-25T09:37:20+02:00
+# gpu 56, 1605 MHz, 7000 MHz, P0, 40 %, 3447 MiB, Disabled
+# procs 3208281:-dev 3677443:vm3-dev 3677461:vm1-vmm 3687993:vm5-dev 3688002:vm1-vmm 
+# loadavg 42.00 27.72 21.29

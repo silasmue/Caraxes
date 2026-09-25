@@ -394,6 +394,15 @@ calls.
     configurations.
   - The device's CPU per copy process falls from 11 s to 3.5 s.
   - This is now the recommended configuration (bench-run.sh header).
+- **Item 5: built as a gate, measured under load** (`CARAXES_INTR_GATE_MS`, launch-path.md §4,
+  `caraxes/runs/opt-launch-2026-09-25/`). The device cannot see a completion, so it never drops an
+  event: it holds the ones that come while it wrote no host doorbell for ten holds and delivers
+  them together after one hold. With 50 ms, 181 to 1058 events were held per launch life and
+  delivered in 23 to 268 releases; the idle rate itself was not measured. Off by default.
+- **The launch path** (not a backlog item; the operator's direction of 2026-09-25,
+  launch-path.md): `CARAXES_LAUNCH_FAST=1` halves the device's share of a ring (6.4 to 3.0 us p50
+  in a launch loop, 9.8 to 3.7 in rlprobe) and takes 1000 back-to-back launches from 18.9 to
+  13.4 us per launch (p50) on a loaded host; rlprobe and PPO were not measurably faster.
 - **Item 4: done** (commit 0c2cb79, `CARAXES_MSI_REARM_IOEVENTFD=1`, intr-page.md §4,
   `caraxes/runs/opt-msi-ioeventfd-2026-09-25/`).
   - The re-arm write is an ioeventfd without datamatch, read by the token pool's reactor, which

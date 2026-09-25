@@ -1,0 +1,89 @@
+caraxes-gate: cuda-init
+  fail: exit 0: 
+  guest RM: no RM call traced; device: none
+caraxes-gate: cuda-context
+  fail: exit 0: 
+  guest RM: no RM call traced; device: none
+caraxes-gate: cuda-core
+  fail: exit 1: ERROR: no 'stage 2 ok' in the output
+  guest RM: no RM call traced; device: none
+caraxes-gate: cuda-jit
+  fail: exit 1: ERROR: no 'stage 3 ok' in the output
+  guest RM: no RM call traced; device: none
+caraxes-gate: cuda-launch
+  fail: exit 1: ERROR: no 'stage 4 ok' in the output
+  guest RM: no RM call traced; device: none
+caraxes-gate: cuda-managed
+  fail: exit 1: ERROR: managedprobe did not report a correct stage-2 result
+  guest RM: no RM call traced; device: none
+caraxes-gate: cuda-hostreg
+  fail: exit 1: ERROR: hostregprobe: 0 of 2 roundtrips reported 'bad=0 correct'
+  guest RM: no RM call traced; device: none
+caraxes-gate: cuda-torch
+  pass: torchprobe stage 5 with NVTORCH_CONV=1: cuDNN convolution result verified by the probe
+caraxes-gate: cuda-gdb
+  skip: declared-unsupported: workload not procurable in this environment -- no cuda-gdb (CUDA_GDB)
+  guest RM: -; device: none
+caraxes-gate: rlprobe
+  pass: mean10=56.9 (pinned)
+caraxes-gate: convburn
+  pass: acc=3.041450977e+00
+caraxes-gate: robustness
+  fail: 0 of 3 runs correct (); refcnt 1 -> 2
+  guest RM: -; device: none
+caraxes-gate: suite-test_async_streams
+  fail: exit 1: torch.OutOfMemoryError: CUDA out of memory. Tried to allocate 256.00 MiB. GPU 0 has a total capacity of 823.81 MiB of which 191.00 MiB is free. Including non-PyTorch memory, this process has 628.00 MiB memory in use. Of the allocated memory 512.00 MiB is allocated by PyTorch, and 0 bytes is reserved
+  guest RM: -; device: 0x2080012f=0x56 x1
+caraxes-gate: suite-test_cuda_graphs
+  pass: CUDA graphs test ok
+caraxes-gate: suite-test_high_freq_event_polling
+  pass: high-frequency event test ok
+caraxes-gate: suite-test_multi_process_cuda
+  pass: [W925 07:30:57.770472813 CudaIPCTypes.cpp:16] Producer process has been terminated before all shared CUDA tensors released. See Note [Sharing CUDA tensors]
+caraxes-gate: suite-test_nvrtc
+  skip: missing module: cupy
+  guest RM: -; device: none
+caraxes-gate: suite-test_uvm_migration
+  skip: missing module: cupy
+  guest RM: -; device: none
+caraxes-gate: suite-test_vram_churn
+  pass: VRAM churn test ok (no leak, no crash)
+caraxes-gate: suite-rapids_cuml_cudf
+  skip: missing module: cudf
+  guest RM: -; device: none
+
+TEST                             RESULT SCORED GUEST ERROR | LAST FAILED RM CALL (guest tracer) | DEVICE
+cuda-init                        fail  yes    exit 0:  | no RM call traced | none
+cuda-context                     fail  yes    exit 0:  | no RM call traced | none
+cuda-core                        fail  yes    exit 1: ERROR: no 'stage 2 ok' in the output | no RM call traced | none
+cuda-jit                         fail  yes    exit 1: ERROR: no 'stage 3 ok' in the output | no RM call traced | none
+cuda-launch                      fail  yes    exit 1: ERROR: no 'stage 4 ok' in the output | no RM call traced | none
+cuda-managed                     fail  yes    exit 1: ERROR: managedprobe did not report a correct stage-2 result | no RM call traced | none
+cuda-hostreg                     fail  yes    exit 1: ERROR: hostregprobe: 0 of 2 roundtrips reported 'bad=0 correct' | no RM call traced | none
+cuda-torch                       pass  yes    torchprobe stage 5 with NVTORCH_CONV=1: cuDNN convolution result verified by the probe | - | 0x2080012f=0x56 x1
+cuda-gdb                         skip  yes    declared-unsupported: workload not procurable in this environment -- no cuda-gdb (CUDA_GDB) | - | none
+rlprobe                          pass  yes    mean10=56.9 (pinned) | - | 0x2080012f=0x56 x1
+convburn                         pass  yes    acc=3.041450977e+00 | - | 0x2080012f=0x56 x1
+robustness                       fail  yes    0 of 3 runs correct (); refcnt 1 -> 2 | - | none
+suite-test_async_streams         fail  no     exit 1: torch.OutOfMemoryError: CUDA out of memory. Tried to allocate 256.00 MiB. GPU 0 has a total capacity of 823.81 MiB of which 191.00 MiB is free. Including non-PyTorch memory, this process has 628.00 MiB memory in use. Of the allocated memory 512.00 MiB is allocated by PyTorch, and 0 bytes is reserved | - | 0x2080012f=0x56 x1
+suite-test_cuda_graphs           pass  no     CUDA graphs test ok | - | 0x2080012f=0x56 x1
+suite-test_high_freq_event_polling pass  no     high-frequency event test ok | - | 0x2080012f=0x56 x1
+suite-test_multi_process_cuda    pass  no     [W925 07:30:57.770472813 CudaIPCTypes.cpp:16] Producer process has been terminated before all shared CUDA tensors released. See Note [Sharing CUDA tensors] | - | 0x2080012f=0x56 x2
+suite-test_nvrtc                 skip  no     missing module: cupy | - | none
+suite-test_uvm_migration         skip  no     missing module: cupy | - | none
+suite-test_vram_churn            pass  no     VRAM churn test ok (no leak, no crash) | - | 0x2080012f=0x56 x1
+suite-rapids_cuml_cudf           skip  no     missing module: cudf | - | none
+  GATE cuda-init: FAIL  (exit 0:  | rm: no RM call traced | device: none)
+  GATE cuda-context: FAIL  (exit 0:  | rm: no RM call traced | device: none)
+  GATE cuda-core: FAIL  (exit 1: ERROR: no 'stage 2 ok' in the output | rm: no RM call traced | device: none)
+  GATE cuda-jit: FAIL  (exit 1: ERROR: no 'stage 3 ok' in the output | rm: no RM call traced | device: none)
+  GATE cuda-launch: FAIL  (exit 1: ERROR: no 'stage 4 ok' in the output | rm: no RM call traced | device: none)
+  GATE cuda-managed: FAIL  (exit 1: ERROR: managedprobe did not report a correct stage-2 result | rm: no RM call traced | device: none)
+  GATE cuda-hostreg: FAIL  (exit 1: ERROR: hostregprobe: 0 of 2 roundtrips reported 'bad=0 correct' | rm: no RM call traced | device: none)
+  GATE cuda-torch: PASS  (torchprobe stage 5 with NVTORCH_CONV=1: cuDNN convolution result verified by the probe)
+  GATE rlprobe: PASS  (mean10=56.9 (pinned))
+  GATE convburn: PASS  (acc=3.041450977e+00)
+  GATE robustness: FAIL  (0 of 3 runs correct (); refcnt 1 -> 2 | rm: - | device: none)
+
+CUDA-GATE: FAIL -- cuda-init cuda-context cuda-core cuda-jit cuda-launch cuda-managed cuda-hostreg robustness
+{"gate":"cuda","result":"fail","dur_s":241,"reason":"failed: cuda-init cuda-context cuda-core cuda-jit cuda-launch cuda-managed cuda-hostreg robustness","facts":{"stages":["cuda-init","cuda-context","cuda-core","cuda-jit","cuda-launch","cuda-managed","cuda-hostreg","cuda-torch","cuda-gdb","rlprobe","convburn","robustness"],"failed":["cuda-init","cuda-context","cuda-core","cuda-jit","cuda-launch","cuda-managed","cuda-hostreg","robustness"],"vm":"vm5","leandro_test":"3edea730c2d8-dirty","caraxes":"shell-rig-335-g25c164b2054f-dirty","device":"TU106 (BOOT_0 0x166000a1, driver 610.57.04) on /mnt/vmstore/caraxes/vm5/gpu.sock, boot model on, FB 1024 MiB","tests_selected":"all","error_cuda-init":"exit 0: ","rm_cuda-init":"no RM call traced","device_cuda-init":"none","error_cuda-context":"exit 0: ","rm_cuda-context":"no RM call traced","device_cuda-context":"none","error_cuda-core":"exit 1: ERROR: no 'stage 2 ok' in the output","rm_cuda-core":"no RM call traced","device_cuda-core":"none","error_cuda-jit":"exit 1: ERROR: no 'stage 3 ok' in the output","rm_cuda-jit":"no RM call traced","device_cuda-jit":"none","error_cuda-launch":"exit 1: ERROR: no 'stage 4 ok' in the output","rm_cuda-launch":"no RM call traced","device_cuda-launch":"none","error_cuda-managed":"exit 1: ERROR: managedprobe did not report a correct stage-2 result","rm_cuda-managed":"no RM call traced","device_cuda-managed":"none","error_cuda-hostreg":"exit 1: ERROR: hostregprobe: 0 of 2 roundtrips reported 'bad=0 correct'","rm_cuda-hostreg":"no RM call traced","device_cuda-hostreg":"none","skipped_cuda-gdb":"declared-unsupported: workload not procurable in this environment -- no cuda-gdb (CUDA_GDB)","error_robustness":"0 of 3 runs correct (); refcnt 1 -> 2","rm_robustness":"-","device_robustness":"none","info_suite-test_async_streams":"fail: exit 1: torch.OutOfMemoryError: CUDA out of memory. Tried to allocate 256.00 MiB. GPU 0 has a total capacity of 823.81 MiB of which 191.00 MiB is free. Including non-PyTorch memory, this process has 628.00 MiB memory in use. Of the allocated memory 512.00 MiB is allocated by PyTorch, and 0 bytes is reserved","info_suite-test_cuda_graphs":"pass: CUDA graphs test ok","info_suite-test_high_freq_event_polling":"pass: high-frequency event test ok","info_suite-test_multi_process_cuda":"pass: [W925 07:30:57.770472813 CudaIPCTypes.cpp:16] Producer process has been terminated before all shared CUDA tensors released. See Note [Sharing CUDA tensors]","info_suite-test_nvrtc":"skip: missing module: cupy","info_suite-test_uvm_migration":"skip: missing module: cupy","info_suite-test_vram_churn":"pass: VRAM churn test ok (no leak, no crash)","info_suite-rapids_cuml_cudf":"skip: missing module: cudf","scored":"3 pass, 8 fail, 1 declared-unsupported","suites_unscored":8,"run_dir":"caraxes/runs/opt-launch-2026-09-25/gate-after/gate-cuda-2026-09-25","detail":"3 of 12 scored tests pass; table in caraxes/runs/opt-launch-2026-09-25/gate-after/gate-cuda-2026-09-25/table.txt"}}
