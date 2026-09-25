@@ -795,6 +795,17 @@ impl Registry {
     /// A doorbell write: run the channel the token names, then retry channels
     /// that were blocked on a semaphore acquire.
     pub fn doorbell(&mut self, mem: &mut GpuMem, token: u32) -> Vec<String> {
+        self.doorbell_except(mem, token, &std::collections::BTreeSet::new())
+    }
+
+    /// [`Self::doorbell`], but a blocked channel in `off` (the guest disabled its
+    /// scheduling, rc.rs) is not retried.
+    pub fn doorbell_except(
+        &mut self,
+        mem: &mut GpuMem,
+        token: u32,
+        off: &std::collections::BTreeSet<u32>,
+    ) -> Vec<String> {
         self.doorbells += 1;
         // NV_CTRL_VF_DOORBELL_VECTOR 11:0 is the ChID, RUNLIST_ID 22:16
         // (tu102/dev_ctrl.h:36-37; kernel_fifo_tu102.c:122-124).
@@ -812,7 +823,7 @@ impl Registry {
         let blocked: Vec<u32> = self
             .channels
             .iter()
-            .filter(|(c, ch)| **c != chid && ch.resume.is_some())
+            .filter(|(c, ch)| **c != chid && ch.resume.is_some() && !off.contains(c))
             .map(|(c, _)| *c)
             .collect();
         for c in blocked {
@@ -1915,6 +1926,55 @@ mod tests {
             (s.own_token_after_handout, s.rewritten, s.mismatch),
             (1, 1, 1)
         );
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// The software executor consults the device's one set of scheduling flags (rc.rs):
+    /// a channel the guest switched off (its own flag, the usermode switch for a channel
+    /// of a TSG, the device-wide toggle) runs nothing at its doorbell; the doorbell is held
+    /// and runs once the channel is enabled again.
+    #[test]
+    fn a_disabled_software_channel_holds_its_doorbell() {
+        let (mut fb, sys, path, _root) = world("held");
+        let f = crate::fixture::rtx2070();
+        let mut d = crate::ctrl::Dispatcher::new(f.chip.data(), &f.identity(4 << 30), None);
+        let reg = &mut d.channels;
+        reg.record_alloc(1, 0x10, 0x20, FERMI_VASPACE_A, &[]);
+        let mut pdes = vec![0u8; 40 + 24 * 6];
+        pdes[40..48].copy_from_slice(&0x10000u64.to_le_bytes());
+        pdes[56..60].copy_from_slice(&1u32.to_le_bytes());
+        reg.record_server_reserved_pdes(1, 0x20, &pdes);
+        let mut tsg = vec![0u8; 20];
+        tsg[8..12].copy_from_slice(&0x20u32.to_le_bytes());
+        reg.record_alloc(1, 0x10, 0x30, KEPLER_CHANNEL_GROUP_A, &tsg);
+        reg.record_alloc(1, 0x30, 0x40, TURING_CHANNEL_GPFIFO_A, &channel_params(9, 0x1000_0000, 0x20_0000, 0))
+            .unwrap();
+        // Three NOP control entries, published one at a time.
+        fb.write(0x100000, &[0u8; 24]);
+        let mut mem = GpuMem { fb: &mut fb, sys: &sys };
+        let gp_get = |mem: &GpuMem| mem.read_u32(Target::Fb(0x20_0000 + USERD_GP_GET));
+        let t9 = (1u32 << 16) | 9;
+        for (n, how) in [(1u32, "usermode"), (2, "toggle"), (3, "own")] {
+            mem.fb.write(0x20_0000 + USERD_GP_PUT, &n.to_le_bytes());
+            match how {
+                "usermode" => d.dstate.rc.usermode_disabled = true,
+                "toggle" => d.dstate.rc.scheduling_disabled = true,
+                _ => {
+                    d.dstate.rc.disabled.insert((1, 0x40));
+                }
+            }
+            let notes = d.doorbell(&mut mem, t9);
+            assert!(notes[0].contains("held until enabled"), "{how}: {notes:#?}");
+            assert_eq!(gp_get(&mem), Some(n - 1), "{how}: nothing ran");
+            assert!(d.replay_held(&mut mem).is_empty(), "{how}: still off");
+            d.dstate.rc.usermode_disabled = false;
+            d.dstate.rc.scheduling_disabled = false;
+            d.dstate.rc.disabled.clear();
+            let notes = d.replay_held(&mut mem);
+            assert!(notes[0].contains("held doorbell runs now"), "{how}: {notes:#?}");
+            assert_eq!(gp_get(&mem), Some(n), "{how}: the held entry ran");
+            assert!(d.dstate.rc.held.is_empty());
+        }
         let _ = std::fs::remove_file(&path);
     }
 

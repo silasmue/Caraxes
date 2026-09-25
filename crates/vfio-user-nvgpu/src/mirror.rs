@@ -85,7 +85,7 @@ const CMD_GET_WORK_SUBMIT_TOKEN: u32 = 0xC36F_0108;
 /// `{hVASpace, flags}`.
 const CMD_DMA_INVALIDATE_TLB: u32 = 0x0080_180C;
 /// `NV0080_CTRL_CMD_FIFO_IDLE_CHANNELS` and `NV0080_CTRL_FIFO_IDLE_CHANNELS_PARAMS`
-/// {numChannels @0, hChannels[4096] @4, flags @16388, timeout @16392}, 16396 bytes
+/// {numChannels @0, hChannels\[4096\] @4, flags @16388, timeout @16392}, 16396 bytes
 /// (ctrl0080fifo.h:391-401, the same in 610 and 615).
 pub const CMD_FIFO_IDLE_CHANNELS: u32 = 0x0080_1714;
 pub const IDLE_PARAMS_SIZE: usize = 16396;
@@ -94,7 +94,7 @@ pub const IDLE_PARAMS_FLAGS: usize = 4 + 4 * IDLE_MAX_CHANNELS;
 pub const IDLE_PARAMS_TIMEOUT: usize = IDLE_PARAMS_FLAGS + 4;
 /// `NV2080_CTRL_CMD_FIFO_DISABLE_CHANNELS` and its params {bDisable @0, numChannels @4,
 /// bOnlyDisableScheduling @8, bRewindGpPut @9, pRunlistPreemptEvent @16,
-/// hClientList[64] @24, hChannelList[64] @280}, 536 bytes (ctrl2080fifo.h:235-251).
+/// hClientList\[64\] @24, hChannelList\[64\] @280}, 536 bytes (ctrl2080fifo.h:235-251).
 pub const CMD_FIFO_DISABLE_CHANNELS: u32 = 0x2080_110B;
 pub const DISABLE_PARAMS_SIZE: usize = 536;
 pub const DISABLE_MAX_ENTRIES: usize = 64;

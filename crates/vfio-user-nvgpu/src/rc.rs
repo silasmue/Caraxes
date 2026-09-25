@@ -29,6 +29,21 @@
 //! * `INTERNAL_LOG_OOB_XID` (6.8): the guest's own Xid, journalled with a sanitized text;
 //!   never sent to the host's OOB log. `RC_SET_CLEAN_ERROR_HISTORY` clears the journal.
 //!
+//! **The device's one RC journal** ([`RcState::journal`]): every RC the device raises (a
+//! mirror channel's error notifier, boot.rs `scan_channel_errors`; the non-replayable fault
+//! and the watchdog RCs of this module) and every Xid the guest logs lands here once; the C
+//! rows `RC_GET_ERROR_COUNT` and `RC_GET_ERROR_V2` (public.rs) read it, and
+//! `RC_SET_CLEAN_ERROR_HISTORY` clears it. On a 615 guest boot.rs also writes one
+//! operational-event record (gspmem.rs) per RC the device raises.
+//!
+//! **The device's one set of scheduling flags** ([`RcState::disabled`],
+//! [`RcState::usermode_disabled`], [`RcState::scheduling_disabled`]): written by
+//! `FIFO_DISABLE_CHANNELS` here and by the C rows `FIFO_DISABLE_USERMODE_CHANNELS` and
+//! `INTERNAL_FIFO_TOGGLE_ACTIVE_CHANNEL_SCHEDULING` (public.rs), read by
+//! `NV208F FIFO_GET_CHANNEL_STATE` (public.rs) and by the software executor's doorbell path
+//! (ctrl.rs `doorbell_chid`): a software channel that is not enabled runs nothing; its
+//! doorbell is held ([`RcState::held`]) and replayed once the channel is enabled again.
+//!
 //! The Xid of a watchdog RC is the device's choice: no open source names what GSP-RM
 //! reports for it, and PREEMPTIVE_REMOVAL (nverror.h) is the code of a channel taken away.
 
@@ -54,7 +69,7 @@ pub const RC_LOG: &str = "guest (RC error log of this VM)";
 const USERD_GP_GET: u64 = 0x88;
 const USERD_GP_PUT: u64 = 0x8C;
 /// Journal entries kept (the oldest go first).
-const RC_LOG_MAX: usize = 64;
+pub const RC_LOG_MAX: usize = 256;
 /// `NVB069_FAULT_BUF_ENTRY_INST_APERTURE` 9:8, `_INST_LO` 31:12 of word 0, `_INST_HI` word 1
 /// (class/clb069.h:35-40): VID_MEM 0, SYS_MEM_COHERENT 2, SYS_MEM_NONCOHERENT 3.
 const INST_APERTURE_VID: u32 = 0;
@@ -124,10 +139,27 @@ pub struct RcEvent {
 /// Per VM.
 #[derive(Default, Debug)]
 pub struct RcState {
+    /// The device's RC journal for this guest (at most [`RC_LOG_MAX`] records).
     pub journal: Vec<RcRecord>,
     pub pending: Vec<RcRequest>,
-    /// Channels the guest disabled (FIFO_DISABLE_CHANNELS), by (hClient, hChannel).
+    /// Channels the guest disabled (FIFO_DISABLE_CHANNELS), by the registry's (hClient,
+    /// hChannel) of the channel (duplicates resolved).
     pub disabled: BTreeSet<(u32, u32)>,
+    /// `FIFO_DISABLE_USERMODE_CHANNELS`: the guest's user channels (those of a guest TSG)
+    /// are off.
+    pub usermode_disabled: bool,
+    /// `INTERNAL_FIFO_TOGGLE_ACTIVE_CHANNEL_SCHEDULING`: every channel is off.
+    pub scheduling_disabled: bool,
+    /// Software channels rung while not enabled: run when enabled again (ctrl.rs
+    /// `replay_held`).
+    pub held: BTreeSet<u32>,
+    /// `CARAXES_RC_SELFTEST=<seconds>`: a SIMULATED device RC record of no channel every so
+    /// often once the guest can take it (boot.rs `rc_selftest`), for the journal probe
+    /// (caraxes/tools/rc-journal-probe.sh). A guest user process cannot log an Xid itself:
+    /// `INTERNAL_LOG_OOB_XID` is an INTERNAL control (flags 0xc0,
+    /// g_subdevice_nvoc.c:6616-6628 of 610.57.04) the guest kernel sends only for its own
+    /// Xids (gpu.c:7655-7703).
+    pub selftest: Option<SelfTest>,
     /// The instance block of each channel allocation: (aperture VID/SYS, address).
     pub instances: BTreeMap<(u32, u32), (bool, u64)>,
 }
@@ -166,12 +198,79 @@ fn ans(status: u32, params: &[u8], label: &'static str, note: String) -> Answer 
     }
 }
 
+/// The RC self-test schedule ([`RcState::selftest`]).
+#[derive(Debug)]
+pub struct SelfTest {
+    pub period: std::time::Duration,
+    pub last: Option<std::time::Instant>,
+    pub sent: u32,
+}
+
+impl SelfTest {
+    /// `CARAXES_RC_SELFTEST=<seconds>`, if set to a positive number.
+    pub fn from_env() -> Option<Self> {
+        let s: u64 = std::env::var("CARAXES_RC_SELFTEST").ok()?.parse().ok()?;
+        (s > 0).then(|| SelfTest {
+            period: std::time::Duration::from_secs(s),
+            last: None,
+            sent: 0,
+        })
+    }
+
+    /// The number of the next record if one is due now.
+    pub fn due(&mut self) -> Option<u32> {
+        if self.last.is_some_and(|t| t.elapsed() < self.period) {
+            return None;
+        }
+        self.last = Some(std::time::Instant::now());
+        self.sent += 1;
+        Some(self.sent)
+    }
+}
+
+/// A user channel in the device's view: a channel of a guest TSG (the kernel's own
+/// golden-context and WAR channels are bare, mirror.rs `eligible`).
+pub fn usermode(reg: &Registry, c: &crate::channel::Channel) -> bool {
+    reg.tsg((c.h_client, c.h_parent)).is_some()
+}
+
 impl RcState {
-    fn journal(&mut self, r: RcRecord) {
-        if self.journal.len() == RC_LOG_MAX {
+    fn push(&mut self, r: RcRecord) {
+        if self.journal.len() >= RC_LOG_MAX {
             self.journal.remove(0);
         }
         self.journal.push(r);
+    }
+
+    /// An RC the device raised outside this module (boot.rs: a mirror channel's error
+    /// notifier), into the one journal.
+    pub fn record(&mut self, chid: Option<u32>, xid: u32, text: String) {
+        self.push(RcRecord { chid, xid, text });
+    }
+
+    /// Whether any scheduling flag is set (the doorbell path skips the channel walk
+    /// otherwise).
+    pub fn any_disabled(&self) -> bool {
+        self.scheduling_disabled || self.usermode_disabled || !self.disabled.is_empty()
+    }
+
+    /// Whether guest channel `c` is enabled in the device's view: not disabled by
+    /// itself, by the usermode switch (a channel of a TSG) or by the device-wide toggle.
+    pub fn channel_enabled(&self, reg: &Registry, c: &crate::channel::Channel) -> bool {
+        !(self.scheduling_disabled
+            || (self.usermode_disabled && usermode(reg, c))
+            || self.disabled.contains(&(c.h_client, c.h_object)))
+    }
+
+    /// The chids of the guest's channels that are not enabled.
+    pub fn disabled_chids(&self, reg: &Registry) -> BTreeSet<u32> {
+        if !self.any_disabled() {
+            return BTreeSet::new();
+        }
+        reg.channels()
+            .filter(|c| !self.channel_enabled(reg, c))
+            .map(|c| c.chid)
+            .collect()
     }
 
     /// A channel allocation of the guest: remember its instance block (`instanceMem` of
@@ -191,6 +290,9 @@ impl RcState {
     pub fn forget(&mut self, h_client: u32, h_object: u32) {
         self.instances.remove(&(h_client, h_object));
         self.disabled.remove(&(h_client, h_object));
+        if h_client == h_object {
+            self.disabled.retain(|(c, _)| *c != h_client);
+        }
     }
 
     /// `NV2080_CTRL_CMD_FIFO_DISABLE_CHANNELS` (ctrl2080fifo.h:198-251).
@@ -233,7 +335,7 @@ impl RcState {
             );
             let rkey = reg.resolve(key);
             match reg.channels().find(|c| (c.h_client, c.h_object) == rkey) {
-                Some(c) => chans.push((key, rkey, c.chid, c.mirrored, c.h_parent)),
+                Some(c) => chans.push((rkey, c.chid, c.mirrored, c.h_parent)),
                 None => return ans(
                     crate::dmodel::status("NV_ERR_INVALID_CHANNEL"),
                     params,
@@ -246,16 +348,16 @@ impl RcState {
             }
         }
         let mut notes = Vec::new();
-        for (key, rkey, chid, mirrored, parent) in chans {
+        for (rkey, chid, mirrored, parent) in chans {
             if disable {
-                self.disabled.insert(key);
+                self.disabled.insert(rkey);
             } else {
-                self.disabled.remove(&key);
+                self.disabled.remove(&rkey);
             }
             let m = mirror.as_deref_mut().filter(|_| mirrored);
             let Some(m) = m else {
                 notes.push(format!(
-                    "chid {chid}: {} (software executor: runs only at a doorbell)",
+                    "chid {chid}: {} (software executor: its doorbells are held while disabled)",
                     if disable { "disabled" } else { "enabled" }
                 ));
                 continue;
@@ -337,7 +439,7 @@ impl RcState {
             xid,
             text: text.clone(),
         });
-        self.journal(RcRecord {
+        self.push(RcRecord {
             chid: Some(chid),
             xid,
             text,
@@ -379,7 +481,7 @@ impl RcState {
                 }
             })
             .collect();
-        self.journal(RcRecord {
+        self.push(RcRecord {
             chid: None,
             xid,
             text: text.clone(),
@@ -467,7 +569,7 @@ pub fn take(ctrl: &mut crate::ctrl::Dispatcher, gm: &GpuMem) -> Vec<RcEvent> {
                             }
                         }
                     }
-                    ctrl.dstate.rc.journal(RcRecord {
+                    ctrl.dstate.rc.push(RcRecord {
                         chid: Some(chid),
                         xid,
                         text: text.clone(),

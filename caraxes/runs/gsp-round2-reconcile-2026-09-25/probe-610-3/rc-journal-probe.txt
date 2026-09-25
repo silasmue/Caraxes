@@ -1,0 +1,16 @@
+crw-rw-rw- 1 root root 195,   0 Sep 25 00:31 /dev/nvidia0
+crw-rw-rw- 1 root root 195, 255 Sep 25 00:31 /dev/nvidiactl
+built
+rc-journal-probe: driver 610.57.04
+rc-journal-probe: control GPU_GET_PROBED_IDS         0x00000214: ret 0 status 0
+rc-journal-probe: control GPU_ATTACH_IDS             0x00000215: ret 0 status 0
+rc-journal-probe: alloc device     class 0x0080: ret 0 status 0
+rc-journal-probe: alloc subdevice  class 0x2080: ret 0 status 0
+rc-journal-probe: error count at start 1; waiting up to 60 s for a record
+rc-journal-probe: error count 1
+rc-journal-probe: record 0: outputRecordSize 8 group 1 type 131 wRecordSize 8 dwSize 0
+rc-journal-probe: record 1: outputRecordSize 0
+rc-journal-probe: control RC_SET_CLEAN_ERROR_HISTORY 0x20802207: ret 0 status 0
+rc-journal-probe: error count 1 before the clean, 0 after; 1 record header(s)
+[  129.809247] NVRM: Xid (PCI:0000:00:05): 0, Caraxes: SIMULATED RC 1 (CARAXES_RC_SELFTEST, no channel)
+rc-journal-probe rc=0

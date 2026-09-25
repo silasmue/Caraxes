@@ -1033,3 +1033,28 @@ The one C control left on 615 is `NV_EVENT_BUFFER_CTRL_CMD_UPDATE_GET`: it is an
 `gspmem.rs` from the boot model, ahead of the dispatcher, which the inventory's reader does
 not look at. The one B control is `GET_ZBC_CLEAR_TABLE_ENTRY`. The 31 D controls are the open
 MODEL rows and the open A rows.
+
+## After the reconciliation of the C table and the D models (2026-09-25)
+
+The C table (public.rs) and the D models (rc.rs, dmodel.rs) of the two round-2 merges answered
+five controls twice, the C rows first, and kept two RC journals
+([gsp-plan/c-guest-state.md](gsp-plan/c-guest-state.md) §8 "Reconciliation"). The five
+(`FIFO_DISABLE_CHANNELS`, `GPU_REPORT_NON_REPLAYABLE_FAULT`, `INTERNAL_RC_WATCHDOG_TIMEOUT`,
+`RC_SET_CLEAN_ERROR_HISTORY`, `GPU_VALIDATE_MEM_MAP_REQUEST`) and the B getter
+`NV83DE DEBUG_GET_MODE_MMU_DEBUG` are answered by the D models only now, the RC journal is
+rc.rs's alone, and a guard test keeps public.rs, chipctl.rs and dmodel.rs/rc.rs disjoint per
+ABI. `gsp-surface.py --ogkm <tree>` on main 76e4440 (before) and on this worktree (after):
+
+| Item | 610 before | 610 after | 615 before | 615 after |
+|---|---:|---:|---:|---:|
+| Routed controls handled | 763 | 763 | 777 | 777 |
+| (host / synthesized / guest / echo / refused) | 70/81/72/64/476 | 70/80/74/64/475 | 69/81/73/65/489 | 69/80/75/65/488 |
+| Routed controls unhandled | 66 | 66 | 67 | 67 |
+| (A / B / C / D) | 50/0/0/16 | 50/0/0/16 | 50/0/1/16 | 50/0/1/16 |
+
+No control changes from answered to unanswered or back: the six had an answer before, from the
+wrong handler. Two change provenance: `GPU_VALIDATE_MEM_MAP_REQUEST` from synthesized (the C
+row's fixed PROTECTION_FAULT) to guest-derived (the BAR0 policy over the guest's BAR0), and
+`DEBUG_GET_MODE_MMU_DEBUG` from refused to guest-derived (the debugger record). The generated
+rule table has 293 rows on 610 and 296 on 615 (the twelve C rows the table answers are out, the
+five the models answer are in).

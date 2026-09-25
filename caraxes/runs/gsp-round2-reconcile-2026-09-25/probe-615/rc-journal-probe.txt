@@ -1,0 +1,18 @@
+built
+rc-journal-probe: driver 615.71.09
+rc-journal-probe: control GPU_GET_PROBED_IDS         0x00000214: ret 0 status 0
+rc-journal-probe: control GPU_ATTACH_IDS             0x00000215: ret 0 status 0
+rc-journal-probe: alloc device     class 0x0080: ret 0 status 0
+rc-journal-probe: alloc subdevice  class 0x2080: ret 0 status 0
+rc-journal-probe: error count at start 3; waiting up to 60 s for a record
+rc-journal-probe: error count 3
+rc-journal-probe: record 0: outputRecordSize 8 group 1 type 131 wRecordSize 8 dwSize 0
+rc-journal-probe: record 1: outputRecordSize 8 group 1 type 131 wRecordSize 8 dwSize 0
+rc-journal-probe: record 2: outputRecordSize 8 group 1 type 131 wRecordSize 8 dwSize 0
+rc-journal-probe: record 3: outputRecordSize 0
+rc-journal-probe: control RC_SET_CLEAN_ERROR_HISTORY 0x20802207: ret 0 status 0
+rc-journal-probe: error count 3 before the clean, 0 after; 3 record header(s)
+[  133.069773] NVRM: Xid (PCI:0000:00:05): 0, Caraxes: SIMULATED RC 1 (CARAXES_RC_SELFTEST, no channel)
+[  153.580255] NVRM: Xid (PCI:0000:00:05): 0, Caraxes: SIMULATED RC 2 (CARAXES_RC_SELFTEST, no channel)
+[  174.060266] NVRM: Xid (PCI:0000:00:05): 0, Caraxes: SIMULATED RC 3 (CARAXES_RC_SELFTEST, no channel)
+rc-journal-probe rc=0

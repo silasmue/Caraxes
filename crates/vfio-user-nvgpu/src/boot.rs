@@ -398,9 +398,70 @@ impl BootModel {
         notes
     }
 
-    /// The RCs the category D models raised (rc.rs: a fault UVM reported, the RC watchdog)
-    /// go to the guest on the same path as a host mirror's error: OS_ERROR_LOG when the
-    /// guest logs RCs, then RC_TRIGGERED in the guest ABI's layout.
+    /// The 615 operational-event import for an RC the device raised: one GOE record
+    /// (gspmem.rs) and its wake-up into `items`. Nothing while the guest has no ring bound.
+    /// Every RC the device raises passes here once, next to its one journal record (rc.rs).
+    fn goe_rc(
+        &mut self,
+        mem: &GuestMemory,
+        xid: u32,
+        text: &str,
+        items: &mut Vec<crate::events::Unsolicited>,
+    ) -> Vec<String> {
+        if !self.gspmem.has_goe_bind() {
+            return Vec::new();
+        }
+        let ev = crate::gspmem::OpEvent::rc(xid, self.ctrl.channels.now_ns() / 1000, text.to_string());
+        let (wake, notes) = self.gspmem.produce(mem, &ev);
+        for (c, e) in wake {
+            items.push(crate::events::Unsolicited::Event(
+                crate::events::EV_POST_EVENT,
+                crate::events::post_event(c, e),
+            ));
+        }
+        notes
+    }
+
+    /// `CARAXES_RC_SELFTEST=<seconds>` (rc.rs `RcState::selftest`): a SIMULATED RC record of
+    /// no channel every so often, once the guest can take it (the GSP queues exist and, on
+    /// a 615 guest, the operational-event import is bound). It goes where a device RC goes:
+    /// one journal record, OS_ERROR_LOG when the guest logs RCs (chid invalid, so no
+    /// channel is touched and no RC_TRIGGERED is sent), and on 615 one operational-event
+    /// record.
+    fn rc_selftest(&mut self, mem: &GuestMemory) -> Vec<String> {
+        let ready = self.queues.is_some()
+            && (self.transport.guest_abi() != 615 || self.gspmem.has_goe_bind());
+        if !ready {
+            return Vec::new();
+        }
+        let Some(i) = self.ctrl.dstate.rc.selftest.as_mut().and_then(|s| s.due()) else {
+            return Vec::new();
+        };
+        let mut items = Vec::new();
+        let mut notes = Vec::new();
+        {
+            let text = format!("Caraxes: SIMULATED RC {i} (CARAXES_RC_SELFTEST, no channel)");
+            self.ctrl.dstate.rc.record(None, 0, text.clone());
+            notes.push(format!("rc self-test: {text} journalled [synthesized]"));
+            if self.registry.log_on_rc {
+                items.push(crate::events::Unsolicited::Event(
+                    crate::events::EV_OS_ERROR_LOG,
+                    crate::events::os_error_log(0, 0, u32::MAX, &text),
+                ));
+            }
+            let n = self.goe_rc(mem, 0, &text, &mut items);
+            notes.extend(n);
+        }
+        if !items.is_empty() {
+            notes.extend(self.post_unsolicited(mem, &items));
+        }
+        notes
+    }
+
+    /// The RCs the category D models raised (rc.rs: a fault UVM reported, the RC watchdog;
+    /// journalled there) go to the guest on the same path as a host mirror's error:
+    /// OS_ERROR_LOG when the guest logs RCs, then RC_TRIGGERED in the guest ABI's layout,
+    /// and on 615 an operational-event record.
     fn post_model_rcs(&mut self, mem: &GuestMemory) -> Vec<String> {
         if self.ctrl.dstate.rc.pending.is_empty() {
             return Vec::new();
@@ -422,6 +483,8 @@ impl BootModel {
                 crate::events::EV_RC_TRIGGERED,
                 crate::events::rc_triggered(layout, r.engine_type, r.chid, r.xid),
             ));
+            let n = self.goe_rc(mem, r.xid, &r.text, &mut items);
+            notes.extend(n);
         }
         if !items.is_empty() {
             notes.extend(self.post_unsolicited(mem, &items));
@@ -456,8 +519,15 @@ impl BootModel {
                 goe_notes.extend(self.post_unsolicited(mem, &items));
             }
         }
+        goe_notes.extend(self.rc_selftest(mem));
         let mut notes = self.scan_channel_errors_inner(mem, periodic);
         goe_notes.append(&mut notes);
+        // Software channels the guest enabled again run their held doorbells (rc.rs, the
+        // scheduling flags; ctrl.rs `replay_held`).
+        if !self.ctrl.dstate.rc.held.is_empty() {
+            let mut gm = crate::channel::GpuMem { fb: &mut self.fb, sys: mem };
+            goe_notes.extend(self.ctrl.replay_held(&mut gm));
+        }
         goe_notes
     }
 
@@ -530,9 +600,10 @@ impl BootModel {
                     crate::events::EV_RC_TRIGGERED,
                     crate::events::rc_triggered(layout, eng, chid, xid),
                 ));
-                // The device's RC journal and fault record (public.rs): an MMU fault's
-                // details are the host's record of the channel's own mirror (a read of the
-                // device's own host channel, NV906F GET_MMU_FAULT_INFO).
+                // The device's RC journal (rc.rs) and the channel's fault record
+                // (public.rs): an MMU fault's details are the host's record of the
+                // channel's own mirror (a read of the device's own host channel, NV906F
+                // GET_MMU_FAULT_INFO).
                 let fault = (xid == crate::gspmem::XID_MMU_FAULT)
                     .then(|| self.ctrl.mirror.as_ref().and_then(|m| m.mmu_fault_info(chid)))
                     .flatten();
@@ -541,22 +612,13 @@ impl BootModel {
                         "chid {chid}: GET_MMU_FAULT_INFO on its own host mirror channel: status {st:#x} [host read]"
                     ));
                 }
-                let fault = fault.filter(|(st, _)| *st == 0).map(|(_, p)| p);
-                self.ctrl
-                    .guest_attrs
-                    .record_rc((hc, ho), chid, xid, fault, text.clone());
-                // The 615 operational-event import: a GOE record and its wake-up.
-                if self.gspmem.has_goe_bind() {
-                    let ev = crate::gspmem::OpEvent::rc(xid, self.ctrl.channels.now_ns() / 1000, text.clone());
-                    let (wake, n) = self.gspmem.produce(mem, &ev);
-                    notes.extend(n);
-                    for (c, e) in wake {
-                        items.push(crate::events::Unsolicited::Event(
-                            crate::events::EV_POST_EVENT,
-                            crate::events::post_event(c, e),
-                        ));
-                    }
+                if let Some((0, p)) = fault {
+                    self.ctrl.guest_attrs.set_fault((hc, ho), p);
                 }
+                self.ctrl.dstate.rc.record(Some(chid), xid, text.clone());
+                // The 615 operational-event import: a GOE record and its wake-up.
+                let n = self.goe_rc(mem, xid, &text, &mut items);
+                notes.extend(n);
             }
         }
         self.watch.retain(|k, _| live.contains(k));
@@ -2394,6 +2456,45 @@ mod tests {
     #[test]
     fn alloc_memory_and_the_event_import_through_the_queue() {
         let mut g = Guest615::boot("allocmem");
+        let c = goe_import(&mut g);
+        // Teardown frees the client: every registration goes.
+        let mut free = vec![0u8; v::FREE_SIZE];
+        free[v::FREE_H_ROOT..][..4].copy_from_slice(&c.to_le_bytes());
+        free[v::FREE_H_OBJECT..][..4].copy_from_slice(&c.to_le_bytes());
+        let (notes, _) = g.rpc(rpc::FN_FREE, &free);
+        assert!(notes.iter().any(|n| n.contains("GSP memory object(s) of the client")), "{notes:?}");
+        assert!(g.b.gspmem.memories.is_empty() && g.b.gspmem.buffers.is_empty());
+        assert!(g.b.unanswered.is_empty(), "{:?}", g.b.unanswered);
+    }
+
+    /// The RC self-test (`CARAXES_RC_SELFTEST`): nothing before the 615 import is bound,
+    /// then one SIMULATED record per period, in the journal and as one GOE record.
+    #[test]
+    fn the_rc_selftest_journals_and_writes_one_goe_record() {
+        let mut g = Guest615::boot("rcselftest");
+        g.b.ctrl.dstate.rc.selftest = Some(crate::rc::SelfTest {
+            period: std::time::Duration::from_secs(3600),
+            last: None,
+            sent: 0,
+        });
+        g.b.scan_channel_errors(&g.mem, false);
+        assert!(g.b.ctrl.dstate.rc.journal.is_empty(), "not before the import is bound");
+        goe_import(&mut g);
+        let notes = g.b.scan_channel_errors(&g.mem, false);
+        g.b.scan_channel_errors(&g.mem, false);
+        let j = &g.b.ctrl.dstate.rc.journal;
+        assert_eq!(j.len(), 1, "{notes:?}");
+        assert!(j[0].chid.is_none() && j[0].text.contains("SIMULATED"), "{:?}", j[0]);
+        assert_eq!(g.mem.read_u32(GOE_HEADER + 4), Some(1), "{notes:?}");
+    }
+
+    /// The guest physical address of the GOE header [`goe_import`] registers.
+    const GOE_HEADER: u64 = 0x88a7_0000;
+
+    /// The operational-event import as the first 615 boot sent it, through the queue
+    /// (header 32 bytes at [`GOE_HEADER`], 256 records of 64 bytes, vardata 0x1000); returns
+    /// the client.
+    fn goe_import(g: &mut Guest615) -> u32 {
         let (c, d, s) = (0xc1e0_0007u32, 0xcaf0_0000u32, 0xcaf0_0001u32);
         let am = |h: u32, len: u64, pfn: u64| {
             let mut p = vec![0u8; crate::gspmem::AM_PTES + 8];
@@ -2441,14 +2542,8 @@ mod tests {
         let (st, reply) = Guest615::reply(&el, rpc::FN_GSP_RM_ALLOC).unwrap();
         assert_eq!(st, 0, "{notes:?}");
         assert_ne!(reply[v::RM_ALLOC_PARAMS + crate::gspmem::BIND_BIND_ID], 0);
-        // Teardown frees the client: every registration goes.
-        let mut free = vec![0u8; v::FREE_SIZE];
-        free[v::FREE_H_ROOT..][..4].copy_from_slice(&c.to_le_bytes());
-        free[v::FREE_H_OBJECT..][..4].copy_from_slice(&c.to_le_bytes());
-        let (notes, _) = g.rpc(rpc::FN_FREE, &free);
-        assert!(notes.iter().any(|n| n.contains("GSP memory object(s) of the client")), "{notes:?}");
-        assert!(g.b.gspmem.memories.is_empty() && g.b.gspmem.buffers.is_empty());
-        assert!(g.b.unanswered.is_empty(), "{:?}", g.b.unanswered);
+        assert!(g.b.gspmem.has_goe_bind());
+        c
     }
 
     /// The conditional RPCs through the queue (gsprpc.rs): each gets the answer of
@@ -2559,6 +2654,9 @@ mod tests {
         use nvrm_sys::RmAbi;
         type Abi = v::RmAbi;
         let mut g = Guest615::boot("dmodelrc");
+        goe_import(&mut g);
+        // recordPut of the GOE header: one record per RC the device raised.
+        let goe_records = |g: &Guest615| g.mem.read_u32(GOE_HEADER + 4).unwrap();
         let (c, inst) = (0xc1d0_0002u32, 0x0123_4000u64);
         let mut p = vec![0u8; <Abi as RmAbi>::ALLOC_CHANNEL_PARAMS_SIZE as usize];
         let put = |b: &mut [u8], o: usize, x: &[u8]| b[o..o + x.len()].copy_from_slice(x);
@@ -2600,6 +2698,7 @@ mod tests {
         notes.extend(g.b.scan_channel_errors(&g.mem, false));
         assert!(g.b.ctrl.dstate.rc.pending.is_empty(), "{notes:?}");
         assert_eq!(g.b.ctrl.dstate.rc.journal.last().map(|r| (r.chid, r.xid)), Some((Some(6), 31)));
+        assert_eq!((g.b.ctrl.dstate.rc.journal.len(), goe_records(&g)), (1, 1), "{notes:?}");
         let el: Vec<_> = el.into_iter().chain(g.drain()).collect();
         let rc = Guest615::reply(&el, crate::events::EV_RC_TRIGGERED).unwrap().1;
         assert_eq!(u32::from_le_bytes(rc[4..8].try_into().unwrap()), 6);
@@ -2627,6 +2726,21 @@ mod tests {
         let el: Vec<_> = el.into_iter().chain(g.drain()).collect();
         let rc = Guest615::reply(&el, crate::events::EV_RC_TRIGGERED).unwrap().1;
         assert_eq!(u32::from_le_bytes(rc[16..20].try_into().unwrap()), 45);
+        assert_eq!((g.b.ctrl.dstate.rc.journal.len(), goe_records(&g)), (2, 2), "{notes:?}");
+        // The guest's own Xid (LOG_OOB_XID) lands in the same journal, as no RC of the
+        // device (no GOE record); RC_GET_ERROR_COUNT (the C row) counts all three.
+        let abi = crate::ver::Abi::active();
+        let oob = abi.d_rules.iter().find(|r| r.name == "NV2080_CTRL_CMD_INTERNAL_LOG_OOB_XID").unwrap();
+        let layout = abi.layout("NV2080_CTRL_INTERNAL_LOG_OOB_XID_PARAMS").unwrap();
+        let mut x = vec![0u8; layout.size];
+        x[layout.resolve("xid").unwrap().0..][..4].copy_from_slice(&13u32.to_le_bytes());
+        let (_, el) = g.rpc(rpc::FN_GSP_RM_CONTROL, &control_request(c, 0xcaf2_0001, oob.id, &x));
+        assert_eq!(st(&el), 0);
+        let (notes, el) = g.rpc(rpc::FN_GSP_RM_CONTROL, &control_request(c, 0xcaf2_0001, 0x2080_2205, &[0; 4]));
+        assert_eq!(st(&el), 0);
+        let r = Guest615::reply(&el, rpc::FN_GSP_RM_CONTROL).unwrap().1;
+        let count = u32::from_le_bytes(r[v::RM_CONTROL_PARAMS..][..4].try_into().unwrap());
+        assert_eq!((count, goe_records(&g)), (3, 2), "{notes:?}");
     }
 
     /// B3, B7 and B5 against the captured 615 guest: the opt-in and the registry of the

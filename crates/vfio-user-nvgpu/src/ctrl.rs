@@ -372,6 +372,31 @@ impl Dispatcher {
         notes
     }
 
+    /// The software channels the guest's scheduling switches hold (rc.rs `RcState`, the
+    /// device's one set of flags) whose doorbells arrived while they were off, run once
+    /// they are enabled again. Called on the RC event path (boot.rs), which has guest
+    /// memory at hand.
+    pub fn replay_held(&mut self, gm: &mut crate::channel::GpuMem) -> Vec<String> {
+        if self.dstate.rc.held.is_empty() {
+            return Vec::new();
+        }
+        let off = self.dstate.rc.disabled_chids(&self.channels);
+        let held = std::mem::take(&mut self.dstate.rc.held);
+        let (run, keep): (Vec<u32>, Vec<u32>) = held.into_iter().partition(|c| !off.contains(c));
+        self.dstate.rc.held = keep.into_iter().collect();
+        let mut notes = Vec::new();
+        for chid in run {
+            if self.channels.channel(chid).is_none() {
+                continue;
+            }
+            notes.push(format!(
+                "chid {chid}: enabled again, its held doorbell runs now [guest channel]"
+            ));
+            notes.extend(self.doorbell_chid(gm, chid, chid, false));
+        }
+        notes
+    }
+
     fn doorbell_chid(
         &mut self,
         gm: &mut crate::channel::GpuMem,
@@ -380,8 +405,19 @@ impl Dispatcher {
         via_host_token: bool,
     ) -> Vec<String> {
         self.channels.note_rung(gm, chid);
+        // The guest's scheduling switches (rc.rs, the one set of flags): a channel that is
+        // off and not on a host mirror runs nothing; the doorbell is held until the
+        // channel is enabled. A mirrored channel's host twin was switched off on the host
+        // by the same control, so its doorbell goes on (the host does not schedule it).
+        let off = self.dstate.rc.disabled_chids(&self.channels);
+        if off.contains(&chid) && !self.channels.channel(chid).is_some_and(|c| c.mirrored) {
+            self.dstate.rc.held.insert(chid);
+            return vec![format!(
+                "doorbell chid {chid}: scheduling disabled by the guest; held until enabled (rc.rs) [guest channel]"
+            )];
+        }
         let Some(m) = self.mirror.as_mut() else {
-            return self.channels.doorbell(gm, token);
+            return self.channels.doorbell_except(gm, token, &off);
         };
         // A GR channel under CARAXES_MIRROR_GR_SHADOW runs on the host-managed shadow VAS
         // (D17 route 4 stage 1, shadow.rs), built at its first doorbell.
@@ -409,7 +445,7 @@ impl Dispatcher {
         }
         let eligible = m.is_mirrored(chid) || m.eligible(&self.channels, chid).is_ok();
         if !eligible {
-            let mut notes = self.channels.doorbell(gm, token);
+            let mut notes = self.channels.doorbell_except(gm, token, &off);
             if let Err(why) = m.eligible(&self.channels, chid) {
                 notes.push(format!("mirror: chid {chid} in software: {why}"));
             }
@@ -467,7 +503,7 @@ impl Dispatcher {
                 notes.push(format!(
                     "mirror: REFUSED chid {chid}: {e}; this doorbell runs on the software executor"
                 ));
-                notes.extend(self.channels.doorbell(gm, token));
+                notes.extend(self.channels.doorbell_except(gm, token, &off));
             }
         }
         notes
@@ -802,6 +838,7 @@ impl Dispatcher {
         };
         self.channels.record_free(h_client, h_object);
         self.guest_attrs.free(h_client, h_object);
+        self.dstate.rc.forget(h_client, h_object);
         if h_object == h_client {
             self.objects.retain(|(c, _), _| *c != h_client);
         }
@@ -955,6 +992,7 @@ impl Dispatcher {
                 .as_mut()
                 .map(|f| f as &mut dyn crate::public::MirrorObjects),
             attrs: &mut self.guest_attrs,
+            rc: &mut self.dstate.rc,
             reg: Some(&self.channels),
             link_control: self.link_control,
         };

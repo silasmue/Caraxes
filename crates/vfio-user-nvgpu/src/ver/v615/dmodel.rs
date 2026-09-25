@@ -11,7 +11,7 @@ use crate::ver::{DAnswer, DRule, Family};
 
 /// The category D controls of the inventory no other handler answers: the number
 /// `D_RULES` covers.
-pub const D_INVENTORY: usize = 291;
+pub const D_INVENTORY: usize = 296;
 
 /// One rule per category D control, in the TSV's order (§6 groups).
 pub const D_RULES: &[DRule] = &[
@@ -61,6 +61,18 @@ pub const D_RULES: &[DRule] = &[
         reclass: 'E',
         rank: 5,
         size: 24,
+        why: "",
+    },
+    DRule {
+        id: 0x2080_110B,
+        name: "NV2080_CTRL_CMD_FIFO_DISABLE_CHANNELS",
+        group: "fifo",
+        answer: DAnswer::Mirror,
+        model: "",
+        status: 0,
+        reclass: 'C',
+        rank: 2,
+        size: 536,
         why: "",
     },
     DRule {
@@ -505,6 +517,18 @@ pub const D_RULES: &[DRule] = &[
         reclass: '-',
         rank: 3,
         size: 2,
+        why: "",
+    },
+    DRule {
+        id: 0x2080_0198,
+        name: "NV2080_CTRL_CMD_GPU_VALIDATE_MEM_MAP_REQUEST",
+        group: "bus",
+        answer: DAnswer::Model,
+        model: "bar0-map-policy",
+        status: 0,
+        reclass: 'C',
+        rank: 2,
+        size: 24,
         why: "",
     },
     DRule {
@@ -2356,6 +2380,30 @@ pub const D_RULES: &[DRule] = &[
         why: "",
     },
     DRule {
+        id: 0x2080_0A6A,
+        name: "NV2080_CTRL_CMD_INTERNAL_RC_WATCHDOG_TIMEOUT",
+        group: "ecc",
+        answer: DAnswer::Model,
+        model: "channel-registry",
+        status: 0,
+        reclass: 'C',
+        rank: 2,
+        size: 0,
+        why: "",
+    },
+    DRule {
+        id: 0x2080_2207,
+        name: "NV2080_CTRL_CMD_RC_SET_CLEAN_ERROR_HISTORY",
+        group: "ecc",
+        answer: DAnswer::Ack,
+        model: "",
+        status: 0x0, // NV_OK
+        reclass: 'C',
+        rank: 3,
+        size: 0,
+        why: "",
+    },
+    DRule {
         id: 0x2080_220D,
         name: "NV2080_CTRL_CMD_SET_RC_RECOVERY",
         group: "ecc",
@@ -2461,6 +2509,18 @@ pub const D_RULES: &[DRule] = &[
         reclass: '-',
         rank: 2,
         size: 4,
+        why: "",
+    },
+    DRule {
+        id: 0x2080_0177,
+        name: "NV2080_CTRL_CMD_GPU_REPORT_NON_REPLAYABLE_FAULT",
+        group: "events",
+        answer: DAnswer::Model,
+        model: "channel-registry",
+        status: 0,
+        reclass: 'C',
+        rank: 2,
+        size: 32,
         why: "",
     },
     DRule {
