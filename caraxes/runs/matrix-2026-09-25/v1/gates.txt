@@ -1,0 +1,16 @@
+smi PASS: nvidia-smi identical to the native host run (masked), driver 615.71.09, guest sees Leandro VirtIO RTX 2070
+CXROW	cuda-init	pass	1	stage 0 ok (cuInit)	-
+CXROW	cuda-context	pass	1	stage 1 ok (context, sched=auto)	-
+CXROW	gpu-memory	pass	1	stage 2 ok (memory)	-
+CXROW	gpu-kernel	pass	1	result correct, managedprobe 2x to stage 2	-
+CXROW	cuda-core	pass	1	nvprobe 2: device memory written, read back and compared	-
+CXROW	cuda-jit	pass	1	nvprobe 3: PTX compiled by the driver, kernel launched, result verified	-
+CXROW	cuda-launch	pass	1	nvprobe 4 (blocking): 100 kernel launches completed and verified	-
+CXROW	cuda-managed	pass	1	managedprobe stage 2: managed buffer written by the GPU, prefetched, and compared on the CPU (bad=0)	-
+CXROW	cuda-hostreg	pass	1	hostregprobe: 2 pinned-memory roundtrips (HostRegister and HostAlloc) compared byte for byte	-
+CXROW	cuda-torch	pass	1	torchprobe stage 5 with NVTORCH_CONV=1: cuDNN convolution result verified by the probe	-
+CXROW	rlprobe	pass	1	mean10=56.9 (pinned)	-
+CXROW	convburn	pass	1	acc=3.041451216e+00	-
+CXROW	gpu-torch	pass	1	mean10=56.9 acc=3.041451216e+00	-
+CXROW	gpu-own	pass	1	guest PID 9435 listed in the VM's own nvidia-smi	-
+cuda: 14 pass, 0 fail (rows.tsv)

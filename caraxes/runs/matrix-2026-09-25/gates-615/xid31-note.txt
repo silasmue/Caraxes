@@ -1,0 +1,29 @@
+# SPDX-License-Identifier: MIT
+# The Xid 31 of the morning matrix's 615 gates (vm5-615, main fbe4dfb v615 build, with the
+# swiotlb-alias fix of memory-model.md §2 "The alias in the device").
+
+Host kernel log (host-xid.txt), both on the device pid 2362730 (vfio-user-nvgpu of vm5-615):
+  04:15:26 Xid 31, GPC1 GPCCLIENT_T1_9 FAULT_PDE ACCESS_TYPE_VIRT_WRITE @ 0x100_2400c000
+  04:15:30 Xid 31, GPC1 GPCCLIENT_T1_9 FAULT_PDE ACCESS_TYPE_VIRT_WRITE @ 0x100_26c10000
+vm3's device (pid 2362554, 610 guest, gates running at the same time) has no Xid line.
+
+Stage: the cuda gate's convburn (gate-cuda-2026-09-25/guest/convburn.log): the ResNet-style
+training step ends in loss.backward() with "cuDNN error: CUDNN_STATUS_INTERNAL_ERROR"; the RM
+column shows NV83DE_CTRL_CMD_DEBUG_READ_ALL_SM_ERROR_STATES -> 0x56 (the guest RM reading the
+SM error state after the fault). The cuda gate started 04:14:56 (transcript); cuda-torch passed
+before it. Every other scored stage passed but the known cuda-managed 801.
+
+The alias was active: gpu.log "dma table: guest aliases from .../dma-ranges.guest: GPA
+0xba200000..0xbe400000 -> IOVA 0xf000000000..0xf004200000"; guest dma-ranges in
+dma-ranges-guest.txt, the host table in dma-ranges.txt. The bar2 memfd reported 0 alias
+conflicts.
+
+The pool's page movements, the device's exit summary (device-summary.txt, pool-log.txt):
+  615 (Xid):  moved in 10752 cold + 0 behind the barrier, back 512 cold + 10240 behind the
+              barrier; 293 barriers (14 refused, 756 TSG preempts); 532 refused; 0 page-table
+              hazards; 0 pages also behind the BAR2 memfd.
+  610 (none): moved in 10240 cold + 0 behind the barrier, back 0 cold + 10240 behind the
+              barrier; 281 barriers (0 refused, 732 TSG preempts); 40 refused; 0 hazards.
+Both logged 20 "cannot move back ... USERD of mirrored channel" lines (consistent, retried).
+The 615 run differs by 512 pages moved in and back cold, 14 refused barriers and 532 refused
+moves.

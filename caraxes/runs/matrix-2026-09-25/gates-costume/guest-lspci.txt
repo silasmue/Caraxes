@@ -1,0 +1,1 @@
+00:05.0 VGA compatible controller [0300]: NVIDIA Corporation Device [10de:2d04] (rev a1)

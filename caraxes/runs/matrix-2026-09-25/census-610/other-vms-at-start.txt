@@ -1,0 +1,3 @@
+1399617 /mnt/vmstore/caraxes/vm1/cloud-hypervisor-0006 -v --api-socket /mnt/vmstore/caraxes/vm1/ch.sock --cpus boot=8 --memory size=4G,shared=on --kernel /mnt/v
+2404382 /mnt/vmstore/leandro/l615-host-bin-8c0d2b2/vhost-user-nvrm --nvrm /mnt/vmstore/caraxes/bench-v1-615.71.09/nvrm.sock
+2404409 /home/silas/git/Caraxes/vendor/cloud-hypervisor/target/release/cloud-hypervisor --cpus boot=8 --memory size=4G,shared=on --kernel /mnt/vmstore/leandro/v

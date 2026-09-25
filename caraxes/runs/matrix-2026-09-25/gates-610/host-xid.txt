@@ -1,0 +1,3 @@
+# host kernel log, Xid lines since 2026-09-25 04:12:31 (device pid 2362554)
+Sep 25 04:15:26 manacor kernel: NVRM: Xid (PCI:0000:2d:00): 31, pid=2362730, name=vfio-user-nvgpu, intr 00000000. MMU Fault: ENGINE GRAPHICS GPC1 GPCCLIENT_T1_9 faulted @ 0x100_2400c000. Fault is of type FAULT_PDE ACCESS_TYPE_VIRT_WRITE
+Sep 25 04:15:30 manacor kernel: NVRM: Xid (PCI:0000:2d:00): 31, pid=2362730, name=vfio-user-nvgpu, intr 00000000. MMU Fault: ENGINE GRAPHICS GPC1 GPCCLIENT_T1_9 faulted @ 0x100_26c10000. Fault is of type FAULT_PDE ACCESS_TYPE_VIRT_WRITE

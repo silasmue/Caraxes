@@ -1,0 +1,2 @@
+name, compute_cap, pci.device_id, pci.sub_device_id, vbios_version, memory.total [MiB]
+Leandro VFIO RTX 5060 Ti-1G, 7.5, 0x2D0410DE, 0x8A081043, 90.06.3D.00.76, 1024 MiB

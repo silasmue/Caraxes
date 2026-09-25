@@ -1,0 +1,3 @@
+== /home/silas/git/Caraxes/.claude/worktrees/agent-ad0bd7a6ec1b6cc05/caraxes/runs/matrix-2026-09-25/display-610/gate-trace.txt.xz: 3210 control answers, 1 distinct D ids, 0 unanswered answers (0 ids)
+D 0x90960101 NV9096_CTRL_CMD_SET_ZBC_COLOR_CLEAR                     x3   plan MODEL:zbc-table              -> status 0x0 [guest (ZBC table of this VM; never written to the host's table)]
+watch: none of 0x2080110b FIFO_DISABLE_CHANNELS, 0x20800177 GPU_REPORT_NON_REPLAYABLE_FAULT

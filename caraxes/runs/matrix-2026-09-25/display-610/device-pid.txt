@@ -1,0 +1,1 @@
+2385571 /mnt/vmstore/caraxes/vm0/vfio-user-nvgpu --socket /mnt/vmstore/caraxes/vm0/gpu.sock --trace /mnt/vmstore/caraxes/vm0/gpu-trace.log --config /home/silas/git/Caraxes/.claude/worktrees/agent-ad0b

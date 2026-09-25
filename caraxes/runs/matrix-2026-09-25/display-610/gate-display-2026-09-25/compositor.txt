@@ -1,0 +1,71 @@
+# SPDX-License-Identifier: MIT
+# display gate gate-display-2026-09-25: compositor.txt
+weston up (pid 3042) after       1 s
+globals: wp_presentation yes
+first frame callback after 0.0 s
+surface 64x64, damage 8x8 per frame, 30.0 s
+FRAMES callbacks intervals=1794 mean_ms=16.676 rate_hz=59.97 min_ms=5.947 max_ms=26.499 sd_ms=2.078
+PRESENTED feedback intervals=1794 mean_ms=16.676 rate_hz=59.97 min_ms=10.675 max_ms=35.383 sd_ms=0.669
+presented=1800 discarded=0 refresh_ns=16666666 (60.000 Hz) flags=0x7 (vsync 1 hw_clock 1 hw_completion 1)
+wlframes exit 0
+---- weston.log (tail)
+[02:21:18.027] Loading module '/usr/lib/x86_64-linux-gnu/libweston-13/gl-renderer.so'
+[02:21:18.807] Using rendering device: /dev/dri/renderD128
+[02:21:18.807] EGL version: 1.5
+[02:21:18.807] EGL vendor: NVIDIA
+[02:21:18.807] EGL client APIs: OpenGL_ES OpenGL
+[02:21:18.807] EGL features:
+               EGL Wayland extension: yes
+               context priority: yes
+               buffer age: yes
+               partial update: yes
+               swap buffers with damage: yes
+               configless context: yes
+               surfaceless context: yes
+               dmabuf support: modifiers
+[02:21:18.985] GL version: OpenGL ES 3.2 NVIDIA 610.57.04
+[02:21:18.985] GLSL version: OpenGL ES GLSL ES 3.20
+[02:21:18.985] GL vendor: NVIDIA Corporation
+[02:21:18.985] GL renderer: Leandro VFIO RTX 2070-2G/PCIe/SSE2
+[02:21:18.992] GL ES 3.2 - renderer features:
+               read-back format: ARGB8888
+               glReadPixels supports y-flip: no
+               wl_shm 10 bpc formats: yes
+               wl_shm 16 bpc formats: yes
+               wl_shm half-float formats: no
+               internal R and RG formats: yes
+               OES_EGL_image_external: yes
+[02:21:18.992] Using GL renderer
+[02:21:19.005] event0  - Power Button: is tagged by udev as: Keyboard
+[02:21:19.005] event0  - Power Button: device is a keyboard
+[02:21:19.022] libinput: configuring device "Power Button".
+[02:21:19.038] DRM: head 'DP-1' found, connector 127 is connected, EDID make 'CRX', model 'Caraxes DP', serial ''
+               Supported EOTF modes: SDR
+[02:21:19.038] Registered plugin API 'weston_drm_output_api_v1' of size 40
+[02:21:19.038] Registered plugin API 'weston_drm_virtual_output_api_v2' of size 48
+[02:21:19.038] Color manager: no-op
+[02:21:19.039] Output 'DP-1' attempts EOTF mode: SDR
+[02:21:19.039] Output 'DP-1' using color profile: stock sRGB color profile
+[02:21:19.040] Chosen EGL config details: id:  24 rgba: 8 8 8 0 buf: 24 dep:  0 stcl: 0 int: 0-1 type: win|pbf vis_id: XRGB8888 (0x34325258)
+[02:21:19.044] Output DP-1 (crtc 118) video modes:
+               1920x1080@60.0, preferred, current, 148.5 MHz
+               1920x1080@59.9, 148.3 MHz
+               1920x1080@50.0, 148.5 MHz
+               1280x720@60.0, 74.2 MHz
+               1280x720@59.9, 74.2 MHz
+               640x480@59.9, 25.2 MHz
+[02:21:19.044] associating input device event0 with output DP-1 (none by udev)
+[02:21:19.044] Output 'DP-1' enabled with head(s) DP-1
+[02:21:19.044] Compositor capabilities:
+               arbitrary surface rotation: yes
+               screen capture uses y-flip: yes
+               cursor planes: yes
+               arbitrary resolutions: no
+               view mask clipping: yes
+               explicit sync: yes
+               color operations: no
+               presentation clock: CLOCK_MONOTONIC, id 1
+               presentation clock resolution: 0.000000001 s
+[02:21:19.045] Loading module '/usr/lib/x86_64-linux-gnu/weston/kiosk-shell.so'
+[02:21:54.555] caught signal 15
+[02:21:54.555] event0  - Power Button: device removed

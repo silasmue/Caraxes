@@ -1,0 +1,8 @@
+     21 ctrl 0x2080012f: GPU_QUERY_ECC_STATUS: host status 0x56 -> status 0x56 [host (forwarded as-is, public control)]
+      7 ctrl 0x730291: backlight brightness of 0x100: not supported (external DP monitor, no panel) -> status 0x56 [synthesized (board connector table, boards/rtx2070.toml [display])]
+      1 ctrl 0x73013d: display ids with mux: not supported (no dynamic mux) -> status 0x56 [synthesized (board connector table, boards/rtx2070.toml [display])]
+      1 ctrl 0x20802801: DIFR (display idle frame refresh): not supported -> status 0x56 [synthesized (chips/tu106/display.toml)]
+      1 ctrl 0x20800b05: kgr SM issue throttle ctrl: not supported, not forwarded -> status 0x56 [synthesized (NOT_SUPPORTED; forwarding makes the host driver assert)]
+      1 ctrl 0x20800a3f: kgr FECS trace defines: not supported; there is no public host control for them (phase5 row 50); pFecsTraceDefines stays NULL -> status 0x56 [synthesized (NOT_SUPPORTED, tolerated: kernel_graphics.c:1498-1501)]
+      1 ctrl 0x20800a32: kgr context buffers info: 19 engines from host, 7 not supported -> status 0x0 [host (GR_GET_ENGINE_CONTEXT_PROPERTIES per engineId, NOT_SUPPORTED -> NV_U32_MAX)]
+      1 ctrl 0x20800a30: kgr PPC masks: not supported; the public GR_GET_PPC_MASK 0x20801233 is one GPC per call ({grRouteInfo, gpcId, ppcMask}, ctrl2080gr.h:1810-1814), not the internal mask[64] layout -> status 0x56 [synthesized (NOT_SUPPORTED, tol

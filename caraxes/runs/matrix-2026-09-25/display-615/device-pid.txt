@@ -1,0 +1,1 @@
+2404190 /mnt/vmstore/caraxes/vm0-615/vfio-user-nvgpu --socket /mnt/vmstore/caraxes/vm0-615/gpu.sock --trace /mnt/vmstore/caraxes/vm0-615/gpu-trace.log --config /home/silas/git/Caraxes/.claude/worktree

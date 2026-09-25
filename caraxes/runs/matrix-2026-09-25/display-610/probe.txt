@@ -1,0 +1,4 @@
+probe mx-display-610: 68985 device accesses, guest log in /mnt/vmstore/caraxes/vm0/probe-mx-display-610/guest-dmesg.txt
+[  128.884480] NVRM: GPU 0000:00:05.0: RmInitAdapter
+[  131.094287] NVRM: GPU 0000:00:05.0: RmInitAdapter succeeded!
+modprobe rc=0
