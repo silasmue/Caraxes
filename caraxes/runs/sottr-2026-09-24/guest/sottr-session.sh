@@ -34,6 +34,8 @@ sunshine-start)
 min_log_level = 1
 capture = kms
 encoder = software
+sw_preset = ultrafast
+sw_tune = zerolatency
 log_path = $DIR/sunshine.log
 file_apps = $DIR/apps.json
 EOF
