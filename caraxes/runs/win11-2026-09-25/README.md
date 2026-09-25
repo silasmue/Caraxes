@@ -201,5 +201,12 @@ the diff against the 35-register baseline, `trace-saver` archives the full trace
   the 60 s PMU poll and then about 25000 SEC2 port writes (a large ucode load) before the trace
   was overwritten by the next chain, so whether the keys switch the driver to the GSP-RM path is
   open and is checked by the night loop (keys stay set in the guest until the loop removes them).
+- **Registry keys work (22:42, run X0, PMU build + keys)**: with `EnableGpuFirmware`/`RMEnableGpuFirmware` = 1
+  the driver takes the **GSP-RM path**: Booter load on SEC2 (25k port writes), GSP queue
+  registers, GMCAPI_GSP_INIT, 33 allocs, 107 controls, 36 frees over 186 doorbells, then
+  GMCAPI_GSP_SUSPEND (a regular unload) and Code 43. The PMU ENGCTL poll is gone. The device ran
+  in pure emulation, so the controls that need the host RM answered NOT_SUPPORTED
+  (BUS_GET_INFO_V2 retried 24 times, fb info v2, GR FS info, ECC/function status, ...); the
+  night loop now works on the RPC phase, the CPU-RM chain is secondary.
 - Unattended tooling added: `qga.py` (QEMU guest agent: PowerShell as SYSTEM, file transfer),
   `qmp.py` (screenshot, keys, clean power-down), `WIN_GPU_VBIOS`, `WIN_GPU_ROOTPORT`, `WIN_VGA`.
