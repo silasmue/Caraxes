@@ -138,3 +138,65 @@ One boot per iteration (`night-win4.sh`, results in this directory), one model c
   00:36:36 = device time 46.2 s): after the display channels exist (46.031 s) the KMD clears 4 KiB through BAR2 and 4 KiB
   through BAR1 (byte writes), updates BAR2 PTEs and invalidates the MMU, and 116 ms later starts the display teardown
   (SET_RMFREE_FLAGS 0x50700117) with no RPC, no BAR0 read and no failed answer in between.
+
+### Y11-fbsr (a30b3192), Y12-ctx1119 (ea308911)
+- Changes: FB index 0x29 (SUSPEND_RESUME_RSVD_SIZE, bytes) a sixteenth of the emulated FB (64 MiB) instead of the card's
+  512 MiB; the card's context sizes of engines 0x11-0x19 (capture 870f5030: 0x15 GFXP_POOL and 0x19 SETUP are 0 on the
+  card). With a host RM, a 0x1b refusal of the device's unprivileged client now falls back to the recorded answer too.
+- Results: unchanged stop (display channels allocated, BAR1/BAR2 clears, teardown), 474 RPCs in Y12. The FB/BAR1 units:
+  FB_GET_INFO_V2 sizes are KiB except SUSPEND_RESUME_RSVD_SIZE (bytes); the size indices 7, 8, 9, 0xa, 0x12, 0x16, 0x20
+  carry the emulated 1 GiB, BAR1 (0x5) the card's 256 MiB, BAR1 available (0x1d) and max contiguous (0x1f) the card's.
+- ETW: `logman query providers` in the guest lists no NVIDIA provider (only Microsoft display providers); no nvlddmkm event
+  with `EnableGpuFirmwareLogs` = 1 either. The KMD gives no reason of its own.
+- BAR1 windows: the FB store's BAR1 windows are configurable (`CARAXES_BAR1_WINDOW_MIB`, a power of two 2..64, and
+  `CARAXES_BAR1_WINDOWS` 1..8, fb.rs:340-360); `gpu-up-host.sh` sets 2 x 16 MiB. They matter only with `--host-exec`.
+
+### Y13-hostrm (ea308911, `gpu-up-host.sh`, WIN_HOST_MODE=rm): the first host-RM run
+- Setup: the device with `--host-rm` (unprivileged host client; no VRAM reservation, no host execution, no guest RAM
+  registration), floors VRAM 768 / BAR1 96 MiB, BAR1 windows 2 x 16 MiB, no pool, the registry keys on, the full PROM
+  window. Host free (no vm4-615 device), host Xid before and after: 0.
+- Why only `rm`: `--host-exec` needs `--register-guest-ram` (a binary with cap_sys_admin+p through `sudo -n setcap`,
+  which this loop may not run), and a guest that hands the device IOVAs: Linux loads caraxes_dma_range for that
+  (dmamap.rs: "from then on every sysmem address the guest hands the device is an IOVA"); Windows has no such module and
+  writes GPAs into its page tables and descriptors. Host execution for Windows needs a device-side "guest speaks GPA" mode
+  first (translate a GPA through the registered table: guestmem.rs `host_iova` does it for the Linux swiotlb alias
+  already); open item for the user.
+- What the host RM answered where pure emulation guessed: kgr floorsweeping (gpcMask 0x7, 3 x 0x3f/6), the 36-SM global
+  order, GR context buffers, zcull/ROP/SM-issue-rate info (the card's NOT_SUPPORTED set shrinks to PPC masks, throttle
+  and FECS trace defines), FB_GET_INFO_V2 and BUS_GET_INFO_V2 (host values; the FB size rewrite found 0 size entries to
+  rewrite, to check), CE PCE masks and physical caps, FIFO latency buffer sizes, perf pstate. Answer provenance of the
+  controls: 140 synthesized, 84 host, 34 guest, 15 refused, 6 chip, 4 card (recorded), 1 board.
+- Result: **the same stop as pure emulation**: display channels allocated, BAR1/BAR2 clears, teardown, GSP_SUSPEND; Code
+  43 (STATUS_INSUFFICIENT_RESOURCES). 474 RPCs. No channel was mirrored (no --host-exec) and nothing was submitted
+  besides the kernel's CeUtils work on the emulated CE. So the host's info answers were not the gate; what remains is
+  what no host RM answers for a Linux-built GSP-RM: Windows-only display and GSS controls and the device models.
+- Still refused in host-RM mode: display 0x73013d (display ids with mux), 0x73014b (sideband I2C), 0x730285 x9 (ACPI
+  DOD port attachment), 0x73117a (unknown DFP control, 12 bytes, displayId 0x100), **0x730109
+  NV0073_CTRL_CMD_SYSTEM_GET_HOTPLUG_CONFIG (unanswered)**, GSS 0x2080a70a/a709/a801/a02f, 0x20808524, 0x20803c01,
+  BUS multifunc 0x20801812, VPR caps, DIFR, compbit store, ECC, CONFIG_CTXSW_TIMEOUT (0x1b).
+
+### Y14-hostrm-hotplug (a57c2494, host RM)
+- Change: NV0073_CTRL_CMD_SYSTEM_GET_HOTPLUG_CONFIG (0x730109) in the display model: every DisplayPort connector (0x100)
+  pollable and interruptible, no events requested, none always attached.
+- Result: answered; same stop. Sequence at the end, device time: NVC570_DISPLAY 44.114 s, SET_RMFREE_FLAGS 44.133,
+  core channel 44.147, 8 window, 8 window-immediate and 4 cursor channels up to 44.178, then 97 ms of BAR2 and BAR1
+  clears (4 KiB each, byte writes) and MMU invalidates, then from 44.275 the display teardown (SET_RMFREE_FLAGS + FREE
+  per channel). The KMD never writes a display channel's PUT (BAR0 0x680000 and up), so it fails before its first core
+  channel push. 477 RPCs; host Xid 0.
+
+### Y15-headless (a57c2494, pure emulation, `WIN_GPU_DISPLAY=0`: display fuse 1, no display engine)
+- Diagnostic: without a display the KMD's start takes another road: no display objects; it creates its own channel
+  groups and channels (COPY2: channel with 0x5080 and TURING_DMA_COPY_A; NVDEC0: channel with 0x5080) and fails right
+  after the NVDEC0 channel's 0x5080 object, before the NVDEC class alloc reaches the device (kernel-side refusal). The
+  pure-emulation GET_CONSTRUCTED_FALCON_INFO (0x208001b0) answers "no falcons", so the kernel RM has no KernelFalcon
+  for NVDEC (context buffer size unknown); with a host RM that control is forwarded. Code 43 as well. Not pursued: the
+  display path is the goal.
+
+### Y16-fb2g (a57c2494, `WIN_GPU_FB_MIB=2048`), Y17-rusd (9829c18b, `CARAXES_RUSD=1`)
+- Y16: a 2 GiB profile instead of 1 GiB: same stop, 474 RPCs. Not a VRAM-size problem.
+- Y17 change: the RUSD page (rusd.rs): at INIT_USER_SHARED_DATA the device writes NV00DE_SHARED_DATA (offsets from
+  compiling 615 cl00de.h, 3184 bytes): non-polled sections with even sequence counters (BAR1 262144/237440 KiB, PMA
+  1 GiB/896 MiB), polled sections with device-clock timestamps refreshed at every GSP control, the card's clocks, P0,
+  40 C; stopped at bInit=0. The page came at 14.3 s (PA 0x17e77c000); the kernel set the poll mask 0x5f at 16.3 s
+  (clock, perf, memory, power, thermal, fan... bits 0-4 and 6) and 0 at the teardown; 282 refreshes.
+- Result: same stop, 474 RPCs. RUSD was not the gate.
