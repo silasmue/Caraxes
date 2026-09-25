@@ -143,6 +143,8 @@ const LADDER: &[(&str, &str)] = &[
     ("rtx4060ti-on-tu106", include_str!("../boards/rtx4060ti-on-tu106.toml")),
     ("h100-on-tu106", include_str!("../boards/h100-on-tu106.toml")),
     ("rtx5060ti-gb206-on-tu106", include_str!("../boards/rtx5060ti-gb206-on-tu106.toml")),
+    // The vGPU-guest experiment (docs/caraxes/limits-mig-ecc-vgpu.md §4).
+    ("rtx2070vf-on-tu106", include_str!("../boards/rtx2070vf-on-tu106.toml")),
 ];
 
 /// The boards compiled into the binary, by `--board-data` name. `rtx5060ti-on-tu106` is
@@ -157,6 +159,7 @@ pub const BOARDS: &[&str] = &[
     "rtx4060ti-on-tu106",
     "h100-on-tu106",
     "rtx5060ti-gb206-on-tu106",
+    "rtx2070vf-on-tu106",
 ];
 
 impl Board {

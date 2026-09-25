@@ -144,18 +144,77 @@ ids = [
 ]
 
 # A data-center Hopper has MIG (the SMC partitioning of the GR engine).
+# The GR facts of pure emulation (kgr.rs), GH100's instead of GB206's since the limits runs
+# (2026-09-25): the MIG code slices by them. LITTER_NUM_GPCS 8, LITTER_NUM_TPC_PER_GPC 9,
+# SM_PER_TPC 2 are the full GH100 of the Hopper whitepaper (8 GPCs, 72 TPCs, 144 SMs; the
+# open tree has no GH100 constant); SM_VERSION 0x0900 (NV2080_CTRL_GR_INFO_SM_VERSION_9_00,
+# ctrl2080gr.h:322); MAX_MIG_ENGINES 0x35 = 8 (KGRMGR_MAX_GR, g_kernel_graphics_manager_nvoc.h:53),
+# MAX_PARTITIONABLE_GPCS 0x36 = 8 (the span the swizzIds cut, kmigmgr_ga100.c:392-474),
+# LITTER_MIN_SUBCTX_PER_SMC_ENG 0x37 = 8 (VEIDs per GPC slot; invented, 64 subcontexts / 8).
 [gr]
 mig = true
 smc_label = "costume (GH100 has MIG; the executing TU106 has none)"
+emulated_info = { entries = [[0x2C, 64], [0x14, 8], [0x17, 9], [0x20, 2], [0x0C, 0x0900], [0x35, 8], [0x36, 8], [0x37, 8]], label = "costume (GH100 design constants, Hopper whitepaper; MIG span of the kernel's rules) + synthesized (rest 0)" }
 
 # The families GH100 has (the operator's list for this rung): NVLink, HSHUB, the NVLink
 # fabric, C2C, MIG and Confidential Computing are present; their controls then reach the
 # other handlers and end unanswered, and the run shows which of them the guest insists on
 # at boot. The rest as chips/gb206 (a desktop Blackwell) minus the display families (a
 # GH100 has no display) and the Blackwell-only family; the Hopper platform family present.
+# The limits runs (docs/caraxes/limits-mig-ecc-vgpu.md, 2026-09-25) add ECC, the row
+# remapper and the MIG partitioning internals, each with its model (src/families).
 [features]
 absent = ["rm_test", "gsync", "vgpu", "spdm", "ccu", "internal_uncalled",
-    "frl", "dp2x", "display_later", "display_embedded", "notebook_power", "ecc", "row_remap",
-    "mig_partitioning", "nvlink_sli", "ga10x_pcie_ro", "blackwell", "vgpu_paths", "windows_only",
+    "frl", "dp2x", "display_later", "display_embedded", "notebook_power",
+    "nvlink_sli", "ga10x_pcie_ro", "blackwell", "vgpu_paths", "windows_only",
     "legacy_uncalled"]
-present = ["nvlink", "hshub", "fabric", "c2c", "mig", "cc", "ampere_later", "hopper_platform"]
+present = ["nvlink", "hshub", "fabric", "c2c", "mig", "cc", "ampere_later", "hopper_platform",
+    "ecc", "row_remap", "mig_partitioning"]
+
+# ECC of the H100's HBM (src/families/ecc.rs): on by default, as an HBM data-center part
+# ships. Supported units: NV2080_CTRL_GPU_ECC_UNIT_GSP 0x1D, the one unit the open headers
+# name (ctrl2080gpu.h:1122 of 610.57.04); which of the other 40 indices an H100 marks
+# supported is GSP-RM's, a capture of QUERY_ECC_STATUS on an H100 gives it. The row
+# remapper's bank count is a capture's too: 0 until then.
+[ecc]
+units = [0x1D]
+default_enabled = true
+remap_banks = 0
+# The InfoROM ECC object's version: invented (1.0); NVML needs the object to report ECC at
+# all (caraxes/runs/limits-2026-09-25/ecc/gh100-1), and only a capture has the card's.
+inforom_ecc_object = [1, 0]
+label = "costume (H100 HBM ECC on; units: the open headers' GSP unit only; no capture)"
+
+# MIG (src/families/mig.rs; docs/caraxes/limits-mig-ecc-vgpu.md §3). The open tree carries
+# no GH100 profile table (every table is GSP-RM's), so this one is built from the kernel's
+# rules and the H100's published profile shapes, scaled to the rung: seven usable GPCs in an
+# eight-slot span (MAX_PARTITIONABLE_GPCS 8; the eighth eighth, swizzId 14, is empty, "rejected
+# by HW", kern_mem_sys_gh100.c:563-589), memory by VMMU segments of the rung's FB, a GI's
+# engines from the rung's engine list (the GB206 base: one GR, three copy engines, one of
+# each media engine). Flags: MEMORY_SIZE 1:0 and COMPUTE_SIZE 4:2 (ctrl2080gpu.h:2612-2665),
+# the pairs GH100 accepts (kmigmgr_gh100.c:187-307); REQ_DEC_JPG_OFA 30:30 for +me. The
+# 1g.20gb shape (MINI_QUARTER compute) is left out: a MINI_QUARTER skyline turns on CTS
+# alignment (KMM:9117-9128), which the model does not answer beyond a range check.
+# resetless: PDB_PROP_GPU_RESETLESS_MIG_SUPPORTED holds for GH100 (g_gpu_nvoc.c:341-351).
+# VMMU segment 32 MiB: the smallest size the header defines (ctrl2080gpu.h:3143); an H100's
+# is a capture's. VEIDs 8 and SMs 16 per GPC: invented to match the GR facts above (the
+# H100 PCIe has 114 SMs, unevenly floorswept).
+[mig]
+resetless = true
+vmmu_segment_mib = 32
+gpcs = 7
+span_len = 8
+tpcs_per_gpc = 8
+sms_per_gpc = 16
+veids_per_gpc = 8
+rejected_swizz = [14]
+engines = ["GR0", "COPY0", "COPY4", "COPY7", "NVDEC0", "NVENC0", "NVJPEG0", "OFA0"]
+label = "costume (H100 MIG shapes on the kernel's rules, scaled to the rung; no capture)"
+profile = [
+    { name = "7g", flag = 0x00, gpcs = 7, ce = 3, nvdec = 1, nvenc = 1, nvjpg = 1, ofa = 1 },
+    { name = "4g", flag = 0x05, gpcs = 4, ce = 2, nvdec = 1, nvenc = 1, nvjpg = 1, ofa = 0 },
+    { name = "3g", flag = 0x09, gpcs = 3, ce = 2, nvdec = 1, nvenc = 0, nvjpg = 1, ofa = 0 },
+    { name = "2g", flag = 0x0E, gpcs = 2, ce = 1, nvdec = 1, nvenc = 0, nvjpg = 0, ofa = 0 },
+    { name = "1g", flag = 0x17, gpcs = 1, ce = 1, nvdec = 0, nvenc = 0, nvjpg = 0, ofa = 0 },
+    { name = "1g+me", flag = 0x40000017, gpcs = 1, ce = 1, nvdec = 1, nvenc = 0, nvjpg = 1, ofa = 1 },
+]

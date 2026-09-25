@@ -1,0 +1,25 @@
+# SPDX-License-Identifier: MIT
+# SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
+#
+# The vGPU-guest experiment of the limits runs (docs/caraxes/limits-mig-ecc-vgpu.md §4): the
+# RTX 2070 board with the chip chips/tu106vf, whose NV_PMC_BOOT_1 says "SR-IOV virtual
+# function". Everything else is the RTX 2070 board's (rtx2070.toml): config layout, ROM,
+# VBIOS, BARs, the device id 10de:1f02 of the capture. Pure emulation only.
+name = "RTX 2070 VF"
+chip = "tu106vf"
+host_chip = "tu106"
+config = "caraxes/reference/rtx2070/config-space.txt"
+rom = "caraxes/reference/rtx2070/rom.bin"
+vbios_version = "90.06.3D.00.76"
+
+bars = [
+    { kind = "mem32", size = 0x100_0000, prefetch = false },
+    { kind = "mem64", size = 0x1000_0000, prefetch = true },
+    { kind = "mem64", size = 0x200_0000, prefetch = true },
+    { kind = "io", size = 0x80 },
+]
+rom_bar_size = 0x8_0000
+
+[ids]
+device = 0x1F02
+source = "caraxes/reference/rtx2070/config-space.txt (the RTX 2070's own device id)"

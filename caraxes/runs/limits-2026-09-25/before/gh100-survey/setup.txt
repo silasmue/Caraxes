@@ -1,0 +1,14 @@
+416ed4d9289d91cd4d1ff56a83573a5a5a61a8346224a070a3b087fd9026c3ad  /home/silas/git/Caraxes/.claude/worktrees/agent-ae95a1dc71b4a3276/target/limits/release/vfio-user-nvgpu
+a27e6b4 docs: pure emulation regressions of 2026-09-24 (blackwell-gate.md section 5), ladder correction, status
+CARAXES_BOOT_MODEL=1
+CARAXES_COSTUME=h100
+CARAXES_FB_MIB=4096
+CARAXES_SERVER=/home/silas/git/Caraxes/.claude/worktrees/agent-ae95a1dc71b4a3276/target/limits/release/vfio-user-nvgpu
+CARAXES_TAP=none
+FRESH=1
+VM=vm8
+scenario survey
+persist before:
+(none)
+persist after:
+(none)

@@ -137,14 +137,16 @@ case ${CARAXES_COSTUME:-} in
     # (the board's host_chip), so the host flags stay allowed. rtx2080 (TU104), rtx3060
     # (GA106), rtx4060ti (AD106) use the RTX 2070's config layout and ROM; h100 (GH100) and
     # rtx5060ti-gb206 (GB206) the GB206 capture's, as their FSP boot reads no Turing VBIOS.
-    rtx2080|rtx3060|rtx4060ti|h100|rtx5060ti-gb206)
+    # rtx2070vf: the RTX 2070 whose NV_PMC_BOOT_1 says "SR-IOV virtual function" (the
+    # vGPU-guest experiment, docs/caraxes/limits-mig-ecc-vgpu.md §4; pure emulation only).
+    rtx2080|rtx3060|rtx4060ti|h100|rtx5060ti-gb206|rtx2070vf)
         [[ ${CARAXES_CHIP:-tu106} == tu106 ]] || { printf 'ERROR: CARAXES_COSTUME=%s needs CARAXES_CHIP=tu106 (the executing chip)\n' "$CARAXES_COSTUME" >&2; exit 1; }
         IDENTITY+=(--board-data "$CARAXES_COSTUME-on-tu106")
         if [[ $CARAXES_COSTUME == h100 || $CARAXES_COSTUME == rtx5060ti-gb206 ]]; then
             REF=$LEA_ROOT/caraxes/reference/gb206/gpu-0000_01_00.0
             CONFIG=$REF/config-space.txt
         fi ;;
-    *) printf 'ERROR: CARAXES_COSTUME must be empty, rtx5060ti, rtx2080, rtx3060, rtx4060ti, h100 or rtx5060ti-gb206\n' >&2; exit 1 ;;
+    *) printf 'ERROR: CARAXES_COSTUME must be empty, rtx5060ti, rtx2080, rtx3060, rtx4060ti, h100, rtx5060ti-gb206 or rtx2070vf\n' >&2; exit 1 ;;
 esac
 # The SM-version rungs of the costume ladder: CARAXES_SM_VERSION=<major>.<minor> makes the
 # device report that SM version in every GR info answer (--sm-version); the silicon stays.
@@ -208,6 +210,10 @@ up() {
     [[ ${CARAXES_HOST_EXEC:-0} == 1 ]] && vbios+=(--host-exec)
     [[ ${CARAXES_DISPLAY:-0} == 1 ]] && vbios+=(--display)
     [[ -n ${CARAXES_GUEST_ABI:-} ]] && vbios+=(--guest-abi "$CARAXES_GUEST_ABI")
+    # The settings a real card keeps in its InfoROM (the ECC and MIG modes of a chip that
+    # models them, crates/vfio-user-nvgpu/src/families): kept in the state directory across
+    # power cycles. Off by default: device binaries before 2026-09-25 lack --persist.
+    [[ ${CARAXES_PERSIST:-0} == 1 ]] && vbios+=(--persist "$W/gpu-persist.toml")
     local server=$SERVER
     # The guest's table of an earlier boot goes too: the device reads it at every reset
     # (device.rs `load_guest_aliases`) and must not see one this guest has not installed.

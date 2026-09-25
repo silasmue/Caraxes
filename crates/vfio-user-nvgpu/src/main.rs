@@ -47,7 +47,7 @@ vfio-user-nvgpu --socket <path> [--trace <file>] [--board-data <name|file>] [--c
                 [--boot-model] [--fb-mib <n>] [--board <name>] [--host-rm] [--sm-version <m.n>]
                 [--reserve-vram [--reserve-slot <n>]] [--register-guest-ram | --identity-dma-table] [--dma-ranges <file>]
                 [--host-exec] [--profile <size>] [--name-format <legacy|transport>] [--display]
-                [--guest-abi <595|610|615>]
+                [--guest-abi <595|610|615>] [--persist <file>]
 vfio-user-nvgpu --print-name [--board-data <name|file>] [--board <name>] [--fb-mib <n> | --profile <size>]
                 [--name-format <legacy|transport>]
 vfio-user-nvgpu --selftest <socket> [--board-data <name|file>] [--chip <chip>] [--config <dump>]
@@ -91,6 +91,9 @@ vfio-user-nvgpu --selftest <socket> [--board-data <name|file>] [--chip <chip>] [
              [display] connectors, each connector backed by a DisplayPort sink model; without
              it the device is headless (fuse 1), as in E0-E5
   --selftest connect to a running server and verify the E0 device model
+  --persist  file for the settings a real card keeps across resets and power cycles (the ECC
+             and MIG modes of a chip that models them, src/families): read at start, where the
+             pending settings take effect, and written at every change
   --guest-abi  the guest driver's GSP ABI this device must serve (default: CARAXES_GUEST_ABI, else
              the build's): 610 needs a default build, 615 a `--features v615` build (message
              queue v2, GMCAPI init; docs/caraxes/gsp-transport-615.md), 595 a 610 build with
@@ -225,6 +228,8 @@ fn parse_args() -> Result<Args> {
             "--register-guest-ram" => a.register_guest_ram = true,
             "--identity-dma-table" => a.identity_dma_table = true,
             "--dma-ranges" => a.dma_ranges = Some(PathBuf::from(value()?)),
+            "--persist" => vfio_user_nvgpu::families::set_persist_path(PathBuf::from(value()?))
+                .map_err(anyhow::Error::msg)?,
             "--host-exec" => a.host_exec = true,
             "--fb-mib" => a.fb_mib = value()?.parse().context("--fb-mib needs a number")?,
             "--selftest" => a.selftest = Some(PathBuf::from(value()?)),

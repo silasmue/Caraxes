@@ -431,6 +431,17 @@ pub fn build_static_info(
         source,
     );
 
+    // bIsMigSupported: the chip models MIG (families/mig.rs); without it the kernel drops
+    // PDB_PROP_GPU_MIG_SUPPORTED (gpu.c:2188-2196) and nvidia-smi finds no MIG device.
+    let mig = crate::families::Families::mig_supported(chip);
+    b[v::SI_IS_MIG_SUPPORTED] = mig as u8;
+    label(
+        &mut labels,
+        "bIsMigSupported",
+        mig.to_string(),
+        "chip (the mig family and its [mig] table, families/mig.rs)",
+    );
+
     // engineCaps: NV2080_ENGINE_TYPE bits of the chip's engines (chip data).
     let caps = chip.engine_caps_mask(v::ENGINE_CAPS_WORDS);
     for (i, c) in caps.iter().enumerate() {
@@ -648,7 +659,10 @@ pub fn static_info_nvkv(
     let pdes = [u64_at(image, v::SI_BAR1_PDE_BASE), u64_at(image, v::SI_BAR2_PDE_BASE)];
     e.seq64(0, sc::BAR1_PDE_BASE, &pdes);
     notes.push(format!("FB_LENGTH {fb_length:#x}, BAR1/BAR2_PDE_BASE {:#x}/{:#x}", pdes[0], pdes[1]));
-    let misc = u64::from(image[v::SI_BUS_RESET_REQUIRED] != 0) << 5;
+    // MISC_FEATURES bit 0 IS_MIG_SUPPORTED, bit 5 IS_BUS_RESET_REQUIRED
+    // (gmcapi_gsp_config.h:92-98 of 615.71.09).
+    let misc = u64::from(image[v::SI_BUS_RESET_REQUIRED] != 0) << 5
+        | u64::from(image[v::SI_IS_MIG_SUPPORTED] != 0);
     e.seq64(0, sc::BRANDING, &[0, misc, 0]);
     notes.push(format!("BRANDING 0, MISC_FEATURES {misc:#x}, POWER_FEATURES 0"));
     let caps: Vec<u32> = (0..v::ENGINE_CAPS_WORDS * 32)

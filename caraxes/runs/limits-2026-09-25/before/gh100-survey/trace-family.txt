@@ -1,0 +1,89 @@
+    17560146 W bar0 0x008f2ac4 4  0x20ceccab   NV_PFSP_EMEMC/EMEMD(i)
+    17690513 W bar0 0x00702ecc 4  0x0          NV_PRAMIN
+    17741757 W bar0 0x00707ecc 4  0x0          NV_PRAMIN
+    17774762 W bar0 0x00708ecc 4  0x0          NV_PRAMIN
+    17813296 W bar0 0x00709ecc 4  0x0          NV_PRAMIN
+    17846798 W bar0 0x0070aecc 4  0x0          NV_PRAMIN
+    17876112 W bar0 0x0070becc 4  0x0          NV_PRAMIN
+    17917619 W bar0 0x0070cecc 4  0x0          NV_PRAMIN
+    17942724 W bar0 0x0070decc 4  0x0          NV_PRAMIN
+    17967776 W bar0 0x0070ecc0 4  0x8          NV_PRAMIN
+    17967801 W bar0 0x0070ecc4 4  0x0          NV_PRAMIN
+    17967826 W bar0 0x0070ecc8 4  0x8          NV_PRAMIN
+    17967858 W bar0 0x0070eccc 4  0x0          NV_PRAMIN
+    17971424 W bar0 0x0070eecc 4  0x0          NV_PRAMIN
+    18010050 W bar0 0x0070fecc 4  0x0          NV_PRAMIN
+    18036994 W bar0 0x00710ecc 4  0x0          NV_PRAMIN
+    18071331 W bar0 0x00711ecc 4  0x0          NV_PRAMIN
+    18102273 W bar0 0x00712ecc 4  0x0          NV_PRAMIN
+    18144923 W bar0 0x00713ecc 4  0x0          NV_PRAMIN
+    18173084 W bar0 0x00714ecc 4  0x0          NV_PRAMIN
+    18197700 W bar0 0x00715ecc 4  0x0          NV_PRAMIN
+    18222636 W bar0 0x00716ecc 4  0x0          NV_PRAMIN
+    18233844 R bar0 0x00bb0080 4  0x3ecc0800   NV_VIRTUAL_FUNCTION_TIME_0/1
+    18245948 E boot: ctrl 0x20800ab3: NV2080_CTRL_CMD_INTERNAL_CCU_MAP (0x20800ab3): feature family ccu absent on gh100 -> status 0x56 [refused (feature absent on this chip)]
+    18258675 W bar3 0x00000cc0 8  0x0          fb 0xf23cecc0
+    18258702 W bar3 0x00000cc8 8  0x0          fb 0xf23cecc8
+    23562477 E boot: ctrl 0x20800157: GPU_QUERY_INFOROM_ECC_SUPPORT: no host -> status 0x56 [synthesized fallback (no host: NOT_SUPPORTED)]
+    23753350 E boot: ctrl 0x20800157: GPU_QUERY_INFOROM_ECC_SUPPORT: no host -> status 0x56 [synthesized fallback (no host: NOT_SUPPORTED)]
+    23996951 E boot: ctrl 0x20803401: ECC_GET_VOLATILE_COUNTS: no host -> status 0x56 [synthesized fallback (no host: NOT_SUPPORTED)]
+    23998344 E boot: ctrl 0x2080012f: GPU_QUERY_ECC_STATUS: no host -> status 0x56 [synthesized fallback (no host: NOT_SUPPORTED)]
+    24028638 E boot: ctrl 0x20803404: ECC_GET_REPAIR_STATUS: no host -> status 0x56 [synthesized fallback (no host: NOT_SUPPORTED)]
+    24264928 E boot: ctrl 0x20800157: GPU_QUERY_INFOROM_ECC_SUPPORT: no host -> status 0x56 [synthesized fallback (no host: NOT_SUPPORTED)]
+    24268894 R bar0 0x00110804 4  0x5ecc       NV_PGSP_MAILBOX(0/1) GSP-RM/libos heartbeat
+    24269154 R bar0 0x00110808 4  0x5ecc       NV_PGSP_MAILBOX(0/1) GSP-RM/libos heartbeat
+    24280882 E boot: ctrl 0x20803401: ECC_GET_VOLATILE_COUNTS: no host -> status 0x56 [synthesized fallback (no host: NOT_SUPPORTED)]
+    24283874 E boot: ctrl 0x2080012f: GPU_QUERY_ECC_STATUS: no host -> status 0x56 [synthesized fallback (no host: NOT_SUPPORTED)]
+    24326450 E boot: ctrl 0x20803404: ECC_GET_REPAIR_STATUS: no host -> status 0x56 [synthesized fallback (no host: NOT_SUPPORTED)]
+    24487395 E boot: ctrl 0x20800157: GPU_QUERY_INFOROM_ECC_SUPPORT: no host -> status 0x56 [synthesized fallback (no host: NOT_SUPPORTED)]
+    24490683 E boot: ctrl 0x2080012f: GPU_QUERY_ECC_STATUS: no host -> status 0x56 [synthesized fallback (no host: NOT_SUPPORTED)]
+    24634230 E boot: ctrl 0x20800157: GPU_QUERY_INFOROM_ECC_SUPPORT: no host -> status 0x56 [synthesized fallback (no host: NOT_SUPPORTED)]
+    24676134 E boot: ctrl 0x20800157: GPU_QUERY_INFOROM_ECC_SUPPORT: no host -> status 0x56 [synthesized fallback (no host: NOT_SUPPORTED)]
+    24718081 E boot: ctrl 0x2080012f: GPU_QUERY_ECC_STATUS: no host -> status 0x56 [synthesized fallback (no host: NOT_SUPPORTED)]
+    24780257 E boot: ctrl 0x20800157: GPU_QUERY_INFOROM_ECC_SUPPORT: no host -> status 0x56 [synthesized fallback (no host: NOT_SUPPORTED)]
+    24860886 E boot: ctrl 0x20800ab4: NV2080_CTRL_CMD_INTERNAL_CCU_UNMAP (0x20800ab4): feature family ccu absent on gh100 -> status 0x56 [refused (feature absent on this chip)]
+    24899096 W bar0 0x00707ecc 4  0x0          NV_PRAMIN
+    24933975 W bar0 0x00708ecc 4  0x0          NV_PRAMIN
+    24968891 W bar0 0x00709ecc 4  0x0          NV_PRAMIN
+    25006786 W bar0 0x0070aecc 4  0x0          NV_PRAMIN
+    25041369 W bar0 0x0070becc 4  0x0          NV_PRAMIN
+    25075713 W bar0 0x0070cecc 4  0x0          NV_PRAMIN
+    25116302 W bar0 0x0070decc 4  0x0          NV_PRAMIN
+    25160546 W bar0 0x0070ecc0 4  0x0          NV_PRAMIN
+    25160640 W bar0 0x0070ecc4 4  0x0          NV_PRAMIN
+    25160687 W bar0 0x0070ecc8 4  0x0          NV_PRAMIN
+    25160746 W bar0 0x0070eccc 4  0x0          NV_PRAMIN
+    25175145 W bar0 0x0070eecc 4  0x0          NV_PRAMIN
+    25227406 W bar0 0x0070fecc 4  0x0          NV_PRAMIN
+    25269957 W bar0 0x00710ecc 4  0x0          NV_PRAMIN
+    25314162 W bar0 0x00711ecc 4  0x0          NV_PRAMIN
+    25358190 W bar0 0x00712ecc 4  0x0          NV_PRAMIN
+    25409107 W bar0 0x00713ecc 4  0x0          NV_PRAMIN
+    25482909 W bar0 0x00714ecc 4  0x0          NV_PRAMIN
+    25527215 W bar0 0x00715ecc 4  0x0          NV_PRAMIN
+    25573481 W bar0 0x00716ecc 4  0x0          NV_PRAMIN
+    29294568 W bar0 0x008f2ac4 4  0x20ceccab   NV_PFSP_EMEMC/EMEMD(i)
+    29350788 W bar0 0x00702ecc 4  0x0          NV_PRAMIN
+    29388923 W bar0 0x00707ecc 4  0x0          NV_PRAMIN
+    29424055 W bar0 0x00708ecc 4  0x0          NV_PRAMIN
+    29454130 W bar0 0x00709ecc 4  0x0          NV_PRAMIN
+    29492595 W bar0 0x0070aecc 4  0x0          NV_PRAMIN
+    29517679 W bar0 0x0070becc 4  0x0          NV_PRAMIN
+    29542979 W bar0 0x0070cecc 4  0x0          NV_PRAMIN
+    29568351 W bar0 0x0070decc 4  0x0          NV_PRAMIN
+    29590186 W bar0 0x0070ecc0 4  0x8          NV_PRAMIN
+    29590209 W bar0 0x0070ecc4 4  0x0          NV_PRAMIN
+    29590231 W bar0 0x0070ecc8 4  0x8          NV_PRAMIN
+    29590254 W bar0 0x0070eccc 4  0x0          NV_PRAMIN
+    29595264 W bar0 0x0070eecc 4  0x0          NV_PRAMIN
+    29622571 W bar0 0x0070fecc 4  0x0          NV_PRAMIN
+    29660260 W bar0 0x00710ecc 4  0x0          NV_PRAMIN
+    29696142 W bar0 0x00711ecc 4  0x0          NV_PRAMIN
+    29724556 W bar0 0x00712ecc 4  0x0          NV_PRAMIN
+    29750692 W bar0 0x00713ecc 4  0x0          NV_PRAMIN
+    29774962 W bar0 0x00714ecc 4  0x0          NV_PRAMIN
+    29814626 W bar0 0x00715ecc 4  0x0          NV_PRAMIN
+    29840194 W bar0 0x00716ecc 4  0x0          NV_PRAMIN
+    29860148 E boot: ctrl 0x20800ab3: NV2080_CTRL_CMD_INTERNAL_CCU_MAP (0x20800ab3): feature family ccu absent on gh100 -> status 0x56 [refused (feature absent on this chip)]
+    29875968 W bar3 0x00000cc0 8  0x0          fb 0xf23cecc0
+    29875996 W bar3 0x00000cc8 8  0x0          fb 0xf23cecc8

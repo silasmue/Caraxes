@@ -1,0 +1,69 @@
+    19044427 W bar0 0x008f2ac4 4  0x20ceccab   NV_PFSP_EMEMC/EMEMD(i)
+    19053751 E boot: static-info bIsMigSupported = true [chip (the mig family and its [mig] table, families/mig.rs)]
+    19120096 W bar0 0x00702ecc 4  0x0          NV_PRAMIN
+    19167427 W bar0 0x00707ecc 4  0x0          NV_PRAMIN
+    19205970 W bar0 0x00708ecc 4  0x0          NV_PRAMIN
+    19237517 W bar0 0x00709ecc 4  0x0          NV_PRAMIN
+    19270031 W bar0 0x0070aecc 4  0x0          NV_PRAMIN
+    19301842 W bar0 0x0070becc 4  0x0          NV_PRAMIN
+    19338289 W bar0 0x0070cecc 4  0x0          NV_PRAMIN
+    19370003 W bar0 0x0070decc 4  0x0          NV_PRAMIN
+    19404675 W bar0 0x0070ecc0 4  0x8          NV_PRAMIN
+    19404699 W bar0 0x0070ecc4 4  0x0          NV_PRAMIN
+    19404722 W bar0 0x0070ecc8 4  0x8          NV_PRAMIN
+    19404746 W bar0 0x0070eccc 4  0x0          NV_PRAMIN
+    19408861 W bar0 0x0070eecc 4  0x0          NV_PRAMIN
+    19445118 W bar0 0x0070fecc 4  0x0          NV_PRAMIN
+    19488736 W bar0 0x00710ecc 4  0x0          NV_PRAMIN
+    19518612 W bar0 0x00711ecc 4  0x0          NV_PRAMIN
+    19550273 W bar0 0x00712ecc 4  0x0          NV_PRAMIN
+    19583130 W bar0 0x00713ecc 4  0x0          NV_PRAMIN
+    19633012 W bar0 0x00714ecc 4  0x0          NV_PRAMIN
+    19667891 W bar0 0x00715ecc 4  0x0          NV_PRAMIN
+    19712164 W bar0 0x00716ecc 4  0x0          NV_PRAMIN
+    19755726 E boot: ctrl 0x20800ab3: NV2080_CTRL_CMD_INTERNAL_CCU_MAP (0x20800ab3): feature family ccu absent on gh100 -> status 0x56 [refused (feature absent on this chip)]
+    19756191 E boot: ctrl 0x2080017e: vmmu segment size: 32 MiB -> status 0x0 [costume (MIG profile tables of the chip file, from the kernel's rules)]
+    19778826 W bar3 0x00000cc0 8  0x0          fb 0xf23cecc0
+    19778884 W bar3 0x00000cc8 8  0x0          fb 0xf23cecc8
+    20065409 E boot: ctrl 0x20800a2a: kgr info: 63 entries, the chip's emulated table (no host) -> status 0x0 [costume (GH100 design constants, Hopper whitepaper; MIG span of the kernel's rules) + synthesized (rest 0)]
+    20079514 E boot: ctrl 0x20800a51: partitionable memory [0x0, 0xeefcffff] as asked -> status 0x0 [costume (MIG profile tables of the chip file, from the kernel's rules)]
+    20080147 E boot: ctrl 0x20800a67: NV2080_CTRL_CMD_INTERNAL_KMEMSYS_GET_MIG_MEMORY_CONFIG: zeros (the GA100 AMAP configuration; no AMAP in a model) -> status 0x0 [costume (MIG profile tables of the chip file, from the kernel's rules)]
+    20080702 E boot: ctrl 0x20800a4c: smc mode 2 (current false, pending false) -> status 0x0 [guest (MIG mode of this VM, InfoROM analogue)]
+    20082031 E boot: ctrl 0x20800a65: partitionable engines GR0 COPY0 COPY4 COPY7 NVDEC0 NVENC0 NVJPEG0 OFA0 (costume (H100 MIG shapes on the kernel's rules, scaled to the rung; no capture)) -> status 0x0 [costume (MIG profile tables of the chip file, from the kernel's rules)]
+    20082681 E boot: ctrl 0x20800aa2: skyline: 5 entries -> status 0x0 [costume (MIG profile tables of the chip file, from the kernel's rules)]
+    20083353 E boot: ctrl 0x20800a66: swizzId memory in 32 MiB segments: 0 (0, 111), 7 (0, 13), 14 (1, 0) -> status 0x0 [costume (MIG profile tables of the chip file, from the kernel's rules)]
+    20084085 E boot: ctrl 0x20800aba: compute profiles: 5 sizes -> status 0x0 [costume (MIG profile tables of the chip file, from the kernel's rules)]
+    20085159 E boot: ctrl 0x20800a63: gpu instance profiles: 7g 4g 3g 2g 1g 1g+me (costume (H100 MIG shapes on the kernel's rules, scaled to the rung; no capture)) -> status 0x0 [costume (MIG profile tables of the chip file, from the kernel's rules)]
+    28411977 E boot: ctrl 0x20800a4c: smc mode 2 (current false, pending false) -> status 0x0 [guest (MIG mode of this VM, InfoROM analogue)]
+    28412811 E boot: ctrl 0x20800a4c: smc mode 2 (current false, pending false) -> status 0x0 [guest (MIG mode of this VM, InfoROM analogue)]
+    28472126 E boot: ctrl 0x20800a4c: smc mode 2 (current false, pending false) -> status 0x0 [guest (MIG mode of this VM, InfoROM analogue)]
+    28479298 E boot: ctrl 0x20800a4c: smc mode 2 (current false, pending false) -> status 0x0 [guest (MIG mode of this VM, InfoROM analogue)]
+    28480372 E boot: ctrl 0x20800a4c: smc mode 2 (current false, pending false) -> status 0x0 [guest (MIG mode of this VM, InfoROM analogue)]
+    28482402 E boot: ctrl 0x20800a4c: smc mode 2 (current false, pending false) -> status 0x0 [guest (MIG mode of this VM, InfoROM analogue)]
+    28483216 E boot: ctrl 0x20800a4c: smc mode 2 (current false, pending false) -> status 0x0 [guest (MIG mode of this VM, InfoROM analogue)]
+    28484995 E boot: ctrl 0x20800a4c: smc mode 2 (current false, pending false) -> status 0x0 [guest (MIG mode of this VM, InfoROM analogue)]
+    28486286 E boot: ctrl 0x20800a4c: smc mode 2 (current false, pending false) -> status 0x0 [guest (MIG mode of this VM, InfoROM analogue)]
+    28488141 E boot: ctrl 0x20800a4c: smc mode 2 (current false, pending false) -> status 0x0 [guest (MIG mode of this VM, InfoROM analogue)]
+    28488842 E boot: ctrl 0x20800a4c: smc mode 2 (current false, pending false) -> status 0x0 [guest (MIG mode of this VM, InfoROM analogue)]
+    28490397 E boot: ctrl 0x20800a4c: smc mode 2 (current false, pending false) -> status 0x0 [guest (MIG mode of this VM, InfoROM analogue)]
+    28491070 E boot: ctrl 0x20800a4c: smc mode 2 (current false, pending false) -> status 0x0 [guest (MIG mode of this VM, InfoROM analogue)]
+    28492824 E boot: ctrl 0x20800a4c: smc mode 2 (current false, pending false) -> status 0x0 [guest (MIG mode of this VM, InfoROM analogue)]
+    28493581 E boot: ctrl 0x20800a4c: smc mode 2 (current false, pending false) -> status 0x0 [guest (MIG mode of this VM, InfoROM analogue)]
+    28494282 E boot: ctrl 0x20800a4c: smc mode 2 (current false, pending false) -> status 0x0 [guest (MIG mode of this VM, InfoROM analogue)]
+    28494850 E boot: ctrl 0x20800a4c: smc mode 2 (current false, pending false) -> status 0x0 [guest (MIG mode of this VM, InfoROM analogue)]
+    28496370 E boot: ctrl 0x20800a4c: smc mode 2 (current false, pending false) -> status 0x0 [guest (MIG mode of this VM, InfoROM analogue)]
+    28497121 E boot: ctrl 0x20800a4c: smc mode 2 (current false, pending false) -> status 0x0 [guest (MIG mode of this VM, InfoROM analogue)]
+    28497772 E boot: ctrl 0x20800a4c: smc mode 2 (current false, pending false) -> status 0x0 [guest (MIG mode of this VM, InfoROM analogue)]
+    28498729 E boot: ctrl 0x20800a4c: smc mode 2 (current false, pending false) -> status 0x0 [guest (MIG mode of this VM, InfoROM analogue)]
+    28499361 E boot: ctrl 0x20800a4c: smc mode 2 (current false, pending false) -> status 0x0 [guest (MIG mode of this VM, InfoROM analogue)]
+    28499985 E boot: ctrl 0x20800a4c: smc mode 2 (current false, pending false) -> status 0x0 [guest (MIG mode of this VM, InfoROM analogue)]
+    28500592 E boot: ctrl 0x20800a4c: smc mode 2 (current false, pending false) -> status 0x0 [guest (MIG mode of this VM, InfoROM analogue)]
+    28501344 E boot: ctrl 0x20800a4c: smc mode 2 (current false, pending false) -> status 0x0 [guest (MIG mode of this VM, InfoROM analogue)]
+    28502034 E boot: ctrl 0x20800a4c: smc mode 2 (current false, pending false) -> status 0x0 [guest (MIG mode of this VM, InfoROM analogue)]
+    28503268 E boot: ctrl 0x20800a4c: smc mode 2 (current false, pending false) -> status 0x0 [guest (MIG mode of this VM, InfoROM analogue)]
+    28570756 E boot: ctrl 0x20800aa3: set partitioning mode true: current true, pending true (resetless) -> status 0x0 [guest (MIG mode of this VM, InfoROM analogue)]
+    28572889 E boot: ctrl 0x20800a4c: smc mode 1 (current true, pending true) -> status 0x0 [guest (MIG mode of this VM, InfoROM analogue)]
+    28573639 E boot: ctrl 0x20800ab3: NV2080_CTRL_CMD_INTERNAL_CCU_MAP (0x20800ab3): feature family ccu absent on gh100 -> status 0x56 [refused (feature absent on this chip)]
+    28574885 E boot: ctrl 0x20800a4c: smc mode 1 (current true, pending true) -> status 0x0 [guest (MIG mode of this VM, InfoROM analogue)]
+    28640193 E boot: ctrl 0x20800a4c: smc mode 1 (current true, pending true) -> status 0x0 [guest (MIG mode of this VM, InfoROM analogue)]
+    28641634 E boot: ctrl 0x20800a4c: smc mode 1 (current true, pending true) -> status 0x0 [guest (MIG mode of this VM, InfoROM analogue)]
