@@ -1,0 +1,131 @@
+   810421707 E boot: rx seq 7486 GSP_RM_CONTROL (76) sequence 7412 length 80 checksum ok: hClient=0xc1d00097 hObject=0xbeef0004 cmd=0x20802a12 paramsSize=8 rpcFlags=0x0
+   810421708 E boot: ctrl 0x20802a12: ce lce 0 decomp enabled: false -> status 0x0 [synthesized (no decompression LCE on Turing)]
+   810421711 E boot: tx seq 7412 reply GSP_RM_CONTROL sequence 7412 result 0x0 length 80
+   810422605 E boot: rx seq 7487 GSP_RM_CONTROL (76) sequence 7413 length 80 checksum ok: hClient=0xc1d00097 hObject=0xbeef0004 cmd=0x20802a12 paramsSize=8 rpcFlags=0x0
+   810422606 E boot: ctrl 0x20802a12: ce lce 1 decomp enabled: false -> status 0x0 [synthesized (no decompression LCE on Turing)]
+   810422614 E boot: tx seq 7413 reply GSP_RM_CONTROL sequence 7413 result 0x0 length 80
+   810423535 E boot: rx seq 7488 GSP_RM_CONTROL (76) sequence 7414 length 80 checksum ok: hClient=0xc1d00097 hObject=0xbeef0004 cmd=0x20802a12 paramsSize=8 rpcFlags=0x0
+   810423537 E boot: ctrl 0x20802a12: ce lce 2 decomp enabled: false -> status 0x0 [synthesized (no decompression LCE on Turing)]
+   810423538 E boot: tx seq 7414 reply GSP_RM_CONTROL sequence 7414 result 0x0 length 80
+   810424406 E boot: rx seq 7489 GSP_RM_CONTROL (76) sequence 7415 length 80 checksum ok: hClient=0xc1d00097 hObject=0xbeef0004 cmd=0x20802a12 paramsSize=8 rpcFlags=0x0
+   810424407 E boot: ctrl 0x20802a12: ce lce 3 decomp enabled: false -> status 0x0 [synthesized (no decompression LCE on Turing)]
+   810424409 E boot: tx seq 7415 reply GSP_RM_CONTROL sequence 7415 result 0x0 length 80
+   810425290 E boot: rx seq 7490 GSP_RM_CONTROL (76) sequence 7416 length 80 checksum ok: hClient=0xc1d00097 hObject=0xbeef0004 cmd=0x20802a12 paramsSize=8 rpcFlags=0x0
+   810425291 E boot: ctrl 0x20802a12: ce lce 4 decomp enabled: false -> status 0x0 [synthesized (no decompression LCE on Turing)]
+   810425292 E boot: tx seq 7416 reply GSP_RM_CONTROL sequence 7416 result 0x0 length 80
+   810426812 E boot: rx seq 7491 GSP_RM_CONTROL (76) sequence 7417 length 80 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20802a07 paramsSize=8 rpcFlags=0x0
+   810426814 E boot: ctrl 0x20802a07: ce physical caps for engine type 0x9: host 0x20802a03 status 0x0, caps 0xe3 0x03 -> status 0x0 [host (CE_GET_CAPS_V2 0x20802a03 of the same engine type, same layout)]
+   810426815 E boot: tx seq 7417 reply GSP_RM_CONTROL sequence 7417 result 0x0 length 80
+   810428088 E boot: rx seq 7492 GSP_RM_CONTROL (76) sequence 7418 length 80 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20802a07 paramsSize=8 rpcFlags=0x0
+   810428089 E boot: ctrl 0x20802a07: ce physical caps for engine type 0xa: host 0x20802a03 status 0x0, caps 0xe3 0x03 -> status 0x0 [host (CE_GET_CAPS_V2 0x20802a03 of the same engine type, same layout)]
+   810428090 E boot: tx seq 7418 reply GSP_RM_CONTROL sequence 7418 result 0x0 length 80
+   810429348 E boot: rx seq 7493 GSP_RM_CONTROL (76) sequence 7419 length 80 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20802a07 paramsSize=8 rpcFlags=0x0
+   810429350 E boot: ctrl 0x20802a07: ce physical caps for engine type 0xb: host 0x20802a03 status 0x0, caps 0xe0 0x03 -> status 0x0 [host (CE_GET_CAPS_V2 0x20802a03 of the same engine type, same layout)]
+   810429351 E boot: tx seq 7419 reply GSP_RM_CONTROL sequence 7419 result 0x0 length 80
+   810430730 E boot: rx seq 7494 GSP_RM_CONTROL (76) sequence 7420 length 80 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20802a07 paramsSize=8 rpcFlags=0x0
+   810430732 E boot: ctrl 0x20802a07: ce physical caps for engine type 0xc: host 0x20802a03 status 0x0, caps 0xe0 0x03 -> status 0x0 [host (CE_GET_CAPS_V2 0x20802a03 of the same engine type, same layout)]
+   810430733 E boot: tx seq 7420 reply GSP_RM_CONTROL sequence 7420 result 0x0 length 80
+   810432056 E boot: rx seq 7495 GSP_RM_CONTROL (76) sequence 7421 length 80 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20802a07 paramsSize=8 rpcFlags=0x0
+   810432057 E boot: ctrl 0x20802a07: ce physical caps for engine type 0xd: host 0x20802a03 status 0x0, caps 0xe0 0x03 -> status 0x0 [host (CE_GET_CAPS_V2 0x20802a03 of the same engine type, same layout)]
+   810432059 E boot: tx seq 7421 reply GSP_RM_CONTROL sequence 7421 result 0x0 length 80
+   810439863 E boot: rx seq 7496 GSP_RM_ALLOC (103) sequence 7422 length 64 checksum ok: hClient=0xc1d00097 hParent=0xcef80001 hObject=0xcef00040 hClass=0x9067 paramsSize=12 flags=0x0
+   810439864 E boot: alloc: alloc 0x9067 object 0xcef00040 under 0xcef80001: ctxshare 0xcef00040 vaspace 0xbeef0300 [guest] -> status 0x0 [guest (recorded for the channel emulation; no host object)]
+   810439865 E boot: tx seq 7422 reply GSP_RM_ALLOC sequence 7422 result 0x0 length 76
+   810443589 E boot: rx seq 7497 GSP_RM_ALLOC (103) sequence 7423 length 64 checksum ok: hClient=0xc1d00097 hParent=0xcef80001 hObject=0xbeed0100 hClass=0xc46f paramsSize=376 flags=0x0
+   810443592 E boot: alloc: alloc 0xc46f object 0xbeed0100 under 0xcef80001: channel 0xbeed0100 chid 50 engineType 0x1 gpfifo va 0x48a0000 x 32768 userd Some(Fb(5048890880)) vaspace Some((3251634327, 3203334912)) errorNotifier Some(Sys(140730707005520)) [guest] -> status 0x0 [guest (recorded for the channel emulation; no host object)]
+   810443594 E boot: chid 50: USERD Fb(5048890880) cleared (512 bytes, as GSP-RM does at channel creation): true [synthesized]
+   810443603 E boot: tx seq 7423 reply GSP_RM_ALLOC sequence 7423 result 0x0 length 440
+   810444669 E boot: rx seq 7498 GSP_RM_CONTROL (76) sequence 7424 length 76 checksum ok: hClient=0xc1d00097 hObject=0xbeed0100 cmd=0xa06f0104 paramsSize=4 rpcFlags=0x0
+   810444671 E boot: ctrl 0xa06f0104: channel bind 0xbeed0100: engineType 0x1 (chid 50) -> status 0x0 [guest (recorded; the host mirror binds with its engine object)]
+   810444673 E boot: tx seq 7424 reply GSP_RM_CONTROL sequence 7424 result 0x0 length 76
+   810445584 E boot: rx seq 7499 GSP_RM_CONTROL (76) sequence 7425 length 75 checksum ok: hClient=0xc1d00097 hObject=0xbeed0100 cmd=0xa06f0103 paramsSize=3 rpcFlags=0x0
+   810445585 E boot: ctrl 0xa06f0103: gpfifo schedule 0xbeed0100: bEnable 1 -> status 0x0 [synthesized (the emulated channel runs on its doorbell)]
+   810445586 E boot: tx seq 7425 reply GSP_RM_CONTROL sequence 7425 result 0x0 length 75
+   810446783 E boot: rx seq 7500 GSP_RM_ALLOC (103) sequence 7426 length 64 checksum ok: hClient=0xc1d00097 hParent=0xcef80001 hObject=0xcef00041 hClass=0x9067 paramsSize=12 flags=0x0
+   810446784 E boot: alloc: alloc 0x9067 object 0xcef00041 under 0xcef80001: ctxshare 0xcef00041 vaspace 0xbeef0300 [guest] -> status 0x0 [guest (recorded for the channel emulation; no host object)]
+   810446785 E boot: tx seq 7426 reply GSP_RM_ALLOC sequence 7426 result 0x0 length 76
+   810449544 E boot: rx seq 7501 GSP_RM_ALLOC (103) sequence 7427 length 64 checksum ok: hClient=0xc1d00097 hParent=0xcef80001 hObject=0xbeed0104 hClass=0xc46f paramsSize=376 flags=0x0
+   810449545 E boot: alloc: alloc 0xc46f object 0xbeed0104 under 0xcef80001: channel 0xbeed0104 chid 51 engineType 0x1 gpfifo va 0x4900000 x 32768 userd Some(Fb(5048890368)) vaspace Some((3251634327, 3203334912)) errorNotifier Some(Sys(140730707005520)) [guest] -> status 0x0 [guest (recorded for the channel emulation; no host object)]
+   810449547 E boot: chid 51: USERD Fb(5048890368) cleared (512 bytes, as GSP-RM does at channel creation): true [synthesized]
+   810449548 E boot: tx seq 7427 reply GSP_RM_ALLOC sequence 7427 result 0x0 length 440
+   810450527 E boot: rx seq 7502 GSP_RM_CONTROL (76) sequence 7428 length 76 checksum ok: hClient=0xc1d00097 hObject=0xbeed0104 cmd=0xa06f0104 paramsSize=4 rpcFlags=0x0
+   810450528 E boot: ctrl 0xa06f0104: channel bind 0xbeed0104: engineType 0x1 (chid 51) -> status 0x0 [guest (recorded; the host mirror binds with its engine object)]
+   810450530 E boot: tx seq 7428 reply GSP_RM_CONTROL sequence 7428 result 0x0 length 76
+   810451460 E boot: rx seq 7503 GSP_RM_CONTROL (76) sequence 7429 length 75 checksum ok: hClient=0xc1d00097 hObject=0xbeed0104 cmd=0xa06f0103 paramsSize=3 rpcFlags=0x0
+   810451462 E boot: ctrl 0xa06f0103: gpfifo schedule 0xbeed0104: bEnable 1 -> status 0x0 [synthesized (the emulated channel runs on its doorbell)]
+   810451463 E boot: tx seq 7429 reply GSP_RM_CONTROL sequence 7429 result 0x0 length 75
+   810515193 E boot: display: head 3 39601 ticks, 59.984 Hz over the last 600 (10.003 s) [clock]
+   810586567 E boot: rx seq 7504 GSP_RM_CONTROL (76) sequence 7430 length 632 checksum ok: hClient=0xc1d00097 hObject=0xbeef0004 cmd=0x2080012b paramsSize=560 rpcFlags=0x0
+   810586570 E boot: ctrl 0x2080012b: promote ctx engineType 0x1 for 0xc1d00097/0xbeed0100: 8 entries [0: pa 0x1e43c6000 attr 0x4 va 0x120240000 size 0xee000 init; 2: pa 0x1e5240000 attr 0x4 va 0x120107000 size 0x5000 init; 3: pa 0x0 attr 0x0 va 0x12010c000 size 0x0; 4: pa 0x0 attr 0x0 va 0x1203b0000 size 0x0; 5: pa 0x0 attr 0x0 va 0x120800000 size 0x0; 6: pa 0x0 attr 0x0 va 0x120c00000 size 0x0; 9: pa 0x0 attr 0x0 va 0x120230000 size 0x0; 10: pa 0x0 attr 0x0 va 0x120330000 size 0x0] [guest, recorded] -> status 0x0 [guest (promote entries recorded; echo)]
+   810586571 E boot: tx seq 7430 reply GSP_RM_CONTROL sequence 7430 result 0x0 length 632
+   810587545 E boot: rx seq 7505 GSP_RM_ALLOC (103) sequence 7431 length 64 checksum ok: hClient=0xc1d00097 hParent=0xbeed0100 hObject=0xbeed502d hClass=0x902d paramsSize=0 flags=0x0
+   810587546 E boot: alloc: alloc 0x902d object 0xbeed502d under 0xbeed0100: engine object class 0x902d on chid 50 (0 bytes of params) [guest] -> status 0x0 [guest (recorded for the channel emulation; no host object)]
+   810587556 E boot: tx seq 7431 reply GSP_RM_ALLOC sequence 7431 result 0x0 length 64
+   810588604 E boot: rx seq 7506 GSP_RM_ALLOC (103) sequence 7432 length 64 checksum ok: hClient=0xc1d00097 hParent=0xbeed0100 hObject=0xbeeda0b5 hClass=0xc5b5 paramsSize=8 flags=0x0
+   810588606 E boot: alloc: alloc 0xc5b5 object 0xbeeda0b5 under 0xbeed0100: engine object class 0xc5b5 on chid 50 (8 bytes of params) [guest] -> status 0x0 [guest (recorded for the channel emulation; no host object)]
+   810588607 E boot: tx seq 7432 reply GSP_RM_ALLOC sequence 7432 result 0x0 length 72
+   810589740 E boot: rx seq 7507 GSP_RM_ALLOC (103) sequence 7433 length 64 checksum ok: hClient=0xc1d00097 hParent=0xbeed0100 hObject=0xbeed3901 hClass=0xa140 paramsSize=0 flags=0x0
+   810589742 E boot: alloc: alloc 0xa140 object 0xbeed3901 under 0xbeed0100: engine object class 0xa140 on chid 50 (0 bytes of params) [guest] -> status 0x0 [guest (recorded for the channel emulation; no host object)]
+   810589743 E boot: tx seq 7433 reply GSP_RM_ALLOC sequence 7433 result 0x0 length 64
+   810590932 E boot: rx seq 7508 GSP_RM_ALLOC (103) sequence 7434 length 64 checksum ok: hClient=0xc1d00097 hParent=0xbeed0100 hObject=0xbeed9097 hClass=0xc597 paramsSize=0 flags=0x0
+   810590934 E boot: alloc: alloc 0xc597 object 0xbeed9097 under 0xbeed0100: engine object class 0xc597 on chid 50 (0 bytes of params) [guest] -> status 0x0 [guest (recorded for the channel emulation; no host object)]
+   810590935 E boot: tx seq 7434 reply GSP_RM_ALLOC sequence 7434 result 0x0 length 64
+   810592072 E boot: rx seq 7509 GSP_RM_ALLOC (103) sequence 7435 length 64 checksum ok: hClient=0xc1d00097 hParent=0xbeed0104 hObject=0xbeed90c1 hClass=0xc5c0 paramsSize=0 flags=0x0
+   810592082 E boot: alloc: alloc 0xc5c0 object 0xbeed90c1 under 0xbeed0104: engine object class 0xc5c0 on chid 51 (0 bytes of params) [guest] -> status 0x0 [guest (recorded for the channel emulation; no host object)]
+   810592083 E boot: tx seq 7435 reply GSP_RM_ALLOC sequence 7435 result 0x0 length 64
+   810593173 E boot: rx seq 7510 GSP_RM_ALLOC (103) sequence 7436 length 64 checksum ok: hClient=0xc1d00097 hParent=0xbeed0104 hObject=0xbeeda2b5 hClass=0xc5b5 paramsSize=8 flags=0x0
+   810593174 E boot: alloc: alloc 0xc5b5 object 0xbeeda2b5 under 0xbeed0104: engine object class 0xc5b5 on chid 51 (8 bytes of params) [guest] -> status 0x0 [guest (recorded for the channel emulation; no host object)]
+   810593175 E boot: tx seq 7436 reply GSP_RM_ALLOC sequence 7436 result 0x0 length 72
+   810594534 E boot: rx seq 7511 GSP_RM_CONTROL (76) sequence 7437 length 84 checksum ok: hClient=0xc1d00097 hObject=0xbeef0003 cmd=0x801707 paramsSize=12 rpcFlags=0x0
+   810594535 E boot: ctrl 0x801707: control 0x801707 forwarded to the host: status 0x0 -> status 0x0 [host (forwarded as-is)]
+   810594537 E boot: tx seq 7437 reply GSP_RM_CONTROL sequence 7437 result 0x0 length 84
+   810627046 E boot: shadow: root 0x12fdc0000 set-B exclusions recomputed: 8 added, 0 released back to set A [guest]
+   810627932 E boot: rx seq 7512 GSP_RM_CONTROL (76) sequence 7438 length 96 checksum ok: hClient=0xc1d00097 hObject=0xbeef0004 cmd=0x20801208 paramsSize=24 rpcFlags=0x0
+   810627933 E boot: ctrl 0x20801208: gr ctxsw zcull bind: client 0xc1d00097 channel 0xbeed0100 va 0x4990000 mode 2 -> status 0x0 [guest (recorded; not applied to the host context)]
+   810627935 E boot: tx seq 7438 reply GSP_RM_CONTROL sequence 7438 result 0x0 length 96
+   810629313 E boot: rx seq 7513 GSP_RM_CONTROL (76) sequence 7439 length 104 checksum ok: hClient=0xc1d00097 hObject=0xbeef0004 cmd=0x20801210 paramsSize=32 rpcFlags=0x0
+   810629315 E boot: ctrl 0x20801210: GR_SET_CTXSW_PREEMPTION_MODE (no context switch): ok -> status 0x0 [synthesized (NV_OK echo, nothing acted on: no host channel before part 2)]
+   810629316 E boot: tx seq 7439 reply GSP_RM_CONTROL sequence 7439 result 0x0 length 104
+   810637632 E boot: rx seq 7514 GSP_RM_CONTROL (76) sequence 7440 length 72 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20800a70 paramsSize=0 rpcFlags=0x0
+   810637634 E boot: ctrl 0x20800a70: bus flush with sysmembar: ok -> status 0x0 [synthesized (nothing to flush)]
+   810637635 E boot: tx seq 7440 reply GSP_RM_CONTROL sequence 7440 result 0x0 length 72
+   810638915 E boot: l2 FlushDirty: FB_FLUSH_GPU_CACHE flags 0x29 NV_OK in 403 us [host GPU]
+   810639494 E boot: l2 SysmemInvalidate: FB_FLUSH_GPU_CACHE flags 0x31 NV_OK in 186 us [host GPU]
+   810651988 E boot: rx seq 7515 GSP_RM_CONTROL (76) sequence 7441 length 72 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20800a70 paramsSize=0 rpcFlags=0x0
+   810651990 E boot: ctrl 0x20800a70: bus flush with sysmembar: ok -> status 0x0 [synthesized (nothing to flush)]
+   810651992 E boot: tx seq 7441 reply GSP_RM_CONTROL sequence 7441 result 0x0 length 72
+   810652972 E boot: l2 FlushDirty: FB_FLUSH_GPU_CACHE flags 0x29 NV_OK in 229 us [host GPU]
+   810653489 E boot: l2 SysmemInvalidate: FB_FLUSH_GPU_CACHE flags 0x31 NV_OK in 169 us [host GPU]
+   810693655 E boot: event: host notifier 0x800000c fired (1 record(s)) -> guest vector 4, MSI [host]
+   810693657 E boot: doorbell: guest chid 2 -> host token 0x32 written to the host doorbell page (3372 on this channel) [host]
+   811492272 E boot: event: host notifier 0x800000c fired (1 record(s)) -> guest vector 4, MSI [host]
+   811492275 E boot: event: host notifier 0x800000c fired (1 record(s)) -> guest vector 4, MSI [host]
+   811492278 E boot: event: host notifier 0x800000c fired (1 record(s)) -> guest vector 4, MSI [host]
+   811755405 E boot: event: host notifier 0x800000c fired (1 record(s)) -> guest vector 4, MSI [host]
+   811790275 E boot: event: host notifier 0x800000c fired (1 record(s)) -> guest vector 4, MSI [host]
+   811876800 E boot: display channel 0xc57e/6 kick 1273: PUT 0x8f4, 57 method(s), 1 UPDATE(s), 0 raster method(s); GET := PUT [guest]
+   811899216 E boot: display: window 6 latch 1136 at tick 39683: surface fb 0x129c00000 1920x1080 format 0xe6 block-linear pitch 120 (block height 2^4), notifier sys 0x7ffd70bb4000 awaken, acquire none, release none [guest]
+   811900645 E boot: event: host notifier 0x800000c fired (1 record(s)) -> guest vector 4, MSI [host]
+   811900647 E boot: event: host notifier 0x800000c fired (1 record(s)) -> guest vector 4, MSI [host]
+   812124519 E boot: event: host notifier 0x800000c fired (1 record(s)) -> guest vector 4, MSI [host]
+   812124521 E boot: event: host notifier 0x800000c fired (1 record(s)) -> guest vector 4, MSI [host]
+   812124523 E boot: event: host notifier 0x800000c fired (1 record(s)) -> guest vector 4, no MSI (disabled or no fd) [host]
+   812126360 E boot: display channel 0xc57e/6 kick 1274: PUT 0xab8, 57 method(s), 1 UPDATE(s), 0 raster method(s); GET := PUT [guest]
+   812129244 E boot: display: window 6 latch 1137 at tick 39698: surface fb 0x12b000000 1920x1080 format 0xe6 block-linear pitch 120 (block height 2^4), notifier sys 0x7ffd70bb4010 awaken, acquire none, release none [guest]
+   812200695 E boot: event: host notifier 0x800000c fired (1 record(s)) -> guest vector 4, MSI [host]
+   812200697 E boot: event: host notifier 0x800000c fired (1 record(s)) -> guest vector 4, MSI [host]
+   812200699 E boot: event: host notifier 0x800000c fired (1 record(s)) -> guest vector 4, no MSI (disabled or no fd) [host]
+   812202436 E boot: display channel 0xc57e/6 kick 1275: PUT 0xc7c, 57 method(s), 1 UPDATE(s), 0 raster method(s); GET := PUT [guest]
+   812213623 E boot: display: window 6 latch 1138 at tick 39703: surface fb 0x12a600000 1920x1080 format 0xe6 block-linear pitch 120 (block height 2^4), notifier sys 0x7ffd70bb4000 awaken, acquire none, release none [guest]
+   812222387 E boot: event: host notifier 0x800000c fired (1 record(s)) -> guest vector 4, MSI [host]
+   812222392 E boot: event: host notifier 0x800000c fired (1 record(s)) -> guest vector 4, MSI [host]
+   812222394 E boot: event: host notifier 0x800000c fired (1 record(s)) -> guest vector 4, no MSI (disabled or no fd) [host]
+   812281674 E boot: display channel 0xc57e/6 kick 1276: PUT 0xe40, 57 method(s), 1 UPDATE(s), 0 raster method(s); GET := PUT [guest]
+   812296750 E boot: display: window 6 latch 1139 at tick 39708: surface fb 0x129c00000 1920x1080 format 0xe6 block-linear pitch 120 (block height 2^4), notifier sys 0x7ffd70bb4010 awaken, acquire none, release none [guest]
+   812299052 E boot: event: host notifier 0x800000c fired (1 record(s)) -> guest vector 4, MSI [host]
+   812299057 E boot: event: host notifier 0x800000c fired (1 record(s)) -> guest vector 4, MSI [host]
+   812299061 E boot: event: host notifier 0x800000c fired (1 record(s)) -> guest vector 4, no MSI (disabled or no fd) [host]
+   812317484 E boot: display channel 0xc57e/6 kick 1277: PUT 0x0, 50 method(s), 0 UPDATE(s), 0 raster method(s); GET := PUT [guest]
+   812317815 E boot: display channel 0xc57e/6 kick 1278: PUT 0x38, 7 method(s), 1 UPDATE(s), 0 raster method(s); GET := PUT [guest]
+   812329161 E boot: display: window 6 latch 1140 at tick 39710: surface fb 0x12ba00000 1920x1080 format 0xe6 block-linear pitch 120 (block height 2^4), notifier sys 0x7ffd70bb4000 awaken, acquire none, release none [guest]
+   812337475 E boot: alloc lazy: deadline passed, planning 3 deferred invalidate(s) now

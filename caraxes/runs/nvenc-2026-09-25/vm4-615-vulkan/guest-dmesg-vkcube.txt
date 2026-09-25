@@ -1,0 +1,1219 @@
+[ 1105.733505] NVRM: nvidia_open...
+[ 1105.733508] NVRM: nvidia_ctl_open
+[ 1105.733515] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1105.750239] NVRM: nvidia_close on GPU with minor number 255
+[ 1105.750241] NVRM: nvidia_ctl_close
+[ 1105.764640] NVRM: nvidia_open...
+[ 1105.764648] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1105.812882] NVRM: nvidia_open...
+[ 1105.812897] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1105.879927] NVRM: nvidia_open...
+[ 1105.880181] NVRM: nvidia_ctl_open
+[ 1105.880206] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1105.888772] NVRM: nvidia_close on GPU with minor number 255
+[ 1105.888776] NVRM: nvidia_ctl_close
+[ 1105.892735] NVRM: nvidia_open...
+[ 1105.892744] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1105.964598] NVRM: nvidia_open...
+[ 1105.964609] NVRM: nvidia_ctl_open
+[ 1105.964630] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1106.005290] NVRM: nvidia_open...
+[ 1106.005292] NVRM: nvidia_ctl_open
+[ 1106.005301] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1106.005423] NVRM: nvidia_close on GPU with minor number 255
+[ 1106.005424] NVRM: nvidia_ctl_close
+[ 1106.013067] NVRM: nvidia_open...
+[ 1106.013076] NVRM: nvidia_ctl_open
+[ 1106.022329] NVRM: nvidia_open...
+[ 1106.022337] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1106.042997] NVRM: nvidia_open...
+[ 1106.043001] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1106.115519] NVRM: nvidia_open...
+[ 1106.115522] NVRM: nvidia_ctl_open
+[ 1106.115534] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1106.124163] NVRM: nvidia_close on GPU with minor number 255
+[ 1106.124168] NVRM: nvidia_ctl_close
+[ 1106.173650] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1106.200848] NVRM: nvidia_open...
+[ 1106.200851] NVRM: nvidia_ctl_open
+[ 1106.200866] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1106.200932] NVRM: nvidia_open...
+[ 1106.200937] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1106.200955] NVRM: nvidia_close on GPU with minor number 255
+[ 1106.200956] NVRM: nvidia_ctl_close
+[ 1106.263694] NVRM: nvidia_open...
+[ 1106.263699] NVRM: nvidia_ctl_open
+[ 1106.263710] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1106.269480] NVRM: nvidia_close on GPU with minor number 255
+[ 1106.269483] NVRM: nvidia_ctl_close
+[ 1106.347036] NVRM: nvidia_open...
+[ 1106.347043] NVRM: nvidia_ctl_open
+[ 1106.347053] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1106.364672] NVRM: nvidia_close on GPU with minor number 255
+[ 1106.364674] NVRM: nvidia_ctl_close
+[ 1106.399936] NVRM: nvidia_open...
+[ 1106.399940] NVRM: nvidia_ctl_open
+[ 1106.422740] NVRM: nvidia_open...
+[ 1106.422758] NVRM: nvidia_ctl_open
+[ 1106.438925] NVRM: nvidia_open...
+[ 1106.438929] NVRM: nvidia_ctl_open
+[ 1106.438940] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1106.439025] NVRM: nvidia_close on GPU with minor number 255
+[ 1106.439026] NVRM: nvidia_ctl_close
+[ 1106.450603] NVRM: nvidia_close on GPU with minor number 255
+[ 1106.450606] NVRM: nvidia_ctl_close
+[ 1106.512797] NVRM: nvidia_open...
+[ 1106.512799] NVRM: nvidia_ctl_open
+[ 1106.512809] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1106.512907] NVRM: nvidia_close on GPU with minor number 255
+[ 1106.512910] NVRM: nvidia_ctl_close
+[ 1106.606470] NVRM: nvidia_open...
+[ 1106.606477] NVRM: nvidia_ctl_open
+[ 1106.606497] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1106.606617] NVRM: nvidia_close on GPU with minor number 255
+[ 1106.606618] NVRM: nvidia_ctl_close
+[ 1106.615657] NVRM: nvidia_open...
+[ 1106.615662] NVRM: nvidia_ctl_open
+[ 1106.615677] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1106.634716] NVRM: nvidia_open...
+[ 1106.634719] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1106.638225] NVRM: nvidia_open...
+[ 1106.638231] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1106.655171] NVRM: nvidia_open...
+[ 1106.655173] NVRM: nvidia_ctl_open
+[ 1106.655183] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1106.658148] NVRM: nvidia_close on GPU with minor number 255
+[ 1106.658153] NVRM: nvidia_ctl_close
+[ 1106.727001] NVRM: nvidia_open...
+[ 1106.727002] NVRM: nvidia_ctl_open
+[ 1106.727012] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1106.727126] NVRM: nvidia_close on GPU with minor number 255
+[ 1106.727128] NVRM: nvidia_ctl_close
+[ 1106.778519] NVRM: nvidia_open...
+[ 1106.778520] NVRM: nvidia_ctl_open
+[ 1106.778527] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1106.801645] NVRM: nvidia_close on GPU with minor number 255
+[ 1106.801647] NVRM: nvidia_ctl_close
+[ 1106.866872] NVRM: nvidia_open...
+[ 1106.866875] NVRM: nvidia_ctl_open
+[ 1106.866889] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1106.867042] NVRM: nvidia_close on GPU with minor number 255
+[ 1106.867043] NVRM: nvidia_ctl_close
+[ 1106.946360] NVRM: nvidia_open...
+[ 1106.946363] NVRM: nvidia_ctl_open
+[ 1106.946373] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1106.946461] NVRM: nvidia_close on GPU with minor number 255
+[ 1106.946462] NVRM: nvidia_ctl_close
+[ 1107.045895] NVRM: nvidia_open...
+[ 1107.045897] NVRM: nvidia_ctl_open
+[ 1107.045905] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1107.046604] NVRM: nvidia_close on GPU with minor number 255
+[ 1107.046605] NVRM: nvidia_ctl_close
+[ 1107.171685] NVRM: nvidia_open...
+[ 1107.171688] NVRM: nvidia_ctl_open
+[ 1107.171697] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1107.175753] NVRM: nvidia_close on GPU with minor number 255
+[ 1107.175757] NVRM: nvidia_ctl_close
+[ 1107.322984] NVRM: nvidia_open...
+[ 1107.323013] NVRM: nvidia_ctl_open
+[ 1107.323024] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1107.323176] NVRM: nvidia_close on GPU with minor number 255
+[ 1107.323178] NVRM: nvidia_ctl_close
+[ 1107.422734] NVRM: nvidia_open...
+[ 1107.422736] NVRM: nvidia_ctl_open
+[ 1107.422749] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1107.422857] NVRM: nvidia_close on GPU with minor number 255
+[ 1107.422858] NVRM: nvidia_ctl_close
+[ 1107.542147] NVRM: nvidia_open...
+[ 1107.542148] NVRM: nvidia_ctl_open
+[ 1107.542154] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1107.548203] NVRM: nvidia_close on GPU with minor number 255
+[ 1107.548207] NVRM: nvidia_ctl_close
+[ 1107.651248] NVRM: nvidia_open...
+[ 1107.651252] NVRM: nvidia_ctl_open
+[ 1107.651261] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1107.663405] NVRM: nvidia_close on GPU with minor number 255
+[ 1107.663408] NVRM: nvidia_ctl_close
+[ 1107.686632] NVRM: nvidia_open...
+[ 1107.686641] NVRM: nvidia_ctl_open
+[ 1107.756838] NVRM: nvidia_open...
+[ 1107.756844] NVRM: nvidia_ctl_open
+[ 1107.763305] NVRM: nvidia_open...
+[ 1107.763309] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1107.763322] NVRM: nvidia_open...
+[ 1107.763327] NVRM: nvidia_ctl_open
+[ 1107.763337] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1107.789085] NVRM: nvidia_close on GPU with minor number 255
+[ 1107.789093] NVRM: nvidia_ctl_close
+[ 1107.924734] NVRM: nvidia_open...
+[ 1107.924738] NVRM: nvidia_ctl_open
+[ 1107.924749] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1107.926751] NVRM: nvidia_open...
+[ 1107.926757] NVRM: nvidia_ctl_open
+[ 1107.926831] NVRM: nvidia_close on GPU with minor number 255
+[ 1107.926834] NVRM: nvidia_ctl_close
+[ 1107.935005] NVRM: nvidia_open...
+[ 1107.935007] NVRM: nvidia_ctl_open
+[ 1107.952690] NVRM: nvidia_open...
+[ 1107.952693] NVRM: nvidia_ctl_open
+[ 1107.985129] NVRM: nvidia_open...
+[ 1107.985134] NVRM: nvidia_ctl_open
+[ 1108.000872] NVRM: nvidia_open...
+[ 1108.000875] NVRM: nvidia_ctl_open
+[ 1108.025981] NVRM: nvidia_open...
+[ 1108.025985] NVRM: nvidia_ctl_open
+[ 1108.035125] NVRM: nvidia_open...
+[ 1108.035133] NVRM: nvidia_ctl_open
+[ 1108.035145] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1108.035418] NVRM: nvidia_close on GPU with minor number 255
+[ 1108.035421] NVRM: nvidia_ctl_close
+[ 1108.107653] NVRM: nvidia_open...
+[ 1108.107658] NVRM: nvidia_ctl_open
+[ 1108.107668] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1108.118003] NVRM: nvidia_close on GPU with minor number 255
+[ 1108.118007] NVRM: nvidia_ctl_close
+[ 1108.162175] NVRM: nvidia_open...
+[ 1108.162180] NVRM: nvidia_ctl_open
+[ 1108.185864] NVRM: nvidia_open...
+[ 1108.185871] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1108.211656] NVRM: nvidia_open...
+[ 1108.211658] NVRM: nvidia_ctl_open
+[ 1108.211665] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1108.211902] NVRM: nvidia_close on GPU with minor number 255
+[ 1108.211904] NVRM: nvidia_ctl_close
+[ 1108.253251] NVRM: nvidia_open...
+[ 1108.253261] NVRM: nvidia_ctl_open
+[ 1108.368734] NVRM: nvidia_open...
+[ 1108.368742] NVRM: nvidia_ctl_open
+[ 1108.401484] NVRM: nvidia_open...
+[ 1108.401490] NVRM: nvidia_ctl_open
+[ 1108.401502] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1108.519730] NVRM: nvidia_close on GPU with minor number 255
+[ 1108.519732] NVRM: nvidia_ctl_close
+[ 1108.605305] NVRM: nvidia_open...
+[ 1108.605307] NVRM: nvidia_ctl_open
+[ 1108.605316] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1108.636771] NVRM: nvidia_close on GPU with minor number 255
+[ 1108.636775] NVRM: nvidia_ctl_close
+[ 1108.708882] NVRM: nvidia_open...
+[ 1108.708887] NVRM: nvidia_ctl_open
+[ 1108.744100] NVRM: nvidia_open...
+[ 1108.744108] NVRM: nvidia_ctl_open
+[ 1108.744748] NVRM: nvidia_open...
+[ 1108.744753] NVRM: nvidia_ctl_open
+[ 1108.744765] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1108.753355] NVRM: nvidia_close on GPU with minor number 255
+[ 1108.753356] NVRM: nvidia_ctl_close
+[ 1108.869357] NVRM: nvidia_open...
+[ 1108.869358] NVRM: nvidia_ctl_open
+[ 1108.869374] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1108.869478] NVRM: nvidia_close on GPU with minor number 255
+[ 1108.869480] NVRM: nvidia_ctl_close
+[ 1108.928604] NVRM: nvidia_open...
+[ 1108.928606] NVRM: nvidia_ctl_open
+[ 1108.928613] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1108.928683] NVRM: nvidia_close on GPU with minor number 255
+[ 1108.928684] NVRM: nvidia_ctl_close
+[ 1108.988286] NVRM: nvidia_open...
+[ 1108.988293] NVRM: nvidia_ctl_open
+[ 1108.988301] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1108.988381] NVRM: nvidia_close on GPU with minor number 255
+[ 1108.988382] NVRM: nvidia_ctl_close
+[ 1109.044657] NVRM: nvidia_open...
+[ 1109.044664] NVRM: nvidia_ctl_open
+[ 1109.044672] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1109.044759] NVRM: nvidia_close on GPU with minor number 255
+[ 1109.044762] NVRM: nvidia_ctl_close
+[ 1109.103463] NVRM: nvidia_open...
+[ 1109.103466] NVRM: nvidia_ctl_open
+[ 1109.103474] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1109.103564] NVRM: nvidia_close on GPU with minor number 255
+[ 1109.103566] NVRM: nvidia_ctl_close
+[ 1109.159739] NVRM: nvidia_open...
+[ 1109.159742] NVRM: nvidia_ctl_open
+[ 1109.159750] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1109.159837] NVRM: nvidia_close on GPU with minor number 255
+[ 1109.159839] NVRM: nvidia_ctl_close
+[ 1109.215431] NVRM: nvidia_open...
+[ 1109.215433] NVRM: nvidia_ctl_open
+[ 1109.215441] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1109.215544] NVRM: nvidia_close on GPU with minor number 255
+[ 1109.215545] NVRM: nvidia_ctl_close
+[ 1109.273531] NVRM: nvidia_open...
+[ 1109.273532] NVRM: nvidia_ctl_open
+[ 1109.273539] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1109.273609] NVRM: nvidia_close on GPU with minor number 255
+[ 1109.273610] NVRM: nvidia_ctl_close
+[ 1109.333678] NVRM: nvidia_open...
+[ 1109.333680] NVRM: nvidia_ctl_open
+[ 1109.333691] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1109.333777] NVRM: nvidia_close on GPU with minor number 255
+[ 1109.333778] NVRM: nvidia_ctl_close
+[ 1109.393858] NVRM: nvidia_open...
+[ 1109.393862] NVRM: nvidia_ctl_open
+[ 1109.393872] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1109.393968] NVRM: nvidia_close on GPU with minor number 255
+[ 1109.393970] NVRM: nvidia_ctl_close
+[ 1109.512742] NVRM: nvidia_open...
+[ 1109.512745] NVRM: nvidia_ctl_open
+[ 1109.512753] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1109.512830] NVRM: nvidia_close on GPU with minor number 255
+[ 1109.512832] NVRM: nvidia_ctl_close
+[ 1109.566818] NVRM: nvidia_open...
+[ 1109.566821] NVRM: nvidia_ctl_open
+[ 1109.566830] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1109.566960] NVRM: nvidia_close on GPU with minor number 255
+[ 1109.566962] NVRM: nvidia_ctl_close
+[ 1109.620733] NVRM: nvidia_open...
+[ 1109.620734] NVRM: nvidia_ctl_open
+[ 1109.620742] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1109.620801] NVRM: nvidia_close on GPU with minor number 255
+[ 1109.620803] NVRM: nvidia_ctl_close
+[ 1109.665312] NVRM: nvidia_open...
+[ 1109.665313] NVRM: nvidia_ctl_open
+[ 1109.665323] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1109.665413] NVRM: nvidia_close on GPU with minor number 255
+[ 1109.665414] NVRM: nvidia_ctl_close
+[ 1109.715232] NVRM: nvidia_open...
+[ 1109.715234] NVRM: nvidia_ctl_open
+[ 1109.715241] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1109.715295] NVRM: nvidia_close on GPU with minor number 255
+[ 1109.715296] NVRM: nvidia_ctl_close
+[ 1109.765890] NVRM: nvidia_open...
+[ 1109.765893] NVRM: nvidia_ctl_open
+[ 1109.765902] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1109.765983] NVRM: nvidia_close on GPU with minor number 255
+[ 1109.765986] NVRM: nvidia_ctl_close
+[ 1109.819589] NVRM: nvidia_open...
+[ 1109.819592] NVRM: nvidia_ctl_open
+[ 1109.819601] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1109.819685] NVRM: nvidia_close on GPU with minor number 255
+[ 1109.819687] NVRM: nvidia_ctl_close
+[ 1109.888751] NVRM: nvidia_open...
+[ 1109.888753] NVRM: nvidia_ctl_open
+[ 1109.888758] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1109.888824] NVRM: nvidia_close on GPU with minor number 255
+[ 1109.888825] NVRM: nvidia_ctl_close
+[ 1109.942351] NVRM: nvidia_open...
+[ 1109.942352] NVRM: nvidia_ctl_open
+[ 1109.942365] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1109.942462] NVRM: nvidia_close on GPU with minor number 255
+[ 1109.942463] NVRM: nvidia_ctl_close
+[ 1109.992733] NVRM: nvidia_open...
+[ 1109.992737] NVRM: nvidia_ctl_open
+[ 1109.992744] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1109.992828] NVRM: nvidia_close on GPU with minor number 255
+[ 1109.992832] NVRM: nvidia_ctl_close
+[ 1110.042564] NVRM: nvidia_open...
+[ 1110.042568] NVRM: nvidia_ctl_open
+[ 1110.042578] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1110.042662] NVRM: nvidia_close on GPU with minor number 255
+[ 1110.042665] NVRM: nvidia_ctl_close
+[ 1110.091194] NVRM: nvidia_open...
+[ 1110.091197] NVRM: nvidia_ctl_open
+[ 1110.091205] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1110.091289] NVRM: nvidia_close on GPU with minor number 255
+[ 1110.091290] NVRM: nvidia_ctl_close
+[ 1110.143087] NVRM: nvidia_open...
+[ 1110.143091] NVRM: nvidia_ctl_open
+[ 1110.143102] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1110.143183] NVRM: nvidia_close on GPU with minor number 255
+[ 1110.143186] NVRM: nvidia_ctl_close
+[ 1110.194589] NVRM: nvidia_open...
+[ 1110.194591] NVRM: nvidia_ctl_open
+[ 1110.194595] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1110.194745] NVRM: nvidia_close on GPU with minor number 255
+[ 1110.194747] NVRM: nvidia_ctl_close
+[ 1110.266241] NVRM: nvidia_open...
+[ 1110.266243] NVRM: nvidia_ctl_open
+[ 1110.266258] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1110.266374] NVRM: nvidia_close on GPU with minor number 255
+[ 1110.266378] NVRM: nvidia_ctl_close
+[ 1110.370971] NVRM: nvidia_open...
+[ 1110.370974] NVRM: nvidia_ctl_open
+[ 1110.370982] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1110.371081] NVRM: nvidia_close on GPU with minor number 255
+[ 1110.371083] NVRM: nvidia_ctl_close
+[ 1110.470475] NVRM: nvidia_open...
+[ 1110.470479] NVRM: nvidia_ctl_open
+[ 1110.470490] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1110.470660] NVRM: nvidia_close on GPU with minor number 255
+[ 1110.470661] NVRM: nvidia_ctl_close
+[ 1110.641688] NVRM: nvidia_open...
+[ 1110.641690] NVRM: nvidia_ctl_open
+[ 1110.641701] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1110.641799] NVRM: nvidia_close on GPU with minor number 255
+[ 1110.641803] NVRM: nvidia_ctl_close
+[ 1110.752211] NVRM: nvidia_open...
+[ 1110.752215] NVRM: nvidia_ctl_open
+[ 1110.752223] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1110.762952] NVRM: nvidia_close on GPU with minor number 255
+[ 1110.762957] NVRM: nvidia_ctl_close
+[ 1110.859474] NVRM: nvidia_open...
+[ 1110.859476] NVRM: nvidia_ctl_open
+[ 1110.859491] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1110.859625] NVRM: nvidia_close on GPU with minor number 255
+[ 1110.859629] NVRM: nvidia_ctl_close
+[ 1110.878261] NVRM: nvidia_open...
+[ 1110.878267] NVRM: nvidia_ctl_open
+[ 1110.878283] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1110.913403] NVRM: nvidia_close on GPU with minor number 255
+[ 1110.913407] NVRM: nvidia_ctl_close
+[ 1110.967498] NVRM: nvidia_open...
+[ 1110.967500] NVRM: nvidia_ctl_open
+[ 1110.967518] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1110.967623] NVRM: nvidia_open...
+[ 1110.967624] NVRM: nvidia_ctl_open
+[ 1110.967632] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1110.967645] NVRM: nvidia_close on GPU with minor number 255
+[ 1110.967648] NVRM: nvidia_ctl_close
+[ 1110.967756] NVRM: nvidia_close on GPU with minor number 255
+[ 1110.967758] NVRM: nvidia_ctl_close
+[ 1111.098470] NVRM: nvidia_open...
+[ 1111.098472] NVRM: nvidia_ctl_open
+[ 1111.098488] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1111.098588] NVRM: nvidia_close on GPU with minor number 255
+[ 1111.098589] NVRM: nvidia_ctl_close
+[ 1111.208299] NVRM: nvidia_open...
+[ 1111.208301] NVRM: nvidia_ctl_open
+[ 1111.208315] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1111.208431] NVRM: nvidia_close on GPU with minor number 255
+[ 1111.208432] NVRM: nvidia_ctl_close
+[ 1111.286799] NVRM: nvidia_open...
+[ 1111.286802] NVRM: nvidia_ctl_open
+[ 1111.286811] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1111.286903] NVRM: nvidia_close on GPU with minor number 255
+[ 1111.286906] NVRM: nvidia_ctl_close
+[ 1111.392424] NVRM: nvidia_open...
+[ 1111.392426] NVRM: nvidia_ctl_open
+[ 1111.392436] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1111.392516] NVRM: nvidia_close on GPU with minor number 255
+[ 1111.392517] NVRM: nvidia_ctl_close
+[ 1111.485020] NVRM: nvidia_open...
+[ 1111.485025] NVRM: nvidia_ctl_open
+[ 1111.485036] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1111.485179] NVRM: nvidia_close on GPU with minor number 255
+[ 1111.485182] NVRM: nvidia_ctl_close
+[ 1111.598170] NVRM: nvidia_open...
+[ 1111.598173] NVRM: nvidia_ctl_open
+[ 1111.598184] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1111.598288] NVRM: nvidia_close on GPU with minor number 255
+[ 1111.598291] NVRM: nvidia_ctl_close
+[ 1111.702290] NVRM: nvidia_open...
+[ 1111.702291] NVRM: nvidia_ctl_open
+[ 1111.702299] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1111.702802] NVRM: nvidia_close on GPU with minor number 255
+[ 1111.702804] NVRM: nvidia_ctl_close
+[ 1111.799635] NVRM: nvidia_open...
+[ 1111.799638] NVRM: nvidia_ctl_open
+[ 1111.799647] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1111.799716] NVRM: nvidia_close on GPU with minor number 255
+[ 1111.799717] NVRM: nvidia_ctl_close
+[ 1111.917390] NVRM: nvidia_open...
+[ 1111.917396] NVRM: nvidia_ctl_open
+[ 1111.917405] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1111.917510] NVRM: nvidia_close on GPU with minor number 255
+[ 1111.917512] NVRM: nvidia_ctl_close
+[ 1112.032714] NVRM: nvidia_open...
+[ 1112.032720] NVRM: nvidia_ctl_open
+[ 1112.032738] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1112.039859] NVRM: nvidia_close on GPU with minor number 255
+[ 1112.039862] NVRM: nvidia_ctl_close
+[ 1112.179288] NVRM: nvidia_open...
+[ 1112.179290] NVRM: nvidia_ctl_open
+[ 1112.179300] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1112.180570] NVRM: nvidia_close on GPU with minor number 255
+[ 1112.180571] NVRM: nvidia_ctl_close
+[ 1112.259636] NVRM: nvidia_open...
+[ 1112.259640] NVRM: nvidia_ctl_open
+[ 1112.259650] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1112.259757] NVRM: nvidia_close on GPU with minor number 255
+[ 1112.259758] NVRM: nvidia_ctl_close
+[ 1112.345148] NVRM: nvidia_open...
+[ 1112.345151] NVRM: nvidia_ctl_open
+[ 1112.345162] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1112.345245] NVRM: nvidia_close on GPU with minor number 255
+[ 1112.345246] NVRM: nvidia_ctl_close
+[ 1112.413101] NVRM: nvidia_open...
+[ 1112.413103] NVRM: nvidia_ctl_open
+[ 1112.413113] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1112.413228] NVRM: nvidia_close on GPU with minor number 255
+[ 1112.413229] NVRM: nvidia_ctl_close
+[ 1112.470426] NVRM: nvidia_open...
+[ 1112.470429] NVRM: nvidia_ctl_open
+[ 1112.470443] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1112.470577] NVRM: nvidia_close on GPU with minor number 255
+[ 1112.470578] NVRM: nvidia_ctl_close
+[ 1112.529973] NVRM: nvidia_open...
+[ 1112.529975] NVRM: nvidia_ctl_open
+[ 1112.529986] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1112.530865] NVRM: nvidia_close on GPU with minor number 255
+[ 1112.530870] NVRM: nvidia_ctl_close
+[ 1112.618165] NVRM: nvidia_open...
+[ 1112.618169] NVRM: nvidia_ctl_open
+[ 1112.618178] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1112.618271] NVRM: nvidia_close on GPU with minor number 255
+[ 1112.618273] NVRM: nvidia_ctl_close
+[ 1112.669778] NVRM: nvidia_open...
+[ 1112.669780] NVRM: nvidia_ctl_open
+[ 1112.669790] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1112.669940] NVRM: nvidia_close on GPU with minor number 255
+[ 1112.669941] NVRM: nvidia_ctl_close
+[ 1112.723546] NVRM: nvidia_open...
+[ 1112.723547] NVRM: nvidia_ctl_open
+[ 1112.723558] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1112.723654] NVRM: nvidia_close on GPU with minor number 255
+[ 1112.723657] NVRM: nvidia_ctl_close
+[ 1112.774536] NVRM: nvidia_open...
+[ 1112.774537] NVRM: nvidia_ctl_open
+[ 1112.774545] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1112.774625] NVRM: nvidia_close on GPU with minor number 255
+[ 1112.774626] NVRM: nvidia_ctl_close
+[ 1112.878831] NVRM: nvidia_open...
+[ 1112.878832] NVRM: nvidia_ctl_open
+[ 1112.878852] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1112.878988] NVRM: nvidia_close on GPU with minor number 255
+[ 1112.878990] NVRM: nvidia_ctl_close
+[ 1112.941253] NVRM: nvidia_open...
+[ 1112.941255] NVRM: nvidia_ctl_open
+[ 1112.941266] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1112.941550] NVRM: nvidia_close on GPU with minor number 255
+[ 1112.941551] NVRM: nvidia_ctl_close
+[ 1113.017287] NVRM: nvidia_open...
+[ 1113.017291] NVRM: nvidia_ctl_open
+[ 1113.017305] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1113.026977] NVRM: nvidia_close on GPU with minor number 255
+[ 1113.026982] NVRM: nvidia_ctl_close
+[ 1113.086383] NVRM: nvidia_open...
+[ 1113.086384] NVRM: nvidia_ctl_open
+[ 1113.086396] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1113.095739] NVRM: nvidia_close on GPU with minor number 255
+[ 1113.095741] NVRM: nvidia_ctl_close
+[ 1113.158131] NVRM: nvidia_open...
+[ 1113.158133] NVRM: nvidia_ctl_open
+[ 1113.158147] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1113.158266] NVRM: nvidia_close on GPU with minor number 255
+[ 1113.158271] NVRM: nvidia_ctl_close
+[ 1113.200088] NVRM: nvidia_open...
+[ 1113.200090] NVRM: nvidia_ctl_open
+[ 1113.200103] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1113.200256] NVRM: nvidia_close on GPU with minor number 255
+[ 1113.200261] NVRM: nvidia_ctl_close
+[ 1113.246467] NVRM: nvidia_open...
+[ 1113.246469] NVRM: nvidia_ctl_open
+[ 1113.246476] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1113.246580] NVRM: nvidia_close on GPU with minor number 255
+[ 1113.246581] NVRM: nvidia_ctl_close
+[ 1113.285835] NVRM: nvidia_open...
+[ 1113.285837] NVRM: nvidia_ctl_open
+[ 1113.285847] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1113.285990] NVRM: nvidia_close on GPU with minor number 255
+[ 1113.285992] NVRM: nvidia_ctl_close
+[ 1113.332033] NVRM: nvidia_open...
+[ 1113.332034] NVRM: nvidia_ctl_open
+[ 1113.332043] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1113.332157] NVRM: nvidia_close on GPU with minor number 255
+[ 1113.332162] NVRM: nvidia_ctl_close
+[ 1113.373055] NVRM: nvidia_open...
+[ 1113.373056] NVRM: nvidia_ctl_open
+[ 1113.373065] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1113.373159] NVRM: nvidia_close on GPU with minor number 255
+[ 1113.373161] NVRM: nvidia_ctl_close
+[ 1113.417977] NVRM: nvidia_open...
+[ 1113.417981] NVRM: nvidia_ctl_open
+[ 1113.417991] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1113.418095] NVRM: nvidia_close on GPU with minor number 255
+[ 1113.418098] NVRM: nvidia_ctl_close
+[ 1113.456353] NVRM: nvidia_open...
+[ 1113.456355] NVRM: nvidia_ctl_open
+[ 1113.456362] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1113.456424] NVRM: nvidia_close on GPU with minor number 255
+[ 1113.456426] NVRM: nvidia_ctl_close
+[ 1113.499005] NVRM: nvidia_open...
+[ 1113.499006] NVRM: nvidia_ctl_open
+[ 1113.499012] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1113.499071] NVRM: nvidia_close on GPU with minor number 255
+[ 1113.499072] NVRM: nvidia_ctl_close
+[ 1113.539725] NVRM: nvidia_open...
+[ 1113.539726] NVRM: nvidia_ctl_open
+[ 1113.539734] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1113.539794] NVRM: nvidia_close on GPU with minor number 255
+[ 1113.539801] NVRM: nvidia_ctl_close
+[ 1113.576292] NVRM: nvidia_open...
+[ 1113.576295] NVRM: nvidia_ctl_open
+[ 1113.576305] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1113.576422] NVRM: nvidia_close on GPU with minor number 255
+[ 1113.576424] NVRM: nvidia_ctl_close
+[ 1113.655237] NVRM: nvidia_open...
+[ 1113.655240] NVRM: nvidia_ctl_open
+[ 1113.655254] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1113.655393] NVRM: nvidia_close on GPU with minor number 255
+[ 1113.655398] NVRM: nvidia_ctl_close
+[ 1113.703815] NVRM: nvidia_open...
+[ 1113.703817] NVRM: nvidia_ctl_open
+[ 1113.703823] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1113.703879] NVRM: nvidia_close on GPU with minor number 255
+[ 1113.703880] NVRM: nvidia_ctl_close
+[ 1113.737074] NVRM: nvidia_open...
+[ 1113.737077] NVRM: nvidia_ctl_open
+[ 1113.737085] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1113.737204] NVRM: nvidia_close on GPU with minor number 255
+[ 1113.737205] NVRM: nvidia_ctl_close
+[ 1113.780363] NVRM: nvidia_open...
+[ 1113.780365] NVRM: nvidia_ctl_open
+[ 1113.780374] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1113.780457] NVRM: nvidia_close on GPU with minor number 255
+[ 1113.780458] NVRM: nvidia_ctl_close
+[ 1113.823203] NVRM: nvidia_open...
+[ 1113.823205] NVRM: nvidia_ctl_open
+[ 1113.823214] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1113.823297] NVRM: nvidia_close on GPU with minor number 255
+[ 1113.823300] NVRM: nvidia_ctl_close
+[ 1113.867482] NVRM: nvidia_open...
+[ 1113.867484] NVRM: nvidia_ctl_open
+[ 1113.867496] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1113.867585] NVRM: nvidia_close on GPU with minor number 255
+[ 1113.867587] NVRM: nvidia_ctl_close
+[ 1113.912241] NVRM: nvidia_open...
+[ 1113.912243] NVRM: nvidia_ctl_open
+[ 1113.912251] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1113.912319] NVRM: nvidia_close on GPU with minor number 255
+[ 1113.912320] NVRM: nvidia_ctl_close
+[ 1113.975652] NVRM: nvidia_open...
+[ 1113.975655] NVRM: nvidia_ctl_open
+[ 1113.975666] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1113.975757] NVRM: nvidia_close on GPU with minor number 255
+[ 1113.975760] NVRM: nvidia_ctl_close
+[ 1114.020833] NVRM: nvidia_open...
+[ 1114.020835] NVRM: nvidia_ctl_open
+[ 1114.020843] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1114.020938] NVRM: nvidia_close on GPU with minor number 255
+[ 1114.020939] NVRM: nvidia_ctl_close
+[ 1114.058735] NVRM: nvidia_open...
+[ 1114.058737] NVRM: nvidia_ctl_open
+[ 1114.058753] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1114.058845] NVRM: nvidia_close on GPU with minor number 255
+[ 1114.058846] NVRM: nvidia_ctl_close
+[ 1114.104932] NVRM: nvidia_open...
+[ 1114.104936] NVRM: nvidia_ctl_open
+[ 1114.104949] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1114.105051] NVRM: nvidia_close on GPU with minor number 255
+[ 1114.105052] NVRM: nvidia_ctl_close
+[ 1114.141468] NVRM: nvidia_open...
+[ 1114.141470] NVRM: nvidia_ctl_open
+[ 1114.141478] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1114.141563] NVRM: nvidia_close on GPU with minor number 255
+[ 1114.141564] NVRM: nvidia_ctl_close
+[ 1114.204255] NVRM: nvidia_open...
+[ 1114.204257] NVRM: nvidia_ctl_open
+[ 1114.204274] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1114.210233] NVRM: nvidia_close on GPU with minor number 255
+[ 1114.210236] NVRM: nvidia_ctl_close
+[ 1114.271274] NVRM: nvidia_open...
+[ 1114.271275] NVRM: nvidia_ctl_open
+[ 1114.271284] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1114.277279] NVRM: nvidia_close on GPU with minor number 255
+[ 1114.277282] NVRM: nvidia_ctl_close
+[ 1114.369206] NVRM: nvidia_open...
+[ 1114.369212] NVRM: nvidia_ctl_open
+[ 1114.369225] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1114.369373] NVRM: nvidia_close on GPU with minor number 255
+[ 1114.369381] NVRM: nvidia_ctl_close
+[ 1114.466932] NVRM: nvidia_open...
+[ 1114.466934] NVRM: nvidia_ctl_open
+[ 1114.466942] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1114.467029] NVRM: nvidia_close on GPU with minor number 255
+[ 1114.467032] NVRM: nvidia_ctl_close
+[ 1114.511389] NVRM: nvidia_open...
+[ 1114.511391] NVRM: nvidia_ctl_open
+[ 1114.511400] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1114.511548] NVRM: nvidia_close on GPU with minor number 255
+[ 1114.511551] NVRM: nvidia_ctl_close
+[ 1114.562009] NVRM: nvidia_open...
+[ 1114.562013] NVRM: nvidia_ctl_open
+[ 1114.562025] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1114.562134] NVRM: nvidia_close on GPU with minor number 255
+[ 1114.562135] NVRM: nvidia_ctl_close
+[ 1114.602721] NVRM: nvidia_open...
+[ 1114.602723] NVRM: nvidia_ctl_open
+[ 1114.602730] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1114.602791] NVRM: nvidia_close on GPU with minor number 255
+[ 1114.602793] NVRM: nvidia_ctl_close
+[ 1114.677330] NVRM: nvidia_open...
+[ 1114.677333] NVRM: nvidia_ctl_open
+[ 1114.677343] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1114.677435] NVRM: nvidia_close on GPU with minor number 255
+[ 1114.677436] NVRM: nvidia_ctl_close
+[ 1114.733021] NVRM: nvidia_open...
+[ 1114.733023] NVRM: nvidia_ctl_open
+[ 1114.733032] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1114.733090] NVRM: nvidia_close on GPU with minor number 255
+[ 1114.733091] NVRM: nvidia_ctl_close
+[ 1114.776649] NVRM: nvidia_open...
+[ 1114.776650] NVRM: nvidia_ctl_open
+[ 1114.776656] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1114.776709] NVRM: nvidia_close on GPU with minor number 255
+[ 1114.776710] NVRM: nvidia_ctl_close
+[ 1114.846711] NVRM: nvidia_open...
+[ 1114.846713] NVRM: nvidia_ctl_open
+[ 1114.846724] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1114.846806] NVRM: nvidia_close on GPU with minor number 255
+[ 1114.846809] NVRM: nvidia_ctl_close
+[ 1114.907667] NVRM: nvidia_open...
+[ 1114.907675] NVRM: nvidia_ctl_open
+[ 1114.907683] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1114.907762] NVRM: nvidia_close on GPU with minor number 255
+[ 1114.907764] NVRM: nvidia_ctl_close
+[ 1114.953462] NVRM: nvidia_open...
+[ 1114.953466] NVRM: nvidia_ctl_open
+[ 1114.953477] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1114.953592] NVRM: nvidia_close on GPU with minor number 255
+[ 1114.953596] NVRM: nvidia_ctl_close
+[ 1115.028661] NVRM: nvidia_open...
+[ 1115.028667] NVRM: nvidia_ctl_open
+[ 1115.028694] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1115.028823] NVRM: nvidia_close on GPU with minor number 255
+[ 1115.028826] NVRM: nvidia_ctl_close
+[ 1115.122017] NVRM: nvidia_open...
+[ 1115.122018] NVRM: nvidia_ctl_open
+[ 1115.122025] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1115.122086] NVRM: nvidia_close on GPU with minor number 255
+[ 1115.122087] NVRM: nvidia_ctl_close
+[ 1115.179625] NVRM: nvidia_open...
+[ 1115.179632] NVRM: nvidia_ctl_open
+[ 1115.179647] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1115.179886] NVRM: nvidia_close on GPU with minor number 255
+[ 1115.179888] NVRM: nvidia_ctl_close
+[ 1115.360636] NVRM: nvidia_open...
+[ 1115.360638] NVRM: nvidia_ctl_open
+[ 1115.360650] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1115.368477] NVRM: nvidia_close on GPU with minor number 255
+[ 1115.368478] NVRM: nvidia_ctl_close
+[ 1115.484612] NVRM: nvidia_open...
+[ 1115.484616] NVRM: nvidia_ctl_open
+[ 1115.484627] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1115.484727] NVRM: nvidia_close on GPU with minor number 255
+[ 1115.484728] NVRM: nvidia_ctl_close
+[ 1115.590688] NVRM: nvidia_open...
+[ 1115.590690] NVRM: nvidia_ctl_open
+[ 1115.590696] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1115.590779] NVRM: nvidia_close on GPU with minor number 255
+[ 1115.590780] NVRM: nvidia_ctl_close
+[ 1115.728079] NVRM: nvidia_open...
+[ 1115.728108] NVRM: nvidia_ctl_open
+[ 1115.728174] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1115.730905] NVRM: nvidia_close on GPU with minor number 255
+[ 1115.730908] NVRM: nvidia_ctl_close
+[ 1115.823151] NVRM: nvidia_open...
+[ 1115.823153] NVRM: nvidia_ctl_open
+[ 1115.823162] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1115.823260] NVRM: nvidia_close on GPU with minor number 255
+[ 1115.823261] NVRM: nvidia_ctl_close
+[ 1115.926555] NVRM: nvidia_open...
+[ 1115.926557] NVRM: nvidia_ctl_open
+[ 1115.926566] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1115.926665] NVRM: nvidia_close on GPU with minor number 255
+[ 1115.926667] NVRM: nvidia_ctl_close
+[ 1115.948383] NVRM: nvidia_open...
+[ 1115.948385] NVRM: nvidia_ctl_open
+[ 1115.948398] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1115.948527] NVRM: nvidia_close on GPU with minor number 255
+[ 1115.948529] NVRM: nvidia_ctl_close
+[ 1116.022128] NVRM: nvidia_open...
+[ 1116.022132] NVRM: nvidia_ctl_open
+[ 1116.022154] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1116.022301] NVRM: nvidia_close on GPU with minor number 255
+[ 1116.022302] NVRM: nvidia_ctl_close
+[ 1116.022366] NVRM: nvidia_open...
+[ 1116.022368] NVRM: nvidia_ctl_open
+[ 1116.022374] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1116.022440] NVRM: nvidia_close on GPU with minor number 255
+[ 1116.022441] NVRM: nvidia_ctl_close
+[ 1116.217533] NVRM: nvidia_open...
+[ 1116.217537] NVRM: nvidia_ctl_open
+[ 1116.217555] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1116.240058] NVRM: nvidia_close on GPU with minor number 255
+[ 1116.240068] NVRM: nvidia_ctl_close
+[ 1116.359921] NVRM: nvidia_open...
+[ 1116.359923] NVRM: nvidia_ctl_open
+[ 1116.359930] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1116.360001] NVRM: nvidia_close on GPU with minor number 255
+[ 1116.360002] NVRM: nvidia_ctl_close
+[ 1116.453912] NVRM: nvidia_open...
+[ 1116.453914] NVRM: nvidia_ctl_open
+[ 1116.453922] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1116.454002] NVRM: nvidia_close on GPU with minor number 255
+[ 1116.454005] NVRM: nvidia_ctl_close
+[ 1116.554322] NVRM: nvidia_open...
+[ 1116.554324] NVRM: nvidia_ctl_open
+[ 1116.554333] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1116.554414] NVRM: nvidia_close on GPU with minor number 255
+[ 1116.554415] NVRM: nvidia_ctl_close
+[ 1116.647683] NVRM: nvidia_open...
+[ 1116.647685] NVRM: nvidia_ctl_open
+[ 1116.647696] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1116.647842] NVRM: nvidia_close on GPU with minor number 255
+[ 1116.647844] NVRM: nvidia_ctl_close
+[ 1116.782179] NVRM: nvidia_open...
+[ 1116.782180] NVRM: nvidia_ctl_open
+[ 1116.782193] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1116.790590] NVRM: nvidia_close on GPU with minor number 255
+[ 1116.790594] NVRM: nvidia_ctl_close
+[ 1116.928564] NVRM: nvidia_open...
+[ 1116.928567] NVRM: nvidia_ctl_open
+[ 1116.928578] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1116.962218] NVRM: nvidia_close on GPU with minor number 255
+[ 1116.962225] NVRM: nvidia_ctl_close
+[ 1117.061993] NVRM: nvidia_open...
+[ 1117.061997] NVRM: nvidia_ctl_open
+[ 1117.062006] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1117.062100] NVRM: nvidia_close on GPU with minor number 255
+[ 1117.062102] NVRM: nvidia_ctl_close
+[ 1117.140322] NVRM: nvidia_open...
+[ 1117.140326] NVRM: nvidia_ctl_open
+[ 1117.140338] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1117.149174] NVRM: nvidia_close on GPU with minor number 255
+[ 1117.149180] NVRM: nvidia_ctl_close
+[ 1117.243541] NVRM: nvidia_open...
+[ 1117.243544] NVRM: nvidia_ctl_open
+[ 1117.243555] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1117.268485] NVRM: nvidia_close on GPU with minor number 255
+[ 1117.268500] NVRM: nvidia_ctl_close
+[ 1117.379762] NVRM: nvidia_open...
+[ 1117.379769] NVRM: nvidia_ctl_open
+[ 1117.379807] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1117.379898] NVRM: nvidia_close on GPU with minor number 255
+[ 1117.379900] NVRM: nvidia_ctl_close
+[ 1117.449313] NVRM: nvidia_open...
+[ 1117.449316] NVRM: nvidia_ctl_open
+[ 1117.449326] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1117.449452] NVRM: nvidia_close on GPU with minor number 255
+[ 1117.449453] NVRM: nvidia_ctl_close
+[ 1117.518913] NVRM: nvidia_open...
+[ 1117.518917] NVRM: nvidia_ctl_open
+[ 1117.518927] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1117.519080] NVRM: nvidia_close on GPU with minor number 255
+[ 1117.519084] NVRM: nvidia_ctl_close
+[ 1117.582826] NVRM: nvidia_open...
+[ 1117.582828] NVRM: nvidia_ctl_open
+[ 1117.582844] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1117.582954] NVRM: nvidia_close on GPU with minor number 255
+[ 1117.582956] NVRM: nvidia_ctl_close
+[ 1117.651095] NVRM: nvidia_open...
+[ 1117.651096] NVRM: nvidia_ctl_open
+[ 1117.651105] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1117.651191] NVRM: nvidia_close on GPU with minor number 255
+[ 1117.651199] NVRM: nvidia_ctl_close
+[ 1117.714835] NVRM: nvidia_open...
+[ 1117.714837] NVRM: nvidia_ctl_open
+[ 1117.714845] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1117.714922] NVRM: nvidia_close on GPU with minor number 255
+[ 1117.714924] NVRM: nvidia_ctl_close
+[ 1117.813848] NVRM: nvidia_open...
+[ 1117.813852] NVRM: nvidia_ctl_open
+[ 1117.813863] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1117.814592] NVRM: nvidia_close on GPU with minor number 255
+[ 1117.814593] NVRM: nvidia_ctl_close
+[ 1117.883700] NVRM: nvidia_open...
+[ 1117.883702] NVRM: nvidia_ctl_open
+[ 1117.883711] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1117.883828] NVRM: nvidia_close on GPU with minor number 255
+[ 1117.883829] NVRM: nvidia_ctl_close
+[ 1117.998659] NVRM: nvidia_open...
+[ 1117.998664] NVRM: nvidia_ctl_open
+[ 1117.998676] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1118.020679] NVRM: nvidia_close on GPU with minor number 255
+[ 1118.020685] NVRM: nvidia_ctl_close
+[ 1118.108001] NVRM: nvidia_open...
+[ 1118.108007] NVRM: nvidia_ctl_open
+[ 1118.108014] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1118.117297] NVRM: nvidia_close on GPU with minor number 255
+[ 1118.117300] NVRM: nvidia_ctl_close
+[ 1118.227124] NVRM: nvidia_open...
+[ 1118.227126] NVRM: nvidia_ctl_open
+[ 1118.227141] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1118.241973] NVRM: nvidia_close on GPU with minor number 255
+[ 1118.241977] NVRM: nvidia_ctl_close
+[ 1118.301535] NVRM: nvidia_open...
+[ 1118.301536] NVRM: nvidia_ctl_open
+[ 1118.301544] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1118.301616] NVRM: nvidia_close on GPU with minor number 255
+[ 1118.301618] NVRM: nvidia_ctl_close
+[ 1118.348683] NVRM: nvidia_open...
+[ 1118.348684] NVRM: nvidia_ctl_open
+[ 1118.348694] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1118.348817] NVRM: nvidia_close on GPU with minor number 255
+[ 1118.348818] NVRM: nvidia_ctl_close
+[ 1118.434720] NVRM: nvidia_open...
+[ 1118.434721] NVRM: nvidia_ctl_open
+[ 1118.434732] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1118.435158] NVRM: nvidia_close on GPU with minor number 255
+[ 1118.436522] NVRM: nvidia_ctl_close
+[ 1118.477913] NVRM: nvidia_open...
+[ 1118.478013] NVRM: nvidia_ctl_open
+[ 1118.478035] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1118.478129] NVRM: nvidia_close on GPU with minor number 255
+[ 1118.478130] NVRM: nvidia_ctl_close
+[ 1118.526099] NVRM: nvidia_open...
+[ 1118.526100] NVRM: nvidia_ctl_open
+[ 1118.526113] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1118.526194] NVRM: nvidia_close on GPU with minor number 255
+[ 1118.526195] NVRM: nvidia_ctl_close
+[ 1118.578935] NVRM: nvidia_open...
+[ 1118.578937] NVRM: nvidia_ctl_open
+[ 1118.578949] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1118.579081] NVRM: nvidia_close on GPU with minor number 255
+[ 1118.579083] NVRM: nvidia_ctl_close
+[ 1118.621079] NVRM: nvidia_open...
+[ 1118.621081] NVRM: nvidia_ctl_open
+[ 1118.621102] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1118.621182] NVRM: nvidia_close on GPU with minor number 255
+[ 1118.621184] NVRM: nvidia_ctl_close
+[ 1118.663197] NVRM: nvidia_open...
+[ 1118.663198] NVRM: nvidia_ctl_open
+[ 1118.663209] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1118.663299] NVRM: nvidia_close on GPU with minor number 255
+[ 1118.663301] NVRM: nvidia_ctl_close
+[ 1118.714381] NVRM: nvidia_open...
+[ 1118.714388] NVRM: nvidia_ctl_open
+[ 1118.714397] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1118.714513] NVRM: nvidia_close on GPU with minor number 255
+[ 1118.714515] NVRM: nvidia_ctl_close
+[ 1118.759905] NVRM: nvidia_open...
+[ 1118.759906] NVRM: nvidia_ctl_open
+[ 1118.759924] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1118.760043] NVRM: nvidia_close on GPU with minor number 255
+[ 1118.760046] NVRM: nvidia_ctl_close
+[ 1118.836023] NVRM: nvidia_open...
+[ 1118.836025] NVRM: nvidia_ctl_open
+[ 1118.836033] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1118.836177] NVRM: nvidia_close on GPU with minor number 255
+[ 1118.836178] NVRM: nvidia_ctl_close
+[ 1118.886892] NVRM: nvidia_open...
+[ 1118.886894] NVRM: nvidia_ctl_open
+[ 1118.886907] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1118.887002] NVRM: nvidia_close on GPU with minor number 255
+[ 1118.887003] NVRM: nvidia_ctl_close
+[ 1118.935784] NVRM: nvidia_open...
+[ 1118.935789] NVRM: nvidia_ctl_open
+[ 1118.935801] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1118.935914] NVRM: nvidia_close on GPU with minor number 255
+[ 1118.935916] NVRM: nvidia_ctl_close
+[ 1118.981927] NVRM: nvidia_open...
+[ 1118.981928] NVRM: nvidia_ctl_open
+[ 1118.981936] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1118.982023] NVRM: nvidia_close on GPU with minor number 255
+[ 1118.982026] NVRM: nvidia_ctl_close
+[ 1119.024839] NVRM: nvidia_open...
+[ 1119.024841] NVRM: nvidia_ctl_open
+[ 1119.024852] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1119.024958] NVRM: nvidia_close on GPU with minor number 255
+[ 1119.024959] NVRM: nvidia_ctl_close
+[ 1119.072567] NVRM: nvidia_open...
+[ 1119.072569] NVRM: nvidia_ctl_open
+[ 1119.072580] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1119.072691] NVRM: nvidia_close on GPU with minor number 255
+[ 1119.072693] NVRM: nvidia_ctl_close
+[ 1119.170172] NVRM: nvidia_open...
+[ 1119.170173] NVRM: nvidia_ctl_open
+[ 1119.170185] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1119.170294] NVRM: nvidia_close on GPU with minor number 255
+[ 1119.170297] NVRM: nvidia_ctl_close
+[ 1119.210663] NVRM: nvidia_open...
+[ 1119.210665] NVRM: nvidia_ctl_open
+[ 1119.210676] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1119.211818] NVRM: nvidia_close on GPU with minor number 255
+[ 1119.211823] NVRM: nvidia_ctl_close
+[ 1119.279338] NVRM: nvidia_open...
+[ 1119.279340] NVRM: nvidia_ctl_open
+[ 1119.279353] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1119.286880] NVRM: nvidia_close on GPU with minor number 255
+[ 1119.286884] NVRM: nvidia_ctl_close
+[ 1119.381980] NVRM: nvidia_open...
+[ 1119.381983] NVRM: nvidia_ctl_open
+[ 1119.381992] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1119.389044] NVRM: nvidia_close on GPU with minor number 255
+[ 1119.389047] NVRM: nvidia_ctl_close
+[ 1119.447020] NVRM: nvidia_open...
+[ 1119.447021] NVRM: nvidia_ctl_open
+[ 1119.447035] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1119.447122] NVRM: nvidia_close on GPU with minor number 255
+[ 1119.447123] NVRM: nvidia_ctl_close
+[ 1119.492761] NVRM: nvidia_open...
+[ 1119.492762] NVRM: nvidia_ctl_open
+[ 1119.492772] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1119.492897] NVRM: nvidia_close on GPU with minor number 255
+[ 1119.492901] NVRM: nvidia_ctl_close
+[ 1119.560273] NVRM: nvidia_open...
+[ 1119.560277] NVRM: nvidia_ctl_open
+[ 1119.560291] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1119.560392] NVRM: nvidia_close on GPU with minor number 255
+[ 1119.560395] NVRM: nvidia_ctl_close
+[ 1119.607889] NVRM: nvidia_open...
+[ 1119.607892] NVRM: nvidia_ctl_open
+[ 1119.607903] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1119.607994] NVRM: nvidia_close on GPU with minor number 255
+[ 1119.607996] NVRM: nvidia_ctl_close
+[ 1119.655206] NVRM: nvidia_open...
+[ 1119.655207] NVRM: nvidia_ctl_open
+[ 1119.655214] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1119.655490] NVRM: nvidia_close on GPU with minor number 255
+[ 1119.655492] NVRM: nvidia_ctl_close
+[ 1119.692753] NVRM: nvidia_open...
+[ 1119.692755] NVRM: nvidia_ctl_open
+[ 1119.692761] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1119.692847] NVRM: nvidia_close on GPU with minor number 255
+[ 1119.692851] NVRM: nvidia_ctl_close
+[ 1119.737072] NVRM: nvidia_open...
+[ 1119.737075] NVRM: nvidia_ctl_open
+[ 1119.737084] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1119.737170] NVRM: nvidia_close on GPU with minor number 255
+[ 1119.737171] NVRM: nvidia_ctl_close
+[ 1119.781624] NVRM: nvidia_open...
+[ 1119.781627] NVRM: nvidia_ctl_open
+[ 1119.781638] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1119.781784] NVRM: nvidia_close on GPU with minor number 255
+[ 1119.781787] NVRM: nvidia_ctl_close
+[ 1119.817950] NVRM: nvidia_open...
+[ 1119.817952] NVRM: nvidia_ctl_open
+[ 1119.817964] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1119.818049] NVRM: nvidia_close on GPU with minor number 255
+[ 1119.818053] NVRM: nvidia_ctl_close
+[ 1119.895088] NVRM: nvidia_open...
+[ 1119.895090] NVRM: nvidia_ctl_open
+[ 1119.895099] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1119.895163] NVRM: nvidia_close on GPU with minor number 255
+[ 1119.895164] NVRM: nvidia_ctl_close
+[ 1120.025117] NVRM: nvidia_open...
+[ 1120.025119] NVRM: nvidia_ctl_open
+[ 1120.025125] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1120.038517] NVRM: nvidia_close on GPU with minor number 255
+[ 1120.038520] NVRM: nvidia_ctl_close
+[ 1120.113360] NVRM: nvidia_open...
+[ 1120.113363] NVRM: nvidia_ctl_open
+[ 1120.113369] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1120.118791] NVRM: nvidia_close on GPU with minor number 255
+[ 1120.118794] NVRM: nvidia_ctl_close
+[ 1120.277437] NVRM: nvidia_close on GPU with minor number 255
+[ 1120.277438] NVRM: nvidia_ctl_close
+[ 1120.284135] NVRM: nvidia_open...
+[ 1120.284137] NVRM: nvidia_ctl_open
+[ 1120.284149] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1120.292982] NVRM: nvidia_close on GPU with minor number 255
+[ 1120.292985] NVRM: nvidia_ctl_close
+[ 1120.420858] NVRM: nvidia_close on GPU with minor number 0
+[ 1120.448489] NVRM: nvidia_close on GPU with minor number 255
+[ 1120.448490] NVRM: nvidia_ctl_close
+[ 1120.448579] NVRM: nvidia_open...
+[ 1120.448581] NVRM: nvidia_ctl_open
+[ 1120.448589] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1120.469141] NVRM: nvidia_close on GPU with minor number 255
+[ 1120.469147] NVRM: nvidia_ctl_close
+[ 1120.469185] NVRM: nvidia_close on GPU with minor number 255
+[ 1120.469191] NVRM: nvidia_ctl_close
+[ 1120.524926] NVRM: nvidia_close on GPU with minor number 255
+[ 1120.524928] NVRM: nvidia_ctl_close
+[ 1120.564376] NVRM: nvidia_close on GPU with minor number 255
+[ 1120.564378] NVRM: nvidia_ctl_close
+[ 1120.564391] NVRM: nvidia_open...
+[ 1120.564395] NVRM: nvidia_ctl_open
+[ 1120.564415] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1120.589158] NVRM: nvidia_close on GPU with minor number 255
+[ 1120.589163] NVRM: nvidia_ctl_close
+[ 1120.621420] NVRM: nvidia_close on GPU with minor number 255
+[ 1120.621423] NVRM: nvidia_ctl_close
+[ 1120.703823] NVRM: nvidia_close on GPU with minor number 255
+[ 1120.703832] NVRM: nvidia_ctl_close
+[ 1120.724238] NVRM: nvidia_open...
+[ 1120.724240] NVRM: nvidia_ctl_open
+[ 1120.724251] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1120.724256] NVRM: nvidia_close on GPU with minor number 255
+[ 1120.724258] NVRM: nvidia_ctl_close
+[ 1120.742929] NVRM: nvidia_close on GPU with minor number 255
+[ 1120.742936] NVRM: nvidia_ctl_close
+[ 1120.757450] NVRM: nvidia_close on GPU with minor number 255
+[ 1120.757457] NVRM: nvidia_ctl_close
+[ 1120.829563] NVRM: nvidia_open...
+[ 1120.829581] NVRM: nvidia_ctl_open
+[ 1120.829599] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1120.832218] NVRM: nvidia_close on GPU with minor number 255
+[ 1120.832219] NVRM: nvidia_ctl_close
+[ 1120.832333] NVRM: nvidia_close on GPU with minor number 255
+[ 1120.832334] NVRM: nvidia_ctl_close
+[ 1120.839108] NVRM: nvidia_close on GPU with minor number 255
+[ 1120.839109] NVRM: nvidia_ctl_close
+[ 1120.839287] NVRM: nvidia_open...
+[ 1120.839289] NVRM: nvidia_ctl_open
+[ 1120.839296] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1120.849186] NVRM: nvidia_close on GPU with minor number 255
+[ 1120.849190] NVRM: nvidia_ctl_close
+[ 1120.849311] NVRM: nvidia_open...
+[ 1120.849312] NVRM: nvidia_ctl_open
+[ 1120.849322] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1120.849415] NVRM: nvidia_close on GPU with minor number 255
+[ 1120.849416] NVRM: nvidia_ctl_close
+[ 1121.001877] NVRM: nvidia_open...
+[ 1121.001880] NVRM: nvidia_ctl_open
+[ 1121.001886] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1121.010341] NVRM: nvidia_close on GPU with minor number 255
+[ 1121.010344] NVRM: nvidia_ctl_close
+[ 1121.084640] NVRM: nvidia_open...
+[ 1121.084642] NVRM: nvidia_ctl_open
+[ 1121.084652] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1121.084770] NVRM: nvidia_close on GPU with minor number 255
+[ 1121.084772] NVRM: nvidia_ctl_close
+[ 1121.184227] NVRM: nvidia_open...
+[ 1121.184230] NVRM: nvidia_ctl_open
+[ 1121.184238] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1121.184303] NVRM: nvidia_close on GPU with minor number 255
+[ 1121.184304] NVRM: nvidia_ctl_close
+[ 1121.239717] ------------[ cut here ]------------
+[ 1121.239721] WARNING: CPU: 2 PID: 1695 at /var/lib/dkms/nvidia/615.71.09/build/nvidia-drm/nvidia-drm-crtc.h:368 __nv_drm_handle_flip_event+0x1d5/0x1f0 [nvidia_drm]
+[ 1121.239761] Modules linked in: hid_playstation led_class_multicolor ff_memless hid_generic joydev snd_seq_dummy snd_hrtimer snd_seq_midi snd_seq_midi_event snd_rawmidi snd_seq snd_seq_device snd_timer snd soundcore nvidia_uvm(OE) nvidia_drm(OE) drm_display_helper cec rc_core nvidia_modeset(OE) video wmi nvidia(OE) ecc caraxes_dma_range(OE) qrtr cfg80211 intel_rapl_msr intel_rapl_common binfmt_misc kvm_amd ccp nls_iso8859_1 kvm irqbypass mac_hid sch_fq_codel dm_multipath msr parport_pc ppdev lp parport uhid hid efi_pstore nfnetlink dmi_sysfs qemu_fw_cfg ip_tables x_tables autofs4 btrfs blake2b_generic raid10 raid456 async_raid6_recov async_memcpy async_pq async_xor async_tx xor raid6_pq libcrc32c raid1 raid0 crct10dif_pclmul crc32_pclmul polyval_clmulni polyval_generic ghash_clmulni_intel sha256_ssse3 sha1_ssse3 virtio_rng aesni_intel crypto_simd cryptd
+[ 1121.239839] CPU: 2 PID: 1695 Comm: nvidia-modeset/ Tainted: G        W  OE      6.8.0-136-generic #136-Ubuntu
+[ 1121.239841] Hardware name: Cloud Hypervisor cloud-hypervisor, BIOS 0 
+[ 1121.239843] RIP: 0010:__nv_drm_handle_flip_event+0x1d5/0x1f0 [nvidia_drm]
+[ 1121.239849] Code: fc ff ff 0f b6 15 73 b4 00 00 80 fa 01 0f 87 a1 70 00 00 83 e2 01 74 96 4c 89 e7 e8 e5 10 e9 ec eb 8c 4c 89 ef e8 eb 06 42 ed <0f> 0b e9 9e fe ff ff 4c 89 ef e8 cc 10 e9 ec e9 41 ff ff ff 0f 1f
+[ 1121.239850] RSP: 0018:ffffd5a000ac7d98 EFLAGS: 00010246
+[ 1121.239854] RAX: 0000000000000000 RBX: ffff8f1a81431018 RCX: 0000000000000000
+[ 1121.239857] RDX: 0000000000000000 RSI: 0000000000000000 RDI: 0000000000000000
+[ 1121.239858] RBP: ffffd5a000ac7de0 R08: 0000000000000000 R09: 0000000000000000
+[ 1121.239859] R10: 0000000000000000 R11: 0000000000000000 R12: ffff8f1a81431000
+[ 1121.239860] R13: ffff8f1a81431048 R14: ffff8f1a9152d200 R15: ffff8f1a8565b000
+[ 1121.239862] FS:  0000000000000000(0000) GS:ffff8f1bb7b00000(0000) knlGS:0000000000000000
+[ 1121.239863] CS:  0010 DS: 0000 ES: 0000 CR0: 0000000080050033
+[ 1121.239865] CR2: 000075b3d4006cd8 CR3: 00000001069b4000 CR4: 0000000000350ef0
+[ 1121.239868] Call Trace:
+[ 1121.239871]  <TASK>
+[ 1121.239872]  ? _raw_spin_unlock_irqrestore+0x11/0x60
+[ 1121.239920]  nv_drm_handle_flip_occurred+0x52/0x80 [nvidia_drm]
+[ 1121.239925]  nv_drm_event_callback+0xfb/0x120 [nvidia_drm]
+[ 1121.239930]  nvKmsKapiHandleEventQueueChange+0xba/0x110 [nvidia_modeset]
+[ 1121.239984]  ? nvkms_kapi_event_kthread_q_callback+0xe/0x20 [nvidia_modeset]
+[ 1121.240006]  ? _main_loop+0x82/0x140 [nvidia_modeset]
+[ 1121.240029]  ? __pfx__main_loop+0x10/0x10 [nvidia_modeset]
+[ 1121.240052]  ? kthread+0xf2/0x120
+[ 1121.240068]  ? __pfx_kthread+0x10/0x10
+[ 1121.240070]  ? ret_from_fork+0x47/0x70
+[ 1121.240076]  ? __pfx_kthread+0x10/0x10
+[ 1121.240077]  ? ret_from_fork_asm+0x1b/0x30
+[ 1121.240082]  </TASK>
+[ 1121.240083] ---[ end trace 0000000000000000 ]---
+[ 1121.255459] NVRM: nvidia_open...
+[ 1121.255479] NVRM: nvidia_ctl_open
+[ 1121.255486] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1121.255550] NVRM: nvidia_close on GPU with minor number 255
+[ 1121.255551] NVRM: nvidia_ctl_close
+[ 1121.315752] NVRM: nvidia_open...
+[ 1121.315754] NVRM: nvidia_ctl_open
+[ 1121.315759] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1121.316078] NVRM: nvidia_close on GPU with minor number 255
+[ 1121.316079] NVRM: nvidia_ctl_close
+[ 1121.365818] NVRM: nvidia_open...
+[ 1121.365819] NVRM: nvidia_ctl_open
+[ 1121.365827] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1121.365895] NVRM: nvidia_close on GPU with minor number 255
+[ 1121.365896] NVRM: nvidia_ctl_close
+[ 1121.424868] NVRM: nvidia_open...
+[ 1121.424869] NVRM: nvidia_ctl_open
+[ 1121.424875] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1121.424934] NVRM: nvidia_close on GPU with minor number 255
+[ 1121.424935] NVRM: nvidia_ctl_close
+[ 1121.474348] NVRM: nvidia_open...
+[ 1121.474350] NVRM: nvidia_ctl_open
+[ 1121.474356] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1121.474413] NVRM: nvidia_close on GPU with minor number 255
+[ 1121.474414] NVRM: nvidia_ctl_close
+[ 1121.515548] NVRM: nvidia_open...
+[ 1121.515550] NVRM: nvidia_ctl_open
+[ 1121.515556] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1121.515702] NVRM: nvidia_close on GPU with minor number 255
+[ 1121.515709] NVRM: nvidia_ctl_close
+[ 1121.564965] NVRM: nvidia_open...
+[ 1121.564967] NVRM: nvidia_ctl_open
+[ 1121.564973] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1121.565045] NVRM: nvidia_close on GPU with minor number 255
+[ 1121.565046] NVRM: nvidia_ctl_close
+[ 1121.607369] NVRM: nvidia_open...
+[ 1121.607371] NVRM: nvidia_ctl_open
+[ 1121.607376] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1121.607432] NVRM: nvidia_close on GPU with minor number 255
+[ 1121.607434] NVRM: nvidia_ctl_close
+[ 1121.644762] NVRM: nvidia_open...
+[ 1121.644764] NVRM: nvidia_ctl_open
+[ 1121.644771] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1121.644829] NVRM: nvidia_close on GPU with minor number 255
+[ 1121.644831] NVRM: nvidia_ctl_close
+[ 1121.678725] NVRM: nvidia_open...
+[ 1121.678727] NVRM: nvidia_ctl_open
+[ 1121.678734] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1121.678863] NVRM: nvidia_close on GPU with minor number 255
+[ 1121.678865] NVRM: nvidia_ctl_close
+[ 1121.741037] NVRM: nvidia_open...
+[ 1121.741039] NVRM: nvidia_ctl_open
+[ 1121.741047] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1121.741143] NVRM: nvidia_close on GPU with minor number 255
+[ 1121.741146] NVRM: nvidia_ctl_close
+[ 1121.787827] NVRM: nvidia_open...
+[ 1121.787829] NVRM: nvidia_ctl_open
+[ 1121.787837] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1121.787919] NVRM: nvidia_close on GPU with minor number 255
+[ 1121.787921] NVRM: nvidia_ctl_close
+[ 1121.829041] NVRM: nvidia_open...
+[ 1121.829043] NVRM: nvidia_ctl_open
+[ 1121.829050] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1121.829139] NVRM: nvidia_close on GPU with minor number 255
+[ 1121.829141] NVRM: nvidia_ctl_close
+[ 1121.868878] NVRM: nvidia_open...
+[ 1121.868880] NVRM: nvidia_ctl_open
+[ 1121.868888] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1121.868955] NVRM: nvidia_close on GPU with minor number 255
+[ 1121.868957] NVRM: nvidia_ctl_close
+[ 1121.940822] NVRM: nvidia_open...
+[ 1121.940824] NVRM: nvidia_ctl_open
+[ 1121.940833] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1121.940913] NVRM: nvidia_close on GPU with minor number 255
+[ 1121.940915] NVRM: nvidia_ctl_close
+[ 1121.983899] NVRM: nvidia_open...
+[ 1121.983900] NVRM: nvidia_ctl_open
+[ 1121.983907] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1121.983972] NVRM: nvidia_close on GPU with minor number 255
+[ 1121.983974] NVRM: nvidia_ctl_close
+[ 1122.023752] NVRM: nvidia_open...
+[ 1122.023754] NVRM: nvidia_ctl_open
+[ 1122.023761] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1122.023823] NVRM: nvidia_close on GPU with minor number 255
+[ 1122.023824] NVRM: nvidia_ctl_close
+[ 1122.064757] NVRM: nvidia_open...
+[ 1122.064759] NVRM: nvidia_ctl_open
+[ 1122.064767] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1122.065207] NVRM: nvidia_close on GPU with minor number 255
+[ 1122.065208] NVRM: nvidia_ctl_close
+[ 1122.093031] NVRM: nvidia_close on GPU with minor number 0
+[ 1122.093105] NVRM: nvidia_close on GPU with minor number 0
+[ 1122.093122] NVRM: nvidia_close on GPU with minor number 255
+[ 1122.093125] NVRM: nvidia_ctl_close
+[ 1122.101974] NVRM: nvidia_close on GPU with minor number 0
+[ 1122.101985] NVRM: nvidia_close on GPU with minor number 0
+[ 1122.102022] NVRM: nvidia_close on GPU with minor number 255
+[ 1122.102024] NVRM: nvidia_ctl_close
+[ 1122.102281] NVRM: nvidia_close on GPU with minor number 0
+[ 1122.102285] NVRM: nvidia_close on GPU with minor number 0
+[ 1122.102291] NVRM: nvidia_close on GPU with minor number 0
+[ 1122.102331] NVRM: nvidia_open...
+[ 1122.102334] NVRM: nvidia_ctl_open
+[ 1122.102346] NVRM: GPU 0000:00:06.0: Opening GPU with minor number 0
+[ 1122.102367] NVRM: nvidia_close on GPU with minor number 0
+[ 1122.102371] NVRM: nvidia_close on GPU with minor number 255
+[ 1122.102373] NVRM: nvidia_ctl_close
+[ 1122.102382] NVRM: nvidia_close on GPU with minor number 255
+[ 1122.102384] NVRM: nvidia_ctl_close
+[ 1122.102421] NVRM: nvidia_close on GPU with minor number 255
+[ 1122.102422] NVRM: nvidia_ctl_close
+[ 1122.102480] NVRM: nvidia_close on GPU with minor number 0
+[ 1122.102486] NVRM: nvidia_close on GPU with minor number 255
+[ 1122.102487] NVRM: nvidia_ctl_close
+[ 1122.102514] NVRM: nvidia_close on GPU with minor number 255
+[ 1122.102520] NVRM: nvidia_ctl_close
+[ 1122.122092] NVRM: nvidia_close on GPU with minor number 255
+[ 1122.122096] NVRM: nvidia_ctl_close
