@@ -4,7 +4,8 @@
 # SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 # The installed Windows 11 under QEMU with the synthetic GPU attached over vfio-user
 # (`-device vfio-user-pci`, QEMU 11.1), beside the std VGA that shows the desktop. Guest RAM
-# comes from a shared memfd so the device can map it. Same firmware, TPM and disk as
+# comes from a shared memfd so the device can map it. rombar=0: the VBIOS GOP driver in the
+# device's ROM spins on NV_PTIMER_TIME (0 in pure emulation) and would hang the firmware. Same firmware, TPM and disk as
 # install-qemu.sh; the virtio-win ISO stays attached for drivers. Start gpu-up.sh first.
 # Usage: run-qemu-gpu.sh      (WIN_MEM default 8G, WIN_CPUS default 4)
 set -euo pipefail
@@ -14,7 +15,10 @@ CODE=/usr/share/edk2/x64/OVMF_CODE.secboot.4m.fd
 VARS=$W/OVMF_VARS.4m.fd
 MEM=${WIN_MEM:-8G} CPUS=${WIN_CPUS:-4}
 die() { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
-[[ -S $W/gpu.sock ]] || die "no device socket $W/gpu.sock: run gpu-up.sh first"
+gpu=(-device "{\"driver\":\"vfio-user-pci\",\"socket\":{\"type\":\"unix\",\"path\":\"$W/gpu.sock\"},\"rombar\":0}")
+if [[ ${WIN_GPU:-1} == 0 ]]; then gpu=(); echo "WIN_GPU=0: memfd RAM, no device (isolation run)"; else
+    [[ -S $W/gpu.sock ]] || die "no device socket $W/gpu.sock: run gpu-up.sh first"
+fi
 [[ -s $W/win11.qcow2 ]] || die "no $W/win11.qcow2: run install-qemu.sh first"
 [[ -f $VARS ]] || die "no $VARS (install-qemu.sh creates it)"
 mkdir -p "$W/swtpm"
@@ -33,6 +37,6 @@ exec qemu-system-x86_64 -enable-kvm -machine q35,accel=kvm,smm=on,memory-backend
     -drive "file=$W/win11.qcow2,if=virtio,format=qcow2,cache=writeback,discard=unmap" \
     -drive "file=$VIRTIO,media=cdrom,readonly=on" \
     -device virtio-net-pci,netdev=n0 -netdev user,id=n0 \
-    -device "{\"driver\":\"vfio-user-pci\",\"socket\":{\"type\":\"unix\",\"path\":\"$W/gpu.sock\"}}" \
+    "${gpu[@]}" \
     -device qemu-xhci -device usb-tablet -device usb-kbd \
     -vga std -display gtk -rtc base=localtime
