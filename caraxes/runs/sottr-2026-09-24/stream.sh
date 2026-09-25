@@ -59,10 +59,10 @@ else
 fi
 
 # 3. The stream window on the operator's desktop.
-echo "$(date -Iseconds) moonlight stream $IP Desktop --resolution $res --fps $fps --bitrate $bitrate --display-mode windowed ${SOTTR_MOUSE:---absolute-mouse}" >> "$OUT/stream.txt"
+echo "$(date -Iseconds) moonlight stream $IP Desktop --resolution $res --fps $fps --bitrate $bitrate --display-mode windowed ${SOTTR_MOUSE:---absolute-mouse} --video-decoder ${SOTTR_DECODER:-software}" >> "$OUT/stream.txt"
 setsid nohup env WAYLAND_DISPLAY="${SOTTR_WAYLAND_DISPLAY:-wayland-1}" DISPLAY="${SOTTR_DISPLAY:-:0}" \
     XDG_RUNTIME_DIR="/run/user/$(id -u)" \
-    "$ML" stream "$IP" Desktop --resolution "$res" --fps "$fps" --bitrate "$bitrate" --display-mode windowed ${SOTTR_MOUSE:---absolute-mouse} \
+    "$ML" stream "$IP" Desktop --resolution "$res" --fps "$fps" --bitrate "$bitrate" --display-mode windowed ${SOTTR_MOUSE:---absolute-mouse} --video-decoder ${SOTTR_DECODER:-software} \
     >> "$OUT/moonlight.log" 2>&1 < /dev/null &
 mp=$!
 sleep 2
