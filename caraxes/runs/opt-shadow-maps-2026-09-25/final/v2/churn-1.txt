@@ -1,0 +1,11 @@
+# target v2 metric churn rep 1
+# cmd ./bench-cu churn 20
+# device /mnt/vmstore/caraxes/vm0/vfio-user-nvgpu sha256 e2347059a28665e9
+# time 2026-09-25T02:01:17+02:00
+# gpu 51, 1410 MHz, 7000 MHz, P0, 28 %, 3119 MiB, Disabled
+# procs 1399617:vm1-vmm 1873527:vm0-dev 1873541:vm1-vmm 1877708:vm3-dev 1877725:vm1-vmm 
+# loadavg 1.17 2.42 4.32
+CHURN blocks=64 block_mib=1 cycles=20 alloc_med_us=181.8 free_med_us=296.5 cycle_med_ms=34.192 total_ms=696.1
+CHURN blocks=8 block_mib=64 cycles=20 alloc_med_us=540.0 free_med_us=822.9 cycle_med_ms=11.402 total_ms=235.9
+# WALL wall_ms=1764 rc=0
+# MEAS dev_pid=1873527 dev_cpu_ms=1930 dev_rss_hwm_kb=5258176/8396020 vmm_cpu_ms=1020 others: vm1-vmm=0ms vm3-dev=30ms vm1-vmm=20ms 

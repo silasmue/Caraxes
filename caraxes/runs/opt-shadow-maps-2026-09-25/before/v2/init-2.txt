@@ -1,0 +1,10 @@
+# target v2 metric init rep 2
+# cmd ./bench-cu init
+# device /mnt/vmstore/caraxes/vm0/vfio-user-nvgpu sha256 a1db0ae55a171f58
+# time 2026-09-25T01:48:27+02:00
+# gpu 54, 750 MHz, 810 MHz, P5, 22 %, 3171 MiB, Disabled
+# procs 1399617:vm1-vmm 1821188:vm0-dev 1821249:vm1-vmm 1824765:vm3-dev 1824777:vm1-vmm 
+# loadavg 4.01 6.87 6.70
+INIT cuinit_ms=35.475 devget_ms=0.001 ctxcreate_ms=1879.493 ctxdestroy_ms=192.605
+# WALL wall_ms=2117 rc=0
+# MEAS dev_pid=1821188 dev_cpu_ms=2250 dev_rss_hwm_kb=5259916/8395620 vmm_cpu_ms=340 others: vm1-vmm=10ms vm3-dev=50ms vm1-vmm=20ms 
