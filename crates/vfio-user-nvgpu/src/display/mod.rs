@@ -481,6 +481,7 @@ impl Display {
     /// Answer a display control, or `None` when `cmd` is not the display's (or the
     /// display is switched off: then the controls stay unanswered, as before phase A).
     pub fn control(&mut self, cmd: u32, params: &[u8]) -> Option<Answer> {
+        const SYSTEM_GET_HOTPLUG_CONFIG: u32 = 0x0073_0109;
         if !self.enabled {
             return None;
         }
@@ -642,6 +643,21 @@ impl Display {
                     SINK,
                     format!("connect state: asked {asked:#x} connected {m:#x}"),
                 )
+            }
+            // NV0073_CTRL_CMD_SYSTEM_GET_HOTPLUG_CONFIG (0x730109, ctrl0073system.h:
+            // {subDeviceInstance, flags, hotplugEventMask, hotplugPollable,
+            // hotplugInterruptible, hotplugAlwaysAttached}): the Windows KMD asks it at adapter
+            // start (WINDOWS-LOOP.md Y13). Every connector is a DisplayPort sink: hot-plug
+            // interruptible and pollable, no events requested yet, none always attached.
+            SYSTEM_GET_HOTPLUG_CONFIG => {
+                let m = self.supported_mask();
+                b.resize(n.max(24), 0);
+                put32(&mut b, 8, 0);
+                put32(&mut b, 12, m);
+                put32(&mut b, 16, m);
+                put32(&mut b, 20, 0);
+                b.truncate(n);
+                ok(b, BOARD, format!("hotplug config: pollable and interruptible {m:#x}"))
             }
             d::CMD_SYSTEM_GET_HEAD_ROUTING_MAP => {
                 // Echo the request when every display is ours and there are heads for
