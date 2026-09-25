@@ -30,9 +30,18 @@ echo "$OUT" > "$W/sottr-session"
 
 # 1. Preconditions. The 3 GiB reservation at slot 0 is the top 3 GiB of the host FB, where vm0
 #    (slot 1 of 2 GiB) and vm2 (slot 0 of 2 GiB) sit.
+#    2026-09-25: the check reads every running device's profile and slot from its command line
+#    (`--fb-mib`, `--reserve-slot`: n profile sizes below the top) and refuses only a reservation
+#    that overlaps the game VM's top 3072 MiB; a 1 GiB VM at slot 3 or below may stay up.
 if [[ $EMU != 1 ]]; then
-    for v in vm0 vm2 vm2-615; do
-        alive "$STORE/$v/ch.pid" && die "$v runs (pid $(cat "$STORE/$v/ch.pid")); vm4's slot 0 of 3 GiB overlaps it; wait until it is down"
+    for v in "$STORE"/*/; do
+        [[ $v == "$W/" ]] && continue
+        alive "$v/gpu.pid" || continue
+        cmd=$(tr '\0' ' ' < "/proc/$(cat "$v/gpu.pid")/cmdline" 2>/dev/null) || continue
+        fb=$(sed -n 's/.*--fb-mib \([0-9]*\).*/\1/p' <<<"$cmd"); slot=$(sed -n 's/.*--reserve-slot \([0-9]*\).*/\1/p' <<<"$cmd")
+        [[ -n $fb ]] || continue
+        lo=$(( ${slot:-0} * fb ))
+        (( lo < CARAXES_FB_MIB )) && die "$(basename "$v") runs with $fb MiB at slot ${slot:-0} (top $lo..$((lo + fb)) MiB), which overlaps vm4's top $CARAXES_FB_MIB MiB; wait until it is down"
     done
 fi
 alive "$W/ch.pid" && die "vm4 runs already (pid $(cat "$W/ch.pid")); down.sh first"
