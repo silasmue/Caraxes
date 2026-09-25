@@ -1,0 +1,2 @@
+   134291616 E boot: rc self-test: Caraxes: SIMULATED RC 1 (CARAXES_RC_SELFTEST, no channel) journalled [synthesized]
+   134291617 E boot: tx seq 1 event OS_ERROR_LOG (272 bytes) [unsolicited]

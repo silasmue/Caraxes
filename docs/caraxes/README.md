@@ -874,3 +874,19 @@ the VM; then display, expected to be much easier than in v1.
     rlprobe and convburn pass, the nvprobe-based tests print nothing on vm5's 610 image both
     times. No Xid on the device's pid (two Xid 31 in one window belonged to another run's
     device).
+- 2026-09-25: **The C table and the D models reconciled** ([gsp-plan/c-guest-state.md](gsp-plan/c-guest-state.md)
+  §8 "Reconciliation", [gsp-plan/d-device-model.md](gsp-plan/d-device-model.md) §10,
+  [gsp-surface.md](gsp-surface.md) "After the reconciliation"; runs
+  `caraxes/runs/gsp-round2-reconcile-2026-09-25/`). The two round-2 merges answered five controls
+  twice, the C table's partial rows first: `FIFO_DISABLE_CHANNELS`,
+  `GPU_REPORT_NON_REPLAYABLE_FAULT`, `INTERNAL_RC_WATCHDOG_TIMEOUT`,
+  `RC_SET_CLEAN_ERROR_HISTORY` and `GPU_VALIDATE_MEM_MAP_REQUEST` (and the B getter
+  `DEBUG_GET_MODE_MMU_DEBUG`) are now the D models' only. One RC journal (rc.rs), read by the C
+  rows `RC_GET_ERROR_COUNT` and `RC_GET_ERROR_V2`; every RC the device raises lands in it once
+  and, on 615, in one operational-event record. One set of scheduling flags, which the software
+  executor now consults (a disabled channel's doorbell is held and replayed). A guard test keeps
+  public.rs, chipctl.rs and dmodel.rs/rc.rs disjoint per ABI. Routed controls answered
+  unchanged (763 on 610, 777 on 615). Gates: 615 on vm5-615 nvml pass, cuda all scored stages
+  but cuda-managed; 610 on vm3 nvml power N/A as always, cuda the same as 615; the journal
+  round trip (`CARAXES_RC_SELFTEST`, caraxes/tools/rc-journal-probe.sh) and the goe-probe (11
+  records) pass. No host Xid.

@@ -18,9 +18,12 @@ Section 3 adds the twelve controls that
 
 ## Summary
 
-- **Status (2026-09-25, after round 2).** 28 of the 31 controls of §2 are done and 3 are
-  partial; 11 of the 12 from B are done (B1, the ZBC entry, is the ZBC model's); the 17 rows
-  the D plan moved here are rows of the table, 9 done and 8 partial. Details in §8.
+- **Status (2026-09-25, after round 2 and the reconciliation with the D models).** 28 of
+  the 31 controls of §2 are done and 3 are partial; 11 of the 12 from B are done (B1, the ZBC
+  entry, is the ZBC model's; B9 is answered by dmodel.rs's debugger record); of the 17 rows
+  the D plan moved here, 12 are rows of the table and 5 are answered by the D models
+  (rc.rs, dmodel.rs), 14 done and 3 partial. One RC journal and one set of scheduling flags
+  (rc.rs `RcState`). Details in §8 "Reconciliation".
 
 - **The set.** 31 controls in 615.71.09, 29 in 610.57.04. The two 615-only controls are:
   - `NV0090_CTRL_CMD_PROGRAM_SYSMEM_PROMOTE`, new in 615;
@@ -303,7 +306,7 @@ Implemented in `crates/vfio-user-nvgpu` in commit b49cc5c.
 | EB | 1 | 1 | 0 | 0 |
 | **§2 total** | **31** | **28** | **3** | **0** |
 | from B (§3) | 12 | 11 | 0 | 1 |
-| from D (d-device-model.md §10) | 17 | 9 | 8 | 0 |
+| from D (d-device-model.md §10) | 17 | 14 | 3 | 0 |
 
 (EB, B2-B5, B8-B12 and the D rows: round 2 below.)
 
@@ -385,10 +388,10 @@ reset but does not act on it.
 | B3 | `NV2080_CTRL_CMD_GR_GET_CTXSW_STATS` | done | round 2 | mirror: `hChannel` rewritten to the own host channel on the mirror's subdevice; software: zeros |
 | B4 | `NV2080_CTRL_CMD_GR_GET_CTXSW_MODES` | done | round 2 | mirror: as B3; software: recorded zcull and preemption modes |
 | B5 | `NV2080_CTRL_CMD_GR_GET_CURRENT_RESIDENT_CHANNEL` | done | round 2 | guest ChID only for this VM's own mirror (host read, reported), else 0xFFFFFFFF |
-| B6 | `NV2080_CTRL_CMD_RC_GET_ERROR_COUNT` | done | b49cc5c | the device's journal: 0 |
-| B7 | `NV2080_CTRL_CMD_RC_GET_ERROR_V2` | done | b49cc5c | no record, outputRecordSize 0 |
+| B6 | `NV2080_CTRL_CMD_RC_GET_ERROR_COUNT` | done | b49cc5c, reconciliation | the count of the device's one RC journal (rc.rs `RcState`, since the reconciliation of 2026-09-25) |
+| B7 | `NV2080_CTRL_CMD_RC_GET_ERROR_V2` | done | b49cc5c, reconciliation | record `whichBuffer` of that journal: the `RmProtoBuf_RECORD` header, no error blocks (kernel_rc_ctrl.c:186-283); outputRecordSize 0 past the last |
 | B8 | `NV208F_CTRL_CMD_FIFO_GET_CHANNEL_STATE` | done | round 2 | the device's scheduling flags |
-| B9 | `NV83DE_CTRL_CMD_DEBUG_GET_MODE_MMU_DEBUG` | done | round 2 | refused NOT_SUPPORTED: no debugger session model yet (R5) |
+| B9 | `NV83DE_CTRL_CMD_DEBUG_GET_MODE_MMU_DEBUG` | done | reconciliation | no C row: dmodel.rs answers it from the debugger object's record its setter fills (d-device-model.md §10, 5699cde); the C row's refusal had shadowed it |
 | B10 | `NV83DE_CTRL_CMD_DEBUG_GET_MODE_ERRBAR_DEBUG` | done | round 2 | DISABLED (its setter is refused) |
 | B11 | `NV83DE_CTRL_CMD_DEBUG_GET_SINGLE_SM_DEBUGGER_STATUS` | done | round 2 | refused NOT_SUPPORTED: needs SM run control of a session |
 | B12 | `NV83DE_CTRL_CMD_DEBUG_GET_MODE_MMU_GCC_DEBUG` | done | round 2 | refused NOT_SUPPORTED: not on TU106 |
@@ -404,7 +407,8 @@ guest object's own mirror (`public::MirrorObjects`, implemented by `mirror.rs`).
 **What the rows keep.** `GuestAttrs` gained the device-wide channel state: a per-channel
 `disabled` flag, the usermode and active-channel scheduling flags, and the RC journal
 (`RcRecord`, at most 256 entries: the RCs the device raised, boot.rs, and the guest's reports).
-`RC_GET_ERROR_COUNT` counts it, `RC_SET_CLEAN_ERROR_HISTORY` empties it. The public context
+`RC_GET_ERROR_COUNT` counts it, `RC_SET_CLEAN_ERROR_HISTORY` empties it. (Superseded by the
+reconciliation below: the journal and the flags are rc.rs's.) The public context
 now carries the channel registry (for rows that name a channel in their params) and the
 emulated Link Control register (config.rs, set by device.rs at every config write).
 
@@ -423,20 +427,20 @@ stays refused. B12 is Blackwell-only.
 | Id | Control | Status | Answer |
 |---|---|---|---|
 | 0x00801714 | `NV0080 FIFO_IDLE_CHANNELS` | done | each handle resolved in the caller's client (0x33 otherwise); software channels idle; mirrored ones through the host RM's `FIFO_IDLE_CHANNELS` on the mirror's own device and channels, timeout capped at 50 ms (the RPC's recipe, rpc-functions.md) |
-| 0x2080110B | `FIFO_DISABLE_CHANNELS` | partial | every (hClient, hChannel) resolved (0x33 otherwise), the channel's flag recorded; mirrored ones disabled or enabled on their own host twins (`bOnlyDisableScheduling` passed, `pRunlistPreemptEvent` and `bRewindGpPut` never); the software executor does not consult the flag yet |
-| 0x20801117 | `FIFO_DISABLE_USERMODE_CHANNELS` | partial | the device's usermode flag (channels of a guest TSG; the kernel's bare channels stay); mirrored ones on their own twins; the executor does not consult the flag |
-| 0x20800AC3 | `INTERNAL_FIFO_TOGGLE_ACTIVE_CHANNEL_SCHEDULING` | partial | the device-wide flag; every mirror channel on its own twin (scheduling only); the doorbell path does not consult it yet (a dropped doorbell would need a replay at re-enable) |
+| 0x2080110B | `FIFO_DISABLE_CHANNELS` | done (D model) | no C row since the reconciliation: rc.rs `disable_channels` (rc.rs:299) answers, the channel's flag in rc.rs's one set of flags, `GPFIFO_SCHEDULE` and `PREEMPT` on the own mirrors; the software executor holds the channel's doorbells |
+| 0x20801117 | `FIFO_DISABLE_USERMODE_CHANNELS` | done | the device's usermode flag, `RcState::usermode_disabled` (channels of a guest TSG; the kernel's bare channels stay); mirrored ones on their own twins; the software executor holds the doorbells of a disabled channel and replays them at re-enable (ctrl.rs:379-420) |
+| 0x20800AC3 | `INTERNAL_FIFO_TOGGLE_ACTIVE_CHANNEL_SCHEDULING` | done | the device-wide flag, `RcState::scheduling_disabled`; every mirror channel on its own twin (scheduling only); software channels as above |
 | 0x208F0401 | `NV208F FIFO_CHECK_ENGINE_CONTEXT` | done | `exists` from the GR context the guest promoted for the channel or its TSG; engine other than GRAPHICS 0x1F, unknown channel 0x21 |
 | 0x20801205 | `GR_CTXSW_ZCULL_MODE` | done | recorded on the named channel, never forwarded; GET_CTXSW_MODES reads it |
 | 0x20801211 | `GR_CTXSW_PREEMPTION_BIND` | partial | recorded on the named channel; not forwarded: the plan's MIRROR recipe needs the D17 check that the nine buffer VAs are mapped in the channel's VA space, and a host GR context switch into unmapped GfxP/CILP buffers would fault the host engine |
 | 0x2080123A | `GR_CTXSW_SETUP_BIND` | done | refused (the plan's REFUSE; TU106's GRAPHICS_SETUP context property unmeasured) |
-| 0x20800198 | `GPU_VALIDATE_MEM_MAP_REQUEST` | done | `NV_ERR_PROTECTION_FAULT`: the kernel allows the timer, usermode and MC ranges itself (subdevice_ctrl_gpu_kernel.c:2934-2966); the device's BAR0 has nothing more a user may map |
+| 0x20800198 | `GPU_VALIDATE_MEM_MAP_REQUEST` | done (D model) | no C row since the reconciliation: the BAR0 map policy of dmodel.rs (dmodel.rs:458), deny by default with the guest BAR0 base, `NV_ERR_PROTECTION_FAULT` |
 | 0x208F0704 | `NV208F BIF_INFO` | done | L0s/L1 enables from the emulated Link Control; other indices 0x1F |
 | 0x0073137E | `NV0073 DP_GET_GENERIC_INFOFRAME` | partial | refused with a label: the display model keeps no SDP capture yet (display-engine state, the display branch) |
 | 0x0073137F | `NV0073 DP_GET_MSA_ATTRIBUTES` | partial | as above, for the MSA attributes |
-| 0x20800A6A | `INTERNAL_RC_WATCHDOG_TIMEOUT` | partial | recorded in the RC journal, NV_OK; no stuck-channel search, no host engine reset (the device boots the guest with RmRcWatchdog=0) |
-| 0x20802207 | `RC_SET_CLEAN_ERROR_HISTORY` | done | the device's journal emptied, the host's never touched |
-| 0x20800177 | `GPU_REPORT_NON_REPLAYABLE_FAULT` | partial | the packet (instance, address, info) recorded in the journal; no channel by instance block (the registry does not record instance memory), never passed to the host GMMU |
+| 0x20800A6A | `INTERNAL_RC_WATCHDOG_TIMEOUT` | done (D model) | no C row since the reconciliation: rc.rs `watchdog_timeout` (rc.rs:451), the stalled GR channels RC'd with Xid 45 at the next event scan, no host engine reset |
+| 0x20802207 | `RC_SET_CLEAN_ERROR_HISTORY` | done (D model) | no C row since the reconciliation: rc.rs `clean_history` (rc.rs:498) empties the one journal, the host's never touched |
+| 0x20800177 | `GPU_REPORT_NON_REPLAYABLE_FAULT` | done (D model) | no C row since the reconciliation: rc.rs `report_nr_fault` (rc.rs:394), the channel by its instance block, the RC reflected with Xid 31, never passed to the host GMMU |
 | 0x00801108 | `NV0080 GR_SET_TPC_PARTITION_MODE` | done | refused (the plan's REFUSE) |
 | 0x2080122C | `GR_SET_TPC_PARTITION_MODE` | done | refused (the plan's REFUSE) |
 
@@ -448,4 +452,66 @@ kernel's TSG id the device recorded (classes.md §8, TSG), NOT_SUPPORTED on 610.
 `rc_journal`, `b_rows_from_device_state` (a registry with a TSG, a mirrored and a software
 channel and a bare kernel channel; a host RM client that fails the test when called; a fake
 mirror that records every host call); `dmodel::tests` checks that every D row moved to C is
-answered by this table.
+answered by this table (since the reconciliation: by this table or by a D model).
+
+### Reconciliation with the D models (2026-09-25)
+
+Round 2 of C and round 2 of D were built the same night and both merged; the C table runs
+first in `Dispatcher::control` (ctrl.rs:999-1040: public.rs, then nvml.rs and chipctl.rs,
+then the D hook), so five C rows that the C work had marked partial shadowed the D models that do the
+work, and the device kept two RC journals (public.rs's, read by `RC_GET_ERROR_COUNT`, and
+rc.rs's, written by `LOG_OOB_XID` and the model RCs). Commit 1a96d24 makes it one device:
+
+- **Controls moved from the C table to the D models** (the C rows removed; the D models of
+  d-device-model.md §10 R2 answer): `FIFO_DISABLE_CHANNELS` 0x2080110B (rc.rs:299),
+  `GPU_REPORT_NON_REPLAYABLE_FAULT` 0x20800177 (rc.rs:394), `INTERNAL_RC_WATCHDOG_TIMEOUT`
+  0x20800A6A (rc.rs:451), `RC_SET_CLEAN_ERROR_HISTORY` 0x20802207 (rc.rs:498),
+  `GPU_VALIDATE_MEM_MAP_REQUEST` 0x20800198 (dmodel.rs:458), and the B row
+  `NV83DE DEBUG_GET_MODE_MMU_DEBUG` 0x83DE0308, whose C refusal shadowed dmodel.rs's
+  debugger record. No C row carried state the D models lacked: the per-channel `disabled`
+  flag of the C row is rc.rs's `disabled` set, the journal records of the C rows are rc.rs's
+  records.
+- **One RC journal** (`RcState::journal`, rc.rs:141-190, at most 256 records): the
+  channel-error scan (boot.rs:618), the non-replayable fault and the watchdog RCs and
+  `LOG_OOB_XID` write it; the C rows `RC_GET_ERROR_COUNT` and `RC_GET_ERROR_V2` read it
+  (public.rs:294-333; V2 returns the `RmProtoBuf_RECORD` header of the record,
+  rmcd.h:108-111, with no error blocks); `RC_SET_CLEAN_ERROR_HISTORY` clears it. The
+  per-channel fault record `GET_MMU_FAULT_INFO` reads stays in `GuestAttrs` (`set_fault`).
+  On a 615 guest every RC the device raises writes exactly one operational-event record
+  (boot.rs:404-424 `goe_rc`, called by the scan and by `post_model_rcs`); the guest's own
+  `LOG_OOB_XID` is no RC of the device and writes none.
+- **One set of scheduling flags** (`RcState::disabled`, `usermode_disabled`,
+  `scheduling_disabled`; `channel_enabled`, rc.rs:259): written by `FIFO_DISABLE_CHANNELS`
+  and the C rows `FIFO_DISABLE_USERMODE_CHANNELS` and
+  `INTERNAL_FIFO_TOGGLE_ACTIVE_CHANNEL_SCHEDULING` (public.rs:471), read by
+  `NV208F FIFO_GET_CHANNEL_STATE` (public.rs:589) and by the software executor: a software
+  channel that is not enabled runs nothing at its doorbell, the doorbell is held and runs
+  once the channel is enabled again (ctrl.rs:379-420 `replay_held` and `doorbell_chid`,
+  replayed on the RC event path, boot.rs `scan_channel_errors`). A mirrored channel's
+  doorbell goes on: its host twin is off on the host by the same control.
+- **The guard.** `dmodel::tests::no_control_is_answered_by_two_tables` (dmodel.rs:1038)
+  walks, per ABI, the ids of `PUBLIC` and `PUBLIC_C`, of chipctl.rs (controls.toml of every
+  chip, the E families and the D rows moved to E) and of the D models and rule table, and
+  asserts the three sets disjoint; then, for the ABI of the build, it asks the three
+  handlers for every routed id and asserts at most one answers.
+- **Generated tables.** The generator drops from `D_RULES` a control another handler
+  answers: the twelve C rows of the table left it, the five the models answer are back
+  (reclass C). Rule table after the reconciliation (615; 610 in brackets): REFUSE 199 (197),
+  DENY 37, ACK 20 (19), TABLE 5, MODEL 34, MIRROR 1.
+
+**Open, written down here.** `GR_CTXSW_PREEMPTION_BIND` stays recorded and not forwarded.
+The follow-up is the D17 check the plan names: before the bind may reach the channel's own
+host mirror, every one of the nine `vMemPtrs` (ctrl2080gr.h:921-929) must be a VA mapped in
+the channel's VA space, with at least the size the host GR needs for its kind (the kinds
+MAIN, SPILL, PAGEPOOL, BETACB, RTV, the three context-pool buffers and SETUP,
+ctrl2080gr.h:862-871; the sizes from the context-buffer part of the static GR info, kgr.rs),
+checked against the device's mirror page tables; an unmapped or short buffer is refused and never forwarded, since a host
+GR context switch into it faults the host engine.
+
+**Gates** (`caraxes/runs/gsp-round2-reconcile-2026-09-25/`, binaries of 1a96d24): the 615 guest
+on vm5-615 passes nvml and every scored cuda stage but cuda-managed (managed memory, as in every
+gate of the day); the 610 guest on vm3 the same, with nvml failing on the power number (N/A) as
+in every 610 gate. The RC journal round trip through the guest kernel (the device's
+SIMULATED RC, `CARAXES_RC_SELFTEST`; caraxes/tools/rc-journal-probe.sh: count, V2 records,
+clean, count 0) passes on both guests; the goe-probe on 615 drained 11 records, two of them the
+self-test RCs. No host Xid in any window.

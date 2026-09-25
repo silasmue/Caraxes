@@ -1317,7 +1317,7 @@ Depends on:
 - category C's RESET_CHANNEL on mirror channels;
 - the mirror (exists).
 
-**Status R2:** done (8b5fa9b), §10 Round 2: items 1, 2, 4 and 5 answered and unit-tested, the RC reflection through the existing event path; item 3 implemented on the device side, the guest's watchdog still off. Q3 measured on the 610 guest (§10): a kill -9 of a CUDA process sends no D control; the round-2 gates on vm3 sent none either.
+**Status R2:** done (8b5fa9b), §10 Round 2: items 1, 2, 4 and 5 answered and unit-tested, the RC reflection through the existing event path; item 3 implemented on the device side, the guest's watchdog still off. Since the reconciliation with the C table (1a96d24, §10 "Rows for the category C work") these models are the only implementation of their controls: the C table no longer shadows `FIFO_DISABLE_CHANNELS`, `GPU_REPORT_NON_REPLAYABLE_FAULT`, `INTERNAL_RC_WATCHDOG_TIMEOUT`, `RC_SET_CLEAN_ERROR_HISTORY` and `GPU_VALIDATE_MEM_MAP_REQUEST`, the RC journal of rc.rs is the device's only one, and its scheduling flags are the ones the C rows and the software executor use. Q3 measured on the 610 guest (§10): a kill -9 of a CUDA process sends no D control; the round-2 gates on vm3 sent none either.
 
 **R3. Vulkan games (Shadow of the Tomb Raider, the decisive benchmark; 4 to 7 days).**
 - The ZBC table model (6.2): guest-local, seeded once from a read-only host sweep of
@@ -1631,15 +1631,27 @@ as it is (the guard test covers FORWARD, LEGACY, BINAPI and MIRROR_FORWARDED).
 | 0x20800AC3 | `NV2080_CTRL_CMD_INTERNAL_FIFO_TOGGLE_ACTIVE_CHANNEL_SCHEDULING` | MODEL:channel-registry | the suspend path over the guest channel set |
 | 0x2080122C | `NV2080_CTRL_CMD_GR_SET_TPC_PARTITION_MODE` | REFUSE | targets a guest TSG |
 
-**Status (2026-09-25, GSP plan round 2).** All 17 are rows of the C table (`PUBLIC_C`,
-`src/ver/v610/public.rs`, answered by `src/public.rs` ahead of this table): 9 done, 8 partial,
-per row in [c-guest-state.md](c-guest-state.md) §8 "Round 2". None reaches a host object other
-than the guest channel's own mirror; the rule table still lists them with reclass C and
-`dmodel::tests` checks that each is answered by the C table. Partial: the three scheduling
-switches (the software executor does not consult the device's flags), `PREEMPTION_BIND`
-(recorded, not forwarded until the D17 VA check exists), the two DP readbacks (the display
-model keeps no SDP or MSA capture), the watchdog timeout and the non-replayable fault report
-(journal only).
+**Status (2026-09-25, GSP plan round 2 and the reconciliation).** Twelve are rows of the C
+table (`PUBLIC_C`, `src/ver/v610/public.rs`, answered by `src/public.rs` ahead of this table)
+and have left the rule table (the generator drops a control another handler answers); five
+are answered by the models of this plan and keep their rule with reclass C:
+`FIFO_DISABLE_CHANNELS` (rc.rs:299), `GPU_REPORT_NON_REPLAYABLE_FAULT` (rc.rs:394),
+`INTERNAL_RC_WATCHDOG_TIMEOUT` (rc.rs:451), `RC_SET_CLEAN_ERROR_HISTORY` (rc.rs:498) and
+`GPU_VALIDATE_MEM_MAP_REQUEST` (dmodel.rs:458). Until the reconciliation (commit 1a96d24) the C
+table held partial rows for these five too and, running first, shadowed the models; it also
+kept a second RC journal. Now: 14 done, 3 partial (`PREEMPTION_BIND`, recorded, not forwarded
+until the D17 VA check exists, written down in [c-guest-state.md](c-guest-state.md) §8
+"Reconciliation"; the two DP readbacks, the display model keeps no SDP or MSA capture). The
+three scheduling switches share rc.rs's one set of flags, which the software executor
+consults (a disabled software channel's doorbell is held and replayed at re-enable). None
+reaches a host object other than the guest channel's own mirror.
+`dmodel::tests::no_control_is_answered_by_two_tables` asserts that no control id is
+answered by two of public.rs, chipctl.rs and dmodel.rs/rc.rs, per ABI.
+
+Rule table after the reconciliation (615; 610 in brackets): REFUSE 199 (197), DENY 37 (37),
+ACK 20 (19), TABLE 5 (5), MODEL 34 (34), MIRROR 1 (1); reclass A 7, C 5, E 102 in both. The
+difference to the "After" column above is the twelve C rows now answered by the C table (3
+REFUSE, 7 MODEL, 2 MIRROR).
 
 ### Measurements Q1 and Q3 (guest runs, vm0, 2026-09-24)
 

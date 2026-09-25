@@ -1,0 +1,4 @@
+built
+rc-journal-probe: /dev/nvidiactl: No such file or directory
+[  131.054020] NVRM: Xid (PCI:0000:00:05): 0, Caraxes: SIMULATED RC 1 (CARAXES_RC_SELFTEST, no channel)
+rc-journal-probe rc=1

@@ -1,0 +1,23 @@
+NVRM version: NVIDIA UNIX Open Kernel Module for x86_64  615.71.09  Release Build  (root@)  
+0b5646eedcf74081cf700cddbfca1067c1b75db760c7d12dbf98b578af22fa67  /home/silas/git/Caraxes/.claude/worktrees/agent-aa9fbc909cd261e7f/target/reconcile615/release/vfio-user-nvgpu
+b331d1c tools: rc-journal-probe, the device's RC journal read back through the guest kernel (error count, V2 records, clean history)
+CARAXES_BOOT_MODEL=1
+CARAXES_DMA=register
+CARAXES_DOORBELL_POLL=hybrid
+CARAXES_DOORBELL_TOKENS=64
+CARAXES_DRIVER=615
+CARAXES_FB_MIB=1024
+CARAXES_GATE_FB_MIB=1024
+CARAXES_GATE_RUNS=/home/silas/git/Caraxes/.claude/worktrees/agent-aa9fbc909cd261e7f/caraxes/runs/gsp-round2-reconcile-2026-09-25/gate-615
+CARAXES_HOST_EXEC=1
+CARAXES_HOST_RM=1
+CARAXES_IP=192.168.105.26
+CARAXES_MAC=02:00:00:00:00:26
+CARAXES_MIRROR_CHANNELS=1
+CARAXES_MIRROR_GR_SHADOW=1
+CARAXES_RESERVE_SLOT=2
+CARAXES_RESERVE_VRAM=1
+CARAXES_SERVER=/home/silas/git/Caraxes/.claude/worktrees/agent-aa9fbc909cd261e7f/target/reconcile615/release/vfio-user-nvgpu
+CARAXES_TAP=caraxes5
+LEA_CH=/mnt/vmstore/caraxes/vm1/ch-0006-v.sh
+VM=vm5-615

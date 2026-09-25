@@ -1,0 +1,8 @@
+dma table: 0:7ffb80000000:c0000000,100000000:7ffc80000000:40000000
+server pid 1975715, VM pid 1975738; logs in /mnt/vmstore/caraxes/vm3
+ssh up at 192.168.103.23
+probe gsprpc: 93647 device accesses, guest log in /mnt/vmstore/caraxes/vm3/probe-gsprpc/guest-dmesg.txt
+[  132.348078] NVRM: GPU 0000:00:05.0: RmInitAdapter
+[  133.752103] NVRM: Xid (PCI:0000:00:05): 0, Caraxes: SIMULATED RC 1 (CARAXES_RC_SELFTEST, no channel)
+[  135.045487] NVRM: GPU 0000:00:05.0: RmInitAdapter succeeded!
+modprobe rc=0

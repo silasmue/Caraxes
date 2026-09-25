@@ -1,0 +1,8 @@
+driver 615.71.09: overlay on /mnt/vmstore/caraxes/images/guest-baked-2026-09-24-615.71.09.qcow2, CARAXES_GUEST_ABI=615
+dma table: 0:7ff900000000:c0000000,100000000:7ffa00000000:40000000
+server pid 1763462, VM pid 1763474; logs in /mnt/vmstore/caraxes/vm5-615
+ssh up at 192.168.105.26
+probe gsprpc: 93751 device accesses, guest log in /mnt/vmstore/caraxes/vm5-615/probe-gsprpc/guest-dmesg.txt
+[  130.513135] NVRM: GPU 0000:00:05.0: RmInitAdapter
+[  133.840747] NVRM: GPU 0000:00:05.0: RmInitAdapter succeeded!
+modprobe rc=0
