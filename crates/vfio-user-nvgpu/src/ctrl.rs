@@ -936,7 +936,7 @@ impl Dispatcher {
             gpcs: self.gr_info(0x14).unwrap_or(1),
             tpcs_per_gpc: self.gr_info(0x17).unwrap_or(1),
         };
-        if crate::recorded::OVERRIDES.contains(&cmd) {
+        if crate::recorded::overrides(cmd) {
             if let Some(r) = crate::recorded::answer(cmd, params, &facts) {
                 return r;
             }

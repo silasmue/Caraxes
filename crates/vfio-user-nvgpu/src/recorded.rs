@@ -83,6 +83,19 @@ pub const GR_GFX_POOL_MANAGE: [u32; 3] = [0x2080_1220, 0x2080_1221, 0x2080_1222]
 /// creates, and unloads GSP-RM when it is refused (Y9). Acknowledged: nothing executes.
 pub const FIFO_WINDOWS_1111: u32 = 0x2080_1111;
 
+/// `NV0080_CTRL_CMD_FB_GET_COMPBIT_STORE_INFO`: refused by design on the Linux path (no
+/// compression, D16); with `CARAXES_WIN_COMPBIT=1` the card's recorded answer (the KMD-block
+/// capture) is given instead, to test whether the Windows KMD's start needs it.
+pub const FB_GET_COMPBIT_STORE_INFO: u32 = 0x0080_1306;
+pub const WIN_COMPBIT_ENV: &str = "CARAXES_WIN_COMPBIT";
+
+/// Whether `cmd` is answered here ahead of the dispatcher's tables.
+pub fn overrides(cmd: u32) -> bool {
+    OVERRIDES.contains(&cmd)
+        || (cmd == FB_GET_COMPBIT_STORE_INFO
+            && std::env::var(WIN_COMPBIT_ENV).is_ok_and(|v| v == "1"))
+}
+
 /// Controls answered here before the dispatcher's own tables, which refuse them for the
 /// Linux path (no caller there): the Windows KMD's graphics-preemption pool and its FIFO
 /// control 0x20801111.
