@@ -255,7 +255,7 @@ pub struct HostChannel {
     /// The guest's GPPut when the device last forwarded this channel's doorbell (untrapped.rs
     /// `ran_ahead`).
     pub fwd_put: Option<u32>,
-    /// [`Mirror::unwaited`] at that forward.
+    /// `Mirror::unwaited` (the count of plans submitted without a wait) at that forward.
     pub fwd_unwaited: u64,
 }
 
