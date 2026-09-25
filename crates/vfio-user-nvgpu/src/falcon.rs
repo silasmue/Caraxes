@@ -57,6 +57,22 @@ const RISCV_CPUCTL_ACTIVE_STAT: u32 = 1 << 7;
 /// Size of the block in bytes (falcon, FBIF and the RISC-V block).
 pub const BLOCK_SIZE: u64 = 0x2000;
 
+/// Block-relative ranges the model answers even when never written (reads there never
+/// fall through to the capture, [`Falcon::answers`]): the falcon core registers 0x000-0x13F
+/// (IRQ, mailboxes, OS/RM, DEBUGINFO, HWCFG/HWCFG2, CPUCTL, BOOTVEC, DMA), the IMEM/DMEM
+/// ports, `ENGINE`, FBIF 0x600-0x6FF, the EMEM ports 0xAC0-0xADF, the queue registers
+/// 0xC00-0xCFF (`NV_PGSP_QUEUE_*`/`MSGQ_*`, answered by the boot model before the falcon)
+/// and the whole RISC-V block from 0x1000.
+const MODELLED: [std::ops::Range<u64>; 7] = [
+    0x000..0x140,
+    IMEMC0..0x200,
+    ENGINE..ENGINE + 4,
+    0x600..0x700,
+    0xAC0..0xAE0,
+    0xC00..0xD00,
+    0x1000..BLOCK_SIZE,
+];
+
 const CPUCTL_STARTCPU: u32 = 1 << 1;
 const CPUCTL_HALTED: u32 = 1 << 4;
 const ENGINE_RESET: u32 = 1;
@@ -168,6 +184,16 @@ impl Falcon {
 
     fn reg(&self, off: u64) -> u32 {
         self.regs.get(&off).copied().unwrap_or(0)
+    }
+
+    /// Whether the model answers a read of the block-relative offset `off` itself: inside
+    /// `MODELLED` (the registers it names and the ones the boot model and the RM path
+    /// depend on), or written since the last reset. Elsewhere an unwritten register has no
+    /// model value, and the caller may answer it from the physical card's capture
+    /// (bar0.rs `CapturedRegisters`), e.g. 0xABC next to `NV_PGSP_EMEMC` (0x20 on the
+    /// RTX 2070), which the Windows driver reads.
+    pub fn answers(&self, off: u64) -> bool {
+        MODELLED.iter().any(|r| r.contains(&off)) || self.regs.contains_key(&off)
     }
 
     fn hwcfg(&self) -> u32 {
@@ -292,7 +318,9 @@ impl Falcon {
                 // (BASE1:BASE << 8) + FBOFFS into falcon memory at MOFFS; the first DMEM
                 // chunk locates the image. Nothing is copied: the ucode never runs.
                 if v & DMATRFCMD_IMEM == 0 && self.dmem_dma_src.is_none() {
-                    let base = ((self.reg(DMATRFBASE1) as u64 & 0x1FF) << 32 | self.reg(DMATRFBASE) as u64) << 8;
+                    let base = ((self.reg(DMATRFBASE1) as u64 & 0x1FF) << 32
+                        | self.reg(DMATRFBASE) as u64)
+                        << 8;
                     let src = base + self.reg(DMATRFFBOFFS) as u64;
                     self.dmem_dma_src = src.checked_sub(self.reg(DMATRFMOFFS) as u64);
                 }

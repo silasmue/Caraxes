@@ -571,6 +571,49 @@ mod tests {
         assert_eq!(house.get(0x1373A0), Some(0xA));
     }
 
+    /// A falcon-block register the model has no value for falls through to the capture
+    /// (GSP 0x110ABC reads 0x20 as on the RTX 2070); the falcon offsets the Linux 615 guest
+    /// reads at boot (vm4-615 gpu-trace.log) keep the model's answers, and a written
+    /// register reads back as written.
+    #[test]
+    fn unmodelled_falcon_registers_read_the_capture() {
+        let house = CapturedRegisters::parse(include_str!(
+            "../../../caraxes/reference/rtx2070/bar0-registers-2026-09-25.txt"
+        ))
+        .unwrap();
+        let (bar0, mut cfg) = parts();
+        let mem = GuestMemory::new();
+        let f = crate::fixture::rtx2070();
+        let model = || {
+            BootModel::new(
+                f.chip,
+                crate::fb::FbLayout::plain(4 << 30),
+                f.identity(4 << 30),
+            )
+        };
+        let mut bar0 = bar0.with_boot_model(model()).with_captured(house);
+        let (plain, _) = parts();
+        let mut plain = plain.with_boot_model(model());
+        let rd = |bar0: &mut Bar0, cfg: &ConfigSpace, off: u64| {
+            let mut b = [0u8; 4];
+            bar0.read(cfg, &mem, off, &mut b);
+            (u32::from_le_bytes(b), bar0.take_captured())
+        };
+        assert_eq!(rd(&mut bar0, &cfg, 0x110ABC), (0x20, true));
+        assert_eq!(rd(&mut plain, &cfg, 0x110ABC), (0, false));
+        // The Linux 615 boot's falcon reads: same values with and without the capture.
+        for off in [
+            0x110008, 0x110018, 0x11001C, 0x110040, 0x110044, 0x110094, 0x1100F4, 0x110100,
+            0x110108, 0x11010C, 0x1103C0, 0x110610, 0x110624, 0x110C04, 0x110C80, 0x111240,
+            0x840040, 0x840044, 0x840100, 0x84010C, 0x8403C0, 0x840624, 0x110AC0, 0x110AC4,
+        ] {
+            let with = rd(&mut bar0, &cfg, off);
+            assert_eq!(with, (rd(&mut plain, &cfg, off).0, false), "{off:#x}");
+        }
+        bar0.write(&mut cfg, &mem, 0x110ABC, &7u32.to_le_bytes());
+        assert_eq!(rd(&mut bar0, &cfg, 0x110ABC), (7, false));
+    }
+
     /// The L2 cache-operation registers (`NV_UFLUSH_*`, gm200/dev_flush.h, and the
     /// Turing VF-window sysmem/peer invalidates, tu102/dev_vm.h:29-30) are not latched:
     /// a write of PENDING_BUSY starts the operation, and PENDING (0:0) and OUTSTANDING

@@ -222,6 +222,14 @@ impl FirmwareBoot for TuringBoot {
         if !self.handles(off) {
             return None;
         }
+        // A falcon register the model has no value for (outside `falcon::MODELLED`, never
+        // written): not owned for this read, so the captured table answers it (bar0.rs).
+        let (gsp, sec2) = (self.d.gsp.base, self.d.sec2.base);
+        if (self.in_block(&self.d.gsp, off) && !self.gsp.answers(off - gsp))
+            || (self.in_block(&self.d.sec2, off) && !self.sec2.answers(off - sec2))
+        {
+            return self.constant(off);
+        }
         Some(match off {
             o if o == self.d.local_memory_range => {
                 local_memory_range(self.fb_bytes).map_or(0, |(v, _)| v)
@@ -404,7 +412,10 @@ mod tests {
         // Booter Unload: WPR2 down.
         let w = b.write32(sec2 + falcon::CPUCTL, 2, &mem).unwrap();
         assert!(w.notes[0].contains("booter unload done"), "{w:?}");
-        assert_eq!(w.event, Some(BootEvent::BooterUnload { arg: 0x1_0000_0000 }));
+        assert_eq!(
+            w.event,
+            Some(BootEvent::BooterUnload { arg: 0x1_0000_0000 })
+        );
         assert_eq!(b.read32(d.wpr2_addr_lo), Some(0));
         assert_eq!(b.read32(gsp + falcon::RISCV_STATUS), Some(0));
 
@@ -423,7 +434,10 @@ mod tests {
         b.write32(gsp + falcon::ENGINE, 1, &mem);
         b.write32(gsp + falcon::ENGINE, 0, &mem);
         let w = b.write32(sec2 + falcon::CPUCTL, 2, &mem).unwrap();
-        assert!(w.notes[0].contains("sec2 start 4: booter unload done"), "{w:?}");
+        assert!(
+            w.notes[0].contains("sec2 start 4: booter unload done"),
+            "{w:?}"
+        );
     }
 
     /// nova-core's Turing boot and re-probe (Linux 7.2.7 gsp/hal/tu102.rs): FWSEC-FRTS, a
