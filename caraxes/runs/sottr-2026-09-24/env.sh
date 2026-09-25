@@ -12,7 +12,9 @@
 # Source it from any directory; the scripts beside it do.
 export VM=vm4 CARAXES_IP=192.168.103.24 CARAXES_TAP=caraxes3 CARAXES_MAC=02:00:00:00:00:24
 # 4 GiB of guest RAM: the host has 31 GB, and 8 GiB pushed the host desktop into swap (2026-09-25).
-export CARAXES_MEM=${CARAXES_MEM:-4G} CARAXES_CPUS=${CARAXES_CPUS:-8}
+# 8 GiB: with 4 GiB the game failed at vkCreateDevice with VK_ERROR_OUT_OF_HOST_MEMORY (-1),
+# 861 MiB free beside GNOME, Sunshine and Steam (2026-09-25).
+export CARAXES_MEM=${CARAXES_MEM:-8G} CARAXES_CPUS=${CARAXES_CPUS:-8}
 export CARAXES_BOOT_MODEL=1 CARAXES_DISPLAY=1 CARAXES_FB_MIB=3072 CARAXES_GATE_FB_MIB=3072
 if [[ ${SOTTR_EMULATION:-0} == 1 ]]; then
     unset CARAXES_HOST_RM CARAXES_HOST_EXEC CARAXES_RESERVE_VRAM CARAXES_RESERVE_SLOT CARAXES_DMA
