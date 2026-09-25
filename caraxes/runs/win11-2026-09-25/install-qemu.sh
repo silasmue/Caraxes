@@ -37,6 +37,6 @@ exec qemu-system-x86_64 -enable-kvm -machine q35,accel=kvm,smm=on -cpu host,hv_r
     -drive "file=$W/win11.qcow2,if=virtio,format=qcow2,cache=writeback,discard=unmap" \
     -drive "file=$ISO,media=cdrom,readonly=on" \
     -drive "file=$VIRTIO,media=cdrom,readonly=on" \
-    -device virtio-net-pci,netdev=n0 -netdev user,id=n0 \
+    -device virtio-net-pci,netdev=n0 -netdev user,id=n0,hostfwd=tcp:127.0.0.1:3389-:3389 \
     -device qemu-xhci -device usb-tablet -device usb-kbd \
     -vga std -display gtk -rtc base=localtime -boot menu=on

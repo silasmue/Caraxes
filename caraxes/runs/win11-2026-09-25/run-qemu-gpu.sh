@@ -36,7 +36,7 @@ exec qemu-system-x86_64 -enable-kvm -machine q35,accel=kvm,smm=on,memory-backend
     -chardev "socket,id=chrtpm,path=$W/swtpm/sock" -tpmdev emulator,id=tpm0,chardev=chrtpm -device tpm-crb,tpmdev=tpm0 \
     -drive "file=$W/win11.qcow2,if=virtio,format=qcow2,cache=writeback,discard=unmap" \
     -drive "file=$VIRTIO,media=cdrom,readonly=on" \
-    -device virtio-net-pci,netdev=n0 -netdev user,id=n0 \
+    -device virtio-net-pci,netdev=n0 -netdev user,id=n0,hostfwd=tcp:127.0.0.1:3389-:3389 \
     "${gpu[@]}" \
     -device qemu-xhci -device usb-tablet -device usb-kbd \
     -vga std -display gtk -rtc base=localtime
