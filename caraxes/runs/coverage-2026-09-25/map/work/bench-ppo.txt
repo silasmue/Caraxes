@@ -1,0 +1,2 @@
+08:34:19 v2  ppo             rep 1: # PPO steps_per_s=24709 solve_s=-1 episodes=22186 reward100=53.5 envs=128 rollout=256 # WALL wall_ms=35315 rc=0  | # MEAS dev_pid=3245134 dev_cpu_ms=17850 dev_rss_hwm_kb=4294048/9445768 vmm_cpu_ms=26950 others: vm7-vmm=-43400ms vm1-vmm
+# rc=0

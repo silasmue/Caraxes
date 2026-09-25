@@ -1,0 +1,23 @@
+# series 2026-09-25T08:24:57+02:00 targets=[v2] reps=5 metrics=[short-auto]
+# libdir v2 /opt/nvrm/lib
+# caraxes shell-rig-332-gd96cc59-dirty leandro-test 3edea73-dirty
+# bin c5b48cf1181bfcfc251f12aa2b0eaeb074887efec4c479f36efe399cb1307a13  bench-cu
+# bin 2e7db7218ac29e0da0b22a4d30307ea1f675dc04912d6b34922708495595904d  convnet.py
+# bin 68449e9ec7b25613a65d096a6a42864c01fbf46ec47e540ce01f47184f0479ea  ctrlping
+# bin 138c5073848b2f3cf2beb4709376c7c49b420d88e836664584e5cf8bbfc7848c  ioctlping
+# bin 1f921680fc7a2c2e0978eb007cc0ab48d2f1a7cf404a196c9063a19a10aa228f  kernels.ptx
+# bin abdf09531ac015ba4e8e7550bda6eb43609c429d6e1240e7f8553841bfe06513  llamaprobe.py
+# bin 2735d2a9cd25c0753898188542dbeb4a8433609024aa48230b6803a4a8d96e66  nvprobe
+# bin 012bb008b87ec0a6ee4ef566e0b55f856df09d6a3e07e72fe5cde5a9043dd18a  pporl.py
+# bin 02b1d58fc1778a47f8940e7f89d2cabb44b64d078f5b54b5ca1fba9437073c4a  transformer.py
+# bin f0868123fca8e2c40138fda523e35fa76c015b97e232fc647fea0b6b49f33584  vrampress
+# time 2026-09-25T08:24:57+02:00
+# gpu 60, 435 MHz, 5000 MHz, P3, 31 %, 6215 MiB, Disabled
+# procs 3208281:-dev 3209114:vm0-dev 3209188:vm1-vmm 3211046:vm3-dev 3211074:vm1-vmm 3223581:vm2-dev 3223633:vm1-vmm 3227346:vm5-dev 3227354:vm1-vmm 3232751:vm7-615-dev 3232776:vm7-615-vmm 
+# loadavg 14.29 9.63 7.08
+08:25:02 v2  short-auto      rep 1: MSPERLAUNCH=0.023 # WALL wall_ms=3471 rc=0  | # MEAS dev_pid=3223581 dev_cpu_ms=2450 dev_rss_hwm_kb=5306672/7347512 vmm_cpu_ms=3020 others: vm7-615-vmm=7590ms vm1-vmm
+08:25:06 v2  short-auto      rep 2: MSPERLAUNCH=0.021 # WALL wall_ms=3389 rc=0  | # MEAS dev_pid=3223581 dev_cpu_ms=2420 dev_rss_hwm_kb=5313892/7347512 vmm_cpu_ms=3580 others: vm7-615-vmm=3160ms vm1-vmm
+08:25:10 v2  short-auto      rep 3: MSPERLAUNCH=0.075 # WALL wall_ms=4062 rc=0  | # MEAS dev_pid=3223581 dev_cpu_ms=2500 dev_rss_hwm_kb=5313928/7347512 vmm_cpu_ms=3140 others: vm7-615-vmm=3550ms vm1-vmm
+08:25:13 v2  short-auto      rep 4: MSPERLAUNCH=5.036 # WALL wall_ms=2534 rc=0  | # MEAS dev_pid=3223581 dev_cpu_ms=1220 dev_rss_hwm_kb=5313936/7347512 vmm_cpu_ms=3130 others: vm7-615-vmm=5620ms vm1-vmm
+08:25:15 v2  short-auto      rep 5: MSPERLAUNCH=4.955 # WALL wall_ms=1272 rc=0  | # MEAS dev_pid=3223581 dev_cpu_ms=460 dev_rss_hwm_kb=5313944/7347512 vmm_cpu_ms=2260 others: vm7-615-vmm=5380ms vm1-vmm=
+# end 2026-09-25T08:25:15+02:00

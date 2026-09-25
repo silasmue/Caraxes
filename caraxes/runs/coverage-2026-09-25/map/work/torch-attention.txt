@@ -1,0 +1,2 @@
+COV torch-attention ok 12975 causal SDPA forward+backward rounds (fp16) in 15.1 s, max err 2.11e-04
+# rc=0

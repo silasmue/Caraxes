@@ -1,0 +1,2 @@
+COV oom ok 4 GiB alloc: CUDA_ERROR_OUT_OF_MEMORY; then 11 x 64 MiB (704 MiB) before CUDA_ERROR_OUT_OF_MEMORY; context usable after
+# rc=0

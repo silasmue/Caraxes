@@ -1,0 +1,3 @@
+176
+COV ctlsweep ok 119 sent, 31 NV_OK, 53 skipped (no object)
+# rc=0

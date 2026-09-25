@@ -1,0 +1,2 @@
+08:33:26 v2  short-auto      rep 1: MSPERLAUNCH=0.064 # WALL wall_ms=1542 rc=0  | # MEAS dev_pid=3245134 dev_cpu_ms=1230 dev_rss_hwm_kb=4293720/9445768 vmm_cpu_ms=670 others: vm7-vmm=10200ms vm1-vmm=202
+# rc=0

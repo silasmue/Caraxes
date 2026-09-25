@@ -1,0 +1,4 @@
+COV streams fail CUDA_ERROR_NOT_SUPPORTED=801
+COV graphs ok 4 captured nodes, 300 launches of each graph, 600 host calls
+COV multiproc fail rc 1 0
+# rc=0

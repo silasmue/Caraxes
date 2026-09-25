@@ -1,0 +1,2 @@
+COV texsurf ok 256x128 float array through a texture object into a surface object
+# rc=0

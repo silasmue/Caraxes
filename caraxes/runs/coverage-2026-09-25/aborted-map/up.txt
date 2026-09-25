@@ -1,0 +1,2 @@
+dma table: 0:7ff4c0000000:c0000000,100000000:7ff5c0000000:40000000
+server pid 3238458, VM pid 3238487; logs in /mnt/vmstore/caraxes/vm2

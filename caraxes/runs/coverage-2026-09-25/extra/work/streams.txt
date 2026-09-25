@@ -1,0 +1,2 @@
+COV streams ok 300 rounds of 4 streams (priorities 0..-5), 1200 host calls, 974856 event polls, 281.0 ms; cuMemAllocAsync refused (error CUDA_ERROR_NOT_SUPPORTED)
+# rc=0

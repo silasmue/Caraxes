@@ -1,0 +1,2 @@
+COV zerocopy ok kernel stores into mapped pinned and registered host memory
+# rc=0

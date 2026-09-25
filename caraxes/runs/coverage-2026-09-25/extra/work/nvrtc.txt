@@ -1,0 +1,2 @@
+COV nvrtc ok saxpy compiled by NVRTC (1036 bytes of PTX), loaded and verified
+# rc=0
