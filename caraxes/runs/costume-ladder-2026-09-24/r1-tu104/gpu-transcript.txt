@@ -1,0 +1,15 @@
+host watch pid 1278725 -> /home/silas/git/Caraxes/.claude/worktrees/agent-aef4c8b419fdde539/caraxes/runs/costume-ladder-2026-09-24/r1-tu104/gpu/hostwatch.txt
+probe rc=0
+probe ladder: 93592 device accesses, guest log in /mnt/vmstore/caraxes/vm1/probe-ladder/guest-dmesg.txt
+[  132.853169] NVRM: GPU 0000:00:05.0: RmInitAdapter
+[  136.259411] NVRM: GPU 0000:00:05.0: RmInitAdapter succeeded!
+modprobe rc=0
+synced into 192.168.101.21:/home/leandro/caraxes-tests
+nvml gate rc=1
+caraxes-gate: FAIL power-number: Instantaneous Power Draw 'N/A'
+{"gate":"nvml","verdict":"fail","reason":"failed: power-number","guest":{"name":"Leandro VFIO RTX 2080-1G","total_mib":"1024","reserved_mib":"169","used_mib":"0","free_mib":"856","temp":"53 C","pstate":"P5","power":"N/A","util":"18 %","fan":"68 %"},"host":{"name":"NVIDIA GeForce RTX 2070","temp_befo
+cuda gate rc=1
+CUDA-GATE: FAIL -- cuda-managed
+{"gate":"cuda","result":"fail","dur_s":349,"reason":"failed: cuda-managed","facts":{"stages":["cuda-init","cuda-context","cuda-core","cuda-jit","cuda-launch","cuda-managed","cuda-hostreg","cuda-torch","cuda-gdb","rlprobe","convburn","robustness"],"failed":["cuda-managed"],"vm":"vm1","leandro_test":"
+host watch: 97 samples, nvidia-smi max 2.546s mean 0.067s, 0 kernel log lines, 0 Xid lines, 2 alerts
+ladder GPU run done 2026-09-25T00:10:01+02:00; host Xid lines 0, outside the device pid 0, device pid 1277623

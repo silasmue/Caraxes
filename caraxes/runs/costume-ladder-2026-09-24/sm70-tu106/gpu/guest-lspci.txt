@@ -1,0 +1,12 @@
+00:05.0 VGA compatible controller [0300]: NVIDIA Corporation TU106 [GeForce RTX 2070] [10de:1f02] (rev a1)
+Model: 		 NVIDIA GeForce RTX 2070
+IRQ:   		 36
+GPU UUID: 	 GPU-7fc490a1-b1e9-81e2-363d-50dc8f183234
+Video BIOS: 	 90.06.3d.00.76
+Bus Type: 	 PCIe
+DMA Size: 	 47 bits
+DMA Mask: 	 0x7fffffffffff
+Bus Location: 	 0000:00:05.0
+Device Minor: 	 0
+GPU Firmware: 	 610.57.04
+GPU Excluded:	 No

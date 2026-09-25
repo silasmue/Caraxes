@@ -1,0 +1,80 @@
+[  493.514491] NVRM: nvidia_open...
+[  493.514492] NVRM: GPU 0000:00:05.0: Opening GPU with minor number 0
+[  493.514495] NVRM: ioctl(0xc9, 0x409c8bd0, 0x4)
+[  493.514501] NVRM: ioctl(0xd7, 0x409c8960, 0x230)
+[  493.514531] NVRM: nvidia_close on GPU with minor number 0
+[  493.514563] NVRM: ioctl(0x2a, 0x409c8350, 0x20)
+[  493.514569] NVRM: nvidia_close on GPU with minor number 0
+[  493.514573] NVRM: ioctl(0x29, 0x409c8dd0, 0x10)
+[  493.514593] NVRM: nvidia_close on GPU with minor number 255
+[  493.514594] NVRM: nvidia_ctl_close
+[  493.539705] NVRM: nvidia_open...
+[  493.539714] NVRM: nvidia_ctl_open
+[  493.539720] NVRM: ioctl(0xd2, 0xe9aa1e90, 0x48)
+[  493.539743] NVRM: ioctl(0xd6, 0xe9aa1fa0, 0x8)
+[  493.539745] NVRM: ioctl(0xc8, 0x64ede40, 0x900)
+[  493.539757] NVRM: ioctl(0x2b, 0xe9aa2030, 0x30)
+[  493.539804] NVRM: ioctl(0x2a, 0xe9aa1690, 0x20)
+[  493.539823] NVRM: ioctl(0x2a, 0xe9aa1690, 0x20)
+[  493.539828] NVRM: ioctl(0x2a, 0xe9aa1690, 0x20)
+[  493.539832] NVRM: ioctl(0x2a, 0xe9aa1690, 0x20)
+[  493.539863] NVRM: nvidia_open...
+[  493.539868] NVRM: GPU 0000:00:05.0: Opening GPU with minor number 0
+[  493.539873] NVRM: ioctl(0xda, 0xe9aa1690, 0x8)
+[  493.539877] NVRM: ioctl(0x2a, 0xe9a9f1a0, 0x20)
+[  493.539972] NVRM: ioctl(0x2b, 0xe9aa2370, 0x30)
+[  493.540102] NVRM: ioctl(0x2b, 0xe9aa2370, 0x30)
+[  493.540493] NVRM: ioctl(0x2a, 0xe9aa16a0, 0x20)
+[  493.540508] NVRM: ioctl(0x2a, 0xe9aa14b0, 0x20)
+[  493.540516] NVRM: ioctl(0x2a, 0xe9aa13e0, 0x20)
+[  493.540520] NVRM: ioctl(0x2a, 0xe9aa13e0, 0x20)
+[  493.540552] NVRM: nvidia_open...
+[  493.540556] NVRM: GPU 0000:00:05.0: Opening GPU with minor number 0
+[  493.540560] NVRM: ioctl(0xc9, 0xe9aa1ef0, 0x4)
+[  493.540563] NVRM: ioctl(0xd7, 0xe9aa1c80, 0x230)
+[  493.540575] NVRM: nvidia_close on GPU with minor number 0
+[  493.540604] NVRM: ioctl(0x2a, 0xe9aa1670, 0x20)
+[  493.540609] NVRM: nvidia_close on GPU with minor number 0
+[  493.540612] NVRM: ioctl(0x29, 0xe9aa20f0, 0x10)
+[  493.540660] NVRM: nvidia_close on GPU with minor number 255
+[  493.540661] NVRM: nvidia_ctl_close
+[  495.595149] NVRM: nvidia_open...
+[  495.595155] NVRM: nvidia_ctl_open
+[  495.595171] NVRM: ioctl(0xd6, 0x9c07eaa0, 0x8)
+[  495.595174] NVRM: ioctl(0xc8, 0xf29bf520, 0x900)
+[  495.595185] NVRM: ioctl(0x2b, 0x9c07ebf0, 0x30)
+[  495.595253] NVRM: ioctl(0x2a, 0x9c07db00, 0x20)
+[  495.595269] NVRM: ioctl(0x29, 0x9c07ebe0, 0x10)
+[  495.595287] NVRM: nvidia_close on GPU with minor number 255
+[  495.595288] NVRM: nvidia_ctl_close
+[  495.595317] NVRM: nvidia_open...
+[  495.595318] NVRM: nvidia_ctl_open
+[  495.595324] NVRM: ioctl(0xd6, 0x9c07f060, 0x8)
+[  495.595326] NVRM: ioctl(0xc8, 0xf29bf520, 0x900)
+[  495.595331] NVRM: ioctl(0x2b, 0x9c07f1b0, 0x30)
+[  495.595339] NVRM: ioctl(0x2a, 0x9c07e080, 0x20)
+[  495.595347] NVRM: ioctl(0x2a, 0x9c07e080, 0x20)
+[  495.595352] NVRM: ioctl(0x2b, 0x9c07f1b0, 0x30)
+[  495.595359] NVRM: ioctl(0x2a, 0x9c07e090, 0x20)
+[  495.595660] NVRM: ioctl(0x2a, 0x9c07c220, 0x20)
+[  495.595674] NVRM: ioctl(0x2a, 0x9c07bad0, 0x20)
+[  495.595682] NVRM: ioctl(0x2a, 0x9c07c1e0, 0x20)
+[  495.595723] NVRM: nvidia_open...
+[  495.595725] NVRM: GPU 0000:00:05.0: Opening GPU with minor number 0
+[  495.595732] NVRM: ioctl(0x2a, 0x9c07c3a0, 0x20)
+[  495.595742] NVRM: ioctl(0x2a, 0x9c07b7a0, 0x20)
+[  495.595749] NVRM: ioctl(0x2a, 0x9c07c390, 0x20)
+[  495.595757] NVRM: ioctl(0x29, 0x9c07d430, 0x10)
+[  495.595762] NVRM: ioctl(0x2a, 0x9c07c220, 0x20)
+[  495.595767] NVRM: ioctl(0x2a, 0x9c07c220, 0x20)
+[  495.595799] NVRM: nvidia_open...
+[  495.595800] NVRM: GPU 0000:00:05.0: Opening GPU with minor number 0
+[  495.595805] NVRM: ioctl(0xc9, 0x9c07d3a0, 0x4)
+[  495.595809] NVRM: ioctl(0xd7, 0x9c07d120, 0x230)
+[  495.595821] NVRM: nvidia_close on GPU with minor number 0
+[  495.595824] NVRM: ioctl(0x2a, 0x9c07c320, 0x20)
+[  495.595831] NVRM: nvidia_close on GPU with minor number 0
+[  495.595837] NVRM: ioctl(0x29, 0x9c07f140, 0x10)
+[  495.595846] NVRM: ioctl(0x29, 0x9c07f140, 0x10)
+[  495.595857] NVRM: nvidia_close on GPU with minor number 255
+[  495.595858] NVRM: nvidia_ctl_close

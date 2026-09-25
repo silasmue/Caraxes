@@ -1,0 +1,45 @@
+# SPDX-License-Identifier: MIT
+# The guest check lines of serial.log (ignored as *.log), deduplicated: NVRM lines, the check markers, nvidia-smi.
+[    0.286886] pci 0000:00:04.0: [10de:2d04] type 00 class 0x030000 PCIe Legacy Endpoint
+CARAXES-CHECK begin 2026-09-24T22:18:12+00:00
+00:04.0 VGA compatible controller [0300]: NVIDIA Corporation Device [10de:2d04] (rev a1)
+modprobe rc=0
+[    2.887661] NVRM: loading NVIDIA UNIX Open Kernel Module for x86_64  610.57.04  Release Build  (leandro@caraxes-vm0)  Wed Sep 23 19:24:02 UTC 2026
+[    3.073177] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Call not supported [NV_ERR_NOT_SUPPORTED] (0x00000056) returned from pRmApi->Control(pRmApi, pGpu->hInternalClient, pGpu->hInternalSubdevice, NV2080_CTRL_CMD_INTERNAL_CONF_COMPUTE_GET_STATIC_INFO, &pConfCompute->ccStaticInfo, sizeof(pConfCompute->ccStaticInfo)) @ conf_compute.c:560
+[    3.656948] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Call not supported [NV_ERR_NOT_SUPPORTED] (0x00000056) returned from pRmApi->Control(pRmApi, pGpu->hInternalClient, pGpu->hInternalSubdevice, NV2080_CTRL_CMD_CE_GET_HUB_PCE_MASK_V2, &params, sizeof(params)) @ kernel_ce.c:890
+[    3.658108] NVRM: GPU0 kccuGetBufSize_GB100: CCU sample size retrieval failed with status: 0x56
+[    3.658111] NVRM: GPU0 kccuStateLoad_IMPL: Failed to get the buffer size info(status: 86) 
+[    3.658740] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Call not supported [NV_ERR_NOT_SUPPORTED] (0x00000056) returned from pRmApi->Control(pRmApi, pGpu->hInternalClient, pGpu->hInternalSubdevice, NV2080_CTRL_CMD_INTERNAL_CONF_COMPUTE_GET_STATIC_INFO, &pConfCompute->ccStaticInfo, sizeof(pConfCompute->ccStaticInfo)) @ conf_compute.c:455
+[    4.364222] NVRM: GPU0 nvCheckFailedNoLog: Check failed: numGpcs > 0 @ kernel_graphics_object.c:192
+[    4.366556] NVRM: GPU0 RmInitAdapter: krcWatchdogInit failed, bailing out of RmInitAdapter
+[    4.421332] NVRM: GPU0 _kccuUnmapAndFreeMemory: CCU memdesc unmap request failed with status: 0x56
+CARAXES-CHECK information
+Model: 		 NVIDIA GeForce RTX 5060 Ti
+CARAXES-CHECK smi
+nvidia-smi rc=6
+query rc=6
+CARAXES-CHECK smi-q
+smi-q rc=6
+CARAXES-CHECK dmesg-after
+[   63.638278] NVRM: GPU0 _threadNodeCheckTimeout: _threadNodeCheckTimeout: currentTime: f4208ed5b1200 >= f4208ed5b1200
+[   63.638285] NVRM: GPU0 _threadNodeCheckTimeout: _threadNodeCheckTimeout: Timeout was set to: 4000 msecs!
+[   63.638290] NVRM: GPU0 kflcnWaitForHaltRiscv_GA102: Timeout waiting for RISC-V to halt
+[   63.638401] NVRM: GPU0 nvAssertFailedNoLog: Assertion failed: rmStatus == NV_OK @ osinit.c:2453
+[   63.638932] NVRM: GPU 0000:00:04.0: RmInitAdapter failed! (0x41:0x1a:2260)
+[   63.640344] NVRM: GPU 0000:00:04.0: rm_init_adapter failed, device minor number 0
+[   63.775848] NVRM: GPU0 _kgspBootGspRm: unexpected WPR2 already up, cannot proceed with booting GSP
+[   63.775855] NVRM: GPU0 _kgspBootGspRm: (the GPU is likely in a bad state and may need to be reset)
+[   63.775932] NVRM: GPU0 RmInitAdapter: Cannot initialize GSP firmware RM
+[   63.776308] NVRM: GPU 0000:00:04.0: RmInitAdapter failed! (0x62:0x40:2119)
+[   63.778098] NVRM: GPU 0000:00:04.0: rm_init_adapter failed, device minor number 0
+[   64.042905] NVRM: GPU0 _kgspBootGspRm: unexpected WPR2 already up, cannot proceed with booting GSP
+[   64.042912] NVRM: GPU0 _kgspBootGspRm: (the GPU is likely in a bad state and may need to be reset)
+[   64.042958] NVRM: GPU0 RmInitAdapter: Cannot initialize GSP firmware RM
+[   64.043232] NVRM: GPU 0000:00:04.0: RmInitAdapter failed! (0x62:0x40:2119)
+[   64.044804] NVRM: GPU 0000:00:04.0: rm_init_adapter failed, device minor number 0
+[   64.158075] NVRM: GPU0 _kgspBootGspRm: unexpected WPR2 already up, cannot proceed with booting GSP
+[   64.158081] NVRM: GPU0 _kgspBootGspRm: (the GPU is likely in a bad state and may need to be reset)
+[   64.158126] NVRM: GPU0 RmInitAdapter: Cannot initialize GSP firmware RM
+[   64.158561] NVRM: GPU 0000:00:04.0: RmInitAdapter failed! (0x62:0x40:2119)
+[   64.160090] NVRM: GPU 0000:00:04.0: rm_init_adapter failed, device minor number 0
+CARAXES-CHECK end

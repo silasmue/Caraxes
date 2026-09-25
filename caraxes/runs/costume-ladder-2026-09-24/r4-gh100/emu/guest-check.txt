@@ -1,0 +1,49 @@
+# SPDX-License-Identifier: MIT
+# The guest check lines of serial.log (ignored as *.log), deduplicated: NVRM lines, the check markers, nvidia-smi.
+[    0.433857] pci 0000:00:04.0: [10de:2331] type 00 class 0x030000 PCIe Legacy Endpoint
+CARAXES-CHECK begin 2026-09-24T22:08:45+00:00
+00:04.0 VGA compatible controller [0300]: NVIDIA Corporation GH100 [H100 PCIe] [10de:2331] (rev a1)
+modprobe rc=0
+[    4.866335] NVRM: loading NVIDIA UNIX Open Kernel Module for x86_64  610.57.04  Release Build  (leandro@caraxes-vm0)  Wed Sep 23 19:24:02 UTC 2026
+[   14.679771] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Call not supported [NV_ERR_NOT_SUPPORTED] (0x00000056) returned from pRmApi->Control(pRmApi, pGpu->hInternalClient, pGpu->hInternalSubdevice, NV2080_CTRL_CMD_INTERNAL_CONF_COMPUTE_GET_STATIC_INFO, &pConfCompute->ccStaticInfo, sizeof(pConfCompute->ccStaticInfo)) @ conf_compute.c:560
+[   15.275921] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Call not supported [NV_ERR_NOT_SUPPORTED] (0x00000056) returned from pRmApi->Control(pRmApi, pGpu->hInternalClient, pGpu->hInternalSubdevice, NV2080_CTRL_CMD_CE_GET_HUB_PCE_MASK_V2, &params, sizeof(params)) @ kernel_ce.c:890
+[   15.279547] NVRM: GPU0 kccuShrBufInfoToCcu_IMPL: CCU memdesc map request failed with status: 0x56
+[   15.282055] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Call not supported [NV_ERR_NOT_SUPPORTED] (0x00000056) returned from pRmApi->Control(pRmApi, pGpu->hInternalClient, pGpu->hInternalSubdevice, NV2080_CTRL_CMD_INTERNAL_CONF_COMPUTE_GET_STATIC_INFO, &pConfCompute->ccStaticInfo, sizeof(pConfCompute->ccStaticInfo)) @ conf_compute.c:455
+[   20.339190] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Call timed out [NV_ERR_TIMEOUT] (0x00000065) returned from memmgrMemSet(pMemoryManager, &vidSurface, 0, sizeof vidmemData, TRANSFER_FLAGS_PREFER_CE) @ mem_mgr.c:445
+[   20.532643] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Call timed out [NV_ERR_TIMEOUT] (0x00000065) returned from status @ mem_mgr.c:4166
+CARAXES-CHECK information
+Model: 		 NVIDIA H100 PCIe
+CARAXES-CHECK smi
+nvidia-smi rc=6
+query rc=6
+CARAXES-CHECK smi-q
+smi-q rc=6
+CARAXES-CHECK dmesg-after
+[   24.534705] NVRM: GPU0 nvAssertFailedNoLog: Assertion failed: pCeUtils->lastCompletedPayload == lastSubmittedPayload @ ce_utils.c:350
+[   24.556516] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Call timed out [NV_ERR_TIMEOUT] (0x00000065) returned from memmgrInitCeUtils(pMemoryManager, NV_FALSE, NV_TRUE) @ mem_mgr.c:508
+[   24.556552] NVRM: GPU0 nvAssertFailedNoLog: Assertion failed: 0 @ kernel_fifo.c:3108
+[   24.556590] NVRM: GPU0 RmInitNvDevice: *** Cannot load state into the device
+[   24.556592] NVRM: GPU0 RmInitAdapter: RmInitNvDevice failed, bailing out of RmInitAdapter
+[   75.250426] NVRM: GPU0 _threadNodeCheckTimeout: _threadNodeCheckTimeout: currentTime: f420b9ebe3980 >= f420b9ebe3980
+[   75.250433] NVRM: GPU0 _threadNodeCheckTimeout: _threadNodeCheckTimeout: Timeout was set to: 4000 msecs!
+[   75.250439] NVRM: GPU0 kflcnWaitForHaltRiscv_GA102: Timeout waiting for RISC-V to halt
+[   75.251031] NVRM: GPU0 nvAssertFailedNoLog: Assertion failed: rmStatus == NV_OK @ osinit.c:2453
+[   75.253345] NVRM: GPU0 iovaspaceDestruct_IMPL: 1 left-over mappings in IOVAS 0x4
+[   75.253359] NVRM: GPU 0000:00:04.0: RmInitAdapter failed! (0x25:0x65:1310)
+[   75.255041] NVRM: GPU 0000:00:04.0: rm_init_adapter failed, device minor number 0
+[   75.457174] NVRM: GPU0 _kgspBootGspRm: unexpected WPR2 already up, cannot proceed with booting GSP
+[   75.457180] NVRM: GPU0 _kgspBootGspRm: (the GPU is likely in a bad state and may need to be reset)
+[   75.457534] NVRM: GPU0 RmInitAdapter: Cannot initialize GSP firmware RM
+[   75.463424] NVRM: GPU 0000:00:04.0: RmInitAdapter failed! (0x62:0x40:2119)
+[   75.465809] NVRM: GPU 0000:00:04.0: rm_init_adapter failed, device minor number 0
+[   75.946766] NVRM: GPU0 _kgspBootGspRm: unexpected WPR2 already up, cannot proceed with booting GSP
+[   75.946774] NVRM: GPU0 _kgspBootGspRm: (the GPU is likely in a bad state and may need to be reset)
+[   75.946860] NVRM: GPU0 RmInitAdapter: Cannot initialize GSP firmware RM
+[   75.947642] NVRM: GPU 0000:00:04.0: RmInitAdapter failed! (0x62:0x40:2119)
+[   75.949529] NVRM: GPU 0000:00:04.0: rm_init_adapter failed, device minor number 0
+[   76.081693] NVRM: GPU0 _kgspBootGspRm: unexpected WPR2 already up, cannot proceed with booting GSP
+[   76.081700] NVRM: GPU0 _kgspBootGspRm: (the GPU is likely in a bad state and may need to be reset)
+[   76.081751] NVRM: GPU0 RmInitAdapter: Cannot initialize GSP firmware RM
+[   76.082580] NVRM: GPU 0000:00:04.0: RmInitAdapter failed! (0x62:0x40:2119)
+[   76.085433] NVRM: GPU 0000:00:04.0: rm_init_adapter failed, device minor number 0
+CARAXES-CHECK end

@@ -1,0 +1,9 @@
+caraxes-gate: cuda-init
+  pass: stage 0 ok (cuInit)
+
+TEST                             RESULT SCORED GUEST ERROR | LAST FAILED RM CALL (guest tracer) | DEVICE
+cuda-init                        pass  yes    stage 0 ok (cuInit) | - | 0x2080012f=0x56 x1
+  GATE cuda-init: PASS  (stage 0 ok (cuInit))
+
+CUDA-GATE: PASS (cuda-init)
+{"gate":"cuda","result":"pass","dur_s":2,"facts":{"stages":["cuda-init"],"failed":[],"vm":"vm1","leandro_test":"3edea730c2d8-dirty","caraxes":"shell-rig-249-g7f3bd563538c-dirty","device":"","tests_selected":"cuda-init","scored":"1 pass, 0 fail, 0 declared-unsupported","suites_unscored":0,"run_dir":"caraxes/runs/gate-cuda-2026-09-25-4","detail":"1 of 1 scored tests pass; table in caraxes/runs/gate-cuda-2026-09-25-4/table.txt"}}

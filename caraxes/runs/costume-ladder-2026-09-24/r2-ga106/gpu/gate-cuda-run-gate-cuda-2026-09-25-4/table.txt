@@ -1,0 +1,4 @@
+# SPDX-License-Identifier: MIT
+# cuda gate, gate-cuda-2026-09-25-4, VM vm1: result per test; device = RPCs the device did not answer NV_OK in the test's window
+TEST                             RESULT SCORED GUEST ERROR | LAST FAILED RM CALL (guest tracer) | DEVICE
+cuda-init                        pass  yes    stage 0 ok (cuInit) | - | 0x2080012f=0x56 x1

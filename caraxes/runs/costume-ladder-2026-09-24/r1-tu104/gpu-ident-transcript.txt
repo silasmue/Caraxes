@@ -1,0 +1,9 @@
+host watch pid 1369611 -> /home/silas/git/Caraxes/.claude/worktrees/agent-aef4c8b419fdde539/caraxes/runs/costume-ladder-2026-09-24/r1-tu104/gpu-ident/hostwatch.txt
+probe rc=0
+probe ladder: 93607 device accesses, guest log in /mnt/vmstore/caraxes/vm1/probe-ladder/guest-dmesg.txt
+[  132.819321] NVRM: GPU 0000:00:05.0: RmInitAdapter
+[  135.726926] NVRM: GPU 0000:00:05.0: RmInitAdapter succeeded!
+modprobe rc=0
+synced into 192.168.101.21:/home/leandro/caraxes-tests
+host watch: 56 samples, nvidia-smi max 1.727s mean 0.079s, 0 kernel log lines, 0 Xid lines, 2 alerts
+ladder GPU run done 2026-09-25T00:17:31+02:00; host Xid lines 0, outside the device pid 0, device pid 1368802

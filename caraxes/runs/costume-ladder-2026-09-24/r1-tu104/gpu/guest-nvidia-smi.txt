@@ -1,0 +1,4 @@
+Unable to determine the device handle for GPU0: 0000:00:05.0: Unknown Error
+No devices were found
+Unable to determine the device handle for GPU0: 0000:00:05.0: Unknown Error
+No devices were found

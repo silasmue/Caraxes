@@ -1,0 +1,62 @@
+name, compute_cap, pci.device_id, vbios_version, memory.total [MiB]
+Leandro VFIO RTX 2080-1G, 7.5, 0x1E8210DE, 90.06.3D.00.76, 1024 MiB
+
+==============NVSMI LOG==============
+
+Timestamp                                              : Thu Sep 24 22:17:23 2026
+Driver Version                                         : 610.57.04 [Deprecated; will be removed in CUDA 14.0. Use KMD Version instead]
+CUDA Version                                           : 13.3 [Deprecated; will be removed in CUDA 14.0. Use CUDA UMD Version instead]
+KMD Version                                            : 610.57.04
+CUDA UMD Version                                       : 13.3
+
+Attached GPUs                                          : 1
+GPU 00000000:00:05.0
+    Product Name                                       : Leandro VFIO RTX 2080-1G
+    Product Brand                                      : GeForce
+    Product Architecture                               : Turing
+    Display Mode                                       : Requested functionality has been deprecated
+    Display Attached                                   : No
+    Display Active                                     : Disabled
+    Persistence Mode                                   : Disabled
+    Addressing Mode                                    : None
+    MIG Mode
+        Current                                        : N/A
+        Pending                                        : N/A
+    Accounting Mode                                    : Disabled
+    Accounting Mode Buffer Size                        : 4000
+    Driver Model
+        Current                                        : N/A
+        Pending                                        : N/A
+    Serial Number                                      : N/A
+    GPU UUID                                           : GPU-ff5f9579-65b4-6616-8cd6-cce2ffab32af
+    GPU PDI                                            : 0x1666b46579955fff
+    Minor Number                                       : 0
+    VBIOS Version                                      : 90.06.3D.00.76
+    MultiGPU Board                                     : No
+    Board ID                                           : 0x5
+    Board Part Number                                  : N/A
+    GPU Part Number                                    : 1E82-400-A1
+    FRU Part Number                                    : N/A
+    Platform Info
+        Chassis Serial Number                          : N/A
+        Slot Number                                    : N/A
+        Tray Index                                     : N/A
+        Host ID                                        : N/A
+        Peer Type                                      : N/A
+        Module Id                                      : 1
+        GPU Fabric GUID                                : N/A
+    Inforom Version
+        Image Version                                  : G001.0000.02.04
+        OEM Object                                     : 1.1
+        ECC Object                                     : N/A
+        Power Management Object                        : N/A
+    Inforom BBX Object Flush
+        Latest Timestamp                               : N/A
+        Latest Duration                                : N/A
+    Inforom Time Data
+        Time Run                                       : N/A
+    GPU Operation Mode
+        Current                                        : N/A
+        Pending                                        : N/A
+    GPU C2C Mode                                       : N/A
+    GPU Virtualization Mode
