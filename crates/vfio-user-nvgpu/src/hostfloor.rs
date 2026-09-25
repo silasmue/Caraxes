@@ -22,6 +22,14 @@
 //! The reservation at start is checked by the same floor (`HostMemory::reserve`): refused
 //! when it would leave the host less than the floor (or the older 1 GiB headroom rule,
 //! whichever is larger).
+//!
+//! **BAR1** (the host's shared 256 MiB aperture) has a guard of its own, the same type
+//! ([`HostGuard::bar1_from_env`]): every BAR1 window of the VRAM store is admitted against
+//! `BAR1_AVAIL_SIZE` minus the window, cached like the VRAM figure, and kept above
+//! `CARAXES_HOST_BAR1_FLOOR_MIB` (default 96, bar1pool.rs; checked at start for the pool
+//! until now, 2026-09-25 13:22: a transient BAR1 exhaustion failed the game's
+//! vkCreateDevice). A cached free size is debited by what is admitted and credited by what
+//! the device gives back, so a burst inside the TTL is accounted.
 
 use std::cell::Cell;
 use std::time::{Duration, Instant};
@@ -100,6 +108,10 @@ impl GuardStats {
 
 /// The floor check with its cached free size, the back-off and the log limiter.
 pub struct HostGuard {
+    /// "VRAM" or "BAR1", for the log.
+    resource: &'static str,
+    /// The variable that sets the floor, for the log.
+    env: &'static str,
     floor: u64,
     cached: Cell<Option<(Instant, Option<u64>)>>,
     backoff_until: Cell<Option<Instant>>,
@@ -112,8 +124,16 @@ pub struct HostGuard {
 }
 
 impl HostGuard {
+    /// The host VRAM guard.
     pub fn new(floor: u64) -> Self {
+        Self::with("VRAM", FLOOR_ENV, floor)
+    }
+
+    /// A guard of `resource` (for the log) whose floor `env` sets.
+    pub fn with(resource: &'static str, env: &'static str, floor: u64) -> Self {
         HostGuard {
+            resource,
+            env,
             floor,
             cached: Cell::new(None),
             backoff_until: Cell::new(None),
@@ -127,6 +147,30 @@ impl HostGuard {
 
     pub fn from_env() -> Self {
         Self::new(floor_from_env())
+    }
+
+    /// The host BAR1 guard, its floor from `CARAXES_HOST_BAR1_FLOOR_MIB` (bar1pool.rs; a
+    /// malformed value is reported and the default used).
+    pub fn bar1_from_env() -> Self {
+        let env = crate::bar1pool::HOST_BAR1_FLOOR_ENV;
+        let floor = match crate::bar1pool::host_bar1_floor(std::env::var(env).ok().as_deref()) {
+            Ok(f) => f,
+            Err(e) => {
+                eprintln!(
+                    "vfio-user-nvgpu: ERROR: {e}; using the default {} MiB",
+                    crate::bar1pool::HOST_BAR1_FLOOR_MIB
+                );
+                crate::bar1pool::HOST_BAR1_FLOOR_MIB * MIB
+            }
+        };
+        Self::with("BAR1", env, floor)
+    }
+
+    /// `bytes` the device gave back (an unmapped window): added to the cached free size.
+    pub fn credit(&self, bytes: u64) {
+        if let Some((at, Some(f))) = self.cached.get() {
+            self.cached.set(Some((at, Some(f.saturating_add(bytes)))));
+        }
     }
 
     /// The floor in bytes (0: off).
@@ -162,14 +206,17 @@ impl HostGuard {
         self.cached.get().and_then(|(_, f)| f)
     }
 
-    /// Admit a host allocation of `what` (`read` gives the host's free VRAM in bytes, or
-    /// `None` when it cannot be read). `Err(NO_MEMORY)` refuses it; the caller fails the
-    /// guest-visible operation.
-    pub fn admit(&self, what: &str, now: Instant, read: impl FnOnce() -> Option<u64>) -> Result<(), u32> {
+    /// Admit a host allocation of `what` that takes `need` bytes of the resource (`read`
+    /// gives the host's free size in bytes, or `None` when it cannot be read): the free
+    /// size minus `need` must stay at the floor. `Err(NO_MEMORY)` refuses it; the caller
+    /// fails the guest-visible operation. An admitted `need` is debited from the cached
+    /// free size.
+    pub fn admit(&self, what: &str, need: u64, now: Instant, read: impl FnOnce() -> Option<u64>) -> Result<(), u32> {
+        let r = self.resource;
         if let Some(until) = self.backoff_until.get() {
             if now < until {
                 self.bump(|s| s.backoff += 1);
-                self.log(now, || format!("host VRAM: {what} refused: back-off after the host RM answered NO_MEMORY"));
+                self.log(now, || format!("host {r}: {what} refused: back-off after the host RM answered NO_MEMORY"));
                 return Err(NO_MEMORY);
             }
             self.backoff_until.set(None);
@@ -179,16 +226,20 @@ impl HostGuard {
             return Ok(());
         }
         match self.free(now, read) {
-            Some(f) if f >= self.floor => {
+            Some(f) if f.saturating_sub(need) >= self.floor && f >= need => {
                 self.bump(|s| s.admitted += 1);
+                if let Some((at, Some(c))) = self.cached.get() {
+                    self.cached.set(Some((at, Some(c.saturating_sub(need)))));
+                }
                 Ok(())
             }
             Some(f) => {
                 self.bump(|s| s.below_floor += 1);
                 self.log(now, || {
                     format!(
-                        "host VRAM: {what} refused: {} MiB free, below the floor of {} MiB",
+                        "host {r}: {what} refused: {} MiB free, {} MiB asked, the floor is {} MiB",
                         f / MIB,
+                        need.div_ceil(MIB),
                         self.floor / MIB
                     )
                 });
@@ -196,7 +247,7 @@ impl HostGuard {
             }
             None => {
                 self.bump(|s| s.unknown_free += 1);
-                self.log(now, || format!("host VRAM: {what} refused: the host's free VRAM cannot be read (fail closed)"));
+                self.log(now, || format!("host {r}: {what} refused: the host's free {r} cannot be read (fail closed)"));
                 Err(NO_MEMORY)
             }
         }
@@ -211,9 +262,10 @@ impl HostGuard {
         self.bump(|s| s.rm_no_memory += 1);
         self.cached.set(None);
         self.backoff_until.set(Some(now + BACKOFF));
+        let r = self.resource;
         self.log(now, || {
             format!(
-                "host VRAM: the host RM answered NO_MEMORY to {what}; no host allocation for {} ms",
+                "host {r}: the host RM answered NO_MEMORY to {what}; no host {r} allocation for {} ms",
                 BACKOFF.as_millis()
             )
         });
@@ -233,14 +285,15 @@ impl HostGuard {
         self.last_log.set(Some(now));
         let s = self.stats.get();
         let text = format!(
-            "ERROR: {}; {} refusal(s) so far ({} below the floor, {} unknown free, {} in back-off), {} NO_MEMORY answer(s){} [host protection, {FLOOR_ENV}]",
+            "ERROR: {}; {} refusal(s) so far ({} below the floor, {} unknown free, {} in back-off), {} NO_MEMORY answer(s){} [host protection, {}]",
             line(),
             s.refused(),
             s.below_floor,
             s.unknown_free,
             s.backoff,
             s.rm_no_memory,
-            if skipped > 0 { format!(", {skipped} event(s) since the last line") } else { String::new() }
+            if skipped > 0 { format!(", {skipped} event(s) since the last line") } else { String::new() },
+            self.env
         );
         #[cfg(test)]
         self.lines.borrow_mut().push(text.clone());
@@ -270,7 +323,8 @@ impl HostGuard {
     pub fn line(&self) -> String {
         let s = self.stats.get();
         format!(
-            "host VRAM floor {} MiB{}: {} admitted, {} refused ({} below the floor, {} unknown free, {} in back-off), {} NO_MEMORY answer(s), {} free-size read(s)",
+            "host {} floor {} MiB{}: {} admitted, {} refused ({} below the floor, {} unknown free, {} in back-off), {} NO_MEMORY answer(s), {} free-size read(s)",
+            self.resource,
             self.floor / MIB,
             if self.floor == 0 { " (off)" } else { "" },
             s.admitted,
@@ -310,31 +364,31 @@ mod tests {
             reads.set(reads.get() + 1);
             Some(free.get())
         };
-        assert_eq!(g.admit("channel", t, read), Ok(()));
+        assert_eq!(g.admit("channel", 0, t, read), Ok(()));
         // Inside the TTL the cached size stands: no read, even though the host changed.
         free.set(431 * MIB);
         for i in 0..100 {
-            assert_eq!(g.admit("map", t + Duration::from_millis(i), read), Ok(()));
+            assert_eq!(g.admit("map", 0, t + Duration::from_millis(i), read), Ok(()));
         }
         assert_eq!(reads.get(), 1);
         // After the TTL the new size refuses (the 2026-09-25 incident's 431 MiB).
-        assert_eq!(g.admit("map", t + FREE_TTL, read), Err(NO_MEMORY));
+        assert_eq!(g.admit("map", 0, t + FREE_TTL, read), Err(NO_MEMORY));
         assert_eq!(reads.get(), 2);
         let s = g.stats();
         assert_eq!((s.admitted, s.below_floor, s.reads), (101, 1, 2));
         // The host frees memory again: admitted after the next read.
         free.set(900 * MIB);
-        assert_eq!(g.admit("map", t + FREE_TTL * 2, read), Ok(()));
+        assert_eq!(g.admit("map", 0, t + FREE_TTL * 2, read), Ok(()));
     }
 
     #[test]
     fn an_unreadable_free_size_refuses_and_zero_admits_everything() {
         let g = HostGuard::new(768 * MIB);
-        assert_eq!(g.admit("vas", Instant::now(), || None), Err(NO_MEMORY));
+        assert_eq!(g.admit("vas", 0, Instant::now(), || None), Err(NO_MEMORY));
         assert_eq!(g.stats().unknown_free, 1);
         let off = HostGuard::new(0);
         let t = Instant::now();
-        assert_eq!(off.admit("vas", t, || panic!("no read with the floor off")), Ok(()));
+        assert_eq!(off.admit("vas", 0, t, || panic!("no read with the floor off")), Ok(()));
     }
 
     #[test]
@@ -342,25 +396,52 @@ mod tests {
         let g = HostGuard::new(768 * MIB);
         let t = Instant::now();
         let read = || Some(4 * GIB);
-        assert_eq!(g.admit("map", t, read), Ok(()));
+        assert_eq!(g.admit("map", 0, t, read), Ok(()));
         g.note_status("map", NO_MEMORY, t);
         // A storm of attempts inside the back-off: none reaches the RM, one line in all.
         for i in 1..1000 {
-            assert_eq!(g.admit("map", t + Duration::from_micros(i), read), Err(NO_MEMORY));
+            assert_eq!(g.admit("map", 0, t + Duration::from_micros(i), read), Err(NO_MEMORY));
         }
         assert_eq!(g.lines.borrow().len(), 1, "{:?}", g.lines.borrow());
         let s = g.stats();
         assert_eq!((s.rm_no_memory, s.backoff), (1, 999));
         // After the back-off one attempt goes through again (and re-reads the free size).
-        assert_eq!(g.admit("map", t + BACKOFF, read), Ok(()));
+        assert_eq!(g.admit("map", 0, t + BACKOFF, read), Ok(()));
         // Other statuses (a VA collision's INSUFFICIENT_RESOURCES) start nothing.
         g.note_status("vas", INSUFFICIENT_RESOURCES, t + BACKOFF);
-        assert_eq!(g.admit("map", t + BACKOFF, read), Ok(()));
+        assert_eq!(g.admit("map", 0, t + BACKOFF, read), Ok(()));
         // The next line comes only after LOG_EVERY, with the count of the silent ones.
         g.note_status("map", NO_MEMORY, t + LOG_EVERY + BACKOFF);
         let lines = g.lines.borrow();
         assert_eq!(lines.len(), 2);
         assert!(lines[1].contains("event(s) since the last line"), "{}", lines[1]);
+    }
+
+    /// BAR1: a window is admitted only when the free size minus the window stays at the
+    /// floor; admissions inside the TTL are debited, a given-back window is credited.
+    #[test]
+    fn a_bar1_window_needs_its_size_above_the_floor() {
+        let g = HostGuard::with("BAR1", "CARAXES_HOST_BAR1_FLOOR_MIB", 96 * MIB);
+        let t = Instant::now();
+        let reads = Cell::new(0);
+        // 13:22 on 2026-09-25: 98 MiB free with the pool and two windows held.
+        let read = || {
+            reads.set(reads.get() + 1);
+            Some(160 * MIB)
+        };
+        assert_eq!(g.admit("window", 32 * MIB, t, read), Ok(()));
+        // 128 MiB left in the cache: the next 32 MiB window would leave 96, still admitted;
+        // the third would leave 64, refused, without a new read.
+        assert_eq!(g.admit("window", 32 * MIB, t, read), Ok(()));
+        assert_eq!(g.admit("window", 32 * MIB, t, read), Err(NO_MEMORY));
+        assert_eq!(reads.get(), 1);
+        // The device evicts one of its own windows: credited, the next map fits again.
+        g.credit(32 * MIB);
+        assert_eq!(g.admit("window", 32 * MIB, t, read), Ok(()));
+        let s = g.stats();
+        assert_eq!((s.admitted, s.below_floor), (3, 1));
+        assert!(g.lines.borrow()[0].contains("host BAR1: window refused"), "{:?}", g.lines.borrow());
+        assert!(g.lines.borrow()[0].contains("CARAXES_HOST_BAR1_FLOOR_MIB"));
     }
 
     #[test]

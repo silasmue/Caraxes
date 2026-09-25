@@ -229,6 +229,12 @@ impl WriteFilter for NoFilter {}
 pub trait WindowSource: Send {
     /// Map `len` bytes at reservation offset `offset`; the error is an RM status.
     fn map(&mut self, offset: u64, len: usize) -> Result<Box<dyn WindowBacking>, u32>;
+    /// A window of `len` bytes was unmapped (its host BAR1 is free again).
+    fn released(&mut self, _len: usize) {}
+    /// Windows the host BAR1 floor refused so far (hostfloor.rs).
+    fn bar1_refused(&self) -> u64 {
+        0
+    }
 }
 
 /// One mapped window: byte access at reservation offsets.
@@ -267,6 +273,12 @@ impl WindowSource for crate::hostmem::ReservationMapper {
         let w = crate::hostmem::ReservationMapper::map(self, offset, len)?;
         Ok(Box::new(w))
     }
+    fn released(&mut self, len: usize) {
+        crate::hostmem::ReservationMapper::released(self, len)
+    }
+    fn bar1_refused(&self) -> u64 {
+        self.bar1_guard().stats().refused()
+    }
 }
 
 /// Counters of the VRAM store, for the exit summary.
@@ -282,6 +294,8 @@ pub struct VramStats {
     pub failed: u64,
     /// Windows held now.
     pub held: u64,
+    /// Window maps the host BAR1 floor refused (no RM call; hostfloor.rs).
+    pub bar1_refused: u64,
     pub evictions: u64,
     pub reads: u64,
     pub writes: u64,
@@ -460,7 +474,26 @@ impl VramStore {
     pub fn stats(&self) -> VramStats {
         let mut s = self.stats.borrow().clone();
         s.held = self.windows.borrow().len() as u64;
+        s.bar1_refused = self.src.borrow().bar1_refused();
         s
+    }
+
+    /// Give back the least recently used window: its write-combining buffers are drained
+    /// to VRAM first (an evicted window may hold guest writes the GPU has not read yet,
+    /// the coordinator's flush-rule extension, exec-formats.md §3), then it is unmapped and
+    /// its host BAR1 credited. False when no window is held.
+    fn evict_lru(&self) -> bool {
+        let mut ws = self.windows.borrow_mut();
+        let Some((i, _)) = ws.iter().enumerate().min_by_key(|(_, s)| s.last_use) else {
+            return false;
+        };
+        ws[i].win.flush();
+        let len = ws[i].win.len();
+        ws.remove(i);
+        drop(ws);
+        self.stats.borrow_mut().evictions += 1;
+        self.src.borrow_mut().released(len);
+        true
     }
 
     pub fn windows_held(&self) -> Vec<(u64, usize)> {
@@ -499,6 +532,13 @@ impl VramStore {
         // Not mapped: try the current window size, halving on refusal down to 2 MiB.
         let mut stalled = 0u64;
         loop {
+            // At the budget, the least recently used window goes BEFORE the new one is
+            // mapped: mapping first held one window more than the budget for the moment of
+            // every switch (2026-09-25: 348k switches in a game session, each a 32 MiB
+            // BAR1 peak above the device's 128 MiB of pool and windows).
+            if self.windows.borrow().len() >= self.max_windows {
+                self.evict_lru();
+            }
             let wlen = self.window_len.get();
             let start = off & !(wlen as u64 - 1);
             let len = (wlen as u64).min(self.end - self.base - start) as usize;
@@ -509,19 +549,6 @@ impl VramStore {
                     st.maps += 1;
                     drop(st);
                     let mut ws = self.windows.borrow_mut();
-                    if ws.len() >= self.max_windows {
-                        let (i, _) = ws
-                            .iter()
-                            .enumerate()
-                            .min_by_key(|(_, s)| s.last_use)
-                            .expect("non-empty");
-                        // Drain the window's write-combining buffers to VRAM before it is
-                        // unmapped: an evicted window may hold guest writes the GPU has not
-                        // read yet (coordinator's flush-rule extension, exec-formats.md §3).
-                        ws[i].win.flush();
-                        ws.remove(i);
-                        self.stats.borrow_mut().evictions += 1;
-                    }
                     ws.push(Slot {
                         win: w,
                         last_use: tick,
@@ -536,19 +563,9 @@ impl VramStore {
                     // before asking for a smaller one, so a device never grows its BAR1
                     // share under pressure and never loops on refused maps (P20: two
                     // devices at 3 x 64 MiB drove the host into ~690k refused BAR1 maps).
-                    let mut ws = self.windows.borrow_mut();
-                    if !ws.is_empty() {
-                        let (i, _) = ws
-                            .iter()
-                            .enumerate()
-                            .min_by_key(|(_, s)| s.last_use)
-                            .expect("non-empty");
-                        ws[i].win.flush();
-                        ws.remove(i);
-                        self.stats.borrow_mut().evictions += 1;
+                    if self.evict_lru() {
                         continue;
                     }
-                    drop(ws);
                     if wlen <= 2 << 20 {
                         // No window at all, not even 2 MiB: stall the access a few times
                         // (another device may give its window back), then fail closed and
@@ -2479,6 +2496,31 @@ mod tests {
                 live: self.live.clone(),
             }))
         }
+    }
+
+    /// At the budget the store gives a window back before it maps the next one: a host
+    /// with room for exactly the budget never refuses a switch (before, every switch
+    /// asked for one window more than the budget for a moment).
+    #[test]
+    fn a_window_switch_never_holds_more_than_the_budget() {
+        use std::sync::atomic::Ordering::SeqCst;
+        let (base, end) = (0xE900_0000u64, 0x1_6900_0000u64);
+        let live = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let pages = std::sync::Arc::new(std::sync::Mutex::new(HostRamStore::default()));
+        let src = TightBar1 {
+            live: live.clone(),
+            room: 2,
+            pages,
+        };
+        let mut s = VramStore::with_budget(Box::new(src), base, end, 32 << 20, 2);
+        for k in 0..20u64 {
+            s.write(base + (k % 5) * (32 << 20), &[k as u8]);
+            assert!(live.load(SeqCst) <= 2);
+        }
+        let st = s.stats();
+        assert_eq!(st.map_failures, 0);
+        assert_eq!(st.held, 2);
+        assert_eq!(st.evictions, st.maps - 2);
     }
 
     #[test]

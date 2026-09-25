@@ -1,7 +1,7 @@
 <!-- SPDX-License-Identifier: MIT -->
 <!-- SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de> -->
 <!-- SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR -->
-# Host resources: the VRAM floor, no retry storms, the leak audit, the soak line
+# Host resources: the VRAM floor, no retry storms, the leak audit, the soak line, the BAR1 budget
 
 Written 2026-09-25 after the host froze with two VMs up (game VM 3 GiB, vm2 1 GiB, desktop
 2.1 GiB on the 8 GiB RTX 2070):
@@ -154,7 +154,72 @@ the host's own clients. The soak line separates them: object counts flat while
   the host's free VRAM before a CUDA context starts in the guest: expect one refusal line, an
   RC in the guest (the context errors out), no host log burst, the desktop responsive.
 
-## 6. Open
+## 6. BAR1 budget
+
+The host's 256 MiB BAR1 ran out four times on 2026-09-25 (host dmesg `dmaAllocMapping_GM107:
+can't alloc VA space for mapping`, NO_MEMORY from mapping_reuse.c:273):
+- **11:35:** two pools, the game VM's and vm0's (the BAR1 floor at start, ebbbf627, came from
+  this one).
+- **12:16:** a second VM started beside the pooled game VM.
+- **12:26:** the NVENC probe VM beside the game VM without a pool.
+- **13:22:29:** the game's `vkCreateDevice` failed with -1 (`VK_ERROR_OUT_OF_HOST_MEMORY`) on
+  vm4-615 at the same second. That was the pool (64 MiB) plus 2 x 32 MiB windows, the desktop
+  at about 90 MiB, and Moonlight's software decoder drawing through the host GPU. The soak
+  line a minute before read `bar1_used_mib=157`, so the spike was transient.
+
+What in the device consumes host BAR1:
+- **The VRAM store's windows.** They are the only dynamic consumer. Each window is one
+  `RM_MAP_MEMORY` of the reservation (hostmem.rs:189 `map_window`, called from fb.rs:511
+  `window_for`). The RM maps vidmem for the CPU through BAR1 (mapping_cpu.c:516, then
+  `kbusMapFbAperture`, kern_bus_gm107.c:3110-3155). Unmapping happens in `Window::drop`
+  (hostmem.rs:162).
+- **The pool or the P21 area.** One dma-buf (hostmem.rs:329 `export_dmabuf`) that holds its
+  BAR1 mapping for the VMM's life: fixed, and checked at start.
+- **Not BAR1:**
+  - Host channels: the USERD is the client's own (`bClientAllocatedUserD`, so the RM makes no
+    BAR1 mapping, kernel_channel_tu102.c:288). The error notifier is in guest sysmem.
+  - TSGs, GR contexts, shadow VA spaces and maps: VRAM and GPU VA only.
+  - The doorbell page is in BAR0. `scan_reservation` runs only with `CARAXES_P20_SCAN=1`.
+- **The RM's reuse database** (mapping_reuse.c) shares one BAR1 range between identical
+  mappings of one memdesc, by refcount. It unmaps at refcount 0 (mapping_reuse.c:120-131) and
+  keeps nothing cached. The :273 failure is its map callback not finding contiguous BAR1 VA
+  for a new range.
+
+What could take about 100 MiB within seconds:
+- **The device's window switch** mapped the new window before it evicted the old one, so every
+  switch held 3 x 32 MiB for a moment.
+  - The 12:29-13:25 session made 348408 window maps and 348406 evictions, about 100 switches
+    per second, and more while a Vulkan device with many queues is created (24 channels, up to
+    1340 host objects in that minute, all touching the reservation through the windows).
+  - Each switch was a 32 MiB peak above the device's steady 128 MiB (pool 64 + 2 x 32). It
+    also churned the RM's BAR1 VA and fragmented it: a 32 MiB window needs one contiguous range.
+- **The rest was not the device.** Its 348408 maps were never refused (`0 refused` in the
+  session summary), so the refused mapping at 13:22:29 was another client's: the desktop's
+  Vulkan and Moonlight's texture uploads. The device's peak (160 MiB) plus a desktop that
+  reached 90 MiB leaves about 6 MiB of 256.
+
+Now:
+- **Evict before map** (fb.rs:539): the device never holds more windows than its budget, so
+  its peak is its steady 128 MiB.
+- **One gate for every window.** `ReservationMapper::map` (hostmem.rs:261) admits each window
+  with a `HostGuard` for BAR1 (hostfloor.rs `bar1_from_env`):
+  - `BAR1_AVAIL_SIZE` (`FB_GET_INFO_V2`, read-only, hostmem.rs:284), cached for 250 ms;
+  - the window's size is debited on admission and credited back on eviction;
+  - the free size minus the window must stay at `CARAXES_HOST_BAR1_FLOOR_MIB` (default 96);
+  - an RM NO_MEMORY backs off for 1 s.
+- **A refused window** goes through the VRAM store's fail-closed path (§2): the store gives
+  back its own least recently used window and retries, halves down to 2 MiB, stalls 3 times,
+  then fails the access (all-ones or dropped) and cools down for 1 s.
+- **Visible:** one log line per 10 s, `bar1_refused` in the soak line, host `bar1_used_mib`
+  and `bar1_free_mib` in every soak line. `soak-watch.sh --summary` prints the run's BAR1 peak
+  and its lowest free.
+
+Rule for operators until the dynamic check has run on the GPU:
+- one pooled VM, or two VMs without pools;
+- never a second device beside a pooled game VM, and no NVENC or other probe VM beside the game
+  VM.
+
+## 7. Open
 
 - A shadow build refused for another reason than memory still leaves the guest channel
   waiting (no RC); only memory refusals RC.

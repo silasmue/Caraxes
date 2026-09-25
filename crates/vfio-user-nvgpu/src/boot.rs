@@ -228,6 +228,10 @@ impl BootModel {
             .unwrap()
             .reservation_mapper()
             .map_err(|st| format!("reservation window mapper: status {st:#x}"))?;
+        eprintln!(
+            "vfio-user-nvgpu: {} (every BAR1 window of the VRAM store is admitted against the host's free BAR1 minus the window; docs/caraxes/host-resources.md)",
+            mapper.bar1_guard().line()
+        );
         self.fb = FakeFb::for_layout(&self.layout).with_store(Box::new(VramStore::new(
             Box::new(mapper),
             base,
