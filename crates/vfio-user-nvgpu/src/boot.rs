@@ -762,7 +762,7 @@ impl BootModel {
             self.fb.bar2_sync(Some(root), Some(mem));
         }
         let held = if write && bar == 1 {
-            self.gp_put_barrier(root, offset, data.len())
+            self.gp_put_barrier(mem, root, offset, data.len())
         } else {
             String::new()
         };
@@ -782,13 +782,14 @@ impl BootModel {
     /// that really starts the work: a guest GPPut store into a mirrored channel's USERD
     /// reaches the host channel's USERD at once, and a loaded host channel may fetch it
     /// before the doorbell. So the store waits until the shadow worker applied every plan
-    /// submitted so far (display-e.md §9). Returns the trace's note, empty when it did
-    /// not wait.
-    fn gp_put_barrier(&mut self, root: u64, va: u64, len: usize) -> String {
+    /// submitted so far (display-e.md §9). With `CARAXES_ALLOC_LAZY=1` the invalidates
+    /// before the store may not even be planned yet, so the store plans them first
+    /// (docs/caraxes/bar1-pool.md §9). Returns the trace's note, empty when it did not wait.
+    fn gp_put_barrier(&mut self, mem: &GuestMemory, root: u64, va: u64, len: usize) -> String {
         let Some(m) = self.ctrl.mirror.as_ref() else {
             return String::new();
         };
-        if !m.shadow_pending() {
+        if !m.plans_pending() {
             return String::new();
         }
         let Target::Fb(pa) = self.fb.bar_translate(root, va) else {
@@ -798,7 +799,14 @@ impl BootModel {
             return String::new();
         }
         let t0 = std::time::Instant::now();
-        m.shadow_barrier();
+        let reg = &self.ctrl.channels;
+        if let Some(m) = self.ctrl.mirror.as_mut() {
+            let mut gm = crate::channel::GpuMem {
+                fb: &mut self.fb,
+                sys: mem,
+            };
+            m.plans_barrier(reg, &mut gm);
+        }
         format!(
             " ({GP_PUT_HELD} {} us until the shadow worker applied its plans)",
             t0.elapsed().as_micros()

@@ -252,6 +252,9 @@ pub struct HostChannel {
     pub doorbells: u64,
     /// The guest root of the shadow VAS a shadow GR channel runs on (`None`: CE mirror).
     pub shadow_root: Option<u64>,
+    /// The guest's GPPut when the device last forwarded this channel's doorbell (untrapped.rs
+    /// `ran_ahead`).
+    pub fwd_put: Option<u32>,
 }
 
 /// Counters for the exit summary.
@@ -335,6 +338,10 @@ pub struct Mirror {
     /// `CARAXES_ALLOC_LAZY=1` (lazy.rs, docs/caraxes/alloc-path.md): a guest MMU invalidate
     /// defers its plan to the next shadow doorbell or channel creation.
     lazy: crate::lazy::LazyPlans,
+    /// The rule for a mirrored channel whose GPPut store does not trap (untrapped.rs,
+    /// `CARAXES_SHADOW_UNTRAPPED_HOLD`, default on) and its counters.
+    hold_on: bool,
+    pub hold: crate::untrapped::HoldStats,
     /// The registered guest RAM descriptors `(handle, iova, size)`, read once.
     descs: Option<Vec<(u32, u64, u64)>>,
     next_event_id: u32,
@@ -416,6 +423,24 @@ impl Mirror {
                     crate::lazy::LazyPlans::new(false, None)
                 }
             },
+            hold_on: match crate::untrapped::parse_switch(
+                std::env::var(crate::untrapped::ENV).ok().as_deref(),
+            ) {
+                Ok(on) => {
+                    if !on {
+                        eprintln!(
+                            "vfio-user-nvgpu: WARN untrapped GPPut: rule OFF ({}=0): an invalidate of a root whose channel has an untrapped USERD is not held (A/B only; docs/caraxes/bar1-pool.md §9)",
+                            crate::untrapped::ENV
+                        );
+                    }
+                    on
+                }
+                Err(e) => {
+                    eprintln!("vfio-user-nvgpu: ERROR untrapped GPPut: {e}; the rule stays on");
+                    true
+                }
+            },
+            hold: crate::untrapped::HoldStats::default(),
             descs: None,
             next_event_id: 0x1000,
             stats: MirrorStats::default(),
@@ -526,6 +551,17 @@ impl Mirror {
         pdb: Option<u64>,
     ) -> Vec<String> {
         use crate::lazy::OnInvalidate;
+        // A root whose channel's GPPut store does not trap (untrapped.rs): the invalidate is
+        // the last point before the host channel may run the guest's next work, so the plan
+        // is made and applied before the guest continues, with everything deferred so far.
+        if self.hold_on && crate::untrapped::must_hold(pdb, &self.untrapped_roots(reg, gm.fb)) {
+            let t0 = Instant::now();
+            let mut notes = self.flush_lazy(reg, gm);
+            notes.extend(self.shadow_resync(reg, gm, pdb));
+            self.worker.wait_all();
+            self.hold.note_held(t0.elapsed());
+            return notes;
+        }
         match self.lazy.on_invalidate(pdb, Instant::now()) {
             OnInvalidate::Plan(p) => self.shadow_resync(reg, gm, p),
             OnInvalidate::Defer => Vec::new(),
@@ -564,6 +600,78 @@ impl Mirror {
             Some(p) => self.resync_pending(reg, gm, &p),
             None => Vec::new(),
         }
+    }
+
+    /// Whether plans are pending: deferred by lazy mode, or submitted and not yet applied.
+    pub fn plans_pending(&self) -> bool {
+        self.lazy.is_pending() || self.worker.pending()
+    }
+
+    /// The trapped GPPut store's barrier (boot.rs `gp_put_barrier`): plan what lazy mode
+    /// deferred and wait until the worker applied every plan.
+    pub fn plans_barrier(&mut self, reg: &Registry, gm: &mut GpuMem) -> Vec<String> {
+        let notes = self.flush_lazy(reg, gm);
+        self.worker.wait_all();
+        notes
+    }
+
+    /// The shadow roots of mirrored channels whose USERD the guest writes without a trap
+    /// (untrapped.rs): a USERD page that lives in the BAR1 pool (the guest CPU reaches it
+    /// through the pool area), or a USERD in guest RAM.
+    pub fn untrapped_roots(&self, reg: &Registry, fb: &FakeFb) -> std::collections::BTreeSet<u64> {
+        self.channels
+            .iter()
+            .filter_map(|(chid, c)| {
+                let r = c.shadow_root?;
+                match reg.channel(*chid).and_then(|ch| ch.userd)? {
+                    Target::Fb(u) if fb.remap(u) != u => Some(r),
+                    Target::Sys(_) => Some(r),
+                    _ => None,
+                }
+            })
+            .collect()
+    }
+
+    /// `(GPGet, GPPut, GPFIFO entries)` of guest channel `chid`, read from its USERD where
+    /// the device finds it (the pool page for a USERD in the pool: the host channel's own).
+    fn userd_ring(reg: &Registry, gm: &GpuMem, chid: u32) -> Option<(u32, u32, u32)> {
+        let ch = reg.channel(chid)?;
+        let at = |o: u64| match ch.userd {
+            Some(Target::Fb(pa)) => Some(Target::Fb(pa + o)),
+            Some(Target::Sys(pa)) => Some(Target::Sys(pa + o)),
+            _ => None,
+        };
+        Some((
+            gm.read_u32(at(USERD_GP_GET)?)?,
+            gm.read_u32(at(USERD_GP_PUT)?)?,
+            ch.gpfifo_entries,
+        ))
+    }
+
+    /// At a doorbell of a built shadow channel, before anything is planned: count it when
+    /// the host channel already fetched entries past the last forward (untrapped.rs
+    /// `ran_ahead`), and log it with the wall time when plans were pending.
+    fn note_ran_ahead(&mut self, reg: &Registry, gm: &GpuMem, chid: u32) -> Option<String> {
+        let fwd = self.channels.get(&chid)?.fwd_put?;
+        let (get, put, n) = Self::userd_ring(reg, gm, chid)?;
+        if !crate::untrapped::ran_ahead(fwd, get, put, n) {
+            return None;
+        }
+        let pending = self.plans_pending();
+        let (lazy, worker) = (self.lazy.is_pending(), self.worker.pending());
+        let untrapped = self
+            .channels
+            .get(&chid)
+            .and_then(|c| c.shadow_root)
+            .is_some_and(|r| self.untrapped_roots(reg, gm.fb).contains(&r));
+        let line = self.hold.note_ahead(pending, || {
+            format!(
+                "untrapped GPPut: at {} chid {chid}'s host channel ran ahead of its doorbell (GPGet {get}, forwarded up to {fwd}, GPPut {put}) with plans pending (lazy {lazy}, worker {worker}); USERD untrapped {untrapped}",
+                crate::untrapped::wall()
+            )
+        })?;
+        eprintln!("vfio-user-nvgpu: ERROR {line}");
+        Some(line)
     }
 
     /// The registered guest RAM descriptors, read once (they do not change while the
@@ -667,6 +775,9 @@ impl Mirror {
         gm: &mut GpuMem,
         chid: u32,
     ) -> Vec<String> {
+        // Evidence (untrapped.rs): did the host channel fetch entries this doorbell has not
+        // forwarded yet, and were plans pending then?
+        let ahead_line = self.note_ran_ahead(reg, gm, chid);
         // CARAXES_ALLOC_LAZY: the invalidates deferred since the last doorbell are planned
         // here, before the barrier below or the creation's own wait.
         let lazy_notes = self.flush_lazy(reg, gm);
@@ -675,11 +786,16 @@ impl Mirror {
         if self.channels.contains_key(&chid) {
             let root = self.channels.get(&chid).and_then(|c| c.shadow_root);
             let mut notes = lazy_notes;
+            notes.extend(ahead_line);
             notes.extend(self.shadow_resync(reg, gm, root));
             // Ordering: the doorbell is forwarded only after the worker applied every plan
             // submitted so far (the mirror is consistent for this root).
             self.worker.wait_all();
             gm.fb.flush();
+            let put = Self::userd_ring(reg, gm, chid).map(|(_, p, _)| p);
+            if let Some(hc) = self.channels.get_mut(&chid) {
+                hc.fwd_put = put;
+            }
             match self.doorbell(chid) {
                 Ok(n) => notes.push(n),
                 Err(e) => notes.push(format!("shadow: doorbell chid {chid}: {e}")),
@@ -977,6 +1093,7 @@ impl Mirror {
                 created: Instant::now(),
                 doorbells: 0,
                 shadow_root: Some(root),
+                fwd_put: None,
             },
         );
         notes.push(format!(
@@ -1710,6 +1827,7 @@ impl Mirror {
                         created: t0,
                         doorbells: 0,
                         shadow_root: None,
+                        fwd_put: None,
                     },
                 );
                 Ok((token, notes))
@@ -2354,7 +2472,7 @@ impl Mirror {
     pub fn summary(&self) -> String {
         let s = &self.stats;
         format!(
-            "mirror: {} channel(s) created, {} freed, {} live; {} doorbell(s) forwarded, {} TLB invalidate(s) ({} MEM_OP push(es), {} slow), {} refusal(s), longest mirror build {} us; events raised {}, MSIs {} (coalesced {}), host RC events {}{}",
+            "mirror: {} channel(s) created, {} freed, {} live; {} doorbell(s) forwarded, {} TLB invalidate(s) ({} MEM_OP push(es), {} slow), {} refusal(s), longest mirror build {} us; events raised {}, MSIs {} (coalesced {}), host RC events {}{}; {}",
             s.channels_created,
             s.channels_freed,
             self.channels.len(),
@@ -2372,7 +2490,8 @@ impl Mirror {
                 format!("; {}", self.lazy.summary())
             } else {
                 String::new()
-            }
+            },
+            self.hold.summary(self.hold_on)
         )
     }
 }

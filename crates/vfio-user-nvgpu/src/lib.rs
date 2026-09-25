@@ -58,6 +58,7 @@ pub mod selftest;
 pub mod shadow;
 pub mod tokens;
 pub mod trace;
+pub mod untrapped;
 pub mod uvm;
 pub mod zbc;
 pub mod ver;
