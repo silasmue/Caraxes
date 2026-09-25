@@ -297,7 +297,7 @@ logs the same stream for the synthetic chips already, so the comparison would be
 
 **Display on data-center parts.** GA100, GH100 and GB100 have no display engine
 (e-families.md §2). A cloud VM with such a part has no head, and `frl`, `dp2x` and
-`display_later` can only be validated at home.
+`display_later` can only be validated on the workplace Blackwell card (the home rig has only the TU106, which has none of these families).
 
 ## 9. Which cloud GPU covers which chip
 
@@ -311,11 +311,11 @@ logs the same stream for the synthetic chips already, so the comparison would be
 | GH100 | H100, H200 | Hopper CUDA; cc static info and ccu, spdm refused, mig, nvlink tier 0 or 1, hshub, fabric; c2c on GH200 |
 | GB100 | B200, GB200 | Blackwell data-center CUDA; ccu, blackwell (HES, DRAM encryption), mig, nvlink and NVLE; c2c on GB200 |
 | GB202 | RTX PRO 6000 Blackwell Server Edition (`README.md:977`), where a provider offers it | the closest GB20x in a cloud: same display-less server board, the GB20x HAL with MIG (GB202 is in `PDB_PROP_GPU_MIG_SUPPORTED`, GB206 is not) |
-| GB206 | none; the workplace card and the home rig's 5060 Ti | everything GB20x-consumer, the display families |
+| GB206 | none; the workplace card (the source of the GB206 capture, [blackwell-gb206.md](../blackwell-gb206.md)); there is no Blackwell card at home | everything GB20x-consumer, the display families |
 
 **Consumer RTX boards** (the 2070, the 5060 Ti) are not offered by the usual GPU clouds. The
 operator's list of rentable parts is the data-center parts above. For the GB20x consumer
-view, the workplace card and the home rig are the sources. The T4 is the closest Turing part
+view, the workplace card is the source (there is no Blackwell card at home; the GB206 capture came from the workplace card, [blackwell-gb206.md](../blackwell-gb206.md)). The T4 is the closest Turing part
 a cloud offers.
 
 **Verifying the chip.** The chip column is the operator's mapping. The kit checks it on the
@@ -332,6 +332,6 @@ tree's `README.md` (e-families.md §2).
 
 **Without any cloud.**
 - The workplace Blackwell card gives the GB20x consumer view with display.
-- The home rig's 5060 Ti can run the same kit. The host GPU rules apply: the operator runs
-  it, the agent does not.
+- There is no Blackwell card at home (corrected 2026-09-25: an earlier version named a home
+  5060 Ti; the GB206 capture came from the workplace card, [blackwell-gb206.md](../blackwell-gb206.md)).
 - The RTX 2070 stays the TU106 reference. Its native traces are in `matrix/traces/610.57.04/`.

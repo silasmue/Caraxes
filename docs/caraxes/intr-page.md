@@ -256,9 +256,12 @@ second at idle, and 9.6 per Mutter frame (optimization-backlog.md item 4).
   | PPO, 30 s | 153 | 0 (154/s through the eventfd) | 423 | 314 |
   | idle census window, per 100 ms | 10.2 | 0 | 38.6 | 25.6 |
 
+  The idle row is 102 re-arms per second; optimization-backlog.md's census had 55 and coverage-map.md 331 per second, because idle MSIs are other VMs' work forwarded and follow their load.
+
+
   - The whole census trace of `on-rearm` has no write to 0x88704.
   - The eventfd counted 26017 writes over the session.
-  - The cuda gate is 10 of 12 as before (cuda-managed), and there was 0 host Xid.
+  - The cuda gate is 10 of 12 (the gate script's count: the declared-unsupported cuda-gdb row is among the 12; documents that count only the 11 scored rows write the same result as 10 of 11, testing.md section 3, cuda) as before (cuda-managed), and there was 0 host Xid.
   - What still traps per second is the PCI config capability walk (200-290 reads), the MMU
     invalidate and flush page, and the GSP queue (optimization-backlog.md items 3, 6 and 7).
   - Mutter was not measured (vm0 not borrowed). The expected saving is the 9.6 re-arm traps per
@@ -266,6 +269,7 @@ second at idle, and 9.6 per Mutter frame (optimization-backlog.md item 4).
 - **The VF MMU invalidate and fault-buffer page (0xb83000)** and every other register with a
   model behind it: they act synchronously.
 - **BAR2**: Mutter's 71 PTE writes and 23 reads per frame are page-table traffic of the guest RM.
+  The count depends on the series: the BAR2 writes per Mutter frame differ by series, not by method: 71 (70.85) is series F on the 610 guest without the interrupt and display pages (`caraxes/runs/display-f-2026-09-24/f3b-traps-mutter-fresh/trap-table.txt`, "BAR2 writes, all"), 73.5 is run B3 of intr-page.md section 9, and 73.63 the 615 guest with both pages in display-615.md section 5.
 
 ## 5. Fail-closed rules
 
@@ -308,7 +312,7 @@ most one MSI per period and counts them; a count above zero in a measurement is 
 ## 6. Expected effect and latency
 
 Traps per frame, from §1: Mutter f3b 661.5 - 437.1 = **224.4**, f3 711.7 - 460.6 = **251.1**,
-Weston f4 157.0 - 81.4 = **75.6** (measured in §9: Mutter 229.8, Weston 103.0). At 23-27 us per trap (mapping.md, c0/c1) that is 10-12 ms of
+Weston f4 157.0 - 81.4 = **75.6** (measured in §9: Mutter 229.8, Weston 103.0). At 23-27 us per trap (mapping.md, c0/c1, a quiet host; under load a trap costs up to 35 us, optimization-backlog.md section 4) that is 10-12 ms of
 vCPU exits less per Mutter frame, out of 15-19 ms. The operator's "below 100" needs two more
 steps: the display FE page (-91 per Mutter frame, §4) and Mutter's BAR2 PTE churn (-94);
 together about 40 per frame.

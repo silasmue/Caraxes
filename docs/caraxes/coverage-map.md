@@ -20,7 +20,9 @@ Records: `caraxes/runs/coverage-2026-09-25/` (README there). Tools: `caraxes/too
 ## Summary
 
 - **The instrument.** The profile costs 84 ns per trapped access, 26 ns per control and 38 ns
-  per window hit on this host (`examples/profile-cost.rs`). A trap costs the guest 23 to 35 us,
+  per window hit on this host (`examples/profile-cost.rs`). A trap costs the guest 23 to 35 us
+  (23 to 27 us on a quiet host, mapping.md section 6 `bench-trap.c`; 28 to 35 us as the per-class
+  medians under the other VMs' load, optimization-backlog.md section 4),
   so the profile adds about 0.3 %. With the profile off, a hook is one relaxed load (0.3 ns).
   short-auto with and without the profile is within the noise that the other VMs' GR work
   causes (§1.3).
@@ -325,7 +327,7 @@ texsurf, oom and the others is one.
 | 6 | Host channel and engine objects per context | CE 3.6 ms, GPFIFO 3.1 ms, COMPUTE 4.8 ms, TSG 2.4 ms each; 823 + 823 + 331 + 150 allocations, 7.3 s | 0.6 s | mirror.rs | allocate at first doorbell only for channels the context uses (20 channels are made, compute uses few); pool host channels across processes |
 | 7 | GSP RPC service on the trapped queue-head write | 10132 traps, 3.7 s guest-seen, 364 us each; nvidia-smi's controls 0.5 to 0.8 ms each | 0.25 s | boot.rs `service_queues`, msgq.rs | backlog item 6 (poll-mode GSP); answer static controls without the host call |
 | 8 | GSS-legacy PERF 0x79 and CLK 0x04 forwarded to the host | PERF 0x79: 678 ms on the first call, 21 ms after (11 calls); CLK 0x04 2.3 ms (142 calls); PERF 0x97 1.3 ms | 0 | ver/v610.rs:1033-1041, public.rs forward | cache the static tables for a short TTL: one nvidia-smi -q then costs about 1 ms instead of 21 |
-| 9 | Idle interrupt forwarding | 99339 MSIs and 115318 host event drains in 300 s idle (331/s and 384/s, other VMs' work), 99022 guest re-arms | idle is not a benchmark | intr.rs:68-118, hostmem.rs:332-345 | backlog item 5 (progress-gated forwarding), now at 6x the census's 55/s |
+| 9 | Idle interrupt forwarding | 99339 MSIs and 115318 host event drains in 300 s idle (331/s and 384/s, other VMs' work), 99022 guest re-arms | idle is not a benchmark | intr.rs:68-118, hostmem.rs:332-345 | backlog item 5 (progress-gated forwarding), now at 6x the census's 55/s; the idle rate follows the other VMs' load (55/s census, 102/s in the ioeventfd run of 2026-09-25, 331/s here), so the three are different conditions, not a regression |
 | 10 | FREE RPC with the mirror's teardown | 3064 FREEs, 2.5 s, mean 0.83 ms; 10020 host `RM_FREE`, 3.3 s | 0.46 s | boot.rs:1625-1640, mirror.rs `free_object` (:2393) | free host objects in the worker after the reply, as the shadow's plans already are |
 
 Items 1, 3, 5 and 8 are new: the census could not see them. They are not traps, and they sit in

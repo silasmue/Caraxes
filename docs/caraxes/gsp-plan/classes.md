@@ -86,8 +86,8 @@ Commits on the implementation branch. Run records: `caraxes/runs/gsp-rpc-2026-09
 | of which not on TU106 (other generation or feature absent): should be refused | 95 |
 | Device: modelled by class id (state kept, used later) | 13: VAS, ctxshare, TSG, `TURING_CHANNEL_GPFIFO_A`, 7 display classes, 2 event classes (hotplug only) |
 | Device: recorded as engine objects when the parent is a recorded channel (any class) | the 63 ChannelDescendant classes, generically |
-| Device: acknowledged only (generic echo, `ctrl.rs:736-750`) | all others, including the 95 foreign classes |
-| Device: refused | 0 |
+| Device: acknowledged only (generic echo, `ctrl.rs:736-750`) | the classes inside the chip's class database that are neither modelled nor refused |
+| Device: refused | since round 1 (4e34617, Status above) the 95 foreign classes, as every class outside the chip's class database, plus the 0x0001/0x0041 and profiler classes inside it; the snapshot counts the flag-based set: 96 of the 149 outside the database and 3 profiler classes inside, 99 in all (`caraxes/abi/gsp-615.71.09/classes.tsv`, [gsp-abi-615.md](../gsp-abi-615.md) §4). Before round 1 this row read 0 |
 | Param struct layout changes 610 to 615 among GSP-bound classes | 1 (`NV_CHANNEL_GROUP_ALLOCATION_PARAMETERS` 20 to 28); plus 2 semantic changes without layout change (`internalFlags` of channel and TSG carry the kernel's TSG id) |
 | Route changes 610 to 615 | none |
 

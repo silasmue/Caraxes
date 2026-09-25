@@ -110,7 +110,7 @@ config space (commit 65cfb3e).
 | nvidia-smi -q | Product Architecture Turing, Brand GeForce, VBIOS 90.06.3D.00.76, Device Id 0x2D0410DE, Sub System Id 0x8A081043, PCIe Gen max 3, Link Width 16x/16x | Link Width Max 25x, Current Unknown Error |
 | `lspci -nn` | `NVIDIA Corporation Device [10de:2d04] (rev a1)`, subsystem ASUSTeK 8a08 (the guest's pci.ids does not know 2d04) | same, capabilities at 0x40/0x48/0x60 |
 | nvml gate | name, smi-row, total, usage, temp, pstate, util, temp-matches-host, pstate-family, host-name-differs pass; power-number fails (`'N/A'`, the documented 610-on-615 limitation) | same |
-| cuda gate | 10 of 12 scored pass (init, context, core, jit, launch, hostreg, torch, rlprobe, convburn, robustness), cuda-managed fails (`AllocManaged: 801`, as on the 2070 identity), cuda-gdb declared unsupported; unscored: async_streams OOM at 1 GiB | same |
+| cuda gate | 10 of 12 (the gate script's count: the declared-unsupported cuda-gdb row is among the 12; documents that count only the 11 scored rows write the same result as 10 of 11, testing.md section 3, cuda) scored pass (init, context, core, jit, launch, hostreg, torch, rlprobe, convburn, robustness), cuda-managed fails (`AllocManaged: 801`, as on the 2070 identity), cuda-gdb declared unsupported; unscored: async_streams OOM at 1 GiB | same |
 | short kernel (`short-auto`, ms per launch, 2 reps) | 0.410, 0.318 | 0.136, 0.234 |
 | rlprobe (50 episodes, s) | 17.6, 17.9 (mean10 56.9) | 21.3, 21.8 |
 | Host Xid | none (`final/host-xid.txt`, host watch 0 Xid lines) | none |
