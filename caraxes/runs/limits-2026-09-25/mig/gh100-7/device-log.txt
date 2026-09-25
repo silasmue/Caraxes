@@ -1,0 +1,15 @@
+vfio-user-nvgpu: guest name "Leandro VFIO H100 PCIe-4G"
+vfio-user-nvgpu: guest ABI 610 (MsgqV1)
+vfio-user-nvgpu: GH100 (BOOT_0 0x180000a1, driver 610.57.04) on /mnt/vmstore/caraxes/vm8/gpu.sock, boot model on, FB 4096 MiB, ROM 162304 bytes, PROM image 162304 bytes, trace /mnt/vmstore/caraxes/vm8/gpu-trace.log
+[2026-09-25T08:12:25Z INFO  vfio_user] Received client version: major = 0 minor = 1 capabilities = Capabilities { max_msg_fds: 1, max_data_xfer_size: 1048576, migration: MigrationCapabilities { pgsize: 4096 } }
+[2026-09-25T08:12:25Z INFO  vfio_user] Sent server version: major = 0 minor = 0 capabilities = Capabilities { max_msg_fds: 1, max_data_xfer_size: 1048576, migration: MigrationCapabilities { pgsize: 4096 } }
+[2026-09-25T08:13:08Z INFO  vfio_user] Connection closed
+bar0: 25521 reads, 36478 writes
+bar3: 347 reads, 98222 writes
+cfg: 1939 reads, 38 writes
+bar0 offsets without a name in the register map (offset: accesses):
+  0x000200bc: 2
+  0x00100a34: 2
+  0x00100a38: 2
+  0x001fa828: 1
+bar tlb: 98080 hit(s), 489 walk(s), 100 flush(es) by a table write (docs/caraxes/mapping.md §3)
