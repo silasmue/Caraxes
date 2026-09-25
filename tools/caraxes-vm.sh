@@ -75,6 +75,8 @@
 # because the base's own directory may be read-only; `down` removes it, and a lock whose pid is
 # gone is stale. An overlay start is refused while a writer holds the base (the lock, or a Cloud
 # Hypervisor with the base itself as a disk, as v1's --games-init does). `up` refuses a missing base.
+# CARAXES_TAP=none starts the VM without a network device (a boot-only check that reads the
+# serial log, docs/caraxes/costume-ladder.md §2); ssh, probe and uvm then have no guest.
 # The host tap (default caraxes0, 192.168.100.1/24) must exist and be owned by the user:
 #   sudo ip tuntap add dev caraxes0 mode tap user $USER
 #   sudo ip addr add 192.168.100.1/24 dev caraxes0 && sudo ip link set caraxes0 up
@@ -131,14 +133,35 @@ case ${CARAXES_COSTUME:-} in
     rtx5060ti)
         [[ ${CARAXES_CHIP:-tu106} == tu106 ]] || { printf 'ERROR: CARAXES_COSTUME=rtx5060ti needs CARAXES_CHIP=tu106\n' >&2; exit 1; }
         IDENTITY+=(--board-data rtx5060ti-on-tu106) ;;
-    *) printf 'ERROR: CARAXES_COSTUME must be empty or rtx5060ti\n' >&2; exit 1 ;;
+    # The costume ladder (docs/caraxes/costume-ladder.md): a presented chip over the TU106
+    # (the board's host_chip), so the host flags stay allowed. rtx2080 (TU104), rtx3060
+    # (GA106), rtx4060ti (AD106) use the RTX 2070's config layout and ROM; h100 (GH100) and
+    # rtx5060ti-gb206 (GB206) the GB206 capture's, as their FSP boot reads no Turing VBIOS.
+    rtx2080|rtx3060|rtx4060ti|h100|rtx5060ti-gb206)
+        [[ ${CARAXES_CHIP:-tu106} == tu106 ]] || { printf 'ERROR: CARAXES_COSTUME=%s needs CARAXES_CHIP=tu106 (the executing chip)\n' "$CARAXES_COSTUME" >&2; exit 1; }
+        IDENTITY+=(--board-data "$CARAXES_COSTUME-on-tu106")
+        if [[ $CARAXES_COSTUME == h100 || $CARAXES_COSTUME == rtx5060ti-gb206 ]]; then
+            REF=$LEA_ROOT/caraxes/reference/gb206/gpu-0000_01_00.0
+            CONFIG=$REF/config-space.txt
+        fi ;;
+    *) printf 'ERROR: CARAXES_COSTUME must be empty, rtx5060ti, rtx2080, rtx3060, rtx4060ti, h100 or rtx5060ti-gb206\n' >&2; exit 1 ;;
 esac
+# The SM-version rungs of the costume ladder: CARAXES_SM_VERSION=<major>.<minor> makes the
+# device report that SM version in every GR info answer (--sm-version); the silicon stays.
+[[ -n ${CARAXES_SM_VERSION:-} ]] && IDENTITY+=(--sm-version "$CARAXES_SM_VERSION")
 # A Blackwell identity never touches the host card (the device refuses the host flags too).
 if [[ ${CARAXES_CHIP:-tu106} != tu106 ]]; then
     for v in CARAXES_HOST_RM CARAXES_RESERVE_VRAM CARAXES_HOST_EXEC; do
         [[ ${!v:-0} == 1 ]] && { printf 'ERROR: %s=1 with CARAXES_CHIP=%s: pure emulation only\n' "$v" "$CARAXES_CHIP" >&2; exit 1; }
     done
     [[ ${CARAXES_DMA:-} == register ]] && { printf 'ERROR: CARAXES_DMA=register with CARAXES_CHIP=%s: pure emulation only\n' "$CARAXES_CHIP" >&2; exit 1; }
+fi
+# The Ampere and Ada costumes run FWSEC through the GA102-family HAL, which takes only a
+# boot-from-HS (V3) descriptor (kernel_gsp_falcon_ga102.c:204): their PROM image is
+# synth-vbios.py --desc v3 (docs/caraxes/costume-ladder.md, rung 2).
+if [[ -z ${CARAXES_VBIOS:-} && ( ${CARAXES_COSTUME:-} == rtx3060 || ${CARAXES_COSTUME:-} == rtx4060ti ) ]]; then
+    [[ -f $REF/synth-vbios-fwsec-v3.bin ]] || { printf 'ERROR: %s missing (caraxes/tools/synth-vbios.py --desc v3 %s %s)\n' "$REF/synth-vbios-fwsec-v3.bin" "$REF/rom.bin" "$REF/synth-vbios-fwsec-v3.bin" >&2; exit 1; }
+    CARAXES_VBIOS=$REF/synth-vbios-fwsec-v3.bin
 fi
 if [[ -z ${CARAXES_VBIOS:-} && -f $REF/synth-vbios.bin ]]; then CARAXES_VBIOS=$REF/synth-vbios.bin; fi
 
@@ -159,7 +182,12 @@ up() {
     [[ -f $W/rootfs.qcow2 && -f $W/seed.img ]] || error "$W needs rootfs.qcow2 and seed.img"
     if [[ -n $CARAXES_DRIVER_EXPLICIT || $CARAXES_DRIVER != 610 ]]; then check_base; fi
     [[ -f $REF/rom.bin ]] || error "$REF/rom.bin missing (git-ignored capture of the card's ROM)"
-    ip link show "$TAP" >/dev/null 2>&1 || error "tap $TAP missing; see the header of this script"
+    local net=(--net tap="$TAP",mac="$MAC")
+    if [[ $TAP == none ]]; then
+        net=()
+    else
+        ip link show "$TAP" >/dev/null 2>&1 || error "tap $TAP missing; see the header of this script"
+    fi
     alive "$W/gpu.pid" && error "server already running (pid $(cat "$W/gpu.pid"))"
     alive "$W/ch.pid" && error "VM already running (pid $(cat "$W/ch.pid"))"
     rm -f "$W/gpu.sock" "$W/ch.sock"
@@ -208,7 +236,7 @@ up() {
         --cmdline 'root=/dev/vda1 rw console=ttyS0 net.ifnames=0' \
         --disk path="$W/rootfs.qcow2",image_type=qcow2,backing_files=on \
                path="$W/seed.img",readonly=on "${games[@]}" \
-        --net tap="$TAP",mac="$MAC" \
+        "${net[@]}" \
         --user-device socket="$W/gpu.sock",id=gpu0 "${input[@]}" \
         --serial file="$W/serial.log" --console off \
         > "$W/ch.log" 2>&1 &
