@@ -34,6 +34,14 @@ for r in "-t nat -A POSTROUTING -s $NET.0/24 -o $up -j MASQUERADE" "-A FORWARD -
     # shellcheck disable=SC2086
     sudo -n iptables $r && echo "$r" >> "$W/nat.rules"
 done
+# DHCP and DNS on the tap (dnsmasq, one instance per tap), so the guest needs no static address.
+if ! pgrep -f "dnsmasq.*interface=$TAP" >/dev/null; then
+    sudo -n dnsmasq --interface="$TAP" --bind-interfaces --except-interface=lo \
+        --dhcp-range="$NET.10,$NET.50,12h" --dhcp-option=option:router,"$NET.1" \
+        --dhcp-option=option:dns-server,"$NET.1" --server=1.1.1.1 \
+        --dhcp-leasefile="$W/dnsmasq.leases" --pid-file="$W/dnsmasq.pid" --log-facility="$W/dnsmasq.log"
+    echo "dhcp on $TAP: $NET.10-50, leases in $W/dnsmasq.leases"
+fi
 if ! pgrep -f "swtpm socket.*$W/swtpm" >/dev/null; then
     swtpm socket --tpm2 --tpmstate "dir=$W/swtpm" --ctrl "type=unixio,path=$W/swtpm/sock" \
         --daemon --log "file=$W/swtpm/swtpm.log"
@@ -53,4 +61,4 @@ echo $! > "$W/ch.pid"
 sleep 2
 kill -0 "$(cat "$W/ch.pid")" 2>/dev/null || { tail -20 "$W/ch.log"; die "Cloud Hypervisor exited at once"; }
 echo "windows 11 up: pid $(cat "$W/ch.pid"), $CPUS vCPUs, $MEM, tap $TAP ($NET.1), serial $W/serial.log, log $W/ch.log"
-echo "guest address: whatever DHCP is not: set $NET.2/24 gateway $NET.1 in Windows, or run a DHCP server on the tap"
+echo "guest address: see $W/dnsmasq.leases (DHCP on the tap); RDP: xfreerdp /v:<address> /u:<user>"

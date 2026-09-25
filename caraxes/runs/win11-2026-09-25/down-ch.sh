@@ -21,5 +21,6 @@ if [[ -s $W/nat.rules ]]; then
     done < "$W/nat.rules"
     rm -f "$W/nat.rules"
 fi
+[[ -s $W/dnsmasq.pid ]] && sudo -n kill "$(cat "$W/dnsmasq.pid")" 2>/dev/null && echo "dnsmasq stopped"; sudo -n rm -f "$W/dnsmasq.pid"
 pkill -f "swtpm socket.*$W/swtpm" 2>/dev/null && echo "swtpm stopped"
 exit 0
