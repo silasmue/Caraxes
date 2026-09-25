@@ -39,6 +39,10 @@ pub const GRMGR_GET_GR_FS_INFO: u32 = 0x2080_3801;
 pub const GPU_QUERY_FUNCTION_STATUS: u32 = 0x2080_0173;
 pub const INTERNAL_GET_ENABLED_SEC2_CLASSES: u32 = 0x2080_0AAF;
 pub const FIFO_GET_ENGINE_CONTEXT_PROPERTIES: u32 = 0x0080_1707;
+/// A GSS-legacy clock command (no public layout): `{flags u32, count u32, entries[] of 16
+/// bytes {domain u32, three words out}}`; the recordings have the domains 1, 4 and 8 one
+/// per call, the Windows KMD asks all three in one.
+pub const GSS_LEGACY_CLK_64: u32 = 0x2080_9064;
 /// `GR_GFX_POOL_QUERY_SIZE` (ctrl2080gr.h:1272-1307): the Windows KMD sizes its graphics
 /// preemption (GfxP) pool with it. No capture has the card's numbers: 1 MiB per slot, a
 /// control structure of 64 bytes plus 16 per slot in 4 KiB pages, 64 KiB pool alignment.
@@ -74,6 +78,9 @@ const NV_ERR_INVALID_ARGUMENT: u32 = 0x1F;
 /// FB info indices (ctrl2080fb.h:318-390) the device answers from the emulated FB.
 const FB_LARGEST_FREE_REGION_SIZE_KB: u32 = 0x12;
 const FB_ZERO_BASES: [u32; 3] = [0x11, 0x13, 0x1E];
+/// PARTITION_COUNT, PARTITION_MASK and LTC_MASK, which no recording has: the card's four
+/// FBPs (FBP_COUNT 4, FBP_MASK 0xf recorded) and eight LTCs (LTC_COUNT 8 recorded).
+const FB_TOPOLOGY: [(u32, u32); 3] = [(0x04, 4), (0x14, 0xF), (0x2B, 0xFF)];
 /// BUS info indices of the host's PCI topology (ctrl2080bus.h:348-350): not the guest's.
 const BUS_TOPOLOGY: [u32; 3] = [0x0F, 0x10, 0x11];
 
@@ -88,6 +95,8 @@ pub struct Recorded {
     exact: HashMap<(u32, Vec<u8>), Entry>,
     /// index → data of the index-list controls, from every recorded answer.
     index: HashMap<u32, BTreeMap<u32, u32>>,
+    /// domain → the three answer words of GSS legacy clk 0x64.
+    clk64: BTreeMap<u32, [u32; 3]>,
 }
 
 fn unhex(s: &str) -> Option<Vec<u8>> {
@@ -122,6 +131,7 @@ impl Recorded {
         let mut r = Recorded {
             exact: HashMap::new(),
             index: HashMap::new(),
+            clk64: BTreeMap::new(),
         };
         for (n, line) in text.lines().enumerate() {
             if line.starts_with('#') || line.trim().is_empty() {
@@ -141,6 +151,16 @@ impl Recorded {
                         .or_insert(get32(&ans, 8 + 8 * i));
                 }
             }
+            if cmd == GSS_LEGACY_CLK_64 && status == 0 {
+                for i in 0..(get32(&ans, 4) as usize).min(ans.len().saturating_sub(8) / 16) {
+                    let e = 8 + 16 * i;
+                    r.clk64.entry(get32(&ans, e)).or_insert([
+                        get32(&ans, e + 4),
+                        get32(&ans, e + 8),
+                        get32(&ans, e + 12),
+                    ]);
+                }
+            }
             r.exact.entry((cmd, req)).or_insert(Entry {
                 status,
                 answer: ans,
@@ -157,6 +177,7 @@ impl Recorded {
             Recorded::parse(TSV).unwrap_or(Recorded {
                 exact: HashMap::new(),
                 index: HashMap::new(),
+                clk64: BTreeMap::new(),
             })
         })
     }
@@ -211,6 +232,7 @@ pub fn answer(cmd: u32, params: &[u8], f: &Facts) -> Option<Answer> {
             "enabled SEC2 classes: none (the card's class list has no SEC2 class)".into(),
         )),
         FIFO_GET_ENGINE_CONTEXT_PROPERTIES => Some(engine_ctx(params)),
+        GSS_LEGACY_CLK_64 => clk64(t, params),
         GR_GFX_POOL_QUERY_SIZE => Some(gfx_pool_query_size(params)),
         c if GR_GFX_POOL_MANAGE.contains(&c) => Some(ok(
             params.to_vec(),
@@ -266,6 +288,27 @@ fn engine_ctx(params: &[u8]) -> Answer {
     }
 }
 
+/// GSS legacy clk 0x64 per domain from the recordings; `None` if a domain is not recorded.
+fn clk64(t: &Recorded, params: &[u8]) -> Option<Answer> {
+    let mut b = params.to_vec();
+    let n = (get32(params, 4) as usize).min(params.len().saturating_sub(8) / 16);
+    let mut doms = Vec::new();
+    for i in 0..n {
+        let e = 8 + 16 * i;
+        let d = get32(params, e);
+        let w = t.clk64.get(&d)?;
+        for (k, x) in w.iter().enumerate() {
+            put32(&mut b, e + 4 + 4 * k, *x);
+        }
+        doms.push(format!("{d:#x}"));
+    }
+    Some(ok(
+        b,
+        LABEL,
+        format!("gss legacy clk 0x64: domains [{}] from the recordings", doms.join(" ")),
+    ))
+}
+
 /// `{maxSlots u32, slotStride u32, ctrlStructSize u64, ctrlStructAlign u64, poolSize u64,
 /// poolAlign u64}`; `maxSlots` must be non-zero.
 fn gfx_pool_query_size(params: &[u8]) -> Answer {
@@ -306,6 +349,9 @@ fn list(t: &Recorded, cmd: u32, params: &[u8], f: &Facts) -> Answer {
             FB_GET_INFO_V2 if v::FB_INFO_SIZE_INDICES.contains(&idx) => kib,
             FB_GET_INFO_V2 if idx == FB_LARGEST_FREE_REGION_SIZE_KB => kib,
             FB_GET_INFO_V2 if FB_ZERO_BASES.contains(&idx) => 0,
+            FB_GET_INFO_V2 if FB_TOPOLOGY.iter().any(|t| t.0 == idx) => {
+                FB_TOPOLOGY.iter().find(|t| t.0 == idx).unwrap().1
+            }
             BUS_GET_INFO_V2 if BUS_TOPOLOGY.contains(&idx) => 0,
             _ => match m.get(&idx) {
                 Some(&d) => d,
@@ -475,6 +521,23 @@ mod tests {
         if std::env::var(LPWR_2806_ENV).is_err() {
             assert!(answer(LPWR_2806, &[0u8; 4], &F).is_none());
         }
+    }
+
+    /// The Windows KMD's three-domain request (Y0 trace) from the one-domain recordings.
+    #[test]
+    fn gss_clk64_combines_the_recorded_domains() {
+        let mut p = vec![0u8; 520];
+        put32(&mut p, 4, 3);
+        for (i, d) in [1u32, 4, 8].into_iter().enumerate() {
+            put32(&mut p, 8 + 16 * i, d);
+        }
+        let a = answer(GSS_LEGACY_CLK_64, &p, &F).unwrap();
+        assert_eq!(a.status, 0);
+        let w = |i: usize, k: usize| get32(&a.params, 8 + 16 * i + 4 + 4 * k);
+        assert_eq!([w(0, 0), w(1, 0), w(2, 0)], [1, 0x10, 0x10_0000]);
+        assert_eq!([w(0, 1), w(0, 2)], [1, 0x64]);
+        put32(&mut p, 8, 2);
+        assert!(answer(GSS_LEGACY_CLK_64, &p, &F).is_none());
     }
 
     #[test]
