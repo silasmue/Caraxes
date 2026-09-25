@@ -12,10 +12,13 @@
 //! E2 boot model attached, the firmware-boot registers, the kernel-RM surface and
 //! the queues are modelled too. Writes to any other offset are latched so that a
 //! read-back returns the written value (the honest default while no register has a
-//! model); everything else reads as zero. The names for the trace come from the
-//! chip's register map ([`crate::chip::ChipData::register_name`]).
+//! model). A read of an offset no model answers and nothing latched comes from the
+//! captured table ([`CapturedRegisters`], the physical card's values read once through
+//! the host RM) when one is loaded; everything else reads as zero. The names for the
+//! trace come from the chip's register map ([`crate::chip::ChipData::register_name`]).
 
 use std::collections::BTreeMap;
+use std::path::{Path, PathBuf};
 
 use crate::boot::BootModel;
 use crate::chip::{BootIdentity, Chip};
@@ -47,6 +50,101 @@ pub enum WriteEffect {
     Dropped,
 }
 
+/// BAR0 registers of the physical card, captured once through the host RM
+/// (`caraxes/tools/hostreg-read.c`, EXEC_REG_OPS READ_32) and kept in the board's reference
+/// directory (`caraxes/reference/rtx2070/bar0-registers-<date>.txt`: `#` header lines, then
+/// `offset value` in hex). They answer reads of offsets that no model owns and nothing
+/// latched: the Windows driver's chip-identification reads before its GSP decision
+/// (caraxes/runs/win11-2026-09-25/README.md, "The Windows driver's first contact"). A
+/// modelled register is never overridden.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct CapturedRegisters {
+    regs: BTreeMap<u64, u32>,
+}
+
+impl CapturedRegisters {
+    /// The file prefix in a reference directory.
+    pub const PREFIX: &'static str = "bar0-registers-";
+
+    /// Parse `offset value` lines (hex, `0x` optional); `#` starts a comment. An offset must
+    /// be dword aligned and inside BAR0; an offset twice must carry the same value.
+    pub fn parse(text: &str) -> Result<Self, String> {
+        let hex = |t: &str| u64::from_str_radix(t.trim_start_matches("0x"), 16);
+        let mut regs = BTreeMap::new();
+        for (n, line) in text.lines().enumerate() {
+            let line = line.split('#').next().unwrap_or("").trim();
+            if line.is_empty() {
+                continue;
+            }
+            let mut f = line.split_whitespace();
+            let (Some(o), Some(v), None) = (f.next(), f.next(), f.next()) else {
+                return Err(format!("line {}: expected `offset value`", n + 1));
+            };
+            let off = hex(o).map_err(|e| format!("line {}: offset {o:?}: {e}", n + 1))?;
+            let val = hex(v)
+                .ok()
+                .and_then(|v| u32::try_from(v).ok())
+                .ok_or_else(|| format!("line {}: value {v:?} is no 32-bit hex number", n + 1))?;
+            if off % 4 != 0 || off >= SIZE {
+                return Err(format!(
+                    "line {}: offset {off:#x} unaligned or beyond BAR0",
+                    n + 1
+                ));
+            }
+            if regs.insert(off, val).is_some_and(|old| old != val) {
+                return Err(format!(
+                    "line {}: offset {off:#x} twice with different values",
+                    n + 1
+                ));
+            }
+        }
+        Ok(CapturedRegisters { regs })
+    }
+
+    pub fn load(path: &Path) -> Result<Self, String> {
+        let text =
+            std::fs::read_to_string(path).map_err(|e| format!("read {}: {e}", path.display()))?;
+        Self::parse(&text).map_err(|e| format!("{}: {e}", path.display()))
+    }
+
+    /// The newest capture in `dir` (the greatest `bar0-registers-*.txt` name; the date
+    /// sorts), or `None`.
+    pub fn newest_in(dir: &Path) -> Option<PathBuf> {
+        std::fs::read_dir(dir)
+            .ok()?
+            .filter_map(|e| e.ok().map(|e| e.path()))
+            .filter(|p| {
+                p.file_name()
+                    .and_then(|n| n.to_str())
+                    .is_some_and(|n| n.starts_with(Self::PREFIX) && n.ends_with(".txt"))
+            })
+            .max()
+    }
+
+    /// A capture of another chip must not answer for this one: when the table holds
+    /// `NV_PMC_BOOT_0`, it must be the presented identity's.
+    pub fn check_identity(&self, boot_0: u32) -> Result<(), String> {
+        match self.regs.get(&NV_PMC_BOOT_0) {
+            Some(&v) if v != boot_0 => Err(format!(
+                "captured NV_PMC_BOOT_0 {v:#010x} is not the presented chip's {boot_0:#010x}"
+            )),
+            _ => Ok(()),
+        }
+    }
+
+    pub fn get(&self, off: u64) -> Option<u32> {
+        self.regs.get(&off).copied()
+    }
+
+    pub fn len(&self) -> usize {
+        self.regs.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.regs.is_empty()
+    }
+}
+
 pub struct Bar0 {
     chip: &'static dyn Chip,
     identity: Identity,
@@ -57,6 +155,10 @@ pub struct Bar0 {
     /// The image behind the PROM window (the full VBIOS when available).
     vbios: Vec<u8>,
     latched: BTreeMap<u64, u32>,
+    /// The physical card's captured registers for unmodelled offsets (none: they read 0).
+    captured: Option<CapturedRegisters>,
+    /// A dword of the last read came from `captured` (the trace's `captured` note).
+    served_captured: bool,
     boot: Option<BootModel>,
     notes: Vec<String>,
     /// `CARAXES_INTR_PAGE=1`: page 0 and the interrupt tree's page are memory the guest
@@ -80,6 +182,8 @@ impl Bar0 {
             rom,
             vbios,
             latched: BTreeMap::new(),
+            captured: None,
+            served_captured: false,
             boot: None,
             notes: Vec::new(),
             page: None,
@@ -110,6 +214,17 @@ impl Bar0 {
             || (0x0061_0000..0x0070_0000).contains(&off)
             || off == 0x0002_1C04
             || self.boot.as_ref().is_some_and(|b| b.owns_register(off))
+    }
+
+    /// Answer unmodelled, unlatched reads from the captured table.
+    pub fn with_captured(mut self, table: CapturedRegisters) -> Self {
+        self.captured = Some(table);
+        self
+    }
+
+    /// Whether a dword of the last [`Bar0::read`] came from the captured table.
+    pub fn take_captured(&mut self) -> bool {
+        std::mem::take(&mut self.served_captured)
     }
 
     /// Attach the E2 boot model.
@@ -200,7 +315,16 @@ impl Bar0 {
                 if let Some(v) = self.boot.as_mut().and_then(|b| b.read32(reg)) {
                     return v;
                 }
-                self.latched.get(&reg).copied().unwrap_or(0)
+                if let Some(&v) = self.latched.get(&reg) {
+                    return v;
+                }
+                match self.captured.as_ref().and_then(|c| c.get(reg)) {
+                    Some(v) => {
+                        self.served_captured = true;
+                        v
+                    }
+                    None => 0,
+                }
             }
         }
     }
@@ -208,6 +332,7 @@ impl Bar0 {
     /// Fill `buf` with the bytes at `offset`. Any size and alignment is accepted;
     /// the driver uses 1, 2, 4 and 8-byte accesses.
     pub fn read(&mut self, cfg: &ConfigSpace, mem: &GuestMemory, offset: u64, buf: &mut [u8]) {
+        self.served_captured = false;
         let mut i = 0usize;
         while i < buf.len() {
             let off = offset + i as u64;
@@ -379,6 +504,71 @@ mod tests {
             bar0.write(&mut cfg, &mem, 0x9400, &7u32.to_le_bytes()),
             WriteEffect::Latched
         );
+    }
+
+    /// The captured table answers unmodelled offsets only: a model, the boot constants and a
+    /// latched write win; without a table (the file missing) those offsets read 0.
+    #[test]
+    fn captured_registers_answer_unmodelled_reads() {
+        let text = "# test capture\n0x00000000 0x166000a1\n0x00021434 0x00000001\n\
+                    0x001373a0 0x0000000a\n0x00610018 0x04000000\n0x00000a00 0xdeadbeef\n\
+                    0x00110100 0x12345678\n";
+        let t = CapturedRegisters::parse(text).unwrap();
+        assert_eq!(t.len(), 6);
+        assert!(t.check_identity(0x1660_00A1).is_ok());
+        assert!(t.check_identity(0x1B20_00A1).is_err());
+        assert!(CapturedRegisters::parse("0x3 0x1").is_err());
+        assert!(CapturedRegisters::parse("0x4 0x1 0x2").is_err());
+        assert!(CapturedRegisters::parse("0x4 0x1\n0x4 0x2").is_err());
+        assert!(CapturedRegisters::parse("0x4 0x100000000").is_err());
+        assert!(CapturedRegisters::parse("0x1000000 0x1").is_err());
+        assert!(CapturedRegisters::load(Path::new("/nonexistent/bar0-registers-x.txt")).is_err());
+
+        let (bar0, mut cfg) = parts();
+        let mem = GuestMemory::new();
+        let f = crate::fixture::rtx2070();
+        let mut bar0 = bar0
+            .with_boot_model(BootModel::new(
+                f.chip,
+                crate::fb::FbLayout::plain(4 << 30),
+                f.identity(4 << 30),
+            ))
+            .with_captured(t);
+        let rd = |bar0: &mut Bar0, cfg: &ConfigSpace, off: u64| {
+            let mut b = [0u8; 4];
+            bar0.read(cfg, &mem, off, &mut b);
+            (u32::from_le_bytes(b), bar0.take_captured())
+        };
+        assert_eq!(rd(&mut bar0, &cfg, 0x21434), (1, true));
+        assert_eq!(rd(&mut bar0, &cfg, 0x1373A0), (0xA, true));
+        assert_eq!(rd(&mut bar0, &cfg, 0x610018), (0x0400_0000, true));
+        // The boot constants and the boot model's registers are not overridden.
+        assert_eq!(rd(&mut bar0, &cfg, NV_PMC_BOOT_42), (0x166A_1000, false));
+        assert_eq!(rd(&mut bar0, &cfg, 0x110100), (0x10, false));
+        // Not in the table: 0.
+        assert_eq!(rd(&mut bar0, &cfg, 0x21438), (0, false));
+        // A latched write reads back as written.
+        assert_eq!(
+            bar0.write(&mut cfg, &mem, 0x21434, &7u32.to_le_bytes()),
+            WriteEffect::Latched
+        );
+        assert_eq!(rd(&mut bar0, &cfg, 0x21434), (7, false));
+        // A reset forgets the write; the capture stays.
+        bar0.reset();
+        assert_eq!(rd(&mut bar0, &cfg, 0x21434), (1, true));
+
+        // Fail closed: no table, the same offsets read 0.
+        let (mut plain, cfg) = parts();
+        assert_eq!(rd(&mut plain, &cfg, 0x21434), (0, false));
+
+        // The house card's capture parses and is the presented TU106's.
+        let house = CapturedRegisters::parse(include_str!(
+            "../../../caraxes/reference/rtx2070/bar0-registers-2026-09-25.txt"
+        ))
+        .unwrap();
+        assert_eq!(house.len(), 737);
+        assert!(house.check_identity(0x1660_00A1).is_ok());
+        assert_eq!(house.get(0x1373A0), Some(0xA));
     }
 
     /// The L2 cache-operation registers (`NV_UFLUSH_*`, gm200/dev_flush.h, and the
