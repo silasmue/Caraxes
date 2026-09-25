@@ -57,7 +57,7 @@ pub struct FalconSpec {
 
 impl FalconSpec {
     /// The falcon model of this block.
-    pub fn falcon(&self, name: &'static str) -> Falcon {
+    pub fn falcon(&self, name: &'static str, stallack: u32) -> Falcon {
         Falcon::new(
             name,
             self.riscv,
@@ -72,6 +72,7 @@ impl FalconSpec {
         })
         .with_fbif(self.fbif.unwrap_or(crate::falcon::FBIF_DEFAULT))
         .with_halt_irq(self.halt_irq)
+        .with_stallack(stallack)
     }
 }
 
@@ -98,6 +99,10 @@ pub struct TuringBootData {
     /// `NV_PMC_ENABLE`, watched (not owned) for the falcon resets of `pmc_enable_bit`.
     #[serde(default)]
     pub pmc_enable: Option<u64>,
+    /// What a falcon's `ENGCTL` reads after a stall request (default 0x200; the
+    /// `CARAXES_FALCON_STALLACK` environment variable wins).
+    #[serde(default)]
+    pub stallack: Option<u32>,
     pub falcon_block_size: u64,
     pub gsp_queue_head: u64,
     /// `NV_PGSP_QUEUE_TAIL(0)`, `NV_PGSP_MSGQ_HEAD(0)`, `NV_PGSP_MSGQ_TAIL(0)`: the
@@ -178,10 +183,15 @@ pub struct TuringBoot {
 
 impl TuringBoot {
     pub fn new(d: &'static TuringBootData, fb_bytes: u64) -> Self {
+        let stallack = crate::falcon::stallack_from_env()
+            .ok()
+            .flatten()
+            .or(d.stallack)
+            .unwrap_or(crate::falcon::STALLACK_DEFAULT);
         TuringBoot {
-            gsp: d.gsp.falcon("gsp"),
-            sec2: d.sec2.falcon("sec2"),
-            pmu: d.pmu.as_ref().map(|p| p.falcon("pmu")),
+            gsp: d.gsp.falcon("gsp", stallack),
+            sec2: d.sec2.falcon("sec2", stallack),
+            pmu: d.pmu.as_ref().map(|p| p.falcon("pmu", stallack)),
             d,
             fb_bytes,
             wpr2: (0, 0),
@@ -611,6 +621,21 @@ mod tests {
         // The GSP's IRQSTAT keeps its latch (no HALT bit on a GSP start).
         b.write32(d.gsp.base + falcon::CPUCTL, 2, &mem);
         assert_eq!(b.read32(d.gsp.base + falcon::IRQSTAT), Some(0));
+    }
+
+    /// Run P's gate: `W 0x10a0a4 0x2`, then the poll reads the stall acknowledge at once.
+    #[test]
+    fn pmu_stall_request_is_acknowledged() {
+        let d = data();
+        let pmu = d.pmu.as_ref().unwrap().base;
+        let mem = GuestMemory::new();
+        let mut b = TuringBoot::new(d, 4 << 30);
+        assert_eq!(b.read32(pmu + falcon::ENGCTL), Some(0));
+        b.write32(pmu + falcon::ENGCTL, 0x2, &mem);
+        let want = falcon::stallack_from_env()
+            .unwrap()
+            .unwrap_or(falcon::STALLACK_DEFAULT);
+        assert_eq!(b.read32(pmu + falcon::ENGCTL), Some(want));
     }
 
     /// nova-core's Turing boot and re-probe (Linux 7.2.7 gsp/hal/tu102.rs): FWSEC-FRTS, a

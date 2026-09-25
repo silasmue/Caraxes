@@ -130,6 +130,9 @@ Environment: CARAXES_DOORBELL_IOEVENTFD=1 offers the usermode doorbell register 
   too, so the guest OS sees VC, LTR, L1SS, Power Budgeting, AER, the VSEC, Secondary PCIe
   and Resizable BAR (read-only); without it the region reads zeros there and only the
   BAR0 mirror NV_PCFG serves those bytes (docs/caraxes/vfio-user.md).
+  CARAXES_FALCON_STALLACK=<hex> is what a falcon's ENGCTL (+0xa4) reads after a stall
+  request (a write with bit 1): default 0x200 (STALLACK_T), e.g. 0 or 600 to try the other
+  answers the Windows driver's PMU poll may want (boot.toml `stallack` sets the default).
   CARAXES_DOORBELL_POLL=off|spin|hybrid chooses how the thread that reads those eventfds
   waits: off blocks in epoll_wait (default), spin polls with epoll_wait timeout 0 and
   never sleeps, hybrid spins CARAXES_DOORBELL_POLL_IDLE_US (default 200) after the last
@@ -581,6 +584,12 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
         bail!("{DOORBELL_IOEVENTFD_ENV}=1 is refused together with CARAXES_BAR1_PASSTHROUGH=1: the ioeventfd carries no token and the passthrough area hides the GPPut writes the token-less path relies on; use the token pool ({}=N) instead", tokens::TOKENS_ENV);
     }
     let cfg = config_space(a)?;
+    if let Some(v) = vfio_user_nvgpu::falcon::stallack_from_env().map_err(anyhow::Error::msg)? {
+        eprintln!(
+            "vfio-user-nvgpu: {}={v:#x}: falcon ENGCTL reads {v:#x} after a stall request",
+            vfio_user_nvgpu::falcon::STALLACK_ENV
+        );
+    }
     let rom = std::fs::read(&a.rom).with_context(|| {
         format!(
             "read {} (the PCI-visible ROM of the card; capture it with `cat /sys/bus/pci/devices/<bdf>/rom` after `echo 1 > rom`)",

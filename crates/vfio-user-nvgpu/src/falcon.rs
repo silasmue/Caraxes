@@ -24,6 +24,12 @@ pub const ITFEN: u64 = 0x048;
 pub const OS: u64 = 0x080;
 pub const RM: u64 = 0x084;
 pub const DEBUGINFO: u64 = 0x094;
+/// `NV_PFALCON_FALCON_ENGCTL`: bits 3:0 are write-only triggers (bit 1 SET_STALLREQ, bit 3
+/// SWITCH_CONTEXT, nouveau `gm200_flcn_bind_inst`); a stall request is acknowledged in the
+/// status bits (STALLACK_T 9, STALLACK_N 10, recalled layout; not in the vendored headers).
+/// The Windows driver writes 0x2 to the PMU's and polls for the acknowledge
+/// (caraxes/runs/win11-2026-09-25/night-2026-09-25/ANALYSIS-gsp-path.md §1).
+pub const ENGCTL: u64 = 0x0A4;
 pub const HWCFG2: u64 = 0x0F4;
 pub const CPUCTL: u64 = 0x100;
 pub const BOOTVEC: u64 = 0x104;
@@ -84,8 +90,27 @@ const MODELLED: [std::ops::Range<u64>; 6] = [
 ];
 /// FBIF offset of GSP and SEC2 (`dev_fbif_v4.h`); the PMU's sits at 0xE00.
 pub const FBIF_DEFAULT: u64 = 0x600;
-/// `IRQSTAT` HALT (bit 4).
+const ENGCTL_TRIGGERS: u32 = 0xF;
+const ENGCTL_SET_STALLREQ: u32 = 1 << 1;
+/// STALLACK_T and STALLACK_N: status, never written.
+const ENGCTL_STALLACK_BITS: u32 = 0x600;
+/// What `ENGCTL` reads after a stall request: STALLACK_T (bit 9).
+pub const STALLACK_DEFAULT: u32 = 0x200;
+/// `CARAXES_FALCON_STALLACK=<hex>`: what `ENGCTL` reads after a stall request instead of
+/// 0x200 (the night runs try 0x0 and 0x600 if the driver's poll does not end).
+pub const STALLACK_ENV: &str = "CARAXES_FALCON_STALLACK";
 const IRQ_HALT: u32 = 1 << 4;
+
+/// `CARAXES_FALCON_STALLACK` when set: `Ok(None)` unset, `Err` for a value that is no
+/// 32-bit hex number.
+pub fn stallack_from_env() -> Result<Option<u32>, String> {
+    match std::env::var(STALLACK_ENV) {
+        Err(_) => Ok(None),
+        Ok(v) => u32::from_str_radix(v.trim().trim_start_matches("0x"), 16)
+            .map(Some)
+            .map_err(|e| format!("{STALLACK_ENV}={v:?}: {e}")),
+    }
+}
 
 /// The identity registers of a falcon as the host card reads them (boot.toml): `HWCFG`
 /// (`None`: computed from the IMEM/DMEM sizes), `HWCFG1` and the reset value of `ITFEN`.
@@ -135,6 +160,8 @@ pub struct Falcon {
     /// A start raises `IRQSTAT` HALT, and `IRQSSET`/`IRQSCLR` act on `IRQSTAT` (the PMU;
     /// GSP and SEC2 keep their latches, which the Linux path depends on).
     halt_irq: bool,
+    /// What `ENGCTL` reads after a stall request.
+    stallack: u32,
 }
 
 impl Falcon {
@@ -164,6 +191,7 @@ impl Falcon {
             ids: Ids::default(),
             fbif: FBIF_DEFAULT,
             halt_irq: false,
+            stallack: STALLACK_DEFAULT,
         }
     }
 
@@ -182,6 +210,12 @@ impl Falcon {
     /// Model `IRQSTAT` HALT on a start and the set/clear registers.
     pub fn with_halt_irq(mut self, on: bool) -> Self {
         self.halt_irq = on;
+        self
+    }
+
+    /// What `ENGCTL` reads after a stall request.
+    pub fn with_stallack(mut self, v: u32) -> Self {
+        self.stallack = v;
         self
     }
 
@@ -282,6 +316,7 @@ impl Falcon {
             HWCFG => self.ids.hwcfg.unwrap_or_else(|| self.hwcfg()),
             HWCFG1 => self.ids.hwcfg1,
             ITFEN => self.regs.get(&ITFEN).copied().unwrap_or(self.ids.itfen),
+            ENGCTL => self.reg(ENGCTL) & !ENGCTL_TRIGGERS,
             HWCFG2 => u32::from(self.riscv_capable) * HWCFG2_RISCV,
             DMACTL => 0,
             DMATRFCMD => (self.reg(DMATRFCMD) & !DMATRFCMD_FULL) | DMATRFCMD_IDLE,
@@ -322,6 +357,18 @@ impl Falcon {
                     self.reset();
                     return Some(Event::Reset);
                 }
+                None
+            }
+            ENGCTL => {
+                let ack = if v & ENGCTL_SET_STALLREQ != 0 {
+                    self.stallack
+                } else {
+                    0
+                };
+                self.regs.insert(
+                    ENGCTL,
+                    (v & !(ENGCTL_TRIGGERS | ENGCTL_STALLACK_BITS)) | ack,
+                );
                 None
             }
             IRQSCLR if self.halt_irq => {
@@ -412,6 +459,30 @@ impl Falcon {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// ENGCTL: the triggers (3:0) read 0; a stall request (bit 1) reads the acknowledge,
+    /// STALLACK_T 0x200 by default or the configured answer.
+    #[test]
+    fn engctl_stall_request_is_acknowledged() {
+        let mut f = Falcon::new("pmu", false, 0x100, 0x100, false);
+        assert_eq!(f.read32(ENGCTL), 0);
+        f.write32(ENGCTL, 0x8);
+        assert_eq!(f.read32(ENGCTL), 0);
+        f.write32(ENGCTL, 0x2);
+        assert_eq!(f.read32(ENGCTL), 0x200);
+        // A later write without the request drops the acknowledge.
+        f.write32(ENGCTL, 0x0);
+        assert_eq!(f.read32(ENGCTL), 0);
+        for ack in [0x0, 0x600] {
+            let mut g = Falcon::new("pmu", false, 0x100, 0x100, false).with_stallack(ack);
+            g.write32(ENGCTL, 0x2);
+            assert_eq!(g.read32(ENGCTL), ack);
+        }
+        // A reset clears it.
+        f.write32(ENGCTL, 0x2);
+        f.reset_block();
+        assert_eq!(f.read32(ENGCTL), 0);
+    }
 
     #[test]
     fn reset_load_start_halt() {
