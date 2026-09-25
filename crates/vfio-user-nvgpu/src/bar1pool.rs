@@ -533,9 +533,13 @@ impl PoolGpu for MirrorGpu<'_> {
         // plan (a leaf the guest dropped may still be mapped until then).
         self.mirror.shadow_barrier();
         for r in self.mirror.shadow_roots() {
-            let leaves = fb
-                .with_walk(Target::Fb(r), |c| c.all_leaves())
-                .unwrap_or_default();
+            // Fail closed: a shadow root without a cached walk may map any page.
+            let Some(leaves) = fb.with_walk(Target::Fb(r), |c| c.all_leaves()) else {
+                for p in pages {
+                    out.entry(*p).or_default().roots.insert(r);
+                }
+                continue;
+            };
             for (_, t, size, _) in leaves {
                 let Target::Fb(pa) = t else { continue };
                 for p in pages.range(pa & !(PAGE - 1)..pa.saturating_add(size)) {
@@ -876,8 +880,18 @@ pub fn poll(fb: &mut FakeFb, gpu: &mut dyn PoolGpu) -> bool {
     {
         let mut guard = fb.pool_mut();
         let pool = guard.as_mut().expect("on");
-        if matches!(barrier, Some(Err(_))) {
+        if let Some(Err(e)) = &barrier {
             pool.stats.barriers_refused += 1;
+            // Every refusal, with the wall time, for the reader of the host kernel log (a
+            // refused barrier moves nothing; the pages stay and are retried).
+            eprintln!(
+                "vfio-user-nvgpu: bar1 pool: at {} barrier {} refused for {} page(s) of root(s) {roots:x?} (first g {:#x} FB {:#x}): {e}; nothing moved, retried",
+                crate::untrapped::wall(),
+                pool.stats.barriers_refused,
+                warm.len(),
+                warm[0].g,
+                warm[0].x
+            );
         }
         if let Some(Ok((_, nt))) = &barrier {
             pool.stats.preempts += *nt as u64;
@@ -1340,6 +1354,57 @@ mod tests {
         assert!(poll(&mut fb, &mut gpu));
         assert_eq!(fb.remap(x), x);
         assert_eq!(pending(&fb), 1);
+    }
+
+    /// The morning matrix's refused barriers (docs/caraxes/bar1-pool.md §9): a page in the
+    /// pool that the GPU maps, whose move back meets a busy channel again and again, never
+    /// moves while the GPU maps it. The remap stays (the GPU and every device path keep
+    /// finding it at its pool page), no shadow is told to re-diff (no region object or PDE
+    /// of the root changes), and the guest's next page for that area page waits. Only once
+    /// no shadow maps the page any more does it move back, cold, with its bytes.
+    #[test]
+    fn a_page_whose_barrier_is_refused_never_moves_while_the_gpu_maps_it() {
+        let (mut fb, pt, pool0) = setup();
+        let x = BASE + 0x30_0000;
+        fb.write_u64(pt + 8, pte(x));
+        assert!(poll(&mut fb, &mut NoGpu));
+        assert_eq!(fb.remap(x), pool0 + 0x1000);
+        // The GPU writes the page through the shadow, at its pool page.
+        fb.write(x, &[9; 8]);
+        let root = 0x1234_0000;
+        let mut gpu = FakeGpu::new(root);
+        gpu.used.insert(x);
+        gpu.ok = false;
+        // The guest unmaps the area page, then maps another page there.
+        fb.write_u64(pt + 8, 0);
+        for i in 0..14 {
+            expire_retry(&fb);
+            assert!(poll(&mut fb, &mut gpu));
+            assert_eq!(fb.remap(x), pool0 + 0x1000, "moved at refusal {i}");
+            assert!(!fb.pool_rediff_pending(root));
+        }
+        let y = BASE + 0x31_0000;
+        fb.write_u64(pt + 8, pte(y));
+        expire_retry(&fb);
+        assert!(poll(&mut fb, &mut gpu));
+        assert_eq!((fb.remap(x), fb.remap(y)), (pool0 + 0x1000, y));
+        let st = stats(&fb);
+        assert_eq!((st.barriers_refused, st.releases_cold, st.releases_warm), (15, 0, 0));
+        assert_eq!(pending(&fb), 1, "the install at the busy area page waits");
+        assert!(gpu.resynced.is_empty());
+        let mut b = [0u8; 8];
+        fb.read(x, &mut b);
+        assert_eq!(b, [9; 8]);
+        // The guest drops the GPU mapping (the shadow no longer maps the page): cold now.
+        gpu.used.clear();
+        expire_retry(&fb);
+        assert!(poll(&mut fb, &mut gpu));
+        assert_eq!((fb.remap(x), fb.remap(y)), (x, pool0 + 0x1000));
+        let st = stats(&fb);
+        assert_eq!((st.releases_cold, st.installs_cold, st.barriers), (1, 2, 0));
+        fb.read(x, &mut b);
+        assert_eq!(b, [9; 8]);
+        assert!(gpu.resynced.is_empty());
     }
 
     #[test]

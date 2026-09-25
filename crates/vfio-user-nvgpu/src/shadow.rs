@@ -2104,6 +2104,43 @@ mod tests {
         assert_eq!(s.budget.live(), 0);
     }
 
+    /// The BAR1 pool's re-diff (bar1pool.rs: a page moved behind a successful barrier)
+    /// re-plans every unit of the root, but the host sees calls only in the region of the
+    /// moved page. A region whose leaves did not change keeps its object, its mapping and
+    /// so its PDE, and a re-diff in which nothing changed makes no call at all
+    /// (docs/caraxes/bar1-pool.md §9).
+    #[test]
+    fn a_pool_rediff_touches_only_the_region_of_the_moved_page() {
+        let host = Mutex::new(FakeHost::default());
+        let mut s = sv(false, true);
+        let (a, b) = (0x20_0000u64, 0x40_0000u64);
+        let (pa, pb) = (BASE + 0x20_0000, BASE + 0x40_0000);
+        s.apply(&host, &plan_of(&[(a, pa, REGION, 6), (b, pb, REGION, 6)], &[]), &[]);
+        let hb = s.regions[&b].handle.unwrap();
+        host.lock().unwrap().seen.borrow_mut().clear();
+        // A re-diff with nothing moved: no call.
+        s.apply(&host, &plan_of(&[(a, pa, REGION, 6), (b, pb, REGION, 6)], &[a, b]), &[]);
+        assert!(host.lock().unwrap().seen.borrow().is_empty());
+        // Page 3 of region A moved to its pool page: A's 2 MiB leaf becomes 4 KiB leaves
+        // (bar1pool.rs `split_leaf`), region B is unchanged.
+        let p = BASE + 0x100_0000;
+        let mut leaves: Vec<(u64, u64, u64, u8)> = (0..512u64)
+            .map(|i| (a + i * 0x1000, if i == 3 { p } else { pa + i * 0x1000 }, 0x1000, 6))
+            .collect();
+        leaves.push((b, pb, REGION, 6));
+        s.apply(&host, &plan_of(&leaves, &[a, b]), &[]);
+        let h = host.lock().unwrap();
+        assert!(!h.seen.borrow().is_empty());
+        for c in h.seen.borrow().iter() {
+            match c.call {
+                Call::ObjectFree => assert_ne!(c.va, hb as u64, "region B's object freed"),
+                Call::Invalidate | Call::GatherFree | Call::Gather => {}
+                _ => assert!(c.va >= a && c.va < a + REGION, "a call outside region A: {c:?}"),
+            }
+        }
+        assert_eq!(h.live.borrow().get(&(hb, b)).map(|m| m.0), Some(REGION));
+    }
+
     #[test]
     fn an_emptied_region_is_pooled_and_taken_back_without_new_objects() {
         let host = Mutex::new(FakeHost::default());
