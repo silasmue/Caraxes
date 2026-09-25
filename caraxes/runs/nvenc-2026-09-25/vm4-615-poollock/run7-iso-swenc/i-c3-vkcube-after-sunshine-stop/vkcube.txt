@@ -1,0 +1,4 @@
+rc=0 elapsed=11.571465808 wd=wayland-0
+Authorization required, but no authorization protocol specified
+
+Selected GPU 0: Leandro VFIO RTX 2070-3G, type: DiscreteGpu

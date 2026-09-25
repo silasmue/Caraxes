@@ -1,0 +1,4 @@
+4784
+[2026-09-25 20:48:54.113]: Info: Creating encoder [libx264]
+[2026-09-25 20:48:54.174]: Info: Creating encoder [libx264]
+[2026-09-25 20:48:54.364]: Info: Found H.264 encoder: libx264 [software]
