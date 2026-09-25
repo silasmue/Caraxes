@@ -159,3 +159,39 @@ vfio-user device (`nova-guest.md` section 7, P23: which RM path the Windows driv
   0x610068, 0x610018, 0x110abc, the mirror at 0x7c/0x84/0x700/0xbd8/0xbe0/0xbf4/0xbfc, 0x22410,
   0x21640, 0x1478, 0x1400, 0x1078, 0x1070, 0x140, 0x8; writes: Device Control, 0x700, the seven
   `0xc80` at 0xd96c + n·0x50.
+
+## Night run (2026-09-25, from 19:57): what gates the driver
+
+Unattended driver-bind runs (`night-win.sh`, later `night-win2.sh`; one boot per configuration,
+the driver starts at every boot, results in `night-2026-09-25/`, each `<run>-summary.txt` with
+the diff against the 35-register baseline, `trace-saver` archives the full traces from run N on):
+
+| Run | Device build | PROM window | Other | Registers | Falcon writes | Result |
+|---|---|---|---|---|---|---|
+| A, A2 | extcfg 9df39581 | rom.bin | | 35 | 0 | old loop |
+| B, B2, G | extcfg | rom.bin | ext caps visible (+root port in G) | 35 | 0 | old loop |
+| C, D | extcfg | rom.bin | Tesla T4 costume, 616.92 | 33 (+0x214d8, 0x2156c fuse ids, no PDISP) | 0 | old loop |
+| F | extcfg | rom.bin | 3D controller class | 35 | 0 | old loop |
+| H | extcfg | synth-vbios.bin | | 36 (+0x22408) | 0 | scans the chain end, old loop |
+| K | extcfg | synth-vbios.bin | T4 | 34 | 0 | old loop |
+| I, J | extcfg+hwcfg a5db4f5d (0x110abc = 0x20 from the capture) | synth / rom.bin | | 36 / 35 | 0 | old loop |
+| **L** | extcfg | **flash chain from 0x28600** (`prom-window-2026-09-25-from-55aa.bin`) | | **554** | **345** | GSP/PMU/display programming, fails later |
+| **M** | extcfg+hwcfg | flash chain | | 557 | 368 | as L |
+| N | extcfg | flash chain | T4 | 0 | 0 | Windows did not boot that time (no device access in 20 min) |
+| P, Q, R | extcfg+ifr d4d37c2f | **full 1 MiB window with the IFR header** | GeForce / T4 / root port + ext caps | pending | | |
+
+- **The VBIOS content was the Code 43 gate.** With only the PCI expansion ROM (legacy + EFI, 127 KiB)
+  in the PROM window the driver scanned the window to its end and gave up; with the card's flash
+  chain (the two 0xE0 FWSEC images, the falcon ucode table, the type 0x70 image) it loads ucode
+  into the GSP falcon (DMEMD stream at 0x110184, 0x1101c4, 0x110040, 0x110084) and the PMU
+  falcon (0x10a184/0x10a1c4, not modelled: latched) and writes display 0x640000. The PROM window
+  dump and its analysis: `caraxes/reference/rtx2070/prom-window-2026-09-25.md`; the research note
+  that pointed there: `docs/research/windows-driver-code43.md`.
+- Ruled out tonight: the extended config space (served, no change), 0x110abc, the display
+  adapter role, the root port, the 3D-controller class, the T4 identity.
+- Follow-ups running or queued: the GSP-path analysis (`night-2026-09-25/ANALYSIS-gsp-path.md`),
+  ETW of the driver start over the guest agent (`ETW-driver-start.md`), the VBIOS content bisect
+  (`VBIOS-BISECT.md`: which images or tables are the minimal ingredient, so a synthetic VBIOS can
+  carry them and no per-card original is needed).
+- Unattended tooling added: `qga.py` (QEMU guest agent: PowerShell as SYSTEM, file transfer),
+  `qmp.py` (screenshot, keys, clean power-down), `WIN_GPU_VBIOS`, `WIN_GPU_ROOTPORT`, `WIN_VGA`.
