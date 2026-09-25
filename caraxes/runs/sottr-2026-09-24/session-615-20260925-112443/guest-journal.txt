@@ -1,0 +1,108 @@
+[  229.541362] caraxes-vm4-615 gnome-shell[9931]: Running GNOME Shell (using mutter 46.2) as a Wayland display server
+[  229.742399] caraxes-vm4-615 gnome-shell[9931]: Made thread 'KMS thread' realtime scheduled
+[  229.958311] caraxes-vm4-615 gnome-shell[9931]: Device '/dev/dri/card0' prefers shadow buffer
+[  229.976663] caraxes-vm4-615 gnome-shell[9931]: Added device '/dev/dri/card0' (nvidia-drm) using atomic mode setting.
+[  229.980972] caraxes-vm4-615 gnome-shell[9931]: Created gbm renderer for '/dev/dri/card0'
+[  229.981139] caraxes-vm4-615 gnome-shell[9931]: Boot VGA GPU /dev/dri/card0 selected as primary
+[  229.985161] caraxes-vm4-615 gnome-shell[9931]: Obtained a high priority EGL context
+[  229.989943] caraxes-vm4-615 gnome-shell[9931]: Obtained a high priority EGL context
+[  230.058144] caraxes-vm4-615 gnome-shell[9931]: Using public X11 display :0, (using :1 for managed services)
+[  230.058313] caraxes-vm4-615 gnome-shell[9931]: Using Wayland display name 'wayland-0'
+[  230.162903] caraxes-vm4-615 at-spi-dbus-bus.desktop[9945]: dbus-daemon[9945]: Activating service name='org.a11y.atspi.Registry' requested by ':1.0' (uid=1000 pid=9931 comm="/usr/bin/gnome-shell" label="unconfined")
+[  230.563661] caraxes-vm4-615 gnome-shell[9931]: Unset XDG_SESSION_ID, getCurrentSessionProxy() called outside a user session. Asking logind directly.
+[  230.563980] caraxes-vm4-615 gnome-shell[9931]: Will monitor session 14
+[  230.603726] caraxes-vm4-615 dbus-daemon[1188]: [session uid=1000 pid=1188] Activating service name='org.gnome.Shell.Screencast' requested by ':1.32' (uid=1000 pid=9931 comm="/usr/bin/gnome-shell" label="unconfined")
+[  230.634165] caraxes-vm4-615 dbus-daemon[1188]: [session uid=1000 pid=1188] Activating via systemd: service name='org.freedesktop.impl.portal.PermissionStore' unit='xdg-permission-store.service' requested by ':1.32' (uid=1000 pid=9931 comm="/usr/bin/gnome-shell" label="unconfined")
+[  230.635498] caraxes-vm4-615 dbus-daemon[1188]: [session uid=1000 pid=1188] Activating service name='org.gnome.Shell.CalendarServer' requested by ':1.32' (uid=1000 pid=9931 comm="/usr/bin/gnome-shell" label="unconfined")
+[  230.686707] caraxes-vm4-615 dbus-daemon[1188]: [session uid=1000 pid=1188] Activating via systemd: service name='org.gnome.evolution.dataserver.Sources5' unit='evolution-source-registry.service' requested by ':1.38' (uid=1000 pid=10002 comm="/usr/libexec/gnome-shell-calendar-server" label="unconfined")
+[  230.706213] caraxes-vm4-615 dbus-daemon[1188]: [session uid=1000 pid=1188] Activating via systemd: service name='ca.desrt.dconf' unit='dconf.service' requested by ':1.32' (uid=1000 pid=9931 comm="/usr/bin/gnome-shell" label="unconfined")
+[  230.717156] caraxes-vm4-615 dbus-daemon[1188]: [session uid=1000 pid=1188] Activating service name='org.gnome.Shell.Notifications' requested by ':1.32' (uid=1000 pid=9931 comm="/usr/bin/gnome-shell" label="unconfined")
+[  230.793349] caraxes-vm4-615 gnome-shell[9931]: Gio.UnixInputStream has been moved to a separate platform-specific library. Please update your code to use GioUnix.InputStream instead.
+[  230.793890] caraxes-vm4-615 gnome-shell[9931]: Error looking up permission: GDBus.Error:org.freedesktop.portal.Error.NotFound: No entry for geolocation
+[  230.851801] caraxes-vm4-615 dbus-daemon[1188]: [session uid=1000 pid=1188] Activating via systemd: service name='org.gtk.vfs.UDisks2VolumeMonitor' unit='gvfs-udisks2-volume-monitor.service' requested by ':1.32' (uid=1000 pid=9931 comm="/usr/bin/gnome-shell" label="unconfined")
+[  230.938643] caraxes-vm4-615 dbus-daemon[1188]: [session uid=1000 pid=1188] Activating via systemd: service name='org.gtk.vfs.GoaVolumeMonitor' unit='gvfs-goa-volume-monitor.service' requested by ':1.32' (uid=1000 pid=9931 comm="/usr/bin/gnome-shell" label="unconfined")
+[  231.048224] caraxes-vm4-615 dbus-daemon[1188]: [session uid=1000 pid=1188] Activating via systemd: service name='org.gtk.vfs.MTPVolumeMonitor' unit='gvfs-mtp-volume-monitor.service' requested by ':1.32' (uid=1000 pid=9931 comm="/usr/bin/gnome-shell" label="unconfined")
+[  231.076687] caraxes-vm4-615 dbus-daemon[1188]: [session uid=1000 pid=1188] Activating via systemd: service name='org.gtk.vfs.GPhoto2VolumeMonitor' unit='gvfs-gphoto2-volume-monitor.service' requested by ':1.32' (uid=1000 pid=9931 comm="/usr/bin/gnome-shell" label="unconfined")
+[  231.103453] caraxes-vm4-615 dbus-daemon[1188]: [session uid=1000 pid=1188] Activating via systemd: service name='org.gtk.vfs.AfcVolumeMonitor' unit='gvfs-afc-volume-monitor.service' requested by ':1.32' (uid=1000 pid=9931 comm="/usr/bin/gnome-shell" label="unconfined")
+[  231.138887] caraxes-vm4-615 dbus-daemon[1188]: [session uid=1000 pid=1188] Activating via systemd: service name='org.gnome.evolution.dataserver.Calendar8' unit='evolution-calendar-factory.service' requested by ':1.38' (uid=1000 pid=10002 comm="/usr/libexec/gnome-shell-calendar-server" label="unconfined")
+[  231.565803] caraxes-vm4-615 gnome-shell[9931]: Failed to import DBusMenu, quicklists are not available: Error: Requiring Dbusmenu, version none: Typelib file for namespace 'Dbusmenu' (any version) not found
+[  231.566146] caraxes-vm4-615 gnome-shell[9931]: Failed to import DBusMenu, quicklists are not available: Error: Requiring Dbusmenu, version none: Typelib file for namespace 'Dbusmenu' (any version) not found
+[  231.566187] caraxes-vm4-615 gnome-shell[9931]: Failed to import DBusMenu, quicklists are not available: Error: Requiring Dbusmenu, version none: Typelib file for namespace 'Dbusmenu' (any version) not found
+[  231.580087] caraxes-vm4-615 dbus-daemon[1188]: [session uid=1000 pid=1188] Activating service name='org.freedesktop.FileManager1' requested by ':1.32' (uid=1000 pid=9931 comm="/usr/bin/gnome-shell" label="unconfined")
+[  231.716309] caraxes-vm4-615 gnome-shell[9931]: Window manager warning: Overwriting existing binding of keysym 34 with keysym 34 (keycode d).
+[  231.716309] caraxes-vm4-615 gnome-shell[9931]: Window manager warning: Overwriting existing binding of keysym 36 with keysym 36 (keycode f).
+[  231.716471] caraxes-vm4-615 gnome-shell[9931]: Window manager warning: Overwriting existing binding of keysym 32 with keysym 32 (keycode b).
+[  231.716489] caraxes-vm4-615 gnome-shell[9931]: Window manager warning: Overwriting existing binding of keysym 39 with keysym 39 (keycode 12).
+[  231.716597] caraxes-vm4-615 gnome-shell[9931]: Window manager warning: Overwriting existing binding of keysym 35 with keysym 35 (keycode e).
+[  231.716708] caraxes-vm4-615 gnome-shell[9931]: Window manager warning: Overwriting existing binding of keysym 33 with keysym 33 (keycode c).
+[  231.716746] caraxes-vm4-615 gnome-shell[9931]: Window manager warning: Overwriting existing binding of keysym 34 with keysym 34 (keycode d).
+[  231.716767] caraxes-vm4-615 gnome-shell[9931]: Window manager warning: Overwriting existing binding of keysym 35 with keysym 35 (keycode e).
+[  231.716806] caraxes-vm4-615 gnome-shell[9931]: Window manager warning: Overwriting existing binding of keysym 39 with keysym 39 (keycode 12).
+[  231.716825] caraxes-vm4-615 gnome-shell[9931]: Window manager warning: Overwriting existing binding of keysym 36 with keysym 36 (keycode f).
+[  231.716841] caraxes-vm4-615 gnome-shell[9931]: Window manager warning: Overwriting existing binding of keysym 31 with keysym 31 (keycode a).
+[  231.716859] caraxes-vm4-615 gnome-shell[9931]: Window manager warning: Overwriting existing binding of keysym 38 with keysym 38 (keycode 11).
+[  231.716891] caraxes-vm4-615 gnome-shell[9931]: Window manager warning: Overwriting existing binding of keysym 37 with keysym 37 (keycode 10).
+[  231.716936] caraxes-vm4-615 gnome-shell[9931]: Window manager warning: Overwriting existing binding of keysym 31 with keysym 31 (keycode a).
+[  231.717155] caraxes-vm4-615 gnome-shell[9931]: Window manager warning: Overwriting existing binding of keysym 32 with keysym 32 (keycode b).
+[  231.717187] caraxes-vm4-615 gnome-shell[9931]: Window manager warning: Overwriting existing binding of keysym 33 with keysym 33 (keycode c).
+[  231.717187] caraxes-vm4-615 gnome-shell[9931]: Window manager warning: Overwriting existing binding of keysym 38 with keysym 38 (keycode 11).
+[  231.717241] caraxes-vm4-615 gnome-shell[9931]: Window manager warning: Overwriting existing binding of keysym 37 with keysym 37 (keycode 10).
+[  232.594231] caraxes-vm4-615 gnome-shell[9931]: GNOME Shell started at Fri Sep 25 2026 09:28:40 GMT+0000 (Coordinated Universal Time)
+[  232.596358] caraxes-vm4-615 gnome-shell[9931]: Registering session with GDM
+[  232.607896] caraxes-vm4-615 gnome-shell[9931]: Launching DING process
+[  232.886041] caraxes-vm4-615 gnome-shell[9931]: DING: Detected async api for thumbnails
+[  232.956533] caraxes-vm4-615 gnome-shell[9931]: DING: (gjs:10492): Gjs-WARNING **: 09:28:42.803: GLib.unix_signal_add has been moved to a separate platform-specific library. Please update your code to use GLibUnix.signal_add instead.
+[  232.956642] caraxes-vm4-615 gnome-shell[9931]: DING: 0 DesktopManager() ["/usr/share/gnome-shell/extensions/ding@rastersoft.com/app/desktopManager.js":264:12]
+[  232.956642] caraxes-vm4-615 gnome-shell[9931]: DING: 1 anonymous() ["/usr/share/gnome-shell/extensions/ding@rastersoft.com/app/ding.js":180:25]
+[  232.956642] caraxes-vm4-615 gnome-shell[9931]: DING: 2 anonymous() ["/usr/share/gnome-shell/extensions/ding@rastersoft.com/app/ding.js":197:20]
+[  232.956757] caraxes-vm4-615 gnome-shell[9931]: DING: 3 <TOP LEVEL> ["/usr/share/gnome-shell/extensions/ding@rastersoft.com/app/ding.js":206:12]
+[  233.008264] caraxes-vm4-615 gnome-shell[9931]: DING: ** Message: 09:28:42.852: Connecting to org.freedesktop.Tracker3.Miner.Files
+[  233.022256] caraxes-vm4-615 gnome-shell[9931]: DING: DBus interface for Gvfs daemon (org.gtk.vfs.Metadata) is now available.
+[  233.037582] caraxes-vm4-615 gnome-shell[9931]: Received notification for window. 0 notifications remaining.
+[  233.061551] caraxes-vm4-615 gnome-shell[9931]: DING: DBus interface for Nautilus (org.gnome.Nautilus.FileOperations2) is now available.
+[  233.064344] caraxes-vm4-615 gnome-shell[9931]: DING: DBus interface for Nautilus (org.freedesktop.FileManager1) is now available.
+[  233.110457] caraxes-vm4-615 gnome-shell[9931]: DING: GNOME nautilus 46.4
+[  235.958195] caraxes-vm4-615 systemd[1149]: Started app-gnome-steam-10559.scope - Application launched by gnome-session-binary.
+[  235.968870] caraxes-vm4-615 steam.desktop[10567]: Warning: --icon-name is deprecated and will be removed in a future version of zenity; Treating as --icon.
+[  237.308110] caraxes-vm4-615 gnome-shell[9931]: Invalid sequence for VSYNC frame info
+[  277.767920] caraxes-vm4-615 gnome-shell[11381]: The XKEYBOARD keymap compiler (xkbcomp) reports:
+[  277.767920] caraxes-vm4-615 gnome-shell[11381]: > Warning:          Could not resolve keysym XF86CameraAccessEnable
+[  277.767920] caraxes-vm4-615 gnome-shell[11381]: > Warning:          Could not resolve keysym XF86CameraAccessDisable
+[  277.767920] caraxes-vm4-615 gnome-shell[11381]: > Warning:          Could not resolve keysym XF86CameraAccessToggle
+[  277.768419] caraxes-vm4-615 gnome-shell[11381]: > Warning:          Could not resolve keysym XF86NextElement
+[  277.768419] caraxes-vm4-615 gnome-shell[11381]: > Warning:          Could not resolve keysym XF86PreviousElement
+[  277.768419] caraxes-vm4-615 gnome-shell[11381]: > Warning:          Could not resolve keysym XF86AutopilotEngageToggle
+[  277.768419] caraxes-vm4-615 gnome-shell[11381]: > Warning:          Could not resolve keysym XF86MarkWaypoint
+[  277.768419] caraxes-vm4-615 gnome-shell[11381]: > Warning:          Could not resolve keysym XF86Sos
+[  277.768419] caraxes-vm4-615 gnome-shell[11381]: > Warning:          Could not resolve keysym XF86NavChart
+[  277.768419] caraxes-vm4-615 gnome-shell[11381]: > Warning:          Could not resolve keysym XF86FishingChart
+[  277.768419] caraxes-vm4-615 gnome-shell[11381]: > Warning:          Could not resolve keysym XF86SingleRangeRadar
+[  277.768419] caraxes-vm4-615 gnome-shell[11381]: > Warning:          Could not resolve keysym XF86DualRangeRadar
+[  277.768419] caraxes-vm4-615 gnome-shell[11381]: > Warning:          Could not resolve keysym XF86RadarOverlay
+[  277.768419] caraxes-vm4-615 gnome-shell[11381]: > Warning:          Could not resolve keysym XF86TraditionalSonar
+[  277.768419] caraxes-vm4-615 gnome-shell[11381]: > Warning:          Could not resolve keysym XF86ClearvuSonar
+[  277.768419] caraxes-vm4-615 gnome-shell[11381]: > Warning:          Could not resolve keysym XF86SidevuSonar
+[  277.768419] caraxes-vm4-615 gnome-shell[11381]: > Warning:          Could not resolve keysym XF86NavInfo
+[  277.769145] caraxes-vm4-615 gnome-shell[11381]: Errors from xkbcomp are not fatal to the X server
+[  277.778377] caraxes-vm4-615 gnome-shell[11384]: The XKEYBOARD keymap compiler (xkbcomp) reports:
+[  277.778377] caraxes-vm4-615 gnome-shell[11384]: > Warning:          Unsupported maximum keycode 708, clipping.
+[  277.778377] caraxes-vm4-615 gnome-shell[11384]: >                   X11 cannot support keycodes above 255.
+[  277.778962] caraxes-vm4-615 gnome-shell[11384]: > Warning:          Could not resolve keysym XF86CameraAccessEnable
+[  277.778962] caraxes-vm4-615 gnome-shell[11384]: > Warning:          Could not resolve keysym XF86CameraAccessDisable
+[  277.778962] caraxes-vm4-615 gnome-shell[11384]: > Warning:          Could not resolve keysym XF86CameraAccessToggle
+[  277.779073] caraxes-vm4-615 gnome-shell[11384]: > Warning:          Could not resolve keysym XF86NextElement
+[  277.779073] caraxes-vm4-615 gnome-shell[11384]: > Warning:          Could not resolve keysym XF86PreviousElement
+[  277.779073] caraxes-vm4-615 gnome-shell[11384]: > Warning:          Could not resolve keysym XF86AutopilotEngageToggle
+[  277.779073] caraxes-vm4-615 gnome-shell[11384]: > Warning:          Could not resolve keysym XF86MarkWaypoint
+[  277.779073] caraxes-vm4-615 gnome-shell[11384]: > Warning:          Could not resolve keysym XF86Sos
+[  277.779073] caraxes-vm4-615 gnome-shell[11384]: > Warning:          Could not resolve keysym XF86NavChart
+[  277.779073] caraxes-vm4-615 gnome-shell[11384]: > Warning:          Could not resolve keysym XF86FishingChart
+[  277.779073] caraxes-vm4-615 gnome-shell[11384]: > Warning:          Could not resolve keysym XF86SingleRangeRadar
+[  277.779073] caraxes-vm4-615 gnome-shell[11384]: > Warning:          Could not resolve keysym XF86DualRangeRadar
+[  277.779073] caraxes-vm4-615 gnome-shell[11384]: > Warning:          Could not resolve keysym XF86RadarOverlay
+[  277.779073] caraxes-vm4-615 gnome-shell[11384]: > Warning:          Could not resolve keysym XF86TraditionalSonar
+[  277.779073] caraxes-vm4-615 gnome-shell[11384]: > Warning:          Could not resolve keysym XF86ClearvuSonar
+[  277.779073] caraxes-vm4-615 gnome-shell[11384]: > Warning:          Could not resolve keysym XF86SidevuSonar
+[  277.779073] caraxes-vm4-615 gnome-shell[11384]: > Warning:          Could not resolve keysym XF86NavInfo
+[  277.779486] caraxes-vm4-615 gnome-shell[11384]: Errors from xkbcomp are not fatal to the X server
+[  466.429537] caraxes-vm4-615 gnome-shell[9931]: Window manager warning: Ping serial 466428 was reused for window W0, previous use was for window W1.
