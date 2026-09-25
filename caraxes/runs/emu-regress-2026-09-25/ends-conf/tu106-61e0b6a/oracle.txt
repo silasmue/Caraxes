@@ -1,0 +1,14 @@
+server pid 3270568, VM pid 3270574; logs in /mnt/vmstore/caraxes/vm7
+modprobe rc=0
+[    6.622464] NVRM: GPU 0000:00:04.0: RmInitAdapter
+[   13.060478] NVRM: GPU 0000:00:04.0: RmInitAdapter succeeded!
+nvidia-smi rc=0
+Leandro VFIO RTX 2070-1G, 7.5, 0x1F0210DE, 90.06.3D.00.76, 1024 MiB
+query rc=0
+    Product Name                                       : Leandro VFIO RTX 2070-1G
+    VBIOS Version                                      : 90.06.3D.00.76
+    FB Memory Usage
+        Total                                          : 1024 MiB
+        Total                                          : 256 MiB
+        Total                                          : 0 MiB
+smi-q rc=0

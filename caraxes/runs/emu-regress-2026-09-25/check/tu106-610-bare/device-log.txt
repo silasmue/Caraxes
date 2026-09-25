@@ -1,0 +1,13 @@
+# SPDX-License-Identifier: MIT
+# The device log gpu.log (ignored as *.log) without the vfio-user connection lines.
+vfio-user-nvgpu: guest name "Leandro VFIO RTX 2070-1G"
+vfio-user-nvgpu: guest ABI 610 (MsgqV1)
+vfio-user-nvgpu: TU106 (BOOT_0 0x166000a1, driver 610.57.04) on /mnt/vmstore/caraxes/vm7-bare/gpu.sock, boot model on, FB 1024 MiB, ROM 130048 bytes, PROM image 131584 bytes, trace /mnt/vmstore/caraxes/vm7-bare/gpu-trace.log
+vfio-user-nvgpu: WARNING guest registry RmDisableGlobalCeUtils is absent, the device needs 1 (docs/caraxes/quickstart.md section 2): the kernel's CeUtils memset will time out (mem_mgr.c:445) and RmInitAdapter fail
+vfio-user-nvgpu: WARNING guest registry RmRcWatchdog is absent, the device needs 0 (docs/caraxes/quickstart.md section 2): krcWatchdogInit allocates a GR object, which needs a GPC in the floorsweeping masks (kernel_graphics_object.c:192), and pure emulation answers them with zero
+vfio-user-nvgpu: WARNING guest registry RMDisableScrubOnFree is absent, the device needs nonzero (docs/caraxes/quickstart.md section 2): freed video memory will be scrubbed through the copy engine
+bar0: 365270 reads, 59774 writes
+bar3: 162 reads, 14865 writes
+cfg: 2992 reads, 84 writes
+bar tlb: 14902 hit(s), 125 walk(s), 31 flush(es) by a table write (docs/caraxes/mapping.md §3)
+vidmem PTE kinds walked (kind:comptagline x count): 0x00:0x0x32 0x06:0x0x93 -- all uncompressed (kind 0x06/0x00, comptagline 0): comptag hold satisfied

@@ -1,0 +1,17 @@
+server pid 3204191, VM pid 3204196; logs in /mnt/vmstore/caraxes/vm7
+modprobe rc=0
+[   13.927445] NVRM: GPU0 nvCheckFailedNoLog: Check failed: numGpcs > 0 @ kernel_graphics_object.c:192
+[   13.930716] NVRM: GPU0 RmInitAdapter: krcWatchdogInit failed, bailing out of RmInitAdapter
+nvidia-smi rc=6
+query rc=6
+smi-q rc=6
+uvm-register rc=2
+[   13.927445] NVRM: GPU0 nvCheckFailedNoLog: Check failed: numGpcs > 0 @ kernel_graphics_object.c:192
+[   13.930716] NVRM: GPU0 RmInitAdapter: krcWatchdogInit failed, bailing out of RmInitAdapter
+[   72.956686] NVRM: GPU 0000:00:04.0: RmInitAdapter failed! (0x41:0x1a:2260)
+[   73.076803] NVRM: GPU0 RmInitAdapter: Cannot initialize GSP firmware RM
+[   73.077604] NVRM: GPU 0000:00:04.0: RmInitAdapter failed! (0x62:0x40:2119)
+[   73.663204] NVRM: GPU0 RmInitAdapter: Cannot initialize GSP firmware RM
+[   73.666048] NVRM: GPU 0000:00:04.0: RmInitAdapter failed! (0x62:0x40:2119)
+[   73.811312] NVRM: GPU0 RmInitAdapter: Cannot initialize GSP firmware RM
+[   73.811616] NVRM: GPU 0000:00:04.0: RmInitAdapter failed! (0x62:0x40:2119)

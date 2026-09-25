@@ -1,0 +1,17 @@
+      2 W bar0 0x000014dc 4  0x0          NV_PBUS_SW_SCRATCH(0x37) GSP_FMC_ERROR
+      2 E boot: ctrl 0x20800af3: control 0x20800af3 on 0xca7a0003 (class 0x2080, 2 bytes): not supported -> status 0x56 [unanswered]
+      1 R bar0 0x000014dc 4  0x0          NV_PBUS_SW_SCRATCH(0x37) GSP_FMC_ERROR
+      1 E boot: ctrl 0x90f10106: vaspace 0xcaf00000: root Some(Fb(4035645440)); va 0x100000000..0x11fffffff levels [0xf08b1000+0x10 ap 1 shift 56, 0xf08b0000+0x1000 ap 1 shift 47, 0xf08af000+0x1000 ap 1 shift 38, 0xf08ae000+0x1000 ap 1 shift 29, 0xf08ad000+0x1000 ap 1 shift 21] [guest] -> status 0x0 [guest (VAS root recorded; the server-reserved range stays empty)]
+      1 E boot: ctrl 0x90f10106: vaspace 0xc: root Some(Fb(4035723264)); va 0x100000000..0x11fffffff levels [0xf08c4000+0x10 ap 1 shift 56, 0xf08c3000+0x1000 ap 1 shift 47, 0xf08c2000+0x1000 ap 1 shift 38, 0xf08c1000+0x1000 ap 1 shift 29, 0xf08c0000+0x1000 ap 1 shift 21] [guest] -> status 0x0 [guest (VAS root recorded; the server-reserved range stays empty)]
+      1 E boot: ctrl 0x90f10106: vaspace 0xc: root Some(Fb(4035682304)); va 0x100000000..0x11fffffff levels [0xf08ba000+0x10 ap 1 shift 56, 0xf08b9000+0x1000 ap 1 shift 47, 0xf08b8000+0x1000 ap 1 shift 38, 0xf08b7000+0x1000 ap 1 shift 29, 0xf08b6000+0x1000 ap 1 shift 21] [guest] -> status 0x0 [guest (VAS root recorded; the server-reserved range stays empty)]
+      1 E boot: ctrl 0x20802a0e: control 0x20802a0e on 0xca7a0003 (class 0x2080, 136 bytes): not supported -> status 0x56 [unanswered]
+      1 E boot: ctrl 0x20800b05: kgr SM issue throttle ctrl: not supported, not forwarded -> status 0x56 [synthesized (NOT_SUPPORTED; forwarding makes the host driver assert)]
+      1 E boot: ctrl 0x20800b03: kgr SM issue rate modifier v2: not supported (no host) -> status 0x56 [synthesized fallback (NOT_SUPPORTED, tolerated)]
+      1 E boot: ctrl 0x20800ab4: control 0x20800ab4 on 0xca7a0003 (class 0x2080, 2 bytes): not supported -> status 0x56 [unanswered]
+      1 E boot: ctrl 0x20800ab2: control 0x20800ab2 on 0xca7a0003 (class 0x2080, 4 bytes): not supported -> status 0x56 [unanswered]
+      1 E boot: ctrl 0x20800a4b: control 0x20800a4b on 0xca7a0003 (class 0x2080, 4 bytes): not supported -> status 0x56 [unanswered]
+      1 E boot: ctrl 0x20800a3f: kgr FECS trace defines: not supported; there is no public host control for them (phase5 row 50); pFecsTraceDefines stays NULL -> status 0x56 [synthesized (NOT_SUPPORTED, tolerated: kernel_graphics.c:1498-1501)]
+      1 E boot: ctrl 0x20800a34: kgr SM issue rate modifier: not supported (no host) -> status 0x56 [synthesized fallback (NOT_SUPPORTED, tolerated)]
+      1 E boot: ctrl 0x20800a30: kgr PPC masks: not supported; the public GR_GET_PPC_MASK 0x20801233 is one GPC per call ({grRouteInfo, gpcId, ppcMask}, ctrl2080gr.h:1810-1814), not the internal mask[64] layout -> status 0x56 [synthesized (NOT_SUPPORTED, tolerated: kernel_graphics.c:1320-1327)]
+      1 E boot: ctrl 0x20800a2e: kgr ROP info: not supported (no host) -> status 0x56 [synthesized fallback (NOT_SUPPORTED, tolerated)]
+      1 E boot: ctrl 0x20800a2c: kgr zcull info: not supported (no host) -> status 0x56 [synthesized fallback (NOT_SUPPORTED, tolerated)]

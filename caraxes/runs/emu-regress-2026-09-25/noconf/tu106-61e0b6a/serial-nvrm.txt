@@ -1,0 +1,60 @@
+CARAXES-CHECK begin 2026-09-25T06:13:31+00:00
+CARAXES-CHECK lspci-vvv
+modprobe rc=0
+[    5.053418] NVRM: pciPbiReadUuid: Could not acquire pciPbi mutex
+[    5.053763] NVRM: loading NVIDIA UNIX Open Kernel Module for x86_64  610.57.04  Release Build  (leandro@caraxes-vm0)  Wed Sep 23 19:24:02 UTC 2026
+[   12.039856] NVRM: GPU0 nvAssertFailedNoLog: Assertion failed: kgrmgrGetLegacyKGraphicsStaticInfo(pGpu, pKernelGraphicsManager)->pGrInfo != NULL @ kernel_fifo.c:2771
+[   12.040300] NVRM: GPU0 nvAssertFailedNoLog: Assertion failed: kgrmgrGetLegacyKGraphicsStaticInfo(pGpu, pKernelGraphicsManager)->pGrInfo != NULL @ kernel_fifo.c:2771
+[   12.040347] NVRM: GPU0 nvAssertFailedNoLog: Assertion failed: numMax == numFree && numMax != 0 @ kernel_channel_group_api.c:914
+[   12.040385] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Generic Error: Invalid state [NV_ERR_INVALID_STATE] (0x00000040) returned from kchangrpapiSetLegacyMode(pKernelChannelGroupApi, pGpu, pKernelFifo, hClient) @ kernel_channel.c:684
+[   12.040444] NVRM: GPU0 nvAssertFailedNoLog: Assertion failed: kgrmgrGetLegacyKGraphicsStaticInfo(pGpu, pKernelGraphicsManager)->pGrInfo != NULL @ kernel_fifo.c:2771
+[   12.040498] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Generic Error: Invalid state [NV_ERR_INVALID_STATE] (0x00000040) returned from pRmApi->AllocWithHandle(pRmApi, hClientId, hDeviceId, hChannelId, hClass, &channelGPFIFOAllocParams, sizeof(channelGPFIFOAllocParams)) @ mem_utils_gm107.c:1301
+[   12.040534] NVRM: GPU0 nvCheckOkFailedNoLog: Check failed: Generic Error: Invalid state [NV_ERR_INVALID_STATE] (0x00000040) returned from _memUtilsAllocateChannel(pGpu, pMemoryManager, hClient, hDevice, hChannel, hErrNotifierVirt, hPushBuffer, pChannel) @ mem_utils_gm107.c:857
+[   12.040539] NVRM: GPU0 nvAssertFailedNoLog: Assertion failed: status == NV_OK @ ce_utils.c:287
+[   12.064055] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Generic Error: Invalid state [NV_ERR_INVALID_STATE] (0x00000040) returned from objCreate(&pScrubber->pCeUtils, pHeap, CeUtils, pGpu, pKernelMIGGPUInstance, &ceUtilsAllocParams) @ mem_scrub.c:181
+[   12.064107] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Generic Error: Invalid state [NV_ERR_INVALID_STATE] (0x00000040) returned from scrubberConstruct(pGpu, pHeap) @ mem_mgr_scrub_gp100.c:66
+[   12.064167] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Generic Error: Invalid state [NV_ERR_INVALID_STATE] (0x00000040) returned from memmgrScrubHandlePostSchedulingEnable_HAL(pGpu, pMemoryManager) @ mem_mgr.c:469
+[   12.064214] NVRM: GPU0 nvAssertFailedNoLog: Assertion failed: 0 @ kernel_fifo.c:3108
+[   12.064269] NVRM: GPU0 RmInitNvDevice: *** Cannot load state into the device
+[   12.064272] NVRM: GPU0 RmInitAdapter: RmInitNvDevice failed, bailing out of RmInitAdapter
+CARAXES-CHECK information
+CARAXES-CHECK smi
+nvidia-smi rc=6
+query rc=6
+CARAXES-CHECK smi-q
+smi-q rc=6
+CARAXES-CHECK dmesg-after
+[    5.053418] NVRM: pciPbiReadUuid: Could not acquire pciPbi mutex
+[    5.053763] NVRM: loading NVIDIA UNIX Open Kernel Module for x86_64  610.57.04  Release Build  (leandro@caraxes-vm0)  Wed Sep 23 19:24:02 UTC 2026
+[   12.039856] NVRM: GPU0 nvAssertFailedNoLog: Assertion failed: kgrmgrGetLegacyKGraphicsStaticInfo(pGpu, pKernelGraphicsManager)->pGrInfo != NULL @ kernel_fifo.c:2771
+[   12.040300] NVRM: GPU0 nvAssertFailedNoLog: Assertion failed: kgrmgrGetLegacyKGraphicsStaticInfo(pGpu, pKernelGraphicsManager)->pGrInfo != NULL @ kernel_fifo.c:2771
+[   12.040347] NVRM: GPU0 nvAssertFailedNoLog: Assertion failed: numMax == numFree && numMax != 0 @ kernel_channel_group_api.c:914
+[   12.040385] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Generic Error: Invalid state [NV_ERR_INVALID_STATE] (0x00000040) returned from kchangrpapiSetLegacyMode(pKernelChannelGroupApi, pGpu, pKernelFifo, hClient) @ kernel_channel.c:684
+[   12.040444] NVRM: GPU0 nvAssertFailedNoLog: Assertion failed: kgrmgrGetLegacyKGraphicsStaticInfo(pGpu, pKernelGraphicsManager)->pGrInfo != NULL @ kernel_fifo.c:2771
+[   12.040498] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Generic Error: Invalid state [NV_ERR_INVALID_STATE] (0x00000040) returned from pRmApi->AllocWithHandle(pRmApi, hClientId, hDeviceId, hChannelId, hClass, &channelGPFIFOAllocParams, sizeof(channelGPFIFOAllocParams)) @ mem_utils_gm107.c:1301
+[   12.040534] NVRM: GPU0 nvCheckOkFailedNoLog: Check failed: Generic Error: Invalid state [NV_ERR_INVALID_STATE] (0x00000040) returned from _memUtilsAllocateChannel(pGpu, pMemoryManager, hClient, hDevice, hChannel, hErrNotifierVirt, hPushBuffer, pChannel) @ mem_utils_gm107.c:857
+[   12.040539] NVRM: GPU0 nvAssertFailedNoLog: Assertion failed: status == NV_OK @ ce_utils.c:287
+[   12.064055] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Generic Error: Invalid state [NV_ERR_INVALID_STATE] (0x00000040) returned from objCreate(&pScrubber->pCeUtils, pHeap, CeUtils, pGpu, pKernelMIGGPUInstance, &ceUtilsAllocParams) @ mem_scrub.c:181
+[   12.064107] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Generic Error: Invalid state [NV_ERR_INVALID_STATE] (0x00000040) returned from scrubberConstruct(pGpu, pHeap) @ mem_mgr_scrub_gp100.c:66
+[   12.064167] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Generic Error: Invalid state [NV_ERR_INVALID_STATE] (0x00000040) returned from memmgrScrubHandlePostSchedulingEnable_HAL(pGpu, pMemoryManager) @ mem_mgr.c:469
+[   12.064214] NVRM: GPU0 nvAssertFailedNoLog: Assertion failed: 0 @ kernel_fifo.c:3108
+[   12.064269] NVRM: GPU0 RmInitNvDevice: *** Cannot load state into the device
+[   12.064272] NVRM: GPU0 RmInitAdapter: RmInitNvDevice failed, bailing out of RmInitAdapter
+[   70.125170] NVRM: GPU0 _threadNodeCheckTimeout: _threadNodeCheckTimeout: currentTime: f420a56dba040 >= f420a56dba040
+[   70.125177] NVRM: GPU0 _threadNodeCheckTimeout: _threadNodeCheckTimeout: Timeout was set to: 4000 msecs!
+[   70.372592] NVRM: GPU0 nvAssertFailedNoLog: Assertion failed: rmStatus == NV_OK @ osinit.c:2453
+[   70.373112] NVRM: GPU 0000:00:04.0: RmInitAdapter failed! (0x25:0x40:1310)
+[   70.373730] NVRM: GPU 0000:00:04.0: rm_init_adapter failed, device minor number 0
+[   71.302091] NVRM: GPU0 kgspExecuteFwsec_TU102: failed to execute FWSEC for FRTS: no initialized WPR2 found
+[   71.302098] NVRM: GPU0 kgspExecuteFwsec_TU102: (note: VBIOS version 90.06.3D.00.76)
+[   71.302101] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Failure: Generic Error [NV_ERR_GENERIC] (0x0000FFFF) returned from status @ kernel_gsp_tu102.c:556
+[   71.309409] NVRM: GPU0 kgspExecuteFwsec_TU102: failed to execute FWSEC for FRTS: no initialized WPR2 found
+[   71.309412] NVRM: GPU0 kgspExecuteFwsec_TU102: (note: VBIOS version 90.06.3D.00.76)
+[   71.309414] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Failure: Generic Error [NV_ERR_GENERIC] (0x0000FFFF) returned from status @ kernel_gsp_tu102.c:556
+[   71.311440] NVRM: GPU0 nvAssertFailed: Assertion failed: 0 @ g_kernel_sec2_nvoc.h:837
+[   71.311475] NVRM: GPU0 nvAssertFailedNoLog: Assertion failed: pBinArchive != NULL @ kernel_gsp_booter.c:487
+[   71.311508] NVRM: GPU0 nvCheckOkFailedNoLog: Check failed: Call not supported [NV_ERR_NOT_SUPPORTED] (0x00000056) returned from kgspAllocateScrubberUcodeImage(pGpu, pKernelGsp, &pKernelGsp->pScrubberUcode) @ kernel_gsp.c:4456
+[   71.311511] NVRM: GPU0 nvCheckOkFailedNoLog: Check failed: Call not supported [NV_ERR_NOT_SUPPORTED] (0x00000056) returned from _kgspPrepareScrubberImageIfNeeded(pGpu, pKernelGsp) @ kernel_gsp.c:4818
+[   71.311563] NVRM: GPU0 RmInitAdapter: Cannot initialize GSP firmware RM
+[   71.311895] NVRM: GPU 0000:00:04.0: RmInitAdapter failed! (0x62:0x56:2119)
+[   71.312594] NVRM: GPU 0000:00:04.0: rm_init_adapter failed, device minor number 0

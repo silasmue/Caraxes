@@ -1,0 +1,8 @@
+     9856687 E boot: fsp: COT version 2 size 860: gspFmc 0x125a00000, frts sysmem 0x0+0x0, frts vidmem 0x1bc0000 from the end +0x100000, GSP_FMC_BOOT_PARAMS 0x107974000
+     9856690 E boot: acr: fb 0x100000000, WPR [0xf0c00000, 0xfe440000), FRTS 0xfe340000+0x100000, heap 0xf0d00000+0x8590000, non-WPR heap 0xf0900000+0x300000, VGA 0xfffe0000
+     9856691 E boot: gsp: target mask released, lockdown released, GSP-RM running
+     9857275 E boot: doorbell 1: libos args PA 0x11770d000 (mapped), wpr meta PA 0x108f8e000
+     9857289 E boot: queues linked: cmd TxHeader { version: 0, size: 262144, msg_size: 4096, msg_count: 63, write_ptr: 1, flags: 1, rx_hdr_off: 32, entry_off: 4096 }; status header written (size 0x40000, 63 slots)
+     9858418 E boot: rx seq 3 GET_GSP_STATIC_INFO (65) sequence 1 length 1632 checksum ok: 1600 bytes: 0000000000000000000000000000000000000000000000000000000000000000
+     9858436 E boot: tx seq 2 reply GET_GSP_STATIC_INFO sequence 1 result 0x0 length 1632
+    27493631 E boot: alloc: alloc 0xca6f object 0xcaf00012 under 0xcaf00008: channel 0xcaf00012 chid 1 engineType 0xd gpfifo va 0x121010000 x 1024 userd Some(Fb(196608)) vaspace Some((3251634185, 3404726277)) errorNotifier Some(Sys(4460781568)) [guest] -> status 0x0 [guest (recorded for the channel emulation; no host object)]

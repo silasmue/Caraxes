@@ -1,0 +1,14 @@
+# SPDX-License-Identifier: MIT
+# The device log gpu.log (ignored as *.log) without the vfio-user connection lines.
+vfio-user-nvgpu: guest name "Leandro VFIO H100 PCIe-4G"
+vfio-user-nvgpu: guest ABI 610 (MsgqV1)
+vfio-user-nvgpu: GH100 (BOOT_0 0x180000a1, driver 610.57.04) on /mnt/vmstore/caraxes/vm7/gpu.sock, boot model on, FB 4096 MiB, ROM 162304 bytes, PROM image 162304 bytes, trace /mnt/vmstore/caraxes/vm7/gpu-trace.log
+bar0: 2942 reads, 19860 writes
+bar3: 61 reads, 7260 writes
+cfg: 3271 reads, 38 writes
+bar0 offsets without a name in the register map (offset: accesses):
+  0x000200bc: 2
+  0x00100a34: 2
+  0x00100a38: 2
+  0x001fa828: 1
+bar tlb: 7270 hit(s), 51 walk(s), 14 flush(es) by a table write (docs/caraxes/mapping.md §3)

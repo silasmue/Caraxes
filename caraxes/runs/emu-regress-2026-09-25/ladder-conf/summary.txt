@@ -1,0 +1,49 @@
+== baseline-tu106
+modprobe rc=0
+[    4.828056] NVRM: GPU 0000:00:04.0: RmInitAdapter
+[   11.880797] NVRM: GPU 0000:00:04.0: RmInitAdapter succeeded!
+nvidia-smi rc=0
+Leandro VFIO RTX 2070-1G, 7.5, 0x1F0210DE, 90.06.3D.00.76, 1024 MiB
+query rc=0
+smi-q rc=0
+== r1-tu104
+modprobe rc=0
+[    4.790105] NVRM: GPU 0000:00:04.0: RmInitAdapter
+[    8.191441] NVRM: GPU 0000:00:04.0: RmInitAdapter succeeded!
+nvidia-smi rc=0
+Leandro VFIO RTX 2080-1G, 7.5, 0x1E8210DE, 90.06.3D.00.76, 1024 MiB
+query rc=0
+smi-q rc=0
+== r2-ga106
+modprobe rc=0
+[    2.993862] NVRM: GPU 0000:00:04.0: RmInitAdapter
+[   14.413154] NVRM: GPU 0000:00:04.0: RmInitAdapter succeeded!
+nvidia-smi rc=0
+Leandro VFIO RTX 3060-1G, 8.6, 0x250310DE, 90.06.3D.00.76, 1024 MiB
+query rc=0
+smi-q rc=0
+== r3-ad106
+modprobe rc=0
+[    4.040830] NVRM: GPU 0000:00:04.0: RmInitAdapter
+[   16.745163] NVRM: GPU 0000:00:04.0: RmInitAdapter succeeded!
+nvidia-smi rc=0
+Leandro VFIO RTX 4060 Ti-1G, 8.9, 0x280310DE, 90.06.3D.00.76, 1024 MiB
+query rc=0
+smi-q rc=0
+== r4-gh100
+modprobe rc=0
+[    3.355886] NVRM: GPU 0000:00:04.0: RmInitAdapter
+[    4.423051] NVRM: GPU 0000:00:04.0: RmInitAdapter succeeded!
+nvidia-smi rc=0
+Leandro VFIO H100 PCIe-4G, 9.0, 0x233110DE, 98.06.1F.40.4A, 4096 MiB
+query rc=0
+smi-q rc=0
+== r5-gb206
+modprobe rc=0
+[    2.972719] NVRM: GPU 0000:00:04.0: RmInitAdapter
+[    3.992441] NVRM: GPU 0000:00:04.0: RmInitAdapter succeeded!
+nvidia-smi rc=0
+Leandro VFIO RTX 5060 Ti-4G, 12.0, 0x2D0410DE, 98.06.1F.40.4A, 4096 MiB
+query rc=0
+smi-q rc=0
+uvm-register rc=137

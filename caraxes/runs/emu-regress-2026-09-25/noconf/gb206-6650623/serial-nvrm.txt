@@ -1,0 +1,56 @@
+CARAXES-CHECK begin 2026-09-25T06:18:36+00:00
+CARAXES-CHECK lspci-vvv
+modprobe rc=0
+[    8.307938] NVRM: loading NVIDIA UNIX Open Kernel Module for x86_64  610.57.04  Release Build  (leandro@caraxes-vm0)  Wed Sep 23 19:24:02 UTC 2026
+[   12.382207] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Call not supported [NV_ERR_NOT_SUPPORTED] (0x00000056) returned from pRmApi->Control(pRmApi, pGpu->hInternalClient, pGpu->hInternalSubdevice, NV2080_CTRL_CMD_INTERNAL_CONF_COMPUTE_GET_STATIC_INFO, &pConfCompute->ccStaticInfo, sizeof(pConfCompute->ccStaticInfo)) @ conf_compute.c:560
+[   12.978314] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Call not supported [NV_ERR_NOT_SUPPORTED] (0x00000056) returned from pRmApi->Control(pRmApi, pGpu->hInternalClient, pGpu->hInternalSubdevice, NV2080_CTRL_CMD_CE_GET_HUB_PCE_MASK_V2, &params, sizeof(params)) @ kernel_ce.c:890
+[   12.979970] NVRM: GPU0 kccuGetBufSize_GB100: CCU sample size retrieval failed with status: 0x56
+[   12.979980] NVRM: GPU0 kccuStateLoad_IMPL: Failed to get the buffer size info(status: 86) 
+[   12.980790] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Call not supported [NV_ERR_NOT_SUPPORTED] (0x00000056) returned from pRmApi->Control(pRmApi, pGpu->hInternalClient, pGpu->hInternalSubdevice, NV2080_CTRL_CMD_INTERNAL_CONF_COMPUTE_GET_STATIC_INFO, &pConfCompute->ccStaticInfo, sizeof(pConfCompute->ccStaticInfo)) @ conf_compute.c:455
+[   13.927445] NVRM: GPU0 nvCheckFailedNoLog: Check failed: numGpcs > 0 @ kernel_graphics_object.c:192
+[   13.930716] NVRM: GPU0 RmInitAdapter: krcWatchdogInit failed, bailing out of RmInitAdapter
+[   14.044182] NVRM: GPU0 _kccuUnmapAndFreeMemory: CCU memdesc unmap request failed with status: 0x56
+CARAXES-CHECK information
+CARAXES-CHECK smi
+nvidia-smi rc=6
+query rc=6
+CARAXES-CHECK smi-q
+smi-q rc=6
+CARAXES-CHECK uvm
+modprobe nvidia-uvm rc=0
+cc rc=0
+uvm-register rc=2
+CARAXES-CHECK dmesg-after
+[    8.307938] NVRM: loading NVIDIA UNIX Open Kernel Module for x86_64  610.57.04  Release Build  (leandro@caraxes-vm0)  Wed Sep 23 19:24:02 UTC 2026
+[   12.382207] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Call not supported [NV_ERR_NOT_SUPPORTED] (0x00000056) returned from pRmApi->Control(pRmApi, pGpu->hInternalClient, pGpu->hInternalSubdevice, NV2080_CTRL_CMD_INTERNAL_CONF_COMPUTE_GET_STATIC_INFO, &pConfCompute->ccStaticInfo, sizeof(pConfCompute->ccStaticInfo)) @ conf_compute.c:560
+[   12.978314] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Call not supported [NV_ERR_NOT_SUPPORTED] (0x00000056) returned from pRmApi->Control(pRmApi, pGpu->hInternalClient, pGpu->hInternalSubdevice, NV2080_CTRL_CMD_CE_GET_HUB_PCE_MASK_V2, &params, sizeof(params)) @ kernel_ce.c:890
+[   12.979970] NVRM: GPU0 kccuGetBufSize_GB100: CCU sample size retrieval failed with status: 0x56
+[   12.979980] NVRM: GPU0 kccuStateLoad_IMPL: Failed to get the buffer size info(status: 86) 
+[   12.980790] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Call not supported [NV_ERR_NOT_SUPPORTED] (0x00000056) returned from pRmApi->Control(pRmApi, pGpu->hInternalClient, pGpu->hInternalSubdevice, NV2080_CTRL_CMD_INTERNAL_CONF_COMPUTE_GET_STATIC_INFO, &pConfCompute->ccStaticInfo, sizeof(pConfCompute->ccStaticInfo)) @ conf_compute.c:455
+[   13.927445] NVRM: GPU0 nvCheckFailedNoLog: Check failed: numGpcs > 0 @ kernel_graphics_object.c:192
+[   13.930716] NVRM: GPU0 RmInitAdapter: krcWatchdogInit failed, bailing out of RmInitAdapter
+[   14.044182] NVRM: GPU0 _kccuUnmapAndFreeMemory: CCU memdesc unmap request failed with status: 0x56
+[   72.956021] NVRM: GPU0 _threadNodeCheckTimeout: _threadNodeCheckTimeout: currentTime: f420aea8ee7c0 >= f420aea8ee7c0
+[   72.956028] NVRM: GPU0 _threadNodeCheckTimeout: _threadNodeCheckTimeout: Timeout was set to: 4000 msecs!
+[   72.956095] NVRM: GPU0 _threadNodeCheckTimeout: _threadNodeCheckTimeout: currentTime: f420aea8ee7c0 >= f420aea8ee7c0
+[   72.956098] NVRM: GPU0 _threadNodeCheckTimeout: _threadNodeCheckTimeout: Timeout was set to: 4000 msecs!
+[   72.956100] NVRM: GPU0 kflcnWaitForHaltRiscv_GA102: Timeout waiting for RISC-V to halt
+[   72.956185] NVRM: GPU0 nvAssertFailedNoLog: Assertion failed: rmStatus == NV_OK @ osinit.c:2453
+[   72.956686] NVRM: GPU 0000:00:04.0: RmInitAdapter failed! (0x41:0x1a:2260)
+[   72.958193] NVRM: GPU 0000:00:04.0: rm_init_adapter failed, device minor number 0
+[   73.076724] NVRM: GPU0 _kgspBootGspRm: unexpected WPR2 already up, cannot proceed with booting GSP
+[   73.076730] NVRM: GPU0 _kgspBootGspRm: (the GPU is likely in a bad state and may need to be reset)
+[   73.076803] NVRM: GPU0 RmInitAdapter: Cannot initialize GSP firmware RM
+[   73.077604] NVRM: GPU 0000:00:04.0: RmInitAdapter failed! (0x62:0x40:2119)
+[   73.079268] NVRM: GPU 0000:00:04.0: rm_init_adapter failed, device minor number 0
+[   73.663146] NVRM: GPU0 _kgspBootGspRm: unexpected WPR2 already up, cannot proceed with booting GSP
+[   73.663152] NVRM: GPU0 _kgspBootGspRm: (the GPU is likely in a bad state and may need to be reset)
+[   73.663204] NVRM: GPU0 RmInitAdapter: Cannot initialize GSP firmware RM
+[   73.666048] NVRM: GPU 0000:00:04.0: RmInitAdapter failed! (0x62:0x40:2119)
+[   73.667967] NVRM: GPU 0000:00:04.0: rm_init_adapter failed, device minor number 0
+[   73.811247] NVRM: GPU0 _kgspBootGspRm: unexpected WPR2 already up, cannot proceed with booting GSP
+[   73.811255] NVRM: GPU0 _kgspBootGspRm: (the GPU is likely in a bad state and may need to be reset)
+[   73.811312] NVRM: GPU0 RmInitAdapter: Cannot initialize GSP firmware RM
+[   73.811616] NVRM: GPU 0000:00:04.0: RmInitAdapter failed! (0x62:0x40:2119)
+[   73.813510] NVRM: GPU 0000:00:04.0: rm_init_adapter failed, device minor number 0
+CARAXES-CHECK end

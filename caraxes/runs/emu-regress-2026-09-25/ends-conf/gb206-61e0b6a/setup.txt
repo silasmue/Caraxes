@@ -1,0 +1,9 @@
+ffc6917c59f8c2f168d90b731d5f796c8d5dbc8374b23924efa83d25d7e91f42  /home/silas/git/Caraxes/.claude/worktrees/agent-a82d4f7ad1327ad63/target/bisect/release/vfio-user-nvgpu
+61e0b6a vfio-user-nvgpu: pin the v0 message queue to the 610 element layout (v615 build passes the msgq tests)
+CARAXES_BOOT_MODEL=1
+CARAXES_CHIP=gb206
+CARAXES_FB_MIB=4096
+CARAXES_RIG=/home/silas/git/Caraxes/.claude/worktrees/agent-a82d4f7ad1327ad63/target/rig
+CARAXES_SERVER=/home/silas/git/Caraxes/.claude/worktrees/agent-a82d4f7ad1327ad63/target/bisect/release/vfio-user-nvgpu
+CARAXES_TAP=none
+VM=vm7

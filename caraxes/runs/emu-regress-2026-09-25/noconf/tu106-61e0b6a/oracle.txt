@@ -1,0 +1,14 @@
+server pid 3183324, VM pid 3183342; logs in /mnt/vmstore/caraxes/vm7
+modprobe rc=0
+[   12.064272] NVRM: GPU0 RmInitAdapter: RmInitNvDevice failed, bailing out of RmInitAdapter
+nvidia-smi rc=6
+query rc=6
+smi-q rc=6
+[   12.064272] NVRM: GPU0 RmInitAdapter: RmInitNvDevice failed, bailing out of RmInitAdapter
+[   70.373112] NVRM: GPU 0000:00:04.0: RmInitAdapter failed! (0x25:0x40:1310)
+[   71.311563] NVRM: GPU0 RmInitAdapter: Cannot initialize GSP firmware RM
+[   71.311895] NVRM: GPU 0000:00:04.0: RmInitAdapter failed! (0x62:0x56:2119)
+[   72.837887] NVRM: GPU0 RmInitAdapter: Cannot initialize GSP firmware RM
+[   72.848432] NVRM: GPU 0000:00:04.0: RmInitAdapter failed! (0x62:0x56:2119)
+[   74.245737] NVRM: GPU0 RmInitAdapter: Cannot initialize GSP firmware RM
+[   74.251385] NVRM: GPU 0000:00:04.0: RmInitAdapter failed! (0x62:0x56:2119)

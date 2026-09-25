@@ -1,0 +1,15 @@
+server pid 3273248, VM pid 3273254; logs in /mnt/vmstore/caraxes/vm7
+modprobe rc=0
+[    6.520428] NVRM: GPU 0000:00:04.0: RmInitAdapter
+[   19.883609] NVRM: GPU 0000:00:04.0: RmInitAdapter succeeded!
+nvidia-smi rc=0
+Leandro VFIO RTX 5060 Ti-4G, 12.0, 0x2D0410DE, 98.06.1F.40.4A, 4096 MiB
+query rc=0
+    Product Name                                       : Leandro VFIO RTX 5060 Ti-4G
+    VBIOS Version                                      : 98.06.1F.40.4A
+    FB Memory Usage
+        Total                                          : 4096 MiB
+        Total                                          : 256 MiB
+        Total                                          : 0 MiB
+smi-q rc=0
+uvm-register rc=137

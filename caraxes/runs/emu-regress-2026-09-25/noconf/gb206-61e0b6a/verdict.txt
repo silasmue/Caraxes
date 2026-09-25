@@ -1,0 +1,1 @@
+bad: Assertion failed: Call not supported [NV_ERR_NOT_SUPPORTED] (0x00000056) returned from pRmApi->Control(pRmApi, pGpu->hInternalClient, pGpu->hInternalSubdevice, NV2080_CTRL_CMD_INTERNAL_CONF_COMPUTE_GET_STATIC_INFO, &pConfCompute->ccStaticInfo, sizeof(pConfCompute->ccStaticInfo)) @ conf_compute.c:560

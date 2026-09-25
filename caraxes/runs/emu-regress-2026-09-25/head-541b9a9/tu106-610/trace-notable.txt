@@ -1,0 +1,10 @@
+      1 E boot: ctrl 0x90f10106: vaspace 0xc: root Some(Fb(928796672)); va 0x100000000..0x11fffffff levels [0x375c5000+0x20 ap 1 shift 47, 0x375c4000+0x1000 ap 1 shift 38, 0x375c3000+0x1000 ap 1 shift 29, 0x375c2000+0x1000 ap 1 shift 21] [guest] -> status 0x0 [guest (VAS root recorded; the server-reserved range stays empty)]
+      1 E boot: ctrl 0x90f10106: vaspace 0xc: root Some(Fb(928497664)); va 0x100000000..0x11fffffff levels [0x3757c000+0x20 ap 1 shift 47, 0x3757b000+0x1000 ap 1 shift 38, 0x3757a000+0x1000 ap 1 shift 29, 0x37579000+0x1000 ap 1 shift 21] [guest] -> status 0x0 [guest (VAS root recorded; the server-reserved range stays empty)]
+      1 E boot: ctrl 0x20800b05: kgr SM issue throttle ctrl: not supported, not forwarded -> status 0x56 [synthesized (NOT_SUPPORTED; forwarding makes the host driver assert)]
+      1 E boot: ctrl 0x20800b03: kgr SM issue rate modifier v2: not supported (no host) -> status 0x56 [synthesized fallback (NOT_SUPPORTED, tolerated)]
+      1 E boot: ctrl 0x20800a3f: kgr FECS trace defines: not supported; there is no public host control for them (phase5 row 50); pFecsTraceDefines stays NULL -> status 0x56 [synthesized (NOT_SUPPORTED, tolerated: kernel_graphics.c:1498-1501)]
+      1 E boot: ctrl 0x20800a34: kgr SM issue rate modifier: not supported (no host) -> status 0x56 [synthesized fallback (NOT_SUPPORTED, tolerated)]
+      1 E boot: ctrl 0x20800a30: kgr PPC masks: not supported; the public GR_GET_PPC_MASK 0x20801233 is one GPC per call ({grRouteInfo, gpcId, ppcMask}, ctrl2080gr.h:1810-1814), not the internal mask[64] layout -> status 0x56 [synthesized (NOT_SUPPORTED, tolerated: kernel_graphics.c:1320-1327)]
+      1 E boot: ctrl 0x20800a2e: kgr ROP info: not supported (no host) -> status 0x56 [synthesized fallback (NOT_SUPPORTED, tolerated)]
+      1 E boot: ctrl 0x20800a2c: kgr zcull info: not supported (no host) -> status 0x56 [synthesized fallback (NOT_SUPPORTED, tolerated)]
+      1 E boot: chid 2: VAS root unknown, nothing run

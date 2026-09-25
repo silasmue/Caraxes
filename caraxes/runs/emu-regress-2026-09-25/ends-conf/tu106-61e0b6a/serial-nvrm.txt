@@ -1,0 +1,60 @@
+[    6.576301] NVRM: probing 0x10de 0x1f02, class 0x30000
+CARAXES-CHECK begin 2026-09-25T06:33:34+00:00
+CARAXES-CHECK lspci-vvv
+modprobe rc=0
+[    6.576301] NVRM: probing 0x10de 0x1f02, class 0x30000
+[    6.593364] NVRM: resizable BAR disabled by regkey, skipping
+[    6.593368] NVRM: No clk handles for the dev
+[    6.593637] NVRM: PCI:0000:00:04.0 (10de:1f02): BAR0 @ 0xe6000000 (16MB)
+[    6.593641] NVRM: PCI:0000:00:04.0 (10de:1f02): BAR1 @ 0x3fffe0000000 (256MB)
+[    6.594068] NVRM: Failed to evaluate _PR3 object
+[    6.597085] NVRM: pciPbiReadUuid: Could not acquire pciPbi mutex
+[    6.597216] NVRM: Starting device 0000:00:04.0
+[    6.622464] NVRM: GPU 0000:00:04.0: RmInitAdapter
+[    6.622470] NVRM: GPU 0000:00:04.0: RmSetupRegisters for 0x10de:0x1f02
+[    6.622472] NVRM: GPU 0000:00:04.0: pci config info:
+[    6.622473] NVRM: GPU 0000:00:04.0:    registers look  like: 0xe6000000 0x1000000NVRM: GPU 0000:00:04.0:    fb        looks like: 0x3fffe0000000 0x10000000
+[    6.622491] NVRM: GPU 0000:00:04.0: Successfully mapped framebuffer and registers
+[    6.622492] NVRM: GPU 0000:00:04.0: final mappings:
+[    6.622493] NVRM: GPU 0000:00:04.0:     regs: 0xe6000000 0x1000000 0x00000000dacdff5c
+[    8.080464] NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+[    8.080469] NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+[    8.080471] NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+[    8.080473] NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+[    8.080474] NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+[    8.080476] NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+[    8.080478] NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+[    8.080479] NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+[    8.080481] NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+[    8.080486] NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+[    8.080488] NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+[    8.080490] NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+[    8.080494] NVRM: nv_acpi_dod_method: failed to evaluate _DOD method!
+[   13.057232] NVRM: initializing rc timer
+[   13.057238] NVRM: rc timer initialized
+[   13.060478] NVRM: GPU 0000:00:04.0: RmInitAdapter succeeded!
+[   13.061225] NVRM: loading NVIDIA UNIX Open Kernel Module for x86_64  610.57.04  Release Build  (leandro@caraxes-vm0)  Wed Sep 23 19:24:02 UTC 2026
+[   13.114906] NVRM: GPU 0000:00:04.0: Opening GPU with minor number 0
+[   13.117334] NVRM: GPU 0000:00:04.0: Opening GPU with minor number 0
+CARAXES-CHECK information
+CARAXES-CHECK smi
+nvidia-smi rc=0
+query rc=0
+CARAXES-CHECK smi-q
+smi-q rc=0
+CARAXES-CHECK dmesg-after
+[   21.123927] NVRM: ioctl(0x2a, 0x10f9d080, 0x20)
+[   21.126442] NVRM: ioctl(0x2a, 0x10f9cf70, 0x20)
+[   21.129295] NVRM: ioctl(0x2a, 0x10f9d070, 0x20)
+[   21.131999] NVRM: ioctl(0x2a, 0x10f9d070, 0x20)
+[   21.134725] NVRM: ioctl(0x2a, 0x10f9cfe0, 0x20)
+[   21.135413] NVRM: ioctl(0x2a, 0x10f9cfe0, 0x20)
+[   21.139777] NVRM: ioctl(0x2a, 0x10f9ccc0, 0x20)
+[   21.142751] NVRM: ioctl(0x2a, 0x10f9d650, 0x20)
+[   21.145433] NVRM: ioctl(0x2a, 0x10f9d5e0, 0x20)
+[   21.148242] NVRM: ioctl(0x2a, 0x10f9d240, 0x20)
+[   21.148908] NVRM: ioctl(0x2a, 0x10f9d240, 0x20)
+[   21.149577] NVRM: ioctl(0x2a, 0x10f9d240, 0x20)
+[   21.150270] NVRM: ioctl(0x2a, 0x10f9d240, 0x20)
+[   21.150970] NVRM: ioctl(0x2a, 0x10f9d240, 0x20)
+[   21.151615] NVRM: ioctl(0x2a, 0x10f9d240, 0x20)

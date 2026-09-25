@@ -1,0 +1,10 @@
+# SPDX-License-Identifier: MIT
+# The device log gpu.log (ignored as *.log) without the vfio-user connection lines.
+vfio-user-nvgpu: guest name "Leandro VFIO RTX 2070-1G"
+vfio-user-nvgpu: guest ABI 615 (MsgqV2)
+vfio-user-nvgpu: TU106 (BOOT_0 0x166000a1, driver 615.71.09) on /mnt/vmstore/caraxes/vm7-615/gpu.sock, boot model on, FB 1024 MiB, ROM 130048 bytes, PROM image 131584 bytes, trace /mnt/vmstore/caraxes/vm7-615/gpu-trace.log
+bar0: 34035 reads, 36474 writes
+bar3: 48 reads, 6200 writes
+cfg: 2254 reads, 27 writes
+bar tlb: 6205 hit(s), 43 walk(s), 12 flush(es) by a table write (docs/caraxes/mapping.md §3)
+vidmem PTE kinds walked (kind:comptagline x count): 0x00:0x0x14 0x06:0x0x29 -- all uncompressed (kind 0x06/0x00, comptagline 0): comptag hold satisfied

@@ -1,0 +1,7 @@
+     4010970 E boot: fsp: COT version 1 size 860: gspFmc 0x116300000, frts sysmem 0x0+0x0, frts vidmem 0x200000 from the end +0x100000, GSP_FMC_BOOT_PARAMS 0x116ac0000
+     4010973 E boot: acr: fb 0x100000000, WPR [0xf2600000, 0xffe00000), FRTS 0xffd00000+0x100000, heap 0xf2700000+0x8570000, non-WPR heap 0xf2400000+0x200000, VGA 0xfffe0000
+     4010974 E boot: gsp: target mask released, lockdown released, GSP-RM running
+     4011665 E boot: doorbell 1: libos args PA 0x1142ae000 (mapped), wpr meta PA 0x110fe8000
+     4011680 E boot: queues linked: cmd TxHeader { version: 0, size: 262144, msg_size: 4096, msg_count: 63, write_ptr: 1, flags: 1, rx_hdr_off: 32, entry_off: 4096 }; status header written (size 0x40000, 63 slots)
+     4012594 E boot: rx seq 3 GET_GSP_STATIC_INFO (65) sequence 1 length 1632 checksum ok: 1600 bytes: 0000000000000000000000000000000000000000000000000000000000000000
+     4012610 E boot: tx seq 2 reply GET_GSP_STATIC_INFO sequence 1 result 0x0 length 1632

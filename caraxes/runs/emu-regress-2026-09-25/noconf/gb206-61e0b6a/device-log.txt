@@ -1,0 +1,14 @@
+# SPDX-License-Identifier: MIT
+# The device log gpu.log (ignored as *.log) without the vfio-user connection lines.
+vfio-user-nvgpu: guest name "Leandro VFIO RTX 5060 Ti-4G"
+vfio-user-nvgpu: guest ABI 610 (MsgqV1)
+vfio-user-nvgpu: GB206 (BOOT_0 0x1b6000a1, driver 610.57.04) on /mnt/vmstore/caraxes/vm7/gpu.sock, boot model on, FB 4096 MiB, ROM 162304 bytes, PROM image 162304 bytes, trace /mnt/vmstore/caraxes/vm7/gpu-trace.log
+bar0: 1929888 reads, 34770 writes
+bar3: 226 reads, 20325 writes
+cfg: 3262 reads, 132 writes
+bar0 offsets without a name in the register map (offset: accesses):
+  0x000000d8: 5
+  0x00000590: 20
+  0x008a1d58: 5
+  0x008a1d5c: 5
+bar tlb: 20370 hit(s), 181 walk(s), 41 flush(es) by a table write (docs/caraxes/mapping.md §3)

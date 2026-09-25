@@ -1,0 +1,1 @@
+bad: Assertion failed: kgrmgrGetLegacyKGraphicsStaticInfo(pGpu, pKernelGraphicsManager)->pGrInfo != NULL @ kernel_fifo.c:2771

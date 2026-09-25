@@ -1,0 +1,60 @@
+[    6.504941] NVRM: probing 0x10de 0x2d04, class 0x30000
+CARAXES-CHECK begin 2026-09-25T06:34:10+00:00
+CARAXES-CHECK lspci-vvv
+modprobe rc=0
+[    6.504941] NVRM: probing 0x10de 0x2d04, class 0x30000
+[    6.514014] NVRM: resizable BAR disabled by regkey, skipping
+[    6.514017] NVRM: No clk handles for the dev
+[    6.514300] NVRM: PCI:0000:00:04.0 (10de:2d04): BAR0 @ 0xe0000000 (64MB)
+[    6.514304] NVRM: PCI:0000:00:04.0 (10de:2d04): BAR1 @ 0x3fffe0000000 (256MB)
+[    6.514332] NVRM: Failed to evaluate _PR3 object
+[    6.517809] NVRM: PBI is not supported for GPU 0000:00:04.0
+[    6.517912] NVRM: PBI is not supported for GPU 0000:00:04.0
+[    6.517916] NVRM: Starting device 0000:00:04.0
+[    6.520428] NVRM: GPU 0000:00:04.0: RmInitAdapter
+[    6.520431] NVRM: GPU 0000:00:04.0: RmSetupRegisters for 0x10de:0x2d04
+[    6.520433] NVRM: GPU 0000:00:04.0: pci config info:
+[    6.520434] NVRM: GPU 0000:00:04.0:    registers look  like: 0xe0000000 0x4000000NVRM: GPU 0000:00:04.0:    fb        looks like: 0x3fffe0000000 0x10000000
+[    6.520443] NVRM: GPU 0000:00:04.0: Successfully mapped framebuffer and registers
+[    6.520444] NVRM: GPU 0000:00:04.0: final mappings:
+[    6.520445] NVRM: GPU 0000:00:04.0:     regs: 0xe0000000 0x4000000 0x00000000bb4e377e
+[   10.565741] NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+[   10.565746] NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+[   10.565748] NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+[   10.565749] NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+[   10.565751] NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+[   10.565752] NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+[   10.565754] NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+[   10.565756] NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+[   10.565757] NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+[   10.565759] NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+[   10.565761] NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+[   10.565766] NVRM: nv_acpi_dod_method: failed to evaluate _DOD method!
+[   17.902223] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Call not supported [NV_ERR_NOT_SUPPORTED] (0x00000056) returned from pRmApi->Control(pRmApi, pGpu->hInternalClient, pGpu->hInternalSubdevice, NV2080_CTRL_CMD_INTERNAL_CONF_COMPUTE_GET_STATIC_INFO, &pConfCompute->ccStaticInfo, sizeof(pConfCompute->ccStaticInfo)) @ conf_compute.c:560
+[   18.699044] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Call not supported [NV_ERR_NOT_SUPPORTED] (0x00000056) returned from pRmApi->Control(pRmApi, pGpu->hInternalClient, pGpu->hInternalSubdevice, NV2080_CTRL_CMD_CE_GET_HUB_PCE_MASK_V2, &params, sizeof(params)) @ kernel_ce.c:890
+[   18.703797] NVRM: GPU0 kccuGetBufSize_GB100: CCU sample size retrieval failed with status: 0x56
+[   18.703805] NVRM: GPU0 kccuStateLoad_IMPL: Failed to get the buffer size info(status: 86) 
+[   18.707486] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Call not supported [NV_ERR_NOT_SUPPORTED] (0x00000056) returned from pRmApi->Control(pRmApi, pGpu->hInternalClient, pGpu->hInternalSubdevice, NV2080_CTRL_CMD_INTERNAL_CONF_COMPUTE_GET_STATIC_INFO, &pConfCompute->ccStaticInfo, sizeof(pConfCompute->ccStaticInfo)) @ conf_compute.c:455
+[   19.879279] NVRM: initializing rc timer
+[   19.879287] NVRM: rc timer initialized
+[   19.881682] NVRM: PBI is not supported for GPU 0000:00:04.0
+[   19.883609] NVRM: GPU 0000:00:04.0: RmInitAdapter succeeded!
+[   19.887145] NVRM: loading NVIDIA UNIX Open Kernel Module for x86_64  610.57.04  Release Build  (leandro@caraxes-vm0)  Wed Sep 23 19:24:02 UTC 2026
+[   22.327230] NVRM: GPU 0000:00:04.0: Opening GPU with minor number 0
+[   22.330566] NVRM: GPU 0000:00:04.0: Opening GPU with minor number 0
+CARAXES-CHECK information
+CARAXES-CHECK smi
+nvidia-smi rc=0
+query rc=0
+CARAXES-CHECK smi-q
+smi-q rc=0
+CARAXES-CHECK uvm
+modprobe nvidia-uvm rc=0
+cc rc=0
+uvm-register rc=137
+CARAXES-CHECK dmesg-after
+[   25.170570] NVRM: ioctl(0x2a, 0x95170cf0, 0x20)
+[   25.171035] NVRM: ioctl(0x2a, 0x95170cf0, 0x20)
+[   25.173094] NVRM: ioctl(0x2a, 0x95170cf0, 0x20)
+[   25.173563] NVRM: ioctl(0x2a, 0x95170cf0, 0x20)
+[   25.176737] NVRM: ioctl(0x2a, 0x95170cf0, 0x20)

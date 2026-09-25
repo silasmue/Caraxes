@@ -1,0 +1,8 @@
+58957a08bc3d1bb37027d012ea9e1b50bfafa644477b65aed8bd4ef9db3ede6e  /home/silas/git/Caraxes/.claude/worktrees/agent-a82d4f7ad1327ad63/target/v615/release/vfio-user-nvgpu
+541b9a9 Merge branch 'worktree-agent-aef4c8b419fdde539'
+CARAXES_BOOT_MODEL=1
+CARAXES_DRIVER=615
+CARAXES_FB_MIB=1024
+CARAXES_SERVER=/home/silas/git/Caraxes/.claude/worktrees/agent-a82d4f7ad1327ad63/target/v615/release/vfio-user-nvgpu
+CARAXES_TAP=none
+VM=vm7-615

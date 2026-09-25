@@ -1,0 +1,124 @@
+# SPDX-License-Identifier: MIT
+# The guest check lines of serial.log (ignored as *.log), deduplicated in order.
+[   10.552465] pci 0000:00:04.0: [10de:1f02] type 00 class 0x030000 PCIe Legacy Endpoint
+CARAXES-CHECK begin 2026-09-25T06:25:18+00:00
+00:04.0 VGA compatible controller [0300]: NVIDIA Corporation TU106 [GeForce RTX 2070] [10de:1f02] (rev a1)
+CARAXES-CHECK lspci-vvv
+	Subsystem: Gigabyte Technology Co., Ltd TU106 [GeForce RTX 2070]
+	Region 0: Memory at e6000000 (32-bit, non-prefetchable) [disabled] [size=16M]
+	Region 1: Memory at 3fffe0000000 (64-bit, prefetchable) [disabled] [size=256M]
+	Region 3: Memory at 3ffffc000000 (64-bit, prefetchable) [disabled] [size=32M]
+	Region 5: I/O ports at ff80 [disabled] [size=128]
+	Expansion ROM at e7e80000 [disabled] [size=512K]
+	Capabilities: [60] Power Management version 3
+	Capabilities: [68] MSI: Enable- Count=1/1 Maskable- 64bit+
+	Capabilities: [78] Express (v2) Legacy Endpoint, MSI 00
+modprobe rc=0
+[   67.850221] NVRM: probing 0x10de 0x1f02, class 0x30000
+[   67.853293] NVRM: resizable BAR disabled by regkey, skipping
+[   67.853297] NVRM: No clk handles for the dev
+[   67.853535] NVRM: GPU 0000:00:04.0: Init-on-probe: enabled (NVreg_GpuInitOnProbe=1, FORCE_ON)
+[   67.853613] NVRM: PCI:0000:00:04.0 (10de:1f02): BAR0 @ 0xe6000000 (16MB)
+[   67.853617] NVRM: PCI:0000:00:04.0 (10de:1f02): BAR1 @ 0x3fffe0000000 (256MB)
+[   67.853637] NVRM: Failed to evaluate _PR3 object
+[   67.854039] NVRM: Failed to find NVIDIA DVSEC3
+[   67.860783] NVRM: pciPbiReadUuid: Could not acquire pciPbi mutex
+[   67.861023] NVRM: Starting device 0000:00:04.0
+[   67.865518] NVRM: GPU 0000:00:04.0: RmInitAdapter
+[   67.865523] NVRM: GPU 0000:00:04.0: RmSetupRegisters for 0x10de:0x1f02
+[   67.865525] NVRM: GPU 0000:00:04.0: pci config info:
+[   67.865527] NVRM: GPU 0000:00:04.0:    registers look  like: 0xe6000000 0x1000000NVRM: GPU 0000:00:04.0:    fb        looks like: 0x3fffe0000000 0x10000000
+[   67.865542] NVRM: GPU 0000:00:04.0: Successfully mapped framebuffer and registers
+[   67.865544] NVRM: GPU 0000:00:04.0: final mappings:
+[   67.865545] NVRM: GPU 0000:00:04.0:     regs: 0xe6000000 0x1000000 0x00000000736b6ad3
+[   69.532342] NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+[   69.532349] NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+[   69.532351] NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+[   69.532353] NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+[   69.532355] NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+[   69.532357] NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+[   69.532359] NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+[   69.532361] NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+[   69.532363] NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+[   69.532365] NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+[   69.532368] NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+[   69.532370] NVRM: nv_acpi_evaluate_dsm_method: failed to evaluate _DSM method!
+[   69.532374] NVRM: nv_acpi_dod_method: failed to evaluate _DOD method!
+[   72.322701] NVRM: initializing rc timer
+[   72.322704] NVRM: rc timer initialized
+[   72.326286] NVRM: GPU 0000:00:04.0: RmInitAdapter succeeded!
+[   72.327240] NVRM: loading NVIDIA UNIX Open Kernel Module for x86_64  615.71.09  Release Build  (dvs-builder@U22-I3-F05-2-4)  Fri Sep  4 22:33:33 UTC 2026
+CARAXES-CHECK information
+CARAXES-CHECK smi
+nvidia-smi rc=0
+Leandro VFIO RTX 2070-1G, 7.5, 0x1F0210DE, 90.06.3D.00.76, 1024 MiB
+query rc=0
+CARAXES-CHECK smi-q
+    Product Name                                       : Leandro VFIO RTX 2070-1G
+    VBIOS Version                                      : 90.06.3D.00.76
+        Total                                          : 1024 MiB
+        Total                                          : 256 MiB
+        Total                                          : 0 MiB
+smi-q rc=0
+CARAXES-CHECK dmesg-after
+[   73.039192] NVRM: ioctl(0x2a, 0x174d1540, 0x20)
+[   73.048093] NVRM: ioctl(0x2a, 0x174d1510, 0x20)
+[   73.051291] NVRM: ioctl(0x2a, 0x174d0b80, 0x20)
+[   73.054353] NVRM: ioctl(0x2a, 0x174d1130, 0x20)
+[   73.055810] NVRM: ioctl(0x2a, 0x174d1130, 0x20)
+[   73.059444] NVRM: ioctl(0x2a, 0x174d1130, 0x20)
+[   73.062759] NVRM: ioctl(0x2a, 0x174d1130, 0x20)
+[   73.065886] NVRM: ioctl(0x2a, 0x174d1130, 0x20)
+[   73.066650] NVRM: ioctl(0x2a, 0x174d1130, 0x20)
+[   73.067413] NVRM: ioctl(0x2a, 0x174d1130, 0x20)
+[   73.068530] NVRM: ioctl(0x2a, 0x174d1130, 0x20)
+[   73.069765] NVRM: ioctl(0x2a, 0x174d1130, 0x20)
+[   73.070579] NVRM: ioctl(0x2a, 0x174d1130, 0x20)
+[   73.071698] NVRM: ioctl(0x2a, 0x174d1130, 0x20)
+[   73.073175] NVRM: ioctl(0x2a, 0x174d1130, 0x20)
+[   73.095010] NVRM: ioctl(0x2a, 0x174d1590, 0x20)
+[   73.103278] NVRM: ioctl(0x2a, 0x174d1090, 0x20)
+[   73.104840] NVRM: ioctl(0x2a, 0x174d1040, 0x20)
+[   73.105720] NVRM: ioctl(0x2a, 0x174d04d0, 0x20)
+[   73.106424] NVRM: ioctl(0x2a, 0x174d1040, 0x20)
+[   73.121269] NVRM: ioctl(0x2a, 0x174d10b0, 0x20)
+[   73.139508] NVRM: ioctl(0x2a, 0x174d10b0, 0x20)
+[   73.150767] NVRM: ioctl(0x2a, 0x174d15b0, 0x20)
+[   73.153618] NVRM: ioctl(0x2a, 0x174d0d20, 0x20)
+[   73.160310] NVRM: ioctl(0x2a, 0x174d1500, 0x20)
+[   73.166933] NVRM: ioctl(0x2a, 0x174d1500, 0x20)
+[   73.171013] NVRM: ioctl(0x2a, 0x174d14b0, 0x20)
+[   73.175246] NVRM: ioctl(0x2a, 0x174d14b0, 0x20)
+[   73.179684] NVRM: ioctl(0x2a, 0x174d1540, 0x20)
+[   73.189433] NVRM: ioctl(0x2a, 0x174d1560, 0x20)
+[   73.215716] NVRM: ioctl(0x2a, 0x174d0e30, 0x20)
+[   73.237820] NVRM: ioctl(0x2a, 0x174d0bc0, 0x20)
+[   73.247938] NVRM: ioctl(0x2a, 0x174cfcc0, 0x20)
+[   73.252902] NVRM: ioctl(0x2a, 0x174cf530, 0x20)
+[   73.257394] NVRM: ioctl(0x2a, 0x174d0d60, 0x20)
+[   73.261956] NVRM: ioctl(0x2a, 0x174d1410, 0x20)
+[   73.265898] NVRM: ioctl(0x2a, 0x174cf820, 0x20)
+[   73.269926] NVRM: ioctl(0x2a, 0x174d1340, 0x20)
+[   73.280008] NVRM: ioctl(0x2a, 0x174d1280, 0x20)
+[   73.286414] NVRM: ioctl(0x2a, 0x174d1240, 0x20)
+[   73.287448] NVRM: ioctl(0x2a, 0x174cd3e0, 0x20)
+[   73.338409] NVRM: ioctl(0x2a, 0x174d0d10, 0x20)
+[   73.341722] NVRM: ioctl(0x2a, 0x174cf080, 0x20)
+[   73.387425] NVRM: ioctl(0x2a, 0x174d14c0, 0x20)
+[   73.418096] NVRM: ioctl(0x2a, 0x174d0ed0, 0x20)
+[   73.418825] NVRM: ioctl(0x2a, 0x174d1140, 0x20)
+[   73.453000] NVRM: ioctl(0x2a, 0x174d1270, 0x20)
+[   73.453933] NVRM: ioctl(0x2a, 0x174ccb80, 0x20)
+[   73.454493] NVRM: ioctl(0x2a, 0x174ccb80, 0x20)
+[   73.455022] NVRM: ioctl(0x2a, 0x174ccb80, 0x20)
+[   73.458257] NVRM: ioctl(0x2a, 0x174d12e0, 0x20)
+[   73.461982] NVRM: ioctl(0x29, 0x174d21c0, 0x10)
+[   73.463953] NVRM: nvidia_close on GPU with minor number 0
+[   73.463961] NVRM: ioctl(0x29, 0x174d21c0, 0x10)
+[   73.465056] NVRM: nvidia_close on GPU with minor number 0
+[   73.465062] NVRM: ioctl(0x2a, 0x174d1760, 0x20)
+[   73.465075] NVRM: nvidia_close on GPU with minor number 0
+[   73.465079] NVRM: ioctl(0x29, 0x174d21e0, 0x10)
+[   73.465572] NVRM: nvidia_close on GPU with minor number 255
+[   73.465575] NVRM: nvidia_ctl_close
+CARAXES-CHECK end

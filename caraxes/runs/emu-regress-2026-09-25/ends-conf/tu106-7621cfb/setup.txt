@@ -1,0 +1,7 @@
+4d0c0dccaa7b088addedc5ce2f15f956f014f593ea988f2669e5012eb73db482  /mnt/vmstore/caraxes/vfio-user-nvgpu-main-7621cfb
+541b9a9 Merge branch 'worktree-agent-aef4c8b419fdde539'
+CARAXES_BOOT_MODEL=1
+CARAXES_FB_MIB=1024
+CARAXES_SERVER=/mnt/vmstore/caraxes/vfio-user-nvgpu-main-7621cfb
+CARAXES_TAP=none
+VM=vm7

@@ -1,0 +1,2 @@
+driver 610.57.04: overlay on /mnt/vmstore/leandro/vm/guest-baked-20260801-610.57.04-20260820-105733.qcow2
+server pid 3304768, VM pid 3304771; logs in /mnt/vmstore/caraxes/vm7

@@ -1,0 +1,4 @@
+    16179436 E boot: doorbell 1: libos args PA 0x109305000 (mapped), wpr meta PA 0x109304000
+    16179453 E boot: queues linked: cmd TxHeader { version: 0, size: 262144, msg_size: 4096, msg_count: 63, write_ptr: 1, flags: 1, rx_hdr_off: 32, entry_off: 4096 }; status header written (size 0x40000, 63 slots)
+    16180373 E boot: rx seq 3 GET_GSP_STATIC_INFO (65) sequence 1 length 1632 checksum ok: 1600 bytes: 0000000000000000000000000000000000000000000000000000000000000000
+    16180388 E boot: tx seq 2 reply GET_GSP_STATIC_INFO sequence 1 result 0x0 length 1632

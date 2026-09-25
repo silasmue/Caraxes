@@ -1,0 +1,1 @@
+server pid 3325706, VM pid 3325712; logs in /mnt/vmstore/caraxes/vm7

@@ -1,0 +1,9 @@
+8306dfb0f899f32de9ac3702795bb376bd18d8f8809bc849fa99f787d4b2db32  /home/silas/git/Caraxes/.claude/worktrees/agent-a82d4f7ad1327ad63/target/bisect/release/vfio-user-nvgpu
+6650623 docs/caraxes, caraxes/runs: Blackwell N gate passed in pure emulation
+CARAXES_BOOT_MODEL=1
+CARAXES_CHIP=gb206
+CARAXES_FB_MIB=4096
+CARAXES_RIG=/home/silas/git/Caraxes/.claude/worktrees/agent-a82d4f7ad1327ad63/target/rig
+CARAXES_SERVER=/home/silas/git/Caraxes/.claude/worktrees/agent-a82d4f7ad1327ad63/target/bisect/release/vfio-user-nvgpu
+CARAXES_TAP=none
+VM=vm7

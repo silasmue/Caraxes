@@ -1,0 +1,62 @@
+# SPDX-License-Identifier: MIT
+# The guest check lines of serial.log (ignored as *.log), deduplicated in order.
+[    0.811184] pci 0000:00:04.0: [10de:1f02] type 00 class 0x030000 PCIe Legacy Endpoint
+CARAXES-CHECK begin 2026-09-25T06:08:44+00:00
+00:04.0 VGA compatible controller [0300]: NVIDIA Corporation TU106 [GeForce RTX 2070] [10de:1f02] (rev a1)
+CARAXES-CHECK lspci-vvv
+	Subsystem: Gigabyte Technology Co., Ltd TU106 [GeForce RTX 2070]
+	Region 0: Memory at e6000000 (32-bit, non-prefetchable) [size=16M]
+	Region 1: Memory at 3fffe0000000 (64-bit, prefetchable) [size=256M]
+	Region 3: Memory at 3ffffc000000 (64-bit, prefetchable) [size=32M]
+	Region 5: I/O ports at ff80 [size=128]
+	Expansion ROM at e7e80000 [disabled] [size=512K]
+	Capabilities: [60] Power Management version 3
+	Capabilities: [68] MSI: Enable+ Count=1/1 Maskable- 64bit+
+	Capabilities: [78] Express (v2) Legacy Endpoint, MSI 00
+modprobe rc=0
+[    4.085066] NVRM: pciPbiReadUuid: Could not acquire pciPbi mutex
+[    4.085394] NVRM: loading NVIDIA UNIX Open Kernel Module for x86_64  610.57.04  Release Build  (leandro@caraxes-vm0)  Wed Sep 23 19:24:02 UTC 2026
+CARAXES-CHECK information
+CARAXES-CHECK smi
+nvidia-smi rc=6
+query rc=6
+CARAXES-CHECK smi-q
+smi-q rc=6
+CARAXES-CHECK dmesg-after
+[   11.208527] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Call timed out [NV_ERR_TIMEOUT] (0x00000065) returned from memmgrMemSet(pMemoryManager, &vidSurface, 0, sizeof vidmemData, TRANSFER_FLAGS_PREFER_CE) @ mem_mgr.c:445
+[   11.208721] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Call timed out [NV_ERR_TIMEOUT] (0x00000065) returned from status @ mem_mgr.c:4166
+[   15.209570] NVRM: GPU0 nvAssertFailedNoLog: Assertion failed: pCeUtils->lastCompletedPayload == lastSubmittedPayload @ ce_utils.c:350
+[   15.220922] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Call timed out [NV_ERR_TIMEOUT] (0x00000065) returned from memmgrInitCeUtils(pMemoryManager, NV_FALSE, NV_TRUE) @ mem_mgr.c:508
+[   15.220955] NVRM: GPU0 nvAssertFailedNoLog: Assertion failed: 0 @ kernel_fifo.c:3108
+[   15.220993] NVRM: GPU0 RmInitNvDevice: *** Cannot load state into the device
+[   15.220995] NVRM: GPU0 RmInitAdapter: RmInitNvDevice failed, bailing out of RmInitAdapter
+[   15.986044] NVRM: GPU 0000:00:04.0: RmInitAdapter failed! (0x25:0x65:1310)
+[   15.986781] NVRM: GPU 0000:00:04.0: rm_init_adapter failed, device minor number 0
+[   16.978032] NVRM: GPU0 kgspExecuteFwsec_TU102: failed to execute FWSEC for FRTS: no initialized WPR2 found
+[   16.978039] NVRM: GPU0 kgspExecuteFwsec_TU102: (note: VBIOS version 90.06.3D.00.76)
+[   16.978041] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Failure: Generic Error [NV_ERR_GENERIC] (0x0000FFFF) returned from status @ kernel_gsp_tu102.c:556
+[   16.984228] NVRM: GPU0 kgspExecuteFwsec_TU102: failed to execute FWSEC for FRTS: no initialized WPR2 found
+[   16.984231] NVRM: GPU0 kgspExecuteFwsec_TU102: (note: VBIOS version 90.06.3D.00.76)
+[   16.984232] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Failure: Generic Error [NV_ERR_GENERIC] (0x0000FFFF) returned from status @ kernel_gsp_tu102.c:556
+[   16.985967] NVRM: GPU0 nvAssertFailed: Assertion failed: 0 @ g_kernel_sec2_nvoc.h:837
+[   16.985996] NVRM: GPU0 nvAssertFailedNoLog: Assertion failed: pBinArchive != NULL @ kernel_gsp_booter.c:487
+[   16.986025] NVRM: GPU0 nvCheckOkFailedNoLog: Check failed: Call not supported [NV_ERR_NOT_SUPPORTED] (0x00000056) returned from kgspAllocateScrubberUcodeImage(pGpu, pKernelGsp, &pKernelGsp->pScrubberUcode) @ kernel_gsp.c:4456
+[   16.986028] NVRM: GPU0 nvCheckOkFailedNoLog: Check failed: Call not supported [NV_ERR_NOT_SUPPORTED] (0x00000056) returned from _kgspPrepareScrubberImageIfNeeded(pGpu, pKernelGsp) @ kernel_gsp.c:4818
+[   16.986063] NVRM: GPU0 RmInitAdapter: Cannot initialize GSP firmware RM
+[   16.986666] NVRM: GPU 0000:00:04.0: RmInitAdapter failed! (0x62:0x56:2119)
+[   16.987232] NVRM: GPU 0000:00:04.0: rm_init_adapter failed, device minor number 0
+[   19.089085] NVRM: GPU0 nvAssertFailed: Assertion failed: 0 @ g_kernel_sec2_nvoc.h:837
+[   19.089126] NVRM: GPU0 nvAssertFailedNoLog: Assertion failed: pBinArchive != NULL @ kernel_gsp_booter.c:487
+[   19.089162] NVRM: GPU0 nvCheckOkFailedNoLog: Check failed: Call not supported [NV_ERR_NOT_SUPPORTED] (0x00000056) returned from kgspAllocateScrubberUcodeImage(pGpu, pKernelGsp, &pKernelGsp->pScrubberUcode) @ kernel_gsp.c:4456
+[   19.089165] NVRM: GPU0 nvCheckOkFailedNoLog: Check failed: Call not supported [NV_ERR_NOT_SUPPORTED] (0x00000056) returned from _kgspPrepareScrubberImageIfNeeded(pGpu, pKernelGsp) @ kernel_gsp.c:4818
+[   19.089209] NVRM: GPU0 RmInitAdapter: Cannot initialize GSP firmware RM
+[   19.089628] NVRM: GPU 0000:00:04.0: RmInitAdapter failed! (0x62:0x56:2119)
+[   19.090325] NVRM: GPU 0000:00:04.0: rm_init_adapter failed, device minor number 0
+[   20.246539] NVRM: GPU0 nvAssertFailed: Assertion failed: 0 @ g_kernel_sec2_nvoc.h:837
+[   20.246574] NVRM: GPU0 nvAssertFailedNoLog: Assertion failed: pBinArchive != NULL @ kernel_gsp_booter.c:487
+[   20.246605] NVRM: GPU0 nvCheckOkFailedNoLog: Check failed: Call not supported [NV_ERR_NOT_SUPPORTED] (0x00000056) returned from kgspAllocateScrubberUcodeImage(pGpu, pKernelGsp, &pKernelGsp->pScrubberUcode) @ kernel_gsp.c:4456
+[   20.246608] NVRM: GPU0 nvCheckOkFailedNoLog: Check failed: Call not supported [NV_ERR_NOT_SUPPORTED] (0x00000056) returned from _kgspPrepareScrubberImageIfNeeded(pGpu, pKernelGsp) @ kernel_gsp.c:4818
+[   20.246645] NVRM: GPU0 RmInitAdapter: Cannot initialize GSP firmware RM
+[   20.246962] NVRM: GPU 0000:00:04.0: RmInitAdapter failed! (0x62:0x56:2119)
+[   20.247709] NVRM: GPU 0000:00:04.0: rm_init_adapter failed, device minor number 0
+CARAXES-CHECK end
