@@ -113,6 +113,82 @@ pub const BULK_MIN_RUNS: usize = 4;
 pub const GATHER_MIN_LEAVES: usize = 16;
 pub const GATHER_MIN_RUNS: usize = 8;
 
+/// `SPLIT_VAS_SERVER_RM_MANAGED_VA_START`/`_SIZE` (g_gpu_vaspace_nvoc.h:90-91): the range a
+/// GSP-client RM reserves in every VA space for GSP-RM. The guest's own [4 GiB, 4.5 GiB) is
+/// reserved for its GSP, which is this device: the guest kernel and its clients never map
+/// there.
+pub const SERVER_RM_VA_START: u64 = 0x1_0000_0000;
+pub const SERVER_RM_VA_SIZE: u64 = 0x2000_0000;
+/// The guest's lowest VA outside 32-bit pointer requests: RM places its buffers and every
+/// unrestricted client allocation at 4 GiB or above (`bDmaEnforce32BitPointer`,
+/// vaspace.c:111-118, virt_mem_allocator_gm107.c:2768-2773), and [4 GiB, 4.5 GiB) is the
+/// server-RM range. The guest's kernel-RM buffers (GPFIFO, USERD, engine contexts) start
+/// here: 0x120000000.
+pub const GUEST_RM_VA_BASE: u64 = SERVER_RM_VA_START + SERVER_RM_VA_SIZE;
+/// The size of the host-only area below [`GUEST_RM_VA_BASE`] in a video shadow VA space.
+pub const HOST_AREA_SIZE: u64 = 64 << 20;
+
+/// The VA layout of a shadow VA space: where the host RM's own allocations go, and which
+/// guest VAs cannot be mirrored there.
+///
+/// The host RM places its internal buffers (a video engine's context, anything it adds) at
+/// the lowest free VA at or above max(4 GiB, the VAS base), outside its server-RM range; the
+/// guest's RM does the same in the guest's VA space. With the default layout both start at
+/// 0x120000000, so the host's first fit falls on a VA the guest uses next (Xid 31 at
+/// 0x1205fe000 in probe-mirror1, the collision at 0x120400000 in probe-merged610). The
+/// video layout creates the shadow VAS with its base [`HOST_AREA_SIZE`] below
+/// [`GUEST_RM_VA_BASE`]: the host's first fit is then the host area
+/// [0x11C000000, 0x120000000), inside the guest's server-RM range, which the guest never
+/// maps. The price: guest leaves below the base (32-bit pointer allocations) and inside the
+/// host's own server-RM range (the base + 4 GiB, gpu_vaspace.c:410-417) cannot be mirrored;
+/// the filter refuses them by name, so no fixed allocation ever collides with the host.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub struct Layout {
+    /// The shadow VAS's `vaBase` (0: the RM default, 1 MiB).
+    pub va_base: u64,
+    /// `[lo, hi)` where the host's own allocations land; empty in the default layout.
+    pub host_area: (u64, u64),
+    /// The host RM's server-RM range when it is not the guest's (the video layout).
+    pub host_server: (u64, u64),
+}
+
+impl Layout {
+    /// The layout of a shadow VA space built for a video channel.
+    pub fn video() -> Self {
+        let base = GUEST_RM_VA_BASE - HOST_AREA_SIZE;
+        // gvaspaceReserveSplitVaSpace: vasStart > 4 GiB moves the server-RM range to
+        // vasStart + 4 GiB.
+        let server = base + SERVER_RM_VA_START;
+        Layout {
+            va_base: base,
+            host_area: (base, GUEST_RM_VA_BASE),
+            host_server: (server, server + SERVER_RM_VA_SIZE),
+        }
+    }
+
+    /// Why guest VAs `[lo, hi)` cannot be mirrored in this layout, if they cannot.
+    pub fn unmirrorable(&self, lo: u64, hi: u64) -> Option<&'static str> {
+        if self.va_base == 0 {
+            return None;
+        }
+        let hit = |(a, b): (u64, u64)| lo < b && hi > a;
+        if lo < self.va_base {
+            Some("below the video shadow VAS base (a 32-bit pointer allocation)")
+        } else if hit(self.host_area) {
+            Some("in the host-only area (the guest's server-RM range)")
+        } else if hit(self.host_server) {
+            Some("in the host RM's server-RM range of the video shadow VAS")
+        } else {
+            None
+        }
+    }
+
+    /// Whether `va` lies in the host-only area.
+    pub fn in_host_area(&self, va: u64) -> bool {
+        va >= self.host_area.0 && va < self.host_area.1
+    }
+}
+
 /// The host RM calls the shadow makes, behind a trait so the plan logic runs against a fake
 /// host in the unit tests. [`HostMemory`] implements it with the RM escapes.
 pub trait ShadowHost {
@@ -388,52 +464,9 @@ fn class_of(size: u64) -> Class {
 #[derive(Clone, Copy, Debug)]
 struct Region {
     /// The region's virtual object; `None`: per-leaf objects (the region object was
-    /// refused, or the region touches an excluded set-B range), or a split region.
+    /// refused, or the region touches an excluded set-B range).
     handle: Option<u32>,
     class: Class,
-    /// A region split around a hole ([`Plan::holes`]): two virtual objects instead of one.
-    split: Option<Split>,
-}
-
-/// A 4 KiB-class region reserved by two virtual objects around one hole `[lo, hi)`, so the
-/// host RM's first fit finds that hole and nothing else in the region (a video engine's
-/// context, mirror.rs `place_video_object`).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-struct Split {
-    hole: (u64, u64),
-    /// `[region, hole.0)`; `None` when the hole starts the region.
-    below: Option<u32>,
-    /// `[hole.1, region + REGION)`; `None` when the hole ends the region.
-    above: Option<u32>,
-}
-
-impl Region {
-    /// The virtual object a leaf at `va` of this region is mapped into.
-    fn object_for(&self, va: u64) -> Option<u32> {
-        match self.split {
-            Some(s) if va >= s.hole.1 => s.above,
-            Some(s) => s.below,
-            None => self.handle,
-        }
-    }
-
-    /// Every virtual object of the region.
-    fn objects(&self) -> Vec<u32> {
-        let mut v: Vec<u32> = self.handle.into_iter().collect();
-        if let Some(s) = self.split {
-            v.extend(s.below);
-            v.extend(s.above);
-        }
-        v
-    }
-}
-
-/// The hole of `holes` that lies inside region `rv` (the first such), if any.
-fn hole_in(holes: &[(u64, u64)], rv: u64) -> Option<(u64, u64)> {
-    holes
-        .iter()
-        .copied()
-        .find(|(lo, hi)| *lo >= rv && *hi <= rv + REGION && lo < hi)
 }
 
 /// One live RM mapping `[va, va + size)`: one or more leaves mapped by one call.
@@ -630,9 +663,6 @@ pub struct Plan {
     /// Per unit: every leaf that passed the filter, with its backing.
     units: Vec<(u64, Vec<ToMap>)>,
     pub exclude: Vec<(u64, u64)>,
-    /// Excluded ranges that must be real VA holes for the host RM's first fit: the
-    /// 4 KiB-class region holding one is reserved by two objects around it ([`Split`]).
-    pub holes: Vec<(u64, u64)>,
     /// Refusal lines of this walk (each leaf once).
     pub notes: Vec<String>,
     pub full: bool,
@@ -658,15 +688,13 @@ impl Plan {
 pub struct ShadowFront {
     pub root: u64,
     exclude: Vec<(u64, u64)>,
-    /// The holes every plan carries ([`Plan::holes`]); each is also in the exclusions.
-    pub holes: Vec<(u64, u64)>,
-    /// The holes of the last plan.
-    holes_planned: Vec<(u64, u64)>,
     refused: BTreeMap<u64, Leaf>,
     refused_total: u64,
     /// Units whose last plan wanted a leaf (for a sweep when the exclusions change).
     live_units: BTreeSet<u64>,
     always: bool,
+    /// The VA layout of the shadow VAS ([`Layout`]): guest leaves it cannot mirror are refused.
+    pub layout: Layout,
     pub skipped: u64,
 }
 
@@ -675,12 +703,11 @@ impl ShadowFront {
         ShadowFront {
             root,
             exclude: vec![(u64::MAX, u64::MAX)],
-            holes: Vec::new(),
-            holes_planned: Vec::new(),
             refused: BTreeMap::new(),
             refused_total: 0,
             live_units: BTreeSet::new(),
             always: std::env::var("CARAXES_SHADOW_ALWAYS_RESYNC").as_deref() == Ok("1"),
+            layout: Layout::default(),
             skipped: 0,
         }
     }
@@ -690,7 +717,6 @@ impl ShadowFront {
     pub fn needs_sync(&self, fb: &FakeFb, exclude: &[(u64, u64)]) -> bool {
         self.always
             || exclude != self.exclude.as_slice()
-            || self.holes != self.holes_planned
             || fb.tables_dirty(Target::Fb(self.root))
             || fb.pool_rediff_pending(self.root)
     }
@@ -727,16 +753,9 @@ impl ShadowFront {
             units.extend(self.live_units.iter().copied());
             units.extend(self.refused.keys().map(|va| va & !(REGION - 1)));
         }
-        // A new hole: its region is re-planned (and split by `apply`) even when the range
-        // was excluded already.
-        if self.holes != self.holes_planned {
-            units.extend(self.holes.iter().map(|(lo, _)| lo & !(REGION - 1)));
-            self.holes_planned = self.holes.clone();
-        }
         let mut plan = Plan {
             root: self.root,
             exclude: exclude.to_vec(),
-            holes: self.holes.clone(),
             full: upd.full,
             reads: upd.reads,
             truncated: fb.with_walk(root, |c| c.truncated) == Some(true),
@@ -763,7 +782,11 @@ impl ShadowFront {
                     size: *size,
                     kind: *kind,
                 };
-                match resolve_leaf(&host_target(sys_mem, t, *size), *size, *kind, base, end, descs) {
+                let resolved = match self.layout.unmirrorable(*va, va + size) {
+                    Some(why) => Resolved::Refused(why),
+                    None => resolve_leaf(&host_target(sys_mem, t, *size), *size, *kind, base, end, descs),
+                };
+                match resolved {
                     Resolved::Vidmem { offset } => want_u.push(ToMap {
                         va: *va,
                         leaf,
@@ -870,9 +893,10 @@ pub struct ShadowVas {
 
 impl ShadowVas {
     /// A fresh normal (host-managed) `FERMI_VASPACE_A`.
-    pub fn new(hm: &mut HostMemory, budget: MapBudget) -> Result<Self, u32> {
+    pub fn new(hm: &mut HostMemory, budget: MapBudget, layout: &Layout) -> Result<Self, u32> {
         let device = hm.device();
         let mut vp = sys::NV_VASPACE_ALLOCATION_PARAMETERS::default();
+        vp.vaBase = layout.va_base;
         vp.vaSize = 1 << 47;
         vp.bigPageSize = 64 * 1024;
         // SAFETY: plain-data alloc params viewed as bytes.
@@ -883,6 +907,12 @@ impl ShadowVas {
             )
         };
         let vas = hm.alloc_object(device, sys::FERMI_VASPACE_A, bytes, "shadow-vaspace")?;
+        // The RM returns the base it took (vaspace_api.c:419): a video layout the host did
+        // not honour is refused (its host area would not be the host's first fit).
+        if layout.va_base != 0 && vp.vaBase != layout.va_base {
+            let _ = hm.free_object(vas);
+            return Err(0x1f); // NV_ERR_INVALID_ARGUMENT
+        }
         Ok(Self::with_vas(vas, budget))
     }
 
@@ -982,38 +1012,6 @@ impl ShadowVas {
         // The gathers only this region used, after the object (and its mappings) is gone.
         self.free_idle_gathers(h);
         runs.len()
-    }
-
-    /// The two virtual objects of region `rv` around the hole `[lo, hi)` (4 KiB-class, the
-    /// default page-size attribute, as a whole region object). A refusal frees what was made.
-    fn alloc_split<H: ShadowHost>(&mut self, h: &mut H, rv: u64, lo: u64, hi: u64) -> Result<Split, u32> {
-        let mut made = Vec::new();
-        let mut piece = |this: &mut Self, h: &mut H, from: u64, to: u64| -> Result<Option<u32>, u32> {
-            if from >= to {
-                return Ok(None);
-            }
-            let t0 = Instant::now();
-            let r = h.alloc_virtual_fixed(this.vas, from, to - from, None, false);
-            this.calls.add(Call::ObjectAlloc, t0);
-            r.map(|hd| {
-                made.push(hd);
-                Some(hd)
-            })
-        };
-        let below = piece(self, h, rv, lo);
-        let above = match below {
-            Ok(_) => piece(self, h, hi, rv + REGION),
-            Err(st) => Err(st),
-        };
-        match (below, above) {
-            (Ok(below), Ok(above)) => Ok(Split { hole: (lo, hi), below, above }),
-            (Err(st), _) | (_, Err(st)) => {
-                for hd in made {
-                    self.free_virtual(h, hd);
-                }
-                Err(st)
-            }
-        }
     }
 
     /// Free the pooled region objects that overlap an excluded (set-B) range: the host RM
@@ -1296,16 +1294,7 @@ impl ShadowVas {
                 .map(|(va, _)| *va)
                 .collect();
             let need = want.values().next().map(|m| class_of(m.leaf.size));
-            // A hole in a 4 KiB-class region whose objects do not leave exactly that hole
-            // free: the region is rebuilt split around it (its leaves unmapped and mapped
-            // again into the two objects).
-            let hole_u = hole_in(&plan.holes, u).filter(|_| need == Some(Class::Small));
-            let resplit = hole_u.is_some()
-                && self
-                    .regions
-                    .get(&u)
-                    .is_some_and(|reg| reg.split.map(|s| s.hole) != hole_u);
-            let stale = resplit || self.regions.get(&u).is_some_and(|reg| Some(reg.class) != need);
+            let stale = self.regions.get(&u).is_some_and(|reg| Some(reg.class) != need);
             let todo_any = want
                 .values()
                 .any(|m| !self.mapped.contains_key(&m.va) || unmap.contains(&m.va));
@@ -1345,12 +1334,6 @@ impl ShadowVas {
                             self.free_virtual(&mut *h, hd);
                             self.stats.regions_freed += 1;
                         }
-                    } else if reg.split.is_some() {
-                        // A split region is never pooled: both objects go.
-                        for hd in reg.objects() {
-                            self.free_virtual(&mut *h, hd);
-                        }
-                        self.stats.regions_freed += 1;
                     }
                 }
             }
@@ -1396,28 +1379,7 @@ impl ShadowVas {
                             None => {}
                         }
                     }
-                    // A hole in this 4 KiB-class region: two objects around it, so the hole is
-                    // the region's only free VA. Refused: per-leaf objects, as for set B.
-                    let mut split = None;
-                    if let Some((lo, hi)) = hole_in(&plan.holes, rv).filter(|_| class == Class::Small) {
-                        match self.alloc_split(&mut *h, rv, lo, hi) {
-                            Ok(s) => {
-                                self.stats.region_objects += 1;
-                                notes.push(format!(
-                                    "shadow: region {rv:#x} split around the hole [{lo:#x}, {hi:#x}): objects {:#x?} / {:#x?} [host]",
-                                    s.below, s.above
-                                ));
-                                split = Some(s);
-                            }
-                            Err(st) => {
-                                self.stats.regions_refused += 1;
-                                notes.push(format!(
-                                    "shadow: region {rv:#x} split around [{lo:#x}, {hi:#x}) refused {st:#x}; per-leaf objects there [host]"
-                                ));
-                            }
-                        }
-                    }
-                    let handle = if split.is_some() || touches_b {
+                    let handle = if touches_b {
                         None
                     } else if reuse.is_some() {
                         reuse
@@ -1462,9 +1424,9 @@ impl ShadowVas {
                         n_exhausted += items.len();
                         continue;
                     }
-                    self.regions.insert(rv, Region { handle, class, split });
+                    self.regions.insert(rv, Region { handle, class });
                 }
-                let region = self.regions[&rv].object_for(first.va);
+                let region = self.regions[&rv].handle;
                 // Without a region object every leaf gets its own object and mapping.
                 let pieces: Vec<&[ToMap]> = match region {
                     Some(_) if self.coalesce => vec![items],
@@ -1653,7 +1615,7 @@ impl ShadowVas {
             self.mapped.len(),
             self.runs.len(),
             live0,
-            self.regions.values().filter(|r| r.handle.is_some() || r.split.is_some()).count(),
+            self.regions.values().filter(|r| r.handle.is_some()).count(),
             self.runs.values().filter(|r| r.own_object).count(),
             self.pool.len(),
             self.budget.live(),
@@ -1846,8 +1808,8 @@ impl ShadowVas {
         if !self.regions.is_empty() || !self.pool.is_empty() {
             let rs: Vec<u64> = self.regions.keys().copied().collect();
             for r in rs {
-                if let Some(reg) = self.regions.remove(&r) {
-                    self.teardown_objects.extend(reg.objects());
+                if let Some(hd) = self.regions.remove(&r).and_then(|reg| reg.handle) {
+                    self.teardown_objects.push(hd);
                 }
             }
             let ps: Vec<u64> = self.pool.keys().copied().collect();
@@ -2127,8 +2089,6 @@ mod tests {
         fail_gather: bool,
         /// Every virtual-object allocation answers this status.
         alloc_status: Option<u32>,
-        /// Virtual-object allocations at these VAs are refused (0x1a, a VA collision).
-        fail_alloc_at: Vec<u64>,
         /// Every map answers this status.
         map_status: Option<u32>,
     }
@@ -2148,9 +2108,6 @@ mod tests {
             self.seen.borrow_mut().push(Seen { call: Call::ObjectAlloc, va, len: size, defer: false });
             if let Some(st) = self.alloc_status {
                 return Err(st);
-            }
-            if self.fail_alloc_at.contains(&va) {
-                return Err(0x1a);
             }
             Ok(0x100 + self.next)
         }
@@ -2789,101 +2746,29 @@ mod tests {
         assert_eq!(s.stats.exhausted, 8);
     }
 
-    /// 16 contiguous 4 KiB leaves at `rv`, without the one at `skip`.
-    fn leaves16(rv: u64, skip: Option<u64>) -> Vec<(u64, u64, u64, u8)> {
-        (0..16u64)
-            .map(|i| (rv + i * 0x1000, BASE + i * 0x1000, 0x1000, 6))
-            .filter(|l| Some(l.0) != skip)
-            .collect()
-    }
-
-    fn with_hole(mut p: Plan, hole: (u64, u64)) -> Plan {
-        p.exclude = vec![hole];
-        p.holes = vec![hole];
-        p
-    }
-
-    /// A video context leaving set A (mirror.rs `place_video_object`): the region that held
-    /// it as one 2 MiB object is rebuilt as two objects around the 4 KiB hole, every other
-    /// leaf is mapped again into the object on its side, and nothing maps the hole.
+    /// The video layout's filter: guest leaves the host VAS cannot hold (here below its base)
+    /// are refused by name and never reach a map call; the default layout maps them.
     #[test]
-    fn a_hole_splits_its_region_around_it_and_remaps_the_rest() {
-        let host = Mutex::new(FakeHost::default());
-        let mut s = sv(false, true);
-        let rv = 0x4000_0000u64;
-        let hole = (rv + 0x5000, rv + 0x6000);
-        s.apply(&host, &plan_of(&leaves16(rv, None), &[]), &[]);
-        let old = s.regions[&rv].handle.unwrap();
-        host.lock().unwrap().seen.borrow_mut().clear();
-        let (_, lines) = s.apply(&host, &with_hole(plan_of(&leaves16(rv, Some(hole.0)), &[rv]), hole), &[]);
-        let h = host.lock().unwrap();
-        assert!(h.freed.contains(&old), "the whole-region object is freed");
-        let allocs: Vec<(u64, u64)> = h.calls(Call::ObjectAlloc).iter().map(|c| (c.va, c.len)).collect();
-        assert_eq!(allocs, vec![(rv, 0x5000), (hole.1, REGION - 0x6000)]);
-        let reg = s.regions[&rv];
-        let sp = reg.split.expect("split");
-        assert_eq!(sp.hole, hole);
-        assert!(reg.handle.is_none());
-        let (below, above) = (sp.below.unwrap(), sp.above.unwrap());
-        let live = h.live.borrow();
-        assert_eq!(live.keys().copied().collect::<Vec<_>>(), vec![(below, rv), (above, hole.1)]);
-        assert_eq!(live[&(below, rv)].0, 0x5000);
-        assert_eq!(live[&(above, hole.1)].0, 0xA000);
-        assert!(!live.iter().any(|((_, va), (len, _))| *va <= hole.0 && hole.0 < va + len));
-        assert!(lines.iter().any(|l| l.contains("split around the hole")));
-        drop(live);
-        drop(h);
-        // Nothing changed: no call. The teardown frees both objects.
-        host.lock().unwrap().seen.borrow_mut().clear();
-        s.apply(&host, &with_hole(plan_of(&leaves16(rv, Some(hole.0)), &[rv]), hole), &[]);
-        assert!(host.lock().unwrap().seen.borrow().is_empty());
-        while !s.teardown_step(&host) {}
-        let h = host.lock().unwrap();
-        assert!(h.freed.contains(&below) && h.freed.contains(&above));
-    }
-
-    /// A region first built with the hole already known is split at once; a hole at the
-    /// region's start needs one object only.
-    #[test]
-    fn a_new_region_with_a_hole_is_built_split() {
-        let host = Mutex::new(FakeHost::default());
-        let mut s = sv(false, true);
-        let rv = 0x4000_0000u64;
-        let hole = (rv, rv + 0x1000);
-        s.apply(&host, &with_hole(plan_of(&leaves16(rv, Some(rv)), &[]), hole), &[]);
-        let h = host.lock().unwrap();
-        let allocs: Vec<(u64, u64)> = h.calls(Call::ObjectAlloc).iter().map(|c| (c.va, c.len)).collect();
-        assert_eq!(allocs, vec![(hole.1, REGION - 0x1000)]);
-        let sp = s.regions[&rv].split.unwrap();
-        assert_eq!((sp.below, sp.above.is_some()), (None, true));
-        assert_eq!(h.calls(Call::Map).len(), 1);
-    }
-
-    /// Fallback: a split the host refuses frees the half it made and leaves the region to
-    /// per-leaf objects (the set-B behaviour); a Huge region is never split.
-    #[test]
-    fn a_refused_split_falls_back_to_per_leaf_objects() {
-        let rv = 0x4000_0000u64;
-        let hole = (rv + 0x5000, rv + 0x6000);
-        let host = Mutex::new(FakeHost { fail_alloc_at: vec![hole.1], ..Default::default() });
-        let mut s = sv(false, true);
-        let (_, lines) = s.apply(&host, &with_hole(plan_of(&leaves16(rv, Some(hole.0)), &[]), hole), &[]);
-        let h = host.lock().unwrap();
-        let first = h.calls(Call::ObjectAlloc)[0].clone();
-        assert_eq!((first.va, first.len), (rv, 0x5000));
-        assert!(h.freed.contains(&(0x101)), "the half made is freed");
-        let reg = s.regions[&rv];
-        assert!(reg.split.is_none() && reg.handle.is_none());
-        assert!(lines.iter().any(|l| l.contains("refused 0x1a; per-leaf objects there")));
-        // Per-leaf objects: one per remaining leaf, exactly sized, none over the hole.
-        let leaf_allocs: Vec<Seen> = h.calls(Call::ObjectAlloc).into_iter().skip(2).collect();
-        assert_eq!(leaf_allocs.len(), 15);
-        assert!(leaf_allocs.iter().all(|c| c.len == 0x1000 && c.va != hole.0));
-        drop(h);
-        let host = Mutex::new(FakeHost::default());
-        let mut s = sv(false, true);
-        let big = 0x4020_0000u64;
-        s.apply(&host, &with_hole(plan_of(&[(big, BASE, REGION, 6)], &[]), (big + 0x5000, big + 0x6000)), &[]);
-        assert!(s.regions[&big].split.is_none());
+    fn the_video_layout_refuses_leaves_below_its_base() {
+        let mut fb = FakeFb::new(END + (64 << 20));
+        let vid = |a: u64| ((a >> 12) << 8) | 0b010;
+        let pte = |a: u64| ((a >> 12) << 8) | 1 | (0x06u64 << 56);
+        let (root, pd2, pd1, pd0, pt) = (BASE, BASE + 0x1000, BASE + 0x2000, BASE + 0x3000, BASE + 0x4000);
+        fb.write_u64(root, vid(pd2));
+        fb.write_u64(pd2, vid(pd1));
+        fb.write_u64(pd1, vid(pd0));
+        fb.write_u64(pd0 + 8, vid(pt));
+        let x = BASE + 0x10_0000;
+        for i in 0..4u64 {
+            fb.write_u64(pt + 8 * (i + 1), pte(x + i * 0x1000));
+        }
+        let mem = GuestMemory::new();
+        let mut front = ShadowFront::new(root);
+        front.layout = Layout::video();
+        let plan = front.plan(&fb, &mem, BASE, END, 1, &[], &[]).unwrap();
+        assert_eq!((plan.want, plan.refused_now), (0, 4));
+        assert!(plan.notes.iter().any(|l| l.contains("below the video shadow VAS base")));
+        let plan = ShadowFront::new(root).plan(&fb, &mem, BASE, END, 1, &[], &[]).unwrap();
+        assert_eq!((plan.want, plan.refused_now), (4, 0));
     }
 }

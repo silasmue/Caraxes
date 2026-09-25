@@ -1642,13 +1642,9 @@ impl BootModel {
                         // `place_video_object`): placed on the host now.
                         let mut a = a;
                         if a.status == rpc::NV_OK {
-                            let mut gm = crate::channel::GpuMem {
-                                fb: &mut self.fb,
-                                sys: mem,
-                            };
                             let (n, refused) = self
                                 .ctrl
-                                .place_video_object(&mut gm, h_client, h_parent, h_object, h_class);
+                                .place_video_object(h_client, h_parent, h_object, h_class);
                             notes.extend(n);
                             if refused {
                                 // Fail closed: the guest's encoder/decoder open fails cleanly.

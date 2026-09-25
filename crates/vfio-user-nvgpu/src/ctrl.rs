@@ -403,7 +403,6 @@ impl Dispatcher {
     /// (fail closed); a refused one is forgotten again.
     pub fn place_video_object(
         &mut self,
-        gm: &mut crate::channel::GpuMem,
         h_client: u32,
         h_parent: u32,
         h_object: u32,
@@ -420,7 +419,7 @@ impl Dispatcher {
         let Some(m) = self.mirror.as_mut() else {
             return (Vec::new(), false);
         };
-        let (notes, refused) = m.place_video_object(&self.channels, gm, chid);
+        let (notes, refused) = m.place_video_object(chid);
         if refused {
             self.channels.forget_engine_object(h_client, h_parent, h_class);
             self.objects.remove(&(h_client, h_object));
@@ -830,7 +829,7 @@ impl Dispatcher {
                 .channels()
                 .find(|c| c.h_client == h_client && c.h_object == h_parent)
                 .map(|c| c.chid);
-            if let Some(why) = chid.and_then(|c| m.refuse_video_object(&self.channels, c, h_class)) {
+            if let Some(why) = chid.and_then(|c| m.refuse_video_object(c, h_class)) {
                 self.objects.remove(&(h_client, h_object));
                 return Answer {
                     status: NV_ERR_NOT_SUPPORTED,
