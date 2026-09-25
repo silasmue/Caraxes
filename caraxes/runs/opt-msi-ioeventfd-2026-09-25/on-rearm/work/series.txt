@@ -1,0 +1,63 @@
+# series 2026-09-25T01:49:24+02:00 targets=[v2] reps=1 metrics=[rl]
+# libdir v2 /opt/nvrm/lib
+# caraxes shell-rig-296-g0c2cb79 leandro-test 3edea73-dirty
+# bin c5b48cf1181bfcfc251f12aa2b0eaeb074887efec4c479f36efe399cb1307a13  bench-cu
+# bin 4612c18e519913f17f5628ca0042402726c72a13d302e355b96427dc2a090287  census-cu
+# bin 5a8a5cd0e8086924ec4be0d88fe985608fb1a46646d8ed9fa119bf4936f98271  census.cubin
+# bin 2e7db7218ac29e0da0b22a4d30307ea1f675dc04912d6b34922708495595904d  convnet.py
+# bin 68449e9ec7b25613a65d096a6a42864c01fbf46ec47e540ce01f47184f0479ea  ctrlping
+# bin 138c5073848b2f3cf2beb4709376c7c49b420d88e836664584e5cf8bbfc7848c  ioctlping
+# bin 1f921680fc7a2c2e0978eb007cc0ab48d2f1a7cf404a196c9063a19a10aa228f  kernels.ptx
+# bin abdf09531ac015ba4e8e7550bda6eb43609c429d6e1240e7f8553841bfe06513  llamaprobe.py
+# bin 2735d2a9cd25c0753898188542dbeb4a8433609024aa48230b6803a4a8d96e66  nvprobe
+# bin 012bb008b87ec0a6ee4ef566e0b55f856df09d6a3e07e72fe5cde5a9043dd18a  pporl.py
+# bin 02b1d58fc1778a47f8940e7f89d2cabb44b64d078f5b54b5ca1fba9437073c4a  transformer.py
+# bin f0868123fca8e2c40138fda523e35fa76c015b97e232fc647fea0b6b49f33584  vrampress
+# time 2026-09-25T01:49:24+02:00
+# gpu 51, 720 MHz, 810 MHz, P5, 19 %, 2149 MiB, Disabled
+# procs 1399617:vm1-vmm 1824765:vm3-dev 1824777:vm1-vmm 
+# loadavg 3.64 6.22 6.48
+01:49:38 v2  rl              rep 1:   ep   10  return=   11  mean10=  20.7   ep   20  return=   15  mean10=  14.4   ep   30  return=   13  mean10=  15.8  | # MEAS dev_pid=1824765 dev_cpu_ms=3960 dev_rss_hwm_kb=5260972/8395624 vmm_cpu_ms=24370 others: vm1-vmm=30ms 
+# end 2026-09-25T01:49:38+02:00
+# series 2026-09-25T01:49:39+02:00 targets=[v2] reps=1 metrics=[ppo]
+# libdir v2 /opt/nvrm/lib
+# caraxes shell-rig-296-g0c2cb79 leandro-test 3edea73-dirty
+# bin c5b48cf1181bfcfc251f12aa2b0eaeb074887efec4c479f36efe399cb1307a13  bench-cu
+# bin 4612c18e519913f17f5628ca0042402726c72a13d302e355b96427dc2a090287  census-cu
+# bin 5a8a5cd0e8086924ec4be0d88fe985608fb1a46646d8ed9fa119bf4936f98271  census.cubin
+# bin 2e7db7218ac29e0da0b22a4d30307ea1f675dc04912d6b34922708495595904d  convnet.py
+# bin 68449e9ec7b25613a65d096a6a42864c01fbf46ec47e540ce01f47184f0479ea  ctrlping
+# bin 138c5073848b2f3cf2beb4709376c7c49b420d88e836664584e5cf8bbfc7848c  ioctlping
+# bin 1f921680fc7a2c2e0978eb007cc0ab48d2f1a7cf404a196c9063a19a10aa228f  kernels.ptx
+# bin abdf09531ac015ba4e8e7550bda6eb43609c429d6e1240e7f8553841bfe06513  llamaprobe.py
+# bin 2735d2a9cd25c0753898188542dbeb4a8433609024aa48230b6803a4a8d96e66  nvprobe
+# bin 012bb008b87ec0a6ee4ef566e0b55f856df09d6a3e07e72fe5cde5a9043dd18a  pporl.py
+# bin 02b1d58fc1778a47f8940e7f89d2cabb44b64d078f5b54b5ca1fba9437073c4a  transformer.py
+# bin f0868123fca8e2c40138fda523e35fa76c015b97e232fc647fea0b6b49f33584  vrampress
+# time 2026-09-25T01:49:39+02:00
+# gpu 51, 690 MHz, 810 MHz, P5, 13 %, 2161 MiB, Disabled
+# procs 1399617:vm1-vmm 1824765:vm3-dev 1824777:vm1-vmm 
+# loadavg 3.65 6.09 6.44
+01:50:13 v2  ppo             rep 1: # PPO steps_per_s=62049 solve_s=-1 episodes=31537 reward100=108.3 envs=128 rollout=256 # WALL wall_ms=34147 rc=0  | # MEAS dev_pid=1824765 dev_cpu_ms=28540 dev_rss_hwm_kb=5261548/8395624 vmm_cpu_ms=65210 others: vm1-vmm=100ms 
+# end 2026-09-25T01:50:13+02:00
+# series 2026-09-25T01:50:19+02:00 targets=[v2] reps=1 metrics=[short-auto]
+# libdir v2 /opt/nvrm/lib
+# caraxes shell-rig-296-g0c2cb79 leandro-test 3edea73-dirty
+# bin c5b48cf1181bfcfc251f12aa2b0eaeb074887efec4c479f36efe399cb1307a13  bench-cu
+# bin 4612c18e519913f17f5628ca0042402726c72a13d302e355b96427dc2a090287  census-cu
+# bin 5a8a5cd0e8086924ec4be0d88fe985608fb1a46646d8ed9fa119bf4936f98271  census.cubin
+# bin 2e7db7218ac29e0da0b22a4d30307ea1f675dc04912d6b34922708495595904d  convnet.py
+# bin 68449e9ec7b25613a65d096a6a42864c01fbf46ec47e540ce01f47184f0479ea  ctrlping
+# bin 138c5073848b2f3cf2beb4709376c7c49b420d88e836664584e5cf8bbfc7848c  ioctlping
+# bin 1f921680fc7a2c2e0978eb007cc0ab48d2f1a7cf404a196c9063a19a10aa228f  kernels.ptx
+# bin abdf09531ac015ba4e8e7550bda6eb43609c429d6e1240e7f8553841bfe06513  llamaprobe.py
+# bin 2735d2a9cd25c0753898188542dbeb4a8433609024aa48230b6803a4a8d96e66  nvprobe
+# bin 012bb008b87ec0a6ee4ef566e0b55f856df09d6a3e07e72fe5cde5a9043dd18a  pporl.py
+# bin 02b1d58fc1778a47f8940e7f89d2cabb44b64d078f5b54b5ca1fba9437073c4a  transformer.py
+# bin f0868123fca8e2c40138fda523e35fa76c015b97e232fc647fea0b6b49f33584  vrampress
+# time 2026-09-25T01:50:19+02:00
+# gpu 52, 315 MHz, 405 MHz, P8, 31 %, 3185 MiB, Disabled
+# procs 1399617:vm1-vmm 1824765:vm3-dev 1824777:vm1-vmm 1841816:vm0-dev 1841830:vm1-vmm 
+# loadavg 4.61 6.05 6.41
+01:50:23 v2  short-auto      rep 1: MSPERLAUNCH=0.312 # WALL wall_ms=2826 rc=0  | # MEAS dev_pid=1824765 dev_cpu_ms=2330 dev_rss_hwm_kb=5261548/8395624 vmm_cpu_ms=2710 others: vm1-vmm=10ms vm1-vmm=2710m
+# end 2026-09-25T01:50:23+02:00

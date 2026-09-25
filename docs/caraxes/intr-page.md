@@ -218,7 +218,51 @@ too (`bar0.rs`), so the reactor sees them like a guest store and the model has o
   next step (phase 2), not this change. Done since as `CARAXES_DISPLAY_PAGE=1` (§10).
 - **The usermode page (0xbb0000)**: the doorbell must trap into its ioeventfd sub-regions, and
   `TIME_0/1` (14.7 reads per frame) are answered from the clock at the moment of the read.
-- **`NV_PCFG` (0x88000)**: writes land in config space (`bar0.rs` `WriteEffect::Mirror`).
+- **`NV_PCFG` (0x88000)**: writes land in config space (`bar0.rs` `WriteEffect::Mirror`). One
+  of them is the exception: the MSI re-arm (below).
+
+**The MSI re-arm through an ioeventfd (`CARAXES_MSI_REARM_IOEVENTFD=1`, 2026-09-25).** The RM
+writes `NV_XVE_CYA_2` (BAR0 0x88704 through the `NV_PCFG` mirror) once per interrupt service.
+The value is ignored (kernel-rm-hw-surface.md:119, `kernel_bif_gm107.c:136-151`). With the page
+it was the last trap of every interrupt: 140 to 160 per second in every CUDA workload, 55 per
+second at idle, and 9.6 per Mutter frame (optimization-backlog.md item 4).
+- **What the trapped write does in the model.** `Bar0::write` hands it to the config mirror. At
+  config offset 0x704 no bit is writable, so the config space does not change. It does not touch
+  the interrupt tree. The tree's MSI edge comes from the tree's own writes, which here are the
+  page's stores that the reactor applies.
+- **The steps after it.** What follows is what every trapped BAR0 write runs, now
+  `Device::after_bar0_write` (`device.rs`): the P21 check, the BAR1 pool's poll, the notes, a
+  function-level reset if one was requested, a pending MSI of the model, and the MSI enable.
+- **With the switch.** The device offers the dword as one more ioeventfd sub-region of BAR0: 4
+  bytes, no datamatch, in the same `VFIO_USER_DEVICE_GET_REGION_IO_FDS` reply as the token
+  pool's (patch 0005). The token pool's reactor reads its eventfd beside the tokens' eventfds
+  (`spawn_token_reader_hooked`; a wakeup never goes to a token). `Device::msi_rearm_ioeventfd`
+  then does what the trapped write does: the same config mirror write, the same steps after it,
+  and one trace event with the number of writes the eventfd counted. Several writes between two
+  wakeups count as one re-arm, because each would repeat the same idempotent steps.
+- **Fail closed.** The switch needs `CARAXES_DOORBELL_TOKENS=N`, or the device does not start. A
+  client that does not register the sub-region (no patch 0005, or a refusal) keeps trapping the
+  write, and the trapped path is unchanged. The exit summary has a line
+  `msi re-arm ioeventfd: W guest write(s) in N wakeup(s)`. Test:
+  `device::tests::the_msi_rearm_ioeventfd_is_read_by_the_token_reactor`.
+- **Measured on vm3** (`caraxes/runs/opt-msi-ioeventfd-2026-09-25/`). Interrupt page, BAR1 pool,
+  BAR2 memfd, token pool and hybrid reactor, with the re-arm trapped (the `on` run of
+  `caraxes/runs/opt-memfd-pool-2026-09-25/`) and through the eventfd (`on-rearm`), whole-process
+  windows (`workload-rates.md` there):
+
+  | Workload | re-arm traps per second, trapped | through the eventfd | all traps per second, trapped | through the eventfd |
+  |---|---|---|---|---|
+  | rlprobe, 50 episodes | 141 | 0 (165/s through the eventfd) | 508 | 456 |
+  | PPO, 30 s | 153 | 0 (154/s through the eventfd) | 423 | 314 |
+  | idle census window, per 100 ms | 10.2 | 0 | 38.6 | 25.6 |
+
+  - The whole census trace of `on-rearm` has no write to 0x88704.
+  - The eventfd counted 26017 writes over the session.
+  - The cuda gate is 10 of 12 as before (cuda-managed), and there was 0 host Xid.
+  - What still traps per second is the PCI config capability walk (200-290 reads), the MMU
+    invalidate and flush page, and the GSP queue (optimization-backlog.md items 3, 6 and 7).
+  - Mutter was not measured (vm0 not borrowed). The expected saving is the 9.6 re-arm traps per
+    frame of §9, about 0.3-0.5 ms per frame.
 - **The VF MMU invalidate and fault-buffer page (0xb83000)** and every other register with a
   model behind it: they act synchronously.
 - **BAR2**: Mutter's 71 PTE writes and 23 reads per frame are page-table traffic of the guest RM.
@@ -339,6 +383,7 @@ Pass criteria:
 | `CARAXES_INTR_PAGE_SLEEP_MS` | 1 | hybrid: the longest blocking wait of the reactor while the page is on |
 | `CARAXES_INTR_PAGE_RETRIGGER_MS` | 10 | the watchdog period; 0 turns the watchdog off (also for the display page's markers) |
 | `CARAXES_DISPLAY_PAGE` | off | `1`: offer the display front-end page 0x611000 as memory too (needs `CARAXES_INTR_PAGE=1` and `--display`, §10) |
+| `CARAXES_MSI_REARM_IOEVENTFD` | off | `1`: the MSI re-arm write (`NV_XVE_CYA_2`, BAR0 0x88704) as an ioeventfd read by the token pool's reactor (needs `CARAXES_DOORBELL_TOKENS=N`, §4) |
 
 The exit summary adds `intr page: ...` with the scans that found work, the guest stores applied
 per register kind, the vectors raised through the page, MSIs by cause (raise, edge, watchdog),

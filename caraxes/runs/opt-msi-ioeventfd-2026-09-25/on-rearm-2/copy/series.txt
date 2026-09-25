@@ -1,0 +1,28 @@
+# series 2026-09-25T01:56:16+02:00 targets=[v2] reps=4 metrics=[short-auto copy]
+# libdir v2 /opt/nvrm/lib
+# caraxes shell-rig-296-g0c2cb79-dirty leandro-test 3edea73-dirty
+# bin c5b48cf1181bfcfc251f12aa2b0eaeb074887efec4c479f36efe399cb1307a13  bench-cu
+# bin 4612c18e519913f17f5628ca0042402726c72a13d302e355b96427dc2a090287  census-cu
+# bin 5a8a5cd0e8086924ec4be0d88fe985608fb1a46646d8ed9fa119bf4936f98271  census.cubin
+# bin 2e7db7218ac29e0da0b22a4d30307ea1f675dc04912d6b34922708495595904d  convnet.py
+# bin 68449e9ec7b25613a65d096a6a42864c01fbf46ec47e540ce01f47184f0479ea  ctrlping
+# bin 138c5073848b2f3cf2beb4709376c7c49b420d88e836664584e5cf8bbfc7848c  ioctlping
+# bin 1f921680fc7a2c2e0978eb007cc0ab48d2f1a7cf404a196c9063a19a10aa228f  kernels.ptx
+# bin abdf09531ac015ba4e8e7550bda6eb43609c429d6e1240e7f8553841bfe06513  llamaprobe.py
+# bin 2735d2a9cd25c0753898188542dbeb4a8433609024aa48230b6803a4a8d96e66  nvprobe
+# bin 012bb008b87ec0a6ee4ef566e0b55f856df09d6a3e07e72fe5cde5a9043dd18a  pporl.py
+# bin 02b1d58fc1778a47f8940e7f89d2cabb44b64d078f5b54b5ca1fba9437073c4a  transformer.py
+# bin f0868123fca8e2c40138fda523e35fa76c015b97e232fc647fea0b6b49f33584  vrampress
+# time 2026-09-25T01:56:16+02:00
+# gpu 57, 420 MHz, 405 MHz, P8, 23 %, 2193 MiB, Disabled
+# procs 1399617:vm1-vmm 1856489:vm3-dev 1856507:vm1-vmm 
+# loadavg 1.55 3.72 5.29
+01:56:17 v2  short-auto      rep 1: MSPERLAUNCH=0.013 # WALL wall_ms=774 rc=0  | # MEAS dev_pid=1856489 dev_cpu_ms=560 dev_rss_hwm_kb=5255828/8395864 vmm_cpu_ms=1150 others: vm1-vmm=0ms 
+01:56:22 v2  copy            rep 1: # WALL wall_ms=4903 rc=0  | # MEAS dev_pid=1856489 dev_cpu_ms=3430 dev_rss_hwm_kb=5267136/8395864 vmm_cpu_ms=7690 others: vm1-vmm=10ms 
+01:56:23 v2  short-auto      rep 2: MSPERLAUNCH=0.025 # WALL wall_ms=615 rc=0  | # MEAS dev_pid=1856489 dev_cpu_ms=520 dev_rss_hwm_kb=5267136/8395864 vmm_cpu_ms=1140 others: vm1-vmm=10ms 
+01:56:28 v2  copy            rep 2: # WALL wall_ms=4692 rc=0  | # MEAS dev_pid=1856489 dev_cpu_ms=3600 dev_rss_hwm_kb=5265876/8395864 vmm_cpu_ms=7050 others: vm1-vmm=0ms 
+01:56:29 v2  short-auto      rep 3: MSPERLAUNCH=0.027 # WALL wall_ms=657 rc=0  | # MEAS dev_pid=1856489 dev_cpu_ms=530 dev_rss_hwm_kb=5265876/8395864 vmm_cpu_ms=1100 others: vm1-vmm=0ms 
+01:56:34 v2  copy            rep 3: # WALL wall_ms=4521 rc=0  | # MEAS dev_pid=1856489 dev_cpu_ms=3420 dev_rss_hwm_kb=5267596/8395864 vmm_cpu_ms=6100 others: vm1-vmm=10ms 
+01:56:35 v2  short-auto      rep 4: MSPERLAUNCH=0.015 # WALL wall_ms=648 rc=0  | # MEAS dev_pid=1856489 dev_cpu_ms=510 dev_rss_hwm_kb=5265884/8395864 vmm_cpu_ms=1190 others: vm1-vmm=0ms 
+01:56:41 v2  copy            rep 4: # WALL wall_ms=4999 rc=0  | # MEAS dev_pid=1856489 dev_cpu_ms=3550 dev_rss_hwm_kb=5267188/8395864 vmm_cpu_ms=7400 others: vm1-vmm=10ms 
+# end 2026-09-25T01:56:41+02:00

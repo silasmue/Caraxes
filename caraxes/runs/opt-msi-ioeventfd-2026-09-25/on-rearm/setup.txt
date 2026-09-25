@@ -1,0 +1,37 @@
+NVRM version: NVIDIA UNIX Open Kernel Module for x86_64  615.71.09  Release Build  (root@)  
+2842312990f828d5c802e8bc3b43ba5b41ddf5b17cb09eb8e23f4fab99451a76  /mnt/vmstore/caraxes/vfio-user-nvgpu-opt1-0c2cb79
+0c2cb79 msi re-arm as an ioeventfd: CARAXES_MSI_REARM_IOEVENTFD=1
+4612c18e519913f17f5628ca0042402726c72a13d302e355b96427dc2a090287  census-cu
+5a8a5cd0e8086924ec4be0d88fe985608fb1a46646d8ed9fa119bf4936f98271  census.cubin
+1f921680fc7a2c2e0978eb007cc0ab48d2f1a7cf404a196c9063a19a10aa228f  kernels.ptx
+parts: CENSUS=1 WORK=1 GATE=1 COPY=0 REPS=10
+CARAXES_BAR1_PASSTHROUGH=pool
+CARAXES_BAR1_POOL_MIB=32
+CARAXES_BAR2_MEMFD=1
+CARAXES_BOOT_MODEL=1
+CARAXES_DMA=register
+CARAXES_DOORBELL_POLL=hybrid
+CARAXES_DOORBELL_TOKENS=64
+CARAXES_FB_MIB=1024
+CARAXES_GATE_FB_MIB=1024
+CARAXES_GATE_RUNS=caraxes/runs/opt-msi-ioeventfd-2026-09-25/on-rearm
+CARAXES_HOST_EXEC=1
+CARAXES_HOST_RM=1
+CARAXES_INTR_PAGE=1
+CARAXES_IP=192.168.103.23
+CARAXES_LEANDRO_TEST=/home/silas/git/Leandro-Test
+CARAXES_MAC=02:00:00:00:00:23
+CARAXES_MIRROR_CHANNELS=1
+CARAXES_MIRROR_GR_SHADOW=1
+CARAXES_MSI_REARM_IOEVENTFD=1
+CARAXES_RESERVE_SLOT=5
+CARAXES_RESERVE_VRAM=1
+CARAXES_SERVER=/mnt/vmstore/caraxes/vfio-user-nvgpu-opt1-0c2cb79
+CARAXES_TAP=caraxes3
+LEA_CH=/mnt/vmstore/caraxes/vm1/ch-0006-v.sh
+VM=vm3
+2026-09-25T01:46:26+02:00
+6.68 8.20 7.04
+1763462 /mnt/vmstore/caraxes/vm5-615/vfio-user-nvgpu --socket /mnt/vmstore/caraxes/vm5-615/gpu.sock --trace /mnt/vmstore
+1815328 /mnt/vmstore/caraxes/vm2-615/vfio-user-nvgpu --socket /mnt/vmstore/caraxes/vm2-615/gpu.sock --trace /mnt/vmstore
+1821188 /mnt/vmstore/caraxes/vm0/vfio-user-nvgpu --socket /mnt/vmstore/caraxes/vm0/gpu.sock --trace /mnt/vmstore/caraxes
