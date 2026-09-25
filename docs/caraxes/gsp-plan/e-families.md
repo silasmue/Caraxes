@@ -821,7 +821,8 @@ Each section has the same parts:
   - The lane-data and level-table getters and setters keep a per-lane table.
   - The cable id answers "not USB-C".
 - **Estimate.** 5 days.
-- **Validation.** Home: the display pass on the 5060 Ti (`DP_GET_CAPS`, connectors) and, with
+- **Validation.** Workplace card: the display pass on the workplace 5060 Ti (`DP_GET_CAPS`,
+  connectors; there is no Blackwell card at home, lab-kit.md section 9) and, with
   a DP 2.1 monitor, the trained link rate. Cloud: none.
 
 | Id | Control | Access | Kind | 615 kernel call sites (file:line, first three) |
@@ -1032,7 +1033,8 @@ Part of §3.8. The table is there.
 
   GB206 names the family present (`chips/gb206/chip.toml:199`) with no implementation.
 - **Estimate.** 1.5 days.
-- **Validation.** Home: a traced `cuda-gdb` run on the 5060 Ti for GCC debug, and the sweep
+- **Validation.** Workplace card: a traced `cuda-gdb` run on the workplace 5060 Ti for GCC debug
+  (there is no Blackwell card at home, lab-kit.md section 9), and the sweep
   for the DRAM-encryption getters.
 
 | Id | Control | Access | Kind | 615 kernel call sites (file:line, first three) |
@@ -1147,7 +1149,7 @@ d-controls.tsv gives the reason for each row.
    needs an HGX capture with two or more GPUs.
 
 **Without any cloud.** TU106 stays the reference: every family absent. `chipctl::tests` and
-the 615 guest gates hold that. The GB206 capture exists already, and the 5060 Ti on the home
-rig adds what the kit's steps give there: the sweep, the traces and the display pass.
+the 615 guest gates hold that. The GB206 capture exists already, and the workplace 5060 Ti (its
+source, [blackwell-gb206.md](../blackwell-gb206.md); there is no Blackwell card at home) adds what the kit's steps give there: the sweep, the traces and the display pass.
 Together they cover order steps 1 and 3 and the Blackwell half of step 2 for everything that
 is not data-center-only. MIG, NVLink, C2C, ECC and the HBM row remapping need a rented part.
