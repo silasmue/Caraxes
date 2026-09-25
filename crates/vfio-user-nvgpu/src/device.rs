@@ -549,7 +549,7 @@ impl Device {
         self.trace.event(&format!(
             "msi re-arm (eventfd): {writes} guest write(s) to BAR0 {offset:#x} (NV_XVE_CYA_2) signalled ({effect:?})"
         ));
-        self.after_bar0_write(!matches!(effect, WriteEffect::Mirror));
+        self.after_bar0_write(!matches!(effect, WriteEffect::Mirror), offset);
     }
 
     /// Guest writes to the doorbell register that arrived through the ioeventfd:
@@ -1062,7 +1062,7 @@ impl ServerBackend for Device {
         };
         self.trace.access(Dir::Write, region, offset, data, note);
         if region == VFIO_PCI_BAR0_REGION_INDEX {
-            self.after_bar0_write(sync_point);
+            self.after_bar0_write(sync_point, offset);
         } else {
             self.after_write();
         }
@@ -1163,8 +1163,11 @@ impl Device {
     /// and the MMU invalidate, which stay sync points), so it skips both. The pool's poll
     /// runs under the device lock, which the display clock (vblank, flip latch), the
     /// doorbell reactor and every other trapped access wait for; after the re-arms it held
-    /// the lock for 2 to 50 ms at a time (docs/caraxes/sottr-stage.md §11).
-    fn after_bar0_write(&mut self, sync_point: bool) {
+    /// the lock for 2 to 50 ms at a time (docs/caraxes/sottr-stage.md §11). The poll is
+    /// incremental and merges the replicas only after a flush point
+    /// (`BootModel::pool_merge_after`, docs/caraxes/bar1-pool.md §11); a poll over
+    /// [`SLOW_POOL_POLL`] is traced with its breakdown.
+    fn after_bar0_write(&mut self, sync_point: bool, offset: u64) {
         if sync_point {
             // P21: the guest flushes and invalidates through BAR0 after changing a BAR1
             // mapping and before it uses the mapping.
@@ -1174,13 +1177,20 @@ impl Device {
             // P21 design H: the same point moves pages into and out of the BAR1 pool.
             if let Some(b) = self.bar0.boot_mut() {
                 if b.fb.bar1_pool().is_some() {
+                    let merge = b.pool_merge_after(offset);
                     let t0 = std::time::Instant::now();
-                    crate::bar1pool::poll_model(b, &self.mem);
+                    crate::bar1pool::poll_model(b, &self.mem, merge);
                     let held = t0.elapsed();
                     if held > SLOW_POOL_POLL {
                         self.slow_pool_polls += 1;
+                        let bd = b
+                            .fb
+                            .pool_mut()
+                            .as_ref()
+                            .map(|p| p.last.to_string())
+                            .unwrap_or_default();
                         self.trace.event(&format!(
-                            "bar1 pool: the poll after a BAR0 write held the device {} us (sottr-stage.md §11)",
+                            "bar1 pool: the poll after a BAR0 write at {offset:#x} held the device {} us: {bd} (sottr-stage.md §11, bar1-pool.md §11)",
                             held.as_micros()
                         ));
                     }
@@ -1277,6 +1287,32 @@ mod tests {
         assert!(d
             .summary()
             .contains("bar0 config-mirror writes: 2 (the MSI re-arm among them), no BAR1 pool poll after them"));
+    }
+
+    /// The BAR1 pool's poll merges the replicas only after a flush point (bar1-pool.md
+    /// §11): not after the MMU invalidate's PDB, upper PDB and trigger (the trigger's
+    /// handler merged), the usermode doorbell or the PTIMER time; after the L2 operations,
+    /// the display, the GSP registers and anything else.
+    #[test]
+    fn the_pool_poll_merges_only_after_a_flush_point() {
+        let f = crate::fixture::rtx2070();
+        let b = crate::boot::BootModel::new(
+            f.chip,
+            crate::fb::FbLayout::plain(4 << 30),
+            f.identity(4 << 30),
+        );
+        // The GSP command-queue head (its doorbell handler merges) and the status-queue
+        // tail (a read pointer).
+        let q = b.gsp_queue_registers().expect("TU106 has the queue registers");
+        assert_eq!((q.cmd_head, q.msg_tail), (0x11_0c00, 0x11_0c84));
+        for off in [
+            0xb8_30a0u64, 0xb8_30a4, 0xb8_30b0, 0xbb_0090, 0x9400, 0x9410, 0x11_0c00, 0x11_0c84,
+        ] {
+            assert!(!b.pool_merge_after(off), "{off:#x}");
+        }
+        for off in [0x7_0010u64, 0x7_0000, 0xb8_0f00, 0x69_6000, 0x11_0c80, 0x11_0c04] {
+            assert!(b.pool_merge_after(off), "{off:#x}");
+        }
     }
 
     /// The MSI re-arm ioeventfd (intr-page.md §4): 4 bytes at `NV_PCFG` + `NV_XVE_CYA_2`

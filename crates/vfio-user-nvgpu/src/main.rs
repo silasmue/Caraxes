@@ -808,6 +808,24 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
             let (_, root) = layout.bar_roots().expect("a reserved layout");
             let usable = layout.usable().expect("a reserved layout");
             model.fb.set_bar1_pool(root, pool0, len, usable);
+            // The device's own mapping of the pool (the dma-buf's BAR1 range, no extra host
+            // BAR1): pool copies and replica merges stop mapping and evicting the FB
+            // store's two LRU windows (docs/caraxes/bar1-pool.md §12). Without it the pool
+            // works as before, through the windows.
+            if std::env::var("CARAXES_BAR1_POOL_PIN").as_deref() == Ok("0") {
+                eprintln!("vfio-user-nvgpu: bar1 pool: the device reaches the pool through the FB store's windows (CARAXES_BAR1_POOL_PIN=0)");
+            } else {
+                match ex.map_self(layout.reservation.expect("a reserved layout").0) {
+                    Ok(w) => {
+                        if model.fb.pin_store_window(Box::new(w)) {
+                            eprintln!("vfio-user-nvgpu: bar1 pool: the device maps the pool through its own dma-buf mapping, outside the FB store's windows (docs/caraxes/bar1-pool.md §12; CARAXES_BAR1_POOL_PIN=0 turns it off)");
+                        }
+                    }
+                    Err(e) => eprintln!(
+                        "vfio-user-nvgpu: bar1 pool: no mapping of the pool's dma-buf ({e:#}); the pool is reached through the FB store's windows"
+                    ),
+                }
+            }
             eprintln!(
                 "vfio-user-nvgpu: bar1 pool: guest BAR1 [0, {len:#x}) offered as one sparse mmap area of region 1, backed by a dma-buf of the pool FB [{pool0:#x}, {pool_end:#x}) below the carve-out; the guest's usable FB ends at {:#x} (fbRegionInfo region 0), the pool is reported reserved; every page the guest maps into the area is moved to its pool page; {len:#x} of host BAR1 held while the client maps it (CARAXES_BAR1_PASSTHROUGH=pool, docs/caraxes/bar1-pool.md)",
                 usable.1
