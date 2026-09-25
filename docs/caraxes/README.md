@@ -1075,3 +1075,27 @@ the VM; then display, expected to be much easier than in v1.
     - 331 idle MSIs per second from other VMs' work.
   - **Findings.** `cuMemAllocAsync` is refused (801). An illegal address reaches the guest as
     LAUNCH_FAILED (719), with no RC event and host Xid 31 on the device's pid.
+- 2026-09-25: **Coverage follow-up: the sweep getters and the forward cache**
+  ([coverage-map.md](coverage-map.md) "Status", [gsp-surface.md](gsp-surface.md) "After the
+  sweep getters of the coverage map", records `caraxes/runs/coverage-followup-2026-09-25/`).
+  - **The 21 unanswered sweep getters are answered.**
+    - 7 are plain host forwards (`FORWARD`): the latency buffer, IP version, scheduler caps,
+      GPC tile map, FB floorsweeping, PMGR module and falcon architecture.
+    - 5 are chip-table rows: the TPC partition mode NONE, the RC policy, the FBHUB PCE mask
+      0xF from the card's traces, an empty OEM object (D6) and an empty I2C device table.
+    - 9 are refused as absent features: compression (2), NVJPG, VPR (2), P2P caps (vGPU only),
+      FB carveouts, WPR offsets and dielets.
+
+    Routed controls unhandled: 45 on 610, 46 on 615. The sweep on vm2 finds no `unanswered`
+    control.
+  - **The forward cache** (`src/fwdcache.rs`, `CARAXES_FORWARD_CACHE=0` turns it off).
+    - It keeps the first host answer of 22 static per-card getters for the device's lifetime.
+      Live telemetry, host-settable state and the GSS-legacy commands stay live.
+    - Their repeat host calls go away: 311 hits and 21 fills in one session. That saves 2.8 ms
+      of about 83 ms of device time per `nvidia-smi -q` on a quiet host.
+    - nvidia-smi's wall time follows the host's load and the uncached GSS-legacy perf and clock
+      commands.
+  - **Gates.** cuda 10 of 11 (cuda-managed 801); nvml fails on power N/A only (610 guest).
+    0 host Xid.
+  - The first start was refused at the BAR1 pool mmap: the host BAR1 was full with the other
+    VMs. `run.sh` retries it.

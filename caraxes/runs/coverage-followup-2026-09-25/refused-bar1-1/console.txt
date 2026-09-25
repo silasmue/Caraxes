@@ -1,0 +1,8 @@
+host watch pid 3564416 -> /home/silas/git/Caraxes/.claude/worktrees/agent-a424410a0fbca29ca/caraxes/runs/coverage-followup-2026-09-25/off/hostwatch.txt
+  4: Other OS error
+  5: Input/output error (os error 5)
+ERROR: VM exited
+ERROR: vm2 did not come up
+host watch: 2 samples, nvidia-smi max 0.038s mean 0.030s, 84 kernel log lines, 0 Xid lines, 0 alerts
+host Xid lines 0, of the device pid ?: 0
+off done 2026-09-25T09:23:23+02:00; vm2 left: 0

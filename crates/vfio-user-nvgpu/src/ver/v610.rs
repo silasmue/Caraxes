@@ -1021,6 +1021,32 @@ pub const FORWARD: &[(u32, &str)] = &[
     (0x2080_3406, "ECC_GET_UNREPAIRABLE_MEMORY_FLAG"),
     (0x2080_3604, "GSP_GET_LIBOS_HEAP_STATS"),
     (0x2080_81F3, "GPU_IS_RESET_COUPLED"),
+    // Unanswered in the guest control sweep of 2026-09-25 (caraxes/runs/coverage-2026-09-25/
+    // extra/work/ctlsweep-table-out.txt; docs/caraxes/coverage-map.md §3). NON_PRIVILEGED
+    // ROUTE_TO_PHYSICAL getters of the card's own configuration (flags 0x48 to 0x50048,
+    // caraxes/abi/gsp-6*/controls.tsv), with the same layout in 610.57.04 and 615.71.09, and no
+    // handle, address, PID or other client's state in the answer. The other fourteen of the
+    // sweep are chip-table rows (chips/tu106/controls.toml).
+    //
+    // gpEntries/pbEntries of an engine's latency buffer (ctrl0080fifo.h:189-215), on the
+    // host device object.
+    (0x0080_170E, "FIFO_GET_LATENCY_BUFFER_SIZE"),
+    // The IP_VER register of a unit: display, HDA codec, PMGR, PMU, display falcon
+    // (ctrl2080gpu.h:1836-1868).
+    (0x2080_014D, "GPU_GET_IP_VERSION"),
+    // The supported scheduling policies and timeslice limits of an engine
+    // (ctrl2080fifo.h:991-1048); FIFO_OBJSCHED_GET_STATE is forwarded above.
+    (0x2080_1122, "FIFO_OBJSCHED_GET_CAPS"),
+    // The GPC/TPC tile map of the card's floorswept GR (ctrl2080gr.h:1865-1884); grRouteInfo
+    // is 0 without MIG.
+    (0x2080_1236, "GR_GET_GPC_TILE_MAP"),
+    // Floorsweeping masks of FBPs, LTCs and L2 slices (ctrl2080fb.h:2340-2362), as
+    // GRMGR_GET_GR_FS_INFO above is for GR.
+    (0x2080_1346, "FB_GET_FS_INFO"),
+    // Board module id and NVSwitch support (ctrl2080pmgr.h:39-66).
+    (0x2080_2609, "PMGR_GET_MODULE_INFO"),
+    // Falcon or RISC-V per engine (ctrl2080flcn.h:128-154).
+    (0x2080_3118, "FLCN_GET_ENGINE_ARCH"),
 ];
 
 /// GSS-legacy controls (NV2080 categories 0x85 THERMAL, 0x90 CLK, 0xA0 PERF, 0xA6

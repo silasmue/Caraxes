@@ -1,0 +1,24 @@
+host watch pid 3622114 -> /home/silas/git/Caraxes/.claude/worktrees/agent-a424410a0fbca29ca/caraxes/runs/coverage-followup-2026-09-25/on/hostwatch.txt
+modprobe rc=0
+synced into 192.168.102.22:/home/leandro/caraxes-tests
+-rwxrwxr-x 1 leandro leandro 41408 Sep 25 07:31 ctlsweep
+== smi-q-timed 09:32:00
+COV smi-q-timed ok 10 x nvidia-smi -q, ms per process: 453 311 435 307 252 253 285 246 230 286
+# rc=0
+== smi-query-timed 09:32:04
+COV smi-query-timed ok 20 x nvidia-smi --query-gpu, ms per process: 186 86 140 165 132 136 173 149 147 114 137 132 135 126 83 91 91 78 73 116
+# rc=0
+== smi-dmon 09:32:07
+COV smi-dmon ok dmon 20 s (20779 ms), pmon 5 s (4237 ms), query loop 6 s at 200 ms (6051 ms, 27 lines)
+# rc=0
+== ctlsweep 09:32:38
+COV ctlsweep ok 119 sent, 39 NV_OK, 53 skipped (no object)
+# rc=0
+== gate-nvml 09:32:39
+# rc=1
+== gate-cuda 09:32:42
+CUDA-GATE: FAIL -- cuda-managed
+# rc=1
+host watch: 91 samples, nvidia-smi max 0.324s mean 0.072s, 1106 kernel log lines, 0 Xid lines, 0 alerts
+host Xid lines 0, of the device pid 3622148: 0
+on done 2026-09-25T09:37:07+02:00; vm2 left: 0

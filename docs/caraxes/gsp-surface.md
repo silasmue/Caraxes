@@ -1058,3 +1058,47 @@ row's fixed PROTECTION_FAULT) to guest-derived (the BAR0 policy over the guest's
 `DEBUG_GET_MODE_MMU_DEBUG` from refused to guest-derived (the debugger record). The generated
 rule table has 293 rows on 610 and 296 on 615 (the twelve C rows the table answers are out, the
 five the models answer are in).
+
+## After the sweep getters of the coverage map (2026-09-25)
+
+The guest control sweep of the coverage map ([coverage-map.md](coverage-map.md) §3) found 21
+user-callable getters the device left unanswered (provenance `unhandled`, category A). None is
+in the native traces (`matrix/traces/610.57.04/control/`), and their physical implementations are
+GSP-RM code. Each now has an answer source:
+
+- **Host forward (7, `FORWARD` in `src/ver/v610.rs`).** NON_PRIVILEGED ROUTE_TO_PHYSICAL
+  getters of the card's own configuration with the same layout in 610.57.04 and 615.71.09, and
+  no handle, address or PID in the answer: `FIFO_GET_LATENCY_BUFFER_SIZE` (on the host device),
+  `GPU_GET_IP_VERSION`, `FIFO_OBJSCHED_GET_CAPS`, `GR_GET_GPC_TILE_MAP`, `FB_GET_FS_INFO`,
+  `PMGR_GET_MODULE_INFO`, `FLCN_GET_ENGINE_ARCH`.
+- **Chip table (5 answered, `chips/tu106/controls.toml`).** `GR_GET_TPC_PARTITION_MODE` (mode
+  NONE: both setters are refused), `GET_RC_INFO` (the device's RC policy, as `GET_RC_RECOVERY`),
+  `CE_GET_HUB_PCE_MASK_V2` (FBHUB mask 0xF, the union of the card's `CE_GET_CE_PCE_MASK` answers
+  in the native traces; no HSHUB), `GPU_GET_OEM_INFO` (the OEM object is present, its content
+  withheld as board identity, D6), `I2C_TABLE_GET_DEV_INFO` (no device behind no port).
+- **Refused, feature absent (9, the same table with `status = "NOT_SUPPORTED"`).**
+  `FB_GET_COMPBIT_STORE_INFO` and `FB_GET_COMPBITCOPY_CONSTRUCT_INFO` (no compression, D16),
+  `NVJPG_GET_CAPS_V2` (no NVJPG on TU106), `GPU_GET_VPR_CAPS` and `_VPR_INFO` (no VPR in the VM;
+  host FB addresses), `GET_P2P_CAPS` (a vGPU-guest control, NOT_SUPPORTED on bare metal,
+  615 `p2p_caps.c:973-975`), `FB_GET_CARVEOUT_REGION_INFO` (an integrated-GPU feature, asked only
+  on GB10B), `FB_GET_WPR_REGION_INFO` (host WPR offsets, privileged, no kernel caller),
+  `GPU_GET_DIELET_INFO` (no dielets).
+
+`gsp-surface.py --ogkm <tree>` before (d913f1b) and after (this change); the "before" columns
+are the "after" columns of the reconciliation table above:
+
+| Item | 610 before | 610 after | 615 before | 615 after |
+|---|---:|---:|---:|---:|
+| Routed controls handled | 763 | 784 | 777 | 798 |
+| (host / synthesized / guest / echo / refused) | 70/80/74/64/475 | 77/85/74/64/484 | 69/80/75/65/488 | 76/85/75/65/497 |
+| Routed controls unhandled | 66 | 45 | 67 | 46 |
+| (A / B / C / D) | 50/0/0/16 | 29/0/0/16 | 50/0/1/16 | 29/0/1/16 |
+
+The chip table has 30 entries on both ABIs (16 before) and 4 open rows. `A_INVENTORY` of the
+generated `surface.rs` goes from 59 to 52 on both (the seven forwards are answered by another
+handler now); the ABI snapshots' device columns (`caraxes/abi/gsp-6*/controls.tsv`) and the 615
+tables are regenerated. Test: `chipctl::tests::sweep_getters_of_2026_09_25_are_answered`. On vm2
+the sweep reaches all 21 with these labels and no control is `unanswered`
+(`caraxes/runs/coverage-followup-2026-09-25/off/sweep-controls.tsv`). The host answers three of
+the forwards `INVALID_ARGUMENT` to the sweep's zeroed request (engine 0 is no engine) and
+`GR_GET_GPC_TILE_MAP` `INVALID_STATE`; those are the host card's answers, passed on.

@@ -82,6 +82,40 @@ pub const CTRL_LAYOUTS: &[CtrlLayout] = &[
         ],
     },
     CtrlLayout {
+        name: "NV0080_CTRL_FB_GET_COMPBIT_STORE_INFO_PARAMS",
+        header: "ctrl0080/ctrl0080fb.h",
+        size: 88,
+        fields: &[
+            CtrlField { path: "Size", offset: 0, size: 8, dims: &[] },
+            CtrlField { path: "Address", offset: 8, size: 8, dims: &[] },
+            CtrlField { path: "AddressSpace", offset: 16, size: 4, dims: &[] },
+            CtrlField { path: "MaxCompbitLine", offset: 20, size: 4, dims: &[] },
+            CtrlField { path: "comptagsPerCacheLine", offset: 24, size: 4, dims: &[] },
+            CtrlField { path: "cacheLineSize", offset: 28, size: 4, dims: &[] },
+            CtrlField { path: "cacheLineSizePerSlice", offset: 32, size: 4, dims: &[] },
+            CtrlField { path: "cacheLineFetchAlignment", offset: 36, size: 4, dims: &[] },
+            CtrlField { path: "backingStoreBase", offset: 40, size: 8, dims: &[] },
+            CtrlField { path: "gobsPerComptagPerSlice", offset: 48, size: 4, dims: &[] },
+            CtrlField { path: "backingStoreCbcBase", offset: 52, size: 4, dims: &[] },
+            CtrlField { path: "comptaglineAllocationPolicy", offset: 56, size: 4, dims: &[] },
+            CtrlField { path: "privRegionStartOffset", offset: 64, size: 8, dims: &[] },
+            CtrlField { path: "cbcCoveragePerSlice", offset: 72, size: 4, dims: &[] },
+            CtrlField { path: "cbcRegionSize", offset: 80, size: 8, dims: &[] },
+        ],
+    },
+    CtrlLayout {
+        name: "NV0080_CTRL_GR_TPC_PARTITION_MODE_PARAMS",
+        header: "ctrl0080/ctrl0080gr.h",
+        size: 32,
+        fields: &[
+            CtrlField { path: "hChannelGroup", offset: 0, size: 4, dims: &[] },
+            CtrlField { path: "mode", offset: 4, size: 4, dims: &[] },
+            CtrlField { path: "bEnableAllTpcs", offset: 8, size: 1, dims: &[] },
+            CtrlField { path: "grRouteInfo.flags", offset: 16, size: 4, dims: &[] },
+            CtrlField { path: "grRouteInfo.route", offset: 24, size: 8, dims: &[] },
+        ],
+    },
+    CtrlLayout {
         name: "NV0080_CTRL_NVDEC_GET_CAPS_PARAMS_V2",
         header: "ctrl0080/ctrl0080nvdec.h",
         size: 12,
@@ -97,6 +131,15 @@ pub const CTRL_LAYOUTS: &[CtrlLayout] = &[
         fields: &[
             CtrlField { path: "capsTbl[]", offset: 0, size: 1, dims: &[(1, 6)] },
             CtrlField { path: "instanceId", offset: 8, size: 4, dims: &[] },
+        ],
+    },
+    CtrlLayout {
+        name: "NV0080_CTRL_NVJPG_GET_CAPS_V2_PARAMS",
+        header: "ctrl0080/ctrl0080nvjpg.h",
+        size: 16,
+        fields: &[
+            CtrlField { path: "capsTbl[]", offset: 0, size: 1, dims: &[(1, 9)] },
+            CtrlField { path: "instanceId", offset: 12, size: 4, dims: &[] },
         ],
     },
     CtrlLayout {
@@ -118,6 +161,37 @@ pub const CTRL_LAYOUTS: &[CtrlLayout] = &[
         ],
     },
     CtrlLayout {
+        name: "NV2080_CTRL_CE_GET_HUB_PCE_MASK_V2_PARAMS",
+        header: "ctrl2080/ctrl2080ce.h",
+        size: 136,
+        fields: &[
+            CtrlField { path: "connectingHubPceMasks[]", offset: 0, size: 4, dims: &[(4, 32)] },
+            CtrlField { path: "fbhubPceMask", offset: 128, size: 4, dims: &[] },
+            CtrlField { path: "shimInstance", offset: 132, size: 4, dims: &[] },
+        ],
+    },
+    CtrlLayout {
+        name: "NV2080_CTRL_CMD_FB_GET_COMPBITCOPY_CONSTRUCT_INFO_PARAMS",
+        header: "ctrl2080/ctrl2080fb.h",
+        size: 56,
+        fields: &[
+            CtrlField { path: "defaultPageSize", offset: 0, size: 4, dims: &[] },
+            CtrlField { path: "comptagsPerCacheLine", offset: 4, size: 4, dims: &[] },
+            CtrlField { path: "unpackedComptagLinesPerCacheLine", offset: 8, size: 4, dims: &[] },
+            CtrlField { path: "compCacheLineSizePerLTC", offset: 12, size: 4, dims: &[] },
+            CtrlField { path: "unpackedCompCacheLineSizePerLTC", offset: 16, size: 4, dims: &[] },
+            CtrlField { path: "slicesPerLTC", offset: 20, size: 4, dims: &[] },
+            CtrlField { path: "numActiveLTCs", offset: 24, size: 4, dims: &[] },
+            CtrlField { path: "familyName", offset: 28, size: 4, dims: &[] },
+            CtrlField { path: "chipName", offset: 32, size: 4, dims: &[] },
+            CtrlField { path: "bitsPerRAMEntry", offset: 36, size: 4, dims: &[] },
+            CtrlField { path: "ramBankWidth", offset: 40, size: 4, dims: &[] },
+            CtrlField { path: "bitsPerComptagLine", offset: 44, size: 4, dims: &[] },
+            CtrlField { path: "ramEntriesPerCompCacheLine", offset: 48, size: 4, dims: &[] },
+            CtrlField { path: "comptagLineSize", offset: 52, size: 4, dims: &[] },
+        ],
+    },
+    CtrlLayout {
         name: "NV2080_CTRL_CMD_INTERNAL_CONTROL_GSP_TRACE_PARAMS",
         header: "ctrl2080/ctrl2080internal.h",
         size: 32,
@@ -128,6 +202,38 @@ pub const CTRL_LAYOUTS: &[CtrlLayout] = &[
             CtrlField { path: "bufferWatermark", offset: 20, size: 4, dims: &[] },
             CtrlField { path: "targetTask", offset: 24, size: 2, dims: &[] },
             CtrlField { path: "flag", offset: 26, size: 1, dims: &[] },
+        ],
+    },
+    CtrlLayout {
+        name: "NV2080_CTRL_CMD_RC_INFO_PARAMS",
+        header: "ctrl2080/ctrl2080rc.h",
+        size: 8,
+        fields: &[
+            CtrlField { path: "rcMode", offset: 0, size: 4, dims: &[] },
+            CtrlField { path: "rcBreak", offset: 4, size: 4, dims: &[] },
+        ],
+    },
+    CtrlLayout {
+        name: "NV2080_CTRL_FB_GET_CARVEOUT_REGION_INFO_PARAMS",
+        header: "ctrl2080/ctrl2080fb.h",
+        size: 200,
+        fields: &[
+            CtrlField { path: "numCarveoutRegions", offset: 0, size: 4, dims: &[] },
+            CtrlField { path: "carveoutRegion[].base", offset: 8, size: 8, dims: &[(24, 8)] },
+            CtrlField { path: "carveoutRegion[].size", offset: 16, size: 8, dims: &[(24, 8)] },
+            CtrlField { path: "carveoutRegion[].carveoutType", offset: 24, size: 4, dims: &[(24, 8)] },
+        ],
+    },
+    CtrlLayout {
+        name: "NV2080_CTRL_FB_GET_WPR_REGION_INFO_PARAMS",
+        header: "ctrl2080/ctrl2080fb.h",
+        size: 40,
+        fields: &[
+            CtrlField { path: "wpr1Start", offset: 0, size: 8, dims: &[] },
+            CtrlField { path: "wpr1End", offset: 8, size: 8, dims: &[] },
+            CtrlField { path: "wpr2Start", offset: 16, size: 8, dims: &[] },
+            CtrlField { path: "wpr2End", offset: 24, size: 8, dims: &[] },
+            CtrlField { path: "fbRegionOfWpr2Start", offset: 32, size: 8, dims: &[] },
         ],
     },
     CtrlLayout {
@@ -145,6 +251,34 @@ pub const CTRL_LAYOUTS: &[CtrlLayout] = &[
         ],
     },
     CtrlLayout {
+        name: "NV2080_CTRL_GET_P2P_CAPS_PARAMS",
+        header: "ctrl2080/ctrl2080gpu.h",
+        size: 1672,
+        fields: &[
+            CtrlField { path: "bAllCaps", offset: 0, size: 1, dims: &[] },
+            CtrlField { path: "bUseUuid", offset: 1, size: 1, dims: &[] },
+            CtrlField { path: "peerGpuCount", offset: 4, size: 4, dims: &[] },
+            CtrlField { path: "peerGpuCaps[].gpuId", offset: 8, size: 4, dims: &[(52, 32)] },
+            CtrlField { path: "peerGpuCaps[].gpuUuid[]", offset: 12, size: 1, dims: &[(52, 32), (1, 16)] },
+            CtrlField { path: "peerGpuCaps[].p2pCaps", offset: 28, size: 4, dims: &[(52, 32)] },
+            CtrlField { path: "peerGpuCaps[].p2pOptimalReadCEs", offset: 32, size: 4, dims: &[(52, 32)] },
+            CtrlField { path: "peerGpuCaps[].p2pOptimalWriteCEs", offset: 36, size: 4, dims: &[(52, 32)] },
+            CtrlField { path: "peerGpuCaps[].p2pCapsStatus[]", offset: 40, size: 1, dims: &[(52, 32), (1, 9)] },
+            CtrlField { path: "peerGpuCaps[].busPeerId", offset: 52, size: 4, dims: &[(52, 32)] },
+            CtrlField { path: "peerGpuCaps[].busEgmPeerId", offset: 56, size: 4, dims: &[(52, 32)] },
+        ],
+    },
+    CtrlLayout {
+        name: "NV2080_CTRL_GPU_GET_DIELET_INFO_PARAMS",
+        header: "ctrl2080/ctrl2080gpu.h",
+        size: 2052,
+        fields: &[
+            CtrlField { path: "dieletListSize", offset: 0, size: 4, dims: &[] },
+            CtrlField { path: "dielets[].dieletType", offset: 4, size: 4, dims: &[(8, 256)] },
+            CtrlField { path: "dielets[].typeSpecificId", offset: 8, size: 4, dims: &[(8, 256)] },
+        ],
+    },
+    CtrlLayout {
         name: "NV2080_CTRL_GPU_GET_FIPS_STATUS_PARAMS",
         header: "ctrl2080/ctrl2080gpu.h",
         size: 1,
@@ -158,6 +292,34 @@ pub const CTRL_LAYOUTS: &[CtrlLayout] = &[
         size: 4,
         fields: &[
             CtrlField { path: "firstAsyncCEIdx", offset: 0, size: 4, dims: &[] },
+        ],
+    },
+    CtrlLayout {
+        name: "NV2080_CTRL_GPU_GET_OEM_INFO_PARAMS",
+        header: "ctrl2080/ctrl2080gpu.h",
+        size: 504,
+        fields: &[
+            CtrlField { path: "oemInfo[]", offset: 0, size: 1, dims: &[(1, 504)] },
+        ],
+    },
+    CtrlLayout {
+        name: "NV2080_CTRL_GPU_GET_VPR_CAPS_PARAMS",
+        header: "ctrl2080/ctrl2080gpu.h",
+        size: 16,
+        fields: &[
+            CtrlField { path: "minStartAddr", offset: 0, size: 8, dims: &[] },
+            CtrlField { path: "maxEndAddr", offset: 8, size: 8, dims: &[] },
+        ],
+    },
+    CtrlLayout {
+        name: "NV2080_CTRL_GPU_GET_VPR_INFO_PARAMS",
+        header: "ctrl2080/ctrl2080gpu.h",
+        size: 24,
+        fields: &[
+            CtrlField { path: "queryType", offset: 0, size: 4, dims: &[] },
+            CtrlField { path: "bIsVprEnabled", offset: 4, size: 1, dims: &[] },
+            CtrlField { path: "vprStartAddressInBytes", offset: 8, size: 8, dims: &[] },
+            CtrlField { path: "vprEndAddressInBytes", offset: 16, size: 8, dims: &[] },
         ],
     },
     CtrlLayout {
@@ -304,6 +466,18 @@ pub const CTRL_LAYOUTS: &[CtrlLayout] = &[
             CtrlField { path: "client", offset: 0, size: 4, dims: &[] },
             CtrlField { path: "input", offset: 4, size: 4, dims: &[] },
             CtrlField { path: "vPstateType", offset: 8, size: 4, dims: &[] },
+        ],
+    },
+    CtrlLayout {
+        name: "NV402C_CTRL_I2C_TABLE_GET_DEV_INFO_PARAMS",
+        header: "ctrl402c.h",
+        size: 194,
+        fields: &[
+            CtrlField { path: "i2cDevCount", offset: 0, size: 1, dims: &[] },
+            CtrlField { path: "i2cDevInfo[].type", offset: 2, size: 1, dims: &[(6, 32)] },
+            CtrlField { path: "i2cDevInfo[].i2cAddress", offset: 4, size: 2, dims: &[(6, 32)] },
+            CtrlField { path: "i2cDevInfo[].i2cLogicalPort", offset: 6, size: 1, dims: &[(6, 32)] },
+            CtrlField { path: "i2cDevInfo[].i2cDevIdx", offset: 7, size: 1, dims: &[(6, 32)] },
         ],
     },
     CtrlLayout {
@@ -474,6 +648,27 @@ const _: () = {
     assert!(offset_of!(nvrm_sys::NV0000_CTRL_GPUACCT_SET_ACCOUNTING_STATE_PARAMS, gpuId) == 0);
     assert!(offset_of!(nvrm_sys::NV0000_CTRL_GPUACCT_SET_ACCOUNTING_STATE_PARAMS, pid) == 4);
     assert!(offset_of!(nvrm_sys::NV0000_CTRL_GPUACCT_SET_ACCOUNTING_STATE_PARAMS, newState) == 8);
+    assert!(size_of::<nvrm_sys::v615::NV0080_CTRL_FB_GET_COMPBIT_STORE_INFO_PARAMS>() == 88);
+    assert!(offset_of!(nvrm_sys::v615::NV0080_CTRL_FB_GET_COMPBIT_STORE_INFO_PARAMS, Size) == 0);
+    assert!(offset_of!(nvrm_sys::v615::NV0080_CTRL_FB_GET_COMPBIT_STORE_INFO_PARAMS, Address) == 8);
+    assert!(offset_of!(nvrm_sys::v615::NV0080_CTRL_FB_GET_COMPBIT_STORE_INFO_PARAMS, AddressSpace) == 16);
+    assert!(offset_of!(nvrm_sys::v615::NV0080_CTRL_FB_GET_COMPBIT_STORE_INFO_PARAMS, MaxCompbitLine) == 20);
+    assert!(offset_of!(nvrm_sys::v615::NV0080_CTRL_FB_GET_COMPBIT_STORE_INFO_PARAMS, comptagsPerCacheLine) == 24);
+    assert!(offset_of!(nvrm_sys::v615::NV0080_CTRL_FB_GET_COMPBIT_STORE_INFO_PARAMS, cacheLineSize) == 28);
+    assert!(offset_of!(nvrm_sys::v615::NV0080_CTRL_FB_GET_COMPBIT_STORE_INFO_PARAMS, cacheLineSizePerSlice) == 32);
+    assert!(offset_of!(nvrm_sys::v615::NV0080_CTRL_FB_GET_COMPBIT_STORE_INFO_PARAMS, cacheLineFetchAlignment) == 36);
+    assert!(offset_of!(nvrm_sys::v615::NV0080_CTRL_FB_GET_COMPBIT_STORE_INFO_PARAMS, backingStoreBase) == 40);
+    assert!(offset_of!(nvrm_sys::v615::NV0080_CTRL_FB_GET_COMPBIT_STORE_INFO_PARAMS, gobsPerComptagPerSlice) == 48);
+    assert!(offset_of!(nvrm_sys::v615::NV0080_CTRL_FB_GET_COMPBIT_STORE_INFO_PARAMS, backingStoreCbcBase) == 52);
+    assert!(offset_of!(nvrm_sys::v615::NV0080_CTRL_FB_GET_COMPBIT_STORE_INFO_PARAMS, comptaglineAllocationPolicy) == 56);
+    assert!(offset_of!(nvrm_sys::v615::NV0080_CTRL_FB_GET_COMPBIT_STORE_INFO_PARAMS, privRegionStartOffset) == 64);
+    assert!(offset_of!(nvrm_sys::v615::NV0080_CTRL_FB_GET_COMPBIT_STORE_INFO_PARAMS, cbcCoveragePerSlice) == 72);
+    assert!(offset_of!(nvrm_sys::v615::NV0080_CTRL_FB_GET_COMPBIT_STORE_INFO_PARAMS, cbcRegionSize) == 80);
+    assert!(size_of::<nvrm_sys::NV0080_CTRL_GR_TPC_PARTITION_MODE_PARAMS>() == 32);
+    assert!(offset_of!(nvrm_sys::NV0080_CTRL_GR_TPC_PARTITION_MODE_PARAMS, hChannelGroup) == 0);
+    assert!(offset_of!(nvrm_sys::NV0080_CTRL_GR_TPC_PARTITION_MODE_PARAMS, mode) == 4);
+    assert!(offset_of!(nvrm_sys::NV0080_CTRL_GR_TPC_PARTITION_MODE_PARAMS, bEnableAllTpcs) == 8);
+    assert!(offset_of!(nvrm_sys::NV0080_CTRL_GR_TPC_PARTITION_MODE_PARAMS, grRouteInfo) == 16);
     assert!(size_of::<nvrm_sys::v615::NV0080_CTRL_NVDEC_GET_CAPS_PARAMS_V2>() == 12);
     assert!(offset_of!(nvrm_sys::v615::NV0080_CTRL_NVDEC_GET_CAPS_PARAMS_V2, capsTbl) == 0);
     assert!(offset_of!(nvrm_sys::v615::NV0080_CTRL_NVDEC_GET_CAPS_PARAMS_V2, instanceId) == 8);
@@ -483,6 +678,21 @@ const _: () = {
     assert!(size_of::<nvrm_sys::NV2080_CTRL_BIOS_GET_UEFI_SUPPORT_PARAMS>() == 8);
     assert!(offset_of!(nvrm_sys::NV2080_CTRL_BIOS_GET_UEFI_SUPPORT_PARAMS, version) == 0);
     assert!(offset_of!(nvrm_sys::NV2080_CTRL_BIOS_GET_UEFI_SUPPORT_PARAMS, flags) == 4);
+    assert!(size_of::<nvrm_sys::NV2080_CTRL_CMD_FB_GET_COMPBITCOPY_CONSTRUCT_INFO_PARAMS>() == 56);
+    assert!(offset_of!(nvrm_sys::NV2080_CTRL_CMD_FB_GET_COMPBITCOPY_CONSTRUCT_INFO_PARAMS, defaultPageSize) == 0);
+    assert!(offset_of!(nvrm_sys::NV2080_CTRL_CMD_FB_GET_COMPBITCOPY_CONSTRUCT_INFO_PARAMS, comptagsPerCacheLine) == 4);
+    assert!(offset_of!(nvrm_sys::NV2080_CTRL_CMD_FB_GET_COMPBITCOPY_CONSTRUCT_INFO_PARAMS, unpackedComptagLinesPerCacheLine) == 8);
+    assert!(offset_of!(nvrm_sys::NV2080_CTRL_CMD_FB_GET_COMPBITCOPY_CONSTRUCT_INFO_PARAMS, compCacheLineSizePerLTC) == 12);
+    assert!(offset_of!(nvrm_sys::NV2080_CTRL_CMD_FB_GET_COMPBITCOPY_CONSTRUCT_INFO_PARAMS, unpackedCompCacheLineSizePerLTC) == 16);
+    assert!(offset_of!(nvrm_sys::NV2080_CTRL_CMD_FB_GET_COMPBITCOPY_CONSTRUCT_INFO_PARAMS, slicesPerLTC) == 20);
+    assert!(offset_of!(nvrm_sys::NV2080_CTRL_CMD_FB_GET_COMPBITCOPY_CONSTRUCT_INFO_PARAMS, numActiveLTCs) == 24);
+    assert!(offset_of!(nvrm_sys::NV2080_CTRL_CMD_FB_GET_COMPBITCOPY_CONSTRUCT_INFO_PARAMS, familyName) == 28);
+    assert!(offset_of!(nvrm_sys::NV2080_CTRL_CMD_FB_GET_COMPBITCOPY_CONSTRUCT_INFO_PARAMS, chipName) == 32);
+    assert!(offset_of!(nvrm_sys::NV2080_CTRL_CMD_FB_GET_COMPBITCOPY_CONSTRUCT_INFO_PARAMS, bitsPerRAMEntry) == 36);
+    assert!(offset_of!(nvrm_sys::NV2080_CTRL_CMD_FB_GET_COMPBITCOPY_CONSTRUCT_INFO_PARAMS, ramBankWidth) == 40);
+    assert!(offset_of!(nvrm_sys::NV2080_CTRL_CMD_FB_GET_COMPBITCOPY_CONSTRUCT_INFO_PARAMS, bitsPerComptagLine) == 44);
+    assert!(offset_of!(nvrm_sys::NV2080_CTRL_CMD_FB_GET_COMPBITCOPY_CONSTRUCT_INFO_PARAMS, ramEntriesPerCompCacheLine) == 48);
+    assert!(offset_of!(nvrm_sys::NV2080_CTRL_CMD_FB_GET_COMPBITCOPY_CONSTRUCT_INFO_PARAMS, comptagLineSize) == 52);
     assert!(size_of::<nvrm_sys::v615::NV2080_CTRL_CMD_INTERNAL_CONTROL_GSP_TRACE_PARAMS>() == 32);
     assert!(offset_of!(nvrm_sys::v615::NV2080_CTRL_CMD_INTERNAL_CONTROL_GSP_TRACE_PARAMS, tracepointMask) == 0);
     assert!(offset_of!(nvrm_sys::v615::NV2080_CTRL_CMD_INTERNAL_CONTROL_GSP_TRACE_PARAMS, bufferAddr) == 8);
@@ -490,6 +700,15 @@ const _: () = {
     assert!(offset_of!(nvrm_sys::v615::NV2080_CTRL_CMD_INTERNAL_CONTROL_GSP_TRACE_PARAMS, bufferWatermark) == 20);
     assert!(offset_of!(nvrm_sys::v615::NV2080_CTRL_CMD_INTERNAL_CONTROL_GSP_TRACE_PARAMS, targetTask) == 24);
     assert!(offset_of!(nvrm_sys::v615::NV2080_CTRL_CMD_INTERNAL_CONTROL_GSP_TRACE_PARAMS, flag) == 26);
+    assert!(size_of::<nvrm_sys::NV2080_CTRL_FB_GET_CARVEOUT_REGION_INFO_PARAMS>() == 200);
+    assert!(offset_of!(nvrm_sys::NV2080_CTRL_FB_GET_CARVEOUT_REGION_INFO_PARAMS, numCarveoutRegions) == 0);
+    assert!(offset_of!(nvrm_sys::NV2080_CTRL_FB_GET_CARVEOUT_REGION_INFO_PARAMS, carveoutRegion) == 8);
+    assert!(size_of::<nvrm_sys::NV2080_CTRL_FB_GET_WPR_REGION_INFO_PARAMS>() == 40);
+    assert!(offset_of!(nvrm_sys::NV2080_CTRL_FB_GET_WPR_REGION_INFO_PARAMS, wpr1Start) == 0);
+    assert!(offset_of!(nvrm_sys::NV2080_CTRL_FB_GET_WPR_REGION_INFO_PARAMS, wpr1End) == 8);
+    assert!(offset_of!(nvrm_sys::NV2080_CTRL_FB_GET_WPR_REGION_INFO_PARAMS, wpr2Start) == 16);
+    assert!(offset_of!(nvrm_sys::NV2080_CTRL_FB_GET_WPR_REGION_INFO_PARAMS, wpr2End) == 24);
+    assert!(offset_of!(nvrm_sys::NV2080_CTRL_FB_GET_WPR_REGION_INFO_PARAMS, fbRegionOfWpr2Start) == 32);
     assert!(size_of::<nvrm_sys::NV2080_CTRL_FIFO_DISABLE_CHANNELS_PARAMS>() == 536);
     assert!(offset_of!(nvrm_sys::NV2080_CTRL_FIFO_DISABLE_CHANNELS_PARAMS, bDisable) == 0);
     assert!(offset_of!(nvrm_sys::NV2080_CTRL_FIFO_DISABLE_CHANNELS_PARAMS, numChannels) == 4);
@@ -498,10 +717,28 @@ const _: () = {
     assert!(offset_of!(nvrm_sys::NV2080_CTRL_FIFO_DISABLE_CHANNELS_PARAMS, pRunlistPreemptEvent) == 16);
     assert!(offset_of!(nvrm_sys::NV2080_CTRL_FIFO_DISABLE_CHANNELS_PARAMS, hClientList) == 24);
     assert!(offset_of!(nvrm_sys::NV2080_CTRL_FIFO_DISABLE_CHANNELS_PARAMS, hChannelList) == 280);
+    assert!(size_of::<nvrm_sys::NV2080_CTRL_GET_P2P_CAPS_PARAMS>() == 1672);
+    assert!(offset_of!(nvrm_sys::NV2080_CTRL_GET_P2P_CAPS_PARAMS, bAllCaps) == 0);
+    assert!(offset_of!(nvrm_sys::NV2080_CTRL_GET_P2P_CAPS_PARAMS, bUseUuid) == 1);
+    assert!(offset_of!(nvrm_sys::NV2080_CTRL_GET_P2P_CAPS_PARAMS, peerGpuCount) == 4);
+    assert!(offset_of!(nvrm_sys::NV2080_CTRL_GET_P2P_CAPS_PARAMS, peerGpuCaps) == 8);
+    assert!(size_of::<nvrm_sys::v615::NV2080_CTRL_GPU_GET_DIELET_INFO_PARAMS>() == 2052);
+    assert!(offset_of!(nvrm_sys::v615::NV2080_CTRL_GPU_GET_DIELET_INFO_PARAMS, dieletListSize) == 0);
+    assert!(offset_of!(nvrm_sys::v615::NV2080_CTRL_GPU_GET_DIELET_INFO_PARAMS, dielets) == 4);
     assert!(size_of::<nvrm_sys::NV2080_CTRL_GPU_GET_FIPS_STATUS_PARAMS>() == 1);
     assert!(offset_of!(nvrm_sys::NV2080_CTRL_GPU_GET_FIPS_STATUS_PARAMS, bFipsEnabled) == 0);
     assert!(size_of::<nvrm_sys::NV2080_CTRL_GPU_GET_FIRST_ASYNC_CE_IDX_PARAMS>() == 4);
     assert!(offset_of!(nvrm_sys::NV2080_CTRL_GPU_GET_FIRST_ASYNC_CE_IDX_PARAMS, firstAsyncCEIdx) == 0);
+    assert!(size_of::<nvrm_sys::NV2080_CTRL_GPU_GET_OEM_INFO_PARAMS>() == 504);
+    assert!(offset_of!(nvrm_sys::NV2080_CTRL_GPU_GET_OEM_INFO_PARAMS, oemInfo) == 0);
+    assert!(size_of::<nvrm_sys::NV2080_CTRL_GPU_GET_VPR_CAPS_PARAMS>() == 16);
+    assert!(offset_of!(nvrm_sys::NV2080_CTRL_GPU_GET_VPR_CAPS_PARAMS, minStartAddr) == 0);
+    assert!(offset_of!(nvrm_sys::NV2080_CTRL_GPU_GET_VPR_CAPS_PARAMS, maxEndAddr) == 8);
+    assert!(size_of::<nvrm_sys::NV2080_CTRL_GPU_GET_VPR_INFO_PARAMS>() == 24);
+    assert!(offset_of!(nvrm_sys::NV2080_CTRL_GPU_GET_VPR_INFO_PARAMS, queryType) == 0);
+    assert!(offset_of!(nvrm_sys::NV2080_CTRL_GPU_GET_VPR_INFO_PARAMS, bIsVprEnabled) == 4);
+    assert!(offset_of!(nvrm_sys::NV2080_CTRL_GPU_GET_VPR_INFO_PARAMS, vprStartAddressInBytes) == 8);
+    assert!(offset_of!(nvrm_sys::NV2080_CTRL_GPU_GET_VPR_INFO_PARAMS, vprEndAddressInBytes) == 16);
     assert!(size_of::<nvrm_sys::NV2080_CTRL_GPU_REPORT_NON_REPLAYABLE_FAULT_PARAMS>() == 32);
     assert!(offset_of!(nvrm_sys::NV2080_CTRL_GPU_REPORT_NON_REPLAYABLE_FAULT_PARAMS, faultPacket) == 0);
     assert!(size_of::<nvrm_sys::NV2080_CTRL_GPU_SET_COMPUTE_MODE_RULES_PARAMS>() == 8);

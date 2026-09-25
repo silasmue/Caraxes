@@ -240,3 +240,137 @@ name = "NV2080_CTRL_CMD_GSP_FB_STATS_GET"
 params = "NV2080_CTRL_CMD_RM_FB_STATS_ENTRY"
 label = "chip"
 open = "the device's GSP heap regions of src/fb.rs (reserved, reserved heap, heap free) with a zero owner table"
+
+# ---- The unanswered user-callable getters of the guest control sweep of 2026-09-25
+# (caraxes/runs/coverage-2026-09-25/extra/work/ctlsweep-table-out.txt, provenance
+# `unhandled`; docs/caraxes/coverage-map.md §3). None of the 21 is in the native traces
+# (matrix/traces/610.57.04/control/*.tsv), and their physical implementations are GSP-RM
+# code, not in the open tree. Seven are per-card truth without an address or handle and go
+# to the host (`FORWARD`, src/ver/v610.rs). The fourteen below come from the chip files,
+# the card's captures or the device's own policy, or are refused where the feature is
+# absent. Header paths are the 615.71.09 tree's; the layouts are the same in 610.57.04
+# (the `layout` column of caraxes/abi/gsp-6*/controls.tsv).
+
+# A TSG's TPC partition mode (ctrl0080gr.h:203-245). Both setters are refused
+# (src/ver/v610/public.rs REFUSED_TPC_PARTITION), so no TSG of the VM leaves mode NONE (0,
+# ctrl0080gr.h:235). The handle is echoed, not checked.
+[[control]]
+name = "NV0080_CTRL_CMD_GR_GET_TPC_PARTITION_MODE"
+params = "NV0080_CTRL_GR_TPC_PARTITION_MODE_PARAMS"
+inputs = ["hChannelGroup", "grRouteInfo.flags", "grRouteInfo.route"]
+label = "guest (TPC partition mode NONE: both SET_TPC_PARTITION_MODE controls are refused, public.rs REFUSED_TPC_PARTITION)"
+fields = { mode = 0 }
+
+# The compbit backing store (ctrl0080fb.h:103-168): the device has no compression (D16;
+# FB_GET_CTAGS_FOR_CBC_EVICTION answers numCompTags 0). RM refuses the control to a vGPU
+# guest as well (615 src/nvidia/src/kernel/rmapi/rmapi_utils.c:212).
+[[control]]
+name = "NV0080_CTRL_CMD_FB_GET_COMPBIT_STORE_INFO"
+params = "NV0080_CTRL_FB_GET_COMPBIT_STORE_INFO_PARAMS"
+status = "NOT_SUPPORTED"
+label = "refused (no compression, D16: no compbit backing store)"
+
+# TU106 has no NVJPG engine (chips/tu106/device-info.toml:21-31 lists GR, the CEs, NVDEC0-2,
+# NVENC0 and SEC2).
+[[control]]
+name = "NV0080_CTRL_CMD_NVJPG_GET_CAPS_V2"
+params = "NV0080_CTRL_NVJPG_GET_CAPS_V2_PARAMS"
+status = "NOT_SUPPORTED"
+label = "refused (no NVJPG on TU106: chips/tu106/device-info.toml has none)"
+
+# The video protected region (ctrl2080gpu.h:2139-2164, 2250-2297) as physical FB addresses
+# of the host. The VM has no VPR: FB_SETUP_VPR_REGION is refused (ctrl:D table), and RM
+# refuses VPR_CAPS to a vGPU guest too (rmapi_utils.c:232).
+[[control]]
+name = "NV2080_CTRL_CMD_GPU_GET_VPR_CAPS"
+params = "NV2080_CTRL_GPU_GET_VPR_CAPS_PARAMS"
+status = "NOT_SUPPORTED"
+label = "refused (no VPR in the VM: FB_SETUP_VPR_REGION is refused; the range is host FB addresses)"
+
+[[control]]
+name = "NV2080_CTRL_CMD_GPU_GET_VPR_INFO"
+params = "NV2080_CTRL_GPU_GET_VPR_INFO_PARAMS"
+status = "NOT_SUPPORTED"
+label = "refused (no VPR in the VM: FB_SETUP_VPR_REGION is refused; the range is host FB addresses)"
+
+# The InfoROM OEM object's bytes (ctrl2080gpu.h:2224-2248: "their own serial number, lot
+# codes"). The card has the object (OEM Object 1.1, caraxes/reference/rtx2070/nvidia-smi-q.txt:49;
+# GPU_GET_INFOROM_OBJECT_VERSION is forwarded), but its content is board identity, which
+# stays device-owned (D6, src/nvml.rs:1-10): the object is present and empty.
+[[control]]
+name = "NV2080_CTRL_CMD_GPU_GET_OEM_INFO"
+params = "NV2080_CTRL_GPU_GET_OEM_INFO_PARAMS"
+label = "synthesized (OEM object present, content withheld: board identity is device-owned, D6; zeros)"
+
+# Peer caps between GPUs (ctrl2080gpu.h:4044-4083) are a vGPU-guest control: RM answers
+# NOT_SUPPORTED on bare metal (615 src/nvidia/src/kernel/platform/p2p/p2p_caps.c:973-975),
+# and the kernel sends it only with the vGPU GSP plugin offload
+# (src/nvidia/src/kernel/rmapi/client_resource.c:4315-4317). The VM has one GPU.
+[[control]]
+name = "NV2080_CTRL_CMD_GET_P2P_CAPS"
+params = "NV2080_CTRL_GET_P2P_CAPS_PARAMS"
+status = "NOT_SUPPORTED"
+label = "refused (vGPU-guest control, NOT_SUPPORTED on bare metal: p2p_caps.c:973-975)"
+
+# Compbit-copy constants (ctrl2080fb.h:1712-1772): no compression (D16).
+[[control]]
+name = "NV2080_CTRL_CMD_FB_GET_COMPBITCOPY_CONSTRUCT_INFO"
+params = "NV2080_CTRL_CMD_FB_GET_COMPBITCOPY_CONSTRUCT_INFO_PARAMS"
+status = "NOT_SUPPORTED"
+label = "refused (no compression, D16: no compbit copy)"
+
+# FB carveouts for the display FRM and UEFI (ctrl2080fb.h:2934-2955) are an integrated-GPU
+# feature: the kernel asks for them only on GB10B
+# (src/nvidia/src/kernel/gpu/mem_mgr/arch/blackwell/mem_mgr_gb10b_phys.c:417), and base and
+# size are FB addresses.
+[[control]]
+name = "NV2080_CTRL_CMD_FB_GET_CARVEOUT_REGION_INFO"
+params = "NV2080_CTRL_FB_GET_CARVEOUT_REGION_INFO_PARAMS"
+status = "NOT_SUPPORTED"
+label = "refused (FB carveouts are an integrated-GPU feature: the kernel asks only on GB10B)"
+
+# WPR1 and WPR2 as FB offsets (ctrl2080fb.h:3069-3094): the host's secure regions;
+# privileged, and no kernel caller in either tree.
+[[control]]
+name = "NV2080_CTRL_CMD_FB_GET_WPR_REGION_INFO"
+params = "NV2080_CTRL_FB_GET_WPR_REGION_INFO_PARAMS"
+status = "NOT_SUPPORTED"
+label = "refused (host WPR offsets; privileged, no kernel caller)"
+
+# RC mode and break (ctrl2080rc.h:339-385): the device's RC policy, as GET_RC_RECOVERY
+# answers it (recovery on), and no debugger break on RC. SET_RC_INFO is refused (D table).
+[[control]]
+name = "NV2080_CTRL_CMD_GET_RC_INFO"
+params = "NV2080_CTRL_CMD_RC_INFO_PARAMS"
+label = "synthesized (the device's RC policy: rcMode ENABLE, rcBreak DISABLE, as GET_RC_RECOVERY)"
+fields = { rcMode = 1, rcBreak = 0 }
+
+# The PCEs behind each hub (ctrl2080ce.h:400-420). TU106 has no HSHUB (chip.toml
+# [features] names `hshub` absent), so every PCE is on the FBHUB: 0xF, the union of the
+# card's CE_GET_CE_PCE_MASK answers (COPY0 0x1, COPY2 0x4, COPY3 0x8, COPY4 0x2; native
+# traces egl-gbm.tsv:714, 723, 729 and vk-offscreen.tsv:8380). Turing has one CE shim
+# (chip.toml [ce] lce_shim): another shim is not answered.
+[[control]]
+name = "NV2080_CTRL_CMD_CE_GET_HUB_PCE_MASK_V2"
+params = "NV2080_CTRL_CE_GET_HUB_PCE_MASK_V2_PARAMS"
+inputs = ["shimInstance"]
+label = "card (fbhubPceMask 0xF: the union of the card's CE_GET_CE_PCE_MASK answers; no HSHUB)"
+[[control.case]]
+when = { shimInstance = 0 }
+fields = { fbhubPceMask = 0xF }
+
+# Dielets (ctrl2080gpu.h:4975-5001) are a multi-die feature; GET_UNIT_FS_INFO_FROM_DIELET
+# is refused the same way (public.rs).
+[[control]]
+name = "NV2080_CTRL_CMD_GPU_GET_DIELET_INFO"
+params = "NV2080_CTRL_GPU_GET_DIELET_INFO_PARAMS"
+status = "NOT_SUPPORTED"
+label = "refused (no dielets on this chip)"
+
+# The VBIOS I2C device table (ctrl402c.h:367-391): the device presents no I2C port
+# (I2C_GET_PORT_INFO, ctrl.rs), so no device sits behind one.
+[[control]]
+name = "NV402C_CTRL_CMD_I2C_TABLE_GET_DEV_INFO"
+params = "NV402C_CTRL_I2C_TABLE_GET_DEV_INFO_PARAMS"
+label = "synthesized (no I2C devices: the device presents no I2C port, as I2C_GET_PORT_INFO)"
+fields = { i2cDevCount = 0 }

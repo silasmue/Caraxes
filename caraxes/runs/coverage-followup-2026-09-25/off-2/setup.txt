@@ -1,0 +1,33 @@
+NVRM version: NVIDIA UNIX Open Kernel Module for x86_64  615.71.09  Release Build  (root@)  
+d8b489cba9bcb723596096f18c59f808a3645a04a188658b71576517758b59d6  /home/silas/git/Caraxes/.claude/worktrees/agent-a424410a0fbca29ca/target/cov2/release/vfio-user-nvgpu
+960af13c53b2824a29a7461c8390c3f136f85082ed46a6edfb0fcd9bb642284f  /mnt/vmstore/caraxes/vm1/ch-0006-v.sh
+61e7190 device: cache forwarded answers that are static per card (fwdcache.rs)
+bench-run.sh libdir v2: /opt/nvrm/lib
+CARAXES_ALLOC_LAZY=1
+CARAXES_BAR1_PASSTHROUGH=pool
+CARAXES_BAR1_POOL_MIB=32
+CARAXES_BAR2_MEMFD=1
+CARAXES_BOOT_MODEL=1
+CARAXES_DMA=register
+CARAXES_DOORBELL_POLL=hybrid
+CARAXES_DOORBELL_TOKENS=64
+CARAXES_FB_MIB=1024
+CARAXES_FORWARD_CACHE=0
+CARAXES_GATE_FB_MIB=1024
+CARAXES_HOST_EXEC=1
+CARAXES_HOST_RM=1
+CARAXES_INTR_PAGE=1
+CARAXES_IP=192.168.102.22
+CARAXES_LEANDRO_TEST=/home/silas/git/Leandro-Test
+CARAXES_MAC=02:00:00:00:00:22
+CARAXES_MIRROR_CHANNELS=1
+CARAXES_MIRROR_GR_SHADOW=1
+CARAXES_MSI_REARM_IOEVENTFD=1
+CARAXES_PROFILE=1
+CARAXES_PROFILE_OUT=/home/silas/git/Caraxes/.claude/worktrees/agent-a424410a0fbca29ca/caraxes/runs/coverage-followup-2026-09-25/off-2/profile/dev
+CARAXES_RESERVE_SLOT=3
+CARAXES_RESERVE_VRAM=1
+CARAXES_SERVER=/home/silas/git/Caraxes/.claude/worktrees/agent-a424410a0fbca29ca/target/cov2/release/vfio-user-nvgpu
+CARAXES_TAP=caraxes2
+LEA_CH=/mnt/vmstore/caraxes/vm1/ch-0006-v.sh
+VM=vm2

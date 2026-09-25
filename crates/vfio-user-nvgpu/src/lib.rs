@@ -30,6 +30,7 @@ pub mod dmamap;
 pub mod events;
 pub mod dmodel;
 pub mod falcon;
+pub mod fwdcache;
 pub mod fb;
 pub mod gmcapi;
 pub mod gspboot;
