@@ -77,13 +77,21 @@ const GFXP_SLOT_STRIDE: u32 = 0x11_0000;
 /// the device acknowledges them (NV_OK, request unchanged).
 pub const GR_GFX_POOL_MANAGE: [u32; 3] = [0x2080_1220, 0x2080_1221, 0x2080_1222];
 
+/// A FIFO control of the Windows build only (0x20801111, between CONFIG_CTXSW_TIMEOUT and
+/// GET_DEVICE_INFO_TABLE; no public header): the KMD sends it with two handles of its class
+/// 0xB297 objects and the handle of an 8-page sysmem allocation (40 bytes) for each pair it
+/// creates, and unloads GSP-RM when it is refused (Y9). Acknowledged: nothing executes.
+pub const FIFO_WINDOWS_1111: u32 = 0x2080_1111;
+
 /// Controls answered here before the dispatcher's own tables, which refuse them for the
-/// Linux path (no caller there): the Windows KMD's graphics-preemption pool.
-pub const OVERRIDES: [u32; 4] = [
+/// Linux path (no caller there): the Windows KMD's graphics-preemption pool and its FIFO
+/// control 0x20801111.
+pub const OVERRIDES: [u32; 5] = [
     GR_GFX_POOL_QUERY_SIZE,
     GR_GFX_POOL_MANAGE[0],
     GR_GFX_POOL_MANAGE[1],
     GR_GFX_POOL_MANAGE[2],
+    FIFO_WINDOWS_1111,
 ];
 /// A GSS-legacy GPU command (no public layout): the card answered the recorded one (cuInit,
 /// subcommand 0x25) NV_OK with the request unchanged.
@@ -274,6 +282,16 @@ pub fn answer(cmd: u32, params: &[u8], f: &Facts) -> Option<Answer> {
         FIFO_GET_ENGINE_CONTEXT_PROPERTIES => Some(engine_ctx(params)),
         c if ENTRY_LISTS.iter().any(|l| l.cmd == c) => entry_list(t, c, params),
         GR_GFX_POOL_QUERY_SIZE => Some(gfx_pool_query_size(params)),
+        FIFO_WINDOWS_1111 => Some(ok(
+            params.to_vec(),
+            LABEL_CHIP,
+            format!(
+                "fifo 0x1111 (Windows): acknowledged for objects {:#x}/{:#x}, memory {:#x}",
+                get32(params, 0),
+                get32(params, 4),
+                get32(params, 8)
+            ),
+        )),
         c if GR_GFX_POOL_MANAGE.contains(&c) => Some(ok(
             params.to_vec(),
             LABEL_CHIP,
