@@ -1,0 +1,3 @@
+smi-q ms: 453 311 435 307 252 253 285 246 230 286
+COV smi-q-timed ok 10 x nvidia-smi -q, ms per process: 453 311 435 307 252 253 285 246 230 286
+# rc=0

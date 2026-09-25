@@ -1,0 +1,24 @@
+dma table: 0:7ff5c0000000:c0000000,100000000:7ff6c0000000:40000000
+server pid 3564454, VM pid 3564469; logs in /mnt/vmstore/caraxes/vm2
+cloud-hypervisor:   0.025042s: <vmm> WARN:net_util/src/open_tap.rs:84 -- Tap caraxes2 already exists. IP configuration will not be overwritten.
+cloud-hypervisor:   0.025122s: <vmm> INFO:vmm/src/device_manager.rs:3105 -- Creating virtio-rng device: RngConfig { pci_common: PciDeviceCommonConfig { id: None, iommu: false, pci_segment: 0, pci_device_id: None }, src: "/dev/urandom" }
+cloud-hypervisor:   0.025849s: <vmm> INFO:pci/src/vfio_user.rs:633 -- Enabling IRQ 0 number of fds = 1
+cloud-hypervisor:   6.543957s: <vmm> ERROR:pci/src/vfio_user.rs:383 -- Could not mmap sparse area (offset = 0x0, size = 0x2000000): Input/output error (os error 5)
+cloud-hypervisor:   6.548929s: <vmm> INFO:pci/src/vfio_user.rs:670 -- Disabling IRQ 0
+cloud-hypervisor:   6.549075s: <vmm> INFO:virtio-devices/src/device.rs:485 -- Resuming virtio-block
+cloud-hypervisor:   6.549107s: <vmm> INFO:virtio-devices/src/device.rs:485 -- Resuming virtio-net
+cloud-hypervisor:   6.549138s: <vmm> INFO:virtio-devices/src/device.rs:485 -- Resuming virtio-block
+cloud-hypervisor:   6.549169s: <vmm> INFO:virtio-devices/src/device.rs:485 -- Resuming virtio-rng
+cloud-hypervisor:   6.569957s: <vmm> INFO:vmm/src/lib.rs:2080 -- VM exit event
+cloud-hypervisor:   6.570016s: <vmm> INFO:event_monitor/src/lib.rs:113 -- Event: source = vm event = deleted 
+cloud-hypervisor:   6.570058s: <vmm> INFO:event_monitor/src/lib.rs:113 -- Event: source = vmm event = shutdown 
+cloud-hypervisor:   6.570421s: <main> ERROR:/mnt/vmstore/caraxes/ch-0006/cloud-hypervisor/src/lib.rs:24 -- Fatal error: VmBoot(VmBoot(DeviceManager(VfioUserMapRegion(Other(Os { code: 5, kind: Uncategorized, message: "Input/output error" })))))
+Error: Cloud Hypervisor exited with the following chain of errors:
+  0: Error booting VM
+  1: The VM could not boot
+  2: Error from device manager
+  3: Failed to map region from VFIO user device into guest
+  4: Other OS error
+  5: Input/output error (os error 5)
+ERROR: VM exited
+stopped

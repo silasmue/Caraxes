@@ -1,0 +1,9 @@
+vfio-user-nvgpu: profile on (CARAXES_PROFILE=1): dumps to /home/silas/git/Caraxes/.claude/worktrees/agent-a424410a0fbca29ca/caraxes/runs/coverage-followup-2026-09-25/off/profile/dev.<n>.tsv on SIGUSR2 and /home/silas/git/Caraxes/.claude/worktrees/agent-a424410a0fbca29ca/caraxes/runs/coverage-followup-2026-09-25/off/profile/dev.exit.tsv at exit (src/profile.rs)
+vfio-user-nvgpu: forward cache off (22 static getters; CARAXES_FORWARD_CACHE=0 turns it off)
+vfio-user-nvgpu: profile: dump 1 to /home/silas/git/Caraxes/.claude/worktrees/agent-a424410a0fbca29ca/caraxes/runs/coverage-followup-2026-09-25/off/profile/dev.1.tsv
+vfio-user-nvgpu: profile: dump 2 to /home/silas/git/Caraxes/.claude/worktrees/agent-a424410a0fbca29ca/caraxes/runs/coverage-followup-2026-09-25/off/profile/dev.2.tsv
+vfio-user-nvgpu: profile: dump 3 to /home/silas/git/Caraxes/.claude/worktrees/agent-a424410a0fbca29ca/caraxes/runs/coverage-followup-2026-09-25/off/profile/dev.3.tsv
+vfio-user-nvgpu: profile: dump 4 to /home/silas/git/Caraxes/.claude/worktrees/agent-a424410a0fbca29ca/caraxes/runs/coverage-followup-2026-09-25/off/profile/dev.4.tsv
+vfio-user-nvgpu: profile: dump 5 to /home/silas/git/Caraxes/.claude/worktrees/agent-a424410a0fbca29ca/caraxes/runs/coverage-followup-2026-09-25/off/profile/dev.5.tsv
+vfio-user-nvgpu: profile: dump 6 to /home/silas/git/Caraxes/.claude/worktrees/agent-a424410a0fbca29ca/caraxes/runs/coverage-followup-2026-09-25/off/profile/dev.6.tsv
+vfio-user-nvgpu: profile: exit dump to /home/silas/git/Caraxes/.claude/worktrees/agent-a424410a0fbca29ca/caraxes/runs/coverage-followup-2026-09-25/off/profile/dev.exit.tsv
