@@ -194,5 +194,12 @@ the diff against the 35-register baseline, `trace-saver` archives the full trace
   ETW of the driver start over the guest agent (`ETW-driver-start.md`), the VBIOS content bisect
   (`VBIOS-BISECT.md`: which images or tables are the minimal ingredient, so a synthetic VBIOS can
   carry them and no per-card original is needed).
+- **Registry test (22:36, `regkey-test.sh`)**: `EnableGpuFirmware` and `RMEnableGpuFirmware` = 1 set
+  under `Services\nvlddmkm`, its `Parameters` subkey and the class key `{4d36e968-…}\0007`; the
+  driver restart and the reboot still ended in Code 43. The verdict windows (100 s after the
+  restart, 120 s after the boot) saw no GSP RISC-V or queue access; the boot's later trace showed
+  the 60 s PMU poll and then about 25000 SEC2 port writes (a large ucode load) before the trace
+  was overwritten by the next chain, so whether the keys switch the driver to the GSP-RM path is
+  open and is checked by the night loop (keys stay set in the guest until the loop removes them).
 - Unattended tooling added: `qga.py` (QEMU guest agent: PowerShell as SYSTEM, file transfer),
   `qmp.py` (screenshot, keys, clean power-down), `WIN_GPU_VBIOS`, `WIN_GPU_ROOTPORT`, `WIN_VGA`.
