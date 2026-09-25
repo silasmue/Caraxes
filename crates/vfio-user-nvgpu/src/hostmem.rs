@@ -546,6 +546,9 @@ pub struct HostMemory {
     /// Set when the teardown kept the registrations or the reservation (fail closed):
     /// the reason. The process must then exit non-zero (main.rs).
     fail_closed: Option<String>,
+    /// The host VRAM floor (hostfloor.rs): every host allocation and map outside the
+    /// reservation is admitted here first.
+    guard: crate::hostfloor::HostGuard,
 }
 
 /// One step of the teardown that frees host state the GPU could still reach.
@@ -619,6 +622,30 @@ pub fn run_teardown<O: TeardownOps>(
 
 /// One RM status, for callers that log the number rather than fail.
 pub type Status = u32;
+
+/// Drop every descendant of `handle` from a `live` list (`(parent, handle, what)`): the
+/// RM frees an object's whole subtree. Grandchildren included: before, only the direct
+/// children were dropped, so an engine object under a channel under a freed TSG stayed
+/// listed, and the exit teardown freed a handle the RM no longer had (a free failure that
+/// makes the teardown fail closed).
+pub fn forget_subtree(live: &mut Vec<(u32, u32, &'static str)>, handle: u32) {
+    let mut gone = vec![handle];
+    while let Some(p) = gone.pop() {
+        let mut i = 0;
+        while i < live.len() {
+            if live[i].0 == p {
+                gone.push(live.remove(i).1);
+            } else {
+                i += 1;
+            }
+        }
+    }
+}
+
+/// `NV2080_CTRL_FB_INFO_INDEX_BAR1_SIZE` and `_BAR1_AVAIL_SIZE` (ctrl2080fb.h:323, :351;
+/// KiB), the host's BAR1 for the soak line.
+const FB_INFO_BAR1_SIZE: u32 = 0x05;
+const FB_INFO_BAR1_AVAIL_SIZE: u32 = 0x1D;
 
 /// `NVOS47_FLAGS_DEFER_TLB_INVALIDATION_TRUE` (nvos.h:2192-2194, field 0:0).
 const NVOS47_FLAGS_DEFER_TLB_INVALIDATION_TRUE: u32 = 1;
@@ -718,6 +745,7 @@ impl HostMemory {
             shut: false,
             free_failures: Vec::new(),
             fail_closed: None,
+            guard: crate::hostfloor::HostGuard::from_env(),
         })
     }
 
@@ -754,6 +782,7 @@ impl HostMemory {
         params: &mut [u8],
         what: &'static str,
     ) -> Result<u32, Status> {
+        self.admit_class(class, what)?;
         let h = self.rm.next_handle();
         let mut p = sys::NVOS64_PARAMETERS::default();
         p.hRoot = self.rm.root();
@@ -773,6 +802,7 @@ impl HostMemory {
             return Err(0xFFFF_FFFF);
         }
         if p.status as u32 != sys::NV_OK {
+            self.guard.note_status(what, p.status as u32, Instant::now());
             return Err(p.status as u32);
         }
         self.live.push((parent, h, what));
@@ -793,6 +823,7 @@ impl HostMemory {
         params: &mut [u8],
         what: &'static str,
     ) -> Result<u32, Status> {
+        self.admit_class(class, what)?;
         let h = self.rm.next_handle();
         let mut p = sys::NVOS64_PARAMETERS::default();
         p.hRoot = self.rm.root();
@@ -816,10 +847,85 @@ impl HostMemory {
             Err(_) => return Err(0xFFFF_FFFD),
         }
         if p.status as u32 != sys::NV_OK {
+            self.guard.note_status(what, p.status as u32, Instant::now());
             return Err(p.status as u32);
         }
         self.live.push((parent, h, what));
         Ok(h)
+    }
+
+    /// The floor's admission of an allocation of `class` (hostfloor.rs). Event and
+    /// usermode objects hold no VRAM and pass; everything else (VA spaces with their page
+    /// directories, virtual objects, TSGs, channels with their instance blocks and
+    /// context buffers, engine objects) is checked.
+    fn admit_class(&self, class: u32, what: &str) -> Result<(), Status> {
+        if class == sys::NV01_EVENT_OS_EVENT || class == sys::VOLTA_USERMODE_A {
+            return Ok(());
+        }
+        self.admit(what)
+    }
+
+    /// Admit one host allocation or map outside the reservation (hostfloor.rs): the
+    /// host's free VRAM, cached for a short TTL, against the floor.
+    pub fn admit(&self, what: &str) -> Result<(), Status> {
+        self.guard.admit(what, Instant::now(), || self.heap_free())
+    }
+
+    /// The host's `HEAP_FREE` in bytes (read-only `FB_GET_INFO_V2`), `None` when the
+    /// control fails.
+    pub fn heap_free(&self) -> Option<u64> {
+        self.fb_info(&[v::FB_INFO_HEAP_FREE]).ok().map(|v| v[0] * KIB)
+    }
+
+    /// The floor's counters and its last free size.
+    pub fn guard(&self) -> &crate::hostfloor::HostGuard {
+        &self.guard
+    }
+
+    /// The host's VRAM and BAR1 figures in bytes, read-only (`FB_GET_INFO_V2`): total,
+    /// heap free, BAR1 size, BAR1 available. For the soak line (soak.rs).
+    pub fn host_figures(&self) -> Option<crate::soak::HostFigures> {
+        let i = self
+            .fb_info(&[
+                v::FB_INFO_TOTAL_RAM_SIZE,
+                v::FB_INFO_HEAP_FREE,
+                FB_INFO_BAR1_SIZE,
+                FB_INFO_BAR1_AVAIL_SIZE,
+            ])
+            .ok()?;
+        Some(crate::soak::HostFigures {
+            vram_total: i[0] * KIB,
+            vram_free: i[1] * KIB,
+            bar1_total: i[2] * KIB,
+            bar1_free: i[3] * KIB,
+        })
+    }
+
+    /// What this client holds on the host, for the soak line (soak.rs): the RM objects by
+    /// group, the registered guest RAM, the gathers, the pins and the floor's counters.
+    pub fn soak_held(&self) -> crate::soak::HostHeld {
+        let mut objects = std::collections::BTreeMap::new();
+        for (_, _, what) in &self.live {
+            *objects.entry(crate::soak::group_of(what)).or_insert(0) += 1;
+        }
+        let g = self.guard.stats();
+        crate::soak::HostHeld {
+            objects,
+            descriptors: self.descriptors.len() + self.fillers.len(),
+            pinned_bytes: self.pinned_bytes(),
+            gathers: self.gathers.len(),
+            foll_pin: self.foll_pin_delta(),
+            floor_refused: g.refused(),
+            no_memory: g.rm_no_memory,
+        }
+    }
+
+    /// `nr_foll_pin_acquired - nr_foll_pin_released` now minus the same at open (host-wide
+    /// counters; the other VMs' pins move it too).
+    pub fn foll_pin_delta(&self) -> i64 {
+        let (a, r) = foll_pins();
+        let (a0, r0) = self.pins_at_open;
+        (a as i64 - r as i64) - (a0 as i64 - r0 as i64)
     }
 
     /// Allocate an `NV50_MEMORY_VIRTUAL` reservation of `size` inside `vaspace` and
@@ -973,16 +1079,22 @@ impl HostMemory {
             p.kindOverride = k as u32;
         }
         p.dmaOffset = va;
+        // The map may allocate page tables in host VRAM: the floor first (hostfloor.rs).
+        if let Err(st) = self.admit("shadow map") {
+            return st;
+        }
         // SAFETY: NVOS46 is the escape ABI; plain-data params, no host pointers.
         // The caller (shadow.rs) logs a refusal once per leaf, with VA, PA and reason.
-        match unsafe {
+        let st = match unsafe {
             self.rm
                 .ctl()
                 .ioctl_raw(sys::NV_ESC_RM_MAP_MEMORY_DMA, &mut p)
         } {
             Ok(()) => p.status as u32,
             Err(_) => 0xFFFF_FFFF,
-        }
+        };
+        self.guard.note_status("shadow map", st, Instant::now());
+        st
     }
 
     /// `NV0080_CTRL_CMD_DMA_INVALIDATE_TLB` (ctrl0080dma.h:467-495) on the device for the VA
@@ -1030,8 +1142,8 @@ impl HostMemory {
             return Err(0xFFFF_FFFE);
         };
         let (parent, _, what) = self.live.remove(i);
-        // RM frees the subtree; forget the children this side too.
-        self.live.retain(|(p, _, _)| *p != handle);
+        // RM frees the subtree; forget all of it this side too.
+        forget_subtree(&mut self.live, handle);
         let r = self.rm_free(parent, handle);
         if let Err(st) = r {
             self.free_failures
@@ -1358,16 +1470,11 @@ impl HostMemory {
             smi_free / MIB,
             s / MIB
         ));
-        if s + VRAM_HEADROOM > f {
-            bail!(
-                "refused: reserving {} MiB would leave the host {} MiB of VRAM, below the {} MiB headroom (free {} MiB = min(HEAP_FREE, nvidia-smi); shortfall {} MiB); choose a smaller profile or free host VRAM",
-                s / MIB,
-                f.saturating_sub(s) / MIB,
-                VRAM_HEADROOM / MIB,
-                f / MIB,
-                (s + VRAM_HEADROOM - f).div_ceil(MIB)
-            );
-        }
+        // The floor of the whole device life (hostfloor.rs) or the 1 GiB headroom,
+        // whichever keeps more.
+        self.guard
+            .check_reservation(s, f, VRAM_HEADROOM)
+            .map_err(|e| anyhow::anyhow!(e))?;
         let mut p = sys::NV_MEMORY_ALLOCATION_PARAMS::default();
         p.owner = OWNER_TAG;
         p.type_ = sys::NVOS32_TYPE_IMAGE;
@@ -2220,6 +2327,15 @@ mod teardown_tests {
             client: true,
             ..Fake::default()
         }
+    }
+
+    #[test]
+    fn a_freed_object_takes_its_whole_subtree_off_the_live_list() {
+        // device 1 > TSG 2 > channel 3 > engine 4; device 1 > VAS 5; channel 6 elsewhere.
+        let mut live = vec![(1, 5, "vaspace"), (1, 2, "tsg"), (2, 3, "channel"), (3, 4, "engine-object"), (1, 6, "channel")];
+        forget_subtree(&mut live, 2);
+        // The object itself is removed by the caller (`free_object`).
+        assert_eq!(live, vec![(1, 5, "vaspace"), (1, 2, "tsg"), (1, 6, "channel")]);
     }
 
     #[test]

@@ -99,6 +99,11 @@ pub const DEFAULT_MAP_BUDGET: usize = 32768;
 /// with no mapping and no backing, freed with the VAS).
 pub const REGION_POOL_MAX: usize = 64;
 
+/// Refused per-leaf objects in one region and sync after which the rest of the region's
+/// leaves are left unmapped in that sync (no split storm: before, a refused region object
+/// meant one refused call per leaf, up to 512 per region).
+pub const LEAF_OBJECT_FAILURES_PER_REGION: usize = 4;
+
 /// An emptied region with at least this many runs is freed whole (one `RM_FREE`, the RM
 /// unmaps its mappings itself) instead of one unmap per run.
 pub const BULK_MIN_RUNS: usize = 4;
@@ -464,6 +469,11 @@ pub struct ShadowStats {
     pub map_failed: u64,
     /// Leaves refused because the device's mapping budget was reached.
     pub over_budget: u64,
+    /// Leaves left unmapped because the host was exhausted (a NO_MEMORY answer or the
+    /// host VRAM floor, hostfloor.rs) earlier in the same sync: no call was made for them.
+    pub exhausted: u64,
+    /// Syncs that stopped mapping on an exhausted host.
+    pub exhausted_syncs: u64,
     /// Leaves the D16/D17 filter refused, counted once per leaf.
     pub refused: u64,
     pub region_objects: u64,
@@ -1168,6 +1178,11 @@ impl ShadowVas {
         let live0 = self.runs.len();
         let (mut n_unmap, mut n_map, mut n_leaves, mut n_fail, mut n_budget) =
             (0usize, 0usize, 0usize, 0usize, 0usize);
+        // The host answered NO_MEMORY (or the floor refused) in this sync: nothing more is
+        // allocated or mapped until the next sync; the leaves left are failed, retried when
+        // the guest changes them (the guest's access faults on its own channel meanwhile).
+        let mut exhausted: Option<u32> = None;
+        let mut n_exhausted = 0usize;
         if !self.pool.is_empty() {
             let mut h = hm.lock().unwrap();
             self.purge_pool(&mut *h, exclude);
@@ -1238,16 +1253,24 @@ impl ShadowVas {
                 .filter(|m| !self.mapped.contains_key(&m.va) && self.failed.get(&m.va) != Some(&m.leaf))
                 .copied()
                 .collect();
-            let made = if self.gather_on {
+            let made = if self.gather_on && exhausted.is_none() {
                 self.gather_stretches(&mut *h, &mut todo, &mut notes)
             } else {
                 Vec::new()
             };
+            let mut leaf_object_failures = 0usize;
             for r in coalesce(&todo) {
                 let items = &todo[r];
                 let first = items[0];
                 let rv = first.va & !(REGION - 1);
                 let class = class_of(first.leaf.size);
+                if exhausted.is_some() || leaf_object_failures >= LEAF_OBJECT_FAILURES_PER_REGION {
+                    for m in items {
+                        self.failed.insert(m.va, m.leaf);
+                    }
+                    n_exhausted += items.len();
+                    continue;
+                }
                 if !self.regions.contains_key(&rv) {
                     let touches_b = exclude.iter().any(|(lo, hi)| rv < *hi && rv + REGION > *lo);
                     // A pooled object of this region: taken back when its class fits,
@@ -1285,16 +1308,32 @@ impl ShadowVas {
                             }
                             Err(st) => {
                                 self.stats.regions_refused += 1;
+                                if crate::hostfloor::is_exhaustion(st) {
+                                    exhausted = Some(st);
+                                }
                                 if logged < LOG_PER_SYNC {
                                     logged += 1;
                                     notes.push(format!(
-                                        "shadow: region {rv:#x} ({class:?}) object refused {st:#x}; per-leaf objects there [host]"
+                                        "shadow: region {rv:#x} ({class:?}) object refused {st:#x}; {} [host]",
+                                        if exhausted.is_some() {
+                                            "the host is out of memory: no per-leaf fallback, the rest of this sync is left unmapped"
+                                        } else {
+                                            "per-leaf objects there"
+                                        }
                                     ));
                                 }
                                 None
                             }
                         }
                     };
+                    if exhausted.is_some() {
+                        // Not recorded: the next sync tries the region object again.
+                        for m in items {
+                            self.failed.insert(m.va, m.leaf);
+                        }
+                        n_exhausted += items.len();
+                        continue;
+                    }
                     self.regions.insert(rv, Region { handle, class });
                 }
                 let region = self.regions[&rv].handle;
@@ -1304,6 +1343,13 @@ impl ShadowVas {
                     _ => items.chunks(1).collect(),
                 };
                 for piece in pieces {
+                    if exhausted.is_some() || leaf_object_failures >= LEAF_OBJECT_FAILURES_PER_REGION {
+                        for m in piece {
+                            self.failed.insert(m.va, m.leaf);
+                        }
+                        n_exhausted += piece.len();
+                        continue;
+                    }
                     if self.budget.live() >= self.budget.limit {
                         n_budget += piece.len();
                         self.stats.over_budget += piece.len() as u64;
@@ -1337,6 +1383,10 @@ impl ShadowVas {
                                 Err(st) => {
                                     self.stats.map_failed += 1;
                                     n_fail += 1;
+                                    leaf_object_failures += 1;
+                                    if crate::hostfloor::is_exhaustion(st) {
+                                        exhausted = Some(st);
+                                    }
                                     self.failed.insert(p0.va, p0.leaf);
                                     if logged < LOG_PER_SYNC {
                                         logged += 1;
@@ -1359,6 +1409,25 @@ impl ShadowVas {
                     }
                     if own {
                         self.free_virtual(&mut *h, h_dma);
+                    }
+                    if crate::hostfloor::is_exhaustion(st) {
+                        // Out of memory: no leaf-by-leaf retry of the run (that was up to
+                        // 512 refused calls); the whole run and the rest of the sync fail.
+                        exhausted = Some(st);
+                        self.stats.map_failed += piece.len() as u64;
+                        n_fail += piece.len();
+                        for m in piece {
+                            self.failed.insert(m.va, m.leaf);
+                        }
+                        if logged < LOG_PER_SYNC {
+                            logged += 1;
+                            notes.push(format!(
+                                "shadow: map va {:#x} size {len:#x} ({} leaves) refused {st:#x}: the host is out of memory; no leaf-by-leaf retry [host]",
+                                p0.va,
+                                piece.len()
+                            ));
+                        }
+                        continue;
                     }
                     if piece.len() == 1 {
                         self.stats.map_failed += 1;
@@ -1411,6 +1480,18 @@ impl ShadowVas {
         }
         if self.budget.live() < self.budget.limit {
             self.budget_logged = false;
+        }
+        if let Some(st) = exhausted {
+            self.stats.exhausted += n_exhausted as u64;
+            self.stats.exhausted_syncs += 1;
+            notes.push(format!(
+                "shadow: the host answered {st:#x} (out of memory or below the host VRAM floor): {n_exhausted} leaf/leaves left unmapped in this sync without an RM call; they are retried when the guest changes them [host protection]"
+            ));
+        } else if n_exhausted > 0 {
+            self.stats.exhausted += n_exhausted as u64;
+            notes.push(format!(
+                "shadow: {n_exhausted} leaf/leaves left unmapped after {LEAF_OBJECT_FAILURES_PER_REGION} refused per-leaf objects in their region [host]"
+            ));
         }
         let us_apply = t0.elapsed().as_micros();
         let us = plan.walk_us + us_apply;
@@ -1526,7 +1607,7 @@ impl ShadowVas {
     pub fn summary(&self) -> String {
         let s = &self.stats;
         format!(
-            "{} syncs ({} skipped clean, {} full walks, {} table reads, {} units diffed; max {} us, total {} ms), {} maps ({} leaves), {} unmaps ({} partial, {} failed), {} map-failed, {} over budget, {} refused by the filter, {} region objects ({} freed, {} of them whole with {} mappings, {} refused, {} pooled), {} per-leaf objects, {} gather descriptor(s) for {} leaves ({} refused, {} live); {} leaves in {} RM mappings at the end; {}; TLB invalidation {}{}; {}",
+            "{} syncs ({} skipped clean, {} full walks, {} table reads, {} units diffed; max {} us, total {} ms), {} maps ({} leaves), {} unmaps ({} partial, {} failed), {} map-failed, {} over budget, {} left unmapped on an exhausted host in {} sync(s), {} refused by the filter, {} region objects ({} freed, {} of them whole with {} mappings, {} refused, {} pooled), {} per-leaf objects, {} gather descriptor(s) for {} leaves ({} refused, {} live); {} leaves in {} RM mappings at the end; {}; TLB invalidation {}{}; {}",
             s.syncs,
             s.skipped,
             s.full_walks,
@@ -1541,6 +1622,8 @@ impl ShadowVas {
             s.unmap_failed,
             s.map_failed,
             s.over_budget,
+            s.exhausted,
+            s.exhausted_syncs,
             s.refused,
             s.region_objects,
             s.regions_freed,
@@ -1914,6 +1997,10 @@ mod tests {
         /// The gathers made: handle and pages.
         gathered: BTreeMap<u32, Vec<(u32, u64)>>,
         fail_gather: bool,
+        /// Every virtual-object allocation answers this status.
+        alloc_status: Option<u32>,
+        /// Every map answers this status.
+        map_status: Option<u32>,
     }
 
     impl FakeHost {
@@ -1929,10 +2016,16 @@ mod tests {
         fn alloc_virtual_fixed(&mut self, _vas: u32, va: u64, size: u64, _p: Option<u64>, _f: bool) -> Result<u32, u32> {
             self.next += 1;
             self.seen.borrow_mut().push(Seen { call: Call::ObjectAlloc, va, len: size, defer: false });
+            if let Some(st) = self.alloc_status {
+                return Err(st);
+            }
             Ok(0x100 + self.next)
         }
         fn map_dma_fixed(&self, h_dma: u32, h_mem: u32, _o: u64, len: u64, va: u64, _ps: u32, _s: bool, _k: Option<u8>, defer: bool) -> u32 {
             self.seen.borrow_mut().push(Seen { call: Call::Map, va, len, defer });
+            if let Some(st) = self.map_status {
+                return st;
+            }
             self.live.borrow_mut().insert((h_dma, va), (len, h_mem));
             sys::NV_OK
         }
@@ -2492,5 +2585,74 @@ mod tests {
             assert!(h.gathered.is_empty() && h.live.borrow().is_empty());
             assert_eq!(*h.kinds().last().unwrap(), Call::ObjectFree);
         }
+    }
+    /// Leaves at every other 4 KiB page of region `u` (no two coalesce): `n` of them.
+    fn spread(u: u64, n: u64) -> Vec<(u64, u64, u64, u8)> {
+        (0..n).map(|i| (u + 0x2000 * i, BASE + u + 0x2000 * i, 0x1000, 6)).collect()
+    }
+
+    /// 2026-09-25: no split storm on an exhausted host. A region object refused with
+    /// NO_MEMORY (or by the host VRAM floor, which answers the same) makes no per-leaf
+    /// object and stops the sync: one RM call in all, every leaf failed.
+    #[test]
+    fn a_region_refused_for_memory_makes_no_per_leaf_calls_and_stops_the_sync() {
+        let host = Mutex::new(FakeHost { alloc_status: Some(0x51), ..Default::default() });
+        let mut s = sv(false, false);
+        let mut leaves = spread(0, 64);
+        leaves.extend(spread(REGION, 64));
+        let p = plan_of(&leaves, &[]);
+        let (changed, lines) = s.apply(&host, &p, &[]);
+        assert!(changed);
+        let h = host.lock().unwrap();
+        assert_eq!(h.calls(Call::ObjectAlloc).len(), 1, "{:?}", h.kinds());
+        assert!(h.calls(Call::Map).is_empty());
+        assert_eq!(s.stats.exhausted, 128);
+        assert_eq!(s.stats.exhausted_syncs, 1);
+        assert!(lines.iter().any(|l| l.contains("host protection")), "{lines:?}");
+        // The next sync with the same leaves makes no call either: they are failed until
+        // the guest changes them.
+        drop(h);
+        s.apply(&host, &p, &[]);
+        assert_eq!(host.lock().unwrap().calls(Call::ObjectAlloc).len(), 1);
+    }
+
+    /// A region refused for another reason (a VA collision with the host's own buffers
+    /// answers INSUFFICIENT_RESOURCES) still falls back to per-leaf objects, but gives the
+    /// region up after LEAF_OBJECT_FAILURES_PER_REGION refused ones.
+    #[test]
+    fn per_leaf_objects_stop_after_a_few_refusals_in_a_region() {
+        let host = Mutex::new(FakeHost { alloc_status: Some(0x1A), ..Default::default() });
+        let mut s = sv(false, false);
+        let mut leaves = spread(0, 32);
+        leaves.extend(spread(REGION, 32));
+        let p = plan_of(&leaves, &[]);
+        s.apply(&host, &p, &[]);
+        let h = host.lock().unwrap();
+        // Per region: the region object and LEAF_OBJECT_FAILURES_PER_REGION leaf objects.
+        assert_eq!(
+            h.calls(Call::ObjectAlloc).len(),
+            2 * (1 + LEAF_OBJECT_FAILURES_PER_REGION),
+            "{:?}",
+            h.kinds()
+        );
+        assert_eq!(s.stats.exhausted, 2 * (32 - LEAF_OBJECT_FAILURES_PER_REGION as u64));
+        assert_eq!(s.stats.exhausted_syncs, 0);
+    }
+
+    /// A coalesced map refused with NO_MEMORY is not retried leaf by leaf (it was one call
+    /// per leaf, up to 512 per region), and nothing else is mapped in the sync.
+    #[test]
+    fn a_coalesced_map_refused_for_memory_is_not_retried_leaf_by_leaf() {
+        let host = Mutex::new(FakeHost { map_status: Some(0x51), ..Default::default() });
+        let mut s = sv(false, false);
+        let mut leaves: Vec<_> = (0..16u64).map(|i| (i * 0x1000, BASE + i * 0x1000, 0x1000, 6)).collect();
+        leaves.extend(spread(REGION, 8));
+        let p = plan_of(&leaves, &[]);
+        s.apply(&host, &p, &[]);
+        let h = host.lock().unwrap();
+        assert_eq!(h.calls(Call::Map).len(), 1, "{:?}", h.kinds());
+        assert_eq!(h.calls(Call::ObjectAlloc).len(), 1);
+        assert_eq!(s.stats.map_failed, 16);
+        assert_eq!(s.stats.exhausted, 8);
     }
 }

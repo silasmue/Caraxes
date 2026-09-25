@@ -393,6 +393,8 @@ at one busy host core per poller.
 | `CARAXES_TRACE_ACCESSES` | 1 | 0: no trace line per region access (events still written) |
 | `CARAXES_TRACE_FLUSH` | 1 | 0: flush the trace at events and every 100 ms instead of every line |
 | `CARAXES_MIRROR_DIAG` | 0 | 1: the per-doorbell and first-doorbell USERD diagnostics |
+| `CARAXES_HOST_VRAM_FLOOR_MIB` | 768 | host VRAM the device's host allocations must leave free; 0: off ([host-resources.md](host-resources.md) §1) |
+| `CARAXES_SOAK_SECS` | 60 | interval of the device's soak line; 0: only at exit ([host-resources.md](host-resources.md) §4) |
 
 ## 8. Open
 

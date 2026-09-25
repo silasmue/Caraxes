@@ -274,9 +274,14 @@ impl WindowSource for crate::hostmem::ReservationMapper {
 pub struct VramStats {
     pub maps: u64,
     pub map_failures: u64,
-    /// Retries of an access for which the host granted no window at all (stalled, never
-    /// dropped).
+    /// Retries of an access for which the host granted no window at all (a bounded
+    /// stall, at most [`STALL_TRIES`] per access).
     pub stalls: u64,
+    /// Accesses that failed closed after the bounded stall, or inside the cool-down after
+    /// one (reads return all-ones, writes are dropped; no RM call in the cool-down).
+    pub failed: u64,
+    /// Windows held now.
+    pub held: u64,
     pub evictions: u64,
     pub reads: u64,
     pub writes: u64,
@@ -304,8 +309,12 @@ pub struct VramStore {
     tick: Cell<u64>,
     max_windows: usize,
     window_len: Cell<usize>,
-    /// Tests only: give up after this many stalls (0: never).
+    /// Stalls per access before it fails closed ([`STALL_TRIES`]; tests lower it).
     stall_limit: Cell<u64>,
+    /// No window map is tried before this instant (set when an access failed closed).
+    cooldown_until: Cell<Option<std::time::Instant>>,
+    /// When the last failure line was written.
+    last_line: Cell<Option<std::time::Instant>>,
     outside: RefCell<HostRamStore>,
     stats: RefCell<VramStats>,
 }
@@ -319,6 +328,13 @@ pub struct VramStore {
 pub const VRAM_WINDOW: usize = 32 << 20;
 /// Windows held at once by default.
 pub const VRAM_WINDOWS: usize = 2;
+/// Stalls (1 ms apart, one window map each) of an access for which the host grants no
+/// window at all, before the access fails closed.
+pub const STALL_TRIES: u64 = 3;
+/// After an access failed closed, no window map is tried for this long: a host whose
+/// BAR1 is exhausted sees at most one refused map per cool-down from this device, not
+/// one per millisecond (2026-09-25: `dmaAllocMapping_GM107: can't alloc VA space` bursts).
+pub const WINDOW_COOLDOWN: std::time::Duration = std::time::Duration::from_secs(1);
 
 /// The per-device BAR1 budget: (window bytes, windows), from the environment.
 pub fn bar1_budget() -> (usize, usize) {
@@ -433,14 +449,18 @@ impl VramStore {
             tick: Cell::new(0),
             max_windows,
             window_len: Cell::new(window_len),
-            stall_limit: Cell::new(0),
+            stall_limit: Cell::new(STALL_TRIES),
+            cooldown_until: Cell::new(None),
+            last_line: Cell::new(None),
             outside: RefCell::new(HostRamStore::default()),
             stats: RefCell::new(VramStats::default()),
         }
     }
 
     pub fn stats(&self) -> VramStats {
-        self.stats.borrow().clone()
+        let mut s = self.stats.borrow().clone();
+        s.held = self.windows.borrow().len() as u64;
+        s
     }
 
     pub fn windows_held(&self) -> Vec<(u64, usize)> {
@@ -452,7 +472,9 @@ impl VramStore {
     }
 
     /// The window holding reservation offset `off`, mapped if need be (LRU eviction);
-    /// its index in `windows`. `None` when the host refused every window size.
+    /// its index in `windows`. `None` when the host refused every window size for
+    /// [`STALL_TRIES`] stalls, or inside the cool-down after such a refusal: the access
+    /// fails closed.
     fn window_for(&self, off: u64) -> Option<usize> {
         let tick = self.tick.get() + 1;
         self.tick.set(tick);
@@ -466,7 +488,16 @@ impl VramStore {
                 return Some(i);
             }
         }
+        // Inside the cool-down of an earlier failure: fail at once, no RM call.
+        if let Some(until) = self.cooldown_until.get() {
+            if std::time::Instant::now() < until {
+                self.stats.borrow_mut().failed += 1;
+                return None;
+            }
+            self.cooldown_until.set(None);
+        }
         // Not mapped: try the current window size, halving on refusal down to 2 MiB.
+        let mut stalled = 0u64;
         loop {
             let wlen = self.window_len.get();
             let start = off & !(wlen as u64 - 1);
@@ -519,23 +550,37 @@ impl VramStore {
                     }
                     drop(ws);
                     if wlen <= 2 << 20 {
-                        // No window at all, not even 2 MiB: stall the access and retry,
-                        // never drop a guest write or invent a read (before P20 this
-                        // path zero-filled reads and dropped writes silently).
+                        // No window at all, not even 2 MiB: stall the access a few times
+                        // (another device may give its window back), then fail closed and
+                        // cool down: the host is not asked again for WINDOW_COOLDOWN, so an
+                        // exhausted BAR1 never sees a retry storm from this device
+                        // (docs/caraxes/host-resources.md). A failed read returns
+                        // all-ones (the device-gone pattern the guest driver checks for),
+                        // a failed write is dropped; both are counted and logged.
+                        if stalled < self.stall_limit.get() {
+                            stalled += 1;
+                            self.stats.borrow_mut().stalls += 1;
+                            std::thread::sleep(std::time::Duration::from_millis(1));
+                            continue;
+                        }
+                        let now = std::time::Instant::now();
+                        self.cooldown_until.set(Some(now + WINDOW_COOLDOWN));
                         let mut st = self.stats.borrow_mut();
-                        st.stalls += 1;
-                        let n = st.stalls;
+                        st.failed += 1;
+                        let (n, refused) = (st.failed, st.map_failures);
                         drop(st);
-                        if n == 1 || n % 1000 == 0 {
+                        if self
+                            .last_line
+                            .get()
+                            .is_none_or(|t| now.saturating_duration_since(t) >= std::time::Duration::from_secs(10))
+                        {
+                            self.last_line.set(Some(now));
                             eprintln!(
-                                "vfio-user-nvgpu: ERROR: fb: no BAR1 window of the reservation can be mapped (offset {off:#x}); stalling the access and retrying ({n} stall(s) so far)"
+                                "vfio-user-nvgpu: ERROR: fb: no BAR1 window of the reservation can be mapped (offset {off:#x}, {refused} refused map(s)); the access fails closed (reads all-ones, writes dropped; {n} failed access(es) so far) and no map is tried for {} ms [host protection]",
+                                WINDOW_COOLDOWN.as_millis()
                             );
                         }
-                        if self.stall_limit.get() != 0 && n >= self.stall_limit.get() {
-                            return None;
-                        }
-                        std::thread::sleep(std::time::Duration::from_millis(1));
-                        continue;
+                        return None;
                     }
                     self.window_len.set(wlen / 2);
                 }
@@ -597,7 +642,7 @@ impl FbStore for VramStore {
                 .win
                 .read(a - self.base, &mut buf[done..done + n]),
             Piece::Outside => self.outside.borrow().read(a, &mut buf[done..done + n]),
-            Piece::Unmapped => buf[done..done + n].fill(0),
+            Piece::Unmapped => buf[done..done + n].fill(0xFF),
         });
     }
 
@@ -813,6 +858,11 @@ impl FakeFb {
             .borrow()
             .get(&Self::watch_key(root))
             .is_none_or(|c| c.is_dirty())
+    }
+
+    /// Cached walks held (one per watched guest root), for the soak line.
+    pub fn walk_caches(&self) -> usize {
+        self.walks.borrow().len()
     }
 
     /// Stop watching `root` (drops its cached walk).
@@ -2432,7 +2482,7 @@ mod tests {
     }
 
     #[test]
-    fn a_refused_window_evicts_our_own_and_never_drops_a_write() {
+    fn a_refused_window_evicts_our_own_then_fails_closed_and_cools_down() {
         use std::sync::atomic::Ordering::SeqCst;
         let (base, end) = (0xE900_0000u64, 0x1_6900_0000u64);
         let live = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
@@ -2457,16 +2507,22 @@ mod tests {
         assert_eq!(s.windows_held()[0].1, 32 << 20);
         assert!(live.load(SeqCst) <= 1);
         assert_eq!(s.stats().stalls, 0);
-        // No room at all: the access stalls (bounded here by the test limit) and is
-        // reported, instead of silently succeeding.
+        // No room at all: the access stalls STALL_TRIES times, then fails closed (read:
+        // all-ones), and within the cool-down no map reaches the host.
         let src = TightBar1 {
             live: std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0)),
             room: 0,
             pages,
         };
         let mut s = VramStore::with_budget(Box::new(src), base, end, 2 << 20, 2);
-        s.stall_limit.set(3);
         s.write(base, &[1]);
-        assert_eq!(s.stats().stalls, 3);
+        let st = s.stats();
+        assert_eq!((st.stalls, st.failed, st.map_failures), (STALL_TRIES, 1, STALL_TRIES + 1));
+        for _ in 0..100 {
+            s.read(base + 0x1000, &mut b);
+            assert_eq!(b[0], 0xFF);
+        }
+        let st = s.stats();
+        assert_eq!((st.failed, st.map_failures), (101, STALL_TRIES + 1), "no map in the cool-down");
     }
 }

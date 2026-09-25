@@ -790,6 +790,23 @@ impl Device {
         &self.bar0
     }
 
+    /// The device model's side of the soak line (soak.rs): the mirror's maps, the FB
+    /// store's windows and the cached walks.
+    pub fn soak_counts(&self) -> crate::soak::DeviceCounts {
+        let mut c = crate::soak::DeviceCounts::default();
+        if let Some(b) = self.bar0.boot() {
+            if let Some(m) = &b.ctrl.mirror {
+                (c.shadow_vas, c.ce_vas, c.tsgs, c.channels) = m.soak_counts();
+            }
+            if let Some(st) = b.fb.vram_stats() {
+                c.vram_windows = st.held;
+                c.vram_failed = st.failed;
+            }
+            c.walk_caches = b.fb.walk_caches();
+        }
+        c
+    }
+
     /// The register map's name of a BAR0 offset, for the profile's rows (profile.rs).
     pub fn register_name(&self, region: u32, offset: u64) -> Option<&'static str> {
         (region == VFIO_PCI_BAR0_REGION_INDEX)

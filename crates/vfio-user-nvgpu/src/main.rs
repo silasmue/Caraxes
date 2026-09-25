@@ -315,6 +315,82 @@ fn config_space(a: &Args) -> Result<ConfigSpace> {
     pci_config::for_board_with_ids(&dump, ids.as_deref(), &a.board_data)
 }
 
+/// One soak line (soak.rs) from the host memory client and, when given, the device's counts.
+fn host_soak_line(
+    label: &str,
+    h: &HostMemory,
+    dev: Option<&vfio_user_nvgpu::soak::DeviceCounts>,
+) -> String {
+    vfio_user_nvgpu::soak::line(
+        label,
+        vfio_user_nvgpu::soak::rss_kib(),
+        h.host_figures(),
+        Some(&h.soak_held()),
+        dev,
+    )
+}
+
+/// The soak line from the device's counts (taken first, the device lock released) and the
+/// host memory client, if the device has one.
+fn soak_line(
+    label: &str,
+    counts: vfio_user_nvgpu::soak::DeviceCounts,
+    hm: Option<&Arc<Mutex<HostMemory>>>,
+) -> String {
+    match hm {
+        Some(hm) => {
+            let h = hm.lock().unwrap_or_else(PoisonError::into_inner);
+            host_soak_line(label, &h, Some(&counts))
+        }
+        None => vfio_user_nvgpu::soak::line(
+            label,
+            vfio_user_nvgpu::soak::rss_kib(),
+            None,
+            None,
+            Some(&counts),
+        ),
+    }
+}
+
+/// The periodic soak line while the guest runs (`CARAXES_SOAK_SECS`, default 60 s; the
+/// leak watch, docs/caraxes/host-resources.md).
+fn spawn_soak_thread(
+    device: Arc<Mutex<Device>>,
+    hm: Option<Arc<Mutex<HostMemory>>>,
+    stop: Arc<std::sync::atomic::AtomicBool>,
+) -> Option<std::thread::JoinHandle<()>> {
+    let every = vfio_user_nvgpu::soak::interval()?;
+    eprintln!(
+        "vfio-user-nvgpu: soak line every {} s ({}; 0 turns it off), once at exit; {}",
+        every.as_secs(),
+        vfio_user_nvgpu::soak::ENV,
+        hm.as_ref().map_or("no host memory client".to_string(), |h| h
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .guard()
+            .line())
+    );
+    std::thread::Builder::new()
+        .name("soak".into())
+        .spawn(move || {
+            let mut next = std::time::Instant::now() + every;
+            while !stop.load(std::sync::atomic::Ordering::Relaxed) {
+                std::thread::sleep(std::time::Duration::from_millis(250));
+                if std::time::Instant::now() < next {
+                    continue;
+                }
+                next += every;
+                let counts = device
+                    .lock()
+                    .unwrap_or_else(PoisonError::into_inner)
+                    .soak_counts();
+                let label = format!("{}s", every.as_secs());
+                eprintln!("vfio-user-nvgpu: {}", soak_line(&label, counts, hm.as_ref()));
+            }
+        })
+        .ok()
+}
+
 /// Free the host memory on SIGTERM, SIGINT or SIGHUP, then exit. The signals are
 /// blocked in every other thread (the mask is set before any thread starts), so this
 /// thread alone receives them.
@@ -342,7 +418,10 @@ fn spawn_signal_thread(hm: Arc<Mutex<HostMemory>>) -> Result<()> {
             profile::dump_at_exit();
             // A DMA_MAP registration in progress holds the lock; wait for it.
             let (log, closed) = match hm.lock() {
-                Ok(mut h) => (h.shutdown(), h.fail_closed().map(str::to_owned)),
+                Ok(mut h) => {
+                    eprintln!("vfio-user-nvgpu: {}", host_soak_line("exit (signal)", &h, None));
+                    (h.shutdown(), h.fail_closed().map(str::to_owned))
+                }
                 Err(p) => {
                     let mut h = p.into_inner();
                     (h.shutdown(), h.fail_closed().map(str::to_owned))
@@ -1019,10 +1098,22 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
             poll.pin
         );
     }
+    let soak_stop = Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let soak = spawn_soak_thread(device.clone(), host_mem.clone(), soak_stop.clone());
     let result = server
         .run(&mut SharedDevice(device.clone()))
         .map_err(|e| anyhow::anyhow!("vfio-user server: {e}"));
+    soak_stop.store(true, std::sync::atomic::Ordering::Relaxed);
+    if let Some(t) = soak {
+        let _ = t.join();
+    }
     let mut device = device.lock().unwrap_or_else(PoisonError::into_inner);
+    // The soak line at exit, before the teardown (what the guest's session left held), and
+    // after it (what survived the teardown: every host object count should be 0).
+    eprintln!(
+        "vfio-user-nvgpu: {}",
+        soak_line("exit", device.soak_counts(), host_mem.as_ref())
+    );
     // The client is gone: free the descriptors and the reservation before exiting.
     device.shutdown();
     profile::dump_at_exit();
@@ -1038,6 +1129,13 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
         log.iter()
             .for_each(|l| eprintln!("vfio-user-nvgpu: hostmem: {l}"));
         closed = c;
+        let h = hm.lock().unwrap_or_else(PoisonError::into_inner);
+        let held = h.soak_held();
+        eprintln!(
+            "vfio-user-nvgpu: {}; {}",
+            vfio_user_nvgpu::soak::line("after teardown", vfio_user_nvgpu::soak::rss_kib(), None, Some(&held), None),
+            h.guard().line()
+        );
     }
     eprint!("{}", device.summary());
     for (name, st) in &readers {

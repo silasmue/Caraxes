@@ -440,6 +440,15 @@ TSG state), the transport lifecycle, and an answer page for a stock driver (no r
 1.5 ms per CUDA process). Item 6 above ("the reactor reads the head from the command queue in
 guest memory") does not hold for 615: the head is a register there.
 
+### Host resources (2026-09-25)
+
+Left open by [host-resources.md](host-resources.md) (§6 there):
+- RC the guest channel for every refused shadow build, not only for memory refusals.
+- A guest-visible error instead of all-ones reads when the VRAM store has no BAR1 window.
+- Free a TSG made for a channel whose build failed, before the guest frees it.
+- A per-device budget of host VRAM outside the reservation (the floor is host-wide).
+- Attribute the 270 MiB creep of the 2026-09-25 game session with a soak run.
+
 ## 5. ReBAR
 
 The operator's framing: on Turing, BAR1 is capped at 256 MiB, so the pool multiplexes it; on a
