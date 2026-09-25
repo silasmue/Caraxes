@@ -404,6 +404,60 @@ impl Registry {
         self.tsgs.get(&key).copied()
     }
 
+    /// The guest roots (in FB) of the VA spaces the guest's TSGs run on: a TSG's named VAS
+    /// (through DUP aliases), for a TSG that names none the client's only rooted VAS (the
+    /// fallback of [`Self::vas_key_of`]), and the VAS of every context share of a client
+    /// that holds a TSG. The mirror builds a shadow of such a root ahead of
+    /// its first channel (mirror.rs `prefetch`).
+    pub fn tsg_roots(&self) -> std::collections::BTreeSet<u64> {
+        self.tsg_roots_except((0, 0))
+    }
+
+    /// [`Self::tsg_roots`] without guest object `gone` (a TSG being freed, or with
+    /// `gone.0 == gone.1` a whole client).
+    pub fn tsg_roots_except(&self, gone: (u32, u32)) -> std::collections::BTreeSet<u64> {
+        let mut out = std::collections::BTreeSet::new();
+        for (&(c, t), &(hvas, _)) in &self.tsgs {
+            if (c, t) == gone || (gone.0 == gone.1 && c == gone.0) {
+                continue;
+            }
+            let key = if hvas != 0 {
+                Some(self.resolve((c, hvas)))
+            } else {
+                let mut roots = self
+                    .vaspaces
+                    .iter()
+                    .filter(|((cc, _), r)| *cc == c && r.is_some());
+                match (roots.next(), roots.next()) {
+                    (Some((k, _)), None) => Some(*k),
+                    _ => None,
+                }
+            };
+            if key.is_some_and(|k| k == gone) {
+                continue;
+            }
+            if let Some(Some(Target::Fb(pa))) = key.and_then(|k| self.vaspaces.get(&k).copied()) {
+                out.insert(pa);
+            }
+        }
+        // The context shares of a client that holds a TSG: CUDA's TSGs name no VAS, its GR
+        // channels name theirs through the context share allocated right after the TSG.
+        for (&(c, _), &hvas) in &self.ctxshares {
+            let tsg_alive = self
+                .tsgs
+                .keys()
+                .any(|&(tc, th)| tc == c && (tc, th) != gone && !(gone.0 == gone.1 && tc == gone.0));
+            let key = self.resolve((c, hvas));
+            if !tsg_alive || key == gone {
+                continue;
+            }
+            if let Some(Some(Target::Fb(pa))) = self.vaspaces.get(&key).copied() {
+                out.insert(pa);
+            }
+        }
+        out
+    }
+
     /// The channel's VAS key as the registry resolves it (through DUP aliases), with
     /// the default-VAS fallback of the software executor.
     pub fn vas_key_of(&self, ch: &Channel) -> Option<(u32, u32)> {
@@ -1736,6 +1790,48 @@ mod tests {
             &0x0Du32.to_le_bytes(),
         );
         b
+    }
+
+    /// The roots the mirror may prefetch (mirror.rs `prefetch`): the VAS a TSG names, or
+    /// the client's only rooted VAS for a TSG that names none; never once the TSG, or its
+    /// client, is being freed.
+    #[test]
+    fn tsg_roots_name_the_vas_a_tsg_runs_on() {
+        let mut reg = Registry::new(classes());
+        let root = |reg: &mut Registry, h_client: u32, h_vas: u32, pa: u64| {
+            reg.record_alloc(h_client, 0x10, h_vas, FERMI_VASPACE_A, &[]);
+            let mut pdes = vec![0u8; 40 + 24 * 6];
+            pdes[40..48].copy_from_slice(&pa.to_le_bytes());
+            pdes[56..60].copy_from_slice(&1u32.to_le_bytes());
+            reg.record_server_reserved_pdes(h_client, h_vas, &pdes);
+        };
+        root(&mut reg, 1, 0x20, 0x10000);
+        assert!(reg.tsg_roots().is_empty(), "a VAS without a TSG");
+        // A context share alone names nothing until its client holds a TSG.
+        let mut cs = vec![0u8; 16];
+        cs[..4].copy_from_slice(&0x20u32.to_le_bytes());
+        reg.record_alloc(1, 0x30, 0x35, FERMI_CONTEXT_SHARE_A, &cs);
+        // A TSG naming no VAS: the client's only rooted VAS.
+        reg.record_alloc(1, 0x10, 0x30, KEPLER_CHANNEL_GROUP_A, &[0u8; 20]);
+        assert_eq!(reg.tsg_roots().into_iter().collect::<Vec<_>>(), vec![0x10000]);
+        assert!(reg.tsg_roots_except((1, 0x30)).is_empty(), "the TSG being freed, and with it the context share's");
+        assert!(reg.tsg_roots_except((1, 1)).is_empty(), "the client being freed");
+        // A second rooted VAS of the client: a TSG naming none is ambiguous, but the context
+        // share still names the first; a TSG naming its VAS resolves.
+        root(&mut reg, 1, 0x21, 0x20000);
+        assert_eq!(reg.tsg_roots().into_iter().collect::<Vec<_>>(), vec![0x10000]);
+        reg.record_free(1, 0x35);
+        assert!(reg.tsg_roots().is_empty(), "the context share freed");
+        let mut tsg = vec![0u8; 20];
+        tsg[8..12].copy_from_slice(&0x21u32.to_le_bytes());
+        reg.record_alloc(1, 0x10, 0x31, KEPLER_CHANNEL_GROUP_A, &tsg);
+        assert_eq!(reg.tsg_roots().into_iter().collect::<Vec<_>>(), vec![0x20000]);
+        assert!(reg.tsg_roots_except((1, 0x21)).is_empty(), "the VAS being freed");
+        // Another client's TSG and VAS.
+        root(&mut reg, 2, 0x20, 0x30000);
+        reg.record_alloc(2, 0x10, 0x30, KEPLER_CHANNEL_GROUP_A, &[0u8; 20]);
+        assert_eq!(reg.tsg_roots().into_iter().collect::<Vec<_>>(), vec![0x20000, 0x30000]);
+        assert_eq!(reg.tsg_roots_except((2, 2)).into_iter().collect::<Vec<_>>(), vec![0x20000]);
     }
 
     #[test]
