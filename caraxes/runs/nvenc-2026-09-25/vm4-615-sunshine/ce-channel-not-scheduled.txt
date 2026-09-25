@@ -1,0 +1,8 @@
+   511129783 E boot: alloc: alloc 0xc46f object 0x8000004b under 0x80000000: channel 0x8000004b chid 47 engineType 0xb gpfifo va 0x120130000 x 4096 userd Some(Fb(5179179008)) vaspace None errorNotifier Some(Sys(140726451142656)) internal TSG 39 [guest] -> status 0x0 [guest (recorded for the channel emulation; no host object)]
+   511129785 E boot: chid 47: USERD Fb(5179179008) cleared (512 bytes, as GSP-RM does at channel creation): true [synthesized]
+   511137508 E boot: ctrl 0xa06f0104: channel bind 0x8000004b: engineType 0xb (chid 47) -> status 0x0 [guest (recorded; the host mirror binds with its engine object)]
+   511213068 E boot: shadow: GR chid 47 on the host-managed shadow VAS of guest root 0x1e5250000
+   511213083 E boot: doorbell tokens: chid 47: work-submit-token entry at Sys(140726451142680) holds Some(0), not the rung token 0x1002f; it keeps its own token (trapped)
+   697687635 E boot: alloc: alloc 0xc46f object 0xbeef0101 under 0xbeef0003: channel 0xbeef0101 chid 47 engineType 0xb gpfifo va 0x4100000 x 32768 userd Some(Fb(6236863488)) vaspace Some((3251634330, 3203334912)) errorNotifier Some(Sys(140726456451152)) internal TSG 56 [guest] -> status 0x0 [guest (recorded for the channel emulation; no host object)]
+   697687637 E boot: chid 47: USERD Fb(6236863488) cleared (512 bytes, as GSP-RM does at channel creation): true [synthesized]
+   697689098 E boot: ctrl 0xa06f0104: channel bind 0xbeef0101: engineType 0xb (chid 47) -> status 0x0 [guest (recorded; the host mirror binds with its engine object)]

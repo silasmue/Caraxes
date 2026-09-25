@@ -1,0 +1,5 @@
+Sep 25 16:49:27 manacor kernel: NVRM: GPU at PCI:0000:2d:00: GPU-41f54c36-8418-25f3-8ab0-801d98eddb4d
+Sep 25 16:49:27 manacor kernel: NVRM: Xid (PCI:0000:2d:00): 31, pid=1531682, name=vfio-user-nvgpu, intr 00000000. MMU Fault: ENGINE CE0 HUBCLIENT_HSCE0 faulted @ 0x1_21400000. Fault is of type FAULT_PDE ACCESS_TYPE_VIRT_READ
+Sep 25 16:49:27 manacor kernel: NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Requested object not found [NV_ERR_OBJECT_NOT_FOUND] (0x00000057) returned from krcErrorWriteNotifier_HAL(pGpu, pKernelRc, pKernelChannel, exceptType, localRmEngineType, 0xffff , &flushFlags) @ kernel_rc_notification.c:331
+Sep 25 16:49:27 manacor kernel: NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Requested object not found [NV_ERR_OBJECT_NOT_FOUND] (0x00000057) returned from krcErrorSetNotifier(pGpu, pKernelRc, pKernelChannel, rpc_params->exceptType, rmEngineType, rpc_params->scope) @ kernel_gsp.c:826
+Sep 25 16:49:27 manacor kernel: NVRM: GPU0 _kgspProcessRpcEvent: Failed to process received event 0x1004 (RC_TRIGGERED) from GPU0: status=0x57
