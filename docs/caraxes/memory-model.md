@@ -327,3 +327,290 @@ kinds by reporting no compression. With `supportCompressed = 0` the memmgr picks
 `GENERIC_MEMORY` 0x06 / `PITCH` 0x00 with `COMPTAGLINE` 0. Verifying a fresh vidmem PTE
 through BAR1 (kind 0x06/0x00, COMPTAGLINE 0) is the gate before any mirrored CE/GR
 execution is re-enabled (execution.md §7, the safety hold).
+
+## 7. Fewer host RM calls for the shadow (2026-09-25, backlog item 2)
+
+This is item 2 of [optimization-backlog.md](optimization-backlog.md). With the BAR2 memfd, a
+context creation is bound by the shadow worker's host RM calls, not by traps.
+- Code: `shadow.rs` and `hostmem.rs`, commits 4fec5bd, f0edbb8 and ac950e9.
+- Records: `caraxes/runs/opt-shadow-maps-2026-09-25/` (README there).
+- RM sources cited: the open kernel modules 615.71.09, the host's driver.
+
+Result on vm0 (1 GiB, 610 guest, BAR2 memfd, no BAR1 pool, census probe):
+
+| | before | after (gather-2) |
+|---|---|---|
+| cuCtxCreate, guest median | 815 ms | 309 ms |
+| host RM calls per cuCtxCreate | 13171 | 228 |
+| shadow apply per cuCtxCreate | 770 ms | 67 ms |
+| cuCtxDestroy, guest median | 170 ms | 107 ms |
+| host RM calls per cuCtxDestroy | 1145 | 79 |
+
+Native is 146 ms and 86 ms. What the guest sees and what the GPU may reach are unchanged. §7.4
+gives the argument.
+
+### 7.1 Where the calls came from
+
+The census's `on-nopool` run and the `before` run of this series behave the same way. Five
+context creations in a row alternate between three cases (`before/calls.md`, "Every context
+window"):
+
+| case | window | shadow apply | RM calls | what happens |
+|---|---|---|---|---|
+| contiguous (rep 1) | 479 ms | 33 ms | 749 | the context's 15617 leaves coalesce into 244 runs |
+| scattered (reps 2, 4) | 808-815 ms | 499-509 ms | 16946-17210 | the same leaves take about 15360 map calls. The guest's sysmem pages come back from its page pool one by one, in no order (mapping.md §2) |
+| queued (reps 3, 5) | 1409-1649 ms | 1372-1436 ms | 15396-15552 | the first plan waits behind the previous destroy's plan in the worker's queue. That plan unmaps the 14337 scattered leaves one mapping at a time |
+
+The census's "about 6000 map calls and 761 ms per context" is the mean of these cases. Per call,
+measured over the whole census, a map costs 29 us and an unmap 81 us (`before/census-rpc-cost.md`,
+histogram). The cost is the number of calls, and it comes from the scattered sysmem pages.
+
+### 7.2 What one host call covers, and its limits
+
+| Call | Covers | Limit |
+|---|---|---|
+| `RM_MAP_MEMORY_DMA` (NVOS46, `NV_ESC_RM_MAP_MEMORY_DMA`; hostmem.rs:940 `map_dma_fixed`) | one range `[offset, offset + length)` of one memory object, at one fixed VA | See the list below |
+| `RM_UNMAP_MEMORY_DMA` (NVOS47; hostmem.rs:912 `unmap_dma`) | one mapping, or a piece of one (the RM splits it, `virtmemUnmapFrom_IMPL`, virtual_mem.c:1636) | one mapping per call |
+| `NV50_MEMORY_VIRTUAL` alloc and `RM_FREE` | one region object; a free also unmaps every mapping made into the object (the resource server's auto-unmap, `_clientUnmapInterBackRefMappings`, rs_client.c:1347-1400) | the free's cost grows with the mappings it takes along |
+| `NV01_MEMORY_SYSTEM_OS_DESCRIPTOR` alloc (`NV_ESC_RM_ALLOC_MEMORY`; hostmem.rs `os_descriptor`) | the pages of one user VA range, pinned by their page array (`os_lock_user_pages`, os-mlock.c:216) | pages that are mapped in the calling process |
+| `NV0080_CTRL_CMD_DMA_INVALIDATE_TLB` (ctrl0080dma.h:467-495; hostmem.rs:996 `invalidate_vas`) | the TLB of one whole VA space | NON_PRIVILEGED (g_device_nvoc.c:1144) |
+
+A map call's limits:
+- one memory handle: the reservation, or one registered guest-RAM descriptor;
+- contiguous in VA and in that object's offsets;
+- one page size, one kind override, one snoop setting;
+- inside the one virtual object it names (dma.c:158-159, `NV_ERR_INVALID_OFFSET` outside);
+- no page list.
+
+No call takes a page list. Contiguous leaves were therefore already coalesced (`coalesce`,
+shadow.rs:413; mapping.md §2), and scattered guest pages could not be: a call covers a range
+of one memory object's offsets. The way around this is a memory object whose offsets are the
+scattered pages in VA order.
+
+### 7.3 What changed
+
+**Gather descriptors** (`CARAXES_SHADOW_GATHER`, default on; 0 turns them off).
+- **When** (`gather_stretches`, shadow.rs:1094, called at shadow.rs:1233). A plan's new leaves
+  in one 2 MiB unit (sorted by VA) are scanned for maximal stretches of 4 KiB sysmem leaves with
+  one kind and one snoop setting, contiguous in VA. A stretch is gathered when both hold:
+  - it has at least 16 leaves (`GATHER_MIN_LEAVES`);
+  - coalescing would still split it into at least 8 runs (`GATHER_MIN_RUNS`).
+- **How** (`HostMemory::gather`, hostmem.rs:1473).
+  1. Every page must be a page of a registered guest-RAM descriptor, named by the handle and
+     offset the filter resolved. Anything else is refused before any system call.
+  2. The pages are placed back to back in a fresh VA window of the device with `mremap(old_size
+     0)`. That call makes a second mapping of the device's own `MAP_SHARED` mapping of guest RAM
+     (guestmem.rs `map`), and consecutive pages go in one call.
+  3. One OS descriptor is made over the window. The RM pins the pages by page array and maps
+     them for the GPU, as for a registered chunk.
+  4. The window is unmapped again. The RM holds the pages by their page array, not by the VA
+     (`os_unlock_user_pages`, os-mlock.c:311, needs only the array), so no mapping piles up.
+- The stretch's leaves are rewritten to the gather at offsets 0, 4 KiB, and so on. The existing
+  coalescing then maps them with one call. The leaves keep the guest's addresses as their
+  identity for the diff.
+- **Lifetime.** A gather counts the runs mapped from it (`run_gone`, shadow.rs:1063). It is
+  freed (`free_idle_gathers`, shadow.rs:1074) after its last mapping is gone:
+  - by an unmap (a split keeps it);
+  - with its region object (`free_region_whole`);
+  - by the teardown.
+
+  Gathers the shadow still holds at device shutdown are freed after the mirror objects and
+  before the guest-RAM descriptors (hostmem.rs `free_mirrors`, the "leftover gather" line). By
+  then the worker has already finished every teardown (`wait_idle`, mirror.rs:2326).
+- **If the host refuses a gather** (`gather of N leaves ... refused` on the sync line), the
+  stretch maps run by run from the registered descriptor, as before. If a map from a gather is
+  refused, the leaves map one by one from it. A gather no map used is freed again.
+- **Cost.** About 2.8 ms per gather over the whole census (135 gathers, 377 ms): pinning and
+  IOMMU mapping of the pages, plus one system call per run of consecutive pages. A context
+  creation takes about 17 gathers and 45 ms (`gather-2/calls.md`).
+
+**Whole-region frees** (`CARAXES_SHADOW_BULK_FREE`, default on; 0 unmaps run by run).
+- When the guest empties a 2 MiB region that holds at least 4 runs (`BULK_MIN_RUNS`), one
+  `RM_FREE` of the region object replaces one unmap per run (`free_region_whole`,
+  shadow.rs:887; the branch at shadow.rs:1194). The RM unmaps the object's mappings itself
+  inside the free.
+- The teardown frees whole regions too, about 64 mappings per step (`teardown_step`,
+  shadow.rs:1578).
+- Measured without gathers (`final`), this took 5737 unmap calls per context creation to 0. It
+  bought only 20 % of their time, though: the RM's own unmap costs about 80 us per mapping
+  inside the free (12.2 frees, 450 ms per context creation). It pays off with the gathers, which leave few mappings
+  per region.
+
+**Region free list** (`CARAXES_SHADOW_REGION_POOL`, default on; 0 frees at once).
+- When the guest empties a region, its object goes on a per-VAS list of at most 64
+  (`REGION_POOL_MAX`) instead of being freed, but only if all of these hold (`let clean`,
+  shadow.rs:1212):
+  - the guest wants nothing in the region;
+  - no unmap in it failed in this plan;
+  - no run and no mirrored leaf is left in it;
+  - it does not touch an excluded set-B range.
+- The next need of the same region with the same page class takes the object back. A need with
+  the other class, or a region that becomes set B (`purge_pool`, shadow.rs:911), frees it.
+- The list lives inside one shadow VAS. It saves an allocation and a free per churned region,
+  about 0.1 ms each (the census's 64 MiB allocations). It does not carry objects from one
+  context to the next, because each guest root gets a new host VAS. A context's 87 region
+  objects cost 6-12 ms, and reusing whole shadow VA spaces would also have to keep the host
+  RM's own set-B buffers off pooled VAs. That was not worth it.
+
+**Deferred TLB invalidation** (`CARAXES_SHADOW_DEFER_TLB=1`, off by default).
+- Every map and unmap carries `DEFER_TLB_INVALIDATION` (NVOS46 bit 31, nvos.h:2151; NVOS47 bit
+  0, nvos.h:2192). The shadow then owes the VAS one `DMA_INVALIDATE_TLB`, which `settle`
+  (shadow.rs:853) pays:
+  - before any virtual object is freed;
+  - at the end of every plan, before the doorbell barrier can let a channel run;
+  - at the end of every teardown step.
+- Measured (`defer-pool`), it saved nothing. In the context windows a map took 28 us and an
+  unmap 94 us per call without the deferral, and 32 us and 110 us with it. So the RM's per-call flush and invalidate (virt_mem_allocator_gm107.c:2567-2577) are not
+  where the time goes.
+- It stays in the code, off, because the control does not repeat the flush the per-call path
+  makes (`kbusFlush_HAL`, virt_mem_allocator_gm107.c:2573-2574). Without a gain, that
+  difference is not worth carrying.
+
+**Counters.** Every host call of the shadow is counted by kind with its time (`RmCalls`,
+shadow.rs:217):
+- on every sync line: `RM calls N: map a (x us), unmap b (y us), object alloc, object free,
+  invalidate, gather alloc, gather free; regions reused R, pooled P`;
+- on the teardown line (its own calls) and in the VAS summary, with the gathers and the
+  whole-region frees.
+
+`rpc-cost.py` prints the histogram for a trace window (section 3). The run directory's `calls.py`
+splits it per census operation.
+
+### 7.4 Fail-closed argument
+
+**What the physical GPU can reach is unchanged.** Every mapped leaf passed `resolve_leaf`
+(shadow.rs:292) in the same plan:
+- the whole leaf lies in this VM's reservation or in one registered guest-RAM descriptor;
+- its kind is not compressible (D16);
+- it is not in a set-B range.
+
+A gather is built only from the (descriptor, offset) pairs of such leaves, and `gather` checks
+each pair against the registered descriptors again. The GPU therefore reaches through a gather
+exactly the guest pages it would reach through the registered descriptor, through IOVAs of
+their own. The gather adds a second IOMMU mapping and a second pin of pages that are already
+pinned for the VM's life. It adds no page, and no host memory is pinned beyond what D13 already
+pins. Kind and snoop are those of the leaves (one per stretch). The compression rule is untouched
+because no compressible leaf reaches a plan.
+
+**Coalescing proves contiguity; it does not assume it.** A run is only leaves that are
+contiguous in VA and in one backing's offsets, with the same page size, kind, backing handle
+and snoop, inside one region object (`coalesce`, unchanged). For a gathered stretch the backing
+offsets are contiguous by construction, and VA contiguity is checked leaf by leaf before the
+gather is made. Anything that does not qualify maps the old way, down to one leaf per call. The
+unit tests (shadow.rs, against a fake host that records every call):
+- `coalescing_keeps_holes_permissions_and_order_apart`: holes, reversed pages and snoop changes
+  each split a run;
+- `a_compressible_leaf_splits_the_run_and_is_never_mapped`: a compressible leaf in the middle of
+  a contiguous stretch is refused by the filter (D16), never reaches a map call, and the run
+  splits around it;
+- `a_scattered_sysmem_stretch_is_mapped_through_one_gather`: 32 reversed pages give one gather
+  with the pages in VA order and one map;
+- `contiguous_short_or_mixed_stretches_are_not_gathered`: a contiguous stretch, a short one and
+  a stretch across a VA hole;
+- `a_refused_gather_maps_run_by_run_from_the_registered_descriptor`.
+
+**No stale leaf survives, and no memory object is freed under a mapping.**
+- A gather is freed only after its last mapping. The fake host fails the test if a gather is
+  freed while mapped (`a_gather_lives_until_its_last_mapping_is_gone`, with and without
+  whole-region frees; `the_teardown_frees_gathers_after_their_mappings`).
+- A whole-region free forgets exactly the runs of that region. The RM takes every mapping with
+  the object, and a later map of the region gets a fresh object
+  (`an_emptied_region_with_many_runs_is_freed_whole`).
+- A region goes on the free list only when the RM confirmed every unmap in it. A region with a
+  failed unmap is freed instead, and the RM takes what is left with the object
+  (`a_region_with_a_failed_unmap_is_freed_not_pooled`). A pooled object holds no mapping
+  (`an_emptied_region_is_pooled_and_taken_back_without_new_objects`). It is never taken back
+  under set B (`a_pooled_region_under_a_new_exclusion_is_freed`).
+- The budget counts mappings. A gather run is one mapping, as a coalesced run was.
+
+**Ordering.**
+- The doorbell barrier is unchanged: a plan, including its gathers, is complete before the
+  worker reports it done.
+- The teardown order is unchanged:
+  1. unmaps or whole-region frees, about 64 mappings per step, with the host RM lock released
+     between steps. Each gather is freed right after its last mapping;
+  2. the remaining objects;
+  3. the VAS.
+
+  The guest-RAM descriptors are freed only after all of this (`wait_idle`).
+- A whole-region free holds the host RM lock for one object's mappings: at most 512 for 4 KiB
+  pages, and with gathers usually a handful.
+- With deferral on, `free_virtual` pays the owed invalidate before any object is freed
+  (`a_whole_region_free_pays_the_owed_invalidate_first`,
+  `no_object_is_freed_before_the_owed_invalidate`). A refused invalidate turns the deferral
+  off for the VAS (`a_refused_invalidate_turns_the_deferral_off`).
+- With all four switches at 0 (`GATHER`, `BULK_FREE` and `REGION_POOL` at 0, `DEFER_TLB`
+  unset), the calls are the earlier sequence (`switches_off_make_the_earlier_calls`).
+
+### 7.5 Measurements
+
+vm0 only, 1 GiB at slot 0, 610 guest. The environment is `caraxes/runs/intr-page-2026-09-24/env.sh`
+without the display: host RM and execution, token pool 64, hybrid reactor, interrupt page,
+`CARAXES_BAR2_MEMFD=1`, no BAR1 pool. Each run is one VM session with the census probe (cuInit
+x3, cuCtxCreate/Destroy x5, the ops x10), `bench-cu` init and churn with 3 reps, and the cuda
+gate (not in `before`).
+
+| run | binary, switches | what it isolates |
+|---|---|---|
+| `before` | 4fec5bd, deferral and pool off | the calls of main d466e9d, counted |
+| `defer-pool` | 4fec5bd, defaults | deferred invalidation and the free list |
+| `final` | f0edbb8, defaults | plus whole-region frees, deferral off |
+| `gather`, `gather-2` | ac950e9, defaults | plus gather descriptors. In `gather`, vm3 was active during the bench runs, which is why `gather-2` was run |
+
+Guest medians (census-cu, us) and shadow work per repetition. Full tables in `compare.md`:
+
+| operation | before | final | gather | gather-2 | native | RM calls per rep, before, then gather-2 | apply ms, before, then gather-2 |
+|---|---|---|---|---|---|---|---|
+| cuInit | 13847 | 22811 | 12144 | 28269 | 85053 | 0, 0 | 0, 0 |
+| cuCtxCreate | 815038 | 837913 | 352252 | 309027 | 146463 | 13171, 228 | 770, 67 |
+| cuCtxDestroy | 170081 | 154186 | 132913 | 107017 | 86190 | 1145, 79 | 38, 7 |
+| cuMemAlloc 64 MiB | 907 | 850 | 945 | 822 | 136 | 58, 58 | 7.5, 3.9 |
+| cuMemAllocHost 1 MiB | 2046 | 1500 | 1470 | 1605 | 758 | 20, 8 | 1.7, 0.8 |
+| cuMemHostRegister 1 MiB | 1750 | 1698 | 1660 | 1763 | 273 | 43, 4 | 4.4, 5.1 |
+
+- cuInit makes no shadow plan. Its spread, 12-28 ms, is run to run.
+- The allocations were already off the critical path (alloc-path.md §1.1). Their guest time is
+  the traps of their episode.
+
+The host RM call histogram of the whole census (`census-rpc-cost.md`, section 3), calls with
+total time:
+
+| kind | before | gather-2 |
+|---|---|---|
+| map | 55025 (1577 ms, 29 us each) | 1102 (87 ms) |
+| unmap | 37923 (3075 ms, 81 us each) | 682 (47 ms) |
+| object alloc | 894 (113 ms) | 889 (83 ms) |
+| object free | 813 (46 ms) | 895 (111 ms, the whole-region frees) |
+| gather alloc / free | - | 135 (377 ms) / 135 (19 ms) |
+| total | 94655 (4811 ms) | 3838 (724 ms) |
+
+Every context window, in ms (window, apply; RM calls). Five creations in a row:
+
+| run | create 1 | create 2 | create 3 | create 4 | create 5 |
+|---|---|---|---|---|---|
+| before | 479, 33; 749 | 808, 509; 16946 | 1409, 1372; 15396 | 815, 499; 17210 | 1649, 1436; 15552 |
+| gather-2 | 525, 20; 221 | 312, 117; 223 | 217, 26; 237 | 309, 128; 219 | 224, 43; 238 |
+
+`bench-cu` in the same sessions (`bench-summary.md`, median of 3 processes):
+
+| | before | final | gather | gather-2 |
+|---|---|---|---|---|
+| cuCtxCreate in `init` | 1719 ms | 675 ms | 307 ms | 353 ms |
+| cuCtxDestroy in `init` | 193 ms | 172 ms | 125 ms | 151 ms |
+| device CPU, `init` | 1970 ms | 1710 ms | 400 ms | 480 ms |
+| churn: 1 MiB alloc / free | 180 / 323 us | 182 / 296 us | 342 / 349 us | 177 / 303 us |
+| churn: 64 MiB alloc / free | 583 / 848 us | 553 / 830 us | 567 / 896 us | 594 / 887 us |
+
+The `gather` churn row ran while vm3's device was busy (`bench-summary.md`, "6/6"). `gather-2`,
+with no other VM active, has churn back at `before`: the churn allocates vidmem, which the
+gathers do not touch.
+
+What is left of a context creation (about 220-310 ms against 146 native) is not the shadow.
+In the census trace, the window holds 20 first doorbells, each followed by 20-35 ms before the
+guest's next access. That is the GPU's first work on the channel: host channel setup and the
+first submission.
+
+**Gates.** The cuda gate gave 11 of 12 in `defer-pool`, `final`, `gather` and `gather-2`, with
+cuda-managed at its known 801. There were 0 host Xid in every part (device pids 1821188,
+1841816, 1873527, 1913470, 1932846) and no host watch alert. `nvidia-smi` took at most 1.77 s
+in `before`, 0.81 s in `final` and 0.13 s in the gather runs.
