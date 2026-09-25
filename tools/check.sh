@@ -5,6 +5,11 @@
 # Run the 18 software checks from a writable source checkout; no GPU or VM needed.
 # Usage: tools/check.sh
 # Each check runs even if an earlier check fails. Exit 0 if all pass, 1 otherwise.
+# CARAXES_CHECK_EMU_BOOT=1 adds a 19th, emu-boot: tools/emu-boot-check.sh boots the TU106 in
+# pure emulation (no host RM, no reservation, no GPU; a tapless VM, 1 to 2 minutes) to
+# RmInitAdapter and nvidia-smi (docs/caraxes/blackwell-gate.md section 5). It is reported as
+# SKIP with the reason when the firmware, the prepared image or Cloud Hypervisor is absent,
+# and as SKIP (not enabled) without the variable.
 set -uo pipefail
 
 usage() { echo "Usage: tools/check.sh"; exit "${1:-0}"; }
@@ -442,10 +447,14 @@ do_check() {
     local fail=0
     local -a results=()
     step() {
-        local name="$1" log t0 t1; shift
+        local name="$1" log t0 t1 rc; shift
         log=$(mktemp); t0=$(date +%s)
-        if "$@" >"$log" 2>&1; then
+        "$@" >"$log" 2>&1; rc=$?
+        if [[ $rc -eq 0 ]]; then
             t1=$(date +%s); results+=("${LEA_GRN}PASS${LEA_R}  $name  ($((t1 - t0))s)")
+        elif [[ $rc -eq 77 ]]; then
+            # A check whose prerequisites are absent (exit 77, the automake convention).
+            t1=$(date +%s); results+=("SKIP  $name  ($(grep -m1 '^SKIP' "$log" | cut -c7-))")
         else
             t1=$(date +%s); results+=("${LEA_RED}FAIL${LEA_R}  $name  ($((t1 - t0))s)"); fail=1
             echo "==== FAIL: $name -- last 40 lines ===="; tail -40 "$log"; echo "==== end $name ===="
@@ -472,6 +481,11 @@ do_check() {
     step "gsp-abi"              gsp_abi_baseline
     step "dangling-refs"        dangling_refs
     step "no-markers"           no_markers
+    if [[ ${CARAXES_CHECK_EMU_BOOT:-0} == 1 ]]; then
+        step "emu-boot"         tools/emu-boot-check.sh --driver 610 --chip tu106
+    else
+        results+=("SKIP  emu-boot  (not enabled: CARAXES_CHECK_EMU_BOOT=1 boots the TU106 in pure emulation)")
+    fi
     echo
     lea_head "check.sh"
     printf '%s\n' "${results[@]}"
