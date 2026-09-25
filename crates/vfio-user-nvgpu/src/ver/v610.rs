@@ -87,9 +87,11 @@ pub const RM_CONTROL_STATUS: usize = 12;
 pub const RM_CONTROL_PARAMS_SIZE: usize = 16;
 pub const RM_CONTROL_RPC_FLAGS: usize = 20;
 pub const RM_CONTROL_RMCTRL_FLAGS: usize = 24;
+pub const RM_CONTROL_RMCTRL_ACCESS_RIGHT: usize = 28;
 pub const RM_CONTROL_PARAMS: usize = 40;
-/// GSS legacy controls (bit 15 of the command): the guest caches the reply unless
-/// `rmctrlFlags` comes back 0 (rpc.c:10902-10907, phase5-rpcs.md §2).
+/// GSS legacy controls (bit 15 of the command): the guest caches the reply when its
+/// `rmctrlFlags` carry CACHEABLE (rpc.c:10903-10909 of 610, :10899-10905 of 615;
+/// nvml.rs `legacy_reply_flags`).
 pub const CMD_GSS_LEGACY_BIT: u32 = 0x8000;
 
 /// `rpc_gsp_rm_alloc_v03_00`.
@@ -1289,6 +1291,7 @@ mod tests {
         assert_eq!(field(c, "paramsSize"), RM_CONTROL_PARAMS_SIZE);
         assert_eq!(field(c, "rmapiRpcFlags"), RM_CONTROL_RPC_FLAGS);
         assert_eq!(field(c, "rmctrlFlags"), RM_CONTROL_RMCTRL_FLAGS);
+        assert_eq!(field(c, "rmctrlAccessRight"), RM_CONTROL_RMCTRL_ACCESS_RIGHT);
         assert_eq!(field(c, "params"), RM_CONTROL_PARAMS);
 
         let a = "rpc_gsp_rm_alloc_v03_00";

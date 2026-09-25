@@ -1521,10 +1521,18 @@ impl BootModel {
                         let st = v::RM_CONTROL_STATUS;
                         reply[st..st + 4].copy_from_slice(&a.status.to_le_bytes());
                         if cmd & v::CMD_GSS_LEGACY_BIT != 0 {
-                            // GSS legacy: rmctrlFlags 0, or the guest caches the reply
-                            // (rpc.c:10902-10907, phase5-rpcs.md §2).
+                            // GSS legacy: the guest caches the reply by its rmctrlFlags
+                            // (rpc.c:10899-10905 of 615): CACHEABLE for the proven static
+                            // answers, 0 for the rest (nvml.rs `legacy_reply_flags`); the
+                            // access right stays 0.
+                            let flags = crate::nvml::legacy_reply_flags(cmd, a.status);
                             let f = v::RM_CONTROL_RMCTRL_FLAGS;
-                            reply[f..f + 4].copy_from_slice(&0u32.to_le_bytes());
+                            reply[f..f + 4].copy_from_slice(&flags.to_le_bytes());
+                            let r = v::RM_CONTROL_RMCTRL_ACCESS_RIGHT;
+                            reply[r..r + 4].copy_from_slice(&0u32.to_le_bytes());
+                            if flags != 0 {
+                                notes.push(format!("ctrl {cmd:#x}: reply rmctrlFlags {flags:#x} (the guest caches it)"));
+                            }
                         }
                         let mut out = a.params;
                         out.resize(size, 0);
