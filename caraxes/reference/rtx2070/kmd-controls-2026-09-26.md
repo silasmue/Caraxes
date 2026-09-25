@@ -1,3 +1,4 @@
+<!-- SPDX-License-Identifier: MIT -->
 # RTX 2070: the Windows KMD's controls on the real card (2026-09-26)
 
 - Aim: the Windows 617.14 KMD's adapter-start controls answered by the card itself, not by guesses, so that pure emulation can use the card's values (`recorded.rs`, `chips/tu106/recorded-controls.tsv`).
