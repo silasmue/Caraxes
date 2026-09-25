@@ -844,11 +844,14 @@ impl BootModel {
         let t0 = std::time::Instant::now();
         let reg = &self.ctrl.channels;
         if let Some(m) = self.ctrl.mirror.as_mut() {
+            // Only the plans of the store's own shadow root (invgate.rs): another root's
+            // walk in the worker does not hold this store.
+            let root = m.gp_put_root(reg, pa, len);
             let mut gm = crate::channel::GpuMem {
                 fb: &mut self.fb,
                 sys: mem,
             };
-            m.plans_barrier(reg, &mut gm);
+            m.plans_barrier(reg, &mut gm, root);
         }
         format!(
             " ({GP_PUT_HELD} {} us until the shadow worker applied its plans)",
@@ -1128,8 +1131,13 @@ impl BootModel {
             Some(Reg::Bar2Block) => self.bar2_block,
             Some(Reg::MmuInvalidatePdb) => self.mmu_invalidate.0,
             Some(Reg::MmuInvalidateUpperPdb) => self.mmu_invalidate.1,
-            // TRIGGER (bit 31) always reads back as done (fb-model.md §4d).
-            Some(Reg::MmuInvalidate) => self.mmu_invalidate.2 & !(1 << 31),
+            // TRIGGER (bit 31) reads back as done (fb-model.md §4d), except while a held
+            // invalidate's shadow plan is still being applied (invgate.rs, execution.md §8):
+            // the guest polls it before its map call returns.
+            Some(Reg::MmuInvalidate) => {
+                let busy = self.ctrl.mirror.as_mut().is_some_and(|m| m.invalidate_busy());
+                (self.mmu_invalidate.2 & !(1 << 31)) | if busy { 1 << 31 } else { 0 }
+            }
             // Write-only doorbell (`clc361.h:33`); reads return 0.
             Some(Reg::UsermodeDoorbell) => 0,
             Some(Reg::PtimerTime0) => self.ptimer_read(false),
