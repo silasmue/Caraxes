@@ -74,3 +74,20 @@
   - GSP_GET_FEATURES: valid, "615.71.09"
   - NVDEC caps `01 00 00 00 16 00 00 00`, NVENC caps 0
   - GPU_GET_INFO_V2 index 0x11: 0
+
+## Follow-up: graphics context buffers 0x11-0x19
+
+- Run: `kmd-controls engines2`. It issues only FIFO_GET_ENGINE_CONTEXT_PROPERTIES for engines 0x11-0x19. All nine answered NV_OK, and their lines were added to the TSV.
+- Sizes and alignments:
+  - BUNDLE_CB (0x11): 0x3000, align 0x100
+  - PAGEPOOL_GLOBAL (0x12): 0x20000, align 0x100
+  - ATTRIBUTE_CB (0x13): 0x3f3a00, align 0x1000
+  - RTV_CB_GLOBAL (0x14): 0x80000, align 0x100
+  - GFXP_POOL (0x15): 0, align 0x1000
+  - GFXP_CTRL_BLK (0x16): 0x464, align 0x1000
+  - FECS_EVENT (0x17): 0x10000, align 0x1000
+  - PRIV_ACCESS_MAP (0x18): 0x80000, align 0x1000
+  - SETUP (0x19): 0, align 0x1000
+- Not done:
+  - GR_GET_CTX_BUFFER_SIZE/INFO and GR_GET_INFO_V2: blocked when the session tried to read their layouts.
+  - The RM_USER_SHARED_DATA (0x00de) allocation and data poll: outside the standing approval, which covers only client, device and subdevice allocation plus GET controls. Both wait for the user.
