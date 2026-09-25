@@ -17,6 +17,8 @@
 #      this branch as they are recommended (deferral on = 2 ms, invalidate page, no spin)
 #   I2 I again, with the guest's interrupt placement recorded (guest/irq-info.sh); binary
 #      vfio-user-nvgpu-desk-i2, the same code built at the successor's start
+#   P1 K's configuration with the BAR2 flush page as memory (CARAXES_BAR2_FLUSH_PAGE=memory,
+#      binary vfio-user-nvgpu-desk-p1, intr-page.md §12.1)
 #   J1 J2  the A/B for the pool poll after a page trigger (f37b354), interleaved with K1 K2 in
 #      one session: J is H's binary and configuration (no poll after a trigger), K this
 #      branch's binary with the watchdog counters (vfio-user-nvgpu-desk-k) and I's
@@ -56,6 +58,9 @@ for cfg in "$@"; do
         K1|K2) export CARAXES_SERVER=${CARAXES_SERVER_K:-/mnt/vmstore/caraxes/vm0/vfio-user-nvgpu-desk-k}
            export CARAXES_BAR2_FLUSH_DEFER_US=on CARAXES_INVALIDATE_PAGE=1
            unset CARAXES_INTR_PAGE_VBLANK_SPIN_US; name=$cfg-poll-after-trigger ;;
+        P1) export CARAXES_SERVER=${CARAXES_SERVER_P1:-/mnt/vmstore/caraxes/vm0/vfio-user-nvgpu-desk-p1}
+           export CARAXES_BAR2_FLUSH_DEFER_US=on CARAXES_INVALIDATE_PAGE=1 CARAXES_BAR2_FLUSH_PAGE=memory
+           unset CARAXES_INTR_PAGE_VBLANK_SPIN_US; name=P1-flush-page-memory ;;
         G|H) export CARAXES_SERVER=${CARAXES_SERVER_G:-/mnt/vmstore/caraxes/vm0/vfio-user-nvgpu-desk-g}
            export CARAXES_BAR2_FLUSH_DEFER_US=2000 CARAXES_INVALIDATE_PAGE=1
            if [[ $cfg == G ]]; then
@@ -123,7 +128,7 @@ for cfg in "$@"; do
     fi
     pid=$(cat "$W/gpu.pid" 2>/dev/null)
     "${VMSH[@]}" down > "$D/down.txt" 2>&1
-    grep -E '^intr page:|^bar1 pool:|^display page|^invalidate page:|^display engine:|^bar2 flush deferral|^reactor wake-up|bar2 memfd|doorbell poll \(|msi re-arm|^vfio-user-nvgpu: (intr|display|invalidate) page' "$W/gpu.log" | cut -c1-1600 > "$D/device-summary.txt"
+    grep -E '^intr page:|^bar1 pool:|^display page|^invalidate page:|^display engine:|^bar2 flush deferral|^bar2 flush page|^reactor wake-up|bar2 memfd|doorbell poll \(|msi re-arm|^vfio-user-nvgpu: (intr|display|invalidate) page' "$W/gpu.log" | cut -c1-1600 > "$D/device-summary.txt"
     caraxes/tools/bench-hostwatch.sh stop "$D"
     { echo "# host kernel log, Xid lines since $t0 (device pid $pid)"
       journalctl -k --since "$t0" --no-pager -g 'Xid' 2>/dev/null | grep -v '^-- No entries'; } > "$D/host-xid.txt"

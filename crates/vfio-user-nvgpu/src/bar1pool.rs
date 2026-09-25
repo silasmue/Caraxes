@@ -1476,6 +1476,7 @@ mod tests {
             traps: vec![0x1f000],
             sync_doorbell: false,
             flush_defer_us: None,
+            flush_page_memory: false,
         };
         let area = Bar2Area::create(0x20000, &cfg).unwrap();
         let guest = area.mem.map_again().unwrap();

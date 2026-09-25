@@ -846,11 +846,19 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
                 intr_page::INTR_PAGE_ENV
             );
         }
-        eprintln!(
-            "vfio-user-nvgpu: bar2 flush deferral: a flush read owes its sync; paid by the next trapped write, BAR1 access or doorbell, by the MMU invalidate or GSP doorbell sync, or by the reactor after {} us ({}, docs/caraxes/intr-page.md §11.2)",
-            o.defer_ns / 1000,
-            vfio_user_nvgpu::bar2area::FLUSH_DEFER_ENV
-        );
+        if o.standing {
+            eprintln!(
+                "vfio-user-nvgpu: bar2 flush page as memory: no BAR2 page traps; the BAR2 memfd syncs at the MMU invalidate, BAR2 bind and GSP doorbell, at every trapped BAR0 write (the display kick), BAR1 access and doorbell, and by the reactor {} us after the last sync ({}=memory, docs/caraxes/intr-page.md §12.1)",
+                o.defer_ns / 1000,
+                vfio_user_nvgpu::bar2area::FLUSH_PAGE_ENV
+            );
+        } else {
+            eprintln!(
+                "vfio-user-nvgpu: bar2 flush deferral: a flush read owes its sync; paid by the next trapped write, BAR1 access or doorbell, by the MMU invalidate or GSP doorbell sync, or by the reactor after {} us ({}, docs/caraxes/intr-page.md §11.2)",
+                o.defer_ns / 1000,
+                vfio_user_nvgpu::bar2area::FLUSH_DEFER_ENV
+            );
+        }
     }
     let guest_ram = match (&host_mem, a.register_guest_ram, a.identity_dma_table) {
         (Some(hm), true, _) => GuestRam::Register(hm.clone()),

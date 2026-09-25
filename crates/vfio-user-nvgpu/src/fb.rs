@@ -1039,11 +1039,15 @@ impl FakeFb {
         sys: Option<&GuestMemory>,
         by: crate::bar2area::Payer,
     ) -> bool {
-        let owed = match self.bar2.as_deref().and_then(|a| a.owed.as_ref()) {
-            Some(o) => o.paid(by, crate::bar2area::mono_ns()),
-            None => false,
+        let Some(a) = self.bar2.as_deref() else {
+            return false;
         };
-        owed && self.bar2_sync(root, sys)
+        // Standing mode (the flush page as memory) always owes: every payer syncs.
+        if !a.owed.as_ref().is_some_and(|o| o.owed()) {
+            return false;
+        }
+        a.next_payer.set(Some(by));
+        self.bar2_sync(root, sys)
     }
 
     /// The deferral state the reactor watches, when the deferral is on.
@@ -2167,6 +2171,7 @@ mod tests {
             traps: vec![0x1f000],
             sync_doorbell: false,
             flush_defer_us: None,
+            flush_page_memory: false,
         };
         let area = Bar2Area::create(0x20000, &cfg).unwrap();
         let guest = area.mem.map_again().unwrap();
@@ -2240,6 +2245,7 @@ mod tests {
             traps: vec![0x1f000],
             sync_doorbell: false,
             flush_defer_us: Some(200),
+            flush_page_memory: false,
         };
         let area = Bar2Area::create(0x20000, &cfg).unwrap();
         let guest = area.mem.map_again().unwrap();
@@ -2288,6 +2294,66 @@ mod tests {
         assert_eq!(owed.paid_reactor.load(Relaxed), 0);
         assert_eq!(owed.paid_sync.load(Relaxed), 1);
         assert!(owed.summary().contains("3 flush read(s) deferred"));
+    }
+
+    /// The flush page as memory (`CARAXES_BAR2_FLUSH_PAGE=memory`, intr-page.md §12.1): no
+    /// page of BAR2 traps, no read starts a debt, and still no GPU use of a page-table
+    /// update can come before its sync. The guest RM makes a PTE update usable only
+    /// through an MMU invalidate (D17: kbusUpdateRmAperture_GM107 and every
+    /// dmaUpdateVASpace path end in one), and the invalidate syncs before it walks; a
+    /// doorbell or trapped write pays as well, and the reactor at the bound.
+    #[test]
+    fn bar2_flush_page_as_memory_syncs_at_the_consumers() {
+        use crate::bar2area::{config_from, Bar2Area, Payer};
+        use std::sync::atomic::Ordering::Relaxed;
+        let vid = |a: u64| ((a >> 12) << 8) | 0b010;
+        let pte = |a: u64| ((a >> 12) << 8) | (0x06 << 56) | 1;
+        let mut fb = FakeFb::new(64 << 20);
+        let root = 0x10000;
+        fb.write_u64(root, vid(0x11000));
+        fb.write_u64(0x11000, vid(0x12000));
+        fb.write_u64(0x12000, vid(0x13000));
+        fb.write_u64(0x13008, vid(0x14000));
+        fb.write_u64(0x14000 + 8, pte(0x14000));
+        fb.write_u64(0x14000 + 16, pte(0x34000));
+        let cfg = config_from(None, false, Some("200"), Some("memory")).unwrap();
+        assert!(cfg.traps.is_empty());
+        let area = Bar2Area::create(0x20000, &cfg).unwrap();
+        // The whole aperture is one sparse area: the flush page no longer traps.
+        assert_eq!(area.sparse_areas(), vec![(0, 0x20000)]);
+        let guest = area.mem.map_again().unwrap();
+        fb.set_bar2_area(area).unwrap();
+        assert!(fb.bar2_sync(Some(root), None));
+        let owed = fb.bar2_owed().expect("standing debt");
+        assert!(owed.standing && owed.owed());
+        let raw = |fb: &FakeFb, pa: u64| {
+            let mut b = [0u8; 8];
+            fb.store.read(pa, &mut b);
+            u64::from_le_bytes(b)
+        };
+        // A PTE update, no flush read seen: VRAM does not have it yet.
+        guest.store_word(2, 3, pte(0x51000));
+        assert_eq!(raw(&fb, 0x34000 + 8 * 3), 0);
+        // The MMU invalidate (a sync that runs anyway) brings it before any walk.
+        fb.bar2_sync(Some(root), None);
+        assert_eq!(raw(&fb, 0x34000 + 8 * 3), pte(0x51000));
+        // Still owed after the sync: the next write is not seen either.
+        assert!(owed.owed());
+        // A doorbell pays without any flush read before it.
+        guest.store_word(2, 4, pte(0x52000));
+        assert!(fb.bar2_pay(Some(root), None, Payer::Access));
+        assert_eq!(raw(&fb, 0x34000 + 8 * 4), pte(0x52000));
+        // The reactor's bound: a sync that wrote back bytes is counted.
+        guest.store_word(2, 5, pte(0x53000));
+        assert!(fb.bar2_pay(Some(root), None, Payer::Reactor));
+        assert_eq!(raw(&fb, 0x34000 + 8 * 5), pte(0x53000));
+        assert!(fb.bar2_pay(Some(root), None, Payer::Reactor));
+        assert_eq!(owed.paid_access.load(Relaxed), 1);
+        assert_eq!(owed.paid_reactor.load(Relaxed), 2);
+        assert_eq!(owed.bound_found.load(Relaxed), 1);
+        assert!(owed.paid_sync.load(Relaxed) >= 2);
+        assert_eq!(owed.deferred.load(Relaxed), 0);
+        assert!(owed.summary().starts_with("bar2 flush page as memory: bound 200 us"));
     }
 
     #[test]

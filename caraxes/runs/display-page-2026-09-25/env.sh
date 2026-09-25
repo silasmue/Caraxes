@@ -11,7 +11,9 @@ here_env25=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
 # shellcheck disable=SC1091
 source "$here_env25/../display-page-2026-09-24/env.sh"
 export CARAXES_SERVER=${CARAXES_SERVER_DESK:-/mnt/vmstore/caraxes/vm0/vfio-user-nvgpu-desk-d96cc59}
-export CARAXES_RESERVE_SLOT=0
+# Slot 0 unless CARAXES_RESERVE_SLOT_DESK says otherwise (2026-09-25 afternoon: slot 2, the game
+# VM holds the top 3 GiB).
+export CARAXES_RESERVE_SLOT=${CARAXES_RESERVE_SLOT_DESK:-0}
 export CARAXES_INTR_PAGE=1 CARAXES_DISPLAY_PAGE=1
 export CARAXES_BAR1_PASSTHROUGH=pool CARAXES_BAR1_POOL_MIB=32
 export CARAXES_BAR2_MEMFD=1 CARAXES_MSI_REARM_IOEVENTFD=1 CARAXES_ALLOC_LAZY=1

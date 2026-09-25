@@ -918,7 +918,9 @@ impl PageHook {
         if o.due(crate::bar2area::mono_ns()) {
             pay();
         }
-        true
+        // A standing debt (the flush page as memory) never ends, so it must not keep a
+        // hybrid reactor spinning: the sleep bound (1 ms) wakes it for the next check.
+        !o.standing
     }
 }
 
