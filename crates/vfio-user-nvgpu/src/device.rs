@@ -82,7 +82,17 @@ pub struct Device {
     /// MSI re-arm ioeventfd (`CARAXES_MSI_REARM_IOEVENTFD=1`): wakeups and guest writes.
     rearm_wakeups: u64,
     rearm_writes: u64,
+    /// BAR0 writes that landed in the config-space mirror (the MSI re-arm among them), after
+    /// which the BAR1 pool's poll did not run (`after_bar0_write`), and the polls that held
+    /// the device longer than [`SLOW_POOL_POLL`].
+    mirror_writes_unsynced: u64,
+    slow_pool_polls: u64,
 }
+
+/// A BAR1 pool poll that holds the device longer than this is traced as an event (the
+/// display clock, the doorbell reactor and every trapped access wait for the device lock,
+/// docs/caraxes/sottr-stage.md §11).
+pub const SLOW_POOL_POLL: std::time::Duration = std::time::Duration::from_millis(2);
 
 /// The switch for the doorbell ioeventfd.
 pub const DOORBELL_IOEVENTFD_ENV: &str = "CARAXES_DOORBELL_IOEVENTFD";
@@ -517,6 +527,8 @@ impl Device {
             doorbell_writes: 0,
             rearm_wakeups: 0,
             rearm_writes: 0,
+            mirror_writes_unsynced: 0,
+            slow_pool_polls: 0,
         }
     }
 
@@ -525,9 +537,10 @@ impl Device {
     /// them since the last wakeup. The value is ignored, so this does exactly what one
     /// trapped write does (`region_write` on BAR0): the config mirror write
     /// (no writable bit at `NV_XVE_CYA_2`, as for the trapped one) and the steps after
-    /// every trapped BAR0 write (`after_bar0_write`: the P21 check, the BAR1
-    /// pool's poll, a pending MSI of the model, the MSI enable). Several writes between two
-    /// wakeups are one re-arm: each would repeat the same idempotent steps.
+    /// a BAR0 write that lands in the config mirror (`after_bar0_write` without the sync
+    /// point: a pending MSI of the model, the MSI enable; no P21 check and no BAR1 pool
+    /// poll, docs/caraxes/sottr-stage.md §11). Several writes between two wakeups are one
+    /// re-arm: each would repeat the same idempotent steps.
     pub fn msi_rearm_ioeventfd(&mut self, offset: u64, writes: u64) {
         self.rearm_wakeups += 1;
         self.rearm_writes += writes;
@@ -536,7 +549,7 @@ impl Device {
         self.trace.event(&format!(
             "msi re-arm (eventfd): {writes} guest write(s) to BAR0 {offset:#x} (NV_XVE_CYA_2) signalled ({effect:?})"
         ));
-        self.after_bar0_write();
+        self.after_bar0_write(!matches!(effect, WriteEffect::Mirror));
     }
 
     /// Guest writes to the doorbell register that arrived through the ioeventfd:
@@ -860,6 +873,14 @@ impl Device {
                 self.doorbell_writes, self.doorbell_wakeups
             ));
         }
+        if self.mirror_writes_unsynced > 0 || self.slow_pool_polls > 0 {
+            s.push_str(&format!(
+                "bar0 config-mirror writes: {} (the MSI re-arm among them), no BAR1 pool poll after them; {} pool poll(s) held the device over {} ms (docs/caraxes/sottr-stage.md §11)\n",
+                self.mirror_writes_unsynced,
+                self.slow_pool_polls,
+                SLOW_POOL_POLL.as_millis()
+            ));
+        }
         if self.rearm_wakeups > 0 {
             s.push_str(&format!(
                 "msi re-arm ioeventfd: {} guest write(s) in {} wakeup(s)\n",
@@ -986,6 +1007,9 @@ impl ServerBackend for Device {
         offset: u64,
         data: &[u8],
     ) -> Result<(), std::io::Error> {
+        // A BAR0 write that lands in the config-space mirror orders no FB, BAR1 or GPU
+        // state (`after_bar0_write`).
+        let mut sync_point = true;
         let note = match region {
             VFIO_PCI_CONFIG_REGION_INDEX => {
                 self.cfg.write(offset as usize, data);
@@ -998,7 +1022,10 @@ impl ServerBackend for Device {
             }
             VFIO_PCI_BAR0_REGION_INDEX => {
                 match self.bar0.write(&mut self.cfg, &self.mem, offset, data) {
-                    WriteEffect::Mirror => self.bar0.name(offset),
+                    WriteEffect::Mirror => {
+                        sync_point = false;
+                        self.bar0.name(offset)
+                    }
                     WriteEffect::Model => self.bar0.name(offset),
                     WriteEffect::Latched => Some(self.bar0.name(offset).unwrap_or("latched")),
                     WriteEffect::Dropped => Some("dropped"),
@@ -1027,7 +1054,7 @@ impl ServerBackend for Device {
         };
         self.trace.access(Dir::Write, region, offset, data, note);
         if region == VFIO_PCI_BAR0_REGION_INDEX {
-            self.after_bar0_write();
+            self.after_bar0_write(sync_point);
         } else {
             self.after_write();
         }
@@ -1120,15 +1147,39 @@ impl ServerBackend for Device {
 impl Device {
     /// The steps after every trapped BAR0 write (and after an MSI re-arm that came through
     /// its ioeventfd, [`Device::msi_rearm_ioeventfd`]), then `after_write`.
-    fn after_bar0_write(&mut self) {
-        // P21: the guest flushes and invalidates through BAR0 after changing a BAR1
-        // mapping and before it uses the mapping.
-        if let Some(b) = self.bar0.boot() {
-            b.fb.poll_bar1_passthrough();
-        }
-        // P21 design H: the same point moves pages into and out of the BAR1 pool.
-        if let Some(b) = self.bar0.boot_mut() {
-            crate::bar1pool::poll_model(b, &self.mem);
+    ///
+    /// `sync_point` is false for a write that landed in the config-space mirror: the RM's
+    /// MSI re-arm (`NV_XVE_CYA_2`, once per interrupt service, 570 a second under
+    /// Sunshine's capture) and PCI config writes. Such a write publishes nothing the pool or
+    /// the P21 check must see (the guest orders its BAR1 changes with the BAR2 flush read
+    /// and the MMU invalidate, which stay sync points), so it skips both. The pool's poll
+    /// runs under the device lock, which the display clock (vblank, flip latch), the
+    /// doorbell reactor and every other trapped access wait for; after the re-arms it held
+    /// the lock for 2 to 50 ms at a time (docs/caraxes/sottr-stage.md §11).
+    fn after_bar0_write(&mut self, sync_point: bool) {
+        if sync_point {
+            // P21: the guest flushes and invalidates through BAR0 after changing a BAR1
+            // mapping and before it uses the mapping.
+            if let Some(b) = self.bar0.boot() {
+                b.fb.poll_bar1_passthrough();
+            }
+            // P21 design H: the same point moves pages into and out of the BAR1 pool.
+            if let Some(b) = self.bar0.boot_mut() {
+                if b.fb.bar1_pool().is_some() {
+                    let t0 = std::time::Instant::now();
+                    crate::bar1pool::poll_model(b, &self.mem);
+                    let held = t0.elapsed();
+                    if held > SLOW_POOL_POLL {
+                        self.slow_pool_polls += 1;
+                        self.trace.event(&format!(
+                            "bar1 pool: the poll after a BAR0 write held the device {} us (sottr-stage.md §11)",
+                            held.as_micros()
+                        ));
+                    }
+                }
+            }
+        } else {
+            self.mirror_writes_unsynced += 1;
         }
         self.after_write();
     }
@@ -1169,6 +1220,55 @@ mod tests {
         let mut rom = vec![0x55u8, 0xAA, 0x76];
         rom.resize(512, 0);
         Device::new(cfg, Bar0::new(chip, rom, None), Trace::new(None).unwrap())
+    }
+
+    /// The MSI re-arm is not a BAR1 pool sync point (sottr-stage.md §11): neither the
+    /// trapped write nor the ioeventfd path runs the pool's poll, a BAR0 write the model
+    /// takes does, and the exit summary counts the writes that skipped it.
+    #[test]
+    fn a_config_mirror_write_does_not_poll_the_bar1_pool() {
+        const MIB: u64 = 1 << 20;
+        let (base, end) = (0x400_0000, 0x800_0000);
+        let l = crate::fb::FbLayout::reserved(32 * MIB, 256 * MIB, base, end)
+            .unwrap()
+            .with_pool(4 * MIB)
+            .unwrap();
+        let f = crate::fixture::rtx2070();
+        let dump = include_str!("../../../caraxes/reference/rtx2070/config-space.txt");
+        let board = crate::board::Board::load("rtx2070").unwrap();
+        let cfg = ConfigSpace::from_dump(
+            crate::config::parse_dump(dump).unwrap(),
+            board.bars,
+            board.rom_bar_size,
+        )
+        .unwrap();
+        let bar0 = Bar0::new(f.chip, vec![0x55, 0xAA, 0x76], None).with_boot_model(
+            crate::boot::BootModel::new(f.chip, l, f.identity(256 * MIB)),
+        );
+        let mut d = Device::new(cfg, bar0, Trace::new(None).unwrap());
+        let (_, root) = l.bar_roots().unwrap();
+        let (pool0, _) = l.pool_range().unwrap();
+        d.bar0
+            .boot_mut()
+            .unwrap()
+            .fb
+            .set_bar1_pool(root, pool0, 4 * MIB, l.usable().unwrap());
+        let polls = |d: &mut Device| {
+            let s = d.bar0.boot_mut().unwrap().fb.bar1_pool_summary().unwrap();
+            s.split("); ").nth(1).unwrap().split(' ').next().unwrap().parse::<u64>().unwrap()
+        };
+        assert_eq!(polls(&mut d), 0);
+        let at = f.chip.data().bar0.pcfg + NV_XVE_CYA_2;
+        d.region_write(VFIO_PCI_BAR0_REGION_INDEX, at, &[0; 4]).unwrap();
+        d.msi_rearm_ioeventfd(at, 3);
+        assert_eq!(polls(&mut d), 0, "the re-arm is no sync point");
+        // The guest RM's MMU invalidate PDB register: a model write, a sync point.
+        d.region_write(VFIO_PCI_BAR0_REGION_INDEX, 0xb8_30a0, &[0; 4]).unwrap();
+        assert_eq!(polls(&mut d), 1);
+        assert_eq!(d.mirror_writes_unsynced, 2);
+        assert!(d
+            .summary()
+            .contains("bar0 config-mirror writes: 2 (the MSI re-arm among them), no BAR1 pool poll after them"));
     }
 
     /// The MSI re-arm ioeventfd (intr-page.md §4): 4 bytes at `NV_PCFG` + `NV_XVE_CYA_2`

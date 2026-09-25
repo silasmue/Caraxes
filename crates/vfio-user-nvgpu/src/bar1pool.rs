@@ -49,8 +49,14 @@ pub const MAX_HOST_BAR1: u64 = 192 * MIB;
 /// turns the check off.
 pub const HOST_BAR1_FLOOR_MIB: u64 = 96;
 pub const HOST_BAR1_FLOOR_ENV: &str = "CARAXES_HOST_BAR1_FLOOR_MIB";
-/// Refused remaps are retried at most this often (at the next trapped BAR0 write after).
+/// Refused remaps are retried at most this often (at the next sync point after).
 pub const RETRY_EVERY: Duration = Duration::from_millis(1);
+/// The retry interval doubles after every retry that moved nothing, up to this bound, and
+/// drops back to [`RETRY_EVERY`] at the first retry that moves a page. A retry runs under
+/// the device lock and may wait for the shadow worker (`PoolGpu::refs`) and read every
+/// mirrored channel's USERD (`PoolGpu::quiesce`): at 1 ms it ran up to 1000 times a second
+/// against a channel that stays busy (docs/caraxes/sottr-stage.md §11).
+pub const RETRY_MAX: Duration = Duration::from_millis(64);
 /// Findings logged at most (the counters are complete).
 const LOG_FIRST: usize = 32;
 
@@ -387,6 +393,9 @@ pub struct PoolStats {
     pub bytes_out: u64,
     pub copy_us: u128,
     pub max_poll_us: u128,
+    /// Polls that retried refused remaps, and those after which the interval grew.
+    pub retries: u64,
+    pub retry_backoffs: u64,
     /// Distinct guest page-table pages (a shadow's walk or the pool's BAR1 walk reads
     /// them) the guest mapped into the area.
     pub table_hazards: u64,
@@ -455,6 +464,8 @@ pub struct Bar1Pool {
     /// Area page `g` -> the replica it serves.
     replicas: BTreeMap<u64, Replica>,
     last_retry: Option<Instant>,
+    /// The current retry interval ([`RETRY_EVERY`] up to [`RETRY_MAX`]).
+    retry_every: Duration,
     pub stats: PoolStats,
 }
 
@@ -477,6 +488,7 @@ impl Bar1Pool {
             hazard_dirty: true,
             replicas: BTreeMap::new(),
             last_retry: None,
+            retry_every: RETRY_EVERY,
             stats: PoolStats::default(),
         }
     }
@@ -540,7 +552,7 @@ impl Bar1Pool {
         let s = &self.stats;
         let (pool0, len) = self.table.pool();
         format!(
-            "bar1 pool: guest BAR1 [0, {len:#x}) on the pool FB [{pool0:#x}, {:#x}); {} poll(s), {} unit walk(s); {} page(s) in the pool now; moved in {} cold + {} behind the barrier, back {} cold + {} behind the barrier; {} barrier(s) ({} refused, {} TSG preempt(s)); {} refused, {} pending now, {} sysmem page(s) in the area; copied {} KiB in, {} KiB back in {} us; {} page-table hazard(s) ({} evicted, {} refused, {} re-read(s) while pooled); {} replica(s) made, {} now, {} merge(s) at sync points, {} page merge(s) to home, {} to the area, {} conflicting word(s); {} page(s) also behind the BAR2 memfd; slowest poll {} us (docs/caraxes/bar1-pool.md §10)",
+            "bar1 pool: guest BAR1 [0, {len:#x}) on the pool FB [{pool0:#x}, {:#x}); {} poll(s), {} unit walk(s); {} page(s) in the pool now; moved in {} cold + {} behind the barrier, back {} cold + {} behind the barrier; {} barrier(s) ({} refused, {} TSG preempt(s)); {} refused, {} pending now, {} sysmem page(s) in the area; copied {} KiB in, {} KiB back in {} us; {} page-table hazard(s) ({} evicted, {} refused, {} re-read(s) while pooled); {} replica(s) made, {} now, {} merge(s) at sync points, {} page merge(s) to home, {} to the area, {} conflicting word(s); {} page(s) also behind the BAR2 memfd; {} retry poll(s), {} of them moved nothing (interval now {} ms, at most {} ms); slowest poll {} us (docs/caraxes/bar1-pool.md §10)",
             pool0 + len,
             s.polls,
             s.units_walked,
@@ -569,6 +581,10 @@ impl Bar1Pool {
             s.replica_to_area,
             s.replica_conflicts,
             s.bar2_aliased,
+            s.retries,
+            s.retry_backoffs,
+            self.retry_every.as_millis(),
+            RETRY_MAX.as_millis(),
             s.max_poll_us
         )
     }
@@ -885,6 +901,18 @@ fn merge_replica(fb: &mut FakeFb, g: u64, last: bool) -> bool {
     !to_home.is_empty() || !to_area.is_empty()
 }
 
+/// The order in which a sync point merges the replicas: by home page, then area page.
+/// A merge reads the area's pool page (one region of VRAM) and the home page (anywhere in
+/// the reservation) through the device's few BAR1 windows (fb.rs `VramStore`, two of 32 MiB
+/// by default). In area order the homes can alternate between regions, and every merge
+/// can then cost a window remap (host RM calls; 2.5 ms measured for a window miss, fb.rs
+/// `FakeFb::watched`); in home order a sync point maps each region once at most.
+fn merge_order(replicas: &BTreeMap<u64, Replica>) -> Vec<u64> {
+    let mut by_home: Vec<(u64, u64)> = replicas.iter().map(|(g, r)| (r.x, *g)).collect();
+    by_home.sort_unstable();
+    by_home.into_iter().map(|(_, g)| g).collect()
+}
+
 /// Make area page `g` a replica of FB page `x`: the pool page gets the page's bytes, and
 /// from now on the sync points merge the two ([`sync_untracked`]).
 fn make_replica(fb: &mut FakeFb, g: u64, x: u64) {
@@ -919,8 +947,7 @@ pub fn sync_untracked(fb: &mut FakeFb) -> bool {
         if p.replicas.is_empty() && p.table.is_empty() {
             return g_marked;
         }
-        let gs: Vec<u64> = p.replicas.keys().copied().collect();
-        (gs, pooled_table_pages(fb, p))
+        (merge_order(&p.replicas), pooled_table_pages(fb, p))
     };
     let mut wrote = false;
     for g in &gs {
@@ -962,8 +989,9 @@ pub fn poll(fb: &mut FakeFb, gpu: &mut dyn PoolGpu) -> bool {
         let Some(p) = guard.as_mut() else {
             return synced;
         };
+        let every = p.retry_every;
         let retry = (!p.pending.is_empty() || p.release_waits)
-            && p.last_retry.is_none_or(|t| t.elapsed() >= RETRY_EVERY);
+            && p.last_retry.is_none_or(|t| t.elapsed() >= every);
         if p.dirty.is_empty() && !retry && !p.hazard_dirty {
             return synced;
         }
@@ -972,6 +1000,11 @@ pub fn poll(fb: &mut FakeFb, gpu: &mut dyn PoolGpu) -> bool {
             .map(|u| (u, p.unit_pages(u)))
             .collect();
         (p.root, work, retry, p.hazard_dirty)
+    };
+    let before = {
+        let guard = fb.pool_mut();
+        let p = guard.as_ref().expect("checked above");
+        (p.pending.len(), p.release_waits)
     };
     // The walk reads through the FB (and so through the pool borrow): outside it.
     let walked: Vec<(usize, Walked)> = work
@@ -987,6 +1020,7 @@ pub fn poll(fb: &mut FakeFb, gpu: &mut dyn PoolGpu) -> bool {
         p.stats.units_walked += walked.len() as u64;
         if retry {
             p.last_retry = Some(Instant::now());
+            p.stats.retries += 1;
         }
         for (u, (m, t)) in walked {
             p.set_unit(u, m, t);
@@ -1063,6 +1097,7 @@ pub fn poll(fb: &mut FakeFb, gpu: &mut dyn PoolGpu) -> bool {
         merge_replica(fb, *g, true);
     }
     if releases.is_empty() && installs.is_empty() {
+        pace_retry(fb, retry, before, 0);
         note_time(fb, t0);
         return true;
     }
@@ -1145,6 +1180,7 @@ pub fn poll(fb: &mut FakeFb, gpu: &mut dyn PoolGpu) -> bool {
     }
     order.sort_by_key(|(o, _)| o.install);
     let mut moved_warm = 0usize;
+    let mut moved = 0usize;
     for (op, is_warm) in order {
         let (pool0, _) = fb.bar1_pool().expect("on");
         let p = pool0 + op.g;
@@ -1191,7 +1227,9 @@ pub fn poll(fb: &mut FakeFb, gpu: &mut dyn PoolGpu) -> bool {
                 "",
             );
             pool.pending.remove(&op.g);
+            moved += 1;
         } else {
+            moved += 1;
             fb.copy_page_raw(p, op.x);
             {
                 let mut guard = fb.pool_mut();
@@ -1379,8 +1417,29 @@ pub fn poll(fb: &mut FakeFb, gpu: &mut dyn PoolGpu) -> bool {
             eprintln!("vfio-user-nvgpu: bar1 pool: {n}");
         }
     }
+    pace_retry(fb, retry, before, moved);
     note_time(fb, t0);
     true
+}
+
+/// After a poll that retried refused remaps: back to [`RETRY_EVERY`] when it made progress
+/// (a page moved, a pending remap or a waiting release went away), else the interval
+/// doubles up to [`RETRY_MAX`]. `before` is `(pending remaps, release waiting)` at the
+/// start of the poll. A new dirty unit is walked at the next poll whatever the interval.
+fn pace_retry(fb: &FakeFb, retry: bool, before: (usize, bool), moved: usize) {
+    if !retry {
+        return;
+    }
+    let mut guard = fb.pool_mut();
+    let Some(p) = guard.as_mut() else { return };
+    let progress = moved > 0 || p.pending.len() < before.0 || (before.1 && !p.release_waits);
+    let waiting = !p.pending.is_empty() || p.release_waits;
+    if progress || !waiting {
+        p.retry_every = RETRY_EVERY;
+    } else {
+        p.retry_every = (p.retry_every * 2).min(RETRY_MAX);
+        p.stats.retry_backoffs += 1;
+    }
 }
 
 /// A hashable key of a page target (`Target` has no `Hash`): sysmem with bit 63.
@@ -2037,6 +2096,68 @@ mod tests {
         fb.read(x, &mut b);
         assert_eq!(b, [9; 8]);
         assert!(gpu.resynced.is_empty());
+    }
+
+    /// A refused remap whose barrier keeps failing (a busy channel, Sunshine's during the
+    /// capture) is retried less and less often: the interval doubles after every retry
+    /// that moved nothing, up to RETRY_MAX, and is back at RETRY_EVERY once the page moves
+    /// (docs/caraxes/sottr-stage.md §11).
+    #[test]
+    fn a_fruitless_retry_backs_off_and_a_move_resets_it() {
+        let (mut fb, pt, pool0) = setup();
+        let x = BASE + 0x30_0000;
+        assert!(poll(&mut fb, &mut NoGpu));
+        let mut gpu = FakeGpu::new(0x1234_0000);
+        gpu.used.insert(x);
+        gpu.ok = false;
+        fb.write_u64(pt + 8, pte(x));
+        assert!(poll(&mut fb, &mut gpu));
+        assert_eq!(pending(&fb), 1);
+        let every = |fb: &FakeFb| fb.pool_mut().as_ref().unwrap().retry_every;
+        assert_eq!(every(&fb), RETRY_EVERY, "the refusal itself was no retry");
+        let mut want = RETRY_EVERY;
+        for _ in 0..10 {
+            expire_retry(&fb);
+            assert!(poll(&mut fb, &mut gpu));
+            want = (want * 2).min(RETRY_MAX);
+            assert_eq!(every(&fb), want);
+        }
+        assert_eq!(want, RETRY_MAX);
+        let st = stats(&fb);
+        assert_eq!((st.retries, st.retry_backoffs), (10, 10));
+        // Inside the interval nothing is retried, even long after RETRY_EVERY.
+        fb.pool_mut().as_mut().unwrap().last_retry =
+            Some(Instant::now() - RETRY_EVERY * 8);
+        assert!(!poll(&mut fb, &mut gpu));
+        assert_eq!(stats(&fb).retries, 10);
+        // A new mapping is walked at once whatever the interval.
+        let y = BASE + 0x31_0000;
+        fb.write_u64(pt + 8 * 2, pte(y));
+        assert!(poll(&mut fb, &mut gpu));
+        assert_eq!(fb.remap(y), pool0 + 0x2000);
+        // The channel goes idle: the next retry moves the page and resets the interval.
+        gpu.ok = true;
+        expire_retry(&fb);
+        assert!(poll(&mut fb, &mut gpu));
+        assert_eq!(fb.remap(x), pool0 + 0x1000);
+        assert_eq!((pending(&fb), every(&fb)), (0, RETRY_EVERY));
+        assert!(fb.bar1_pool_summary().unwrap().contains("11 retry poll(s), 10 of them moved nothing"));
+    }
+
+    /// A sync point merges the replicas grouped by home page, so each VRAM region behind the
+    /// device's BAR1 windows is visited once, not once per replica.
+    #[test]
+    fn replicas_merge_in_home_order() {
+        let r = |x: u64| Replica { x, snap: Vec::new() };
+        let m: BTreeMap<u64, Replica> = [
+            (0x1000, r(0x9_0000_0000)),
+            (0x2000, r(0x1_0000_0000)),
+            (0x3000, r(0x9_0000_1000)),
+            (0x4000, r(0x1_0000_1000)),
+        ]
+        .into_iter()
+        .collect();
+        assert_eq!(merge_order(&m), vec![0x2000, 0x4000, 0x1000, 0x3000]);
     }
 
     #[test]
