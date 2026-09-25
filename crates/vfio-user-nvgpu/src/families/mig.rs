@@ -1078,6 +1078,17 @@ mod tests {
         assert_eq!(rd32(&a.params, 0), NV_U32_MAX, "the main context stays unsupported");
     }
 
+    /// Resetless MIG (GH100) is GSP-RM runtime state: a new boot starts with it off.
+    #[test]
+    fn resetless_mode_is_off_after_a_boot() {
+        let mut d = dispatcher();
+        assert_eq!(mig_on(&mut d, 2).status, NV_OK);
+        assert_eq!(smc(&mut d), SMC_ENABLED);
+        let mut fresh = dispatcher();
+        fresh.families.after_reset(&d.families);
+        assert_eq!(smc(&mut fresh), SMC_DISABLED);
+    }
+
     /// A chip without resetless MIG (GA100) keeps the new mode pending until a reset.
     #[test]
     fn pending_until_reset_without_resetless() {

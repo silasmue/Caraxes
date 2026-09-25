@@ -202,8 +202,21 @@ impl Families {
                 .get_or_insert_with(|| Mode::new(e.default_enabled))
                 .reset();
         }
-        if self.chip.mig.is_some() {
-            self.persist.mig.get_or_insert_with(|| Mode::new(false)).reset();
+        if let Some(m) = &self.chip.mig {
+            if m.resetless {
+                // Resetless MIG (GH100 and later): the mode is GSP-RM runtime state, off at
+                // every GSP boot. The kernel turns it on at load only when told to
+                // (gpumgrIsSystemMIGEnabled, the RmSetMIGAutoOnlineMode regkey or a boot
+                // config, kernel_mig_manager.c:1009-1027 of 615.71.09); its devinit
+                // scratch check is FALSE on every chip but GA100
+                // (g_kernel_mig_manager_nvoc.c:440-455). A mode kept across the boot would
+                // leave GSP-RM enabled and the kernel disabled: GPU_SET_PARTITIONS then
+                // fails NOT_SUPPORTED (kernel_mig_manager.c:7984 of 615.71.09;
+                // caraxes/runs/limits-2026-09-25/mig/gh100-6).
+                self.persist.mig = Some(Mode::new(false));
+            } else {
+                self.persist.mig.get_or_insert_with(|| Mode::new(false)).reset();
+            }
         }
         self.mig = mig::MigState::default();
     }
