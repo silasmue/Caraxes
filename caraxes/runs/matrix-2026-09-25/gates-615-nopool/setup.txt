@@ -1,0 +1,31 @@
+NVRM version: NVIDIA UNIX Open Kernel Module for x86_64  615.71.09  Release Build  (root@)  
+38ebc3575d731172ba38ed28e815fcdf9fd66ef8a8912bed9b0e7a0d4165cf59  /mnt/vmstore/caraxes/vfio-user-nvgpu-v615-fbe4dfb
+960af13c53b2824a29a7461c8390c3f136f85082ed46a6edfb0fcd9bb642284f  /mnt/vmstore/caraxes/vm1/ch-0006-v.sh
+b36bc3d runs: morning matrix, the benchmark series on vm3 and vm5-615 and the display rerun
+2026-09-25T05:47:34+02:00
+2.22 3.64 3.73
+CARAXES_ALLOC_LAZY=1
+CARAXES_BAR2_MEMFD=1
+CARAXES_BOOT_MODEL=1
+CARAXES_DMA=register
+CARAXES_DOORBELL_POLL=hybrid
+CARAXES_DOORBELL_TOKENS=64
+CARAXES_DRIVER=615
+CARAXES_FB_MIB=1024
+CARAXES_GATE_FB_MIB=1024
+CARAXES_GATE_RUNS=/home/silas/git/Caraxes/.claude/worktrees/agent-ad0bd7a6ec1b6cc05/caraxes/runs/matrix-2026-09-25/gates-615-nopool
+CARAXES_HOST_EXEC=1
+CARAXES_HOST_RM=1
+CARAXES_INTR_PAGE=1
+CARAXES_IP=192.168.105.26
+CARAXES_LEANDRO_TEST=/home/silas/git/Leandro-Test
+CARAXES_MAC=02:00:00:00:00:26
+CARAXES_MIRROR_CHANNELS=1
+CARAXES_MIRROR_GR_SHADOW=1
+CARAXES_MSI_REARM_IOEVENTFD=1
+CARAXES_RESERVE_SLOT=2
+CARAXES_RESERVE_VRAM=1
+CARAXES_SERVER=/mnt/vmstore/caraxes/vfio-user-nvgpu-v615-fbe4dfb
+CARAXES_TAP=caraxes5
+LEA_CH=/mnt/vmstore/caraxes/vm1/ch-0006-v.sh
+VM=vm5-615

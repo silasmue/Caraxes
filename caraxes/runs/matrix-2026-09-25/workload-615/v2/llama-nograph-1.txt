@@ -1,0 +1,20 @@
+# target v2 metric llama-nograph rep 1
+# cmd GGML_CUDA_DISABLE_GRAPHS=1 $HOME/gpu/venv/bin/python ./llamaprobe.py --reps 5 -p 0 -n 128 
+# device /mnt/vmstore/caraxes/vm2-615/vfio-user-nvgpu sha256 38ebc3575d731172
+# time 2026-09-25T05:19:08+02:00
+# gpu 61, 1860 MHz, 7000 MHz, P0, 87 %, 3123 MiB, Disabled
+# procs 1399617:vm1-vmm 2545558:vm2-615-dev 2545574:vm1-vmm 
+# loadavg 5.32 4.28 3.22
+cmd: /home/leandro/bench-llama/llama-bench -m /home/leandro/bench-llama/model.gguf -p 0 -n 128 -r 5 -ngl 99 -fa auto -o jsonl -oe md
+LD_LIBRARY_PATH: /home/leandro/bench-llama/lib:/usr/lib/x86_64-linux-gnu
+ggml_cuda_init: found 1 CUDA devices (Total VRAM: 1845 MiB):
+  Device 0: Leandro VFIO RTX 2070-2G, compute capability 7.5, VMM: no, VRAM: 1845 MiB
+| model                          |       size |     params | backend    | ngl |            test |                  t/s |
+| ------------------------------ | ---------: | ---------: | ---------- | --: | --------------: | -------------------: |
+| llama 1B Q4_K - Medium         | 762.81 MiB |     1.24 B | CUDA       |  99 |           tg128 |        256.64 ± 8.56 |
+
+build: e9fa0781f (10173)
+
+# LLAMA tg128_tps=256.64 tg128_sd=8.56 reps=5 ngl=99 fa=-1 model=llama_1B_Q4_K_-_Medium model_mib=763 wall_s=3.6 build=e9fa0781f libs=dist gpu=Leandro_VFIO_RTX_2070-2G
+# WALL wall_ms=3640 rc=0
+# MEAS dev_pid=2545558 dev_cpu_ms=1960 dev_rss_hwm_kb=5261424/9444984 vmm_cpu_ms=15040 others: vm1-vmm=0ms 

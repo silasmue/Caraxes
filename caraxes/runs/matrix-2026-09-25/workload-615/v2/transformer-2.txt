@@ -1,0 +1,19 @@
+# target v2 metric transformer rep 2
+# cmd $HOME/gpu/venv/bin/python ./transformer.py --seconds 60 
+# device /mnt/vmstore/caraxes/vm2-615/vfio-user-nvgpu sha256 38ebc3575d731172
+# time 2026-09-25T05:32:05+02:00
+# gpu 63, 1845 MHz, 7000 MHz, P0, 50 %, 3119 MiB, Disabled
+# procs 1399617:vm1-vmm 2578850:vm2-615-dev 2578907:vm1-vmm 
+# loadavg 4.73 4.21 3.56
+device: Leandro VFIO RTX 2070-2G  torch 2.13.0+cu130  layers 6 d_model 256 heads 8 seq 256 batch 32 vocab 4096 amp False seconds 60.0
+   10.1s | step    132 |   13.10 steps/s | median   76.31 ms | loss 4.504
+   20.1s | step    262 |   13.02 steps/s | median   76.76 ms | loss 2.516
+   30.2s | step    391 |   12.95 steps/s | median   77.32 ms | loss 1.033
+   40.2s | step    519 |   12.90 steps/s | median   77.61 ms | loss 0.259
+   50.3s | step    646 |   12.84 steps/s | median   77.87 ms | loss 0.044
+
+=== final ===
+timed steps 768 in 60.02 s: 12.80 steps/s, median 78.21 ms, 104831 tokens/s, loss 8.370 -> 0.022, params 5.85 M, peak memory 1382 MiB
+# TRANSFORMER steps_per_s=12.797 step_med_ms=78.215 step_p10_ms=76.347 step_p90_ms=79.743 tokens_per_s=104831 steps=768 first_step_ms=683.5 loss_first=8.3697 loss_last=0.0222 amp=0 batch=32 seq=256 layers=6 dmodel=256 params_m=5.85 mem_peak_mib=1382 oom_retries=0 finite=1 device=Leandro_VFIO_RTX_2070-2G
+# WALL wall_ms=65677 rc=0
+# MEAS dev_pid=2578850 dev_cpu_ms=11480 dev_rss_hwm_kb=5262344/9444948 vmm_cpu_ms=129780 others: vm1-vmm=100ms 

@@ -1,0 +1,102 @@
+# target v2 metric convnet rep 1
+# cmd $HOME/gpu/venv/bin/python ./convnet.py --seconds 60 
+# device /mnt/vmstore/caraxes/vm2-615/vfio-user-nvgpu sha256 38ebc3575d731172
+# time 2026-09-25T05:20:16+02:00
+# gpu 78, 1815 MHz, 7000 MHz, P0, 87 %, 3123 MiB, Disabled
+# procs 1399617:vm1-vmm 2545558:vm2-615-dev 2545574:vm1-vmm 
+# loadavg 4.36 4.22 3.28
+device: Leandro VFIO RTX 2070-2G  torch 2.13.0+cu130  cudnn 92000  batch 32 size 224 amp False channels_last False seconds 60.0
+Traceback (most recent call last):
+  File "/home/leandro/bench/./convnet.py", line 191, in <module>
+    main()
+  File "/home/leandro/bench/./convnet.py", line 161, in main
+    r = run(args, batch, device)
+        ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/leandro/bench/./convnet.py", line 104, in run
+    loss_first = step(0)  # includes cuDNN autotuning of every convolution shape
+                 ^^^^^^^
+  File "/home/leandro/bench/./convnet.py", line 96, in step
+    loss = F.cross_entropy(model(x), y)
+                           ^^^^^^^^
+  File "/home/leandro/gpu/venv/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1778, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/leandro/gpu/venv/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1789, in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/leandro/bench/./convnet.py", line 68, in forward
+    x = self.layers(self.stem(x))
+        ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/leandro/gpu/venv/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1778, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/leandro/gpu/venv/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1789, in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/leandro/gpu/venv/lib/python3.12/site-packages/torch/nn/modules/container.py", line 253, in forward
+    input = module(input)
+            ^^^^^^^^^^^^^
+  File "/home/leandro/gpu/venv/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1778, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/leandro/gpu/venv/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1789, in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/leandro/bench/./convnet.py", line 47, in forward
+    y = F.relu(self.bn1(self.conv1(x)), inplace=True)
+                        ^^^^^^^^^^^^^
+  File "/home/leandro/gpu/venv/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1778, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/leandro/gpu/venv/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1789, in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/leandro/gpu/venv/lib/python3.12/site-packages/torch/nn/modules/conv.py", line 565, in forward
+    return self._conv_forward(input, self.weight, self.bias)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/leandro/gpu/venv/lib/python3.12/site-packages/torch/nn/modules/conv.py", line 560, in _conv_forward
+    return F.conv2d(
+           ^^^^^^^^^
+torch.AcceleratorError: CUDA error: unspecified launch failure
+Search for `cudaErrorLaunchFailure' in https://docs.nvidia.com/cuda/cuda-runtime-api/group__CUDART__TYPES.html for more information.
+CUDA kernel errors might be asynchronously reported at some other API call, so the stacktrace below might be incorrect.
+For debugging consider passing CUDA_LAUNCH_BLOCKING=1
+
+[W925 03:20:20.344830720 CachingHostAllocator.cpp:26] Warning: Exception in pinned allocator free(), rethrowing (function free)
+terminate called after throwing an instance of 'c10::AcceleratorError'
+  what():  CUDA error: unspecified launch failure
+Search for `cudaErrorLaunchFailure' in https://docs.nvidia.com/cuda/cuda-runtime-api/group__CUDART__TYPES.html for more information.
+CUDA kernel errors might be asynchronously reported at some other API call, so the stacktrace below might be incorrect.
+For debugging consider passing CUDA_LAUNCH_BLOCKING=1
+
+Exception raised from createEvent at /__w/pytorch/pytorch/c10/cuda/CUDAEvent.h:262 (most recent call first):
+frame #0: c10::Error::Error(c10::SourceLocation, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >) + 0x9d (0x7bcc28b63bfd in /home/leandro/gpu/venv/lib/python3.12/site-packages/torch/lib/libc10.so)
+frame #1: <unknown function> + 0xc4e9 (0x7bcc28f6c4e9 in /home/leandro/gpu/venv/lib/python3.12/site-packages/torch/lib/libc10_cuda.so)
+frame #2: <unknown function> + 0xce9060 (0x7bcb72ae9060 in /home/leandro/gpu/venv/lib/python3.12/site-packages/torch/lib/libtorch_cuda.so)
+frame #3: <unknown function> + 0xcebf1c (0x7bcb72aebf1c in /home/leandro/gpu/venv/lib/python3.12/site-packages/torch/lib/libtorch_cuda.so)
+frame #4: <unknown function> + 0xce5971 (0x7bcb72ae5971 in /home/leandro/gpu/venv/lib/python3.12/site-packages/torch/lib/libtorch_cuda.so)
+frame #5: <unknown function> + 0x86ae4 (0x7bcc28b40ae4 in /home/leandro/gpu/venv/lib/python3.12/site-packages/torch/lib/libc10.so)
+frame #6: c10::TensorImpl::~TensorImpl() + 0x9 (0x7bcc28b3b219 in /home/leandro/gpu/venv/lib/python3.12/site-packages/torch/lib/libc10.so)
+frame #7: <unknown function> + 0x8752b5 (0x7bcba00752b5 in /home/leandro/gpu/venv/lib/python3.12/site-packages/torch/lib/libtorch_python.so)
+frame #8: <unknown function> + 0x875341 (0x7bcba0075341 in /home/leandro/gpu/venv/lib/python3.12/site-packages/torch/lib/libtorch_python.so)
+frame #9: /home/leandro/gpu/venv/bin/python() [0x59edb3]
+frame #10: /home/leandro/gpu/venv/bin/python() [0x54c7b5]
+frame #11: /home/leandro/gpu/venv/bin/python() [0x558cd1]
+frame #12: /home/leandro/gpu/venv/bin/python() [0x6105f5]
+frame #13: /home/leandro/gpu/venv/bin/python() [0x610605]
+frame #14: /home/leandro/gpu/venv/bin/python() [0x610605]
+frame #15: /home/leandro/gpu/venv/bin/python() [0x572d66]
+frame #16: PyDict_SetItemString + 0x94 (0x5741d4 in /home/leandro/gpu/venv/bin/python)
+frame #17: /home/leandro/gpu/venv/bin/python() [0x6b8305]
+frame #18: /home/leandro/gpu/venv/bin/python() [0x6b1a62]
+frame #19: Py_FinalizeEx + 0xad (0x6b114d in /home/leandro/gpu/venv/bin/python)
+frame #20: Py_RunMain + 0x281 (0x6bcb01 in /home/leandro/gpu/venv/bin/python)
+frame #21: Py_BytesMain + 0x2d (0x6bc71d in /home/leandro/gpu/venv/bin/python)
+frame #22: <unknown function> + 0x2a1ca (0x7bcc29e2a1ca in /usr/lib/x86_64-linux-gnu/libc.so.6)
+frame #23: __libc_start_main + 0x8b (0x7bcc29e2a28b in /usr/lib/x86_64-linux-gnu/libc.so.6)
+frame #24: _start + 0x25 (0x657bc5 in /home/leandro/gpu/venv/bin/python)
+
+timeout: the monitored command dumped core
+bash: line 1:  6334 Aborted                 timeout 900 bash -c "$HOME/gpu/venv/bin/python ./convnet.py --seconds 60 " 2>&1
+# WALL wall_ms=4498 rc=134
+# MEAS dev_pid=2545558 dev_cpu_ms=710 dev_rss_hwm_kb=5262608/9444984 vmm_cpu_ms=8750 others: vm1-vmm=10ms 

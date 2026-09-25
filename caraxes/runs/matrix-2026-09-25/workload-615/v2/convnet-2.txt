@@ -1,0 +1,19 @@
+# target v2 metric convnet rep 2
+# cmd $HOME/gpu/venv/bin/python ./convnet.py --seconds 60 
+# device /mnt/vmstore/caraxes/vm2-615/vfio-user-nvgpu sha256 38ebc3575d731172
+# time 2026-09-25T05:33:11+02:00
+# gpu 78, 1815 MHz, 7000 MHz, P0, 50 %, 3119 MiB, Disabled
+# procs 1399617:vm1-vmm 2578850:vm2-615-dev 2578907:vm1-vmm 
+# loadavg 4.23 4.17 3.59
+device: Leandro VFIO RTX 2070-2G  torch 2.13.0+cu130  cudnn 92000  batch 32 size 224 amp False channels_last False seconds 60.0
+   10.1s | step    169 |    537.6 img/s | median   59.26 ms | loss 0.019
+   20.1s | step    336 |    535.5 img/s | median   59.56 ms | loss 0.009
+   30.1s | step    500 |    531.9 img/s | median   59.91 ms | loss 0.006
+   40.1s | step    663 |    529.0 img/s | median   60.24 ms | loss 0.004
+   50.1s | step    825 |    526.6 img/s | median   60.54 ms | loss 0.004
+
+=== final ===
+timed steps 984 in 60.04 s: 524.4 images/s, median step 60.89 ms, loss 7.005 -> 0.003, first step 2575 ms, peak memory 1459 MiB
+# CONVNET images_per_s=524.45 step_med_ms=60.891 step_p10_ms=59.203 step_p90_ms=63.024 steps=984 first_step_ms=2574.9 loss_first=7.0050 loss_last=0.0030 amp=0 channels_last=0 batch=32 size=224 mem_peak_mib=1459 oom_retries=0 finite=1 device=Leandro_VFIO_RTX_2070-2G
+# WALL wall_ms=66413 rc=0
+# MEAS dev_pid=2578850 dev_cpu_ms=13220 dev_rss_hwm_kb=5262388/9444948 vmm_cpu_ms=131060 others: vm1-vmm=130ms 

@@ -27,3 +27,13 @@ The pool's page movements, the device's exit summary (device-summary.txt, pool-l
 Both logged 20 "cannot move back ... USERD of mirrored channel" lines (consistent, retried).
 The 615 run differs by 512 pages moved in and back cold, 14 refused barriers and 532 refused
 moves.
+
+Cross-check after the matrix (same script, vm5-615 alone on the matrix side):
+  gates-615-nopool (MX_NOPOOL=1, the BAR1 pool off): nvml pass, cuda 10 of 11 (cuda-managed
+    801 only), convburn passes, 0 host Xid (device pid 2661174).
+  gates-615-rerun (the pool on, as here): nvml pass, cuda 10 of 11 (cuda-managed 801 only),
+    convburn passes, 0 host Xid (device pid 2676015); pool summary: moved in 10240 cold, back
+    10240 behind the barrier, 282 barriers (0 refused), 40 refused moves.
+So the fault is intermittent. The one run with it is also the one pool summary with refused
+barriers (14) and 532 refused moves; the clean runs with the pool (gates-610, gates-615-rerun)
+have 0 refused barriers and 40 refused moves. It ran beside gates-610 on vm3.

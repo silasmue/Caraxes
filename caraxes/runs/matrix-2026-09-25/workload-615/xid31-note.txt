@@ -1,0 +1,27 @@
+# SPDX-License-Identifier: MIT
+# The Xid 31 of the morning matrix's workload gate (vm2-615, 615 guest, 2 GiB at slot 0, main
+# fbe4dfb v615 build with the swiotlb-alias fix, the matrix windows).
+
+Host kernel log (host-xid.txt): one line, on the device pid 2545558 (vm2-615's device of rep 1):
+  05:20:20 Xid 31, GPC1 GPCCLIENT_T1_10 FAULT_PDE ACCESS_TYPE_VIRT_WRITE @ 0x100_3b416000
+
+Stage: convnet rep 1 (ResNet-18 training, batch 32, v2/convnet-1.txt): the first step
+(`loss_first = step(0)`, cuDNN autotuning of every convolution shape) raised
+"CUDA error: unspecified launch failure" and the process aborted (rc 134) 4.5 s into the run.
+Reps 2 and 3 of convnet (new device processes) ran clean at 524 and 528 images/s. Every other
+run of the gate (short-auto, rl, ppo-full, llama, llama-nograph, transformer, 3 reps each) was
+clean.
+
+The alias was active (dma-ranges-guest.txt: GPA 0xba200000..0xbe400000 -> IOVA 0xf000000000).
+
+The pool's page movements of the faulting instance are not recorded: bench-run.sh's restart
+before rep 2 truncated gpu.log. The exit summary of rep 3's instance (pid 2621159,
+device-summary.txt): moved in 3584 cold + 0 behind the barrier, back 0 cold + 3584 behind the
+barrier; 128 barriers (0 refused, 340 TSG preempts); 20 refused; 0 page-table hazards; 0 pages
+also behind the BAR2 memfd. bench-run.sh now keeps each rep's device log before a restart
+(V2_LOG_KEEP, v2-device-rep<N>.txt).
+
+Same signature as the night's (workload-2026-09-24/night/gate/host-xid.txt: GPC0 FAULT_PDE
+VIRT_WRITE at 0x100_1e200000 in transformer rep 2) and as gates-615/xid31-note.txt (GPC1
+FAULT_PDE VIRT_WRITE in the cuda gate's convburn): a FAULT_PDE on a GR write in a cuDNN/torch
+training step, seen on the 615 guest only in this matrix.

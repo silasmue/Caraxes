@@ -24,6 +24,9 @@ mx_windows() {  # the recommended configuration, on top of a guest selector's ba
     export CARAXES_BAR2_MEMFD=1 CARAXES_MSI_REARM_IOEVENTFD=1 CARAXES_ALLOC_LAZY=1
     unset CARAXES_DOORBELL_IOEVENTFD CARAXES_BAR2_MEMFD_SYNC_DOORBELL CARAXES_TRACE_ACCESSES CARAXES_TRACE_FLUSH
     unset CARAXES_GUEST_ABI CARAXES_COSTUME
+    # MX_NOPOOL=1: the same without the BAR1 pool (the Xid 31 cross-check of gates-615).
+    [[ ${MX_NOPOOL:-0} == 1 ]] && unset CARAXES_BAR1_PASSTHROUGH CARAXES_BAR1_POOL_MIB
+    return 0
 }
 mx_hostexec() {  # host RM, host execution, reserved VRAM (caraxes/runs/gsp-rpc-2026-09-24/run.sh gate610)
     export CARAXES_BOOT_MODEL=1 CARAXES_HOST_RM=1 CARAXES_HOST_EXEC=1 CARAXES_MIRROR_CHANNELS=1
