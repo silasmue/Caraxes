@@ -676,8 +676,8 @@ mod tests {
             let t = ControlTable::resolve(abi, TU106_CONTROLS).unwrap();
             // 8 category A entries, the 5 of b-host-forwardable.md §3 S, the 3 D rows the
             // plan moves to A (d-device-model.md §3 and §7) and the 14 sweep getters of
-            // 2026-09-25 (coverage-map.md §3).
-            assert_eq!(t.entries.len(), 30, "{}", abi.name);
+            // 2026-09-25 (coverage-map.md §3); GR_GFX_POOL_QUERY_SIZE moved to recorded.rs.
+            assert_eq!(t.entries.len(), 29, "{}", abi.name);
             // The D rows moved to A whose value has no source in the files yet.
             assert_eq!(t.open.len(), 4, "{}", abi.name);
         }
@@ -713,7 +713,7 @@ mod tests {
         );
         assert_eq!(
             ControlTable::resolve(abi, &limited).unwrap().entries.len(),
-            29
+            28
         );
         // A B control without `moved_from` is refused, and so is a wrong `moved_from`.
         let bad = TU106_CONTROLS.replace(

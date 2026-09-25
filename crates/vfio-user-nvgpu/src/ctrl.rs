@@ -928,6 +928,16 @@ impl Dispatcher {
     /// facts where they fit (recorded.rs); what stays NOT_SUPPORTED carries the first
     /// request bytes in its note, so a trace shows what the guest asked.
     pub fn control(&mut self, h_client: u32, h_object: u32, cmd: u32, params: &[u8]) -> Answer {
+        let facts = crate::recorded::Facts {
+            fb_bytes: self.profile.fb_bytes,
+            gpcs: self.gr_info(0x14).unwrap_or(1),
+            tpcs_per_gpc: self.gr_info(0x17).unwrap_or(1),
+        };
+        if crate::recorded::OVERRIDES.contains(&cmd) {
+            if let Some(r) = crate::recorded::answer(cmd, params, &facts) {
+                return r;
+            }
+        }
         let a = self.control_modelled(h_client, h_object, cmd, params);
         // Only for an object the guest allocated or the internal client's: a control on a
         // freed or unknown handle stays refused.
@@ -938,11 +948,6 @@ impl Dispatcher {
         {
             return a;
         }
-        let facts = crate::recorded::Facts {
-            fb_bytes: self.profile.fb_bytes,
-            gpcs: self.gr_info(0x14).unwrap_or(1),
-            tpcs_per_gpc: self.gr_info(0x17).unwrap_or(1),
-        };
         match crate::recorded::answer(cmd, params, &facts) {
             Some(mut r) => {
                 r.note = format!("{} (was: {} [{}])", r.note, a.note, a.label);

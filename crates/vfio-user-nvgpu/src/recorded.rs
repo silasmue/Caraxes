@@ -39,6 +39,24 @@ pub const GRMGR_GET_GR_FS_INFO: u32 = 0x2080_3801;
 pub const GPU_QUERY_FUNCTION_STATUS: u32 = 0x2080_0173;
 pub const INTERNAL_GET_ENABLED_SEC2_CLASSES: u32 = 0x2080_0AAF;
 pub const FIFO_GET_ENGINE_CONTEXT_PROPERTIES: u32 = 0x0080_1707;
+/// `GR_GFX_POOL_QUERY_SIZE` (ctrl2080gr.h:1272-1307): the Windows KMD sizes its graphics
+/// preemption (GfxP) pool with it. No capture has the card's numbers: 1 MiB per slot, a
+/// control structure of 64 bytes plus 16 per slot in 4 KiB pages, 64 KiB pool alignment.
+pub const GR_GFX_POOL_QUERY_SIZE: u32 = 0x2080_121F;
+const GFXP_SLOT_STRIDE: u32 = 0x10_0000;
+/// `GR_GFX_POOL_INITIALIZE`, `_ADD_SLOTS`, `_REMOVE_SLOTS` (ctrl2080gr.h:1310-1400): the pool
+/// and its control structure are the KMD's memory; nothing executes on the emulated GR, so
+/// the device acknowledges them (NV_OK, request unchanged).
+pub const GR_GFX_POOL_MANAGE: [u32; 3] = [0x2080_1220, 0x2080_1221, 0x2080_1222];
+
+/// Controls answered here before the dispatcher's own tables, which refuse them for the
+/// Linux path (no caller there): the Windows KMD's graphics-preemption pool.
+pub const OVERRIDES: [u32; 4] = [
+    GR_GFX_POOL_QUERY_SIZE,
+    GR_GFX_POOL_MANAGE[0],
+    GR_GFX_POOL_MANAGE[1],
+    GR_GFX_POOL_MANAGE[2],
+];
 /// A GSS-legacy GPU command (no public layout): the card answered the recorded one (cuInit,
 /// subcommand 0x25) NV_OK with the request unchanged.
 pub const GSS_LEGACY_GPU_59: u32 = 0x2080_8159;
@@ -193,6 +211,12 @@ pub fn answer(cmd: u32, params: &[u8], f: &Facts) -> Option<Answer> {
             "enabled SEC2 classes: none (the card's class list has no SEC2 class)".into(),
         )),
         FIFO_GET_ENGINE_CONTEXT_PROPERTIES => Some(engine_ctx(params)),
+        GR_GFX_POOL_QUERY_SIZE => Some(gfx_pool_query_size(params)),
+        c if GR_GFX_POOL_MANAGE.contains(&c) => Some(ok(
+            params.to_vec(),
+            LABEL_CHIP,
+            format!("gfx pool {c:#x}: acknowledged (the pool is the KMD's memory; no GR executes)"),
+        )),
         GSS_LEGACY_GPU_59 => Some(ok(
             params.to_vec(),
             LABEL,
@@ -227,6 +251,32 @@ fn engine_ctx(params: &[u8]) -> Answer {
         params: b,
         label: LABEL_CHIP,
         note: format!("engine context properties: engine {id:#x}"),
+    }
+}
+
+/// `{maxSlots u32, slotStride u32, ctrlStructSize u64, ctrlStructAlign u64, poolSize u64,
+/// poolAlign u64}`; `maxSlots` must be non-zero.
+fn gfx_pool_query_size(params: &[u8]) -> Answer {
+    let mut b = params.to_vec();
+    b.resize(params.len().max(40), 0);
+    let slots = get32(&b, 0);
+    let st = if slots == 0 {
+        NV_ERR_INVALID_ARGUMENT
+    } else {
+        let ctrl = (64 + 16 * slots as u64).div_ceil(0x1000) * 0x1000;
+        put32(&mut b, 4, GFXP_SLOT_STRIDE);
+        b[8..16].copy_from_slice(&ctrl.to_le_bytes());
+        b[16..24].copy_from_slice(&0x1000u64.to_le_bytes());
+        b[24..32].copy_from_slice(&(slots as u64 * GFXP_SLOT_STRIDE as u64).to_le_bytes());
+        b[32..40].copy_from_slice(&0x1_0000u64.to_le_bytes());
+        v::NV_OK
+    };
+    b.truncate(params.len());
+    Answer {
+        status: st,
+        params: b,
+        label: LABEL_CHIP,
+        note: format!("gfx pool query size: maxSlots {slots}, slot stride {GFXP_SLOT_STRIDE:#x}"),
     }
 }
 
@@ -395,6 +445,13 @@ mod tests {
         p[0] = 3;
         let a = answer(FIFO_GET_ENGINE_CONTEXT_PROPERTIES, &p, &F).unwrap();
         assert_eq!(a.status, NV_ERR_INVALID_ARGUMENT);
+        let mut q = vec![0u8; 40];
+        q[0] = 8;
+        let a = answer(GR_GFX_POOL_QUERY_SIZE, &q, &F).unwrap();
+        assert_eq!(a.status, 0);
+        assert_eq!(get32(&a.params, 4), GFXP_SLOT_STRIDE);
+        assert_eq!(u64::from_le_bytes(a.params[24..32].try_into().unwrap()), 8 << 20);
+        assert_eq!(answer(GR_GFX_POOL_QUERY_SIZE, &[0u8; 40], &F).unwrap().status, NV_ERR_INVALID_ARGUMENT);
         let mut g = vec![0u8; 332];
         g[0] = 1;
         g[4] = 0xA;
