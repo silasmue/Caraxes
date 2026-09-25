@@ -923,8 +923,54 @@ impl Dispatcher {
         )
     }
 
-    /// `GSP_RM_CONTROL`.
+    /// `GSP_RM_CONTROL`. An answer the device has no model for (`unanswered`, or a `no
+    /// host` fallback in pure emulation) is filled from the card's recorded answers or chip
+    /// facts where they fit (recorded.rs); what stays NOT_SUPPORTED carries the first
+    /// request bytes in its note, so a trace shows what the guest asked.
     pub fn control(&mut self, h_client: u32, h_object: u32, cmd: u32, params: &[u8]) -> Answer {
+        let a = self.control_modelled(h_client, h_object, cmd, params);
+        // Only for an object the guest allocated or the internal client's: a control on a
+        // freed or unknown handle stays refused.
+        let known = h_client == INTERNAL_CLIENT || self.objects.contains_key(&(h_client, h_object));
+        if a.status != NV_ERR_NOT_SUPPORTED
+            || !(a.label == "unanswered" || a.label.contains("no host"))
+            || !known
+        {
+            return a;
+        }
+        let facts = crate::recorded::Facts {
+            fb_bytes: self.profile.fb_bytes,
+            gpcs: self.gr_info(0x14).unwrap_or(1),
+            tpcs_per_gpc: self.gr_info(0x17).unwrap_or(1),
+        };
+        match crate::recorded::answer(cmd, params, &facts) {
+            Some(mut r) => {
+                r.note = format!("{} (was: {} [{}])", r.note, a.note, a.label);
+                r
+            }
+            None => {
+                let mut a = a;
+                let head: String = params.iter().take(48).map(|b| format!("{b:02x}")).collect();
+                a.note.push_str(&format!("; request {head}"));
+                a
+            }
+        }
+    }
+
+    /// A `[gr.emulated_info]` entry of the chip (GPC count 0x14, TPCs per GPC 0x17).
+    fn gr_info(&self, index: u32) -> Option<u32> {
+        self.chip
+            .gr
+            .emulated_info
+            .as_ref()?
+            .entries
+            .iter()
+            .find(|e| e[0] == index)
+            .map(|e| e[1])
+            .filter(|&n| (1..32).contains(&n))
+    }
+
+    fn control_modelled(&mut self, h_client: u32, h_object: u32, cmd: u32, params: &[u8]) -> Answer {
         // A control on a channel or TSG that runs on the host: the host mirror takes it.
         if MIRROR_FORWARDED.contains(&cmd) {
             if let Some(m) = self.mirror.as_mut() {

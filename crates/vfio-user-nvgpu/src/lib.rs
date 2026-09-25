@@ -56,6 +56,7 @@ pub mod profile;
 pub mod ptcache;
 pub mod public;
 pub mod rc;
+pub mod recorded;
 pub mod rpc;
 pub mod selftest;
 pub mod shadow;
