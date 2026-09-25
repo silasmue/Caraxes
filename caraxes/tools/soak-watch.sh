@@ -8,7 +8,9 @@
 # into a CSV. The device prints the same figures from inside (`soak` lines, every 60 s).
 #
 #   soak-watch.sh <csv> [SECONDS]    sample until SECONDS passed, or until Ctrl-C
-#   soak-watch.sh --summary <csv>    means of the first and the last minute, and the deltas
+#   soak-watch.sh --summary <csv>    means of the first and the last minute, the deltas, and
+#                                    the host BAR1 peak of the run (a 1 Hz sample can still
+#                                    miss a sub-second spike)
 #
 # A leak is a delta that grows with the session's length at the same guest load. VM
 # starts and stops move vram_used in steps of the reservation size; read the rows around
@@ -21,7 +23,7 @@ summary() {
     awk -F, '
         NR == 1 { for (i = 1; i <= NF; i++) name[i] = $i; n = NF; next }
         $1 !~ /^[0-9]+$/ { next }
-        { t[++rows] = $1; for (i = 3; i <= n; i++) v[rows, i] = $i }
+        { t[++rows] = $1; tm[rows] = $2; for (i = 3; i <= n; i++) v[rows, i] = $i }
         END {
             if (rows == 0) { print "no samples"; exit 1 }
             t0 = t[1]; t1 = t[rows]
@@ -36,6 +38,16 @@ summary() {
                 }
                 if (na == 0 || nb == 0) { printf "%-18s %14s %14s %14s\n", name[i], "-", "-", "-"; continue }
                 printf "%-18s %14.1f %14.1f %+14.1f\n", name[i], a / na, b / nb, b / nb - a / na
+            }
+            # The BAR1 peak: the host aperture runs out in transients the minute means hide.
+            for (i = 3; i <= n; i++) { if (name[i] == "bar1_used_mib") bu = i; if (name[i] == "bar1_free_mib") bf = i }
+            if (bu) {
+                peak = -1; low = -1
+                for (r = 1; r <= rows; r++) {
+                    if (v[r, bu] != "" && v[r, bu] + 0 > peak) { peak = v[r, bu] + 0; pt = tm[r] }
+                    if (v[r, bf] != "" && (low < 0 || v[r, bf] + 0 < low)) { low = v[r, bf] + 0; lt = tm[r] }
+                }
+                if (peak >= 0) printf "BAR1 peak: %d MiB used at %s, %d MiB free at the lowest (%s)\n", peak, pt, low, lt
             }
         }' "$csv"
 }

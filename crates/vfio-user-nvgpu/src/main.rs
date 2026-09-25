@@ -47,7 +47,7 @@ vfio-user-nvgpu --socket <path> [--trace <file>] [--board-data <name|file>] [--c
                 [--boot-model] [--fb-mib <n>] [--board <name>] [--host-rm] [--sm-version <m.n>]
                 [--reserve-vram [--reserve-slot <n>]] [--register-guest-ram | --identity-dma-table] [--dma-ranges <file>]
                 [--host-exec] [--profile <size>] [--name-format <legacy|transport>] [--display]
-                [--guest-abi <595|610|615>]
+                [--guest-abi <595|610|615>] [--bar0-registers <file|none>]
 vfio-user-nvgpu --print-name [--board-data <name|file>] [--board <name>] [--fb-mib <n> | --profile <size>]
                 [--name-format <legacy|transport>]
 vfio-user-nvgpu --selftest <socket> [--board-data <name|file>] [--chip <chip>] [--config <dump>]
@@ -95,6 +95,11 @@ vfio-user-nvgpu --selftest <socket> [--board-data <name|file>] [--chip <chip>] [
              the build's): 610 needs a default build, 615 a `--features v615` build (message
              queue v2, GMCAPI init; docs/caraxes/gsp-transport-615.md), 595 a 610 build with
              CARAXES_GUEST_ABI=595; anything else is refused (fail closed)
+  --bar0-registers  the physical card's captured BAR0 registers (bar0.rs CapturedRegisters),
+             answering reads of offsets no model owns and nothing latched, traced `captured`
+             (default: the newest bar0-registers-*.txt beside the board's config capture;
+             none: no table). A missing or malformed file, or one whose NV_PMC_BOOT_0 is not
+             the presented chip's, leaves no table (those reads stay 0)
 Environment: CARAXES_DOORBELL_IOEVENTFD=1 offers the usermode doorbell register as an
   ioeventfd sub-region (VFIO_USER_DEVICE_GET_REGION_IO_FDS; needs patch 0005 in Cloud
   Hypervisor, a client without it keeps trapping); the eventfd carries no token, so a
@@ -150,6 +155,8 @@ struct Args {
     name_format: NameFormat,
     print_name: bool,
     guest_abi: u32,
+    /// The captured BAR0 table (`None`: no table).
+    bar0_registers: Option<PathBuf>,
 }
 
 fn parse_args() -> Result<Args> {
@@ -193,6 +200,11 @@ fn parse_args() -> Result<Args> {
         print_name: false,
         board_data: board_data.clone(),
         guest_abi: 0,
+        // The board's reference directory: the one its config capture lives in.
+        bar0_registers: root
+            .join(&board_data.config)
+            .parent()
+            .and_then(vfio_user_nvgpu::bar0::CapturedRegisters::newest_in),
     };
     let mut guest_abi_flag = None;
     let mut it = args.into_iter();
@@ -246,6 +258,10 @@ fn parse_args() -> Result<Args> {
                     .with_context(|| format!("--sm-version {v:?}: expected <major>.<minor>"))?;
                 vfio_user_nvgpu::kgr::set_sm_version_override(sm).map_err(anyhow::Error::msg)?;
                 eprintln!("vfio-user-nvgpu: SM version reported as {v} ({sm:#06x}) in every GR info answer (costume ladder, docs/caraxes/costume-ladder.md)");
+            }
+            "--bar0-registers" => {
+                let v = value()?;
+                a.bar0_registers = (v != "none").then(|| PathBuf::from(v));
             }
             "--guest-abi" => {
                 guest_abi_flag = Some(value()?.parse().context("--guest-abi needs 595, 610 or 615")?)
@@ -579,6 +595,26 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
     let identity = chip.data().identity;
     let trace = Trace::new(a.trace.as_deref())?;
     let mut bar0 = Bar0::new(chip, rom, vbios);
+    // The physical card's captured registers for unmodelled offsets; fail closed (no table)
+    // on anything wrong with the file.
+    match &a.bar0_registers {
+        None => eprintln!("vfio-user-nvgpu: no captured BAR0 table; unmodelled registers read 0"),
+        Some(p) => match vfio_user_nvgpu::bar0::CapturedRegisters::load(p)
+            .and_then(|t| t.check_identity(identity.boot_0).map(|()| t))
+        {
+            Ok(t) => {
+                eprintln!(
+                    "vfio-user-nvgpu: captured BAR0 table {}: {} registers answer unmodelled reads (traced `captured`)",
+                    p.display(),
+                    t.len()
+                );
+                bar0 = bar0.with_captured(t);
+            }
+            Err(e) => eprintln!(
+                "vfio-user-nvgpu: WARNING: captured BAR0 table refused ({e}); unmodelled registers read 0"
+            ),
+        },
+    }
     // The host driver's ABI, before the first host RM client opens (hostabi.rs,
     // docs/caraxes/cutover-615.md): CARAXES_HOST_ABI, else the running driver's
     // version; any version without measured layouts ends start-up here.

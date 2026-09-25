@@ -1,0 +1,17 @@
+066ae66a5014cb58612f7a66670a9aec8b20d9bf8ea524559ac9a2dfdcab403e  /home/silas/git/Caraxes/.claude/worktrees/agent-ac33be25773b6f1d4/target/nova/release/vfio-user-nvgpu
+8f33f98d68733ffdf1c7bc9a2b5447038c81f5077e0f03d296f548b849cf0ef0  /home/silas/git/Caraxes/.claude/worktrees/agent-ac33be25773b6f1d4/target/nova-build/arch/x86/boot/bzImage
+b7651733ccade3a420b0c2c5f795b636c3442f0c40e99cd28680ed54ba8391fc  /home/silas/git/Caraxes/.claude/worktrees/agent-ac33be25773b6f1d4/caraxes/reference/rtx2070/synth-vbios-nova.bin
+695aadc9 nova guest doc: build parallelism and NAS-backed build dirs
+CARAXES_BOOT_MODEL=1
+CARAXES_CPUS=2
+CARAXES_FB_MIB=1024
+CARAXES_GUEST_ABI=570
+CARAXES_INITRD=none
+CARAXES_KERNEL=/home/silas/git/Caraxes/.claude/worktrees/agent-ac33be25773b6f1d4/target/nova-build/arch/x86/boot/bzImage
+CARAXES_MEM=2G
+CARAXES_RESERVE_SLOT=4
+CARAXES_RESERVE_VRAM=1
+CARAXES_SERVER=/home/silas/git/Caraxes/.claude/worktrees/agent-ac33be25773b6f1d4/target/nova/release/vfio-user-nvgpu
+CARAXES_TAP=none
+CARAXES_VBIOS=/home/silas/git/Caraxes/.claude/worktrees/agent-ac33be25773b6f1d4/caraxes/reference/rtx2070/synth-vbios-nova.bin
+VM=vm9

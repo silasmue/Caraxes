@@ -774,6 +774,17 @@ def crate_handlers(consts):
             line = boot.count("\n", 0, m.start()) + 1
             fn_handlers["EVENT:%#x" % val].append({"how": "sent by the device",
                                                    "src": "%s:%d" % (rel(os.path.join(CRATE, "boot.rs")), line)})
+    # The events sent when the queues link (ver/mod.rs `link_events`, sent by boot.rs
+    # `link_queues`): the emulated version's (`active::EV_*`); older guests' (v570) are not the
+    # snapshot's version.
+    verm = read(os.path.join(CRATE, "ver", "mod.rs"))
+    body = re.search(r"pub fn link_events\(.*?\n}\n", verm, re.S)
+    for m in re.finditer(r"active::(EV_\w+)", body.group(0) if body else ""):
+        val = consts.get(m.group(1))
+        if val is not None:
+            line = verm.count("\n", 0, body.start() + m.start()) + 1
+            fn_handlers["EVENT:%#x" % val].append({"how": "sent by the device",
+                                                   "src": "%s:%d" % (rel(os.path.join(CRATE, "ver", "mod.rs")), line)})
     return handlers, fn_handlers
 
 

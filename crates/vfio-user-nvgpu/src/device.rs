@@ -814,6 +814,7 @@ impl Device {
             if let Some(st) = b.fb.vram_stats() {
                 c.vram_windows = st.held;
                 c.vram_failed = st.failed;
+                c.bar1_refused = st.bar1_refused;
             }
             c.walk_caches = b.fb.walk_caches();
         }
@@ -977,6 +978,13 @@ impl ServerBackend for Device {
             VFIO_PCI_BAR0_REGION_INDEX => {
                 self.bar0.read(&self.cfg, &self.mem, offset, data);
                 note = self.bar0.name(offset);
+                if self.bar0.take_captured() {
+                    // Answered from the physical card's capture (bar0.rs `CapturedRegisters`).
+                    let n =
+                        note.map_or_else(|| "captured".to_string(), |n| format!("{n} captured"));
+                    self.trace.access(Dir::Read, region, offset, data, Some(&n));
+                    return Ok(());
+                }
             }
             VFIO_PCI_ROM_REGION_INDEX => {
                 let rom = self.bar0.rom();

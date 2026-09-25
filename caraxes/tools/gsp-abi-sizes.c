@@ -33,6 +33,15 @@
  * authTagBuffer, aadBuffer, elemCount and the RPC header), vbiosRevision,
  * vbiosOemRevision, bSysL2CacheCoherentMode, bBusResetRequired, regionTag,
  * bIsCxlDevice and bindataArgs (docs/caraxes/guest-driver-versions.md).
+ * 570 (any major below 580; 570.144 is the firmware Linux 7.2's nova-core
+ * speaks) drops in addition what 595 has over r570: bPdiValid/pdi, the
+ * extended element-size fields of MESSAGE_QUEUE_INIT_ARGUMENTS,
+ * gspMsgQueueGetMaxRpcSize, the later GspSystemInfo fields, the rmctrl fields
+ * of rpc_gsp_rm_control_v03_00, rpc_init_done_v17_00.bIsD3Hot,
+ * sysmemHeapArgs/rmStateMonitorBufferArgs and the GSP-FMC memory parameters;
+ * it adds the r570-only fields (grCapsBits, the fb_* block, the displayless
+ * block, the ecidInfo array, bRouteDispIntrsToCPU) and the CPU sequencer
+ * structs that 610 removed. Each difference cites the 570.144 header.
  * gsp-abi-sizes.sh sets it from the tree's version.mk or from --abi; the 610
  * output is byte-identical to the file before the switches were added.
  */
@@ -74,6 +83,9 @@
 #include "gsp/gspifpub.h"               /* GSP_FMC_INIT_PARAMS */
 #include "libos_init_args.h"            /* LibosMemoryRegionInitArgument */
 #include "vgpu/vgpu_version.h"          /* VGX_MAJOR/MINOR_VERSION_NUMBER */
+#if GSP_ABI < 595
+#include "rmgspseq.h"                   /* GSP_SEQUENCER_BUFFER_CMD (570.144 rmgspseq.h:141-152) */
+#endif
 #include "nvVer.h"                      /* NV_VERSION_STRING, as kernel_gsp.c:62 */
 
 /* The driver headers are freestanding; libc is only needed for output. */
@@ -142,8 +154,14 @@ static void constants(void)
 #endif
     const unsigned long elem_min = RM_PAGE_SIZE;
     const unsigned long elem_max = RM_PAGE_SIZE * 16;
+#if GSP_ABI >= 595
     /* kernel_gsp.c:3186 -> message_queue_priv.h:112-115 */
     const unsigned long max_rpc  = gspMsgQueueGetMaxRpcSize(elem_max, hdr);
+#else
+    /* 570.144: no gspMsgQueueGetMaxRpcSize; GSP_MSG_QUEUE_RPC_SIZE_MAX =
+     * SIZE_MAX - HDR_SIZE (message_queue_priv.h:90-96) */
+    const unsigned long max_rpc  = GSP_MSG_QUEUE_RPC_SIZE_MAX;
+#endif
     /* msgq.c:236-238 with hdrAlign = 4 and entryAlign = RM_PAGE_SHIFT
      * (message_queue_cpu.c:90-91, passed at :178-179) */
 #if GSP_ABI >= 615
@@ -374,7 +392,12 @@ int main(void)
     F(rpc_get_gsp_static_info_v14_00, data);
 
     TYPE(rpc_init_done_v17_00);
+#if GSP_ABI >= 595
     F(rpc_init_done_v17_00, bIsD3Hot);
+#else
+    /* 570.144: NvU32 not_used (generated/g_rpc-structures.h:1544-1547) */
+    F(rpc_init_done_v17_00, not_used);
+#endif
 
     SECTION("RM API passthrough RPCs");
     TYPE(rpc_gsp_rm_alloc_v03_00);
@@ -394,10 +417,15 @@ int main(void)
     F(rpc_gsp_rm_control_v03_00, cmd);
     F(rpc_gsp_rm_control_v03_00, status);
     F(rpc_gsp_rm_control_v03_00, paramsSize);
+#if GSP_ABI >= 595
     F(rpc_gsp_rm_control_v03_00, rmapiRpcFlags);
     F(rpc_gsp_rm_control_v03_00, rmctrlFlags);
     F(rpc_gsp_rm_control_v03_00, rmctrlAccessRight);
     F(rpc_gsp_rm_control_v03_00, reserved0);
+#else
+    /* 570.144: one NvU32 flags, params at 24 (generated/g_rpc-structures.h:1388-1397) */
+    F(rpc_gsp_rm_control_v03_00, flags);
+#endif
     FX(rpc_gsp_rm_control_v03_00, params);
 
     TYPE(rpc_free_v03_00);
@@ -443,9 +471,38 @@ int main(void)
 
     TYPE(rpc_gsp_lockdown_notice_v17_00);
     F(rpc_gsp_lockdown_notice_v17_00, bLockdownEngaging);
+#if GSP_ABI < 595
+    /* 570.144: GSP_RUN_CPU_SEQUENCER, removed in 610 (generated/g_rpc-structures.h:1414-1420) */
+    TYPE(rpc_run_cpu_sequencer_v17_00);
+    F(rpc_run_cpu_sequencer_v17_00, bufferSizeDWord);
+    F(rpc_run_cpu_sequencer_v17_00, cmdIndex);
+    F(rpc_run_cpu_sequencer_v17_00, regSaveArea);
+    FX(rpc_run_cpu_sequencer_v17_00, commandBuffer);
+
+    /* 570.144 arch/nvalloc/common/inc/rmgspseq.h:78-152 */
+    TYPE(GSP_SEQUENCER_BUFFER_CMD);
+    F(GSP_SEQUENCER_BUFFER_CMD, opCode);
+    F(GSP_SEQUENCER_BUFFER_CMD, payload);
+    F(GSP_SEQUENCER_BUFFER_CMD, payload.regWrite);
+    F(GSP_SEQUENCER_BUFFER_CMD, payload.regModify);
+    F(GSP_SEQUENCER_BUFFER_CMD, payload.regPoll);
+    F(GSP_SEQUENCER_BUFFER_CMD, payload.delayUs);
+    F(GSP_SEQUENCER_BUFFER_CMD, payload.regStore);
+
+    TYPE(GSP_SEQ_BUF_PAYLOAD_REG_POLL);
+    F(GSP_SEQ_BUF_PAYLOAD_REG_POLL, addr);
+    F(GSP_SEQ_BUF_PAYLOAD_REG_POLL, mask);
+    F(GSP_SEQ_BUF_PAYLOAD_REG_POLL, val);
+    F(GSP_SEQ_BUF_PAYLOAD_REG_POLL, timeout);
+    F(GSP_SEQ_BUF_PAYLOAD_REG_POLL, error);
+#endif
 
     SECTION("GET_GSP_STATIC_INFO reply payload");
     TYPE(GspStaticConfigInfo);
+#if GSP_ABI < 595
+    /* 570.144: grCapsBits first (gpu/gsp/gsp_static_config.h:80) */
+    F(GspStaticConfigInfo, grCapsBits);
+#endif
     F(GspStaticConfigInfo, gidInfo); /* struct */
     F(GspStaticConfigInfo, gidInfo.index);
     F(GspStaticConfigInfo, gidInfo.flags);
@@ -464,8 +521,12 @@ int main(void)
     F(GspStaticConfigInfo, fbRegionInfoParams); /* struct */
     F(GspStaticConfigInfo, fbRegionInfoParams.numFBRegions);
     F(GspStaticConfigInfo, fbRegionInfoParams.fbRegion);
+#if GSP_ABI >= 595
     F(GspStaticConfigInfo, bPdiValid);
     F(GspStaticConfigInfo, pdi);
+#endif
+    /* 570.144: no bPdiValid/pdi, sriovCaps follows fbRegionInfoParams
+     * (gpu/gsp/gsp_static_config.h:83-85) */
     F(GspStaticConfigInfo, sriovCaps); /* struct */
     F(GspStaticConfigInfo, sriovCaps.totalVFs);
     F(GspStaticConfigInfo, sriovCaps.firstVfOffset);
@@ -489,8 +550,20 @@ int main(void)
     F(GspStaticConfigInfo, engineCaps);
     F(GspStaticConfigInfo, poisonFuseEnabled);
     F(GspStaticConfigInfo, fb_length);
+#if GSP_ABI < 595
+    /* 570.144 gpu/gsp/gsp_static_config.h:93-97 */
+    F(GspStaticConfigInfo, fbio_mask);
+    F(GspStaticConfigInfo, fb_bus_width);
+    F(GspStaticConfigInfo, fb_ram_type);
+    F(GspStaticConfigInfo, fbp_mask);
+    F(GspStaticConfigInfo, l2_cache_size);
+#endif
     F(GspStaticConfigInfo, gpuNameString);
     F(GspStaticConfigInfo, gpuShortNameString);
+#if GSP_ABI < 595
+    /* 570.144 gpu/gsp/gsp_static_config.h:101 */
+    F(GspStaticConfigInfo, gpuNameString_Unicode);
+#endif
     F(GspStaticConfigInfo, bGpuInternalSku);
     F(GspStaticConfigInfo, bIsQuadroGeneric);
     F(GspStaticConfigInfo, bIsQuadroAd);
@@ -519,6 +592,12 @@ int main(void)
     F(GspStaticConfigInfo, bPageRetirementSupported);
     F(GspStaticConfigInfo, bSplitVasBetweenServerClientRm);
     F(GspStaticConfigInfo, bClRootportNeedsNosnoopWAR);
+#if GSP_ABI < 595
+    /* 570.144 gpu/gsp/gsp_static_config.h:145-147 */
+    F(GspStaticConfigInfo, displaylessMaxHeads);
+    F(GspStaticConfigInfo, displaylessMaxResolution);
+    F(GspStaticConfigInfo, displaylessMaxPixels);
+#endif
     F(GspStaticConfigInfo, hInternalClient);
     F(GspStaticConfigInfo, hInternalDevice);
     F(GspStaticConfigInfo, hInternalSubdevice);
@@ -532,6 +611,12 @@ int main(void)
     F(GspStaticConfigInfo, ecidInfo); /* struct */
 #if GSP_ABI >= 615
     F(GspStaticConfigInfo, ecidInfo.info);
+#elif GSP_ABI < 595
+    /* 570.144: EcidManufacturingInfo ecidInfo[MAX_GROUP_COUNT]
+     * (gpu/gsp/gsp_static_config.h:64-69, :164) */
+    F(GspStaticConfigInfo, ecidInfo[0].ecidLow);
+    F(GspStaticConfigInfo, ecidInfo[0].ecidHigh);
+    F(GspStaticConfigInfo, ecidInfo[0].ecidExtended);
 #else
     F(GspStaticConfigInfo, ecidInfo.ecidLow);
     F(GspStaticConfigInfo, ecidInfo.ecidHigh);
@@ -621,7 +706,12 @@ int main(void)
     F(GspSystemInfo, acpiMethodData.capsMethodData.status);
     F(GspSystemInfo, acpiMethodData.capsMethodData.optimusCaps);
     F(GspSystemInfo, hypervisorType);
+#if GSP_ABI >= 595
     F(GspSystemInfo, virtualConfigBits);
+#endif
+    /* 570.144: no virtualConfigBits, bIsUnixHdmiFrlComplianceEnabled,
+     * bIsCmcBasedHws .. pf0DeviceControl2Reg; bRouteDispIntrsToCPU before
+     * hostPageSize (gpu/gsp/gsp_static_config.h:170-220) */
     F(GspSystemInfo, bIsPassthru);
     F(GspSystemInfo, sysTimerOffsetNs);
     F(GspSystemInfo, gspVFInfo); /* struct */
@@ -634,7 +724,9 @@ int main(void)
     F(GspSystemInfo, gspVFInfo.b64bitBar1);
     F(GspSystemInfo, gspVFInfo.b64bitBar2);
     F(GspSystemInfo, bIsPrimary);
+#if GSP_ABI >= 595
     F(GspSystemInfo, bIsUnixHdmiFrlComplianceEnabled);
+#endif
     F(GspSystemInfo, isGridBuild);
     F(GspSystemInfo, pcieConfigReg); /* struct */
     F(GspSystemInfo, pcieConfigReg.linkCap);
@@ -644,7 +736,11 @@ int main(void)
     F(GspSystemInfo, bFeatureStretchVblankCapable);
     F(GspSystemInfo, bEnableDynamicGranularityPageArrays);
     F(GspSystemInfo, bClockBoostSupported);
+#if GSP_ABI < 595
+    F(GspSystemInfo, bRouteDispIntrsToCPU);
+#endif
     F(GspSystemInfo, hostPageSize);
+#if GSP_ABI >= 595
     F(GspSystemInfo, bIsCmcBasedHws);
     F(GspSystemInfo, bGspNocatEnabled);
     F(GspSystemInfo, bS0ixSupport);
@@ -652,6 +748,7 @@ int main(void)
     F(GspSystemInfo, pciePowerControlValue);
     F(GspSystemInfo, bPciePowerControlPresent);
     F(GspSystemInfo, pf0DeviceControl2Reg);
+#endif
 #if GSP_ABI >= 610
     F(GspSystemInfo, bIsCxlDevice);
 #endif
@@ -676,11 +773,13 @@ int main(void)
     F(GSP_ARGUMENTS_CACHED, messageQueueInitArguments.pageTableEntryCount);
     F(GSP_ARGUMENTS_CACHED, messageQueueInitArguments.cmdQueueOffset);
     F(GSP_ARGUMENTS_CACHED, messageQueueInitArguments.statQueueOffset);
+#if GSP_ABI >= 595
     F(GSP_ARGUMENTS_CACHED, messageQueueInitArguments.queueElementHdrSize);
     F(GSP_ARGUMENTS_CACHED, messageQueueInitArguments.queueElementSizeMin);
     F(GSP_ARGUMENTS_CACHED, messageQueueInitArguments.queueElementSizeMax);
     F(GSP_ARGUMENTS_CACHED, messageQueueInitArguments.queueHeaderAlign);
     F(GSP_ARGUMENTS_CACHED, messageQueueInitArguments.queueElementAlign);
+#endif
     F(GSP_ARGUMENTS_CACHED, srInitArguments); /* struct */
     F(GSP_ARGUMENTS_CACHED, srInitArguments.oldLevel);
     F(GSP_ARGUMENTS_CACHED, srInitArguments.flags);
@@ -697,12 +796,16 @@ int main(void)
     F(GSP_ARGUMENTS_CACHED, profilerArgs); /* struct */
     F(GSP_ARGUMENTS_CACHED, profilerArgs.pa);
     F(GSP_ARGUMENTS_CACHED, profilerArgs.size);
+#if GSP_ABI >= 595
     F(GSP_ARGUMENTS_CACHED, sysmemHeapArgs); /* struct */
     F(GSP_ARGUMENTS_CACHED, sysmemHeapArgs.pa);
     F(GSP_ARGUMENTS_CACHED, sysmemHeapArgs.size);
     F(GSP_ARGUMENTS_CACHED, rmStateMonitorBufferArgs); /* struct */
     F(GSP_ARGUMENTS_CACHED, rmStateMonitorBufferArgs.pa);
     F(GSP_ARGUMENTS_CACHED, rmStateMonitorBufferArgs.size);
+#else
+    /* 570.144: ends after profilerArgs (gpu/gsp/gsp_init_args.h:45-57) */
+#endif
 #if GSP_ABI >= 610
     F(GSP_ARGUMENTS_CACHED, bindataArgs); /* struct */
     F(GSP_ARGUMENTS_CACHED, bindataArgs.radix3);
@@ -721,11 +824,15 @@ int main(void)
     F(MESSAGE_QUEUE_INIT_ARGUMENTS, pageTableEntryCount);
     F(MESSAGE_QUEUE_INIT_ARGUMENTS, cmdQueueOffset);
     F(MESSAGE_QUEUE_INIT_ARGUMENTS, statQueueOffset);
+#if GSP_ABI >= 595
     F(MESSAGE_QUEUE_INIT_ARGUMENTS, queueElementHdrSize);
     F(MESSAGE_QUEUE_INIT_ARGUMENTS, queueElementSizeMin);
     F(MESSAGE_QUEUE_INIT_ARGUMENTS, queueElementSizeMax);
     F(MESSAGE_QUEUE_INIT_ARGUMENTS, queueHeaderAlign);
     F(MESSAGE_QUEUE_INIT_ARGUMENTS, queueElementAlign);
+#else
+    /* 570.144: the four fields above only (gpu/gsp/gsp_init_args.h:29-34) */
+#endif
 #if GSP_ABI >= 615
     F(MESSAGE_QUEUE_INIT_ARGUMENTS, reserved);
 #endif
@@ -812,7 +919,9 @@ int main(void)
     F(GSP_FMC_BOOT_PARAMS, bootGspRmParams.wprCarveoutOffset);
     F(GSP_FMC_BOOT_PARAMS, bootGspRmParams.wprCarveoutSize);
     F(GSP_FMC_BOOT_PARAMS, bootGspRmParams.bIsGspRmBoot);
+#if GSP_ABI >= 595
     F(GSP_FMC_BOOT_PARAMS, bootGspRmParams.bInstInSysMode);
+#endif
     F(GSP_FMC_BOOT_PARAMS, gspRmParams); /* struct */
     F(GSP_FMC_BOOT_PARAMS, gspRmParams.target);
     F(GSP_FMC_BOOT_PARAMS, gspRmParams.bootArgsOffset);
@@ -820,9 +929,13 @@ int main(void)
     F(GSP_FMC_BOOT_PARAMS, gspSpdmParams.target);
     F(GSP_FMC_BOOT_PARAMS, gspSpdmParams.payloadBufferOffset);
     F(GSP_FMC_BOOT_PARAMS, gspSpdmParams.payloadBufferSize);
+#if GSP_ABI >= 595
     F(GSP_FMC_BOOT_PARAMS, gspRmMemParams); /* struct */
     F(GSP_FMC_BOOT_PARAMS, gspRmMemParams.flushSysmemAddrValLo);
     F(GSP_FMC_BOOT_PARAMS, gspRmMemParams.flushSysmemAddrValHi);
+#else
+    /* 570.144: no bInstInSysMode, no gspRmMemParams (gsp/gspifpub.h:59-113) */
+#endif
     libos_log_header();
     constants();
     return 0;

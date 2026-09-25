@@ -255,7 +255,14 @@ impl FirmwareBoot for TuringBoot {
                 Some(Event::Reset) => w.notes.push(format!("gsp reset {}", self.gsp.resets())),
                 Some(Event::Halted { run }) => {
                     w.notes.push(format!("gsp start {run}: halted"));
-                    if run == 1 {
+                    // FWSEC-FRTS is the GSP start that finds WPR2 down: the first one after
+                    // GFW, and the first of every later boot without a function-level reset
+                    // (nova-core re-probes that way: FWSEC-FRTS, a bare start with the libos
+                    // arguments, and FWSEC-SB at unload are all GSP starts, Linux 7.2.7
+                    // gsp/hal/tu102.rs:136-141, 182-219, 308-314). The other starts find
+                    // WPR2 up (nova's bare start, FWSEC-SB before Booter Unload) or GSP-RM
+                    // loaded.
+                    if run == 1 || (self.wpr2.1 == 0 && !self.loaded) {
                         w.notes.extend(self.fwsec_done(mem));
                     }
                 }
@@ -417,5 +424,44 @@ mod tests {
         b.write32(gsp + falcon::ENGINE, 0, &mem);
         let w = b.write32(sec2 + falcon::CPUCTL, 2, &mem).unwrap();
         assert!(w.notes[0].contains("sec2 start 4: booter unload done"), "{w:?}");
+    }
+
+    /// nova-core's Turing boot and re-probe (Linux 7.2.7 gsp/hal/tu102.rs): FWSEC-FRTS, a
+    /// bare GSP start with the libos arguments, Booter Load; at unbind FWSEC-SB on the GSP
+    /// and Booter Unload; the next probe runs FWSEC-FRTS again as the GSP's 4th start,
+    /// without a function-level reset. Only the starts that find WPR2 down create it.
+    #[test]
+    fn nova_reprobe_runs_fwsec_frts_again() {
+        let d = data();
+        let (gsp, sec2) = (d.gsp.base, d.sec2.base);
+        let mem = GuestMemory::new();
+        let mut b = TuringBoot::new(d, 1 << 30);
+        let start = |b: &mut TuringBoot| {
+            b.write32(gsp + falcon::ENGINE, 1, &mem);
+            b.write32(gsp + falcon::ENGINE, 0, &mem);
+            b.write32(gsp + falcon::CPUCTL, 2, &mem).unwrap()
+        };
+        let w = start(&mut b);
+        assert!(w.notes.iter().any(|n| n.starts_with("fwsec:")), "{w:?}");
+        let wpr2 = (b.read32(d.wpr2_addr_lo), b.read32(d.wpr2_addr_hi));
+        assert_ne!(wpr2.1, Some(0));
+        // The bare start (libos PA in the mailboxes) leaves WPR2 alone.
+        let w = start(&mut b);
+        assert!(!w.notes.iter().any(|n| n.starts_with("fwsec:")), "{w:?}");
+        b.write32(sec2 + falcon::MAILBOX0, 0x7654_3000, &mem);
+        b.write32(sec2 + falcon::CPUCTL, 2, &mem);
+        // Unbind: FWSEC-SB while WPR2 is up, then Booter Unload with the 0xFF sentinel.
+        let w = start(&mut b);
+        assert!(!w.notes.iter().any(|n| n.starts_with("fwsec:")), "{w:?}");
+        b.write32(sec2 + falcon::MAILBOX0, 0xff, &mem);
+        b.write32(sec2 + falcon::MAILBOX1, 0xff, &mem);
+        let w = b.write32(sec2 + falcon::CPUCTL, 2, &mem).unwrap();
+        assert!(w.notes[0].contains("booter unload done"), "{w:?}");
+        assert_eq!(b.read32(d.wpr2_addr_hi), Some(0));
+        // Re-probe: FWSEC-FRTS as the GSP's 4th start creates WPR2 where it was.
+        let w = start(&mut b);
+        assert!(w.notes[0].contains("gsp start 4"), "{w:?}");
+        assert!(w.notes.iter().any(|n| n.starts_with("fwsec:")), "{w:?}");
+        assert_eq!((b.read32(d.wpr2_addr_lo), b.read32(d.wpr2_addr_hi)), wpr2);
     }
 }
