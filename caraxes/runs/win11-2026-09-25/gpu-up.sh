@@ -24,6 +24,8 @@ die() { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
 [[ -s $W/gpu.pid ]] && kill -0 "$(cat "$W/gpu.pid")" 2>/dev/null && die "device already running (pid $(cat "$W/gpu.pid"))"
 rm -f "$W/gpu.sock"
 args=(--boot-model --display --fb-mib "${WIN_GPU_FB_MIB:-1024}")
+# WIN_GPU_EXTRA: further device flags, word-split (gpu-up-host.sh passes --host-rm).
+[[ -n ${WIN_GPU_EXTRA:-} ]] && read -ra extra <<< "$WIN_GPU_EXTRA" && args+=("${extra[@]}")
 # WIN_GPU_BOARD: a board-data file for a costume (crates/vfio-user-nvgpu/boards/tesla-t4-on-tu106.toml:
 # the card as a Tesla T4 for the data-centre driver's TCC path).
 [[ -n ${WIN_GPU_BOARD:-} ]] && args+=(--board-data "$WIN_GPU_BOARD")
@@ -36,9 +38,14 @@ args=(--boot-model --display --fb-mib "${WIN_GPU_FB_MIB:-1024}")
 # run-qemu-gpu.sh with WIN_GPU_ROMBAR=1 then keeps the BAR on without the firmware hang).
 ROM=${WIN_GPU_ROM:-$REF/rom.bin}
 [[ -s $ROM ]] || die "no ROM image $ROM"
+# WIN_GPU_VBIOS: the image served through the BAR0 PROM window (--vbios), as the Linux launcher
+# serves synth-vbios.bin there; without it the PROM window shows the ROM image only (127 KiB,
+# no NVIDIA extension image), which the Windows driver scans to the end and then gives up
+# (docs/research/windows-driver-code43.md).
+[[ -n ${WIN_GPU_VBIOS:-} ]] && { [[ -s $WIN_GPU_VBIOS ]] || die "no VBIOS image $WIN_GPU_VBIOS"; args+=(--vbios "$WIN_GPU_VBIOS"); }
 LEA_ROOT=$LEA_ROOT "$SERVER" --socket "$W/gpu.sock" --trace "$W/gpu-trace.log" \
     --config "$CONFIG" --rom "$ROM" "${args[@]}" > "$W/gpu.log" 2>&1 &
 echo $! > "$W/gpu.pid"
 for _ in $(seq 50); do [[ -S $W/gpu.sock ]] && break; sleep 0.1; done
 [[ -S $W/gpu.sock ]] || { cat "$W/gpu.log"; die "the device did not create $W/gpu.sock"; }
-echo "device up: pid $(cat "$W/gpu.pid"), pure emulation, config $CONFIG, rom $ROM, FB ${WIN_GPU_FB_MIB:-1024} MiB, socket $W/gpu.sock, log $W/gpu.log, trace $W/gpu-trace.log"
+echo "device up: pid $(cat "$W/gpu.pid"), ${WIN_GPU_EXTRA:-pure emulation}, config $CONFIG, rom $ROM, vbios ${WIN_GPU_VBIOS:-(rom)}, FB ${WIN_GPU_FB_MIB:-1024} MiB, socket $W/gpu.sock, log $W/gpu.log, trace $W/gpu-trace.log"
