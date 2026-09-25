@@ -1,0 +1,3 @@
+
+CUDA-GATE: SKIP -- nvidia.ko not loaded or /dev/nvidia0 missing; run tools/caraxes-vm.sh probe
+{"gate":"cuda","result":"skip","dur_s":1,"reason":"nvidia.ko not loaded or /dev/nvidia0 missing; run tools/caraxes-vm.sh probe","facts":{"stages":[],"failed":[]}}

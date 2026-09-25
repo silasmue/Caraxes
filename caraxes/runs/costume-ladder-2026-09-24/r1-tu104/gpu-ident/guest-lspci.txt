@@ -1,0 +1,12 @@
+00:05.0 VGA compatible controller [0300]: NVIDIA Corporation TU104 [GeForce RTX 2080] [10de:1e82] (rev a1)
+Model: 		 NVIDIA GeForce RTX 2080
+IRQ:   		 36
+GPU UUID: 	 GPU-ff5f9579-65b4-6616-8cd6-cce2ffab32af
+Video BIOS: 	 90.06.3d.00.76
+Bus Type: 	 PCIe
+DMA Size: 	 47 bits
+DMA Mask: 	 0x7fffffffffff
+Bus Location: 	 0000:00:05.0
+Device Minor: 	 0
+GPU Firmware: 	 610.57.04
+GPU Excluded:	 No

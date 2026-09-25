@@ -1,0 +1,24 @@
+NVRM version: NVIDIA UNIX Open Kernel Module for x86_64  615.71.09  Release Build  (root@)  
+7b3e3a2 gsp-bc: the 610 guest's gates on vm1 with main 7621cfb (B and C merged): first run cuda-hostreg failed with one Xid 31 CE2 FAULT_PTE on the device pid under load from three other VMs; the rerun on a quieter host passes hostreg with 0 Xid (10 of 12, cuda-managed as always)
+8d092a234e7107ce370ba68472c4d070c05a0a7faaab85282d268a0ec6b3365e  /home/silas/git/Caraxes/.claude/worktrees/agent-aef4c8b419fdde539/target/ladder/release/vfio-user-nvgpu
+CARAXES_BOOT_MODEL=1
+CARAXES_COSTUME=rtx2080
+CARAXES_DMA=register
+CARAXES_DOORBELL_POLL=hybrid
+CARAXES_DOORBELL_TOKENS=64
+CARAXES_FB_MIB=1024
+CARAXES_GATE_FB_MIB=1024
+CARAXES_HOST_EXEC=1
+CARAXES_HOST_RM=1
+CARAXES_IP=192.168.101.21
+CARAXES_LEANDRO_TEST=/home/silas/git/Leandro-Test
+CARAXES_MAC=02:00:00:00:00:21
+CARAXES_MIRROR_CHANNELS=1
+CARAXES_MIRROR_GR_SHADOW=1
+CARAXES_RESERVE_SLOT=4
+CARAXES_RESERVE_VRAM=1
+CARAXES_SERVER=/home/silas/git/Caraxes/.claude/worktrees/agent-aef4c8b419fdde539/target/ladder/release/vfio-user-nvgpu
+CARAXES_TAP=caraxes1
+LEA_CH=/mnt/vmstore/caraxes/vm1/ch-0006-v.sh
+VM=vm1
+start 2026-09-25 00:01:33

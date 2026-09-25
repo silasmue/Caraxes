@@ -265,6 +265,43 @@ fn global_sm_order(
     Ok((b, format!("kgr global SM order: {num_sm} SMs from host ({how})")))
 }
 
+/// `NV0080_CTRL_GR_INFO_INDEX_SM_VERSION` (ctrl0080gr.h), `major << 8 | minor`.
+pub const GR_INFO_INDEX_SM_VERSION: usize = 0x0C;
+
+static SM_VERSION: std::sync::OnceLock<u32> = std::sync::OnceLock::new();
+
+/// The SM-version rungs of the costume ladder (docs/caraxes/costume-ladder.md):
+/// `--sm-version <major>.<minor>` makes every GR info answer report that SM version
+/// instead of the executing chip's. Set once, before the first control.
+pub fn set_sm_version_override(v: u32) -> Result<(), String> {
+    SM_VERSION
+        .set(v)
+        .map_err(|_| "the SM version override is set once".to_string())
+}
+
+/// `7.5` -> 0x0705, `12.0` -> 0x0C00 (`NV2080_CTRL_GR_INFO_SM_VERSION_12_00`, ctrl2080gr.h).
+pub fn parse_sm_version(s: &str) -> Option<u32> {
+    let (a, b) = s.split_once('.')?;
+    let (a, b) = (a.parse::<u32>().ok()?, b.parse::<u32>().ok()?);
+    (a < 0x100 && b < 0x100).then_some((a << 8) | b)
+}
+
+/// Apply the SM-version override to a GR info table `b` (`{index, data}` pairs) and
+/// extend `note` with what it did.
+fn sm_override(b: &mut [u8], note: &str) -> String {
+    let at = 8 * GR_INFO_INDEX_SM_VERSION + 4;
+    match SM_VERSION.get() {
+        Some(&v) if b.len() >= at + 4 => {
+            let was = get32(b, at);
+            put32(b, at, v);
+            format!(
+                "{note}; SM version {was:#06x} reported as {v:#06x} (--sm-version, costume ladder)"
+            )
+        }
+        _ => note.to_string(),
+    }
+}
+
 fn why(e: Option<u32>) -> String {
     match e {
         None => "no host".into(),
@@ -326,13 +363,41 @@ pub fn answer(
                         put32(&mut b, 8 * i, i as u32);
                         put32(&mut b, 8 * i + 4, get32(&p, PUB_INFO_V2_LIST + 8 * i + 4));
                     }
-                    ok(b, n, "host (GR_GET_INFO_V2, index = i for all 63)", "kgr info: 63 entries from host".into())
+                    let note = sm_override(&mut b, "kgr info: 63 entries from host");
+                    ok(b, n, "host (GR_GET_INFO_V2, index = i for all 63)", note)
                 }
-                e => not_supported(
-                    n,
-                    "synthesized fallback (NOT_SUPPORTED, tolerated: pGrInfo stays NULL)",
-                    format!("kgr info: not supported ({})", why(e)),
-                ),
+                // Pure emulation: the chip's own table (the GR facts of a capture), without
+                // which pGrInfo stays NULL and the first channel group fails `numMax != 0`
+                // (kernel_fifo.c:2760-2775, kernel_channel_group_api.c:914).
+                e => match &chip.gr.emulated_info {
+                    Some(t) => {
+                        let mut b = vec![0u8; INFO_PARAMS];
+                        for i in 0..GR_INFO_COUNT {
+                            let d = t
+                                .entries
+                                .iter()
+                                .find(|e| e[0] as usize == i)
+                                .map_or(0, |e| e[1]);
+                            put32(&mut b, 8 * i, i as u32);
+                            put32(&mut b, 8 * i + 4, d);
+                        }
+                        let note = sm_override(
+                            &mut b,
+                            &format!("kgr info: 63 entries, the chip's emulated table ({})", why(e)),
+                        );
+                        Answer {
+                            status: NV_OK,
+                            params: fit(b, n),
+                            label: &t.label,
+                            note,
+                        }
+                    }
+                    None => not_supported(
+                        n,
+                        "synthesized fallback (NOT_SUPPORTED, tolerated: pGrInfo stays NULL)",
+                        format!("kgr info: not supported ({})", why(e)),
+                    ),
+                },
             }
         }
         CMD_INTERNAL_STATIC_KGR_GET_FLOORSWEEPING_MASKS => match floorsweeping(host, hl) {
@@ -864,7 +929,13 @@ mod tests {
             None,
         )
         .unwrap();
-        assert_eq!(a.status, NV_ERR_NOT_SUPPORTED);
+        // Pure emulation: the chip's own GR facts (chips/tu106 [gr] emulated_info).
+        assert_eq!((a.status, a.params.len()), (NV_OK, INFO_PARAMS));
+        assert_eq!(get32(&a.params, 8 * GR_INFO_INDEX_SM_VERSION + 4), 0x0705);
+        assert_eq!(get32(&a.params, 8 * 0x14 + 4), 3);
+        assert_eq!(parse_sm_version("8.6"), Some(0x0806));
+        assert_eq!(parse_sm_version("12.0"), Some(0x0C00));
+        assert_eq!(parse_sm_version("12"), None);
 
         let a = answer(
             chip(),

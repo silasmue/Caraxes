@@ -1053,7 +1053,7 @@ impl Mirror {
         cp.engineType = ch.engine_type;
         let channel = match h.alloc_object(
             tsg,
-            self.chip.channel.gpfifo,
+            crate::board::host_class_of(self.chip.channel.gpfifo),
             as_bytes(&mut cp),
             "shadow-channel",
         ) {
@@ -1072,10 +1072,11 @@ impl Mirror {
         let mut objects = Vec::new();
         for (class, params) in &ch.engine_objects {
             let mut p = params.clone();
-            match h.alloc_object(channel, *class, &mut p, "shadow-engine") {
+            match h.alloc_object(channel, crate::board::host_class_of(*class), &mut p, "shadow-engine") {
                 Ok(oh) => {
                     notes.push(format!(
-                        "shadow: chid {chid} host object class {class:#x} {oh:#x} [host]"
+                        "shadow: chid {chid} host object class {class:#x}{} {oh:#x} [host]",
+                        crate::board::mapped_note(*class)
                     ));
                     objects.push((*class, oh));
                 }
@@ -1729,7 +1730,7 @@ impl Mirror {
             for attempt in 0..4 {
                 match h.alloc_object(
                     tsg_handle,
-                    self.chip.channel.gpfifo,
+                    crate::board::host_class_of(self.chip.channel.gpfifo),
                     as_bytes(&mut cp),
                     "channel",
                 ) {
@@ -1770,10 +1771,11 @@ impl Mirror {
             let mut objects = Vec::new();
             for (class, params) in &ch.engine_objects {
                 let mut p = params.clone();
-                match h.alloc_object(handle, *class, &mut p, "engine-object") {
+                match h.alloc_object(handle, crate::board::host_class_of(*class), &mut p, "engine-object") {
                     Ok(oh) => {
                         notes.push(format!(
-                            "chid {chid}: host object class {class:#x} {oh:#x} ({} bytes of the guest's params) [host]",
+                            "chid {chid}: host object class {class:#x}{} {oh:#x} ({} bytes of the guest's params) [host]",
+                            crate::board::mapped_note(*class),
                             params.len()
                         ));
                         objects.push((*class, oh));
@@ -1879,7 +1881,7 @@ impl Mirror {
             .hm
             .lock()
             .unwrap()
-            .alloc_object(hc.handle, class, &mut p, "engine-object");
+            .alloc_object(hc.handle, crate::board::host_class_of(class), &mut p, "engine-object");
         Some(match r {
             Ok(oh) => {
                 hc.objects.push((class, oh));
@@ -1926,8 +1928,8 @@ impl Mirror {
             self.base,
             self.end,
             self.reservation,
-            self.chip.channel.gpfifo,
-            self.chip.channel.copy,
+            crate::board::host_class_of(self.chip.channel.gpfifo),
+            crate::board::host_class_of(self.chip.channel.copy),
         ) {
             Ok((inv, n)) => {
                 notes.extend(n);

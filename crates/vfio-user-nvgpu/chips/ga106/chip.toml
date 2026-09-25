@@ -1,0 +1,160 @@
+# SPDX-License-Identifier: MIT
+# SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
+#
+# Costume ladder rung 2 (docs/caraxes/costume-ladder.md): GA106, the RTX 3060's chip
+# (Ampere), presented over the TU106 of the house. An overlay on chips/tu106
+# (src/chip/derived.rs). Paths are relative to vendor/open-gpu-kernel-modules at 610.57.04.
+# No GA106 was ever read in this project: every value below comes from the open tree's
+# headers and generated tables, as each comment says; nothing is invented except where a
+# comment says "invented".
+#
+# The costume: the boot identity (which makes the guest pick the GA102-family HAL,
+# halmgrGetHalForGpu from PMC_BOOT_42), the short name, the class database and the channel
+# classes the guest allocates. The truth, kept from chips/tu106: the BAR0 register map, the
+# FIFO device-info table (the TU106 engines and runlists that execute), the interrupt table,
+# engine caps, memsys (4 MiB L2, GDDR6), GMMU v2 (Ampere GA10x uses the same
+# GMMU_FMT_VERSION_2 format, kern_gmmu_ga100.c), the feature families (the Ampere-only
+# families stay absent: the silicon has none of them), the GR facts and the Turing boot
+# model with the overlay of boot.toml.
+base = "tu106"
+name = "ga106"
+short_name = "GA106"
+
+# NV_PMC_BOOT_0/BOOT_42 of GA106 revision A1: architecture 0x17 (GA100 family,
+# NV2080_CTRL_MC_ARCH_INFO_ARCHITECTURE_GA100 0x170, ctrl2080mc.h:77) and implementation 6
+# (_IMPLEMENTATION_GA106, ctrl2080mc.h:115), encoded as chips/tu106 encodes TU106. The
+# revision A1 is invented (TU106's).
+[identity]
+boot_0 = 0x1760_00A1
+boot_1 = 0x0000_0000
+boot_42 = 0x176A_1000
+
+# The classes the guest allocates on its channels: AMPERE_CHANNEL_GPFIFO_A (clc56f.h),
+# AMPERE_DMA_COPY_B (clc7b5.h), GP100_UVM_SW, AMPERE_COMPUTE_B (clc7c0.h), the GA10x list
+# below (g_gpu_class_list.c:1133-1199). The mirror allocates the TU106 class of the same
+# role on the host (boards/rtx3060-on-tu106.toml `class_map`).
+[channel]
+gpfifo = 0xC56F
+copy = 0xC7B5
+uvm_sw = 0xC076
+compute = 0xC7C0
+
+[classes]
+source = "g_gpu_class_list.c:32-54, 1080-1130, 1133-1199 of 610.57.04 (generic, GA106 no-engine and engine lists)"
+ids = [
+    0x0000, # NV01_ROOT
+    0x0001, # NV01_ROOT_NON_PRIV
+    0x0002, # NV01_CONTEXT_DMA
+    0x0004, # NV01_TIMER
+    0x0005, # NV01_EVENT
+    0x000F, # FABRIC_MANAGER_SESSION
+    0x0020, # NV0020_GPU_MANAGEMENT
+    0x003E, # NV01_MEMORY_SYSTEM
+    0x003F, # NV01_MEMORY_LOCAL_PRIVILEGED
+    0x0040, # NV01_MEMORY_LOCAL_USER
+    0x0041, # NV01_ROOT_CLIENT
+    0x0050, # NV_CE_UTILS
+    0x0060, # NV0060_SYNC_GPU_BOOST
+    0x0070, # NV01_MEMORY_VIRTUAL
+    0x0071, # NV01_MEMORY_SYSTEM_OS_DESCRIPTOR
+    0x0073, # NV04_DISPLAY_COMMON
+    0x0076, # NV01_MEMORY_FRAMEBUFFER_CONSOLE
+    0x0078, # NV01_EVENT_KERNEL_CALLBACK
+    0x0079, # NV01_EVENT_OS_EVENT
+    0x007D, # NV04_SOFTWARE_TEST
+    0x007E, # NV01_EVENT_KERNEL_CALLBACK_EX
+    0x0080, # NV01_DEVICE_0
+    0x0081, # NV01_MEMORY_LIST_SYSTEM
+    0x0082, # NV01_MEMORY_LIST_FBMEM
+    0x0083, # NV01_MEMORY_LIST_OBJECT
+    0x008F, # KERNEL_WATCHDOG
+    0x0090, # KERNEL_GRAPHICS_CONTEXT
+    0x0092, # NV0092_RG_LINE_CALLBACK
+    0x00B1, # NV01_MEMORY_HW_RESOURCES
+    0x00C2, # NV01_MEMORY_LOCAL_PHYSICAL
+    0x00DA, # NV_SEMAPHORE_SURFACE
+    0x00DB, # NV40_DEBUG_BUFFER
+    0x00DE, # RM_USER_SHARED_DATA
+    0x00E0, # NV_MEMORY_EXPORT
+    0x00F1, # NV_IMEX_SESSION
+    0x00F2, # IO_VASPACE_A
+    0x00F8, # NV_MEMORY_FABRIC
+    0x00F9, # NV_MEMORY_FABRIC_IMPORT_V2
+    0x00FB, # NV_MEMORY_FABRIC_IMPORTED_REF
+    0x00FC, # FABRIC_VASPACE_A
+    0x00FE, # NV_MEMORY_MAPPER
+    0x0100, # LOCK_STRESS_OBJECT
+    0x0101, # LOCK_TEST_RELAXED_DUP_OBJECT
+    0x2080, # NV20_SUBDEVICE_0
+    0x2081, # NV2081_BINAPI
+    0x2082, # NV2082_BINAPI_PRIVILEGED
+    0x208F, # NV20_SUBDEVICE_DIAG
+    0x30F1, # NV30_GSYNC
+    0x402C, # NV40_I2C
+    0x503B, # NV50_P2P
+    0x503C, # NV50_THIRD_PARTY_P2P
+    0x506F, # NV50_CHANNEL_GPFIFO
+    0x5080, # NV50_DEFERRED_API_CLASS
+    0x50A0, # NV50_MEMORY_VIRTUAL
+    0x83DE, # GT200_DEBUGGER
+    0x844C, # G84_PERFBUFFER
+    0x900E, # MPS_COMPUTE
+    0x9010, # NV9010_VBLANK_CALLBACK
+    0x902D, # FERMI_TWOD_A
+    0x9067, # FERMI_CONTEXT_SHARE_A
+    0x906F, # GF100_CHANNEL_GPFIFO
+    0x9072, # GF100_DISP_SW
+    0x9074, # GF100_TIMED_SEMAPHORE_SW
+    0x9096, # GF100_ZBC_CLEAR
+    0x90CC, # GF100_PROFILER
+    0x90CD, # NV_EVENT_BUFFER
+    0x90CE, # NV01_MEMORY_DEVICELESS
+    0x90E6, # GF100_SUBDEVICE_MASTER
+    0x90E7, # GF100_SUBDEVICE_INFOROM
+    0x90EC, # GF100_HDACODEC
+    0x90F1, # FERMI_VASPACE_A
+    0xA06C, # KEPLER_CHANNEL_GROUP_A
+    0xA080, # KEPLER_DEVICE_VGPU
+    0xA081, # NVA081_VGPU_CONFIG
+    0xA083, # NVA083_GRID_DISPLAYLESS
+    0xA084, # NVA084_KERNEL_HOST_VGPU_DEVICE
+    0xA0BC, # NVENC_SW_SESSION
+    0xA0BD, # NVFBC_SW_SESSION
+    0xA140, # KEPLER_INLINE_TO_MEMORY_B
+    0xB0CC, # MAXWELL_PROFILER
+    0xB0CD, # PROFILER_DEVICE_EVENT
+    0xB0CE, # PROFILER_CONTEXT_EVENT
+    0xB1CC, # MAXWELL_PROFILER_CONTEXT
+    0xB2CC, # MAXWELL_PROFILER_DEVICE
+    0xC076, # GP100_UVM_SW
+    0xC361, # VOLTA_USERMODE_A
+    0xC365, # ACCESS_COUNTER_NOTIFY_BUFFER
+    0xC369, # MMU_FAULT_BUFFER
+    0xC36F, # VOLTA_CHANNEL_GPFIFO_A
+    0xC372, # NVC372_DISPLAY_SW
+    0xC461, # TURING_USERMODE_A
+    0xC46F, # TURING_CHANNEL_GPFIFO_A
+    0xC561, # AMPERE_USERMODE_A
+    0xC56F, # AMPERE_CHANNEL_GPFIFO_A
+    0xC574, # UVM_CHANNEL_RETAINER
+    0xC637, # AMPERE_SMC_PARTITION_REF
+    0xC638, # AMPERE_SMC_EXEC_PARTITION_REF
+    0xC639, # AMPERE_SMC_CONFIG_SESSION
+    0xC640, # AMPERE_SMC_MONITOR_SESSION
+    0xC670, # NVC670_DISPLAY
+    0xC671, # NVC671_DISP_SF_USER
+    0xC673, # NVC673_DISP_CAPABILITIES
+    0xC67A, # NVC67A_CURSOR_IMM_CHANNEL_PIO
+    0xC67B, # NVC67B_WINDOW_IMM_CHANNEL_DMA
+    0xC67D, # NVC67D_CORE_CHANNEL_DMA
+    0xC67E, # NVC67E_WINDOW_CHANNEL_DMA
+    0xC763, # MMU_VIDMEM_ACCESS_BIT_BUFFER
+    0xC77F, # NVC77F_ANY_CHANNEL_DMA
+    0xC797, # AMPERE_B
+    0xC7B0, # NVC7B0_VIDEO_DECODER
+    0xC7B5, # AMPERE_DMA_COPY_B
+    0xC7B7, # NVC7B7_VIDEO_ENCODER
+    0xC7C0, # AMPERE_COMPUTE_B
+    0xC7FA, # NVC7FA_VIDEO_OFA
+    0xCB33, # NV_CONFIDENTIAL_COMPUTE
+]

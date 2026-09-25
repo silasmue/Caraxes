@@ -87,6 +87,7 @@ driver recognizes and initializes a Turing/RTX 2070-like device. Windows later.
 | [repo-split.md](repo-split.md) | The plan for separating v1 (Leandro) from Caraxes after the operator's 615 decision: inventory of every path and crate (v1-only, Caraxes-only, shared, with a corrections table for paths the fork no longer has), the port-back commits Leandro must receive (the rewritten vhost-user series, the P17 naming model, one nvrm-abi hunk), the shared-crate options with the recommendation B (shared crates stay in Leandro, Caraxes pins a Leandro commit as a git dependency), the step order that keeps both repositories building, the 615 switch placed in it, and eleven silent-failure risks with a command checklist (subagent report) |
 | [blackwell-gate.md](blackwell-gate.md) | The Blackwell N gate in pure emulation: the GB206 identity (`--board-data rtx5060ti`, `CARAXES_CHIP=gb206`), stages N0 (device) to N4 (first channel allocation), the predicted walls, preconditions and the exact vm3 launcher command; defined 2026-09-24, not run yet |
 | [costume-5060.md](costume-5060.md) | The 5060 costume (`--board-data rtx5060ti-on-tu106`, `CARAXES_COSTUME=rtx5060ti`): the RTX 5060 Ti's PCI ids, BAR0 size and name on the TU106, whose boot registers, config layout, GSP boot, GMMU, classes, VBIOS and compute capability 7.5 stay true; the costume-or-truth table, every place in the 610 RM where the costume could be caught (the fixed XVE link offsets did catch the whole GB206 config space), and the vm1 check: nvml and cuda gates as on the 2070 identity, short kernel and rlprobe |
+| [costume-ladder.md](costume-ladder.md) | The costume ladder (`CARAXES_COSTUME=rtx2080|rtx3060|rtx4060ti|h100|rtx5060ti-gb206`, `CARAXES_SM_VERSION`): chips presented over the executing TU106 as overlays on its (or GB206's) tables (`src/chip/derived.rs`, `chips/{tu104,ga106,ad106,gh100}`), ladder boards with `host_chip` and a class map for the mirror; per rung what is lied, what stays true, the first failure with its source line and the verdict; the pure-emulation baseline wall; the lesson which layers the identity can lie on |
 | [cutover-615.md](cutover-615.md) | The checklist for the host driver upgrade 610.57.04 to 615.71.09 (2026-09-24): the device's run-time host-ABI selection (`hostabi.rs`, `CARAXES_HOST_ABI`, the log line to look for), then in order the 610 closing benchmark and frozen binaries, the operator's upgrade checks, the 610 guest on the 615 host (nvml, cuda, display gates), the 615 guest once `ver/v615` lands (`CARAXES_DRIVER=615`), v1's wait for L615, rollback, open points |
 | [v1-615-image.md](v1-615-image.md) | The Leandro v1 guest image for 615.71.09 (`guest-v1-2026-09-24-615.71.09.qcow2`, made from the first v1 615 run's overlay without booting): what differs from the Caraxes 615 base image (guest nvidia modules blacklisted, `nvidia-modprobe` diverted, `nvidia-persistenced` masked, `/opt/nvrm` on the 615 system libraries), why not nix offline, `bench-v1vm.sh` taking v1's material from Leandro (`LEA_V1_ROOT`, `LEA_V1_BIN`, `NVRM`, driver selection, dry run), `LEA_MANAGED_COMPAT=1` as in the gpu gate, `v1-gates.sh`, the boot command |
 | [sottr-stage.md](sottr-stage.md) | The SotTR stage (2026-09-24, roadmap item 2): vm4 as the game VM (3 GiB profile at slot 0, tap `caraxes3`, display configuration C, main 3cb33af device), the v1 Steam library as a thin overlay (`CARAXES_GAMES_DISK`, writer lock in the Caraxes store), the guest preparation of a fresh 610 overlay, Steam library registration and autostart, Sunshine kms, automatic Moonlight pairing and window, what is recorded and how it compares with v1's sottr-4q; plumbing test in pure emulation |
@@ -630,6 +631,22 @@ the VM; then display, expected to be much easier than in v1.
   `naming::parse_name` reads both. The v1 gates in `../Leandro-Test` accept either format
   through one regex helper (`lea_mediated_name_re`, operator's permission of 2026-09-24).
   The Caraxes GID is still seeded from the legacy name, so the guest UUID is unchanged.
+- 2026-09-25: **The costume ladder** ([costume-ladder.md](costume-ladder.md), evidence
+  `caraxes/runs/costume-ladder-2026-09-24/`): TU104 over the TU106 works on the GPU (nvml gate
+  but power-number, cuda gate 10 of 12 scored, 0 Xid). GA106 and AD106 take the Ampere/Ada HAL
+  from BOOT_42 and were caught first by the VBIOS (the GA102 HAL runs FWSEC only from a V3
+  boot-from-HS descriptor, kernel_gsp_falcon_ga102.c:204), then by four boot registers the new
+  HAL reads; with `synth-vbios.py --desc v3` and those in the boot data both reach the point
+  TU106 itself reaches in pure emulation. On the GPU the GA106 costume boots, nvidia-smi says
+  compute capability 8.6 (the GR info says 7.5), and libcuda's first push breaks it: SET_OBJECT
+  0xC7C0/0xC7B5 in the method stream against the mapped TU106 objects, host Xid 13 "Class
+  Mismatch" and Xid 32 on the device's channels, with detail lines printed under other pids,
+  which stopped the ladder there. GH100 on the FSP model needed Hopper's FSP-boot
+  registers; the present CC/CCU/HUB families are asked but not fatal. GB206 over the TU106
+  stops at the GMMU v3 shadow. The SM version in GR info does not reach CUDA (nvidia-smi and
+  torch keep 7.5 with `--sm-version 7.0`). Pure emulation of the TU106 itself stops at the CE
+  scrubber (the CeUtils VA space is freed before its channel runs), and the GB206 N gate's
+  pure emulation regressed at main (`numGpcs > 0`, also with 7621cfb).
 - 2026-09-24: **The 5060 costume on the GPU** ([costume-5060.md](costume-5060.md), evidence
   `caraxes/runs/costume-2026-09-24/`): vm1 with the 1 GiB profile presents `10de:2d04` rev a1,
   subsystem 1043:8a08, BAR0 64 MiB and the name "Leandro VFIO RTX 5060 Ti-1G" (/proc Model

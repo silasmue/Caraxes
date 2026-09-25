@@ -1,0 +1,161 @@
+# SPDX-License-Identifier: MIT
+# SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
+#
+# Costume ladder rung 4 (docs/caraxes/costume-ladder.md): GH100, the H100's chip
+# (Hopper), presented over the TU106 of the house. An overlay on chips/gb206
+# (src/chip/derived.rs): the FSP boot model of the Blackwell package (src/chip/boot_fsp.rs),
+# GMMU v3 and the GB206 register map, device-info and interrupt tables stay GB206's; the
+# overlay changes the identity, the class database, the channel classes, the feature
+# families and MIG. Paths are relative to vendor/open-gpu-kernel-modules at 610.57.04; no
+# GH100 was ever read, every value comes from the open tree, and the GB206 tables under it
+# are the lab capture's (docs/caraxes/blackwell-gb206.md).
+base = "gb206"
+name = "gh100"
+short_name = "GH100"
+
+# NV_PMC_BOOT_0/BOOT_42 of GH100 revision A1: architecture 0x18 (GH100,
+# NV2080_CTRL_MC_ARCH_INFO_ARCHITECTURE_GH100 0x180, ctrl2080mc.h:78) and implementation 0
+# (_IMPLEMENTATION_GH100, ctrl2080mc.h:121). The revision A1 is invented.
+[identity]
+boot_0 = 0x1800_00A1
+boot_1 = 0x0000_0000
+boot_42 = 0x180A_1000
+
+# HOPPER_CHANNEL_GPFIFO_A (clc86f.h), HOPPER_DMA_COPY_A (clc8b5.h), GP100_UVM_SW,
+# HOPPER_COMPUTE_A (clcbc0.h) (g_gpu_class_list.c:2030-2112).
+[channel]
+gpfifo = 0xC86F
+copy = 0xC8B5
+uvm_sw = 0xC076
+compute = 0xCBC0
+
+[classes]
+source = "g_gpu_class_list.c:32-54, 1974-2027, 2030-2112 of 610.57.04 (generic, GH100 no-engine and engine lists)"
+ids = [
+    0x0000, # NV01_ROOT
+    0x0001, # NV01_ROOT_NON_PRIV
+    0x0002, # NV01_CONTEXT_DMA
+    0x0004, # NV01_TIMER
+    0x0005, # NV01_EVENT
+    0x000F, # FABRIC_MANAGER_SESSION
+    0x0020, # NV0020_GPU_MANAGEMENT
+    0x003E, # NV01_MEMORY_SYSTEM
+    0x003F, # NV01_MEMORY_LOCAL_PRIVILEGED
+    0x0040, # NV01_MEMORY_LOCAL_USER
+    0x0041, # NV01_ROOT_CLIENT
+    0x0050, # NV_CE_UTILS
+    0x0060, # NV0060_SYNC_GPU_BOOST
+    0x0070, # NV01_MEMORY_VIRTUAL
+    0x0071, # NV01_MEMORY_SYSTEM_OS_DESCRIPTOR
+    0x0076, # NV01_MEMORY_FRAMEBUFFER_CONSOLE
+    0x0078, # NV01_EVENT_KERNEL_CALLBACK
+    0x0079, # NV01_EVENT_OS_EVENT
+    0x007D, # NV04_SOFTWARE_TEST
+    0x007E, # NV01_EVENT_KERNEL_CALLBACK_EX
+    0x0080, # NV01_DEVICE_0
+    0x0081, # NV01_MEMORY_LIST_SYSTEM
+    0x0082, # NV01_MEMORY_LIST_FBMEM
+    0x0083, # NV01_MEMORY_LIST_OBJECT
+    0x008F, # KERNEL_WATCHDOG
+    0x0090, # KERNEL_GRAPHICS_CONTEXT
+    0x0092, # NV0092_RG_LINE_CALLBACK
+    0x00B1, # NV01_MEMORY_HW_RESOURCES
+    0x00C2, # NV01_MEMORY_LOCAL_PHYSICAL
+    0x00DA, # NV_SEMAPHORE_SURFACE
+    0x00DB, # NV40_DEBUG_BUFFER
+    0x00DE, # RM_USER_SHARED_DATA
+    0x00E0, # NV_MEMORY_EXPORT
+    0x00F1, # NV_IMEX_SESSION
+    0x00F2, # IO_VASPACE_A
+    0x00F8, # NV_MEMORY_FABRIC
+    0x00F9, # NV_MEMORY_FABRIC_IMPORT_V2
+    0x00FB, # NV_MEMORY_FABRIC_IMPORTED_REF
+    0x00FC, # FABRIC_VASPACE_A
+    0x00FD, # NV_MEMORY_MULTICAST_FABRIC
+    0x00FE, # NV_MEMORY_MAPPER
+    0x0100, # LOCK_STRESS_OBJECT
+    0x0101, # LOCK_TEST_RELAXED_DUP_OBJECT
+    0x2080, # NV20_SUBDEVICE_0
+    0x2081, # NV2081_BINAPI
+    0x2082, # NV2082_BINAPI_PRIVILEGED
+    0x208F, # NV20_SUBDEVICE_DIAG
+    0x30F1, # NV30_GSYNC
+    0x402C, # NV40_I2C
+    0x503B, # NV50_P2P
+    0x503C, # NV50_THIRD_PARTY_P2P
+    0x506F, # NV50_CHANNEL_GPFIFO
+    0x5080, # NV50_DEFERRED_API_CLASS
+    0x50A0, # NV50_MEMORY_VIRTUAL
+    0x83DE, # GT200_DEBUGGER
+    0x844C, # G84_PERFBUFFER
+    0x900E, # MPS_COMPUTE
+    0x9010, # NV9010_VBLANK_CALLBACK
+    0x902D, # FERMI_TWOD_A
+    0x9067, # FERMI_CONTEXT_SHARE_A
+    0x906F, # GF100_CHANNEL_GPFIFO
+    0x9074, # GF100_TIMED_SEMAPHORE_SW
+    0x9096, # GF100_ZBC_CLEAR
+    0x90CC, # GF100_PROFILER
+    0x90CD, # NV_EVENT_BUFFER
+    0x90CE, # NV01_MEMORY_DEVICELESS
+    0x90E6, # GF100_SUBDEVICE_MASTER
+    0x90E7, # GF100_SUBDEVICE_INFOROM
+    0x90F1, # FERMI_VASPACE_A
+    0xA06C, # KEPLER_CHANNEL_GROUP_A
+    0xA080, # KEPLER_DEVICE_VGPU
+    0xA081, # NVA081_VGPU_CONFIG
+    0xA083, # NVA083_GRID_DISPLAYLESS
+    0xA084, # NVA084_KERNEL_HOST_VGPU_DEVICE
+    0xA0BC, # NVENC_SW_SESSION
+    0xA0BD, # NVFBC_SW_SESSION
+    0xA140, # KEPLER_INLINE_TO_MEMORY_B
+    0xB0CC, # MAXWELL_PROFILER
+    0xB0CD, # PROFILER_DEVICE_EVENT
+    0xB0CE, # PROFILER_CONTEXT_EVENT
+    0xB1CC, # MAXWELL_PROFILER_CONTEXT
+    0xB2CC, # MAXWELL_PROFILER_DEVICE
+    0xB8B0, # NVB8B0_VIDEO_DECODER
+    0xB8D1, # NVB8D1_VIDEO_NVJPG
+    0xB8FA, # NVB8FA_VIDEO_OFA
+    0xC076, # GP100_UVM_SW
+    0xC361, # VOLTA_USERMODE_A
+    0xC365, # ACCESS_COUNTER_NOTIFY_BUFFER
+    0xC369, # MMU_FAULT_BUFFER
+    0xC36F, # VOLTA_CHANNEL_GPFIFO_A
+    0xC461, # TURING_USERMODE_A
+    0xC46F, # TURING_CHANNEL_GPFIFO_A
+    0xC561, # AMPERE_USERMODE_A
+    0xC56F, # AMPERE_CHANNEL_GPFIFO_A
+    0xC574, # UVM_CHANNEL_RETAINER
+    0xC637, # AMPERE_SMC_PARTITION_REF
+    0xC638, # AMPERE_SMC_EXEC_PARTITION_REF
+    0xC639, # AMPERE_SMC_CONFIG_SESSION
+    0xC640, # AMPERE_SMC_MONITOR_SESSION
+    0xC661, # HOPPER_USERMODE_A
+    0xC763, # MMU_VIDMEM_ACCESS_BIT_BUFFER
+    0xC863, # HOPPER_MMU_VIDMEM_ACCESS_BIT_BUFFER
+    0xC86F, # HOPPER_CHANNEL_GPFIFO_A
+    0xC8B5, # HOPPER_DMA_COPY_A
+    0xCB33, # NV_CONFIDENTIAL_COMPUTE
+    0xCB97, # HOPPER_A
+    0xCBA2, # HOPPER_SEC2_WORK_LAUNCH_A
+    0xCBC0, # HOPPER_COMPUTE_A
+    0xCBCA, # NV_COUNTER_COLLECTION_UNIT
+]
+
+# A data-center Hopper has MIG (the SMC partitioning of the GR engine).
+[gr]
+mig = true
+smc_label = "costume (GH100 has MIG; the executing TU106 has none)"
+
+# The families GH100 has (the operator's list for this rung): NVLink, HSHUB, the NVLink
+# fabric, C2C, MIG and Confidential Computing are present; their controls then reach the
+# other handlers and end unanswered, and the run shows which of them the guest insists on
+# at boot. The rest as chips/gb206 (a desktop Blackwell) minus the display families (a
+# GH100 has no display) and the Blackwell-only family; the Hopper platform family present.
+[features]
+absent = ["rm_test", "gsync", "vgpu", "spdm", "ccu", "internal_uncalled",
+    "frl", "dp2x", "display_later", "display_embedded", "notebook_power", "ecc", "row_remap",
+    "mig_partitioning", "nvlink_sli", "ga10x_pcie_ro", "blackwell", "vgpu_paths", "windows_only",
+    "legacy_uncalled"]
+present = ["nvlink", "hshub", "fabric", "c2c", "mig", "cc", "ampere_later", "hopper_platform"]

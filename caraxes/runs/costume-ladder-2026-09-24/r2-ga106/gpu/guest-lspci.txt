@@ -1,0 +1,12 @@
+00:05.0 VGA compatible controller [0300]: NVIDIA Corporation GA106 [GeForce RTX 3060] [10de:2503] (rev a1)
+Model: 		 NVIDIA GeForce RTX 3060
+IRQ:   		 36
+GPU UUID: 	 GPU-a78b0a21-cd2c-4eac-99c5-89d5745121a4
+Video BIOS: 	 90.06.3d.00.76
+Bus Type: 	 PCIe
+DMA Size: 	 47 bits
+DMA Mask: 	 0x7fffffffffff
+Bus Location: 	 0000:00:05.0
+Device Minor: 	 0
+GPU Firmware: 	 610.57.04
+GPU Excluded:	 No

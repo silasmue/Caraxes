@@ -141,35 +141,6 @@ fn ce_pce_mask(chip: &ChipData, params: &[u8]) -> Option<Answer> {
     })
 }
 
-/// GR info for a GB206 without a host: `NV2080_CTRL_INTERNAL_STATIC_GR_GET_INFO_PARAMS`,
-/// engine 0, `{index, data}` pairs for the 63 `NV0080_CTRL_GR_INFO_INDEX_*`
-/// (ctrl0080gr.h:102-160; the layout kgr.rs fills from the host on Turing). Without it
-/// `pGrInfo` stays NULL and `kfifoGetMaxSubcontextFromGr_KERNEL` returns 0
-/// (kernel_fifo.c:2760-2775), so the first channel group fails `numMax != 0`
-/// (kernel_channel_group_api.c:914; N gate row b7). Values: MAX_SUBCONTEXT_COUNT 64
-/// (the host's FIFO_GET_INFO, rm-tools/fifo-host-query.txt:22), LITTER_NUM_GPCS 3 and
-/// LITTER_NUM_TPC_PER_GPC 6 (host-facts.txt:28-32), SM_PER_TPC 2 and SM_VERSION 0x1200
-/// (compute capability 12.0, gpu-0000_01_00.0/nvidia-smi-query-gpu.txt:67); the rest 0.
-fn gr_info(chip: &ChipData, params: &[u8]) -> Option<Answer> {
-    use crate::ver::active as v;
-    if chip.name != "gb206" || params.len() < v::INFO_PARAMS {
-        return None;
-    }
-    let set: [(u32, u32); 5] = [(0x2C, 64), (0x14, 3), (0x17, 6), (0x20, 2), (0x0C, 0x1200)];
-    let mut out = vec![0u8; v::INFO_PARAMS];
-    for i in 0..v::GR_INFO_COUNT {
-        let d = set.iter().find(|e| e.0 as usize == i).map_or(0, |e| e.1);
-        out[8 * i..8 * i + 4].copy_from_slice(&(i as u32).to_le_bytes());
-        out[8 * i + 4..8 * i + 8].copy_from_slice(&d.to_le_bytes());
-    }
-    Some(Answer {
-        status: 0,
-        params: out,
-        label: "host (GB206 capture: subcontexts, GPC/TPC counts, CC 12.0) + synthesized (rest 0)",
-        note: "kgr info: 63 entries, GB206 capture values".into(),
-    })
-}
-
 /// The answer to `cmd`, or `None` to leave it to the generic dispatcher.
 pub fn answer(chip: &ChipData, cmd: u32, params: &[u8]) -> Option<Answer> {
     if cmd == CMD_CE_GET_PHYSICAL_CAPS {
@@ -177,9 +148,6 @@ pub fn answer(chip: &ChipData, cmd: u32, params: &[u8]) -> Option<Answer> {
     }
     if cmd == CMD_CE_GET_CE_PCE_MASK {
         return ce_pce_mask(chip, params);
-    }
-    if cmd == crate::ver::active::CMD_INTERNAL_STATIC_KGR_GET_INFO {
-        return gr_info(chip, params);
     }
     if cmd != CMD_INTERNAL_GET_DEVICE_INFO_TABLE || params.len() < PARAMS_SIZE {
         return None;

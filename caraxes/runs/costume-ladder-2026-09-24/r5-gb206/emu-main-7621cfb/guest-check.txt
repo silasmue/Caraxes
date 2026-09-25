@@ -1,0 +1,47 @@
+# SPDX-License-Identifier: MIT
+# The guest check lines of serial.log (ignored as *.log), deduplicated: NVRM lines, the check markers, nvidia-smi.
+[    0.296568] pci 0000:00:04.0: [10de:2d04] type 00 class 0x030000 PCIe Legacy Endpoint
+CARAXES-CHECK begin 2026-09-24T22:19:52+00:00
+00:04.0 VGA compatible controller [0300]: NVIDIA Corporation Device [10de:2d04] (rev a1)
+modprobe rc=0
+[    3.255404] NVRM: loading NVIDIA UNIX Open Kernel Module for x86_64  610.57.04  Release Build  (leandro@caraxes-vm0)  Wed Sep 23 19:24:02 UTC 2026
+[    4.184591] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Call not supported [NV_ERR_NOT_SUPPORTED] (0x00000056) returned from pRmApi->Control(pRmApi, pGpu->hInternalClient, pGpu->hInternalSubdevice, NV2080_CTRL_CMD_INTERNAL_CONF_COMPUTE_GET_STATIC_INFO, &pConfCompute->ccStaticInfo, sizeof(pConfCompute->ccStaticInfo)) @ conf_compute.c:560
+[    4.738593] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Call not supported [NV_ERR_NOT_SUPPORTED] (0x00000056) returned from pRmApi->Control(pRmApi, pGpu->hInternalClient, pGpu->hInternalSubdevice, NV2080_CTRL_CMD_CE_GET_HUB_PCE_MASK_V2, &params, sizeof(params)) @ kernel_ce.c:890
+[    4.741379] NVRM: GPU0 kccuGetBufSize_GB100: CCU sample size retrieval failed with status: 0x56
+[    4.741383] NVRM: GPU0 kccuStateLoad_IMPL: Failed to get the buffer size info(status: 86) 
+[    4.742000] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Call not supported [NV_ERR_NOT_SUPPORTED] (0x00000056) returned from pRmApi->Control(pRmApi, pGpu->hInternalClient, pGpu->hInternalSubdevice, NV2080_CTRL_CMD_INTERNAL_CONF_COMPUTE_GET_STATIC_INFO, &pConfCompute->ccStaticInfo, sizeof(pConfCompute->ccStaticInfo)) @ conf_compute.c:455
+[    5.390611] NVRM: GPU0 nvCheckFailedNoLog: Check failed: numGpcs > 0 @ kernel_graphics_object.c:192
+[    5.396429] NVRM: GPU0 RmInitAdapter: krcWatchdogInit failed, bailing out of RmInitAdapter
+[    5.489741] NVRM: GPU0 _kccuUnmapAndFreeMemory: CCU memdesc unmap request failed with status: 0x56
+CARAXES-CHECK information
+Model: 		 NVIDIA GeForce RTX 5060 Ti
+CARAXES-CHECK smi
+nvidia-smi rc=6
+query rc=6
+CARAXES-CHECK smi-q
+smi-q rc=6
+CARAXES-CHECK dmesg-after
+[   64.721185] NVRM: GPU0 _threadNodeCheckTimeout: _threadNodeCheckTimeout: currentTime: f42092e06db40 >= f42092e06db40
+[   64.721192] NVRM: GPU0 _threadNodeCheckTimeout: _threadNodeCheckTimeout: Timeout was set to: 4000 msecs!
+[   64.721251] NVRM: GPU0 _threadNodeCheckTimeout: _threadNodeCheckTimeout: currentTime: f42092e06db40 >= f42092e06db40
+[   64.721253] NVRM: GPU0 _threadNodeCheckTimeout: _threadNodeCheckTimeout: Timeout was set to: 4000 msecs!
+[   64.721255] NVRM: GPU0 kflcnWaitForHaltRiscv_GA102: Timeout waiting for RISC-V to halt
+[   64.721346] NVRM: GPU0 nvAssertFailedNoLog: Assertion failed: rmStatus == NV_OK @ osinit.c:2453
+[   64.721824] NVRM: GPU 0000:00:04.0: RmInitAdapter failed! (0x41:0x1a:2260)
+[   64.723550] NVRM: GPU 0000:00:04.0: rm_init_adapter failed, device minor number 0
+[   64.831010] NVRM: GPU0 _kgspBootGspRm: unexpected WPR2 already up, cannot proceed with booting GSP
+[   64.831016] NVRM: GPU0 _kgspBootGspRm: (the GPU is likely in a bad state and may need to be reset)
+[   64.831062] NVRM: GPU0 RmInitAdapter: Cannot initialize GSP firmware RM
+[   64.831444] NVRM: GPU 0000:00:04.0: RmInitAdapter failed! (0x62:0x40:2119)
+[   64.833014] NVRM: GPU 0000:00:04.0: rm_init_adapter failed, device minor number 0
+[   65.010206] NVRM: GPU0 _kgspBootGspRm: unexpected WPR2 already up, cannot proceed with booting GSP
+[   65.010212] NVRM: GPU0 _kgspBootGspRm: (the GPU is likely in a bad state and may need to be reset)
+[   65.010276] NVRM: GPU0 RmInitAdapter: Cannot initialize GSP firmware RM
+[   65.010731] NVRM: GPU 0000:00:04.0: RmInitAdapter failed! (0x62:0x40:2119)
+[   65.012378] NVRM: GPU 0000:00:04.0: rm_init_adapter failed, device minor number 0
+[   65.114206] NVRM: GPU0 _kgspBootGspRm: unexpected WPR2 already up, cannot proceed with booting GSP
+[   65.114212] NVRM: GPU0 _kgspBootGspRm: (the GPU is likely in a bad state and may need to be reset)
+[   65.114259] NVRM: GPU0 RmInitAdapter: Cannot initialize GSP firmware RM
+[   65.114534] NVRM: GPU 0000:00:04.0: RmInitAdapter failed! (0x62:0x40:2119)
+[   65.116074] NVRM: GPU 0000:00:04.0: rm_init_adapter failed, device minor number 0
+CARAXES-CHECK end

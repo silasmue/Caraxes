@@ -441,6 +441,12 @@ impl Dispatcher {
                     inv.len()
                 ));
             }
+            // The push diagnostic for GR channels too (`CARAXES_MIRROR_DIAG=1`): the costume
+            // ladder records the method stream libcuda submits for a presented compute class
+            // (docs/caraxes/costume-ladder.md).
+            if self.mirror_diag {
+                notes.extend(self.mirror_push_diag(gm, chid));
+            }
             return notes;
         }
         let eligible = m.is_mirrored(chid) || m.eligible(&self.channels, chid).is_ok();

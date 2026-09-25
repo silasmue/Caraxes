@@ -1,0 +1,17 @@
+host watch pid 3111011 -> /home/silas/git/Caraxes/.claude/worktrees/agent-aef4c8b419fdde539/caraxes/runs/costume-ladder-2026-09-24/r2-ga106/gpu/hostwatch.txt
+probe rc=0
+probe ladder: 74229 device accesses, guest log in /mnt/vmstore/caraxes/vm1/probe-ladder/guest-dmesg.txt
+[  129.421365] NVRM: GPU 0000:00:05.0: RmInitAdapter
+[  131.970239] NVRM: GPU 0000:00:05.0: RmInitAdapter succeeded!
+modprobe rc=0
+synced into 192.168.101.21:/home/leandro/caraxes-tests
+nvml gate rc=1
+caraxes-gate: FAIL power-number: Instantaneous Power Draw 'N/A'
+{"gate":"nvml","verdict":"fail","reason":"failed: power-number","guest":{"name":"Leandro VFIO RTX 3060-1G","total_mib":"1024","reserved_mib":"49","used_mib":"0","free_mib":"976","temp":"50 C","pstate":"P8","power":"N/A","util":"24 %","fan":"28 %"},"host":{"name":"NVIDIA GeForce RTX 2070","temp_befor
+cuda-init rc=0
+{"gate":"cuda","result":"pass","dur_s":2,"facts":{"stages":["cuda-init"],"failed":[],"vm":"vm1","leandro_test":"3edea730c2d8-dirty","caraxes":"shell-rig-249-g7f3bd563538c-dirty","device":"","tests_selected":"cuda-init","scored":"1 pass, 0 fail, 0 declared-unsupported","suites_unscored":0,"run_dir":"
+cuda-jit rc=1
+{"gate":"cuda","result":"fail","dur_s":11,"reason":"failed: cuda-jit","facts":{"stages":["cuda-jit"],"failed":["cuda-jit"],"vm":"vm1","leandro_test":"3edea730c2d8-dirty","caraxes":"shell-rig-249-g7f3bd563538c-dirty","device":"","tests_selected":"cuda-jit","error_cuda-jit":"exit 1: ERROR cuCtxCreate:
+STOP: 24 host Xid lines outside the device pid
+host watch: 31 samples, nvidia-smi max 0.062s mean 0.028s, 28 kernel log lines, 28 Xid lines, 0 alerts
+ladder GPU run done 2026-09-25T07:59:35+02:00; host Xid lines 40, outside the device pid 24, device pid 3110668

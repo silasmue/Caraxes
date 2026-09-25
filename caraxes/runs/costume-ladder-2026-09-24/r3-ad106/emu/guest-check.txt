@@ -1,0 +1,78 @@
+# SPDX-License-Identifier: MIT
+# The guest check lines of serial.log (ignored as *.log), deduplicated: NVRM lines, the check markers, nvidia-smi.
+[    0.278760] pci 0000:00:04.0: [10de:2803] type 00 class 0x030000 PCIe Legacy Endpoint
+CARAXES-CHECK begin 2026-09-24T22:21:03+00:00
+00:04.0 VGA compatible controller [0300]: NVIDIA Corporation AD106 [GeForce RTX 4060 Ti] [10de:2803] (rev a1)
+modprobe rc=0
+[    3.030752] NVRM: pciPbiReadUuid: Could not acquire pciPbi mutex
+[    3.031038] NVRM: loading NVIDIA UNIX Open Kernel Module for x86_64  610.57.04  Release Build  (leandro@caraxes-vm0)  Wed Sep 23 19:24:02 UTC 2026
+[    4.450031] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Call not supported [NV_ERR_NOT_SUPPORTED] (0x00000056) returned from pRmApi->Control(pRmApi, pGpu->hInternalClient, pGpu->hInternalSubdevice, NV2080_CTRL_CMD_INTERNAL_CONF_COMPUTE_GET_STATIC_INFO, &pConfCompute->ccStaticInfo, sizeof(pConfCompute->ccStaticInfo)) @ conf_compute.c:560
+[    5.234223] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Call not supported [NV_ERR_NOT_SUPPORTED] (0x00000056) returned from pRmApi->Control(pRmApi, pGpu->hInternalClient, pGpu->hInternalSubdevice, NV2080_CTRL_CMD_INTERNAL_CONF_COMPUTE_GET_STATIC_INFO, &pConfCompute->ccStaticInfo, sizeof(pConfCompute->ccStaticInfo)) @ conf_compute.c:455
+CARAXES-CHECK information
+Model: 		 NVIDIA GeForce RTX 4060 Ti
+CARAXES-CHECK smi
+nvidia-smi rc=6
+query rc=6
+CARAXES-CHECK smi-q
+smi-q rc=6
+CARAXES-CHECK dmesg-after
+[   14.183494] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Call timed out [NV_ERR_TIMEOUT] (0x00000065) returned from memmgrInitCeUtils(pMemoryManager, NV_FALSE, NV_TRUE) @ mem_mgr.c:508
+[   14.183526] NVRM: GPU0 nvAssertFailedNoLog: Assertion failed: 0 @ kernel_fifo.c:3108
+[   14.183564] NVRM: GPU0 RmInitNvDevice: *** Cannot load state into the device
+[   14.183566] NVRM: GPU0 RmInitAdapter: RmInitNvDevice failed, bailing out of RmInitAdapter
+[   14.613799] NVRM: GPU 0000:00:04.0: RmInitAdapter failed! (0x25:0x65:1310)
+[   14.615251] NVRM: GPU 0000:00:04.0: rm_init_adapter failed, device minor number 0
+[   15.725049] NVRM: GPU0 kgspExecuteFwsec_TU102: failed to execute FWSEC for FRTS: no initialized WPR2 found
+[   15.725056] NVRM: GPU0 kgspExecuteFwsec_TU102: (note: VBIOS version 90.06.3D.00.76)
+[   15.725059] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Failure: Generic Error [NV_ERR_GENERIC] (0x0000FFFF) returned from status @ kernel_gsp_tu102.c:556
+[   15.727888] NVRM: GPU0 kgspExecuteFwsec_TU102: failed to execute FWSEC for FRTS: no initialized WPR2 found
+[   15.727891] NVRM: GPU0 kgspExecuteFwsec_TU102: (note: VBIOS version 90.06.3D.00.76)
+[   15.727893] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Failure: Generic Error [NV_ERR_GENERIC] (0x0000FFFF) returned from status @ kernel_gsp_tu102.c:556
+[   15.730686] NVRM: GPU0 kgspExecuteFwsec_TU102: failed to execute FWSEC for FRTS: no initialized WPR2 found
+[   15.730689] NVRM: GPU0 kgspExecuteFwsec_TU102: (note: VBIOS version 90.06.3D.00.76)
+[   15.730691] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Failure: Generic Error [NV_ERR_GENERIC] (0x0000FFFF) returned from status @ kernel_gsp_tu102.c:556
+[   15.733624] NVRM: GPU0 kgspExecuteFwsec_TU102: failed to execute FWSEC for FRTS: no initialized WPR2 found
+[   15.733627] NVRM: GPU0 kgspExecuteFwsec_TU102: (note: VBIOS version 90.06.3D.00.76)
+[   15.733628] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Failure: Generic Error [NV_ERR_GENERIC] (0x0000FFFF) returned from status @ kernel_gsp_tu102.c:556
+[   15.733661] NVRM: GPU0 kgspInitRm_IMPL: Max GSP-RM boot attempts exceeded: 4/4
+[   15.733717] NVRM: GPU0 RmInitAdapter: Cannot initialize GSP firmware RM
+[   15.734125] NVRM: GPU0 iovaspaceDestruct_IMPL: 3 left-over mappings in IOVAS 0x4
+[   15.734135] NVRM: GPU 0000:00:04.0: RmInitAdapter failed! (0x62:0xffff:2119)
+[   15.735527] NVRM: GPU 0000:00:04.0: rm_init_adapter failed, device minor number 0
+[   16.897227] NVRM: GPU0 kgspInitRm_IMPL: Initial shift, 4, is larger than max allowed [0, 3]. Modulo applied
+[   16.900432] NVRM: GPU0 kgspExecuteFwsec_TU102: failed to execute FWSEC for FRTS: no initialized WPR2 found
+[   16.900435] NVRM: GPU0 kgspExecuteFwsec_TU102: (note: VBIOS version 90.06.3D.00.76)
+[   16.900438] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Failure: Generic Error [NV_ERR_GENERIC] (0x0000FFFF) returned from status @ kernel_gsp_tu102.c:556
+[   16.903090] NVRM: GPU0 kgspExecuteFwsec_TU102: failed to execute FWSEC for FRTS: no initialized WPR2 found
+[   16.903093] NVRM: GPU0 kgspExecuteFwsec_TU102: (note: VBIOS version 90.06.3D.00.76)
+[   16.903098] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Failure: Generic Error [NV_ERR_GENERIC] (0x0000FFFF) returned from status @ kernel_gsp_tu102.c:556
+[   16.905774] NVRM: GPU0 kgspExecuteFwsec_TU102: failed to execute FWSEC for FRTS: no initialized WPR2 found
+[   16.905777] NVRM: GPU0 kgspExecuteFwsec_TU102: (note: VBIOS version 90.06.3D.00.76)
+[   16.905779] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Failure: Generic Error [NV_ERR_GENERIC] (0x0000FFFF) returned from status @ kernel_gsp_tu102.c:556
+[   16.908567] NVRM: GPU0 kgspExecuteFwsec_TU102: failed to execute FWSEC for FRTS: no initialized WPR2 found
+[   16.908570] NVRM: GPU0 kgspExecuteFwsec_TU102: (note: VBIOS version 90.06.3D.00.76)
+[   16.908572] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Failure: Generic Error [NV_ERR_GENERIC] (0x0000FFFF) returned from status @ kernel_gsp_tu102.c:556
+[   16.908603] NVRM: GPU0 kgspInitRm_IMPL: Max GSP-RM boot attempts exceeded: 4/4
+[   16.908661] NVRM: GPU0 RmInitAdapter: Cannot initialize GSP firmware RM
+[   16.909122] NVRM: GPU0 iovaspaceDestruct_IMPL: 3 left-over mappings in IOVAS 0x4
+[   16.909138] NVRM: GPU 0000:00:04.0: RmInitAdapter failed! (0x62:0xffff:2119)
+[   16.910629] NVRM: GPU 0000:00:04.0: rm_init_adapter failed, device minor number 0
+[   17.941018] NVRM: GPU0 kgspInitRm_IMPL: Initial shift, 4, is larger than max allowed [0, 3]. Modulo applied
+[   17.946365] NVRM: GPU0 kgspExecuteFwsec_TU102: failed to execute FWSEC for FRTS: no initialized WPR2 found
+[   17.946368] NVRM: GPU0 kgspExecuteFwsec_TU102: (note: VBIOS version 90.06.3D.00.76)
+[   17.946370] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Failure: Generic Error [NV_ERR_GENERIC] (0x0000FFFF) returned from status @ kernel_gsp_tu102.c:556
+[   17.951735] NVRM: GPU0 kgspExecuteFwsec_TU102: failed to execute FWSEC for FRTS: no initialized WPR2 found
+[   17.951737] NVRM: GPU0 kgspExecuteFwsec_TU102: (note: VBIOS version 90.06.3D.00.76)
+[   17.951739] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Failure: Generic Error [NV_ERR_GENERIC] (0x0000FFFF) returned from status @ kernel_gsp_tu102.c:556
+[   17.957149] NVRM: GPU0 kgspExecuteFwsec_TU102: failed to execute FWSEC for FRTS: no initialized WPR2 found
+[   17.957151] NVRM: GPU0 kgspExecuteFwsec_TU102: (note: VBIOS version 90.06.3D.00.76)
+[   17.957153] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Failure: Generic Error [NV_ERR_GENERIC] (0x0000FFFF) returned from status @ kernel_gsp_tu102.c:556
+[   17.962649] NVRM: GPU0 kgspExecuteFwsec_TU102: failed to execute FWSEC for FRTS: no initialized WPR2 found
+[   17.962652] NVRM: GPU0 kgspExecuteFwsec_TU102: (note: VBIOS version 90.06.3D.00.76)
+[   17.962653] NVRM: GPU0 nvAssertOkFailedNoLog: Assertion failed: Failure: Generic Error [NV_ERR_GENERIC] (0x0000FFFF) returned from status @ kernel_gsp_tu102.c:556
+[   17.962707] NVRM: GPU0 kgspInitRm_IMPL: Max GSP-RM boot attempts exceeded: 4/4
+[   17.962796] NVRM: GPU0 RmInitAdapter: Cannot initialize GSP firmware RM
+[   17.963178] NVRM: GPU0 iovaspaceDestruct_IMPL: 3 left-over mappings in IOVAS 0x4
+[   17.963188] NVRM: GPU 0000:00:04.0: RmInitAdapter failed! (0x62:0xffff:2119)
+[   17.964731] NVRM: GPU 0000:00:04.0: rm_init_adapter failed, device minor number 0
+CARAXES-CHECK end

@@ -124,6 +124,17 @@ pub fn for_board_with_ids(
     if let Some(ids) = ids_dump {
         overlay_ids(&mut bytes, &parse_dump(ids)?);
     }
+    if let Some(ids) = &board.ids {
+        // A costume-ladder board without a capture of its card (docs/caraxes/
+        // costume-ladder.md): the device id, and the subsystem ids when given.
+        bytes[2..4].copy_from_slice(&ids.device.to_le_bytes());
+        if let Some(v) = ids.sub_vendor {
+            bytes[0x2C..0x2E].copy_from_slice(&v.to_le_bytes());
+        }
+        if let Some(d) = ids.sub_device {
+            bytes[0x2E..0x30].copy_from_slice(&d.to_le_bytes());
+        }
+    }
     unlink_cap(&mut bytes, CAP_ID_VNDR);
     if !board.msix {
         unlink_cap(&mut bytes, CAP_ID_MSIX);
@@ -523,5 +534,21 @@ mod tests {
         assert!(c.take_flr());
         assert!(!c.take_flr());
         assert_eq!(c.word(CAP_PCIE + 0x08) & 0x8000, 0);
+    }
+
+    /// A ladder board without a capture: `[ids]` sets the device id (and the subsystem when
+    /// given) over the RTX 2070 layout; nothing else of the config space changes.
+    #[test]
+    fn ladder_ids_over_the_rtx2070_layout() {
+        let dump = include_str!("../../../caraxes/reference/rtx2070/config-space.txt");
+        let plain = for_board(dump, &crate::board::Board::load("rtx2070").unwrap()).unwrap();
+        let g = crate::board::Board::load("rtx3060-on-tu106").unwrap();
+        let h = crate::board::Board::load("h100-on-tu106").unwrap();
+        let a = for_board(dump, &g).unwrap();
+        let b = for_board(dump, &h).unwrap();
+        assert_eq!((a.vendor_id(), a.device_id(), a.revision()), (0x10DE, 0x2503, 0xA1));
+        assert_eq!(a.subsystem(), plain.subsystem());
+        assert_eq!(b.subsystem(), (0x10DE, 0x1626));
+        assert!((0x08..0x100).filter(|o| !(0x2C..0x30).contains(o)).all(|o| a.byte(o) == plain.byte(o)));
     }
 }

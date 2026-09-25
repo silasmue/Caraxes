@@ -163,6 +163,15 @@ per_subctx_header = { value = true, label = "synthesized (bPerSubcontextContextH
 # GeForce: no MIG (gpu-0000_01_00.0/nvidia-smi-q.txt:22-24, MIG Mode N/A).
 mig = false
 smc_label = "host (MIG N/A on the GB206 GeForce, caraxes/reference/gb206/gpu-0000_01_00.0/nvidia-smi-q.txt:22-24)"
+# INTERNAL_STATIC_KGR_GET_INFO without a host GR (kgr.rs; before 2026-09-24 hard-coded in
+# chip/physical.rs): MAX_SUBCONTEXT_COUNT 64 (the host's FIFO_GET_INFO,
+# rm-tools/fifo-host-query.txt:22), LITTER_NUM_GPCS 3 and LITTER_NUM_TPC_PER_GPC 6
+# (host-facts.txt:28-32), SM_PER_TPC 2 and SM_VERSION 0x0C00 (compute capability 12.0,
+# gpu-0000_01_00.0/nvidia-smi-query-gpu.txt:67); the rest 0. Without it pGrInfo stays NULL
+# and the first channel group fails `numMax != 0` (kernel_channel_group_api.c:914; N gate
+# row b7). The value was 0x1200 before 2026-09-24, which decodes as SM 18.0: 12.0 is
+# NV2080_CTRL_GR_INFO_SM_VERSION_12_00 = 0x0C00 (ctrl2080gr.h:335 of 610.57.04).
+emulated_info = { entries = [[0x2C, 64], [0x14, 3], [0x17, 6], [0x20, 2], [0x0C, 0x0C00]], label = "host (GB206 capture: subcontexts, GPC/TPC counts, CC 12.0) + synthesized (rest 0)" }
 
 # Channel classes the card exposes (rm-tools/lab-rm-query.txt): BLACKWELL_CHANNEL_GPFIFO_B
 # 0xCA6F (:110), BLACKWELL_DMA_COPY_B 0xCAB5 (:118), GP100_UVM_SW 0xC076 (:88),

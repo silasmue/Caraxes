@@ -1,0 +1,10 @@
+caraxes-gate: cuda-jit
+  fail: exit 1: ERROR cuCtxCreate: 719 unspecified launch failure
+  guest RM: RM_CONTROL 0x2080012f -> 0x56; device: 0x2080012f=0x56 x2
+
+TEST                             RESULT SCORED GUEST ERROR | LAST FAILED RM CALL (guest tracer) | DEVICE
+cuda-jit                         fail  yes    exit 1: ERROR cuCtxCreate: 719 unspecified launch failure | RM_CONTROL 0x2080012f -> 0x56 | 0x2080012f=0x56 x2
+  GATE cuda-jit: FAIL  (exit 1: ERROR cuCtxCreate: 719 unspecified launch failure | rm: RM_CONTROL 0x2080012f -> 0x56 | device: 0x2080012f=0x56 x2)
+
+CUDA-GATE: FAIL -- cuda-jit
+{"gate":"cuda","result":"fail","dur_s":11,"reason":"failed: cuda-jit","facts":{"stages":["cuda-jit"],"failed":["cuda-jit"],"vm":"vm1","leandro_test":"3edea730c2d8-dirty","caraxes":"shell-rig-249-g7f3bd563538c-dirty","device":"","tests_selected":"cuda-jit","error_cuda-jit":"exit 1: ERROR cuCtxCreate: 719 unspecified launch failure","rm_cuda-jit":"RM_CONTROL 0x2080012f -> 0x56","device_cuda-jit":"0x2080012f=0x56 x2","scored":"0 pass, 1 fail, 0 declared-unsupported","suites_unscored":0,"run_dir":"caraxes/runs/gate-cuda-2026-09-25-5","detail":"0 of 1 scored tests pass; table in caraxes/runs/gate-cuda-2026-09-25-5/table.txt"}}

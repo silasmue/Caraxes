@@ -16,7 +16,7 @@ pub(crate) const FILES: ChipFiles<'static> = ChipFiles {
     interrupts: include_str!("../../chips/tu106/interrupts.toml"),
     controls: include_str!("../../chips/tu106/controls.toml"),
 };
-const BOOT: &str = include_str!("../../chips/tu106/boot.toml");
+pub(crate) const BOOT: &str = include_str!("../../chips/tu106/boot.toml");
 
 pub struct Tu106 {
     data: ChipData,

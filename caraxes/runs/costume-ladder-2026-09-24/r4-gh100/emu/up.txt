@@ -1,0 +1,1 @@
+server pid 1306530, VM pid 1306536; logs in /mnt/vmstore/caraxes/vm6

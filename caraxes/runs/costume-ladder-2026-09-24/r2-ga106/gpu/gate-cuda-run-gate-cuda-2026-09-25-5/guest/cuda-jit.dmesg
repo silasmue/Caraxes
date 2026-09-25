@@ -1,0 +1,47 @@
+# SPDX-License-Identifier: MIT
+# cuda gate gate-cuda-2026-09-25-5: guest/cuda-jit.dmesg
+[  146.468307] NVRM: GPU0 nvAssertFailedNoLog: Assertion failed: KGSP service called when no KGSP interrupt pending
+                @ kernel_gsp_tu102.c:1106
+[  146.486053] NVRM: GPU0 nvAssertFailedNoLog: Assertion failed: KGSP service called when no KGSP interrupt pending
+                @ kernel_gsp_tu102.c:1106
+[  146.616170] NVRM: GPU0 nvAssertFailedNoLog: Assertion failed: KGSP service called when no KGSP interrupt pending
+                @ kernel_gsp_tu102.c:1106
+[  146.651140] NVRM: GPU at PCI:0000:00:05: GPU-a78b0a21-cd2c-4eac-99c5-89d5745121a4
+[  146.651143] NVRM: Xid (PCI:0000:00:05): 32, pid=3098, name=nvprobe, Caraxes: channel 1 (engine type 0x0) error, info16 0xd (host mirror)
+[  146.651237] NVRM: GPU0 _kgspProcessRpcEvent: Failed to process received event 0x1004 (RC_TRIGGERED) from GPU0: status=0x57
+[  146.651241] NVRM: Xid (PCI:0000:00:05): 32, pid=3098, name=nvprobe, Caraxes: channel 2 (engine type 0x0) error, info16 0xd (host mirror)
+[  146.651333] NVRM: GPU0 _kgspProcessRpcEvent: Failed to process received event 0x1004 (RC_TRIGGERED) from GPU0: status=0x57
+[  146.651337] NVRM: Xid (PCI:0000:00:05): 32, pid=3098, name=nvprobe, Caraxes: channel 3 (engine type 0x0) error, info16 0xd (host mirror)
+[  146.651425] NVRM: GPU0 _kgspProcessRpcEvent: Failed to process received event 0x1004 (RC_TRIGGERED) from GPU0: status=0x57
+[  146.651429] NVRM: Xid (PCI:0000:00:05): 13, pid=3098, name=nvprobe, Caraxes: channel 5 (engine type 0x0) error, info16 0x1 (host mirror)
+[  146.651520] NVRM: GPU0 _kgspProcessRpcEvent: Failed to process received event 0x1004 (RC_TRIGGERED) from GPU0: status=0x57
+[  146.651525] NVRM: Xid (PCI:0000:00:05): 13, pid=3098, name=nvprobe, Caraxes: channel 6 (engine type 0x0) error, info16 0x1 (host mirror)
+[  146.651633] NVRM: GPU0 _kgspProcessRpcEvent: Failed to process received event 0x1004 (RC_TRIGGERED) from GPU0: status=0x57
+[  146.651638] NVRM: Xid (PCI:0000:00:05): 13, pid=3098, name=nvprobe, Caraxes: channel 7 (engine type 0x0) error, info16 0x1 (host mirror)
+[  146.651745] NVRM: GPU0 _kgspProcessRpcEvent: Failed to process received event 0x1004 (RC_TRIGGERED) from GPU0: status=0x57
+[  146.651751] NVRM: Xid (PCI:0000:00:05): 13, pid=3098, name=nvprobe, Caraxes: channel 8 (engine type 0x0) error, info16 0x1 (host mirror)
+[  146.651901] NVRM: GPU0 _kgspProcessRpcEvent: Failed to process received event 0x1004 (RC_TRIGGERED) from GPU0: status=0x57
+[  146.653207] NVRM: GPU0 nvAssertFailedNoLog: Assertion failed: KGSP service called when no KGSP interrupt pending
+                @ kernel_gsp_tu102.c:1106
+[  151.606003] NVRM: GPU0 nvAssertFailedNoLog: Assertion failed: KGSP service called when no KGSP interrupt pending
+                @ kernel_gsp_tu102.c:1106
+[  151.836934] NVRM: GPU0 nvAssertFailedNoLog: Assertion failed: KGSP service called when no KGSP interrupt pending
+                @ kernel_gsp_tu102.c:1106
+[  151.838603] NVRM: GPU0 nvAssertFailedNoLog: Assertion failed: KGSP service called when no KGSP interrupt pending
+                @ kernel_gsp_tu102.c:1106
+[  151.839159] NVRM: Xid (PCI:0000:00:05): 32, pid=3152, name=nvprobe, Caraxes: channel 1 (engine type 0x0) error, info16 0xd (host mirror)
+[  151.839256] NVRM: GPU0 _kgspProcessRpcEvent: Failed to process received event 0x1004 (RC_TRIGGERED) from GPU0: status=0x57
+[  151.839261] NVRM: Xid (PCI:0000:00:05): 32, pid=3152, name=nvprobe, Caraxes: channel 2 (engine type 0x0) error, info16 0xd (host mirror)
+[  151.839349] NVRM: GPU0 _kgspProcessRpcEvent: Failed to process received event 0x1004 (RC_TRIGGERED) from GPU0: status=0x57
+[  151.839354] NVRM: Xid (PCI:0000:00:05): 32, pid=3152, name=nvprobe, Caraxes: channel 3 (engine type 0x0) error, info16 0xd (host mirror)
+[  151.839442] NVRM: GPU0 _kgspProcessRpcEvent: Failed to process received event 0x1004 (RC_TRIGGERED) from GPU0: status=0x57
+[  151.839447] NVRM: Xid (PCI:0000:00:05): 32, pid=3152, name=nvprobe, Caraxes: channel 4 (engine type 0x0) error, info16 0xd (host mirror)
+[  151.839535] NVRM: GPU0 _kgspProcessRpcEvent: Failed to process received event 0x1004 (RC_TRIGGERED) from GPU0: status=0x57
+[  151.839539] NVRM: Xid (PCI:0000:00:05): 13, pid=3152, name=nvprobe, Caraxes: channel 5 (engine type 0x0) error, info16 0x1 (host mirror)
+[  151.839664] NVRM: GPU0 _kgspProcessRpcEvent: Failed to process received event 0x1004 (RC_TRIGGERED) from GPU0: status=0x57
+[  151.839669] NVRM: Xid (PCI:0000:00:05): 13, pid=3152, name=nvprobe, Caraxes: channel 6 (engine type 0x0) error, info16 0x1 (host mirror)
+[  151.839813] NVRM: GPU0 _kgspProcessRpcEvent: Failed to process received event 0x1004 (RC_TRIGGERED) from GPU0: status=0x57
+[  151.839817] NVRM: Xid (PCI:0000:00:05): 13, pid=3152, name=nvprobe, Caraxes: channel 7 (engine type 0x0) error, info16 0x1 (host mirror)
+[  151.839936] NVRM: GPU0 _kgspProcessRpcEvent: Failed to process received event 0x1004 (RC_TRIGGERED) from GPU0: status=0x57
+[  151.839941] NVRM: Xid (PCI:0000:00:05): 13, pid=3152, name=nvprobe, Caraxes: channel 8 (engine type 0x0) error, info16 0x1 (host mirror)
+[  151.840029] NVRM: GPU0 _kgspProcessRpcEvent: Failed to process received event 0x1004 (RC_TRIGGERED) from GPU0: status=0x57

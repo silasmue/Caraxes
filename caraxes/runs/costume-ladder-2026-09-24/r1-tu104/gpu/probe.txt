@@ -1,0 +1,4 @@
+probe ladder: 93592 device accesses, guest log in /mnt/vmstore/caraxes/vm1/probe-ladder/guest-dmesg.txt
+[  132.853169] NVRM: GPU 0000:00:05.0: RmInitAdapter
+[  136.259411] NVRM: GPU 0000:00:05.0: RmInitAdapter succeeded!
+modprobe rc=0

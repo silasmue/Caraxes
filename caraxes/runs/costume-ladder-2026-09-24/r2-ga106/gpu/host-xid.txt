@@ -1,0 +1,40 @@
+Sep 25 07:59:26 manacor kernel: NVRM: Xid (PCI:0000:2d:00): 32, pid=3110668, name=vfio-user-nvgpu, channel 0x0000002f intr1 00000010 HCE_DBG0 00000000 HCE_DBG1 0000c7b5
+Sep 25 07:59:26 manacor kernel: NVRM: Xid (PCI:0000:2d:00): 32, pid=3110668, name=vfio-user-nvgpu, channel 0x00000030 intr1 00000010 HCE_DBG0 00000000 HCE_DBG1 0000c7b5
+Sep 25 07:59:26 manacor kernel: NVRM: Xid (PCI:0000:2d:00): 32, pid=3110668, name=vfio-user-nvgpu, channel 0x00000031 intr1 00000010 HCE_DBG0 00000000 HCE_DBG1 0000c7b5
+Sep 25 07:59:26 manacor kernel: NVRM: Xid (PCI:0000:2d:00): 32, pid=3110668, name=vfio-user-nvgpu, channel 0x00000032 intr1 00000010 HCE_DBG0 00000000 HCE_DBG1 0000c7b5
+Sep 25 07:59:26 manacor kernel: NVRM: Xid (PCI:0000:2d:00): 13, Graphics Exception: Class 0xc7c0 Subchannel 0x1 Mismatch
+Sep 25 07:59:26 manacor kernel: NVRM: Xid (PCI:0000:2d:00): 13, Graphics Exception: ESR 0x4041b0=0x21c7c0
+Sep 25 07:59:26 manacor kernel: NVRM: Xid (PCI:0000:2d:00): 13, Graphics Exception: ESR 0x404000=0x80000002
+Sep 25 07:59:26 manacor kernel: NVRM: Xid (PCI:0000:2d:00): 13, pid=3110668, name=vfio-user-nvgpu, Graphics Exception: channel 0x00000033, Class 0000c597, Offset 00000000, Data 00000000
+Sep 25 07:59:26 manacor kernel: NVRM: Xid (PCI:0000:2d:00): 13, pid=3120082, name=nvidia-smi, Graphics Exception: Class 0xc7c0 Subchannel 0x1 Mismatch
+Sep 25 07:59:26 manacor kernel: NVRM: Xid (PCI:0000:2d:00): 13, pid=3120082, name=nvidia-smi, Graphics Exception: ESR 0x4041b0=0x21c7c0
+Sep 25 07:59:26 manacor kernel: NVRM: Xid (PCI:0000:2d:00): 13, pid=3120082, name=nvidia-smi, Graphics Exception: ESR 0x404000=0x80000002
+Sep 25 07:59:26 manacor kernel: NVRM: Xid (PCI:0000:2d:00): 13, pid=3110668, name=vfio-user-nvgpu, Graphics Exception: channel 0x00000034, Class 0000c597, Offset 00000000, Data 00000000
+Sep 25 07:59:26 manacor kernel: NVRM: Xid (PCI:0000:2d:00): 13, pid=3120082, name=nvidia-smi, Graphics Exception: Class 0xc7c0 Subchannel 0x1 Mismatch
+Sep 25 07:59:26 manacor kernel: NVRM: Xid (PCI:0000:2d:00): 13, pid=3120082, name=nvidia-smi, Graphics Exception: ESR 0x4041b0=0x21c7c0
+Sep 25 07:59:26 manacor kernel: NVRM: Xid (PCI:0000:2d:00): 13, pid=3120082, name=nvidia-smi, Graphics Exception: ESR 0x404000=0x80000002
+Sep 25 07:59:26 manacor kernel: NVRM: Xid (PCI:0000:2d:00): 13, pid=3110668, name=vfio-user-nvgpu, Graphics Exception: channel 0x00000035, Class 0000c597, Offset 00000000, Data 00000000
+Sep 25 07:59:26 manacor kernel: NVRM: Xid (PCI:0000:2d:00): 13, pid=3120082, name=nvidia-smi, Graphics Exception: Class 0xc7c0 Subchannel 0x1 Mismatch
+Sep 25 07:59:26 manacor kernel: NVRM: Xid (PCI:0000:2d:00): 13, pid=3120082, name=nvidia-smi, Graphics Exception: ESR 0x4041b0=0x21c7c0
+Sep 25 07:59:26 manacor kernel: NVRM: Xid (PCI:0000:2d:00): 13, pid=3120082, name=nvidia-smi, Graphics Exception: ESR 0x404000=0x80000002
+Sep 25 07:59:26 manacor kernel: NVRM: Xid (PCI:0000:2d:00): 13, pid=3110668, name=vfio-user-nvgpu, Graphics Exception: channel 0x00000036, Class 0000c597, Offset 00000000, Data 00000000
+Sep 25 07:59:31 manacor kernel: NVRM: Xid (PCI:0000:2d:00): 32, pid=3110668, name=vfio-user-nvgpu, channel 0x0000002f intr1 00000010 HCE_DBG0 00000000 HCE_DBG1 0000c7b5
+Sep 25 07:59:31 manacor kernel: NVRM: Xid (PCI:0000:2d:00): 32, pid=3110668, name=vfio-user-nvgpu, channel 0x00000030 intr1 00000010 HCE_DBG0 00000000 HCE_DBG1 0000c7b5
+Sep 25 07:59:31 manacor kernel: NVRM: Xid (PCI:0000:2d:00): 32, pid=3110668, name=vfio-user-nvgpu, channel 0x00000031 intr1 00000010 HCE_DBG0 00000000 HCE_DBG1 0000c7b5
+Sep 25 07:59:31 manacor kernel: NVRM: Xid (PCI:0000:2d:00): 32, pid=3110668, name=vfio-user-nvgpu, channel 0x00000032 intr1 00000010 HCE_DBG0 00000000 HCE_DBG1 0000c7b5
+Sep 25 07:59:31 manacor kernel: NVRM: Xid (PCI:0000:2d:00): 13, pid=3121005, name=nvidia-smi, Graphics Exception: Class 0xc7c0 Subchannel 0x1 Mismatch
+Sep 25 07:59:31 manacor kernel: NVRM: Xid (PCI:0000:2d:00): 13, pid=3121005, name=nvidia-smi, Graphics Exception: ESR 0x4041b0=0x21c7c0
+Sep 25 07:59:31 manacor kernel: NVRM: Xid (PCI:0000:2d:00): 13, pid=3121005, name=nvidia-smi, Graphics Exception: ESR 0x404000=0x80000002
+Sep 25 07:59:31 manacor kernel: NVRM: Xid (PCI:0000:2d:00): 13, pid=3110668, name=vfio-user-nvgpu, Graphics Exception: channel 0x00000033, Class 0000c597, Offset 00000000, Data 00000000
+Sep 25 07:59:32 manacor kernel: NVRM: Xid (PCI:0000:2d:00): 13, Graphics Exception: Class 0xc7c0 Subchannel 0x1 Mismatch
+Sep 25 07:59:32 manacor kernel: NVRM: Xid (PCI:0000:2d:00): 13, Graphics Exception: ESR 0x4041b0=0x21c7c0
+Sep 25 07:59:32 manacor kernel: NVRM: Xid (PCI:0000:2d:00): 13, Graphics Exception: ESR 0x404000=0x80000002
+Sep 25 07:59:32 manacor kernel: NVRM: Xid (PCI:0000:2d:00): 13, pid=3110668, name=vfio-user-nvgpu, Graphics Exception: channel 0x00000034, Class 0000c597, Offset 00000000, Data 00000000
+Sep 25 07:59:32 manacor kernel: NVRM: Xid (PCI:0000:2d:00): 13, Graphics Exception: Class 0xc7c0 Subchannel 0x1 Mismatch
+Sep 25 07:59:32 manacor kernel: NVRM: Xid (PCI:0000:2d:00): 13, Graphics Exception: ESR 0x4041b0=0x21c7c0
+Sep 25 07:59:32 manacor kernel: NVRM: Xid (PCI:0000:2d:00): 13, Graphics Exception: ESR 0x404000=0x80000002
+Sep 25 07:59:32 manacor kernel: NVRM: Xid (PCI:0000:2d:00): 13, pid=3110668, name=vfio-user-nvgpu, Graphics Exception: channel 0x00000035, Class 0000c597, Offset 00000000, Data 00000000
+Sep 25 07:59:32 manacor kernel: NVRM: Xid (PCI:0000:2d:00): 13, pid=3121005, name=nvidia-smi, Graphics Exception: Class 0xc7c0 Subchannel 0x1 Mismatch
+Sep 25 07:59:32 manacor kernel: NVRM: Xid (PCI:0000:2d:00): 13, pid=3121005, name=nvidia-smi, Graphics Exception: ESR 0x4041b0=0x21c7c0
+Sep 25 07:59:32 manacor kernel: NVRM: Xid (PCI:0000:2d:00): 13, pid=3121005, name=nvidia-smi, Graphics Exception: ESR 0x404000=0x80000002
+Sep 25 07:59:32 manacor kernel: NVRM: Xid (PCI:0000:2d:00): 13, pid=3110668, name=vfio-user-nvgpu, Graphics Exception: channel 0x00000036, Class 0000c597, Offset 00000000, Data 00000000

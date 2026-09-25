@@ -19,13 +19,16 @@ use serde::Deserialize;
 use crate::guestmem::GuestMemory;
 
 pub mod boot_fsp;
+pub mod derived;
 pub mod physical;
 pub mod gb206;
 pub mod tu106;
 pub mod turing;
 
 /// Every chip this build can present, by `--chip` name.
-pub const CHIPS: &[&str] = &["tu106", "gb206"];
+/// `tu104`, `ga106`, `ad106` and `gh100` are the costume ladder's derived chips
+/// ([`derived`], docs/caraxes/costume-ladder.md).
+pub const CHIPS: &[&str] = &["tu106", "gb206", "tu104", "ga106", "ad106", "gh100"];
 
 /// A chip the device can present.
 pub trait Chip: Sync {
@@ -41,6 +44,7 @@ pub fn by_name(name: &str) -> Result<&'static dyn Chip, String> {
     match name {
         "tu106" => tu106::get(),
         "gb206" => gb206::get(),
+        other if derived::get(other).is_some() => derived::get(other).unwrap(),
         other => Err(format!(
             "unknown chip {other:?}; this build knows {}",
             CHIPS.join(", ")
@@ -322,6 +326,19 @@ pub struct Gr {
     /// SMC/MIG partitioning exists.
     pub mig: bool,
     pub smc_label: String,
+    /// The `NV0080_CTRL_GR_INFO_INDEX_*` values the device answers
+    /// `INTERNAL_STATIC_KGR_GET_INFO` with when no host GR answers it (pure emulation):
+    /// `[index, data]` pairs, every other index 0 (kgr.rs).
+    #[serde(default)]
+    pub emulated_info: Option<GrInfoTable>,
+}
+
+/// `[gr.emulated_info]`: GR info entries with their provenance label.
+#[derive(Clone, Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct GrInfoTable {
+    pub entries: Vec<[u32; 2]>,
+    pub label: String,
 }
 
 /// The chip's own channel classes, which the channel emulation executes.

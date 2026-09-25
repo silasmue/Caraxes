@@ -1,0 +1,25 @@
+NVRM version: NVIDIA UNIX Open Kernel Module for x86_64  615.71.09  Release Build  (root@)  
+7f3bd56 costume ladder, device: derived chips over the TU106, ladder boards, class map, SM override
+b66ea118f54620d7154f21a8b5c6726d638122f67e77bcc963a298e269253f93  /home/silas/git/Caraxes/.claude/worktrees/agent-aef4c8b419fdde539/target/ladder/release/vfio-user-nvgpu
+CARAXES_BOOT_MODEL=1
+CARAXES_COSTUME=rtx3060
+CARAXES_DMA=register
+CARAXES_DOORBELL_POLL=hybrid
+CARAXES_DOORBELL_TOKENS=64
+CARAXES_FB_MIB=1024
+CARAXES_GATE_FB_MIB=1024
+CARAXES_HOST_EXEC=1
+CARAXES_HOST_RM=1
+CARAXES_IP=192.168.101.21
+CARAXES_LEANDRO_TEST=/home/silas/git/Leandro-Test
+CARAXES_MAC=02:00:00:00:00:21
+CARAXES_MIRROR_CHANNELS=1
+CARAXES_MIRROR_DIAG=1
+CARAXES_MIRROR_GR_SHADOW=1
+CARAXES_RESERVE_SLOT=4
+CARAXES_RESERVE_VRAM=1
+CARAXES_SERVER=/home/silas/git/Caraxes/.claude/worktrees/agent-aef4c8b419fdde539/target/ladder/release/vfio-user-nvgpu
+CARAXES_TAP=caraxes1
+LEA_CH=/mnt/vmstore/caraxes/vm1/ch-0006-v.sh
+VM=vm1
+start 2026-09-25 07:56:55

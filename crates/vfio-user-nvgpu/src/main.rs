@@ -43,7 +43,7 @@ use vfio_user_nvgpu::ver;
 const USAGE: &str = "\
 vfio-user-nvgpu --socket <path> [--trace <file>] [--board-data <name|file>] [--chip <chip>]
                 [--config <dump>] [--rom <rom.bin>] [--vbios <image>] [--vbios-version <v>]
-                [--boot-model] [--fb-mib <n>] [--board <name>] [--host-rm]
+                [--boot-model] [--fb-mib <n>] [--board <name>] [--host-rm] [--sm-version <m.n>]
                 [--reserve-vram [--reserve-slot <n>]] [--register-guest-ram | --identity-dma-table] [--dma-ranges <file>]
                 [--host-exec] [--profile <size>] [--name-format <legacy|transport>] [--display]
                 [--guest-abi <595|610|615>]
@@ -55,7 +55,9 @@ vfio-user-nvgpu --selftest <socket> [--board-data <name|file>] [--chip <chip>] [
   --trace    access log file (default: none; the summary always goes to stderr)
   --board-data  board data: a built-in board (rtx2070, rtx5060ti, rtx5060ti-on-tu106: the 5060 Ti's PCI identity
              and name on the TU106, docs/caraxes/costume-5060.md) or a boards/*.toml-shaped file (default: rtx2070)
-  --chip     the chip to present, tu106 or gb206 (default: the board's, tu106 for rtx2070, gb206 for rtx5060ti)
+  --sm-version  report SM version <major>.<minor> in every GR info answer instead of the chip's (the
+             SM-version rungs of docs/caraxes/costume-ladder.md; the silicon does not change)
+  --chip     the chip to present, tu106 or gb206 (or a costume-ladder chip: tu104, ga106, ad106, gh100) (default: the board's, tu106 for rtx2070, gb206 for rtx5060ti)
   --config   lspci -xxxx dump of the card (default: the board's, caraxes/reference/rtx2070/config-space.txt)
   --rom      PCI-visible ROM image for the expansion ROM region (default: the board's, caraxes/reference/rtx2070/rom.bin)
   --vbios    image served through the BAR0 PROM window (default: the --rom image)
@@ -237,6 +239,13 @@ fn parse_args() -> Result<Args> {
                     .map_err(|e| anyhow::anyhow!("--name-format: {e}"))?
             }
             "--print-name" => a.print_name = true,
+            "--sm-version" => {
+                let v = value()?;
+                let sm = vfio_user_nvgpu::kgr::parse_sm_version(&v)
+                    .with_context(|| format!("--sm-version {v:?}: expected <major>.<minor>"))?;
+                vfio_user_nvgpu::kgr::set_sm_version_override(sm).map_err(anyhow::Error::msg)?;
+                eprintln!("vfio-user-nvgpu: SM version reported as {v} ({sm:#06x}) in every GR info answer (costume ladder, docs/caraxes/costume-ladder.md)");
+            }
             "--guest-abi" => {
                 guest_abi_flag = Some(value()?.parse().context("--guest-abi needs 595, 610 or 615")?)
             }
@@ -253,16 +262,21 @@ fn parse_args() -> Result<Args> {
         std::env::var("CARAXES_GUEST_ABI").ok().as_deref(),
     )
     .map_err(|e| anyhow::anyhow!("--guest-abi: {e}"))?;
+    // The costume ladder's class translation for the mirror (board `class_map`).
+    vfio_user_nvgpu::board::install_class_map(board_data.class_map.clone());
     a.board_data = board_data;
     if a.socket.is_none() && a.selftest.is_none() && !a.print_name {
         bail!("{USAGE}");
     }
     // The host paths talk to the house card, a TU106 (docs/caraxes/blackwell-gb206.md
-    // section 4): any other chip identity runs in pure emulation.
+    // section 4): any other chip identity runs in pure emulation, unless the board is a
+    // costume-ladder board that presents it over the TU106 (`host_chip = "tu106"` and the
+    // board's own chip, docs/caraxes/costume-ladder.md).
     let chip_name = &a.chip.data().name;
-    if chip_name != "tu106" && (a.host_rm || a.reserve_vram || a.register_guest_ram || a.host_exec)
-    {
-        bail!("--chip {chip_name} runs in pure emulation: --host-rm, --reserve-vram, --register-guest-ram and --host-exec need a host card of the same chip");
+    let on_tu106 = chip_name == "tu106"
+        || (a.board_data.host_chip.as_deref() == Some("tu106") && *chip_name == a.board_data.chip);
+    if !on_tu106 && (a.host_rm || a.reserve_vram || a.register_guest_ram || a.host_exec) {
+        bail!("--chip {chip_name} runs in pure emulation: --host-rm, --reserve-vram, --register-guest-ram and --host-exec need a host card of the same chip (or a costume-ladder board with host_chip = \"tu106\")");
     }
     if a.register_guest_ram && a.identity_dma_table {
         bail!("--register-guest-ram and --identity-dma-table exclude each other");

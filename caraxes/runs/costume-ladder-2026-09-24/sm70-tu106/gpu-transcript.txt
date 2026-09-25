@@ -1,0 +1,15 @@
+host watch pid 1400001 -> /home/silas/git/Caraxes/.claude/worktrees/agent-aef4c8b419fdde539/caraxes/runs/costume-ladder-2026-09-24/sm70-tu106/gpu/hostwatch.txt
+probe rc=0
+probe ladder: 93584 device accesses, guest log in /mnt/vmstore/caraxes/vm1/probe-ladder/guest-dmesg.txt
+[  130.128265] NVRM: GPU 0000:00:05.0: RmInitAdapter
+[  133.035189] NVRM: GPU 0000:00:05.0: RmInitAdapter succeeded!
+modprobe rc=0
+synced into 192.168.101.21:/home/leandro/caraxes-tests
+cuda-init rc=2
+{"gate":"cuda","result":"skip","dur_s":1,"reason":"nvidia.ko not loaded or /dev/nvidia0 missing; run tools/caraxes-vm.sh probe","facts":{"stages":[],"failed":[]}}
+cuda-jit rc=2
+{"gate":"cuda","result":"skip","dur_s":2,"reason":"nvidia.ko not loaded or /dev/nvidia0 missing; run tools/caraxes-vm.sh probe","facts":{"stages":[],"failed":[]}}
+cuda-launch rc=2
+{"gate":"cuda","result":"skip","dur_s":0,"reason":"nvidia.ko not loaded or /dev/nvidia0 missing; run tools/caraxes-vm.sh probe","facts":{"stages":[],"failed":[]}}
+/home/silas/git/Caraxes/.claude/worktrees/agent-aef4c8b419fdde539/caraxes/runs/costume-ladder-2026-09-24/gpu-run.sh: line 72: syntax error near unexpected token `0'
+/home/silas/git/Caraxes/.claude/worktrees/agent-aef4c8b419fdde539/caraxes/runs/costume-ladder-2026-09-24/gpu-run.sh: line 72: `rch.cuda.get_device_capability(0)); print(torch.cuda.get_device_properties(0))'" > "$C/guest-torch.txt" 2>&1'

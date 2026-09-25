@@ -1,0 +1,31 @@
+# SPDX-License-Identifier: MIT
+# SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
+#
+# The GH100 overlay on chips/gb206/boot.toml (src/chip/derived.rs; docs/caraxes/
+# costume-ladder.md, rung 4). The FSP Chain-of-Trust boot of the GB206 model with the
+# registers where Hopper keeps them. Paths are relative to vendor/open-gpu-kernel-modules
+# at 610.57.04.
+
+# Registers that read a fixed value. GH100 reads the debug fuse through
+# kgspIsDebugModeEnabled_GA100 (NV_FUSE_OPT_SECURE_GSP_DEBUG_DIS 0x2174C,
+# kernel_gsp_ga100.c:46-48; HAL g_kernel_gsp_nvoc.c:624-627), not the GB100 ZB fuse; the
+# GB206 entries stay for the reads the shared HALs make.
+const = [
+    { name = "NV_FUSE_OPT_SECURE_GSP_DEBUG_DIS", offset = 0x0002_174C, value = 1 },
+    { name = "NV_FUSE_ZB_OPT_SECURE_GSP_DEBUG_DIS", offset = 0x0082_074C, value = 1 },
+    { name = "NV_FUSE_ZB_FEATURE_READOUT", offset = 0x0082_3814, value = 0 },
+]
+
+[fsp]
+# NV_THERM_I2CS_SCRATCH is 0x200BC on Hopper (hopper/gh100/dev_therm.h:26, the
+# FSP_BOOT_COMPLETE alias dev_therm_addendum.h:26), polled by _kfspWaitBootCond_GH100
+# (kern_fsp_gh100.c:726-737). First wall of the pure-emulation run (2026-09-25): Xid 143
+# "Error status 0x65 while polling for FSP boot complete" with GB206's 0xAD00BC.
+boot_complete = { name = "NV_THERM_I2CS_SCRATCH (FSP_BOOT_COMPLETE)", offset = 0x0002_00BC, value = 0xFF }
+
+[acr]
+# kgspIsWpr2Up_GH100 calls kgspIsWpr2Up_TU102 (kernel_gsp_gh100.c:229), which reads the FB
+# unit's NV_PFB_PRI_MMU_WPR2_ADDR_LO/HI 0x1FA824/0x1FA828 (hopper/gh100/dev_fb.h:43-48),
+# not GB100's HUBMMU copy.
+wpr2_addr_lo = 0x001F_A824
+wpr2_addr_hi = 0x001F_A828
