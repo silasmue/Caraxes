@@ -1058,7 +1058,23 @@ impl Dispatcher {
             return a;
         }
         // Graphics static-info rows (docs/caraxes/phase5-rpcs.md rows 35, 39-52) live in kgr.rs.
-        if let Some(a) = crate::kgr::answer(self.chip, cmd, params, self.host.as_mut()) {
+        // Pure emulation with `CARAXES_EMU_GR=1`: a whole TU106 GR from the recordings.
+        let kgr = if self.host.is_none() && crate::recorded::emu_gr() {
+            let facts = crate::recorded::Facts {
+                fb_bytes: self.profile.fb_bytes,
+                gpcs: self.gr_info(0x14).unwrap_or(1),
+                tpcs_per_gpc: self.gr_info(0x17).unwrap_or(1),
+            };
+            let mut h: Box<dyn HostRm> = Box::new(crate::recorded::EmuGrHost { facts });
+            crate::kgr::answer(self.chip, cmd, params, Some(&mut h)).map(|mut a| {
+                a.note = format!("{} [{}]", a.note, a.label);
+                a.label = crate::recorded::LABEL_EMU_GR;
+                a
+            })
+        } else {
+            crate::kgr::answer(self.chip, cmd, params, self.host.as_mut())
+        };
+        if let Some(a) = kgr {
             return a;
         }
         // The CUDA path's synthesized and derived rows (E5c) live in cuda.rs.

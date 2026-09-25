@@ -66,10 +66,12 @@ pub const ENTRY_LISTS: [EntryList; 2] = [
     EntryList { cmd: GSS_LEGACY_CLK_04, stride: 48, key: 4 },
 ];
 /// `GR_GFX_POOL_QUERY_SIZE` (ctrl2080gr.h:1272-1307): the Windows KMD sizes its graphics
-/// preemption (GfxP) pool with it. No capture has the card's numbers: 1 MiB per slot, a
-/// control structure of 64 bytes plus 16 per slot in 4 KiB pages, 64 KiB pool alignment.
+/// preemption (GfxP) pool with it. The card refuses it to a user client, so no capture has
+/// its numbers: a slot is the card's graphics-preemption buffer (engine 0xb, 0x10f300) in
+/// 4 KiB pages, a control structure of 64 bytes plus 16 per slot in 4 KiB pages, 64 KiB
+/// pool alignment.
 pub const GR_GFX_POOL_QUERY_SIZE: u32 = 0x2080_121F;
-const GFXP_SLOT_STRIDE: u32 = 0x10_0000;
+const GFXP_SLOT_STRIDE: u32 = 0x11_0000;
 /// `GR_GFX_POOL_INITIALIZE`, `_ADD_SLOTS`, `_REMOVE_SLOTS` (ctrl2080gr.h:1310-1400): the pool
 /// and its control structure are the KMD's memory; nothing executes on the emulated GR, so
 /// the device acknowledges them (NV_OK, request unchanged).
@@ -121,7 +123,15 @@ pub struct Recorded {
     entries: HashMap<u32, BTreeMap<u32, Vec<u8>>>,
 }
 
+/// A hex buffer, or `<len>:<hex>` (the hex, then zeros up to `len` bytes).
 fn unhex(s: &str) -> Option<Vec<u8>> {
+    if let Some((len, hex)) = s.split_once(':') {
+        let mut b = unhex(hex)?;
+        let len: usize = len.parse().ok()?;
+        (b.len() <= len).then_some(())?;
+        b.resize(len, 0);
+        return Some(b);
+    }
     (0..s.len())
         .step_by(2)
         .map(|i| u8::from_str_radix(s.get(i..i + 2)?, 16).ok())
@@ -276,27 +286,58 @@ pub fn answer(cmd: u32, params: &[u8], f: &Facts) -> Option<Answer> {
     }
 }
 
+/// The GR context buffer sizes by `NV0080_CTRL_FIFO_GET_ENGINE_CONTEXT_PROPERTIES_ENGINE_ID_*`
+/// (ctrl0080fifo.h:120-146), 4 KiB aligned. Only zcull (8) is the card's (recorded); the
+/// rest is chosen generously (no capture has them), the same for the public FIFO and GR
+/// controls and the kernel's context buffer info. Engines 1-7 are not GR buffers.
+pub fn gr_ctx_size(id: u32) -> Option<u32> {
+    if let Some((_, sz)) = recorded_ctx(id) {
+        return sz;
+    }
+    Some(match id {
+        0 => GR_MAIN_CTX_SIZE,
+        8 => 0x7_8600,
+        9 => 0x2_0000,
+        0xA | 0xB | 0x13 | 0x15 => GFXP_SLOT_STRIDE,
+        0xC | 0xF | 0x10 | 0x14 | 0x17 | 0x18 | 0x19 => 0x1_0000,
+        0xD | 0xE | 0x11 | 0x12 => 0x8_0000,
+        0x16 => 0x1000,
+        _ => return None,
+    })
+}
+
+/// The card's own FIFO_GET_ENGINE_CONTEXT_PROPERTIES answer for `id` (the KMD-block capture
+/// has engines 0-0x10): `Some((alignment, Some(size)))`, or `Some((0, None))` where the card
+/// refused it.
+fn recorded_ctx(id: u32) -> Option<(u32, Option<u32>)> {
+    let mut req = vec![0u8; 12];
+    put32(&mut req, 0, id);
+    let e = Recorded::get().exact.get(&(FIFO_GET_ENGINE_CONTEXT_PROPERTIES, req))?;
+    Some(if e.status == 0 {
+        (get32(&e.answer, 4), Some(get32(&e.answer, 8)))
+    } else {
+        (0, None)
+    })
+}
+
+fn gr_ctx_align(id: u32) -> u32 {
+    match recorded_ctx(id) {
+        Some((a, Some(_))) if a != 0 => a,
+        _ => 0x1000,
+    }
+}
+
 /// `FIFO_GET_ENGINE_CONTEXT_PROPERTIES` ({engineId, alignment, size}, ctrl0080fifo.h:92-135)
-/// for an engine the recordings do not have: the GR context buffers (main 2 MiB, PM, compute
-/// and graphics preemption, spill, page pool), 4 KiB aligned; any other engine
+/// for an engine the recordings do not have: [`gr_ctx_size`]; any other engine
 /// INVALID_ARGUMENT, one of the documented statuses.
 fn engine_ctx(params: &[u8]) -> Answer {
     let mut b = params.to_vec();
     b.resize(params.len().max(12), 0);
     let id = get32(&b, 0) & 0x1F;
-    // Main GR context, PM, compute and graphics preemption (the GfxP slot stride), spill,
-    // page pool: none captured, sizes chosen generously.
-    let size = match id {
-        0 => Some(GR_MAIN_CTX_SIZE),
-        9 => Some(0x2_0000),
-        0xA | 0xB => Some(GFXP_SLOT_STRIDE),
-        0xC => Some(0x1_0000),
-        0xD => Some(0x8_0000),
-        _ => None,
-    };
+    let size = gr_ctx_size(id);
     let st = match size {
         Some(sz) => {
-            put32(&mut b, 4, 0x1000);
+            put32(&mut b, 4, gr_ctx_align(id));
             put32(&mut b, 8, sz);
             v::NV_OK
         }
@@ -498,14 +539,15 @@ mod tests {
         assert_eq!(t.index[&FB_GET_INFO_V2].get(&0xD), Some(&0x11));
     }
 
-    /// The class list (0x800292, 804 bytes, all-zero request) is the card's: 95 classes,
+    /// The class list (0x800292, 804 bytes, all-zero request) is the card's (host RM 615: 96
+    /// classes; the 610 traces have 95),
     /// among them TURING_A (0xc597) and TURING_DMA_COPY_A (0xc5b5).
     #[test]
     fn classlist_v2_is_the_cards() {
         let a = answer(0x0080_0292, &[0u8; 804], &F).unwrap();
         assert_eq!((a.status, a.params.len(), a.label), (0, 804, LABEL));
-        assert_eq!(get32(&a.params, 0), 95);
-        let classes: Vec<u32> = (0..95).map(|i| get32(&a.params, 4 + 4 * i)).collect();
+        assert_eq!(get32(&a.params, 0), 96);
+        let classes: Vec<u32> = (0..96).map(|i| get32(&a.params, 4 + 4 * i)).collect();
         assert!(classes.contains(&0xC597) && classes.contains(&0xC5B5));
         // A request that matches no recording is not answered here.
         assert!(answer(0x0080_0292, &[1u8; 804], &F).is_none());
@@ -520,19 +562,23 @@ mod tests {
         assert_eq!((a.status, get32(&a.params, 4), get32(&a.params, 8)), (0, 0x1000, 0x78600));
         // The main GR context (what the Windows KMD asks).
         let a = answer(FIFO_GET_ENGINE_CONTEXT_PROPERTIES, &[0u8; 12], &F).unwrap();
-        assert_eq!((a.status, get32(&a.params, 4), get32(&a.params, 8)), (0, 0x1000, GR_MAIN_CTX_SIZE));
+        assert_eq!((a.status, get32(&a.params, 4), get32(&a.params, 8)), (0, 0x1000, 0xA_D400));
         p[0] = 0xB;
         let a = answer(FIFO_GET_ENGINE_CONTEXT_PROPERTIES, &p, &F).unwrap();
-        assert_eq!((a.status, get32(&a.params, 8)), (0, GFXP_SLOT_STRIDE));
+        assert_eq!((a.status, get32(&a.params, 8)), (0, 0x10_F300));
         p[0] = 3;
         let a = answer(FIFO_GET_ENGINE_CONTEXT_PROPERTIES, &p, &F).unwrap();
-        assert_eq!(a.status, NV_ERR_INVALID_ARGUMENT);
+        assert!(gr_ctx_size(0x1A).is_none());
+        assert_eq!(a.status, v::NV_ERR_NOT_SUPPORTED, "the card refuses engine 3");
+        p[0] = 0x11;
+        let a = answer(FIFO_GET_ENGINE_CONTEXT_PROPERTIES, &p, &F).unwrap();
+        assert_eq!((a.status, get32(&a.params, 8)), (0, 0x8_0000), "not captured: chosen");
         let mut q = vec![0u8; 40];
         q[0] = 8;
         let a = answer(GR_GFX_POOL_QUERY_SIZE, &q, &F).unwrap();
         assert_eq!(a.status, 0);
         assert_eq!(get32(&a.params, 4), GFXP_SLOT_STRIDE);
-        assert_eq!(u64::from_le_bytes(a.params[24..32].try_into().unwrap()), 8 << 20);
+        assert_eq!(u64::from_le_bytes(a.params[24..32].try_into().unwrap()), 8 * GFXP_SLOT_STRIDE as u64);
         assert_eq!(answer(GR_GFX_POOL_QUERY_SIZE, &[0u8; 40], &F).unwrap().status, NV_ERR_INVALID_ARGUMENT);
         let mut g = vec![0u8; 332];
         g[0] = 1;
@@ -584,9 +630,9 @@ mod tests {
         assert_eq!(data(0), 0x10_0000, "1 GiB in KiB");
         assert_eq!(data(1), 0x100);
         assert_eq!(data(2), 0x11);
-        assert_eq!(data(3), 0);
+        assert_eq!(data(3), 1, "FORCED_BAR1_64KB_MAPPING_ENABLED, the card's");
         assert_eq!(data(4), 0xFFFF_FFFF);
-        assert!(a.note.contains("[0x2f]"), "{}", a.note);
+        assert!(!a.note.contains("not recorded"), "{}", a.note);
     }
 
     #[test]
@@ -634,5 +680,97 @@ mod tests {
         assert_eq!(a.params, e.answer);
         let s = gr_fs_info(&req, &F);
         assert_eq!(s.params, e.answer, "the synthesized answer equals the card's");
+    }
+}
+
+/// `CARAXES_EMU_GR=1`: in pure emulation the kernel's GR static info (kgr.rs) comes from
+/// [`EmuGrHost`] instead of the empty-GPU fallbacks (gpcMask 0). A kernel RM that allocates a
+/// GR object needs `numGpcs > 0` (`_kgrAlloc`, kernel_graphics_object.c:192: otherwise
+/// NV_ERR_INSUFFICIENT_RESOURCES, which is the Windows adapter start's
+/// STATUS_INSUFFICIENT_RESOURCES). Off by default: with GPCs the Linux RM builds its golden
+/// context channel at load, which pure emulation does not execute.
+pub const EMU_GR_ENV: &str = "CARAXES_EMU_GR";
+
+pub fn emu_gr() -> bool {
+    std::env::var(EMU_GR_ENV).is_ok_and(|v| v == "1")
+}
+
+pub const LABEL_EMU_GR: &str =
+    "card+chip (pure emulation: kgr from the recorded GR controls and TU106 facts, recorded.rs EmuGrHost)";
+
+/// A stand-in for the host RM that kgr.rs asks for the public GR controls: the card's
+/// recorded answers (GPC and TPC masks, global SM order, caps), the chip facts for the rest
+/// (TPCs per GPC, zcull mask 0xf, three PES per GPC, the graphics GPC/TPC info), and
+/// [`gr_ctx_size`] for the context buffers. Anything else is NOT_SUPPORTED, which kgr.rs
+/// treats as it treats a host that lacks the control.
+pub struct EmuGrHost {
+    pub facts: Facts,
+}
+
+impl crate::ctrl::HostRm for EmuGrHost {
+    fn control(&mut self, _class: u32, cmd: u32, params: &mut [u8]) -> u32 {
+        use crate::ver::active as v;
+        let t = Recorded::get();
+        if let Some(e) = t.exact.get(&(cmd, params.to_vec())) {
+            let n = params.len().min(e.answer.len());
+            params[..n].copy_from_slice(&e.answer[..n]);
+            return e.status;
+        }
+        let f = &self.facts;
+        let gpc = get32(params, 0);
+        match cmd {
+            v::CMD_GR_GET_NUM_TPCS_FOR_GPC if gpc < f.gpcs => put32(params, 4, f.tpcs_per_gpc),
+            v::CMD_GR_GET_ZCULL_MASK if gpc < f.gpcs => put32(params, 4, 0xF),
+            v::CMD_GPU_GET_PES_INFO if gpc < f.gpcs => {
+                let hl = crate::hostabi::current();
+                put32(params, hl.pes_info_num_pes, 3);
+                // Two TPCs per PES (the host capture: numPesInGpc 3, activePesMask 0x7).
+                for t in 0..(f.tpcs_per_gpc as usize).min(hl.pes_info_map_len) {
+                    put32(params, hl.pes_info_tpc_to_pes_map + 4 * t, (t / 2) as u32);
+                }
+            }
+            v::CMD_GR_GET_GFX_GPC_AND_TPC_INFO => {
+                put32(params, v::GR_ROUTED_ARG, (1 << f.gpcs) - 1);
+                put32(params, v::GR_ROUTED_OUT, f.gpcs * f.tpcs_per_gpc);
+            }
+            v::CMD_GR_GET_ENGINE_CONTEXT_PROPERTIES => {
+                match gr_ctx_size(get32(params, v::PUB_CTX_PROPS_ENGINE_ID)) {
+                    Some(sz) => {
+                        put32(params, v::PUB_CTX_PROPS_SIZE, sz);
+                        put32(params, v::PUB_CTX_PROPS_ALIGNMENT, gr_ctx_align(get32(params, v::PUB_CTX_PROPS_ENGINE_ID)));
+                    }
+                    None => return v::NV_ERR_NOT_SUPPORTED,
+                }
+            }
+            _ => return v::NV_ERR_NOT_SUPPORTED,
+        }
+        v::NV_OK
+    }
+}
+
+#[cfg(test)]
+mod emu_gr_tests {
+    use super::*;
+    use crate::ver::active as v;
+
+    /// kgr.rs through the stand-in: 3 GPCs of 6 TPCs, 36 SMs in the card's order, context
+    /// buffer sizes, and FECS_EVENT not NV_U32_MAX.
+    #[test]
+    fn kgr_static_info_is_a_whole_tu106() {
+        let chip = crate::fixture::rtx2070().chip.data();
+        let facts = Facts { fb_bytes: 1 << 30, gpcs: 3, tpcs_per_gpc: 6 };
+        let mut h: Box<dyn crate::ctrl::HostRm> = Box::new(EmuGrHost { facts });
+        let a = crate::kgr::answer(chip, v::CMD_INTERNAL_STATIC_KGR_GET_FLOORSWEEPING_MASKS, &vec![0; v::FS_PARAMS], Some(&mut h)).unwrap();
+        assert_eq!(a.status, 0);
+        assert_eq!(get32(&a.params, v::FS_GPC_MASK), 7, "{}", a.note);
+        assert_eq!(get32(&a.params, v::FS_TPC_MASK + 8), 0x3F);
+        assert_eq!(get32(&a.params, v::FS_TPC_COUNT + 4), 6);
+        assert_eq!(get32(&a.params, v::FS_NUM_PES_PER_GPC), 3);
+        assert_eq!(get32(&a.params, v::FS_NUM_GFX_TPC), 18);
+        let a = crate::kgr::answer(chip, v::CMD_INTERNAL_STATIC_KGR_GET_GLOBAL_SM_ORDER, &vec![0; v::SM_ORDER_PARAMS], Some(&mut h)).unwrap();
+        assert!(a.note.contains("36 SMs"), "{}", a.note);
+        let a = crate::kgr::answer(chip, v::CMD_INTERNAL_STATIC_KGR_GET_CONTEXT_BUFFERS_INFO, &vec![0; v::CTX_PARAMS], Some(&mut h)).unwrap();
+        assert_eq!(get32(&a.params, 0), 0xA_D400, "the card's main context, {}", a.note);
+        assert_eq!(get32(&a.params, 8 * v::CTX_ENGINE_FECS_EVENT), 0x1_0000);
     }
 }
