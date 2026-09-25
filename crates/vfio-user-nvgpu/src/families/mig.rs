@@ -891,6 +891,45 @@ pub fn alloc(
     ))
 }
 
+/// NV0080 engine ids of the GR global buffers, BUNDLE_CB 0x11 to PRIV_ACCESS_MAP 0x18
+/// (ctrl0080fifo.h:139-146 of 615.71.09; kgrctxGlobalCtxBufferToFifoEngineId,
+/// kernel_graphics_context.c:306-346).
+const GLOBAL_CTX_ENGINES: std::ops::RangeInclusive<usize> = 0x11..=0x18;
+const NV_U32_MAX: u32 = u32::MAX;
+
+/// `INTERNAL_STATIC_KGR_GET_CONTEXT_BUFFERS_INFO` on a chip with the MIG model: a GR global
+/// buffer the kgr answer leaves at NV_U32_MAX ("not supported", the pure-emulation
+/// fallback of kgr.rs) becomes size 0 (no buffer). With memory partitioning the kernel
+/// takes these sizes as the GR global buffers of every GPU instance
+/// (kgrmgrDiscoverMaxGlobalCtxBufSizes, kernel_graphics_manager.c:990-1015) and reserves
+/// their sum in the instance's context-buffer pool when it creates the instance
+/// (kmigmgrInitGPUInstanceGrBufPools, kernel_mig_manager.c:7266-7327; ctxBufPoolReserve,
+/// ctx_buf_pool.c:274-318); NV_U32_MAX there is a reservation of 4 GiB per buffer, which no
+/// instance holds (caraxes/runs/limits-2026-09-25/mig/gh100-4: `-cgi` fails "Insufficient
+/// Memory" at ctx_buf_pool.c:315). Line numbers of the 610.57.04 guest.
+pub fn global_ctx_buffers(f: &Families, cmd: u32, a: &mut Answer) {
+    if cmd != v::CMD_INTERNAL_STATIC_KGR_GET_CONTEXT_BUFFERS_INFO
+        || a.status != NV_OK
+        || !super::modelled(f.chip, "mig")
+    {
+        return;
+    }
+    let mut zeroed = Vec::new();
+    for id in GLOBAL_CTX_ENGINES {
+        if rd32(&a.params, 8 * id) == NV_U32_MAX {
+            wr32(&mut a.params, 8 * id, 0);
+            wr32(&mut a.params, 8 * id + 4, 0);
+            zeroed.push(format!("{id:#x}"));
+        }
+    }
+    if !zeroed.is_empty() {
+        a.note.push_str(&format!(
+            "; MIG: GR global buffers {} size 0 (no buffer; a GPU instance reserves their sum)",
+            zeroed.join(" ")
+        ));
+    }
+}
+
 /// `DUP_OBJECT` of a subscription: the duplicate subscribes to the same instance.
 pub fn dup(f: &mut Families, dst: (u32, u32), src: (u32, u32)) {
     if let Some(s) = f.mig.subs.get(&src).copied() {
@@ -1025,6 +1064,18 @@ mod tests {
         assert_eq!(set_gi(&mut d, 0, false, swizz).status, NV_OK);
         assert_eq!(mig_on(&mut d, 0).status, NV_OK);
         assert_eq!(smc(&mut d), SMC_DISABLED);
+    }
+
+    /// The GR global buffers a GPU instance reserves: NV_U32_MAX becomes 0 on a MIG chip.
+    #[test]
+    fn global_buffers_fit_an_instance() {
+        let mut d = dispatcher();
+        let a = d.control(SUB.0, SUB.1, v::CMD_INTERNAL_STATIC_KGR_GET_CONTEXT_BUFFERS_INFO, &vec![0u8; v::CTX_PARAMS]);
+        assert_eq!(a.status, NV_OK);
+        for id in GLOBAL_CTX_ENGINES {
+            assert_eq!(rd32(&a.params, 8 * id), 0, "engine {id:#x}");
+        }
+        assert_eq!(rd32(&a.params, 0), NV_U32_MAX, "the main context stays unsupported");
     }
 
     /// A chip without resetless MIG (GA100) keeps the new mode pending until a reset.

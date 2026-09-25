@@ -959,7 +959,10 @@ impl Dispatcher {
             return a;
         }
         // Graphics static-info rows (docs/caraxes/phase5-rpcs.md rows 35, 39-52) live in kgr.rs.
-        if let Some(a) = crate::kgr::answer(self.chip, cmd, params, self.host.as_mut()) {
+        if let Some(mut a) = crate::kgr::answer(self.chip, cmd, params, self.host.as_mut()) {
+            // A chip with the MIG model reserves the GR global buffers per GPU instance
+            // (families/mig.rs, `global_ctx_buffers`).
+            crate::families::mig::global_ctx_buffers(&self.families, cmd, &mut a);
             return a;
         }
         // The CUDA path's synthesized and derived rows (E5c) live in cuda.rs.
