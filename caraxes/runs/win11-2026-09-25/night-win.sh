@@ -18,7 +18,7 @@ EXTCFG=/mnt/vmstore/caraxes/vfio-user-nvgpu-v615-extcfg-9df39581
 LEGACY_ROM=$W/rom-legacy-only.bin
 T4_BOARD=$HERE/../../../crates/vfio-user-nvgpu/boards/tesla-t4-on-tu106.toml
 SYNTH_VBIOS=$HERE/../../reference/rtx2070/synth-vbios.bin
-PROM_DUMP=$HERE/../../reference/rtx2070/prom-window-2026-09-25.bin
+PROM_DUMP=${NIGHT_PROM_DUMP:-$HERE/../../reference/rtx2070/prom-window-2026-09-25.bin}
 HWCFG=${NIGHT_HWCFG:-$(ls -t /mnt/vmstore/caraxes/vfio-user-nvgpu-v615-extcfg-hwcfg-* 2>/dev/null | head -1)}
 q='qemu-system-x86'
 log() { printf '%s %s\n' "$(date +%T)" "$*" | tee -a "$OUT/night.log"; }
