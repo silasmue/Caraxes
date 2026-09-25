@@ -38,3 +38,24 @@ booted 18:07:01. The trace second is the device trace's clock (about host time m
 - Guest dmesg (`guest-dmesg.txt`): four `WARNING ... __nv_drm_handle_flip_event` from 328 s
   on. Guest nvidia-smi: steamwebhelper 1175 MiB (697 MiB in the earlier session),
   gnome-shell 180 MiB, no Sunshine.
+
+## Interrupts around the hang (live trace, per trace second)
+
+Columns: "host notifier fired -> no MSI (disabled or no fd)" / "-> guest vector 4, MSI" /
+"msi re-arm" writes.
+
+| Trace s | no MSI | MSI | re-arm |
+|---|---|---|---|
+| 280-284 | 0 | 2-14 | 140-175 |
+| 285-295 | 0-22 | 0-682 | 187-428 |
+| 296-315 (Moonlight connected, capture and vkcube) | 16-67 | 170-220 | 260-407 |
+| 316-320 | 2-24 | 16-170 | 144-275 |
+
+- From 296 s on, 30 to 67 host notifier events per second found MSI disabled (or no fd) and
+  did not reach the guest. Before the connect it was 0 to 22 per second, mostly 0.
+- Per-second counts: `msi-per-second.txt` (second, no-MSI, MSI, re-arm).
+- The graphics work stopped while the host GPU stayed fault-free and Xid-free (0 Xid, no RC).
+  That matches an interrupt that never reached the guest: the guest waits for a completion
+  that is signalled on the host but dropped while its MSI is masked, and nothing re-sends it
+  after the re-arm.
+- Not changed here: the interrupt path is another agent's.
