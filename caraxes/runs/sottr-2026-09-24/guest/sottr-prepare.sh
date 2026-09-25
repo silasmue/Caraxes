@@ -150,3 +150,10 @@ for s in "$@"; do
 done
 sync
 echo "prepared: $(ls $M)"
+
+# Software cursor for Mutter: the hardware cursor plane (plane-1 on nvidia-drm) is not part of
+# the primary framebuffer Sunshine's KMS capture reads, so a hardware cursor is invisible in the
+# stream (session of 2026-09-25). Read by systemd --user and gdm's Wayland session.
+mkdir -p /etc/environment.d
+printf 'MUTTER_DEBUG_DISABLE_HW_CURSORS=1\n' > /etc/environment.d/50-software-cursor.conf
+echo "software cursor: /etc/environment.d/50-software-cursor.conf"
