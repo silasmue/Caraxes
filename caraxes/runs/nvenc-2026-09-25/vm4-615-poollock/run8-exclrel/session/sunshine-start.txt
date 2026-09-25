@@ -1,0 +1,12 @@
+sunshine pid 4787, listening on 47989 (web UI 47990)
+[2026-09-25 20:54:14.992]: Info: Creating encoder [h264_nvenc]
+[2026-09-25 20:54:21.875]: Info: Creating encoder [hevc_nvenc]
+[2026-09-25 20:54:26.114]: Info: Creating encoder [av1_nvenc]
+[2026-09-25 20:54:26.437]: Info: Creating encoder [hevc_nvenc]
+[2026-09-25 20:54:32.524]: Info: Found H.264 encoder: h264_nvenc [nvenc]
+[2026-09-25 20:54:14.923]: Info: config: 'capture' = kms
+[2026-09-25 20:54:14.924]: Info: [wayland] Found monitor: Cyrix Corporation 24"
+[2026-09-25 20:54:14.924]: Info: -------- Start of KMS monitor list --------
+[2026-09-25 20:54:14.924]: Info: Monitor 0 is DP-1: Cyrix Corporation 24"
+[2026-09-25 20:54:14.924]: Info: --------- End of KMS monitor list ---------
+[2026-09-25 20:54:14.924]: Debug: Monitor description
