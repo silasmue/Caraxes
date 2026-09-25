@@ -418,6 +418,9 @@ pub struct Mirror {
     /// the host: `(class, params)` by ChID ([`Mirror::place_video_object`];
     /// docs/caraxes/video-engines.md §3).
     video_pending: BTreeMap<u32, (u32, Vec<u8>)>,
+    /// `CARAXES_MIRROR_VIDEO_OBJECT=1`: place a video object on the host at all
+    /// ([`Mirror::refuse_video_object`]); off, the guest's allocation is refused.
+    video_objects: bool,
     next_event_id: u32,
     pub stats: MirrorStats,
     /// Guest roots whose shadow VAS was handed to the teardown: the FB store drops their
@@ -527,6 +530,7 @@ impl Mirror {
             unwaited: 0,
             descs: None,
             video_pending: BTreeMap::new(),
+            video_objects: std::env::var("CARAXES_MIRROR_VIDEO_OBJECT").as_deref() == Ok("1"),
             next_event_id: 0x1000,
             stats: MirrorStats::default(),
             reaped_roots: Vec::new(),
@@ -2077,6 +2081,35 @@ impl Mirror {
                 Err(format!("{e}; notes so far: {}", notes.join(" | ")))
             }
         }
+    }
+
+    /// Fail closed (2026-09-25, probe-merged610): a video object on a mirrored shadow
+    /// channel is refused to the guest, before it is recorded, unless
+    /// `CARAXES_MIRROR_VIDEO_OBJECT=1`. The host kernel RM allocates the channel's falcon
+    /// context itself when the object is allocated (`kflcnAllocContext`,
+    /// kernel_falcon.c:279-298) and maps it first fit in the shadow VAS
+    /// (`kchannelMapEngineCtxBuf`, kernel_channel.c:3848-3870); it never looks at a
+    /// context promoted before: `GPU_PROMOTE_CTX` from user space is routed to GSP (flags
+    /// 0x10244, no kernel-RM handler), and the kernel RM then promotes its own VA over it.
+    /// Unmapping the guest's page leaves no hole either: the shadow's 2 MiB region object
+    /// still reserves it, so the host context lands in the next free region, a VA the
+    /// guest fills next (Xid 31 at 0x1205fe000 in probe-mirror1, the VA collision at
+    /// 0x120400000 in probe-merged610). Returns the refusal line; `None` lets it through.
+    pub fn refuse_video_object(&self, reg: &Registry, chid: u32, class: u32) -> Option<String> {
+        if self.video_objects || !video_class_ok(self.chip, class) {
+            return None;
+        }
+        self.channels.get(&chid)?.shadow_root?;
+        let guest = reg
+            .channel(chid)
+            .map(|ch| promoted_ranges(reg, ch, |id| self.global_ctx_size(id)))
+            .and_then(|r| r.first().copied())
+            .map_or("none promoted yet".into(), |(lo, hi)| {
+                format!("guest's at [{lo:#x}, {hi:#x}), {:#x} bytes, the size the host's falcon table gave the guest", hi - lo)
+            });
+        Some(format!(
+            "chid {chid}: video object {class:#x} refused (fail closed): the host RM allocates its own context ({guest}) first fit at the object's allocation and ignores a promote before it, so it would land on a VA the guest fills later (CARAXES_MIRROR_VIDEO_OBJECT=1 places it anyway) [host]"
+        ))
     }
 
     /// An engine object the guest allocated on an already mirrored channel.
