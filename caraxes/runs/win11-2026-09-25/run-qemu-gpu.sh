@@ -10,7 +10,8 @@
 # Start gpu-up.sh first.
 # Usage: run-qemu-gpu.sh      (WIN_MEM default 8G, WIN_CPUS default 4, WIN_GPU_ROMBAR default 0,
 #                               WIN_VGA default std; WIN_VGA=none leaves the synthetic GPU as the
-#                               only display adapter: the desktop is then reached over RDP only)
+#                               only display adapter: the desktop is then reached over RDP only;
+#                               WIN_GPU_ROOTPORT=1 attaches the card behind a PCIe root port)
 set -euo pipefail
 W=/mnt/vmstore/caraxes/win11
 VIRTIO=$W/iso/virtio-win.iso
@@ -20,7 +21,16 @@ MEM=${WIN_MEM:-8G} CPUS=${WIN_CPUS:-4}
 die() { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
 # WIN_GPU_ROMBAR=1 keeps the expansion ROM BAR (Windows then sees the ROM the device serves;
 # only with a ROM without the EFI image, gpu-up.sh WIN_GPU_ROM, or the firmware hangs in the GOP).
-gpu=(-device "{\"driver\":\"vfio-user-pci\",\"socket\":{\"type\":\"unix\",\"path\":\"$W/gpu.sock\"},\"rombar\":${WIN_GPU_ROMBAR:-0}}")
+# WIN_GPU_ROOTPORT=1 puts the card behind a PCIe root port (as on a real board and as libvirt
+# does), instead of directly on the root bus as an integrated endpoint; the parent is then a
+# port with a link, which the Windows driver may query.
+port=()
+bus=""
+if [[ ${WIN_GPU_ROOTPORT:-0} == 1 ]]; then
+    port=(-device pcie-root-port,id=rp1,bus=pcie.0,chassis=1,slot=1)
+    bus=',"bus":"rp1"'
+fi
+gpu=("${port[@]}" -device "{\"driver\":\"vfio-user-pci\",\"socket\":{\"type\":\"unix\",\"path\":\"$W/gpu.sock\"},\"rombar\":${WIN_GPU_ROMBAR:-0}$bus}")
 if [[ ${WIN_GPU:-1} == 0 ]]; then gpu=(); echo "WIN_GPU=0: memfd RAM, no device (isolation run)"; else
     [[ -S $W/gpu.sock ]] || die "no device socket $W/gpu.sock: run gpu-up.sh first"
 fi
