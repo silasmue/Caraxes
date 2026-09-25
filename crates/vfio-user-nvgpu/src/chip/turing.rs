@@ -164,6 +164,60 @@ pub fn local_memory_range(fb_bytes: u64) -> Option<(u32, u64)> {
         .max_by_key(|&(_, size)| size)
 }
 
+/// `FALCON_APPLICATION_INTERFACE_DMEM_MAPPER_V3` signature "DMAP" and version.
+const DMAP_SIGNATURE: u32 = 0x5041_4D44;
+const DMAP_VERSION: u32 = 3;
+/// `init_cmd` and `cmd_in_buffer_offset` in the DMEMMAPPER.
+const DMAP_INIT_CMD: u64 = 0x2C;
+const DMAP_CMD_IN: u64 = 0x08;
+/// `FWSECLIC_FRTS_CMD.frtsRegion.addr`: after the 24-byte READ_VBIOS part, ver and hdr.
+const FRTS_REGION_ADDR: u64 = 0x20;
+pub const FWSEC_CMD_FRTS: u32 = 0x15;
+pub const FWSEC_CMD_SB: u32 = 0x19;
+/// How far the mapper is searched when the data size is unknown (the GA102-family DMA
+/// boot) or implausible.
+const FWSEC_DATA_SCAN_DEFAULT: u64 = 0x1000;
+const FWSEC_DATA_SCAN_MAX: u64 = 0x10000;
+
+/// The FWSEC command found in a data image.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct FwsecCmd {
+    /// Offset of the DMEMMAPPER in the data image.
+    pub at: u64,
+    pub cmd: u32,
+    /// Offset of the command input buffer in the data image.
+    pub cmd_in: u32,
+}
+
+/// The DMEMMAPPER v3 in the FWSEC data image at `data_pa` (`data_size` bytes, the loader
+/// descriptor's `dataSize`): the first dword-aligned "DMAP" with version 3. `None` when
+/// guest RAM does not hold it.
+pub fn fwsec_command(mem: &GuestMemory, data_pa: u64, data_size: u64) -> Option<FwsecCmd> {
+    let limit = match data_size {
+        0 => FWSEC_DATA_SCAN_DEFAULT,
+        n => n.min(FWSEC_DATA_SCAN_MAX),
+    };
+    (0..limit.saturating_sub(DMAP_INIT_CMD + 4))
+        .step_by(4)
+        .find_map(|at| {
+            let hdr = (mem.read_u32(data_pa + at)?, mem.read_u32(data_pa + at + 4)?);
+            (hdr.0 == DMAP_SIGNATURE && hdr.1 & 0xFFFF == DMAP_VERSION).then_some(())?;
+            Some(FwsecCmd {
+                at,
+                cmd: mem.read_u32(data_pa + at + DMAP_INIT_CMD)?,
+                cmd_in: mem.read_u32(data_pa + at + DMAP_CMD_IN)?,
+            })
+        })
+}
+
+fn fwsec_command_name(cmd: u32) -> &'static str {
+    match cmd {
+        FWSEC_CMD_FRTS => "FRTS",
+        FWSEC_CMD_SB => "SB",
+        _ => "unknown",
+    }
+}
+
 /// The Turing boot model of one card, in its post-GFW state until written.
 pub struct TuringBoot {
     d: &'static TuringBootData,
@@ -217,21 +271,45 @@ impl TuringBoot {
             .map(|c| c.value)
     }
 
-    /// The FWSEC-FRTS side effects: WPR2 window as the CPU asked for it.
+    /// The FWSEC side effects. The command is decoded from the FWSEC data image in guest
+    /// RAM: the DMEMMAPPER (v3, "DMAP") holds `init_cmd` at +0x2C and the command input
+    /// buffer's offset at +0x08 (nova-core firmware/fwsec.rs `FalconAppifDmemmapperV3`; on the
+    /// RTX 2070's VBIOS the app interface table at data + 0xE0 names it at + 0x390, on the
+    /// synthetic image at + 0x20). Only FRTS (0x15) creates WPR2, from the FRTS region's
+    /// `addr` (4 KiB units) at command input + 0x20; SB (0x19) and the rest leave it. Without
+    /// a readable mapper the start counts as FRTS, as before.
     fn fwsec_done(&mut self, mem: &GuestMemory) -> Vec<String> {
         // Boot from HS (GA102 family): the DMEM image was DMAed from guest memory; boot with
-        // loader (TU10x): the loader descriptor in DMEM names the data buffer.
-        let data_pa = match self.gsp.dmem_dma_src() {
-            Some(pa) => pa,
+        // loader (TU10x): the loader descriptor in DMEM names the data buffer and its size.
+        let (data_pa, data_size) = match self.gsp.dmem_dma_src() {
+            Some(pa) => (pa, FWSEC_DATA_SCAN_DEFAULT),
             None => {
                 let dmem = self.gsp.dmem();
+                let rd = |at: usize| u32::from_le_bytes(dmem[at..][..4].try_into().unwrap());
                 let at = self.d.bl_desc_data_dma_base as usize;
-                let lo = u32::from_le_bytes(dmem[at..][..4].try_into().unwrap());
-                let hi = u32::from_le_bytes(dmem[at + 4..][..4].try_into().unwrap());
-                ((hi as u64) << 32) | lo as u64
+                let pa = ((rd(at + 4) as u64) << 32) | rd(at) as u64;
+                // `dataSize` follows `dataDmaBase` (rmflcnbl.h:89-90).
+                (pa, rd(at + 8) as u64)
             }
         };
-        let (frts_offset, how) = match mem.read_u32(data_pa + self.d.fwsec_data_frts_offset_4k) {
+        let decoded = fwsec_command(mem, data_pa, data_size);
+        let frts_at = match decoded {
+            Some(FwsecCmd { at, cmd, cmd_in }) if cmd != FWSEC_CMD_FRTS => {
+                return vec![format!(
+                    "fwsec: data buffer PA {data_pa:#x}, DMEMMAPPER at +{at:#x}, command {cmd:#x} ({}), command input +{cmd_in:#x}: WPR2 unchanged (lo {:#x} hi {:#x})",
+                    fwsec_command_name(cmd),
+                    self.wpr2.0,
+                    self.wpr2.1
+                )];
+            }
+            Some(FwsecCmd { cmd_in, .. }) => cmd_in as u64 + FRTS_REGION_ADDR,
+            None => self.d.fwsec_data_frts_offset_4k,
+        };
+        let what = match decoded {
+            Some(FwsecCmd { at, .. }) => format!("command 0x15 (FRTS), DMEMMAPPER at +{at:#x}"),
+            None => "no DMEMMAPPER readable, taken as FRTS".to_string(),
+        };
+        let (frts_offset, how) = match mem.read_u32(data_pa + frts_at) {
             Some(v) if v != 0 => ((v as u64) << 12, "from the FWSEC command in guest RAM"),
             _ => (self.fallback_frts_offset(), "fallback from the FB size"),
         };
@@ -241,7 +319,7 @@ impl TuringBoot {
             (((frts_offset + self.d.frts_size - 1) >> 12) << 4) as u32,
         );
         vec![format!(
-            "fwsec: data buffer PA {data_pa:#x}, frtsOffset {frts_offset:#x} ({how}), WPR2 lo {:#x} hi {:#x}",
+            "fwsec: data buffer PA {data_pa:#x}, {what}, frtsOffset {frts_offset:#x} ({how}), WPR2 lo {:#x} hi {:#x}",
             self.wpr2.0, self.wpr2.1
         )]
     }
@@ -621,6 +699,100 @@ mod tests {
         // The GSP's IRQSTAT keeps its latch (no HALT bit on a GSP start).
         b.write32(d.gsp.base + falcon::CPUCTL, 2, &mem);
         assert_eq!(b.read32(d.gsp.base + falcon::IRQSTAT), Some(0));
+    }
+
+    /// Guest RAM at `pa` holding the RTX 2070 VBIOS's FWSEC (app 0x85) DMEM image, 0x420
+    /// bytes from the PROM window (0x66564 + IMEM 0x9800), with `cmd` patched into the
+    /// DMEMMAPPER and `frts_4k` into the FRTS region, as a driver patches it.
+    fn fwsec_guest(
+        tag: &str,
+        pa: u64,
+        cmd: u32,
+        frts_4k: u32,
+    ) -> (GuestMemory, std::path::PathBuf) {
+        use std::io::Write;
+        let window =
+            include_bytes!("../../../../caraxes/reference/rtx2070/prom-window-2026-09-25.bin");
+        let mut data = window[0x6FD64..0x6FD64 + 0x420].to_vec();
+        data[0x390 + 0x2C..][..4].copy_from_slice(&cmd.to_le_bytes());
+        data[0x3E0 + 0x20..][..4].copy_from_slice(&frts_4k.to_le_bytes());
+        let path = std::env::temp_dir().join(format!("nvgpu-fwsec-{tag}-{}", std::process::id()));
+        let mut f = std::fs::File::options()
+            .read(true)
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .open(&path)
+            .unwrap();
+        f.write_all(&vec![0u8; 0x1000]).unwrap();
+        let mut mem = GuestMemory::new();
+        mem.map(pa, 0x1000, 0, &f).unwrap();
+        assert!(mem.write(pa, &data));
+        (mem, path)
+    }
+
+    /// The loader descriptor the Windows driver writes (run P): dataDmaBase `pa`, dataSize
+    /// 0x420; then the start.
+    fn fwsec_start(b: &mut TuringBoot, pa: u64, mem: &GuestMemory) -> BootWrite {
+        let gsp = data().gsp.base;
+        b.write32(gsp + falcon::ENGINE, 1, mem);
+        b.write32(gsp + falcon::ENGINE, 0, mem);
+        b.write32(gsp + falcon::DMEMC0, 1 << 24, mem);
+        for i in 0..21u32 {
+            let v = match i {
+                16 => pa as u32,
+                17 => (pa >> 32) as u32,
+                18 => 0x420,
+                _ => 0,
+            };
+            b.write32(gsp + falcon::DMEMD0, v, mem);
+        }
+        b.write32(gsp + falcon::CPUCTL, 2, mem).unwrap()
+    }
+
+    /// The real VBIOS's FWSEC data image: the mapper is found at +0x390 (the app interface
+    /// table at +0xE0 names it). SB (0x19, what Windows most likely runs) leaves WPR2 down;
+    /// FRTS (0x15) raises it from the FRTS region.
+    #[test]
+    fn fwsec_command_decides_wpr2() {
+        let d = data();
+        let pa = 0x1_7FC4_5000;
+        let (mem, path) = fwsec_guest("sb", pa, FWSEC_CMD_SB, 0);
+        assert_eq!(
+            fwsec_command(&mem, pa, 0x420),
+            Some(FwsecCmd {
+                at: 0x390,
+                cmd: 0x19,
+                cmd_in: 0x3E0
+            })
+        );
+        let mut b = TuringBoot::new(d, 8 << 30);
+        let w = fwsec_start(&mut b, pa, &mem);
+        assert!(
+            w.notes
+                .iter()
+                .any(|n| n.contains("command 0x19 (SB)") && n.contains("WPR2 unchanged")),
+            "{w:?}"
+        );
+        assert_eq!(
+            (b.read32(d.wpr2_addr_lo), b.read32(d.wpr2_addr_hi)),
+            (Some(0), Some(0))
+        );
+        std::fs::remove_file(path).ok();
+
+        let (mem, path) = fwsec_guest("frts", pa, FWSEC_CMD_FRTS, 0x1_FDE00);
+        let mut b = TuringBoot::new(d, 8 << 30);
+        let w = fwsec_start(&mut b, pa, &mem);
+        assert!(
+            w.notes
+                .iter()
+                .any(|n| n.contains("command 0x15 (FRTS)") && n.contains("in guest RAM")),
+            "{w:?}"
+        );
+        // frtsRegion.addr 0x1fde00 (4 KiB units): WPR2 lo = addr << 4.
+        assert_eq!(b.read32(d.wpr2_addr_lo), Some(0x1FD_E000));
+        assert_ne!(b.read32(d.wpr2_addr_hi), Some(0));
+        std::fs::remove_file(path).ok();
     }
 
     /// Run P's gate: `W 0x10a0a4 0x2`, then the poll reads the stall acknowledge at once.
