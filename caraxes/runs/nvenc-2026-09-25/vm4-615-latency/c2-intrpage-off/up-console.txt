@@ -1,0 +1,102 @@
+host watch pid 3977498 -> /home/silas/git/Caraxes/caraxes/runs/nvenc-2026-09-25/vm4-615-latency/c2-intrpage-off/session/hostwatch.txt
+driver 615.71.09: overlay on /mnt/vmstore/caraxes/images/guest-baked-2026-09-24-615.71.09.qcow2, CARAXES_GUEST_ABI=615
+games disk: /mnt/vmstore/caraxes/vm4-615/games.qcow2
+dma table: 0:7ffc80000000:c0000000,100000000:7ffd80000000:140000000
+server pid 3977589, VM pid 3977602; logs in /mnt/vmstore/caraxes/vm4-615
+== packages615: done before (2026-09-25T09:28:16+00:00)
+== modprobe615: done before (2026-09-25T09:28:19+00:00)
+== display615: done before (2026-09-25T09:28:20+00:00)
+== sunshine: done before (2026-09-25T09:28:20+00:00)
+== games: done before (2026-09-25T09:28:21+00:00)
+== steam: done before (2026-09-25T09:28:21+00:00)
+== cursor
+prepared: display615.done
+probe sottr: 69454 device accesses, guest log in /mnt/vmstore/caraxes/vm4-615/probe-sottr/guest-dmesg.txt
+[  129.875364] NVRM: GPU 0000:00:06.0: RmInitAdapter
+[  131.937338] NVRM: GPU 0000:00:06.0: RmInitAdapter succeeded!
+modprobe rc=0
+card0-DP-1 connected 1920x1080 1920x1080 1920x1080 1280x720 1280x720 640x480 
+nvidia_uvm           2068480  0
+nvidia_drm            151552  0
+nvidia_modeset       1556480  1 nvidia_drm
+nvidia              16875520  2 nvidia_uvm,nvidia_modeset
+== nvidia-smi
+rc=0
+== vulkaninfo --summary
+==========
+==========
+========
+	deviceName         = Leandro VFIO RTX 2070-3G
+	driverName         = NVIDIA
+	driverInfo         = 615.71.09
+	deviceName         = llvmpipe (LLVM 20.1.2, 256 bits)
+	driverName         = llvmpipe
+	driverInfo         = Mesa 25.2.8-0ubuntu0.24.04.2 (LLVM 20.1.2)
+rc=0
+== icds
+Type=wayland
+GRAB crtc 66 fb 141 1920x1080 format XR24 modifier 0x300000000606014 pitch 7680 handle 1 mode 1920x1080@60
+[  145.043903] caraxes-vm4-615 gnome-shell[2065]: Created gbm renderer for '/dev/dri/card0'
+page_flip_failed=0
+== vkcube
+rc=1
+== sniper
+rc=0 (189292 bytes, ~/sniper-system-info.json)
+vulkan icd: /usr/lib/pressure-vessel/overrides/share/vulkan/icd.d/nvidia_icd.json libGLX_nvidia.so.0  issues: None
+sunshine never opened 47989
+[2026-09-25 21:34:39.522]: Debug: Format [AR15, XR15, RG16, AR24, XR24, AB30, XB30, AB24, XB24, AB4H, AB48, YUYV, UYVY, NV42, NV24, NV61, NV16, NV21, NV12, P210, P010, P012, XB4H]
+[2026-09-25 21:34:39.522]: Info: Found connector ID [132]
+[2026-09-25 21:34:39.522]: Info: Found cursor plane [60]
+[2026-09-25 21:34:39.522]: Info: Creating encoder [h264_nvenc]
+[2026-09-25 21:34:39.522]: Info: Color coding: SDR (Rec. 601)
+[2026-09-25 21:34:39.523]: Info: Color depth: 8-bit
+[2026-09-25 21:34:39.523]: Info: Color range: JPEG
+[2026-09-25 21:34:39.770]: Debug: Found CUDA device with PCI bus ID: 0000:00:06.0
+[2026-09-25 21:34:39.770]: Debug: Found DRM primary node: card0
+[2026-09-25 21:34:39.890]: Debug: EGL: [NVIDIA]: version [1.5]
+[2026-09-25 21:34:39.890]: Debug: API's supported: [OpenGL_ES OpenGL]
+[2026-09-25 21:34:39.890]: Debug: EGL: High priority context supported
+[2026-09-25 21:34:40.077]: Info: EGL: context priority set to HIGH
+[2026-09-25 21:34:41.329]: Debug: GL: vendor: NVIDIA Corporation
+[2026-09-25 21:34:41.329]: Debug: GL: renderer: Leandro VFIO RTX 2070-3G/PCIe/SSE2
+[2026-09-25 21:34:41.329]: Debug: GL: version: 4.6.0 NVIDIA 615.71.09
+[2026-09-25 21:34:41.329]: Debug: GL: shader: 4.60 NVIDIA
+[2026-09-25 21:36:16.065]: Info: Streaming bitrate is 1000000
+[2026-09-25 21:36:16.070]: Debug: [h264_nvenc @ 0x5bc59343d580] Loaded Nvenc version 13.1
+[2026-09-25 21:36:16.070]: Debug: [h264_nvenc @ 0x5bc59343d580] Nvenc initialized successfully
+== session
+13 1000 leandro seat0 tty2 active  no -
+15 1000 leandro -     -    closing no -
+17 1000 leandro -     -    active  no -
+gnome-shell      2065 2132 2157 
+Xwayland         2930 
+steam            2663 2754 2786 
+steamwebhelper   
+sunshine         4422 
+ShadowOfTheTomb  
+== games
+TARGET SOURCE   FSTYPE OPTIONS
+/games /dev/vdc ext4   rw,relatime
+3DMark Demo
+Proton - Experimental
+Proton Hotfix
+Shadow of the Tomb Raider
+Steam.dll
+SteamLinuxRuntime
+SteamLinuxRuntime_4
+SteamLinuxRuntime_sniper
+SteamLinuxRuntime_soldier
+== kms
+GRAB crtc 66 fb 137 1920x1080 format XR24 modifier 0x300000000606014 pitch 7680 handle 1 mode 1920x1080@60
+
+vm4-615 is up (192.168.103.24 on caraxes3), evidence in /home/silas/git/Caraxes/caraxes/runs/nvenc-2026-09-25/vm4-615-latency/c2-intrpage-off/session
+Next, on this desktop:
+  /tmp/claude-1000/-home-silas-git-Caraxes/43784b5f-fc25-49bd-8e67-5dbab7e19aca/scratchpad/latency/stage/stream-615.sh    pairs Moonlight with the guest's Sunshine if needed (PIN 4321
+                         posted to https://192.168.103.24:47990/api/pin with the web login) and
+                         opens 'moonlight stream 192.168.103.24 Desktop' in a window
+  Sunshine web UI:       https://192.168.103.24:47990  (login lea / leastream)
+  Manual pairing:        moonlight pair 192.168.103.24 --pin 4321, then enter the PIN in
+                         the web UI's PIN page (or: curl -sk -u lea:leastream
+                         -H 'Content-Type: application/json' -d '{"pin":"4321","name":"host"}'
+                         https://192.168.103.24:47990/api/pin)
+  When done:             /tmp/claude-1000/-home-silas-git-Caraxes/43784b5f-fc25-49bd-8e67-5dbab7e19aca/scratchpad/latency/stage/down-615.sh

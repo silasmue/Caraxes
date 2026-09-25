@@ -1,0 +1,3 @@
+76a77,78
+> # Private copy for the latency matrix: LAT_OVERRIDE=<file> sourced last.
+> if [[ -n ${LAT_OVERRIDE:-} ]]; then source "$LAT_OVERRIDE" || return 1; fi

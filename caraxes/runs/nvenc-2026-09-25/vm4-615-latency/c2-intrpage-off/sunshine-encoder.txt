@@ -1,0 +1,2 @@
+sunshine never opened 47989
+[2026-09-25 21:34:39.522]: Info: Creating encoder [h264_nvenc]

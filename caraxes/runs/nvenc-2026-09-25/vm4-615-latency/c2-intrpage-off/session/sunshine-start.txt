@@ -1,0 +1,21 @@
+sunshine never opened 47989
+[2026-09-25 21:34:39.522]: Debug: Format [AR15, XR15, RG16, AR24, XR24, AB30, XB30, AB24, XB24, AB4H, AB48, YUYV, UYVY, NV42, NV24, NV61, NV16, NV21, NV12, P210, P010, P012, XB4H]
+[2026-09-25 21:34:39.522]: Info: Found connector ID [132]
+[2026-09-25 21:34:39.522]: Info: Found cursor plane [60]
+[2026-09-25 21:34:39.522]: Info: Creating encoder [h264_nvenc]
+[2026-09-25 21:34:39.522]: Info: Color coding: SDR (Rec. 601)
+[2026-09-25 21:34:39.523]: Info: Color depth: 8-bit
+[2026-09-25 21:34:39.523]: Info: Color range: JPEG
+[2026-09-25 21:34:39.770]: Debug: Found CUDA device with PCI bus ID: 0000:00:06.0
+[2026-09-25 21:34:39.770]: Debug: Found DRM primary node: card0
+[2026-09-25 21:34:39.890]: Debug: EGL: [NVIDIA]: version [1.5]
+[2026-09-25 21:34:39.890]: Debug: API's supported: [OpenGL_ES OpenGL]
+[2026-09-25 21:34:39.890]: Debug: EGL: High priority context supported
+[2026-09-25 21:34:40.077]: Info: EGL: context priority set to HIGH
+[2026-09-25 21:34:41.329]: Debug: GL: vendor: NVIDIA Corporation
+[2026-09-25 21:34:41.329]: Debug: GL: renderer: Leandro VFIO RTX 2070-3G/PCIe/SSE2
+[2026-09-25 21:34:41.329]: Debug: GL: version: 4.6.0 NVIDIA 615.71.09
+[2026-09-25 21:34:41.329]: Debug: GL: shader: 4.60 NVIDIA
+[2026-09-25 21:36:16.065]: Info: Streaming bitrate is 1000000
+[2026-09-25 21:36:16.070]: Debug: [h264_nvenc @ 0x5bc59343d580] Loaded Nvenc version 13.1
+[2026-09-25 21:36:16.070]: Debug: [h264_nvenc @ 0x5bc59343d580] Nvenc initialized successfully

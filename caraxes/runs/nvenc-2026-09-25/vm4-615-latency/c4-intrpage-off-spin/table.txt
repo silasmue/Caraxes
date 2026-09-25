@@ -1,0 +1,2 @@
+23:52:35-23:52:55 w1-idle-noclient  | window_s=20.0 kicks=0 kicks_per_s=0.0 | lat: | us=0 sy=2 st=0 in=2577/s | dev: doorbel+:97.8 vfio-us+:83.9 sum:181.7 | vcpu_sum:18
+23:53:46-23:54:08 w2-cursor-noclient moves 1972 in 20.0 s | window_s=20.8 kicks=0 kicks_per_s=0.0 | lat: | us=0 sy=2 st=1 in=1746/s | dev: doorbel+:96.8 vfio-us+:86.9 sum:183.7 | vcpu_sum:17

@@ -1,0 +1,21 @@
+sunshine_alive_at_end=0
+[2026-09-25 21:15:43.150]: Debug: RTKit: Could not set priority: GDBus.Error:org.freedesktop.DBus.Error.AccessDenied: Operation not permitted
+[2026-09-25 21:15:43.151]: Warning: setpriority failed for nice -15: Permission denied
+[2026-09-25 21:15:43.153]: Debug: RTKit: Could not set priority: GDBus.Error:org.freedesktop.DBus.Error.AccessDenied: Operation not permitted
+[2026-09-25 21:15:43.153]: Warning: setpriority failed for nice -10: Permission denied
+[2026-09-25 21:15:43.491]: Debug: RTKit: Could not set priority: GDBus.Error:org.freedesktop.DBus.Error.AccessDenied: Operation not permitted
+[2026-09-25 21:15:43.491]: Warning: setpriority failed for nice -15: Permission denied
+[2026-09-25 21:15:53.958]: Error: Couldn't set default-sink [auto_null]: No such entity
+[2026-09-25 21:16:04.139]: Fatal: Hang detected! Session failed to terminate in 10 seconds.
+sunshine pid 12051, listening on 47989 (web UI 47990)
+[2026-09-25 21:21:41.506]: Info: Creating encoder [h264_nvenc]
+[2026-09-25 21:21:45.945]: Info: Creating encoder [hevc_nvenc]
+[2026-09-25 21:21:47.360]: Info: Creating encoder [av1_nvenc]
+[2026-09-25 21:21:47.464]: Info: Creating encoder [hevc_nvenc]
+[2026-09-25 21:21:49.061]: Info: Found H.264 encoder: h264_nvenc [nvenc]
+[2026-09-25 21:21:41.397]: Info: config: 'capture' = kms
+[2026-09-25 21:21:41.400]: Info: [wayland] Found monitor: Cyrix Corporation 24"
+[2026-09-25 21:21:41.400]: Info: -------- Start of KMS monitor list --------
+[2026-09-25 21:21:41.400]: Info: Monitor 0 is DP-1: Cyrix Corporation 24"
+[2026-09-25 21:21:41.400]: Info: --------- End of KMS monitor list ---------
+[2026-09-25 21:21:41.400]: Debug: Monitor description
