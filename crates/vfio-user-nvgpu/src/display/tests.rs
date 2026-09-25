@@ -521,3 +521,19 @@ fn hotplug_config_names_every_connector() {
     let w = |o: usize| u32::from_le_bytes(a.params[o..o + 4].try_into().unwrap());
     assert_eq!((w(8), w(12), w(16), w(20)), (0, m, m, 0));
 }
+
+/// CARAXES_WIN_DISPLAY_QUERIES=1: the KMD's mux, sideband-I2C and ACPI DOD queries answered.
+#[test]
+fn windows_display_queries() {
+    let mut disp = display();
+    if std::env::var("CARAXES_WIN_DISPLAY_QUERIES").is_err() {
+        let a = disp.control(0x0073_013D, &[0xAAu8; 8]).unwrap();
+        assert_ne!(a.status, 0);
+        return;
+    }
+    let mut p = [0u8; 12];
+    p[4] = 0;
+    p[5] = 1;
+    let a = disp.control(0x0073_0285, &p).unwrap();
+    assert_eq!((a.status, &a.params[8..12]), (0, &[0xFFu8; 4][..]));
+}

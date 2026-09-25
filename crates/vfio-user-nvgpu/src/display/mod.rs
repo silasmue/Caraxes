@@ -481,7 +481,13 @@ impl Display {
     /// Answer a display control, or `None` when `cmd` is not the display's (or the
     /// display is switched off: then the controls stay unanswered, as before phase A).
     pub fn control(&mut self, cmd: u32, params: &[u8]) -> Option<Answer> {
+        fn win_display_queries() -> bool {
+            std::env::var("CARAXES_WIN_DISPLAY_QUERIES").is_ok_and(|v| v == "1")
+        }
         const SYSTEM_GET_HOTPLUG_CONFIG: u32 = 0x0073_0109;
+        const WIN_MUX: u32 = 0x0073_013D;
+        const WIN_SIDEBAND_I2C: u32 = 0x0073_014B;
+        const WIN_ACPI_DOD_ATTACHMENT: u32 = 0x0073_0285;
         if !self.enabled {
             return None;
         }
@@ -1027,6 +1033,33 @@ impl Display {
                 BOARD,
                 format!("backlight brightness of {did:#x}: not supported (external DP monitor, no panel)"),
             ),
+            // CARAXES_WIN_DISPLAY_QUERIES=1: three plain queries of the Windows KMD's display
+            // start answered NV_OK (WINDOWS-LOOP.md Y21): QUERY_DISPLAY_IDS_WITH_MUX
+            // {subDeviceInstance, muxDisplayMask out} mask 0 (no mux), CHECK_SIDEBAND_I2C_SUPPORT
+            // {subDeviceInstance, bIsSidebandI2cSupported out} false, and
+            // SPECIFIC_GET_ACPI_DOD_DISPLAY_PORT_ATTACHMENT {subDeviceInstance, displayId,
+            // dispPortAttachment out} UNKNOWN (a desktop board has no ACPI _DOD).
+            c if win_display_queries()
+                && matches!(c, WIN_MUX | WIN_SIDEBAND_I2C | WIN_ACPI_DOD_ATTACHMENT) =>
+            {
+                b.resize(n.max(12), 0);
+                let what = match c {
+                    WIN_MUX => {
+                        put32(&mut b, 4, 0);
+                        "display ids with mux: none".to_string()
+                    }
+                    WIN_SIDEBAND_I2C => {
+                        b[4] = 0;
+                        "sideband I2C: not supported (false)".to_string()
+                    }
+                    _ => {
+                        put32(&mut b, 8, 0xFFFF_FFFF);
+                        format!("ACPI DOD port attachment of {did:#x}: UNKNOWN (no ACPI _DOD)")
+                    }
+                };
+                b.truncate(n);
+                ok(b, BOARD, what)
+            }
             d::CMD_SYSTEM_QUERY_DISPLAY_IDS_WITH_MUX => fail(
                 NV_ERR_NOT_SUPPORTED,
                 b,
@@ -1067,7 +1100,10 @@ impl Display {
                 NV_ERR_NOT_SUPPORTED,
                 b,
                 "unanswered",
-                format!("display control {cmd:#x} ({n} bytes): not modelled"),
+                format!(
+                    "display control {cmd:#x} ({n} bytes): not modelled; request {}",
+                    params.iter().take(48).map(|x| format!("{x:02x}")).collect::<String>()
+                ),
             ),
             _ => return None,
         };
