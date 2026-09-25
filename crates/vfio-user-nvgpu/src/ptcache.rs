@@ -226,6 +226,11 @@ impl WalkCache {
         self.uses.len()
     }
 
+    /// Every table page (4 KiB page number) the cache watches.
+    pub fn watched_pages(&self) -> impl Iterator<Item = u64> + '_ {
+        self.uses.keys().copied()
+    }
+
     /// The cached leaves of the unit at `va` (2 MiB aligned).
     pub fn unit_leaves(&self, va: u64) -> &[Leaf] {
         self.units.get(&va).map_or(&[], |u| &u.leaves)

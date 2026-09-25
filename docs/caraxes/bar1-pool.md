@@ -199,9 +199,8 @@ an A/B check.
    reservation. Both ends are inside the reservation (`bar1pool.rs:210`).
 4. The shadow still validates every GPU leaf after the remap: `resolve_leaf` (`shadow.rs:94`)
    checks the pool page against the reservation and refuses compressible kinds.
-5. A guest page-table page that becomes reachable through the area makes the device's cached
-   walk stale, as in G. It is counted (`page-table hazard(s)`); `CARAXES_SHADOW_ALWAYS_RESYNC=1`
-   is the safe setting when one appears.
+5. A guest page-table page never lives in the pool, and a page the guest maps twice is never
+   served by a pool page nobody reads (§10).
 
 ## 6. Measurement plan (for the coordinator; not run here)
 
@@ -449,3 +448,93 @@ Tests (`cargo test -p vfio-user-nvgpu`, 349 plus 2):
   in cold, back behind the barrier, 281 barriers, 0 refused, 40 refused moves, as in the clean matrix runs.
 - `gate-610` (vm3, the gate610 environment): nvml pass but the known power-number; cuda 10 of 11
   (cuda-managed 801); convburn passes; 829 invalidates held (1.2 s); pool as on 615.
+
+## 10. Page-table pages and aliased pages in the area (2026-09-25)
+
+Record: the black Sunshine stream of the 615 game VM,
+`caraxes/runs/sottr-2026-09-24/session-615-20260925-112443/` (device log excerpts; the full trace is
+lost).
+
+![A guest page-table page behind a pool area page, before and after](figures/bar1-pool-table-pages.svg)
+
+**The hazard.**
+- The 615 guest RM maps page-table pages into BAR1, inside the pool's area, some of them twice:
+  - area 0x400000 and 0x401000 on the page tables 0x136b60000 and 0x136b61000 (the old
+    `page-table hazard` ERROR);
+  - area 0x490000 on 0x136bf0000, the PD0 of guest root 0x136b3d000, which another area page
+    held already (one of 25 `Refusal::Aliased` lines).
+- The 610 guest writes its tables through BAR2 only (`gmmu_walk.c:773` `memmgrMemWrite`, mapped
+  by `kbusMapBar2Aperture`, `mem_desc.c:2137`), so it never hit this.
+- A table page in the pool took the guest's writes on its pool page, past `FakeFb::write`: the
+  shadow's walk cache kept its old copy.
+- An aliased area page was left on a pool page nobody reads: the guest's writes there reached
+  neither the device, the shadow nor the GPU. The refusal was fail closed for isolation, not for
+  the guest's tables.
+- Either way the shadow of root 0x136b3d000 missed PDEs. When Sunshine's KMS capture started, a
+  copy engine read an unmapped PDE: host Xid 31 `CE0 FAULT_PDE`, the RC killed the channel, and
+  every later frame failed.
+
+**What the device does now** (`bar1pool.rs`).
+- A *table page* is a page a shadow's cached walk or the pool's own BAR1 walk reads
+  (`tracked_table_page`).
+- **Never admitted.** A table page the guest maps into the area is refused
+  (`Refusal::TablePage`) and stays on the trapped path at its own address.
+- **Evicted.** A pooled page that becomes a table page is moved back out at the next poll:
+  cold, or behind the barrier of §4 when the GPU maps it. The walk caches re-read it.
+- **Until the eviction** (the poll comes after the trapped write, or a barrier refuses it),
+  every sync point marks the page changed, so the next walk re-reads it from its pool page.
+- **Replicas.** A refused table page, and an aliased page, is served by its area page as a
+  replica: the pool page holds a copy, and every sync point merges the two per 8 bytes.
+  - Words the guest changed through the area go to the page as `FakeFb::write` (the walk caches,
+    the BAR TLB, the pool's walk and the BAR2 memfd see them like a trapped write).
+  - Words changed at home (a device write, BAR2, the other mapping) go to the area.
+  - A word changed on both sides takes the area's value (counted as a conflict).
+  - When the guest unmaps the area page, the last merge runs and the replica goes. When the
+    page may move in again (no longer a table page, the alias gone), it does.
+- **Sync points** (`sync_untracked`): the MMU invalidate before its shadow re-sync, the GSP
+  queue doorbell, the trapped BAR2 flush read, and every poll (every trapped BAR0 write). The
+  guest orders its table writes before the invalidate, so the shadow always walks the merged
+  page. Doorbells are not sync points (cost); data written only through an aliased mapping
+  reaches the GPU at the guest's next flush or invalidate.
+- **Design G** (`CARAXES_BAR1_PASSTHROUGH=1`) cannot move a page: at the same sync points it marks
+  every table page its area reaches as changed (`FakeFb::bar1_pt_resync`).
+- `CARAXES_SHADOW_ALWAYS_RESYNC` is no longer the advice for either.
+
+**Counters** (the exit summary and the `pool empty` line):
+- `N page-table hazard(s) (E evicted, R refused, M re-read(s) while pooled)`;
+- `N replica(s) made, K now, S merge(s) at sync points, H page merge(s) to home, A to the area,
+  C conflicting word(s)`;
+- design G: `table re-read(s)`.
+
+**Log lines** (the first 32 findings):
+- `... a page-table page the shadow watches: moved out of the pool back to the trapped path
+  [behind the barrier] (fail closed); the shadow re-reads the page, and area page ... mirrors it
+  as a replica merged at every sync point`;
+- `ERROR: ... remap refused (the page is a guest page-table page the device tracks ...); the page
+  stays on the trapped path (fail closed) and area page ... mirrors it as a replica ...`;
+- `ERROR: ... remap refused (the page lives in the pool already through another area page (the
+  guest maps it twice)); the page stays where it is (fail closed) and area page ... mirrors it
+  ...`;
+- `ERROR: ... a page-table page the shadow watches, but the page cannot move back out of its pool
+  page ... yet: ...`: an eviction the barrier refused; retried.
+
+**The invalidate trace line.** Every `mmu invalidate` of the black session said `no mirror VA
+space rooted there`, also for mirrored roots (0x136b3d000 lived as a shadow VAS from 292 s to
+the end, 2545 syncs). `Mirror::invalidate_tlb` (`mirror.rs:1951`) counts only host VA spaces the
+guest's tables are forwarded to (`Mirror::vas`, `mirror.rs:1382` and `:1524`), which the pool
+forbids. The shadow roots are re-synced right after (`mirror_shadow_resync`), so this was a
+misleading line, not a missed VA space. It now says `-> the shadow VA space(s) re-synced` for a
+shadow root. BAR1 (0x1e9601000), BAR2 (0x1e9600000) and the guest RM's own VA spaces in the
+carve-out (0x1e5552000 and others) have no shadow, as expected.
+
+**Tests.**
+- `bar1pool::tests::a_table_page_the_shadow_watches_is_refused_and_served_by_a_replica`;
+- `bar1pool::tests::a_pooled_page_that_becomes_a_table_page_is_evicted_to_the_trapped_path`
+  (the barrier refused, then held; the page back in the pool once no walk reads it);
+- `bar1pool::tests::big_pages_move_page_by_page_and_refusals_fail_closed` (the aliased page's
+  replica, both ways);
+- `fb::tests::bar1_passthrough_check_follows_the_guest_bar1_tables` (design G's re-read).
+
+**GPU check (not run here).** The game VM with the frozen v615 build: the stream stays live
+through the capture start; no host Xid; `page-table hazard(s)` above 0 with `evicted` or
+`refused`, `replica(s) made` above 0, and `merge(s) at sync points` growing.

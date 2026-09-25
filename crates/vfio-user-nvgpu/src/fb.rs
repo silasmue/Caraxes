@@ -15,7 +15,7 @@
 //! reservation.
 
 use std::cell::{Cell, RefCell};
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeSet, HashMap, HashSet};
 
 use crate::guestmem::GuestMemory;
 
@@ -649,6 +649,8 @@ pub struct Bar1PtStats {
     /// Distinct pages reachable through the area that are guest page-table pages the
     /// shadow watches (a write there bypasses [`FakeFb::write`]).
     pub table_hazards: u64,
+    /// Times such a page was marked changed at a sync point ([`FakeFb::bar1_pt_resync`]).
+    pub table_resyncs: u64,
     /// The first few findings, for the log.
     pub first: Vec<String>,
 }
@@ -816,6 +818,10 @@ impl FakeFb {
     /// Stop watching `root` (drops its cached walk).
     pub fn unwatch_tables(&self, root: Target) {
         self.walks.borrow_mut().remove(&Self::watch_key(root));
+        // Its table pages may stop being table pages: the pool may move them again.
+        if let Some(p) = self.pool.borrow_mut().as_mut() {
+            p.hazard_dirty = true;
+        }
     }
 
     /// Bring the cached walk of `root` up to date (ptcache.rs): only the dirty table pages
@@ -1677,6 +1683,57 @@ impl FakeFb {
         self.walks.borrow().values().any(|c| c.watches(page))
     }
 
+    /// The table pages (4 KiB page numbers) the cached walks watch that `pred` selects,
+    /// each once.
+    pub(crate) fn watched_table_pages(&self, pred: impl Fn(u64) -> bool) -> BTreeSet<u64> {
+        self.walks
+            .borrow()
+            .values()
+            .flat_map(|c| c.watched_pages().filter(|p| pred(*p)).collect::<Vec<_>>())
+            .collect()
+    }
+
+    /// Read FB address `pa` in the store itself, past the remap and the BAR2 memfd (a
+    /// pool page as the guest's area accesses reach it).
+    pub(crate) fn read_raw(&self, pa: u64, buf: &mut [u8]) {
+        self.store.read(pa, buf);
+    }
+
+    /// Write FB address `pa` in the store itself, past the remap, the BAR2 memfd and the
+    /// write tracking (a pool page the guest reads through the area).
+    pub(crate) fn write_raw(&mut self, pa: u64, data: &[u8]) {
+        self.store.write(pa, data);
+    }
+
+    /// Design G's fail-closed rule for a table page the passthrough area reaches (a write
+    /// there bypasses [`Self::write`]): the pages the area maps now that a cached walk
+    /// watches are marked changed, so the next walk re-reads them from VRAM. Called at the
+    /// sync points (the MMU invalidate, the GSP doorbell, the trapped BAR2 flush and the
+    /// pool's poll), which the guest passes between a table write and its use. Returns the
+    /// number of pages marked.
+    pub fn bar1_pt_resync(&self) -> usize {
+        let pages: Vec<u64> = {
+            let guard = self.bar1_pt.borrow();
+            let Some(pt) = guard.as_ref() else { return 0 };
+            if pt.hazards.is_empty() {
+                return 0;
+            }
+            let walks = self.walks.borrow();
+            pt.mapped
+                .iter()
+                .filter_map(|&(_, t)| match t {
+                    Target::Fb(pa) if walks.values().any(|c| c.watches(pa >> 12)) => Some(pa >> 12),
+                    _ => None,
+                })
+                .collect()
+        };
+        self.note_pages_changed(&pages);
+        if let Some(pt) = self.bar1_pt.borrow_mut().as_mut() {
+            pt.stats.table_resyncs += pages.len() as u64;
+        }
+        pages.len()
+    }
+
     /// The pool's exit-summary line, when on.
     pub fn bar1_pool_summary(&self) -> Option<String> {
         self.pool.borrow().as_ref().map(|p| p.summary())
@@ -1842,7 +1899,7 @@ impl FakeFb {
                 if walks.values().any(|c| c.watches(page)) && pt.hazards.insert(page) {
                     pt.stats.table_hazards += 1;
                     log.push(format!(
-                        "guest BAR1 {g:#x} reaches FB {pa:#x}, a page-table page the shadow watches: guest writes there bypass the shadow's write tracking (CARAXES_SHADOW_ALWAYS_RESYNC=1 is the safe setting while this persists)"
+                        "guest BAR1 {g:#x} reaches FB {pa:#x}, a page-table page the shadow watches: guest writes there bypass the shadow's write tracking, so the device marks the page changed at every MMU invalidate, GSP doorbell and trapped BAR0 write (the shadow re-reads it from VRAM; fail closed, `table re-read(s)` in the summary)"
                     ));
                 }
             }
@@ -2084,6 +2141,14 @@ mod tests {
         let st = fb.bar1_passthrough_stats().unwrap();
         assert_eq!(st.table_hazards, 1);
         assert_eq!(st.first.len(), 2);
+        // Fail closed: a guest write through the area bypasses `write`, so every sync point
+        // marks the reachable table page changed and the next walk re-reads it from VRAM.
+        assert!(!fb.tables_dirty(Target::Fb(r2)));
+        assert_eq!(fb.bar1_pt_resync(), 1);
+        assert!(fb.tables_dirty(Target::Fb(r2)));
+        assert_eq!(fb.bar1_passthrough_stats().unwrap().table_resyncs, 1);
+        fb.walk_update(Some(&mem), Target::Fb(r2), false, 1 << 20);
+        assert!(!fb.tables_dirty(Target::Fb(r2)));
         // The state survives a model reset and walks again on the fresh model.
         let fresh = FakeFb::new(64 << 20);
         fb.carry_bar1_passthrough(&fresh);
