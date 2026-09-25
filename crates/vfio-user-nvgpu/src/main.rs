@@ -23,6 +23,7 @@ use vfio_bindings::bindings::vfio::VFIO_PCI_BAR0_REGION_INDEX;
 use vfio_user_nvgpu::device::{
     doorbell_ioeventfd_requested, doorbell_sub_region, doorbell_token_sub_regions, irqs,
     msi_rearm_ioeventfd_requested, msi_rearm_sub_region, region_size, regions_with_pages,
+    rpc_head_sub_region, rpc_ioeventfd_requested, RPC_IOEVENTFD_ENV,
     spawn_doorbell_reader_hooked, spawn_token_reader_hooked, Bar0Areas, Bar1Area, Bar2Region,
     Device, GuestRam, SharedDevice, DOORBELL_IOEVENTFD_ENV, MSI_REARM_IOEVENTFD_ENV,
     NV_XVE_CYA_2,
@@ -395,6 +396,17 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
             tokens::TOKENS_ENV
         );
     }
+    // The command-queue head write as an ioeventfd, read by the token pool's reactor
+    // (docs/caraxes/gsp-transport-615.md §11). Fail closed: without the pool's reactor or
+    // the boot model the register stays trapped.
+    let rpc_ioeventfd = rpc_ioeventfd_requested();
+    if rpc_ioeventfd && (doorbell_tokens.is_none() || !a.boot_model) {
+        bail!(
+            "{RPC_IOEVENTFD_ENV}=1 needs the token pool's reactor to read its eventfd ({}=N) and the boot model (--boot-model)",
+            tokens::TOKENS_ENV
+        );
+    }
+    let mut rpc_head = None;
     // How the doorbell eventfds are read (docs/caraxes/doorbell-poll.md).
     let poll = vfio_user_nvgpu::poll::requested().map_err(anyhow::Error::msg)?;
     if poll.mode != vfio_user_nvgpu::poll::Mode::Off && doorbell_tokens.is_none() && !doorbell_ioeventfd {
@@ -692,6 +704,17 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
         if let Some(n) = doorbell_tokens {
             model = model.with_doorbell_tokens(n);
         }
+        if rpc_ioeventfd {
+            let Some(offset) = model.cmd_head_register() else {
+                bail!("{RPC_IOEVENTFD_ENV}=1: this chip's boot model names no command-queue head register");
+            };
+            let (sub_region, reader) =
+                rpc_head_sub_region(offset).context("command-queue head eventfd")?;
+            model = model
+                .with_rpc_eventfd(reader.try_clone().context("command-queue head eventfd")?)
+                .context("command-queue head eventfd")?;
+            rpc_head = Some((offset, sub_region, reader));
+        }
         bar0 = bar0.with_boot_model(model);
     }
     let intr_page = match intr_page_config {
@@ -910,6 +933,19 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
     } else {
         None
     };
+    let rpc = match rpc_head {
+        Some((offset, sub_region, reader)) => {
+            server
+                .add_ioeventfd(VFIO_PCI_BAR0_REGION_INDEX, sub_region)
+                .map_err(|e| anyhow::anyhow!("command-queue head sub-region: {e}"))?;
+            device.set_rpc_ioeventfd(offset);
+            eprintln!(
+                "vfio-user-nvgpu: rpc ioeventfd: BAR0 {offset:#x} (NV_PGSP_QUEUE_HEAD(0)), 4 bytes, no datamatch, offered through VFIO_USER_DEVICE_GET_REGION_IO_FDS and read by the token pool's reactor and before every trapped access of the GSP page; the head value is taken from the command ring; a client that does not register it keeps trapping the write ({RPC_IOEVENTFD_ENV}=1, docs/caraxes/gsp-transport-615.md §11)"
+            );
+            Some((offset, reader))
+        }
+        None => None,
+    };
     eprintln!(
         "vfio-user-nvgpu: guest ABI {} ({:?})",
         a.guest_abi,
@@ -965,6 +1001,7 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
                 token_reactor,
                 page_hook.take(),
                 rearm,
+                rpc,
             )
             .context("doorbell token reader")?,
         ));

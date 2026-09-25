@@ -812,7 +812,11 @@ def summary(rows, obs):
 
 
 def rpc_traps(path):
-    """Per RPC of a 615 device trace: the four trapped accesses on page 0x110000."""
+    """Per RPC of a device trace: the trapped accesses on page 0x110000.
+
+    An RPC starts at the trapped QUEUE_HEAD write, or, with CARAXES_RPC_IOEVENTFD=1, at the
+    device's "rpc ioeventfd: head write" event that served an element (the guest's write
+    itself no longer reaches the trace; the event is when the device took it)."""
     rows, cur, regs = [], None, collections.Counter()
     op = lzma.open if path.endswith(".xz") else open
     with op(path, "rt", errors="replace") as f:
@@ -823,10 +827,14 @@ def rpc_traps(path):
             t, k, rest = int(m.group(1)), m.group(2), m.group(3)
             if k in "RW" and rest.startswith("bar0 0x00110"):
                 regs[(k, rest.split()[1])] += 1
-            if k == "W" and rest.startswith("bar0 0x00110c00"):
+                if cur is not None and not rest.startswith("bar0 0x00110c00"):
+                    cur["traps"] = cur.get("traps", 0) + 1
+            fd_head = k == "E" and "rpc ioeventfd: head write" in rest and (
+                "QUEUE_HEAD" in rest or "610 doorbell" in rest)
+            if (k == "W" and rest.startswith("bar0 0x00110c00")) or fd_head:
                 if cur:
                     rows.append(cur)
-                cur = {"head": t}
+                cur = {"head": t, "traps": 1 if k == "W" else 0, "fd": fd_head}
             elif cur is None:
                 continue
             elif k == "E" and " rx seq " in rest and "rx" not in cur:
@@ -841,7 +849,13 @@ def rpc_traps(path):
                 cur["dbg"] = t
     if cur:
         rows.append(cur)
-    print("%s: %d RPCs" % (path, len(rows)))
+    fd = sum(1 for r in rows if r.get("fd"))
+    print("%s: %d RPCs (%d started by the rpc ioeventfd, %d by a trapped QUEUE_HEAD write)" % (
+        path, len(rows), fd, len(rows) - fd))
+    if rows:
+        t = sorted(r["traps"] for r in rows)
+        print("trapped accesses on page 0x110000 per RPC: mean %.2f, median %d, p90 %d" % (
+            sum(t) / len(t), t[len(t) // 2], t[len(t) * 9 // 10]))
     print("accesses on page 0x110000: " + ", ".join(
         "%s %s %d" % (k, r, n) for (k, r), n in regs.most_common()))
     for name, a, b in [("QUEUE_HEAD write -> rx", "head", "rx"),

@@ -30,6 +30,7 @@ unset CARAXES_TRACE_ACCESSES CARAXES_TRACE_FLUSH CARAXES_RPC_IOEVENTFD CARAXES_L
 [[ ${CACHE:-1} == 0 ]] && export CARAXES_LEGACY_CACHEABLE=0
 night_vm2_free || exit 2
 mkdir -p "$C/work" "$C/profile"
+export CARAXES_GATE_RUNS=$C
 W=$NIGHT_W; T0=$(date '+%F %T')
 night_setup "$C"
 caraxes/tools/bench-hostwatch.sh start "$C"
@@ -38,7 +39,7 @@ for attempt in 1 2 3 4 5 6 7 8 9 10 11 12; do
     tools/caraxes-vm.sh up >> "$C/up.txt" 2>&1 && tools/caraxes-vm.sh wait 180 >> "$C/up.txt" 2>&1 && { up_ok=1; break; }
     tail -3 "$C/up.txt"
     tools/caraxes-vm.sh down >> "$C/up.txt" 2>&1
-    if grep -qE 'NO_MEMORY|did not give|headroom|refused: reserving' "$C/up.txt"; then
+    if grep -qE 'NO_MEMORY|did not give|headroom|refused: reserving|refused: pinning' "$C/up.txt" "$W/gpu.log" 2>/dev/null; then
         echo "reservation refused (attempt $attempt), waiting 5 min" | tee -a "$C/retries.txt"; sleep 300
     else
         break
