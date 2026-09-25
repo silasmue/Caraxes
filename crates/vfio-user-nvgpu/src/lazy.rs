@@ -44,6 +44,9 @@ pub struct Pending {
     pub roots: BTreeSet<u64>,
     /// How many invalidates this batch covers.
     pub invalidates: u64,
+    /// With `all`: roots planned since (the untrapped-GPPut rule's roots), which the batch
+    /// no longer owes anything.
+    pub exempt: BTreeSet<u64>,
 }
 
 impl Pending {
@@ -54,6 +57,11 @@ impl Pending {
 
     fn is_empty(&self) -> bool {
         self.invalidates == 0
+    }
+
+    /// Whether the batch owes root `r` a plan.
+    fn owes(&self, r: u64) -> bool {
+        !self.is_empty() && (self.roots.contains(&r) || (self.all && !self.exempt.contains(&r)))
     }
 }
 
@@ -153,8 +161,12 @@ impl LazyPlans {
         match pdb {
             Some(r) => {
                 self.pending.roots.insert(r);
+                self.pending.exempt.remove(&r);
             }
-            None => self.pending.all = true,
+            None => {
+                self.pending.all = true;
+                self.pending.exempt.clear();
+            }
         }
         self.pending.invalidates += 1;
         let since = *self.since.get_or_insert(now);
@@ -174,6 +186,7 @@ impl LazyPlans {
             return Vec::new();
         }
         if self.pending.all {
+            self.exempt(roots);
             return roots.iter().copied().collect();
         }
         let taken: Vec<u64> = self.pending.roots.intersection(roots).copied().collect();
@@ -185,6 +198,28 @@ impl LazyPlans {
             self.since = None;
         }
         taken
+    }
+
+    /// `roots` were planned just now: a pending batch no longer owes them anything (the
+    /// ran-ahead evidence, `owes_plan`).
+    pub fn exempt(&mut self, roots: &BTreeSet<u64>) {
+        if self.pending.is_empty() {
+            return;
+        }
+        for r in roots {
+            self.pending.roots.remove(r);
+        }
+        if self.pending.all {
+            self.pending.exempt.extend(roots.iter().copied());
+        } else if self.pending.roots.is_empty() {
+            self.pending = Pending::default();
+            self.since = None;
+        }
+    }
+
+    /// Whether a deferred invalidate still owes root `r` a plan.
+    pub fn owes_plan(&self, r: u64) -> bool {
+        self.pending.owes(r)
     }
 
     /// At a doorbell or creation of a shadow channel: the pending batch, if any.
@@ -372,10 +407,20 @@ mod tests {
         l.on_invalidate(Some(A), t);
         assert_eq!(l.take_roots(&set), vec![A]);
         assert!(!l.is_pending());
-        // ALL_PDB pending: the roots are planned now and the batch stays.
+        // ALL_PDB pending: the roots are planned now and the batch stays, owing them nothing.
         l.on_invalidate(None, t);
+        assert!(l.owes_plan(A) && l.owes_plan(B));
         assert_eq!(l.take_roots(&set), vec![A]);
         assert!(l.is_pending());
+        assert!(!l.owes_plan(A) && l.owes_plan(B));
+        // A later invalidate of A, or another ALL_PDB, owes A again.
+        l.on_invalidate(Some(A), t);
+        assert!(l.owes_plan(A));
+        l.exempt(&set);
+        assert!(!l.owes_plan(A));
+        l.on_invalidate(None, t);
+        assert!(l.owes_plan(A));
         assert_eq!(l.take().unwrap().roots(), None);
+        assert!(!l.owes_plan(B), "nothing pending");
     }
 }

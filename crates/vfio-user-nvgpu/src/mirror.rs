@@ -611,14 +611,16 @@ impl Mirror {
                 roots.extend(self.lazy.take_roots(&untrapped));
                 let mut notes = Vec::new();
                 let mut adds = false;
-                for r in roots {
-                    let (n, a) = self.resync(gm, Some(r));
+                for r in &roots {
+                    let (n, a) = self.resync(gm, Some(*r));
                     notes.extend(n);
                     adds |= a;
                 }
-                // ALL_PDB: every other root as without the rule.
+                // ALL_PDB: every other root as without the rule; the roots planned above are
+                // owed nothing by the deferred batch.
                 if pdb.is_none() {
                     notes.extend(self.invalidate_unheld(reg, gm, None));
+                    self.lazy.exempt(&roots);
                 }
                 if crate::untrapped::must_wait(adds) {
                     self.worker.wait_all();
@@ -762,12 +764,13 @@ impl Mirror {
         self.lazy.is_pending() || self.worker.pending()
     }
 
-    /// Whether plans that may add or change a mapping are pending: deferred by lazy mode
-    /// (not walked yet, so they may), or submitted with `Plan::adds` and not yet applied. A
+    /// Whether plans that may add or change a mapping of `root` are pending: deferred by lazy
+    /// mode for it (not walked yet, so they may), or submitted with `Plan::adds` and not yet
+    /// applied (any root: the worker applies in order). A
     /// submitted plan that only removes mappings leaves the shadow a superset of the guest's
     /// tables (untrapped.rs), so a host channel that ran ahead of it met every mapping.
-    fn adding_plans_pending(&self) -> bool {
-        self.lazy.is_pending() || self.worker.pending_adds()
+    fn adding_plans_pending(&self, root: u64) -> bool {
+        self.lazy.owes_plan(root) || self.worker.pending_adds()
     }
 
     /// The trapped GPPut store's barrier (boot.rs `gp_put_barrier`): plan what lazy mode
@@ -823,13 +826,10 @@ impl Mirror {
         }
         // Plans deferred now, being applied now, or submitted without a wait since the last
         // forward: the entries the host channel fetched may have met an older mirror.
-        let pending = self.adding_plans_pending() || since > 0;
-        let (lazy, worker) = (self.lazy.is_pending(), self.worker.pending_adds());
-        let untrapped = self
-            .channels
-            .get(&chid)
-            .and_then(|c| c.shadow_root)
-            .is_some_and(|r| self.untrapped_roots(reg, gm.fb).contains(&r));
+        let root = hc.shadow_root?;
+        let pending = self.adding_plans_pending(root) || since > 0;
+        let (lazy, worker) = (self.lazy.owes_plan(root), self.worker.pending_adds());
+        let untrapped = self.untrapped_roots(reg, gm.fb).contains(&root);
         let line = self.hold.note_ahead(pending, || {
             format!(
                 "untrapped GPPut: at {} chid {chid}'s host channel ran ahead of its doorbell (GPGet {get}, forwarded up to {fwd}, GPPut {put}) with plans pending (lazy {lazy}, worker {worker}, {since} unwaited invalidate plan(s) since the forward); USERD untrapped {untrapped}",
