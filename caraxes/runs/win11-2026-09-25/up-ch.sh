@@ -54,7 +54,7 @@ if [[ ${CARAXES_WIN_GPU:-0} == 1 ]]; then
 fi
 rm -f "$W/ch.sock"
 setsid nohup "$CH" --api-socket "$W/ch.sock" --cpus "boot=$CPUS" --memory "size=$MEM,shared=on" \
-    --kernel "$FW" --disk "path=$W/win11.qcow2" --net "tap=$TAP,mac=$MAC" --rng \
+    --kernel "$FW" --disk "path=$W/win11.qcow2" --net "tap=$TAP,mac=$MAC" --rng src=/dev/urandom \
     --tpm "socket=$W/swtpm/sock" --serial "file=$W/serial.log" --console off "${gpu[@]}" \
     > "$W/ch.log" 2>&1 < /dev/null &
 echo $! > "$W/ch.pid"
