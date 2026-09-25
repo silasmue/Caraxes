@@ -363,6 +363,22 @@ Cost per trap for the estimates: 28 to 35 us, the per-class medians of rpc-cost.
 What is left of the creation is the GPU's first work on each of the 20 channels, not host RM
 calls.
 
+**Status of the context creation (2026-09-25, [ctx-create.md](ctx-create.md), runs
+`caraxes/runs/opt-ctxcreate-2026-09-25/`).** Measured on vm3 (610 guest, the recommended
+configuration):
+- **The split.** cuCtxCreate is the guest's setup to its first doorbell (median 179 ms in
+  `before`), the 20 host channel builds (76 ms) and the tail of libcuda's allocations (70 ms).
+  The setup and the tail are the guest's own work between about 270 flush reads, and they move
+  with the host's load. The builds are serial host RM calls.
+- **The hold refinement** (bar1-pool.md §9.1): an invalidate is held only for plans that add or
+  change mappings. cuMemFree 64 MiB went from 2.6 ms to 1.0 to 1.2 ms; allocburn stays at 0 Xid.
+- **The prefetch** (`CARAXES_SHADOW_PREFETCH`, default on): the builds went from 76 ms to 61 ms
+  (median; minimum 72 to 50 ms).
+- **Targets not reached on the shared host.** cuCtxCreate is 332 ms (census median, best single
+  232 ms), cuCtxDestroy 181 ms. Ahead-of-doorbell and parallel builds, a host channel pool and
+  worker-side frees were examined and not built (ctx-create.md §4.3). The next lever is item 3
+  (the flush page and the memfd sync).
+
 **Top five by expected saving in the target workloads:**
 1. BAR2 memfd with the pool (item 1): about 100k traps and 3.4-4.0 s per CUDA process; context 4.1 s to
    0.9 s; host registrations 20x faster; 71 traps per Mutter frame.

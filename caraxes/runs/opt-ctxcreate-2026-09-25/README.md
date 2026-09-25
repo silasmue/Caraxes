@@ -24,6 +24,8 @@ sha256. The host was shared with other agents' VMs (vm0, vm2, vm5, vm1 and a v1 
 | `part2` | 56aacd2 (part 2: prefetch, build phases) | census, init and churn |
 | `after`, `after-allocburn` | 9f712dc (the end state) | census, init and churn, the cuda gate; 20 x convburn plus allocburn |
 | `before-3`, `after-2`, `after-noprefetch` | d96cc59; 9f712dc; 9f712dc with `CARAXES_SHADOW_PREFETCH=0` | census, init and churn, back to back |
+| `interrupted-allocburn` | a8b3a54 | cut off by the API expiry of 09:37 after the VM came up; no loop line, 0 host Xid |
+| `stopped-allocburn` | a8f66e3 (the branch head's build, the code of a8b3a54) | stopped at 10:01 before its first iteration for the operator's game session (tap caraxes3); vm3 brought down with the launcher, 0 host Xid |
 
 Per run directory: `setup.txt`, `other-vms-at-start.txt`, `device-start.txt`, `device-pid.txt`,
 `device-summary.txt`, `device-mirror-summary.txt` (the mirror's exit line: build phases, host
@@ -40,6 +42,9 @@ Scripts:
   `N=` the loop's iterations); refuses to start while a vm3 process runs, retries a refused
   reservation every five minutes, brings vm3 down at the end;
 - `series.sh`: the closing series (`after` to `after-noprefetch`);
+- `series-final.sh`: the final series with the branch head's build (`final-allocburn`, `final`
+  with the cuda gate, `before-4`, `final-2`);
+- `spans.py RUN...`: per run the setup, rings and tail spans of cuCtxCreate (ctx-create.md §5);
 - `phases.py TRACE`: the split of each cuCtxCreate and cuCtxDestroy window (trapped, first-doorbell
   builds by phase, untrapped gaps, background worker, host channel frees);
 - `compare.py RUN ...`: the rows of ctx-create.md per run.
