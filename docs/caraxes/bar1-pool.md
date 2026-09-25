@@ -169,7 +169,9 @@ and back. `P = pool0 + g`.
   guest's CPU accesses of area page `g` reach only its pool page `P`, a page of its own
   reservation that no GPU mapping and no device path names. That is wrong for the guest, which
   sees stale bytes, but it never exposes anything outside its reservation. A refused release is
-  harmless: the page stays consistent in the pool.
+  harmless: the page stays consistent in the pool. Every refused barrier is logged with the wall
+  time (`bar1 pool: at T barrier N refused for ...`); §9 shows the refused barriers of the
+  morning matrix to be a consequence of a GPU fault, not its cause.
 
 **What the barrier does not prove.** GPGet equal to GPPut means that the PBDMA fetched every
 entry. It does not mean that the last pushbuffer segment has finished: a copy or a semaphore
@@ -312,3 +314,138 @@ only by the measurement.
   initialization (`kern_bus_gm107.c:1084`). If it lands in the area on an FB page outside the
   usable FB, it is refused and logged.
 - The mapping budget: a split 2 MiB leaf costs up to three RM mappings instead of one.
+- The untrapped-GPPut rule (§9) makes every guest MMU invalidate of a CUDA context wait for its
+  plan while the context's USERDs live in the pool: the lazy plans of `CARAXES_ALLOC_LAZY=1`
+  apply to those roots only as far as the invalidate itself.
+
+## 9. The Xid 31 of the morning matrix (2026-09-25)
+
+Records: `caraxes/runs/xid31-pool-2026-09-25/` (scripts `loop.sh`, `gate.sh`, `bench.sh`, `vm.sh`,
+`allocburn.py`; one directory per run).
+
+**The case.** Three host Xid 31 on the 615 guest with the recommended configuration and main
+fbe4dfb, all GPC `FAULT_PDE` `ACCESS_TYPE_VIRT_WRITE` in a cuDNN training step, all on the
+device's pid (benchmark.md "Morning matrix"; `matrix-2026-09-25/gates-615/xid31-note.txt`,
+`workload-615/xid31-note.txt`), and the night's one before them
+(`workload-2026-09-24/night/gate/host-xid.txt`, pool on, `CARAXES_ALLOC_LAZY` off). The faulting
+gate run's pool summary was the only one with refused barriers (14 of 293), 532 refused moves
+and 512 pages moved back cold.
+
+**Not the cause: the refused barrier.** The pool never moves a page whose barrier failed:
+`poll` turns every warm op into a refusal when `quiesce` fails (`bar1pool.rs:802-806`), the
+remap stays, no root gets a re-diff, and a release refused this way keeps the page consistent in
+the pool until a later poll finds no shadow leaf on it (then it moves cold, which is correct).
+The numbers of the faulting run fit a consequence, not a cause: 532 = 492 + 40, and 492 is the
+number of pages of one CUDA context's 2 MiB BAR1 block that the GPU maps (an earlier context
+of the same run moved them in one batch: "492 page(s) the GPU maps moved behind the barrier",
+`gates-615/pool-log.txt:2`); 512 = 492 + the 20 USERD pages of that context. That is one context's
+teardown meeting its own channel stuck after a fault (GPGet never reaches GPPut again), retried
+14 times, then moved back cold once its shadow was gone. The reproduction below shows the order
+with wall times: the fault first, then 17 refused barriers for 492 to 499 pages of the same
+root, `chid 2 busy (GPGet 794, GPPut 818)`. The alternative (a PDE replaced under a running
+channel by a pool move) needs a successful barrier and a re-diff; a re-diff touches only the
+region of the moved page (test below), and none of the refused-barrier paths re-diffs.
+
+**The cause: a GPPut store that does not trap.** libcuda maps each channel's USERD into BAR1
+before it creates the channel. In the pool that page is installed cold (no channel, no GPU leaf
+yet), so the host channel is created on the pool page (`mirror.rs:1002-1005`). From then on the
+guest's GPPut store goes through the pool area straight into the host channel's USERD, without
+a trap. The mirror's ordering rule (nothing reaches the GPU before the worker applied every
+plan) is enforced at the doorbell and at a trapped GPPut store (`boot.rs:788`,
+display-e.md §9), so a store through the area escapes it. The guest's order is page tables,
+MMU invalidate, GPFIFO entry, GPPut, doorbell. A host channel that is still loaded fetches the
+new GPPut from its USERD before the doorbell (measured: 674 doorbells of 20 convburn runs and
+123052 of 20 gate-order rounds found their host channel already past the last forwarded GPPut).
+With `CARAXES_ALLOC_LAZY=1` the invalidate's plan is not even made until that doorbell; without
+it (the night) the plan is in the worker. A kernel that writes a freshly allocated 2 MiB region
+then meets a shadow with no PDE there: `FAULT_PDE` on a GR write, on the device's own pid
+(isolation holds; the host channel runs on the shadow of this VM only). cuDNN's first steps
+allocate workspaces and launch into them at once, which is why the faults sit there.
+
+It is not specific to the 615 guest. Both guests put their USERDs in the pool (the 20 "USERD of
+mirrored channel" lines appear in both matrix summaries), both show ran-ahead doorbells, and
+the 610 guest faults the same way under the stress below (`before-hold0-allocburn-610`). The
+matrix saw it on 615 only by chance: the Xid came in one of two 615 gate runs and one of three
+convnet reps, in workloads that allocate and launch at once.
+
+**Reproduction.** `loop.sh LABEL 0 20 stop` on vm5-615 (1 GiB, slot 2, tap caraxes5, the matrix
+configuration, pool 32 MiB) with `CARAXES_SHADOW_UNTRAPPED_HOLD=0` (the rule off: the device as
+on fbe4dfb, plus the counters). The builds are this branch's v615 and 610 builds (`setup.txt`
+of each run has the hash): 528a2b4 for `before-hold0`, f75ea66 for `before-hold0-gateorder`,
+4d4306e for every later run; the rule is the same in all three, only the counters grew.
+- `before-hold0`: 20 convburn runs, 0 Xid, 0 refused barriers; 674 doorbells ahead, none with a
+  plan pending (convburn allocates once and then only launches).
+- `before-hold0-gateorder`: 20 rounds of cuda-torch, rlprobe, convburn, robustness, 0 Xid, 0
+  refused barriers; 123052 doorbells ahead, none with a plan pending.
+- `before-hold0-allocburn`: convburn plus `allocburn.py` (fresh cudaMalloc'd 2 to 14 MiB buffers
+  written by kernels while a convolution keeps the GR channel loaded, the cache emptied every
+  round): **Xid 31 at iteration 1**, `GPC0 GPCCLIENT_T1_6 FAULT_PDE ACCESS_TYPE_VIRT_WRITE @
+  0x100_1d870000`, device pid 2861668, 06:54:57.059. One second before it (06:54:56.081) the
+  device logged `chid 2's host channel ran ahead of its doorbell (GPGet 896, forwarded up to 895,
+  GPPut 899) with plans pending (lazy true ...); USERD untrapped true`; after it, the host RC
+  event and 17 refused barriers (06:54:57.457 to .493) for 492 to 499 pages of root
+  0x129800000: the morning matrix's pattern.
+- `before-hold0-allocburn-610`: the same on the 610 guest (vm3, slot 5, the 610 build): **Xid 31
+  at iteration 1**, `GPC0 GPCCLIENT_T1_2 FAULT_PDE ACCESS_TYPE_VIRT_WRITE @ 0x100_1d806000`,
+  device pid 2951267, 07:22:27, then the host RC event and 13 refused barriers for the context's
+  492 pages. Its ran-ahead counter stayed at 0 with plans pending: the counter sees a channel
+  only at its next doorbell, and a channel that faults first may never ring again, so it is
+  evidence when it fires, not a detector.
+
+Every host Xid of these runs was on the device's own pid; the host watch saw no other kernel
+line.
+
+**The fix (fail closed).** The invalidate is the last point the device sees before such a host
+channel may run the guest's next work, so the barrier moves there (`untrapped.rs`):
+- `Mirror::untrapped_roots` (`mirror.rs:639`): the shadow roots of mirrored channels whose USERD
+  lives in the BAR1 pool (`fb.remap(userd) != userd`) or in guest RAM.
+- `Mirror::shadow_invalidated` (`mirror.rs:564`): an invalidate that names such a root (or every
+  root, `ALL_PDB`, while there is one, `untrapped.rs:53` `must_hold`) plans that root now,
+  together with everything lazy mode deferred, and returns to the guest only after the worker
+  applied it. The guest's GPPut store therefore always meets a mirror that holds the invalidate's
+  mappings.
+- The trapped GPPut store (`boot.rs:788` `gp_put_barrier`) plans the lazily deferred invalidates
+  before it waits (before, it only waited for plans already in the worker, so under
+  `CARAXES_ALLOC_LAZY=1` it held nothing).
+- `CARAXES_SHADOW_UNTRAPPED_HOLD=0` turns the rule off, for the A/B only; a malformed value keeps
+  it on.
+- Evidence counters in the mirror's exit line and in a per-context line (`at T pool empty: ...`,
+  `bar1pool.rs:644`): invalidates held and their wait, doorbells whose host channel ran ahead
+  (`untrapped.rs:63` `ran_ahead`), and of those the ones with plans pending or submitted without
+  a wait since the channel's last forward (`mirror.rs:672`).
+- Hardening in the pool: a shadow root without a cached walk counts as mapping every page, so a
+  move is never cold for a missing walk (`bar1pool.rs:536`); every refused barrier is logged with
+  the wall time (`bar1pool.rs:894`).
+
+Cost: the held invalidates wait for their plan's apply. `bench.sh` (record `bench-615`, the
+matrix series' churn, init and short-auto metrics, 3 reps, a fresh device per pass, the rule off
+then on, 0 Xid): cuMemAlloc 64 x 1 MiB 175 to 200 us, cuMemFree 282 to 312 us; cuMemAlloc
+8 x 64 MiB 511 to 2277 us, cuMemFree 791 to 2402 us; cuCtxCreate 395 to 486 ms; cuInit 13.6 to
+16.3 ms; the short-kernel launch unchanged (0.019 to 0.020 ms). Large allocations pay the apply
+time of their mappings that lazy mode used to hide. A cheaper variant that stays fail closed:
+hold only plans that map something new (an unmap may stay deferred, the guest issues no work on
+a VA it freed, and a stale shadow mapping still points into this VM's reservation); not built.
+
+Tests (`cargo test -p vfio-user-nvgpu`, 349 plus 2):
+- `untrapped::tests::an_invalidate_of_a_root_with_an_untrapped_userd_is_held`,
+  `a_channel_ran_ahead_when_gpget_passed_the_last_forward`, `the_switch_is_on_unless_turned_off`,
+  `only_the_first_pending_cases_are_logged`;
+- `bar1pool::tests::a_page_whose_barrier_is_refused_never_moves_while_the_gpu_maps_it`
+  (`bar1pool.rs:1377`): 15 refused barriers, the page stays at its pool page with its bytes, no
+  re-diff, the next page for that area page waits; it moves back cold once no shadow maps it;
+- `shadow::tests::a_pool_rediff_touches_only_the_region_of_the_moved_page` (`shadow.rs:2113`):
+  a re-diff with nothing moved makes no host call; a page moved inside one 2 MiB leaf touches
+  only that region, the other region's object, mapping and PDE stay.
+
+**After the fix** (build 4d4306e, the rule on, 0 host Xid in every run, host watch 0 alerts):
+- `after-hold1-allocburn` (615 guest, vm5-615): 20 of 20 iterations of convburn plus allocburn
+  pass, 0 Xid, 0 refused barriers; 181500 invalidates held until applied, 70.5 s in total (0.39
+  ms on average, longest 102 ms); 5735 ran-ahead doorbells, none with plans pending; allocburn
+  9.8 s per run on average (it faulted in its first run without the rule).
+- `after-hold1-allocburn-610` (610 guest, vm3): 20 of 20 pass, 0 Xid, 0 refused barriers; 181500
+  held, 71.2 s (longest 49 ms); 5904 ran-ahead doorbells, none with plans pending.
+- `gate-615` (vm5-615): nvml pass; cuda 10 of 11 scored pass, only the known
+  cuda-managed 801; convburn passes; 829 invalidates held (1.2 s in total); pool: 10240 pages
+  in cold, back behind the barrier, 281 barriers, 0 refused, 40 refused moves, as in the clean matrix runs.
+- `gate-610` (vm3, the gate610 environment): nvml pass but the known power-number; cuda 10 of 11
+  (cuda-managed 801); convburn passes; 829 invalidates held (1.2 s); pool as on 615.

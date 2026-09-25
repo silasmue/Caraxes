@@ -1181,7 +1181,8 @@ hazards and 0 pages behind both the pool and the BAR2 memfd everywhere
 (`gates-615/xid31-note.txt`). The faulting workload instance's summary was lost to the next rep's
 restart; `bench-run.sh` now keeps each rep's device log (`V2_LOG_KEEP`,
 `workload-615/xid31-note.txt`). No other host Xid in the matrix; host watch 0 alerts in every
-part.
+part. Cause and fix (a mirrored channel's GPPut store through the pool area does not trap; the
+refused barriers were a consequence): bar1-pool.md §9, records `caraxes/runs/xid31-pool-2026-09-25/`.
 
 ### Gates
 

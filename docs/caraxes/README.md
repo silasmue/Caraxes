@@ -997,3 +997,19 @@ the VM; then display, expected to be much easier than in v1.
     intermittent (the reruns with and without the pool passed); the faulting gate run's pool
     summary is the only one with refused barriers. No Xid on the 610 guest.
   - Harness: `bench-run.sh` keeps each rep's device log before a restart (`V2_LOG_KEEP`).
+- 2026-09-25: **The morning matrix's Xid 31: cause found and fixed** ([bar1-pool.md](bar1-pool.md)
+  §9, records `caraxes/runs/xid31-pool-2026-09-25/`). A mirrored channel's USERD lives in the
+  BAR1 pool (libcuda maps it into BAR1 before it creates the channel), so the guest's GPPut store
+  reaches the host channel without a trap; a loaded host channel runs the new work before the
+  shadow has the invalidate's mappings (with `CARAXES_ALLOC_LAZY=1` before the plan is made):
+  FAULT_PDE on a GR write into a fresh 2 MiB region, on the device's pid. The refused barriers
+  were a consequence (a faulted context's teardown), not the cause; the pool never moves a page
+  whose barrier failed. Fix, fail closed (`untrapped.rs`): an invalidate of a root whose channel
+  has an untrapped USERD is planned and applied before the guest continues; the trapped GPPut
+  store plans lazily deferred invalidates too; counters for ran-ahead doorbells and held
+  invalidates. Reproduced with `allocburn.py` (fresh allocations written while the GR channel is
+  busy): Xid 31 at the first iteration on both guests without the rule (615 pid 2861668, 610 pid
+  2951267); with it 20 of 20 on each guest, the cuda gate on both guests 10 of 11 (cuda-managed
+  801), 0 Xid. Cost (the rule off then on, vm5-615): cuMemAlloc 1 MiB 175 to 200 us, 64 MiB 511 to
+  2277 us, cuMemFree 64 MiB 791 to 2402 us, cuCtxCreate 395 to 486 ms, launches unchanged; holding
+  only plans that map something new would recover the frees (not built).
