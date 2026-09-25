@@ -134,6 +134,32 @@ the launch lives only 145 to 158 host events came within 1 ms of a host doorbell
 9000 rings: the launches ask for no completion interrupt, and 80 % of the events are other
 clients' work on the engine (backlog item 5).
 
+### 2a. The per-submission chain of rlprobe and PPO
+
+The step "host doorbell to the next ring" (`ab/chain.md`) is the device's view of the guest's
+rhythm: from one host doorbell to the next guest doorbell of any channel.
+
+| p50 us | A rl | B rl | A ppo | B ppo |
+|---|---|---|---|---|
+| ring to host doorbell | 9.8 | 3.7 | 8.0 | 3.4 |
+| tail after the host doorbell | 4.2 | 1.9 | 4.8 | 2.0 |
+| host doorbell to the next ring | 7.5 | 13.5 | 11.8 | 17.9 |
+| one ring cycle (sum) | 17.3 | 17.2 | 19.6 | 21.3 |
+| rings per life | 77280 | 82420 | 844935 | 875695 |
+
+- rlprobe submits about 50 rings per environment step (82420 rings for 1437 H2D and 1437 D2H of
+  stage 4 plus stages 0 to 3), one every 17 us inside a step, in A and in B alike. In A the
+  device was busy 14 of those 17 us (ring plus tail) and the next doorbell waited in its eventfd;
+  in B it is busy 5.6 us and then waits 13.5 us for the guest. The cycle is set by the guest
+  (PyTorch's dispatch, libcuda's pushbuffer and GPPut stores, the doorbell exit), not by the
+  device, which is why stage 4 did not move.
+- PPO is the same at a coarser grain (14000 rings per second, a 20 us cycle).
+- Per step, the chain around the rings is the H2D of the observation (a pageable copy: libcuda's
+  staging buffer and a copy-engine submission), the forward kernels, the sample, and the D2H of
+  `.item()` with its synchronize, which waits for the GPU's completion of everything before it.
+  `caraxes/tools/stepchain.py` (metric `stepchain`) times these phases one by one in the guest;
+  §7 has its numbers.
+
 ## 3. What changed (`CARAXES_LAUNCH_FAST=1`)
 
 Each cut keeps a ring's order: plans applied (`wait_all`), BAR1 flush, GPPut read, host
@@ -184,7 +210,8 @@ releases; MSIs for raises per launch life 774 to 1547 (A) against 620 to 757 (B)
   blocking wake-ups were 1.6 % of its rings in A already (1232 of 77280) and fell to 0.8 %; PPO's
   from 4.0 % to 1.6 %; the reactor's CPU rose with it (PPO device CPU 27 to 37 s in A, 32 to 49 s
   in B). No guest metric improved beyond the noise; `ab-rl-noadapt/` repeats rlprobe with the
-  fast path and the gate but without the window (§6). Keep it off.
+  fast path and the gate but without the window; it was stopped at the first agent's cut-off
+  after one A life and is not used (`ab-rl-noadapt/stopped.txt`). Keep it off.
 - **rlprobe stage 4:** A 2.4 s [2.2-3.0], B 2.7 s [2.6-3.0]; transfers per second 1192 against
   1052. The ring is 6 us shorter, but a step of rlprobe waits on its H2D and D2H copies, whose
   time the host's GR and copy engine sharing sets this morning (vm3's device used 5 to 30 s of CPU
@@ -200,7 +227,16 @@ releases; MSIs for raises per launch life 774 to 1547 (A) against 620 to 757 (B)
   USERD in guest RAM (doorbell-poll.md "Next step").
 - **Batching host rings:** a wakeup that carries several tokens rings each once; two advances of
   one channel within one wakeup were not seen often enough to matter (the eventfd counts them as
-  one event).
+  one event). §2a shows why a window would not help either: in B the device waits 13 to 18 us
+  per ring for the guest, so a second advance of the same channel inside one ring is rare, and
+  holding the first to wait for it would add its wait to every launch.
+- **The tail after the host doorbell (1.9 us in B), not built:** it is the pool note's
+  formatting in ctrl.rs and the trace write, one `write` of the buffered notes per ring
+  (trace.rs `events`). A 91-byte `write` to a file on /mnt/vmstore costs 1.36 us p50 on this host
+  (1.11 us on /tmp; measured from Python, so an upper bound). The tail does not delay the launch
+  whose doorbell it follows; it delays only a ring that arrives during it, and §2a shows the next
+  ring arriving 13 to 18 us later. Deferring the flush would move the write off the reactor at
+  the price of trace lines that lag behind the guest; not worth it at these rhythms.
 
 ## 6. Switches
 
