@@ -1,0 +1,52 @@
+<!-- SPDX-License-Identifier: MIT -->
+<!-- SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de> -->
+<!-- SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR -->
+# GSP transport classes
+
+Every routed control was classified by the structure of its command (call, data, pointers,
+handles, side effects) into what could leave the trapped path and what must stay on it,
+with isolation as a factor of the verdict. The classes rank the transport work by mechanism
+instead of by workload.
+
+## The verdicts
+
+| Verdict | Rows | Rule | Mechanism |
+|---|---:|---|---|
+| ZT-PAGE | 101 | a getter answered from chip data, costume or display configuration, not computed from the request | could be published on a read-only page; a stock driver has no read path for it, so the gain (about 1.5 ms per CUDA process) does not pay for a driver change |
+| ZT-QUEUE | 155 | device-only: acknowledged without effect, this VM's device state read or set, or computed from the request (AUX, mode checks) | the polled queue |
+| HOST | 103 | a host RM round trip: static getters, telemetry, GSS-legacy ids | caches: a device cache per card for static answers, a TTL cache for telemetry, and the reply's `rmctrlFlags` CACHEABLE bit that makes a stock guest cache a GSS-legacy answer itself (`rpc.c`, `rpcRmApiControl_GSP`) |
+| TRAP | 32 | a state change carrying guest addresses (`DMA_SET_PAGE_DIRECTORY`, `GPU_PROMOTE_CTX`, display pushbuffers), embedded handles, a change to what a zero-trap window serves (`GPFIFO_SCHEDULE`, binds, flushes), or an act on the VM's host TSG (`PREEMPT`, `SET_TIMESLICE`) | synchronous by necessity, validated in order before the reply |
+| REFUSE | 490 | 379 absent on TU106, 111 isolation | never optimised |
+
+- Table: `caraxes/abi/gsp-615.71.09/transport.tsv` (881 rows, with the GSS-legacy and BINAPI
+  ids the profiles saw); tool: `caraxes/tools/gsp-transport.py`.
+
+## What the records say
+
+- Controls are lifecycle traffic: 272 RPCs per 615 boot, 187 per CUDA process (45 of them
+  controls, the rest allocations and frees), 101 per `nvidia-smi -q`, 1352 per GNOME start,
+  0 per submission and 0 per frame (one `BUS_FLUSH_WITH_SYSMEMBAR` in Mutter's window).
+- Per RPC the transport costs more than the device: four trapped accesses on BAR0 page
+  0x110000, 108 us median, against 3 us of device work. For HOST rows the host call (0.2 to
+  80 ms) dominates.
+- The largest saving is in the HOST class: 1852 ms of GSS-legacy forwards, 375 ms of static
+  host getters and 373 ms of telemetry over the profiles; the polled queue saves about 130 us
+  per RPC (24 ms per CUDA process, 175 ms per GNOME start).
+
+## The polled queue, in short
+
+1. BAR0 page 0x110000 becomes a read-only memory area of the device's memfd; `QUEUE_HEAD`
+   and `MSGQ_TAIL` writes become ioeventfds (a store to a read-only slot still exits).
+2. The reactor takes exactly as many elements as the eventfd counted, syncs the BAR2 memfd
+   before the first, answers device-only rows itself and hands HOST rows to a worker.
+3. A `QUEUE_HEAD` write of 0 (reload) needs a datamatch-0 ioeventfd registered first; the
+   falcon data ports on the page must never be read by the guest while mapped; FLR restores
+   the boot values.
+4. Needs a Cloud Hypervisor change (a read-only sparse area) beyond patch 0005; the first
+   step without it is the `QUEUE_HEAD` ioeventfd alone, about 30 us per RPC.
+
+## Depth
+
+- [caraxes/gsp-transport-classes.md](../caraxes/gsp-transport-classes.md): the method, the
+  per-window counts, the top controls per class, the ranked list and the open questions.
+- [performance-shape](performance-shape.md): where the transport sits among the other costs.

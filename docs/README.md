@@ -1,15 +1,29 @@
 <!-- SPDX-License-Identifier: MIT -->
 # Documentation
 
-Start with [Quickstart](QUICKSTART.md) to run Leandro, or
-[Architecture](ARCHITECTURE.md) to read the code. Read [Security](SECURITY.md)
-before interpreting isolation claims.
+Two architectures share this documentation. VFIO Leandro (v2, code name Caraxes) is
+this repository's device; VirtIO Leandro (v1) is the API-forwarding architecture whose
+design documents below are kept here beside its crates. Start with
+[LEANDRO.md](LEANDRO.md) for both, the [wiki](wiki/README.md) for one concept at a
+time, [caraxes/quickstart.md](caraxes/quickstart.md) to run the device, and
+[Quickstart](QUICKSTART.md) or [Architecture](ARCHITECTURE.md) for VirtIO Leandro. Read
+[Security](SECURITY.md) and the [isolation rules](wiki/isolation-rules.md) before
+interpreting isolation claims.
 
-## Setup and use
+## Both architectures
 
 | File | Contents |
 |---|---|
-| [Project README](../README.md) | Overview, requirements and build commands |
+| [LEANDRO.md](LEANDRO.md) | The overview: the problem, the two architectures side by side, the driver, the GSP and its emulation, BARs and memory, submission, execution, display, identity, performance, verification, the ranked weaknesses |
+| [wiki/](wiki/README.md) | One page per concept, driver references by path and function, a glossary, the captured cards and how to contribute one |
+| [research/](research/README.md) | The evidence: one short note per topic with 615.71.09 lines and run folders |
+| [caraxes/](caraxes/README.md) | The working record of VFIO Leandro: decisions D1 to D20, studies, designs, measurements, status |
+
+## VirtIO Leandro: setup and use
+
+| File | Contents |
+|---|---|
+| [Project README](../README.md) | Overview, requirements and build commands of this repository (VFIO Leandro) |
 | [QUICKSTART.md](QUICKSTART.md) | Two Ubuntu desktops or two NixOS compute guests |
 | [VM-PREPARATION.md](VM-PREPARATION.md) | Host installation, Cloud Hypervisor patches, networking and images |
 | [UBUNTU-DESKTOP.md](UBUNTU-DESKTOP.md) | Guest modules, NVIDIA userspace, GNOME/X11 and Sunshine |
@@ -18,7 +32,7 @@ before interpreting isolation claims.
 | [GUEST-USERSPACE.md](GUEST-USERSPACE.md) | NVIDIA library installation and version requirements |
 | [SHOWCASE.md](SHOWCASE.md) | Demonstration checks and what they establish |
 
-## Design and development
+## VirtIO Leandro: design and development
 
 | File | Contents |
 |---|---|
@@ -31,8 +45,7 @@ before interpreting isolation claims.
 | [OPEN-QUESTIONS.md](OPEN-QUESTIONS.md) | Numbered investigations, findings and unresolved issues |
 | [FUTURE.md](FUTURE.md) | Planned correctness, compatibility and research work |
 | [VIRTIO-UAPI.md](VIRTIO-UAPI.md) | Proposal for generalizing table-described driver forwarding |
-| [caraxes/](caraxes/README.md) | Leandro v2 (Caraxes): synthetic NVIDIA PCI device for stock guest drivers; findings, init map, experiment ladder |
-| [NAMING.md](NAMING.md) | Component names and terminology |
+| [NAMING.md](NAMING.md) | Component names, terminology and the guest-visible GPU name of both architectures |
 | [llm.md](llm.md) | Maintenance notes; filename retained for existing links |
 | [Licenses](../LICENSES.md) | Licensing and third-party attribution |
 
