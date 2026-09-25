@@ -153,6 +153,72 @@ pub struct Ticker {
     driver: Mutex<Option<Arc<Driver>>>,
     /// Ticks handed to the driver.
     pub driven: AtomicU64,
+    /// When the ticks fired against when they were due, and how long the driver took
+    /// (the device lock and the engine's catch-up): docs/caraxes/intr-page.md §11.
+    timing: Mutex<TickTiming>,
+}
+
+/// A log2 histogram of microseconds: bucket `b` holds values in `[2^(b-1), 2^b)`, bucket 0
+/// the value 0.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Hist {
+    pub counts: [u64; 32],
+    pub n: u64,
+    pub max_us: u64,
+    /// Values of a millisecond or more.
+    pub over_ms: u64,
+}
+
+impl Hist {
+    pub fn add(&mut self, us: u64) {
+        let b = (64 - us.leading_zeros() as usize).min(31);
+        self.counts[b] += 1;
+        self.n += 1;
+        self.max_us = self.max_us.max(us);
+        if us >= 1000 {
+            self.over_ms += 1;
+        }
+    }
+
+    /// The upper bound of the bucket that holds quantile `q` (0 to 1), in microseconds,
+    /// capped at the largest value seen.
+    pub fn quantile(&self, q: f64) -> u64 {
+        if self.n == 0 {
+            return 0;
+        }
+        let want = ((self.n as f64) * q).ceil().max(1.0) as u64;
+        let mut seen = 0;
+        for (b, &c) in self.counts.iter().enumerate() {
+            seen += c;
+            if seen >= want {
+                let upper = if b == 0 { 0 } else { (1u64 << b) - 1 };
+                return upper.min(self.max_us);
+            }
+        }
+        self.max_us
+    }
+
+    pub fn describe(&self) -> String {
+        format!(
+            "p50 <= {} us, p99 <= {} us, max {} us, {} of {} at 1 ms or more",
+            self.quantile(0.5),
+            self.quantile(0.99),
+            self.max_us,
+            self.over_ms,
+            self.n
+        )
+    }
+}
+
+/// The display clock's own timing: how late each firing tick ran against the tick it
+/// served, and how long the driver held it.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct TickTiming {
+    pub late: Hist,
+    pub driver: Hist,
+    /// The engine's catch-up inside the driver (display/mod.rs `Display::tick`); the
+    /// rest of the driver's time is the wait for the device lock and the trace.
+    pub catch_up: Hist,
 }
 
 /// What the display clock runs at a tick when the engine does not advance on reads.
@@ -209,9 +275,44 @@ impl Ticker {
         let d = self.driver.lock().unwrap().clone();
         if let Some(d) = d {
             self.driven.fetch_add(1, Ordering::Relaxed);
+            let t0 = now_ns();
             d();
+            let us = now_ns().saturating_sub(t0) / 1000;
+            self.timing.lock().unwrap().driver.add(us);
         }
         self.raise();
+    }
+
+    /// One catch-up of the engine run by the driver took `us` microseconds.
+    pub fn note_catch_up(&self, us: u64) {
+        self.timing.lock().unwrap().catch_up.add(us);
+    }
+
+    /// The clock's timing so far (for the summary and the tests).
+    pub fn timing(&self) -> TickTiming {
+        self.timing.lock().unwrap().clone()
+    }
+
+    /// The summary of the clock's timing, empty before the first tick.
+    pub fn timing_summary(&self) -> String {
+        let t = self.timing();
+        if t.late.n == 0 {
+            return String::new();
+        }
+        let mut s = format!(
+            "display clock: ticks fired late against their due time: {}",
+            t.late.describe()
+        );
+        if t.driver.n > 0 {
+            s.push_str(&format!(
+                "; driver (device lock and catch-up): {}",
+                t.driver.describe()
+            ));
+        }
+        if t.catch_up.n > 0 {
+            s.push_str(&format!("; catch-up alone: {}", t.catch_up.describe()));
+        }
+        s
     }
 
     /// Whether a connector command waits for the server thread (cheap).
@@ -292,6 +393,7 @@ impl Ticker {
             }
             let mut next: Option<u64> = None;
             let mut fire = false;
+            let mut due = 0u64;
             for (h, t) in self.heads.iter().enumerate() {
                 let p = t.period_ns.load(Ordering::SeqCst);
                 let work = t.want.load(Ordering::SeqCst) || t.vblank.load(Ordering::SeqCst);
@@ -308,6 +410,7 @@ impl Ticker {
                     // A tick passed since the last raise for this head.
                     if last[h] != u64::MAX || n > 0 {
                         fire = true;
+                        due = due.max(t0 + n * p);
                     }
                     last[h] = n;
                 }
@@ -315,6 +418,8 @@ impl Ticker {
                 next = Some(next.map_or(d, |x: u64| x.min(d)));
             }
             if fire {
+                let late = now.saturating_sub(due) / 1000;
+                self.timing.lock().unwrap().late.add(late);
                 self.fire();
             }
             let now = now_ns();
@@ -1116,8 +1221,9 @@ impl Engine {
                 )
             })
             .collect();
+        let clock = ticker().timing_summary();
         format!(
-            "display engine: {} core UPDATEs, {} core notifiers written, {} vblank interrupts, {} unresolved context DMAs, ticker raised {} ({} MSIs); {}; {}",
+            "display engine: {} core UPDATEs, {} core notifiers written, {} vblank interrupts, {} unresolved context DMAs, ticker raised {} ({} MSIs); {}; {}{}{}",
             self.core_updates,
             self.core_notifier_writes,
             self.vblank_raised,
@@ -1125,7 +1231,9 @@ impl Engine {
             ticker().raised.load(Ordering::Relaxed),
             ticker().msis.load(Ordering::Relaxed),
             heads.join("; "),
-            wins.join("; ")
+            wins.join("; "),
+            if clock.is_empty() { "" } else { "; " },
+            clock
         )
     }
 }
@@ -1135,6 +1243,23 @@ mod tests {
     use super::*;
 
     const INST: u64 = 0x10_0000;
+
+    #[test]
+    fn tick_timing_histogram() {
+        let mut h = Hist::default();
+        assert_eq!(h.quantile(0.5), 0);
+        for us in [0, 3, 40, 45, 50, 60, 70, 80, 90, 2500] {
+            h.add(us);
+        }
+        assert_eq!(h.n, 10);
+        assert_eq!(h.max_us, 2500);
+        assert_eq!(h.over_ms, 1);
+        // The 5th of 10 values is 50 us, in bucket [32, 64).
+        assert_eq!(h.quantile(0.5), 63);
+        // The 99th percentile is the largest value's bucket, capped at the maximum.
+        assert_eq!(h.quantile(0.99), 2500);
+        assert!(h.describe().contains("1 of 10 at 1 ms or more"));
+    }
 
     /// Bind a context DMA the way `_instmemAddHashEntry` and `instmemCommitContextDma`
     /// do (hash entry at the hash slot, object at `instance << 5`).

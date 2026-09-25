@@ -1520,7 +1520,9 @@ impl Display {
         if !self.enabled {
             return Vec::new();
         }
-        self.engine.catch_up(engine::now_ns(), fb, mem);
+        let t0 = engine::now_ns();
+        self.engine.catch_up(t0, fb, mem);
+        engine::ticker().note_catch_up(engine::now_ns().saturating_sub(t0) / 1000);
         let mut n = self.take_engine_notes();
         if let Some(p) = fe_page() {
             n.extend(p.take_notes());
