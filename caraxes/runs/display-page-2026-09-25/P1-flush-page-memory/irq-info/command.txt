@@ -1,0 +1,5 @@
+# SPDX-License-Identifier: MIT
+# 2026-09-25 10:54:52 guest command:
+bash caraxes-f/irq-info.sh
+rc=0
+full trace 1828 lines, events only kept

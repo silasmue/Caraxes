@@ -1,0 +1,20 @@
+== 2026-09-25T08:54:52Z 8 CPUs, load 0.21 0.21 0.09 2/645 4428
+           CPU0       CPU1       CPU2       CPU3       CPU4       CPU5       CPU6       CPU7       
+ 36:          0      52115          0          0          0          0          0          0  PCI-MSI-0000:00:05.0   0-edge      nvidia
+irq 36 affinity 0-7 effective 1
+     92   0  FF     50   - irq/25-ACPI:Ged
+   1499   2  TS      -   0 nv_queue
+   1500   4  TS      -   0 nv_mem_pool_scrubber_queue
+   1501   7  TS      -   0 nv_mem_pool_scrubber_queue
+   1502   1  TS      -   0 nv_mem_pool_scrubber_queue
+   1503   3  TS      -   0 nv_queue
+   1504   5  TS      -   0 nv_open_q
+   1505   1  FF     50   - irq/36-nvidia
+   1507   0  TS      -   0 nvidia
+   1508   5  TS      -   0 nv_queue
+   1909   3  TS      -   0 nvidia-modeset/kthread_q
+   1910   4  TS      -   0 nvidia-modeset/deferred_close_kthread_q
+   3561   2  TS      -   0 nvidia-drm/timeline-7
+   4105   1  TS      -   0 nvidia-drm/timeline-8
+cpuidle: none governor menu
+irqbalance: inactive
