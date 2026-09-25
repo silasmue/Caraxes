@@ -254,11 +254,31 @@ pub struct SharedDevice(pub Arc<Mutex<Device>>);
 
 impl ServerBackend for SharedDevice {
     fn region_read(&mut self, region: u32, offset: u64, data: &mut [u8]) -> std::io::Result<()> {
-        lock(&self.0).region_read(region, offset, data)
+        if !crate::profile::on() {
+            return lock(&self.0).region_read(region, offset, data);
+        }
+        // The profile's trapped access: from the message to the answer, the lock wait
+        // included (profile.rs).
+        let t0 = std::time::Instant::now();
+        let mut d = lock(&self.0);
+        let r = d.region_read(region, offset, data);
+        let name = d.register_name(region, offset);
+        drop(d);
+        crate::profile::access(region, false, offset, name, t0);
+        r
     }
 
     fn region_write(&mut self, region: u32, offset: u64, data: &[u8]) -> std::io::Result<()> {
-        lock(&self.0).region_write(region, offset, data)
+        if !crate::profile::on() {
+            return lock(&self.0).region_write(region, offset, data);
+        }
+        let t0 = std::time::Instant::now();
+        let mut d = lock(&self.0);
+        let r = d.region_write(region, offset, data);
+        let name = d.register_name(region, offset);
+        drop(d);
+        crate::profile::access(region, true, offset, name, t0);
+        r
     }
 
     fn dma_map(
@@ -511,6 +531,7 @@ impl Device {
     pub fn msi_rearm_ioeventfd(&mut self, offset: u64, writes: u64) {
         self.rearm_wakeups += 1;
         self.rearm_writes += writes;
+        crate::profile::window("msi re-arm eventfd: wakeups (units: guest writes)", writes);
         let effect = self.bar0.write(&mut self.cfg, &self.mem, offset, &0u32.to_le_bytes());
         self.trace.event(&format!(
             "msi re-arm (eventfd): {writes} guest write(s) to BAR0 {offset:#x} (NV_XVE_CYA_2) signalled ({effect:?})"
@@ -528,6 +549,7 @@ impl Device {
     pub fn doorbell_ioeventfd(&mut self, doorbell: u64, writes: u64) -> Option<std::time::Instant> {
         self.doorbell_wakeups += 1;
         self.doorbell_writes += writes;
+        crate::profile::window("doorbell eventfd: wakeups (units: guest writes)", writes);
         let mem = &self.mem;
         let (notes, host) = match self.bar0.boot_mut() {
             Some(boot) => {
@@ -570,6 +592,7 @@ impl Device {
                 p.stats.eventfd_rings += 1;
                 p.stats.eventfd_writes += writes;
             }
+            crate::profile::window("token pool: eventfd rings (units: guest writes)", writes);
             notes.push(format!(
                 "doorbell ioeventfd: {writes} guest write(s) of token {token:#x} to BAR0 {doorbell:#x} signalled"
             ));
@@ -765,6 +788,13 @@ impl Device {
 
     pub fn bar0(&self) -> &Bar0 {
         &self.bar0
+    }
+
+    /// The register map's name of a BAR0 offset, for the profile's rows (profile.rs).
+    pub fn register_name(&self, region: u32, offset: u64) -> Option<&'static str> {
+        (region == VFIO_PCI_BAR0_REGION_INDEX)
+            .then(|| self.bar0.name(offset))
+            .flatten()
     }
 
     /// Signal the MSI eventfd the client registered (index 1), if MSI is enabled.

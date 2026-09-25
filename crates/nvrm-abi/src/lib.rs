@@ -119,6 +119,23 @@ pub enum Error {
 
 pub type Result<T> = std::result::Result<T, Error>;
 
+// Observer
+
+/// Called after every [`NvDevice::ioctl_raw`] with the escape number, a key (the control
+/// command of `NV_ESC_RM_CONTROL`, the class of `NV_ESC_RM_ALLOC`, else 0), the status
+/// (the RM status of a control, allocation or free, 0 for other escapes, `u32::MAX` when
+/// the ioctl itself failed) and its wall time. A profiler sets it once (vfio-user-nvgpu
+/// `profile.rs`); unset, the cost per ioctl is one atomic load.
+pub type IoctlObserver = fn(nr: u32, key: u32, status: u32, dur: std::time::Duration);
+
+static IOCTL_OBSERVER: std::sync::OnceLock<IoctlObserver> = std::sync::OnceLock::new();
+
+/// Install the process-wide ioctl observer. The first call wins; returns whether this one
+/// did.
+pub fn set_ioctl_observer(f: IoctlObserver) -> bool {
+    IOCTL_OBSERVER.set(f).is_ok()
+}
+
 // Device FD
 
 /// An open NVIDIA device FD. Each mapping context needs a fresh FD;
@@ -200,11 +217,40 @@ impl NvDevice {
     /// access requirements until the ioctl returns.
     pub unsafe fn ioctl_raw<T>(&self, nr: u32, arg: &mut T) -> Result<()> {
         let cmd = iowr::<T>(nr);
+        let observer = IOCTL_OBSERVER.get();
+        let t0 = observer.map(|_| std::time::Instant::now());
         let r = libc::ioctl(
             self.fd.as_raw_fd(),
             cmd as libc::Ioctl,
             arg as *mut T as *mut libc::c_void,
         );
+        if let (Some(f), Some(t0)) = (observer, t0) {
+            // The key and the RM status from the caller's argument, which the safety
+            // contract makes a valid `T` for `nr`: NVOS54 `cmd` and `status` for a
+            // control, NVOS64 `hClass` and `status` for an allocation, NVOS00 `status`
+            // for a free.
+            let at = |off: usize| -> u32 {
+                if core::mem::size_of::<T>() >= off + 4 {
+                    core::ptr::read_unaligned((arg as *const T as *const u8).add(off) as *const u32)
+                } else {
+                    0
+                }
+            };
+            use core::mem::offset_of;
+            let (key, status) = match nr {
+                sys::NV_ESC_RM_CONTROL => (
+                    at(offset_of!(sys::NVOS54_PARAMETERS, cmd)),
+                    at(offset_of!(sys::NVOS54_PARAMETERS, status)),
+                ),
+                sys::NV_ESC_RM_ALLOC => (
+                    at(offset_of!(sys::NVOS64_PARAMETERS, hClass)),
+                    at(offset_of!(sys::NVOS64_PARAMETERS, status)),
+                ),
+                sys::NV_ESC_RM_FREE => (0, at(offset_of!(sys::NVOS00_PARAMETERS, status))),
+                _ => (0, 0),
+            };
+            f(nr, key, if r < 0 { u32::MAX } else { status }, t0.elapsed());
+        }
         if r < 0 {
             return Err(Error::Ioctl {
                 nr,

@@ -816,6 +816,13 @@ impl Bar2Area {
         let ns = t0.elapsed().as_nanos() as u64;
         self.stats.sync_ns += ns;
         self.stats.sync_ns_max = self.stats.sync_ns_max.max(ns);
+        crate::profile::record(
+            crate::profile::Key::Window("bar2 memfd: syncs (units: dirty pages)"),
+            std::time::Duration::from_nanos(ns),
+            rep.dirty.len() as u64,
+            None,
+            "",
+        );
         rep
     }
 
@@ -864,6 +871,7 @@ impl Bar2Area {
                 .collect();
             drop(guard);
             self.stats.walks += 1;
+            crate::profile::window("bar2 memfd: table walks", 0);
             for (u, leaves) in work {
                 self.apply_unit(u, &leaves, store, fb_size, sys, tr, rep);
             }
@@ -892,6 +900,7 @@ impl Bar2Area {
                 .collect()
         };
         self.stats.walks += 1;
+        crate::profile::window("bar2 memfd: table walks", 0);
         for (u, leaves) in work {
             self.apply_unit(u, &leaves, store, fb_size, sys, tr, rep);
         }

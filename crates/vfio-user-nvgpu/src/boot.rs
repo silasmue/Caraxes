@@ -315,6 +315,19 @@ impl BootModel {
                 match r {
                     Ok(seq) => {
                         sent += 1;
+                        if crate::profile::on() {
+                            let (id, label) = match u {
+                                Unsolicited::Event(f, _) => (*f, "rpc event"),
+                                Unsolicited::Gmcapi(id, _) => (*id, "gmcapi request"),
+                            };
+                            crate::profile::record(
+                                crate::profile::Key::Event(id),
+                                std::time::Duration::ZERO,
+                                len as u64,
+                                None,
+                                label,
+                            );
+                        }
                         notes.push(format!("tx seq {seq} {} ({len} bytes) [unsolicited]", u.name()));
                     }
                     Err(e) => notes.push(format!("{}: {e}", u.name())),
@@ -1360,6 +1373,7 @@ impl BootModel {
                     }
                 }
                 let h = msg.header;
+                let t_rpc = crate::profile::on().then(std::time::Instant::now);
                 notes.push(format!(
                     "rx seq {} {} ({}) sequence {} length {} checksum {}: {}",
                     msg.seq_num,
@@ -1457,6 +1471,7 @@ impl BootModel {
                         );
                         let at = v::RM_CONTROL_PARAMS;
                         let params = p.get(at..at + size).unwrap_or(&[]);
+                        let t_ctl = crate::profile::on().then(std::time::Instant::now);
                         // Controls only newer chips' kernels send come from the chip first
                         // (chip/physical.rs), the rest from the dispatcher.
                         // The event-buffer controls on GSP-side event buffers (gspmem.rs).
@@ -1478,6 +1493,15 @@ impl BootModel {
                                     .control(w(v::RM_CONTROL_H_CLIENT), h_object, cmd, params)
                             }
                         };
+                        if let Some(t) = t_ctl {
+                            crate::profile::record(
+                                crate::profile::Key::Control(cmd),
+                                t.elapsed(),
+                                0,
+                                Some(a.status),
+                                a.label,
+                            );
+                        }
                         notes.push(format!(
                             "ctrl {cmd:#x}: {} -> status {:#x} [{}]",
                             a.note, a.status, a.label
@@ -1520,6 +1544,7 @@ impl BootModel {
                             .or_else(|| msg.slot_payload.get(at..at + size))
                             .unwrap_or(&[]);
                         let h_client = w(v::RM_ALLOC_H_CLIENT);
+                        let t_alloc = crate::profile::on().then(std::time::Instant::now);
                         // The event-buffer classes the 615 event import allocates on GSP
                         // (gspmem.rs) are checked against the registered memory first.
                         // Classes GSP-RM would refuse are refused first (classes.rs).
@@ -1550,6 +1575,19 @@ impl BootModel {
                             None => self.ctrl.alloc(h_client, h_object, h_parent, h_class, params),
                         },
                         };
+                        if let Some(t) = t_alloc {
+                            crate::profile::record(
+                                crate::profile::Key::Alloc(h_class),
+                                t.elapsed(),
+                                0,
+                                Some(a.status),
+                                a.label,
+                            );
+                            // A guest client's root: one per process that opens the GPU.
+                            if h_class == v::NV01_ROOT && a.status == rpc::NV_OK {
+                                crate::profile::client_open(h_client);
+                            }
+                        }
                         notes.push(format!(
                             "alloc: {} -> status {:#x} [{}]",
                             a.note, a.status, a.label
@@ -1591,6 +1629,9 @@ impl BootModel {
                             |o: usize| u32::from_le_bytes(p[o..o + 4].try_into().unwrap_or([0; 4]));
                         let (h_client, h_object) = (w(v::FREE_H_ROOT), w(v::FREE_H_OBJECT));
                         let a = self.ctrl.free(h_client, h_object);
+                        if h_object == h_client {
+                            crate::profile::client_close(h_client);
+                        }
                         notes.push(format!("{} [{}]", a.note, a.label));
                         if let Some(n) = self.gspmem.free(h_client, h_object) {
                             notes.push(format!("free {h_client:#x}/{h_object:#x}: {n} [guest]"));
@@ -1798,6 +1839,15 @@ impl BootModel {
                         }
                         sent += chunk;
                     }
+                }
+                if let Some(t) = t_rpc {
+                    crate::profile::record(
+                        crate::profile::Key::Rpc(h.function),
+                        t.elapsed(),
+                        0,
+                        None,
+                        "",
+                    );
                 }
             }
             if queues.held() > 0 {
