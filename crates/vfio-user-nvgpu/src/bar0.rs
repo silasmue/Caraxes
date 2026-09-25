@@ -33,6 +33,9 @@ pub const SIZE: u64 = 16 << 20;
 pub const NV_PMC_BOOT_0: u64 = 0x0000_0000;
 pub const NV_PMC_BOOT_1: u64 = 0x0000_0004;
 pub const NV_PMC_BOOT_42: u64 = 0x0000_0A00;
+/// `NV_PMC_ENABLE` (tu102/dev_mc.h): latched like any unmodelled register, but its rising
+/// engine bits reset falcons in the firmware model (`FirmwareBoot::observe_write`).
+pub const NV_PMC_ENABLE: u64 = 0x0000_0200;
 
 /// The values of the three boot registers (the chip's).
 pub type Identity = BootIdentity;
@@ -405,12 +408,26 @@ impl Bar0 {
                 }
             }
         }
+        // NV_PMC_ENABLE latches; the firmware model watches its engine bits (the PMU reset).
+        let pmc = offset & !3 == NV_PMC_ENABLE;
+        let old = pmc.then(|| {
+            self.latched
+                .get(&NV_PMC_ENABLE)
+                .copied()
+                .or_else(|| self.captured.as_ref().and_then(|c| c.get(NV_PMC_ENABLE)))
+                .unwrap_or(0)
+        });
         for (i, &b) in data.iter().enumerate() {
             let off = offset + i as u64;
             let reg = off & !3;
             let shift = (off & 3) * 8;
             let v = self.latched.entry(reg).or_insert(0);
             *v = (*v & !(0xFF << shift)) | ((b as u32) << shift);
+        }
+        if let (Some(old), Some(boot)) = (old, self.boot.as_mut()) {
+            let new = self.latched.get(&NV_PMC_ENABLE).copied().unwrap_or(0);
+            self.notes
+                .extend(boot.observe_write(NV_PMC_ENABLE, old, new));
         }
         WriteEffect::Latched
     }
@@ -602,6 +619,44 @@ mod tests {
         // An image that starts with 55 AA is found at 0, as before.
         let plain = Bar0::new(f.chip, window[0x28600..0x48200].to_vec(), None);
         assert_eq!(plain.vbios_image().unwrap().offset, 0);
+    }
+
+    /// NV_PMC_ENABLE stays a latch (read back as written, the capture before), and its
+    /// bit 13 rising from the captured 0xd0fdd1c1 resets the PMU falcon.
+    #[test]
+    fn pmc_enable_latches_and_resets_the_pmu() {
+        let house = CapturedRegisters::parse(include_str!(
+            "../../../caraxes/reference/rtx2070/bar0-registers-2026-09-25.txt"
+        ))
+        .unwrap();
+        let (bar0, mut cfg) = parts();
+        let mem = GuestMemory::new();
+        let f = crate::fixture::rtx2070();
+        let mut bar0 = bar0
+            .with_boot_model(BootModel::new(
+                f.chip,
+                crate::fb::FbLayout::plain(4 << 30),
+                f.identity(4 << 30),
+            ))
+            .with_captured(house);
+        let mut b = [0u8; 4];
+        bar0.read(&cfg, &mem, NV_PMC_ENABLE, &mut b);
+        assert_eq!(u32::from_le_bytes(b), 0xD0FD_D1C1);
+        bar0.write(
+            &mut cfg,
+            &mem,
+            0x10A000 + crate::falcon::DMEMC0,
+            &0x100_0010u32.to_le_bytes(),
+        );
+        assert_eq!(
+            bar0.write(&mut cfg, &mem, NV_PMC_ENABLE, &0xD1FD_FFD1u32.to_le_bytes()),
+            WriteEffect::Latched
+        );
+        assert!(bar0.take_notes().iter().any(|n| n.contains("pmu reset")));
+        bar0.read(&cfg, &mem, NV_PMC_ENABLE, &mut b);
+        assert_eq!(u32::from_le_bytes(b), 0xD1FD_FFD1);
+        bar0.read(&cfg, &mem, 0x10A000 + crate::falcon::DMEMC0, &mut b);
+        assert_eq!(u32::from_le_bytes(b), 0);
     }
 
     /// A falcon-block register the model has no value for falls through to the capture

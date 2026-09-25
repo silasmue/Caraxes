@@ -32,6 +32,47 @@ pub struct FalconSpec {
     pub riscv: bool,
     /// Halted before any reset (the GSP falcon is halted after GFW boot).
     pub halted: bool,
+    /// The host card's `HWCFG` (`None`: computed from the block counts), `HWCFG1` and
+    /// `ITFEN` (read-only capture of 2026-09-25; `falcon::Ids`).
+    #[serde(default)]
+    pub hwcfg: Option<u32>,
+    #[serde(default)]
+    pub hwcfg1: u32,
+    #[serde(default)]
+    pub itfen: u32,
+    /// FBIF offset in the block (default 0x600; the PMU's is 0xE00).
+    #[serde(default)]
+    pub fbif: Option<u64>,
+    /// Block size when not `falcon_block_size` (the PMU has no RISC-V block: 0x1000).
+    #[serde(default)]
+    pub block_size: Option<u64>,
+    /// A start raises `IRQSTAT` HALT (the PMU; `Falcon::with_halt_irq`).
+    #[serde(default)]
+    pub halt_irq: bool,
+    /// The `NV_PMC_ENABLE` bit whose rising edge resets the falcon (the PMU: 13, nouveau
+    /// `gk104_mc_reset`).
+    #[serde(default)]
+    pub pmc_enable_bit: Option<u8>,
+}
+
+impl FalconSpec {
+    /// The falcon model of this block.
+    pub fn falcon(&self, name: &'static str) -> Falcon {
+        Falcon::new(
+            name,
+            self.riscv,
+            self.imem_blocks,
+            self.dmem_blocks,
+            self.halted,
+        )
+        .with_ids(crate::falcon::Ids {
+            hwcfg: self.hwcfg,
+            hwcfg1: self.hwcfg1,
+            itfen: self.itfen,
+        })
+        .with_fbif(self.fbif.unwrap_or(crate::falcon::FBIF_DEFAULT))
+        .with_halt_irq(self.halt_irq)
+    }
 }
 
 /// A register that reads a fixed post-GFW value.
@@ -49,6 +90,14 @@ pub struct ConstReg {
 pub struct TuringBootData {
     pub gsp: FalconSpec,
     pub sec2: FalconSpec,
+    /// The PMU falcon, which the CPU-RM path of the Windows driver drives (the ACR unload;
+    /// caraxes/runs/win11-2026-09-25/night-2026-09-25/ANALYSIS-gsp-path.md); the GSP-RM
+    /// path never touches it.
+    #[serde(default)]
+    pub pmu: Option<FalconSpec>,
+    /// `NV_PMC_ENABLE`, watched (not owned) for the falcon resets of `pmc_enable_bit`.
+    #[serde(default)]
+    pub pmc_enable: Option<u64>,
     pub falcon_block_size: u64,
     pub gsp_queue_head: u64,
     /// `NV_PGSP_QUEUE_TAIL(0)`, `NV_PGSP_MSGQ_HEAD(0)`, `NV_PGSP_MSGQ_TAIL(0)`: the
@@ -115,6 +164,7 @@ pub struct TuringBoot {
     d: &'static TuringBootData,
     pub gsp: Falcon,
     pub sec2: Falcon,
+    pub pmu: Option<Falcon>,
     fb_bytes: u64,
     wpr2: (u32, u32),
     frts_offset: Option<u64>,
@@ -128,12 +178,10 @@ pub struct TuringBoot {
 
 impl TuringBoot {
     pub fn new(d: &'static TuringBootData, fb_bytes: u64) -> Self {
-        let falcon = |name, f: &FalconSpec| {
-            Falcon::new(name, f.riscv, f.imem_blocks, f.dmem_blocks, f.halted)
-        };
         TuringBoot {
-            gsp: falcon("gsp", &d.gsp),
-            sec2: falcon("sec2", &d.sec2),
+            gsp: d.gsp.falcon("gsp"),
+            sec2: d.sec2.falcon("sec2"),
+            pmu: d.pmu.as_ref().map(|p| p.falcon("pmu")),
             d,
             fb_bytes,
             wpr2: (0, 0),
@@ -144,7 +192,11 @@ impl TuringBoot {
     }
 
     fn in_block(&self, f: &FalconSpec, off: u64) -> bool {
-        (f.base..f.base + self.d.falcon_block_size).contains(&off)
+        (f.base..f.base + f.block_size.unwrap_or(self.d.falcon_block_size)).contains(&off)
+    }
+
+    fn in_pmu(&self, off: u64) -> bool {
+        self.d.pmu.as_ref().is_some_and(|p| self.in_block(p, off))
     }
 
     fn constant(&self, off: u64) -> Option<u32> {
@@ -190,6 +242,27 @@ impl TuringBoot {
         let wpr_end = vga_workspace & !(self.d.wpr_end_align - 1);
         wpr_end - self.d.frts_size
     }
+
+    /// A write into the PMU block. A start halts at once (the ucode never runs); the
+    /// status the CPU reads afterwards is success: `MAILBOX0` 0 (nouveau
+    /// `gm200_flcn_fw_boot`).
+    fn pmu_write(&mut self, off: u64, v: u32) -> Vec<String> {
+        let (Some(spec), Some(pmu)) = (self.d.pmu.as_ref(), self.pmu.as_mut()) else {
+            return Vec::new();
+        };
+        match pmu.write32(off - spec.base, v) {
+            Some(Event::Reset) => vec![format!("pmu reset {}", pmu.resets())],
+            Some(Event::Halted { run }) => {
+                let bootvec = pmu.read32(crate::falcon::BOOTVEC);
+                let (_, m1) = pmu.mailbox();
+                pmu.set_mailbox(0, m1);
+                vec![format!(
+                    "pmu start {run}: halted (BOOTVEC {bootvec:#x}), MAILBOX0 0"
+                )]
+            }
+            None => Vec::new(),
+        }
+    }
 }
 
 impl FirmwareBoot for TuringBoot {
@@ -216,6 +289,25 @@ impl FirmwareBoot for TuringBoot {
             || self.constant(off).is_some()
             || self.in_block(&self.d.gsp, off)
             || self.in_block(&self.d.sec2, off)
+            || self.in_pmu(off)
+    }
+
+    fn observe_write(&mut self, off: u64, old: u32, new: u32) -> Vec<String> {
+        let (Some(pmc), Some(spec), Some(pmu)) =
+            (self.d.pmc_enable, self.d.pmu.as_ref(), self.pmu.as_mut())
+        else {
+            return Vec::new();
+        };
+        match spec.pmc_enable_bit {
+            Some(bit) if off == pmc && (new & !old) >> bit & 1 == 1 => {
+                pmu.reset_block();
+                vec![format!(
+                    "pmu reset {} (NV_PMC_ENABLE bit {bit} rose: {old:#x} -> {new:#x})",
+                    pmu.resets()
+                )]
+            }
+            _ => Vec::new(),
+        }
     }
 
     fn read32(&mut self, off: u64) -> Option<u32> {
@@ -227,6 +319,13 @@ impl FirmwareBoot for TuringBoot {
         let (gsp, sec2) = (self.d.gsp.base, self.d.sec2.base);
         if (self.in_block(&self.d.gsp, off) && !self.gsp.answers(off - gsp))
             || (self.in_block(&self.d.sec2, off) && !self.sec2.answers(off - sec2))
+            || (self.in_pmu(off)
+                && self
+                    .d
+                    .pmu
+                    .as_ref()
+                    .zip(self.pmu.as_ref())
+                    .is_some_and(|(s, p)| !p.answers(off - s.base)))
         {
             return self.constant(off);
         }
@@ -242,6 +341,10 @@ impl FirmwareBoot for TuringBoot {
             o if o == self.d.wpr2_addr_hi => self.wpr2.1,
             o if self.in_block(&self.d.gsp, o) => self.gsp.read32(o - self.d.gsp.base),
             o if self.in_block(&self.d.sec2, o) => self.sec2.read32(o - self.d.sec2.base),
+            o if self.in_pmu(o) => match (self.d.pmu.as_ref(), self.pmu.as_mut()) {
+                (Some(s), Some(p)) => p.read32(o - s.base),
+                _ => 0,
+            },
             o => self.constant(o).unwrap_or(0),
         })
     }
@@ -327,6 +430,8 @@ impl FirmwareBoot for TuringBoot {
                 }
                 None => {}
             }
+        } else if self.in_pmu(off) {
+            w.notes.extend(self.pmu_write(off, v));
         } else {
             w.notes.push("read-only".into());
         }
@@ -438,6 +543,74 @@ mod tests {
             w.notes[0].contains("sec2 start 4: booter unload done"),
             "{w:?}"
         );
+    }
+
+    /// The PMU falcon as the Windows driver drives it for the ACR unload (run P,
+    /// ANALYSIS-gsp-path.md §1): the host card's identity registers, the descriptor through
+    /// DMEMC with auto-increment, FBIF at +0xE00, a start halts with IRQSTAT HALT and
+    /// MAILBOX0 0, and NV_PMC_ENABLE bit 13 rising resets it.
+    #[test]
+    fn pmu_falcon_loads_starts_and_resets() {
+        let d = data();
+        let pmu = d.pmu.as_ref().unwrap().base;
+        assert_eq!(pmu, 0x10_A000);
+        let mem = GuestMemory::new();
+        let mut b = TuringBoot::new(d, 4 << 30);
+        assert_eq!(b.read32(pmu + falcon::HWCFG), Some(0x400E_0100));
+        assert_eq!(b.read32(pmu + falcon::HWCFG1), Some(0xEA10_4136));
+        assert_eq!(b.read32(pmu + falcon::ITFEN), Some(0x5));
+        assert_eq!(b.read32(pmu + falcon::CPUCTL), Some(0));
+        assert_eq!(b.read32(pmu + falcon::DMACTL), Some(0));
+        // The other falcons' identity registers are the card's too.
+        assert_eq!(b.read32(d.gsp.base + falcon::HWCFG1), Some(0xCA10_1136));
+        assert_eq!(b.read32(d.gsp.base + falcon::ITFEN), Some(0x1004));
+        assert_eq!(b.read32(d.sec2.base + falcon::ITFEN), Some(0x1007));
+        assert_eq!(b.read32(d.sec2.base + falcon::HWCFG), Some(0x4042_0100));
+        // HWCFG keeps the IMEM size the Linux RM places its loader by.
+        assert_eq!(b.read32(d.gsp.base + falcon::HWCFG).unwrap() & 0x1FF, 0x100);
+
+        b.write32(pmu + falcon::ITFEN, 0x100, &mem);
+        assert_eq!(b.read32(pmu + falcon::ITFEN), Some(0x100));
+        for (i, v) in [4u32, 0, 4, 5, 6].into_iter().enumerate() {
+            b.write32(pmu + 0xE00 + 4 * i as u64, v, &mem);
+        }
+        b.write32(pmu + 0xE24, 0x80, &mem);
+        assert_eq!(b.read32(pmu + 0xE0C), Some(5));
+        assert_eq!(b.read32(pmu + 0xE24), Some(0x80));
+        // DMEMC 0x11000000 (AINCW), 21 descriptor words: the offset advances.
+        b.write32(pmu + falcon::DMEMC0, 0x1100_0000, &mem);
+        for i in 0..21u32 {
+            b.write32(pmu + falcon::DMEMD0, 0x100 + i, &mem);
+            assert_eq!(
+                b.read32(pmu + falcon::DMEMC0),
+                Some(0x1100_0000 + 4 * (i + 1))
+            );
+        }
+        assert_eq!(
+            &b.pmu.as_ref().unwrap().dmem()[..4],
+            &0x100u32.to_le_bytes()
+        );
+        b.write32(pmu + falcon::MAILBOX0, 0xDEAD, &mem);
+        b.write32(pmu + falcon::BOOTVEC, 0x1_0000, &mem);
+        let w = b.write32(pmu + falcon::CPUCTL, 2, &mem).unwrap();
+        assert!(w.notes[0].starts_with("pmu start 1: halted"), "{w:?}");
+        assert_eq!(b.read32(pmu + falcon::CPUCTL), Some(0x10));
+        assert_eq!(b.read32(pmu + falcon::IRQSTAT), Some(0x10));
+        assert_eq!(b.read32(pmu + falcon::MAILBOX0), Some(0));
+        b.write32(pmu + falcon::IRQSCLR, 0x10, &mem);
+        assert_eq!(b.read32(pmu + falcon::IRQSTAT), Some(0));
+
+        // NV_PMC_ENABLE: bit 13 rising resets the PMU; other edges do not.
+        assert!(b.observe_write(0x200, 0xD0FD_D1C1, 0xD0FD_D1C1).is_empty());
+        let n = b.observe_write(0x200, 0xD0FD_D1C1, 0xD1FD_FFD1);
+        assert!(n[0].contains("pmu reset 1"), "{n:?}");
+        assert_eq!(b.read32(pmu + falcon::CPUCTL), Some(0));
+        assert_eq!(b.read32(pmu + falcon::ITFEN), Some(0x5));
+        assert_eq!(b.read32(pmu + falcon::DMEMC0), Some(0));
+        assert!(b.observe_write(0x200, 0xD1FD_FFD1, 0xD1FD_FFD1).is_empty());
+        // The GSP's IRQSTAT keeps its latch (no HALT bit on a GSP start).
+        b.write32(d.gsp.base + falcon::CPUCTL, 2, &mem);
+        assert_eq!(b.read32(d.gsp.base + falcon::IRQSTAT), Some(0));
     }
 
     /// nova-core's Turing boot and re-probe (Linux 7.2.7 gsp/hal/tu102.rs): FWSEC-FRTS, a

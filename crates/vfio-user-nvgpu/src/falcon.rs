@@ -11,8 +11,16 @@
 
 use std::collections::BTreeMap;
 
+/// `NV_PFALCON_FALCON_IRQSSET`/`IRQSCLR`/`IRQSTAT` (tu102/dev_falcon_v4.h): set, clear
+/// and status of the falcon's interrupts; bit 4 is HALT.
+pub const IRQSSET: u64 = 0x000;
+pub const IRQSCLR: u64 = 0x004;
+pub const IRQSTAT: u64 = 0x008;
 pub const MAILBOX0: u64 = 0x040;
 pub const MAILBOX1: u64 = 0x044;
+/// `NV_PFALCON_FALCON_ITFEN`: the interface enables (the host card: GSP 0x1004, SEC2
+/// 0x1007, PMU 0x5).
+pub const ITFEN: u64 = 0x048;
 pub const OS: u64 = 0x080;
 pub const RM: u64 = 0x084;
 pub const DEBUGINFO: u64 = 0x094;
@@ -21,6 +29,8 @@ pub const CPUCTL: u64 = 0x100;
 pub const BOOTVEC: u64 = 0x104;
 pub const HWCFG: u64 = 0x108;
 pub const DMACTL: u64 = 0x10C;
+/// `NV_PFALCON_FALCON_HWCFG1`: core revision and security model (read-only).
+pub const HWCFG1: u64 = 0x12C;
 /// `NV_PFALCON_FALCON_DMATRFCMD` (ampere/ga102/dev_falcon_v4.h:57-71): `_FULL` 0:0 and
 /// `_IDLE` 1:1 read-only. The GA102-family HS path (`kgspExecuteHsFalcon_GA102`,
 /// kernel_gsp_falcon_ga102.c:184) DMAs the ucode itself and polls FULL false before and
@@ -60,18 +70,31 @@ pub const BLOCK_SIZE: u64 = 0x2000;
 /// Block-relative ranges the model answers even when never written (reads there never
 /// fall through to the capture, [`Falcon::answers`]): the falcon core registers 0x000-0x13F
 /// (IRQ, mailboxes, OS/RM, DEBUGINFO, HWCFG/HWCFG2, CPUCTL, BOOTVEC, DMA), the IMEM/DMEM
-/// ports, `ENGINE`, FBIF 0x600-0x6FF, the EMEM ports 0xAC0-0xADF, the queue registers
-/// 0xC00-0xCFF (`NV_PGSP_QUEUE_*`/`MSGQ_*`, answered by the boot model before the falcon)
-/// and the whole RISC-V block from 0x1000.
-const MODELLED: [std::ops::Range<u64>; 7] = [
+/// ports, `ENGINE`, the EMEM ports 0xAC0-0xADF, the queue registers 0xC00-0xCFF
+/// (`NV_PGSP_QUEUE_*`/`MSGQ_*`, answered by the boot model before the falcon) and the
+/// whole RISC-V block from 0x1000; and the block's FBIF (0x100 bytes at 0x600 on GSP and
+/// SEC2, 0xE00 on the PMU).
+const MODELLED: [std::ops::Range<u64>; 6] = [
     0x000..0x140,
     IMEMC0..0x200,
     ENGINE..ENGINE + 4,
-    0x600..0x700,
     0xAC0..0xAE0,
     0xC00..0xD00,
     0x1000..BLOCK_SIZE,
 ];
+/// FBIF offset of GSP and SEC2 (`dev_fbif_v4.h`); the PMU's sits at 0xE00.
+pub const FBIF_DEFAULT: u64 = 0x600;
+/// `IRQSTAT` HALT (bit 4).
+const IRQ_HALT: u32 = 1 << 4;
+
+/// The identity registers of a falcon as the host card reads them (boot.toml): `HWCFG`
+/// (`None`: computed from the IMEM/DMEM sizes), `HWCFG1` and the reset value of `ITFEN`.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct Ids {
+    pub hwcfg: Option<u32>,
+    pub hwcfg1: u32,
+    pub itfen: u32,
+}
 
 const CPUCTL_STARTCPU: u32 = 1 << 1;
 const CPUCTL_HALTED: u32 = 1 << 4;
@@ -107,6 +130,11 @@ pub struct Falcon {
     /// falcon offset: where the ucode's DMEM image starts in guest memory (the FWSEC data
     /// image of the GA102-family boot, which DMAs instead of loading through the ports).
     dmem_dma_src: Option<u64>,
+    ids: Ids,
+    fbif: u64,
+    /// A start raises `IRQSTAT` HALT, and `IRQSSET`/`IRQSCLR` act on `IRQSTAT` (the PMU;
+    /// GSP and SEC2 keep their latches, which the Linux path depends on).
+    halt_irq: bool,
 }
 
 impl Falcon {
@@ -133,7 +161,34 @@ impl Falcon {
             resets: 0,
             regs: BTreeMap::new(),
             dmem_dma_src: None,
+            ids: Ids::default(),
+            fbif: FBIF_DEFAULT,
+            halt_irq: false,
         }
+    }
+
+    /// The host card's identity registers.
+    pub fn with_ids(mut self, ids: Ids) -> Self {
+        self.ids = ids;
+        self
+    }
+
+    /// The FBIF block's offset (0xE00 on the PMU).
+    pub fn with_fbif(mut self, fbif: u64) -> Self {
+        self.fbif = fbif;
+        self
+    }
+
+    /// Model `IRQSTAT` HALT on a start and the set/clear registers.
+    pub fn with_halt_irq(mut self, on: bool) -> Self {
+        self.halt_irq = on;
+        self
+    }
+
+    /// The reset of a falcon whose engine is reset from outside (`NV_PMC_ENABLE` for the
+    /// PMU): the same post-reset state as a `FALCON_ENGINE` reset.
+    pub fn reset_block(&mut self) {
+        self.reset();
     }
 
     /// Where the DMEM image of the last DMA-loaded ucode starts in guest memory.
@@ -193,7 +248,9 @@ impl Falcon {
     /// (bar0.rs `CapturedRegisters`), e.g. 0xABC next to `NV_PGSP_EMEMC` (0x20 on the
     /// RTX 2070), which the Windows driver reads.
     pub fn answers(&self, off: u64) -> bool {
-        MODELLED.iter().any(|r| r.contains(&off)) || self.regs.contains_key(&off)
+        MODELLED.iter().any(|r| r.contains(&off))
+            || (self.fbif..self.fbif + 0x100).contains(&off)
+            || self.regs.contains_key(&off)
     }
 
     fn hwcfg(&self) -> u32 {
@@ -222,7 +279,9 @@ impl Falcon {
     pub fn read32(&mut self, off: u64) -> u32 {
         match off {
             CPUCTL | CPUCTL_ALIAS => u32::from(self.halted) * CPUCTL_HALTED,
-            HWCFG => self.hwcfg(),
+            HWCFG => self.ids.hwcfg.unwrap_or_else(|| self.hwcfg()),
+            HWCFG1 => self.ids.hwcfg1,
+            ITFEN => self.regs.get(&ITFEN).copied().unwrap_or(self.ids.itfen),
             HWCFG2 => u32::from(self.riscv_capable) * HWCFG2_RISCV,
             DMACTL => 0,
             DMATRFCMD => (self.reg(DMATRFCMD) & !DMATRFCMD_FULL) | DMATRFCMD_IDLE,
@@ -265,10 +324,24 @@ impl Falcon {
                 }
                 None
             }
+            IRQSCLR if self.halt_irq => {
+                let s = self.reg(IRQSTAT);
+                self.regs.insert(IRQSTAT, s & !v);
+                None
+            }
+            IRQSSET if self.halt_irq => {
+                let s = self.reg(IRQSTAT);
+                self.regs.insert(IRQSTAT, s | v);
+                None
+            }
             CPUCTL | CPUCTL_ALIAS => {
                 if v & CPUCTL_STARTCPU != 0 {
                     self.runs += 1;
                     self.halted = true;
+                    if self.halt_irq {
+                        let s = self.reg(IRQSTAT);
+                        self.regs.insert(IRQSTAT, s | IRQ_HALT);
+                    }
                     return Some(Event::Halted { run: self.runs });
                 }
                 None
@@ -327,7 +400,7 @@ impl Falcon {
                 self.regs.insert(DMATRFCMD, v);
                 None
             }
-            HWCFG | HWCFG2 | DEBUGINFO | RISCV_STATUS | RISCV_CPUCTL => None,
+            HWCFG | HWCFG1 | HWCFG2 | DEBUGINFO | RISCV_STATUS | RISCV_CPUCTL => None,
             o => {
                 self.regs.insert(o, v);
                 None

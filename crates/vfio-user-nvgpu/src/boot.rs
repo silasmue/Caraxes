@@ -1113,6 +1113,12 @@ impl BootModel {
         })
     }
 
+    /// A latched write to a register the firmware model watches (`NV_PMC_ENABLE`):
+    /// `old` and `new` are what it read before and after. Notes for the trace.
+    pub fn observe_write(&mut self, off: u64, old: u32, new: u32) -> Vec<String> {
+        self.fw.observe_write(off, old, new)
+    }
+
     /// Write the dword-aligned register `off`. Returns `None` when the model does not
     /// own it, otherwise the notes the trace should carry (empty for plain writes).
     pub fn write32(&mut self, off: u64, v: u32, mem: &GuestMemory) -> Option<Vec<String>> {
