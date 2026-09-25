@@ -39,10 +39,32 @@ pub const GRMGR_GET_GR_FS_INFO: u32 = 0x2080_3801;
 pub const GPU_QUERY_FUNCTION_STATUS: u32 = 0x2080_0173;
 pub const INTERNAL_GET_ENABLED_SEC2_CLASSES: u32 = 0x2080_0AAF;
 pub const FIFO_GET_ENGINE_CONTEXT_PROPERTIES: u32 = 0x0080_1707;
-/// A GSS-legacy clock command (no public layout): `{flags u32, count u32, entries[] of 16
-/// bytes {domain u32, three words out}}`; the recordings have the domains 1, 4 and 8 one
-/// per call, the Windows KMD asks all three in one.
+/// GSS-legacy clock commands (no public layout): `{flags u32, count u32, entries[]}`, each
+/// entry keyed by its clock domain. The recordings have one domain per call, the Windows
+/// KMD asks several in one; [`ENTRY_LISTS`] answers each entry from its recorded twin.
 pub const GSS_LEGACY_CLK_64: u32 = 0x2080_9064;
+pub const GSS_LEGACY_CLK_04: u32 = 0x2080_9004;
+
+/// An entry-list layout: `count` u32 at 4, entries from 8, `stride` bytes, the key at `key`.
+pub struct EntryList {
+    pub cmd: u32,
+    pub stride: usize,
+    pub key: usize,
+}
+
+impl EntryList {
+    fn offsets(&self, b: &[u8]) -> Vec<usize> {
+        let n = (get32(b, 4) as usize).min(b.len().saturating_sub(8) / self.stride);
+        (0..n).map(|i| 8 + self.stride * i).collect()
+    }
+}
+
+/// clk 0x64: 16-byte entries {domain, three words}; clk 0x04: 48-byte entries {0, domain,
+/// frequencies} (1544 bytes = 8 + 32 entries).
+pub const ENTRY_LISTS: [EntryList; 2] = [
+    EntryList { cmd: GSS_LEGACY_CLK_64, stride: 16, key: 0 },
+    EntryList { cmd: GSS_LEGACY_CLK_04, stride: 48, key: 4 },
+];
 /// `GR_GFX_POOL_QUERY_SIZE` (ctrl2080gr.h:1272-1307): the Windows KMD sizes its graphics
 /// preemption (GfxP) pool with it. No capture has the card's numbers: 1 MiB per slot, a
 /// control structure of 64 bytes plus 16 per slot in 4 KiB pages, 64 KiB pool alignment.
@@ -95,8 +117,8 @@ pub struct Recorded {
     exact: HashMap<(u32, Vec<u8>), Entry>,
     /// index → data of the index-list controls, from every recorded answer.
     index: HashMap<u32, BTreeMap<u32, u32>>,
-    /// domain → the three answer words of GSS legacy clk 0x64.
-    clk64: BTreeMap<u32, [u32; 3]>,
+    /// The entry-list controls ([`ENTRY_LISTS`]): cmd → key → the whole recorded entry.
+    entries: HashMap<u32, BTreeMap<u32, Vec<u8>>>,
 }
 
 fn unhex(s: &str) -> Option<Vec<u8>> {
@@ -131,7 +153,7 @@ impl Recorded {
         let mut r = Recorded {
             exact: HashMap::new(),
             index: HashMap::new(),
-            clk64: BTreeMap::new(),
+            entries: HashMap::new(),
         };
         for (n, line) in text.lines().enumerate() {
             if line.starts_with('#') || line.trim().is_empty() {
@@ -151,14 +173,15 @@ impl Recorded {
                         .or_insert(get32(&ans, 8 + 8 * i));
                 }
             }
-            if cmd == GSS_LEGACY_CLK_64 && status == 0 {
-                for i in 0..(get32(&ans, 4) as usize).min(ans.len().saturating_sub(8) / 16) {
-                    let e = 8 + 16 * i;
-                    r.clk64.entry(get32(&ans, e)).or_insert([
-                        get32(&ans, e + 4),
-                        get32(&ans, e + 8),
-                        get32(&ans, e + 12),
-                    ]);
+            if let Some(l) = ENTRY_LISTS.iter().find(|l| l.cmd == cmd) {
+                if status == 0 {
+                    for e in l.offsets(&ans) {
+                        r.entries
+                            .entry(cmd)
+                            .or_default()
+                            .entry(get32(&ans, e + l.key))
+                            .or_insert_with(|| ans[e..e + l.stride].to_vec());
+                    }
                 }
             }
             r.exact.entry((cmd, req)).or_insert(Entry {
@@ -177,7 +200,7 @@ impl Recorded {
             Recorded::parse(TSV).unwrap_or(Recorded {
                 exact: HashMap::new(),
                 index: HashMap::new(),
-                clk64: BTreeMap::new(),
+                entries: HashMap::new(),
             })
         })
     }
@@ -232,7 +255,7 @@ pub fn answer(cmd: u32, params: &[u8], f: &Facts) -> Option<Answer> {
             "enabled SEC2 classes: none (the card's class list has no SEC2 class)".into(),
         )),
         FIFO_GET_ENGINE_CONTEXT_PROPERTIES => Some(engine_ctx(params)),
-        GSS_LEGACY_CLK_64 => clk64(t, params),
+        c if ENTRY_LISTS.iter().any(|l| l.cmd == c) => entry_list(t, c, params),
         GR_GFX_POOL_QUERY_SIZE => Some(gfx_pool_query_size(params)),
         c if GR_GFX_POOL_MANAGE.contains(&c) => Some(ok(
             params.to_vec(),
@@ -288,24 +311,22 @@ fn engine_ctx(params: &[u8]) -> Answer {
     }
 }
 
-/// GSS legacy clk 0x64 per domain from the recordings; `None` if a domain is not recorded.
-fn clk64(t: &Recorded, params: &[u8]) -> Option<Answer> {
+/// An entry-list control, each entry from the recorded one of its key; `None` if a key was
+/// never recorded.
+fn entry_list(t: &Recorded, cmd: u32, params: &[u8]) -> Option<Answer> {
+    let l = ENTRY_LISTS.iter().find(|l| l.cmd == cmd)?;
+    let m = t.entries.get(&cmd)?;
     let mut b = params.to_vec();
-    let n = (get32(params, 4) as usize).min(params.len().saturating_sub(8) / 16);
-    let mut doms = Vec::new();
-    for i in 0..n {
-        let e = 8 + 16 * i;
-        let d = get32(params, e);
-        let w = t.clk64.get(&d)?;
-        for (k, x) in w.iter().enumerate() {
-            put32(&mut b, e + 4 + 4 * k, *x);
-        }
-        doms.push(format!("{d:#x}"));
+    let mut keys = Vec::new();
+    for e in l.offsets(params) {
+        let k = get32(params, e + l.key);
+        b[e..e + l.stride].copy_from_slice(m.get(&k)?);
+        keys.push(format!("{k:#x}"));
     }
     Some(ok(
         b,
         LABEL,
-        format!("gss legacy clk 0x64: domains [{}] from the recordings", doms.join(" ")),
+        format!("entry list {cmd:#x}: keys [{}] from the recordings", keys.join(" ")),
     ))
 }
 
@@ -538,6 +559,14 @@ mod tests {
         assert_eq!([w(0, 1), w(0, 2)], [1, 0x64]);
         put32(&mut p, 8, 2);
         assert!(answer(GSS_LEGACY_CLK_64, &p, &F).is_none());
+        // clk 0x04: 48-byte entries keyed by the domain at +4.
+        let mut p = vec![0u8; 1544];
+        put32(&mut p, 4, 2);
+        put32(&mut p, 12, 0x10);
+        put32(&mut p, 60, 1);
+        let a = answer(GSS_LEGACY_CLK_04, &p, &F).unwrap();
+        assert_eq!((get32(&a.params, 12), get32(&a.params, 16)), (0x10, 0xC_5C10));
+        assert_eq!((get32(&a.params, 60), get32(&a.params, 64)), (1, 0xC_D140));
     }
 
     #[test]
