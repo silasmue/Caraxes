@@ -4,8 +4,8 @@
 # Video engines: NVENC and NVDEC through the mirror
 
 Status 2026-09-25: work in progress. The session opens. The mirror builds the guest's
-NVENC channel on the host. No frame has been encoded in a guest yet. The hold design in §3
-is unit-tested only: GPU runs are paused after the host froze (§4).
+NVENC channel on the host. No frame has been encoded in a guest yet. The deferred-object
+design in §3 is unit-tested only; the hold design before it deadlocked (`probe-hold`).
 Records: `caraxes/runs/nvenc-2026-09-25/`. Probe: `caraxes/tools/nvenc-probe.c`.
 Citations are to the 615.71.09 tree.
 
@@ -43,10 +43,18 @@ Citations are to the 615.71.09 tree.
   - Built at the first doorbell, the host context took a VA that the guest filled later.
   - The guest's 2 MiB leaf at 0x120400000 was then refused in the shadow.
   - Result: Xid 31 FAULT_PTE on NVENC0 at 0x1205fe000 (`probe-mirror1`).
-- Therefore the first doorbell of a video channel is held. The mirror is built when the
-  guest's object arrives (`Mirror::take_video_hold`, `Ctrl::release_video_hold`). By then
-  the guest's context page is unmapped from the shadow, so the host's first fit is the
-  guest's own hole.
+- Holding the first doorbell until the object arrives deadlocks: the guest waits for its
+  first push before it allocates NVC4B7. `probe-hold` (binary 872743e): the channel stayed
+  held for 10 s, then `nvEncInitializeEncoder` failed with status 20. The run had no Xid,
+  no host NVRM line, and host VRAM was 3749 MiB free afterwards.
+- Now: the channel is built at its first doorbell and bound to its engine (BIND
+  engineType), so the first push runs. The guest's NVC4B7 is deferred
+  (`Mirror::place_video_object`, called after the allocation):
+  - The guest's context range, promoted just before the allocation
+    (`falcon/kernel_falcon.c:294-298`), leaves set A.
+  - The worker unmaps it and is waited for.
+  - Then the host object is allocated, so the host's first-fit context lands in that hole.
+  - With no promoted context, the object is refused.
 - Completion: NVDEC0 and NVENC0 have non-stall vectors 8 and 9 (`chips/tu106/interrupts.toml`).
   Host OS events on notifiers 14 and 38 raise them, as for GR and CE.
 - The guest-page descriptors of a mirrored channel (USERD, error notifier) are freed with

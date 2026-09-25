@@ -1620,14 +1620,14 @@ impl BootModel {
                                 "chid {chid}: USERD {userd:?} cleared ({USERD_SIZE} bytes, as GSP-RM does at channel creation): {ok} [synthesized]"
                             ));
                         }
-                        // A video object under a channel whose doorbell was held for it
-                        // (mirror.rs `take_video_hold`): the mirror is built and rung now.
+                        // A video object the mirror deferred (mirror.rs
+                        // `place_video_object`): placed on the host now.
                         if a.status == rpc::NV_OK {
                             let mut gm = crate::channel::GpuMem {
                                 fb: &mut self.fb,
                                 sys: mem,
                             };
-                            notes.extend(self.ctrl.release_video_hold(&mut gm, h_client, h_parent));
+                            notes.extend(self.ctrl.place_video_object(&mut gm, h_client, h_parent));
                         }
                         let mut reply = p[..at.min(p.len())].to_vec();
                         reply.resize(at, 0);

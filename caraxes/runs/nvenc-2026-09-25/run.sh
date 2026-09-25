@@ -30,7 +30,12 @@ night_guest 610
 export CARAXES_SERVER=$SERVER
 export CARAXES_MEM=2G
 export CARAXES_BAR1_POOL_MIB=32 CARAXES_BAR2_MEMFD=1 CARAXES_MSI_REARM_IOEVENTFD=1 CARAXES_ALLOC_LAZY=1
-night_vm2_free || exit 2
+# vm2 free: its device or its Cloud Hypervisor, matched by the command line's start (a host
+# guard's shell may carry the vm2 path in its own text).
+VM2_RE='^/mnt/vmstore/caraxes/(vm2/|vm1/cloud-hypervisor[^ ]* .*caraxes/vm2/)'
+if pgrep -f "$VM2_RE" >/dev/null; then
+    echo "ERROR: a vm2 process runs; refusing to start" >&2; pgrep -af "$VM2_RE" >&2; exit 2
+fi
 mkdir -p "$C"
 W=$NIGHT_W; T0=$(date '+%F %T')
 night_setup "$C"
@@ -48,19 +53,28 @@ for attempt in 1 2 3 4 5 6; do
     fi
 done
 finish() {
+    [[ -n ${JWATCH:-} ]] && { pkill -P "$JWATCH" 2>/dev/null; kill "$JWATCH" 2>/dev/null; }
     caraxes/tools/bench-hostwatch.sh stop "$C"
     tools/caraxes-vm.sh down > "$C/down.txt" 2>&1
     grep -E 'mirror: |shadow: |events: |video|NVENC|NVDEC|C4B7|c4b7|C4B0|c4b0|REFUSED|ERROR|WARN' "$W/gpu.log" \
         | cut -c1-1200 | tail -400 > "$C/device-summary.txt"
     journalctl -k --since "$T0" --no-pager -g Xid > "$C/host-xid.txt" 2>/dev/null
     for f in "$C"/*-trace.txt; do [[ -f $f ]] && xz -T0 "$f"; done
-    echo "$MODE-$LABEL done $(date -Iseconds); host Xid lines $(grep -c Xid "$C/host-xid.txt"); vm2 left: $(pgrep -f /mnt/vmstore/caraxes/vm2 | wc -l)"
+    echo "$MODE-$LABEL done $(date -Iseconds); host Xid lines $(grep -c Xid "$C/host-xid.txt"); vm2 left: $(pgrep -f "$VM2_RE" | wc -l)"
 }
 if [[ $up_ok != 1 ]]; then
     echo "ERROR: vm2 did not come up"; finish; exit 1
 fi
-pgrep -af "vfio-user-nvgpu.*$W/" > "$C/device-pid.txt"
-DPID=$(pgrep -f "vfio-user-nvgpu.*$W/" | head -1)
+pgrep -af "^$W/vfio-user-nvgpu" > "$C/device-pid.txt"
+DPID=$(pgrep -f "^$W/vfio-user-nvgpu" | head -1)
+# Host kernel NVRM lines of the run; the first Xid stops the device (SIGTERM, its own
+# teardown), so a fault never repeats.
+( journalctl -k -f -n 0 -o short-precise 2>/dev/null | grep --line-buffered -aE 'NVRM|Xid' \
+    | grep --line-buffered -av 'ioctl(' | while read -r l; do
+        echo "$l" >> "$C/host-kernel.txt"
+        case "$l" in *Xid*) kill -TERM "$DPID" 2>/dev/null && echo "STOPPED device $DPID at the first Xid" >> "$C/host-kernel.txt" ;; esac
+    done ) &
+JWATCH=$!
 tools/caraxes-vm.sh probe "nvenc-$LABEL" >> "$C/up.txt" 2>&1; tail -2 "$C/up.txt" | cut -c1-200
 caraxes/tools/bench-run.sh v2-nodes >> "$C/up.txt" 2>&1
 

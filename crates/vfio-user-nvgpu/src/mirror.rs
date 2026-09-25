@@ -95,12 +95,16 @@ pub fn video_class_ok(chip: &ChipData, class: u32) -> bool {
         && chip.classes.as_ref().is_some_and(|db| db.ids.contains(&class))
 }
 
-/// The video engine of channel `ch` when its doorbell must be held: a video channel
-/// with no video object of the chip yet (`gr_shadow_doorbell`).
-pub fn video_hold(chip: &ChipData, ch: &Channel) -> Option<&'static str> {
-    let engine = video_engine(ch.engine_type)?;
-    (!ch.engine_objects.iter().any(|(c, _)| video_class_ok(chip, *c))).then_some(engine)
+/// The engine a video channel with no video object yet is bound to at its build
+/// (`gr_shadow_doorbell`): its own engine type, when that is a video engine.
+pub fn video_bind(chip: &ChipData, ch: &Channel) -> Option<u32> {
+    video_engine(ch.engine_type)?;
+    (!ch.engine_objects.iter().any(|(c, _)| video_class_ok(chip, *c))).then_some(ch.engine_type)
 }
+
+/// `NVA06F_CTRL_CMD_BIND` {engineType} (ctrla06f.h): a host channel needs an engine before
+/// `GPFIFO_SCHEDULE` (docs/caraxes/host-exec.md §1: NV_ERR_INVALID_STATE otherwise).
+const CMD_CHANNEL_BIND: u32 = 0xA06F_0104;
 
 /// The promoted context ranges `[va, va + size)` of a channel (GR set B, a falcon
 /// engine's context), which the shadow keeps out of the guest's set A. A global GR
@@ -408,10 +412,10 @@ pub struct Mirror {
     unwaited: u64,
     /// The registered guest RAM descriptors `(handle, iova, size)`, read once.
     descs: Option<Vec<(u32, u64, u64)>>,
-    /// Video channels whose doorbell came before their NVENC or NVDEC object: held, not
-    /// built, until the guest allocates the object ([`Mirror::take_video_hold`];
+    /// Video objects the guest allocated on a mirrored shadow channel, not yet placed on
+    /// the host: `(class, params)` by ChID ([`Mirror::place_video_object`];
     /// docs/caraxes/video-engines.md §3).
-    video_held: std::collections::BTreeSet<u32>,
+    video_pending: BTreeMap<u32, (u32, Vec<u8>)>,
     next_event_id: u32,
     pub stats: MirrorStats,
 }
@@ -511,7 +515,7 @@ impl Mirror {
             hold: crate::untrapped::HoldStats::default(),
             unwaited: 0,
             descs: None,
-            video_held: Default::default(),
+            video_pending: BTreeMap::new(),
             next_event_id: 0x1000,
             stats: MirrorStats::default(),
         })
@@ -907,20 +911,6 @@ impl Mirror {
         let Some(ch) = reg.channel(chid).cloned() else {
             return vec![format!("shadow: chid {chid} not recorded")];
         };
-        // A video channel rings before its engine object exists (libnvidia-encode's first
-        // push precedes its NVC4B7 allocation). The host RM maps the host's video context
-        // into the shadow VAS when the object is allocated, first fit; allocated at this
-        // doorbell it landed on a VA the guest used later (Xid 31 FAULT_PTE on NVENC0 at
-        // 0x1205fe000, 2026-09-25 probe-mirror1). The doorbell is held and the channel
-        // built once the guest's object, and with it the guest's context VA, is known.
-        if let Some(engine) = video_hold(self.chip, &ch) {
-            let mut notes = lazy_notes;
-            notes.push(format!(
-                "shadow: chid {chid} {engine} channel rang before its video object: doorbell held, the mirror is built at the object's allocation [guest channel]"
-            ));
-            self.video_held.insert(chid);
-            return notes;
-        }
         let root = match reg.vas_key_of(&ch).and_then(|k| reg.vas_root(k)) {
             Some(Target::Fb(pa)) if pa >= self.base && pa + PAGE <= self.end => pa,
             other => {
@@ -1178,8 +1168,28 @@ impl Mirror {
             }
         }
         if objects.is_empty() {
-            notes.push("shadow: no engine object; not scheduling".into());
-            return notes;
+            // A video channel rings before its engine object exists, and the guest waits
+            // for that first push before it allocates the object (a held doorbell
+            // deadlocked for 10 s, 2026-09-25 probe-hold). The host channel is bound to
+            // the engine instead; the object follows at the guest's allocation
+            // (`place_video_object`).
+            let Some(engine) = video_bind(self.chip, &ch) else {
+                notes.push("shadow: no engine object; not scheduling".into());
+                return notes;
+            };
+            let mut p = engine.to_le_bytes();
+            let st = h.control(channel, CMD_CHANNEL_BIND, &mut p);
+            if st != sys::NV_OK {
+                notes.push(format!(
+                    "shadow: chid {chid} BIND engineType {engine:#x}: {}; not scheduling",
+                    status_name(st)
+                ));
+                return notes;
+            }
+            notes.push(format!(
+                "shadow: chid {chid} host channel bound to engineType {engine:#x} ({}; its object follows the guest's) [host]",
+                video_engine(engine).unwrap_or("engine")
+            ));
         }
         let mut sched = [1u8, 0, 0];
         let st = h.control(channel, CMD_GPFIFO_SCHEDULE, &mut sched);
@@ -1987,11 +1997,19 @@ impl Mirror {
     /// An engine object the guest allocated on an already mirrored channel.
     pub fn add_engine_object(&mut self, chid: u32, class: u32, params: &[u8]) -> Option<String> {
         let hc = self.channels.get_mut(&chid)?;
-        // A video object on a channel already running on the shadow: the host's context
-        // would be placed first fit after the channel's build, not where the guest's is.
+        // A video object on a shadow channel: placed by `place_video_object` once the
+        // guest's own context page has left the shadow.
         if video_class_ok(self.chip, class) && hc.shadow_root.is_some() {
+            if hc.objects.iter().any(|(c, _)| video_class_ok(self.chip, *c))
+                || self.video_pending.contains_key(&chid)
+            {
+                return Some(format!(
+                    "chid {chid}: a second video object {class:#x} on a mirrored channel: refused"
+                ));
+            }
+            self.video_pending.insert(chid, (class, params.to_vec()));
             return Some(format!(
-                "chid {chid}: a second video class {class:#x} on a mirrored channel: refused (the host context would land at a VA the guest uses)"
+                "chid {chid}: video object {class:#x} deferred until the guest's context page has left the shadow [host]"
             ));
         }
         let mut p = params.to_vec();
@@ -2012,16 +2030,60 @@ impl Mirror {
         })
     }
 
-    /// A held video channel (`video_held`) whose video object the guest has now
-    /// allocated: released, and the caller rings it again, which builds the mirror.
-    pub fn take_video_hold(&mut self, reg: &Registry, chid: u32) -> bool {
-        let ready = reg.channel(chid).is_some_and(|c| video_hold(self.chip, c).is_none());
-        ready && self.video_held.remove(&chid)
-    }
-
-    /// Whether `chid` is a video channel held for its object.
-    pub fn is_video_held(&self, chid: u32) -> bool {
-        self.video_held.contains(&chid)
+    /// The deferred video object of shadow channel `chid` (`add_engine_object`): the
+    /// guest's context range (its `GPU_PROMOTE_CTX`, sent before the object's allocation,
+    /// falcon/kernel_falcon.c:294-298) leaves set A first, the worker unmaps it and is
+    /// waited for, and only then the host object is allocated. The host RM maps its video
+    /// context first fit (kchannelMapEngineCtxBuf, kernel_channel.c:3860-3870), so it lands
+    /// in the hole the guest's own context left instead of a VA the guest fills later
+    /// (Xid 31 FAULT_PTE on NVENC0 at 0x1205fe000, probe-mirror1).
+    pub fn place_video_object(&mut self, reg: &Registry, gm: &mut GpuMem, chid: u32) -> Vec<String> {
+        let Some((class, params)) = self.video_pending.remove(&chid) else {
+            return Vec::new();
+        };
+        let mut notes = Vec::new();
+        let (Some(hc), Some(ch)) = (self.channels.get(&chid), reg.channel(chid)) else {
+            return vec![format!("chid {chid}: video object {class:#x}: the channel went away")];
+        };
+        let (handle, root) = (hc.handle, hc.shadow_root);
+        let ranges = promoted_ranges(reg, ch, |id| self.global_ctx_size(id));
+        if ranges.is_empty() {
+            return vec![format!(
+                "chid {chid}: video object {class:#x} refused: the guest promoted no context for it, so the host context has no hole to land in"
+            )];
+        }
+        if let Some(sp) = root.and_then(|r| self.shadows.get_mut(&r)) {
+            for x in ranges {
+                if !sp.exclude.contains(&x) {
+                    notes.push(format!(
+                        "shadow: chid {chid} guest context [{:#x}, {:#x}) leaves set A before the host's video object [guest]",
+                        x.0, x.1
+                    ));
+                    sp.exclude.push(x);
+                }
+            }
+        }
+        notes.extend(self.shadow_resync(reg, gm, root));
+        self.worker.wait_all();
+        let mut p = params;
+        let r = self
+            .hm
+            .lock()
+            .unwrap()
+            .alloc_object(handle, crate::board::host_class_of(class), &mut p, "video-object");
+        notes.push(match r {
+            Ok(oh) => {
+                if let Some(hc) = self.channels.get_mut(&chid) {
+                    hc.objects.push((class, oh));
+                }
+                format!("chid {chid}: host video object class {class:#x} {oh:#x} [host]")
+            }
+            Err(e) => format!(
+                "chid {chid}: host video object class {class:#x} refused: {}",
+                status_name(e)
+            ),
+        });
+        notes
     }
 
     /// The guest rang the doorbell of a mirrored channel: ring the host's.
@@ -2538,16 +2600,16 @@ impl Mirror {
     /// mirrors that stood for it, channels before TSGs before VA spaces.
     pub fn free_object(&mut self, reg: &Registry, h_client: u32, h_object: u32) -> Vec<String> {
         let mut notes = Vec::new();
-        // A held video channel that goes away never gets built.
+        // A deferred video object of a channel that goes away is never placed.
         let gone: Vec<u32> = reg
             .channels()
             .filter(|c| c.h_client == h_client && (h_client == h_object || c.h_object == h_object))
             .map(|c| c.chid)
-            .filter(|c| self.video_held.contains(c))
+            .filter(|c| self.video_pending.contains_key(c))
             .collect();
         for c in gone {
-            self.video_held.remove(&c);
-            notes.push(format!("chid {c}: held video channel freed before its object [guest]"));
+            self.video_pending.remove(&c);
+            notes.push(format!("chid {c}: deferred video object dropped with its channel [guest]"));
         }
         if h_client == h_object {
             let keys: Vec<(u32, u32)> = self
@@ -3147,27 +3209,28 @@ mod tests {
         assert_eq!(NOTIFIER_NVDEC0 | EVENT_NONSTALL, 0x0800_000E);
     }
 
-    /// A video channel's doorbell is held until its object exists (Xid 31 of
-    /// probe-mirror1), then released; a GR or CE channel is never held.
+    /// A video channel with no video object yet is bound to its own engine at its build
+    /// (the guest waits for the first push before it allocates the object); once the
+    /// chip's video object exists, or for a GR or CE channel, nothing is bound.
     #[test]
-    fn a_video_channel_is_held_until_its_object() {
+    fn a_video_channel_without_its_object_is_bound_to_its_engine() {
         let chip = crate::fixture::rtx2070().chip.data();
         let mut reg = registry();
         let mut cp = channel_params(22, Some(3));
         let o = <Abi as nvrm_sys::RmAbi>::ALLOC_CHANNEL_PARAMS_OFF_engineType;
         cp[o..o + 4].copy_from_slice(&0x1Bu32.to_le_bytes());
         reg.record_alloc(1, 0x80, 0x14, chip.channel.gpfifo, &cp);
-        assert_eq!(video_hold(chip, reg.channel(22).unwrap()), Some("NVENC0"));
-        // A foreign class on it does not release the hold.
+        assert_eq!(video_bind(chip, reg.channel(22).unwrap()), Some(0x1B));
+        // A foreign class on it is no video object of this chip.
         reg.record_alloc(1, 0x14, 0x31, 0xC7B7, &[]);
-        assert_eq!(video_hold(chip, reg.channel(22).unwrap()), Some("NVENC0"));
+        assert_eq!(video_bind(chip, reg.channel(22).unwrap()), Some(0x1B));
         reg.record_alloc(1, 0x14, 0x32, 0xC4B7, &[]);
-        assert_eq!(video_hold(chip, reg.channel(22).unwrap()), None);
+        assert_eq!(video_bind(chip, reg.channel(22).unwrap()), None);
         // A CE channel (engineType COPY2 0x0b) is not a video channel.
         let mut ce = channel_params(23, Some(4));
         ce[o..o + 4].copy_from_slice(&0x0Bu32.to_le_bytes());
         reg.record_alloc(1, 0x80, 0x15, chip.channel.gpfifo, &ce);
-        assert_eq!(video_hold(chip, reg.channel(23).unwrap()), None);
+        assert_eq!(video_bind(chip, reg.channel(23).unwrap()), None);
     }
 
     /// The ranges the shadow keeps out of set A: GR buffers with their size, a global GR
