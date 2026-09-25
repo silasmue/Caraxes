@@ -31,6 +31,11 @@ entry = [
     { mc = "CE2", vector_stall = 197, vector_nonstall = 5 },
     { mc = "CE3", vector_stall = 198, vector_nonstall = 6 },
     { mc = "CE4", vector_stall = 199, vector_nonstall = 7 },
+    # The video engines (docs/caraxes/video-engines.md): the kernel RM services their
+    # non-stall interrupts (gkflcnRegisterIntrService, kernel_falcon.c:362-400) from this
+    # table; the device raises them from the host's OS events on NVDEC0 and NVENC0.
+    { mc = "NVDEC0", vector_stall = 200, vector_nonstall = 8 },
+    { mc = "NVENC0", vector_stall = 201, vector_nonstall = 9 },
     # The display engine (docs/caraxes/display-ab.md): the kernel RM services it from
     # leaf 4 (intr_tu102.c:1191-1212, vectors 128-159); chips/tu106/display.toml
     # intr_vector. Nothing raises it before phase C.

@@ -1,0 +1,31 @@
+NVRM version: NVIDIA UNIX Open Kernel Module for x86_64  615.71.09  Release Build  (root@)  
+b6d03bfbe9b797321ce7d4e4d80eeeafa121a542180d803c303e14588618ed6a  /mnt/vmstore/caraxes/vfio-user-nvgpu-nvenc-v2
+960af13c53b2824a29a7461c8390c3f136f85082ed46a6edfb0fcd9bb642284f  /mnt/vmstore/caraxes/vm1/ch-0006-v.sh
+264621f4 sottr stage: x264 ultrafast and zerolatency for Sunshine (the encoder took a core and a half at 1080p60)
+bench-run.sh libdir v2: /opt/nvrm/lib
+CARAXES_ALLOC_LAZY=1
+CARAXES_BAR1_PASSTHROUGH=pool
+CARAXES_BAR1_POOL_MIB=32
+CARAXES_BAR2_MEMFD=1
+CARAXES_BOOT_MODEL=1
+CARAXES_DMA=register
+CARAXES_DOORBELL_POLL=hybrid
+CARAXES_DOORBELL_TOKENS=64
+CARAXES_FB_MIB=1024
+CARAXES_GATE_FB_MIB=1024
+CARAXES_HOST_EXEC=1
+CARAXES_HOST_RM=1
+CARAXES_INTR_PAGE=1
+CARAXES_IP=192.168.102.22
+CARAXES_LEANDRO_TEST=/home/silas/git/Leandro-Test
+CARAXES_MAC=02:00:00:00:00:22
+CARAXES_MEM=2G
+CARAXES_MIRROR_CHANNELS=1
+CARAXES_MIRROR_GR_SHADOW=1
+CARAXES_MSI_REARM_IOEVENTFD=1
+CARAXES_RESERVE_SLOT=3
+CARAXES_RESERVE_VRAM=1
+CARAXES_SERVER=/mnt/vmstore/caraxes/vfio-user-nvgpu-nvenc-v2
+CARAXES_TAP=caraxes2
+LEA_CH=/mnt/vmstore/caraxes/vm1/ch-0006-v.sh
+VM=vm2

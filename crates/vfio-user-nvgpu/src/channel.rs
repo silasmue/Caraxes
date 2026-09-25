@@ -49,6 +49,13 @@ type Abi = v::RmAbi;
 /// USERD offsets of GPGet and GPPut (`clc46f.h:61-62`).
 const USERD_GP_GET: u64 = 0x88;
 const USERD_GP_PUT: u64 = 0x8C;
+/// `NV_VASPACE_ALLOCATION_INDEX_GPU_DEVICE` (nvos.h:3178): "acquire reference to device
+/// vaspace".
+const VAS_INDEX_GPU_DEVICE: u32 = 3;
+/// The promote-entry id under which a falcon engine's context (NVENC, NVDEC, the
+/// top-level `virtAddress` of `GPU_PROMOTE_CTX`, falcon/kernel_falcon.c:266-270) is kept:
+/// GR buffer ids stop at 12 (`NV2080_CTRL_GPU_PROMOTE_CTX_BUFFER_ID_*`).
+pub const PROMOTE_ID_FALCON_CTX: u16 = 0x100;
 
 /// Where a GPU virtual address space's root page directory lives.
 fn gmmu_aperture(aperture: u32, pa: u64) -> Option<Target> {
@@ -265,6 +272,11 @@ pub struct Registry {
     aliases: BTreeMap<(u32, u32), (u32, u32)>,
     /// (hChanClient, hObject) → promoted context buffers by buffer id.
     promoted: BTreeMap<(u32, u32), BTreeMap<u16, PromoteEntry>>,
+    /// (hClient, hVASpace) of a `FERMI_VASPACE_A` with `index` GPU_DEVICE → its device:
+    /// the kernel announces a device's default VAS to GSP through such a transient
+    /// handle, `COPY_SERVER_RESERVED_PDES` on it and its FREE
+    /// (gpu_vaspace.c:3877-3921); the root then lives on under `(hClient, hDevice)`.
+    device_vas: BTreeMap<(u32, u32), u32>,
     /// ChID → channel.
     channels: BTreeMap<u32, Channel>,
     /// Device clock base for semaphore timestamps.
@@ -315,6 +327,7 @@ impl Registry {
             ctxshares: BTreeMap::new(),
             aliases: BTreeMap::new(),
             promoted: BTreeMap::new(),
+            device_vas: BTreeMap::new(),
             channels: BTreeMap::new(),
             start: Some(std::time::Instant::now()),
             doorbells: 0,
@@ -413,6 +426,14 @@ impl Registry {
                 return Some(r);
             }
         }
+        // A bare channel naming no VAS runs in its device's default VAS (the NVENC and
+        // NVDEC channels of libnvidia-encode and libnvcuvid).
+        if ch.vas.is_none() {
+            let dev = (ch.h_client, ch.h_parent);
+            if self.vaspaces.get(&dev).copied().flatten().is_some() {
+                return Some(dev);
+            }
+        }
         let mut roots = self
             .vaspaces
             .iter()
@@ -490,6 +511,24 @@ impl Registry {
                 if nonmapped { " nonmapped" } else { "" }
             ));
         }
+        // A falcon engine (NVENC, NVDEC) on a VAS the kernel manages promotes its one
+        // context buffer by VA alone: entryCount 0, virtAddress and size at the top level
+        // (falcon/kernel_falcon.c:217-271). The shadow keeps that range out of the
+        // guest's set A, as it does GR's set B (mirror.rs `gr_shadow_doorbell`).
+        let top_va = rd64(params, v::PROMOTE_VIRT_ADDRESS);
+        if n == 0 && top_va != 0 {
+            let size = rd64(params, v::PROMOTE_SIZE);
+            map.insert(
+                PROMOTE_ID_FALCON_CTX,
+                PromoteEntry {
+                    buffer_id: PROMOTE_ID_FALCON_CTX,
+                    virt: Some(top_va),
+                    size,
+                    ..Default::default()
+                },
+            );
+            desc.push(format!("falcon context va {top_va:#x} size {size:#x}"));
+        }
         format!(
             "promote ctx engineType {:#x} for {:#x}/{:#x}: {n} entries [{}] [guest, recorded]",
             rd32(params, v::PROMOTE_ENGINE_TYPE),
@@ -516,6 +555,10 @@ impl Registry {
     ) -> Option<String> {
         match h_class {
             FERMI_VASPACE_A => {
+                // NV_VASPACE_ALLOCATION_PARAMETERS.index @0; GPU_DEVICE 3 (nvos.h:3178).
+                if rd32(params, 0) == VAS_INDEX_GPU_DEVICE {
+                    self.device_vas.insert((h_client, h_object), h_parent);
+                }
                 self.vaspaces.insert((h_client, h_object), None);
                 self.vas_params
                     .insert((h_client, h_object), params.to_vec());
@@ -696,6 +739,16 @@ impl Registry {
             .retain(|(c, h), _| *c != h_client || !(all || *h == h_object));
         self.promoted
             .retain(|(c, h), _| *c != h_client || !(all || *h == h_object));
+        self.device_vas
+            .retain(|(c, h), d| *c != h_client || !(all || *h == h_object || *d == h_object));
+    }
+
+    /// The ChID of guest channel `(h_client, h_channel)`, if recorded.
+    pub fn chid_of(&self, h_client: u32, h_channel: u32) -> Option<u32> {
+        self.channels
+            .values()
+            .find(|c| c.h_client == h_client && c.h_object == h_channel)
+            .map(|c| c.chid)
     }
 
     /// `NV90F1_CTRL_CMD_VASPACE_COPY_SERVER_RESERVED_PDES` on a VAS: `levels[0]` is
@@ -731,8 +784,19 @@ impl Registry {
         let entries = (rd64(params, level(0) + v::PDES_LEVEL_SIZE_FIELD) / 8) as u32;
         self.root_entries.insert((h_client, h_vas), entries.max(1));
         self.server_pdes.insert((h_client, h_vas), params.to_vec());
+        // The device's default VAS, announced through a transient handle: kept under
+        // (hClient, hDevice) after that handle's FREE, for the channels that name no VAS.
+        let device_note = match self.device_vas.get(&(h_client, h_vas)).copied() {
+            Some(dev) => {
+                self.vaspaces.insert((h_client, dev), root);
+                self.root_entries.insert((h_client, dev), entries.max(1));
+                self.server_pdes.insert((h_client, dev), params.to_vec());
+                format!(" (the default VAS of device {dev:#x})")
+            }
+            None => String::new(),
+        };
         format!(
-            "vaspace {h_vas:#x}: root {root:?}; va {:#x}..{:#x} levels [{}] [guest]",
+            "vaspace {h_vas:#x}{device_note}: root {root:?}; va {:#x}..{:#x} levels [{}] [guest]",
             rd64(params, v::PDES_VIRT_ADDR_LO),
             rd64(params, v::PDES_VIRT_ADDR_HI),
             levels.join(", ")
@@ -2195,5 +2259,66 @@ mod tests {
         assert_eq!(reduce(6, true, 10, 10), 0);
         assert_eq!(reduce(5, true, 3, 10), 13);
         assert_eq!(reduce(7, true, 0, 10), 10);
+    }
+
+    /// libnvidia-encode's NVENC channel: a bare channel under the device, no VAS of its
+    /// own. Its VAS is the device's default VAS, which the kernel announced to GSP through
+    /// a transient GPU_DEVICE-index handle (gpu_vaspace.c:3877-3921) that it then freed.
+    #[test]
+    fn a_bare_video_channel_runs_in_the_device_default_vas() {
+        let mut reg = Registry::new(classes());
+        let mut vp = vec![0u8; 56];
+        vp[..4].copy_from_slice(&VAS_INDEX_GPU_DEVICE.to_le_bytes());
+        reg.record_alloc(1, 0x80, 0xcaf0_0000, FERMI_VASPACE_A, &vp);
+        let mut pdes = vec![0u8; 40 + 24 * 6];
+        pdes[40..48].copy_from_slice(&0x1_2729_d000u64.to_le_bytes());
+        pdes[56..60].copy_from_slice(&1u32.to_le_bytes());
+        let note = reg.record_server_reserved_pdes(1, 0xcaf0_0000, &pdes);
+        assert!(note.contains("default VAS of device 0x80"), "{note}");
+        reg.record_free(1, 0xcaf0_0000);
+        // NVENC0 (engineType 0x1b), parent the device, hVASpace 0.
+        let mut cp = channel_params(22, 0x1_2007_0000, 0x20_0000, 0);
+        let o = <Abi as RmAbi>::ALLOC_CHANNEL_PARAMS_OFF_engineType;
+        cp[o..o + 4].copy_from_slice(&0x1Bu32.to_le_bytes());
+        reg.record_alloc(1, 0x80, 0x14, TURING_CHANNEL_GPFIFO_A, &cp).unwrap();
+        let ch = reg.channel(22).unwrap().clone();
+        assert_eq!(ch.vas, None);
+        assert_eq!(reg.vas_key_of(&ch), Some((1, 0x80)));
+        assert_eq!(reg.vas_root(reg.vas_key_of(&ch).unwrap()), Some(Target::Fb(0x1_2729_d000)));
+        assert_eq!(reg.chid_of(1, 0x14), Some(22));
+        // A VAS allocated with index NEW (0) is no device default.
+        reg.record_alloc(2, 0x80, 0x21, FERMI_VASPACE_A, &[0u8; 56]);
+        let n = reg.record_server_reserved_pdes(2, 0x21, &pdes);
+        assert!(!n.contains("default VAS"), "{n}");
+        assert_eq!(reg.vas_root((2, 0x80)), None);
+    }
+
+    /// A falcon engine promotes its context by VA alone (entryCount 0, the top-level
+    /// virtAddress and size, falcon/kernel_falcon.c:217-271): recorded, so the shadow
+    /// keeps the range out of set A.
+    #[test]
+    fn a_falcon_context_promote_is_recorded_by_its_va() {
+        let mut reg = Registry::new(classes());
+        let mut p = vec![0u8; v::PROMOTE_PARAMS_SIZE];
+        p[v::PROMOTE_ENGINE_TYPE..][..4].copy_from_slice(&0x1Bu32.to_le_bytes());
+        p[v::PROMOTE_H_CHAN_CLIENT..][..4].copy_from_slice(&1u32.to_le_bytes());
+        p[v::PROMOTE_H_OBJECT..][..4].copy_from_slice(&0x14u32.to_le_bytes());
+        p[v::PROMOTE_VIRT_ADDRESS..][..8].copy_from_slice(&0x1_2002_d000u64.to_le_bytes());
+        p[v::PROMOTE_SIZE..][..8].copy_from_slice(&0x1000u64.to_le_bytes());
+        let note = reg.record_promote_ctx(&p);
+        assert!(note.contains("falcon context va 0x12002d000 size 0x1000"), "{note}");
+        let e = &reg.promoted((1, 0x14)).unwrap()[&PROMOTE_ID_FALCON_CTX];
+        assert_eq!((e.virt, e.size), (Some(0x1_2002_d000), 0x1000));
+        // A GR promote with entries leaves the top-level VA alone.
+        let mut g = vec![0u8; v::PROMOTE_PARAMS_SIZE];
+        g[v::PROMOTE_H_CHAN_CLIENT..][..4].copy_from_slice(&1u32.to_le_bytes());
+        g[v::PROMOTE_H_OBJECT..][..4].copy_from_slice(&0x15u32.to_le_bytes());
+        g[v::PROMOTE_VIRT_ADDRESS..][..8].copy_from_slice(&0x5000u64.to_le_bytes());
+        g[v::PROMOTE_ENTRY_COUNT..][..4].copy_from_slice(&1u32.to_le_bytes());
+        g[v::PROMOTE_ENTRIES + 8..][..8].copy_from_slice(&0x7000u64.to_le_bytes());
+        reg.record_promote_ctx(&g);
+        let m = reg.promoted((1, 0x15)).unwrap();
+        assert!(!m.contains_key(&PROMOTE_ID_FALCON_CTX));
+        assert_eq!(m[&0].virt, Some(0x7000));
     }
 }

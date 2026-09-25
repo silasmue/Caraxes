@@ -161,6 +161,10 @@ mod tests {
                 (17, 197, 5),
                 (18, 198, 6),
                 (19, 199, 7),
+                // The video engines NVDEC0 (MC 65) and NVENC0 (MC 38),
+                // docs/caraxes/video-engines.md.
+                (65, 200, 8),
+                (38, 201, 9),
                 // The display vector in leaf 4 (docs/caraxes/display-ab.md).
                 (2, 156, 0)
             ]

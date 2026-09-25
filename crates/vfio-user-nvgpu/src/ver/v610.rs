@@ -1258,6 +1258,8 @@ pub const SKYLINE_VALID_ENTRIES: usize = offset_of!(
 /// bInitialize @30, bNonmapped @31} (32 bytes); 560 bytes in all.
 pub const CMD_GPU_PROMOTE_CTX: u32 = 0x2080_012B;
 pub const PROMOTE_ENGINE_TYPE: usize = 0;
+pub const PROMOTE_VIRT_ADDRESS: usize = 24;
+pub const PROMOTE_SIZE: usize = 32;
 pub const PROMOTE_H_CHAN_CLIENT: usize = 12;
 pub const PROMOTE_H_OBJECT: usize = 16;
 pub const PROMOTE_ENTRY_COUNT: usize = 40;

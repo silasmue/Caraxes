@@ -397,6 +397,36 @@ impl Dispatcher {
         notes
     }
 
+    /// After an allocation under channel `(h_client, h_parent)`: a video channel the mirror
+    /// held for its object (mirror.rs `take_video_hold`) is rung again now, which builds its
+    /// mirror with the host's video object and forwards the held doorbell.
+    pub fn release_video_hold(
+        &mut self,
+        gm: &mut crate::channel::GpuMem,
+        h_client: u32,
+        h_parent: u32,
+    ) -> Vec<String> {
+        let Some(chid) = self
+            .channels
+            .channels()
+            .find(|c| c.h_client == h_client && c.h_object == h_parent)
+            .map(|c| c.chid)
+        else {
+            return Vec::new();
+        };
+        let Some(m) = self.mirror.as_mut() else {
+            return Vec::new();
+        };
+        if !m.take_video_hold(&self.channels, chid) {
+            return Vec::new();
+        }
+        let mut notes = vec![format!(
+            "chid {chid}: video object allocated; the held doorbell runs now [guest channel]"
+        )];
+        notes.extend(self.doorbell_chid(gm, chid, chid, false));
+        notes
+    }
+
     fn doorbell_chid(
         &mut self,
         gm: &mut crate::channel::GpuMem,
@@ -1472,8 +1502,8 @@ mod tests {
         );
         assert_eq!(a.params.len(), 2112);
         // Six milestone-1 entries plus the GR0/CE2-CE4 non-stall entries of E5b part 2,
-        // plus the display vector (display-ab.md).
-        assert_eq!(u32::from_le_bytes(a.params[0..4].try_into().unwrap()), 11);
+        // plus the display vector (display-ab.md) and NVDEC0/NVENC0 (video-engines.md).
+        assert_eq!(u32::from_le_bytes(a.params[0..4].try_into().unwrap()), 13);
         assert_eq!(
             u64::from_le_bytes(a.params[2056 + 8..2056 + 16].try_into().unwrap()),
             0x8
