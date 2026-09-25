@@ -1653,6 +1653,19 @@ impl BootModel {
                                 "chid {chid}: USERD {userd:?} cleared ({USERD_SIZE} bytes, as GSP-RM does at channel creation): {ok} [synthesized]"
                             ));
                         }
+                        // A video object the mirror deferred (mirror.rs
+                        // `place_video_object`): placed on the host now.
+                        let mut a = a;
+                        if a.status == rpc::NV_OK {
+                            let (n, refused) = self
+                                .ctrl
+                                .place_video_object(h_client, h_parent, h_object, h_class);
+                            notes.extend(n);
+                            if refused {
+                                // Fail closed: the guest's encoder/decoder open fails cleanly.
+                                a.status = crate::rpc::NV_ERR_NOT_SUPPORTED;
+                            }
+                        }
                         let mut reply = p[..at.min(p.len())].to_vec();
                         reply.resize(at, 0);
                         let st = v::RM_ALLOC_STATUS;

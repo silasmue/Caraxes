@@ -1,0 +1,4 @@
+Sep 25 14:07:12.182948 manacor kernel: NVRM: GPU0 virtmemAllocResources: VA Space alloc failed! Status Code: 0x51 Size: 0x200000 RangeLo: 0x120400000, RangeHi: 0x1205fffff, pageSzLockMask: 0x200000
+STOPPED device 611479 at the first NVRM line
+Sep 25 14:07:12.183130 manacor kernel: NVRM: GPU0 virtmemAllocResources: VA Space alloc failed! Status Code: 0x51 Size: 0x200000 RangeLo: 0x120400000, RangeHi: 0x1205fffff, pageSzLockMask: 0x200000
+STOPPED device 611479 at the first NVRM line

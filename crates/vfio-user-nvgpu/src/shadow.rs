@@ -113,6 +113,82 @@ pub const BULK_MIN_RUNS: usize = 4;
 pub const GATHER_MIN_LEAVES: usize = 16;
 pub const GATHER_MIN_RUNS: usize = 8;
 
+/// `SPLIT_VAS_SERVER_RM_MANAGED_VA_START`/`_SIZE` (g_gpu_vaspace_nvoc.h:90-91): the range a
+/// GSP-client RM reserves in every VA space for GSP-RM. The guest's own [4 GiB, 4.5 GiB) is
+/// reserved for its GSP, which is this device: the guest kernel and its clients never map
+/// there.
+pub const SERVER_RM_VA_START: u64 = 0x1_0000_0000;
+pub const SERVER_RM_VA_SIZE: u64 = 0x2000_0000;
+/// The guest's lowest VA outside 32-bit pointer requests: RM places its buffers and every
+/// unrestricted client allocation at 4 GiB or above (`bDmaEnforce32BitPointer`,
+/// vaspace.c:111-118, virt_mem_allocator_gm107.c:2768-2773), and [4 GiB, 4.5 GiB) is the
+/// server-RM range. The guest's kernel-RM buffers (GPFIFO, USERD, engine contexts) start
+/// here: 0x120000000.
+pub const GUEST_RM_VA_BASE: u64 = SERVER_RM_VA_START + SERVER_RM_VA_SIZE;
+/// The size of the host-only area below [`GUEST_RM_VA_BASE`] in a video shadow VA space.
+pub const HOST_AREA_SIZE: u64 = 64 << 20;
+
+/// The VA layout of a shadow VA space: where the host RM's own allocations go, and which
+/// guest VAs cannot be mirrored there.
+///
+/// The host RM places its internal buffers (a video engine's context, anything it adds) at
+/// the lowest free VA at or above max(4 GiB, the VAS base), outside its server-RM range; the
+/// guest's RM does the same in the guest's VA space. With the default layout both start at
+/// 0x120000000, so the host's first fit falls on a VA the guest uses next (Xid 31 at
+/// 0x1205fe000 in probe-mirror1, the collision at 0x120400000 in probe-merged610). The
+/// video layout creates the shadow VAS with its base [`HOST_AREA_SIZE`] below
+/// [`GUEST_RM_VA_BASE`]: the host's first fit is then the host area
+/// [0x11C000000, 0x120000000), inside the guest's server-RM range, which the guest never
+/// maps. The price: guest leaves below the base (32-bit pointer allocations) and inside the
+/// host's own server-RM range (the base + 4 GiB, gpu_vaspace.c:410-417) cannot be mirrored;
+/// the filter refuses them by name, so no fixed allocation ever collides with the host.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub struct Layout {
+    /// The shadow VAS's `vaBase` (0: the RM default, 1 MiB).
+    pub va_base: u64,
+    /// `[lo, hi)` where the host's own allocations land; empty in the default layout.
+    pub host_area: (u64, u64),
+    /// The host RM's server-RM range when it is not the guest's (the video layout).
+    pub host_server: (u64, u64),
+}
+
+impl Layout {
+    /// The layout of a shadow VA space built for a video channel.
+    pub fn video() -> Self {
+        let base = GUEST_RM_VA_BASE - HOST_AREA_SIZE;
+        // gvaspaceReserveSplitVaSpace: vasStart > 4 GiB moves the server-RM range to
+        // vasStart + 4 GiB.
+        let server = base + SERVER_RM_VA_START;
+        Layout {
+            va_base: base,
+            host_area: (base, GUEST_RM_VA_BASE),
+            host_server: (server, server + SERVER_RM_VA_SIZE),
+        }
+    }
+
+    /// Why guest VAs `[lo, hi)` cannot be mirrored in this layout, if they cannot.
+    pub fn unmirrorable(&self, lo: u64, hi: u64) -> Option<&'static str> {
+        if self.va_base == 0 {
+            return None;
+        }
+        let hit = |(a, b): (u64, u64)| lo < b && hi > a;
+        if lo < self.va_base {
+            Some("below the video shadow VAS base (a 32-bit pointer allocation)")
+        } else if hit(self.host_area) {
+            Some("in the host-only area (the guest's server-RM range)")
+        } else if hit(self.host_server) {
+            Some("in the host RM's server-RM range of the video shadow VAS")
+        } else {
+            None
+        }
+    }
+
+    /// Whether `va` lies in the host-only area.
+    pub fn in_host_area(&self, va: u64) -> bool {
+        va >= self.host_area.0 && va < self.host_area.1
+    }
+}
+
 /// The host RM calls the shadow makes, behind a trait so the plan logic runs against a fake
 /// host in the unit tests. [`HostMemory`] implements it with the RM escapes.
 pub trait ShadowHost {
@@ -617,6 +693,8 @@ pub struct ShadowFront {
     /// Units whose last plan wanted a leaf (for a sweep when the exclusions change).
     live_units: BTreeSet<u64>,
     always: bool,
+    /// The VA layout of the shadow VAS ([`Layout`]): guest leaves it cannot mirror are refused.
+    pub layout: Layout,
     pub skipped: u64,
 }
 
@@ -629,6 +707,7 @@ impl ShadowFront {
             refused_total: 0,
             live_units: BTreeSet::new(),
             always: std::env::var("CARAXES_SHADOW_ALWAYS_RESYNC").as_deref() == Ok("1"),
+            layout: Layout::default(),
             skipped: 0,
         }
     }
@@ -703,7 +782,11 @@ impl ShadowFront {
                     size: *size,
                     kind: *kind,
                 };
-                match resolve_leaf(&host_target(sys_mem, t, *size), *size, *kind, base, end, descs) {
+                let resolved = match self.layout.unmirrorable(*va, va + size) {
+                    Some(why) => Resolved::Refused(why),
+                    None => resolve_leaf(&host_target(sys_mem, t, *size), *size, *kind, base, end, descs),
+                };
+                match resolved {
                     Resolved::Vidmem { offset } => want_u.push(ToMap {
                         va: *va,
                         leaf,
@@ -810,9 +893,10 @@ pub struct ShadowVas {
 
 impl ShadowVas {
     /// A fresh normal (host-managed) `FERMI_VASPACE_A`.
-    pub fn new(hm: &mut HostMemory, budget: MapBudget) -> Result<Self, u32> {
+    pub fn new(hm: &mut HostMemory, budget: MapBudget, layout: &Layout) -> Result<Self, u32> {
         let device = hm.device();
         let mut vp = sys::NV_VASPACE_ALLOCATION_PARAMETERS::default();
+        vp.vaBase = layout.va_base;
         vp.vaSize = 1 << 47;
         vp.bigPageSize = 64 * 1024;
         // SAFETY: plain-data alloc params viewed as bytes.
@@ -823,6 +907,12 @@ impl ShadowVas {
             )
         };
         let vas = hm.alloc_object(device, sys::FERMI_VASPACE_A, bytes, "shadow-vaspace")?;
+        // The RM returns the base it took (vaspace_api.c:419): a video layout the host did
+        // not honour is refused (its host area would not be the host's first fit).
+        if layout.va_base != 0 && vp.vaBase != layout.va_base {
+            let _ = hm.free_object(vas);
+            return Err(0x1f); // NV_ERR_INVALID_ARGUMENT
+        }
         Ok(Self::with_vas(vas, budget))
     }
 
@@ -2654,5 +2744,31 @@ mod tests {
         assert_eq!(h.calls(Call::ObjectAlloc).len(), 1);
         assert_eq!(s.stats.map_failed, 16);
         assert_eq!(s.stats.exhausted, 8);
+    }
+
+    /// The video layout's filter: guest leaves the host VAS cannot hold (here below its base)
+    /// are refused by name and never reach a map call; the default layout maps them.
+    #[test]
+    fn the_video_layout_refuses_leaves_below_its_base() {
+        let mut fb = FakeFb::new(END + (64 << 20));
+        let vid = |a: u64| ((a >> 12) << 8) | 0b010;
+        let pte = |a: u64| ((a >> 12) << 8) | 1 | (0x06u64 << 56);
+        let (root, pd2, pd1, pd0, pt) = (BASE, BASE + 0x1000, BASE + 0x2000, BASE + 0x3000, BASE + 0x4000);
+        fb.write_u64(root, vid(pd2));
+        fb.write_u64(pd2, vid(pd1));
+        fb.write_u64(pd1, vid(pd0));
+        fb.write_u64(pd0 + 8, vid(pt));
+        let x = BASE + 0x10_0000;
+        for i in 0..4u64 {
+            fb.write_u64(pt + 8 * (i + 1), pte(x + i * 0x1000));
+        }
+        let mem = GuestMemory::new();
+        let mut front = ShadowFront::new(root);
+        front.layout = Layout::video();
+        let plan = front.plan(&fb, &mem, BASE, END, 1, &[], &[]).unwrap();
+        assert_eq!((plan.want, plan.refused_now), (0, 4));
+        assert!(plan.notes.iter().any(|l| l.contains("below the video shadow VAS base")));
+        let plan = ShadowFront::new(root).plan(&fb, &mem, BASE, END, 1, &[], &[]).unwrap();
+        assert_eq!((plan.want, plan.refused_now), (4, 0));
     }
 }

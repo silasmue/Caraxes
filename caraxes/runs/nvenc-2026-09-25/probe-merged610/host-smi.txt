@@ -1,0 +1,1265 @@
+# SPDX-License-Identifier: MIT
+# host nvidia-smi reads every 0.5 s during the probe; device pid 611479
+T 14:07:10.345 0 %, 0 %, 0, 0, 0
+S # GPU Session    Process   Codec       H       V Average     Average
+S # Idx      Id         Id    Type     Res     Res     FPS Latency(us)
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+T 14:07:20.954 0 %, 0 %, 0, 0, 0
+S # GPU Session    Process   Codec       H       V Average     Average
+S # Idx      Id         Id    Type     Res     Res     FPS Latency(us)
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+T 14:07:31.607 0 %, 0 %, 0, 0, 0
+S # GPU Session    Process   Codec       H       V Average     Average
+S # Idx      Id         Id    Type     Res     Res     FPS Latency(us)
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+T 14:07:42.204 0 %, 0 %, 0, 0, 0
+S # GPU Session    Process   Codec       H       V Average     Average
+S # Idx      Id         Id    Type     Res     Res     FPS Latency(us)
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+T 14:07:52.875 0 %, 0 %, 0, 0, 0
+S # GPU Session    Process   Codec       H       V Average     Average
+S # Idx      Id         Id    Type     Res     Res     FPS Latency(us)
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+T 14:08:03.505 0 %, 0 %, 0, 0, 0
+S # GPU Session    Process   Codec       H       V Average     Average
+S # Idx      Id         Id    Type     Res     Res     FPS Latency(us)
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+T 14:08:14.120 0 %, 0 %, 0, 0, 0
+S # GPU Session    Process   Codec       H       V Average     Average
+S # Idx      Id         Id    Type     Res     Res     FPS Latency(us)
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+T 14:08:24.773 0 %, 0 %, 0, 0, 0
+S # GPU Session    Process   Codec       H       V Average     Average
+S # Idx      Id         Id    Type     Res     Res     FPS Latency(us)
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+T 14:08:35.429 0 %, 0 %, 0, 0, 0
+S # GPU Session    Process   Codec       H       V Average     Average
+S # Idx      Id         Id    Type     Res     Res     FPS Latency(us)
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+T 14:08:46.025 0 %, 0 %, 0, 0, 0
+S # GPU Session    Process   Codec       H       V Average     Average
+S # Idx      Id         Id    Type     Res     Res     FPS Latency(us)
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+T 14:08:56.620 0 %, 0 %, 0, 0, 0
+S # GPU Session    Process   Codec       H       V Average     Average
+S # Idx      Id         Id    Type     Res     Res     FPS Latency(us)
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+T 14:09:07.257 0 %, 0 %, 0, 0, 0
+S # GPU Session    Process   Codec       H       V Average     Average
+S # Idx      Id         Id    Type     Res     Res     FPS Latency(us)
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+T 14:09:17.904 0 %, 0 %, 0, 0, 0
+S # GPU Session    Process   Codec       H       V Average     Average
+S # Idx      Id         Id    Type     Res     Res     FPS Latency(us)
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+T 14:09:28.552 0 %, 0 %, 0, 0, 0
+S # GPU Session    Process   Codec       H       V Average     Average
+S # Idx      Id         Id    Type     Res     Res     FPS Latency(us)
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+T 14:09:39.142 0 %, 0 %, 0, 0, 0
+S # GPU Session    Process   Codec       H       V Average     Average
+S # Idx      Id         Id    Type     Res     Res     FPS Latency(us)
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+T 14:09:49.738 0 %, 0 %, 0, 0, 0
+S # GPU Session    Process   Codec       H       V Average     Average
+S # Idx      Id         Id    Type     Res     Res     FPS Latency(us)
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+T 14:10:00.364 0 %, 0 %, 0, 0, 0
+S # GPU Session    Process   Codec       H       V Average     Average
+S # Idx      Id         Id    Type     Res     Res     FPS Latency(us)
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+T 14:10:10.924 0 %, 0 %, 0, 0, 0
+S # GPU Session    Process   Codec       H       V Average     Average
+S # Idx      Id         Id    Type     Res     Res     FPS Latency(us)
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+T 14:10:21.466 0 %, 0 %, 0, 0, 0
+S # GPU Session    Process   Codec       H       V Average     Average
+S # Idx      Id         Id    Type     Res     Res     FPS Latency(us)
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+T 14:10:32.026 0 %, 0 %, 0, 0, 0
+S # GPU Session    Process   Codec       H       V Average     Average
+S # Idx      Id         Id    Type     Res     Res     FPS Latency(us)
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+T 14:10:42.605 0 %, 0 %, 0, 0, 0
+S # GPU Session    Process   Codec       H       V Average     Average
+S # Idx      Id         Id    Type     Res     Res     FPS Latency(us)
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+T 14:10:53.150 0 %, 0 %, 0, 0, 0
+S # GPU Session    Process   Codec       H       V Average     Average
+S # Idx      Id         Id    Type     Res     Res     FPS Latency(us)
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+T 14:11:03.705 0 %, 0 %, 0, 0, 0
+S # GPU Session    Process   Codec       H       V Average     Average
+S # Idx      Id         Id    Type     Res     Res     FPS Latency(us)
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+T 14:11:14.249 0 %, 0 %, 0, 0, 0
+S # GPU Session    Process   Codec       H       V Average     Average
+S # Idx      Id         Id    Type     Res     Res     FPS Latency(us)
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+T 14:11:24.809 0 %, 0 %, 0, 0, 0
+S # GPU Session    Process   Codec       H       V Average     Average
+S # Idx      Id         Id    Type     Res     Res     FPS Latency(us)
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+T 14:11:35.373 0 %, 0 %, 0, 0, 0
+S # GPU Session    Process   Codec       H       V Average     Average
+S # Idx      Id         Id    Type     Res     Res     FPS Latency(us)
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+T 14:11:45.930 0 %, 0 %, 0, 0, 0
+S # GPU Session    Process   Codec       H       V Average     Average
+S # Idx      Id         Id    Type     Res     Res     FPS Latency(us)
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+T 14:11:56.510 0 %, 0 %, 0, 0, 0
+S # GPU Session    Process   Codec       H       V Average     Average
+S # Idx      Id         Id    Type     Res     Res     FPS Latency(us)
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+T 14:12:07.054 0 %, 0 %, 0, 0, 0
+S # GPU Session    Process   Codec       H       V Average     Average
+S # Idx      Id         Id    Type     Res     Res     FPS Latency(us)
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+T 14:12:17.629 0 %, 0 %, 0, 0, 0
+S # GPU Session    Process   Codec       H       V Average     Average
+S # Idx      Id         Id    Type     Res     Res     FPS Latency(us)
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+T 14:12:28.179 0 %, 0 %, 0, 0, 0
+S # GPU Session    Process   Codec       H       V Average     Average
+S # Idx      Id         Id    Type     Res     Res     FPS Latency(us)
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+T 14:12:38.747 0 %, 0 %, 0, 0, 0
+S # GPU Session    Process   Codec       H       V Average     Average
+S # Idx      Id         Id    Type     Res     Res     FPS Latency(us)
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+T 14:12:49.296 0 %, 0 %, 0, 0, 0
+S # GPU Session    Process   Codec       H       V Average     Average
+S # Idx      Id         Id    Type     Res     Res     FPS Latency(us)
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+T 14:12:59.838 0 %, 0 %, 0, 0, 0
+S # GPU Session    Process   Codec       H       V Average     Average
+S # Idx      Id         Id    Type     Res     Res     FPS Latency(us)
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+T 14:13:10.415 0 %, 0 %, 0, 0, 0
+S # GPU Session    Process   Codec       H       V Average     Average
+S # Idx      Id         Id    Type     Res     Res     FPS Latency(us)
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+T 14:13:21.007 0 %, 0 %, 0, 0, 0
+S # GPU Session    Process   Codec       H       V Average     Average
+S # Idx      Id         Id    Type     Res     Res     FPS Latency(us)
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+T 14:13:31.571 0 %, 0 %, 0, 0, 0
+S # GPU Session    Process   Codec       H       V Average     Average
+S # Idx      Id         Id    Type     Res     Res     FPS Latency(us)
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+T 14:13:42.130 0 %, 0 %, 0, 0, 0
+S # GPU Session    Process   Codec       H       V Average     Average
+S # Idx      Id         Id    Type     Res     Res     FPS Latency(us)
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+T 14:13:52.673 0 %, 0 %, 0, 0, 0
+S # GPU Session    Process   Codec       H       V Average     Average
+S # Idx      Id         Id    Type     Res     Res     FPS Latency(us)
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+T 14:14:03.217 0 %, 0 %, 0, 0, 0
+S # GPU Session    Process   Codec       H       V Average     Average
+S # Idx      Id         Id    Type     Res     Res     FPS Latency(us)
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+T 14:14:13.768 0 %, 0 %, 0, 0, 0
+S # GPU Session    Process   Codec       H       V Average     Average
+S # Idx      Id         Id    Type     Res     Res     FPS Latency(us)
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+T 14:14:24.314 0 %, 0 %, 0, 0, 0
+S # GPU Session    Process   Codec       H       V Average     Average
+S # Idx      Id         Id    Type     Res     Res     FPS Latency(us)
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+T 14:14:34.854 0 %, 0 %, 0, 0, 0
+S # GPU Session    Process   Codec       H       V Average     Average
+S # Idx      Id         Id    Type     Res     Res     FPS Latency(us)
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+T 14:14:45.400 0 %, 0 %, 0, 0, 0
+S # GPU Session    Process   Codec       H       V Average     Average
+S # Idx      Id         Id    Type     Res     Res     FPS Latency(us)
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+T 14:14:55.946 0 %, 0 %, 0, 0, 0
+S # GPU Session    Process   Codec       H       V Average     Average
+S # Idx      Id         Id    Type     Res     Res     FPS Latency(us)
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+T 14:15:06.495 0 %, 0 %, 0, 0, 0
+S # GPU Session    Process   Codec       H       V Average     Average
+S # Idx      Id         Id    Type     Res     Res     FPS Latency(us)
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+T 14:15:17.099 0 %, 0 %, 0, 0, 0
+S # GPU Session    Process   Codec       H       V Average     Average
+S # Idx      Id         Id    Type     Res     Res     FPS Latency(us)
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+T 14:15:27.650 0 %, 0 %, 0, 0, 0
+S # GPU Session    Process   Codec       H       V Average     Average
+S # Idx      Id         Id    Type     Res     Res     FPS Latency(us)
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+T 14:15:38.228 0 %, 0 %, 0, 0, 0
+S # GPU Session    Process   Codec       H       V Average     Average
+S # Idx      Id         Id    Type     Res     Res     FPS Latency(us)
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+T 14:15:48.779 0 %, 0 %, 0, 0, 0
+S # GPU Session    Process   Codec       H       V Average     Average
+S # Idx      Id         Id    Type     Res     Res     FPS Latency(us)
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+T 14:15:59.331 0 %, 0 %, 0, 0, 0
+S # GPU Session    Process   Codec       H       V Average     Average
+S # Idx      Id         Id    Type     Res     Res     FPS Latency(us)
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+T 14:16:09.885 0 %, 0 %, 0, 0, 0
+S # GPU Session    Process   Codec       H       V Average     Average
+S # Idx      Id         Id    Type     Res     Res     FPS Latency(us)
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+T 14:16:20.438 0 %, 0 %, 0, 0, 0
+S # GPU Session    Process   Codec       H       V Average     Average
+S # Idx      Id         Id    Type     Res     Res     FPS Latency(us)
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+T 14:16:30.985 0 %, 0 %, 0, 0, 0
+S # GPU Session    Process   Codec       H       V Average     Average
+S # Idx      Id         Id    Type     Res     Res     FPS Latency(us)
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+T 14:16:41.572 0 %, 0 %, 0, 0, 0
+S # GPU Session    Process   Codec       H       V Average     Average
+S # Idx      Id         Id    Type     Res     Res     FPS Latency(us)
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+T 14:16:52.123 0 %, 0 %, 0, 0, 0
+S # GPU Session    Process   Codec       H       V Average     Average
+S # Idx      Id         Id    Type     Res     Res     FPS Latency(us)
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+T 14:17:02.702 0 %, 0 %, 0, 0, 0
+S # GPU Session    Process   Codec       H       V Average     Average
+S # Idx      Id         Id    Type     Res     Res     FPS Latency(us)
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+T 14:17:13.246 0 %, 0 %, 0, 0, 0
+S # GPU Session    Process   Codec       H       V Average     Average
+S # Idx      Id         Id    Type     Res     Res     FPS Latency(us)
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+T 14:17:23.801 0 %, 0 %, 0, 0, 0
+S # GPU Session    Process   Codec       H       V Average     Average
+S # Idx      Id         Id    Type     Res     Res     FPS Latency(us)
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+T 14:17:34.354 0 %, 0 %, 0, 0, 0
+S # GPU Session    Process   Codec       H       V Average     Average
+S # Idx      Id         Id    Type     Res     Res     FPS Latency(us)
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+T 14:17:44.903 0 %, 0 %, 0, 0, 0
+S # GPU Session    Process   Codec       H       V Average     Average
+S # Idx      Id         Id    Type     Res     Res     FPS Latency(us)
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+T 14:17:55.480 0 %, 0 %, 0, 0, 0
+S # GPU Session    Process   Codec       H       V Average     Average
+S # Idx      Id         Id    Type     Res     Res     FPS Latency(us)
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+T 14:18:06.027 0 %, 0 %, 0, 0, 0
+S # GPU Session    Process   Codec       H       V Average     Average
+S # Idx      Id         Id    Type     Res     Res     FPS Latency(us)
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+T 14:18:16.593 0 %, 0 %, 0, 0, 0
+S # GPU Session    Process   Codec       H       V Average     Average
+S # Idx      Id         Id    Type     Res     Res     FPS Latency(us)
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+T 14:18:27.146 0 %, 0 %, 0, 0, 0
+S # GPU Session    Process   Codec       H       V Average     Average
+S # Idx      Id         Id    Type     Res     Res     FPS Latency(us)
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+T 14:18:37.710 0 %, 0 %, 0, 0, 0
+S # GPU Session    Process   Codec       H       V Average     Average
+S # Idx      Id         Id    Type     Res     Res     FPS Latency(us)
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+T 14:18:48.277 0 %, 0 %, 0, 0, 0
+S # GPU Session    Process   Codec       H       V Average     Average
+S # Idx      Id         Id    Type     Res     Res     FPS Latency(us)
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+T 14:18:58.836 0 %, 0 %, 0, 0, 0
+S # GPU Session    Process   Codec       H       V Average     Average
+S # Idx      Id         Id    Type     Res     Res     FPS Latency(us)
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+T 14:19:09.413 0 %, 0 %, 0, 0, 0
+S # GPU Session    Process   Codec       H       V Average     Average
+S # Idx      Id         Id    Type     Res     Res     FPS Latency(us)
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+T 14:19:19.963 0 %, 0 %, 0, 0, 0
+S # GPU Session    Process   Codec       H       V Average     Average
+S # Idx      Id         Id    Type     Res     Res     FPS Latency(us)
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+T 14:19:30.517 0 %, 0 %, 0, 0, 0
+S # GPU Session    Process   Codec       H       V Average     Average
+S # Idx      Id         Id    Type     Res     Res     FPS Latency(us)
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+T 14:19:41.067 0 %, 0 %, 0, 0, 0
+S # GPU Session    Process   Codec       H       V Average     Average
+S # Idx      Id         Id    Type     Res     Res     FPS Latency(us)
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+T 14:19:51.624 0 %, 0 %, 0, 0, 0
+S # GPU Session    Process   Codec       H       V Average     Average
+S # Idx      Id         Id    Type     Res     Res     FPS Latency(us)
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+T 14:20:02.189 0 %, 0 %, 0, 0, 0
+S # GPU Session    Process   Codec       H       V Average     Average
+S # Idx      Id         Id    Type     Res     Res     FPS Latency(us)
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+T 14:20:12.789 0 %, 0 %, 0, 0, 0
+S # GPU Session    Process   Codec       H       V Average     Average
+S # Idx      Id         Id    Type     Res     Res     FPS Latency(us)
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+T 14:20:23.341 0 %, 0 %, 0, 0, 0
+S # GPU Session    Process   Codec       H       V Average     Average
+S # Idx      Id         Id    Type     Res     Res     FPS Latency(us)
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+T 14:20:33.895 0 %, 0 %, 0, 0, 0
+S # GPU Session    Process   Codec       H       V Average     Average
+S # Idx      Id         Id    Type     Res     Res     FPS Latency(us)
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+T 14:20:44.459 0 %, 0 %, 0, 0, 0
+S # GPU Session    Process   Codec       H       V Average     Average
+S # Idx      Id         Id    Type     Res     Res     FPS Latency(us)
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+T 14:20:55.016 0 %, 0 %, 0, 0, 0
+S # GPU Session    Process   Codec       H       V Average     Average
+S # Idx      Id         Id    Type     Res     Res     FPS Latency(us)
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+T 14:21:05.593 0 %, 0 %, 0, 0, 0
+S # GPU Session    Process   Codec       H       V Average     Average
+S # Idx      Id         Id    Type     Res     Res     FPS Latency(us)
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+T 14:21:16.178 0 %, 0 %, 0, 0, 0
+S # GPU Session    Process   Codec       H       V Average     Average
+S # Idx      Id         Id    Type     Res     Res     FPS Latency(us)
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+T 14:21:26.750 0 %, 0 %, 0, 0, 0
+S # GPU Session    Process   Codec       H       V Average     Average
+S # Idx      Id         Id    Type     Res     Res     FPS Latency(us)
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+T 14:21:37.351 0 %, 0 %, 0, 0, 0
+S # GPU Session    Process   Codec       H       V Average     Average
+S # Idx      Id         Id    Type     Res     Res     FPS Latency(us)
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+T 14:21:47.929 0 %, 0 %, 0, 0, 0
+S # GPU Session    Process   Codec       H       V Average     Average
+S # Idx      Id         Id    Type     Res     Res     FPS Latency(us)
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+T 14:21:58.478 0 %, 0 %, 0, 0, 0
+S # GPU Session    Process   Codec       H       V Average     Average
+S # Idx      Id         Id    Type     Res     Res     FPS Latency(us)
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+T 14:22:09.044 0 %, 0 %, 0, 0, 0
+S # GPU Session    Process   Codec       H       V Average     Average
+S # Idx      Id         Id    Type     Res     Res     FPS Latency(us)
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+T 14:22:19.622 0 %, 0 %, 0, 0, 0
+S # GPU Session    Process   Codec       H       V Average     Average
+S # Idx      Id         Id    Type     Res     Res     FPS Latency(us)
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+T 14:22:30.192 0 %, 0 %, 0, 0, 0
+S # GPU Session    Process   Codec       H       V Average     Average
+S # Idx      Id         Id    Type     Res     Res     FPS Latency(us)
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+T 14:22:40.760 0 %, 0 %, 0, 0, 0
+S # GPU Session    Process   Codec       H       V Average     Average
+S # Idx      Id         Id    Type     Res     Res     FPS Latency(us)
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+T 14:22:51.329 0 %, 0 %, 0, 0, 0
+S # GPU Session    Process   Codec       H       V Average     Average
+S # Idx      Id         Id    Type     Res     Res     FPS Latency(us)
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+T 14:23:01.899 0 %, 0 %, 0, 0, 0
+S # GPU Session    Process   Codec       H       V Average     Average
+S # Idx      Id         Id    Type     Res     Res     FPS Latency(us)
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+T 14:23:12.501 0 %, 0 %, 0, 0, 0
+S # GPU Session    Process   Codec       H       V Average     Average
+S # Idx      Id         Id    Type     Res     Res     FPS Latency(us)
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+T 14:23:23.076 0 %, 0 %, 0, 0, 0
+S # GPU Session    Process   Codec       H       V Average     Average
+S # Idx      Id         Id    Type     Res     Res     FPS Latency(us)
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+T 14:23:33.665 0 %, 0 %, 0, 0, 0
+S # GPU Session    Process   Codec       H       V Average     Average
+S # Idx      Id         Id    Type     Res     Res     FPS Latency(us)
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+T 14:23:44.249 0 %, 0 %, 0, 0, 0
+S # GPU Session    Process   Codec       H       V Average     Average
+S # Idx      Id         Id    Type     Res     Res     FPS Latency(us)
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+T 14:23:54.821 0 %, 0 %, 0, 0, 0
+S # GPU Session    Process   Codec       H       V Average     Average
+S # Idx      Id         Id    Type     Res     Res     FPS Latency(us)
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+T 14:24:05.391 0 %, 0 %, 0, 0, 0
+S # GPU Session    Process   Codec       H       V Average     Average
+S # Idx      Id         Id    Type     Res     Res     FPS Latency(us)
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+T 14:24:15.976 0 %, 0 %, 0, 0, 0
+S # GPU Session    Process   Codec 

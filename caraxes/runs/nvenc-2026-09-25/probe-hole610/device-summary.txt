@@ -1,0 +1,1 @@
+vfio-user-nvgpu: hostmem: freed host video-object 0x80000147

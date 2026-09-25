@@ -1,0 +1,16 @@
+Cannot load libnvidia-encode.so.1
+RESULT FAIL libnvidia-encode.so.1 not loaded
+rc=1
+ls: cannot access '/tmp/probe.es': No such file or directory
+top - 13:30:58 up 2 min,  2 users,  load average: 0.92, 0.21, 0.07
+Tasks: 221 total,   1 running, 220 sleeping,   0 stopped,   0 zombie
+%Cpu(s):  0.0 us,  1.2 sy,  0.0 ni, 97.7 id,  0.0 wa,  0.0 hi,  0.0 si,  1.2 st 
+MiB Mem :   1901.0 total,   1157.2 free,    502.9 used,    385.5 buff/cache     
+MiB Swap:      0.0 total,      0.0 free,      0.0 used.   1398.1 avail Mem 
+
+    PID USER      PR  NI    VIRT    RES    SHR S  %CPU  %MEM     TIME+ COMMAND
+     17 root      20   0       0      0      0 I  10.0   0.0   0:00.03 rcu_pre+
+    333 root      19  -1   42436  16920  15600 S  10.0   0.9   0:00.27 systemd+
+   2010 root      20   0   18652   9432   7860 S  10.0   0.5   0:00.07 Xorg
+      1 root      20   0   23104  14120   9516 S   0.0   0.7   0:02.09 systemd
+      2 root      20   0       0      0      0 S   0.0   0.0   0:00.00 kthreadd

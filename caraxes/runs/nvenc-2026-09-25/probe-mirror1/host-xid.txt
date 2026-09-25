@@ -1,0 +1,1 @@
+Sep 25 11:21:34 manacor kernel: NVRM: Xid (PCI:0000:2d:00): 31, pid=121037, name=vfio-user-nvgpu, intr 00000000. MMU Fault: ENGINE NVENC0 HUBCLIENT_NVENC0 faulted @ 0x1_205fe000. Fault is of type FAULT_PTE ACCESS_TYPE_VIRT_WRITE

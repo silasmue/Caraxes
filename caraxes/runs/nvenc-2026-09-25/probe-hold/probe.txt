@@ -1,0 +1,20 @@
+INFO device "Leandro VFIO RTX 2070-1G", CUDA context in 619.9 ms
+INFO NVENC API: driver supports 13.1, header 13.1
+INFO NVENC session opened in 16.6 ms
+INFO NVENC codecs: 2, H.264 present
+INFO NVENC caps: max 4096x4096
+RESULT FAIL nv.nvEncInitializeEncoder(enc, &ip): NVENCSTATUS 20 
+rc=1
+ls: cannot access '/tmp/probe.es': No such file or directory
+top - 10:11:57 up 2 min,  2 users,  load average: 0.47, 0.12, 0.04
+Tasks: 223 total,   1 running, 222 sleeping,   0 stopped,   0 zombie
+%Cpu(s):  0.0 us,  2.2 sy,  0.0 ni, 95.5 id,  0.0 wa,  0.0 hi,  0.0 si,  2.2 st 
+MiB Mem :   1901.0 total,    993.6 free,    569.6 used,    487.6 buff/cache     
+MiB Swap:      0.0 total,      0.0 free,      0.0 used.   1331.3 avail Mem 
+
+    PID USER      PR  NI    VIRT    RES    SHR S  %CPU  %MEM     TIME+ COMMAND
+   2190 root      20   0   18684   9336   7724 S  10.0   0.5   0:00.12 Xorg
+   2192 leandro   20   0   12332   5480   3336 R  10.0   0.3   0:00.01 top
+      1 root      20   0   23092  14104   9512 S   0.0   0.7   0:02.30 systemd
+      2 root      20   0       0      0      0 S   0.0   0.0   0:00.00 kthreadd
+      3 root      20   0       0      0      0 S   0.0   0.0   0:00.00 pool_wo+

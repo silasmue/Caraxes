@@ -1,0 +1,159 @@
+   137120343 R bar0 0x00306784 4  0x12040f16   NV_PROM_DATA (VBIOS window)
+   137710603 R bar0 0x0030dfb4 4  0x12043e0f   NV_PROM_DATA (VBIOS window)
+   141307008 E boot: ctrl 0x2080012b: promote ctx engineType 0x1 for 0xc1e00004/0xbaba0045: 9 entries [0: pa 0x127452000 attr 0x4 va 0x120020000 size 0xee000 init; 2: pa 0x127559000 attr 0x4 va 0x12010e000 size 0x5000 init; 3: pa 0x0 attr 0x0 va 0x120113000 size 0x0; 4: pa 0x0 attr 0x0 va 0x1201a0000 size 0x0; 5: pa 0x0 attr 0x0 va 0x120400000 size 0x0; 6: pa 0x0 attr 0x0 va 0x1201c0000 size 0x0; 9: pa 0x7fff2d260000 attr 0x5 va 0x120010000 size 0x10000 init; 10: pa 0x127330000 attr 0x4 va 0x0 size 0x80000 init nonmapped; 11: pa 0x1272b0000 attr 0x4 va 0x120120000 size 0x80000 init] [guest, re
+   141339396 E boot: ctrl 0x2080012b: promote ctx engineType 0x1 for 0xc1e00005/0xdada0045: 8 entries [0: pa 0x127452000 attr 0x4 va 0x120020000 size 0xee000 init; 2: pa 0x127559000 attr 0x4 va 0x12010e000 size 0x5000 init; 3: pa 0x0 attr 0x0 va 0x120113000 size 0x0; 4: pa 0x0 attr 0x0 va 0x1201a0000 size 0x0; 5: pa 0x0 attr 0x0 va 0x120400000 size 0x0; 6: pa 0x0 attr 0x0 va 0x1201c0000 size 0x0; 9: pa 0x0 attr 0x0 va 0x120010000 size 0x0; 11: pa 0x0 attr 0x0 va 0x120120000 size 0x0] [guest, recorded] -> status 0x0 [guest (promote entries recorded; echo)]
+   151017576 E boot: ctrl 0x20808165: GSS legacy gpu 0x65 (video): host status 0x0 -> status 0x0 [host (GSS legacy, forwarded opaquely; command and size from a native host trace)]
+   151025006 E boot: ctrl 0x2080a028: GSS legacy perf 0x28 (video): host status 0x0 -> status 0x0 [host (GSS legacy, forwarded opaquely; command and size from a native host trace)]
+   151053435 E boot: ctrl 0x20808165: GSS legacy gpu 0x65 (video): host status 0x0 -> status 0x0 [host (GSS legacy, forwarded opaquely; command and size from a native host trace)]
+   151054733 E boot: ctrl 0x20808163: GSS legacy gpu 0x63 (video session open): host status 0x0 -> status 0x0 [host (GSS legacy, forwarded opaquely; command and size from a native host trace)]
+   151075869 E boot: alloc: alloc 0xc46f object 0x80000014 under 0x80000000: channel 0x80000014 chid 22 engineType 0x1b gpfifo va 0x120070000 x 4096 userd Some(Fb(3917938688)) vaspace None errorNotifier Some(Sys(140734147948544)) [guest] -> status 0x0 [guest (recorded for the channel emulation; no host object)]
+   151075878 E boot: chid 22: USERD Fb(3917938688) cleared (512 bytes, as GSP-RM does at channel creation): true [synthesized]
+   151076517 E boot: ctrl 0xa06f0104: channel bind 0x80000014: engineType 0x1b (chid 22) -> status 0x0 [guest (recorded; the host mirror binds with its engine object)]
+   151096472 E boot: shadow: GR chid 22 on the host-managed shadow VAS of guest root 0x12729d000
+   151096479 E boot: shadow: chid 22 host channel bound to engineType 0x1b (NVENC0; its object follows the guest's) [host]
+   151096480 E boot: shadow: chid 22 scheduled; host token 0x20046 (host chid 70, runlist 2) [host]
+   151096481 E boot: shadow: chid 22 restored guest GPGet 0 / GPPut 2 (host RM had cleared the USERD) [guest]
+   151096482 E boot: doorbell: guest chid 22 -> host token 0x20046 written to the host doorbell page (1 on this channel) [host]
+   151096484 E boot: doorbell tokens: chid 22 gets pool token 0xca700014 (was 0x70016; the entry held the host token 0x20046), written to its work-submit-token notifier entry at Sys(140734147948568) [synthesized]
+   151107926 E boot: alloc: alloc 0xc4b7 object 0x80000032 under 0x80000014: engine object class 0xc4b7 on chid 22 (0 bytes of params) [guest]; chid 22: video object 0xc4b7 deferred until the guest's context page has left the shadow [host] -> status 0x0 [guest (recorded for the channel emulation; no host object)]
+   151107928 E boot: shadow: chid 22 guest context [0x12002d000, 0x12002e000) leaves set A before the host's video object [guest]
+   151107930 E boot: chid 22: host video object class 0xc4b7 0x800000b7 [host]
+   151108669 E boot: doorbell: guest chid 22 -> host token 0x20046 written to the host doorbell page (2 on this channel) [host]
+   151198140 E boot: shadow: region 0x120400000 (Huge) object refused 0x1a; per-leaf objects there [host]
+   151198142 E boot: shadow: map va 0x120400000 -> Fb(efc00000) size 0x200000 refused: per-leaf VA object 0x1a (VA collision with set B?) [host]
+   151209660 E boot: alloc: alloc 0xc46f object 0x8000004b under 0x80000000: channel 0x8000004b chid 23 engineType 0xb gpfifo va 0x120190000 x 4096 userd Some(Fb(3918200832)) vaspace None errorNotifier Some(Sys(140734148976640)) [guest] -> status 0x0 [guest (recorded for the channel emulation; no host object)]
+   151209661 E boot: chid 23: USERD Fb(3918200832) cleared (512 bytes, as GSP-RM does at channel creation): true [synthesized]
+   151210730 E boot: ctrl 0xa06f0104: channel bind 0x8000004b: engineType 0xb (chid 23) -> status 0x0 [guest (recorded; the host mirror binds with its engine object)]
+   151229788 E boot: doorbell 1: token 0x10017 chid 23 runlist 1
+   151229789 E boot: chid 23 gp 0: pushbuffer va 0x120150000 1 dwords
+   151229791 E boot: chid 23 gp 1: pushbuffer va 0x120198000 6 dwords
+   151229794 E boot: mirror: chid 23 in software: bare channel (no TSG): stays with the software executor
+   151229795 E boot: doorbell tokens: chid 23: work-submit-token entry at Sys(140734148976664) holds Some(0), not the rung token 0x10017; it keeps its own token (trapped)
+   151230068 E boot: alloc: alloc 0xc5b5 object 0x80000069 under 0x8000004b: engine object class 0xc5b5 on chid 23 (8 bytes of params) [guest] -> status 0x0 [guest (recorded for the channel emulation; no host object)]
+   151231977 E boot: doorbell 2: token 0x10017 chid 23 runlist 1
+   151231978 E boot: chid 23 gp 2: pushbuffer va 0x120150004 2 dwords
+   151231981 E boot: chid 23 gp 3: pushbuffer va 0x120198018 6 dwords
+   151231983 E boot: mirror: chid 23 in software: bare channel (no TSG): stays with the software executor
+   151231992 E boot: doorbell tokens: chid 23: work-submit-token entry at Sys(140734148976664) holds Some(0), not the rung token 0x10017; it keeps its own token (trapped)
+   151240486 E boot: doorbell 3: token 0x10017 chid 23 runlist 1
+   151240488 E boot: chid 23 gp 4: pushbuffer va 0x12015000c 39 dwords
+   151240497 E boot: ce memset 2088960 bytes -> va 0x120400000 value 0x0/0x0 [guest]
+   151240508 E boot: chid 23 gp 5: pushbuffer va 0x120198030 6 dwords
+   151240512 E boot: mirror: chid 23 in software: bare channel (no TSG): stays with the software executor
+   151240614 E boot: doorbell tokens: chid 23: work-submit-token entry at Sys(140734148976664) holds Some(0), not the rung token 0x10017; it keeps its own token (trapped)
+   151241935 E boot: doorbell 4: token 0x10017 chid 23 runlist 1
+   151241937 E boot: chid 23 gp 6: pushbuffer va 0x1201500a8 34 dwords
+   151241938 E boot: ce memset 1044480 bytes -> va 0x1205fe000 value 0x80/0x0 [guest]
+   151241942 E boot: chid 23 gp 7: pushbuffer va 0x120198048 6 dwords
+   151241944 E boot: mirror: chid 23 in software: bare channel (no TSG): stays with the software executor
+   151241946 E boot: doorbell tokens: chid 23: work-submit-token entry at Sys(140734148976664) holds Some(0), not the rung token 0x10017; it keeps its own token (trapped)
+   151258407 E boot: doorbell 5: token 0x10017 chid 23 runlist 1
+   151258408 E boot: chid 23 gp 8: pushbuffer va 0x120150130 39 dwords
+   151258423 E boot: chid 23 gp 9: pushbuffer va 0x120198060 6 dwords
+   151258426 E boot: mirror: chid 23 in software: bare channel (no TSG): stays with the software executor
+   151258428 E boot: doorbell tokens: chid 23: work-submit-token entry at Sys(140734148976664) holds Some(0), not the rung token 0x10017; it keeps its own token (trapped)
+   151259615 E boot: doorbell 6: token 0x10017 chid 23 runlist 1
+   151259617 E boot: chid 23 gp 10: pushbuffer va 0x1201501cc 34 dwords
+   151259624 E boot: chid 23 gp 11: pushbuffer va 0x120198078 6 dwords
+   151259628 E boot: mirror: chid 23 in software: bare channel (no TSG): stays with the software executor
+   151259629 E boot: doorbell tokens: chid 23: work-submit-token entry at Sys(140734148976664) holds Some(0), not the rung token 0x10017; it keeps its own token (trapped)
+   151274557 E boot: doorbell 7: token 0x10017 chid 23 runlist 1
+   151274559 E boot: chid 23 gp 12: pushbuffer va 0x120150254 39 dwords
+   151274572 E boot: chid 23 gp 13: pushbuffer va 0x120198090 6 dwords
+   151274591 E boot: mirror: chid 23 in software: bare channel (no TSG): stays with the software executor
+   151274594 E boot: doorbell tokens: chid 23: work-submit-token entry at Sys(140734148976664) holds Some(0), not the rung token 0x10017; it keeps its own token (trapped)
+   151275892 E boot: doorbell 8: token 0x10017 chid 23 runlist 1
+   151275894 E boot: chid 23 gp 14: pushbuffer va 0x1201502f0 34 dwords
+   151275901 E boot: chid 23 gp 15: pushbuffer va 0x1201980a8 6 dwords
+   151275904 E boot: mirror: chid 23 in software: bare channel (no TSG): stays with the software executor
+   151275906 E boot: doorbell tokens: chid 23: work-submit-token entry at Sys(140734148976664) holds Some(0), not the rung token 0x10017; it keeps its own token (trapped)
+   151289366 E boot: doorbell 9: token 0x10017 chid 23 runlist 1
+   151289370 E boot: chid 23 gp 16: pushbuffer va 0x120150378 39 dwords
+   151289434 E boot: chid 23 gp 17: pushbuffer va 0x1201980c0 6 dwords
+   151289437 E boot: mirror: chid 23 in software: bare channel (no TSG): stays with the software executor
+   151289440 E boot: doorbell tokens: chid 23: work-submit-token entry at Sys(140734148976664) holds Some(0), not the rung token 0x10017; it keeps its own token (trapped)
+   151291182 E boot: doorbell 10: token 0x10017 chid 23 runlist 1
+   151291183 E boot: chid 23 gp 18: pushbuffer va 0x120150414 34 dwords
+   151291188 E boot: chid 23 gp 19: pushbuffer va 0x1201980d8 6 dwords
+   151291191 E boot: mirror: chid 23 in software: bare channel (no TSG): stays with the software executor
+   151291193 E boot: doorbell tokens: chid 23: work-submit-token entry at Sys(140734148976664) holds Some(0), not the rung token 0x10017; it keeps its own token (trapped)
+   151311159 E boot: doorbell 11: token 0x10017 chid 23 runlist 1
+   151311161 E boot: chid 23 gp 20: pushbuffer va 0x12015049c 39 dwords
+   151311175 E boot: chid 23 gp 21: pushbuffer va 0x1201980f0 6 dwords
+   151311179 E boot: mirror: chid 23 in software: bare channel (no TSG): stays with the software executor
+   151311180 E boot: doorbell tokens: chid 23: work-submit-token entry at Sys(140734148976664) holds Some(0), not the rung token 0x10017; it keeps its own token (trapped)
+   151312903 E boot: doorbell 12: token 0x10017 chid 23 runlist 1
+   151312905 E boot: chid 23 gp 22: pushbuffer va 0x120150538 34 dwords
+   151312911 E boot: chid 23 gp 23: pushbuffer va 0x120198108 6 dwords
+   151312915 E boot: mirror: chid 23 in software: bare channel (no TSG): stays with the software executor
+   151312917 E boot: doorbell tokens: chid 23: work-submit-token entry at Sys(140734148976664) holds Some(0), not the rung token 0x10017; it keeps its own token (trapped)
+   151343816 E boot: doorbell 13: token 0x10017 chid 23 runlist 1
+   151343818 E boot: chid 23 gp 24: pushbuffer va 0x1201505c0 39 dwords
+   151343833 E boot: chid 23 gp 25: pushbuffer va 0x120198120 6 dwords
+   151343836 E boot: mirror: chid 23 in software: bare channel (no TSG): stays with the software executor
+   151343838 E boot: doorbell tokens: chid 23: work-submit-token entry at Sys(140734148976664) holds Some(0), not the rung token 0x10017; it keeps its own token (trapped)
+   151352206 E boot: doorbell 14: token 0x10017 chid 23 runlist 1
+   151352209 E boot: chid 23 gp 26: pushbuffer va 0x12015065c 34 dwords
+   151352216 E boot: chid 23 gp 27: pushbuffer va 0x120198138 6 dwords
+   151352228 E boot: mirror: chid 23 in software: bare channel (no TSG): stays with the software executor
+   151352230 E boot: doorbell tokens: chid 23: work-submit-token entry at Sys(140734148976664) holds Some(0), not the rung token 0x10017; it keeps its own token (trapped)
+   151358472 E boot: doorbell 15: token 0x10017 chid 23 runlist 1
+   151358475 E boot: chid 23 gp 28: pushbuffer va 0x1201506e4 34 dwords
+   151358483 E boot: chid 23 gp 29: pushbuffer va 0x120198150 6 dwords
+   151358486 E boot: mirror: chid 23 in software: bare channel (no TSG): stays with the software executor
+   151358488 E boot: doorbell tokens: chid 23: work-submit-token entry at Sys(140734148976664) holds Some(0), not the rung token 0x10017; it keeps its own token (trapped)
+   151362371 E boot: doorbell 16: token 0x10017 chid 23 runlist 1
+   151362373 E boot: chid 23 gp 30: pushbuffer va 0x12015076c 34 dwords
+   151362380 E boot: chid 23 gp 31: pushbuffer va 0x120198168 6 dwords
+   151362384 E boot: mirror: chid 23 in software: bare channel (no TSG): stays with the software executor
+   151362386 E boot: doorbell tokens: chid 23: work-submit-token entry at Sys(140734148976664) holds Some(0), not the rung token 0x10017; it keeps its own token (trapped)
+   151395445 E boot: doorbell 17: token 0x10017 chid 23 runlist 1
+   151395447 E boot: chid 23 gp 32: pushbuffer va 0x1201507f4 39 dwords
+   151395461 E boot: chid 23 gp 33: pushbuffer va 0x120198180 6 dwords
+   151395465 E boot: mirror: chid 23 in software: bare channel (no TSG): stays with the software executor
+   151395467 E boot: doorbell tokens: chid 23: work-submit-token entry at Sys(140734148976664) holds Some(0), not the rung token 0x10017; it keeps its own token (trapped)
+   151396036 E boot: doorbell 18: token 0x10017 chid 23 runlist 1
+   151396038 E boot: chid 23 gp 34: pushbuffer va 0x120150890 34 dwords
+   151396045 E boot: chid 23 gp 35: pushbuffer va 0x120198198 6 dwords
+   151396048 E boot: mirror: chid 23 in software: bare channel (no TSG): stays with the software executor
+   151396050 E boot: doorbell tokens: chid 23: work-submit-token entry at Sys(140734148976664) holds Some(0), not the rung token 0x10017; it keeps its own token (trapped)
+   151401183 E boot: doorbell 19: token 0x10017 chid 23 runlist 1
+   151401185 E boot: chid 23 gp 36: pushbuffer va 0x120150918 39 dwords
+   151401196 E boot: chid 23 gp 37: pushbuffer va 0x1201981b0 6 dwords
+   151401198 E boot: mirror: chid 23 in software: bare channel (no TSG): stays with the software executor
+   151401200 E boot: doorbell tokens: chid 23: work-submit-token entry at Sys(140734148976664) holds Some(0), not the rung token 0x10017; it keeps its own token (trapped)
+   151401608 E boot: doorbell 20: token 0x10017 chid 23 runlist 1
+   151401610 E boot: chid 23 gp 38: pushbuffer va 0x1201509b4 34 dwords
+   151401615 E boot: chid 23 gp 39: pushbuffer va 0x1201981c8 6 dwords
+   151401617 E boot: mirror: chid 23 in software: bare channel (no TSG): stays with the software executor
+   151401630 E boot: doorbell tokens: chid 23: work-submit-token entry at Sys(140734148976664) holds Some(0), not the rung token 0x10017; it keeps its own token (trapped)
+   151417925 E boot: doorbell 21: token 0x10017 chid 23 runlist 1
+   151417927 E boot: chid 23 gp 40: pushbuffer va 0x120150a3c 39 dwords
+   151417941 E boot: chid 23 gp 41: pushbuffer va 0x1201981e0 6 dwords
+   151417944 E boot: mirror: chid 23 in software: bare channel (no TSG): stays with the software executor
+   151417946 E boot: doorbell tokens: chid 23: work-submit-token entry at Sys(140734148976664) holds Some(0), not the rung token 0x10017; it keeps its own token (trapped)
+   151422574 E boot: doorbell 22: token 0x10017 chid 23 runlist 1
+   151422577 E boot: chid 23 gp 42: pushbuffer va 0x120150ad8 34 dwords
+   151422583 E boot: chid 23 gp 43: pushbuffer va 0x1201981f8 6 dwords
+   151422586 E boot: mirror: chid 23 in software: bare channel (no TSG): stays with the software executor
+   151422588 E boot: doorbell tokens: chid 23: work-submit-token entry at Sys(140734148976664) holds Some(0), not the rung token 0x10017; it keeps its own token (trapped)
+   151429486 E boot: doorbell 23: token 0x10017 chid 23 runlist 1
+   151429488 E boot: chid 23 gp 44: pushbuffer va 0x120150b60 39 dwords
+   151429502 E boot: chid 23 gp 45: pushbuffer va 0x120198210 6 dwords
+   151429506 E boot: mirror: chid 23 in software: bare channel (no TSG): stays with the software executor
+   151429508 E boot: doorbell tokens: chid 23: work-submit-token entry at Sys(140734148976664) holds Some(0), not the rung token 0x10017; it keeps its own token (trapped)
+   151433473 E boot: doorbell 24: token 0x10017 chid 23 runlist 1
+   151433475 E boot: chid 23 gp 46: pushbuffer va 0x120150bfc 34 dwords
+   151433482 E boot: chid 23 gp 47: pushbuffer va 0x120198228 6 dwords
+   151433497 E boot: mirror: chid 23 in software: bare channel (no TSG): stays with the software executor
+   151433499 E boot: doorbell tokens: chid 23: work-submit-token entry at Sys(140734148976664) holds Some(0), not the rung token 0x10017; it keeps its own token (trapped)
+   151444014 E boot: doorbell 25: token 0x10017 chid 23 runlist 1
+   151444016 E boot: chid 23 gp 48: pushbuffer va 0x120150c84 39 dwords
+   151444044 E boot: chid 23 gp 49: pushbuffer va 0x120198240 6 dwords
+   151444048 E boot: mirror: chid 23 in software: bare channel (no TSG): stays with the software executor
+   151444050 E boot: doorbell tokens: chid 23: work-submit-token entry at Sys(140734148976664) holds Some(0), not the rung token 0x10017; it keeps its own token (trapped)
+   151452832 E boot: doorbell 26: token 0x10017 chid 23 runlist 1
+   151452834 E boot: chid 23 gp 50: pushbuffer va 0x120150d20 34 dwords
+   151452841 E boot: chid 23 gp 51: pushbuffer va 0x120198258 6 dwords
+   151452844 E boot: mirror: chid 23 in software: bare channel (no TSG): stays with the software executor
+   151452846 E boot: doorbell tokens: chid 23: work-submit-token entry at Sys(140734148976664) holds Some(0), not the rung token 0x10017; it keeps its own token (trapped)

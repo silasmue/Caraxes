@@ -1,0 +1,19 @@
+INFO device "NVIDIA GeForce RTX 2070", CUDA context in 290.5 ms
+INFO NVENC API: driver supports 13.1, header 13.1
+INFO NVENC session opened in 9.1 ms
+INFO NVENC codecs: 2, H.264 present
+INFO NVENC caps: max 4096x4096
+INFO NVENC encoder initialised 1920x1080 H.264 P1 ultra-low-latency CBR 20000 kbit/s in 30.8 ms
+FRAME 0 type 3 bytes 35786 lat_us 3330
+FRAME 1 type 0 bytes 24066 lat_us 2943
+FRAME 2 type 0 bytes 19624 lat_us 3230
+FRAME 60 type 0 bytes 18691 lat_us 2915
+FRAME 120 type 3 bytes 39052 lat_us 3624
+FRAME 180 type 0 bytes 15922 lat_us 3311
+FRAME 240 type 3 bytes 35816 lat_us 3586
+ENC frames=300 bytes=5274082 seconds=1.867 fps=160.7 fill_ms_total=963 lat_us_med=2939 lat_us_p99=3594 lat_us_max=4507 kbit_per_s_at_60fps=8439
+BITSTREAM codec=h264 nal=302 vps=0 sps=1 pps=1 idr=3 slice=297 other=0 bad_start=0 profile=100 level=42 sps_size=1920x1080 sps_parsed=1
+INFO NVDEC caps: max 4096x4096, 1 NVDEC engine(s), output formats mask 0x41
+INFO NVDEC decoder 1920x1088 coded, 1920x1080 target, 7 surfaces
+DEC frames=300 seconds=2.182 fps=137.5 psnr_y_min=63.37 psnr_y_avg=71.46 (the decoded luma against the pattern; includes the copy to the host and the comparison)
+RESULT PASS

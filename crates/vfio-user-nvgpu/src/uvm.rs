@@ -299,14 +299,19 @@ pub fn answer(
             ),
         ),
         // kernel_channel_api.c `kchannelCtrlCmdBind`: the engine is the TSG's (GR for the
-        // GL driver's channels); a host mirror binds at its engine object's allocation.
-        CMD_CHANNEL_BIND => ok(
-            "guest (recorded; the host mirror binds with its engine object)",
-            format!(
-                "channel bind {h_object:#x}: engineType {:#x}",
-                params.get(..4).map_or(0, |b| u32::from_le_bytes(b.try_into().unwrap()))
-            ),
-        ),
+        // GL driver's channels); a host mirror binds at its engine object's allocation (a
+        // video channel is built once its object exists, docs/caraxes/video-engines.md §3).
+        CMD_CHANNEL_BIND => {
+            let engine = params.get(..4).map_or(0, |b| u32::from_le_bytes(b.try_into().unwrap()));
+            let chid = channels.chid_of(h_client, h_object);
+            ok(
+                "guest (recorded; the host mirror binds with its engine object)",
+                format!(
+                    "channel bind {h_object:#x}: engineType {engine:#x}{}",
+                    chid.map_or(String::new(), |c| format!(" (chid {c})"))
+                ),
+            )
+        }
         // kernel_channel_group_api.c:426-505: guest-sysmem method buffers.
         CMD_TSG_INTERNAL_PROMOTE_FAULT_METHOD_BUFFERS => ok(
             "guest (recorded only; no CE fault is ever replayed)",

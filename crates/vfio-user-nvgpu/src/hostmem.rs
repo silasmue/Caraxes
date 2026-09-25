@@ -392,6 +392,9 @@ impl OsEvent {
     }
 }
 
+/// The status of an RM call made after the teardown (`NV_ERR_INVALID_STATE`): answered
+/// without an ioctl.
+pub const CLOSED: Status = 0x40;
 const KIB: u64 = 1 << 10;
 const MIB: u64 = 1 << 20;
 const GIB: u64 = 1 << 30;
@@ -580,6 +583,10 @@ pub struct HostMemory {
     /// `nr_foll_pin_acquired`/`_released` when the client opened (host-wide counters).
     pins_at_open: (u64, u64),
     shut: bool,
+    /// The teardown has run: the RM client is gone, so every later RM call (a shadow worker
+    /// still unmapping, 2026-09-25 probe-hole610: `Object handle is not valid` at
+    /// mapping.c:302) is answered here with [`CLOSED`] and never reaches the host.
+    closed: bool,
     /// Host frees that did not return NV_OK over the device's life (`free_object`,
     /// `free_live`), with a line each. Any entry makes the teardown fail closed
     /// ([`run_teardown`]): a host object whose free failed may still reference the
@@ -785,6 +792,7 @@ impl HostMemory {
             live: Vec::new(),
             pins_at_open: foll_pins(),
             shut: false,
+            closed: false,
             free_failures: Vec::new(),
             fail_closed: None,
             guard: crate::hostfloor::HostGuard::from_env(),
@@ -824,6 +832,9 @@ impl HostMemory {
         params: &mut [u8],
         what: &'static str,
     ) -> Result<u32, Status> {
+        if self.closed {
+            return Err(CLOSED);
+        }
         self.admit_class(class, what)?;
         let h = self.rm.next_handle();
         let mut p = sys::NVOS64_PARAMETERS::default();
@@ -865,6 +876,9 @@ impl HostMemory {
         params: &mut [u8],
         what: &'static str,
     ) -> Result<u32, Status> {
+        if self.closed {
+            return Err(CLOSED);
+        }
         self.admit_class(class, what)?;
         let h = self.rm.next_handle();
         let mut p = sys::NVOS64_PARAMETERS::default();
@@ -1050,6 +1064,32 @@ impl HostMemory {
         )
     }
 
+    /// `NV50_MEMORY_VIRTUAL` of `size` bytes (4 KiB pages, 4 KiB aligned) wherever the VA
+    /// space's allocator puts it (not fixed): its handle and VA. The shadow's probe of the
+    /// host RM's first fit (mirror.rs `place_video_object`); the caller frees it.
+    pub fn alloc_virtual_probe(&mut self, vaspace: u32, size: u64) -> Result<(u32, u64), Status> {
+        let mut p = sys::NV_MEMORY_ALLOCATION_PARAMS::default();
+        p.owner = OWNER_TAG;
+        p.type_ = sys::NVOS32_TYPE_IMAGE as u32;
+        p.flags = sys::NVOS32_ALLOC_FLAGS_VIRTUAL as u32 | sys::NVOS32_ALLOC_FLAGS_ALIGNMENT_FORCE;
+        p.alignment = 0x1000;
+        p.attr = nvos32_attr::LOCATION.set(sys::NVOS32_ATTR_LOCATION_PCI as u32)
+            | nvos32_attr::PAGE_SIZE.set(sys::NVOS32_ATTR_PAGE_SIZE_4KB);
+        p.size = size;
+        p.hVASpace = vaspace;
+        let device = self.device();
+        // SAFETY: plain-data alloc params viewed as bytes for the escape ABI; RM writes the
+        // chosen VA back into `offset` (virtual_mem.c:609).
+        let bytes = unsafe {
+            std::slice::from_raw_parts_mut(
+                &mut p as *mut _ as *mut u8,
+                std::mem::size_of::<sys::NV_MEMORY_ALLOCATION_PARAMS>(),
+            )
+        };
+        let h = self.alloc_object(device, sys::NV50_MEMORY_VIRTUAL, bytes, "shadow-virtual-probe")?;
+        Ok((h, p.offset))
+    }
+
     /// `RM_UNMAP_MEMORY_DMA` (NVOS47) of the mapping of `h_mem` at VA `va`, `length`
     /// bytes, from the virtual object `h_dma` (the inverse of [`Self::map_dma_fixed`];
     /// RM also splits a larger mapping, `virtmemUnmapFrom_IMPL`). RM invalidates the
@@ -1058,6 +1098,9 @@ impl HostMemory {
     /// virt_mem_allocator_gm107.c:1579); the caller then owes the VAS one
     /// [`Self::invalidate_vas`] before anything relies on the unmap. Returns the status.
     pub fn unmap_dma(&self, h_dma: u32, h_mem: u32, va: u64, length: u64, defer: bool) -> Status {
+        if self.closed {
+            return CLOSED;
+        }
         let mut p = sys::NVOS47_PARAMETERS::default();
         p.hClient = self.rm.root();
         p.hDevice = self.device();
@@ -1121,6 +1164,9 @@ impl HostMemory {
             p.kindOverride = k as u32;
         }
         p.dmaOffset = va;
+        if self.closed {
+            return CLOSED;
+        }
         // The map may allocate page tables in host VRAM: the floor first (hostfloor.rs).
         if let Err(st) = self.admit("shadow map") {
             return st;
@@ -1155,6 +1201,9 @@ impl HostMemory {
 
     /// `RM_CONTROL` `cmd` on `object`; returns the status (0xFFFFFFFF when the ioctl failed).
     pub fn control(&self, object: u32, cmd: u32, params: &mut [u8]) -> Status {
+        if self.closed {
+            return CLOSED;
+        }
         let mut p = sys::NVOS54_PARAMETERS::default();
         p.hClient = self.rm.root();
         p.hObject = object;
@@ -1205,6 +1254,9 @@ impl HostMemory {
     }
 
     fn rm_free(&self, parent: u32, handle: u32) -> Result<(), Status> {
+        if self.closed {
+            return Err(CLOSED);
+        }
         let mut p = sys::NVOS00_PARAMETERS::default();
         p.hRoot = self.rm.root();
         p.hObjectParent = parent;
@@ -2129,6 +2181,7 @@ impl HostMemory {
         let bytes = self.pinned_bytes();
         let p0 = foll_pins();
         let outcome = run_teardown(self, prior, &mut log);
+        self.closed = true;
         let p1 = foll_pins();
         let freed = n - self.descriptors.len();
         if freed > 0 {

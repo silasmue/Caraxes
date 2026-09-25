@@ -1,0 +1,60 @@
+[  808.284032] NVRM: GPU0 kgmmuInvalidateTlb_GM107: TLB invalidation failed waiting for completion (status=0x00000065) for PDB 0xe9800000, vaspaceFlags 0x84004000, scope 0x2, GFID 0
+[  808.284041] NVRM: GPU0 dmaFreeMapping_GM107: error updating VA space.
+[  812.285026] NVRM: GPU0 kgmmuInvalidateTlb_GM107: TLB invalidation failed waiting for prior invalidate (status=0x00000065), vaspaceFlags 0x84004000, scope 0x2, GFID 0
+[  816.286037] NVRM: GPU0 kgmmuInvalidateTlb_GM107: TLB invalidation failed waiting for prior invalidate (status=0x00000065), vaspaceFlags 0x84004000, scope 0x2, GFID 0
+[  816.286056] NVRM: GPU0 dmaFreeMapping_GM107: error updating VA space.
+[  820.290368] NVRM: GPU0 kgmmuInvalidateTlb_GM107: TLB invalidation failed waiting for prior invalidate (status=0x00000065), vaspaceFlags 0x84004000, scope 0x2, GFID 0
+[  824.291036] NVRM: GPU0 kgmmuInvalidateTlb_GM107: TLB invalidation failed waiting for prior invalidate (status=0x00000065), vaspaceFlags 0x84004000, scope 0x2, GFID 0
+[  824.291046] NVRM: GPU0 dmaFreeMapping_GM107: error updating VA space.
+[  828.292034] NVRM: GPU0 kgmmuInvalidateTlb_GM107: TLB invalidation failed waiting for prior invalidate (status=0x00000065), vaspaceFlags 0x84004000, scope 0x2, GFID 0
+[  828.292159] NVRM: GPU0 nvAssertFailedNoLog: Assertion failed: NULL != pMemBlock @ gpu_vaspace.c:2061
+[  832.293621] NVRM: GPU0 kgmmuInvalidateTlb_GM107: TLB invalidation failed waiting for prior invalidate (status=0x00000065), vaspaceFlags 0x84004000, scope 0x2, GFID 0
+[  832.293633] NVRM: GPU0 dmaFreeMapping_GM107: error updating VA space.
+[  832.293641] NVRM: GPU0 nvAssertFailedNoLog: Assertion failed: NULL != pMemBlock @ gpu_vaspace.c:1635
+[  836.295032] NVRM: GPU0 kgmmuInvalidateTlb_GM107: TLB invalidation failed waiting for prior invalidate (status=0x00000065), vaspaceFlags 0x84004000, scope 0x2, GFID 0
+[  836.295045] NVRM: GPU0 dmaFreeMapping_GM107: error updating VA space.
+[  840.296026] NVRM: GPU0 kgmmuInvalidateTlb_GM107: TLB invalidation failed waiting for prior invalidate (status=0x00000065), vaspaceFlags 0x84004000, scope 0x2, GFID 0
+[  844.297027] NVRM: GPU0 kgmmuInvalidateTlb_GM107: TLB invalidation failed waiting for prior invalidate (status=0x00000065), vaspaceFlags 0x84004000, scope 0x2, GFID 0
+[  844.297633] NVRM: GPU0 nvAssertFailedNoLog: Assertion failed: (status == NV_OK) || (status == NV_ERR_GPU_IN_FULLCHIP_RESET) @ vaspace_api.c:573
+[  844.297660] NVRM: GPU0 nvAssertFailedNoLog: Assertion failed: NULL != pMemBlock @ gpu_vaspace.c:1635
+[  844.297663] NVRM: GPU0 virtmemDestruct_IMPL: VirtualMemory memmgrFree failed, client: c1d00009, hVASpace: 5c000007, gpu: 0
+[  844.297673] NVRM: GPU0 nvAssertFailedNoLog: Assertion failed: NULL != pMemBlock @ gpu_vaspace.c:1635
+[  844.297675] NVRM: GPU0 virtmemDestruct_IMPL: VirtualMemory memmgrFree failed, client: c1d00009, hVASpace: 5c000007, gpu: 0
+[  844.297682] NVRM: GPU0 nvAssertFailedNoLog: Assertion failed: NULL != pMemBlock @ gpu_vaspace.c:1635
+[  844.297684] NVRM: GPU0 virtmemDestruct_IMPL: VirtualMemory memmgrFree failed, client: c1d00009, hVASpace: 5c000007, gpu: 0
+[  844.297691] NVRM: GPU0 nvAssertFailedNoLog: Assertion failed: NULL != pMemBlock @ gpu_vaspace.c:1635
+[  844.297692] NVRM: GPU0 virtmemDestruct_IMPL: VirtualMemory memmgrFree failed, client: c1d00009, hVASpace: 5c000007, gpu: 0
+[  848.298035] NVRM: GPU0 kgmmuInvalidateTlb_GM107: TLB invalidation failed waiting for prior invalidate (status=0x00000065), vaspaceFlags 0x84004000, scope 0x2, GFID 0
+[  848.298045] NVRM: GPU0 dmaFreeMapping_GM107: error updating VA space.
+[  852.299026] NVRM: GPU0 kgmmuInvalidateTlb_GM107: TLB invalidation failed waiting for prior invalidate (status=0x00000065), vaspaceFlags 0x84004000, scope 0x2, GFID 0
+[  852.299085] NVRM: GPU0 nvAssertFailedNoLog: Assertion failed: NULL != pMemBlock @ gpu_vaspace.c:1635
+[  852.299089] NVRM: GPU0 virtmemDestruct_IMPL: VirtualMemory memmgrFree failed, client: c1d00009, hVASpace: 5c000007, gpu: 0
+[  856.300021] NVRM: GPU0 kgmmuInvalidateTlb_GM107: TLB invalidation failed waiting for prior invalidate (status=0x00000065), vaspaceFlags 0x84004000, scope 0x2, GFID 0
+[  856.300031] NVRM: GPU0 dmaFreeMapping_GM107: error updating VA space.
+[  860.301025] NVRM: GPU0 kgmmuInvalidateTlb_GM107: TLB invalidation failed waiting for prior invalidate (status=0x00000065), vaspaceFlags 0x84004000, scope 0x2, GFID 0
+[  860.301067] NVRM: GPU0 nvAssertFailedNoLog: Assertion failed: NULL != pMemBlock @ gpu_vaspace.c:1635
+[  860.301071] NVRM: GPU0 virtmemDestruct_IMPL: VirtualMemory memmgrFree failed, client: c1d00009, hVASpace: 5c000007, gpu: 0
+[  860.301410] NVRM: GPU0 nvAssertFailedNoLog: Assertion failed: NULL != pMemBlock @ gpu_vaspace.c:1635
+[  860.301417] NVRM: GPU0 virtmemDestruct_IMPL: VirtualMemory memmgrFree failed, client: c1d00009, hVASpace: 5c000007, gpu: 0
+[  864.302024] NVRM: GPU0 kgmmuInvalidateTlb_GM107: TLB invalidation failed waiting for prior invalidate (status=0x00000065), vaspaceFlags 0x84004000, scope 0x2, GFID 0
+[  864.302034] NVRM: GPU0 dmaFreeMapping_GM107: error updating VA space.
+[  868.303027] NVRM: GPU0 kgmmuInvalidateTlb_GM107: TLB invalidation failed waiting for prior invalidate (status=0x00000065), vaspaceFlags 0x84004000, scope 0x2, GFID 0
+[  868.303082] NVRM: GPU0 nvAssertFailedNoLog: Assertion failed: NULL != pMemBlock @ gpu_vaspace.c:1635
+[  868.303086] NVRM: GPU0 virtmemDestruct_IMPL: VirtualMemory memmgrFree failed, client: c1d00009, hVASpace: 5c000007, gpu: 0
+[  868.303220] NVRM: GPU0 nvAssertFailedNoLog: Assertion failed: NULL != pMemBlock @ gpu_vaspace.c:1635
+[  868.303233] NVRM: GPU0 virtmemDestruct_IMPL: VirtualMemory memmgrFree failed, client: c1d00009, hVASpace: 5c000007, gpu: 0
+[  872.304021] NVRM: GPU0 kgmmuInvalidateTlb_GM107: TLB invalidation failed waiting for prior invalidate (status=0x00000065), vaspaceFlags 0x84004000, scope 0x2, GFID 0
+[  872.304031] NVRM: GPU0 dmaFreeMapping_GM107: error updating VA space.
+[  876.305021] NVRM: GPU0 kgmmuInvalidateTlb_GM107: TLB invalidation failed waiting for prior invalidate (status=0x00000065), vaspaceFlags 0x84004000, scope 0x2, GFID 0
+[  876.305880] NVRM: GPU0 nvAssertFailedNoLog: Assertion failed: NULL != pMemBlock @ gpu_vaspace.c:1635
+[  876.305886] NVRM: GPU0 virtmemDestruct_IMPL: VirtualMemory memmgrFree failed, client: c1d00009, hVASpace: 5c000007, gpu: 0
+[  880.308042] NVRM: GPU0 kgmmuInvalidateTlb_GM107: TLB invalidation failed waiting for prior invalidate (status=0x00000065), vaspaceFlags 0x84004000, scope 0x2, GFID 0
+[  880.308053] NVRM: GPU0 dmaFreeMapping_GM107: error updating VA space.
+[  884.309017] NVRM: GPU0 kgmmuInvalidateTlb_GM107: TLB invalidation failed waiting for prior invalidate (status=0x00000065), vaspaceFlags 0x84004000, scope 0x2, GFID 0
+[  884.309066] NVRM: GPU0 nvAssertFailedNoLog: Assertion failed: NULL != pMemBlock @ gpu_vaspace.c:1635
+[  884.309070] NVRM: GPU0 virtmemDestruct_IMPL: VirtualMemory memmgrFree failed, client: c1d00009, hVASpace: 5c000007, gpu: 0
+[  888.310019] NVRM: GPU0 kgmmuInvalidateTlb_GM107: TLB invalidation failed waiting for prior invalidate (status=0x00000065), vaspaceFlags 0x84004000, scope 0x2, GFID 0
+[  888.310213] NVRM: GPU0 nvAssertFailedNoLog: Assertion failed: NULL != pMemBlock @ gpu_vaspace.c:1635
+[  888.310226] NVRM: GPU0 virtmemDestruct_IMPL: VirtualMemory memmgrFree failed, client: c1d00009, hVASpace: 5c000007, gpu: 0
+[  892.311014] NVRM: GPU0 kgmmuInvalidateTlb_GM107: TLB invalidation failed waiting for prior invalidate (status=0x00000065), vaspaceFlags 0x84004000, scope 0x2, GFID 0
+[  892.311024] NVRM: GPU0 dmaFreeMapping_GM107: error updating VA space.

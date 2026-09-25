@@ -61,11 +61,26 @@ emulates a DisplayPort monitor in the GSP role, so the stock `nvidia-modeset` an
 | Sunshine kms + x264 to Moonlight | 25.85 FPS, 101 ms host latency, 2.09 guest cores | 610 guest, before the interrupt page |
 | classic demos on Weston | vkcube 44.1 FPS, glmark2-wayland 1804, glxgears 57 to 60 | 610 guest |
 
-- What is missing: NVENC through a mirror channel for hardware encoding; a Shadow of the
-  Tomb Raider frame rate; the 12 display MODEL controls of category D; Mutter and Weston with
+- What is missing: guest frames encoded by NVENC through the mirror (see Encoding below); a
+  Shadow of the Tomb Raider frame rate; the 12 display MODEL controls of category D; Mutter and Weston with
   the BAR2 memfd.
 - Why Wayland: the compositor runs on KMS with a vblank and page-flip cadence the device
   controls, which v1's guest timers could not settle; X11 was a stepping stone.
+
+## Encoding
+
+- The stream encodes every captured frame:
+  - x264 on the vCPUs cost 2.09 guest cores at 1080p (Sunshine `encoder = software`);
+  - NVENC encodes from VRAM for almost no CPU.
+- VirtIO Leandro: the guest's NVENC objects are host objects; Sunshine used NVENC.
+- VFIO Leandro ([video-engines.md](video-engines.md)):
+  - the session controls are forwarded;
+  - the guest's NVENC channel is mirrored on the shadow VA space and bound to NVENC0 at its
+    first doorbell;
+  - the host's NVC4B7 object follows the guest's allocation once the guest's context page has
+    left the shadow.
+  - No guest frame has been encoded yet, and Sunshine stays on x264 until the probe passes.
+- NVDEC (video playback in the desktop) takes the same path with NVC4B0.
 
 ## Depth
 

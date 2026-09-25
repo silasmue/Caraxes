@@ -85,7 +85,10 @@ hybrid proposed as the later default.
    Caraxes module options or load order (D18), the guest ABI chosen from what the guest sends
    instead of `CARAXES_DRIVER`. The list is sottr-stage.md section 8.1.
 3. NVENC through a mirror for Sunshine hardware encoding (pulled forward from later: the game
-   comparison with v1 needs it); the Moonlight stream stage.
+   comparison with v1 needs it); the Moonlight stream stage. **In progress 2026-09-25**
+   ([video-engines.md](video-engines.md)): the session opens and the channel is mirrored with
+   a deferred video object; next is the 610 probe (encode and decode 300 frames), then 615,
+   then Sunshine `encoder = nvenc`.
 4. D19, the move to driver 615.71.09 before P23: the device's 615 transport (agent running:
    queue v2, MCTP framing, GMCAPI init, ver/v615), a 615 guest image (agent running on vm3),
    then the host upgrade by the operator and the host-side client on nvrm-sys v615, v1's image

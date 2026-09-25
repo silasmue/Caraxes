@@ -61,6 +61,10 @@ pub const NOTIFIER_CE2: u32 = 25;
 pub const NOTIFIER_CE3: u32 = 26;
 pub const NOTIFIER_CE4: u32 = 27;
 pub const NOTIFIER_RC_ERROR: u32 = 37;
+/// `NV2080_NOTIFIERS_NVDEC0` (= `_VLD` 14) and `NV2080_NOTIFIERS_NVENC0` (= `_MSENC` 38),
+/// cl2080_notification.h:50-51, :75-76.
+pub const NOTIFIER_NVDEC0: u32 = 14;
+pub const NOTIFIER_NVENC0: u32 = 38;
 /// `NV01_EVENT_NONSTALL_INTR` (nvos.h:435).
 pub const EVENT_NONSTALL: u32 = 0x0800_0000;
 /// The engines whose non-stall interrupts are forwarded: (MC_ENGINE_IDX name, notifier).
@@ -69,7 +73,99 @@ pub const ENGINES: &[(&str, u32)] = &[
     ("CE2", NOTIFIER_CE2),
     ("CE3", NOTIFIER_CE3),
     ("CE4", NOTIFIER_CE4),
+    // The video engines (docs/caraxes/video-engines.md): the kernel RM services their
+    // non-stall interrupts itself (gkflcnRegisterIntrService, kernel_falcon.c:362-400) and
+    // notifies these subdevice notifiers, on the host as in the guest.
+    ("NVDEC0", NOTIFIER_NVDEC0),
+    ("NVENC0", NOTIFIER_NVENC0),
 ];
+
+/// The video engine an `NV2080_ENGINE_TYPE` names (`NVENC0`.., `NVDEC0`..), if any.
+pub fn video_engine(engine_type: u32) -> Option<&'static str> {
+    v::NV2080_ENGINE_TYPES
+        .iter()
+        .find(|(n, t)| *t == engine_type && (n.starts_with("NVENC") || n.starts_with("NVDEC")))
+        .map(|(n, _)| *n)
+}
+
+/// Whether `class` is a video class the mirror serves on `chip`: an NVDEC (`..B0`) or
+/// NVENC (`..B7`) class of the chip's class database (TU106: NVC4B0, NVC4B7).
+pub fn video_class_ok(chip: &ChipData, class: u32) -> bool {
+    matches!(class & 0xFF, 0xB0 | 0xB7)
+        && chip.classes.as_ref().is_some_and(|db| db.ids.contains(&class))
+}
+
+/// The engine a video channel with no video object yet is bound to at its build
+/// (`gr_shadow_doorbell`): its own engine type, when that is a video engine.
+pub fn video_bind(chip: &ChipData, ch: &Channel) -> Option<u32> {
+    video_engine(ch.engine_type)?;
+    (!ch.engine_objects.iter().any(|(c, _)| video_class_ok(chip, *c))).then_some(ch.engine_type)
+}
+
+/// `NVA06F_CTRL_CMD_BIND` {engineType} (ctrla06f.h): a host channel needs an engine before
+/// `GPFIFO_SCHEDULE` (docs/caraxes/host-exec.md §1: NV_ERR_INVALID_STATE otherwise).
+const CMD_CHANNEL_BIND: u32 = 0xA06F_0104;
+
+/// The promoted context ranges `[va, va + size)` of a channel (GR set B, a falcon
+/// engine's context), which the shadow keeps out of the guest's set A. A global GR
+/// buffer promoted by VA alone has size 0; `global_size` gives its extent.
+fn promoted_ranges(
+    reg: &Registry,
+    ch: &Channel,
+    global_size: impl Fn(u16) -> Option<u64>,
+) -> Vec<(u64, u64)> {
+    let mut out = Vec::new();
+    if let Some(m) = reg.promoted((ch.h_client, ch.h_object)) {
+        for e in m.values() {
+            if let Some(v) = e.virt {
+                let size = if e.size == 0 {
+                    global_size(e.buffer_id).unwrap_or(0x1000)
+                } else {
+                    e.size
+                };
+                out.push((v, v + size.max(0x1000)));
+            }
+        }
+    }
+    out
+}
+
+/// The host's first fit (the probe before the object), when it lies in the host-only area.
+pub fn host_first_fit(layout: &crate::shadow::Layout, before: Result<u64, u32>) -> Result<u64, String> {
+    let (lo, hi) = layout.host_area;
+    let b = before.map_err(|st| format!("the placement probe before the object was refused {st:#x}"))?;
+    if !layout.in_host_area(b) {
+        return Err(format!(
+            "the host's first fit is {b:#x}, outside the host-only area [{lo:#x}, {hi:#x}) (a VA the guest can map)"
+        ));
+    }
+    Ok(b)
+}
+
+/// The verdict of the two first-fit probes around a host video object's allocation
+/// ([`Mirror::place_video_object`]): `before` is where a 4 KiB non-fixed allocation went
+/// just before the object, `after` just after it. The host RM maps the object's context
+/// first fit, so the context took `before` exactly when `after` moved on. Kept only when
+/// that VA lies in the layout's host-only area, outside everything the guest can map.
+pub fn context_verdict(
+    layout: &crate::shadow::Layout,
+    before: Result<u64, u32>,
+    after: Result<u64, u32>,
+) -> Result<String, String> {
+    let (lo, hi) = layout.host_area;
+    let b = host_first_fit(layout, before)?;
+    match after {
+        Ok(a) if a == b => Err(format!(
+            "the host did not map its context at its first fit {b:#x} (still free after the object), so its VA is unknown"
+        )),
+        Ok(a) => Ok(format!(
+            "its context at {b:#x}, in the host-only area [{lo:#x}, {hi:#x}) (first fit {a:#x} after it)"
+        )),
+        Err(st) => Err(format!(
+            "the placement probe after the object was refused {st:#x}, so the host context's VA is unknown"
+        )),
+    }
+}
 
 /// `NV_VASPACE_ALLOCATION_FLAGS_IS_EXTERNALLY_OWNED` (nvos.h:3162).
 const VAS_IS_EXTERNALLY_OWNED: u32 = 1 << 3;
@@ -355,6 +451,13 @@ pub struct Mirror {
     unwaited: u64,
     /// The registered guest RAM descriptors `(handle, iova, size)`, read once.
     descs: Option<Vec<(u32, u64, u64)>>,
+    /// Video objects the guest allocated on a mirrored shadow channel, not yet placed on
+    /// the host: `(class, params)` by ChID ([`Mirror::place_video_object`];
+    /// docs/caraxes/video-engines.md §3).
+    video_pending: BTreeMap<u32, (u32, Vec<u8>)>,
+    /// Place video objects on the host ([`Mirror::place_video_object`]);
+    /// `CARAXES_MIRROR_VIDEO_OBJECT=0` refuses every one to the guest.
+    video_objects: bool,
     next_event_id: u32,
     pub stats: MirrorStats,
     /// Guest roots whose shadow VAS was handed to the teardown: the FB store drops their
@@ -463,6 +566,8 @@ impl Mirror {
             hold: crate::untrapped::HoldStats::default(),
             unwaited: 0,
             descs: None,
+            video_pending: BTreeMap::new(),
+            video_objects: std::env::var("CARAXES_MIRROR_VIDEO_OBJECT").as_deref() != Ok("0"),
             next_event_id: 0x1000,
             stats: MirrorStats::default(),
             reaped_roots: Vec::new(),
@@ -862,6 +967,22 @@ impl Mirror {
             let root = self.channels.get(&chid).and_then(|c| c.shadow_root);
             let mut notes = lazy_notes;
             notes.extend(ahead_line);
+            // Context ranges promoted since the build (a video engine object the guest
+            // allocated after the channel's first doorbell) leave set A before the resync.
+            if let (Some(r), Some(ch)) = (root, reg.channel(chid)) {
+                let ranges = promoted_ranges(reg, ch, |id| self.global_ctx_size(id));
+                if let Some(sp) = self.shadows.get_mut(&r) {
+                    for x in ranges {
+                        if !sp.exclude.contains(&x) {
+                            notes.push(format!(
+                                "shadow: chid {chid} promoted context [{:#x}, {:#x}) kept out of set A [guest]",
+                                x.0, x.1
+                            ));
+                            sp.exclude.push(x);
+                        }
+                    }
+                }
+            }
             notes.extend(self.shadow_resync(reg, gm, root));
             // Ordering: the doorbell is forwarded only after the worker applied every plan
             // submitted so far (the mirror is consistent for this root).
@@ -894,24 +1015,11 @@ impl Mirror {
         // host RM builds set B in the shadow VAS at these VAs, so a later GR channel that
         // records no promote entries of its own must still not have set A mirrored over
         // them (measured 2026-09-23: chids 3-9 collided at 0x120010000 etc.).
-        let mut new_b = Vec::new();
-        if let Some(m) = reg.promoted((ch.h_client, ch.h_object)) {
-            for e in m.values() {
-                if let Some(v) = e.virt {
-                    // A global buffer (the 3D class's bundle/attribute/RTV CBs, the
-                    // pagepool) is promoted by VA only, size 0; its extent is the host's
-                    // context-buffer size for the same silicon (display-e.md: the guest's
-                    // attribute CB at 0x120400000 was mirrored as set A and the host's
-                    // own collided with it, Xid 31 PRIV_VIOLATION).
-                    let size = if e.size == 0 {
-                        self.global_ctx_size(e.buffer_id).unwrap_or(0x1000)
-                    } else {
-                        e.size
-                    };
-                    new_b.push((v, v + size.max(0x1000)));
-                }
-            }
-        }
+        // A global buffer (the 3D class's bundle/attribute/RTV CBs, the pagepool) is
+        // promoted by VA only, size 0; its extent is the host's context-buffer size for the
+        // same silicon (display-e.md: the guest's attribute CB at 0x120400000 was mirrored
+        // as set A and the host's own collided with it, Xid 31 PRIV_VIOLATION).
+        let new_b = promoted_ranges(reg, &ch, |id| self.global_ctx_size(id));
         // A bare CE channel (`bare_ce`, the GL driver's) gets a host TSG of its own, keyed
         // by its internal TSG id (615) or its handle, on the channel's own engine.
         let (tsg_key, bare, tsg_guest) = tsg_key_of(reg, &ch);
@@ -941,17 +1049,39 @@ impl Mirror {
         let descs = self.descs();
         let mut h = self.hm.lock().unwrap();
         // The shadow VAS of this guest root, built once per root.
+        // A root first built for a video channel gets the video layout (shadow.rs `Layout`):
+        // a host-only area below the guest's RM base, where the host RM's own context lands.
+        // GR and CE roots keep the default layout, as before.
+        let layout = if self.video_objects && video_bind(self.chip, &ch).is_some() {
+            crate::shadow::Layout::video()
+        } else {
+            crate::shadow::Layout::default()
+        };
         if let std::collections::btree_map::Entry::Vacant(slot) = self.shadows.entry(root) {
-            match crate::shadow::ShadowVas::new(&mut h, self.map_budget.clone()) {
+            match crate::shadow::ShadowVas::new(&mut h, self.map_budget.clone(), &layout) {
                 Ok(sv) => {
                     notes.push(format!(
-                        "shadow: host-managed VAS {:#x} for guest root {root:#x} [host]",
-                        sv.vas
+                        "shadow: host-managed VAS {:#x} for guest root {root:#x}{} [host]",
+                        sv.vas,
+                        if layout.va_base != 0 {
+                            format!(
+                                ", video layout: base {:#x}, host area [{:#x}, {:#x}), host server-RM range [{:#x}, {:#x}) not mirrored",
+                                layout.va_base,
+                                layout.host_area.0,
+                                layout.host_area.1,
+                                layout.host_server.0,
+                                layout.host_server.1
+                            )
+                        } else {
+                            String::new()
+                        }
                     ));
                     let vas = sv.vas;
                     self.worker.submit(Job::Create(root, Box::new(sv)));
+                    let mut front = crate::shadow::ShadowFront::new(root);
+                    front.layout = layout;
                     slot.insert(ShadowSpace {
-                        front: crate::shadow::ShadowFront::new(root),
+                        front,
                         vas,
                         exclude: Vec::new(),
                         chids: Default::default(),
@@ -1169,7 +1299,29 @@ impl Mirror {
                 }
             }
             if objects.is_empty() {
-                return Err(("shadow: no engine object; not scheduling".into(), refused));
+                // A video channel rings before its engine object exists, and the guest
+                // waits for that first push before it allocates the object (a held doorbell
+                // deadlocked for 10 s, 2026-09-25 probe-hold). The host channel is bound to
+                // the engine instead; the object follows at the guest's allocation
+                // (`place_video_object`).
+                let Some(engine) = video_bind(self.chip, &ch) else {
+                    return Err(("shadow: no engine object; not scheduling".into(), refused));
+                };
+                let mut p = engine.to_le_bytes();
+                let st = h.control(channel, CMD_CHANNEL_BIND, &mut p);
+                if st != sys::NV_OK {
+                    return Err((
+                        format!(
+                            "shadow: chid {chid} BIND engineType {engine:#x}: {}; not scheduling",
+                            status_name(st)
+                        ),
+                        None,
+                    ));
+                }
+                notes.push(format!(
+                    "shadow: chid {chid} host channel bound to engineType {engine:#x} ({}; its object follows the guest's) [host]",
+                    video_engine(engine).unwrap_or("engine")
+                ));
             }
             let mut sched = [1u8, 0, 0];
             let st = h.control(channel, CMD_GPFIFO_SCHEDULE, &mut sched);
@@ -1293,10 +1445,27 @@ impl Mirror {
         }
         let ch = reg.channel(chid).ok_or("no such channel")?;
         let gr0 = v::lookup(v::NV2080_ENGINE_TYPES, "GR0").unwrap_or(1);
+        // A bare video channel (libnvidia-encode's and libnvcuvid's, under the device with
+        // no TSG and no VAS of its own) is mirrored in a host TSG of its own, as a bare CE
+        // channel is under CARAXES_MIRROR_BARE_CE.
+        let video = video_engine(ch.engine_type);
         if reg.tsg((ch.h_client, ch.h_parent)).is_none()
+            && video.is_none()
             && !(self.bare_ce && ch.engine_type != gr0 && ch.engine_type != 0)
         {
             return Err("bare channel (no TSG): stays with the software executor".into());
+        }
+        // Fail closed: a video channel carries only the chip's own video classes.
+        if let Some(engine) = video {
+            if let Some((c, _)) = ch
+                .engine_objects
+                .iter()
+                .find(|(c, _)| !video_class_ok(self.chip, *c))
+            {
+                return Err(format!(
+                    "{engine} channel carries class {c:#x}, not a video class of this chip: refused, stays with the software executor"
+                ));
+            }
         }
         // nvidia-uvm's own channels bind GP100_UVM_SW on subchannel 5; the host refuses
         // that class to an unprivileged client (RS_FLAGS_ALLOC_PRIVILEGED), and a
@@ -1973,9 +2142,45 @@ impl Mirror {
         }
     }
 
+    /// Whether a video object on mirrored channel `chid` is refused to the guest before it
+    /// is recorded (fail closed): with `CARAXES_MIRROR_VIDEO_OBJECT=0`, or when the channel's
+    /// shadow VAS has the default layout (built for a GR or CE channel first), where the
+    /// host's context would land on the guest's RM base. Returns the refusal line.
+    pub fn refuse_video_object(&self, chid: u32, class: u32) -> Option<String> {
+        if !video_class_ok(self.chip, class) {
+            return None;
+        }
+        let root = self.channels.get(&chid)?.shadow_root?;
+        let why = if !self.video_objects {
+            "CARAXES_MIRROR_VIDEO_OBJECT=0".to_string()
+        } else if self.shadows.get(&root).is_none_or(|sp| sp.front.layout.va_base == 0) {
+            format!("the shadow VAS of guest root {root:#x} has the default layout (built for a GR or CE channel first): no host-only area for the host's context")
+        } else {
+            return None;
+        };
+        Some(format!(
+            "chid {chid}: video object {class:#x} refused (fail closed): {why} [host]"
+        ))
+    }
+
     /// An engine object the guest allocated on an already mirrored channel.
     pub fn add_engine_object(&mut self, chid: u32, class: u32, params: &[u8]) -> Option<String> {
         let hc = self.channels.get_mut(&chid)?;
+        // A video object on a shadow channel: placed by `place_video_object` once the
+        // guest's own context page has left the shadow.
+        if video_class_ok(self.chip, class) && hc.shadow_root.is_some() {
+            if hc.objects.iter().any(|(c, _)| video_class_ok(self.chip, *c))
+                || self.video_pending.contains_key(&chid)
+            {
+                return Some(format!(
+                    "chid {chid}: a second video object {class:#x} on a mirrored channel: refused"
+                ));
+            }
+            self.video_pending.insert(chid, (class, params.to_vec()));
+            return Some(format!(
+                "chid {chid}: video object {class:#x} deferred until the guest's context page has left the shadow [host]"
+            ));
+        }
         let mut p = params.to_vec();
         let r = self
             .hm
@@ -1992,6 +2197,85 @@ impl Mirror {
                 status_name(e)
             ),
         })
+    }
+
+    /// The deferred video object of shadow channel `chid` (`add_engine_object`), placed on
+    /// the host, or refused.
+    ///
+    /// The host kernel RM allocates the channel's falcon context itself at the object's
+    /// allocation (`kflcnAllocContext`, kernel_falcon.c:279-298), maps it first fit
+    /// (`kchannelMapEngineCtxBuf`, kernel_channel.c:3848-3870) and binds it to the engine at
+    /// that VA; the guest's own context VA (its `GPU_PROMOTE_CTX` reaches only this device)
+    /// does not matter to the host engine. The channel's shadow VAS has the video layout
+    /// (shadow.rs `Layout`), so the first fit is the host-only area the guest never maps. Two
+    /// 4 KiB probes check it ([`context_verdict`]): if the host's context is not in the host
+    /// area, its object is freed before the guest can map anything more and the guest's
+    /// allocation is refused (fail closed). The object is a child of the mirrored channel,
+    /// in the TSG the mirror made for it (no implicit channel group), so the channel's free
+    /// (`free_channel`) frees the object and the RM frees its context with it
+    /// (`kflcnFreeContext`). Returns the notes and whether the guest's allocation is refused.
+    pub fn place_video_object(&mut self, chid: u32) -> (Vec<String>, bool) {
+        let Some((class, params)) = self.video_pending.remove(&chid) else {
+            return (Vec::new(), false);
+        };
+        let Some(hc) = self.channels.get(&chid) else {
+            return (vec![format!("chid {chid}: video object {class:#x}: the channel went away")], true);
+        };
+        let (handle, root) = (hc.handle, hc.shadow_root);
+        let Some(sp) = root.and_then(|r| self.shadows.get(&r)) else {
+            return (vec![format!("chid {chid}: video object {class:#x} refused: no shadow VAS [host]")], true);
+        };
+        let (vas, layout) = (sp.vas, sp.front.layout);
+        // Every plan submitted so far is applied: the probes see the shadow as the guest left it.
+        self.worker.wait_all();
+        let mut h = self.hm.lock().unwrap();
+        let probe = |h: &mut HostMemory| match h.alloc_virtual_probe(vas, 0x1000) {
+            Ok((ph, va)) => {
+                let _ = h.free_object(ph);
+                Ok(va)
+            }
+            Err(st) => Err(st),
+        };
+        let before = probe(&mut h);
+        // The first fit outside the host area already: refused without an object.
+        if let Err(line) = host_first_fit(&layout, before) {
+            return (
+                vec![format!("chid {chid}: video object {class:#x} refused (fail closed): {line} [host]")],
+                true,
+            );
+        }
+        let mut p = params;
+        let oh = match h.alloc_object(handle, crate::board::host_class_of(class), &mut p, "video-object") {
+            Ok(oh) => oh,
+            Err(e) => {
+                return (
+                    vec![format!(
+                        "chid {chid}: host video object class {class:#x} refused: {}; the guest's is refused too [host]",
+                        status_name(e)
+                    )],
+                    true,
+                );
+            }
+        };
+        let after = probe(&mut h);
+        match context_verdict(&layout, before, after) {
+            Ok(line) => {
+                drop(h);
+                if let Some(hc) = self.channels.get_mut(&chid) {
+                    hc.objects.push((class, oh));
+                }
+                (vec![format!("chid {chid}: host video object class {class:#x} {oh:#x}: {line} [host]")], false)
+            }
+            Err(line) => {
+                let _ = h.free_object(oh);
+                (
+                    vec![format!(
+                        "chid {chid}: video object {class:#x} refused (fail closed): {line}; host object {oh:#x} freed before the guest maps more [host]"
+                    )],
+                    true,
+                )
+            }
+        }
     }
 
     /// The guest rang the doorbell of a mirrored channel: ring the host's.
@@ -2510,6 +2794,17 @@ impl Mirror {
     /// mirrors that stood for it, channels before TSGs before VA spaces.
     pub fn free_object(&mut self, reg: &Registry, h_client: u32, h_object: u32) -> Vec<String> {
         let mut notes = Vec::new();
+        // A deferred video object of a channel that goes away is never placed.
+        let gone: Vec<u32> = reg
+            .channels()
+            .filter(|c| c.h_client == h_client && (h_client == h_object || c.h_object == h_object))
+            .map(|c| c.chid)
+            .filter(|c| self.video_pending.contains_key(c))
+            .collect();
+        for c in gone {
+            self.video_pending.remove(&c);
+            notes.push(format!("chid {c}: deferred video object dropped with its channel [guest]"));
+        }
         if h_client == h_object {
             let keys: Vec<(u32, u32)> = self
                 .vas
@@ -3085,5 +3380,127 @@ mod tests {
         assert!(TsgKey::Grp(1) < TsgKey::Handle(0, 0));
         assert_eq!(TsgKey::Grp(7).to_string(), "grpID 7");
         assert_eq!(TsgKey::Handle(1, 0x30).to_string(), "0x1/0x30");
+    }
+
+    /// The video engines by `NV2080_ENGINE_TYPE` (NVDEC0 0x13, NVENC0 0x1b on 610 and
+    /// 615) and the chip's video classes: TU106 has NVC4B0 and NVC4B7, and the copy and
+    /// compute classes are no video classes (fail closed on the channel).
+    #[test]
+    fn video_engines_and_classes() {
+        let chip = crate::fixture::rtx2070().chip.data();
+        assert_eq!(video_engine(0x1B), Some("NVENC0"));
+        assert_eq!(video_engine(0x13), Some("NVDEC0"));
+        assert_eq!(video_engine(0x01), None);
+        assert_eq!(video_engine(0x0B), None);
+        assert!(video_class_ok(chip, 0xC4B7));
+        assert!(video_class_ok(chip, 0xC4B0));
+        // Ampere's NVENC and NVDEC are not in TU106's database; CE and compute never are.
+        assert!(!video_class_ok(chip, 0xC7B7));
+        assert!(!video_class_ok(chip, 0xC6B0));
+        assert!(!video_class_ok(chip, 0xC5B5));
+        assert!(!video_class_ok(chip, 0xC5C0));
+        assert_eq!(NOTIFIER_NVENC0 | EVENT_NONSTALL, 0x0800_0026);
+        assert_eq!(NOTIFIER_NVDEC0 | EVENT_NONSTALL, 0x0800_000E);
+    }
+
+    /// A video channel with no video object yet is bound to its own engine at its build
+    /// (the guest waits for the first push before it allocates the object); once the
+    /// chip's video object exists, or for a GR or CE channel, nothing is bound.
+    #[test]
+    fn a_video_channel_without_its_object_is_bound_to_its_engine() {
+        let chip = crate::fixture::rtx2070().chip.data();
+        let mut reg = registry();
+        let mut cp = channel_params(22, Some(3));
+        let o = <Abi as nvrm_sys::RmAbi>::ALLOC_CHANNEL_PARAMS_OFF_engineType;
+        cp[o..o + 4].copy_from_slice(&0x1Bu32.to_le_bytes());
+        reg.record_alloc(1, 0x80, 0x14, chip.channel.gpfifo, &cp);
+        assert_eq!(video_bind(chip, reg.channel(22).unwrap()), Some(0x1B));
+        // A foreign class on it is no video object of this chip.
+        reg.record_alloc(1, 0x14, 0x31, 0xC7B7, &[]);
+        assert_eq!(video_bind(chip, reg.channel(22).unwrap()), Some(0x1B));
+        reg.record_alloc(1, 0x14, 0x32, 0xC4B7, &[]);
+        assert_eq!(video_bind(chip, reg.channel(22).unwrap()), None);
+        // A CE channel (engineType COPY2 0x0b) is not a video channel.
+        let mut ce = channel_params(23, Some(4));
+        ce[o..o + 4].copy_from_slice(&0x0Bu32.to_le_bytes());
+        reg.record_alloc(1, 0x80, 0x15, chip.channel.gpfifo, &ce);
+        assert_eq!(video_bind(chip, reg.channel(23).unwrap()), None);
+    }
+
+    /// The ranges the shadow keeps out of set A: GR buffers with their size, a global GR
+    /// buffer promoted by VA alone with the host's size, a falcon context by its VA.
+    #[test]
+    fn promoted_ranges_cover_gr_and_falcon_contexts() {
+        let chip = crate::fixture::rtx2070().chip.data();
+        let mut reg = registry();
+        reg.record_alloc(1, 0x80, 0x14, chip.channel.gpfifo, &channel_params(22, Some(3)));
+        let mut p = vec![0u8; v::PROMOTE_PARAMS_SIZE];
+        p[v::PROMOTE_H_CHAN_CLIENT..][..4].copy_from_slice(&1u32.to_le_bytes());
+        p[v::PROMOTE_H_OBJECT..][..4].copy_from_slice(&0x14u32.to_le_bytes());
+        p[v::PROMOTE_VIRT_ADDRESS..][..8].copy_from_slice(&0x1_2002_d000u64.to_le_bytes());
+        p[v::PROMOTE_SIZE..][..8].copy_from_slice(&0x800u64.to_le_bytes());
+        reg.record_promote_ctx(&p);
+        let ch = reg.channel(22).unwrap().clone();
+        assert_eq!(
+            promoted_ranges(&reg, &ch, |_| None),
+            vec![(0x1_2002_d000, 0x1_2002_e000)],
+            "a context smaller than a page covers its page"
+        );
+        let mut g = vec![0u8; v::PROMOTE_PARAMS_SIZE];
+        g[v::PROMOTE_H_CHAN_CLIENT..][..4].copy_from_slice(&1u32.to_le_bytes());
+        g[v::PROMOTE_H_OBJECT..][..4].copy_from_slice(&0x14u32.to_le_bytes());
+        g[v::PROMOTE_ENTRY_COUNT..][..4].copy_from_slice(&1u32.to_le_bytes());
+        g[v::PROMOTE_ENTRIES + 8..][..8].copy_from_slice(&0x1_2040_0000u64.to_le_bytes());
+        g[v::PROMOTE_ENTRIES + 28..][..2].copy_from_slice(&5u16.to_le_bytes());
+        reg.record_promote_ctx(&g);
+        let r = promoted_ranges(&reg, &ch, |id| (id == 5).then_some(0x20_0000));
+        assert!(r.contains(&(0x1_2040_0000, 0x1_2060_0000)), "{r:x?}");
+        assert!(r.contains(&(0x1_2002_d000, 0x1_2002_e000)), "{r:x?}");
+    }
+
+    /// The video layout: the host-only area sits below the guest's RM base, inside the
+    /// guest's server-RM range; guest leaves below the base, in the host area or in the
+    /// host's moved server-RM range are unmirrorable, everything else is mirrored.
+    #[test]
+    fn the_video_layout_keeps_the_host_area_out_of_the_guest_range() {
+        use crate::shadow::{Layout, GUEST_RM_VA_BASE, SERVER_RM_VA_SIZE, SERVER_RM_VA_START};
+        let l = Layout::video();
+        assert_eq!(l.va_base, 0x1_1C00_0000);
+        assert_eq!(l.host_area, (0x1_1C00_0000, 0x1_2000_0000));
+        assert_eq!(l.host_server, (0x2_1C00_0000, 0x2_3C00_0000));
+        // The host area lies inside the guest's own server-RM range: never a guest VA.
+        assert!(l.host_area.0 >= SERVER_RM_VA_START && l.host_area.1 <= SERVER_RM_VA_START + SERVER_RM_VA_SIZE);
+        assert_eq!(l.host_area.1, GUEST_RM_VA_BASE);
+        // The guest's kernel-RM buffers (probe-merged610) are mirrored.
+        for va in [0x1_2002_d000u64, 0x1_2007_0000, 0x1_2040_0000, 0x1_205f_e000] {
+            assert_eq!(l.unmirrorable(va, va + 0x1000), None, "{va:#x}");
+        }
+        assert!(l.unmirrorable(0x10_0000, 0x10_1000).unwrap().contains("below"));
+        assert!(l.unmirrorable(0x1_1C00_0000, 0x1_1C00_1000).unwrap().contains("host-only area"));
+        // A 2 MiB leaf straddling the guest base touches the host area.
+        assert!(l.unmirrorable(0x1_1FF0_0000, 0x1_2010_0000).is_some());
+        assert!(l.unmirrorable(0x2_1C00_0000, 0x2_1C20_0000).unwrap().contains("server-RM"));
+        assert_eq!(l.unmirrorable(0x2_3C00_0000, 0x2_3C20_0000), None);
+        // The default layout (GR, CE) refuses nothing, as before.
+        assert_eq!(Layout::default().unmirrorable(0x10_0000, 0x10_1000), None);
+    }
+
+    /// The fallback: the host object is kept only when its context took the host's first
+    /// fit and that first fit lies in the host-only area.
+    #[test]
+    fn a_host_context_outside_the_host_area_is_refused() {
+        let l = crate::shadow::Layout::video();
+        let ok = context_verdict(&l, Ok(0x1_1C00_0000), Ok(0x1_1C00_1000)).unwrap();
+        assert!(ok.contains("its context at 0x11c000000"));
+        // The first fit in the guest's range (the default layout's 0x120400000).
+        let e = context_verdict(&l, Ok(0x1_2040_0000), Ok(0x1_2040_1000)).unwrap_err();
+        assert!(e.contains("outside the host-only area"));
+        // The first fit still free after the object: the context went elsewhere.
+        let e = context_verdict(&l, Ok(0x1_1C00_0000), Ok(0x1_1C00_0000)).unwrap_err();
+        assert!(e.contains("did not map its context"));
+        assert!(context_verdict(&l, Err(0x51), Ok(1)).unwrap_err().contains("before the object was refused 0x51"));
+        assert!(context_verdict(&l, Ok(0x1_1C00_0000), Err(0x51)).unwrap_err().contains("after the object"));
+        // The default layout has no host area: always refused.
+        assert!(context_verdict(&crate::shadow::Layout::default(), Ok(0x1_2002_d000), Ok(0x1_2002_e000)).is_err());
     }
 }

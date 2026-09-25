@@ -1,0 +1,9 @@
+Sep 25 14:54:49.877829 manacor kernel: NVRM: GPU0 virtmemAllocResources: VA Space alloc failed! Status Code: 0x51 Size: 0x1e0000 RangeLo: 0x120020000, RangeHi: 0x1201fffff, pageSzLockMask: 0x11000
+STOPPED device 929396 at the first NVRM line
+Sep 25 14:54:49.896823 manacor kernel: NVRM: GPU0 virtmemAllocResources: VA Space alloc failed! Status Code: 0x51 Size: 0x30000 RangeLo: 0x120000000, RangeHi: 0x12002ffff, pageSzLockMask: 0x11000
+STOPPED device 929396 at the first NVRM line
+Sep 25 14:54:49.912824 manacor kernel: NVRM: GPU0 virtmemAllocResources: VA Space alloc failed! Status Code: 0x51 Size: 0x30000 RangeLo: 0x120000000, RangeHi: 0x12002ffff, pageSzLockMask: 0x11000
+STOPPED device 929396 at the first NVRM line
+Sep 25 14:54:50.362828 manacor kernel: NVRM: --- last print repeated 11 times ---
+Sep 25 14:54:50.362909 manacor kernel: NVRM: nvAssertOkFailedNoLog: Assertion failed: Object handle is not valid [NV_ERR_INVALID_OBJECT_HANDLE] (0x00000033) returned from serverGetClientUnderLock(&g_resServ, pParms->hClient, &pRsClient) @ mapping.c:302
+Sep 25 14:54:50.362945 manacor kernel: NVRM: nvAssertOkFailedNoLog: Assertion failed: Object handle is not valid [NV_ERR_INVALID_OBJECT_HANDLE] (0x00000033) returned from serverGetClientUnderLock(&g_resServ, pParms->hClient, &pRsClient) @ mapping.c:302

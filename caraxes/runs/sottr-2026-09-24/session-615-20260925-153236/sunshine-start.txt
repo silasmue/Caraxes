@@ -1,0 +1,19 @@
+sunshine pid 4874, listening on 47989 (web UI 47990)
+[2026-09-25 13:36:11.019]: Info: Creating encoder [h264_nvenc]
+[2026-09-25 13:36:13.992]: Error: [h264_nvenc @ 0x5e93db95e380] OpenEncodeSessionEx failed: unsupported device (2): (no details)
+[2026-09-25 13:36:14.853]: Info: Creating encoder [h264_nvenc]
+[2026-09-25 13:36:16.168]: Error: [h264_nvenc @ 0x5e93db95e380] OpenEncodeSessionEx failed: unsupported device (2): (no details)
+[2026-09-25 13:36:17.009]: Info: Encoder [nvenc] failed
+[2026-09-25 13:36:17.009]: Info: Creating encoder [h264_vulkan]
+[2026-09-25 13:36:34.189]: Info: Creating encoder [h264_vulkan]
+[2026-09-25 13:36:59.734]: Info: Encoder [vulkan] failed
+[2026-09-25 13:37:00.136]: Info: Encoder [vaapi] failed
+[2026-09-25 13:37:00.973]: Info: Creating encoder [libx264]
+[2026-09-25 13:37:01.020]: Info: Creating encoder [libx264]
+[2026-09-25 13:37:01.119]: Info: Found H.264 encoder: libx264 [software]
+[2026-09-25 13:36:10.948]: Info: config: 'capture' = kms
+[2026-09-25 13:36:10.949]: Info: [wayland] Found monitor: Cyrix Corporation 24"
+[2026-09-25 13:36:10.949]: Info: -------- Start of KMS monitor list --------
+[2026-09-25 13:36:10.949]: Info: Monitor 0 is DP-1: Cyrix Corporation 24"
+[2026-09-25 13:36:10.949]: Info: --------- End of KMS monitor list ---------
+[2026-09-25 13:36:10.949]: Debug: Monitor description

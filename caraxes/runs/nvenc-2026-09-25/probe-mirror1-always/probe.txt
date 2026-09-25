@@ -1,0 +1,14 @@
+rc=124
+ls: cannot access '/tmp/probe.es': No such file or directory
+top - 09:35:17 up 7 min,  2 users,  load average: 0.18, 0.19, 0.10
+Tasks: 211 total,   1 running, 210 sleeping,   0 stopped,   0 zombie
+%Cpu(s):  1.1 us,  2.2 sy,  0.0 ni, 95.6 id,  0.0 wa,  0.0 hi,  0.0 si,  1.1 st 
+MiB Mem :   1901.0 total,    982.8 free,    562.9 used,    505.3 buff/cache     
+MiB Swap:      0.0 total,      0.0 free,      0.0 used.   1338.1 avail Mem 
+
+    PID USER      PR  NI    VIRT    RES    SHR S  %CPU  %MEM     TIME+ COMMAND
+   4375 root      20   0   18684   9344   7736 S  10.0   0.5   0:00.14 Xorg
+   4377 leandro   20   0   12332   5484   3344 R  10.0   0.3   0:00.01 top
+      1 root      20   0   23056  14064   9420 S   0.0   0.7   0:03.06 systemd
+      2 root      20   0       0      0      0 S   0.0   0.0   0:00.00 kthreadd
+      3 root      20   0       0      0      0 S   0.0   0.0   0:00.00 pool_wo+

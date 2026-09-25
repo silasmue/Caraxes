@@ -397,6 +397,36 @@ impl Dispatcher {
         notes
     }
 
+    /// After allocation `h_object` of `h_class` under channel `(h_client, h_parent)`: a
+    /// video object the mirror deferred (mirror.rs `place_video_object`) is placed on the
+    /// host now. Returns the notes and whether the guest's allocation is refused after all
+    /// (fail closed); a refused one is forgotten again.
+    pub fn place_video_object(
+        &mut self,
+        h_client: u32,
+        h_parent: u32,
+        h_object: u32,
+        h_class: u32,
+    ) -> (Vec<String>, bool) {
+        let Some(chid) = self
+            .channels
+            .channels()
+            .find(|c| c.h_client == h_client && c.h_object == h_parent)
+            .map(|c| c.chid)
+        else {
+            return (Vec::new(), false);
+        };
+        let Some(m) = self.mirror.as_mut() else {
+            return (Vec::new(), false);
+        };
+        let (notes, refused) = m.place_video_object(chid);
+        if refused {
+            self.channels.forget_engine_object(h_client, h_parent, h_class);
+            self.objects.remove(&(h_client, h_object));
+        }
+        (notes, refused)
+    }
+
     fn doorbell_chid(
         &mut self,
         gm: &mut crate::channel::GpuMem,
@@ -790,6 +820,25 @@ impl Dispatcher {
         // Channels, TSGs and VA spaces feed the channel emulation (channel.rs); the
         // reply is the echo either way (phase5-rpcs.md §1.6 rows 59 and 61: no reply
         // field is read).
+        // A video object the host cannot place on a mirrored channel is refused before it
+        // is recorded (mirror.rs `refuse_video_object`): the guest's encoder or decoder
+        // open fails cleanly instead of pushing to a host channel without the object.
+        if let Some(m) = self.mirror.as_ref() {
+            let chid = self
+                .channels
+                .channels()
+                .find(|c| c.h_client == h_client && c.h_object == h_parent)
+                .map(|c| c.chid);
+            if let Some(why) = chid.and_then(|c| m.refuse_video_object(c, h_class)) {
+                self.objects.remove(&(h_client, h_object));
+                return Answer {
+                    status: NV_ERR_NOT_SUPPORTED,
+                    params: params.to_vec(),
+                    label: "refused (fail closed: no host placement for the video context)",
+                    note: format!("alloc {h_class:#x} object {h_object:#x} under {h_parent:#x}: {why}"),
+                };
+            }
+        }
         if let Some(mut note) = self
             .channels
             .record_alloc(h_client, h_parent, h_object, h_class, params)
@@ -1484,8 +1533,8 @@ mod tests {
         );
         assert_eq!(a.params.len(), 2112);
         // Six milestone-1 entries plus the GR0/CE2-CE4 non-stall entries of E5b part 2,
-        // plus the display vector (display-ab.md).
-        assert_eq!(u32::from_le_bytes(a.params[0..4].try_into().unwrap()), 11);
+        // plus the display vector (display-ab.md) and NVDEC0/NVENC0 (video-engines.md).
+        assert_eq!(u32::from_le_bytes(a.params[0..4].try_into().unwrap()), 13);
         assert_eq!(
             u64::from_le_bytes(a.params[2056 + 8..2056 + 16].try_into().unwrap()),
             0x8

@@ -492,7 +492,9 @@ lost).
   - When the guest unmaps the area page, the last merge runs and the replica goes. When the
     page may move in again (no longer a table page, the alias gone), it does.
 - **Sync points** (`sync_untracked`): the MMU invalidate before its shadow re-sync, the GSP
-  queue doorbell, the trapped BAR2 flush read, and every poll (every trapped BAR0 write). The
+  queue doorbell, the trapped BAR2 flush read, and every poll (every trapped BAR0 write the
+  model takes; since 356dd4e4 not a write that lands in the config-space mirror, whose MSI
+  re-arm orders nothing and held the device lock 570 times a second, sottr-stage.md §11). The
   guest orders its table writes before the invalidate, so the shadow always walks the merged
   page. Doorbells are not sync points (cost); data written only through an aliased mapping
   reaches the GPU at the guest's next flush or invalidate.

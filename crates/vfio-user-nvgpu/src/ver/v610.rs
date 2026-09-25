@@ -1098,6 +1098,14 @@ pub const LEGACY: &[(u32, usize, &str)] = &[
     (0x2080_9001, 8, "clk 0x01 (torch)"),
     (0x2080_A026, 532, "perf 0x26 (torch)"),
     (0x2080_A084, 4, "perf 0x84 (torch)"),
+    // What libnvidia-encode and libnvcuvid send when a session opens (0x65, 0x63, perf
+    // 0x28) and closes (0x64); natively NV_OK (matrix/traces/610.57.04/nvenc.jsonl:2059-2205,
+    // :6325; nvdec.jsonl). Unanswered, NvEncOpenEncodeSessionEx fails with
+    // NV_ENC_ERR_INCOMPATIBLE_CLIENT_KEY (docs/caraxes/video-engines.md §2).
+    (0x2080_8163, 4, "gpu 0x63 (video session open)"),
+    (0x2080_8164, 4, "gpu 0x64 (video session close)"),
+    (0x2080_8165, 1, "gpu 0x65 (video)"),
+    (0x2080_A028, 2192, "perf 0x28 (video)"),
 ];
 
 // ---------------------------------------------------------------------------------
@@ -1250,6 +1258,8 @@ pub const SKYLINE_VALID_ENTRIES: usize = offset_of!(
 /// bInitialize @30, bNonmapped @31} (32 bytes); 560 bytes in all.
 pub const CMD_GPU_PROMOTE_CTX: u32 = 0x2080_012B;
 pub const PROMOTE_ENGINE_TYPE: usize = 0;
+pub const PROMOTE_VIRT_ADDRESS: usize = 24;
+pub const PROMOTE_SIZE: usize = 32;
 pub const PROMOTE_H_CHAN_CLIENT: usize = 12;
 pub const PROMOTE_H_OBJECT: usize = 16;
 pub const PROMOTE_ENTRY_COUNT: usize = 40;
