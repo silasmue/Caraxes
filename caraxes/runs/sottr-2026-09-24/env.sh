@@ -34,7 +34,13 @@ if [[ ${SOTTR_PLAIN:-0} == 1 ]]; then
     unset CARAXES_BAR1_PASSTHROUGH CARAXES_BAR1_POOL_MIB CARAXES_BAR2_MEMFD CARAXES_MSI_REARM_IOEVENTFD CARAXES_ALLOC_LAZY
 else
     # 64 MiB, not 128: the host desktop keeps its own BAR1 (the host BAR1 floor, 2026-09-25).
-    export CARAXES_BAR1_PASSTHROUGH=pool CARAXES_BAR1_POOL_MIB=${SOTTR_POOL_MIB:-64}
+    # SOTTR_NO_POOL=1 keeps the reactor paths but not the pool: on 615 the guest maps
+    # page-table pages through BAR1 windows, which the pool cannot watch (2026-09-25).
+    if [[ ${SOTTR_NO_POOL:-0} == 1 ]]; then
+        unset CARAXES_BAR1_PASSTHROUGH CARAXES_BAR1_POOL_MIB
+    else
+        export CARAXES_BAR1_PASSTHROUGH=pool CARAXES_BAR1_POOL_MIB=${SOTTR_POOL_MIB:-64}
+    fi
     export CARAXES_BAR2_MEMFD=1 CARAXES_MSI_REARM_IOEVENTFD=1 CARAXES_ALLOC_LAZY=1
 fi
 unset CARAXES_DOORBELL_IOEVENTFD CARAXES_GUEST_ABI
