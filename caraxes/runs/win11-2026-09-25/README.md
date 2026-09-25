@@ -180,6 +180,7 @@ the diff against the 35-register baseline, `trace-saver` archives the full trace
 | N | extcfg | flash chain | T4 | 0 | 0 | Windows did not boot that time (no device access in 20 min) |
 | P, R | extcfg+ifr d4d37c2f | **full 1 MiB window with the IFR header** | GeForce (R: + root port, ext caps) | 557 | 368 | as M: the IFR header changes nothing beyond the chain |
 | Q | extcfg+ifr | full window | T4, 616.92 | 365 | 368 | the data-centre driver also programs the falcons now |
+| **X0** | extcfg+pmu2 2f6d7ff5 | full window | **GSP-firmware registry keys set** | **17976** | 699 (SEC2 port writes 25181, GSP queue accesses 558, PMU polls 0) | **GSP-RM path**: Booter on SEC2, 184 RPCs, then GMCAPI_GSP_SUSPEND; Code 43 |
 
 - **The VBIOS content was the Code 43 gate.** With only the PCI expansion ROM (legacy + EFI, 127 KiB)
   in the PROM window the driver scanned the window to its end and gave up; with the card's flash
