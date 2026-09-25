@@ -13,6 +13,9 @@
 #   G  F with the display delivery counters (binary vfio-user-nvgpu-desk-g) and the reactor
 #      spinning from 1.5 ms before each display tick (CARAXES_INTR_PAGE_VBLANK_SPIN_US=1500)
 #   H  G without the spin window (the A/B for it)
+#   I  H with the pool poll after a page trigger (binary vfio-user-nvgpu-desk-i): the windows of
+#      this branch as they are recommended (deferral on = 2 ms, invalidate page, no spin)
+#   I2 I again, with the guest's interrupt placement recorded (guest/irq-info.sh)
 # Per configuration, with the host watch around it: up (a refused reservation is retried every
 # 5 minutes), probe, display-up, GNOME_STARTS fresh GNOME starts, the trap windows (run.sh --full,
 # trap-table.py --pages --regs): Mutter with wlframes, the clients vkcube and glmark2 under Mutter
@@ -39,6 +42,9 @@ for cfg in "$@"; do
         F) export CARAXES_SERVER=${CARAXES_SERVER_F:-/mnt/vmstore/caraxes/vm0/vfio-user-nvgpu-desk-f}
            export CARAXES_BAR2_FLUSH_DEFER_US=2000 CARAXES_INVALIDATE_PAGE=1; name=F-invalidate-page ;;
         D2) name=D2-recommended-rerun ;;
+        I|I2) export CARAXES_SERVER=${CARAXES_SERVER_I:-/mnt/vmstore/caraxes/vm0/vfio-user-nvgpu-desk-i}
+           export CARAXES_BAR2_FLUSH_DEFER_US=on CARAXES_INVALIDATE_PAGE=1
+           name=I-windows; [[ $cfg == I2 ]] && name=I2-windows-rerun ;;
         G|H) export CARAXES_SERVER=${CARAXES_SERVER_G:-/mnt/vmstore/caraxes/vm0/vfio-user-nvgpu-desk-g}
            export CARAXES_BAR2_FLUSH_DEFER_US=2000 CARAXES_INVALIDATE_PAGE=1
            if [[ $cfg == G ]]; then
@@ -65,7 +71,7 @@ for cfg in "$@"; do
         if "${VMSH[@]}" up >> "$D/up.txt" 2>&1 && "${VMSH[@]}" wait 180 >> "$D/up.txt" 2>&1; then up=1; break; fi
         tail -3 "$D/up.txt"
         "${VMSH[@]}" down >> "$D/up.txt" 2>&1
-        if grep -qE 'headroom|NO_MEMORY|did not give|refused: reserving' "$D/up.txt" "$W/gpu.log" 2>/dev/null && ((try < 13)); then
+        if grep -qE 'headroom|NO_MEMORY|did not give|refused: reserving|MiB floor' "$D/up.txt" "$W/gpu.log" 2>/dev/null && ((try < 13)); then
             echo "try $try $(date -Iseconds): reservation refused, next try in 5 min" | tee -a "$D/retries.txt"
             sleep 300; continue
         fi
@@ -83,6 +89,7 @@ for cfg in "$@"; do
             "$here/run.sh" "$name/gnome-start-$i" bash caraxes-f/gnome-restart.sh 20
             echo "gnome-start-$i: GPPut barrier waits $(xz -dcf "$D/gnome-start-$i"/device-events.txt* 2>/dev/null | grep -c 'GPPut of a mirrored channel held')"
         done
+        "$here/run.sh" "$name/irq-info" bash caraxes-f/irq-info.sh
         wins=(traps-mutter)
         "$here/run.sh" "$name/traps-mutter" --full bash caraxes-f/trap-mutter.sh 14
         for app in $APPS; do

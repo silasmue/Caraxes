@@ -394,6 +394,26 @@ calls.
     configurations.
   - The device's CPU per copy process falls from 11 s to 3.5 s.
   - This is now the recommended configuration (bench-run.sh header).
+- **Item 3: done for the desktop, open for CUDA** (intr-page.md §11.2, §11.3; runs
+  `caraxes/runs/display-page-2026-09-25/`).
+  - The MMU invalidate page (`CARAXES_INVALIDATE_PAGE=1`, inv_page.rs) serves 0xb83000 from
+    memory. The reactor runs each `TRIGGER` and clears it when the device is done. The
+    fault-buffer and access-counter words are modelled read-only or masked, as trapped. Mutter
+    loses its 10 invalidate accesses per frame.
+  - The flush page stays trapped: a read of memory cannot start a sync. Its cost is gone
+    instead: `CARAXES_BAR2_FLUSH_DEFER_US=on` (2 ms) turns each flush read into a debt that the
+    invalidate's sync, a trapped write, a doorbell or the reactor pays. The syncs of a desktop
+    run fell from 107298 (D) to 21670 (F).
+  - Open: CUDA allocations invalidate without a flush batch before them, so a trigger can wait
+    up to the reactor's sleep bound (1 ms). Measure cuMemAlloc and cuMemFree with the census
+    before recommending the page there. The sync cost itself (KVM dirty log, or a sync
+    limited to reachable pages) is not addressed.
+- **Desktop rows (2026-09-25, intr-page.md §11):** Mutter 139.86 (C) to 50.50 (D, the
+  recommended configuration: memfd and re-arm) to 40.1 to 40.5 (F to I, deferral and
+  invalidate page) traps per frame, at 60 Hz. Weston 31.08 to 17.11 to 15 to 17.5. What stays:
+  23 flush reads (cheap), 16 `TIME_0/1` reads (item 8), 1.3 display kicks. Weston's frame
+  rate follows the other VMs' load (52 to 60 Hz with the same binary). The stretch is in the
+  guest's response to the vblank interrupt (§11.4), not in a trap.
 - **Item 4: done** (commit 0c2cb79, `CARAXES_MSI_REARM_IOEVENTFD=1`, intr-page.md §4,
   `caraxes/runs/opt-msi-ioeventfd-2026-09-25/`).
   - The re-arm write is an ioeventfd without datamatch, read by the token pool's reactor, which
@@ -402,7 +422,8 @@ calls.
     100 ms window).
   - All traps per second: rlprobe 508 to 456, PPO 423 to 314.
   - The cuda gate is 10 of 12, and there was 0 host Xid. Mutter was not measured: expected 9.6
-    traps per frame fewer.
+    traps per frame fewer. Measured on 2026-09-25 (series D, intr-page.md §11.1): the
+    `NV_PCFG` row went from 12.17 per Mutter frame to 0.
 
 ## 5. ReBAR
 
