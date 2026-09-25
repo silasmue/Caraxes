@@ -1,0 +1,21 @@
+==top
+top - 22:20:33 up 5 min,  3 users,  load average: 1.66, 0.75, 0.29
+Tasks: 312 total,   2 running, 310 sleeping,   0 stopped,   0 zombie
+%Cpu(s):  7.1 us,  6.5 sy,  0.0 ni, 81.5 id,  0.0 wa,  0.0 hi,  0.2 si,  4.6 st 
+MiB Mem :   7940.0 total,   3763.7 free,   1792.0 used,   2777.6 buff/cache     
+MiB Swap:      0.0 total,      0.0 free,      0.0 used.   6148.0 avail Mem 
+
+    PID USER      PR  NI    VIRT    RES    SHR S  %CPU  %MEM     TIME+ COMMAND
+   2055 leandro   20   0 4298084 373844 221264 S  79.2   4.6   1:16.85 gnome-s+
+   4812 leandro   20   0 1187576 257064 197336 R  45.5   3.2   0:46.60 steamwe+
+   4861 leandro   20   0   47.4g 252868 120504 S  11.9   3.1   0:11.63 steamwe+
+   2907 leandro   20   0  427584 133920 107536 S   6.9   1.6   0:06.41 Xwayland
+   2768 leandro   20   0  738532 186508 139640 S   2.0   2.3   0:06.48 steam
+==vmstat
+procs -----------memory---------- ---swap-- -----io---- -system-- -------cpu-------
+ r  b   swpd   free   buff  cache   si   so    bi    bo   in   cs us sy id wa st gu
+ 2  0      0 3853988  90436 2753844    0    0  8095   433 3840    4  3  3 92  0  2  0
+ 2  0      0 3853988  90436 2753844    0    0     0    52 6334 5497  7  6 83  0  4  0
+ 1  0      0 3857844  90444 2753836    0    0     0    32 5770 5134  7  6 84  0  3  0
+ 2  0      0 3857692  90444 2753864    0    0     0     0 5889 5079  7  6 83  0  4  0
+ 2  0      0 3857692  90444 2753864    0    0     0   136 5625 4763  7  5 84  0  4  0

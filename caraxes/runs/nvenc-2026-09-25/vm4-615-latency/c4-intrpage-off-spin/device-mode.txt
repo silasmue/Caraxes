@@ -1,0 +1,3 @@
+vfio-user-nvgpu: msi re-arm ioeventfd: BAR0 0x88704 (NV_XVE_CYA_2), 4 bytes, no datamatch, offered through VFIO_USER_DEVICE_GET_REGION_IO_FDS and read by the token pool's reactor; a client that does not register it keeps trapping the write 
+vfio-user-nvgpu: doorbell poll: spin reader (CARAXES_DOORBELL_POLL=spin, CARAXES_DOORBELL_POLL_CPU=Auto)
+vfio-user-nvgpu: doorbell poll: reader pinned to CPU 10 (auto: 96 % idle over 1 s; not CPU 0; VMM vCPU threads of pid 4103315 on CPU(s) [0, 6, 7, 8, 13, 14, 15] at the sample, avoided)

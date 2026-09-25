@@ -1,0 +1,3 @@
+[2026-09-25 21:12:29.950]: Info: Creating encoder [h264_nvenc]
+[2026-09-25 21:12:32.281]: Info: Creating encoder [hevc_nvenc]
+[2026-09-25 21:12:33.042]: Info: Creating encoder [av1_nvenc]

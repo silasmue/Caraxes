@@ -1,0 +1,34 @@
+== device threads (pid 3763943)
+top - 23:17:41 up 11:32,  1 user,  load average: 3.59, 4.39, 3.98
+Threads: 7 total, 0 running, 7 sleep, 0 d-sleep, 0 stopped, 0 zombie
+%Cpu(s):  2.9 us,  3.0 sy,  5.8 ni, 87.5 id,  0.1 wa,  0.5 hi,  0.1 si,  0.0 st 
+MiB Mem :  32006.2 total,   4444.8 free,  16398.7 used,  19715.1 buff/cache     
+MiB Swap:  32768.0 total,  26857.4 free,   5910.6 used.  15607.4 avail Mem 
+
+    PID USER      PR  NI    VIRT    RES    SHR S  %CPU  %MEM     TIME+ COMMAND
+3763953 silas     20   0 9959592   6.1g   6.0g S   8.0  19.4   1:46.68 doorbel+
+3763943 silas     20   0 9959592   6.1g   6.0g S   0.0  19.4   1:25.66 vfio-us+
+3763946 silas     20   0 9959592   6.1g   6.0g S   0.0  19.4   0:00.00 signals
+3763951 silas     20   0 9959592   6.1g   6.0g S   0.0  19.4   0:00.60 display+
+3763954 silas     20   0 9959592   6.1g   6.0g S   0.0  19.4   0:00.01 soak
+3771629 silas     20   0 9959592   6.1g   6.0g S   0.0  19.4   0:01.28 shadow-+
+3772088 silas     20   0 9959592   6.1g   6.0g S   0.0  19.4   0:01.08 host-ev+
+
+== cloud-hypervisor threads (pid 3763956)
+    PID USER      PR  NI    VIRT    RES    SHR S  %CPU  %MEM     TIME+ COMMAND
+3764883 silas     20   0 9525016   4.6g   4.6g S   3.0  14.7   0:28.13 vcpu2
+3764881 silas     20   0 9525016   4.6g   4.6g S   1.0  14.7   0:25.87 vcpu0
+3764882 silas     20   0 9525016   4.6g   4.6g S   1.0  14.7   0:22.42 vcpu1
+3764884 silas     20   0 9525016   4.6g   4.6g S   1.0  14.7   0:24.87 vcpu3
+3764886 silas     20   0 9525016   4.6g   4.6g S   1.0  14.7   0:36.80 vcpu5
+3763956 silas     20   0 9525016   4.6g   4.6g S   0.0  14.7   0:00.00 cloud-h+
+3763963 silas     20   0 9525016   4.6g   4.6g S   0.0  14.7   0:00.08 vmm
+3763964 silas     20   0 9525016   4.6g   4.6g S   0.0  14.7   0:00.00 http-se+
+3763965 silas     20   0 9525016   4.6g   4.6g S   0.0  14.7   0:00.00 vmm_sig+
+3764885 silas     20   0 9525016   4.6g   4.6g S   0.0  14.7   0:34.25 vcpu4
+3764887 silas     20   0 9525016   4.6g   4.6g S   0.0  14.7   0:23.59 vcpu6
+3764888 silas     20   0 9525016   4.6g   4.6g S   0.0  14.7   0:26.19 vcpu7
+3764895 silas     20   0 9525016   4.6g   4.6g S   0.0  14.7   0:00.00 kvm-nx-+
+== host
+MemAvailable:   16187496 kB
+3.54 4.37 3.97 1/2023 3829812

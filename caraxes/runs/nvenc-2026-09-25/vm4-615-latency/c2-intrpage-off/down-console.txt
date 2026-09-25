@@ -1,0 +1,3 @@
+stopped
+host watch: 158 samples, nvidia-smi max 0.078s mean 0.026s, 0 kernel log lines, 0 Xid lines, 0 alerts
+host Xid lines since 2026-09-25 23:31:08:0; evidence in /home/silas/git/Caraxes/caraxes/runs/nvenc-2026-09-25/vm4-615-latency/c2-intrpage-off/session

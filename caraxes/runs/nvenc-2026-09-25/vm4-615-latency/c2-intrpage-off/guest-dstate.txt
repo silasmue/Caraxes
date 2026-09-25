@@ -1,0 +1,6 @@
+    211 D     0.0 -                            kworker/0:2+events
+   1637 D     0.0 -                            nv_queue
+   1709 D     0.4 -                            nvidia-modeset/kthread_q
+   2065 Dsl   1.8 os_acquire_rwlock_write      gnome-shell
+   2570 DNsl  0.0 jbd2_log_wait_commit         tracker-miner-f
+   2786 Dl    1.4 os_acquire_mutex             steam

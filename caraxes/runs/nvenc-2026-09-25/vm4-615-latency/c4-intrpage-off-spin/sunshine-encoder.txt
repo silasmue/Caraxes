@@ -1,0 +1,2 @@
+sunshine never opened 47989
+[2026-09-25 21:51:41.555]: Info: Creating encoder [hevc_nvenc]

@@ -1,0 +1,21 @@
+sunshine never opened 47989
+[2026-09-25 21:49:17.814]: Debug: [h264_nvenc @ 0x5def5f88cc40] Nvenc initialized successfully
+[2026-09-25 21:50:25.909]: Debug: Frame 1: IDR Keyframe (AV_FRAME_FLAG_KEY)
+[2026-09-25 21:51:37.445]: Debug: [h264_nvenc @ 0x5def5f88cc40] Nvenc unloaded
+[2026-09-25 21:51:41.555]: Info: Creating encoder [hevc_nvenc]
+[2026-09-25 21:51:41.555]: Info: Color coding: SDR (Rec. 601)
+[2026-09-25 21:51:41.555]: Info: Color depth: 8-bit
+[2026-09-25 21:51:41.555]: Info: Color range: JPEG
+[2026-09-25 21:51:41.555]: Debug: Found CUDA device with PCI bus ID: 0000:00:06.0
+[2026-09-25 21:51:41.555]: Debug: Found DRM primary node: card0
+[2026-09-25 21:51:41.567]: Debug: EGL: [NVIDIA]: version [1.5]
+[2026-09-25 21:51:41.567]: Debug: API's supported: [OpenGL_ES OpenGL]
+[2026-09-25 21:51:41.567]: Debug: EGL: High priority context supported
+[2026-09-25 21:51:41.568]: Info: EGL: context priority set to HIGH
+[2026-09-25 21:51:41.622]: Debug: GL: vendor: NVIDIA Corporation
+[2026-09-25 21:51:41.622]: Debug: GL: renderer: Leandro VFIO RTX 2070-3G/PCIe/SSE2
+[2026-09-25 21:51:41.622]: Debug: GL: version: 4.6.0 NVIDIA 615.71.09
+[2026-09-25 21:51:41.622]: Debug: GL: shader: 4.60 NVIDIA
+[2026-09-25 21:51:41.623]: Info: Streaming bitrate is 1000000
+[2026-09-25 21:51:41.624]: Debug: [hevc_nvenc @ 0x5def5f88cc40] Loaded Nvenc version 13.1
+[2026-09-25 21:51:41.624]: Debug: [hevc_nvenc @ 0x5def5f88cc40] Nvenc initialized successfully
