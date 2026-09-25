@@ -1,0 +1,7 @@
+3208281 target/cov/release/vfio-user-nvgpu --socket target/smoke/s.sock --trace target/smoke/t.log --config caraxes/reference/rtx2070/config-space.txt --rom car
+3300975 /mnt/vmstore/caraxes/vm3/vfio-user-nvgpu --socket /mnt/vmstore/caraxes/vm3/gpu.sock --trace /mnt/vmstore/caraxes/vm3/gpu-trace.log --config /home/silas/
+3300989 /mnt/vmstore/caraxes/vm1/cloud-hypervisor-0006 -v --api-socket /mnt/vmstore/caraxes/vm3/ch.sock --cpus boot=8 --memory size=4G,shared=on --kernel /mnt/v
+3302263 /mnt/vmstore/caraxes/vm5/vfio-user-nvgpu --socket /mnt/vmstore/caraxes/vm5/gpu.sock --trace /mnt/vmstore/caraxes/vm5/gpu-trace.log --config /home/silas/
+3302271 /mnt/vmstore/caraxes/vm1/cloud-hypervisor-0006 -v --api-socket /mnt/vmstore/caraxes/vm5/ch.sock --cpus boot=8 --memory size=4G,shared=on --kernel /mnt/v
+3307252 /mnt/vmstore/caraxes/vm2/vfio-user-nvgpu --socket /mnt/vmstore/caraxes/vm2/gpu.sock --trace /mnt/vmstore/caraxes/vm2/gpu-trace.log --config /home/silas/
+3307265 /mnt/vmstore/caraxes/vm1/cloud-hypervisor-0006 -v --api-socket /mnt/vmstore/caraxes/vm2/ch.sock --cpus boot=8 --memory size=4G,shared=on --kernel /mnt/v
