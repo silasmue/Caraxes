@@ -84,6 +84,8 @@ tmp.md
 /caraxes/reference/rtx2070/synth-vbios.bin
 # The costume ladder's Ampere/Ada image: caraxes/tools/synth-vbios.py --desc v3 rom.bin <this>
 /caraxes/reference/rtx2070/synth-vbios-fwsec-v3.bin
+# The nova-core image (docs/caraxes/nova-guest.md): synth-vbios.py --ext-sig 0x4E56 --appid 0x85 rom.bin <this>
+/caraxes/reference/rtx2070/synth-vbios-nova.bin
 
 # Caraxes raw device traces stay on disk (evidence notes are committed, multi-GB traces are not)
 caraxes/runs/**/*.trace

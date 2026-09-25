@@ -14,6 +14,9 @@ driver passes.
 Usage:
   synth-vbios.py ROM_IN IMAGE_OUT        generate, then run the oracle on the result
   synth-vbios.py --verify IMAGE          run the oracle only
+  synth-vbios.py --ext-sig 0x4E56 --appid 0x85 ROM_IN IMAGE_OUT
+                                         the image both OpenRM and nova-core accept
+                                         (docs/caraxes/nova-guest.md)
   synth-vbios.py --desc v3 ROM_IN IMAGE_OUT
                                          the costume ladder's Ampere/Ada image
                                          (docs/caraxes/costume-ladder.md): the FWSEC
@@ -623,7 +626,7 @@ def verify_v3(vb, d, frts_offset, log):
 # Generator
 # --------------------------------------------------------------------------
 
-def build_ext_image(table_rel, appid, device_id, desc_version=2):
+def build_ext_image(table_rel, appid, device_id, desc_version=2, ext_sig=PCI_EXP_ROM_SIGNATURE_NV2):
     """Build the NVIDIA extension image.  table_rel is where the unchanged BIT
     FALCON_DATA pointer lands inside this image."""
     if table_rel < EXT_HDR_END:
@@ -641,7 +644,7 @@ def build_ext_image(table_rel, appid, device_id, desc_version=2):
     img = bytearray(size)
 
     # ROM header: signature and PCI data structure pointer (pcie.h:43-49)
-    struct.pack_into("<H", img, 0x00, PCI_EXP_ROM_SIGNATURE_NV2)
+    struct.pack_into("<H", img, 0x00, ext_sig)
     struct.pack_into("<H", img, OFFSETOF_PCI_EXP_ROM_PCI_DATA_STRUCT_PTR, EXT_PCIR_PTR)
     # PCI data structure (pcie.h:87-101)
     struct.pack_into("<IHHHHB3sHHBBH", img, EXT_PCIR_PTR,
@@ -719,7 +722,7 @@ def build_ext_image(table_rel, appid, device_id, desc_version=2):
     return img, img_meta, appid
 
 
-def generate(rom_in, out_path, appid, desc_version=2):
+def generate(rom_in, out_path, appid, desc_version=2, ext_sig=PCI_EXP_ROM_SIGNATURE_NV2):
     rom = open(rom_in, "rb").read()
     print("== input %s: %d bytes ==" % (rom_in, len(rom)))
     if u16(rom, 0) not in VALID_ROM_SIGS:
@@ -776,7 +779,7 @@ def generate(rom_in, out_path, appid, desc_version=2):
     table_abs = exp_off + table_ptr
     table_rel = table_abs - ext_off
     device_id = u16(rom, u16(rom, 0x18) + 6)
-    ext, meta, appid = build_ext_image(table_rel, appid, device_id, desc_version)
+    ext, meta, appid = build_ext_image(table_rel, appid, device_id, desc_version, ext_sig)
     # entry: DescPtr is relative to expansionRomOffset (fwsec.c:629, 671)
     desc_ptr = ext_off + meta["desc_rel"] - exp_off
     struct.pack_into("<BBI", ext, table_rel + 6, appid, 0x00, desc_ptr)
@@ -803,6 +806,12 @@ def main():
     ap.add_argument("--desc", choices=["v2", "v3"], default="v2",
                     help="FWSEC descriptor: v2 (Turing, boot with loader; default) or v3 (GA102/AD10x, "
                          "boot from HS; the costume ladder)")
+    ap.add_argument("--ext-sig", type=lambda s: int(s, 0), default=PCI_EXP_ROM_SIGNATURE_NV2,
+                    choices=VALID_ROM_SIGS,
+                    help="ROM signature of the extension image: 0xBB77 (default, as the card), "
+                         "0x4E56 or 0xAA55; nova-core accepts only 0xAA55 and 0x4E56 (Linux 7.2.7 "
+                         "drivers/gpu/nova-core/vbios.rs PciRomHeader::new), the nova image "
+                         "(docs/caraxes/nova-guest.md) is --ext-sig 0x4E56 --appid 0x85")
     ap.add_argument("--frts-offset", type=lambda s: int(s, 0), default=0x1FF00000,
                     help="oracle: sample frtsOffset for the FRTS command (default 0x1FF00000)")
     a = ap.parse_args()
@@ -815,7 +824,7 @@ def main():
         else:
             if len(a.paths) != 2:
                 ap.error("generation takes ROM_IN IMAGE_OUT")
-            out = generate(a.paths[0], a.paths[1], a.appid, 3 if a.desc == "v3" else 2)
+            out = generate(a.paths[0], a.paths[1], a.appid, 3 if a.desc == "v3" else 2, a.ext_sig)
             print()
             verify(out, a.debug_fuse, a.frts_offset)
     except DriverError as e:

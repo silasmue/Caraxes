@@ -1185,6 +1185,17 @@ impl BootModel {
                     Some(BootEvent::WprMeta { pa }) => {
                         self.suspended = None;
                         self.wpr_meta_pa = Some(pa);
+                        // A Booter Load that is not a resume starts a new GSP-RM: the CPU
+                        // built fresh libos arguments and queues (a driver re-probe without a
+                        // function-level reset, as nova-core does, Linux 7.2.7 gsp.rs
+                        // `Gsp::new`, gsp/cmdq.rs `Cmdq::new`), so the old link goes and the
+                        // first doorbell links again. Message queue v2 relinks in
+                        // `gsp_started` anyway.
+                        if self.transport != GspTransport::MsgqV2 && self.queues.is_some() {
+                            self.queues = None;
+                            self.pending = None;
+                            notes.push("queues: the previous boot's link dropped (new Booter Load); the next doorbell links again".into());
+                        }
                         match WprLayout::read(mem, pa) {
                             Ok(w) => {
                                 notes.push(format!(
@@ -1925,14 +1936,18 @@ impl BootModel {
             "queues linked: cmd {:?}; status header written (size {:#x}, {} slots)",
             queues.cmd, stat_size, queues.stat.msg_count
         ));
-        // GSP_INIT_DONE: function 0x1001, sequence 0, rpc_result 0, bIsD3Hot = 0.
-        let sent = {
-            let qm = QueueMemory::new(mem, &pages);
-            queues.send(&qm, &RpcHeader::event(rpc::EV_GSP_INIT_DONE, 1), &[0u8])
-        };
-        match sent {
-            Ok(seq) => notes.push(format!("tx seq {seq} event GSP_INIT_DONE")),
-            Err(e) => notes.push(format!("send GSP_INIT_DONE: {e}")),
+        // GSP_INIT_DONE: function 0x1001, sequence 0, rpc_result 0, bIsD3Hot = 0; for a 570
+        // guest (nova-core) an empty GSP_RUN_CPU_SEQUENCER first (ver::link_events).
+        for (function, payload) in crate::ver::link_events(crate::ver::older_guest()) {
+            let sent = {
+                let qm = QueueMemory::new(mem, &pages);
+                queues.send(&qm, &RpcHeader::event(function, payload.len()), &payload)
+            };
+            let name = rpc::function_name(function);
+            match sent {
+                Ok(seq) => notes.push(format!("tx seq {seq} event {name} ({} bytes)", payload.len())),
+                Err(e) => notes.push(format!("send {name}: {e}")),
+            }
         }
         self.pages = pages;
         self.queues = Some(queues);
@@ -2124,6 +2139,11 @@ impl BootModel {
     /// The guest registry keys the device needs (gspboot.rs `missing_guest_keys`): each
     /// warning goes to the trace and to the device log, where a boot check reads it.
     fn guest_key_warnings(&self, entries: &[(String, crate::gmcapi::RegValue)], notes: &mut Vec<String>) {
+        // The keys are OpenRM's module options; nova-core (a 570 guest) sends its own three
+        // (Linux 7.2.7 gsp/commands.rs `SetRegistry`) and runs no CeUtils or watchdog.
+        if crate::ver::older_guest() == Some(570) {
+            return;
+        }
         for w in crate::gspboot::missing_guest_keys(entries) {
             eprintln!("vfio-user-nvgpu: {w}");
             notes.push(w);
@@ -2280,6 +2300,123 @@ mod tests {
         assert_eq!(b.read32(gsp + falcon::CPUCTL), Some(0x10));
         assert_eq!(b.read32(0x001F_A824), Some(0));
         assert_eq!(b.doorbells(), 0);
+    }
+
+    /// nova-core's GSP exchange (Linux 7.2.7, firmware 570.144; docs/caraxes/nova-guest.md)
+    /// against a 610 device under `CARAXES_GUEST_ABI=570`: pre-610 elements (RPC header at
+    /// 0x30, checksum 0x20, seqNum 0x24, elemCount 0x28), SET_SYSTEM_INFO and SET_REGISTRY
+    /// without reply, then the events GSP_RUN_CPU_SEQUENCER (empty) and GSP_INIT_DONE in
+    /// that order, GET_GSP_STATIC_INFO answered with the 1656-byte 570 layout and the name
+    /// at 1260, UNLOADING_GUEST_DRIVER with the processor-suspended bit, and a re-probe
+    /// (new Booter Load, fresh queues) that links again.
+    #[test]
+    fn nova_570_boot_through_the_queue() {
+        use crate::msgq::tests::queue_fixture;
+        crate::ver::TEST_GUEST.with(|c| c.set(Some(Some(570))));
+        let f = crate::fixture::rtx2070();
+        let (mem, pages, base, path) = queue_fixture("nova570");
+        let mut b = BootModel::new(f.chip, crate::fb::FbLayout::plain(1 << 30), f.identity(1 << 30))
+            .with_transport(GspTransport::MsgqV1);
+        let (gsp, sec2, queue_head) = (0x0011_0000u64, 0x0084_0000u64, 0x0011_0C00u64);
+        // Libos arguments (LOGINIT, RMARGS) and RMARGS' queue arguments behind the queue
+        // buffer; 570's MESSAGE_QUEUE_INIT_ARGUMENTS keeps the four fields at 0/8/16/24.
+        let (libos, rmargs) = (base + 0x90000, base + 0x91000);
+        let id8 = |s: &str| s.bytes().fold(0u64, |a, c| (a << 8) | c as u64);
+        assert!(mem.write(libos, &id8("LOGINIT").to_le_bytes()));
+        assert!(mem.write(libos + 32, &id8("RMARGS").to_le_bytes()));
+        assert!(mem.write(libos + 40, &rmargs.to_le_bytes()));
+        assert!(mem.write(rmargs, &base.to_le_bytes()));
+        assert!(mem.write(rmargs + 8, &129u32.to_le_bytes()));
+        assert!(mem.write(rmargs + 16, &0x1000u64.to_le_bytes()));
+        assert!(mem.write(rmargs + 24, &0x41000u64.to_le_bytes()));
+        let mut cmd = crate::msgq::TxHeader::standard(0x40000);
+        let qm = QueueMemory::new(&mem, &pages);
+        assert!(qm.write(0x1000, &cmd.encode()));
+        // nova's send_single_command: GSP_MSG_QUEUE_ELEMENT of r570 (48 bytes) + RPC.
+        let mut seq = 0u32;
+        let mut send = |cmd: &mut crate::msgq::TxHeader, function: u32, payload: &[u8]| {
+            let total = 0x30 + 32 + payload.len();
+            let mut raw = vec![0u8; total.div_ceil(8) * 8];
+            raw[0x24..0x28].copy_from_slice(&seq.to_le_bytes());
+            raw[0x28..0x2c].copy_from_slice(&(total.div_ceil(0x1000) as u32).to_le_bytes());
+            let h = RpcHeader {
+                header_version: 0x0300_0000,
+                signature: u32::from_le_bytes(*b"VRPC"),
+                length: (32 + payload.len()) as u32,
+                function,
+                rpc_result: 0xFFFF_FFFF,
+                rpc_result_private: 0xFFFF_FFFF,
+                sequence: seq,
+                u: 0,
+            };
+            raw[0x30..0x50].copy_from_slice(&h.encode());
+            raw[0x50..0x50 + payload.len()].copy_from_slice(payload);
+            let sum = crate::msgq::checksum32(&raw);
+            raw[0x20..0x24].copy_from_slice(&sum.to_le_bytes());
+            let at = 0x1000 + cmd.entry_off as u64 + cmd.write_ptr as u64 * 0x1000;
+            assert!(qm.write(at, &raw));
+            cmd.write_ptr = (cmd.write_ptr + total.div_ceil(0x1000) as u32) % cmd.msg_count;
+            assert!(qm.write_u32(0x1000 + 16, cmd.write_ptr));
+            seq += 1;
+        };
+        // The status queue: element `slot`'s function, RPC length and payload.
+        let status = |slot: u64| {
+            let mut e = vec![0u8; 0x1000];
+            assert!(qm.read(0x42000 + slot * 0x1000, &mut e));
+            let h = RpcHeader::parse(&e[0x30..]);
+            let len = h.length as usize;
+            let padded = (0x30 + len).div_ceil(8) * 8;
+            assert_eq!(crate::msgq::checksum32(&e[..padded]), 0, "slot {slot} checksum");
+            (h.function, len, e[0x50..0x30 + len].to_vec())
+        };
+        let boot = |b: &mut BootModel, cmd: &mut crate::msgq::TxHeader, send: &mut dyn FnMut(&mut crate::msgq::TxHeader, u32, &[u8])| {
+            // Bare GSP start with the libos arguments, Booter Load, then the two
+            // commands without reply and the doorbell (gsp/boot.rs:146-149).
+            b.write32(gsp + falcon::MAILBOX0, libos as u32, &mem);
+            b.write32(gsp + falcon::MAILBOX1, (libos >> 32) as u32, &mem);
+            b.write32(sec2 + falcon::MAILBOX0, 0x7654_3000, &mem);
+            b.write32(sec2 + falcon::MAILBOX1, 0, &mem);
+            let mut notes = b.write32(sec2 + falcon::CPUCTL, 2, &mem).unwrap();
+            send(cmd, rpc::FN_GSP_SET_SYSTEM_INFO, &[0u8; 928]);
+            send(cmd, rpc::FN_SET_REGISTRY, &[8, 0, 0, 0, 0, 0, 0, 0]);
+            notes.extend(b.write32(queue_head, 0, &mem).unwrap());
+            notes
+        };
+        let notes = boot(&mut b, &mut cmd, &mut send);
+        assert!(notes.iter().any(|n| n.contains("queues linked")), "{notes:?}");
+        assert_eq!(status(0).0, crate::ver::v570::EV_GSP_RUN_CPU_SEQUENCER);
+        assert_eq!(status(0).1, 32 + 40);
+        assert_eq!(status(1).0, rpc::EV_GSP_INIT_DONE);
+        assert_eq!(status(1).1, 32 + 4);
+        assert!(notes.iter().any(|n| n.contains("GSP_SET_SYSTEM_INFO") && n.contains("checksum ok")), "{notes:?}");
+        assert!(!notes.iter().any(|n| n.contains("WARNING guest registry")), "{notes:?}");
+        send(&mut cmd, rpc::FN_GET_GSP_STATIC_INFO, &[0u8; 1656]);
+        b.write32(queue_head, 0, &mem).unwrap();
+        let (function, len, payload) = status(2);
+        assert_eq!((function, len), (rpc::FN_GET_GSP_STATIC_INFO, 32 + 1656));
+        let name = &payload[1260..1260 + 64];
+        let name = &name[..name.iter().position(|&c| c == 0).expect("NUL-terminated")];
+        assert!(std::str::from_utf8(name).unwrap().contains("RTX 2070"), "{name:?}");
+        // Unbind: UNLOADING_GUEST_DRIVER (newLevel 0), reply, MAILBOX0 bit 31.
+        send(&mut cmd, crate::gsprpc::FN_UNLOADING_GUEST_DRIVER, &[0u8; 8]);
+        b.write32(queue_head, 0, &mem).unwrap();
+        assert_eq!(status(3).0, crate::gsprpc::FN_UNLOADING_GUEST_DRIVER);
+        assert_ne!(b.read32(gsp + falcon::MAILBOX0).unwrap() & GSP_PROCESSOR_SUSPENDED, 0);
+        // Booter Unload, then the re-probe: fresh queues from the CPU, a new Booter Load.
+        b.write32(sec2 + falcon::MAILBOX0, 0xff, &mem);
+        b.write32(sec2 + falcon::MAILBOX1, 0xff, &mem);
+        b.write32(sec2 + falcon::CPUCTL, 2, &mem).unwrap();
+        let zero = vec![0u8; 0x80000];
+        assert!(qm.write(0x1000, &zero));
+        let mut cmd = crate::msgq::TxHeader::standard(0x40000);
+        assert!(qm.write(0x1000, &cmd.encode()));
+        let notes = boot(&mut b, &mut cmd, &mut send);
+        assert!(notes.iter().any(|n| n.contains("previous boot's link dropped")), "{notes:?}");
+        assert!(notes.iter().any(|n| n.contains("queues linked")), "{notes:?}");
+        assert_eq!(status(0).0, crate::ver::v570::EV_GSP_RUN_CPU_SEQUENCER);
+        assert_eq!(status(1).0, rpc::EV_GSP_INIT_DONE);
+        crate::ver::TEST_GUEST.with(|c| c.set(None));
+        let _ = std::fs::remove_file(path);
     }
 
     /// Guest memory holding what the 615.71.09 guest prepared before its GSP boot, as
