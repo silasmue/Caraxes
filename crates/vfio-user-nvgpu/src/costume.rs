@@ -47,7 +47,11 @@ fn pci_ids_are_the_5060_ti_and_the_layout_the_tu106() {
     // NV_XVE_LINK_CAPABILITIES (0x84): max speed 3 (8 GT/s) in 3:0, max width 16 in 9:4.
     let lnkcap = c.dword(0x84);
     assert_eq!((lnkcap & 0xF, (lnkcap >> 4) & 0x3F), (3, 16));
-    assert!((0x100..crate::config::SIZE).all(|o| c.byte(o) == 0));
+    // The extended space is the TU106 capture's (the loop above), hidden from the config
+    // region.
+    let mut ext = vec![0u8; crate::config::SIZE - 0x100];
+    c.region_read(0x100, &mut ext);
+    assert!(ext.iter().all(|&b| b == 0));
 }
 
 /// With the whole GB206 config space the Turing RM's fixed-offset read of

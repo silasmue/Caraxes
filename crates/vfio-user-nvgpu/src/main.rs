@@ -123,6 +123,11 @@ Environment: CARAXES_DOORBELL_IOEVENTFD=1 offers the usermode doorbell register 
   datamatch, read by the token pool's reactor, which does what the trapped write does
   (docs/caraxes/intr-page.md §4); needs CARAXES_DOORBELL_TOKENS=N. A client that does not
   register it keeps trapping the write.
+  CARAXES_EXT_CONFIG=1 shows the extended configuration space (0x100-0xFFF, the capture's
+  capabilities without SR-IOV, ARI and the serial number) in the vfio-user config region
+  too, so the guest OS sees VC, LTR, L1SS, Power Budgeting, AER, the VSEC, Secondary PCIe
+  and Resizable BAR (read-only); without it the region reads zeros there and only the
+  BAR0 mirror NV_PCFG serves those bytes (docs/caraxes/vfio-user.md).
   CARAXES_DOORBELL_POLL=off|spin|hybrid chooses how the thread that reads those eventfds
   waits: off blocks in epoll_wait (default), spin polls with epoll_wait timeout 0 and
   never sleeps, hybrid spins CARAXES_DOORBELL_POLL_IDLE_US (default 200) after the last
@@ -328,7 +333,15 @@ fn config_space(a: &Args) -> Result<ConfigSpace> {
         }
         None => None,
     };
-    pci_config::for_board_with_ids(&dump, ids.as_deref(), &a.board_data)
+    let mut cfg = pci_config::for_board_with_ids(&dump, ids.as_deref(), &a.board_data)?;
+    if pci_config::ext_config_requested() {
+        cfg.set_ext_visible(true);
+        eprintln!(
+            "vfio-user-nvgpu: {}=1: the config region shows the extended configuration space",
+            pci_config::EXT_CONFIG_ENV
+        );
+    }
+    Ok(cfg)
 }
 
 /// One soak line (soak.rs) from the host memory client and, when given, the device's counts.
