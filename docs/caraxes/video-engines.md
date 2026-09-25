@@ -3,10 +3,14 @@
 <!-- SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR -->
 # Video engines: NVENC and NVDEC through the mirror
 
-Status (2026-09-25, `probe-layout610`): the 610 guest encodes through the mirror. 300 frames
-of 1080p H.264 were encoded at 104.8 fps, with a median latency of 5.5 ms (p99 25.1 ms). The
-stream passes the header check, and the host logged no NVRM line and no Xid. NVDEC does not
-work yet (§5). The design is the video layout (§3).
+Status (2026-09-25): NVENC and NVDEC pass through the mirror on both guest drivers
+(`probe-nvdec0-610`, `probe-nvdec0-615`).
+- 300 frames of 1080p H.264 are encoded and decoded back, with a luma PSNR of at least
+  63.37 dB (the native value).
+- 610: encode 156.8 fps (median 3.3 ms), decode 118.5 fps. 615: encode 95.1 fps (median
+  7.0 ms), decode 74.9 fps.
+- The host logged no NVRM line and no Xid. The design is the video layout (§3). Two
+  answers of the device had to be fixed (§5).
 
 - Records: `caraxes/runs/nvenc-2026-09-25/`.
 - Probe: `caraxes/tools/nvenc-probe.c`.
@@ -129,21 +133,36 @@ work yet (§5). The design is the video layout (§3).
   - [x] Host: no NVRM line, no Xid.
   - [ ] `nvidia-smi encodersessions` did not list the session (the probe's encode lasts 3 s,
     and the one sample in that window listed none).
-  - [ ] NVDEC: `cuvidCreateDecoder` returned CUDA error 2 (out of memory), 0 frames, no PSNR.
-    - The NVDEC0 object was placed like NVENC's, its context at 0x11c000000.
-    - The guest then opened an NVDEC1 channel and freed everything 0.3 ms after that
-      channel's first doorbell, before any NVDEC1 promote or object.
-    - The device answered no call with an error in that window, so the failure is on the
-      guest's side. Open.
-- 615 guest:
+  - NVDEC failed here (CUDA error 2); fixed below.
+- 615 guest, before the fixes:
   - `probe-layout615` and `probe-layout615b` had no result: the wrong userspace, then the
     vm2-615 image lacks `libnvidia-encode`.
-  - `probe-vm4-615` (the game VM, NVIDIA's 615 packages):
-    - `nvEncOpenEncodeSessionEx` returned `NV_ENC_ERR_UNSUPPORTED_DEVICE` (2), and Sunshine
-      fell back to libx264.
-    - The 615 library stops after `GPU_GET_INFO_V2`: no caps query, no session open, no
-      video channel. So the mirror is not reached.
-    - Untested: the 615 userspace or the 3 GiB profile. Open.
+  - `probe-vm4-615` and `probe-pkg615` (1 GiB, with the 615 libraries):
+    `nvEncOpenEncodeSessionEx` returned `NV_ENC_ERR_UNSUPPORTED_DEVICE` (2), and Sunshine
+    fell back to libx264. So the userspace was the cause, not the profile.
+- Fix 1, the engine mask (615 only; `rmlog-615`, gmcapi.rs `engine_masks`):
+  - The 615 guest's class list lacked NVC4B0 and NVC4B7, and its engine list had no video
+    engine.
+  - The 615 kernel decodes `NVGMC_SC_ENGINE_MASK` into `engineCaps` as RM engine types
+    (kernel_gsp.c:7837-7843). Its only reader treats that array as NV2080 types and
+    converts it once more (gpu.c:6733-6749).
+  - GR0 and CE0-9 have the same number in both numberings; NVDEC and NVENC do not.
+  - The device now encodes each NV2080 number as the GMC id of the same RM type.
+  - `probe-engines615`: NVENC encodes, 127.9 fps, median 4.2 ms.
+- Fix 2, no NVDEC1 (both drivers; `rmlog-610-dec`, chips/tu106/chip.toml):
+  - The device reported NVDEC0/1. The host (this RTX 2070) has NVDEC0 only.
+  - cuvid put its decoder on NVDEC1, where the guest kernel refused NVC4B0
+    (`NV_ERR_INVALID_CLASS`), and cuvid reported that as CUDA error 2.
+  - A 2 GiB profile failed the same way (`probe-dec610-2g`), so VRAM was not the cause.
+  - NVDEC1 is dropped from the TU106 `engine_caps`.
+- After both fixes:
+  - `probe-nvdec0-610`: NVENC 156.8 fps, median 3.3 ms, p99 7.3 ms. NVDEC 300 frames,
+    118.5 fps, PSNR min 63.37 dB. PASS.
+  - `probe-nvdec0-615`: NVENC 95.1 fps, median 7.0 ms, p99 17.4 ms. NVDEC 300 frames,
+    74.9 fps, PSNR min 63.37 dB. PASS.
+- Tool: `caraxes/tools/rmioctl-log.c` (LD_PRELOAD) logs every RM call of a process and can
+  rewrite answers. It showed both causes: they were controls the guest kernel answers itself,
+  so they never reach the device's trace.
 
 ## 6. Limits
 

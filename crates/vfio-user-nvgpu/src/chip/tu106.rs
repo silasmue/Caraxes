@@ -91,7 +91,7 @@ mod tests {
     #[test]
     fn tables_resolve_to_the_milestone_values() {
         let c = chip();
-        assert_eq!(c.engine_caps_mask(3), vec![0x081B_FE02, 0x0000_00C4, 0]);
+        assert_eq!(c.engine_caps_mask(3), vec![0x080B_FE02, 0x0000_00C4, 0]);
         let e = |name: &str,
                  desc: u32,
                  rm: u32,

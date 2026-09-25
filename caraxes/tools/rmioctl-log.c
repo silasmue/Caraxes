@@ -84,7 +84,7 @@ int ioctl(int fd, unsigned long req, ...)
         fprintf(stderr, "RMCTRL cmd=%#010x obj=%#x size=%u status=%#x params=", p->cmd, p->hObject,
                 p->paramsSize, p->status);
         const uint8_t *b = (const uint8_t *)(uintptr_t)p->params;
-        for (uint32_t i = 0; b && i < p->paramsSize && i < 32; i++)
+        for (uint32_t i = 0; b && i < p->paramsSize && i < (p->cmd == 0x20800170 ? 64u : 32u); i++)
             fprintf(stderr, "%02x", b[i]);
         fputc('\n', stderr);
         // NV0080_CTRL_CMD_GPU_GET_CLASSLIST (0x800201): numClasses @0, classList (NvP64) @8.

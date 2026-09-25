@@ -80,9 +80,12 @@ l2_ops_local = [0x0007_0000, 0x0007_0008, 0x0007_000C, 0x00B8_0F04]
 
 # engineCaps[3] of GspStaticConfigInfo: the NV2080_ENGINE_TYPE bits of the TU106
 # engines (kern_gpu_tu102.c:177-205; cl2080_notification.h).
+# NVDEC1 dropped 2026-09-25: the host (615.71.09, this RTX 2070) lists NVDEC0 only in GET_ENGINES_V2,
+# and a guest that saw NVDEC1 had cuvid put its decoder there, where the guest kernel refused
+# NVC4B0 (NV_ERR_INVALID_CLASS; caraxes/runs/nvenc-2026-09-25/rmlog-610-dec).
 [engine_caps]
-types = ["GR0", "COPY0", "COPY1", "COPY2", "COPY3", "COPY4", "COPY5", "COPY6", "COPY7", "COPY8", "NVDEC0", "NVDEC1", "NVENC0", "SW", "SEC2", "HOST"]
-summary = "GR0, CE0-8, NVDEC0/1, NVENC0, SW, SEC2, HOST"
+types = ["GR0", "COPY0", "COPY1", "COPY2", "COPY3", "COPY4", "COPY5", "COPY6", "COPY7", "COPY8", "NVDEC0", "NVENC0", "SW", "SEC2", "HOST"]
+summary = "GR0, CE0-8, NVDEC0, NVENC0, SW, SEC2, HOST"
 source = "synthesized (TU106 child list; E4: host GET_ENGINES_V2)"
 
 # INTERNAL_GPU_GET_CHIP_INFO regBases per gpuGetRegBaseOffset_TU102: TIMER = 0x9000,

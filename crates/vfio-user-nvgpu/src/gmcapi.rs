@@ -887,7 +887,7 @@ mod tests {
 
     #[test]
     fn engines_map_to_gmc_masks() {
-        // The TU106 list of chips/tu106/chip.toml: GR0, CE0-8, NVDEC0/1, NVENC0, SW, SEC2, HOST.
+        // The TU106 list of chips/tu106/chip.toml: GR0, CE0-8, NVDEC0 (NVDEC1 in the test list: the encoding, not the chip), NVENC0, SW, SEC2, HOST.
         let tu106 = [
             0x01, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10, 0x11, 0x13, 0x14, 0x1B, 0x22,
             0x26, 0x27,

@@ -1,0 +1,4 @@
+-rwxrwxr-x 1 leandro leandro 41104 Sep 25 14:23 nvenc-probe
+lrwxrwxrwx 1 root root 20 Sep  9 23:10 /usr/lib/x86_64-linux-gnu/libcuda.so.1 -> libcuda.so.615.71.09
+lrwxrwxrwx 1 root root 23 Sep  9 23:10 /usr/lib/x86_64-linux-gnu/libnvcuvid.so.1 -> libnvcuvid.so.615.71.09
+lrwxrwxrwx 1 root root 29 Sep  9 23:10 /usr/lib/x86_64-linux-gnu/libnvidia-encode.so.1 -> libnvidia-encode.so.615.71.09
