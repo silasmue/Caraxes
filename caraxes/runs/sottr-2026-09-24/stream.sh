@@ -7,7 +7,8 @@
 #     v1's bench.sh do_stream (Leandro-Test scripts/bench.sh:1031-1042) with the retries of the
 #     display stream stage (caraxes/runs/display-f-2026-09-24/stream.sh): `moonlight pair --pin`
 #     in the background, the PIN posted to Sunshine's /api/pin with the web login;
-#  3. `moonlight stream <ip> Desktop` opened in a window on the operator's desktop session
+#  3. `moonlight stream <ip> Desktop` opened in a window (SOTTR_MOUSE=--no-absolute-mouse for the
+#     game's relative mouse; the default is the remote-desktop mouse for the login and Steam) on the operator's desktop session
 #     (Wayland, WAYLAND_DISPLAY=wayland-1, DISPLAY=:0), detached with setsid nohup; its pid goes
 #     to $W/moonlight.pid so that down.sh quits exactly this instance.
 # The script does not wait for the stream. Moonlight prints its session summary into
@@ -58,10 +59,10 @@ else
 fi
 
 # 3. The stream window on the operator's desktop.
-echo "$(date -Iseconds) moonlight stream $IP Desktop --resolution $res --fps $fps --bitrate $bitrate --display-mode windowed" >> "$OUT/stream.txt"
+echo "$(date -Iseconds) moonlight stream $IP Desktop --resolution $res --fps $fps --bitrate $bitrate --display-mode windowed ${SOTTR_MOUSE:---absolute-mouse}" >> "$OUT/stream.txt"
 setsid nohup env WAYLAND_DISPLAY="${SOTTR_WAYLAND_DISPLAY:-wayland-1}" DISPLAY="${SOTTR_DISPLAY:-:0}" \
     XDG_RUNTIME_DIR="/run/user/$(id -u)" \
-    "$ML" stream "$IP" Desktop --resolution "$res" --fps "$fps" --bitrate "$bitrate" --display-mode windowed \
+    "$ML" stream "$IP" Desktop --resolution "$res" --fps "$fps" --bitrate "$bitrate" --display-mode windowed ${SOTTR_MOUSE:---absolute-mouse} \
     >> "$OUT/moonlight.log" 2>&1 < /dev/null &
 mp=$!
 sleep 2
