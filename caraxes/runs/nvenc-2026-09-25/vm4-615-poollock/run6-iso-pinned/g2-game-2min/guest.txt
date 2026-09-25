@@ -1,0 +1,29 @@
+==lat
+==top
+top - 20:43:45 up 14 min,  2 users,  load average: 1.82, 1.62, 1.00
+Tasks: 310 total,   1 running, 309 sleeping,   0 stopped,   0 zombie
+%Cpu(s):  4.5 us,  4.5 sy,  0.0 ni, 89.4 id,  0.0 wa,  0.0 hi,  0.3 si,  1.2 st 
+MiB Mem :   7940.0 total,   1584.0 free,   3269.1 used,   4137.7 buff/cache     
+MiB Swap:      0.0 total,      0.0 free,      0.0 used.   4670.8 avail Mem 
+
+    PID USER      PR  NI    VIRT    RES    SHR S  %CPU  %MEM     TIME+ COMMAND
+   2063 leandro   20   0 4543928 424188 221280 S  48.5   5.2   5:17.38 gnome-s+
+   9431 leandro   20   0   47.5g 372108 272380 S  13.9   4.6   0:13.71 steamwe+
+   2781 leandro   20   0  523672 206196 166952 S   8.9   2.5   0:52.77 Xwayland
+   9372 leandro   20   0 1250100 249084 196044 S   5.9   3.1   0:10.87 steamwe+
+   9091 leandro   20   0 8420956 464784 332900 S   5.0   5.7   0:40.39 ShadowO+
+   3198 leandro   20   0   47.5g 375940 268308 S   4.0   4.6   0:40.18 steamwe+
+   9149 leandro   20   0 2466048 232912 129996 S   3.0   2.9   0:09.10 FeralCe+
+   1632 root     -51   0       0      0      0 S   2.0   0.0   0:10.39 irq/38-+
+==vmstat
+procs -----------memory---------- ---swap-- -----io---- -system-- -------cpu-------
+ r  b   swpd   free   buff  cache   si   so    bi    bo   in   cs us sy id wa st gu
+ 1  0      0 1598528 113552 4123564    0    0  3624   673 5136    6  6  6 87  0  2  0
+ 1  0      0 1600352 113552 4123564    0    0     0     0 5684 6044  2  3 95  0  0  0
+ 1  0      0 1607360 113552 4123564    0    0     0    20 5397 5662  2  3 95  0  0  0
+ 0  0      0 1623792 113552 4121968    0    0     0     0 5900 6066  4  3 92  0  1  0
+ 1  0      0 1630512 113552 4121100    0    0     0    68 5590 5804  3  3 94  0  1  0
+==D
+==smi
+9091, /games/SteamLibrary/steamapps/common/Shadow of the Tomb Raider/bin/ShadowOfTheTombRaider, 157 MiB
+353 MiB

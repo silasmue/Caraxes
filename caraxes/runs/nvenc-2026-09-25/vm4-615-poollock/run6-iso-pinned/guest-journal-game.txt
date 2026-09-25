@@ -1,0 +1,20 @@
+9045
+9091
+[  721.998983] caraxes-vm4-615 steam[2744]: chdir "/games/SteamLibrary/steamapps/common/Shadow of the Tomb Raider"
+[  722.030631] caraxes-vm4-615 steam[2744]: Game Recording - would start recording game 750920, but recording for this game is disabled
+[  722.030914] caraxes-vm4-615 steam[2744]: Adding process 8962 for gameID 750920
+[  722.113172] caraxes-vm4-615 steam[2744]: Adding process 8963 for gameID 750920
+[  722.113498] caraxes-vm4-615 steam[2744]: Adding process 8964 for gameID 750920
+[  722.195338] caraxes-vm4-615 steam[2744]: Adding process 8965 for gameID 750920
+[  725.325414] caraxes-vm4-615 steam[2744]: Adding process 9045 for gameID 750920
+[  725.477532] caraxes-vm4-615 steam[2744]: Adding process 9072 for gameID 750920
+[  725.477858] caraxes-vm4-615 steam[2744]: Adding process 9078 for gameID 750920
+[  725.528725] caraxes-vm4-615 steam[2744]: Adding process 9088 for gameID 750920
+[  725.582523] caraxes-vm4-615 steam[2744]: Adding process 9089 for gameID 750920
+[  725.582787] caraxes-vm4-615 steam[2744]: Adding process 9090 for gameID 750920
+[  725.651142] caraxes-vm4-615 steam[2744]: ShadowOfTheTombRaider: crash reporter initialised with path "/home/leandro/.local/share/feral-interactive/Shadow of the Tomb Raider/crashes"
+[  725.684182] caraxes-vm4-615 steam[2744]: Adding process 9091 for gameID 750920
+[  726.960177] caraxes-vm4-615 steam[2744]: Setting breakpad minidump AppID = 750920
+[  731.071572] caraxes-vm4-615 steam[2744]: Fossilize INFO: Overriding serialization path: "/games/SteamLibrary/steamapps/shadercache/750920/fozpipelinesv6/steamapprun_pipeline_cache".
+[  731.881930] caraxes-vm4-615 steam[2744]: [0925/204147.352149:INFO:CONSOLE(8672)] "Synchronous XMLHttpRequest on the main thread is deprecated because of its detrimental effects to the end user's experience. For more help, check https://xhr.spec.whatwg.org/.", source: file:///games/SteamLibrary/steamapps/common/Shadow%20of%20the%20Tomb%20Raider/share/FeralUI/Core/3rdParty/jquery-ui-1.10.4.custom/js/jquery-1.10.2.js (8672)
+[  732.065865] caraxes-vm4-615 steam[2744]: [0925/204147.536073:INFO:CONSOLE(6569)] "The specified value "!" does not conform to the required format.  The format is "#rrggbb" where rr, gg, bb are two-digit hexadecimal numbers.", source: file:///games/SteamLibrary/steamapps/common/Shadow%20of%20the%20Tomb%20Raider/share/FeralUI/Core/3rdParty/jquery-ui-1.10.4.custom/js/jquery-1.10.2.js (6569)

@@ -43,7 +43,7 @@ if [[ ${ISO:-0} == 1 ]]; then
   g 'tail -5 /tmp/probe2.txt' > "$N/iso-b2-nvenc-probe.txt" 2>&1
   bash $M "$N" step i-b3-vkcube-after-probe-exit vk
   GT=250 g "SUN_USER=lea SUN_PASS=leastream SUN_ENCODER=${SOTTR_SUN_ENCODER:-nvenc} bash caraxes-sottr/sottr-session.sh sunshine-start" > "$N/iso-sunshine-start.txt" 2>&1
-  log "iso e: sunshine ($SOTTR_SUN_ENCODER): $(grep -E 'Found H.264|did not|never' "$N/iso-sunshine-start.txt" | head -1 | cut -c1-120)"
+  log "iso e: sunshine (${SOTTR_SUN_ENCODER:-nvenc}): $(grep -E 'Found H.264|did not|never' "$N/iso-sunshine-start.txt" | head -1 | cut -c1-120)"
   bash $M "$N" step i-e-vkcube-sunshine-running vk
   g 'bash caraxes-sottr/sottr-session.sh sunshine-stop; cp ~/.config/sunshine/sunshine.log ~/sunshine-iso-$(date +%H%M).log' > "$N/iso-sunshine-stop.txt" 2>&1
   sleep 5
