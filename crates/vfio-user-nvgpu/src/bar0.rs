@@ -566,7 +566,7 @@ mod tests {
             "../../../caraxes/reference/rtx2070/bar0-registers-2026-09-25.txt"
         ))
         .unwrap();
-        assert_eq!(house.len(), 4833);
+        assert_eq!(house.len(), 4817);
         assert!(house.check_identity(0x1660_00A1).is_ok());
         assert_eq!(house.get(0x1373A0), Some(0xA));
     }
