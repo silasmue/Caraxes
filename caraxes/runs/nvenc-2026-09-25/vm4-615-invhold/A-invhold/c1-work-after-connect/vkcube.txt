@@ -1,0 +1,3 @@
+vkcube rc=0 elapsed=29.970629367
+
+Selected GPU 0: Leandro VFIO RTX 2070-3G, type: DiscreteGpu

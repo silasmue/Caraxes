@@ -1,0 +1,5 @@
+vfio-user-nvgpu: intr page: BAR0 [0x0, 0x1000) and the interrupt tree [0xb81000, 0xb82000) offered as sparse mmap areas of region 0 from a memfd; the reactor applies the guest's stores (sleep bound 1 ms, retrigger watchdog 10 ms) (CARAXES_I
+vfio-user-nvgpu: display page: BAR0 [0x611000, 0x612000) (the display front-end interrupt status) offered as a third sparse mmap area; the display clock advances the engine at every tick, the reactor applies the guest's acks and enables, wi
+vfio-user-nvgpu: msi re-arm ioeventfd: BAR0 0x88704 (NV_XVE_CYA_2), 4 bytes, no datamatch, offered through VFIO_USER_DEVICE_GET_REGION_IO_FDS and read by the token pool's reactor; a client that does not register it keeps trapping the write 
+vfio-user-nvgpu: doorbell poll: hybrid reader (CARAXES_DOORBELL_POLL=hybrid, CARAXES_DOORBELL_POLL_CPU=Auto)
+vfio-user-nvgpu: doorbell poll: reader pinned to CPU 14 (auto: 89 % idle over 1 s; not CPU 0; VMM vCPU threads of pid 1385198 on CPU(s) [1, 2, 3, 5, 8, 9, 10, 11] at the sample, avoided)
