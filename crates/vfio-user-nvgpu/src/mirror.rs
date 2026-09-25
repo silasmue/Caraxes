@@ -280,8 +280,6 @@ pub struct MirrorStats {
     /// objects, scheduling and the work-submit token, the doorbell.
     pub builds: u64,
     pub build_us: [u128; 6],
-    /// Shadow channels whose error notifier page already had a host object.
-    pub notifier_reused: u64,
     /// Host channel and TSG frees at the guest's frees, and their time in us.
     pub frees: [u64; 2],
     pub free_us: [u128; 2],
@@ -361,9 +359,6 @@ pub struct Mirror {
     /// guest invalidates the root of a VAS its TSGs run on, before the first channel
     /// (ctx-create.md).
     prefetch_on: bool,
-    /// The host memory objects over guest error-notifier pages, by the page's host address
-    /// (at most `NOTIFIER_OBJECTS_MAX`; they live as long as the device, as before).
-    notifier_objects: BTreeMap<usize, u32>,
     /// The rule for a mirrored channel whose GPPut store does not trap (untrapped.rs,
     /// `CARAXES_SHADOW_UNTRAPPED_HOLD`, default on) and its counters.
     hold_on: bool,
@@ -388,9 +383,6 @@ unsafe impl Send for Mirror {}
 fn prefetch_candidate(root: u64, base: u64, end: u64, tsg_roots: &std::collections::BTreeSet<u64>) -> bool {
     root >= base && root + PAGE <= end && tsg_roots.contains(&root)
 }
-
-/// Error-notifier page objects kept for reuse at most.
-const NOTIFIER_OBJECTS_MAX: usize = 256;
 
 fn status_name(st: u32) -> String {
     match nvrm_abi::status_name(st) {
@@ -481,7 +473,6 @@ impl Mirror {
                 }
             },
             prefetch_on: std::env::var("CARAXES_SHADOW_PREFETCH").map_or(true, |v| v.trim() != "0"),
-            notifier_objects: BTreeMap::new(),
             hold: crate::untrapped::HoldStats::default(),
             unwaited: 0,
             descs: None,
@@ -1200,19 +1191,7 @@ impl Mirror {
                 .sys
                 .translate(iova, PAGE)
                 .and_then(|gpa| gm.sys.host_ptr(gpa, PAGE))
-                .and_then(|ptr| {
-                    // One host object per guest page, shared by the channels that name it
-                    // (ctx-create.md): the host RM writes the same bytes either way.
-                    if let Some(o) = self.notifier_objects.get(&(ptr as usize)) {
-                        self.stats.notifier_reused += 1;
-                        return Some(*o);
-                    }
-                    let o = h.guest_page_object(ptr, PAGE, "shadow-error-notifier").ok()?;
-                    if self.notifier_objects.len() < NOTIFIER_OBJECTS_MAX {
-                        self.notifier_objects.insert(ptr as usize, o);
-                    }
-                    Some(o)
-                })
+                .and_then(|ptr| h.guest_page_object(ptr, PAGE, "shadow-error-notifier").ok())
                 .unwrap_or(0),
             _ => 0,
         };
@@ -2707,11 +2686,10 @@ impl Mirror {
         let s = &self.stats;
         let b = &s.build_us;
         format!(
-            "prefetch {} ({} shadow VAS(es) ahead of their first channel, {} plan(s)); {} error-notifier object(s) reused; {} shadow channel build(s): plan and apply {} ms, TSG {} ms, channel {} ms, objects {} ms, schedule and token {} ms, doorbell {} ms; host frees: {} channel(s) {} ms, {} TSG(s) {} ms",
+            "prefetch {} ({} shadow VAS(es) ahead of their first channel, {} plan(s)); {} shadow channel build(s): plan and apply {} ms, TSG {} ms, channel {} ms, objects {} ms, schedule and token {} ms, doorbell {} ms; host frees: {} channel(s) {} ms, {} TSG(s) {} ms",
             if self.prefetch_on { "on" } else { "OFF" },
             s.prefetch_spaces,
             s.prefetch_plans,
-            s.notifier_reused,
             s.builds,
             b[0] / 1000,
             b[1] / 1000,
