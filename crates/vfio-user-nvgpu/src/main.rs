@@ -611,6 +611,17 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
         if a.host_rm {
             let host = HostRmClient::open().context("open the host RM (decision D10)")?;
             eprintln!("vfio-user-nvgpu: host RM open (unprivileged client, device 0, subdevice 0)");
+            // Static per-card getters answered from their first host answer (fwdcache.rs).
+            let host = vfio_user_nvgpu::fwdcache::CachingHost::from_env(Box::new(host));
+            eprintln!(
+                "vfio-user-nvgpu: forward cache {} ({} static getters; {}=0 turns it off)",
+                if host.enabled() { "on" } else { "off" },
+                vfio_user_nvgpu::fwdcache::STATIC.len(),
+                vfio_user_nvgpu::fwdcache::FORWARD_CACHE_ENV
+            );
+            if profile::on() && host.enabled() {
+                profile::register_source(Box::new(vfio_user_nvgpu::fwdcache::counters));
+            }
             model = model.with_host(Box::new(host));
         }
         if a.host_exec {
