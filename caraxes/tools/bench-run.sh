@@ -22,7 +22,8 @@
 # libcuda 610.57.04) and copied to target/bench/bin; Python probes: Leandro-Test probe/python
 # (read in place on the host, synced by `tools/caraxes-vm.sh sync-tests` into guests).
 # Metrics (P13): launch-{auto,blocking} (nvprobe 4, 100 x 30M-cycle kernels),
-# short-{auto,blocking} (nvprobe 4, NVPROBE_CYCLES=1000), copy (bench-cu copy), mm (mmsweep
+# short-{auto,blocking} (nvprobe 4, NVPROBE_CYCLES=1000), launch1k (bench-cu launch 1000: the
+# launch call and the synchronize wait per launch, percentiles), copy (bench-cu copy), mm (mmsweep
 # 1024/2048/4096), rl (rlprobe 50 episodes), init (bench-cu init), time0/time1 (bash time of
 # nvprobe 0 / 1; the host has no /usr/bin/time), ioctl (ioctlping 10000), ctrl (ctrlping 2000 x 64/512/4096/16384),
 # churn (bench-cu churn 20), ppo (caraxes/tools/pporl.py, PPO CartPole with 128 vector envs for
@@ -87,6 +88,10 @@ metric_cmd() {
         launch-blocking) echo 'NVPROBE_ITERS=100 NVPROBE_SCHED=blocking ./nvprobe 4' ;;
         short-auto)      echo 'NVPROBE_ITERS=100 NVPROBE_CYCLES=1000 NVPROBE_SCHED=auto ./nvprobe 4' ;;
         short-blocking)  echo 'NVPROBE_ITERS=100 NVPROBE_CYCLES=1000 NVPROBE_SCHED=blocking ./nvprobe 4' ;;
+        # 1000 back-to-back 1000-cycle launches, each synchronized, with the launch call and the
+        # synchronize wait timed apart (bench-cu launch; bench-cu-launch when staged beside an
+        # older bench-cu without the mode; docs/caraxes/launch-path.md).
+        launch1k)        echo 'B=./bench-cu; [ -x ./bench-cu-launch ] && B=./bench-cu-launch; BENCH_CU_PTX=kernels.ptx $B launch 1000' ;;
         copy)            echo './bench-cu copy 10' ;;
         mm)              echo "NVMM_SIZES=1024,2048,4096 NVMM_ITERS=10 $py $pyd/mmsweep.py" ;;
         rl)              echo "NVRL_EPISODES=50 $py $pyd/rlprobe.py" ;;

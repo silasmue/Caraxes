@@ -803,7 +803,9 @@ where
             }
         }
         if !rings.is_empty() {
+            crate::launch::begin(seen, timeout != 0);
             ring(&rings, seen, st);
+            crate::launch::end();
         }
         if let Some(h) = hook.as_mut() {
             if woken {

@@ -796,9 +796,12 @@ impl Mirror {
         gm: &mut GpuMem,
         chid: u32,
     ) -> Vec<String> {
+        use crate::launch::{mark, Step};
+        mark(Step::Dispatch);
         // Evidence (untrapped.rs): did the host channel fetch entries this doorbell has not
         // forwarded yet, and were plans pending then?
         let ahead_line = self.note_ran_ahead(reg, gm, chid);
+        mark(Step::RanAhead);
         // CARAXES_ALLOC_LAZY: the invalidates deferred since the last doorbell are planned
         // here, before the barrier below or the creation's own wait.
         let lazy_notes = self.flush_lazy(reg, gm);
@@ -809,11 +812,15 @@ impl Mirror {
             let mut notes = lazy_notes;
             notes.extend(ahead_line);
             notes.extend(self.shadow_resync(reg, gm, root));
+            mark(Step::Plan);
             // Ordering: the doorbell is forwarded only after the worker applied every plan
             // submitted so far (the mirror is consistent for this root).
             self.worker.wait_all();
+            mark(Step::Wait);
             gm.fb.flush();
+            mark(Step::Flush);
             let put = Self::userd_ring(reg, gm, chid).map(|(_, p, _)| p);
+            mark(Step::Userd);
             let unwaited = self.unwaited;
             if let Some(hc) = self.channels.get_mut(&chid) {
                 hc.fwd_put = put;
@@ -1906,6 +1913,7 @@ impl Mirror {
         }
         let (_, map) = self.doorbell.as_ref().expect("mapped");
         map.write_u32(DOORBELL_OFFSET, token);
+        crate::launch::host_doorbell();
         self.stats.doorbells += 1;
         let hc = self.channels.get_mut(&chid).expect("present");
         hc.doorbells += 1;
@@ -2821,7 +2829,9 @@ fn event_loop(events: Vec<(OsEvent, Option<u32>)>, intr: Arc<IntrShared>, stop: 
             let recs = ev.drain();
             match vector {
                 Some(vec) => {
+                    crate::launch::host_event();
                     let msi = intr.raise(*vec);
+                    crate::launch::raised();
                     intr.note(format!(
                         "event: host notifier {:#x} fired ({} record(s)) -> guest vector {vec}{} [host]",
                         ev.notifier,

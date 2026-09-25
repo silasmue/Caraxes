@@ -192,6 +192,7 @@ pub fn spawn_token_reader_hooked(
         move |rings, seen, st| {
             let mut d = lock(&device);
             st.lock_wait.record(seen.elapsed());
+            crate::launch::mark(crate::launch::Step::Lock);
             match rearm_at {
                 None => d.doorbell_tokens(doorbell, rings, &mut |host| st.ring(seen, host)),
                 Some(offset) => {
@@ -239,6 +240,7 @@ pub fn spawn_doorbell_reader_hooked(
         move |rings, seen, st| {
             let mut d = lock(&device);
             st.lock_wait.record(seen.elapsed());
+            crate::launch::mark(crate::launch::Step::Lock);
             for &(_, writes) in rings {
                 let host = d.doorbell_ioeventfd(doorbell, writes);
                 st.ring(seen, host);

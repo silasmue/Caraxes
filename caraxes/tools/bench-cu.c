@@ -12,6 +12,13 @@
  *                             cuMemAlloc then cuMemFree in reverse order
  *                             (BENCH_CU_PHASE_GAP_MS: sleeps between the phases, for
  *                             a device trace; see phase_gap)
+ *   bench-cu launch [n]       n back-to-back launches of the 1000-cycle spin kernel of
+ *                             kernels.ptx (BENCH_CU_PTX, default ./kernels.ptx), each
+ *                             followed by cuCtxSynchronize (nvprobe 4's loop); per launch
+ *                             the cuLaunchKernel call, the synchronize wait and the whole
+ *                             interval, as percentiles (BENCH_CU_SCHED auto|spin|yield|
+ *                             blocking, default auto; BENCH_CU_CYCLES, default 1000;
+ *                             docs/caraxes/launch-path.md)
  *
  * Output: one "KEY k=v ..." line per result on stdout (medians of the reps within
  * the run); errors on stderr, exit 1. Build (guest):
@@ -232,6 +239,111 @@ static int do_churn(int cycles)
 	return 0;
 }
 
+static char *slurp_file(const char *path)
+{
+	FILE *f = fopen(path, "rb");
+	if (!f) {
+		fprintf(stderr, "ERROR open %s\n", path);
+		exit(1);
+	}
+	fseek(f, 0, SEEK_END);
+	long n = ftell(f);
+	fseek(f, 0, SEEK_SET);
+	char *b = malloc(n + 1);
+	if (!b || fread(b, 1, n, f) != (size_t)n) {
+		fprintf(stderr, "ERROR read %s\n", path);
+		exit(1);
+	}
+	b[n] = 0;
+	fclose(f);
+	return b;
+}
+
+/* p-th percentile (0..100) of v[0..n), v sorted. */
+static double pct(const double *v, int n, double p)
+{
+	int i = (int)(p / 100.0 * (n - 1) + 0.5);
+	return v[i < 0 ? 0 : i >= n ? n - 1 : i];
+}
+
+static void report(const char *what, double *v, int n)
+{
+	double sum = 0;
+	for (int i = 0; i < n; i++)
+		sum += v[i];
+	qsort(v, n, sizeof *v, cmp_d);
+	printf(" %s_mean_us=%.2f %s_p10_us=%.2f %s_p50_us=%.2f %s_p90_us=%.2f %s_p99_us=%.2f %s_max_us=%.1f",
+	       what, sum / n, what, pct(v, n, 10), what, pct(v, n, 50), what, pct(v, n, 90), what,
+	       pct(v, n, 99), what, v[n - 1]);
+}
+
+static int do_launch(int n)
+{
+	if (n < 1)
+		n = 1;
+	const char *e = getenv("BENCH_CU_SCHED");
+	const char *sched = e && *e ? e : "auto";
+	unsigned int flags = !strcmp(sched, "blocking") ? CU_CTX_SCHED_BLOCKING_SYNC :
+			     !strcmp(sched, "spin")     ? CU_CTX_SCHED_SPIN :
+			     !strcmp(sched, "yield")    ? CU_CTX_SCHED_YIELD : 0;
+	e = getenv("BENCH_CU_CYCLES");
+	long long cycles = e && *e ? atoll(e) : 1000;
+	e = getenv("BENCH_CU_PTX");
+	char *ptx = slurp_file(e && *e ? e : "kernels.ptx");
+	ck(cuInit(0), "cuInit");
+	CUdevice dev;
+	CUcontext ctx;
+	ck(cuDeviceGet(&dev, 0), "cuDeviceGet");
+#if CUDA_VERSION >= 12050
+	CUctxCreateParams p;
+	memset(&p, 0, sizeof p);
+	ck(cuCtxCreate(&ctx, &p, flags, dev), "cuCtxCreate");
+#else
+	ck(cuCtxCreate(&ctx, flags, dev), "cuCtxCreate");
+#endif
+	CUmodule mod;
+	CUfunction fspin;
+	ck(cuModuleLoadData(&mod, ptx), "cuModuleLoadData");
+	ck(cuModuleGetFunction(&fspin, mod, "spin"), "cuModuleGetFunction spin");
+	CUdeviceptr dc;
+	ck(cuMemAlloc(&dc, 4096), "cuMemAlloc");
+	void *args[] = { &cycles, &dc };
+	/* Warm-up outside the measurement, as nvprobe 4 does, plus a few more so the
+	 * first timed launch finds a warm channel. */
+	for (int i = 0; i < 10; i++) {
+		ck(cuLaunchKernel(fspin, 1, 1, 1, 32, 1, 1, 0, 0, args, NULL), "warm-up launch");
+		ck(cuCtxSynchronize(), "warm-up sync");
+	}
+	double *tl = malloc(n * sizeof *tl), *ts = malloc(n * sizeof *ts), *ti = malloc(n * sizeof *ti);
+	double start = now_us(), prev = start;
+	for (int i = 0; i < n; i++) {
+		double t0 = now_us();
+		ck(cuLaunchKernel(fspin, 1, 1, 1, 32, 1, 1, 0, 0, args, NULL), "cuLaunchKernel");
+		double t1 = now_us();
+		ck(cuCtxSynchronize(), "cuCtxSynchronize");
+		double t2 = now_us();
+		tl[i] = t1 - t0;
+		ts[i] = t2 - t1;
+		ti[i] = t2 - prev;
+		prev = t2;
+	}
+	double total = now_us() - start;
+	printf("LAUNCH n=%d sched=%s cycles=%lld total_ms=%.3f per_launch_us=%.2f", n, sched, cycles,
+	       total / 1e3, total / n);
+	report("interval", ti, n);
+	report("launch", tl, n);
+	report("sync", ts, n);
+	printf("\n");
+	free(tl);
+	free(ts);
+	free(ti);
+	cuMemFree(dc);
+	cuModuleUnload(mod);
+	cuCtxDestroy(ctx);
+	free(ptx);
+	return 0;
+}
+
 int main(int argc, char **argv)
 {
 	const char *m = argc > 1 ? argv[1] : "";
@@ -241,6 +353,8 @@ int main(int argc, char **argv)
 		return do_copy(argc > 2 ? atoi(argv[2]) : 10);
 	if (!strcmp(m, "churn"))
 		return do_churn(argc > 2 ? atoi(argv[2]) : 20);
-	fprintf(stderr, "usage: bench-cu init|copy [reps]|churn [cycles]\n");
+	if (!strcmp(m, "launch"))
+		return do_launch(argc > 2 ? atoi(argv[2]) : 1000);
+	fprintf(stderr, "usage: bench-cu init|copy [reps]|churn [cycles]|launch [n]\n");
 	return 2;
 }
