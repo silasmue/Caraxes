@@ -1,0 +1,120 @@
+== System since boot, by provider/id:
+
+Count Name                                           
+----- ----                                           
+   16 Microsoft-Windows-HttpService, 112             
+   15 Microsoft-Windows-FilterManager, 6             
+    4 Microsoft-Windows-Kernel-Processor-Power, 55   
+    2 Microsoft-Windows-Ntfs, 98                     
+    2 Microsoft-Windows-Dhcp-Client, 50036           
+    2 Microsoft-Windows-UserPnp, 20003               
+    1 Microsoft-Windows-Kernel-Boot, 32              
+    1 Microsoft-Windows-Kernel-General, 20           
+    1 Microsoft-Windows-Kernel-Boot, 27              
+    1 Microsoft-Windows-Kernel-Boot, 18              
+    1 Microsoft-Windows-HAL, 16                      
+    1 Microsoft-Windows-Kernel-Power, 172            
+    1 EventLog, 6008                                 
+    1 Microsoft-Windows-HAL, 17                      
+    1 Microsoft-Windows-Kernel-Power, 41             
+    1 EventLog, 6009                                 
+    1 Microsoft-Windows-Kernel-Boot, 20              
+    1 Microsoft-Windows-Kernel-Boot, 153             
+    1 EventLog, 6005                                 
+    1 EventLog, 6013                                 
+    1 Microsoft-Windows-Kernel-Boot, 238             
+    1 Microsoft-Windows-Kernel-Boot, 25              
+    1 Microsoft-Windows-Kernel-General, 12           
+    1 Microsoft-Windows-Kernel-General, 25           
+    1 Microsoft-Windows-Kernel-Boot, 247             
+    1 Service Control Manager, 7026                  
+    1 Microsoft-Windows-TPM-WMI, 1041                
+    1 Microsoft-Windows-DHCPv6-Client, 51046         
+    1 Microsoft-Windows-FilterManager, 1             
+    1 Microsoft-Windows-Dhcp-Client, 50103           
+    1 Microsoft-Windows-TPM-WMI, 1025                
+    1 Microsoft-Windows-DistributedCOM, 10016        
+    1 Microsoft-Windows-TPM-WMI, 1282                
+    1 Microsoft-Windows-TPM-WMI, 1040                
+    1 TPM, 18                                        
+    1 Microsoft-Windows-Directory-Services-SAM, 16983
+    1 Microsoft-Windows-Wininit, 25                  
+    1 Microsoft-Windows-Wininit, 23                  
+    1 Microsoft-Windows-Wininit, 24                  
+    1 Microsoft-Windows-Kernel-General, 24           
+    1 Microsoft-Windows-Wininit, 19                  
+    1 Microsoft-Windows-Directory-Services-SAM, 16962
+    1 Microsoft-Windows-Directory-Services-SAM, 16977
+    1 LsaSrv, 6156                                   
+    1 Microsoft-Windows-Wininit, 14                  
+    1 Microsoft-Windows-Wininit, 12                  
+
+
+
+== channels:
+
+LogName                                                   RecordCount IsEnabled
+-------                                                   ----------- ---------
+Microsoft-Windows-UserPnp/DeviceInstall                            67      True
+Microsoft-Windows-UserPnp/ActionCenter                              0      True
+Microsoft-Windows-TerminalServices-PnPDevices/Operational           0      True
+Microsoft-Windows-TerminalServices-PnPDevices/Admin                 3      True
+Microsoft-Windows-Storage-ClassPnP/Operational                      1      True
+Microsoft-Windows-Storage-ClassPnP/Admin                                  False
+Microsoft-Windows-Kernel-PnP/Driver Watchdog                       24      True
+Microsoft-Windows-Kernel-PnP/Device Management                     44      True
+Microsoft-Windows-Kernel-PnP/Configuration                        325      True
+Microsoft-Windows-DxgKrnl-Operational                               0      True
+Microsoft-Windows-DxgKrnl-Admin                                    68      True
+Microsoft-Windows-DisplayColorCalibration/Operational                     False
+Microsoft-Windows-DriverFrameworks-UserMode/Operational                   False
+
+
+
+== Microsoft-Windows-Kernel-PnP/Configuration
+
+
+TimeCreated      : 25.09.2026 21:24:26
+Id               : 430
+LevelDisplayName : Informationen
+Message          : Das Ger�t "PCI\VEN_10DE&DEV_1F02&SUBSYS_40111458&REV_A1\3&11583659&0&30" erfordert weitere Installationen.
+
+TimeCreated      : 25.09.2026 21:24:23
+Id               : 430
+LevelDisplayName : Informationen
+Message          : Das Ger�t "PCI\VEN_10DE&DEV_1F02&SUBSYS_40111458&REV_A1\3&11583659&0&30" erfordert weitere Installationen.
+
+
+
+
+== Microsoft-Windows-Kernel-PnP/Device Management
+
+
+TimeCreated      : 25.09.2026 21:26:15
+Id               : 1011
+LevelDisplayName : Warnung
+Message          : Das Ger�t PCI\VEN_10DE&DEV_1F02&SUBSYS_40111458&REV_A1\3&11583659&0&30 wurde �berraschend entfernt, da es als fehlerhaft gemeldet wurde. 
+                   Anzahl der entfernten Ger�te: 1 
+
+
+
+
+== Microsoft-Windows-DxgKrnl-Admin
+
+
+TimeCreated      : 25.09.2026 21:26:15
+Id               : 457
+LevelDisplayName : Fehler
+Message          : Miniport driver failed to start device with status Nicht ausreichend Systemressourcen, um die API abzuschlie�en.
+
+TimeCreated      : 25.09.2026 21:26:15
+Id               : 549
+LevelDisplayName : Fehler
+Message          : Adapter start failed for VendorId (0x10DE) failed with the status (Nicht ausreichend Systemressourcen, um die API abzuschlie�en.), reason (StartAdapter_DdiStartDeviceFailed)
+
+
+
+
+== Microsoft-Windows-DxgKrnl-Operational
+
+[exit 1]

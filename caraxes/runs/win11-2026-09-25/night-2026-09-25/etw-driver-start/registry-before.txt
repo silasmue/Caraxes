@@ -1,0 +1,112 @@
+0000 | Microsoft Basic Display Adapter | PCI\CC_0300 | 10.0.26100.1
+0001 | NVIDIA GeForce RTX 2070 | pci\ven_10de&dev_1f02 | 32.0.16.1714
+0002 | NVIDIA Tesla T4 | pci\ven_10de&dev_1eb8&subsys_12a210de | 32.0.16.1714
+0003 | NVIDIA GeForce RTX 2070 | pci\ven_10de&dev_1f02 | 32.0.16.1714
+0004 | Microsoft Remote Display Adapter | RdpIdd_IndirectDisplay | 10.0.26100.7920
+0005 | Microsoft Remote Display Adapter | RdpIdd_IndirectDisplay | 10.0.26100.7920
+0006 | NVIDIA GeForce RTX 2070 | pci\ven_10de&dev_1f02 | 32.0.16.1714
+0007 | NVIDIA GeForce RTX 2070 | pci\ven_10de&dev_1f02 | 32.0.16.1714
+0008 | NVIDIA Tesla T4 | pci\ven_10de&dev_1eb8&subsys_12a210de | 32.0.16.1714
+0009 | NVIDIA GeForce RTX 2070 | pci\ven_10de&dev_1f02 | 32.0.16.1714
+Configuration |  |  | 
+Properties |  |  | 
+== device Driver key:
+{4d36e968-e325-11ce-bfc1-08002be10318}\0007
+== services nvlddmkm:
+
+HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\nvlddmkm
+    Type    REG_DWORD    0x1
+    Start    REG_DWORD    0x3
+    ErrorControl    REG_DWORD    0x0
+    Tag    REG_DWORD    0x5
+    ImagePath    REG_EXPAND_SZ    \SystemRoot\System32\DriverStore\FileRepository\nv_dispi.inf_amd64_da865124972e1f80\nvlddmkm.sys
+    Group    REG_SZ    Video
+    Owners    REG_MULTI_SZ    oem20.inf\0oem22.inf\0oem16.inf
+
+HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\nvlddmkm\Global
+HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\nvlddmkm\NGXCore
+HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\nvlddmkm\Parameters
+HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\nvlddmkm\State
+HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\nvlddmkm\Video
+HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\nvlddmkm\Enum
+
+HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\nvlddmkm\Parameters
+    DCHUVen    REG_DWORD    0x10de
+    NvProfileUpdateFirstRun    REG_DWORD    0x1
+    WDDMv22EnableSmoothTransition    REG_DWORD    0x0
+    DmaRemappingCompatible    REG_DWORD    0x3
+
+HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\nvlddmkm\Parameters\FTS
+HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\nvlddmkm\Parameters\Global
+HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\nvlddmkm\Parameters\NGXCore
+HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\nvlddmkm\Parameters\NvCamera
+HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\nvlddmkm\Parameters\NVControlPanel2
+HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\nvlddmkm\Parameters\WKSStereo
+[exit 0]
+
+HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\Class\{4d36e968-e325-11ce-bfc1-08002be10318}\0007
+    Acceleration.Level    REG_DWORD    0x0
+    FeatureControl    REG_DWORD    0x4
+    InstalledDisplayDrivers    REG_MULTI_SZ    C:\WINDOWS\System32\DriverStore\FileRepository\nv_dispi.inf_amd64_da865124972e1f80\nvldumdx.dll,C:\WINDOWS\System32\DriverStore\FileRepository\nv_dispi.inf_amd64_da865124972e1f80\nvldumdx.dll,C:\WINDOWS\System32\DriverStore\FileRepository\nv_dispi.inf_amd64_da865124972e1f80\nvldumdx.dll,C:\WINDOWS\System32\DriverStore\FileRepository\nv_dispi.inf_amd64_da865124972e1f80\nvldumdx.dll\0C:\WINDOWS\System32\DriverStore\FileRepository\nv_dispi.inf_amd64_da865124972e1f80\nvldumd.dll,C:\WINDOWS\System32\DriverStore\FileRepository\nv_dispi.inf_amd64_da865124972e1f80\nvldumd.dll,C:\WINDOWS\System32\DriverStore\FileRepository\nv_dispi.inf_amd64_da865124972e1f80\nvldumd.dll,C:\WINDOWS\System32\DriverStore\FileRepository\nv_dispi.inf_amd64_da865124972e1f80\nvldumd.dll
+    UseBestResolution    REG_DWORD    0x1
+    UserModeDriverNameWoW    REG_MULTI_SZ    C:\WINDOWS\System32\DriverStore\FileRepository\nv_dispi.inf_amd64_da865124972e1f80\nvldumd.dll\0C:\WINDOWS\System32\DriverStore\FileRepository\nv_dispi.inf_amd64_da865124972e1f80\nvldumd.dll\0C:\WINDOWS\System32\DriverStore\FileRepository\nv_dispi.inf_amd64_da865124972e1f80\nvldumd.dll\0C:\WINDOWS\System32\DriverStore\FileRepository\nv_dispi.inf_amd64_da865124972e1f80\nvldumd.dll
+    UserModeDriverNameWsl    REG_MULTI_SZ    C:\WINDOWS\System32\DriverStore\FileRepository\nv_dispi.inf_amd64_da865124972e1f80\libnvwgf2umx.so
+    VulkanDriverName    REG_SZ    C:\WINDOWS\System32\DriverStore\FileRepository\nv_dispi.inf_amd64_da865124972e1f80\nv-vk64.json
+    VulkanDriverNameWoW    REG_SZ    C:\WINDOWS\System32\DriverStore\FileRepository\nv_dispi.inf_amd64_da865124972e1f80\nv-vk32.json
+    VulkanImplicitLayers    REG_SZ    C:\WINDOWS\System32\DriverStore\FileRepository\nv_dispi.inf_amd64_da865124972e1f80\nv-vk64.json
+    VulkanImplicitLayersWow    REG_SZ    C:\WINDOWS\System32\DriverStore\FileRepository\nv_dispi.inf_amd64_da865124972e1f80\nv-vk32.json
+    VulkanSCDriverName    REG_SZ    C:\WINDOWS\System32\DriverStore\FileRepository\nv_dispi.inf_amd64_da865124972e1f80\nv-vksc64.json
+    VulkanSCImplicitLayers    REG_SZ    C:\WINDOWS\System32\DriverStore\FileRepository\nv_dispi.inf_amd64_da865124972e1f80\nv-vksc64.json
+    NV_Modes    REG_MULTI_SZ    {*}S 640x480x32,64 720x480x32,64 800x600x32,64 1024x768x32,64 1152x864x32,64 1280x720x32,64 1280x768x32,64 1280x800x32,64 1280x960x32,64 1280x1024x32,64 1360x768x32,64 1366x768x32,64 1440x1080x32,64 1600x900x32,64 1600x1024x32,64 1600x1200x32,64 1680x1050x32,64 1920x1080x32,64 1920x1200x32,64 1920x1440x32,64 2048x1536x32,64 2560x1440x32,64 2560x1600x32,64=1; 720x576x32,64=8032;
+    AllowTiledDisplayOverride    REG_DWORD    0x1
+    DXCoreAttributes    REG_MULTI_SZ    {B69EB219-3DED-4464-979F-A00BD4687006}\0{0C9ECE4D-2F6E-4F01-8C96-E89E331B47B1}\0{8C47866B-7583-450D-F0F0-6BADA895AF4B}\0{248E2800-A793-4724-ABAA-23A6DE1BE090}\0{B71B0D41-1088-422F-A27C-0250B7D3A988}\0{8EB2C848-82F6-4B49-AA87-AECFCF0174C6}
+    DesktopStereoShortcuts    REG_DWORD    0x0
+    DisableStereoDesktopLinks    REG_DWORD    0x1
+    DriverSupportModules    REG_MULTI_SZ    nvapi64.dll\0nvcompiler.dll\0nvcuda.dll\0nvcuvid.dll\0nvDecMFTMjpeg.dll\0NvFBC64.dll\0NvIFR64.dll\0nvptxJitCompiler.dll\0C:\WINDOWS\System32\DriverStore\FileRepository\nv_dispi.inf_amd64_da865124972e1f80\nvopencl64.dll\0nvEncMFTH264x.dll\0nvEncMFThevcx.dll\0nvEncodeAPI64.dll\0nvcudadebugger.dll
+    DriverSupportModulesWow    REG_MULTI_SZ    nvapi.dll\0nvcompiler.dll\0nvcuda.dll\0nvcuvid.dll\0nvDecMFTMjpeg.dll\0NvFBC.dll\0NvIFR.dll\0nvptxJitCompiler.dll\0C:\WINDOWS\System32\DriverStore\FileRepository\nv_dispi.inf_amd64_da865124972e1f80\nvopencl32.dll\0nvEncMFTH264.dll\0nvEncMFThevc.dll\0nvEncodeAPI.dll
+    MonitorCapabilityList    REG_MULTI_SZ    ACR,2A1,71;\07204,2F1,71,0,0,0,0;\0ACR,0126,70;
+    OpenCLDriverName    REG_SZ    C:\WINDOWS\System32\DriverStore\FileRepository\nv_dispi.inf_amd64_da865124972e1f80\nvopencl64.dll
+    OpenCLDriverNameWow    REG_SZ    C:\WINDOWS\System32\DriverStore\FileRepository\nv_dispi.inf_amd64_da865124972e1f80\nvopencl32.dll
+    RmFbsrPagedDMA    REG_DWORD    0x1
+    UserModeDListDriverName    REG_MULTI_SZ    C:\WINDOWS\System32\DriverStore\FileRepository\nv_dispi.inf_amd64_da865124972e1f80\nvdlistx.dll
+    UserModeDListDriverNameWow    REG_MULTI_SZ    C:\WINDOWS\System32\DriverStore\FileRepository\nv_dispi.inf_amd64_da865124972e1f80\nvdlist.dll
+    OpenGLDriverName    REG_MULTI_SZ    C:\WINDOWS\System32\DriverStore\FileRepository\nv_dispi.inf_amd64_da865124972e1f80\nvoglv64.dll
+    OpenGLDriverNameWoW    REG_MULTI_SZ    C:\WINDOWS\System32\DriverStore\FileRepository\nv_dispi.inf_amd64_da865124972e1f80\nvoglv32.dll
+    OpenGLFlags    REG_DWORD    0x3
+    OpenGLFlagsWoW    REG_DWORD    0x3
+    OpenGLVersion    REG_DWORD    0x1000
+    OpenGLVersionWoW    REG_DWORD    0x1000
+    NV_R&T    REG_MULTI_SZ    R&T0000=1920,1080,*,30,*,CRTX,OEM,7425,2200,48,56,562,2,5,++I\0R&T0000=1920,1080,*,60,*,BNQ766A,OEM,13850,2080,48,32,1111,3,5,+-\0R&T0000=1920,1200,*,60,*,BNQ766A,OEM,15399,2080,48,32,1235,3,6,+-\0R&T0000=1920,1200,*,60,009D,*,OEM,15399,2080,48,32,1235,3,6,+-\0R&T0000=2561-,1601-,*,*,0190-019E,DFPX.CRTX.TVX,NONE\0R&T0000=800-,600-,*,61-,*,BNQ76DB,NONE\0R&T0000=1280,1024,*,*,*,BNQ76DB,NONE\0R&T0000=1920,1080,*,60,*,HWP26F5.MEL31C1,OEM,14835,2200,88,44,1125,4,5,++\0R&T0000=1280,800,*,60,*,AOC1580,CVT\0R&T0000=-*,481-719,*,*,*,MEL31C4,NONE\0R&T0000=2560,1440,*,144,*,BNQ7F45,OEM,54082,2592,4,16,1449,1,1,++\0R&T0000=7680,4320,*,*,1382-1431,DEL4147,NONE\0R&T0001=3840,4320,*,*,1382-1431,DEL4147,NONE\0R&T0000=480,1080,*,480,*,*,OEM,29700,550,30,20,1125,25,10,+-\0R&T0000=4096,2160,*,100,*,GSM76FE,NONE\0R&T0000=3840,1600,*,30,*,DELA17D,NONE
+    InfPath    REG_SZ    oem20.inf
+    InfSection    REG_SZ    Section002
+    ProviderName    REG_SZ    NVIDIA
+    DriverDateData    REG_BINARY    00407E7B3746DD01
+    DriverDate    REG_SZ    9-17-2026
+    DriverVersion    REG_SZ    32.0.16.1714
+    MatchingDeviceId    REG_SZ    pci\ven_10de&dev_1f02
+    DriverDesc    REG_SZ    NVIDIA GeForce RTX 2070
+    FeatureScore    REG_DWORD    0xcf
+    TCCSupported    REG_DWORD    0x0
+    RMCtxswLog    REG_DWORD    0x3
+    MultiFunctionSupported    REG_DWORD    0x1
+    RmCacheLoc    REG_DWORD    0x0
+    RmDisableInst2Sys    REG_DWORD    0x1
+    UserModeDriverName    REG_MULTI_SZ    C:\WINDOWS\System32\DriverStore\FileRepository\nv_dispi.inf_amd64_da865124972e1f80\nvldumdx.dll\0C:\WINDOWS\System32\DriverStore\FileRepository\nv_dispi.inf_amd64_da865124972e1f80\nvldumdx.dll\0C:\WINDOWS\System32\DriverStore\FileRepository\nv_dispi.inf_amd64_da865124972e1f80\nvldumdx.dll\0C:\WINDOWS\System32\DriverStore\FileRepository\nv_dispi.inf_amd64_da865124972e1f80\nvldumdx.dll
+    VgaCompatible    REG_DWORD    0x0
+    UserModeDriverGUID    REG_SZ    {9A516B97-E7C1-451B-9165-C5035994A3F5}
+
+HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\Class\{4d36e968-e325-11ce-bfc1-08002be10318}\0007\CopyToVmWhenNewer
+HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\Class\{4d36e968-e325-11ce-bfc1-08002be10318}\0007\CopyToVmWhenNewerWow64
+HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\Class\{4d36e968-e325-11ce-bfc1-08002be10318}\0007\Session
+== subkeys:
+
+HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\Class\{4d36e968-e325-11ce-bfc1-08002be10318}\0007\CopyToVmWhenNewer
+HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\Class\{4d36e968-e325-11ce-bfc1-08002be10318}\0007\CopyToVmWhenNewerWow64
+HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\Class\{4d36e968-e325-11ce-bfc1-08002be10318}\0007\Session
+Suchvorgang abgeschlossen: 3 �bereinstimmende Zeichenfolge(n) gefunden.
+== existing GPU-firmware values anywhere under nvlddmkm and 0007:
+
+Suchvorgang abgeschlossen: 0 �bereinstimmende Zeichenfolge(n) gefunden.
+
+Suchvorgang abgeschlossen: 0 �bereinstimmende Zeichenfolge(n) gefunden.
+[exit 1]

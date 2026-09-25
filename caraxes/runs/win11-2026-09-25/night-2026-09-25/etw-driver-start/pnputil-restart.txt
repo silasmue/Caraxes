@@ -1,0 +1,8 @@
+2026-09-25T19:29:11.9185692Z
+Microsoft-PnP-Hilfsprogramm
+
+Ger�t wird neu gestartet:         PCI\VEN_10DE&DEV_1F02&SUBSYS_40111458&REV_A1\3&11583659&0&30
+Das Ger�t wurde erfolgreich neu gestartet.
+
+2026-09-25T19:30:17.1650209Z
+[exit 0]

@@ -1,0 +1,37 @@
+<Event xmlns='http://schemas.microsoft.com/win/2004/08/events/event'><System><Provider Name='Microsoft-Windows-DxgKrnl' Guid='{802ec45a-1e99-4b83-9920-87c98277ba9d}'/><EventID>457</EventID><Version>0</Version><Level>2</Level><Task>275</Task><Opcode>1</Opcode><Keywords>0x800000000000400</Keywords><TimeCreated SystemTime='2026-09-25T19:26:15.7651386Z'/><EventRecordID>68</EventRecordID><Correlation/><Execution ProcessID='4' ThreadID='5684'/><Channel>Microsoft-Windows-DxgKrnl-Admin</Channel><Computer>DESKTOP-5I0M38C</Computer><Security UserID='S-1-5-18'/></System><EventData><Data Name='pDeviceObject'>0xffffaa8a79eb7360</Data><Data Name='Message'>Start Device Failed</Data><Data Name='BucketingString'>StartDevice_Failure</Data><Data Name='DescriptionString'>StartDevice_Failure</Data><Data Name='Status'>3221225626</Data></EventData></Event>
+
+<Event xmlns='http://schemas.microsoft.com/win/2004/08/events/event'><System><Provider Name='Microsoft-Windows-DxgKrnl' Guid='{802ec45a-1e99-4b83-9920-87c98277ba9d}'/><EventID>549</EventID><Version>1</Version><Level>2</Level><Task>348</Task><Opcode>0</Opcode><Keywords>0x800000000000001</Keywords><TimeCreated SystemTime='2026-09-25T19:26:15.7645354Z'/><EventRecordID>67</EventRecordID><Correlation/><Execution ProcessID='4' ThreadID='5684'/><Channel>Microsoft-Windows-DxgKrnl-Admin</Channel><Computer>DESKTOP-5I0M38C</Computer><Security UserID='S-1-5-18'/></System><EventData><Data Name='GraphicsVendorId'>4318</Data><Data Name='Status'>3221225626</Data><Data Name='FailureReason'>1</Data></EventData></Event>
+
+<Event xmlns='http://schemas.microsoft.com/win/2004/08/events/event'><System><Provider Name='Microsoft-Windows-Kernel-PnP' Guid='{9c205a39-1250-487d-abd7-e831c6290539}'/><EventID>1011</EventID><Version>0</Version><Level>3</Level><Task>0</Task><Opcode>0</Opcode><Keywords>0x100000000000000</Keywords><TimeCreated SystemTime='2026-09-25T19:26:15.8825267Z'/><EventRecordID>44</EventRecordID><Correlation/><Execution ProcessID='4' ThreadID='2220'/><Channel>Microsoft-Windows-Kernel-PnP/Device Management</Channel><Computer>DESKTOP-5I0M38C</Computer><Security UserID='S-1-5-18'/></System><EventData><Data Name='DeviceInstanceId'>PCI\VEN_10DE&amp;DEV_1F02&amp;SUBSYS_40111458&amp;REV_A1\3&amp;11583659&amp;0&amp;30</Data><Data Name='DeviceCount'>1</Data></EventData></Event>
+
+== earlier DxgKrnl-Admin ids:
+
+Count Name
+----- ----
+   34 457 
+   34 549 
+
+
+
+
+
+TimeCreated : 25.09.2026 16:14:18
+Id          : 457
+Message     : Miniport driver failed to start device with status Nicht ausreichend Systemressourcen, um die API abzuschlie�en.
+
+TimeCreated : 25.09.2026 16:14:18
+Id          : 549
+Message     : Adapter start failed for VendorId (0x10DE) failed with the status (Nicht ausreichend Systemressourcen, um die API abzuschlie�en.), reason (StartAdapter_DdiStartDeviceFailed)
+
+TimeCreated : 25.09.2026 16:11:17
+Id          : 457
+Message     : Miniport driver failed to start device with status Nicht ausreichend Systemressourcen, um die API abzuschlie�en.
+
+TimeCreated : 25.09.2026 16:11:17
+Id          : 549
+Message     : Adapter start failed for VendorId (0x10DE) failed with the status (Nicht ausreichend Systemressourcen, um die API abzuschlie�en.), reason (StartAdapter_DdiStartDeviceFailed)
+
+
+
+
+[exit 0]
