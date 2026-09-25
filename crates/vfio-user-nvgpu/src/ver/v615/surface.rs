@@ -15,7 +15,7 @@ pub const SURFACE_DRIVER: &str = "615.71.09";
 /// other handler answers: the number `E_FAMILIES` must cover.
 pub const E_INVENTORY: usize = 200;
 /// Category A controls (pure chip data) that no other handler answers.
-pub const A_INVENTORY: usize = 59;
+pub const A_INVENTORY: usize = 52;
 
 /// The category E controls by feature family. A chip names the families it lacks in
 /// `chips/<chip>/chip.toml` `[features]`; chipctl.rs refuses their controls.
@@ -513,7 +513,7 @@ pub const ROUTED: &[Routed] = &[
     Routed { id: 0x0080_1108, name: "NV0080_CTRL_CMD_GR_SET_TPC_PARTITION_MODE", category: 'D', other: true },
     Routed { id: 0x0080_1306, name: "NV0080_CTRL_CMD_FB_GET_COMPBIT_STORE_INFO", category: 'A', other: false },
     Routed { id: 0x0080_1707, name: "NV0080_CTRL_CMD_FIFO_GET_ENGINE_CONTEXT_PROPERTIES", category: 'A', other: true },
-    Routed { id: 0x0080_170E, name: "NV0080_CTRL_CMD_FIFO_GET_LATENCY_BUFFER_SIZE", category: 'A', other: false },
+    Routed { id: 0x0080_170E, name: "NV0080_CTRL_CMD_FIFO_GET_LATENCY_BUFFER_SIZE", category: 'A', other: true },
     Routed { id: 0x0080_170F, name: "NV0080_CTRL_CMD_FIFO_SET_CHANNEL_PROPERTIES", category: 'D', other: false },
     Routed { id: 0x0080_1711, name: "NV0080_CTRL_CMD_FIFO_STOP_RUNLIST", category: 'D', other: false },
     Routed { id: 0x0080_1712, name: "NV0080_CTRL_CMD_FIFO_START_RUNLIST", category: 'D', other: false },
@@ -549,7 +549,7 @@ pub const ROUTED: &[Routed] = &[
     Routed { id: 0x2080_0136, name: "NV2080_CTRL_CMD_GPU_RESET_ECC_ERROR_STATUS", category: 'D', other: false },
     Routed { id: 0x2080_013F, name: "NV2080_CTRL_CMD_GPU_GET_OEM_BOARD_INFO", category: 'A', other: true },
     Routed { id: 0x2080_014B, name: "NV2080_CTRL_CMD_GPU_GET_INFOROM_OBJECT_VERSION", category: 'A', other: true },
-    Routed { id: 0x2080_014D, name: "NV2080_CTRL_CMD_GPU_GET_IP_VERSION", category: 'A', other: false },
+    Routed { id: 0x2080_014D, name: "NV2080_CTRL_CMD_GPU_GET_IP_VERSION", category: 'A', other: true },
     Routed { id: 0x2080_0153, name: "NV2080_CTRL_CMD_GPU_QUERY_ILLUM_SUPPORT", category: 'B', other: true },
     Routed { id: 0x2080_0154, name: "NV2080_CTRL_CMD_GPU_GET_ILLUM", category: 'B', other: true },
     Routed { id: 0x2080_0156, name: "NV2080_CTRL_CMD_GPU_GET_INFOROM_IMAGE_VERSION", category: 'A', other: true },
@@ -810,7 +810,7 @@ pub const ROUTED: &[Routed] = &[
     Routed { id: 0x2080_1118, name: "NV2080_CTRL_CMD_FIFO_SETUP_VF_ZOMBIE_SUBCTX_PDB", category: 'E', other: false },
     Routed { id: 0x2080_1120, name: "NV2080_CTRL_CMD_FIFO_OBJSCHED_GET_STATE", category: 'B', other: true },
     Routed { id: 0x2080_1121, name: "NV2080_CTRL_CMD_FIFO_OBJSCHED_SET_STATE", category: 'D', other: false },
-    Routed { id: 0x2080_1122, name: "NV2080_CTRL_CMD_FIFO_OBJSCHED_GET_CAPS", category: 'A', other: false },
+    Routed { id: 0x2080_1122, name: "NV2080_CTRL_CMD_FIFO_OBJSCHED_GET_CAPS", category: 'A', other: true },
     Routed { id: 0x2080_1205, name: "NV2080_CTRL_CMD_GR_CTXSW_ZCULL_MODE", category: 'D', other: true },
     Routed { id: 0x2080_1207, name: "NV2080_CTRL_CMD_GR_CTXSW_PM_MODE", category: 'D', other: false },
     Routed { id: 0x2080_1208, name: "NV2080_CTRL_CMD_GR_CTXSW_ZCULL_BIND", category: 'D', other: true },
@@ -828,7 +828,7 @@ pub const ROUTED: &[Routed] = &[
     Routed { id: 0x2080_1222, name: "NV2080_CTRL_CMD_GR_GFX_POOL_REMOVE_SLOTS", category: 'D', other: false },
     Routed { id: 0x2080_122C, name: "NV2080_CTRL_CMD_GR_SET_TPC_PARTITION_MODE", category: 'D', other: true },
     Routed { id: 0x2080_1235, name: "NV2080_CTRL_CMD_GR_GET_CTXSW_MODES", category: 'B', other: true },
-    Routed { id: 0x2080_1236, name: "NV2080_CTRL_CMD_GR_GET_GPC_TILE_MAP", category: 'A', other: false },
+    Routed { id: 0x2080_1236, name: "NV2080_CTRL_CMD_GR_GET_GPC_TILE_MAP", category: 'A', other: true },
     Routed { id: 0x2080_123A, name: "NV2080_CTRL_CMD_GR_CTXSW_SETUP_BIND", category: 'D', other: true },
     Routed { id: 0x2080_123B, name: "NV2080_CTRL_CMD_GR_GET_TPC_RECONFIG_MASK", category: 'A', other: false },
     Routed { id: 0x2080_123E, name: "NV2080_CTRL_CMD_GR_TEST_CTXSW_ERROR_LOGS", category: 'E', other: false },
@@ -847,7 +847,7 @@ pub const ROUTED: &[Routed] = &[
     Routed { id: 0x2080_1340, name: "NV2080_CTRL_CMD_FB_SET_WRITE_LIMIT", category: 'D', other: false },
     Routed { id: 0x2080_1341, name: "NV2080_CTRL_CMD_FB_PATCH_PBR_FOR_MINING", category: 'D', other: false },
     Routed { id: 0x2080_1344, name: "NV2080_CTRL_CMD_FB_GET_REMAPPED_ROWS", category: 'B', other: true },
-    Routed { id: 0x2080_1346, name: "NV2080_CTRL_CMD_FB_GET_FS_INFO", category: 'A', other: false },
+    Routed { id: 0x2080_1346, name: "NV2080_CTRL_CMD_FB_GET_FS_INFO", category: 'A', other: true },
     Routed { id: 0x2080_1347, name: "NV2080_CTRL_CMD_FB_GET_ROW_REMAPPER_HISTOGRAM", category: 'B', other: true },
     Routed { id: 0x2080_1348, name: "NV2080_CTRL_CMD_FB_GET_DYNAMIC_OFFLINED_PAGES", category: 'B', other: true },
     Routed { id: 0x2080_1355, name: "NV2080_CTRL_CMD_FB_QUERY_DRAM_ENCRYPTION_PENDING_CONFIGURATION", category: 'B', other: true },
@@ -913,7 +913,7 @@ pub const ROUTED: &[Routed] = &[
     Routed { id: 0x2080_2301, name: "NV2080_CTRL_CMD_INTERNAL_GPIO_PROGRAM_OUTPUT", category: 'D', other: false },
     Routed { id: 0x2080_2302, name: "NV2080_CTRL_CMD_INTERNAL_GPIO_READ_INPUT", category: 'D', other: false },
     Routed { id: 0x2080_2303, name: "NV2080_CTRL_CMD_INTERNAL_GPIO_ACTIVATE_HW_FUNCTION", category: 'D', other: false },
-    Routed { id: 0x2080_2609, name: "NV2080_CTRL_CMD_PMGR_GET_MODULE_INFO", category: 'A', other: false },
+    Routed { id: 0x2080_2609, name: "NV2080_CTRL_CMD_PMGR_GET_MODULE_INFO", category: 'A', other: true },
     Routed { id: 0x2080_2801, name: "NV2080_CTRL_CMD_LPWR_DIFR_CTRL", category: 'D', other: true },
     Routed { id: 0x2080_2802, name: "NV2080_CTRL_CMD_LPWR_DIFR_PREFETCH_RESPONSE", category: 'D', other: false },
     Routed { id: 0x2080_2A02, name: "NV2080_CTRL_CMD_CE_GET_CE_PCE_MASK", category: 'A', other: true },
@@ -986,7 +986,7 @@ pub const ROUTED: &[Routed] = &[
     Routed { id: 0x2080_30A2, name: "NV2080_CTRL_CMD_NVLINK_GET_REMAP_TABLE_INFO_V2", category: 'E', other: false },
     Routed { id: 0x2080_30A3, name: "NV2080_CTRL_NVLINK_GET_UPDATE_NVLE_LIDS_V2", category: 'E', other: false },
     Routed { id: 0x2080_3101, name: "NV2080_CTRL_CMD_FLCN_GET_DMEM_USAGE", category: 'B', other: true },
-    Routed { id: 0x2080_3118, name: "NV2080_CTRL_CMD_FLCN_GET_ENGINE_ARCH", category: 'A', other: false },
+    Routed { id: 0x2080_3118, name: "NV2080_CTRL_CMD_FLCN_GET_ENGINE_ARCH", category: 'A', other: true },
     Routed { id: 0x2080_3120, name: "NV2080_CTRL_CMD_FLCN_USTREAMER_QUEUE_INFO", category: 'D', other: false },
     Routed { id: 0x2080_3122, name: "NV2080_CTRL_CMD_FLCN_USTREAMER_CONTROL_GET", category: 'D', other: false },
     Routed { id: 0x2080_3123, name: "NV2080_CTRL_CMD_FLCN_USTREAMER_CONTROL_SET", category: 'D', other: false },

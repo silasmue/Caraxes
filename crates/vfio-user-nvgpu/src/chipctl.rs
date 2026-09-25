@@ -674,9 +674,10 @@ mod tests {
     fn table_fields_exist_in_every_abi() {
         for abi in ABIS {
             let t = ControlTable::resolve(abi, TU106_CONTROLS).unwrap();
-            // 8 category A entries, the 5 of b-host-forwardable.md §3 S and the 3 D rows the
-            // plan moves to A (d-device-model.md §3 and §7).
-            assert_eq!(t.entries.len(), 16, "{}", abi.name);
+            // 8 category A entries, the 5 of b-host-forwardable.md §3 S, the 3 D rows the
+            // plan moves to A (d-device-model.md §3 and §7) and the 14 sweep getters of
+            // 2026-09-25 (coverage-map.md §3).
+            assert_eq!(t.entries.len(), 30, "{}", abi.name);
             // The D rows moved to A whose value has no source in the files yet.
             assert_eq!(t.open.len(), 4, "{}", abi.name);
         }
@@ -712,7 +713,7 @@ mod tests {
         );
         assert_eq!(
             ControlTable::resolve(abi, &limited).unwrap().entries.len(),
-            15
+            29
         );
         // A B control without `moved_from` is refused, and so is a wrong `moved_from`.
         let bad = TU106_CONTROLS.replace(
@@ -726,6 +727,111 @@ mod tests {
             "moved_from = \"B\"\nname = \"NV2080_CTRL_CMD_GPU_GET_FIRST_ASYNC_CE_IDX\"",
         );
         assert!(ControlTable::resolve(abi, &bad).unwrap_err().contains("moved_from"));
+    }
+
+    /// The 21 user-callable getters the guest control sweep of 2026-09-25 left unanswered
+    /// (coverage-map.md §3): seven reach the host through `FORWARD` and nothing else does,
+    /// the fourteen others are answered by the chip table without the host, and none is
+    /// `unanswered` any more. Values are checked for the rows that write one.
+    #[test]
+    fn sweep_getters_of_2026_09_25_are_answered() {
+        const FORWARDED: [&str; 7] = [
+            "NV0080_CTRL_CMD_FIFO_GET_LATENCY_BUFFER_SIZE",
+            "NV2080_CTRL_CMD_GPU_GET_IP_VERSION",
+            "NV2080_CTRL_CMD_FIFO_OBJSCHED_GET_CAPS",
+            "NV2080_CTRL_CMD_GR_GET_GPC_TILE_MAP",
+            "NV2080_CTRL_CMD_FB_GET_FS_INFO",
+            "NV2080_CTRL_CMD_PMGR_GET_MODULE_INFO",
+            "NV2080_CTRL_CMD_FLCN_GET_ENGINE_ARCH",
+        ];
+        // (control, answered NV_OK)
+        const TABLE: [(&str, bool); 14] = [
+            ("NV0080_CTRL_CMD_GR_GET_TPC_PARTITION_MODE", true),
+            ("NV0080_CTRL_CMD_FB_GET_COMPBIT_STORE_INFO", false),
+            ("NV0080_CTRL_CMD_NVJPG_GET_CAPS_V2", false),
+            ("NV2080_CTRL_CMD_GPU_GET_VPR_CAPS", false),
+            ("NV2080_CTRL_CMD_GPU_GET_VPR_INFO", false),
+            ("NV2080_CTRL_CMD_GPU_GET_OEM_INFO", true),
+            ("NV2080_CTRL_CMD_GET_P2P_CAPS", false),
+            ("NV2080_CTRL_CMD_FB_GET_COMPBITCOPY_CONSTRUCT_INFO", false),
+            ("NV2080_CTRL_CMD_FB_GET_CARVEOUT_REGION_INFO", false),
+            ("NV2080_CTRL_CMD_FB_GET_WPR_REGION_INFO", false),
+            ("NV2080_CTRL_CMD_GET_RC_INFO", true),
+            ("NV2080_CTRL_CMD_CE_GET_HUB_PCE_MASK_V2", true),
+            ("NV2080_CTRL_CMD_GPU_GET_DIELET_INFO", false),
+            ("NV402C_CTRL_CMD_I2C_TABLE_GET_DEV_INFO", true),
+        ];
+        let abi = Abi::active();
+        // (id, parameter size): the chip table's size for its rows, 64 bytes for a forward.
+        let size = |n: &str| {
+            let id = abi.routed(n).unwrap_or_else(|| panic!("{n}")).id;
+            (id, tu106().controls.entries.get(&id).map_or(64, |e| e.size))
+        };
+        let seen = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+        let mut d = dispatcher(tu106(), Some(Box::new(Rec(seen.clone()))));
+        for n in FORWARDED {
+            let (id, _) = size(n);
+            assert!(crate::ver::active::FORWARD.iter().any(|(c, _)| *c == id), "{n}");
+            assert!(answer(tu106(), id, &[0u8; 16]).is_none(), "{n} is in the chip table too");
+            seen.lock().unwrap().clear();
+            let a = d.control(INTERNAL_CLIENT, INTERNAL_SUBDEVICE, id, &[0u8; 64]);
+            assert_eq!(a.label, "host (forwarded as-is, public control)", "{n}");
+            assert_eq!(seen.lock().unwrap().as_slice(), &[id], "{n}");
+        }
+        for (n, ok) in TABLE {
+            let (id, sz) = size(n);
+            seen.lock().unwrap().clear();
+            let a = d.control(INTERNAL_CLIENT, INTERNAL_SUBDEVICE, id, &vec![0u8; sz]);
+            assert_ne!(a.label, "unanswered", "{n}");
+            let want = if ok { v::NV_OK } else { v::NV_ERR_NOT_SUPPORTED };
+            assert_eq!(a.status, want, "{n}: {}", a.label);
+            assert_eq!(a.params.len(), sz, "{n}");
+            assert!(seen.lock().unwrap().is_empty(), "{n} reached the host");
+        }
+        // The values, resolved through the version's layouts.
+        let slot = |params: &str, path: &str| abi.layout(params).unwrap().resolve(path).unwrap();
+        let get = |b: &[u8], (o, s): (usize, usize)| {
+            let mut w = [0u8; 8];
+            w[..s].copy_from_slice(&b[o..o + s]);
+            u64::from_le_bytes(w)
+        };
+        let run = |d: &mut Dispatcher, n: &str, req: &[u8]| {
+            d.control(INTERNAL_CLIENT, INTERNAL_SUBDEVICE, abi.routed(n).unwrap().id, req)
+        };
+        // HUB_PCE_MASK_V2: FBHUB 0xF for shim 0, no HSHUB PCE; another shim is not answered.
+        let p = "NV2080_CTRL_CE_GET_HUB_PCE_MASK_V2_PARAMS";
+        let sz = abi.layout(p).unwrap().size;
+        let a = run(&mut d, "NV2080_CTRL_CMD_CE_GET_HUB_PCE_MASK_V2", &vec![0u8; sz]);
+        assert_eq!(get(&a.params, slot(p, "fbhubPceMask")), 0xF);
+        assert_eq!(get(&a.params, slot(p, "connectingHubPceMasks[0]")), 0);
+        let mut req = vec![0u8; sz];
+        let s = slot(p, "shimInstance");
+        req[s.0] = 1;
+        let a = run(&mut d, "NV2080_CTRL_CMD_CE_GET_HUB_PCE_MASK_V2", &req);
+        assert_eq!((a.status, a.label), (v::NV_ERR_NOT_SUPPORTED, "unanswered"));
+        // RC_INFO: recovery on, break off.
+        let p = "NV2080_CTRL_CMD_RC_INFO_PARAMS";
+        let a = run(&mut d, "NV2080_CTRL_CMD_GET_RC_INFO", &[0xEE; 8]);
+        assert_eq!(
+            (get(&a.params, slot(p, "rcMode")), get(&a.params, slot(p, "rcBreak"))),
+            (1, 0)
+        );
+        // TPC partition mode: NONE, whatever mode the request carries; the handle is echoed.
+        let p = "NV0080_CTRL_GR_TPC_PARTITION_MODE_PARAMS";
+        let sz = abi.layout(p).unwrap().size;
+        let mut req = vec![0u8; sz];
+        let h = slot(p, "hChannelGroup");
+        req[h.0..h.0 + 4].copy_from_slice(&0xCAFE_0001u32.to_le_bytes());
+        req[slot(p, "mode").0] = 2;
+        let a = run(&mut d, "NV0080_CTRL_CMD_GR_GET_TPC_PARTITION_MODE", &req);
+        assert_eq!(get(&a.params, h), 0xCAFE_0001);
+        assert_eq!(get(&a.params, slot(p, "mode")), 0);
+        // The OEM object is present and empty: no board identity reaches the guest.
+        let a = run(&mut d, "NV2080_CTRL_CMD_GPU_GET_OEM_INFO", &[0x5A; 504]);
+        assert!(a.params.iter().all(|&x| x == 0));
+        // A refusal echoes the request.
+        let a = run(&mut d, "NV2080_CTRL_CMD_GET_P2P_CAPS", &[0x11; 1672]);
+        assert_eq!(a.params, vec![0x11; 1672]);
     }
 
     fn put32(b: &mut [u8], off: usize, x: u32) {
