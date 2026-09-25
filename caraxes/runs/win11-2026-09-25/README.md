@@ -214,5 +214,14 @@ the diff against the 35-register baseline, `trace-saver` archives the full trace
   on WS/server; driver default 0x12) and `EnableGpuFirmwareLogs` (1 = firmware logs into the
   System log). We set mode 1 without fallback, so a failure is a GSP-RM failure. The night loop
   also sets the logs key and resolves the device's class key via `DEVPKEY_Device_Driver`.
+- **The RPC-phase controls, named** (SDK headers): 0x800292 `NV0080_CTRL_CMD_GPU_GET_CLASSLIST_V2`
+  (804 B), 0x801707 `FIFO_GET_ENGINE_CONTEXT_PROPERTIES`, 0x20800aaf
+  `INTERNAL_GET_ENABLED_SEC2_CLASSES`, 0x20800afe `INTERNAL_INIT_USER_SHARED_DATA` (succeeded),
+  0x20802806 an LPWR control not in the public 615 header, 0x20803801 `GRMGR_GET_GR_FS_INFO`
+  (per-query errors tolerated, an outer error fails the call). ECC status and function status
+  document NOT_SUPPORTED as a valid answer. Fix order for pure emulation: BUS_GET_INFO_V2 and
+  FB_GET_INFO_V2 (answer the requested indices), classlist, engine context properties, the GR FS
+  queries, SEC2 classes. GSP releases from r615 share one ABI (r000), so 617 against the
+  615-based endpoint is compatible in principle.
 - Unattended tooling added: `qga.py` (QEMU guest agent: PowerShell as SYSTEM, file transfer),
   `qmp.py` (screenshot, keys, clean power-down), `WIN_GPU_VBIOS`, `WIN_GPU_ROOTPORT`, `WIN_VGA`.
