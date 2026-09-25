@@ -1,0 +1,61 @@
+     dvi:           pci\ven_10de&cc_030000
+     dvi:           pci\ven_10de&cc_0300
+     dvi:           pci\ven_10de
+     dvi:      Marking non-present device PCI\VEN_10DE&DEV_1F02&SUBSYS_40111458&REV_A1\3&11583659&0&28 for reinstall.
+     utl:      {Select Drivers - PCI\VEN_10DE&DEV_1EB8&SUBSYS_12A210DE&REV_A1\3&11583659&0&28} 21:25:07.196
+     utl:                Configuration  - PCI\VEN_10DE&DEV_1EB8&SUBSYS_12A210DE
+     utl:                Configuration  - PCI\VEN_10DE&DEV_1EB8&SUBSYS_12A210DE
+     utl:                Configuration  - PCI\VEN_10DE&DEV_1EB8&SUBSYS_12A210DE
+     dvi:           pci\ven_10de&dev_1eb8&subsys_12a210de&rev_a1
+     dvi:           pci\ven_10de&dev_1eb8&subsys_12a210de
+     dvi:           pci\ven_10de&dev_1eb8&cc_030000
+     dvi:           pci\ven_10de&dev_1eb8&cc_0300
+     dvi:           pci\ven_10de&dev_1eb8&rev_a1
+     dvi:           pci\ven_10de&dev_1eb8
+     dvi:           pci\ven_10de&cc_030000
+     dvi:           pci\ven_10de&cc_0300
+     dvi:           pci\ven_10de
+     dvi:      Marking non-present device PCI\VEN_10DE&DEV_1EB8&SUBSYS_12A210DE&REV_A1\3&11583659&0&28 for reinstall.
+     utl:      {Select Drivers - PCI\VEN_10DE&DEV_1EB8&SUBSYS_12A210DE&REV_A1\3&11583659&0&30} 21:25:07.238
+     utl:                Configuration  - PCI\VEN_10DE&DEV_1EB8&SUBSYS_12A210DE
+     utl:                Configuration  - PCI\VEN_10DE&DEV_1EB8&SUBSYS_12A210DE
+     utl:                Configuration  - PCI\VEN_10DE&DEV_1EB8&SUBSYS_12A210DE
+     dvi:           pci\ven_10de&dev_1eb8&subsys_12a210de&rev_a1
+     dvi:           pci\ven_10de&dev_1eb8&subsys_12a210de
+     dvi:           pci\ven_10de&dev_1eb8&cc_030000
+     dvi:           pci\ven_10de&dev_1eb8&cc_0300
+     dvi:           pci\ven_10de&dev_1eb8&rev_a1
+     dvi:           pci\ven_10de&dev_1eb8
+     dvi:           pci\ven_10de&cc_030000
+     dvi:           pci\ven_10de&cc_0300
+     dvi:           pci\ven_10de
+     dvi:      Marking non-present device PCI\VEN_10DE&DEV_1EB8&SUBSYS_12A210DE&REV_A1\3&11583659&0&30 for reinstall.
+     utl:      {Select Drivers - PCI\VEN_10DE&DEV_1F02&SUBSYS_40111458&REV_A1\4&C580B9D&0&0020} 21:25:07.281
+     utl:                Configuration  - PCI\VEN_10DE&DEV_1F02
+     utl:                Configuration  - PCI\VEN_10DE&DEV_1F02
+     dvi:           pci\ven_10de&dev_1f02&subsys_40111458&rev_a1
+     dvi:           pci\ven_10de&dev_1f02&subsys_40111458
+     dvi:           pci\ven_10de&dev_1f02&cc_030000
+     dvi:           pci\ven_10de&dev_1f02&cc_0300
+     dvi:           pci\ven_10de&dev_1f02&rev_a1
+     dvi:           pci\ven_10de&dev_1f02
+     dvi:           pci\ven_10de&cc_030000
+     dvi:           pci\ven_10de&cc_0300
+     dvi:           pci\ven_10de
+     dvi:      Marking non-present device PCI\VEN_10DE&DEV_1F02&SUBSYS_40111458&REV_A1\4&C580B9D&0&0020 for reinstall.
+     utl:      {Select Drivers - PCI\VEN_10DE&DEV_1F02&SUBSYS_40111458&REV_A1\4&2B610E4E&0&0018} 21:25:07.317
+     utl:                Configuration  - PCI\VEN_10DE&DEV_1F02
+     utl:                Configuration  - PCI\VEN_10DE&DEV_1F02
+     dvi:           pci\ven_10de&dev_1f02&subsys_40111458&rev_a1
+     dvi:           pci\ven_10de&dev_1f02&subsys_40111458
+     dvi:           pci\ven_10de&dev_1f02&cc_030000
+     dvi:           pci\ven_10de&dev_1f02&cc_0300
+     dvi:           pci\ven_10de&dev_1f02&rev_a1
+     dvi:           pci\ven_10de&dev_1f02
+     dvi:           pci\ven_10de&cc_030000
+     dvi:           pci\ven_10de&cc_0300
+     dvi:           pci\ven_10de
+     dvi:      Marking non-present device PCI\VEN_10DE&DEV_1F02&SUBSYS_40111458&REV_A1\4&2B610E4E&0&0018 for reinstall.
+     dvi:      Device Status: 0x01802000
+     dvi:      Install Device: Starting device 'PCI\VEN_10DE&DEV_1F02&SUBSYS_40111458&REV_A1\3&11583659&0&30'. 21:25:07.353
+[exit 0]

@@ -1,0 +1,590 @@
+19:28:50.198871 DxgKrnl id=473 task=285 op=2 lvl=0 | DxgProcess=0xffff9688f45f6010; ProcessId=0x5b8; HostProcessHandle=0; ProcessFlags=2048
+19:28:50.217073 DxgKrnl id=471 task=285 op=1 lvl=0 | DxgProcess=0xffff9688f45f6010; ProcessId=0x1710; HostProcessHandle=0; ProcessFlags=0
+19:28:50.322191 DxgKrnl id=473 task=285 op=2 lvl=0 | DxgProcess=0xffff9688f45f6010; ProcessId=0x1710; HostProcessHandle=0; ProcessFlags=2048
+19:28:50.338664 DxgKrnl id=471 task=285 op=1 lvl=0 | DxgProcess=0xffff9688f45f6010; ProcessId=0x350; HostProcessHandle=0; ProcessFlags=0
+19:28:50.533280 DxgKrnl id=473 task=285 op=2 lvl=0 | DxgProcess=0xffff9688f45f6010; ProcessId=0x350; HostProcessHandle=0; ProcessFlags=2048
+19:28:50.572969 DxgKrnl id=473 task=285 op=2 lvl=0 | DxgProcess=0xffff9688f4b41420; ProcessId=0x175c; HostProcessHandle=0; ProcessFlags=2048
+19:28:50.574001 DxgKrnl id=329 task=1046 op=0 lvl=0 | EProcess=0xffffaa8a8175f080; ProcessStatus=0
+19:28:50.574875 DxgKrnl id=473 task=285 op=2 lvl=0 | DxgProcess=0xffff9688f4b32a70; ProcessId=0x54c; HostProcessHandle=0; ProcessFlags=2048
+19:28:56.529350 DxgKrnl id=362 task=204 op=0 lvl=0 | Timeout=-900000000; WakeReason=5
+19:29:02.117469 DxgKrnl id=1142 task=1122 op=0 lvl=0 | AdapterLuid=27204; BltQueueWakeReason=0; VSyncWork=true; UpdateModeWork=false; FlushWork=false
+19:29:02.117477 DxgKrnl id=1121 task=1102 op=0 lvl=0 | VsyncType=2; Status=0; VsyncEvent=5
+19:29:02.117481 DxgKrnl id=1141 task=1121 op=0 lvl=0 | ExpirationTime=-50302; NextVsycQpcTime=2801406250; CurrTime=2801355948; CurrFreq=10000000; LastVSyncTimeSnapped=2518125000; VSyncPeriod=156250
+19:29:02.133146 DxgKrnl id=1142 task=1122 op=0 lvl=0 | AdapterLuid=27204; BltQueueWakeReason=2; VSyncWork=false; UpdateModeWork=false; FlushWork=false
+19:29:02.133153 DxgKrnl id=1067 task=1058 op=0 lvl=0 | UpdateLocation=0; CurRefreshCount=17929; LastVSyncTime=10000000; LastVSyncTimeSnapped=2801406250; Delta=2791406250; FramePeriod_QPC_x100=15625000; Corrections=0; VsyncWaiters=1
+19:29:02.133154 DxgKrnl id=319 task=1044 op=0 lvl=0 | DWMCount=0; VsyncCount=17929; VsyncFlag=0; VsyncWaiters=1; VsyncType=2
+19:29:02.133160 DxgKrnl id=1143 task=1123 op=0 lvl=0 | TargetDWMVSync=0
+19:29:02.133162 DxgKrnl id=1146 task=1126 op=0 lvl=0 | AdapterLuid=27204; VidPnTargetId=0; VidPnSourceId=0; FrameQPCTime=2801512768; OldVsyncWaiters=1; NewVsyncWaiters=0; VSyncIdleCount=0
+19:29:02.133166 DxgKrnl id=1141 task=1121 op=0 lvl=0 | ExpirationTime=-49696; NextVsycQpcTime=2801562500; CurrTime=2801512804; CurrFreq=10000000; LastVSyncTimeSnapped=2801406250; VSyncPeriod=156250
+19:29:02.133175 DxgKrnl id=496 task=304 op=0 lvl=0 | BoostedVSyncFreqEligible=false; IsNonBoostedVsyncFrame=true
+19:29:02.133279 DxgKrnl id=1142 task=1122 op=0 lvl=0 | AdapterLuid=27204; BltQueueWakeReason=0; VSyncWork=true; UpdateModeWork=false; FlushWork=false
+19:29:02.133283 DxgKrnl id=1141 task=1121 op=0 lvl=0 | ExpirationTime=-48529; NextVsycQpcTime=2801562500; CurrTime=2801513971; CurrFreq=10000000; LastVSyncTimeSnapped=2801406250; VSyncPeriod=156250
+19:29:02.152791 DxgKrnl id=1142 task=1122 op=0 lvl=0 | AdapterLuid=27204; BltQueueWakeReason=2; VSyncWork=false; UpdateModeWork=false; FlushWork=false
+19:29:02.152796 DxgKrnl id=1067 task=1058 op=0 lvl=0 | UpdateLocation=0; CurRefreshCount=17930; LastVSyncTime=10000000; LastVSyncTimeSnapped=2801562500; Delta=2791562500; FramePeriod_QPC_x100=15625000; Corrections=0; VsyncWaiters=1
+19:29:02.152796 DxgKrnl id=319 task=1044 op=0 lvl=0 | DWMCount=0; VsyncCount=17930; VsyncFlag=0; VsyncWaiters=1; VsyncType=2
+19:29:02.152801 DxgKrnl id=1143 task=1123 op=0 lvl=0 | TargetDWMVSync=0
+19:29:02.152802 DxgKrnl id=1146 task=1126 op=0 lvl=0 | AdapterLuid=27204; VidPnTargetId=0; VidPnSourceId=0; FrameQPCTime=2801709168; OldVsyncWaiters=1; NewVsyncWaiters=0; VSyncIdleCount=0
+19:29:02.152806 DxgKrnl id=1141 task=1121 op=0 lvl=0 | ExpirationTime=-9548; NextVsycQpcTime=2801718750; CurrTime=2801709202; CurrFreq=10000000; LastVSyncTimeSnapped=2801562500; VSyncPeriod=156250
+19:29:02.152819 DxgKrnl id=496 task=304 op=0 lvl=0 | BoostedVSyncFreqEligible=false; IsNonBoostedVsyncFrame=true
+19:29:02.152934 DxgKrnl id=1142 task=1122 op=0 lvl=0 | AdapterLuid=27204; BltQueueWakeReason=0; VSyncWork=true; UpdateModeWork=false; FlushWork=false
+19:29:02.152938 DxgKrnl id=1141 task=1121 op=0 lvl=0 | ExpirationTime=-8230; NextVsycQpcTime=2801718750; CurrTime=2801710520; CurrFreq=10000000; LastVSyncTimeSnapped=2801562500; VSyncPeriod=156250
+19:29:02.154727 DxgKrnl id=182 task=105 op=0 lvl=0 | hDevice=0xffff9688f18167e0; DeviceState=1
+19:29:02.154728 DxgKrnl id=182 task=105 op=0 lvl=0 | hDevice=0xffff9688f18167e0; DeviceState=1
+19:29:02.154729 DxgKrnl id=182 task=105 op=0 lvl=0 | hDevice=0xffff9688f18167e0; DeviceState=1
+19:29:02.154899 DxgKrnl id=182 task=105 op=0 lvl=0 | hDevice=0xffff9688f18167e0; DeviceState=1
+19:29:02.155029 DxgKrnl id=182 task=105 op=0 lvl=0 | hDevice=0xffff9688f18167e0; DeviceState=1
+19:29:02.155030 DxgKrnl id=182 task=105 op=0 lvl=0 | hDevice=0xffff9688f18167e0; DeviceState=1
+19:29:02.155031 DxgKrnl id=182 task=105 op=0 lvl=0 | hDevice=0xffff9688f18167e0; DeviceState=1
+19:29:02.155038 DxgKrnl id=182 task=105 op=0 lvl=0 | hDevice=0xffff9688f18167e0; DeviceState=1
+19:29:02.155234 DxgKrnl id=182 task=105 op=0 lvl=0 | hDevice=0xffff9688f18167e0; DeviceState=1
+19:29:02.155437 DxgKrnl id=169 task=4 op=0 lvl=0 | pDmaBuffer=0x0
+19:29:02.155449 DxgKrnl id=178 task=9 op=1 lvl=0 | hContext=0xffff9688f1806dd0; PacketType=0; SubmitSequence=39; DmaBufferSize=4096; AllocationListSize=0; PatchLocationListSize=0; bPresent=false; hDmaBuffer=0x0; pQueuePacket=0xffffaa8a811778a0; ProgressFenceValue=0
+19:29:02.155451 DxgKrnl id=20 task=13 op=0 lvl=0 | hContext=0xffff9688f1806dd0; Status=5; Line=16403
+19:29:02.155452 DxgKrnl id=113 task=74 op=0 lvl=0 | hContext=0xffff9688f1806dd0; RunningTime=883; RemainingQuantum=30686; RemainingYieldBudget=0; QuantumStatus=1; Reason=3
+19:29:02.155452 DxgKrnl id=113 task=74 op=0 lvl=0 | hContext=0xffff9688f1806dd0; RunningTime=883; RemainingQuantum=30686; RemainingYieldBudget=0; QuantumStatus=1; Reason=3
+19:29:02.155472 DxgKrnl id=19 task=12 op=2 lvl=0 | pDxgAdapter=0xffffaa8a7f30f000; EventId=1
+19:29:02.155478 DxgKrnl id=436 task=263 op=0 lvl=0 | pDxgAdapter=0xffffaa8a7f30f000; hContext=0xffff9688f1806dd0; NodeOrdinal=3; ReadyContextPriorityMapBits=65536; NumberOfULongPtrsInNodeMask=1; ReadyNodeSwMapBits=0x8; ReadyNodeHwMapBits=0x3f
+19:29:02.155479 DxgKrnl id=22 task=15 op=0 lvl=0 | hContext=0xffff9688f1806dd0; AttemptResult=2
+19:29:02.155480 DxgKrnl id=20 task=13 op=0 lvl=0 | hContext=0xffff9688f1806dd0; Status=1; Line=19178
+19:29:02.155480 DxgKrnl id=113 task=74 op=0 lvl=0 | hContext=0xffff9688f1806dd0; RunningTime=883; RemainingQuantum=30686; RemainingYieldBudget=0; QuantumStatus=1; Reason=3
+19:29:02.155481 DxgKrnl id=179 task=9 op=0 lvl=0 | hContext=0xffff9688f1806dd0; PacketType=0; SubmitSequence=39
+19:29:02.155484 DxgKrnl id=113 task=74 op=0 lvl=0 | hContext=0xffff9688f1806dd0; RunningTime=0; RemainingQuantum=30686; RemainingYieldBudget=0; QuantumStatus=1; Reason=0
+19:29:02.155486 DxgKrnl id=175 task=8 op=1 lvl=0 | hContext=0xffff9688f1806dd0; hQueuePacketContext=0x0; PacketType=0; uliSubmissionId=14; ulQueueSubmitSequence=39; pDmaBuffer=0x0; QuantumStatus=1
+19:29:02.155487 DxgKrnl id=245 task=9 op=1 lvl=0 | hContext=0xffff9688f1806dd0; SubmitSequence=40; Flags=0; ObjectCount=1; ObjectArray=0xffffaa8a8161c110; FenceValue=15; pQueuePacket=0xffffaa8a8170e010; DxgSyncObjectArray=0xffffaa8a81720db0
+19:29:02.155487 DxgKrnl id=20 task=13 op=0 lvl=0 | hContext=0xffff9688f1806dd0; Status=5; Line=16403
+19:29:02.155487 DxgKrnl id=113 task=74 op=0 lvl=0 | hContext=0xffff9688f1806dd0; RunningTime=0; RemainingQuantum=30686; RemainingYieldBudget=0; QuantumStatus=1; Reason=3
+19:29:02.155487 DxgKrnl id=113 task=74 op=0 lvl=0 | hContext=0xffff9688f1806dd0; RunningTime=0; RemainingQuantum=30686; RemainingYieldBudget=0; QuantumStatus=1; Reason=3
+19:29:02.155488 DxgKrnl id=294 task=169 op=0 lvl=0 | ContextCount=1; hContext=0xffff9688f1806dd0; Flags=0; ObjectCount=1; ObjectArray=0xffffaa8a8161c110; MonitoredFenceValue=15; InternalFlagsFlags=0x1
+19:29:02.155502 DxgKrnl id=113 task=74 op=0 lvl=0 | hContext=0xffff9688f1806dd0; RunningTime=174; RemainingQuantum=30512; RemainingYieldBudget=0; QuantumStatus=1; Reason=2
+19:29:02.155502 DxgKrnl id=436 task=263 op=0 lvl=0 | pDxgAdapter=0xffffaa8a7f30f000; hContext=0xffff9688f1806dd0; NodeOrdinal=3; ReadyContextPriorityMapBits=65536; NumberOfULongPtrsInNodeMask=1; ReadyNodeSwMapBits=0x8; ReadyNodeHwMapBits=0x3f
+19:29:02.155503 DxgKrnl id=20 task=13 op=0 lvl=0 | hContext=0xffff9688f1806dd0; Status=1; Line=19178
+19:29:02.155503 DxgKrnl id=113 task=74 op=0 lvl=0 | hContext=0xffff9688f1806dd0; RunningTime=174; RemainingQuantum=30512; RemainingYieldBudget=0; QuantumStatus=1; Reason=3
+19:29:02.155503 DxgKrnl id=179 task=9 op=0 lvl=0 | hContext=0xffff9688f1806dd0; PacketType=5; SubmitSequence=40
+19:29:02.155505 DxgKrnl id=436 task=263 op=0 lvl=0 | pDxgAdapter=0xffffaa8a7f30f000; hContext=0x0; NodeOrdinal=0; ReadyContextPriorityMapBits=0; NumberOfULongPtrsInNodeMask=1; ReadyNodeSwMapBits=0x0; ReadyNodeHwMapBits=0x3f
+19:29:02.155506 DxgKrnl id=436 task=263 op=0 lvl=0 | pDxgAdapter=0xffffaa8a7f30f000; hContext=0x0; NodeOrdinal=0; ReadyContextPriorityMapBits=0; NumberOfULongPtrsInNodeMask=1; ReadyNodeSwMapBits=0x0; ReadyNodeHwMapBits=0x3f
+19:29:02.155506 DxgKrnl id=18 task=12 op=1 lvl=0 | pDxgAdapter=0xffffaa8a7f30f000; EventId=1
+19:29:02.155515 DxgKrnl id=171 task=6 op=1 lvl=0 | hAdapter=0xffffaa8a7f2d26e0; Token=0xffff9688f1443e50; Model=7; TokenSize=0; TokenData=1640; Flags=0x0; CustomDuration=0; VmBusChannel=0x0
+19:29:02.155517 DxgKrnl id=469 task=284 op=1 lvl=0 | hContext=0xffff9688f1806dd0; PacketType=7; SubmitSequence=41
+19:29:02.155517 DxgKrnl id=178 task=9 op=1 lvl=0 | hContext=0xffff9688f1806dd0; PacketType=7; SubmitSequence=41; DmaBufferSize=0; AllocationListSize=0; PatchLocationListSize=0; bPresent=true; hDmaBuffer=0x0; pQueuePacket=0xffffaa8a8117b8a0; ProgressFenceValue=0
+19:29:02.155518 DxgKrnl id=20 task=13 op=0 lvl=0 | hContext=0xffff9688f1806dd0; Status=5; Line=16403
+19:29:02.155518 DxgKrnl id=113 task=74 op=0 lvl=0 | hContext=0xffff9688f1806dd0; RunningTime=174; RemainingQuantum=30512; RemainingYieldBudget=0; QuantumStatus=1; Reason=3
+19:29:02.155518 DxgKrnl id=113 task=74 op=0 lvl=0 | hContext=0xffff9688f1806dd0; RunningTime=174; RemainingQuantum=30512; RemainingYieldBudget=0; QuantumStatus=1; Reason=3
+19:29:02.155522 DxgKrnl id=184 task=107 op=0 lvl=0 | hContext=1073742656; hWindow=0x0; VidPnSourceId=0; FlipInterval=0; Flags=32768; ReturnStatus=0; hSrcAllocHandle=0x40000980; hDstAllocHandle=0x0
+19:29:02.155529 DxgKrnl id=19 task=12 op=2 lvl=0 | pDxgAdapter=0xffffaa8a7f30f000; EventId=1
+19:29:02.155531 DxgKrnl id=113 task=74 op=0 lvl=0 | hContext=0xffff9688f1806dd0; RunningTime=461; RemainingQuantum=30225; RemainingYieldBudget=0; QuantumStatus=1; Reason=2
+19:29:02.155531 DxgKrnl id=436 task=263 op=0 lvl=0 | pDxgAdapter=0xffffaa8a7f30f000; hContext=0xffff9688f1806dd0; NodeOrdinal=3; ReadyContextPriorityMapBits=65536; NumberOfULongPtrsInNodeMask=1; ReadyNodeSwMapBits=0x8; ReadyNodeHwMapBits=0x3f
+19:29:02.155531 DxgKrnl id=20 task=13 op=0 lvl=0 | hContext=0xffff9688f1806dd0; Status=1; Line=19178
+19:29:02.155531 DxgKrnl id=113 task=74 op=0 lvl=0 | hContext=0xffff9688f1806dd0; RunningTime=461; RemainingQuantum=30225; RemainingYieldBudget=0; QuantumStatus=1; Reason=3
+19:29:02.155532 DxgKrnl id=179 task=9 op=0 lvl=0 | hContext=0xffff9688f1806dd0; PacketType=7; SubmitSequence=41
+19:29:02.155533 DxgKrnl id=436 task=263 op=0 lvl=0 | pDxgAdapter=0xffffaa8a7f30f000; hContext=0x0; NodeOrdinal=0; ReadyContextPriorityMapBits=0; NumberOfULongPtrsInNodeMask=1; ReadyNodeSwMapBits=0x0; ReadyNodeHwMapBits=0x3f
+19:29:02.155533 DxgKrnl id=18 task=12 op=1 lvl=0 | pDxgAdapter=0xffffaa8a7f30f000; EventId=1
+19:29:02.155594 DxgKrnl id=113 task=74 op=0 lvl=0 | hContext=0xffff9688f1806dd0; RunningTime=1090; RemainingQuantum=29596; RemainingYieldBudget=0; QuantumStatus=1; Reason=2
+19:29:02.155595 DxgKrnl id=177 task=8 op=0 lvl=0 | hContext=0xffff9688f1806dd0; PacketType=0; uliCompletionId=14; ulQueueSubmitSequence=39; InterruptType=1; QuantumStatus=1; FaultedVirtualAddress=0; PageFaultFlags=0; FaultedProcessHandle=0x0
+19:29:02.155607 DxgKrnl id=363 task=213 op=0 lvl=0 | pDxgAdapter=0xffffaa8a7f30f000; YieldPriorityBand=1; RunningTime=1219; NodeOrdinal=3
+19:29:02.155609 DxgKrnl id=176 task=8 op=2 lvl=0 | hContext=0xffff9688f1806dd0; PacketType=0; uliCompletionId=14; ulQueueSubmitSequence=39; bPreempted=false
+19:29:02.155611 DxgKrnl id=359 task=200 op=0 lvl=0 | pDxgAdapter=0xffffaa8a7f30f000; YieldCondition=1; Parameter0=16; Parameter1=2801737250; Parameter2=2501496822; Parameter3=0
+19:29:02.155612 DxgKrnl id=180 task=9 op=2 lvl=0 | hContext=0xffff9688f1806dd0; PacketType=0; SubmitSequence=39; bPreempted=false; bTimeouted=false; pQueuePacket=0xffffaa8a811778a0
+19:29:02.155614 DxgKrnl id=552 task=351 op=0 lvl=0 | ObjectCount=1; VidSchSyncObjectArray=0xffffaa8a8161c110; DxgSyncObjectArray=0xffffaa8a81720db0; FenceValues=15; AlwaysSignaled=false; Flags=0; pCpuEvent=0xf; pGuestCpuEvent=0xf
+19:29:02.155615 DxgKrnl id=180 task=9 op=2 lvl=0 | hContext=0xffff9688f1806dd0; PacketType=5; SubmitSequence=40; bPreempted=false; bTimeouted=false; pQueuePacket=0xffffaa8a8170e010
+19:29:02.155616 DxgKrnl id=20 task=13 op=0 lvl=0 | hContext=0xffff9688f1806dd0; Status=0; Line=14015
+19:29:02.155617 DxgKrnl id=113 task=74 op=0 lvl=0 | hContext=0xffff9688f1806dd0; RunningTime=1090; RemainingQuantum=29596; RemainingYieldBudget=0; QuantumStatus=1; Reason=3
+19:29:02.155618 DxgKrnl id=1067 task=1058 op=0 lvl=0 | UpdateLocation=4; CurRefreshCount=17931; LastVSyncTime=10000000; LastVSyncTimeSnapped=2801718750; Delta=2791718750; FramePeriod_QPC_x100=15625000; Corrections=0; VsyncWaiters=1
+19:29:02.155619 DxgKrnl id=1066 task=1057 op=0 lvl=0 | Function=2; AdapterLuid=27204; VidPnTargetId=0; PresentCount=117; PresentRefreshCount=16011; SyncRefreshCount=16011; SyncQPCTime=2501718750; NewIndirectFrame=true; SubmissionTime=2501653614; DisplayTime=2501718750; SubmissionToDisplayTimeDelta=65136
+19:29:02.155623 DxgKrnl id=172 task=6 op=0 lvl=0 | hAdapter=0xffffaa8a811c8000; Token=0xffff9688f1443e50; Model=0; TokenSize=0; TokenData=0; Flags=0x0; CustomDuration=0; VmBusChannel=0x0
+19:29:02.155627 DxgKrnl id=318 task=1043 op=0 lvl=0 | DWMCount=0; VsyncCount=17931; VsyncFlag=0; VsyncWaiters=0; VsyncType=2
+19:29:02.155635 DxgKrnl id=180 task=9 op=2 lvl=0 | hContext=0xffff9688f1806dd0; PacketType=7; SubmitSequence=41; bPreempted=false; bTimeouted=false; pQueuePacket=0xffffaa8a8117b8a0
+19:29:02.155635 DxgKrnl id=470 task=284 op=2 lvl=0 | SubmitSequence=41
+19:29:02.155635 DxgKrnl id=1067 task=1058 op=0 lvl=0 | UpdateLocation=4; CurRefreshCount=17931; LastVSyncTime=10000000; LastVSyncTimeSnapped=2801718750; Delta=2791718750; FramePeriod_QPC_x100=15625000; Corrections=0; VsyncWaiters=1
+19:29:02.155636 DxgKrnl id=1066 task=1057 op=0 lvl=0 | Function=2; AdapterLuid=27204; VidPnTargetId=0; PresentCount=117; PresentRefreshCount=16011; SyncRefreshCount=16011; SyncQPCTime=2501718750; NewIndirectFrame=true; SubmissionTime=2501653614; DisplayTime=2501718750; SubmissionToDisplayTimeDelta=65136
+19:29:02.155644 DxgKrnl id=1142 task=1122 op=0 lvl=0 | AdapterLuid=27204; BltQueueWakeReason=0; VSyncWork=true; UpdateModeWork=false; FlushWork=false
+19:29:02.155647 DxgKrnl id=1141 task=1121 op=0 lvl=0 | ExpirationTime=-137386; NextVsycQpcTime=2801875000; CurrTime=2801737614; CurrFreq=10000000; LastVSyncTimeSnapped=2801718750; VSyncPeriod=156250
+19:29:02.155653 DxgKrnl id=173 task=6 op=2 lvl=0 | hAdapter=0xffffaa8a7f30f000; Token=0xffff9688f1443e50; Model=7; TokenSize=24; TokenData=1640; Flags=0x0; CustomDuration=0; VmBusChannel=0x0
+19:29:02.155759 DxgKrnl id=551 task=350 op=0 lvl=0 | ObjectCount=1; VidSchSyncObjectArray=0xffffaa8a8161e910; DxgSyncObjectArray=0xffffaa8a81711dc0; FenceValues=152; AlwaysSignaled=false
+19:29:02.155760 DxgKrnl id=294 task=169 op=0 lvl=0 | ContextCount=1; hContext=0xffff9688f186b4b0; Flags=0; ObjectCount=1; ObjectArray=0xffffaa8a8161e910; MonitoredFenceValue=152; InternalFlagsFlags=0x1
+19:29:02.155765 DxgKrnl id=182 task=105 op=0 lvl=0 | hDevice=0xffff9688f143f010; DeviceState=1
+19:29:02.155789 DxgKrnl id=318 task=1043 op=0 lvl=0 | DWMCount=17932; VsyncCount=17931; VsyncFlag=0; VsyncWaiters=0; VsyncType=2
+19:29:02.155801 DxgKrnl id=1142 task=1122 op=0 lvl=0 | AdapterLuid=27204; BltQueueWakeReason=0; VSyncWork=true; UpdateModeWork=false; FlushWork=false
+19:29:02.155803 DxgKrnl id=1141 task=1121 op=0 lvl=0 | ExpirationTime=-135826; NextVsycQpcTime=2801875000; CurrTime=2801739174; CurrFreq=10000000; LastVSyncTimeSnapped=2801718750; VSyncPeriod=156250
+19:29:02.170498 DxgKrnl id=1142 task=1122 op=0 lvl=0 | AdapterLuid=27204; BltQueueWakeReason=2; VSyncWork=false; UpdateModeWork=false; FlushWork=false
+19:29:02.170502 DxgKrnl id=1067 task=1058 op=0 lvl=0 | UpdateLocation=0; CurRefreshCount=17932; LastVSyncTime=10000000; LastVSyncTimeSnapped=2801875000; Delta=2791875000; FramePeriod_QPC_x100=15625000; Corrections=0; VsyncWaiters=3
+19:29:02.170502 DxgKrnl id=319 task=1044 op=0 lvl=0 | DWMCount=17932; VsyncCount=17932; VsyncFlag=0; VsyncWaiters=3; VsyncType=2
+19:29:02.170507 DxgKrnl id=1143 task=1123 op=0 lvl=0 | TargetDWMVSync=17932
+19:29:02.170511 DxgKrnl id=1146 task=1126 op=0 lvl=0 | AdapterLuid=27204; VidPnTargetId=0; VidPnSourceId=0; FrameQPCTime=2801886254; OldVsyncWaiters=3; NewVsyncWaiters=0; VSyncIdleCount=0
+19:29:02.170513 DxgKrnl id=1141 task=1121 op=0 lvl=0 | ExpirationTime=-144978; NextVsycQpcTime=2802031250; CurrTime=2801886272; CurrFreq=10000000; LastVSyncTimeSnapped=2801875000; VSyncPeriod=156250
+19:29:02.170524 DxgKrnl id=496 task=304 op=0 lvl=0 | BoostedVSyncFreqEligible=false; IsNonBoostedVsyncFrame=true
+19:29:02.170545 DxgKrnl id=1067 task=1058 op=0 lvl=0 | UpdateLocation=4; CurRefreshCount=17932; LastVSyncTime=10000000; LastVSyncTimeSnapped=2801875000; Delta=2791875000; FramePeriod_QPC_x100=15625000; Corrections=0; VsyncWaiters=0
+19:29:02.170546 DxgKrnl id=1066 task=1057 op=0 lvl=0 | Function=2; AdapterLuid=27204; VidPnTargetId=0; PresentCount=117; PresentRefreshCount=16011; SyncRefreshCount=16011; SyncQPCTime=2501718750; NewIndirectFrame=true; SubmissionTime=2501653614; DisplayTime=2501718750; SubmissionToDisplayTimeDelta=65136
+19:29:02.170577 DxgKrnl id=1142 task=1122 op=0 lvl=0 | AdapterLuid=27204; BltQueueWakeReason=0; VSyncWork=true; UpdateModeWork=false; FlushWork=false
+19:29:02.170579 DxgKrnl id=1141 task=1121 op=0 lvl=0 | ExpirationTime=-144317; NextVsycQpcTime=2802031250; CurrTime=2801886933; CurrFreq=10000000; LastVSyncTimeSnapped=2801875000; VSyncPeriod=156250
+19:29:02.171056 DxgKrnl id=169 task=4 op=0 lvl=0 | pDmaBuffer=0x0
+19:29:02.171069 DxgKrnl id=178 task=9 op=1 lvl=0 | hContext=0xffff9688f186b4b0; PacketType=0; SubmitSequence=595; DmaBufferSize=4096; AllocationListSize=0; PatchLocationListSize=0; bPresent=false; hDmaBuffer=0x0; pQueuePacket=0xffffaa8a819c63f0; ProgressFenceValue=0
+19:29:02.171070 DxgKrnl id=305 task=203 op=0 lvl=0 | hContext=0xffff9688f186b4b0; SubmitSequence=595; uiNbWrittenPrimaries=1; WrittenPrimaries=0xffffaa8a815a4060; pQueuePacket=0xffffaa8a819c63f0
+19:29:02.171072 DxgKrnl id=113 task=74 op=0 lvl=0 | hContext=0xffff9688f186b4b0; RunningTime=165143; RemainingQuantum=75000; RemainingYieldBudget=0; QuantumStatus=3; Reason=1
+19:29:02.171073 DxgKrnl id=20 task=13 op=0 lvl=0 | hContext=0xffff9688f186b4b0; Status=5; Line=16403
+19:29:02.171074 DxgKrnl id=113 task=74 op=0 lvl=0 | hContext=0xffff9688f186b4b0; RunningTime=165143; RemainingQuantum=75000; RemainingYieldBudget=0; QuantumStatus=3; Reason=3
+19:29:02.171074 DxgKrnl id=113 task=74 op=0 lvl=0 | hContext=0xffff9688f186b4b0; RunningTime=165143; RemainingQuantum=75000; RemainingYieldBudget=0; QuantumStatus=3; Reason=3
+19:29:02.171096 DxgKrnl id=19 task=12 op=2 lvl=0 | pDxgAdapter=0xffffaa8a7f30f000; EventId=1
+19:29:02.171100 DxgKrnl id=436 task=263 op=0 lvl=0 | pDxgAdapter=0xffffaa8a7f30f000; hContext=0xffff9688f186b4b0; NodeOrdinal=0; ReadyContextPriorityMapBits=67108864; NumberOfULongPtrsInNodeMask=1; ReadyNodeSwMapBits=0x1; ReadyNodeHwMapBits=0x3f
+19:29:02.171101 DxgKrnl id=22 task=15 op=0 lvl=0 | hContext=0xffff9688f186b4b0; AttemptResult=2
+19:29:02.171102 DxgKrnl id=20 task=13 op=0 lvl=0 | hContext=0xffff9688f186b4b0; Status=1; Line=19178
+19:29:02.171102 DxgKrnl id=113 task=74 op=0 lvl=0 | hContext=0xffff9688f186b4b0; RunningTime=165143; RemainingQuantum=75000; RemainingYieldBudget=0; QuantumStatus=3; Reason=3
+19:29:02.171103 DxgKrnl id=179 task=9 op=0 lvl=0 | hContext=0xffff9688f186b4b0; PacketType=0; SubmitSequence=595
+19:29:02.171106 DxgKrnl id=113 task=74 op=0 lvl=0 | hContext=0xffff9688f186b4b0; RunningTime=0; RemainingQuantum=75000; RemainingYieldBudget=0; QuantumStatus=3; Reason=0
+19:29:02.171107 DxgKrnl id=175 task=8 op=1 lvl=0 | hContext=0xffff9688f186b4b0; hQueuePacketContext=0x0; PacketType=0; uliSubmissionId=236; ulQueueSubmitSequence=595; pDmaBuffer=0x0; QuantumStatus=3
+19:29:02.171109 DxgKrnl id=245 task=9 op=1 lvl=0 | hContext=0xffff9688f186b4b0; SubmitSequence=596; Flags=0; ObjectCount=1; ObjectArray=0xffffaa8a8161ec10; FenceValue=237; pQueuePacket=0xffffaa8a81b6c010; DxgSyncObjectArray=0xffffaa8a81710db0
+19:29:02.171109 DxgKrnl id=20 task=13 op=0 lvl=0 | hContext=0xffff9688f186b4b0; Status=5; Line=16403
+19:29:02.171109 DxgKrnl id=113 task=74 op=0 lvl=0 | hContext=0xffff9688f186b4b0; RunningTime=0; RemainingQuantum=75000; RemainingYieldBudget=0; QuantumStatus=3; Reason=3
+19:29:02.171110 DxgKrnl id=113 task=74 op=0 lvl=0 | hContext=0xffff9688f186b4b0; RunningTime=0; RemainingQuantum=75000; RemainingYieldBudget=0; QuantumStatus=3; Reason=3
+19:29:02.171110 DxgKrnl id=294 task=169 op=0 lvl=0 | ContextCount=1; hContext=0xffff9688f186b4b0; Flags=0; ObjectCount=1; ObjectArray=0xffffaa8a8161ec10; MonitoredFenceValue=237; InternalFlagsFlags=0x1
+19:29:02.171124 DxgKrnl id=113 task=74 op=0 lvl=0 | hContext=0xffff9688f186b4b0; RunningTime=175; RemainingQuantum=75000; RemainingYieldBudget=0; QuantumStatus=3; Reason=2
+19:29:02.171124 DxgKrnl id=436 task=263 op=0 lvl=0 | pDxgAdapter=0xffffaa8a7f30f000; hContext=0xffff9688f186b4b0; NodeOrdinal=0; ReadyContextPriorityMapBits=67108864; NumberOfULongPtrsInNodeMask=1; ReadyNodeSwMapBits=0x1; ReadyNodeHwMapBits=0x3f
+19:29:02.171125 DxgKrnl id=20 task=13 op=0 lvl=0 | hContext=0xffff9688f186b4b0; Status=1; Line=19178
+19:29:02.171125 DxgKrnl id=113 task=74 op=0 lvl=0 | hContext=0xffff9688f186b4b0; RunningTime=175; RemainingQuantum=75000; RemainingYieldBudget=0; QuantumStatus=3; Reason=3
+19:29:02.171125 DxgKrnl id=179 task=9 op=0 lvl=0 | hContext=0xffff9688f186b4b0; PacketType=5; SubmitSequence=596
+19:29:02.171126 DxgKrnl id=436 task=263 op=0 lvl=0 | pDxgAdapter=0xffffaa8a7f30f000; hContext=0x0; NodeOrdinal=0; ReadyContextPriorityMapBits=0; NumberOfULongPtrsInNodeMask=1; ReadyNodeSwMapBits=0x0; ReadyNodeHwMapBits=0x3f
+19:29:02.171127 DxgKrnl id=436 task=263 op=0 lvl=0 | pDxgAdapter=0xffffaa8a7f30f000; hContext=0x0; NodeOrdinal=0; ReadyContextPriorityMapBits=0; NumberOfULongPtrsInNodeMask=1; ReadyNodeSwMapBits=0x0; ReadyNodeHwMapBits=0x3f
+19:29:02.171128 DxgKrnl id=18 task=12 op=1 lvl=0 | pDxgAdapter=0xffffaa8a7f30f000; EventId=1
+19:29:02.171150 DxgKrnl id=41 task=24 op=0 lvl=0 | hDevice=0xffff9688f143f010; hAllocationHandle=0xffffaa8a815a4060; dwFlags=770; uiLockStatus=0
+19:29:02.171152 DxgKrnl id=42 task=25 op=0 lvl=0 | hDevice=0xffff9688f143f010; hAllocationHandle=0xffffaa8a815a4060; dwFlags=0
+19:29:02.171154 DxgKrnl id=1071 task=1105 op=0 lvl=0 | AdapterLuid=27204; VidPnTargetId=0; FrameNumber=118; FrontOfQueue=false; AddReason=0; SubmissionTime=2801892680
+19:29:02.171161 DxgKrnl id=184 task=107 op=0 lvl=0 | hContext=1073744192; hWindow=0x0; VidPnSourceId=0; FlipInterval=1; Flags=4198404; ReturnStatus=0; hSrcAllocHandle=0x40001200; hDstAllocHandle=0x0
+19:29:02.171165 DxgKrnl id=1142 task=1122 op=0 lvl=0 | AdapterLuid=27204; BltQueueWakeReason=0; VSyncWork=false; UpdateModeWork=false; FlushWork=false
+19:29:02.171167 DxgKrnl id=1072 task=1060 op=0 lvl=0 | AdapterLuid=27204; VidPnTargetId=0; FrameNumber=118
+19:29:02.171168 DxgKrnl id=1071 task=1105 op=0 lvl=0 | AdapterLuid=27204; VidPnTargetId=0; FrameNumber=118; FrontOfQueue=false; AddReason=2; SubmissionTime=2801892680
+19:29:02.171169 DxgKrnl id=1141 task=1121 op=0 lvl=0 | ExpirationTime=-138416; NextVsycQpcTime=2802031250; CurrTime=2801892834; CurrFreq=10000000; LastVSyncTimeSnapped=2801875000; VSyncPeriod=156250
+19:29:02.171190 DxgKrnl id=169 task=4 op=0 lvl=0 | pDmaBuffer=0x0
+19:29:02.171192 DxgKrnl id=178 task=9 op=1 lvl=0 | hContext=0xffff9688f186b4b0; PacketType=0; SubmitSequence=597; DmaBufferSize=4096; AllocationListSize=0; PatchLocationListSize=0; bPresent=false; hDmaBuffer=0x0; pQueuePacket=0xffffaa8a81b6c6e0; ProgressFenceValue=0
+19:29:02.171193 DxgKrnl id=20 task=13 op=0 lvl=0 | hContext=0xffff9688f186b4b0; Status=5; Line=16403
+19:29:02.171193 DxgKrnl id=113 task=74 op=0 lvl=0 | hContext=0xffff9688f186b4b0; RunningTime=175; RemainingQuantum=75000; RemainingYieldBudget=0; QuantumStatus=3; Reason=3
+19:29:02.171194 DxgKrnl id=113 task=74 op=0 lvl=0 | hContext=0xffff9688f186b4b0; RunningTime=175; RemainingQuantum=75000; RemainingYieldBudget=0; QuantumStatus=3; Reason=3
+19:29:02.171202 DxgKrnl id=245 task=9 op=1 lvl=0 | hContext=0xffff9688f186b4b0; SubmitSequence=598; Flags=0; ObjectCount=1; ObjectArray=0xffffaa8a8161ec10; FenceValue=238; pQueuePacket=0xffffaa8a8166d420; DxgSyncObjectArray=0xffffaa8a81710db0
+19:29:02.171202 DxgKrnl id=113 task=74 op=0 lvl=0 | hContext=0xffff9688f186b4b0; RunningTime=175; RemainingQuantum=75000; RemainingYieldBudget=0; QuantumStatus=3; Reason=3
+19:29:02.171202 DxgKrnl id=19 task=12 op=2 lvl=0 | pDxgAdapter=0xffffaa8a7f30f000; EventId=1
+19:29:02.171203 DxgKrnl id=294 task=169 op=0 lvl=0 | ContextCount=1; hContext=0xffff9688f186b4b0; Flags=0; ObjectCount=1; ObjectArray=0xffffaa8a8161ec10; MonitoredFenceValue=238; InternalFlagsFlags=0x1
+19:29:02.171204 DxgKrnl id=113 task=74 op=0 lvl=0 | hContext=0xffff9688f186b4b0; RunningTime=974; RemainingQuantum=75000; RemainingYieldBudget=0; QuantumStatus=3; Reason=2
+19:29:02.171204 DxgKrnl id=436 task=263 op=0 lvl=0 | pDxgAdapter=0xffffaa8a7f30f000; hContext=0xffff9688f186b4b0; NodeOrdinal=0; ReadyContextPriorityMapBits=67108864; NumberOfULongPtrsInNodeMask=1; ReadyNodeSwMapBits=0x1; ReadyNodeHwMapBits=0x3f
+19:29:02.171204 DxgKrnl id=22 task=15 op=0 lvl=0 | hContext=0xffff9688f186b4b0; AttemptResult=15
+19:29:02.171205 DxgKrnl id=179 task=9 op=0 lvl=0 | hContext=0xffff9688f186b4b0; PacketType=0; SubmitSequence=597
+19:29:02.171206 DxgKrnl id=113 task=74 op=0 lvl=0 | hContext=0xffff9688f186b4b0; RunningTime=974; RemainingQuantum=75000; RemainingYieldBudget=0; QuantumStatus=3; Reason=3
+19:29:02.171206 DxgKrnl id=175 task=8 op=1 lvl=0 | hContext=0xffff9688f186b4b0; hQueuePacketContext=0x0; PacketType=0; uliSubmissionId=237; ulQueueSubmitSequence=597; pDmaBuffer=0x0; QuantumStatus=3
+19:29:02.171208 DxgKrnl id=245 task=9 op=1 lvl=0 | hContext=0xffff9688f186b4b0; SubmitSequence=599; Flags=0; ObjectCount=1; ObjectArray=0xffffaa8a8161e910; FenceValue=153; pQueuePacket=0xffffaa8a817d2050; DxgSyncObjectArray=0xffffaa8a81711dc0
+19:29:02.171208 DxgKrnl id=113 task=74 op=0 lvl=0 | hContext=0xffff9688f186b4b0; RunningTime=974; RemainingQuantum=75000; RemainingYieldBudget=0; QuantumStatus=3; Reason=3
+19:29:02.171209 DxgKrnl id=294 task=169 op=0 lvl=0 | ContextCount=1; hContext=0xffff9688f186b4b0; Flags=0; ObjectCount=1; ObjectArray=0xffffaa8a8161e910; MonitoredFenceValue=153; InternalFlagsFlags=0x1
+19:29:02.171295 DxgKrnl id=1142 task=1122 op=0 lvl=0 | AdapterLuid=27204; BltQueueWakeReason=1; VSyncWork=false; UpdateModeWork=false; FlushWork=false
+19:29:02.171296 DxgKrnl id=1072 task=1060 op=0 lvl=0 | AdapterLuid=27204; VidPnTargetId=0; FrameNumber=118
+19:29:02.171296 DxgKrnl id=1125 task=1107 op=0 lvl=0 | AdapterLuid=27204; VidPnTargetId=0; FrameNumber=118
+19:29:02.171297 DxgKrnl id=1071 task=1105 op=0 lvl=0 | AdapterLuid=27204; VidPnTargetId=0; FrameNumber=118; FrontOfQueue=false; AddReason=2; SubmissionTime=2801892680
+19:29:02.171297 DxgKrnl id=113 task=74 op=0 lvl=0 | hContext=0xffff9688f186b4b0; RunningTime=1903; RemainingQuantum=75000; RemainingYieldBudget=0; QuantumStatus=3; Reason=2
+19:29:02.171298 DxgKrnl id=1141 task=1121 op=0 lvl=0 | ExpirationTime=-137128; NextVsycQpcTime=2802031250; CurrTime=2801894122; CurrFreq=10000000; LastVSyncTimeSnapped=2801875000; VSyncPeriod=156250
+19:29:02.171298 DxgKrnl id=177 task=8 op=0 lvl=0 | hContext=0xffff9688f186b4b0; PacketType=0; uliCompletionId=236; ulQueueSubmitSequence=595; InterruptType=1; QuantumStatus=3; FaultedVirtualAddress=0; PageFaultFlags=0; FaultedProcessHandle=0x0
+19:29:02.171310 DxgKrnl id=363 task=213 op=0 lvl=0 | pDxgAdapter=0xffffaa8a7f30f000; YieldPriorityBand=2; RunningTime=165918; NodeOrdinal=0
+19:29:02.171310 DxgKrnl id=363 task=213 op=0 lvl=0 | pDxgAdapter=0xffffaa8a7f30f000; YieldPriorityBand=1; RunningTime=2030; NodeOrdinal=0
+19:29:02.171312 DxgKrnl id=176 task=8 op=2 lvl=0 | hContext=0xffff9688f186b4b0; PacketType=0; uliCompletionId=236; ulQueueSubmitSequence=595; bPreempted=false
+19:29:02.171314 DxgKrnl id=359 task=200 op=0 lvl=0 | pDxgAdapter=0xffffaa8a7f30f000; YieldCondition=1; Parameter0=26; Parameter1=2801894277; Parameter2=2501654571; Parameter3=0
+19:29:02.171315 DxgKrnl id=180 task=9 op=2 lvl=0 | hContext=0xffff9688f186b4b0; PacketType=0; SubmitSequence=595; bPreempted=false; bTimeouted=false; pQueuePacket=0xffffaa8a819c63f0
+19:29:02.171317 DxgKrnl id=552 task=351 op=0 lvl=0 | ObjectCount=1; VidSchSyncObjectArray=0xffffaa8a8161ec10; DxgSyncObjectArray=0xffffaa8a81710db0; FenceValues=237; AlwaysSignaled=false; Flags=0; pCpuEvent=0xed; pGuestCpuEvent=0xed
+19:29:02.171318 DxgKrnl id=180 task=9 op=2 lvl=0 | hContext=0xffff9688f186b4b0; PacketType=5; SubmitSequence=596; bPreempted=false; bTimeouted=false; pQueuePacket=0xffffaa8a81b6c010
+19:29:02.172393 DxgKrnl id=113 task=74 op=0 lvl=0 | hContext=0xffff9688f186b4b0; RunningTime=12870; RemainingQuantum=75000; RemainingYieldBudget=0; QuantumStatus=3; Reason=2
+19:29:02.172394 DxgKrnl id=436 task=263 op=0 lvl=0 | pDxgAdapter=0xffffaa8a7f30f000; hContext=0xffff9688f186b4b0; NodeOrdinal=0; ReadyContextPriorityMapBits=67108864; NumberOfULongPtrsInNodeMask=1; ReadyNodeSwMapBits=0x1; ReadyNodeHwMapBits=0x3f
+19:29:02.172394 DxgKrnl id=179 task=9 op=0 lvl=0 | hContext=0xffff9688f186b4b0; PacketType=5; SubmitSequence=598
+19:29:02.172395 DxgKrnl id=113 task=74 op=0 lvl=0 | hContext=0xffff9688f186b4b0; RunningTime=12885; RemainingQuantum=75000; RemainingYieldBudget=0; QuantumStatus=3; Reason=2
+19:29:02.172395 DxgKrnl id=436 task=263 op=0 lvl=0 | pDxgAdapter=0xffffaa8a7f30f000; hContext=0xffff9688f186b4b0; NodeOrdinal=0; ReadyContextPriorityMapBits=67108864; NumberOfULongPtrsInNodeMask=1; ReadyNodeSwMapBits=0x1; ReadyNodeHwMapBits=0x3f
+19:29:02.172395 DxgKrnl id=20 task=13 op=0 lvl=0 | hContext=0xffff9688f186b4b0; Status=1; Line=19178
+19:29:02.172395 DxgKrnl id=113 task=74 op=0 lvl=0 | hContext=0xffff9688f186b4b0; RunningTime=12885; RemainingQuantum=75000; RemainingYieldBudget=0; QuantumStatus=3; Reason=3
+19:29:02.172396 DxgKrnl id=179 task=9 op=0 lvl=0 | hContext=0xffff9688f186b4b0; PacketType=5; SubmitSequence=599
+19:29:02.172396 DxgKrnl id=436 task=263 op=0 lvl=0 | pDxgAdapter=0xffffaa8a7f30f000; hContext=0x0; NodeOrdinal=0; ReadyContextPriorityMapBits=0; NumberOfULongPtrsInNodeMask=1; ReadyNodeSwMapBits=0x0; ReadyNodeHwMapBits=0x3f
+19:29:02.172397 DxgKrnl id=436 task=263 op=0 lvl=0 | pDxgAdapter=0xffffaa8a7f30f000; hContext=0x0; NodeOrdinal=0; ReadyContextPriorityMapBits=0; NumberOfULongPtrsInNodeMask=1; ReadyNodeSwMapBits=0x0; ReadyNodeHwMapBits=0x3f
+19:29:02.172397 DxgKrnl id=18 task=12 op=1 lvl=0 | pDxgAdapter=0xffffaa8a7f30f000; EventId=1
+19:29:02.199564 DxgKrnl id=1142 task=1122 op=0 lvl=0 | AdapterLuid=27204; BltQueueWakeReason=2; VSyncWork=false; UpdateModeWork=false; FlushWork=false
+19:29:02.199568 DxgKrnl id=1072 task=1060 op=0 lvl=0 | AdapterLuid=27204; VidPnTargetId=0; FrameNumber=118
+19:29:02.199572 DxgKrnl id=1067 task=1058 op=0 lvl=0 | UpdateLocation=1; CurRefreshCount=17933; LastVSyncTime=10000000; LastVSyncTimeSnapped=2802031250; Delta=2792031250; FramePeriod_QPC_x100=15625000; Corrections=0; VsyncWaiters=1
+19:29:02.199573 DxgKrnl id=1066 task=1057 op=0 lvl=0 | Function=1; AdapterLuid=27204; VidPnTargetId=0; PresentCount=118; PresentRefreshCount=17933; SyncRefreshCount=17933; SyncQPCTime=2802031250; NewIndirectFrame=false; SubmissionTime=2801892680; DisplayTime=2802031250; SubmissionToDisplayTimeDelta=138570
+19:29:02.199574 DxgKrnl id=1067 task=1058 op=0 lvl=0 | UpdateLocation=0; CurRefreshCount=17933; LastVSyncTime=10000000; LastVSyncTimeSnapped=2802031250; Delta=2792031250; FramePeriod_QPC_x100=15625000; Corrections=0; VsyncWaiters=1
+19:29:02.199575 DxgKrnl id=319 task=1044 op=0 lvl=0 | DWMCount=17932; VsyncCount=17933; VsyncFlag=0; VsyncWaiters=1; VsyncType=2
+19:29:02.199581 DxgKrnl id=1143 task=1123 op=0 lvl=0 | TargetDWMVSync=17932
+19:29:02.199582 DxgKrnl id=1146 task=1126 op=0 lvl=0 | AdapterLuid=27204; VidPnTargetId=0; VidPnSourceId=0; FrameQPCTime=2802176963; OldVsyncWaiters=1; NewVsyncWaiters=0; VSyncIdleCount=0
+19:29:02.199608 DxgKrnl id=496 task=304 op=0 lvl=0 | BoostedVSyncFreqEligible=false; IsNonBoostedVsyncFrame=true
+19:29:02.199747 DxgKrnl id=1124 task=1106 op=0 lvl=0 | AdapterLuid=27204; VidPnTargetId=0; FrameNumber=118; Status=0; Source=0
+19:29:02.199760 DxgKrnl id=1141 task=1121 op=0 lvl=0 | ExpirationTime=-8754; NextVsycQpcTime=2802187500; CurrTime=2802178746; CurrFreq=10000000; LastVSyncTimeSnapped=2802031250; VSyncPeriod=156250
+19:29:02.199849 DxgKrnl id=113 task=74 op=0 lvl=0 | hContext=0xffff9688f186b4b0; RunningTime=287409; RemainingQuantum=75000; RemainingYieldBudget=0; QuantumStatus=3; Reason=2
+19:29:02.199851 DxgKrnl id=177 task=8 op=0 lvl=0 | hContext=0xffff9688f186b4b0; PacketType=0; uliCompletionId=237; ulQueueSubmitSequence=597; InterruptType=1; QuantumStatus=3; FaultedVirtualAddress=0; PageFaultFlags=0; FaultedProcessHandle=0x0
+19:29:02.199864 DxgKrnl id=363 task=213 op=0 lvl=0 | pDxgAdapter=0xffffaa8a7f30f000; YieldPriorityBand=2; RunningTime=285491; NodeOrdinal=0
+19:29:02.199864 DxgKrnl id=363 task=213 op=0 lvl=0 | pDxgAdapter=0xffffaa8a7f30f000; YieldPriorityBand=1; RunningTime=287567; NodeOrdinal=0
+19:29:02.199868 DxgKrnl id=176 task=8 op=2 lvl=0 | hContext=0xffff9688f186b4b0; PacketType=0; uliCompletionId=237; ulQueueSubmitSequence=597; bPreempted=false
+19:29:02.199872 DxgKrnl id=180 task=9 op=2 lvl=0 | hContext=0xffff9688f186b4b0; PacketType=0; SubmitSequence=597; bPreempted=false; bTimeouted=false; pQueuePacket=0xffffaa8a81b6c6e0
+19:29:02.199874 DxgKrnl id=552 task=351 op=0 lvl=0 | ObjectCount=1; VidSchSyncObjectArray=0xffffaa8a8161ec10; DxgSyncObjectArray=0xffffaa8a81710db0; FenceValues=238; AlwaysSignaled=false; Flags=0; pCpuEvent=0xee; pGuestCpuEvent=0xee
+19:29:02.199876 DxgKrnl id=180 task=9 op=2 lvl=0 | hContext=0xffff9688f186b4b0; PacketType=5; SubmitSequence=598; bPreempted=false; bTimeouted=false; pQueuePacket=0xffffaa8a8166d420
+19:29:02.199877 DxgKrnl id=20 task=13 op=0 lvl=0 | hContext=0xffff9688f186b4b0; Status=0; Line=14015
+19:29:02.199878 DxgKrnl id=113 task=74 op=0 lvl=0 | hContext=0xffff9688f186b4b0; RunningTime=287409; RemainingQuantum=75000; RemainingYieldBudget=0; QuantumStatus=3; Reason=3
+19:29:02.199878 DxgKrnl id=552 task=351 op=0 lvl=0 | ObjectCount=1; VidSchSyncObjectArray=0xffffaa8a8161e910; DxgSyncObjectArray=0xffffaa8a81711dc0; FenceValues=153; AlwaysSignaled=false; Flags=0; pCpuEvent=0x99; pGuestCpuEvent=0x99
+19:29:02.199879 DxgKrnl id=180 task=9 op=2 lvl=0 | hContext=0xffff9688f186b4b0; PacketType=5; SubmitSequence=599; bPreempted=false; bTimeouted=false; pQueuePacket=0xffffaa8a817d2050
+19:29:02.215864 DxgKrnl id=1142 task=1122 op=0 lvl=0 | AdapterLuid=27204; BltQueueWakeReason=2; VSyncWork=false; UpdateModeWork=false; FlushWork=false
+19:29:02.215869 DxgKrnl id=1067 task=1058 op=0 lvl=0 | UpdateLocation=0; CurRefreshCount=17934; LastVSyncTime=10000000; LastVSyncTimeSnapped=2802187500; Delta=2792187500; FramePeriod_QPC_x100=15625000; Corrections=0; VsyncWaiters=0
+19:29:02.215870 DxgKrnl id=1143 task=1123 op=0 lvl=0 | TargetDWMVSync=17932
+19:29:02.215872 DxgKrnl id=1146 task=1126 op=0 lvl=0 | AdapterLuid=27204; VidPnTargetId=0; VidPnSourceId=0; FrameQPCTime=2802339862; OldVsyncWaiters=0; NewVsyncWaiters=0; VSyncIdleCount=0
+19:29:02.215875 DxgKrnl id=1141 task=1121 op=0 lvl=0 | ExpirationTime=-3857; NextVsycQpcTime=2802343750; CurrTime=2802339893; CurrFreq=10000000; LastVSyncTimeSnapped=2802187500; VSyncPeriod=156250
+19:29:02.233568 DxgKrnl id=1142 task=1122 op=0 lvl=0 | AdapterLuid=27204; BltQueueWakeReason=2; VSyncWork=false; UpdateModeWork=false; FlushWork=false
+19:29:02.233571 DxgKrnl id=1067 task=1058 op=0 lvl=0 | UpdateLocation=0; CurRefreshCount=17936; LastVSyncTime=10000000; LastVSyncTimeSnapped=2802500000; Delta=2792500000; FramePeriod_QPC_x100=15625000; Corrections=0; VsyncWaiters=0
+19:29:02.233572 DxgKrnl id=1143 task=1123 op=0 lvl=0 | TargetDWMVSync=17932
+19:29:02.233572 DxgKrnl id=1146 task=1126 op=0 lvl=0 | AdapterLuid=27204; VidPnTargetId=0; VidPnSourceId=0; FrameQPCTime=2802516871; OldVsyncWaiters=0; NewVsyncWaiters=0; VSyncIdleCount=1
+19:29:02.233574 DxgKrnl id=1141 task=1121 op=0 lvl=0 | ExpirationTime=-139362; NextVsycQpcTime=2802656250; CurrTime=2802516888; CurrFreq=10000000; LastVSyncTimeSnapped=2802500000; VSyncPeriod=156250
+19:29:02.261921 DxgKrnl id=1142 task=1122 op=0 lvl=0 | AdapterLuid=27204; BltQueueWakeReason=2; VSyncWork=false; UpdateModeWork=false; FlushWork=false
+19:29:02.261926 DxgKrnl id=1067 task=1058 op=0 lvl=0 | UpdateLocation=0; CurRefreshCount=17937; LastVSyncTime=10000000; LastVSyncTimeSnapped=2802656250; Delta=2792656250; FramePeriod_QPC_x100=15625000; Corrections=0; VsyncWaiters=0
+19:29:02.261927 DxgKrnl id=1143 task=1123 op=0 lvl=0 | TargetDWMVSync=17932
+19:29:02.261928 DxgKrnl id=1146 task=1126 op=0 lvl=0 | AdapterLuid=27204; VidPnTargetId=0; VidPnSourceId=0; FrameQPCTime=2802800427; OldVsyncWaiters=0; NewVsyncWaiters=0; VSyncIdleCount=2
+19:29:02.261931 DxgKrnl id=1141 task=1121 op=0 lvl=0 | ExpirationTime=-12045; NextVsycQpcTime=2802812500; CurrTime=2802800455; CurrFreq=10000000; LastVSyncTimeSnapped=2802656250; VSyncPeriod=156250
+19:29:02.292673 DxgKrnl id=1142 task=1122 op=0 lvl=0 | AdapterLuid=27204; BltQueueWakeReason=2; VSyncWork=false; UpdateModeWork=false; FlushWork=false
+19:29:02.292679 DxgKrnl id=1067 task=1058 op=0 lvl=0 | UpdateLocation=0; CurRefreshCount=17939; LastVSyncTime=10000000; LastVSyncTimeSnapped=2802968750; Delta=2792968750; FramePeriod_QPC_x100=15625000; Corrections=0; VsyncWaiters=0
+19:29:02.292680 DxgKrnl id=1143 task=1123 op=0 lvl=0 | TargetDWMVSync=17932
+19:29:02.292682 DxgKrnl id=1146 task=1126 op=0 lvl=0 | AdapterLuid=27204; VidPnTargetId=0; VidPnSourceId=0; FrameQPCTime=2803107964; OldVsyncWaiters=0; NewVsyncWaiters=0; VSyncIdleCount=3
+19:29:02.292685 DxgKrnl id=1141 task=1121 op=0 lvl=0 | ExpirationTime=-17006; NextVsycQpcTime=2803125000; CurrTime=2803107994; CurrFreq=10000000; LastVSyncTimeSnapped=2802968750; VSyncPeriod=156250
+19:29:02.323215 DxgKrnl id=1142 task=1122 op=0 lvl=0 | AdapterLuid=27204; BltQueueWakeReason=2; VSyncWork=false; UpdateModeWork=false; FlushWork=false
+19:29:02.323220 DxgKrnl id=1067 task=1058 op=0 lvl=0 | UpdateLocation=0; CurRefreshCount=17941; LastVSyncTime=10000000; LastVSyncTimeSnapped=2803281250; Delta=2793281250; FramePeriod_QPC_x100=15625000; Corrections=0; VsyncWaiters=0
+19:29:02.323221 DxgKrnl id=1143 task=1123 op=0 lvl=0 | TargetDWMVSync=17932
+19:29:02.323222 DxgKrnl id=1146 task=1126 op=0 lvl=0 | AdapterLuid=27204; VidPnTargetId=0; VidPnSourceId=0; FrameQPCTime=2803413366; OldVsyncWaiters=0; NewVsyncWaiters=0; VSyncIdleCount=4
+19:29:02.323225 DxgKrnl id=1141 task=1121 op=0 lvl=0 | ExpirationTime=-24105; NextVsycQpcTime=2803437500; CurrTime=2803413395; CurrFreq=10000000; LastVSyncTimeSnapped=2803281250; VSyncPeriod=156250
+19:29:02.340610 DxgKrnl id=1142 task=1122 op=0 lvl=0 | AdapterLuid=27204; BltQueueWakeReason=2; VSyncWork=false; UpdateModeWork=false; FlushWork=false
+19:29:02.340611 DxgKrnl id=1067 task=1058 op=0 lvl=0 | UpdateLocation=0; CurRefreshCount=17942; LastVSyncTime=10000000; LastVSyncTimeSnapped=2803437500; Delta=2793437500; FramePeriod_QPC_x100=15625000; Corrections=0; VsyncWaiters=0
+19:29:02.340612 DxgKrnl id=1143 task=1123 op=0 lvl=0 | TargetDWMVSync=17932
+19:29:02.340612 DxgKrnl id=1146 task=1126 op=0 lvl=0 | AdapterLuid=27204; VidPnTargetId=0; VidPnSourceId=0; FrameQPCTime=2803587266; OldVsyncWaiters=0; NewVsyncWaiters=0; VSyncIdleCount=5
+19:29:02.340613 DxgKrnl id=1141 task=1121 op=0 lvl=0 | ExpirationTime=-6475; NextVsycQpcTime=2803593750; CurrTime=2803587275; CurrFreq=10000000; LastVSyncTimeSnapped=2803437500; VSyncPeriod=156250
+19:29:02.368938 DxgKrnl id=1142 task=1122 op=0 lvl=0 | AdapterLuid=27204; BltQueueWakeReason=2; VSyncWork=false; UpdateModeWork=false; FlushWork=false
+19:29:02.368943 DxgKrnl id=1067 task=1058 op=0 lvl=0 | UpdateLocation=0; CurRefreshCount=17944; LastVSyncTime=10000000; LastVSyncTimeSnapped=2803750000; Delta=2793750000; FramePeriod_QPC_x100=15625000; Corrections=0; VsyncWaiters=0
+19:29:02.368943 DxgKrnl id=1143 task=1123 op=0 lvl=0 | TargetDWMVSync=17932
+19:29:02.368944 DxgKrnl id=1146 task=1126 op=0 lvl=0 | AdapterLuid=27204; VidPnTargetId=0; VidPnSourceId=0; FrameQPCTime=2803870591; OldVsyncWaiters=0; NewVsyncWaiters=0; VSyncIdleCount=6
+19:29:02.368947 DxgKrnl id=1141 task=1121 op=0 lvl=0 | ExpirationTime=-35633; NextVsycQpcTime=2803906250; CurrTime=2803870617; CurrFreq=10000000; LastVSyncTimeSnapped=2803750000; VSyncPeriod=156250
+19:29:02.386574 DxgKrnl id=1142 task=1122 op=0 lvl=0 | AdapterLuid=27204; BltQueueWakeReason=2; VSyncWork=false; UpdateModeWork=false; FlushWork=false
+19:29:02.386576 DxgKrnl id=1067 task=1058 op=0 lvl=0 | UpdateLocation=0; CurRefreshCount=17945; LastVSyncTime=10000000; LastVSyncTimeSnapped=2803906250; Delta=2793906250; FramePeriod_QPC_x100=15625000; Corrections=0; VsyncWaiters=0
+19:29:02.386577 DxgKrnl id=1143 task=1123 op=0 lvl=0 | TargetDWMVSync=17932
+19:29:02.386577 DxgKrnl id=1146 task=1126 op=0 lvl=0 | AdapterLuid=27204; VidPnTargetId=0; VidPnSourceId=0; FrameQPCTime=2804046918; OldVsyncWaiters=0; NewVsyncWaiters=0; VSyncIdleCount=7
+19:29:02.386579 DxgKrnl id=1141 task=1121 op=0 lvl=0 | ExpirationTime=-15568; NextVsycQpcTime=2804062500; CurrTime=2804046932; CurrFreq=10000000; LastVSyncTimeSnapped=2803906250; VSyncPeriod=156250
+19:29:02.414680 DxgKrnl id=1142 task=1122 op=0 lvl=0 | AdapterLuid=27204; BltQueueWakeReason=2; VSyncWork=false; UpdateModeWork=false; FlushWork=false
+19:29:02.414682 DxgKrnl id=1067 task=1058 op=0 lvl=0 | UpdateLocation=0; CurRefreshCount=17947; LastVSyncTime=10000000; LastVSyncTimeSnapped=2804218750; Delta=2794218750; FramePeriod_QPC_x100=15625000; Corrections=0; VsyncWaiters=0
+19:29:02.414682 DxgKrnl id=1143 task=1123 op=0 lvl=0 | TargetDWMVSync=17932
+19:29:02.414683 DxgKrnl id=1146 task=1126 op=0 lvl=0 | AdapterLuid=27204; VidPnTargetId=0; VidPnSourceId=0; FrameQPCTime=2804327973; OldVsyncWaiters=0; NewVsyncWaiters=0; VSyncIdleCount=8
+19:29:02.414684 DxgKrnl id=1141 task=1121 op=0 lvl=0 | ExpirationTime=-47016; NextVsycQpcTime=2804375000; CurrTime=2804327984; CurrFreq=10000000; LastVSyncTimeSnapped=2804218750; VSyncPeriod=156250
+19:29:02.432146 DxgKrnl id=1142 task=1122 op=0 lvl=0 | AdapterLuid=27204; BltQueueWakeReason=2; VSyncWork=false; UpdateModeWork=false; FlushWork=false
+19:29:02.432151 DxgKrnl id=1067 task=1058 op=0 lvl=0 | UpdateLocation=0; CurRefreshCount=17948; LastVSyncTime=10000000; LastVSyncTimeSnapped=2804375000; Delta=2794375000; FramePeriod_QPC_x100=15625000; Corrections=0; VsyncWaiters=0
+19:29:02.432152 DxgKrnl id=1143 task=1123 op=0 lvl=0 | TargetDWMVSync=17932
+19:29:02.432154 DxgKrnl id=1146 task=1126 op=0 lvl=0 | AdapterLuid=27204; VidPnTargetId=0; VidPnSourceId=0; FrameQPCTime=2804502682; OldVsyncWaiters=0; NewVsyncWaiters=0; VSyncIdleCount=9
+19:29:02.432156 DxgKrnl id=1141 task=1121 op=0 lvl=0 | ExpirationTime=-28546; NextVsycQpcTime=2804531250; CurrTime=2804502704; CurrFreq=10000000; LastVSyncTimeSnapped=2804375000; VSyncPeriod=156250
+19:29:02.460380 DxgKrnl id=1142 task=1122 op=0 lvl=0 | AdapterLuid=27204; BltQueueWakeReason=2; VSyncWork=false; UpdateModeWork=false; FlushWork=false
+19:29:02.460383 DxgKrnl id=1067 task=1058 op=0 lvl=0 | UpdateLocation=0; CurRefreshCount=17950; LastVSyncTime=10000000; LastVSyncTimeSnapped=2804687500; Delta=2794687500; FramePeriod_QPC_x100=15625000; Corrections=0; VsyncWaiters=0
+19:29:02.460383 DxgKrnl id=1143 task=1123 op=0 lvl=0 | TargetDWMVSync=17932
+19:29:02.460384 DxgKrnl id=1146 task=1126 op=0 lvl=0 | AdapterLuid=27204; VidPnTargetId=0; VidPnSourceId=0; FrameQPCTime=2804784985; OldVsyncWaiters=0; NewVsyncWaiters=0; VSyncIdleCount=10
+19:29:02.460385 DxgKrnl id=1122 task=1103 op=0 lvl=0 | VsyncType=2; VsyncEvent=8
+19:29:03.522122 DxgKrnl id=1067 task=1058 op=0 lvl=0 | UpdateLocation=4; CurRefreshCount=18018; LastVSyncTime=10000000; LastVSyncTimeSnapped=2815312500; Delta=2805312500; FramePeriod_QPC_x100=15625000; Corrections=0; VsyncWaiters=0
+19:29:03.522124 DxgKrnl id=1066 task=1057 op=0 lvl=0 | Function=2; AdapterLuid=27204; VidPnTargetId=0; PresentCount=118; PresentRefreshCount=17933; SyncRefreshCount=17933; SyncQPCTime=2802031250; NewIndirectFrame=true; SubmissionTime=2801892680; DisplayTime=2802031250; SubmissionToDisplayTimeDelta=138570
+19:29:03.522136 DxgKrnl id=318 task=1043 op=0 lvl=0 | DWMCount=0; VsyncCount=18018; VsyncFlag=0; VsyncWaiters=0; VsyncType=2
+19:29:03.522151 DxgKrnl id=1067 task=1058 op=0 lvl=0 | UpdateLocation=4; CurRefreshCount=18018; LastVSyncTime=10000000; LastVSyncTimeSnapped=2815312500; Delta=2805312500; FramePeriod_QPC_x100=15625000; Corrections=0; VsyncWaiters=0
+19:29:03.522152 DxgKrnl id=1066 task=1057 op=0 lvl=0 | Function=2; AdapterLuid=27204; VidPnTargetId=0; PresentCount=118; PresentRefreshCount=17933; SyncRefreshCount=17933; SyncQPCTime=2802031250; NewIndirectFrame=true; SubmissionTime=2801892680; DisplayTime=2802031250; SubmissionToDisplayTimeDelta=138570
+19:29:03.522158 DxgKrnl id=1142 task=1122 op=0 lvl=0 | AdapterLuid=27204; BltQueueWakeReason=0; VSyncWork=true; UpdateModeWork=false; FlushWork=false
+19:29:03.522162 DxgKrnl id=1121 task=1102 op=0 lvl=0 | VsyncType=2; Status=0; VsyncEvent=5
+19:29:03.522166 DxgKrnl id=1141 task=1121 op=0 lvl=0 | ExpirationTime=-65944; NextVsycQpcTime=2815468750; CurrTime=2815402806; CurrFreq=10000000; LastVSyncTimeSnapped=2815312500; VSyncPeriod=156250
+19:29:03.522273 DxgKrnl id=551 task=350 op=0 lvl=0 | ObjectCount=1; VidSchSyncObjectArray=0xffffaa8a8161e910; DxgSyncObjectArray=0xffffaa8a81711dc0; FenceValues=154; AlwaysSignaled=false
+19:29:03.522277 DxgKrnl id=294 task=169 op=0 lvl=0 | ContextCount=1; hContext=0xffff9688f186b4b0; Flags=0; ObjectCount=1; ObjectArray=0xffffaa8a8161e910; MonitoredFenceValue=154; InternalFlagsFlags=0x1
+19:29:03.522288 DxgKrnl id=182 task=105 op=0 lvl=0 | hDevice=0xffff9688f143f010; DeviceState=1
+19:29:03.538803 DxgKrnl id=1142 task=1122 op=0 lvl=0 | AdapterLuid=27204; BltQueueWakeReason=2; VSyncWork=false; UpdateModeWork=false; FlushWork=false
+19:29:03.538805 DxgKrnl id=1067 task=1058 op=0 lvl=0 | UpdateLocation=0; CurRefreshCount=18019; LastVSyncTime=10000000; LastVSyncTimeSnapped=2815468750; Delta=2805468750; FramePeriod_QPC_x100=15625000; Corrections=0; VsyncWaiters=1
+19:29:03.538806 DxgKrnl id=319 task=1044 op=0 lvl=0 | DWMCount=0; VsyncCount=18019; VsyncFlag=0; VsyncWaiters=1; VsyncType=2
+19:29:03.538807 DxgKrnl id=1143 task=1123 op=0 lvl=0 | TargetDWMVSync=0
+19:29:03.538807 DxgKrnl id=1146 task=1126 op=0 lvl=0 | AdapterLuid=27204; VidPnTargetId=0; VidPnSourceId=0; FrameQPCTime=2815569219; OldVsyncWaiters=1; NewVsyncWaiters=0; VSyncIdleCount=0
+19:29:03.538809 DxgKrnl id=1141 task=1121 op=0 lvl=0 | ExpirationTime=-55767; NextVsycQpcTime=2815625000; CurrTime=2815569233; CurrFreq=10000000; LastVSyncTimeSnapped=2815468750; VSyncPeriod=156250
+19:29:03.569235 DxgKrnl id=1142 task=1122 op=0 lvl=0 | AdapterLuid=27204; BltQueueWakeReason=2; VSyncWork=false; UpdateModeWork=false; FlushWork=false
+19:29:03.569242 DxgKrnl id=1067 task=1058 op=0 lvl=0 | UpdateLocation=0; CurRefreshCount=18021; LastVSyncTime=10000000; LastVSyncTimeSnapped=2815781250; Delta=2805781250; FramePeriod_QPC_x100=15625000; Corrections=0; VsyncWaiters=0
+19:29:03.569243 DxgKrnl id=1143 task=1123 op=0 lvl=0 | TargetDWMVSync=0
+19:29:03.569246 DxgKrnl id=1146 task=1126 op=0 lvl=0 | AdapterLuid=27204; VidPnTargetId=0; VidPnSourceId=0; FrameQPCTime=2815873600; OldVsyncWaiters=0; NewVsyncWaiters=0; VSyncIdleCount=1
+19:29:03.569250 DxgKrnl id=1141 task=1121 op=0 lvl=0 | ExpirationTime=-63860; NextVsycQpcTime=2815937500; CurrTime=2815873640; CurrFreq=10000000; LastVSyncTimeSnapped=2815781250; VSyncPeriod=156250
+19:29:03.599821 DxgKrnl id=1142 task=1122 op=0 lvl=0 | AdapterLuid=27204; BltQueueWakeReason=2; VSyncWork=false; UpdateModeWork=false; FlushWork=false
+19:29:03.599827 DxgKrnl id=1067 task=1058 op=0 lvl=0 | UpdateLocation=0; CurRefreshCount=18023; LastVSyncTime=10000000; LastVSyncTimeSnapped=2816093750; Delta=2806093750; FramePeriod_QPC_x100=15625000; Corrections=0; VsyncWaiters=0
+19:29:03.599827 DxgKrnl id=1143 task=1123 op=0 lvl=0 | TargetDWMVSync=0
+19:29:03.599829 DxgKrnl id=1146 task=1126 op=0 lvl=0 | AdapterLuid=27204; VidPnTargetId=0; VidPnSourceId=0; FrameQPCTime=2816179432; OldVsyncWaiters=0; NewVsyncWaiters=0; VSyncIdleCount=2
+19:29:03.599833 DxgKrnl id=1141 task=1121 op=0 lvl=0 | ExpirationTime=-70533; NextVsycQpcTime=2816250000; CurrTime=2816179467; CurrFreq=10000000; LastVSyncTimeSnapped=2816093750; VSyncPeriod=156250
+19:29:03.617394 DxgKrnl id=1142 task=1122 op=0 lvl=0 | AdapterLuid=27204; BltQueueWakeReason=2; VSyncWork=false; UpdateModeWork=false; FlushWork=false
+19:29:03.617401 DxgKrnl id=1067 task=1058 op=0 lvl=0 | UpdateLocation=0; CurRefreshCount=18024; LastVSyncTime=10000000; LastVSyncTimeSnapped=2816250000; Delta=2806250000; FramePeriod_QPC_x100=15625000; Corrections=0; VsyncWaiters=0
+19:29:03.617401 DxgKrnl id=1143 task=1123 op=0 lvl=0 | TargetDWMVSync=0
+19:29:03.617403 DxgKrnl id=1146 task=1126 op=0 lvl=0 | AdapterLuid=27204; VidPnTargetId=0; VidPnSourceId=0; FrameQPCTime=2816355174; OldVsyncWaiters=0; NewVsyncWaiters=0; VSyncIdleCount=3
+19:29:03.617407 DxgKrnl id=1141 task=1121 op=0 lvl=0 | ExpirationTime=-51041; NextVsycQpcTime=2816406250; CurrTime=2816355209; CurrFreq=10000000; LastVSyncTimeSnapped=2816250000; VSyncPeriod=156250
+19:29:03.645836 DxgKrnl id=1142 task=1122 op=0 lvl=0 | AdapterLuid=27204; BltQueueWakeReason=2; VSyncWork=false; UpdateModeWork=false; FlushWork=false
+19:29:03.645841 DxgKrnl id=1067 task=1058 op=0 lvl=0 | UpdateLocation=0; CurRefreshCount=18026; LastVSyncTime=10000000; LastVSyncTimeSnapped=2816562500; Delta=2806562500; FramePeriod_QPC_x100=15625000; Corrections=0; VsyncWaiters=0
+19:29:03.645842 DxgKrnl id=1143 task=1123 op=0 lvl=0 | TargetDWMVSync=0
+19:29:03.645843 DxgKrnl id=1146 task=1126 op=0 lvl=0 | AdapterLuid=27204; VidPnTargetId=0; VidPnSourceId=0; FrameQPCTime=2816639578; OldVsyncWaiters=0; NewVsyncWaiters=0; VSyncIdleCount=4
+19:29:03.645847 DxgKrnl id=1141 task=1121 op=0 lvl=0 | ExpirationTime=-79139; NextVsycQpcTime=2816718750; CurrTime=2816639611; CurrFreq=10000000; LastVSyncTimeSnapped=2816562500; VSyncPeriod=156250
+19:29:03.663120 DxgKrnl id=1142 task=1122 op=0 lvl=0 | AdapterLuid=27204; BltQueueWakeReason=2; VSyncWork=false; UpdateModeWork=false; FlushWork=false
+19:29:03.663124 DxgKrnl id=1067 task=1058 op=0 lvl=0 | UpdateLocation=0; CurRefreshCount=18027; LastVSyncTime=10000000; LastVSyncTimeSnapped=2816718750; Delta=2806718750; FramePeriod_QPC_x100=15625000; Corrections=0; VsyncWaiters=0
+19:29:03.663125 DxgKrnl id=1143 task=1123 op=0 lvl=0 | TargetDWMVSync=0
+19:29:03.663125 DxgKrnl id=1146 task=1126 op=0 lvl=0 | AdapterLuid=27204; VidPnTargetId=0; VidPnSourceId=0; FrameQPCTime=2816812401; OldVsyncWaiters=0; NewVsyncWaiters=0; VSyncIdleCount=5
+19:29:03.663128 DxgKrnl id=1141 task=1121 op=0 lvl=0 | ExpirationTime=-62577; NextVsycQpcTime=2816875000; CurrTime=2816812423; CurrFreq=10000000; LastVSyncTimeSnapped=2816718750; VSyncPeriod=156250
+19:29:03.679842 DxgKrnl id=1142 task=1122 op=0 lvl=0 | AdapterLuid=27204; BltQueueWakeReason=2; VSyncWork=false; UpdateModeWork=false; FlushWork=false
+19:29:03.679845 DxgKrnl id=1067 task=1058 op=0 lvl=0 | UpdateLocation=0; CurRefreshCount=18028; LastVSyncTime=10000000; LastVSyncTimeSnapped=2816875000; Delta=2806875000; FramePeriod_QPC_x100=15625000; Corrections=0; VsyncWaiters=0
+19:29:03.679845 DxgKrnl id=1143 task=1123 op=0 lvl=0 | TargetDWMVSync=0
+19:29:03.679846 DxgKrnl id=1146 task=1126 op=0 lvl=0 | AdapterLuid=27204; VidPnTargetId=0; VidPnSourceId=0; FrameQPCTime=2816979602; OldVsyncWaiters=0; NewVsyncWaiters=0; VSyncIdleCount=6
+19:29:03.679847 DxgKrnl id=1141 task=1121 op=0 lvl=0 | ExpirationTime=-51635; NextVsycQpcTime=2817031250; CurrTime=2816979615; CurrFreq=10000000; LastVSyncTimeSnapped=2816875000; VSyncPeriod=156250
+19:29:03.697171 DxgKrnl id=1142 task=1122 op=0 lvl=0 | AdapterLuid=27204; BltQueueWakeReason=2; VSyncWork=false; UpdateModeWork=false; FlushWork=false
+19:29:03.697176 DxgKrnl id=1067 task=1058 op=0 lvl=0 | UpdateLocation=0; CurRefreshCount=18029; LastVSyncTime=10000000; LastVSyncTimeSnapped=2817031250; Delta=2807031250; FramePeriod_QPC_x100=15625000; Corrections=0; VsyncWaiters=0
+19:29:03.697176 DxgKrnl id=1143 task=1123 op=0 lvl=0 | TargetDWMVSync=0
+19:29:03.697178 DxgKrnl id=1146 task=1126 op=0 lvl=0 | AdapterLuid=27204; VidPnTargetId=0; VidPnSourceId=0; FrameQPCTime=2817152922; OldVsyncWaiters=0; NewVsyncWaiters=0; VSyncIdleCount=7
+19:29:03.697180 DxgKrnl id=1141 task=1121 op=0 lvl=0 | ExpirationTime=-34553; NextVsycQpcTime=2817187500; CurrTime=2817152947; CurrFreq=10000000; LastVSyncTimeSnapped=2817031250; VSyncPeriod=156250
+19:29:03.714499 DxgKrnl id=1142 task=1122 op=0 lvl=0 | AdapterLuid=27204; BltQueueWakeReason=2; VSyncWork=false; UpdateModeWork=false; FlushWork=false
+19:29:03.714503 DxgKrnl id=1067 task=1058 op=0 lvl=0 | UpdateLocation=0; CurRefreshCount=18030; LastVSyncTime=10000000; LastVSyncTimeSnapped=2817187500; Delta=2807187500; FramePeriod_QPC_x100=15625000; Corrections=0; VsyncWaiters=0
+19:29:03.714503 DxgKrnl id=1143 task=1123 op=0 lvl=0 | TargetDWMVSync=0
+19:29:03.714504 DxgKrnl id=1146 task=1126 op=0 lvl=0 | AdapterLuid=27204; VidPnTargetId=0; VidPnSourceId=0; FrameQPCTime=2817326187; OldVsyncWaiters=0; NewVsyncWaiters=0; VSyncIdleCount=8
+19:29:03.714506 DxgKrnl id=1141 task=1121 op=0 lvl=0 | ExpirationTime=-17548; NextVsycQpcTime=2817343750; CurrTime=2817326202; CurrFreq=10000000; LastVSyncTimeSnapped=2817187500; VSyncPeriod=156250
+19:29:03.731963 DxgKrnl id=1142 task=1122 op=0 lvl=0 | AdapterLuid=27204; BltQueueWakeReason=2; VSyncWork=false; UpdateModeWork=false; FlushWork=false
+19:29:03.731968 DxgKrnl id=1067 task=1058 op=0 lvl=0 | UpdateLocation=0; CurRefreshCount=18032; LastVSyncTime=10000000; LastVSyncTimeSnapped=2817500000; Delta=2807500000; FramePeriod_QPC_x100=15625000; Corrections=0; VsyncWaiters=0
+19:29:03.731969 DxgKrnl id=1143 task=1123 op=0 lvl=0 | TargetDWMVSync=0
+19:29:03.731970 DxgKrnl id=1146 task=1126 op=0 lvl=0 | AdapterLuid=27204; VidPnTargetId=0; VidPnSourceId=0; FrameQPCTime=2817500843; OldVsyncWaiters=0; NewVsyncWaiters=0; VSyncIdleCount=9
+19:29:03.731973 DxgKrnl id=1141 task=1121 op=0 lvl=0 | ExpirationTime=-155382; NextVsycQpcTime=2817656250; CurrTime=2817500868; CurrFreq=10000000; LastVSyncTimeSnapped=2817500000; VSyncPeriod=156250
+19:29:03.753966 DxgKrnl id=1142 task=1122 op=0 lvl=0 | AdapterLuid=27204; BltQueueWakeReason=2; VSyncWork=false; UpdateModeWork=false; FlushWork=false
+19:29:03.753972 DxgKrnl id=1067 task=1058 op=0 lvl=0 | UpdateLocation=0; CurRefreshCount=18033; LastVSyncTime=10000000; LastVSyncTimeSnapped=2817656250; Delta=2807656250; FramePeriod_QPC_x100=15625000; Corrections=0; VsyncWaiters=0
+19:29:03.753973 DxgKrnl id=1143 task=1123 op=0 lvl=0 | TargetDWMVSync=0
+19:29:03.753975 DxgKrnl id=1146 task=1126 op=0 lvl=0 | AdapterLuid=27204; VidPnTargetId=0; VidPnSourceId=0; FrameQPCTime=2817720891; OldVsyncWaiters=0; NewVsyncWaiters=0; VSyncIdleCount=10
+19:29:03.753976 DxgKrnl id=1122 task=1103 op=0 lvl=0 | VsyncType=2; VsyncEvent=8
+19:29:10.769839 DxgKrnl id=471 task=285 op=1 lvl=0 | DxgProcess=0xffff9688f4929010; ProcessId=0xbe8; HostProcessHandle=0; ProcessFlags=0
+19:29:10.782457 DxgKrnl id=329 task=1046 op=0 lvl=0 | EProcess=0xffffaa8a822ab080; ProcessStatus=2
+19:29:10.787758 DxgKrnl id=471 task=285 op=1 lvl=0 | DxgProcess=0xffff9688f490f010; ProcessId=0xdf4; HostProcessHandle=0; ProcessFlags=0
+19:29:10.806663 DxgKrnl id=473 task=285 op=2 lvl=0 | DxgProcess=0xffff9688f490f010; ProcessId=0xdf4; HostProcessHandle=0; ProcessFlags=2048
+19:29:10.812823 DxgKrnl id=471 task=285 op=1 lvl=0 | DxgProcess=0xffff9688f4b0b010; ProcessId=0x824; HostProcessHandle=0; ProcessFlags=0
+19:29:12.057560 Kernel-PnP id=704 task=704 op=1 lvl=4 | QueryRemoveType=0x1; Device=PCI\VEN_10DE&DEV_1F02&SUBSYS_40111458&REV_A1\3&11583659&0&30
+19:29:12.057566 Kernel-PnP id=830 task=830 op=0 lvl=4 | Device=PCI\VEN_10DE&DEV_1F02&SUBSYS_40111458&REV_A1\3&11583659&0&30; EventGuid={cb3a400e-46f0-11d0-b08f-00609713053f}; ProblemCode=21; ProblemStatus=0x0; Synchronous=true; Flags=0x2
+19:29:12.057630 Kernel-PnP id=831 task=830 op=1 lvl=4 | Device=PCI\VEN_10DE&DEV_1F02&SUBSYS_40111458&REV_A1\3&11583659&0&30
+19:29:12.057735 Kernel-PnP id=860 task=860 op=0 lvl=4 | DeviceNode=0xffffaa8a796d7b20; DeviceInstanceId=PCI\VEN_10DE&DEV_1F02&SUBSYS_40111458&REV_A1\3&11583659&0&30; ServiceName=nvlddmkm; NewProblemCode=0; NewProblemStatus=0x0; OldProblemCode=43; OldProblemStatus=0x0
+19:29:12.057783 Kernel-PnP id=860 task=860 op=0 lvl=4 | DeviceNode=0xffffaa8a796d7b20; DeviceInstanceId=PCI\VEN_10DE&DEV_1F02&SUBSYS_40111458&REV_A1\3&11583659&0&30; ServiceName=nvlddmkm; NewProblemCode=21; NewProblemStatus=0x0; OldProblemCode=0; OldProblemStatus=0x0
+19:29:12.057785 Kernel-PnP id=832 task=830 op=2 lvl=4 | Device=PCI\VEN_10DE&DEV_1F02&SUBSYS_40111458&REV_A1\3&11583659&0&30
+19:29:12.057823 Kernel-PnP id=705 task=704 op=2 lvl=4 | Device=PCI\VEN_10DE&DEV_1F02&SUBSYS_40111458&REV_A1\3&11583659&0&30
+19:29:12.057948 Kernel-PnP id=860 task=860 op=0 lvl=4 | DeviceNode=0xffffaa8a796d7b20; DeviceInstanceId=PCI\VEN_10DE&DEV_1F02&SUBSYS_40111458&REV_A1\3&11583659&0&30; ServiceName=nvlddmkm; NewProblemCode=0; NewProblemStatus=0x0; OldProblemCode=21; OldProblemStatus=0x0
+19:29:12.057971 Kernel-PnP id=819 task=819 op=0 lvl=4 | Device=PCI\VEN_10DE&DEV_1F02&SUBSYS_40111458&REV_A1\3&11583659&0&30; RequestType=0x10
+19:29:12.057979 Kernel-PnP id=820 task=819 op=1 lvl=4 | Device=PCI\VEN_10DE&DEV_1F02&SUBSYS_40111458&REV_A1\3&11583659&0&30; RequestType=0x10
+19:29:12.057981 Kernel-PnP id=850 task=850 op=1 lvl=4 | Device=PCI\VEN_10DE&DEV_1F02&SUBSYS_40111458&REV_A1\3&11583659&0&30
+19:29:12.057983 Kernel-PnP id=851 task=850 op=2 lvl=4 | Device=PCI\VEN_10DE&DEV_1F02&SUBSYS_40111458&REV_A1\3&11583659&0&30
+19:29:12.058456 Kernel-PnP id=801 task=800 op=0 lvl=4 | DeviceNode=0xffffaa8a796d7b20; DeviceInstancePath=PCI\VEN_10DE&DEV_1F02&SUBSYS_40111458&REV_A1\3&11583659&0&30; ParentDeviceInstancePath=ACPI\PNP0A08\0
+19:29:12.297805 DxgKrnl id=122 task=99 op=1 lvl=0 | DeviceObject=0xffffaa8a7de81030; Status=0
+19:29:12.297806 DxgKrnl id=123 task=99 op=2 lvl=0 | DeviceObject=0xffffaa8a7de81030; Status=0
+19:29:12.297808 DxgKrnl id=124 task=100 op=1 lvl=0 | DeviceObject=0xffffaa8a7de81030; Status=0
+19:29:12.297809 DxgKrnl id=125 task=100 op=2 lvl=0 | DeviceObject=0xffffaa8a7de81030; Status=0
+19:29:12.297811 DxgKrnl id=124 task=100 op=1 lvl=0 | DeviceObject=0xffffaa8a7de81030; Status=0
+19:29:12.297811 DxgKrnl id=125 task=100 op=2 lvl=0 | DeviceObject=0xffffaa8a7de81030; Status=0
+19:29:12.304662 DxgKrnl id=126 task=78 op=1 lvl=0 | DeviceObject=0xffffaa8a7de81030; StackLocationSize=72; StackLocation=1B08000000000000E83D555C04F8FFFF4000010000000000C09E8D7E8AAAFFFF00000000000000003010E87D8AAAFFFF000000000000000000000000000000000000000000000000; Status=0
+19:29:12.304668 DxgKrnl id=127 task=78 op=2 lvl=0 | DeviceObject=0xffffaa8a7de81030; Status=0
+19:29:12.305239 DxgKrnl id=126 task=78 op=1 lvl=0 | DeviceObject=0xffffaa8a7de81030; StackLocationSize=72; StackLocation=1B0900000000000000000000000000000000000000000000000000000000000000000000000000003010E87D8AAAFFFF000000000000000000000000000000000000000000000000; Status=0
+19:29:12.305298 DxgKrnl id=127 task=78 op=2 lvl=0 | DeviceObject=0xffffaa8a7de81030; Status=0
+19:29:12.331336 Kernel-PnP id=213 task=212 op=2 lvl=4 | ServiceNameLength=7; ServiceName=DXGKrnl; Status=3221225742; DriverNameLength=15; DriverName=\Driver\DXGKrnl; Version=0
+19:29:12.347543 Kernel-PnP id=807 task=807 op=1 lvl=4 | ServiceType=3; DriverNameLength=16; DriverName=\Driver\nvlddmkm; DeviceInstancePath=PCI\VEN_10DE&DEV_1F02&SUBSYS_40111458&REV_A1\3&11583659&0&30
+19:29:12.350489 DxgKrnl id=118 task=97 op=1 lvl=0 | DriverObject=0xffffaa8a81b07380; PhysicalDeviceObject=0xffffaa8a79eb7360; Status=0
+19:29:12.350505 DxgKrnl id=136 task=83 op=1 lvl=0 | DeviceObject=0xffffaa8a79eb7360; MiniportContext=0x0; Status=0
+19:29:12.361339 DxgKrnl id=122 task=99 op=1 lvl=0 | DeviceObject=0xffffaa8a7de81030; Status=0
+19:29:12.361340 DxgKrnl id=123 task=99 op=2 lvl=0 | DeviceObject=0xffffaa8a7de81030; Status=0
+19:29:12.361343 DxgKrnl id=124 task=100 op=1 lvl=0 | DeviceObject=0xffffaa8a7de81030; Status=0
+19:29:12.361343 DxgKrnl id=125 task=100 op=2 lvl=0 | DeviceObject=0xffffaa8a7de81030; Status=0
+19:29:12.361345 DxgKrnl id=124 task=100 op=1 lvl=0 | DeviceObject=0xffffaa8a7de81030; Status=0
+19:29:12.361345 DxgKrnl id=125 task=100 op=2 lvl=0 | DeviceObject=0xffffaa8a7de81030; Status=0
+19:29:12.368245 DxgKrnl id=126 task=78 op=1 lvl=0 | DeviceObject=0xffffaa8a7de81030; StackLocationSize=72; StackLocation=1B08000000000000E83D555C04F8FFFF4000010000000000909C8D7E8AAAFFFF00000000000000003010E87D8AAAFFFF000000000000000000000000000000000000000000000000; Status=0
+19:29:12.368248 DxgKrnl id=127 task=78 op=2 lvl=0 | DeviceObject=0xffffaa8a7de81030; Status=0
+19:29:12.370741 DxgKrnl id=137 task=83 op=2 lvl=0 | DeviceObject=0xffffaa8a79eb7360; MiniportContext=0xffffaa8a7f653000; Status=0
+19:29:12.370743 DxgKrnl id=162 task=96 op=1 lvl=0 | PhysicalDeviceObject=0xffffaa8a79eb7360; MiniportDeviceContext=0xffffaa8a7f653000; ChainUid=0; NumberOfLinksInChain=0; LeadLink=false; Status=0
+19:29:12.370803 DxgKrnl id=163 task=96 op=2 lvl=0 | PhysicalDeviceObject=0xffffaa8a79eb7360; MiniportDeviceContext=0xffffaa8a7f653000; ChainUid=0; NumberOfLinksInChain=0; LeadLink=false; Status=0
+19:29:12.377617 DxgKrnl id=160 task=95 op=1 lvl=0 | MiniportContext=0xffffaa8a7f653000; InterfaceType={2564aa4f-dddb-4495-b497-6ad4a84163d7}; Status=0
+19:29:12.377626 DxgKrnl id=161 task=95 op=2 lvl=0 | MiniportContext=0xffffaa8a7f653000; InterfaceType={2564aa4f-dddb-4495-b497-6ad4a84163d7}; Status=0
+19:29:12.377627 DxgKrnl id=160 task=95 op=1 lvl=0 | MiniportContext=0xffffaa8a7f653000; InterfaceType={086467fb-dddf-4c19-97d5-c41d767221c8}; Status=0
+19:29:12.377628 DxgKrnl id=161 task=95 op=2 lvl=0 | MiniportContext=0xffffaa8a7f653000; InterfaceType={086467fb-dddf-4c19-97d5-c41d767221c8}; Status=0
+19:29:12.377629 DxgKrnl id=1130 task=1110 op=1 lvl=0 | MiniportDeviceContext=0xffffaa8a7f653000; OutDriverSupport=0; Status=0
+19:29:12.377634 DxgKrnl id=1131 task=1110 op=2 lvl=0 | MiniportDeviceContext=0xffffaa8a7f653000; OutDriverSupport=2; Status=0
+19:29:12.377637 DxgKrnl id=1129 task=1109 op=0 lvl=0 | MiniportDeviceContext=0xffffaa8a7f653000; SystemHasMux=false
+19:29:12.377640 DxgKrnl id=160 task=95 op=1 lvl=0 | MiniportContext=0xffffaa8a7f653000; InterfaceType={693a2cb1-8c8d-4ab6-9555-4b85ef2c7c6b}; Status=0
+19:29:12.377641 DxgKrnl id=161 task=95 op=2 lvl=0 | MiniportContext=0xffffaa8a7f653000; InterfaceType={693a2cb1-8c8d-4ab6-9555-4b85ef2c7c6b}; Status=3221225659
+19:29:12.377641 DxgKrnl id=160 task=95 op=1 lvl=0 | MiniportContext=0xffffaa8a7f653000; InterfaceType={7f098726-2ebb-4ff3-a27f-1046b95dc517}; Status=0
+19:29:12.377641 DxgKrnl id=161 task=95 op=2 lvl=0 | MiniportContext=0xffffaa8a7f653000; InterfaceType={7f098726-2ebb-4ff3-a27f-1046b95dc517}; Status=0
+19:29:12.377642 DxgKrnl id=160 task=95 op=1 lvl=0 | MiniportContext=0xffffaa8a7f653000; InterfaceType={af03f190-22af-48cb-94bb-b78e76a25107}; Status=0
+19:29:12.377642 DxgKrnl id=161 task=95 op=2 lvl=0 | MiniportContext=0xffffaa8a7f653000; InterfaceType={af03f190-22af-48cb-94bb-b78e76a25107}; Status=3221225659
+19:29:12.377734 DxgKrnl id=494 task=494 op=3 lvl=0 | AgentID=NULL; EventType=131077; PartitionId=4294967295; EventDescription=Adapter AddDevice has completed with status %1; EventData1=0; EventData2=0; EventData3=0; EventData4=0; EventData5=0
+19:29:12.377737 DxgKrnl id=119 task=97 op=2 lvl=0 | DriverObject=0xffffaa8a81b07380; PhysicalDeviceObject=0xffffaa8a79eb7360; Status=0
+19:29:12.377846 DxgKrnl id=126 task=78 op=1 lvl=0 | DeviceObject=0xffffaa8a809a9030; StackLocationSize=72; StackLocation=1B18000000000000000000000000000000000000000000000000000000000000000000000000000030909A808AAAFFFF000000000000000000000000000000000000000000000000; Status=0
+19:29:12.377848 DxgKrnl id=127 task=78 op=2 lvl=0 | DeviceObject=0xffffaa8a809a9030; Status=3221225659
+19:29:12.377894 Kernel-PnP id=850 task=850 op=1 lvl=4 | Device=PCI\VEN_10DE&DEV_1F02&SUBSYS_40111458&REV_A1\3&11583659&0&30
+19:29:12.377928 DxgKrnl id=126 task=78 op=1 lvl=0 | DeviceObject=0xffffaa8a809a9030; StackLocationSize=72; StackLocation=1B0D000000000000000000000000000000000000000000000000000000000000000000000000000030909A808AAAFFFF000000000000000000000000000000000000000000000000; Status=0
+19:29:12.377934 DxgKrnl id=127 task=78 op=2 lvl=0 | DeviceObject=0xffffaa8a809a9030; Status=0
+19:29:12.377969 DxgKrnl id=126 task=78 op=1 lvl=0 | DeviceObject=0xffffaa8a809a9030; StackLocationSize=72; StackLocation=1B08000000000000F8F46D3D82A9FFFF3400000000000000F02742F48896FFFF030000000000000030909A808AAAFFFF000000000000000000000000000000000000000000000000; Status=0
+19:29:12.377971 DxgKrnl id=127 task=78 op=2 lvl=0 | DeviceObject=0xffffaa8a809a9030; Status=3221225659
+19:29:12.377977 DxgKrnl id=126 task=78 op=1 lvl=0 | DeviceObject=0xffffaa8a809a9030; StackLocationSize=72; StackLocation=1B08000000000000F8F46D3D82A9FFFF3400000000000000A02C42F48896FFFF020000000000000030909A808AAAFFFF000000000000000000000000000000000000000000000000; Status=0
+19:29:12.377978 DxgKrnl id=127 task=78 op=2 lvl=0 | DeviceObject=0xffffaa8a809a9030; Status=3221225659
+19:29:12.378845 Kernel-PnP id=851 task=850 op=2 lvl=4 | Device=PCI\VEN_10DE&DEV_1F02&SUBSYS_40111458&REV_A1\3&11583659&0&30
+19:29:12.378848 Kernel-PnP id=803 task=803 op=1 lvl=4 | Phase=0x1; Device=PCI\VEN_10DE&DEV_1F02&SUBSYS_40111458&REV_A1\3&11583659&0&30
+19:29:12.378871 Kernel-PnP id=216 task=216 op=1 lvl=4 | DriverNameLength=60; DriverName=PCI\VEN_10DE&DEV_1F02&SUBSYS_40111458&REV_A1\3&11583659&0&30
+19:29:12.378919 DxgKrnl id=126 task=78 op=1 lvl=0 | DeviceObject=0xffffaa8a809a9030; StackLocationSize=72; StackLocation=1B0000E00000000060B58EF40000000000000000000000000000000000000000000000000000000030909A808AAAFFFF000000000000000090B023C304F8FFFFE00C98808AAAFFFF; Status=0
+19:29:12.411072 Kernel-PnP id=218 task=216 op=2 lvl=4 | DriverNameLength=60; DriverName=PCI\VEN_10DE&DEV_1F02&SUBSYS_40111458&REV_A1\3&11583659&0&30; Status=0; FailureNameLength=0; FailureName=; Version=0
+19:29:12.411076 DxgKrnl id=127 task=78 op=2 lvl=0 | DeviceObject=0xffffaa8a809a9030; Status=0
+19:29:12.411088 Kernel-PnP id=804 task=803 op=2 lvl=4 | Phase=0x1; Device=PCI\VEN_10DE&DEV_1F02&SUBSYS_40111458&REV_A1\3&11583659&0&30
+19:29:12.411089 Kernel-PnP id=803 task=803 op=1 lvl=4 | Phase=0x2; Device=PCI\VEN_10DE&DEV_1F02&SUBSYS_40111458&REV_A1\3&11583659&0&30
+19:29:12.411090 Kernel-PnP id=804 task=803 op=2 lvl=4 | Phase=0x2; Device=PCI\VEN_10DE&DEV_1F02&SUBSYS_40111458&REV_A1\3&11583659&0&30
+19:29:12.411091 Kernel-PnP id=803 task=803 op=1 lvl=4 | Phase=0x3; Device=PCI\VEN_10DE&DEV_1F02&SUBSYS_40111458&REV_A1\3&11583659&0&30
+19:29:12.411098 DxgKrnl id=126 task=78 op=1 lvl=0 | DeviceObject=0xffffaa8a809a9030; StackLocationSize=72; StackLocation=1B09000000000000000000000000000000000000000000000000000000000000000000000000000030909A808AAAFFFF000000000000000000000000000000000000000000000000; Status=0
+19:29:12.411179 DxgKrnl id=126 task=78 op=1 lvl=0 | DeviceObject=0xffffaa8a809a9030; StackLocationSize=72; StackLocation=1B08000000000000D044E1C204F8FFFF50000200000000001086DB3C82A9FFFF6073EB798AAAFFFF30909A808AAAFFFF000000000000000000000000000000000000000000000000; Status=0
+19:29:12.411187 DxgKrnl id=127 task=78 op=2 lvl=0 | DeviceObject=0xffffaa8a809a9030; Status=0
+19:29:12.411189 DxgKrnl id=127 task=78 op=2 lvl=0 | DeviceObject=0xffffaa8a809a9030; Status=0
+19:29:12.411220 DxgKrnl id=126 task=78 op=1 lvl=0 | DeviceObject=0xffffaa8a809a9030; StackLocationSize=72; StackLocation=1B14000000000000000000000000000000000000000000000000000000000000000000000000000030909A808AAAFFFF000000000000000000000000000000000000000000000000; Status=0
+19:29:12.411226 DxgKrnl id=127 task=78 op=2 lvl=0 | DeviceObject=0xffffaa8a809a9030; Status=0
+19:29:12.411316 Kernel-PnP id=804 task=803 op=2 lvl=4 | Phase=0x3; Device=PCI\VEN_10DE&DEV_1F02&SUBSYS_40111458&REV_A1\3&11583659&0&30
+19:29:12.411321 Kernel-PnP id=220 task=220 op=1 lvl=4 | DriverNameLength=60; DriverName=PCI\VEN_10DE&DEV_1F02&SUBSYS_40111458&REV_A1\3&11583659&0&30
+19:29:12.411324 DxgKrnl id=126 task=78 op=1 lvl=0 | DeviceObject=0xffffaa8a809a9030; StackLocationSize=72; StackLocation=1B0700E000000000000000000000000000000000000000000000000000000000000000000000000030909A808AAAFFFF000000000000000090B023C304F8FFFFA00498808AAAFFFF; Status=0
+19:29:12.411463 DxgKrnl id=160 task=95 op=1 lvl=0 | MiniportContext=0xffffaa8a7f653000; InterfaceType={94bb3993-c6c3-4da7-8949-a1138232e759}; Status=0
+19:29:12.411467 DxgKrnl id=161 task=95 op=2 lvl=0 | MiniportContext=0xffffaa8a7f653000; InterfaceType={94bb3993-c6c3-4da7-8949-a1138232e759}; Status=3221225659
+19:29:12.411487 DxgKrnl id=138 task=84 op=1 lvl=0 | MiniportContext=0xffffaa8a7f653000; NumVidPnSources=32; ChildCount=0; Status=0
+19:29:12.412084 DxgKrnl id=126 task=78 op=1 lvl=0 | DeviceObject=0xffffaa8a809a9030; StackLocationSize=72; StackLocation=1B09000000000000000000000000000000000000000000000000000000000000000000000000000030909A808AAAFFFF000000000000000000000000000000000000000000000000; Status=0
+19:29:12.412117 DxgKrnl id=127 task=78 op=2 lvl=0 | DeviceObject=0xffffaa8a809a9030; Status=0
+19:29:12.412119 DxgKrnl id=126 task=78 op=1 lvl=0 | DeviceObject=0xffffaa8a809a9030; StackLocationSize=72; StackLocation=1B08000000000000E83D555C04F8FFFF400001000000000030A78D7E8AAAFFFF000000000000000030909A808AAAFFFF000000000000000000000000000000000000000000000000; Status=0
+19:29:12.412121 DxgKrnl id=127 task=78 op=2 lvl=0 | DeviceObject=0xffffaa8a809a9030; Status=0
+19:29:12.428964 DxgKrnl id=130 task=80 op=1 lvl=0 | DeviceObject=0xffffaa8a809a9030; StackLocationSize=72; StackLocation=0E00000000000000000000000000000000000000000000000000000000000000000000000000000030909A808AAAFFFF000000000000000000000000000000000000000000000000; Status=0
+19:29:12.428977 DxgKrnl id=131 task=80 op=2 lvl=0 | DeviceObject=0xffffaa8a809a9030; Status=3221225524
+19:29:12.428983 DxgKrnl id=130 task=80 op=1 lvl=0 | DeviceObject=0xffffaa8a809a9030; StackLocationSize=72; StackLocation=0E00000000000000000000000000000000000000000000000000000000000000000000000000000030909A808AAAFFFF000000000000000000000000000000000000000000000000; Status=0
+19:29:12.428986 DxgKrnl id=131 task=80 op=2 lvl=0 | DeviceObject=0xffffaa8a809a9030; Status=3221225524
+19:29:12.428990 DxgKrnl id=130 task=80 op=1 lvl=0 | DeviceObject=0xffffaa8a809a9030; StackLocationSize=72; StackLocation=0E00000000000000000000000000000000000000000000000000000000000000000000000000000030909A808AAAFFFF000000000000000000000000000000000000000000000000; Status=0
+19:29:12.428993 DxgKrnl id=131 task=80 op=2 lvl=0 | DeviceObject=0xffffaa8a809a9030; Status=3221225524
+19:29:12.428997 DxgKrnl id=130 task=80 op=1 lvl=0 | DeviceObject=0xffffaa8a809a9030; StackLocationSize=72; StackLocation=0E00000000000000000000000000000000000000000000000000000000000000000000000000000030909A808AAAFFFF000000000000000000000000000000000000000000000000; Status=0
+19:29:12.428999 DxgKrnl id=131 task=80 op=2 lvl=0 | DeviceObject=0xffffaa8a809a9030; Status=3221225524
+19:29:12.429004 DxgKrnl id=130 task=80 op=1 lvl=0 | DeviceObject=0xffffaa8a809a9030; StackLocationSize=72; StackLocation=0E00000000000000000000000000000000000000000000000000000000000000000000000000000030909A808AAAFFFF000000000000000000000000000000000000000000000000; Status=0
+19:29:12.429005 DxgKrnl id=131 task=80 op=2 lvl=0 | DeviceObject=0xffffaa8a809a9030; Status=3221225524
+19:29:12.429010 DxgKrnl id=130 task=80 op=1 lvl=0 | DeviceObject=0xffffaa8a809a9030; StackLocationSize=72; StackLocation=0E00000000000000000000000000000000000000000000000000000000000000000000000000000030909A808AAAFFFF000000000000000000000000000000000000000000000000; Status=0
+19:29:12.429012 DxgKrnl id=131 task=80 op=2 lvl=0 | DeviceObject=0xffffaa8a809a9030; Status=3221225524
+19:29:12.429016 DxgKrnl id=130 task=80 op=1 lvl=0 | DeviceObject=0xffffaa8a809a9030; StackLocationSize=72; StackLocation=0E00000000000000000000000000000000000000000000000000000000000000000000000000000030909A808AAAFFFF000000000000000000000000000000000000000000000000; Status=0
+19:29:12.429018 DxgKrnl id=131 task=80 op=2 lvl=0 | DeviceObject=0xffffaa8a809a9030; Status=3221225524
+19:29:12.429022 DxgKrnl id=130 task=80 op=1 lvl=0 | DeviceObject=0xffffaa8a809a9030; StackLocationSize=72; StackLocation=0E00000000000000000000000000000000000000000000000000000000000000000000000000000030909A808AAAFFFF000000000000000000000000000000000000000000000000; Status=0
+19:29:12.429024 DxgKrnl id=131 task=80 op=2 lvl=0 | DeviceObject=0xffffaa8a809a9030; Status=3221225524
+19:29:12.429028 DxgKrnl id=130 task=80 op=1 lvl=0 | DeviceObject=0xffffaa8a809a9030; StackLocationSize=72; StackLocation=0E00000000000000000000000000000000000000000000000000000000000000000000000000000030909A808AAAFFFF000000000000000000000000000000000000000000000000; Status=0
+19:29:12.429030 DxgKrnl id=131 task=80 op=2 lvl=0 | DeviceObject=0xffffaa8a809a9030; Status=3221225524
+19:29:12.429032 DxgKrnl id=130 task=80 op=1 lvl=0 | DeviceObject=0xffffaa8a809a9030; StackLocationSize=72; StackLocation=0E00000000000000000000000000000000000000000000000000000000000000000000000000000030909A808AAAFFFF000000000000000000000000000000000000000000000000; Status=0
+19:29:12.429034 DxgKrnl id=131 task=80 op=2 lvl=0 | DeviceObject=0xffffaa8a809a9030; Status=3221225524
+19:29:12.429040 DxgKrnl id=130 task=80 op=1 lvl=0 | DeviceObject=0xffffaa8a809a9030; StackLocationSize=72; StackLocation=0E00000000000000000000000000000000000000000000000000000000000000000000000000000030909A808AAAFFFF000000000000000000000000000000000000000000000000; Status=0
+19:29:12.429041 DxgKrnl id=131 task=80 op=2 lvl=0 | DeviceObject=0xffffaa8a809a9030; Status=3221225524
+19:29:15.412722 Kernel-PnP id=902 task=900 op=1 lvl=3 | ThreadId=0x17d8; DeviceInstanceId=PCI\VEN_10DE&DEV_1F02&SUBSYS_40111458&REV_A1\3&11583659&0&30; ServiceName=nvlddmkm; ElapsedTimeMs=3005
+19:29:15.703929 DxgKrnl id=132 task=81 op=1 lvl=0 | DeviceObject=0xffffaa8a7dc13ae0; StackLocationSize=72; StackLocation=0F000000000000000000000000000000000000000000000000000000000000000000000000000000E03AC17D8AAAFFFF000000000000000000000000000000000000000000000000; Status=0
+19:29:15.703946 DxgKrnl id=133 task=81 op=2 lvl=0 | DeviceObject=0xffffaa8a7dc13ae0; Status=0
+19:29:22.733205 DxgKrnl id=471 task=285 op=1 lvl=0 | DxgProcess=0xffff9688f492b010; ProcessId=0x7a8; HostProcessHandle=0; ProcessFlags=0
+19:29:23.740922 DxgKrnl id=473 task=285 op=2 lvl=0 | DxgProcess=0xffff9688f492b010; ProcessId=0x7a8; HostProcessHandle=0; ProcessFlags=2048
+19:29:25.782942 DxgKrnl id=132 task=81 op=1 lvl=0 | DeviceObject=0xffffaa8a7dc13ae0; StackLocationSize=72; StackLocation=0F000000000000000000000000000000000000000000000000000000000000000000000000000000E03AC17D8AAAFFFF000000000000000000000000000000000000000000000000; Status=0
+19:29:25.782996 DxgKrnl id=1142 task=1122 op=0 lvl=0 | AdapterLuid=27204; BltQueueWakeReason=0; VSyncWork=false; UpdateModeWork=false; FlushWork=false
+19:29:25.783072 DxgKrnl id=10011 task=10011 op=0 lvl=4 | Type=1; Source=0x0
+19:29:25.783190 DxgKrnl id=1092 task=1080 op=0 lvl=0 | pDxgAdapter=0xffffaa8a7de7c450; VidPnSourceId=0; Visible=false
+19:29:25.784808 DxgKrnl id=430 task=258 op=0 lvl=0 | pDxgAdapter=0xffffaa8a7dc10000; CurrentUsingSource=1; NewUsingSource=1; ChangedSource=0; RemovedSource=0; NeedToActivateSource=0; ActivityChangedSource=1; TopologyChangeSource=0; UpdatedSource=0; RotatedSource=0; PriorityChangeSource=0; ReclaimSource=0; RenewModeListSource=0; MonitorChangedSource=0; PowerOffSource=1; HMDUsingSource=0; HiddenSource=0; VirtualRefreshRateChangeSources=0
+19:29:25.784830 DxgKrnl id=1092 task=1080 op=0 lvl=0 | pDxgAdapter=0xffffaa8a7de7c450; VidPnSourceId=0; Visible=false
+19:29:25.784833 DxgKrnl id=10011 task=10011 op=0 lvl=4 | Type=1; Source=0x0
+19:29:25.784840 DxgKrnl id=10011 task=10011 op=0 lvl=4 | Type=1; Source=0x0
+19:29:25.784861 DxgKrnl id=1067 task=1058 op=0 lvl=0 | UpdateLocation=4; CurRefreshCount=19443; LastVSyncTime=10000000; LastVSyncTimeSnapped=3037968750; Delta=3027968750; FramePeriod_QPC_x100=15625000; Corrections=0; VsyncWaiters=0
+19:29:25.784861 DxgKrnl id=1066 task=1057 op=0 lvl=0 | Function=2; AdapterLuid=27204; VidPnTargetId=0; PresentCount=118; PresentRefreshCount=17933; SyncRefreshCount=17933; SyncQPCTime=2802031250; NewIndirectFrame=true; SubmissionTime=2801892680; DisplayTime=2802031250; SubmissionToDisplayTimeDelta=138570
+19:29:25.819768 DxgKrnl id=128 task=79 op=1 lvl=0 | DeviceObject=0xffffaa8a7dc13080; StackLocationSize=72; StackLocation=160200000000000000000000000000000000000000000000000000000000000000000000000000008030C17D8AAAFFFF000000000000000000000000000000000000000000000000; Status=0
+19:29:25.819903 DxgKrnl id=1142 task=1122 op=0 lvl=0 | AdapterLuid=27204; BltQueueWakeReason=0; VSyncWork=false; UpdateModeWork=false; FlushWork=false
+19:29:25.819923 DxgKrnl id=154 task=92 op=1 lvl=0 | MiniportContext=0xffffaa8a7de7aa30; DeviceUid=0; DevicePowerState=4; ActionType=0; Status=0
+19:29:25.819931 DxgKrnl id=155 task=92 op=2 lvl=0 | MiniportContext=0xffffaa8a7de7aa30; DeviceUid=0; DevicePowerState=4; ActionType=0; Status=0
+19:29:25.819953 DxgKrnl id=129 task=79 op=2 lvl=0 | DeviceObject=0xffffaa8a7dc13080; Status=0
+19:29:25.819956 DxgKrnl id=133 task=81 op=2 lvl=0 | DeviceObject=0xffffaa8a7dc13ae0; Status=0
+19:29:25.822590 DxgKrnl id=10011 task=10011 op=0 lvl=4 | Type=9; Source=0x0
+19:29:25.822634 DxgKrnl id=10011 task=10011 op=0 lvl=4 | Type=10; Source=0x0
+19:29:25.822759 DxgKrnl id=130 task=80 op=1 lvl=0 | DeviceObject=0xffffaa8a7dc13080; StackLocationSize=72; StackLocation=0E0005000000000000000000000000000000000000000000000000000000000000000000000000008030C17D8AAAFFFF005182818AAAFFFF00000000000000000000000000000000; Status=0
+19:29:25.822767 DxgKrnl id=131 task=80 op=2 lvl=0 | DeviceObject=0xffffaa8a7dc13080; Status=3221225659
+19:29:25.822789 DxgKrnl id=10011 task=10011 op=0 lvl=4 | Type=9; Source=0x0
+19:29:25.822805 DxgKrnl id=10011 task=10011 op=0 lvl=4 | Type=10; Source=0x0
+19:29:25.822817 DxgKrnl id=132 task=81 op=1 lvl=0 | DeviceObject=0xffffaa8a7dc13ae0; StackLocationSize=72; StackLocation=0F000000000000000000000000000000000000000000000000000000000000000000000000000000E03AC17D8AAAFFFF000000000000000000000000000000000000000000000000; Status=0
+19:29:25.822820 DxgKrnl id=133 task=81 op=2 lvl=0 | DeviceObject=0xffffaa8a7dc13ae0; Status=0
+19:29:25.825896 DxgKrnl id=132 task=81 op=1 lvl=0 | DeviceObject=0xffffaa8a7dc13ae0; StackLocationSize=72; StackLocation=0F000000000000000000000000000000000000000000000000000000000000000000000000000000E03AC17D8AAAFFFF000000000000000000000000000000000000000000000000; Status=0
+19:29:25.825904 DxgKrnl id=133 task=81 op=2 lvl=0 | DeviceObject=0xffffaa8a7dc13ae0; Status=0
+19:29:25.826127 DxgKrnl id=132 task=81 op=1 lvl=0 | DeviceObject=0xffffaa8a7dc13ae0; StackLocationSize=72; StackLocation=0F000000000000000000000000000000000000000000000000000000000000000000000000000000E03AC17D8AAAFFFF000000000000000000000000000000000000000000000000; Status=0
+19:29:25.826133 DxgKrnl id=133 task=81 op=2 lvl=0 | DeviceObject=0xffffaa8a7dc13ae0; Status=0
+19:29:25.826271 DxgKrnl id=132 task=81 op=1 lvl=0 | DeviceObject=0xffffaa8a7dc13ae0; StackLocationSize=72; StackLocation=0F000000000000000000000000000000000000000000000000000000000000000000000000000000E03AC17D8AAAFFFF000000000000000000000000000000000000000000000000; Status=0
+19:29:25.826275 DxgKrnl id=133 task=81 op=2 lvl=0 | DeviceObject=0xffffaa8a7dc13ae0; Status=0
+19:29:25.826513 DxgKrnl id=130 task=80 op=1 lvl=0 | DeviceObject=0xffffaa8a7dc13080; StackLocationSize=72; StackLocation=0E0005000000000000000000000000000000000000000000000000000000000000000000000000008030C17D8AAAFFFF005182818AAAFFFF00000000000000000000000000000000; Status=0
+19:29:25.826518 DxgKrnl id=131 task=80 op=2 lvl=0 | DeviceObject=0xffffaa8a7dc13080; Status=0
+19:29:25.827240 DxgKrnl id=130 task=80 op=1 lvl=0 | DeviceObject=0xffffaa8a7dc13080; StackLocationSize=72; StackLocation=0E0005000000000000000000000000000000000000000000000000000000000000000000000000008030C17D8AAAFFFF005182818AAAFFFF00000000000000000000000000000000; Status=0
+19:29:25.827248 DxgKrnl id=131 task=80 op=2 lvl=0 | DeviceObject=0xffffaa8a7dc13080; Status=3221225659
+19:29:25.827777 DxgKrnl id=130 task=80 op=1 lvl=0 | DeviceObject=0xffffaa8a7dc13080; StackLocationSize=72; StackLocation=0E0005000000000000000000000000000000000000000000000000000000000000000000000000008030C17D8AAAFFFF005182818AAAFFFF00000000000000000000000000000000; Status=0
+19:29:25.827783 DxgKrnl id=131 task=80 op=2 lvl=0 | DeviceObject=0xffffaa8a7dc13080; Status=3221225659
+19:29:25.827804 DxgKrnl id=132 task=81 op=1 lvl=0 | DeviceObject=0xffffaa8a7dc13ae0; StackLocationSize=72; StackLocation=0F000000000000000000000000000000000000000000000000000000000000000000000000000000E03AC17D8AAAFFFF000000000000000000000000000000000000000000000000; Status=0
+19:29:25.827809 DxgKrnl id=133 task=81 op=2 lvl=0 | DeviceObject=0xffffaa8a7dc13ae0; Status=0
+19:29:25.830011 DxgKrnl id=132 task=81 op=1 lvl=0 | DeviceObject=0xffffaa8a7dc13ae0; StackLocationSize=72; StackLocation=0F000000000000000000000000000000000000000000000000000000000000000000000000000000E03AC17D8AAAFFFF000000000000000000000000000000000000000000000000; Status=0
+19:29:25.830017 DxgKrnl id=133 task=81 op=2 lvl=0 | DeviceObject=0xffffaa8a7dc13ae0; Status=0
+19:29:25.830132 DxgKrnl id=132 task=81 op=1 lvl=0 | DeviceObject=0xffffaa8a7dc13ae0; StackLocationSize=72; StackLocation=0F000000000000000000000000000000000000000000000000000000000000000000000000000000E03AC17D8AAAFFFF000000000000000000000000000000000000000000000000; Status=0
+19:29:25.830137 DxgKrnl id=133 task=81 op=2 lvl=0 | DeviceObject=0xffffaa8a7dc13ae0; Status=0
+19:29:25.830277 DxgKrnl id=132 task=81 op=1 lvl=0 | DeviceObject=0xffffaa8a7dc13ae0; StackLocationSize=72; StackLocation=0F000000000000000000000000000000000000000000000000000000000000000000000000000000E03AC17D8AAAFFFF000000000000000000000000000000000000000000000000; Status=0
+19:29:25.830281 DxgKrnl id=133 task=81 op=2 lvl=0 | DeviceObject=0xffffaa8a7dc13ae0; Status=0
+19:29:25.830390 DxgKrnl id=130 task=80 op=1 lvl=0 | DeviceObject=0xffffaa8a7dc13080; StackLocationSize=72; StackLocation=0E0005000000000000000000000000000000000000000000000000000000000000000000000000008030C17D8AAAFFFF005182818AAAFFFF00000000000000000000000000000000; Status=0
+19:29:25.830393 DxgKrnl id=131 task=80 op=2 lvl=0 | DeviceObject=0xffffaa8a7dc13080; Status=0
+19:29:25.830658 DxgKrnl id=130 task=80 op=1 lvl=0 | DeviceObject=0xffffaa8a7dc13080; StackLocationSize=72; StackLocation=0E0005000000000000000000000000000000000000000000000000000000000000000000000000008030C17D8AAAFFFF005182818AAAFFFF00000000000000000000000000000000; Status=0
+19:29:25.830665 DxgKrnl id=131 task=80 op=2 lvl=0 | DeviceObject=0xffffaa8a7dc13080; Status=3221225659
+19:29:25.847261 DxgKrnl id=1067 task=1058 op=0 lvl=0 | UpdateLocation=4; CurRefreshCount=19447; LastVSyncTime=10000000; LastVSyncTimeSnapped=3038593750; Delta=3028593750; FramePeriod_QPC_x100=15625000; Corrections=0; VsyncWaiters=0
+19:29:25.847262 DxgKrnl id=1066 task=1057 op=0 lvl=0 | Function=2; AdapterLuid=27204; VidPnTargetId=0; PresentCount=118; PresentRefreshCount=17933; SyncRefreshCount=17933; SyncQPCTime=2802031250; NewIndirectFrame=true; SubmissionTime=2801892680; DisplayTime=2802031250; SubmissionToDisplayTimeDelta=138570
+19:29:25.848203 DxgKrnl id=182 task=105 op=0 lvl=0 | hDevice=0xffff9688f143f010; DeviceState=1
+19:29:25.848317 DxgKrnl id=551 task=350 op=0 lvl=0 | ObjectCount=1; VidSchSyncObjectArray=0xffffaa8a8161e910; DxgSyncObjectArray=0xffffaa8a81711dc0; FenceValues=155; AlwaysSignaled=false
+19:29:25.848320 DxgKrnl id=294 task=169 op=0 lvl=0 | ContextCount=1; hContext=0xffff9688f186b4b0; Flags=0; ObjectCount=1; ObjectArray=0xffffaa8a8161e910; MonitoredFenceValue=155; InternalFlagsFlags=0x1
+19:29:25.848345 DxgKrnl id=182 task=105 op=0 lvl=0 | hDevice=0xffff9688f143f010; DeviceState=1
+19:29:25.848647 DxgKrnl id=182 task=105 op=0 lvl=0 | hDevice=0xffff9688f16e2010; DeviceState=1
+19:29:25.917873 DxgKrnl id=1067 task=1058 op=0 lvl=0 | UpdateLocation=4; CurRefreshCount=19451; LastVSyncTime=10000000; LastVSyncTimeSnapped=3039218750; Delta=3029218750; FramePeriod_QPC_x100=15625000; Corrections=0; VsyncWaiters=0
+19:29:25.917874 DxgKrnl id=1066 task=1057 op=0 lvl=0 | Function=2; AdapterLuid=27204; VidPnTargetId=0; PresentCount=118; PresentRefreshCount=17933; SyncRefreshCount=17933; SyncQPCTime=2802031250; NewIndirectFrame=true; SubmissionTime=2801892680; DisplayTime=2802031250; SubmissionToDisplayTimeDelta=138570
+19:29:25.917897 DxgKrnl id=1067 task=1058 op=0 lvl=0 | UpdateLocation=4; CurRefreshCount=19451; LastVSyncTime=10000000; LastVSyncTimeSnapped=3039218750; Delta=3029218750; FramePeriod_QPC_x100=15625000; Corrections=0; VsyncWaiters=0
+19:29:25.917897 DxgKrnl id=1066 task=1057 op=0 lvl=0 | Function=2; AdapterLuid=27204; VidPnTargetId=0; PresentCount=118; PresentRefreshCount=17933; SyncRefreshCount=17933; SyncQPCTime=2802031250; NewIndirectFrame=true; SubmissionTime=2801892680; DisplayTime=2802031250; SubmissionToDisplayTimeDelta=138570
+19:29:25.918015 DxgKrnl id=182 task=105 op=0 lvl=0 | hDevice=0xffff9688f143f010; DeviceState=1
+19:29:25.918099 DxgKrnl id=551 task=350 op=0 lvl=0 | ObjectCount=1; VidSchSyncObjectArray=0xffffaa8a8161e910; DxgSyncObjectArray=0xffffaa8a81711dc0; FenceValues=156; AlwaysSignaled=false
+19:29:25.918102 DxgKrnl id=294 task=169 op=0 lvl=0 | ContextCount=1; hContext=0xffff9688f186b4b0; Flags=0; ObjectCount=1; ObjectArray=0xffffaa8a8161e910; MonitoredFenceValue=156; InternalFlagsFlags=0x1
+19:29:25.918114 DxgKrnl id=182 task=105 op=0 lvl=0 | hDevice=0xffff9688f143f010; DeviceState=1
+19:29:25.918121 DxgKrnl id=1067 task=1058 op=0 lvl=0 | UpdateLocation=4; CurRefreshCount=19451; LastVSyncTime=10000000; LastVSyncTimeSnapped=3039218750; Delta=3029218750; FramePeriod_QPC_x100=15625000; Corrections=0; VsyncWaiters=0
+19:29:25.918122 DxgKrnl id=1066 task=1057 op=0 lvl=0 | Function=2; AdapterLuid=27204; VidPnTargetId=0; PresentCount=118; PresentRefreshCount=17933; SyncRefreshCount=17933; SyncQPCTime=2802031250; NewIndirectFrame=true; SubmissionTime=2801892680; DisplayTime=2802031250; SubmissionToDisplayTimeDelta=138570
+19:29:30.440267 DxgKrnl id=471 task=285 op=1 lvl=0 | DxgProcess=0xffff9688f490b010; ProcessId=0xfb8; HostProcessHandle=0; ProcessFlags=0
+19:29:30.474196 DxgKrnl id=473 task=285 op=2 lvl=0 | DxgProcess=0xffff9688f490b010; ProcessId=0xfb8; HostProcessHandle=0; ProcessFlags=2048
+19:29:30.553106 DxgKrnl id=471 task=285 op=1 lvl=0 | DxgProcess=0xffff9688f440c010; ProcessId=0x384; HostProcessHandle=0; ProcessFlags=0
+19:29:30.805945 DxgKrnl id=132 task=81 op=1 lvl=0 | DeviceObject=0xffffaa8a7dc13ae0; StackLocationSize=72; StackLocation=0F000000000000000000000000000000000000000000000000000000000000000000000000000000E03AC17D8AAAFFFF000000000000000000000000000000000000000000000000; Status=0
+19:29:30.805969 DxgKrnl id=1142 task=1122 op=0 lvl=0 | AdapterLuid=27204; BltQueueWakeReason=0; VSyncWork=false; UpdateModeWork=false; FlushWork=false
+19:29:30.806069 DxgKrnl id=133 task=81 op=2 lvl=0 | DeviceObject=0xffffaa8a7dc13ae0; Status=0
+19:29:31.063999 DxgKrnl id=473 task=285 op=2 lvl=0 | DxgProcess=0xffff9688f4774910; ProcessId=0x1004; HostProcessHandle=0; ProcessFlags=2048
+19:29:31.155018 DxgKrnl id=473 task=285 op=2 lvl=0 | DxgProcess=0xffff9688f440c010; ProcessId=0x384; HostProcessHandle=0; ProcessFlags=2048
+19:29:31.301958 DxgKrnl id=473 task=285 op=2 lvl=0 | DxgProcess=0xffff9688f3506c90; ProcessId=0x1370; HostProcessHandle=0; ProcessFlags=2048
+19:29:31.875932 DxgKrnl id=473 task=285 op=2 lvl=0 | DxgProcess=0xffff9688f4b50d80; ProcessId=0x638; HostProcessHandle=0; ProcessFlags=2048
+19:29:32.736856 DxgKrnl id=182 task=105 op=0 lvl=0 | hDevice=0xffff9688f18167e0; DeviceState=1
+19:29:32.860992 DxgKrnl id=473 task=285 op=2 lvl=0 | DxgProcess=0xffff9688f460cd70; ProcessId=0xbcc; HostProcessHandle=0; ProcessFlags=2048
+19:30:17.105564 DxgKrnl id=139 task=84 op=2 lvl=0 | MiniportContext=0xffffaa8a7f653000; NumVidPnSources=0; ChildCount=0; Status=3221225626
+19:30:17.105568 DxgKrnl id=494 task=494 op=3 lvl=0 | AgentID=NULL; EventType=131076; PartitionId=4294967295; EventDescription=Adapter StartDevice has completed with status %1; EventData1=18446744072635809946; EventData2=0; EventData3=0; EventData4=0; EventData5=0
+19:30:17.105578 DxgKrnl id=549 task=348 op=0 lvl=2 | GraphicsVendorId=4318; Status=3221225626; FailureReason=1
+19:30:17.105913 DxgKrnl id=457 task=275 op=1 lvl=2 | pDeviceObject=0xffffaa8a79eb7360; Message=Start Device Failed; BucketingString=StartDevice_Failure; DescriptionString=StartDevice_Failure; Status=3221225626
+19:30:17.153874 Kernel-PnP id=222 task=220 op=2 lvl=4 | DriverNameLength=60; DriverName=PCI\VEN_10DE&DEV_1F02&SUBSYS_40111458&REV_A1\3&11583659&0&30
+19:30:17.153877 DxgKrnl id=127 task=78 op=2 lvl=0 | DeviceObject=0xffffaa8a809a9030; Status=0
+19:30:17.153902 Kernel-PnP id=903 task=900 op=2 lvl=4 | ThreadId=0x17d8; DeviceInstanceId=PCI\VEN_10DE&DEV_1F02&SUBSYS_40111458&REV_A1\3&11583659&0&30; ServiceName=nvlddmkm; ElapsedTimeMs=64746
+19:30:17.153904 Kernel-PnP id=850 task=850 op=1 lvl=4 | Device=PCI\VEN_10DE&DEV_1F02&SUBSYS_40111458&REV_A1\3&11583659&0&30
+19:30:17.153907 Kernel-PnP id=851 task=850 op=2 lvl=4 | Device=PCI\VEN_10DE&DEV_1F02&SUBSYS_40111458&REV_A1\3&11583659&0&30
+19:30:17.153909 Kernel-PnP id=821 task=819 op=2 lvl=4 | Device=PCI\VEN_10DE&DEV_1F02&SUBSYS_40111458&REV_A1\3&11583659&0&30; RequestType=0x10; Status=0
+19:30:17.153919 DxgKrnl id=126 task=78 op=1 lvl=0 | DeviceObject=0xffffaa8a809a9030; StackLocationSize=72; StackLocation=1B14000000000000000000000000000000000000000000000000000000000000000000000000000030909A808AAAFFFF000000000000000000000000000000000000000000000000; Status=0
+19:30:17.153926 DxgKrnl id=127 task=78 op=2 lvl=0 | DeviceObject=0xffffaa8a809a9030; Status=0
+19:30:17.153979 Kernel-PnP id=830 task=830 op=0 lvl=4 | Device=PCI\VEN_10DE&DEV_1F02&SUBSYS_40111458&REV_A1\3&11583659&0&30; EventGuid={cb3a400e-46f0-11d0-b08f-00609713053f}; ProblemCode=43; ProblemStatus=0x0; Synchronous=false; Flags=0xe
+19:30:17.153990 DxgKrnl id=126 task=78 op=1 lvl=0 | DeviceObject=0xffffaa8a809a9030; StackLocationSize=72; StackLocation=1B14000000000000000000000000000000000000000000000000000000000000000000000000000030909A808AAAFFFF000000000000000000000000000000000000000000000000; Status=0
+19:30:17.153992 DxgKrnl id=127 task=78 op=2 lvl=0 | DeviceObject=0xffffaa8a809a9030; Status=0
+19:30:17.153994 Kernel-PnP id=830 task=830 op=0 lvl=4 | Device=PCI\VEN_10DE&DEV_1F02&SUBSYS_40111458&REV_A1\3&11583659&0&30; EventGuid={cb3a400e-46f0-11d0-b08f-00609713053f}; ProblemCode=43; ProblemStatus=0x0; Synchronous=false; Flags=0xe
+19:30:17.154019 Kernel-PnP id=831 task=830 op=1 lvl=4 | Device=PCI\VEN_10DE&DEV_1F02&SUBSYS_40111458&REV_A1\3&11583659&0&30
+19:30:17.154025 DxgKrnl id=126 task=78 op=1 lvl=0 | DeviceObject=0xffffaa8a809a9030; StackLocationSize=72; StackLocation=1B07000000000000030000000000000000000000000000000000000000000000000000000000000030909A808AAAFFFF000000000000000000000000000000000000000000000000; Status=0
+19:30:17.154029 DxgKrnl id=127 task=78 op=2 lvl=0 | DeviceObject=0xffffaa8a809a9030; Status=3221225659
+19:30:17.154033 Kernel-PnP id=1011 task=0 op=0 lvl=3 | DeviceInstanceId=PCI\VEN_10DE&DEV_1F02&SUBSYS_40111458&REV_A1\3&11583659&0&30; DeviceCount=1
+19:30:17.154073 DxgKrnl id=126 task=78 op=1 lvl=0 | DeviceObject=0xffffaa8a809a9030; StackLocationSize=72; StackLocation=1B17000000000000000000000000000000000000000000000000000000000000000000000000000030909A808AAAFFFF000000000000000000000000000000000000000000000000; Status=0
+19:30:17.154123 DxgKrnl id=494 task=494 op=3 lvl=0 | AgentID=NULL; EventType=262144; PartitionId=4294967295; EventDescription=The selected adapter is display only adapter; EventData1=1311; EventData2=0; EventData3=0; EventData4=0; EventData5=0
+19:30:17.154126 DxgKrnl id=494 task=494 op=3 lvl=0 | AgentID=NULL; EventType=131078; PartitionId=4294967295; EventDescription=Adapter StopDevice has completed with status %1; EventData1=0; EventData2=0; EventData3=0; EventData4=0; EventData5=0
+19:30:17.154742 DxgKrnl id=127 task=78 op=2 lvl=0 | DeviceObject=0xffffaa8a809a9030; Status=0
+19:30:17.155598 DxgKrnl id=126 task=78 op=1 lvl=0 | DeviceObject=0xffffaa8a809a9030; StackLocationSize=72; StackLocation=1B02000000000000000000000000000000000000000000000000000000000000000000000000000030909A808AAAFFFF000000000000000000000000000000000000000000000000; Status=0
+19:30:17.157025 DxgKrnl id=142 task=86 op=1 lvl=0 | MiniportContext=0xffffaa8a7f653000; Status=0
+19:30:17.157215 DxgKrnl id=143 task=86 op=2 lvl=0 | MiniportContext=0xffffaa8a7f653000; Status=0
+19:30:17.157283 DxgKrnl id=494 task=494 op=3 lvl=0 | AgentID=NULL; EventType=262144; PartitionId=4294967295; EventDescription=WdDbgReportCreate failed; EventData1=11550; EventData2=0; EventData3=0; EventData4=0; EventData5=0
+19:30:17.157311 DxgKrnl id=127 task=78 op=2 lvl=0 | DeviceObject=0xffffaa8a809a9030; Status=0
+19:30:17.157368 DxgKrnl id=120 task=98 op=1 lvl=0 | DriverObject=0xffffaa8a81b07380
+19:30:17.157370 DxgKrnl id=158 task=94 op=1 lvl=0 | 
+19:30:17.160292 DxgKrnl id=159 task=94 op=2 lvl=0 | 
+19:30:17.160293 DxgKrnl id=120 task=98 op=1 lvl=0 | DriverObject=0xffffaa8a81b07380
+19:30:17.168317 Kernel-PnP id=860 task=860 op=0 lvl=4 | DeviceNode=0xffffaa8a796d7b20; DeviceInstanceId=PCI\VEN_10DE&DEV_1F02&SUBSYS_40111458&REV_A1\3&11583659&0&30; ServiceName=nvlddmkm; NewProblemCode=43; NewProblemStatus=0x0; OldProblemCode=0; OldProblemStatus=0x0
+19:30:17.168335 Kernel-PnP id=832 task=830 op=2 lvl=4 | Device=PCI\VEN_10DE&DEV_1F02&SUBSYS_40111458&REV_A1\3&11583659&0&30
+19:30:17.168401 Kernel-PnP id=831 task=830 op=1 lvl=4 | Device=PCI\VEN_10DE&DEV_1F02&SUBSYS_40111458&REV_A1\3&11583659&0&30
+19:30:17.169191 Kernel-PnP id=832 task=830 op=2 lvl=4 | Device=PCI\VEN_10DE&DEV_1F02&SUBSYS_40111458&REV_A1\3&11583659&0&30
+19:30:17.172838 DxgKrnl id=471 task=285 op=1 lvl=0 | DxgProcess=0xffff9688f492c010; ProcessId=0x6d4; HostProcessHandle=0; ProcessFlags=0
+19:30:17.211808 DxgKrnl id=473 task=285 op=2 lvl=0 | DxgProcess=0xffff9688f4b0b010; ProcessId=0x824; HostProcessHandle=0; ProcessFlags=2048
+19:30:17.212713 DxgKrnl id=329 task=1046 op=0 lvl=0 | EProcess=0xffffaa8a822ab080; ProcessStatus=0
+19:30:17.213558 DxgKrnl id=473 task=285 op=2 lvl=0 | DxgProcess=0xffff9688f4929010; ProcessId=0xbe8; HostProcessHandle=0; ProcessFlags=2048
+19:30:20.266128 DxgKrnl id=473 task=285 op=2 lvl=0 | DxgProcess=0xffff9688f492c010; ProcessId=0x6d4; HostProcessHandle=0; ProcessFlags=2048
+19:30:20.278722 DxgKrnl id=471 task=285 op=1 lvl=0 | DxgProcess=0xffff9688f492c010; ProcessId=0xb18; HostProcessHandle=0; ProcessFlags=0
+19:30:21.342991 DxgKrnl id=473 task=285 op=2 lvl=0 | DxgProcess=0xffff9688f492c010; ProcessId=0xb18; HostProcessHandle=0; ProcessFlags=2048
+19:30:26.530689 DxgKrnl id=362 task=204 op=0 lvl=0 | Timeout=-900000000; WakeReason=5
+19:31:25.585567 DxgKrnl id=471 task=285 op=1 lvl=0 | DxgProcess=0xffff9688f4b36d80; ProcessId=0x1758; HostProcessHandle=0; ProcessFlags=0
+19:31:25.600541 DxgKrnl id=329 task=1046 op=0 lvl=0 | EProcess=0xffffaa8a7f5d10c0; ProcessStatus=2
+19:31:25.606569 DxgKrnl id=471 task=285 op=1 lvl=0 | DxgProcess=0xffff9688f45f6010; ProcessId=0xca8; HostProcessHandle=0; ProcessFlags=0
+19:31:25.619560 DxgKrnl id=473 task=285 op=2 lvl=0 | DxgProcess=0xffff9688f45f6010; ProcessId=0xca8; HostProcessHandle=0; ProcessFlags=2048
+19:31:25.625500 DxgKrnl id=471 task=285 op=1 lvl=0 | DxgProcess=0xffff9688f492d010; ProcessId=0x14c4; HostProcessHandle=0; ProcessFlags=0
+19:31:26.434941 DxgKrnl id=471 task=285 op=1 lvl=0 | DxgProcess=0xffff9688f4b3cd70; ProcessId=0x13bc; HostProcessHandle=0; ProcessFlags=0
