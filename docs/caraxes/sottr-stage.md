@@ -330,3 +330,101 @@ the pool).
   desktop keeps the absolute mode. Measure again with the pool fix (`bar1-pool.md` section 10)
   and the reactor paths, with no builds on the host. Pinning the guest's interrupt vCPU on the
   host is the next lever (`intr-page.md`, the Weston late-vblank finding).
+
+## 11. The capture and the compositor (2026-09-25)
+
+Record: vm4-615, GNOME Wayland, Sunshine `capture = kms`, `encoder = software`. Evidence in
+`/mnt/vmstore/caraxes/evidence-2026-09-25/`: `trace-stream60-13s.txt`,
+`trace-stream30-vkcube.txt`, `trace-nostream-vkcube-16s.txt` (the first 7 s still with the
+capture, seconds 8 to 12 without). Code at dae79b11 unless a line says otherwise.
+
+![The MSI re-arm's pool poll holds the device lock; the flip latch waits for it](figures/capture-rearm-lock.svg)
+
+**Symptom.**
+- Display kicks (`W bar0 0x696000`, window 6): 1 to 8 per second with the stream, 49 to 59
+  without; the latches fall on multiples of 16.7 ms (33, 50, 66 ms apart): whole vblanks missed.
+- With the capture every kind of trap gets rarer (TIME reads, doorbells, invalidates), not only
+  the compositor's: the guest waits on something shared.
+
+**Mechanism.**
+- The guest's MSI re-arm (`NV_XVE_CYA_2`, 573 per second in the 60 fps trace) arrives through
+  its ioeventfd. The doorbell reactor takes the device lock (device.rs:192) and runs
+  `msi_rearm_ioeventfd`. That logs the `msi re-arm` line first, then the steps of a trapped
+  BAR0 write (device.rs:539), including the BAR1 pool's poll (device.rs:1131,
+  `bar1pool::poll_model`).
+- The poll merges every replica (bar1pool.rs:912, two page reads each through the device's two
+  32 MiB BAR1 windows). With refused remaps pending, it also retries them every 1 ms
+  (bar1pool.rs:966), and each retry waits for the shadow worker (bar1pool.rs:653) and reads the
+  mirrored channels' USERDs.
+- While the poll runs, nothing else can take the lock: the vfio-user thread (every vCPU's trap),
+  the other doorbells, and the display clock, whose tick latches flips and raises the vblank
+  under the same lock (main.rs:1051).
+
+**Evidence.**
+- Silences of more than 2 ms that start right after an `msi re-arm` line:
+
+| Trace | Silences | Time | Of |
+|---|---|---|---|
+| stream 60 fps | 777 | 2.49 s | 13.0 s |
+| stream 30 fps with vkcube | 1561 | 5.27 s | 13.5 s |
+| no stream, capture still on (0-7 s) | 760 | 2.70 s | 7.0 s |
+| no stream, capture off (8-12 s) | 122 | 0.41 s | 5.0 s |
+
+- Each ends with a burst 15 to 60 us after the release: queued re-arms, TIME reads of other
+  vCPUs, BAR2 flush reads, and display latches. The lock was held; the guest was not idle.
+  Example in the figure: kick 7652 at 2790.9679 s, re-arm at 2790.9688 s, 12.5 ms of nothing,
+  then the latch of that flip at 2790.9816 s. The longest silence was 50.5 ms.
+- The trace does not show which part of the poll is slow. The frozen binary traces every poll
+  over 2 ms (`bar1 pool: the poll after a BAR0 write held the device N us`).
+
+**What it is not.**
+- (a) The doorbell hold. Sunshine's root 0x129be5000 has an untrapped USERD, so its
+  invalidates are held until the worker applies them (untrapped.rs `must_hold`). They cost
+  about 250 us more than the unshadowed root's: p50 672 against 435 us, 0.68 s in 13 s.
+  This is real but secondary; it is unchanged.
+- (b) Host preempts on unmap. The pool summary counts 4 TSG preempts in the whole session.
+- (c) The display kick path. `W 0x696000` takes 195 us at p50.
+- (d) The shadow sync. 9834 syncs, sum 1.01 s. Back-to-back BAR2 flush reads cost at least
+  210 us each, with or without the stream.
+- (e) Notifier latency. The event thread raises MSIs without the device lock; only its trace
+  notes wait for the next trap.
+
+**Fix** (device, commit 356dd4e4; binary
+`/mnt/vmstore/caraxes/vfio-user-nvgpu-v615-capture-356dd4e4`, v615 release):
+- A BAR0 write that lands in the config-space mirror is no sync point
+  (`Device::after_bar0_write(sync_point)`, device.rs:1159). This covers the trapped re-arm and
+  the ioeventfd one. No P21 check and no pool poll follow such a write. The guest orders its
+  BAR1 changes with the BAR2 flush read and the MMU invalidate, which stay sync points
+  (bar1-pool.md §10).
+- Refused remaps back off. The retry interval doubles after each retry that moved nothing, up
+  to 64 ms (`RETRY_MAX`, bar1pool.rs:59, `pace_retry` :1429). It drops back to 1 ms at the
+  first move. A new mapping is still walked at the next poll.
+- Replicas merge in home-page order (`merge_order`, bar1pool.rs:910), so a sync point maps each
+  BAR1 window region once at most.
+- Counters: `bar0 config-mirror writes: N ..., K pool poll(s) held the device over 2 ms` in the
+  exit summary; `R retry poll(s), B of them moved nothing (interval now X ms)` in the pool line.
+- Tests: `device::tests::a_config_mirror_write_does_not_poll_the_bar1_pool`,
+  `bar1pool::tests::a_fruitless_retry_backs_off_and_a_move_resets_it`,
+  `bar1pool::tests::replicas_merge_in_home_order`.
+
+**Sunshine's share.**
+- `display_ram_t::snapshot` (kmsgrab.cpp:1304-1315) imports the scanout buffer again on every
+  frame: `drmModeGetFB2`, `drmPrimeHandleToFD`, `egl::import_source`, a blit, a readback, and
+  the import is destroyed.
+- In the guest that is a map and an unmap of the 8.3 MB buffer in Sunshine's VA per frame. That
+  makes 2 MMU invalidates, each held by (a), and 5 host RM map or unmap calls in the worker.
+- The smallest Sunshine change is a cache of the imported `egl::rgb_t` in `display_ram_t`:
+  - keyed by the plane's `fb_id` plus the modifier, pitch and offset of `drmModeGetFB2`;
+  - it keeps the dma-buf fds open;
+  - at most 4 entries (Mutter flips between 3 surfaces: 0x12b000000, 0x129c00000 and 0x12a600000
+    in the trace);
+  - cleared on `reinit`.
+  `display_vram_t` passes descriptors on to the encoder instead of importing per frame. The
+  cache removes the per-frame maps; the device fix does not depend on it.
+
+**GPU check (not run here).** vm4-615 with the frozen binary, vkcube in the guest, the stream
+at 60 fps:
+- The display kick rate returns to about 60 per second.
+- The trace shows no silence over 2 ms after an `msi re-arm` line.
+- `pool poll(s) held the device over 2 ms` stays small. Each such event names a remaining slow
+  sync point: the BAR2 flush read or the invalidate.

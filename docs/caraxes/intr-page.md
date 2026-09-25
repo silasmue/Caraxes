@@ -230,9 +230,11 @@ second at idle, and 9.6 per Mutter frame (optimization-backlog.md item 4).
   config offset 0x704 no bit is writable, so the config space does not change. It does not touch
   the interrupt tree. The tree's MSI edge comes from the tree's own writes, which here are the
   page's stores that the reactor applies.
-- **The steps after it.** What follows is what every trapped BAR0 write runs, now
-  `Device::after_bar0_write` (`device.rs`): the P21 check, the BAR1 pool's poll, the notes, a
-  function-level reset if one was requested, a pending MSI of the model, and the MSI enable.
+- **The steps after it.** What follows is `Device::after_bar0_write` (`device.rs`): the notes,
+  a function-level reset if one was requested, a pending MSI of the model, and the MSI enable.
+  Since 356dd4e4 a write that lands in the config mirror skips the P21 check and the BAR1 pool's
+  poll: under Sunshine's capture that poll, run after every re-arm with the device lock held,
+  kept the display clock from latching flips (sottr-stage.md §11).
 - **With the switch.** The device offers the dword as one more ioeventfd sub-region of BAR0: 4
   bytes, no datamatch, in the same `VFIO_USER_DEVICE_GET_REGION_IO_FDS` reply as the token
   pool's (patch 0005). The token pool's reactor reads its eventfd beside the tokens' eventfds
