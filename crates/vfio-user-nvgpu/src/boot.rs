@@ -1640,12 +1640,20 @@ impl BootModel {
                         }
                         // A video object the mirror deferred (mirror.rs
                         // `place_video_object`): placed on the host now.
+                        let mut a = a;
                         if a.status == rpc::NV_OK {
                             let mut gm = crate::channel::GpuMem {
                                 fb: &mut self.fb,
                                 sys: mem,
                             };
-                            notes.extend(self.ctrl.place_video_object(&mut gm, h_client, h_parent));
+                            let (n, refused) = self
+                                .ctrl
+                                .place_video_object(&mut gm, h_client, h_parent, h_object, h_class);
+                            notes.extend(n);
+                            if refused {
+                                // Fail closed: the guest's encoder/decoder open fails cleanly.
+                                a.status = crate::rpc::NV_ERR_NOT_SUPPORTED;
+                            }
                         }
                         let mut reply = p[..at.min(p.len())].to_vec();
                         reply.resize(at, 0);

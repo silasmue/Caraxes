@@ -710,6 +710,20 @@ impl Registry {
         })
     }
 
+    /// Forget the last engine object of `class` recorded under channel `(h_client,
+    /// h_parent)`: an allocation the device refused after recording it.
+    pub fn forget_engine_object(&mut self, h_client: u32, h_parent: u32, class: u32) {
+        if let Some(ch) = self
+            .channels
+            .values_mut()
+            .find(|c| c.h_client == h_client && c.h_object == h_parent)
+        {
+            if let Some(i) = ch.engine_objects.iter().rposition(|(c, _)| *c == class) {
+                ch.engine_objects.remove(i);
+            }
+        }
+    }
+
     /// Forget a freed object (a freed client takes its objects with it).
     pub fn record_free(&mut self, h_client: u32, h_object: u32) {
         let all = h_client == h_object;

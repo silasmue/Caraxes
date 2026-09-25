@@ -397,26 +397,35 @@ impl Dispatcher {
         notes
     }
 
-    /// After an allocation under channel `(h_client, h_parent)`: a video object the mirror
-    /// deferred (mirror.rs `place_video_object`) is placed on the host now.
+    /// After allocation `h_object` of `h_class` under channel `(h_client, h_parent)`: a
+    /// video object the mirror deferred (mirror.rs `place_video_object`) is placed on the
+    /// host now. Returns the notes and whether the guest's allocation is refused after all
+    /// (fail closed); a refused one is forgotten again.
     pub fn place_video_object(
         &mut self,
         gm: &mut crate::channel::GpuMem,
         h_client: u32,
         h_parent: u32,
-    ) -> Vec<String> {
+        h_object: u32,
+        h_class: u32,
+    ) -> (Vec<String>, bool) {
         let Some(chid) = self
             .channels
             .channels()
             .find(|c| c.h_client == h_client && c.h_object == h_parent)
             .map(|c| c.chid)
         else {
-            return Vec::new();
+            return (Vec::new(), false);
         };
         let Some(m) = self.mirror.as_mut() else {
-            return Vec::new();
+            return (Vec::new(), false);
         };
-        m.place_video_object(&self.channels, gm, chid)
+        let (notes, refused) = m.place_video_object(&self.channels, gm, chid);
+        if refused {
+            self.channels.forget_engine_object(h_client, h_parent, h_class);
+            self.objects.remove(&(h_client, h_object));
+        }
+        (notes, refused)
     }
 
     fn doorbell_chid(

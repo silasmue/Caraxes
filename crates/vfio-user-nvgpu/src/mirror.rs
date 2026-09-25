@@ -130,6 +130,45 @@ fn promoted_ranges(
     out
 }
 
+/// The one VA hole a video object's host context can be steered into: the guest's
+/// promoted context, exactly one range inside one 2 MiB shadow region.
+pub fn video_hole(ranges: &[(u64, u64)]) -> Result<(u64, u64), String> {
+    let region = crate::shadow::REGION;
+    match ranges {
+        [] => Err("the guest promoted no context for it, so the host context has no hole to land in".into()),
+        [(lo, hi)] if lo < hi && lo & !(region - 1) == (hi - 1) & !(region - 1) => Ok((*lo, *hi)),
+        [(lo, hi)] => Err(format!("the guest's context [{lo:#x}, {hi:#x}) is not inside one 2 MiB region")),
+        _ => Err(format!("the guest promoted {} context ranges, not one", ranges.len())),
+    }
+}
+
+/// The verdict of the two first-fit probes around the host object's allocation
+/// ([`Mirror::place_video_object`]): `after` is where a 4 KiB allocation went once the
+/// host context existed. The hole still free then means the host context went elsewhere.
+pub fn hole_verdict(
+    hole: (u64, u64),
+    before: Result<u64, u32>,
+    after: Result<u64, u32>,
+) -> Result<String, String> {
+    let b = match before {
+        Ok(v) => format!("{v:#x}"),
+        Err(st) => format!("refused {st:#x}"),
+    };
+    match after {
+        Ok(a) if a == hole.0 => Err(format!(
+            "the host did not map its context into the hole [{:#x}, {:#x}): first fit {b} before its object, still {a:#x} after (a larger alignment or another free VA)",
+            hole.0, hole.1
+        )),
+        Ok(a) => Ok(format!(
+            "its context took the hole [{:#x}, {:#x}) (first fit {b} before its object, {a:#x} after)",
+            hole.0, hole.1
+        )),
+        Err(st) => Err(format!(
+            "the placement probe after the object was refused {st:#x}, so the host context's VA is unknown"
+        )),
+    }
+}
+
 /// `NV_VASPACE_ALLOCATION_FLAGS_IS_EXTERNALLY_OWNED` (nvos.h:3162).
 const VAS_IS_EXTERNALLY_OWNED: u32 = 1 << 3;
 /// The VA size of a mirror VA space: 1 TiB, as host-exec.rs (the root covers 2^47 anyway).
@@ -418,8 +457,8 @@ pub struct Mirror {
     /// the host: `(class, params)` by ChID ([`Mirror::place_video_object`];
     /// docs/caraxes/video-engines.md §3).
     video_pending: BTreeMap<u32, (u32, Vec<u8>)>,
-    /// `CARAXES_MIRROR_VIDEO_OBJECT=1`: place a video object on the host at all
-    /// ([`Mirror::refuse_video_object`]); off, the guest's allocation is refused.
+    /// Place video objects on the host ([`Mirror::place_video_object`]);
+    /// `CARAXES_MIRROR_VIDEO_OBJECT=0` refuses every one to the guest.
     video_objects: bool,
     next_event_id: u32,
     pub stats: MirrorStats,
@@ -530,7 +569,7 @@ impl Mirror {
             unwaited: 0,
             descs: None,
             video_pending: BTreeMap::new(),
-            video_objects: std::env::var("CARAXES_MIRROR_VIDEO_OBJECT").as_deref() == Ok("1"),
+            video_objects: std::env::var("CARAXES_MIRROR_VIDEO_OBJECT").as_deref() != Ok("0"),
             next_event_id: 0x1000,
             stats: MirrorStats::default(),
             reaped_roots: Vec::new(),
@@ -2083,32 +2122,26 @@ impl Mirror {
         }
     }
 
-    /// Fail closed (2026-09-25, probe-merged610): a video object on a mirrored shadow
-    /// channel is refused to the guest, before it is recorded, unless
-    /// `CARAXES_MIRROR_VIDEO_OBJECT=1`. The host kernel RM allocates the channel's falcon
-    /// context itself when the object is allocated (`kflcnAllocContext`,
-    /// kernel_falcon.c:279-298) and maps it first fit in the shadow VAS
-    /// (`kchannelMapEngineCtxBuf`, kernel_channel.c:3848-3870); it never looks at a
-    /// context promoted before: `GPU_PROMOTE_CTX` from user space is routed to GSP (flags
-    /// 0x10244, no kernel-RM handler), and the kernel RM then promotes its own VA over it.
-    /// Unmapping the guest's page leaves no hole either: the shadow's 2 MiB region object
-    /// still reserves it, so the host context lands in the next free region, a VA the
-    /// guest fills next (Xid 31 at 0x1205fe000 in probe-mirror1, the VA collision at
-    /// 0x120400000 in probe-merged610). Returns the refusal line; `None` lets it through.
+    /// Whether a video object on mirrored channel `chid` is refused to the guest before it
+    /// is recorded (fail closed): with `CARAXES_MIRROR_VIDEO_OBJECT=0`, or when the guest's
+    /// promoted context is not one range inside one 2 MiB region, the one shape
+    /// [`Mirror::place_video_object`] can hand to the host. Returns the refusal line.
     pub fn refuse_video_object(&self, reg: &Registry, chid: u32, class: u32) -> Option<String> {
-        if self.video_objects || !video_class_ok(self.chip, class) {
+        if !video_class_ok(self.chip, class) {
             return None;
         }
         self.channels.get(&chid)?.shadow_root?;
-        let guest = reg
+        let ranges = reg
             .channel(chid)
             .map(|ch| promoted_ranges(reg, ch, |id| self.global_ctx_size(id)))
-            .and_then(|r| r.first().copied())
-            .map_or("none promoted yet".into(), |(lo, hi)| {
-                format!("guest's at [{lo:#x}, {hi:#x}), {:#x} bytes, the size the host's falcon table gave the guest", hi - lo)
-            });
+            .unwrap_or_default();
+        let why = if !self.video_objects {
+            "CARAXES_MIRROR_VIDEO_OBJECT=0".to_string()
+        } else {
+            video_hole(&ranges).err()?
+        };
         Some(format!(
-            "chid {chid}: video object {class:#x} refused (fail closed): the host RM allocates its own context ({guest}) first fit at the object's allocation and ignores a promote before it, so it would land on a VA the guest fills later (CARAXES_MIRROR_VIDEO_OBJECT=1 places it anyway) [host]"
+            "chid {chid}: video object {class:#x} refused (fail closed): {why} [host]"
         ))
     }
 
@@ -2148,60 +2181,92 @@ impl Mirror {
         })
     }
 
-    /// The deferred video object of shadow channel `chid` (`add_engine_object`): the
-    /// guest's context range (its `GPU_PROMOTE_CTX`, sent before the object's allocation,
-    /// falcon/kernel_falcon.c:294-298) leaves set A first, the worker unmaps it and is
-    /// waited for, and only then the host object is allocated. The host RM maps its video
-    /// context first fit (kchannelMapEngineCtxBuf, kernel_channel.c:3860-3870), so it lands
-    /// in the hole the guest's own context left instead of a VA the guest fills later
-    /// (Xid 31 FAULT_PTE on NVENC0 at 0x1205fe000, probe-mirror1).
-    pub fn place_video_object(&mut self, reg: &Registry, gm: &mut GpuMem, chid: u32) -> Vec<String> {
+    /// The deferred video object of shadow channel `chid` (`add_engine_object`), placed so
+    /// the host's own context lands on the guest's context VA, or refused.
+    ///
+    /// The host kernel RM allocates the channel's falcon context itself at the object's
+    /// allocation (`kflcnAllocContext`, kernel_falcon.c:279-298) and maps it first fit in
+    /// the shadow VAS (`kchannelMapEngineCtxBuf`, kernel_channel.c:3848-3870); a promote
+    /// before it cannot steer that (`GPU_PROMOTE_CTX` from user space is routed to GSP). So
+    /// the guest's context range (promoted before the object, kernel_falcon.c:294-298)
+    /// leaves set A as a real VA hole: its region is reserved by two objects around it
+    /// (shadow.rs `Split`), leaving the hole the lowest free VA the host can take. Two
+    /// probes check it: a 4 KiB non-fixed virtual allocation before the object shows where
+    /// the host's first fit is, one after shows whether the host took the hole. If it did
+    /// not (a larger alignment, a lower hole), its object is freed before the guest can map
+    /// anything else and the guest's allocation is refused (fail closed), so the host
+    /// context never sits on a VA the guest fills later (Xid 31 at 0x1205fe000 in
+    /// probe-mirror1, the collision at 0x120400000 in probe-merged610). Returns the notes
+    /// and whether the guest's allocation is refused.
+    pub fn place_video_object(&mut self, reg: &Registry, gm: &mut GpuMem, chid: u32) -> (Vec<String>, bool) {
         let Some((class, params)) = self.video_pending.remove(&chid) else {
-            return Vec::new();
+            return (Vec::new(), false);
         };
         let mut notes = Vec::new();
         let (Some(hc), Some(ch)) = (self.channels.get(&chid), reg.channel(chid)) else {
-            return vec![format!("chid {chid}: video object {class:#x}: the channel went away")];
+            return (vec![format!("chid {chid}: video object {class:#x}: the channel went away")], true);
         };
         let (handle, root) = (hc.handle, hc.shadow_root);
-        let ranges = promoted_ranges(reg, ch, |id| self.global_ctx_size(id));
-        if ranges.is_empty() {
-            return vec![format!(
-                "chid {chid}: video object {class:#x} refused: the guest promoted no context for it, so the host context has no hole to land in"
-            )];
-        }
-        if let Some(sp) = root.and_then(|r| self.shadows.get_mut(&r)) {
-            for x in ranges {
-                if !sp.exclude.contains(&x) {
-                    notes.push(format!(
-                        "shadow: chid {chid} guest context [{:#x}, {:#x}) leaves set A before the host's video object [guest]",
-                        x.0, x.1
-                    ));
-                    sp.exclude.push(x);
-                }
+        let hole = match video_hole(&promoted_ranges(reg, ch, |id| self.global_ctx_size(id))) {
+            Ok(h) => h,
+            Err(why) => {
+                return (vec![format!("chid {chid}: video object {class:#x} refused (fail closed): {why} [host]")], true)
             }
+        };
+        let Some(sp) = root.and_then(|r| self.shadows.get_mut(&r)) else {
+            return (vec![format!("chid {chid}: video object {class:#x} refused: no shadow VAS [host]")], true);
+        };
+        if !sp.exclude.contains(&hole) {
+            sp.exclude.push(hole);
         }
+        if !sp.front.holes.contains(&hole) {
+            sp.front.holes.push(hole);
+        }
+        let vas = sp.vas;
+        notes.push(format!(
+            "shadow: chid {chid} guest context [{:#x}, {:#x}) leaves set A as a VA hole (its region split around it) before the host's video object [guest]",
+            hole.0, hole.1
+        ));
         notes.extend(self.shadow_resync(reg, gm, root));
         self.worker.wait_all();
+        let mut h = self.hm.lock().unwrap();
+        let probe = |h: &mut HostMemory| match h.alloc_virtual_probe(vas, hole.1 - hole.0) {
+            Ok((ph, va)) => {
+                let _ = h.free_object(ph);
+                Ok(va)
+            }
+            Err(st) => Err(st),
+        };
+        let before = probe(&mut h);
         let mut p = params;
-        let r = self
-            .hm
-            .lock()
-            .unwrap()
-            .alloc_object(handle, crate::board::host_class_of(class), &mut p, "video-object");
-        notes.push(match r {
-            Ok(oh) => {
+        let oh = match h.alloc_object(handle, crate::board::host_class_of(class), &mut p, "video-object") {
+            Ok(oh) => oh,
+            Err(e) => {
+                notes.push(format!(
+                    "chid {chid}: host video object class {class:#x} refused: {}; the guest's is refused too [host]",
+                    status_name(e)
+                ));
+                return (notes, true);
+            }
+        };
+        let after = probe(&mut h);
+        match hole_verdict(hole, before, after) {
+            Ok(line) => {
+                drop(h);
                 if let Some(hc) = self.channels.get_mut(&chid) {
                     hc.objects.push((class, oh));
                 }
-                format!("chid {chid}: host video object class {class:#x} {oh:#x} [host]")
+                notes.push(format!("chid {chid}: host video object class {class:#x} {oh:#x}: {line} [host]"));
+                (notes, false)
             }
-            Err(e) => format!(
-                "chid {chid}: host video object class {class:#x} refused: {}",
-                status_name(e)
-            ),
-        });
-        notes
+            Err(line) => {
+                let _ = h.free_object(oh);
+                notes.push(format!(
+                    "chid {chid}: video object {class:#x} refused (fail closed): {line}; host object {oh:#x} freed before the guest maps more [host]"
+                ));
+                (notes, true)
+            }
+        }
     }
 
     /// The guest rang the doorbell of a mirrored channel: ring the host's.
@@ -3382,5 +3447,34 @@ mod tests {
         let r = promoted_ranges(&reg, &ch, |id| (id == 5).then_some(0x20_0000));
         assert!(r.contains(&(0x1_2040_0000, 0x1_2060_0000)), "{r:x?}");
         assert!(r.contains(&(0x1_2002_d000, 0x1_2002_e000)), "{r:x?}");
+    }
+
+    /// Only one promoted range inside one 2 MiB region can become the host context's hole.
+    #[test]
+    fn a_video_hole_is_one_range_inside_one_region() {
+        let ctx = (0x1_2002_d000u64, 0x1_2002_e000u64);
+        assert_eq!(video_hole(&[ctx]), Ok(ctx));
+        assert!(video_hole(&[]).unwrap_err().contains("promoted no context"));
+        assert!(video_hole(&[ctx, (0x1_2040_0000, 0x1_2040_1000)]).unwrap_err().contains("2 context ranges"));
+        assert!(video_hole(&[(0x1_201f_f000, 0x1_2020_1000)]).unwrap_err().contains("not inside one 2 MiB region"));
+        // A range ending exactly at the region's end is inside it.
+        assert!(video_hole(&[(0x1_201f_f000, 0x1_2020_0000)]).is_ok());
+    }
+
+    /// The fallback: the host object is kept only when the probe after it no longer finds
+    /// the hole free; the hole still free (a larger alignment, a lower free VA) or an
+    /// unknown answer refuses the guest's object.
+    #[test]
+    fn the_host_object_is_kept_only_when_its_context_took_the_hole() {
+        let hole = (0x1_2002_d000u64, 0x1_2002_e000u64);
+        let ok = hole_verdict(hole, Ok(hole.0), Ok(0x1_2040_0000)).unwrap();
+        assert!(ok.contains("took the hole") && ok.contains("0x120400000"));
+        let e = hole_verdict(hole, Ok(hole.0), Ok(hole.0)).unwrap_err();
+        assert!(e.contains("did not map its context into the hole") && e.contains("still 0x12002d000"));
+        assert!(hole_verdict(hole, Err(0x51), Err(0x51)).unwrap_err().contains("refused 0x51"));
+        // A first fit below the hole before the object: the host took that one instead,
+        // so the hole is still free after it.
+        let e = hole_verdict(hole, Ok(0x1_2000_0000), Ok(hole.0)).unwrap_err();
+        assert!(e.contains("first fit 0x120000000 before"));
     }
 }

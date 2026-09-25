@@ -1008,6 +1008,32 @@ impl HostMemory {
         )
     }
 
+    /// `NV50_MEMORY_VIRTUAL` of `size` bytes (4 KiB pages, 4 KiB aligned) wherever the VA
+    /// space's allocator puts it (not fixed): its handle and VA. The shadow's probe of the
+    /// host RM's first fit (mirror.rs `place_video_object`); the caller frees it.
+    pub fn alloc_virtual_probe(&mut self, vaspace: u32, size: u64) -> Result<(u32, u64), Status> {
+        let mut p = sys::NV_MEMORY_ALLOCATION_PARAMS::default();
+        p.owner = OWNER_TAG;
+        p.type_ = sys::NVOS32_TYPE_IMAGE as u32;
+        p.flags = sys::NVOS32_ALLOC_FLAGS_VIRTUAL as u32 | sys::NVOS32_ALLOC_FLAGS_ALIGNMENT_FORCE;
+        p.alignment = 0x1000;
+        p.attr = nvos32_attr::LOCATION.set(sys::NVOS32_ATTR_LOCATION_PCI as u32)
+            | nvos32_attr::PAGE_SIZE.set(sys::NVOS32_ATTR_PAGE_SIZE_4KB);
+        p.size = size;
+        p.hVASpace = vaspace;
+        let device = self.device();
+        // SAFETY: plain-data alloc params viewed as bytes for the escape ABI; RM writes the
+        // chosen VA back into `offset` (virtual_mem.c:609).
+        let bytes = unsafe {
+            std::slice::from_raw_parts_mut(
+                &mut p as *mut _ as *mut u8,
+                std::mem::size_of::<sys::NV_MEMORY_ALLOCATION_PARAMS>(),
+            )
+        };
+        let h = self.alloc_object(device, sys::NV50_MEMORY_VIRTUAL, bytes, "shadow-virtual-probe")?;
+        Ok((h, p.offset))
+    }
+
     /// `RM_UNMAP_MEMORY_DMA` (NVOS47) of the mapping of `h_mem` at VA `va`, `length`
     /// bytes, from the virtual object `h_dma` (the inverse of [`Self::map_dma_fixed`];
     /// RM also splits a larger mapping, `virtmemUnmapFrom_IMPL`). RM invalidates the
