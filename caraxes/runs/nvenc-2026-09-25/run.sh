@@ -31,6 +31,9 @@ LEA_ROOT=$ROOT . tools/lib/driver.sh && LEA_ROOT=$ROOT caraxes_driver_select || 
 GLIB=$CARAXES_GUEST_LIBDIR  # the selected driver's userspace (610: /opt/nvrm/lib, 615: the system path)
 export CARAXES_SERVER=$SERVER
 export CARAXES_MEM=2G
+# NVENC_FB_MIB and NVENC_SLOT override the profile size and its reservation slot (slot n: n profile sizes below the top of the host FB).
+[[ -n ${NVENC_FB_MIB:-} ]] && export CARAXES_FB_MIB=$NVENC_FB_MIB CARAXES_GATE_FB_MIB=$NVENC_FB_MIB
+[[ -n ${NVENC_SLOT:-} ]] && export CARAXES_RESERVE_SLOT=$NVENC_SLOT
 export CARAXES_BAR1_POOL_MIB=32 CARAXES_BAR2_MEMFD=1 CARAXES_MSI_REARM_IOEVENTFD=1 CARAXES_ALLOC_LAZY=1
 # vm2 free: its device or its Cloud Hypervisor, matched by the command line's start (a host
 # guard's shell may carry the vm2 path in its own text).

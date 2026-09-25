@@ -1,0 +1,6 @@
+INFO device "Leandro VFIO RTX 2070-1G", CUDA context in 910.7 ms
+INFO NVENC API: driver supports 13.1, header 13.1
+RESULT FAIL nv.nvEncOpenEncodeSessionEx(&op, &enc): NVENCSTATUS 2 
+rc=1
+      2 RMLOG rewrote 0x800289 virtualizationMode to 0
+      1 RMLOG rewrote 0x801109 capsTbl

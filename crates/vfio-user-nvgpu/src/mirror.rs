@@ -102,6 +102,18 @@ pub fn video_bind(chip: &ChipData, ch: &Channel) -> Option<u32> {
     (!ch.engine_objects.iter().any(|(c, _)| video_class_ok(chip, *c))).then_some(ch.engine_type)
 }
 
+/// The engine a copy channel with no engine object yet is bound to at its build: its own
+/// engine type, when that is a copy engine (`NV2080_ENGINE_TYPE_COPY0..9` 0x09-0x12,
+/// `COPY10..19` 0x34-0x3D). The NVENC library's bare CE channel rings before its copy
+/// object exists, as a video channel does; without a bind its build was abandoned ("no
+/// engine object; not scheduling"), its first push never ran, and `nvEncInitializeEncoder`
+/// gave up after 10 s with NV_ENC_ERR_OUT_OF_MEMORY (vm4-615 with
+/// `CARAXES_MIRROR_BARE_CE=1`, 2026-09-25).
+pub fn copy_bind(ch: &Channel) -> Option<u32> {
+    let t = ch.engine_type;
+    ((0x09..=0x12).contains(&t) || (0x34..=0x3D).contains(&t)).then_some(t)
+}
+
 /// `NVA06F_CTRL_CMD_BIND` {engineType} (ctrla06f.h): a host channel needs an engine before
 /// `GPFIFO_SCHEDULE` (docs/caraxes/host-exec.md §1: NV_ERR_INVALID_STATE otherwise).
 const CMD_CHANNEL_BIND: u32 = 0xA06F_0104;
@@ -165,6 +177,41 @@ pub fn context_verdict(
             "the placement probe after the object was refused {st:#x}, so the host context's VA is unknown"
         )),
     }
+}
+
+/// The set-B ranges the shadow of guest root `root` keeps out of set A: the promoted
+/// contexts of every channel the guest still has on that root, sorted and deduplicated.
+/// Recomputed, never accumulated: a context whose channel the guest freed gives its VAs
+/// back to set A. Before (2026-09-25, vm4-615) the exclusions of freed GR channels stayed:
+/// GNOME recreated its GL contexts, the guest reused the old attribute-CB VA 0x121400000 for
+/// ordinary buffers, the shadow still left it unmapped, and a copy engine read there
+/// faulted (Xid 31 FAULT_PDE on CE0) with the stream going black.
+pub fn exclusions_of(
+    reg: &Registry,
+    root: u64,
+    global_size: impl Fn(u16) -> Option<u64>,
+) -> Vec<(u64, u64)> {
+    exclusions_among(
+        reg,
+        |ch| reg.vas_key_of(ch).and_then(|k| reg.vas_root(k)) == Some(Target::Fb(root)),
+        global_size,
+    )
+}
+
+/// [`exclusions_of`] over the channels `on_root` selects.
+fn exclusions_among(
+    reg: &Registry,
+    on_root: impl Fn(&Channel) -> bool,
+    global_size: impl Fn(u16) -> Option<u64>,
+) -> Vec<(u64, u64)> {
+    let mut out: Vec<(u64, u64)> = reg
+        .channels()
+        .filter(|ch| on_root(ch))
+        .flat_map(|ch| promoted_ranges(reg, ch, &global_size))
+        .collect();
+    out.sort_unstable();
+    out.dedup();
+    out
 }
 
 /// `NV_VASPACE_ALLOCATION_FLAGS_IS_EXTERNALLY_OWNED` (nvos.h:3162).
@@ -679,13 +726,18 @@ impl Mirror {
     /// what the guest newly mapped, unmap what it changed or removed.
     pub fn shadow_resync(
         &mut self,
-        _reg: &Registry,
+        reg: &Registry,
         gm: &mut GpuMem,
         root: Option<u64>,
     ) -> Vec<String> {
         let (base, end, reservation) = (self.base, self.end, self.reservation);
         let descs = self.descs();
         let mut out = Vec::new();
+        // The exclusions follow the guest's live channels (`exclusions_of`).
+        let roots: Vec<u64> = self.shadows.keys().copied().filter(|r| root.is_none_or(|x| x == *r)).collect();
+        for r in roots {
+            out.extend(self.refresh_exclusions(reg, r));
+        }
         for (r, sp) in self.shadows.iter_mut() {
             if root.is_some_and(|x| x != *r) {
                 continue;
@@ -967,21 +1019,11 @@ impl Mirror {
             let root = self.channels.get(&chid).and_then(|c| c.shadow_root);
             let mut notes = lazy_notes;
             notes.extend(ahead_line);
-            // Context ranges promoted since the build (a video engine object the guest
-            // allocated after the channel's first doorbell) leave set A before the resync.
-            if let (Some(r), Some(ch)) = (root, reg.channel(chid)) {
-                let ranges = promoted_ranges(reg, ch, |id| self.global_ctx_size(id));
-                if let Some(sp) = self.shadows.get_mut(&r) {
-                    for x in ranges {
-                        if !sp.exclude.contains(&x) {
-                            notes.push(format!(
-                                "shadow: chid {chid} promoted context [{:#x}, {:#x}) kept out of set A [guest]",
-                                x.0, x.1
-                            ));
-                            sp.exclude.push(x);
-                        }
-                    }
-                }
+            // The set-B ranges of the root's live channels, recomputed (`root_exclusions`):
+            // a context promoted since the build leaves set A, and one whose channel the
+            // guest freed comes back to it.
+            if let Some(r) = root {
+                notes.extend(self.refresh_exclusions(reg, r));
             }
             notes.extend(self.shadow_resync(reg, gm, root));
             // Ordering: the doorbell is forwarded only after the worker applied every plan
@@ -1011,15 +1053,15 @@ impl Mirror {
                 )]
             }
         };
-        // Accumulate the promoted-context (set-B) VA ranges across every GR channel: the
-        // host RM builds set B in the shadow VAS at these VAs, so a later GR channel that
-        // records no promote entries of its own must still not have set A mirrored over
-        // them (measured 2026-09-23: chids 3-9 collided at 0x120010000 etc.).
-        // A global buffer (the 3D class's bundle/attribute/RTV CBs, the pagepool) is
-        // promoted by VA only, size 0; its extent is the host's context-buffer size for the
-        // same silicon (display-e.md: the guest's attribute CB at 0x120400000 was mirrored
-        // as set A and the host's own collided with it, Xid 31 PRIV_VIOLATION).
-        let new_b = promoted_ranges(reg, &ch, |id| self.global_ctx_size(id));
+        // The promoted-context (set-B) VA ranges of every live channel of this root
+        // (`root_exclusions`): a GR channel that records no promote entries of its own must
+        // still not have set A mirrored over its TSG's (measured 2026-09-23: chids 3-9
+        // collided at 0x120010000 etc.). A global buffer (the 3D class's bundle/attribute/RTV
+        // CBs, the pagepool) is promoted by VA only, size 0; its extent is the host's
+        // context-buffer size for the same silicon (display-e.md: the guest's attribute CB at
+        // 0x120400000 was mirrored as set A and the host's own collided with it, Xid 31
+        // PRIV_VIOLATION).
+        let new_b = self.root_exclusions(reg, root);
         // A bare CE channel (`bare_ce`, the GL driver's) gets a host TSG of its own, keyed
         // by its internal TSG id (615) or its handle, on the channel's own engine.
         let (tsg_key, bare, tsg_guest) = tsg_key_of(reg, &ch);
@@ -1098,11 +1140,7 @@ impl Mirror {
             }
         }
         let sp = self.shadows.get_mut(&root).expect("built");
-        for r in new_b {
-            if !sp.exclude.contains(&r) {
-                sp.exclude.push(r);
-            }
-        }
+        sp.exclude = new_b;
         sp.chids.insert(chid);
         sp.tsgs.insert(tsg_key);
         let exclude = sp.exclude.clone();
@@ -1303,8 +1341,9 @@ impl Mirror {
                 // waits for that first push before it allocates the object (a held doorbell
                 // deadlocked for 10 s, 2026-09-25 probe-hold). The host channel is bound to
                 // the engine instead; the object follows at the guest's allocation
-                // (`place_video_object`).
-                let Some(engine) = video_bind(self.chip, &ch) else {
+                // (`place_video_object`). A copy channel likewise (`copy_bind`); its object
+                // is added on the host at the guest's allocation (`add_engine_object`).
+                let Some(engine) = video_bind(self.chip, &ch).or_else(|| copy_bind(&ch)) else {
                     return Err(("shadow: no engine object; not scheduling".into(), refused));
                 };
                 let mut p = engine.to_le_bytes();
@@ -1320,7 +1359,7 @@ impl Mirror {
                 }
                 notes.push(format!(
                     "shadow: chid {chid} host channel bound to engineType {engine:#x} ({}; its object follows the guest's) [host]",
-                    video_engine(engine).unwrap_or("engine")
+                    video_engine(engine).unwrap_or("copy engine")
                 ));
             }
             let mut sched = [1u8, 0, 0];
@@ -2140,6 +2179,28 @@ impl Mirror {
                 Err(format!("{e}; notes so far: {}", notes.join(" | ")))
             }
         }
+    }
+
+    /// The set-B exclusions of shadow root `root` now ([`exclusions_of`]).
+    fn root_exclusions(&self, reg: &Registry, root: u64) -> Vec<(u64, u64)> {
+        exclusions_of(reg, root, |id| self.global_ctx_size(id))
+    }
+
+    /// Recompute the exclusions of shadow root `root`; one note when they changed.
+    fn refresh_exclusions(&mut self, reg: &Registry, root: u64) -> Vec<String> {
+        let now = self.root_exclusions(reg, root);
+        let Some(sp) = self.shadows.get_mut(&root) else {
+            return Vec::new();
+        };
+        if sp.exclude == now {
+            return Vec::new();
+        }
+        let added = now.iter().filter(|x| !sp.exclude.contains(x)).count();
+        let released = sp.exclude.iter().filter(|x| !now.contains(x)).count();
+        sp.exclude = now;
+        vec![format!(
+            "shadow: root {root:#x} set-B exclusions recomputed: {added} added, {released} released back to set A [guest]"
+        )]
     }
 
     /// Whether a video object on mirrored channel `chid` is refused to the guest before it
@@ -3425,6 +3486,14 @@ mod tests {
         ce[o..o + 4].copy_from_slice(&0x0Bu32.to_le_bytes());
         reg.record_alloc(1, 0x80, 0x15, chip.channel.gpfifo, &ce);
         assert_eq!(video_bind(chip, reg.channel(23).unwrap()), None);
+        // The copy bind takes it (the NVENC library's CE channel rings before its object),
+        // and neither the video nor the GR channel.
+        assert_eq!(copy_bind(reg.channel(23).unwrap()), Some(0x0B));
+        assert_eq!(copy_bind(reg.channel(22).unwrap()), None);
+        let mut gr = channel_params(24, Some(5));
+        gr[o..o + 4].copy_from_slice(&0x01u32.to_le_bytes());
+        reg.record_alloc(1, 0x80, 0x16, chip.channel.gpfifo, &gr);
+        assert_eq!(copy_bind(reg.channel(24).unwrap()), None);
     }
 
     /// The ranges the shadow keeps out of set A: GR buffers with their size, a global GR
@@ -3456,6 +3525,33 @@ mod tests {
         let r = promoted_ranges(&reg, &ch, |id| (id == 5).then_some(0x20_0000));
         assert!(r.contains(&(0x1_2040_0000, 0x1_2060_0000)), "{r:x?}");
         assert!(r.contains(&(0x1_2002_d000, 0x1_2002_e000)), "{r:x?}");
+    }
+
+    /// The exclusions follow the guest's live channels: a GR context promoted by one
+    /// channel keeps its VAs out of set A while that channel lives (for every channel of
+    /// the root), and gives them back once the guest frees it (vm4-615, 2026-09-25: a stale
+    /// attribute-CB exclusion at 0x121400000 left a reused VA unmapped, Xid 31 on CE0).
+    #[test]
+    fn exclusions_are_released_when_the_channel_goes() {
+        let chip = crate::fixture::rtx2070().chip.data();
+        let mut reg = registry();
+        reg.record_alloc(1, 0x80, 0x14, chip.channel.gpfifo, &channel_params(22, Some(3)));
+        reg.record_alloc(1, 0x80, 0x15, chip.channel.gpfifo, &channel_params(23, Some(4)));
+        let mut g = vec![0u8; v::PROMOTE_PARAMS_SIZE];
+        g[v::PROMOTE_H_CHAN_CLIENT..][..4].copy_from_slice(&1u32.to_le_bytes());
+        g[v::PROMOTE_H_OBJECT..][..4].copy_from_slice(&0x14u32.to_le_bytes());
+        g[v::PROMOTE_ENTRY_COUNT..][..4].copy_from_slice(&1u32.to_le_bytes());
+        g[v::PROMOTE_ENTRIES + 8..][..8].copy_from_slice(&0x1_2140_0000u64.to_le_bytes());
+        g[v::PROMOTE_ENTRIES + 28..][..2].copy_from_slice(&5u16.to_le_bytes());
+        reg.record_promote_ctx(&g);
+        let size = |id: u16| (id == 5).then_some(0x20_0000u64);
+        let all = |_: &Channel| true;
+        assert_eq!(exclusions_among(&reg, all, size), vec![(0x1_2140_0000, 0x1_2160_0000)]);
+        // Only the root's channels count.
+        assert!(exclusions_among(&reg, |c: &Channel| c.chid == 23, size).is_empty());
+        // The guest frees the channel that promoted it: the range is set A again.
+        reg.record_free(1, 0x14);
+        assert!(exclusions_among(&reg, all, size).is_empty());
     }
 
     /// The video layout: the host-only area sits below the guest's RM base, inside the

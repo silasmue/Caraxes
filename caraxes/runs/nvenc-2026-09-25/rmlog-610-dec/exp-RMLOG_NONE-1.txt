@@ -1,0 +1,46 @@
+INFO device "Leandro VFIO RTX 2070-1G", CUDA context in 572.0 ms
+INFO NVENC API: driver supports 13.1, header 13.1
+INFO NVENC session opened in 33.6 ms
+INFO NVENC codecs: 2, H.264 present
+INFO NVENC caps: max 4096x4096
+INFO NVENC encoder initialised 1920x1080 H.264 P1 ultra-low-latency CBR 20000 kbit/s in 224.8 ms
+FRAME 0 type 3 bytes 35786 lat_us 6667
+FRAME 1 type 0 bytes 24066 lat_us 9647
+FRAME 2 type 0 bytes 19624 lat_us 5202
+ENC frames=30 bytes=481126 seconds=0.249 fps=120.7 fill_ms_total=82 lat_us_med=5237 lat_us_p99=9647 lat_us_max=9647 kbit_per_s_at_60fps=7698
+BITSTREAM codec=h264 nal=32 vps=0 sps=1 pps=1 idr=1 slice=29 other=0 bad_start=0 profile=100 level=42 sps_size=1920x1080 sps_parsed=1
+INFO NVDEC caps: max 4096x4096, 2 NVDEC engine(s), output formats mask 0x41
+INFO cuvidCreateDecoder: CUDA 2
+DEC frames=0 seconds=0.097 fps=0.0 psnr_y_min=0.00 psnr_y_avg=0.00 (the decoded luma against the pattern; includes the copy to the host and the comparison)
+RESULT FAIL NVDEC stage failed
+rc=1
+RMCTRL cmd=0x20801823 obj=0x5c000003 size=420 status=0 params=060000000f0000000000000010000000050000002c000000000000002d000000
+RMCTRL cmd=0x20801803 obj=0x5c000003 size=200 status=0 params=040000000000000000000000100000000000000100000000000000e600000000
+RMCTRL cmd=0x2080182a obj=0x5c000003 size=112 status=0 params=0000000000000000000000000000000000000000000000000000000000000000
+RMCTRL cmd=0x2080012f obj=0x5c000003 size=1664 status=0x56 params=0000000000000000000000000000000000000000000000000000000000000000
+RMCTRL cmd=0x20801303 obj=0x5c000003 size=1028 status=0 params=070000000b0000000001000019000000040000001b0000000000400018000000
+--
+RMCTRL cmd=0x00000d01 obj=0xc1d0000b size=12 status=0 params=8d0000800000000001000000
+RMALLOC class=0x003e parent=0x80000000 new=0x8000008e status=0
+RMCTRL cmd=0x00000d01 obj=0xc1d0000b size=12 status=0 params=8e0000800000000001000000
+RMCTRL cmd=0x2080a006 obj=0x80000001 size=8 status=0x56 params=0000000002000000
+RMALLOC class=0x0040 parent=0x5c000002 new=0x5c0000a3 status=0
+--
+RMALLOC class=0x003e parent=0x80000000 new=0x80000092 status=0
+RMCTRL cmd=0x00000d01 obj=0xc1d0000b size=12 status=0 params=920000800000000001000000
+RMCTRL cmd=0x20808164 obj=0x80000001 size=4 status=0 params=00000000
+RMCTRL cmd=0x00000215 obj=0xc1d0000b size=128 status=0x1f params=ffff0000ffffffff000000000000000000000000000000000000000000000000
+RMALLOC class=0x0041 parent=0 new=0xc1d0000c status=0
+--
+RMCTRL cmd=0x00801b01 obj=0x80000000 size=16 status=0 params=0600000000000000c6aead08fc7f0000
+RMCTRL cmd=0x00800289 obj=0x80000000 size=8 status=0 params=0100000000000000
+RMCTRL cmd=0x20800102 obj=0x80000001 size=580 status=0 params=0200000011000000000000003100000001000000000000000000000000000000
+RMCTRL cmd=0x00000215 obj=0xc1d0000c size=128 status=0x1f params=ffff0000ffffffff000000000000000000000000000000000000000000000000
+RMALLOC class=0x0041 parent=0 new=0xc1d0000d status=0
+--
+RMCTRL cmd=0x00000d01 obj=0xc1d0000d size=12 status=0 params=360000800000000002000000
+RMCTRL cmd=0xc36f010a obj=0x80000037 size=4 status=0 params=03000000
+RMCTRL cmd=0xc36f0108 obj=0x80000037 size=4 status=0 params=17000500
+RMALLOC class=0xc4b0 parent=0x80000037 new=0x80000055 status=0x22
+RMCTRL cmd=0x00000215 obj=0xc1d0000d size=128 status=0x1f params=ffff0000ffffffff000000000000000000000000000000000000000000000000
+RMCTRL cmd=0xa06c0105 obj=0x5c000012 size=8 status=0 params=0100000000000000

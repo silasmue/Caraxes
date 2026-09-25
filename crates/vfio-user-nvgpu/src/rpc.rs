@@ -862,9 +862,10 @@ pub(crate) mod tests {
         assert_eq!(get(sc::INTERNAL_SUBDEVICE_HANDLE, 0), Value::U32(0xCA7A_0003));
         assert_eq!(get(sc::VBIOS_SUB_VENDOR, 0), Value::U32(0x1458));
         assert_eq!(get(sc::VBIOS_REVISION, 0), Value::U32(0x9006_3D00));
-        // GR0, COPY0-8, NVDEC0-1, NVENC0, SW, SEC2, HOST as NVGMC masks from type GR.
+        // GR0, COPY0-8, NVDEC0, NVENC0, SW, SEC2, HOST as NVGMC masks from type GR, each
+        // NV2080 number as the GMC id of the same RM type (gmcapi.rs `engine_masks`).
         match get(sc::ENGINE_MASK, 1) {
-            Value::U64s(m) => assert_eq!(&m[..4], &[1, 0x1FF, 0b11, 1]),
+            Value::U64s(m) => assert_eq!(&m[..], &[1, 0x1FF | 1 << 10 | 1 << 18, 1 << 5, 0b110]),
             v => panic!("{v:?}"),
         }
         assert!(notes.iter().any(|n| n.starts_with("ENGINE_MASK from type 1")), "{notes:?}");
@@ -1005,7 +1006,7 @@ pub(crate) mod tests {
         assert_eq!(u32_at(&b, 0x5F4), 0x1458);
         assert_eq!(u32_at(&b, 0x5FC), 0x9006_3D00);
         assert!(labels.iter().any(|l| l.field == "engineCaps"
-            && l.value == "0x81bfe02 0xc4 0x0 (GR0, CE0-8, NVDEC0/1, NVENC0, SW, SEC2, HOST)"
+            && l.value == "0x80bfe02 0xc4 0x0 (GR0, CE0-8, NVDEC0, NVENC0, SW, SEC2, HOST)"
             && l.source == "synthesized (TU106 child list; E4: host GET_ENGINES_V2)"));
         assert!(labels
             .iter()

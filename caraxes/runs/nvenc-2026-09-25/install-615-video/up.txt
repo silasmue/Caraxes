@@ -1,0 +1,4 @@
+driver 615.71.09: overlay on /mnt/vmstore/caraxes/images/guest-baked-2026-09-24-615.71.09.qcow2, CARAXES_GUEST_ABI=615
+dma table: 0:7fff00000000:80000000
+server pid 1271566, VM pid 1271594; logs in /mnt/vmstore/caraxes/vm2-615
+ssh up at 192.168.102.22

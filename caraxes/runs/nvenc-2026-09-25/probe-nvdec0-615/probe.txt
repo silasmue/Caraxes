@@ -1,0 +1,33 @@
+INFO device "Leandro VFIO RTX 2070-1G", CUDA context in 666.1 ms
+INFO NVENC API: driver supports 13.1, header 13.1
+INFO NVENC session opened in 22.5 ms
+INFO NVENC codecs: 2, H.264 present
+INFO NVENC caps: max 4096x4096
+INFO NVENC encoder initialised 1920x1080 H.264 P1 ultra-low-latency CBR 20000 kbit/s in 230.5 ms
+FRAME 0 type 3 bytes 35786 lat_us 8836
+FRAME 1 type 0 bytes 24066 lat_us 8808
+FRAME 2 type 0 bytes 19624 lat_us 5713
+FRAME 60 type 0 bytes 18691 lat_us 5444
+FRAME 120 type 3 bytes 39052 lat_us 6293
+FRAME 180 type 0 bytes 15922 lat_us 9290
+FRAME 240 type 3 bytes 35816 lat_us 9378
+ENC frames=300 bytes=5274082 seconds=3.153 fps=95.1 fill_ms_total=908 lat_us_med=7012 lat_us_p99=17411 lat_us_max=30194 kbit_per_s_at_60fps=8439
+BITSTREAM codec=h264 nal=302 vps=0 sps=1 pps=1 idr=3 slice=297 other=0 bad_start=0 profile=100 level=42 sps_size=1920x1080 sps_parsed=1
+INFO NVDEC caps: max 4096x4096, 1 NVDEC engine(s), output formats mask 0x41
+INFO NVDEC decoder 1920x1088 coded, 1920x1080 target, 7 surfaces
+DEC frames=300 seconds=4.008 fps=74.9 psnr_y_min=63.37 psnr_y_avg=71.46 (the decoded luma against the pattern; includes the copy to the host and the comparison)
+RESULT PASS
+rc=0
+-rw-rw-r-- 1 leandro leandro 5274082 Sep 25 14:37 /tmp/probe.es
+top - 14:37:49 up 2 min,  2 users,  load average: 1.00, 0.25, 0.09
+Tasks: 219 total,   1 running, 218 sleeping,   0 stopped,   0 zombie
+%Cpu(s):  0.0 us,  1.2 sy,  0.0 ni, 98.8 id,  0.0 wa,  0.0 hi,  0.0 si,  0.0 st 
+MiB Mem :   1901.0 total,   1035.9 free,    547.2 used,    419.0 buff/cache     
+MiB Swap:      0.0 total,      0.0 free,      0.0 used.   1353.8 avail Mem 
+
+    PID USER      PR  NI    VIRT    RES    SHR S  %CPU  %MEM     TIME+ COMMAND
+    335 root      19  -1   42436  18344  17028 S   9.1   0.9   0:00.31 systemd+
+   2114 root      20   0   18652   9384   7808 S   9.1   0.5   0:00.06 Xorg
+   2116 leandro   20   0   12332   5500   3352 R   9.1   0.3   0:00.01 top
+      1 root      20   0   23104  14100   9484 S   0.0   0.7   0:02.00 systemd
+      2 root      20   0       0      0      0 S   0.0   0.0   0:00.00 kthreadd
