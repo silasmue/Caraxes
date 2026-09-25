@@ -20,8 +20,10 @@ STORE=${CARAXES_STORE:-/mnt/vmstore/caraxes}
 W=$STORE/$VM
 EMU=${SOTTR_EMULATION:-0}
 NAT=${SOTTR_NAT:-$((1 - EMU))}
-OUT=${SOTTR_OUT:-$here/session-$(date +%Y%m%d-%H%M%S)}
-BASE610=/mnt/vmstore/leandro/vm/guest-baked-20260801-610.57.04-20260820-105733.qcow2
+# SOTTR_DRIVER=615 (up-615.sh): vm4-615 on the 615 image with the distribution's driver
+# packages (env-615.sh); its evidence goes to session-615-<time>/.
+D615=0; [[ $SOTTR_DRIVER == 615 ]] && D615=1
+OUT=${SOTTR_OUT:-$here/session-$( ((D615)) && echo 615-)$(date +%Y%m%d-%H%M%S)}
 die() { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
 alive() { [[ -f $1 ]] && kill -0 "$(cat "$1")" 2>/dev/null; }
 gsh() { "${VMSH[@]}" ssh "$@"; }
@@ -45,8 +47,8 @@ if [[ $EMU != 1 ]]; then
         (( lo < CARAXES_FB_MIB )) && die "$(basename "$v") runs with $fb MiB at slot ${slot:-0} (top $lo..$((lo + fb)) MiB), which overlaps vm4's top $CARAXES_FB_MIB MiB; wait until it is down"
     done
 fi
-alive "$W/ch.pid" && die "vm4 runs already (pid $(cat "$W/ch.pid")); down.sh first"
-for t in "$LEA_TOOLS/caraxes-vm.sh" "$CARAXES_SERVER" "$SOTTR_OGKM" "$CARAXES_GAMES_DISK" "$BASE610"; do
+alive "$W/ch.pid" && die "$VM runs already (pid $(cat "$W/ch.pid")); down.sh first"
+for t in "$LEA_TOOLS/caraxes-vm.sh" "$CARAXES_SERVER" "$CARAXES_GAMES_DISK" "$SOTTR_BASE" ${SOTTR_OGKM:+"$SOTTR_OGKM"}; do
     [[ -e $t ]] || die "$t missing"
 done
 grep -q CARAXES_GAMES_DISK "$LEA_TOOLS/caraxes-vm.sh" || die "$LEA_TOOLS/caraxes-vm.sh has no CARAXES_GAMES_DISK (merge the stage's launcher change)"
@@ -58,10 +60,47 @@ for v in "$STORE"/*/; do
     fi
 done
 
-# 2. State: an overlay on the 610.57.04 base, a seed with vm4's identity, the GSP firmware.
+# 2. State: an overlay on the base (610.57.04, or 615.71.09 for vm4-615), a seed with the VM's
+#    identity, the 610 GSP firmware (the 615 image has its own in the nvidia-firmware package).
 if [[ ! -f $W/rootfs.qcow2 ]]; then
-    qemu-img create -q -f qcow2 -F qcow2 -b "$BASE610" "$W/rootfs.qcow2" || die "overlay"
-    echo "new overlay $W/rootfs.qcow2 on $BASE610"
+    qemu-img create -q -f qcow2 -F qcow2 -b "$SOTTR_BASE" "$W/rootfs.qcow2" || die "overlay"
+    echo "new overlay $W/rootfs.qcow2 on $SOTTR_BASE"
+    if ((D615)); then
+        # Before the first boot, offline (vm0-615's and vm3-615's recipe): nothing may load nvidia
+        # before the launcher's probe installed the DMA table. nvidia-persistenced would (it opens
+        # /dev/nvidiactl at boot), and gdm at graphical.target would start GNOME without the
+        # display modules. nvidia_modeset and nvidia_drm load only while caraxes_dma_range is
+        # loaded; nvidia-drm with modeset=1 (fbdev=0 as display-up.sh passes it).
+        conf=$(mktemp)
+        cat > "$conf" <<'EOF'
+# Caraxes SotTR stage, 615 (docs/caraxes/sottr-stage.md section 8): nvidia_modeset and nvidia_drm
+# load only after the launcher's probe installed its DMA table (caraxes_dma_range), never at
+# boot, so that `tools/caraxes-vm.sh probe` can reload nvidia; nvidia_peermem never.
+blacklist nvidia_modeset
+blacklist nvidia_drm
+blacklist nvidia_peermem
+install nvidia_modeset grep -q '^caraxes_dma_range ' /proc/modules && /sbin/modprobe --ignore-install nvidia_modeset $CMDLINE_OPTS
+install nvidia_drm grep -q '^caraxes_dma_range ' /proc/modules && /sbin/modprobe --ignore-install nvidia_drm $CMDLINE_OPTS
+install nvidia_peermem /bin/false
+options nvidia-drm modeset=1 fbdev=0
+EOF
+        # The libguestfs appliance fails to start now and then on this host (2026-09-25: the
+        # first attempt, then fine), so up to three attempts.
+        ok=0
+        for _ in 1 2 3; do
+            guestfish -a "$W/rootfs.qcow2" -i <<EOF && { ok=1; break; }
+upload $conf /etc/modprobe.d/caraxes-615-display.conf
+chmod 0644 /etc/modprobe.d/caraxes-615-display.conf
+ln-sf /dev/null /etc/systemd/system/nvidia-persistenced.service
+rm-f /etc/systemd/system/multi-user.target.wants/nvidia-persistenced.service
+ln-sf /lib/systemd/system/multi-user.target /etc/systemd/system/default.target
+EOF
+            sleep 5
+        done
+        ((ok)) || { rm -f "$W/rootfs.qcow2"; die "offline edit of $W/rootfs.qcow2 failed three times (overlay removed)"; }
+        rm -f "$conf"
+        echo "offline: caraxes-615-display.conf, nvidia-persistenced masked, default multi-user.target"
+    fi
 fi
 if [[ ! -f $W/seed.img ]]; then
     mkdir -p "$W/seed"
@@ -109,11 +148,13 @@ EOF
     echo "new seed $W/seed.img (caraxes-$VM, $CARAXES_IP)"
 fi
 FW=$W/gsp_tu10x-610.57.04.bin
-if [[ ! -f $FW ]]; then
-    alive "$STORE/vm3/ch.pid" && die "$FW missing and vm3 runs (its overlay is the source)"
-    guestfish --ro --format=qcow2 -a "$STORE/vm3/rootfs.qcow2" -i download /lib/firmware/nvidia/610.57.04/gsp_tu10x.bin "$FW" || die "firmware from vm3"
+if ((!D615)); then
+    if [[ ! -f $FW ]]; then
+        alive "$STORE/vm3/ch.pid" && die "$FW missing and vm3 runs (its overlay is the source)"
+        guestfish --ro --format=qcow2 -a "$STORE/vm3/rootfs.qcow2" -i download /lib/firmware/nvidia/610.57.04/gsp_tu10x.bin "$FW" || die "firmware from vm3"
+    fi
+    [[ $(sha256sum < "$FW" | cut -d' ' -f1) == "$SOTTR_GSP_SHA256" ]] || die "$FW: sha256 differs from $SOTTR_GSP_SHA256"
 fi
-[[ $(sha256sum < "$FW" | cut -d' ' -f1) == "$SOTTR_GSP_SHA256" ]] || die "$FW: sha256 differs from $SOTTR_GSP_SHA256"
 
 # 3. Record, host watch (the device is stopped with SIGTERM when host nvidia-smi takes longer
 #    than 3 s: a game must not slow the host desktop), host sampler, NAT.
@@ -124,7 +165,7 @@ fi
     sha256sum "$CARAXES_SERVER" "$(readlink -f "$LEA_CH" 2>/dev/null || echo "$LEA_CH")" 2>/dev/null
     grep -o 'cloud-hypervisor-[0-9]*' "$LEA_CH" | head -1
     echo "caraxes $(git -C "$ROOT" describe --always --dirty --abbrev=12 2>/dev/null)"
-    env | grep -E '^(CARAXES_|LEA_CH|LEA_TOOLS|SOTTR_(EMULATION|GAMES|SERVER))' | grep -v -E 'PASS|PIN' | sort
+    env | grep -E '^(CARAXES_|LEA_CH|LEA_TOOLS|SOTTR_(EMULATION|GAMES|SERVER|DRIVER|BASE|PKG|GUEST))' | grep -v -E 'SUN_(PASS|PIN)' | sort
 } > "$OUT/setup.txt"
 T0=$(date '+%F %T'); echo "$T0" > "$OUT/t0"
 if [[ $EMU != 1 ]]; then
@@ -157,33 +198,53 @@ grep -iE 'intr page|display page|doorbell tokens|doorbell poll|reserv|fb ' "$W/g
 
 # 5. The guest's material and its one-time preparation (the driver build takes minutes once).
 rsh="ssh -i ${CARAXES_SSH_KEY:-/mnt/vmstore/leandro/vm/id_leandro} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR"
-gsh 'test -f ogkm-610.57.04.tar.zst' || rsync -a -e "$rsh" "$SOTTR_OGKM" "leandro@$CARAXES_IP:ogkm-610.57.04.tar.zst"
-rsync -a -e "$rsh" "$FW" "leandro@$CARAXES_IP:gsp_tu10x-610.57.04.bin"
+if ((!D615)); then
+    gsh 'test -f ogkm-610.57.04.tar.zst' || rsync -a -e "$rsh" "$SOTTR_OGKM" "leandro@$CARAXES_IP:ogkm-610.57.04.tar.zst"
+    rsync -a -e "$rsh" "$FW" "leandro@$CARAXES_IP:gsp_tu10x-610.57.04.bin"
+fi
 rsync -a --delete -e "$rsh" "$ROOT/crates/vfio-user-nvgpu/guest/" "leandro@$CARAXES_IP:caraxes-guest/" --exclude kmsgrab
 rsync -a -e "$rsh" "$here/guest/" "leandro@$CARAXES_IP:caraxes-sottr/"
-gsh 'sudo bash caraxes-sottr/sottr-prepare.sh' > "$OUT/prepare.txt" 2>&1 || { tail -20 "$OUT/prepare.txt"; die "guest preparation failed ($OUT/prepare.txt)"; }
-grep -E '^==|prepared|total|LEAGAMES|cap_sys' "$OUT/prepare.txt"
+# 615: the packages come from the public Ubuntu and NVIDIA repositories through the NAT (apt
+# sends no identifier of the operator).
+gsh "sudo SOTTR_DRIVER=$SOTTR_DRIVER SOTTR_PKG_VERSION=${SOTTR_PKG_VERSION:-} SOTTR_GUEST_KERNEL=${SOTTR_GUEST_KERNEL:-} bash caraxes-sottr/sottr-prepare.sh" > "$OUT/prepare.txt" 2>&1 \
+    || { tail -20 "$OUT/prepare.txt"; die "guest preparation failed ($OUT/prepare.txt)"; }
+grep -E '^==|prepared|total|LEAGAMES|cap_sys|^ii ' "$OUT/prepare.txt"
 
 # 6. The driver (DMA table and nvidia.ko through the launcher's probe), the display modules,
 #    EGL on the NVIDIA driver with host execution, on Mesa kms_swrast in emulation.
 "${VMSH[@]}" probe sottr > "$OUT/probe.txt" 2>&1; tail -4 "$OUT/probe.txt" | cut -c1-200
-egl=on; [[ $EMU == 1 ]] && egl=off
-gsh "cd caraxes-guest && sudo bash display-up.sh && sudo bash nvidia-egl-setup.sh $egl && lsmod | grep -E '^nvidia'" > "$OUT/display-up.txt" 2>&1
+#    615: EGL, GBM and Vulkan as the packages installed them, no nvidia-egl-setup.sh.
+if ((D615)); then
+    gsh "cd caraxes-guest && sudo bash display-up.sh && lsmod | grep -E '^nvidia'" > "$OUT/display-up.txt" 2>&1
+else
+    egl=on; [[ $EMU == 1 ]] && egl=off
+    gsh "cd caraxes-guest && sudo bash display-up.sh && sudo bash nvidia-egl-setup.sh $egl && lsmod | grep -E '^nvidia'" > "$OUT/display-up.txt" 2>&1
+fi
 cat "$OUT/display-up.txt"
+if ((D615)); then
+    gsh 'bash caraxes-sottr/sottr-session.sh checks-driver' > "$OUT/checks-driver.txt" 2>&1
+    grep -E '^==|Driver Version|GPU 0|deviceName|driverName|driverInfo|rc=' "$OUT/checks-driver.txt" | head -20
+fi
 
 # 7. GNOME (gdm3 autologin, Wayland; Steam starts from the session's autostart), Sunshine.
 gsh 'bash caraxes-sottr/sottr-session.sh gnome 45' > "$OUT/gnome.txt" 2>&1
 grep -E 'Type=wayland|gbm renderer|page_flip|CRTC|fb ' "$OUT/gnome.txt" | head -8
-gsh "SUN_USER=$SOTTR_SUN_USER SUN_PASS=$SOTTR_SUN_PASS bash caraxes-sottr/sottr-session.sh sunshine-start" > "$OUT/sunshine-start.txt" 2>&1
+# 615: vkcube in the session, Steam's sniper container with the packaged ICD.
+if ((D615)); then
+    gsh 'bash caraxes-sottr/sottr-session.sh checks-session' > "$OUT/checks-session.txt" 2>&1
+    grep -E '^==|rc=|NVIDIA|nvidia_icd' "$OUT/checks-session.txt" | head -30
+fi
+gsh "SUN_USER=$SOTTR_SUN_USER SUN_PASS=$SOTTR_SUN_PASS SUN_ENCODER=$SOTTR_SUN_ENCODER bash caraxes-sottr/sottr-session.sh sunshine-start" > "$OUT/sunshine-start.txt" 2>&1
 cat "$OUT/sunshine-start.txt"
 gsh 'bash caraxes-sottr/sottr-session.sh status' > "$OUT/status.txt" 2>&1
 cat "$OUT/status.txt"
 
+SFX=""; ((D615)) && SFX=-615
 cat <<EOF
 
-vm4 is up ($CARAXES_IP on $CARAXES_TAP), evidence in $OUT
+$VM is up ($CARAXES_IP on $CARAXES_TAP), evidence in $OUT
 Next, on this desktop:
-  $here/stream.sh        pairs Moonlight with the guest's Sunshine if needed (PIN $SOTTR_SUN_PIN
+  $here/stream$SFX.sh    pairs Moonlight with the guest's Sunshine if needed (PIN $SOTTR_SUN_PIN
                          posted to https://$CARAXES_IP:47990/api/pin with the web login) and
                          opens 'moonlight stream $CARAXES_IP Desktop' in a window
   Sunshine web UI:       https://$CARAXES_IP:47990  (login $SOTTR_SUN_USER / $SOTTR_SUN_PASS)
@@ -191,5 +252,5 @@ Next, on this desktop:
                          the web UI's PIN page (or: curl -sk -u $SOTTR_SUN_USER:$SOTTR_SUN_PASS
                          -H 'Content-Type: application/json' -d '{"pin":"$SOTTR_SUN_PIN","name":"host"}'
                          https://$CARAXES_IP:47990/api/pin)
-  When done:             $here/down.sh
+  When done:             $here/down$SFX.sh
 EOF

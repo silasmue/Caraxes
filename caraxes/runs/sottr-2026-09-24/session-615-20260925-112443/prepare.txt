@@ -1,0 +1,451 @@
+== packages615
+Get:1 http://security.ubuntu.com/ubuntu noble-security InRelease [126 kB]
+Hit:2 https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/x86_64  InRelease
+Hit:3 http://archive.ubuntu.com/ubuntu noble InRelease
+Get:4 http://archive.ubuntu.com/ubuntu noble-updates InRelease [126 kB]
+Get:5 http://security.ubuntu.com/ubuntu noble-security/main amd64 Packages [1053 kB]
+Get:6 http://security.ubuntu.com/ubuntu noble-security/main i386 Packages [363 kB]
+Get:7 http://security.ubuntu.com/ubuntu noble-security/main Translation-en [219 kB]
+Get:8 http://security.ubuntu.com/ubuntu noble-security/main amd64 Components [46.4 kB]
+Get:9 http://security.ubuntu.com/ubuntu noble-security/main Icons (48x48) [19.2 kB]
+Get:10 http://security.ubuntu.com/ubuntu noble-security/main Icons (64x64) [26.7 kB]
+Get:11 http://security.ubuntu.com/ubuntu noble-security/main Icons (64x64@2) [29 B]
+Get:12 http://security.ubuntu.com/ubuntu noble-security/main amd64 c-n-f Metadata [11.9 kB]
+Get:13 http://security.ubuntu.com/ubuntu noble-security/universe i386 Packages [831 kB]
+Get:14 http://security.ubuntu.com/ubuntu noble-security/universe amd64 Packages [1220 kB]
+Get:15 http://security.ubuntu.com/ubuntu noble-security/universe Translation-en [245 kB]
+Get:16 http://security.ubuntu.com/ubuntu noble-security/universe amd64 Components [76.3 kB]
+Get:17 http://security.ubuntu.com/ubuntu noble-security/universe Icons (48x48) [51.2 kB]
+Get:18 http://security.ubuntu.com/ubuntu noble-security/universe Icons (64x64) [80.0 kB]
+Get:19 http://security.ubuntu.com/ubuntu noble-security/universe Icons (64x64@2) [29 B]
+Get:20 http://security.ubuntu.com/ubuntu noble-security/universe amd64 c-n-f Metadata [24.2 kB]
+Get:21 http://security.ubuntu.com/ubuntu noble-security/restricted i386 Packages [27.0 kB]
+Get:22 http://security.ubuntu.com/ubuntu noble-security/restricted Translation-en [353 kB]
+Get:23 http://security.ubuntu.com/ubuntu noble-security/restricted amd64 Components [212 B]
+Get:24 http://security.ubuntu.com/ubuntu noble-security/restricted Icons (48x48) [29 B]
+Get:25 http://security.ubuntu.com/ubuntu noble-security/restricted Icons (64x64) [29 B]
+Get:26 http://security.ubuntu.com/ubuntu noble-security/restricted Icons (64x64@2) [29 B]
+Get:27 http://security.ubuntu.com/ubuntu noble-security/restricted amd64 c-n-f Metadata [444 B]
+Get:28 http://security.ubuntu.com/ubuntu noble-security/multiverse i386 Packages [10.9 kB]
+Get:29 http://security.ubuntu.com/ubuntu noble-security/multiverse Translation-en [11.3 kB]
+Get:30 http://security.ubuntu.com/ubuntu noble-security/multiverse amd64 Components [208 B]
+Get:31 http://security.ubuntu.com/ubuntu noble-security/multiverse Icons (48x48) [29 B]
+Get:32 http://security.ubuntu.com/ubuntu noble-security/multiverse Icons (64x64) [29 B]
+Get:33 http://security.ubuntu.com/ubuntu noble-security/multiverse Icons (64x64@2) [29 B]
+Get:34 http://security.ubuntu.com/ubuntu noble-security/multiverse amd64 c-n-f Metadata [468 B]
+Get:35 http://archive.ubuntu.com/ubuntu noble-backports InRelease [126 kB]
+Get:36 http://archive.ubuntu.com/ubuntu noble/main i386 Packages [1041 kB]
+Get:37 http://archive.ubuntu.com/ubuntu noble/main Translation-en [513 kB]
+Get:38 http://archive.ubuntu.com/ubuntu noble/main amd64 Components [464 kB]
+Get:39 http://archive.ubuntu.com/ubuntu noble/main Icons (48x48) [106 kB]
+Get:40 http://archive.ubuntu.com/ubuntu noble/main Icons (64x64) [156 kB]
+Get:41 http://archive.ubuntu.com/ubuntu noble/main Icons (64x64@2) [21.8 kB]
+Get:42 http://archive.ubuntu.com/ubuntu noble/main amd64 c-n-f Metadata [30.5 kB]
+Get:43 http://archive.ubuntu.com/ubuntu noble/universe i386 Packages [8514 kB]
+Get:44 http://archive.ubuntu.com/ubuntu noble/universe Translation-en [5982 kB]
+Get:45 http://archive.ubuntu.com/ubuntu noble/universe amd64 Components [3871 kB]
+Get:46 http://archive.ubuntu.com/ubuntu noble/universe Icons (48x48) [3717 kB]
+Get:47 http://archive.ubuntu.com/ubuntu noble/universe Icons (64x64) [7747 kB]
+Get:48 http://archive.ubuntu.com/ubuntu noble/universe Icons (64x64@2) [75.0 kB]
+Get:49 http://archive.ubuntu.com/ubuntu noble/universe amd64 c-n-f Metadata [301 kB]
+Get:50 http://archive.ubuntu.com/ubuntu noble/restricted i386 Packages [14.7 kB]
+Get:51 http://archive.ubuntu.com/ubuntu noble/restricted Translation-en [18.7 kB]
+Get:52 http://archive.ubuntu.com/ubuntu noble/restricted amd64 c-n-f Metadata [416 B]
+Get:53 http://archive.ubuntu.com/ubuntu noble/multiverse i386 Packages [126 kB]
+Get:54 http://archive.ubuntu.com/ubuntu noble/multiverse Translation-en [118 kB]
+Get:55 http://archive.ubuntu.com/ubuntu noble/multiverse amd64 Components [35.0 kB]
+Get:56 http://archive.ubuntu.com/ubuntu noble/multiverse Icons (48x48) [56.1 kB]
+Get:57 http://archive.ubuntu.com/ubuntu noble/multiverse Icons (64x64) [186 kB]
+Get:58 http://archive.ubuntu.com/ubuntu noble/multiverse Icons (64x64@2) [904 B]
+Get:59 http://archive.ubuntu.com/ubuntu noble/multiverse amd64 c-n-f Metadata [8328 B]
+Get:60 http://archive.ubuntu.com/ubuntu noble-updates/main i386 Packages [553 kB]
+Get:61 http://archive.ubuntu.com/ubuntu noble-updates/main amd64 Packages [1318 kB]
+Get:62 http://archive.ubuntu.com/ubuntu noble-updates/main Translation-en [299 kB]
+Get:63 http://archive.ubuntu.com/ubuntu noble-updates/main amd64 Components [181 kB]
+Get:64 http://archive.ubuntu.com/ubuntu noble-updates/main Icons (48x48) [37.3 kB]
+Get:65 http://archive.ubuntu.com/ubuntu noble-updates/main Icons (64x64) [52.7 kB]
+Get:66 http://archive.ubuntu.com/ubuntu noble-updates/main Icons (64x64@2) [29 B]
+Get:67 http://archive.ubuntu.com/ubuntu noble-updates/main amd64 c-n-f Metadata [17.7 kB]
+Get:68 http://archive.ubuntu.com/ubuntu noble-updates/universe i386 Packages [1145 kB]
+Get:69 http://archive.ubuntu.com/ubuntu noble-updates/universe amd64 Packages [1698 kB]
+Get:70 http://archive.ubuntu.com/ubuntu noble-updates/universe Translation-en [340 kB]
+Get:71 http://archive.ubuntu.com/ubuntu noble-updates/universe amd64 Components [388 kB]
+Get:72 http://archive.ubuntu.com/ubuntu noble-updates/universe Icons (48x48) [238 kB]
+Get:73 http://archive.ubuntu.com/ubuntu noble-updates/universe Icons (64x64) [375 kB]
+Get:74 http://archive.ubuntu.com/ubuntu noble-updates/universe Icons (64x64@2) [29 B]
+Get:75 http://archive.ubuntu.com/ubuntu noble-updates/universe amd64 c-n-f Metadata [34.9 kB]
+Get:76 http://archive.ubuntu.com/ubuntu noble-updates/restricted i386 Packages [29.9 kB]
+Get:77 http://archive.ubuntu.com/ubuntu noble-updates/restricted amd64 Packages [1654 kB]
+Get:78 http://archive.ubuntu.com/ubuntu noble-updates/restricted Translation-en [377 kB]
+Get:79 http://archive.ubuntu.com/ubuntu noble-updates/restricted amd64 Components [212 B]
+Get:80 http://archive.ubuntu.com/ubuntu noble-updates/restricted Icons (48x48) [29 B]
+Get:81 http://archive.ubuntu.com/ubuntu noble-updates/restricted Icons (64x64) [29 B]
+Get:82 http://archive.ubuntu.com/ubuntu noble-updates/restricted Icons (64x64@2) [29 B]
+Get:83 http://archive.ubuntu.com/ubuntu noble-updates/restricted amd64 c-n-f Metadata [456 B]
+Get:84 http://archive.ubuntu.com/ubuntu noble-updates/multiverse i386 Packages [12.7 kB]
+Get:85 http://archive.ubuntu.com/ubuntu noble-updates/multiverse Translation-en [13.1 kB]
+Get:86 http://archive.ubuntu.com/ubuntu noble-updates/multiverse amd64 Components [940 B]
+Get:87 http://archive.ubuntu.com/ubuntu noble-updates/multiverse Icons (48x48) [1867 B]
+Get:88 http://archive.ubuntu.com/ubuntu noble-updates/multiverse Icons (64x64) [2497 B]
+Get:89 http://archive.ubuntu.com/ubuntu noble-updates/multiverse Icons (64x64@2) [29 B]
+Get:90 http://archive.ubuntu.com/ubuntu noble-updates/multiverse amd64 c-n-f Metadata [656 B]
+Get:91 http://archive.ubuntu.com/ubuntu noble-backports/main i386 Packages [33.1 kB]
+Get:92 http://archive.ubuntu.com/ubuntu noble-backports/main Translation-en [9172 B]
+Get:93 http://archive.ubuntu.com/ubuntu noble-backports/main amd64 Components [5764 B]
+Get:94 http://archive.ubuntu.com/ubuntu noble-backports/main Icons (48x48) [9535 B]
+Get:95 http://archive.ubuntu.com/ubuntu noble-backports/main Icons (64x64) [11.3 kB]
+Get:96 http://archive.ubuntu.com/ubuntu noble-backports/main Icons (64x64@2) [29 B]
+Get:97 http://archive.ubuntu.com/ubuntu noble-backports/main amd64 c-n-f Metadata [368 B]
+Get:98 http://archive.ubuntu.com/ubuntu noble-backports/universe i386 Packages [17.1 kB]
+Get:99 http://archive.ubuntu.com/ubuntu noble-backports/universe Translation-en [18.6 kB]
+Get:100 http://archive.ubuntu.com/ubuntu noble-backports/universe amd64 Components [12.6 kB]
+Get:101 http://archive.ubuntu.com/ubuntu noble-backports/universe Icons (48x48) [27.0 kB]
+Get:102 http://archive.ubuntu.com/ubuntu noble-backports/universe Icons (64x64) [37.1 kB]
+Get:103 http://archive.ubuntu.com/ubuntu noble-backports/universe Icons (64x64@2) [29 B]
+Get:104 http://archive.ubuntu.com/ubuntu noble-backports/universe amd64 c-n-f Metadata [1588 B]
+Get:105 http://archive.ubuntu.com/ubuntu noble-backports/restricted amd64 Components [212 B]
+Get:106 http://archive.ubuntu.com/ubuntu noble-backports/restricted Icons (48x48) [29 B]
+Get:107 http://archive.ubuntu.com/ubuntu noble-backports/restricted Icons (64x64) [29 B]
+Get:108 http://archive.ubuntu.com/ubuntu noble-backports/restricted Icons (64x64@2) [29 B]
+Get:109 http://archive.ubuntu.com/ubuntu noble-backports/restricted amd64 c-n-f Metadata [116 B]
+Get:110 http://archive.ubuntu.com/ubuntu noble-backports/multiverse i386 Packages [748 B]
+Get:111 http://archive.ubuntu.com/ubuntu noble-backports/multiverse Translation-en [340 B]
+Get:112 http://archive.ubuntu.com/ubuntu noble-backports/multiverse amd64 Components [212 B]
+Get:113 http://archive.ubuntu.com/ubuntu noble-backports/multiverse Icons (48x48) [29 B]
+Get:114 http://archive.ubuntu.com/ubuntu noble-backports/multiverse Icons (64x64) [29 B]
+Get:115 http://archive.ubuntu.com/ubuntu noble-backports/multiverse Icons (64x64@2) [29 B]
+Get:116 http://archive.ubuntu.com/ubuntu noble-backports/multiverse amd64 c-n-f Metadata [116 B]
+Fetched 47.1 MB in 4s (10.9 MB/s)
+Reading package lists...
+Reading package lists...
+Building dependency tree...
+Reading state information...
+The following NEW packages will be installed:
+  nvidia-driver-pinning-615.71.09
+0 upgraded, 1 newly installed, 0 to remove and 230 not upgraded.
+Need to get 12.5 kB of archives.
+After this operation, 39.9 kB of additional disk space will be used.
+Get:1 https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/x86_64  nvidia-driver-pinning-615.71.09 615.71.09-2ubuntu1 [12.5 kB]
+Fetched 12.5 kB in 2s (7144 B/s)
+Selecting previously unselected package nvidia-driver-pinning-615.71.09.
+(Reading database ... (Reading database ... 5%(Reading database ... 10%(Reading database ... 15%(Reading database ... 20%(Reading database ... 25%(Reading database ... 30%(Reading database ... 35%(Reading database ... 40%(Reading database ... 45%(Reading database ... 50%(Reading database ... 55%(Reading database ... 60%(Reading database ... 65%(Reading database ... 70%(Reading database ... 75%(Reading database ... 80%(Reading database ... 85%(Reading database ... 90%(Reading database ... 95%(Reading database ... 100%(Reading database ... 154901 files and directories currently installed.)
+Preparing to unpack .../nvidia-driver-pinning-615.71.09_615.71.09-2ubuntu1_all.deb ...
+Unpacking nvidia-driver-pinning-615.71.09 (615.71.09-2ubuntu1) ...
+Setting up nvidia-driver-pinning-615.71.09 (615.71.09-2ubuntu1) ...
+
+No services need to be restarted.
+
+No containers need to be restarted.
+
+No user sessions are running outdated binaries.
+
+No VM guests are running outdated hypervisor (qemu) binaries on this host.
+Reading package lists...
+Building dependency tree...
+Reading state information...
+The following additional packages will be installed:
+  libnvidia-egl-gbm1 libnvidia-egl-wayland21 libnvidia-egl-xcb1
+  libnvidia-egl-xlib1 xserver-xorg-video-nvidia
+Suggested packages:
+  nvidia-driver-pinning-615 libnvidia-compute:i386 libnvidia-decode:i386
+  libnvidia-encode:i386 libnvidia-fbc1:i386 libnvidia-gl:i386
+Recommended packages:
+  nvidia-settings
+The following NEW packages will be installed:
+  libnvidia-decode libnvidia-egl-gbm1 libnvidia-egl-wayland21
+  libnvidia-egl-xcb1 libnvidia-egl-xlib1 libnvidia-encode libnvidia-fbc1
+  libnvidia-gl linux-modules-extra-6.8.0-136-generic nvidia-driver-open
+  xserver-xorg-video-nvidia
+0 upgraded, 11 newly installed, 0 to remove and 230 not upgraded.
+Need to get 250 MB of archives.
+After this operation, 485 MB of additional disk space will be used.
+Get:1 http://archive.ubuntu.com/ubuntu noble-updates/main amd64 linux-modules-extra-6.8.0-136-generic amd64 6.8.0-136.136 [113 MB]
+Get:2 https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/x86_64  libnvidia-decode 615.71.09-2ubuntu1 [2845 kB]
+Get:3 https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/x86_64  libnvidia-egl-gbm1 1.1.4-2ubuntu1 [13.3 kB]
+Get:4 https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/x86_64  libnvidia-egl-wayland21 1.0.2-1ubuntu1 [36.6 kB]
+Get:5 https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/x86_64  libnvidia-egl-xcb1 1.0.6-1ubuntu1 [34.5 kB]
+Get:6 https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/x86_64  libnvidia-egl-xlib1 1.0.6-1ubuntu1 [35.1 kB]
+Get:7 https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/x86_64  libnvidia-encode 615.71.09-2ubuntu1 [111 kB]
+Get:8 https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/x86_64  libnvidia-fbc1 615.71.09-2ubuntu1 [102 kB]
+Get:9 https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/x86_64  libnvidia-gl 615.71.09-2ubuntu1 [132 MB]
+Get:10 https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/x86_64  xserver-xorg-video-nvidia 615.71.09-2ubuntu1 [1407 kB]
+Get:11 https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/x86_64  nvidia-driver-open 615.71.09-2ubuntu1 [497 kB]
+Fetched 250 MB in 12s (21.2 MB/s)
+Selecting previously unselected package libnvidia-decode:amd64.
+(Reading database ... (Reading database ... 5%(Reading database ... 10%(Reading database ... 15%(Reading database ... 20%(Reading database ... 25%(Reading database ... 30%(Reading database ... 35%(Reading database ... 40%(Reading database ... 45%(Reading database ... 50%(Reading database ... 55%(Reading database ... 60%(Reading database ... 65%(Reading database ... 70%(Reading database ... 75%(Reading database ... 80%(Reading database ... 85%(Reading database ... 90%(Reading database ... 95%(Reading database ... 100%(Reading database ... 154905 files and directories currently installed.)
+Preparing to unpack .../00-libnvidia-decode_615.71.09-2ubuntu1_amd64.deb ...
+Unpacking libnvidia-decode:amd64 (615.71.09-2ubuntu1) ...
+Selecting previously unselected package libnvidia-egl-gbm1:amd64.
+Preparing to unpack .../01-libnvidia-egl-gbm1_1.1.4-2ubuntu1_amd64.deb ...
+Unpacking libnvidia-egl-gbm1:amd64 (1.1.4-2ubuntu1) ...
+Selecting previously unselected package libnvidia-egl-wayland21:amd64.
+Preparing to unpack .../02-libnvidia-egl-wayland21_1.0.2-1ubuntu1_amd64.deb ...
+Unpacking libnvidia-egl-wayland21:amd64 (1.0.2-1ubuntu1) ...
+Selecting previously unselected package libnvidia-egl-xcb1:amd64.
+Preparing to unpack .../03-libnvidia-egl-xcb1_1.0.6-1ubuntu1_amd64.deb ...
+Unpacking libnvidia-egl-xcb1:amd64 (1.0.6-1ubuntu1) ...
+Selecting previously unselected package libnvidia-egl-xlib1:amd64.
+Preparing to unpack .../04-libnvidia-egl-xlib1_1.0.6-1ubuntu1_amd64.deb ...
+Unpacking libnvidia-egl-xlib1:amd64 (1.0.6-1ubuntu1) ...
+Selecting previously unselected package libnvidia-encode:amd64.
+Preparing to unpack .../05-libnvidia-encode_615.71.09-2ubuntu1_amd64.deb ...
+Unpacking libnvidia-encode:amd64 (615.71.09-2ubuntu1) ...
+Selecting previously unselected package libnvidia-fbc1:amd64.
+Preparing to unpack .../06-libnvidia-fbc1_615.71.09-2ubuntu1_amd64.deb ...
+Unpacking libnvidia-fbc1:amd64 (615.71.09-2ubuntu1) ...
+Selecting previously unselected package libnvidia-gl:amd64.
+Preparing to unpack .../07-libnvidia-gl_615.71.09-2ubuntu1_amd64.deb ...
+Unpacking libnvidia-gl:amd64 (615.71.09-2ubuntu1) ...
+Selecting previously unselected package linux-modules-extra-6.8.0-136-generic.
+Preparing to unpack .../08-linux-modules-extra-6.8.0-136-generic_6.8.0-136.136_amd64.deb ...
+Unpacking linux-modules-extra-6.8.0-136-generic (6.8.0-136.136) ...
+Selecting previously unselected package xserver-xorg-video-nvidia.
+Preparing to unpack .../09-xserver-xorg-video-nvidia_615.71.09-2ubuntu1_amd64.deb ...
+Unpacking xserver-xorg-video-nvidia (615.71.09-2ubuntu1) ...
+Selecting previously unselected package nvidia-driver-open.
+Preparing to unpack .../10-nvidia-driver-open_615.71.09-2ubuntu1_amd64.deb ...
+Unpacking nvidia-driver-open (615.71.09-2ubuntu1) ...
+Setting up libnvidia-egl-wayland21:amd64 (1.0.2-1ubuntu1) ...
+Setting up libnvidia-decode:amd64 (615.71.09-2ubuntu1) ...
+Setting up xserver-xorg-video-nvidia (615.71.09-2ubuntu1) ...
+Setting up libnvidia-egl-xcb1:amd64 (1.0.6-1ubuntu1) ...
+Setting up libnvidia-fbc1:amd64 (615.71.09-2ubuntu1) ...
+Setting up linux-modules-extra-6.8.0-136-generic (6.8.0-136.136) ...
+Setting up libnvidia-encode:amd64 (615.71.09-2ubuntu1) ...
+Setting up libnvidia-egl-xlib1:amd64 (1.0.6-1ubuntu1) ...
+Setting up libnvidia-egl-gbm1:amd64 (1.1.4-2ubuntu1) ...
+Setting up libnvidia-gl:amd64 (615.71.09-2ubuntu1) ...
+Setting up nvidia-driver-open (615.71.09-2ubuntu1) ...
+Processing triggers for libc-bin (2.39-0ubuntu8.8) ...
+Processing triggers for linux-image-6.8.0-136-generic (6.8.0-136.136) ...
+/etc/kernel/postinst.d/initramfs-tools:
+update-initramfs: Generating /boot/initrd.img-6.8.0-136-generic
+/etc/kernel/postinst.d/zz-update-grub:
+Sourcing file `/etc/default/grub'
+Sourcing file `/etc/default/grub.d/50-cloudimg-settings.cfg'
+Generating grub configuration file ...
+Found linux image: /boot/vmlinuz-6.8.12-caraxesdma
+Found initrd image: /boot/initrd.img-6.8.12-caraxesdma
+Found linux image: /boot/vmlinuz-6.8.0-136-generic
+Found initrd image: /boot/initrd.img-6.8.0-136-generic
+Found memtest86+x64 image: /memtest86+x64.bin
+Warning: os-prober will not be executed to detect other bootable partitions.
+Systems on them will not be added to the GRUB boot configuration.
+Check GRUB_DISABLE_OS_PROBER documentation entry.
+Adding boot menu entry for UEFI Firmware Settings ...
+done
+
+No services need to be restarted.
+
+No containers need to be restarted.
+
+No user sessions are running outdated binaries.
+
+No VM guests are running outdated hypervisor (qemu) binaries on this host.
+Reading package lists...
+Building dependency tree...
+Reading state information...
+The following additional packages will be installed:
+  libnvidia-egl-gbm1:i386 libnvidia-egl-wayland21:i386 libnvidia-egl-xcb1:i386
+  libnvidia-egl-xlib1:i386 libnvidia-gpucomp:i386
+The following NEW packages will be installed:
+  libnvidia-egl-gbm1:i386 libnvidia-egl-wayland21:i386 libnvidia-egl-xcb1:i386
+  libnvidia-egl-xlib1:i386 libnvidia-gl:i386 libnvidia-gpucomp:i386
+0 upgraded, 6 newly installed, 0 to remove and 230 not upgraded.
+Need to get 49.3 MB of archives.
+After this operation, 238 MB of additional disk space will be used.
+Get:1 https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/x86_64  libnvidia-egl-gbm1 1.1.4-2ubuntu1 [14.4 kB]
+Get:2 https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/x86_64  libnvidia-egl-wayland21 1.0.2-1ubuntu1 [42.6 kB]
+Get:3 https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/x86_64  libnvidia-egl-xcb1 1.0.6-1ubuntu1 [40.1 kB]
+Get:4 https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/x86_64  libnvidia-egl-xlib1 1.0.6-1ubuntu1 [40.8 kB]
+Get:5 https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/x86_64  libnvidia-gpucomp 615.71.09-2ubuntu1 [30.1 MB]
+Get:6 https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/x86_64  libnvidia-gl 615.71.09-2ubuntu1 [19.1 MB]
+Fetched 49.3 MB in 9s (5728 kB/s)
+Selecting previously unselected package libnvidia-egl-gbm1:i386.
+(Reading database ... (Reading database ... 5%(Reading database ... 10%(Reading database ... 15%(Reading database ... 20%(Reading database ... 25%(Reading database ... 30%(Reading database ... 35%(Reading database ... 40%(Reading database ... 45%(Reading database ... 50%(Reading database ... 55%(Reading database ... 60%(Reading database ... 65%(Reading database ... 70%(Reading database ... 75%(Reading database ... 80%(Reading database ... 85%(Reading database ... 90%(Reading database ... 95%(Reading database ... 100%(Reading database ... 161482 files and directories currently installed.)
+Preparing to unpack .../0-libnvidia-egl-gbm1_1.1.4-2ubuntu1_i386.deb ...
+Unpacking libnvidia-egl-gbm1:i386 (1.1.4-2ubuntu1) ...
+Selecting previously unselected package libnvidia-egl-wayland21:i386.
+Preparing to unpack .../1-libnvidia-egl-wayland21_1.0.2-1ubuntu1_i386.deb ...
+Unpacking libnvidia-egl-wayland21:i386 (1.0.2-1ubuntu1) ...
+Selecting previously unselected package libnvidia-egl-xcb1:i386.
+Preparing to unpack .../2-libnvidia-egl-xcb1_1.0.6-1ubuntu1_i386.deb ...
+Unpacking libnvidia-egl-xcb1:i386 (1.0.6-1ubuntu1) ...
+Selecting previously unselected package libnvidia-egl-xlib1:i386.
+Preparing to unpack .../3-libnvidia-egl-xlib1_1.0.6-1ubuntu1_i386.deb ...
+Unpacking libnvidia-egl-xlib1:i386 (1.0.6-1ubuntu1) ...
+Selecting previously unselected package libnvidia-gpucomp:i386.
+Preparing to unpack .../4-libnvidia-gpucomp_615.71.09-2ubuntu1_i386.deb ...
+Unpacking libnvidia-gpucomp:i386 (615.71.09-2ubuntu1) ...
+Selecting previously unselected package libnvidia-gl:i386.
+Preparing to unpack .../5-libnvidia-gl_615.71.09-2ubuntu1_i386.deb ...
+Unpacking libnvidia-gl:i386 (615.71.09-2ubuntu1) ...
+Setting up libnvidia-egl-wayland21:i386 (1.0.2-1ubuntu1) ...
+Setting up libnvidia-egl-xcb1:i386 (1.0.6-1ubuntu1) ...
+Setting up libnvidia-egl-xlib1:i386 (1.0.6-1ubuntu1) ...
+Setting up libnvidia-gpucomp:i386 (615.71.09-2ubuntu1) ...
+Setting up libnvidia-egl-gbm1:i386 (1.1.4-2ubuntu1) ...
+Setting up libnvidia-gl:i386 (615.71.09-2ubuntu1) ...
+Processing triggers for libc-bin (2.39-0ubuntu8.8) ...
+
+No services need to be restarted.
+
+No containers need to be restarted.
+
+No user sessions are running outdated binaries.
+
+No VM guests are running outdated hypervisor (qemu) binaries on this host.
+ii libnvidia-cfg1:amd64 615.71.09-2ubuntu1
+ii libnvidia-compute:amd64 615.71.09-2ubuntu1
+ii libnvidia-decode:amd64 615.71.09-2ubuntu1
+ii libnvidia-egl-gbm1:amd64 1.1.4-2ubuntu1
+ii libnvidia-egl-gbm1:i386 1.1.4-2ubuntu1
+ii libnvidia-egl-wayland21:amd64 1.0.2-1ubuntu1
+ii libnvidia-egl-wayland21:i386 1.0.2-1ubuntu1
+ii libnvidia-egl-xcb1:amd64 1.0.6-1ubuntu1
+ii libnvidia-egl-xcb1:i386 1.0.6-1ubuntu1
+ii libnvidia-egl-xlib1:amd64 1.0.6-1ubuntu1
+ii libnvidia-egl-xlib1:i386 1.0.6-1ubuntu1
+ii libnvidia-encode:amd64 615.71.09-2ubuntu1
+ii libnvidia-fbc1:amd64 615.71.09-2ubuntu1
+ii libnvidia-gl:amd64 615.71.09-2ubuntu1
+ii libnvidia-gl:i386 615.71.09-2ubuntu1
+ii libnvidia-gpucomp:amd64 615.71.09-2ubuntu1
+ii libnvidia-gpucomp:i386 615.71.09-2ubuntu1
+ii linux-modules-extra-6.8.0-136-generic 6.8.0-136.136
+ii nvidia-dkms-open 615.71.09-2ubuntu1
+ii nvidia-driver-open 615.71.09-2ubuntu1
+ii nvidia-driver-pinning-615.71.09 615.71.09-2ubuntu1
+ii nvidia-firmware 615.71.09-2ubuntu1
+ii nvidia-headless-no-dkms-open 615.71.09-2ubuntu1
+ii nvidia-headless-open 615.71.09-2ubuntu1
+ii nvidia-kernel-common 615.71.09-2ubuntu1
+ii nvidia-kernel-source-open 615.71.09-2ubuntu1
+ii nvidia-modprobe 615.71.09-2ubuntu1
+ii nvidia-persistenced 615.71.09-2ubuntu1
+-- files
+-rw-r--r-- 1 root root  140 Sep  4 22:06 /usr/share/vulkan/icd.d/nvidia_icd.json
+
+/usr/lib/x86_64-linux-gnu/gbm/:
+total 148
+drwxr-xr-x   2 root root  4096 Sep 25 09:27 .
+drwxr-xr-x 107 root root 86016 Sep 25 09:27 ..
+-rw-r--r--   1 root root 56424 Apr 21 14:43 dri_gbm.so
+lrwxrwxrwx   1 root root    35 Sep  9 23:10 nvidia-drm_gbm.so -> ../libnvidia-allocator.so.615.71.09
+
+/usr/share/egl/egl_external_platform.d/:
+total 28
+drwxr-xr-x 2 root root 4096 Sep 25 09:27 .
+drwxr-xr-x 3 root root 4096 Aug 20 09:00 ..
+-rw-r--r-- 1 root root  116 May 14 14:03 09_nvidia_wayland2.json
+-rw-r--r-- 1 root root  132 Aug 20 09:00 10_nvidia_wayland.json
+-rw-r--r-- 1 root root  111 Apr 14 20:30 15_nvidia_gbm.json
+-rw-r--r-- 1 root root  111 Apr 14 15:15 20_nvidia_xcb.json
+-rw-r--r-- 1 root root  112 Apr 14 15:15 20_nvidia_xlib.json
+
+/usr/share/glvnd/egl_vendor.d/:
+total 16
+drwxr-xr-x 2 root root 4096 Sep 25 09:27 .
+drwxr-xr-x 3 root root 4096 Aug 20 08:58 ..
+-rw-r--r-- 1 root root  107 Sep  4 21:27 10_nvidia.json
+-rw-r--r-- 1 root root  105 Apr 21 14:43 50_mesa.json
+{
+    "file_format_version" : "1.0.1",
+    "ICD": {
+        "library_path": "libGLX_nvidia.so.0",
+        "api_version" : "1.4.351"
+    }
+}
+/usr/share/vulkan/icd.d/nvidia_icd.json: libnvidia-gl
+/usr/share/glvnd/egl_vendor.d/10_nvidia.json: libnvidia-gl
+/usr/share/egl/egl_external_platform.d/09_nvidia_wayland2.json: libnvidia-egl-wayland21
+/usr/share/egl/egl_external_platform.d/10_nvidia_wayland.json: 
+/usr/share/egl/egl_external_platform.d/15_nvidia_gbm.json: libnvidia-egl-gbm1
+/usr/share/egl/egl_external_platform.d/20_nvidia_xcb.json: libnvidia-egl-xcb1
+/usr/share/egl/egl_external_platform.d/20_nvidia_xlib.json: libnvidia-egl-xlib1
+/usr/lib/x86_64-linux-gnu/gbm/dri_gbm.so: libgbm1
+/usr/lib/x86_64-linux-gnu/gbm/nvidia-drm_gbm.so: libnvidia-gl
+	libEGL_nvidia.so.0 (libc6) => /lib/i386-linux-gnu/libEGL_nvidia.so.0
+	libEGL_nvidia.so.0 (libc6,x86-64) => /lib/x86_64-linux-gnu/libEGL_nvidia.so.0
+	libGLX_nvidia.so.0 (libc6) => /lib/i386-linux-gnu/libGLX_nvidia.so.0
+	libGLX_nvidia.so.0 (libc6,x86-64) => /lib/x86_64-linux-gnu/libGLX_nvidia.so.0
+	libcuda.so.1 (libc6,x86-64) => /lib/x86_64-linux-gnu/libcuda.so.1
+	libnvcuvid.so (libc6,x86-64) => /lib/x86_64-linux-gnu/libnvcuvid.so
+	libnvcuvid.so.1 (libc6,x86-64) => /lib/x86_64-linux-gnu/libnvcuvid.so.1
+	libnvidia-allocator.so.1 (libc6) => /lib/i386-linux-gnu/libnvidia-allocator.so.1
+	libnvidia-allocator.so.1 (libc6,x86-64) => /lib/x86_64-linux-gnu/libnvidia-allocator.so.1
+	libnvidia-eglcore.so.615.71.09 (libc6) => /lib/i386-linux-gnu/libnvidia-eglcore.so.615.71.09
+	libnvidia-eglcore.so.615.71.09 (libc6,x86-64) => /lib/x86_64-linux-gnu/libnvidia-eglcore.so.615.71.09
+	libnvidia-encode.so (libc6,x86-64) => /lib/x86_64-linux-gnu/libnvidia-encode.so
+	libnvidia-encode.so.1 (libc6,x86-64) => /lib/x86_64-linux-gnu/libnvidia-encode.so.1
+	libnvidia-glcore.so.615.71.09 (libc6) => /lib/i386-linux-gnu/libnvidia-glcore.so.615.71.09
+	libnvidia-glcore.so.615.71.09 (libc6,x86-64) => /lib/x86_64-linux-gnu/libnvidia-glcore.so.615.71.09
+/lib/modules/6.8.0-136-generic/kernel/drivers/gpu/drm/display/drm_display_helper.ko.zst
+/lib/modules/6.8.0-136-generic/updates/dkms/nvidia-drm.ko.zst
+== modprobe615
+/etc/modprobe.d/caraxes.conf:options nvidia NVreg_GpuInitOnProbe=1 NVreg_ResmanDebugLevel=0 NVreg_RegistryDwords="RmDisableGlobalCeUtils=1;RMDisableScrubOnFree=1;RmRcWatchdog=0"
+/etc/modprobe.d/caraxes.conf:options nvidia-uvm uvm_disable_hmm=1
+/etc/modprobe.d/caraxes.conf:blacklist nvidia
+/etc/modprobe.d/caraxes-615-display.conf:# Caraxes SotTR stage, 615 (docs/caraxes/sottr-stage.md section 8): nvidia_modeset and nvidia_drm
+/etc/modprobe.d/caraxes-615-display.conf:# load only after the launcher's probe installed its DMA table (caraxes_dma_range), never at
+/etc/modprobe.d/caraxes-615-display.conf:# boot, so that `tools/caraxes-vm.sh probe` can reload nvidia; nvidia_peermem never.
+/etc/modprobe.d/caraxes-615-display.conf:blacklist nvidia_modeset
+/etc/modprobe.d/caraxes-615-display.conf:blacklist nvidia_drm
+/etc/modprobe.d/caraxes-615-display.conf:blacklist nvidia_peermem
+/etc/modprobe.d/caraxes-615-display.conf:install nvidia_modeset grep -q '^caraxes_dma_range ' /proc/modules && /sbin/modprobe --ignore-install nvidia_modeset $CMDLINE_OPTS
+/etc/modprobe.d/caraxes-615-display.conf:install nvidia_drm grep -q '^caraxes_dma_range ' /proc/modules && /sbin/modprobe --ignore-install nvidia_drm $CMDLINE_OPTS
+/etc/modprobe.d/caraxes-615-display.conf:install nvidia_peermem /bin/false
+/etc/modprobe.d/caraxes-615-display.conf:options nvidia-drm modeset=1 fbdev=0
+/etc/modprobe.d/blacklist-framebuffer.conf
+/etc/modprobe.d/caraxes-615-display.conf
+/etc/modprobe.d/caraxes.conf
+/lib/modprobe.d/nvidia-graphics-drivers.conf
+/usr/lib/modprobe.d/nvidia-graphics-drivers.conf
+== display615
+[daemon]
+AutomaticLoginEnable=true
+AutomaticLogin=leandro
+WaylandEnable=true
+Session=ubuntu-wayland
+== sunshine
+/usr/bin/sunshine cap_sys_admin,cap_sys_nice=p
+== games
+/dev/vdc at /games: 196G total, 137G free
+== steam
+"libraryfolders"
+{
+	"0"
+	{
+		"path"		"/home/leandro/.steam/debian-installation"
+		"label"		""
+		"totalsize"		"0"
+		"apps"
+		{
+		}
+	}
+	"1"
+	{
+		"path"		"/games/SteamLibrary"
+		"label"		""
+		"contentid"		"715472432590830080"
+		"totalsize"		"0"
+		"apps"
+		{
+			"1391110"		"676965917"
+			"1493710"		"1515489043"
+			"1628350"		"803970096"
+			"2180100"		"1515209578"
+			"231350"		"6658019387"
+			"4183110"		"672162947"
+			"750920"		"37955541433"
+		}
+	}
+}
+== cursor
+software cursor: /etc/environment.d/50-software-cursor.conf
+prepared: display615.done
+games.done
+modprobe615.done
+packages615.done
+steam.done
+sunshine.done

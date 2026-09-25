@@ -1,0 +1,9 @@
+sunshine_alive_at_end=1
+[2026-09-25 09:41:50.788]: Error: GL: /build/sunshine/src/platform/linux/graphics.cpp:620: [00000501]
+[2026-09-25 09:41:50.805]: Error: GL: /build/sunshine/src/platform/linux/graphics.cpp:620: [00000501]
+[2026-09-25 09:41:50.822]: Error: GL: /build/sunshine/src/platform/linux/graphics.cpp:620: [00000501]
+[2026-09-25 09:41:50.838]: Error: GL: /build/sunshine/src/platform/linux/graphics.cpp:620: [00000501]
+[2026-09-25 09:41:50.855]: Error: GL: /build/sunshine/src/platform/linux/graphics.cpp:620: [00000501]
+[2026-09-25 09:41:50.865]: Error: Couldn't set default-sink [auto_null]: No such entity
+[2026-09-25 09:41:50.874]: Error: GL: /build/sunshine/src/platform/linux/graphics.cpp:620: [00000501]
+[2026-09-25 09:41:50.901]: Error: GL: /build/sunshine/src/platform/linux/graphics.cpp:620: [00000501]

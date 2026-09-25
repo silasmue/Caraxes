@@ -76,6 +76,14 @@ hybrid proposed as the later default.
    overlay; `caraxes/runs/sottr-2026-09-24/up.sh`, `stream.sh`, `down.sh`; plumbing passed in
    pure emulation. Next: the operator's GPU run once vm0 and vm2 are down (Steam login, the
    benchmark at 720p and 1080p), then two game VMs at slots 0 and 1 of 3 GiB.
+   **2026-09-25:** the game VM is vm4-615 with the 615.71.09 driver as Ubuntu installs it
+   (`up-615.sh`, [sottr-stage.md](sottr-stage.md) section 8); the stream ran on the first try.
+   **Weekend goal (operator, 2026-09-25): the guest driver must not matter.** A plain Ubuntu VM
+   with the distribution's NVIDIA driver package (`apt install nvidia-driver-*`) must work:
+   no registry keys (the device serves the CeUtils, scrubber and watchdog channels that
+   `RmDisableGlobalCeUtils`, `RMDisableScrubOnFree` and `RmRcWatchdog=0` switch off today), no
+   Caraxes module options or load order (D18), the guest ABI chosen from what the guest sends
+   instead of `CARAXES_DRIVER`. The list is sottr-stage.md section 8.1.
 3. NVENC through a mirror for Sunshine hardware encoding (pulled forward from later: the game
    comparison with v1 needs it); the Moonlight stream stage.
 4. D19, the move to driver 615.71.09 before P23: the device's 615 transport (agent running:

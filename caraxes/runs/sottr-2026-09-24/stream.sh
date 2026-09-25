@@ -34,7 +34,7 @@ fi
 
 # 1. Sunshine.
 if ! "${VMSH[@]}" ssh '(exec 3<>/dev/tcp/127.0.0.1/47989) 2>/dev/null'; then
-    "${VMSH[@]}" ssh "SUN_USER=$SOTTR_SUN_USER SUN_PASS=$SOTTR_SUN_PASS bash caraxes-sottr/sottr-session.sh sunshine-start" \
+    "${VMSH[@]}" ssh "SUN_USER=$SOTTR_SUN_USER SUN_PASS=$SOTTR_SUN_PASS SUN_ENCODER=$SOTTR_SUN_ENCODER bash caraxes-sottr/sottr-session.sh sunshine-start" \
         > "$OUT/sunshine-start-stream.txt" 2>&1 || { cat "$OUT/sunshine-start-stream.txt"; die "Sunshine did not start"; }
 fi
 echo "sunshine listens on $IP:47989"

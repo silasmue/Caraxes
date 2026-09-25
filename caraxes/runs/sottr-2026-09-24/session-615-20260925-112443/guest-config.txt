@@ -1,0 +1,29 @@
+min_log_level = 1
+capture = kms
+encoder = nvenc
+sw_preset = ultrafast
+sw_tune = zerolatency
+log_path = /home/leandro/.config/sunshine/sunshine.log
+file_apps = /home/leandro/.config/sunshine/apps.json
+ii  libnvidia-encode:amd64                615.71.09-2ubuntu1 amd64        NVENC Video Encoding runtime library
+ii  libnvidia-gl:amd64                    615.71.09-2ubuntu1 amd64        NVIDIA OpenGL/GLX/EGL/GLES GLVND libraries and Vulkan ICD
+ii  libnvidia-gl:i386                     615.71.09-2ubuntu1 i386         NVIDIA OpenGL/GLX/EGL/GLES GLVND libraries and Vulkan ICD
+ii  linux-modules-extra-6.8.0-136-generic 6.8.0-136.136      amd64        Linux kernel extra modules for version 6.8.0 on 64 bit x86 SMP
+ii  nvidia-driver-open                    615.71.09-2ubuntu1 amd64        NVIDIA driver (open kernel) metapackage
+options nvidia NVreg_GpuInitOnProbe=1 NVreg_ResmanDebugLevel=0 NVreg_RegistryDwords="RmDisableGlobalCeUtils=1;RMDisableScrubOnFree=1;RmRcWatchdog=0"
+options nvidia-uvm uvm_disable_hmm=1
+blacklist nvidia
+# Caraxes SotTR stage, 615 (docs/caraxes/sottr-stage.md section 8): nvidia_modeset and nvidia_drm
+# load only after the launcher's probe installed its DMA table (caraxes_dma_range), never at
+# boot, so that `tools/caraxes-vm.sh probe` can reload nvidia; nvidia_peermem never.
+blacklist nvidia_modeset
+blacklist nvidia_drm
+blacklist nvidia_peermem
+install nvidia_modeset grep -q '^caraxes_dma_range ' /proc/modules && /sbin/modprobe --ignore-install nvidia_modeset $CMDLINE_OPTS
+install nvidia_drm grep -q '^caraxes_dma_range ' /proc/modules && /sbin/modprobe --ignore-install nvidia_drm $CMDLINE_OPTS
+install nvidia_peermem /bin/false
+options nvidia-drm modeset=1 fbdev=0
+MUTTER_DEBUG_DISABLE_HW_CURSORS=1
+GTK_MODULES=${GTK_MODULES:+$GTK_MODULES:}gail:atk-bridge
+QT_ACCESSIBILITY=1
+PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
