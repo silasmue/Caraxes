@@ -143,5 +143,19 @@ vfio-user device (`nova-guest.md` section 7, P23: which RM path the Windows driv
   (`gop-trace-2026-09-25.txt` has the GOP's sequence and the register counts).
 - **Step 3, legacy-only ROM, ROM BAR on, no VGA**: Windows boots headless with the card as its
   only adapter; result in the driver's behaviour pending (RDP only).
+- **Step 3 result**: Code 43 again, same 35 registers. **Step 4, behind a PCIe root port**
+  (`WIN_GPU_ROOTPORT=1`, 19:12): same 35 registers, same writes; the parent bus is not the gate.
 - Config-space writes seen from the driver (through the BAR0 mirror): offset 0x80 (PCIe Device
   Control) `0x10291f` then `0x10211f` (No Snoop off), offset 0x700 `0x20000`.
+- **Lead (19:20)**: the driver reads the *extended* config space through the mirror (0x700,
+  0xbd8, 0xbe0, 0xbf4, 0xbfc) and the device answers 0 for all of them; the capture holds
+  `0x00020ffe` at 0x700 (the driver's write `0x20000` is a read-modify-write on that value),
+  `0x003f003f` at 0xbd8, `0x00010004` at 0xbe0, `0xc` at 0xbf4 and 0xbfc. config.rs zeroes
+  0x100 to 0xfff on purpose; a build that serves the capture there is the next test.
+- Windows side: ProblemCode 43 with ProblemStatus 0, no `nvlddmkm` or Kernel-PnP start event:
+  the driver declares the device failed on its own, silently.
+- The whole sequence, for reference (reads, count): BOOT_0 x102, 0x1373a0 x10, 0x21434 x7,
+  0x21c04 x4, 0x610074 x3, BOOT_1 x3, 0x21200 x2, BOOT_42 x2, then once each 0x625480,
+  0x610068, 0x610018, 0x110abc, the mirror at 0x7c/0x84/0x700/0xbd8/0xbe0/0xbf4/0xbfc, 0x22410,
+  0x21640, 0x1478, 0x1400, 0x1078, 0x1070, 0x140, 0x8; writes: Device Control, 0x700, the seven
+  `0xc80` at 0xd96c + n·0x50.
