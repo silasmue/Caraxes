@@ -857,6 +857,25 @@ impl Device {
         self.after_bar0_write();
     }
 
+    /// The display kick page's reactor found a `PUT` change (display/chan_page.rs,
+    /// docs/caraxes/intr-page.md §12.3): run the kick as the trapped write did, then the
+    /// steps after a BAR0 write. Returns the channel's `GET`.
+    pub fn display_kick_from_page(&mut self, base: u64, put: u32) -> Option<u32> {
+        let mem = &self.mem;
+        let (get, notes) = match self.bar0.boot_mut() {
+            Some(b) => b.display_kick_from_page(mem, base, put),
+            None => return None,
+        };
+        self.trace.event(&format!(
+            "display kick page: PUT {put:#x} at BAR0 {base:#x} (reactor)"
+        ));
+        for n in notes {
+            self.trace.event(&format!("boot: {n}"));
+        }
+        self.after_bar0_write();
+        get
+    }
+
     /// The usermode page's reactor took a doorbell (`hint`, its value) or runs its
     /// watchdog (`None`): scan the channels and ring the pending ones (um_page.rs,
     /// docs/caraxes/intr-page.md §12.2). Returns the channels rung.

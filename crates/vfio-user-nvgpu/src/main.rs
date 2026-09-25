@@ -841,6 +841,26 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
     } else {
         None
     };
+    // The display kick page (display/chan_page.rs, docs/caraxes/intr-page.md §12.3): the
+    // window channels' USERD pages.
+    let kicks = if vfio_user_nvgpu::display::chan_page::requested(fe.is_some())
+        .map_err(anyhow::Error::msg)?
+    {
+        let env = vfio_user_nvgpu::display::chan_page::KICK_PAGE_ENV;
+        let page = intr_page.as_ref().expect("the display page needs the interrupt page");
+        let k = vfio_user_nvgpu::display::chan_page::ChanPage::create(page)
+            .map_err(|e| anyhow::anyhow!("{env}=1: {e}"))?;
+        vfio_user_nvgpu::display::set_chan_page(k.clone());
+        bar0 = bar0.with_chan_page(k.clone());
+        let (base, len) = k.area();
+        eprintln!(
+            "vfio-user-nvgpu: display kick page: BAR0 [{base:#x}, {:#x}) (the window channels' USERD pages, PUT and GET) offered as a sparse mmap area; the reactor runs the kick of each PUT change and stores GET ({env}=1, docs/caraxes/intr-page.md §12.3)",
+            base + len
+        );
+        Some(k)
+    } else {
+        None
+    };
     // The usermode page (um_page.rs, docs/caraxes/intr-page.md §12.2): a fifth area, the
     // clock and the doorbell as memory the reactor owns.
     let um = if vfio_user_nvgpu::um_page::requested(intr_page.is_some(), bar0.boot().is_some())
@@ -950,6 +970,7 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
             .chain(fe.as_ref().map(|f| f.area()))
             .chain(inv.as_ref().map(|i| i.area()))
             .chain(um.as_ref().map(|u| u.area()))
+            .chain(kicks.as_ref().map(|k| k.area()))
             .collect(),
     });
     let mut server = Server::new(
@@ -1051,6 +1072,20 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
                         d.lock()
                             .unwrap_or_else(PoisonError::into_inner)
                             .invalidate_from_page(t)
+                    }),
+                )
+            }
+            None => h,
+        };
+        let h = match &kicks {
+            Some(k) => {
+                let d = device.clone();
+                h.with_kicks(
+                    k.clone(),
+                    Arc::new(move |base, put| {
+                        d.lock()
+                            .unwrap_or_else(PoisonError::into_inner)
+                            .display_kick_from_page(base, put)
                     }),
                 )
             }
@@ -1178,6 +1213,9 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
     }
     if let Some(u) = &um {
         eprint!("{}", u.summary());
+    }
+    if let Some(k) = &kicks {
+        eprint!("{}", k.summary());
     }
     if let (Some(w), Some(_)) = (&reactor_wake, &fe) {
         eprintln!(

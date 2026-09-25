@@ -641,6 +641,21 @@ impl BootModel {
         notes
     }
 
+    /// A kick the display kick page's reactor found (display/chan_page.rs): what the
+    /// trapped `PUT` write did, the BAR2 payment of a trapped BAR0 write first.
+    pub fn display_kick_from_page(
+        &mut self,
+        mem: &GuestMemory,
+        base: u64,
+        put: u32,
+    ) -> (Option<u32>, Vec<String>) {
+        self.bar2_pay_owed(mem, crate::bar2area::Payer::Access);
+        match self.ctrl.display.page_kick(base, put, mem, &mut self.fb) {
+            Some((get, notes)) => (Some(get), notes),
+            None => (None, Vec::new()),
+        }
+    }
+
     /// A BAR0 write to the display (display/mod.rs).
     pub fn display_write32(&mut self, off: u64, v: u32, mem: &GuestMemory) -> Option<Vec<String>> {
         if off == GSP_IRQSCLR && v & GSP_SWGEN0 != 0 {

@@ -837,6 +837,11 @@ pub struct PageHook {
     inv: Option<(Arc<crate::inv_page::InvPage>, Arc<crate::inv_page::Driver>)>,
     /// The usermode page (`CARAXES_USERMODE_PAGE=1`, um_page.rs).
     um: Option<(Arc<crate::um_page::UmPage>, Arc<crate::um_page::Driver>)>,
+    /// The display kick page (`CARAXES_DISPLAY_KICK_PAGE=1`, display/chan_page.rs).
+    kicks: Option<(
+        Arc<crate::display::chan_page::ChanPage>,
+        Arc<crate::display::chan_page::Driver>,
+    )>,
     /// `CARAXES_INTR_PAGE_VBLANK_SPIN_US`: spin from this long before each display tick
     /// (docs/caraxes/intr-page.md §11.4); 0 off.
     vblank_lead_ns: u64,
@@ -866,6 +871,7 @@ impl PageHook {
                 owed: None,
                 inv: None,
                 um: None,
+                kicks: None,
                 vblank_lead_ns: 0,
                 raise_wake: Arc::new(Mutex::new(Default::default())),
                 wake,
@@ -909,6 +915,16 @@ impl PageHook {
         driver: Arc<crate::inv_page::Driver>,
     ) -> Self {
         self.inv = Some((page, driver));
+        self
+    }
+
+    /// Run the display kicks written to the window channels' USERD pages (`driver`).
+    pub fn with_kicks(
+        mut self,
+        page: Arc<crate::display::chan_page::ChanPage>,
+        driver: Arc<crate::display::chan_page::Driver>,
+    ) -> Self {
+        self.kicks = Some((page, driver));
         self
     }
 
@@ -972,6 +988,9 @@ impl crate::poll::Hook for PageHook {
         if let Some((p, d)) = &self.um {
             work |= crate::um_page::poll(p, d.as_ref());
         }
+        if let Some((p, d)) = &self.kicks {
+            work |= crate::display::chan_page::poll(p, d.as_ref());
+        }
         work |= self.poll_owed();
         work |= self.vblank_window();
         self.iterations = self.iterations.wrapping_add(1);
@@ -980,6 +999,9 @@ impl crate::poll::Hook for PageHook {
             if now.saturating_duration_since(self.last_tick) >= Duration::from_millis(1) {
                 self.last_tick = now;
                 work |= self.page.tick(now);
+                if let Some((p, _)) = &self.kicks {
+                    p.watchdog(now);
+                }
                 if let Some(f) = &self.fe {
                     work |= f.tick(now);
                 }

@@ -24,6 +24,7 @@
 pub mod aux;
 pub mod edid;
 pub mod engine;
+pub mod chan_page;
 pub mod fe_page;
 
 use std::collections::BTreeMap;
@@ -98,6 +99,19 @@ pub fn set_fe_page(page: std::sync::Arc<fe_page::FePage>) {
 /// The display page, when on.
 pub fn fe_page() -> Option<std::sync::Arc<fe_page::FePage>> {
     FE_PAGE.lock().unwrap().clone()
+}
+
+static CHAN_PAGE: Mutex<Option<std::sync::Arc<chan_page::ChanPage>>> = Mutex::new(None);
+
+/// The window channels' USERD pages as memory (`CARAXES_DISPLAY_KICK_PAGE=1`,
+/// chan_page.rs): every display from now on shows its channels' `PUT` and `GET` there.
+pub fn set_chan_page(page: std::sync::Arc<chan_page::ChanPage>) {
+    *CHAN_PAGE.lock().unwrap() = Some(page);
+}
+
+/// The kick page, when on.
+pub fn chan_page() -> Option<std::sync::Arc<chan_page::ChanPage>> {
+    CHAN_PAGE.lock().unwrap().clone()
 }
 
 /// The file the display polls for host-side connector commands (engine.rs).
@@ -603,6 +617,9 @@ impl Display {
                     get32(params, d::PUSHBUFFER_CHANNEL_PB_SIZE)
                 );
                 if let Some(base) = userd_base(ch.hclass, ch.instance) {
+                    if let Some(p) = chan_page() {
+                        p.set_channel(base, ch.put, ch.get);
+                    }
                     self.channels.insert(base, ch);
                 }
                 ok(b, GUEST, note)
@@ -1442,6 +1459,9 @@ impl Display {
             });
             ch.put = 0;
             ch.get = 0;
+            if let Some(p) = chan_page() {
+                p.set_channel(base, 0, 0);
+            }
             note.push_str(&format!(
                 " instance {inst}: USERD at BAR0 {base:#x}, pushbuffer {:#x} (valid {})",
                 ch.pb, ch.valid
@@ -1535,6 +1555,21 @@ impl Display {
         let mut n = std::mem::take(&mut self.notes);
         n.append(&mut self.engine.notes);
         n
+    }
+
+    /// A kick the kick page's reactor found (chan_page.rs): `PUT` of the channel at USERD
+    /// `base` is `put` now. The same kick as the trapped `PUT` write; returns the
+    /// channel's `GET` after it and the notes, `None` when the page has no channel.
+    pub fn page_kick(
+        &mut self,
+        base: u64,
+        put: u32,
+        mem: &GuestMemory,
+        fb: &mut FakeFb,
+    ) -> Option<(u32, Vec<String>)> {
+        self.channels.get(&base)?;
+        let notes = self.write32(base, put, mem, fb).unwrap_or_default();
+        Some((self.channels.get(&base).map_or(put, |c| c.get), notes))
     }
 
     /// A write to a display register; `None` when it is not the display's.

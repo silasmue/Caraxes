@@ -22,6 +22,9 @@
 #   U1 P1 with the usermode page as memory (CARAXES_USERMODE_PAGE=1, binary
 #      vfio-user-nvgpu-desk-u1, intr-page.md §12.2), the hybrid reactor
 #   U2 U1 with the reactor spinning (CARAXES_DOORBELL_POLL=spin)
+#   W1 U1 with the display kick page (CARAXES_DISPLAY_KICK_PAGE=1, intr-page.md §12.3): every
+#      window of this branch; W2 the kick page with the token pool (no usermode page)
+#   U1, U2, T1, W1 and W2 run vfio-user-nvgpu-desk-w1
 #   T1 P1 again with the binary of U1 (the token pool's doorbell), the reference for U1 and U2
 #   CUDA=1 adds the launch rows after the trap windows: nvprobe 4 (100 launches, blocking
 #   sync) with 1000-cycle and 30M-cycle kernels, as bench-run.sh short-blocking and
@@ -68,7 +71,7 @@ for cfg in "$@"; do
         P1) export CARAXES_SERVER=${CARAXES_SERVER_P1:-/mnt/vmstore/caraxes/vm0/vfio-user-nvgpu-desk-p1}
            export CARAXES_BAR2_FLUSH_DEFER_US=on CARAXES_INVALIDATE_PAGE=1 CARAXES_BAR2_FLUSH_PAGE=memory
            unset CARAXES_INTR_PAGE_VBLANK_SPIN_US; name=P1-flush-page-memory ;;
-        U1|U2|T1) export CARAXES_SERVER=${CARAXES_SERVER_U:-/mnt/vmstore/caraxes/vm0/vfio-user-nvgpu-desk-u1}
+        U1|U2|T1|W1|W2) export CARAXES_SERVER=${CARAXES_SERVER_U:-/mnt/vmstore/caraxes/vm0/vfio-user-nvgpu-desk-w1}
            export CARAXES_BAR2_FLUSH_DEFER_US=on CARAXES_INVALIDATE_PAGE=1 CARAXES_BAR2_FLUSH_PAGE=memory
            unset CARAXES_INTR_PAGE_VBLANK_SPIN_US
            case $cfg in
@@ -76,6 +79,8 @@ for cfg in "$@"; do
                U2) export CARAXES_USERMODE_PAGE=1 CARAXES_DOORBELL_POLL=spin; unset CARAXES_DOORBELL_POLL_IDLE_US
                    name=U2-usermode-page-spin ;;
                T1) name=T1-tokens-reference ;;
+               W1) export CARAXES_USERMODE_PAGE=1 CARAXES_DISPLAY_KICK_PAGE=1; name=W1-all-windows ;;
+               W2) export CARAXES_DISPLAY_KICK_PAGE=1; name=W2-kick-page-tokens ;;
            esac ;;
         G|H) export CARAXES_SERVER=${CARAXES_SERVER_G:-/mnt/vmstore/caraxes/vm0/vfio-user-nvgpu-desk-g}
            export CARAXES_BAR2_FLUSH_DEFER_US=2000 CARAXES_INVALIDATE_PAGE=1
@@ -151,7 +156,7 @@ for cfg in "$@"; do
     fi
     pid=$(cat "$W/gpu.pid" 2>/dev/null)
     "${VMSH[@]}" down > "$D/down.txt" 2>&1
-    grep -E '^intr page:|^bar1 pool:|^display page|^invalidate page:|^display engine:|^bar2 flush deferral|^bar2 flush page|^usermode page:|^reactor wake-up|bar2 memfd|doorbell poll \(|msi re-arm|^vfio-user-nvgpu: (intr|display|invalidate) page' "$W/gpu.log" | cut -c1-1600 > "$D/device-summary.txt"
+    grep -E '^intr page:|^bar1 pool:|^display page|^invalidate page:|^display engine:|^bar2 flush deferral|^bar2 flush page|^usermode page:|^display kick page:|^reactor wake-up|bar2 memfd|doorbell poll \(|msi re-arm|^vfio-user-nvgpu: (intr|display|invalidate) page' "$W/gpu.log" | cut -c1-1600 > "$D/device-summary.txt"
     caraxes/tools/bench-hostwatch.sh stop "$D"
     { echo "# host kernel log, Xid lines since $t0 (device pid $pid)"
       journalctl -k --since "$t0" --no-pager -g 'Xid' 2>/dev/null | grep -v '^-- No entries'; } > "$D/host-xid.txt"
