@@ -89,9 +89,9 @@ metric_cmd() {
         short-auto)      echo 'NVPROBE_ITERS=100 NVPROBE_CYCLES=1000 NVPROBE_SCHED=auto ./nvprobe 4' ;;
         short-blocking)  echo 'NVPROBE_ITERS=100 NVPROBE_CYCLES=1000 NVPROBE_SCHED=blocking ./nvprobe 4' ;;
         # 1000 back-to-back 1000-cycle launches, each synchronized, with the launch call and the
-        # synchronize wait timed apart (bench-cu launch; bench-cu-launch when staged beside an
-        # older bench-cu without the mode; docs/caraxes/launch-path.md).
-        launch1k)        echo 'B=./bench-cu; [ -x ./bench-cu-launch ] && B=./bench-cu-launch; BENCH_CU_PTX=kernels.ptx $B launch 1000' ;;
+        # synchronize wait timed apart (bench-cu launch, staged as bench-cu-launch beside the
+        # guest-built bench-cu of the P13 series; docs/caraxes/launch-path.md).
+        launch1k)        echo 'BENCH_CU_PTX=kernels.ptx ./bench-cu-launch launch 1000' ;;
         copy)            echo './bench-cu copy 10' ;;
         mm)              echo "NVMM_SIZES=1024,2048,4096 NVMM_ITERS=10 $py $pyd/mmsweep.py" ;;
         rl)              echo "NVRL_EPISODES=50 $py $pyd/rlprobe.py" ;;

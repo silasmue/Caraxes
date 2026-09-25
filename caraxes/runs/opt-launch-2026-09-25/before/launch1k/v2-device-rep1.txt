@@ -1,0 +1,61 @@
+vfio-user-nvgpu: launch timing on: per-step histograms of the doorbell and completion path in the exit summary (CARAXES_LAUNCH_TIMING=1, docs/caraxes/launch-path.md)
+vfio-user-nvgpu: host ABI 615.71.09: TSG params 28 bytes, GPU_GET_PES_INFO 76 (tpcToPesMap[15]), GR_GET_GLOBAL_SM_ORDER 10264 (SM entry 20), channel params 376, GSS legacy [pmgr 0x18 20512, thermal 0x36 24532, perf 0xf1 9216] (chosen by running driver 615.71.09 (/proc/driver/nvidia/version)); guest ABI 610.57.04
+vfio-user-nvgpu: host memory client open; privilege: uid 1000; capabilities effective 0x0 permitted 0x200000 inheritable 0x0
+vfio-user-nvgpu: hostmem: host FB regions: [0x3620000, 0x1e988ffff] reserved 0x0
+vfio-user-nvgpu: hostmem: host VRAM: total 8192 MiB, HEAP_FREE 2589 MiB, nvidia-smi free 2590 MiB, largest free region 1024 MiB at 0xa9800000; request 1024 MiB at [0x129800000, 0x169800000) (slot 2, heap region end 0x1e9890000)
+vfio-user-nvgpu: hostmem: reserved host VRAM [0x129800000, 0x169800000) (1024 MiB, slot 2), handle 0x80000003, attr 0x11800000 attr2 0x100005, contiguous, in 0 ms
+vfio-user-nvgpu: fb layout: address space 0x200000000 (host card), reservation [0x129800000, 0x169800000), usable [0x129800000, 0x167600000), BAR2/BAR1 roots 0x169600000/0x169601000, fb_length 0x40000000
+vfio-user-nvgpu: guest name "Leandro VFIO RTX 2070-1G"
+vfio-user-nvgpu: host RM open (unprivileged client, device 0, subdevice 0)
+vfio-user-nvgpu: alloc lazy: on, shadow plans at the next shadow doorbell or channel creation, deadline 20 ms [CARAXES_ALLOC_LAZY]
+vfio-user-nvgpu: host execution on: FB backed by the reserved VRAM through BAR1 windows (budget 2 x 32 MiB = 64 MiB of the host's shared BAR1; CARAXES_BAR1_WINDOWS, CARAXES_BAR1_WINDOW_MIB); guest channels mirrored on the host at their first doorbell; GR0/CE2-CE4 non-stall events forwarded as guest vectors (docs/caraxes/execution.md)
+vfio-user-nvgpu: bar1 pool: guest BAR1 [0, 0x2000000) offered as one sparse mmap area of region 1, backed by a dma-buf of the pool FB [0x167600000, 0x169600000) below the carve-out; the guest's usable FB ends at 0x167600000 (fbRegionInfo region 0), the pool is reported reserved; every page the guest maps into the area is moved to its pool page; 0x2000000 of host BAR1 held while the client maps it (CARAXES_BAR1_PASSTHROUGH=pool, docs/caraxes/bar1-pool.md)
+vfio-user-nvgpu: bar2 memfd: guest BAR2 [0, 0x2000000) offered as 2 sparse mmap area(s) of region 3 from a sealed memfd; trapped page(s) ["0xfea000"]; synced at the trapped pages, MMU invalidates, BAR2 binds and GSP doorbells (CARAXES_BAR2_MEMFD=1, docs/caraxes/bar2-memfd.md)
+vfio-user-nvgpu: intr page: BAR0 [0x0, 0x1000) and the interrupt tree [0xb81000, 0xb82000) offered as sparse mmap areas of region 0 from a memfd; the reactor applies the guest's stores (sleep bound 1 ms, retrigger watchdog 10 ms) (CARAXES_INTR_PAGE=1, docs/caraxes/intr-page.md)
+vfio-user-nvgpu: doorbell tokens: BAR0 0xbb0090, 4 bytes, 64 sub-region(s) with datamatch 0xca700000..=0xca70003f and one eventfd each, offered through VFIO_USER_DEVICE_GET_REGION_IO_FDS; a channel gets a pool token at its first (trapped) doorbell, written to its work-submit-token notifier entry (CARAXES_DOORBELL_TOKENS=64, docs/caraxes/doorbell-token-pool.md)
+vfio-user-nvgpu: msi re-arm ioeventfd: BAR0 0x88704 (NV_XVE_CYA_2), 4 bytes, no datamatch, offered through VFIO_USER_DEVICE_GET_REGION_IO_FDS and read by the token pool's reactor; a client that does not register it keeps trapping the write (CARAXES_MSI_REARM_IOEVENTFD=1, docs/caraxes/intr-page.md §4)
+vfio-user-nvgpu: guest ABI 610 (MsgqV1)
+vfio-user-nvgpu: TU106 (BOOT_0 0x166000a1, driver 610.57.04) on /mnt/vmstore/caraxes/vm5/gpu.sock, boot model on, FB 1024 MiB, ROM 130048 bytes, PROM image 131584 bytes, trace /mnt/vmstore/caraxes/vm5/gpu-trace.log
+vfio-user-nvgpu: doorbell poll: hybrid reader (CARAXES_DOORBELL_POLL=hybrid, CARAXES_DOORBELL_POLL_CPU=Auto)
+[2026-09-25T06:20:43Z INFO  vfio_user] Received client version: major = 0 minor = 1 capabilities = Capabilities { max_msg_fds: 253, max_data_xfer_size: 1048576, migration: MigrationCapabilities { pgsize: 4096 } }
+[2026-09-25T06:20:43Z INFO  vfio_user] Sent server version: major = 0 minor = 0 capabilities = Capabilities { max_msg_fds: 1, max_data_xfer_size: 1048576, migration: MigrationCapabilities { pgsize: 4096 } }
+vfio-user-nvgpu: hostmem: guest RAM 0x0+0xc0000000: registration deferred until all 4096 MiB are mapped (3072 MiB so far), so the whole guest gets one IOVA offset
+vfio-user-nvgpu: dma table: 0 range(s), identity; ranges=; published to /mnt/vmstore/caraxes/vm5/dma-ranges
+vfio-user-nvgpu: hostmem: placed guest RAM chunk GPA 0x100000000..0x140000000 -> IOVA 0x7ffc00000000..0x7ffc40000000 (descriptor 0x80000004, 634 ms, 9 IOVA samples = base + offset)
+vfio-user-nvgpu: hostmem: hole filler GPA 0xc0000000..0x100000000 -> IOVA 0x7ffbc0000000..0x7ffc00000000 (descriptor 0x80000005 over one device-owned 2 MiB page, 224 ms; never in the guest's table or the filter)
+vfio-user-nvgpu: hostmem: placed guest RAM chunk GPA 0x80000000..0xc0000000 -> IOVA 0x7ffb80000000..0x7ffbc0000000 (descriptor 0x80000006, 785 ms, 9 IOVA samples = base + offset)
+vfio-user-nvgpu: hostmem: placed guest RAM chunk GPA 0x40000000..0x80000000 -> IOVA 0x7ffb40000000..0x7ffb80000000 (descriptor 0x80000007, 735 ms, 9 IOVA samples = base + offset)
+vfio-user-nvgpu: hostmem: placed guest RAM chunk GPA 0x0..0x40000000 -> IOVA 0x7ffb00000000..0x7ffb40000000 (descriptor 0x80000008, 949 ms, 9 IOVA samples = base + offset)
+vfio-user-nvgpu: hostmem: guest RAM 4096 MiB in 2 zone(s): 4 chunk(s) + 1 hole filler(s) registered from the top GPA down in 3331 ms (0 restart(s)); IOVA = GPA + 0x7ffb00000000 for the whole guest; pinned now 4096 MiB; host foll_pin acquired +1310720 released +0; privileged windows so far 5
+vfio-user-nvgpu: hostmem: registered guest RAM chunk GPA 0x0..0x40000000 -> IOVA 0x7ffb00000000..0x7ffb40000000 (descriptor 0x80000008, linear)
+vfio-user-nvgpu: hostmem: registered guest RAM chunk GPA 0x40000000..0x80000000 -> IOVA 0x7ffb40000000..0x7ffb80000000 (descriptor 0x80000007, linear)
+vfio-user-nvgpu: hostmem: registered guest RAM chunk GPA 0x80000000..0xc0000000 -> IOVA 0x7ffb80000000..0x7ffbc0000000 (descriptor 0x80000006, linear)
+vfio-user-nvgpu: hostmem: registered guest RAM chunk GPA 0x100000000..0x140000000 -> IOVA 0x7ffc00000000..0x7ffc40000000 (descriptor 0x80000004, linear)
+vfio-user-nvgpu: dma table: 2 range(s), host IOVAs; ranges=0:7ffb00000000:c0000000,100000000:7ffc00000000:40000000; published to /mnt/vmstore/caraxes/vm5/dma-ranges
+vfio-user-nvgpu: doorbell poll: reader pinned to CPU 13 (auto: 90 % idle over 1 s; not CPU 0; VMM vCPU threads of pid 3215354 on CPU(s) [1, 4, 5, 6, 7, 12, 14] at the sample, avoided)
+vfio-user-nvgpu: alloc lazy: on, shadow plans at the next shadow doorbell or channel creation, deadline 20 ms [CARAXES_ALLOC_LAZY]
+vfio-user-nvgpu: dma table: guest aliases from /mnt/vmstore/caraxes/vm5/dma-ranges.guest: GPA 0xba200000..0xbe400000 -> IOVA 0xf000000000..0xf004200000
+vfio-user-nvgpu: alloc lazy: on, shadow plans at the next shadow doorbell or channel creation, deadline 20 ms [CARAXES_ALLOC_LAZY]
+[2026-09-25T06:23:10Z INFO  vfio_user] Connection closed
+vfio-user-nvgpu: hostmem: freed hole filler descriptor 0x80000005 (GPA 0xc0000000, IOVA 0x7ffbc0000000)
+vfio-user-nvgpu: hostmem: freed the VRAM reservation [0x129800000, 0x169800000) (1024 MiB) in 0 ms (host RM scrub on free)
+vfio-user-nvgpu: hostmem: host RM client 0xc1d61a70 freed
+vfio-user-nvgpu: hostmem: freed 4 guest RAM descriptor(s), 4096 MiB unpinned; host foll_pin released +1310570 during the free (since open: acquired +4787898, released +4780835)
+vfio-user-nvgpu: hostmem: privileged windows opened in total: 5
+bar0: 33903 reads, 32928 writes
+bar3: 192 reads, 0 writes
+cfg: 3712 reads, 41 writes
+msi re-arm ioeventfd: 3 guest write(s) in 3 wakeup(s)
+dma table: 0 DMA address(es) outside the table refused
+fb: reservation [0x129800000, 0x169800000); accesses outside it: 0 reads, 0 writes
+vram store: 10 window map(s), 12 refused, 9 eviction(s), 0 stall(s) without any window; 288 read(s) of 304032 bytes, 19106 write(s) of 76346 bytes
+bar tlb: 191 hit(s), 1 walk(s), 0 flush(es) by a table write (docs/caraxes/mapping.md §3)
+bar2 memfd: BAR2 [0, 0x2000000) in host RAM, trapped page(s) [0xfea000] with 192 access(es); 353 sync(s) (20176 us total, 6803 us max), 15724 page compare(s), 87 dirty page(s), 5218 byte(s) written back, 0 alias conflict(s); 24 BAR2 table walk(s), 55 page(s) entered (54 loaded), 1 left; now 53 page(s) mapped at 54 BAR2 page(s), at most 53 live and 2 alias(es) of one page; 0 sysmem write-back(s) skipped (docs/caraxes/bar2-memfd.md)
+mirror: 0 channel(s) created, 0 freed, 0 live; 0 doorbell(s) forwarded, 0 TLB invalidate(s) (0 MEM_OP push(es), 0 slow), 0 refusal(s), longest mirror build 0 us; events raised 0, MSIs 1 (coalesced 0), host RC events 0; alloc lazy: 59 invalidate(s) deferred, planned in 0 batch(es) at a doorbell and 3 at the deadline (20 ms), largest batch 21 invalidate(s), 18 still pending; untrapped GPPut: rule on (CARAXES_SHADOW_UNTRAPPED_HOLD); 0 invalidate(s) held until applied (0 ms in total, longest 0 us); 0 doorbell(s) found the host channel ahead of them, 0 of them with plans pending (docs/caraxes/bar1-pool.md §9)
+doorbell tokens: 64 offered (0xca700000..), 0 handed out, 0 written again, 0 assigned at exit (peak 0); 0 eventfd wakeup(s) for 0 guest write(s); 0 pool token(s) trapped; 0 trapped ring(s) with a channel's own token after its hand-out; 0 stale; left on their own token: 0 without notifier, 0 notifier mismatch, 0 pool exhausted
+bar1 pool: guest BAR1 [0, 0x2000000) on the pool FB [0x167600000, 0x169600000); 3 poll(s), 48 unit walk(s); 0 page(s) in the pool now; moved in 0 cold + 0 behind the barrier, back 0 cold + 0 behind the barrier; 0 barrier(s) (0 refused, 0 TSG preempt(s)); 0 refused, 0 pending now, 0 sysmem page(s) in the area; copied 0 KiB in, 0 KiB back in 0 us; 0 page-table hazard(s); 0 page(s) also behind the BAR2 memfd; slowest poll 2091 us (docs/caraxes/bar1-pool.md)
+vidmem PTE kinds walked (kind:comptagline x count): 0x06:0x0x1 -- all uncompressed (kind 0x06/0x00, comptagline 0): comptag hold satisfied
+doorbell poll (tokens): hybrid (200 us idle), pinned to CPU 13; 135566 loop iteration(s), 3 with events, 129624 blocking wait(s); 3 eventfd event(s) for 3 guest write(s); ring to host doorbell: 0 ring(s), mean 0.00 us, p50 0.0 us, p99 0.0 us, max 0.0 us (0 ring(s) without a host doorbell); Device lock wait per wakeup: mean 2.23 us, p50 2.2 us, p99 3.0 us, max 3.0 us; reader CPU 2.852 s (1.9 %) in 147.6 s
+intr page: 13 scan(s) with work (slowest 9.4 us); guest stores applied: 2 ack(s), 13 LEAF_EN_SET, 26 LEAF_EN_CLEAR, 11 TOP_EN_SET, 9 TOP_EN_CLEAR, 1 trigger(s); 0 raise fold(s) (0 coalesced while pending, 0 pended again at the ack); MSIs: 1 for raises, 0 re-arms (a set store while a vector is pending), 0 by the watchdog, 0 not written (MSI off or no eventfd); 0 compare-and-swap(s) lost to a guest store; inconsistencies: none
+launch timing: 3 ring(s) by the reactor (3 after a blocking wait), 0 host doorbell(s); host events by the age of the last host doorbell: 0 none yet, 0 < 1 ms, 0 < 100 ms, 0 older (CARAXES_LAUNCH_TIMING=1, docs/caraxes/launch-path.md)
+launch timing: lock: n 3, mean 2.75 us, p10 1.7 us, p50 2.4 us, p90 4.3 us, p99 4.3 us, max 4.3 us

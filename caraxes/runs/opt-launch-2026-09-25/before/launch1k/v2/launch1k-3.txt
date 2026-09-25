@@ -1,0 +1,9 @@
+# target v2 metric launch1k rep 3
+# cmd B=./bench-cu; [ -x ./bench-cu-launch ] && B=./bench-cu-launch; BENCH_CU_PTX=kernels.ptx $B launch 1000
+# device  sha256 
+# time 2026-09-25T08:27:42+02:00
+# gpu 70, 1830 MHz, 7000 MHz, P0, 81 %, 5173 MiB, Disabled
+# procs 3208281:-dev 3209114:vm0-dev 3209188:vm1-vmm 3211046:vm3-dev 3211074:vm1-vmm 3245134:vm2-dev 3245147:vm1-vmm 
+# loadavg 9.16 9.29 7.37
+ssh: connect to host 192.168.105.26 port 22: No route to host
+# MEAS dev_pid=3246079 dev_cpu_ms=-6300 dev_rss_hwm_kb=-/- vmm_cpu_ms=0 others: vm1-vmm=3030ms vm3-dev=1830ms vm1-vmm=4290ms vm0-dev=2580ms -dev=0ms vm2-dev=480ms vm1-vmm=30ms 

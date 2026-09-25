@@ -1,0 +1,129 @@
+# 08:36:13 A launch rep 1: restart (keeps the previous life's log as nothing)
+ssh: connect to host 192.168.105.26 port 22: No route to host
+stopped
+dma table: 0:7ffe80000000:40000000,40000000:7ffe00000000:40000000,80000000:7ffd80000000:40000000,100000000:7ffcc0000000:40000000
+server pid 3284594, VM pid 3284604; logs in /mnt/vmstore/caraxes/vm5
+ssh up at 192.168.105.26
+[  132.160476] NVRM: GPU 0000:00:05.0: RmInitAdapter succeeded!
+modprobe rc=0
+v2 restarted: server pid 3284594
+# 08:39:08 A rl rep 1: restart (keeps the previous life's log as /home/silas/git/Caraxes/.claude/worktrees/agent-a4181aaae4c60b84b/caraxes/runs/opt-launch-2026-09-25/ab/A/launch/v2-device-rep1.txt)
+stopped
+dma table: 0:7ff980000000:c0000000,100000000:7ffa80000000:40000000
+server pid 3294240, VM pid 3294248; logs in /mnt/vmstore/caraxes/vm5
+ssh up at 192.168.105.26
+[  132.221740] NVRM: GPU 0000:00:05.0: RmInitAdapter succeeded!
+modprobe rc=0
+v2 restarted: server pid 3294240
+# 08:41:43 B launch rep 1: restart (keeps the previous life's log as /home/silas/git/Caraxes/.claude/worktrees/agent-a4181aaae4c60b84b/caraxes/runs/opt-launch-2026-09-25/ab/A/rl/v2-device-rep1.txt)
+stopped
+dma table: 0:7ffe80000000:40000000,40000000:7ffe00000000:40000000,80000000:7ffd80000000:40000000,100000000:7ffcc0000000:40000000
+server pid 3302263, VM pid 3302271; logs in /mnt/vmstore/caraxes/vm5
+ssh up at 192.168.105.26
+[  133.433841] NVRM: GPU 0000:00:05.0: RmInitAdapter succeeded!
+modprobe rc=0
+v2 restarted: server pid 3302263
+# 08:44:22 B rl rep 1: restart (keeps the previous life's log as /home/silas/git/Caraxes/.claude/worktrees/agent-a4181aaae4c60b84b/caraxes/runs/opt-launch-2026-09-25/ab/B/launch/v2-device-rep1.txt)
+stopped
+dma table: 0:7ffe80000000:40000000,40000000:7ffe00000000:40000000,80000000:7ffd80000000:40000000,100000000:7ffcc0000000:40000000
+server pid 3312613, VM pid 3312624; logs in /mnt/vmstore/caraxes/vm5
+ssh up at 192.168.105.26
+[  133.175995] NVRM: GPU 0000:00:05.0: RmInitAdapter succeeded!
+modprobe rc=0
+v2 restarted: server pid 3312613
+# 08:47:17 A launch rep 2: restart (keeps the previous life's log as /home/silas/git/Caraxes/.claude/worktrees/agent-a4181aaae4c60b84b/caraxes/runs/opt-launch-2026-09-25/ab/B/rl/v2-device-rep1.txt)
+stopped
+dma table: 0:7ffe80000000:40000000,40000000:7ffe00000000:40000000,80000000:7ffd80000000:40000000,100000000:7ffcc0000000:40000000
+server pid 3328768, VM pid 3328777; logs in /mnt/vmstore/caraxes/vm5
+ssh up at 192.168.105.26
+[  133.084724] NVRM: GPU 0000:00:05.0: RmInitAdapter succeeded!
+modprobe rc=0
+v2 restarted: server pid 3328768
+# 08:49:46 A rl rep 2: restart (keeps the previous life's log as /home/silas/git/Caraxes/.claude/worktrees/agent-a4181aaae4c60b84b/caraxes/runs/opt-launch-2026-09-25/ab/A/launch/v2-device-rep2.txt)
+stopped
+dma table: 0:7ff4c0000000:c0000000,100000000:7ff5c0000000:40000000
+server pid 3341368, VM pid 3341379; logs in /mnt/vmstore/caraxes/vm5
+ssh up at 192.168.105.26
+[  131.856427] NVRM: GPU 0000:00:05.0: RmInitAdapter succeeded!
+modprobe rc=0
+v2 restarted: server pid 3341368
+# 08:52:21 B launch rep 2: restart (keeps the previous life's log as /home/silas/git/Caraxes/.claude/worktrees/agent-a4181aaae4c60b84b/caraxes/runs/opt-launch-2026-09-25/ab/A/rl/v2-device-rep2.txt)
+stopped
+dma table: 0:7ff780000000:c0000000,100000000:7ff880000000:40000000
+server pid 3351767, VM pid 3351776; logs in /mnt/vmstore/caraxes/vm5
+ssh up at 192.168.105.26
+[  134.935709] NVRM: GPU 0000:00:05.0: RmInitAdapter succeeded!
+modprobe rc=0
+v2 restarted: server pid 3351767
+# 08:54:56 B rl rep 2: restart (keeps the previous life's log as /home/silas/git/Caraxes/.claude/worktrees/agent-a4181aaae4c60b84b/caraxes/runs/opt-launch-2026-09-25/ab/B/launch/v2-device-rep2.txt)
+stopped
+dma table: 0:7ff780000000:c0000000,100000000:7ff880000000:40000000
+server pid 3365532, VM pid 3365552; logs in /mnt/vmstore/caraxes/vm5
+ssh up at 192.168.105.26
+[  137.589920] NVRM: GPU 0000:00:05.0: RmInitAdapter succeeded!
+modprobe rc=0
+v2 restarted: server pid 3365532
+# 08:57:44 A launch rep 3: restart (keeps the previous life's log as /home/silas/git/Caraxes/.claude/worktrees/agent-a4181aaae4c60b84b/caraxes/runs/opt-launch-2026-09-25/ab/B/rl/v2-device-rep2.txt)
+stopped
+dma table: 0:7ff780000000:c0000000,100000000:7ff880000000:40000000
+server pid 3396055, VM pid 3396197; logs in /mnt/vmstore/caraxes/vm5
+ssh up at 192.168.105.26
+[  142.371840] NVRM: GPU 0000:00:05.0: RmInitAdapter succeeded!
+modprobe rc=0
+v2 restarted: server pid 3396055
+# 09:00:24 A rl rep 3: restart (keeps the previous life's log as /home/silas/git/Caraxes/.claude/worktrees/agent-a4181aaae4c60b84b/caraxes/runs/opt-launch-2026-09-25/ab/A/launch/v2-device-rep3.txt)
+stopped
+dma table: 0:7ffe80000000:40000000,40000000:7ffe00000000:40000000,80000000:7ffd80000000:40000000,100000000:7ffcc0000000:40000000
+server pid 3420928, VM pid 3420945; logs in /mnt/vmstore/caraxes/vm5
+ssh up at 192.168.105.26
+[  132.858756] NVRM: GPU 0000:00:05.0: RmInitAdapter succeeded!
+modprobe rc=0
+v2 restarted: server pid 3420928
+# 09:03:04 B launch rep 3: restart (keeps the previous life's log as /home/silas/git/Caraxes/.claude/worktrees/agent-a4181aaae4c60b84b/caraxes/runs/opt-launch-2026-09-25/ab/A/rl/v2-device-rep3.txt)
+stopped
+dma table: 0:7ffe80000000:40000000,40000000:7ffe00000000:40000000,80000000:7ffd80000000:40000000,100000000:7ffcc0000000:40000000
+server pid 3456004, VM pid 3456015; logs in /mnt/vmstore/caraxes/vm5
+ssh up at 192.168.105.26
+[  131.428752] NVRM: GPU 0000:00:05.0: RmInitAdapter succeeded!
+modprobe rc=0
+v2 restarted: server pid 3456004
+# 09:05:33 B rl rep 3: restart (keeps the previous life's log as /home/silas/git/Caraxes/.claude/worktrees/agent-a4181aaae4c60b84b/caraxes/runs/opt-launch-2026-09-25/ab/B/launch/v2-device-rep3.txt)
+stopped
+dma table: 0:7ffe80000000:40000000,40000000:7ffe00000000:40000000,80000000:7ffd80000000:40000000,100000000:7ffcc0000000:40000000
+server pid 3464708, VM pid 3464717; logs in /mnt/vmstore/caraxes/vm5
+ssh up at 192.168.105.26
+[  132.339292] NVRM: GPU 0000:00:05.0: RmInitAdapter succeeded!
+modprobe rc=0
+v2 restarted: server pid 3464708
+# 09:08:10 A ppo rep 1: restart (keeps the previous life's log as /home/silas/git/Caraxes/.claude/worktrees/agent-a4181aaae4c60b84b/caraxes/runs/opt-launch-2026-09-25/ab/B/rl/v2-device-rep3.txt)
+stopped
+dma table: 0:7ffe80000000:40000000,40000000:7ffe00000000:40000000,80000000:7ffd80000000:40000000,100000000:7ffcc0000000:40000000
+server pid 3473737, VM pid 3473748; logs in /mnt/vmstore/caraxes/vm5
+ssh up at 192.168.105.26
+[  133.079002] NVRM: GPU 0000:00:05.0: RmInitAdapter succeeded!
+modprobe rc=0
+v2 restarted: server pid 3473737
+# 09:11:50 B ppo rep 1: restart (keeps the previous life's log as /home/silas/git/Caraxes/.claude/worktrees/agent-a4181aaae4c60b84b/caraxes/runs/opt-launch-2026-09-25/ab/A/ppo/v2-device-rep1.txt)
+stopped
+dma table: 0:7ffe80000000:40000000,40000000:7ffe00000000:40000000,80000000:7ffd80000000:40000000,100000000:7ffcc0000000:40000000
+server pid 3493562, VM pid 3493576; logs in /mnt/vmstore/caraxes/vm5
+ssh up at 192.168.105.26
+[  150.087096] NVRM: GPU 0000:00:05.0: RmInitAdapter succeeded!
+modprobe rc=0
+v2 restarted: server pid 3493562
+# 09:16:19 A ppo rep 2: restart (keeps the previous life's log as /home/silas/git/Caraxes/.claude/worktrees/agent-a4181aaae4c60b84b/caraxes/runs/opt-launch-2026-09-25/ab/B/ppo/v2-device-rep1.txt)
+stopped
+dma table: 0:7ff780000000:c0000000,100000000:7ff880000000:40000000
+server pid 3526555, VM pid 3526570; logs in /mnt/vmstore/caraxes/vm5
+ssh up at 192.168.105.26
+[  148.084402] NVRM: GPU 0000:00:05.0: RmInitAdapter succeeded!
+modprobe rc=0
+v2 restarted: server pid 3526555
+# 09:20:15 B ppo rep 2: restart (keeps the previous life's log as /home/silas/git/Caraxes/.claude/worktrees/agent-a4181aaae4c60b84b/caraxes/runs/opt-launch-2026-09-25/ab/A/ppo/v2-device-rep2.txt)
+stopped
+dma table: 0:7ffe80000000:40000000,40000000:7ffe00000000:40000000,80000000:7ffd80000000:40000000,100000000:7ffcc0000000:40000000
+server pid 3551311, VM pid 3551323; logs in /mnt/vmstore/caraxes/vm5
+ssh up at 192.168.105.26
+[  136.569290] NVRM: GPU 0000:00:05.0: RmInitAdapter succeeded!
+modprobe rc=0
+v2 restarted: server pid 3551311

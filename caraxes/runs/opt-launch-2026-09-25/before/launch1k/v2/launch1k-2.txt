@@ -1,0 +1,10 @@
+# target v2 metric launch1k rep 2
+# cmd B=./bench-cu; [ -x ./bench-cu-launch ] && B=./bench-cu-launch; BENCH_CU_PTX=kernels.ptx $B launch 1000
+# device /mnt/vmstore/caraxes/vm5/vfio-user-nvgpu sha256 4f432f286ef410b9
+# time 2026-09-25T08:27:33+02:00
+# gpu 72, 1725 MHz, 7000 MHz, P0, 100 %, 6197 MiB, Disabled
+# procs 3208281:-dev 3209114:vm0-dev 3209188:vm1-vmm 3211046:vm3-dev 3211074:vm1-vmm 3227346:vm5-dev 3227354:vm1-vmm 3245134:vm2-dev 3245147:vm1-vmm 
+# loadavg 9.52 9.36 7.38
+bash: line 1: launch: command not found
+# WALL wall_ms=7 rc=127
+# MEAS dev_pid=3227346 dev_cpu_ms=0 dev_rss_hwm_kb=5252320/5252320 vmm_cpu_ms=170 others: vm1-vmm=830ms vm3-dev=190ms vm1-vmm=340ms vm0-dev=180ms -dev=0ms vm2-dev=470ms vm1-vmm=0ms 

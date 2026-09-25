@@ -1,0 +1,71 @@
+# series 2026-09-25T08:30:16+02:00 targets=[v2] reps=3 metrics=[rl]
+# libdir v2 /opt/nvrm/lib
+# caraxes shell-rig-333-g7095b3c-dirty leandro-test 3edea73-dirty
+# bin c5b48cf1181bfcfc251f12aa2b0eaeb074887efec4c479f36efe399cb1307a13  bench-cu
+# bin 1fe322756ed297ae28ba698dbd7bcdd579dc65b09f6a3b6d9971343024c4d960  bench-cu-launch
+# bin 2e7db7218ac29e0da0b22a4d30307ea1f675dc04912d6b34922708495595904d  convnet.py
+# bin 68449e9ec7b25613a65d096a6a42864c01fbf46ec47e540ce01f47184f0479ea  ctrlping
+# bin 138c5073848b2f3cf2beb4709376c7c49b420d88e836664584e5cf8bbfc7848c  ioctlping
+# bin 1f921680fc7a2c2e0978eb007cc0ab48d2f1a7cf404a196c9063a19a10aa228f  kernels.ptx
+# bin abdf09531ac015ba4e8e7550bda6eb43609c429d6e1240e7f8553841bfe06513  llamaprobe.py
+# bin 2735d2a9cd25c0753898188542dbeb4a8433609024aa48230b6803a4a8d96e66  nvprobe
+# bin 012bb008b87ec0a6ee4ef566e0b55f856df09d6a3e07e72fe5cde5a9043dd18a  pporl.py
+# bin 02b1d58fc1778a47f8940e7f89d2cabb44b64d078f5b54b5ca1fba9437073c4a  transformer.py
+# bin f0868123fca8e2c40138fda523e35fa76c015b97e232fc647fea0b6b49f33584  vrampress
+# time 2026-09-25T08:30:16+02:00
+# gpu 66, 1845 MHz, 7000 MHz, P0, 68 %, 6197 MiB, Disabled
+# procs 3208281:-dev 3209114:vm0-dev 3209188:vm1-vmm 3211046:vm3-dev 3211074:vm1-vmm 3245134:vm2-dev 3245147:vm1-vmm 3247069:vm5-dev 3247079:vm1-vmm 3257355:vm7-vmm 
+# loadavg 10.40 9.42 7.69
+08:30:43 v2  rl              rep 1:   ep   10  return=   11  mean10=  20.7   ep   20  return=   15  mean10=  14.4   ep   30  return=   13  mean10=  15.8  | # MEAS dev_pid=3247069 dev_cpu_ms=4790 dev_rss_hwm_kb=5258624/7347396 vmm_cpu_ms=36950 others: vm1-vmm=16010ms vm3-dev=6
+# 08:30:43 v2 restart before rep 2
+stopped
+dma table: 0:7ff900000000:40000000,40000000:7ff880000000:40000000,80000000:7ff840000000:40000000,100000000:7ff800000000:40000000
+server pid 3259664, VM pid 3259675; logs in /mnt/vmstore/caraxes/vm5
+cloud-hypervisor:   0.026020s: <vmm> WARN:net_util/src/open_tap.rs:84 -- Tap caraxes5 already exists. IP configuration will not be overwritten.
+cloud-hypervisor:   0.034848s: <vmm> INFO:vmm/src/device_manager.rs:3105 -- Creating virtio-rng device: RngConfig { pci_common: PciDeviceCommonConfig { id: None, iommu: false, pci_segment: 0, pci_device_id: None }, src: "/dev/urandom" }
+cloud-hypervisor:   0.036097s: <vmm> INFO:pci/src/vfio_user.rs:633 -- Enabling IRQ 0 number of fds = 1
+cloud-hypervisor:   7.369036s: <vmm> ERROR:pci/src/vfio_user.rs:383 -- Could not mmap sparse area (offset = 0x0, size = 0x2000000): Input/output error (os error 5)
+cloud-hypervisor:   7.370166s: <vmm> INFO:pci/src/vfio_user.rs:670 -- Disabling IRQ 0
+cloud-hypervisor:   7.370437s: <vmm> INFO:virtio-devices/src/device.rs:485 -- Resuming virtio-block
+cloud-hypervisor:   7.370551s: <vmm> INFO:virtio-devices/src/device.rs:485 -- Resuming virtio-net
+cloud-hypervisor:   7.370568s: <vmm> INFO:virtio-devices/src/device.rs:485 -- Resuming virtio-rng
+cloud-hypervisor:   7.370584s: <vmm> INFO:virtio-devices/src/device.rs:485 -- Resuming virtio-block
+cloud-hypervisor:   7.387188s: <vmm> INFO:vmm/src/lib.rs:2080 -- VM exit event
+cloud-hypervisor:   7.387232s: <vmm> INFO:event_monitor/src/lib.rs:113 -- Event: source = vm event = deleted 
+cloud-hypervisor:   7.387256s: <vmm> INFO:event_monitor/src/lib.rs:113 -- Event: source = vmm event = shutdown 
+cloud-hypervisor:   7.387499s: <main> ERROR:/mnt/vmstore/caraxes/ch-0006/cloud-hypervisor/src/lib.rs:24 -- Fatal error: VmBoot(VmBoot(DeviceManager(VfioUserMapRegion(Other(Os { code: 5, kind: Uncategorized, message: "Input/output error" })))))
+Error: Cloud Hypervisor exited with the following chain of errors:
+  0: Error booting VM
+  1: The VM could not boot
+  2: Error from device manager
+  3: Failed to map region from VFIO user device into guest
+  4: Other OS error
+  5: Input/output error (os error 5)
+ERROR: VM exited
+08:30:56 v2  rl              rep 2:  | # MEAS dev_pid=3259664 dev_cpu_ms=-7460 dev_rss_hwm_kb=-/- vmm_cpu_ms=0 others: vm1-vmm=800ms vm7-vmm=2600ms vm3-dev=690
+# 08:30:56 v2 restart before rep 3
+ssh: connect to host 192.168.105.26 port 22: No route to host
+stopped
+dma table: 0:7ffe80000000:40000000,40000000:7ffe00000000:40000000,80000000:7ffd80000000:40000000,100000000:7ffcc0000000:40000000
+server pid 3260972, VM pid 3260983; logs in /mnt/vmstore/caraxes/vm5
+cloud-hypervisor:  12.440716s: <vcpu6> INFO:vmm/src/vm.rs:510 -- Guest PIO write to unregistered address 0x279
+cloud-hypervisor:  12.440742s: <vcpu6> INFO:vmm/src/vm.rs:500 -- Guest PIO read from unregistered address 0x279
+cloud-hypervisor:  12.440769s: <vcpu6> INFO:vmm/src/vm.rs:510 -- Guest PIO write to unregistered address 0x27a
+cloud-hypervisor:  12.440797s: <vcpu6> INFO:vmm/src/vm.rs:500 -- Guest PIO read from unregistered address 0x27a
+cloud-hypervisor:  12.440826s: <vcpu6> INFO:vmm/src/vm.rs:510 -- Guest PIO write to unregistered address 0x278
+cloud-hypervisor:  12.441877s: <vcpu6> INFO:vmm/src/vm.rs:500 -- Guest PIO read from unregistered address 0x278
+cloud-hypervisor:  47.803474s: <vmm> INFO:vmm/src/lib.rs:2080 -- VM exit event
+cloud-hypervisor:  47.803535s: <vmm> INFO:virtio-devices/src/device.rs:485 -- Resuming virtio-block
+cloud-hypervisor:  47.803581s: <vmm> INFO:virtio-devices/src/device.rs:485 -- Resuming virtio-block
+cloud-hypervisor:  47.803619s: <vmm> INFO:virtio-devices/src/device.rs:485 -- Resuming virtio-rng
+cloud-hypervisor:  47.803665s: <vmm> INFO:virtio-devices/src/device.rs:485 -- Resuming virtio-net
+cloud-hypervisor:  47.806129s: <vmm> INFO:event_monitor/src/lib.rs:113 -- Event: source = vm event = shutdown 
+cloud-hypervisor:  47.806183s: <vmm> INFO:virtio-devices/src/device.rs:485 -- Resuming virtio-block
+cloud-hypervisor:  47.806213s: <vmm> INFO:virtio-devices/src/device.rs:485 -- Resuming virtio-block
+cloud-hypervisor:  47.806244s: <vmm> INFO:virtio-devices/src/device.rs:485 -- Resuming virtio-rng
+cloud-hypervisor:  47.806274s: <vmm> INFO:virtio-devices/src/device.rs:485 -- Resuming virtio-net
+cloud-hypervisor:  47.845390s: <vmm> INFO:pci/src/vfio_user.rs:670 -- Disabling IRQ 0
+cloud-hypervisor:  47.923744s: <vmm> INFO:event_monitor/src/lib.rs:113 -- Event: source = vm event = deleted 
+cloud-hypervisor:  47.923794s: <vmm> INFO:event_monitor/src/lib.rs:113 -- Event: source = vmm event = shutdown 
+cloud-hypervisor:  47.925919s: <main> INFO:cloud-hypervisor/src/main.rs:962 -- Cloud Hypervisor exited successfully
+ERROR: VM exited

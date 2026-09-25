@@ -1,0 +1,22 @@
+# series 2026-09-25T08:49:40+02:00 targets=[v2] reps=1 metrics=[short-auto launch1k copy]
+# libdir v2 /opt/nvrm/lib
+# caraxes shell-rig-335-g25c164b-dirty leandro-test 3edea73-dirty
+# bin c5b48cf1181bfcfc251f12aa2b0eaeb074887efec4c479f36efe399cb1307a13  bench-cu
+# bin 1fe322756ed297ae28ba698dbd7bcdd579dc65b09f6a3b6d9971343024c4d960  bench-cu-launch
+# bin 2e7db7218ac29e0da0b22a4d30307ea1f675dc04912d6b34922708495595904d  convnet.py
+# bin 68449e9ec7b25613a65d096a6a42864c01fbf46ec47e540ce01f47184f0479ea  ctrlping
+# bin 138c5073848b2f3cf2beb4709376c7c49b420d88e836664584e5cf8bbfc7848c  ioctlping
+# bin 1f921680fc7a2c2e0978eb007cc0ab48d2f1a7cf404a196c9063a19a10aa228f  kernels.ptx
+# bin abdf09531ac015ba4e8e7550bda6eb43609c429d6e1240e7f8553841bfe06513  llamaprobe.py
+# bin 2735d2a9cd25c0753898188542dbeb4a8433609024aa48230b6803a4a8d96e66  nvprobe
+# bin 012bb008b87ec0a6ee4ef566e0b55f856df09d6a3e07e72fe5cde5a9043dd18a  pporl.py
+# bin 02b1d58fc1778a47f8940e7f89d2cabb44b64d078f5b54b5ca1fba9437073c4a  transformer.py
+# bin f0868123fca8e2c40138fda523e35fa76c015b97e232fc647fea0b6b49f33584  vrampress
+# time 2026-09-25T08:49:40+02:00
+# gpu 50, 420 MHz, 405 MHz, P8, 18 %, 5226 MiB, Disabled
+# procs 3208281:-dev 3328768:vm5-dev 3328777:vm1-vmm 3337212:vm2-dev 3337233:vm1-vmm 3339104:vm7-615-dev 3339114:vm7-615-vmm 3339369:vm0-dev 3339387:vm1-vmm 
+# loadavg 5.28 7.00 7.56
+08:49:41 v2  short-auto      rep 1: MSPERLAUNCH=0.021 # WALL wall_ms=1121 rc=0  | # MEAS dev_pid=3328768 dev_cpu_ms=650 dev_rss_hwm_kb=4206632/6299268 vmm_cpu_ms=1040 others: vm7-615-dev=0ms vm1-vmm=176
+08:49:42 v2  launch1k        rep 1: LAUNCH n=1000 sched=auto cycles=1000 total_ms=21.251 per_launch_us=21.25 interval_mean_us=21.25 interval_p10_us=18.74 interval_p50_us=18.94 interval_p | # MEAS dev_pid=3328768 dev_cpu_ms=530 dev_rss_hwm_kb=4207364/6299268 vmm_cpu_ms=1150 others: vm7-615-dev=0ms vm1-vmm=680
+08:49:46 v2  copy            rep 1: # WALL wall_ms=3254 rc=0  | # MEAS dev_pid=3328768 dev_cpu_ms=1750 dev_rss_hwm_kb=4217628/6299268 vmm_cpu_ms=5730 others: vm1-vmm=1790ms vm0-dev=106
+# end 2026-09-25T08:49:46+02:00
