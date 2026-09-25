@@ -12,6 +12,9 @@ HERE=$(cd "$(dirname "$(readlink -f "$0")")" && pwd -P)
 R=${CARAXES_MAIN:-/home/silas/git/Caraxes}
 cd "$R" || exit 1
 SRC=$(base64 -w0 "$HERE/rc-journal-probe.c")
+# The device nodes, as nvidia-modprobe makes them (major 195: minor 255 control, 0 the GPU),
+# on a guest where nothing has opened the GPU yet (the 610 image has no nvidia-smi on PATH).
+tools/caraxes-vm.sh ssh 'for n in nvidiactl:255 nvidia0:0; do [ -e /dev/${n%:*} ] || sudo mknod -m 666 /dev/${n%:*} c 195 ${n#*:}; done; ls -l /dev/nvidiactl /dev/nvidia0' || exit 1
 tools/caraxes-vm.sh ssh "echo $SRC | base64 -d > /tmp/rc-journal-probe.c && gcc -O2 -Wall -o /tmp/rc-journal-probe /tmp/rc-journal-probe.c && echo built" || exit 1
 tools/caraxes-vm.sh ssh "sudo /tmp/rc-journal-probe $SECONDS_WAIT"
 rc=$?
