@@ -37,3 +37,13 @@ vfio-user device (`nova-guest.md` section 7, P23: which RM path the Windows driv
   the move. Windows may ask for re-activation after the hardware change.
 - The GPU comes later: `--user-device socket=...` as in `tools/caraxes-vm.sh`, first in pure
   emulation to see which driver path Windows takes.
+
+## Firmware build (done 2026-09-25 14:41)
+
+- edk2-stable202508, `OvmfPkg/CloudHv/CloudHvX64.dsc`, RELEASE, GCC5, `SECURE_BOOT_ENABLE=TRUE`,
+  `TPM2_ENABLE=TRUE`, four jobs, two minutes; result `/mnt/vmstore/caraxes/win11/CLOUDHV.fd`
+  (4.2 MiB).
+- BaseTools do not build with GCC 16 as shipped (`-Werror` on an unused variable in
+  `StringFuncs.c`): the three `-Werror` in `BaseTools/Source/C/Makefiles/header.makefile` were
+  removed in the build tree before `make -C BaseTools`.
+- Host packages added for this: `swtpm`, `nasm`, `acpica`.
