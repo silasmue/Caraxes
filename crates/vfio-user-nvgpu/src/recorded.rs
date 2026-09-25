@@ -38,6 +38,18 @@ pub const BUS_GET_INFO_V2: u32 = 0x2080_1823;
 pub const GRMGR_GET_GR_FS_INFO: u32 = 0x2080_3801;
 pub const GPU_QUERY_FUNCTION_STATUS: u32 = 0x2080_0173;
 pub const INTERNAL_GET_ENABLED_SEC2_CLASSES: u32 = 0x2080_0AAF;
+pub const FIFO_GET_ENGINE_CONTEXT_PROPERTIES: u32 = 0x0080_1707;
+/// A GSS-legacy GPU command (no public layout): the card answered the recorded one (cuInit,
+/// subcommand 0x25) NV_OK with the request unchanged.
+pub const GSS_LEGACY_GPU_59: u32 = 0x2080_8159;
+/// An LPWR control (category 0x28, message 6) absent from every public header; the Windows
+/// KMD sends it last before it gives up (4 bytes, zero). Answered NV_OK only with
+/// `CARAXES_LPWR_2806_OK=1`, to test whether its refusal is the gate.
+pub const LPWR_2806: u32 = 0x2080_2806;
+pub const LPWR_2806_ENV: &str = "CARAXES_LPWR_2806_OK";
+/// The main GR context size the device reports (no capture has it; generous, the
+/// zcull buffer alone is 0x78600 on the card): 2 MiB, 4 KiB aligned.
+const GR_MAIN_CTX_SIZE: u32 = 0x20_0000;
 
 const NV_ERR_INVALID_ARGUMENT: u32 = 0x1F;
 
@@ -180,7 +192,41 @@ pub fn answer(cmd: u32, params: &[u8], f: &Facts) -> Option<Answer> {
             LABEL_CHIP,
             "enabled SEC2 classes: none (the card's class list has no SEC2 class)".into(),
         )),
+        FIFO_GET_ENGINE_CONTEXT_PROPERTIES => Some(engine_ctx(params)),
+        GSS_LEGACY_GPU_59 => Some(ok(
+            params.to_vec(),
+            LABEL,
+            "gss legacy gpu 0x59: NV_OK, request unchanged (as the card answered the recorded cuInit one)".into(),
+        )),
+        LPWR_2806 if std::env::var(LPWR_2806_ENV).is_ok_and(|v| v == "1") => Some(ok(
+            vec![0; n],
+            LABEL_CHIP,
+            format!("lpwr 0x2806: NV_OK, zeros ({LPWR_2806_ENV}=1)"),
+        )),
         _ => None,
+    }
+}
+
+/// `FIFO_GET_ENGINE_CONTEXT_PROPERTIES` ({engineId, alignment, size}, ctrl0080fifo.h:92-135)
+/// for an engine the recordings do not have: the main GR context (0) 2 MiB, 4 KiB aligned;
+/// any other engine INVALID_ARGUMENT, one of the documented statuses.
+fn engine_ctx(params: &[u8]) -> Answer {
+    let mut b = params.to_vec();
+    b.resize(params.len().max(12), 0);
+    let id = get32(&b, 0) & 0x1F;
+    let st = if id == 0 {
+        put32(&mut b, 4, 0x1000);
+        put32(&mut b, 8, GR_MAIN_CTX_SIZE);
+        v::NV_OK
+    } else {
+        NV_ERR_INVALID_ARGUMENT
+    };
+    b.truncate(params.len());
+    Answer {
+        status: st,
+        params: b,
+        label: LABEL_CHIP,
+        note: format!("engine context properties: engine {id:#x}"),
     }
 }
 
@@ -334,6 +380,29 @@ mod tests {
         assert!(classes.contains(&0xC597) && classes.contains(&0xC5B5));
         // A request that matches no recording is not answered here.
         assert!(answer(0x0080_0292, &[1u8; 804], &F).is_none());
+    }
+
+    #[test]
+    fn engine_context_properties() {
+        // The recorded zcull request (engine 8) is the card's answer.
+        let mut p = vec![0u8; 12];
+        p[0] = 8;
+        let a = answer(FIFO_GET_ENGINE_CONTEXT_PROPERTIES, &p, &F).unwrap();
+        assert_eq!((a.status, get32(&a.params, 4), get32(&a.params, 8)), (0, 0x1000, 0x78600));
+        // The main GR context (what the Windows KMD asks).
+        let a = answer(FIFO_GET_ENGINE_CONTEXT_PROPERTIES, &[0u8; 12], &F).unwrap();
+        assert_eq!((a.status, get32(&a.params, 4), get32(&a.params, 8)), (0, 0x1000, GR_MAIN_CTX_SIZE));
+        p[0] = 3;
+        let a = answer(FIFO_GET_ENGINE_CONTEXT_PROPERTIES, &p, &F).unwrap();
+        assert_eq!(a.status, NV_ERR_INVALID_ARGUMENT);
+        let mut g = vec![0u8; 332];
+        g[0] = 1;
+        g[4] = 0xA;
+        let a = answer(GSS_LEGACY_GPU_59, &g, &F).unwrap();
+        assert_eq!((a.status, a.params), (0, g));
+        if std::env::var(LPWR_2806_ENV).is_err() {
+            assert!(answer(LPWR_2806, &[0u8; 4], &F).is_none());
+        }
     }
 
     #[test]
