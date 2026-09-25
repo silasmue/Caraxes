@@ -134,6 +134,16 @@ pub const GUEST_INFO_DRIVER_VERSION: usize = 24;
 /// `PACKED_REGISTRY_TABLE` (the SET_REGISTRY payload).
 pub const REGISTRY_SIZE: usize = 0;
 pub const REGISTRY_NUM_ENTRIES: usize = 4;
+pub const REGISTRY_ENTRIES: usize = 8;
+/// `PACKED_REGISTRY_ENTRY` (generated/g_os_nvoc.h:222-228): `nameOffset` counts from the
+/// table's first byte; `type` is `REGISTRY_TABLE_ENTRY_TYPE_*` (g_os_nvoc.h:240-243),
+/// and a DWORD entry carries its value in `data` (registry.c:585-589).
+pub const REGISTRY_ENTRY_SIZE: usize = 16;
+pub const REGISTRY_ENTRY_NAME_OFFSET: usize = 0;
+pub const REGISTRY_ENTRY_TYPE: usize = 4;
+pub const REGISTRY_ENTRY_DATA: usize = 8;
+pub const REGISTRY_ENTRY_LENGTH: usize = 12;
+pub const REGISTRY_TABLE_ENTRY_TYPE_DWORD: u8 = 1;
 
 /// `GspSystemInfo`, the GSP_SET_SYSTEM_INFO payload. The first four fields are the
 /// BAR0, BAR1 (FB), BAR3 (instance) and I/O addresses, one u64 each.
@@ -1310,6 +1320,13 @@ mod tests {
             field("PACKED_REGISTRY_TABLE", "numEntries"),
             REGISTRY_NUM_ENTRIES
         );
+        assert_eq!(field("PACKED_REGISTRY_TABLE", "entries"), REGISTRY_ENTRIES);
+        let e = "PACKED_REGISTRY_ENTRY";
+        assert_eq!(size(e), REGISTRY_ENTRY_SIZE);
+        assert_eq!(field(e, "nameOffset"), REGISTRY_ENTRY_NAME_OFFSET);
+        assert_eq!(field(e, "type"), REGISTRY_ENTRY_TYPE);
+        assert_eq!(field(e, "data"), REGISTRY_ENTRY_DATA);
+        assert_eq!(field(e, "length"), REGISTRY_ENTRY_LENGTH);
 
         let s = "GspSystemInfo";
         assert_eq!(field(s, "gpuPhysAddr"), SYSINFO_GPU_PHYS_ADDR);

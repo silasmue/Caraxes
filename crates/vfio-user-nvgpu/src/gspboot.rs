@@ -82,6 +82,67 @@ pub fn registry_policy(entries: &[(String, RegValue)]) -> (RegistryPolicy, Vec<S
     (p, notes)
 }
 
+/// The guest registry keys the device's model depends on: the module options of
+/// docs/caraxes/quickstart.md section 2 step 3, which every Caraxes guest carries in
+/// `/etc/modprobe.d/caraxes.conf`. A guest without them fails `RmInitAdapter` in pure
+/// emulation, and the failure looked like a device regression on 2026-09-24
+/// (docs/caraxes/blackwell-gate.md, "Pure emulation regressions of 2026-09-24"). One
+/// warning per key that is absent or has another value; paths in the 610.57.04 tree.
+///
+/// - `RmDisableGlobalCeUtils` = 1 (`NV_REG_STR_DISABLE_GLOBAL_CE_UTILS_YES`,
+///   interface/nvrm_registry.h:975-977, read at mem_mgr.c:331-335). Without it the kernel
+///   creates its global CeUtils and tests it with a CE memset (mem_mgr.c:445), whose
+///   channel the device does not execute (no VA space root, channel.rs): the memset times
+///   out and `memmgrInitCeUtils` fails (mem_mgr.c:508), `RmInitAdapter` 0x25:0x65.
+/// - `RmRcWatchdog` = 0 (`NV_REG_STR_RM_RC_WATCHDOG_DISABLE`, nvrm_registry.h:1584-1587,
+///   default enabled; read at kernel_rc.c:198-203). Without it `krcWatchdogInit` allocates
+///   a GR object, which needs a GPC in the floorsweeping masks
+///   (kernel_graphics_object.c:190-192); pure emulation answers the masks with zero.
+/// - `RMDisableScrubOnFree` nonzero (nvrm_registry.h:926, mem_mgr.c:204-208). Without it
+///   freed video memory is scrubbed through the copy engine.
+pub fn missing_guest_keys(entries: &[(String, RegValue)]) -> Vec<String> {
+    let get = |k: &str| {
+        entries.iter().find_map(|(n, v)| match v {
+            RegValue::U32(x) if n == k => Some(*x),
+            _ => None,
+        })
+    };
+    let mut out = Vec::new();
+    let mut want = |key: &str, ok: bool, have: Option<u32>, need: &str, why: &str| {
+        if !ok {
+            let have = have.map_or("absent".to_string(), |x| format!("{x}"));
+            out.push(format!(
+                "WARNING guest registry {key} is {have}, the device needs {need} (docs/caraxes/quickstart.md section 2): {why}"
+            ));
+        }
+    };
+    let ce = get("RmDisableGlobalCeUtils");
+    want(
+        "RmDisableGlobalCeUtils",
+        ce == Some(1),
+        ce,
+        "1",
+        "the kernel's CeUtils memset will time out (mem_mgr.c:445) and RmInitAdapter fail",
+    );
+    let wd = get("RmRcWatchdog");
+    want(
+        "RmRcWatchdog",
+        wd == Some(0),
+        wd,
+        "0",
+        "krcWatchdogInit allocates a GR object, which needs a GPC in the floorsweeping masks (kernel_graphics_object.c:192), and pure emulation answers them with zero",
+    );
+    let sc = get("RMDisableScrubOnFree");
+    want(
+        "RMDisableScrubOnFree",
+        sc.is_some_and(|x| x != 0),
+        sc,
+        "nonzero",
+        "freed video memory will be scrubbed through the copy engine",
+    );
+    out
+}
+
 // ---------------------------------------------------------------------------------
 // B7: NVGMC_SI_UNSTABLE_INTERFACE_SUPPORT (interface/gmcapi/gmcapi_system_info.h:200-203),
 // RPC 0:0 and EVENTS 1:1; the 615 kernel sets both (kernel_gsp.c:5203-5206).
@@ -180,6 +241,32 @@ mod tests {
         ]);
         assert!(!p.log_on_rc && !p.split_vas && p.firmware_logs);
         assert_eq!(notes.len(), 3, "RmRcWatchdog is traced only: {notes:?}");
+    }
+
+    /// The pure-emulation boots of 2026-09-24 that failed at mem_mgr.c:445 and
+    /// kernel_graphics_object.c:192 ran a guest without the three keys; the quickstart's
+    /// registry string gives no warning (docs/caraxes/blackwell-gate.md section 5).
+    #[test]
+    fn guest_keys_the_device_needs() {
+        let w = missing_guest_keys(&[]);
+        assert_eq!(w.len(), 3, "{w:?}");
+        assert!(w[0].contains("RmDisableGlobalCeUtils is absent") && w[0].contains("mem_mgr.c:445"));
+        assert!(w[1].contains("RmRcWatchdog is absent") && w[1].contains("kernel_graphics_object.c:192"));
+        let quickstart: Vec<(String, RegValue)> = vec![
+            ("RmDisableGlobalCeUtils".into(), RegValue::U32(1)),
+            ("RMDisableScrubOnFree".into(), RegValue::U32(1)),
+            ("RmRcWatchdog".into(), RegValue::U32(0)),
+            ("ResmanDebugLevel".into(), RegValue::U32(0)),
+        ];
+        assert!(missing_guest_keys(&quickstart).is_empty());
+        let mut on = quickstart.clone();
+        on[2].1 = RegValue::U32(1);
+        let w = missing_guest_keys(&on);
+        assert_eq!(w.len(), 1, "{w:?}");
+        assert!(w[0].starts_with("WARNING guest registry RmRcWatchdog is 1, the device needs 0"));
+        // A string value is not the DWORD the kernel reads.
+        on[2].1 = RegValue::String("0".into());
+        assert_eq!(missing_guest_keys(&on).len(), 1);
     }
 
     #[test]

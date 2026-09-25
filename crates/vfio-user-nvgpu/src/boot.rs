@@ -1393,7 +1393,14 @@ impl BootModel {
                         self.system_info = Some(msg.payload.clone());
                         None
                     }
-                    rpc::FN_SET_REGISTRY => None,
+                    rpc::FN_SET_REGISTRY => {
+                        let entries = rpc::packed_registry(&msg.payload);
+                        for (name, value) in &entries {
+                            notes.push(format!("registry {name} = {value:?}"));
+                        }
+                        self.guest_key_warnings(&entries, &mut notes);
+                        None
+                    }
                     // 615 on: one GMCAPI request in place of the four init RPCs
                     // (docs/caraxes/gsp-transport-615.md §4-5); its id lies above the RPC
                     // function numbers, so a 610 guest never reaches these arms.
@@ -2064,6 +2071,15 @@ impl BootModel {
         Ok(notes)
     }
 
+    /// The guest registry keys the device needs (gspboot.rs `missing_guest_keys`): each
+    /// warning goes to the trace and to the device log, where a boot check reads it.
+    fn guest_key_warnings(&self, entries: &[(String, crate::gmcapi::RegValue)], notes: &mut Vec<String>) {
+        for w in crate::gspboot::missing_guest_keys(entries) {
+            eprintln!("vfio-user-nvgpu: {w}");
+            notes.push(w);
+        }
+    }
+
     /// `GMCAPI_CMD_GSP_INIT`: read the NVKV system information (BAR addresses, driver
     /// version, registry), answer with the static configuration as NVKV keys
     /// (`rpc::static_info_nvkv`), bounded by the request's `max_response_size`.
@@ -2092,6 +2108,7 @@ impl BootModel {
         }
         let (policy, honoured) = crate::gspboot::registry_policy(&si.registry);
         notes.extend(honoured);
+        self.guest_key_warnings(&si.registry, notes);
         self.registry = policy;
         let opt = crate::gspboot::Unstable::from_key(si.unstable);
         notes.push(format!(
@@ -2298,6 +2315,8 @@ mod tests {
             "{notes:?}"
         );
         assert!(notes.iter().any(|n| n.starts_with("registry RmRcWatchdog = U32(0)")), "{notes:?}");
+        // The captured guest carries the three keys the device needs (gspboot.rs).
+        assert!(!notes.iter().any(|n| n.contains("WARNING guest registry")), "{notes:?}");
         assert!(notes.iter().any(|n| n.starts_with("tx seq 0 reply GMCAPI_GSP_INIT sequence 0 result 0x0")), "{notes:?}");
         assert_eq!(b.ctrl.bar_offsets, [0xe600_0000, 0x3fff_e000_0000, 0x3fff_fc00_0000, 0]);
         // QUEUE_TAIL: one element consumed; MSGQ_HEAD: one element published.

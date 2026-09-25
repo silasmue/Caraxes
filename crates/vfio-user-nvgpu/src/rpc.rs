@@ -62,6 +62,38 @@ fn u64_at(b: &[u8], off: usize) -> u64 {
     u64::from_le_bytes(b[off..off + 8].try_into().unwrap())
 }
 
+/// The DWORD entries of a `SET_REGISTRY` payload, a `PACKED_REGISTRY_TABLE`
+/// (generated/g_os_nvoc.h:222-235, filled by `RmPackageRegistry`, registry.c:629-704): the
+/// entry table after the header, each name a NUL-terminated string at `nameOffset` from the
+/// table's first byte. String and binary entries are skipped (the device uses none), as is
+/// an entry whose name lies outside the payload.
+pub fn packed_registry(payload: &[u8]) -> Vec<(String, crate::gmcapi::RegValue)> {
+    let n = u32_at(payload, v::REGISTRY_NUM_ENTRIES) as usize;
+    let mut out = Vec::new();
+    for i in 0..n {
+        let e = v::REGISTRY_ENTRIES + i * v::REGISTRY_ENTRY_SIZE;
+        if e + v::REGISTRY_ENTRY_SIZE > payload.len() {
+            break;
+        }
+        if payload[e + v::REGISTRY_ENTRY_TYPE] != v::REGISTRY_TABLE_ENTRY_TYPE_DWORD {
+            continue;
+        }
+        let at = u32_at(payload, e + v::REGISTRY_ENTRY_NAME_OFFSET) as usize;
+        let Some(name) = payload.get(at..).and_then(|s| s.split(|b| *b == 0).next()) else {
+            continue;
+        };
+        if at + name.len() >= payload.len() {
+            continue; // no terminating NUL inside the payload
+        }
+        let value = u32_at(payload, e + v::REGISTRY_ENTRY_DATA);
+        out.push((
+            String::from_utf8_lossy(name).into_owned(),
+            crate::gmcapi::RegValue::U32(value),
+        ));
+    }
+    out
+}
+
 /// One line describing a request payload, for the trace.
 pub fn describe(function: u32, payload: &[u8]) -> String {
     match function {
@@ -685,6 +717,58 @@ pub struct StaticExtra<'a> {
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
+
+    /// A `PACKED_REGISTRY_TABLE` as `RmPackageRegistry` lays it out (registry.c:648-702):
+    /// header, entry table, then the names and the non-DWORD data in entry order.
+    fn packed_table(entries: &[(&str, u8, u32)]) -> Vec<u8> {
+        let mut t = vec![0u8; v::REGISTRY_ENTRIES + v::REGISTRY_ENTRY_SIZE * entries.len()];
+        for (i, (name, ty, data)) in entries.iter().enumerate() {
+            let e = v::REGISTRY_ENTRIES + i * v::REGISTRY_ENTRY_SIZE;
+            let at = t.len() as u32;
+            t.extend_from_slice(name.as_bytes());
+            t.push(0);
+            t[e..e + 4].copy_from_slice(&at.to_le_bytes());
+            t[e + v::REGISTRY_ENTRY_TYPE] = *ty;
+            t[e + v::REGISTRY_ENTRY_DATA..e + v::REGISTRY_ENTRY_DATA + 4].copy_from_slice(&data.to_le_bytes());
+            t[e + v::REGISTRY_ENTRY_LENGTH..e + v::REGISTRY_ENTRY_LENGTH + 4].copy_from_slice(&4u32.to_le_bytes());
+        }
+        let size = t.len() as u32;
+        t[0..4].copy_from_slice(&size.to_le_bytes());
+        t[4..8].copy_from_slice(&(entries.len() as u32).to_le_bytes());
+        t
+    }
+
+    /// The 610 guest's registry reaches the device through SET_REGISTRY (the 615 guest's
+    /// through GSP_INIT); the device reads its DWORD entries and checks the keys it needs.
+    #[test]
+    fn set_registry_entries() {
+        use crate::gmcapi::RegValue;
+        let t = packed_table(&[
+            ("RmDisableGlobalCeUtils", 1, 1),
+            ("RmSomeString", 3, 0x40),
+            ("RMDisableScrubOnFree", 1, 1),
+            ("RmRcWatchdog", 1, 0),
+        ]);
+        let e = packed_registry(&t);
+        assert_eq!(
+            e,
+            vec![
+                ("RmDisableGlobalCeUtils".to_string(), RegValue::U32(1)),
+                ("RMDisableScrubOnFree".to_string(), RegValue::U32(1)),
+                ("RmRcWatchdog".to_string(), RegValue::U32(0)),
+            ]
+        );
+        assert!(crate::gspboot::missing_guest_keys(&e).is_empty());
+        // The ladder's vm6 guest: no caraxes.conf, so none of the three keys.
+        let bare = packed_registry(&packed_table(&[("ResmanDebugLevel", 1, 0)]));
+        assert_eq!(crate::gspboot::missing_guest_keys(&bare).len(), 3);
+        // Truncated tables and names without a NUL inside the payload are skipped.
+        assert!(packed_registry(&t[..v::REGISTRY_ENTRIES + 4]).is_empty());
+        let mut cut = t.clone();
+        cut.truncate(t.len() - 1);
+        assert_eq!(packed_registry(&cut).len(), 2);
+        assert!(packed_registry(&[]).is_empty());
+    }
 
     /// The key checks of `_kgspStaticInfoKeyHandler` (kernel_gsp.c:7729-7862 of 615),
     /// for every key the table has: the value type, index 0 for plain keys, an index
