@@ -1,0 +1,3 @@
+vfio-user-nvgpu: host BAR1: 232 MiB free (nvidia-smi -q -d MEMORY), the pool and its windows need 128 MiB, floor 96 MiB
+vfio-user-nvgpu: bar1 pool: the device reaches the pool through the FB store's windows (CARAXES_BAR1_POOL_PIN=0)
+vfio-user-nvgpu: bar1 pool: guest BAR1 [0, 0x4000000) offered as one sparse mmap area of region 1, backed by a dma-buf of the pool FB [0x1e5600000, 0x1e9600000) below the carve-out; the guest's usable FB ends at 0x1e5600000 (fbRegionInfo region 0), the pool is reported reserved; every page the guest

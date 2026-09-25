@@ -1,0 +1,32 @@
+==lat
+[2026-09-25 18:51:53.809]: Debug: Frame processing latency (min/max/avg): 22.90ms/182.30ms/55.70ms
+[2026-09-25 18:52:13.845]: Debug: Frame processing latency (min/max/avg): 21.40ms/217.10ms/53.80ms
+==top
+top - 18:52:29 up 12 min,  3 users,  load average: 3.04, 1.99, 1.07
+Tasks: 294 total,   3 running, 291 sleeping,   0 stopped,   0 zombie
+%Cpu(s):  4.6 us,  8.3 sy,  0.0 ni, 76.8 id,  0.0 wa,  0.0 hi,  0.9 si,  9.3 st 
+MiB Mem :   7940.0 total,   3174.1 free,   2289.1 used,   2886.5 buff/cache     
+MiB Swap:      0.0 total,      0.0 free,      0.0 used.   5650.8 avail Mem 
+
+    PID USER      PR  NI    VIRT    RES    SHR S  %CPU  %MEM     TIME+ COMMAND
+   6408 leandro   20   0 7580728 428288 335272 S  99.0   5.3   1:10.38 sunshine
+   2052 leandro   20   0 4429092 374688 221312 S  71.0   4.6   5:53.25 gnome-s+
+   3026 leandro   20   0 1252764 284104 193384 R  36.0   3.5   2:58.70 steamwe+
+   2783 leandro   20   0  438320 148484 115620 S  11.0   1.8   0:34.41 Xwayland
+   3337 leandro   20   0   47.1g 205200 118640 S   7.0   2.5   0:31.73 steamwe+
+   1065 leandro   20   0  114700  14044   8524 S   5.0   0.2   0:01.26 pipewire
+   1070 leandro   20   0  115172  18024   9968 R   5.0   0.2   0:01.95 pipewir+
+   3077 leandro   20   0   47.2g 541376 107368 S   3.0   6.7   0:26.74 steamwe+
+==vmstat
+procs -----------memory---------- ---swap-- -----io---- -system-- -------cpu-------
+ r  b   swpd   free   buff  cache   si   so    bi    bo   in   cs us sy id wa st gu
+ 3  0      0 3248080  91888 2864148    0    0  3639   531 5232    5  6  7 85  0  2  0
+ 2  0      0 3248544  91888 2866400    0    0     0     0 9662 9400  5 10 74  0 11  0
+ 2  0      0 3248096  91888 2866696    0    0     0     0 9421 8771  6 12 75  0  8  0
+ 3  0      0 3254492  91888 2866732    0    0     0     0 9251 8962  5 10 76  0  9  0
+ 4  0      0 3254440  91888 2864612    0    0     0     0 9403 9169  4  9 80  0  7  0
+==D
+   1698 D    -                        nvidia-modeset/kthread_q
+==smi
+6408, sunshine, 188 MiB
+1345 MiB

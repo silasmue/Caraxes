@@ -1,0 +1,33 @@
+==lat
+[2026-09-25 18:53:13.914]: Debug: Frame processing latency (min/max/avg): 26.20ms/159.00ms/56.75ms
+[2026-09-25 18:53:33.936]: Debug: Frame processing latency (min/max/avg): 22.60ms/303.70ms/45.82ms
+[2026-09-25 18:53:53.957]: Debug: Frame processing latency (min/max/avg): 22.30ms/108.80ms/43.88ms
+[2026-09-25 18:54:13.968]: Debug: Frame processing latency (min/max/avg): 28.00ms/136.80ms/58.25ms
+==top
+top - 18:54:21 up 13 min,  3 users,  load average: 3.11, 2.35, 1.31
+Tasks: 295 total,   2 running, 293 sleeping,   0 stopped,   0 zombie
+%Cpu(s):  4.9 us, 10.6 sy,  0.0 ni, 79.5 id,  0.1 wa,  0.0 hi,  1.6 si,  3.3 st 
+MiB Mem :   7940.0 total,   3073.1 free,   2362.0 used,   2927.3 buff/cache     
+MiB Swap:      0.0 total,      0.0 free,      0.0 used.   5578.0 avail Mem 
+
+    PID USER      PR  NI    VIRT    RES    SHR S  %CPU  %MEM     TIME+ COMMAND
+   6408 leandro   20   0 7580728 428460 335292 S  92.1   5.3   2:48.15 sunshine
+   3026 leandro   20   0 1270296 298812 202520 S  74.3   3.7   3:47.99 steamwe+
+   2052 leandro   20   0 4477640 423216 221344 R  42.6   5.2   6:50.06 gnome-s+
+   2783 leandro   20   0  438324 148488 115624 S   9.9   1.8   0:41.92 Xwayland
+   1698 root      20   0       0      0      0 S   3.0   0.0   0:07.91 nvidia-+
+    354 root      19  -1   59280  22120  20508 S   2.0   0.3   0:08.77 systemd+
+   1065 leandro   20   0  114700  14044   8524 S   2.0   0.2   0:03.21 pipewire
+   1070 leandro   20   0  115172  18024   9968 S   2.0   0.2   0:04.91 pipewir+
+==vmstat
+procs -----------memory---------- ---swap-- -----io---- -system-- -------cpu-------
+ r  b   swpd   free   buff  cache   si   so    bi    bo   in   cs us sy id wa st gu
+ 4  0      0 3148132  92248 2905584    0    0  3149   593 5932    7  6  7 84  0  3  0
+ 1  0      0 3162224  92248 2893224    0    0     0     0 10018 9987  5 10 82  0  3  0
+ 2  0      0 3163264  92248 2893552    0    0     0     0 9585 9618  4 11 83  0  3  0
+ 1  0      0 3164280  92248 2893728    0    0     0     0 9910 10113  5  8 85  0  3  0
+ 2  0      0 3149508  92272 2902148    0    0     0   164 10147 10303  5  9 84  0  2  0
+==D
+==smi
+6408, sunshine, 188 MiB
+1301 MiB

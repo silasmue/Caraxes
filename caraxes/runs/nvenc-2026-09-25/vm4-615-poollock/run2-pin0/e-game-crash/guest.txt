@@ -1,0 +1,35 @@
+==lat
+[2026-09-25 19:00:34.378]: Debug: Frame processing latency (min/max/avg): 23.40ms/150.00ms/47.24ms
+[2026-09-25 19:00:54.392]: Debug: Frame processing latency (min/max/avg): 26.90ms/137.50ms/51.70ms
+[2026-09-25 19:01:14.396]: Debug: Frame processing latency (min/max/avg): 26.20ms/313.10ms/62.48ms
+[2026-09-25 19:01:34.410]: Debug: Frame processing latency (min/max/avg): 23.40ms/178.30ms/57.06ms
+==top
+top - 19:01:49 up 21 min,  3 users,  load average: 4.01, 3.45, 2.26
+Tasks: 305 total,   4 running, 301 sleeping,   0 stopped,   0 zombie
+%Cpu(s): 19.1 us,  9.0 sy,  0.0 ni, 66.5 id,  0.0 wa,  0.0 hi,  1.7 si,  3.7 st 
+MiB Mem :   7940.0 total,   2546.9 free,   2543.5 used,   3385.6 buff/cache     
+MiB Swap:      0.0 total,      0.0 free,      0.0 used.   5396.5 avail Mem 
+
+    PID USER      PR  NI    VIRT    RES    SHR S  %CPU  %MEM     TIME+ COMMAND
+   9626 leandro   20   0  223796  70640  54496 R 100.0   0.9   0:28.77 FeralLi+
+   6408 leandro   20   0 7580728 429612 335292 S  90.1   5.3   9:16.88 sunshine
+   2052 leandro   20   0 4477640 423356 221348 R  63.4   5.2  10:31.38 gnome-s+
+   3026 leandro   20   0 1848840 311740 194176 R  34.7   3.8   6:48.97 steamwe+
+   2783 leandro   20   0  444376 157664 123824 S   6.9   1.9   1:12.84 Xwayland
+   3337 leandro   20   0   47.1g 204332 118144 S   6.9   2.5   1:02.05 steamwe+
+    793 syslog    20   0  222572   6648   4520 S   3.0   0.1   0:15.31 rsyslogd
+   1070 leandro   20   0  115716  18640   9968 S   3.0   0.2   0:15.84 pipewir+
+==vmstat
+procs -----------memory---------- ---swap-- -----io---- -system-- -------cpu-------
+ r  b   swpd   free   buff  cache   si   so    bi    bo   in   cs us sy id wa st gu
+ 5  0      0 2607132 111004 3355948    0    0  2237   660 7534    9  9  8 79  0  3  0
+ 3  0      0 2588804 111004 3366512    0    0     0     0 10091 8767 18 13 65  0  4  0
+ 2  0      0 2591036 111004 3366696    0    0     0   748 10638 9791 20 11 65  0  4  0
+ 2  0      0 2600028 111004 3356416    0    0     0     0 10599 10071 17 10 69  0  4  0
+ 2  0      0 2599552 111004 3356612    0    0     0     0 10380 9605 18 11 67  0  5  0
+==D
+   1698 D    -                        nvidia-modeset/kthread_q
+   2052 Dsl  os_acquire_rwlock_read   gnome-shell
+==smi
+6408, sunshine, 188 MiB
+1669 MiB

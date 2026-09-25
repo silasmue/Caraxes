@@ -1,0 +1,6 @@
+    BAR1 Memory Usage
+        Total                                          : 256 MiB
+        Used                                           : 157 MiB
+        Free                                           : 99 MiB
+memory.used [MiB], memory.free [MiB]
+4457 MiB, 3322 MiB
