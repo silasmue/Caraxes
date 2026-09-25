@@ -40,6 +40,11 @@ pub use v615 as active;
 #[cfg(all(feature = "v610", not(feature = "v615")))]
 pub use v610 as active;
 
+/// Driver 570.144's GSP boot vocabulary, the firmware nova-core speaks (Linux 7.2.7,
+/// docs/caraxes/nova-guest.md): data only, served by a 610 build under
+/// `CARAXES_GUEST_ABI=570` ([`older_guest`]).
+pub mod v570;
+
 #[cfg(not(feature = "v610"))]
 compile_error!("vfio-user-nvgpu needs a driver-version feature (v610)");
 
@@ -308,15 +313,16 @@ pub enum GspTransport {
 /// The guest ABI the device serves, checked against this build (fail closed): what
 /// `--guest-abi` and `CARAXES_GUEST_ABI` ask for must be the build's own
 /// (`active::GSP_TRANSPORT`: 610 in a default build, 615 in a `--features v615` build), or
-/// 595 in a 610 build together with the environment switch that selects the pre-610
-/// element layout ([`element_layout`]). Neither given: the build's. Returns the ABI.
+/// 595 or 570 in a 610 build together with the environment switch that selects the pre-610
+/// element layout ([`element_layout`], [`older_guest`]; 570 is nova-core's firmware,
+/// docs/caraxes/nova-guest.md). Neither given: the build's. Returns the ABI.
 pub fn check_guest_abi(flag: Option<u32>, env: Option<&str>) -> Result<u32, String> {
     let build = active::GSP_TRANSPORT.guest_abi();
     let env = match env {
         None | Some("") => None,
         Some(v) => Some(
             v.parse::<u32>()
-                .map_err(|_| format!("CARAXES_GUEST_ABI={v:?} is not 595, 610 or 615"))?,
+                .map_err(|_| format!("CARAXES_GUEST_ABI={v:?} is not 570, 595, 610 or 615"))?,
         ),
     };
     if let (Some(f), Some(e)) = (flag, env) {
@@ -330,8 +336,10 @@ pub fn check_guest_abi(flag: Option<u32>, env: Option<&str>) -> Result<u32, Stri
         _ => "cargo build --release -p vfio-user-nvgpu".to_string(),
     };
     match want {
-        595 if build == 610 && env == Some(595) => Ok(595),
-        595 => Err("guest ABI 595 needs a 610 build and CARAXES_GUEST_ABI=595 in the device's environment".into()),
+        570 | 595 if build == 610 && env == Some(want) => Ok(want),
+        570 | 595 => Err(format!(
+            "guest ABI {want} needs a 610 build and CARAXES_GUEST_ABI={want} in the device's environment"
+        )),
         610 | 615 if want == build => Ok(want),
         610 | 615 => Err(format!(
             "guest ABI {want}, but this binary emulates {} with the {build} transport ({:?}); use the binary of `{}`",
@@ -339,7 +347,7 @@ pub fn check_guest_abi(flag: Option<u32>, env: Option<&str>) -> Result<u32, Stri
             active::GSP_TRANSPORT,
             how(want)
         )),
-        other => Err(format!("guest ABI {other} is none of 595, 610, 615")),
+        other => Err(format!("guest ABI {other} is none of 570, 595, 610, 615")),
     }
 }
 
@@ -369,6 +377,9 @@ mod abi_tests {
         assert!(check_guest_abi(None, Some("6x5")).is_err());
         assert!(check_guest_abi(Some(595), None).is_err(), "595 needs the environment switch");
         assert_eq!(check_guest_abi(None, Some("595")).is_ok(), build == 610);
+        assert_eq!(check_guest_abi(Some(570), Some("570")).is_ok(), build == 610);
+        assert!(check_guest_abi(Some(570), None).is_err(), "570 needs the environment switch");
+        assert!(check_guest_abi(Some(570), Some("595")).is_err());
     }
 }
 
@@ -467,16 +478,62 @@ impl ElementLayout {
     };
 }
 
-/// The layout selected by `CARAXES_GUEST_ABI` (read once).
-pub fn element_layout() -> ElementLayout {
-    static L: std::sync::OnceLock<ElementLayout> = std::sync::OnceLock::new();
-    *L.get_or_init(|| match std::env::var("CARAXES_GUEST_ABI").as_deref() {
+#[cfg(test)]
+thread_local! {
+    /// A test's stand-in for `CARAXES_GUEST_ABI` (per test thread): `Some(guest)` overrides
+    /// [`older_guest`].
+    pub(crate) static TEST_GUEST: std::cell::Cell<Option<Option<u32>>> = const { std::cell::Cell::new(None) };
+}
+
+/// A guest older than the emulated version that a 610 build serves on request
+/// (`CARAXES_GUEST_ABI`, read once): 595 (the Ubuntu driver of
+/// docs/caraxes/guest-driver-versions.md) or 570 (570.144, the firmware Linux 7.2.7's
+/// nova-core loads, docs/caraxes/nova-guest.md). None: the emulated version.
+pub fn older_guest() -> Option<u32> {
+    #[cfg(test)]
+    if let Some(g) = TEST_GUEST.with(|c| c.get()) {
+        return g;
+    }
+    static G: std::sync::OnceLock<Option<u32>> = std::sync::OnceLock::new();
+    *G.get_or_init(|| match std::env::var("CARAXES_GUEST_ABI").as_deref() {
         Ok("595") => {
             log::warn!("CARAXES_GUEST_ABI=595: pre-610 GSP queue elements (experiment)");
-            ElementLayout::PRE_610
+            Some(595)
         }
-        _ => ElementLayout::EMULATED,
+        Ok("570") => {
+            log::warn!(
+                "CARAXES_GUEST_ABI=570: r570.144 GSP boot for nova-core (pre-610 elements, CPU sequencer, 570 static info)"
+            );
+            Some(570)
+        }
+        _ => None,
     })
+}
+
+/// The layout selected by `CARAXES_GUEST_ABI`: 570.144 frames its elements as 595 does
+/// (`GSP_MSG_QUEUE_ELEMENT` with the RPC header at 0x30, 570.144
+/// `src/nvidia/inc/kernel/gpu/gsp/message_queue_priv.h`; nova-core
+/// `gsp/fw/r570_144/bindings.rs:868-876` of Linux 7.2.7).
+pub fn element_layout() -> ElementLayout {
+    match older_guest() {
+        Some(_) => ElementLayout::PRE_610,
+        None => ElementLayout::EMULATED,
+    }
+}
+
+/// The events the device sends when it links the queues, in order: GSP_INIT_DONE for the
+/// emulated version (`rpc_init_done_v17_00`, 1 byte in 610); for a 570 guest first an empty
+/// GSP_RUN_CPU_SEQUENCER and then GSP_INIT_DONE, because nova-core waits for the sequencer
+/// first and consumes and drops every message it is not waiting for (Linux 7.2.7 nova-core
+/// `gsp/hal/tu102.rs:335-356`, then `gsp/boot.rs:153-154`; `gsp/cmdq.rs:813-848`).
+pub fn link_events(guest: Option<u32>) -> Vec<(u32, Vec<u8>)> {
+    match guest {
+        Some(570) => vec![
+            (v570::EV_GSP_RUN_CPU_SEQUENCER, v570::empty_sequence()),
+            (active::EV_GSP_INIT_DONE, vec![0u8; v570::INIT_DONE_SIZE]),
+        ],
+        _ => vec![(active::EV_GSP_INIT_DONE, vec![0u8])],
+    }
 }
 
 /// `GspStaticConfigInfo` as a pre-610 guest reads it (`CARAXES_GUEST_ABI=595`):
@@ -486,7 +543,17 @@ pub fn element_layout() -> ElementLayout {
 /// (gsp-abi-sizes of both trees, docs/caraxes/guest-driver-versions.md). Everything
 /// before 0x5fc is identical. Unchanged for the emulated version.
 pub fn static_info_for_guest(info: Vec<u8>) -> Vec<u8> {
-    if element_layout() != ElementLayout::PRE_610 || info.len() != 0x640 {
+    static_info_for(older_guest(), info)
+}
+
+/// [`static_info_for_guest`] for a given older guest (the tests pass it; the device reads
+/// `CARAXES_GUEST_ABI`). A 570 guest gets the 570.144 layout, remapped field by field by the
+/// table generated from the two snapshots ([`v570::static_info`]).
+pub fn static_info_for(guest: Option<u32>, info: Vec<u8>) -> Vec<u8> {
+    if guest == Some(570) {
+        return v570::static_info(&info);
+    }
+    if guest != Some(595) || info.len() != 0x640 {
         return info;
     }
     let mut out = vec![0u8; 0x638];

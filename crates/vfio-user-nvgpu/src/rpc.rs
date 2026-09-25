@@ -38,6 +38,7 @@ pub fn function_name(f: u32) -> &'static str {
         FN_GSP_RM_ALLOC => "GSP_RM_ALLOC",
         FN_INIT_GSP_TRACE_CRASH_BUFFER => "INIT_GSP_TRACE_CRASH_BUFFER",
         EV_GSP_INIT_DONE => "GSP_INIT_DONE",
+        crate::ver::v570::EV_GSP_RUN_CPU_SEQUENCER => "GSP_RUN_CPU_SEQUENCER",
         crate::gspmem::FN_ALLOC_MEMORY => "ALLOC_MEMORY",
         // The GMCAPI commands of the GSP management category share the namespace above
         // 0xFFFF (615 on, gmcapi.rs).

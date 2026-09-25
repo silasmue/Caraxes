@@ -505,7 +505,7 @@ def parse_ctrl_layouts_rs(rs):
 def ctrl_layouts_of(ogkm, workdir):
     out = os.path.join(workdir, "ctrl_layouts.rs")
     r = subprocess.run([sys.executable, os.path.join(TOOLS, "ctrl-layouts.py"), "--ogkm", ogkm,
-                        "--out", out], capture_output=True, text=True)
+                        "--out", out, "--skip-missing"], capture_output=True, text=True)
     if r.returncode != 0:
         print("warning: ctrl-layouts.py failed for this tree, no control layouts: %s"
               % (r.stderr.strip() or r.stdout.strip())[-300:], file=sys.stderr)
