@@ -14,6 +14,8 @@
 #include <stdarg.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #include <sys/ioctl.h>
 
 // NVOS54_PARAMETERS (nvos.h): the RM_CONTROL escape.
@@ -47,6 +49,38 @@ int ioctl(int fd, unsigned long req, ...)
         return r;
     if (_IOC_NR(req) == ESC_RM_CONTROL && _IOC_SIZE(req) >= sizeof(struct nvos54)) {
         struct nvos54 *p = arg;
+        uint8_t *w = (uint8_t *)(uintptr_t)p->params;
+        // Experiments (off by default): RMLOG_VIRT=<n> rewrites the answer of
+        // NV0080_CTRL_CMD_GPU_GET_VIRTUALIZATION_MODE (0x800289, virtualizationMode @0);
+        // RMLOG_GRCAPS=<46 hex digits> rewrites NV0080_CTRL_CMD_GR_GET_CAPS_V2's capsTbl
+        // (0x801109, 23 bytes @0).
+        const char *e;
+        if (w && p->status == 0 && p->cmd == 0x800289 && (e = getenv("RMLOG_VIRT")) && p->paramsSize >= 4) {
+            uint32_t v = (uint32_t)strtoul(e, NULL, 0);
+            memcpy(w, &v, 4);
+            fprintf(stderr, "RMLOG rewrote 0x800289 virtualizationMode to %u\n", v);
+        }
+        // RMLOG_ENGINES=<comma-separated NV2080 engine types> rewrites NV2080_CTRL_CMD_GPU_GET_ENGINES_V2
+        // (0x20800170: engineCount @0, engineList[] @4).
+        if (w && p->status == 0 && p->cmd == 0x20800170 && (e = getenv("RMLOG_ENGINES")) && p->paramsSize >= 8) {
+            uint32_t n = 0;
+            for (char *s = (char *)e; *s && 4 + 4 * (n + 1) <= p->paramsSize;) {
+                uint32_t v = (uint32_t)strtoul(s, &s, 0);
+                memcpy(w + 4 + 4 * n++, &v, 4);
+                if (*s == ',')
+                    s++;
+            }
+            memcpy(w, &n, 4);
+            fprintf(stderr, "RMLOG rewrote 0x20800170 to %u engines\n", n);
+        }
+        if (w && p->status == 0 && p->cmd == 0x801109 && (e = getenv("RMLOG_GRCAPS")) && strlen(e) >= 46 &&
+            p->paramsSize >= 23) {
+            for (int i = 0; i < 23; i++) {
+                char h[3] = {e[2 * i], e[2 * i + 1], 0};
+                w[i] = (uint8_t)strtoul(h, NULL, 16);
+            }
+            fprintf(stderr, "RMLOG rewrote 0x801109 capsTbl\n");
+        }
         fprintf(stderr, "RMCTRL cmd=%#010x obj=%#x size=%u status=%#x params=", p->cmd, p->hObject,
                 p->paramsSize, p->status);
         const uint8_t *b = (const uint8_t *)(uintptr_t)p->params;
