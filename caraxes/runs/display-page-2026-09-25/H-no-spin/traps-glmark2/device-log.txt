@@ -1,0 +1,1 @@
+vfio-user-nvgpu: ERROR: bar1 pool: guest BAR1 0x340000 maps FB 0x16fa20000: remap refused (the page lives in the pool already through another area page (the guest maps it twice)); the device keeps the page where it is (fail closed), guest CPU accesses of this area page reach only its pool page 0x1e7940000; retried

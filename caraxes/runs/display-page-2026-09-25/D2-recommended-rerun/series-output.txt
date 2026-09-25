@@ -1,0 +1,43 @@
+host watch pid 3307887 -> /home/silas/git/Caraxes/.claude/worktrees/agent-a4f97dec2c7b012a9/caraxes/runs/display-page-2026-09-25/D2-recommended-rerun/hostwatch.txt
+== D2-recommended-rerun up at 2026-09-25 08:43:31
+D2-recommended-rerun/display-up: rc=0, trace 2753 lines, host Xid lines 0
+D2-recommended-rerun/gnome-start-1: rc=0, trace 90466 lines, host Xid lines 0
+gnome-start-1: GPPut barrier waits 0
+D2-recommended-rerun/traps-mutter: rc=0, trace 77090 lines, host Xid lines 0
+D2-recommended-rerun/traps-vkcube: rc=0, trace 114752 lines, host Xid lines 0
+D2-recommended-rerun/traps-glmark2: rc=0, trace 209389 lines, host Xid lines 0
+D2-recommended-rerun/traps-weston: rc=0, trace 47960 lines, host Xid lines 0
+-- traps-mutter
+FRAMES callbacks intervals=826 mean_ms=16.639 rate_hz=60.10 min_ms=4.910 max_ms=35.553 sd_ms=3.032
+PRESENTED feedback intervals=824 mean_ms=16.666 rate_hz=60.00 min_ms=11.112 max_ms=21.783 sd_ms=0.761
+window 10 s [248318407, 258318407) us; presented frames (latches with a surface): window 6: 600; per-frame base: window 6 = 600 (60.00 Hz)
+all trapped accesses                                              30651      51.09
+latch intervals of window 6: 599, mean 16.667 ms, sd 0.237 ms, min 14.102 ms, max 19.159 ms, over 20 ms 0
+-- traps-vkcube
+APP vkcube frames=960 elapsed_s=18.807 fps=51.04 Selected GPU 0: Leandro VFIO RTX 2070-2G, type: DiscreteGpu
+window 10 s [274085094, 284085094) us; presented frames (latches with a surface): window 6: 600; per-frame base: window 6 = 600 (60.00 Hz)
+all trapped accesses                                              32052      53.42
+latch intervals of window 6: 599, mean 16.667 ms, sd 0.079 ms, min 15.753 ms, max 17.616 ms, over 20 ms 0
+-- traps-glmark2
+APP glmark2 exit 0  GL_RENDERER: Leandro VFIO RTX 2070-2G/PCIe/SSE2;[build] duration=16: FPS: 935 FrameTime: 1.071 ms; glmark2 Score: 934 ;
+window 10 s [298635094, 308635094) us; presented frames (latches with a surface): window 6: 583; per-frame base: window 6 = 583 (58.30 Hz)
+all trapped accesses                                              30771      52.78
+latch intervals of window 6: 582, mean 17.125 ms, sd 4.254 ms, min 11.610 ms, max 100.849 ms, over 20 ms 23
+-- traps-weston
+FRAMES callbacks intervals=835 mean_ms=16.666 rate_hz=60.00 min_ms=9.827 max_ms=23.048 sd_ms=1.388
+PRESENTED feedback intervals=835 mean_ms=16.667 rate_hz=60.00 min_ms=13.735 max_ms=19.624 sd_ms=0.456
+window 10 s [323019431, 333019431) us; presented frames (latches with a surface): window 6: 600; per-frame base: window 6 = 600 (60.00 Hz)
+all trapped accesses                                               9231      15.38
+latch intervals of window 6: 599, mean 16.667 ms, sd 0.201 ms, min 13.729 ms, max 19.599 ms, over 20 ms 0
+host watch: 65 samples, nvidia-smi max 4.226s mean 0.137s, 118274 kernel log lines, 0 Xid lines, 1 alerts
+D2-recommended-rerun: Xid lines 0, device pid was 3307923, vm0 processes left 0
+vfio-user-nvgpu: bar2 memfd: guest BAR2 [0, 0x2000000) offered as 2 sparse mmap area(s) of region 3 from a sealed memfd; trapped page(s) ["0xfea000"]; synced at the trapped pages, MMU invalidates, BAR2 binds and GSP doorbells (CARAXES_BAR2_MEMFD=1, docs/caraxes/bar2-memfd.md)
+vfio-user-nvgpu: intr page: BAR0 [0x0, 0x1000) and the interrupt tree [0xb81000, 0xb82000) offered as sparse mmap areas of region 0 from a memfd; the reactor applies the guest's stores (sleep bound 1 ms, retrigger watchdog 10 ms) (CARAXES_INTR_PAGE=1, docs/caraxes/intr-page.md)
+vfio-user-nvgpu: display page: BAR0 [0x611000, 0x612000) (the display front-end interrupt status) offered as a third sparse mmap area; the display clock advances the engine at every tick, the reactor applies the guest's acks and enables, window AWAKENs are acknowledged by the CORE marker (CARAXES_DISPLAY_PAGE=1, docs/caraxes/intr-page.md §10)
+vfio-user-nvgpu: msi re-arm ioeventfd: BAR0 0x88704 (NV_XVE_CYA_2), 4 bytes, no datamatch, offered through VFIO_USER_DEVICE_GET_REGION_IO_FDS and read by the token pool's reactor; a client that does not register it keeps trapping the write (CARAXES_MSI_REARM_IOEVENTFD=1, docs/caraxes/intr-page.md §4)
+msi re-arm ioeventfd: 88181 guest write(s) in 85990 wakeup(s)
+bar2 memfd: BAR2 [0, 0x2000000) in host RAM, trapped page(s) [0xfea000] with 71899 access(es); 81972 sync(s) (5934929 us total, 83804 us max), 15465299 page compare(s), 62534 dirty page(s), 874834 byte(s) written back, 0 alias conflict(s); 186 BAR2 table walk(s), 231 page(s) entered (187 loaded), 15 left; now 172 page(s) mapped at 209 BAR2 page(s), at most 174 live and 17 alias(es) of one page; 0 sysmem write-back(s) skipped (docs/caraxes/bar2-memfd.md)
+display engine: 11 core UPDATEs, 8 core notifiers written, 10126 vblank interrupts, 0 unresolved context DMAs, ticker raised 23944 (16311 MSIs); head 3: off 1920x1080 0.000 Hz, 0 ticks, 4 modesets; window 6: 3684 updates, 3684 latched, 0 pending, 0 acquire waits; window 7: 4 updates, 4 latched, 0 pending, 0 acquire waits
+doorbell poll (tokens): hybrid (200 us idle), pinned to CPU 11; 37281363 loop iteration(s), 193161 with events, 322095 blocking wait(s); 124702 eventfd event(s) for 132387 guest write(s); ring to host doorbell: 38712 ring(s), mean 31.11 us, p50 11.9 us, p99 19657.0 us, max 19657.0 us (0 ring(s) without a host doorbell); Device lock wait per wakeup: mean 14.89 us, p50 0.6 us, p99 143.7 us, max 80287.8 us; reader CPU 30.420 s (9.0 %) in 337.6 s
+intr page: 235847 scan(s) with work (slowest 3002.6 us); guest stores applied: 71914 ack(s), 63011 LEAF_EN_SET, 89335 LEAF_EN_CLEAR, 73768 TOP_EN_SET, 41936 TOP_EN_CLEAR, 1 trigger(s); 76025 raise fold(s) (11836 coalesced while pending, 7717 pended again at the ack); MSIs: 71371 for raises, 21959 re-arms (a set store while a vector is pending), 33 by the watchdog, 0 not written (MSI off or no eventfd); 7147 compare-and-swap(s) lost to a guest store; inconsistencies: none
+display page: 13944 scan(s) with work; guest stores applied: 10386 EVT_STAT ack(s), 6 RM_INTR_EN store(s); 3689 awaken marker(s), 3689 acked by CORE_RESET (longest 16.2 ms); 3643 raise(s) after an ack, 0 by the watchdog; 0 compare-and-swap(s) lost to a guest store; inconsistencies: none

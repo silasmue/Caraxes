@@ -1,0 +1,58 @@
+window 10 s [248318407, 258318407) us; presented frames (latches with a surface): window 6: 600; per-frame base: window 6 = 600 (60.00 Hz)
+what                                                              count  per frame
+BAR0 writes, all                                                   4282       7.14
+  MMU invalidate (VF PRIV_MMU_INVALIDATE, 3 writes each)           3612       6.02
+  other 0x696000                                                    667       1.11
+  other 0x110c00 NV_PGSP_QUEUE_HEAD/TAIL                              1       0.00
+  other 0x70010 NV_UFLUSH_L2_FLUSH_DIRTY                              1       0.00
+  other 0xb80f00 NV_VIRTUAL_FUNCTION_PRIV_L2_SYSMEM_INVALIDATE        1       0.00
+BAR0 reads, all                                                   12558      20.93
+  NV_VIRTUAL_FUNCTION_TIME_0/1                                    10011      16.68
+  NV_VIRTUAL_FUNCTION_PRIV_MMU_INVALIDATE                          2408       4.01
+  0x696004                                                          134       0.22
+  NV_PGSP                                                             3       0.01
+  NV_UFLUSH_L2_FLUSH_DIRTY                                            1       0.00
+BAR1 writes, all                                                      0       0.00
+BAR1 reads                                                            0       0.00
+BAR2 writes, all                                                      0       0.00
+BAR2 reads                                                        13811      23.02
+all trapped accesses                                              30651      51.09
+display channel kicks                                               667       1.11
+forwarded doorbells (host doorbell rung)                           1727       2.88
+guest MMU invalidates seen                                         1204       2.01
+host notifier events (no MSI)                                        31       0.05
+host notifier events -> MSI                                        2566       4.28
+shadow plans applied (sync lines)                                     2       0.00
+BAR0 page 0xbb0000 reads                                          10011      16.68
+BAR0 page 0xb83000 writes                                          3612       6.02
+BAR0 page 0xb83000 reads                                           2408       4.01
+BAR0 page 0x696000 writes                                           667       1.11
+BAR0 page 0x696000 reads                                            134       0.22
+BAR0 page 0x110000 reads                                              3       0.01
+BAR0 page 0x110000 writes                                             1       0.00
+BAR0 page 0x070000 writes                                             1       0.00
+BAR0 page 0x070000 reads                                              1       0.00
+BAR0 page 0xb80000 writes                                             1       0.00
+BAR0 page 0xb80000 reads                                              1       0.00
+per register (BAR, access, offset, name):
+  BAR2 R 0x00fea000 fb 0x1e75cf000                                13811      23.02
+  BAR0 R 0x00bb0084 NV_VIRTUAL_FUNCTION_TIME_0/1                   6674      11.12
+  BAR0 R 0x00bb0080 NV_VIRTUAL_FUNCTION_TIME_0/1                   3337       5.56
+  BAR0 R 0x00b830b0 NV_VIRTUAL_FUNCTION_PRIV_MMU_INVAL             2408       4.01
+  BAR0 W 0x00b830a0 NV_VIRTUAL_FUNCTION_PRIV_MMU_INVAL             1204       2.01
+  BAR0 W 0x00b830a4 NV_VIRTUAL_FUNCTION_PRIV_MMU_INVAL             1204       2.01
+  BAR0 W 0x00b830b0 NV_VIRTUAL_FUNCTION_PRIV_MMU_INVAL             1204       2.01
+  BAR0 W 0x00696000                                                 667       1.11
+  BAR0 R 0x00696004                                                 134       0.22
+  BAR0 W 0x00110c00 NV_PGSP_QUEUE_HEAD/TAIL                           1       0.00
+  BAR0 R 0x00110094 NV_PGSP                                           1       0.00
+  BAR0 R 0x00110804 NV_PGSP                                           1       0.00
+  BAR0 R 0x00110808 NV_PGSP                                           1       0.00
+  BAR0 W 0x00070010 NV_UFLUSH_L2_FLUSH_DIRTY                          1       0.00
+  BAR0 R 0x00070010 NV_UFLUSH_L2_FLUSH_DIRTY                          1       0.00
+  BAR0 W 0x00b80f00 NV_VIRTUAL_FUNCTION_PRIV_L2_SYSMEM                1       0.00
+  BAR0 R 0x00b80f00 NV_VIRTUAL_FUNCTION_PRIV_L2_SYSMEM                1       0.00
+latch intervals of window 6: 599, mean 16.667 ms, sd 0.237 ms, min 14.102 ms, max 19.159 ms, over 20 ms 0
+  server-thread walk per plan: p50 30.5 us, max 33 us, sum 61 us (0 us per frame)
+  worker apply per plan: p50 1148.0 us, max 2109 us, sum 2296 us (4 us per frame)
+  queued before apply: p50 12.0 us, max 13 us

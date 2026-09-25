@@ -1015,6 +1015,42 @@ impl FakeFb {
         true
     }
 
+    /// A read of the trapped flush page: with `CARAXES_BAR2_FLUSH_DEFER_US` the sync is
+    /// owed (bar2area.rs [`crate::bar2area::Owed`]), else it runs now. Returns false when
+    /// the memfd is off.
+    pub fn bar2_flush(&mut self, root: Option<u64>, sys: Option<&GuestMemory>) -> bool {
+        let Some(a) = self.bar2.as_deref() else {
+            return false;
+        };
+        match &a.owed {
+            Some(o) => {
+                o.owe(crate::bar2area::mono_ns());
+                true
+            }
+            None => self.bar2_sync(root, sys),
+        }
+    }
+
+    /// Pay a sync the flush reads owe, before something may consume BAR2 data (`by`
+    /// says who). Returns whether a sync ran.
+    pub fn bar2_pay(
+        &mut self,
+        root: Option<u64>,
+        sys: Option<&GuestMemory>,
+        by: crate::bar2area::Payer,
+    ) -> bool {
+        let owed = match self.bar2.as_deref().and_then(|a| a.owed.as_ref()) {
+            Some(o) => o.paid(by, crate::bar2area::mono_ns()),
+            None => false,
+        };
+        owed && self.bar2_sync(root, sys)
+    }
+
+    /// The deferral state the reactor watches, when the deferral is on.
+    pub fn bar2_owed(&self) -> Option<std::sync::Arc<crate::bar2area::Owed>> {
+        self.bar2.as_deref().and_then(|a| a.owed.clone())
+    }
+
     /// Count an access of a trapped BAR2 page.
     pub fn bar2_note_trapped(&self) {
         if let Some(a) = self.bar2.as_deref() {
@@ -2130,6 +2166,7 @@ mod tests {
         let cfg = Config {
             traps: vec![0x1f000],
             sync_doorbell: false,
+            flush_defer_us: None,
         };
         let area = Bar2Area::create(0x20000, &cfg).unwrap();
         let guest = area.mem.map_again().unwrap();
@@ -2179,6 +2216,78 @@ mod tests {
         assert!(fb.bar2_area().is_none());
         assert!(!fresh.bar2_area().unwrap().has_live());
         assert_eq!(fb.read_u64(0x14000 + 8 * 6), Some(pte(0x60000)));
+    }
+
+    /// The flush deferral (`CARAXES_BAR2_FLUSH_DEFER_US`, docs/caraxes/intr-page.md
+    /// §11.2): a flush read owes the sync instead of running it, a payer runs it once for
+    /// any number of flush reads, and a sync that runs anyway (the MMU invalidate) clears
+    /// the debt.
+    #[test]
+    fn bar2_flush_deferral_owes_and_pays_one_sync() {
+        use crate::bar2area::{Bar2Area, Config, Payer};
+        let vid = |a: u64| ((a >> 12) << 8) | 0b010;
+        let pte = |a: u64| ((a >> 12) << 8) | (0x06 << 56) | 1;
+        let mut fb = FakeFb::new(64 << 20);
+        let root = 0x10000;
+        fb.write_u64(root, vid(0x11000));
+        fb.write_u64(0x11000, vid(0x12000));
+        fb.write_u64(0x12000, vid(0x13000));
+        fb.write_u64(0x13008, vid(0x14000));
+        // BAR2 page 1 maps the PT, page 2 a channel's PT at 0x34000.
+        fb.write_u64(0x14000 + 8, pte(0x14000));
+        fb.write_u64(0x14000 + 16, pte(0x34000));
+        let cfg = Config {
+            traps: vec![0x1f000],
+            sync_doorbell: false,
+            flush_defer_us: Some(200),
+        };
+        let area = Bar2Area::create(0x20000, &cfg).unwrap();
+        let guest = area.mem.map_again().unwrap();
+        fb.set_bar2_area(area).unwrap();
+        assert!(fb.bar2_sync(Some(root), None));
+        let owed = fb.bar2_owed().expect("the deferral is on");
+        let syncs = |fb: &FakeFb| fb.bar2_area().unwrap().stats().syncs;
+        // What VRAM (the store) holds, not the memfd's view.
+        let raw = |fb: &FakeFb, pa: u64| {
+            let mut b = [0u8; 8];
+            fb.store.read(pa, &mut b);
+            Some(u64::from_le_bytes(b))
+        };
+        let s0 = syncs(&fb);
+
+        // Two PTE writes, each followed by a flush read: nothing reaches the store yet.
+        guest.store_word(2, 3, pte(0x51000));
+        assert!(fb.bar2_flush(Some(root), None));
+        guest.store_word(2, 4, pte(0x52000));
+        assert!(fb.bar2_flush(Some(root), None));
+        assert_eq!(syncs(&fb), s0);
+        assert!(owed.owed());
+        assert_eq!(raw(&fb, 0x34000 + 8 * 3), Some(0));
+        // Not due before its bound, due after it.
+        let since = crate::bar2area::mono_ns();
+        assert!(!owed.due(since));
+        assert!(owed.due(since + 200_000 + 1_000_000));
+        // A payer (a trapped write, a doorbell, the reactor) runs one sync for both.
+        assert!(fb.bar2_pay(Some(root), None, Payer::Access));
+        assert_eq!(syncs(&fb), s0 + 1);
+        assert!(!owed.owed());
+        assert_eq!(raw(&fb, 0x34000 + 8 * 3), Some(pte(0x51000)));
+        assert_eq!(raw(&fb, 0x34000 + 8 * 4), Some(pte(0x52000)));
+        // Nothing owed: paying is free.
+        assert!(!fb.bar2_pay(Some(root), None, Payer::Reactor));
+        assert_eq!(syncs(&fb), s0 + 1);
+        // A sync that runs anyway (the MMU invalidate) pays what is owed.
+        guest.store_word(2, 5, pte(0x53000));
+        fb.bar2_flush(Some(root), None);
+        fb.bar2_sync(Some(root), None);
+        assert!(!owed.owed());
+        assert_eq!(raw(&fb, 0x34000 + 8 * 5), Some(pte(0x53000)));
+        use std::sync::atomic::Ordering::Relaxed;
+        assert_eq!(owed.deferred.load(Relaxed), 3);
+        assert_eq!(owed.paid_access.load(Relaxed), 1);
+        assert_eq!(owed.paid_reactor.load(Relaxed), 0);
+        assert_eq!(owed.paid_sync.load(Relaxed), 1);
+        assert!(owed.summary().contains("3 flush read(s) deferred"));
     }
 
     #[test]

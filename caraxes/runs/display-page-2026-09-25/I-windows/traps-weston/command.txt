@@ -1,0 +1,5 @@
+# SPDX-License-Identifier: MIT
+# 2026-09-25 09:22:53 guest command:
+bash caraxes-f/trap-weston.sh 14
+rc=0
+full trace 46987 lines kept (device-trace.txt.xz)

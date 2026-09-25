@@ -1,0 +1,4 @@
+probe desk-E-flush-defer: 68985 device accesses, guest log in /mnt/vmstore/caraxes/vm0/probe-desk-E-flush-defer/guest-dmesg.txt
+[  129.597912] NVRM: GPU 0000:00:05.0: RmInitAdapter
+[  131.647182] NVRM: GPU 0000:00:05.0: RmInitAdapter succeeded!
+modprobe rc=0

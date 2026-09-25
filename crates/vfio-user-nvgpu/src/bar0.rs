@@ -65,6 +65,8 @@ pub struct Bar0 {
     /// `CARAXES_DISPLAY_PAGE=1`: the display front-end page 0x611000 is memory too
     /// (display/fe_page.rs).
     fe_page: Option<std::sync::Arc<crate::display::fe_page::FePage>>,
+    /// The MMU invalidate page (`CARAXES_INVALIDATE_PAGE=1`, inv_page.rs).
+    inv_page: Option<std::sync::Arc<crate::inv_page::InvPage>>,
 }
 
 impl Bar0 {
@@ -84,12 +86,19 @@ impl Bar0 {
             notes: Vec::new(),
             page: None,
             fe_page: None,
+            inv_page: None,
         }
     }
 
     /// Serve the interrupt page's two pages from its memory (intr_page.rs).
     pub fn with_intr_page(mut self, page: std::sync::Arc<crate::intr_page::IntrPage>) -> Self {
         self.page = Some(page);
+        self
+    }
+
+    /// Serve the MMU invalidate page from its memory (inv_page.rs).
+    pub fn with_inv_page(mut self, page: std::sync::Arc<crate::inv_page::InvPage>) -> Self {
+        self.inv_page = Some(page);
         self
     }
 
@@ -173,6 +182,9 @@ impl Bar0 {
         if let Some(p) = self.fe_page.as_ref().filter(|p| p.covers(reg)) {
             return p.read32(reg);
         }
+        if let Some(p) = self.inv_page.as_ref().filter(|p| p.covers(reg)) {
+            return p.read32(reg);
+        }
         if self.pcfg.contains(&reg) {
             return cfg.dword((reg - self.pcfg.start) as usize);
         }
@@ -233,6 +245,10 @@ impl Bar0 {
             return WriteEffect::Model;
         }
         if let Some(p) = self.fe_page.as_ref().filter(|p| p.covers(offset)) {
+            p.write(offset, data);
+            return WriteEffect::Model;
+        }
+        if let Some(p) = self.inv_page.as_ref().filter(|p| p.covers(offset)) {
             p.write(offset, data);
             return WriteEffect::Model;
         }

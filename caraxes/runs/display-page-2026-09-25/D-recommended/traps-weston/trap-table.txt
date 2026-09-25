@@ -1,0 +1,39 @@
+window 10 s [498687437, 508687437) us; presented frames (latches with a surface): window 6: 526; per-frame base: window 6 = 526 (52.60 Hz)
+what                                                              count  per frame
+BAR0 writes, all                                                    591       1.12
+  other 0x696000                                                    585       1.11
+  MMU invalidate (VF PRIV_MMU_INVALIDATE, 3 writes each)              6       0.01
+BAR0 reads, all                                                    8405      15.98
+  NV_VIRTUAL_FUNCTION_TIME_0/1                                     8283      15.75
+  0x696004                                                          118       0.22
+  NV_VIRTUAL_FUNCTION_PRIV_MMU_INVALIDATE                             4       0.01
+BAR1 writes, all                                                      0       0.00
+BAR1 reads                                                            0       0.00
+BAR2 writes, all                                                      0       0.00
+BAR2 reads                                                            6       0.01
+all trapped accesses                                               9002      17.11
+display channel kicks                                               585       1.11
+forwarded doorbells (host doorbell rung)                            895       1.70
+guest MMU invalidates seen                                            2       0.00
+host notifier events (no MSI)                                         3       0.01
+host notifier events -> MSI                                         160       0.30
+shadow plans applied (sync lines)                                     2       0.00
+BAR0 page 0xbb0000 reads                                           8283      15.75
+BAR0 page 0x696000 writes                                           585       1.11
+BAR0 page 0x696000 reads                                            118       0.22
+BAR0 page 0xb83000 writes                                             6       0.01
+BAR0 page 0xb83000 reads                                              4       0.01
+per register (BAR, access, offset, name):
+  BAR0 R 0x00bb0084 NV_VIRTUAL_FUNCTION_TIME_0/1                   5522      10.50
+  BAR0 R 0x00bb0080 NV_VIRTUAL_FUNCTION_TIME_0/1                   2761       5.25
+  BAR0 W 0x00696000                                                 585       1.11
+  BAR0 R 0x00696004                                                 118       0.22
+  BAR2 R 0x00fea000 fb 0x1e75cf000                                    6       0.01
+  BAR0 R 0x00b830b0 NV_VIRTUAL_FUNCTION_PRIV_MMU_INVAL                4       0.01
+  BAR0 W 0x00b830a0 NV_VIRTUAL_FUNCTION_PRIV_MMU_INVAL                2       0.00
+  BAR0 W 0x00b830a4 NV_VIRTUAL_FUNCTION_PRIV_MMU_INVAL                2       0.00
+  BAR0 W 0x00b830b0 NV_VIRTUAL_FUNCTION_PRIV_MMU_INVAL                2       0.00
+latch intervals of window 6: 525, mean 19.048 ms, sd 6.044 ms, min 11.294 ms, max 49.999 ms, over 20 ms 75
+  server-thread walk per plan: p50 56.0 us, max 67 us, sum 112 us (0 us per frame)
+  worker apply per plan: p50 798.5 us, max 1327 us, sum 1597 us (3 us per frame)
+  queued before apply: p50 19.0 us, max 20 us

@@ -1,0 +1,53 @@
+host watch pid 3384784 -> /home/silas/git/Caraxes/.claude/worktrees/agent-a4f97dec2c7b012a9/caraxes/runs/display-page-2026-09-25/H-no-spin/hostwatch.txt
+== H-no-spin up at 2026-09-25 08:57:14
+/usr/bin/xauth:  timeout in locking authority file /home/leandro/.Xauthority
+/usr/bin/xauth:  timeout in locking authority file /home/leandro/.Xauthority
+/usr/bin/xauth:  timeout in locking authority file /home/leandro/.Xauthority
+/usr/bin/xauth:  timeout in locking authority file /home/leandro/.Xauthority
+H-no-spin/display-up: rc=0, trace 2573 lines, host Xid lines 0
+H-no-spin/gnome-start-1: rc=0, trace 83439 lines, host Xid lines 0
+gnome-start-1: GPPut barrier waits 0
+H-no-spin/traps-mutter: rc=0, trace 131314 lines, host Xid lines 0
+H-no-spin/traps-vkcube: rc=0, trace 103957 lines, host Xid lines 0
+H-no-spin/traps-glmark2: rc=0, trace 192670 lines, host Xid lines 0
+H-no-spin/traps-weston: rc=0, trace 46814 lines, host Xid lines 0
+-- traps-mutter
+FRAMES callbacks intervals=825 mean_ms=16.673 rate_hz=59.98 min_ms=2.710 max_ms=30.965 sd_ms=3.357
+PRESENTED feedback intervals=825 mean_ms=16.668 rate_hz=60.00 min_ms=9.551 max_ms=23.065 sd_ms=0.884
+window 10 s [587039323, 597039323) us; presented frames (latches with a surface): window 6: 601; per-frame base: window 6 = 601 (60.10 Hz)
+all trapped accesses                                              23896      39.76
+latch intervals of window 6: 600, mean 16.667 ms, sd 0.135 ms, min 14.575 ms, max 18.592 ms, over 20 ms 0
+-- traps-vkcube
+APP vkcube frames=960 elapsed_s=18.439 fps=52.06 Selected GPU 0: Leandro VFIO RTX 2070-2G, type: DiscreteGpu
+window 10 s [613039324, 623039324) us; presented frames (latches with a surface): window 6: 600; per-frame base: window 6 = 600 (60.00 Hz)
+all trapped accesses                                              26007      43.34
+latch intervals of window 6: 599, mean 16.667 ms, sd 0.082 ms, min 16.091 ms, max 17.240 ms, over 20 ms 0
+-- traps-glmark2
+APP glmark2 exit 0  GL_RENDERER: Leandro VFIO RTX 2070-2G/PCIe/SSE2;[build] duration=16: FPS: 924 FrameTime: 1.083 ms; glmark2 Score: 923 ;
+window 10 s [638305985, 648305985) us; presented frames (latches with a surface): window 6: 589; per-frame base: window 6 = 589 (58.90 Hz)
+all trapped accesses                                              25572      43.42
+latch intervals of window 6: 588, mean 16.705 ms, sd 2.579 ms, min 0.003 ms, max 54.932 ms, over 20 ms 18
+-- traps-weston
+FRAMES callbacks intervals=834 mean_ms=16.684 rate_hz=59.94 min_ms=7.750 max_ms=28.142 sd_ms=1.919
+PRESENTED feedback intervals=833 mean_ms=16.678 rate_hz=59.96 min_ms=10.726 max_ms=26.226 sd_ms=0.795
+window 10 s [665335173, 675335173) us; presented frames (latches with a surface): window 6: 600; per-frame base: window 6 = 600 (60.00 Hz)
+all trapped accesses                                               9099      15.16
+latch intervals of window 6: 599, mean 16.667 ms, sd 0.253 ms, min 13.637 ms, max 19.714 ms, over 20 ms 0
+"result":"fail"
+host watch: 162 samples, nvidia-smi max 0.483s mean 0.041s, 74648 kernel log lines, 0 Xid lines, 0 alerts
+H-no-spin: Xid lines 0, device pid was 3384824, vm0 processes left 0
+vfio-user-nvgpu: bar2 memfd: guest BAR2 [0, 0x2000000) offered as 2 sparse mmap area(s) of region 3 from a sealed memfd; trapped page(s) ["0xfea000"]; synced at the trapped pages, MMU invalidates, BAR2 binds and GSP doorbells (CARAXES_BAR2_MEMFD=1, docs/caraxes/bar2-memfd.md)
+vfio-user-nvgpu: intr page: BAR0 [0x0, 0x1000) and the interrupt tree [0xb81000, 0xb82000) offered as sparse mmap areas of region 0 from a memfd; the reactor applies the guest's stores (sleep bound 1 ms, retrigger watchdog 10 ms) (CARAXES_INTR_PAGE=1, docs/caraxes/intr-page.md)
+vfio-user-nvgpu: display page: BAR0 [0x611000, 0x612000) (the display front-end interrupt status) offered as a third sparse mmap area; the display clock advances the engine at every tick, the reactor applies the guest's acks and enables, window AWAKENs are acknowledged by the CORE marker (CARAXES_DISPLAY_PAGE=1, docs/caraxes/intr-page.md §10)
+vfio-user-nvgpu: invalidate page: BAR0 [0xb83000, 0xb84000) (the VF MMU invalidate and fault-buffer pointers) offered as a sparse mmap area; the reactor runs each TRIGGER and clears it when done (CARAXES_INVALIDATE_PAGE=1, docs/caraxes/intr-page.md §11.3)
+vfio-user-nvgpu: msi re-arm ioeventfd: BAR0 0x88704 (NV_XVE_CYA_2), 4 bytes, no datamatch, offered through VFIO_USER_DEVICE_GET_REGION_IO_FDS and read by the token pool's reactor; a client that does not register it keeps trapping the write (CARAXES_MSI_REARM_IOEVENTFD=1, docs/caraxes/intr-page.md §4)
+msi re-arm ioeventfd: 163043 guest write(s) in 159931 wakeup(s)
+bar2 memfd: BAR2 [0, 0x2000000) in host RAM, trapped page(s) [0xfea000] with 81941 access(es); 18574 sync(s) (7595211 us total, 76560 us max), 3592482 page compare(s), 25168 dirty page(s), 1432096 byte(s) written back, 0 alias conflict(s); 373 BAR2 table walk(s), 418 page(s) entered (256 loaded), 106 left; now 150 page(s) mapped at 209 BAR2 page(s), at most 174 live and 20 alias(es) of one page; 0 sysmem write-back(s) skipped (docs/caraxes/bar2-memfd.md)
+display engine: 45 core UPDATEs, 34 core notifiers written, 21008 vblank interrupts, 0 unresolved context DMAs, ticker raised 50846 (35511 MSIs); head 3: off 1920x1080 0.000 Hz, 0 ticks, 16 modesets; window 6: 8912 updates, 8912 latched, 0 pending, 0 acquire waits; window 7: 147 updates, 147 latched, 0 pending, 0 acquire waits; display clock: ticks fired late against their due time: p50 <= 63 us, p99 <= 1023 us, max 16098 us, 201 of 21137 at 1 ms or more; driver (device lock and catch-up): p50 <= 15 us, p99 <= 4095 us, max 701150 us, 535 of 21137 at 1 ms or more; catch-up alone: p50 <= 7 us, p99 <= 255 us, max 4161 us, 46 of 21137 at 1 ms or more
+doorbell poll (tokens): hybrid (200 us idle), pinned to CPU 15; 69367624 loop iteration(s), 328211 with events, 766311 blocking wait(s); 204919 eventfd event(s) for 217585 guest write(s); ring to host doorbell: 44988 ring(s), mean 58.88 us, p50 11.2 us, p99 35295.0 us, max 35295.0 us (0 ring(s) without a host doorbell); Device lock wait per wakeup: mean 24.15 us, p50 0.6 us, p99 148.7 us, max 582606.9 us; reader CPU 69.905 s (8.5 %) in 825.7 s
+intr page: 437432 scan(s) with work (slowest 14035.8 us); guest stores applied: 130716 ack(s), 116134 LEAF_EN_SET, 149865 LEAF_EN_CLEAR, 139849 TOP_EN_SET, 70509 TOP_EN_CLEAR, 1 trigger(s); 138101 raise fold(s) (21646 coalesced while pending, 14251 pended again at the ack); MSIs: 129020 for raises, 45799 re-arms (a set store while a vector is pending), 168 by the watchdog, 0 not written (MSI off or no eventfd); 15475 compare-and-swap(s) lost to a guest store; inconsistencies: none
+display page: 29889 scan(s) with work; guest stores applied: 21628 EVT_STAT ack(s), 14 RM_INTR_EN store(s); 9058 awaken marker(s), 9058 acked by CORE_RESET (longest 17.4 ms); 8469 raise(s) after an ack, 4 by the watchdog; 0 compare-and-swap(s) lost to a guest store; inconsistencies: none
+display page delivery: raise to the guest's EVT_STAT ack p50 <= 1023 us, p99 <= 16383 us, max 12113349 us, 4388 of 21015 at 1 ms or more; marker to CORE_RESET p50 <= 127 us, p99 <= 8191 us, max 17388 us, 1184 of 9058 at 1 ms or more
+bar2 flush deferral: bound 2000 us; 81941 flush read(s) deferred, owed syncs paid by 410 trapped access(es) or doorbell(s), 1252 by the reactor at the bound, 9798 by a sync that ran anyway; longest owed 41122 us
+invalidate page: BAR0 [0xb83000, 0xb84000); 10011 trigger(s) applied by the reactor (3473 right after a blocking wait, 0 ALL_PDB), device invalidate mean 716 us, max 537383 us; 0 GET store(s) masked; inconsistencies: none
+reactor wake-up after a display raise (blocked reactor): p50 <= 7 us, p99 <= 2047 us, max 22460 us, 562 of 35711 at 1 ms or more

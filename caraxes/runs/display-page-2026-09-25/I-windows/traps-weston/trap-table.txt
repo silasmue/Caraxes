@@ -1,0 +1,24 @@
+window 10 s [549620939, 559620939) us; presented frames (latches with a surface): window 6: 600; per-frame base: window 6 = 600 (60.00 Hz)
+what                                                              count  per frame
+BAR0 writes, all                                                    667       1.11
+  other 0x696000                                                    667       1.11
+BAR0 reads, all                                                    8720      14.53
+  NV_VIRTUAL_FUNCTION_TIME_0/1                                     8586      14.31
+  0x696004                                                          134       0.22
+BAR1 writes, all                                                      0       0.00
+BAR1 reads                                                            0       0.00
+BAR2 writes, all                                                      0       0.00
+BAR2 reads                                                            0       0.00
+all trapped accesses                                               9387      15.64
+display channel kicks                                               667       1.11
+forwarded doorbells (host doorbell rung)                           1132       1.89
+shadow plans applied (sync lines)                                     0       0.00
+BAR0 page 0xbb0000 reads                                           8586      14.31
+BAR0 page 0x696000 writes                                           667       1.11
+BAR0 page 0x696000 reads                                            134       0.22
+per register (BAR, access, offset, name):
+  BAR0 R 0x00bb0084 NV_VIRTUAL_FUNCTION_TIME_0/1                   5724       9.54
+  BAR0 R 0x00bb0080 NV_VIRTUAL_FUNCTION_TIME_0/1                   2862       4.77
+  BAR0 W 0x00696000                                                 667       1.11
+  BAR0 R 0x00696004                                                 134       0.22
+latch intervals of window 6: 599, mean 16.667 ms, sd 0.173 ms, min 14.587 ms, max 18.752 ms, over 20 ms 0

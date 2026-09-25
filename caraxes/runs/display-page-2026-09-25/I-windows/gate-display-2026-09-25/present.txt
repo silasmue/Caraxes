@@ -1,0 +1,29 @@
+# SPDX-License-Identifier: MIT
+# display gate gate-display-2026-09-25: present.txt
+weston up (pid 7952, renderer gl, 1920x1080@60); GL renderer: Leandro VFIO RTX 2070-2G/PCIe/SSE2
+  vkCreateInstance                           VK_SUCCESS
+  vkEnumeratePhysicalDevices                 VK_SUCCESS
+  device 0: Leandro VFIO RTX 2070-2G
+  vkCreateWaylandSurfaceKHR                  VK_SUCCESS
+  queue family 0: graphics=1 present=1
+  queue family 1: graphics=0 present=0
+  queue family 2: graphics=0 present=0
+  queue family 3: graphics=0 present=0
+  queue family 4: graphics=0 present=0
+  vkGetPhysicalDeviceSurfaceCapabilitiesKHR  VK_SUCCESS
+  minImageCount 2  maxImageCount 8  current 4294967295x4294967295
+  vkGetPhysicalDeviceSurfaceFormatsKHR       VK_SUCCESS
+  surface formats: 14
+  vkGetPhysicalDeviceSurfacePresentModesKHR  VK_SUCCESS
+  present modes: 4
+  vkCreateDevice                             VK_SUCCESS
+  vkCreateSwapchainKHR                       VK_SUCCESS
+  swapchain created
+  vkGetSwapchainImagesKHR                    VK_SUCCESS
+  vkCreateCommandPool                        VK_SUCCESS
+  vkAllocateCommandBuffers                   VK_SUCCESS
+  vkCreateSemaphore(acquire)                 VK_SUCCESS
+  vkCreateSemaphore(render)                  VK_SUCCESS
+  vkCreateFence                              VK_SUCCESS
+  presented 120 frames, all VK_SUCCESS, 23.0 FPS
+command exit 0

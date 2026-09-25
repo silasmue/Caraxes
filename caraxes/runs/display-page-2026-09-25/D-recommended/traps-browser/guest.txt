@@ -1,0 +1,5 @@
+== 2026-09-25T06:10:47Z browser load 0.25 0.27 0.12 1/645 5686
+APP browser /usr/bin/firefox exit 1
+
+snap install firefox
+

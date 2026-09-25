@@ -835,6 +835,37 @@ impl Device {
         }
     }
 
+    /// The invalidate page's trigger (inv_page.rs, docs/caraxes/intr-page.md §11.3): run
+    /// the invalidate as the trapped trigger write does and trace its notes.
+    pub fn invalidate_from_page(&mut self, t: crate::inv_page::Trigger) {
+        let mem = &self.mem;
+        let notes = match self.bar0.boot_mut() {
+            Some(b) => b.mmu_invalidate_from_page(mem, t.pdb, t.upper, t.value),
+            None => return,
+        };
+        self.trace.event(&format!(
+            "invalidate page: trigger {:#x} pdb {:#x} upper {:#x} (reactor)",
+            t.value, t.pdb, t.upper
+        ));
+        for n in notes {
+            self.trace.event(&format!("boot: {n}"));
+        }
+        // What every trapped BAR0 write does after it, the trigger write included: the BAR1
+        // pool moves pages at this point (bar1-pool.md, P21 design H). Without it the pool
+        // saw the guest's new BAR1 mappings only at the next trapped write, and the display
+        // gate's KMS readback read an empty pool page (series F, G and H).
+        self.after_bar0_write();
+    }
+
+    /// The reactor found a deferred flush sync at its bound (bar2area.rs `Owed`,
+    /// docs/caraxes/intr-page.md §11.2): pay it.
+    pub fn bar2_pay_owed(&mut self) {
+        let mem = &self.mem;
+        if let Some(b) = self.bar0.boot_mut() {
+            b.bar2_pay_owed(mem, crate::bar2area::Payer::Reactor);
+        }
+    }
+
     pub fn summary(&self) -> String {
         let mut s = self.trace.summary();
         if self.doorbell_wakeups > 0 {
@@ -1216,6 +1247,41 @@ mod tests {
         let cfg: Vec<u32> = (0..0x1000).step_by(4).map(|o| d.cfg.dword(o)).collect();
         assert_eq!(cfg, before);
         assert!(d.summary().contains("msi re-arm ioeventfd: 2 guest write(s) in 1 wakeup(s)"));
+    }
+
+    /// The invalidate page's trigger does what the trapped trigger write does: the same
+    /// registers afterwards, TRIGGER reading back clear.
+    #[test]
+    fn an_invalidate_from_the_page_matches_the_trapped_write() {
+        let with_boot = || {
+            let mut d = rtx2070_device();
+            let f = crate::fixture::rtx2070();
+            let bar0 = std::mem::replace(&mut d.bar0, Bar0::new(f.chip, vec![0x55, 0xAA], None));
+            d.bar0 = bar0.with_boot_model(crate::boot::BootModel::new(
+                f.chip,
+                crate::fb::FbLayout::plain(4 << 30),
+                f.identity(4 << 30),
+            ));
+            d
+        };
+        let mut trapped = with_boot();
+        for (off, v) in [(0xB8_30A0u64, 0x1e75520u32), (0xB8_30A4, 0), (0xB8_30B0, 0x8000_00c1)] {
+            trapped
+                .region_write(VFIO_PCI_BAR0_REGION_INDEX, off, &v.to_le_bytes())
+                .unwrap();
+        }
+        let mut paged = with_boot();
+        paged.invalidate_from_page(crate::inv_page::Trigger {
+            pdb: 0x1e75520,
+            upper: 0,
+            value: 0x8000_00c1,
+        });
+        for off in [0xB8_30A0u64, 0xB8_30A4, 0xB8_30B0] {
+            let a = trapped.bar0.boot_mut().unwrap().read32(off);
+            let b = paged.bar0.boot_mut().unwrap().read32(off);
+            assert_eq!(a, b, "{off:#x}");
+        }
+        assert_eq!(paged.bar0.boot_mut().unwrap().read32(0xB8_30B0), Some(0xc1));
     }
 
     /// The pool's sub-regions: one per token at the doorbell, size 4, DATAMATCH with the

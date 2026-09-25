@@ -1,0 +1,5 @@
+# SPDX-License-Identifier: MIT
+# 2026-09-25 08:53:41 guest command:
+bash caraxes-f/trap-app.sh vkcube 16
+rc=0
+full trace 105456 lines kept (device-trace.txt.xz)

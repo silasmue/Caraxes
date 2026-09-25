@@ -1,0 +1,13 @@
+  GATE rig: PASS  (nvidia-modeset + nvidia-drm modeset=Y on the device's display engine)
+  GATE connector: PASS  (/dev/dri/card0 (nvidia-drm), card0-DP-1 connected, modes: 1920x1080 1920x1080 1920x1080 1280x720 1280x720 640x480 )
+  GATE edid: PASS  (256 bytes, identical to the device's EDID (caraxes/runs/display-ab-2026-09-23/guest-card0-DP-1.edid.bin), edid-decode --check: pass)
+  GATE modeset: PASS  (mode taken, 30 flips all completed, CRTC names the new framebuffer)
+  GATE compositor: FAIL  (frame callbacks 55.02 Hz, presentation 55.02 Hz, refresh 16666666 ns (wanted 60 +- 0.5) -- see /home/silas/git/Caraxes/.claude/worktrees/agent-a4f97dec2c7b012a9/caraxes/runs/display-page-2026-09-25/H-no-spin/gate-display-2026-09-25/compositor.txt)
+  GATE capture: FAIL  (KMS readback or Sunshine capture=kms did not see the client -- see /home/silas/git/Caraxes/.claude/worktrees/agent-a4f97dec2c7b012a9/caraxes/runs/display-page-2026-09-25/H-no-spin/gate-display-2026-09-25/capture.txt)
+  GATE swapchain: PASS  (vkCreateSwapchainKHR returned VK_SUCCESS on a Wayland surface under Weston (GL renderer))
+  GATE present: PASS  (120 frames, all VK_SUCCESS, 54.2 FPS at the display's 60 Hz)
+  GATE rt: PASS  (vkCreateDevice with VK_KHR_acceleration_structure returned VK_SUCCESS)
+  GATE events: PASS  (median wait 0.58 ms over 10 samples (worst 1.43), the GR completion arrives as the forwarded non-stall interrupt)
+  GATE kernel: PASS  (no oops, 0 WARNING(s) (all the known flip one), 0 flip event timeout(s))
+
+DISPLAY-GATE: FAIL -- compositor capture

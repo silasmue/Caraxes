@@ -1,0 +1,1 @@
+3384824 /mnt/vmstore/caraxes/vm0/vfio-user-nvgpu --socket /mnt/vmstore/caraxes/vm0/gpu.sock --trace /mnt/vmstore/caraxes/vm0/gpu-trace.log --config /home/silas/git/Caraxes/caraxes/reference/rtx2070/co

@@ -1,0 +1,5 @@
+# SPDX-License-Identifier: MIT
+# 2026-09-25 08:10:41 guest command:
+bash caraxes-f/trap-app.sh browser 16
+rc=0
+full trace 5803 lines kept (device-trace.txt.xz)

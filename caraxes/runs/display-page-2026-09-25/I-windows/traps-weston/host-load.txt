@@ -1,0 +1,7 @@
+# SPDX-License-Identifier: MIT
+host CPU busy over the window: 36 % of 16 CPUs
+other VM process 3208281: 0 centiseconds of CPU in the window: target/cov/release/vfio-user-nvgpu --socket target/smoke/s.sock --trace target/smoke/t.log
+other VM process 3551311: 1895 centiseconds of CPU in the window: /mnt/vmstore/caraxes/vm5/vfio-user-nvgpu --socket /mnt/vmstore/caraxes/vm5/gpu.sock --trac
+other VM process 3551323: 4067 centiseconds of CPU in the window: /mnt/vmstore/caraxes/vm1/cloud-hypervisor-0006 -v --api-socket /mnt/vmstore/caraxes/vm5/ch
+other VM process 3553257: 76 centiseconds of CPU in the window: /mnt/vmstore/caraxes/vm3/vfio-user-nvgpu --socket /mnt/vmstore/caraxes/vm3/gpu.sock --trac
+other VM process 3553275: 880 centiseconds of CPU in the window: /mnt/vmstore/caraxes/vm1/cloud-hypervisor-0006 -v --api-socket /mnt/vmstore/caraxes/vm3/ch
