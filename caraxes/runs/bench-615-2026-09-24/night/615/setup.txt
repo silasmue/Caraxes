@@ -1,0 +1,27 @@
+NVRM version: NVIDIA UNIX Open Kernel Module for x86_64  615.71.09  Release Build  (root@)  
+d0315158041c83ce822fd75dd22354fe34f7ec63ada962dff7d2ca6b76276b6b  /mnt/vmstore/caraxes/vfio-user-nvgpu-v615-57693d8
+960af13c53b2824a29a7461c8390c3f136f85082ed46a6edfb0fcd9bb642284f  /mnt/vmstore/caraxes/vm1/ch-0006-v.sh
+d09f9b0 runs, docs: night parts 1 and 2, BAR2 memfd and the allocation path measured on vm2
+bench-run.sh libdir v2: /usr/lib/x86_64-linux-gnu
+CARAXES_BAR1_PASSTHROUGH=pool
+CARAXES_BOOT_MODEL=1
+CARAXES_DMA=register
+CARAXES_DOORBELL_POLL=spin
+CARAXES_DOORBELL_TOKENS=64
+CARAXES_DRIVER=615
+CARAXES_FB_MIB=1024
+CARAXES_GATE_FB_MIB=1024
+CARAXES_HOST_EXEC=1
+CARAXES_HOST_RM=1
+CARAXES_INTR_PAGE=1
+CARAXES_IP=192.168.102.22
+CARAXES_LEANDRO_TEST=/home/silas/git/Leandro-Test
+CARAXES_MAC=02:00:00:00:00:22
+CARAXES_MIRROR_CHANNELS=1
+CARAXES_MIRROR_GR_SHADOW=1
+CARAXES_RESERVE_SLOT=3
+CARAXES_RESERVE_VRAM=1
+CARAXES_SERVER=/mnt/vmstore/caraxes/vfio-user-nvgpu-v615-57693d8
+CARAXES_TAP=caraxes2
+LEA_CH=/mnt/vmstore/caraxes/vm1/ch-0006-v.sh
+VM=vm2-615

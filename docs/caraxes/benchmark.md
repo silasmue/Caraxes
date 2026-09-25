@@ -1023,3 +1023,66 @@ Reading:
   planned in 330 batches at a doorbell and 407 at the 20 ms deadline, largest batch 68.
 - cuda gate in stack-on: 10 of 11 scored pass, cuda-managed fails with the known 801
   (`stack-on/gate-cuda-2026-09-25/table.txt`), as in on-nopool of part 1.
+
+### Part 3: the like-for-like 615 series (01:21-02:59)
+
+`caraxes/runs/bench-615-2026-09-24/night/` (`run.sh`, `615/`, `610/`, `comparison.md`): the
+closing series' metrics and reps (all of bench-run.sh's metrics with 5 reps and a restart per
+rep, the startup metric with 5, PPO 60 s with 2) and its spin reactor, the 615 guest and then
+the 610 guest, both on vm2 at 1 GiB slot 3 with the frozen 57693d8 binaries and the interrupt
+page on. Two departures from the closing configuration:
+
+- **No P21 area.** The frozen binary refuses `CARAXES_BAR1_PASSTHROUGH=1` ("the fixed-layout
+  prototype is refused: it mismatched 128 pages on 2026-09-24", starts without the area; the
+  first attempt, `615-area-refused/device-start.txt`, was stopped after rep 1). Both parts run
+  with the BAR1 pool (`CARAXES_BAR1_PASSTHROUGH=pool`, design H), which covers GPFIFO and USERD
+  as the area did.
+- **The host was quiet for the 610 guest only.** The script waited for no other device process
+  before each guest; the 615 part found a quiet host at 01:21, but vm3 and vm5-615 started during
+  it (another VM's device active in 25 of 65 runs, load average 3.4 to 13.9). For the 610 part
+  it waited 45 minutes (vm0, vm3) and then ran with no other device process in any of its 65
+  runs (load 2.6 to 7.6).
+
+0 host Xid in both parts and in the stopped attempt; host watch 0 alerts on the quiet 610 part,
+one (2.3 s) during the busy 615 part.
+
+| Metric | native (closing) | v2 closing (610 host) | 615 guest (busy host) | 610 guest (quiet) | 615 / native | 610 / native |
+|---|---|---|---|---|---|---|
+| short kernel, ms/launch, auto | 0.006 | 0.015 | 0.018 | 0.016 | 3.0 | 2.7 |
+| short kernel, blocking | 0.021 | 0.100 | 0.085 | 0.089 | 4.0 | 4.2 |
+| launch 30M-cycle, auto | 16.3 | 17.3 | 17.3 | 17.0 | 1.06 | 1.04 |
+| rlprobe stage 4, s | 1.20 | 2.10 | 2.60 | 2.00 | 2.2 | 1.67 |
+| rlprobe transfers per second | 2350 | 1340 | 1106 | 1403 | 0.47 | 0.60 |
+| copy h2d pinned 1 MiB, GB/s | 12.1 | 6.06 | 6.07 | 6.08 | 0.50 | 0.50 |
+| copy h2d pinned 16 MiB | 13.0 | 6.57 | 6.57 | 6.57 | 0.50 | 0.50 |
+| copy d2d 16 MiB | 183 | 16.5 | 16.5 (11.5 to 176) | 16.9 (11.4 to 178) | 0.09 | 0.09 |
+| copy h2d pinned 256 MiB | 13.1 | 13.1 | 13.1 | 13.1 | 1.00 | 1.00 |
+| matmul N=1024, GFLOP/s | 4894 | 1340 | 1310 | 4850 | 0.27 | 0.99 |
+| matmul N=4096 | 6052 | 4433 | 4627 | 5419 | 0.76 | 0.90 |
+| cuInit, ms | 106 | 151 | 198 | 161 | 1.9 | 1.5 |
+| cuCtxCreate, ms | 195 | 3770 | 4444 | 4017 | 23 | 21 |
+| cuCtxDestroy, ms | 92.6 | 1352 | 3057 | 2794 | 33 | 30 |
+| module load to first cuInit, ms | - | 3509 | 3825 | 3813 | | |
+| cuMemAlloc 1 MiB, us | 35.8 | 830 | 238 | 204 | 6.6 | 5.7 |
+| cuMemFree 1 MiB, us | 27.1 | 903 | 463 | 273 | 17 | 10 |
+| cuMemAlloc 64 MiB, us | 78.3 | 6747 | 4919 | 4841 | 63 | 62 |
+| PPO environment steps per second (2 reps) | 107663, 112259 | 61082, 72977 | 64423, 51178 | 71378, 71281 | 0.54 | 0.65 |
+
+Reading:
+
+- The 615 guest and the 610 guest are the same device: every row overlaps, and where the 615
+  guest is behind (rlprobe, PPO, cuCtxDestroy, the matmuls) it had the busier host.
+- Against the closing series (610 host, P21 area, no interrupt page) the quiet 610 guest matches
+  or beats it in every submission and copy row: short kernel 0.016 against 0.015 ms, rlprobe
+  stage 4 2.0 against 2.1 s, PPO 71300 against 61000-73000 steps/s. The interrupt page moves
+  the allocation rows (cuMemAlloc 1 MiB 830 to 204 us) and, on the quiet host, the small matmul
+  (N=1024 1340 to 4850 GFLOP/s, 0.99 of native: its allocation and synchronisation traffic was
+  the RM lock's interrupt-enable traps).
+- Two rows did not move as the vm0 measurement promised, and one moved the wrong way:
+  - d2d 16 MiB stays at 16.5 GB/s (vm0 with the page: 90); the pinned 16 MiB copies stay at
+    6.57 (vm0: 11.9). vm0 ran the hybrid reactor, 2 GiB, the display configuration; here the
+    spin reactor. Not isolated tonight.
+  - cuCtxDestroy is 2.8-3.1 s against 1.35 s closing; part 2's hybrid runs without the pool had
+    1.2 s (intr) and 0.15 s (with the memfd). Not isolated either (spin reactor, pool).
+- The context rows are the BAR2 traffic of parts 1 and 2: without the memfd cuCtxCreate is
+  20x native on both guests.

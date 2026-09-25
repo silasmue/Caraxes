@@ -1,0 +1,6 @@
+# target v2 metric startup rep 4
+# time 2026-09-25T01:19:54+02:00
+# gpu 50, 825 MHz, 810 MHz, P5, 9 %, 2115 MiB, Disabled
+# procs 1399617:vm1-vmm 1637837:vm2-615-dev 1637919:vm1-vmm 
+# loadavg 3.51 2.88 2.99
+STARTUP load_ms=3356 load_to_cuinit_ms=3473 attempts=1

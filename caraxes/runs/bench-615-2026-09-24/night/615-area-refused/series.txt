@@ -1,0 +1,21 @@
+# series 2026-09-25T01:20:06+02:00 targets=[v2] reps=5 metrics=[launch-auto launch-blocking short-auto short-blocking copy mm rl init time0 time1 ioctl ctrl churn]
+# libdir v2 /usr/lib/x86_64-linux-gnu
+# caraxes shell-rig-247-g57693d8-dirty leandro-test 3edea73-dirty
+# bin c5b48cf1181bfcfc251f12aa2b0eaeb074887efec4c479f36efe399cb1307a13  bench-cu
+# bin 2e7db7218ac29e0da0b22a4d30307ea1f675dc04912d6b34922708495595904d  convnet.py
+# bin 68449e9ec7b25613a65d096a6a42864c01fbf46ec47e540ce01f47184f0479ea  ctrlping
+# bin 138c5073848b2f3cf2beb4709376c7c49b420d88e836664584e5cf8bbfc7848c  ioctlping
+# bin 1f921680fc7a2c2e0978eb007cc0ab48d2f1a7cf404a196c9063a19a10aa228f  kernels.ptx
+# bin abdf09531ac015ba4e8e7550bda6eb43609c429d6e1240e7f8553841bfe06513  llamaprobe.py
+# bin 2735d2a9cd25c0753898188542dbeb4a8433609024aa48230b6803a4a8d96e66  nvprobe
+# bin 012bb008b87ec0a6ee4ef566e0b55f856df09d6a3e07e72fe5cde5a9043dd18a  pporl.py
+# bin 02b1d58fc1778a47f8940e7f89d2cabb44b64d078f5b54b5ca1fba9437073c4a  transformer.py
+# bin f0868123fca8e2c40138fda523e35fa76c015b97e232fc647fea0b6b49f33584  vrampress
+# time 2026-09-25T01:20:06+02:00
+# gpu 50, 960 MHz, 810 MHz, P5, 11 %, 2127 MiB, Disabled
+# procs 1399617:vm1-vmm 1637837:vm2-615-dev 1637919:vm1-vmm 
+# loadavg 3.66 2.93 3.00
+01:20:12 v2  launch-auto     rep 1: MSPERLAUNCH=17.214 # WALL wall_ms=5203 rc=0  | # MEAS dev_pid=1637837 dev_cpu_ms=6940 dev_rss_hwm_kb=5254568/8395824 vmm_cpu_ms=5000 others: vm1-vmm=10ms 
+01:20:18 v2  launch-blocking rep 1: MSPERLAUNCH=17.704 # WALL wall_ms=6083 rc=0  | # MEAS dev_pid=1637837 dev_cpu_ms=8600 dev_rss_hwm_kb=5255684/8395824 vmm_cpu_ms=2790 others: vm1-vmm=10ms 
+01:20:23 v2  short-auto      rep 1: MSPERLAUNCH=0.119 # WALL wall_ms=4094 rc=0  | # MEAS dev_pid=1637837 dev_cpu_ms=6960 dev_rss_hwm_kb=5255684/8395824 vmm_cpu_ms=2700 others: vm1-vmm=0ms 
+01:20:27 v2  short-blocking  rep 1: MSPERLAUNCH=0.447 # WALL wall_ms=3973 rc=0  | # MEAS dev_pid=1637837 dev_cpu_ms=6350 dev_rss_hwm_kb=5255700/8395824 vmm_cpu_ms=2490 others: vm1-vmm=10ms 
