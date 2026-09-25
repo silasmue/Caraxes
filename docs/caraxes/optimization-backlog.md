@@ -416,6 +416,29 @@ benchmarks:
 
 Items 3, 5 and 6 above get per-workload numbers there.
 
+### By transport class
+
+[gsp-transport-classes.md](gsp-transport-classes.md) replaces workload guessing for the GSP
+controls with a classification of every routed 615 control by its structure
+(`caraxes/abi/gsp-615.71.09/transport.tsv`): ZT-PAGE 101, ZT-QUEUE 155, HOST 103, TRAP 32,
+REFUSE 490. Controls are lifecycle traffic (187 RPCs per CUDA process, 101 per
+`nvidia-smi -q`, 0 per frame), and one 615 RPC costs four traps (108 us median) against 3 us of
+device work. The list in its order (§10 there):
+
+| # | Item | Rows | Expected saving |
+|---|---|---:|---|
+| T1 | Static GSS-legacy answers cached by the guest (reply `rmctrlFlags` CACHEABLE, proven static first), TTL for the rest | 33 | up to 1.85 s over the profiles; `nvidia-smi -q` 56 ms to a few ms |
+| T2 | Device cache of static host getters (after the public filter) | 31 | 375 ms; 2-4 ms per CUDA process |
+| T3 | TTL cache for host telemetry, rate limit per VM | 39 | 373 ms; dmon 203 ms per 31 s |
+| T4 | Polled queue: page 0x110000 read-only, `QUEUE_HEAD`/`MSGQ_TAIL` as ioeventfds (VMM patch) | all RPCs | about 130 us per RPC: 24 ms per CUDA process, 175 ms per GNOME start |
+| T5 | First step of T4: `QUEUE_HEAD` ioeventfd only (backlog item 6, narrowed) | all RPCs | about 30 us per RPC |
+| T6 | FREE answered before the mirror's host teardown | RPC | 0.83 ms x 71 per CUDA process |
+
+Not optimisable: the 490 refused and 32 TRAP controls (addresses, handles, window order, host
+TSG state), the transport lifecycle, and an answer page for a stock driver (no read path, about
+1.5 ms per CUDA process). Item 6 above ("the reactor reads the head from the command queue in
+guest memory") does not hold for 615: the head is a register there.
+
 ## 5. ReBAR
 
 The operator's framing: on Turing, BAR1 is capped at 256 MiB, so the pool multiplexes it; on a
