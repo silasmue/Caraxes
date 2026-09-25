@@ -157,3 +157,11 @@ echo "prepared: $(ls $M)"
 mkdir -p /etc/environment.d
 printf 'MUTTER_DEBUG_DISABLE_HW_CURSORS=1\n' > /etc/environment.d/50-software-cursor.conf
 echo "software cursor: /etc/environment.d/50-software-cursor.conf"
+
+# Steam's runtime container (pressure-vessel) imports the NVIDIA Vulkan and GL driver from the
+# host's ld.so cache and the ICD json; the image keeps the driver in /opt/nvrm-gl, which was not
+# in the cache, so the game saw only Mesa's ICDs and could not create a Vulkan device (session of
+# 2026-09-25, the crash dump lists libvulkan_nouveau/intel/lvp only).
+printf '/opt/nvrm-gl/lib\n/opt/nvrm-gl/lib32\n' > /etc/ld.so.conf.d/00-nvrm-gl.conf && ldconfig
+sed -i 's#"library_path": "libGLX_nvidia.so.0"#"library_path": "/opt/nvrm-gl/lib/libGLX_nvidia.so.0"#' /usr/share/vulkan/icd.d/nvidia_icd.json
+echo "nvrm-gl in ld.so.cache; nvidia_icd.json with an absolute path"
