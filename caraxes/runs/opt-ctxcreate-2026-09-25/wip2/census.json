@@ -1,0 +1,1203 @@
+{
+ "1": {
+  "name": "idle_100ms",
+  "reps": 10,
+  "traps_per_rep": 51.3,
+  "window_us_med": 100167.5,
+  "guest_us_med": 100082.5,
+  "classes": {
+   "pci-config": 51.3
+  },
+  "class_us": {
+   "pci-config": 1085.0
+  },
+  "registers": {
+   "PCI config  R 0x6": 5.7,
+   "PCI config  R 0x34": 5.8,
+   "PCI config  R 0x60": 5.8,
+   "PCI config  R 0x61": 5.7,
+   "PCI config  R 0x68": 5.8,
+   "PCI config  R 0x69": 5.7,
+   "PCI config  R 0x78": 5.8,
+   "PCI config  R 0x79": 5.7,
+   "PCI config  R 0x0": 0.1,
+   "PCI config  R 0x4": 0.1,
+   "PCI config  R 0x8": 0.1,
+   "PCI config  R 0xc": 0.1,
+   "PCI config  R 0x28": 0.1,
+   "PCI config  R 0x2c": 0.1,
+   "PCI config  R 0x38": 0.1,
+   "PCI config  R 0x3c": 0.1,
+   "PCI config  R 0x40": 0.1,
+   "PCI config  R 0x44": 0.1,
+   "PCI config  R 0x48": 0.1,
+   "PCI config  R 0x4c": 0.1,
+   "PCI config  R 0x50": 0.1,
+   "PCI config  R 0x54": 0.1,
+   "PCI config  R 0x58": 0.1,
+   "PCI config  R 0x5c": 0.1,
+   "PCI config  R 0x64": 0.1,
+   "PCI config  R 0x6c": 0.1,
+   "PCI config  R 0x70": 0.1,
+   "PCI config  R 0x74": 0.1,
+   "PCI config  R 0x7c": 0.1,
+   "PCI config  R 0x80": 0.1,
+   "PCI config  R 0x84": 0.1,
+   "PCI config  R 0x88": 0.1,
+   "PCI config  R 0x8c": 0.1,
+   "PCI config  R 0x90": 0.1,
+   "PCI config  R 0x94": 0.1,
+   "PCI config  R 0x98": 0.1,
+   "PCI config  R 0x9c": 0.1,
+   "PCI config  R 0xa0": 0.1,
+   "PCI config  R 0xa4": 0.1,
+   "PCI config  R 0xa8": 0.1,
+   "PCI config  R 0xac": 0.1,
+   "PCI config  R 0xb0": 0.1,
+   "PCI config  R 0xb4": 0.1,
+   "PCI config  R 0xb8": 0.1,
+   "PCI config  R 0xbc": 0.1,
+   "PCI config  R 0xc0": 0.1,
+   "PCI config  R 0xc4": 0.1,
+   "PCI config  R 0xc8": 0.1,
+   "PCI config  R 0xcc": 0.1,
+   "PCI config  R 0xd0": 0.1,
+   "PCI config  R 0xd4": 0.1,
+   "PCI config  R 0xd8": 0.1,
+   "PCI config  R 0xdc": 0.1,
+   "PCI config  R 0xe0": 0.1,
+   "PCI config  R 0xe4": 0.1,
+   "PCI config  R 0xe8": 0.1,
+   "PCI config  R 0xec": 0.1,
+   "PCI config  R 0xf0": 0.1,
+   "PCI config  R 0xf4": 0.1,
+   "PCI config  R 0xf8": 0.1,
+   "PCI config  R 0xfc": 0.1
+  },
+  "windows": {},
+  "rpcs": {},
+  "host_events": 0.0,
+  "syncs": 0.0,
+  "sync_calls": 0,
+  "sync_apply_us": 0,
+  "events": {
+   "other events": 15.1
+  }
+ },
+ "2": {
+  "name": "cuInit",
+  "reps": 3,
+  "traps_per_rep": 261.3333333333333,
+  "window_us_med": 137344,
+  "guest_us_med": 137253.6,
+  "classes": {
+   "gsp-queue-doorbell": 27.333333333333332,
+   "gsp-falcon": 82.0,
+   "pcfg-mirror (intr re-arm)": 1.0,
+   "bar2-flush-read": 24.0,
+   "mmu-invalidate": 40.0,
+   "pci-config": 87.0
+  },
+  "class_us": {
+   "gsp-falcon": 15857.666666666666,
+   "gsp-queue-doorbell": 11401.666666666666,
+   "pcfg-mirror (intr re-arm)": 564.3333333333334,
+   "mmu-invalidate": 8267.0,
+   "bar2-flush-read": 4301.333333333333,
+   "pci-config": 1571.3333333333333
+  },
+  "registers": {
+   "BAR0 0x110000 W 0x110c00 NV_PGSP_QUEUE_HEAD/TAIL": 27.333333333333332,
+   "BAR0 0x110000 R 0x110094 NV_PGSP": 27.333333333333332,
+   "BAR0 0x110000 R 0x110804 NV_PGSP": 27.333333333333332,
+   "BAR0 0x110000 R 0x110808 NV_PGSP": 27.333333333333332,
+   "BAR0 0x088000 R 0x088084 NV_PCFG": 1.0,
+   "BAR2 flush page R ": 24.0,
+   "BAR0 0xb83000 R 0xb830b0 NV_VIRTUAL_FUNCTION_PRIV_MMU_INVALIDATE": 16.0,
+   "BAR0 0xb83000 W 0xb830a0 NV_VIRTUAL_FUNCTION_PRIV_MMU_INVALIDATE": 8.0,
+   "BAR0 0xb83000 W 0xb830a4 NV_VIRTUAL_FUNCTION_PRIV_MMU_INVALIDATE": 8.0,
+   "BAR0 0xb83000 W 0xb830b0 NV_VIRTUAL_FUNCTION_PRIV_MMU_INVALIDATE": 8.0,
+   "PCI config  R 0x6": 9.666666666666666,
+   "PCI config  R 0x34": 10.0,
+   "PCI config  R 0x60": 10.0,
+   "PCI config  R 0x61": 9.666666666666666,
+   "PCI config  R 0x68": 10.0,
+   "PCI config  R 0x69": 9.666666666666666,
+   "PCI config  R 0x78": 10.0,
+   "PCI config  R 0x79": 9.666666666666666,
+   "PCI config  R 0x0": 0.3333333333333333,
+   "PCI config  R 0x4": 0.3333333333333333,
+   "PCI config  R 0x8": 0.3333333333333333,
+   "PCI config  R 0xc": 0.3333333333333333,
+   "PCI config  R 0x28": 0.3333333333333333,
+   "PCI config  R 0x2c": 0.3333333333333333,
+   "PCI config  R 0x38": 0.3333333333333333,
+   "PCI config  R 0x3c": 0.3333333333333333,
+   "PCI config  R 0x40": 0.3333333333333333,
+   "PCI config  R 0x44": 0.3333333333333333,
+   "PCI config  R 0x48": 0.3333333333333333,
+   "PCI config  R 0x4c": 0.3333333333333333,
+   "PCI config  R 0x50": 0.3333333333333333,
+   "PCI config  R 0x54": 0.3333333333333333,
+   "PCI config  R 0x58": 0.3333333333333333,
+   "PCI config  R 0x5c": 0.3333333333333333,
+   "PCI config  R 0x64": 0.3333333333333333,
+   "PCI config  R 0x6c": 0.3333333333333333,
+   "PCI config  R 0x70": 0.3333333333333333,
+   "PCI config  R 0x74": 0.3333333333333333,
+   "PCI config  R 0x7c": 0.3333333333333333,
+   "PCI config  R 0x80": 0.3333333333333333,
+   "PCI config  R 0x84": 0.3333333333333333,
+   "PCI config  R 0x88": 0.3333333333333333,
+   "PCI config  R 0x8c": 0.3333333333333333
+  },
+  "windows": {},
+  "rpcs": {
+   "GSP_RM_ALLOC class 0x0": [
+    1.0,
+    2.6666666666666665,
+    0.0
+   ],
+   "GSP_RM_ALLOC class 0x80": [
+    1.0,
+    3.0,
+    0.0
+   ],
+   "GSP_RM_ALLOC class 0x2080": [
+    1.0,
+    4.0,
+    0.0
+   ],
+   "GSP_RM_ALLOC class 0x2081": [
+    1.0,
+    3.0,
+    0.0
+   ],
+   "GSP_RM_CONTROL cmd 0x20810108": [
+    1.0,
+    3.3333333333333335,
+    1.0
+   ],
+   "GSP_RM_CONTROL cmd 0x20801823": [
+    1.0,
+    3.3333333333333335,
+    1.0
+   ],
+   "GSP_RM_CONTROL cmd 0x2080182a": [
+    1.0,
+    3.3333333333333335,
+    1.0
+   ],
+   "GSP_RM_CONTROL cmd 0x2080012f": [
+    1.0,
+    7.0,
+    1.0
+   ],
+   "GSP_RM_CONTROL cmd 0x20801303": [
+    2.0,
+    7.333333333333333,
+    2.0
+   ],
+   "GSP_RM_CONTROL cmd 0x20802a12": [
+    5.0,
+    33.666666666666664,
+    0.0
+   ],
+   "GSP_RM_CONTROL cmd 0x20800a4c": [
+    1.0,
+    3.0,
+    0.0
+   ],
+   "GSP_RM_CONTROL cmd 0x20800102": [
+    1.0,
+    2.6666666666666665,
+    1.0
+   ],
+   "GSP_RM_CONTROL cmd 0x20802a0b": [
+    1.0,
+    3.3333333333333335,
+    1.0
+   ],
+   "GSP_RM_CONTROL cmd 0x20800aa2": [
+    1.0,
+    4.0,
+    0.0
+   ],
+   "GSP_RM_CONTROL cmd 0x20803801": [
+    1.0,
+    3.3333333333333335,
+    1.0
+   ],
+   "GSP_RM_ALLOC class 0x90f1": [
+    2.0,
+    7.333333333333333,
+    0.0
+   ],
+   "GSP_RM_CONTROL cmd 0x90f10106": [
+    2.0,
+    6.666666666666667,
+    0.0
+   ],
+   "GSP_RM_CONTROL cmd 0x20808159": [
+    1.0,
+    3.3333333333333335,
+    1.0
+   ],
+   "GSP_RM_CONTROL cmd 0x20800ab8": [
+    0.3333333333333333,
+    1.0,
+    0.0
+   ],
+   "GSP_RM_CONTROL cmd 0x20808162": [
+    1.0,
+    3.0,
+    1.0
+   ],
+   "GSP_RM_CONTROL cmd 0x2080182b": [
+    1.0,
+    3.0,
+    1.0
+   ]
+  },
+  "host_events": 12.0,
+  "syncs": 0.0,
+  "sync_calls": 0,
+  "sync_apply_us": 0,
+  "events": {
+   "other events": 57.0,
+   "guest MMU invalidates": 8.0
+  }
+ },
+ "3": {
+  "name": "cuCtxCreate",
+  "reps": 5,
+  "traps_per_rep": 1597.6,
+  "window_us_med": 2332659,
+  "guest_us_med": 2332605.7,
+  "classes": {
+   "gsp-queue-doorbell": 85.0,
+   "gsp-falcon": 255.0,
+   "bar2-flush-read": 272.2,
+   "mmu-invalidate": 487.0,
+   "pci-config": 410.4,
+   "usermode page, other": 60.0,
+   "bar0-other": 8.0,
+   "usermode-doorbell": 20.0
+  },
+  "class_us": {
+   "gsp-falcon": 13984.6,
+   "mmu-invalidate": 38224.0,
+   "bar2-flush-read": 26646.4,
+   "gsp-queue-doorbell": 15044.2,
+   "pci-config": 8661.6,
+   "usermode page, other": 3147.2,
+   "bar0-other": 1859.2,
+   "usermode-doorbell": 1358.6
+  },
+  "registers": {
+   "BAR0 0x110000 W 0x110c00 NV_PGSP_QUEUE_HEAD/TAIL": 85.0,
+   "BAR0 0x110000 R 0x110094 NV_PGSP": 85.0,
+   "BAR0 0x110000 R 0x110804 NV_PGSP": 85.0,
+   "BAR0 0x110000 R 0x110808 NV_PGSP": 85.0,
+   "BAR2 flush page R ": 272.2,
+   "BAR0 0xb83000 R 0xb830b0 NV_VIRTUAL_FUNCTION_PRIV_MMU_INVALIDATE": 194.8,
+   "BAR0 0xb83000 W 0xb830a0 NV_VIRTUAL_FUNCTION_PRIV_MMU_INVALIDATE": 97.4,
+   "BAR0 0xb83000 W 0xb830a4 NV_VIRTUAL_FUNCTION_PRIV_MMU_INVALIDATE": 97.4,
+   "BAR0 0xb83000 W 0xb830b0 NV_VIRTUAL_FUNCTION_PRIV_MMU_INVALIDATE": 97.4,
+   "PCI config  R 0x6": 45.6,
+   "PCI config  R 0x34": 46.4,
+   "PCI config  R 0x60": 46.4,
+   "PCI config  R 0x61": 45.6,
+   "PCI config  R 0x68": 46.4,
+   "PCI config  R 0x69": 45.6,
+   "PCI config  R 0x78": 46.4,
+   "PCI config  R 0x79": 45.6,
+   "PCI config  R 0x0": 0.8,
+   "PCI config  R 0x4": 0.8,
+   "PCI config  R 0x8": 0.8,
+   "PCI config  R 0xc": 0.8,
+   "PCI config  R 0x28": 0.8,
+   "PCI config  R 0x2c": 0.8,
+   "PCI config  R 0x38": 0.8,
+   "PCI config  R 0x3c": 0.8,
+   "PCI config  R 0x40": 0.8,
+   "PCI config  R 0x44": 0.8,
+   "PCI config  R 0x48": 0.8,
+   "PCI config  R 0x4c": 0.8,
+   "PCI config  R 0x50": 0.8,
+   "PCI config  R 0x54": 0.8,
+   "PCI config  R 0x58": 0.8,
+   "PCI config  R 0x5c": 0.8,
+   "PCI config  R 0x64": 0.8,
+   "PCI config  R 0x6c": 0.8,
+   "PCI config  R 0x70": 0.8,
+   "PCI config  R 0x74": 0.8,
+   "PCI config  R 0x7c": 0.8,
+   "PCI config  R 0x80": 0.8,
+   "PCI config  R 0x84": 0.8,
+   "PCI config  R 0x88": 0.8,
+   "PCI config  R 0x8c": 0.8,
+   "PCI config  R 0x90": 0.8,
+   "PCI config  R 0x94": 0.8,
+   "PCI config  R 0x98": 0.8,
+   "PCI config  R 0x9c": 0.8,
+   "PCI config  R 0xa0": 0.8,
+   "PCI config  R 0xa4": 0.8,
+   "PCI config  R 0xa8": 0.8,
+   "PCI config  R 0xac": 0.8,
+   "PCI config  R 0xb0": 0.8,
+   "PCI config  R 0xb4": 0.8,
+   "PCI config  R 0xb8": 0.8,
+   "PCI config  R 0xbc": 0.8,
+   "PCI config  R 0xc0": 0.8,
+   "PCI config  R 0xc4": 0.8,
+   "PCI config  R 0xc8": 0.8,
+   "PCI config  R 0xcc": 0.8,
+   "PCI config  R 0xd0": 0.8,
+   "PCI config  R 0xd4": 0.8,
+   "PCI config  R 0xd8": 0.8,
+   "PCI config  R 0xdc": 0.8,
+   "PCI config  R 0xe0": 0.8,
+   "PCI config  R 0xe4": 0.8,
+   "PCI config  R 0xe8": 0.8,
+   "PCI config  R 0xec": 0.8,
+   "PCI config  R 0xf0": 0.8,
+   "PCI config  R 0xf4": 0.8,
+   "PCI config  R 0xf8": 0.8,
+   "PCI config  R 0xfc": 0.8,
+   "BAR0 0xbb0000 R 0xbb0084 NV_VIRTUAL_FUNCTION_TIME_0/1": 40.0,
+   "BAR0 0xbb0000 R 0xbb0080 NV_VIRTUAL_FUNCTION_TIME_0/1": 20.0,
+   "BAR0 0x070000 W 0x070010 NV_UFLUSH_L2_FLUSH_DIRTY": 2.0,
+   "BAR0 0x070000 R 0x070010 NV_UFLUSH_L2_FLUSH_DIRTY": 2.0,
+   "BAR0 0xb80000 W 0xb80f00 NV_VIRTUAL_FUNCTION_PRIV_L2_SYSMEM_INVALIDATE": 2.0,
+   "BAR0 0xb80000 R 0xb80f00 NV_VIRTUAL_FUNCTION_PRIV_L2_SYSMEM_INVALIDATE": 2.0,
+   "BAR0 0xbb0000 W 0xbb0090 NV_VIRTUAL_FUNCTION_DOORBELL": 20.0
+  },
+  "windows": {
+   "tokens": 20.0
+  },
+  "rpcs": {
+   "GSP_RM_CONTROL cmd 0x20800a9a": [
+    1.0,
+    3.2,
+    0.0
+   ],
+   "GSP_RM_CONTROL cmd 0x20802a08": [
+    4.0,
+    15.0,
+    0.0
+   ],
+   "GSP_RM_ALLOC class 0xa06c": [
+    4.0,
+    24.4,
+    0.0
+   ],
+   "GSP_RM_CONTROL cmd 0xa06c010a": [
+    4.0,
+    15.4,
+    0.0
+   ],
+   "GSP_RM_ALLOC class 0x9067": [
+    1.0,
+    3.0,
+    0.0
+   ],
+   "GSP_RM_ALLOC class 0xc46f": [
+    20.0,
+    118.4,
+    0.0
+   ],
+   "GSP_RM_CONTROL cmd 0x2080012b": [
+    1.0,
+    3.4,
+    0.0
+   ],
+   "GSP_RM_ALLOC class 0xc5c0": [
+    8.0,
+    28.2,
+    0.0
+   ],
+   "GSP_RM_ALLOC class 0xc5b5": [
+    20.0,
+    74.0,
+    0.0
+   ],
+   "GSP_RM_CONTROL cmd 0x20800a70": [
+    2.0,
+    5.6,
+    0.0
+   ],
+   "GSP_RM_CONTROL cmd 0xa06c0101": [
+    4.0,
+    11.8,
+    0.0
+   ],
+   "GSP_RM_ALLOC class 0x79": [
+    8.0,
+    27.0,
+    0.0
+   ],
+   "GSP_RM_ALLOC class 0x0": [
+    1.0,
+    2.8,
+    0.0
+   ],
+   "GSP_RM_ALLOC class 0x80": [
+    1.0,
+    2.8,
+    0.0
+   ],
+   "GSP_RM_ALLOC class 0x2080": [
+    1.0,
+    3.4,
+    0.0
+   ],
+   "GSP_RM_ALLOC class 0x83de": [
+    1.0,
+    2.6,
+    0.0
+   ],
+   "GSP_RM_CONTROL cmd 0x83de0309": [
+    1.0,
+    3.0,
+    0.0
+   ],
+   "GSP_RM_CONTROL cmd 0x20801210": [
+    1.0,
+    2.4,
+    0.0
+   ],
+   "GSP_RM_CONTROL cmd 0xa06c0103": [
+    1.0,
+    2.8,
+    1.0
+   ],
+   "GSP_RM_CONTROL cmd 0x802009": [
+    1.0,
+    5.8,
+    0.0
+   ]
+  },
+  "host_events": 540.4,
+  "syncs": 20.0,
+  "sync_calls": 105.0,
+  "sync_apply_us": 96061.4,
+  "events": {
+   "other events": 608.2,
+   "guest MMU invalidates": 97.4,
+   "host doorbells written (forwarded)": 133.8,
+   "host notifier events -> MSI": 98.6,
+   "host notifier events (no MSI)": 194.0,
+   "doorbell eventfd rings (token pool)": 113.8
+  }
+ },
+ "4": {
+  "name": "cuCtxDestroy",
+  "reps": 5,
+  "traps_per_rep": 982.4,
+  "window_us_med": 1636041,
+  "guest_us_med": 1635930.5,
+  "classes": {
+   "bar2-flush-read": 169.0,
+   "mmu-invalidate": 280.0,
+   "gsp-queue-doorbell": 69.0,
+   "gsp-falcon": 207.0,
+   "pci-config": 257.4
+  },
+  "class_us": {
+   "bar2-flush-read": 12130.2,
+   "mmu-invalidate": 17296.2,
+   "gsp-queue-doorbell": 31305.6,
+   "gsp-falcon": 10622.4,
+   "pci-config": 5717.0
+  },
+  "registers": {
+   "BAR2 flush page R ": 169.0,
+   "BAR0 0xb83000 R 0xb830b0 NV_VIRTUAL_FUNCTION_PRIV_MMU_INVALIDATE": 112.0,
+   "BAR0 0xb83000 W 0xb830a0 NV_VIRTUAL_FUNCTION_PRIV_MMU_INVALIDATE": 56.0,
+   "BAR0 0xb83000 W 0xb830a4 NV_VIRTUAL_FUNCTION_PRIV_MMU_INVALIDATE": 56.0,
+   "BAR0 0xb83000 W 0xb830b0 NV_VIRTUAL_FUNCTION_PRIV_MMU_INVALIDATE": 56.0,
+   "BAR0 0x110000 W 0x110c00 NV_PGSP_QUEUE_HEAD/TAIL": 69.0,
+   "BAR0 0x110000 R 0x110094 NV_PGSP": 69.0,
+   "BAR0 0x110000 R 0x110804 NV_PGSP": 69.0,
+   "BAR0 0x110000 R 0x110808 NV_PGSP": 69.0,
+   "PCI config  R 0x6": 28.6,
+   "PCI config  R 0x34": 29.2,
+   "PCI config  R 0x60": 29.2,
+   "PCI config  R 0x61": 28.6,
+   "PCI config  R 0x68": 29.2,
+   "PCI config  R 0x69": 28.6,
+   "PCI config  R 0x78": 29.2,
+   "PCI config  R 0x79": 28.6,
+   "PCI config  R 0x0": 0.6,
+   "PCI config  R 0x4": 0.6,
+   "PCI config  R 0x8": 0.6,
+   "PCI config  R 0xc": 0.6,
+   "PCI config  R 0x28": 0.6,
+   "PCI config  R 0x2c": 0.6,
+   "PCI config  R 0x38": 0.6,
+   "PCI config  R 0x3c": 0.6,
+   "PCI config  R 0x40": 0.6,
+   "PCI config  R 0x44": 0.6,
+   "PCI config  R 0x48": 0.6,
+   "PCI config  R 0x4c": 0.6,
+   "PCI config  R 0x50": 0.6,
+   "PCI config  R 0x54": 0.6,
+   "PCI config  R 0x58": 0.6,
+   "PCI config  R 0x5c": 0.6,
+   "PCI config  R 0x64": 0.6,
+   "PCI config  R 0x6c": 0.6,
+   "PCI config  R 0x70": 0.6,
+   "PCI config  R 0x74": 0.6,
+   "PCI config  R 0x7c": 0.6,
+   "PCI config  R 0x80": 0.6,
+   "PCI config  R 0x84": 0.6,
+   "PCI config  R 0x88": 0.6,
+   "PCI config  R 0x8c": 0.6,
+   "PCI config  R 0x90": 0.4,
+   "PCI config  R 0x94": 0.4,
+   "PCI config  R 0x98": 0.4,
+   "PCI config  R 0x9c": 0.4,
+   "PCI config  R 0xa0": 0.4,
+   "PCI config  R 0xa4": 0.4,
+   "PCI config  R 0xa8": 0.4,
+   "PCI config  R 0xac": 0.4,
+   "PCI config  R 0xb0": 0.4,
+   "PCI config  R 0xb4": 0.4,
+   "PCI config  R 0xb8": 0.4,
+   "PCI config  R 0xbc": 0.4,
+   "PCI config  R 0xc0": 0.4,
+   "PCI config  R 0xc4": 0.4,
+   "PCI config  R 0xc8": 0.4,
+   "PCI config  R 0xcc": 0.4,
+   "PCI config  R 0xd0": 0.4,
+   "PCI config  R 0xd4": 0.4,
+   "PCI config  R 0xd8": 0.4,
+   "PCI config  R 0xdc": 0.4,
+   "PCI config  R 0xe0": 0.4,
+   "PCI config  R 0xe4": 0.4,
+   "PCI config  R 0xe8": 0.4,
+   "PCI config  R 0xec": 0.4,
+   "PCI config  R 0xf0": 0.4,
+   "PCI config  R 0xf4": 0.4,
+   "PCI config  R 0xf8": 0.4,
+   "PCI config  R 0xfc": 0.4
+  },
+  "windows": {},
+  "rpcs": {
+   "FREE": [
+    65.0,
+    251.4,
+    24.0
+   ],
+   "GSP_RM_CONTROL cmd 0xa06c0105": [
+    2.0,
+    5.2,
+    2.0
+   ],
+   "GSP_RM_CONTROL cmd 0x802009": [
+    1.0,
+    2.6,
+    0.0
+   ],
+   "GSP_RM_CONTROL cmd 0x20800a9a": [
+    1.0,
+    6.0,
+    0.0
+   ]
+  },
+  "host_events": 271.4,
+  "syncs": 15.0,
+  "sync_calls": 0.0,
+  "sync_apply_us": 6282.4,
+  "events": {
+   "other events": 220.2,
+   "host notifier events -> MSI": 67.0,
+   "guest MMU invalidates": 56.0,
+   "host notifier events (no MSI)": 177.4
+  }
+ },
+ "10": {
+  "name": "cuMemAlloc_1M",
+  "reps": 20,
+  "traps_per_rep": 6.2,
+  "window_us_med": 1692.0,
+  "guest_us_med": 1604.5,
+  "classes": {
+   "bar2-flush-read": 1.0,
+   "mmu-invalidate": 2.5,
+   "pci-config": 2.7
+  },
+  "class_us": {
+   "bar2-flush-read": 102.45,
+   "mmu-invalidate": 328.05,
+   "pci-config": 208.1
+  },
+  "registers": {
+   "BAR2 flush page R ": 1.0,
+   "BAR0 0xb83000 R 0xb830b0 NV_VIRTUAL_FUNCTION_PRIV_MMU_INVALIDATE": 1.0,
+   "BAR0 0xb83000 W 0xb830a0 NV_VIRTUAL_FUNCTION_PRIV_MMU_INVALIDATE": 0.5,
+   "BAR0 0xb83000 W 0xb830a4 NV_VIRTUAL_FUNCTION_PRIV_MMU_INVALIDATE": 0.5,
+   "BAR0 0xb83000 W 0xb830b0 NV_VIRTUAL_FUNCTION_PRIV_MMU_INVALIDATE": 0.5,
+   "PCI config  R 0x6": 0.3,
+   "PCI config  R 0x34": 0.3,
+   "PCI config  R 0x60": 0.3,
+   "PCI config  R 0x61": 0.3,
+   "PCI config  R 0x68": 0.3,
+   "PCI config  R 0x69": 0.3,
+   "PCI config  R 0x78": 0.3,
+   "PCI config  R 0x79": 0.3,
+   "PCI config  R 0x9c": 0.05,
+   "PCI config  R 0xa0": 0.05,
+   "PCI config  R 0xa4": 0.05,
+   "PCI config  R 0xa8": 0.05,
+   "PCI config  R 0xac": 0.05,
+   "PCI config  R 0xb0": 0.05
+  },
+  "windows": {},
+  "rpcs": {},
+  "host_events": 15.7,
+  "syncs": 0.5,
+  "sync_calls": 0.5,
+  "sync_apply_us": 74.25,
+  "events": {
+   "other events": 1.15,
+   "host notifier events -> MSI": 15.15,
+   "guest MMU invalidates": 0.5,
+   "host notifier events (no MSI)": 0.55
+  }
+ },
+ "11": {
+  "name": "cuMemFree_1M",
+  "reps": 20,
+  "traps_per_rep": 6.5,
+  "window_us_med": 1613.5,
+  "guest_us_med": 1564.2,
+  "classes": {
+   "bar2-flush-read": 1.5,
+   "mmu-invalidate": 5.0
+  },
+  "class_us": {
+   "bar2-flush-read": 127.75,
+   "mmu-invalidate": 213.45
+  },
+  "registers": {
+   "BAR2 flush page R ": 1.5,
+   "BAR0 0xb83000 R 0xb830b0 NV_VIRTUAL_FUNCTION_PRIV_MMU_INVALIDATE": 2.0,
+   "BAR0 0xb83000 W 0xb830a0 NV_VIRTUAL_FUNCTION_PRIV_MMU_INVALIDATE": 1.0,
+   "BAR0 0xb83000 W 0xb830a4 NV_VIRTUAL_FUNCTION_PRIV_MMU_INVALIDATE": 1.0,
+   "BAR0 0xb83000 W 0xb830b0 NV_VIRTUAL_FUNCTION_PRIV_MMU_INVALIDATE": 1.0
+  },
+  "windows": {},
+  "rpcs": {},
+  "host_events": 4.8,
+  "syncs": 0.55,
+  "sync_calls": 0.05,
+  "sync_apply_us": 95.55,
+  "events": {
+   "other events": 1.0,
+   "host notifier events -> MSI": 4.7,
+   "guest MMU invalidates": 1.0,
+   "host notifier events (no MSI)": 0.1
+  }
+ },
+ "12": {
+  "name": "cuMemAlloc_64M",
+  "reps": 10,
+  "traps_per_rep": 7.8,
+  "window_us_med": 5915.0,
+  "guest_us_med": 5837.9,
+  "classes": {
+   "bar2-flush-read": 2.3,
+   "mmu-invalidate": 5.5
+  },
+  "class_us": {
+   "bar2-flush-read": 209.0,
+   "mmu-invalidate": 1672.3
+  },
+  "registers": {
+   "BAR2 flush page R ": 2.3,
+   "BAR0 0xb83000 R 0xb830b0 NV_VIRTUAL_FUNCTION_PRIV_MMU_INVALIDATE": 2.2,
+   "BAR0 0xb83000 W 0xb830a0 NV_VIRTUAL_FUNCTION_PRIV_MMU_INVALIDATE": 1.1,
+   "BAR0 0xb83000 W 0xb830a4 NV_VIRTUAL_FUNCTION_PRIV_MMU_INVALIDATE": 1.1,
+   "BAR0 0xb83000 W 0xb830b0 NV_VIRTUAL_FUNCTION_PRIV_MMU_INVALIDATE": 1.1
+  },
+  "windows": {},
+  "rpcs": {},
+  "host_events": 6.2,
+  "syncs": 0.9,
+  "sync_calls": 28.8,
+  "sync_apply_us": 1945.1,
+  "events": {
+   "host notifier events -> MSI": 6.2,
+   "guest MMU invalidates": 1.1,
+   "other events": 2.0
+  }
+ },
+ "13": {
+  "name": "cuMemFree_64M",
+  "reps": 10,
+  "traps_per_rep": 13.1,
+  "window_us_med": 4124.5,
+  "guest_us_med": 4061.6,
+  "classes": {
+   "bar2-flush-read": 3.1,
+   "mmu-invalidate": 10.0
+  },
+  "class_us": {
+   "bar2-flush-read": 328.2,
+   "mmu-invalidate": 515.3
+  },
+  "registers": {
+   "BAR2 flush page R ": 3.1,
+   "BAR0 0xb83000 R 0xb830b0 NV_VIRTUAL_FUNCTION_PRIV_MMU_INVALIDATE": 4.0,
+   "BAR0 0xb83000 W 0xb830a0 NV_VIRTUAL_FUNCTION_PRIV_MMU_INVALIDATE": 2.0,
+   "BAR0 0xb83000 W 0xb830a4 NV_VIRTUAL_FUNCTION_PRIV_MMU_INVALIDATE": 2.0,
+   "BAR0 0xb83000 W 0xb830b0 NV_VIRTUAL_FUNCTION_PRIV_MMU_INVALIDATE": 2.0
+  },
+  "windows": {},
+  "rpcs": {},
+  "host_events": 4.9,
+  "syncs": 1.0,
+  "sync_calls": 3.2,
+  "sync_apply_us": 4813.1,
+  "events": {
+   "other events": 1.7,
+   "host notifier events -> MSI": 4.9,
+   "guest MMU invalidates": 2.0
+  }
+ },
+ "14": {
+  "name": "cuMemHostAlloc_1M",
+  "reps": 10,
+  "traps_per_rep": 7.5,
+  "window_us_med": 5266.5,
+  "guest_us_med": 5224.7,
+  "classes": {
+   "bar2-flush-read": 2.5,
+   "mmu-invalidate": 5.0
+  },
+  "class_us": {
+   "bar2-flush-read": 257.5,
+   "mmu-invalidate": 605.2
+  },
+  "registers": {
+   "BAR2 flush page R ": 2.5,
+   "BAR0 0xb83000 R 0xb830b0 NV_VIRTUAL_FUNCTION_PRIV_MMU_INVALIDATE": 2.0,
+   "BAR0 0xb83000 W 0xb830a0 NV_VIRTUAL_FUNCTION_PRIV_MMU_INVALIDATE": 1.0,
+   "BAR0 0xb83000 W 0xb830a4 NV_VIRTUAL_FUNCTION_PRIV_MMU_INVALIDATE": 1.0,
+   "BAR0 0xb83000 W 0xb830b0 NV_VIRTUAL_FUNCTION_PRIV_MMU_INVALIDATE": 1.0
+  },
+  "windows": {},
+  "rpcs": {},
+  "host_events": 5.0,
+  "syncs": 0.5,
+  "sync_calls": 0.4,
+  "sync_apply_us": 711.9,
+  "events": {
+   "other events": 1.8,
+   "host notifier events -> MSI": 5.0,
+   "guest MMU invalidates": 1.0
+  }
+ },
+ "15": {
+  "name": "cuMemFreeHost_1M",
+  "reps": 10,
+  "traps_per_rep": 7.9,
+  "window_us_med": 3611.5,
+  "guest_us_med": 3513.7,
+  "classes": {
+   "bar2-flush-read": 2.0,
+   "mmu-invalidate": 5.0,
+   "pci-config": 0.9
+  },
+  "class_us": {
+   "bar2-flush-read": 142.0,
+   "mmu-invalidate": 296.5,
+   "pci-config": 17.3
+  },
+  "registers": {
+   "BAR2 flush page R ": 2.0,
+   "BAR0 0xb83000 R 0xb830b0 NV_VIRTUAL_FUNCTION_PRIV_MMU_INVALIDATE": 2.0,
+   "BAR0 0xb83000 W 0xb830a0 NV_VIRTUAL_FUNCTION_PRIV_MMU_INVALIDATE": 1.0,
+   "BAR0 0xb83000 W 0xb830a4 NV_VIRTUAL_FUNCTION_PRIV_MMU_INVALIDATE": 1.0,
+   "BAR0 0xb83000 W 0xb830b0 NV_VIRTUAL_FUNCTION_PRIV_MMU_INVALIDATE": 1.0,
+   "PCI config  R 0x6": 0.1,
+   "PCI config  R 0x34": 0.1,
+   "PCI config  R 0x60": 0.1,
+   "PCI config  R 0x61": 0.1,
+   "PCI config  R 0x68": 0.1,
+   "PCI config  R 0x69": 0.1,
+   "PCI config  R 0x78": 0.1,
+   "PCI config  R 0x79": 0.1,
+   "PCI config  R 0xa4": 0.1
+  },
+  "windows": {},
+  "rpcs": {},
+  "host_events": 5.9,
+  "syncs": 0.5,
+  "sync_calls": 0.2,
+  "sync_apply_us": 135.3,
+  "events": {
+   "other events": 1.5,
+   "host notifier events -> MSI": 5.8,
+   "guest MMU invalidates": 1.0,
+   "host notifier events (no MSI)": 0.1
+  }
+ },
+ "16": {
+  "name": "cuMemHostRegister_1M",
+  "reps": 10,
+  "traps_per_rep": 15.0,
+  "window_us_med": 9499.5,
+  "guest_us_med": 9463.2,
+  "classes": {
+   "bar2-flush-read": 5.0,
+   "mmu-invalidate": 10.0
+  },
+  "class_us": {
+   "bar2-flush-read": 441.0,
+   "mmu-invalidate": 1424.6
+  },
+  "registers": {
+   "BAR2 flush page R ": 5.0,
+   "BAR0 0xb83000 R 0xb830b0 NV_VIRTUAL_FUNCTION_PRIV_MMU_INVALIDATE": 4.0,
+   "BAR0 0xb83000 W 0xb830a0 NV_VIRTUAL_FUNCTION_PRIV_MMU_INVALIDATE": 2.0,
+   "BAR0 0xb83000 W 0xb830a4 NV_VIRTUAL_FUNCTION_PRIV_MMU_INVALIDATE": 2.0,
+   "BAR0 0xb83000 W 0xb830b0 NV_VIRTUAL_FUNCTION_PRIV_MMU_INVALIDATE": 2.0
+  },
+  "windows": {},
+  "rpcs": {},
+  "host_events": 6.3,
+  "syncs": 1.0,
+  "sync_calls": 2.9,
+  "sync_apply_us": 643.9,
+  "events": {
+   "other events": 3.0,
+   "host notifier events -> MSI": 6.2,
+   "guest MMU invalidates": 2.0,
+   "host notifier events (no MSI)": 0.1
+  }
+ },
+ "17": {
+  "name": "cuMemHostUnregister_1M",
+  "reps": 10,
+  "traps_per_rep": 14.0,
+  "window_us_med": 6931.0,
+  "guest_us_med": 6883.5,
+  "classes": {
+   "bar2-flush-read": 4.0,
+   "mmu-invalidate": 10.0
+  },
+  "class_us": {
+   "bar2-flush-read": 251.1,
+   "mmu-invalidate": 580.4
+  },
+  "registers": {
+   "BAR2 flush page R ": 4.0,
+   "BAR0 0xb83000 R 0xb830b0 NV_VIRTUAL_FUNCTION_PRIV_MMU_INVALIDATE": 4.0,
+   "BAR0 0xb83000 W 0xb830a0 NV_VIRTUAL_FUNCTION_PRIV_MMU_INVALIDATE": 2.0,
+   "BAR0 0xb83000 W 0xb830a4 NV_VIRTUAL_FUNCTION_PRIV_MMU_INVALIDATE": 2.0,
+   "BAR0 0xb83000 W 0xb830b0 NV_VIRTUAL_FUNCTION_PRIV_MMU_INVALIDATE": 2.0
+  },
+  "windows": {},
+  "rpcs": {},
+  "host_events": 5.8,
+  "syncs": 1.0,
+  "sync_calls": 0.5,
+  "sync_apply_us": 407.3,
+  "events": {
+   "other events": 2.4,
+   "host notifier events -> MSI": 5.8,
+   "guest MMU invalidates": 2.0
+  }
+ },
+ "20": {
+  "name": "launch_1_sync",
+  "reps": 20,
+  "traps_per_rep": 0.0,
+  "window_us_med": 766.0,
+  "guest_us_med": 700.7,
+  "classes": {},
+  "class_us": {},
+  "registers": {},
+  "windows": {},
+  "rpcs": {},
+  "host_events": 1.0,
+  "syncs": 0.0,
+  "sync_calls": 0,
+  "sync_apply_us": 0,
+  "events": {
+   "other events": 1.1,
+   "doorbell eventfd rings (token pool)": 1.0,
+   "host doorbells written (forwarded)": 1.0
+  }
+ },
+ "21": {
+  "name": "launch_1000_sync",
+  "reps": 1,
+  "traps_per_rep": 0.0,
+  "window_us_med": 48793,
+  "guest_us_med": 23.4,
+  "classes": {},
+  "class_us": {},
+  "registers": {},
+  "windows": {},
+  "rpcs": {},
+  "host_events": 1000.0,
+  "syncs": 0.0,
+  "sync_calls": 0,
+  "sync_apply_us": 0,
+  "events": {
+   "other events": 1007.0,
+   "doorbell eventfd rings (token pool)": 1000.0,
+   "host doorbells written (forwarded)": 1000.0
+  }
+ },
+ "30": {
+  "name": "h2d_pinned_1M",
+  "reps": 10,
+  "traps_per_rep": 0.0,
+  "window_us_med": 516.5,
+  "guest_us_med": 462.4,
+  "classes": {},
+  "class_us": {},
+  "registers": {},
+  "windows": {},
+  "rpcs": {},
+  "host_events": 1.0,
+  "syncs": 0.0,
+  "sync_calls": 0,
+  "sync_apply_us": 0,
+  "events": {
+   "other events": 1.2,
+   "doorbell eventfd rings (token pool)": 1.0,
+   "host doorbells written (forwarded)": 1.0
+  }
+ },
+ "31": {
+  "name": "d2h_pinned_1M",
+  "reps": 10,
+  "traps_per_rep": 0.0,
+  "window_us_med": 455.5,
+  "guest_us_med": 393.5,
+  "classes": {},
+  "class_us": {},
+  "registers": {},
+  "windows": {},
+  "rpcs": {},
+  "host_events": 1.0,
+  "syncs": 0.0,
+  "sync_calls": 0,
+  "sync_apply_us": 0,
+  "events": {
+   "other events": 1.1,
+   "doorbell eventfd rings (token pool)": 1.0,
+   "host doorbells written (forwarded)": 1.0
+  }
+ },
+ "32": {
+  "name": "d2d_1M",
+  "reps": 10,
+  "traps_per_rep": 0.0,
+  "window_us_med": 976.5,
+  "guest_us_med": 926.7,
+  "classes": {},
+  "class_us": {},
+  "registers": {},
+  "windows": {},
+  "rpcs": {},
+  "host_events": 1.0,
+  "syncs": 0.0,
+  "sync_calls": 0,
+  "sync_apply_us": 0,
+  "events": {
+   "other events": 1.0,
+   "doorbell eventfd rings (token pool)": 1.0,
+   "host doorbells written (forwarded)": 1.0
+  }
+ },
+ "33": {
+  "name": "h2d_pinned_16M",
+  "reps": 10,
+  "traps_per_rep": 0.0,
+  "window_us_med": 5209.5,
+  "guest_us_med": 5158.7,
+  "classes": {},
+  "class_us": {},
+  "registers": {},
+  "windows": {},
+  "rpcs": {},
+  "host_events": 1.0,
+  "syncs": 0.0,
+  "sync_calls": 0,
+  "sync_apply_us": 0,
+  "events": {
+   "other events": 1.5,
+   "doorbell eventfd rings (token pool)": 1.0,
+   "host doorbells written (forwarded)": 1.0
+  }
+ },
+ "34": {
+  "name": "d2h_pinned_16M",
+  "reps": 10,
+  "traps_per_rep": 0.0,
+  "window_us_med": 5306.0,
+  "guest_us_med": 5252.1,
+  "classes": {},
+  "class_us": {},
+  "registers": {},
+  "windows": {},
+  "rpcs": {},
+  "host_events": 1.0,
+  "syncs": 0.0,
+  "sync_calls": 0,
+  "sync_apply_us": 0,
+  "events": {
+   "other events": 2.1,
+   "doorbell eventfd rings (token pool)": 1.0,
+   "host doorbells written (forwarded)": 1.0
+  }
+ },
+ "35": {
+  "name": "d2d_16M",
+  "reps": 10,
+  "traps_per_rep": 0.0,
+  "window_us_med": 4322.0,
+  "guest_us_med": 4268.0,
+  "classes": {},
+  "class_us": {},
+  "registers": {},
+  "windows": {},
+  "rpcs": {},
+  "host_events": 1.0,
+  "syncs": 0.0,
+  "sync_calls": 0,
+  "sync_apply_us": 0,
+  "events": {
+   "other events": 1.0,
+   "doorbell eventfd rings (token pool)": 1.0,
+   "host doorbells written (forwarded)": 1.0
+  }
+ },
+ "36": {
+  "name": "h2d_pageable_1M",
+  "reps": 10,
+  "traps_per_rep": 0.0,
+  "window_us_med": 552.0,
+  "guest_us_med": 502.7,
+  "classes": {},
+  "class_us": {},
+  "registers": {},
+  "windows": {},
+  "rpcs": {},
+  "host_events": 1.0,
+  "syncs": 0.0,
+  "sync_calls": 0,
+  "sync_apply_us": 0,
+  "events": {
+   "other events": 1.1,
+   "doorbell eventfd rings (token pool)": 1.0,
+   "host doorbells written (forwarded)": 1.0
+  }
+ },
+ "37": {
+  "name": "d2h_pageable_1M",
+  "reps": 10,
+  "traps_per_rep": 0.0,
+  "window_us_med": 516.5,
+  "guest_us_med": 477.0,
+  "classes": {},
+  "class_us": {},
+  "registers": {},
+  "windows": {},
+  "rpcs": {},
+  "host_events": 1.0,
+  "syncs": 0.0,
+  "sync_calls": 0,
+  "sync_apply_us": 0,
+  "events": {
+   "other events": 1.2,
+   "doorbell eventfd rings (token pool)": 1.0,
+   "host doorbells written (forwarded)": 1.0
+  }
+ },
+ "40": {
+  "name": "cuStreamSynchronize_idle",
+  "reps": 20,
+  "traps_per_rep": 0.0,
+  "window_us_med": 55.0,
+  "guest_us_med": 5.8,
+  "classes": {},
+  "class_us": {},
+  "registers": {},
+  "windows": {},
+  "rpcs": {},
+  "host_events": 0.0,
+  "syncs": 0.0,
+  "sync_calls": 0,
+  "sync_apply_us": 0,
+  "events": {
+   "other events": 0.05
+  }
+ },
+ "41": {
+  "name": "cuEventRecord_Synchronize",
+  "reps": 20,
+  "traps_per_rep": 0.0,
+  "window_us_med": 814.5,
+  "guest_us_med": 774.7,
+  "classes": {},
+  "class_us": {},
+  "registers": {},
+  "windows": {},
+  "rpcs": {},
+  "host_events": 1.0,
+  "syncs": 0.0,
+  "sync_calls": 0,
+  "sync_apply_us": 0,
+  "events": {
+   "other events": 1.2,
+   "doorbell eventfd rings (token pool)": 1.0,
+   "host doorbells written (forwarded)": 1.0
+  }
+ },
+ "50": {
+  "name": "cuModuleLoad_cubin",
+  "reps": 10,
+  "traps_per_rep": 0.0,
+  "window_us_med": 868.5,
+  "guest_us_med": 823.2,
+  "classes": {},
+  "class_us": {},
+  "registers": {},
+  "windows": {},
+  "rpcs": {},
+  "host_events": 1.0,
+  "syncs": 0.0,
+  "sync_calls": 0,
+  "sync_apply_us": 0,
+  "events": {
+   "other events": 1.1,
+   "doorbell eventfd rings (token pool)": 1.0,
+   "host doorbells written (forwarded)": 1.0
+  }
+ },
+ "51": {
+  "name": "cuModuleUnload",
+  "reps": 10,
+  "traps_per_rep": 0.0,
+  "window_us_med": 69.0,
+  "guest_us_med": 28.4,
+  "classes": {},
+  "class_us": {},
+  "registers": {},
+  "windows": {},
+  "rpcs": {},
+  "host_events": 0.0,
+  "syncs": 0.0,
+  "sync_calls": 0,
+  "sync_apply_us": 0,
+  "events": {}
+ }
+}

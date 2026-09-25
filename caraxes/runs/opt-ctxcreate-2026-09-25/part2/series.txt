@@ -1,0 +1,26 @@
+# series 2026-09-25T08:56:08+02:00 targets=[v2] reps=3 metrics=[init churn]
+# libdir v2 /opt/nvrm/lib
+# caraxes shell-rig-334-g56aacd2-dirty leandro-test 3edea73-dirty
+# bin c5b48cf1181bfcfc251f12aa2b0eaeb074887efec4c479f36efe399cb1307a13  bench-cu
+# bin 4612c18e519913f17f5628ca0042402726c72a13d302e355b96427dc2a090287  census-cu
+# bin 5a8a5cd0e8086924ec4be0d88fe985608fb1a46646d8ed9fa119bf4936f98271  census.cubin
+# bin 2e7db7218ac29e0da0b22a4d30307ea1f675dc04912d6b34922708495595904d  convnet.py
+# bin 68449e9ec7b25613a65d096a6a42864c01fbf46ec47e540ce01f47184f0479ea  ctrlping
+# bin 138c5073848b2f3cf2beb4709376c7c49b420d88e836664584e5cf8bbfc7848c  ioctlping
+# bin 1f921680fc7a2c2e0978eb007cc0ab48d2f1a7cf404a196c9063a19a10aa228f  kernels.ptx
+# bin abdf09531ac015ba4e8e7550bda6eb43609c429d6e1240e7f8553841bfe06513  llamaprobe.py
+# bin 2735d2a9cd25c0753898188542dbeb4a8433609024aa48230b6803a4a8d96e66  nvprobe
+# bin 012bb008b87ec0a6ee4ef566e0b55f856df09d6a3e07e72fe5cde5a9043dd18a  pporl.py
+# bin 02b1d58fc1778a47f8940e7f89d2cabb44b64d078f5b54b5ca1fba9437073c4a  transformer.py
+# bin f0868123fca8e2c40138fda523e35fa76c015b97e232fc647fea0b6b49f33584  vrampress
+# time 2026-09-25T08:56:08+02:00
+# gpu 49, 750 MHz, 810 MHz, P5, 17 %, 5175 MiB, Disabled
+# procs 3208281:-dev 3339369:vm0-dev 3339387:vm1-vmm 3355853:vm3-dev 3355872:vm1-vmm 3365532:vm5-dev 3365552:vm1-vmm 
+# loadavg 13.38 8.75 7.83
+08:56:09 v2  init            rep 1: INIT cuinit_ms=14.017 devget_ms=0.002 ctxcreate_ms=357.502 ctxdestroy_ms=154.028 # WALL wall_ms=533 rc=0  | # MEAS dev_pid=3355853 dev_cpu_ms=470 dev_rss_hwm_kb=5259608/9445288 vmm_cpu_ms=970 others: vm1-vmm=110ms vm1-vmm=10ms v
+08:56:12 v2  churn           rep 1: # WALL wall_ms=2448 rc=0  | # MEAS dev_pid=3355853 dev_cpu_ms=2020 dev_rss_hwm_kb=5259608/9445288 vmm_cpu_ms=3750 others: vm1-vmm=360ms vm1-vmm=10ms
+08:56:13 v2  init            rep 2: INIT cuinit_ms=33.425 devget_ms=0.001 ctxcreate_ms=380.073 ctxdestroy_ms=261.547 # WALL wall_ms=689 rc=0  | # MEAS dev_pid=3355853 dev_cpu_ms=530 dev_rss_hwm_kb=5259608/9445288 vmm_cpu_ms=1200 others: vm1-vmm=170ms vm1-vmm=0ms v
+08:56:17 v2  churn           rep 2: # WALL wall_ms=3323 rc=0  | # MEAS dev_pid=3355853 dev_cpu_ms=2460 dev_rss_hwm_kb=5259648/9445288 vmm_cpu_ms=4390 others: vm1-vmm=650ms vm1-vmm=30ms
+08:56:18 v2  init            rep 3: INIT cuinit_ms=28.229 devget_ms=0.001 ctxcreate_ms=516.520 ctxdestroy_ms=222.711 # WALL wall_ms=778 rc=0  | # MEAS dev_pid=3355853 dev_cpu_ms=620 dev_rss_hwm_kb=5259648/9445288 vmm_cpu_ms=1310 others: vm1-vmm=170ms vm1-vmm=10ms 
+08:56:22 v2  churn           rep 3: # WALL wall_ms=2738 rc=0  | # MEAS dev_pid=3355853 dev_cpu_ms=2230 dev_rss_hwm_kb=5259660/9445288 vmm_cpu_ms=4070 others: vm1-vmm=470ms vm1-vmm=20ms
+# end 2026-09-25T08:56:22+02:00
