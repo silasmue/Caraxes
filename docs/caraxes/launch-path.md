@@ -183,6 +183,40 @@ every flush runs), `launch::flush_gate_skips_only_an_empty_flush`,
 skipped only with the pool on), `launch::a_ring_records_its_steps_in_order`. The switch is read
 per thread in tests (`set_fast_here`), so no test leaks it into another.
 
+### 3a. The lean evidence (`CARAXES_LAUNCH_FAST=2`)
+
+After the cuts of §3 the ran-ahead check is still 0.9 to 1.4 us of the ring (one uncached qword
+read of USERD). It is evidence only: it counts doorbells whose host channel already fetched
+entries past the last forward, and it logs the ones with plans pending (untrapped.rs `HoldStats`);
+nothing in the ring depends on it. `2` skips its read when no plan is pending (mirror.rs:695,
+launch.rs:346 `evidence_needed`): the logged lines and the pending count stay exact, only the
+total count stops covering doorbells without plans. The forward record (GPPut after the barrier
+and the flush) is still read at every ring, so the next pending doorbell compares against a fresh
+value. Test: `launch::lean_evidence_reads_whenever_plans_are_pending`.
+
+### 3b. The direct completion (`CARAXES_INTR_DIRECT=1`)
+
+§2 measured the raise-to-MSI step at 11 to 18 us p50 (83 us in B's PPO lives): the event thread
+set the pending bit, wrote the interrupt page reactor's wake eventfd, and the reactor, often
+blocked after its hybrid window, woke, scanned the page and wrote the MSI. With the switch the
+raise runs that same scan on the event thread (intr.rs:94, `IntrShared::attach_direct`): the
+vector is folded into the page, the page stores are fenced, then the MSI eventfd is written, as
+the reactor does it (intr_page.rs `scan_racing`). The page's mutex orders the two scanners;
+whichever takes the raised flag writes the page and the MSI, and the other finds nothing.
+Rules and tests:
+- nothing is reported before the host reported it: the direct scan runs only inside a raise,
+  and a scan without a raise writes no MSI;
+- the page shows the vector before the MSI is written, and a raise while the vector is still
+  pending costs no second MSI (`intr_page::direct_completion_orders_the_page_before_the_msi`);
+- racing the reactor's scan, every raise ends with exactly one MSI and the vector in the page
+  (`intr_page::direct_completion_racing_the_reactor_loses_nothing`, 2000 rounds);
+- refused without `CARAXES_INTR_PAGE=1` (intr_page.rs:129 `direct_requested`); a dropped page
+  falls back to the wake.
+
+This is also the MSI coalescing the brief asked for: while the guest has not acked a vector, the
+page already drops the second MSI (intr-page.md §3), so a guest that is polling its semaphore
+and has not taken the first interrupt gets no second one.
+
 ## 4. The interrupt gate (`CARAXES_INTR_GATE_MS`, backlog item 5)
 
 The host's non-stall notifiers are engine-wide: the desktop's and the other VMs' GR work raise
@@ -245,6 +279,8 @@ releases; MSIs for raises per launch life 774 to 1547 (A) against 620 to 757 (B)
 | `CARAXES_LAUNCH_TIMING` | off | `1`: the per-step histograms of §1 in the exit summary (`launch timing:` lines) |
 | `CARAXES_LAUNCH_FAST` | off | `1`: the cuts of §3; the exit summary adds `launch fast: BAR1 flushes N done, M skipped`. Recommended on |
 | `CARAXES_INTR_GATE_MS` | off | a hold of 1 to 1000 ms: the gate of §4, hot for ten holds after a host doorbell; the device log gets `intr gate:` at the end |
+| `CARAXES_LAUNCH_FAST=2` | off | `1` plus the lean evidence of §3a; the `launch fast:` line adds the skipped ran-ahead reads |
+| `CARAXES_INTR_DIRECT` | off | `1` (needs `CARAXES_INTR_PAGE=1`): the direct completion of §3b; the `intr page` summary adds `intr page direct: N raise(s)` |
 | `CARAXES_DOORBELL_POLL_ADAPT_US` | off | hybrid only, at least the idle time: the adaptive spin window's cap (§5); `doorbell poll` shows the last window |
 
 Records: `before/` (the first series, per metric, stopped after rlprobe's second rep when the load
