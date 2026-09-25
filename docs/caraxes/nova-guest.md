@@ -139,7 +139,10 @@ What nova touches:
 
 - Kernel: `caraxes/runs/nova-2026-09-25/build-kernel.sh` (x86_64 defconfig + kvm_guest, Rust,
   `NOVA_CORE=m`, `DRM_NOVA=m`, root disk and ext4 built in, no initramfs; clang, rustc 1.89 of
-  rustup's stable toolchain with rust-src, bindgen 0.73). `kernel.config` next to it.
+  rustup's stable toolchain with rust-src, bindgen 0.73). `kernel.config` next to it. Built
+  with `-j4` under `nice -n 10`; source, build tree and modules live on the NAS
+  (`/mnt/vmstore/caraxes/nova-kernel/{src,build,modules}`, linked as `target/nova-src`,
+  `target/nova-build`, `target/nova-modules`), because the root disk was full.
 - VM vm9: `prepare-vm9.sh` (fresh overlay on the 610 base image, modules, firmware,
   `nova_core` blacklisted from autoload, `nova-check.sh` as the check service), booted by
   `nova-boot.sh` with `CARAXES_INITRD=none` (new launcher switch), 1 GiB, 2 vCPUs, no tap.
