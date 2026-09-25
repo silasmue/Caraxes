@@ -394,6 +394,23 @@ impl ControlTable {
 // ---------------------------------------------------------------------------------
 // The dispatch hook.
 
+/// Why a family stays refused on every chip, where the reason is not the chip's silicon
+/// (docs/caraxes/limits-mig-ecc-vgpu.md, vGPU).
+fn why_absent(family: &str) -> &'static str {
+    match family {
+        // Only a vGPU host (the vgpu-kvm build) or a vGPU guest sends these; the open
+        // driver compiles both out (os_is_vgx_hyper and os_is_grid_supported are FALSE
+        // without NV_VGX_HYPER / NV_GRID_BUILD, kernel-open/nvidia/os-interface.c:1517-1552
+        // of 615.71.09), and the guest's device is no SR-IOV physical function a host
+        // could split (the device isolation rules, docs/caraxes/README.md).
+        "vgpu" | "vgpu_paths" => {
+            "; vGPU host and SR-IOV paths: the open driver builds neither a vGPU host nor a \
+             vGPU guest (os-interface.c:1517-1552 of 615), and this device is no PF to split"
+        }
+        _ => "",
+    }
+}
+
 /// The answer of the two rules to `cmd`, or `None` when neither takes it.
 pub fn answer(chip: &'static crate::chip::ChipData, cmd: u32, params: &[u8]) -> Option<Answer> {
     if let Some(&(family, name)) = chip.features.refused.get(&cmd) {
@@ -402,8 +419,9 @@ pub fn answer(chip: &'static crate::chip::ChipData, cmd: u32, params: &[u8]) -> 
             params: params.to_vec(),
             label: REFUSED,
             note: format!(
-                "{name} ({cmd:#x}): feature family {family} absent on {}",
-                chip.name
+                "{name} ({cmd:#x}): feature family {family} absent on {}{}",
+                chip.name,
+                why_absent(family)
             ),
         });
     }
@@ -648,6 +666,20 @@ mod tests {
         let r = Features::resolve(abi, &f).unwrap();
         assert!(!r.refused.values().any(|(fam, _)| *fam == "nvlink"));
         assert!(r.refused.values().any(|(fam, _)| *fam == "mig"));
+    }
+
+    /// The vGPU host paths stay refused on every chip, the data-center rungs too, and the
+    /// refusal names the reason (the open driver has no vGPU host or guest).
+    #[test]
+    fn vgpu_host_paths_are_refused_with_the_reason() {
+        for name in ["tu106", "ga100", "gh100"] {
+            let chip = crate::chip::by_name(name).unwrap().data();
+            // NV2080_CTRL_CMD_VGPU_MGR_INTERNAL_BOOTLOAD_GSP_VGPU_PLUGIN_TASK (vgpu family).
+            let a = answer(chip, 0x2080_4001, &[0u8; 16]).unwrap();
+            assert_eq!((a.status, a.label), (v::NV_ERR_NOT_SUPPORTED, REFUSED), "{name}");
+            assert!(a.note.contains("os-interface.c:1517-1552"), "{name}: {}", a.note);
+        }
+        assert_eq!(why_absent("nvlink"), "");
     }
 
     /// The real card answers NVENC_SW_SESSION_STATS NV_OK with zeros (native nvml trace);
