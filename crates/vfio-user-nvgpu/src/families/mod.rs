@@ -90,6 +90,22 @@ fn load_persist() -> Persist {
     }
 }
 
+/// The devinit scratch bit of a chip without resetless MIG, as the next power-on sets it:
+/// `(register, mask)` when the stored MIG mode is on, `None` otherwise. On GA100 the
+/// kernel learns that MIG is on at load only from this bit (kmigmgrStateInitLocked,
+/// kernel_mig_manager.c:1203-1204 of 615.71.09; the other chips' HAL answers FALSE,
+/// g_kernel_mig_manager_nvoc.c:440-455), which a real card's devinit sets from the InfoROM
+/// setting. BAR0 latches it at power-on and at every reset (bar0.rs).
+pub fn devinit_scratch(chip: &ChipData) -> Option<(u64, u32)> {
+    let m = chip.mig.as_ref()?;
+    let [reg, bit] = m.devinit_scratch?;
+    if m.resetless || !modelled(chip, "mig") {
+        return None;
+    }
+    // A power-on applies the pending setting (Families::power_on).
+    load_persist().mig?.pending.then_some((reg as u64, 1u32 << bit))
+}
+
 /// The feature-family state of one VM.
 pub struct Families {
     pub(crate) chip: &'static ChipData,

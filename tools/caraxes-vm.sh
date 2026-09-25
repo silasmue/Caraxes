@@ -139,14 +139,15 @@ case ${CARAXES_COSTUME:-} in
     # rtx5060ti-gb206 (GB206) the GB206 capture's, as their FSP boot reads no Turing VBIOS.
     # rtx2070vf: the RTX 2070 whose NV_PMC_BOOT_1 says "SR-IOV virtual function" (the
     # vGPU-guest experiment, docs/caraxes/limits-mig-ecc-vgpu.md §4; pure emulation only).
-    rtx2080|rtx3060|rtx4060ti|h100|rtx5060ti-gb206|rtx2070vf)
+    # a100 (GA100): the limits runs' GA100 rung on the RTX 2070's config layout and ROM.
+    rtx2080|rtx3060|rtx4060ti|h100|a100|rtx5060ti-gb206|rtx2070vf)
         [[ ${CARAXES_CHIP:-tu106} == tu106 ]] || { printf 'ERROR: CARAXES_COSTUME=%s needs CARAXES_CHIP=tu106 (the executing chip)\n' "$CARAXES_COSTUME" >&2; exit 1; }
         IDENTITY+=(--board-data "$CARAXES_COSTUME-on-tu106")
         if [[ $CARAXES_COSTUME == h100 || $CARAXES_COSTUME == rtx5060ti-gb206 ]]; then
             REF=$LEA_ROOT/caraxes/reference/gb206/gpu-0000_01_00.0
             CONFIG=$REF/config-space.txt
         fi ;;
-    *) printf 'ERROR: CARAXES_COSTUME must be empty, rtx5060ti, rtx2080, rtx3060, rtx4060ti, h100, rtx5060ti-gb206 or rtx2070vf\n' >&2; exit 1 ;;
+    *) printf 'ERROR: CARAXES_COSTUME must be empty, rtx5060ti, rtx2080, rtx3060, rtx4060ti, h100, a100, rtx5060ti-gb206 or rtx2070vf\n' >&2; exit 1 ;;
 esac
 # The SM-version rungs of the costume ladder: CARAXES_SM_VERSION=<major>.<minor> makes the
 # device report that SM version in every GR info answer (--sm-version); the silicon stays.

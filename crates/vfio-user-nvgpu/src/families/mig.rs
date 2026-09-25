@@ -119,6 +119,12 @@ pub struct MigData {
     /// The partitionable engines, by RM/NV2080 engine name (`GR0`, `COPY0`, `NVDEC0`, ...).
     pub engines: Vec<String>,
     pub profile: Vec<ProfileData>,
+    /// Without resetless MIG (GA100): the devinit-owned scratch register and bit that say
+    /// "MIG on" at driver load, `[register, bit]` (kmigmgrIsDevinitMIGBitSet_GA100,
+    /// kmigmgr_ga100.c:42-53 of 615.71.09, NV_PBUS_SW_SCRATCH(1) 15:15). See
+    /// [`super::devinit_scratch`].
+    #[serde(default)]
+    pub devinit_scratch: Option<[u32; 2]>,
     pub label: String,
 }
 
@@ -1087,6 +1093,43 @@ mod tests {
         let mut fresh = dispatcher();
         fresh.families.after_reset(&d.families);
         assert_eq!(smc(&mut fresh), SMC_DISABLED);
+    }
+
+    fn ga100() -> Dispatcher {
+        let f = crate::fixture::rtx2070();
+        Dispatcher::new(crate::chip::by_name("ga100").unwrap().data(), &f.identity(4 << 30), None)
+    }
+
+    /// The GA100 rung: 7g, 4g, 3g twice, 2g three times, 1g seven times on seven GPCs in
+    /// an eight-slot span (no swizzId rejected); `-mig 1` is pending until a reset, which
+    /// applies it; the devinit bit is the kernel's only way to see MIG on at load.
+    #[test]
+    fn ga100_mode_is_pending_until_a_reset() {
+        let mut d = ga100();
+        for (flag, total) in [(0x00, 1), (0x05, 1), (0x09, 2), (0x0E, 3), (0x17, 7)] {
+            assert_eq!(capacity(&mut d, flag), (total, total), "flag {flag:#x}");
+        }
+        assert_eq!(smc(&mut d), SMC_DISABLED);
+        assert_eq!(mig_on(&mut d, 2).status, NV_OK);
+        assert_eq!(smc(&mut d), SMC_ENABLE_PENDING);
+        // No GI while the mode is only pending.
+        assert_eq!(set_gi(&mut d, 0x17, true, 0).status, NV_ERR_INVALID_STATE);
+        let mut fresh = ga100();
+        fresh.families.after_reset(&d.families);
+        assert_eq!(smc(&mut fresh), SMC_ENABLED);
+        let a = set_gi(&mut fresh, 0x17, true, 0);
+        assert_eq!(a.status, NV_OK, "{}", a.note);
+        // `-mig 0` with the GI gone: pending disable until the next reset.
+        let st = "NV2080_CTRL_GPU_SET_PARTITIONS_PARAMS";
+        let swizz = rd32(&a.params, off(st, "partitionInfo[0].swizzId"));
+        assert_eq!(set_gi(&mut fresh, 0, false, swizz).status, NV_OK);
+        assert_eq!(mig_on(&mut fresh, 0).status, NV_OK);
+        assert_eq!(smc(&mut fresh), SMC_DISABLE_PENDING);
+        // The devinit scratch register the chip names, NV_PBUS_SW_SCRATCH(1) bit 15.
+        let m = fresh.families.chip.mig.as_ref().unwrap();
+        assert_eq!(m.devinit_scratch, Some([0x1404, 15]));
+        // The GH100 names none: its MIG is resetless.
+        assert!(dispatcher().families.chip.mig.as_ref().unwrap().devinit_scratch.is_none());
     }
 
     /// A chip without resetless MIG (GA100) keeps the new mode pending until a reset.

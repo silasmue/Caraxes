@@ -142,6 +142,7 @@ const LADDER: &[(&str, &str)] = &[
     ("rtx3060-on-tu106", include_str!("../boards/rtx3060-on-tu106.toml")),
     ("rtx4060ti-on-tu106", include_str!("../boards/rtx4060ti-on-tu106.toml")),
     ("h100-on-tu106", include_str!("../boards/h100-on-tu106.toml")),
+    ("a100-on-tu106", include_str!("../boards/a100-on-tu106.toml")),
     ("rtx5060ti-gb206-on-tu106", include_str!("../boards/rtx5060ti-gb206-on-tu106.toml")),
     // The vGPU-guest experiment (docs/caraxes/limits-mig-ecc-vgpu.md §4).
     ("rtx2070vf-on-tu106", include_str!("../boards/rtx2070vf-on-tu106.toml")),
@@ -158,6 +159,7 @@ pub const BOARDS: &[&str] = &[
     "rtx3060-on-tu106",
     "rtx4060ti-on-tu106",
     "h100-on-tu106",
+    "a100-on-tu106",
     "rtx5060ti-gb206-on-tu106",
     "rtx2070vf-on-tu106",
 ];
@@ -419,6 +421,7 @@ mod tests {
             ("rtx3060-on-tu106", "ga106", 0x2503),
             ("rtx4060ti-on-tu106", "ad106", 0x2803),
             ("h100-on-tu106", "gh100", 0x2331),
+            ("a100-on-tu106", "ga100", 0x20F1),
         ];
         for (board, chip, dev) in want {
             let b = Board::load(board).unwrap();

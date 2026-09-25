@@ -370,6 +370,22 @@ mod tests {
         assert_eq!((a.status, &a.params[..]), (NV_OK, &[0u8; 20][..]));
     }
 
+    /// The GA100 rung has the same ECC model: on at power-on, `-e 0` pending until a
+    /// reset, the InfoROM ECC object present.
+    #[test]
+    fn ga100_reports_ecc_on() {
+        let mut d = dispatcher("ga100");
+        assert!(d.families.ecc_enabled());
+        assert_eq!(unit(&status(&mut d), 0x1D, "enabled"), 1);
+        let mut p = vec![0u8; size("NV2080_CTRL_GPU_GET_INFOROM_OBJECT_VERSION_PARAMS")];
+        p[..3].copy_from_slice(b"ECC");
+        let a = ctl(&mut d, "NV2080_CTRL_CMD_GPU_GET_INFOROM_OBJECT_VERSION", &p);
+        assert_eq!((a.status, a.label), (NV_OK, MODE));
+        // Another object stays with the other handlers.
+        p[..3].copy_from_slice(b"OBD");
+        assert_ne!(ctl(&mut d, "NV2080_CTRL_CMD_GPU_GET_INFOROM_OBJECT_VERSION", &p).label, MODE);
+    }
+
     /// TU106 has neither family: the status stays the host forward (without a host, the
     /// nvml fallback), the setter the chipctl refusal.
     #[test]

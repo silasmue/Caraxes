@@ -1,0 +1,220 @@
+# SPDX-License-Identifier: MIT
+# SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
+#
+# The GA100 rung of the limits runs (docs/caraxes/limits-mig-ecc-vgpu.md): GA100, the A100's
+# chip (Ampere, data center), presented over the TU106 of the house. An overlay on
+# chips/tu106 (src/chip/derived.rs). Paths are relative to vendor/open-gpu-kernel-modules;
+# "615" is 615.71.09, "610" is 610.57.04 (the guest's version, whose class list the guest
+# builds its class database from). No GA100 was ever read: every value comes from the open
+# tree, as each comment says; "invented" where nothing in the tree gives it.
+#
+# Why the Turing base fits: GA100 boots GSP-RM with the TU10x image (gsp_tu10x.bin,
+# NV_FIRMWARE_CHIP_FAMILY_GA100 falls through to TU10X, kernel-open/common/inc/
+# nv-firmware.h:118-125 of 615), reads the usable FB size the TU102 way
+# (kmemsysReadUsableFbSize_GP102 for TU10x and GA100, g_kern_mem_sys_nvoc.c:363-367 of 615)
+# and shares the TU102 GSP boot HALs except the debug-fuse and ucode-fuse reads
+# (kernel_gsp_ga100.c:38-80 of 615), which chips/tu106/boot.toml already answers. So no
+# boot.toml overlay: the GA102-family overlays of chips/ga106 do not apply.
+#
+# The costume: identity, short name, classes, channel classes, the feature families of a
+# data-center Ampere (ECC, the row remapper, MIG), the GR facts MIG slices by, [ecc] and
+# [mig]. The truth underneath: the TU106 register map, device info (one GR engine, so one
+# GPU instance at a time), interrupts, memsys and the Turing boot model.
+base = "tu106"
+name = "ga100"
+short_name = "GA100"
+
+# NV_PMC_BOOT_0/BOOT_42 of GA100 revision A1: architecture 0x17 (GA100 family,
+# NV2080_CTRL_MC_ARCH_INFO_ARCHITECTURE_GA100 0x170, ctrl2080mc.h:78 of 615) and
+# implementation 0 (_IMPLEMENTATION_GA100, ctrl2080mc.h:109 of 615), encoded as chips/tu106
+# encodes TU106. The revision A1 is invented (TU106's).
+[identity]
+boot_0 = 0x1700_00A1
+boot_1 = 0x0000_0000
+boot_42 = 0x170A_1000
+
+# AMPERE_CHANNEL_GPFIFO_A (clc56f.h), AMPERE_DMA_COPY_A (clc6b5.h), GP100_UVM_SW,
+# AMPERE_COMPUTE_A (clc6c0.h) (g_gpu_class_list.c:642-711 of 610, GA100 engine list).
+[channel]
+gpfifo = 0xC56F
+copy = 0xC6B5
+uvm_sw = 0xC076
+compute = 0xC6C0
+
+[classes]
+source = "g_gpu_class_list.c:32-54, 590-639, 642-711 of 610.57.04 (generic, GA100 no-engine and engine lists; the 615 lists are at :630-759)"
+ids = [
+    0x0000, # NV01_ROOT
+    0x0001, # NV01_ROOT_NON_PRIV
+    0x0002, # NV01_CONTEXT_DMA
+    0x0004, # NV01_TIMER
+    0x0005, # NV01_EVENT
+    0x000F, # FABRIC_MANAGER_SESSION
+    0x0020, # NV0020_GPU_MANAGEMENT
+    0x003E, # NV01_MEMORY_SYSTEM
+    0x003F, # NV01_MEMORY_LOCAL_PRIVILEGED
+    0x0040, # NV01_MEMORY_LOCAL_USER
+    0x0041, # NV01_ROOT_CLIENT
+    0x0050, # NV_CE_UTILS
+    0x0060, # NV0060_SYNC_GPU_BOOST
+    0x0070, # NV01_MEMORY_VIRTUAL
+    0x0071, # NV01_MEMORY_SYSTEM_OS_DESCRIPTOR
+    0x0076, # NV01_MEMORY_FRAMEBUFFER_CONSOLE
+    0x0078, # NV01_EVENT_KERNEL_CALLBACK
+    0x0079, # NV01_EVENT_OS_EVENT
+    0x007D, # NV04_SOFTWARE_TEST
+    0x007E, # NV01_EVENT_KERNEL_CALLBACK_EX
+    0x0080, # NV01_DEVICE_0
+    0x0081, # NV01_MEMORY_LIST_SYSTEM
+    0x0082, # NV01_MEMORY_LIST_FBMEM
+    0x0083, # NV01_MEMORY_LIST_OBJECT
+    0x008F, # KERNEL_WATCHDOG
+    0x0090, # KERNEL_GRAPHICS_CONTEXT
+    0x0092, # NV0092_RG_LINE_CALLBACK
+    0x00B1, # NV01_MEMORY_HW_RESOURCES
+    0x00C2, # NV01_MEMORY_LOCAL_PHYSICAL
+    0x00DA, # NV_SEMAPHORE_SURFACE
+    0x00DB, # NV40_DEBUG_BUFFER
+    0x00DE, # RM_USER_SHARED_DATA
+    0x00E0, # NV_MEMORY_EXPORT
+    0x00F1, # NV_IMEX_SESSION
+    0x00F2, # IO_VASPACE_A
+    0x00F8, # NV_MEMORY_FABRIC
+    0x00F9, # NV_MEMORY_FABRIC_IMPORT_V2
+    0x00FB, # NV_MEMORY_FABRIC_IMPORTED_REF
+    0x00FC, # FABRIC_VASPACE_A
+    0x00FE, # NV_MEMORY_MAPPER
+    0x0100, # LOCK_STRESS_OBJECT
+    0x0101, # LOCK_TEST_RELAXED_DUP_OBJECT
+    0x2080, # NV20_SUBDEVICE_0
+    0x2081, # NV2081_BINAPI
+    0x2082, # NV2082_BINAPI_PRIVILEGED
+    0x208F, # NV20_SUBDEVICE_DIAG
+    0x30F1, # NV30_GSYNC
+    0x402C, # NV40_I2C
+    0x503B, # NV50_P2P
+    0x503C, # NV50_THIRD_PARTY_P2P
+    0x506F, # NV50_CHANNEL_GPFIFO
+    0x5080, # NV50_DEFERRED_API_CLASS
+    0x50A0, # NV50_MEMORY_VIRTUAL
+    0x83DE, # GT200_DEBUGGER
+    0x844C, # G84_PERFBUFFER
+    0x900E, # MPS_COMPUTE
+    0x9010, # NV9010_VBLANK_CALLBACK
+    0x902D, # FERMI_TWOD_A
+    0x9067, # FERMI_CONTEXT_SHARE_A
+    0x906F, # GF100_CHANNEL_GPFIFO
+    0x9074, # GF100_TIMED_SEMAPHORE_SW
+    0x9096, # GF100_ZBC_CLEAR
+    0x90CC, # GF100_PROFILER
+    0x90CD, # NV_EVENT_BUFFER
+    0x90CE, # NV01_MEMORY_DEVICELESS
+    0x90E6, # GF100_SUBDEVICE_MASTER
+    0x90E7, # GF100_SUBDEVICE_INFOROM
+    0x90F1, # FERMI_VASPACE_A
+    0xA06C, # KEPLER_CHANNEL_GROUP_A
+    0xA080, # KEPLER_DEVICE_VGPU
+    0xA081, # NVA081_VGPU_CONFIG
+    0xA083, # NVA083_GRID_DISPLAYLESS
+    0xA084, # NVA084_KERNEL_HOST_VGPU_DEVICE
+    0xA0BC, # NVENC_SW_SESSION
+    0xA0BD, # NVFBC_SW_SESSION
+    0xA140, # KEPLER_INLINE_TO_MEMORY_B
+    0xB0CC, # MAXWELL_PROFILER
+    0xB0CD, # PROFILER_DEVICE_EVENT
+    0xB0CE, # PROFILER_CONTEXT_EVENT
+    0xB1CC, # MAXWELL_PROFILER_CONTEXT
+    0xB2CC, # MAXWELL_PROFILER_DEVICE
+    0xC076, # GP100_UVM_SW
+    0xC361, # VOLTA_USERMODE_A
+    0xC365, # ACCESS_COUNTER_NOTIFY_BUFFER
+    0xC369, # MMU_FAULT_BUFFER
+    0xC36F, # VOLTA_CHANNEL_GPFIFO_A
+    0xC461, # TURING_USERMODE_A
+    0xC46F, # TURING_CHANNEL_GPFIFO_A
+    0xC4D1, # NVC4D1_VIDEO_NVJPG
+    0xC561, # AMPERE_USERMODE_A
+    0xC56F, # AMPERE_CHANNEL_GPFIFO_A
+    0xC574, # UVM_CHANNEL_RETAINER
+    0xC637, # AMPERE_SMC_PARTITION_REF
+    0xC638, # AMPERE_SMC_EXEC_PARTITION_REF
+    0xC639, # AMPERE_SMC_CONFIG_SESSION
+    0xC640, # AMPERE_SMC_MONITOR_SESSION
+    0xC697, # AMPERE_A
+    0xC6B0, # NVC6B0_VIDEO_DECODER
+    0xC6B5, # AMPERE_DMA_COPY_A
+    0xC6C0, # AMPERE_COMPUTE_A
+    0xC6FA, # NVC6FA_VIDEO_OFA
+    0xCB33, # NV_CONFIDENTIAL_COMPUTE
+]
+
+# INTERNAL_GPU_GET_SMC_MODE and the MIG static tables (families/mig.rs). The GR facts of
+# pure emulation (kgr.rs), GA100's instead of TU106's: the MIG code slices by them.
+# LITTER_NUM_GPCS 0x14 = 8, LITTER_NUM_TPC_PER_GPC 0x17 = 8, SM_PER_TPC 0x20 = 2: the full
+# GA100 of the Ampere whitepaper (8 GPCs, 128 SMs; the A100 enables 108 in 7 GPCs; the open
+# tree has no GA100 constant). SM_VERSION 0x0C = 0x0800 (compute capability 8.0; the header
+# names no 8.0 constant, ctrl2080gr.h:312-318 of 615: invented in its encoding).
+# MAX_MIG_ENGINES 0x35 = 8 (KGRMGR_MAX_GR), MAX_PARTITIONABLE_GPCS 0x36 = 8 (the span the
+# swizzIds cut, kmigmgrSwizzIdToSpan_GA100, kmigmgr_ga100.c:392 of 615),
+# LITTER_MIN_SUBCTX_PER_SMC_ENG 0x37 = 8 (invented, 64 subcontexts / 8), MAX_SUBCONTEXT 0x2C
+# = 64 (TU106's capture).
+[gr]
+mig = true
+smc_label = "costume (GA100 has MIG; the executing TU106 has none)"
+emulated_info = { entries = [[0x2C, 64], [0x14, 8], [0x17, 8], [0x20, 2], [0x0C, 0x0800], [0x35, 8], [0x36, 8], [0x37, 8]], label = "costume (GA100 design constants, Ampere whitepaper; MIG span of the kernel's rules) + synthesized (rest 0)" }
+
+# The families of a data-center Ampere: TU106's list with ECC, the row remapper, MIG and
+# the MIG partitioning internals present (each with its model, src/families), and
+# ampere_later (the Ampere-and-later controls). NVLink stays absent: the A100 PCIe's bridge
+# is not modelled. The display families stay as TU106 has them (GA100 constructs no display
+# engine; its class list has none).
+[features]
+absent = ["rm_test", "nvlink", "hshub", "fabric", "c2c", "gsync", "vgpu", "cc", "spdm", "ccu",
+    "internal_uncalled", "frl", "dp2x", "display_later", "display_embedded", "notebook_power",
+    "nvlink_sli", "ga10x_pcie_ro", "hopper_platform", "blackwell", "vgpu_paths", "windows_only",
+    "legacy_uncalled"]
+present = ["ecc", "row_remap", "mig", "mig_partitioning", "ampere_later"]
+
+# ECC of the A100's HBM2 (src/families/ecc.rs): on by default. Units: NV2080_CTRL_GPU_ECC_UNIT_GSP
+# 0x1D, the one unit the open headers name (ctrl2080gpu.h:1123-1126 of 615); which of the
+# other indices an A100 marks supported is GSP-RM's. The remapper's bank count and the
+# InfoROM ECC object's version are a capture's (invented: 0 and 1.0, as chips/gh100).
+[ecc]
+units = [0x1D]
+default_enabled = true
+remap_banks = 0
+inforom_ecc_object = [1, 0]
+label = "costume (A100 HBM2 ECC on; units: the open headers' GSP unit only; no capture)"
+
+# MIG (src/families/mig.rs). No resetless MIG on GA100 (PDB_PROP_GPU_RESETLESS_MIG_SUPPORTED
+# is TRUE from GH100 on, g_gpu_nvoc.c:403-413 of 615): `-mig 1` stays pending until a GPU
+# reset or a power-on, and the kernel learns at load that MIG is on from the devinit bit
+# NV_PBUS_SW_SCRATCH(1) 0x1404 SMC_MODE 15:15 (ampere/ga100/dev_bus.h:27,
+# dev_bus_addendum.h:27-29; kmigmgrIsDevinitMIGBitSet_GA100, kmigmgr_ga100.c:42-53 of 615).
+# Profiles: the A100 40GB's shapes on the pairs GA100 accepts (kmigmgrIsGPUInstanceCombinationValid_GA100,
+# kmigmgr_ga100.c:226-297 of 615), scaled to the rung: seven usable GPCs in an eight-slot span,
+# memory by the kernel's own swizzId split of the partitionable range
+# (kmemsysSwizzIdToVmmuSegmentsRange_GA100, kern_mem_sys_ga100.c:254-316 of 615; no swizzId
+# is rejected by HW before GH100), the engines of the rung that an A100 has (one GR, the
+# three async copy engines, three NVDECs; an A100 has no NVENC, and the TU106 has no NVJPG
+# or OFA, so 1g.5gb+me is left out). VMMU segment 32 MiB (ctrl2080gpu.h:3144 of 615; an
+# A100's is a capture's). VEIDs 8 and SMs 16 per GPC as chips/gh100 (invented).
+[mig]
+resetless = false
+devinit_scratch = [0x1404, 15]
+vmmu_segment_mib = 32
+gpcs = 7
+span_len = 8
+tpcs_per_gpc = 8
+sms_per_gpc = 16
+veids_per_gpc = 8
+rejected_swizz = []
+engines = ["GR0", "COPY2", "COPY3", "COPY4", "NVDEC0", "NVDEC1", "NVDEC2"]
+label = "costume (A100 MIG shapes on the kernel's rules, scaled to the rung; no capture)"
+profile = [
+    { name = "7g", flag = 0x00, gpcs = 7, ce = 3, nvdec = 3, nvenc = 0, nvjpg = 0, ofa = 0 },
+    { name = "4g", flag = 0x05, gpcs = 4, ce = 2, nvdec = 2, nvenc = 0, nvjpg = 0, ofa = 0 },
+    { name = "3g", flag = 0x09, gpcs = 3, ce = 2, nvdec = 2, nvenc = 0, nvjpg = 0, ofa = 0 },
+    { name = "2g", flag = 0x0E, gpcs = 2, ce = 1, nvdec = 1, nvenc = 0, nvjpg = 0, ofa = 0 },
+    { name = "1g", flag = 0x17, gpcs = 1, ce = 1, nvdec = 0, nvenc = 0, nvjpg = 0, ofa = 0 },
+]

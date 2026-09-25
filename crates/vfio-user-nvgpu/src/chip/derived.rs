@@ -44,6 +44,13 @@ pub const DERIVED: &[DerivedFiles] = &[
         chip: include_str!("../../chips/ad106/chip.toml"),
         boot: Some(include_str!("../../chips/ad106/boot.toml")),
     },
+    // The GA100 rung of the limits runs (docs/caraxes/limits-mig-ecc-vgpu.md): A100
+    // identity, ECC and MIG without resetless MIG.
+    DerivedFiles {
+        name: "ga100",
+        chip: include_str!("../../chips/ga100/chip.toml"),
+        boot: None,
+    },
     // The vGPU-guest experiment (docs/caraxes/limits-mig-ecc-vgpu.md §4): BOOT_1 says VF.
     DerivedFiles {
         name: "tu106vf",
