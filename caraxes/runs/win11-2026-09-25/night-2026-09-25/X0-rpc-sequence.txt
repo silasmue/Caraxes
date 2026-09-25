@@ -1,0 +1,551 @@
+# X0 (2026-09-25 22:42, Windows 617.14, EnableGpuFirmware=1, device in pure emulation): every RPC the driver sent and every answer of the device, from the device trace (E lines: rx = request, tx = reply, ctrl = control decode with the status the device returned). Times: microseconds since device start.
+12945898 rx seq 0 GMCAPI_GSP_INIT (65537) sequence 0 length 3192 checksum ok: 3160 bytes of NVKV system info (395 words)
+12945900 gmcapi GSP_INIT system info: 146 keys: driver "NVRM" "617.14" cl 0, PCI Some(520229086)/Some(1074861144) rev Some(161), bars 0x81000000/0x380000000000/0x380010000000/0x6000, bdf 0x6, mirror (Some(557056), Some(4096)), maxUserVa 0x7ffffffeffff, page Some(4096), 46 registry entries, 38 other keys
+12946027 gmcapi GSP_INIT: 480 bytes of NVKV static info
+12946029 tx seq 0 reply GMCAPI_GSP_INIT sequence 0 result 0x0 length 512
+12948642 rx seq 1 INIT_GSP_TRACE_CRASH_BUFFER (228) sequence 1 length 48 checksum ok: 16 bytes: 00d07a7e010000004006000000000000
+12948645 tx seq 1 reply INIT_GSP_TRACE_CRASH_BUFFER sequence 1 result 0x0 length 48
+12950354 rx seq 2 GSP_RM_ALLOC (103) sequence 2 length 64 checksum ok: hClient=0xc1d00002 hParent=0x0 hObject=0x0 hClass=0x0 paramsSize=120 flags=0x0
+12950357 alloc: alloc NV01_ROOT 0x0 object 0x0 under 0x0 -> status 0x0 [synthesized (object recorded, no host object yet)]
+12950359 tx seq 2 reply GSP_RM_ALLOC sequence 2 result 0x0 length 184
+12950663 rx seq 3 GSP_RM_ALLOC (103) sequence 3 length 64 checksum ok: hClient=0xc1d00002 hParent=0xc1d00002 hObject=0xff010000 hClass=0x80 paramsSize=56 flags=0x0
+12950664 alloc: alloc NV01_DEVICE_0 0x80 object 0xff010000 under 0xc1d00002 -> status 0x0 [synthesized (object recorded, no host object yet)]
+12950666 tx seq 3 reply GSP_RM_ALLOC sequence 3 result 0x0 length 120
+12950863 rx seq 4 GSP_RM_ALLOC (103) sequence 4 length 64 checksum ok: hClient=0xc1d00002 hParent=0xff010000 hObject=0xff030000 hClass=0x2080 paramsSize=4 flags=0x0
+12950873 alloc: alloc NV20_SUBDEVICE_0 0x2080 object 0xff030000 under 0xff010000 -> status 0x0 [synthesized (object recorded, no host object yet)]
+12950874 tx seq 4 reply GSP_RM_ALLOC sequence 4 result 0x0 length 68
+12951059 rx seq 5 GSP_RM_ALLOC (103) sequence 5 length 64 checksum ok: hClient=0xc1d00002 hParent=0xff030000 hObject=0xff0d0000 hClass=0x2081 paramsSize=4 flags=0x0
+12951061 alloc: alloc other 0x2081 object 0xff0d0000 under 0xff030000 -> status 0x0 [synthesized (object recorded, no host object yet)]
+12951062 tx seq 5 reply GSP_RM_ALLOC sequence 5 result 0x0 length 68
+12952188 rx seq 6 GSP_RM_ALLOC (103) sequence 6 length 64 checksum ok: hClient=0xc1e00003 hParent=0x0 hObject=0x0 hClass=0x0 paramsSize=120 flags=0x0
+12952190 alloc: alloc NV01_ROOT 0x0 object 0x0 under 0x0 -> status 0x0 [synthesized (object recorded, no host object yet)]
+12952192 tx seq 6 reply GSP_RM_ALLOC sequence 6 result 0x0 length 184
+12952304 rx seq 7 GSP_RM_ALLOC (103) sequence 7 length 64 checksum ok: hClient=0xc1e00003 hParent=0xc1e00003 hObject=0xcaf00000 hClass=0x80 paramsSize=56 flags=0x0
+12952306 alloc: alloc NV01_DEVICE_0 0x80 object 0xcaf00000 under 0xc1e00003 -> status 0x0 [synthesized (object recorded, no host object yet)]
+12952308 tx seq 7 reply GSP_RM_ALLOC sequence 7 result 0x0 length 120
+12952422 rx seq 8 GSP_RM_ALLOC (103) sequence 8 length 64 checksum ok: hClient=0xc1e00003 hParent=0xcaf00000 hObject=0xcaf00001 hClass=0x2080 paramsSize=4 flags=0x0
+12952423 alloc: alloc NV20_SUBDEVICE_0 0x2080 object 0xcaf00001 under 0xcaf00000 -> status 0x0 [synthesized (object recorded, no host object yet)]
+12952425 tx seq 8 reply GSP_RM_ALLOC sequence 8 result 0x0 length 68
+12953694 rx seq 9 GSP_RM_CONTROL (76) sequence 9 length 20564 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20800a41 paramsSize=20492 rpcFlags=0x0
+12953696 ctrl 0x20800a41: user register access map -> status 0x0 [synthesized (allow-all map, gpu_register_access_map.c:260-298)]
+12953697 tx seq 9 reply GSP_RM_CONTROL sequence 9 result 0x0 length 20564
+12954238 rx seq 15 GSP_RM_CONTROL (76) sequence 10 length 1356 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x208001b0 paramsSize=1284 rpcFlags=0x0
+12954239 ctrl 0x208001b0: constructed falcon info: empty -> status 0x0 [synthesized fallback (no falcons)]
+12954241 tx seq 10 reply GSP_RM_CONTROL sequence 10 result 0x0 length 1356
+12954478 rx seq 16 GSP_RM_CONTROL (76) sequence 11 length 1356 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x208001b0 paramsSize=1284 rpcFlags=0x0
+12954479 ctrl 0x208001b0: constructed falcon info: empty -> status 0x0 [synthesized fallback (no falcons)]
+12954480 tx seq 11 reply GSP_RM_CONTROL sequence 11 result 0x0 length 1356
+12954746 rx seq 17 GSP_RM_CONTROL (76) sequence 12 length 3412 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20801112 paramsSize=3340 rpcFlags=0x0
+12954748 ctrl 0x20801112: fifo device info table: 12 entries -> status 0x0 [host (engines, fault ids, PBDMA counts) + synthesized (runlists, PBDMA ids; fifo-device-info.md)]
+12954749 tx seq 12 reply GSP_RM_CONTROL sequence 12 result 0x0 length 3412
+12955068 rx seq 18 GSP_RM_CONTROL (76) sequence 13 length 2184 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20800a5c paramsSize=2112 rpcFlags=0x0
+12955070 ctrl 0x20800a5c: interrupt kernel table: 13 entries -> status 0x0 [synthesized (TU102-style subtree map; E4: host MC_GET_STATIC_INTR_TABLE; E5b part 2: GR0/CE2-CE4 non-stall vectors)]
+12955071 tx seq 13 reply GSP_RM_CONTROL sequence 13 result 0x0 length 2184
+12955217 rx seq 19 GSP_RM_CONTROL (76) sequence 14 length 112 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20800a1c paramsSize=40 rpcFlags=0x0
+12955219 ctrl 0x20800a1c: memsys static config -> status 0x0 [synthesized (TU106: 4 MiB L2, 8 LTC x 2 LTS, GDDR6; E4: host FB_GET_INFO_V2)]
+12955220 tx seq 14 reply GSP_RM_CONTROL sequence 14 result 0x0 length 112
+12955396 rx seq 20 GSP_RM_CONTROL (76) sequence 15 length 272 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20801803 paramsSize=200 rpcFlags=0x0
+12955398 ctrl 0x20801803: pci bar info: 4 bars -> status 0x0 [guest (BAR addresses from GspSystemInfo) + card (emulated BAR sizes)]
+12955399 tx seq 15 reply GSP_RM_CONTROL sequence 15 result 0x0 length 272
+12955676 rx seq 21 GSP_RM_CONTROL (76) sequence 16 length 76 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20800a4b paramsSize=4 rpcFlags=0x0
+12955677 ctrl 0x20800a4b: display ip version 0x4000000 -> status 0x0 [synthesized (chips/tu106/display.toml)]
+12955679 tx seq 16 reply GSP_RM_CONTROL sequence 16 result 0x0 length 76
+12955836 rx seq 22 GSP_RM_ALLOC (103) sequence 17 length 64 checksum ok: hClient=0xc1e00004 hParent=0x0 hObject=0x0 hClass=0x0 paramsSize=120 flags=0x0
+12955838 alloc: alloc NV01_ROOT 0x0 object 0x0 under 0x0 -> status 0x0 [synthesized (object recorded, no host object yet)]
+12955839 tx seq 17 reply GSP_RM_ALLOC sequence 17 result 0x0 length 184
+12955960 rx seq 23 GSP_RM_ALLOC (103) sequence 18 length 64 checksum ok: hClient=0xc1e00004 hParent=0xc1e00004 hObject=0xcaf00000 hClass=0x80 paramsSize=56 flags=0x0
+12955961 alloc: alloc NV01_DEVICE_0 0x80 object 0xcaf00000 under 0xc1e00004 -> status 0x0 [synthesized (object recorded, no host object yet)]
+12955963 tx seq 18 reply GSP_RM_ALLOC sequence 18 result 0x0 length 120
+12956112 rx seq 24 GSP_RM_ALLOC (103) sequence 19 length 64 checksum ok: hClient=0xc1e00004 hParent=0xcaf00000 hObject=0xcaf00001 hClass=0x2080 paramsSize=4 flags=0x0
+12956114 alloc: alloc NV20_SUBDEVICE_0 0x2080 object 0xcaf00001 under 0xcaf00000 -> status 0x0 [synthesized (object recorded, no host object yet)]
+12956115 tx seq 19 reply GSP_RM_ALLOC sequence 19 result 0x0 length 68
+12956269 rx seq 25 GSP_RM_ALLOC (103) sequence 20 length 64 checksum ok: hClient=0xc1e00004 hParent=0xcaf00000 hObject=0xcaf00002 hClass=0x73 paramsSize=0 flags=0x0
+12956271 alloc: alloc NV04_DISPLAY_COMMON 0x73 -> status 0x0 [synthesized (display object recorded; channel state in display/mod.rs)]
+12956272 tx seq 20 reply GSP_RM_ALLOC sequence 20 result 0x0 length 64
+12958497 rx seq 26 GSP_RM_CONTROL (76) sequence 21 length 76 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20800aac paramsSize=4 rpcFlags=0x0
+12958498 ctrl 0x20800aac: bif static info: all false -> status 0x0 [synthesized (single function, no gen4, no C2C)]
+12958500 tx seq 21 reply GSP_RM_CONTROL sequence 21 result 0x0 length 76
+12959330 rx seq 27 GSP_RM_CONTROL (76) sequence 22 length 80 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20800a61 paramsSize=8 rpcFlags=0x0
+12959331 ctrl 0x20800a61: fifo num channels: 512 -> status 0x0 [synthesized (512 channels; E4: host FIFO_GET_INFO)]
+12959332 tx seq 22 reply GSP_RM_CONTROL sequence 22 result 0x0 length 80
+12959471 rx seq 28 GSP_RM_CONTROL (76) sequence 23 length 76 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20802a08 paramsSize=4 rpcFlags=0x0
+12959472 ctrl 0x20802a08: ce fault method buffer size -> status 0x0 [synthesized (32 KiB fault method buffer; fifo-device-info.md §4a)]
+12959474 tx seq 23 reply GSP_RM_CONTROL sequence 23 result 0x0 length 76
+12960089 rx seq 29 GSP_RM_CONTROL (76) sequence 24 length 88 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20800afe paramsSize=16 rpcFlags=0x0
+12960090 ctrl 0x20800afe: init user shared data: pa 0x17e7ab000 -> status 0x0 [guest (RUSD page recorded)]
+12960091 tx seq 24 reply GSP_RM_CONTROL sequence 24 result 0x0 length 88
+12960208 rx seq 30 GSP_RM_CONTROL (76) sequence 25 length 88 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20800aff paramsSize=16 rpcFlags=0x0
+12960210 ctrl 0x20800aff: user shared data poll: ok -> status 0x0 [synthesized]
+12960211 tx seq 25 reply GSP_RM_CONTROL sequence 25 result 0x0 length 88
+12960350 rx seq 31 GSP_RM_ALLOC (103) sequence 26 length 64 checksum ok: hClient=0xc1e00005 hParent=0x0 hObject=0x0 hClass=0x0 paramsSize=120 flags=0x0
+12960351 alloc: alloc NV01_ROOT 0x0 object 0x0 under 0x0 -> status 0x0 [synthesized (object recorded, no host object yet)]
+12960353 tx seq 26 reply GSP_RM_ALLOC sequence 26 result 0x0 length 184
+12960449 rx seq 32 GSP_RM_ALLOC (103) sequence 27 length 64 checksum ok: hClient=0xc1e00005 hParent=0xc1e00005 hObject=0xcaf00000 hClass=0x80 paramsSize=56 flags=0x0
+12960450 alloc: alloc NV01_DEVICE_0 0x80 object 0xcaf00000 under 0xc1e00005 -> status 0x0 [synthesized (object recorded, no host object yet)]
+12960451 tx seq 27 reply GSP_RM_ALLOC sequence 27 result 0x0 length 120
+12960582 rx seq 33 GSP_RM_ALLOC (103) sequence 28 length 64 checksum ok: hClient=0xc1e00005 hParent=0xcaf00000 hObject=0xcaf00001 hClass=0x2080 paramsSize=4 flags=0x0
+12960583 alloc: alloc NV20_SUBDEVICE_0 0x2080 object 0xcaf00001 under 0xcaf00000 -> status 0x0 [synthesized (object recorded, no host object yet)]
+12960584 tx seq 28 reply GSP_RM_ALLOC sequence 28 result 0x0 length 68
+12960722 rx seq 34 GSP_RM_ALLOC (103) sequence 29 length 64 checksum ok: hClient=0xc1e00005 hParent=0xcaf00001 hObject=0xcaf00003 hClass=0x7e paramsSize=24 flags=0x0
+12960723 alloc: alloc NV01_EVENT_KERNEL_CALLBACK_EX 0x7e object 0xcaf00003 under 0xcaf00001 -> status 0x0 [synthesized (object recorded, no host object yet)]
+12960724 tx seq 29 reply GSP_RM_ALLOC sequence 29 result 0x0 length 88
+12960833 rx seq 35 GSP_RM_CONTROL (76) sequence 30 length 92 checksum ok: hClient=0xc1e00005 hObject=0xcaf00001 cmd=0x20800301 paramsSize=20 rpcFlags=0x0
+12960834 ctrl 0x20800301: event set notification: ok -> status 0x0 [synthesized (event registered, never raised yet)]
+12960835 tx seq 30 reply GSP_RM_CONTROL sequence 30 result 0x0 length 92
+12960932 rx seq 36 GSP_RM_CONTROL (76) sequence 31 length 88 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20800a59 paramsSize=16 rpcFlags=0x0
+12960934 ctrl 0x20800a59: gmmu static info -> status 0x0 [synthesized (256-entry fault buffers)]
+12960935 tx seq 31 reply GSP_RM_CONTROL sequence 31 result 0x0 length 88
+12961042 rx seq 37 GSP_RM_CONTROL (76) sequence 32 length 75 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20800aaf paramsSize=3 rpcFlags=0x0
+12961043 ctrl 0x20800aaf: control 0x20800aaf on 0xca7a0003 (class 0x2080, 3 bytes): not supported -> status 0x56 [unanswered]
+12961044 tx seq 32 reply GSP_RM_CONTROL sequence 32 result 0x0 length 75
+13158023 rx seq 38 UPDATE_BAR_PDE (70) sequence 33 length 56 checksum ok: 24 bytes: 010000000000000002e3a503000000002f00000000000000
+13158026 tx seq 33 reply UPDATE_BAR_PDE sequence 33 result 0x0 length 56
+13159155 rx seq 39 GSP_RM_CONTROL (76) sequence 34 length 72 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20800a70 paramsSize=0 rpcFlags=0x0
+13159156 ctrl 0x20800a70: bus flush with sysmembar: ok -> status 0x0 [synthesized (nothing to flush)]
+13159157 tx seq 34 reply GSP_RM_CONTROL sequence 34 result 0x0 length 72
+13159524 rx seq 40 GSP_RM_CONTROL (76) sequence 35 length 72 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20800a70 paramsSize=0 rpcFlags=0x0
+13159525 ctrl 0x20800a70: bus flush with sysmembar: ok -> status 0x0 [synthesized (nothing to flush)]
+13159526 tx seq 35 reply GSP_RM_CONTROL sequence 35 result 0x0 length 72
+13160300 rx seq 41 GSP_RM_CONTROL (76) sequence 36 length 76 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20800a6c paramsSize=4 rpcFlags=0x0
+13160302 ctrl 0x20800a6c: l2 invalidate/evict: ok -> status 0x0 [synthesized (no cache to evict)]
+13160303 tx seq 36 reply GSP_RM_CONTROL sequence 36 result 0x0 length 76
+13160649 rx seq 42 GSP_RM_CONTROL (76) sequence 37 length 76 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20800a6c paramsSize=4 rpcFlags=0x0
+13160651 ctrl 0x20800a6c: l2 invalidate/evict: ok -> status 0x0 [synthesized (no cache to evict)]
+13160652 tx seq 37 reply GSP_RM_CONTROL sequence 37 result 0x0 length 76
+13161357 rx seq 43 GSP_RM_CONTROL (76) sequence 38 length 76 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20800a6c paramsSize=4 rpcFlags=0x0
+13161358 ctrl 0x20800a6c: l2 invalidate/evict: ok -> status 0x0 [synthesized (no cache to evict)]
+13161359 tx seq 38 reply GSP_RM_CONTROL sequence 38 result 0x0 length 76
+13161750 rx seq 44 GSP_RM_CONTROL (76) sequence 39 length 104 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20800a01 paramsSize=32 rpcFlags=0x0
+13161751 ctrl 0x20800a01: display static info: 4 heads, windows 0xff, i2cPort 16, 81 channels, no internal panel -> status 0x0 [synthesized (chips/tu106/display.toml)]
+13161753 tx seq 39 reply GSP_RM_CONTROL sequence 39 result 0x0 length 104
+13161902 rx seq 45 GSP_RM_CONTROL (76) sequence 40 length 4176 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20800ac6 paramsSize=4104 rpcFlags=0x0
+13161903 ctrl 0x20800ac6: brightc state load: no backlight (no internal panel) -> status 0x0 [synthesized (acknowledged; no display state behind it yet)]
+13161905 tx seq 40 reply GSP_RM_CONTROL sequence 40 result 0x0 length 4176
+13162134 rx seq 47 GSP_RM_CONTROL (76) sequence 41 length 8460 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20800adf paramsSize=8388 rpcFlags=0x0
+13162135 ctrl 0x20800adf: static (ACPI) EDID data: tableLen 0 -> status 0x0 [synthesized (acknowledged; no display state behind it yet)]
+13162136 tx seq 41 reply GSP_RM_CONTROL sequence 41 result 0x0 length 8460
+13162347 rx seq 50 GSP_RM_CONTROL (76) sequence 42 length 96 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20800a49 paramsSize=24 rpcFlags=0x0
+13162349 ctrl 0x20800a49: display instance memory: pa 0x3a5d0000 size 0x10000 addrSpace 2 -> status 0x0 [guest (recorded from the request)]
+13162350 tx seq 42 reply GSP_RM_CONTROL sequence 42 result 0x0 length 96
+13162492 rx seq 51 GSP_RM_CONTROL (76) sequence 43 length 876 checksum ok: hClient=0xca7a0001 hObject=0xca7a0002 cmd=0x800292 paramsSize=804 rpcFlags=0x0
+13162493 ctrl 0x800292: control 0x800292 on 0xca7a0002 (class 0x80, 804 bytes): not supported -> status 0x56 [unanswered]
+13162494 tx seq 43 reply GSP_RM_CONTROL sequence 43 result 0x0 length 876
+13162741 rx seq 52 GSP_RM_CONTROL (76) sequence 44 length 88 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20800a80 paramsSize=16 rpcFlags=0x0
+13162743 ctrl 0x20800a80: perf boost sync info: zeros -> status 0x0 [synthesized (no boost sync)]
+13162744 tx seq 44 reply GSP_RM_CONTROL sequence 44 result 0x0 length 88
+13162903 rx seq 53 GSP_RM_CONTROL (76) sequence 45 length 80 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20800a61 paramsSize=8 rpcFlags=0x0
+13162904 ctrl 0x20800a61: fifo num channels: 512 -> status 0x0 [synthesized (512 channels; E4: host FIFO_GET_INFO)]
+13162905 tx seq 45 reply GSP_RM_CONTROL sequence 45 result 0x0 length 80
+13163224 rx seq 54 GSP_RM_ALLOC (103) sequence 46 length 64 checksum ok: hClient=0xc1e00006 hParent=0x0 hObject=0x0 hClass=0x0 paramsSize=120 flags=0x0
+13163225 alloc: alloc NV01_ROOT 0x0 object 0x0 under 0x0 -> status 0x0 [synthesized (object recorded, no host object yet)]
+13163226 tx seq 46 reply GSP_RM_ALLOC sequence 46 result 0x0 length 184
+13163348 rx seq 55 GSP_RM_ALLOC (103) sequence 47 length 64 checksum ok: hClient=0xc1e00006 hParent=0xc1e00006 hObject=0xcaf00000 hClass=0x80 paramsSize=56 flags=0x0
+13163349 alloc: alloc NV01_DEVICE_0 0x80 object 0xcaf00000 under 0xc1e00006 -> status 0x0 [synthesized (object recorded, no host object yet)]
+13163351 tx seq 47 reply GSP_RM_ALLOC sequence 47 result 0x0 length 120
+13163495 rx seq 56 GSP_RM_ALLOC (103) sequence 48 length 64 checksum ok: hClient=0xc1e00006 hParent=0xcaf00000 hObject=0xcaf00001 hClass=0x2080 paramsSize=4 flags=0x0
+13163497 alloc: alloc NV20_SUBDEVICE_0 0x2080 object 0xcaf00001 under 0xcaf00000 -> status 0x0 [synthesized (object recorded, no host object yet)]
+13163498 tx seq 48 reply GSP_RM_ALLOC sequence 48 result 0x0 length 68
+13181870 rx seq 57 GSP_RM_CONTROL (76) sequence 49 length 88 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20800a80 paramsSize=16 rpcFlags=0x0
+13181871 ctrl 0x20800a80: perf boost sync info: zeros -> status 0x0 [synthesized (no boost sync)]
+13181873 tx seq 49 reply GSP_RM_CONTROL sequence 49 result 0x0 length 88
+13183042 rx seq 58 GSP_RM_CONTROL (76) sequence 50 length 112 checksum ok: hClient=0xc1e00004 hObject=0xcaf00002 cmd=0x730151 paramsSize=40 rpcFlags=0x0
+13183043 ctrl 0x730151: map shared data: base 0x3a5ce000 size 0x20 bMap 1 -> status 0x0 [guest (recorded from the request)]
+13183044 tx seq 50 reply GSP_RM_CONTROL sequence 50 result 0x0 length 112
+13183164 rx seq 59 GSP_RM_CONTROL (76) sequence 51 length 104 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20802a0f paramsSize=32 rpcFlags=0x0
+13183166 ctrl 0x20802a0f: ce pce config for lce type: zeros -> status 0x0 [synthesized (no decompression LCE on Turing)]
+13183167 tx seq 51 reply GSP_RM_CONTROL sequence 51 result 0x0 length 104
+13183308 rx seq 60 GSP_RM_CONTROL (76) sequence 52 length 76 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20802a06 paramsSize=4 rpcFlags=0x0
+13183309 ctrl 0x20802a06: ce update class db: no CE stubbed -> status 0x0 [synthesized (stubbedCeMask 0)]
+13183310 tx seq 52 reply GSP_RM_CONTROL sequence 52 result 0x0 length 76
+13183449 rx seq 61 GSP_RM_CONTROL (76) sequence 53 length 356 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20802a0d paramsSize=284 rpcFlags=0x0
+13183451 ctrl 0x20802a0d: ce update pce/lce mappings: ok -> status 0x0 [synthesized (mapping recorded, nothing programmed)]
+13183452 tx seq 53 reply GSP_RM_CONTROL sequence 53 result 0x0 length 356
+13183576 rx seq 62 GSP_RM_CONTROL (76) sequence 54 length 76 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20802a06 paramsSize=4 rpcFlags=0x0
+13183578 ctrl 0x20802a06: ce update class db: no CE stubbed -> status 0x0 [synthesized (stubbedCeMask 0)]
+13183579 tx seq 54 reply GSP_RM_CONTROL sequence 54 result 0x0 length 76
+13395450 rx seq 63 GSP_RM_CONTROL (76) sequence 55 length 256 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20800a9f paramsSize=184 rpcFlags=0x0
+13395452 ctrl 0x20800a9f: copy reserved split GVA space PDEs to server: ok -> status 0x0 [synthesized (NV_OK, echo; phase5 row 35)]
+13395453 tx seq 55 reply GSP_RM_CONTROL sequence 55 result 0x0 length 256
+13596374 rx seq 64 GSP_RM_ALLOC (103) sequence 56 length 64 checksum ok: hClient=0xc1e00007 hParent=0x0 hObject=0x0 hClass=0x0 paramsSize=120 flags=0x0
+13596375 alloc: alloc NV01_ROOT 0x0 object 0x0 under 0x0 -> status 0x0 [synthesized (object recorded, no host object yet)]
+13596377 tx seq 56 reply GSP_RM_ALLOC sequence 56 result 0x0 length 184
+13596576 rx seq 65 GSP_RM_ALLOC (103) sequence 57 length 64 checksum ok: hClient=0xc1e00007 hParent=0xc1e00007 hObject=0xcaf00000 hClass=0x80 paramsSize=56 flags=0x0
+13596577 alloc: alloc NV01_DEVICE_0 0x80 object 0xcaf00000 under 0xc1e00007 -> status 0x0 [synthesized (object recorded, no host object yet)]
+13596578 tx seq 57 reply GSP_RM_ALLOC sequence 57 result 0x0 length 120
+13596702 rx seq 66 GSP_RM_ALLOC (103) sequence 58 length 64 checksum ok: hClient=0xc1e00007 hParent=0xcaf00000 hObject=0xcaf00001 hClass=0x2080 paramsSize=4 flags=0x0
+13596704 alloc: alloc NV20_SUBDEVICE_0 0x2080 object 0xcaf00001 under 0xcaf00000 -> status 0x0 [synthesized (object recorded, no host object yet)]
+13596705 tx seq 58 reply GSP_RM_ALLOC sequence 58 result 0x0 length 68
+13596857 rx seq 67 GSP_RM_CONTROL (76) sequence 59 length 256 checksum ok: hClient=0xc1e00007 hObject=0xcaf00001 cmd=0x20800a1f paramsSize=184 rpcFlags=0x0
+13596858 ctrl 0x20800a1f: kgr caps: zeros (no host) -> status 0x0 [synthesized fallback (no GR caps)]
+13596859 tx seq 59 reply GSP_RM_CONTROL sequence 59 result 0x0 length 256
+13596984 rx seq 68 GSP_RM_CONTROL (76) sequence 60 length 4104 checksum ok: hClient=0xc1e00007 hObject=0xcaf00001 cmd=0x20800a2a paramsSize=4032 rpcFlags=0x0
+13596985 ctrl 0x20800a2a: kgr info: 63 entries, the chip's emulated table (no host) -> status 0x0 [host (TU106 lab capture: subcontexts, GPC/TPC counts, CC 7.5) + synthesized (rest 0)]
+13596986 tx seq 60 reply GSP_RM_CONTROL sequence 60 result 0x0 length 4104
+13597118 rx seq 70 GSP_RM_CONTROL (76) sequence 61 length 10920 checksum ok: hClient=0xc1e00007 hObject=0xcaf00001 cmd=0x20800a26 paramsSize=10848 rpcFlags=0x0
+13597119 ctrl 0x20800a26: kgr floorsweeping masks: all zero (no host) -> status 0x0 [synthesized fallback (gpcMask 0: no golden channel, GR unusable)]
+13597120 tx seq 61 reply GSP_RM_CONTROL sequence 61 result 0x0 length 10920
+13597428 rx seq 73 GSP_RM_CONTROL (76) sequence 62 length 65512 checksum ok: hClient=0xc1e00007 hObject=0xcaf00001 cmd=0x20800a22 paramsSize=81952 rpcFlags=0x0
+13597430 ctrl 0x20800a22: kgr global SM order: zeros (no host) -> status 0x0 [synthesized fallback (empty SM order)]
+13597431 tx seq 62 reply GSP_RM_CONTROL sequence 62 result 0x0 length 65512
+13597432 tx seq 63 continuation sequence 63 length 16544
+13597633 rx seq 94 GSP_RM_CONTROL (76) sequence 64 length 2120 checksum ok: hClient=0xc1e00007 hObject=0xcaf00001 cmd=0x20800a30 paramsSize=2048 rpcFlags=0x0
+13597634 ctrl 0x20800a30: kgr PPC masks: not supported; the public GR_GET_PPC_MASK 0x20801233 is one GPC per call ({grRouteInfo, gpcId, ppcMask}, ctrl2080gr.h:1810-1814), not the internal mask[64] layout -> status 0x56 [synthesized (NOT_SUPPORTED, tolerated: kernel_graphics.c:1320-1327)]
+13597636 tx seq 64 reply GSP_RM_CONTROL sequence 64 result 0x0 length 2120
+13597736 rx seq 95 GSP_RM_CONTROL (76) sequence 65 length 392 checksum ok: hClient=0xc1e00007 hObject=0xcaf00001 cmd=0x20800a2c paramsSize=320 rpcFlags=0x0
+13597737 ctrl 0x20800a2c: kgr zcull info: not supported (no host) -> status 0x56 [synthesized fallback (NOT_SUPPORTED, tolerated)]
+13597738 tx seq 65 reply GSP_RM_CONTROL sequence 65 result 0x0 length 392
+13597844 rx seq 96 GSP_RM_CONTROL (76) sequence 66 length 168 checksum ok: hClient=0xc1e00007 hObject=0xcaf00001 cmd=0x20800a2e paramsSize=96 rpcFlags=0x0
+13597845 ctrl 0x20800a2e: kgr ROP info: not supported (no host) -> status 0x56 [synthesized fallback (NOT_SUPPORTED, tolerated)]
+13597851 tx seq 66 reply GSP_RM_CONTROL sequence 66 result 0x0 length 168
+13597968 rx seq 97 GSP_RM_CONTROL (76) sequence 67 length 144 checksum ok: hClient=0xc1e00007 hObject=0xcaf00001 cmd=0x20800a34 paramsSize=72 rpcFlags=0x0
+13597969 ctrl 0x20800a34: kgr SM issue rate modifier: not supported (no host) -> status 0x56 [synthesized fallback (NOT_SUPPORTED, tolerated)]
+13597971 tx seq 67 reply GSP_RM_CONTROL sequence 67 result 0x0 length 144
+13598097 rx seq 98 GSP_RM_CONTROL (76) sequence 68 length 16424 checksum ok: hClient=0xc1e00007 hObject=0xcaf00001 cmd=0x20800b03 paramsSize=16352 rpcFlags=0x0
+13598099 ctrl 0x20800b03: kgr SM issue rate modifier v2: not supported (no host) -> status 0x56 [synthesized fallback (NOT_SUPPORTED, tolerated)]
+13598100 tx seq 68 reply GSP_RM_CONTROL sequence 68 result 0x0 length 16424
+13598223 rx seq 103 GSP_RM_CONTROL (76) sequence 69 length 16424 checksum ok: hClient=0xc1e00007 hObject=0xcaf00001 cmd=0x20800b05 paramsSize=16352 rpcFlags=0x0
+13598224 ctrl 0x20800b05: kgr SM issue throttle ctrl: not supported, not forwarded -> status 0x56 [synthesized (NOT_SUPPORTED; forwarding makes the host driver assert)]
+13598225 tx seq 69 reply GSP_RM_CONTROL sequence 69 result 0x0 length 16424
+13598326 rx seq 108 GSP_RM_CONTROL (76) sequence 70 length 104 checksum ok: hClient=0xc1e00007 hObject=0xcaf00001 cmd=0x20800a3d paramsSize=32 rpcFlags=0x0
+13598328 ctrl 0x20800a3d: kgr FECS record size: 120 -> status 0x0 [synthesized (sizeof FECS_EVENT_RECORD = 120, fecs_event_list.c:58-69)]
+13598329 tx seq 70 reply GSP_RM_CONTROL sequence 70 result 0x0 length 104
+13598433 rx seq 109 GSP_RM_CONTROL (76) sequence 71 length 328 checksum ok: hClient=0xc1e00007 hObject=0xcaf00001 cmd=0x20800a3f paramsSize=256 rpcFlags=0x0
+13598434 ctrl 0x20800a3f: kgr FECS trace defines: not supported; there is no public host control for them (phase5 row 50); pFecsTraceDefines stays NULL -> status 0x56 [synthesized (NOT_SUPPORTED, tolerated: kernel_graphics.c:1498-1501)]
+13598440 tx seq 71 reply GSP_RM_CONTROL sequence 71 result 0x0 length 328
+13598545 rx seq 110 GSP_RM_CONTROL (76) sequence 72 length 80 checksum ok: hClient=0xc1e00007 hObject=0xcaf00001 cmd=0x20800a48 paramsSize=8 rpcFlags=0x0
+13598546 ctrl 0x20800a48: kgr PDB properties: per-subcontext ctx header supported -> status 0x0 [synthesized (bPerSubCtxheaderSupported TRUE, g_kernel_graphics_nvoc.c:306-314)]
+13598548 tx seq 72 reply GSP_RM_CONTROL sequence 72 result 0x0 length 80
+13598729 rx seq 111 GSP_RM_CONTROL (76) sequence 73 length 1736 checksum ok: hClient=0xc1e00007 hObject=0xcaf00001 cmd=0x20800a32 paramsSize=1664 rpcFlags=0x0
+13598730 ctrl 0x20800a32: kgr context buffers info: no sizes (no host); FECS_EVENT forced to 0 -> status 0x0 [synthesized fallback (all NV_U32_MAX, FECS_EVENT 0)]
+13598731 tx seq 73 reply GSP_RM_CONTROL sequence 73 result 0x0 length 1736
+13598867 rx seq 112 FREE (10) sequence 74 length 48 checksum ok: hRoot=0xc1e00007 hParent=0x0 hObject=0xcaf00001
+13598868 free 0xcaf00001 class Some(8320) [synthesized]
+13598869 tx seq 74 reply FREE sequence 74 result 0x0 length 48
+13599026 rx seq 113 FREE (10) sequence 75 length 48 checksum ok: hRoot=0xc1e00007 hParent=0x0 hObject=0xcaf00000
+13599027 free 0xcaf00000 class Some(128) [synthesized]
+13599029 tx seq 75 reply FREE sequence 75 result 0x0 length 48
+13599502 rx seq 114 FREE (10) sequence 76 length 48 checksum ok: hRoot=0xc1e00007 hParent=0x0 hObject=0xc1e00007
+13599503 free 0xc1e00007 class None [synthesized]
+13599504 tx seq 76 reply FREE sequence 76 result 0x0 length 48
+13660085 rx seq 115 GSP_RM_ALLOC (103) sequence 77 length 64 checksum ok: hClient=0xc1e00008 hParent=0x0 hObject=0x0 hClass=0x0 paramsSize=120 flags=0x0
+13660086 alloc: alloc NV01_ROOT 0x0 object 0x0 under 0x0 -> status 0x0 [synthesized (object recorded, no host object yet)]
+13660087 tx seq 77 reply GSP_RM_ALLOC sequence 77 result 0x0 length 184
+13660208 rx seq 116 GSP_RM_ALLOC (103) sequence 78 length 64 checksum ok: hClient=0xc1e00008 hParent=0xc1e00008 hObject=0x9 hClass=0x80 paramsSize=56 flags=0x0
+13660209 alloc: alloc NV01_DEVICE_0 0x80 object 0x9 under 0xc1e00008 -> status 0x0 [synthesized (object recorded, no host object yet)]
+13660210 tx seq 78 reply GSP_RM_ALLOC sequence 78 result 0x0 length 120
+13660332 rx seq 117 GSP_RM_ALLOC (103) sequence 79 length 64 checksum ok: hClient=0xc1e00008 hParent=0x9 hObject=0xa hClass=0x2080 paramsSize=4 flags=0x0
+13660333 alloc: alloc NV20_SUBDEVICE_0 0x2080 object 0xa under 0x9 -> status 0x0 [synthesized (object recorded, no host object yet)]
+13660334 tx seq 79 reply GSP_RM_ALLOC sequence 79 result 0x0 length 68
+13861428 rx seq 118 GSP_RM_ALLOC (103) sequence 80 length 64 checksum ok: hClient=0xc1e00008 hParent=0x9 hObject=0xb hClass=0x90f1 paramsSize=56 flags=0x0
+13861430 alloc: alloc 0x90f1 object 0xb under 0x9: vaspace 0xb recorded (flags 0x0, vaSize 0x0, internal 0x0..0x0, bigPage 0x0) [guest] -> status 0x0 [guest (recorded for the channel emulation; no host object)]
+13861431 tx seq 80 reply GSP_RM_ALLOC sequence 80 result 0x0 length 120
+13861544 rx seq 119 GSP_RM_CONTROL (76) sequence 81 length 256 checksum ok: hClient=0xc1e00008 hObject=0xb cmd=0x90f10106 paramsSize=184 rpcFlags=0x0
+13861550 ctrl 0x90f10106: vaspace 0xb (the default VAS of device 0x9): root Some(Fb(979124224)); va 0x100000000..0x11fffffff levels [0x3a5c4000+0x20 ap 1 shift 47, 0x3a5c3000+0x1000 ap 1 shift 38, 0x3a5c2000+0x1000 ap 1 shift 29, 0x3a5c1000+0x1000 ap 1 shift 21] [guest] -> status 0x0 [guest (VAS root recorded; the server-reserved range stays empty)]
+13861552 tx seq 81 reply GSP_RM_CONTROL sequence 81 result 0x0 length 256
+13861647 rx seq 120 FREE (10) sequence 82 length 48 checksum ok: hRoot=0xc1e00008 hParent=0x0 hObject=0xb
+13861648 free 0xb class Some(37105) [synthesized]
+13861650 tx seq 82 reply FREE sequence 82 result 0x0 length 48
+13971406 rx seq 121 GSP_RM_CONTROL (76) sequence 83 length 76 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20802a08 paramsSize=4 rpcFlags=0x0
+13971408 ctrl 0x20802a08: ce fault method buffer size -> status 0x0 [synthesized (32 KiB fault method buffer; fifo-device-info.md §4a)]
+13971409 tx seq 83 reply GSP_RM_CONTROL sequence 83 result 0x0 length 76
+14021502 rx seq 122 GSP_RM_ALLOC (103) sequence 84 length 64 checksum ok: hClient=0xc1e00008 hParent=0x9 hObject=0x2 hClass=0xc46f paramsSize=376 flags=0x0
+14021503 alloc: alloc 0xc46f object 0x2 under 0x9: channel 0x2 chid 1 engineType 0xb gpfifo va 0x120064000 x 4096 userd Some(Fb(876412928)) vaspace None errorNotifier Some(Sys(5247176704)) internal TSG 1 [guest] -> status 0x0 [guest (recorded for the channel emulation; no host object)]
+14021511 tx seq 84 reply GSP_RM_ALLOC sequence 84 result 0x0 length 440
+14073907 rx seq 123 GSP_RM_ALLOC (103) sequence 85 length 64 checksum ok: hClient=0xc1e00008 hParent=0x2 hObject=0x5 hClass=0xc5b5 paramsSize=8 flags=0x0
+14073908 alloc: alloc 0xc5b5 object 0x5 under 0x2: engine object class 0xc5b5 on chid 1 (8 bytes of params) [guest] -> status 0x0 [guest (recorded for the channel emulation; no host object)]
+14073909 tx seq 85 reply GSP_RM_ALLOC sequence 85 result 0x0 length 72
+14074061 rx seq 124 GSP_RM_CONTROL (76) sequence 86 length 75 checksum ok: hClient=0xc1e00008 hObject=0x2 cmd=0xa06f0103 paramsSize=3 rpcFlags=0x0
+14074069 ctrl 0xa06f0103: gpfifo schedule 0x2: bEnable 1 -> status 0x0 [synthesized (the emulated channel runs on its doorbell)]
+14074071 tx seq 86 reply GSP_RM_CONTROL sequence 86 result 0x0 length 75
+14074184 rx seq 125 GSP_RM_ALLOC (103) sequence 87 length 64 checksum ok: hClient=0xc1e00008 hParent=0xa hObject=0x6 hClass=0x7e paramsSize=24 flags=0x0
+14074186 alloc: alloc NV01_EVENT_KERNEL_CALLBACK_EX 0x7e object 0x6 under 0xa -> status 0x0 [synthesized (object recorded, no host object yet)]
+14074187 tx seq 87 reply GSP_RM_ALLOC sequence 87 result 0x0 length 88
+14074335 rx seq 126 GSP_RM_CONTROL (76) sequence 88 length 92 checksum ok: hClient=0xc1e00008 hObject=0xa cmd=0x20800301 paramsSize=20 rpcFlags=0x0
+14074336 ctrl 0x20800301: event set notification: ok -> status 0x0 [synthesized (event registered, never raised yet)]
+14074337 tx seq 88 reply GSP_RM_CONTROL sequence 88 result 0x0 length 92
+14075498 rx seq 127 GSP_RM_CONTROL (76) sequence 89 length 208 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x2080013f paramsSize=136 rpcFlags=0x0
+14075499 ctrl 0x2080013f: oem board info: zeros -> status 0x0 [synthesized fallback (no OEM board info)]
+14075501 tx seq 89 reply GSP_RM_CONTROL sequence 89 result 0x0 length 208
+14075643 rx seq 128 GSP_RM_ALLOC (103) sequence 90 length 64 checksum ok: hClient=0xc1e00009 hParent=0x0 hObject=0x0 hClass=0x0 paramsSize=120 flags=0x0
+14075645 alloc: alloc NV01_ROOT 0x0 object 0x0 under 0x0 -> status 0x0 [synthesized (object recorded, no host object yet)]
+14075646 tx seq 90 reply GSP_RM_ALLOC sequence 90 result 0x0 length 184
+14075728 rx seq 129 GSP_RM_ALLOC (103) sequence 91 length 64 checksum ok: hClient=0xc1e00009 hParent=0xc1e00009 hObject=0xcaf00000 hClass=0x80 paramsSize=56 flags=0x0
+14075730 alloc: alloc NV01_DEVICE_0 0x80 object 0xcaf00000 under 0xc1e00009 -> status 0x0 [synthesized (object recorded, no host object yet)]
+14075731 tx seq 91 reply GSP_RM_ALLOC sequence 91 result 0x0 length 120
+14075834 rx seq 130 GSP_RM_ALLOC (103) sequence 92 length 64 checksum ok: hClient=0xc1e00009 hParent=0xcaf00000 hObject=0xcaf00001 hClass=0x2080 paramsSize=4 flags=0x0
+14075836 alloc: alloc NV20_SUBDEVICE_0 0x2080 object 0xcaf00001 under 0xcaf00000 -> status 0x0 [synthesized (object recorded, no host object yet)]
+14075841 tx seq 92 reply GSP_RM_ALLOC sequence 92 result 0x0 length 68
+14076096 rx seq 131 ALLOC_MEMORY (4) sequence 93 length 96 checksum ok: 64 bytes: 0900e0c10000f0ca0200f0ca810000000000004c000000000000000000000000
+14076099 tx seq 93 reply ALLOC_MEMORY sequence 93 result 0x0 length 88
+14076534 rx seq 132 ALLOC_MEMORY (4) sequence 94 length 96 checksum ok: 64 bytes: 0900e0c10000f0ca0300f0ca810000000000004c000000000000000000000000
+14076537 tx seq 94 reply ALLOC_MEMORY sequence 94 result 0x0 length 88
+14077234 rx seq 133 ALLOC_MEMORY (4) sequence 95 length 96 checksum ok: 64 bytes: 0900e0c10000f0ca0400f0ca810000000000004c000000000000000000000000
+14077237 tx seq 95 reply ALLOC_MEMORY sequence 95 result 0x0 length 88
+14077382 rx seq 134 GSP_RM_ALLOC (103) sequence 96 length 64 checksum ok: hClient=0xc1e00009 hParent=0xc1e00009 hObject=0xcaf00006 hClass=0x90cd paramsSize=72 flags=0x0
+14077384 tx seq 96 reply GSP_RM_ALLOC sequence 96 result 0x0 length 136
+14088452 rx seq 135 GSP_RM_CONTROL (76) sequence 97 length 80 checksum ok: hClient=0xc1e00009 hObject=0xcaf00006 cmd=0x90cd0101 paramsSize=8 rpcFlags=0x0
+14088454 ctrl 0x90cd0101: event buffer 0xc1e00009/0xcaf00006 control 0x90cd0101: enable events true policy 1 [guest] -> status 0x0 [guest (GSP-side event buffer, gspmem.rs)]
+14088465 tx seq 97 reply GSP_RM_CONTROL sequence 97 result 0x0 length 80
+14088697 rx seq 136 GSP_RM_ALLOC (103) sequence 98 length 64 checksum ok: hClient=0xc1e00009 hParent=0xc1e00009 hObject=0xcaf00005 hClass=0x90d0 paramsSize=104 flags=0x0
+14088700 tx seq 98 reply GSP_RM_ALLOC sequence 98 result 0x0 length 168
+14088891 rx seq 137 GSP_RM_CONTROL (76) sequence 99 length 76 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20800ab8 paramsSize=4 rpcFlags=0x0
+14088893 ctrl 0x20800ab8: pcie p2p caps: not supported -> status 0x0 [synthesized (no PCIe P2P)]
+14088894 tx seq 99 reply GSP_RM_CONTROL sequence 99 result 0x0 length 76
+14090211 rx seq 138 GSP_RM_CONTROL (76) sequence 100 length 76 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20800a4c paramsSize=4 rpcFlags=0x0
+14090212 ctrl 0x20800a4c: smc mode: unsupported -> status 0x0 [synthesized (SMC/MIG unsupported on TU106)]
+14090214 tx seq 100 reply GSP_RM_CONTROL sequence 100 result 0x0 length 76
+14091436 rx seq 139 GSP_RM_CONTROL (76) sequence 101 length 80 checksum ok: hClient=0xc1d00002 hObject=0xff030000 cmd=0x20809009 paramsSize=8 rpcFlags=0x0
+14091437 ctrl 0x20809009: GSS legacy clk 0x09: no host -> status 0x56 [synthesized fallback (no host: NOT_SUPPORTED)]
+14091439 tx seq 101 reply GSP_RM_CONTROL sequence 101 result 0x0 length 80
+14091822 rx seq 140 GSP_RM_CONTROL (76) sequence 102 length 1100 checksum ok: hClient=0xc1d00002 hObject=0xff030000 cmd=0x20801303 paramsSize=1028 rpcFlags=0x0
+14091823 ctrl 0x20801303: fb info v2: no host -> status 0x56 [synthesized fallback (no host: NOT_SUPPORTED)]
+14091824 tx seq 102 reply GSP_RM_CONTROL sequence 102 result 0x0 length 1100
+14092237 rx seq 141 GSP_RM_CONTROL (76) sequence 103 length 160 checksum ok: hClient=0xc1d00002 hObject=0xff010000 cmd=0x801306 paramsSize=88 rpcFlags=0x0
+14092238 ctrl 0x801306: NV0080_CTRL_CMD_FB_GET_COMPBIT_STORE_INFO (0x801306): chip table, NV0080_CTRL_FB_GET_COMPBIT_STORE_INFO_PARAMS -> status 0x56 [refused (no compression, D16: no compbit backing store)]
+14092240 tx seq 103 reply GSP_RM_CONTROL sequence 103 result 0x0 length 160
+14093330 rx seq 142 GSP_RM_CONTROL (76) sequence 104 length 1064 checksum ok: hClient=0xc1d00002 hObject=0xff0d0000 cmd=0x20810108 paramsSize=992 rpcFlags=0x0
+14093332 ctrl 0x20810108: binapi 0x20810108: no host -> status 0x56 [synthesized fallback (no host: NOT_SUPPORTED)]
+14093339 tx seq 104 reply GSP_RM_CONTROL sequence 104 result 0x0 length 1064
+14098508 rx seq 143 GSP_RM_CONTROL (76) sequence 105 length 492 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20801823 paramsSize=420 rpcFlags=0x0
+14098510 ctrl 0x20801823: BUS_GET_INFO_V2: no host -> status 0x56 [synthesized fallback (no host: NOT_SUPPORTED)]
+14098511 tx seq 105 reply GSP_RM_CONTROL sequence 105 result 0x0 length 492
+14099709 rx seq 144 GSP_RM_CONTROL (76) sequence 106 length 492 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20801823 paramsSize=420 rpcFlags=0x0
+14099711 ctrl 0x20801823: BUS_GET_INFO_V2: no host -> status 0x56 [synthesized fallback (no host: NOT_SUPPORTED)]
+14099712 tx seq 106 reply GSP_RM_CONTROL sequence 106 result 0x0 length 492
+14100024 rx seq 145 GSP_RM_CONTROL (76) sequence 107 length 492 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20801823 paramsSize=420 rpcFlags=0x0
+14100025 ctrl 0x20801823: BUS_GET_INFO_V2: no host -> status 0x56 [synthesized fallback (no host: NOT_SUPPORTED)]
+14100026 tx seq 107 reply GSP_RM_CONTROL sequence 107 result 0x0 length 492
+14100319 rx seq 146 GSP_RM_CONTROL (76) sequence 108 length 492 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20801823 paramsSize=420 rpcFlags=0x0
+14100321 ctrl 0x20801823: BUS_GET_INFO_V2: no host -> status 0x56 [synthesized fallback (no host: NOT_SUPPORTED)]
+14100322 tx seq 108 reply GSP_RM_CONTROL sequence 108 result 0x0 length 492
+14100625 rx seq 147 GSP_RM_CONTROL (76) sequence 109 length 492 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20801823 paramsSize=420 rpcFlags=0x0
+14100627 ctrl 0x20801823: BUS_GET_INFO_V2: no host -> status 0x56 [synthesized fallback (no host: NOT_SUPPORTED)]
+14100628 tx seq 109 reply GSP_RM_CONTROL sequence 109 result 0x0 length 492
+14100928 rx seq 148 GSP_RM_CONTROL (76) sequence 110 length 492 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20801823 paramsSize=420 rpcFlags=0x0
+14100929 ctrl 0x20801823: BUS_GET_INFO_V2: no host -> status 0x56 [synthesized fallback (no host: NOT_SUPPORTED)]
+14100930 tx seq 110 reply GSP_RM_CONTROL sequence 110 result 0x0 length 492
+14101241 rx seq 149 GSP_RM_CONTROL (76) sequence 111 length 492 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20801823 paramsSize=420 rpcFlags=0x0
+14101242 ctrl 0x20801823: BUS_GET_INFO_V2: no host -> status 0x56 [synthesized fallback (no host: NOT_SUPPORTED)]
+14101243 tx seq 111 reply GSP_RM_CONTROL sequence 111 result 0x0 length 492
+14101534 rx seq 150 GSP_RM_CONTROL (76) sequence 112 length 492 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20801823 paramsSize=420 rpcFlags=0x0
+14101535 ctrl 0x20801823: BUS_GET_INFO_V2: no host -> status 0x56 [synthesized fallback (no host: NOT_SUPPORTED)]
+14101536 tx seq 112 reply GSP_RM_CONTROL sequence 112 result 0x0 length 492
+14101906 rx seq 151 GSP_RM_CONTROL (76) sequence 113 length 492 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20801823 paramsSize=420 rpcFlags=0x0
+14101908 ctrl 0x20801823: BUS_GET_INFO_V2: no host -> status 0x56 [synthesized fallback (no host: NOT_SUPPORTED)]
+14101909 tx seq 113 reply GSP_RM_CONTROL sequence 113 result 0x0 length 492
+14102219 rx seq 152 GSP_RM_CONTROL (76) sequence 114 length 492 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20801823 paramsSize=420 rpcFlags=0x0
+14102220 ctrl 0x20801823: BUS_GET_INFO_V2: no host -> status 0x56 [synthesized fallback (no host: NOT_SUPPORTED)]
+14102222 tx seq 114 reply GSP_RM_CONTROL sequence 114 result 0x0 length 492
+14102580 rx seq 153 GSP_RM_CONTROL (76) sequence 115 length 492 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20801823 paramsSize=420 rpcFlags=0x0
+14102581 ctrl 0x20801823: BUS_GET_INFO_V2: no host -> status 0x56 [synthesized fallback (no host: NOT_SUPPORTED)]
+14102582 tx seq 115 reply GSP_RM_CONTROL sequence 115 result 0x0 length 492
+14102898 rx seq 154 GSP_RM_CONTROL (76) sequence 116 length 492 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20801823 paramsSize=420 rpcFlags=0x0
+14102899 ctrl 0x20801823: BUS_GET_INFO_V2: no host -> status 0x56 [synthesized fallback (no host: NOT_SUPPORTED)]
+14102901 tx seq 116 reply GSP_RM_CONTROL sequence 116 result 0x0 length 492
+14103205 rx seq 155 GSP_RM_CONTROL (76) sequence 117 length 492 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20801823 paramsSize=420 rpcFlags=0x0
+14103207 ctrl 0x20801823: BUS_GET_INFO_V2: no host -> status 0x56 [synthesized fallback (no host: NOT_SUPPORTED)]
+14103208 tx seq 117 reply GSP_RM_CONTROL sequence 117 result 0x0 length 492
+14103523 rx seq 156 GSP_RM_CONTROL (76) sequence 118 length 492 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20801823 paramsSize=420 rpcFlags=0x0
+14103524 ctrl 0x20801823: BUS_GET_INFO_V2: no host -> status 0x56 [synthesized fallback (no host: NOT_SUPPORTED)]
+14103525 tx seq 118 reply GSP_RM_CONTROL sequence 118 result 0x0 length 492
+14103907 rx seq 157 GSP_RM_CONTROL (76) sequence 119 length 492 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20801823 paramsSize=420 rpcFlags=0x0
+14103909 ctrl 0x20801823: BUS_GET_INFO_V2: no host -> status 0x56 [synthesized fallback (no host: NOT_SUPPORTED)]
+14103910 tx seq 119 reply GSP_RM_CONTROL sequence 119 result 0x0 length 492
+14104245 rx seq 158 GSP_RM_CONTROL (76) sequence 120 length 492 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20801823 paramsSize=420 rpcFlags=0x0
+14104246 ctrl 0x20801823: BUS_GET_INFO_V2: no host -> status 0x56 [synthesized fallback (no host: NOT_SUPPORTED)]
+14104247 tx seq 120 reply GSP_RM_CONTROL sequence 120 result 0x0 length 492
+14104575 rx seq 159 GSP_RM_CONTROL (76) sequence 121 length 492 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20801823 paramsSize=420 rpcFlags=0x0
+14104580 ctrl 0x20801823: BUS_GET_INFO_V2: no host -> status 0x56 [synthesized fallback (no host: NOT_SUPPORTED)]
+14104581 tx seq 121 reply GSP_RM_CONTROL sequence 121 result 0x0 length 492
+14104884 rx seq 160 GSP_RM_CONTROL (76) sequence 122 length 492 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20801823 paramsSize=420 rpcFlags=0x0
+14104885 ctrl 0x20801823: BUS_GET_INFO_V2: no host -> status 0x56 [synthesized fallback (no host: NOT_SUPPORTED)]
+14104887 tx seq 122 reply GSP_RM_CONTROL sequence 122 result 0x0 length 492
+14105207 rx seq 161 GSP_RM_CONTROL (76) sequence 123 length 492 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20801823 paramsSize=420 rpcFlags=0x0
+14105208 ctrl 0x20801823: BUS_GET_INFO_V2: no host -> status 0x56 [synthesized fallback (no host: NOT_SUPPORTED)]
+14105209 tx seq 123 reply GSP_RM_CONTROL sequence 123 result 0x0 length 492
+14105524 rx seq 162 GSP_RM_CONTROL (76) sequence 124 length 492 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20801823 paramsSize=420 rpcFlags=0x0
+14105525 ctrl 0x20801823: BUS_GET_INFO_V2: no host -> status 0x56 [synthesized fallback (no host: NOT_SUPPORTED)]
+14105527 tx seq 124 reply GSP_RM_CONTROL sequence 124 result 0x0 length 492
+14105838 rx seq 163 GSP_RM_CONTROL (76) sequence 125 length 492 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20801823 paramsSize=420 rpcFlags=0x0
+14105840 ctrl 0x20801823: BUS_GET_INFO_V2: no host -> status 0x56 [synthesized fallback (no host: NOT_SUPPORTED)]
+14105841 tx seq 125 reply GSP_RM_CONTROL sequence 125 result 0x0 length 492
+14106409 rx seq 164 GSP_RM_CONTROL (76) sequence 126 length 492 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20801823 paramsSize=420 rpcFlags=0x0
+14106410 ctrl 0x20801823: BUS_GET_INFO_V2: no host -> status 0x56 [synthesized fallback (no host: NOT_SUPPORTED)]
+14106411 tx seq 126 reply GSP_RM_CONTROL sequence 126 result 0x0 length 492
+14106937 rx seq 165 GSP_RM_CONTROL (76) sequence 127 length 492 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20801823 paramsSize=420 rpcFlags=0x0
+14106938 ctrl 0x20801823: BUS_GET_INFO_V2: no host -> status 0x56 [synthesized fallback (no host: NOT_SUPPORTED)]
+14106940 tx seq 127 reply GSP_RM_CONTROL sequence 127 result 0x0 length 492
+14107302 rx seq 166 GSP_RM_CONTROL (76) sequence 128 length 492 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20801823 paramsSize=420 rpcFlags=0x0
+14107303 ctrl 0x20801823: BUS_GET_INFO_V2: no host -> status 0x56 [synthesized fallback (no host: NOT_SUPPORTED)]
+14107305 tx seq 128 reply GSP_RM_CONTROL sequence 128 result 0x0 length 492
+14109443 rx seq 167 GSP_RM_CONTROL (76) sequence 129 length 76 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20800ab8 paramsSize=4 rpcFlags=0x0
+14109445 ctrl 0x20800ab8: pcie p2p caps: not supported -> status 0x0 [synthesized (no PCIe P2P)]
+14109446 tx seq 129 reply GSP_RM_CONTROL sequence 129 result 0x0 length 76
+14110000 rx seq 168 GSP_RM_CONTROL (76) sequence 130 length 84 checksum ok: hClient=0xc1d00002 hObject=0xff030000 cmd=0x20800173 paramsSize=12 rpcFlags=0x0
+14110001 ctrl 0x20800173: GPU_QUERY_FUNCTION_STATUS: no host -> status 0x56 [synthesized fallback (no host: NOT_SUPPORTED)]
+14110003 tx seq 130 reply GSP_RM_CONTROL sequence 130 result 0x0 length 84
+14110302 rx seq 169 GSP_RM_CONTROL (76) sequence 131 length 88 checksum ok: hClient=0xc1d00002 hObject=0xff030000 cmd=0x20801315 paramsSize=16 rpcFlags=0x0
+14110303 ctrl 0x20801315: gpu cache info -> status 0x0 [synthesized fallback (L2 enabled, write-back)]
+14110304 tx seq 131 reply GSP_RM_CONTROL sequence 131 result 0x0 length 88
+14110694 rx seq 170 GSP_RM_CONTROL (76) sequence 132 length 80 checksum ok: hClient=0xc1d00002 hObject=0xff030000 cmd=0x20802a12 paramsSize=8 rpcFlags=0x0
+14110695 ctrl 0x20802a12: ce lce 0 decomp enabled: false -> status 0x0 [synthesized (no decompression LCE on Turing)]
+14110697 tx seq 132 reply GSP_RM_CONTROL sequence 132 result 0x0 length 80
+14110801 rx seq 171 GSP_RM_CONTROL (76) sequence 133 length 80 checksum ok: hClient=0xc1d00002 hObject=0xff030000 cmd=0x20802a12 paramsSize=8 rpcFlags=0x0
+14110802 ctrl 0x20802a12: ce lce 1 decomp enabled: false -> status 0x0 [synthesized (no decompression LCE on Turing)]
+14110803 tx seq 133 reply GSP_RM_CONTROL sequence 133 result 0x0 length 80
+14110901 rx seq 172 GSP_RM_CONTROL (76) sequence 134 length 80 checksum ok: hClient=0xc1d00002 hObject=0xff030000 cmd=0x20802a12 paramsSize=8 rpcFlags=0x0
+14110902 ctrl 0x20802a12: ce lce 2 decomp enabled: false -> status 0x0 [synthesized (no decompression LCE on Turing)]
+14110903 tx seq 134 reply GSP_RM_CONTROL sequence 134 result 0x0 length 80
+14111012 rx seq 173 GSP_RM_CONTROL (76) sequence 135 length 80 checksum ok: hClient=0xc1d00002 hObject=0xff030000 cmd=0x20802a12 paramsSize=8 rpcFlags=0x0
+14111013 ctrl 0x20802a12: ce lce 3 decomp enabled: false -> status 0x0 [synthesized (no decompression LCE on Turing)]
+14111014 tx seq 135 reply GSP_RM_CONTROL sequence 135 result 0x0 length 80
+14111124 rx seq 174 GSP_RM_CONTROL (76) sequence 136 length 80 checksum ok: hClient=0xc1d00002 hObject=0xff030000 cmd=0x20802a12 paramsSize=8 rpcFlags=0x0
+14111125 ctrl 0x20802a12: ce lce 4 decomp enabled: false -> status 0x0 [synthesized (no decompression LCE on Turing)]
+14111126 tx seq 136 reply GSP_RM_CONTROL sequence 136 result 0x0 length 80
+14112284 rx seq 175 GSP_RM_CONTROL (76) sequence 137 length 652 checksum ok: hClient=0xc1d00002 hObject=0xff030000 cmd=0x20800102 paramsSize=580 rpcFlags=0x0
+14112285 ctrl 0x20800102: gpu info v2: 1 entries; host [0x11] status 0x0; own [] -> status 0x0 [host (GPU_GET_INFO_V2, marked indices)]
+14112286 tx seq 137 reply GSP_RM_CONTROL sequence 137 result 0x0 length 652
+14112581 rx seq 176 GSP_RM_CONTROL (76) sequence 138 length 84 checksum ok: hClient=0xc1d00002 hObject=0xff010000 cmd=0x801c02 paramsSize=12 rpcFlags=0x0
+14112583 ctrl 0x801c02: NV0080_CTRL_CMD_NVDEC_GET_CAPS_V2 (0x801c02): chip table, NV0080_CTRL_NVDEC_GET_CAPS_PARAMS_V2 -> status 0x0 [card (NVDEC caps table 01 00 00 00 16 00 00 00; native traces nvdec.jsonl:2192, vk-enum.jsonl:590)]
+14112584 tx seq 138 reply GSP_RM_CONTROL sequence 138 result 0x0 length 84
+14112965 rx seq 177 GSP_RM_CONTROL (76) sequence 139 length 84 checksum ok: hClient=0xc1d00002 hObject=0xff010000 cmd=0x801b02 paramsSize=12 rpcFlags=0x0
+14112967 ctrl 0x801b02: NV0080_CTRL_CMD_NVENC_GET_CAPS_V2 (0x801b02): chip table, NV0080_CTRL_NVENC_GET_CAPS_V2_PARAMS -> status 0x0 [card (NVENC caps table all zero; native traces nvdec.jsonl:2195, vk-enum.jsonl:593, the V1 control)]
+14112969 tx seq 139 reply GSP_RM_CONTROL sequence 139 result 0x0 length 84
+14113627 rx seq 178 GSP_RM_CONTROL (76) sequence 140 length 144 checksum ok: hClient=0xc1d00002 hObject=0xff030000 cmd=0x20803601 paramsSize=72 rpcFlags=0x0
+14113629 ctrl 0x20803601: gsp features: valid, 615.71.09 -> status 0x0 [synthesized (driver version string; the emulated GSP is that version)]
+14113630 tx seq 140 reply GSP_RM_CONTROL sequence 140 result 0x0 length 144
+14113964 rx seq 179 GSP_RM_CONTROL (76) sequence 141 length 404 checksum ok: hClient=0xc1d00002 hObject=0xff030000 cmd=0x20808159 paramsSize=332 rpcFlags=0x0
+14113965 ctrl 0x20808159: GSS legacy gpu 0x59 (cuInit): no host -> status 0x56 [synthesized fallback (no host: NOT_SUPPORTED)]
+14113966 tx seq 141 reply GSP_RM_CONTROL sequence 141 result 0x0 length 404
+14114302 rx seq 180 GSP_RM_CONTROL (76) sequence 142 length 88 checksum ok: hClient=0xc1d00002 hObject=0xff030000 cmd=0x20800160 paramsSize=16 rpcFlags=0x0
+14114304 ctrl 0x20800160: NV2080_CTRL_CMD_GPU_GET_VPR_CAPS (0x20800160): chip table, NV2080_CTRL_GPU_GET_VPR_CAPS_PARAMS -> status 0x56 [refused (no VPR in the VM: FB_SETUP_VPR_REGION is refused; the range is host FB addresses)]
+14114305 tx seq 142 reply GSP_RM_CONTROL sequence 142 result 0x0 length 88
+14114752 rx seq 181 GSP_RM_CONTROL (76) sequence 143 length 76 checksum ok: hClient=0xc1d00002 hObject=0xff030000 cmd=0x20802801 paramsSize=4 rpcFlags=0x0
+14114754 ctrl 0x20802801: DIFR (display idle frame refresh): not supported -> status 0x56 [synthesized (chips/tu106/display.toml)]
+14114755 tx seq 143 reply GSP_RM_CONTROL sequence 143 result 0x0 length 76
+14115180 rx seq 182 GSP_RM_CONTROL (76) sequence 144 length 84 checksum ok: hClient=0xc1d00002 hObject=0xff010000 cmd=0x801707 paramsSize=12 rpcFlags=0x0
+14115181 ctrl 0x801707: engine context properties: not supported -> status 0x56 [synthesized fallback (no host: sizes unknown)]
+14115182 tx seq 144 reply GSP_RM_CONTROL sequence 144 result 0x0 length 84
+14115593 rx seq 183 GSP_RM_CONTROL (76) sequence 145 length 1736 checksum ok: hClient=0xc1d00002 hObject=0xff030000 cmd=0x2080012f paramsSize=1664 rpcFlags=0x0
+14115594 ctrl 0x2080012f: GPU_QUERY_ECC_STATUS: no host -> status 0x56 [synthesized fallback (no host: NOT_SUPPORTED)]
+14115595 tx seq 145 reply GSP_RM_CONTROL sequence 145 result 0x0 length 1736
+14116131 rx seq 184 GSP_RM_CONTROL (76) sequence 146 length 2000 checksum ok: hClient=0xc1d00002 hObject=0xff030000 cmd=0x20803801 paramsSize=1928 rpcFlags=0x0
+14116132 ctrl 0x20803801: GRMGR_GET_GR_FS_INFO: no host -> status 0x56 [synthesized fallback (no host: NOT_SUPPORTED)]
+14116134 tx seq 146 reply GSP_RM_CONTROL sequence 146 result 0x0 length 2000
+14116437 rx seq 185 GSP_RM_CONTROL (76) sequence 147 length 76 checksum ok: hClient=0xc1d00002 hObject=0xff030000 cmd=0x20802806 paramsSize=4 rpcFlags=0x0
+14116439 ctrl 0x20802806: control 0x20802806 on 0xff030000 (class 0x2080, 4 bytes): not supported -> status 0x56 [unanswered]
+14116440 tx seq 147 reply GSP_RM_CONTROL sequence 147 result 0x0 length 76
+14116776 rx seq 186 FREE (10) sequence 148 length 48 checksum ok: hRoot=0xc1d00002 hParent=0x0 hObject=0xff0d0000
+14116778 free 0xff0d0000 class Some(8321) [synthesized]
+14116779 tx seq 148 reply FREE sequence 148 result 0x0 length 48
+14117126 rx seq 187 FREE (10) sequence 149 length 48 checksum ok: hRoot=0xc1d00002 hParent=0x0 hObject=0xff030000
+14117128 free 0xff030000 class Some(8320) [synthesized]
+14117129 tx seq 149 reply FREE sequence 149 result 0x0 length 48
+14117488 rx seq 188 FREE (10) sequence 150 length 48 checksum ok: hRoot=0xc1d00002 hParent=0x0 hObject=0xff010000
+14117489 free 0xff010000 class Some(128) [synthesized]
+14117490 tx seq 150 reply FREE sequence 150 result 0x0 length 48
+14117626 rx seq 189 FREE (10) sequence 151 length 48 checksum ok: hRoot=0xc1d00002 hParent=0x0 hObject=0xc1d00002
+14117628 free 0xc1d00002 class None [synthesized]
+14117629 tx seq 151 reply FREE sequence 151 result 0x0 length 48
+14118410 rx seq 190 FREE (10) sequence 152 length 48 checksum ok: hRoot=0xc1e00009 hParent=0x0 hObject=0xcaf00005
+14118411 free 0xcaf00005 class None [synthesized]
+14118412 free 0xc1e00009/0xcaf00005: operational event bind [guest]
+14118413 tx seq 152 reply FREE sequence 152 result 0x0 length 48
+14118513 rx seq 191 FREE (10) sequence 153 length 48 checksum ok: hRoot=0xc1e00009 hParent=0x0 hObject=0xcaf00006
+14118514 free 0xcaf00006 class None [synthesized]
+14118515 free 0xc1e00009/0xcaf00006: event buffer [guest]
+14118517 tx seq 153 reply FREE sequence 153 result 0x0 length 48
+14119019 rx seq 192 FREE (10) sequence 154 length 48 checksum ok: hRoot=0xc1e00009 hParent=0x0 hObject=0xcaf00004
+14119020 free 0xcaf00004 class None [synthesized]
+14119021 free 0xc1e00009/0xcaf00004: registered memory (0x10000 bytes) [guest]
+14119023 tx seq 154 reply FREE sequence 154 result 0x0 length 48
+14119177 rx seq 193 FREE (10) sequence 155 length 48 checksum ok: hRoot=0xc1e00009 hParent=0x0 hObject=0xcaf00003
+14119178 free 0xcaf00003 class None [synthesized]
+14119180 free 0xc1e00009/0xcaf00003: registered memory (0x7000 bytes) [guest]
+14119181 tx seq 155 reply FREE sequence 155 result 0x0 length 48
+14119298 rx seq 194 FREE (10) sequence 156 length 48 checksum ok: hRoot=0xc1e00009 hParent=0x0 hObject=0xcaf00002
+14119299 free 0xcaf00002 class None [synthesized]
+14119300 free 0xc1e00009/0xcaf00002: registered memory (0x1000 bytes) [guest]
+14119301 tx seq 156 reply FREE sequence 156 result 0x0 length 48
+14119425 rx seq 195 FREE (10) sequence 157 length 48 checksum ok: hRoot=0xc1e00009 hParent=0x0 hObject=0xcaf00001
+14119427 free 0xcaf00001 class Some(8320) [synthesized]
+14119428 tx seq 157 reply FREE sequence 157 result 0x0 length 48
+14119533 rx seq 196 FREE (10) sequence 158 length 48 checksum ok: hRoot=0xc1e00009 hParent=0x0 hObject=0xcaf00000
+14119534 free 0xcaf00000 class Some(128) [synthesized]
+14119536 tx seq 158 reply FREE sequence 158 result 0x0 length 48
+14119638 rx seq 197 FREE (10) sequence 159 length 48 checksum ok: hRoot=0xc1e00009 hParent=0x0 hObject=0xc1e00009
+14119639 free 0xc1e00009 class None [synthesized]
+14119640 tx seq 159 reply FREE sequence 159 result 0x0 length 48
+14119903 rx seq 198 FREE (10) sequence 160 length 48 checksum ok: hRoot=0xc1e00008 hParent=0x0 hObject=0x5
+14119904 free 0x5 class Some(50613) [synthesized]
+14119906 tx seq 160 reply FREE sequence 160 result 0x0 length 48
+14120028 rx seq 199 FREE (10) sequence 161 length 48 checksum ok: hRoot=0xc1e00008 hParent=0x0 hObject=0x2
+14120029 free 0x2 class Some(50287) [synthesized]
+14120031 tx seq 161 reply FREE sequence 161 result 0x0 length 48
+14120201 rx seq 200 FREE (10) sequence 162 length 48 checksum ok: hRoot=0xc1e00008 hParent=0x0 hObject=0x6
+14120202 free 0x6 class Some(126) [synthesized]
+14120203 tx seq 162 reply FREE sequence 162 result 0x0 length 48
+14120327 rx seq 201 FREE (10) sequence 163 length 48 checksum ok: hRoot=0xc1e00008 hParent=0x0 hObject=0xa
+14120328 free 0xa class Some(8320) [synthesized]
+14120329 tx seq 163 reply FREE sequence 163 result 0x0 length 48
+14160848 rx seq 202 FREE (10) sequence 164 length 48 checksum ok: hRoot=0xc1e00008 hParent=0x0 hObject=0x9
+14160849 free 0x9 class Some(128) [synthesized]
+14160850 tx seq 164 reply FREE sequence 164 result 0x0 length 48
+14160963 rx seq 203 FREE (10) sequence 165 length 48 checksum ok: hRoot=0xc1e00008 hParent=0x0 hObject=0xc1e00008
+14160965 free 0xc1e00008 class None [synthesized]
+14160966 tx seq 165 reply FREE sequence 165 result 0x0 length 48
+14234335 rx seq 204 GSP_RM_CONTROL (76) sequence 166 length 112 checksum ok: hClient=0xc1e00004 hObject=0xcaf00002 cmd=0x730151 paramsSize=40 rpcFlags=0x0
+14234336 ctrl 0x730151: map shared data: base 0x0 size 0x0 bMap 0 -> status 0x0 [guest (recorded from the request)]
+14234337 tx seq 166 reply GSP_RM_CONTROL sequence 166 result 0x0 length 112
+14234696 rx seq 205 FREE (10) sequence 167 length 48 checksum ok: hRoot=0xc1e00006 hParent=0x0 hObject=0xcaf00001
+14234698 free 0xcaf00001 class Some(8320) [synthesized]
+14234699 tx seq 167 reply FREE sequence 167 result 0x0 length 48
+14234805 rx seq 206 FREE (10) sequence 168 length 48 checksum ok: hRoot=0xc1e00006 hParent=0x0 hObject=0xcaf00000
+14234806 free 0xcaf00000 class Some(128) [synthesized]
+14234807 tx seq 168 reply FREE sequence 168 result 0x0 length 48
+14234893 rx seq 207 FREE (10) sequence 169 length 48 checksum ok: hRoot=0xc1e00006 hParent=0x0 hObject=0xc1e00006
+14234895 free 0xc1e00006 class None [synthesized]
+14234896 tx seq 169 reply FREE sequence 169 result 0x0 length 48
+14235026 rx seq 208 GSP_RM_CONTROL (76) sequence 170 length 96 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20800a38 paramsSize=24 rpcFlags=0x0
+14235027 ctrl 0x20800a38: gr get FECS trace hw enable: bEnable FALSE -> status 0x0 [synthesized (FECS trace HW never enabled)]
+14235029 tx seq 170 reply GSP_RM_CONTROL sequence 170 result 0x0 length 96
+14235156 rx seq 209 FREE (10) sequence 171 length 48 checksum ok: hRoot=0xc1e00004 hParent=0x0 hObject=0xcaf00002
+14235157 free 0xcaf00002 class Some(115) [synthesized]
+14235158 tx seq 171 reply FREE sequence 171 result 0x0 length 48
+14235255 rx seq 210 FREE (10) sequence 172 length 48 checksum ok: hRoot=0xc1e00004 hParent=0x0 hObject=0xcaf00001
+14235256 free 0xcaf00001 class Some(8320) [synthesized]
+14235257 tx seq 172 reply FREE sequence 172 result 0x0 length 48
+14235351 rx seq 211 FREE (10) sequence 173 length 48 checksum ok: hRoot=0xc1e00004 hParent=0x0 hObject=0xcaf00000
+14235353 free 0xcaf00000 class Some(128) [synthesized]
+14235354 tx seq 173 reply FREE sequence 173 result 0x0 length 48
+14235438 rx seq 212 FREE (10) sequence 174 length 48 checksum ok: hRoot=0xc1e00004 hParent=0x0 hObject=0xc1e00004
+14235449 free 0xc1e00004 class None [synthesized]
+14235450 tx seq 174 reply FREE sequence 174 result 0x0 length 48
+14425522 rx seq 213 UPDATE_BAR_PDE (70) sequence 175 length 56 checksum ok: 24 bytes: 010000000000000000000000000000002f00000000000000
+14425525 tx seq 175 reply UPDATE_BAR_PDE sequence 175 result 0x0 length 56
+14425695 rx seq 214 FREE (10) sequence 176 length 48 checksum ok: hRoot=0xc1e00005 hParent=0x0 hObject=0xcaf00003
+14425696 free 0xcaf00003 class Some(126) [synthesized]
+14425698 tx seq 176 reply FREE sequence 176 result 0x0 length 48
+14425809 rx seq 215 FREE (10) sequence 177 length 48 checksum ok: hRoot=0xc1e00005 hParent=0x0 hObject=0xcaf00001
+14425810 free 0xcaf00001 class Some(8320) [synthesized]
+14425811 tx seq 177 reply FREE sequence 177 result 0x0 length 48
+14425918 rx seq 216 FREE (10) sequence 178 length 48 checksum ok: hRoot=0xc1e00005 hParent=0x0 hObject=0xcaf00000
+14425919 free 0xcaf00000 class Some(128) [synthesized]
+14425920 tx seq 178 reply FREE sequence 178 result 0x0 length 48
+14426015 rx seq 217 FREE (10) sequence 179 length 48 checksum ok: hRoot=0xc1e00005 hParent=0x0 hObject=0xc1e00005
+14426016 free 0xc1e00005 class None [synthesized]
+14426023 tx seq 179 reply FREE sequence 179 result 0x0 length 48
+14426212 rx seq 218 GSP_RM_CONTROL (76) sequence 180 length 88 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20800afe paramsSize=16 rpcFlags=0x0
+14426213 ctrl 0x20800afe: init user shared data: pa 0x0 -> status 0x0 [guest (RUSD page recorded)]
+14426215 tx seq 180 reply GSP_RM_CONTROL sequence 180 result 0x0 length 88
+14426405 rx seq 219 FREE (10) sequence 181 length 48 checksum ok: hRoot=0xc1e00003 hParent=0x0 hObject=0xcaf00001
+14426407 free 0xcaf00001 class Some(8320) [synthesized]
+14426408 tx seq 181 reply FREE sequence 181 result 0x0 length 48
+14426523 rx seq 220 FREE (10) sequence 182 length 48 checksum ok: hRoot=0xc1e00003 hParent=0x0 hObject=0xcaf00000
+14426525 free 0xcaf00000 class Some(128) [synthesized]
+14426526 tx seq 182 reply FREE sequence 182 result 0x0 length 48
+14426619 rx seq 221 FREE (10) sequence 183 length 48 checksum ok: hRoot=0xc1e00003 hParent=0x0 hObject=0xc1e00003
+14426620 free 0xc1e00003 class None [synthesized]
+14426624 tx seq 183 reply FREE sequence 183 result 0x0 length 48
+14426764 rx seq 222 GMCAPI_GSP_SUSPEND (65540) sequence 184 length 40 checksum ok: 8 bytes: 0000000000000000
+14426765 gmcapi GSP_SUSPEND flags 0x0 (a regular unload: the next boot starts from construction): no response (fire and forget); MAILBOX0 0x7fc4a000 -> 0xffc4a000 (processor suspended)
