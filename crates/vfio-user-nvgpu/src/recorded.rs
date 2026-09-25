@@ -232,18 +232,30 @@ pub fn answer(cmd: u32, params: &[u8], f: &Facts) -> Option<Answer> {
 }
 
 /// `FIFO_GET_ENGINE_CONTEXT_PROPERTIES` ({engineId, alignment, size}, ctrl0080fifo.h:92-135)
-/// for an engine the recordings do not have: the main GR context (0) 2 MiB, 4 KiB aligned;
-/// any other engine INVALID_ARGUMENT, one of the documented statuses.
+/// for an engine the recordings do not have: the GR context buffers (main 2 MiB, PM, compute
+/// and graphics preemption, spill, page pool), 4 KiB aligned; any other engine
+/// INVALID_ARGUMENT, one of the documented statuses.
 fn engine_ctx(params: &[u8]) -> Answer {
     let mut b = params.to_vec();
     b.resize(params.len().max(12), 0);
     let id = get32(&b, 0) & 0x1F;
-    let st = if id == 0 {
-        put32(&mut b, 4, 0x1000);
-        put32(&mut b, 8, GR_MAIN_CTX_SIZE);
-        v::NV_OK
-    } else {
-        NV_ERR_INVALID_ARGUMENT
+    // Main GR context, PM, compute and graphics preemption (the GfxP slot stride), spill,
+    // page pool: none captured, sizes chosen generously.
+    let size = match id {
+        0 => Some(GR_MAIN_CTX_SIZE),
+        9 => Some(0x2_0000),
+        0xA | 0xB => Some(GFXP_SLOT_STRIDE),
+        0xC => Some(0x1_0000),
+        0xD => Some(0x8_0000),
+        _ => None,
+    };
+    let st = match size {
+        Some(sz) => {
+            put32(&mut b, 4, 0x1000);
+            put32(&mut b, 8, sz);
+            v::NV_OK
+        }
+        None => NV_ERR_INVALID_ARGUMENT,
     };
     b.truncate(params.len());
     Answer {
@@ -442,6 +454,9 @@ mod tests {
         // The main GR context (what the Windows KMD asks).
         let a = answer(FIFO_GET_ENGINE_CONTEXT_PROPERTIES, &[0u8; 12], &F).unwrap();
         assert_eq!((a.status, get32(&a.params, 4), get32(&a.params, 8)), (0, 0x1000, GR_MAIN_CTX_SIZE));
+        p[0] = 0xB;
+        let a = answer(FIFO_GET_ENGINE_CONTEXT_PROPERTIES, &p, &F).unwrap();
+        assert_eq!((a.status, get32(&a.params, 8)), (0, GFXP_SLOT_STRIDE));
         p[0] = 3;
         let a = answer(FIFO_GET_ENGINE_CONTEXT_PROPERTIES, &p, &F).unwrap();
         assert_eq!(a.status, NV_ERR_INVALID_ARGUMENT);
