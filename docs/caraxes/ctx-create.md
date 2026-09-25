@@ -17,9 +17,8 @@ cuCtxCreate 395 to 486 ms. Records: `caraxes/runs/opt-ctxcreate-2026-09-25/` (RE
   guest-side work: about 208 BAR2 flush reads, 85 GSP RPCs and 97 invalidates. The device spends
   about 8 ms of it on invalidates and 4 to 6 ms on the RPCs. The rest moves with the host's load:
   104 ms at best, session medians 179 to 715 ms over the three `before` sessions, at a load
-  average of 20 to 35 on 16 cores. The
-  rings are host RM work, serial per channel: channel 0.9 to 2.6 ms, objects 0.2 to 5 ms, TSG
-  0.8 ms, schedule and token 0.1 to 0.6 ms.
+  average of 20 to 35 on 16 cores. The rings are host RM work, serial per channel: channel 0.9
+  to 2.6 ms, objects 0.2 to 5 ms, TSG 0.8 ms, schedule and token 0.1 to 0.6 ms.
 - **Part 1** (the §9 hold refinement, bar1-pool.md §9.1): frees are not held any more.
   cuMemFree 64 MiB went from 2.6 ms to 1.0 to 1.2 ms (bench-cu churn) and from 5.4 ms to 1.6 ms
   (census). The allocburn reproduction stays at 0 Xid (20 of 20, `part1-allocburn`,
