@@ -25,6 +25,7 @@ Target: driver 615.71.09 only (D19, D20); 610.57.04 appears as one "610 delta" b
 | [methods.md](methods.md) | Gates, census, profile mode, coverage map, guest sweep, lab kit, emu-boot check, ABI drift check, how a new workload is measured |
 | [blackwell-and-hopper.md](blackwell-and-hopper.md) | GB206 identity, FSP boot, GMMU v3, the N gate, GH100 in emulation, what a capture or cloud validation adds |
 | [windows-driver-code43.md](windows-driver-code43.md) | The Windows driver's register sequence before Code 43 by name, devinit on Turing, the VBIOS scan, ranked causes and the next experiments |
+| [astra-review-2026-09-26.md](astra-review-2026-09-26.md) | External review of the Windows X0 RPC phase and the Linux CUDA/Vulkan coexistence: the empty-GPU KGR static info as the INSUFFICIENT_RESOURCES gate, control layouts, the CUDA-only ladder, instrumentation and audit targets |
 
 ## Format of a note
 

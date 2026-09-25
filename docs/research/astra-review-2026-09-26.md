@@ -1,0 +1,88 @@
+<!-- SPDX-License-Identifier: MIT -->
+# External review (Astra, 2026-09-26): Windows X0 and the Linux CUDA/Vulkan coexistence
+
+Summary of what we take from it (the review text follows verbatim):
+
+- **Windows gate candidate**: in pure emulation the internal KGR static controls describe an empty GPU
+  (gpcMask 0, empty SM order, context-buffer sizes NV_U32_MAX, caps 0); `_kgrAlloc` rejects a GR
+  with no GPCs with NV_ERR_INSUFFICIENT_RESOURCES, the very status DxgkDdiStartDevice returned.
+  Serve a coherent TU106 GR profile from the recorded host-backed answers; keep execution off.
+- GSP_INIT to GSP_SUSPEND took 1.48 s in X0: no wait, an immediate decision from the answers.
+- Log both statuses per control (RPC transport and inner RM status) and full payloads for the
+  BUS/FB lists, context properties, FS info, class list, 0x20802806 and the GSP_INIT NVKV.
+- Control names and layouts confirmed (GR_FS_INFO query record 20 bytes: 8 + 96·20 = 1928).
+- Linux: prove "CUDA alone" with a ladder (cuInit only, cuCtxCreate idle, + alloc, NVENC idle,
+  encoding); instrument the first *propagated* 0x57 (VA_LIST misses are expected); audit the
+  device for handle maps keyed by numeric handle, TSG vs context-share identity, hVASpace 0
+  resolution, shadow state keyed by reused root PAs, set-B ownership, notifier writes.
+- EnableGpuFirmwareLogs cannot help while no real firmware runs; RmMsg only in printf builds;
+  kernel debugging over a virtual COM port is the documented path.
+
+---
+
+## Verbatim review
+
+Caraxes: Windows X0 and Linux CUDA/Vulkan coexistence. Research review of supplied September 25, 2026 material. Public RM reference: NVIDIA open-gpu-kernel-modules tag 615.71.09.
+
+### Scope and evidence rules
+
+This review uses the six supplied log/document attachments and the public NVIDIA and Microsoft sources listed below. It does not inspect the current Caraxes implementation, the Windows driver binary, the original ETL, the complete NVKV payloads, or the unprovided full Vulkan ioctl trace. Statements about the exact Windows 617.14 call site therefore remain hypotheses.
+
+Keep three investigations separate: (1) older Windows CPU-RM start: the approximately 60-second PMU 0x10a0a4 poll; (2) Windows X0 at 22:42: GSP-RM enabled; GMC initialization, RM traffic, then orderly unload; (3) Linux 615: a local TURING_COMPUTE_A allocation error while another CUDA/NVENC client is alive. Do not copy diagnoses from one run to another merely because both Windows runs end in Code 43.
+
+### Executive findings
+
+- Confirmed from X0: GSP_INIT to GSP_SUSPEND takes 1.480866 s, not 60 seconds. The final shared-data call uses physical address zero during teardown. Neither that call nor SUSPEND identifies the original failure.
+- Confirmed model gap: the GPU-less GR replies explicitly advertise zero GPCs and unavailable context-buffer sizes. These are not equivalent to a usable RTX 2070 whose execution is temporarily emulated.
+- Confirmed from public RM: zero GPCs prevents GR-context creation in _kgrAlloc. An unavailable context-buffer size (NV_U32_MAX) causes a context-properties query to return NOT_SUPPORTED. This is a concrete invalid configuration to fix; it does not identify the exact private Windows failure site.
+- Confirmed from Linux tests: the failure is reversible when the CUDA/NVENC process exits. Treat current-client coexistence as the primary controlled variable, not simply elapsed time or a leak.
+- Important limitation: the supplied probe creates CUDA and NVENC. A CUDA-context-only reproduction is still needed before attributing the trigger solely to CUDA.
+- Confirmed from public RM: a VA_LIST miss is sometimes expected and recovered. Find the first propagated 0x57, rather than treating every local lookup miss as a bug.
+
+Confidence: 98% for trace arithmetic and identified source behavior; no confirmed root-cause diagnosis for either complete failure.
+
+### 1. Windows: what X0 actually proves
+
+The uploaded X0-rpc-sequence.txt contains 184 request records: GSP_RM_CONTROL 107, GSP_RM_ALLOC 33, FREE 36, ALLOC_MEMORY 3, UPDATE_BAR_PDE 2, GMCAPI_GSP_INIT 1, INIT_GSP_TRACE_CRASH_BUFFER 1, GMCAPI_GSP_SUSPEND 1. The decoded controls contain 62 successes and 45 NOT_SUPPORTED results. Twenty-four of the latter are BUS_GET_INFO_V2. The first GSP_INIT request is at 12,945,898 us; SUSPEND is at 14,426,764 us. The final logical sequence number is 184; continuation records mean it must not be used as a simple request count. None of this proves that the complete Windows miniport initialization succeeded.
+
+The 24 BUS_GET_INFO_V2 requests are closely spaced. Their parameter indices are missing from this attachment. They may be distinct queries, not retries of one request. The last discovery control, 0x20802806, precedes destruction of client 0xc1d00002. Later come display unmapping, BAR-PDE clearing, RUSD detachment and SUSPEND. Temporal proximity makes 0x20802806 worth examining, but does not prove causality: the caller may accumulate failures across a series of queries.
+
+Two status layers are intentional: rpcRmApiControl_GSP distinguishes successful RPC transport from the actual control handler's status. An outer response result=0 with an inner control status=0x56 is not inherently inconsistent. On a control error, parameter copyout is normally skipped unless COPYOUT_ON_ERROR is set. Log both fields and do not repair this by forcing every control to succeed. [S1]
+
+The highest-value Windows experiment: a coherent GPU-less profile. X0 currently returns INTERNAL_STATIC_KGR_GET_CAPS zeros, INTERNAL_STATIC_KGR_GET_FLOORSWEEPING_MASKS gpcMask=0, INTERNAL_STATIC_KGR_GET_GLOBAL_SM_ORDER empty, INTERNAL_STATIC_KGR_GET_CONTEXT_BUFFERS_INFO unavailable sizes (NV_U32_MAX, FECS_EVENT zero), and public class-list, engine-context properties, bus and memory information NOT_SUPPORTED. _kgrAlloc explicitly rejects a non-AMODEL GR instance with no GPCs. [S2] Separately, the context-properties implementation treats size NV_U32_MAX as unsupported. [S3]
+
+Proposed test, not a confirmed fix: replace the empty GPU-less GR description with one coherent, version-tagged TU106 reference profile. Keep execution disabled unless its semantics are actually implemented. Reconcile the class list, enabled engines, GPC/TPC/SM masks, counts, context-buffer size/alignment, memory layout and reported feature flags. Keep VM-local handles, addresses, framebuffer capacity and ownership virtualized; do not blindly copy physical-host addresses or capacity. A useful experiment is a complete coherent profile versus the existing profile, followed by a field-group bisect if the outcome changes. Retain the distinction between GSP firmware boot succeeding, Kernel-RM initialization succeeding and WDDM adapter start succeeding.
+
+### 2. Control identification and output requirements
+
+Paths under src/common/sdk/nvidia/inc/ in public tag 615.71.09: 0x00800292 NV0080_CTRL_CMD_GPU_GET_CLASSLIST_V2 (numClasses plus 200 NvU32, 804 B) [S4]; 0x00801707 NV0080_CTRL_CMD_FIFO_GET_ENGINE_CONTEXT_PROPERTIES (engineId, alignment, size, 12 B; engineId is its own context-buffer enumeration, not a raw NV2080_ENGINE_TYPE) [S5]; 0x20800aaf NV2080_CTRL_CMD_INTERNAL_GET_ENABLED_SEC2_CLASSES (three NvBool: bMaxwellSec2Enabled, bNv95A1TsecEnabled, bHopperSec2WorkLaunchAEnabled) [S6]; 0x20800afe NV2080_CTRL_CMD_INTERNAL_INIT_USER_SHARED_DATA (bInit and aligned physAddr, 16 B) [S6]; 0x20801823 NV2080_CTRL_CMD_BUS_GET_INFO_V2 (count plus inline index/data list) [S7]; 0x20801303 NV2080_CTRL_CMD_FB_GET_INFO_V2 (count plus inline index/data list; observe units and virtual FB layout) [S8]; 0x20803801 NV2080_CTRL_CMD_GRMGR_GET_GR_FS_INFO (batched queries with a status per query; whole-call errors versus per-query errors) [S9]; 0x2080012f GPU_QUERY_ECC_STATUS and 0x20800173 GPU_QUERY_FUNCTION_STATUS (NOT_SUPPORTED documented, not proof of caller tolerance) [S10]; 0x20802806 not identified (public 615 LPWR header does not define it) [S11].
+
+Layout check for GR_FS_INFO: the per-query record derives to 20 bytes (8 bytes query type/reserved/status plus a 12-byte union), the outer header 8 bytes, so 8 + 96·20 = 1928, matching X0; assert sizeof/offsetof in the vendor checkout. Do not return a blanket outer NOT_SUPPORTED when only particular query types are unavailable. There is no verified universal must-return-NV_OK list for private Windows 617.14; at each source call site distinguish plain CHECK/ASSERT, explicit fallback, OR_RETURN, OR_GOTO and OR_CAPTURE_FIRST_ERROR. The public GR initializer tolerates unsupported PPC masks while using checked failure paths for floorsweeping and global SM-order retrieval. [S3]
+
+Required logging before the next pure-emulation run: request and response payloads for BUS_GET_INFO_V2 (count and every index/data pair), FB_GET_INFO_V2 (same, with index flags and units), FIFO_GET_ENGINE_CONTEXT_PROPERTIES (engineId, size, alignment), GRMGR_GET_GR_FS_INFO (numQueries, queryType, inputs, per-query status and result), the class list, 0x20802806 (all bytes), the full GMC_INIT input and output NVKV (key, index, type, count, value), and both the RPC transport status and the embedded RM status.
+
+### 3. Firmware/RPC versions, NVKV and registry entries
+
+Three different mechanisms: (1) public Linux 615 verifies the loaded firmware container's .fwversion against NV_VERSION_STRING before boot (NV_ERR_INVALID_DATA on mismatch): the file supplied to the driver, not the version string a synthetic endpoint returns [S12]; (2) the static NVKV key VGX_VERSION is consumed by rpcSetIpVersion, which selects RPC/structure-copy interfaces, so the protocol version is meaningful [S1, S12]; (3) X0's GSP_GET_FEATURES reports 615.71.09 to a 617.14 client; a private Windows comparison is possible but not established; test it as an isolated variable only. The Nova r000 patch says firmware releases from r615 share one ABI [S13]; that does not establish that every private Windows-facing control, layout and optional feature is supported. The public 615 NVKV decoder zero-initializes static state, handles known keys (ENGINE_MASK converted from GMC engine IDs, FB_LENGTH/FB_REGION_*, BAR1/BAR2_PDE_BASE, internal handles, VMMU_SEGMENT_SIZE, VGX_VERSION, MISC_FEATURES, firmware-layout offsets), ignores unknown keys and rejects malformed types/indices. [S12] X0 includes only summaries of the 146 input keys / 46 registry entries and the 480-byte reply; a registry/schema diff needs the actual input and output. Freeze the profile and vary one configuration group at a time.
+
+### 4. Linux: separate allocation rejection from streaming stalls
+
+The isolation table supports a live-resource/coexistence interaction, not an irreversible leak, and does not yet isolate CUDA alone. Minimal experiment matrix (fresh VM per variant, the same Vulkan device-create probe before, during and after): (1) a process that only calls cuInit; (2) cuCtxCreate held, no NVENC, no allocation, no work; (3) the same plus a small allocation; (4) an NVENC session created but idle; (5) an actively encoding session. First distinguish vkCreateDevice failure from work that submits but never completes.
+
+Instrument propagated status, not every local 0x57: in kgraphicsMapCtxBuffer a VA_LIST miss triggers a new mapping [S3]; kgrctxPreparePromoteCtxBuffer can return NV_OK with no promotion on a refcount miss [S14]; several global-buffer mapping calls have ignored return values; on a non-MIG GPU kgrmgrCtrlRouteKGRWithDevice selects GR0 directly [S15]. Diagnostic guest build with the matching open sources (README documents DEBUG=1) [S16], instrumenting kgrobjConstruct_IMPL, kgrmgrCtrlRouteKGRWithDevice, _kgrAlloc, kgrobjSetComputeMmio, kgraphicsInitializeDeferredStaticData, kgraphicsAllocKgraphicsBuffers, kgrctxAllocCtxBuffers, kgrctxMapCtxBuffers, kgrobjPromoteContext; if construction returns NV_OK but the outer RMALLOC still returns 0x57, move into the resource-server allocation path. For each critical line: client/device/object handle and allocation generation; channel, TSG, context-share, subcontext/VEID; resolved pVAS identity, flags, PDB/root; main/patch/PM/global-buffer identity; VA_LIST identity, mapping count, refcount; requested GPU VA, size, returned status. The constructor can issue GPU_PROMOTE_CTX before the final engine allocation is forwarded. [S2]
+
+Caraxes audit targets (hypotheses): scope handle maps and cached replies by client and object lifetime, not only numerical handle; keep TSG sharing distinct from context-share/subcontext identity; resolve the effective VAS for hVASpace=0 channels; scope shadow state by VM/root and lifetime (root PAs are reused); keep set-B exclusions associated with the owning host resource and root; check guest-visible writes by mirrored host objects (initialization/clear and notifier writes); if c5c0 is rejected before any promotion/mapping, prefer guest software-state evidence.
+
+### 5. Windows debug output and WDDM
+
+RmMsg is a string rule filter in nvrm_registry.h limited to builds with printf support (grammar [!][filename|function][:startline][-endline], comma separated) [S17]. Verify actual registry reads with Process Monitor/boot logging. DebugView and WinDbg capture debug output that is actually emitted [S18, S19]. KDNET needs a supported transport/NIC; a virtual COM port is the other documented kernel-debugging option [S20, S21]. EnableGpuFirmwareLogs cannot produce firmware logs while Caraxes does not execute that firmware. NumVidPnSources is a count of supported present sources, not attached monitors; zero on a failed StartDevice does not say why [S22]. WDDM supports declared non-display roles; a GeForce display driver must not be assumed to become render-only because the emulator removes heads [S23].
+
+### 6. Recommended next packages
+
+Windows: preserve X0 as the GSP baseline; add the structured request/response logging; serve a coherent GPU-less TU106 discovery profile; implement BUS/FB list responses, class enumeration, context properties and GR-FS query results from that profile; bisect field groups on success; collect a new ETW trace of that exact run. Linux: run the CUDA-only coexistence matrix; instrument the matched open guest RM for the first propagated 0x57 and its call chain; diff successful and failing client/TSG/subcontext/VAS identities; then patch the relevant scope/lifetime or reply semantics in Caraxes and re-test with the unmodified guest driver. No global "return NV_OK" patch, no fabricated class support, no unsafe physical forwarding to make a pure-emulation boot pass.
+
+### Sources
+
+[S1] rpc.c (rpcRmApiControl_GSP, rpcSetIpVersion); [S2] kernel_graphics_object.c (_kgrAlloc, kgrobjConstruct_IMPL, kgrobjPromoteContext_IMPL); [S3] kernel_graphics.c; [S4] ctrl0080gpu.h; [S5] ctrl0080fifo.h; [S6] ctrl2080internal.h; [S7] ctrl2080bus.h; [S8] ctrl2080fb.h; [S9] ctrl2080grmgr.h; [S10] ctrl2080gpu.h; [S11] ctrl2080lpwr.h; [S12] kernel_gsp.c (_kgspFwContainerVerifyVersion, _kgspStaticInfoKeyHandler, _kgspDecodeGspStaticInfo); [S13] Nova r000 binding patch (lists.openwall.net/linux-kernel/2026/09/18/158); [S14] kernel_graphics_context.c; [S15] kernel_graphics_manager.c; [S16] open-gpu-kernel-modules README; [S17] nvrm_registry.h; [S18] Microsoft: reading and filtering debugging messages; [S19] Microsoft DebugView; [S20] Microsoft KDNET; [S21] Microsoft virtual-COM kernel debugging; [S22] Microsoft DxgkDdiStartDevice; [S23] Microsoft DXGK_DRIVERCAPS. All NVIDIA paths refer to the public tag 615.71.09.
+
+Evidence still missing for a definitive diagnosis: full X0 NVKV request/response; per-control parameter bytes and inner statuses; current Caraxes source; local Linux first-failure return trace; a truly CUDA-only coexistence reproducer; matching ETW for X0; private Windows 617.14 caller source or sufficient runtime instrumentation.
