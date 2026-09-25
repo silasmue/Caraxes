@@ -209,5 +209,10 @@ the diff against the 35-register baseline, `trace-saver` archives the full trace
   in pure emulation, so the controls that need the host RM answered NOT_SUPPORTED
   (BUS_GET_INFO_V2 retried 24 times, fb info v2, GR FS info, ECC/function status, ...); the
   night loop now works on the RPC phase, the CPU-RM chain is secondary.
+- **The key is official**: `kernel-open/common/inc/nv-firmware-registry.h` (shared Windows/Unix) defines
+  `EnableGpuFirmware` (mode bits: 0 off, 1 on, 2 default; policy 0x10 allow fallback, 0x20 default
+  on WS/server; driver default 0x12) and `EnableGpuFirmwareLogs` (1 = firmware logs into the
+  System log). We set mode 1 without fallback, so a failure is a GSP-RM failure. The night loop
+  also sets the logs key and resolves the device's class key via `DEVPKEY_Device_Driver`.
 - Unattended tooling added: `qga.py` (QEMU guest agent: PowerShell as SYSTEM, file transfer),
   `qmp.py` (screenshot, keys, clean power-down), `WIN_GPU_VBIOS`, `WIN_GPU_ROOTPORT`, `WIN_VGA`.
