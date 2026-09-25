@@ -1,0 +1,2 @@
+COV graphs ok 4 captured nodes, 200 launches of each graph, 400 host calls
+# rc=0

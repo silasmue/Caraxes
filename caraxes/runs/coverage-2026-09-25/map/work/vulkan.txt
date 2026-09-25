@@ -1,0 +1,7 @@
+ERROR while creating surface for extension VK_KHR_xcb_surface : ./vulkaninfo/./vulkaninfo.h:245:vkGetPhysicalDeviceSurfacePresentModesKHR failed with ERROR_UNKNOWN
+ERROR while creating surface for extension VK_KHR_xlib_surface : ./vulkaninfo/./vulkaninfo.h:245:vkGetPhysicalDeviceSurfacePresentModesKHR failed with ERROR_UNKNOWN
+	apiVersion         = 1.4.341
+	deviceName         = Leandro VFIO RTX 2070-1G
+	driverName         = NVIDIA
+COV vulkan ok vulkaninfo --summary with /usr/share/vulkan/icd.d/nvidia_icd.json (rc 0)
+# rc=0

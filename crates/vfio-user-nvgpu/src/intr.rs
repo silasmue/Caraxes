@@ -69,10 +69,12 @@ impl IntrShared {
         use std::io::Write;
         let leaf = (vector / 32) as usize;
         self.raised.fetch_add(1, Ordering::Relaxed);
+        crate::profile::window("interrupts: vector raises", 0);
         if leaf < LEAVES {
             let bit = 1u32 << (vector % 32);
             if self.pending[leaf].fetch_or(bit, Ordering::SeqCst) & bit != 0 {
                 self.coalesced.fetch_add(1, Ordering::Relaxed);
+                crate::profile::window("interrupts: raises coalesced while pending", 0);
                 return false;
             }
         }
@@ -110,6 +112,7 @@ impl IntrShared {
         let Some(f) = g.as_mut() else { return false };
         if f.write_all(&1u64.to_le_bytes()).is_ok() {
             self.msis.fetch_add(1, Ordering::Relaxed);
+            crate::profile::window("interrupts: MSIs written", 0);
             true
         } else {
             false

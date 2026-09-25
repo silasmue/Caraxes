@@ -1,0 +1,2 @@
+COV managed ok cuMemAllocManaged refused: CUDA_ERROR_NOT_SUPPORTED=801 (the device's answer)
+# rc=0

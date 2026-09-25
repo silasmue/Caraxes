@@ -1,0 +1,32 @@
+NVRM version: NVIDIA UNIX Open Kernel Module for x86_64  615.71.09  Release Build  (root@)  
+abfbdfe5e77aaba2c706534614f4d84d62eda1e90d33a86ae4e82133ea1fc429  /home/silas/git/Caraxes/.claude/worktrees/agent-acce662b80613ad04/target/cov/release/vfio-user-nvgpu
+960af13c53b2824a29a7461c8390c3f136f85082ed46a6edfb0fcd9bb642284f  /mnt/vmstore/caraxes/vm1/ch-0006-v.sh
+61543bb profile: CARAXES_PROFILE=1 aggregates traps, controls, RPCs, host RM calls and window hits per device and per guest client, dumped on SIGUSR2 and at exit
+bench-run.sh libdir v2: /opt/nvrm/lib
+CARAXES_ALLOC_LAZY=1
+CARAXES_BAR1_PASSTHROUGH=pool
+CARAXES_BAR1_POOL_MIB=32
+CARAXES_BAR2_MEMFD=1
+CARAXES_BOOT_MODEL=1
+CARAXES_DMA=register
+CARAXES_DOORBELL_POLL=hybrid
+CARAXES_DOORBELL_TOKENS=64
+CARAXES_FB_MIB=1024
+CARAXES_GATE_FB_MIB=1024
+CARAXES_HOST_EXEC=1
+CARAXES_HOST_RM=1
+CARAXES_INTR_PAGE=1
+CARAXES_IP=192.168.102.22
+CARAXES_LEANDRO_TEST=/home/silas/git/Leandro-Test
+CARAXES_MAC=02:00:00:00:00:22
+CARAXES_MIRROR_CHANNELS=1
+CARAXES_MIRROR_GR_SHADOW=1
+CARAXES_MSI_REARM_IOEVENTFD=1
+CARAXES_PROFILE=1
+CARAXES_PROFILE_OUT=/home/silas/git/Caraxes/.claude/worktrees/agent-acce662b80613ad04/caraxes/runs/coverage-2026-09-25/overhead-on-2/profile/dev
+CARAXES_RESERVE_SLOT=3
+CARAXES_RESERVE_VRAM=1
+CARAXES_SERVER=/home/silas/git/Caraxes/.claude/worktrees/agent-acce662b80613ad04/target/cov/release/vfio-user-nvgpu
+CARAXES_TAP=caraxes2
+LEA_CH=/mnt/vmstore/caraxes/vm1/ch-0006-v.sh
+VM=vm2

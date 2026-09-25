@@ -1,0 +1,2 @@
+COV illegal fail store to 0x10: synchronize CUDA_ERROR_LAUNCH_FAILED=719; next allocation CUDA_ERROR_LAUNCH_FAILED
+# rc=1

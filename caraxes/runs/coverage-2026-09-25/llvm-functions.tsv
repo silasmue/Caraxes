@@ -1,0 +1,1466 @@
+# SPDX-License-Identifier: MIT
+file	line	function	workload_count	test_count	reached_by
+bar0.rs	121	bar0::Bar0::boot	253202	4	both
+bar0.rs	125	bar0::Bar0::boot_mut	1435945	5	both
+bar0.rs	133	bar0::Bar0::chip	0	1	tests only
+bar0.rs	169	bar0::Bar0::dword_at	364950	93	both
+bar0.rs	129	bar0::Bar0::identity	0	0	neither
+bar0.rs	106	bar0::Bar0::model_owns	6132	3066	both
+bar0.rs	138	bar0::Bar0::name	466614	7	both
+bar0.rs	72	bar0::Bar0::new	2	15	both
+bar0.rs	210	bar0::Bar0::read	124629	42	both
+bar0.rs	152	bar0::Bar0::reset	4	0	workload only
+bar0.rs	142	bar0::Bar0::rom	0	1	tests only
+bar0.rs	163	bar0::Bar0::take_notes	253282	3	both
+bar0.rs	146	bar0::Bar0::vbios	0	0	neither
+bar0.rs	116	bar0::Bar0::with_boot_model	2	3	both
+bar0.rs	97	bar0::Bar0::with_fe_page	0	0	neither
+bar0.rs	91	bar0::Bar0::with_intr_page	2	0	workload only
+bar0.rs	223	bar0::Bar0::write	506400	23	both
+bar1pool.rs	376	bar1pool::Bar1Pool::after_reset	4	1	both
+bar1pool.rs	419	bar1pool::Bar1Pool::finding	654	14	both
+bar1pool.rs	353	bar1pool::Bar1Pool::new	6	9	both
+bar1pool.rs	388	bar1pool::Bar1Pool::note_table_write	56351	60	both
+bar1pool.rs	404	bar1pool::Bar1Pool::set_unit	506	31	both
+bar1pool.rs	429	bar1pool::Bar1Pool::summary	44	1	both
+bar1pool.rs	399	bar1pool::Bar1Pool::unit_pages	506	31	both
+bar1pool.rs	512	bar1pool::MirrorGpu::PoolGpu::blocked	28327	0	workload only
+bar1pool.rs	561	bar1pool::MirrorGpu::PoolGpu::quiesce	37591	0	workload only
+bar1pool.rs	527	bar1pool::MirrorGpu::PoolGpu::refs	4452	0	workload only
+bar1pool.rs	604	bar1pool::MirrorGpu::PoolGpu::resync	463	0	workload only
+bar1pool.rs	486	bar1pool::NoGpu::PoolGpu::blocked	0	14	tests only
+bar1pool.rs	492	bar1pool::NoGpu::PoolGpu::quiesce	0	0	neither
+bar1pool.rs	489	bar1pool::NoGpu::PoolGpu::refs	0	14	tests only
+bar1pool.rs	495	bar1pool::NoGpu::PoolGpu::resync	0	0	neither
+bar1pool.rs	131	bar1pool::Refusal::why	444	12	both
+bar1pool.rs	204	bar1pool::RemapTable::any_in	162799	7	both
+bar1pool.rs	210	bar1pool::RemapTable::check	69957	110	both
+bar1pool.rs	243	bar1pool::RemapTable::for_each_piece::NtB7_2::FakeFb::read	0	76	tests only
+bar1pool.rs	243	bar1pool::RemapTable::for_each_piece::NtB7_2::FakeFb::write	2790	21	both
+bar1pool.rs	199	bar1pool::RemapTable::held	1281001	232	both
+bar1pool.rs	194	bar1pool::RemapTable::holder	617091	74	both
+bar1pool.rs	227	bar1pool::RemapTable::install	23171	31	both
+bar1pool.rs	163	bar1pool::RemapTable::is_empty	4756511	294	both
+bar1pool.rs	189	bar1pool::RemapTable::is_remapped	899370	5	both
+bar1pool.rs	167	bar1pool::RemapTable::len	312874	1	both
+bar1pool.rs	154	bar1pool::RemapTable::new	6	10	both
+bar1pool.rs	172	bar1pool::RemapTable::pool	300096	87	both
+bar1pool.rs	177	bar1pool::RemapTable::pool_page	63	10	both
+bar1pool.rs	235	bar1pool::RemapTable::release	67371	65	both
+bar1pool.rs	267	bar1pool::RemapTable::split_leaf	21785134	554	both
+bar1pool.rs	182	bar1pool::RemapTable::translate	7366566	708	both
+bar1pool.rs	988	bar1pool::check_hazards	640433	117	both
+bar1pool.rs	79	bar1pool::check_size	2	9	both
+bar1pool.rs	54	bar1pool::config	2	0	workload only
+bar1pool.rs	973	bar1pool::key	444	18	both
+bar1pool.rs	981	bar1pool::note_time	2892	41	both
+bar1pool.rs	665	bar1pool::poll	1032742	368	both
+bar1pool.rs	621	bar1pool::poll_model	878902	0	workload only
+bar2area.rs	911	bar2area::Bar2Area::apply_unit	5659	18	both
+bar2area.rs	726	bar2area::Bar2Area::backing	23226	21	both
+bar2area.rs	683	bar2area::Bar2Area::create	4	6	both
+bar2area.rs	738	bar2area::Bar2Area::device_write	37844	9	both
+bar2area.rs	830	bar2area::Bar2Area::follow_tables	55348	16	both
+bar2area.rs	721	bar2area::Bar2Area::has_live	4553322	66	both
+bar2area.rs	717	bar2area::Bar2Area::is_trap	0	0	neither
+bar2area.rs	746	bar2area::Bar2Area::note_table_write	37844	9	both
+bar2area.rs	758	bar2area::Bar2Area::note_trapped	30922	0	workload only
+bar2area.rs	707	bar2area::Bar2Area::raw_fd	2	0	workload only
+bar2area.rs	732	bar2area::Bar2Area::read_through	4553282	65	both
+bar2area.rs	990	bar2area::Bar2Area::reset_mapping	4	1	both
+bar2area.rs	703	bar2area::Bar2Area::size	0	0	neither
+bar2area.rs	712	bar2area::Bar2Area::sparse_areas	4	0	workload only
+bar2area.rs	762	bar2area::Bar2Area::stats	2	2	both
+bar2area.rs	997	bar2area::Bar2Area::summary	4	0	workload only
+bar2area.rs	773	bar2area::Bar2Area::sync	3041107	30	both
+bar2area.rs	237	bar2area::MemfdArea::create	2	5	both
+bar2area.rs	275	bar2area::MemfdArea::map_again	2	8	both
+bar2area.rs	266	bar2area::MemfdArea::raw_fd	4	8	both
+bar2area.rs	282	bar2area::MemfdArea::self_test	2	4	both
+bar2area.rs	270	bar2area::MemfdArea::view	4553282	67	both
+bar2area.rs	608	bar2area::Reader::ptcache::TableReader::block	1527201	8721	both
+bar2area.rs	383	bar2area::RemapTable::aliases	0	1	tests only
+bar2area.rs	542	bar2area::RemapTable::clear	4	1	both
+bar2area.rs	521	bar2area::RemapTable::device_write	37844	11	both
+bar2area.rs	378	bar2area::RemapTable::home	4590456	123	both
+bar2area.rs	358	bar2area::RemapTable::is_empty	4553322	66	both
+bar2area.rs	363	bar2area::RemapTable::live_pages	52415	13	both
+bar2area.rs	368	bar2area::RemapTable::mapped	2	0	workload only
+bar2area.rs	388	bar2area::RemapTable::max_aliases	10312056	62	both
+bar2area.rs	451	bar2area::RemapTable::scan	93122984	53821	both
+bar2area.rs	397	bar2area::RemapTable::set	1507653	168	both
+bar2area.rs	373	bar2area::RemapTable::target	0	0	neither
+bar2area.rs	169	bar2area::SharedView::at	25439752	20744	both
+bar2area.rs	222	bar2area::SharedView::core::ops::drop::Drop::drop	2	13	both
+bar2area.rs	165	bar2area::SharedView::is_empty	0	0	neither
+bar2area.rs	161	bar2area::SharedView::len	0	0	neither
+bar2area.rs	193	bar2area::SharedView::load_page	10712196	56	both
+bar2area.rs	202	bar2area::SharedView::load_word	301697	28	both
+bar2area.rs	143	bar2area::SharedView::map	4	13	both
+bar2area.rs	180	bar2area::SharedView::read	10971	15	both
+bar2area.rs	214	bar2area::SharedView::store_page	3003	20	both
+bar2area.rs	208	bar2area::SharedView::store_word	1695000	10261	both
+bar2area.rs	186	bar2area::SharedView::write	12	12	both
+bar2area.rs	549	bar2area::byte_mask	50997002	157	both
+bar2area.rs	69	bar2area::config	2	0	workload only
+bar2area.rs	570	bar2area::identity	0	0	neither
+bar2area.rs	307	bar2area::key_of	568131	24	both
+bar2area.rs	556	bar2area::page_bytes	12	6	both
+bar2area.rs	83	bar2area::parse_traps	0	11	tests only
+bar2area.rs	576	bar2area::read_through	4556259	82	both
+bar2area.rs	103	bar2area::sparse_areas	8	19	both
+bar2area.rs	316	bar2area::target_of	2972907	26	both
+board.rs	31	board::Bar::size	32	381	both
+board.rs	119	board::Board::load	4	269	both
+board.rs	134	board::Board::parse	4	272	both
+board.rs	215	board::Board::region_bar_sizes	14	350	both
+board.rs	204	board::Board::set_vbios_version	0	0	neither
+board.rs	222	board::parse_vbios_version	28	1893	both
+boot.rs	1239	boot::BootModel::bar2_doorbell_sync	899370	1	both
+boot.rs	757	boot::BootModel::bar_access	30922	0	workload only
+boot.rs	740	boot::BootModel::bar_root	52411	55	both
+boot.rs	865	boot::BootModel::chip	0	0	neither
+boot.rs	247	boot::BootModel::display_read32	57849	25	both
+boot.rs	272	boot::BootModel::display_tick	0	0	neither
+boot.rs	645	boot::BootModel::display_write32	108668	17	both
+boot.rs	1248	boot::BootModel::doorbell_pending	0	0	neither
+boot.rs	844	boot::BootModel::doorbell_token	898457	0	workload only
+boot.rs	928	boot::BootModel::doorbells	0	2	tests only
+boot.rs	702	boot::BootModel::exec_summary	2	0	workload only
+boot.rs	870	boot::BootModel::fb_bytes	0	12	tests only
+boot.rs	2054	boot::BootModel::find_rmargs	86	430	both
+boot.rs	417	boot::BootModel::goe_rc	0	4	tests only
+boot.rs	801	boot::BootModel::gp_put_barrier	0	0	neither
+boot.rs	2120	boot::BootModel::gsp_init	0	21	tests only
+boot.rs	2025	boot::BootModel::gsp_started	2	10	both
+boot.rs	1001	boot::BootModel::handles	169577	3136	both
+boot.rs	878	boot::BootModel::identity	0	1	tests only
+boot.rs	991	boot::BootModel::in_pramin	279379	3617	both
+boot.rs	957	boot::BootModel::l2_op	190	14	both
+boot.rs	874	boot::BootModel::layout	2	1	both
+boot.rs	920	boot::BootModel::libos_args_pa	0	0	neither
+boot.rs	1865	boot::BootModel::link_queues	86	16	both
+boot.rs	2084	boot::BootModel::link_queues_v2	0	7	tests only
+boot.rs	164	boot::BootModel::new	6	17	both
+boot.rs	997	boot::BootModel::owns_register	3066	2557	both
+boot.rs	657	boot::BootModel::post_display_command	0	0	neither
+boot.rs	478	boot::BootModel::post_model_rcs	1007117	449	both
+boot.rs	284	boot::BootModel::post_unsolicited	0	75	tests only
+boot.rs	1009	boot::BootModel::pramin_pa	35070	0	workload only
+boot.rs	1964	boot::BootModel::queue_register_read	57835	133	both
+boot.rs	1983	boot::BootModel::queue_register_write	41280	470	both
+boot.rs	444	boot::BootModel::rc_selftest	1007117	452	both
+boot.rs	1014	boot::BootModel::read32	57843	136	both
+boot.rs	933	boot::BootModel::reg	297669	3654	both
+boot.rs	888	boot::BootModel::reset	8	3	both
+boot.rs	391	boot::BootModel::resume	0	3	tests only
+boot.rs	370	boot::BootModel::resuming	2	13	both
+boot.rs	514	boot::BootModel::scan_channel_errors	1007117	449	both
+boot.rs	547	boot::BootModel::scan_channel_errors_inner	2014374	459	both
+boot.rs	1261	boot::BootModel::service_queues	153837	203	both
+boot.rs	856	boot::BootModel::take_host_doorbell	1796914	0	workload only
+boot.rs	697	boot::BootModel::take_msi	253282	0	workload only
+boot.rs	861	boot::BootModel::token_pool_mut	898457	0	workload only
+boot.rs	1957	boot::BootModel::transport	0	1	tests only
+boot.rs	838	boot::BootModel::with_doorbell_tokens	2	0	workload only
+boot.rs	217	boot::BootModel::with_exec	6	0	workload only
+boot.rs	830	boot::BootModel::with_host	2	0	workload only
+boot.rs	1952	boot::BootModel::with_transport	0	8	tests only
+boot.rs	882	boot::BootModel::wpr	0	2	tests only
+boot.rs	924	boot::BootModel::wpr_meta_pa	0	2	tests only
+boot.rs	1066	boot::BootModel::write32	119756	491	both
+boot.rs	153	boot::stores_gp_put	0	22	tests only
+channel.rs	94	channel::GpuMem::pieces	170	29	both
+channel.rs	71	channel::GpuMem::read	3615050	57	both
+channel.rs	87	channel::GpuMem::read_u32	7229792	66	both
+channel.rs	110	channel::GpuMem::read_va	99	21	both
+channel.rs	79	channel::GpuMem::write	3736	26	both
+channel.rs	121	channel::GpuMem::write_va	71	8	both
+channel.rs	1398	channel::Registry::ce_method	314	18	both
+channel.rs	344	channel::Registry::channel	3317518	20	both
+channel.rs	358	channel::Registry::channel_mut	899362	11	both
+channel.rs	326	channel::Registry::channels	12871	98	both
+channel.rs	1163	channel::Registry::compute_method	0	84	tests only
+channel.rs	797	channel::Registry::doorbell	0	7	tests only
+channel.rs	803	channel::Registry::doorbell_except	60	40	both
+channel.rs	365	channel::Registry::gp_put_of	899370	23	both
+channel.rs	1014	channel::Registry::host_method	214	29	both
+channel.rs	1338	channel::Registry::i2m_finish	0	1	tests only
+channel.rs	1432	channel::Registry::launch_dma	94	7	both
+channel.rs	306	channel::Registry::new	12	63	both
+channel.rs	394	channel::Registry::note_rung	899370	15	both
+channel.rs	503	channel::Registry::now_ns	12568	1902	both
+channel.rs	381	channel::Registry::pending	0	8	tests only
+channel.rs	452	channel::Registry::promoted	903	4	both
+channel.rs	509	channel::Registry::record_alloc	34554	181	both
+channel.rs	439	channel::Registry::record_dup	1	2	both
+channel.rs	671	channel::Registry::record_free	229774	38	both
+channel.rs	457	channel::Registry::record_promote_ctx	281	4	both
+channel.rs	703	channel::Registry::record_server_reserved_pdes	1176	16	both
+channel.rs	744	channel::Registry::record_set_page_directory	0	3	tests only
+channel.rs	771	channel::Registry::record_unset_page_directory	0	0	neither
+channel.rs	427	channel::Registry::resolve	8548	959	both
+channel.rs	336	channel::Registry::root_entries	0	0	neither
+channel.rs	778	channel::Registry::root_of	8	16	both
+channel.rs	836	channel::Registry::run	58	59	both
+channel.rs	912	channel::Registry::segment	3828	311	both
+channel.rs	403	channel::Registry::tsg	902111	21	both
+channel.rs	661	channel::Registry::tsg_id	29346	62	both
+channel.rs	409	channel::Registry::vas_key_of	1443	0	workload only
+channel.rs	350	channel::Registry::vas_replay	0	0	neither
+channel.rs	330	channel::Registry::vas_root	1451	18	both
+channel.rs	1605	channel::compute_reduce	0	1	tests only
+channel.rs	1588	channel::describe_qmd	0	65	tests only
+channel.rs	54	channel::gmmu_aperture	98	4	both
+channel.rs	296	channel::mem_desc	1820	76	both
+channel.rs	282	channel::rd32	17956	812	both
+channel.rs	288	channel::rd64	9780	302	both
+channel.rs	1622	channel::reduce	0	4	tests only
+channel.rs	1559	channel::remap_line	0	1	tests only
+chip/boot_fsp.rs	232	boot_fsp::AcrLayout::compute	0	8	tests only
+chip/boot_fsp.rs	314	boot_fsp::AcrLayout::write	0	15	tests only
+chip/boot_fsp.rs	168	boot_fsp::Cot::parse	0	18	tests only
+chip/boot_fsp.rs	677	boot_fsp::FspBoot::FirmwareBoot::handles	0	871	tests only
+chip/boot_fsp.rs	687	boot_fsp::FspBoot::FirmwareBoot::read32	0	107	tests only
+chip/boot_fsp.rs	733	boot_fsp::FspBoot::FirmwareBoot::write32	0	486	tests only
+chip/boot_fsp.rs	498	boot_fsp::FspBoot::boot_gsp	0	12	tests only
+chip/boot_fsp.rs	417	boot_fsp::FspBoot::constant	0	13	tests only
+chip/boot_fsp.rs	425	boot_fsp::FspBoot::ememc_value	0	16	tests only
+chip/boot_fsp.rs	403	boot_fsp::FspBoot::fsp_reg	0	847	tests only
+chip/boot_fsp.rs	399	boot_fsp::FspBoot::in_gsp	0	867	tests only
+chip/boot_fsp.rs	433	boot_fsp::FspBoot::message	0	5	tests only
+chip/boot_fsp.rs	375	boot_fsp::FspBoot::new	0	6	tests only
+chip/boot_fsp.rs	624	boot_fsp::FspBoot::packet	0	450	tests only
+chip/boot_fsp.rs	481	boot_fsp::FspBoot::respond	0	5	tests only
+chip/boot_fsp.rs	593	boot_fsp::FspBoot::timer_read	0	5	tests only
+chip/boot_fsp.rs	578	boot_fsp::FspBoot::timer_reg	0	889	tests only
+chip/boot_fsp.rs	605	boot_fsp::FspBoot::timer_write	0	2	tests only
+chip/boot_fsp.rs	103	boot_fsp::FspBootData::parse	0	1	tests only
+chip/boot_fsp.rs	206	boot_fsp::align_down	0	13	tests only
+chip/boot_fsp.rs	210	boot_fsp::align_up	0	4	tests only
+chip/gb206.rs	28	gb206::Gb206::Chip::data	0	10	tests only
+chip/gb206.rs	32	gb206::Gb206::Chip::firmware_boot	0	2	tests only
+chip/gb206.rs	56	gb206::boot_data	0	13	tests only
+chip/gb206.rs	47	gb206::get	0	9	tests only
+chip/gb206.rs	39	gb206::load	0	1	tests only
+chip/mod.rs	157	vfio_user_nvgpu::chip::ChipData::engine_caps_mask	2	16	both
+chip/mod.rs	517	vfio_user_nvgpu::chip::ChipData::load	176	138	both
+chip/mod.rs	149	vfio_user_nvgpu::chip::ChipData::register_name	17613468	410	both
+chip/mod.rs	312	vfio_user_nvgpu::chip::LceShim::of	0	5	tests only
+chip/mod.rs	64	vfio_user_nvgpu::chip::boot_fsp::FspBoot::FirmwareBoot::libos_args_pa	0	1	tests only
+chip/mod.rs	69	vfio_user_nvgpu::chip::boot_fsp::FspBoot::FirmwareBoot::queue_registers	0	0	neither
+chip/mod.rs	40	vfio_user_nvgpu::chip::by_name	8	395	both
+chip/mod.rs	500	vfio_user_nvgpu::chip::parse::ChipFile	4	4	both
+chip/mod.rs	500	vfio_user_nvgpu::chip::parse::DeviceInfoFile	4	4	both
+chip/mod.rs	500	vfio_user_nvgpu::chip::parse::InterruptsFile	4	4	both
+chip/mod.rs	500	vfio_user_nvgpu::chip::parse::RegmapFile	4	4	both
+chip/mod.rs	506	vfio_user_nvgpu::chip::resolve	272	207	both
+chip/physical.rs	174	physical::answer	4286	12	both
+chip/physical.rs	127	physical::ce_pce_mask	3	4	both
+chip/physical.rs	103	physical::ce_physical_caps	35	9	both
+chip/physical.rs	58	physical::device_info2	0	1	tests only
+chip/physical.rs	153	physical::gr_info	2	0	workload only
+chip/tu106.rs	27	tu106::Tu106::Chip::data	474339	488	both
+chip/tu106.rs	31	tu106::Tu106::Chip::firmware_boot	6	15	both
+chip/tu106.rs	55	tu106::boot_data	0	2	tests only
+chip/tu106.rs	46	tu106::get	8	389	both
+chip/tu106.rs	38	tu106::load	4	1	both
+chip/turing.rs	188	turing::TuringBoot::FirmwareBoot::handles	152546	3088	both
+chip/turing.rs	174	turing::TuringBoot::FirmwareBoot::libos_args_pa	4	22	both
+chip/turing.rs	179	turing::TuringBoot::FirmwareBoot::queue_registers	0	210	tests only
+chip/turing.rs	197	turing::TuringBoot::FirmwareBoot::read32	33452	34	both
+chip/turing.rs	213	turing::TuringBoot::FirmwareBoot::write32	41280	234	both
+chip/turing.rs	135	turing::TuringBoot::constant	1220180	24609	both
+chip/turing.rs	166	turing::TuringBoot::fallback_frts_offset	0	2	tests only
+chip/turing.rs	144	turing::TuringBoot::fwsec_done	2	2	both
+chip/turing.rs	131	turing::TuringBoot::in_block	320064	6007	both
+chip/turing.rs	116	turing::TuringBoot::new	18	48	both
+chip/turing.rs	76	turing::TuringBootData::parse	4	1	both
+chip/turing.rs	86	turing::local_memory_range	6	60	both
+chipctl.rs	358	chipctl::ControlTable::answer	606	1948	both
+chipctl.rs	258	chipctl::ControlTable::resolve	324	923	both
+chipctl.rs	82	chipctl::Features::resolve	3492	6168	both
+chipctl.rs	398	chipctl::answer	571	2713	both
+chipctl.rs	215	chipctl::enum_value	16	53	both
+chipctl.rs	235	chipctl::slot_value	156	484	both
+classes.rs	50	classes::refusal	33990	992	both
+config.rs	349	config::ConfigSpace::bar	0	7	tests only
+config.rs	332	config::ConfigSpace::bars	0	0	neither
+config.rs	281	config::ConfigSpace::byte	312462	28851	both
+config.rs	315	config::ConfigSpace::class_code	0	3	tests only
+config.rs	323	config::ConfigSpace::command	0	2	tests only
+config.rs	306	config::ConfigSpace::device_id	2	51	both
+config.rs	289	config::ConfigSpace::dword	936	3097	both
+config.rs	215	config::ConfigSpace::from_dump	8	236	both
+config.rs	337	config::ConfigSpace::ids	2	48	both
+config.rs	277	config::ConfigSpace::link_control	82	0	workload only
+config.rs	327	config::ConfigSpace::msi_enabled	253290	3	both
+config.rs	354	config::ConfigSpace::read	38204	0	workload only
+config.rs	310	config::ConfigSpace::revision	2	51	both
+config.rs	298	config::ConfigSpace::set_dword	16	8	both
+config.rs	319	config::ConfigSpace::subsystem	2	51	both
+config.rs	362	config::ConfigSpace::take_flr	253282	5	both
+config.rs	302	config::ConfigSpace::vendor_id	2	52	both
+config.rs	285	config::ConfigSpace::word	90	208	both
+config.rs	368	config::ConfigSpace::write	144614	15	both
+config.rs	146	config::PciIds::device_id	12	43	both
+config.rs	151	config::PciIds::sub_device_id	12	43	both
+config.rs	39	config::cap_len	0	8	tests only
+config.rs	76	config::find_cap	6	178	both
+config.rs	96	config::for_board	0	1	tests only
+config.rs	118	config::for_board_with_ids	2	55	both
+config.rs	110	config::overlay_ids	0	6	tests only
+config.rs	160	config::parse_dump	26088	873398	both
+config.rs	52	config::unlink_cap	4	111	both
+costume.rs	77	costume::bar0_boot_registers_are_tu106	0	7	tests only
+costume.rs	66	costume::bars_are_the_5060_ti_boards	0	1	tests only
+costume.rs	149	costume::capability_tables_are_tu106	0	1	tests only
+costume.rs	23	costume::pci_ids_are_the_5060_ti_and_the_layout_the_tu106	0	16117	tests only
+costume.rs	102	costume::static_identity_names_the_5060_ti_and_keeps_tu106	0	1	tests only
+costume.rs	120	costume::static_info_differs_only_in_name_gid_and_subsystem	0	1649	tests only
+costume.rs	58	costume::the_gb206_layout_would_break_the_turing_link_read	0	1	tests only
+ctrl.rs	56	ctrl::Answer::ok	332	5	both
+ctrl.rs	56	ctrl::Answer::ok::alloc::string::String	6876	20	both
+ctrl.rs	751	ctrl::Dispatcher::alloc	33329	14	both
+ctrl.rs	860	ctrl::Dispatcher::control	11819	1371	both
+ctrl.rs	203	ctrl::Dispatcher::doorbell	2739	16	both
+ctrl.rs	400	ctrl::Dispatcher::doorbell_chid	899370	13	both
+ctrl.rs	353	ctrl::Dispatcher::doorbell_pending	0	0	neither
+ctrl.rs	226	ctrl::Dispatcher::doorbell_pool	898457	4	both
+ctrl.rs	813	ctrl::Dispatcher::dup	3	0	workload only
+ctrl.rs	1329	ctrl::Dispatcher::forward_or::control	12	0	workload only
+ctrl.rs	831	ctrl::Dispatcher::free	8835	16	both
+ctrl.rs	266	ctrl::Dispatcher::hand_out_token	1829	8	both
+ctrl.rs	745	ctrl::Dispatcher::has_host	0	0	neither
+ctrl.rs	730	ctrl::Dispatcher::host_flush_gpu_cache	190	3	both
+ctrl.rs	1295	ctrl::Dispatcher::id_0a36	38	96	both
+ctrl.rs	739	ctrl::Dispatcher::mirror_invalidate	20798	0	workload only
+ctrl.rs	520	ctrl::Dispatcher::mirror_push_diag	0	0	neither
+ctrl.rs	712	ctrl::Dispatcher::mirror_shadow_resync	20798	0	workload only
+ctrl.rs	150	ctrl::Dispatcher::new	12	42	both
+ctrl.rs	379	ctrl::Dispatcher::replay_held	0	12	tests only
+ctrl.rs	197	ctrl::Dispatcher::take_host	4	3	both
+ctrl.rs	192	ctrl::Dispatcher::with_reservation	12	19	both
+ctrl.rs	74	ctrl::get32	6	9	both
+ctrl.rs	81	ctrl::get64	2	1	both
+ctrl.rs	66	ctrl::put32	587	130	both
+ctrl.rs	70	ctrl::put64	26	4	both
+cuda.rs	15	cuda::answer	393	17	both
+cuda.rs	71	cuda::answer_control	46833	11309	both
+cuda.rs	118	cuda::get32	6	32	both
+cuda.rs	130	cuda::lce_shim_info	2	22	both
+device.rs	718	device::Device::add_guest_ram	4	0	workload only
+device.rs	1106	device::Device::after_bar0_write	253200	2	both
+device.rs	1121	device::Device::after_write	506564	2	both
+device.rs	789	device::Device::bar0	0	0	neither
+device.rs	828	device::Device::display_tick	0	0	neither
+device.rs	924	device::Device::dma_mappings	0	0	neither
+device.rs	549	device::Device::doorbell_ioeventfd	0	0	neither
+device.rs	576	device::Device::doorbell_tokens	898457	1	both
+device.rs	822	device::Device::guest_memory	0	0	neither
+device.rs	678	device::Device::load_guest_aliases	10	0	workload only
+device.rs	630	device::Device::log_event	2	0	workload only
+device.rs	531	device::Device::msi_rearm_ioeventfd	144522	1	both
+device.rs	503	device::Device::new	12	12	both
+device.rs	635	device::Device::note	982	0	workload only
+device.rs	642	device::Device::publish_table	4	0	workload only
+device.rs	801	device::Device::raise_msi	0	0	neither
+device.rs	794	device::Device::register_name	535822	0	workload only
+device.rs	751	device::Device::remove_guest_ram	0	0	neither
+device.rs	769	device::Device::shutdown	6	0	workload only
+device.rs	838	device::Device::summary	6	1	both
+device.rs	622	device::Device::sync_msi_enabled	253290	2	both
+device.rs	1020	device::Device::vfio_user::ServerBackend::dma_map	4	0	workload only
+device.rs	1052	device::Device::vfio_user::ServerBackend::dma_unmap	0	0	neither
+device.rs	930	device::Device::vfio_user::ServerBackend::region_read	193755	0	workload only
+device.rs	966	device::Device::vfio_user::ServerBackend::region_write	108760	1	both
+device.rs	1068	device::Device::vfio_user::ServerBackend::reset	0	0	neither
+device.rs	1076	device::Device::vfio_user::ServerBackend::set_irqs	10	0	workload only
+device.rs	609	device::Device::with_guest_ram	2	0	workload only
+device.rs	617	device::Device::with_intr_shared	2	0	workload only
+device.rs	284	device::SharedDevice::vfio_user::ServerBackend::dma_map	4	0	workload only
+device.rs	295	device::SharedDevice::vfio_user::ServerBackend::dma_unmap	0	0	neither
+device.rs	256	device::SharedDevice::vfio_user::ServerBackend::region_read	193755	0	workload only
+device.rs	271	device::SharedDevice::vfio_user::ServerBackend::region_write	108760	0	workload only
+device.rs	299	device::SharedDevice::vfio_user::ServerBackend::reset	0	0	neither
+device.rs	303	device::SharedDevice::vfio_user::ServerBackend::set_irqs	8	0	workload only
+device.rs	91	device::doorbell_ioeventfd_requested	2	0	workload only
+device.rs	121	device::doorbell_sub_region	130	16	both
+device.rs	146	device::doorbell_token_sub_regions	130	17	both
+device.rs	485	device::irqs	12	18	both
+device.rs	214	device::lock	1320734	2	both
+device.rs	104	device::msi_rearm_ioeventfd_requested	4	0	workload only
+device.rs	111	device::msi_rearm_sub_region	2	1	both
+device.rs	316	device::region_size	26	120	both
+device.rs	326	device::regions	0	5	tests only
+device.rs	343	device::regions_with	0	7	tests only
+device.rs	401	device::regions_with_bar2	32	144	both
+device.rs	359	device::regions_with_pages	10	20	both
+device.rs	220	device::spawn_doorbell_reader	0	0	neither
+device.rs	230	device::spawn_doorbell_reader_hooked	0	0	neither
+device.rs	164	device::spawn_token_reader	0	0	neither
+device.rs	177	device::spawn_token_reader_hooked	1916668	3	both
+display/aux.rs	29	aux::decode	0	17	tests only
+display/aux.rs	58	aux::transact	0	34	tests only
+display/edid.rs	28	edid::cea	0	66	tests only
+display/edid.rs	77	edid::cta_block	0	21	tests only
+display/edid.rs	57	edid::mode_1080p50	0	22	tests only
+display/edid.rs	47	edid::mode_1080p60	0	22	tests only
+display/edid.rs	52	edid::mode_720p60	0	22	tests only
+display/edid.rs	99	edid::monitor_edid	0	21	tests only
+display/edid.rs	125	edid::monitor_edid_alt	0	2	tests only
+display/edid.rs	61	edid::name_descriptor	0	23	tests only
+display/engine.rs	383	engine::CtxDma::at	0	18	tests only
+display/engine.rs	546	engine::Engine::attach_page	0	1	tests only
+display/engine.rs	718	engine::Engine::catch_up	0	38	tests only
+display/engine.rs	905	engine::Engine::core_update	0	423	tests only
+display/engine.rs	619	engine::Engine::handles	0	7081	tests only
+display/engine.rs	558	engine::Engine::irq	0	99	tests only
+display/engine.rs	516	engine::Engine::new	12	75	both
+display/engine.rs	535	engine::Engine::note	0	18	tests only
+display/engine.rs	553	engine::Engine::paged	0	105	tests only
+display/engine.rs	575	engine::Engine::pending	0	23	tests only
+display/engine.rs	635	engine::Engine::read32	0	46	tests only
+display/engine.rs	875	engine::Engine::resolve_at	0	52	tests only
+display/engine.rs	606	engine::Engine::scanline	0	1	tests only
+display/engine.rs	579	engine::Engine::signal	0	22	tests only
+display/engine.rs	1086	engine::Engine::summary	0	0	neither
+display/engine.rs	585	engine::Engine::sync_ticker	0	816	tests only
+display/engine.rs	789	engine::Engine::try_latch	0	97	tests only
+display/engine.rs	601	engine::Engine::window_busy	0	10	tests only
+display/engine.rs	1008	engine::Engine::window_method	0	20	tests only
+display/engine.rs	1015	engine::Engine::window_update	0	77	tests only
+display/engine.rs	567	engine::Engine::with_irq::catch_up	0	8	tests only
+display/engine.rs	567	engine::Engine::with_irq::core_update	0	5	tests only
+display/engine.rs	567	engine::Engine::with_irq::try_latch	0	2	tests only
+display/engine.rs	567	engine::Engine::with_irq::write32	0	4	tests only
+display/engine.rs	673	engine::Engine::write32	0	11	tests only
+display/engine.rs	454	engine::Head::hz	0	0	neither
+display/engine.rs	364	engine::MemRef::describe	0	18	tests only
+display/engine.rs	346	engine::MemRef::read32	0	6	tests only
+display/engine.rs	356	engine::MemRef::write	0	21	tests only
+display/engine.rs	169	engine::Ticker::attach	0	0	neither
+display/engine.rs	218	engine::Ticker::command_pending	0	0	neither
+display/engine.rs	208	engine::Ticker::fire	0	97	tests only
+display/engine.rs	248	engine::Ticker::intr	0	113	tests only
+display/engine.rs	233	engine::Ticker::poll_control	0	1	tests only
+display/engine.rs	275	engine::Ticker::raise	0	113	tests only
+display/engine.rs	228	engine::Ticker::raise_gsp	0	0	neither
+display/engine.rs	284	engine::Ticker::run	0	1	tests only
+display/engine.rs	185	engine::Ticker::set_control	0	0	neither
+display/engine.rs	192	engine::Ticker::set_driver	0	1	tests only
+display/engine.rs	252	engine::Ticker::set_head	96	609	both
+display/engine.rs	197	engine::Ticker::set_vblank	0	28	tests only
+display/engine.rs	260	engine::Ticker::set_want	96	704	both
+display/engine.rs	222	engine::Ticker::take_command	0	0	neither
+display/engine.rs	268	engine::Ticker::wake	96	617	both
+display/engine.rs	77	engine::chn_win	0	23	tests only
+display/engine.rs	119	engine::now_ns	0	205	tests only
+display/engine.rs	331	engine::on_head_page	0	28	tests only
+display/engine.rs	395	engine::resolve	0	127	tests only
+display/engine.rs	163	engine::ticker	194	1356	both
+display/fe_page.rs	119	fe_page::FeIrq::ctrl_disp	0	31	tests only
+display/fe_page.rs	112	fe_page::FeIrq::dispatch	0	544	tests only
+display/fe_page.rs	99	fe_page::FeIrq::new	12	81	both
+display/fe_page.rs	128	fe_page::FeIrq::pending	0	36	tests only
+display/fe_page.rs	107	fe_page::FeIrq::rm_stat	0	793	tests only
+display/fe_page.rs	255	fe_page::FePage::area	0	1	tests only
+display/fe_page.rs	306	fe_page::FePage::attach	0	13	tests only
+display/fe_page.rs	359	fe_page::FePage::busy	0	3	tests only
+display/fe_page.rs	269	fe_page::FePage::check	0	42690	tests only
+display/fe_page.rs	260	fe_page::FePage::covers	0	3	tests only
+display/fe_page.rs	227	fe_page::FePage::create	0	0	neither
+display/fe_page.rs	231	fe_page::FePage::create_with	0	174	tests only
+display/fe_page.rs	351	fe_page::FePage::dirty	0	356	tests only
+display/fe_page.rs	493	fe_page::FePage::display	0	1344	tests only
+display/fe_page.rs	324	fe_page::FePage::irq	0	30	tests only
+display/fe_page.rs	292	fe_page::FePage::lock	0	85	tests only
+display/fe_page.rs	365	fe_page::FePage::odd	0	5	tests only
+display/fe_page.rs	522	fe_page::FePage::publish	0	48	tests only
+display/fe_page.rs	418	fe_page::FePage::raise_now	0	6	tests only
+display/fe_page.rs	329	fe_page::FePage::read32	0	10	tests only
+display/fe_page.rs	396	fe_page::FePage::scan	0	36	tests only
+display/fe_page.rs	400	fe_page::FePage::scan_racing	0	19	tests only
+display/fe_page.rs	575	fe_page::FePage::summary	0	20	tests only
+display/fe_page.rs	425	fe_page::FePage::sync	0	1986	tests only
+display/fe_page.rs	570	fe_page::FePage::take_notes	0	2	tests only
+display/fe_page.rs	548	fe_page::FePage::tick	0	5	tests only
+display/fe_page.rs	380	fe_page::FePage::update::Nt::engine::Engine::catch_up	0	3	tests only
+display/fe_page.rs	380	fe_page::FePage::update::Nt::engine::Engine::core_update	0	0	neither
+display/fe_page.rs	380	fe_page::FePage::update::Nt::engine::Engine::try_latch	0	1	tests only
+display/fe_page.rs	380	fe_page::FePage::update::Nt::engine::Engine::write32	0	0	neither
+display/fe_page.rs	300	fe_page::FePage::watched	0	1503	tests only
+display/fe_page.rs	296	fe_page::FePage::word	0	1615	tests only
+display/fe_page.rs	334	fe_page::FePage::write	0	6	tests only
+display/fe_page.rs	203	fe_page::bump	0	57	tests only
+display/fe_page.rs	64	fe_page::parse	2	9	both
+display/fe_page.rs	56	fe_page::requested	2	0	workload only
+display/fe_page.rs	146	fe_page::watched_offset	0	44190	tests only
+display/mod.rs	1419	vfio_user_nvgpu::display::Display::alloc	3399	11	both
+display/mod.rs	1287	vfio_user_nvgpu::display::Display::bad_display	0	4	tests only
+display/mod.rs	457	vfio_user_nvgpu::display::Display::chip	0	20	tests only
+display/mod.rs	1187	vfio_user_nvgpu::display::Display::configure_fec	0	5	tests only
+display/mod.rs	465	vfio_user_nvgpu::display::Display::connected_mask	0	0	neither
+display/mod.rs	472	vfio_user_nvgpu::display::Display::connector	0	50	tests only
+display/mod.rs	1703	vfio_user_nvgpu::display::Display::connector_command	0	2	tests only
+display/mod.rs	483	vfio_user_nvgpu::display::Display::control	4095	1396	both
+display/mod.rs	371	vfio_user_nvgpu::display::Display::core::default::Default::default	0	0	neither
+display/mod.rs	1064	vfio_user_nvgpu::display::Display::d_model	0	20	tests only
+display/mod.rs	386	vfio_user_nvgpu::display::Display::disabled	12	56	both
+display/mod.rs	1361	vfio_user_nvgpu::display::Display::dp_ctrl	0	3	tests only
+display/mod.rs	406	vfio_user_nvgpu::display::Display::from_setup	12	55	both
+display/mod.rs	1299	vfio_user_nvgpu::display::Display::get_edid	0	5	tests only
+display/mod.rs	1085	vfio_user_nvgpu::display::Display::hdcp_ctrl	0	131	tests only
+display/mod.rs	1254	vfio_user_nvgpu::display::Display::is_mode_possible	0	0	neither
+display/mod.rs	1588	vfio_user_nvgpu::display::Display::kick	0	9	tests only
+display/mod.rs	378	vfio_user_nvgpu::display::Display::new	12	42	both
+display/mod.rs	1462	vfio_user_nvgpu::display::Display::read32	57849	65	both
+display/mod.rs	1509	vfio_user_nvgpu::display::Display::read32_io	57849	25	both
+display/mod.rs	1685	vfio_user_nvgpu::display::Display::record_event	3399	13	both
+display/mod.rs	1224	vfio_user_nvgpu::display::Display::rg_status	0	9	tests only
+display/mod.rs	1337	vfio_user_nvgpu::display::Display::set_edid	0	2	tests only
+display/mod.rs	1154	vfio_user_nvgpu::display::Display::set_war_flags	0	0	neither
+display/mod.rs	461	vfio_user_nvgpu::display::Display::supported_mask	0	2	tests only
+display/mod.rs	1532	vfio_user_nvgpu::display::Display::take_engine_notes	0	1	tests only
+display/mod.rs	1767	vfio_user_nvgpu::display::Display::take_notes	0	0	neither
+display/mod.rs	1519	vfio_user_nvgpu::display::Display::tick	0	0	neither
+display/mod.rs	1539	vfio_user_nvgpu::display::Display::write32	108668	18	both
+display/mod.rs	168	vfio_user_nvgpu::display::LinkProfile::nv_rate_code	0	6	tests only
+display/mod.rs	190	vfio_user_nvgpu::display::LinkProfile::pclk_budget_khz	0	0	neither
+display/mod.rs	157	vfio_user_nvgpu::display::LinkProfile::rate	0	20	tests only
+display/mod.rs	178	vfio_user_nvgpu::display::LinkProfile::sink_profile	0	13	tests only
+display/mod.rs	226	vfio_user_nvgpu::display::chip_display	0	13	tests only
+display/mod.rs	77	vfio_user_nvgpu::display::configure	2	0	workload only
+display/mod.rs	351	vfio_user_nvgpu::display::fail	0	0	neither
+display/mod.rs	351	vfio_user_nvgpu::display::fail::alloc::string::String	0	19	tests only
+display/mod.rs	99	vfio_user_nvgpu::display::fe_page	0	13	tests only
+display/mod.rs	315	vfio_user_nvgpu::display::field	0	290	tests only
+display/mod.rs	308	vfio_user_nvgpu::display::get32	0	567	tests only
+display/mod.rs	337	vfio_user_nvgpu::display::get64	0	8	tests only
+display/mod.rs	323	vfio_user_nvgpu::display::get_field	0	75	tests only
+display/mod.rs	115	vfio_user_nvgpu::display::intr_shared	6	30	both
+display/mod.rs	1795	vfio_user_nvgpu::display::is_display_cmd	0	0	neither
+display/mod.rs	342	vfio_user_nvgpu::display::ok	0	0	neither
+display/mod.rs	342	vfio_user_nvgpu::display::ok::alloc::string::String	0	32	tests only
+display/mod.rs	1773	vfio_user_nvgpu::display::page_of	0	3	tests only
+display/mod.rs	302	vfio_user_nvgpu::display::put32	0	192	tests only
+display/mod.rs	331	vfio_user_nvgpu::display::put_field	0	65	tests only
+display/mod.rs	104	vfio_user_nvgpu::display::set_control_file	0	0	neither
+display/mod.rs	94	vfio_user_nvgpu::display::set_fe_page	0	0	neither
+display/mod.rs	86	vfio_user_nvgpu::display::set_intr_shared	0	0	neither
+display/mod.rs	1782	vfio_user_nvgpu::display::userd_base	0	2	tests only
+dmamap.rs	267	dmamap::DmaRange::core::fmt::Display::fmt	24	10	both
+dmamap.rs	228	dmamap::DmaTable::aliases_of	20	16	both
+dmamap.rs	152	dmamap::DmaTable::covers_gpa	188	226	both
+dmamap.rs	144	dmamap::DmaTable::gpa_to_iova	0	41	tests only
+dmamap.rs	85	dmamap::DmaTable::identity	0	3	tests only
+dmamap.rs	135	dmamap::DmaTable::iova_to_gpa	105816024	139	both
+dmamap.rs	124	dmamap::DmaTable::is_empty	4	0	workload only
+dmamap.rs	128	dmamap::DmaTable::is_identity	6	5	both
+dmamap.rs	257	dmamap::DmaTable::module_param	26	8	both
+dmamap.rs	45	dmamap::DmaTable::new	12	23	both
+dmamap.rs	99	dmamap::DmaTable::parse	134	39	both
+dmamap.rs	120	dmamap::DmaTable::ranges	4	4	both
+dmamap.rs	180	dmamap::DmaTable::with_alias	8	17	both
+dmodel.rs	210	dmodel::DState::alloc	3399	14	both
+dmodel.rs	458	dmodel::DState::bar0_policy	0	29	tests only
+dmodel.rs	229	dmodel::DState::control	527	2107	both
+dmodel.rs	495	dmodel::DState::flush	0	7	tests only
+dmodel.rs	189	dmodel::DState::new	12	1704	both
+dmodel.rs	576	dmodel::alloc	16995	64	both
+dmodel.rs	543	dmodel::answer	389	2224	both
+dmodel.rs	161	dmodel::enum_	0	49	tests only
+dmodel.rs	167	dmodel::model	0	51	tests only
+dmodel.rs	177	dmodel::modelled_name	419620	1060422	both
+dmodel.rs	537	dmodel::moved_to_a	0	0	neither
+dmodel.rs	152	dmodel::off	0	89	tests only
+dmodel.rs	135	dmodel::rd32	0	102	tests only
+dmodel.rs	140	dmodel::rd64	0	48	tests only
+dmodel.rs	531	dmodel::rule	914	4637	both
+dmodel.rs	524	dmodel::status	408	228	both
+dmodel.rs	145	dmodel::wr32	0	6	tests only
+events.rs	188	events::Unsolicited::name	0	10	tests only
+events.rs	149	events::notifier_error	40	7	both
+events.rs	118	events::os_error_log	0	5	tests only
+events.rs	171	events::post_event	0	3	tests only
+events.rs	87	events::put32	0	50	tests only
+events.rs	72	events::rc_layout	2	7	both
+events.rs	94	events::rc_triggered	0	5	tests only
+events.rs	162	events::resume_done	0	2	tests only
+falcon.rs	100	falcon::Falcon::dmem	2	4	both
+falcon.rs	141	falcon::Falcon::hwcfg	2	1	both
+falcon.rs	96	falcon::Falcon::imem	0	1	tests only
+falcon.rs	104	falcon::Falcon::imem_tag	0	2	tests only
+falcon.rs	117	falcon::Falcon::is_halted	0	0	neither
+falcon.rs	108	falcon::Falcon::mailbox	11092	85	both
+falcon.rs	73	falcon::Falcon::new	12	39	both
+falcon.rs	163	falcon::Falcon::read32	33426	38	both
+falcon.rs	137	falcon::Falcon::reg	44520	205	both
+falcon.rs	147	falcon::Falcon::reset	6	7	both
+falcon.rs	125	falcon::Falcon::resets	6	6	both
+falcon.rs	129	falcon::Falcon::riscv_active	0	0	neither
+falcon.rs	121	falcon::Falcon::runs	0	0	neither
+falcon.rs	112	falcon::Falcon::set_mailbox	2	16	both
+falcon.rs	133	falcon::Falcon::set_riscv_active	2	17	both
+falcon.rs	196	falcon::Falcon::write32	41280	396	both
+fb.rs	1688	fb::FakeFb::area_walk	0	6	tests only
+fb.rs	1705	fb::FakeFb::area_walk_unit	10218	15107	both
+fb.rs	922	fb::FakeFb::backing	46342	77	both
+fb.rs	1586	fb::FakeFb::bar1_passthrough	2	5	both
+fb.rs	1591	fb::FakeFb::bar1_passthrough_stats	2	12	both
+fb.rs	1604	fb::FakeFb::bar1_pool	599084	109	both
+fb.rs	1681	fb::FakeFb::bar1_pool_summary	88	2	both
+fb.rs	989	fb::FakeFb::bar2_area	930294	5	both
+fb.rs	1019	fb::FakeFb::bar2_note_trapped	30922	0	workload only
+fb.rs	997	fb::FakeFb::bar2_sync	5066914	115	both
+fb.rs	1514	fb::FakeFb::bar_access	30922	3	both
+fb.rs	1428	fb::FakeFb::bar_translate	30922	17	both
+fb.rs	1192	fb::FakeFb::big_table	676	593	both
+fb.rs	1568	fb::FakeFb::carry_bar1_passthrough	4	5	both
+fb.rs	1029	fb::FakeFb::carry_bar2_area	4	4	both
+fb.rs	1096	fb::FakeFb::check	4591166	8559	both
+fb.rs	1664	fb::FakeFb::copy_page_raw	46342	50	both
+fb.rs	735	fb::FakeFb::core::default::Default::default	0	0	neither
+fb.rs	1200	fb::FakeFb::decode_pte	159451	18963	both
+fb.rs	1243	fb::FakeFb::enumerate_leaves	0	2090	tests only
+fb.rs	1078	fb::FakeFb::flush	912368	36	both
+fb.rs	1084	fb::FakeFb::for_layout	12	27	both
+fb.rs	1671	fb::FakeFb::forget_watched_page	46342	52	both
+fb.rs	1627	fb::FakeFb::is_remapped	1798740	32	both
+fb.rs	741	fb::FakeFb::new	12	60	both
+fb.rs	1182	fb::FakeFb::next_table	2736	2906	both
+fb.rs	934	fb::FakeFb::note_pages_changed	89423	25	both
+fb.rs	863	fb::FakeFb::note_write	40650	4232	both
+fb.rs	1045	fb::FakeFb::observe_pte	200	43	both
+fb.rs	1117	fb::FakeFb::pages_touched	0	1	tests only
+fb.rs	1795	fb::FakeFb::poll_bar1_passthrough	253200	35	both
+fb.rs	1609	fb::FakeFb::pool_mut	652368	411	both
+fb.rs	1647	fb::FakeFb::pool_rediff_pending	1800346	43	both
+fb.rs	1058	fb::FakeFb::pte_kinds	4	0	workload only
+fb.rs	1121	fb::FakeFb::read	22740253	4816	both
+fb.rs	1170	fb::FakeFb::read_u64	7230	8134	both
+fb.rs	1619	fb::FakeFb::remap	584855	42	both
+fb.rs	1638	fb::FakeFb::remap_leaves	21756273	22	both
+fb.rs	1550	fb::FakeFb::set_bar1_passthrough	0	1	tests only
+fb.rs	1599	fb::FakeFb::set_bar1_pool	2	8	both
+fb.rs	980	fb::FakeFb::set_bar2_area	2	3	both
+fb.rs	1067	fb::FakeFb::set_write_filter	0	1	tests only
+fb.rs	1113	fb::FakeFb::size	0	0	neither
+fb.rs	1355	fb::FakeFb::table_block	2636740	45975	both
+fb.rs	1217	fb::FakeFb::table_u64	3107	430	both
+fb.rs	809	fb::FakeFb::tables_dirty	1803944	27	both
+fb.rs	1655	fb::FakeFb::take_pool_rediff	4638	14	both
+fb.rs	1228	fb::FakeFb::translate	0	22	tests only
+fb.rs	1234	fb::FakeFb::translate_in	198	51	both
+fb.rs	795	fb::FakeFb::unwatch_dword	0	0	neither
+fb.rs	817	fb::FakeFb::unwatch_tables	0	0	neither
+fb.rs	1072	fb::FakeFb::vram_stats	2	1	both
+fb.rs	1372	fb::FakeFb::walk_in	200	55	both
+fb.rs	1457	fb::FakeFb::walk_pages	8	24	both
+fb.rs	825	fb::FakeFb::walk_update	2325	22	both
+fb.rs	799	fb::FakeFb::watch_key	1022395	59	both
+fb.rs	773	fb::FakeFb::watched_dword	1798740	30	both
+fb.rs	1676	fb::FakeFb::watches_table_page	2357062	77	both
+fb.rs	765	fb::FakeFb::with_mmu_format	6	22	both
+fb.rs	1091	fb::FakeFb::with_store	6	1	both
+fb.rs	855	fb::FakeFb::with_walk::NtB::shadow::ShadowFront::plan	2319	8	both
+fb.rs	855	fb::FakeFb::with_walk::alloc::vec::Vec::NtB::shadow::ShadowFront::plan	541	6	both
+fb.rs	855	fb::FakeFb::with_walk::alloc::vec::Vec::Target::Nt::bar1pool::MirrorGpu::PoolGpu::refs	2308	0	workload only
+fb.rs	855	fb::FakeFb::with_walk::alloc::vec::Vec::Target::NtB::shadow::ShadowFront::plan	112936	7	both
+fb.rs	1145	fb::FakeFb::write	78478	4249	both
+fb.rs	1175	fb::FakeFb::write_u64	2	3942	both
+fb.rs	112	fb::FbLayout::bar_roots	104832	100	both
+fb.rs	114	fb::FbLayout::bar_roots::vfio_user_nvgpu	6	0	workload only
+fb.rs	125	fb::FbLayout::inside	0	3	tests only
+fb.rs	47	fb::FbLayout::plain	2	21	both
+fb.rs	104	fb::FbLayout::pool_range	4	17	both
+fb.rs	60	fb::FbLayout::reserved	2	21	both
+fb.rs	119	fb::FbLayout::usable	18	101	both
+fb.rs	121	fb::FbLayout::usable::vfio_user_nvgpu	6	0	workload only
+fb.rs	88	fb::FbLayout::with_pool	2	17	both
+fb.rs	1868	fb::FbReader::gmmu_v3::Tables::block	0	118	tests only
+fb.rs	1874	fb::FbReader::ptcache::TableReader::block	5097	42	both
+fb.rs	164	fb::FbStore::pages_touched	0	0	neither
+fb.rs	172	fb::HostRamStore::FbStore::flush	0	44	tests only
+fb.rs	211	fb::HostRamStore::FbStore::pages_touched	0	2	tests only
+fb.rs	182	fb::HostRamStore::FbStore::read	0	4464	tests only
+fb.rs	168	fb::HostRamStore::FbStore::vram_stats	0	0	neither
+fb.rs	196	fb::HostRamStore::FbStore::write	0	4546	tests only
+fb.rs	219	fb::NoFilter::WriteFilter::before_write	37844	4172	both
+fb.rs	628	fb::VramStore::FbStore::flush	930877	0	workload only
+fb.rs	620	fb::VramStore::FbStore::pages_touched	0	1	tests only
+fb.rs	588	fb::VramStore::FbStore::read	9188780	29	both
+fb.rs	624	fb::VramStore::FbStore::vram_stats	2	1	both
+fb.rs	604	fb::VramStore::FbStore::write	6108746	32	both
+fb.rs	415	fb::VramStore::new	6	0	workload only
+fb.rs	548	fb::VramStore::pieces::B6_B::FbStore::read	4594390	13	both
+fb.rs	548	fb::VramStore::pieces::B6_B::FbStore::write	3054373	15	both
+fb.rs	442	fb::VramStore::stats	2	6	both
+fb.rs	456	fb::VramStore::window_for	21075730	69	both
+fb.rs	446	fb::VramStore::windows_held	0	17	tests only
+fb.rs	421	fb::VramStore::with_budget	6	3	both
+fb.rs	241	fb::WindowBacking::flush	0	0	neither
+fb.rs	238	fb::WindowBacking::is_empty	0	0	neither
+fb.rs	324	fb::bar1_budget	10	0	workload only
+fb.rs	388	fb::bar1_passthrough_area	0	15	tests only
+fb.rs	344	fb::bar1_passthrough_config	2	0	workload only
+fb.rs	265	fb::hostmem::ReservationMapper::WindowSource::map	11866	0	workload only
+fb.rs	259	fb::hostmem::Window::WindowBacking::flush	1867042	0	workload only
+fb.rs	250	fb::hostmem::Window::WindowBacking::len	12170659	0	workload only
+fb.rs	247	fb::hostmem::Window::WindowBacking::offset	25597626	0	workload only
+fb.rs	253	fb::hostmem::Window::WindowBacking::read	4594390	0	workload only
+fb.rs	256	fb::hostmem::Window::WindowBacking::write	3054373	0	workload only
+fb.rs	377	fb::parse_u64	0	5	tests only
+fixture.rs	54	fixture::Fixture::config	0	54	tests only
+fixture.rs	59	fixture::Fixture::identity	0	46	tests only
+fixture.rs	24	fixture::rtx2070	0	230	tests only
+fixture.rs	33	fixture::rtx5060ti	0	3	tests only
+fixture.rs	44	fixture::rtx5060ti_on_tu106	0	6	tests only
+gmcapi.rs	374	gmcapi::Encoder::array64	0	9	tests only
+gmcapi.rs	355	gmcapi::Encoder::array8	0	47	tests only
+gmcapi.rs	330	gmcapi::Encoder::imm32	0	94	tests only
+gmcapi.rs	325	gmcapi::Encoder::new	0	13	tests only
+gmcapi.rs	336	gmcapi::Encoder::seq32	0	18	tests only
+gmcapi.rs	347	gmcapi::Encoder::seq64	0	59	tests only
+gmcapi.rs	367	gmcapi::Encoder::string8	0	22	tests only
+gmcapi.rs	386	gmcapi::Encoder::to_bytes	0	599	tests only
+gmcapi.rs	381	gmcapi::Encoder::words	0	5	tests only
+gmcapi.rs	94	gmcapi::Header::encode	0	15	tests only
+gmcapi.rs	104	gmcapi::Header::id	0	19	tests only
+gmcapi.rs	108	gmcapi::Header::is_response	0	11	tests only
+gmcapi.rs	79	gmcapi::Header::parse	0	60	tests only
+gmcapi.rs	115	gmcapi::Header::response	0	9	tests only
+gmcapi.rs	656	gmcapi::SystemInfo::bar_addresses	0	8	tests only
+gmcapi.rs	666	gmcapi::SystemInfo::describe	0	95	tests only
+gmcapi.rs	604	gmcapi::SystemInfo::parse	0	11	tests only
+gmcapi.rs	169	gmcapi::Value::as_str	0	6913	tests only
+gmcapi.rs	154	gmcapi::Value::as_u32	0	63	tests only
+gmcapi.rs	161	gmcapi::Value::as_u64	0	47	tests only
+gmcapi.rs	181	gmcapi::Value::core::fmt::Display::fmt	0	2	tests only
+gmcapi.rs	56	gmcapi::command_name	0	17	tests only
+gmcapi.rs	212	gmcapi::decode	0	1559	tests only
+gmcapi.rs	731	gmcapi::engine_masks	0	9	tests only
+gmcapi.rs	709	gmcapi::gmc_engine_id	0	146	tests only
+gmcapi.rs	138	gmcapi::instruction	0	232	tests only
+gmcapi.rs	508	gmcapi::key_name	0	0	neither
+gmcapi.rs	311	gmcapi::words	0	2252	tests only
+gmmu_v3.rs	46	gmmu_v3::Tables::qword	0	210	tests only
+gmmu_v3.rs	55	gmmu_v3::aperture_target	0	2268	tests only
+gmmu_v3.rs	72	gmmu_v3::big_table	0	269	tests only
+gmmu_v3.rs	85	gmmu_v3::decode_pte	0	29	tests only
+gmmu_v3.rs	190	gmmu_v3::dir::fb::FbReader	0	10	tests only
+gmmu_v3.rs	174	gmmu_v3::enumerate_leaves::fb::FbReader	0	2	tests only
+gmmu_v3.rs	101	gmmu_v3::kind	0	8	tests only
+gmmu_v3.rs	180	gmmu_v3::leaf	0	533	tests only
+gmmu_v3.rs	64	gmmu_v3::next_table	0	1733	tests only
+gmmu_v3.rs	224	gmmu_v3::pd0::fb::FbReader	0	517	tests only
+gmmu_v3.rs	80	gmmu_v3::small_table	0	267	tests only
+gmmu_v3.rs	116	gmmu_v3::walk::fb::FbReader	0	16	tests only
+gspboot.rs	37	gspboot::RegistryPolicy::core::default::Default::default	6	27	both
+gspboot.rs	98	gspboot::Unstable::from_key	0	10	tests only
+gspboot.rs	123	gspboot::describe_suspend	0	18	tests only
+gspboot.rs	47	gspboot::registry_policy	0	9	tests only
+gspboot.rs	158	gspboot::resume_args	0	2	tests only
+gspboot.rs	117	gspboot::suspend_flags	0	4	tests only
+gspmem.rs	557	gspmem::GspMemory::alloc	3399	33	both
+gspmem.rs	468	gspmem::GspMemory::alloc_memory	0	72	tests only
+gspmem.rs	678	gspmem::GspMemory::control	4286	17	both
+gspmem.rs	838	gspmem::GspMemory::free	3366	16	both
+gspmem.rs	832	gspmem::GspMemory::has_goe_bind	1007117	635	both
+gspmem.rs	435	gspmem::GspMemory::new	6	22	both
+gspmem.rs	734	gspmem::GspMemory::produce	0	31	tests only
+gspmem.rs	453	gspmem::GspMemory::selftest_due	1007117	453	both
+gspmem.rs	262	gspmem::OpEvent::rc	0	4	tests only
+gspmem.rs	325	gspmem::OpEvent::record	0	117	tests only
+gspmem.rs	287	gspmem::OpEvent::selftest	0	1	tests only
+gspmem.rs	307	gspmem::OpEvent::vardata	0	10	tests only
+gspmem.rs	141	gspmem::Registered::span	0	29	tests only
+gspmem.rs	79	gspmem::alloc_memory_size	0	13	tests only
+gspmem.rs	404	gspmem::u32_at	0	674	tests only
+gspmem.rs	409	gspmem::u64_at	0	120	tests only
+gspmem.rs	366	gspmem::write_registered	0	37	tests only
+gsprpc.rs	265	gsprpc::dump_protobuf_component	0	3	tests only
+gsprpc.rs	215	gsprpc::exec_reg_ops::boot::BootModel::service_queues	0	3	tests only
+gsprpc.rs	24	gsprpc::function_name	0	18	tests only
+gsprpc.rs	91	gsprpc::idle_channels::boot::BootModel::service_queues	0	2	tests only
+gsprpc.rs	282	gsprpc::map_memory_dma	0	2	tests only
+gsprpc.rs	46	gsprpc::put32	0	62	tests only
+gsprpc.rs	41	gsprpc::u32_at	0	146	tests only
+guestmem.rs	147	guestmem::GuestMemory::aliases	4	1	both
+guestmem.rs	227	guestmem::GuestMemory::core::ops::drop::Drop::drop	0	84	tests only
+guestmem.rs	128	guestmem::GuestMemory::covers	11090	96	both
+guestmem.rs	156	guestmem::GuestMemory::host_iova	22312484	16	both
+guestmem.rs	184	guestmem::GuestMemory::host_ptr	56340	364	both
+guestmem.rs	123	guestmem::GuestMemory::locate	38111	6026	both
+guestmem.rs	90	guestmem::GuestMemory::locate_gpa	375187	21164	both
+guestmem.rs	53	guestmem::GuestMemory::map	4	48	both
+guestmem.rs	178	guestmem::GuestMemory::misses	2	2	both
+guestmem.rs	48	guestmem::GuestMemory::new	2	85	both
+guestmem.rs	193	guestmem::GuestMemory::read	13729	2190	both
+guestmem.rs	215	guestmem::GuestMemory::read_u32	12	97	both
+guestmem.rs	220	guestmem::GuestMemory::read_u64	608	3856	both
+guestmem.rs	188	guestmem::GuestMemory::regions	0	0	neither
+guestmem.rs	143	guestmem::GuestMemory::set_aliases	2	2	both
+guestmem.rs	134	guestmem::GuestMemory::set_table	4	5	both
+guestmem.rs	173	guestmem::GuestMemory::table	6	1	both
+guestmem.rs	100	guestmem::GuestMemory::translate	94447	6395	both
+guestmem.rs	77	guestmem::GuestMemory::unmap	0	2	tests only
+guestmem.rs	204	guestmem::GuestMemory::write	13292	3740	both
+hostabi.rs	396	hostabi::HostLayouts::describe	8	7	both
+hostabi.rs	342	hostabi::HostLayouts::driver	30	46	both
+hostabi.rs	389	hostabi::HostLayouts::flush_gpu_cache	190	9	both
+hostabi.rs	377	hostabi::HostLayouts::flush_gpu_cache_flags	380	30	both
+hostabi.rs	366	hostabi::HostLayouts::legacy_size	90	79	both
+hostabi.rs	360	hostabi::HostLayouts::sm_order_to_guest	2	11	both
+hostabi.rs	349	hostabi::HostLayouts::tsg_params	182	2	both
+hostabi.rs	233	hostabi::SmOrderLayout::fields_not_in	248	1023	both
+hostabi.rs	526	hostabi::current	4494	973	both
+hostabi.rs	417	hostabi::for_version	2	2	both
+hostabi.rs	501	hostabi::install	2	0	workload only
+hostabi.rs	336	hostabi::put32	554	13	both
+hostabi.rs	434	hostabi::refusal	0	7	tests only
+hostabi.rs	445	hostabi::resolve	2	23	both
+hostabi.rs	493	hostabi::select	2	0	workload only
+hostabi.rs	517	hostabi::selected	4	0	workload only
+hostabi.rs	246	hostabi::translate_sm_order	136	760	both
+hostmem.rs	279	hostmem::Bar1Export::raw_fd	2	0	workload only
+hostmem.rs	506	hostmem::Filler::core::ops::drop::Drop::drop	10	0	workload only
+hostmem.rs	466	hostmem::Filler::new	10	0	workload only
+hostmem.rs	2044	hostmem::HostMemory::TeardownOps::descriptor_count	10	0	workload only
+hostmem.rs	2104	hostmem::HostMemory::TeardownOps::free_client	2	0	workload only
+hostmem.rs	2048	hostmem::HostMemory::TeardownOps::free_last_descriptor	8	0	workload only
+hostmem.rs	2018	hostmem::HostMemory::TeardownOps::free_mirrors	2	0	workload only
+hostmem.rs	2067	hostmem::HostMemory::TeardownOps::free_reservation	2	0	workload only
+hostmem.rs	750	hostmem::HostMemory::alloc_object	10677	0	workload only
+hostmem.rs	789	hostmem::HostMemory::alloc_object_admin	0	0	neither
+hostmem.rs	828	hostmem::HostMemory::alloc_virtual	0	0	neither
+hostmem.rs	860	hostmem::HostMemory::alloc_virtual_fixed	8262	0	workload only
+hostmem.rs	1003	hostmem::HostMemory::control	3191	0	workload only
+hostmem.rs	1022	hostmem::HostMemory::control_admin	0	0	neither
+hostmem.rs	2122	hostmem::HostMemory::core::ops::drop::Drop::drop	0	0	neither
+hostmem.rs	1267	hostmem::HostMemory::descriptors	2303	0	workload only
+hostmem.rs	728	hostmem::HostMemory::device	24365	0	workload only
+hostmem.rs	1185	hostmem::HostMemory::export_bar1_passthrough	2	0	workload only
+hostmem.rs	1049	hostmem::HostMemory::fail_closed	2	0	workload only
+hostmem.rs	1276	hostmem::HostMemory::fb_info	12	0	workload only
+hostmem.rs	1294	hostmem::HostMemory::fb_regions	4	0	workload only
+hostmem.rs	1557	hostmem::HostMemory::free_descriptor	1347	0	workload only
+hostmem.rs	1044	hostmem::HostMemory::free_failures	0	0	neither
+hostmem.rs	1543	hostmem::HostMemory::free_gather	18461	0	workload only
+hostmem.rs	1071	hostmem::HostMemory::free_live	2	0	workload only
+hostmem.rs	1028	hostmem::HostMemory::free_object	7770540	0	workload only
+hostmem.rs	1473	hostmem::HostMemory::gather	2673331	0	workload only
+hostmem.rs	1088	hostmem::HostMemory::guest_page_object	900	0	workload only
+hostmem.rs	996	hostmem::HostMemory::invalidate_vas	0	0	neither
+hostmem.rs	741	hostmem::HostMemory::live	0	0	neither
+hostmem.rs	940	hostmem::HostMemory::map_dma_fixed	10566	0	workload only
+hostmem.rs	1204	hostmem::HostMemory::map_doorbell	2	0	workload only
+hostmem.rs	1153	hostmem::HostMemory::map_reservation	0	0	neither
+hostmem.rs	681	hostmem::HostMemory::open	2	0	workload only
+hostmem.rs	1432	hostmem::HostMemory::os_descriptor	2247	0	workload only
+hostmem.rs	1216	hostmem::HostMemory::os_event	10	0	workload only
+hostmem.rs	1570	hostmem::HostMemory::phys_attr	1044	0	workload only
+hostmem.rs	1271	hostmem::HostMemory::pinned_bytes	8	0	workload only
+hostmem.rs	724	hostmem::HostMemory::privilege	2	0	workload only
+hostmem.rs	1604	hostmem::HostMemory::register	12	0	workload only
+hostmem.rs	1843	hostmem::HostMemory::register_chunks	80	0	workload only
+hostmem.rs	1656	hostmem::HostMemory::register_linear	358	0	workload only
+hostmem.rs	1933	hostmem::HostMemory::release_region	0	0	neither
+hostmem.rs	1263	hostmem::HostMemory::reservation	10	0	workload only
+hostmem.rs	1171	hostmem::HostMemory::reservation_mapper	6	0	workload only
+hostmem.rs	1315	hostmem::HostMemory::reserve	6	0	workload only
+hostmem.rs	1053	hostmem::HostMemory::rm_free	10305	0	workload only
+hostmem.rs	736	hostmem::HostMemory::root	0	0	neither
+hostmem.rs	1103	hostmem::HostMemory::scan_reservation	4	0	workload only
+hostmem.rs	1963	hostmem::HostMemory::shutdown	4	0	workload only
+hostmem.rs	732	hostmem::HostMemory::subdevice	0	0	neither
+hostmem.rs	912	hostmem::HostMemory::unmap_dma	5207	0	workload only
+hostmem.rs	332	hostmem::OsEvent::drain	161595	0	workload only
+hostmem.rs	436	hostmem::Reservation::end	14	0	workload only
+hostmem.rs	255	hostmem::ReservationMapper::map	11866	0	workload only
+hostmem.rs	163	hostmem::Window::core::ops::drop::Drop::drop	6625	0	workload only
+hostmem.rs	61	hostmem::Window::covers	0	0	neither
+hostmem.rs	129	hostmem::Window::flush	1867042	0	workload only
+hostmem.rs	65	hostmem::Window::read	4594390	0	workload only
+hostmem.rs	101	hostmem::Window::write	3054373	0	workload only
+hostmem.rs	374	hostmem::count_pattern	0	3	tests only
+hostmem.rs	287	hostmem::export_dmabuf	2	0	workload only
+hostmem.rs	641	hostmem::foll_pins	1824	0	workload only
+hostmem.rs	189	hostmem::map_window	18495	0	workload only
+hostmem.rs	628	hostmem::meminfo_kib	42	0	workload only
+hostmem.rs	588	hostmem::run_teardown::HostMemory	2	0	workload only
+hostmem.rs	588	hostmem::run_teardown::teardown_tests::Fake	0	9	tests only
+hostmem.rs	2314	hostmem::scan_tests::pattern_records_are_counted_on_16_byte_boundaries	0	1	tests only
+hostmem.rs	398	hostmem::slot_range	8	32	both
+hostmem.rs	2137	hostmem::slot_tests::slots_stack_downward	0	1	tests only
+hostmem.rs	654	hostmem::smi_free	2	0	workload only
+hostmem.rs	147	hostmem::stream_read	49102	0	workload only
+hostmem.rs	2190	hostmem::teardown_tests::Fake::TeardownOps::descriptor_count	0	14	tests only
+hostmem.rs	2209	hostmem::teardown_tests::Fake::TeardownOps::free_client	0	1	tests only
+hostmem.rs	2193	hostmem::teardown_tests::Fake::TeardownOps::free_last_descriptor	0	8	tests only
+hostmem.rs	2186	hostmem::teardown_tests::Fake::TeardownOps::free_mirrors	0	5	tests only
+hostmem.rs	2201	hostmem::teardown_tests::Fake::TeardownOps::free_reservation	0	2	tests only
+hostmem.rs	2226	hostmem::teardown_tests::a_clean_teardown_frees_in_order	0	1	tests only
+hostmem.rs	2245	hostmem::teardown_tests::a_failed_mirror_free_keeps_every_registration_and_the_reservation	0	1	tests only
+hostmem.rs	2293	hostmem::teardown_tests::a_failed_reservation_free_keeps_the_client	0	1	tests only
+hostmem.rs	2276	hostmem::teardown_tests::a_failed_unpin_stops_before_the_reservation	0	1	tests only
+hostmem.rs	2262	hostmem::teardown_tests::an_earlier_failed_free_also_fails_closed	0	1	tests only
+hostmem.rs	2216	hostmem::teardown_tests::fake	0	5	tests only
+hostrm.rs	57	hostrm::HostRmClient::binapi	100	0	workload only
+hostrm.rs	109	hostrm::HostRmClient::ctrl::HostRm::control	2552	0	workload only
+hostrm.rs	29	hostrm::HostRmClient::open	2	0	workload only
+hostrm.rs	98	hostrm::class_of_control	768	335	both
+hostrm.rs	86	hostrm::host_object	3320	392	both
+intr.rs	95	intr::IntrShared::attach_page	2	12	both
+intr.rs	52	intr::IntrShared::new	2	21	both
+intr.rs	122	intr::IntrShared::note	163748	6	both
+intr.rs	101	intr::IntrShared::page_mode	0	0	neither
+intr.rs	68	intr::IntrShared::raise	161593	115	both
+intr.rs	57	intr::IntrShared::set_msi_fd	2	13	both
+intr.rs	106	intr::IntrShared::signal_msi	145507	19	both
+intr.rs	126	intr::IntrShared::take_notes	108660	2	both
+intr.rs	130	intr::IntrShared::take_pending	1166192	912	both
+intr.rs	191	intr::IntrTree::asserted	0	30	tests only
+intr.rs	195	intr::IntrTree::edge	0	16	tests only
+intr.rs	173	intr::IntrTree::handles	244309	3619	both
+intr.rs	165	intr::IntrTree::merge	0	19	tests only
+intr.rs	147	intr::IntrTree::new	12	19	both
+intr.rs	215	intr::IntrTree::read32	0	10	tests only
+intr.rs	211	intr::IntrTree::take_msi	253282	5	both
+intr.rs	178	intr::IntrTree::top	0	36	tests only
+intr.rs	202	intr::IntrTree::trigger	0	7	tests only
+intr.rs	160	intr::IntrTree::with_shared	6	1	both
+intr.rs	234	intr::IntrTree::write32	0	9	tests only
+intr_page.rs	66	intr_page::Config::core::default::Default::default	2	23	both
+intr_page.rs	392	intr_page::IntrPage::areas	2	1	both
+intr_page.rs	430	intr_page::IntrPage::check	46	36	both
+intr_page.rs	377	intr_page::IntrPage::config	0	6	tests only
+intr_page.rs	409	intr_page::IntrPage::covers	377829	14	both
+intr_page.rs	319	intr_page::IntrPage::create	58	524	both
+intr_page.rs	531	intr_page::IntrPage::dirty	1329060347	116294	both
+intr_page.rs	515	intr_page::IntrPage::enable_vectors	46	14	both
+intr_page.rs	462	intr_page::IntrPage::lock	962829	180	both
+intr_page.rs	398	intr_page::IntrPage::map_page	0	10	tests only
+intr_page.rs	526	intr_page::IntrPage::model	0	9	tests only
+intr_page.rs	540	intr_page::IntrPage::odd	0	6	tests only
+intr_page.rs	382	intr_page::IntrPage::raw_fd	2	0	workload only
+intr_page.rs	492	intr_page::IntrPage::read32	0	4	tests only
+intr_page.rs	468	intr_page::IntrPage::reset	8	21	both
+intr_page.rs	552	intr_page::IntrPage::scan	46394849	4254	both
+intr_page.rs	558	intr_page::IntrPage::scan_racing	68178229	14024	both
+intr_page.rs	387	intr_page::IntrPage::size	0	0	neither
+intr_page.rs	769	intr_page::IntrPage::summary	58	68	both
+intr_page.rs	707	intr_page::IntrPage::tick	9335975132	237418	both
+intr_page.rs	422	intr_page::IntrPage::watched	1291809757	116502	both
+intr_page.rs	413	intr_page::IntrPage::word_at	0	16	tests only
+intr_page.rs	497	intr_page::IntrPage::write	0	3	tests only
+intr_page.rs	189	intr_page::Mapping::core::ops::drop::Drop::drop	0	42	tests only
+intr_page.rs	160	intr_page::Mapping::new	4	42	both
+intr_page.rs	181	intr_page::Mapping::word	1617360605	183964	both
+intr_page.rs	219	intr_page::Model::display	8242867	4286	both
+intr_page.rs	205	intr_page::Model::top	311579	158	both
+intr_page.rs	815	intr_page::PageHook::new	2	12	both
+intr_page.rs	877	intr_page::PageHook::poll::Hook::drain_wake	144737	2	both
+intr_page.rs	869	intr_page::PageHook::poll::Hook::max_block_ms	813185	4	both
+intr_page.rs	847	intr_page::PageHook::poll::Hook::poll	46100479	3995	both
+intr_page.rs	873	intr_page::PageHook::poll::Hook::wake_fd	2	2	both
+intr_page.rs	840	intr_page::PageHook::with_display	0	0	neither
+intr_page.rs	287	intr_page::bump	814522	395	both
+intr_page.rs	895	intr_page::count	0	27	tests only
+intr_page.rs	885	intr_page::eventfd	0	14	tests only
+intr_page.rs	85	intr_page::parse	2	12	both
+intr_page.rs	90	intr_page::parse::set	8	35	both
+intr_page.rs	76	intr_page::requested	8	0	workload only
+intr_page.rs	135	intr_page::watched_offset	10622014575	353788	both
+invalidate.rs	365	invalidate::Invalidator::free	0	0	neither
+invalidate.rs	299	invalidate::Invalidator::invalidate	0	0	neither
+invalidate.rs	122	invalidate::Invalidator::new	0	0	neither
+invalidate.rs	86	invalidate::as_bytes::nvrm_sys::stable::NV_VASPACE_ALLOCATION_PARAMETERS	0	0	neither
+invalidate.rs	86	invalidate::as_bytes::nvrm_sys::v610::NV_CHANNEL_ALLOC_PARAMS	0	0	neither
+invalidate.rs	101	invalidate::inc_hdr	0	1	tests only
+invalidate.rs	92	invalidate::pde_vid	0	1	tests only
+invalidate.rs	97	invalidate::pte_vid	0	2	tests only
+invalidate.rs	79	invalidate::status_name	0	0	neither
+kgr.rs	278	kgr::answer	8190	1815	both
+kgr.rs	511	kgr::context_buffers_info	2	2	both
+kgr.rs	105	kgr::fit	24	17	both
+kgr.rs	173	kgr::floorsweeping	2	4	both
+kgr.rs	138	kgr::forward_elem	10	8	both
+kgr.rs	99	kgr::get32	242	310	both
+kgr.rs	241	kgr::global_sm_order	2	8	both
+kgr.rs	129	kgr::host_call	188	135	both
+kgr.rs	159	kgr::host_ok	24	30	both
+kgr.rs	119	kgr::not_supported	6	12	both
+kgr.rs	110	kgr::ok	24	16	both
+kgr.rs	95	kgr::put32	594	604	both
+kgr.rs	268	kgr::why	0	10	tests only
+lazy.rs	140	lazy::LazyPlans::deadline	6	0	workload only
+lazy.rs	136	lazy::LazyPlans::enabled	8	0	workload only
+lazy.rs	130	lazy::LazyPlans::from_env	6	0	workload only
+lazy.rs	144	lazy::LazyPlans::is_pending	50208	4	both
+lazy.rs	119	lazy::LazyPlans::new	6	4	both
+lazy.rs	149	lazy::LazyPlans::on_invalidate	16406	15	both
+lazy.rs	188	lazy::LazyPlans::summary	4	2	both
+lazy.rs	169	lazy::LazyPlans::take	901558	4	both
+lazy.rs	173	lazy::LazyPlans::take_batch	902337	5	both
+lazy.rs	55	lazy::Pending::is_empty	952545	9	both
+lazy.rs	51	lazy::Pending::roots	2772	5	both
+lazy.rs	107	lazy::parse_deadline	6	4	both
+lazy.rs	98	lazy::parse_switch	6	6	both
+main.rs	1040	main	6	0	workload only
+main.rs	283	vfio_user_nvgpu::config_space	2	0	workload only
+main.rs	1016	vfio_user_nvgpu::device_rom_len	8	0	workload only
+main.rs	1022	vfio_user_nvgpu::dma_table_alias	6	0	workload only
+main.rs	153	vfio_user_nvgpu::parse_args	72	0	workload only
+main.rs	349	vfio_user_nvgpu::serve	3401	0	workload only
+main.rs	307	vfio_user_nvgpu::spawn_signal_thread	4	0	workload only
+mirror.rs	1875	mirror::Mirror::add_engine_object	1279	0	workload only
+mirror.rs	1181	mirror::Mirror::channel	913	0	workload only
+mirror.rs	2149	mirror::Mirror::channel_query	0	0	neither
+mirror.rs	1538	mirror::Mirror::check_tsg_reuse	903	0	workload only
+mirror.rs	1174	mirror::Mirror::chid_of_host_token	11093	0	workload only
+mirror.rs	2788	mirror::Mirror::core::ops::drop::Drop::drop	4	0	workload only
+mirror.rs	700	mirror::Mirror::descs	903827	0	workload only
+mirror.rs	1896	mirror::Mirror::doorbell	899362	0	workload only
+mirror.rs	2282	mirror::Mirror::drop_vas	0	0	neither
+mirror.rs	1191	mirror::Mirror::eligible	1644	0	workload only
+mirror.rs	1613	mirror::Mirror::ensure_channel	0	0	neither
+mirror.rs	1258	mirror::Mirror::ensure_events	981	0	workload only
+mirror.rs	1918	mirror::Mirror::ensure_invalidator	0	0	neither
+mirror.rs	1565	mirror::Mirror::ensure_tsg	0	0	neither
+mirror.rs	1327	mirror::Mirror::ensure_vas	0	0	neither
+mirror.rs	611	mirror::Mirror::flush_lazy	901558	0	workload only
+mirror.rs	2003	mirror::Mirror::forward_control	3969	0	workload only
+mirror.rs	2231	mirror::Mirror::free_channel	908	0	workload only
+mirror.rs	2393	mirror::Mirror::free_object	37802	0	workload only
+mirror.rs	2250	mirror::Mirror::free_tsg	1553	0	workload only
+mirror.rs	464	mirror::Mirror::global_ctx_size	204	0	workload only
+mirror.rs	793	mirror::Mirror::gr_shadow_doorbell	907483	0	workload only
+mirror.rs	619	mirror::Mirror::hold_summary	42	0	workload only
+mirror.rs	2039	mirror::Mirror::host_channel_of	0	0	neither
+mirror.rs	2053	mirror::Mirror::idle_channels	0	0	neither
+mirror.rs	1949	mirror::Mirror::invalidate_tlb	10399	0	workload only
+mirror.rs	488	mirror::Mirror::is_gr_shadow	1829535	0	workload only
+mirror.rs	457	mirror::Mirror::is_mirrored	8	0	workload only
+mirror.rs	509	mirror::Mirror::is_shadow	899370	0	workload only
+mirror.rs	1185	mirror::Mirror::mirrored_channels	0	0	neither
+mirror.rs	756	mirror::Mirror::mirrored_userds	0	0	neither
+mirror.rs	2224	mirror::Mirror::mmu_fault_info	0	0	neither
+mirror.rs	375	mirror::Mirror::new	12	0	workload only
+mirror.rs	672	mirror::Mirror::note_ran_ahead	924465	0	workload only
+mirror.rs	2314	mirror::Mirror::on_page_directory	0	0	neither
+mirror.rs	1402	mirror::Mirror::on_server_reserved_pdes	98	0	workload only
+mirror.rs	630	mirror::Mirror::plans_barrier	0	0	neither
+mirror.rs	624	mirror::Mirror::plans_pending	25103	0	workload only
+mirror.rs	719	mirror::Mirror::pool_channels	62391	0	workload only
+mirror.rs	733	mirror::Mirror::preempt_tsg	1180	0	workload only
+mirror.rs	767	mirror::Mirror::reap_shadows	389	0	workload only
+mirror.rs	2449	mirror::Mirror::reset	6	0	workload only
+mirror.rs	2188	mirror::Mirror::resident_guest_chid	1	0	workload only
+mirror.rs	593	mirror::Mirror::resync_pending	3184	0	workload only
+mirror.rs	2099	mirror::Mirror::set_scheduling	0	0	neither
+mirror.rs	742	mirror::Mirror::shadow_barrier	2607	0	workload only
+mirror.rs	554	mirror::Mirror::shadow_invalidated	10399	0	workload only
+mirror.rs	748	mirror::Mirror::shadow_pending	0	0	neither
+mirror.rs	522	mirror::Mirror::shadow_resync	1808178	0	workload only
+mirror.rs	727	mirror::Mirror::shadow_roots	2144	0	workload only
+mirror.rs	2497	mirror::Mirror::summary	2	0	workload only
+mirror.rs	2384	mirror::Mirror::tsg_standing_for	12738	0	workload only
+mirror.rs	639	mirror::Mirror::untrapped_roots	619454	0	workload only
+mirror.rs	655	mirror::Mirror::userd_ring	5390319	0	workload only
+mirror.rs	2713	mirror::ShadowWorker::core::ops::drop::Drop::drop	4	0	workload only
+mirror.rs	2554	mirror::ShadowWorker::new	9216	0	workload only
+mirror.rs	2677	mirror::ShadowWorker::pending	50206	0	workload only
+mirror.rs	2666	mirror::ShadowWorker::submit	2393	0	workload only
+mirror.rs	2707	mirror::ShadowWorker::take_notes	6	0	workload only
+mirror.rs	2682	mirror::ShadowWorker::wait_all	904171	0	workload only
+mirror.rs	2695	mirror::ShadowWorker::wait_idle	6	0	workload only
+mirror.rs	173	mirror::TsgKey::core::fmt::Display::fmt	1085	2	both
+mirror.rs	368	mirror::as_bytes::nvrm_sys::stable::NV_VASPACE_ALLOCATION_PARAMETERS	0	0	neither
+mirror.rs	368	mirror::as_bytes::nvrm_sys::v610::NV_CHANNEL_ALLOC_PARAMS	903	0	workload only
+mirror.rs	2797	mirror::event_loop	14	0	workload only
+mirror.rs	2728	mirror::promote_gr	0	0	neither
+mirror.rs	361	mirror::status_name	93	0	workload only
+mirror.rs	183	mirror::tsg_key_of	903	6	both
+mirror.rs	200	mirror::tsg_key_of_guest	273	8	both
+mirror.rs	228	mirror::tsg_reuse	721	8	both
+msgq.rs	425	msgq::Message::reply_to	11088	58	both
+msgq.rs	115	msgq::QueueMemory::load_acquire	33262	220	both
+msgq.rs	87	msgq::QueueMemory::new	11092	226	both
+msgq.rs	141	msgq::QueueMemory::read	12350	167	both
+msgq.rs	135	msgq::QueueMemory::read_page_table	260	1820	both
+msgq.rs	175	msgq::QueueMemory::read_u32	0	16	tests only
+msgq.rs	124	msgq::QueueMemory::store_release	22174	143	both
+msgq.rs	97	msgq::QueueMemory::word	55436	363	both
+msgq.rs	158	msgq::QueueMemory::write	12350	497	both
+msgq.rs	180	msgq::QueueMemory::write_u32	2	137	both
+msgq.rs	576	msgq::QueueState::consume	11088	14	both
+msgq.rs	557	msgq::QueueState::fail	0	3	tests only
+msgq.rs	567	msgq::QueueState::failed_error	0	7	tests only
+msgq.rs	830	msgq::QueueState::flush	11086	195	both
+msgq.rs	720	msgq::QueueState::free_slots	11086	198	both
+msgq.rs	514	msgq::QueueState::from_v2	0	9	tests only
+msgq.rs	732	msgq::QueueState::held	11088	51	both
+msgq.rs	471	msgq::QueueState::link	2	10	both
+msgq.rs	586	msgq::QueueState::receive	22176	119	both
+msgq.rs	866	msgq::QueueState::retry_held	11088	105	both
+msgq.rs	747	msgq::QueueState::send	11086	248	both
+msgq.rs	814	msgq::QueueState::send_gmcapi_request	0	2	tests only
+msgq.rs	551	msgq::QueueState::slot_off	24694	146	both
+msgq.rs	543	msgq::QueueState::v2	0	57	tests only
+msgq.rs	547	msgq::QueueState::v2_mut	0	102	tests only
+msgq.rs	276	msgq::RpcHeader::encode	11086	366	both
+msgq.rs	297	msgq::RpcHeader::event	2	266	both
+msgq.rs	263	msgq::RpcHeader::parse	11088	111	both
+msgq.rs	311	msgq::RpcHeader::reply	11084	48	both
+msgq.rs	212	msgq::TxHeader::encode	2	21	both
+msgq.rs	199	msgq::TxHeader::parse	2	11	both
+msgq.rs	233	msgq::TxHeader::standard	2	21	both
+msgq.rs	59	msgq::checksum32	22174	231	both
+msgq.rs	73	msgq::put_u32	133048	3959	both
+msgq.rs	355	msgq::ring_distance	33262	222	both
+msgq.rs	346	msgq::seq_before	0	8	tests only
+msgq.rs	69	msgq::u32_at	99808	1011	both
+msgq.rs	44	msgq::v0_element_layout	22174	210	both
+msgq/v2.rs	214	v2::QueueArgs::cmd_size	0	15	tests only
+msgq/v2.rs	157	v2::QueueArgs::read	0	91	tests only
+msgq/v2.rs	218	v2::QueueArgs::stat_size	0	14	tests only
+msgq/v2.rs	412	v2::QueueStateV2::available	0	103	tests only
+msgq/v2.rs	689	v2::QueueStateV2::enqueue	0	123	tests only
+msgq/v2.rs	393	v2::QueueStateV2::fail	0	1	tests only
+msgq/v2.rs	403	v2::QueueStateV2::failed_error	0	1	tests only
+msgq/v2.rs	739	v2::QueueStateV2::flush	0	124	tests only
+msgq/v2.rs	629	v2::QueueStateV2::free_slots	0	124	tests only
+msgq/v2.rs	634	v2::QueueStateV2::held	0	48	tests only
+msgq/v2.rs	350	v2::QueueStateV2::link	0	16	tests only
+msgq/v2.rs	422	v2::QueueStateV2::receive	0	117	tests only
+msgq/v2.rs	774	v2::QueueStateV2::retry_held	0	102	tests only
+msgq/v2.rs	644	v2::QueueStateV2::send	0	119	tests only
+msgq/v2.rs	676	v2::QueueStateV2::send_gmcapi_request	0	4	tests only
+msgq/v2.rs	389	v2::QueueStateV2::slot_off	0	179	tests only
+msgq/v2.rs	284	v2::TxHeaderV2::check	0	16	tests only
+msgq/v2.rs	249	v2::TxHeaderV2::encode	0	21	tests only
+msgq/v2.rs	235	v2::TxHeaderV2::parse	0	112	tests only
+msgq/v2.rs	269	v2::TxHeaderV2::standard	0	28	tests only
+msgq/v2.rs	96	v2::nvdm_header	0	173	tests only
+msgq/v2.rs	311	v2::put_u32	0	860	tests only
+msgq/v2.rs	130	v2::rmargs_is_v2	4	2	both
+msgq/v2.rs	307	v2::u32_at	0	611	tests only
+nvml.rs	129	nvml::answer	157679	60983	both
+nvml.rs	69	nvml::answer_with	2324	161	both
+nvml.rs	386	nvml::fb_get_info_v2	96	1	both
+nvml.rs	84	nvml::forward	2078	150	both
+nvml.rs	63	nvml::get32	3378	64	both
+nvml.rs	319	nvml::get_info_v2	139	2	both
+nvml.rs	79	nvml::host_call	4284	301	both
+nvml.rs	284	nvml::host_sized_legacy	26	12	both
+nvml.rs	59	nvml::put32	412	29	both
+nvml.rs	105	nvml::thermal_opcodes	178	1	both
+poll.rs	74	poll::Config::core::default::Default::default	0	1	tests only
+poll.rs	191	poll::Histogram::core::default::Default::default	8008	26026	both
+poll.rs	218	poll::Histogram::count	14	30	both
+poll.rs	255	poll::Histogram::line	4	6	both
+poll.rs	230	poll::Histogram::max_us	6	7	both
+poll.rs	222	poll::Histogram::mean_us	4	7	both
+poll.rs	236	poll::Histogram::quantile_us	8	16	both
+poll.rs	207	poll::Histogram::record	1916664	108	both
+poll.rs	48	poll::Mode::name	4	10	both
+poll.rs	592	poll::Reactor::new	4	7	both
+poll.rs	613	poll::Reactor::spawn	0	0	neither
+poll.rs	624	poll::Reactor::spawn_hooked::device::spawn_doorbell_reader_hooked	0	0	neither
+poll.rs	624	poll::Reactor::spawn_hooked::device::spawn_token_reader_hooked	6	2	both
+poll.rs	324	poll::ReaderStats::cpu_time	2	3	both
+poll.rs	296	poll::ReaderStats::new	2	6	both
+poll.rs	315	poll::ReaderStats::ring	898457	7	both
+poll.rs	335	poll::ReaderStats::summary	2	3	both
+poll.rs	152	poll::Wait::new	2	11	both
+poll.rs	173	poll::Wait::saw_events	1279399	17	both
+poll.rs	161	poll::Wait::timeout::std::time::Instant::now	46100480	4449	both
+poll.rs	368	poll::allowed_cpus	4100	9225	both
+poll.rs	524	poll::auto_pin	28	0	workload only
+poll.rs	202	poll::bump	9796669	362	both
+poll.rs	398	poll::candidates	68	24	both
+poll.rs	458	poll::choose_cpu	392	54	both
+poll.rs	421	poll::cpu_times	612	77	both
+poll.rs	555	poll::epoll_over	2	6	both
+poll.rs	436	poll::idle_fractions	306	15	both
+poll.rs	94	poll::parse	2	16	both
+poll.rs	99	poll::parse::set	8	63	both
+poll.rs	381	poll::pin_current_thread	2	0	workload only
+poll.rs	83	poll::requested	8	0	workload only
+poll.rs	725	poll::run::device::spawn_doorbell_reader_hooked	0	0	neither
+poll.rs	725	poll::run::device::spawn_token_reader_hooked	2	1	both
+poll.rs	480	poll::vcpu_cores	187	0	workload only
+privilege.rs	167	privilege::Privilege::describe	2	0	workload only
+privilege.rs	162	privilege::Privilege::has_admin	0	0	neither
+privilege.rs	100	privilege::Privilege::init	2	0	workload only
+privilege.rs	154	privilege::Privilege::none	0	0	neither
+privilege.rs	172	privilege::Privilege::windows	6	0	workload only
+privilege.rs	177	privilege::Privilege::with_admin::NtB5_7ho::HostMemory::control_admin	0	0	neither
+privilege.rs	177	privilege::Privilege::with_admin::alloc::vec::Vec::NtB5_7ho::HostMemory::phys_attr	36	0	workload only
+privilege.rs	177	privilege::Privilege::with_admin::core::result::Result::nvrm_abi::Error::NtB5_7ho::HostMemory::alloc_object_admin	0	0	neither
+privilege.rs	48	privilege::caps_get	4	0	workload only
+privilege.rs	69	privilege::caps_set	74	0	workload only
+profile.rs	149	profile::Cell::add	2575817	1813	both
+profile.rs	195	profile::Cell::is_empty	1115573	597	both
+profile.rs	174	profile::Cell::since	1075885	528	both
+profile.rs	101	profile::Key::column	433320	3	both
+profile.rs	87	profile::Key::kind	433320	3	both
+profile.rs	264	profile::Profile::access	907541	3015	both
+profile.rs	331	profile::Profile::client_close	118	519	both
+profile.rs	325	profile::Profile::client_open	126	519	both
+profile.rs	360	profile::Profile::closed	0	2	tests only
+profile.rs	221	profile::Profile::core::default::Default::default	0	0	neither
+profile.rs	227	profile::Profile::new	2	7	both
+profile.rs	244	profile::Profile::record	1767207	544	both
+profile.rs	349	profile::Profile::rows	1972512	553	both
+profile.rs	259	profile::Profile::set	2790	1	both
+profile.rs	366	profile::Profile::tsv	70	2	both
+profile.rs	239	profile::Profile::us	314	1039	both
+profile.rs	633	profile::access	302515	0	workload only
+profile.rs	659	profile::client_close	118	1	both
+profile.rs	648	profile::client_open	126	0	workload only
+profile.rs	405	profile::diff	2940466	1566	both
+profile.rs	574	profile::dump	35	0	workload only
+profile.rs	593	profile::dump_at_exit	2	0	workload only
+profile.rs	454	profile::escape_name	61182	2	both
+profile.rs	500	profile::global	2070282	0	workload only
+profile.rs	670	profile::host_ioctl	245485	0	workload only
+profile.rs	445	profile::name_of	433320	3	both
+profile.rs	496	profile::on	3457972	712	both
+profile.rs	531	profile::prefix	2	0	workload only
+profile.rs	416	profile::push_rows	139304	4	both
+profile.rs	623	profile::record	1767207	480	both
+profile.rs	608	profile::refresh_sources	558	0	workload only
+profile.rs	604	profile::register_source	2	0	workload only
+profile.rs	505	profile::requested	4	0	workload only
+profile.rs	544	profile::spawn_dump_thread	4	0	workload only
+profile.rs	512	profile::start	2	0	workload only
+profile.rs	641	profile::window	1369253	158	both
+ptcache.rs	270	ptcache::WalkCache::add_use	132	73	both
+ptcache.rs	572	ptcache::WalkCache::all_leaves	701684	26	both
+ptcache.rs	406	ptcache::WalkCache::build_unit	288878	12570	both
+ptcache.rs	505	ptcache::WalkCache::drop_subtree	132	2	both
+ptcache.rs	475	ptcache::WalkCache::drop_unit	18345	13	both
+ptcache.rs	276	ptcache::WalkCache::drop_use	7009	18	both
+ptcache.rs	217	ptcache::WalkCache::is_dirty	954379	22	both
+ptcache.rs	221	ptcache::WalkCache::leaf_count	0	6	tests only
+ptcache.rs	211	ptcache::WalkCache::mark_dirty	18764	8	both
+ptcache.rs	167	ptcache::WalkCache::new	8	18	both
+ptcache.rs	187	ptcache::WalkCache::note_write	2	10	both
+ptcache.rs	243	ptcache::WalkCache::read	9047	119	both
+ptcache.rs	487	ptcache::WalkCache::rebuild_unit	15650	11	both
+ptcache.rs	528	ptcache::WalkCache::refresh_dir	1948	3	both
+ptcache.rs	225	ptcache::WalkCache::table_pages	4638	29	both
+ptcache.rs	230	ptcache::WalkCache::unit_leaves	147175	38	both
+ptcache.rs	235	ptcache::WalkCache::units_with_leaves	98904	12	both
+ptcache.rs	288	ptcache::WalkCache::update	221254	228	both
+ptcache.rs	374	ptcache::WalkCache::walk_children	66832	1099	both
+ptcache.rs	351	ptcache::WalkCache::walk_dir	132	73	both
+ptcache.rs	206	ptcache::WalkCache::watches	1823675	53	both
+ptcache.rs	99	ptcache::big_table	34451	4870	both
+ptcache.rs	122	ptcache::bytemuck_bytes	2	10	both
+ptcache.rs	62	ptcache::entries_of	2017	76	both
+ptcache.rs	71	ptcache::entry_span	266	57	both
+ptcache.rs	108	ptcache::leaf	3252591	14581	both
+ptcache.rs	90	ptcache::next_table	49463	23376	both
+ptcache.rs	81	ptcache::table_span	132	2	both
+public.rs	192	public::GuestAttrs::free	3366	8	both
+public.rs	180	public::GuestAttrs::get	0	19	tests only
+public.rs	187	public::GuestAttrs::set_fault	0	1	tests only
+public.rs	141	public::MirrorFwd::MirrorObjects::channel_query	0	0	neither
+public.rs	122	public::MirrorFwd::MirrorObjects::forward	0	0	neither
+public.rs	133	public::MirrorFwd::MirrorObjects::idle	0	0	neither
+public.rs	154	public::MirrorFwd::MirrorObjects::resident	1	0	workload only
+public.rs	137	public::MirrorFwd::MirrorObjects::schedule	0	0	neither
+public.rs	96	public::MirrorObjects::channel_query	0	0	neither
+public.rs	86	public::MirrorObjects::idle	0	0	neither
+public.rs	109	public::MirrorObjects::resident	0	0	neither
+public.rs	91	public::MirrorObjects::schedule	0	0	neither
+public.rs	215	public::answer	2943	2716	both
+public.rs	41	public::channel_of	4	76	both
+public.rs	642	public::device	6	27	both
+public.rs	860	public::dynamic_offlined_pages	1	13	both
+public.rs	633	public::err	3	26	both
+public.rs	746	public::filtered	29	36	both
+public.rs	200	public::get32	66	1230	both
+public.rs	205	public::get64	4	380	both
+public.rs	884	public::gpumon_process	685	548	both
+public.rs	245	public::guest	10	343	both
+public.rs	785	public::offlined_pages	11	93	both
+public.rs	775	public::page_inside	0	83	tests only
+public.rs	210	public::put32	748	2004	both
+public.rs	837	public::put64	2	463	both
+public.rs	827	public::remapped_rows	11	4	both
+public.rs	844	public::scrubber_range	1	7	both
+rc.rs	97	rc::MirrorRef::MirrorOps::forward	0	0	neither
+rc.rs	253	rc::RcState::any_disabled	899370	19	both
+rc.rs	259	rc::RcState::channel_enabled	0	16	tests only
+rc.rs	498	rc::RcState::clean_history	0	5	tests only
+rc.rs	299	rc::RcState::disable_channels	0	54	tests only
+rc.rs	266	rc::RcState::disabled_chids	899370	25	both
+rc.rs	290	rc::RcState::forget	6765	15	both
+rc.rs	458	rc::RcState::log_oob_xid	0	215	tests only
+rc.rs	238	rc::RcState::push	0	271	tests only
+rc.rs	247	rc::RcState::record	0	263	tests only
+rc.rs	278	rc::RcState::record_channel	910	3	both
+rc.rs	394	rc::RcState::report_nr_fault	0	57	tests only
+rc.rs	451	rc::RcState::watchdog_timeout	0	4	tests only
+rc.rs	221	rc::SelfTest::due	0	5	tests only
+rc.rs	211	rc::SelfTest::from_env	12	1704	both
+rc.rs	192	rc::ans	0	29	tests only
+rc.rs	186	rc::enum_	0	3	tests only
+rc.rs	177	rc::off	0	75	tests only
+rc.rs	167	rc::rd	1820	140	both
+rc.rs	172	rc::rd64	1820	6	both
+rc.rs	513	rc::take	0	6	tests only
+rc.rs	233	rc::usermode	0	9	tests only
+rpc.rs	232	rpc::StaticIdentity::from_spec	2	47	both
+rpc.rs	273	rpc::StaticIdentity::guest_name	0	1	tests only
+rpc.rs	278	rpc::StaticIdentity::guest_name_as	2	1	both
+rpc.rs	217	rpc::StaticIdentity::new	0	46	tests only
+rpc.rs	261	rpc::StaticIdentity::spec	4	48	both
+rpc.rs	284	rpc::StaticIdentity::synthetic_gid	2	48	both
+rpc.rs	169	rpc::WprLayout::read	2	10	both
+rpc.rs	308	rpc::build_static_info	36	252	both
+rpc.rs	321	rpc::build_static_info::label	22	152	both
+rpc.rs	318	rpc::build_static_info::put64	22	150	both
+rpc.rs	147	rpc::cstr	44	297	both
+rpc.rs	66	rpc::describe	11236	584	both
+rpc.rs	27	rpc::function_name	29147	90	both
+rpc.rs	130	rpc::guest_driver_version	4	0	workload only
+rpc.rs	529	rpc::hex	34	374	both
+rpc.rs	534	rpc::hex_list	0	192	tests only
+rpc.rs	553	rpc::static_info_nvkv	0	920	tests only
+rpc.rs	136	rpc::system_info_bar_addresses	4	2	both
+rpc.rs	51	rpc::u32_at	51940	966	both
+rpc.rs	58	rpc::u64_at	38	182	both
+selftest.rs	35	selftest::expect	0	0	neither
+selftest.rs	23	selftest::read32	0	0	neither
+selftest.rs	66	selftest::run	0	0	neither
+selftest.rs	54	selftest::sizing_mask	0	0	neither
+selftest.rs	30	selftest::write32	0	0	neither
+shadow.rs	563	shadow::MapBudget::add	21206	337	both
+shadow.rs	550	shadow::MapBudget::from_env	6	0	workload only
+shadow.rs	559	shadow::MapBudget::live	15168	335	both
+shadow.rs	542	shadow::MapBudget::new	6	22	both
+shadow.rs	596	shadow::Plan::is_empty	2241	0	workload only
+shadow.rs	227	shadow::RmCalls::add	34965	418	both
+shadow.rs	240	shadow::RmCalls::count	0	2	tests only
+shadow.rs	260	shadow::RmCalls::line	19144	400	both
+shadow.rs	248	shadow::RmCalls::since	2347	50	both
+shadow.rs	244	shadow::RmCalls::total	2393	50	both
+shadow.rs	628	shadow::ShadowFront::needs_sync	902050	12	both
+shadow.rs	614	shadow::ShadowFront::new	46	5	both
+shadow.rs	638	shadow::ShadowFront::plan	89828094	23	both
+shadow.rs	515	shadow::ShadowStats::extents	13321	92	both
+shadow.rs	494	shadow::ShadowStats::note_mapped	20598	281	both
+shadow.rs	1157	shadow::ShadowVas::apply::hostmem::HostMemory	67449872	0	workload only
+shadow.rs	850	shadow::ShadowVas::defers_tlb	0	1	tests only
+shadow.rs	1052	shadow::ShadowVas::drop_run::hostmem::HostMemory	4766	0	workload only
+shadow.rs	1572	shadow::ShadowVas::free	0	0	neither
+shadow.rs	1082	shadow::ShadowVas::free_idle_gathers::hostmem::HostMemory	22194	0	workload only
+shadow.rs	895	shadow::ShadowVas::free_region_whole::hostmem::HostMemory	5433	0	workload only
+shadow.rs	882	shadow::ShadowVas::free_virtual::hostmem::HostMemory	8262	0	workload only
+shadow.rs	1102	shadow::ShadowVas::gather_stretches::hostmem::HostMemory	2135523	0	workload only
+shadow.rs	940	shadow::ShadowVas::live_maps	0	11	tests only
+shadow.rs	945	shadow::ShadowVas::lookup	0	13	tests only
+shadow.rs	935	shadow::ShadowVas::mapped_leaves	0	2	tests only
+shadow.rs	803	shadow::ShadowVas::new	46	0	workload only
+shadow.rs	919	shadow::ShadowVas::purge_pool::hostmem::HostMemory	109375	0	workload only
+shadow.rs	1494	shadow::ShadowVas::record_run	10566	235	both
+shadow.rs	1475	shadow::ShadowVas::rm_map::hostmem::HostMemory	10566	0	workload only
+shadow.rs	984	shadow::ShadowVas::rm_unmap::hostmem::HostMemory	5207	0	workload only
+shadow.rs	1071	shadow::ShadowVas::run_gone	10966	189	both
+shadow.rs	861	shadow::ShadowVas::settle::hostmem::HostMemory	9615	0	workload only
+shadow.rs	1526	shadow::ShadowVas::summary	46	0	workload only
+shadow.rs	1670	shadow::ShadowVas::teardown_line	46	4	both
+shadow.rs	1586	shadow::ShadowVas::teardown_step::hostmem::HostMemory	80541	0	workload only
+shadow.rs	957	shadow::ShadowVas::unmap_leaves::hostmem::HostMemory	14973	0	workload only
+shadow.rs	993	shadow::ShadowVas::unmap_piece::hostmem::HostMemory	5207	0	workload only
+shadow.rs	820	shadow::ShadowVas::with_vas	46	21	both
+shadow.rs	375	shadow::class_of	115162	280	both
+shadow.rs	421	shadow::coalesce	14743	63	both
+shadow.rs	339	shadow::host_target	22637046	33	both
+shadow.rs	151	shadow::hostmem::HostMemory::ShadowHost::alloc_virtual_fixed	8262	0	workload only
+shadow.rs	187	shadow::hostmem::HostMemory::ShadowHost::free_gather	1311	0	workload only
+shadow.rs	178	shadow::hostmem::HostMemory::ShadowHost::free_object	8308	0	workload only
+shadow.rs	184	shadow::hostmem::HostMemory::ShadowHost::gather	1311	0	workload only
+shadow.rs	181	shadow::hostmem::HostMemory::ShadowHost::invalidate_vas	0	0	neither
+shadow.rs	161	shadow::hostmem::HostMemory::ShadowHost::map_dma_fixed	10566	0	workload only
+shadow.rs	175	shadow::hostmem::HostMemory::ShadowHost::unmap_dma	5207	0	workload only
+shadow.rs	362	shadow::kind_override	10566	235	both
+shadow.rs	280	shadow::page_size_flag	10566	235	both
+shadow.rs	300	shadow::resolve_leaf	22637046	39	both
+shadow.rs	275	shadow::switch_on	184	84	both
+tokens.rs	110	tokens::PoolStats::remember	11	3	both
+tokens.rs	166	tokens::TokenPool::assign	902	8	both
+tokens.rs	184	tokens::TokenPool::assigned	0	2	tests only
+tokens.rs	152	tokens::TokenPool::chid	898457	8	both
+tokens.rs	147	tokens::TokenPool::contains	899370	14	both
+tokens.rs	138	tokens::TokenPool::is_empty	0	0	neither
+tokens.rs	134	tokens::TokenPool::len	4	1	both
+tokens.rs	126	tokens::TokenPool::new	6	3	both
+tokens.rs	194	tokens::TokenPool::note_refused	11	1	both
+tokens.rs	188	tokens::TokenPool::note_stale	0	2	tests only
+tokens.rs	178	tokens::TokenPool::release	1818	5	both
+tokens.rs	199	tokens::TokenPool::summary	2	1	both
+tokens.rs	143	tokens::TokenPool::token	900389	34	both
+tokens.rs	160	tokens::TokenPool::token_of	1815	18	both
+tokens.rs	77	tokens::is_pool_token	899370	18	both
+tokens.rs	57	tokens::parse	2	10	both
+tokens.rs	50	tokens::requested	2	0	workload only
+trace.rs	90	trace::Trace::access	302515	1	both
+trace.rs	118	trace::Trace::event	3069024	2	both
+trace.rs	79	trace::Trace::line	3371539	2	both
+trace.rs	58	trace::Trace::new	2	2	both
+trace.rs	122	trace::Trace::summary	2	1	both
+trace.rs	44	trace::value	302515	0	workload only
+untrapped.rs	94	untrapped::HoldStats::note_ahead::mirror::Mirror::note_ran_ahead	25103	0	workload only
+untrapped.rs	86	untrapped::HoldStats::note_held	2196	2	both
+untrapped.rs	107	untrapped::HoldStats::summary	44	1	both
+untrapped.rs	53	untrapped::must_hold	10399	5	both
+untrapped.rs	42	untrapped::parse_switch	6	6	both
+untrapped.rs	63	untrapped::ran_ahead	1772690	19	both
+untrapped.rs	122	untrapped::wall	42	16	both
+uvm.rs	51	uvm::VfRegs::handles	247642	3621	both
+uvm.rs	42	uvm::VfRegs::new	6	18	both
+uvm.rs	68	uvm::VfRegs::read32	3333	7	both
+uvm.rs	81	uvm::VfRegs::write32	0	3	tests only
+uvm.rs	145	uvm::answer	4247	938	both
+uvm.rs	116	uvm::forward	84	1	both
+uvm.rs	104	uvm::rd32	616	6	both
+uvm.rs	110	uvm::rd64	0	2	tests only
+ver/mod.rs	450	N::vfio_user_nvgpu::ver::ElementLayout::max_rpc_size	22124	89	both
+ver/mod.rs	255	vfio_user_nvgpu::ver::Abi::active	15538	14386	both
+ver/mod.rs	275	vfio_user_nvgpu::ver::Abi::d_enum	34343	14343	both
+ver/mod.rs	270	vfio_user_nvgpu::ver::Abi::d_rule	270156	1054123	both
+ver/mod.rs	265	vfio_user_nvgpu::ver::Abi::layout	64716	25344	both
+ver/mod.rs	261	vfio_user_nvgpu::ver::Abi::routed	31924	528766	both
+ver/mod.rs	151	vfio_user_nvgpu::ver::CtrlLayout::resolve	10078	5909	both
+ver/mod.rs	348	vfio_user_nvgpu::ver::GspTransport::guest_abi	976931	135	both
+ver/mod.rs	361	vfio_user_nvgpu::ver::abi_tests::the_guest_abi_must_be_the_builds	0	1	tests only
+ver/mod.rs	313	vfio_user_nvgpu::ver::check_guest_abi	4	11	both
+ver/mod.rs	471	vfio_user_nvgpu::ver::element_layout	44302	300	both
+ver/mod.rs	388	vfio_user_nvgpu::ver::measured::parse	0	63	tests only
+ver/mod.rs	488	vfio_user_nvgpu::ver::static_info_for_guest	2	0	workload only
+ver/v610.rs	645	v610::copy_engine_index	1	11	both
+ver/v610.rs	352	v610::lookup	1803924	2903	both
+ver/v610/public.rs	354	public::public_control	240948	350857	both
+ver/v610/public.rs	142	public::row	0	0	neither
+zbc.rs	75	zbc::Table::add	0	590	tests only
+zbc.rs	58	zbc::Table::get	135	8	both
+zbc.rs	50	zbc::Table::new	6	60	both
+zbc.rs	65	zbc::Table::set	16	105	both
+zbc.rs	84	zbc::Table::used	0	112	tests only
+zbc.rs	141	zbc::ZbcTable::for_chip	2	20	both
+zbc.rs	153	zbc::ZbcTable::from_seed	2	13	both
+zbc.rs	197	zbc::ZbcTable::table	405	37	both
+zbc.rs	236	zbc::answer	136	46	both
+zbc.rs	253	zbc::control	136	263	both
+zbc.rs	451	zbc::fill_value	135	8	both
+zbc.rs	212	zbc::off	1981	510	both
+zbc.rs	221	zbc::rd	542	466	both
+zbc.rs	131	zbc::seed_text	2	20	both
+zbc.rs	232	zbc::status	272	96	both
+zbc.rs	226	zbc::wr	1575	268	both

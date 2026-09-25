@@ -1,0 +1,2 @@
+COV torch-conv ok 1655 forward+backward rounds in 15.2 s (cuDNN, benchmark mode), max err 1.42e-06
+# rc=0

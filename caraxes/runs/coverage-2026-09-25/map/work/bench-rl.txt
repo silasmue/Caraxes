@@ -1,0 +1,2 @@
+08:33:43 v2  rl              rep 1:   ep   10  return=   11  mean10=  20.7   ep   20  return=   15  mean10=  14.4   ep   30  return=   13  mean10=  15.8  | # MEAS dev_pid=3245134 dev_cpu_ms=5670 dev_rss_hwm_kb=4293724/9445768 vmm_cpu_ms=12550 others: vm7-vmm=25920ms vm1-vmm=1
+# rc=0

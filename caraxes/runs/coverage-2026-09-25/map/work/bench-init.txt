@@ -1,0 +1,2 @@
+08:33:24 v2  init            rep 1: INIT cuinit_ms=32.806 devget_ms=0.002 ctxcreate_ms=737.936 ctxdestroy_ms=421.829 # WALL wall_ms=1209 rc=0  | # MEAS dev_pid=3245134 dev_cpu_ms=1080 dev_rss_hwm_kb=4293136/9445768 vmm_cpu_ms=430 others: vm7-vmm=2400ms vm1-vmm=20ms
+# rc=0

@@ -1,0 +1,11 @@
+nvcc missing
+ffmpeg missing
+cuda-gdb missing
+clinfo missing
+vulkaninfo /usr/bin/vulkaninfo
+vkcube /usr/bin/vkcube
+glxinfo /usr/bin/glxinfo
+nvrtc: /home/leandro/gpu/venv/lib/python3.12/site-packages/nvidia/cu13/lib/libnvrtc.so.13 
+opencl: /opt/nvrm/lib/libnvidia-opencl.so /opt/nvrm/lib/libnvidia-opencl.so.1 /opt/nvrm/lib/libnvidia-opencl.so.610.57.04  icd: 
+vulkan icd: /etc/vulkan/icd.d:  /usr/share/vulkan/icd.d: asahi_icd.json gfxstream_vk_icd.json intel_hasvk_icd.json intel_icd.json lvp_icd.json nouveau_icd.json nvidia_icd.json radeon_icd.json virtio_icd.json ; libGLX_nvidia: 
+nvenc: /opt/nvrm/lib/libnvidia-encode.so nvcuvid: /opt/nvrm/lib/libnvcuvid.so

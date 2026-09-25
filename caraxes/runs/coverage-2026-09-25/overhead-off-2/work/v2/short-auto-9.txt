@@ -1,0 +1,16 @@
+# target v2 metric short-auto rep 9
+# cmd NVPROBE_ITERS=100 NVPROBE_CYCLES=1000 NVPROBE_SCHED=auto ./nvprobe 4
+# device /mnt/vmstore/caraxes/vm2/vfio-user-nvgpu sha256 abfbdfe5e77aaba2
+# time 2026-09-25T08:51:22+02:00
+# gpu 49, 990 MHz, 810 MHz, P5, 13 %, 6197 MiB, Disabled
+# procs 3208281:-dev 3337212:vm2-dev 3337233:vm1-vmm 3339369:vm0-dev 3339387:vm1-vmm 3341368:vm5-dev 3341379:vm1-vmm 3342796:vm7-dev 3342799:vm7-vmm 3343810:vm3-dev 3343824:vm1-vmm 
+# loadavg 4.91 6.47 7.32
+stage 0 ok (cuInit)
+stage 1 ok (context, sched=auto)
+stage 2 ok (memory)
+stage 3 ok (kernel, result correct)
+stage 4 ok (100 launches, 0.021 ms/launch, sched=auto)
+ITERS=100
+MSPERLAUNCH=0.021
+# WALL wall_ms=612 rc=0
+# MEAS dev_pid=3337212 dev_cpu_ms=450 dev_rss_hwm_kb=5255988/8396224 vmm_cpu_ms=1120 others: vm1-vmm=0ms vm1-vmm=10ms vm7-dev=0ms vm5-dev=20ms vm1-vmm=0ms vm0-dev=20ms -dev=0ms vm3-dev=10ms vm7-vmm=880ms 

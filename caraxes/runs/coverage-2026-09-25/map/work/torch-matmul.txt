@@ -1,0 +1,2 @@
+COV torch-matmul ok 13924 rounds of fp32/fp16/bmm/addmm in 15.1 s, max err fp32 6.87e-05, tf32 6.87e-05
+# rc=0

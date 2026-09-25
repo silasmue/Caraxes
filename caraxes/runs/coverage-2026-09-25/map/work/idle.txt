@@ -1,0 +1,2 @@
+COV idle ok 300 s with nothing running
+# rc=0

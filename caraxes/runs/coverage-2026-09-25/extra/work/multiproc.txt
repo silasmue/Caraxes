@@ -1,0 +1,4 @@
+COV streams ok 300 rounds of 4 streams (priorities 0..-5), 1200 host calls, 3773600 event polls, 921.2 ms; cuMemAllocAsync refused (error CUDA_ERROR_NOT_SUPPORTED)
+COV graphs ok 4 captured nodes, 300 launches of each graph, 600 host calls
+COV multiproc ok two processes (streams, graphs) at once
+# rc=0

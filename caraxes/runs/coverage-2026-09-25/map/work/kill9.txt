@@ -1,0 +1,5 @@
+/home/leandro/cov/covguest.sh: line 53:  7126 Killed                  ./covwork spin 8000 > spin.txt 2>&1
+SPINNING pid 7126 for 8000 ms
+COV query ok 155 attributes, Leandro VFIO RTX 2070-1G at 0000:00:05.0, 727 of 823 MiB free, 4 blocks/SM
+COV kill9 ok spin kernel's process killed with SIGKILL mid-kernel (rc 137); a new context works after it
+# rc=0

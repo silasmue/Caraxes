@@ -50,6 +50,7 @@ pub mod msgq;
 pub mod nvml;
 pub mod privilege;
 pub mod poll;
+pub mod profile;
 pub mod ptcache;
 pub mod public;
 pub mod rc;

@@ -99,6 +99,7 @@ driver recognizes and initializes a Turing/RTX 2070-like device. Windows later.
 | [intr-page.md](intr-page.md) | The interrupt page (`CARAXES_INTR_PAGE=1`, `_SLEEP_MS`, `_RETRIGGER_MS`): BAR0 page 0 and the VF CPU interrupt tree page offered as sparse mmap areas of region 0 from a memfd, the reactor applying the guest's acks and enable writes by polling (tag bits and sentinels so every store is visible, a retrigger watchdog for what stays ambiguous); per-frame register census of series F (437 of 662 Mutter traps are these two pages), the expected 662 to about 225, what stays trapped |
 | [alloc-path.md](alloc-path.md) | Where cuMemAlloc/cuMemFree time goes (830/903 us, 6.7 ms for 64 MiB): no memory RPC reaches the device, the cost is the guest RM's trapped traffic (24 traps per mapping change: 18 RM-lock interrupt-enable writes, 5 MMU invalidate, 1 flush; plus BAR2 PTE writes), the device's host calls sit in the worker; the four steps (existing intr page + BAR2 memfd, lazy shadow plans, invalidate and flush page as memory, region-object free list) with expected cost and isolation argument; `CARAXES_ALLOC_LAZY=1` built (`lazy.rs`), `caraxes/tools/rpc-cost.py`, `BENCH_CU_PHASE_GAP_MS`, measurement plan (subagent report) |
 | [optimization-backlog.md](optimization-backlog.md) | Trap census of 2026-09-25 (vm3, main 1ea2529): every CUDA driver-API operation alone (`caraxes/tools/census-cu.c` with BAR0 scratch markers, `census-table.py`), traps by BAR, page and register, RPC and host RM work, guest against native, with no window, with interrupt page + BAR1 pool + token pool, and with the BAR2 memfd; findings (memfd plus pool hangs the first cuCtxCreate, memfd alone takes cuCtxCreate 4.1 s to 0.87 s, submissions and copies trap 0 times with the windows, 140-160 MSI re-arm traps per second, non-trap stalls); the ranked backlog with mechanism, saving, risk and estimate; the ReBAR note; the order for the next three days |
+| [coverage-map.md](coverage-map.md) | The coverage map of 2026-09-25 (vm2, 610 guest): the device's profile (`CARAXES_PROFILE=1`, src/profile.rs: traps by BAR/page/register, controls, allocs, RPCs, events, host RM calls and window hits per device and per guest client, dumped on SIGUSR2 and at exit, 84 ns per trapped access) and `caraxes/tools/profile-rank.py`; 29 workload windows beyond the gates (nvidia-smi loops, graphs, streams, texture/surface, torch cuBLAS/cuDNN/attention, two processes, OOM, kill -9, illegal address, NVRTC, Vulkan, idle) with LLVM function coverage; the union by provenance and the untested surface; the guest control sweep (`caraxes/tools/ctlsweep.c`); ten ranked candidates outside the benchmarks; the recipe for the next workload |
 | [alloc-path.md](alloc-path.md) | Where cuMemAlloc/cuMemFree time goes (830/903 us, 6.7 ms for 64 MiB): no memory RPC reaches the device, the cost is the guest RM's trapped traffic (24 traps per mapping change: 18 RM-lock interrupt-enable writes, 5 MMU invalidate, 1 flush; plus BAR2 PTE writes), the device's host calls sit in the worker; the four steps (existing intr page + BAR2 memfd, lazy shadow plans, invalidate and flush page as memory, region-object free list) with expected cost and isolation argument; `CARAXES_ALLOC_LAZY=1` built (`lazy.rs`), `caraxes/tools/rpc-cost.py`, `BENCH_CU_PHASE_GAP_MS`, measurement plan; measured 2026-09-25 (§7): 45.5 to 4.3 traps, cuMemAlloc 1 MiB 972 to 175 us (subagent report) |
 | [open-questions.md](open-questions.md) | Unresolved questions, numbered |
 
@@ -1042,3 +1043,33 @@ the VM; then display, expected to be much easier than in v1.
   801), 0 Xid. Cost (the rule off then on, vm5-615): cuMemAlloc 1 MiB 175 to 200 us, 64 MiB 511 to
   2277 us, cuMemFree 64 MiB 791 to 2402 us, cuCtxCreate 395 to 486 ms, launches unchanged; holding
   only plans that map something new would recover the frees (not built).
+- 2026-09-25: **Coverage map and the profile** ([coverage-map.md](coverage-map.md), records
+  `caraxes/runs/coverage-2026-09-25/`).
+  - **The profile.** `CARAXES_PROFILE=1` aggregates, per device and per guest client:
+    - trapped accesses, with device and guest-seen time;
+    - controls with a status histogram and label, allocs, RPCs and events;
+    - every host RM ioctl, through a new nvrm-abi observer, and the shadow's call kinds;
+    - window hits.
+
+    It dumps TSV on SIGUSR2 and at exit and costs 84 ns per trapped access; short-auto with it
+    on is within noise. `caraxes/tools/profile-rank.py` ranks the rows and joins them with
+    controls.tsv and the handler module.
+  - **The map.** 29 workload windows on vm2 with the recommended configuration and an
+    instrumented build:
+    - 208 of 829 GSP-routed controls reached, all 70 host-forwarded ones;
+    - untouched and answered by the device: 42 synthesized, 59 guest-derived, 48 echo, 427
+      refused;
+    - 931 of 1464 device functions ran under a workload, 392 only in unit tests, 141 nowhere.
+  - **The sweep.** The guest control sweep (`ctlsweep.c`, generated from controls.tsv)
+    reached 111 untouched getters and found 21 unanswered user-callable ones.
+  - **Top candidates outside the benchmarks.**
+    - BAR1 pool moves: 1024 pages per CUDA process, 363 ms of device time.
+    - BAR2 memfd syncs.
+    - Host TSG preempts, mostly the pool barrier's: 3.9 s; one took 3.2 s at a kill -9, with
+      host Xid 109.
+    - Shadow gathers.
+    - The device's BAR1 window remaps.
+    - GSS-legacy PERF 0x79: 21-678 ms per nvidia-smi call.
+    - 331 idle MSIs per second from other VMs' work.
+  - **Findings.** `cuMemAllocAsync` is refused (801). An illegal address reaches the guest as
+    LAUNCH_FAILED (719), with no RC event and host Xid 31 on the device's pid.

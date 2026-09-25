@@ -1,0 +1,2 @@
+COV smi-q ok 10 x nvidia-smi -q
+# rc=0

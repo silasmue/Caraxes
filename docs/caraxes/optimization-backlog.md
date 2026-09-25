@@ -404,6 +404,18 @@ calls.
   - The cuda gate is 10 of 12, and there was 0 host Xid. Mutter was not measured: expected 9.6
     traps per frame fewer.
 
+**Coverage map (2026-09-25).** [coverage-map.md](coverage-map.md) extends this census from
+single operations to whole workloads with the device's profile (`CARAXES_PROFILE=1`). Its §4
+ranks ten costs the census could not see, because they are not traps or they lie outside the
+benchmarks:
+- the BAR1 pool's page moves: 1024 per CUDA process, 363 ms;
+- the pool barrier's host TSG preempts;
+- the device's BAR1 window remaps;
+- nvidia-smi's GSS-legacy forwards;
+- idle interrupt forwarding at 331 per second.
+
+Items 3, 5 and 6 above get per-workload numbers there.
+
 ## 5. ReBAR
 
 The operator's framing: on Turing, BAR1 is capped at 256 MiB, so the pool multiplexes it; on a

@@ -838,6 +838,17 @@ pub fn poll(fb: &mut FakeFb, gpu: &mut dyn PoolGpu) -> bool {
                 pool.stats.installs_cold += 1;
             }
             pool.stats.copy_us += tc.elapsed().as_micros();
+            crate::profile::record(
+                crate::profile::Key::Window(if is_warm {
+                    "bar1 pool: page moved in, warm (units: bytes)"
+                } else {
+                    "bar1 pool: page moved in, cold (units: bytes)"
+                }),
+                tc.elapsed(),
+                PAGE,
+                None,
+                "",
+            );
             pool.pending.remove(&op.g);
         } else {
             fb.copy_page_raw(p, op.x);
@@ -851,6 +862,17 @@ pub fn poll(fb: &mut FakeFb, gpu: &mut dyn PoolGpu) -> bool {
                 pool.stats.releases_cold += 1;
             }
             pool.stats.copy_us += tc.elapsed().as_micros();
+            crate::profile::record(
+                crate::profile::Key::Window(if is_warm {
+                    "bar1 pool: page moved out, warm (units: bytes)"
+                } else {
+                    "bar1 pool: page moved out, cold (units: bytes)"
+                }),
+                tc.elapsed(),
+                PAGE,
+                None,
+                "",
+            );
         }
         fb.forget_watched_page(op.x >> 12);
         if op.install && matches!(fb.backing(op.x), crate::fb::Backing::Bar2Memfd(_)) {
@@ -877,6 +899,7 @@ pub fn poll(fb: &mut FakeFb, gpu: &mut dyn PoolGpu) -> bool {
             pool.rediff.extend(roots.iter().copied());
             pool.stats.barriers += 1;
         }
+        crate::profile::window("bar1 pool: warm-move barriers (units: pages)", moved_warm as u64);
         notes.extend(gpu.resync(fb, &roots));
         let (nc, nt) = match &barrier {
             Some(Ok(q)) => *q,
@@ -893,6 +916,7 @@ pub fn poll(fb: &mut FakeFb, gpu: &mut dyn PoolGpu) -> bool {
         let pool = guard.as_mut().expect("on");
         if let Some(Err(e)) = &barrier {
             pool.stats.barriers_refused += 1;
+            crate::profile::window("bar1 pool: barriers refused", 0);
             // Every refusal, with the wall time, for the reader of the host kernel log (a
             // refused barrier moves nothing; the pages stay and are retried).
             eprintln!(

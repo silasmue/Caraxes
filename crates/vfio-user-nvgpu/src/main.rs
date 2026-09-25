@@ -34,6 +34,7 @@ use vfio_user_nvgpu::hostrm::HostRmClient;
 use vfio_user_nvgpu::intr::IntrShared;
 use vfio_user_nvgpu::intr_page::{self, IntrPage, PageHook};
 use vfio_user_nvgpu::privilege::Privilege;
+use vfio_user_nvgpu::profile;
 use vfio_user_nvgpu::rpc::StaticIdentity;
 use vfio_user_nvgpu::selftest;
 use vfio_user_nvgpu::tokens;
@@ -338,6 +339,7 @@ fn spawn_signal_thread(hm: Arc<Mutex<HostMemory>>) -> Result<()> {
             // SAFETY: sigwait on the set blocked above.
             unsafe { libc::sigwait(&set, &mut sig) };
             eprintln!("vfio-user-nvgpu: signal {sig}: freeing host memory and exiting");
+            profile::dump_at_exit();
             // A DMA_MAP registration in progress holds the lock; wait for it.
             let (log, closed) = match hm.lock() {
                 Ok(mut h) => (h.shutdown(), h.fail_closed().map(str::to_owned)),
@@ -359,6 +361,19 @@ fn spawn_signal_thread(hm: Arc<Mutex<HostMemory>>) -> Result<()> {
 }
 
 fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
+    // The profile first, before any thread: SIGUSR2 must be blocked in every thread so
+    // that only the dump thread's sigwait takes it (profile.rs).
+    if profile::requested() {
+        let prefix = profile::prefix(a.trace.as_deref());
+        profile::start(prefix.clone()).context("profile")?;
+        profile::spawn_dump_thread().context("profile dump thread")?;
+        eprintln!(
+            "vfio-user-nvgpu: profile on ({}=1): dumps to {}.<n>.tsv on SIGUSR2 and {}.exit.tsv at exit (src/profile.rs)",
+            profile::PROFILE_ENV,
+            prefix.display(),
+            prefix.display()
+        );
+    }
     // The eventfd does not carry the token: the reader rings the channels whose GPPut
     // moved since their last doorbell (`Dispatcher::doorbell_pending`), on every path.
     let doorbell_ioeventfd = doorbell_ioeventfd_requested();
@@ -703,6 +718,25 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
             )
             .map_err(|e| anyhow::anyhow!("{}=1: {e}", intr_page::INTR_PAGE_ENV))?;
             page.enable_vectors(&vectors);
+            if profile::on() {
+                let p = page.clone();
+                profile::register_source(Box::new(move || {
+                    use std::sync::atomic::Ordering::Relaxed;
+                    let s = &p.stats;
+                    vec![
+                        ("intr page: scans with work", s.scans.load(Relaxed)),
+                        ("intr page: acks applied", s.acks.load(Relaxed)),
+                        ("intr page: LEAF_EN_SET applied", s.en_set.load(Relaxed)),
+                        ("intr page: LEAF_EN_CLEAR applied", s.en_clear.load(Relaxed)),
+                        ("intr page: TOP_EN_SET applied", s.top_en_set.load(Relaxed)),
+                        ("intr page: TOP_EN_CLEAR applied", s.top_en_clear.load(Relaxed)),
+                        ("intr page: triggers applied", s.triggers.load(Relaxed)),
+                        ("intr page: MSIs for raises", s.msi_raise.load(Relaxed)),
+                        ("intr page: MSI re-arms (set store while pending)", s.msi_edge.load(Relaxed)),
+                        ("intr page: MSIs by the watchdog", s.msi_watchdog.load(Relaxed)),
+                    ]
+                }));
+            }
             bar0 = bar0.with_intr_page(page.clone());
             eprintln!(
                 "vfio-user-nvgpu: intr page: BAR0 [0x0, 0x1000) and the interrupt tree [{:#x}, {:#x}) offered as sparse mmap areas of region 0 from a memfd; the reactor applies the guest's stores (sleep bound {} ms, retrigger watchdog {}) ({}=1, docs/caraxes/intr-page.md)",
@@ -728,6 +762,21 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
             // Every display engine from now on keeps its status in the page; the one the
             // boot model already made takes it now.
             vfio_user_nvgpu::display::set_fe_page(fe.clone());
+            if profile::on() {
+                let f = fe.clone();
+                profile::register_source(Box::new(move || {
+                    use std::sync::atomic::Ordering::Relaxed;
+                    let s = &f.stats;
+                    vec![
+                        ("display page: scans with work", s.scans.load(Relaxed)),
+                        ("display page: event acks applied", s.evt_acks.load(Relaxed)),
+                        ("display page: enable stores applied", s.en_stores.load(Relaxed)),
+                        ("display page: CORE markers", s.markers.load(Relaxed)),
+                        ("display page: raises", s.raises.load(Relaxed)),
+                        ("display page: watchdog raises", s.watchdog.load(Relaxed)),
+                    ]
+                }));
+            }
             match bar0.boot_mut() {
                 Some(b) if b.ctrl.display.enabled => b.ctrl.display.engine.attach_page(fe.clone()),
                 _ => bail!(
@@ -942,6 +991,7 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
     let mut device = device.lock().unwrap_or_else(PoisonError::into_inner);
     // The client is gone: free the descriptors and the reservation before exiting.
     device.shutdown();
+    profile::dump_at_exit();
     let mut closed = None;
     if let Some(hm) = &host_mem {
         let (log, c) = match hm.lock() {

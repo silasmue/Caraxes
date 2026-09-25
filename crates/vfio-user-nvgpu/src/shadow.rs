@@ -225,8 +225,16 @@ pub struct RmCalls {
 
 impl RmCalls {
     fn add(&mut self, c: Call, t0: Instant) {
+        let dt = t0.elapsed();
         self.n[c as usize] += 1;
-        self.us[c as usize] += t0.elapsed().as_micros() as u64;
+        self.us[c as usize] += dt.as_micros() as u64;
+        crate::profile::record(
+            crate::profile::Key::Shadow(CALL_NAMES[c as usize]),
+            dt,
+            0,
+            None,
+            "",
+        );
     }
 
     pub fn count(&self, c: Call) -> u64 {

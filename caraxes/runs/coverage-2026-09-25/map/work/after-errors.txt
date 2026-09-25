@@ -1,0 +1,2 @@
+COV query ok 155 attributes, Leandro VFIO RTX 2070-1G at 0000:00:05.0, 727 of 823 MiB free, 4 blocks/SM
+# rc=0
