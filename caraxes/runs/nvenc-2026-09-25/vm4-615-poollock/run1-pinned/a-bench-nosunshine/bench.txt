@@ -1,0 +1,52 @@
+== vulkaninfo
+== vkmark
+ERROR:             VkInstanceCreateInfo::pApplicationInfo::apiVersion has value of 0 which is not permitted. If apiVersion is not 0, then it must be greater than or equal to the value of VK_API_VERSION_1_0 [VUID-VkApplicationInfo-apiVersion]
+Authorization required, but no authorization protocol specified
+=======================================================
+    vkmark 2017.08
+=======================================================
+    Vendor ID:      0x10DE
+    Device ID:      0x1F02
+    Device Name:    Leandro VFIO RTX 2070-3G
+    Driver Version: 2580660800
+    Device UUID:    5589416e20b1efc444ed60259e8e3409
+=======================================================
+[vertex] device-local=true: FPS: 44 FrameTime: 22.727 ms
+[vertex] device-local=false: FPS: 51 FrameTime: 19.608 ms
+[texture] anisotropy=0: FPS: 65 FrameTime: 15.385 ms
+[texture] anisotropy=16: FPS: 54 FrameTime: 18.519 ms
+[shading] shading=gouraud: FPS: 56 FrameTime: 17.857 ms
+[shading] shading=blinn-phong-inf: FPS: 64 FrameTime: 15.625 ms
+[shading] shading=phong: FPS: 66 FrameTime: 15.152 ms
+[shading] shading=cel: FPS: 71 FrameTime: 14.085 ms
+[effect2d] kernel=edge: FPS: 69 FrameTime: 14.493 ms
+[effect2d] kernel=blur: FPS: 66 FrameTime: 15.152 ms
+[desktop] <default>: FPS: 70 FrameTime: 14.286 ms
+[cube] <default>: FPS: 65 FrameTime: 15.385 ms
+[clear] <default>: FPS: 68 FrameTime: 14.706 ms
+=======================================================
+                                   vkmark Score: 62
+=======================================================
+rc=0
+== glmark2
+=======================================================
+    glmark2 2023.01
+=======================================================
+    OpenGL Information
+    GL_VENDOR:      NVIDIA Corporation
+    GL_RENDERER:    Leandro VFIO RTX 2070-3G/PCIe/SSE2
+    GL_VERSION:     OpenGL ES 3.2 NVIDIA 615.71.09
+    Surface Config: buf=32 r=8 g=8 b=8 a=8 depth=24 stencil=0 samples=0
+    Surface Size:   800x600 windowed
+=======================================================
+[build] <default>: FPS: 23 FrameTime: 45.183 ms
+[texture] <default>: FPS: 67 FrameTime: 15.041 ms
+[shading] <default>: FPS: 81 FrameTime: 12.416 ms
+[bump] <default>: FPS: 59 FrameTime: 16.981 ms
+[effect2d] <default>: FPS: 72 FrameTime: 14.009 ms
+[refract] <default>: FPS: 40 FrameTime: 25.137 ms
+[terrain] <default>: FPS: 37 FrameTime: 27.731 ms
+=======================================================
+                                  glmark2 Score: 53 
+=======================================================
+rc=0

@@ -1,0 +1,56 @@
+[  155.737059] caraxes-vm4-615 steam[2722]: Running query: 1 - GpuTopology
+[  156.247615] caraxes-vm4-615 steam[2722]: Response: gpu_topology {
+[  156.247615] caraxes-vm4-615 steam[2722]:   gpus {
+[  156.247615] caraxes-vm4-615 steam[2722]:     driver_id: k_EGpuDriverId_NvidiaProprietary
+[  156.247615] caraxes-vm4-615 steam[2722]:   gpus {
+[  156.248460] caraxes-vm4-615 steam[2722]:     name: "llvmpipe (LLVM 20.1.2, 256 bits)"
+[  156.248460] caraxes-vm4-615 steam[2722]:     driver_id: k_EGpuDriverId_MesaLLVMPipe
+[  156.248460] caraxes-vm4-615 steam[2722]:   default_gpu_id: 1
+[ 1363.324073] caraxes-vm4-615 steam[2722]: ERROR: ld.so: object '/home/leandro/.steam/debian-installation/ubuntu12_32/gameoverlayrenderer.so' from LD_PRELOAD cannot be preloaded (wrong ELF class: ELFCLASS32): ignored.
+[ 1363.362856] caraxes-vm4-615 steam[2722]: ERROR: ld.so: object '/home/leandro/.steam/debian-installation/ubuntu12_32/gameoverlayrenderer.so' from LD_PRELOAD cannot be preloaded (wrong ELF class: ELFCLASS32): ignored.
+[ 1363.401053] caraxes-vm4-615 steam[2722]: ERROR: ld.so: object '/home/leandro/.steam/debian-installation/ubuntu12_64/gameoverlayrenderer.so' from LD_PRELOAD cannot be preloaded (wrong ELF class: ELFCLASS64): ignored.
+[ 1363.405822] caraxes-vm4-615 steam[2722]: ERROR: ld.so: object '/home/leandro/.steam/debian-installation/ubuntu12_32/gameoverlayrenderer.so' from LD_PRELOAD cannot be preloaded (wrong ELF class: ELFCLASS32): ignored.
+[ 1363.443843] caraxes-vm4-615 steam[2722]: ERROR: ld.so: object '/home/leandro/.steam/debian-installation/ubuntu12_32/gameoverlayrenderer.so' from LD_PRELOAD cannot be preloaded (wrong ELF class: ELFCLASS32): ignored.
+[ 1371.236190] caraxes-vm4-615 steam[2722]: [0925/183430.921892:ERROR:gpu_process_transport_factory.cc(1026)] Lost UI shared context.
+==crash
+[ 1363.356519] caraxes-vm4-615 steam[2722]: Game Recording - would start recording game 750920, but recording for this game is disabled
+[ 1363.357577] caraxes-vm4-615 steam[2722]: Adding process 10551 for gameID 750920
+[ 1363.362856] caraxes-vm4-615 steam[2722]: ERROR: ld.so: object '/home/leandro/.steam/debian-installation/ubuntu12_32/gameoverlayrenderer.so' from LD_PRELOAD cannot be preloaded (wrong ELF class: ELFCLASS32): ignored.
+[ 1363.401053] caraxes-vm4-615 steam[2722]: ERROR: ld.so: object '/home/leandro/.steam/debian-installation/ubuntu12_64/gameoverlayrenderer.so' from LD_PRELOAD cannot be preloaded (wrong ELF class: ELFCLASS64): ignored.
+[ 1363.405822] caraxes-vm4-615 steam[2722]: ERROR: ld.so: object '/home/leandro/.steam/debian-installation/ubuntu12_32/gameoverlayrenderer.so' from LD_PRELOAD cannot be preloaded (wrong ELF class: ELFCLASS32): ignored.
+[ 1363.443843] caraxes-vm4-615 steam[2722]: ERROR: ld.so: object '/home/leandro/.steam/debian-installation/ubuntu12_32/gameoverlayrenderer.so' from LD_PRELOAD cannot be preloaded (wrong ELF class: ELFCLASS32): ignored.
+[ 1363.481578] caraxes-vm4-615 steam[2722]: Adding process 10552 for gameID 750920
+[ 1363.484170] caraxes-vm4-615 steam[2722]: Adding process 10559 for gameID 750920
+[ 1363.577686] caraxes-vm4-615 steam[2722]: Adding process 10560 for gameID 750920
+[ 1367.310415] caraxes-vm4-615 steam[2722]: pid 10652 != 10646, skipping destruction (fork without exec?)
+[ 1367.316831] caraxes-vm4-615 steam[2722]: Adding process 10646 for gameID 750920
+[ 1367.634730] caraxes-vm4-615 steam[2722]: Adding process 10673 for gameID 750920
+[ 1367.664540] caraxes-vm4-615 steam[2722]: pid 10680 != 10679, skipping destruction (fork without exec?)
+[ 1367.668448] caraxes-vm4-615 steam[2722]: pid 10683 != 10679, skipping destruction (fork without exec?)
+[ 1367.715132] caraxes-vm4-615 steam[2722]: pid 10687 != 10679, skipping destruction (fork without exec?)
+[ 1367.716465] caraxes-vm4-615 steam[2722]: pid 10686 != 10679, skipping destruction (fork without exec?)
+[ 1367.742833] caraxes-vm4-615 steam[2722]: Adding process 10679 for gameID 750920
+[ 1367.794110] caraxes-vm4-615 steam[2722]: Adding process 10689 for gameID 750920
+[ 1367.845240] caraxes-vm4-615 steam[2722]: Adding process 10690 for gameID 750920
+[ 1367.845650] caraxes-vm4-615 steam[2722]: Adding process 10691 for gameID 750920
+[ 1367.940572] caraxes-vm4-615 steam[2722]: ShadowOfTheTombRaider: crash reporter initialised with path "/home/leandro/.local/share/feral-interactive/Shadow of the Tomb Raider/crashes"
+[ 1368.000738] caraxes-vm4-615 steam[2722]: Adding process 10692 for gameID 750920
+[ 1370.314023] caraxes-vm4-615 steam[2722]: SDL2 initialised [built against 2.0.10, running with 2.0.10]
+[ 1370.317352] caraxes-vm4-615 steam[2722]: Setting breakpad minidump AppID = 750920
+[ 1370.319521] caraxes-vm4-615 steam[2722]: Steam_SetMinidumpSteamID:  Caching Steam ID:  76561198098363212 [API loaded no]
+[ 1371.236190] caraxes-vm4-615 steam[2722]: [0925/183430.921892:ERROR:gpu_process_transport_factory.cc(1026)] Lost UI shared context.
+[ 1386.232621] caraxes-vm4-615 steam[2722]: Failed to create Vulkan device: -4
+[ 1386.322702] caraxes-vm4-615 steam[2722]: ShadowOfTheTombRaider: dumped to "/home/leandro/.local/share/feral-interactive/Shadow of the Tomb Raider/crashes/384a22b4-5e6a-9250-5d8c561e-4b913f94.dmp"
+[ 1386.322702] caraxes-vm4-615 steam[2722]: Warning: Previous run didn't quit gracefully, attempting to run crash reporter.
+[ 1386.323211] caraxes-vm4-615 steam[2722]: ShadowOfTheTombRaider: crash reporter "/games/SteamLibrary/steamapps/common/Shadow of the Tomb Raider/bin/feral_linux_crash_reporter" launching
+[ 1386.421342] caraxes-vm4-615 steam[2722]: Adding process 10824 for gameID 750920
+[ 1386.472346] caraxes-vm4-615 steam[2722]: Adding process 10825 for gameID 750920
+[ 1386.472850] caraxes-vm4-615 steam[2722]: Adding process 10826 for gameID 750920
+[ 1386.489169] caraxes-vm4-615 steam[2722]: Game crashed with signal 6
+[ 1386.489169] caraxes-vm4-615 steam[2722]: Failed to create Vulkan device: -4
+[ 1386.489169] caraxes-vm4-615 steam[2722]: You may be able to relaunch the game to send the crash log automatically.
+[ 1386.489169] caraxes-vm4-615 steam[2722]: You can also contact support@feralinteractive.com directly with details of the crash, Steam System Info, and the dump file:
+[ 1386.489169] caraxes-vm4-615 steam[2722]: /home/leandro/.local/share/feral-interactive/Shadow of the Tomb Raider/crashes/384a22b4-5e6a-9250-5d8c561e-4b913f94.dmp
+[ 1386.489889] caraxes-vm4-615 steam[2722]: pid 10831 != 10692, skipping destruction (fork without exec?)
+[ 1386.591605] caraxes-vm4-615 steam[2722]: Adding process 10827 for gameID 750920
+[ 1386.591910] caraxes-vm4-615 steam[2722]: Adding process 10832 for gameID 750920

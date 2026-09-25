@@ -1,0 +1,11 @@
+trapped_bar0_writes=439822 slow=667 pct=.151
+n=667 p50=2840 p90=6071 p99=19146 max=64712 us; sum 2.49 s
+dominant part: {'sync': 428, 'moves': 199, 'resync': 36, 'barrier': 3, 'decide': 1}
+  0x696000: 405 polls, 1178 ms
+  0xb830a0: 192 polls, 930 ms
+  0x110c00: 39 polls, 263 ms
+  0x70010: 14 polls, 43 ms
+  0xb80f00: 9 polls, 30 ms
+  0x110c84: 3 polls, 28 ms
+  0xb830b0: 3 polls, 12 ms
+  0xbb0090: 2 polls, 9 ms

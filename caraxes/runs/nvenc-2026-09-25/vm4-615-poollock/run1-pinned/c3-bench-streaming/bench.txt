@@ -1,0 +1,23 @@
+== vulkaninfo
+== vkmark
+ERROR:             VkInstanceCreateInfo::pApplicationInfo::apiVersion has value of 0 which is not permitted. If apiVersion is not 0, then it must be greater than or equal to the value of VK_API_VERSION_1_0 [VUID-VkApplicationInfo-apiVersion]
+Authorization required, but no authorization protocol specified
+Error: vk::PhysicalDevice::createDevice: ErrorDeviceLost
+rc=1
+== glmark2
+=======================================================
+    glmark2 2023.01
+=======================================================
+    OpenGL Information
+    GL_VENDOR:      NVIDIA Corporation
+    GL_RENDERER:    Leandro VFIO RTX 2070-3G/PCIe/SSE2
+    GL_VERSION:     OpenGL ES 3.2 NVIDIA 615.71.09
+    Surface Config: buf=32 r=8 g=8 b=8 a=8 depth=24 stencil=0 samples=0
+    Surface Size:   800x600 windowed
+=======================================================
+[build] <default>: FPS: 1 FrameTime: 44774.130 ms
+[texture] <default>: FPS: 0 FrameTime: inf ms
+=======================================================
+                                  glmark2 Score: 0 
+=======================================================
+rc=124

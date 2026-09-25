@@ -1,0 +1,3 @@
+sunshine pid 6451, listening on 47989 (web UI 47990)
+[2026-09-25 18:21:30.288]: Info: Found H.264 encoder: h264_nvenc [nvenc]
+[2026-09-25 18:21:23.050]: Info: [wayland] Found monitor: Cyrix Corporation 24"

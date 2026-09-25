@@ -1,0 +1,33 @@
+==lat
+[2026-09-25 18:26:44.114]: Debug: Frame processing latency (min/max/avg): 23.00ms/159.70ms/57.38ms
+[2026-09-25 18:27:04.161]: Debug: Frame processing latency (min/max/avg): 24.30ms/153.40ms/54.54ms
+[2026-09-25 18:27:24.251]: Debug: Frame processing latency (min/max/avg): 31.20ms/149.20ms/75.84ms
+[2026-09-25 18:27:44.252]: Debug: Frame processing latency (min/max/avg): 46.20ms/230.90ms/96.45ms
+==top
+top - 18:27:50 up 16 min,  3 users,  load average: 3.62, 2.47, 1.45
+Tasks: 289 total,   3 running, 286 sleeping,   0 stopped,   0 zombie
+%Cpu(s):  5.4 us, 10.0 sy,  0.0 ni, 70.1 id,  0.0 wa,  0.0 hi,  0.9 si, 13.6 st 
+MiB Mem :   7940.0 total,   2836.6 free,   2363.2 used,   3150.6 buff/cache     
+MiB Swap:      0.0 total,      0.0 free,      0.0 used.   5576.8 avail Mem 
+
+    PID USER      PR  NI    VIRT    RES    SHR S  %CPU  %MEM     TIME+ COMMAND
+   6451 leandro   20   0 7580724 430076 335788 S  93.0   5.3   2:45.94 sunshine
+   3000 leandro   20   0 1922524 313324 197572 R  76.0   3.9   5:49.12 steamwe+
+   2046 leandro   20   0 4477532 422752 221204 R  49.0   5.2   7:31.82 gnome-s+
+   3185 leandro   20   0   47.1g 204500 120064 S  12.0   2.5   0:51.86 steamwe+
+   1059 leandro   20   0  115172  18028   9968 S   9.0   0.2   0:06.90 pipewir+
+   2759 leandro   20   0  438480 148604 115584 S   9.0   1.8   0:52.02 Xwayland
+   1054 leandro   20   0  114684  14200   8568 S   5.0   0.2   0:04.37 pipewire
+   3056 leandro   20   0   47.3g 539632 107340 S   4.0   6.6   0:31.81 steamwe+
+==vmstat
+procs -----------memory---------- ---swap-- -----io---- -system-- -------cpu-------
+ r  b   swpd   free   buff  cache   si   so    bi    bo   in   cs us sy id wa st gu
+ 3  0      0 2884396 105856 3132760    0    0  2927   655 5736    6  6  7 84  0  3  0
+ 3  0      0 2883708 105856 3133000    0    0     0   236 8964 8202  5 10 73  0 11  0
+ 4  0      0 2899252 105856 3124824    0    0     0    24 9564 9353  5 11 76  0  8  0
+ 2  0      0 2906588 105856 3124904    0    0     0     0 9508 9180  6 10 75  0 10  0
+ 5  1      0 2905888 105864 3124936    0    0     0   128 9683 9576  5  9 77  0  9  0
+==D
+==smi
+6451, sunshine, 188 MiB
+2004 MiB

@@ -1,0 +1,32 @@
+==lat
+[2026-09-25 18:25:44.044]: Debug: Frame processing latency (min/max/avg): 15.80ms/164.10ms/52.26ms
+[2026-09-25 18:26:04.059]: Debug: Frame processing latency (min/max/avg): 26.00ms/206.10ms/58.31ms
+==top
+top - 18:26:25 up 14 min,  3 users,  load average: 2.80, 2.10, 1.24
+Tasks: 291 total,   3 running, 288 sleeping,   0 stopped,   0 zombie
+%Cpu(s):  5.5 us,  9.2 sy,  0.0 ni, 81.3 id,  0.0 wa,  0.0 hi,  1.0 si,  3.0 st 
+MiB Mem :   7940.0 total,   2842.2 free,   2377.0 used,   3142.9 buff/cache     
+MiB Swap:      0.0 total,      0.0 free,      0.0 used.   5563.0 avail Mem 
+
+    PID USER      PR  NI    VIRT    RES    SHR S  %CPU  %MEM     TIME+ COMMAND
+   6451 leandro   20   0 7580724 429960 335788 S  95.0   5.3   1:29.82 sunshine
+   3000 leandro   20   0 1925708 315180 200016 R  48.0   3.9   5:03.30 steamwe+
+   2046 leandro   20   0 4477528 422912 221200 S  36.0   5.2   6:40.82 gnome-s+
+   3185 leandro   20   0   47.1g 212676 128488 S  11.0   2.6   0:45.50 steamwe+
+   2759 leandro   20   0  438192 148316 115580 S   5.0   1.8   0:44.06 Xwayland
+    354 root      19  -1  132928  91796  90264 S   3.0   1.1   0:09.10 systemd+
+   1059 leandro   20   0  115172  18028   9968 S   3.0   0.2   0:01.96 pipewir+
+    782 syslog    20   0  222572   6756   4656 S   2.0   0.1   0:08.61 rsyslogd
+==vmstat
+procs -----------memory---------- ---swap-- -----io---- -system-- -------cpu-------
+ r  b   swpd   free   buff  cache   si   so    bi    bo   in   cs us sy id wa st gu
+ 3  0      0 2900496 105316 3121620    0    0  3208   633 5331    5  6  7 84  0  3  0
+ 3  0      0 2901684 105316 3121872    0    0     0     0 10378 10225  6 10 79  0  5  0
+ 2  0      0 2910788 105316 3113696    0    0     0     8 9975 10059  5 10 82  0  3  0
+ 2  0      0 2919352 105316 3113880    0    0     0     0 9847 9867  5 10 81  0  4  0
+ 3  1      0 2921600 105316 3114068    0    0     0 20568 9650 10012  5  9 81  0  5  0
+==D
+   1690 D    -                        nvidia-modeset/kthread_q
+==smi
+6451, sunshine, 188 MiB
+1486 MiB
