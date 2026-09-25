@@ -801,6 +801,7 @@ impl Device {
             if let Some(st) = b.fb.vram_stats() {
                 c.vram_windows = st.held;
                 c.vram_failed = st.failed;
+                c.bar1_refused = st.bar1_refused;
             }
             c.walk_caches = b.fb.walk_caches();
         }

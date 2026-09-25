@@ -442,12 +442,15 @@ guest memory") does not hold for 615: the head is a register there.
 
 ### Host resources (2026-09-25)
 
-Left open by [host-resources.md](host-resources.md) (§6 there):
+Left open by [host-resources.md](host-resources.md) (§7 there):
 - RC the guest channel for every refused shadow build, not only for memory refusals.
 - A guest-visible error instead of all-ones reads when the VRAM store has no BAR1 window.
 - Free a TSG made for a channel whose build failed, before the guest frees it.
 - A per-device budget of host VRAM outside the reservation (the floor is host-wide).
 - Attribute the 270 MiB creep of the 2026-09-25 game session with a soak run.
+- The dynamic BAR1 gate (host-resources.md §6) has not run on the GPU. Also open: a guest
+  error path instead of all-ones reads when the window budget is refused, and a sub-second
+  BAR1 sampler (the 1 Hz watch misses transients).
 
 ## 5. ReBAR
 

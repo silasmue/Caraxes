@@ -14,7 +14,8 @@
 //! `host_objects` and its groups (`vas`, `virtual`, `tsg`, `channel`, `engine`,
 //! `guest_page`, `event`, `other`: every RM object the device holds), `gathers`,
 //! `shadow_vas`/`ce_vas`/`tsgs`/`channels` (the mirror's own maps), `vram_windows`/
-//! `vram_failed` (the FB store's BAR1 windows), `walk_caches` (cached page-table walks),
+//! `vram_failed` (the FB store's BAR1 windows), `bar1_refused` (windows the host BAR1 floor
+//! refused), `walk_caches` (cached page-table walks),
 //! `floor_refused`/`no_memory` (hostfloor.rs).
 
 use std::collections::BTreeMap;
@@ -66,6 +67,8 @@ pub struct DeviceCounts {
     pub channels: usize,
     pub vram_windows: u64,
     pub vram_failed: u64,
+    /// Window maps the host BAR1 floor refused (hostfloor.rs).
+    pub bar1_refused: u64,
     pub walk_caches: usize,
 }
 
@@ -134,8 +137,8 @@ pub fn line(
     }
     if let Some(d) = dev {
         s.push_str(&format!(
-            " shadow_vas={} ce_vas={} tsgs={} channels={} vram_windows={} vram_failed={} walk_caches={}",
-            d.shadow_vas, d.ce_vas, d.tsgs, d.channels, d.vram_windows, d.vram_failed, d.walk_caches
+            " shadow_vas={} ce_vas={} tsgs={} channels={} vram_windows={} vram_failed={} bar1_refused={} walk_caches={}",
+            d.shadow_vas, d.ce_vas, d.tsgs, d.channels, d.vram_windows, d.vram_failed, d.bar1_refused, d.walk_caches
         ));
     }
     s
@@ -183,7 +186,7 @@ mod tests {
         );
         assert!(l.starts_with("soak 60s: rss_kib=123 vram_used_mib=7761 vram_free_mib=431 bar1_used_mib=216"), "{l}");
         assert!(l.contains(" host_objects=5 vas=2 virtual=0 tsg=0 channel=3 "), "{l}");
-        for k in ["foll_pin=", "walk_caches=", "vram_failed=", "floor_refused="] {
+        for k in ["foll_pin=", "walk_caches=", "vram_failed=", "floor_refused=", "bar1_refused=", "bar1_free_mib="] {
             assert_eq!(l.matches(k).count(), 1, "{k} in {l}");
         }
         assert_eq!(parse_rss("Name:\tx\nVmRSS:\t  4242 kB\n"), Some(4242));

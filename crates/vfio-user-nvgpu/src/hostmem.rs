@@ -248,12 +248,54 @@ pub struct ReservationMapper {
     gpu: NvDevice,
     root: u32,
     device: u32,
+    subdevice: u32,
     handle: u32,
+    /// The host BAR1 floor (hostfloor.rs `HostGuard::bar1_from_env`): every window is
+    /// admitted against the host's free BAR1 first.
+    bar1: crate::hostfloor::HostGuard,
 }
 
 impl ReservationMapper {
+    /// A BAR1 window of `len` bytes at reservation offset `offset`, admitted by the host
+    /// BAR1 floor first (`NV_ERR_NO_MEMORY` when refused, no RM call).
     pub fn map(&self, offset: u64, len: usize) -> Result<Window, Status> {
-        map_window(&self.ctl, &self.gpu, self.root, self.device, self.handle, offset, len)
+        self.bar1
+            .admit("BAR1 window", len as u64, Instant::now(), || self.bar1_free())?;
+        let r = map_window(&self.ctl, &self.gpu, self.root, self.device, self.handle, offset, len);
+        if let Err(st) = r {
+            self.bar1.note_status("BAR1 window", st, Instant::now());
+            self.bar1.credit(len as u64);
+        }
+        r
+    }
+
+    /// A window of `len` bytes was unmapped: its BAR1 is free again.
+    pub fn released(&self, len: usize) {
+        self.bar1.credit(len as u64);
+    }
+
+    /// The host BAR1 guard's counters.
+    pub fn bar1_guard(&self) -> &crate::hostfloor::HostGuard {
+        &self.bar1
+    }
+
+    /// The host's free BAR1 in bytes: `FB_GET_INFO_V2` `BAR1_AVAIL_SIZE` (read-only, one
+    /// control; the figure nvidia-smi shows as BAR1 free).
+    fn bar1_free(&self) -> Option<u64> {
+        let mut p = sys::NV2080_CTRL_FB_GET_INFO_V2_PARAMS::default();
+        p.fbInfoListSize = 1;
+        p.fbInfoList[0].index = FB_INFO_BAR1_AVAIL_SIZE;
+        let mut c = sys::NVOS54_PARAMETERS::default();
+        c.hClient = self.root;
+        c.hObject = self.subdevice;
+        c.cmd = v::CMD_FB_GET_INFO_V2;
+        c.params = &mut p as *mut _ as usize as sys::NvP64;
+        c.paramsSize = std::mem::size_of::<sys::NV2080_CTRL_FB_GET_INFO_V2_PARAMS>() as u32;
+        // SAFETY: NVOS54 is the escape ABI; `p` is this control's typed parameter block.
+        match unsafe { self.ctl.ioctl_raw(sys::NV_ESC_RM_CONTROL, &mut c) } {
+            Ok(()) if c.status as u32 == sys::NV_OK => Some(p.fbInfoList[0].data as u64 * KIB),
+            _ => None,
+        }
     }
 }
 
@@ -868,7 +910,7 @@ impl HostMemory {
     /// Admit one host allocation or map outside the reservation (hostfloor.rs): the
     /// host's free VRAM, cached for a short TTL, against the floor.
     pub fn admit(&self, what: &str) -> Result<(), Status> {
-        self.guard.admit(what, Instant::now(), || self.heap_free())
+        self.guard.admit(what, 0, Instant::now(), || self.heap_free())
     }
 
     /// The host's `HEAP_FREE` in bytes (read-only `FB_GET_INFO_V2`), `None` when the
@@ -1287,7 +1329,9 @@ impl HostMemory {
             gpu: self._gpu.try_clone().map_err(|_| 0xFFFF_FFFFu32)?,
             root: self.rm.root(),
             device: self.device,
+            subdevice: self.subdevice,
             handle: r.handle,
+            bar1: crate::hostfloor::HostGuard::bar1_from_env(),
         })
     }
 
