@@ -648,3 +648,79 @@ streaming:
 - The mouse is usable, and Sunshine's frame processing latency is back near 16 ms.
 - The pool summary shows `refused` and `pending` as before, and no new `page-table hazard`
   without an eviction.
+
+## 12. The window traffic of the poll (2026-09-25)
+
+Record: vm4-615 running the §11 build 0c54a465 (SotTR over Moonlight, NVENC), trace seconds 145
+to 545. Copies: `session-615-20260925-183951/` in the main tree.
+
+**What still held the lock.**
+- 922 polls over 2 ms of 153023 trapped BAR0 writes (0.6 %; before §11: 3 %). Held p50 3.5 ms,
+  p90 5.8 ms, p99 13.2 ms, max 25.1 ms.
+- By register:
+  - GSP `QUEUE_HEAD` 0x110c00 and `MSGQ_TAIL` 0x110c84: 693 polls, 2.56 s. The replica
+    merge: 5 to 10 replicas, about 370 us per replica.
+  - MMU invalidate PDB 0xb830a0: 186 polls, 0.86 s. Moves (p50 1.8 ms, about 1.7 ms per page for
+    single moves, 29 us per page in a 128-page batch), unit walks (0.4 to 1.3 ms per unit)
+    and `refs` (0.2 to 2.4 ms).
+  - Display kick 0x696000: 34 polls. The merge again.
+- Why a single page costs milliseconds: every access of the device's FB goes through two LRU
+  BAR1 windows of 32 MiB (fb.rs `VramStore`). A move touches the pool and the home. A merge
+  touches the pool page and the home page. A unit walk touches the table pages. Three regions
+  on two windows mean a window map (host RM calls, about 2.5 ms) on most single operations. A
+  batch stays in one pair of regions, so its cost is the uncached read.
+
+**What changed.**
+- **The pool through its own mapping.** The device mmaps the pool's dma-buf
+  (`Bar1Export::map_self`). `nv_dma_buf_mmap` maps the BAR1 range the export already holds, so
+  no host BAR1 is added. The VRAM store serves that range from it for good (`pin_window`), and
+  it never maps or evicts an LRU window. Both windows are left to the homes and the tables.
+  `CARAXES_BAR1_POOL_PIN=0` turns this off. If the mmap fails, the device logs it and uses the
+  windows, as before.
+- **Write-through copies of the pool's table pages** (`Bar1Pool::pt_raw`, the same idea as
+  ptcache.rs `raw`):
+  - a unit walk reads a table page from the FB once;
+  - a tracked write patches the copy (`note_write_data`);
+  - a write of unknown content drops it: a BAR2 memfd sync, a raw copy, a raw write
+    (`note_pages_unknown`, `note_raw_write`);
+  - a page no walk reads any more is dropped.
+- **Replica merges read the home only when it may have changed.** The area page (pinned) is
+  always read: guest writes there are invisible. The home is read when:
+  - it lives in the pool (an aliased page: guest area writes and GPU writes are invisible);
+  - a device-visible write hit it (`home_dirty`);
+  - the replica is released (the last merge);
+  - the sweep comes round, every 64 merges (`HOME_SWEEP`).
+
+  The sweep bounds any change the device did not see, such as a GPU write to a guest page
+  table, which the shadow's walk caches also assume away.
+- **No merge after the GSP queue pointers.** `QUEUE_HEAD(0)` is the command-queue doorbell,
+  and its handler merges before the RPC. `MSGQ_TAIL(0)` is the guest's read pointer and hands
+  the device nothing (`pool_merge_after`, `gsp_queue_registers`).
+
+**Expected hold (not measured on a GPU).**
+- GSP register polls: no merge, a few us. That removes about 75 % of the slow polls above.
+- A merge at a flush point: one uncached 4 KiB read per replica from the pinned mapping (about
+  30 us, the batch rate), no home read in the common case. 10 replicas: about 0.3 ms instead
+  of 3.4 ms.
+- A unit walk: no FB read for pages seen before, a few us. A new page table costs one 4 KiB
+  read.
+- A move: the home read through a window (a hit in most cases now) plus a direct write to the
+  pool page. Expected tens of us per page instead of 1.7 ms. A window miss on a home page
+  still costs about 2.5 ms.
+- Not changed: `refs` (the shadow worker wait and the leaf scan, 0.2 to 2.4 ms) and the
+  barrier. They run only for real moves. Running them outside the device lock would need the
+  lock released inside the poll, which the device's call structure does not allow.
+- New breakdown fields: `H home(s) read`, `N table page(s) read`. Counters:
+  `replica_home_reads`, `VramStats::pinned`.
+
+**Tests.**
+- `fb::tests::a_pinned_window_serves_its_range_without_the_lru_windows`.
+- `bar1pool::tests::unit_walks_read_table_pages_from_their_write_through_copies`.
+- `bar1pool::tests::a_replica_merge_reads_its_home_only_when_it_may_have_changed`.
+- `device::tests::the_pool_poll_merges_only_after_a_flush_point` (extended: 0x110c00, 0x110c84).
+
+**GPU check (not run here).**
+- `gpu.log` shows `the device maps the pool through its own dma-buf mapping`.
+- Host BAR1 is unchanged against 0c54a465 (`nvidia-smi -q -d MEMORY`).
+- Slow polls: the GSP registers are gone; each remaining one shows `N table page(s) read` and
+  `H home(s) read` near 0.

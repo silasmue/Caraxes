@@ -452,6 +452,9 @@ pub struct PoolStats {
     pub replica_to_home: u64,
     pub replica_to_area: u64,
     pub replica_conflicts: u64,
+    /// Replica merges that read the home page (the others found it unchanged: no
+    /// device-visible write since the last merge, docs/caraxes/bar1-pool.md §12).
+    pub replica_home_reads: u64,
     /// Pages moved into the pool while guest BAR2 maps them too (the BAR2 memfd holds
     /// them by guest address): the device's reads and writes and the memfd's write-back
     /// agree (bar2-memfd.md §8), but a guest CPU write through the area reaches the guest's
@@ -481,6 +484,10 @@ pub struct PollBreakdown {
     pub walk_us: u128,
     pub units_walked: usize,
     pub units_path_only: usize,
+    /// Table pages the walk had no copy of and read from the FB.
+    pub pages_read: usize,
+    /// Replica merges that read the home page.
+    pub homes_read: u64,
     /// The decision: area pages whose wanted mapping changed, plus the paced retries and
     /// the replicas.
     pub decide_us: u128,
@@ -503,14 +510,16 @@ impl std::fmt::Display for PollBreakdown {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "sync {} us ({} replica(s) merged{}, {} pooled table page(s) marked); walk {} us ({} unit(s) walked, {} path-only); decide {} us ({} candidate(s), {} op(s){}{}); userd {} us; refs {} us ({} page(s)); barrier {} us; moves {} us ({} page(s)); resync {} us; total {} us",
+            "sync {} us ({} replica(s) merged, {} home(s) read{}, {} pooled table page(s) marked); walk {} us ({} unit(s) walked, {} path-only, {} table page(s) read); decide {} us ({} candidate(s), {} op(s){}{}); userd {} us; refs {} us ({} page(s)); barrier {} us; moves {} us ({} page(s)); resync {} us; total {} us",
             self.sync_us,
             self.replicas_merged,
+            self.homes_read,
             if self.merge { "" } else { ", merge skipped: no flush point" },
             self.tables_marked,
             self.walk_us,
             self.units_walked,
             self.units_path_only,
+            self.pages_read,
             self.decide_us,
             self.candidates,
             self.ops,
@@ -547,7 +556,29 @@ struct Replica {
     x: u64,
     /// The page as both sides held it after the last merge.
     snap: Vec<u8>,
+    /// The home changed through a device-visible write since the last merge
+    /// (`FakeFb::write`, a BAR2 memfd sync, a raw copy): the merge reads it.
+    home_dirty: bool,
+    /// Merges since the home was last read (the sweep reads it every [`HOME_SWEEP`]).
+    quiet: u32,
 }
+
+impl Replica {
+    fn new(x: u64, snap: Vec<u8>) -> Self {
+        Replica {
+            x,
+            snap,
+            home_dirty: false,
+            quiet: 0,
+        }
+    }
+}
+
+/// A replica whose home lives outside the pool and saw no device-visible write is merged
+/// without reading the home, except every this many merges (a sweep that bounds any
+/// change the device did not see, e.g. a GPU write to a guest page table; the shadow's
+/// walk caches assume none, ptcache.rs).
+pub const HOME_SWEEP: u32 = 64;
 
 /// The pool state inside [`FakeFb`].
 pub struct Bar1Pool {
@@ -576,6 +607,12 @@ pub struct Bar1Pool {
     recheck_replicas: bool,
     /// The last poll's breakdown (the device traces it when the poll was slow).
     pub last: PollBreakdown,
+    /// Write-through copies of the table pages the pool's walk reads (`page_units`):
+    /// patched by every tracked write, dropped on a write of unknown content. A unit
+    /// walk reads VRAM only for a page it has not seen (docs/caraxes/bar1-pool.md §12).
+    pt_raw: crate::fb::TablePageCache,
+    /// The home pages (4 KiB page numbers) of the replicas.
+    replica_homes: HashSet<u64>,
     /// `(g, key(target))` of every refusal logged.
     reported: HashSet<(u64, u64)>,
     reported_release: HashSet<(u64, u64)>,
@@ -609,6 +646,8 @@ impl Bar1Pool {
             pooled_tables: BTreeMap::new(),
             recheck_replicas: false,
             last: PollBreakdown::default(),
+            pt_raw: HashMap::new(),
+            replica_homes: HashSet::new(),
             reported: HashSet::new(),
             reported_release: HashSet::new(),
             rediff: BTreeSet::new(),
@@ -651,6 +690,63 @@ impl Bar1Pool {
                 }
             }
         }
+    }
+
+    /// A tracked write of `data` at FB address `pa` (`FakeFb::note_write`): the copies of
+    /// the pool's table pages are patched, a replica whose home it hit reads its home at
+    /// the next merge. Two emptiness checks when there is neither.
+    pub fn note_write_data(&mut self, pa: u64, data: &[u8]) {
+        if (self.pt_raw.is_empty() && self.replica_homes.is_empty()) || data.is_empty() {
+            return;
+        }
+        let end = pa + data.len() as u64;
+        for page in pa >> 12..=(end - 1) >> 12 {
+            if let Some(c) = self.pt_raw.get_mut(&page) {
+                let lo = pa.max(page << 12);
+                let hi = end.min((page + 1) << 12);
+                c[(lo - (page << 12)) as usize..(hi - (page << 12)) as usize]
+                    .copy_from_slice(&data[(lo - pa) as usize..(hi - pa) as usize]);
+            }
+            if self.replica_homes.contains(&page) {
+                self.mark_home(page);
+            }
+        }
+    }
+
+    /// Pages whose content changed without the bytes (a BAR2 memfd sync, a raw copy):
+    /// their copies go, a replica home among them is read at the next merge.
+    pub fn note_pages_unknown(&mut self, pages: &[u64]) {
+        if self.pt_raw.is_empty() && self.replica_homes.is_empty() {
+            return;
+        }
+        for p in pages {
+            self.pt_raw.remove(p);
+            if self.replica_homes.contains(p) {
+                self.mark_home(*p);
+            }
+        }
+    }
+
+    /// A raw store write of `len` bytes at `pa` (a pool page, past the remap).
+    pub fn note_raw_write(&mut self, pa: u64, len: usize) {
+        if self.pt_raw.is_empty() || len == 0 {
+            return;
+        }
+        for page in pa >> 12..=(pa + len as u64 - 1) >> 12 {
+            self.pt_raw.remove(&page);
+        }
+    }
+
+    fn mark_home(&mut self, page: u64) {
+        for r in self.replicas.values_mut() {
+            if r.x >> 12 == page {
+                r.home_dirty = true;
+            }
+        }
+    }
+
+    fn index_homes(&mut self) {
+        self.replica_homes = self.replicas.values().map(|r| r.x >> 12).collect();
     }
 
     /// A walk of the shadow started to read table pages `added` (4 KiB page numbers), or
@@ -1038,18 +1134,30 @@ fn admit_after(
 /// sides takes the area's value. With `last`, the replica is dropped after the merge.
 /// Returns whether anything was written.
 fn merge_replica(fb: &mut FakeFb, g: u64, last: bool) -> bool {
-    let (p, x, mut snap) = {
+    let (p, x, mut snap, read_home) = {
         let mut guard = fb.pool_mut();
         let Some(pool) = guard.as_mut() else { return false };
         let pool0 = pool.table.pool().0;
-        let Some(r) = pool.replicas.get_mut(&g) else { return false };
-        (pool0 + g, r.x, std::mem::take(&mut r.snap))
+        // A home in the pool (an aliased page) is written by the guest through its own
+        // area page and by the GPU without the device seeing it: always read.
+        let pooled = |x: u64| pool.table.is_remapped(x);
+        let Some(r) = pool.replicas.get(&g) else { return false };
+        let read_home = last || r.home_dirty || r.quiet + 1 >= HOME_SWEEP || pooled(r.x);
+        let r = pool.replicas.get_mut(&g).expect("just found");
+        (pool0 + g, r.x, std::mem::take(&mut r.snap), read_home)
     };
     let n = PAGE as usize;
     let mut area = vec![0u8; n];
-    let mut home = vec![0u8; n];
     fb.read_raw(p, &mut area);
-    fb.read(x, &mut home);
+    let home = if read_home {
+        let mut home = vec![0u8; n];
+        fb.read(x, &mut home);
+        home
+    } else {
+        // No device-visible write reached the home since the last merge: it holds the
+        // snapshot.
+        snap.clone()
+    };
     let (mut to_home, mut to_area) = (Vec::new(), Vec::new());
     let mut conflicts = 0u64;
     let push = |runs: &mut Vec<(usize, usize)>, o: usize| match runs.last_mut() {
@@ -1080,10 +1188,15 @@ fn merge_replica(fb: &mut FakeFb, g: u64, last: bool) -> bool {
     pool.stats.replica_to_home += u64::from(!to_home.is_empty());
     pool.stats.replica_to_area += u64::from(!to_area.is_empty());
     pool.stats.replica_conflicts += conflicts;
+    pool.stats.replica_home_reads += u64::from(read_home);
     if last {
         pool.replicas.remove(&g);
+        pool.index_homes();
     } else if let Some(r) = pool.replicas.get_mut(&g) {
         r.snap = snap;
+        // Its own writes home (just merged) are in the snapshot.
+        r.home_dirty = false;
+        r.quiet = if read_home { 0 } else { r.quiet + 1 };
     }
     !to_home.is_empty() || !to_area.is_empty()
 }
@@ -1109,7 +1222,8 @@ fn make_replica(fb: &mut FakeFb, g: u64, x: u64) {
     fb.write_raw(p, &b);
     let mut guard = fb.pool_mut();
     let pool = guard.as_mut().expect("on");
-    pool.replicas.insert(g, Replica { x, snap: b });
+    pool.replicas.insert(g, Replica::new(x, b));
+    pool.index_homes();
     pool.stats.replicas += 1;
 }
 
@@ -1145,11 +1259,13 @@ fn sync_inner(fb: &mut FakeFb, merge: bool, bd: &mut PollBreakdown) -> bool {
         let pooled: Vec<(u64, u64)> = p.pooled_tables.iter().map(|(g, x)| (*g, *x)).collect();
         (gs, pooled)
     };
+    let homes0 = fb.pool_mut().as_ref().map_or(0, |p| p.stats.replica_home_reads);
     let mut wrote = false;
     for g in &gs {
         wrote |= merge_replica(fb, *g, false);
     }
     bd.replicas_merged = gs.len();
+    bd.homes_read = fb.pool_mut().as_ref().map_or(0, |p| p.stats.replica_home_reads) - homes0;
     bd.tables_marked = pooled.len();
     if !pooled.is_empty() {
         let pages: Vec<u64> = pooled.iter().map(|(_, x)| x >> 12).collect();
@@ -1241,12 +1357,16 @@ pub fn poll_at(fb: &mut FakeFb, gpu: &mut dyn PoolGpu, merge: bool) -> bool {
     };
     // The walk reads through the FB (and so through the pool borrow): outside it.
     let tw = Instant::now();
+    // The copies of the table pages come out of the pool for the walk (the walk reads
+    // through the FB, which borrows the pool) and go back after it.
+    let mut cache = std::mem::take(&mut fb.pool_mut().as_mut().expect("on").pt_raw);
+    let cached = cache.len();
     let mut walked: Vec<(usize, crate::fb::AreaUnitWalk)> = full
         .iter()
-        .map(|&(u, n)| (u, fb.area_walk_unit_parts(root, u as u64 * UNIT, n)))
+        .map(|&(u, n)| (u, fb.area_walk_unit_parts(root, u as u64 * UNIT, n, Some(&mut cache))))
         .collect();
     for &(u, n) in &path_only {
-        let (dirs, pde) = fb.area_walk_path(root, u as u64 * UNIT);
+        let (dirs, pde) = fb.area_walk_path(root, u as u64 * UNIT, Some(&mut cache));
         let same = {
             let guard = fb.pool_mut();
             let s = &guard.as_ref().expect("on").units[u];
@@ -1256,9 +1376,10 @@ pub fn poll_at(fb: &mut FakeFb, gpu: &mut dyn PoolGpu, merge: bool) -> bool {
             bd.units_path_only += 1;
             continue;
         }
-        walked.push((u, fb.area_walk_unit_parts(root, u as u64 * UNIT, n)));
+        walked.push((u, fb.area_walk_unit_parts(root, u as u64 * UNIT, n, Some(&mut cache))));
     }
     bd.units_walked = walked.len();
+    bd.pages_read = cache.len().saturating_sub(cached);
     bd.walk_us = tw.elapsed().as_micros();
     let td = Instant::now();
     let (releases, installs, stale_replicas) = {
@@ -1278,6 +1399,10 @@ pub fn poll_at(fb: &mut FakeFb, gpu: &mut dyn PoolGpu, merge: bool) -> bool {
         for (u, w) in walked {
             p.set_unit(u, w, &mut cand);
         }
+        // Keep the copies of the pages the walk still reads.
+        p.pt_raw = cache;
+        let pu = &p.page_units;
+        p.pt_raw.retain(|pg, _| pu.contains_key(pg));
         if retry {
             cand.extend(p.pending.keys().copied());
             cand.extend(p.waiting.iter().copied());
@@ -2480,7 +2605,7 @@ mod tests {
     /// device's BAR1 windows is visited once, not once per replica.
     #[test]
     fn replicas_merge_in_home_order() {
-        let r = |x: u64| Replica { x, snap: Vec::new() };
+        let r = |x: u64| Replica::new(x, Vec::new());
         let m: BTreeMap<u64, Replica> = [
             (0x1000, r(0x9_0000_0000)),
             (0x2000, r(0x1_0000_0000)),
@@ -2600,6 +2725,83 @@ mod tests {
         assert!(poll_at(&mut fb, &mut NoGpu, true));
         assert_eq!(fb.read_u64(x + 16), Some(0xabcd));
         assert_eq!(last(&fb).replicas_merged, 1);
+    }
+
+    /// The pool's walk reads each table page from the FB once and keeps a write-through
+    /// copy: a tracked write patches it (the next walk sees the new PTE without a read), a
+    /// write of unknown content (a BAR2 memfd sync) drops it, and a page no walk reads
+    /// any more is dropped too (bar1-pool.md §12).
+    #[test]
+    fn unit_walks_read_table_pages_from_their_write_through_copies() {
+        let (mut fb, pt, pool0) = setup();
+        assert!(poll(&mut fb, &mut NoGpu));
+        let cached = |fb: &FakeFb| fb.pool_mut().as_ref().unwrap().pt_raw.len();
+        // Root, PD2, PD1, PD0 and unit 0's page table.
+        assert_eq!(cached(&fb), 5);
+        let x = BASE + 0x40_0000;
+        fb.write_u64(pt + 8 * 5, pte(x));
+        assert!(poll(&mut fb, &mut NoGpu));
+        assert_eq!(last(&fb).pages_read, 0, "patched copy, no FB read");
+        assert_eq!(fb.remap(x), pool0 + 0x5000);
+        // Unknown content: the copy goes and the next walk reads the page again.
+        fb.note_pages_changed(&[pt >> 12]);
+        assert_eq!(cached(&fb), 4);
+        assert!(poll(&mut fb, &mut NoGpu));
+        assert_eq!(last(&fb).pages_read, 1);
+        assert_eq!(fb.remap(x), pool0 + 0x5000);
+        // Unit 0 moves to another page table: the old one's copy goes.
+        let pt2 = BASE + 0xC000;
+        fb.write_u64(pt2 + 8 * 5, pte(x));
+        fb.write_u64(BASE + 0x3000 + 8, vid(pt2));
+        assert!(poll(&mut fb, &mut NoGpu));
+        assert_eq!(last(&fb).pages_read, 1);
+        let g = fb.pool_mut();
+        let p = g.as_ref().unwrap();
+        assert!(p.pt_raw.contains_key(&(pt2 >> 12)) && !p.pt_raw.contains_key(&(pt >> 12)));
+    }
+
+    /// A replica whose home is outside the pool reads its home only after a device-visible
+    /// write to it (and at the sweep); an aliased replica, whose home is a pool page,
+    /// always reads it (bar1-pool.md §12).
+    #[test]
+    fn a_replica_merge_reads_its_home_only_when_it_may_have_changed() {
+        let (mut fb, pt, pool0) = setup();
+        assert!(poll(&mut fb, &mut NoGpu));
+        let (root, cpt) = context_tree(&mut fb);
+        fb.write_u64(pt + 8 * 5, pte(cpt));
+        assert!(poll(&mut fb, &mut NoGpu));
+        assert_eq!(replicas(&fb), 1);
+        let reads = |fb: &FakeFb| stats(fb).replica_home_reads;
+        let r0 = reads(&fb);
+        // Nothing changed: the merge reads only the area page.
+        assert!(!sync_untracked(&mut fb));
+        assert_eq!(reads(&fb), r0);
+        // A guest write through the area still reaches the page and the walk.
+        let p = pool0 + 0x5000;
+        fb.write_raw(p + 8 * 4, &pte(BASE + 0x41_0000).to_le_bytes());
+        assert!(sync_untracked(&mut fb));
+        assert_eq!(reads(&fb), r0);
+        assert_eq!(fb.read_u64(cpt + 8 * 4), Some(pte(BASE + 0x41_0000)));
+        fb.walk_update(None, root, false, 1 << 20);
+        assert_eq!(leaf_at(&fb, root, 0x4000), Some(Target::Fb(BASE + 0x41_0000)));
+        // A device write of the home: read at the next merge, and copied to the area.
+        fb.write_u64(cpt + 8 * 6, pte(BASE + 0x42_0000));
+        assert!(sync_untracked(&mut fb));
+        assert_eq!(reads(&fb), r0 + 1);
+        let mut w = [0u8; 8];
+        fb.read_raw(p + 8 * 6, &mut w);
+        assert_eq!(u64::from_le_bytes(w), pte(BASE + 0x42_0000));
+        // A change the device did not see (written straight to the store) is picked up
+        // by the sweep at the latest.
+        let mut hits = 0;
+        fb.copy_page_raw(cpt, cpt); // a raw copy counts as unknown content
+        assert!(!sync_untracked(&mut fb));
+        assert_eq!(reads(&fb), r0 + 2);
+        for _ in 0..HOME_SWEEP {
+            sync_untracked(&mut fb);
+            hits += 1;
+        }
+        assert_eq!(reads(&fb), r0 + 3, "one sweep read in {hits} merges");
     }
 
     #[test]

@@ -170,6 +170,12 @@ pub trait FbStore: Send {
     }
     /// Drain any write-combining buffers to real VRAM (VRAM store only; no-op otherwise).
     fn flush(&self) {}
+    /// Keep `w` mapped for good and serve its range from it, outside the LRU windows
+    /// (the BAR1 pool's own dma-buf mapping, [`FakeFb::pin_store_window`]). False when the
+    /// store has no windows (the window is dropped).
+    fn pin_window(&mut self, _w: Box<dyn WindowBacking>) -> bool {
+        false
+    }
 }
 
 /// Sparse host RAM, zero until written (fb-model.md §4a).
@@ -297,6 +303,8 @@ pub struct VramStats {
     /// Window maps the host BAR1 floor refused (no RM call; hostfloor.rs).
     pub bar1_refused: u64,
     pub evictions: u64,
+    /// Accesses served by a pinned window (the BAR1 pool's dma-buf mapping), no LRU.
+    pub pinned: u64,
     pub reads: u64,
     pub writes: u64,
     pub bytes_read: u64,
@@ -320,6 +328,9 @@ pub struct VramStore {
     base: u64,
     end: u64,
     windows: RefCell<Vec<Slot>>,
+    /// Windows mapped for good (never evicted, not counted against the budget): the
+    /// BAR1 pool's dma-buf mapping (docs/caraxes/bar1-pool.md §12).
+    pinned: Vec<Box<dyn WindowBacking>>,
     tick: Cell<u64>,
     max_windows: usize,
     window_len: Cell<usize>,
@@ -460,6 +471,7 @@ impl VramStore {
             base,
             end,
             windows: RefCell::new(Vec::new()),
+            pinned: Vec::new(),
             tick: Cell::new(0),
             max_windows,
             window_len: Cell::new(window_len),
@@ -622,9 +634,28 @@ impl VramStore {
                 continue;
             }
             let off = a - self.base;
+            if let Some((i, w)) = self
+                .pinned
+                .iter()
+                .enumerate()
+                .find(|(_, w)| off >= w.offset() && off < w.offset() + w.len() as u64)
+            {
+                let n = ((w.offset() + w.len() as u64 - off).min((len - done) as u64)) as usize;
+                self.stats.borrow_mut().pinned += 1;
+                f(Piece::Pinned(i), a, n, done);
+                done += n;
+                continue;
+            }
             let wlen = self.window_len.get() as u64;
             let in_win = (wlen - (off & (wlen - 1))).min((len - done) as u64) as usize;
             let in_win = in_win.min((self.end - a) as usize);
+            // A window piece never runs into a pinned range (served by the pinned window).
+            let in_win = self
+                .pinned
+                .iter()
+                .filter(|w| w.offset() > off)
+                .map(|w| (w.offset() - off) as usize)
+                .fold(in_win, usize::min);
             let piece = match self.window_for(off) {
                 Some(i) => Piece::Window(i),
                 None => Piece::Unmapped,
@@ -640,6 +671,8 @@ impl VramStore {
 enum Piece {
     /// Inside the reservation, in the window at this index.
     Window(usize),
+    /// Inside the reservation, in the pinned window at this index.
+    Pinned(usize),
     /// Inside the reservation, but the host granted no window.
     Unmapped,
     /// Outside the reservation: host RAM.
@@ -658,6 +691,7 @@ impl FbStore for VramStore {
             Piece::Window(i) => self.windows.borrow()[i]
                 .win
                 .read(a - self.base, &mut buf[done..done + n]),
+            Piece::Pinned(i) => self.pinned[i].read(a - self.base, &mut buf[done..done + n]),
             Piece::Outside => self.outside.borrow().read(a, &mut buf[done..done + n]),
             Piece::Unmapped => buf[done..done + n].fill(0xFF),
         });
@@ -674,6 +708,7 @@ impl FbStore for VramStore {
             Piece::Window(i) => self.windows.borrow()[i]
                 .win
                 .write(a - self.base, &data[done..done + n]),
+            Piece::Pinned(i) => self.pinned[i].write(a - self.base, &data[done..done + n]),
             Piece::Outside => self.outside.borrow_mut().write(a, &data[done..done + n]),
             Piece::Unmapped => {}
         });
@@ -691,6 +726,14 @@ impl FbStore for VramStore {
         for slot in self.windows.borrow().iter() {
             slot.win.flush();
         }
+        for w in &self.pinned {
+            w.flush();
+        }
+    }
+
+    fn pin_window(&mut self, w: Box<dyn WindowBacking>) -> bool {
+        self.pinned.push(w);
+        true
     }
 }
 
@@ -949,6 +992,7 @@ impl FakeFb {
         }
         if let Some(p) = self.pool.borrow_mut().as_mut() {
             p.note_table_write(pa >> 12, last);
+            p.note_write_data(pa, data);
         }
         {
             let wp = self.watched_pages.borrow();
@@ -1028,6 +1072,7 @@ impl FakeFb {
             for &page in pages {
                 p.note_table_write(page, page);
             }
+            p.note_pages_unknown(pages);
         }
         {
             let wp = self.watched_pages.borrow();
@@ -1157,6 +1202,13 @@ impl FakeFb {
     /// guest wrote (before a host doorbell or TLB invalidate).
     pub fn flush(&self) {
         self.store.flush();
+    }
+
+    /// Serve the range of `w` (reservation offsets) from `w` for good, outside the VRAM
+    /// store's LRU windows: the BAR1 pool's dma-buf mapping (docs/caraxes/bar1-pool.md
+    /// §12). False when the store is not the VRAM store.
+    pub fn pin_store_window(&mut self, w: Box<dyn WindowBacking>) -> bool {
+        self.store.pin_window(w)
     }
 
     /// The fake FB of `layout`: its address space, counting accesses outside the
@@ -1745,6 +1797,10 @@ impl FakeFb {
         let mut b = vec![0u8; PAGE as usize];
         self.store.read(from, &mut b);
         self.store.write(to, &b);
+        // Bytes written past `note_write`: the pool's copies of `to` are stale.
+        if let Some(p) = self.pool.borrow_mut().as_mut() {
+            p.note_pages_unknown(&[to >> 12]);
+        }
     }
 
     /// Drop the watched copies of the dwords on page `page` (its bytes moved).
@@ -1767,6 +1823,9 @@ impl FakeFb {
     /// write tracking (a pool page the guest reads through the area).
     pub(crate) fn write_raw(&mut self, pa: u64, data: &[u8]) {
         self.store.write(pa, data);
+        if let Some(p) = self.pool.borrow_mut().as_mut() {
+            p.note_raw_write(pa, data.len());
+        }
     }
 
     /// Design G's fail-closed rule for a table page the passthrough area reaches (a write
@@ -1820,6 +1879,47 @@ impl FakeFb {
         (out, pages)
     }
 
+    /// The copy of FB table page `page` in `cache`, read whole from the FB first if it
+    /// is not there.
+    fn cached_page<'c>(&self, cache: &'c mut TablePageCache, page: u64) -> &'c [u8; 4096] {
+        cache.entry(page).or_insert_with(|| {
+            let mut b = Box::new([0u8; 4096]);
+            self.read(page << 12, &mut b[..]);
+            b
+        })
+    }
+
+    /// One qword at `off` of table `t` (FB only; the BAR1 tables never live in sysmem
+    /// here), from `cache` when given.
+    fn cached_u64(&self, cache: &mut Option<&mut TablePageCache>, t: Target, off: u64) -> Option<u64> {
+        let Target::Fb(pa) = t else { return None };
+        let a = pa + off;
+        match cache {
+            None => self.read_u64(a),
+            Some(c) => {
+                let p = self.cached_page(c, a >> 12);
+                let o = (a & 0xFFF) as usize;
+                (o <= 4088).then(|| u64::from_le_bytes(p[o..o + 8].try_into().unwrap()))
+            }
+        }
+    }
+
+    /// `n` qwords of table `t` from its start (FB only), from `cache` when given.
+    fn cached_block(&self, cache: &mut Option<&mut TablePageCache>, t: Target, n: usize) -> Option<Vec<u64>> {
+        match (cache, t) {
+            (Some(c), Target::Fb(pa)) if pa & 0xFFF == 0 && n <= 512 => {
+                let p = self.cached_page(c, pa >> 12);
+                Some(
+                    p[..n * 8]
+                        .chunks_exact(8)
+                        .map(|c| u64::from_le_bytes(c.try_into().unwrap()))
+                        .collect(),
+                )
+            }
+            (_, t) => self.table_block(None, t, n),
+        }
+    }
+
     /// The area walk of one 2 MiB unit at BAR1 `va` (2 MiB aligned), its first `n` 4 KiB
     /// pages: every mapped page `(guest BAR1 offset, page target)` and the FB table pages
     /// read (the root included).
@@ -1829,7 +1929,7 @@ impl FakeFb {
         va: u64,
         n: usize,
     ) -> (Vec<(u64, Target)>, Vec<u64>) {
-        let w = self.area_walk_unit_parts(root, va, n);
+        let w = self.area_walk_unit_parts(root, va, n, None);
         let mut pages = w.dirs;
         pages.extend(w.leaf_tables);
         (w.mapped, pages)
@@ -1840,28 +1940,33 @@ impl FakeFb {
     /// `None` where the path ends above it. Five qword reads at most: the BAR1 pool
     /// compares this with the last walk when only a directory page of the unit was
     /// written (bar1pool.rs `poll`), and skips the page-table reads when it is unchanged.
-    pub(crate) fn area_walk_path(&self, root: u64, va: u64) -> (Vec<u64>, Option<(u64, u64)>) {
+    pub(crate) fn area_walk_path(
+        &self,
+        root: u64,
+        va: u64,
+        mut cache: Option<&mut TablePageCache>,
+    ) -> (Vec<u64>, Option<(u64, u64)>) {
         let mut pages = vec![root >> 12];
         let note = |pages: &mut Vec<u64>, t: Target| {
             if let Target::Fb(pa) = t {
                 pages.push(pa >> 12);
             }
         };
-        let Some(e3) = self.read_u64(root + 8 * ((va >> 47) & 3)) else {
+        let Some(e3) = self.cached_u64(&mut cache, Target::Fb(root), 8 * ((va >> 47) & 3)) else {
             return (pages, None);
         };
         let Some(pd2) = Self::next_table(e3) else {
             return (pages, None);
         };
         note(&mut pages, pd2);
-        let Some(e2) = self.table_u64(None, pd2, 8 * ((va >> 38) & 0x1FF)) else {
+        let Some(e2) = self.cached_u64(&mut cache, pd2, 8 * ((va >> 38) & 0x1FF)) else {
             return (pages, None);
         };
         let Some(pd1) = Self::next_table(e2) else {
             return (pages, None);
         };
         note(&mut pages, pd1);
-        let Some(e1) = self.table_u64(None, pd1, 8 * ((va >> 29) & 0x1FF)) else {
+        let Some(e1) = self.cached_u64(&mut cache, pd1, 8 * ((va >> 29) & 0x1FF)) else {
             return (pages, None);
         };
         let Some(pd0) = Self::next_table(e1) else {
@@ -1870,8 +1975,8 @@ impl FakeFb {
         note(&mut pages, pd0);
         let idx0 = (va >> 21) & 0xFF;
         let (Some(lo), Some(hi)) = (
-            self.table_u64(None, pd0, 16 * idx0),
-            self.table_u64(None, pd0, 16 * idx0 + 8),
+            self.cached_u64(&mut cache, pd0, 16 * idx0),
+            self.cached_u64(&mut cache, pd0, 16 * idx0 + 8),
         ) else {
             return (pages, None);
         };
@@ -1879,8 +1984,17 @@ impl FakeFb {
     }
 
     /// [`Self::area_walk_unit`] with the directory path and the leaf page tables apart.
-    pub(crate) fn area_walk_unit_parts(&self, root: u64, va: u64, n: usize) -> AreaUnitWalk {
-        let (dirs, pde) = self.area_walk_path(root, va);
+    /// With `cache`, table pages are read from their copies there (a missing page is read
+    /// once, whole, and kept): the BAR1 pool's write-through copies
+    /// ([`crate::bar1pool::Bar1Pool`], docs/caraxes/bar1-pool.md §12).
+    pub(crate) fn area_walk_unit_parts(
+        &self,
+        root: u64,
+        va: u64,
+        n: usize,
+        mut cache: Option<&mut TablePageCache>,
+    ) -> AreaUnitWalk {
+        let (dirs, pde) = self.area_walk_path(root, va, cache.as_deref_mut());
         let mut w = AreaUnitWalk {
             mapped: Vec::new(),
             dirs,
@@ -1907,8 +2021,8 @@ impl FakeFb {
                 w.leaf_tables.push(pa >> 12);
             }
         }
-        let big = big_t.and_then(|t| self.table_block(None, t, 32));
-        let small = small_t.and_then(|t| self.table_block(None, t, 512));
+        let big = big_t.and_then(|t| self.cached_block(&mut cache, t, 32));
+        let small = small_t.and_then(|t| self.cached_block(&mut cache, t, 512));
         for i in 0..n {
             let g = va + ((i as u64) << 12);
             // walk_in's precedence: the small PTE unless it is invalid and a big
@@ -2021,6 +2135,10 @@ impl crate::ptcache::TableReader for FbReader<'_> {
         self.fb.table_block(self.sys, table, n)
     }
 }
+
+/// Copies of FB table pages (4 KiB page number -> bytes), kept write-through by the BAR1
+/// pool (bar1pool.rs `Bar1Pool::note_write_data`).
+pub(crate) type TablePageCache = HashMap<u64, Box<[u8; 4096]>>;
 
 /// One 2 MiB unit of the BAR1 area as [`FakeFb::area_walk_unit_parts`] walked it.
 #[derive(Debug, Clone, Default)]
@@ -2413,6 +2531,53 @@ mod tests {
                 pages: self.pages.clone(),
             }))
         }
+    }
+
+    /// The BAR1 pool's own dma-buf mapping pinned in the VRAM store (bar1-pool.md §12):
+    /// accesses inside it never map or evict an LRU window; an access that straddles its
+    /// edge is split; the bytes are the same VRAM as through the windows.
+    #[test]
+    fn a_pinned_window_serves_its_range_without_the_lru_windows() {
+        let (base, end) = (0xE900_0000u64, 0x1_E900_0000u64);
+        let pages = std::sync::Arc::new(std::sync::Mutex::new(HostRamStore::default()));
+        let maps = std::sync::Arc::new(std::sync::atomic::AtomicU64::new(0));
+        let src = RamWindows {
+            max_len: 32 << 20,
+            pages: pages.clone(),
+            maps: maps.clone(),
+        };
+        let mut s = VramStore::with_budget(Box::new(src), base, end, 32 << 20, 2);
+        // The pool: 64 MiB at reservation offset 0x4000_0000 (two window sizes).
+        let (poff, plen) = (0x4000_0000u64, 64usize << 20);
+        assert!(s.pin_window(Box::new(RamWindow {
+            offset: poff,
+            len: plen,
+            pages: pages.clone(),
+        })));
+        s.write(base + 0x1000, &[7; 8]);
+        let m0 = maps.load(std::sync::atomic::Ordering::Relaxed);
+        assert_eq!(m0, 1);
+        let mut b = [0u8; 8];
+        for k in 0..64u64 {
+            let a = base + poff + k * (1 << 20);
+            s.write(a, &k.to_le_bytes());
+            s.read(a, &mut b);
+            assert_eq!(u64::from_le_bytes(b), k);
+        }
+        assert_eq!(maps.load(std::sync::atomic::Ordering::Relaxed), m0, "no window for the pool");
+        assert_eq!(s.windows_held(), vec![(0, 32 << 20)]);
+        assert_eq!(s.stats().pinned, 128);
+        // A read across the pinned range's lower edge: one window piece, one pinned piece.
+        let edge = base + poff - 4;
+        s.write(edge, &[1, 2, 3, 4, 5, 6, 7, 8]);
+        s.read(edge, &mut b);
+        assert_eq!(b, [1, 2, 3, 4, 5, 6, 7, 8]);
+        // The same VRAM: what the pinned window wrote is what a window reads.
+        let mut q = [0u8; 8];
+        pages.lock().unwrap().read(poff + (5 << 20), &mut q);
+        assert_eq!(u64::from_le_bytes(q), 5);
+        // The window below the pool never reaches into it.
+        assert!(s.windows_held().iter().all(|(o, l)| o + *l as u64 <= poff || *o >= poff + plen as u64));
     }
 
     #[test]

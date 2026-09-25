@@ -1301,10 +1301,16 @@ mod tests {
             crate::fb::FbLayout::plain(4 << 30),
             f.identity(4 << 30),
         );
-        for off in [0xb8_30a0u64, 0xb8_30a4, 0xb8_30b0, 0xbb_0090, 0x9400, 0x9410] {
+        // The GSP command-queue head (its doorbell handler merges) and the status-queue
+        // tail (a read pointer).
+        let q = b.gsp_queue_registers().expect("TU106 has the queue registers");
+        assert_eq!((q.cmd_head, q.msg_tail), (0x11_0c00, 0x11_0c84));
+        for off in [
+            0xb8_30a0u64, 0xb8_30a4, 0xb8_30b0, 0xbb_0090, 0x9400, 0x9410, 0x11_0c00, 0x11_0c84,
+        ] {
             assert!(!b.pool_merge_after(off), "{off:#x}");
         }
-        for off in [0x7_0010u64, 0x7_0000, 0xb8_0f00, 0x69_6000, 0x11_0c00, 0x11_0c84] {
+        for off in [0x7_0010u64, 0x7_0000, 0xb8_0f00, 0x69_6000, 0x11_0c80, 0x11_0c04] {
             assert!(b.pool_merge_after(off), "{off:#x}");
         }
     }

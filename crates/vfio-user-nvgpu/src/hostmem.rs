@@ -39,7 +39,9 @@ const NV_ESC_RM_GET_EVENT_DATA: u32 = 0x52;
 /// (host-exec.rs `map_window`; nvrm-client `map_doorbell`). Write-combined: a write is
 /// only in VRAM once a read of the window came back, which [`Window::write`] does.
 pub struct Window {
-    _fd: NvDevice,
+    /// What keeps the mapping's descriptor open: the `/dev/nvidia0` mapping fd of an
+    /// `RM_MAP_MEMORY` window, or the dma-buf of [`Bar1Export::map_self`].
+    _fd: Box<dyn std::any::Any>,
     /// What `RM_UNMAP_MEMORY` needs to release the BAR1 mapping when the window goes:
     /// a duplicate of the client's ctl FD, hClient, hDevice, hMemory and the linear
     /// address RM returned. Closing the mapping FD alone does not release it (P20: every
@@ -228,7 +230,7 @@ fn map_window(
     }
     let linear = p.params.pLinearAddress;
     Ok(Window {
-        _fd: target,
+        _fd: Box::new(target),
         unmap: ctl
             .try_clone()
             .ok()
@@ -320,6 +322,38 @@ impl Bar1Export {
     /// The dma-buf descriptor, for the region table (`ServerRegion::mmap_fd`).
     pub fn raw_fd(&self) -> std::os::fd::RawFd {
         self.fd.as_raw_fd()
+    }
+
+    /// The device's own CPU mapping of the exported range, as a window at reservation
+    /// offset `fb - reservation_base` (docs/caraxes/bar1-pool.md §12). `nv_dma_buf_mmap`
+    /// maps the host BAR1 range the dma-buf already holds (`nv_dma_buf_get_phys_addresses`
+    /// is refcounted), so this costs no host BAR1 beyond the export, and no RM call per
+    /// access: the BAR1 pool's copies and merges then never map or evict one of the FB
+    /// store's windows. The mapping has no `RM_UNMAP_MEMORY`; it goes with the munmap.
+    pub fn map_self(&self, reservation_base: u64) -> Result<Window> {
+        let fd = self.fd.try_clone().context("dup the dma-buf")?;
+        let len = self.len as usize;
+        // SAFETY: a fresh shared mapping of the dma-buf at offset 0 over its whole length.
+        let ptr = unsafe {
+            libc::mmap(
+                std::ptr::null_mut(),
+                len,
+                libc::PROT_READ | libc::PROT_WRITE,
+                libc::MAP_SHARED,
+                fd.as_raw_fd(),
+                0,
+            )
+        };
+        if ptr == libc::MAP_FAILED {
+            bail!("mmap of the dma-buf: {}", std::io::Error::last_os_error());
+        }
+        Ok(Window {
+            _fd: Box::new(fd),
+            unmap: None,
+            ptr: ptr.cast(),
+            offset: self.fb - reservation_base,
+            len,
+        })
     }
 }
 

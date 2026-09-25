@@ -1004,11 +1004,27 @@ impl BootModel {
     /// - the MMU invalidate trigger (its handler runs `sync_untracked` before the re-sync);
     /// - the usermode doorbell (not a sync point, bar1-pool.md §10; its handler forwards
     ///   the doorbell before the poll, so a merge there orders nothing for it);
-    /// - the PTIMER time registers (the write is dropped).
+    /// - the PTIMER time registers (the write is dropped);
+    /// - the GSP command queue's head, `NV_PGSP_QUEUE_HEAD(0)` (the command-queue doorbell:
+    ///   its handler runs `sync_untracked` itself before the RPC, bar1-pool.md §12);
+    /// - the GSP status queue's tail, `NV_PGSP_MSGQ_TAIL(0)` (the guest's read pointer:
+    ///   it hands the device nothing to read).
     ///
-    /// Every other BAR0 write (the L2 flushes and invalidates, the display, the GSP
+    /// Every other BAR0 write (the L2 flushes and invalidates, the display, the other GSP
     /// registers, anything unknown) merges, as before.
+    /// The GSP queue pointer registers of this chip's firmware model, when it has them.
+    pub fn gsp_queue_registers(&self) -> Option<crate::chip::QueueRegisters> {
+        self.fw.queue_registers()
+    }
+
     pub fn pool_merge_after(&self, off: u64) -> bool {
+        if self
+            .fw
+            .queue_registers()
+            .is_some_and(|q| off == q.cmd_head || off == q.msg_tail)
+        {
+            return false;
+        }
         !matches!(
             self.reg(off),
             Some(
