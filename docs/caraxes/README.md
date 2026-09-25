@@ -1,9 +1,12 @@
 <!-- SPDX-License-Identifier: MIT -->
 # Caraxes: a synthetic NVIDIA PCI device for stock guest drivers
 
-Working notes for Leandro v2 ("Caraxes"). Started 2026-09-23. Nothing here is
-implemented yet; this directory records what was found in source, what was
-measured on the host, the decisions taken, and the experiment ladder.
+The working record of VFIO Leandro (Leandro v2, code name Caraxes), started
+2026-09-23: what was found in source, what was measured on the host, the decisions
+taken, the experiment ladder and the status log. The entry points are the
+[repository README](../../README.md), the overview of both architectures in
+[LEANDRO.md](../LEANDRO.md), the [wiki](../wiki/README.md) and the
+[research notes](../research/README.md); this directory holds the long form behind them.
 
 ## Goal
 
@@ -24,6 +27,8 @@ driver recognizes and initializes a Turing/RTX 2070-like device. Windows later.
 
 | File | Contents |
 |---|---|
+| [../LEANDRO.md](../LEANDRO.md) | The overview of VirtIO Leandro (v1) and VFIO Leandro (v2): the problem, the two architectures side by side, the driver as a virtual GPU sees it, the GSP and its emulation, PCI and BARs and memory, submission and interrupts, execution, display, identity, performance, verification, and the ranked weaknesses with their mitigation paths |
+| [../wiki/](../wiki/README.md) | One page per concept LEANDRO.md names (29 pages: the RM, the GSP, the BARs, the memory model, submission, execution, display, identity, performance, verification, captured cards, contributing a capture, glossary), driver references by path and function, links to the research notes and to this directory |
 | [../research/](../research/README.md) | The research knowledge base: one short note per topic (driver structure, GSP surface, transport, RPCs/events/classes, ABI baseline, identity and costume, feature families, memory model, windows and traps, isolation and Xids, performance, methods, Blackwell and Hopper), bullets with evidence, 615.71.09 only; this directory stays the detailed working record |
 | [quickstart.md](quickstart.md) | Build, prepare the guest, run and verify the current state (user documentation) |
 | [architecture.md](architecture.md) | Components, data paths, what is version-bound, differences from Leandro v1, the milestone ladder (user documentation) |
