@@ -13,7 +13,7 @@ W=/mnt/vmstore/caraxes/win11
 LEA_ROOT=$(cd "$(dirname "$(readlink -f "$0")")/../../.." && pwd -P)
 SERVER=${WIN_GPU_SERVER:-/mnt/vmstore/caraxes/vfio-user-nvgpu-v615-nvenc-1c4c848}
 REF=$LEA_ROOT/caraxes/reference/rtx2070
-# WIN_GPU_CONFIG: a config-space dump to present instead of the capture (config-space-3d.txt
+# WIN_GPU_BOARD: see below. WIN_GPU_CONFIG: a config-space dump to present instead of the capture (config-space-3d.txt
 # next to this script: the same card as a "3D controller", class 03 02, so Windows' basic
 # display driver leaves it alone).
 CONFIG=${WIN_GPU_CONFIG:-$REF/config-space.txt}
@@ -23,6 +23,9 @@ die() { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
 [[ -s $W/gpu.pid ]] && kill -0 "$(cat "$W/gpu.pid")" 2>/dev/null && die "device already running (pid $(cat "$W/gpu.pid"))"
 rm -f "$W/gpu.sock"
 args=(--boot-model --display --fb-mib "${WIN_GPU_FB_MIB:-1024}")
+# WIN_GPU_BOARD: a board-data file for a costume (crates/vfio-user-nvgpu/boards/tesla-t4-on-tu106.toml:
+# the card as a Tesla T4 for the data-centre driver's TCC path).
+[[ -n ${WIN_GPU_BOARD:-} ]] && args+=(--board-data "$WIN_GPU_BOARD")
 [[ -n ${CARAXES_GUEST_ABI:-} ]] && args+=(--guest-abi "$CARAXES_GUEST_ABI")
 LEA_ROOT=$LEA_ROOT "$SERVER" --socket "$W/gpu.sock" --trace "$W/gpu-trace.log" \
     --config "$CONFIG" --rom "$REF/rom.bin" "${args[@]}" > "$W/gpu.log" 2>&1 &

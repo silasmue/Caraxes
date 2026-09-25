@@ -1,0 +1,36 @@
+# SPDX-License-Identifier: MIT
+# SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
+#
+# A Tesla T4 (TU104, the data-centre Turing board, class 03 02, no display outputs) over
+# the TU106 of the house, for the Windows guest (caraxes/runs/win11-2026-09-25/README.md):
+# the data-centre driver binds 10de:1eb8 with subsystem 10de:12a2 and runs the card in TCC
+# mode, without the WDDM display path the GeForce driver insists on. Costume: the chip
+# (chips/tu104), the PCI ids and the name. Truth: the RTX 2070 board's config layout
+# (as a 3D controller), ROM, VBIOS and BARs, and the TU106 that executes. Turing classes
+# are the same on TU104 and TU106, so no class map.
+name = "Tesla T4"
+chip = "tu104"
+host_chip = "tu106"
+config = "caraxes/runs/win11-2026-09-25/config-space-3d.txt"
+rom = "caraxes/reference/rtx2070/rom.bin"
+vbios_version = "90.06.3D.00.76"
+
+bars = [
+    { kind = "mem32", size = 0x100_0000, prefetch = false },
+    { kind = "mem64", size = 0x1000_0000, prefetch = true },
+    { kind = "mem64", size = 0x200_0000, prefetch = true },
+    { kind = "io", size = 0x80 },
+]
+rom_bar_size = 0x8_0000
+
+class_map = []
+
+[ids]
+device = 0x1EB8
+sub_vendor = 0x10DE
+sub_device = 0x12A2
+source = "g_nv_name_released.h:189 of 610.57.04 (Tesla T4); no capture"
+
+[display]
+label = "board (tesla-t4-on-tu106: no display outputs, TCC)"
+connector = []
