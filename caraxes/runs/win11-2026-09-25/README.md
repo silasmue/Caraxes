@@ -83,3 +83,32 @@ vfio-user device (`nova-guest.md` section 7, P23: which RM path the Windows driv
 - **Next**: after the ten, which registers the driver reads next (the first unnamed,
   un-`captured` offsets in the trace), and whether it reaches the GSP boot (`NV_PGSP_*`,
   0x110000) or programs the falcons and engines itself (the CPU-RM path of P23).
+
+## Day one under QEMU with the device (2026-09-25, 15:50 to 17:35)
+
+- **Option ROM off** (`rombar=0`): with it on, the firmware runs the VBIOS GOP driver, which
+  spins on `NV_PTIMER_TIME` (0 in pure emulation) and hangs the boot. Device fix pending: serve
+  PTIMER from the monotonic clock.
+- **First boot with the device crashed** (`UNEXPECTED_STORE_EXCEPTION`), the next boots did not;
+  memfd RAM alone and the plain disk boot fine. Not reproduced since; watch for it.
+- **The GeForce driver 617.14 binds** ("NVIDIA GeForce RTX 2070", `VEN_10DE&DEV_1F02&SUBSYS_40111458`),
+  reads the whole VBIOS chain through the PROM window to its end, identifies the chip (fuses,
+  PTOP, PFB, one GSP falcon register), writes seven `0xc80` words at `0xd96c + n·0x50` and the
+  config mirror, reads the identification again and stops with **Code 43**. It never touches the
+  GSP queues, the falcons or the FIFO. No `nvlddmkm` event is logged.
+- **Three capture rounds** from the host card (read-only through the RM as root): the ten
+  identification registers, the display blocks, the GSP falcon block, PMC, PBUS, PTIMER (7941
+  offsets, `bar0-registers-2026-09-25.txt`). With every value the driver read being the real
+  one, the sequence and the trace length did not change (16920 lines): the gate is not a BAR0 value.
+- **Not the display path**: as a 3D controller (class 03 02) the sequence is identical.
+- **Not the GeForce driver**: as a Tesla T4 costume (`boards/tesla-t4-on-tu106.toml`, chip
+  TU104, data-centre driver 616.92 recognises the T4) the sequence is identical, also with the
+  captured values (`bar0-registers-t4-costume.txt`).
+- **Open hypotheses**, in the order to test: (1) the missing expansion ROM BAR (`rombar=0`):
+  serve a ROM without the EFI image so the BAR can stay on without the GOP hang; (2) a
+  hypervisor or device-authenticity check that passes on passthrough hardware and fails here
+  (VBIOS chain end, ID fuses against the VBIOS, the `0xd96c` AUX writes' read-back); (3) for
+  WDDM later, a display model that answers the PDISP/SOR registers itself.
+- **Also to try**: the vGPU guest driver with a vGPU profile's ids (the device already speaks
+  the `NV_VGPU_MSG` dialect; licensing throttles unlicensed guests).
+- RDP is forwarded to `127.0.0.1:3389` by the QEMU scripts.
