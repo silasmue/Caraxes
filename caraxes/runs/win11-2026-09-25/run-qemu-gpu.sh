@@ -4,10 +4,11 @@
 # SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 # The installed Windows 11 under QEMU with the synthetic GPU attached over vfio-user
 # (`-device vfio-user-pci`, QEMU 11.1), beside the std VGA that shows the desktop. Guest RAM
-# comes from a shared memfd so the device can map it. rombar=0: the VBIOS GOP driver in the
-# device's ROM spins on NV_PTIMER_TIME (0 in pure emulation) and would hang the firmware. Same firmware, TPM and disk as
-# install-qemu.sh; the virtio-win ISO stays attached for drivers. Start gpu-up.sh first.
-# Usage: run-qemu-gpu.sh      (WIN_MEM default 8G, WIN_CPUS default 4)
+# comes from a shared memfd so the device can map it. rombar=0 by default: the VBIOS GOP driver
+# in the device's ROM spins on NV_PTIMER_TIME (0 before the PTIMER model) and hung the firmware.
+# Same firmware, TPM and disk as install-qemu.sh; the virtio-win ISO stays attached for drivers.
+# Start gpu-up.sh first.
+# Usage: run-qemu-gpu.sh      (WIN_MEM default 8G, WIN_CPUS default 4, WIN_GPU_ROMBAR default 0)
 set -euo pipefail
 W=/mnt/vmstore/caraxes/win11
 VIRTIO=$W/iso/virtio-win.iso
@@ -15,7 +16,9 @@ CODE=/usr/share/edk2/x64/OVMF_CODE.secboot.4m.fd
 VARS=$W/OVMF_VARS.4m.fd
 MEM=${WIN_MEM:-8G} CPUS=${WIN_CPUS:-4}
 die() { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
-gpu=(-device "{\"driver\":\"vfio-user-pci\",\"socket\":{\"type\":\"unix\",\"path\":\"$W/gpu.sock\"},\"rombar\":0}")
+# WIN_GPU_ROMBAR=1 keeps the expansion ROM BAR (Windows then sees the ROM the device serves;
+# only with a ROM without the EFI image, gpu-up.sh WIN_GPU_ROM, or the firmware hangs in the GOP).
+gpu=(-device "{\"driver\":\"vfio-user-pci\",\"socket\":{\"type\":\"unix\",\"path\":\"$W/gpu.sock\"},\"rombar\":${WIN_GPU_ROMBAR:-0}}")
 if [[ ${WIN_GPU:-1} == 0 ]]; then gpu=(); echo "WIN_GPU=0: memfd RAM, no device (isolation run)"; else
     [[ -S $W/gpu.sock ]] || die "no device socket $W/gpu.sock: run gpu-up.sh first"
 fi

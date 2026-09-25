@@ -22,6 +22,10 @@ vfio-user device (`nova-guest.md` section 7, P23: which RM path the Windows driv
 | `target/win11/edk2/` | the EDK2 tree and build (`edk2.log`, `build.log`) |
 | `install-qemu.sh` | the one-time install under QEMU (window on the operator's desktop) |
 | `up-ch.sh`, `down-ch.sh` | the Cloud Hypervisor run (tap `caraxes4`, 192.168.104.0/24) |
+| `gpu-up.sh`, `gpu-down.sh` | the synthetic GPU in pure emulation on `$W/gpu.sock` (`WIN_GPU_SERVER`, `WIN_GPU_ROM`, `WIN_GPU_BOARD`, `WIN_GPU_REGS`, `WIN_GPU_CONFIG`) |
+| `run-qemu-gpu.sh` | the installed Windows under QEMU with the device attached (`WIN_GPU=0` without it, `WIN_GPU_ROMBAR=1` keeps the expansion ROM BAR) |
+| `config-space-3d.txt`, `bar0-registers-t4-costume.txt` | the card as a 3D controller (class 03 02); the captured registers with the Tesla T4 costume's identity |
+| `make-rom-legacy.py` | cuts the EFI GOP image out of the ROM: `$W/rom-legacy-only.bin` for the ROM-BAR experiment |
 
 ## Setup notes
 
@@ -112,3 +116,16 @@ vfio-user device (`nova-guest.md` section 7, P23: which RM path the Windows driv
 - **Also to try**: the vGPU guest driver with a vGPU profile's ids (the device already speaks
   the `NV_VGPU_MSG` dialect; licensing throttles unlicensed guests).
 - RDP is forwarded to `127.0.0.1:3389` by the QEMU scripts.
+
+## Next: the expansion ROM BAR (prepared 2026-09-25 17:45)
+
+- PTIMER is modelled since 365dff26 (`NV_PTIMER_TIME_0/1` from the device clock); `gpu-up.sh`
+  defaults to `vfio-user-nvgpu-v615-ptimer-365dff26`.
+- Step 1, the BAR on without a GOP: `WIN_GPU_ROM=/mnt/vmstore/caraxes/win11/rom-legacy-only.bin ./gpu-up.sh`,
+  then `WIN_GPU_ROMBAR=1 ./run-qemu-gpu.sh`. The firmware ignores a legacy-only ROM, Windows
+  sees a populated ROM BAR. Watch: does the driver's sequence change after the VBIOS read, or
+  the Code 43 disappear?
+- Step 2, the full ROM with the BAR on: `./gpu-up.sh` (capture ROM) and `WIN_GPU_ROMBAR=1
+  ./run-qemu-gpu.sh`. The GOP now finds a running PTIMER; if the firmware still hangs, the GOP
+  needs more than the timer (note where the trace stops: the last BAR0 offsets before silence).
+- Both keep `rombar=0` as the default; the scripts are unchanged otherwise.
