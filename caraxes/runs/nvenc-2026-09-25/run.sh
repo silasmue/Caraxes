@@ -67,12 +67,12 @@ if [[ $up_ok != 1 ]]; then
 fi
 pgrep -af "^$W/vfio-user-nvgpu" > "$C/device-pid.txt"
 DPID=$(pgrep -f "^$W/vfio-user-nvgpu" | head -1)
-# Host kernel NVRM lines of the run; the first Xid stops the device (SIGTERM, its own
+# Host kernel NVRM lines of the run; the first NVRM line stops the device (SIGTERM, its own
 # teardown), so a fault never repeats.
 ( journalctl -k -f -n 0 -o short-precise 2>/dev/null | grep --line-buffered -aE 'NVRM|Xid' \
     | grep --line-buffered -av 'ioctl(' | while read -r l; do
         echo "$l" >> "$C/host-kernel.txt"
-        case "$l" in *Xid*) kill -TERM "$DPID" 2>/dev/null && echo "STOPPED device $DPID at the first Xid" >> "$C/host-kernel.txt" ;; esac
+        kill -TERM "$DPID" 2>/dev/null && echo "STOPPED device $DPID at the first NVRM line" >> "$C/host-kernel.txt"
     done ) &
 JWATCH=$!
 tools/caraxes-vm.sh probe "nvenc-$LABEL" >> "$C/up.txt" 2>&1; tail -2 "$C/up.txt" | cut -c1-200

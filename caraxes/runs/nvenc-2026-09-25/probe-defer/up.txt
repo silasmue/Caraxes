@@ -1,0 +1,4 @@
+dma table: 0:7fff40000000:80000000
+server pid 145550, VM pid 145568; logs in /mnt/vmstore/caraxes/vm2
+ssh up at 192.168.102.22
+ERROR: server not running
