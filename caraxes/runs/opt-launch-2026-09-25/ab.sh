@@ -13,12 +13,13 @@ source "$(dirname "$(readlink -f "$0")")/env.sh"
 LABEL=${1:?usage: ab.sh LABEL [REPS] [PPO_REPS]}
 REPS=${2:-3} PPO_REPS=${3:-2}
 export PPO_SECONDS=60
-BIN_A=/mnt/vmstore/caraxes/vfio-user-nvgpu-launch-before-7095b3c
-BIN_B=/mnt/vmstore/caraxes/vfio-user-nvgpu-launch-after-25c164b
+BIN_A=${OL_BIN_A:-/mnt/vmstore/caraxes/vfio-user-nvgpu-launch-before-7095b3c}
+BIN_B=${OL_BIN_B:-/mnt/vmstore/caraxes/vfio-user-nvgpu-launch-after-25c164b}
 # B's switches: the fast ring path, the adaptive hybrid window capped at 2 ms, the interrupt gate
 # with a 50 ms hold (hot for 500 ms after a host doorbell).
 B_ENV=(CARAXES_LAUNCH_FAST=1 CARAXES_DOORBELL_POLL_ADAPT_US=2000 CARAXES_INTR_GATE_MS=50)
-# OL_B_ENV="VAR=value ..." replaces them; OL_LIVES="launch rl" picks the lives (ppo runs when PPO_REPS > 0).
+# OL_B_ENV="VAR=value ..." replaces them; OL_LIVES="launch rl" picks the lives (ppo runs when PPO_REPS > 0);
+# OL_BIN_A / OL_BIN_B replace the binaries, OL_LAUNCH_METRICS / OL_RL_METRICS the lives' metrics.
 [[ -n ${OL_B_ENV:-} ]] && read -r -a B_ENV <<< "$OL_B_ENV"
 C=$OL_HERE/$LABEL
 [[ -e $C ]] && { echo "ERROR: $C exists; never overwrite a run" >&2; exit 2; }
@@ -34,7 +35,7 @@ BR=caraxes/tools/bench-run.sh
 caraxes/tools/bench-hostwatch.sh start "$C"
 prev=""
 cfg_env() {  # A|B: the device's binary and switches
-    unset CARAXES_LAUNCH_FAST CARAXES_DOORBELL_POLL_ADAPT_US CARAXES_INTR_GATE_MS
+    unset CARAXES_LAUNCH_FAST CARAXES_DOORBELL_POLL_ADAPT_US CARAXES_INTR_GATE_MS CARAXES_INTR_DIRECT
     if [[ $1 == A ]]; then export CARAXES_SERVER=$BIN_A; else export CARAXES_SERVER=$BIN_B "${B_ENV[@]}"; fi
 }
 life() {  # CFG LIFE REP METRICS...: a fresh VM and device, then the metrics once
@@ -54,8 +55,8 @@ $BR v2-restart > "$C/v2-up.txt" 2>&1 || { echo "v2 did not come up"; tail -5 "$C
 $BR stage v2 >> "$C/v2-up.txt" 2>&1
 for r in $(seq 1 "$REPS"); do
     for cfg in A B; do
-        [[ " ${OL_LIVES:-launch rl} " == *" launch "* ]] && life "$cfg" launch "$r" short-auto launch1k copy
-        [[ " ${OL_LIVES:-launch rl} " == *" rl "* ]] && life "$cfg" rl "$r" rl
+        [[ " ${OL_LIVES:-launch rl} " == *" launch "* ]] && life "$cfg" launch "$r" ${OL_LAUNCH_METRICS:-short-auto launch1k copy}
+        [[ " ${OL_LIVES:-launch rl} " == *" rl "* ]] && life "$cfg" rl "$r" ${OL_RL_METRICS:-rl}
     done
 done
 for r in $(seq 1 "$PPO_REPS"); do

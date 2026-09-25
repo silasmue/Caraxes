@@ -1,0 +1,1 @@
+the predecessor's rlprobe A/B without the adaptive window, stopped at its API cut-off after A rep 1 (no B, no host-xid.txt); not used

@@ -24,6 +24,8 @@ HEAD = re.compile(r"launch timing: (\d+) ring\(s\) by the reactor \((\d+) after 
                   r"(\d+) none yet, (\d+) < 1 ms, (\d+) < 100 ms, (\d+) older")
 MSI = re.compile(r"MSIs: (\d+) for raises")
 FLUSH = re.compile(r"launch fast: BAR1 flushes (\d+) done, (\d+) skipped")
+LEAN = re.compile(r"ran-ahead checks skipped with no plan pending: (\d+)")
+DIRECT = re.compile(r"intr page direct: (\d+) raise")
 GATE = re.compile(r"intr gate: .*?; (\d+) event\(s\) delivered at once, (\d+) held, (\d+) delivery")
 WINDOW = re.compile(r"doorbell poll \(tokens\): hybrid \(([^)]*)\)")
 
@@ -36,7 +38,10 @@ def guest(metric, text):
     """The guest's numbers of one result file."""
     out = {}
     if m := re.search(r"MSPERLAUNCH=([\d.]+)", text):
-        out["ms/launch"] = float(m.group(1))
+        out[f"{metric} ms/launch"] = float(m.group(1))
+    if m := re.search(r"^# STEPCHAIN (.*)$", text, re.M):
+        for k, v in re.findall(r"(\w+)_p50_us=([\d.]+)", m.group(1)):
+            out[f"step {k} p50 us"] = float(v)
     if m := re.search(r"^LAUNCH (.*)$", text, re.M):
         for k, v in re.findall(r"(\w+)=([\d.]+)", m.group(1)):
             if k.endswith("_us") and k.split("_")[1] in ("p50", "p90", "mean"):
@@ -79,6 +84,10 @@ def run(root):
                 bits.append(f"MSIs for raises {m.group(1)}")
             if m := FLUSH.search(t):
                 bits.append(f"flushes {m.group(1)} done / {m.group(2)} skipped")
+            if m := LEAN.search(t):
+                bits.append(f"ran-ahead reads skipped {m.group(1)}")
+            if m := DIRECT.search(t):
+                bits.append(f"direct completions {m.group(1)}")
             if m := GATE.search(t):
                 bits.append(f"gate {m.group(1)} at once / {m.group(2)} held / {m.group(3)} releases")
             if m := WINDOW.search(t):
@@ -100,7 +109,8 @@ def run(root):
                 print(f"- rep {i}: {e}")
         res = {}
         for f in sorted(mdir.glob("**/v2/*.txt")):
-            for k, v in guest(mdir.name, f.read_text(errors="replace")).items():
+            metric = re.sub(r"-\d+$", "", f.stem)
+            for k, v in guest(metric, f.read_text(errors="replace")).items():
                 res.setdefault(k, []).append(v)
         if res:
             print("\nguest: " + ", ".join(

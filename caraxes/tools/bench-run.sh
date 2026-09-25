@@ -56,7 +56,7 @@ TICK=$(getconf CLK_TCK)
 LLAMA_DIST=${LLAMA_DIST:-/mnt/vmstore/caraxes/llama/dist}
 LLAMA_GGUF=${LLAMA_GGUF:-/mnt/vmstore/caraxes/models/llama-gate.gguf}
 # Probes that travel with the binaries into ~/bench (and into target/bench/bin for native).
-PROBES="pporl.py llamaprobe.py transformer.py convnet.py"
+PROBES="pporl.py llamaprobe.py transformer.py convnet.py stepchain.py"
 ALL_METRICS="launch-auto launch-blocking short-auto short-blocking copy mm rl init time0 time1 ioctl ctrl churn"
 
 err() { echo "ERROR: $*" >&2; exit 1; }
@@ -102,6 +102,8 @@ metric_cmd() {
         ctrl)            echo './ctrlping 2000 64 512 4096 16384' ;;
         churn)           echo './bench-cu churn 20' ;;
         ppo)             echo "$py ./pporl.py --seconds ${PPO_SECONDS:-60}" ;;
+        # rlprobe's environment step phase by phase (h2d, forward, .item(), bare synchronize).
+        stepchain)       echo "$py ./stepchain.py --steps 3000" ;;
         ppo-full)        echo "$py ./pporl.py --seconds ${PPO_FULL_SECONDS:-420}" ;;
         llama)           echo "$py ./llamaprobe.py --reps ${LLAMA_REPS:-5} ${LLAMA_ARGS:-}" ;;
         llama-nograph)   echo "GGML_CUDA_DISABLE_GRAPHS=1 $py ./llamaprobe.py --reps ${LLAMA_REPS:-5} -p 0 -n 128 ${LLAMA_ARGS:-}" ;;
