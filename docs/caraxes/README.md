@@ -24,6 +24,7 @@ driver recognizes and initializes a Turing/RTX 2070-like device. Windows later.
 
 | File | Contents |
 |---|---|
+| [../research/](../research/README.md) | The research knowledge base: one short note per topic (driver structure, GSP surface, transport, RPCs/events/classes, ABI baseline, identity and costume, feature families, memory model, windows and traps, isolation and Xids, performance, methods, Blackwell and Hopper), bullets with evidence, 615.71.09 only; this directory stays the detailed working record |
 | [quickstart.md](quickstart.md) | Build, prepare the guest, run and verify the current state (user documentation) |
 | [architecture.md](architecture.md) | Components, data paths, what is version-bound, differences from Leandro v1, the milestone ladder (user documentation) |
 | [environment.md](environment.md) | Host, driver, tooling, vendor checkouts and the reference dumps of the real card |
