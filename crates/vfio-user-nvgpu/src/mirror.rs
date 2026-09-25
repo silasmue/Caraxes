@@ -255,6 +255,8 @@ pub struct HostChannel {
     /// The guest's GPPut when the device last forwarded this channel's doorbell (untrapped.rs
     /// `ran_ahead`).
     pub fwd_put: Option<u32>,
+    /// [`Mirror::unwaited`] at that forward.
+    pub fwd_unwaited: u64,
 }
 
 /// Counters for the exit summary.
@@ -342,6 +344,10 @@ pub struct Mirror {
     /// `CARAXES_SHADOW_UNTRAPPED_HOLD`, default on) and its counters.
     hold_on: bool,
     pub hold: crate::untrapped::HoldStats,
+    /// Invalidates whose plans were submitted without a wait before the guest continued
+    /// (eager or at the lazy deadline, not held): a host channel that runs ahead of its
+    /// doorbell after one of them may run on a mirror the worker is still applying.
+    unwaited: u64,
     /// The registered guest RAM descriptors `(handle, iova, size)`, read once.
     descs: Option<Vec<(u32, u64, u64)>>,
     next_event_id: u32,
@@ -441,6 +447,7 @@ impl Mirror {
                 }
             },
             hold: crate::untrapped::HoldStats::default(),
+            unwaited: 0,
             descs: None,
             next_event_id: 0x1000,
             stats: MirrorStats::default(),
@@ -562,10 +569,16 @@ impl Mirror {
             self.hold.note_held(t0.elapsed());
             return notes;
         }
+        // A plan submitted here is not waited for before the guest continues (the evidence
+        // counter of `note_ran_ahead`).
         match self.lazy.on_invalidate(pdb, Instant::now()) {
-            OnInvalidate::Plan(p) => self.shadow_resync(reg, gm, p),
+            OnInvalidate::Plan(p) => {
+                self.unwaited += 1;
+                self.shadow_resync(reg, gm, p)
+            }
             OnInvalidate::Defer => Vec::new(),
             OnInvalidate::Flush(p) => {
+                self.unwaited += 1;
                 let mut notes = vec![format!(
                     "alloc lazy: deadline passed, planning {} deferred invalidate(s) now",
                     p.invalidates
@@ -657,12 +670,15 @@ impl Mirror {
     /// the host channel already fetched entries past the last forward (untrapped.rs
     /// `ran_ahead`), and log it with the wall time when plans were pending.
     fn note_ran_ahead(&mut self, reg: &Registry, gm: &GpuMem, chid: u32) -> Option<String> {
-        let fwd = self.channels.get(&chid)?.fwd_put?;
+        let hc = self.channels.get(&chid)?;
+        let (fwd, since) = (hc.fwd_put?, self.unwaited - hc.fwd_unwaited);
         let (get, put, n) = Self::userd_ring(reg, gm, chid)?;
         if !crate::untrapped::ran_ahead(fwd, get, put, n) {
             return None;
         }
-        let pending = self.plans_pending();
+        // Plans deferred now, being applied now, or submitted without a wait since the last
+        // forward: the entries the host channel fetched may have met an older mirror.
+        let pending = self.plans_pending() || since > 0;
         let (lazy, worker) = (self.lazy.is_pending(), self.worker.pending());
         let untrapped = self
             .channels
@@ -671,7 +687,7 @@ impl Mirror {
             .is_some_and(|r| self.untrapped_roots(reg, gm.fb).contains(&r));
         let line = self.hold.note_ahead(pending, || {
             format!(
-                "untrapped GPPut: at {} chid {chid}'s host channel ran ahead of its doorbell (GPGet {get}, forwarded up to {fwd}, GPPut {put}) with plans pending (lazy {lazy}, worker {worker}); USERD untrapped {untrapped}",
+                "untrapped GPPut: at {} chid {chid}'s host channel ran ahead of its doorbell (GPGet {get}, forwarded up to {fwd}, GPPut {put}) with plans pending (lazy {lazy}, worker {worker}, {since} unwaited invalidate plan(s) since the forward); USERD untrapped {untrapped}",
                 crate::untrapped::wall()
             )
         })?;
@@ -798,8 +814,10 @@ impl Mirror {
             self.worker.wait_all();
             gm.fb.flush();
             let put = Self::userd_ring(reg, gm, chid).map(|(_, p, _)| p);
+            let unwaited = self.unwaited;
             if let Some(hc) = self.channels.get_mut(&chid) {
                 hc.fwd_put = put;
+                hc.fwd_unwaited = unwaited;
             }
             match self.doorbell(chid) {
                 Ok(n) => notes.push(n),
@@ -1099,6 +1117,7 @@ impl Mirror {
                 doorbells: 0,
                 shadow_root: Some(root),
                 fwd_put: None,
+                fwd_unwaited: 0,
             },
         );
         notes.push(format!(
@@ -1833,6 +1852,7 @@ impl Mirror {
                         doorbells: 0,
                         shadow_root: None,
                         fwd_put: None,
+                        fwd_unwaited: 0,
                     },
                 );
                 Ok((token, notes))
