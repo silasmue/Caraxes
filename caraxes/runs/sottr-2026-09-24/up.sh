@@ -38,6 +38,7 @@ if [[ $EMU != 1 ]]; then
         [[ $v == "$W/" ]] && continue
         alive "$v/gpu.pid" || continue
         cmd=$(tr '\0' ' ' < "/proc/$(cat "$v/gpu.pid")/cmdline" 2>/dev/null) || continue
+        grep -q -- '--reserve-vram' <<<"$cmd" || continue   # pure emulation reserves no host FB
         fb=$(sed -n 's/.*--fb-mib \([0-9]*\).*/\1/p' <<<"$cmd"); slot=$(sed -n 's/.*--reserve-slot \([0-9]*\).*/\1/p' <<<"$cmd")
         [[ -n $fb ]] || continue
         lo=$(( ${slot:-0} * fb ))
