@@ -424,6 +424,18 @@ impl Dispatcher {
         let host_doorbells = m.stats.doorbells;
         if m.is_shadow(&self.channels, chid) {
             let mut notes = m.gr_shadow_doorbell(&self.channels, gm, chid);
+            // Shadow VA spaces handed to the teardown: their cached walks go too.
+            for r in m.take_reaped_roots() {
+                gm.fb.unwatch_tables(crate::fb::Target::Fb(r));
+            }
+            // A build the host refused for memory: RC the channel once (rc.rs).
+            for c in m.take_exhausted() {
+                let engine = self.channels.channel(c).map_or(0, |ch| ch.engine_type);
+                self.dstate.rc.host_refused(c, engine);
+                notes.push(format!(
+                    "shadow: chid {c} refused by the host for memory: RC queued (PREEMPTIVE_REMOVAL) [host protection]"
+                ));
+            }
             // The host doorbell write is the last step of a built shadow channel's ring.
             if m.stats.doorbells != host_doorbells {
                 self.host_doorbell_at.get_or_insert_with(std::time::Instant::now);

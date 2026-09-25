@@ -703,8 +703,8 @@ impl BootModel {
         let mut s = Vec::new();
         if let Some(st) = self.fb.vram_stats() {
             s.push(format!(
-                "vram store: {} window map(s), {} refused, {} eviction(s), {} stall(s) without any window; {} read(s) of {} bytes, {} write(s) of {} bytes",
-                st.maps, st.map_failures, st.evictions, st.stalls, st.reads, st.bytes_read, st.writes, st.bytes_written
+                "vram store: {} window map(s), {} refused, {} eviction(s), {} stall(s) without any window, {} access(es) failed closed, {} window(s) held; {} read(s) of {} bytes, {} write(s) of {} bytes",
+                st.maps, st.map_failures, st.evictions, st.stalls, st.failed, st.held, st.reads, st.bytes_read, st.writes, st.bytes_written
             ));
         }
         let (h, m, f) = self.fb.bar_tlb_stats.get();
@@ -1636,6 +1636,13 @@ impl BootModel {
                             |o: usize| u32::from_le_bytes(p[o..o + 4].try_into().unwrap_or([0; 4]));
                         let (h_client, h_object) = (w(v::FREE_H_ROOT), w(v::FREE_H_OBJECT));
                         let a = self.ctrl.free(h_client, h_object);
+                        // Shadow VA spaces the free handed to the teardown: drop their
+                        // cached walks (docs/caraxes/host-resources.md).
+                        if let Some(m) = self.ctrl.mirror.as_mut() {
+                            for r in m.take_reaped_roots() {
+                                self.fb.unwatch_tables(crate::fb::Target::Fb(r));
+                            }
+                        }
                         if h_object == h_client {
                             crate::profile::client_close(h_client);
                         }
