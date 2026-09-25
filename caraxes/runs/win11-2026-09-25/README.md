@@ -23,7 +23,7 @@ vfio-user device (`nova-guest.md` section 7, P23: which RM path the Windows driv
 | `install-qemu.sh` | the one-time install under QEMU (window on the operator's desktop) |
 | `up-ch.sh`, `down-ch.sh` | the Cloud Hypervisor run (tap `caraxes4`, 192.168.104.0/24) |
 | `gpu-up.sh`, `gpu-down.sh` | the synthetic GPU in pure emulation on `$W/gpu.sock` (`WIN_GPU_SERVER`, `WIN_GPU_ROM`, `WIN_GPU_BOARD`, `WIN_GPU_REGS`, `WIN_GPU_CONFIG`) |
-| `run-qemu-gpu.sh` | the installed Windows under QEMU with the device attached (`WIN_GPU=0` without it, `WIN_GPU_ROMBAR=1` keeps the expansion ROM BAR) |
+| `run-qemu-gpu.sh` | the installed Windows under QEMU with the device attached (`WIN_GPU=0` without it, `WIN_GPU_ROMBAR=1` keeps the expansion ROM BAR, `WIN_VGA=none` makes the card the only adapter) |
 | `config-space-3d.txt`, `bar0-registers-t4-costume.txt` | the card as a 3D controller (class 03 02); the captured registers with the Tesla T4 costume's identity |
 | `make-rom-legacy.py` | cuts the EFI GOP image out of the ROM: `$W/rom-legacy-only.bin` for the ROM-BAR experiment |
 
@@ -129,3 +129,19 @@ vfio-user device (`nova-guest.md` section 7, P23: which RM path the Windows driv
   ./run-qemu-gpu.sh`. The GOP now finds a running PTIMER; if the firmware still hangs, the GOP
   needs more than the timer (note where the trace stops: the last BAR0 offsets before silence).
 - Both keep `rombar=0` as the default; the scripts are unchanged otherwise.
+
+### Results (2026-09-25, 18:49 to 19:05)
+
+- **Step 1, legacy-only ROM, ROM BAR on** (RTX 2070 identity, driver 617.14 via Windows Update):
+  Code 43 again after a short time. The trace is the same as before: VBIOS read, identification,
+  PCIe device-control write (No Snoop cleared), the seven `0xc80` AUX writes, identification
+  again, stop. Windows never read the ROM BAR (one read, by the firmware). Hypothesis (1) is out.
+- **Step 2, full ROM with the GOP, PTIMER model, no VGA** (`WIN_VGA=none`): the GOP runs, does
+  DP AUX transactions (`0xd954`, `0xda94`) and then polls the display front-end register
+  `0x610800` (reads `0x80010341`, never changes) 1.5 million times a minute; the firmware never
+  starts Windows. PTIMER alone is not enough: the display model must answer that register
+  (`gop-trace-2026-09-25.txt` has the GOP's sequence and the register counts).
+- **Step 3, legacy-only ROM, ROM BAR on, no VGA**: Windows boots headless with the card as its
+  only adapter; result in the driver's behaviour pending (RDP only).
+- Config-space writes seen from the driver (through the BAR0 mirror): offset 0x80 (PCIe Device
+  Control) `0x10291f` then `0x10211f` (No Snoop off), offset 0x700 `0x20000`.

@@ -8,7 +8,9 @@
 # in the device's ROM spins on NV_PTIMER_TIME (0 before the PTIMER model) and hung the firmware.
 # Same firmware, TPM and disk as install-qemu.sh; the virtio-win ISO stays attached for drivers.
 # Start gpu-up.sh first.
-# Usage: run-qemu-gpu.sh      (WIN_MEM default 8G, WIN_CPUS default 4, WIN_GPU_ROMBAR default 0)
+# Usage: run-qemu-gpu.sh      (WIN_MEM default 8G, WIN_CPUS default 4, WIN_GPU_ROMBAR default 0,
+#                               WIN_VGA default std; WIN_VGA=none leaves the synthetic GPU as the
+#                               only display adapter: the desktop is then reached over RDP only)
 set -euo pipefail
 W=/mnt/vmstore/caraxes/win11
 VIRTIO=$W/iso/virtio-win.iso
@@ -42,4 +44,4 @@ exec qemu-system-x86_64 -enable-kvm -machine q35,accel=kvm,smm=on,memory-backend
     -device virtio-net-pci,netdev=n0 -netdev user,id=n0,hostfwd=tcp:127.0.0.1:3389-:3389 \
     "${gpu[@]}" \
     -device qemu-xhci -device usb-tablet -device usb-kbd \
-    -vga std -display gtk -rtc base=localtime
+    -vga "${WIN_VGA:-std}" -display gtk -rtc base=localtime
