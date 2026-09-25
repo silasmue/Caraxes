@@ -407,7 +407,8 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
     }
     if vfio_user_nvgpu::launch::configure_fast().map_err(anyhow::Error::msg)? {
         eprintln!(
-            "vfio-user-nvgpu: launch fast: one USERD read per step, the BAR1 flush only after a device store, no note_rung read under the token pool, one trace flush per ring ({}=1, docs/caraxes/launch-path.md)",
+            "vfio-user-nvgpu: launch fast: one USERD read per step, the BAR1 flush only after a device store, no note_rung read under the token pool, one trace flush per ring{} ({}, docs/caraxes/launch-path.md)",
+            if vfio_user_nvgpu::launch::lean() { ", the ran-ahead read only with plans pending" } else { "" },
             vfio_user_nvgpu::launch::FAST_ENV
         );
     }
@@ -428,6 +429,11 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
     // The interrupt page (docs/caraxes/intr-page.md): the guest's acks and enable writes
     // land in memory and are seen only by a polling reactor.
     let intr_page_config = intr_page::requested().map_err(anyhow::Error::msg)?;
+    let intr_direct = intr_page::direct_requested(
+        std::env::var(intr_page::DIRECT_ENV).ok().as_deref(),
+        intr_page_config.is_some(),
+    )
+    .map_err(anyhow::Error::msg)?;
     // The display front-end page (display/fe_page.rs): a third area of the same memfd.
     let display_page =
         fe_page::requested(intr_page_config.is_some(), a.display).map_err(anyhow::Error::msg)?;
@@ -820,6 +826,12 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
         Some(p) => {
             let (hook, wake) = PageHook::new(p.clone()).context("intr page wake eventfd")?;
             intr_shared.attach_page(wake);
+            if intr_direct && intr_shared.attach_direct(p) {
+                eprintln!(
+                    "vfio-user-nvgpu: intr page: direct completion on ({}=1): a host event's raise writes the page and then the MSI on the event thread",
+                    intr_page::DIRECT_ENV
+                );
+            }
             let hook = match &fe {
                 Some(f) => hook.with_display(f.clone()),
                 None => hook,

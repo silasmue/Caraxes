@@ -10,7 +10,7 @@
 
 use std::fs::File;
 use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, OnceLock, Weak};
 
 pub(crate) const LEAF: u64 = 0x000;
 pub(crate) const LEAF_EN_SET: u64 = 0x200;
@@ -46,6 +46,12 @@ pub struct IntrShared {
     pub(crate) page_raised: AtomicBool,
     /// A raise asked for an MSI (the trapped path would have written one).
     pub(crate) page_msi: AtomicBool,
+    /// The direct completion (`CARAXES_INTR_DIRECT=1`, intr_page.rs `DIRECT_ENV`): the
+    /// raising thread folds the vector into the page and writes the MSI itself, in the
+    /// page's order (page stores, then the eventfd), instead of waking the reactor.
+    direct: OnceLock<Weak<crate::intr_page::IntrPage>>,
+    /// Raises the direct completion folded on the raising thread.
+    pub direct_scans: AtomicU64,
 }
 
 impl IntrShared {
@@ -82,6 +88,14 @@ impl IntrShared {
             // The reactor folds the vector into the page and signals the MSI after it.
             self.page_msi.store(true, Ordering::SeqCst);
             self.page_raised.store(true, Ordering::SeqCst);
+            // The direct completion: the reactor's scan on this thread. The page's mutex
+            // orders it against the reactor's; whichever takes the raised flag writes the
+            // page and then the MSI. Without the page (dropped): the wake below.
+            if let Some(p) = self.direct.get().and_then(Weak::upgrade) {
+                p.scan();
+                self.direct_scans.fetch_add(1, Ordering::Relaxed);
+                return true;
+            }
             if let Some(w) = self.page.lock().unwrap().as_mut() {
                 let _ = w.write_all(&1u64.to_ne_bytes());
             }
@@ -95,6 +109,17 @@ impl IntrShared {
     pub fn attach_page(&self, wake: File) {
         *self.page.lock().unwrap() = Some(wake);
         self.page_mode.store(true, Ordering::SeqCst);
+    }
+
+    /// Fold raises into `page` on the raising thread from now on (the direct completion).
+    /// Needs [`IntrShared::attach_page`] first; false when refused or already set.
+    pub fn attach_direct(&self, page: &Arc<crate::intr_page::IntrPage>) -> bool {
+        self.page_mode() && self.direct.set(Arc::downgrade(page)).is_ok()
+    }
+
+    /// Whether the direct completion is attached.
+    pub fn direct(&self) -> bool {
+        self.direct.get().is_some()
     }
 
     /// Whether raises go to the interrupt page.

@@ -687,13 +687,18 @@ impl Mirror {
     fn note_ran_ahead(&mut self, reg: &Registry, gm: &GpuMem, chid: u32) -> Option<String> {
         let hc = self.channels.get(&chid)?;
         let (fwd, since) = (hc.fwd_put?, self.unwaited - hc.fwd_unwaited);
+        // Plans deferred now, being applied now, or submitted without a wait since the last
+        // forward: the entries the host channel fetched may have met an older mirror.
+        let pending = self.plans_pending() || since > 0;
+        // The lean evidence (launch.rs `evidence_needed`): no uncached read when nothing is
+        // pending, the case that is only counted.
+        if !crate::launch::evidence_needed(pending) {
+            return None;
+        }
         let (get, put, n) = Self::userd_ring(reg, gm, chid)?;
         if !crate::untrapped::ran_ahead(fwd, get, put, n) {
             return None;
         }
-        // Plans deferred now, being applied now, or submitted without a wait since the last
-        // forward: the entries the host channel fetched may have met an older mirror.
-        let pending = self.plans_pending() || since > 0;
         let (lazy, worker) = (self.lazy.is_pending(), self.worker.pending());
         let untrapped = self
             .channels

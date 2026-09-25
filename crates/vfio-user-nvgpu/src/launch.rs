@@ -32,6 +32,8 @@ pub const TIMING_ENV: &str = "CARAXES_LAUNCH_TIMING";
 /// since the last one, skips `note_rung`'s USERD read when the token pool (which excludes
 /// the token-less reader, its only user) is on, and writes a ring's trace notes with one
 /// flush. The order of a ring (plans applied, flush, GPPut read, host doorbell) is kept.
+/// `2` adds the lean evidence: the ran-ahead check's USERD read only at a doorbell with
+/// plans pending, the one case it logs ([`evidence_needed`]).
 pub const FAST_ENV: &str = "CARAXES_LAUNCH_FAST";
 
 /// One step of the chain.
@@ -286,6 +288,10 @@ static GATE_LAST_DOORBELL_NS: AtomicU64 = AtomicU64::new(0);
 /// The gate's hold in milliseconds (0: off).
 static GATE_HOLD_MS: AtomicU64 = AtomicU64::new(0);
 static FAST: AtomicBool = AtomicBool::new(false);
+/// `CARAXES_LAUNCH_FAST=2`: the lean evidence.
+static LEAN: AtomicBool = AtomicBool::new(false);
+/// Ran-ahead checks skipped by the lean evidence (no plan pending).
+pub static EVIDENCE_SKIPPED: AtomicU64 = AtomicU64::new(0);
 /// BAR1 flushes done and skipped (nothing stored since the last one) under the fast switch.
 pub static FLUSH_DONE: AtomicU64 = AtomicU64::new(0);
 pub static FLUSH_SKIPPED: AtomicU64 = AtomicU64::new(0);
@@ -311,15 +317,38 @@ pub fn configure() -> Result<bool, String> {
     Ok(on)
 }
 
-/// Read the fast switch once at start: `1` on, unset or `0` off, anything else refused.
+/// Read the fast switch once at start: `1` on, `2` on with the lean evidence, unset or
+/// `0` off, anything else refused.
 pub fn configure_fast() -> Result<bool, String> {
-    let on = match std::env::var(FAST_ENV).ok().as_deref().map(str::trim) {
-        None | Some("") | Some("0") => false,
-        Some("1") => true,
-        Some(v) => return Err(format!("{FAST_ENV}={v:?}: 1 or 0")),
+    let (on, lean) = match std::env::var(FAST_ENV).ok().as_deref().map(str::trim) {
+        None | Some("") | Some("0") => (false, false),
+        Some("1") => (true, false),
+        Some("2") => (true, true),
+        Some(v) => return Err(format!("{FAST_ENV}={v:?}: 2, 1 or 0")),
     };
     set_fast(on);
+    LEAN.store(lean, Relaxed);
     Ok(on)
+}
+
+/// Whether the lean evidence (`CARAXES_LAUNCH_FAST=2`) is on.
+pub fn lean() -> bool {
+    LEAN.load(Relaxed)
+}
+
+/// Whether a doorbell reads USERD for the ran-ahead evidence (mirror.rs `note_ran_ahead`).
+/// The check only counts a doorbell whose host channel ran ahead and logs the ones with
+/// plans pending (`pending`: deferred, being applied, or submitted without a wait since the
+/// last forward). The lean evidence skips the uncached read when nothing is pending: the
+/// logged lines and the pending count stay exact, the total count covers only the pending
+/// doorbells. It never changes a ring's order or content; the forward record is read after
+/// the barrier and the flush as before.
+pub fn evidence_needed(pending: bool) -> bool {
+    if pending || !(lean() || lean_here()) {
+        return true;
+    }
+    EVIDENCE_SKIPPED.fetch_add(1, Relaxed);
+    false
 }
 
 /// Turn the fast ring path on or off (tests, `configure_fast`).
@@ -343,6 +372,28 @@ fn fast_here() -> bool {
     FAST_HERE.get()
 }
 
+#[cfg(test)]
+thread_local! {
+    static LEAN_HERE: Cell<bool> = const { Cell::new(false) };
+}
+
+#[cfg(test)]
+fn lean_here() -> bool {
+    LEAN_HERE.get()
+}
+
+#[cfg(not(test))]
+#[inline]
+fn lean_here() -> bool {
+    false
+}
+
+/// Tests: the lean evidence for the calling thread only.
+#[cfg(test)]
+pub fn set_lean_here(on: bool) {
+    LEAN_HERE.set(on);
+}
+
 #[cfg(not(test))]
 #[inline]
 fn fast_here() -> bool {
@@ -358,9 +409,11 @@ pub fn set_fast_here(on: bool) {
 /// The fast switch's line for the exit summary.
 pub fn fast_summary() -> String {
     format!(
-        "launch fast: BAR1 flushes {} done, {} skipped (no device store since the last one) ({FAST_ENV}=1, docs/caraxes/launch-path.md)\n",
+        "launch fast: BAR1 flushes {} done, {} skipped (no device store since the last one); ran-ahead checks skipped with no plan pending: {} ({FAST_ENV}={}, docs/caraxes/launch-path.md)\n",
         FLUSH_DONE.load(Relaxed),
-        FLUSH_SKIPPED.load(Relaxed)
+        FLUSH_SKIPPED.load(Relaxed),
+        EVIDENCE_SKIPPED.load(Relaxed),
+        if lean() { 2 } else { 1 }
     )
 }
 
@@ -675,6 +728,21 @@ pub fn msi_for_raise() {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The lean evidence skips the ran-ahead read only with nothing pending and the switch
+    /// on; a doorbell with plans pending always reads.
+    #[test]
+    fn lean_evidence_reads_whenever_plans_are_pending() {
+        set_lean_here(false);
+        assert!(evidence_needed(false), "off: every doorbell reads");
+        assert!(evidence_needed(true));
+        set_lean_here(true);
+        let before = EVIDENCE_SKIPPED.load(Relaxed);
+        assert!(evidence_needed(true), "pending: read");
+        assert!(!evidence_needed(false), "nothing pending: skipped");
+        assert!(EVIDENCE_SKIPPED.load(Relaxed) > before);
+        set_lean_here(false);
+    }
 
     #[test]
     fn buckets_are_monotonic_and_bounded() {

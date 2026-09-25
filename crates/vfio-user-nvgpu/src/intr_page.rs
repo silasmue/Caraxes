@@ -122,6 +122,23 @@ pub fn parse(
     Ok(Some(c))
 }
 
+/// The direct completion (docs/caraxes/launch-path.md): a raise from the host's event
+/// thread folds the vector into the page and writes the MSI on that thread, instead of
+/// waking the reactor to do it (one hop and, for a blocked reactor, one scheduler wake-up
+/// less). Needs the page.
+pub const DIRECT_ENV: &str = "CARAXES_INTR_DIRECT";
+
+/// `CARAXES_INTR_DIRECT`: whether the direct completion is asked for; refused without the
+/// page (`page_on`) rather than ignored.
+pub fn direct_requested(v: Option<&str>, page_on: bool) -> Result<bool, String> {
+    match v.map(str::trim).filter(|v| !v.is_empty()).unwrap_or("0") {
+        "0" | "off" => Ok(false),
+        "1" | "on" if page_on => Ok(true),
+        "1" | "on" => Err(format!("{DIRECT_ENV}=1 needs {INTR_PAGE_ENV}=1")),
+        v => Err(format!("{DIRECT_ENV}={v:?}: 0 or 1")),
+    }
+}
+
 /// The watched words of the tree page: index -> offset within the tree.
 const W_LEAF: usize = 0;
 const W_EN_SET: usize = LEAVES;
@@ -797,7 +814,14 @@ impl IntrPage {
             l(&s.msi_refused),
             l(&s.cas_retries),
             if odd.is_empty() { "none".into() } else { odd.join(", ") }
-        )
+        ) + &if self.shared.direct() {
+            format!(
+                "intr page direct: {} raise(s) folded and signalled on the raising thread ({DIRECT_ENV}=1)\n",
+                l(&self.shared.direct_scans)
+            )
+        } else {
+            String::new()
+        }
     }
 }
 
@@ -1040,6 +1064,82 @@ mod tests {
         assert!(!p.scan().msi);
         assert_eq!(load(&p, LEAF), TAG);
         assert_eq!(p.stats.again.load(Ordering::Relaxed), 1);
+    }
+
+    /// The direct completion: a raise writes the page and then the MSI on the raising
+    /// thread, with no wake of the reactor; a scan without a raise writes no MSI (nothing is
+    /// reported before the host reported it); a raise while pending costs no second MSI;
+    /// the switch is refused without the page; a dropped page falls back to the wake.
+    #[test]
+    fn direct_completion_orders_the_page_before_the_msi() {
+        assert_eq!(direct_requested(None, false), Ok(false));
+        assert_eq!(direct_requested(Some("1"), true), Ok(true));
+        assert!(direct_requested(Some("1"), false).unwrap_err().contains("needs"));
+        assert!(direct_requested(Some("2"), true).is_err());
+
+        let (p, shared, mut msi, mut wake) = page(Config::default());
+        assert!(shared.attach_direct(&p));
+        assert!(!shared.attach_direct(&p), "set once");
+        assert!(!p.scan().msi, "no raise, no MSI");
+        assert_eq!(count(&mut msi), 0);
+        assert!(shared.raise(4));
+        assert_eq!(load(&p, LEAF), 0x10 | TAG, "the page shows the vector");
+        assert_eq!(count(&mut msi), 1, "and the MSI is written, on this thread");
+        assert_eq!(count(&mut wake), 0, "the reactor is not woken");
+        assert!(shared.raise(4));
+        assert_eq!(count(&mut msi), 0, "pending in the page: no second MSI");
+        assert_eq!(shared.direct_scans.load(Ordering::Relaxed), 2);
+        // The ack pends the second raise again, with its MSI, at the reactor's scan.
+        store(&p, LEAF, 0x10);
+        assert!(p.scan().msi);
+        assert_eq!(count(&mut msi), 1);
+
+        // Fail-closed: without the page the raise wakes the reactor as before.
+        let (p2, shared2, mut msi2, mut wake2) = page(Config::default());
+        assert!(shared2.attach_direct(&p2));
+        drop(p2);
+        assert!(shared2.raise(7));
+        assert_eq!(count(&mut wake2), 1);
+        assert_eq!(count(&mut msi2), 0);
+    }
+
+    /// The direct completion racing the reactor's scan: every raise ends with its vector in
+    /// the page and exactly one MSI, whichever thread folded it, and the MSI never comes
+    /// before the page shows the vector.
+    #[test]
+    fn direct_completion_racing_the_reactor_loses_nothing() {
+        use std::sync::atomic::AtomicBool;
+        let (p, shared, mut msi, _wake) = page(Config::default());
+        assert!(shared.attach_direct(&p));
+        let stop = Arc::new(AtomicBool::new(false));
+        let reactor = {
+            let (p, stop) = (p.clone(), stop.clone());
+            std::thread::spawn(move || {
+                while !stop.load(Ordering::Relaxed) {
+                    p.scan();
+                }
+            })
+        };
+        for _ in 0..2000 {
+            assert!(shared.raise(4));
+            let t = Instant::now();
+            let mut n = 0;
+            while n == 0 {
+                n = count(&mut msi);
+                assert!(t.elapsed() < Duration::from_secs(5), "a raise lost its MSI");
+            }
+            assert_eq!(n, 1);
+            assert_eq!(load(&p, LEAF) & 0x10, 0x10, "the MSI came after the page store");
+            // The guest's ack; the reactor folds it without an MSI (nothing raised since).
+            store(&p, LEAF, 0x10);
+            let t = Instant::now();
+            while load(&p, LEAF) & 0x10 != 0 {
+                assert!(t.elapsed() < Duration::from_secs(5), "the ack was not folded");
+            }
+        }
+        stop.store(true, Ordering::Relaxed);
+        reactor.join().unwrap();
+        assert_eq!(count(&mut msi), 0, "no MSI without a raise");
     }
 
     /// The leaf enables are reported, not modelled: the guest's per-vector enable loop
