@@ -560,6 +560,7 @@ Each section has the same parts:
 - **Design.** Refuse forever. `NVENC_SW_SESSION_STATS` keeps its `empty_ok` answer
   (`chips/tu106/chip.toml:305-307`).
 - **Estimate.** 0.
+- **Status (2026-09-25).** Refused on every chip, and the refusal now names the reason: the open driver builds neither a vGPU host nor a vGPU guest (`kernel-open/nvidia/os-interface.c:1517-1552`, `chipctl.rs` `why_absent`). No vGPU control reached the device in any limits run ([../limits-mig-ecc-vgpu.md](../limits-mig-ecc-vgpu.md) §3).
 
 | Id | Control | Access | Kind | 615 kernel call sites (file:line, first three) |
 |---|---|---|---|---|
@@ -625,6 +626,7 @@ Each section has the same parts:
   That is honest for CUDA's view (it sees the instance's SMs and memory), but it is no
   isolation. The D9 labels must say so.
 - **Estimate.** 8 days for both families (tables 2, allocator and records 4, CE mapping and
+- **Status (2026-09-25).** Modelled (`src/families/mig.rs`) on GH100 (resetless) and GA100 (pending until a reset, devinit bit). The mode, the profiles, the placements and GPU-instance create/destroy work under nvidia-smi on GH100. The compute instance and the destroy of the last GPU instance stop at the kernel's golden-image channel (`kernel_graphics_object.c:192`, no GR in pure emulation). GA100 runs are pending ([../limits-mig-ecc-vgpu.md](../limits-mig-ecc-vgpu.md) §2).
   tests 2).
 - **Validation.** An A100 or H100 VM with MIG on, done by the operator:
   - `nvidia-smi mig -lgip -lgipp -lcip` and the sweep's partition getters;
@@ -916,6 +918,7 @@ Each section has the same parts:
   - `RESET_ECC_ERROR_STATUS` clears the model's counters.
   - The NV208F controls are refused.
 - **Estimate.** 1.5 days.
+- **Status (2026-09-25).** Modelled (`src/families/ecc.rs`) on GH100 and GA100. Every read command, `-e 0/1` (pending until reboot or `-r`) and `-p 0/1` work under nvidia-smi on GH100. Injection is refused ([../limits-mig-ecc-vgpu.md](../limits-mig-ecc-vgpu.md) §1).
 - **Validation.** The sweep's ECC getters and the ECC section of `nvidia-smi -q` on any ECC
   part. The kit never runs the setters.
 
@@ -935,6 +938,7 @@ Each section has the same parts:
   present (`chips/gb206/chip.toml:199`) with nothing behind it, so today the controls fall
   through to "unanswered".
 - **Estimate.** 0.5 days.
+- **Status (2026-09-25).** Modelled with `ecc` (empty tables). `-q -d ROW_REMAPPER` and `--query-remapped-rows` work on GH100. The bank count of the histogram needs a capture.
 
 | Id | Control | Access | Kind | 615 kernel call sites (file:line, first three) |
 |---|---|---|---|---|
@@ -1050,6 +1054,7 @@ d-controls.tsv gives the reason for each row.
 - **Design.** Refuse forever. The one ACK is `INTERNAL_MEMSYS_SET_ZBC_REFERENCED`, which the
   kernel sends on Turing (`gpu/mem_mgr/arch/maxwell/mem_mgr_gm107.c:307`).
 - **Estimate.** 0.
+- **Status (2026-09-25).** As `vgpu`: refused with the reason. A TU106 whose BOOT_1 says VF (`chips/tu106vf`) is expected to fail the guest's probe at `os-hypervisor.c:955-994`; the run is pending.
 
 | Id | Control | Access | Kind | 615 kernel call sites (file:line, first three) |
 |---|---|---|---|---|

@@ -89,6 +89,7 @@ driver recognizes and initializes a Turing/RTX 2070-like device. Windows later.
 | [blackwell-gate.md](blackwell-gate.md) | The Blackwell N gate in pure emulation: the GB206 identity (`--board-data rtx5060ti`, `CARAXES_CHIP=gb206`), stages N0 (device) to N4 (first channel allocation), the predicted walls, preconditions and the exact vm3 launcher command; defined 2026-09-24, not run yet |
 | [costume-5060.md](costume-5060.md) | The 5060 costume (`--board-data rtx5060ti-on-tu106`, `CARAXES_COSTUME=rtx5060ti`): the RTX 5060 Ti's PCI ids, BAR0 size and name on the TU106, whose boot registers, config layout, GSP boot, GMMU, classes, VBIOS and compute capability 7.5 stay true; the costume-or-truth table, every place in the 610 RM where the costume could be caught (the fixed XVE link offsets did catch the whole GB206 config space), and the vm1 check: nvml and cuda gates as on the 2070 identity, short kernel and rlprobe |
 | [costume-ladder.md](costume-ladder.md) | The costume ladder (`CARAXES_COSTUME=rtx2080|rtx3060|rtx4060ti|h100|rtx5060ti-gb206`, `CARAXES_SM_VERSION`): chips presented over the executing TU106 as overlays on its (or GB206's) tables (`src/chip/derived.rs`, `chips/{tu104,ga106,ad106,gh100}`), ladder boards with `host_chip` and a class map for the mirror; per rung what is lied, what stays true, the first failure with its source line and the verdict; the pure-emulation baseline wall; the lesson which layers the identity can lie on |
+| [limits-mig-ecc-vgpu.md](limits-mig-ecc-vgpu.md) | The limits runs of 2026-09-25: ECC, MIG and vGPU modelled from the kernel source (`src/families/`, the GH100 rung and the new GA100 rung `chips/ga100`, `CARAXES_COSTUME=a100`) and driven by nvidia-smi in pure emulation; per command works / caught by X / breaks at Y with the source line; what each model needs for real execution; what stays impossible on this rig |
 | [cutover-615.md](cutover-615.md) | The checklist for the host driver upgrade 610.57.04 to 615.71.09 (2026-09-24): the device's run-time host-ABI selection (`hostabi.rs`, `CARAXES_HOST_ABI`, the log line to look for), then in order the 610 closing benchmark and frozen binaries, the operator's upgrade checks, the 610 guest on the 615 host (nvml, cuda, display gates), the 615 guest once `ver/v615` lands (`CARAXES_DRIVER=615`), v1's wait for L615, rollback, open points |
 | [v1-615-image.md](v1-615-image.md) | The Leandro v1 guest image for 615.71.09 (`guest-v1-2026-09-24-615.71.09.qcow2`, made from the first v1 615 run's overlay without booting): what differs from the Caraxes 615 base image (guest nvidia modules blacklisted, `nvidia-modprobe` diverted, `nvidia-persistenced` masked, `/opt/nvrm` on the 615 system libraries), why not nix offline, `bench-v1vm.sh` taking v1's material from Leandro (`LEA_V1_ROOT`, `LEA_V1_BIN`, `NVRM`, driver selection, dry run), `LEA_MANAGED_COMPAT=1` as in the gpu gate, `v1-gates.sh`, the boot command |
 | [sottr-stage.md](sottr-stage.md) | The SotTR stage (2026-09-24, roadmap item 2): vm4 as the game VM (3 GiB profile at slot 0, tap `caraxes3`, display configuration C, main 3cb33af device), the v1 Steam library as a thin overlay (`CARAXES_GAMES_DISK`, writer lock in the Caraxes store), the guest preparation of a fresh 610 overlay, Steam library registration and autostart, Sunshine kms, automatic Moonlight pairing and window, what is recorded and how it compares with v1's sottr-4q; plumbing test in pure emulation |
@@ -1075,3 +1076,23 @@ the VM; then display, expected to be much easier than in v1.
     - 331 idle MSIs per second from other VMs' work.
   - **Findings.** `cuMemAllocAsync` is refused (801). An illegal address reaches the guest as
     LAUNCH_FAILED (719), with no RC event and host Xid 31 on the device's pid.
+- 2026-09-25: **Limits runs: ECC, MIG and vGPU** ([limits-mig-ecc-vgpu.md](limits-mig-ecc-vgpu.md),
+  evidence `caraxes/runs/limits-2026-09-25/`). All runs are pure emulation on vm8 (`CARAXES_TAP=none`).
+  - **ECC** (`src/families/ecc.rs`, GH100 rung). Everything works:
+    - `nvidia-smi -q -d ECC`, the ECC query fields, `-q -d ROW_REMAPPER`,
+      `--query-remapped-rows` and `-q -d PAGE_RETIREMENT`.
+    - `-e 0/1` stays pending until the next boot or `-r`, and `-p 0/1` works.
+    - `-r` does not fail closed. The PCI FLR re-boots the modelled GSP, the second
+      RmInitAdapter succeeds and the pending mode is in force.
+  - **MIG** (`src/families/mig.rs`).
+    - Works: `-mig 1` (resetless on GH100), `-lgip`, `-lgipp`, `-cgi` for every profile,
+      `-lgi`, `-lcip` and `-mig 0`.
+    - Breaks: the compute instance, and the destroy of the last GPU instance. Both stop at the
+      kernel's golden-image channel (`numGpcs > 0`, kernel_graphics_object.c:192), because pure
+      emulation has no GR. So there is no MIG device and no CUDA on one.
+  - **vGPU.** The open driver builds neither a vGPU host nor a vGPU guest
+    (os-interface.c:1517-1552 of 615). 0 vGPU controls reached the device. The refusals now
+    name that reason.
+  - **Pending.** The GA100 rung (A100 identity over tu106, MIG pending until a reset through
+    the devinit scratch bit), the TU106-as-VF run and the TU106 emu-boot check. The operator
+    stopped VM boots for host memory.
