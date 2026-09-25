@@ -1036,7 +1036,8 @@ the VM; then display, expected to be much easier than in v1.
   - **Top candidates outside the benchmarks.**
     - BAR1 pool moves: 1024 pages per CUDA process, 363 ms of device time.
     - BAR2 memfd syncs.
-    - The pool barrier's host TSG preempts: 3.9 s; 56 ms each at a kill -9, with host Xid 109.
+    - Host TSG preempts, mostly the pool barrier's: 3.9 s; one took 3.2 s at a kill -9, with
+      host Xid 109.
     - Shadow gathers.
     - The device's BAR1 window remaps.
     - GSS-legacy PERF 0x79: 21-678 ms per nvidia-smi call.

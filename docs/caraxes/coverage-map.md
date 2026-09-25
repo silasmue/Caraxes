@@ -38,8 +38,8 @@ Records: `caraxes/runs/coverage-2026-09-25/` (README there). Tools: `caraxes/too
   - 834 BAR2 memfd syncs (180 ms).
 
   Outside the benchmarks:
-  - the pool's warm-move barrier preempts host TSGs: 1112 calls, 3.9 s. With a kernel running
-    at a kill -9, this is 56 ms per call and a host Xid 109;
+  - host TSG preempts, mostly from the pool's warm-move barrier: 1112 calls, 3.9 s. At a
+    kill -9 with a kernel running, one preempt took 3.2 s and the host logged Xid 109;
   - nvidia-smi's GSS-legacy PERF control takes 21 to 678 ms per call;
   - idle interrupt forwarding runs at 331 MSIs per second.
 
@@ -50,8 +50,8 @@ Records: `caraxes/runs/coverage-2026-09-25/` (README there). Tools: `caraxes/too
   - A kernel storing to an unmapped address gives the guest `CUDA_ERROR_LAUNCH_FAILED` (719),
     not `ILLEGAL_ADDRESS` (700). The device posts no RC event; the host logs Xid 31 on the
     device's pid.
-  - kill -9 of a process with a running kernel costs 3.2 s of host preempts and a host Xid 109
-    (CTX SWITCH TIMEOUT) on the device's pid. The next process works in both cases.
+  - kill -9 of a process with a running kernel costs 3.2 s of host preempts, most of it in one
+    call, and a host Xid 109 (CTX SWITCH TIMEOUT) on the device's pid. The next process works in both cases.
 
 ## 1. The instrument: the profile
 
@@ -168,7 +168,7 @@ workload:
 | smi-dmon | 2252 | CLK 0x04 (2.3 ms, 98 calls), `PERF_GET_VID_ENG_PERFMON_SAMPLE` (1.4 ms, 80), PERF 0x97 (1.3 ms, 69) | 1: `PERF_GET_GPUMON_PERFMON_UTIL_SAMPLES_V2` |
 | vulkan (vulkaninfo --summary) | 979 | memfd syncs and flush reads; 131 cold pool moves each way | 14: NVENC/NVDEC caps, ZBC table, CE caps, `GPFIFO_SCHEDULE`, BIND, ZCULL bind |
 | idle, 300 s | 287 | 115318 host `RM_GET_EVENT_DATA` drains, 108611 raises, 99339 MSIs, 99022 guest re-arms through the eventfd: other VMs' work | 0 |
-| kill9 | 7273 | 58 host TSG preempts in the pool barrier: 3.2 s, 55.7 ms each; host Xid 109 | 0 |
+| kill9 | 7273 | 58 host TSG preempts (56 from 21 pool barriers, 2 forwarded from the guest): 3.2 s, one of them 3.2 s long; host Xid 109 | 0 |
 | illegal | 1517 | as any process; guest status 719; host Xid 31 | 1: `NV83DE_..._DEBUG_READ_ALL_SM_ERROR_STATES`, refused |
 | ctlsweep | 107 | 111 controls through the GSP queue | 111 |
 
@@ -292,7 +292,7 @@ texsurf, oom and the others is one.
 |---|---|---|---|---|---|
 | 1 | BAR1 pool page moves at every context: 512 pages in (cold) and 512 out (warm) per process | 21123 + 19456 moves, 20.2 s outside the benchmarks; 363 ms median per process; 318-570 us per 4 KiB page | yes, but no benchmark row names it | bar1pool.rs:828 and :854 through `FakeFb::copy_page_raw`, fb.rs:1664: uncached reads through the BAR1 windows | copy through the reservation's CPU mapping with write-combining, or by the copy engine; keep a context's pooled pages warm across processes instead of moving them out at teardown |
 | 2 | BAR2 memfd syncs and flush reads | 48209 syncs, 14.1 s; 28524 flush reads, 12.5 s guest-seen; 834 syncs (180 ms) per process | 1.5 s | bar2area.rs:773-830, fb.rs | backlog item 3 (sync limited to reachable pages, the flush page as memory), measured per workload here |
-| 3 | The pool's warm-move barrier preempts host TSGs | 1112 `NVA06C PREEMPT`, 3.9 s, mean 3.6 ms; 55.7 ms each with a running kernel at kill -9 (58 calls, 3.2 s, host Xid 109) | 83 ms | bar1pool.rs:591, mirror.rs:733 | no barrier for pages of a VA space being torn down; one preempt per TSG per batch |
+| 3 | Host TSG preempts: the pool's warm-move barrier, and the guest's own TSG_PREEMPT forwarded to the mirror | 1112 `NVA06C PREEMPT`, 3.9 s, mean 3.6 ms. At the kill -9 there were 58 calls: 56 from 21 barriers and 2 forwarded (463 ms each). The longest single call took 3.2 s, the host's ctx-switch timeout, with host Xid 109 | 83 ms | bar1pool.rs:591, mirror.rs:733; ctrl.rs `MIRROR_FORWARDED` | no barrier for pages of a VA space being torn down; one preempt per TSG per batch |
 | 4 | The shadow's gather allocations at context creation | 1194 calls, 4.5 s, mean 3.8 ms (5.3 ms at kill -9) | 0.31 s | shadow.rs, hostmem.rs:1473 | the region free list (alloc-path.md:158) for gathers too; gathers larger than 512 pages |
 | 5 | The device's own BAR1 window remaps (window misses) | 11792 `RM_MAP_MEMORY` (324 us) + `REGISTER_FD` (81 us) + `RM_UNMAP_MEMORY`, 5.4 s, almost all in the cuda gate | 10 ms | hostmem.rs:189-215 (`map_window` opens a new fd per map) | keep the mapping fd, larger windows; ReBAR removes it (optimization-backlog.md §5) |
 | 6 | Host channel and engine objects per context | CE 3.6 ms, GPFIFO 3.1 ms, COMPUTE 4.8 ms, TSG 2.4 ms each; 823 + 823 + 331 + 150 allocations, 7.3 s | 0.6 s | mirror.rs | allocate at first doorbell only for channels the context uses (20 channels are made, compute uses few); pool host channels across processes |
