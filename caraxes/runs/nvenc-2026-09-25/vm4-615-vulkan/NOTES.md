@@ -34,3 +34,21 @@ Session `sottr-2026-09-24/session-615-20260925-173139`, binary `vfio-user-nvgpu-
     creation (90 s timeout, no output), after its c5c0 allocations succeeded.
 - nvidia-drm: two `WARNING ... __nv_drm_handle_flip_event` (nvidia-drm-crtc.h:368) during
   one vkcube run (`guest-dmesg-vkcube.txt`), from the nvidia-modeset flip-event path.
+- Option 3 (`vkcube-rmlog-params.txt`, the logger now dumps the channel allocation
+  parameters): the next vkcube run failed earlier, already on the first TSG.
+  - TSG 0xcef80000 with ctxshare 0xcef00000. GR channel 0xbeef0100: hObjectError
+    0xbeef000c, hObjectBuffer 0, flags 0, hContextShare 0xcef00000, hVASpace 0,
+    engineType 0x1, internalFlags 0.
+  - The two CE channels 0xbeef0101/0102 (engineType 0xb/0xc) have hContextShare 0 and
+    hVASpace 0xbeef0300.
+  - Objects on 0xbeef0100: c597 OK, then c5c0 refused with 0x57. The GR allocs carry no
+    parameters (size 0).
+- Ordering: the same order (902d, c597, then c5c0 on the same channel) succeeded at 144 s,
+  on these same handles. So the order alone is not the cause. There is no tool here to
+  build a TSG and channel by hand; the reversed-order test was skipped.
+- When it began (device trace, a Vulkan client's c5c0 after its c597 on the same channel):
+  - The last success on both TSGs was at 179.7 s.
+  - At 750, 775 and 810 s the first TSG still succeeds and the second TSG's refusal is new.
+  - At 1998 s the first TSG fails too.
+  - The failure spreads over time, which points at something in the guest kernel that
+    accumulates. Not yet identified.
