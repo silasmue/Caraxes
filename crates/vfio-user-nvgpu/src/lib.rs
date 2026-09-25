@@ -58,6 +58,7 @@ pub mod public;
 pub mod rc;
 pub mod recorded;
 pub mod rpc;
+pub mod rusd;
 pub mod selftest;
 pub mod shadow;
 pub mod soak;
