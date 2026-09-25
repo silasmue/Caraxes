@@ -151,17 +151,20 @@ per version, and the snapshot is what makes that change visible and cheap.
 ## 4. The baseline in numbers
 
 From `caraxes/abi/gsp-615.71.09/` (the tables are in
-[gsp-abi-615-tables.md](gsp-abi-615-tables.md)); 610.57.04 beside it.
+[gsp-abi-615-tables.md](gsp-abi-615-tables.md)); 610.57.04 beside it. The snapshot is the source
+of these numbers: the control rows were recounted on 2026-09-25 from `controls.tsv` of both
+snapshots (MANIFEST: repository commit 76e4440), where the rows before gave the counts of an
+earlier regeneration (743 and 757 answered, 86 and 87 unhandled).
 
 | Item | 610.57.04 | 615.71.09 |
 |---|---:|---:|
 | Controls (unique ids) | 1377 | 1397 |
 | routed to GSP | 829 | 844 |
 | of which INTERNAL | 239 | 246 |
-| routed, answered by the device | 743 | 757 |
-| (host-forwarded / synthesized / guest-derived / echo / refused) | 70 / 79 / 39 / 66 / 466 | 69 / 79 / 40 / 67 / 479 |
-| routed, unhandled | 86 | 87 |
-| (A / B / C / D / E) | 51 / 10 / 0 / 48 / 0 | 51 / 10 / 1 / 48 / 0 |
+| routed, answered by the device | 763 | 777 |
+| (host-forwarded / synthesized / guest-derived / echo / refused) | 70 / 80 / 74 / 64 / 475 | 69 / 80 / 75 / 65 / 488 |
+| routed, unhandled | 66 | 67 |
+| (A / B / C / D / E) | 50 / 0 / 0 / 16 / 0 | 50 / 0 / 1 / 16 / 0 |
 | RPC functions | 230 | 232 |
 | sent by a GSP client (610 survey; 615: rpc-functions.md §2) | 20 | 14 |
 | handled by the device | 19 | 19 (all 14 of the 615 client) |
@@ -173,15 +176,13 @@ From `caraxes/abi/gsp-615.71.09/` (the tables are in
 | Boot and transport types | 35 | 41 |
 | of which `NV_ABI_STABLE` | 0 | 17 (12 structs, 5 enums) |
 
-Which rule answers the 757 routed controls of 615 (`controls.tsv`, column `answered_by`): the
-category E feature families 302 (refused per chip, `chipctl.rs`), the D rule table 155
-(`dmodel.rs`), the display 71, the B and C table 61 (`public.rs`), the `FORWARD` list 43, the
-match arms of `ctrl.rs` 28, `uvm.rs` 17, `kgr.rs` 16, the A chip table 16, the rest in `cuda.rs`
-and `nvml.rs` (the per-rule split of the first snapshot, before round 2 of D; the snapshot was
-regenerated after that merge and `controls.tsv` carries the current split). The 87 unhandled are
-the open items of [gsp-surface.md](gsp-surface.md) "After round 2 of D": the A rows waiting for a
-capture, the B rows moved to C, the 615-only `NV_EVENT_BUFFER_CTRL_CMD_UPDATE_GET`, and the D rows
-still open (the display rows the display branch answers, the C rows, the open A rows). The classes named or acknowledged are 50 of the 53 in TU106's database; the other 3 are
+Which rule answers the 777 routed controls of 615 (`controls.tsv`, column `answered_by`, counted
+from the snapshot): the category E feature families 302 (refused per chip, `chipctl.rs`), the D
+rule table 178 (`dmodel.rs`), the B and C table 81 (`public.rs`), the display 71, the match arms of
+`ctrl.rs` 29, `nvml.rs` 53 (of which the `FORWARD` list 43), `uvm.rs` 17, `kgr.rs` 16, the A chip
+table 16 and `cuda.rs` 14. The 67 unhandled are the open items of [gsp-surface.md](gsp-surface.md):
+50 A rows waiting for a capture, the 615-only `NV_EVENT_BUFFER_CTRL_CMD_UPDATE_GET` (C), and 16 D
+rows, mostly display (`NV0073`, `NV5070`, `NV9072`, `NVC372`) plus `GSP_FB_STATS_GET`. The classes named or acknowledged are 50 of the 53 in TU106's database; the other 3 are
 the profiler classes, refused at allocation, and the 96 GSP-bound classes outside the database
 are refused as GSP-RM refuses them. The class counts differ from
 [gsp-plan/classes.md](gsp-plan/classes.md) (143 sendable, 48 on TU106) because that document

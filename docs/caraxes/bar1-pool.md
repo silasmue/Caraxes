@@ -444,7 +444,7 @@ Tests (`cargo test -p vfio-user-nvgpu`, 349 plus 2):
   9.8 s per run on average (it faulted in its first run without the rule).
 - `after-hold1-allocburn-610` (610 guest, vm3): 20 of 20 pass, 0 Xid, 0 refused barriers; 181500
   held, 71.2 s (longest 49 ms); 5904 ran-ahead doorbells, none with plans pending.
-- `gate-615` (vm5-615): nvml pass; cuda 10 of 11 scored pass, only the known
+- `gate-615` (vm5-615): nvml pass; cuda 10 of 11 (10 of the 11 scored rows; the gate script counts the same result as 10 of 12, with the declared-unsupported cuda-gdb row in the 12, testing.md section 3, cuda) scored pass, only the known
   cuda-managed 801; convburn passes; 829 invalidates held (1.2 s in total); pool: 10240 pages
   in cold, back behind the barrier, 281 barriers, 0 refused, 40 refused moves, as in the clean matrix runs.
 - `gate-610` (vm3, the gate610 environment): nvml pass but the known power-number; cuda 10 of 11

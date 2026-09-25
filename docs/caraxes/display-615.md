@@ -172,6 +172,8 @@ presented frame (`s4-series/trap-compare.txt`, `compare.py`):
 | BAR2 reads | 23.05 | 23.02 | 0 | 0 |
 | host notifier events to MSI | 4.66 | 6.61 | | |
 
+The 71 BAR2 writes per Mutter frame of optimization-backlog.md and intr-page.md section 6a are another series (series F, 610 guest, neither page on, `caraxes/runs/display-f-2026-09-24/f3b-traps-mutter-fresh/trap-table.txt`); the 73.63 here is the 615 guest with both pages.
+
 - The 615 driver produces the same traps per frame as 610, row for row. The BAR2 page-table
   churn, the GPPut writes, the VF timer reads and the display kicks are identical, so the 615
   kernel RM, NVKMS and GL driver drive the device the same way per frame. The two fewer config

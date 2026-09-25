@@ -467,7 +467,7 @@ fixed device, main plus bb52a46. Census rows are guest medians against the censu
   - rlprobe: process wall 15.5 s against 21.3 s, stage 4 2.6 s against 3.3 s;
   - PPO: 46872 against 50367 steps per second. Another VM's device was busy during both;
   - BAR2 writes per process: 0 against 100700.
-- cuda gate: 10 of 12, cuda-managed failing as before (801), cuda-gdb declared unsupported.
+- cuda gate: 10 of 12 (the gate script's count: the declared-unsupported cuda-gdb row is among the 12; documents that count only the 11 scored rows write the same result as 10 of 11, testing.md section 3, cuda), cuda-managed failing as before (801), cuda-gdb declared unsupported.
 - Pool mechanics: 15872 pages moved in and back, 358 barriers, 0 refused at the end, 0 pages also
   behind the memfd.
 - memfd: 40456 syncs, 8.8 s in total over the whole session, 25 ms at most; 0 alias conflicts.

@@ -220,7 +220,7 @@ Runs: `caraxes/runs/xid31-hostreg-2026-09-24/` (run.sh, `before` with the 7621cf
 - **After**, the fix, device pid 1151433:
   - hostreg-margin passed 20 of 20, with 256-512 margin pages per iteration;
   - hostregprobe passed 20 of 20;
-  - the full cuda gate passed 10 of 11 (cuda-managed has the 801 it has in every gate
+  - the full cuda gate passed 10 of 11 (10 of the 11 scored rows; the gate script counts the same result as 10 of 12, with the declared-unsupported cuda-gdb row in the 12, testing.md section 3, cuda) (cuda-managed has the 801 it has in every gate
     that day);
   - 0 host Xid.
 
