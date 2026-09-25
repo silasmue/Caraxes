@@ -625,7 +625,7 @@ mod tests {
         assert_eq!(a.status, v::NV_ERR_NOT_SUPPORTED, "the card refuses engine 3");
         p[0] = 0x11;
         let a = answer(FIFO_GET_ENGINE_CONTEXT_PROPERTIES, &p, &F).unwrap();
-        assert_eq!((a.status, get32(&a.params, 8)), (0, 0x8_0000), "not captured: chosen");
+        assert_eq!((a.status, get32(&a.params, 4), get32(&a.params, 8)), (0, 0x100, 0x3000), "the card's bundle CB");
         let mut q = vec![0u8; 40];
         q[0] = 8;
         let a = answer(GR_GFX_POOL_QUERY_SIZE, &q, &F).unwrap();
