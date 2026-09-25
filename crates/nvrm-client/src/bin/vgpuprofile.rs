@@ -7,10 +7,24 @@
 //! `--select` emits shell assignments consumed by VM launch scripts.
 //! See docs/OPEN-QUESTIONS.md, item 69.
 //!
+//! FB_GET_INFO_V2's free VRAM already excludes whatever this project's own
+//! device processes hold for their running VMs (`vfio-user-nvgpu`, the v2
+//! device, reserves whole profiles like 3 GiB per slot; `vhost-user-nvrm`,
+//! the v1 backend, allocates as the guest asks). Left uncorrected, each
+//! running VM shrinks the next computed profile. This tool queries
+//! GET_PIDS/GET_PID_INFO (unprivileged, like `smipids`) for those two
+//! executable names and adds their private VRAM back to the free reading
+//! before sizing profiles, so profiles come out as if no Leandro VM were
+//! running; the host desktop's own use stays subtracted. `--raw` (or
+//! `LEA_VGPU_RAW=1`) disables the correction and uses the raw FB_GET_INFO_V2
+//! reading instead. See docs/caraxes/briefing-naming.md, "vgpuprofile's
+//! host-reserve baseline".
+//!
 //! ```text
 //! vgpuprofile                 # profile catalogue
 //! vgpuprofile --select 2Q     # named profile
 //! vgpuprofile --select 130M   # size using the same allocation rule
+//! vgpuprofile --raw           # skip the own-process VRAM correction
 //! ```
 
 use nvrm_abi::{mediate, vgpu};
@@ -44,6 +58,81 @@ const _: () = {
     assert!(std::mem::offset_of!(NameParams, ascii) == 4);
 };
 
+/// `NV2080_CTRL_CMD_GPU_GET_PIDS` (ctrl2080gpu.h:3501).
+const CMD_GPU_GET_PIDS: u32 = 0x2080_018d;
+/// `NV2080_CTRL_CMD_GPU_GET_PID_INFO` (ctrl2080gpu.h:3643).
+const CMD_GPU_GET_PID_INFO: u32 = 0x2080_018e;
+/// `NV2080_CTRL_GPU_PID_INFO_INDEX_VIDEO_MEMORY_USAGE` (ctrl2080gpu.h:3570).
+const PID_INFO_INDEX_VIDEO_MEMORY_USAGE: u32 = 0;
+
+/// Executable names (`/proc/<pid>/comm`) of this project's own device
+/// processes. Each reserves or allocates VRAM on behalf of a running VM --
+/// `vfio-user-nvgpu` reserves whole profiles per slot, `vhost-user-nvrm`
+/// allocates as its guest asks -- and that VRAM disappears the moment the VM
+/// exits, unlike genuine host desktop use. It must not shrink the next
+/// computed profile.
+const LEANDRO_PROCESS_NAMES: [&str; 2] = ["vfio-user-nvgpu", "vhost-user-nvrm"];
+
+/// One matched process's private VRAM, from `GET_PID_INFO`.
+struct Held {
+    comm: String,
+    pid: u32,
+    bytes: u64,
+}
+
+fn comm_of(pid: u32) -> String {
+    std::fs::read_to_string(format!("/proc/{pid}/comm"))
+        .map(|s| s.trim().to_string())
+        .unwrap_or_else(|_| "<no /proc entry>".to_string())
+}
+
+/// Sum the private VRAM this project's own processes hold, via the same
+/// unprivileged `GET_PIDS`/`GET_PID_INFO` controls as `smipids`.
+///
+/// Errors here leave the correction empty rather than aborting: the
+/// catalogue is still valid without it, just as conservative as before this
+/// fix (it undercounts free VRAM while a Leandro VM is running).
+fn leandro_held_vram(rm: &RmClient, subdevice: u32) -> Vec<Held> {
+    let mut p = sys::NV2080_CTRL_GPU_GET_PIDS_PARAMS {
+        idType: 0, // NV2080_CTRL_GPU_GET_PIDS_ID_TYPE_CLASS (ctrl2080gpu.h)
+        id: sys::NV20_SUBDEVICE_0, // every PID with a GPU context
+        ..Default::default()
+    };
+    // SAFETY: matches CMD_GPU_GET_PIDS; owns its complete inline output array.
+    if let Err(e) = unsafe { rm.control(subdevice, CMD_GPU_GET_PIDS, &mut p) } {
+        eprintln!("vgpuprofile: GET_PIDS -- VRAM correction skipped: {e}");
+        return Vec::new();
+    }
+    let n = (p.pidTblCount as usize).min(p.pidTbl.len());
+
+    let mut q = sys::NV2080_CTRL_GPU_GET_PID_INFO_PARAMS {
+        pidInfoListCount: n.min(200) as u32,
+        ..Default::default()
+    };
+    for (i, pid) in p.pidTbl[..q.pidInfoListCount as usize].iter().enumerate() {
+        q.pidInfoList[i].pid = *pid;
+        q.pidInfoList[i].index = PID_INFO_INDEX_VIDEO_MEMORY_USAGE;
+    }
+    // SAFETY: matches CMD_GPU_GET_PID_INFO; count fits the inline list.
+    if let Err(e) = unsafe { rm.control(subdevice, CMD_GPU_GET_PID_INFO, &mut q) } {
+        eprintln!("vgpuprofile: GET_PID_INFO -- VRAM correction skipped: {e}");
+        return Vec::new();
+    }
+
+    q.pidInfoList[..q.pidInfoListCount as usize]
+        .iter()
+        .filter_map(|e| {
+            let comm = comm_of(e.pid);
+            if !LEANDRO_PROCESS_NAMES.contains(&comm.as_str()) {
+                return None;
+            }
+            // SAFETY: index PID_INFO_INDEX_VIDEO_MEMORY_USAGE selects this union member.
+            let bytes = unsafe { e.data.vidMemUsage.memPrivate };
+            Some(Held { comm, pid: e.pid, bytes })
+        })
+        .collect()
+}
+
 /// Profile properties as shell assignments with explicit units.
 fn select_block(cat: &vgpu::Catalogue, p: &vgpu::Profile) -> String {
     [
@@ -61,18 +150,25 @@ fn select_block(cat: &vgpu::Catalogue, p: &vgpu::Profile) -> String {
     .join("\n")
 }
 
+fn usage() -> ! {
+    eprintln!("usage: vgpuprofile [--raw] [--select TYPE|SIZE]");
+    std::process::exit(2);
+}
+
 fn main() {
     sys::assert_driver_version();
 
     let args: Vec<String> = std::env::args().skip(1).collect();
-    let select = match args.as_slice() {
-        [] => None,
-        [flag, want] if flag == "--select" => Some(want.clone()),
-        _ => {
-            eprintln!("usage: vgpuprofile [--select TYPE|SIZE]");
-            std::process::exit(2);
+    let mut select: Option<String> = None;
+    let mut raw = std::env::var("LEA_VGPU_RAW").is_ok_and(|v| !v.trim().is_empty());
+    let mut it = args.iter();
+    while let Some(a) = it.next() {
+        match a.as_str() {
+            "--raw" => raw = true,
+            "--select" => select = Some(it.next().unwrap_or_else(|| usage()).clone()),
+            _ => usage(),
         }
-    };
+    }
     // Reserve stdout for shell assignments when selecting one profile.
     let quiet = select.is_some();
     macro_rules! say {
@@ -136,8 +232,42 @@ fn main() {
         free_kb / 1024
     );
 
+    // Free VRAM as FB_GET_INFO_V2 reports it already excludes whatever our own
+    // device processes hold for running VMs. Add it back so profiles are sized
+    // as if no Leandro VM were running, unless the operator asked for the raw
+    // (VM-inflated) reading.
+    let corrected_free_kb = if raw {
+        say!("vram correction: skipped (--raw / LEA_VGPU_RAW)");
+        free_kb
+    } else {
+        let held = leandro_held_vram(&rm, subdevice);
+        let held_bytes: u64 = held.iter().map(|h| h.bytes).sum();
+        let held_kb = held_bytes / 1024;
+        if held.is_empty() {
+            say!(
+                "vram correction: none -- no {LEANDRO_PROCESS_NAMES:?} process holds VRAM right now"
+            );
+        } else {
+            for h in &held {
+                say!(
+                    "vram correction: +{} MiB held by {} (pid {})",
+                    h.bytes / (1 << 20),
+                    h.comm,
+                    h.pid
+                );
+            }
+            say!(
+                "vram correction: {} MiB added back to free VRAM ({} MiB -> {} MiB)",
+                held_kb / 1024,
+                free_kb / 1024,
+                (free_kb + held_kb).min(heap_kb) / 1024
+            );
+        }
+        (free_kb + held_kb).min(heap_kb)
+    };
+
     // Reserve currently used host memory unless the operator supplies a value.
-    let in_use_kb = heap_kb.saturating_sub(free_kb);
+    let in_use_kb = heap_kb.saturating_sub(corrected_free_kb);
     let host_reserve = match std::env::var("LEA_VGPU_HOST_RESERVE_MIB") {
         Ok(v) if !v.trim().is_empty() => {
             match v.trim().parse::<u64>() {

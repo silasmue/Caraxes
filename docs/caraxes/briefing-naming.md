@@ -135,3 +135,18 @@ the "never modified by us" condition above. Done in this order:
 3. Tests, help texts, `identity-profile.md`, `nvml.md`, `crates/vhost-user-nvrm/README.md`
    and the P17 row in `README.md` follow the new default. Historical records keep the names
    they recorded.
+
+## Status (2026-09-25): vgpuprofile's host-reserve baseline
+
+Bug fix, unrelated to naming, in the same tool this brief already touches
+(`crates/nvrm-client/src/bin/vgpuprofile.rs`). `HEAP_SIZE - HEAP_FREE` (the host reserve
+subtracted before sizing profiles) used to include VRAM held by this project's own running
+device processes -- `vfio-user-nvgpu` (v2, reserves whole profiles like 3 GiB per slot) and
+`vhost-user-nvrm` (v1, allocates as its guest asks) -- so each running VM made the next
+computed profile smaller. Fixed by querying `GET_PIDS`/`GET_PID_INFO` (unprivileged, the same
+controls as `smipids`) for those two executable names and adding their private VRAM back to
+the free reading before the host-reserve arithmetic runs; the host desktop's own use stays
+subtracted. `--raw` or `LEA_VGPU_RAW=<non-empty>` disables the correction. The tool prints
+which of its own processes held how much, or that none did. `LEA_VGPU_HOST_RESERVE_MIB`
+(an explicit operator-supplied reserve) bypasses the measurement entirely, so it is unaffected
+either way. No catalogue arithmetic (`vgpu::Catalogue`) or naming changed.
