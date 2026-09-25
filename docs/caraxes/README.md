@@ -631,6 +631,18 @@ the VM; then display, expected to be much easier than in v1.
   `naming::parse_name` reads both. The v1 gates in `../Leandro-Test` accept either format
   through one regex helper (`lea_mediated_name_re`, operator's permission of 2026-09-24).
   The Caraxes GID is still seeded from the legacy name, so the guest UUID is unchanged.
+- 2026-09-25: **The pure-emulation regressions of 2026-09-24 were the rig**
+  ([blackwell-gate.md](blackwell-gate.md) section 5, evidence
+  `caraxes/runs/emu-regress-2026-09-25/`): the ladder's vm6 lacked the guest module options of
+  quickstart.md section 2 (`RmDisableGlobalCeUtils=1;RMDisableScrubOnFree=1;RmRcWatchdog=0`), so
+  the TU106 met the global CeUtils self-test (memmgrMemSet timeout, mem_mgr.c:445) and the GB206
+  the watchdog's GR object (`numGpcs > 0`, kernel_graphics_object.c:192). Without the options
+  the declared good commit 61e0b6a fails too; with them the declared bad 7621cfb and main boot,
+  so no commit was at fault and none was moved or re-categorised. With the options, the TU106
+  (610 and 615 guest) reaches RmInitAdapter and nvidia-smi, the N gate passes N0 to N4, and all
+  six costume-ladder rungs boot in pure emulation. The device now reads the 610 guest's
+  SET_REGISTRY table and warns about a missing key; `tools/emu-boot-check.sh` (check.sh step
+  `emu-boot`, `CARAXES_CHECK_EMU_BOOT=1`) boots the TU106 in pure emulation without a GPU.
 - 2026-09-25: **The costume ladder** ([costume-ladder.md](costume-ladder.md), evidence
   `caraxes/runs/costume-ladder-2026-09-24/`): TU104 over the TU106 works on the GPU (nvml gate
   but power-number, cuda gate 10 of 12 scored, 0 Xid). GA106 and AD106 take the Ampere/Ada HAL
