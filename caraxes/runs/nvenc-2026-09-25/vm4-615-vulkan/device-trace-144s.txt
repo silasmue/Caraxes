@@ -1,0 +1,22 @@
+   144986142 E boot: doorbell 771: libos args PA 0x7ffd6d65b000 (mapped), wpr meta PA 0x7ffd6d65a000
+   144986144 E boot: rx seq 843 GSP_RM_CONTROL (76) sequence 769 length 128 checksum ok: hClient=0xc1d00012 hObject=0xbeef9960 cmd=0x90960107 paramsSize=56 rpcFlags=0x0
+   144986145 E boot: ctrl 0x90960107: ZBC entry type 3 index 12: empty -> status 0x0 [guest (ZBC table of this VM: the chip defaults read once from the host, then this guest's entries)]
+   144986146 E boot: tx seq 769 reply GSP_RM_CONTROL sequence 769 result 0x0 length 128
+   144988343 E boot: doorbell 772: libos args PA 0x7ffd6d65b000 (mapped), wpr meta PA 0x7ffd6d65a000
+   144988344 E boot: rx seq 844 GSP_RM_CONTROL (76) sequence 770 length 128 checksum ok: hClient=0xc1d00012 hObject=0xbeef9960 cmd=0x90960107 paramsSize=56 rpcFlags=0x0
+   144988350 E boot: ctrl 0x90960107: ZBC entry type 3 index 13: empty -> status 0x0 [guest (ZBC table of this VM: the chip defaults read once from the host, then this guest's entries)]
+   144988352 E boot: tx seq 770 reply GSP_RM_CONTROL sequence 770 result 0x0 length 128
+   144988790 E boot: doorbell 773: libos args PA 0x7ffd6d65b000 (mapped), wpr meta PA 0x7ffd6d65a000
+   144988792 E boot: rx seq 845 GSP_RM_CONTROL (76) sequence 771 length 128 checksum ok: hClient=0xc1d00012 hObject=0xbeef9960 cmd=0x90960107 paramsSize=56 rpcFlags=0x0
+   144988793 E boot: ctrl 0x90960107: ZBC entry type 3 index 14: empty -> status 0x0 [guest (ZBC table of this VM: the chip defaults read once from the host, then this guest's entries)]
+   144988794 E boot: tx seq 771 reply GSP_RM_CONTROL sequence 771 result 0x0 length 128
+   144989227 E boot: doorbell 774: libos args PA 0x7ffd6d65b000 (mapped), wpr meta PA 0x7ffd6d65a000
+   144989229 E boot: rx seq 846 GSP_RM_CONTROL (76) sequence 772 length 128 checksum ok: hClient=0xc1d00012 hObject=0xbeef9960 cmd=0x90960107 paramsSize=56 rpcFlags=0x0
+   144989230 E boot: ctrl 0x90960107: ZBC entry type 3 index 15: empty -> status 0x0 [guest (ZBC table of this VM: the chip defaults read once from the host, then this guest's entries)]
+   144989231 E boot: tx seq 772 reply GSP_RM_CONTROL sequence 772 result 0x0 length 128
+   144998126 E boot: doorbell 775: libos args PA 0x7ffd6d65b000 (mapped), wpr meta PA 0x7ffd6d65a000
+   144998128 E boot: rx seq 847 GSP_RM_ALLOC (103) sequence 773 length 64 checksum ok: hClient=0xc1d00012 hParent=0xbeed0100 hObject=0xbeed90c0 hClass=0xc5c0 paramsSize=0 flags=0x0
+   144998129 E boot: alloc: alloc 0xc5c0 object 0xbeed90c0 under 0xbeed0100: engine object class 0xc5c0 on chid 6 (0 bytes of params) [guest]; chid 6: host object class 0xc5c0 0x80000133 added [host] -> status 0x0 [guest (recorded for the channel emulation; no host object)]
+   144998131 E boot: tx seq 773 reply GSP_RM_ALLOC sequence 773 result 0x0 length 64
+   145009773 E boot: mmu invalidate: pdb 0x1298f4000 flags 0xc1 -> the shadow VA space(s) re-synced from the guest's tables
+   145010621 E boot: mmu invalidate: pdb 0x1e9600000 flags 0x5 (no mirror or shadow VA space rooted there; nothing cached here)

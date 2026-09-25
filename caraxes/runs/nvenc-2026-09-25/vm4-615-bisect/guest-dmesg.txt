@@ -1,0 +1,128 @@
+[  348.697176] ------------[ cut here ]------------
+[  348.697182] WARNING: CPU: 3 PID: 1732 at /var/lib/dkms/nvidia/615.71.09/build/nvidia-drm/nvidia-drm-crtc.h:368 __nv_drm_handle_flip_event+0x1d5/0x1f0 [nvidia_drm]
+[  348.697194] Modules linked in: hid_playstation led_class_multicolor ff_memless hid_generic joydev snd_seq_dummy snd_hrtimer snd_seq_midi snd_seq_midi_event snd_rawmidi snd_seq snd_seq_device snd_timer snd soundcore nvidia_uvm(OE) nvidia_drm(OE) drm_display_helper cec rc_core nvidia_modeset(OE) video wmi nvidia(OE) ecc caraxes_dma_range(OE) qrtr cfg80211 nls_iso8859_1 intel_rapl_msr intel_rapl_common binfmt_misc kvm_amd ccp kvm irqbypass mac_hid sch_fq_codel msr dm_multipath parport_pc ppdev lp parport uhid hid efi_pstore nfnetlink dmi_sysfs qemu_fw_cfg ip_tables x_tables autofs4 btrfs blake2b_generic raid10 raid456 async_raid6_recov async_memcpy async_pq async_xor async_tx xor raid6_pq libcrc32c raid1 raid0 crct10dif_pclmul crc32_pclmul polyval_clmulni polyval_generic ghash_clmulni_intel sha256_ssse3 virtio_rng sha1_ssse3 aesni_intel crypto_simd cryptd
+[  348.697243] CPU: 3 PID: 1732 Comm: nvidia-modeset/ Tainted: G        W  OE      6.8.0-136-generic #136-Ubuntu
+[  348.697246] Hardware name: Cloud Hypervisor cloud-hypervisor, BIOS 0 
+[  348.697247] RIP: 0010:__nv_drm_handle_flip_event+0x1d5/0x1f0 [nvidia_drm]
+[  348.697253] Code: fc ff ff 0f b6 15 73 b4 00 00 80 fa 01 0f 87 a1 70 00 00 83 e2 01 74 96 4c 89 e7 e8 e5 40 4e e6 eb 8c 4c 89 ef e8 eb 36 a7 e6 <0f> 0b e9 9e fe ff ff 4c 89 ef e8 cc 40 4e e6 e9 41 ff ff ff 0f 1f
+[  348.697255] RSP: 0018:ffffd09740d83d98 EFLAGS: 00010246
+[  348.697257] RAX: 0000000000000000 RBX: ffff8ac9a95e4018 RCX: 0000000000000000
+[  348.697258] RDX: 0000000000000000 RSI: 0000000000000000 RDI: 0000000000000000
+[  348.697259] RBP: ffffd09740d83de0 R08: 0000000000000000 R09: 0000000000000000
+[  348.697260] R10: 0000000000000000 R11: 0000000000000000 R12: ffff8ac9a95e4000
+[  348.697261] R13: ffff8ac9a95e4048 R14: ffff8ac984a22900 R15: ffff8ac9951f2000
+[  348.697263] FS:  0000000000000000(0000) GS:ffff8acab7b80000(0000) knlGS:0000000000000000
+[  348.697264] CS:  0010 DS: 0000 ES: 0000 CR0: 0000000080050033
+[  348.697265] CR2: 00002dde01d9c000 CR3: 00000001040de000 CR4: 0000000000350ef0
+[  348.697268] Call Trace:
+[  348.697270]  <TASK>
+[  348.697271]  ? _raw_spin_unlock_irqrestore+0x11/0x60
+[  348.697282]  nv_drm_handle_flip_occurred+0x52/0x80 [nvidia_drm]
+[  348.697287]  nv_drm_event_callback+0xfb/0x120 [nvidia_drm]
+[  348.697291]  nvKmsKapiHandleEventQueueChange+0xba/0x110 [nvidia_modeset]
+[  348.697324]  ? nvkms_kapi_event_kthread_q_callback+0xe/0x20 [nvidia_modeset]
+[  348.697346]  ? _main_loop+0x82/0x140 [nvidia_modeset]
+[  348.697369]  ? __pfx__main_loop+0x10/0x10 [nvidia_modeset]
+[  348.697392]  ? kthread+0xf2/0x120
+[  348.697395]  ? __pfx_kthread+0x10/0x10
+[  348.697397]  ? ret_from_fork+0x47/0x70
+[  348.697400]  ? __pfx_kthread+0x10/0x10
+[  348.697401]  ? ret_from_fork_asm+0x1b/0x30
+[  348.697404]  </TASK>
+[  348.697405] ---[ end trace 0000000000000000 ]---
+[  348.852898] ------------[ cut here ]------------
+[  348.852905] WARNING: CPU: 4 PID: 1732 at /var/lib/dkms/nvidia/615.71.09/build/nvidia-drm/nvidia-drm-crtc.h:368 __nv_drm_handle_flip_event+0x1d5/0x1f0 [nvidia_drm]
+[  348.852923] Modules linked in: hid_playstation led_class_multicolor ff_memless hid_generic joydev snd_seq_dummy snd_hrtimer snd_seq_midi snd_seq_midi_event snd_rawmidi snd_seq snd_seq_device snd_timer snd soundcore nvidia_uvm(OE) nvidia_drm(OE) drm_display_helper cec rc_core nvidia_modeset(OE) video wmi nvidia(OE) ecc caraxes_dma_range(OE) qrtr cfg80211 nls_iso8859_1 intel_rapl_msr intel_rapl_common binfmt_misc kvm_amd ccp kvm irqbypass mac_hid sch_fq_codel msr dm_multipath parport_pc ppdev lp parport uhid hid efi_pstore nfnetlink dmi_sysfs qemu_fw_cfg ip_tables x_tables autofs4 btrfs blake2b_generic raid10 raid456 async_raid6_recov async_memcpy async_pq async_xor async_tx xor raid6_pq libcrc32c raid1 raid0 crct10dif_pclmul crc32_pclmul polyval_clmulni polyval_generic ghash_clmulni_intel sha256_ssse3 virtio_rng sha1_ssse3 aesni_intel crypto_simd cryptd
+[  348.852993] CPU: 4 PID: 1732 Comm: nvidia-modeset/ Tainted: G        W  OE      6.8.0-136-generic #136-Ubuntu
+[  348.852997] Hardware name: Cloud Hypervisor cloud-hypervisor, BIOS 0 
+[  348.852999] RIP: 0010:__nv_drm_handle_flip_event+0x1d5/0x1f0 [nvidia_drm]
+[  348.853007] Code: fc ff ff 0f b6 15 73 b4 00 00 80 fa 01 0f 87 a1 70 00 00 83 e2 01 74 96 4c 89 e7 e8 e5 40 4e e6 eb 8c 4c 89 ef e8 eb 36 a7 e6 <0f> 0b e9 9e fe ff ff 4c 89 ef e8 cc 40 4e e6 e9 41 ff ff ff 0f 1f
+[  348.853009] RSP: 0018:ffffd09740d83d98 EFLAGS: 00010246
+[  348.853012] RAX: 0000000000000000 RBX: ffff8ac9a95e4018 RCX: 0000000000000000
+[  348.853014] RDX: 0000000000000000 RSI: 0000000000000000 RDI: 0000000000000000
+[  348.853015] RBP: ffffd09740d83de0 R08: 0000000000000000 R09: 0000000000000000
+[  348.853016] R10: 0000000000000000 R11: 0000000000000000 R12: ffff8ac9a95e4000
+[  348.853018] R13: ffff8ac9a95e4048 R14: ffff8ac984a22900 R15: ffff8ac9951f2000
+[  348.853022] FS:  0000000000000000(0000) GS:ffff8acab7c00000(0000) knlGS:0000000000000000
+[  348.853024] CS:  0010 DS: 0000 ES: 0000 CR0: 0000000080050033
+[  348.853026] CR2: 00007f044909b000 CR3: 0000000105120000 CR4: 0000000000350ef0
+[  348.853030] Call Trace:
+[  348.853032]  <TASK>
+[  348.853033]  ? _raw_spin_unlock_irqrestore+0x11/0x60
+[  348.853046]  nv_drm_handle_flip_occurred+0x52/0x80 [nvidia_drm]
+[  348.853053]  nv_drm_event_callback+0xfb/0x120 [nvidia_drm]
+[  348.853061]  nvKmsKapiHandleEventQueueChange+0xba/0x110 [nvidia_modeset]
+[  348.853107]  ? nvkms_kapi_event_kthread_q_callback+0xe/0x20 [nvidia_modeset]
+[  348.853142]  ? _main_loop+0x82/0x140 [nvidia_modeset]
+[  348.853179]  ? __pfx__main_loop+0x10/0x10 [nvidia_modeset]
+[  348.853216]  ? kthread+0xf2/0x120
+[  348.853220]  ? __pfx_kthread+0x10/0x10
+[  348.853222]  ? ret_from_fork+0x47/0x70
+[  348.853226]  ? __pfx_kthread+0x10/0x10
+[  348.853228]  ? ret_from_fork_asm+0x1b/0x30
+[  348.853233]  </TASK>
+[  348.853234] ---[ end trace 0000000000000000 ]---
+[  360.450243] ------------[ cut here ]------------
+[  360.450250] WARNING: CPU: 2 PID: 1732 at /var/lib/dkms/nvidia/615.71.09/build/nvidia-drm/nvidia-drm-crtc.h:368 __nv_drm_handle_flip_event+0x1d5/0x1f0 [nvidia_drm]
+[  360.450265] Modules linked in: hid_playstation led_class_multicolor ff_memless hid_generic joydev snd_seq_dummy snd_hrtimer snd_seq_midi snd_seq_midi_event snd_rawmidi snd_seq snd_seq_device snd_timer snd soundcore nvidia_uvm(OE) nvidia_drm(OE) drm_display_helper cec rc_core nvidia_modeset(OE) video wmi nvidia(OE) ecc caraxes_dma_range(OE) qrtr cfg80211 nls_iso8859_1 intel_rapl_msr intel_rapl_common binfmt_misc kvm_amd ccp kvm irqbypass mac_hid sch_fq_codel msr dm_multipath parport_pc ppdev lp parport uhid hid efi_pstore nfnetlink dmi_sysfs qemu_fw_cfg ip_tables x_tables autofs4 btrfs blake2b_generic raid10 raid456 async_raid6_recov async_memcpy async_pq async_xor async_tx xor raid6_pq libcrc32c raid1 raid0 crct10dif_pclmul crc32_pclmul polyval_clmulni polyval_generic ghash_clmulni_intel sha256_ssse3 virtio_rng sha1_ssse3 aesni_intel crypto_simd cryptd
+[  360.450317] CPU: 2 PID: 1732 Comm: nvidia-modeset/ Tainted: G        W  OE      6.8.0-136-generic #136-Ubuntu
+[  360.450320] Hardware name: Cloud Hypervisor cloud-hypervisor, BIOS 0 
+[  360.450322] RIP: 0010:__nv_drm_handle_flip_event+0x1d5/0x1f0 [nvidia_drm]
+[  360.450328] Code: fc ff ff 0f b6 15 73 b4 00 00 80 fa 01 0f 87 a1 70 00 00 83 e2 01 74 96 4c 89 e7 e8 e5 40 4e e6 eb 8c 4c 89 ef e8 eb 36 a7 e6 <0f> 0b e9 9e fe ff ff 4c 89 ef e8 cc 40 4e e6 e9 41 ff ff ff 0f 1f
+[  360.450329] RSP: 0018:ffffd09740d83d98 EFLAGS: 00010246
+[  360.450331] RAX: 0000000000000000 RBX: ffff8ac9a95e4018 RCX: 0000000000000000
+[  360.450333] RDX: 0000000000000000 RSI: 0000000000000000 RDI: 0000000000000000
+[  360.450333] RBP: ffffd09740d83de0 R08: 0000000000000000 R09: 0000000000000000
+[  360.450334] R10: 0000000000000000 R11: 0000000000000000 R12: ffff8ac9a95e4000
+[  360.450335] R13: ffff8ac9a95e4048 R14: ffff8ac984a22900 R15: ffff8ac9951f2000
+[  360.450338] FS:  0000000000000000(0000) GS:ffff8acab7b00000(0000) knlGS:0000000000000000
+[  360.450339] CS:  0010 DS: 0000 ES: 0000 CR0: 0000000080050033
+[  360.450341] CR2: 000017a0026dc140 CR3: 000000016a3f8000 CR4: 0000000000350ef0
+[  360.450343] Call Trace:
+[  360.450345]  <TASK>
+[  360.450346]  ? _raw_spin_unlock_irqrestore+0x11/0x60
+[  360.450357]  nv_drm_handle_flip_occurred+0x52/0x80 [nvidia_drm]
+[  360.450362]  nv_drm_event_callback+0xfb/0x120 [nvidia_drm]
+[  360.450367]  nvKmsKapiHandleEventQueueChange+0xba/0x110 [nvidia_modeset]
+[  360.450403]  ? nvkms_kapi_event_kthread_q_callback+0xe/0x20 [nvidia_modeset]
+[  360.450424]  ? _main_loop+0x82/0x140 [nvidia_modeset]
+[  360.450448]  ? __pfx__main_loop+0x10/0x10 [nvidia_modeset]
+[  360.450471]  ? kthread+0xf2/0x120
+[  360.450474]  ? __pfx_kthread+0x10/0x10
+[  360.450476]  ? ret_from_fork+0x47/0x70
+[  360.450479]  ? __pfx_kthread+0x10/0x10
+[  360.450480]  ? ret_from_fork_asm+0x1b/0x30
+[  360.450484]  </TASK>
+[  360.450485] ---[ end trace 0000000000000000 ]---
+[  395.516785] ------------[ cut here ]------------
+[  395.516791] WARNING: CPU: 3 PID: 1732 at /var/lib/dkms/nvidia/615.71.09/build/nvidia-drm/nvidia-drm-crtc.h:368 __nv_drm_handle_flip_event+0x1d5/0x1f0 [nvidia_drm]
+[  395.516804] Modules linked in: hid_playstation led_class_multicolor ff_memless hid_generic joydev snd_seq_dummy snd_hrtimer snd_seq_midi snd_seq_midi_event snd_rawmidi snd_seq snd_seq_device snd_timer snd soundcore nvidia_uvm(OE) nvidia_drm(OE) drm_display_helper cec rc_core nvidia_modeset(OE) video wmi nvidia(OE) ecc caraxes_dma_range(OE) qrtr cfg80211 nls_iso8859_1 intel_rapl_msr intel_rapl_common binfmt_misc kvm_amd ccp kvm irqbypass mac_hid sch_fq_codel msr dm_multipath parport_pc ppdev lp parport uhid hid efi_pstore nfnetlink dmi_sysfs qemu_fw_cfg ip_tables x_tables autofs4 btrfs blake2b_generic raid10 raid456 async_raid6_recov async_memcpy async_pq async_xor async_tx xor raid6_pq libcrc32c raid1 raid0 crct10dif_pclmul crc32_pclmul polyval_clmulni polyval_generic ghash_clmulni_intel sha256_ssse3 virtio_rng sha1_ssse3 aesni_intel crypto_simd cryptd
+[  395.516853] CPU: 3 PID: 1732 Comm: nvidia-modeset/ Tainted: G        W  OE      6.8.0-136-generic #136-Ubuntu
+[  395.516855] Hardware name: Cloud Hypervisor cloud-hypervisor, BIOS 0 
+[  395.516857] RIP: 0010:__nv_drm_handle_flip_event+0x1d5/0x1f0 [nvidia_drm]
+[  395.516863] Code: fc ff ff 0f b6 15 73 b4 00 00 80 fa 01 0f 87 a1 70 00 00 83 e2 01 74 96 4c 89 e7 e8 e5 40 4e e6 eb 8c 4c 89 ef e8 eb 36 a7 e6 <0f> 0b e9 9e fe ff ff 4c 89 ef e8 cc 40 4e e6 e9 41 ff ff ff 0f 1f
+[  395.516864] RSP: 0018:ffffd09740d83d98 EFLAGS: 00010246
+[  395.516866] RAX: 0000000000000000 RBX: ffff8ac9a95e4018 RCX: 0000000000000000
+[  395.516867] RDX: 0000000000000000 RSI: 0000000000000000 RDI: 0000000000000000
+[  395.516868] RBP: ffffd09740d83de0 R08: 0000000000000000 R09: 0000000000000000
+[  395.516869] R10: 0000000000000000 R11: 0000000000000000 R12: ffff8ac9a95e4000
+[  395.516870] R13: ffff8ac9a95e4048 R14: ffff8ac984a22900 R15: ffff8ac9951f2000
+[  395.516872] FS:  0000000000000000(0000) GS:ffff8acab7b80000(0000) knlGS:0000000000000000
+[  395.516874] CS:  0010 DS: 0000 ES: 0000 CR0: 0000000080050033
+[  395.516875] CR2: 00007f044b9ef910 CR3: 00000001040de000 CR4: 0000000000350ef0
+[  395.516878] Call Trace:
+[  395.516880]  <TASK>
+[  395.516881]  ? _raw_spin_unlock_irqrestore+0x11/0x60
+[  395.516891]  nv_drm_handle_flip_occurred+0x52/0x80 [nvidia_drm]
+[  395.516896]  nv_drm_event_callback+0xfb/0x120 [nvidia_drm]
+[  395.516901]  nvKmsKapiHandleEventQueueChange+0xba/0x110 [nvidia_modeset]
+[  395.516951]  ? nvkms_kapi_event_kthread_q_callback+0xe/0x20 [nvidia_modeset]
+[  395.516973]  ? _main_loop+0x82/0x140 [nvidia_modeset]
+[  395.516996]  ? __pfx__main_loop+0x10/0x10 [nvidia_modeset]
+[  395.517019]  ? kthread+0xf2/0x120
+[  395.517024]  ? __pfx_kthread+0x10/0x10
+[  395.517025]  ? ret_from_fork+0x47/0x70
+[  395.517028]  ? __pfx_kthread+0x10/0x10
+[  395.517030]  ? ret_from_fork_asm+0x1b/0x30
+[  395.517033]  </TASK>
+[  395.517034] ---[ end trace 0000000000000000 ]---

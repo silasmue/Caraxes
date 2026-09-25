@@ -103,8 +103,27 @@ int ioctl(int fd, unsigned long req, ...)
         }
     } else if (_IOC_NR(req) == ESC_RM_ALLOC && _IOC_SIZE(req) >= sizeof(struct nvos64)) {
         struct nvos64 *p = arg;
-        fprintf(stderr, "RMALLOC class=%#06x parent=%#x new=%#x status=%#x\n", p->hClass,
-                p->hObjectParent, p->hObjectNew, p->status);
+        fprintf(stderr, "RMALLOC class=%#06x parent=%#x new=%#x status=%#x size=%u", p->hClass,
+                p->hObjectParent, p->hObjectNew, p->status, p->paramsSize);
+        const uint8_t *a = (const uint8_t *)(uintptr_t)p->pAllocParms;
+        uint32_t u[64];
+        // NV_CHANNEL_ALLOC_PARAMS (615.71.09 layout, nvrm-sys v615.rs): the handles and flags.
+        if (a && (p->hClass & 0xff) == 0x6f && p->hClass >= 0xa06f) {
+            memcpy(u, a, 256);
+            uint64_t gp;
+            memcpy(&gp, a + 8, 8);
+            fprintf(stderr,
+                    " | hObjectError=%#x hObjectBuffer=%#x gpFifoOffset=%#lx entries=%u flags=%#x"
+                    " hContextShare=%#x hVASpace=%#x hHandleVASpace=%#x engineType=%#x cid=%u"
+                    " subDeviceId=%u hObjectEccError=%#x hPhysChannelGroup=%#x internalFlags=%#x",
+                    u[0], u[1], (unsigned long)gp, u[4], u[5], u[6], u[7], u[8], u[34], u[35],
+                    u[36], u[37], u[62], u[63]);
+        } else if (a && p->paramsSize) {
+            fprintf(stderr, " | params=");
+            for (uint32_t i = 0; i < p->paramsSize && i < 32; i++)
+                fprintf(stderr, "%02x", a[i]);
+        }
+        fputc('\n', stderr);
     }
     return r;
 }
