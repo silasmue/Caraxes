@@ -165,6 +165,28 @@ impl LazyPlans {
         OnInvalidate::Defer
     }
 
+    /// At an invalidate the untrapped-GPPut rule plans now (untrapped.rs): take the pending
+    /// roots of `roots` out of the batch and return them; the rest stays deferred. A batch
+    /// that names every root (`ALL_PDB`) keeps it: the roots returned are planned now and
+    /// planned again (with nothing left to do) with the rest.
+    pub fn take_roots(&mut self, roots: &BTreeSet<u64>) -> Vec<u64> {
+        if self.pending.is_empty() {
+            return Vec::new();
+        }
+        if self.pending.all {
+            return roots.iter().copied().collect();
+        }
+        let taken: Vec<u64> = self.pending.roots.intersection(roots).copied().collect();
+        for r in &taken {
+            self.pending.roots.remove(r);
+        }
+        if self.pending.roots.is_empty() {
+            self.pending = Pending::default();
+            self.since = None;
+        }
+        taken
+    }
+
     /// At a doorbell or creation of a shadow channel: the pending batch, if any.
     pub fn take(&mut self) -> Option<Pending> {
         self.take_batch(FlushAt::Doorbell)
@@ -334,5 +356,26 @@ mod tests {
         }
         assert_eq!(leaves(&fb), vec![(0x1000, Target::Fb(y), 0x1000)]);
         assert!(front.plan(&fb, &mem, BASE, END, 1, &[], &[]).is_none(), "nothing left to plan");
+    }
+
+    #[test]
+    fn the_rule_takes_only_its_roots_out_of_the_batch() {
+        let mut l = LazyPlans::new(true, None);
+        let t = Instant::now();
+        let set: BTreeSet<u64> = [A].into();
+        assert!(l.take_roots(&set).is_empty(), "nothing pending");
+        l.on_invalidate(Some(A), t);
+        l.on_invalidate(Some(B), t);
+        assert_eq!(l.take_roots(&set), vec![A]);
+        assert_eq!(l.take().unwrap().roots(), Some(vec![B]), "B stays deferred");
+        // Only A pending: taking it empties the batch.
+        l.on_invalidate(Some(A), t);
+        assert_eq!(l.take_roots(&set), vec![A]);
+        assert!(!l.is_pending());
+        // ALL_PDB pending: the roots are planned now and the batch stays.
+        l.on_invalidate(None, t);
+        assert_eq!(l.take_roots(&set), vec![A]);
+        assert!(l.is_pending());
+        assert_eq!(l.take().unwrap().roots(), None);
     }
 }

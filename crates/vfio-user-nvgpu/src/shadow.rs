@@ -572,6 +572,12 @@ pub struct Plan {
     /// Refusal lines of this walk (each leaf once).
     pub notes: Vec<String>,
     pub full: bool,
+    /// Whether the plan may add or change a mapping (untrapped.rs, the hold refinement of
+    /// bar1-pool.md §9): the walk found a leaf the unit did not hold before, or the plan is
+    /// a full walk, a pool re-diff or an exclusion change (counted as adding, fail closed).
+    /// `false`: it can only remove mappings, so the shadow stays a superset of the guest's
+    /// tables until it is applied.
+    pub adds: bool,
     pub reads: usize,
     pub truncated: bool,
     pub walked: usize,
@@ -664,6 +670,7 @@ impl ShadowFront {
             truncated: fb.with_walk(root, |c| c.truncated) == Some(true),
             ..Default::default()
         };
+        plan.adds = upd.grew || upd.full || pool_moved || exclude_changed || plan.truncated;
         let mut logged = 0usize;
         for &u in &units {
             // P21 design H: leaves on pool pages point there (fb.rs `remap`).

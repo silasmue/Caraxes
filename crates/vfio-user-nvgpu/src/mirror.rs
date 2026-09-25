@@ -525,9 +525,15 @@ impl Mirror {
         gm: &mut GpuMem,
         root: Option<u64>,
     ) -> Vec<String> {
+        self.resync(gm, root).0
+    }
+
+    /// [`Self::shadow_resync`], and whether a submitted plan may add or change a mapping
+    /// (`Plan::adds`; the hold refinement of untrapped.rs).
+    fn resync(&mut self, gm: &mut GpuMem, root: Option<u64>) -> (Vec<String>, bool) {
         let (base, end, reservation) = (self.base, self.end, self.reservation);
         let descs = self.descs();
-        let mut out = Vec::new();
+        let mut adds = false;
         for (r, sp) in self.shadows.iter_mut() {
             if root.is_some_and(|x| x != *r) {
                 continue;
@@ -537,6 +543,7 @@ impl Mirror {
                     .plan(gm.fb, gm.sys, base, end, reservation, &sp.exclude, &descs)
             {
                 if !plan.is_empty() {
+                    adds |= plan.adds;
                     self.worker.submit(Job::Apply(plan, Instant::now()));
                 }
             }
@@ -544,8 +551,7 @@ impl Mirror {
         if !self.worker.enabled {
             self.worker.wait_all();
         }
-        out.append(&mut Vec::new());
-        out
+        (Vec::new(), adds)
     }
 
     /// A guest MMU invalidate of `pdb` (`None`: `ALL_PDB`): re-sync the shadows now, or,
@@ -557,18 +563,52 @@ impl Mirror {
         gm: &mut GpuMem,
         pdb: Option<u64>,
     ) -> Vec<String> {
-        use crate::lazy::OnInvalidate;
         // A root whose channel's GPPut store does not trap (untrapped.rs): the invalidate is
-        // the last point before the host channel may run the guest's next work, so the plan
-        // is made and applied before the guest continues, with everything deferred so far.
-        if self.hold_on && crate::untrapped::must_hold(pdb, &self.untrapped_roots(reg, gm.fb)) {
-            let t0 = Instant::now();
-            let mut notes = self.flush_lazy(reg, gm);
-            notes.extend(self.shadow_resync(reg, gm, pdb));
-            self.worker.wait_all();
-            self.hold.note_held(t0.elapsed());
-            return notes;
+        // the last point before the host channel may run the guest's next work. Its plan is
+        // made now, with what lazy mode deferred for such roots, and the guest continues
+        // only after the worker applied it when it may add or change a mapping; a plan that
+        // only removes mappings is submitted without the wait (untrapped.rs `must_wait`).
+        if self.hold_on {
+            let untrapped = self.untrapped_roots(reg, gm.fb);
+            if crate::untrapped::must_hold(pdb, &untrapped) {
+                let t0 = Instant::now();
+                let mut roots: std::collections::BTreeSet<u64> = match pdb {
+                    Some(r) => [r].into(),
+                    None => untrapped.clone(),
+                };
+                roots.extend(self.lazy.take_roots(&untrapped));
+                let mut notes = Vec::new();
+                let mut adds = false;
+                for r in roots {
+                    let (n, a) = self.resync(gm, Some(r));
+                    notes.extend(n);
+                    adds |= a;
+                }
+                // ALL_PDB: every other root as without the rule.
+                if pdb.is_none() {
+                    notes.extend(self.invalidate_unheld(reg, gm, None));
+                }
+                if crate::untrapped::must_wait(adds) {
+                    self.worker.wait_all();
+                    self.hold.note_held(t0.elapsed());
+                } else {
+                    self.hold.note_passed(t0.elapsed());
+                }
+                return notes;
+            }
         }
+        self.invalidate_unheld(reg, gm, pdb)
+    }
+
+    /// An invalidate outside the untrapped-GPPut rule: eager, deferred or flushed at the
+    /// lazy deadline.
+    fn invalidate_unheld(
+        &mut self,
+        reg: &Registry,
+        gm: &mut GpuMem,
+        pdb: Option<u64>,
+    ) -> Vec<String> {
+        use crate::lazy::OnInvalidate;
         // A plan submitted here is not waited for before the guest continues (the evidence
         // counter of `note_ran_ahead`).
         match self.lazy.on_invalidate(pdb, Instant::now()) {
@@ -625,6 +665,14 @@ impl Mirror {
         self.lazy.is_pending() || self.worker.pending()
     }
 
+    /// Whether plans that may add or change a mapping are pending: deferred by lazy mode
+    /// (not walked yet, so they may), or submitted with `Plan::adds` and not yet applied. A
+    /// submitted plan that only removes mappings leaves the shadow a superset of the guest's
+    /// tables (untrapped.rs), so a host channel that ran ahead of it met every mapping.
+    fn adding_plans_pending(&self) -> bool {
+        self.lazy.is_pending() || self.worker.pending_adds()
+    }
+
     /// The trapped GPPut store's barrier (boot.rs `gp_put_barrier`): plan what lazy mode
     /// deferred and wait until the worker applied every plan.
     pub fn plans_barrier(&mut self, reg: &Registry, gm: &mut GpuMem) -> Vec<String> {
@@ -678,8 +726,8 @@ impl Mirror {
         }
         // Plans deferred now, being applied now, or submitted without a wait since the last
         // forward: the entries the host channel fetched may have met an older mirror.
-        let pending = self.plans_pending() || since > 0;
-        let (lazy, worker) = (self.lazy.is_pending(), self.worker.pending());
+        let pending = self.adding_plans_pending() || since > 0;
+        let (lazy, worker) = (self.lazy.is_pending(), self.worker.pending_adds());
         let untrapped = self
             .channels
             .get(&chid)
@@ -2543,6 +2591,8 @@ struct ShadowWorker {
     tx: Option<std::sync::mpsc::Sender<(u64, Job)>>,
     done: Arc<(Mutex<u64>, std::sync::Condvar)>,
     submitted: u64,
+    /// The sequence number of the last job that may add a mapping.
+    adds_seq: u64,
     enabled: bool,
     notes: Arc<Mutex<Vec<String>>>,
     /// No teardown in progress.
@@ -2657,6 +2707,7 @@ impl ShadowWorker {
             done,
             idle,
             submitted: 0,
+            adds_seq: 0,
             enabled: std::env::var("CARAXES_SHADOW_WORKER").as_deref() != Ok("0"),
             notes,
             thread,
@@ -2665,6 +2716,10 @@ impl ShadowWorker {
 
     fn submit(&mut self, job: Job) {
         self.submitted += 1;
+        // A plan that may add a mapping, or a fresh VAS (its first plan follows).
+        if !matches!(&job, Job::Apply(p, _) if !p.adds) && !matches!(job, Job::Free(_)) {
+            self.adds_seq = self.submitted;
+        }
         if let Some(tx) = &self.tx {
             let _ = tx.send((self.submitted, job));
         }
@@ -2676,6 +2731,11 @@ impl ShadowWorker {
     /// Jobs submitted and not yet done.
     fn pending(&self) -> bool {
         self.thread.is_some() && *self.done.0.lock().unwrap() < self.submitted
+    }
+
+    /// A job that may add a mapping (`adds_seq`) submitted and not yet done.
+    fn pending_adds(&self) -> bool {
+        self.thread.is_some() && *self.done.0.lock().unwrap() < self.adds_seq
     }
 
     /// Block until every job submitted so far is done.
