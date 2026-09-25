@@ -1,0 +1,3 @@
+[build] duration=8: FPS: 33 FrameTime: 30.479 ms
+                                  glmark2 Score: 32 
+glrc=0

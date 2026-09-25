@@ -1,0 +1,31 @@
+==lat
+[2026-09-25 19:30:51.429]: Debug: Frame processing latency (min/max/avg): 17.80ms/262.10ms/47.01ms
+[2026-09-25 19:31:11.506]: Debug: Frame processing latency (min/max/avg): 29.10ms/211.20ms/67.12ms
+==top
+top - 19:31:24 up 5 min,  3 users,  load average: 3.33, 1.47, 0.56
+Tasks: 307 total,   3 running, 304 sleeping,   0 stopped,   0 zombie
+%Cpu(s):  4.5 us,  9.3 sy,  0.0 ni, 80.6 id,  0.0 wa,  0.0 hi,  1.0 si,  4.5 st 
+MiB Mem :   7940.0 total,   3225.7 free,   2261.0 used,   2866.6 buff/cache     
+MiB Swap:      0.0 total,      0.0 free,      0.0 used.   5679.0 avail Mem 
+
+    PID USER      PR  NI    VIRT    RES    SHR S  %CPU  %MEM     TIME+ COMMAND
+   4816 leandro   20   0 7580724 428980 335252 S  90.2   5.3   1:08.89 sunshine
+   2058 leandro   20   0 4495796 376880 221276 S  57.8   4.6   1:20.20 gnome-s+
+   3026 leandro   20   0 1402864 286596 195596 S  35.3   3.5   1:25.96 steamwe+
+   3207 leandro   20   0   47.3g 201508 121976 S   5.9   2.5   0:12.96 steamwe+
+   1072 leandro   20   0  115208  18156  10044 S   2.9   0.2   0:01.51 pipewir+
+   2778 leandro   20   0  763028 211144 157744 S   2.9   2.6   0:08.90 steam
+   2784 leandro   20   0  438404 147932 115564 S   2.9   1.8   0:16.07 Xwayland
+    354 root      19  -1   83940  54060  52472 R   2.0   0.7   0:03.58 systemd+
+==vmstat
+procs -----------memory---------- ---swap-- -----io---- -system-- -------cpu-------
+ r  b   swpd   free   buff  cache   si   so    bi    bo   in   cs us sy id wa st gu
+ 3  0      0 3301956  95672 2840080    0    0  8679   752 5233    6  5  6 86  0  2  0
+ 3  0      0 3304160  95696 2840228    0    0     0 12248 10020 9992  5  7 86  1  2  0
+ 3  0      0 3293368  95696 2850816    0    0     0    24 10080 9665  6 12 77  0  4  0
+ 1  0      0 3294700  95696 2851008    0    0     0     0 9874 9862  5  9 82  0  4  0
+ 4  0      0 3302280  95696 2840728    0    0     0     0 10313 10275  5 10 81  0  4  0
+==D
+==smi
+4816, sunshine, 188 MiB
+1245 MiB
