@@ -149,7 +149,35 @@ What nova touches:
 
 ## 5. Boot log
 
-(pending: kernel build and boots wait for host memory)
+Run `caraxes/runs/nova-2026-09-25/vm9-boot1/` (2026-09-25 14:51, device and kernel of this
+branch, `setup.txt`): vm9 alone, 2 GiB guest RAM, 2 vCPUs, 1 GiB profile on a host VRAM
+reservation at slot 4 (`CARAXES_RESERVE_VRAM=1 CARAXES_RESERVE_SLOT=4`, no host RM, no host
+execution, no BAR1 pool), `CARAXES_GUEST_ABI=570`, no tap (see below).
+
+- **nova-core ran to completion, five times**: first probe, three unbind/bind cycles, a module
+  reload. Each probe printed `NVIDIA (Chipset: TU106, Architecture: Turing, Revision: a.1)`
+  and `GPU name: Leandro VFIO RTX 2070-1G`; each unbind printed `GSP successfully unloaded`.
+  `modprobe`/`bind`/`unbind`/`rmmod` all returned 0 (`guest-nova.txt`).
+- **nova-drm** bound on every probe: `/dev/dri/card0` (render-only, driver `nova-drm`, no
+  connector; modetest is not in the image).
+- **Device side** (`device-boot.txt`): per probe FWSEC-FRTS on the GSP falcon (WPR2 up),
+  Booter-Load on SEC2, the queues linked, `GSP_RUN_CPU_SEQUENCER` (40 B, empty) and
+  `GSP_INIT_DONE` (4 B) sent, then `GSP_SET_SYSTEM_INFO`, `SET_REGISTRY` (3 entries),
+  `GET_GSP_STATIC_INFO` (1656-byte 570 reply) received, all checksums good; per unbind
+  `UNLOADING_GUEST_DRIVER` (MAILBOX0 bit 31), Booter-Unload (WPR2 down). 19 RPCs in total,
+  none refused or unanswered; the re-probes relinked the fresh queues.
+- **BAR0**: 25 distinct registers read (`bar0-reads.txt`), all in the table of section 2.2;
+  none unserved. 164485 PROM reads (VBIOS parse, five times).
+- **Host**: no NVRM kernel line, no Xid; the reservation was taken and freed in 0 ms each, no
+  FB access outside it.
+- **nova's two warnings**: `GSP message GspInitDone has unprocessed data` and
+  `... UnloadingGuestDriver has unprocessed data`. nova reads both messages as empty
+  (`gsp/commands.rs:163-174, 275-286`) and warns when a payload is left
+  (`gsp/cmdq.rs:830-835`); the device sends the 570 payloads (4 B `rpc_init_done_v17_00`,
+  the 8 B command echoed). Harmless.
+- **No tap**: `caraxes9` exists with 192.168.109.1/24, but its link could not be set up from
+  the agent's shell, and Cloud Hypervisor may not enable a down tap (`TapEnable`, EPERM). The
+  check needs no network.
 
 ## 6. What a full nova client needs
 
