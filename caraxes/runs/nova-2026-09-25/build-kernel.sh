@@ -8,6 +8,9 @@
 #   target/nova-src/linux-7.2.7         the unpacked source (sha256 checked against kernel.org)
 #   target/nova-build                   O= build tree: arch/x86/boot/bzImage, the modules
 #   target/nova-modules                 INSTALL_MOD_PATH (lib/modules/7.2.7-nova)
+# The three may be links to the NAS when the root disk is short (2026-09-25:
+# /mnt/vmstore/caraxes/nova-kernel/{src,build,modules}); the build needs about 6 GB.
+# Parallelism: JOBS (default 4); run it under nice -n 10 beside other work.
 # Usage: caraxes/runs/nova-2026-09-25/build-kernel.sh [fetch|config|build|all]
 set -euo pipefail
 HERE=$(cd "$(dirname "$(readlink -f "$0")")" && pwd -P)
@@ -60,7 +63,9 @@ config() {
 
 build() {
     "${MK[@]}" bzImage modules
-    rm -rf "$MODS"
+    # target/nova-modules may be a link to the NAS (below): empty it, keep the link.
+    mkdir -p "$MODS"
+    find "$MODS" -mindepth 1 -maxdepth 1 -exec rm -rf {} +
     "${MK[@]}" INSTALL_MOD_PATH="$MODS" INSTALL_MOD_STRIP=1 modules_install
     ls -la "$OUT/arch/x86/boot/bzImage"
     find "$MODS" -name 'nova*.ko*'
