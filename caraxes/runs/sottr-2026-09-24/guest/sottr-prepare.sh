@@ -10,7 +10,10 @@
 # (provision.sh:1839-1848), and Sunshine's KMS capability. A step with a marker in
 # /var/lib/caraxes-sottr is skipped. Inputs in the user's home (up.sh copies them):
 # ogkm-610.57.04.tar.zst, gsp_tu10x-610.57.04.bin, caraxes-guest/ (crates/vfio-user-nvgpu/guest).
-# Usage: sudo bash sottr-prepare.sh [step...]   (default: all steps in order)
+# SOTTR_DRIVER=615 (vm4-615): the 615 steps at the end instead of the driver build, the firmware
+# and /opt/nvrm-gl: the distribution packages (packages615), the module rules (modprobe615) and
+# gdm on Wayland (display615), then the shared steps.
+# Usage: sudo [SOTTR_DRIVER=615 SOTTR_PKG_VERSION=...] bash sottr-prepare.sh [step...]   (default: all steps in order)
 set -u
 U=leandro H=/home/leandro M=/var/lib/caraxes-sottr KV=$(uname -r)
 LABEL=LEAGAMES MNT=/games
@@ -140,20 +143,111 @@ EOF
     done_ steam
 }
 
-[ $# -eq 0 ] && set -- modules firmware modprobe display sunshine games steam
+# Software cursor for Mutter: the hardware cursor plane (plane-1 on nvidia-drm) is not part of
+# the primary framebuffer Sunshine's KMS capture reads, so a hardware cursor is invisible in the
+# stream (session of 2026-09-25). Read by systemd --user and gdm's Wayland session. No marker:
+# runs every time.
+cursor() {
+    echo "== cursor"
+    mkdir -p /etc/environment.d
+    printf 'MUTTER_DEBUG_DISABLE_HW_CURSORS=1\n' > /etc/environment.d/50-software-cursor.conf
+    echo "software cursor: /etc/environment.d/50-software-cursor.conf"
+}
+
+# 610 only. Steam's runtime container (pressure-vessel) imports the NVIDIA Vulkan and GL driver
+# from the host's ld.so cache and the ICD json; the image keeps the driver in /opt/nvrm-gl, which
+# was not in the cache, so the game saw only Mesa's ICDs and could not create a Vulkan device
+# (session of 2026-09-25, the crash dump lists libvulkan_nouveau/intel/lvp only). No marker.
+nvrmgl() {
+    echo "== nvrmgl"
+    printf '/opt/nvrm-gl/lib\n/opt/nvrm-gl/lib32\n' > /etc/ld.so.conf.d/00-nvrm-gl.conf && ldconfig
+    sed -i 's#"library_path": "libGLX_nvidia.so.0"#"library_path": "/opt/nvrm-gl/lib/libGLX_nvidia.so.0"#' /usr/share/vulkan/icd.d/nvidia_icd.json
+    echo "nvrm-gl in ld.so.cache; nvidia_icd.json with an absolute path"
+}
+
+# ---- The 615 steps (SOTTR_DRIVER=615, vm4-615 on the 615 base image): the driver as Ubuntu
+# installs it. The image has nvidia-headless-open, nvidia-dkms-open (modules built for its
+# kernel), libnvidia-compute and nvidia-firmware of 615.71.09 from NVIDIA's CUDA repository;
+# it lacks the GL, EGL, Vulkan, encode and decode libraries and linux-modules-extra
+# (drm_display_helper, which the packaged nvidia-drm needs for its HDCP property). apt fetches
+# them from the public repositories the image already lists; the pinning package keeps every
+# driver package at 615.71.09.
+packages615() {
+    todo packages615 || return 0
+    local V=${SOTTR_PKG_VERSION:?SOTTR_PKG_VERSION unset} K=${SOTTR_GUEST_KERNEL:-$KV}
+    local up=${V%%-*}
+    export DEBIAN_FRONTEND=noninteractive
+    apt-get update -q || return 1
+    apt-get install -y -q "nvidia-driver-pinning-$up=$V" || return 1
+    apt-get install -y -q --no-install-recommends "nvidia-driver-open=$V" "libnvidia-gl=$V" \
+        "libnvidia-decode=$V" "libnvidia-encode=$V" "libnvidia-fbc1=$V" "linux-modules-extra-$K" || return 1
+    # The 32-bit GL and Vulkan driver for Steam's 32-bit parts; the 64-bit game does not need it.
+    apt-get install -y -q --no-install-recommends "libnvidia-gl:i386=$V" || echo "note: libnvidia-gl:i386 not installed"
+    dpkg -l 'nvidia-*' 'libnvidia-*' "linux-modules-extra-$K" 2>/dev/null | grep '^ii ' | awk '{print $1, $2, $3}'
+    echo "-- files"
+    ls -la /usr/share/vulkan/icd.d/nvidia_icd.json /usr/share/glvnd/egl_vendor.d/ /usr/share/egl/egl_external_platform.d/ \
+        /usr/lib/x86_64-linux-gnu/gbm/ 2>&1
+    cat /usr/share/vulkan/icd.d/nvidia_icd.json
+    for f in /usr/share/vulkan/icd.d/nvidia_icd.json /usr/share/glvnd/egl_vendor.d/*nvidia* /usr/share/egl/egl_external_platform.d/* \
+             /usr/lib/x86_64-linux-gnu/gbm/*; do
+        [ -e "$f" ] || continue
+        printf '%s: %s\n' "$f" "$(dpkg -S "$f" 2>/dev/null | cut -d: -f1 | head -1 || true)"
+    done
+    ldconfig -p | grep -E 'libGLX_nvidia|libEGL_nvidia|libnvidia-(eglcore|glcore|encode|allocator)|libnvcuvid|libcuda.so.1' | sort
+    modinfo -n drm_display_helper
+    modinfo -n nvidia_drm
+    done_ packages615
+}
+
+modprobe615() {
+    todo modprobe615 || return 0
+    # up.sh writes caraxes-615-display.conf offline before the first boot; checked here.
+    [ -f /etc/modprobe.d/caraxes-615-display.conf ] || { echo "no /etc/modprobe.d/caraxes-615-display.conf (up.sh writes it)"; return 1; }
+    systemctl mask nvidia-persistenced.service 2>&1
+    grep -H . /etc/modprobe.d/caraxes.conf /etc/modprobe.d/caraxes-615-display.conf
+    grep -l nvidia /etc/modprobe.d/* /usr/lib/modprobe.d/* /lib/modprobe.d/* 2>/dev/null | sort -u
+    done_ modprobe615
+}
+
+# GNOME on Wayland through gdm3 autologin (the part of gdm-wayland-setup.sh that is gdm's, not
+# the driver's: no Mesa pin in /etc/environment, no nvidia-egl-setup.sh). gdm's udev rule that
+# turns Wayland off on NVIDIA without NVreg_PreserveVideoMemoryAllocations is masked; gdm3 is
+# started by hand after the display modules (default target multi-user).
+display615() {
+    todo display615 || return 0
+    local A=/var/lib/AccountsService/users/$U
+    sed -i 's/^WaylandEnable=false/WaylandEnable=true/' /etc/gdm3/custom.conf
+    grep -q '^WaylandEnable=true' /etc/gdm3/custom.conf || sed -i 's/^\[daemon\]/[daemon]\nWaylandEnable=true/' /etc/gdm3/custom.conf
+    grep -q '^AutomaticLoginEnable=true' /etc/gdm3/custom.conf || sed -i "s/^\[daemon\]/[daemon]\nAutomaticLoginEnable=true\nAutomaticLogin=$U/" /etc/gdm3/custom.conf
+    ln -sf /dev/null /etc/udev/rules.d/61-gdm.rules
+    if [ -f "$A" ]; then
+        sed -i 's/^Session=ubuntu-xorg/Session=ubuntu-wayland/; s/^Session=ubuntu$/Session=ubuntu-wayland/; /^XSession=/d' "$A"
+        grep -q '^Session=' "$A" || printf 'Session=ubuntu-wayland\n' >> "$A"
+    else
+        mkdir -p "${A%/*}"; printf '[User]\nSession=ubuntu-wayland\nSystemAccount=false\n' > "$A"
+    fi
+    systemctl restart accounts-daemon
+    systemctl enable gdm3 2>/dev/null || true
+    systemctl set-default multi-user.target
+    grep -v '^#' /etc/gdm3/custom.conf | grep .
+    grep Session "$A"
+    as_user "cd ~/caraxes-guest && cc -O2 -o kmsgrab kmsgrab.c" || echo "note: kmsgrab not built"
+    done_ display615
+}
+
+if [ "${SOTTR_DRIVER:-610}" = 615 ]; then
+    [ $# -eq 0 ] && set -- packages615 modprobe615 display615 sunshine games steam cursor
+else
+    [ $# -eq 0 ] && set -- modules firmware modprobe display sunshine games steam cursor nvrmgl
+fi
 for s in "$@"; do
     case $s in
         modules) modules ;; firmware) firmware ;; modprobe) modprobe_conf ;; display) display ;;
         sunshine) sunshine_prep ;; games) games ;; steam) steam_prep ;;
+        cursor) cursor ;; nvrmgl) nvrmgl ;;
+        packages615) packages615 ;; modprobe615) modprobe615 ;; display615) display615 ;;
         *) echo "unknown step $s"; exit 2 ;;
     esac || { echo "step $s failed"; exit 1; }
 done
 sync
 echo "prepared: $(ls $M)"
-
-# Software cursor for Mutter: the hardware cursor plane (plane-1 on nvidia-drm) is not part of
-# the primary framebuffer Sunshine's KMS capture reads, so a hardware cursor is invisible in the
-# stream (session of 2026-09-25). Read by systemd --user and gdm's Wayland session.
-mkdir -p /etc/environment.d
-printf 'MUTTER_DEBUG_DISABLE_HW_CURSORS=1\n' > /etc/environment.d/50-software-cursor.conf
-echo "software cursor: /etc/environment.d/50-software-cursor.conf"

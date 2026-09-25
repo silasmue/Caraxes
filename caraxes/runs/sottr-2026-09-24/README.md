@@ -78,3 +78,13 @@ are yours to note down. Copy them into a `result.md` in the session folder.
 
 `plumbing/` is the test of this set-up in pure emulation, without the host GPU
 (`SOTTR_EMULATION=1`), recorded on 2026-09-24.
+
+## The 615 game VM (vm4-615, from 2026-09-25)
+
+The same stage with the 615.71.09 driver as Ubuntu installs it (docs/caraxes/sottr-stage.md
+section 8): `up-615.sh`, `stream-615.sh`, `down-615.sh`. Always pair `up-615.sh` with
+`down-615.sh`: plain `down.sh` targets vm4. vm4 and vm4-615 share the tap and the reservation,
+so only one runs. The first start installs the driver packages with apt through the NAT (a few
+minutes, once). Steam needs a login again (a new overlay). Sunshine tries NVENC first and falls
+back to libx264; `sunshine-encoder.txt` in the session folder shows which encoder it took.
+Evidence goes to `session-615-<time>/`.

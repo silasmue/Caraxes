@@ -65,6 +65,7 @@ operator added in v1 (`libraryfolder.vdf` with its own `contentid`), and `lost+f
 vm4 is an overlay on the 610.57.04 base image
 (`guest-baked-20260801-610.57.04-20260820-105733.qcow2`). The 615.71.09 image is not usable
 here: it lacks the 615 GL, EGL and Vulkan userspace (guest-driver-versions.md section 8).
+Since 2026-09-25 it is, with the distribution packages installed on the overlay: section 8.
 The base has no NVIDIA kernel modules and no GSP firmware (quickstart.md section 2).
 `sottr-prepare.sh` therefore repeats what vm0 carries. vm0's overlay was read with
 `guestfish --ro`:
@@ -213,7 +214,88 @@ The concurrent run (two game VMs as in sottr-4q) needs two 3 GiB slots (slots 0 
 3 GiB profile, the top 6 GiB). With the 1 GiB desktop floor that leaves nothing for vm1, so
 all other VMs must be down. It is the next step after the single run.
 
-## 8. Open points
+## 8. The 615 variant: vm4-615 with the distribution's driver (2026-09-25)
+
+The 610 image's hand-built stack (`/opt/nvrm`, `/opt/nvrm-gl`, the ld.so and ICD edits of
+`sottr-prepare.sh` step `nvrmgl`) cost a morning of Steam, EGL and Vulkan surprises. The
+operator's decision: the game VM runs the 615.71.09 driver as Ubuntu installs it. The weekend
+goal follows from it (roadmap.md): the guest driver must not matter.
+
+**Commands.** `up-615.sh`, `stream-615.sh`, `down-615.sh` (the stage's scripts with
+`SOTTR_DRIVER=615`, which sources `env-615.sh`). Evidence goes to `session-615-<time>/`. vm4 and
+vm4-615 share tap, address, MAC, profile and slot, so only one of them runs.
+
+| Piece | vm4-615 |
+|---|---|
+| Overlay | on `guest-baked-2026-09-24-615.71.09.qcow2` (`CARAXES_DRIVER=615`: `check_base`, `--guest-abi 615`) |
+| Device | `/mnt/vmstore/caraxes/vfio-user-nvgpu-v615-22d58534` (main; nothing in the device changed after it) |
+| Memory, pool | 4 GiB (host RAM), BAR1 pool 64 MiB (the host desktop keeps its BAR1). Both are now the 610 defaults too |
+| Offline, before the first boot (`up.sh`, guestfish on the overlay) | `/etc/modprobe.d/caraxes-615-display.conf`: `nvidia_modeset` and `nvidia_drm` load only while `caraxes_dma_range` is loaded, `nvidia_peermem` never, `options nvidia-drm modeset=1 fbdev=0`; `nvidia-persistenced` masked (it would load nvidia before the DMA table); default target `multi-user.target` |
+| `packages615` | `apt-get install nvidia-driver-pinning-615.71.09`, then `nvidia-driver-open libnvidia-gl libnvidia-decode libnvidia-encode libnvidia-fbc1` at `615.71.09-2ubuntu1` from NVIDIA's CUDA repository and `linux-modules-extra-6.8.0-136-generic`; `libnvidia-gl:i386` for Steam's 32-bit parts. About 300 MB, through the stage's NAT, public repositories only |
+| `modprobe615`, `display615` | the conf checked, persistenced masked; gdm: `WaylandEnable=true`, autologin, `61-gdm.rules` masked, session `ubuntu-wayland`. No Mesa pin, no `nvidia-egl-setup.sh` |
+| shared steps | `sunshine`, `games`, `steam` (autostart), `cursor` (`MUTTER_DEBUG_DISABLE_HW_CURSORS=1` in `/etc/environment.d`) |
+| Sunshine | `encoder = nvenc` (`SOTTR_SUN_ENCODER`, `software` on 610), `sw_preset = ultrafast`, `sw_tune = zerolatency` for the fallback; `sunshine-start` waits up to 180 s |
+
+**What the packages settle** (`session-615-20260925-112443/prepare.txt`):
+
+- `nvidia_icd.json`, `10_nvidia.json` (EGL vendor), `gbm/nvidia-drm_gbm.so` and the EGL
+  platform files belong to `libnvidia-gl` and `libnvidia-egl-*`; the libraries are in the ld.so
+  cache, 32- and 64-bit. The image's own unowned 610-era files were replaced; only
+  `10_nvidia_wayland.json` is left unowned beside the packaged `09_nvidia_wayland2.json`.
+- The packaged DKMS `nvidia-drm` loads: `drm_display_helper` comes from `linux-modules-extra`.
+  The HDCP-less rebuild of [display-615.md](display-615.md) section 2.1 is not needed.
+
+**First run, 2026-09-25 11:24** (`session-615-20260925-112443/`):
+
+- `RmInitAdapter succeeded`, `modprobe rc=0`, DP-1 connected at 1920x1080; `nvidia-smi` rc 0;
+  `vulkaninfo --summary`: "Leandro VFIO RTX 2070-3G", driver NVIDIA 615.71.09, beside llvmpipe.
+- One GNOME start: Wayland session, "Created gbm renderer for '/dev/dri/card0'", 0 page-flip
+  failures, the CRTC scans out 1920x1080. Steam autostarted, `/games` mounted.
+- Steam's sniper container (`run-in-sniper -- steam-runtime-system-info`, runtime
+  3.0.20260805): the NVIDIA Vulkan ICD and the NVIDIA EGL vendor imported, no issues anywhere
+  (`sniper-system-info-extract.txt`). The 610 VM needed the ld.so and ICD edits for this.
+- vkcube did not run: vulkan-tools 1.3.275 has no `--wsi` option (fixed in the script, not rerun
+  while the operator played).
+- Sunshine (`sunshine-encoder.txt`): `h264_nvenc` loads NVENC 13.1, then
+  `OpenEncodeSessionEx failed: unsupported device` (no NVENC mirror yet); `h264_vulkan` fails
+  four times with `VK_ERROR_INITIALIZATION_FAILED` (about 15 s each); vaapi skips the NVIDIA
+  card; **libx264 [software]** is chosen. The probe took about 70 s.
+- Moonlight re-paired (a fresh Sunshine) through the API; the stream runs with libx264 in the
+  guest and FFmpeg decoding on the host.
+- Host Xid: 11:30:18 Xid 31 NVENC0 `FAULT_PTE` names pid 142502, vm2's device (another agent's
+  VM), not this session's. 11:32:26 Xid 31 CE0 `FAULT_PDE` read names pid 126268, **this
+  session's device**, while the operator was in the stream; the device log has one
+  `HOST RC EVENT on a mirrored engine ... exceptType 0x1f` and 25 `bar1 pool: ... remap refused
+  (the guest maps it twice)` lines. The VM and the stream kept running.
+
+**Lesson.** The stock packages are the way. Everything the 610 stage needed by hand (the
+four-module build, the GL copy, the ld.so entry, the absolute ICD path, the EGL and GBM links)
+is what `nvidia-driver-open` and `linux-modules-extra` install. What remains Caraxes-specific in
+the guest is below.
+
+### 8.1 What the device still needs from the guest
+
+For the weekend goal (a plain Ubuntu VM with `apt install nvidia-driver-*` works):
+
+- **The three registry keys** in `/etc/modprobe.d/caraxes.conf`,
+  `NVreg_RegistryDwords="RmDisableGlobalCeUtils=1;RMDisableScrubOnFree=1;RmRcWatchdog=0"`
+  ([LEANDRO.md](../LEANDRO.md) "The registry", costume-ladder.md section 2.1: without them the
+  TU106 does not reach `RmInitAdapter succeeded`):
+  - `RmDisableGlobalCeUtils=1`: the kernel RM's CeUtils self-test channel on a copy engine
+    whose VA space the device never learns;
+  - `RMDisableScrubOnFree=1`: the scrubber's copy-engine memsets on every free;
+  - `RmRcWatchdog=0`: the watchdog GR channel.
+  The device has to serve (or safely absorb) these channels so the stock defaults work.
+- **Module options and load order that are the rig's, not the driver's:** `GpuInitOnProbe=1`,
+  `ResmanDebugLevel=0`, `uvm_disable_hmm=1`, `blacklist nvidia`, the display modules gated on
+  `caraxes_dma_range`, persistenced masked. They exist because the guest DMA table
+  (`caraxes_dma_range`, D18) must be in place before nvidia binds; D18's sparse registration
+  removes that need.
+- **The GSP firmware and ABI** come from the package (`nvidia-firmware`); the device picks the
+  guest ABI from `CARAXES_DRIVER` today. The weekend goal wants it chosen from what the guest
+  sends (the version in `GSP_INIT`), so no switch is needed per driver.
+
+## 9. Open points
 
 - The stream uses libx264 on the guest's vCPUs (display-e.md section 7 measured 26 FPS with
   2.09 cores for the desktop). A game at 1080p60 competes with x264 for the 8 vCPUs, so the
@@ -224,3 +306,27 @@ all other VMs must be down. It is the next step after the single run.
   Sunshine's own virtual sink is what Moonlight plays.
 - The Xid 31 at one GNOME start (display-e.md section 9) may show up here too; `down.sh` records
   host Xid lines.
+
+## 10. Mouse and input (2026-09-25)
+
+Findings from the operator's tests on vm4-615 (plain configuration, then the reactor paths without
+the pool).
+
+- **What the absolute mouse is.** Moonlight's remote-desktop mode sends absolute positions;
+  Sunshine injects them through a uinput pointer device with `EV_ABS` (grid 19200 x 12000, scaled
+  to the display), which libinput and Mutter list as "Mouse passthrough (absolute)".
+- **Packets stop at the window edge.** Moonlight sends only while the host pointer is inside its
+  window. With a lagging stream the guest pointer trails the host pointer, the host pointer slips
+  over the edge, and the guest sees nothing: Sunshine's log showed a gap of one minute between
+  bursts of 50 to 180 packets per second.
+- **Where the lag came from.**
+  - Plain configuration: every MSI re-arm (about 1000 per second) and every clock read (about 500
+    per second) trapped; the guest's interrupt path stalls on each trap.
+  - Host load 17 on 16 threads (three agent builds plus the software decoder): Mutter logged
+    "event processing lagging behind by 26ms, your system is too slow".
+  - The software cursor: every pointer motion is a compositor repaint, so a cursor move costs the
+    whole capture, encode, network and decode pipeline.
+- **Next.** The game runs Moonlight in relative mode (`SOTTR_MOUSE=--no-absolute-mouse`); the
+  desktop keeps the absolute mode. Measure again with the pool fix (`bar1-pool.md` section 10)
+  and the reactor paths, with no builds on the host. Pinning the guest's interrupt vCPU on the
+  host is the next lever (`intr-page.md`, the Weston late-vblank finding).

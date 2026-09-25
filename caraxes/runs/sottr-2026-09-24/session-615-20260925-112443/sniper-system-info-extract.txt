@@ -1,0 +1,14 @@
+overall-issues: None
+runtime: / 3.0.20260805.254768 issues: None
+container: pressure-vessel host path: /run/host
+vulkan icd: /usr/lib/pressure-vessel/overrides/share/vulkan/icd.d/radeon_icd.json libvulkan_radeon.so 1.4.318 issues: None
+vulkan icd: /usr/lib/pressure-vessel/overrides/share/vulkan/icd.d/gfxstream_vk_icd.json libvulkan_gfxstream.so 1.1.318 issues: None
+vulkan icd: /usr/lib/pressure-vessel/overrides/share/vulkan/icd.d/asahi_icd.json libvulkan_asahi.so 1.4.318 issues: None
+vulkan icd: /usr/lib/pressure-vessel/overrides/share/vulkan/icd.d/virtio_icd.json libvulkan_virtio.so 1.4.318 issues: None
+vulkan icd: /usr/lib/pressure-vessel/overrides/share/vulkan/icd.d/intel_hasvk_icd.json libvulkan_intel_hasvk.so 1.3.318 issues: None
+vulkan icd: /usr/lib/pressure-vessel/overrides/share/vulkan/icd.d/lvp_icd.json libvulkan_lvp.so 1.4.318 issues: None
+vulkan icd: /usr/lib/pressure-vessel/overrides/share/vulkan/icd.d/nvidia_icd.json libGLX_nvidia.so.0 1.4.351 issues: None
+vulkan icd: /usr/lib/pressure-vessel/overrides/share/vulkan/icd.d/intel_icd.json libvulkan_intel.so 1.4.318 issues: None
+vulkan icd: /usr/lib/pressure-vessel/overrides/share/vulkan/icd.d/nouveau_icd.json libvulkan_nouveau.so 1.4.318 issues: None
+egl icd: /usr/lib/pressure-vessel/overrides/share/glvnd/egl_vendor.d/10_nvidia.json libEGL_nvidia.so.0 issues: None
+egl icd: /usr/lib/pressure-vessel/overrides/share/glvnd/egl_vendor.d/50_mesa.json libEGL_mesa.so.0 issues: None

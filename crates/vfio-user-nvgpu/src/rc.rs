@@ -447,6 +447,28 @@ impl RcState {
         ans(0, params, RC, note)
     }
 
+    /// The host refused a guest channel's mirror for memory (NO_MEMORY, or the host VRAM
+    /// floor, hostfloor.rs): the channel is RC'd with ROBUST_CHANNEL_PREEMPTIVE_REMOVAL at
+    /// the next event scan, so the guest's context fails with an error instead of waiting
+    /// on a channel that never runs (docs/caraxes/host-resources.md).
+    pub fn host_refused(&mut self, chid: u32, engine_type: u32) {
+        let xid = enum_("ROBUST_CHANNEL_PREEMPTIVE_REMOVAL");
+        let text = format!(
+            "Caraxes: channel {chid} refused by the host (out of host VRAM or below the host VRAM floor)"
+        );
+        self.pending.push(RcRequest::Channel {
+            chid,
+            engine_type,
+            xid,
+            text: text.clone(),
+        });
+        self.push(RcRecord {
+            chid: Some(chid),
+            xid,
+            text,
+        });
+    }
+
     /// `NV2080_CTRL_CMD_INTERNAL_RC_WATCHDOG_TIMEOUT` (ctrl2080internal.h:1660-1665).
     pub fn watchdog_timeout(&mut self, params: &[u8]) -> Answer {
         self.pending.push(RcRequest::Watchdog);

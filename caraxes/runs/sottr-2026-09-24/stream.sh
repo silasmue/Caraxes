@@ -34,7 +34,7 @@ fi
 
 # 1. Sunshine.
 if ! "${VMSH[@]}" ssh '(exec 3<>/dev/tcp/127.0.0.1/47989) 2>/dev/null'; then
-    "${VMSH[@]}" ssh "SUN_USER=$SOTTR_SUN_USER SUN_PASS=$SOTTR_SUN_PASS bash caraxes-sottr/sottr-session.sh sunshine-start" \
+    "${VMSH[@]}" ssh "SUN_USER=$SOTTR_SUN_USER SUN_PASS=$SOTTR_SUN_PASS SUN_ENCODER=$SOTTR_SUN_ENCODER bash caraxes-sottr/sottr-session.sh sunshine-start" \
         > "$OUT/sunshine-start-stream.txt" 2>&1 || { cat "$OUT/sunshine-start-stream.txt"; die "Sunshine did not start"; }
 fi
 echo "sunshine listens on $IP:47989"
@@ -59,10 +59,10 @@ else
 fi
 
 # 3. The stream window on the operator's desktop.
-echo "$(date -Iseconds) moonlight stream $IP Desktop --resolution $res --fps $fps --bitrate $bitrate --display-mode windowed ${SOTTR_MOUSE:---absolute-mouse}" >> "$OUT/stream.txt"
+echo "$(date -Iseconds) moonlight stream $IP Desktop --resolution $res --fps $fps --bitrate $bitrate --display-mode windowed ${SOTTR_MOUSE:---absolute-mouse} --video-decoder ${SOTTR_DECODER:-software}" >> "$OUT/stream.txt"
 setsid nohup env WAYLAND_DISPLAY="${SOTTR_WAYLAND_DISPLAY:-wayland-1}" DISPLAY="${SOTTR_DISPLAY:-:0}" \
     XDG_RUNTIME_DIR="/run/user/$(id -u)" \
-    "$ML" stream "$IP" Desktop --resolution "$res" --fps "$fps" --bitrate "$bitrate" --display-mode windowed ${SOTTR_MOUSE:---absolute-mouse} \
+    "$ML" stream "$IP" Desktop --resolution "$res" --fps "$fps" --bitrate "$bitrate" --display-mode windowed ${SOTTR_MOUSE:---absolute-mouse} --video-decoder ${SOTTR_DECODER:-software} \
     >> "$OUT/moonlight.log" 2>&1 < /dev/null &
 mp=$!
 sleep 2

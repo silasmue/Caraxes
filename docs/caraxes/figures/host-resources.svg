@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- SPDX-License-Identifier: MIT -->
+<!-- SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de> -->
+<!-- What the device allocates on the host outside the VM's reservation, and where the host VRAM floor sits (docs/caraxes/host-resources.md). -->
+<svg xmlns="http://www.w3.org/2000/svg" width="920" height="560" viewBox="0 0 920 560" font-family="DejaVu Sans, Helvetica, Arial, sans-serif" font-size="12">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#333"/>
+    </marker>
+    <marker id="arrow-red" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#b3261e"/>
+    </marker>
+  </defs>
+  <rect x="0" y="0" width="920" height="560" fill="#ffffff"/>
+  <text x="20" y="30" font-size="16" font-weight="bold" fill="#111">Host allocations of one device, and the host VRAM floor</text>
+
+  <!-- Device column -->
+  <rect x="20" y="50" width="270" height="360" rx="8" fill="#eef3fb" stroke="#4a6fa5"/>
+  <text x="35" y="72" font-weight="bold" fill="#1d3557">vfio-user-nvgpu (one per VM)</text>
+  <text x="35" y="98" font-weight="bold" fill="#111">mirror.rs</text>
+  <text x="45" y="115" fill="#333">VA spaces (shadow, CE mirror)</text>
+  <text x="45" y="131" fill="#333">TSGs, channels, engine objects</text>
+  <text x="45" y="147" fill="#333">USERD / error-notifier pages *</text>
+  <text x="35" y="175" font-weight="bold" fill="#111">shadow.rs (worker)</text>
+  <text x="45" y="192" fill="#333">2 MiB region objects, per-leaf objects</text>
+  <text x="45" y="208" fill="#333">fixed-VA maps (page tables)</text>
+  <text x="45" y="224" fill="#333">gather descriptors *</text>
+  <text x="35" y="252" font-weight="bold" fill="#111">invalidate.rs</text>
+  <text x="45" y="269" fill="#333">VA space, TSG, channel, CE object</text>
+  <text x="35" y="297" font-weight="bold" fill="#111">hostmem.rs</text>
+  <text x="45" y="314" fill="#333">reserve(): the reservation, at start</text>
+  <text x="45" y="330" fill="#333">register(): guest RAM descriptors *</text>
+  <text x="35" y="358" font-weight="bold" fill="#111">fb.rs VramStore</text>
+  <text x="45" y="375" fill="#333">BAR1 windows of the reservation</text>
+  <text x="35" y="400" font-size="11" fill="#555">* host RAM (pinned guest pages), no VRAM</text>
+
+  <!-- Gate column -->
+  <rect x="330" y="80" width="250" height="170" rx="8" fill="#fff4e5" stroke="#d9822b" stroke-width="2"/>
+  <text x="345" y="102" font-weight="bold" fill="#8a4b08">HostGuard::admit (hostfloor.rs)</text>
+  <text x="345" y="124" fill="#333">HEAP_FREE ≥ floor?</text>
+  <text x="355" y="140" fill="#555" font-size="11">FB_GET_INFO_V2, cached 250 ms</text>
+  <text x="355" y="156" fill="#555" font-size="10">CARAXES_HOST_VRAM_FLOOR_MIB=768</text>
+  <text x="345" y="178" fill="#333">RM answered NO_MEMORY?</text>
+  <text x="355" y="194" fill="#555" font-size="11">no host allocation for 1 s</text>
+  <text x="345" y="216" fill="#333">refused: NO_MEMORY, one log line</text>
+  <text x="355" y="232" fill="#555" font-size="11">per 10 s, counted in the soak line</text>
+
+  <!-- Refusal outcomes -->
+  <rect x="330" y="262" width="250" height="100" rx="8" fill="#fdecea" stroke="#b3261e"/>
+  <text x="345" y="283" font-weight="bold" fill="#b3261e">A refusal reaches the guest as</text>
+  <text x="345" y="302" fill="#333">shadow leaf: unmapped, no split,</text>
+  <text x="355" y="317" fill="#333">guest faults on its own channel</text>
+  <text x="345" y="335" fill="#333">channel build: an RC event</text>
+  <text x="345" y="352" fill="#333">CE channel: software executor</text>
+
+  <rect x="330" y="378" width="250" height="62" rx="8" fill="#fff4e5" stroke="#d9822b"/>
+  <text x="345" y="399" font-weight="bold" fill="#8a4b08">check_reservation (start)</text>
+  <text x="345" y="417" fill="#333">free − size ≥ max(floor, 1 GiB)</text>
+  <text x="345" y="433" fill="#555" font-size="11">else the device does not start</text>
+
+  <rect x="330" y="455" width="250" height="62" rx="8" fill="#f3f3f3" stroke="#888"/>
+  <text x="345" y="476" font-weight="bold" fill="#333">window map (BAR1)</text>
+  <text x="345" y="494" fill="#333">3 stalls, then fail closed</text>
+  <text x="345" y="510" fill="#555" font-size="11">1 s without a map attempt</text>
+
+  <!-- Host column -->
+  <text x="620" y="72" font-weight="bold" fill="#111">Host GPU VRAM (8 GiB)</text>
+  <rect x="620" y="82" width="120" height="330" fill="#ffffff" stroke="#333"/>
+  <rect x="621" y="83" width="118" height="110" fill="#dfe7d7"/>
+  <text x="630" y="130" fill="#2f4a1f">host desktop,</text>
+  <text x="630" y="146" fill="#2f4a1f">other clients</text>
+  <rect x="621" y="193" width="118" height="60" fill="#f7d9b5" stroke="#d9822b" stroke-dasharray="4 3"/>
+  <text x="628" y="215" fill="#8a4b08" font-size="11">device objects</text>
+  <text x="628" y="230" fill="#8a4b08" font-size="11">outside the</text>
+  <text x="628" y="245" fill="#8a4b08" font-size="11">reservation</text>
+  <rect x="621" y="253" width="118" height="54" fill="#ffffff"/>
+  <text x="630" y="275" fill="#333">free</text>
+  <line x1="621" y1="290" x2="739" y2="290" stroke="#b3261e" stroke-width="2" stroke-dasharray="6 3"/>
+  <text x="630" y="303" fill="#b3261e" font-size="11">floor 768 MiB</text>
+  <rect x="621" y="307" width="118" height="104" fill="#cfe0f5"/>
+  <text x="630" y="350" fill="#1d3557">VM reservation</text>
+  <text x="630" y="366" fill="#1d3557" font-size="11">fixed, slot n</text>
+
+  <text x="760" y="205" fill="#333" font-size="11">page tables of the</text>
+  <text x="760" y="219" fill="#333" font-size="11">shadow VA spaces,</text>
+  <text x="760" y="233" fill="#333" font-size="11">GR contexts per TSG,</text>
+  <text x="760" y="247" fill="#333" font-size="11">instance blocks</text>
+
+  <rect x="620" y="440" width="280" height="44" rx="6" fill="#f3f3f3" stroke="#888"/>
+  <text x="632" y="459" fill="#333">host RAM: pinned guest pages (foll_pin)</text>
+  <text x="632" y="475" fill="#555" font-size="11">descriptors, USERD/notifier pages, gathers</text>
+  <rect x="620" y="496" width="280" height="44" rx="6" fill="#f3f3f3" stroke="#888"/>
+  <text x="632" y="515" fill="#333">host BAR1 (256 MiB): 2 × 32 MiB windows,</text>
+  <text x="632" y="531" fill="#555" font-size="11">BAR1 pool dma-buf (its own floor, bar1pool.rs)</text>
+
+  <!-- Arrows -->
+  <path d="M290,140 C310,140 310,150 328,150" fill="none" stroke="#333" marker-end="url(#arrow)"/>
+  <path d="M290,200 C310,200 310,170 328,170" fill="none" stroke="#333" marker-end="url(#arrow)"/>
+  <path d="M290,265 C310,265 310,200 328,200" fill="none" stroke="#333" marker-end="url(#arrow)"/>
+  <path d="M290,310 C312,310 306,405 328,405" fill="none" stroke="#333" marker-end="url(#arrow)"/>
+  <path d="M290,370 C312,370 306,485 328,485" fill="none" stroke="#333" marker-end="url(#arrow)"/>
+  <path d="M580,165 C600,165 600,222 618,222" fill="none" stroke="#333" marker-end="url(#arrow)"/>
+  <path d="M580,410 C600,410 600,360 618,360" fill="none" stroke="#333" marker-end="url(#arrow)"/>
+  <path d="M580,486 C600,486 600,518 618,518" fill="none" stroke="#333" marker-end="url(#arrow)"/>
+  <path d="M290,328 L300,328 L300,548 L606,548 L606,466 L618,466" fill="none" stroke="#888" stroke-dasharray="5 4" marker-end="url(#arrow)"/>
+  <path d="M455,250 L455,260" fill="none" stroke="#b3261e" marker-end="url(#arrow-red)"/>
+</svg>

@@ -703,8 +703,8 @@ impl BootModel {
         let mut s = Vec::new();
         if let Some(st) = self.fb.vram_stats() {
             s.push(format!(
-                "vram store: {} window map(s), {} refused, {} eviction(s), {} stall(s) without any window; {} read(s) of {} bytes, {} write(s) of {} bytes",
-                st.maps, st.map_failures, st.evictions, st.stalls, st.reads, st.bytes_read, st.writes, st.bytes_written
+                "vram store: {} window map(s), {} refused, {} eviction(s), {} stall(s) without any window, {} access(es) failed closed, {} window(s) held; {} read(s) of {} bytes, {} write(s) of {} bytes",
+                st.maps, st.map_failures, st.evictions, st.stalls, st.failed, st.held, st.reads, st.bytes_read, st.writes, st.bytes_written
             ));
         }
         let (h, m, f) = self.fb.bar_tlb_stats.get();
@@ -715,8 +715,8 @@ impl BootModel {
             (self.fb.bar1_passthrough(), self.fb.bar1_passthrough_stats())
         {
             s.push(format!(
-                "bar1 passthrough: guest BAR1 [0, {len:#x}) on FB {fb0:#x}; {} check(s), last: {} page(s) mapped, {} matched, {} elsewhere; {} mismatched page(s) and {} page-table hazard(s) over the run (docs/caraxes/bar1-passthrough.md)",
-                st.checks, st.mapped, st.matched, st.mismatched, st.mismatch_events, st.table_hazards
+                "bar1 passthrough: guest BAR1 [0, {len:#x}) on FB {fb0:#x}; {} check(s), last: {} page(s) mapped, {} matched, {} elsewhere; {} mismatched page(s) and {} page-table hazard(s) over the run, {} table re-read(s) (docs/caraxes/bar1-passthrough.md)",
+                st.checks, st.mapped, st.matched, st.mismatched, st.mismatch_events, st.table_hazards, st.table_resyncs
             ));
         }
         if let Some(a) = self.fb.bar2_area() {
@@ -773,6 +773,7 @@ impl BootModel {
             // read (kbusFlushSingle_GV100), its point for "BAR2 writes visible to the GPU".
             self.fb.bar2_note_trapped();
             self.fb.bar2_sync(Some(root), Some(mem));
+            crate::bar1pool::sync_untracked(&mut self.fb);
         }
         let held = if write && bar == 1 {
             self.gp_put_barrier(mem, root, offset, data.len())
@@ -1138,10 +1139,24 @@ impl BootModel {
                     // update (kbusUpdateRmAperture_GM107, kern_bus_gm107.c:2757-2785).
                     let bar2_root = self.bar_root(3);
                     self.fb.bar2_sync(bar2_root, Some(mem));
+                    // The BAR1 area's untracked pages (bar1pool.rs `sync_untracked`): the
+                    // replicas' guest writes reach their pages as tracked writes, and a
+                    // table page still in the pool is re-read by the walks below.
+                    crate::bar1pool::sync_untracked(&mut self.fb);
                     // The guest changed page tables in VRAM through BAR1; drain the WC
                     // buffers before the host TLB invalidate so RM re-walks fresh tables.
                     self.fb.flush();
                     let forwarded = self.ctrl.mirror_invalidate(&mut self.fb, Some(pdb));
+                    // Shadow VA spaces (every channel's with the pool) are not host VA spaces
+                    // the invalidate is forwarded to: the re-sync below brings them in line.
+                    let shadowed = self.ctrl.mirror.as_ref().is_some_and(|m| {
+                        let roots = m.shadow_roots();
+                        if v & 2 != 0 {
+                            !roots.is_empty()
+                        } else {
+                            roots.contains(&pdb)
+                        }
+                    });
                     // Re-sync the GR shadow VAS from the guest root: the guest maps set-A
                     // pages (e.g. the kernel's I2M upload targets) and then invalidates
                     // before the GR push touches them, so a page mapped since the last
@@ -1160,8 +1175,10 @@ impl BootModel {
                         v & 0x7FFF_FFFF,
                         if forwarded > 0 {
                             format!(" -> invalidated on {forwarded} mirror VA space(s) [host]")
+                        } else if shadowed {
+                            " -> the shadow VA space(s) re-synced from the guest's tables".into()
                         } else {
-                            " (no mirror VA space rooted there; nothing cached here)".into()
+                            " (no mirror or shadow VA space rooted there; nothing cached here)".into()
                         }
                     ));
                 }
@@ -1211,6 +1228,7 @@ impl BootModel {
                         // An RPC may name memory the guest filled through BAR2.
                         let bar2_root = self.bar_root(3);
                         self.fb.bar2_sync(bar2_root, Some(mem));
+                        crate::bar1pool::sync_untracked(&mut self.fb);
                         self.doorbells += 1;
                         self.libos_args_pa = Some(pa);
                         notes.push(format!(
@@ -1645,6 +1663,13 @@ impl BootModel {
                             |o: usize| u32::from_le_bytes(p[o..o + 4].try_into().unwrap_or([0; 4]));
                         let (h_client, h_object) = (w(v::FREE_H_ROOT), w(v::FREE_H_OBJECT));
                         let a = self.ctrl.free(h_client, h_object);
+                        // Shadow VA spaces the free handed to the teardown: drop their
+                        // cached walks (docs/caraxes/host-resources.md).
+                        if let Some(m) = self.ctrl.mirror.as_mut() {
+                            for r in m.take_reaped_roots() {
+                                self.fb.unwatch_tables(crate::fb::Target::Fb(r));
+                            }
+                        }
                         if h_object == h_client {
                             crate::profile::client_close(h_client);
                         }

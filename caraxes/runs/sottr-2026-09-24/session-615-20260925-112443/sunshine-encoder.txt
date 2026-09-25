@@ -1,0 +1,40 @@
+[2026-09-25 09:29:33.601]: Info: config: 'min_log_level' = 1
+[2026-09-25 09:29:33.601]: Info: config: 'capture' = kms
+[2026-09-25 09:29:33.601]: Info: config: 'encoder' = nvenc
+[2026-09-25 09:29:33.601]: Info: config: 'sw_preset' = ultrafast
+[2026-09-25 09:29:33.601]: Info: config: 'log_path' = /home/leandro/.config/sunshine/sunshine.log
+[2026-09-25 09:29:33.601]: Info: config: 'sw_tune' = zerolatency
+[2026-09-25 09:29:33.601]: Info: config: 'file_apps' = /home/leandro/.config/sunshine/apps.json
+[2026-09-25 09:29:33.672]: Info: Trying encoder [nvenc]
+[2026-09-25 09:29:33.672]: Info: Creating encoder [h264_nvenc]
+[2026-09-25 09:29:34.545]: Error: [h264_nvenc @ 0x6185acfe8880] OpenEncodeSessionEx failed: unsupported device (2): (no details)
+[2026-09-25 09:29:34.777]: Error: Could not open codec [h264_nvenc]: Function not implemented
+[2026-09-25 09:29:34.786]: Info: Creating encoder [h264_nvenc]
+[2026-09-25 09:29:35.383]: Error: [h264_nvenc @ 0x6185acfe8880] OpenEncodeSessionEx failed: unsupported device (2): (no details)
+[2026-09-25 09:29:35.656]: Error: Could not open codec [h264_nvenc]: Function not implemented
+[2026-09-25 09:29:35.661]: Info: Encoder [nvenc] failed
+[2026-09-25 09:29:35.661]: Error: Couldn't find any working encoder matching [nvenc]
+[2026-09-25 09:29:35.661]: Info: Trying encoder [vulkan]
+[2026-09-25 09:29:35.661]: Info: Creating encoder [h264_vulkan]
+[2026-09-25 09:29:50.618]: Error: [Vulkan @ 0x6185ad84f000] Device creation failure: VK_ERROR_INITIALIZATION_FAILED
+[2026-09-25 09:30:04.513]: Error: [Vulkan @ 0x6185ad84f000] Device creation failure: VK_ERROR_INITIALIZATION_FAILED
+[2026-09-25 09:30:04.513]: Info: Creating encoder [h264_vulkan]
+[2026-09-25 09:30:18.918]: Error: [Vulkan @ 0x6185ad4f3bc0] Device creation failure: VK_ERROR_INITIALIZATION_FAILED
+[2026-09-25 09:30:33.500]: Error: [Vulkan @ 0x6185ad605140] Device creation failure: VK_ERROR_INITIALIZATION_FAILED
+[2026-09-25 09:30:33.500]: Info: Encoder [vulkan] failed
+[2026-09-25 09:30:33.500]: Info: Trying encoder [vaapi]
+[2026-09-25 09:30:33.901]: Info: Encoder [vaapi] failed
+[2026-09-25 09:30:33.902]: Info: Trying encoder [software]
+[2026-09-25 09:30:33.927]: Info: Creating encoder [libx264]
+[2026-09-25 09:30:33.967]: Info: Creating encoder [libx264]
+[2026-09-25 09:30:34.039]: Info: Found H.264 encoder: libx264 [software]
+[2026-09-25 09:31:35.015]: Info: Trying encoder [nvenc]
+[2026-09-25 09:31:35.015]: Info: Creating encoder [h264_nvenc]
+[2026-09-25 09:31:36.013]: Error: [h264_nvenc @ 0x7979244077c0] OpenEncodeSessionEx failed: unsupported device (2): (no details)
+[2026-09-25 09:31:36.372]: Error: Could not open codec [h264_nvenc]: Function not implemented
+[2026-09-25 09:31:36.382]: Info: Encoder [nvenc] failed
+[2026-09-25 09:31:36.382]: Error: Couldn't find any working encoder matching [nvenc]
+[2026-09-25 09:31:36.382]: Info: Trying encoder [vulkan]
+[2026-09-25 09:31:36.383]: Info: Creating encoder [h264_vulkan]
+[2026-09-25 09:32:00.705]: Error: [Vulkan @ 0x7979253e1a00] Device creation failure: VK_ERROR_INITIALIZATION_FAILED
+[2026-09-25 09:32:25.144]: Error: [Vulkan @ 0x7979253e1a00] Device creation failure: VK_ERROR_INITIALIZATION_FAILED

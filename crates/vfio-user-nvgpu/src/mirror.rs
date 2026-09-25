@@ -307,6 +307,11 @@ pub struct HostChannel {
     pub token: u32,
     /// `(class, host handle)` of the replayed engine objects.
     pub objects: Vec<(u32, u32)>,
+    /// The host memory objects over the guest's own RAM pages this channel uses (its USERD
+    /// and error notifier in sysmem, `guest_page_object`): children of the device, not of
+    /// the channel, so they are freed with the channel explicitly (before, they lived until
+    /// the device exited and kept the guest pages pinned; docs/caraxes/host-resources.md).
+    pub pages: Vec<u32>,
     pub created: Instant,
     pub doorbells: u64,
     /// The guest root of the shadow VAS a shadow GR channel runs on (`None`: CE mirror).
@@ -316,9 +321,6 @@ pub struct HostChannel {
     pub fwd_put: Option<u32>,
     /// `Mirror::unwaited` (the count of plans submitted without a wait) at that forward.
     pub fwd_unwaited: u64,
-    /// The host memory objects made for this channel over guest pages (the USERD and
-    /// error-notifier OS descriptors), freed after the channel.
-    pub descriptors: Vec<u32>,
 }
 
 /// Counters for the exit summary.
@@ -418,6 +420,15 @@ pub struct Mirror {
     video_pending: BTreeMap<u32, (u32, Vec<u8>)>,
     next_event_id: u32,
     pub stats: MirrorStats,
+    /// Guest roots whose shadow VAS was handed to the teardown: the FB store drops their
+    /// cached walks ([`Mirror::take_reaped_roots`]; before, a walk cache of up to 4M leaves
+    /// stayed for every context that ever ran).
+    reaped_roots: Vec<u64>,
+    /// Guest channels whose shadow build the host refused for memory (NO_MEMORY or the
+    /// host VRAM floor): the caller RCs them once ([`Mirror::take_exhausted`]) so the guest
+    /// sees an error instead of a channel that never runs.
+    exhausted: std::collections::BTreeSet<u32>,
+    exhausted_raised: std::collections::BTreeSet<u32>,
 }
 
 // SAFETY: the doorbell mapping (`CpuMap`, a raw pointer) is only ever written from the
@@ -518,7 +529,46 @@ impl Mirror {
             video_pending: BTreeMap::new(),
             next_event_id: 0x1000,
             stats: MirrorStats::default(),
+            reaped_roots: Vec::new(),
+            exhausted: Default::default(),
+            exhausted_raised: Default::default(),
         })
+    }
+
+    /// Guest roots whose shadow VAS went to the teardown since the last call: the caller
+    /// drops their cached walks (`FakeFb::unwatch_tables`).
+    pub fn take_reaped_roots(&mut self) -> Vec<u64> {
+        std::mem::take(&mut self.reaped_roots)
+    }
+
+    /// Guest channels to RC because the host refused their shadow build for memory; each
+    /// channel once until the guest frees it.
+    pub fn take_exhausted(&mut self) -> Vec<u32> {
+        let out: Vec<u32> = std::mem::take(&mut self.exhausted)
+            .into_iter()
+            .filter(|c| self.exhausted_raised.insert(*c))
+            .collect();
+        out
+    }
+
+    /// Counts for the soak line: shadow VA spaces (front side), CE mirror VA spaces, host
+    /// TSGs, host channels.
+    pub fn soak_counts(&self) -> (usize, usize, usize, usize) {
+        (self.shadows.len(), self.vas.len(), self.tsgs.len(), self.channels.len())
+    }
+
+    /// A shadow build of `chid` on `root` that did not finish: the channel leaves the
+    /// shadow space's set, and so does its TSG key when no host TSG stands under it, so an
+    /// empty shadow VAS is torn down instead of held until the device exits.
+    fn abandon_shadow_build(&mut self, root: u64, chid: u32, tsg_key: TsgKey, notes: &mut Vec<String>) {
+        let has_tsg = self.tsgs.contains_key(&tsg_key);
+        if let Some(sp) = self.shadows.get_mut(&root) {
+            sp.chids.remove(&chid);
+            if !has_tsg {
+                sp.tsgs.remove(&tsg_key);
+            }
+        }
+        self.reap_shadows(None, notes);
     }
 
     pub fn is_mirrored(&self, chid: u32) -> bool {
@@ -846,8 +896,9 @@ impl Mirror {
                     "shadow: VAS {:#x} of guest root {r:#x} handed to the worker for an incremental teardown ({} resync(s) skipped clean on this thread) [host]",
                     sp.vas, sp.front.skipped
                 ));
-                if let Some(fb) = fb {
-                    fb.unwatch_tables(Target::Fb(r));
+                match fb {
+                    Some(fb) => fb.unwatch_tables(Target::Fb(r)),
+                    None => self.reaped_roots.push(r),
                 }
             }
         }
@@ -976,6 +1027,9 @@ impl Mirror {
                 }
                 Err(st) => {
                     notes.push(format!("shadow: VAS refused: {}", status_name(st)));
+                    if crate::hostfloor::is_exhaustion(st) {
+                        self.exhausted.insert(chid);
+                    }
                     return notes;
                 }
             }
@@ -1008,6 +1062,7 @@ impl Mirror {
         self.worker.wait_all();
         if let Err(e) = self.check_tsg_reuse(reg, tsg_key, tsg_guest, &mut notes) {
             notes.push(format!("shadow: chid {chid}: {e}"));
+            self.abandon_shadow_build(root, chid, tsg_key, &mut notes);
             return notes;
         }
         // A stale host TSG under the key was dropped from the shadow space's set too.
@@ -1048,6 +1103,11 @@ impl Mirror {
                     Ok(x) => x,
                     Err(st) => {
                         notes.push(format!("shadow: TSG refused: {}", status_name(st)));
+                        if crate::hostfloor::is_exhaustion(st) {
+                            self.exhausted.insert(chid);
+                        }
+                        drop(h);
+                        self.abandon_shadow_build(root, chid, tsg_key, &mut notes);
                         return notes;
                     }
                 };
@@ -1067,146 +1127,171 @@ impl Mirror {
                 tsg
             }
         };
-        // P21 design H: a USERD page the guest maps into the BAR1 pool area lives at its
-        // pool page (fb.rs `remap`).
-        let mut descriptors: Vec<u32> = Vec::new();
-        let userd = match ch.userd.map(|t| match t {
-            Target::Fb(pa) => Target::Fb(gm.fb.remap(pa)),
-            t => t,
-        }) {
-            Some(Target::Fb(pa)) if pa >= self.base && pa + PAGE <= self.end => {
-                (self.reservation, pa - self.base)
-            }
-            // USERD in guest sysmem (the guest's RMInstLoc USERD=COH, docs/caraxes/mapping.md
-            // §6): the host memory object over the guest's own page, as for a CE channel.
-            Some(Target::Sys(iova)) => {
-                match gm
-                    .sys
-                    .translate(iova & !(PAGE - 1), PAGE)
-                    .and_then(|gpa| gm.sys.host_ptr(gpa, PAGE))
-                    .map(|ptr| h.guest_page_object(ptr, PAGE, "shadow-userd-page"))
-                {
-                    Some(Ok(d)) => {
-                        descriptors.push(d);
-                        (d, iova & (PAGE - 1))
+        // Everything this build makes on the host, freed newest first when it fails (a
+        // channel refused after its guest pages were wrapped, or built but never scheduled,
+        // used to stay until the device exited: one leak per doorbell of a refused channel).
+        let mut owned: Vec<u32> = Vec::new();
+        let built = (|| -> Result<Built, (String, Option<u32>)> {
+            // P21 design H: a USERD page the guest maps into the BAR1 pool area lives at
+            // its pool page (fb.rs `remap`).
+            let userd = match ch.userd.map(|t| match t {
+                Target::Fb(pa) => Target::Fb(gm.fb.remap(pa)),
+                t => t,
+            }) {
+                Some(Target::Fb(pa)) if pa >= self.base && pa + PAGE <= self.end => {
+                    (self.reservation, pa - self.base)
+                }
+                // USERD in guest sysmem (the guest's RMInstLoc USERD=COH,
+                // docs/caraxes/mapping.md §6): the host memory object over the guest's own
+                // page, as for a CE channel.
+                Some(Target::Sys(iova)) => {
+                    match gm
+                        .sys
+                        .translate(iova & !(PAGE - 1), PAGE)
+                        .and_then(|gpa| gm.sys.host_ptr(gpa, PAGE))
+                        .map(|ptr| h.guest_page_object(ptr, PAGE, "shadow-userd-page"))
+                    {
+                        Some(Ok(d)) => {
+                            owned.push(d);
+                            (d, iova & (PAGE - 1))
+                        }
+                        other => {
+                            return Err((
+                                format!(
+                                    "shadow: chid {chid} USERD IOVA {iova:#x} not registered guest RAM ({:?})",
+                                    other.map(|r| r.map_err(|e| e.to_string()))
+                                ),
+                                None,
+                            ))
+                        }
                     }
-                    other => {
+                }
+                other => {
+                    return Err((
+                        format!("shadow: chid {chid} USERD {other:?} not a vidmem reservation page"),
+                        None,
+                    ))
+                }
+            };
+            // The error notifier: the guest's page, so the host RM writes an RC there and
+            // the guest sees the fault (returns 719) instead of hanging to the 30 s
+            // watchdog (the CE path does this; without it launch5 hung on the MMU fault).
+            let h_error = match ch.error_notifier {
+                Some(Target::Sys(iova)) if iova % PAGE == 0 => gm
+                    .sys
+                    .translate(iova, PAGE)
+                    .and_then(|gpa| gm.sys.host_ptr(gpa, PAGE))
+                    .and_then(|ptr| h.guest_page_object(ptr, PAGE, "shadow-error-notifier").ok())
+                    .inspect(|d| owned.push(*d))
+                    .unwrap_or(0),
+                _ => 0,
+            };
+            let mut cp = crate::hostabi::ChannelAllocParams::default();
+            cp.hObjectError = h_error;
+            cp.gpFifoOffset = ch.gpfifo_va;
+            cp.gpFifoEntries = ch.gpfifo_entries;
+            cp.hUserdMemory[0] = userd.0;
+            cp.userdOffset[0] = userd.1;
+            cp.engineType = ch.engine_type;
+            let channel = match h.alloc_object(
+                tsg,
+                crate::board::host_class_of(self.chip.channel.gpfifo),
+                as_bytes(&mut cp),
+                "shadow-channel",
+            ) {
+                Ok(x) => x,
+                Err(st) => {
+                    return Err((
+                        format!(
+                            "shadow: channel refused: {} (gpfifo va {:#x})",
+                            status_name(st),
+                            ch.gpfifo_va
+                        ),
+                        Some(st),
+                    ))
+                }
+            };
+            owned.push(channel);
+            notes.push(format!("shadow: host GR channel {channel:#x} in TSG {tsg:#x} on VAS {vas_handle:#x}, gpfifo va {:#x} [host]", ch.gpfifo_va));
+            // The guest's engine objects; the compute object makes the host RM build set B.
+            let mut objects = Vec::new();
+            let mut refused = None;
+            for (class, params) in &ch.engine_objects {
+                let mut p = params.clone();
+                match h.alloc_object(channel, crate::board::host_class_of(*class), &mut p, "shadow-engine") {
+                    Ok(oh) => {
                         notes.push(format!(
-                            "shadow: chid {chid} USERD IOVA {iova:#x} not registered guest RAM ({:?})",
-                            other.map(|r| r.map_err(|e| e.to_string()))
+                            "shadow: chid {chid} host object class {class:#x}{} {oh:#x} [host]",
+                            crate::board::mapped_note(*class)
                         ));
-                        return notes;
+                        objects.push((*class, oh));
+                    }
+                    Err(e) => {
+                        refused = refused.or(Some(e));
+                        notes.push(format!(
+                            "shadow: chid {chid} object class {class:#x} refused: {}",
+                            status_name(e)
+                        ))
                     }
                 }
             }
-            other => {
+            if objects.is_empty() {
+                // A video channel rings before its engine object exists, and the guest
+                // waits for that first push before it allocates the object (a held doorbell
+                // deadlocked for 10 s, 2026-09-25 probe-hold). The host channel is bound to
+                // the engine instead; the object follows at the guest's allocation
+                // (`place_video_object`).
+                let Some(engine) = video_bind(self.chip, &ch) else {
+                    return Err(("shadow: no engine object; not scheduling".into(), refused));
+                };
+                let mut p = engine.to_le_bytes();
+                let st = h.control(channel, CMD_CHANNEL_BIND, &mut p);
+                if st != sys::NV_OK {
+                    return Err((
+                        format!(
+                            "shadow: chid {chid} BIND engineType {engine:#x}: {}; not scheduling",
+                            status_name(st)
+                        ),
+                        None,
+                    ));
+                }
                 notes.push(format!(
-                    "shadow: chid {chid} USERD {other:?} not a vidmem reservation page"
+                    "shadow: chid {chid} host channel bound to engineType {engine:#x} ({}; its object follows the guest's) [host]",
+                    video_engine(engine).unwrap_or("engine")
                 ));
-                return notes;
             }
-        };
-        // The error notifier: the guest's page, so the host RM writes an RC there and the
-        // guest sees the fault (returns 719) instead of hanging to the 30 s watchdog (the
-        // CE path does this; without it launch5 hung on the MMU fault).
-        let h_error = match ch.error_notifier {
-            Some(Target::Sys(iova)) if iova % PAGE == 0 => gm
-                .sys
-                .translate(iova, PAGE)
-                .and_then(|gpa| gm.sys.host_ptr(gpa, PAGE))
-                .and_then(|ptr| h.guest_page_object(ptr, PAGE, "shadow-error-notifier").ok())
-                .inspect(|d| descriptors.push(*d))
-                .unwrap_or(0),
-            _ => 0,
-        };
-        let mut cp = crate::hostabi::ChannelAllocParams::default();
-        cp.hObjectError = h_error;
-        cp.gpFifoOffset = ch.gpfifo_va;
-        cp.gpFifoEntries = ch.gpfifo_entries;
-        cp.hUserdMemory[0] = userd.0;
-        cp.userdOffset[0] = userd.1;
-        cp.engineType = ch.engine_type;
-        let channel = match h.alloc_object(
-            tsg,
-            crate::board::host_class_of(self.chip.channel.gpfifo),
-            as_bytes(&mut cp),
-            "shadow-channel",
-        ) {
-            Ok(x) => x,
-            Err(st) => {
-                notes.push(format!(
-                    "shadow: channel refused: {} (gpfifo va {:#x})",
-                    status_name(st),
-                    ch.gpfifo_va
+            let mut sched = [1u8, 0, 0];
+            let st = h.control(channel, CMD_GPFIFO_SCHEDULE, &mut sched);
+            if st != sys::NV_OK {
+                return Err((format!("shadow: GPFIFO_SCHEDULE: {}", status_name(st)), None));
+            }
+            let mut tok = [0u8; 4];
+            let st = h.control(channel, CMD_GET_WORK_SUBMIT_TOKEN, &mut tok);
+            if st != sys::NV_OK {
+                return Err((
+                    format!("shadow: GET_WORK_SUBMIT_TOKEN: {}", status_name(st)),
+                    None,
                 ));
-                for d in descriptors {
+            }
+            Ok((channel, objects, u32::from_le_bytes(tok)))
+        })();
+        let (channel, objects, token) = match built {
+            Ok(b) => b,
+            Err((why, st)) => {
+                notes.push(why);
+                // Newest first: the channel (with its engine objects), then the guest pages.
+                for d in owned.into_iter().rev() {
                     let _ = h.free_object(d);
                 }
+                drop(h);
+                if st.is_some_and(crate::hostfloor::is_exhaustion) {
+                    self.exhausted.insert(chid);
+                }
+                self.abandon_shadow_build(root, chid, tsg_key, &mut notes);
                 return notes;
             }
         };
-        notes.push(format!("shadow: host GR channel {channel:#x} in TSG {tsg:#x} on VAS {vas_handle:#x}, gpfifo va {:#x} [host]", ch.gpfifo_va));
-        // The guest's engine objects; the compute object makes the host RM build set B,
-        // a video object the host's video context (kchannelMapEngineCtxBuf,
-        // kernel_channel.c:3860-3870: first fit in the shadow VAS, where the guest's own
-        // context page is already unmapped, `promoted_ranges`).
-        let mut objects = Vec::new();
-        for (class, params) in &ch.engine_objects {
-            let mut p = params.clone();
-            match h.alloc_object(channel, crate::board::host_class_of(*class), &mut p, "shadow-engine") {
-                Ok(oh) => {
-                    notes.push(format!(
-                        "shadow: chid {chid} host object class {class:#x}{} {oh:#x} [host]",
-                        crate::board::mapped_note(*class)
-                    ));
-                    objects.push((*class, oh));
-                }
-                Err(e) => notes.push(format!(
-                    "shadow: chid {chid} object class {class:#x} refused: {}",
-                    status_name(e)
-                )),
-            }
-        }
-        if objects.is_empty() {
-            // A video channel rings before its engine object exists, and the guest waits
-            // for that first push before it allocates the object (a held doorbell
-            // deadlocked for 10 s, 2026-09-25 probe-hold). The host channel is bound to
-            // the engine instead; the object follows at the guest's allocation
-            // (`place_video_object`).
-            let Some(engine) = video_bind(self.chip, &ch) else {
-                notes.push("shadow: no engine object; not scheduling".into());
-                return notes;
-            };
-            let mut p = engine.to_le_bytes();
-            let st = h.control(channel, CMD_CHANNEL_BIND, &mut p);
-            if st != sys::NV_OK {
-                notes.push(format!(
-                    "shadow: chid {chid} BIND engineType {engine:#x}: {}; not scheduling",
-                    status_name(st)
-                ));
-                return notes;
-            }
-            notes.push(format!(
-                "shadow: chid {chid} host channel bound to engineType {engine:#x} ({}; its object follows the guest's) [host]",
-                video_engine(engine).unwrap_or("engine")
-            ));
-        }
-        let mut sched = [1u8, 0, 0];
-        let st = h.control(channel, CMD_GPFIFO_SCHEDULE, &mut sched);
-        if st != sys::NV_OK {
-            notes.push(format!("shadow: GPFIFO_SCHEDULE: {}", status_name(st)));
-            return notes;
-        }
-        let mut tok = [0u8; 4];
-        let st = h.control(channel, CMD_GET_WORK_SUBMIT_TOKEN, &mut tok);
-        if st != sys::NV_OK {
-            notes.push(format!(
-                "shadow: GET_WORK_SUBMIT_TOKEN: {}",
-                status_name(st)
-            ));
-            return notes;
-        }
-        let token = u32::from_le_bytes(tok);
+        let pages: Vec<u32> = owned.into_iter().filter(|d| *d != channel).collect();
         self.stats.channels_created += 1;
         self.channels.insert(
             chid,
@@ -1215,12 +1300,12 @@ impl Mirror {
                 tsg: tsg_key,
                 token,
                 objects,
+                pages,
                 created: Instant::now(),
                 doorbells: 0,
                 shadow_root: Some(root),
                 fwd_put: None,
                 fwd_unwaited: 0,
-                descriptors: std::mem::take(&mut descriptors),
             },
         );
         notes.push(format!(
@@ -1953,7 +2038,6 @@ impl Mirror {
         match r {
             Ok((handle, objects, token)) => {
                 drop(h);
-                let descriptors: Vec<u32> = owned.iter().copied().filter(|d| *d != handle).collect();
                 restore_userd(gm, &mut notes);
                 let us = t0.elapsed().as_micros();
                 self.stats.channels_created += 1;
@@ -1963,6 +2047,7 @@ impl Mirror {
                     token & 0xFFF,
                     (token >> 16) & 0x7F
                 ));
+                let pages = owned.iter().copied().filter(|d| *d != handle).collect();
                 self.channels.insert(
                     chid,
                     HostChannel {
@@ -1970,12 +2055,12 @@ impl Mirror {
                         tsg: tsg_key,
                         token,
                         objects,
+                        pages,
                         created: t0,
                         doorbells: 0,
                         shadow_root: None,
                         fwd_put: None,
                         fwd_unwaited: 0,
-                        descriptors,
                     },
                 );
                 Ok((token, notes))
@@ -2426,22 +2511,24 @@ impl Mirror {
         for sp in self.shadows.values_mut() {
             sp.chids.remove(&chid);
         }
+        self.exhausted.remove(&chid);
+        self.exhausted_raised.remove(&chid);
         if let Some(hc) = self.channels.remove(&chid) {
-            let mut h = self.hm.lock().unwrap();
-            let r = h.free_object(hc.handle);
-            // The descriptors over guest pages the channel used, after the channel.
-            let desc_failed = hc
-                .descriptors
-                .iter()
-                .filter(|d| h.free_object(**d).is_err())
-                .count();
-            drop(h);
-            if desc_failed != 0 {
-                notes.push(format!(
-                    "chid {chid}: ERROR {desc_failed} of {} guest-page descriptor(s) not freed",
-                    hc.descriptors.len()
-                ));
-            }
+            let r = {
+                let mut h = self.hm.lock().unwrap();
+                let r = h.free_object(hc.handle);
+                // The guest pages the channel used, after the channel (it references them);
+                // kept when the channel free failed (fail closed, hostmem.rs `run_teardown`).
+                for d in hc.pages.iter().filter(|_| r.is_ok()) {
+                    if let Err(st) = h.free_object(*d) {
+                        notes.push(format!(
+                            "chid {chid}: ERROR freeing the host object {d:#x} over a guest page: {}",
+                            status_name(st)
+                        ));
+                    }
+                }
+                r
+            };
             self.stats.channels_freed += 1;
             notes.push(match r {
                 Ok(()) => format!(

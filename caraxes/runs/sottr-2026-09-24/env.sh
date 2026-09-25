@@ -11,7 +11,8 @@
 # execution, no DMA registration): the plumbing test of caraxes/runs/sottr-2026-09-24/plumbing/.
 # Source it from any directory; the scripts beside it do.
 export VM=vm4 CARAXES_IP=192.168.103.24 CARAXES_TAP=caraxes3 CARAXES_MAC=02:00:00:00:00:24
-export CARAXES_MEM=${CARAXES_MEM:-8G} CARAXES_CPUS=${CARAXES_CPUS:-8}
+# 4 GiB of guest RAM: the host has 31 GB, and 8 GiB pushed the host desktop into swap (2026-09-25).
+export CARAXES_MEM=${CARAXES_MEM:-4G} CARAXES_CPUS=${CARAXES_CPUS:-8}
 export CARAXES_BOOT_MODEL=1 CARAXES_DISPLAY=1 CARAXES_FB_MIB=3072 CARAXES_GATE_FB_MIB=3072
 if [[ ${SOTTR_EMULATION:-0} == 1 ]]; then
     unset CARAXES_HOST_RM CARAXES_HOST_EXEC CARAXES_RESERVE_VRAM CARAXES_RESERVE_SLOT CARAXES_DMA
@@ -32,7 +33,14 @@ export CARAXES_INTR_PAGE=1 CARAXES_DISPLAY_PAGE=1
 if [[ ${SOTTR_PLAIN:-0} == 1 ]]; then
     unset CARAXES_BAR1_PASSTHROUGH CARAXES_BAR1_POOL_MIB CARAXES_BAR2_MEMFD CARAXES_MSI_REARM_IOEVENTFD CARAXES_ALLOC_LAZY
 else
-    export CARAXES_BAR1_PASSTHROUGH=pool CARAXES_BAR1_POOL_MIB=${SOTTR_POOL_MIB:-128}
+    # 64 MiB, not 128: the host desktop keeps its own BAR1 (the host BAR1 floor, 2026-09-25).
+    # SOTTR_NO_POOL=1 keeps the reactor paths but not the pool: on 615 the guest maps
+    # page-table pages through BAR1 windows, which the pool cannot watch (2026-09-25).
+    if [[ ${SOTTR_NO_POOL:-0} == 1 ]]; then
+        unset CARAXES_BAR1_PASSTHROUGH CARAXES_BAR1_POOL_MIB
+    else
+        export CARAXES_BAR1_PASSTHROUGH=pool CARAXES_BAR1_POOL_MIB=${SOTTR_POOL_MIB:-64}
+    fi
     export CARAXES_BAR2_MEMFD=1 CARAXES_MSI_REARM_IOEVENTFD=1 CARAXES_ALLOC_LAZY=1
 fi
 unset CARAXES_DOORBELL_IOEVENTFD CARAXES_GUEST_ABI
@@ -55,3 +63,14 @@ export SOTTR_GSP_SHA256=d157e3b7dd5da2ca8d1ccb6ca98958f9e35d10a9ef7326277ebac133
 # Sunshine's web login and pairing PIN, as the display stream stage (display-e.md section 7)
 # and v1 (Leandro-Test scripts/lib/config.sh:204-206) set them.
 export SOTTR_SUN_USER=lea SOTTR_SUN_PASS=leastream SOTTR_SUN_PIN=4321
+# The base image of the 610 path; SOTTR_DRIVER=615 switches to vm4-615 on the 615 image.
+export SOTTR_DRIVER=${SOTTR_DRIVER:-610}
+export SOTTR_BASE=/mnt/vmstore/leandro/vm/guest-baked-20260801-610.57.04-20260820-105733.qcow2
+if [[ $SOTTR_DRIVER == 615 ]]; then
+    # shellcheck source=caraxes/runs/sottr-2026-09-24/env-615.sh
+    source "$(dirname "${BASH_SOURCE[0]}")/env-615.sh"
+elif [[ $SOTTR_DRIVER != 610 ]]; then
+    echo "ERROR: SOTTR_DRIVER=$SOTTR_DRIVER: 610 or 615" >&2; return 1
+fi
+# Sunshine's encoder: software (libx264, ultrafast, zerolatency) on 610; env-615.sh prefers nvenc.
+export SOTTR_SUN_ENCODER=${SOTTR_SUN_ENCODER:-software}
