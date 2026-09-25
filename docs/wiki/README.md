@@ -48,7 +48,8 @@ driver by path and function, and links to the evidence.
 | [interrupts.md](interrupts.md) | The interrupt tree, the RM lock toggles, MSI and its re-arm, the interrupt and display pages, host completions |
 | [execution-mirror.md](execution-mirror.md) | Mirror channels, TSGs and shadow VA spaces on the host RM; faults and containment |
 | [isolation-rules.md](isolation-rules.md) | D11 to D18 with their evidence, what a guest can never do, what the rules do not give, v1's boundary |
-| [display-and-kms.md](display-and-kms.md) | The stock display stack, v1's displayless class, v2's DisplayPort connector, Wayland, capture and streaming |
+| [display-and-kms.md](display-and-kms.md) | The stock display stack, v1's displayless class, v2's DisplayPort connector, Wayland, capture and streaming, encoding |
+| [video-engines.md](video-engines.md) | NVENC and NVDEC: what the stock driver sends, v1's host objects, v2's mirrored video channel and its deferred object |
 
 ## Identity, performance, verification
 

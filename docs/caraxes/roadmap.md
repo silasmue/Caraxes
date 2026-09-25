@@ -77,7 +77,10 @@ hybrid proposed as the later default.
    pure emulation. Next: the operator's GPU run once vm0 and vm2 are down (Steam login, the
    benchmark at 720p and 1080p), then two game VMs at slots 0 and 1 of 3 GiB.
 3. NVENC through a mirror for Sunshine hardware encoding (pulled forward from later: the game
-   comparison with v1 needs it); the Moonlight stream stage.
+   comparison with v1 needs it); the Moonlight stream stage. **In progress 2026-09-25**
+   ([video-engines.md](video-engines.md)): the session opens and the channel is mirrored with
+   a deferred video object; next is the 610 probe (encode and decode 300 frames), then 615,
+   then Sunshine `encoder = nvenc`.
 4. D19, the move to driver 615.71.09 before P23: the device's 615 transport (agent running:
    queue v2, MCTP framing, GMCAPI init, ver/v615), a 615 guest image (agent running on vm3),
    then the host upgrade by the operator and the host-side client on nvrm-sys v615, v1's image
