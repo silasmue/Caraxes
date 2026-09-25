@@ -976,3 +976,24 @@ the VM; then display, expected to be much easier than in v1.
     (0.85 and 0.92 per sample); one Xid 31 (GPC FAULT_PDE) on vm2's device in transformer rep 2.
   - Harness: `bench-run.sh` retries a restart the D11 headroom rule refused; the workload runner
     takes `WORKLOAD_ENV`. Other host Xids of the night (two Xid 31 at 23:32) were vm1's device.
+- 2026-09-25: **Morning matrix on main fbe4dfb** ([benchmark.md](benchmark.md) "Morning matrix
+  (2026-09-25, main fbe4dfb)", records `caraxes/runs/matrix-2026-09-25/`). The frozen fbe4dfb
+  builds with all three optimisations together (BAR2 memfd beside the BAR1 pool, batched shadow
+  maps, MSI re-arm ioeventfd) plus the lazy plans, host 615.71.09.
+  - **Gates.** nvml: 615 guest pass, 610 guest and costume pass but the known power-number;
+    cuda: 10 of 11 on the 610 guest, the costume and the 615 rerun (the known cuda-managed 801);
+    display 11 of 11 on the 610 guest (vm0, alone) and the 615 guest (vm0-615); v1 on the 615
+    image: smi pass, cuda 14 of 14.
+  - **Benchmarks.** cuCtxCreate 319/323 ms (1.6x native; closing series 19x), cuCtxDestroy 1.3x,
+    cuInit 14 ms, cuMemAlloc 1 MiB 198/201 us (5.5x), cuMemFree 1 MiB 12x, short kernel 2.5x,
+    rlprobe stage 4 1.7x, PPO 0.67 of native on both guests; copies at native speed on two of
+    the 610 guest's three device instances, at the old half on the 615 guest's. Census: cuCtxCreate
+    437 ms, cuMemAllocHost 1.9 ms, cuMemHostRegister 2.1 ms.
+  - **Workload gate at 2 GiB** (615 guest): like for like with native now; llama pp512/tg128 0.96
+    and 0.92, transformer 1.01, ResNet-18 1.04, PPO 420 s 0.64.
+  - **The Xid 31 recurs on fbe4dfb** (with the swiotlb-alias fix): three host Xid 31, GPC
+    FAULT_PDE on a write, all on a 615 guest's device in a cuDNN training step (cuda gate
+    convburn on vm5-615, pid 2362730; workload convnet rep 1 on vm2-615, pid 2545558);
+    intermittent (the reruns with and without the pool passed); the faulting gate run's pool
+    summary is the only one with refused barriers. No Xid on the 610 guest.
+  - Harness: `bench-run.sh` keeps each rep's device log before a restart (`V2_LOG_KEEP`).

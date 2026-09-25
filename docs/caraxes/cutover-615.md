@@ -410,6 +410,21 @@ series C's (display page, slot 0, 2 GiB), with `CARAXES_DRIVER=615` and the v615
   unanswered (the ZBC model, gsp-plan R3). The display gate's kernel stage knows the flip warning
   only at 610's `nvidia-drm-crtc.h:355`, while on 615 it is at `:368`.
 
+### Gates on main fbe4dfb (morning matrix, 2026-09-25)
+
+The rows of (c), (d) and (e) again, on the frozen fbe4dfb builds in the recommended configuration
+plus the lazy plans (benchmark.md "Morning matrix", records `caraxes/runs/matrix-2026-09-25/`):
+
+| Row | Result |
+|---|---|
+| (c) 610 guest on the 615 host, nvml | pass but power-number `'N/A'` (the pmgr 0x18 size differs, (d)) (`gates-610/gate-nvml.txt`) |
+| (c) 610 guest, cuda | 10 of 11 scored, cuda-managed 801 (`gates-610/gate-cuda.txt`) |
+| (c) 610 guest, display | 11 of 11 on vm0 (`display-610-alone/gate.json`) |
+| (d) 615 guest on the 615 host, nvml | pass, 11 of 11 checks (`gates-615/gate-nvml.txt`) |
+| (d) 615 guest, cuda | 10 of 11 in the rerun (`gates-615-rerun/`); the first run also failed convburn with two host Xid 31 on its device (`gates-615/xid31-note.txt`) |
+| (d) 615 guest, display | 11 of 11 on vm0-615 (`display-615/gate.json`) |
+| (e) v1 on the 615 image | smi pass, cuda 14 of 14 (`v1/gates/`) |
+
 ## (e) v1 (Leandro)
 
 v1 forwards ioctls verbatim, so its guest module and user-space libraries must be the host's
@@ -527,4 +542,6 @@ host call, not a selection problem.
    closing 610 one. First series done (benchmark.md "First 615 series",
    `caraxes/runs/bench-615-2026-09-24/`): the 615 guest matches the 610 guest on the same
    device configuration; a like-for-like with the closing series (P21 area, spin reactor, quiet
-   host) is still to run.
+   host) is still to run. The like-for-like ran in the night (benchmark.md "Night series" Part 3,
+   with the pool for the refused P21 area); the morning matrix (benchmark.md "Morning matrix")
+   measured both guests on fbe4dfb with the three optimisations: they match each other again.

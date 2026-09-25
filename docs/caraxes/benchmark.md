@@ -1140,3 +1140,139 @@ The interrupt page takes the RM lock's interrupt-enable traps and the interrupt-
 the lazy plans the eager plan's work under the invalidate (64 MiB: 77.9 to 13.9 traps). What
 remains per operation is the MMU invalidate and the flush read, the targets of alloc-path.md
 step 3; the free path (7 traps) is now the larger gap.
+
+## Morning matrix (2026-09-25, main fbe4dfb)
+
+`caraxes/runs/matrix-2026-09-25/` (`env.sh`, one script per part: `gate.sh`, `display.sh`,
+`bench.sh`, `workload.sh`, `v1.sh`). The frozen builds of main fbe4dfb
+(`/mnt/vmstore/caraxes/vfio-user-nvgpu-main-fbe4dfb` for the 610 guest ABI,
+`vfio-user-nvgpu-v615-fbe4dfb` for the 615 guest), host 615.71.09, in the recommended
+configuration of `caraxes/tools/bench-run.sh`'s header (`bench-run.sh:37-41`) plus the lazy
+plans: interrupt page, BAR1 pool (32 MiB, because a second VM or the costume ladder's vm1 could
+be up), token pool 64, hybrid reactor, `CARAXES_BAR2_MEMFD=1`, `CARAXES_MSI_REARM_IOEVENTFD=1`,
+`CARAXES_ALLOC_LAZY=1`, no P21 area (`env.sh` `mx_windows`). This is the first run of all three
+optimisations of the night together (backlog items 1, 2 and 4, and the lazy plans). VMs: vm3 (610
+guest, 1 GiB, slot 5), vm5-615 (615 guest, 1 GiB, slot 2), vm3 with
+`CARAXES_COSTUME=rtx5060ti`, vm0 and vm0-615 (display, 2 GiB, slot 0), vm2-615 (the workload
+gate's 615 overlay with the llama build staged, 2 GiB, slot 0). At most two of them were up at a
+time: the gates in pairs, the benchmark series, the census and the workload gate alone. vm1 (the
+costume ladder's VM) was up throughout; no other device process was active in any benchmark
+run (bench-summary.py: 0 of 15 and 0 of 17 runs), vm1's VMM used at most tens of ms per run.
+Native numbers are the closing series' (§ "Closing series on driver 610.57.04", lines 719-741)
+and, for the census, the census's own native run (`caraxes/runs/trap-census-2026-09-25/summary.md:7-16`).
+
+**Three host Xid 31, all on a 615 guest's device, all GPC FAULT_PDE on a write in a cuDNN training
+step, with the swiotlb-alias fix in the binary** (memory-model.md §2 "The alias in the device";
+the alias was active in every run, `dma-ranges-guest.txt` in each record):
+
+| Time | Device pid | VM | Stage | Fault |
+|---|---|---|---|---|
+| 04:15:26 | 2362730 | vm5-615 | cuda gate, convburn (`cuDNN error: CUDNN_STATUS_INTERNAL_ERROR` in `loss.backward()`) | GPC1 GPCCLIENT_T1_9 FAULT_PDE VIRT_WRITE @ 0x100_2400c000 |
+| 04:15:30 | 2362730 | vm5-615 | the same | GPC1 GPCCLIENT_T1_9 FAULT_PDE VIRT_WRITE @ 0x100_26c10000 |
+| 05:20:20 | 2545558 | vm2-615 | workload gate, convnet rep 1 (ResNet-18 first step, `unspecified launch failure`, rc 134) | GPC1 GPCCLIENT_T1_10 FAULT_PDE VIRT_WRITE @ 0x100_3b416000 |
+
+The same signature as the night's Xid 31 (Part 4 above: GPC0 FAULT_PDE VIRT_WRITE in transformer
+rep 2), so the alias fix did not remove it. It is intermittent: the 615 gates again with the pool
+(`gates-615-rerun/`) and without it (`gates-615-nopool/`, `MX_NOPOOL=1`) both passed convburn with
+0 Xid, and convnet reps 2 and 3 ran clean. The pool's exit summary of the faulting gate run is the
+only one in the matrix with refused barriers: 14 refused of 293, 532 refused moves, 512 pages moved
+back cold; the clean pool runs have 0 refused barriers and 20 to 40 refused moves, and 0 page-table
+hazards and 0 pages behind both the pool and the BAR2 memfd everywhere
+(`gates-615/xid31-note.txt`). The faulting workload instance's summary was lost to the next rep's
+restart; `bench-run.sh` now keeps each rep's device log (`V2_LOG_KEEP`,
+`workload-615/xid31-note.txt`). No other host Xid in the matrix; host watch 0 alerts in every
+part.
+
+### Gates
+
+| Gate | 610 guest (vm3) | 615 guest (vm5-615) | costume RTX 5060 Ti (vm3) | v1 (615 image) |
+|---|---|---|---|---|
+| nvml | pass but power-number (`'N/A'`, the known 610-on-615 limitation) | **pass** (11 of 11 checks) | pass but power-number (known), name `Leandro VFIO RTX 5060 Ti-1G`, `10de:2d04` | smi **pass** (masked diff against the host empty) |
+| cuda | 10 of 11 scored pass: cuda-managed `AllocManaged: 801` (known), cuda-gdb declared unsupported | 9 of 11: cuda-managed 801 (known) and **convburn** (the Xid above); rerun 10 of 11 | 10 of 11: cuda-managed 801 (known) | **14 of 14** rows pass (managed with `LEA_MANAGED_COMPAT=1`) |
+| display (11 stages) | **11 of 11** on vm0 alone (58.2 FPS presented); the first run, beside the costume's cuda gate on vm3, 10 of 11: present at 25.2 FPS | **11 of 11** on vm0-615 (58.2 FPS presented) | - | not run (no display path) |
+
+Records: `gates-610/`, `gates-615/` (and `-rerun`, `-nopool`), `gates-costume/`,
+`display-610/`, `display-610-alone/`, `display-615/`, `v1/gates/`. The display gate is sensitive to
+another VM's GR load: its present stage wants 50-75 FPS, and the costume's torch and convburn
+stages on the same GR engine halved it. The v1 guest's poweroff hung in
+`unattended-upgrades.service/stop`; the hypervisor was stopped after five minutes
+(`v1/down.txt`).
+
+### Benchmarks
+
+`bench-run.sh series` (stage first, restart per rep): short-auto rl copy init churn with 3 reps,
+PPO 60 s with 2 (`series-610/`, `series-615/`). Medians [range] over the reps; the ratio is to the
+closing series' native.
+
+| Metric | native (closing) | 610 guest (vm3) | 615 guest (vm5-615) | 610 / native | 615 / native |
+|---|---|---|---|---|---|
+| short kernel, ms/launch, auto | 0.006 | 0.015 | 0.015 [0.012-0.016] | 2.5 | 2.5 |
+| rlprobe stage 4, s | 1.20 | 2.10 | 2.00 [2.00-2.20] | 1.75 | 1.67 |
+| rlprobe transfers per second | 2350 | 1360 [1340-1399] | 1423 [1323-1444] | 0.58 | 0.61 |
+| copy h2d pinned 1 MiB, GB/s | 12.1 | 11.2 [6.03-11.3] | 6.08 [6.06-6.12] | 0.93 | 0.50 |
+| copy h2d pageable 1 MiB | 7.25 | 7.08 [4.51-7.08] | 4.54 [4.53-4.56] | 0.98 | 0.63 |
+| copy h2d pinned 16 MiB | 13.0 | 12.9 [6.56-12.9] | 6.57 [6.56-6.58] | 0.99 | 0.50 |
+| copy d2d 16 MiB | 183 | 171 [16.5-173] | 17.6 [17.1-171] | 0.93 | 0.10 |
+| copy h2d pinned 256 MiB | 13.1 | 13.1 | 13.1 | 1.00 | 1.00 |
+| cuInit (bench-cu init), ms | 106 | 13.5 [13.4-13.7] | 14.8 [13.7-15.7] | 0.13 | 0.14 |
+| cuCtxCreate, ms | 195 | **319** [305-347] | **323** [316-360] | 1.6 | 1.7 |
+| cuCtxDestroy, ms | 92.6 | 117 [111-119] | 116 [115-137] | 1.26 | 1.25 |
+| cuMemAlloc 1 MiB (churn), us | 35.8 | 198 [192-198] | 201 [200-201] | 5.5 | 5.6 |
+| cuMemFree 1 MiB, us | 27.1 | 329 [326-341] | 339 [337-436] | 12 | 12.5 |
+| cuMemAlloc 64 MiB, us | 78.3 | 602 [578-623] | 614 [575-635] | 7.7 | 7.8 |
+| cuMemFree 64 MiB, us | 92.6 | 940 [898-952] | 958 [898-990] | 10 | 10 |
+| PPO environment steps per second (2 reps) | 107663, 112259 | 72596, 74618 | 75070, 72706 | 0.67 | 0.67 |
+
+The copy rows are bimodal per device instance, not per guest: 610 reps 1 and 3 ran at native speed
+(h2d pinned 1 MiB 11.3, d2d 16 MiB 173 and 171 GB/s), rep 2 at the old half (6.0 and 16.5); on the
+615 guest h2d stayed at 6.1 in all three reps while d2d reached 171 in rep 3
+(`series-6*/v2/copy-*.txt`). The night's 610 series had the half in every rep (Part 3 above).
+
+**Census** (`census-610/census-table.md`, vm3, 610 guest; the census's method: cuInit x3,
+cuCtxCreate/cuCtxDestroy x5, each operation 10 times, guest medians; trapped accesses per
+operation in brackets):
+
+| Operation | matrix (traps) | `on` fixed, memfd and pool (bar2-memfd.md §8) | native (census) | matrix / native |
+|---|---|---|---|---|
+| cuInit | 21.3 ms (174) | 28.2 ms (174) | 93.7 ms | 0.23 |
+| cuCtxCreate | **437 ms** (1290) | 0.61 s (1228) | 146 ms | 3.0 |
+| cuCtxDestroy | 174 ms (828) | 0.20 s (926) | 86.2 ms | 2.0 |
+| cuMemAlloc 1 MiB | 313 us (3.5) | - | 65.0 us | 4.8 |
+| cuMemAlloc 64 MiB | 966 us (7.8) | - | 132 us | 7.3 |
+| cuMemFree 1 MiB | 482 us (6.5) | - | 51.0 us | 9.5 |
+| cuMemAllocHost 1 MiB | 1.90 ms (7.5) | 1.72 ms (8.2) | 0.76 ms | 2.5 |
+| cuMemHostRegister 1 MiB | 2.07 ms (15.0) | 2.29 ms (15.4) | 0.28 ms | 7.3 |
+
+Against the expectation: cuCtxCreate is well under 0.6 s (437 ms in the census, 319 ms in
+bench-cu init: the shadow's batched host maps on top of the memfd, 0.61 s with the memfd and pool
+alone); host allocation 1.90 ms, near the 1.7 ms of the memfd; cuMemAlloc 1 MiB is 198 us in the
+churn metric (the night's 175 us, line 985, was measured the same way without the pool) and
+313 us in the census window, whose markers and idle background (51 traps per 100 ms, all PCI
+config reads of the capability list at 0x34 and 0x60-0x79, `census-table.md` op 1) add to each
+operation.
+
+**Workload gate** (`workload-615/summary.md`): the 615 guest at 2 GiB (vm2-615, slot 0), 3 reps,
+v2 only; native is the night's run of the same binaries and model
+(`caraxes/runs/workload-2026-09-24/night/gate/`, native column of its `summary.md`).
+
+| Workload | native (night) | v2 615 guest, 2 GiB | v2 / native |
+|---|---|---|---|
+| short kernel, ms/launch | 0.006 | 0.016 | 2.7 |
+| rlprobe stage 4, s | 1.20 | 1.80 [1.80-2.10] | 1.5 |
+| PPO 420 s, environment steps per second | 116313 | 74714 [72869-74756] | 0.64 |
+| PPO time to solved, s | 150 | 238 [135-252] | 1.6 |
+| llama.cpp pp512, tokens/s | 8475 | 8150 [7816-8747] | 0.96 |
+| llama.cpp tg128, tokens/s | 295 | 272 [254-283] | 0.92 |
+| llama.cpp tg128 without CUDA graphs | 293 | 257 [235-258] | 0.88 |
+| transformer, tokens per second (batch 32) | 103760 | 104754 [104732-104831] | 1.01 |
+| ResNet-18, images per second (batch 32) | 506 | 526 (n=2: 524, 528; rep 1 the Xid) | 1.04 |
+
+At 2 GiB every workload runs like for like: llama loads (763 MiB model), the transformer and
+ResNet-18 run at native's batch 32 and at native speed. PPO is unchanged against the night
+(0.64): it is bound by the device's per-ring work (407 s of device CPU in a 424 s run, `workload-615/v2/ppo-full-1.txt`).
+
+Reading: the three optimisations together bring the context lifetime to 1.6x native (3770 ms in
+the closing series, 19x), cuInit below native, allocations to 5.5x (alloc) and 12x (free), and on
+most device instances the copies to native. The 615 guest's GPC FAULT_PDE under cuDNN training
+is the one open fault; it came in 2 of 5 device instances that ran a cuDNN training step on the
+615 guest with the pool, and in neither of the 610 guest's two (`gates-610`, `gates-costume`).
