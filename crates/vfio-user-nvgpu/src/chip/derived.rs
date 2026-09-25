@@ -44,6 +44,12 @@ pub const DERIVED: &[DerivedFiles] = &[
         chip: include_str!("../../chips/ad106/chip.toml"),
         boot: Some(include_str!("../../chips/ad106/boot.toml")),
     },
+    // The vGPU-guest experiment (docs/caraxes/limits-mig-ecc-vgpu.md §4): BOOT_1 says VF.
+    DerivedFiles {
+        name: "tu106vf",
+        chip: include_str!("../../chips/tu106vf/chip.toml"),
+        boot: None,
+    },
     DerivedFiles {
         name: "gh100",
         chip: include_str!("../../chips/gh100/chip.toml"),
@@ -204,6 +210,17 @@ mod tests {
         assert_eq!(a.device_info.engines, b.device_info.engines);
         assert_eq!(a.gmmu.mmu_format, b.gmmu.mmu_format);
         assert_eq!(base_of("tu104"), Some("tu106"));
+    }
+
+    /// The vGPU-guest experiment: TU106 with NV_PMC_BOOT_1_VGPU 17:16 = _VF (2) and
+    /// nothing else changed.
+    #[test]
+    fn tu106vf_is_tu106_with_boot_1_vf() {
+        let a = get("tu106vf").unwrap().unwrap().data();
+        let b = crate::chip::by_name("tu106").unwrap().data();
+        assert_eq!((a.identity.boot_1 >> 16) & 3, 2);
+        assert_eq!((a.identity.boot_0, a.identity.boot_42), (b.identity.boot_0, b.identity.boot_42));
+        assert_eq!(a.features.refused.len(), b.features.refused.len());
     }
 
     /// The Ampere, Ada and Hopper costumes: the architecture/implementation fields of

@@ -28,7 +28,7 @@ pub mod turing;
 /// Every chip this build can present, by `--chip` name.
 /// `tu104`, `ga106`, `ad106` and `gh100` are the costume ladder's derived chips
 /// ([`derived`], docs/caraxes/costume-ladder.md).
-pub const CHIPS: &[&str] = &["tu106", "gb206", "tu104", "ga106", "ad106", "gh100"];
+pub const CHIPS: &[&str] = &["tu106", "gb206", "tu104", "ga106", "ad106", "gh100", "tu106vf"];
 
 /// A chip the device can present.
 pub trait Chip: Sync {
@@ -145,6 +145,10 @@ pub struct ChipData {
     pub features: crate::chipctl::Features,
     /// The chip-data answers of category A (`controls.toml`, chipctl.rs).
     pub controls: crate::chipctl::ControlTable,
+    /// `[ecc]`: the ECC facts of a board with ECC (families/ecc.rs); `None` without.
+    pub ecc: Option<crate::families::ecc::EccData>,
+    /// `[mig]`: the MIG profile tables (families/mig.rs); `None` without MIG.
+    pub mig: Option<crate::families::mig::MigData>,
 }
 
 impl ChipData {
@@ -438,6 +442,10 @@ struct ChipFile {
     #[serde(default)]
     classes: Option<ClassDb>,
     features: crate::chipctl::FeaturesFile,
+    #[serde(default)]
+    ecc: Option<crate::families::ecc::EccData>,
+    #[serde(default)]
+    mig: Option<crate::families::mig::MigData>,
 }
 
 #[derive(Deserialize)]
@@ -615,7 +623,23 @@ impl ChipData {
                 ))
             })
             .collect::<Result<Vec<_>, String>>()?;
+        // A family table needs its family present (families/mod.rs).
+        for (table, fams, given) in [
+            ("ecc", ["ecc", "row_remap"], c.ecc.is_some()),
+            ("mig", ["mig", "mig_partitioning"], c.mig.is_some()),
+        ] {
+            for fam in fams {
+                if given && c.features.absent.iter().any(|a| a == fam) {
+                    return Err(format!(
+                        "chip {}: chip.toml has [{table}], but names family {fam:?} absent",
+                        c.name
+                    ));
+                }
+            }
+        }
         Ok(ChipData {
+            ecc: c.ecc,
+            mig: c.mig,
             name: c.name,
             identity: c.identity,
             short_name: c.short_name,

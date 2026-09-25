@@ -1,0 +1,76 @@
+    38765769 W bar0 0x008f2ac4 4  0x20ceccab   NV_PFSP_EMEMC/EMEMD(i)
+    38855320 W bar0 0x00702ecc 4  0x0          NV_PRAMIN
+    38895712 W bar0 0x00707ecc 4  0x0          NV_PRAMIN
+    38949549 W bar0 0x00708ecc 4  0x0          NV_PRAMIN
+    39039822 W bar0 0x00709ecc 4  0x0          NV_PRAMIN
+    39128608 W bar0 0x0070aecc 4  0x0          NV_PRAMIN
+    39186153 W bar0 0x0070becc 4  0x0          NV_PRAMIN
+    39251880 W bar0 0x0070cecc 4  0x0          NV_PRAMIN
+    39348731 W bar0 0x0070decc 4  0x0          NV_PRAMIN
+    39386251 W bar0 0x0070ecc0 4  0x8          NV_PRAMIN
+    39386439 W bar0 0x0070ecc4 4  0x0          NV_PRAMIN
+    39386475 W bar0 0x0070ecc8 4  0x8          NV_PRAMIN
+    39386503 W bar0 0x0070eccc 4  0x0          NV_PRAMIN
+    39394493 W bar0 0x0070eecc 4  0x0          NV_PRAMIN
+    39450831 W bar0 0x0070fecc 4  0x0          NV_PRAMIN
+    39505066 W bar0 0x00710ecc 4  0x0          NV_PRAMIN
+    39575478 W bar0 0x00711ecc 4  0x0          NV_PRAMIN
+    39725108 W bar0 0x00712ecc 4  0x0          NV_PRAMIN
+    39787660 W bar0 0x00713ecc 4  0x0          NV_PRAMIN
+    39865740 W bar0 0x00714ecc 4  0x0          NV_PRAMIN
+    39961067 W bar0 0x00715ecc 4  0x0          NV_PRAMIN
+    40026813 W bar0 0x00716ecc 4  0x0          NV_PRAMIN
+    40063201 E boot: ctrl 0x20800ab3: NV2080_CTRL_CMD_INTERNAL_CCU_MAP (0x20800ab3): feature family ccu absent on gh100 -> status 0x56 [refused (feature absent on this chip)]
+    40082614 W bar3 0x00000cc0 8  0x0          fb 0xf23cecc0
+    40082655 W bar3 0x00000cc8 8  0x0          fb 0xf23cecc8
+    68003186 E boot: ctrl 0x20800157: inforom ecc support: supported (the mode is kept in the persist record) -> status 0x0 [guest (ECC mode of this VM: current and pending, InfoROM analogue)]
+    68006269 E boot: ctrl 0x2080014b: inforom object ECC: version 1.0 (costume (H100 HBM ECC on; units: the open headers' GSP unit only; no capture)) -> status 0x0 [guest (ECC mode of this VM: current and pending, InfoROM analogue)]
+    68018066 E boot: ctrl 0x20800133: ecc configuration: stored (pending) true, default true, in force true -> status 0x0 [guest (ECC mode of this VM: current and pending, InfoROM analogue)]
+    68021017 E boot: ctrl 0x2080012f: ecc status: units [0x1d] supported, enabled true, all counts 0 (costume (H100 HBM ECC on; units: the open headers' GSP unit only; no capture)) -> status 0x0 [guest (ECC mode of this VM: current and pending, InfoROM analogue)]
+    68037011 E boot: ctrl 0x20800133: ecc configuration: stored (pending) true, default true, in force true -> status 0x0 [guest (ECC mode of this VM: current and pending, InfoROM analogue)]
+    68050037 E boot: ctrl 0x20803401: NV2080_CTRL_CMD_ECC_GET_VOLATILE_COUNTS: all zero -> status 0x0 [synthesized (ECC counters: no errors in a model)]
+    68051534 E boot: ctrl 0x20803400: NV2080_CTRL_CMD_ECC_GET_CLIENT_EXPOSED_COUNTERS: all zero -> status 0x0 [synthesized (ECC counters: no errors in a model)]
+    68053908 E boot: ctrl 0x20803401: NV2080_CTRL_CMD_ECC_GET_VOLATILE_COUNTS: all zero -> status 0x0 [synthesized (ECC counters: no errors in a model)]
+    68085752 E boot: ctrl 0x20803401: NV2080_CTRL_CMD_ECC_GET_VOLATILE_COUNTS: all zero -> status 0x0 [synthesized (ECC counters: no errors in a model)]
+    68106496 E boot: ctrl 0x20803401: NV2080_CTRL_CMD_ECC_GET_VOLATILE_COUNTS: all zero -> status 0x0 [synthesized (ECC counters: no errors in a model)]
+    68113764 E boot: ctrl 0x20803400: NV2080_CTRL_CMD_ECC_GET_CLIENT_EXPOSED_COUNTERS: all zero -> status 0x0 [synthesized (ECC counters: no errors in a model)]
+    68187810 E boot: ctrl 0x20803400: NV2080_CTRL_CMD_ECC_GET_CLIENT_EXPOSED_COUNTERS: all zero -> status 0x0 [synthesized (ECC counters: no errors in a model)]
+    68223493 E boot: ctrl 0x20803400: NV2080_CTRL_CMD_ECC_GET_CLIENT_EXPOSED_COUNTERS: all zero -> status 0x0 [synthesized (ECC counters: no errors in a model)]
+    68347783 E boot: ctrl 0x20803404: NV2080_CTRL_CMD_ECC_GET_REPAIR_STATUS: all zero -> status 0x0 [synthesized (ECC counters: no errors in a model)]
+    68367386 E boot: ctrl 0x20803406: NV2080_CTRL_CMD_ECC_GET_UNREPAIRABLE_MEMORY_FLAG: all zero -> status 0x0 [synthesized (ECC counters: no errors in a model)]
+    68567447 E boot: ctrl 0x20800157: inforom ecc support: supported (the mode is kept in the persist record) -> status 0x0 [guest (ECC mode of this VM: current and pending, InfoROM analogue)]
+    68571743 E boot: ctrl 0x2080014b: inforom object ECC: version 1.0 (costume (H100 HBM ECC on; units: the open headers' GSP unit only; no capture)) -> status 0x0 [guest (ECC mode of this VM: current and pending, InfoROM analogue)]
+    68585739 E boot: ctrl 0x20800133: ecc configuration: stored (pending) true, default true, in force true -> status 0x0 [guest (ECC mode of this VM: current and pending, InfoROM analogue)]
+    68586811 E boot: ctrl 0x2080012f: ecc status: units [0x1d] supported, enabled true, all counts 0 (costume (H100 HBM ECC on; units: the open headers' GSP unit only; no capture)) -> status 0x0 [guest (ECC mode of this VM: current and pending, InfoROM analogue)]
+    68587745 E boot: ctrl 0x20800133: ecc configuration: stored (pending) true, default true, in force true -> status 0x0 [guest (ECC mode of this VM: current and pending, InfoROM analogue)]
+    68599520 E boot: ctrl 0x20803401: NV2080_CTRL_CMD_ECC_GET_VOLATILE_COUNTS: all zero -> status 0x0 [synthesized (ECC counters: no errors in a model)]
+    68603658 E boot: ctrl 0x20803401: NV2080_CTRL_CMD_ECC_GET_VOLATILE_COUNTS: all zero -> status 0x0 [synthesized (ECC counters: no errors in a model)]
+    68607290 E boot: ctrl 0x20803401: NV2080_CTRL_CMD_ECC_GET_VOLATILE_COUNTS: all zero -> status 0x0 [synthesized (ECC counters: no errors in a model)]
+    68610289 E boot: ctrl 0x20803401: NV2080_CTRL_CMD_ECC_GET_VOLATILE_COUNTS: all zero -> status 0x0 [synthesized (ECC counters: no errors in a model)]
+    68617553 E boot: ctrl 0x20803400: NV2080_CTRL_CMD_ECC_GET_CLIENT_EXPOSED_COUNTERS: all zero -> status 0x0 [synthesized (ECC counters: no errors in a model)]
+    68618692 E boot: ctrl 0x20803400: NV2080_CTRL_CMD_ECC_GET_CLIENT_EXPOSED_COUNTERS: all zero -> status 0x0 [synthesized (ECC counters: no errors in a model)]
+    68620389 E boot: ctrl 0x20803400: NV2080_CTRL_CMD_ECC_GET_CLIENT_EXPOSED_COUNTERS: all zero -> status 0x0 [synthesized (ECC counters: no errors in a model)]
+    68623924 E boot: ctrl 0x20803400: NV2080_CTRL_CMD_ECC_GET_CLIENT_EXPOSED_COUNTERS: all zero -> status 0x0 [synthesized (ECC counters: no errors in a model)]
+    69324387 R bar0 0x00110804 4  0x10ecc      NV_PGSP_MAILBOX(0/1) GSP-RM/libos heartbeat
+    69662908 E boot: ctrl 0x20800157: inforom ecc support: supported (the mode is kept in the persist record) -> status 0x0 [guest (ECC mode of this VM: current and pending, InfoROM analogue)]
+    69664286 E boot: ctrl 0x2080014b: inforom object ECC: version 1.0 (costume (H100 HBM ECC on; units: the open headers' GSP unit only; no capture)) -> status 0x0 [guest (ECC mode of this VM: current and pending, InfoROM analogue)]
+    69673697 E boot: ctrl 0x20800133: ecc configuration: stored (pending) true, default true, in force true -> status 0x0 [guest (ECC mode of this VM: current and pending, InfoROM analogue)]
+    69674676 E boot: ctrl 0x2080012f: ecc status: units [0x1d] supported, enabled true, all counts 0 (costume (H100 HBM ECC on; units: the open headers' GSP unit only; no capture)) -> status 0x0 [guest (ECC mode of this VM: current and pending, InfoROM analogue)]
+    69679989 E boot: ctrl 0x20800134: set ecc configuration: pending false (in force true until the next GPU reset) -> status 0x0 [guest (ECC mode of this VM: current and pending, InfoROM analogue)]
+    69825946 E boot: ctrl 0x20800157: inforom ecc support: supported (the mode is kept in the persist record) -> status 0x0 [guest (ECC mode of this VM: current and pending, InfoROM analogue)]
+    69827112 E boot: ctrl 0x2080014b: inforom object ECC: version 1.0 (costume (H100 HBM ECC on; units: the open headers' GSP unit only; no capture)) -> status 0x0 [guest (ECC mode of this VM: current and pending, InfoROM analogue)]
+    69841489 E boot: ctrl 0x20800133: ecc configuration: stored (pending) false, default true, in force true -> status 0x0 [guest (ECC mode of this VM: current and pending, InfoROM analogue)]
+    69843888 E boot: ctrl 0x2080012f: ecc status: units [0x1d] supported, enabled true, all counts 0 (costume (H100 HBM ECC on; units: the open headers' GSP unit only; no capture)) -> status 0x0 [guest (ECC mode of this VM: current and pending, InfoROM analogue)]
+    69848837 E boot: ctrl 0x20800133: ecc configuration: stored (pending) false, default true, in force true -> status 0x0 [guest (ECC mode of this VM: current and pending, InfoROM analogue)]
+    69871961 E boot: ctrl 0x20803401: NV2080_CTRL_CMD_ECC_GET_VOLATILE_COUNTS: all zero -> status 0x0 [synthesized (ECC counters: no errors in a model)]
+    69873111 E boot: ctrl 0x20803401: NV2080_CTRL_CMD_ECC_GET_VOLATILE_COUNTS: all zero -> status 0x0 [synthesized (ECC counters: no errors in a model)]
+    69880756 E boot: ctrl 0x20803401: NV2080_CTRL_CMD_ECC_GET_VOLATILE_COUNTS: all zero -> status 0x0 [synthesized (ECC counters: no errors in a model)]
+    69882831 E boot: ctrl 0x20803401: NV2080_CTRL_CMD_ECC_GET_VOLATILE_COUNTS: all zero -> status 0x0 [synthesized (ECC counters: no errors in a model)]
+    69884019 E boot: ctrl 0x20803400: NV2080_CTRL_CMD_ECC_GET_CLIENT_EXPOSED_COUNTERS: all zero -> status 0x0 [synthesized (ECC counters: no errors in a model)]
+    69885297 E boot: ctrl 0x20803400: NV2080_CTRL_CMD_ECC_GET_CLIENT_EXPOSED_COUNTERS: all zero -> status 0x0 [synthesized (ECC counters: no errors in a model)]
+    69891027 E boot: ctrl 0x20803400: NV2080_CTRL_CMD_ECC_GET_CLIENT_EXPOSED_COUNTERS: all zero -> status 0x0 [synthesized (ECC counters: no errors in a model)]
+    69894128 E boot: ctrl 0x20803400: NV2080_CTRL_CMD_ECC_GET_CLIENT_EXPOSED_COUNTERS: all zero -> status 0x0 [synthesized (ECC counters: no errors in a model)]
+    70067971 E boot: ctrl 0x2080012f: ecc status: units [0x1d] supported, enabled true, all counts 0 (costume (H100 HBM ECC on; units: the open headers' GSP unit only; no capture)) -> status 0x0 [guest (ECC mode of this VM: current and pending, InfoROM analogue)]
+    70069315 E boot: ctrl 0x20800136: reset ecc error status: statuses 0x1, the counters are 0 already -> status 0x0 [synthesized (ECC counters: no errors in a model)]
+    70219691 E boot: ctrl 0x2080012f: ecc status: units [0x1d] supported, enabled true, all counts 0 (costume (H100 HBM ECC on; units: the open headers' GSP unit only; no capture)) -> status 0x0 [guest (ECC mode of this VM: current and pending, InfoROM analogue)]
+    70222471 E boot: ctrl 0x20800136: reset ecc error status: statuses 0x2, the counters are 0 already -> status 0x0 [synthesized (ECC counters: no errors in a model)]

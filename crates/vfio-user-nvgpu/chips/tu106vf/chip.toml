@@ -1,0 +1,21 @@
+# SPDX-License-Identifier: MIT
+# SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
+#
+# The vGPU-guest experiment of the limits runs (docs/caraxes/limits-mig-ecc-vgpu.md §4): the
+# TU106 telling the guest it is an SR-IOV virtual function. An overlay on chips/tu106
+# (src/chip/derived.rs); only NV_PMC_BOOT_1 differs. Paths are relative to
+# vendor/open-gpu-kernel-modules at 610.57.04.
+#
+# NV_PMC_BOOT_1_VGPU 17:16 = _VF 2 (src/common/inc/swref/published/nv_ref.h:139-149): the
+# only value the kernel acts on (gpumgrGetGpuHalFactorOfVirtual, gpu_mgr.c:1002-1021, picks
+# the VF runtime variant, which is no GSP client, g_gpu_nvoc.c:578-600). In an HVM guest the
+# probe gate asks rm_is_vgpu_supported_device (os-hypervisor.c:947-986), which refuses a VF
+# outside a GRID build (osapi.c:3803-3813). The run records where the stock guest stops.
+base = "tu106"
+name = "tu106vf"
+short_name = "TU106"
+
+[identity]
+boot_0 = 0x1660_00A1
+boot_1 = 0x0002_0000
+boot_42 = 0x166A_1000

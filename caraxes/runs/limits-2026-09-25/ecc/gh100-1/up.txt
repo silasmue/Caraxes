@@ -1,0 +1,1 @@
+server pid 3496759, VM pid 3496762; logs in /mnt/vmstore/caraxes/vm8

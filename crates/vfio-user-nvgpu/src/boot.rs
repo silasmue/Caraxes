@@ -900,6 +900,8 @@ impl BootModel {
         self.fb.carry_bar1_passthrough(&fresh.fb);
         self.fb.carry_bar2_area(&mut fresh.fb);
         fresh.ctrl.channels.tokens = tokens;
+        // The persistent settings (ECC and MIG mode) survive, and what was pending applies.
+        fresh.ctrl.families.after_reset(&self.ctrl.families);
         fresh.transport = self.transport;
         *self = fresh;
     }
