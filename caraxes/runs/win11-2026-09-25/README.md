@@ -47,3 +47,39 @@ vfio-user device (`nova-guest.md` section 7, P23: which RM path the Windows driv
   `StringFuncs.c`): the three `-Werror` in `BaseTools/Source/C/Makefiles/header.makefile` were
   removed in the build tree before `make -C BaseTools`.
 - Host packages added for this: `swtpm`, `nasm`, `acpica`.
+
+## The Windows driver's first contact
+
+- **Driver**: 617.14 binds to the device (pure emulation, `gpu-up.sh`) as "NVIDIA GeForce RTX
+  2070", reads the VBIOS through the PROM window, reads a handful of BAR0 registers the model
+  does not serve (0), and stops with Code 43. No GSP boot is attempted; the driver never
+  touches the falcons.
+- **Read sequence** (one attempt, trace of 2026-09-25; names from the open headers where they
+  exist, otherwise the block):
+  - `NV_PMC_BOOT_42`, `NV_PMC_BOOT_1`, `NV_PMC_BOOT_0`, again 42 and 1;
+  - `0x22410` (NV_PTOP), `0x1070` (NV_PBUS), six `NV_PCFG` mirror reads, `0x8` (NV_PMC),
+    `NV_PCFG` 0x88700 read and written 0x20000;
+  - `NV_FUSE_STATUS_OPT_DISPLAY` (0x21c04) twice, `0x610018` (NV_PDISP), `0x1078` (NV_PBUS);
+  - a loop of `0x1373a0` (NV_PTRIM block) with `NV_PMC_BOOT_0`, `0x21434` and `0x21200`
+    (NV_FUSE); per attempt 0x1373a0 is read 10 times, 0x21434 7 times;
+  - `0xc80` written to `0xd96c` + n * 0x50, n = 0..6 (NV_PMGR, likely the AUX/I2C ports);
+  - `0x22408` (NV_PTOP) four times, `0x1373a0`, `0x21640` (NV_FUSE); then Code 43 and the
+    same sequence on the next start.
+- **Capture** (`caraxes/tools/hostreg-read.c`, operator-approved, once, read-only): the host
+  RM's `NV2080_CTRL_CMD_GPU_EXEC_REG_OPS` with READ_32 ops on the host RTX 2070. The RM
+  allowed an unprivileged client 5 offsets (0x10c0 and 0x22430-0x2243c, its user register
+  access map); the other 741 came back `INVALID_OFFSET` and were read as root (`sudo -n`).
+  Result: `caraxes/reference/rtx2070/bar0-registers-2026-09-25.txt`, 737 registers (the ten,
+  NV_PMC 0x0-0x100, NV_PBUS 0x1000-0x1100, NV_FUSE 0x21000-0x21800, NV_PTOP 0x22400-0x22440
+  and its device-info table 0x22700-0x22800, NV_PDISP 0x610000-0x610040).
+- **The ten on the card**: 0x8, 0x1070, 0x1078, 0x21200, 0x22408 and 0x22410 are 0 there
+  too; the driver saw a difference only at `0x21434` = 1, `0x21640` = 1, `0x1373a0` = 0xa and
+  `0x610018` = 0x04000000. `NV_PMC_BOOT_0` in the capture is 0x166000a1, the model's.
+- **The table**: `vfio-user-nvgpu` loads the newest `bar0-registers-*.txt` beside the
+  board's config capture (or `--bar0-registers <file|none>`) and answers reads that no model
+  owns and nothing latched from it, traced `captured`; it never overrides a model. A missing
+  or malformed file, or a foreign `NV_PMC_BOOT_0`, leaves no table (those reads stay 0).
+  Frozen build: `/mnt/vmstore/caraxes/vfio-user-nvgpu-v615-winregs-fd603118`.
+- **Next**: after the ten, which registers the driver reads next (the first unnamed,
+  un-`captured` offsets in the trace), and whether it reaches the GSP boot (`NV_PGSP_*`,
+  0x110000) or programs the falcons and engines itself (the CPU-RM path of P23).

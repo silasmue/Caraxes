@@ -206,6 +206,10 @@ execution, no BAR1 pool), `CARAXES_GUEST_ABI=570`, no tap (see below).
   itself, which the device does not model. The first check is which path the Windows driver
   takes for 10de:1f02 (its registry switch for GPU firmware); the GB206 identity is the likely
   way to force the GSP path.
+- **First contact (2026-09-25)**: driver 617.14 on the TU106 identity reads ten unmodelled
+  BAR0 registers and stops with Code 43 before any GSP boot; the host card's values are now
+  captured and served (`caraxes/runs/win11-2026-09-25/README.md`, "The Windows driver's first
+  contact").
 - **The device**: the same process and BARs; the vfio-user device is presented to Windows as
   a PCI function like to Linux. Interrupts (MSI) and the display path matter more than for
   Linux, because the Windows driver sets a mode at boot.
