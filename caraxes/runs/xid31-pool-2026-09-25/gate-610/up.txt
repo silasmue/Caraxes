@@ -1,0 +1,7 @@
+dma table: 0:7fff40000000:40000000,40000000:7ffe80000000:40000000,80000000:7ffe00000000:40000000,100000000:7ffd80000000:40000000
+server pid 2884689, VM pid 2884707; logs in /mnt/vmstore/caraxes/vm3
+ssh up at 192.168.103.23
+probe xp-gate-610: 68866 device accesses, guest log in /mnt/vmstore/caraxes/vm3/probe-xp-gate-610/guest-dmesg.txt
+[  250.242060] NVRM: GPU 0000:00:05.0: RmInitAdapter
+[  252.393858] NVRM: GPU 0000:00:05.0: RmInitAdapter succeeded!
+modprobe rc=0

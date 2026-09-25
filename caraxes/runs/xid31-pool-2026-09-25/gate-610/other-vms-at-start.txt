@@ -1,0 +1,3 @@
+1399617 /mnt/vmstore/caraxes/vm1/cloud-hypervisor-0006 -v --api-socket /mnt/vmstore/caraxes/vm1/ch.sock --cpus boot=8 --memory size=4G,shared=on --kernel /mnt/v
+2871437 /mnt/vmstore/caraxes/vm5-615/vfio-user-nvgpu --socket /mnt/vmstore/caraxes/vm5-615/gpu.sock --trace /mnt/vmstore/caraxes/vm5-615/gpu-trace.log --config 
+2871451 /mnt/vmstore/caraxes/vm1/cloud-hypervisor-0006 -v --api-socket /mnt/vmstore/caraxes/vm5-615/ch.sock --cpus boot=8 --memory size=4G,shared=on --kernel /m

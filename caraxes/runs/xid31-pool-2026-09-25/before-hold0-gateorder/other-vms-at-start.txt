@@ -1,0 +1,1 @@
+1399617 /mnt/vmstore/caraxes/vm1/cloud-hypervisor-0006 -v --api-socket /mnt/vmstore/caraxes/vm1/ch.sock --cpus boot=8 --memory size=4G,shared=on --kernel /mnt/v

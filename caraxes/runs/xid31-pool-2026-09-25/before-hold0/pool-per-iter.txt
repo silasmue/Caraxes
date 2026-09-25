@@ -1,0 +1,21 @@
+iter 1
+iter 2
+iter 3
+iter 4
+iter 5
+iter 6
+iter 7
+iter 8
+iter 9
+iter 10
+iter 11
+iter 12
+iter 13
+iter 14
+iter 15
+iter 16
+iter 17
+iter 18
+iter 19
+iter 20
+# binary 528a2b4 (no per-iteration pool line; the pool summary is the exit summary in device-summary.txt)

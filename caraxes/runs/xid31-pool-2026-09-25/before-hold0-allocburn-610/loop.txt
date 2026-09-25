@@ -1,0 +1,1 @@
+iter 1 07:22:32 [convburn pass 1; allocburn:  rc=1 ] host_xid=1 refused_barriers=13 ahead_with_plans_pending=0

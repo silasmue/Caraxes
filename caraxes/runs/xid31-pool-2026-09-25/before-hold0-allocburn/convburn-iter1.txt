@@ -1,0 +1,5 @@
+[W925 04:54:40.730678404 CUDACachingAllocator.cpp:3933] memory allocation failed with OOM on device 0 while trying to allocate 608174080 bytes (free: 265682944, total: 863830016).
+[W925 04:54:40.730855714 CUDACachingAllocator.cpp:3933] memory allocation failed with OOM on device 0 while trying to allocate 608174080 bytes (free: 265682944, total: 863830016).
+[W925 04:54:40.774775363 CUDACachingAllocator.cpp:3933] memory allocation failed with OOM on device 0 while trying to allocate 306184192 bytes (free: 265682944, total: 863830016).
+[W925 04:54:40.774871333 CUDACachingAllocator.cpp:3933] memory allocation failed with OOM on device 0 while trying to allocate 306184192 bytes (free: 265682944, total: 863830016).
+convburn: sync=end iters=400 batch=8 time=10.321s 25.80ms/it acc=3.041450977e+00 vram=434MiB

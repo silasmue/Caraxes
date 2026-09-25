@@ -1,0 +1,2 @@
+# iter 1 (device pid 2951267)
+Sep 25 07:22:27 manacor kernel: NVRM: Xid (PCI:0000:2d:00): 31, pid=2951267, name=vfio-user-nvgpu, intr 00000000. MMU Fault: ENGINE GRAPHICS GPC0 GPCCLIENT_T1_2 faulted @ 0x100_1d806000. Fault is of type FAULT_PDE ACCESS_TYPE_VIRT_WRITE
