@@ -45,6 +45,12 @@
 //!   §2.4: half a million mappings in one free held it for minutes).
 //!
 //! **Fewer host RM calls (docs/caraxes/memory-model.md §7, 2026-09-25).**
+//! - *Gather descriptors.* A VA-contiguous stretch of 4 KiB sysmem leaves whose guest pages
+//!   are scattered (the guest driver's page pool hands them out one by one, mapping.md §2)
+//!   is mapped from one gather descriptor (hostmem.rs `gather`): the stretch's pages, each
+//!   the filter's answer, back to back in one OS descriptor, so one `RM_MAP_MEMORY_DMA`
+//!   maps the whole stretch. The descriptor is freed when its last mapping is gone.
+//!   `CARAXES_SHADOW_GATHER=0` maps such stretches run by run.
 //! - *Whole-region frees.* When the guest empties a 2 MiB region that holds at least
 //!   [`BULK_MIN_RUNS`] runs, the shadow frees the region object with its mappings in one
 //!   `RM_FREE` (the RM unmaps them itself) instead of one NVOS47 per run; the teardown does
@@ -97,6 +103,11 @@ pub const REGION_POOL_MAX: usize = 64;
 /// unmaps its mappings itself) instead of one unmap per run.
 pub const BULK_MIN_RUNS: usize = 4;
 
+/// A VA-contiguous stretch of 4 KiB sysmem leaves is mapped through a gather descriptor
+/// when it has at least this many leaves and coalescing would still need this many runs.
+pub const GATHER_MIN_LEAVES: usize = 16;
+pub const GATHER_MIN_RUNS: usize = 8;
+
 /// The host RM calls the shadow makes, behind a trait so the plan logic runs against a fake
 /// host in the unit tests. [`HostMemory`] implements it with the RM escapes.
 pub trait ShadowHost {
@@ -129,6 +140,11 @@ pub trait ShadowHost {
     fn free_object(&mut self, handle: u32) -> Result<(), u32>;
     /// `NV0080_CTRL_CMD_DMA_INVALIDATE_TLB` of the VA space.
     fn invalidate_vas(&self, vas: u32) -> u32;
+    /// A gather descriptor over the pages `(registered descriptor, offset)`, in this order
+    /// (hostmem.rs `gather`).
+    fn gather(&mut self, pages: &[(u32, u64)]) -> Result<u32, String>;
+    /// Free a gather descriptor.
+    fn free_gather(&mut self, handle: u32) -> u32;
 }
 
 impl ShadowHost for HostMemory {
@@ -165,6 +181,12 @@ impl ShadowHost for HostMemory {
     fn invalidate_vas(&self, vas: u32) -> u32 {
         HostMemory::invalidate_vas(self, vas)
     }
+    fn gather(&mut self, pages: &[(u32, u64)]) -> Result<u32, String> {
+        HostMemory::gather(self, pages)
+    }
+    fn free_gather(&mut self, handle: u32) -> u32 {
+        HostMemory::free_gather(self, handle)
+    }
 }
 
 /// The kinds of host RM call the shadow makes.
@@ -175,15 +197,26 @@ pub enum Call {
     ObjectAlloc,
     ObjectFree,
     Invalidate,
+    Gather,
+    GatherFree,
 }
 
-const CALL_NAMES: [&str; 5] = ["map", "unmap", "object alloc", "object free", "invalidate"];
+const KINDS: usize = 7;
+const CALL_NAMES: [&str; KINDS] = [
+    "map",
+    "unmap",
+    "object alloc",
+    "object free",
+    "invalidate",
+    "gather alloc",
+    "gather free",
+];
 
 /// Host RM calls by kind, with the time spent in them, and what the region free list saved.
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RmCalls {
-    pub n: [u64; 5],
-    pub us: [u64; 5],
+    pub n: [u64; KINDS],
+    pub us: [u64; KINDS],
     /// Region objects taken from the free list instead of allocated.
     pub reused: u64,
     /// Region objects put on the free list instead of freed.
@@ -206,7 +239,7 @@ impl RmCalls {
 
     fn since(&self, before: &RmCalls) -> RmCalls {
         let mut d = RmCalls::default();
-        for i in 0..5 {
+        for i in 0..KINDS {
             d.n[i] = self.n[i] - before.n[i];
             d.us[i] = self.us[i] - before.us[i];
         }
@@ -217,7 +250,7 @@ impl RmCalls {
 
     /// `RM calls N: map N (U us), unmap N (U us), ...; regions reused R, pooled P`.
     pub fn line(&self) -> String {
-        let parts: Vec<String> = (0..5)
+        let parts: Vec<String> = (0..KINDS)
             .map(|i| format!("{} {} ({} us)", CALL_NAMES[i], self.n[i], self.us[i]))
             .collect();
         format!(
@@ -432,6 +465,10 @@ pub struct ShadowStats {
     /// Region objects freed whole with their mappings, and the runs they held.
     pub bulk_frees: u64,
     pub bulk_runs: u64,
+    /// Gather descriptors made, the leaves they carry, and the ones the host refused.
+    pub gathers: u64,
+    pub gathered_leaves: u64,
+    pub gathers_refused: u64,
     /// `DMA_INVALIDATE_TLB` calls the RM refused (each turns the deferral off).
     pub invalidate_failed: u64,
     pub max_sync_us: u128,
@@ -744,6 +781,13 @@ pub struct ShadowVas {
     teardown_calls0: Option<RmCalls>,
     /// Mappings the teardown removed with their region object.
     teardown_bulk: usize,
+    /// Map scattered sysmem stretches through gather descriptors
+    /// (`CARAXES_SHADOW_GATHER=0`: run by run from the registered descriptors).
+    gather_on: bool,
+    /// Live gather descriptors and the runs mapped from each.
+    gathers: BTreeMap<u32, usize>,
+    /// Gather descriptors no run uses any more, freed at the next safe point.
+    gathers_idle: Vec<u32>,
 }
 
 impl ShadowVas {
@@ -788,6 +832,9 @@ impl ShadowVas {
             settle_notes: Vec::new(),
             teardown_calls0: None,
             teardown_bulk: 0,
+            gather_on: switch_on("CARAXES_SHADOW_GATHER"),
+            gathers: BTreeMap::new(),
+            gathers_idle: Vec::new(),
         }
     }
 
@@ -840,7 +887,9 @@ impl ShadowVas {
     fn free_region_whole<H: ShadowHost>(&mut self, h: &mut H, u: u64, hd: u32) -> usize {
         let runs: Vec<u64> = self.runs.range(u..u + REGION).map(|(v, _)| *v).collect();
         for v in &runs {
-            self.runs.remove(v);
+            if let Some(r) = self.runs.remove(v) {
+                self.run_gone(r.h_mem);
+            }
         }
         self.budget.add(-(runs.len() as isize));
         let gone: Vec<u64> = self.mapped.range(u..u + REGION).map(|(v, _)| *v).collect();
@@ -852,6 +901,8 @@ impl ShadowVas {
         self.stats.regions_freed += 1;
         self.stats.bulk_frees += 1;
         self.stats.bulk_runs += runs.len() as u64;
+        // The gathers only this region used, after the object (and its mappings) is gone.
+        self.free_idle_gathers(h);
         runs.len()
     }
 
@@ -968,6 +1019,9 @@ impl ShadowVas {
                 }
             }
             self.budget.add(n);
+            if let Some(c) = self.gathers.get_mut(&run.h_mem) {
+                *c = c.saturating_add_signed(n);
+            }
             let gone: Vec<u64> = self.mapped.range(s..e).map(|(va, _)| *va).collect();
             for va in gone {
                 self.mapped.remove(&va);
@@ -1001,6 +1055,91 @@ impl ShadowVas {
         if run.own_object {
             self.free_virtual(hm, run.h_dma);
         }
+        self.run_gone(run.h_mem);
+        self.free_idle_gathers(hm);
+    }
+
+    /// A run of `h_mem` is gone: a gather descriptor no run uses any more becomes idle.
+    fn run_gone(&mut self, h_mem: u32) {
+        if let Some(c) = self.gathers.get_mut(&h_mem) {
+            *c = c.saturating_sub(1);
+            if *c == 0 {
+                self.gathers.remove(&h_mem);
+                self.gathers_idle.push(h_mem);
+            }
+        }
+    }
+
+    /// Free the idle gather descriptors, after the owed invalidate: their mappings are gone.
+    fn free_idle_gathers<H: ShadowHost>(&mut self, h: &mut H) {
+        if self.gathers_idle.is_empty() {
+            return;
+        }
+        self.settle(&*h);
+        for g in std::mem::take(&mut self.gathers_idle) {
+            let t0 = Instant::now();
+            let _ = h.free_gather(g);
+            self.calls.add(Call::GatherFree, t0);
+        }
+    }
+
+    /// Map scattered sysmem stretches through gather descriptors: every maximal
+    /// VA-contiguous stretch of 4 KiB sysmem leaves in `todo` (sorted by VA; one unit) with
+    /// one kind and snoop setting, at least [`GATHER_MIN_LEAVES`] leaves and at least
+    /// [`GATHER_MIN_RUNS`] coalesced runs, gets one gather descriptor of its pages in VA
+    /// order, and its leaves are rewritten to that backing at offsets 0, 4 KiB, ...: they
+    /// then coalesce into one run. The pages are the ones the filter resolved (each leaf's
+    /// registered descriptor and offset); a stretch the host refuses keeps its leaves as
+    /// they were. Returns the gathers made.
+    fn gather_stretches<H: ShadowHost>(&mut self, h: &mut H, todo: &mut [ToMap], notes: &mut Vec<String>) -> Vec<u32> {
+        const PAGE: u64 = 0x1000;
+        let eligible = |m: &ToMap| m.snoop && m.leaf.size == PAGE && matches!(m.leaf.target, Target::Sys(_));
+        let mut made = Vec::new();
+        let mut i = 0;
+        while i < todo.len() {
+            if !eligible(&todo[i]) {
+                i += 1;
+                continue;
+            }
+            let mut j = i + 1;
+            while j < todo.len()
+                && eligible(&todo[j])
+                && todo[j].va == todo[j - 1].va + PAGE
+                && todo[j].leaf.kind == todo[i].leaf.kind
+            {
+                j += 1;
+            }
+            if j - i >= GATHER_MIN_LEAVES && coalesce(&todo[i..j]).len() >= GATHER_MIN_RUNS {
+                let pages: Vec<(u32, u64)> = todo[i..j].iter().map(|m| (m.h_mem, m.off)).collect();
+                let t0 = Instant::now();
+                let r = h.gather(&pages);
+                self.calls.add(Call::Gather, t0);
+                match r {
+                    Ok(g) => {
+                        self.gathers.insert(g, 0);
+                        self.stats.gathers += 1;
+                        self.stats.gathered_leaves += (j - i) as u64;
+                        for (k, m) in todo[i..j].iter_mut().enumerate() {
+                            m.h_mem = g;
+                            m.off = k as u64 * PAGE;
+                        }
+                        made.push(g);
+                    }
+                    Err(e) => {
+                        self.stats.gathers_refused += 1;
+                        if self.stats.gathers_refused <= 3 {
+                            notes.push(format!(
+                                "shadow: gather of {} leaves from va {:#x} refused ({e}); mapped run by run [host]",
+                                j - i,
+                                todo[i].va
+                            ));
+                        }
+                    }
+                }
+            }
+            i = j;
+        }
+        made
     }
 
     /// Apply a [`Plan`]: per unit, unmap what the guest removed or changed, drop a region
@@ -1086,11 +1225,16 @@ impl ShadowVas {
                 }
             }
             // Map what is wanted and not mirrored (a refused split may have taken more down).
-            let todo: Vec<ToMap> = want
+            let mut todo: Vec<ToMap> = want
                 .values()
                 .filter(|m| !self.mapped.contains_key(&m.va) && self.failed.get(&m.va) != Some(&m.leaf))
                 .copied()
                 .collect();
+            let made = if self.gather_on {
+                self.gather_stretches(&mut *h, &mut todo, &mut notes)
+            } else {
+                Vec::new()
+            };
             for r in coalesce(&todo) {
                 let items = &todo[r];
                 let first = items[0];
@@ -1243,6 +1387,14 @@ impl ShadowVas {
                     }
                 }
             }
+            // A gather no map took (the host refused them all) is freed again.
+            for g in made {
+                if self.gathers.get(&g) == Some(&0) {
+                    self.gathers.remove(&g);
+                    self.gathers_idle.push(g);
+                }
+            }
+            self.free_idle_gathers(&mut *h);
         }
         // The invalidate the deferred calls owe, before the worker reports the plan done.
         if self.tlb_owed {
@@ -1351,6 +1503,9 @@ impl ShadowVas {
             },
         );
         self.budget.add(1);
+        if let Some(c) = self.gathers.get_mut(&h_mem) {
+            *c += 1;
+        }
         for m in piece {
             self.mapped.insert(m.va, MappedLeaf { leaf: m.leaf, run: va });
         }
@@ -1363,7 +1518,7 @@ impl ShadowVas {
     pub fn summary(&self) -> String {
         let s = &self.stats;
         format!(
-            "{} syncs ({} skipped clean, {} full walks, {} table reads, {} units diffed; max {} us, total {} ms), {} maps ({} leaves), {} unmaps ({} partial, {} failed), {} map-failed, {} over budget, {} refused by the filter, {} region objects ({} freed, {} of them whole with {} mappings, {} refused, {} pooled), {} per-leaf objects; {} leaves in {} RM mappings at the end; {}; TLB invalidation {}{}; {}",
+            "{} syncs ({} skipped clean, {} full walks, {} table reads, {} units diffed; max {} us, total {} ms), {} maps ({} leaves), {} unmaps ({} partial, {} failed), {} map-failed, {} over budget, {} refused by the filter, {} region objects ({} freed, {} of them whole with {} mappings, {} refused, {} pooled), {} per-leaf objects, {} gather descriptor(s) for {} leaves ({} refused, {} live); {} leaves in {} RM mappings at the end; {}; TLB invalidation {}{}; {}",
             s.syncs,
             s.skipped,
             s.full_walks,
@@ -1386,6 +1541,10 @@ impl ShadowVas {
             s.regions_refused,
             self.pool.len(),
             s.leaf_objects,
+            s.gathers,
+            s.gathered_leaves,
+            s.gathers_refused,
+            self.gathers.len(),
             self.mapped.len(),
             self.runs.len(),
             self.calls.line(),
@@ -1456,10 +1615,12 @@ impl ShadowVas {
                     self.teardown_objects.push(run.h_dma);
                 }
                 self.runs.remove(&va);
+                self.run_gone(run.h_mem);
                 self.budget.add(-1);
                 self.teardown_unmapped += 1;
             }
             self.settle(&*h);
+            self.free_idle_gathers(&mut *h);
             return false;
         }
         self.mapped.clear();
@@ -1485,6 +1646,9 @@ impl ShadowVas {
             }
             return false;
         }
+        let left: Vec<u32> = std::mem::take(&mut self.gathers).into_keys().collect();
+        self.gathers_idle.extend(left);
+        self.free_idle_gathers(&mut *h);
         if self.vas != 0 {
             self.settle(&*h);
             let t0 = Instant::now();
@@ -1737,8 +1901,11 @@ mod tests {
         /// Live mappings `(h_dma, va) -> len`: a free of an object with live mappings is
         /// what the RM would auto-unmap, which the tests assert never happens behind the
         /// shadow's back for a pooled object.
-        live: RefCell<BTreeMap<(u32, u64), u64>>,
+        live: RefCell<BTreeMap<(u32, u64), (u64, u32)>>,
         freed: Vec<u32>,
+        /// The gathers made: handle and pages.
+        gathered: BTreeMap<u32, Vec<(u32, u64)>>,
+        fail_gather: bool,
     }
 
     impl FakeHost {
@@ -1756,9 +1923,9 @@ mod tests {
             self.seen.borrow_mut().push(Seen { call: Call::ObjectAlloc, va, len: size, defer: false });
             Ok(0x100 + self.next)
         }
-        fn map_dma_fixed(&self, h_dma: u32, _m: u32, _o: u64, len: u64, va: u64, _ps: u32, _s: bool, _k: Option<u8>, defer: bool) -> u32 {
+        fn map_dma_fixed(&self, h_dma: u32, h_mem: u32, _o: u64, len: u64, va: u64, _ps: u32, _s: bool, _k: Option<u8>, defer: bool) -> u32 {
             self.seen.borrow_mut().push(Seen { call: Call::Map, va, len, defer });
-            self.live.borrow_mut().insert((h_dma, va), len);
+            self.live.borrow_mut().insert((h_dma, va), (len, h_mem));
             sys::NV_OK
         }
         fn unmap_dma(&self, h_dma: u32, _m: u32, va: u64, len: u64, defer: bool) -> u32 {
@@ -1783,6 +1950,25 @@ mod tests {
                 sys::NV_OK
             }
         }
+        fn gather(&mut self, pages: &[(u32, u64)]) -> Result<u32, String> {
+            self.seen.borrow_mut().push(Seen { call: Call::Gather, va: 0, len: pages.len() as u64, defer: false });
+            if self.fail_gather {
+                return Err("refused".into());
+            }
+            self.next += 1;
+            let g = 0x900 + self.next;
+            self.gathered.insert(g, pages.to_vec());
+            Ok(g)
+        }
+        fn free_gather(&mut self, handle: u32) -> u32 {
+            self.seen.borrow_mut().push(Seen { call: Call::GatherFree, va: handle as u64, len: 0, defer: false });
+            assert!(
+                self.live.borrow().values().all(|(_, m)| *m != handle),
+                "gather {handle:#x} freed while still mapped"
+            );
+            assert!(self.gathered.remove(&handle).is_some());
+            sys::NV_OK
+        }
     }
 
     fn sv(defer: bool, pool: bool) -> ShadowVas {
@@ -1791,6 +1977,7 @@ mod tests {
         s.defer_tlb = defer;
         s.pool_on = pool;
         s.bulk_on = false;
+        s.gather_on = false;
         s
     }
 
@@ -2117,5 +2304,148 @@ mod tests {
         assert!(h.live.borrow().is_empty());
         assert_eq!(budget.live(), 0);
         assert!(line.contains("81 RM mapping(s) unmapped (81 with their region object"), "{line}");
+    }
+
+    // ---- Gather descriptors for scattered sysmem stretches. ----
+
+    const SYS: u64 = 0x7fff_0000_0000;
+
+    /// Sysmem 4 KiB leaves `(va, iova)` of registered descriptor 7 (IOVA base `SYS`).
+    fn splan_of(leaves: &[(u64, u64)], units: &[u64]) -> Plan {
+        let mut by: BTreeMap<u64, Vec<ToMap>> = units.iter().map(|u| (*u, Vec::new())).collect();
+        for &(va, iova) in leaves {
+            by.entry(va & !(REGION - 1)).or_default().push(ToMap {
+                va,
+                leaf: Leaf { target: Target::Sys(iova), size: 0x1000, kind: 6 },
+                h_mem: 7,
+                off: iova - SYS,
+                snoop: true,
+            });
+        }
+        Plan {
+            root: BASE,
+            units: by.into_iter().collect(),
+            ..Default::default()
+        }
+    }
+
+    /// `n` leaves from `va0` whose pages run backwards (the order a LIFO page pool hands out).
+    fn scattered(va0: u64, n: u64) -> Vec<(u64, u64)> {
+        (0..n).map(|i| (va0 + i * 0x1000, SYS + 0x10_0000 + (n - 1 - i) * 0x1000)).collect()
+    }
+
+    fn gsv() -> ShadowVas {
+        let mut s = sv(false, true);
+        s.gather_on = true;
+        s
+    }
+
+    #[test]
+    fn a_scattered_sysmem_stretch_is_mapped_through_one_gather() {
+        let host = Mutex::new(FakeHost::default());
+        let mut s = gsv();
+        let leaves = scattered(0x10000, 32);
+        let (_, lines) = s.apply(&host, &splan_of(&leaves, &[]), &[]);
+        let h = host.lock().unwrap();
+        assert_eq!(h.kinds(), vec![Call::Gather, Call::ObjectAlloc, Call::Map]);
+        let (g, pages) = h.gathered.iter().next().unwrap();
+        // The pages in VA order, each the filter's descriptor and offset.
+        assert_eq!(pages.len(), 32);
+        assert_eq!(pages[0], (7, 0x10_0000 + 31 * 0x1000));
+        assert_eq!(pages[31], (7, 0x10_0000));
+        let m = &h.calls(Call::Map)[0];
+        assert_eq!((m.va, m.len), (0x10000, 32 * 0x1000));
+        assert_eq!(h.live.borrow().values().next().unwrap().1, *g);
+        // The leaves keep the guest's addresses as their identity.
+        assert_eq!(s.lookup(0x10000).map(|(_, l)| l.target), Some(Target::Sys(SYS + 0x10_0000 + 31 * 0x1000)));
+        assert_eq!((s.stats.gathers, s.stats.gathered_leaves, s.live_maps()), (1, 32, 1));
+        assert!(lines[0].contains("gather alloc 1"));
+    }
+
+    #[test]
+    fn contiguous_short_or_mixed_stretches_are_not_gathered() {
+        let host = Mutex::new(FakeHost::default());
+        let mut s = gsv();
+        // 32 ascending pages coalesce by themselves; 10 scattered are below the minimum.
+        let mut leaves: Vec<(u64, u64)> = (0..32u64).map(|i| (0x10000 + i * 0x1000, SYS + 0x20_0000 + i * 0x1000)).collect();
+        leaves.extend(scattered(0x80000, 10));
+        s.apply(&host, &splan_of(&leaves, &[]), &[]);
+        let h = host.lock().unwrap();
+        assert!(h.calls(Call::Gather).is_empty());
+        assert_eq!(h.calls(Call::Map).len(), 1 + 10);
+        drop(h);
+        // A kind change and a VA hole end a stretch: 16 + 16 scattered leaves around a hole
+        // make two gathers, never one across the hole.
+        let host = Mutex::new(FakeHost::default());
+        let mut s = gsv();
+        let mut leaves = scattered(0x10000, 16);
+        leaves.extend(scattered(0x21000, 16)); // 0x20000 is a hole
+        s.apply(&host, &splan_of(&leaves, &[]), &[]);
+        let h = host.lock().unwrap();
+        assert_eq!(h.calls(Call::Gather).len(), 2);
+        assert_eq!(
+            h.calls(Call::Map).iter().map(|m| (m.va, m.len)).collect::<Vec<_>>(),
+            vec![(0x10000, 0x10000), (0x21000, 0x10000)]
+        );
+    }
+
+    #[test]
+    fn a_refused_gather_maps_run_by_run_from_the_registered_descriptor() {
+        let host = Mutex::new(FakeHost {
+            fail_gather: true,
+            ..Default::default()
+        });
+        let mut s = gsv();
+        let (_, lines) = s.apply(&host, &splan_of(&scattered(0x10000, 20), &[]), &[]);
+        let h = host.lock().unwrap();
+        assert_eq!(h.calls(Call::Map).len(), 20);
+        assert!(h.live.borrow().values().all(|(_, m)| *m == 7));
+        assert_eq!(s.stats.gathers_refused, 1);
+        assert!(lines.iter().any(|l| l.contains("gather of 20 leaves") && l.contains("refused")));
+    }
+
+    #[test]
+    fn a_gather_lives_until_its_last_mapping_is_gone() {
+        for bulk in [false, true] {
+            let host = Mutex::new(FakeHost::default());
+            let mut s = gsv();
+            s.bulk_on = bulk;
+            let leaves = scattered(0x10000, 32);
+            s.apply(&host, &splan_of(&leaves, &[]), &[]);
+            // The guest moves page 5: the gather run is split around it, the gather stays.
+            let mut moved = leaves.clone();
+            moved[5].1 = SYS + 0x40_0000;
+            s.apply(&host, &splan_of(&moved, &[]), &[]);
+            {
+                let h = host.lock().unwrap();
+                assert!(h.calls(Call::GatherFree).is_empty());
+                assert_eq!(h.gathered.len(), 1);
+            }
+            assert_eq!(s.live_maps(), 3);
+            assert_eq!(s.lookup(0x15000).map(|(_, l)| l.target), Some(Target::Sys(SYS + 0x40_0000)));
+            // The guest empties the region: the gather is freed only after its mappings
+            // (the fake RM asserts that), by unmaps or with the region object.
+            s.apply(&host, &splan_of(&[], &[0]), &[]);
+            let h = host.lock().unwrap();
+            assert_eq!(h.calls(Call::GatherFree).len(), 1, "bulk {bulk}");
+            assert!(h.gathered.is_empty() && h.live.borrow().is_empty());
+            assert_eq!((s.live_maps(), s.budget.live()), (0, 0));
+        }
+    }
+
+    #[test]
+    fn the_teardown_frees_gathers_after_their_mappings() {
+        for bulk in [false, true] {
+            let host = Mutex::new(FakeHost::default());
+            let mut s = gsv();
+            s.bulk_on = bulk;
+            s.apply(&host, &splan_of(&scattered(0x10000, 32), &[]), &[]);
+            s.apply(&host, &splan_of(&scattered(REGION + 0x10000, 32), &[]), &[]);
+            s.free(&host);
+            let h = host.lock().unwrap();
+            assert_eq!(h.calls(Call::GatherFree).len(), 2);
+            assert!(h.gathered.is_empty() && h.live.borrow().is_empty());
+            assert_eq!(*h.kinds().last().unwrap(), Call::ObjectFree);
+        }
     }
 }
