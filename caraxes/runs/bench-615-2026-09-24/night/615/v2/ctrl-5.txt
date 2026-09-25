@@ -1,0 +1,13 @@
+# target v2 metric ctrl rep 5
+# cmd ./ctrlping 2000 64 512 4096 16384
+# device /mnt/vmstore/caraxes/vm2-615/vfio-user-nvgpu sha256 d0315158041c83ce
+# time 2026-09-25T01:42:49+02:00
+# gpu 57, 420 MHz, 405 MHz, P8, 8 %, 4190 MiB, Disabled
+# procs 1399617:vm1-vmm 1763462:vm5-615-dev 1763474:vm1-vmm 1768792:vm2-615-dev 1768857:vm1-vmm 1800087:vm3-dev 1800104:vm1-vmm 
+# loadavg 10.43 9.29 6.99
+ctrlping bytes=232 n=2000 fails=0 p50_us=2.36 p90_us=2.42 p99_us=4.74 mean_us=2.80
+ctrlping bytes=1576 n=2000 fails=0 p50_us=2.91 p90_us=2.97 p99_us=6.36 mean_us=3.10
+ctrlping bytes=12328 n=2000 fails=0 p50_us=2.93 p90_us=3.00 p99_us=12.91 mean_us=3.42
+ctrlping bytes=49192 n=2000 fails=0 p50_us=2.92 p90_us=3.00 p99_us=18.54 mean_us=3.50
+# WALL wall_ms=32 rc=0
+# MEAS dev_pid=1768792 dev_cpu_ms=220 dev_rss_hwm_kb=5267072/8395684 vmm_cpu_ms=430 others: vm1-vmm=0ms vm1-vmm=310ms vm5-615-dev=160ms vm3-dev=10ms vm1-vmm=0ms 

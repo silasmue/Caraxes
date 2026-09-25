@@ -1,0 +1,7 @@
+# target v2 metric copy rep 1
+# cmd ./bench-cu copy 10
+# device /mnt/vmstore/caraxes/vm2-615/vfio-user-nvgpu sha256 d0315158041c83ce
+# time 2026-09-25T01:20:27+02:00
+# gpu 50, 630 MHz, 405 MHz, P8, 12 %, 2154 MiB, Disabled
+# procs 1399617:vm1-vmm 1637837:vm2-615-dev 1637919:vm1-vmm 
+# loadavg 3.96 3.05 3.04

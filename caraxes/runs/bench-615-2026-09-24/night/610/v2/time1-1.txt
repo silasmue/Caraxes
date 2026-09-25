@@ -1,0 +1,12 @@
+# target v2 metric time1 rep 1
+# cmd TIMEFORMAT='TIME wall_s=%3R user_s=%3U sys_s=%3S'; time ./nvprobe 1
+# device /mnt/vmstore/caraxes/vm2/vfio-user-nvgpu sha256 3f4ba9bb807c158c
+# time 2026-09-25T02:37:22+02:00
+# gpu 50, 420 MHz, 405 MHz, P8, 19 %, 2096 MiB, Disabled
+# procs 1399617:vm1-vmm 2018432:vm2-dev 2018672:vm1-vmm 
+# loadavg 6.65 4.61 3.44
+stage 0 ok (cuInit)
+stage 1 ok (context, sched=auto)
+TIME wall_s=4.646 user_s=0.054 sys_s=4.596
+# WALL wall_ms=4650 rc=0
+# MEAS dev_pid=2018432 dev_cpu_ms=7260 dev_rss_hwm_kb=5266432/8396280 vmm_cpu_ms=2730 others: vm1-vmm=0ms 

@@ -3,8 +3,8 @@
 
 Written 2026-09-24 after the closing series (benchmark.md, "Closing series on driver 610.57.04":
 cuMemAlloc 1 MiB 830 us against native 36 and v1 93, cuMemFree 1 MiB 903 us, cuMemAlloc 64 MiB
-6.7 ms). Analysis first, then the cheapest safe step, built behind `CARAXES_ALLOC_LAZY=1`. Nothing
-here ran on a VM or on the GPU; the measurement is §6.
+6.7 ms). Analysis first, then the cheapest safe step, built behind `CARAXES_ALLOC_LAZY=1`. The
+analysis was written before any VM run; the plan is §6, the measurement §7.
 
 Sources:
 
@@ -342,6 +342,46 @@ python3 caraxes/tools/bench-summary.py "$M"/off/v2 "$M"/on/v2 > "$M/summary.md"
 - If `on` is red where `off` is green, repeat `on` with `CARAXES_ALLOC_LAZY_MS=1`, which is nearly
   eager. Green there means a workload in the gate uses mappings without a doorbell in between (the
   hazard of §3). Both results are worth keeping.
+
+## 7. Measured (night series, 2026-09-25 00:24-01:17, vm2)
+
+`caraxes/runs/alloc-path-2026-09-24/night/` (`run.sh`, `summary.md`, `*/rpc-cost.md`; full
+tables and reading in benchmark.md "Night series", Part 2). §6's plan with three differences:
+vm2 at 1 GiB slot 3 on host 615.71.09 with other VMs active, the hybrid reactor, and no BAR1
+area or pool, because the BAR2 memfd hangs with the pool (bar2-memfd.md §8). Modes: `off` (the
+baseline of §1.1), `intr` (the interrupt page alone), `stack-off` (step 1) and `stack-on`
+(step 1 plus `CARAXES_ALLOC_LAZY=1`); the lazy switch alone was left out for time.
+
+| Row (median, n=5) | off | intr | stack-off | stack-on | native (closing) |
+|---|---|---|---|---|---|
+| trapped accesses per cuMemAlloc 1 MiB | 45.5 | 6.5 | 4.2 | 4.3 | - |
+| trapped accesses per cuMemAlloc 64 MiB | 370.6 | 272.6 | 77.9 | 13.9 | - |
+| cuMemAlloc 1 MiB, us | 972 | 581 | 297 | **175** | 35.8 |
+| cuMemFree 1 MiB, us | 1020 | 680 | 541 | **401** | 27.1 |
+| cuMemAlloc 64 MiB, us | 7337 | 5590 | 650 | **541** | 78.3 |
+| cuMemFree 64 MiB, us | 4926 | 3945 | 961 | **838** | 92.6 |
+| churn device CPU per run, ms | 6830 | 4960 | 2410 | 1850 | - |
+
+§4's numbers, from `off/rpc-cost.md` (section 4, per operation): a 1 MiB allocation has 14.7
+`NV_PMC_INTR_EN` writes and 24.4 VF interrupt-tree accesses, 39 interrupt-related traps against
+the 18 lock toggles of §1.1 (the rest is interrupt servicing of other clients' notifier events,
+mapping.md §3, which the busy host added); 2.5 invalidate accesses and 1.0 flush read, so about
+half an invalidate episode per allocation; 2.0 BAR2 PTE writes on average, which confirms one
+2 MiB PTE per two allocations (§1.3). The 64 MiB allocation writes 192.5 BAR2 words, not 128,
+and has 134.5 interrupt-tree accesses: the 2.5 ms remainder of §1.3 is the extra PTE traffic
+and interrupt servicing, not a second lock episode (27.5 lock writes, 5.6 invalidate accesses).
+The worker's apply times per plan are in section 3 of each `rpc-cost.md`.
+
+What it says against §5: step 1 (the two existing switches) brings cuMemAlloc 1 MiB from 972
+to 297 us, and the lazy plans to 175 us, 4.9x native and 1.9x v1, better than the 200-250 us
+expected for step 1 alone because the lazy plans also take the eager plan's work out from under
+the 64 MiB invalidates (77.9 to 13.9 traps). The free path is the next target: 7.2 traps and
+401 us per 1 MiB, 15x native, the two invalidates and the flush read of step 3. `on` against
+`off` was not run; `stack-on` against `stack-off` shows the switch's effect: alloc 297 to 175
+us, device CPU per churn run down a quarter, cuCtxCreate unchanged (533 against 534 ms), cuda
+gate 10 of 11 scored (the known cuda-managed 801), 0 host Xid. Lazy exit summary of the last
+instance: 8001 invalidates deferred, 330 batches at a doorbell and 407 at the deadline, largest
+batch 68, and no fault attributable to a late plan.
 
 ## README file-table row
 

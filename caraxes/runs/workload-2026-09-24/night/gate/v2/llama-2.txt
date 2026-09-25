@@ -1,0 +1,20 @@
+# target v2 metric llama rep 2
+# cmd $HOME/gpu/venv/bin/python ./llamaprobe.py --reps 5 
+# device /mnt/vmstore/caraxes/vm2-615/vfio-user-nvgpu sha256 d0315158041c83ce
+# time 2026-09-25T03:39:20+02:00
+# gpu 62, 1860 MHz, 7000 MHz, P0, 97 %, 2095 MiB, Disabled
+# procs 1399617:vm1-vmm 2211803:vm2-615-dev 2211887:vm1-vmm 
+# loadavg 5.41 4.84 4.06
+cmd: /home/leandro/bench-llama/llama-bench -m /home/leandro/bench-llama/model.gguf -p 512 -n 128 -r 5 -ngl 99 -fa auto -o jsonl -oe md
+LD_LIBRARY_PATH: /home/leandro/bench-llama/lib:/usr/lib/x86_64-linux-gnu
+ggml_cuda_init: found 1 CUDA devices (Total VRAM: 791 MiB):
+  Device 0: Leandro VFIO RTX 2070-1G, compute capability 7.5, VMM: no, VRAM: 791 MiB
+| model                          |       size |     params | backend    | ngl |            test |                  t/s |
+| ------------------------------ | ---------: | ---------: | ---------- | --: | --------------: | -------------------: |
+llama_bench: error: failed to load model '/home/leandro/bench-llama/model.gguf'
+
+llama-bench failed: rc=1, 0 result rows
+
+# LLAMA failed=1 rc=1 wall_s=5.6
+# WALL wall_ms=5634 rc=1
+# MEAS dev_pid=2211803 dev_cpu_ms=3480 dev_rss_hwm_kb=5260120/8395696 vmm_cpu_ms=9690 others: vm1-vmm=10ms 

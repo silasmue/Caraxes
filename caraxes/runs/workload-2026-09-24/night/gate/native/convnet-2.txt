@@ -1,0 +1,18 @@
+# target native metric convnet rep 2
+# cmd /home/silas/git/Leandro/vendor/hostvenv/bin/python ./convnet.py --seconds 60 
+# time 2026-09-25T03:40:48+02:00
+# gpu 68, 825 MHz, 810 MHz, P5, 9 %, 2096 MiB, Disabled
+# procs 1399617:vm1-vmm 2211803:vm2-615-dev 2211887:vm1-vmm 
+# loadavg 4.09 4.64 4.06
+device: NVIDIA GeForce RTX 2070  torch 2.13.0+cu130  cudnn 92000  batch 32 size 224 amp False channels_last False seconds 60.0
+   10.0s | step    167 |    533.3 img/s | median   59.90 ms | loss 0.019
+   20.1s | step    334 |    532.7 img/s | median   60.00 ms | loss 0.009
+   30.1s | step    498 |    530.1 img/s | median   60.24 ms | loss 0.006
+   40.1s | step    661 |    527.2 img/s | median   60.52 ms | loss 0.004
+   50.2s | step    822 |    524.3 img/s | median   60.83 ms | loss 0.004
+
+=== final ===
+timed steps 979 in 60.05 s: 521.7 images/s, median step 61.17 ms, loss 7.005 -> 0.003, first step 1691 ms, peak memory 3211 MiB
+# CONVNET images_per_s=521.73 step_med_ms=61.167 step_p10_ms=59.633 step_p90_ms=63.395 steps=979 first_step_ms=1691.3 loss_first=7.0050 loss_last=0.0031 amp=0 channels_last=0 batch=32 size=224 mem_peak_mib=3211 oom_retries=0 finite=1 device=NVIDIA_GeForce_RTX_2070
+# WALL wall_ms=65031 rc=0
+# MEAS dev_pid=- dev_cpu_ms=0 dev_rss_hwm_kb=-/- vmm_cpu_ms=0 others: vm1-vmm=610ms vm1-vmm=100ms vm2-615-dev=4110ms 

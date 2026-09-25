@@ -189,12 +189,24 @@ V2_NODES='sudo modprobe nvidia-uvm
     [ -e /dev/nvidia0 ] || sudo mknod -m 666 /dev/nvidia0 c 195 0
     u=$(grep nvidia-uvm /proc/devices | cut -d" " -f1); sudo rm -f /dev/nvidia-uvm /dev/nvidia-uvm-tools
     sudo mknod -m 666 /dev/nvidia-uvm c $u 0; sudo mknod -m 666 /dev/nvidia-uvm-tools c $u 1'
-v2_restart() {
-    "$ROOT/tools/caraxes-vm.sh" ssh sync || true
-    "$ROOT/tools/caraxes-vm.sh" down
+v2_up() {
     # `up` gives the guest-RAM registration 60 s; under memory pressure that can be too
     # short (series2): one more attempt after a clean stop.
-    "$ROOT/tools/caraxes-vm.sh" up || { "$ROOT/tools/caraxes-vm.sh" down; sleep 5; "$ROOT/tools/caraxes-vm.sh" up; } &&
+    "$ROOT/tools/caraxes-vm.sh" up || { "$ROOT/tools/caraxes-vm.sh" down; sleep 5; "$ROOT/tools/caraxes-vm.sh" up; }
+}
+v2_restart() {
+    local n=0 log=${CARAXES_STORE:-/mnt/vmstore/caraxes}/$VM/gpu.log
+    "$ROOT/tools/caraxes-vm.sh" ssh sync || true
+    "$ROOT/tools/caraxes-vm.sh" down
+    # Night shift 2026-09-24 (docs/caraxes/benchmark.md "Night series"): with other VMs on the
+    # card the device may refuse its reservation under the D11 headroom rule (hostmem.rs:1328,
+    # "below the 1024 MiB headroom"); wait five minutes and try again, up to
+    # V2_HEADROOM_RETRIES (default 12) times, instead of losing the rep.
+    until v2_up; do
+        grep -q 'MiB headroom' "$log" 2>/dev/null && (( n++ < ${V2_HEADROOM_RETRIES:-12} )) || return 1
+        echo "$(date +%T) v2 reservation refused by the headroom rule; retry $n in 300 s"
+        "$ROOT/tools/caraxes-vm.sh" down; sleep 300
+    done &&
         "$ROOT/tools/caraxes-vm.sh" wait 120 &&
         "$ROOT/tools/caraxes-vm.sh" probe "bench-$(date +%H%M%S)" | tail -n 2 &&
         "$ROOT/tools/caraxes-vm.sh" ssh "$V2_NODES" && echo "v2 restarted: server pid $(cat "${CARAXES_STORE:-/mnt/vmstore/caraxes}/$VM/gpu.pid")"

@@ -1,0 +1,11 @@
+# target v2 metric churn rep 4
+# cmd ./bench-cu churn 20
+# device /mnt/vmstore/caraxes/vm2/vfio-user-nvgpu sha256 3f4ba9bb807c158c
+# time 2026-09-25T00:47:20+02:00
+# gpu 49, 420 MHz, 405 MHz, P8, 10 %, 5218 MiB, Disabled
+# procs 1399606:vm1-dev 1399617:vm1-vmm 1479801:vm3-dev 1479821:vm1-vmm 1505028:vm5-615-dev 1505060:vm1-vmm 1511874:vm2-dev 1511885:vm1-vmm 
+# loadavg 5.04 4.11 4.96
+Terminated                 "$ROOT/tools/caraxes-vm.sh" ssh "$*"
+# MEAS dev_pid=1511874 dev_cpu_ms=690 dev_rss_hwm_kb=5254144/6298380 vmm_cpu_ms=2420 others: vm1-dev=0ms vm1-vmm=10ms vm5-615-dev=810ms vm1-vmm=1640ms vm3-dev=110ms vm1-vmm=1170ms 
+Read from remote host 192.168.102.22: Connection reset by peer
+client_loop: send disconnect: Broken pipe

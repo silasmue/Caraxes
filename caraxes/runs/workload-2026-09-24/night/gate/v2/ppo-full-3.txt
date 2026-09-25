@@ -1,0 +1,104 @@
+# target v2 metric ppo-full rep 3
+# cmd $HOME/gpu/venv/bin/python ./pporl.py --seconds 420
+# device /mnt/vmstore/caraxes/vm2-615/vfio-user-nvgpu sha256 d0315158041c83ce
+# time 2026-09-25T03:52:52+02:00
+# gpu 59, 1410 MHz, 7000 MHz, P0, 30 %, 2091 MiB, Disabled
+# procs 1399617:vm1-vmm 2274942:vm2-615-dev 2274980:vm1-vmm 
+# loadavg 2.98 3.46 3.65
+device: Leandro VFIO RTX 2070-1G
+parallel environments: 128
+runtime: 420 seconds
+    5.3s | steps     229376 |     43118 steps/s | episodes    9203 | reward100    24.4
+   10.7s | steps     622592 |     58353 steps/s | episodes   20050 | reward100    56.3
+   15.9s | steps    1015808 |     64065 steps/s | episodes   25292 | reward100    82.2
+   20.9s | steps    1409024 |     67294 steps/s | episodes   28694 | reward100   197.1
+   26.0s | steps    1802240 |     69278 steps/s | episodes   31089 | reward100   225.7
+   31.4s | steps    2195456 |     69972 steps/s | episodes   32960 | reward100   271.7
+   36.7s | steps    2588672 |     70561 steps/s | episodes   34325 | reward100   371.0
+   42.1s | steps    2883584 |     68572 steps/s | episodes   35286 | reward100   222.7
+   47.3s | steps    3276800 |     69214 steps/s | episodes   36435 | reward100   217.4
+   52.5s | steps    3670016 |     69947 steps/s | episodes   37603 | reward100   347.7
+   57.6s | steps    4063232 |     70560 steps/s | episodes   38730 | reward100   317.9
+   62.7s | steps    4456448 |     71052 steps/s | episodes   39822 | reward100   432.7
+   67.8s | steps    4849664 |     71557 steps/s | episodes   40829 | reward100   381.7
+   73.0s | steps    5242880 |     71823 steps/s | episodes   41815 | reward100   411.2
+   78.0s | steps    5603328 |     71818 steps/s | episodes   42760 | reward100   427.2
+   83.1s | steps    5931008 |     71341 steps/s | episodes   43528 | reward100   401.2
+   88.4s | steps    6324224 |     71578 steps/s | episodes   44518 | reward100   345.3
+   93.6s | steps    6717440 |     71791 steps/s | episodes   45569 | reward100   420.3
+   98.7s | steps    7110656 |     72055 steps/s | episodes   46521 | reward100   417.9
+  104.2s | steps    7536640 |     72358 steps/s | episodes   47610 | reward100   412.9
+  109.2s | steps    7929856 |     72637 steps/s | episodes   48692 | reward100   408.6
+  114.2s | steps    8323072 |     72861 steps/s | episodes   49861 | reward100   390.8
+  119.4s | steps    8650752 |     72426 steps/s | episodes   50815 | reward100   269.3
+  124.8s | steps    9043968 |     72477 steps/s | episodes   51877 | reward100   329.6
+  129.9s | steps    9437184 |     72652 steps/s | episodes   52971 | reward100   415.9
+  135.0s | steps    9830400 |     72807 steps/s | episodes   53989 | reward100   433.1
+  140.1s | steps   10223616 |     72991 steps/s | episodes   55071 | reward100   415.9
+  145.2s | steps   10616832 |     73115 steps/s | episodes   56086 | reward100   363.4
+  150.4s | steps   11010048 |     73201 steps/s | episodes   57132 | reward100   427.1
+  155.8s | steps   11370496 |     72986 steps/s | episodes   58053 | reward100   322.6
+  161.1s | steps   11730944 |     72819 steps/s | episodes   59034 | reward100   377.3
+  166.2s | steps   12124160 |     72958 steps/s | episodes   60035 | reward100   433.3
+  171.3s | steps   12517376 |     73054 steps/s | episodes   61009 | reward100   386.3
+  176.5s | steps   12910592 |     73142 steps/s | episodes   61867 | reward100   463.4
+  181.7s | steps   13303808 |     73234 steps/s | episodes   62792 | reward100   418.3
+  186.7s | steps   13697024 |     73379 steps/s | episodes   63686 | reward100   434.4
+  192.1s | steps   14090240 |     73336 steps/s | episodes   64614 | reward100   399.1
+  197.3s | steps   14417920 |     73063 steps/s | episodes   65423 | reward100   388.4
+  202.8s | steps   14843904 |     73209 steps/s | episodes   66677 | reward100   292.9
+  208.2s | steps   15269888 |     73336 steps/s | episodes   67732 | reward100   347.2
+  213.5s | steps   15663104 |     73347 steps/s | episodes   68699 | reward100   405.0
+  218.6s | steps   16023552 |     73285 steps/s | episodes   69531 | reward100   438.7
+  224.1s | steps   16449536 |     73402 steps/s | episodes   70724 | reward100   320.4
+  229.4s | steps   16842752 |     73421 steps/s | episodes   71895 | reward100   336.9
+  234.8s | steps   17170432 |     73135 steps/s | episodes   72752 | reward100   316.1
+  239.8s | steps   17563648 |     73246 steps/s | episodes   73594 | reward100   493.9
+
+*** SOLVED after 239.8 seconds ***
+
+  245.0s | steps   17956864 |     73303 steps/s | episodes   74462 | reward100   464.7
+  250.1s | steps   18350080 |     73381 steps/s | episodes   75284 | reward100   465.9
+  255.1s | steps   18743296 |     73465 steps/s | episodes   76220 | reward100   434.4
+  260.2s | steps   19136512 |     73536 steps/s | episodes   77186 | reward100   384.4
+  265.6s | steps   19529728 |     73524 steps/s | episodes   78161 | reward100   392.8
+  270.7s | steps   19857408 |     73346 steps/s | episodes   78922 | reward100   399.3
+  275.9s | steps   20250624 |     73396 steps/s | episodes   79863 | reward100   463.1
+  281.0s | steps   20643840 |     73476 steps/s | episodes   80715 | reward100   404.3
+  286.0s | steps   21037056 |     73551 steps/s | episodes   81561 | reward100   463.8
+  291.3s | steps   21430272 |     73566 steps/s | episodes   82430 | reward100   433.0
+  296.3s | steps   21823488 |     73641 steps/s | episodes   83311 | reward100   476.8
+  301.6s | steps   22216704 |     73674 steps/s | episodes   84169 | reward100   486.2
+  306.9s | steps   22577152 |     73576 steps/s | episodes   84952 | reward100   414.8
+  312.3s | steps   22970368 |     73561 steps/s | episodes   85822 | reward100   441.5
+  317.7s | steps   23396352 |     73639 steps/s | episodes   86759 | reward100   471.7
+  323.1s | steps   23822336 |     73735 steps/s | episodes   87676 | reward100   482.7
+  328.2s | steps   24215552 |     73779 steps/s | episodes   88503 | reward100   463.9
+  333.3s | steps   24608768 |     73833 steps/s | episodes   89324 | reward100   450.2
+  338.4s | steps   25001984 |     73886 steps/s | episodes   90137 | reward100   486.7
+  343.5s | steps   25329664 |     73748 steps/s | episodes   90808 | reward100   492.0
+  348.8s | steps   25722880 |     73746 steps/s | episodes   91618 | reward100   498.9
+  354.2s | steps   26083328 |     73635 steps/s | episodes   92355 | reward100   498.6
+  359.4s | steps   26476544 |     73667 steps/s | episodes   93164 | reward100   492.4
+  364.8s | steps   26902528 |     73746 steps/s | episodes   94019 | reward100   495.9
+  370.3s | steps   27328512 |     73806 steps/s | episodes   94881 | reward100   492.9
+  375.4s | steps   27721728 |     73847 steps/s | episodes   95667 | reward100   499.5
+  380.6s | steps   28082176 |     73792 steps/s | episodes   96395 | reward100   489.4
+  385.6s | steps   28475392 |     73843 steps/s | episodes   97201 | reward100   494.5
+  390.7s | steps   28868608 |     73889 steps/s | episodes   97988 | reward100   500.0
+  395.9s | steps   29261824 |     73916 steps/s | episodes   98784 | reward100   495.6
+  401.3s | steps   29687808 |     73981 steps/s | episodes   99635 | reward100   500.0
+  406.7s | steps   30113792 |     74042 steps/s | episodes  100487 | reward100   490.0
+  411.8s | steps   30474240 |     74007 steps/s | episodes  101228 | reward100   498.7
+  417.0s | steps   30867456 |     74029 steps/s | episodes  102017 | reward100   496.9
+
+=== final ===
+runtime:       420.35 s
+steps:         31129600
+episodes:      102538
+steps/s:       74056
+reward100:     500.0
+solve time:    239.79 s
+# PPO steps_per_s=74056 solve_s=239.79 episodes=102538 reward100=500.0 envs=128 rollout=256
+# WALL wall_ms=428316 rc=0
+# MEAS dev_pid=2274942 dev_cpu_ms=403040 dev_rss_hwm_kb=5261524/8395900 vmm_cpu_ms=420840 others: vm1-vmm=750ms 

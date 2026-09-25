@@ -1,0 +1,41 @@
+# workload gate 2026-09-25T02:59:50+02:00 targets=[native v2] reps=3 full=0 metrics=[short-auto rl ppo-full llama llama-nograph transformer convnet]
+# host driver 615.71.09
+NVRM version: NVIDIA UNIX Open Kernel Module for x86_64  615.71.09  Release Build  (root@)  
+# llama llama.cpp e9fa0781f1c25fc4fe8c86be1edc6970661ad6f0 (/mnt/vmstore/caraxes/llama/src)
+# llama nvcc Build cuda_13.3.r13.3/compiler.38244171_0
+# llama host compiler g++-15 (GCC) 15.3.0
+# llama GGML_CUDA_NO_VMM=OFF CMAKE_CUDA_ARCHITECTURES=75-real built 2026-09-24T15:51:52+02:00
+# llama 147765a7c77ffd27308a5e7cef96a9c321d3d4220a66f95ec47d7286e2e9e5c3  llama-bench
+# llama 01dd70979e68625846e9a5edcba531d3798498b866aa1c925cc25d60f63fe680  lib/libcublas.so.13
+# llama 93c275af70b6d39fbd9b78cbc925ad9a9a0a81189aaec1521a951119ebe72da3  lib/libcublasLt.so.13
+# llama 9f92e4c3f7e14d0fed69ef876a45d4255a2dc88cb552a673a90ce881c26282fe  lib/libcudart.so.13
+# model /mnt/vmstore/caraxes/models/Llama-3.2-1B-Instruct-Q4_K_M.gguf sha256 6f85a640a97cf2bf5b8e764087b1e83da0fdb51d7c9fab7d0fece9385611df83
+d0315158041c83ce822fd75dd22354fe34f7ec63ada962dff7d2ca6b76276b6b  /mnt/vmstore/caraxes/vfio-user-nvgpu-v615-57693d8
+bac378f31ff769d5a89cf33f1a6ba077381ed500443d5905e24957a4e79fccc5  /mnt/vmstore/caraxes/vm1/cloud-hypervisor-0006
+CARAXES_BAR1_PASSTHROUGH=pool
+CARAXES_BOOT_MODEL=1
+CARAXES_DMA=register
+CARAXES_DOORBELL_POLL=hybrid
+CARAXES_DOORBELL_TOKENS=64
+CARAXES_DRIVER=615
+CARAXES_FB_MIB=1024
+CARAXES_GATE_FB_MIB=1024
+CARAXES_HOST_EXEC=1
+CARAXES_HOST_RM=1
+CARAXES_INTR_PAGE=1
+CARAXES_IP=192.168.102.22
+CARAXES_LEANDRO_TEST=/home/silas/git/Leandro-Test
+CARAXES_MAC=02:00:00:00:00:22
+CARAXES_MIRROR_CHANNELS=1
+CARAXES_MIRROR_GR_SHADOW=1
+CARAXES_RESERVE_SLOT=3
+CARAXES_RESERVE_VRAM=1
+CARAXES_SERVER=/mnt/vmstore/caraxes/vfio-user-nvgpu-v615-57693d8
+CARAXES_TAP=caraxes2
+LEA_CH=/mnt/vmstore/caraxes/vm1/ch-0006-v.sh
+d09f9b031652725a1b37caf8526e481b741b74c2
+BENCH_TIMEOUT=900
+LLAMA_REPS=5
+PPO_FULL_SECONDS=420
+WORKLOAD_SECONDS=60
+# targets now [native v2] metrics [short-auto rl ppo-full llama llama-nograph transformer convnet]

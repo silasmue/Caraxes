@@ -1,0 +1,18 @@
+# target native metric transformer rep 1
+# cmd /home/silas/git/Leandro/vendor/hostvenv/bin/python ./transformer.py --seconds 60 
+# time 2026-09-25T03:17:51+02:00
+# gpu 57, 600 MHz, 810 MHz, P5, 3 %, 2109 MiB, Disabled
+# procs 1399617:vm1-vmm 2144127:vm2-615-dev 2144139:vm1-vmm 
+# loadavg 3.38 3.54 3.47
+device: NVIDIA GeForce RTX 2070  torch 2.13.0+cu130  layers 6 d_model 256 heads 8 seq 256 batch 32 vocab 4096 amp False seconds 60.0
+   10.0s | step    130 |   12.99 steps/s | median   76.90 ms | loss 4.568
+   20.0s | step    259 |   12.94 steps/s | median   77.21 ms | loss 2.475
+   30.0s | step    386 |   12.85 steps/s | median   77.71 ms | loss 1.084
+   40.1s | step    513 |   12.79 steps/s | median   78.33 ms | loss 0.269
+   50.1s | step    638 |   12.72 steps/s | median   78.55 ms | loss 0.047
+
+=== final ===
+timed steps 761 in 60.05 s: 12.67 steps/s, median 78.95 ms, 103815 tokens/s, loss 8.370 -> 0.022, params 5.85 M, peak memory 1382 MiB
+# TRANSFORMER steps_per_s=12.673 step_med_ms=78.950 step_p10_ms=76.875 step_p90_ms=80.781 tokens_per_s=103815 steps=761 first_step_ms=351.4 loss_first=8.3697 loss_last=0.0222 amp=0 batch=32 seq=256 layers=6 dmodel=256 params_m=5.85 mem_peak_mib=1382 oom_retries=0 finite=1 device=NVIDIA_GeForce_RTX_2070
+# WALL wall_ms=63621 rc=0
+# MEAS dev_pid=- dev_cpu_ms=0 dev_rss_hwm_kb=-/- vmm_cpu_ms=0 others: vm1-vmm=660ms vm1-vmm=120ms vm2-615-dev=3320ms 

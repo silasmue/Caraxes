@@ -1,0 +1,25 @@
+# target v2 metric transformer rep 3
+# cmd $HOME/gpu/venv/bin/python ./transformer.py --seconds 60 
+# device /mnt/vmstore/caraxes/vm2-615/vfio-user-nvgpu sha256 d0315158041c83ce
+# time 2026-09-25T04:01:22+02:00
+# gpu 79, 1815 MHz, 7000 MHz, P0, 100 %, 2092 MiB, Disabled
+# procs 1399617:vm1-vmm 2274942:vm2-615-dev 2274980:vm1-vmm 
+# loadavg 3.72 3.95 3.82
+device: Leandro VFIO RTX 2070-1G  torch 2.13.0+cu130  layers 6 d_model 256 heads 8 seq 256 batch 32 vocab 4096 amp False seconds 60.0
+[W925 02:01:29.898448337 CUDACachingAllocator.cpp:3933] memory allocation failed with OOM on device 0 while trying to allocate 33554432 bytes (free: 14090240, total: 830341120).
+[W925 02:01:29.898640157 CUDACachingAllocator.cpp:3933] memory allocation failed with OOM on device 0 while trying to allocate 33554432 bytes (free: 14090240, total: 830341120).
+out of memory at batch 32: CUDA out of memory. Tried to allocate 32.00 MiB. GPU 0 has a total capacity of 791.88 MiB of which 13.44 MiB is free. Including non-PyTorch memory, this process has 778.00 MiB memory in use. Of the allocated memory 608.83 MiB is allocated by PyTorch, and 49.17 MiB is reserved by PyTorch but unallocated. If reserved but unallocated memory is large try setting PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True to avoid fragmentation.  See documentation for Memory Management  (https://docs.pytorch.org/docs/stable/notes/cuda.html#optimizing-memory-usage-with-pytorch-cuda-alloc-conf); retrying with 16
+[W925 02:01:29.281931079 CUDACachingAllocator.cpp:3933] memory allocation failed with OOM on device 0 while trying to allocate 67108864 bytes (free: 49741824, total: 830341120).
+[W925 02:01:29.282083219 CUDACachingAllocator.cpp:3933] memory allocation failed with OOM on device 0 while trying to allocate 67108864 bytes (free: 49741824, total: 830341120).
+out of memory at batch 16: CUDA out of memory. Tried to allocate 64.00 MiB. GPU 0 has a total capacity of 791.88 MiB of which 47.44 MiB is free. Including non-PyTorch memory, this process has 744.00 MiB memory in use. Of the allocated memory 615.86 MiB is allocated by PyTorch, and 8.14 MiB is reserved by PyTorch but unallocated. If reserved but unallocated memory is large try setting PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True to avoid fragmentation.  See documentation for Memory Management  (https://docs.pytorch.org/docs/stable/notes/cuda.html#optimizing-memory-usage-with-pytorch-cuda-alloc-conf); retrying with 8
+   10.0s | step    446 |   44.54 steps/s | median   22.39 ms | loss 0.123
+   20.0s | step    884 |   44.13 steps/s | median   22.48 ms | loss 0.013
+   30.0s | step   1315 |   43.77 steps/s | median   22.62 ms | loss 0.007
+   40.1s | step   1738 |   43.38 steps/s | median   22.81 ms | loss 0.004
+   50.1s | step   2158 |   43.10 steps/s | median   23.08 ms | loss 0.003
+
+=== final ===
+timed steps 2571 in 60.01 s: 42.84 steps/s, median 23.27 ms, 87741 tokens/s, loss 8.366 -> 0.002, params 5.85 M, peak memory 408 MiB
+# TRANSFORMER steps_per_s=42.842 step_med_ms=23.266 step_p10_ms=22.343 step_p90_ms=24.454 tokens_per_s=87741 steps=2571 first_step_ms=431.0 loss_first=8.3663 loss_last=0.0023 amp=0 batch=8 seq=256 layers=6 dmodel=256 params_m=5.85 mem_peak_mib=408 oom_retries=2 finite=1 device=Leandro_VFIO_RTX_2070-1G
+# WALL wall_ms=68617 rc=0
+# MEAS dev_pid=2274942 dev_cpu_ms=29070 dev_rss_hwm_kb=5261664/8395900 vmm_cpu_ms=67280 others: vm1-vmm=110ms 

@@ -1,0 +1,2 @@
+CHURN blocks=64 block_mib=1 cycles=1 alloc_med_us=896.0 free_med_us=961.5 cycle_med_ms=208.954 total_ms=209.0
+CHURN blocks=8 block_mib=64 cycles=1 alloc_med_us=11215.0 free_med_us=5517.1 cycle_med_ms=177.949 total_ms=177.9
