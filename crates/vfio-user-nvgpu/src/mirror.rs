@@ -659,11 +659,26 @@ impl Mirror {
             Some(Target::Sys(pa)) => Some(Target::Sys(pa + o)),
             _ => None,
         };
+        if crate::launch::fast() {
+            // GPGet and GPPut are adjacent dwords of one aligned qword: one uncached read.
+            let (get, put) = crate::launch::userd_pair(|b| Some(gm.read(at(USERD_GP_GET)?, b)))?;
+            return Some((get, put, ch.gpfifo_entries));
+        }
         Some((
             gm.read_u32(at(USERD_GP_GET)?)?,
             gm.read_u32(at(USERD_GP_PUT)?)?,
             ch.gpfifo_entries,
         ))
+    }
+
+    /// The guest's USERD GPPut of `chid` alone (one read; the forward record of the fast
+    /// ring path, launch.rs `FAST_ENV`).
+    fn userd_put(reg: &Registry, gm: &GpuMem, chid: u32) -> Option<u32> {
+        match reg.channel(chid)?.userd? {
+            Target::Fb(pa) => gm.read_u32(Target::Fb(pa + USERD_GP_PUT)),
+            Target::Sys(pa) => gm.read_u32(Target::Sys(pa + USERD_GP_PUT)),
+            _ => None,
+        }
     }
 
     /// At a doorbell of a built shadow channel, before anything is planned: count it when
@@ -819,7 +834,11 @@ impl Mirror {
             mark(Step::Wait);
             gm.fb.flush();
             mark(Step::Flush);
-            let put = Self::userd_ring(reg, gm, chid).map(|(_, p, _)| p);
+            let put = if crate::launch::fast() {
+                Self::userd_put(reg, gm, chid)
+            } else {
+                Self::userd_ring(reg, gm, chid).map(|(_, p, _)| p)
+            };
             mark(Step::Userd);
             let unwaited = self.unwaited;
             if let Some(hc) = self.channels.get_mut(&chid) {
@@ -2812,12 +2831,31 @@ fn event_loop(events: Vec<(OsEvent, Option<u32>)>, intr: Arc<IntrShared>, stop: 
             revents: 0,
         })
         .collect();
+    // The host interrupt gate (launch.rs `GATE_ENV`, backlog item 5): off unless set.
+    let mut gate = crate::launch::gate_hold().map(crate::launch::Gate::new);
+    let raise_mask = |mask: u64| {
+        for v in (0..64).filter(|v| mask & (1u64 << v) != 0) {
+            intr.raise(v);
+        }
+    };
     while !stop.load(Ordering::SeqCst) {
         for f in fds.iter_mut() {
             f.revents = 0;
         }
+        let wait_ms = gate.as_ref().map_or(250, |g| {
+            g.wait(std::time::Instant::now(), std::time::Duration::from_millis(250))
+                .as_millis()
+                .max(1) as i32
+        });
         // SAFETY: a pollfd array over fds this thread owns.
-        let n = unsafe { libc::poll(fds.as_mut_ptr(), fds.len() as libc::nfds_t, 250) };
+        let n = unsafe { libc::poll(fds.as_mut_ptr(), fds.len() as libc::nfds_t, wait_ms) };
+        if let Some(g) = gate.as_mut() {
+            let due = g.due(std::time::Instant::now());
+            if due != 0 {
+                raise_mask(due);
+                intr.note(format!("event: intr gate released held vector(s) {due:#x} [host]"));
+            }
+        }
         if n <= 0 {
             continue;
         }
@@ -2830,6 +2868,14 @@ fn event_loop(events: Vec<(OsEvent, Option<u32>)>, intr: Arc<IntrShared>, stop: 
             match vector {
                 Some(vec) => {
                     crate::launch::host_event();
+                    if let Some(g) = gate.as_mut() {
+                        let now = std::time::Instant::now();
+                        match g.event(now, *vec, crate::launch::gate_last_doorbell()) {
+                            // Held: delivered with the next hot event or when the hold ends.
+                            None => continue,
+                            Some(held) => raise_mask(held),
+                        }
+                    }
                     let msi = intr.raise(*vec);
                     crate::launch::raised();
                     intr.note(format!(
@@ -2860,6 +2906,9 @@ fn event_loop(events: Vec<(OsEvent, Option<u32>)>, intr: Arc<IntrShared>, stop: 
                 }
             }
         }
+    }
+    if let Some(g) = gate {
+        eprintln!("vfio-user-nvgpu: {}", g.summary());
     }
 }
 

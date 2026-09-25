@@ -368,6 +368,20 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
     }
     // How the doorbell eventfds are read (docs/caraxes/doorbell-poll.md).
     let poll = vfio_user_nvgpu::poll::requested().map_err(anyhow::Error::msg)?;
+    if let Some(hold) = vfio_user_nvgpu::launch::configure_gate().map_err(anyhow::Error::msg)? {
+        eprintln!(
+            "vfio-user-nvgpu: intr gate: host non-stall events held up to {} ms while this device wrote no host doorbell for {} ms ({}, backlog item 5, docs/caraxes/launch-path.md)",
+            hold.as_millis(),
+            (hold * vfio_user_nvgpu::launch::HOT_FACTOR).as_millis(),
+            vfio_user_nvgpu::launch::GATE_ENV
+        );
+    }
+    if vfio_user_nvgpu::launch::configure_fast().map_err(anyhow::Error::msg)? {
+        eprintln!(
+            "vfio-user-nvgpu: launch fast: one USERD read per step, the BAR1 flush only after a device store, no note_rung read under the token pool, one trace flush per ring ({}=1, docs/caraxes/launch-path.md)",
+            vfio_user_nvgpu::launch::FAST_ENV
+        );
+    }
     if vfio_user_nvgpu::launch::configure().map_err(anyhow::Error::msg)? {
         eprintln!(
             "vfio-user-nvgpu: launch timing on: per-step histograms of the doorbell and completion path in the exit summary ({}=1, docs/caraxes/launch-path.md)",
@@ -953,6 +967,9 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
     }
     if let Some(p) = &intr_page {
         eprint!("{}", p.summary());
+    }
+    if vfio_user_nvgpu::launch::fast() {
+        eprint!("{}", vfio_user_nvgpu::launch::fast_summary());
     }
     if vfio_user_nvgpu::launch::on() {
         if let Some(c) = vfio_user_nvgpu::launch::chain() {

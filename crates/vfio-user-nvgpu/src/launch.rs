@@ -22,10 +22,17 @@
 use std::cell::Cell;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering::Relaxed};
 use std::sync::OnceLock;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 /// The switch: `1` times the launch path.
 pub const TIMING_ENV: &str = "CARAXES_LAUNCH_TIMING";
+/// The switch of the device-side cuts of the ring path (docs/caraxes/launch-path.md §3):
+/// `1` reads USERD's GPGet and GPPut as one qword and GPPut alone for the forward record,
+/// skips the BAR1 write-combine flush when the device stored nothing through its windows
+/// since the last one, skips `note_rung`'s USERD read when the token pool (which excludes
+/// the token-less reader, its only user) is on, and writes a ring's trace notes with one
+/// flush. The order of a ring (plans applied, flush, GPPut read, host doorbell) is kept.
+pub const FAST_ENV: &str = "CARAXES_LAUNCH_FAST";
 
 /// One step of the chain.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -273,6 +280,15 @@ impl Chain {
 }
 
 static ON: AtomicBool = AtomicBool::new(false);
+/// Nanoseconds since [`epoch`] of the last host doorbell while the interrupt gate is on
+/// (0: none yet); the gate's measure of this device's own work.
+static GATE_LAST_DOORBELL_NS: AtomicU64 = AtomicU64::new(0);
+/// The gate's hold in milliseconds (0: off).
+static GATE_HOLD_MS: AtomicU64 = AtomicU64::new(0);
+static FAST: AtomicBool = AtomicBool::new(false);
+/// BAR1 flushes done and skipped (nothing stored since the last one) under the fast switch.
+pub static FLUSH_DONE: AtomicU64 = AtomicU64::new(0);
+pub static FLUSH_SKIPPED: AtomicU64 = AtomicU64::new(0);
 static CHAIN: OnceLock<Chain> = OnceLock::new();
 static EPOCH: OnceLock<Instant> = OnceLock::new();
 
@@ -293,6 +309,76 @@ pub fn configure() -> Result<bool, String> {
     };
     set(on);
     Ok(on)
+}
+
+/// Read the fast switch once at start: `1` on, unset or `0` off, anything else refused.
+pub fn configure_fast() -> Result<bool, String> {
+    let on = match std::env::var(FAST_ENV).ok().as_deref().map(str::trim) {
+        None | Some("") | Some("0") => false,
+        Some("1") => true,
+        Some(v) => return Err(format!("{FAST_ENV}={v:?}: 1 or 0")),
+    };
+    set_fast(on);
+    Ok(on)
+}
+
+/// Turn the fast ring path on or off (tests, `configure_fast`).
+pub fn set_fast(on: bool) {
+    FAST.store(on, Relaxed);
+}
+
+/// Whether the fast ring path is on.
+#[inline]
+pub fn fast() -> bool {
+    FAST.load(Relaxed) || fast_here()
+}
+
+#[cfg(test)]
+thread_local! {
+    static FAST_HERE: Cell<bool> = const { Cell::new(false) };
+}
+
+#[cfg(test)]
+fn fast_here() -> bool {
+    FAST_HERE.get()
+}
+
+#[cfg(not(test))]
+#[inline]
+fn fast_here() -> bool {
+    false
+}
+
+/// Tests: the fast switch for the calling thread only.
+#[cfg(test)]
+pub fn set_fast_here(on: bool) {
+    FAST_HERE.set(on);
+}
+
+/// The fast switch's line for the exit summary.
+pub fn fast_summary() -> String {
+    format!(
+        "launch fast: BAR1 flushes {} done, {} skipped (no device store since the last one) ({FAST_ENV}=1, docs/caraxes/launch-path.md)\n",
+        FLUSH_DONE.load(Relaxed),
+        FLUSH_SKIPPED.load(Relaxed)
+    )
+}
+
+/// Whether a BAR1 write-combine flush is needed: the device stored through its windows
+/// since the last flush (`dirty`), or the fast switch is off (every flush runs). The
+/// ordering rule: a store of the device is never left in a write-combine buffer when the
+/// host doorbell that makes the GPU read it is written; only a flush with nothing to drain
+/// is skipped.
+pub fn flush_needed(dirty: bool) -> bool {
+    if !fast() {
+        return true;
+    }
+    if dirty {
+        FLUSH_DONE.fetch_add(1, Relaxed);
+    } else {
+        FLUSH_SKIPPED.fetch_add(1, Relaxed);
+    }
+    dirty
 }
 
 /// Turn timing on or off (tests, `configure`).
@@ -320,6 +406,135 @@ fn ns_of(t: Instant) -> u64 {
     (t.saturating_duration_since(*EPOCH.get_or_init(Instant::now))
         .as_nanos() as u64)
         .max(1)
+}
+
+/// The host interrupt gate (`CARAXES_INTR_GATE_MS=<hold>`, backlog item 5,
+/// docs/caraxes/launch-path.md §4): the host's non-stall notifiers are engine-wide, so every
+/// other client's work on the engine (the desktop, other VMs) raises this guest's vector
+/// too. With the gate, an event that comes while this device wrote no host doorbell for
+/// [`HOT_FACTOR`] times the hold is held, and all events held are delivered together once
+/// the hold has passed since the first of them; an event within the hot window delivers at
+/// once, with everything held. Rules: nothing is delivered before the host reported it
+/// (the gate only delays), nothing held is lost (delivered at most one hold late), and RC
+/// events are never gated (the event thread passes only non-stall vectors here).
+pub const GATE_ENV: &str = "CARAXES_INTR_GATE_MS";
+/// The hot window is this many holds.
+pub const HOT_FACTOR: u32 = 10;
+
+/// Read the gate's hold once at start: unset or 0 off, a number of milliseconds (1..=1000).
+pub fn configure_gate() -> Result<Option<Duration>, String> {
+    let ms = match std::env::var(GATE_ENV).ok().as_deref().map(str::trim) {
+        None | Some("") | Some("0") => 0,
+        Some(v) => match v.parse::<u64>() {
+            Ok(n) if (1..=1000).contains(&n) => n,
+            _ => return Err(format!("{GATE_ENV}={v:?}: milliseconds, 1 to 1000, or 0 for off")),
+        },
+    };
+    GATE_HOLD_MS.store(ms, Relaxed);
+    Ok((ms != 0).then(|| Duration::from_millis(ms)))
+}
+
+/// The gate's hold, when on.
+pub fn gate_hold() -> Option<Duration> {
+    match GATE_HOLD_MS.load(Relaxed) {
+        0 => None,
+        ms => Some(Duration::from_millis(ms)),
+    }
+}
+
+/// The last host doorbell of this device as the gate saw it.
+pub fn gate_last_doorbell() -> Option<Instant> {
+    match GATE_LAST_DOORBELL_NS.load(Relaxed) {
+        0 => None,
+        ns => Some(*EPOCH.get_or_init(Instant::now) + Duration::from_nanos(ns)),
+    }
+}
+
+/// The gate's state in the event thread: the vectors held (a bit per vector below 64; the
+/// non-stall vectors are, mirror.rs `engine_vectors_are_in_the_chip_table`) and since when.
+#[derive(Debug, Default)]
+pub struct Gate {
+    hold: Duration,
+    held: u64,
+    since: Option<Instant>,
+    /// Events delivered at once, events held, deliveries of held events.
+    pub passed: u64,
+    pub held_events: u64,
+    pub released: u64,
+}
+
+impl Gate {
+    pub fn new(hold: Duration) -> Self {
+        Gate {
+            hold,
+            ..Default::default()
+        }
+    }
+
+    /// A host event for `vector` at `now`, the device's last host doorbell `last`: `None`
+    /// when it is held, else the held vectors to raise together with it (the event's own
+    /// vector is the caller's to raise).
+    pub fn event(&mut self, now: Instant, vector: u32, last: Option<Instant>) -> Option<u64> {
+        let hot = last.is_some_and(|t| now.saturating_duration_since(t) < self.hold * HOT_FACTOR);
+        if hot || vector >= 64 {
+            // A vector outside the mask is never held.
+            self.passed += 1;
+            if self.held != 0 {
+                self.released += 1;
+            }
+            self.since = None;
+            return Some(std::mem::take(&mut self.held));
+        }
+        self.held_events += 1;
+        self.held |= 1u64 << vector;
+        self.since.get_or_insert(now);
+        None
+    }
+
+    /// The vectors whose hold has passed at `now` (released together), or none.
+    pub fn due(&mut self, now: Instant) -> u64 {
+        match self.since {
+            Some(t) if now.saturating_duration_since(t) >= self.hold && self.held != 0 => {
+                self.released += 1;
+                self.since = None;
+                std::mem::take(&mut self.held)
+            }
+            _ => 0,
+        }
+    }
+
+    /// How long the event thread may wait before [`Gate::due`] has work: `max` when nothing
+    /// is held.
+    pub fn wait(&self, now: Instant, max: Duration) -> Duration {
+        match self.since {
+            Some(t) => (t + self.hold).saturating_duration_since(now).min(max),
+            None => max,
+        }
+    }
+
+    pub fn summary(&self) -> String {
+        format!(
+            "intr gate: hold {} ms, hot {} ms after a host doorbell; {} event(s) delivered at once, {} held, {} delivery(ies) of held events ({GATE_ENV}, docs/caraxes/launch-path.md)",
+            self.hold.as_millis(),
+            (self.hold * HOT_FACTOR).as_millis(),
+            self.passed,
+            self.held_events,
+            self.released
+        )
+    }
+}
+
+/// USERD's `(GPGet, GPPut)` from one 8-byte read at GPGet (0x88; GPPut is the next dword,
+/// 0x8C): `read` fills the buffer and says whether it could.
+pub fn userd_pair(read: impl FnOnce(&mut [u8]) -> Option<bool>) -> Option<(u32, u32)> {
+    let mut b = [0u8; 8];
+    if !read(&mut b)? {
+        return None;
+    }
+    Some((
+        u32::from_le_bytes([b[0], b[1], b[2], b[3]]),
+        u32::from_le_bytes([b[4], b[5], b[6], b[7]]),
+    ))
 }
 
 /// A ring of the reactor starts: `seen` is when `epoll_wait` returned, `blocked` whether
@@ -362,9 +577,13 @@ fn mark_slow(s: Step) {
 }
 
 /// The host doorbell was written now (any thread): the end of [`Step::HostRing`] and of
-/// [`Step::ToHost`] for a reactor ring, and the start of the completion steps.
+/// [`Step::ToHost`] for a reactor ring, and the start of the completion steps; with the
+/// interrupt gate on, the gate's last sign of this device's own work.
 #[inline]
 pub fn host_doorbell() {
+    if GATE_HOLD_MS.load(Relaxed) != 0 {
+        GATE_LAST_DOORBELL_NS.store(ns_of(Instant::now()), Relaxed);
+    }
     if !on() {
         return;
     }
@@ -456,7 +675,6 @@ pub fn msi_for_raise() {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::time::Duration;
 
     #[test]
     fn buckets_are_monotonic_and_bounded() {
@@ -489,6 +707,66 @@ mod tests {
         assert!((h.quantile_us(0.99) - 99.1).abs() < 0.2);
         h.record_ns(50_000_000);
         assert_eq!(h.quantile_us(1.0), 50_000.0);
+    }
+
+    #[test]
+    fn userd_pair_splits_the_qword() {
+        // GPGet 0x11 at 0x88, GPPut 0x22 at 0x8C, little endian.
+        let q = [0x11u8, 0, 0, 0, 0x22, 0, 0, 0];
+        let pair = userd_pair(|b| {
+            b.copy_from_slice(&q);
+            Some(true)
+        });
+        assert_eq!(pair, Some((0x11, 0x22)));
+        assert_eq!(userd_pair(|_| Some(false)), None);
+        assert_eq!(userd_pair(|_| None), None);
+    }
+
+    #[test]
+    fn flush_gate_skips_only_an_empty_flush() {
+        // Off: every flush runs, dirty or not.
+        set_fast_here(false);
+        assert!(flush_needed(false));
+        assert!(flush_needed(true));
+        // On: a flush with nothing stored since the last one is skipped, never one after a
+        // store.
+        set_fast_here(true);
+        assert!(flush_needed(true));
+        assert!(!flush_needed(false));
+        set_fast_here(false);
+    }
+
+    /// The gate never delivers an event before the host reported it, never loses one, and
+    /// bounds every hold.
+    #[test]
+    fn gate_delays_foreign_events_and_never_loses_one() {
+        let hold = Duration::from_millis(50);
+        let mut g = Gate::new(hold);
+        let t0 = Instant::now();
+        let ms = |n: u64| Duration::from_millis(n);
+        // No doorbell yet: held; nothing is due before the hold has passed.
+        assert_eq!(g.event(t0, 1, None), None);
+        assert_eq!(g.due(t0 + ms(49)), 0);
+        assert_eq!(g.wait(t0 + ms(10), ms(250)), ms(40));
+        // A second vector joins the hold without restarting it.
+        assert_eq!(g.event(t0 + ms(20), 2, None), None);
+        assert_eq!(g.due(t0 + ms(50)), 0b110);
+        assert_eq!(g.due(t0 + ms(51)), 0, "delivered once");
+        assert_eq!(g.wait(t0 + ms(51), ms(250)), ms(250));
+        // Within the hot window (10 holds) of a doorbell: at once.
+        let d = t0 + ms(100);
+        assert_eq!(g.event(d + ms(1), 1, Some(d)), Some(0));
+        assert_eq!(g.event(d + ms(499), 1, Some(d)), Some(0));
+        // Past it: held again, and a hot event releases what is held with it.
+        assert_eq!(g.event(d + ms(500), 3, Some(d)), None);
+        let d2 = d + ms(510);
+        assert_eq!(g.event(d2, 1, Some(d2)), Some(0b1000));
+        assert_eq!(g.due(d2 + ms(100)), 0);
+        // A vector outside the mask is never held, even cold.
+        assert_eq!(g.event(d2 + ms(10_000), 70, Some(d2)), Some(0));
+        assert_eq!(g.held_events, 3);
+        assert_eq!(g.released, 2);
+        assert!(g.summary().contains("hold 50 ms, hot 500 ms"));
     }
 
     /// One test drives the process-wide switch, so the steps run in order here.

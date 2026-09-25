@@ -565,6 +565,7 @@ impl Device {
                 .event("doorbell tokens: no boot model, nothing rung");
             return;
         };
+        let fast = crate::launch::fast();
         let mut notes = Vec::new();
         for &(slot, writes) in rings {
             let token = crate::tokens::TokenPool::token(slot);
@@ -572,15 +573,23 @@ impl Device {
                 p.stats.eventfd_rings += 1;
                 p.stats.eventfd_writes += writes;
             }
-            notes.push(format!(
-                "doorbell ioeventfd: {writes} guest write(s) of token {token:#x} to BAR0 {doorbell:#x} signalled"
-            ));
+            // The fast ring path (launch.rs `FAST_ENV`) formats nothing before the host
+            // doorbell: the pool's "doorbell token ... (eventfd)" note names the ring.
+            if !fast {
+                notes.push(format!(
+                    "doorbell ioeventfd: {writes} guest write(s) of token {token:#x} to BAR0 {doorbell:#x} signalled"
+                ));
+            }
             boot.take_host_doorbell();
             notes.extend(boot.doorbell_token(mem, token));
             rung(boot.take_host_doorbell());
         }
-        for n in notes {
-            self.trace.event(&n);
+        if fast {
+            self.trace.events(&notes);
+        } else {
+            for n in notes {
+                self.trace.event(&n);
+            }
         }
     }
 
