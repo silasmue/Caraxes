@@ -1,0 +1,7 @@
+dma table: 0:7fff00000000:80000000
+server pid 1142562, VM pid 1142588; logs in /mnt/vmstore/caraxes/vm2
+ssh up at 192.168.102.22
+probe nvenc-layout610: 68910 device accesses, guest log in /mnt/vmstore/caraxes/vm2/probe-nvenc-layout610/guest-dmesg.txt
+[  130.319234] NVRM: GPU 0000:00:05.0: RmInitAdapter
+[  132.583089] NVRM: GPU 0000:00:05.0: RmInitAdapter succeeded!
+modprobe rc=0

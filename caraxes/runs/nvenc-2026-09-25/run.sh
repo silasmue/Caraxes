@@ -26,13 +26,15 @@ HDR=$ROOT/target/nvenc/ffnvcodec
 SERVER=${CARAXES_SERVER:?CARAXES_SERVER: the device binary}
 cd "$ROOT" || exit 1
 . caraxes/runs/night-2026-09-24/env.sh
-night_guest 610
+night_guest "${NVENC_GUEST:-610}"  # NVENC_GUEST=615: vm2-615
+LEA_ROOT=$ROOT . tools/lib/driver.sh && LEA_ROOT=$ROOT caraxes_driver_select || exit 2
+GLIB=$CARAXES_GUEST_LIBDIR  # the selected driver's userspace (610: /opt/nvrm/lib, 615: the system path)
 export CARAXES_SERVER=$SERVER
 export CARAXES_MEM=2G
 export CARAXES_BAR1_POOL_MIB=32 CARAXES_BAR2_MEMFD=1 CARAXES_MSI_REARM_IOEVENTFD=1 CARAXES_ALLOC_LAZY=1
 # vm2 free: its device or its Cloud Hypervisor, matched by the command line's start (a host
 # guard's shell may carry the vm2 path in its own text).
-VM2_RE='^/mnt/vmstore/caraxes/(vm2/|vm1/cloud-hypervisor[^ ]* .*caraxes/vm2/)'
+VM2_RE='^/mnt/vmstore/caraxes/(vm2(-615)?/|vm1/cloud-hypervisor[^ ]* .*caraxes/vm2(-615)?/)'
 if pgrep -f "$VM2_RE" >/dev/null; then
     echo "ERROR: a vm2 process runs; refusing to start" >&2; pgrep -af "$VM2_RE" >&2; exit 2
 fi
@@ -92,7 +94,7 @@ probe)
     tools/caraxes-vm.sh ssh 'mkdir -p ~/nvenc/ffnvcodec'
     for f in "$HDR"/*.h; do tools/caraxes-vm.sh ssh "cat > ~/nvenc/ffnvcodec/$(basename "$f")" < "$f"; done
     tools/caraxes-vm.sh ssh 'cat > ~/nvenc/nvenc-probe.c' < caraxes/tools/nvenc-probe.c
-    tools/caraxes-vm.sh ssh 'cd ~/nvenc && gcc -O2 -Wall -o nvenc-probe nvenc-probe.c -Iffnvcodec -ldl -lm && ls -la nvenc-probe && ls -la /opt/nvrm/lib/libnvidia-encode.so.1 /opt/nvrm/lib/libnvcuvid.so.1' > "$C/build.txt" 2>&1
+    tools/caraxes-vm.sh ssh "cd ~/nvenc && gcc -O2 -Wall -o nvenc-probe nvenc-probe.c -Iffnvcodec -ldl -lm && ls -la nvenc-probe && ls -la $GLIB/libnvidia-encode.so.1 $GLIB/libnvcuvid.so.1 $GLIB/libcuda.so.1" > "$C/build.txt" 2>&1
     cat "$C/build.txt"
     # Host reads while the probe runs (read-only NVML queries of the host RM): encoder and
     # decoder utilisation, the encoder session list with its pids.
@@ -109,7 +111,7 @@ probe)
     L0=$(wc -l < "$W/gpu-trace.log")
     G0=$(wc -l < "$W/gpu.log")
     ARGS=${*:--n 300}
-    tools/caraxes-vm.sh ssh "cd ~/nvenc && timeout 300 env LD_LIBRARY_PATH=/opt/nvrm/lib ./nvenc-probe $ARGS -o /tmp/probe.es; echo rc=\$?; ls -la /tmp/probe.es; top -b -n1 | head -12" > "$C/probe.txt" 2>&1
+    tools/caraxes-vm.sh ssh "cd ~/nvenc && timeout 300 env LD_LIBRARY_PATH=$GLIB ./nvenc-probe $ARGS -o /tmp/probe.es; echo rc=\$?; ls -la /tmp/probe.es; top -b -n1 | head -12" > "$C/probe.txt" 2>&1
     sleep 1; kill "$SMI" 2>/dev/null; wait "$SMI" 2>/dev/null
     cat "$C/probe.txt"
     tools/caraxes-vm.sh ssh 'sudo dmesg | grep -iE "NVRM|Xid" | tail -60' > "$C/guest-dmesg.txt" 2>&1

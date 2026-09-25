@@ -1,0 +1,15 @@
+# SPDX-License-Identifier: MIT
+# host nvidia-smi reads every 0.5 s during the probe; device pid 1142562
+T 15:23:38.880 0 %, 0 %, 0, 0, 0
+S # GPU Session    Process   Codec       H       V Average     Average
+S # Idx      Id         Id    Type     Res     Res     FPS Latency(us)
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
+S     0       -          -       -       -       -       -           -
