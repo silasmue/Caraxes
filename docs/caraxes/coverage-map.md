@@ -53,6 +53,33 @@ Records: `caraxes/runs/coverage-2026-09-25/` (README there). Tools: `caraxes/too
   - kill -9 of a process with a running kernel costs 3.2 s of host preempts, most of it in one
     call, and a host Xid 109 (CTX SWITCH TIMEOUT) on the device's pid. The next process works in both cases.
 
+## Status
+
+Follow-up of 2026-09-25, records `caraxes/runs/coverage-followup-2026-09-25/`:
+
+- **§3, the 21 unanswered sweep getters: done.** Each has an answer source
+  ([gsp-surface.md](gsp-surface.md), "After the sweep getters of the coverage map"):
+  - 7 go to the host as plain forwards (`FORWARD`);
+  - 5 come from the chip table (`chips/tu106/controls.toml`);
+  - 9 are refused as absent features.
+
+  The sweep on vm2 again: no control is `unanswered`, and 39 NV_OK answers against 31 before.
+  Routed controls unhandled: 66 to 45 (610) and 67 to 46 (615).
+- **§4 item 8, a cache for static forwarded answers: done, and smaller than hoped.**
+  - `src/fwdcache.rs` keeps the first host answer of 22 static per-card getters (identity,
+    capabilities, floorsweeping) for the device's lifetime; `CARAXES_FORWARD_CACHE=0` turns
+    it off.
+  - It removes their repeat host calls: 93 to 12 in 10 x `nvidia-smi -q`, 160 to 0 in 20 x
+    `--query-gpu`, 10 to 0 in dmon.
+  - That is 2.8 ms of about 83 ms of device time per `nvidia-smi -q` on a quiet host.
+  - The GSS-legacy PERF 0x79 and the other perf and clock commands that dominate stay live:
+    their layouts are not in the open headers, and 0x79 moves between runs.
+
+    Their cost follows the host's load (perf 0x79 624 ms on the first call on a loaded host,
+    at most 23 ms on a quieter one). A short TTL for them is still open.
+- Gates after both: cuda 10 of 11 (cuda-managed 801), nvml power N/A only (the 610 guest);
+  0 host Xid.
+
 ## 1. The instrument: the profile
 
 ### 1.1 What it counts
