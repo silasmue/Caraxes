@@ -1,0 +1,9 @@
+sunshine_alive_at_end=1
+[2026-09-25 13:36:59.734]: Error: Could not open codec [h264_vulkan]: Function not implemented
+[2026-09-25 13:36:59.734]: Info: Encoder [vulkan] failed
+[2026-09-25 13:36:59.735]: Error: Couldn't find monitor [0]
+[2026-09-25 13:36:59.735]: Error: Couldn't find monitor [0]
+[2026-09-25 13:36:59.935]: Error: Couldn't find monitor [0]
+[2026-09-25 13:36:59.936]: Error: Couldn't find monitor [0]
+[2026-09-25 13:37:00.136]: Info: Encoder [vaapi] failed
+[2026-09-25 13:37:01.119]: Info: // Ignore any errors mentioned above, they are not relevant. //

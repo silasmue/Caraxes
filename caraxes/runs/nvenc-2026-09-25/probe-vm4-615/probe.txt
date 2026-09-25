@@ -1,0 +1,4 @@
+INFO device "Leandro VFIO RTX 2070-3G", CUDA context in 1516.6 ms
+INFO NVENC API: driver supports 13.1, header 13.1
+RESULT FAIL nv.nvEncOpenEncodeSessionEx(&op, &enc): NVENCSTATUS 2 
+rc=1

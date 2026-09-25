@@ -135,7 +135,15 @@ work yet (§5). The design is the video layout (§3).
       channel's first doorbell, before any NVDEC1 promote or object.
     - The device answered no call with an error in that window, so the failure is on the
       guest's side. Open.
-- `probe-layout615`: see its README.
+- 615 guest:
+  - `probe-layout615` and `probe-layout615b` had no result: the wrong userspace, then the
+    vm2-615 image lacks `libnvidia-encode`.
+  - `probe-vm4-615` (the game VM, NVIDIA's 615 packages):
+    - `nvEncOpenEncodeSessionEx` returned `NV_ENC_ERR_UNSUPPORTED_DEVICE` (2), and Sunshine
+      fell back to libx264.
+    - The 615 library stops after `GPU_GET_INFO_V2`: no caps query, no session open, no
+      video channel. So the mirror is not reached.
+    - Untested: the 615 userspace or the 3 GiB profile. Open.
 
 ## 6. Limits
 
