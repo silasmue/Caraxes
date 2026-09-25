@@ -36,8 +36,29 @@ enum Reg {
     MmuInvalidateUpperPdb,
     MmuInvalidate,
     UsermodeDoorbell,
+    /// `NV_PTIMER_TIME_0` / `NV_PTIMER_TIME_1` (timer base + 0x400 / + 0x410,
+    /// gm107/dev_timer.h:26-27).
+    PtimerTime0,
+    PtimerTime1,
     /// An L2 cache-operation register (`NV_UFLUSH_*` and the VF-window aliases).
     L2Op(L2Op),
+}
+
+/// `NV_PTIMER_TIME_0` / `TIME_1` relative to the PTIMER base (gm107/dev_timer.h:26-27).
+const PTIMER_TIME_0: u64 = 0x400;
+const PTIMER_TIME_1: u64 = 0x410;
+
+/// One PTIMER word at `now` ns ([`BootModel::ptimer_read`]); `pending` is the high word
+/// of the last TIME_1 read not yet followed by a TIME_0 read.
+fn ptimer_word(pending: &mut Option<u64>, now: u64, hi: bool) -> u32 {
+    if hi {
+        *pending = Some(now >> 32);
+        return (now >> 32) as u32 & 0x1FFF_FFFF;
+    }
+    match pending.take() {
+        Some(h) if now >> 32 > h => 0xFFFF_FFE0,
+        _ => now as u32 & !0x1F,
+    }
 }
 
 /// What an L2 cache-operation register does when the guest starts it.
@@ -93,6 +114,9 @@ pub struct BootModel {
     mmu_invalidate: (u32, u32, u32),
     /// Last value written to each L2 cache-operation register (busy bits masked on read).
     l2_ops: BTreeMap<u64, u32>,
+    /// The high word the last `NV_PTIMER_TIME_1` read returned, until the next `TIME_0`
+    /// read (the torn-read guard of [`BootModel::ptimer_read`]).
+    ptimer_hi: Option<u64>,
     /// L2 cache operations started / forwarded to the host / host failures (trace).
     pub l2_op_counts: (u64, u64, u64),
     bar2_block: u32,
@@ -187,6 +211,7 @@ impl BootModel {
             bar0_window: ((fb_bytes - (1 << 20)) >> 16) as u32,
             mmu_invalidate: (0, 0, 0),
             l2_ops: BTreeMap::new(),
+            ptimer_hi: None,
             l2_op_counts: (0, 0, 0),
             bar2_block: 0,
             bar_faults: 0,
@@ -935,6 +960,24 @@ impl BootModel {
     }
 
     /// The kernel-RM surface register at `off`, if it is one.
+    /// The PTIMER's BAR0 base (`INTERNAL_GPU_GET_CHIP_INFO` `timer_base`, 0x9000).
+    fn ptimer_base(&self) -> u64 {
+        self.chip.data().chip_info.timer_base as u64
+    }
+
+    /// `NV_PTIMER_TIME_0` (`hi` false: NSEC 31:5) or `NV_PTIMER_TIME_1` (`hi` true: NSEC
+    /// 28:0) from the device clock, the base of the usermode TIME_0/1 (uvm.rs) and of the
+    /// semaphore timestamps, so the option ROM's GOP, the VBIOS scripts and a CPU-RM see
+    /// time pass in pure emulation. Torn-read guard: the RM reads TIME_1, TIME_0, TIME_1
+    /// and retries on a change (tmrGetTimeEx), but a reader that takes TIME_1 then TIME_0
+    /// once would see its value go back by 2^32 ns when the low word wraps in between. So a
+    /// TIME_0 read that follows a TIME_1 read whose high word has since moved on answers
+    /// the last low value of that high word (0xFFFF_FFE0): the pair is then a time that
+    /// already passed but never older than one read before, and the next pair catches up.
+    pub fn ptimer_read(&mut self, hi: bool) -> u32 {
+        ptimer_word(&mut self.ptimer_hi, self.ctrl.channels.now_ns(), hi)
+    }
+
     fn reg(&self, off: u64) -> Option<Reg> {
         let r = &self.regs;
         Some(match off {
@@ -945,6 +988,8 @@ impl BootModel {
             o if o == r.mmu_invalidate_upper_pdb => Reg::MmuInvalidateUpperPdb,
             o if o == r.mmu_invalidate => Reg::MmuInvalidate,
             o if o == r.usermode_doorbell => Reg::UsermodeDoorbell,
+            o if o == self.ptimer_base() + PTIMER_TIME_0 => Reg::PtimerTime0,
+            o if o == self.ptimer_base() + PTIMER_TIME_1 => Reg::PtimerTime1,
             o if o == r.l2_flush_dirty => Reg::L2Op(L2Op::FlushDirty),
             o if r.l2_sysmem_invalidate.contains(&o) => Reg::L2Op(L2Op::SysmemInvalidate),
             o if r.l2_ops_local.contains(&o) => Reg::L2Op(L2Op::Local),
@@ -1046,6 +1091,8 @@ impl BootModel {
             Some(Reg::MmuInvalidate) => self.mmu_invalidate.2 & !(1 << 31),
             // Write-only doorbell (`clc361.h:33`); reads return 0.
             Some(Reg::UsermodeDoorbell) => 0,
+            Some(Reg::PtimerTime0) => self.ptimer_read(false),
+            Some(Reg::PtimerTime1) => self.ptimer_read(true),
             // The operation completed when the write started it: PENDING and
             // OUTSTANDING read EMPTY/FALSE (execution.md §6, "L2 cache operations").
             Some(Reg::L2Op(_)) => self.l2_ops.get(&off).copied().unwrap_or(0) & !L2_OP_BUSY,
@@ -1113,6 +1160,11 @@ impl BootModel {
             Some(Reg::MmuInvalidatePdb) => self.mmu_invalidate.0 = v,
             Some(Reg::MmuInvalidateUpperPdb) => self.mmu_invalidate.1 = v,
             Some(Reg::Bar1Block) => notes.push("read-only".into()),
+            // One time base with the usermode TIME_0/1 and the GSP OS time (public.rs):
+            // setting it would move the one and not the others.
+            Some(Reg::PtimerTime0 | Reg::PtimerTime1) => {
+                notes.push("PTIMER time is the device clock: write dropped".into())
+            }
             Some(Reg::L2Op(op)) => {
                 self.l2_ops.insert(off, v);
                 if v & 1 != 0 {
@@ -2265,6 +2317,48 @@ mod tests {
     use super::*;
     use crate::chip::turing::local_memory_range;
     use crate::falcon;
+
+    /// NV_PTIMER_TIME_0/1 run on the device clock, the usermode TIME_0/1's base, and a
+    /// TIME_1-then-TIME_0 pair never goes back across a low-word wrap.
+    #[test]
+    fn ptimer_runs_on_the_device_clock() {
+        let f = crate::fixture::rtx2070();
+        let mut b = BootModel::new(
+            f.chip,
+            crate::fb::FbLayout::plain(1 << 30),
+            f.identity(1 << 30),
+        );
+        let um = f.chip.data().registers;
+        let t64 = |b: &mut BootModel| {
+            let hi = b.read32(0x9410).unwrap() as u64;
+            let lo = b.read32(0x9400).unwrap() as u64;
+            (hi << 32) | lo
+        };
+        let t0 = t64(&mut b);
+        std::thread::sleep(std::time::Duration::from_millis(2));
+        let u0 = b.read32(um.usermode_time_0).unwrap() as u64
+            | (b.read32(um.usermode_time_1).unwrap() as u64) << 32;
+        let t1 = t64(&mut b);
+        assert!(t1 >= t0 + 2_000_000, "{t0} {t1}");
+        // The same base: the usermode time read between the two lies between them.
+        assert!(t0 <= u0 && u0 <= t1, "{t0} {u0} {t1}");
+        assert_eq!(t1 & 0x1F, 0);
+        // Writes are dropped with a note.
+        let notes = b.write32(0x9400, 5, &GuestMemory::new()).unwrap();
+        assert!(notes.iter().any(|n| n.contains("PTIMER")));
+        assert!(t64(&mut b) >= t1);
+        // The torn-read guard, on a synthetic clock around a low-word wrap.
+        let mut p = None;
+        let before = (3u64 << 32) | 0xFFFF_FF00;
+        let after = (4u64 << 32) | 0x40;
+        assert_eq!(ptimer_word(&mut p, before, true), 3);
+        assert_eq!(ptimer_word(&mut p, after, false), 0xFFFF_FFE0);
+        assert_eq!(ptimer_word(&mut p, after, true), 4);
+        assert_eq!(ptimer_word(&mut p, after, false), 0x40);
+        // A TIME_0 read on its own and the TIME_1 field width (NSEC 28:0).
+        assert_eq!(ptimer_word(&mut p, after | 0x1F, false), 0x40);
+        assert_eq!(ptimer_word(&mut p, 0xE000_0001_0000_0000, true), 1);
+    }
 
     /// The TU106 boot model behind the generic part: the firmware-boot registers
     /// reach the chip's model, its events reach the queues.

@@ -501,7 +501,7 @@ mod tests {
         assert_eq!(u32::from_le_bytes(b), 0);
         // Registers the model does not own still latch.
         assert_eq!(
-            bar0.write(&mut cfg, &mem, 0x9400, &7u32.to_le_bytes()),
+            bar0.write(&mut cfg, &mem, 0x9428, &7u32.to_le_bytes()),
             WriteEffect::Latched
         );
     }
