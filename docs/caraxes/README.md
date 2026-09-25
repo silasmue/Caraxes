@@ -1095,3 +1095,17 @@ the VM; then display, expected to be much easier than in v1.
     overdue flush debts (8801bfe).
   - **Xid.** 0 on vm0's device in every series; the only Xid lines of the session were vm2's
     (pid 3245134, Xid 109, series F).
+- 2026-09-25 afternoon: **The remaining per-frame traps as memory** ([intr-page.md](intr-page.md)
+  §12, records `caraxes/runs/display-page-2026-09-25/` P1).
+  - **Flush page as memory** (`CARAXES_BAR2_FLUSH_PAGE=memory`): no BAR2 page traps; the BAR2
+    memfd syncs at the invalidate, the GSP doorbell, every trapped write and doorbell, and by
+    the reactor 2 ms after the last sync. Mutter 17.68 traps per frame at 60.06 Hz (H: 39.76),
+    Weston 14.70 at 60.00 Hz sd 0.70 ms, vkcube 53.2 FPS, glmark2 2045, display gate pass, 0
+    host Xid (vm0 at slot 2 beside the game VM).
+  - **Built, runs owed:** the usermode page (`CARAXES_USERMODE_PAGE=1`) and the display kick
+    page (`CARAXES_DISPLAY_KICK_PAGE=1`), the last two per-frame sources.
+  - **Host BAR1 floor** (`CARAXES_HOST_BAR1_FLOOR_MIB`, default 96): after two pools exhausted
+    the host's BAR1 and the host desktop's Vulkan failed.
+  - **Game findings:** the cursor plane stays out of the capture (keep the software cursor);
+    the second GNOME start's failure is the stage's hand restart with Sunshine and Steam
+    holding the GPU, not the device.

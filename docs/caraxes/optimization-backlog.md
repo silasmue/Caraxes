@@ -422,6 +422,18 @@ calls.
     new BAR1 mapping, an untrapped pool page, right after the invalidate returns. If the A/B
     blames it, the work to cut is the walk and the page moves inside it.
   - The `TIME_0/1` reads are a fixed 925 per second, not per frame (§11.7).
+- **Desktop, afternoon (intr-page.md §12):**
+  - The flush page as memory (`CARAXES_BAR2_FLUSH_PAGE=memory`, a display mode): Mutter 39.76
+    to 17.68 traps per frame at 60 Hz, gate pass (P1). Cost: every doorbell and the 2 ms
+    bound sync (372327 syncs, 19.2 s in 550 s); the ring to the host doorbell p50 10 to 56 us.
+    CUDA keeps the trapped flush page.
+  - Built and unit-tested, runs owed: the usermode page (`CARAXES_USERMODE_PAGE=1`: TIME as
+    one 64-bit store per reactor iteration, the doorbell found by a GPPut scan) and the kick
+    page (`CARAXES_DISPLAY_KICK_PAGE=1`). With both, Mutter's frame should trap only the rare
+    PMC/GSP rows. The usermode page's decision (display-only or general) waits for the U/T
+    launch rows.
+  - The host BAR1 floor (`CARAXES_HOST_BAR1_FLOOR_MIB`, 96 MiB): a pool is refused when the
+    host would keep less free BAR1.
 - **Item 4: done** (commit 0c2cb79, `CARAXES_MSI_REARM_IOEVENTFD=1`, intr-page.md §4,
   `caraxes/runs/opt-msi-ioeventfd-2026-09-25/`).
   - The re-arm write is an ioeventfd without datamatch, read by the token pool's reactor, which

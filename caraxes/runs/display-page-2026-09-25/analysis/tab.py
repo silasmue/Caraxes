@@ -8,7 +8,7 @@ series = [("B", "display-page-2026-09-24/B-intr-page"), ("C", "display-page-2026
     (n, "display-page-2026-09-25/" + d) for n, d in [
         ("D", "D-recommended"), ("E", "E-flush-defer"), ("F", "F-invalidate-page"),
         ("D2", "D2-recommended-rerun"), ("G", "G-vblank-spin"), ("H", "H-no-spin"),
-        ("I", "I-windows"), ("I2", "I2-windows-rerun")]]
+        ("I", "I-windows"), ("I2", "I2-windows-rerun"), ("P1", "P1-flush-page-memory"), ("T1", "T1-tokens-reference"), ("U1", "U1-usermode-page"), ("U2", "U2-usermode-page-spin"), ("W1", "W1-all-windows"), ("W2", "W2-kick-page-tokens"), ("J1", "J1-no-poll-after-trigger"), ("K1", "K1-poll-after-trigger")]]
 
 
 def pf(t, pat):
