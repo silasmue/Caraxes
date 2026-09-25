@@ -33,6 +33,6 @@ exec qemu-system-x86_64 -enable-kvm -machine q35,accel=kvm,smm=on,memory-backend
     -drive "file=$W/win11.qcow2,if=virtio,format=qcow2,cache=writeback,discard=unmap" \
     -drive "file=$VIRTIO,media=cdrom,readonly=on" \
     -device virtio-net-pci,netdev=n0 -netdev user,id=n0 \
-    -device "vfio-user-pci,socket=$W/gpu.sock" \
+    -device "{\"driver\":\"vfio-user-pci\",\"socket\":{\"type\":\"unix\",\"path\":\"$W/gpu.sock\"}}" \
     -device qemu-xhci -device usb-tablet -device usb-kbd \
     -vga std -display gtk -rtc base=localtime
