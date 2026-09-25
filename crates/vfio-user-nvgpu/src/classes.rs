@@ -45,6 +45,14 @@ pub const REFUSED: &[(u32, u32, &str)] = &[
     (0x844C, NV_ERR_NOT_SUPPORTED, "G84_PERFBUFFER: host-global perf buffer, no profiler model"),
 ];
 
+/// Classes outside the Linux class database that the Windows driver's kernel RM allocates
+/// (its class database is the Windows build's, so a stock Windows guest sends them): the
+/// device records them like any GPU-parented object. 0xB297 (no public header): the 617.14
+/// KMD allocates it under its subdevice with 12 bytes of parameters at adapter start, and
+/// unloads GSP-RM when it is refused (caraxes/runs/win11-2026-09-25/night-2026-09-25/
+/// WINDOWS-LOOP.md, Y8).
+pub const WINDOWS_ONLY: &[u32] = &[0xB297];
+
 /// The refusal of `class` on `chip`, if any: (status, reason). `under_channel` says
 /// whether the parent is a channel the device knows (a channel descendant).
 pub fn refusal(chip: &ChipData, class: u32, under_channel: bool) -> Option<(u32, String)> {
@@ -52,7 +60,7 @@ pub fn refusal(chip: &ChipData, class: u32, under_channel: bool) -> Option<(u32,
         return Some((st, format!("class {class:#x} refused {st:#x}: {why}")));
     }
     let db = chip.classes.as_ref()?;
-    if db.ids.contains(&class) {
+    if db.ids.contains(&class) || (!under_channel && WINDOWS_ONLY.contains(&class)) {
         return None;
     }
     let (st, what) = if under_channel {
@@ -75,6 +83,13 @@ mod tests {
 
     fn tu106() -> &'static ChipData {
         crate::fixture::rtx2070().chip.data()
+    }
+
+    #[test]
+    fn the_windows_kmd_class_is_recorded() {
+        assert!(refusal(tu106(), 0xB297, false).is_none());
+        assert!(refusal(tu106(), 0xB297, true).is_some());
+        assert!(refusal(tu106(), 0xB298, false).is_some());
     }
 
     /// Every class a stock TU106 Linux stack allocates (classes.md §6, "TU106 Linux
