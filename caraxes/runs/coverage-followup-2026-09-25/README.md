@@ -20,7 +20,7 @@ vm0, vm3 and vm5 were up throughout (`*/other-vms-at-start.txt`).
 |---|---|---|
 | `refused-bar1-1/` | the first `off` start | Cloud Hypervisor could not mmap the BAR1 pool area (EIO). The host logged `can't alloc VA space for mapping` (host BAR1 full with the other VMs), so the guest never booted. `run.sh` now retries this case after five minutes, like a refused reservation |
 | `off/` | `CARAXES_FORWARD_CACHE=0`: 10 x `nvidia-smi -q`, 20 x `nvidia-smi --query-gpu`, dmon/pmon/query loop, the control sweep | all ok; 0 host Xid |
-| `on/` | the cache on: the same, then the nvml and cuda gates | all ok; cuda gate 10 of 11 (cuda-managed 801, the known exception); nvml gate fails on power N/A only, as in the map (known for the 610 guest); 0 host Xid |
+| `on/` | the cache on: the same, then the nvml and cuda gates (the cuda gate's run directory in `on/gate-cuda-run/`, its device traces in `/mnt/vmstore/caraxes/coverage-followup-2026-09-25/gate-cuda-device/`) | all ok; cuda gate 10 of 11 (cuda-managed 801, the known exception); nvml gate fails on power N/A only, as in the map (known for the 610 guest); 0 host Xid |
 | `off-2/` | `off` again, right after `on`, with the host quiet | all ok; 0 host Xid |
 
 Every part left vm2 down (`vm2 left: 0` in `*/console.txt`). No host Xid in any part
