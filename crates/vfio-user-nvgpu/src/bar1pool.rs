@@ -125,6 +125,10 @@ pub enum Refusal {
     /// The FB page is not in the guest's usable FB (the pool itself, the carve-out with
     /// the BAR roots and the invalidator, or outside the reservation).
     NotUsable,
+    /// The FB page is a guest page-table page the device tracks the writes of (a shadow's
+    /// cached walk or the pool's own BAR1 walk reads it): guest writes through the area
+    /// would bypass that tracking.
+    TablePage,
 }
 
 impl Refusal {
@@ -134,7 +138,15 @@ impl Refusal {
             Refusal::SlotBusy => "the area page still holds another page whose move back was refused",
             Refusal::Aliased => "the page lives in the pool already through another area page (the guest maps it twice)",
             Refusal::NotUsable => "the page is not in the guest's usable FB (pool, carve-out or outside the reservation)",
+            Refusal::TablePage => "the page is a guest page-table page the device tracks (a shadow's walk or the pool's BAR1 walk reads it)",
         }
+    }
+
+    /// Whether the area page serves the refused page as a replica (a copy the device
+    /// merges both ways at every sync point, [`sync_untracked`]) instead of leaving the
+    /// guest's accesses on a pool page nobody reads.
+    pub fn replicates(self) -> bool {
+        matches!(self, Refusal::Aliased | Refusal::TablePage)
     }
 }
 
@@ -306,9 +318,25 @@ pub struct PoolStats {
     pub bytes_out: u64,
     pub copy_us: u128,
     pub max_poll_us: u128,
-    /// Remapped pages that are guest page-table pages the shadow watches (guest writes
-    /// through the area bypass its write tracking).
+    /// Distinct guest page-table pages (a shadow's walk or the pool's BAR1 walk reads
+    /// them) the guest mapped into the area.
     pub table_hazards: u64,
+    /// Of those, pages that were in the pool and were moved back out to the trapped path
+    /// (evicted), and installs refused because the page was a table page already.
+    pub table_evictions: u64,
+    pub table_refusals: u64,
+    /// Times a pooled table page was marked changed at a sync point while its eviction
+    /// was still due (the shadow re-reads it from its pool page).
+    pub table_resyncs: u64,
+    /// Replicas made (area pages that mirror a refused page, [`sync_untracked`]), sync
+    /// points that merged them, pages whose guest area writes reached the page's home
+    /// (tracked writes), pages whose home changes were copied to the area, and 8-byte
+    /// words changed on both sides between two syncs (the area's value wins).
+    pub replicas: u64,
+    pub replica_syncs: u64,
+    pub replica_to_home: u64,
+    pub replica_to_area: u64,
+    pub replica_conflicts: u64,
     /// Pages moved into the pool while guest BAR2 maps them too (the BAR2 memfd holds
     /// them by guest address): the device's reads and writes and the memfd's write-back
     /// agree (bar2-memfd.md §8), but a guest CPU write through the area reaches the guest's
@@ -322,6 +350,16 @@ pub struct PoolStats {
 struct UnitState {
     tables: Vec<u64>,
     mapped: Vec<(u64, Target)>,
+}
+
+/// An area page that serves a guest FB page the pool refused to move there (aliased, or
+/// a table page): the pool page holds a copy of the page, and every sync point merges the
+/// two (guest writes through the area go to the page's home as tracked writes, device
+/// and other-mapping changes of the home go to the area).
+struct Replica {
+    x: u64,
+    /// The page as both sides held it after the last merge.
+    snap: Vec<u8>,
 }
 
 /// The pool state inside [`FakeFb`].
@@ -345,6 +383,8 @@ pub struct Bar1Pool {
     pub rediff: BTreeSet<u64>,
     hazards: HashSet<u64>,
     pub hazard_dirty: bool,
+    /// Area page `g` -> the replica it serves.
+    replicas: BTreeMap<u64, Replica>,
     last_retry: Option<Instant>,
     pub stats: PoolStats,
 }
@@ -366,6 +406,7 @@ impl Bar1Pool {
             rediff: BTreeSet::new(),
             hazards: HashSet::new(),
             hazard_dirty: true,
+            replicas: BTreeMap::new(),
             last_retry: None,
             stats: PoolStats::default(),
         }
@@ -430,7 +471,7 @@ impl Bar1Pool {
         let s = &self.stats;
         let (pool0, len) = self.table.pool();
         format!(
-            "bar1 pool: guest BAR1 [0, {len:#x}) on the pool FB [{pool0:#x}, {:#x}); {} poll(s), {} unit walk(s); {} page(s) in the pool now; moved in {} cold + {} behind the barrier, back {} cold + {} behind the barrier; {} barrier(s) ({} refused, {} TSG preempt(s)); {} refused, {} pending now, {} sysmem page(s) in the area; copied {} KiB in, {} KiB back in {} us; {} page-table hazard(s); {} page(s) also behind the BAR2 memfd; slowest poll {} us (docs/caraxes/bar1-pool.md)",
+            "bar1 pool: guest BAR1 [0, {len:#x}) on the pool FB [{pool0:#x}, {:#x}); {} poll(s), {} unit walk(s); {} page(s) in the pool now; moved in {} cold + {} behind the barrier, back {} cold + {} behind the barrier; {} barrier(s) ({} refused, {} TSG preempt(s)); {} refused, {} pending now, {} sysmem page(s) in the area; copied {} KiB in, {} KiB back in {} us; {} page-table hazard(s) ({} evicted, {} refused, {} re-read(s) while pooled); {} replica(s) made, {} now, {} merge(s) at sync points, {} page merge(s) to home, {} to the area, {} conflicting word(s); {} page(s) also behind the BAR2 memfd; slowest poll {} us (docs/caraxes/bar1-pool.md §10)",
             pool0 + len,
             s.polls,
             s.units_walked,
@@ -449,6 +490,15 @@ impl Bar1Pool {
             s.bytes_out >> 10,
             s.copy_us,
             s.table_hazards,
+            s.table_evictions,
+            s.table_refusals,
+            s.table_resyncs,
+            s.replicas,
+            self.replicas.len(),
+            s.replica_syncs,
+            s.replica_to_home,
+            s.replica_to_area,
+            s.replica_conflicts,
             s.bar2_aliased,
             s.max_poll_us
         )
@@ -656,23 +706,197 @@ struct Op {
     install: bool,
     g: u64,
     x: u64,
+    /// A release the guest did not ask for: `x` became a table page the device tracks
+    /// while it lived in the pool, so it goes back to the trapped path.
+    evict: bool,
+}
+
+/// Whether FB page `page` (a 4 KiB page number) is a guest page-table page whose writes
+/// the device tracks: a shadow's cached walk reads it, or the pool's own walk of the
+/// guest's BAR1 tables over the area does.
+fn tracked_table_page(fb: &FakeFb, p: &Bar1Pool, page: u64) -> bool {
+    p.page_units.contains_key(&page) || fb.watches_table_page(page)
+}
+
+/// The table pages the device tracks that live in the pool now, as `(g, X)`.
+fn pooled_table_pages(fb: &FakeFb, p: &Bar1Pool) -> Vec<(u64, u64)> {
+    if p.table.is_empty() {
+        return Vec::new();
+    }
+    if p.table.len() <= 256 {
+        return p
+            .table
+            .held()
+            .into_iter()
+            .filter(|(_, x)| tracked_table_page(fb, p, x >> 12))
+            .collect();
+    }
+    let mut pages = fb.watched_table_pages(|pg| p.table.is_remapped(pg << 12));
+    pages.extend(
+        p.page_units
+            .keys()
+            .copied()
+            .filter(|pg| p.table.is_remapped(pg << 12)),
+    );
+    pages
+        .into_iter()
+        .filter_map(|pg| {
+            let x = pg << 12;
+            p.table.fwd.get(&x).map(|g| (*g, x))
+        })
+        .collect()
+}
+
+/// Whether `X` may move to area page `g`: the table's static checks, then the table-page
+/// rule (a page whose writes the device tracks never lives where the guest writes it
+/// untracked).
+fn admit(fb: &FakeFb, p: &Bar1Pool, table: &RemapTable, g: u64, x: u64) -> Result<(), Refusal> {
+    table.check(g, x, p.usable)?;
+    if tracked_table_page(fb, p, x >> 12) {
+        return Err(Refusal::TablePage);
+    }
+    Ok(())
+}
+
+/// Merge the replica of area page `g` both ways: 8-byte words the guest changed through
+/// the area since the last merge are written to the page's home through
+/// [`FakeFb::write`] (so the shadow's walk caches, the BAR TLB, the pool's walk and the
+/// BAR2 memfd see them as any trapped write), words that changed at home (a device write,
+/// the guest's BAR2 or other BAR1 mapping) are copied to the area. A word changed on both
+/// sides takes the area's value. With `last`, the replica is dropped after the merge.
+/// Returns whether anything was written.
+fn merge_replica(fb: &mut FakeFb, g: u64, last: bool) -> bool {
+    let (p, x, mut snap) = {
+        let mut guard = fb.pool_mut();
+        let Some(pool) = guard.as_mut() else { return false };
+        let pool0 = pool.table.pool().0;
+        let Some(r) = pool.replicas.get_mut(&g) else { return false };
+        (pool0 + g, r.x, std::mem::take(&mut r.snap))
+    };
+    let n = PAGE as usize;
+    let mut area = vec![0u8; n];
+    let mut home = vec![0u8; n];
+    fb.read_raw(p, &mut area);
+    fb.read(x, &mut home);
+    let (mut to_home, mut to_area) = (Vec::new(), Vec::new());
+    let mut conflicts = 0u64;
+    let push = |runs: &mut Vec<(usize, usize)>, o: usize| match runs.last_mut() {
+        Some((s, l)) if *s + *l == o => *l += 8,
+        _ => runs.push((o, 8)),
+    };
+    for o in (0..n).step_by(8) {
+        let (a, h, s) = (&area[o..o + 8], &home[o..o + 8], &snap[o..o + 8]);
+        if a != s {
+            if h != s && h != a {
+                conflicts += 1;
+            }
+            push(&mut to_home, o);
+        } else if h != s {
+            push(&mut to_area, o);
+        }
+    }
+    for &(o, l) in &to_home {
+        fb.write(x + o as u64, &area[o..o + l]);
+        snap[o..o + l].copy_from_slice(&area[o..o + l]);
+    }
+    for &(o, l) in &to_area {
+        fb.write_raw(p + o as u64, &home[o..o + l]);
+        snap[o..o + l].copy_from_slice(&home[o..o + l]);
+    }
+    let mut guard = fb.pool_mut();
+    let pool = guard.as_mut().expect("on");
+    pool.stats.replica_to_home += u64::from(!to_home.is_empty());
+    pool.stats.replica_to_area += u64::from(!to_area.is_empty());
+    pool.stats.replica_conflicts += conflicts;
+    if last {
+        pool.replicas.remove(&g);
+    } else if let Some(r) = pool.replicas.get_mut(&g) {
+        r.snap = snap;
+    }
+    !to_home.is_empty() || !to_area.is_empty()
+}
+
+/// Make area page `g` a replica of FB page `x`: the pool page gets the page's bytes, and
+/// from now on the sync points merge the two ([`sync_untracked`]).
+fn make_replica(fb: &mut FakeFb, g: u64, x: u64) {
+    let mut b = vec![0u8; PAGE as usize];
+    fb.read(x, &mut b);
+    let p = fb.bar1_pool().expect("on").0 + g;
+    fb.write_raw(p, &b);
+    let mut guard = fb.pool_mut();
+    let pool = guard.as_mut().expect("on");
+    pool.replicas.insert(g, Replica { x, snap: b });
+    pool.stats.replicas += 1;
+}
+
+/// The sync points of the pool's untracked pages: called where the guest orders its CPU
+/// writes before the device or the GPU uses them (the MMU invalidate, the GSP doorbell,
+/// the trapped BAR2 flush read, and every trapped BAR0 write through [`poll`]).
+/// - Every replica is merged both ways (`merge_replica`).
+/// - A table page the device tracks that still lives in the pool (its eviction waits for
+///   the next poll, or a barrier refused it) is marked changed, so the shadow's next walk
+///   re-reads it from its pool page instead of trusting its write-through copy, and the
+///   poll is told to evict it.
+/// - Design G's twin: [`FakeFb::bar1_pt_resync`].
+///
+/// Returns whether anything was merged or marked. Two borrow checks when there is nothing.
+pub fn sync_untracked(fb: &mut FakeFb) -> bool {
+    let g_marked = fb.bar1_pt_resync() > 0;
+    let (gs, pooled) = {
+        let guard = fb.pool_mut();
+        let Some(p) = guard.as_ref() else {
+            return g_marked;
+        };
+        if p.replicas.is_empty() && p.table.is_empty() {
+            return g_marked;
+        }
+        let gs: Vec<u64> = p.replicas.keys().copied().collect();
+        (gs, pooled_table_pages(fb, p))
+    };
+    let mut wrote = false;
+    for g in &gs {
+        wrote |= merge_replica(fb, *g, false);
+    }
+    if !pooled.is_empty() {
+        let pages: Vec<u64> = pooled.iter().map(|(_, x)| x >> 12).collect();
+        fb.note_pages_changed(&pages);
+    }
+    if let Some(p) = fb.pool_mut().as_mut() {
+        p.stats.replica_syncs += u64::from(!gs.is_empty());
+        if !pooled.is_empty() {
+            p.stats.table_resyncs += pooled.len() as u64;
+            // A page not seen before: the next poll evicts it (a page seen before waits for
+            // the paced retry of its refused eviction).
+            if pooled.iter().any(|(_, x)| !p.hazards.contains(&(x >> 12))) {
+                p.hazard_dirty = true;
+            }
+        }
+    }
+    if wrote {
+        fb.flush();
+    }
+    g_marked || wrote || !pooled.is_empty()
 }
 
 /// Bring the remap table in line with the guest's BAR1 tables over the area: walk the
 /// units whose tables changed, release what the guest unmapped (copy back), install what it
 /// newly mapped (copy in), each page cold or behind the barrier, and retry what was refused
-/// (at most every [`RETRY_EVERY`]). Returns whether anything ran.
+/// (at most every [`RETRY_EVERY`]). A page whose writes the device tracks (a guest page
+/// table) never lives in the pool: it is evicted when it becomes one, refused when it is
+/// one already; such a page, and a page the guest maps twice, is served by its area page
+/// as a replica ([`sync_untracked`]). Returns whether anything ran.
 pub fn poll(fb: &mut FakeFb, gpu: &mut dyn PoolGpu) -> bool {
     let t0 = Instant::now();
+    let synced = sync_untracked(fb);
     let (root, work, retry, hazard) = {
         let mut guard = fb.pool_mut();
         let Some(p) = guard.as_mut() else {
-            return false;
+            return synced;
         };
         let retry = (!p.pending.is_empty() || p.release_waits)
             && p.last_retry.is_none_or(|t| t.elapsed() >= RETRY_EVERY);
         if p.dirty.is_empty() && !retry && !p.hazard_dirty {
-            return false;
+            return synced;
         }
         let work: Vec<(usize, usize)> = std::mem::take(&mut p.dirty)
             .into_iter()
@@ -687,7 +911,7 @@ pub fn poll(fb: &mut FakeFb, gpu: &mut dyn PoolGpu) -> bool {
             (u, fb.area_walk_unit(root, u as u64 * UNIT, n))
         })
         .collect();
-    let (releases, installs, usable) = {
+    let (releases, installs, stale_replicas) = {
         let mut guard = fb.pool_mut();
         let p = guard.as_mut().expect("checked above");
         p.stats.polls += 1;
@@ -703,7 +927,7 @@ pub fn poll(fb: &mut FakeFb, gpu: &mut dyn PoolGpu) -> bool {
             .iter()
             .flat_map(|u| u.mapped.iter().copied())
             .collect();
-        let releases: Vec<Op> = p
+        let mut releases: Vec<Op> = p
             .table
             .held()
             .into_iter()
@@ -712,8 +936,24 @@ pub fn poll(fb: &mut FakeFb, gpu: &mut dyn PoolGpu) -> bool {
                 install: false,
                 g,
                 x,
+                evict: false,
             })
             .collect();
+        // A table page the device tracks that lives in the pool goes back out (the rule
+        // of `admit`, for the other order: the shadow started watching it after it moved).
+        if hazard || retry {
+            p.hazard_dirty = false;
+            for (g, x) in pooled_table_pages(fb, p) {
+                if !releases.iter().any(|r| r.g == g) {
+                    releases.push(Op {
+                        install: false,
+                        g,
+                        x,
+                        evict: true,
+                    });
+                }
+            }
+        }
         let mut installs = Vec::new();
         let mut sys_lines = Vec::new();
         for (g, t) in &want {
@@ -722,6 +962,7 @@ pub fn poll(fb: &mut FakeFb, gpu: &mut dyn PoolGpu) -> bool {
                     install: true,
                     g: *g,
                     x,
+                    evict: false,
                 }),
                 Target::Sys(_) => {
                     if p.reported.insert((*g, key(*t))) {
@@ -735,44 +976,68 @@ pub fn poll(fb: &mut FakeFb, gpu: &mut dyn PoolGpu) -> bool {
                 _ => {}
             }
         }
-        // Pending entries the guest no longer wants are dropped.
+        // Pending entries the guest no longer wants are dropped, and so are replicas.
         p.pending.retain(|g, (t, _)| want.get(g) == Some(t));
+        let stale_replicas: Vec<u64> = p
+            .replicas
+            .iter()
+            .filter(|(g, r)| want.get(g) != Some(&Target::Fb(r.x)))
+            .map(|(g, _)| *g)
+            .collect();
         for l in sys_lines {
             p.finding(true, l);
         }
-        (releases, installs, p.usable)
+        (releases, installs, stale_replicas)
     };
+    // A replica the guest no longer maps: the area's last writes go home, then it goes.
+    for g in &stale_replicas {
+        merge_replica(fb, *g, true);
+    }
     if releases.is_empty() && installs.is_empty() {
-        if hazard {
-            check_hazards(fb);
-        }
         note_time(fb, t0);
         return true;
     }
-    // Who holds each page on the GPU.
-    let pages: BTreeSet<u64> = releases.iter().chain(&installs).map(|o| o.x).collect();
-    let blocked = gpu.blocked();
-    let refs = gpu.refs(fb, &pages);
     let mut refused: Vec<(Op, String)> = Vec::new();
+    let mut replicate: Vec<(u64, u64, Refusal)> = Vec::new();
+    let mut ops: Vec<Op> = Vec::new();
+    // The static checks run against the table as it will be after the releases (each
+    // install is checked again when it runs).
+    {
+        let guard = fb.pool_mut();
+        let pool = guard.as_ref().expect("on");
+        let mut after = pool.table.clone();
+        for r in &releases {
+            after.release(r.g);
+        }
+        for op in releases.iter().chain(&installs) {
+            if op.install {
+                match admit(fb, pool, &after, op.g, op.x) {
+                    Ok(()) => {}
+                    // Served by its area page as a replica (made after the moves), or
+                    // already.
+                    Err(e) if e.replicates() => {
+                        if pool.replicas.get(&op.g).is_none_or(|r| r.x != op.x) {
+                            replicate.push((op.g, op.x, e));
+                        }
+                        continue;
+                    }
+                    Err(e) => {
+                        refused.push((*op, e.why().into()));
+                        continue;
+                    }
+                }
+            }
+            ops.push(*op);
+        }
+    }
+    // Who holds each page on the GPU.
+    let pages: BTreeSet<u64> = ops.iter().map(|o| o.x).collect();
+    let blocked = if ops.is_empty() { None } else { gpu.blocked() };
+    let refs = gpu.refs(fb, &pages);
     let mut cold: Vec<Op> = Vec::new();
     let mut warm: Vec<Op> = Vec::new();
     let mut roots: BTreeSet<u64> = BTreeSet::new();
-    // The static checks run against the table as it will be after the releases (each
-    // install is checked again when it runs).
-    let after = {
-        let mut t = fb.pool_mut().as_ref().expect("on").table.clone();
-        for r in &releases {
-            t.release(r.g);
-        }
-        t
-    };
-    for op in releases.iter().chain(&installs) {
-        if op.install {
-            if let Err(e) = after.check(op.g, op.x, usable) {
-                refused.push((*op, e.why().into()));
-                continue;
-            }
-        }
+    for op in &ops {
         if let Some(why) = &blocked {
             refused.push((*op, why.clone()));
             continue;
@@ -817,19 +1082,26 @@ pub fn poll(fb: &mut FakeFb, gpu: &mut dyn PoolGpu) -> bool {
         let tc = Instant::now();
         if op.install {
             let ok = {
-                let mut guard = fb.pool_mut();
-                let pool = guard.as_mut().expect("on");
-                pool.table.check(op.g, op.x, usable)
+                let guard = fb.pool_mut();
+                let pool = guard.as_ref().expect("on");
+                admit(fb, pool, &pool.table, op.g, op.x)
             };
             if let Err(e) = ok {
-                refused.push((op, e.why().into()));
+                if e.replicates() {
+                    replicate.push((op.g, op.x, e));
+                } else {
+                    refused.push((op, e.why().into()));
+                }
                 continue;
             }
+            // A replica at this area page (the page was refused before and may move now,
+            // or the area page served another page): its last area writes go home first.
+            merge_replica(fb, op.g, true);
             fb.copy_page_raw(op.x, p);
             let mut guard = fb.pool_mut();
             let pool = guard.as_mut().expect("on");
             pool.table
-                .install(op.g, op.x, usable)
+                .install(op.g, op.x, pool.usable)
                 .expect("checked just before");
             pool.stats.bytes_in += PAGE;
             if is_warm {
@@ -852,16 +1124,18 @@ pub fn poll(fb: &mut FakeFb, gpu: &mut dyn PoolGpu) -> bool {
             pool.pending.remove(&op.g);
         } else {
             fb.copy_page_raw(p, op.x);
-            let mut guard = fb.pool_mut();
-            let pool = guard.as_mut().expect("on");
-            pool.table.release(op.g);
-            pool.stats.bytes_out += PAGE;
-            if is_warm {
-                pool.stats.releases_warm += 1;
-            } else {
-                pool.stats.releases_cold += 1;
+            {
+                let mut guard = fb.pool_mut();
+                let pool = guard.as_mut().expect("on");
+                pool.table.release(op.g);
+                pool.stats.bytes_out += PAGE;
+                if is_warm {
+                    pool.stats.releases_warm += 1;
+                } else {
+                    pool.stats.releases_cold += 1;
+                }
+                pool.stats.copy_us += tc.elapsed().as_micros();
             }
-            pool.stats.copy_us += tc.elapsed().as_micros();
             crate::profile::record(
                 crate::profile::Key::Window(if is_warm {
                     "bar1 pool: page moved out, warm (units: bytes)"
@@ -873,6 +1147,29 @@ pub fn poll(fb: &mut FakeFb, gpu: &mut dyn PoolGpu) -> bool {
                 None,
                 "",
             );
+            if op.evict {
+                // Back on the trapped path: the walk caches re-read the page (the guest may
+                // have written it through the area since they read it), and the area page
+                // becomes its replica.
+                fb.note_pages_changed(&[op.x >> 12]);
+                replicate.push((op.g, op.x, Refusal::TablePage));
+                let mut guard = fb.pool_mut();
+                let pool = guard.as_mut().expect("on");
+                pool.stats.table_evictions += 1;
+                let first = pool.hazards.insert(op.x >> 12);
+                pool.stats.table_hazards += u64::from(first);
+                pool.reported.insert((op.g, key(Target::Fb(op.x))));
+                pool.finding(
+                    false,
+                    format!(
+                        "guest BAR1 {:#x} maps FB {:#x}, a page-table page the shadow watches: moved out of the pool back to the trapped path{} (fail closed); the shadow re-reads the page, and area page {:#x} mirrors it as a replica merged at every sync point",
+                        op.g,
+                        op.x,
+                        if is_warm { " behind the barrier" } else { "" },
+                        op.g
+                    ),
+                );
+            }
         }
         fb.forget_watched_page(op.x >> 12);
         if op.install && matches!(fb.backing(op.x), crate::fb::Backing::Bar2Memfd(_)) {
@@ -890,6 +1187,45 @@ pub fn poll(fb: &mut FakeFb, gpu: &mut dyn PoolGpu) -> bool {
         if is_warm {
             moved_warm += 1;
         }
+    }
+    // The replicas decided in this poll, now that the releases freed their area pages.
+    for (g, x, why) in replicate {
+        let (free, first) = {
+            let guard = fb.pool_mut();
+            let pool = guard.as_ref().expect("on");
+            (
+                pool.table.holder(g).is_none() && pool.replicas.get(&g).is_none_or(|r| r.x != x),
+                !pool.reported.contains(&(g, key(Target::Fb(x)))),
+            )
+        };
+        if !free {
+            continue;
+        }
+        merge_replica(fb, g, true);
+        make_replica(fb, g, x);
+        let mut guard = fb.pool_mut();
+        let pool = guard.as_mut().expect("on");
+        pool.pending.remove(&g);
+        if !first {
+            continue;
+        }
+        pool.reported.insert((g, key(Target::Fb(x))));
+        pool.stats.refused += 1;
+        let line = match why {
+            Refusal::TablePage => {
+                pool.stats.table_refusals += 1;
+                pool.stats.table_hazards += u64::from(pool.hazards.insert(x >> 12));
+                format!(
+                    "guest BAR1 {g:#x} maps FB {x:#x}: remap refused ({}); the page stays on the trapped path (fail closed) and area page {g:#x} mirrors it as a replica merged at every sync point",
+                    why.why()
+                )
+            }
+            _ => format!(
+                "guest BAR1 {g:#x} maps FB {x:#x}: remap refused ({}); the page stays where it is (fail closed) and area page {g:#x} mirrors it as a replica merged at every sync point, so guest writes through either mapping reach the page",
+                why.why()
+            ),
+        };
+        pool.finding(true, line);
     }
     fb.flush();
     if warm_ok && moved_warm > 0 {
@@ -935,14 +1271,24 @@ pub fn poll(fb: &mut FakeFb, gpu: &mut dyn PoolGpu) -> bool {
         for (op, why) in refused {
             if !op.install {
                 // A release that cannot happen keeps the remap: the page stays consistent
-                // at its pool page; only the area page cannot take a new page yet.
+                // at its pool page; only the area page cannot take a new page yet. An
+                // eviction that cannot happen keeps the page marked changed at every sync
+                // point (`sync_untracked`) until it can.
                 pool.release_waits = true;
                 if pool.reported_release.insert((op.g, op.x)) {
                     pool.stats.refused += 1;
-                    let line = format!(
-                        "guest BAR1 {:#x} no longer maps FB {:#x}, but the page cannot move back from its pool page {:#x} yet: {why}; it stays in the pool (consistent) and is retried",
-                        op.g, op.x, pool.table.pool_page(op.g)
-                    );
+                    let line = if op.evict {
+                        pool.stats.table_hazards += u64::from(pool.hazards.insert(op.x >> 12));
+                        format!(
+                            "guest BAR1 {:#x} maps FB {:#x}, a page-table page the shadow watches, but the page cannot move back out of its pool page {:#x} yet: {why}; until it can, the device marks it changed at every sync point (the shadow re-reads it from the pool page) and retries",
+                            op.g, op.x, pool.table.pool_page(op.g)
+                        )
+                    } else {
+                        format!(
+                            "guest BAR1 {:#x} no longer maps FB {:#x}, but the page cannot move back from its pool page {:#x} yet: {why}; it stays in the pool (consistent) and is retried",
+                            op.g, op.x, pool.table.pool_page(op.g)
+                        )
+                    };
                     pool.finding(true, line);
                 }
                 continue;
@@ -964,7 +1310,6 @@ pub fn poll(fb: &mut FakeFb, gpu: &mut dyn PoolGpu) -> bool {
             eprintln!("vfio-user-nvgpu: bar1 pool: {n}");
         }
     }
-    check_hazards(fb);
     note_time(fb, t0);
     true
 }
@@ -981,32 +1326,6 @@ fn key(t: Target) -> u64 {
 fn note_time(fb: &FakeFb, t0: Instant) {
     if let Some(p) = fb.pool_mut().as_mut() {
         p.stats.max_poll_us = p.stats.max_poll_us.max(t0.elapsed().as_micros());
-    }
-}
-
-/// Count remapped pages that are guest page-table pages a cached walk watches.
-fn check_hazards(fb: &FakeFb) {
-    let held = match fb.pool_mut().as_mut() {
-        Some(p) => {
-            p.hazard_dirty = false;
-            p.table.held()
-        }
-        None => return,
-    };
-    let hits: Vec<(u64, u64)> = held
-        .into_iter()
-        .filter(|(_, x)| fb.watches_table_page(x >> 12))
-        .collect();
-    let mut guard = fb.pool_mut();
-    let Some(p) = guard.as_mut() else { return };
-    for (g, x) in hits {
-        if p.hazards.insert(x >> 12) {
-            p.stats.table_hazards += 1;
-            let line = format!(
-                "guest BAR1 {g:#x} maps FB {x:#x}, a page-table page the shadow watches: guest writes through the area bypass the shadow's write tracking (CARAXES_SHADOW_ALWAYS_RESYNC=1 is the safe setting while this persists)"
-            );
-            p.finding(true, line);
-        }
     }
 }
 
@@ -1122,6 +1441,175 @@ mod tests {
 
     fn expire_retry(fb: &FakeFb) {
         fb.pool_mut().as_mut().unwrap().last_retry = None;
+    }
+
+    fn replicas(fb: &FakeFb) -> usize {
+        fb.pool_mut().as_ref().unwrap().replicas.len()
+    }
+
+    /// A guest GMMU tree (a CUDA context's) at `BASE + 1 MiB` whose small page table is
+    /// `BASE + 1 MiB + 16 KiB`, leaf 3 on `BASE + 4 MiB`, and the shadow's cached walk of
+    /// it: the root and the page table.
+    fn context_tree(fb: &mut FakeFb) -> (Target, u64) {
+        let (croot, cpd2, cpd1, cpd0, cpt) = (
+            BASE + 0x10_0000,
+            BASE + 0x10_1000,
+            BASE + 0x10_2000,
+            BASE + 0x10_3000,
+            BASE + 0x10_4000,
+        );
+        fb.write_u64(croot, vid(cpd2));
+        fb.write_u64(cpd2, vid(cpd1));
+        fb.write_u64(cpd1, vid(cpd0));
+        fb.write_u64(cpd0 + 8, vid(cpt));
+        fb.write_u64(cpt + 8 * 3, pte(BASE + 0x40_0000));
+        let root = Target::Fb(croot);
+        fb.walk_update(None, root, false, 1 << 20);
+        (root, cpt)
+    }
+
+    fn leaf_at(fb: &FakeFb, root: Target, va: u64) -> Option<Target> {
+        fb.with_walk(root, |c| c.all_leaves())
+            .unwrap()
+            .into_iter()
+            .find(|l| l.0 == va)
+            .map(|l| l.1)
+    }
+
+    /// The vm4-615 black stream (docs/caraxes/bar1-pool.md §10), first order: the shadow
+    /// watches a guest page table, then the guest maps it into the area. The page is never
+    /// moved into the pool (it stays on the trapped path); the area page becomes its
+    /// replica, and the sync points carry the guest's area writes to the page as tracked
+    /// writes (the shadow's walk sees them) and the device's writes back to the area.
+    #[test]
+    fn a_table_page_the_shadow_watches_is_refused_and_served_by_a_replica() {
+        let (mut fb, pt, pool0) = setup();
+        assert!(poll(&mut fb, &mut NoGpu));
+        let (root, cpt) = context_tree(&mut fb);
+        assert!(fb.watches_table_page(cpt >> 12));
+        fb.write_u64(pt + 8 * 5, pte(cpt));
+        assert!(poll(&mut fb, &mut NoGpu));
+        assert_eq!(fb.remap(cpt), cpt, "a watched table page never moves into the pool");
+        let st = stats(&fb);
+        assert_eq!(
+            (st.table_refusals, st.table_hazards, st.table_evictions, st.replicas, st.refused),
+            (1, 1, 0, 1, 1)
+        );
+        assert_eq!((pending(&fb), replicas(&fb)), (0, 1));
+        assert!(st.first.iter().any(|l| l.contains("stays on the trapped path")));
+        // The area page holds the page's bytes.
+        let p = pool0 + 0x5000;
+        let mut w = [0u8; 8];
+        fb.read_raw(p + 8 * 3, &mut w);
+        assert_eq!(u64::from_le_bytes(w), pte(BASE + 0x40_0000));
+        // The guest writes a PTE through the area (no trap), then invalidates: the sync
+        // point writes it to the page as a tracked write, and the walk sees the leaf.
+        fb.write_raw(p + 8 * 4, &pte(BASE + 0x41_0000).to_le_bytes());
+        assert!(!fb.tables_dirty(root));
+        assert!(sync_untracked(&mut fb));
+        assert_eq!(fb.read_u64(cpt + 8 * 4), Some(pte(BASE + 0x41_0000)));
+        assert!(fb.tables_dirty(root));
+        fb.walk_update(None, root, false, 1 << 20);
+        assert_eq!(leaf_at(&fb, root, 0x4000), Some(Target::Fb(BASE + 0x41_0000)));
+        // A device write of the page (BAR2, PRAMIN) reaches the area at the next sync.
+        fb.write_u64(cpt + 8 * 6, pte(BASE + 0x42_0000));
+        assert!(sync_untracked(&mut fb));
+        fb.read_raw(p + 8 * 6, &mut w);
+        assert_eq!(u64::from_le_bytes(w), pte(BASE + 0x42_0000));
+        // Nothing changed: a sync merges and writes nothing.
+        assert!(!sync_untracked(&mut fb));
+        let st = stats(&fb);
+        assert_eq!((st.replica_to_home, st.replica_to_area, st.replica_conflicts), (1, 1, 0));
+        // Later polls leave the replica alone and log nothing new.
+        fb.write_u64(pt + 8 * 7, pte(BASE + 0x40_0000));
+        assert!(poll(&mut fb, &mut NoGpu));
+        assert_eq!((stats(&fb).refused, stats(&fb).replicas, replicas(&fb)), (1, 1, 1));
+        // The guest unmaps the area page: its last area write goes to the page, the
+        // replica goes.
+        fb.write_raw(p + 8 * 7, &pte(BASE + 0x43_0000).to_le_bytes());
+        fb.write_u64(pt + 8 * 5, 0);
+        assert!(poll(&mut fb, &mut NoGpu));
+        assert_eq!(replicas(&fb), 0);
+        assert_eq!(fb.read_u64(cpt + 8 * 7), Some(pte(BASE + 0x43_0000)));
+        fb.walk_update(None, root, false, 1 << 20);
+        assert_eq!(leaf_at(&fb, root, 0x7000), Some(Target::Fb(BASE + 0x43_0000)));
+    }
+
+    /// The other order: the page is in the pool (the guest mapped it into the area as
+    /// data), then it becomes a page table the shadow walks. Until the next poll, every
+    /// sync point marks it changed, so the walk re-reads it from its pool page; the poll
+    /// evicts it (behind the barrier when the GPU maps it, refused and retried while the
+    /// barrier fails), the walk re-reads it, and the area page becomes its replica. Once
+    /// no walk reads it any more, it moves back into the pool.
+    #[test]
+    fn a_pooled_page_that_becomes_a_table_page_is_evicted_to_the_trapped_path() {
+        let (mut fb, pt, pool0) = setup();
+        assert!(poll(&mut fb, &mut NoGpu));
+        let cpt = BASE + 0x10_4000;
+        fb.write_u64(cpt + 8 * 3, pte(BASE + 0x40_0000));
+        fb.write_u64(pt + 8 * 5, pte(cpt));
+        assert!(poll(&mut fb, &mut NoGpu));
+        let p = pool0 + 0x5000;
+        assert_eq!(fb.remap(cpt), p);
+        // The guest RM makes the page a page table; the shadow walks it at its pool page.
+        let (root, _) = context_tree(&mut fb);
+        assert_eq!(leaf_at(&fb, root, 0x3000), Some(Target::Fb(BASE + 0x40_0000)));
+        // Before any poll the guest writes a PTE through the area and invalidates: the
+        // sync point marks the page changed and the walk re-reads it from the pool page.
+        fb.write_raw(p + 8 * 4, &pte(BASE + 0x41_0000).to_le_bytes());
+        assert!(!fb.tables_dirty(root));
+        assert!(sync_untracked(&mut fb));
+        assert!(fb.tables_dirty(root));
+        assert_eq!(stats(&fb).table_resyncs, 1);
+        fb.walk_update(None, root, false, 1 << 20);
+        assert_eq!(leaf_at(&fb, root, 0x4000), Some(Target::Fb(BASE + 0x41_0000)));
+        // The GPU maps the page and the barrier fails: the eviction is refused, the page
+        // stays in the pool (consistent), and the sync points keep marking it.
+        let mut gpu = FakeGpu::new(0x1234_0000);
+        gpu.used.insert(cpt);
+        gpu.ok = false;
+        assert!(poll(&mut fb, &mut gpu));
+        assert_eq!(fb.remap(cpt), p);
+        let st = stats(&fb);
+        assert_eq!((st.barriers_refused, st.table_evictions, st.table_hazards), (1, 0, 1));
+        assert!(st.first.iter().any(|l| l.contains("cannot move back out of its pool page")));
+        let before = stats(&fb).table_resyncs;
+        assert!(sync_untracked(&mut fb));
+        assert_eq!(stats(&fb).table_resyncs, before + 1);
+        // The barrier holds at the retry: evicted behind it, the root re-synced.
+        gpu.ok = true;
+        expire_retry(&fb);
+        assert!(poll(&mut fb, &mut gpu));
+        assert_eq!(fb.remap(cpt), cpt);
+        let st = stats(&fb);
+        assert_eq!(
+            (st.table_evictions, st.releases_warm, st.barriers, st.replicas, st.table_hazards),
+            (1, 1, 1, 1, 1)
+        );
+        assert_eq!(gpu.resynced, vec![0x1234_0000]);
+        assert!(st
+            .first
+            .iter()
+            .any(|l| l.contains("moved out of the pool back to the trapped path behind the barrier")));
+        // The page has every byte, and the walk re-reads it.
+        assert_eq!(fb.read_u64(cpt + 8 * 4), Some(pte(BASE + 0x41_0000)));
+        assert!(fb.tables_dirty(root));
+        // From now on the area page is its replica: area writes reach the walk.
+        fb.write_raw(p + 8 * 5, &pte(BASE + 0x44_0000).to_le_bytes());
+        let before = stats(&fb).table_resyncs;
+        assert!(sync_untracked(&mut fb));
+        assert_eq!(stats(&fb).table_resyncs, before, "nothing pooled to mark any more");
+        fb.walk_update(None, root, false, 1 << 20);
+        assert_eq!(leaf_at(&fb, root, 0x5000), Some(Target::Fb(BASE + 0x44_0000)));
+        // The context goes (no walk reads the page): it moves back into the pool.
+        gpu.used.clear();
+        fb.unwatch_tables(root);
+        assert!(poll(&mut fb, &mut gpu));
+        assert_eq!(fb.remap(cpt), p);
+        assert_eq!(replicas(&fb), 0);
+        let mut w = [0u8; 8];
+        fb.read_raw(p + 8 * 5, &mut w);
+        assert_eq!(u64::from_le_bytes(w), pte(BASE + 0x44_0000));
     }
 
     #[test]
@@ -1311,17 +1799,34 @@ mod tests {
         assert_eq!(fb.remap(x + 0x4000), pool0 + 0x1_4000);
         assert_eq!(fb.remap(root), root);
         assert_eq!(fb.remap(pool0), pool0);
-        assert_eq!(pending(&fb), 3);
+        // The aliased page is not pending: its second area page mirrors it (a replica),
+        // so a guest write through either mapping reaches the page at the next sync point.
+        assert_eq!(pending(&fb), 2);
+        assert_eq!((stats(&fb).replicas, replicas(&fb)), (1, 1));
+        fb.write_raw(pool0 + 0x1_3000 + 8, &0x5a5a_u64.to_le_bytes());
+        assert!(sync_untracked(&mut fb));
+        assert_eq!(fb.read_u64(x + 0x3008), Some(0x5a5a));
+        let mut w = [0u8; 8];
+        fb.read_raw(pool0 + 0x2008, &mut w);
+        assert_eq!(u64::from_le_bytes(w), 0x5a5a, "the other mapping's pool page has it");
+        fb.write_raw(pool0 + 0x2010, &0x6b6b_u64.to_le_bytes());
+        assert!(sync_untracked(&mut fb));
+        fb.read_raw(pool0 + 0x1_3010, &mut w);
+        assert_eq!(u64::from_le_bytes(w), 0x6b6b, "and the replica has the other's");
         // The refusals are logged once; the retry changes nothing and logs nothing new.
         expire_retry(&fb);
         assert!(poll(&mut fb, &mut NoGpu));
         assert_eq!(stats(&fb).refused, 3);
         assert_eq!(fb.remap(x + 0x3000), pool0 + 0x2000);
-        // Once the guest drops the small mapping, the big page's area page takes it.
+        // Once the guest drops the small mapping, the big page's area page takes it: the
+        // replica goes, the page moves in with every byte either mapping wrote.
         fb.write_u64(pt + 8 * 2, 0);
         assert!(poll(&mut fb, &mut NoGpu));
         assert_eq!(fb.remap(x + 0x3000), pool0 + 0x1_3000);
         assert_eq!(pending(&fb), 2);
+        assert_eq!(replicas(&fb), 0);
+        assert_eq!(fb.read_u64(x + 0x3008), Some(0x5a5a));
+        assert_eq!(fb.read_u64(x + 0x3010), Some(0x6b6b));
         // The big page goes: all 16 pages move back.
         fb.write_u64(big + 8, 0);
         assert!(poll(&mut fb, &mut NoGpu));
