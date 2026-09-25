@@ -356,6 +356,36 @@ Cost per trap for the estimates: 28 to 35 us, the per-class medians of rpc-cost.
 5. Progress-gated interrupt forwarding (item 5): about 55 interrupts per second at idle and the
    other VMs' share under load, with each interrupt's handler.
 
+**Status (2026-09-25):**
+- **Item 1: done** (commit bb52a46, bar2-memfd.md §8, `caraxes/runs/opt-memfd-pool-2026-09-25/`).
+  The hypothesis of §3.1 was a real fault but not the cause of the hang.
+  - The cause: the pool learns about BAR1 table changes only from trapped writes, and with the
+    memfd the guest RM writes those tables through BAR2. `FakeFb::note_pages_changed` did not
+    tell the pool, so the pool never moved a page. The hung runs show 0 pages moved in, and the
+    shadow's 2 MiB leaf over the pooled page stayed whole (the 511 leaves).
+  - Both are fixed, with two unit tests that fail without the fix.
+  - With memfd and pool on (`on`), cuCtxCreate takes 0.61 s with 1228 traps (`on-nopool` 0.87 s,
+    `off` 4.09 s). cuCtxDestroy takes 0.20 s, cuInit 28 ms, cuMemAllocHost 1.72 ms and
+    cuMemHostRegister 2.29 ms.
+  - The steady-state rows keep 0 traps. rlprobe's process wall is 15.5 s against 21.3 s in the
+    same session.
+  - The cuda gate is 10 of 12, as before, and there was 0 host Xid.
+  - Copy rows: the pool's rows do not regress over three A/B passes. The 256 MiB rows and the d2d
+    rows are unchanged or better. The pinned 1 and 16 MiB rows switch between about 6.5 and
+    12.9 GB/s with the card's PCIe link state (gen 1 or 2 at P8 or P5, gen 3 at P0) in both
+    configurations.
+  - The device's CPU per copy process falls from 11 s to 3.5 s.
+  - This is now the recommended configuration (bench-run.sh header).
+- **Item 4: done** (commit 0c2cb79, `CARAXES_MSI_REARM_IOEVENTFD=1`, intr-page.md §4,
+  `caraxes/runs/opt-msi-ioeventfd-2026-09-25/`).
+  - The re-arm write is an ioeventfd without datamatch, read by the token pool's reactor, which
+    does what the trapped write did.
+  - Re-arm traps per second: rlprobe 141 to 0, PPO 153 to 0, idle 102 to 0 per second (10.2 per
+    100 ms window).
+  - All traps per second: rlprobe 508 to 456, PPO 423 to 314.
+  - The cuda gate is 10 of 12, and there was 0 host Xid. Mutter was not measured: expected 9.6
+    traps per frame fewer.
+
 ## 5. ReBAR
 
 The operator's framing: on Turing, BAR1 is capped at 256 MiB, so the pool multiplexes it; on a

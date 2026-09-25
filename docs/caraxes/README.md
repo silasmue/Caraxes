@@ -891,3 +891,28 @@ the VM; then display, expected to be much easier than in v1.
   holds the engine. Backlog top five: memfd with the pool, the shadow's map work at context
   creation, the invalidate and flush page as memory with a cheaper sync, the MSI re-arm as an
   ioeventfd, and progress-gated interrupt forwarding. 0 host Xid.
+- 2026-09-25: **Backlog items 1 and 4: the BAR2 memfd works beside the BAR1 pool, and the MSI
+  re-arm no longer traps** ([bar2-memfd.md](bar2-memfd.md) §8, [intr-page.md](intr-page.md) §4;
+  records `caraxes/runs/opt-memfd-pool-2026-09-25/`, `caraxes/runs/opt-msi-ioeventfd-2026-09-25/`).
+  - **Why memfd plus pool hung.** The pool follows the guest's BAR1 tables through trapped writes.
+    With the memfd the guest RM writes them through BAR2, and the sync's report
+    (`note_pages_changed`) did not reach the pool. The pool never moved a page, and the shadow
+    kept a 2 MiB leaf whole: the 511 missing leaves.
+  - **The fix.** The report now reaches the pool. The two translations also have one order: the
+    memfd by guest address first, the store through the pool's remap, and the same for the
+    write-back and the loads. Two unit tests fail without it.
+  - **Numbers on vm3** (interrupt page, pool 32 MiB, token pool, hybrid, memfd):
+    - cuCtxCreate 0.61 s with 1228 traps (pool alone 4.09 s, memfd alone 0.87 s);
+    - cuCtxDestroy 0.20 s, cuInit 28 ms, host alloc and register 1.7 and 2.3 ms;
+    - rlprobe process 15.5 s against 21.3 s;
+    - the device's CPU per copy process 3.5 s against 11 s.
+  - **Copy rows.** They do not regress. The pinned rows' 6.5 and 12.9 GB/s modes follow the
+    card's PCIe link state (P8/P5 against P0) in both configurations.
+  - **The MSI re-arm.** `CARAXES_MSI_REARM_IOEVENTFD=1` makes the write to `NV_XVE_CYA_2` (0x88704,
+    value ignored) an ioeventfd without datamatch, read by the token pool's reactor, which runs
+    what the trapped write ran. Re-arm traps go from 141 to 0 per second in rlprobe and from 153
+    to 0 in PPO. All traps per second go from 508 to 456 and from 423 to 314.
+  - **Gates and Xid.** The cuda gate is 10 of 12 in both (cuda-managed), and there was 0 host
+    Xid.
+  - **Recommended configuration.** Memfd, pool, token pool, interrupt page and the re-arm switch
+    (bench-run.sh header).
