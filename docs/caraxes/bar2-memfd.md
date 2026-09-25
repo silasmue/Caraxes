@@ -374,6 +374,132 @@ python3 "$R/caraxes/tools/bench-summary.py" "$M/off/v2" "$M/on/v2" > "$M/summary
   that is green, a guest path writes tables through BAR2 without an invalidate before its
   doorbell (rule 2 of §3). Both results are worth keeping.
 
+## 8. With the BAR1 pool (2026-09-25)
+
+The trap census found that the memfd and the BAR1 pool (`CARAXES_BAR1_PASSTHROUGH=pool`,
+bar1-pool.md) did not work together: the first `cuCtxCreate` hung, also with
+`CARAXES_BAR2_MEMFD_SYNC_DOORBELL=1`, and the shadow's first walk of the context's root found 15617
+leaves where the pool alone finds 16128 (optimization-backlog.md §3.1). The census's hypothesis
+was the order of the two translations in `FakeFb::read`. That order was wrong, but it was not
+what hung.
+
+**The cause.** The pool follows the guest's BAR1 page tables over its area. It learns about a
+change from `FakeFb::note_write`, which every trapped write passes (`fb.rs` `note_write`, the
+`p.note_table_write` call). The guest RM writes those BAR1 PTEs through BAR2. With the memfd, those
+writes no longer trap: only a sync sees them, and it reported them through
+`FakeFb::note_pages_changed`. That function told the shadow's walk caches, the BAR TLB, the watched
+dwords and the P21 check, but not the pool. So after its first walk the pool never moved a page.
+The device summaries of the census's hung runs show this: `on/` and `on-syncdb/` have 0 pages moved
+in, `off/` has 3072 (`caraxes/runs/trap-census-2026-09-25/*/device-summary.txt`). The guest's CPU
+writes through the area then reached only the pool pages, while the GPU and the device read the
+guest pages, so the context's first work never ran. The 511 missing leaves are the same fact seen
+from the shadow: `FakeFb::remap_leaves` splits a 2 MiB leaf that holds a pooled page into 512 4 KiB
+leaves (`bar1pool.rs` `split_leaf`). With no page pooled, the leaf stayed whole: one leaf where
+there should be 512.
+
+**The second fault, the hypothesis.** A page can be behind BAR2 and in the pool at the same time.
+The memfd's remap table is keyed by the guest FB address, because that is what the guest's BAR2
+tables name. `FakeFb::read` first translated the address to the pool page and then asked the memfd
+for the pool address. That missed the guest's unsynced bytes. The sync wrote back to the guest
+address, which the GPU no longer reads, and a device write updated the memfd under the pool
+address, which the guest's BAR2 view does not use. In the measured runs no page was in both
+places (the pool's new counter below is 0), so this fault did not cause the hang. It is fixed
+anyway.
+
+**The fix** (commit bb52a46):
+- `FakeFb::note_pages_changed` (`fb.rs:934`, the block at `fb.rs:943`) marks the pool's units
+  dirty for every page a sync found changed, as `note_write` does for a trapped write. The pool
+  then walks at the next trapped BAR0 write, as before.
+- One translation order. The memfd is asked first, with the guest address. Every store access is
+  translated through the pool's remap, and the translation is applied when the access happens:
+  - `FakeFb::read` (`fb.rs:1121`), and `Bar2Area::read_through` (`bar2area.rs:576`, `:732`) with a
+    `Translate` argument (`bar2area.rs:567`);
+  - `FakeFb::write` (`fb.rs:1145`): the store gets the remapped pieces, and the memfd's
+    `device_write` gets the guest address;
+  - the sync's write-back (`bar2area.rs:787`) and the memfd's loads of pages that enter BAR2
+    (`bar2area.rs:948`). `FakeFb::bar2_sync` (`fb.rs:997`) and `carry_bar2_area` (`fb.rs:1029`)
+    pass the pool's table in.
+
+  The pool's copy-in and copy-back (`copy_page_raw`) stay raw store copies. That is consistent:
+  bytes the guest wrote through BAR2 before a move are written back by the next sync to wherever
+  the page lives by then.
+- One aliasing case remains. If a pooled page is also behind BAR2, a guest CPU write through the
+  BAR1 area reaches the pool page, and the guest's own BAR2 view of that page sees it only after
+  a device write of the same bytes. The pool counts such pages in its exit summary ("page(s) also
+  behind the BAR2 memfd", `bar1pool.rs:844`) and logs each one. The count was 0 in every run here.
+
+**Tests** (both fail without the fix, `caraxes/runs/opt-memfd-pool-2026-09-25/unit-before.txt`):
+- `bar1pool::tests::with_the_bar2_memfd_the_pool_sees_bar1_ptes_written_through_bar2`
+  (`bar1pool.rs:1397`). A guest BAR1 PTE is written through the memfd, then synced and polled.
+  The page must move into the pool, and the shadow must see a 2 MiB leaf over it as 512 leaves,
+  not 1. Without the fix, 0 pages move.
+- `bar1pool::tests::a_page_in_the_pool_and_behind_bar2_reads_and_writes_through_one_order`
+  (`bar1pool.rs:1433`). A page is both pooled and behind BAR2. The test checks:
+  - device reads see the guest's unsynced bytes;
+  - the sync writes them to the pool page;
+  - device writes reach the guest's BAR2 view;
+  - after the move back and the BAR2 unmap, every byte is at the guest page.
+
+  Without the fix, the first read returns the pool page's stale 0.
+
+**Measured on vm3** (`caraxes/runs/opt-memfd-pool-2026-09-25/`, README there): the census's `on`
+configuration (interrupt page, BAR1 pool 32 MiB, token pool 64, hybrid reactor, memfd) with the
+fixed device, main plus bb52a46. Census rows are guest medians against the census's own runs
+(`summary.md` there):
+
+| Operation | `off` (pool, no memfd) | `on-nopool` (memfd, no pool) | `on` fixed (memfd and pool) | native |
+|---|---|---|---|---|
+| cuInit | 177 ms, 3290 traps | 20.4 ms, 174 | 28.2 ms (14.9-48.7 over 3 processes), 174 | 94 ms |
+| cuCtxCreate | 4.09 s, 75070 traps | 0.87 s, 1884 | **0.61 s, 1228** | 0.15 s |
+| cuCtxDestroy | 1.24 s, 21507 | 0.18 s, 924 | 0.20 s, 926 | 0.09 s |
+| cuMemAllocHost 1 MiB | 24.8 ms, 807 | 1.65 ms, 8.2 | 1.72 ms, 8.2 | 0.76 ms |
+| cuMemHostRegister 1 MiB | 38.9 ms, 1049 | 1.73 ms, 15.2 | 2.29 ms, 15.4 | 0.28 ms |
+| cuMemAlloc 64 MiB | 4.4 ms, 188 | 0.86 ms, 8.0 | 0.97 ms, 8.2 | 0.13 ms |
+| launch + sync, 1000 back to back | 19.6 us, 1.0 | 130 us, 3.6 | 20.4 us, 0.0 | 6.3 us |
+
+- cuCtxCreate traps 1228 times, which is `on-nopool`'s 1884 minus its 642 BAR1 writes. It is
+  faster than `on-nopool`: the submissions of the context's setup are eventfd rings, not trapped
+  BAR1 writes.
+- cuMemHostRegister is 0.5 ms slower than `on-nopool` with the same traps, and the other rows are
+  within the spread of single runs.
+- The steady-state rows keep the pool's 0 traps.
+- The whole process of each workload (one run each, same session, `on` against `off` in `off/`):
+  - rlprobe: process wall 15.5 s against 21.3 s, stage 4 2.6 s against 3.3 s;
+  - PPO: 46872 against 50367 steps per second. Another VM's device was busy during both;
+  - BAR2 writes per process: 0 against 100700.
+- cuda gate: 10 of 12, cuda-managed failing as before (801), cuda-gdb declared unsupported.
+- Pool mechanics: 15872 pages moved in and back, 358 barriers, 0 refused at the end, 0 pages also
+  behind the memfd.
+- memfd: 40456 syncs, 8.8 s in total over the whole session, 25 ms at most; 0 alias conflicts.
+- Host Xid: 0 in every part.
+
+**Copies** (`bench-run.sh` copy; pool alone against pool with memfd, three passes back to back:
+`off`/`on` 3 reps each in `copy-summary.md`, `off-2`/`on-2` 4 reps in `copy-summary-2.md`,
+`off-3`/`on-3` 3 reps with the card's P-state and PCIe link sampled):
+- The 256 MiB rows do not move: 13.1 GB/s pinned both ways, and d2d 187-192 GB/s against 177-190.
+- d2d 1 MiB is 57-65 GB/s against 30-57, and d2d 16 MiB 13.9-16.9 against 5.7-16.2.
+- The pinned 1 and 16 MiB rows are bimodal in both configurations: about 6.0 and 6.5 GB/s, or
+  about 11.4 and 12.9 GB/s. The mode follows the physical card's power state, not the
+  configuration:
+  - `link-on-3.csv` and `link-off-3.csv` sample `nvidia-smi --query-gpu` every 500 ms. The link
+    runs at PCIe gen 1 at P8, gen 2 at P5 and gen 3 at P0, and the card sat at P8 most of the time.
+  - `on-3` had one of its three reps in the fast mode. `off-3` had none.
+  - In `off-2` the fast reps coincide with another VM's work holding the card at P0 (the MEAS
+    lines and `# gpu` headers).
+  - The medians of `copy-summary-2.md`, pool alone 12.8 against 6.56 with the memfd, therefore
+    compare power states. They are not a regression.
+- Pageable 16 and 256 MiB went from 6.2-8.1 to 3.2-3.7 GB/s in the first pass. The second pass
+  did not repeat it (7.2-8.9 against 6.6-9.6), with the host load at 8.4 in the first pass and 2
+  in the second.
+- Device CPU per copy run: 2.6-3.5 s against 10.9-11.4 s. VMM CPU: 3.4-6.3 s against 30.5-32.5 s.
+  This is the context's BAR2 traffic that no longer traps.
+
+Conclusion: the memfd with the pool is the recommended CUDA configuration from here on:
+- the interrupt page, the BAR1 pool, the token pool with the hybrid reactor, and the BAR2 memfd;
+- with `CARAXES_MSI_REARM_IOEVENTFD=1` (intr-page.md §4) on top.
+
+`caraxes/tools/bench-run.sh` says so in its header.
+
 ## README file-table row
 
 | [bar2-memfd.md](bar2-memfd.md) | D18's BAR2 line behind `CARAXES_BAR2_MEMFD=1`: region 3 as a sealed memfd with sparse areas around the trapped flush page; FB pages mapped through BAR2 live in the memfd (`FakeFb::backing`), synced at the RM's flush reads, MMU invalidates, BAR2 binds and GSP doorbells by a snapshot compare that writes back only the changed bytes and marks the shadow's walk-cache pages dirty; why soft-dirty, userfaultfd write-protect and mprotect on the device's mapping cannot see guest writes (KVM dirty logging would, with a VMM change); what stays trapped, the hazards, fail-closed setup, tests, measurement plan (subagent report) |

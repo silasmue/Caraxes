@@ -1,0 +1,36 @@
+
+running 8 tests
+test bar1pool::tests::size_and_layout_bounds ... ok
+test bar1pool::tests::the_remap_table_installs_translates_and_releases ... ok
+test bar1pool::tests::only_units_whose_tables_changed_are_walked_again ... ok
+test bar1pool::tests::a_page_the_gpu_maps_moves_only_behind_the_barrier ... ok
+test bar1pool::tests::a_page_in_the_pool_and_behind_bar2_reads_and_writes_through_one_order ... FAILED
+test bar1pool::tests::a_mapped_page_moves_into_the_pool_for_every_path_and_back_on_unmap ... ok
+test bar1pool::tests::big_pages_move_page_by_page_and_refusals_fail_closed ... ok
+test bar1pool::tests::with_the_bar2_memfd_the_pool_sees_bar1_ptes_written_through_bar2 ... FAILED
+
+failures:
+
+---- bar1pool::tests::a_page_in_the_pool_and_behind_bar2_reads_and_writes_through_one_order stdout ----
+
+thread 'bar1pool::tests::a_page_in_the_pool_and_behind_bar2_reads_and_writes_through_one_order' panicked at crates/vfio-user-nvgpu/src/bar1pool.rs:1429:9:
+assertion `left == right` failed
+  left: Some(0)
+ right: Some(8738)
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- bar1pool::tests::with_the_bar2_memfd_the_pool_sees_bar1_ptes_written_through_bar2 stdout ----
+
+thread 'bar1pool::tests::with_the_bar2_memfd_the_pool_sees_bar1_ptes_written_through_bar2' panicked at crates/vfio-user-nvgpu/src/bar1pool.rs:1397:9:
+assertion `left == right` failed
+  left: 0
+ right: 1
+
+
+failures:
+    bar1pool::tests::a_page_in_the_pool_and_behind_bar2_reads_and_writes_through_one_order
+    bar1pool::tests::with_the_bar2_memfd_the_pool_sees_bar1_ptes_written_through_bar2
+
+test result: FAILED. 6 passed; 2 failed; 0 ignored; 0 measured; 309 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `-p vfio-user-nvgpu --lib`

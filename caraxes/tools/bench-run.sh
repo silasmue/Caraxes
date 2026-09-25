@@ -34,6 +34,11 @@
 # GPT-style training steps) and convnet (convnet.py, ResNet-18 training), the last two for
 # WORKLOAD_SECONDS (default 60) with TRANSFORMER_ARGS / CONVNET_ARGS appended. BENCH_TIMEOUT
 # (default 900 s) bounds each run.
+# The recommended v2 device windows for CUDA (2026-09-25, docs/caraxes/bar2-memfd.md §8,
+# intr-page.md §4): CARAXES_INTR_PAGE=1 CARAXES_BAR1_PASSTHROUGH=pool (CARAXES_BAR1_POOL_MIB=32
+# with other VMs up) CARAXES_DOORBELL_TOKENS=64 CARAXES_DOORBELL_POLL=hybrid CARAXES_BAR2_MEMFD=1
+# CARAXES_MSI_REARM_IOEVENTFD=1, on top of the host-execution environment. The caller exports
+# them before `v2-restart` or tools/caraxes-vm.sh up; this script does not set them.
 # The rep loop is outermost and the targets interleave inside it, so drift (temperature,
 # desktop load) spreads over all targets. Each run writes DIR/<target>/<metric>-<rep>.txt:
 # "# " header lines (time, target, command, GPU state, running VMs), the raw output, then
