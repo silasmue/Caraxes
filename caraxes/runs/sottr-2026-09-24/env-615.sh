@@ -14,3 +14,8 @@ export SOTTR_BASE=/mnt/vmstore/caraxes/images/guest-baked-2026-09-24-615.71.09.q
 # The exact package version (NVIDIA's CUDA repository for ubuntu2404) and the image's kernel.
 export SOTTR_PKG_VERSION=615.71.09-2ubuntu1 SOTTR_GUEST_KERNEL=6.8.0-136-generic
 unset SOTTR_OGKM SOTTR_GSP_SHA256
+# Sunshine prefers NVENC (libnvidia-encode of the packages); when NVENC does not initialise it
+# probes its other encoders and takes libx264 with sw_preset ultrafast and sw_tune zerolatency.
+# The device has no NVENC mirror yet (2026-09-25), so the fallback is expected; sunshine.log
+# names the encoder it created. SOTTR_SUN_ENCODER=software skips the probe.
+export SOTTR_SUN_ENCODER=${SOTTR_SUN_ENCODER:-nvenc}

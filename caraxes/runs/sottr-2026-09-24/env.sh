@@ -66,3 +66,5 @@ if [[ $SOTTR_DRIVER == 615 ]]; then
 elif [[ $SOTTR_DRIVER != 610 ]]; then
     echo "ERROR: SOTTR_DRIVER=$SOTTR_DRIVER: 610 or 615" >&2; return 1
 fi
+# Sunshine's encoder: software (libx264, ultrafast, zerolatency) on 610; env-615.sh prefers nvenc.
+export SOTTR_SUN_ENCODER=${SOTTR_SUN_ENCODER:-software}

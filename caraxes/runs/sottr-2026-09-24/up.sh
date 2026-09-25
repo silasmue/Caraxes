@@ -84,13 +84,20 @@ install nvidia_drm grep -q '^caraxes_dma_range ' /proc/modules && /sbin/modprobe
 install nvidia_peermem /bin/false
 options nvidia-drm modeset=1 fbdev=0
 EOF
-        guestfish -a "$W/rootfs.qcow2" -i <<EOF || die "offline edit of $W/rootfs.qcow2"
+        # The libguestfs appliance fails to start now and then on this host (2026-09-25: the
+        # first attempt, then fine), so up to three attempts.
+        ok=0
+        for _ in 1 2 3; do
+            guestfish -a "$W/rootfs.qcow2" -i <<EOF && { ok=1; break; }
 upload $conf /etc/modprobe.d/caraxes-615-display.conf
 chmod 0644 /etc/modprobe.d/caraxes-615-display.conf
 ln-sf /dev/null /etc/systemd/system/nvidia-persistenced.service
 rm-f /etc/systemd/system/multi-user.target.wants/nvidia-persistenced.service
 ln-sf /lib/systemd/system/multi-user.target /etc/systemd/system/default.target
 EOF
+            sleep 5
+        done
+        ((ok)) || { rm -f "$W/rootfs.qcow2"; die "offline edit of $W/rootfs.qcow2 failed three times (overlay removed)"; }
         rm -f "$conf"
         echo "offline: caraxes-615-display.conf, nvidia-persistenced masked, default multi-user.target"
     fi
@@ -227,7 +234,7 @@ if ((D615)); then
     gsh 'bash caraxes-sottr/sottr-session.sh checks-session' > "$OUT/checks-session.txt" 2>&1
     grep -E '^==|rc=|NVIDIA|nvidia_icd' "$OUT/checks-session.txt" | head -30
 fi
-gsh "SUN_USER=$SOTTR_SUN_USER SUN_PASS=$SOTTR_SUN_PASS bash caraxes-sottr/sottr-session.sh sunshine-start" > "$OUT/sunshine-start.txt" 2>&1
+gsh "SUN_USER=$SOTTR_SUN_USER SUN_PASS=$SOTTR_SUN_PASS SUN_ENCODER=$SOTTR_SUN_ENCODER bash caraxes-sottr/sottr-session.sh sunshine-start" > "$OUT/sunshine-start.txt" 2>&1
 cat "$OUT/sunshine-start.txt"
 gsh 'bash caraxes-sottr/sottr-session.sh status' > "$OUT/status.txt" 2>&1
 cat "$OUT/status.txt"

@@ -33,7 +33,7 @@ sunshine-start)
     cat > "$DIR/sunshine.conf" <<EOF
 min_log_level = 1
 capture = kms
-encoder = software
+encoder = ${SUN_ENCODER:-software}
 sw_preset = ultrafast
 sw_tune = zerolatency
 log_path = $DIR/sunshine.log
@@ -48,7 +48,7 @@ EOF
     pgrep -x sunshine > /dev/null || { echo 'sunshine did not start'; tail -20 "$DIR/sunshine.log" "$DIR/stdout.log"; exit 1; }
     (exec 3<>/dev/tcp/127.0.0.1/47989) 2>/dev/null || { echo 'sunshine never opened 47989'; tail -20 "$DIR/sunshine.log"; exit 1; }
     echo "sunshine pid $(pgrep -x sunshine | head -1), listening on 47989 (web UI 47990)"
-    grep -a -m1 'Found H.264 encoder' "$DIR/sunshine.log"
+    grep -a -E 'Found H.264 encoder|Creating encoder|Encoder \[|failed' "$DIR/sunshine.log" | head -12
     grep -a -iE 'kms|monitor' "$DIR/sunshine.log" | head -6
     ;;
 sunshine-stop)
