@@ -1,0 +1,1 @@
+[2026-09-25 23:41:36.748]: Debug: Frame processing latency (min/max/avg): 30.30ms/112.30ms/53.32ms

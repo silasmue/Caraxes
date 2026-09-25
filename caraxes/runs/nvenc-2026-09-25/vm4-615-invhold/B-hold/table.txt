@@ -1,0 +1,4 @@
+01:37:51-01:38:11 w1-idle-noclient  | window_s=20.0 kicks=409 kicks_per_s=20.4 | lat: | us=5 sy=6 st=2 in=4147/s | dev: vfio-us+:47.7 doorbel+:43.8 sum:91.5 | vcpu_sum:40.9
+01:38:57-01:39:20 w2-cursor-noclient moves 1962 in 20.0 s | window_s=20.4 kicks=889 kicks_per_s=43.6 | lat: | us=6 sy=6 st=2 in=4634/s | dev: doorbel+:54.7 vfio-us+:31.8 sum:86.5 | vcpu_sum:57.8
+01:41:13-01:41:33 w3-idle-streaming  | window_s=20.0 kicks=383 kicks_per_s=19.1 | lat: 30.30ms/112.30ms/53.32ms | us=6 sy=10 st=2 in=9983/s | dev: doorbel+:53.7 vfio-us+:40.8 sum:94.5 | vcpu_sum:86.6
+01:41:41-01:42:04 w4-cursor-streaming moves 1933 in 20.0 s | window_s=20.4 kicks=347 kicks_per_s=17.0 | lat: 28.60ms/176.80ms/59.75ms | us=5 sy=10 st=4 in=9436/s | dev: doorbel+:50.7 vfio-us+:39.8 shadow-+:2.0 sum:92.5 | vcpu_sum:76.6
