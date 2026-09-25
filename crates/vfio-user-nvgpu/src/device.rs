@@ -857,6 +857,28 @@ impl Device {
         self.after_bar0_write();
     }
 
+    /// The usermode page's reactor took a doorbell (`hint`, its value) or runs its
+    /// watchdog (`None`): scan the channels and ring the pending ones (um_page.rs,
+    /// docs/caraxes/intr-page.md §12.2). Returns the channels rung.
+    pub fn doorbell_from_page(&mut self, hint: Option<u32>) -> usize {
+        let mem = &self.mem;
+        let Some(boot) = self.bar0.boot_mut() else {
+            return 0;
+        };
+        let (rung, notes) = boot.doorbell_from_page(mem, hint);
+        if let Some(v) = hint {
+            self.doorbell_wakeups += 1;
+            self.doorbell_writes += 1;
+            self.trace.event(&format!("usermode page: doorbell {v:#x} taken by the reactor"));
+        } else if rung > 0 {
+            self.trace.event("usermode page: watchdog found pending channel(s)");
+        }
+        for n in notes {
+            self.trace.event(&n);
+        }
+        rung
+    }
+
     /// The reactor found a deferred flush sync at its bound (bar2area.rs `Owed`,
     /// docs/caraxes/intr-page.md §11.2): pay it.
     pub fn bar2_pay_owed(&mut self) {

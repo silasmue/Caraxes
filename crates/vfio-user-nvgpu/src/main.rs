@@ -818,6 +818,34 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
     } else {
         None
     };
+    // The usermode page (um_page.rs, docs/caraxes/intr-page.md §12.2): a fifth area, the
+    // clock and the doorbell as memory the reactor owns.
+    let um = if vfio_user_nvgpu::um_page::requested(intr_page.is_some(), bar0.boot().is_some())
+        .map_err(anyhow::Error::msg)?
+    {
+        let env = vfio_user_nvgpu::um_page::USERMODE_PAGE_ENV;
+        let page = intr_page.as_ref().expect("checked by requested");
+        let layout = vfio_user_nvgpu::um_page::Layout::of(&chip.data().registers)
+            .map_err(|e| anyhow::anyhow!("{env}=1: {e}"))?;
+        let epoch = bar0
+            .boot()
+            .and_then(|b| b.ctrl.channels.epoch())
+            .ok_or_else(|| anyhow::anyhow!("{env}=1: the device clock has no epoch"))?;
+        let um = vfio_user_nvgpu::um_page::UmPage::create(page, layout, epoch)
+            .map_err(|e| anyhow::anyhow!("{env}=1: {e}"))?;
+        um.check(&|off| bar0.boot().is_some_and(|b| b.owns_register(off)))
+            .map_err(|e| anyhow::anyhow!("{env}=1: {e}"))?;
+        bar0 = bar0.with_um_page(um.clone());
+        let (base, len) = um.area();
+        eprintln!(
+            "vfio-user-nvgpu: usermode page: BAR0 [{base:#x}, {:#x}) (TIME_0/1 and the doorbell) offered as a sparse mmap area; the reactor publishes the clock every iteration and scans every channel's GPPut after each doorbell written to the page, with a watchdog scan every {} ms; the token pool's ioeventfds are not offered ({env}=1, docs/caraxes/intr-page.md §12.2)",
+            base + len,
+            vfio_user_nvgpu::um_page::WATCHDOG.as_millis()
+        );
+        Some(um)
+    } else {
+        None
+    };
     // The reactor's side of the page; from here on raises go through it.
     let page_hook: Option<PageHook> = match &intr_page {
         Some(p) => {
@@ -898,6 +926,7 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
             .into_iter()
             .chain(fe.as_ref().map(|f| f.area()))
             .chain(inv.as_ref().map(|i| i.area()))
+            .chain(um.as_ref().map(|u| u.area()))
             .collect(),
     });
     let mut server = Server::new(
@@ -924,9 +953,14 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
         Some(n) => {
             let offset = chip.data().registers.usermode_doorbell;
             let mut readers = Vec::with_capacity(n);
-            for (sub_region, reader) in
+            // With the usermode page the doorbell is memory: no ioeventfd could fire, so
+            // none is offered (the reactor still runs, with the page's scan).
+            let subs = if um.is_some() {
+                Vec::new()
+            } else {
                 doorbell_token_sub_regions(offset, n).context("doorbell token eventfds")?
-            {
+            };
+            for (sub_region, reader) in subs {
                 server
                     .add_ioeventfd(VFIO_PCI_BAR0_REGION_INDEX, sub_region)
                     .map_err(|e| anyhow::anyhow!("doorbell token sub-region: {e}"))?;
@@ -994,6 +1028,20 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
                         d.lock()
                             .unwrap_or_else(PoisonError::into_inner)
                             .invalidate_from_page(t)
+                    }),
+                )
+            }
+            None => h,
+        };
+        let h = match &um {
+            Some(u) => {
+                let d = device.clone();
+                h.with_usermode(
+                    u.clone(),
+                    Arc::new(move |hint| {
+                        d.lock()
+                            .unwrap_or_else(PoisonError::into_inner)
+                            .doorbell_from_page(hint)
                     }),
                 )
             }
@@ -1104,6 +1152,9 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
     }
     if let Some(i) = &inv {
         eprint!("{}", i.summary());
+    }
+    if let Some(u) = &um {
+        eprint!("{}", u.summary());
     }
     if let (Some(w), Some(_)) = (&reactor_wake, &fe) {
         eprintln!(

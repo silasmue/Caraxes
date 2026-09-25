@@ -19,6 +19,13 @@
 #      vfio-user-nvgpu-desk-i2, the same code built at the successor's start
 #   P1 K's configuration with the BAR2 flush page as memory (CARAXES_BAR2_FLUSH_PAGE=memory,
 #      binary vfio-user-nvgpu-desk-p1, intr-page.md §12.1)
+#   U1 P1 with the usermode page as memory (CARAXES_USERMODE_PAGE=1, binary
+#      vfio-user-nvgpu-desk-u1, intr-page.md §12.2), the hybrid reactor
+#   U2 U1 with the reactor spinning (CARAXES_DOORBELL_POLL=spin)
+#   T1 P1 again with the binary of U1 (the token pool's doorbell), the reference for U1 and U2
+#   CUDA=1 adds the launch rows after the trap windows: nvprobe 4 (100 launches, blocking
+#   sync) with 1000-cycle and 30M-cycle kernels, as bench-run.sh short-blocking and
+#   launch-blocking run them, from the guest's ~/bench
 #   J1 J2  the A/B for the pool poll after a page trigger (f37b354), interleaved with K1 K2 in
 #      one session: J is H's binary and configuration (no poll after a trigger), K this
 #      branch's binary with the watchdog counters (vfio-user-nvgpu-desk-k) and I's
@@ -61,6 +68,15 @@ for cfg in "$@"; do
         P1) export CARAXES_SERVER=${CARAXES_SERVER_P1:-/mnt/vmstore/caraxes/vm0/vfio-user-nvgpu-desk-p1}
            export CARAXES_BAR2_FLUSH_DEFER_US=on CARAXES_INVALIDATE_PAGE=1 CARAXES_BAR2_FLUSH_PAGE=memory
            unset CARAXES_INTR_PAGE_VBLANK_SPIN_US; name=P1-flush-page-memory ;;
+        U1|U2|T1) export CARAXES_SERVER=${CARAXES_SERVER_U:-/mnt/vmstore/caraxes/vm0/vfio-user-nvgpu-desk-u1}
+           export CARAXES_BAR2_FLUSH_DEFER_US=on CARAXES_INVALIDATE_PAGE=1 CARAXES_BAR2_FLUSH_PAGE=memory
+           unset CARAXES_INTR_PAGE_VBLANK_SPIN_US
+           case $cfg in
+               U1) export CARAXES_USERMODE_PAGE=1; name=U1-usermode-page ;;
+               U2) export CARAXES_USERMODE_PAGE=1 CARAXES_DOORBELL_POLL=spin; unset CARAXES_DOORBELL_POLL_IDLE_US
+                   name=U2-usermode-page-spin ;;
+               T1) name=T1-tokens-reference ;;
+           esac ;;
         G|H) export CARAXES_SERVER=${CARAXES_SERVER_G:-/mnt/vmstore/caraxes/vm0/vfio-user-nvgpu-desk-g}
            export CARAXES_BAR2_FLUSH_DEFER_US=2000 CARAXES_INVALIDATE_PAGE=1
            if [[ $cfg == G ]]; then
@@ -114,6 +130,13 @@ for cfg in "$@"; do
         done
         "$here/run.sh" "$name/traps-weston" --full bash caraxes-f/trap-weston.sh 14
         wins+=(traps-weston)
+        if [[ -n ${CUDA:-} ]]; then
+            pre='sudo modprobe nvidia-uvm; sudo nvidia-modprobe -u -c=0 2>/dev/null; cd ~/bench && export LD_LIBRARY_PATH=/opt/nvrm/lib NVPROBE_PTX=$HOME/bench/kernels.ptx &&'
+            "$here/run.sh" "$name/cuda-short" "$pre NVPROBE_ITERS=100 NVPROBE_CYCLES=1000 NVPROBE_SCHED=blocking ./nvprobe 4"
+            "$here/run.sh" "$name/cuda-launch" "$pre NVPROBE_ITERS=100 NVPROBE_SCHED=blocking ./nvprobe 4"
+            "$here/run.sh" "$name/cuda-short-2" "$pre NVPROBE_ITERS=100 NVPROBE_CYCLES=1000 NVPROBE_SCHED=blocking ./nvprobe 4"
+            for r in cuda-short cuda-launch cuda-short-2; do echo "-- $r"; tail -4 "$D/$r/guest.txt"; done
+        fi
         for r in "${wins[@]}"; do
             python3 caraxes/tools/trap-table.py "$D/$r/device-trace.txt.xz" --pages --regs > "$D/$r/trap-table.txt" 2>&1
             echo "-- $r"
@@ -128,7 +151,7 @@ for cfg in "$@"; do
     fi
     pid=$(cat "$W/gpu.pid" 2>/dev/null)
     "${VMSH[@]}" down > "$D/down.txt" 2>&1
-    grep -E '^intr page:|^bar1 pool:|^display page|^invalidate page:|^display engine:|^bar2 flush deferral|^bar2 flush page|^reactor wake-up|bar2 memfd|doorbell poll \(|msi re-arm|^vfio-user-nvgpu: (intr|display|invalidate) page' "$W/gpu.log" | cut -c1-1600 > "$D/device-summary.txt"
+    grep -E '^intr page:|^bar1 pool:|^display page|^invalidate page:|^display engine:|^bar2 flush deferral|^bar2 flush page|^usermode page:|^reactor wake-up|bar2 memfd|doorbell poll \(|msi re-arm|^vfio-user-nvgpu: (intr|display|invalidate) page' "$W/gpu.log" | cut -c1-1600 > "$D/device-summary.txt"
     caraxes/tools/bench-hostwatch.sh stop "$D"
     { echo "# host kernel log, Xid lines since $t0 (device pid $pid)"
       journalctl -k --since "$t0" --no-pager -g 'Xid' 2>/dev/null | grep -v '^-- No entries'; } > "$D/host-xid.txt"

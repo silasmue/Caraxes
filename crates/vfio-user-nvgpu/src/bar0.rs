@@ -67,6 +67,8 @@ pub struct Bar0 {
     fe_page: Option<std::sync::Arc<crate::display::fe_page::FePage>>,
     /// The MMU invalidate page (`CARAXES_INVALIDATE_PAGE=1`, inv_page.rs).
     inv_page: Option<std::sync::Arc<crate::inv_page::InvPage>>,
+    /// The usermode page (`CARAXES_USERMODE_PAGE=1`, um_page.rs).
+    um_page: Option<std::sync::Arc<crate::um_page::UmPage>>,
 }
 
 impl Bar0 {
@@ -87,12 +89,19 @@ impl Bar0 {
             page: None,
             fe_page: None,
             inv_page: None,
+            um_page: None,
         }
     }
 
     /// Serve the interrupt page's two pages from its memory (intr_page.rs).
     pub fn with_intr_page(mut self, page: std::sync::Arc<crate::intr_page::IntrPage>) -> Self {
         self.page = Some(page);
+        self
+    }
+
+    /// Serve the usermode page from its memory (um_page.rs).
+    pub fn with_um_page(mut self, page: std::sync::Arc<crate::um_page::UmPage>) -> Self {
+        self.um_page = Some(page);
         self
     }
 
@@ -185,6 +194,9 @@ impl Bar0 {
         if let Some(p) = self.inv_page.as_ref().filter(|p| p.covers(reg)) {
             return p.read32(reg);
         }
+        if let Some(p) = self.um_page.as_ref().filter(|p| p.covers(reg)) {
+            return p.read32(reg);
+        }
         if self.pcfg.contains(&reg) {
             return cfg.dword((reg - self.pcfg.start) as usize);
         }
@@ -249,6 +261,11 @@ impl Bar0 {
             return WriteEffect::Model;
         }
         if let Some(p) = self.inv_page.as_ref().filter(|p| p.covers(offset)) {
+            p.write(offset, data);
+            return WriteEffect::Model;
+        }
+        if let Some(p) = self.um_page.as_ref().filter(|p| p.covers(offset)) {
+            // A doorbell lands in the page; the reactor finds it.
             p.write(offset, data);
             return WriteEffect::Model;
         }

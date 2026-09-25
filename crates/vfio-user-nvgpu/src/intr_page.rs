@@ -199,6 +199,15 @@ impl Mapping {
         // SAFETY: in bounds of the page mapped in `new`; AtomicU32 has u32's layout.
         unsafe { &*self.ptr.as_ptr().add((off / 4) as usize) }
     }
+
+    /// The qword at byte offset `off` (qword-aligned, below `PAGE`): one store of it is
+    /// one store for a reader of either half (the usermode page's clock, um_page.rs).
+    pub(crate) fn qword(&self, off: u64) -> &std::sync::atomic::AtomicU64 {
+        assert!(off < PAGE && off % 8 == 0);
+        // SAFETY: in bounds and 8-aligned (the mapping is page-aligned); AtomicU64 has
+        // u64's layout.
+        unsafe { &*self.ptr.as_ptr().cast::<std::sync::atomic::AtomicU64>().add((off / 8) as usize) }
+    }
 }
 
 impl Drop for Mapping {
@@ -826,6 +835,8 @@ pub struct PageHook {
     owed: Option<(Arc<crate::bar2area::Owed>, Arc<Payer>)>,
     /// The MMU invalidate page (`CARAXES_INVALIDATE_PAGE=1`, inv_page.rs).
     inv: Option<(Arc<crate::inv_page::InvPage>, Arc<crate::inv_page::Driver>)>,
+    /// The usermode page (`CARAXES_USERMODE_PAGE=1`, um_page.rs).
+    um: Option<(Arc<crate::um_page::UmPage>, Arc<crate::um_page::Driver>)>,
     /// `CARAXES_INTR_PAGE_VBLANK_SPIN_US`: spin from this long before each display tick
     /// (docs/caraxes/intr-page.md §11.4); 0 off.
     vblank_lead_ns: u64,
@@ -854,6 +865,7 @@ impl PageHook {
                 fe: None,
                 owed: None,
                 inv: None,
+                um: None,
                 vblank_lead_ns: 0,
                 raise_wake: Arc::new(Mutex::new(Default::default())),
                 wake,
@@ -897,6 +909,17 @@ impl PageHook {
         driver: Arc<crate::inv_page::Driver>,
     ) -> Self {
         self.inv = Some((page, driver));
+        self
+    }
+
+    /// Own the usermode page: publish its clock every iteration, scan the channels for
+    /// each doorbell written to it (`driver`).
+    pub fn with_usermode(
+        mut self,
+        page: Arc<crate::um_page::UmPage>,
+        driver: Arc<crate::um_page::Driver>,
+    ) -> Self {
+        self.um = Some((page, driver));
         self
     }
 
@@ -945,6 +968,9 @@ impl crate::poll::Hook for PageHook {
         // The invalidate runs the owed BAR2 sync itself (its trigger syncs).
         if let Some((p, d)) = &self.inv {
             work |= crate::inv_page::poll(p, d.as_ref(), woken);
+        }
+        if let Some((p, d)) = &self.um {
+            work |= crate::um_page::poll(p, d.as_ref());
         }
         work |= self.poll_owed();
         work |= self.vblank_window();

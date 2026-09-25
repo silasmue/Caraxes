@@ -43,6 +43,7 @@ pub mod hostrm;
 pub mod intr;
 pub mod intr_page;
 pub mod inv_page;
+pub mod um_page;
 pub mod invalidate;
 pub mod kgr;
 pub mod lazy;

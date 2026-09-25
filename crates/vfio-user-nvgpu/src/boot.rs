@@ -1288,6 +1288,34 @@ impl BootModel {
         self.fb.bar2_pay(root, Some(mem), by)
     }
 
+    /// A doorbell the usermode page's reactor found (um_page.rs), or its watchdog
+    /// (`hint` None): every channel whose GPPut advanced is rung, as the token-less
+    /// ioeventfd path rings them. The watchdog first checks without the BAR2 sync that a
+    /// doorbell pays, and does nothing when no channel is pending. Returns the channels
+    /// rung and the notes.
+    pub fn doorbell_from_page(&mut self, mem: &GuestMemory, hint: Option<u32>) -> (usize, Vec<String>) {
+        if hint.is_none() {
+            let gm = crate::channel::GpuMem {
+                fb: &mut self.fb,
+                sys: mem,
+            };
+            let any = self
+                .ctrl
+                .channels
+                .channels()
+                .map(|c| c.chid)
+                .collect::<Vec<_>>()
+                .into_iter()
+                .any(|c| self.ctrl.channels.pending(&gm, c));
+            if !any {
+                return (0, Vec::new());
+            }
+        }
+        let notes = self.doorbell_pending(mem);
+        let rung = notes.first().map_or(0, |n| crate::um_page::pending_count(n));
+        (rung, notes)
+    }
+
     /// A token-less doorbell from the ioeventfd path (device.rs): ring every channel with
     /// newly published GPFIFO entries (`Dispatcher::doorbell_pending`).
     pub fn doorbell_pending(&mut self, mem: &GuestMemory) -> Vec<String> {
