@@ -1,0 +1,2 @@
+ERROR: /home/silas/git/Caraxes/.claude/worktrees/agent-ace22312e434265c0/caraxes/reference/rtx2070/rom.bin missing (git-ignored capture of the card's ROM)
+stopped
