@@ -15,7 +15,7 @@
 //! reservation.
 
 use std::cell::{Cell, RefCell};
-use std::collections::{BTreeSet, HashMap, HashSet};
+use std::collections::{HashMap, HashSet};
 
 use crate::guestmem::GuestMemory;
 
@@ -885,9 +885,10 @@ impl FakeFb {
     /// Stop watching `root` (drops its cached walk).
     pub fn unwatch_tables(&self, root: Target) {
         self.walks.borrow_mut().remove(&Self::watch_key(root));
-        // Its table pages may stop being table pages: the pool may move them again.
+        // Its table pages may stop being table pages: the pool's replicas of them may
+        // move into the pool again (checked at the next poll).
         if let Some(p) = self.pool.borrow_mut().as_mut() {
-            p.hazard_dirty = true;
+            p.note_new_table_pages(&[], true);
         }
     }
 
@@ -917,8 +918,14 @@ impl FakeFb {
             if let Some(pt) = self.bar1_pt.borrow_mut().as_mut() {
                 pt.hazard_dirty = true;
             }
+        }
+        drop(walks);
+        // The pool checks only the pages this walk started to read (a pooled page that
+        // became a table page is evicted at the next poll), not every table page of
+        // every walk (docs/caraxes/bar1-pool.md §11).
+        if !u.added.is_empty() || u.dropped {
             if let Some(p) = self.pool.borrow_mut().as_mut() {
-                p.hazard_dirty = true;
+                p.note_new_table_pages(&u.added, u.dropped);
             }
         }
         u
@@ -1750,16 +1757,6 @@ impl FakeFb {
         self.walks.borrow().values().any(|c| c.watches(page))
     }
 
-    /// The table pages (4 KiB page numbers) the cached walks watch that `pred` selects,
-    /// each once.
-    pub(crate) fn watched_table_pages(&self, pred: impl Fn(u64) -> bool) -> BTreeSet<u64> {
-        self.walks
-            .borrow()
-            .values()
-            .flat_map(|c| c.watched_pages().filter(|p| pred(*p)).collect::<Vec<_>>())
-            .collect()
-    }
-
     /// Read FB address `pa` in the store itself, past the remap and the BAR2 memfd (a
     /// pool page as the guest's area accesses reach it).
     pub(crate) fn read_raw(&self, pa: u64, buf: &mut [u8]) {
@@ -1832,7 +1829,18 @@ impl FakeFb {
         va: u64,
         n: usize,
     ) -> (Vec<(u64, Target)>, Vec<u64>) {
-        let mut out = Vec::new();
+        let w = self.area_walk_unit_parts(root, va, n);
+        let mut pages = w.dirs;
+        pages.extend(w.leaf_tables);
+        (w.mapped, pages)
+    }
+
+    /// The directory path of the 2 MiB unit at BAR1 `va`: the directory pages read (the
+    /// root, PD2, PD1, PD0 as far as the path goes) and the unit's PD0 entry `(lo, hi)`,
+    /// `None` where the path ends above it. Five qword reads at most: the BAR1 pool
+    /// compares this with the last walk when only a directory page of the unit was
+    /// written (bar1pool.rs `poll`), and skips the page-table reads when it is unchanged.
+    pub(crate) fn area_walk_path(&self, root: u64, va: u64) -> (Vec<u64>, Option<(u64, u64)>) {
         let mut pages = vec![root >> 12];
         let note = |pages: &mut Vec<u64>, t: Target| {
             if let Target::Fb(pa) = t {
@@ -1840,24 +1848,24 @@ impl FakeFb {
             }
         };
         let Some(e3) = self.read_u64(root + 8 * ((va >> 47) & 3)) else {
-            return (out, pages);
+            return (pages, None);
         };
         let Some(pd2) = Self::next_table(e3) else {
-            return (out, pages);
+            return (pages, None);
         };
         note(&mut pages, pd2);
         let Some(e2) = self.table_u64(None, pd2, 8 * ((va >> 38) & 0x1FF)) else {
-            return (out, pages);
+            return (pages, None);
         };
         let Some(pd1) = Self::next_table(e2) else {
-            return (out, pages);
+            return (pages, None);
         };
         note(&mut pages, pd1);
         let Some(e1) = self.table_u64(None, pd1, 8 * ((va >> 29) & 0x1FF)) else {
-            return (out, pages);
+            return (pages, None);
         };
         let Some(pd0) = Self::next_table(e1) else {
-            return (out, pages);
+            return (pages, None);
         };
         note(&mut pages, pd0);
         let idx0 = (va >> 21) & 0xFF;
@@ -1865,25 +1873,39 @@ impl FakeFb {
             self.table_u64(None, pd0, 16 * idx0),
             self.table_u64(None, pd0, 16 * idx0 + 8),
         ) else {
-            return (out, pages);
+            return (pages, None);
+        };
+        (pages, Some((lo, hi)))
+    }
+
+    /// [`Self::area_walk_unit`] with the directory path and the leaf page tables apart.
+    pub(crate) fn area_walk_unit_parts(&self, root: u64, va: u64, n: usize) -> AreaUnitWalk {
+        let (dirs, pde) = self.area_walk_path(root, va);
+        let mut w = AreaUnitWalk {
+            mapped: Vec::new(),
+            dirs,
+            leaf_tables: Vec::new(),
+            pde,
+        };
+        let Some((lo, hi)) = pde else {
+            return w;
         };
         if lo & 1 == 1 {
             // A 2 MiB page: every 4 KiB page of the unit at its offset.
             for i in 0..n as u64 {
                 let t = Self::decode_pte(lo, i << 12);
                 if matches!(t, Target::Fb(_) | Target::Sys(_)) {
-                    out.push((va + (i << 12), t));
+                    w.mapped.push((va + (i << 12), t));
                 }
             }
-            return (out, pages);
+            return w;
         }
         let big_t = Self::big_table(lo);
         let small_t = Self::next_table(hi);
-        if let Some(t) = big_t {
-            note(&mut pages, t);
-        }
-        if let Some(t) = small_t {
-            note(&mut pages, t);
+        for t in [big_t, small_t].into_iter().flatten() {
+            if let Target::Fb(pa) = t {
+                w.leaf_tables.push(pa >> 12);
+            }
         }
         let big = big_t.and_then(|t| self.table_block(None, t, 32));
         let small = small_t.and_then(|t| self.table_block(None, t, 512));
@@ -1903,10 +1925,10 @@ impl FakeFb {
                 },
             };
             if matches!(t, Target::Fb(_) | Target::Sys(_)) {
-                out.push((g, t));
+                w.mapped.push((g, t));
             }
         }
-        (out, pages)
+        w
     }
 
     /// Run the P21 check if the guest changed the BAR1 tables over the area or the
@@ -1998,6 +2020,19 @@ impl crate::ptcache::TableReader for FbReader<'_> {
     fn block(&self, table: Target, n: usize) -> Option<Vec<u64>> {
         self.fb.table_block(self.sys, table, n)
     }
+}
+
+/// One 2 MiB unit of the BAR1 area as [`FakeFb::area_walk_unit_parts`] walked it.
+#[derive(Debug, Clone, Default)]
+pub(crate) struct AreaUnitWalk {
+    /// Every mapped 4 KiB page: `(guest BAR1 offset, target)`.
+    pub mapped: Vec<(u64, Target)>,
+    /// The directory pages read (root, PD2, PD1, PD0), 4 KiB page numbers.
+    pub dirs: Vec<u64>,
+    /// The unit's page tables (big and small), 4 KiB page numbers.
+    pub leaf_tables: Vec<u64>,
+    /// The unit's PD0 entry `(lo, hi)`, when the path reaches it.
+    pub pde: Option<(u64, u64)>,
 }
 
 #[cfg(test)]

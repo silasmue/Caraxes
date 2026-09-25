@@ -997,6 +997,31 @@ impl BootModel {
         })
     }
 
+    /// Whether the BAR1 pool's poll after a trapped BAR0 write at `off` merges the
+    /// replicas (bar1pool.rs `poll_at`). Not after a write that only latches a value or
+    /// whose own handler merged just before the poll (docs/caraxes/bar1-pool.md §11):
+    /// - the MMU invalidate's PDB and upper PDB (latched; the trigger follows);
+    /// - the MMU invalidate trigger (its handler runs `sync_untracked` before the re-sync);
+    /// - the usermode doorbell (not a sync point, bar1-pool.md §10; its handler forwards
+    ///   the doorbell before the poll, so a merge there orders nothing for it);
+    /// - the PTIMER time registers (the write is dropped).
+    ///
+    /// Every other BAR0 write (the L2 flushes and invalidates, the display, the GSP
+    /// registers, anything unknown) merges, as before.
+    pub fn pool_merge_after(&self, off: u64) -> bool {
+        !matches!(
+            self.reg(off),
+            Some(
+                Reg::MmuInvalidatePdb
+                    | Reg::MmuInvalidateUpperPdb
+                    | Reg::MmuInvalidate
+                    | Reg::UsermodeDoorbell
+                    | Reg::PtimerTime0
+                    | Reg::PtimerTime1
+            )
+        )
+    }
+
     /// Start the L2 cache operation `op` (the guest wrote `PENDING_BUSY`). With host
     /// execution on, the guest's work runs on the physical GPU and its sysmem lines sit
     /// in the physical L2, so FLUSH_DIRTY and SYSMEM_INVALIDATE are honoured there with

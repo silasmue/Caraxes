@@ -136,6 +136,12 @@ pub struct Update {
     pub reads: usize,
     /// Dirty table pages the update started from.
     pub dirty_pages: usize,
+    /// Table pages (4 KiB page numbers) the cache watches after this update and did not
+    /// before it (every page after a full walk): the BAR1 pool checks only these against
+    /// its remaps (bar1pool.rs `Bar1Pool::note_new_table_pages`).
+    pub added: Vec<u64>,
+    /// Whether the cache stopped watching a table page in this update.
+    pub dropped: bool,
 }
 
 /// The cached walk of one guest root.
@@ -161,6 +167,9 @@ pub struct WalkCache {
     /// seen. `CARAXES_SHADOW_REREAD=1` drops a dirty page's copy instead (re-read from VRAM).
     raw: HashMap<u64, Box<[u64; 512]>>,
     pub reread: bool,
+    /// Pages that entered `uses` and whether one left it, during the running update.
+    added: Vec<u64>,
+    dropped: bool,
 }
 
 impl WalkCache {
@@ -179,6 +188,8 @@ impl WalkCache {
             reads: 0,
             raw: HashMap::new(),
             reread: false,
+            added: Vec::new(),
+            dropped: false,
         }
     }
 
@@ -274,7 +285,11 @@ impl WalkCache {
 
     fn add_use(&mut self, t: Target, u: Use) {
         if let Target::Fb(pa) = t {
-            self.uses.entry(pa >> 12).or_default().insert(u);
+            let s = self.uses.entry(pa >> 12).or_default();
+            if s.is_empty() {
+                self.added.push(pa >> 12);
+            }
+            s.insert(u);
         }
     }
 
@@ -283,6 +298,7 @@ impl WalkCache {
             s.remove(&u);
             if s.is_empty() {
                 self.uses.remove(&page);
+                self.dropped = true;
             }
         }
     }
@@ -292,6 +308,8 @@ impl WalkCache {
     /// dirty table pages. Returns the units whose leaves may have changed.
     pub fn update(&mut self, r: &dyn TableReader, full: bool) -> Update {
         self.reads = 0;
+        self.added.clear();
+        self.dropped = false;
         let dirty_pages = self.dirty.len();
         let mut changed = BTreeSet::new();
         let full = full || !self.built || self.sys_tables;
@@ -299,6 +317,7 @@ impl WalkCache {
             changed.extend(self.units.keys().copied());
             self.dirs.clear();
             self.units.clear();
+            self.dropped |= !self.uses.is_empty();
             self.uses.clear();
             self.dirty.clear();
             self.raw.clear();
@@ -344,11 +363,17 @@ impl WalkCache {
         }
         let uses = &self.uses;
         self.raw.retain(|p, _| uses.contains_key(p));
+        let mut added = std::mem::take(&mut self.added);
+        added.sort_unstable();
+        added.dedup();
+        added.retain(|p| uses.contains_key(p));
         Update {
             full,
             changed: changed.into_iter().collect(),
             reads: self.reads,
             dirty_pages,
+            added,
+            dropped: self.dropped,
         }
     }
 
@@ -460,7 +485,11 @@ impl WalkCache {
         pages.sort_unstable();
         pages.dedup();
         for p in &pages {
-            self.uses.entry(*p).or_default().insert(Use::Unit(va));
+            let s = self.uses.entry(*p).or_default();
+            if s.is_empty() {
+                self.added.push(*p);
+            }
+            s.insert(Use::Unit(va));
         }
         if !leaves.is_empty() {
             changed.insert(va);
