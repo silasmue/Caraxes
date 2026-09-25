@@ -1,0 +1,13 @@
+soak-watch: 1794 samples over 1800 s (epoch 1790366290 to 1790368090)
+column               first minute    last minute          delta
+vram_used_mib              4439.6         4441.1           +1.5
+vram_free_mib              3339.9         3337.9           -2.0
+bar1_used_mib               157.0          155.9           -1.1
+bar1_free_mib                99.0          100.1           +1.1
+devices                       2.0            2.0           +0.0
+device_rss_kib          9470597.2      9469820.9         -776.3
+device_rss_max_kib      9461133.2      9460712.9         -420.3
+foll_pin                2384448.2      2384909.0         +460.8
+mem_available_kib      11564085.9     11820426.4      +256340.5
+smi_ms                       32.7           25.0           -7.7
+BAR1 peak: 157 MiB used at 21:58:10, 99 MiB free at the lowest (21:58:10)

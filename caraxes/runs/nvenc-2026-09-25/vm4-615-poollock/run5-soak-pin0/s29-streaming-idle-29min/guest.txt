@@ -1,0 +1,34 @@
+==lat
+[2026-09-25 20:26:45.626]: Debug: Frame processing latency (min/max/avg): 21.80ms/66.20ms/35.94ms
+[2026-09-25 20:27:05.647]: Debug: Frame processing latency (min/max/avg): 20.60ms/82.60ms/36.00ms
+[2026-09-25 20:27:25.664]: Debug: Frame processing latency (min/max/avg): 20.70ms/66.70ms/35.79ms
+[2026-09-25 20:27:45.669]: Debug: Frame processing latency (min/max/avg): 20.20ms/62.00ms/35.69ms
+==top
+top - 20:28:00 up 36 min,  3 users,  load average: 2.15, 2.11, 2.12
+Tasks: 290 total,   2 running, 288 sleeping,   0 stopped,   0 zombie
+%Cpu(s):  4.9 us,  8.0 sy,  0.0 ni, 83.0 id,  0.0 wa,  0.0 hi,  1.1 si,  3.0 st 
+MiB Mem :   7940.0 total,   2252.9 free,   2535.2 used,   3656.8 buff/cache     
+MiB Swap:      0.0 total,      0.0 free,      0.0 used.   5404.8 avail Mem 
+
+    PID USER      PR  NI    VIRT    RES    SHR S  %CPU  %MEM     TIME+ COMMAND
+   4776 leandro   20   0 7580720 433936 335156 S  93.1   5.3  29:49.79 sunshine
+   2053 leandro   20   0 4544396 425236 221484 R  40.6   5.2  14:48.71 gnome-s+
+   3025 leandro   20   0 1437100 320000 194132 S  25.7   3.9   7:57.85 steamwe+
+   3075 leandro   20   0   47.4g 644352 109620 S   4.0   7.9   1:51.63 steamwe+
+    794 syslog    20   0  222572   6724   4580 S   3.0   0.1   0:37.11 rsyslogd
+   1071 leandro   20   0  115680  18656  10012 S   3.0   0.2   0:50.43 pipewir+
+   2782 leandro   20   0  443868 157240 123896 S   3.0   1.9   1:44.82 Xwayland
+   2770 leandro   20   0  768316 213324 158632 S   2.0   2.6   0:39.26 steam
+==vmstat
+procs -----------memory---------- ---swap-- -----io---- -system-- -------cpu-------
+ r  b   swpd   free   buff  cache   si   so    bi    bo   in   cs us sy id wa st gu
+ 1  0      0 2309072 115132 3629792    0    0  1328   797 9370   12  8  8 80  0  3  0
+ 3  0      0 2342888 115132 3629804    0    0     0     0 10239 10434  5  8 84  0  3  0
+ 2  0      0 2310884 115132 3630120    0    0     0     0 9913 10001  5  9 84  0  3  0
+ 3  0      0 2311124 115132 3630320    0    0     0 20052 10330 10571  4  8 84  0  3  0
+ 3  0      0 2311248 115132 3630508    0    0     0     0 9663 9733  4  8 86  0  2  0
+==D
+   1700 D    -                        nvidia-modeset/kthread_q
+==smi
+4776, sunshine, 188 MiB
+692 MiB
