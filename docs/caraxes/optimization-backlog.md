@@ -345,6 +345,24 @@ Cost per trap for the estimates: 28 to 35 us, the per-class medians of rpc-cost.
 | 9 | Guest BAR1 CPU access outside the pool: Vulkan host-visible device-local memory, the console mapping, display imports; CUDA has none in the census (0 BAR1 traps in `off`) | Size the pool to what the game maps (bar1-pool.md; bounded by the host's 256 MiB BAR1, bar1-pool.md:62); on a ReBAR card see §5 | Unknown until SotTR's trap table exists; every trapped BAR1 access is 30 us | The pool's warm-move barrier (bar1-pool.md §4) under a game's mapping churn | measure first: 0.5 day on the game VM |
 | 10 | Non-trap stalls (§3.4): D2D 16 MiB 3.85 ms against 0.25, H2D 16 MiB 1.9-5.2 ms against 1.3, single launch after idle 680 against 160 us, 10-30 ms under GR sharing | A device-side timeline: host doorbell write, host GPGet and semaphore, host notifier, guest wake-up, each timestamped in the trace; then the host TSG timeslice and priority for mirrored TSGs | Up to 3.6 ms per D2D 16 MiB and 3.9 ms per H2D 16 MiB; the multi-VM GR case is 10-30 ms per operation | None for the measurement; timeslice changes touch host scheduling of other clients (the desktop) | 1 day to measure |
 
+**Status of item 2 (2026-09-25, done; memory-model.md §7, runs
+`caraxes/runs/opt-shadow-maps-2026-09-25/`).** Measured on vm0 with the memfd and without the pool:
+- **Calls.** Host RM calls per cuCtxCreate went from 13171 to 228, and the worker's apply time
+  from 770 to 67 ms.
+- **Wall time.** cuCtxCreate went from 815 to 309 ms (native 146). cuCtxDestroy went from 170 to
+  107 ms, with 1145 to 79 calls.
+- **The cause** was the guest's scattered sysmem pages: about 15000 one-page maps and later
+  unmaps per context (29 and 81 us each). A queued destroy delayed the next creation by up to
+  1.4 s.
+- **The fix.** Gather descriptors map a scattered stretch of up to 512 pages with one call, and
+  an emptied region is freed with one call. Deferred TLB invalidation was measured without gain
+  and stays off.
+- **bench-cu init** cuCtxCreate went from 1719 to 353 ms; churn is unchanged.
+- **Gates.** The cuda gate gave 11 of 12 (cuda-managed), with 0 host Xid.
+
+What is left of the creation is the GPU's first work on each of the 20 channels, not host RM
+calls.
+
 **Top five by expected saving in the target workloads:**
 1. BAR2 memfd with the pool (item 1): about 100k traps and 3.4-4.0 s per CUDA process; context 4.1 s to
    0.9 s; host registrations 20x faster; 71 traps per Mutter frame.

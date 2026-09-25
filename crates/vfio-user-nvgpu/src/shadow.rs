@@ -43,6 +43,31 @@
 //!   batches with a pause between them, then freeing its objects the same way, so the
 //!   host RM never holds its GPU lock over a teardown of thousands of mappings (parallel.md
 //!   §2.4: half a million mappings in one free held it for minutes).
+//!
+//! **Fewer host RM calls (docs/caraxes/memory-model.md §7, 2026-09-25).**
+//! - *Gather descriptors.* A VA-contiguous stretch of 4 KiB sysmem leaves whose guest pages
+//!   are scattered (the guest driver's page pool hands them out one by one, mapping.md §2)
+//!   is mapped from one gather descriptor (hostmem.rs `gather`): the stretch's pages, each
+//!   the filter's answer, back to back in one OS descriptor, so one `RM_MAP_MEMORY_DMA`
+//!   maps the whole stretch. The descriptor is freed when its last mapping is gone.
+//!   `CARAXES_SHADOW_GATHER=0` maps such stretches run by run.
+//! - *Whole-region frees.* When the guest empties a 2 MiB region that holds at least
+//!   [`BULK_MIN_RUNS`] runs, the shadow frees the region object with its mappings in one
+//!   `RM_FREE` (the RM unmaps them itself) instead of one NVOS47 per run; the teardown does
+//!   the same, about [`TEARDOWN_BATCH`] mappings per step. `CARAXES_SHADOW_BULK_FREE=0`
+//!   unmaps run by run.
+//! - *Deferred TLB invalidation* (`CARAXES_SHADOW_DEFER_TLB=1`, off by default: it measured
+//!   no gain, the per-call cost is not the invalidate). Every map and unmap of a plan or a
+//!   teardown step then carries the RM's `DEFER_TLB_INVALIDATION` flag, and the shadow owes
+//!   the VAS one `NV0080_CTRL_CMD_DMA_INVALIDATE_TLB`, paid ([`ShadowVas::settle`]) before
+//!   any virtual object is freed, at the end of every plan (so before the doorbell barrier
+//!   releases a channel) and at the end of every teardown step.
+//! - *Region free list.* A region object whose 2 MiB region the guest emptied, with every
+//!   run in it unmapped by the RM, goes on a bounded per-VAS free list instead of being
+//!   freed, and the next need of the same region and page class takes it back: two RM
+//!   calls fewer per churned region. `CARAXES_SHADOW_REGION_POOL=0` frees at once.
+//! - *Counted.* Every RM call of the shadow is counted by kind with its time ([`RmCalls`]),
+//!   per sync line and in the summary.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -69,6 +94,179 @@ pub const TEARDOWN_PAUSE: Duration = Duration::from_millis(2);
 /// teardown at the budget, in batches, stays in the seconds and never holds the host GPU
 /// lock for more than one batch (docs/caraxes/mapping.md §2).
 pub const DEFAULT_MAP_BUDGET: usize = 32768;
+
+/// Empty region objects a shadow VAS keeps for reuse at most (each is a 2 MiB VA reservation
+/// with no mapping and no backing, freed with the VAS).
+pub const REGION_POOL_MAX: usize = 64;
+
+/// An emptied region with at least this many runs is freed whole (one `RM_FREE`, the RM
+/// unmaps its mappings itself) instead of one unmap per run.
+pub const BULK_MIN_RUNS: usize = 4;
+
+/// A VA-contiguous stretch of 4 KiB sysmem leaves is mapped through a gather descriptor
+/// when it has at least this many leaves and coalescing would still need this many runs.
+pub const GATHER_MIN_LEAVES: usize = 16;
+pub const GATHER_MIN_RUNS: usize = 8;
+
+/// The host RM calls the shadow makes, behind a trait so the plan logic runs against a fake
+/// host in the unit tests. [`HostMemory`] implements it with the RM escapes.
+pub trait ShadowHost {
+    /// `NV50_MEMORY_VIRTUAL` fixed at `va` (hostmem.rs `alloc_virtual_fixed`).
+    fn alloc_virtual_fixed(
+        &mut self,
+        vas: u32,
+        va: u64,
+        size: u64,
+        page_bytes: Option<u64>,
+        force_align: bool,
+    ) -> Result<u32, u32>;
+    /// `RM_MAP_MEMORY_DMA` (NVOS46) at a fixed VA; `defer` skips the RM's TLB invalidate.
+    #[allow(clippy::too_many_arguments)]
+    fn map_dma_fixed(
+        &self,
+        h_dma: u32,
+        h_mem: u32,
+        offset: u64,
+        length: u64,
+        va: u64,
+        page_size: u32,
+        snoop: bool,
+        kind: Option<u8>,
+        defer: bool,
+    ) -> u32;
+    /// `RM_UNMAP_MEMORY_DMA` (NVOS47); `defer` skips the RM's TLB invalidate.
+    fn unmap_dma(&self, h_dma: u32, h_mem: u32, va: u64, length: u64, defer: bool) -> u32;
+    /// `RM_FREE`.
+    fn free_object(&mut self, handle: u32) -> Result<(), u32>;
+    /// `NV0080_CTRL_CMD_DMA_INVALIDATE_TLB` of the VA space.
+    fn invalidate_vas(&self, vas: u32) -> u32;
+    /// A gather descriptor over the pages `(registered descriptor, offset)`, in this order
+    /// (hostmem.rs `gather`).
+    fn gather(&mut self, pages: &[(u32, u64)]) -> Result<u32, String>;
+    /// Free a gather descriptor.
+    fn free_gather(&mut self, handle: u32) -> u32;
+}
+
+impl ShadowHost for HostMemory {
+    fn alloc_virtual_fixed(
+        &mut self,
+        vas: u32,
+        va: u64,
+        size: u64,
+        page_bytes: Option<u64>,
+        force_align: bool,
+    ) -> Result<u32, u32> {
+        HostMemory::alloc_virtual_fixed(self, vas, va, size, page_bytes, force_align)
+    }
+    fn map_dma_fixed(
+        &self,
+        h_dma: u32,
+        h_mem: u32,
+        offset: u64,
+        length: u64,
+        va: u64,
+        page_size: u32,
+        snoop: bool,
+        kind: Option<u8>,
+        defer: bool,
+    ) -> u32 {
+        HostMemory::map_dma_fixed(self, h_dma, h_mem, offset, length, va, page_size, snoop, kind, defer)
+    }
+    fn unmap_dma(&self, h_dma: u32, h_mem: u32, va: u64, length: u64, defer: bool) -> u32 {
+        HostMemory::unmap_dma(self, h_dma, h_mem, va, length, defer)
+    }
+    fn free_object(&mut self, handle: u32) -> Result<(), u32> {
+        HostMemory::free_object(self, handle)
+    }
+    fn invalidate_vas(&self, vas: u32) -> u32 {
+        HostMemory::invalidate_vas(self, vas)
+    }
+    fn gather(&mut self, pages: &[(u32, u64)]) -> Result<u32, String> {
+        HostMemory::gather(self, pages)
+    }
+    fn free_gather(&mut self, handle: u32) -> u32 {
+        HostMemory::free_gather(self, handle)
+    }
+}
+
+/// The kinds of host RM call the shadow makes.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Call {
+    Map,
+    Unmap,
+    ObjectAlloc,
+    ObjectFree,
+    Invalidate,
+    Gather,
+    GatherFree,
+}
+
+const KINDS: usize = 7;
+const CALL_NAMES: [&str; KINDS] = [
+    "map",
+    "unmap",
+    "object alloc",
+    "object free",
+    "invalidate",
+    "gather alloc",
+    "gather free",
+];
+
+/// Host RM calls by kind, with the time spent in them, and what the region free list saved.
+#[derive(Default, Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RmCalls {
+    pub n: [u64; KINDS],
+    pub us: [u64; KINDS],
+    /// Region objects taken from the free list instead of allocated.
+    pub reused: u64,
+    /// Region objects put on the free list instead of freed.
+    pub pooled: u64,
+}
+
+impl RmCalls {
+    fn add(&mut self, c: Call, t0: Instant) {
+        self.n[c as usize] += 1;
+        self.us[c as usize] += t0.elapsed().as_micros() as u64;
+    }
+
+    pub fn count(&self, c: Call) -> u64 {
+        self.n[c as usize]
+    }
+
+    pub fn total(&self) -> u64 {
+        self.n.iter().sum()
+    }
+
+    fn since(&self, before: &RmCalls) -> RmCalls {
+        let mut d = RmCalls::default();
+        for i in 0..KINDS {
+            d.n[i] = self.n[i] - before.n[i];
+            d.us[i] = self.us[i] - before.us[i];
+        }
+        d.reused = self.reused - before.reused;
+        d.pooled = self.pooled - before.pooled;
+        d
+    }
+
+    /// `RM calls N: map N (U us), unmap N (U us), ...; regions reused R, pooled P`.
+    pub fn line(&self) -> String {
+        let parts: Vec<String> = (0..KINDS)
+            .map(|i| format!("{} {} ({} us)", CALL_NAMES[i], self.n[i], self.us[i]))
+            .collect();
+        format!(
+            "RM calls {}: {}; regions reused {}, pooled {}",
+            self.total(),
+            parts.join(", "),
+            self.reused,
+            self.pooled
+        )
+    }
+}
+
+/// `CARAXES_SHADOW_DEFER_TLB` and `CARAXES_SHADOW_REGION_POOL`: on unless set to 0.
+fn switch_on(var: &str) -> bool {
+    std::env::var(var).as_deref() != Ok("0")
+}
 
 /// `nvos46_flags::PAGE_SIZE_*` for a guest page size.
 fn page_size_flag(size: u64) -> u32 {
@@ -174,6 +372,7 @@ fn class_of(size: u64) -> Class {
     }
 }
 
+#[derive(Clone, Copy, Debug)]
 struct Region {
     /// The region's virtual object; `None`: per-leaf objects (the region object was
     /// refused, or the region touches an excluded set-B range).
@@ -263,6 +462,15 @@ pub struct ShadowStats {
     pub regions_freed: u64,
     pub regions_refused: u64,
     pub leaf_objects: u64,
+    /// Region objects freed whole with their mappings, and the runs they held.
+    pub bulk_frees: u64,
+    pub bulk_runs: u64,
+    /// Gather descriptors made, the leaves they carry, and the ones the host refused.
+    pub gathers: u64,
+    pub gathered_leaves: u64,
+    pub gathers_refused: u64,
+    /// `DMA_INVALIDATE_TLB` calls the RM refused (each turns the deferral off).
+    pub invalidate_failed: u64,
     pub max_sync_us: u128,
     pub total_sync_us: u128,
     /// Every physical address ever mapped (isolation evidence, P20 item 3a): the vidmem
@@ -552,6 +760,34 @@ pub struct ShadowVas {
     /// Coalesce contiguous leaves into one RM mapping (`CARAXES_SHADOW_COALESCE=0`: one
     /// mapping per leaf, the earlier behaviour, for A/B measurements).
     coalesce: bool,
+    /// Map and unmap with the RM's TLB invalidate deferred to [`Self::settle`]
+    /// (`CARAXES_SHADOW_DEFER_TLB=1`; off by default: measured without gain, memory-model.md
+    /// §7.5). Turned off for good when an invalidate fails.
+    defer_tlb: bool,
+    /// Free an emptied region's object with its mappings in one call
+    /// (`CARAXES_SHADOW_BULK_FREE=0`: one unmap per run).
+    bulk_on: bool,
+    /// A deferred map or unmap was made since the last invalidate of the VAS.
+    tlb_owed: bool,
+    /// Empty region objects kept for reuse, by region VA (`CARAXES_SHADOW_REGION_POOL=0`:
+    /// none). Every one of them had all its runs unmapped by the RM without a failure.
+    pool: BTreeMap<u64, Region>,
+    pool_on: bool,
+    /// Host RM calls by kind, since the VAS was created.
+    pub calls: RmCalls,
+    /// Lines of [`Self::settle`] for the next sync line.
+    settle_notes: Vec<String>,
+    /// The call counters when the teardown started (the teardown line reports its own).
+    teardown_calls0: Option<RmCalls>,
+    /// Mappings the teardown removed with their region object.
+    teardown_bulk: usize,
+    /// Map scattered sysmem stretches through gather descriptors
+    /// (`CARAXES_SHADOW_GATHER=0`: run by run from the registered descriptors).
+    gather_on: bool,
+    /// Live gather descriptors and the runs mapped from each.
+    gathers: BTreeMap<u32, usize>,
+    /// Gather descriptors no run uses any more, freed at the next safe point.
+    gathers_idle: Vec<u32>,
 }
 
 impl ShadowVas {
@@ -569,7 +805,12 @@ impl ShadowVas {
             )
         };
         let vas = hm.alloc_object(device, sys::FERMI_VASPACE_A, bytes, "shadow-vaspace")?;
-        Ok(ShadowVas {
+        Ok(Self::with_vas(vas, budget))
+    }
+
+    /// The shadow of an existing VA space handle, with the switches from the environment.
+    pub fn with_vas(vas: u32, budget: MapBudget) -> Self {
+        ShadowVas {
             vas,
             regions: BTreeMap::new(),
             mapped: BTreeMap::new(),
@@ -581,8 +822,105 @@ impl ShadowVas {
             teardown_objects: Vec::new(),
             teardown_unmapped: 0,
             teardown_freed: 0,
-            coalesce: std::env::var("CARAXES_SHADOW_COALESCE").as_deref() != Ok("0"),
-        })
+            coalesce: switch_on("CARAXES_SHADOW_COALESCE"),
+            defer_tlb: std::env::var("CARAXES_SHADOW_DEFER_TLB").as_deref() == Ok("1"),
+            bulk_on: switch_on("CARAXES_SHADOW_BULK_FREE"),
+            tlb_owed: false,
+            pool: BTreeMap::new(),
+            pool_on: switch_on("CARAXES_SHADOW_REGION_POOL"),
+            calls: RmCalls::default(),
+            settle_notes: Vec::new(),
+            teardown_calls0: None,
+            teardown_bulk: 0,
+            gather_on: switch_on("CARAXES_SHADOW_GATHER"),
+            gathers: BTreeMap::new(),
+            gathers_idle: Vec::new(),
+        }
+    }
+
+    /// Whether deferred TLB invalidation is on (the switch, and no invalidate failed yet).
+    pub fn defers_tlb(&self) -> bool {
+        self.defer_tlb
+    }
+
+    /// Pay the TLB invalidate that deferred maps and unmaps owe the VAS: one
+    /// `DMA_INVALIDATE_TLB` of the whole VAS (hostmem.rs `invalidate_vas`). Called before
+    /// any virtual object is freed (the RM frees its page tables with it), at the end of
+    /// every plan (before the worker reports it done, so before the doorbell barrier lets a
+    /// channel run) and at the end of every teardown step. A refused invalidate turns the
+    /// deferral off for this VAS, so every later map and unmap invalidates the whole VAS
+    /// itself again, and is logged as an ERROR.
+    pub fn settle<H: ShadowHost>(&mut self, h: &H) {
+        if !self.tlb_owed {
+            return;
+        }
+        self.tlb_owed = false;
+        let t0 = Instant::now();
+        let st = h.invalidate_vas(self.vas);
+        self.calls.add(Call::Invalidate, t0);
+        if st != sys::NV_OK {
+            self.stats.invalidate_failed += 1;
+            self.defer_tlb = false;
+            let line = format!(
+                "ERROR shadow: DMA_INVALIDATE_TLB of shadow VAS {:#x} refused {st:#x}; deferred TLB invalidation is off for this VAS from now on (every map and unmap invalidates the VAS itself) [host]",
+                self.vas
+            );
+            eprintln!("vfio-user-nvgpu: {line}");
+            self.settle_notes.push(line);
+        }
+    }
+
+    /// Free a virtual object: the owed invalidate first, then `RM_FREE`.
+    fn free_virtual<H: ShadowHost>(&mut self, h: &mut H, handle: u32) {
+        self.settle(&*h);
+        let t0 = Instant::now();
+        let _ = h.free_object(handle);
+        self.calls.add(Call::ObjectFree, t0);
+    }
+
+    /// Free a region object together with its mappings: one `RM_FREE`, in which the RM first
+    /// unmaps every mapping made into the object (the resource server's auto-unmap of the
+    /// context's back-references, `_clientUnmapInterBackRefMappings`, rs_client.c:1347-1400,
+    /// each through `virtmemUnmapFrom` with its own TLB invalidate) and then frees the
+    /// object's VA range. The shadow forgets the region's runs and leaves. The owed
+    /// invalidate of deferred calls is paid first ([`Self::free_virtual`]).
+    fn free_region_whole<H: ShadowHost>(&mut self, h: &mut H, u: u64, hd: u32) -> usize {
+        let runs: Vec<u64> = self.runs.range(u..u + REGION).map(|(v, _)| *v).collect();
+        for v in &runs {
+            if let Some(r) = self.runs.remove(v) {
+                self.run_gone(r.h_mem);
+            }
+        }
+        self.budget.add(-(runs.len() as isize));
+        let gone: Vec<u64> = self.mapped.range(u..u + REGION).map(|(v, _)| *v).collect();
+        for v in gone {
+            self.mapped.remove(&v);
+        }
+        self.regions.remove(&u);
+        self.free_virtual(h, hd);
+        self.stats.regions_freed += 1;
+        self.stats.bulk_frees += 1;
+        self.stats.bulk_runs += runs.len() as u64;
+        // The gathers only this region used, after the object (and its mappings) is gone.
+        self.free_idle_gathers(h);
+        runs.len()
+    }
+
+    /// Free the pooled region objects that overlap an excluded (set-B) range: the host RM
+    /// builds its own buffers there.
+    fn purge_pool<H: ShadowHost>(&mut self, h: &mut H, exclude: &[(u64, u64)]) {
+        let hit: Vec<u64> = self
+            .pool
+            .keys()
+            .copied()
+            .filter(|rv| exclude.iter().any(|(lo, hi)| *rv < *hi && rv + REGION > *lo))
+            .collect();
+        for rv in hit {
+            if let Some(hd) = self.pool.remove(&rv).and_then(|r| r.handle) {
+                self.free_virtual(h, hd);
+                self.stats.regions_freed += 1;
+            }
+        }
     }
 
     /// Leaves mirrored now.
@@ -608,7 +946,7 @@ impl ShadowVas {
     /// a run; a piece that is not the whole run splits it (the RM keeps the rest mapped).
     /// A partial unmap the RM refuses unmaps the whole run; its other leaves are then no
     /// longer mirrored and the caller maps them again.
-    fn unmap_leaves(&mut self, hm: &mut HostMemory, vas: &[u64]) {
+    fn unmap_leaves<H: ShadowHost>(&mut self, hm: &mut H, vas: &[u64]) {
         let mut i = 0;
         while i < vas.len() {
             let Some(first) = self.mapped.get(&vas[i]).copied() else {
@@ -633,14 +971,24 @@ impl ShadowVas {
         }
     }
 
-    fn unmap_piece(&mut self, hm: &mut HostMemory, run_va: u64, s: u64, e: u64) {
+    /// One `RM_UNMAP_MEMORY_DMA`, deferred when the switch is on (the VAS then owes an
+    /// invalidate).
+    fn rm_unmap<H: ShadowHost>(&mut self, hm: &H, run: &Run, va: u64, len: u64) -> u32 {
+        let t0 = Instant::now();
+        let st = hm.unmap_dma(run.h_dma, run.h_mem, va, len, self.defer_tlb);
+        self.calls.add(Call::Unmap, t0);
+        self.tlb_owed |= self.defer_tlb;
+        self.stats.unmaps += 1;
+        st
+    }
+
+    fn unmap_piece<H: ShadowHost>(&mut self, hm: &mut H, run_va: u64, s: u64, e: u64) {
         let Some(run) = self.runs.get(&run_va).copied() else {
             return;
         };
         let run_end = run_va + run.size;
         let whole = s == run_va && e == run_end;
-        let st = hm.unmap_dma(run.h_dma, run.h_mem, s, e - s);
-        self.stats.unmaps += 1;
+        let st = self.rm_unmap(&*hm, &run, s, e - s);
         if st == sys::NV_OK && whole {
             self.drop_run(hm, run_va, run);
         } else if st == sys::NV_OK {
@@ -671,6 +1019,9 @@ impl ShadowVas {
                 }
             }
             self.budget.add(n);
+            if let Some(c) = self.gathers.get_mut(&run.h_mem) {
+                *c = c.saturating_add_signed(n);
+            }
             let gone: Vec<u64> = self.mapped.range(s..e).map(|(va, _)| *va).collect();
             for va in gone {
                 self.mapped.remove(&va);
@@ -680,8 +1031,7 @@ impl ShadowVas {
             if !whole {
                 // The RM refused the split: take the whole run down; the caller maps its
                 // other leaves again.
-                let st2 = hm.unmap_dma(run.h_dma, run.h_mem, run_va, run.size);
-                self.stats.unmaps += 1;
+                let st2 = self.rm_unmap(&*hm, &run, run_va, run.size);
                 if st2 != sys::NV_OK {
                     self.stats.unmap_failed += 1;
                 }
@@ -691,7 +1041,7 @@ impl ShadowVas {
     }
 
     /// Forget a run whose mapping is gone (and free its per-leaf object).
-    fn drop_run(&mut self, hm: &mut HostMemory, run_va: u64, run: Run) {
+    fn drop_run<H: ShadowHost>(&mut self, hm: &mut H, run_va: u64, run: Run) {
         self.runs.remove(&run_va);
         self.budget.add(-1);
         let gone: Vec<u64> = self
@@ -703,27 +1053,117 @@ impl ShadowVas {
             self.mapped.remove(&va);
         }
         if run.own_object {
-            let _ = hm.free_object(run.h_dma);
+            self.free_virtual(hm, run.h_dma);
         }
+        self.run_gone(run.h_mem);
+        self.free_idle_gathers(hm);
+    }
+
+    /// A run of `h_mem` is gone: a gather descriptor no run uses any more becomes idle.
+    fn run_gone(&mut self, h_mem: u32) {
+        if let Some(c) = self.gathers.get_mut(&h_mem) {
+            *c = c.saturating_sub(1);
+            if *c == 0 {
+                self.gathers.remove(&h_mem);
+                self.gathers_idle.push(h_mem);
+            }
+        }
+    }
+
+    /// Free the idle gather descriptors, after the owed invalidate: their mappings are gone.
+    fn free_idle_gathers<H: ShadowHost>(&mut self, h: &mut H) {
+        if self.gathers_idle.is_empty() {
+            return;
+        }
+        self.settle(&*h);
+        for g in std::mem::take(&mut self.gathers_idle) {
+            let t0 = Instant::now();
+            let _ = h.free_gather(g);
+            self.calls.add(Call::GatherFree, t0);
+        }
+    }
+
+    /// Map scattered sysmem stretches through gather descriptors: every maximal
+    /// VA-contiguous stretch of 4 KiB sysmem leaves in `todo` (sorted by VA; one unit) with
+    /// one kind and snoop setting, at least [`GATHER_MIN_LEAVES`] leaves and at least
+    /// [`GATHER_MIN_RUNS`] coalesced runs, gets one gather descriptor of its pages in VA
+    /// order, and its leaves are rewritten to that backing at offsets 0, 4 KiB, ...: they
+    /// then coalesce into one run. The pages are the ones the filter resolved (each leaf's
+    /// registered descriptor and offset); a stretch the host refuses keeps its leaves as
+    /// they were. Returns the gathers made.
+    fn gather_stretches<H: ShadowHost>(&mut self, h: &mut H, todo: &mut [ToMap], notes: &mut Vec<String>) -> Vec<u32> {
+        const PAGE: u64 = 0x1000;
+        let eligible = |m: &ToMap| m.snoop && m.leaf.size == PAGE && matches!(m.leaf.target, Target::Sys(_));
+        let mut made = Vec::new();
+        let mut i = 0;
+        while i < todo.len() {
+            if !eligible(&todo[i]) {
+                i += 1;
+                continue;
+            }
+            let mut j = i + 1;
+            while j < todo.len()
+                && eligible(&todo[j])
+                && todo[j].va == todo[j - 1].va + PAGE
+                && todo[j].leaf.kind == todo[i].leaf.kind
+            {
+                j += 1;
+            }
+            if j - i >= GATHER_MIN_LEAVES && coalesce(&todo[i..j]).len() >= GATHER_MIN_RUNS {
+                let pages: Vec<(u32, u64)> = todo[i..j].iter().map(|m| (m.h_mem, m.off)).collect();
+                let t0 = Instant::now();
+                let r = h.gather(&pages);
+                self.calls.add(Call::Gather, t0);
+                match r {
+                    Ok(g) => {
+                        self.gathers.insert(g, 0);
+                        self.stats.gathers += 1;
+                        self.stats.gathered_leaves += (j - i) as u64;
+                        for (k, m) in todo[i..j].iter_mut().enumerate() {
+                            m.h_mem = g;
+                            m.off = k as u64 * PAGE;
+                        }
+                        made.push(g);
+                    }
+                    Err(e) => {
+                        self.stats.gathers_refused += 1;
+                        if self.stats.gathers_refused <= 3 {
+                            notes.push(format!(
+                                "shadow: gather of {} leaves from va {:#x} refused ({e}); mapped run by run [host]",
+                                j - i,
+                                todo[i].va
+                            ));
+                        }
+                    }
+                }
+            }
+            i = j;
+        }
+        made
     }
 
     /// Apply a [`Plan`]: per unit, unmap what the guest removed or changed, drop a region
     /// object of the wrong class, and map what is new, coalesced into runs. The host RM lock
     /// is taken per unit, so a long plan never holds it for more than one unit's RM calls.
     /// Returns `(changed, notes)`, the first note the one-line summary of the sync.
-    pub fn apply(
+    pub fn apply<H: ShadowHost>(
         &mut self,
-        hm: &std::sync::Mutex<HostMemory>,
+        hm: &std::sync::Mutex<H>,
         plan: &Plan,
         descs: &[(u32, u64, u64)],
     ) -> (bool, Vec<String>) {
         let t0 = Instant::now();
+        let calls0 = self.calls;
         let exclude = &plan.exclude;
         let mut notes = Vec::new();
         let mut logged = 0usize;
         let live0 = self.runs.len();
         let (mut n_unmap, mut n_map, mut n_leaves, mut n_fail, mut n_budget) =
             (0usize, 0usize, 0usize, 0usize, 0usize);
+        if !self.pool.is_empty() {
+            let mut h = hm.lock().unwrap();
+            self.purge_pool(&mut *h, exclude);
+        }
         for (u, want_v) in &plan.units {
             let u = *u;
             let want: BTreeMap<u64, ToMap> = want_v.iter().map(|m| (m.va, *m)).collect();
@@ -749,24 +1189,52 @@ impl ShadowVas {
                 continue;
             }
             let mut h = hm.lock().unwrap();
+            // The guest emptied a region with many runs: one RM_FREE of its object instead
+            // of one unmap per run (nothing is left to map in it).
+            if need.is_none() && self.bulk_on {
+                let hd = self.regions.get(&u).and_then(|r| r.handle);
+                if let Some(hd) = hd.filter(|_| self.runs.range(u..u + REGION).count() >= BULK_MIN_RUNS) {
+                    n_unmap += unmap.len();
+                    self.free_region_whole(&mut *h, u, hd);
+                    continue;
+                }
+            }
+            let unmap_failed0 = self.stats.unmap_failed;
             n_unmap += unmap.len();
-            self.unmap_leaves(&mut h, &unmap);
+            self.unmap_leaves(&mut *h, &unmap);
             if stale {
                 let inside: Vec<u64> = self.mapped.range(u..u + REGION).map(|(v, _)| *v).collect();
-                self.unmap_leaves(&mut h, &inside);
+                self.unmap_leaves(&mut *h, &inside);
                 if let Some(reg) = self.regions.remove(&u) {
                     if let Some(hd) = reg.handle {
-                        let _ = h.free_object(hd);
-                        self.stats.regions_freed += 1;
+                        // The free list takes a region only when the guest emptied it and
+                        // the RM unmapped every run in it: a pooled object holds no leaf.
+                        let clean = need.is_none()
+                            && self.stats.unmap_failed == unmap_failed0
+                            && self.runs.range(u..u + REGION).next().is_none()
+                            && self.mapped.range(u..u + REGION).next().is_none()
+                            && !exclude.iter().any(|(lo, hi)| u < *hi && u + REGION > *lo);
+                        if self.pool_on && clean && self.pool.len() < REGION_POOL_MAX {
+                            self.pool.insert(u, reg);
+                            self.calls.pooled += 1;
+                        } else {
+                            self.free_virtual(&mut *h, hd);
+                            self.stats.regions_freed += 1;
+                        }
                     }
                 }
             }
             // Map what is wanted and not mirrored (a refused split may have taken more down).
-            let todo: Vec<ToMap> = want
+            let mut todo: Vec<ToMap> = want
                 .values()
                 .filter(|m| !self.mapped.contains_key(&m.va) && self.failed.get(&m.va) != Some(&m.leaf))
                 .copied()
                 .collect();
+            let made = if self.gather_on {
+                self.gather_stretches(&mut *h, &mut todo, &mut notes)
+            } else {
+                Vec::new()
+            };
             for r in coalesce(&todo) {
                 let items = &todo[r];
                 let first = items[0];
@@ -774,14 +1242,35 @@ impl ShadowVas {
                 let class = class_of(first.leaf.size);
                 if !self.regions.contains_key(&rv) {
                     let touches_b = exclude.iter().any(|(lo, hi)| rv < *hi && rv + REGION > *lo);
+                    // A pooled object of this region: taken back when its class fits,
+                    // freed otherwise.
+                    let mut reuse = None;
+                    if let Some(reg) = self.pool.remove(&rv) {
+                        match reg.handle {
+                            Some(hd) if !touches_b && reg.class == class => {
+                                self.calls.reused += 1;
+                                reuse = Some(hd);
+                            }
+                            Some(hd) => {
+                                self.free_virtual(&mut *h, hd);
+                                self.stats.regions_freed += 1;
+                            }
+                            None => {}
+                        }
+                    }
                     let handle = if touches_b {
                         None
+                    } else if reuse.is_some() {
+                        reuse
                     } else {
                         let page = match class {
                             Class::Huge => Some(REGION),
                             Class::Small => None,
                         };
-                        match h.alloc_virtual_fixed(self.vas, rv, REGION, page, false) {
+                        let ta = Instant::now();
+                        let r = h.alloc_virtual_fixed(self.vas, rv, REGION, page, false);
+                        self.calls.add(Call::ObjectAlloc, ta);
+                        match r {
                             Ok(hd) => {
                                 self.stats.region_objects += 1;
                                 Some(hd)
@@ -828,36 +1317,32 @@ impl ShadowVas {
                     let len: u64 = piece.iter().map(|m| m.leaf.size).sum();
                     let (h_dma, own) = match region {
                         Some(hd) => (hd, false),
-                        None => match h.alloc_virtual_fixed(self.vas, p0.va, len, Some(p0.leaf.size), true) {
-                            Ok(hd) => {
-                                self.stats.leaf_objects += 1;
-                                (hd, true)
-                            }
-                            Err(st) => {
-                                self.stats.map_failed += 1;
-                                n_fail += 1;
-                                self.failed.insert(p0.va, p0.leaf);
-                                if logged < LOG_PER_SYNC {
-                                    logged += 1;
-                                    notes.push(format!(
-                                        "shadow: map va {:#x} -> {:x?} size {:#x} refused: per-leaf VA object {st:#x} (VA collision with set B?) [host]",
-                                        p0.va, p0.leaf.target, p0.leaf.size
-                                    ));
+                        None => {
+                            let ta = Instant::now();
+                            let r = h.alloc_virtual_fixed(self.vas, p0.va, len, Some(p0.leaf.size), true);
+                            self.calls.add(Call::ObjectAlloc, ta);
+                            match r {
+                                Ok(hd) => {
+                                    self.stats.leaf_objects += 1;
+                                    (hd, true)
                                 }
-                                continue;
+                                Err(st) => {
+                                    self.stats.map_failed += 1;
+                                    n_fail += 1;
+                                    self.failed.insert(p0.va, p0.leaf);
+                                    if logged < LOG_PER_SYNC {
+                                        logged += 1;
+                                        notes.push(format!(
+                                            "shadow: map va {:#x} -> {:x?} size {:#x} refused: per-leaf VA object {st:#x} (VA collision with set B?) [host]",
+                                            p0.va, p0.leaf.target, p0.leaf.size
+                                        ));
+                                    }
+                                    continue;
+                                }
                             }
-                        },
+                        }
                     };
-                    let mut st = h.map_dma_fixed(
-                        h_dma,
-                        p0.h_mem,
-                        p0.off,
-                        len,
-                        p0.va,
-                        page_size_flag(p0.leaf.size),
-                        p0.snoop,
-                        kind_override(p0.leaf.kind),
-                    );
+                    let mut st = self.rm_map(&*h, h_dma, &p0, len);
                     if st == sys::NV_OK {
                         self.record_run(p0.va, len, h_dma, p0.h_mem, own, piece, descs);
                         n_map += 1;
@@ -865,7 +1350,7 @@ impl ShadowVas {
                         continue;
                     }
                     if own {
-                        let _ = h.free_object(h_dma);
+                        self.free_virtual(&mut *h, h_dma);
                     }
                     if piece.len() == 1 {
                         self.stats.map_failed += 1;
@@ -882,16 +1367,7 @@ impl ShadowVas {
                     }
                     // A coalesced map the host refused: leaf by leaf, as before coalescing.
                     for m in piece {
-                        st = h.map_dma_fixed(
-                            h_dma,
-                            m.h_mem,
-                            m.off,
-                            m.leaf.size,
-                            m.va,
-                            page_size_flag(m.leaf.size),
-                            m.snoop,
-                            kind_override(m.leaf.kind),
-                        );
+                        st = self.rm_map(&*h, h_dma, m, m.leaf.size);
                         if st == sys::NV_OK {
                             self.record_run(m.va, m.leaf.size, h_dma, m.h_mem, false, std::slice::from_ref(m), descs);
                             n_map += 1;
@@ -911,6 +1387,19 @@ impl ShadowVas {
                     }
                 }
             }
+            // A gather no map took (the host refused them all) is freed again.
+            for g in made {
+                if self.gathers.get(&g) == Some(&0) {
+                    self.gathers.remove(&g);
+                    self.gathers_idle.push(g);
+                }
+            }
+            self.free_idle_gathers(&mut *h);
+        }
+        // The invalidate the deferred calls owe, before the worker reports the plan done.
+        if self.tlb_owed {
+            let h = hm.lock().unwrap();
+            self.settle(&*h);
         }
         if self.budget.live() < self.budget.limit {
             self.budget_logged = false;
@@ -926,9 +1415,16 @@ impl ShadowVas {
         self.stats.refused = plan.refused_total;
         self.stats.max_sync_us = self.stats.max_sync_us.max(us);
         self.stats.total_sync_us += us;
-        let changed = n_unmap > 0 || n_map > 0 || n_fail > 0 || n_budget > 0 || logged > 0 || !plan.notes.is_empty();
+        let settle_notes = std::mem::take(&mut self.settle_notes);
+        let changed = n_unmap > 0
+            || n_map > 0
+            || n_fail > 0
+            || n_budget > 0
+            || logged > 0
+            || !plan.notes.is_empty()
+            || !settle_notes.is_empty();
         let mut out = vec![format!(
-            "shadow: sync {} leaves walked{} in {} unit(s), {} table read(s){} ({} set-A, {} set-B excluded, {} refused now) -> {n_unmap} unmapped, {n_leaves} mapped in {n_map} call(s), {n_fail} failed, {n_budget} over budget; mirrored {} leaves in {} RM mapping(s) ({} before), {} region object(s) + {} leaf object(s); device live maps {}/{}; totals: {} maps ({} leaves), {} unmaps ({} partial, {} failed), {} map-failed, {} over budget, {} refused, {} region(s) refused; walk {} us, apply {us_apply} us{}, sync {us} us; {}",
+            "shadow: sync {} leaves walked{} in {} unit(s), {} table read(s){} ({} set-A, {} set-B excluded, {} refused now) -> {n_unmap} unmapped, {n_leaves} mapped in {n_map} call(s), {n_fail} failed, {n_budget} over budget; mirrored {} leaves in {} RM mapping(s) ({} before), {} region object(s) + {} leaf object(s) + {} pooled; device live maps {}/{}; totals: {} maps ({} leaves), {} unmaps ({} partial, {} failed), {} map-failed, {} over budget, {} refused, {} region(s) refused; walk {} us, apply {us_apply} us{}, sync {us} us; {}{}; {}",
             plan.walked,
             if plan.full { " [full walk]" } else { "" },
             plan.units.len(),
@@ -942,6 +1438,7 @@ impl ShadowVas {
             live0,
             self.regions.values().filter(|r| r.handle.is_some()).count(),
             self.runs.values().filter(|r| r.own_object).count(),
+            self.pool.len(),
             self.budget.live(),
             self.budget.limit,
             self.stats.maps,
@@ -955,11 +1452,34 @@ impl ShadowVas {
             self.stats.regions_refused,
             plan.walk_us,
             if plan.queued_us > 0 { format!(" after {} us in the worker's queue", plan.queued_us) } else { String::new() },
+            self.calls.since(&calls0).line(),
+            if self.defer_tlb { " [TLB deferred]" } else { "" },
             self.stats.extents(),
         )];
         out.extend(plan.notes.iter().cloned());
+        out.extend(settle_notes);
         out.extend(notes);
         (changed, out)
+    }
+
+    /// One `RM_MAP_MEMORY_DMA` of `len` bytes from `m`'s backing at `m.va`, deferred when
+    /// the switch is on (the VAS then owes an invalidate).
+    fn rm_map<H: ShadowHost>(&mut self, h: &H, h_dma: u32, m: &ToMap, len: u64) -> u32 {
+        let t0 = Instant::now();
+        let st = h.map_dma_fixed(
+            h_dma,
+            m.h_mem,
+            m.off,
+            len,
+            m.va,
+            page_size_flag(m.leaf.size),
+            m.snoop,
+            kind_override(m.leaf.kind),
+            self.defer_tlb,
+        );
+        self.calls.add(Call::Map, t0);
+        self.tlb_owed |= self.defer_tlb;
+        st
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -983,6 +1503,9 @@ impl ShadowVas {
             },
         );
         self.budget.add(1);
+        if let Some(c) = self.gathers.get_mut(&h_mem) {
+            *c += 1;
+        }
         for m in piece {
             self.mapped.insert(m.va, MappedLeaf { leaf: m.leaf, run: va });
         }
@@ -995,7 +1518,7 @@ impl ShadowVas {
     pub fn summary(&self) -> String {
         let s = &self.stats;
         format!(
-            "{} syncs ({} skipped clean, {} full walks, {} table reads, {} units diffed; max {} us, total {} ms), {} maps ({} leaves), {} unmaps ({} partial, {} failed), {} map-failed, {} over budget, {} refused by the filter, {} region objects ({} freed, {} refused), {} per-leaf objects; {} leaves in {} RM mappings at the end; {}",
+            "{} syncs ({} skipped clean, {} full walks, {} table reads, {} units diffed; max {} us, total {} ms), {} maps ({} leaves), {} unmaps ({} partial, {} failed), {} map-failed, {} over budget, {} refused by the filter, {} region objects ({} freed, {} of them whole with {} mappings, {} refused, {} pooled), {} per-leaf objects, {} gather descriptor(s) for {} leaves ({} refused, {} live); {} leaves in {} RM mappings at the end; {}; TLB invalidation {}{}; {}",
             s.syncs,
             s.skipped,
             s.full_walks,
@@ -1013,10 +1536,24 @@ impl ShadowVas {
             s.refused,
             s.region_objects,
             s.regions_freed,
+            s.bulk_frees,
+            s.bulk_runs,
             s.regions_refused,
+            self.pool.len(),
             s.leaf_objects,
+            s.gathers,
+            s.gathered_leaves,
+            s.gathers_refused,
+            self.gathers.len(),
             self.mapped.len(),
             self.runs.len(),
+            self.calls.line(),
+            if self.defer_tlb { "deferred" } else { "per call" },
+            if s.invalidate_failed > 0 {
+                format!(" ({} invalidate(s) FAILED)", s.invalidate_failed)
+            } else {
+                String::new()
+            },
             s.extents()
         )
     }
@@ -1024,7 +1561,7 @@ impl ShadowVas {
     /// Free the shadow VAS incrementally: unmap its runs `TEARDOWN_BATCH` at a time with
     /// a pause after each batch (every NVOS47 takes the host GPU lock only for itself),
     /// then free its virtual objects the same way, then the VAS. Returns one line.
-    pub fn free(mut self, hm: &std::sync::Mutex<HostMemory>) -> String {
+    pub fn free<H: ShadowHost>(mut self, hm: &std::sync::Mutex<H>) -> String {
         let t0 = Instant::now();
         let mut steps = 0usize;
         while !self.teardown_step(hm) {
@@ -1034,31 +1571,69 @@ impl ShadowVas {
         self.teardown_line(steps + 1, t0.elapsed().as_millis())
     }
 
-    /// One bounded step of the incremental teardown: unmap up to `TEARDOWN_BATCH` runs, or
-    /// free up to `TEARDOWN_BATCH` virtual objects, or finally the VAS. The host RM lock is
-    /// held for the step only. Returns true when everything is freed.
-    pub fn teardown_step(&mut self, hm: &std::sync::Mutex<HostMemory>) -> bool {
+    /// One bounded step of the incremental teardown: unmap up to `TEARDOWN_BATCH` runs
+    /// (deferred, then one invalidate), or free up to `TEARDOWN_BATCH` virtual objects (the
+    /// regions, the pooled regions and the per-leaf objects), or finally the VAS. The host
+    /// RM lock is held for the step only. Returns true when everything is freed.
+    pub fn teardown_step<H: ShadowHost>(&mut self, hm: &std::sync::Mutex<H>) -> bool {
         let mut h = hm.lock().unwrap();
+        if self.teardown_calls0.is_none() {
+            self.teardown_calls0 = Some(self.calls);
+        }
+        if !self.runs.is_empty() && self.bulk_on {
+            // Region objects whole, with their mappings: about TEARDOWN_BATCH mappings per
+            // step, at least one object.
+            let regs: Vec<(u64, u32)> = self
+                .regions
+                .iter()
+                .filter_map(|(u, r)| r.handle.map(|hd| (*u, hd)))
+                .filter(|(u, _)| self.runs.range(*u..*u + REGION).next().is_some())
+                .collect();
+            let mut taken = 0usize;
+            for (u, hd) in regs {
+                let n = self.runs.range(u..u + REGION).count();
+                if taken > 0 && taken + n > TEARDOWN_BATCH {
+                    break;
+                }
+                self.free_region_whole(&mut *h, u, hd);
+                self.teardown_unmapped += n;
+                self.teardown_bulk += n;
+                self.teardown_freed += 1;
+                taken += n;
+            }
+            if taken > 0 {
+                return false;
+            }
+        }
         if !self.runs.is_empty() {
             let batch: Vec<(u64, Run)> = self.runs.iter().take(TEARDOWN_BATCH).map(|(v, r)| (*v, *r)).collect();
             for (va, run) in batch {
-                if h.unmap_dma(run.h_dma, run.h_mem, va, run.size) != sys::NV_OK {
+                if self.rm_unmap(&*h, &run, va, run.size) != sys::NV_OK {
                     self.stats.unmap_failed += 1;
                 }
                 if run.own_object {
                     self.teardown_objects.push(run.h_dma);
                 }
                 self.runs.remove(&va);
+                self.run_gone(run.h_mem);
                 self.budget.add(-1);
                 self.teardown_unmapped += 1;
             }
+            self.settle(&*h);
+            self.free_idle_gathers(&mut *h);
             return false;
         }
         self.mapped.clear();
-        if !self.regions.is_empty() {
+        if !self.regions.is_empty() || !self.pool.is_empty() {
             let rs: Vec<u64> = self.regions.keys().copied().collect();
             for r in rs {
                 if let Some(hd) = self.regions.remove(&r).and_then(|reg| reg.handle) {
+                    self.teardown_objects.push(hd);
+                }
+            }
+            let ps: Vec<u64> = self.pool.keys().copied().collect();
+            for r in ps {
+                if let Some(hd) = self.pool.remove(&r).and_then(|reg| reg.handle) {
                     self.teardown_objects.push(hd);
                 }
             }
@@ -1066,13 +1641,19 @@ impl ShadowVas {
         if !self.teardown_objects.is_empty() {
             let n = self.teardown_objects.len().min(TEARDOWN_BATCH);
             for o in self.teardown_objects.drain(..n).collect::<Vec<_>>() {
-                let _ = h.free_object(o);
+                self.free_virtual(&mut *h, o);
                 self.teardown_freed += 1;
             }
             return false;
         }
+        let left: Vec<u32> = std::mem::take(&mut self.gathers).into_keys().collect();
+        self.gathers_idle.extend(left);
+        self.free_idle_gathers(&mut *h);
         if self.vas != 0 {
+            self.settle(&*h);
+            let t0 = Instant::now();
             let _ = h.free_object(self.vas);
+            self.calls.add(Call::ObjectFree, t0);
             self.vas = 0;
         }
         true
@@ -1080,8 +1661,13 @@ impl ShadowVas {
 
     pub fn teardown_line(&self, steps: usize, ms: u128) -> String {
         format!(
-            "incremental teardown: {} RM mapping(s) unmapped ({} failed) and {} virtual object(s) freed in {steps} step(s) of at most {TEARDOWN_BATCH}, the host RM lock released between steps, {ms} ms in total",
-            self.teardown_unmapped, self.stats.unmap_failed, self.teardown_freed
+            "incremental teardown: {} RM mapping(s) unmapped ({} with their region object, {} failed) and {} virtual object(s) freed in {steps} step(s) of at most {TEARDOWN_BATCH} mappings, the host RM lock released between steps, TLB invalidation {}, {ms} ms in total; {}",
+            self.teardown_unmapped,
+            self.teardown_bulk,
+            self.stats.unmap_failed,
+            self.teardown_freed,
+            if self.defer_tlb { "deferred to one per step" } else { "per call" },
+            self.calls.since(&self.teardown_calls0.unwrap_or_default()).line()
         )
     }
 }
@@ -1288,5 +1874,578 @@ mod tests {
         assert_eq!(b.live(), 3);
         b.add(-2);
         assert_eq!(b.live(), 1);
+    }
+
+    // ---- The host RM call batching (memory-model.md §7), against a fake host. ----
+
+    use std::cell::RefCell;
+    use std::sync::Mutex;
+
+    /// One host RM call the fake saw: kind, VA (or handle for a free), length, deferred.
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    struct Seen {
+        call: Call,
+        va: u64,
+        len: u64,
+        defer: bool,
+    }
+
+    #[derive(Default)]
+    struct FakeHost {
+        seen: RefCell<Vec<Seen>>,
+        next: u32,
+        /// Unmaps at these VAs fail.
+        fail_unmap: Vec<u64>,
+        /// The invalidate fails.
+        fail_invalidate: bool,
+        /// Live mappings `(h_dma, va) -> len`: a free of an object with live mappings is
+        /// what the RM would auto-unmap, which the tests assert never happens behind the
+        /// shadow's back for a pooled object.
+        live: RefCell<BTreeMap<(u32, u64), (u64, u32)>>,
+        freed: Vec<u32>,
+        /// The gathers made: handle and pages.
+        gathered: BTreeMap<u32, Vec<(u32, u64)>>,
+        fail_gather: bool,
+    }
+
+    impl FakeHost {
+        fn calls(&self, c: Call) -> Vec<Seen> {
+            self.seen.borrow().iter().filter(|s| s.call == c).cloned().collect()
+        }
+        fn kinds(&self) -> Vec<Call> {
+            self.seen.borrow().iter().map(|s| s.call).collect()
+        }
+    }
+
+    impl ShadowHost for FakeHost {
+        fn alloc_virtual_fixed(&mut self, _vas: u32, va: u64, size: u64, _p: Option<u64>, _f: bool) -> Result<u32, u32> {
+            self.next += 1;
+            self.seen.borrow_mut().push(Seen { call: Call::ObjectAlloc, va, len: size, defer: false });
+            Ok(0x100 + self.next)
+        }
+        fn map_dma_fixed(&self, h_dma: u32, h_mem: u32, _o: u64, len: u64, va: u64, _ps: u32, _s: bool, _k: Option<u8>, defer: bool) -> u32 {
+            self.seen.borrow_mut().push(Seen { call: Call::Map, va, len, defer });
+            self.live.borrow_mut().insert((h_dma, va), (len, h_mem));
+            sys::NV_OK
+        }
+        fn unmap_dma(&self, h_dma: u32, _m: u32, va: u64, len: u64, defer: bool) -> u32 {
+            self.seen.borrow_mut().push(Seen { call: Call::Unmap, va, len, defer });
+            if self.fail_unmap.contains(&va) {
+                return 0x1f;
+            }
+            self.live.borrow_mut().remove(&(h_dma, va));
+            sys::NV_OK
+        }
+        fn free_object(&mut self, handle: u32) -> Result<(), u32> {
+            self.seen.borrow_mut().push(Seen { call: Call::ObjectFree, va: handle as u64, len: 0, defer: false });
+            self.live.borrow_mut().retain(|(h, _), _| *h != handle);
+            self.freed.push(handle);
+            Ok(())
+        }
+        fn invalidate_vas(&self, _vas: u32) -> u32 {
+            self.seen.borrow_mut().push(Seen { call: Call::Invalidate, va: 0, len: 0, defer: false });
+            if self.fail_invalidate {
+                0x1f
+            } else {
+                sys::NV_OK
+            }
+        }
+        fn gather(&mut self, pages: &[(u32, u64)]) -> Result<u32, String> {
+            self.seen.borrow_mut().push(Seen { call: Call::Gather, va: 0, len: pages.len() as u64, defer: false });
+            if self.fail_gather {
+                return Err("refused".into());
+            }
+            self.next += 1;
+            let g = 0x900 + self.next;
+            self.gathered.insert(g, pages.to_vec());
+            Ok(g)
+        }
+        fn free_gather(&mut self, handle: u32) -> u32 {
+            self.seen.borrow_mut().push(Seen { call: Call::GatherFree, va: handle as u64, len: 0, defer: false });
+            assert!(
+                self.live.borrow().values().all(|(_, m)| *m != handle),
+                "gather {handle:#x} freed while still mapped"
+            );
+            assert!(self.gathered.remove(&handle).is_some());
+            sys::NV_OK
+        }
+    }
+
+    fn sv(defer: bool, pool: bool) -> ShadowVas {
+        let mut s = ShadowVas::with_vas(0x77, MapBudget::new(1 << 20));
+        s.coalesce = true;
+        s.defer_tlb = defer;
+        s.pool_on = pool;
+        s.bulk_on = false;
+        s.gather_on = false;
+        s
+    }
+
+    /// A plan holding `leaves` (VA, FB PA, size, kind) in their 2 MiB units.
+    fn plan_of(leaves: &[(u64, u64, u64, u8)], units: &[u64]) -> Plan {
+        let mut by: BTreeMap<u64, Vec<ToMap>> = units.iter().map(|u| (*u, Vec::new())).collect();
+        for &(va, pa, size, kind) in leaves {
+            by.entry(va & !(REGION - 1)).or_default().push(tm(va, pa, size, kind, 1));
+        }
+        Plan {
+            root: BASE,
+            units: by.into_iter().collect(),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn coalescing_keeps_holes_permissions_and_order_apart() {
+        let k = 0x06;
+        let sys = |va: u64, iova: u64, snoop: bool| ToMap {
+            va,
+            leaf: Leaf { target: Target::Sys(iova), size: 0x1000, kind: k },
+            h_mem: 7,
+            off: iova,
+            snoop,
+        };
+        let items = vec![
+            tm(0x1000, BASE + 0x1000, 0x1000, k, 1),
+            tm(0x3000, BASE + 0x3000, 0x1000, k, 1), // a VA hole (0x2000 unmapped): new run
+            tm(0x4000, BASE + 0x4000, 0x1000, k, 1), // contiguous with the one before
+            sys(0x5000, 0x5000, true),                // other backing (sysmem descriptor)
+            sys(0x6000, 0x6000, false),               // same descriptor, snoop differs
+            sys(0x7000, 0x7000, false),               // contiguous: joins
+            sys(0x8000, 0x6000, false),               // PA goes backwards: new run
+            sys(0x9000, 0x5000, false),               // descending pages never merge
+        ];
+        assert_eq!(coalesce(&items), vec![0..1, 1..3, 3..4, 4..6, 6..7, 7..8]);
+        // Every run is exactly the leaves it covers: VA and backing advance together.
+        for r in coalesce(&items) {
+            let s = &items[r];
+            for w in s.windows(2) {
+                assert_eq!(w[1].va - w[0].va, w[1].off - w[0].off);
+                assert_eq!((w[1].h_mem, w[1].snoop, w[1].leaf.kind), (w[0].h_mem, w[0].snoop, w[0].leaf.kind));
+            }
+        }
+    }
+
+    /// D16: a compressible leaf inside an otherwise contiguous stretch is refused by the
+    /// filter, never reaches a map call, and splits the run around it.
+    #[test]
+    fn a_compressible_leaf_splits_the_run_and_is_never_mapped() {
+        let mut fb = FakeFb::new(END + (64 << 20));
+        let vid = |a: u64| ((a >> 12) << 8) | 0b010;
+        let pte = |a: u64, kind: u64| ((a >> 12) << 8) | 1 | (kind << 56);
+        let (root, pd2, pd1, pd0, pt) = (BASE, BASE + 0x1000, BASE + 0x2000, BASE + 0x3000, BASE + 0x4000);
+        fb.write_u64(root, vid(pd2));
+        fb.write_u64(pd2, vid(pd1));
+        fb.write_u64(pd1, vid(pd0));
+        fb.write_u64(pd0 + 8, vid(pt));
+        let x = BASE + 0x10_0000;
+        for i in 0..6u64 {
+            let kind = if i == 3 { 0x0A } else { 0x06 };
+            fb.write_u64(pt + 8 * (i + 1), pte(x + i * 0x1000, kind));
+        }
+        let mem = GuestMemory::new();
+        let plan = ShadowFront::new(root).plan(&fb, &mem, BASE, END, 1, &[], &[]).unwrap();
+        assert_eq!(plan.want, 5);
+        assert_eq!(plan.refused_now, 1);
+        let host = Mutex::new(FakeHost::default());
+        let mut s = sv(true, true);
+        let (changed, lines) = s.apply(&host, &plan, &[]);
+        assert!(changed);
+        let h = host.lock().unwrap();
+        let maps = h.calls(Call::Map);
+        assert_eq!(
+            maps.iter().map(|m| (m.va, m.len)).collect::<Vec<_>>(),
+            vec![(0x1000, 0x3000), (0x5000, 0x2000)]
+        );
+        assert!(maps.iter().all(|m| !(m.va..m.va + m.len).contains(&0x4000)));
+        assert!(lines.iter().any(|l| l.contains("REFUSED leaf va 0x4000") && l.contains("D16")));
+    }
+
+    #[test]
+    fn deferred_calls_owe_one_invalidate_paid_at_the_end_of_the_plan() {
+        let host = Mutex::new(FakeHost::default());
+        let mut s = sv(true, true);
+        // Three runs in two regions: 2 region objects, 3 maps, 1 invalidate, in that order.
+        let p = plan_of(
+            &[
+                (0x1000, BASE + 0x1000, 0x1000, 6),
+                (0x2000, BASE + 0x2000, 0x1000, 6),
+                (0x8000, BASE + 0x9000, 0x1000, 6),
+                (REGION + 0x1000, BASE + 0x20_0000, 0x1000, 6),
+            ],
+            &[],
+        );
+        let (_, lines) = s.apply(&host, &p, &[]);
+        let h = host.lock().unwrap();
+        assert!(h.calls(Call::Map).iter().all(|m| m.defer));
+        assert_eq!(h.calls(Call::Map).len(), 3);
+        assert_eq!(*h.kinds().last().unwrap(), Call::Invalidate);
+        assert_eq!(h.calls(Call::Invalidate).len(), 1);
+        assert_eq!(s.calls.count(Call::ObjectAlloc), 2);
+        assert!(lines[0].contains("RM calls 6: map 3") && lines[0].contains("[TLB deferred]"));
+        // A plan with nothing to change owes nothing.
+        drop(h);
+        s.apply(&host, &p, &[]);
+        assert_eq!(host.lock().unwrap().calls(Call::Invalidate).len(), 1);
+    }
+
+    #[test]
+    fn no_object_is_freed_before_the_owed_invalidate() {
+        let host = Mutex::new(FakeHost::default());
+        let mut s = sv(true, false);
+        let full = plan_of(&[(0x1000, BASE + 0x1000, 0x1000, 6), (0x3000, BASE + 0x5000, 0x1000, 6)], &[]);
+        s.apply(&host, &full, &[]);
+        host.lock().unwrap().seen.borrow_mut().clear();
+        // The guest empties the region: two deferred unmaps, the invalidate, then the free.
+        s.apply(&host, &plan_of(&[], &[0]), &[]);
+        let h = host.lock().unwrap();
+        assert_eq!(h.kinds(), vec![Call::Unmap, Call::Unmap, Call::Invalidate, Call::ObjectFree]);
+        assert!(h.calls(Call::Unmap).iter().all(|u| u.defer));
+        assert_eq!(s.mapped_leaves(), 0);
+        assert_eq!(s.budget.live(), 0);
+    }
+
+    #[test]
+    fn an_emptied_region_is_pooled_and_taken_back_without_new_objects() {
+        let host = Mutex::new(FakeHost::default());
+        let mut s = sv(true, true);
+        let a = plan_of(&[(0x1000, BASE + 0x1000, 0x1000, 6)], &[]);
+        s.apply(&host, &a, &[]);
+        s.apply(&host, &plan_of(&[], &[0]), &[]);
+        {
+            let h = host.lock().unwrap();
+            assert!(h.calls(Call::ObjectFree).is_empty(), "pooled, not freed");
+            assert!(h.live.borrow().is_empty(), "a pooled object holds no mapping");
+        }
+        assert_eq!((s.calls.pooled, s.pool.len()), (1, 1));
+        // The guest maps the region again, elsewhere in it: no new object.
+        s.apply(&host, &plan_of(&[(0x9000, BASE + 0x40_0000, 0x1000, 6)], &[]), &[]);
+        assert_eq!(s.calls.count(Call::ObjectAlloc), 1);
+        assert_eq!((s.calls.reused, s.pool.len()), (1, 0));
+        // Emptied again and then needed with 2 MiB pages: the pooled small-page object is
+        // freed (after the owed invalidate) and a huge-page one allocated.
+        s.apply(&host, &plan_of(&[], &[0]), &[]);
+        host.lock().unwrap().seen.borrow_mut().clear();
+        s.apply(&host, &plan_of(&[(0, BASE + 0x60_0000, REGION, 6)], &[]), &[]);
+        let h = host.lock().unwrap();
+        assert_eq!(h.kinds(), vec![Call::ObjectFree, Call::ObjectAlloc, Call::Map, Call::Invalidate]);
+    }
+
+    /// Fail closed: a region in which an unmap failed may still hold a mapping on the host,
+    /// so it is freed (the RM takes the mapping with the object), never pooled.
+    #[test]
+    fn a_region_with_a_failed_unmap_is_freed_not_pooled() {
+        let host = Mutex::new(FakeHost {
+            fail_unmap: vec![0x3000],
+            ..Default::default()
+        });
+        let mut s = sv(true, true);
+        s.apply(&host, &plan_of(&[(0x1000, BASE + 0x1000, 0x1000, 6), (0x3000, BASE + 0x5000, 0x1000, 6)], &[]), &[]);
+        s.apply(&host, &plan_of(&[], &[0]), &[]);
+        let h = host.lock().unwrap();
+        assert_eq!(s.pool.len(), 0);
+        assert_eq!(h.freed.len(), 1);
+        assert!(h.live.borrow().is_empty());
+        assert_eq!(s.stats.unmap_failed, 1);
+    }
+
+    /// A pooled object in a range that becomes set B is freed before anything else.
+    #[test]
+    fn a_pooled_region_under_a_new_exclusion_is_freed() {
+        let host = Mutex::new(FakeHost::default());
+        let mut s = sv(true, true);
+        s.apply(&host, &plan_of(&[(0x1000, BASE + 0x1000, 0x1000, 6)], &[]), &[]);
+        s.apply(&host, &plan_of(&[], &[0]), &[]);
+        assert_eq!(s.pool.len(), 1);
+        let mut p = plan_of(&[], &[]);
+        p.exclude = vec![(0x10_0000, 0x20_0000)];
+        s.apply(&host, &p, &[]);
+        assert_eq!(s.pool.len(), 0);
+        assert_eq!(host.lock().unwrap().freed.len(), 1);
+    }
+
+    #[test]
+    fn a_refused_invalidate_turns_the_deferral_off() {
+        let host = Mutex::new(FakeHost {
+            fail_invalidate: true,
+            ..Default::default()
+        });
+        let mut s = sv(true, true);
+        let (_, lines) = s.apply(&host, &plan_of(&[(0x1000, BASE + 0x1000, 0x1000, 6)], &[]), &[]);
+        assert!(!s.defers_tlb());
+        assert_eq!(s.stats.invalidate_failed, 1);
+        assert!(lines.iter().any(|l| l.starts_with("ERROR shadow: DMA_INVALIDATE_TLB")));
+        host.lock().unwrap().seen.borrow_mut().clear();
+        s.apply(&host, &plan_of(&[(0x1000, BASE + 0x1000, 0x1000, 6), (0x3000, BASE + 0x3000, 0x1000, 6)], &[]), &[]);
+        let h = host.lock().unwrap();
+        assert_eq!(h.kinds(), vec![Call::Map]);
+        assert!(!h.calls(Call::Map)[0].defer);
+    }
+
+    /// With both switches off the calls are the earlier sequence: no deferral, no
+    /// invalidate, every emptied region freed.
+    #[test]
+    fn switches_off_make_the_earlier_calls() {
+        let host = Mutex::new(FakeHost::default());
+        let mut s = sv(false, false);
+        s.apply(&host, &plan_of(&[(0x1000, BASE + 0x1000, 0x1000, 6), (0x3000, BASE + 0x5000, 0x1000, 6)], &[]), &[]);
+        s.apply(&host, &plan_of(&[], &[0]), &[]);
+        let h = host.lock().unwrap();
+        assert_eq!(
+            h.kinds(),
+            vec![Call::ObjectAlloc, Call::Map, Call::Map, Call::Unmap, Call::Unmap, Call::ObjectFree]
+        );
+        assert!(h.seen.borrow().iter().all(|c| !c.defer));
+    }
+
+    #[test]
+    fn the_teardown_defers_per_step_and_frees_the_pool() {
+        let host = Mutex::new(FakeHost::default());
+        let mut s = sv(true, true);
+        // 70 separate runs in one region (every other page), plus one pooled region.
+        let leaves: Vec<(u64, u64, u64, u8)> =
+            (0..70u64).map(|i| (0x1000 + 2 * i * 0x1000, BASE + 0x1000 + 2 * i * 0x1000, 0x1000, 6)).collect();
+        s.apply(&host, &plan_of(&leaves, &[]), &[]);
+        s.apply(&host, &plan_of(&[(REGION + 0x1000, BASE + 0x40_0000, 0x1000, 6)], &[]), &[]);
+        s.apply(&host, &plan_of(&[], &[REGION]), &[]);
+        assert_eq!((s.live_maps(), s.pool.len()), (70, 1));
+        host.lock().unwrap().seen.borrow_mut().clear();
+        let line = s.free(&host);
+        let h = host.lock().unwrap();
+        let k = h.kinds();
+        // Step 1: 64 deferred unmaps and an invalidate; step 2: 6 and an invalidate; then
+        // the two objects and the VAS.
+        assert_eq!(k.iter().filter(|c| **c == Call::Unmap).count(), 70);
+        assert_eq!(k[64], Call::Invalidate);
+        assert_eq!(k[71], Call::Invalidate);
+        assert_eq!(&k[72..], &[Call::ObjectFree, Call::ObjectFree, Call::ObjectFree]);
+        assert!(h.live.borrow().is_empty());
+        assert!(line.contains("deferred to one per step"));
+    }
+
+    /// An emptied region with many runs is freed whole: one RM_FREE, no unmap, and the
+    /// fake RM (like the real one) takes the mappings with the object. Few runs still go run
+    /// by run (and then to the free list).
+    #[test]
+    fn an_emptied_region_with_many_runs_is_freed_whole() {
+        let host = Mutex::new(FakeHost::default());
+        let mut s = sv(false, true);
+        s.bulk_on = true;
+        let many: Vec<(u64, u64, u64, u8)> =
+            (0..10u64).map(|i| (0x1000 + 2 * i * 0x1000, BASE + 0x1000 + 2 * i * 0x1000, 0x1000, 6)).collect();
+        s.apply(&host, &plan_of(&many, &[]), &[]);
+        s.apply(&host, &plan_of(&[(REGION + 0x1000, BASE + 0x40_0000, 0x1000, 6)], &[]), &[]);
+        assert_eq!((s.live_maps(), s.budget.live()), (11, 11));
+        host.lock().unwrap().seen.borrow_mut().clear();
+        let (_, lines) = s.apply(&host, &plan_of(&[], &[0, REGION]), &[]);
+        let h = host.lock().unwrap();
+        // Region 0 (10 runs): one free. Region 1 (1 run): an unmap, then the free list.
+        assert_eq!(h.kinds(), vec![Call::ObjectFree, Call::Unmap]);
+        assert!(h.live.borrow().is_empty());
+        assert_eq!((s.live_maps(), s.mapped_leaves(), s.budget.live()), (0, 0, 0));
+        assert_eq!((s.stats.bulk_frees, s.stats.bulk_runs, s.pool.len()), (1, 10, 1));
+        assert!(lines[0].contains("-> 11 unmapped"));
+        // The region is mapped again later: a fresh object, nothing stale in it.
+        drop(h);
+        s.apply(&host, &plan_of(&[(0x5000, BASE + 0x50_0000, 0x1000, 6)], &[]), &[]);
+        assert_eq!(host.lock().unwrap().calls(Call::ObjectAlloc).len(), 1);
+        assert_eq!(s.lookup(0x5000).map(|(_, l)| l.target), Some(Target::Fb(BASE + 0x50_0000)));
+        assert_eq!(s.lookup(0x1000), None);
+    }
+
+    /// With deferral on, a whole-region free pays the owed invalidate first.
+    #[test]
+    fn a_whole_region_free_pays_the_owed_invalidate_first() {
+        let host = Mutex::new(FakeHost::default());
+        let mut s = sv(true, false);
+        s.bulk_on = true;
+        let many: Vec<(u64, u64, u64, u8)> =
+            (0..6u64).map(|i| (0x1000 + 2 * i * 0x1000, BASE + 0x1000 + 2 * i * 0x1000, 0x1000, 6)).collect();
+        s.apply(&host, &plan_of(&many, &[]), &[]);
+        host.lock().unwrap().seen.borrow_mut().clear();
+        // One plan: a deferred map in region 1 (listed first), then region 0 emptied: the
+        // invalidate comes before the free, and nothing is owed after it.
+        let mut p = plan_of(&[(REGION + 0x1000, BASE + 0x40_0000, 0x1000, 6)], &[0]);
+        p.units.sort_by_key(|(u, _)| std::cmp::Reverse(*u));
+        s.apply(&host, &p, &[]);
+        let h = host.lock().unwrap();
+        assert_eq!(
+            h.kinds(),
+            vec![Call::ObjectAlloc, Call::Map, Call::Invalidate, Call::ObjectFree]
+        );
+    }
+
+    #[test]
+    fn the_teardown_frees_whole_regions_about_a_batch_per_step() {
+        let host = Mutex::new(FakeHost::default());
+        let mut s = sv(false, false);
+        s.bulk_on = true;
+        // Region 0: 40 runs, region 1: 40 runs, region 2: 1 run.
+        let mut leaves = Vec::new();
+        for r in 0..2u64 {
+            for i in 0..40u64 {
+                let va = r * REGION + 0x1000 + 2 * i * 0x1000;
+                leaves.push((va, BASE + va, 0x1000, 6));
+            }
+        }
+        leaves.push((2 * REGION + 0x1000, BASE + 2 * REGION + 0x1000, 0x1000, 6));
+        s.apply(&host, &plan_of(&leaves, &[]), &[]);
+        assert_eq!(s.live_maps(), 81);
+        host.lock().unwrap().seen.borrow_mut().clear();
+        // Step 1: region 0 (40; region 1 would pass 64). Step 2: region 1 and region 2.
+        assert!(!s.teardown_step(&host));
+        assert_eq!(s.live_maps(), 41);
+        assert!(!s.teardown_step(&host));
+        assert_eq!(s.live_maps(), 0);
+        let budget = s.budget.clone();
+        let line = s.free(&host);
+        let h = host.lock().unwrap();
+        assert!(h.calls(Call::Unmap).is_empty());
+        assert_eq!(h.calls(Call::ObjectFree).len(), 4); // three regions and the VAS
+        assert!(h.live.borrow().is_empty());
+        assert_eq!(budget.live(), 0);
+        assert!(line.contains("81 RM mapping(s) unmapped (81 with their region object"), "{line}");
+    }
+
+    // ---- Gather descriptors for scattered sysmem stretches. ----
+
+    const SYS: u64 = 0x7fff_0000_0000;
+
+    /// Sysmem 4 KiB leaves `(va, iova)` of registered descriptor 7 (IOVA base `SYS`).
+    fn splan_of(leaves: &[(u64, u64)], units: &[u64]) -> Plan {
+        let mut by: BTreeMap<u64, Vec<ToMap>> = units.iter().map(|u| (*u, Vec::new())).collect();
+        for &(va, iova) in leaves {
+            by.entry(va & !(REGION - 1)).or_default().push(ToMap {
+                va,
+                leaf: Leaf { target: Target::Sys(iova), size: 0x1000, kind: 6 },
+                h_mem: 7,
+                off: iova - SYS,
+                snoop: true,
+            });
+        }
+        Plan {
+            root: BASE,
+            units: by.into_iter().collect(),
+            ..Default::default()
+        }
+    }
+
+    /// `n` leaves from `va0` whose pages run backwards (the order a LIFO page pool hands out).
+    fn scattered(va0: u64, n: u64) -> Vec<(u64, u64)> {
+        (0..n).map(|i| (va0 + i * 0x1000, SYS + 0x10_0000 + (n - 1 - i) * 0x1000)).collect()
+    }
+
+    fn gsv() -> ShadowVas {
+        let mut s = sv(false, true);
+        s.gather_on = true;
+        s
+    }
+
+    #[test]
+    fn a_scattered_sysmem_stretch_is_mapped_through_one_gather() {
+        let host = Mutex::new(FakeHost::default());
+        let mut s = gsv();
+        let leaves = scattered(0x10000, 32);
+        let (_, lines) = s.apply(&host, &splan_of(&leaves, &[]), &[]);
+        let h = host.lock().unwrap();
+        assert_eq!(h.kinds(), vec![Call::Gather, Call::ObjectAlloc, Call::Map]);
+        let (g, pages) = h.gathered.iter().next().unwrap();
+        // The pages in VA order, each the filter's descriptor and offset.
+        assert_eq!(pages.len(), 32);
+        assert_eq!(pages[0], (7, 0x10_0000 + 31 * 0x1000));
+        assert_eq!(pages[31], (7, 0x10_0000));
+        let m = &h.calls(Call::Map)[0];
+        assert_eq!((m.va, m.len), (0x10000, 32 * 0x1000));
+        assert_eq!(h.live.borrow().values().next().unwrap().1, *g);
+        // The leaves keep the guest's addresses as their identity.
+        assert_eq!(s.lookup(0x10000).map(|(_, l)| l.target), Some(Target::Sys(SYS + 0x10_0000 + 31 * 0x1000)));
+        assert_eq!((s.stats.gathers, s.stats.gathered_leaves, s.live_maps()), (1, 32, 1));
+        assert!(lines[0].contains("gather alloc 1"));
+    }
+
+    #[test]
+    fn contiguous_short_or_mixed_stretches_are_not_gathered() {
+        let host = Mutex::new(FakeHost::default());
+        let mut s = gsv();
+        // 32 ascending pages coalesce by themselves; 10 scattered are below the minimum.
+        let mut leaves: Vec<(u64, u64)> = (0..32u64).map(|i| (0x10000 + i * 0x1000, SYS + 0x20_0000 + i * 0x1000)).collect();
+        leaves.extend(scattered(0x80000, 10));
+        s.apply(&host, &splan_of(&leaves, &[]), &[]);
+        let h = host.lock().unwrap();
+        assert!(h.calls(Call::Gather).is_empty());
+        assert_eq!(h.calls(Call::Map).len(), 1 + 10);
+        drop(h);
+        // A kind change and a VA hole end a stretch: 16 + 16 scattered leaves around a hole
+        // make two gathers, never one across the hole.
+        let host = Mutex::new(FakeHost::default());
+        let mut s = gsv();
+        let mut leaves = scattered(0x10000, 16);
+        leaves.extend(scattered(0x21000, 16)); // 0x20000 is a hole
+        s.apply(&host, &splan_of(&leaves, &[]), &[]);
+        let h = host.lock().unwrap();
+        assert_eq!(h.calls(Call::Gather).len(), 2);
+        assert_eq!(
+            h.calls(Call::Map).iter().map(|m| (m.va, m.len)).collect::<Vec<_>>(),
+            vec![(0x10000, 0x10000), (0x21000, 0x10000)]
+        );
+    }
+
+    #[test]
+    fn a_refused_gather_maps_run_by_run_from_the_registered_descriptor() {
+        let host = Mutex::new(FakeHost {
+            fail_gather: true,
+            ..Default::default()
+        });
+        let mut s = gsv();
+        let (_, lines) = s.apply(&host, &splan_of(&scattered(0x10000, 20), &[]), &[]);
+        let h = host.lock().unwrap();
+        assert_eq!(h.calls(Call::Map).len(), 20);
+        assert!(h.live.borrow().values().all(|(_, m)| *m == 7));
+        assert_eq!(s.stats.gathers_refused, 1);
+        assert!(lines.iter().any(|l| l.contains("gather of 20 leaves") && l.contains("refused")));
+    }
+
+    #[test]
+    fn a_gather_lives_until_its_last_mapping_is_gone() {
+        for bulk in [false, true] {
+            let host = Mutex::new(FakeHost::default());
+            let mut s = gsv();
+            s.bulk_on = bulk;
+            let leaves = scattered(0x10000, 32);
+            s.apply(&host, &splan_of(&leaves, &[]), &[]);
+            // The guest moves page 5: the gather run is split around it, the gather stays.
+            let mut moved = leaves.clone();
+            moved[5].1 = SYS + 0x40_0000;
+            s.apply(&host, &splan_of(&moved, &[]), &[]);
+            {
+                let h = host.lock().unwrap();
+                assert!(h.calls(Call::GatherFree).is_empty());
+                assert_eq!(h.gathered.len(), 1);
+            }
+            assert_eq!(s.live_maps(), 3);
+            assert_eq!(s.lookup(0x15000).map(|(_, l)| l.target), Some(Target::Sys(SYS + 0x40_0000)));
+            // The guest empties the region: the gather is freed only after its mappings
+            // (the fake RM asserts that), by unmaps or with the region object.
+            s.apply(&host, &splan_of(&[], &[0]), &[]);
+            let h = host.lock().unwrap();
+            assert_eq!(h.calls(Call::GatherFree).len(), 1, "bulk {bulk}");
+            assert!(h.gathered.is_empty() && h.live.borrow().is_empty());
+            assert_eq!((s.live_maps(), s.budget.live()), (0, 0));
+        }
+    }
+
+    #[test]
+    fn the_teardown_frees_gathers_after_their_mappings() {
+        for bulk in [false, true] {
+            let host = Mutex::new(FakeHost::default());
+            let mut s = gsv();
+            s.bulk_on = bulk;
+            s.apply(&host, &splan_of(&scattered(0x10000, 32), &[]), &[]);
+            s.apply(&host, &splan_of(&scattered(REGION + 0x10000, 32), &[]), &[]);
+            s.free(&host);
+            let h = host.lock().unwrap();
+            assert_eq!(h.calls(Call::GatherFree).len(), 2);
+            assert!(h.gathered.is_empty() && h.live.borrow().is_empty());
+            assert_eq!(*h.kinds().last().unwrap(), Call::ObjectFree);
+        }
     }
 }

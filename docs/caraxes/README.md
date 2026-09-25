@@ -51,7 +51,7 @@ driver recognizes and initializes a Turing/RTX 2070-like device. Windows later.
 | [sysmem-iova.md](sysmem-iova.md) | Measured: one host OS descriptor of guest RAM gets one contiguous IOVA range; the guest-side `dma_range_map` module as the temporary aid (D13); what needs the operator's word (subagent report) |
 | [../../guest-module/caraxes_dma_range/README.md](../../guest-module/caraxes_dma_range/README.md) | The temporary guest aid (D13): parameters, validation rules, driver-core interplay, load order, what the device must produce and translate back, kernel-version notes (subagent report) |
 | [../../patches/ACPI-DMA.md](../../patches/ACPI-DMA.md) | The ACPI `_DMA` route to replace the guest module (P8): mechanism, Cloud Hypervisor patch 0004 with its AML bytes, the x86 Linux draft, the DMA_MAP-before-DSDT ordering problem and its fix, test plan, upstreaming notes (subagent report) |
-| [memory-model.md](memory-model.md) | E5b part 1: guest FB addresses inside a fixed host VRAM reservation, guest RAM registered as host OS descriptors, the IOVA table for `caraxes_dma_range`, the device-side translation, privilege and teardown |
+| [memory-model.md](memory-model.md) | E5b part 1: guest FB addresses inside a fixed host VRAM reservation, guest RAM registered as host OS descriptors, the IOVA table for `caraxes_dma_range`, the device-side translation, privilege and teardown; §7 the shadow's host RM calls (gather descriptors for scattered sysmem, whole-region frees, the region free list, the fail-closed argument, measurements) |
 | [host-exec.md](host-exec.md) | E5b core: the standalone host-execution primitive ([caraxes/tools/host-exec.rs](../../caraxes/tools/host-exec.rs)) that binds a host channel to a page directory the client built in reserved VRAM and proves the physical GPU walks it (semaphore release and a CE VRAM->sysmem copy verified); the part-2 device wiring spec per guest event; measured status codes and refusals (subagent report) |
 | [execution.md](execution.md) | E5b part 2: execution on the physical GPU in the device. The VRAM-backed `FbStore` (option C) with BAR1 windows and the write-combine flush finding; the mirror objects (VA spaces incl. the replayed shared-management form, TSGs, channels, CE objects, doorbell, non-stall events, TLB invalidates); teardown; the two execution walls (the CE first-launch stall, the GR context on a host channel) with the measured contained Xids; the P7 progress-gated interrupt design (subagent report) |
 | [dma-routes.md](dma-routes.md) | Guest DMA addressing: the matrix of every route (module, ACPI `_DMA`, shadow page tables, host-side tricks) against what each one patches; why the host side cannot match; the shadowing design that needs no guest change (operator's question 2026-09-23) |
@@ -916,3 +916,27 @@ the VM; then display, expected to be much easier than in v1.
     Xid.
   - **Recommended configuration.** Memfd, pool, token pool, interrupt page and the re-arm switch
     (bench-run.sh header).
+- 2026-09-25: **The shadow's host RM calls at context creation, backlog item 2**
+  ([memory-model.md](memory-model.md) §7, records `caraxes/runs/opt-shadow-maps-2026-09-25/`).
+  - **Setup.** vm0, 1 GiB at slot 0, 610 guest, BAR2 memfd without the BAR1 pool, census probe.
+  - **Cause.** Five context creations in a row showed it: the guest's sysmem pages come back
+    scattered. That cost about 15000 one-page map calls per context (29 us each) and as many
+    unmaps at the next destroy (81 us each), and a queued destroy delayed the next creation by
+    up to 1.4 s.
+  - **Built:**
+    - gather descriptors (`hostmem.rs` `gather`): one OS descriptor over a scattered stretch's
+      guest pages in VA order, placed with `mremap` of the device's shared guest-RAM mapping, so
+      one call maps up to 512 pages;
+    - whole-region frees of emptied regions;
+    - a per-VAS region free list;
+    - host RM call counters by kind on every sync line (`rpc-cost.py` prints the histogram).
+  - **Measured without gain, left off:** deferred TLB invalidation (`CARAXES_SHADOW_DEFER_TLB=1`).
+  - **Results:**
+    - host RM calls per cuCtxCreate 13171 to 228, worker apply 770 to 67 ms;
+    - cuCtxCreate 815 to 309 ms (native 146), cuCtxDestroy 170 to 107 ms;
+    - `bench-cu init` cuCtxCreate 1719 to 353 ms, churn unchanged;
+    - the whole census's shadow host time 4.8 s to 0.72 s.
+  - **Isolation.** Every gathered page is a page of a registered guest-RAM descriptor that the
+    filter resolved; nothing is pinned beyond D13. The switches are `CARAXES_SHADOW_GATHER`,
+    `_BULK_FREE` and `_REGION_POOL` (0 turns each off).
+  - **Gates.** cuda 11 of 12 (cuda-managed) in every part, 0 host Xid.

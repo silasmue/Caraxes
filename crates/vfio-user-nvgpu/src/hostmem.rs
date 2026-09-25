@@ -443,6 +443,8 @@ impl Reservation {
 pub struct Descriptor {
     pub handle: u32,
     pub range: DmaRange,
+    /// The device's own mapping of the chunk (guestmem.rs `map`, MAP_SHARED).
+    pub host_va: usize,
 }
 
 /// A hole filler: `len` bytes of VA at `va` backed by one 2 MiB memfd page mapped over
@@ -523,6 +525,9 @@ pub struct HostMemory {
     /// guest RAM zones so the zones above keep IOVA = GPA + one offset. Never in the
     /// shadow filter's ranges and never in the guest's table.
     fillers: Vec<Filler>,
+    /// Gather descriptors of the shadow (`gather`), live until the shadow frees them; the
+    /// shadow teardown frees them before the guest-RAM descriptors (mirror.rs `wait_idle`).
+    gathers: Vec<u32>,
     /// Guest RAM zones mapped by the client but not registered yet (the linear
     /// registration waits for all of them, `CARAXES_GUEST_RAM_BYTES`).
     pending: Vec<(u64, u64, usize)>,
@@ -615,6 +620,11 @@ pub fn run_teardown<O: TeardownOps>(
 /// One RM status, for callers that log the number rather than fail.
 pub type Status = u32;
 
+/// `NVOS47_FLAGS_DEFER_TLB_INVALIDATION_TRUE` (nvos.h:2192-2194, field 0:0).
+const NVOS47_FLAGS_DEFER_TLB_INVALIDATION_TRUE: u32 = 1;
+/// `NV0080_CTRL_CMD_DMA_INVALIDATE_TLB` (ctrl0080dma.h:495), params `{hVASpace, flags}`.
+const CMD_DMA_INVALIDATE_TLB: u32 = 0x0080_180C;
+
 fn meminfo_kib(key: &str) -> u64 {
     std::fs::read_to_string("/proc/meminfo")
         .ok()
@@ -701,6 +711,7 @@ impl HostMemory {
             reservation: None,
             descriptors: Vec::new(),
             fillers: Vec::new(),
+            gathers: Vec::new(),
             pending: Vec::new(),
             live: Vec::new(),
             pins_at_open: foll_pins(),
@@ -894,14 +905,17 @@ impl HostMemory {
     /// `RM_UNMAP_MEMORY_DMA` (NVOS47) of the mapping of `h_mem` at VA `va`, `length`
     /// bytes, from the virtual object `h_dma` (the inverse of [`Self::map_dma_fixed`];
     /// RM also splits a larger mapping, `virtmemUnmapFrom_IMPL`). RM invalidates the
-    /// TLB of the VAS itself (flags 0: no deferral). Returns the status.
-    pub fn unmap_dma(&self, h_dma: u32, h_mem: u32, va: u64, length: u64) -> Status {
+    /// TLB of the VAS itself unless `defer` sets `NVOS47_FLAGS_DEFER_TLB_INVALIDATION`
+    /// (nvos.h:2192, bit 0; honoured by `dmaFreeMapping_GM107`,
+    /// virt_mem_allocator_gm107.c:1579); the caller then owes the VAS one
+    /// [`Self::invalidate_vas`] before anything relies on the unmap. Returns the status.
+    pub fn unmap_dma(&self, h_dma: u32, h_mem: u32, va: u64, length: u64, defer: bool) -> Status {
         let mut p = sys::NVOS47_PARAMETERS::default();
         p.hClient = self.rm.root();
         p.hDevice = self.device();
         p.hDma = h_dma;
         p.hMemory = h_mem;
-        p.flags = 0;
+        p.flags = u32::from(defer) * NVOS47_FLAGS_DEFER_TLB_INVALIDATION_TRUE;
         p.dmaOffset = va;
         p.size = length;
         // SAFETY: NVOS47 is the escape ABI; plain-data params, no host pointers.
@@ -918,7 +932,10 @@ impl HostMemory {
     /// `RM_MAP_MEMORY_DMA` (NVOS46) of `h_mem` at `[offset, offset+length)` into `h_dma`
     /// (a virtual reservation, or a VA space) at the **fixed** VA `va`, with the given
     /// `page_size` flag (`nvos46_flags::PAGE_SIZE_*`). Snoop for sysmem, off for vidmem.
-    /// Read/write, GPU-uncached. Returns the status.
+    /// Read/write, GPU-uncached. `defer` sets `NVOS46_FLAGS_DEFER_TLB_INVALIDATION` (nvos.h:2151,
+    /// bit 31): RM then skips its flush and VAS TLB invalidate after the PTE writes
+    /// (`dmaUpdateVASpace_GF100`, virt_mem_allocator_gm107.c:2567-2577), and the caller owes
+    /// the VAS one [`Self::invalidate_vas`]. Returns the status.
     #[allow(clippy::too_many_arguments)]
     pub fn map_dma_fixed(
         &self,
@@ -930,6 +947,7 @@ impl HostMemory {
         page_size: u32,
         snoop: bool,
         kind: Option<u8>,
+        defer: bool,
     ) -> Status {
         use nvrm_abi::nvgpu::nvos46_flags as f;
         let mut p = sys::NVOS46_PARAMETERS::default();
@@ -946,7 +964,8 @@ impl HostMemory {
             } else {
                 f::CACHE_SNOOP_DISABLE
             })
-            | f::DMA_OFFSET_FIXED.set(f::DMA_OFFSET_FIXED_TRUE);
+            | f::DMA_OFFSET_FIXED.set(f::DMA_OFFSET_FIXED_TRUE)
+            | f::DEFER_TLB_INVALIDATION.set(u32::from(defer));
         // A guest depth/stencil kind (shadow.rs `kind_override`): NVOS46_FLAGS_PAGE_KIND_OVERRIDE
         // (nvos.h:2114) with `kindOverride` (nvos.h:2178).
         if let Some(k) = kind {
@@ -964,6 +983,20 @@ impl HostMemory {
             Ok(()) => p.status as u32,
             Err(_) => 0xFFFF_FFFF,
         }
+    }
+
+    /// `NV0080_CTRL_CMD_DMA_INVALIDATE_TLB` (ctrl0080dma.h:467-495) on the device for the VA
+    /// space `vas`, flags 0 (`_ALL_FALSE`: only that VAS). NON_PRIVILEGED, runs in the kernel
+    /// RM (flags 0x10008, g_device_nvoc.c:1144), where `deviceCtrlCmdDmaInvalidateTLB_IMPL`
+    /// (dma.c:967-1010) calls `vaspaceInvalidateTlb(PTE_DOWNGRADE)`: the whole VAS
+    /// (`_ALL_VA`, kern_gmmu_gm107.c:194), with the membar of a downgrade. The header names
+    /// it the companion of the `DEFER_TLB_INVALIDATION` map and unmap flags. The walker root
+    /// it invalidates is the root host channels run on for a normal host-managed VAS (the
+    /// shadow's; not for an externally-owned one, invalidate.rs). Returns the status.
+    pub fn invalidate_vas(&self, vas: u32) -> Status {
+        let mut p = [0u8; 8];
+        p[0..4].copy_from_slice(&vas.to_le_bytes());
+        self.control(self.device(), CMD_DMA_INVALIDATE_TLB, &mut p)
     }
 
     /// `RM_CONTROL` `cmd` on `object`; returns the status (0xFFFFFFFF when the ioctl failed).
@@ -1422,6 +1455,105 @@ impl HostMemory {
         Ok(h)
     }
 
+    /// A **gather descriptor** (docs/caraxes/memory-model.md §7): one
+    /// `NV01_MEMORY_SYSTEM_OS_DESCRIPTOR` whose offsets `0, 4 KiB, 8 KiB, ...` are the guest
+    /// pages `pages` in the given order, so that one `RM_MAP_MEMORY_DMA` maps a VA stretch
+    /// whose guest pages are scattered. Every page must lie wholly inside one registered
+    /// guest-RAM descriptor, named by its handle and page-aligned offset (the shadow filter's
+    /// answer, shadow.rs `resolve_leaf`); anything else is refused before any system call.
+    /// The pages are placed back to back in a fresh VA window of the device with
+    /// `mremap(old_size 0)` of the device's own shared mapping of guest RAM (a second mapping
+    /// of the same pages, mremap(2); consecutive pages in one call), the descriptor is made
+    /// over the window (the RM pins the pages and maps them for the GPU, as for a registered
+    /// chunk), and the window is unmapped again: the RM holds the pages by their page array
+    /// from then on (`os_lock_user_pages`), not by the VA, so no mapping accumulates. The
+    /// pages are this VM's registered guest RAM, already pinned; the GPU reaches the same
+    /// pages through the descriptor's own IOVAs. Freed with [`Self::free_gather`], after
+    /// every mapping of it is gone.
+    pub fn gather(&mut self, pages: &[(u32, u64)]) -> Result<u32, String> {
+        const PAGE: u64 = 4096;
+        if pages.is_empty() {
+            return Err("no page".into());
+        }
+        let mut host: Vec<usize> = Vec::with_capacity(pages.len());
+        for &(h, off) in pages {
+            let d = self
+                .descriptors
+                .iter()
+                .find(|d| d.handle == h)
+                .ok_or_else(|| format!("handle {h:#x} is not a registered guest-RAM descriptor"))?;
+            if off % PAGE != 0 || off.checked_add(PAGE).is_none_or(|e| e > d.range.size) || d.host_va == 0 {
+                return Err(format!("offset {off:#x} is not a page of descriptor {h:#x}"));
+            }
+            host.push(d.host_va + off as usize);
+        }
+        let len = pages.len() * PAGE as usize;
+        // SAFETY: an anonymous PROT_NONE reservation; mremap places pages inside it below.
+        let win = unsafe {
+            libc::mmap(
+                std::ptr::null_mut(),
+                len,
+                libc::PROT_NONE,
+                libc::MAP_PRIVATE | libc::MAP_ANONYMOUS | libc::MAP_NORESERVE,
+                -1,
+                0,
+            )
+        };
+        if win == libc::MAP_FAILED {
+            return Err(format!("window mmap: {}", std::io::Error::last_os_error()));
+        }
+        let unmap = |w: *mut libc::c_void| {
+            // SAFETY: the window mapped above, `len` bytes.
+            unsafe { libc::munmap(w, len) };
+        };
+        let mut i = 0usize;
+        while i < host.len() {
+            let mut j = i + 1;
+            while j < host.len() && host[j] == host[j - 1] + PAGE as usize {
+                j += 1;
+            }
+            let dst = win.cast::<u8>().wrapping_add(i * PAGE as usize);
+            // SAFETY: old_size 0 duplicates the device's MAP_SHARED mapping of guest RAM
+            // (`host[i]..` lies in a registered descriptor's mapping, checked above) at
+            // `dst`, inside the window this function owns.
+            let got = unsafe {
+                libc::mremap(
+                    host[i] as *mut libc::c_void,
+                    0,
+                    (j - i) * PAGE as usize,
+                    libc::MREMAP_MAYMOVE | libc::MREMAP_FIXED,
+                    dst.cast::<libc::c_void>(),
+                )
+            };
+            if got != dst.cast::<libc::c_void>() {
+                let e = std::io::Error::last_os_error();
+                unmap(win);
+                return Err(format!("mremap of page {i}: {e}"));
+            }
+            i = j;
+        }
+        let r = self.os_descriptor(win.cast(), len as u64);
+        unmap(win);
+        let h = r.map_err(|e| format!("{e:#}"))?;
+        self.gathers.push(h);
+        Ok(h)
+    }
+
+    /// Free a gather descriptor (unpins its page references). Returns the status.
+    pub fn free_gather(&mut self, h: u32) -> Status {
+        let Some(i) = self.gathers.iter().position(|g| *g == h) else {
+            return 0xFFFF_FFFE;
+        };
+        self.gathers.swap_remove(i);
+        match self.free_descriptor(h) {
+            Ok(()) => sys::NV_OK,
+            Err(e) => {
+                self.free_failures.push(format!("host gather descriptor {h:#x}: {e:#}"));
+                0xFFFF_FFFF
+            }
+        }
+    }
+
     fn free_descriptor(&mut self, h: u32) -> Result<()> {
         let mut p = sys::NVOS00_PARAMETERS::default();
         p.hRoot = self.rm.root();
@@ -1646,7 +1778,7 @@ impl HostMemory {
                             "placed guest RAM chunk {range} (descriptor {h:#x}, {reg_ms} ms, {} IOVA samples = base + offset)",
                             offsets.len()
                         ));
-                        descs.push(Descriptor { handle: h, range });
+                        descs.push(Descriptor { handle: h, range, host_va: va.unwrap_or_default() });
                     }
                 }
                 i += 1;
@@ -1769,7 +1901,7 @@ impl HostMemory {
                     "registered guest RAM chunk {range} (descriptor {h:#x}, {reg_ms} ms, {} IOVA samples = base + offset)",
                     offsets.len()
                 ));
-                out.push(Descriptor { handle: h, range });
+                out.push(Descriptor { handle: h, range, host_va: va as usize });
                 at = end;
             }
             Ok(())
@@ -1886,12 +2018,21 @@ impl TeardownOps for HostMemory {
     fn free_mirrors(&mut self, log: &mut Vec<String>) -> usize {
         // Mirror channels first (RM preempts and idles each channel in its free), so that
         // no host channel can still reach the IOVAs the descriptors unpin next.
-        if self.live.is_empty() {
+        if self.live.is_empty() && self.gathers.is_empty() {
             return 0;
         }
         let n = self.live.len();
         let before = self.free_failures.len();
         log.extend(self.free_live());
+        // Gather descriptors the shadow did not free (it frees them with their mappings):
+        // after the channels and VA spaces, before the guest-RAM descriptors.
+        let gathers = self.gathers.clone();
+        for g in &gathers {
+            self.free_gather(*g);
+        }
+        if !gathers.is_empty() {
+            log.push(format!("freed {} leftover gather descriptor(s) of the shadow", gathers.len()));
+        }
         let failed = self.free_failures.len() - before;
         log.push(format!(
             "freed {} of {n} host mirror object(s) before the descriptors",

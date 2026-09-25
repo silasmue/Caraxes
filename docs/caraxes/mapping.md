@@ -117,8 +117,9 @@ coalesce to one call per region. The guest's pinned sysmem pages mostly do not:
   18.5, not orders of magnitude.
 
 The rest would need a gather descriptor: one OS descriptor over a device-side VA range that
-maps the scattered guest pages back to back, so that one call maps a whole unit. It is not
-built.
+maps the scattered guest pages back to back, so that one call maps a whole unit. Built
+2026-09-25 (memory-model.md §7): a context creation now takes about 230 host RM calls instead
+of 13000.
 
 **Budget.** `MapBudget` counts the device's live RM mappings over all its shadow VA spaces. A
 run past the budget (`CARAXES_MAP_BUDGET`, default 32768) is refused and never mapped. The
