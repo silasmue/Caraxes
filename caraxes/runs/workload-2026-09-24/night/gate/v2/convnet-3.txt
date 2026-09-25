@@ -1,0 +1,26 @@
+# target v2 metric convnet rep 3
+# cmd $HOME/gpu/venv/bin/python ./convnet.py --seconds 60 
+# device /mnt/vmstore/caraxes/vm2-615/vfio-user-nvgpu sha256 d0315158041c83ce
+# time 2026-09-25T04:03:37+02:00
+# gpu 81, 1620 MHz, 7000 MHz, P0, 50 %, 2091 MiB, Disabled
+# procs 1399617:vm1-vmm 2274942:vm2-615-dev 2274980:vm1-vmm 
+# loadavg 2.77 3.50 3.67
+device: Leandro VFIO RTX 2070-1G  torch 2.13.0+cu130  cudnn 92000  batch 32 size 224 amp False channels_last False seconds 60.0
+[W925 02:03:44.954172465 CUDACachingAllocator.cpp:3933] memory allocation failed with OOM on device 0 while trying to allocate 117440512 bytes (free: 18022400, total: 830341120).
+[W925 02:03:44.954294565 CUDACachingAllocator.cpp:3933] memory allocation failed with OOM on device 0 while trying to allocate 117440512 bytes (free: 18022400, total: 830341120).
+[W925 02:03:44.090863388 CUDACachingAllocator.cpp:3933] memory allocation failed with OOM on device 0 while trying to allocate 14680064 bytes (free: 3342336, total: 830341120).
+[W925 02:03:44.090946088 CUDACachingAllocator.cpp:3933] memory allocation failed with OOM on device 0 while trying to allocate 14680064 bytes (free: 3342336, total: 830341120).
+out of memory at batch 32: CUDA out of memory. Tried to allocate 14.00 MiB. GPU 0 has a total capacity of 791.88 MiB of which 3.19 MiB is free. Including non-PyTorch memory, this process has 788.00 MiB memory in use. Of the allocated memory 646.45 MiB is allocated by PyTorch, and 27.55 MiB is reserved by PyTorch but unallocated. If reserved but unallocated memory is large try setting PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True to avoid fragmentation.  See documentation for Memory Management  (https://docs.pytorch.org/docs/stable/notes/cuda.html#optimizing-memory-usage-with-pytorch-cuda-alloc-conf); retrying with 16
+[W925 02:03:45.387978800 CUDACachingAllocator.cpp:3933] memory allocation failed with OOM on device 0 while trying to allocate 150994944 bytes (free: 152240128, total: 830341120).
+[W925 02:03:45.388149270 CUDACachingAllocator.cpp:3933] memory allocation failed with OOM on device 0 while trying to allocate 150994944 bytes (free: 152240128, total: 830341120).
+   10.0s | step    299 |    477.0 img/s | median   33.38 ms | loss 0.004
+   20.1s | step    592 |    472.2 img/s | median   33.94 ms | loss 0.002
+   30.1s | step    882 |    469.3 img/s | median   34.16 ms | loss 0.002
+   40.1s | step   1171 |    467.4 img/s | median   34.27 ms | loss 0.001
+   50.1s | step   1459 |    465.8 img/s | median   34.30 ms | loss 0.001
+
+=== final ===
+timed steps 1743 in 60.02 s: 464.6 images/s, median step 34.43 ms, loss 7.038 -> 0.001, first step 1587 ms, peak memory 567 MiB
+# CONVNET images_per_s=464.63 step_med_ms=34.427 step_p10_ms=33.331 step_p90_ms=35.497 steps=1743 first_step_ms=1587.1 loss_first=7.0384 loss_last=0.0009 amp=0 channels_last=0 batch=16 size=224 mem_peak_mib=567 oom_retries=1 finite=1 device=Leandro_VFIO_RTX_2070-1G
+# WALL wall_ms=69999 rc=0
+# MEAS dev_pid=2274942 dev_cpu_ms=20050 dev_rss_hwm_kb=5261664/8395900 vmm_cpu_ms=69470 others: vm1-vmm=140ms 

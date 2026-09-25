@@ -1,0 +1,20 @@
+# target native metric llama rep 1
+# cmd /home/silas/git/Leandro/vendor/hostvenv/bin/python ./llamaprobe.py --reps 5 
+# time 2026-09-25T03:17:34+02:00
+# gpu 54, 480 MHz, 810 MHz, P5, 5 %, 2092 MiB, Disabled
+# procs 1399617:vm1-vmm 2144127:vm2-615-dev 2144139:vm1-vmm 
+# loadavg 3.59 3.58 3.48
+cmd: /mnt/vmstore/caraxes/llama/dist/llama-bench -m /mnt/vmstore/caraxes/models/llama-gate.gguf -p 512 -n 128 -r 5 -ngl 99 -fa auto -o jsonl -oe md
+LD_LIBRARY_PATH: /mnt/vmstore/caraxes/llama/dist/lib
+ggml_cuda_init: found 1 CUDA devices (Total VRAM: 7778 MiB):
+  Device 0: NVIDIA GeForce RTX 2070, compute capability 7.5, VMM: yes, VRAM: 7778 MiB
+| model                          |       size |     params | backend    | ngl |            test |                  t/s |
+| ------------------------------ | ---------: | ---------: | ---------- | --: | --------------: | -------------------: |
+| llama 1B Q4_K - Medium         | 762.81 MiB |     1.24 B | CUDA       |  99 |           pp512 |     8474.52 ± 965.95 |
+| llama 1B Q4_K - Medium         | 762.81 MiB |     1.24 B | CUDA       |  99 |           tg128 |        294.70 ± 0.67 |
+
+build: e9fa0781f (10173)
+
+# LLAMA pp512_tps=8474.52 pp512_sd=965.95 tg128_tps=294.70 tg128_sd=0.67 reps=5 ngl=99 fa=-1 model=llama_1B_Q4_K_-_Medium model_mib=763 wall_s=3.7 build=e9fa0781f libs=dist gpu=NVIDIA_GeForce_RTX_2070
+# WALL wall_ms=3778 rc=0
+# MEAS dev_pid=- dev_cpu_ms=0 dev_rss_hwm_kb=-/- vmm_cpu_ms=0 others: vm1-vmm=60ms vm1-vmm=20ms vm2-615-dev=200ms 

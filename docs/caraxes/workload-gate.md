@@ -10,7 +10,8 @@ the doorbell token pool and the pinned reactor, benchmark.md sections of 2026-09
 device itself becomes the limit. Today the device needs about 3.6 us (p50) from a guest
 doorbell to the host doorbell for each ring.
 
-**Status.** Prepared; not run. The table in section 5 is to be filled.
+**Status.** First run on 2026-09-25 (night series, 615 guest on vm2 at 1 GiB): section 7. The
+table of section 5 is filled from it.
 
 ## 1. The command for the window
 
@@ -148,24 +149,27 @@ which torch uses on the same driver. If the target refuses the VMM pool, build w
 - `first_step_ms` and the llama wall time, compared between targets, measure setup cost (mapping
   changes, module and cuBLAS or cuDNN initialisation), not steady-state throughput.
 
-## 5. Table (to be filled from summary.md)
+## 5. Table (the first run, section 7)
+
+v2 is the 615 guest with the 1 GiB profile; where v2 had to halve its batch the rows are not
+like for like (per-sample throughput shown, marked). v1 was dropped on the 615 host.
 
 | Workload | Value | native | v2 | v2 / native | v1 | v1 / native |
 |---|---|---|---|---|---|---|
-| short-auto | ms/launch | | | | | |
-| rl | stage 4 (50 episodes), s | | | | | |
-| rl | transfers per second | | | | | |
-| ppo-full | environment steps per second | | | | | |
-| ppo-full | time to solved, s | | | | | |
-| llama | pp512, tokens/s | | | | | |
-| llama | tg128, tokens/s | | | | | |
-| llama-nograph | tg128 without CUDA graphs, tokens/s | | | | | |
-| transformer | steps per second (batch, amp) | | | | | |
-| transformer | median / p90 step, ms | | | | | |
-| convnet | images per second (batch, amp) | | | | | |
-| convnet | median / p90 step, ms | | | | | |
-| all | device CPU per run, ms (group 8) | - | | | | |
-| all | host Xid, host-watch alerts | | | | | |
+| short-auto | ms/launch | 0.006 | 0.020 | 3.3 | - | - |
+| rl | stage 4 (50 episodes), s | 1.20 | 2.40 | 2.0 | - | - |
+| rl | transfers per second | 2353 | 1188 | 0.50 | - | - |
+| ppo-full | environment steps per second | 116313 | 74056 | 0.64 | - | - |
+| ppo-full | time to solved, s | 150 | 234 | 1.56 | - | - |
+| llama | pp512, tokens/s | 8475 | failed: the model does not load into 791 MiB | - | - | - |
+| llama | tg128, tokens/s | 295 | failed | - | - | - |
+| llama-nograph | tg128 without CUDA graphs, tokens/s | 293 | failed | - | - | - |
+| transformer | tokens per second (native batch 32, v2 batch 8, fp32) | 103760 | 87831 (n=2) | 0.85, not like for like | - | - |
+| transformer | median / p90 step, ms | 79.0 / 80.8 (batch 32) | 23.3 / 24.4 (batch 8) | - | - | - |
+| convnet | images per second (native batch 32, v2 batch 16, fp32) | 506 | 465 | 0.92, not like for like | - | - |
+| convnet | median / p90 step, ms | 63.1 / 65.0 (batch 32) | 34.3 / 35.5 (batch 16) | - | - | - |
+| all | device CPU per run, ms (group 8) | - | ppo-full 410680 of 427000 wall; convnet 20470, transformer 29070 of about 65000 | | | |
+| all | host Xid, host-watch alerts | 0, 0 | 1 Xid 31 on the device's pid (transformer rep 2), 0 alerts | | | |
 
 ## 6. Preparation record
 
@@ -188,3 +192,33 @@ Probe checks without the GPU (`CUDA_VISIBLE_DEVICES=` and `--cpu`, host venv tor
 `llamaprobe.py --dry-run` builds the command. `py_compile` passes for all probes and
 `bench-summary.py`, and `bash -n` passes for `bench-run.sh`, `build-llama.sh` and `run.sh`.
 `bench-summary.py` parses synthetic result lines of every new metric into the tables above.
+
+## 7. First run (2026-09-25, 02:59-04:04, night series)
+
+`caraxes/runs/workload-2026-09-24/night/` (`run.sh`, `env.sh`, `gate/summary.md`):
+`run.sh --targets "native v2"`, 3 reps, the default metrics, on the 615 guest (vm2-615, 1 GiB
+profile at slot 3, frozen `vfio-user-nvgpu-v615-57693d8`, BAR1 pool, token pool 64, hybrid
+reactor, interrupt page on; `WORKLOAD_ENV` of `../run.sh`). The host was quiet: the script waited
+for no other device process (it started at once, after the like-for-like series), and no other
+VM's device was active in any v2 run. v1 dropped (615 host).
+
+What it shows:
+
+- **Holds under load, mostly.** PPO at 420 s solves on every rep (reward100 492-500, solve in
+  175-240 s against 87-204 s native) at 0.64 of native's steps; the token pool counted 20.2
+  million guest doorbell writes and 0 trapped pool tokens (`gate/v2-device-exit.txt`); host
+  watch 0 alerts, nvidia-smi at most 0.057 s.
+- **One device fault.** Transformer rep 2 died with `cudaErrorLaunchFailure`: host Xid 31 at
+  03:40:46 on pid 2211803, vm2's device process of that rep, GPC0 `GPCCLIENT_T1_11`, FAULT_PDE
+  on a write at 0x100_1e200000 (`gate/host-xid.txt`, `gate/v2/transformer-2.txt`). Reps 1 and 3
+  of the same metric ran clean at the same batch. The BAR1 pool moved 3072 GPU-mapped pages
+  behind its barrier over the run (135 barriers, 372 TSG preempts), which is the first thing to
+  rule out; a PDE fault on a GR write points at a shadow that did not have a page-directory entry
+  the guest had, at that moment.
+- **The 1 GiB profile is too small for three workloads.** llama-bench cannot load the 763 MiB
+  model into the 791 MiB the guest sees (every rep, both variants); the transformer runs at
+  batch 8 and ResNet-18 at batch 16 after the probes' OOM halving. Per sample, v2 reaches 0.85
+  (transformer) and 0.92 (convnet) of native at those smaller batches. The like-for-like rows
+  need the 2 GiB profile (slot 0), which the night's slot scheme did not give vm2.
+- **The device is the pace-setter for PPO.** Its CPU per ppo-full run is 411 s of 427 s wall:
+  the hybrid reactor and the per-ring work run flat out for the whole run.

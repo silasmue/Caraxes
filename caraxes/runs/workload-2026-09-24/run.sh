@@ -68,7 +68,10 @@ fi
 
 if [[ " $targets " == *" v2 "* ]]; then
     pre=${CARAXES_SERVER:-}
-    source "$R/caraxes/runs/mapping-2026-09-24/env.sh"
+    # WORKLOAD_ENV names another environment file (night shift 2026-09-24: vm2-615, the 615
+    # guest at 1 GiB slot 3, caraxes/runs/workload-2026-09-24/night/env.sh); default the
+    # closing configuration's mapping environment.
+    source "${WORKLOAD_ENV:-$R/caraxes/runs/mapping-2026-09-24/env.sh}"
     # env.sh defaults CARAXES_SERVER to the mapping build; the gate wants the newest closing
     # build unless the caller named one (CARAXES_SERVER set before this script).
     export CARAXES_SERVER=${pre:-$(ls -t /mnt/vmstore/caraxes/vfio-user-nvgpu-closing-610-* 2>/dev/null | head -1)}

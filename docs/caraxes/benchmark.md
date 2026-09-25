@@ -1086,3 +1086,57 @@ Reading:
     1.2 s (intr) and 0.15 s (with the memfd). Not isolated either (spin reactor, pool).
 - The context rows are the BAR2 traffic of parts 1 and 2: without the memfd cuCtxCreate is
   20x native on both guests.
+
+### Part 4: the workload gate on the 615 guest (02:59-04:04, quiet host)
+
+`caraxes/runs/workload-2026-09-24/night/` (`gate/summary.md`; the table and reading are
+workload-gate.md §5 and §7): native against the 615 guest on vm2 at 1 GiB slot 3, BAR1 pool,
+hybrid reactor, interrupt page on, 3 reps, no other device process in any v2 run.
+
+| Workload | native | v2 (615 guest) | v2 / native |
+|---|---|---|---|
+| short kernel, ms/launch | 0.006 | 0.020 | 3.3 |
+| rlprobe stage 4, s | 1.20 | 2.40 | 2.0 |
+| PPO 420 s, environment steps per second | 116313 | 74056 | 0.64 |
+| PPO time to solved, s | 150 | 234 | 1.56 |
+| llama.cpp pp512 / tg128, tokens/s | 8475 / 295 | model does not load (791 MiB visible) | - |
+| transformer, tokens per second | 103760 (batch 32) | 87831 (batch 8, n=2) | 0.85, not like for like |
+| ResNet-18, images per second | 506 (batch 32) | 465 (batch 16) | 0.92, not like for like |
+
+One host Xid on vm2's device: Xid 31 at 03:40:46, pid 2211803 (the device of rep 2), GPC0
+FAULT_PDE on a write, which ended transformer rep 2 with `cudaErrorLaunchFailure`; the other two
+reps of that metric were clean. The pool moved 3072 GPU-mapped pages behind its barrier during
+the run and is the first suspect (workload-gate.md §7).
+
+### What closes the gaps
+
+**cuCtxCreate** (closing series 3770 ms, the 615 series here 4.0-4.4 s, native 195 ms):
+
+| Step | cuCtxCreate | cuCtxDestroy | Where from |
+|---|---|---|---|
+| no interrupt page, no memfd (24-trap baseline) | 3493 ms | 1272 ms | part 2 `off` |
+| interrupt page | 3863 ms | 1166 ms | part 2 `intr` |
+| + BAR2 memfd | **534 ms** (2.7x native) | 174 ms | part 2 `stack-off` |
+| + lazy plans | **533 ms** (2.7x native) | **150 ms** (1.6x) | part 2 `stack-on` |
+
+The memfd alone closes it: the 96269 trapped BAR2 writes of a context creation (82 % of its
+trapped time, alloc-path.md §1.1) become 0, and cuCtxCreate drops by 3.3 s. The interrupt page
+and the lazy plans do nothing for it. What remains is about 340 ms over native: the 478 flush
+reads, the invalidates, the GSP queue and the device's syncs. Condition: the memfd does not yet
+work with the BAR1 pool (part 1), and the pool changes no number (design H section), so the
+memfd configuration is memfd plus interrupt page without the pool until that hang is found.
+
+**Allocation** (closing series cuMemAlloc 1 MiB 830 us, native 35.8, v1 93):
+
+| Step | cuMemAlloc 1 MiB | cuMemFree 1 MiB | cuMemAlloc 64 MiB | traps per 1 MiB alloc |
+|---|---|---|---|---|
+| baseline | 972 us | 1020 us | 7337 us | 45.5 |
+| interrupt page | 581 us (noisy, 199-1138) | 680 us | 5590 us | 6.5 |
+| + BAR2 memfd | 297 us | 541 us | 650 us | 4.2 |
+| + lazy plans | **175 us** (4.9x native, 1.9x v1) | **401 us** (15x) | **541 us** (6.9x) | 4.3 |
+
+The interrupt page takes the RM lock's interrupt-enable traps and the interrupt-tree traffic
+(39 of the 45.5 traps), the memfd the PTE writes (the 64 MiB allocation's 192 BAR2 writes),
+the lazy plans the eager plan's work under the invalidate (64 MiB: 77.9 to 13.9 traps). What
+remains per operation is the MMU invalidate and the flush read, the targets of alloc-path.md
+step 3; the free path (7 traps) is now the larger gap.

@@ -1,0 +1,51 @@
+# target v2 metric transformer rep 2
+# cmd $HOME/gpu/venv/bin/python ./transformer.py --seconds 60 
+# device /mnt/vmstore/caraxes/vm2-615/vfio-user-nvgpu sha256 d0315158041c83ce
+# time 2026-09-25T03:40:39+02:00
+# gpu 79, 1815 MHz, 7000 MHz, P0, 56 %, 2095 MiB, Disabled
+# procs 1399617:vm1-vmm 2211803:vm2-615-dev 2211887:vm1-vmm 
+# loadavg 4.56 4.74 4.09
+device: Leandro VFIO RTX 2070-1G  torch 2.13.0+cu130  layers 6 d_model 256 heads 8 seq 256 batch 32 vocab 4096 amp False seconds 60.0
+[W925 01:40:45.728469723 CUDACachingAllocator.cpp:3933] memory allocation failed with OOM on device 0 while trying to allocate 33554432 bytes (free: 14090240, total: 830341120).
+[W925 01:40:45.728599433 CUDACachingAllocator.cpp:3933] memory allocation failed with OOM on device 0 while trying to allocate 33554432 bytes (free: 14090240, total: 830341120).
+out of memory at batch 32: CUDA out of memory. Tried to allocate 32.00 MiB. GPU 0 has a total capacity of 791.88 MiB of which 13.44 MiB is free. Including non-PyTorch memory, this process has 778.00 MiB memory in use. Of the allocated memory 608.83 MiB is allocated by PyTorch, and 49.17 MiB is reserved by PyTorch but unallocated. If reserved but unallocated memory is large try setting PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True to avoid fragmentation.  See documentation for Memory Management  (https://docs.pytorch.org/docs/stable/notes/cuda.html#optimizing-memory-usage-with-pytorch-cuda-alloc-conf); retrying with 16
+[W925 01:40:45.088596284 CUDACachingAllocator.cpp:3933] memory allocation failed with OOM on device 0 while trying to allocate 67108864 bytes (free: 49741824, total: 830341120).
+[W925 01:40:45.088720334 CUDACachingAllocator.cpp:3933] memory allocation failed with OOM on device 0 while trying to allocate 67108864 bytes (free: 49741824, total: 830341120).
+out of memory at batch 16: CUDA out of memory. Tried to allocate 64.00 MiB. GPU 0 has a total capacity of 791.88 MiB of which 47.44 MiB is free. Including non-PyTorch memory, this process has 744.00 MiB memory in use. Of the allocated memory 615.86 MiB is allocated by PyTorch, and 8.14 MiB is reserved by PyTorch but unallocated. If reserved but unallocated memory is large try setting PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True to avoid fragmentation.  See documentation for Memory Management  (https://docs.pytorch.org/docs/stable/notes/cuda.html#optimizing-memory-usage-with-pytorch-cuda-alloc-conf); retrying with 8
+Traceback (most recent call last):
+  File "/home/leandro/bench/./transformer.py", line 210, in <module>
+    main()
+  File "/home/leandro/bench/./transformer.py", line 178, in main
+    r = run(args, batch, device)
+        ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/leandro/bench/./transformer.py", line 119, in run
+    loss_first = step(0)
+                 ^^^^^^^
+  File "/home/leandro/bench/./transformer.py", line 108, in step
+    logits = model(x)
+             ^^^^^^^^
+  File "/home/leandro/gpu/venv/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1778, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/leandro/gpu/venv/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1789, in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/leandro/bench/./transformer.py", line 79, in forward
+    x = blk(x)
+        ^^^^^^
+  File "/home/leandro/gpu/venv/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1778, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/leandro/gpu/venv/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1789, in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/leandro/bench/./transformer.py", line 57, in forward
+    return x + self.fc2(F.gelu(self.fc1(self.ln2(x))))
+                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+torch.AcceleratorError: CUDA error: unspecified launch failure
+Search for `cudaErrorLaunchFailure' in https://docs.nvidia.com/cuda/cuda-runtime-api/group__CUDART__TYPES.html for more information.
+CUDA kernel errors might be asynchronously reported at some other API call, so the stacktrace below might be incorrect.
+For debugging consider passing CUDA_LAUNCH_BLOCKING=1
+
+# WALL wall_ms=8209 rc=1
+# MEAS dev_pid=2211803 dev_cpu_ms=4230 dev_rss_hwm_kb=5261604/8395696 vmm_cpu_ms=6630 others: vm1-vmm=10ms 
