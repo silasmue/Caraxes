@@ -77,6 +77,10 @@
 # Hypervisor with the base itself as a disk, as v1's --games-init does). `up` refuses a missing base.
 # CARAXES_TAP=none starts the VM without a network device (a boot-only check that reads the
 # serial log, docs/caraxes/costume-ladder.md §2); ssh, probe and uvm then have no guest.
+# Guest kernel: CARAXES_KERNEL and CARAXES_INITRD (default the image's vmlinuz and initrd);
+# CARAXES_INITRD=none boots without an initramfs (a kernel with its root disk drivers built
+# in, the nova guest of docs/caraxes/nova-guest.md); CARAXES_CMDLINE_EXTRA is appended to the
+# kernel command line.
 # The host tap (default caraxes0, 192.168.100.1/24) must exist and be owned by the user:
 #   sudo ip tuntap add dev caraxes0 mode tap user $USER
 #   sudo ip addr add 192.168.100.1/24 dev caraxes0 && sudo ip link set caraxes0 up
@@ -232,10 +236,12 @@ up() {
         input_up
         input=(--generic-vhost-user "device_type=18,socket=$W/input.sock,queue_sizes=[64,64]")
     fi
+    local initrd=(--initramfs "$INITRD")
+    [[ $INITRD == none ]] && initrd=()
     "$LEA_CH" --api-socket "$W/ch.sock" \
         --cpus boot="${CARAXES_CPUS:-8}" --memory size="${CARAXES_MEM:-4G}",shared=on \
-        --kernel "$KERNEL" --initramfs "$INITRD" \
-        --cmdline 'root=/dev/vda1 rw console=ttyS0 net.ifnames=0' \
+        --kernel "$KERNEL" "${initrd[@]}" \
+        --cmdline "root=/dev/vda1 rw console=ttyS0 net.ifnames=0${CARAXES_CMDLINE_EXTRA:+ $CARAXES_CMDLINE_EXTRA}" \
         --disk path="$W/rootfs.qcow2",image_type=qcow2,backing_files=on \
                path="$W/seed.img",readonly=on "${games[@]}" \
         "${net[@]}" \
