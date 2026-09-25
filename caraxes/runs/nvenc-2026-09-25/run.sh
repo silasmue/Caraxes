@@ -40,6 +40,14 @@ mkdir -p "$C"
 W=$NIGHT_W; T0=$(date '+%F %T')
 night_setup "$C"
 caraxes/tools/bench-hostwatch.sh start "$C"
+# Host BAR1 used, every 0.5 s for the whole run (a read-only NVML query): probe-defer and
+# probe-defer2 were stopped at host BAR1 exhaustion (docs/caraxes/video-engines.md §4).
+( echo "# SPDX-License-Identifier: MIT"; echo "# time bar1_used_mib"
+  while :; do
+    echo "$(date +%T.%N | cut -c1-12) $(timeout 10 nvidia-smi -q -d MEMORY 2>/dev/null | grep -A3 'BAR1 Memory' | awk '/Used/ {print $3}')"
+    sleep 0.5
+  done ) > "$C/host-bar1.txt" 2>&1 &
+BAR1W=$!
 
 up_ok=0
 for attempt in 1 2 3 4 5 6; do
@@ -53,6 +61,7 @@ for attempt in 1 2 3 4 5 6; do
     fi
 done
 finish() {
+    kill "$BAR1W" 2>/dev/null
     [[ -n ${JWATCH:-} ]] && { pkill -P "$JWATCH" 2>/dev/null; kill "$JWATCH" 2>/dev/null; }
     caraxes/tools/bench-hostwatch.sh stop "$C"
     tools/caraxes-vm.sh down > "$C/down.txt" 2>&1

@@ -1,0 +1,10 @@
+dma table: 0:7fff00000000:80000000
+server pid 201962, VM pid 201975; logs in /mnt/vmstore/caraxes/vm2
+ssh up at 192.168.102.22
+probe nvenc-defer2: 10564 device accesses, guest log in /mnt/vmstore/caraxes/vm2/probe-nvenc-defer2/guest-dmesg.txt
+[  249.904566] NVRM: GPU 0000:00:05.0: RmInitAdapter
+[  250.680932] NVRM: GPU0 kgspParseFwsecUcodeFromVbiosImg_IMPL: failed to parse FWSEC ucode desc from VBIOS image: 0x25
+[  250.681009] NVRM: GPU0 kgspInitRm_IMPL: failed to parse FWSEC ucode from VBIOS image (VBIOS version 90.06.3D.00.76): 0x25
+[  250.681019] NVRM: GPU0 RmInitAdapter: Cannot initialize GSP firmware RM
+[  250.683161] NVRM: GPU 0000:00:05.0: RmInitAdapter failed! (0x62:0x25:2119)
+modprobe rc=0

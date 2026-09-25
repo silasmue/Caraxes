@@ -74,11 +74,11 @@ unrelated host BAR1 exhaustion.
 | `probe-mirror1` | object allocated when the guest allocates it, before the guest's context left the shadow | the host context took a free VA that the guest filled later (a 2 MiB leaf at 0x120400000 was refused in the shadow); Xid 31 FAULT_PTE on NVENC0 at 0x1205fe000, pid 121037 |
 | `probe-mirror2`: the VA reservation storm | object at doorbell 1, after reserving every free VA of [4.5 GiB, 1 TiB), split recursively down to 64 KiB | 3576 fixed reservations per build (48 s); 11435 host `virtmemAllocResources ... NO_MEMORY` lines; host VRAM down to 431 MiB; NVENC0 FAULT_PDE at VA 0 (twice, pid 196394); the desktop froze and the host was rebooted at 11:44. The code is removed, and no mirror path reserves VA speculatively or retries by splitting |
 | `probe-hold`: the doorbell-hold deadlock | doorbell 1 held until the object | the guest waits for its first push before it allocates the object; it stayed held for 10 s, then `nvEncInitializeEncoder` status 20. No Xid, no host NVRM line, host VRAM 3749 MiB free after |
-| `probe-defer` | the deferred-object design | stopped by the host guard at host BAR1 exhaustion (the game VM's pool restart plus vm2's windows); no result |
+| `probe-defer`, `probe-defer2` | the deferred-object design | both stopped at host BAR1 exhaustion during the probe step's driver reload, before any CUDA or NVENC call; no result. The second time the game VM had no pool, and more than 130 MiB were taken within a second, which exceeds vm2's 96 MiB budget; the source is open (`probe-defer2/README.md`). `run.sh` now samples host BAR1 every 0.5 s |
 
 ## 5. What the next probe must show
 
-- 610 guest on vm2, alone beside a game VM without a BAR1 pool:
+- 610 guest on vm2, alone on the host (the coordinator's decision after probe-defer2):
   - [ ] `nvEncInitializeEncoder` succeeds.
   - [ ] 300 frames at 1080p encode, and the `ENC` line gives the fps and latency.
   - [ ] The stream passes the header check: SPS 1920x1080, IDR present.

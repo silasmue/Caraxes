@@ -1,0 +1,84 @@
+Sep 25 12:26:40.209833 manacor kernel: NVRM: dmaAllocMapping_GM107: can't alloc VA space for mapping.
+STOPPED device 201962 at the first NVRM line
+Sep 25 12:26:40.209974 manacor kernel: NVRM: nvAssertOkFailedNoLog: Assertion failed: Out of memory [NV_ERR_NO_MEMORY] (0x00000051) returned from pReuseMappingDb->pMapCb(pReuseMappingDb->pGlobalCtx, pAllocCtx, range, cachingFlags, &token, _reusemappingdbAddMappingCallback) @ mapping_reuse.c:273
+STOPPED device 201962 at the first NVRM line
+Sep 25 12:26:40.209998 manacor kernel: NVRM: dmaAllocMapping_GM107: can't alloc VA space for mapping.
+STOPPED device 201962 at the first NVRM line
+Sep 25 12:26:40.224831 manacor kernel: NVRM: dmaAllocMapping_GM107: can't alloc VA space for mapping.
+STOPPED device 201962 at the first NVRM line
+Sep 25 12:26:40.224921 manacor kernel: NVRM: nvAssertOkFailedNoLog: Assertion failed: Out of memory [NV_ERR_NO_MEMORY] (0x00000051) returned from pReuseMappingDb->pMapCb(pReuseMappingDb->pGlobalCtx, pAllocCtx, range, cachingFlags, &token, _reusemappingdbAddMappingCallback) @ mapping_reuse.c:273
+STOPPED device 201962 at the first NVRM line
+Sep 25 12:26:40.224942 manacor kernel: NVRM: dmaAllocMapping_GM107: can't alloc VA space for mapping.
+STOPPED device 201962 at the first NVRM line
+Sep 25 12:26:40.236860 manacor kernel: NVRM: dmaAllocMapping_GM107: can't alloc VA space for mapping.
+STOPPED device 201962 at the first NVRM line
+Sep 25 12:26:40.237121 manacor kernel: NVRM: nvAssertOkFailedNoLog: Assertion failed: Out of memory [NV_ERR_NO_MEMORY] (0x00000051) returned from pReuseMappingDb->pMapCb(pReuseMappingDb->pGlobalCtx, pAllocCtx, range, cachingFlags, &token, _reusemappingdbAddMappingCallback) @ mapping_reuse.c:273
+STOPPED device 201962 at the first NVRM line
+Sep 25 12:26:40.237153 manacor kernel: NVRM: dmaAllocMapping_GM107: can't alloc VA space for mapping.
+STOPPED device 201962 at the first NVRM line
+Sep 25 12:26:40.254828 manacor kernel: NVRM: dmaAllocMapping_GM107: can't alloc VA space for mapping.
+STOPPED device 201962 at the first NVRM line
+Sep 25 12:26:40.254930 manacor kernel: NVRM: nvAssertOkFailedNoLog: Assertion failed: Out of memory [NV_ERR_NO_MEMORY] (0x00000051) returned from pReuseMappingDb->pMapCb(pReuseMappingDb->pGlobalCtx, pAllocCtx, range, cachingFlags, &token, _reusemappingdbAddMappingCallback) @ mapping_reuse.c:273
+STOPPED device 201962 at the first NVRM line
+Sep 25 12:26:40.254950 manacor kernel: NVRM: dmaAllocMapping_GM107: can't alloc VA space for mapping.
+STOPPED device 201962 at the first NVRM line
+Sep 25 12:26:40.270839 manacor kernel: NVRM: dmaAllocMapping_GM107: can't alloc VA space for mapping.
+STOPPED device 201962 at the first NVRM line
+Sep 25 12:26:40.270931 manacor kernel: NVRM: nvAssertOkFailedNoLog: Assertion failed: Out of memory [NV_ERR_NO_MEMORY] (0x00000051) returned from pReuseMappingDb->pMapCb(pReuseMappingDb->pGlobalCtx, pAllocCtx, range, cachingFlags, &token, _reusemappingdbAddMappingCallback) @ mapping_reuse.c:273
+STOPPED device 201962 at the first NVRM line
+Sep 25 12:26:40.270957 manacor kernel: NVRM: dmaAllocMapping_GM107: can't alloc VA space for mapping.
+STOPPED device 201962 at the first NVRM line
+Sep 25 12:26:40.289830 manacor kernel: NVRM: dmaAllocMapping_GM107: can't alloc VA space for mapping.
+STOPPED device 201962 at the first NVRM line
+Sep 25 12:26:40.289915 manacor kernel: NVRM: nvAssertOkFailedNoLog: Assertion failed: Out of memory [NV_ERR_NO_MEMORY] (0x00000051) returned from pReuseMappingDb->pMapCb(pReuseMappingDb->pGlobalCtx, pAllocCtx, range, cachingFlags, &token, _reusemappingdbAddMappingCallback) @ mapping_reuse.c:273
+STOPPED device 201962 at the first NVRM line
+Sep 25 12:26:40.289933 manacor kernel: NVRM: dmaAllocMapping_GM107: can't alloc VA space for mapping.
+STOPPED device 201962 at the first NVRM line
+Sep 25 12:26:40.319844 manacor kernel: NVRM: dmaAllocMapping_GM107: can't alloc VA space for mapping.
+STOPPED device 201962 at the first NVRM line
+Sep 25 12:26:40.319926 manacor kernel: NVRM: nvAssertOkFailedNoLog: Assertion failed: Out of memory [NV_ERR_NO_MEMORY] (0x00000051) returned from pReuseMappingDb->pMapCb(pReuseMappingDb->pGlobalCtx, pAllocCtx, range, cachingFlags, &token, _reusemappingdbAddMappingCallback) @ mapping_reuse.c:273
+STOPPED device 201962 at the first NVRM line
+Sep 25 12:26:40.319943 manacor kernel: NVRM: dmaAllocMapping_GM107: can't alloc VA space for mapping.
+STOPPED device 201962 at the first NVRM line
+Sep 25 12:26:40.339838 manacor kernel: NVRM: dmaAllocMapping_GM107: can't alloc VA space for mapping.
+STOPPED device 201962 at the first NVRM line
+Sep 25 12:26:40.339954 manacor kernel: NVRM: nvAssertOkFailedNoLog: Assertion failed: Out of memory [NV_ERR_NO_MEMORY] (0x00000051) returned from pReuseMappingDb->pMapCb(pReuseMappingDb->pGlobalCtx, pAllocCtx, range, cachingFlags, &token, _reusemappingdbAddMappingCallback) @ mapping_reuse.c:273
+STOPPED device 201962 at the first NVRM line
+Sep 25 12:26:40.339988 manacor kernel: NVRM: dmaAllocMapping_GM107: can't alloc VA space for mapping.
+STOPPED device 201962 at the first NVRM line
+Sep 25 12:26:40.361831 manacor kernel: NVRM: dmaAllocMapping_GM107: can't alloc VA space for mapping.
+STOPPED device 201962 at the first NVRM line
+Sep 25 12:26:40.361927 manacor kernel: NVRM: nvAssertOkFailedNoLog: Assertion failed: Out of memory [NV_ERR_NO_MEMORY] (0x00000051) returned from pReuseMappingDb->pMapCb(pReuseMappingDb->pGlobalCtx, pAllocCtx, range, cachingFlags, &token, _reusemappingdbAddMappingCallback) @ mapping_reuse.c:273
+STOPPED device 201962 at the first NVRM line
+Sep 25 12:26:40.361948 manacor kernel: NVRM: dmaAllocMapping_GM107: can't alloc VA space for mapping.
+STOPPED device 201962 at the first NVRM line
+Sep 25 12:26:40.380855 manacor kernel: NVRM: dmaAllocMapping_GM107: can't alloc VA space for mapping.
+STOPPED device 201962 at the first NVRM line
+Sep 25 12:26:40.381001 manacor kernel: NVRM: nvAssertOkFailedNoLog: Assertion failed: Out of memory [NV_ERR_NO_MEMORY] (0x00000051) returned from pReuseMappingDb->pMapCb(pReuseMappingDb->pGlobalCtx, pAllocCtx, range, cachingFlags, &token, _reusemappingdbAddMappingCallback) @ mapping_reuse.c:273
+STOPPED device 201962 at the first NVRM line
+Sep 25 12:26:40.381027 manacor kernel: NVRM: dmaAllocMapping_GM107: can't alloc VA space for mapping.
+STOPPED device 201962 at the first NVRM line
+Sep 25 12:26:40.407832 manacor kernel: NVRM: dmaAllocMapping_GM107: can't alloc VA space for mapping.
+STOPPED device 201962 at the first NVRM line
+Sep 25 12:26:40.407924 manacor kernel: NVRM: nvAssertOkFailedNoLog: Assertion failed: Out of memory [NV_ERR_NO_MEMORY] (0x00000051) returned from pReuseMappingDb->pMapCb(pReuseMappingDb->pGlobalCtx, pAllocCtx, range, cachingFlags, &token, _reusemappingdbAddMappingCallback) @ mapping_reuse.c:273
+STOPPED device 201962 at the first NVRM line
+Sep 25 12:26:40.407943 manacor kernel: NVRM: dmaAllocMapping_GM107: can't alloc VA space for mapping.
+STOPPED device 201962 at the first NVRM line
+Sep 25 12:26:40.423844 manacor kernel: NVRM: dmaAllocMapping_GM107: can't alloc VA space for mapping.
+STOPPED device 201962 at the first NVRM line
+Sep 25 12:26:40.423929 manacor kernel: NVRM: nvAssertOkFailedNoLog: Assertion failed: Out of memory [NV_ERR_NO_MEMORY] (0x00000051) returned from pReuseMappingDb->pMapCb(pReuseMappingDb->pGlobalCtx, pAllocCtx, range, cachingFlags, &token, _reusemappingdbAddMappingCallback) @ mapping_reuse.c:273
+STOPPED device 201962 at the first NVRM line
+Sep 25 12:26:40.423948 manacor kernel: NVRM: dmaAllocMapping_GM107: can't alloc VA space for mapping.
+STOPPED device 201962 at the first NVRM line
+Sep 25 12:26:40.450836 manacor kernel: NVRM: dmaAllocMapping_GM107: can't alloc VA space for mapping.
+STOPPED device 201962 at the first NVRM line
+Sep 25 12:26:40.450931 manacor kernel: NVRM: nvAssertOkFailedNoLog: Assertion failed: Out of memory [NV_ERR_NO_MEMORY] (0x00000051) returned from pReuseMappingDb->pMapCb(pReuseMappingDb->pGlobalCtx, pAllocCtx, range, cachingFlags, &token, _reusemappingdbAddMappingCallback) @ mapping_reuse.c:273
+STOPPED device 201962 at the first NVRM line
+Sep 25 12:26:40.450951 manacor kernel: NVRM: dmaAllocMapping_GM107: can't alloc VA space for mapping.
+STOPPED device 201962 at the first NVRM line
+Sep 25 12:26:40.484896 manacor kernel: NVRM: dmaAllocMapping_GM107: can't alloc VA space for mapping.
+STOPPED device 201962 at the first NVRM line
+Sep 25 12:26:40.484972 manacor kernel: NVRM: nvAssertOkFailedNoLog: Assertion failed: Out of memory [NV_ERR_NO_MEMORY] (0x00000051) returned from pReuseMappingDb->pMapCb(pReuseMappingDb->pGlobalCtx, pAllocCtx, range, cachingFlags, &token, _reusemappingdbAddMappingCallback) @ mapping_reuse.c:273
+STOPPED device 201962 at the first NVRM line
+Sep 25 12:26:40.484995 manacor kernel: NVRM: dmaAllocMapping_GM107: can't alloc VA space for mapping.
+STOPPED device 201962 at the first NVRM line

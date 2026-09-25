@@ -1,0 +1,60 @@
+[  250.681019] NVRM: GPU0 RmInitAdapter: Cannot initialize GSP firmware RM
+[  250.681068] NVRM: VM: nv_free_pages: 0x1
+[  250.681069] NVRM: VM: nv_free_pages:3992: 0x000000001567038c, 1 page(s), count = 1, page_table = 0x00000000ec687e7f
+[  250.681073] NVRM: VM: nv_free_contig_pages: 1 pages
+[  250.681076] NVRM: VM: nv_mem_pool_free_pages: node=0 order=0: 1/1 pages added to pool (1 now in pool)
+[  250.681084] NVRM: VM: nv_free_system_pages: 1/1 order0 pages
+[  250.681087] NVRM: VM: nv_free_pages: 0x1
+[  250.681087] NVRM: VM: nv_free_pages:3992: 0x00000000e2f4b7c8, 1 page(s), count = 1, page_table = 0x000000000ab22ab0
+[  250.681089] NVRM: VM: nv_free_contig_pages: 1 pages
+[  250.682687] NVRM: VM: nv_mem_pool_free_pages: node=0 order=0: 1/1 pages added to pool (2 now in pool)
+[  250.682692] NVRM: VM: nv_free_system_pages: 1/1 order0 pages
+[  250.682697] NVRM: VM: nv_free_pages: 0x1
+[  250.682697] NVRM: VM: nv_free_pages:3992: 0x0000000083d40168, 1 page(s), count = 1, page_table = 0x000000002e350425
+[  250.682700] NVRM: VM: nv_free_contig_pages: 1 pages
+[  250.682701] NVRM: VM: nv_mem_pool_free_pages: node=0 order=0: 1/1 pages added to pool (3 now in pool)
+[  250.682702] NVRM: VM: nv_free_system_pages: 1/1 order0 pages
+[  250.682712] NVRM: VM: nv_free_pages: 0x81
+[  250.682713] NVRM: VM: nv_free_pages:3992: 0x00000000fd8c77c5, 129 page(s), count = 1, page_table = 0x000000003f32fd51
+[  250.682715] NVRM: VM: nv_mem_pool_free_pages: node=0 order=9: 1/1 pages added to pool (1 now in pool)
+[  250.682718] NVRM: VM: nv_free_system_pages: 512/129 order0 pages
+[  250.682721] NVRM: VM: nv_free_pages: 0x1
+[  250.682722] NVRM: VM: nv_free_pages:3992: 0x00000000c17283c2, 1 page(s), count = 1, page_table = 0x00000000323a909b
+[  250.682809] NVRM: VM: nv_mem_pool_free_pages: node=0 order=0: 1/1 pages added to pool (4 now in pool)
+[  250.682812] NVRM: VM: nv_free_system_pages: 1/1 order0 pages
+[  250.682963] NVRM: VM: nv_free_pages: 0x1
+[  250.682963] NVRM: VM: nv_free_pages:3992: 0x00000000aeeac415, 1 page(s), count = 1, page_table = 0x0000000092d0e9fe
+[  250.682965] NVRM: VM: nv_free_contig_pages: 1 pages
+[  250.683077] NVRM: VM: nv_mem_pool_free_pages: node=0 order=0: 1/1 pages added to pool (5 now in pool)
+[  250.683080] NVRM: VM: nv_free_system_pages: 1/1 order0 pages
+[  250.683153] NVRM: GPU 0000:00:05.0: Tearing down registers
+[  250.683161] NVRM: GPU 0000:00:05.0: RmInitAdapter failed! (0x62:0x25:2119)
+[  250.683625] NVRM: GPU 0000:00:05.0: rm_init_adapter failed, device minor number 0
+[  250.684159] NVRM: Device start failed for 0000:00:05.0 (ret=-5)
+[  250.684787] NVRM: loading NVIDIA UNIX Open Kernel Module for x86_64  610.57.04  Release Build  (leandro@caraxes-vm2)  Wed Sep 23 13:07:57 UTC 2026
+[  256.099636] NVRM: nvidia_open...
+[  256.099645] NVRM: nvidia_ctl_open
+[  256.099678] NVRM: ioctl(0xd6, 0x38b79a70, 0x8)
+[  256.099681] NVRM: ioctl(0xc8, 0x79dbf520, 0x900)
+[  256.099686] NVRM: ioctl(0x2b, 0x38b79bc0, 0x30)
+[  256.101032] NVRM: ioctl(0x2a, 0x38b78ad0, 0x20)
+[  256.101059] NVRM: ioctl(0x29, 0x38b79bb0, 0x10)
+[  256.101073] NVRM: nvidia_close on GPU with minor number 255
+[  256.101074] NVRM: nvidia_ctl_close
+[  256.101915] NVRM: nvidia_open...
+[  256.101917] NVRM: nvidia_ctl_open
+[  256.101927] NVRM: ioctl(0xd6, 0x38b7a030, 0x8)
+[  256.101929] NVRM: ioctl(0xc8, 0x79dbf520, 0x900)
+[  256.101931] NVRM: ioctl(0x2b, 0x38b7a180, 0x30)
+[  256.102913] NVRM: ioctl(0x2a, 0x38b79050, 0x20)
+[  256.102929] NVRM: ioctl(0x2a, 0x38b79050, 0x20)
+[  256.102935] NVRM: ioctl(0x2b, 0x38b7a180, 0x30)
+[  256.102944] NVRM: ioctl(0x2a, 0x38b79060, 0x20)
+[  256.103500] NVRM: ioctl(0x2a, 0x38b771f0, 0x20)
+[  256.103517] NVRM: ioctl(0x2a, 0x38b76aa0, 0x20)
+[  256.103524] NVRM: ioctl(0x2a, 0x38b77370, 0x20)
+[  256.103532] NVRM: nvAssertFailedNoLog: Assertion failed: rmapiLockIsOwner() && rmGpuLockIsOwner() @ conf_compute_api.c:81
+[  256.103543] NVRM: ioctl(0x29, 0x38b7a110, 0x10)
+[  256.103551] NVRM: ioctl(0x29, 0x38b7a110, 0x10)
+[  256.103559] NVRM: nvidia_close on GPU with minor number 255
+[  256.103560] NVRM: nvidia_ctl_close
