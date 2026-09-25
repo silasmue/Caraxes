@@ -23,7 +23,9 @@ die() { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
 [[ -s $CONFIG ]] || die "no config dump $CONFIG"
 [[ -s $W/gpu.pid ]] && kill -0 "$(cat "$W/gpu.pid")" 2>/dev/null && die "device already running (pid $(cat "$W/gpu.pid"))"
 rm -f "$W/gpu.sock"
-args=(--boot-model --display --fb-mib "${WIN_GPU_FB_MIB:-1024}")
+args=(--boot-model --fb-mib "${WIN_GPU_FB_MIB:-1024}")
+# WIN_GPU_DISPLAY=0: headless (the display fuse reads 1, no display engine), as in E0-E5.
+[[ ${WIN_GPU_DISPLAY:-1} == 1 ]] && args+=(--display)
 # WIN_GPU_EXTRA: further device flags, word-split (gpu-up-host.sh passes --host-rm).
 [[ -n ${WIN_GPU_EXTRA:-} ]] && read -ra extra <<< "$WIN_GPU_EXTRA" && args+=("${extra[@]}")
 # WIN_GPU_BOARD: a board-data file for a costume (crates/vfio-user-nvgpu/boards/tesla-t4-on-tu106.toml:

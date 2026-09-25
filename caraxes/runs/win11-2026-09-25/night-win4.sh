@@ -79,7 +79,7 @@ run() {
     local name=$1 max=$2; shift 2
     log "== $name: $*"
     qemu_stop
-    ( export "$@"; "$HERE/gpu-up.sh" ) >> "$OUT/night.log" 2>&1 || { log "$name: gpu-up failed"; return 1; }
+    ( export "$@"; "$HERE/${NIGHT_GPU_UP:-gpu-up.sh}" ) >> "$OUT/night.log" 2>&1 || { log "$name: gpu-up failed"; return 1; }
     ( export "$@"; setsid nohup "$HERE/run-qemu-gpu.sh" > "$OUT/$name-qemu.log" 2>&1 < /dev/null & )
     sleep 20
     qemu_running || { log "$name: QEMU did not start"; tail -3 "$OUT/$name-qemu.log" >> "$OUT/night.log"; return 1; }

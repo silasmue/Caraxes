@@ -10,3 +10,5 @@ if [[ -s $W/gpu.pid ]] && kill -0 "$(cat "$W/gpu.pid")" 2>/dev/null; then
     echo "device stopped; $(tail -1 "$W/gpu.log" | cut -c1-120)"
 fi
 rm -f "$W/gpu.pid" "$W/gpu.sock"
+# The host-sharing marker of a host-RM run (gpu-up-host.sh): the host GPU is free again.
+rm -f /mnt/vmstore/caraxes/win-busy

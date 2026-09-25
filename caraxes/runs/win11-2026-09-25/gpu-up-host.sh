@@ -19,7 +19,13 @@ set -euo pipefail
 W=/mnt/vmstore/caraxes/win11
 HERE=$(cd "$(dirname "$(readlink -f "$0")")" && pwd -P)
 die() { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
+# Host sharing (2026-09-26): the Linux queue holds /mnt/vmstore/caraxes/linux-busy while it uses the
+# GPU; a host-RM Windows run holds win-busy from here until gpu-down.sh removes it.
+V=/mnt/vmstore/caraxes
+[[ -e $V/linux-busy ]] && die "$V/linux-busy exists: the Linux queue has the host GPU"
 if pgrep -f '/vm4-615/vfio-user-nvgpu' >/dev/null; then die "a vm4-615 device runs (Linux stage): the host is not free"; fi
+touch "$V/win-busy"
+trap 'rm -f "$V/win-busy"' ERR
 case ${WIN_HOST_MODE:-rm} in
     rm) export WIN_GPU_EXTRA="--host-rm" ;;
     exec) die "WIN_HOST_MODE=exec needs a GPA alias mode for a guest without caraxes_dma_range (see the header)" ;;
@@ -29,4 +35,4 @@ export CARAXES_HOST_VRAM_FLOOR_MIB=${CARAXES_HOST_VRAM_FLOOR_MIB:-768}
 export CARAXES_HOST_BAR1_FLOOR_MIB=${CARAXES_HOST_BAR1_FLOOR_MIB:-96}
 export CARAXES_BAR1_WINDOW_MIB=${CARAXES_BAR1_WINDOW_MIB:-16} CARAXES_BAR1_WINDOWS=${CARAXES_BAR1_WINDOWS:-2}
 unset CARAXES_BAR1_PASSTHROUGH CARAXES_BAR1_POOL_MIB
-exec "$HERE/gpu-up.sh"
+"$HERE/gpu-up.sh" || { rm -f "$V/win-busy"; exit 1; }
