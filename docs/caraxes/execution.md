@@ -228,6 +228,24 @@ semaphore (payload + GPU timestamp) in guest sysmem (measured, d-ce-diag / d-ce-
      at the second context's GPFIFO). `mirror.rs` keeps a `ShadowSpace` per guest root (the VAS,
      its set-B exclusions, its chids and TSGs), freed when its last channel and TSG are freed;
      the cuda gate's robustness stage passes after the change, 0 Xid.
+   - *Set-B release waits for the host TSG* (2026-09-25, vm4-615,
+     `caraxes/runs/nvenc-2026-09-25/vm4-615-bisect/NOTES.md`):
+     - Set B follows the guest's live channels (`exclusions_of`, 4a6ba83), so a freed GR
+       channel gave its promoted VAs back to set A at the next invalidate.
+     - The host's GR context at those VAs belongs to the host TSG, which is freed only at the
+       guest's TSG FREE, later. The re-sync in between mapped the guest's pages at 0x120000000
+       and up; the host RM refused 23 fixed mappings (`virtmemAllocResources ... NO_MEMORY`,
+       18:12:42 and 20:21:50).
+     - Now: at a guest channel FREE, the channel's promoted ranges are taken while the
+       registry still has them (`held_at_free`). If its host TSG still stands, they are held on
+       the shadow root under the TSG key (`ShadowSpace::held`); set B is the live channels'
+       ranges plus the held ones (`set_b_with_held`).
+     - At the host TSG's free (`free_tsg`, after the free returns OK) the held ranges go back
+       to set A. The FREE handler then re-syncs those roots (`take_released_roots`,
+       `mirror_resync_released`), so the pages get mapped right away.
+     - A refused host TSG free keeps them (fail closed). A channel whose host TSG is already
+       gone, or never built, holds nothing: released at once, as before.
+     - Test: `set_b_is_released_only_after_the_host_tsg_free`.
    - *L2 cache operations* (2026-09-24, `boot.rs` `l2_op`, `caraxes/runs/e5b2-2026-09-24/d-uflush/`).
      After a few CUDA processes every `cuCtxCreate` took ~68 s (bench `v2-hang`): the guest RM
      logged `kmemsysDoCacheOp_GM107: timeout error waiting for reg 0x70010 update` and `... 0x70004`

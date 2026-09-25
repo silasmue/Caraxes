@@ -185,7 +185,8 @@ pub fn context_verdict(
 /// back to set A. Before (2026-09-25, vm4-615) the exclusions of freed GR channels stayed:
 /// GNOME recreated its GL contexts, the guest reused the old attribute-CB VA 0x121400000 for
 /// ordinary buffers, the shadow still left it unmapped, and a copy engine read there
-/// faulted (Xid 31 FAULT_PDE on CE0) with the stream going black.
+/// faulted (Xid 31 FAULT_PDE on CE0) with the stream going black. A freed channel whose
+/// host TSG still stands keeps its ranges out until that host free ([`held_at_free`]).
 pub fn exclusions_of(
     reg: &Registry,
     root: u64,
@@ -209,6 +210,58 @@ fn exclusions_among(
         .filter(|ch| on_root(ch))
         .flat_map(|ch| promoted_ranges(reg, ch, &global_size))
         .collect();
+    out.sort_unstable();
+    out.dedup();
+    out
+}
+
+/// The set-B ranges of a guest channel the guest is freeing, on shadow root `root`,
+/// with the host TSG key that stands for its GR context ([`held_at_free`]).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct HeldSetB {
+    pub chid: u32,
+    pub root: u64,
+    pub key: TsgKey,
+    pub ranges: Vec<(u64, u64)>,
+}
+
+/// The promoted ranges of the guest channels `freed` selects, taken while the registry
+/// still knows them: the shadow keeps them out of set A until the host TSG under `key`
+/// (the owner of the host's GR context at those VAs) is freed too. Before (2026-09-25,
+/// vm4-615 18:12:42 and 20:21:50), the recompute at the next invalidate released them
+/// the moment the guest freed its GR channels, the shadow mapped the guest's pages at
+/// 0x120000000 and up with fixed addresses, and the host RM, whose GR context of the
+/// still-live host TSG sat at the same VAs, refused all 23 (virtmemAllocResources
+/// NO_MEMORY). `root_of` names the shadow root of a channel (`None`: no shadow).
+pub fn held_at_free(
+    reg: &Registry,
+    freed: impl Fn(&Channel) -> bool,
+    root_of: impl Fn(&Channel) -> Option<u64>,
+    global_size: impl Fn(u16) -> Option<u64>,
+) -> Vec<HeldSetB> {
+    reg.channels()
+        .filter(|ch| freed(ch))
+        .filter_map(|ch| {
+            let root = root_of(ch)?;
+            let ranges = promoted_ranges(reg, ch, &global_size);
+            (!ranges.is_empty()).then(|| HeldSetB {
+                chid: ch.chid,
+                root,
+                key: tsg_key_of(reg, ch).0,
+                ranges,
+            })
+        })
+        .collect()
+}
+
+/// Set B of a shadow root: the live channels' exclusions ([`exclusions_of`]) and the
+/// ranges held for host TSGs not yet freed ([`held_at_free`]), sorted and deduplicated.
+pub fn set_b_with_held(
+    live: Vec<(u64, u64)>,
+    held: &BTreeMap<TsgKey, Vec<(u64, u64)>>,
+) -> Vec<(u64, u64)> {
+    let mut out = live;
+    out.extend(held.values().flatten().copied());
     out.sort_unstable();
     out.dedup();
     out
@@ -279,6 +332,9 @@ struct ShadowSpace {
     front: crate::shadow::ShadowFront,
     vas: u32,
     exclude: Vec<(u64, u64)>,
+    /// Set-B ranges of guest channels already freed, held by the host TSG that still
+    /// stands for their GR context ([`held_at_free`]); released at that TSG's host free.
+    held: BTreeMap<TsgKey, Vec<(u64, u64)>>,
     chids: std::collections::BTreeSet<u32>,
     tsgs: std::collections::BTreeSet<TsgKey>,
 }
@@ -511,6 +567,9 @@ pub struct Mirror {
     /// cached walks ([`Mirror::take_reaped_roots`]; before, a walk cache of up to 4M leaves
     /// stayed for every context that ever ran).
     reaped_roots: Vec<u64>,
+    /// Guest roots whose held set-B ranges were released at a host TSG free
+    /// ([`Mirror::take_released_roots`]).
+    released_roots: Vec<u64>,
     /// Guest channels whose shadow build the host refused for memory (NO_MEMORY or the
     /// host VRAM floor): the caller RCs them once ([`Mirror::take_exhausted`]) so the guest
     /// sees an error instead of a channel that never runs.
@@ -618,6 +677,7 @@ impl Mirror {
             next_event_id: 0x1000,
             stats: MirrorStats::default(),
             reaped_roots: Vec::new(),
+            released_roots: Vec::new(),
             exhausted: Default::default(),
             exhausted_raised: Default::default(),
         })
@@ -1126,6 +1186,7 @@ impl Mirror {
                         front,
                         vas,
                         exclude: Vec::new(),
+                        held: BTreeMap::new(),
                         chids: Default::default(),
                         tsgs: Default::default(),
                     });
@@ -2181,9 +2242,27 @@ impl Mirror {
         }
     }
 
-    /// The set-B exclusions of shadow root `root` now ([`exclusions_of`]).
+    /// The set-B exclusions of shadow root `root` now: the live channels' ([`exclusions_of`])
+    /// and those held for a host TSG not yet freed ([`set_b_with_held`]).
     fn root_exclusions(&self, reg: &Registry, root: u64) -> Vec<(u64, u64)> {
-        exclusions_of(reg, root, |id| self.global_ctx_size(id))
+        let live = exclusions_of(reg, root, |id| self.global_ctx_size(id));
+        match self.shadows.get(&root) {
+            Some(sp) => set_b_with_held(live, &sp.held),
+            None => live,
+        }
+    }
+
+    /// Guest roots whose held set-B ranges went back to set A at a host TSG free since the
+    /// last call (only those whose shadow still stands): the caller re-syncs them, so the
+    /// guest's pages there are mapped after the host's context is gone.
+    pub fn take_released_roots(&mut self) -> Vec<u64> {
+        let mut out: Vec<u64> = std::mem::take(&mut self.released_roots)
+            .into_iter()
+            .filter(|r| self.shadows.contains_key(r))
+            .collect();
+        out.sort_unstable();
+        out.dedup();
+        out
     }
 
     /// Recompute the exclusions of shadow root `root`; one note when they changed.
@@ -2735,6 +2814,15 @@ impl Mirror {
                     status_name(st)
                 ),
             });
+            // The host's GR context at the held set-B VAs is gone with its TSG: the ranges
+            // go back to set A and their roots are re-synced ([`Mirror::take_released_roots`]).
+            // A refused free keeps them (fail closed: the host context may still be there).
+            if r.is_ok() {
+                self.release_held(key, notes);
+            }
+        } else {
+            // No host TSG under the key (never built, or freed before): nothing owns the VAs.
+            self.release_held(key, notes);
         }
         for sp in self.shadows.values_mut() {
             sp.tsgs.remove(&key);
@@ -2851,9 +2939,58 @@ impl Mirror {
             .map(|(k, _)| *k)
     }
 
+    /// Release the set-B ranges held for host TSG `key` on every shadow root.
+    fn release_held(&mut self, key: TsgKey, notes: &mut Vec<String>) {
+        for (root, sp) in self.shadows.iter_mut() {
+            if let Some(ranges) = sp.held.remove(&key) {
+                notes.push(format!(
+                    "shadow: root {root:#x}: {} held set-B range(s) of host TSG ({key}) back to set A after its host free [host]",
+                    ranges.len()
+                ));
+                self.released_roots.push(*root);
+            }
+        }
+    }
+
     /// The guest freed `h_object` of `h_client` (or the client itself): free the host
-    /// mirrors that stood for it, channels before TSGs before VA spaces.
+    /// mirrors that stood for it, channels before TSGs before VA spaces. The set-B ranges
+    /// of a freed guest channel whose host TSG outlives this free stay out of set A until
+    /// that TSG's host free ([`held_at_free`]).
     pub fn free_object(&mut self, reg: &Registry, h_client: u32, h_object: u32) -> Vec<String> {
+        let candidates = held_at_free(
+            reg,
+            |c| c.h_client == h_client && (h_client == h_object || c.h_object == h_object),
+            |c| match reg.vas_key_of(c).and_then(|k| reg.vas_root(k)) {
+                Some(Target::Fb(r)) if self.shadows.contains_key(&r) => Some(r),
+                _ => None,
+            },
+            |id| self.global_ctx_size(id),
+        );
+        let mut notes = self.free_host_objects(reg, h_client, h_object);
+        for h in candidates {
+            if !self.tsgs.contains_key(&h.key) {
+                continue;
+            }
+            let Some(sp) = self.shadows.get_mut(&h.root) else {
+                continue;
+            };
+            notes.push(format!(
+                "shadow: chid {}: {} set-B range(s) of the freed guest channel held out of set A on root {:#x} until host TSG ({}) is freed [guest]",
+                h.chid,
+                h.ranges.len(),
+                h.root,
+                h.key
+            ));
+            let e = sp.held.entry(h.key).or_default();
+            e.extend(h.ranges);
+            e.sort_unstable();
+            e.dedup();
+        }
+        notes
+    }
+
+    /// [`Mirror::free_object`] without the set-B holds.
+    fn free_host_objects(&mut self, reg: &Registry, h_client: u32, h_object: u32) -> Vec<String> {
         let mut notes = Vec::new();
         // A deferred video object of a channel that goes away is never placed.
         let gone: Vec<u32> = reg
@@ -3552,6 +3689,97 @@ mod tests {
         // The guest frees the channel that promoted it: the range is set A again.
         reg.record_free(1, 0x14);
         assert!(exclusions_among(&reg, all, size).is_empty());
+    }
+
+    /// The order of a GR channel's teardown (vm4-615 18:12:42 and 20:21:50, 23 refused fixed
+    /// mappings at 0x120000000 and up): the guest frees its channel, a guest invalidate
+    /// re-syncs the shadow, and only later does the guest free the TSG whose host TSG holds
+    /// the host's GR context at the same VAs. The re-sync between the two must not map the
+    /// promoted VAs; after the host TSG free it maps them. A channel whose host TSG is
+    /// already gone releases at once (4a6ba83's behaviour).
+    #[test]
+    fn set_b_is_released_only_after_the_host_tsg_free() {
+        let chip = crate::fixture::rtx2070().chip.data();
+        // The guest's tables: four 4 KiB leaves at VA 0x1000..0x5000 of root BASE (the small-page
+        // half of PD0 entry 0).
+        const BASE: u64 = 0x1_0000_0000;
+        const END: u64 = 0x2_0000_0000;
+        let mut fb = FakeFb::new(END + (64 << 20));
+        let vid = |a: u64| ((a >> 12) << 8) | 0b010;
+        let pte = |a: u64| ((a >> 12) << 8) | 1 | (0x06u64 << 56);
+        let (root, pd2, pd1, pd0, pt) = (BASE, BASE + 0x1000, BASE + 0x2000, BASE + 0x3000, BASE + 0x4000);
+        fb.write_u64(root, vid(pd2));
+        fb.write_u64(pd2, vid(pd1));
+        fb.write_u64(pd1, vid(pd0));
+        fb.write_u64(pd0 + 8, vid(pt));
+        let x = BASE + 0x10_0000;
+        for i in 0..4u64 {
+            fb.write_u64(pt + 8 * (i + 1), pte(x + i * 0x1000));
+        }
+        let mem = GuestMemory::new();
+        // A guest TSG with a GR channel that promoted a context at 0x2000 (two pages).
+        let mut reg = registry();
+        reg.record_alloc(1, 0x10, 0x30, v::KEPLER_CHANNEL_GROUP_A, &tsg_params(Some(26)));
+        reg.record_alloc(1, 0x30, 0x40, chip.channel.gpfifo, &channel_params(2, None));
+        let mut g = vec![0u8; v::PROMOTE_PARAMS_SIZE];
+        g[v::PROMOTE_H_CHAN_CLIENT..][..4].copy_from_slice(&1u32.to_le_bytes());
+        g[v::PROMOTE_H_OBJECT..][..4].copy_from_slice(&0x40u32.to_le_bytes());
+        g[v::PROMOTE_ENTRY_COUNT..][..4].copy_from_slice(&1u32.to_le_bytes());
+        g[v::PROMOTE_ENTRIES + 8..][..8].copy_from_slice(&0x2000u64.to_le_bytes());
+        g[v::PROMOTE_ENTRIES + 16..][..8].copy_from_slice(&0x2000u64.to_le_bytes());
+        reg.record_promote_ctx(&g);
+        let key = tsg_key_of(&reg, reg.channel(2).unwrap()).0;
+        let size = |_: u16| None;
+        let all = |_: &Channel| true;
+        let mut held: BTreeMap<TsgKey, Vec<(u64, u64)>> = BTreeMap::new();
+        // The host TSGs standing (the mirror's `tsgs`): the one of the guest TSG.
+        let mut host_tsgs = std::collections::BTreeSet::from([key]);
+        let mut front = crate::shadow::ShadowFront::new(root);
+        let set_b = |reg: &Registry, held: &BTreeMap<TsgKey, Vec<(u64, u64)>>| {
+            set_b_with_held(exclusions_among(reg, all, size), held)
+        };
+        let b = set_b(&reg, &held);
+        assert_eq!(b, vec![(0x2000, 0x4000)]);
+        let plan = front.plan(&fb, &mem, BASE, END, 1, &b, &[]).unwrap();
+        assert_eq!((plan.want, plan.excluded), (2, 2), "set B stays unmapped while the channel lives");
+        // The guest frees the channel; its host TSG (the GR context) is still alive.
+        for h in held_at_free(&reg, |c| c.h_object == 0x40, |_| Some(root), size) {
+            assert_eq!((h.chid, h.root, h.key), (2, root, key));
+            if host_tsgs.contains(&h.key) {
+                held.entry(h.key).or_default().extend(h.ranges);
+            }
+        }
+        reg.record_free(1, 0x40);
+        assert!(exclusions_among(&reg, all, size).is_empty(), "the live channels hold nothing now");
+        // The guest's invalidate between the two frees: set B is unchanged, nothing is mapped.
+        let b = set_b(&reg, &held);
+        assert_eq!(b, vec![(0x2000, 0x4000)], "held by the live host TSG");
+        assert!(front.plan(&fb, &mem, BASE, END, 1, &b, &[]).is_none(), "the promoted VAs are not mapped");
+        // The host TSG is freed (the guest's TSG FREE): the held ranges go back to set A and
+        // the re-sync after it maps the two pages.
+        assert!(host_tsgs.remove(&key));
+        assert!(held.remove(&key).is_some());
+        let b = set_b(&reg, &held);
+        assert!(b.is_empty());
+        let plan = front.plan(&fb, &mem, BASE, END, 1, &b, &[]).unwrap();
+        assert_eq!((plan.want, plan.excluded), (4, 0), "after the host free the pages are mapped");
+        // A channel whose host TSG is already gone (never built, or a bare channel's freed
+        // with it) holds nothing: released at once.
+        reg.record_alloc(1, 0x30, 0x41, chip.channel.gpfifo, &channel_params(3, None));
+        g[v::PROMOTE_H_OBJECT..][..4].copy_from_slice(&0x41u32.to_le_bytes());
+        reg.record_promote_ctx(&g);
+        for h in held_at_free(&reg, |c| c.h_object == 0x41, |_| Some(root), size) {
+            if host_tsgs.contains(&h.key) {
+                held.entry(h.key).or_default().extend(h.ranges);
+            }
+        }
+        reg.record_free(1, 0x41);
+        assert!(set_b(&reg, &held).is_empty());
+        // A channel without a shadow root holds nothing either.
+        reg.record_alloc(1, 0x30, 0x42, chip.channel.gpfifo, &channel_params(4, None));
+        g[v::PROMOTE_H_OBJECT..][..4].copy_from_slice(&0x42u32.to_le_bytes());
+        reg.record_promote_ctx(&g);
+        assert!(held_at_free(&reg, |c| c.h_object == 0x42, |_| None, size).is_empty());
     }
 
     /// The video layout: the host-only area sits below the guest's RM base, inside the
