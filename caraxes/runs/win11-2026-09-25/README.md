@@ -178,7 +178,8 @@ the diff against the 35-register baseline, `trace-saver` archives the full trace
 | **L** | extcfg | **flash chain from 0x28600** (`prom-window-2026-09-25-from-55aa.bin`) | | **554** | **345** | GSP/PMU/display programming, fails later |
 | **M** | extcfg+hwcfg | flash chain | | 557 | 368 | as L |
 | N | extcfg | flash chain | T4 | 0 | 0 | Windows did not boot that time (no device access in 20 min) |
-| P, Q, R | extcfg+ifr d4d37c2f | **full 1 MiB window with the IFR header** | GeForce / T4 / root port + ext caps | pending | | |
+| P, R | extcfg+ifr d4d37c2f | **full 1 MiB window with the IFR header** | GeForce (R: + root port, ext caps) | 557 | 368 | as M: the IFR header changes nothing beyond the chain |
+| Q | extcfg+ifr | full window | T4, 616.92 | 365 | 368 | the data-centre driver also programs the falcons now |
 
 - **The VBIOS content was the Code 43 gate.** With only the PCI expansion ROM (legacy + EFI, 127 KiB)
   in the PROM window the driver scanned the window to its end and gave up; with the card's flash
