@@ -199,7 +199,7 @@ present; the number after `@` is the line of the entry.
 | `PDB_PROP_KNVLINK_ENCRYPTION_ENABLED` (NVLE) | GB100, GB102, GB110, GB112, GR100, GR102 | `g_kernel_nvlink_nvoc.c:400` |
 | `PDB_PROP_KNVLINK_NVSWITCH_SUPPORTS_SLI` | GH100 | `g_kernel_nvlink_nvoc.c:361` |
 | `PDB_PROP_KHWPM_HES_CWD_SUPPORTED` | GB100, GB102, GB10B, GB10C, GB110, GB112, GB202 to GB207, GB20B, GB20C, GR100, GR102 | `g_kern_hwpm_nvoc.c:246` |
-| `PDB_PROP_KFSP_IS_MISSING` (the FSP object is dropped) | GH100, GB100, GB102, GB110, GB112, GB202 to GB207, GR100, GR102 | `g_kern_fsp_nvoc.c:235` |
+| `PDB_PROP_KFSP_IS_MISSING` set to `NV_FALSE` (the FSP is present; every other chip, Turing to Ada included, gets `NV_TRUE`, the FSP object dropped; corrected 2026-09-25, this row had it inverted) | GH100, GB100, GB102, GB110, GB112, GB202, GB203, GB205 to GB207, GR100, GR102 | `g_kern_fsp_nvoc.c:233-242` (615) |
 | `PDB_PROP_GPU_VGPU_OFFLOAD_CAPABLE` | AD102 to AD107, GH100, all GB, GR | `g_gpu_nvoc.c:479` |
 
 **The display HAL table.** From `src/nvidia-modeset/src/nvkms-hal.c:140-164`:

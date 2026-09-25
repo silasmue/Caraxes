@@ -85,7 +85,7 @@ support the custom attribute and use it to verify no changes across releases." I
   still under development (or can change depending on build configuration) live in this file
   until they get promoted" (`gmcapi_system_info_unstable.h:27-28`,
   `gmcapi_gsp_config_unstable.h:31-32`). `CL_FLAGS` (0x1033) is such an unstable system-info key
-  (`gmcapi_system_info_unstable.h:30`).
+  (`gmcapi_system_info_unstable.h:31`, 615; :30 is its comment line).
 - **The RM RPC layer is declared unstable.** The kernel must opt in to "unstable interfaces to
   GSP", with one bit for RPCs and one for events (`NVGMC_SI_UNSTABLE_INTERFACE_SUPPORT` 0x1110,
   bits RPC and EVENTS, `gmcapi_system_info.h:200-203`), and the 615 kernel sets both

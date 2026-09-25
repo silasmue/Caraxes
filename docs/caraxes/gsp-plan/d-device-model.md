@@ -1584,7 +1584,7 @@ directory, the ZBC probe after the gates; before = the parent 57693d8, after = 5
 
 | Guest | Run | nvml gate | cuda gate | ZBC probe (`--set`) | Device pid | Host Xid (device / all) |
 |---|---|---|---|---|---|---|
-| 610.57.04 (vm3) | before | fail: power-number N/A, as in every 610 gate of the day | 10 of 12 scored pass; `cuda-managed` fails (AllocManaged 801 after `GPU_QUERY_ECC_STATUS` 0x56), `cuda-gdb` declared unsupported | not run | 1094752 | 0 / 0 |
+| 610.57.04 (vm3) | before | fail: power-number N/A, as in every 610 gate of the day | 10 of 12 (the gate script's count: the declared-unsupported cuda-gdb row is among the 12; documents that count only the 11 scored rows write the same result as 10 of 11, testing.md section 3, cuda) scored pass; `cuda-managed` fails (AllocManaged 801 after `GPU_QUERY_ECC_STATUS` 0x56), `cuda-gdb` declared unsupported | not run | 1094752 | 0 / 0 |
 | 610.57.04 (vm3) | after | the same | the same | 45 entries answered, 8 valid; the 3 setters NV_OK; readback 3 of 3 | 1214008 | 0 / 0 |
 | 615.71.09 (vm3-615) | before | pass | the same as 610 | 45 `unanswered` (0x56); the 3 setters 0x56; readback 0 of 3 | 1138022 | 0 / 2 |
 | 615.71.09 (vm3-615) | after | pass | the same as 610 | as the 610 after run | 1250420 | 0 / 0 |

@@ -379,7 +379,7 @@ the 64 MiB invalidates (77.9 to 13.9 traps). The free path is the next target: 7
 401 us per 1 MiB, 15x native, the two invalidates and the flush read of step 3. `on` against
 `off` was not run; `stack-on` against `stack-off` shows the switch's effect: alloc 297 to 175
 us, device CPU per churn run down a quarter, cuCtxCreate unchanged (533 against 534 ms), cuda
-gate 10 of 11 scored (the known cuda-managed 801), 0 host Xid. Lazy exit summary of the last
+gate 10 of 11 (10 of the 11 scored rows; the gate script counts the same result as 10 of 12, with the declared-unsupported cuda-gdb row in the 12, testing.md section 3, cuda) scored (the known cuda-managed 801), 0 host Xid. Lazy exit summary of the last
 instance: 8001 invalidates deferred, 330 batches at a doorbell and 407 at the deadline, largest
 batch 68, and no fault attributable to a late plan.
 

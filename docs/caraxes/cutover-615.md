@@ -360,7 +360,7 @@ shimInstance 0, shimLocalLceIdx = the LCE, 21 times each, `chip table agrees`
 a: 801 operation not supported`, the known exception on this host); robustness passed 3 of 3
 where the 610 guest run had 2 of 3. rlprobe `mean10=56.9`, convburn `acc=3.041450977e+00`.
 Run 6 repeats run 5 with the merged device (the chipctl family hook sits after the CUDA rows, so
-it never sees 0x20802A0C): the same 10 of 12, the same host answers, cuda gate 391 s (run 5
+it never sees 0x20802A0C): the same 10 of 12 (the gate script's count: the declared-unsupported cuda-gdb row is among the 12; documents that count only the 11 scored rows write the same result as 10 of 11, testing.md section 3, cuda), the same host answers, cuda gate 391 s (run 5
 426 s, the 610 guest 388 s). During run 6 the host kernel logged 22 pairs of
 `kmemsysFlushGpuCache_IMPL: Invalid aperture.` / `Invalid array size (0x0)` (18:34:52 to 18:45);
 they are not vm2's: its device sent the 615 flag words (0x29, 0x31) with NV_OK every time, while

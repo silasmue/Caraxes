@@ -316,7 +316,7 @@ presented frame with the interrupt page and the display page:
 - Weston traps 31.08 times (57.41 Hz).
 
 What Mutter still traps per frame (intr-page.md §9 B3 and §6a, intr-page.md:293):
-- 71 BAR2 PTE writes and 23 flush-page reads;
+- 71 BAR2 PTE writes and 23 flush-page reads (the BAR2 writes per Mutter frame differ by series, not by method: 71 (70.85) is series F on the 610 guest without the interrupt and display pages (`caraxes/runs/display-f-2026-09-24/f3b-traps-mutter-fresh/trap-table.txt`, "BAR2 writes, all"), 73.5 is run B3 of intr-page.md section 9, and 73.63 the 615 guest with both pages in display-615.md section 5);
 - 11.8 usermode `TIME_0/1` reads;
 - 9.6 `NV_PCFG` re-arm writes;
 - 10 MMU invalidate accesses;
@@ -387,7 +387,7 @@ calls.
     cuMemHostRegister 2.29 ms.
   - The steady-state rows keep 0 traps. rlprobe's process wall is 15.5 s against 21.3 s in the
     same session.
-  - The cuda gate is 10 of 12, as before, and there was 0 host Xid.
+  - The cuda gate is 10 of 12 (the gate script's count: the declared-unsupported cuda-gdb row is among the 12; documents that count only the 11 scored rows write the same result as 10 of 11, testing.md section 3, cuda), as before, and there was 0 host Xid.
   - Copy rows: the pool's rows do not regress over three A/B passes. The 256 MiB rows and the d2d
     rows are unchanged or better. The pinned 1 and 16 MiB rows switch between about 6.5 and
     12.9 GB/s with the card's PCIe link state (gen 1 or 2 at P8 or P5, gen 3 at P0) in both
@@ -399,7 +399,7 @@ calls.
   - The re-arm write is an ioeventfd without datamatch, read by the token pool's reactor, which
     does what the trapped write did.
   - Re-arm traps per second: rlprobe 141 to 0, PPO 153 to 0, idle 102 to 0 per second (10.2 per
-    100 ms window).
+    100 ms window). Against the 55 per second of items 4 and 5 and the 331 of coverage-map.md: the idle rate depends on what else runs on the card: 55 per second is the census's idle windows in `off` (section 3), 102 per second the idle census window of the ioeventfd run (`caraxes/runs/opt-msi-ioeventfd-2026-09-25/`, 10.2 per 100 ms), 331 per second the coverage map's 300 s idle while other VMs worked (coverage-map.md section 4, row 9); the MSIs are other clients' work forwarded, so the rate follows the other VMs' load.
   - All traps per second: rlprobe 508 to 456, PPO 423 to 314.
   - The cuda gate is 10 of 12, and there was 0 host Xid. Mutter was not measured: expected 9.6
     traps per frame fewer.

@@ -930,7 +930,7 @@ and 8 of 10 on-nopool runs; the host load average was 5 to 12.
 | on (pool, memfd on) | 0 | 430 (flush page) | the first `bench-cu init` hung in cuCtxCreate for 16 min |
 | on-syncdb (+ `CARAXES_BAR2_MEMFD_SYNC_DOORBELL=1`) | 0 | 352 | hung (timeout 120 s) |
 | on-nointr (pool, memfd on, interrupt page off) | 0 | 352 | hung (timeout 120 s) |
-| on-nopool (memfd on, no pool) | 0 | 478 | series green, cuda gate 10 of 11 scored (cuda-managed, the known 801 of managed memory) |
+| on-nopool (memfd on, no pool) | 0 | 478 | series green, cuda gate 10 of 11 (10 of the 11 scored rows; the gate script counts the same result as 10 of 12, with the declared-unsupported cuda-gdb row in the 12, testing.md section 3, cuda) scored (cuda-managed, the known 801 of managed memory) |
 
 | Row (median [min-max], n=5) | off (pool) | off-nopool | on-nopool | native (closing) | on-nopool / native |
 |---|---|---|---|---|---|

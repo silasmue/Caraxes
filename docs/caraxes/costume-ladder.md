@@ -80,7 +80,7 @@ every Turing-HAL and Hopper rung is compared against the same wall:
 
 | Rung | Lie | Truth kept | Pure emulation, first failure | What it took | GPU check (vm1) | Verdict |
 |---|---|---|---|---|---|---|
-| 1 TU104 (RTX 2080) | BOOT_0/42 0x164000a1/0x164a1000, devid 10de:1e82, name | everything else (TU106 tables, VBIOS, config layout, classes) | the baseline wall, identical to TU106 | an overlay of 3 values | boots; nvml gate all but power-number; cuda gate 10 of 12 scored; 0 Xid | **works** |
+| 1 TU104 (RTX 2080) | BOOT_0/42 0x164000a1/0x164a1000, devid 10de:1e82, name | everything else (TU106 tables, VBIOS, config layout, classes) | the baseline wall, identical to TU106 | an overlay of 3 values | boots; nvml gate all but power-number; cuda gate 10 of 12 (the gate script's count: the declared-unsupported cuda-gdb row is among the 12; documents that count only the 11 scored rows write the same result as 10 of 11, testing.md section 3, cuda) scored; 0 Xid | **works** |
 | 2 GA106 (RTX 3060) | Ampere HAL (BOOT 0x176000a1/0x176a1000), devid 10de:2503, the GA106 class database, channel classes C56F/C7B5/C7C0 | TU106 device-info, interrupts, engine caps, memsys, GMMU v2, feature families, SM 7.5 in GR info | 4 walls, all in the boot (below), then the baseline wall | v3 FWSEC VBIOS, 4 boot-model registers, class map | boots; nvml gate all but power-number; nvidia-smi compute_cap **8.6**; cuda-init passes, cuda-jit `cuCtxCreate: 719 unspecified launch failure` with host Xid 32 (CE) and Xid 13 (GR "Class 0xc7c0 Subchannel 0x1 Mismatch") on the device's channels; ladder stopped (section 3.2) | **breaks at SET_OBJECT**: the class id travels in the method stream |
 | 3 AD106 (RTX 4060 Ti) | Ada HAL (0x196000a1/0x196a1000), devid 10de:2803, AD106 classes, C9C0 | as rung 2 | rung 2's walls plus the Ada scrubber (`done bit not set`), then the baseline wall | + SCRUBBER_HANDOFF_DONE in the boot data | not run (the ladder stopped at rung 2) | **boots as far as TU106 in emulation** |
 | 4 GH100 (H100 PCIe) | Hopper HAL (0x180000a1/0x180a1000) on the GB206 FSP model and GMMU v3, devid 10de:2331 sub 10de:1626, GH100 classes, NVLink/HSHUB/fabric/C2C/MIG/CC present, MIG on | GB206 register map, device info, interrupts | Xid 143 "Error status 0x65 while polling for FSP boot complete" (guest-side; kern_fsp_gh100.c:726-770): Hopper's `NV_THERM_I2CS_SCRATCH` is 0x200BC, GB20x's 0xAD00BC; then CC, HUB PCE mask and CCU complaints, then the baseline wall | a boot overlay (FSP-boot-complete, WPR2 in the FB unit, the GA100 debug fuse) | not run (the ladder stopped at rung 2) | **boots as far as TU106 in emulation**; the present families are asked, none is fatal |
@@ -135,7 +135,7 @@ guest's NVRM lines and fixed in the costume layers (VBIOS, boot model), never in
    (kernel_gsp.c:2296): libos 3 GSP-RM keeps heartbeats in `NV_PGSP_MAILBOX(0/1)`. Fix: the
    heartbeat registers in the boot data, answered with the device's PTIMER ms.
 5. Tolerated, not a wall: `NV2080_CTRL_CMD_INTERNAL_CONF_COMPUTE_GET_STATIC_INFO` NOT_SUPPORTED
-   (conf_compute.c:560, :455; the `cc` family is absent on the TU106 truth), then the baseline
+   (conf_compute.c:560, :455 as the 610 guest prints them; in the 615 tree the asserts are at :588 and :483, the control id on :591 and :486; the `cc` family is absent on the TU106 truth), then the baseline
    wall of section 2.1.
 
 In emulation the guest shows `GA106 [GeForce RTX 3060] [10de:2503]` (lspci) and Model "NVIDIA
@@ -191,7 +191,7 @@ TU102 one, kernel_gsp_gh100.c:229) and the debug fuse is the GA100 one (HAL
 g_kernel_gsp_nvoc.c:624-627). With `chips/gh100/boot.toml` the FSP Chain-of-Trust, the GSP boot
 and the init RPCs pass. Of the families declared present, the guest asks at boot for
 Confidential Computing static info (`INTERNAL_CONF_COMPUTE_GET_STATIC_INFO`, asserted twice,
-conf_compute.c:560 and :455, continues), the HUB PCE mask (`CE_GET_HUB_PCE_MASK_V2`, kernel_ce.c:890,
+conf_compute.c:560 and :455 in the 610 guest's log, :588 and :483 in the 615 tree with the control id on :591 and :486, continues), the HUB PCE mask (`CE_GET_HUB_PCE_MASK_V2`, kernel_ce.c:890,
 continues) and the CCU shared buffer (`kccuShrBufInfoToCcu_IMPL: CCU memdesc map request
 failed`, continues); none of NVLink, fabric, C2C or MIG is asked before the baseline wall. So
 nothing the Hopper HAL insists on at boot stops it before the point TU106 itself reaches.

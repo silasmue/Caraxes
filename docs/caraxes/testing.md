@@ -150,6 +150,13 @@ tests, in order:
 | convburn | `probe/python/convburn.py` | exits 0 and prints `acc=` |
 | robustness | v1 gpu gate stage (`test.sh:334-355`) | two `nvprobe 3` in parallel, SIGKILL mid-run then a correct run, nvidia.ko refcount rises while `/dev/nvidiactl` is open |
 
+The gate has 12 rows; cuda-gdb declares itself unsupported in the image, so the gate script
+reports a result as "N of 12 scored tests pass" while some documents write "N of 11",
+counting only the 11 rows that can pass: "10 of 12" and "10 of 11" are the same result
+(`tools/caraxes-guest-tests.sh` `CUDA_TESTS`;
+`caraxes/runs/cutover-615-2026-09-24/v2-615guest-r6/gate-cuda.txt`: "10 pass, 1 fail,
+1 declared-unsupported").
+
 Unscored (information, as `probe/suites/README.md` says of the suites): the eight
 `probe/suites` programs, run with the venv; a missing module is a skip.
 
