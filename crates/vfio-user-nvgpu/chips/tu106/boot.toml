@@ -40,6 +40,12 @@ local_memory_range = 0x0010_0CE0
 # NV_PFB_PRI_MMU_WPR2_ADDR_LO/HI (dev_fb.h:42; kgspIsWpr2Up_TU102).
 wpr2_addr_lo = 0x001F_A824
 wpr2_addr_hi = 0x001F_A828
+# NV_PFB_PRI_MMU_WPR1_ADDR_LO/HI: 0 until an ACR sets WPR1 (none does in the model); the
+# ACR unload on the PMU (BOOTVEC 0x10000, linux-firmware nvidia/tu102/acr/unload_bl.bin
+# at IMEM tag 0x100) clears WPR1 and WPR2 (ANALYSIS-gsp-path.md §3 change 4).
+wpr1_addr_lo = 0x001F_A81C
+wpr1_addr_hi = 0x001F_A820
+acr_unload_bootvec = 0x1_0000
 
 # `kgspGetFrtsSize` on TU10x (docs/caraxes/gsp-boot-turing.md); used for the WPR2 high
 # address and for the fallback when guest RAM cannot be read.

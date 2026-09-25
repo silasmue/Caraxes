@@ -117,6 +117,16 @@ pub struct TuringBootData {
     pub local_memory_range: u64,
     pub wpr2_addr_lo: u64,
     pub wpr2_addr_hi: u64,
+    /// `NV_PFB_PRI_MMU_WPR1_ADDR_LO/HI` (0x1fa81c/0x1fa820): WPR1 as ACR sets it; nothing
+    /// in the model raises it yet, the ACR unload clears it.
+    #[serde(default)]
+    pub wpr1_addr_lo: Option<u64>,
+    #[serde(default)]
+    pub wpr1_addr_hi: Option<u64>,
+    /// The PMU `BOOTVEC` of the ACR unload bootloader (`unload_bl.bin`, IMEM tag 0x100):
+    /// its halt tears WPR1 and WPR2 down.
+    #[serde(default)]
+    pub acr_unload_bootvec: Option<u32>,
     pub frts_size: u64,
     pub bl_desc_data_dma_base: u64,
     pub fwsec_data_frts_offset_4k: u64,
@@ -226,6 +236,7 @@ pub struct TuringBoot {
     pub pmu: Option<Falcon>,
     fb_bytes: u64,
     wpr2: (u32, u32),
+    wpr1: (u32, u32),
     frts_offset: Option<u64>,
     /// GSP-RM was loaded by a Booter Load and not unloaded since: what tells Booter
     /// Unload from Booter Load when the mailboxes do not (B4).
@@ -249,6 +260,7 @@ impl TuringBoot {
             d,
             fb_bytes,
             wpr2: (0, 0),
+            wpr1: (0, 0),
             frts_offset: None,
             loaded: false,
             clock: std::time::Instant::now(),
@@ -344,6 +356,17 @@ impl TuringBoot {
                 let bootvec = pmu.read32(crate::falcon::BOOTVEC);
                 let (_, m1) = pmu.mailbox();
                 pmu.set_mailbox(0, m1);
+                if Some(bootvec) == self.d.acr_unload_bootvec {
+                    // The ACR unload (nouveau `tu102_acr_unload_fwif` on the PMU): the WPR
+                    // regions are torn down.
+                    let before = (self.wpr1, self.wpr2);
+                    self.wpr1 = (0, 0);
+                    self.wpr2 = (0, 0);
+                    return vec![format!(
+                        "pmu start {run}: acr unload (BOOTVEC {bootvec:#x}) done, MAILBOX0 0; WPR1 lo/hi {:#x}/{:#x} and WPR2 lo/hi {:#x}/{:#x} -> 0",
+                        before.0 .0, before.0 .1, before.1 .0, before.1 .1
+                    )];
+                }
                 vec![format!(
                     "pmu start {run}: halted (BOOTVEC {bootvec:#x}), MAILBOX0 0"
                 )]
@@ -374,6 +397,8 @@ impl FirmwareBoot for TuringBoot {
             || self.d.heartbeat.is_some_and(|h| h.contains(&off))
             || off == self.d.wpr2_addr_lo
             || off == self.d.wpr2_addr_hi
+            || Some(off) == self.d.wpr1_addr_lo
+            || Some(off) == self.d.wpr1_addr_hi
             || self.constant(off).is_some()
             || self.in_block(&self.d.gsp, off)
             || self.in_block(&self.d.sec2, off)
@@ -427,6 +452,8 @@ impl FirmwareBoot for TuringBoot {
             }
             o if o == self.d.wpr2_addr_lo => self.wpr2.0,
             o if o == self.d.wpr2_addr_hi => self.wpr2.1,
+            o if Some(o) == self.d.wpr1_addr_lo => self.wpr1.0,
+            o if Some(o) == self.d.wpr1_addr_hi => self.wpr1.1,
             o if self.in_block(&self.d.gsp, o) => self.gsp.read32(o - self.d.gsp.base),
             o if self.in_block(&self.d.sec2, o) => self.sec2.read32(o - self.d.sec2.base),
             o if self.in_pmu(o) => match (self.d.pmu.as_ref(), self.pmu.as_mut()) {
@@ -679,7 +706,7 @@ mod tests {
             &0x100u32.to_le_bytes()
         );
         b.write32(pmu + falcon::MAILBOX0, 0xDEAD, &mem);
-        b.write32(pmu + falcon::BOOTVEC, 0x1_0000, &mem);
+        b.write32(pmu + falcon::BOOTVEC, 0xFD00, &mem);
         let w = b.write32(pmu + falcon::CPUCTL, 2, &mem).unwrap();
         assert!(w.notes[0].starts_with("pmu start 1: halted"), "{w:?}");
         assert_eq!(b.read32(pmu + falcon::CPUCTL), Some(0x10));
@@ -821,6 +848,32 @@ mod tests {
         // The idle ENGCTL the card reads is the model's too.
         assert_eq!(b.read32(0x10A0A4), cap.get(0x10A0A4));
         assert_eq!(b.read32(0x8400A4), cap.get(0x8400A4));
+    }
+
+    /// The ACR unload on the PMU (BOOTVEC 0x10000, run P at 115.32): after FWSEC-FRTS raised
+    /// WPR2, the unload's halt tears WPR1 and WPR2 down and leaves MAILBOX0 0.
+    #[test]
+    fn acr_unload_clears_wpr() {
+        let d = data();
+        let pmu = d.pmu.as_ref().unwrap().base;
+        let pa = 0x1_7FC4_5000;
+        let (mem, path) = fwsec_guest("unload", pa, FWSEC_CMD_FRTS, 0x1_FDE00);
+        let mut b = TuringBoot::new(d, 8 << 30);
+        fwsec_start(&mut b, pa, &mem);
+        assert_ne!(b.read32(d.wpr2_addr_hi), Some(0));
+        assert_eq!(b.read32(0x1F_A81C), Some(0));
+        assert_eq!(b.read32(0x1F_A820), Some(0));
+        b.write32(pmu + falcon::MAILBOX0, 0xDEAD, &mem);
+        b.write32(pmu + falcon::BOOTVEC, 0x1_0000, &mem);
+        let w = b.write32(pmu + falcon::CPUCTL, 2, &mem).unwrap();
+        assert!(w.notes[0].contains("acr unload"), "{w:?}");
+        assert!(w.notes[0].contains("WPR2 lo/hi 0x1fde000"), "{w:?}");
+        for off in [0x1F_A81C, 0x1F_A820, d.wpr2_addr_lo, d.wpr2_addr_hi] {
+            assert_eq!(b.read32(off), Some(0), "{off:#x}");
+        }
+        assert_eq!(b.read32(pmu + falcon::MAILBOX0), Some(0));
+        assert_eq!(b.read32(pmu + falcon::CPUCTL), Some(0x10));
+        std::fs::remove_file(path).ok();
     }
 
     /// Run P's gate: `W 0x10a0a4 0x2`, then the poll reads the stall acknowledge at once.
