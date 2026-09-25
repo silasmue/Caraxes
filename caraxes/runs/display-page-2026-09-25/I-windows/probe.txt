@@ -1,0 +1,4 @@
+probe desk-I-windows: 68741 device accesses, guest log in /mnt/vmstore/caraxes/vm0/probe-desk-I-windows/guest-dmesg.txt
+[  149.034003] NVRM: GPU 0000:00:05.0: RmInitAdapter
+[  160.093272] NVRM: GPU 0000:00:05.0: RmInitAdapter succeeded!
+modprobe rc=0

@@ -1,0 +1,51 @@
+window 10 s [459480248, 469480248) us; presented frames (latches with a surface): window 6: 498; per-frame base: window 6 = 498 (49.80 Hz)
+what                                                              count  per frame
+BAR0 writes, all                                                    557       1.12
+  other 0x696000                                                    554       1.11
+  other 0x110c00 NV_PGSP_QUEUE_HEAD/TAIL                              1       0.00
+  other 0x70010 NV_UFLUSH_L2_FLUSH_DIRTY                              1       0.00
+  other 0xb80f00 NV_VIRTUAL_FUNCTION_PRIV_L2_SYSMEM_INVALIDATE        1       0.00
+BAR0 reads, all                                                    9274      18.62
+  NV_VIRTUAL_FUNCTION_TIME_0/1                                     9159      18.39
+  0x696004                                                          110       0.22
+  NV_PGSP                                                             3       0.01
+  NV_UFLUSH_L2_FLUSH_DIRTY                                            1       0.00
+  NV_VIRTUAL_FUNCTION_PRIV_L2_SYSMEM_INVALIDATE                       1       0.00
+BAR1 writes, all                                                      0       0.00
+BAR1 reads                                                            0       0.00
+BAR2 writes, all                                                      0       0.00
+BAR2 reads                                                        11476      23.04
+all trapped accesses                                              21307      42.79
+display channel kicks                                               554       1.11
+forwarded doorbells (host doorbell rung)                           1360       2.73
+guest MMU invalidates seen                                         1001       2.01
+host notifier events (no MSI)                                        46       0.09
+host notifier events -> MSI                                        2513       5.05
+shadow plans applied (sync lines)                                    33       0.07
+BAR0 page 0xbb0000 reads                                           9159      18.39
+BAR0 page 0x696000 writes                                           554       1.11
+BAR0 page 0x696000 reads                                            110       0.22
+BAR0 page 0x110000 reads                                              3       0.01
+BAR0 page 0x110000 writes                                             1       0.00
+BAR0 page 0x070000 writes                                             1       0.00
+BAR0 page 0x070000 reads                                              1       0.00
+BAR0 page 0xb80000 writes                                             1       0.00
+BAR0 page 0xb80000 reads                                              1       0.00
+per register (BAR, access, offset, name):
+  BAR2 R 0x00fea000 fb 0x1e75cf000                                11476      23.04
+  BAR0 R 0x00bb0084 NV_VIRTUAL_FUNCTION_TIME_0/1                   6106      12.26
+  BAR0 R 0x00bb0080 NV_VIRTUAL_FUNCTION_TIME_0/1                   3053       6.13
+  BAR0 W 0x00696000                                                 554       1.11
+  BAR0 R 0x00696004                                                 110       0.22
+  BAR0 W 0x00110c00 NV_PGSP_QUEUE_HEAD/TAIL                           1       0.00
+  BAR0 R 0x00110094 NV_PGSP                                           1       0.00
+  BAR0 R 0x00110804 NV_PGSP                                           1       0.00
+  BAR0 R 0x00110808 NV_PGSP                                           1       0.00
+  BAR0 W 0x00070010 NV_UFLUSH_L2_FLUSH_DIRTY                          1       0.00
+  BAR0 R 0x00070010 NV_UFLUSH_L2_FLUSH_DIRTY                          1       0.00
+  BAR0 W 0x00b80f00 NV_VIRTUAL_FUNCTION_PRIV_L2_SYSMEM                1       0.00
+  BAR0 R 0x00b80f00 NV_VIRTUAL_FUNCTION_PRIV_L2_SYSMEM                1       0.00
+latch intervals of window 6: 497, mean 20.023 ms, sd 8.763 ms, min 14.311 ms, max 83.357 ms, over 20 ms 79
+  server-thread walk per plan: p50 29 us, max 99 us, sum 961 us (2 us per frame)
+  worker apply per plan: p50 101 us, max 19234 us, sum 29751 us (60 us per frame)
+  queued before apply: p50 12 us, max 20 us
