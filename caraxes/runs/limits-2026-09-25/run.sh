@@ -47,14 +47,14 @@ for _ in $(seq 330); do
     sleep 2
 done
 "$R/tools/caraxes-vm.sh" down > "$out/down.txt" 2>&1 || true
-cp "$W/serial.log" "$out/serial.log"
-cp "$W/gpu.log" "$out/gpu.log"
+tr -d '\r' < "$W/serial.log" > "$out/serial.txt"
+cp "$W/gpu.log" "$out/device-log.txt"
 {
     echo "persist after:"
     cat "$W/gpu-persist.toml" 2>/dev/null || echo "(none)"
 } >> "$out/setup.txt"
 grep -aE "unanswered|refused|NOT_SUPPORTED|assert|panic|ERROR" "$W/gpu-trace.log" \
     | sed -E 's/^ *[0-9]+ //' | sort | uniq -c | sort -rn | head -n 200 | cut -c1-400 > "$out/trace-notable.txt" || true
-grep -aE "family|ecc|ECC|mig|MIG|SMC|smc|vgpu|VGPU|0xc637|0xc638|PARTITION" "$W/gpu-trace.log" \
+grep -aE "family|ecc|ECC|mig|MIG|SMC|smc|vgpu|VGPU|0xc637|0xc638|PARTITION|partition|instance|pce|remap|inforom" "$W/gpu-trace.log" \
     | cut -c1-500 > "$out/trace-family.txt" || true
-grep -aE "CARAXES-STEP|RmInitAdapter|modprobe rc|Xid" "$out/serial.log" | tr -d '\r' | head -n 80
+grep -aE "CARAXES-STEP|RmInitAdapter|modprobe rc|Xid" "$out/serial.txt" | tr -d '\r' | head -n 80

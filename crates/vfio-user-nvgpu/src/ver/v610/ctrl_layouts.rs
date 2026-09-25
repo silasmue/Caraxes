@@ -119,6 +119,29 @@ pub const CTRL_LAYOUTS: &[CtrlLayout] = &[
         ],
     },
     CtrlLayout {
+        name: "NV2080_CTRL_CE_UPDATE_PCE_LCE_MIG_MAPPINGS_PARAMS",
+        header: "ctrl2080/ctrl2080ce.h",
+        size: 264,
+        fields: &[
+            CtrlField { path: "pceLceMap[]", offset: 0, size: 4, dims: &[(4, 64)] },
+            CtrlField { path: "lceAvailableMask", offset: 256, size: 4, dims: &[] },
+            CtrlField { path: "shimInstance", offset: 260, size: 4, dims: &[] },
+        ],
+    },
+    CtrlLayout {
+        name: "NV2080_CTRL_CMD_INTERNAL_CE_GET_PCE_CONFIG_FOR_LCE_MIG_GPU_INSTANCE_PARAMS",
+        header: "ctrl2080/ctrl2080ce.h",
+        size: 24,
+        fields: &[
+            CtrlField { path: "lceMask", offset: 0, size: 4, dims: &[] },
+            CtrlField { path: "numLces", offset: 4, size: 4, dims: &[] },
+            CtrlField { path: "pceAvailableMask", offset: 8, size: 4, dims: &[] },
+            CtrlField { path: "numLcesToMap", offset: 12, size: 4, dims: &[] },
+            CtrlField { path: "lceAvailableMask", offset: 16, size: 4, dims: &[] },
+            CtrlField { path: "numMinPcesPerLce", offset: 20, size: 4, dims: &[] },
+        ],
+    },
+    CtrlLayout {
         name: "NV2080_CTRL_CMD_INTERNAL_CONTROL_GSP_TRACE_PARAMS",
         header: "ctrl2080/ctrl2080internal.h",
         size: 32,

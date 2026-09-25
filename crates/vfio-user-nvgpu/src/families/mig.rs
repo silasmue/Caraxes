@@ -621,9 +621,33 @@ pub fn answer(
         wr8(&mut b, 8, ok as u8);
         return done(b, INSTANCES, format!("check cts id {cts}: valid {ok}"));
     }
+    if is(cmd, "NV2080_CTRL_CMD_INTERNAL_CE_GET_PCE_CONFIG_FOR_LCE_MIG_GPU_INSTANCE") {
+        // kceGetMappingsForMIGGpuInstance_GH100 (kernel_ce_gh100.c:1340-1358 of 615.71.09)
+        // asks once for the even and once for the odd LCEs of a GI, and the KMM print path
+        // (kernel_mig_manager.c:3344) with lceMask 0 for the mapped count. The model has
+        // one PCE per LCE (PCE i serves LCE i): pceAvailableMask = lceMask, one PCE per
+        // LCE, as many LCEs to map as asked; the kernel then maps 1-1
+        // (kernel_ce_gh100.c:1398-1411). No crossbar is programmed.
+        let st = "NV2080_CTRL_CMD_INTERNAL_CE_GET_PCE_CONFIG_FOR_LCE_MIG_GPU_INSTANCE_PARAMS";
+        let mut b = params.to_vec();
+        b.resize(n.max(size(st)), 0);
+        let lce_mask = rd32(params, off(st, "lceMask"));
+        let num = rd32(params, off(st, "numLces"));
+        wr32(&mut b, off(st, "pceAvailableMask"), lce_mask);
+        wr32(&mut b, off(st, "numLcesToMap"), num);
+        wr32(&mut b, off(st, "lceAvailableMask"), lce_mask);
+        wr32(&mut b, off(st, "numMinPcesPerLce"), 1);
+        return done(b, INSTANCES, format!("pce config for GI LCEs {lce_mask:#x}: PCE i serves LCE i, {num} to map"));
+    }
+    if is(cmd, "NV2080_CTRL_CE_UPDATE_PCE_LCE_MIG_MAPPINGS") {
+        // kceApplyMIGMappings (kernel_ce.c:992-1037 of 615.71.09): a failure fails the GI
+        // (kmigmgr_gh100.c:163-168, NV_ERR_INVALID_STATE). Recorded, nothing programmed:
+        // the copy engines the guest sees are the channel emulation's.
+        let st = "NV2080_CTRL_CE_UPDATE_PCE_LCE_MIG_MAPPINGS_PARAMS";
+        let mask = rd32(params, off(st, "lceAvailableMask"));
+        return done(params.to_vec(), INSTANCES, format!("pce/lce mig mappings for LCEs {mask:#x}: recorded, nothing programmed"));
+    }
     for name in [
-        "NV2080_CTRL_CMD_INTERNAL_CE_GET_PCE_CONFIG_FOR_LCE_MIG_GPU_INSTANCE",
-        "NV2080_CTRL_CE_UPDATE_PCE_LCE_MIG_MAPPINGS",
         "NV2080_CTRL_CMD_INTERNAL_KMIGMGR_PROMOTE_GPU_INSTANCE_MEM_RANGE",
         "NV2080_CTRL_CMD_INTERNAL_MIGMGR_IMPORT_GPU_INSTANCE",
         "NVC637_CTRL_CMD_EXEC_PARTITIONS_IMPORT",
@@ -958,6 +982,20 @@ mod tests {
         assert_eq!(a.status, NV_OK, "{}", a.note);
         let swizz = rd32(&a.params, off("NV2080_CTRL_GPU_SET_PARTITIONS_PARAMS", "partitionInfo[0].swizzId"));
         assert_eq!(swizz, 7);
+        // The GI's copy-engine mapping (kmigmgrApplyMIGGpuInstanceCeMapping_GH100): the
+        // PCE config answers one PCE per LCE, the mapping is accepted.
+        let pc = "NV2080_CTRL_CMD_INTERNAL_CE_GET_PCE_CONFIG_FOR_LCE_MIG_GPU_INSTANCE_PARAMS";
+        let mut p = vec![0u8; size(pc)];
+        wr32(&mut p, off(pc, "lceMask"), 0x14);
+        wr32(&mut p, off(pc, "numLces"), 2);
+        let a = ctl(&mut d, SUB, "NV2080_CTRL_CMD_INTERNAL_CE_GET_PCE_CONFIG_FOR_LCE_MIG_GPU_INSTANCE", &p);
+        assert_eq!(a.status, NV_OK);
+        assert_eq!(rd32(&a.params, off(pc, "pceAvailableMask")), 0x14);
+        assert_eq!(rd32(&a.params, off(pc, "numLcesToMap")), 2);
+        assert_eq!(rd32(&a.params, off(pc, "numMinPcesPerLce")), 1);
+        let mm = "NV2080_CTRL_CE_UPDATE_PCE_LCE_MIG_MAPPINGS_PARAMS";
+        let a = ctl(&mut d, SUB, "NV2080_CTRL_CE_UPDATE_PCE_LCE_MIG_MAPPINGS", &vec![0u8; size(mm)]);
+        assert_eq!(a.status, NV_OK);
         assert_eq!(capacity(&mut d, 0x17), (0, 7));
         assert_eq!(set_gi(&mut d, 0x17, true, 0).status, NV_ERR_INSUFFICIENT_RESOURCES);
         assert_eq!(mig_on(&mut d, 0).status, NV_ERR_IN_USE);
