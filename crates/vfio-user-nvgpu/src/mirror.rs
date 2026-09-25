@@ -548,6 +548,11 @@ pub struct Mirror {
     /// `CARAXES_SHADOW_UNTRAPPED_HOLD`, default on) and its counters.
     hold_on: bool,
     pub hold: crate::untrapped::HoldStats,
+    /// `CARAXES_SHADOW_INVALIDATE_ASYNC` (invgate.rs, default on): a held invalidate returns
+    /// at once and its trigger reads busy until the worker applied the plan, instead of
+    /// waiting inside the trapped write under the device lock.
+    inv_async: bool,
+    inv_gate: crate::invgate::InvalidateGate,
     /// Invalidates whose plans were submitted without a wait before the guest continued
     /// (eager or at the lazy deadline, not held): a host channel that runs ahead of its
     /// doorbell after one of them may run on a mirror the worker is still applying.
@@ -670,6 +675,24 @@ impl Mirror {
                 }
             },
             hold: crate::untrapped::HoldStats::default(),
+            inv_async: match crate::invgate::parse_switch(
+                std::env::var(crate::invgate::ENV).ok().as_deref(),
+            ) {
+                Ok(on) => {
+                    if !on {
+                        eprintln!(
+                            "vfio-user-nvgpu: WARN held invalidates wait under the device lock ({}=0, A/B only; docs/caraxes/execution.md §8)",
+                            crate::invgate::ENV
+                        );
+                    }
+                    on
+                }
+                Err(e) => {
+                    eprintln!("vfio-user-nvgpu: ERROR held invalidate: {e}; it waits under the device lock");
+                    false
+                }
+            },
+            inv_gate: Default::default(),
             unwaited: 0,
             descs: None,
             video_pending: BTreeMap::new(),
@@ -835,8 +858,16 @@ impl Mirror {
             let t0 = Instant::now();
             let mut notes = self.flush_lazy(reg, gm);
             notes.extend(self.shadow_resync(reg, gm, pdb));
-            self.worker.wait_all();
-            self.hold.note_held(t0.elapsed());
+            if self.inv_async {
+                // The guest polls TRIGGER until it reads FALSE before its map call returns
+                // (`kgmmuCommitTlbInvalidate_TU102`); it reads TRUE until the worker applied
+                // every job submitted up to here ([`Mirror::invalidate_busy`], invgate.rs).
+                // The device lock is free meanwhile.
+                self.inv_gate.arm(self.worker.submitted(), t0);
+            } else {
+                self.worker.wait_all();
+                self.hold.note_held(t0.elapsed());
+            }
             return notes;
         }
         // A plan submitted here is not waited for before the guest continues (the evidence
@@ -887,7 +918,29 @@ impl Mirror {
 
     /// The untrapped-GPPut counters (untrapped.rs), for the pool's per-context line.
     pub fn hold_summary(&self) -> String {
-        self.hold.summary(self.hold_on)
+        format!(
+            "{}; held invalidates {} (trigger read busy {} time(s), {} waited past {} ms) [{}]",
+            self.hold.summary(self.hold_on),
+            if self.inv_async { "complete through the trigger's busy bit" } else { "wait under the device lock" },
+            self.inv_gate.busy_reads,
+            self.inv_gate.fallbacks,
+            crate::invgate::FALLBACK.as_millis(),
+            crate::invgate::ENV
+        )
+    }
+
+    /// A read of the invalidate trigger: whether the held invalidate in flight is still
+    /// being applied (TRIGGER reads TRUE). The first read that finds it applied counts the
+    /// hold with its time from the trigger write (invgate.rs).
+    pub fn invalidate_busy(&mut self) -> bool {
+        match self.inv_gate.read(&self.worker.progress) {
+            crate::invgate::Trigger::Busy => true,
+            crate::invgate::Trigger::Done(Some(d)) => {
+                self.hold.note_held(d);
+                false
+            }
+            crate::invgate::Trigger::Done(None) => false,
+        }
     }
 
     /// Whether plans are pending: deferred by lazy mode, or submitted and not yet applied.
@@ -896,11 +949,29 @@ impl Mirror {
     }
 
     /// The trapped GPPut store's barrier (boot.rs `gp_put_barrier`): plan what lazy mode
-    /// deferred and wait until the worker applied every plan.
-    pub fn plans_barrier(&mut self, reg: &Registry, gm: &mut GpuMem) -> Vec<String> {
+    /// deferred and wait until the worker applied every plan of shadow root `root` (`None`:
+    /// every plan; a channel without a shadow root, or a store that hits several roots).
+    pub fn plans_barrier(&mut self, reg: &Registry, gm: &mut GpuMem, root: Option<u64>) -> Vec<String> {
         let notes = self.flush_lazy(reg, gm);
-        self.worker.wait_all();
+        match root {
+            Some(r) => self.worker.wait_root(r),
+            None => self.worker.wait_all(),
+        }
         notes
+    }
+
+    /// The one shadow root of the mirrored channels whose USERD GPPut a guest store of
+    /// `len` bytes at FB address `pa` hits; `None` when it hits none, a channel without a
+    /// shadow root, or channels of several roots (the caller then waits for everything).
+    pub fn gp_put_root(&self, reg: &Registry, pa: u64, len: usize) -> Option<u64> {
+        let mut roots = self.channels.iter().filter_map(|(chid, c)| {
+            match reg.channel(*chid).and_then(|ch| ch.userd) {
+                Some(Target::Fb(u)) if crate::boot::stores_gp_put(&[u], pa, len) => Some(c.shadow_root),
+                _ => None,
+            }
+        });
+        let first = roots.next()??;
+        roots.all(|r| r == Some(first)).then_some(first)
     }
 
     /// The shadow roots of mirrored channels whose USERD the guest writes without a trap
@@ -1087,8 +1158,13 @@ impl Mirror {
             }
             notes.extend(self.shadow_resync(reg, gm, root));
             // Ordering: the doorbell is forwarded only after the worker applied every plan
-            // submitted so far (the mirror is consistent for this root).
-            self.worker.wait_all();
+            // submitted so far for this root (the mirror is consistent for it). A held
+            // invalidate of this root still in flight is among them (invgate.rs); another
+            // root's plans are not waited for.
+            match root {
+                Some(r) => self.worker.wait_root(r),
+                None => self.worker.wait_all(),
+            }
             gm.fb.flush();
             let put = Self::userd_ring(reg, gm, chid).map(|(_, p, _)| p);
             let unwaited = self.unwaited;
@@ -3078,6 +3154,7 @@ impl Mirror {
         self.reap_shadows(None, &mut notes);
         // Every teardown queued above finishes before the descriptors can be freed.
         self.worker.wait_idle();
+        self.inv_gate.clear();
         notes.extend(self.worker.take_notes());
         if let Some(inv) = self.invalidator.take() {
             let mut h = self.hm.lock().unwrap();
@@ -3127,7 +3204,7 @@ impl Mirror {
             } else {
                 String::new()
             },
-            self.hold.summary(self.hold_on)
+            self.hold_summary()
         )
     }
 }
@@ -3152,8 +3229,10 @@ enum Job {
 /// submission (the synchronous reference).
 struct ShadowWorker {
     tx: Option<std::sync::mpsc::Sender<(u64, Job)>>,
-    done: Arc<(Mutex<u64>, std::sync::Condvar)>,
-    submitted: u64,
+    /// The last job finished (invgate.rs), shared with the worker thread.
+    progress: Arc<crate::invgate::Progress>,
+    /// Submitted jobs and the last one per shadow root.
+    seqs: crate::invgate::Seqs,
     enabled: bool,
     notes: Arc<Mutex<Vec<String>>>,
     /// No teardown in progress.
@@ -3164,9 +3243,9 @@ struct ShadowWorker {
 impl ShadowWorker {
     fn new(hm: Arc<Mutex<HostMemory>>, intr: Arc<IntrShared>) -> Self {
         let (tx, rx) = std::sync::mpsc::channel::<(u64, Job)>();
-        let done = Arc::new((Mutex::new(0u64), std::sync::Condvar::new()));
+        let progress = Arc::new(crate::invgate::Progress::default());
         let notes = Arc::new(Mutex::new(Vec::new()));
-        let (done2, notes2) = (done.clone(), notes.clone());
+        let (progress2, notes2) = (progress.clone(), notes.clone());
         let idle = Arc::new((Mutex::new(true), std::sync::Condvar::new()));
         let idle2 = idle.clone();
         let thread = std::thread::Builder::new()
@@ -3257,17 +3336,15 @@ impl ShadowWorker {
                     for l in lines {
                         intr.note(l);
                     }
-                    let (m, cv) = &*done2;
-                    *m.lock().unwrap() = seq;
-                    cv.notify_all();
+                    progress2.finish(seq);
                 }
             })
             .ok();
         ShadowWorker {
             tx: Some(tx),
-            done,
+            progress,
             idle,
-            submitted: 0,
+            seqs: Default::default(),
             enabled: std::env::var("CARAXES_SHADOW_WORKER").as_deref() != Ok("0"),
             notes,
             thread,
@@ -3275,9 +3352,16 @@ impl ShadowWorker {
     }
 
     fn submit(&mut self, job: Job) {
-        self.submitted += 1;
+        let root = match &job {
+            Job::Create(r, _) | Job::Free(r) => *r,
+            Job::Apply(plan, _) => plan.root,
+        };
+        if self.thread.is_some() {
+            self.seqs.forget_done(self.progress.done());
+        }
+        let seq = self.seqs.next(root);
         if let Some(tx) = &self.tx {
-            let _ = tx.send((self.submitted, job));
+            let _ = tx.send((seq, job));
         }
         if !self.enabled {
             self.wait_all();
@@ -3286,7 +3370,7 @@ impl ShadowWorker {
 
     /// Jobs submitted and not yet done.
     fn pending(&self) -> bool {
-        self.thread.is_some() && *self.done.0.lock().unwrap() < self.submitted
+        self.thread.is_some() && self.progress.done() < self.seqs.submitted()
     }
 
     /// Block until every job submitted so far is done.
@@ -3294,11 +3378,26 @@ impl ShadowWorker {
         if self.thread.is_none() {
             return;
         }
-        let (m, cv) = &*self.done;
-        let mut d = m.lock().unwrap();
-        while *d < self.submitted {
-            d = cv.wait(d).unwrap();
+        self.progress.wait_for(self.seqs.submitted());
+    }
+
+    /// Block until every job submitted so far for shadow root `root` is done. Jobs finish
+    /// in submission order, so the root's mirror is then what its last plan made it; jobs
+    /// of other roots queued after it are not waited for (invgate.rs).
+    fn wait_root(&self, root: u64) {
+        if self.thread.is_none() {
+            return;
         }
+        self.progress.wait_for(self.seqs.last_of(root));
+    }
+
+    /// The sequence number of the last job submitted (an invalidate gate's target), 0
+    /// without a worker thread (nothing is ever in flight then).
+    fn submitted(&self) -> u64 {
+        if self.thread.is_none() {
+            return 0;
+        }
+        self.seqs.submitted()
     }
 
     /// Block until every job is done and every teardown finished (before the host

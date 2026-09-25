@@ -21,7 +21,8 @@
 //! guest's invalidate. An invalidate that names the shadow root of a channel with an
 //! untrapped USERD (or every root) plans that root now, together with everything lazy mode
 //! deferred, and returns to the guest only after the worker applied it ([`must_hold`]). The
-//! cost is the apply time at those invalidates; the counters say how often and how long.
+//! return is the trigger's busy bit reading clear, which the guest polls (invgate.rs); the
+//! device lock is free while the worker applies. The counters say how often and how long.
 //! `CARAXES_SHADOW_UNTRAPPED_HOLD=0` turns the rule off, for the A/B reproduction only.
 //!
 //! The same module counts the evidence: a doorbell of a shadow channel whose host channel

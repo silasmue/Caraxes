@@ -410,6 +410,9 @@ channel may run the guest's next work, so the barrier moves there (`untrapped.rs
   `CARAXES_ALLOC_LAZY=1` it held nothing).
 - `CARAXES_SHADOW_UNTRAPPED_HOLD=0` turns the rule off, for the A/B only; a malformed value keeps
   it on.
+- Since 2026-09-26 the wait no longer runs inside the trapped write: the trigger reads busy until
+  the worker applied the plan, and the guest polls it (execution.md §8,
+  `CARAXES_SHADOW_INVALIDATE_ASYNC`).
 - Evidence counters in the mirror's exit line and in a per-context line (`at T pool empty: ...`,
   `bar1pool.rs:644`): invalidates held and their wait, doorbells whose host channel ran ahead
   (`untrapped.rs:63` `ran_ahead`), and of those the ones with plans pending or submitted without

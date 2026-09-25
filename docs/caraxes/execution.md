@@ -307,3 +307,62 @@ sequence of attempts is in experiments.md ("E5b part 2") and `caraxes/runs/e5b2-
   comptag write hanging rather than landing, but the PTE kind/COMPTAGLINE of those submissions
   was not captured. Re-enabling the mirror requires first verifying, through BAR1, that fresh
   vidmem PTEs across a software-mode cuda-core run carry kind 0x06/0x00 with COMPTAGLINE 0.
+
+## 8. The held invalidate without the device lock (2026-09-26)
+
+Code: `D/invgate.rs`, `D/mirror.rs` `shadow_invalidated`, `invalidate_busy`, `ShadowWorker`,
+`D/boot.rs` (the trigger read, `gp_put_barrier`). Evidence for the problem:
+`caraxes/runs/nvenc-2026-09-25/vm4-615-latency/NOTES.md`.
+
+- **Problem.** The untrapped-GPPut rule (bar1-pool.md §9) waited for the shadow worker inside
+  the trapped trigger write, under the Device mutex. While Sunshine streams (a map and unmap of
+  the scanout buffer per frame) that was 78-115 holds/s, 17-22 % of wall time, single holds up
+  to 130 ms. Flip latch, vblank, doorbells, re-arms and every trapped access queued behind it.
+- **What the guest does.** 610 and 615 alike: `kgmmuCommitTlbInvalidate_TU102` writes
+  `NV_VIRTUAL_FUNCTION_PRIV_MMU_INVALIDATE` with TRIGGER, then `kgmmuCheckPendingInvalidates_TU102`
+  reads it until TRIGGER is FALSE (`osSpinLoop` between reads, `GPU_TIMEOUT_DEFAULT`, 4 s on the
+  OS timer). The same poll runs before every invalidate. It is the only writer of the register.
+- **Design (b), completion through the busy bit.**
+  - The held trigger write plans as before (lazy flush plus the root's plan, on this thread),
+    submits, arms `InvalidateGate` at the worker's last sequence number, and returns.
+  - A trigger read reports TRIGGER TRUE until the worker's `Progress` reached that number. Each
+    busy read waits at most 50 us for it under the lock; the lock is free between reads.
+  - A read that finds the gate armed for 1 s or more waits to the end under the lock (the old
+    hold), so the guest's 4 s timeout can never let it continue early.
+  - Doorbells of a shadow channel and trapped GPPut stores wait only for their own root's jobs
+    (`Seqs::last_of`, `wait_root`), not for every job in the worker.
+  - `CARAXES_SHADOW_INVALIDATE_ASYNC=0` restores the hold under the lock (A/B only; a malformed
+    value keeps the hold).
+- **Why FAULT_PDE stays prevented.**
+  - The hazard: a host channel of root r runs guest work that uses a mapping of an invalidate
+    before the worker applied it (bar1-pool.md §9).
+  - The guest's order is page tables, invalidate, poll until TRIGGER FALSE, return from the map
+    call, then GPFIFO entry, GPPut (trapped or not), doorbell. Nothing that uses the new mapping
+    can come before the map call returns.
+  - TRIGGER reads FALSE only when `Progress::done >= until`. The worker finishes jobs in
+    submission order, and `until` is the last job submitted by the invalidate, so the condition
+    is exactly the one `wait_all` waited for inside the write. Every guest step after the poll
+    therefore meets the applied mirror, as before.
+  - Work not ordered after the invalidate (another guest thread on the same root) cannot use a
+    VA whose map call has not returned; for an unmap the guest has idled the work first. This is
+    the hardware contract, unchanged. As defence in depth a doorbell or trapped GPPut store of
+    root r still waits for all of r's jobs, the gated plan included.
+  - Per-root waits are enough: a channel of root r translates only through r's shadow VAS, and
+    `last_of(r)` covers every Create, Apply and Free of r.
+- **Unchanged sync points.** The pool's `refs` and warm-barrier `resync` (bar1-pool.md §4, §11,
+  §12) still call `shadow_barrier` (wait for every job), so its cached walks equal the shadows.
+  A pool poll that runs `refs` right after a trigger write can still hold the lock for the walk
+  (rare since §11; the slow-poll trace line shows it). The set-B release (`take_released_roots`)
+  submits without a wait as before; the root's next doorbell waits for it.
+- **Limits.** The plan (the walk of the guest's tables) still runs in the trapped write. The
+  worker is FIFO: a doorbell of root B waits for A's walk if B has a job queued behind it.
+- **Counters.** The mirror line's untrapped-GPPut part: invalidates held (now from the trigger
+  write to the first read that finds them applied), trigger reads that were busy, reads that
+  fell back to the full wait.
+- **Tests** (`invgate::tests`): a 300 ms walk on root A leaves the lock free for a display tick
+  and a doorbell of root B, the trigger reads busy until the walk is done and no read holds the
+  lock for long; a doorbell of the gated root waits for the walk; past 1 s a read waits to the
+  end; a second invalidate extends the gate.
+- **GPU run must confirm.** Kick rate while streaming (cursor test 25-60 kicks/s instead of
+  8-25), Sunshine frame latency, reactor lock-wait p99 back near the 13.6 ms of no stream, the
+  busy-read and fallback counters, and no Xid 31 over five Moonlight connect cycles.
