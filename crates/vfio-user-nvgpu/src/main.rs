@@ -567,6 +567,29 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
                 (wlen * wn) as u64,
             )
             .map_err(anyhow::Error::msg)?;
+            // The host keeps a floor of its shared BAR1 (bar1pool.rs `check_host_bar1`).
+            let floor = vfio_user_nvgpu::bar1pool::host_bar1_floor(
+                std::env::var(vfio_user_nvgpu::bar1pool::HOST_BAR1_FLOOR_ENV)
+                    .ok()
+                    .as_deref(),
+            )
+            .map_err(anyhow::Error::msg)?;
+            let need = len + (wlen * wn) as u64;
+            let free = if floor == 0 {
+                Err("not read".into())
+            } else {
+                vfio_user_nvgpu::bar1pool::host_bar1_free()
+            };
+            if let Ok(f) = &free {
+                eprintln!(
+                    "vfio-user-nvgpu: host BAR1: {} MiB free (nvidia-smi -q -d MEMORY), the pool and its windows need {} MiB, floor {} MiB",
+                    f >> 20,
+                    need >> 20,
+                    floor >> 20
+                );
+            }
+            vfio_user_nvgpu::bar1pool::check_host_bar1(need, free, floor)
+                .map_err(anyhow::Error::msg)?;
             layout = layout.with_pool(len).map_err(anyhow::Error::msg)?;
         }
         eprintln!(
