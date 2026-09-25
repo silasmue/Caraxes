@@ -111,6 +111,9 @@ const NV_ERR_INSUFFICIENT_PERMISSIONS: u32 = 0x1B;
 /// FB info indices (ctrl2080fb.h:318-390) the device answers from the emulated FB.
 const FB_LARGEST_FREE_REGION_SIZE_KB: u32 = 0x12;
 const FB_ZERO_BASES: [u32; 3] = [0x11, 0x13, 0x1E];
+/// SUSPEND_RESUME_RSVD_SIZE (bytes, not KiB): the card reserves 512 MiB of its 8 GiB for the
+/// FB save/restore; the emulated FB gets the same sixteenth, not the card's absolute size.
+const FB_SUSPEND_RESUME_RSVD: u32 = 0x29;
 /// PARTITION_COUNT, PARTITION_MASK and LTC_MASK, which no recording has: the card's four
 /// FBPs (FBP_COUNT 4, FBP_MASK 0xf recorded) and eight LTCs (LTC_COUNT 8 recorded).
 const FB_TOPOLOGY: [(u32, u32); 3] = [(0x04, 4), (0x14, 0xF), (0x2B, 0xFF)];
@@ -436,6 +439,7 @@ fn list(t: &Recorded, cmd: u32, params: &[u8], f: &Facts) -> Answer {
             FB_GET_INFO_V2 if v::FB_INFO_SIZE_INDICES.contains(&idx) => kib,
             FB_GET_INFO_V2 if idx == FB_LARGEST_FREE_REGION_SIZE_KB => kib,
             FB_GET_INFO_V2 if FB_ZERO_BASES.contains(&idx) => 0,
+            FB_GET_INFO_V2 if idx == FB_SUSPEND_RESUME_RSVD => (f.fb_bytes / 16).min(u32::MAX as u64) as u32,
             FB_GET_INFO_V2 if FB_TOPOLOGY.iter().any(|t| t.0 == idx) => {
                 FB_TOPOLOGY.iter().find(|t| t.0 == idx).unwrap().1
             }
@@ -682,6 +686,10 @@ mod tests {
         assert_eq!(data(3), 1, "FORCED_BAR1_64KB_MAPPING_ENABLED, the card's");
         assert_eq!(data(4), 0xFFFF_FFFF);
         assert!(!a.note.contains("not recorded"), "{}", a.note);
+        put32(&mut p, 0, 1);
+        put32(&mut p, 4, FB_SUSPEND_RESUME_RSVD);
+        let a = answer(FB_GET_INFO_V2, &p, &F).unwrap();
+        assert_eq!(get32(&a.params, 8), 64 << 20, "a sixteenth of 1 GiB");
     }
 
     #[test]

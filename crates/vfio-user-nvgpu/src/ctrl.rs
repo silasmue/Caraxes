@@ -30,6 +30,9 @@ pub use crate::ver::active::{
     NV01_ROOT, NV20_SUBDEVICE_0, NV_ERR_NOT_SUPPORTED, NV_OK,
 };
 
+/// `NV_ERR_INSUFFICIENT_PERMISSIONS` (nvstatuscodes.h).
+const NV_ERR_INSUFFICIENT_PERMISSIONS: u32 = 0x1B;
+
 /// The internal client, device and subdevice handles the device hands the guest
 /// kernel in the static info (device-owned, synthesized).
 pub const INTERNAL_CLIENT: u32 = 0xCA7A_0001;
@@ -942,10 +945,12 @@ impl Dispatcher {
         // Only for an object the guest allocated or the internal client's: a control on a
         // freed or unknown handle stays refused.
         let known = h_client == INTERNAL_CLIENT || self.objects.contains_key(&(h_client, h_object));
-        if a.status != NV_ERR_NOT_SUPPORTED
-            || !(a.label == "unanswered" || a.label.contains("no host"))
-            || !known
-        {
+        // With a host RM: what it refuses to the device's unprivileged client (0x1b) is not
+        // what the guest kernel would get from GSP-RM; the recorded answer stands in.
+        let host_refused = a.status == NV_ERR_INSUFFICIENT_PERMISSIONS && a.label.starts_with("host");
+        let unmodelled = a.status == NV_ERR_NOT_SUPPORTED
+            && (a.label == "unanswered" || a.label.contains("no host"));
+        if !(unmodelled || host_refused) || !known {
             return a;
         }
         match crate::recorded::answer(cmd, params, &facts) {
