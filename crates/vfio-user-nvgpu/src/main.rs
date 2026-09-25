@@ -100,7 +100,8 @@ vfio-user-nvgpu --selftest <socket> [--board-data <name|file>] [--chip <chip>] [
   --bar0-registers  the physical card's captured BAR0 registers (bar0.rs CapturedRegisters),
              answering reads of offsets no model owns and nothing latched, traced `captured`
              (default: the newest bar0-registers-*.txt beside the board's config capture;
-             none: no table). A missing or malformed file, or one whose NV_PMC_BOOT_0 is not
+             none: no table). A comma-separated list merges several captures, e.g. that file
+             and falcon-pmu-sec2-2026-09-25.txt. A missing or malformed file, or one whose NV_PMC_BOOT_0 is not
              the presented chip's, leaves no table (those reads stay 0)
 Environment: CARAXES_DOORBELL_IOEVENTFD=1 offers the usermode doorbell register as an
   ioeventfd sub-region (VFIO_USER_DEVICE_GET_REGION_IO_FDS; needs patch 0005 in Cloud

@@ -104,10 +104,32 @@ impl CapturedRegisters {
         Ok(CapturedRegisters { regs })
     }
 
+    /// Load a capture; a comma-separated list of files is merged (the BAR0 capture and the
+    /// PMU/SEC2 falcon capture, `falcon-pmu-sec2-<date>.txt`). An offset in two files must
+    /// carry the same value.
     pub fn load(path: &Path) -> Result<Self, String> {
+        let s = path.to_string_lossy();
+        if s.contains(',') {
+            let mut all = CapturedRegisters::default();
+            for p in s.split(',').filter(|p| !p.is_empty()) {
+                all.merge(Self::load(Path::new(p))?)
+                    .map_err(|e| format!("{p}: {e}"))?;
+            }
+            return Ok(all);
+        }
         let text =
             std::fs::read_to_string(path).map_err(|e| format!("read {}: {e}", path.display()))?;
         Self::parse(&text).map_err(|e| format!("{}: {e}", path.display()))
+    }
+
+    /// Add `other`'s registers; an offset both hold must carry the same value.
+    pub fn merge(&mut self, other: CapturedRegisters) -> Result<(), String> {
+        for (off, v) in other.regs {
+            if self.regs.insert(off, v).is_some_and(|old| old != v) {
+                return Err(format!("offset {off:#x} captured twice with different values"));
+            }
+        }
+        Ok(())
     }
 
     /// The newest capture in `dir` (the greatest `bar0-registers-*.txt` name; the date

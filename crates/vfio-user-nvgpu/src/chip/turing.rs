@@ -795,6 +795,34 @@ mod tests {
         std::fs::remove_file(path).ok();
     }
 
+    /// boot.toml's identity registers are the captured ones (GSP from the BAR0 capture, PMU
+    /// and SEC2 from the falcon capture), and both captures merge into one table.
+    #[test]
+    fn falcon_identity_registers_are_the_capture() {
+        let dir = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../caraxes/reference/rtx2070/"
+        );
+        let list =
+            format!("{dir}bar0-registers-2026-09-25.txt,{dir}falcon-pmu-sec2-2026-09-25.txt");
+        let cap = crate::bar0::CapturedRegisters::load(std::path::Path::new(&list)).unwrap();
+        let d = data();
+        let mut b = TuringBoot::new(d, 4 << 30);
+        for spec in [&d.gsp, &d.sec2, d.pmu.as_ref().unwrap()] {
+            for off in [falcon::HWCFG, falcon::HWCFG1, falcon::ITFEN] {
+                assert_eq!(
+                    b.read32(spec.base + off),
+                    cap.get(spec.base + off),
+                    "{:#x}",
+                    spec.base + off
+                );
+            }
+        }
+        // The idle ENGCTL the card reads is the model's too.
+        assert_eq!(b.read32(0x10A0A4), cap.get(0x10A0A4));
+        assert_eq!(b.read32(0x8400A4), cap.get(0x8400A4));
+    }
+
     /// Run P's gate: `W 0x10a0a4 0x2`, then the poll reads the stall acknowledge at once.
     #[test]
     fn pmu_stall_request_is_acknowledged() {
