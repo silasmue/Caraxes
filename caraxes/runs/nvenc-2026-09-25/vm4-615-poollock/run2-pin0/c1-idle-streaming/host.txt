@@ -1,0 +1,33 @@
+== host
+4455 MiB, 3324 MiB
+MemAvailable:   12328772 kB
+3.95 4.40 4.60 2/1997 2976806
+    BAR1 Memory Usage
+        Total                                          : 256 MiB
+        Used                                           : 157 MiB
+        Free                                           : 99 MiB
+== device threads (pid 2847389)
+    PID USER      PR  NI    VIRT    RES    SHR S  %CPU  %MEM     TIME+ COMMAND
+2847389 silas     20   0 9959904   9.0g   9.0g S  48.9  28.9   4:12.08 vfio-us+
+2847399 silas     20   0 9959904   9.0g   9.0g R  42.9  28.9   4:40.08 doorbel+
+2854747 silas     20   0 9959904   9.0g   9.0g S   1.0  28.9   0:04.96 shadow-+
+2847392 silas     20   0 9959904   9.0g   9.0g S   0.0  28.9   0:00.00 signals
+2847397 silas     20   0 9959904   9.0g   9.0g S   0.0  28.9   0:01.11 display+
+2847400 silas     20   0 9959904   9.0g   9.0g S   0.0  28.9   0:00.01 soak
+2855281 silas     20   0 9959904   9.0g   9.0g S   0.0  28.9   0:01.92 host-ev+
+
+== cloud-hypervisor threads (pid 2847402)
+    PID USER      PR  NI    VIRT    RES    SHR S  %CPU  %MEM     TIME+ COMMAND
+2847858 silas     20   0 9524756   5.1g   5.1g S  11.0  16.4   1:23.22 vcpu1
+2847865 silas     20   0 9524756   5.1g   5.1g S  11.0  16.4   1:22.43 vcpu7
+2847859 silas     20   0 9524756   5.1g   5.1g R  10.0  16.4   0:58.48 vcpu2
+2847857 silas     20   0 9524756   5.1g   5.1g S   8.0  16.4   1:12.15 vcpu0
+2847862 silas     20   0 9524756   5.1g   5.1g R   8.0  16.4   1:15.89 vcpu4
+2847863 silas     20   0 9524756   5.1g   5.1g R   8.0  16.4   1:13.05 vcpu5
+2847864 silas     20   0 9524756   5.1g   5.1g S   8.0  16.4   1:34.58 vcpu6
+2847860 silas     20   0 9524756   5.1g   5.1g S   6.0  16.4   0:58.47 vcpu3
+2847919 silas     20   0 9524756   5.1g   5.1g S   1.0  16.4   0:01.46 _net3_q+
+2847402 silas     20   0 9524756   5.1g   5.1g S   0.0  16.4   0:00.00 cloud-h+
+2847409 silas     20   0 9524756   5.1g   5.1g S   0.0  16.4   0:00.08 vmm
+2847410 silas     20   0 9524756   5.1g   5.1g S   0.0  16.4   0:00.00 http-se+
+2847411 silas     20   0 9524756   5.1g   5.1g S   0.0  16.4   0:00.00 vmm_sig+

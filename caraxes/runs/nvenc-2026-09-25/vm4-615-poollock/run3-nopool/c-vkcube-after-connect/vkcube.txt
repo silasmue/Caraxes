@@ -1,0 +1,5 @@
+bash: line 1:  7497 Aborted                 timeout 60 vkcube-wayland --c 120 > /tmp/vk.log 2>&1
+rc=134 elapsed=38.732898183 wd=wayland-0
+Selected GPU 0: Leandro VFIO RTX 2070-3G, type: DiscreteGpu
+vkcube-wayland: ./cube/cube.c:3802: demo_create_device: Assertion `!err' failed.
+timeout: the monitored command dumped core

@@ -1,0 +1,4 @@
+slow=40 per_min=17.5 dominant=sync
+held_us p50=2564 max=16871 sum_ms=142 homes_read=286 table_pages_read=9
+parts_ms {'sync': 78.6, 'moves': 29.4, 'resync': 20.9, 'refs': 5.4, 'barrier': 3.2, 'decide': 1.8, 'walk': 0.2, 'userd': 0.0}
+registers {'0x696000': 26, '0xb830a0': 13, '0x110c00': 1}

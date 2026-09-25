@@ -1,0 +1,318 @@
+00:00:00 - Qt Warning: Detected locale "C" with character encoding "ANSI_X3.4-1968", which is not UTF-8.
+Qt depends on a UTF-8 locale, and has switched to "C.UTF-8" instead.
+If this causes problems, reconfigure your locale. See the locale(1) manual
+for more information.
+00:00:00 - SDL Info (0): Compiled with SDL 2.32.70
+00:00:00 - SDL Info (0): Running with SDL 2.32.72
+00:00:00 - Qt Info: Successfully loaded translation for "de_DE"
+00:00:00 - SDL Info (0): Detected Wayland
+00:00:00 - Qt Warning: QGuiApplication::setDesktopFileName: the specified desktop file name ends with .desktop. For compatibility reasons, the .desktop suffix will be removed. Please specify a desktop file name without .desktop suffix
+00:00:00 - Qt Warning: qrc:/gui/main.qml:13:1: QML ApplicationWindow: ToolTip attached property must be attached to an object deriving from Item
+00:00:00 - Qt Info: Found "gamecontrollerdb.txt" at "/home/silas/.cache/Moonlight Game Streaming Project/Moonlight/gamecontrollerdb.txt"
+00:00:00 - SDL Info (0): Loaded 476 new gamepad mappings
+00:00:00 - SDL Info (0): V-sync disabled
+00:00:00 - SDL Info (0): Skipping VAAPI fallback driver names on libva 2.20+
+00:00:00 - SDL Error (0): Failed to initialize VAAPI: -1
+00:00:00 - SDL Info (0): Skipping VAAPI fallback driver names on libva 2.20+
+00:00:00 - SDL Error (0): Failed to initialize VAAPI: -1
+00:00:01 - SDL Warn (0): libplacebo: Spent 1004.497 ms creating vulkan device (slow!)
+00:00:01 - SDL Info (0): Vulkan rendering device chosen: NVIDIA GeForce RTX 2070
+00:00:01 - SDL Info (0): Using Immediate present mode with V-Sync disabled
+00:00:01 - FFmpeg: [Vulkan @ 0x7f906c3c0280] Using device: NVIDIA GeForce RTX 2070
+00:00:01 - FFmpeg: [Vulkan @ 0x7f906c3c0280] Alignments:
+00:00:01 - FFmpeg: [Vulkan @ 0x7f906c3c0280]     optimalBufferCopyRowPitchAlignment: 1
+00:00:01 - FFmpeg: [Vulkan @ 0x7f906c3c0280]     minMemoryMapAlignment:              64
+00:00:01 - FFmpeg: [Vulkan @ 0x7f906c3c0280]     nonCoherentAtomSize:                64
+00:00:01 - FFmpeg: [Vulkan @ 0x7f906c3c0280]     minImportedHostPointerAlignment:    4096
+00:00:03 - SDL Info (0): Vulkan rendering device chosen: NVIDIA GeForce RTX 2070
+00:00:03 - SDL Info (0): Using Immediate present mode with V-Sync disabled
+00:00:03 - FFmpeg: [Vulkan @ 0x7f906c611b80] Using device: NVIDIA GeForce RTX 2070
+00:00:03 - FFmpeg: [Vulkan @ 0x7f906c611b80] Alignments:
+00:00:03 - FFmpeg: [Vulkan @ 0x7f906c611b80]     optimalBufferCopyRowPitchAlignment: 1
+00:00:03 - FFmpeg: [Vulkan @ 0x7f906c611b80]     minMemoryMapAlignment:              64
+00:00:03 - FFmpeg: [Vulkan @ 0x7f906c611b80]     nonCoherentAtomSize:                64
+00:00:03 - FFmpeg: [Vulkan @ 0x7f906c611b80]     minImportedHostPointerAlignment:    4096
+00:00:03 - SDL Info (0): Using Vulkan video decoding
+00:00:03 - FFmpeg: [hevc @ 0x7f906c615b40] nal_unit_type: 32(VPS), nuh_layer_id: 0, temporal_id: 0
+00:00:03 - FFmpeg: [hevc @ 0x7f906c615b40] nal_unit_type: 33(SPS), nuh_layer_id: 0, temporal_id: 0
+00:00:03 - FFmpeg: [hevc @ 0x7f906c615b40] nal_unit_type: 34(PPS), nuh_layer_id: 0, temporal_id: 0
+00:00:03 - FFmpeg: [hevc @ 0x7f906c615b40] nal_unit_type: 21(CRA_NUT), nuh_layer_id: 0, temporal_id: 0
+00:00:03 - FFmpeg: [hevc @ 0x7f906c615b40] nal_unit_type: 21(CRA_NUT), nuh_layer_id: 0, temporal_id: 0
+00:00:03 - FFmpeg: [hevc @ 0x7f906c615b40] nal_unit_type: 21(CRA_NUT), nuh_layer_id: 0, temporal_id: 0
+00:00:03 - FFmpeg: [hevc @ 0x7f906c615b40] nal_unit_type: 21(CRA_NUT), nuh_layer_id: 0, temporal_id: 0
+00:00:03 - FFmpeg: [hevc @ 0x7f906c615b40] Decoding VPS
+00:00:03 - FFmpeg: [hevc @ 0x7f906c615b40] Main 10 profile bitstream
+00:00:03 - FFmpeg: [hevc @ 0x7f906c615b40] Decoding SPS
+00:00:03 - FFmpeg: [hevc @ 0x7f906c615b40] Main 10 profile bitstream
+00:00:03 - FFmpeg: [hevc @ 0x7f906c615b40] Decoding VUI
+00:00:03 - FFmpeg: [hevc @ 0x7f906c615b40] Decoding PPS
+00:00:03 - FFmpeg: [hevc @ 0x7f906c615b40] Format vulkan chosen by get_format().
+00:00:03 - FFmpeg: [hevc @ 0x7f906c615b40] Format vulkan requires hwaccel hevc_vulkan initialisation.
+00:00:03 - FFmpeg: [hevc @ 0x7f906c615b40] Decoder capabilities for hevc profile "Main 10":
+00:00:03 - FFmpeg: [hevc @ 0x7f906c615b40]     Maximum level: 61 (stream 120)
+00:00:03 - FFmpeg: [hevc @ 0x7f906c615b40]     Width: from 144 to 8192
+00:00:03 - FFmpeg: [hevc @ 0x7f906c615b40]     Height: from 144 to 8192
+00:00:03 - FFmpeg: [hevc @ 0x7f906c615b40]     Width alignment: 16
+00:00:03 - FFmpeg: [hevc @ 0x7f906c615b40]     Height alignment: 16
+00:00:03 - FFmpeg: [hevc @ 0x7f906c615b40]     Bitstream offset alignment: 256
+00:00:03 - FFmpeg: [hevc @ 0x7f906c615b40]     Bitstream size alignment: 256
+00:00:03 - FFmpeg: [hevc @ 0x7f906c615b40]     Maximum references: 16
+00:00:03 - FFmpeg: [hevc @ 0x7f906c615b40]     Maximum active references: 16
+00:00:03 - FFmpeg: [hevc @ 0x7f906c615b40]     Codec header name: 'VK_STD_vulkan_video_codec_h265_decode' (driver), 'VK_STD_vulkan_video_codec_h265_decode' (compiled)
+00:00:03 - FFmpeg: [hevc @ 0x7f906c615b40]     Codec header version: 1.0.0 (driver), 1.0.0 (compiled)
+00:00:03 - FFmpeg: [hevc @ 0x7f906c615b40]     Decode modes: reuse_dst_dpb
+00:00:03 - FFmpeg: [hevc @ 0x7f906c615b40]     Capability flags: separate_references
+00:00:03 - FFmpeg: [hevc @ 0x7f906c615b40] Choosing best pixel format for decoding from 1:
+00:00:03 - FFmpeg: [hevc @ 0x7f906c615b40]     p010le* (Vulkan ID: 1000156013)
+00:00:03 - FFmpeg: [hevc @ 0x7f906c615b40] Chosen frame pixfmt: p010le (Vulkan ID: 1000156013)
+00:00:03 - FFmpeg: [hevc @ 0x7f906c615b40] Allocating 4096 bytes in bind index 0 for video session
+00:00:03 - FFmpeg: [hevc @ 0x7f906c615b40] Allocating 16384 bytes in bind index 1 for video session
+00:00:03 - FFmpeg: [hevc @ 0x7f906c615b40] Allocating 71303168 bytes in bind index 2 for video session
+00:00:03 - FFmpeg: [hevc @ 0x7f906c615b40] Allocating 247529472 bytes in bind index 3 for video session
+00:00:03 - FFmpeg: [hevc @ 0x7f906c615b40] Vulkan decoder initialization successful
+00:00:03 - FFmpeg: [hevc @ 0x7f906c615b40] Output frame with POC 0/3.
+00:00:03 - FFmpeg: [hevc @ 0x7f906c615b40] [vk @ 0x7f906e4bef40] Creating a buffer of 2097152 bytes, usage: 0x2000, flags: 0x2
+00:00:03 - FFmpeg: [hevc @ 0x7f906c615b40] Created frame parameters: 1 SPS 1 PPS 1 VPS
+00:00:03 - FFmpeg: [hevc @ 0x7f906c615b40] Decoding frame, 349 bytes, 4 slices
+00:00:03 - FFmpeg: [hevc @ 0x7f906c615b40] Decoded frame with POC 0/3.
+00:00:03 - SDL Info (0): FFmpeg-based video decoder chosen
+00:00:03 - Qt Warning: qrc:/gui/main.qml:363:17: QML Shortcut: Shortcut: Only binding to one of multiple key bindings associated with 1. Use 'sequences: [ <key> ]' to bind to all of them.
+00:00:03 - Qt Warning: qrc:/gui/main.qml:299:17: QML Shortcut: Shortcut: Only binding to one of multiple key bindings associated with 6. Use 'sequences: [ <key> ]' to bind to all of them.
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4 via 10.0.8.255:9
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4 via 10.0.8.255:47009
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4 via 10.0.8.255:47998
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4 via 10.0.8.255:47999
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4 via 10.0.8.255:48000
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4 via 10.0.8.255:48002
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4 via 10.0.8.255:48010
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4 via 10.16.127.255:9
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4 via 10.16.127.255:47009
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4 via 10.16.127.255:47998
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4 via 10.16.127.255:47999
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4 via 10.16.127.255:48000
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4 via 10.16.127.255:48002
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4 via 10.16.127.255:48010
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4 via 10.33.0.255:9
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4 via 10.33.0.255:47009
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4 via 10.33.0.255:47998
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4 via 10.33.0.255:47999
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4 via 10.33.0.255:48000
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4 via 10.33.0.255:48002
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4 via 10.33.0.255:48010
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4 via 172.17.255.255:9
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4 via 172.17.255.255:47009
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4 via 172.17.255.255:47998
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4 via 172.17.255.255:47999
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4 via 172.17.255.255:48000
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4 via 172.17.255.255:48002
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4 via 172.17.255.255:48010
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4 via 185.62.91.35:9
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4 via 185.62.91.35:47009
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4 via 185.62.91.35:47998
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4 via 185.62.91.35:47999
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4 via 185.62.91.35:48000
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4 via 185.62.91.35:48002
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4 via 185.62.91.35:48010
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4 via 192.168.102.255:9
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4 via 192.168.102.255:47009
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4 via 192.168.102.255:47998
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4 via 192.168.102.255:47999
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4 via 192.168.102.255:48000
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4 via 192.168.102.255:48002
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4 via 192.168.102.255:48010
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4 via 192.168.103.24:9
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4 via 192.168.103.24:47009
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4 via 192.168.103.24:47998
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4 via 192.168.103.24:47999
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4 via 192.168.103.24:48000
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4 via 192.168.103.24:48002
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4 via 192.168.103.24:48010
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4 via 192.168.103.255:9
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4 via 192.168.103.255:47009
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4 via 192.168.103.255:47998
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4 via 192.168.103.255:47999
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4 via 192.168.103.255:48000
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4 via 192.168.103.255:48002
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4 via 192.168.103.255:48010
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4 via 192.168.104.255:9
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4 via 192.168.104.255:47009
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4 via 192.168.104.255:47998
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4 via 192.168.104.255:47999
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4 via 192.168.104.255:48000
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4 via 192.168.104.255:48002
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4 via 192.168.104.255:48010
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4 via 192.168.188.255:9
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4 via 192.168.188.255:47009
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4 via 192.168.188.255:47998
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4 via 192.168.188.255:47999
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4 via 192.168.188.255:48000
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4 via 192.168.188.255:48002
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4 via 192.168.188.255:48010
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4 via 255.255.255.255:9
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4 via 255.255.255.255:47009
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4 via 255.255.255.255:47998
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4 via 255.255.255.255:47999
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4 via 255.255.255.255:48000
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4 via 255.255.255.255:48002
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4 via 255.255.255.255:48010
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4 via ff02::1%caraxes2:9
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4 via ff02::1%caraxes2:47009
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4 via ff02::1%caraxes2:47998
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4 via ff02::1%caraxes2:47999
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4 via ff02::1%caraxes2:48000
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4 via ff02::1%caraxes2:48002
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4 via ff02::1%caraxes2:48010
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4 via ff02::1%caraxes3:9
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4 via ff02::1%caraxes3:47009
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4 via ff02::1%caraxes3:47998
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4 via ff02::1%caraxes3:47999
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4 via ff02::1%caraxes3:48000
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4 via ff02::1%caraxes3:48002
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4 via ff02::1%caraxes3:48010
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4 via ff02::1%caraxes4:9
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4 via ff02::1%caraxes4:47009
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4 via ff02::1%caraxes4:47998
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4 via ff02::1%caraxes4:47999
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4 via ff02::1%caraxes4:48000
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4 via ff02::1%caraxes4:48002
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4 via ff02::1%caraxes4:48010
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4 via ff02::1%enp35s0f1np1:9
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4 via ff02::1%enp35s0f1np1:47009
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4 via ff02::1%enp35s0f1np1:47998
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4 via ff02::1%enp35s0f1np1:47999
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4 via ff02::1%enp35s0f1np1:48000
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4 via ff02::1%enp35s0f1np1:48002
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4 via ff02::1%enp35s0f1np1:48010
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4 via ff02::1%enp39s0:9
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4 via ff02::1%enp39s0:47009
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4 via ff02::1%enp39s0:47998
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4 via ff02::1%enp39s0:47999
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4 via ff02::1%enp39s0:48000
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4 via ff02::1%enp39s0:48002
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4 via ff02::1%enp39s0:48010
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4-615 via 10.0.8.255:9
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4-615 via 10.0.8.255:47009
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4-615 via 10.0.8.255:47998
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4-615 via 10.0.8.255:47999
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4-615 via 10.0.8.255:48000
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4-615 via 10.0.8.255:48002
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4-615 via 10.0.8.255:48010
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4-615 via 10.16.127.255:9
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4-615 via 10.16.127.255:47009
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4-615 via 10.16.127.255:47998
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4-615 via 10.16.127.255:47999
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4-615 via 10.16.127.255:48000
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4-615 via 10.16.127.255:48002
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4-615 via 10.16.127.255:48010
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4-615 via 10.33.0.255:9
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4-615 via 10.33.0.255:47009
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4-615 via 10.33.0.255:47998
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4-615 via 10.33.0.255:47999
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4-615 via 10.33.0.255:48000
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4-615 via 10.33.0.255:48002
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4-615 via 10.33.0.255:48010
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4-615 via 172.17.255.255:9
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4-615 via 172.17.255.255:47009
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4-615 via 172.17.255.255:47998
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4-615 via 172.17.255.255:47999
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4-615 via 172.17.255.255:48000
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4-615 via 172.17.255.255:48002
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4-615 via 172.17.255.255:48010
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4-615 via 185.62.91.35:9
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4-615 via 185.62.91.35:47009
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4-615 via 185.62.91.35:47998
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4-615 via 185.62.91.35:47999
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4-615 via 185.62.91.35:48000
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4-615 via 185.62.91.35:48002
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4-615 via 185.62.91.35:48010
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4-615 via 192.168.102.255:9
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4-615 via 192.168.102.255:47009
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4-615 via 192.168.102.255:47998
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4-615 via 192.168.102.255:47999
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4-615 via 192.168.102.255:48000
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4-615 via 192.168.102.255:48002
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4-615 via 192.168.102.255:48010
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4-615 via 192.168.103.24:9
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4-615 via 192.168.103.24:47009
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4-615 via 192.168.103.24:47998
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4-615 via 192.168.103.24:47999
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4-615 via 192.168.103.24:48000
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4-615 via 192.168.103.24:48002
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4-615 via 192.168.103.24:48010
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4-615 via 192.168.103.255:9
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4-615 via 192.168.103.255:47009
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4-615 via 192.168.103.255:47998
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4-615 via 192.168.103.255:47999
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4-615 via 192.168.103.255:48000
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4-615 via 192.168.103.255:48002
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4-615 via 192.168.103.255:48010
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4-615 via 192.168.104.255:9
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4-615 via 192.168.104.255:47009
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4-615 via 192.168.104.255:47998
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4-615 via 192.168.104.255:47999
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4-615 via 192.168.104.255:48000
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4-615 via 192.168.104.255:48002
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4-615 via 192.168.104.255:48010
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4-615 via 192.168.188.255:9
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4-615 via 192.168.188.255:47009
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4-615 via 192.168.188.255:47998
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4-615 via 192.168.188.255:47999
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4-615 via 192.168.188.255:48000
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4-615 via 192.168.188.255:48002
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4-615 via 192.168.188.255:48010
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4-615 via 255.255.255.255:9
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4-615 via 255.255.255.255:47009
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4-615 via 255.255.255.255:47998
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4-615 via 255.255.255.255:47999
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4-615 via 255.255.255.255:48000
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4-615 via 255.255.255.255:48002
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4-615 via 255.255.255.255:48010
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4-615 via ff02::1%caraxes2:9
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4-615 via ff02::1%caraxes2:47009
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4-615 via ff02::1%caraxes2:47998
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4-615 via ff02::1%caraxes2:47999
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4-615 via ff02::1%caraxes2:48000
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4-615 via ff02::1%caraxes2:48002
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4-615 via ff02::1%caraxes2:48010
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4-615 via ff02::1%caraxes3:9
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4-615 via ff02::1%caraxes3:47009
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4-615 via ff02::1%caraxes3:47998
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4-615 via ff02::1%caraxes3:47999
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4-615 via ff02::1%caraxes3:48000
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4-615 via ff02::1%caraxes3:48002
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4-615 via ff02::1%caraxes3:48010
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4-615 via ff02::1%caraxes4:9
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4-615 via ff02::1%caraxes4:47009
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4-615 via ff02::1%caraxes4:47998
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4-615 via ff02::1%caraxes4:47999
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4-615 via ff02::1%caraxes4:48000
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4-615 via ff02::1%caraxes4:48002
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4-615 via ff02::1%caraxes4:48010
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4-615 via ff02::1%enp35s0f1np1:9
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4-615 via ff02::1%enp35s0f1np1:47009
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4-615 via ff02::1%enp35s0f1np1:47998
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4-615 via ff02::1%enp35s0f1np1:47999
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4-615 via ff02::1%enp35s0f1np1:48000
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4-615 via ff02::1%enp35s0f1np1:48002
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4-615 via ff02::1%enp35s0f1np1:48010
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4-615 via ff02::1%enp39s0:9
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4-615 via ff02::1%enp39s0:47009
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4-615 via ff02::1%enp39s0:47998
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4-615 via ff02::1%enp39s0:47999
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4-615 via ff02::1%enp39s0:48000
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4-615 via ff02::1%enp39s0:48002
+00:00:03 - Qt Info: Sent WoL packet to caraxes-vm4-615 via ff02::1%enp39s0:48010
+00:00:03 - Qt Info: Processing new PC at "192.168.103.24:47989" from user with IPv6 address "<NULL>"
+00:00:03 - Qt Info: Executing request: "http://192.168.103.24:47989/serverinfo?<query omitted>"
+00:00:03 - Qt Info: Executing request: "https://192.168.103.24:47984/serverinfo?<query omitted>"
+00:00:03 - Qt Debug: Current Moonlight version: "6.1.0"
+00:00:03 - Qt Info: "caraxes-vm4-615" is now online at "192.168.103.24:47989"
+00:00:03 - Qt Info: Found unexpected PC "caraxes-vm4-615" looking for "caraxes-vm4"
+00:00:03 - Qt Info: Executing request: "https://192.168.103.24:47984/cancel?<query omitted>"
+00:00:03 - Qt Info: Gamepad mappings are up to date
+00:00:03 - Qt Info: Latest supported GFE server: "99.99.99.99"
+00:00:05 - Qt Info: Quit response: "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<root status_code=\"200\"><cancel>1</cancel></root>"
+00:00:05 - Qt Info: Found unexpected PC "caraxes-vm4-615" looking for "caraxes-vm4"
+00:00:05 - Qt Warning: Aborting timed out request for "https://192.168.103.24:47984/serverinfo?uniqueid=0123456789ABCDEF&uuid=6001e52ee6864c8f967b5f66c7cc6c19"
+00:00:05 - Qt Warning: "serverinfo" request failed with error: QNetworkReply::OperationCanceledError
+00:00:05 - Qt Info: "caraxes-vm4" is now offline

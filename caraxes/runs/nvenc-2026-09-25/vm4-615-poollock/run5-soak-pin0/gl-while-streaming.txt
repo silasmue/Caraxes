@@ -1,0 +1,5 @@
+== offscreen, streaming
+[build] duration=8: FPS: 0 FrameTime: inf ms
+                                  glmark2 Score: 0 
+rc=124
+== onscreen, streaming

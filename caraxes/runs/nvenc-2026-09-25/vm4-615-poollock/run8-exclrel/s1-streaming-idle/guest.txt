@@ -1,0 +1,33 @@
+==lat
+[2026-09-25 20:58:27.230]: Debug: Frame processing latency (min/max/avg): 31.50ms/436.40ms/109.92ms
+[2026-09-25 20:58:47.289]: Debug: Frame processing latency (min/max/avg): 41.90ms/312.40ms/112.63ms
+==top
+top - 20:58:54 up 8 min,  3 users,  load average: 3.46, 1.86, 0.82
+Tasks: 295 total,   2 running, 293 sleeping,   0 stopped,   0 zombie
+%Cpu(s):  4.4 us, 10.5 sy,  0.0 ni, 79.0 id,  0.0 wa,  0.0 hi,  1.6 si,  4.4 st 
+MiB Mem :   7940.0 total,   3162.0 free,   2308.0 used,   2880.2 buff/cache     
+MiB Swap:      0.0 total,      0.0 free,      0.0 used.   5632.0 avail Mem 
+
+    PID USER      PR  NI    VIRT    RES    SHR S  %CPU  %MEM     TIME+ COMMAND
+   3035 leandro   20   0 1407324 300180 210936 D  87.1   3.7   2:51.12 steamwe+
+   6251 leandro   20   0 7576324 420452 334316 S  81.2   5.2   1:11.09 sunshine
+   2056 leandro   20   0 4560568 378568 229552 R  37.6   4.7   2:30.09 gnome-s+
+   2791 leandro   20   0  437984 148244 115588 S   7.9   1.8   0:27.49 Xwayland
+   3226 leandro   20   0   47.4g 240624 144252 S   7.9   3.0   0:27.62 steamwe+
+   1071 leandro   20   0  115172  18060   9960 S   4.0   0.2   0:03.53 pipewir+
+   3085 leandro   20   0   47.3g 555076 107424 S   3.0   6.8   0:17.44 steamwe+
+    769 syslog    20   0  222572   6840   4616 S   2.0   0.1   0:05.15 rsyslogd
+==vmstat
+procs -----------memory---------- ---swap-- -----io---- -system-- -------cpu-------
+ r  b   swpd   free   buff  cache   si   so    bi    bo   in   cs us sy id wa st gu
+ 4  0      0 3233152  93252 2864612    0    0  5437   579 4720    5  4  6 87  0  3  0
+ 1  0      0 3267188  93252 2864656    0    0     0   200 9536 9354  6 10 81  0  3  0
+ 3  0      0 3273676  93252 2856500    0    0     0     0 9338 9177  5 10 81  0  4  0
+ 1  0      0 3272752  93252 2856580    0    0     0     0 10450 10298  5 10 81  0  4  0
+ 2  0      0 3271888  93252 2856760    0    0     0     0 9695 9638  4  9 84  0  3  0
+==D
+   1699 D    -                        nvidia-modeset/kthread_q
+   2056 Dsl  os_acquire_rwlock_write  gnome-shell
+==smi
+6251, sunshine, 188 MiB
+1003 MiB

@@ -1,0 +1,8 @@
+GPU0:
+	deviceType         = PHYSICAL_DEVICE_TYPE_DISCRETE_GPU
+	deviceName         = Leandro VFIO RTX 2070-3G
+	driverName         = NVIDIA
+GPU1:
+	deviceType         = PHYSICAL_DEVICE_TYPE_CPU
+	deviceName         = llvmpipe (LLVM 20.1.2, 256 bits)
+	driverName         = llvmpipe

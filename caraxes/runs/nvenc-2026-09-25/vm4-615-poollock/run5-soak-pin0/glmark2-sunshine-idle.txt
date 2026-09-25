@@ -1,0 +1,4 @@
+== offscreen, sunshine idle
+[build] duration=8: FPS: 793 FrameTime: 1.261 ms
+                                  glmark2 Score: 792 
+rc=0

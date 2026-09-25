@@ -1,0 +1,8 @@
+|=========================================================================================|
+|    0   N/A  N/A            2054      G   /usr/bin/gnome-shell                    174MiB |
+|    0   N/A  N/A            2773      G   ...nstallation/ubuntu12_32/steam          4MiB |
+|    0   N/A  N/A            2785      G   /usr/bin/Xwayland                         2MiB |
+|    0   N/A  N/A            3002      G   ./steamwebhelper                         24MiB |
+|    0   N/A  N/A            3028      G   ...on/ubuntu12_64/steamwebhelper        458MiB |
+|    0   N/A  N/A            4784      G   sunshine                                  1MiB |
++-----------------------------------------------------------------------------------------+

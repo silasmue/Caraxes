@@ -1,0 +1,32 @@
+==lat
+[2026-09-25 19:48:15.306]: Debug: Frame processing latency (min/max/avg): 25.20ms/142.90ms/62.07ms
+[2026-09-25 19:48:35.336]: Debug: Frame processing latency (min/max/avg): 24.20ms/357.10ms/63.73ms
+[2026-09-25 19:48:55.337]: Debug: Frame processing latency (min/max/avg): 23.70ms/184.70ms/53.12ms
+[2026-09-25 19:49:15.393]: Debug: Frame processing latency (min/max/avg): 22.00ms/139.90ms/54.58ms
+==top
+top - 19:50:43 up 24 min,  2 users,  load average: 1.95, 2.81, 2.32
+Tasks: 291 total,   2 running, 289 sleeping,   0 stopped,   0 zombie
+%Cpu(s):  2.2 us,  2.5 sy,  0.0 ni, 94.3 id,  0.0 wa,  0.0 hi,  0.2 si,  0.8 st 
+MiB Mem :   7940.0 total,   3022.3 free,   2196.2 used,   3064.7 buff/cache     
+MiB Swap:      0.0 total,      0.0 free,      0.0 used.   5743.7 avail Mem 
+
+    PID USER      PR  NI    VIRT    RES    SHR S  %CPU  %MEM     TIME+ COMMAND
+   2058 leandro   20   0 4543808 425756 221280 S  18.8   5.2  10:14.62 gnome-s+
+   3026 leandro   20   0 1487232 297740 195536 R  14.9   3.7   9:23.41 steamwe+
+   2784 leandro   20   0  438404 148556 115564 S   3.0   1.8   1:29.59 Xwayland
+   3207 leandro   20   0   47.3g 211276 123868 S   3.0   2.6   1:14.02 steamwe+
+   1629 root     -51   0       0      0      0 S   2.0   0.0   0:14.97 irq/38-+
+   3000 leandro   20   0 2748632 377680 276832 S   1.0   4.6   0:23.91 steamwe+
+   3076 leandro   20   0   47.2g 524488 107508 S   1.0   6.5   0:38.98 steamwe+
+      1 root      20   0   23140  14036   9464 S   0.0   0.2   0:02.59 systemd
+==vmstat
+procs -----------memory---------- ---swap-- -----io---- -system-- -------cpu-------
+ r  b   swpd   free   buff  cache   si   so    bi    bo   in   cs us sy id wa st gu
+ 2  0      0 3105408  98792 3029268    0    0  1799   705 8082   10 10  9 78  0  4  0
+ 1  0      0 3107028  98792 3029276    0    0     0     0 3514 3333  3  2 95  0  1  0
+ 1  0      0 3118544  98792 3029276    0    0     0   144 3570 3297  2  2 95  0  0  0
+ 0  0      0 3118336  98792 3031472    0    0     0    24 4137 3539  5  4 90  0  1  0
+ 0  0      0 3119432  98792 3031472    0    0     0     0 3367 3166  2  2 96  0  0  0
+==D
+==smi
+1213 MiB

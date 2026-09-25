@@ -1,0 +1,1 @@
+vfio-user-nvgpu: bar1 pool: the device reaches the pool through the FB store's windows (CARAXES_BAR1_POOL_PIN=0)

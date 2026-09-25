@@ -1,0 +1,33 @@
+== host
+4434 MiB, 3345 MiB
+MemAvailable:   10928076 kB
+7.13 6.41 5.45 10/2031 3364222
+    BAR1 Memory Usage
+        Total                                          : 256 MiB
+        Used                                           : 157 MiB
+        Free                                           : 99 MiB
+== device threads (pid 3280009)
+    PID USER      PR  NI    VIRT    RES    SHR S  %CPU  %MEM     TIME+ COMMAND
+3280009 silas     20   0 9959852   9.0g   9.0g R  44.9  28.9   2:28.17 vfio-us+
+3280028 silas     20   0 9959852   9.0g   9.0g R  40.9  28.9   1:46.66 doorbel+
+3280026 silas     20   0 9959852   9.0g   9.0g S   1.0  28.9   0:00.52 display+
+3313677 silas     20   0 9959852   9.0g   9.0g S   1.0  28.9   0:03.62 shadow-+
+3280019 silas     20   0 9959852   9.0g   9.0g S   0.0  28.9   0:00.00 signals
+3280029 silas     20   0 9959852   9.0g   9.0g S   0.0  28.9   0:00.00 soak
+3314083 silas     20   0 9959852   9.0g   9.0g S   0.0  28.9   0:01.03 host-ev+
+
+== cloud-hypervisor threads (pid 3280032)
+    PID USER      PR  NI    VIRT    RES    SHR S  %CPU  %MEM     TIME+ COMMAND
+3280491 silas     20   0 9525016   5.6g   5.6g R  84.8  17.9   0:53.40 vcpu7
+3280489 silas     20   0 9525016   5.6g   5.6g R  14.0  17.9   0:50.97 vcpu5
+3280485 silas     20   0 9525016   5.6g   5.6g S  13.0  17.9   0:53.06 vcpu1
+3280487 silas     20   0 9525016   5.6g   5.6g S  13.0  17.9   1:09.57 vcpu3
+3280484 silas     20   0 9525016   5.6g   5.6g S  12.0  17.9   0:50.03 vcpu0
+3280488 silas     20   0 9525016   5.6g   5.6g S  10.0  17.9   0:40.06 vcpu4
+3280490 silas     20   0 9525016   5.6g   5.6g S  10.0  17.9   1:41.44 vcpu6
+3280486 silas     20   0 9525016   5.6g   5.6g S   6.0  17.9   0:35.68 vcpu2
+3281526 silas     20   0 9525016   5.6g   5.6g S   1.0  17.9   0:02.15 _net3_q+
+3280032 silas     20   0 9525016   5.6g   5.6g S   0.0  17.9   0:00.00 cloud-h+
+3280039 silas     20   0 9525016   5.6g   5.6g S   0.0  17.9   0:00.09 vmm
+3280040 silas     20   0 9525016   5.6g   5.6g S   0.0  17.9   0:00.00 http-se+
+3280041 silas     20   0 9525016   5.6g   5.6g S   0.0  17.9   0:00.00 vmm_sig+

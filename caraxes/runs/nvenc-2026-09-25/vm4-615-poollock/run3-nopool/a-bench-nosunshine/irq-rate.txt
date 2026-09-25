@@ -1,0 +1,10 @@
+   LOC    3030.3/s timer interrupts
+   CAL    1898.0/s call interrupts
+    38     519.3/s 0-edge nvidia
+   RES      10.7/s Rescheduling interrupts
+   TLB       5.9/s TLB shootdowns
+    27       4.5/s 1-edge virtio0-req.0
+    33       1.0/s 1-edge virtio3-input.0
+    34       0.8/s 2-edge virtio3-output.0
+   MCP       0.0/s check polls
+    36       0.0/s 1-edge virtio4-input

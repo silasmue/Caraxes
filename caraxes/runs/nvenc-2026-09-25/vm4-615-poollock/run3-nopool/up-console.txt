@@ -1,0 +1,93 @@
+host watch pid 3004063 -> /home/silas/git/Caraxes/caraxes/runs/sottr-2026-09-24/session-615-20260925-210248/hostwatch.txt
+nat: 192.168.103.0/24 out of enp39s0 (3 rule(s) added, down.sh removes them)
+driver 615.71.09: overlay on /mnt/vmstore/caraxes/images/guest-baked-2026-09-24-615.71.09.qcow2, CARAXES_GUEST_ABI=615
+games disk: /mnt/vmstore/caraxes/vm4-615/games.qcow2
+dma table: 0:7ffc80000000:c0000000,100000000:7ffd80000000:140000000
+server pid 3004181, VM pid 3004192; logs in /mnt/vmstore/caraxes/vm4-615
+== packages615: done before (2026-09-25T09:28:16+00:00)
+== modprobe615: done before (2026-09-25T09:28:19+00:00)
+== display615: done before (2026-09-25T09:28:20+00:00)
+== sunshine: done before (2026-09-25T09:28:20+00:00)
+== games: done before (2026-09-25T09:28:21+00:00)
+== steam: done before (2026-09-25T09:28:21+00:00)
+== cursor
+prepared: display615.done
+probe sottr: 69135 device accesses, guest log in /mnt/vmstore/caraxes/vm4-615/probe-sottr/guest-dmesg.txt
+[  130.572490] NVRM: GPU 0000:00:06.0: RmInitAdapter
+[  132.582678] NVRM: GPU 0000:00:06.0: RmInitAdapter succeeded!
+modprobe rc=0
+card0-DP-1 connected 1920x1080 1920x1080 1920x1080 1280x720 1280x720 640x480 
+nvidia_uvm           2068480  0
+nvidia_drm            151552  0
+nvidia_modeset       1556480  1 nvidia_drm
+nvidia              16875520  2 nvidia_uvm,nvidia_modeset
+== nvidia-smi
+rc=0
+== vulkaninfo --summary
+==========
+==========
+========
+	deviceName         = Leandro VFIO RTX 2070-3G
+	driverName         = NVIDIA
+	driverInfo         = 615.71.09
+	deviceName         = llvmpipe (LLVM 20.1.2, 256 bits)
+	driverName         = llvmpipe
+	driverInfo         = Mesa 25.2.8-0ubuntu0.24.04.2 (LLVM 20.1.2)
+rc=0
+== icds
+Type=wayland
+GRAB crtc 66 fb 141 1920x1080 format XR24 modifier 0x300000000606014 pitch 7680 handle 1 mode 1920x1080@60
+page_flip_failed=0
+== vkcube
+rc=1
+== sniper
+rc=0 (189292 bytes, ~/sniper-system-info.json)
+vulkan icd: /usr/lib/pressure-vessel/overrides/share/vulkan/icd.d/nvidia_icd.json libGLX_nvidia.so.0  issues: None
+sunshine pid 4754, listening on 47989 (web UI 47990)
+[2026-09-25 19:06:15.011]: Info: Creating encoder [h264_nvenc]
+[2026-09-25 19:06:22.788]: Info: Creating encoder [hevc_nvenc]
+[2026-09-25 19:06:25.690]: Info: Creating encoder [av1_nvenc]
+[2026-09-25 19:06:26.111]: Info: Creating encoder [hevc_nvenc]
+[2026-09-25 19:06:29.695]: Info: Found H.264 encoder: h264_nvenc [nvenc]
+[2026-09-25 19:06:14.892]: Info: config: 'capture' = kms
+[2026-09-25 19:06:14.910]: Info: [wayland] Found monitor: Cyrix Corporation 24"
+[2026-09-25 19:06:14.910]: Info: -------- Start of KMS monitor list --------
+[2026-09-25 19:06:14.910]: Info: Monitor 0 is DP-1: Cyrix Corporation 24"
+[2026-09-25 19:06:14.910]: Info: --------- End of KMS monitor list ---------
+[2026-09-25 19:06:14.910]: Debug: Monitor description
+== session
+13 1000 leandro seat0 tty2 active  no -
+15 1000 leandro -     -    closing no -
+16 1000 leandro -     -    active  no -
+gnome-shell      2053 2122 2146 
+Xwayland         2772 
+steam            2650 2735 2766 
+steamwebhelper   2823 2963 2993 
+sunshine         4754 
+ShadowOfTheTomb  
+== games
+TARGET SOURCE   FSTYPE OPTIONS
+/games /dev/vdc ext4   rw,relatime
+3DMark Demo
+Proton - Experimental
+Proton Hotfix
+Shadow of the Tomb Raider
+Steam.dll
+SteamLinuxRuntime
+SteamLinuxRuntime_4
+SteamLinuxRuntime_sniper
+SteamLinuxRuntime_soldier
+== kms
+GRAB crtc 66 fb 141 1920x1080 format XR24 modifier 0x300000000606014 pitch 7680 handle 1 mode 1920x1080@60
+
+vm4-615 is up (192.168.103.24 on caraxes3), evidence in /home/silas/git/Caraxes/caraxes/runs/sottr-2026-09-24/session-615-20260925-210248
+Next, on this desktop:
+  /home/silas/git/Caraxes/caraxes/runs/sottr-2026-09-24/stream-615.sh    pairs Moonlight with the guest's Sunshine if needed (PIN 4321
+                         posted to https://192.168.103.24:47990/api/pin with the web login) and
+                         opens 'moonlight stream 192.168.103.24 Desktop' in a window
+  Sunshine web UI:       https://192.168.103.24:47990  (login lea / leastream)
+  Manual pairing:        moonlight pair 192.168.103.24 --pin 4321, then enter the PIN in
+                         the web UI's PIN page (or: curl -sk -u lea:leastream
+                         -H 'Content-Type: application/json' -d '{"pin":"4321","name":"host"}'
+                         https://192.168.103.24:47990/api/pin)
+  When done:             /home/silas/git/Caraxes/caraxes/runs/sottr-2026-09-24/down-615.sh

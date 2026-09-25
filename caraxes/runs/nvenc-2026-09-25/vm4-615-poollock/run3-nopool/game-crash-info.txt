@@ -1,0 +1,3 @@
+com.feralinteractive.shadowofthetombraider,1.0.3RC1,264579.47947,5RuMPjH2exbx/uaUYmQlilTC,Game crashed with signal 6:Failed to create Vulkan device: -4
+
+-rw------- 1 leandro leandro 760256 19:23:14 /home/leandro/.local/share/feral-interactive/Shadow of the Tomb Raider/crashes/051e3821-7105-de75-31262cff-7d768c5b.dmp

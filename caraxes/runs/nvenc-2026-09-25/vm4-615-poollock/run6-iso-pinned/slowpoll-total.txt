@@ -1,0 +1,10 @@
+trapped_bar0_writes=233299 slow=452 pct=.193 span_s=930.093 per_min=29.1
+n=452 p50=2495 p90=7171 p99=18217 max=30511 us; sum 1.69 s
+dominant part: {'sync': 267, 'moves': 141, 'resync': 32, 'barrier': 11, 'refs': 1}
+  0x696000: 248 polls, 636 ms
+  0xb830a0: 139 polls, 670 ms
+  0x110c00: 44 polls, 327 ms
+  0x70010: 10 polls, 24 ms
+  0xb80f00: 9 polls, 23 ms
+  0xbb0090: 2 polls, 6 ms
+va_space_alloc_failed=52 xid=0

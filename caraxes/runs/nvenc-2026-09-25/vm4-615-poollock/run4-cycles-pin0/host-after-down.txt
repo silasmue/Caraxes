@@ -1,0 +1,8 @@
+2026-09-25T21:50:56+02:00
+memory.used [MiB], memory.free [MiB]
+1305 MiB, 6475 MiB
+    BAR1 Memory Usage
+        Total                                          : 256 MiB
+        Used                                           : 24 MiB
+        Free                                           : 232 MiB
+MemAvailable:   19227280 kB

@@ -1,0 +1,6 @@
+stopped
+host watch: 59 samples, nvidia-smi max 0.062s mean 0.024s, 0 kernel log lines, 0 Xid lines, 0 alerts
+nat: removed -t nat POSTROUTING -s 192.168.103.0/24 -o enp39s0 -j MASQUERADE
+nat: removed FORWARD -s 192.168.103.0/24 -j ACCEPT
+nat: removed FORWARD -d 192.168.103.0/24 -j ACCEPT
+host Xid lines since 2026-09-25 22:45:21:0; evidence in /home/silas/git/Caraxes/caraxes/runs/sottr-2026-09-24/session-615-20260925-224521

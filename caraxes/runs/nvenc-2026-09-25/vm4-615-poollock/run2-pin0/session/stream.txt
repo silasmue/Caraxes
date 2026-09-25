@@ -1,0 +1,1 @@
+2026-09-25T20:51:04+02:00 moonlight stream 192.168.103.24 Desktop --resolution 1920x1080 --fps 60 --bitrate 20000 --display-mode windowed --absolute-mouse --video-decoder software

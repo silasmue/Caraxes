@@ -1,0 +1,35 @@
+==lat
+[2026-09-25 19:57:23.827]: Debug: Frame processing latency (min/max/avg): 41.70ms/270.20ms/89.54ms
+[2026-09-25 19:57:43.930]: Debug: Frame processing latency (min/max/avg): 55.30ms/299.30ms/120.76ms
+[2026-09-25 19:58:03.943]: Debug: Frame processing latency (min/max/avg): 47.10ms/222.40ms/105.43ms
+[2026-09-25 19:58:24.004]: Debug: Frame processing latency (min/max/avg): 38.50ms/267.10ms/106.05ms
+==top
+top - 19:58:35 up 6 min,  3 users,  load average: 4.80, 2.54, 1.05
+Tasks: 310 total,   4 running, 306 sleeping,   0 stopped,   0 zombie
+%Cpu(s): 17.6 us,  9.7 sy,  0.0 ni, 65.2 id,  0.0 wa,  0.0 hi,  1.5 si,  6.1 st 
+MiB Mem :   7940.0 total,   2705.1 free,   2501.4 used,   3264.3 buff/cache     
+MiB Swap:      0.0 total,      0.0 free,      0.0 used.   5438.6 avail Mem 
+
+    PID USER      PR  NI    VIRT    RES    SHR S  %CPU  %MEM     TIME+ COMMAND
+   5541 leandro   20   0  223796  69828  53864 R 100.0   0.9   0:24.78 FeralLi+
+   4776 leandro   20   0 7580720 428884 335156 S  82.2   5.3   2:25.97 sunshine
+   2053 leandro   20   0 4495792 376244 221472 R  67.3   4.6   2:03.87 gnome-s+
+   3025 leandro   20   0 1408184 302364 206156 R  43.6   3.7   2:25.62 steamwe+
+   1700 root      20   0       0      0      0 S   5.9   0.0   0:03.27 nvidia-+
+   3075 leandro   20   0   47.4g 579624 111364 S   5.9   7.1   0:17.71 steamwe+
+   2782 leandro   20   0  438016 148344 115700 S   5.0   1.8   0:24.42 Xwayland
+   1071 leandro   20   0  115680  18656  10012 S   4.0   0.2   0:06.09 pipewir+
+==vmstat
+procs -----------memory---------- ---swap-- -----io---- -system-- -------cpu-------
+ r  b   swpd   free   buff  cache   si   so    bi    bo   in   cs us sy id wa st gu
+ 4  0      0 2769788 112840 3230120    0    0  6949   742 6323    7  7  7 82  0  3  0
+ 3  0      0 2768172 112840 3231156    0    0   820   256 10356 10357  8 11 76  0  5  0
+ 2  0      0 2768188 112840 3231692    0    0   180     0 9973 9654  2 14 80  0  4  0
+ 1  0      0 2766992 112840 3231796    0    0     0     0 9791 8846  2 17 77  0  4  0
+ 3  0      0 2766520 112840 3231972    0    0     0     0 8536 7940  4 13 78  0  5  0
+==D
+   1700 D    -                        nvidia-modeset/kthread_q
+   5541 D    os_acquire_rwlock_write  FeralLinuxMessa
+==smi
+4776, sunshine, 188 MiB
+2109 MiB

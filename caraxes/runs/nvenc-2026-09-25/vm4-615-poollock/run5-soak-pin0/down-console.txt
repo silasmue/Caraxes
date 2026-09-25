@@ -1,0 +1,16 @@
+moonlight pid 3319951 ended (SIGTERM)
+Incoming frame rate from network: 29.22 FPS
+Decoding frame rate: 29.22 FPS
+Rendering frame rate: 29.22 FPS
+Host processing latency min/max/average: 18.5/519.0/42.5 ms
+Frames dropped by your network connection: 0.00%
+Frames dropped due to network jitter: 0.01%
+Average network latency: 1 ms (variance: 0 ms)
+Average decoding time: 0.97 ms
+Average rendering time (including monitor V-sync latency): 0.79 ms
+stopped
+host watch: 444 samples, nvidia-smi max 0.061s mean 0.028s, 0 kernel log lines, 0 Xid lines, 0 alerts
+nat: removed -t nat POSTROUTING -s 192.168.103.0/24 -o enp39s0 -j MASQUERADE
+nat: removed FORWARD -s 192.168.103.0/24 -j ACCEPT
+nat: removed FORWARD -d 192.168.103.0/24 -j ACCEPT
+host Xid lines since 2026-09-25 21:51:38:0; evidence in /home/silas/git/Caraxes/caraxes/runs/sottr-2026-09-24/session-615-20260925-215137

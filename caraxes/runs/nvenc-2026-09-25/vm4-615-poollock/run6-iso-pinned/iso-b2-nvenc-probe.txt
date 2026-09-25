@@ -1,0 +1,5 @@
+BITSTREAM codec=h264 nal=3602 vps=0 sps=1 pps=1 idr=30 slice=3570 other=0 bad_start=0 profile=100 level=42 sps_size=1920x1080 sps_parsed=1
+INFO NVDEC caps: max 4096x4096, 1 NVDEC engine(s), output formats mask 0x41
+INFO NVDEC decoder 1920x1088 coded, 1920x1080 target, 7 surfaces
+DEC frames=3600 seconds=47.510 fps=75.8 psnr_y_min=63.12 psnr_y_avg=72.12 (the decoded luma against the pattern; includes the copy to the host and the comparison)
+RESULT PASS

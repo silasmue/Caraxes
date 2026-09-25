@@ -1,0 +1,33 @@
+==lat
+[2026-09-25 20:27:45.669]: Debug: Frame processing latency (min/max/avg): 20.20ms/62.00ms/35.69ms
+[2026-09-25 20:28:05.674]: Debug: Frame processing latency (min/max/avg): 21.60ms/91.90ms/38.97ms
+[2026-09-25 20:28:25.709]: Debug: Frame processing latency (min/max/avg): 23.80ms/147.70ms/53.81ms
+[2026-09-25 20:28:45.736]: Debug: Frame processing latency (min/max/avg): 23.00ms/104.60ms/40.77ms
+==top
+top - 20:34:26 up 4 min,  3 users,  load average: 2.66, 1.21, 0.47
+Tasks: 311 total,   3 running, 308 sleeping,   0 stopped,   0 zombie
+%Cpu(s):  6.9 us,  4.2 sy,  0.0 ni, 86.5 id,  0.0 wa,  0.0 hi,  0.4 si,  2.0 st 
+MiB Mem :   7940.0 total,   3247.7 free,   2241.2 used,   2865.8 buff/cache     
+MiB Swap:      0.0 total,      0.0 free,      0.0 used.   5698.8 avail Mem 
+
+    PID USER      PR  NI    VIRT    RES    SHR S  %CPU  %MEM     TIME+ COMMAND
+   2063 leandro   20   0 4495280 376384 221272 R  52.5   4.6   1:13.11 gnome-s+
+   5676 leandro   20   0 5166988 234492 176408 S  49.5   2.9   0:18.74 nvenc-p+
+   3020 leandro   20   0 1402584 284984 195228 S  40.6   3.5   1:18.85 steamwe+
+   2781 leandro   20   0  438820 148148 115528 S   5.9   1.8   0:14.93 Xwayland
+   3198 leandro   20   0   47.3g 206856 124460 R   5.0   2.5   0:11.94 steamwe+
+   1632 root     -51   0       0      0      0 S   2.0   0.0   0:01.24 irq/38-+
+   1707 root      20   0       0      0      0 D   2.0   0.0   0:01.91 nvidia-+
+   2775 leandro   20   0  762908 210368 157376 S   2.0   2.6   0:08.27 steam
+==vmstat
+procs -----------memory---------- ---swap-- -----io---- -system-- -------cpu-------
+ r  b   swpd   free   buff  cache   si   so    bi    bo   in   cs us sy id wa st gu
+ 4  0      0 3325148  93844 2840720    0    0  9009   718 4431    4  5  5 88  0  1  0
+ 3  0      0 3324896  93844 2840728    0    0     0     0 5146 4416  6  3 88  0  2  0
+ 3  0      0 3308276  93844 2851128    0    0     0     0 5467 4444  8  5 84  0  3  0
+ 2  0      0 3340896  93844 2851144    0    0     0     0 5066 4280  8  4 86  0  2  0
+ 0  0      0 3343536  93844 2840788    0    0     0    72 5295 4611  6  4 89  0  2  0
+==D
+==smi
+5676, ./nvenc-probe, 134 MiB
+1132 MiB

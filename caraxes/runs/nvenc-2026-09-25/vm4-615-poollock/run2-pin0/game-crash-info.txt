@@ -1,0 +1,7 @@
+com.feralinteractive.shadowofthetombraider,1.0.3RC1,264579.47947,5RuMPjH2exbx/uaUYmQlilTC,Game crashed with signal 6:Failed to create Vulkan device: -4
+
+ls: cannot access '/home/leandro/.local/share/feral-interactive/Shadow': No such file or directory
+ls: cannot access 'of': No such file or directory
+ls: cannot access 'the': No such file or directory
+ls: cannot access 'Tomb': No such file or directory
+ls: cannot access 'Raider/crashes/7476ca79-ce4f-336f-4f2eb25a-25cd2030.dmp': No such file or directory

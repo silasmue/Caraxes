@@ -1,0 +1,44 @@
+[  153.361388] caraxes-vm4-615 steam[2735]: Running query: 1 - GpuTopology
+[  153.702726] caraxes-vm4-615 steam[2735]: Response: gpu_topology {
+[  153.702726] caraxes-vm4-615 steam[2735]:   gpus {
+[  153.702939] caraxes-vm4-615 steam[2735]:     name: "Leandro VFIO RTX 2070-3G"
+[  153.702939] caraxes-vm4-615 steam[2735]:     driver_id: k_EGpuDriverId_NvidiaProprietary
+[  153.702939] caraxes-vm4-615 steam[2735]:   gpus {
+[  153.702939] caraxes-vm4-615 steam[2735]:     name: "llvmpipe (LLVM 20.1.2, 256 bits)"
+[  153.702939] caraxes-vm4-615 steam[2735]:     driver_id: k_EGpuDriverId_MesaLLVMPipe
+[  153.702939] caraxes-vm4-615 steam[2735]:   default_gpu_id: 1
+[ 1200.950570] caraxes-vm4-615 steam[2735]: chdir "/games/SteamLibrary/steamapps/common/Shadow of the Tomb Raider"
+[ 1200.954834] caraxes-vm4-615 steam[2735]: ERROR: ld.so: object '/home/leandro/.steam/debian-installation/ubuntu12_32/gameoverlayrenderer.so' from LD_PRELOAD cannot be preloaded (wrong ELF class: ELFCLASS32): ignored.
+[ 1200.970753] caraxes-vm4-615 steam[2735]: ERROR: ld.so: object '/home/leandro/.steam/debian-installation/ubuntu12_32/gameoverlayrenderer.so' from LD_PRELOAD cannot be preloaded (wrong ELF class: ELFCLASS32): ignored.
+[ 1200.996219] caraxes-vm4-615 steam[2735]: Game Recording - would start recording game 750920, but recording for this game is disabled
+[ 1200.996412] caraxes-vm4-615 steam[2735]: Adding process 9277 for gameID 750920
+[ 1201.001688] caraxes-vm4-615 steam[2735]: ERROR: ld.so: object '/home/leandro/.steam/debian-installation/ubuntu12_64/gameoverlayrenderer.so' from LD_PRELOAD cannot be preloaded (wrong ELF class: ELFCLASS64): ignored.
+[ 1201.011532] caraxes-vm4-615 steam[2735]: ERROR: ld.so: object '/home/leandro/.steam/debian-installation/ubuntu12_32/gameoverlayrenderer.so' from LD_PRELOAD cannot be preloaded (wrong ELF class: ELFCLASS32): ignored.
+[ 1201.057371] caraxes-vm4-615 steam[2735]: ERROR: ld.so: object '/home/leandro/.steam/debian-installation/ubuntu12_32/gameoverlayrenderer.so' from LD_PRELOAD cannot be preloaded (wrong ELF class: ELFCLASS32): ignored.
+[ 1201.070103] caraxes-vm4-615 steam[2735]: Adding process 9278 for gameID 750920
+[ 1201.070244] caraxes-vm4-615 steam[2735]: Adding process 9279 for gameID 750920
+[ 1201.196528] caraxes-vm4-615 steam[2735]: Adding process 9280 for gameID 750920
+[ 1203.826374] caraxes-vm4-615 steam[2735]: Adding process 9358 for gameID 750920
+[ 1203.978641] caraxes-vm4-615 steam[2735]: Adding process 9385 for gameID 750920
+[ 1204.029826] caraxes-vm4-615 steam[2735]: Adding process 9391 for gameID 750920
+[ 1204.142264] caraxes-vm4-615 steam[2735]: Adding process 9401 for gameID 750920
+[ 1204.144177] caraxes-vm4-615 steam[2735]: Adding process 9404 for gameID 750920
+[ 1204.144177] caraxes-vm4-615 steam[2735]: Adding process 9405 for gameID 750920
+[ 1204.231888] caraxes-vm4-615 steam[2735]: ShadowOfTheTombRaider: crash reporter initialised with path "/home/leandro/.local/share/feral-interactive/Shadow of the Tomb Raider/crashes"
+[ 1204.244083] caraxes-vm4-615 steam[2735]: Adding process 9406 for gameID 750920
+[ 1206.354390] caraxes-vm4-615 steam[2735]: Setting breakpad minidump AppID = 750920
+[ 1206.972508] caraxes-vm4-615 steam[2735]: [0925/192301.753543:ERROR:gpu_process_transport_factory.cc(1026)] Lost UI shared context.
+[ 1219.896341] caraxes-vm4-615 steam[2735]: Failed to create Vulkan device: -4
+[ 1219.976439] caraxes-vm4-615 steam[2735]: ShadowOfTheTombRaider: dumped to "/home/leandro/.local/share/feral-interactive/Shadow of the Tomb Raider/crashes/051e3821-7105-de75-31262cff-7d768c5b.dmp"
+[ 1219.976519] caraxes-vm4-615 steam[2735]: Warning: Previous run didn't quit gracefully, attempting to run crash reporter.
+[ 1219.976519] caraxes-vm4-615 steam[2735]: ShadowOfTheTombRaider: crash reporter "/games/SteamLibrary/steamapps/common/Shadow of the Tomb Raider/bin/feral_linux_crash_reporter" launching
+[ 1220.042581] caraxes-vm4-615 steam[2735]: Adding process 9458 for gameID 750920
+[ 1220.093795] caraxes-vm4-615 steam[2735]: Game crashed with signal 6
+[ 1220.093795] caraxes-vm4-615 steam[2735]: Failed to create Vulkan device: -4
+[ 1220.093795] caraxes-vm4-615 steam[2735]: You may be able to relaunch the game to send the crash log automatically.
+[ 1220.093795] caraxes-vm4-615 steam[2735]: You can also contact support@feralinteractive.com directly with details of the crash, Steam System Info, and the dump file:
+[ 1220.093795] caraxes-vm4-615 steam[2735]: /home/leandro/.local/share/feral-interactive/Shadow of the Tomb Raider/crashes/051e3821-7105-de75-31262cff-7d768c5b.dmp
+[ 1220.094220] caraxes-vm4-615 steam[2735]: Adding process 9459 for gameID 750920
+[ 1220.094656] caraxes-vm4-615 steam[2735]: Adding process 9460 for gameID 750920
+[ 1220.145473] caraxes-vm4-615 steam[2735]: Adding process 9461 for gameID 750920
+[ 1220.145889] caraxes-vm4-615 steam[2735]: Adding process 9463 for gameID 750920
