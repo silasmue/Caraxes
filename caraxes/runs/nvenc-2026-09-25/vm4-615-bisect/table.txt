@@ -1,0 +1,3 @@
+18:09:47 trace_s=157 desktop-up rc=0 elapsed=7.718773770 sunshine=no c5c0_refused=0
+18:11:31 trace_s=249 after-sunshine-probes rc=0 elapsed=20.904264799 sunshine=yes c5c0_refused=0
+18:13:18 trace_s=310 after-moonlight-connect rc=124 elapsed=65.764788509 sunshine=no c5c0_refused=0
