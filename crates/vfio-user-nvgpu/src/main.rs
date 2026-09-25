@@ -761,13 +761,17 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
             let (hook, wake) = PageHook::new(p.clone()).context("intr page wake eventfd")?;
             intr_shared.attach_page(wake);
             let hook = match &fe {
-                Some(f) => hook.with_display(f.clone()),
+                Some(f) => hook.with_display(f.clone()).with_vblank_spin(
+                    intr_page::vblank_spin(std::env::var(intr_page::VBLANK_SPIN_ENV).ok().as_deref())
+                        .map_err(anyhow::Error::msg)?,
+                ),
                 None => hook,
             };
             Some(hook)
         }
         None => None,
     };
+    let reactor_wake = page_hook.as_ref().map(|h| h.raise_wake.clone());
     // The BAR2 flush deferral (docs/caraxes/intr-page.md §11.2) needs the reactor that
     // pays an owed sync at its bound: refused without the interrupt page.
     let bar2_owed = bar0.boot().and_then(|b| b.fb.bar2_owed());
@@ -1028,6 +1032,12 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
     }
     if let Some(i) = &inv {
         eprint!("{}", i.summary());
+    }
+    if let (Some(w), Some(_)) = (&reactor_wake, &fe) {
+        eprintln!(
+            "reactor wake-up after a display raise (blocked reactor): {}",
+            w.lock().unwrap_or_else(PoisonError::into_inner).describe()
+        );
     }
     if let Some(why) = closed {
         // Fail closed (P20 item 4a): never report a clean exit when host state the GPU

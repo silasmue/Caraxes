@@ -156,6 +156,12 @@ pub struct Ticker {
     /// When the ticks fired against when they were due, and how long the driver took
     /// (the device lock and the engine's catch-up): docs/caraxes/intr-page.md §11.
     timing: Mutex<TickTiming>,
+    /// [`now_ns`] of the last raise not yet seen by the guest's ack (display page) and by
+    /// the reactor's wake-up (0: none), for the delivery histograms (fe_page.rs,
+    /// intr_page.rs), and the next tick the clock will fire (0: none due).
+    raise_for_ack: AtomicU64,
+    raise_for_wake: AtomicU64,
+    next_due: AtomicU64,
 }
 
 /// A log2 histogram of microseconds: bucket `b` holds values in `[2^(b-1), 2^b)`, bucket 0
@@ -283,6 +289,21 @@ impl Ticker {
         self.raise();
     }
 
+    /// The first raise the guest has not acknowledged yet ([`now_ns`]), taken.
+    pub fn take_raise_for_ack(&self) -> Option<u64> {
+        Some(self.raise_for_ack.swap(0, Ordering::AcqRel)).filter(|&t| t != 0)
+    }
+
+    /// The first raise since the reactor last woke for one ([`now_ns`]), taken.
+    pub fn take_raise_for_wake(&self) -> Option<u64> {
+        Some(self.raise_for_wake.swap(0, Ordering::AcqRel)).filter(|&t| t != 0)
+    }
+
+    /// The next tick the clock will fire ([`now_ns`]), if a head has work.
+    pub fn next_due(&self) -> Option<u64> {
+        Some(self.next_due.load(Ordering::Acquire)).filter(|&t| t != 0)
+    }
+
     /// One catch-up of the engine run by the driver took `us` microseconds.
     pub fn note_catch_up(&self, us: u64) {
         self.timing.lock().unwrap().catch_up.add(us);
@@ -374,6 +395,13 @@ impl Ticker {
 
     /// Raise the DISP vector (from any thread).
     pub fn raise(&self) {
+        let now = now_ns().max(1);
+        let _ = self
+            .raise_for_ack
+            .compare_exchange(0, now, Ordering::AcqRel, Ordering::Acquire);
+        let _ = self
+            .raise_for_wake
+            .compare_exchange(0, now, Ordering::AcqRel, Ordering::Acquire);
         if let Some(i) = self.intr() {
             self.raised.fetch_add(1, Ordering::Relaxed);
             if i.raise(self.vector.load(Ordering::Relaxed)) {
@@ -423,6 +451,7 @@ impl Ticker {
                 self.fire();
             }
             let now = now_ns();
+            self.next_due.store(next.unwrap_or(0), Ordering::Release);
             match next {
                 Some(d) if d > now => std::thread::park_timeout(Duration::from_nanos(d - now)),
                 Some(_) => {}

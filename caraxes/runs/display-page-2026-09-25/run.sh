@@ -26,10 +26,33 @@ t0=$(date '+%F %T')
 b0=$(stat -c %s "$W/gpu-trace.log")
 l0=$(stat -c %s "$W/gpu.log")
 g0=$("${VMSH[@]}" ssh 'sudo dmesg | wc -l' 2>/dev/null || echo 0)
+# Host load over the window (the other VMs share the CPUs and the GPU): the host's busy CPU
+# fraction from /proc/stat and the CPU of every other device and VMM process.
+others() {
+    local p
+    for p in $(pgrep -f 'vfio-user-nvgpu --socket|vhost-user-nvrm|cloud-hypervisor'); do
+        grep -qa "$W/" "/proc/$p/cmdline" 2>/dev/null && continue
+        awk -v p="$p" '{print p, $14 + $15}' "/proc/$p/stat" 2>/dev/null
+    done
+}
+read -r _ u0 n0 s0 i0 w0 q0 sq0 _ < /proc/stat
+o0=$(others)
 printf '# SPDX-License-Identifier: MIT\n# %s guest command:\n%s\n' "$t0" "$*" > "$out/command.txt"
 "${VMSH[@]}" ssh "$*" > "$out/guest.txt" 2>&1
 rc=$?
 echo "rc=$rc" >> "$out/command.txt"
+read -r _ u1 n1 s1 i1 w1 q1 sq1 _ < /proc/stat
+o1=$(others)
+{
+    echo '# SPDX-License-Identifier: MIT'
+    busy=$(( (u1 + n1 + s1 + q1 + sq1) - (u0 + n0 + s0 + q0 + sq0) ))
+    all=$(( busy + (i1 + w1) - (i0 + w0) ))
+    echo "host CPU busy over the window: $(( all > 0 ? 100 * busy / all : 0 )) % of $(nproc) CPUs"
+    tick=$(getconf CLK_TCK)
+    join <(sort <<< "$o0") <(sort <<< "$o1") | while read -r p a b; do
+        echo "other VM process $p: $(( (b - a) * 100 / tick )) centiseconds of CPU in the window: $(tr '\0' ' ' < "/proc/$p/cmdline" 2>/dev/null | cut -c1-90)"
+    done
+} > "$out/host-load.txt"
 sleep 1
 tail -c +$((b0 + 1)) "$W/gpu-trace.log" > "$out/.trace"
 n=$(wc -l < "$out/.trace")
