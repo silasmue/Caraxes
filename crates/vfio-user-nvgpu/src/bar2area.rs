@@ -154,7 +154,13 @@ pub struct Owed {
     pub paid_sync: AtomicU64,
     /// The longest time a sync was owed, in nanoseconds.
     pub max_owed_ns: AtomicU64,
+    /// Debts paid [`OVERDUE_FACTOR`] times the bound or later (the watchdog's line: the
+    /// reactor could not pay in time, the device lock was held).
+    pub overdue: AtomicU64,
 }
+
+/// A debt paid this many bounds after its first flush read or later is counted overdue.
+pub const OVERDUE_FACTOR: u64 = 2;
 
 impl Owed {
     pub fn new(defer_us: u64) -> Arc<Self> {
@@ -166,6 +172,7 @@ impl Owed {
             paid_reactor: AtomicU64::new(0),
             paid_sync: AtomicU64::new(0),
             max_owed_ns: AtomicU64::new(0),
+            overdue: AtomicU64::new(0),
         })
     }
 
@@ -195,8 +202,11 @@ impl Owed {
         if t == 0 {
             return false;
         }
-        self.max_owed_ns
-            .fetch_max(now.saturating_sub(t), Ordering::Relaxed);
+        let owed = now.saturating_sub(t);
+        self.max_owed_ns.fetch_max(owed, Ordering::Relaxed);
+        if owed >= OVERDUE_FACTOR * self.defer_ns {
+            self.overdue.fetch_add(1, Ordering::Relaxed);
+        }
         match by {
             Payer::Access => &self.paid_access,
             Payer::Reactor => &self.paid_reactor,
@@ -208,13 +218,15 @@ impl Owed {
 
     pub fn summary(&self) -> String {
         format!(
-            "bar2 flush deferral: bound {} us; {} flush read(s) deferred, owed syncs paid by {} trapped access(es) or doorbell(s), {} by the reactor at the bound, {} by a sync that ran anyway; longest owed {} us",
+            "bar2 flush deferral: bound {} us; {} flush read(s) deferred, owed syncs paid by {} trapped access(es) or doorbell(s), {} by the reactor at the bound, {} by a sync that ran anyway; longest owed {} us, {} paid after {}x the bound or later",
             self.defer_ns / 1000,
             self.deferred.load(Ordering::Relaxed),
             self.paid_access.load(Ordering::Relaxed),
             self.paid_reactor.load(Ordering::Relaxed),
             self.paid_sync.load(Ordering::Relaxed),
-            self.max_owed_ns.load(Ordering::Relaxed) / 1000
+            self.max_owed_ns.load(Ordering::Relaxed) / 1000,
+            self.overdue.load(Ordering::Relaxed),
+            OVERDUE_FACTOR
         )
     }
 }
@@ -1204,6 +1216,12 @@ mod defer_tests {
         assert_eq!(o.max_owed_ns.load(Ordering::Relaxed), 150_000);
         assert_eq!(o.paid_reactor.load(Ordering::Relaxed), 1);
         assert_eq!(o.deferred.load(Ordering::Relaxed), 2);
+        assert_eq!(o.overdue.load(Ordering::Relaxed), 0);
+        // Paid at twice the bound: overdue.
+        o.owe(200_000);
+        assert!(o.paid(Payer::Access, 400_000));
+        assert_eq!(o.overdue.load(Ordering::Relaxed), 1);
+        assert!(o.summary().contains("longest owed 200 us, 1 paid after 2x the bound"));
     }
 }
 

@@ -39,6 +39,14 @@ pub const TRIGGER: u32 = 1 << 31;
 pub const ALL_PDB: u32 = 1 << 1;
 /// The GET pointers' field (20 bits, as uvm.rs `VfRegs::write32` masks them).
 const GET_MASK: u32 = 0xF_FFFF;
+/// The guest RM's poll of `TRIGGER` gives up after its default GPU timeout, 4 s in
+/// graphics mode (`osGetTimeoutParams`, arch/nvalloc/unix/src/os.c:2286, checked by
+/// `kgmmuCheckPendingInvalidates_TU102`, kern_gmmu_tu102.c:77). A trigger the device ran
+/// longer than that is an inconsistency: the guest saw a timeout the trapped path would
+/// have shown as a stalled vCPU.
+pub const GUEST_TIMEOUT_US: u64 = 4_000_000;
+/// A trigger that took this long or longer is counted as slow (the watchdog's line).
+pub const SLOW_US: u64 = 1_000;
 
 /// `CARAXES_INVALIDATE_PAGE`: off, or on with the interrupt page and the boot model.
 pub fn requested(intr_page: bool, boot_model: bool) -> Result<bool, String> {
@@ -150,6 +158,10 @@ pub struct Stats {
     pub changed_under: AtomicU64,
     /// The longest invalidate the device ran for a trigger, in microseconds.
     pub apply_us_max: AtomicU64,
+    /// Triggers the device took [`SLOW_US`] or longer for.
+    pub slow: AtomicU64,
+    /// Triggers the device took [`GUEST_TIMEOUT_US`] or longer for (an inconsistency).
+    pub over_timeout: AtomicU64,
     pub apply_us_sum: AtomicU64,
 }
 
@@ -297,6 +309,12 @@ impl InvPage {
     pub fn complete(&self, t: Trigger, us: u64) {
         self.stats.apply_us_sum.fetch_add(us, Ordering::Relaxed);
         self.stats.apply_us_max.fetch_max(us, Ordering::Relaxed);
+        if us >= SLOW_US {
+            self.stats.slow.fetch_add(1, Ordering::Relaxed);
+        }
+        if us >= GUEST_TIMEOUT_US {
+            self.stats.over_timeout.fetch_add(1, Ordering::Relaxed);
+        }
         let w = self.word(self.off_of(Word::Invalidate));
         if w
             .compare_exchange(t.value, t.value & !TRIGGER, Ordering::AcqRel, Ordering::Acquire)
@@ -320,8 +338,15 @@ impl InvPage {
                 l(&s.changed_under)
             ));
         }
+        if l(&s.over_timeout) > 0 {
+            odd.push(format!(
+                "{} trigger(s) held beyond the guest RM's {} s timeout",
+                l(&s.over_timeout),
+                GUEST_TIMEOUT_US / 1_000_000
+            ));
+        }
         format!(
-            "invalidate page: BAR0 [{:#x}, {:#x}); {} trigger(s) applied by the reactor ({} right after a blocking wait, {} ALL_PDB), device invalidate mean {} us, max {} us; {} GET store(s) masked; inconsistencies: {}\n",
+            "invalidate page: BAR0 [{:#x}, {:#x}); {} trigger(s) applied by the reactor ({} right after a blocking wait, {} ALL_PDB), device invalidate mean {} us, max {} us, {} at {} ms or more; {} GET store(s) masked; inconsistencies: {}\n",
             self.layout.base,
             self.layout.base + PAGE,
             n,
@@ -329,6 +354,8 @@ impl InvPage {
             l(&s.all_pdb),
             l(&s.apply_us_sum).checked_div(n).unwrap_or(0),
             l(&s.apply_us_max),
+            l(&s.slow),
+            SLOW_US / 1000,
             l(&s.get_masked),
             if odd.is_empty() { "none".into() } else { odd.join(", ") }
         )
@@ -450,6 +477,33 @@ mod tests {
         assert_eq!(p.stats.all_pdb.load(Ordering::Relaxed), 1);
         assert!(p.summary().contains("2 trigger(s) applied"));
         assert!(p.summary().contains("inconsistencies: none"));
+    }
+
+    /// The watchdog's counters: a slow trigger is counted, one past the guest RM's
+    /// timeout is an inconsistency.
+    #[test]
+    fn slow_and_timed_out_triggers_are_counted() {
+        let p = InvPage::create(&intr(), layout()).unwrap();
+        let t = Trigger {
+            pdb: 0,
+            upper: 0,
+            value: TRIGGER | 0xc1,
+        };
+        // Each completion clears a stored trigger, as the reactor's does.
+        let run = |us: u64| {
+            p.write(0xB8_30B0, &t.value.to_le_bytes());
+            p.complete(t, us);
+        };
+        run(300);
+        run(SLOW_US);
+        assert_eq!(p.stats.slow.load(Ordering::Relaxed), 1);
+        assert!(p.summary().contains("1 at 1 ms or more"));
+        assert!(p.summary().contains("inconsistencies: none"));
+        run(GUEST_TIMEOUT_US);
+        assert_eq!(p.stats.slow.load(Ordering::Relaxed), 2);
+        assert!(p
+            .summary()
+            .contains("inconsistencies: 1 trigger(s) held beyond the guest RM's 4 s timeout"));
     }
 
     /// The boot model runs a page trigger as it runs the trapped trigger write: the PDB
