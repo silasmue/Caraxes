@@ -98,6 +98,7 @@ pub const LPWR_2806_ENV: &str = "CARAXES_LPWR_2806_OK";
 const GR_MAIN_CTX_SIZE: u32 = 0x20_0000;
 
 const NV_ERR_INVALID_ARGUMENT: u32 = 0x1F;
+const NV_ERR_INSUFFICIENT_PERMISSIONS: u32 = 0x1B;
 
 /// FB info indices (ctrl2080fb.h:318-390) the device answers from the emulated FB.
 const FB_LARGEST_FREE_REGION_SIZE_KB: u32 = 0x12;
@@ -176,6 +177,12 @@ impl Recorded {
             }
             let (cmd, status) = (num(f[0]).ok_or_else(bad)?, num(f[1]).ok_or_else(bad)?);
             let (req, ans) = (unhex(f[2]).ok_or_else(bad)?, unhex(f[3]).ok_or_else(bad)?);
+            // The KMD-block capture ran as an unprivileged user client: its permission
+            // refusals (0x1b) and its answers to internal controls (0x20800Axx/Bxx) are not
+            // what the kernel caller gets; the device's own answers stay.
+            if status == NV_ERR_INSUFFICIENT_PERMISSIONS || (cmd & 0xFFFF_FE00) == 0x2080_0A00 {
+                continue;
+            }
             if matches!(cmd, FB_GET_INFO_V2 | BUS_GET_INFO_V2) && status == 0 {
                 let m = r.index.entry(cmd).or_default();
                 for i in 0..list_entries(&ans) {
@@ -457,11 +464,24 @@ fn gr_fs_info(params: &[u8], f: &Facts) -> Answer {
     let gpc_mask = (1u32 << f.gpcs) - 1;
     let tpc_mask = (1u32 << f.tpcs_per_gpc) - 1;
     let mut types = Vec::new();
+    let t = Recorded::get();
     for i in 0..count {
         let q = Q + STRIDE * i;
         let ty = u16::from_le_bytes([b[q], b[q + 1]]);
         let d = q + 8;
         let gpc = get32(&b, d);
+        // The card's answer to this query alone (the KMD-block capture asks each type and
+        // GPC in a one-query request), else the chip facts below.
+        let mut one = vec![0u8; params.len()];
+        one[0] = 1;
+        one[Q..Q + STRIDE].copy_from_slice(&params[q..q + STRIDE]);
+        if let Some(e) = t.exact.get(&(GRMGR_GET_GR_FS_INFO, one)) {
+            if e.status == 0 && e.answer.len() >= Q + STRIDE {
+                b[q..q + STRIDE].copy_from_slice(&e.answer[Q..Q + STRIDE]);
+                types.push(format!("{ty}*"));
+                continue;
+            }
+        }
         let status = match ty {
             1 => {
                 put32(&mut b, d, f.gpcs);
@@ -513,7 +533,7 @@ fn gr_fs_info(params: &[u8], f: &Facts) -> Answer {
         b,
         LABEL_CHIP,
         format!(
-            "gr fs info: {count} queries (types {}): {} GPCs, TPC mask {tpc_mask:#x}",
+            "gr fs info: {count} queries (types {}; * the card's): {} GPCs, TPC mask {tpc_mask:#x}",
             types.join(","),
             f.gpcs
         ),
@@ -551,6 +571,17 @@ mod tests {
         assert!(classes.contains(&0xC597) && classes.contains(&0xC5B5));
         // A request that matches no recording is not answered here.
         assert!(answer(0x0080_0292, &[1u8; 804], &F).is_none());
+    }
+
+    /// The capture's user-client refusals do not replace the device's answers.
+    #[test]
+    fn permission_refusals_are_not_the_cards_answer() {
+        let mut q = vec![0u8; 40];
+        q[0] = 4;
+        let a = answer(GR_GFX_POOL_QUERY_SIZE, &q, &F).unwrap();
+        assert_eq!((a.status, a.label), (0, LABEL_CHIP));
+        let a = answer(INTERNAL_GET_ENABLED_SEC2_CLASSES, &[0u8; 3], &F).unwrap();
+        assert_eq!((a.status, a.label), (0, LABEL_CHIP));
     }
 
     #[test]
@@ -673,7 +704,7 @@ mod tests {
         let (req, e) = t
             .exact
             .iter()
-            .find(|((c, _), _)| *c == GRMGR_GET_GR_FS_INFO)
+            .find(|((c, r), _)| *c == GRMGR_GET_GR_FS_INFO && r[0] == 3)
             .map(|((_, r), e)| (r.clone(), e))
             .unwrap();
         let a = answer(GRMGR_GET_GR_FS_INFO, &req, &F).unwrap();
