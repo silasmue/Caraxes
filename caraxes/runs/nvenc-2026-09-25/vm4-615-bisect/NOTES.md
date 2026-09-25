@@ -51,11 +51,18 @@ Columns: "host notifier fired -> no MSI (disabled or no fd)" / "-> guest vector 
 | 296-315 (Moonlight connected, capture and vkcube) | 16-67 | 170-220 | 260-407 |
 | 316-320 | 2-24 | 16-170 | 144-275 |
 
-- From 296 s on, 30 to 67 host notifier events per second found MSI disabled (or no fd) and
-  did not reach the guest. Before the connect it was 0 to 22 per second, mostly 0.
+- From 296 s on, 30 to 67 host notifier events per second are traced as "no MSI (disabled or
+  no fd)". Correction (main, 18:45): in the interrupt-page mode that label is a *coalesced*
+  raise (`IntrShared::raise`: the vector's bit was still pending, so no second MSI), not a
+  dropped interrupt; the page's reactor re-pends such a vector at the guest's ack (`again`)
+  with its own MSI. The rate shows the reactor lagging behind the events (it waits for the
+  device lock, which the pool's poll holds 3 to 60 ms), not a lost completion by itself.
 - Per-second counts: `msi-per-second.txt` (second, no-MSI, MSI, re-arm).
 - The graphics work stopped while the host GPU stayed fault-free and Xid-free (0 Xid, no RC).
-  That matches an interrupt that never reached the guest: the guest waits for a completion
-  that is signalled on the host but dropped while its MSI is masked, and nothing re-sends it
-  after the re-arm.
+  Open suspects, in order: the BAR1 pool (the device log shows "remap refused (the guest maps
+  it twice)" and "cannot move back ... the USERD of mirrored channel" refusals in the same
+  window: a page the GPU or the guest writes through one copy and reads through another
+  would hang exactly like this), the pool's lock hold (interrupt and doorbell latency), an
+  interrupt lost in the trapped path. The no-pool reproduction (`SOTTR_NO_POOL=1`, same
+  steps) decides the first.
 - Not changed here: the interrupt path is another agent's.
