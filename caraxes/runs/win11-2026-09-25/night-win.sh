@@ -18,6 +18,7 @@ EXTCFG=/mnt/vmstore/caraxes/vfio-user-nvgpu-v615-extcfg-9df39581
 LEGACY_ROM=$W/rom-legacy-only.bin
 T4_BOARD=$HERE/../../../crates/vfio-user-nvgpu/boards/tesla-t4-on-tu106.toml
 SYNTH_VBIOS=$HERE/../../reference/rtx2070/synth-vbios.bin
+PROM_DUMP=$HERE/../../reference/rtx2070/prom-window-2026-09-25.bin
 HWCFG=${NIGHT_HWCFG:-$(ls -t /mnt/vmstore/caraxes/vfio-user-nvgpu-v615-extcfg-hwcfg-* 2>/dev/null | head -1)}
 q='qemu-system-x86'
 log() { printf '%s %s\n' "$(date +%T)" "$*" | tee -a "$OUT/night.log"; }
@@ -103,6 +104,9 @@ for r in $RUNS; do case $r in
     I) [[ -x ${HWCFG:-/nonexistent} ]] && run I-hwcfg-synthvbios "$MAX" WIN_GPU_SERVER="$HWCFG" WIN_GPU_ROM="$LEGACY_ROM" WIN_GPU_ROMBAR=1 WIN_GPU_VBIOS="$SYNTH_VBIOS" || log "I skipped: no hwcfg binary" ;;
     J) [[ -x ${HWCFG:-/nonexistent} ]] && run J-hwcfg-only "$MAX" WIN_GPU_SERVER="$HWCFG" WIN_GPU_ROM="$LEGACY_ROM" WIN_GPU_ROMBAR=1 || log "J skipped: no hwcfg binary" ;;
     K) run K-extcfg-synthvbios-t4 "$MAX" WIN_GPU_SERVER="$EXTCFG" WIN_GPU_ROM="$LEGACY_ROM" WIN_GPU_ROMBAR=1 WIN_GPU_VBIOS="$SYNTH_VBIOS" WIN_GPU_BOARD="$T4_BOARD" WIN_GPU_REGS="$HERE/bar0-registers-t4-costume.txt" ;;
+    L) [[ -s $PROM_DUMP ]] && run L-extcfg-promdump "$MAX" WIN_GPU_SERVER="$EXTCFG" WIN_GPU_ROM="$LEGACY_ROM" WIN_GPU_ROMBAR=1 WIN_GPU_VBIOS="$PROM_DUMP" || log "L skipped: no PROM dump" ;;
+    M) [[ -s $PROM_DUMP && -x ${HWCFG:-/nonexistent} ]] && run M-hwcfg-promdump "$MAX" WIN_GPU_SERVER="$HWCFG" WIN_GPU_ROM="$LEGACY_ROM" WIN_GPU_ROMBAR=1 WIN_GPU_VBIOS="$PROM_DUMP" || log "M skipped: no PROM dump or hwcfg binary" ;;
+    N) [[ -s $PROM_DUMP ]] && run N-extcfg-promdump-t4 "$MAX" WIN_GPU_SERVER="$EXTCFG" WIN_GPU_ROM="$LEGACY_ROM" WIN_GPU_ROMBAR=1 WIN_GPU_VBIOS="$PROM_DUMP" WIN_GPU_BOARD="$T4_BOARD" WIN_GPU_REGS="$HERE/bar0-registers-t4-costume.txt" || log "N skipped: no PROM dump" ;;
     A2) run A2-extcfg-mirror-repeat "$MAX" WIN_GPU_SERVER="$EXTCFG" WIN_GPU_ROM="$LEGACY_ROM" WIN_GPU_ROMBAR=1 ;;
     B2) run B2-extcfg-region-repeat "$MAX" WIN_GPU_SERVER="$EXTCFG" WIN_GPU_ROM="$LEGACY_ROM" WIN_GPU_ROMBAR=1 CARAXES_EXT_CONFIG=1 ;;
     *) log "unknown run $r" ;;
