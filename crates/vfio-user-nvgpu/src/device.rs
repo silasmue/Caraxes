@@ -805,6 +805,23 @@ impl Device {
         }
     }
 
+    /// The invalidate page's trigger (inv_page.rs, docs/caraxes/intr-page.md §11.3): run
+    /// the invalidate as the trapped trigger write does and trace its notes.
+    pub fn invalidate_from_page(&mut self, t: crate::inv_page::Trigger) {
+        let mem = &self.mem;
+        let notes = match self.bar0.boot_mut() {
+            Some(b) => b.mmu_invalidate_from_page(mem, t.pdb, t.upper, t.value),
+            None => return,
+        };
+        self.trace.event(&format!(
+            "invalidate page: trigger {:#x} pdb {:#x} upper {:#x} (reactor)",
+            t.value, t.pdb, t.upper
+        ));
+        for n in notes {
+            self.trace.event(&format!("boot: {n}"));
+        }
+    }
+
     /// The reactor found a deferred flush sync at its bound (bar2area.rs `Owed`,
     /// docs/caraxes/intr-page.md §11.2): pay it.
     pub fn bar2_pay_owed(&mut self) {

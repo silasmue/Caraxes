@@ -732,6 +732,29 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
         }
         _ => None,
     };
+    // The MMU invalidate page (inv_page.rs, docs/caraxes/intr-page.md §11.3): a fourth area.
+    let inv = if vfio_user_nvgpu::inv_page::requested(intr_page.is_some(), bar0.boot().is_some())
+        .map_err(anyhow::Error::msg)?
+    {
+        let page = intr_page.as_ref().expect("checked by requested");
+        let d = chip.data();
+        let layout = vfio_user_nvgpu::inv_page::Layout::of(&d.registers, d.gmmu.fault_buffer_entries)
+            .map_err(|e| anyhow::anyhow!("{}=1: {e}", vfio_user_nvgpu::inv_page::INVALIDATE_PAGE_ENV))?;
+        let inv = vfio_user_nvgpu::inv_page::InvPage::create(page, layout)
+            .map_err(|e| anyhow::anyhow!("{}=1: {e}", vfio_user_nvgpu::inv_page::INVALIDATE_PAGE_ENV))?;
+        inv.check(&|off| bar0.boot().is_some_and(|b| b.owns_register(off)))
+            .map_err(|e| anyhow::anyhow!("{}=1: {e}", vfio_user_nvgpu::inv_page::INVALIDATE_PAGE_ENV))?;
+        bar0 = bar0.with_inv_page(inv.clone());
+        let (base, len) = inv.area();
+        eprintln!(
+            "vfio-user-nvgpu: invalidate page: BAR0 [{base:#x}, {:#x}) (the VF MMU invalidate and fault-buffer pointers) offered as a sparse mmap area; the reactor runs each TRIGGER and clears it when done ({}=1, docs/caraxes/intr-page.md §11.3)",
+            base + len,
+            vfio_user_nvgpu::inv_page::INVALIDATE_PAGE_ENV
+        );
+        Some(inv)
+    } else {
+        None
+    };
     // The reactor's side of the page; from here on raises go through it.
     let page_hook: Option<PageHook> = match &intr_page {
         Some(p) => {
@@ -799,6 +822,7 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
             .areas()
             .into_iter()
             .chain(fe.as_ref().map(|f| f.area()))
+            .chain(inv.as_ref().map(|i| i.area()))
             .collect(),
     });
     let mut server = Server::new(
@@ -886,6 +910,20 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
     );
     let device = Arc::new(Mutex::new(device));
     let mut page_hook: Option<Box<dyn vfio_user_nvgpu::poll::Hook>> = page_hook.map(|h| {
+        let h = match &inv {
+            Some(i) => {
+                let d = device.clone();
+                h.with_invalidate(
+                    i.clone(),
+                    Arc::new(move |t| {
+                        d.lock()
+                            .unwrap_or_else(PoisonError::into_inner)
+                            .invalidate_from_page(t)
+                    }),
+                )
+            }
+            None => h,
+        };
         let h = match &bar2_owed {
             Some(o) => {
                 let d = device.clone();
@@ -987,6 +1025,9 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
     }
     if let Some(o) = &bar2_owed {
         eprintln!("{}", o.summary());
+    }
+    if let Some(i) = &inv {
+        eprint!("{}", i.summary());
     }
     if let Some(why) = closed {
         // Fail closed (P20 item 4a): never report a clean exit when host state the GPU

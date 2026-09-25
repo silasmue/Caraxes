@@ -808,6 +808,8 @@ pub struct PageHook {
     /// a sync is owed the reactor spins, and at the bound it runs the payer (main.rs:
     /// lock the device, `Device::bar2_pay_owed`).
     owed: Option<(Arc<crate::bar2area::Owed>, Arc<Payer>)>,
+    /// The MMU invalidate page (`CARAXES_INVALIDATE_PAGE=1`, inv_page.rs).
+    inv: Option<(Arc<crate::inv_page::InvPage>, Arc<crate::inv_page::Driver>)>,
     wake: File,
     iterations: u32,
     last_tick: Instant,
@@ -830,6 +832,7 @@ impl PageHook {
                 page,
                 fe: None,
                 owed: None,
+                inv: None,
                 wake,
                 iterations: 0,
                 last_tick: Instant::now(),
@@ -844,6 +847,16 @@ impl PageHook {
     /// into the tree in the same iteration.
     pub fn with_display(mut self, fe: Arc<crate::display::fe_page::FePage>) -> Self {
         self.fe = Some(fe);
+        self
+    }
+
+    /// Scan the MMU invalidate page and run `driver` for each trigger found.
+    pub fn with_invalidate(
+        mut self,
+        page: Arc<crate::inv_page::InvPage>,
+        driver: Arc<crate::inv_page::Driver>,
+    ) -> Self {
+        self.inv = Some((page, driver));
         self
     }
 
@@ -881,6 +894,10 @@ impl crate::poll::Hook for PageHook {
             .as_ref()
             .is_some_and(|f| f.scan() | f.busy(Instant::now()));
         work |= self.page.scan().work;
+        // The invalidate runs the owed BAR2 sync itself (its trigger syncs).
+        if let Some((p, d)) = &self.inv {
+            work |= crate::inv_page::poll(p, d.as_ref(), woken);
+        }
         work |= self.poll_owed();
         self.iterations = self.iterations.wrapping_add(1);
         if woken || self.iterations % TICK_ITERATIONS == 0 {
