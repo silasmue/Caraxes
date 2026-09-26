@@ -782,6 +782,30 @@ impl BootModel {
         }
     }
 
+    /// The work of a flush point (the flush read, the MMU invalidate, the GSP
+    /// command-queue doorbell): the BAR2 memfd sync, then the BAR1 pool's untracked pages.
+    /// It settles a deferred flush read, counted by `cause`.
+    fn flush_point(&mut self, mem: &GuestMemory, cause: crate::bar2area::Settle) {
+        let root = self.bar_root(3);
+        self.fb.bar2_sync(root, Some(mem));
+        crate::bar1pool::sync_untracked(&mut self.fb);
+        self.fb.bar2_flush_settled(cause);
+    }
+
+    /// Settle a deferred flush read if its sync is owed (a doorbell, the flush clock);
+    /// returns whether one was.
+    pub fn settle_deferred_flush(
+        &mut self,
+        mem: &GuestMemory,
+        cause: crate::bar2area::Settle,
+    ) -> bool {
+        if !self.fb.bar2_flush_pending() {
+            return false;
+        }
+        self.flush_point(mem, cause);
+        true
+    }
+
     /// A trapped BAR1/BAR3 access: walk the guest's page tables in the fake FB.
     pub fn bar_access(
         &mut self,
@@ -800,9 +824,12 @@ impl BootModel {
         if bar == 3 && self.fb.bar2_area().is_some() {
             // With the BAR2 memfd only the trapped pages reach here: the guest RM's flush
             // read (kbusFlushSingle_GV100), its point for "BAR2 writes visible to the GPU".
+            // By default it only marks the sync owed; the next hand-over settles it
+            // (bar2area.rs `DeferredFlush`, docs/caraxes/display-pacing.md).
             self.fb.bar2_note_trapped();
-            self.fb.bar2_sync(Some(root), Some(mem));
-            crate::bar1pool::sync_untracked(&mut self.fb);
+            if !self.fb.bar2_defer_flush() {
+                self.flush_point(mem, crate::bar2area::Settle::SyncPoint);
+            }
         }
         let held = if write && bar == 1 {
             self.gp_put_barrier(mem, root, offset, data.len())
@@ -1242,12 +1269,11 @@ impl BootModel {
                     // it back to VRAM, mark the changed table pages dirty) and follow the
                     // BAR2 tables; the RM flushes and invalidates after every BAR2 PTE
                     // update (kbusUpdateRmAperture_GM107, kern_bus_gm107.c:2757-2785).
-                    let bar2_root = self.bar_root(3);
-                    self.fb.bar2_sync(bar2_root, Some(mem));
                     // The BAR1 area's untracked pages (bar1pool.rs `sync_untracked`): the
                     // replicas' guest writes reach their pages as tracked writes, and a
-                    // table page still in the pool is re-read by the walks below.
-                    crate::bar1pool::sync_untracked(&mut self.fb);
+                    // table page still in the pool is re-read by the walks below. Settles
+                    // a deferred flush read.
+                    self.flush_point(mem, crate::bar2area::Settle::SyncPoint);
                     // The guest changed page tables in VRAM through BAR1; drain the WC
                     // buffers before the host TLB invalidate so RM re-walks fresh tables.
                     self.fb.flush();
@@ -1342,9 +1368,7 @@ impl BootModel {
                     }
                     Some(BootEvent::CmdQueueDoorbell { libos_args_pa: pa }) => {
                         // An RPC may name memory the guest filled through BAR2.
-                        let bar2_root = self.bar_root(3);
-                        self.fb.bar2_sync(bar2_root, Some(mem));
-                        crate::bar1pool::sync_untracked(&mut self.fb);
+                        self.flush_point(mem, crate::bar2area::Settle::SyncPoint);
                         self.doorbells += 1;
                         self.libos_args_pa = Some(pa);
                         notes.push(format!(
@@ -1370,7 +1394,13 @@ impl BootModel {
     /// `CARAXES_BAR2_MEMFD_SYNC_DOORBELL=1`: a BAR2 memfd sync before every doorbell (the
     /// reference for the rule that the guest's flush and invalidate are enough,
     /// docs/caraxes/bar2-memfd.md §3).
+    ///
+    /// A flush read whose sync is still owed is settled here first: the channel may fetch
+    /// what the guest wrote before the doorbell (bar2-memfd.md §3, rule 3).
     fn bar2_doorbell_sync(&mut self, mem: &GuestMemory) {
+        if self.settle_deferred_flush(mem, crate::bar2area::Settle::Doorbell) {
+            return;
+        }
         if self.fb.bar2_area().is_some_and(|a| a.sync_doorbell) {
             let root = self.bar_root(3);
             self.fb.bar2_sync(root, Some(mem));
@@ -3222,6 +3252,111 @@ mod tests {
         assert!(!notes.iter().any(|n| n.contains("queues linked")), "{notes:?}");
         assert_eq!(b.read32(0x0011_0C80), Some(0));
         let _ = std::fs::remove_file(&path);
+    }
+
+    /// A BootModel on a reserved layout with the BAR2 memfd (`defer`: flush reads defer
+    /// their sync): BAR2 page 2 maps the data page `x`, the trapped page 0x1f the flush
+    /// page. Returns the model, `x` and the guest's view of the memfd.
+    fn memfd_model(defer: bool) -> (BootModel, u64, crate::bar2area::SharedView) {
+        use crate::bar2area::{Bar2Area, Config};
+        const MIB: u64 = 1 << 20;
+        let (base, end) = (0x400_0000u64, 0x800_0000u64);
+        let layout = crate::fb::FbLayout::reserved(32 * MIB, 256 * MIB, base, end).unwrap();
+        let f = crate::fixture::rtx2070();
+        let mut b = BootModel::new(f.chip, layout, f.identity(256 * MIB));
+        let vid = |a: u64| ((a >> 12) << 8) | 0b010;
+        let pte = |a: u64| ((a >> 12) << 8) | 1;
+        let (bar2, _) = layout.bar_roots().unwrap();
+        let (pd2, pd1, pd0, pt) = (base + 0x6000, base + 0x7000, base + 0x8000, base + 0x9000);
+        let x = base + 0x10_0000;
+        b.fb.write_u64(bar2, vid(pd2));
+        b.fb.write_u64(pd2, vid(pd1));
+        b.fb.write_u64(pd1, vid(pd0));
+        b.fb.write_u64(pd0 + 8, vid(pt));
+        b.fb.write_u64(pt + 8 * 2, pte(x));
+        b.fb.write_u64(pt + 8 * 0x1f, pte(base + 0x2_0000));
+        let cfg = Config {
+            traps: vec![0x1f000],
+            sync_doorbell: false,
+            defer_flush: defer,
+        };
+        let area = Bar2Area::create(0x20000, &cfg).unwrap();
+        let guest = area.mem.map_again().unwrap();
+        b.fb.set_bar2_area(area).unwrap();
+        assert!(b.fb.bar2_sync(Some(bar2), None));
+        assert_eq!(b.fb.backing(x), crate::fb::Backing::Bar2Memfd(0x2000));
+        (b, x, guest)
+    }
+
+    fn vram_u64(b: &BootModel, pa: u64) -> u64 {
+        let mut w = [0u8; 8];
+        b.fb.read_raw(pa, &mut w);
+        u64::from_le_bytes(w)
+    }
+
+    /// The flush read of BAR2 0x1f000 (docs/caraxes/display-pacing.md): with the deferral
+    /// it answers without the sync, the device's reads still see the guest's bytes, and
+    /// the next doorbell, MMU invalidate or the flush clock writes them to VRAM first.
+    #[test]
+    fn a_flush_read_defers_its_sync_to_the_next_hand_over() {
+        let mem = GuestMemory::new();
+        let (mut b, x, guest) = memfd_model(true);
+        let flush = |b: &mut BootModel| {
+            let mut d = [0u8; 4];
+            b.bar_access(&GuestMemory::new(), 3, 0x1f000, &mut d, false);
+        };
+        let stats = |b: &BootModel| b.fb.bar2_area().unwrap().stats();
+        let syncs0 = stats(&b).syncs;
+        // The guest writes x through BAR2 and flushes: nothing synced, the sync is owed.
+        guest.store_word(2, 0, 0xABCD);
+        flush(&mut b);
+        flush(&mut b);
+        assert_eq!(stats(&b).syncs, syncs0);
+        assert!(b.fb.bar2_flush_pending());
+        assert_eq!(vram_u64(&b, x), 0, "VRAM has it only after a hand-over");
+        assert_eq!(b.fb.read_u64(x), Some(0xABCD), "device reads see the memfd");
+        // A doorbell (the ioeventfd path) settles it before the channels are rung.
+        b.doorbell_pending(&mem);
+        assert_eq!(vram_u64(&b, x), 0xABCD);
+        assert!(!b.fb.bar2_flush_pending());
+        assert_eq!(stats(&b).syncs, syncs0 + 1);
+        // Without an owed flush a doorbell does not sync (sync_doorbell is off).
+        b.doorbell_pending(&mem);
+        assert_eq!(stats(&b).syncs, syncs0 + 1);
+        // The flush clock settles one no hand-over did.
+        guest.store_word(2, 1, 0x1234);
+        flush(&mut b);
+        assert!(b.settle_deferred_flush(&mem, crate::bar2area::Settle::Clock));
+        assert_eq!(vram_u64(&b, x + 8), 0x1234);
+        assert!(!b.settle_deferred_flush(&mem, crate::bar2area::Settle::Clock));
+        // The MMU invalidate settles it (the RM flushes, then invalidates).
+        guest.store_word(2, 2, 0x5678);
+        flush(&mut b);
+        let r = b.regs;
+        b.write32(r.mmu_invalidate_pdb, 0, &mem).unwrap();
+        b.write32(r.mmu_invalidate_upper_pdb, 0, &mem).unwrap();
+        b.write32(r.mmu_invalidate, 0x8000_0005, &mem).unwrap();
+        assert_eq!(vram_u64(&b, x + 16), 0x5678);
+        let s = stats(&b);
+        assert_eq!(
+            (s.deferred, s.settled_doorbell, s.settled_clock, s.settled_sync_point),
+            (4, 1, 1, 1)
+        );
+        assert!(b.fb.bar2_area().unwrap().summary().contains("4 deferred"));
+    }
+
+    /// `CARAXES_BAR2_MEMFD_DEFER_FLUSH=0`: every flush read syncs, as before.
+    #[test]
+    fn without_the_deferral_every_flush_read_syncs() {
+        let (mut b, x, guest) = memfd_model(false);
+        let syncs0 = b.fb.bar2_area().unwrap().stats().syncs;
+        guest.store_word(2, 0, 0xABCD);
+        let mut d = [0u8; 4];
+        b.bar_access(&GuestMemory::new(), 3, 0x1f000, &mut d, false);
+        assert_eq!(vram_u64(&b, x), 0xABCD);
+        assert!(!b.fb.bar2_flush_pending());
+        assert_eq!(b.fb.bar2_area().unwrap().stats().syncs, syncs0 + 1);
+        assert!(b.fb.bar2_area().unwrap().summary().contains("flush reads sync at once"));
     }
 
     /// The GPPut barrier's decision (display-e.md §9): a store that covers USERD + 0x8C of

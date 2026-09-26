@@ -844,9 +844,14 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
             match made {
                 Ok(r) => {
                     eprintln!(
-                        "vfio-user-nvgpu: bar2 memfd: guest BAR2 [0, {size:#x}) offered as {} sparse mmap area(s) of region 3 from a sealed memfd; trapped page(s) {:?}; synced at the trapped pages, MMU invalidates, BAR2 binds and GSP doorbells{} (CARAXES_BAR2_MEMFD=1, docs/caraxes/bar2-memfd.md)",
+                        "vfio-user-nvgpu: bar2 memfd: guest BAR2 [0, {size:#x}) offered as {} sparse mmap area(s) of region 3 from a sealed memfd; trapped page(s) {:?}; synced at {}, MMU invalidates, BAR2 binds and GSP doorbells{} (CARAXES_BAR2_MEMFD=1, docs/caraxes/bar2-memfd.md)",
                         r.areas.len(),
                         cfg.traps.iter().map(|t| format!("{t:#x}")).collect::<Vec<_>>(),
+                        if cfg.defer_flush {
+                            "the first hand-over after a flush read (the next MMU invalidate, GSP or channel doorbell, else the flush clock after 1 ms; CARAXES_BAR2_MEMFD_DEFER_FLUSH=0 syncs at every flush read, docs/caraxes/display-pacing.md)"
+                        } else {
+                            "the trapped pages (CARAXES_BAR2_MEMFD_DEFER_FLUSH=0)"
+                        },
                         if cfg.sync_doorbell { " and every doorbell" } else { "" }
                     );
                     bar2_region = Some(r);
@@ -1107,6 +1112,21 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
                 .unwrap_or_else(PoisonError::into_inner)
                 .display_tick()
         }));
+    }
+    // The BAR2 memfd's flush clock: a flush read's owed sync that no hand-over settled
+    // within the bound (bar2area.rs `DeferredFlush`, docs/caraxes/display-pacing.md).
+    let flush_clock = device
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .bar2_flush_clock();
+    if let Some(c) = flush_clock {
+        let d = device.clone();
+        c.spawn_clock(Box::new(move || {
+            d.lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .settle_bar2_flush()
+        }))
+        .context("bar2 flush clock")?;
     }
     let mut readers = Vec::new();
     if let Some((offset, reader)) = doorbell {

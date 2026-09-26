@@ -230,6 +230,10 @@ guest's tables. So no other page needs to trap.
    that tests this rule.
 3. BAR2 data the GPU consumes (instance memory, scrubbed buffers) is flushed by the RM before it
    is handed to the GPU (`kern_bus_gm107.c:3339-3342`), and reaches VRAM at that flush.
+   Since 2026-09-26 the flush read only marks the sync owed, and the hand-over settles it: the
+   MMU invalidate, the GSP command-queue doorbell, a channel doorbell, or the 1 ms flush clock
+   ([display-pacing.md](display-pacing.md) §3; `CARAXES_BAR2_MEMFD_DEFER_FLUSH=0` syncs at every
+   flush read again).
 
 **Hazards, counted or stated:**
 
