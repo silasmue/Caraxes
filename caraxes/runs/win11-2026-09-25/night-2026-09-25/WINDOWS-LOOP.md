@@ -322,3 +322,50 @@ One boot per iteration (`night-win4.sh`, results in this directory), one model c
   adapters create devices (feature level 11.0). During the probe the UMD/KMD sent 0x2080b202 (3360 bytes, unknown,
   acknowledged with zeros by the diagnostic) five times and GSS pmgr 0x2080a618 (refused: 20512-byte guest params
   against the 20000 of the 610 layout table). The D3D device is the next gate.
+
+### Y42-d3d-pmgr18 (c3585ca1, `CARAXES_WIN_ACK_EXTRA=2080a618`)
+- GSS pmgr 0x2080a618 acknowledged (it was refused for its 20512-byte guest layout against the 610 table's 20000):
+  D3D11CreateDevice on the NVIDIA adapter still returns DXGI_ERROR_UNSUPPORTED (246 ms). The remaining suspect is the
+  UMD's 0x2080b202 (3360 bytes, five calls per device creation), which no header names and no capture has: the device
+  answers it with zeros (the ack-all diagnostic). A capture of its real answer (the host RM with the same request, or a
+  host-RM run with `CARAXES_RECORD_HOST`) is the next step for D3D.
+
+## Bisect table (headless, pure emulation, the Y31 set minus one group each)
+
+| Run | Left refused | Result |
+|---|---|---|
+| Y30 | all seven unknowns (no ack-all) | Code 43 (unload after a CE channel) |
+| Y33 | GSS 0x2080a70a, a709, a801, a02f | **starts** |
+| Y34 | 0x2080a630, 0x20803c01, 0x2081010d | Code 43 |
+| Y37 | the four GSS + 0x20803c01 | **starts** |
+| Y38 | the four GSS + 0x2081010d | Code 43 |
+| Y39 | the four GSS + 0x2080a630 | starts, after one GSP-RM unload and reload (27.5 s / 30.9 s) |
+| Y15 vs Y25 | GET_CONSTRUCTED_FALCON_INFO empty | Code 43 at the NVDEC channel |
+| Y25 | SET_RC_RECOVERY 0x2080220d | Code 43 right after it |
+| Y29 | SET_DEFAULT_VASPACE 0x801812 | Code 43 right after it |
+
+- Required: BINAPI 0x2081010d (acknowledged), the card's falcon list, SET_RC_RECOVERY and SET_DEFAULT_VASPACE
+  acknowledged; 0x2080a630 recommended. Not required: 0x20803c01 and the four GSS commands.
+
+## Host execution: ready to run (not run tonight: the Linux queue held the GPU from 04:31)
+
+- Binary: `/mnt/vmstore/caraxes/win11/vfio-user-nvgpu-cap-e354ce8a` (cap_sys_admin=p, the user's setcap; =
+  winloop-e354ce8a with CARAXES_GUEST_DMA_GPA and the hClientShare fix).
+- Preconditions: no `/mnt/vmstore/caraxes/linux-busy`, no vm4-615 device process; `gpu-up-host.sh` writes `win-busy`,
+  `gpu-down.sh` removes it.
+- Command (from `caraxes/runs/win11-2026-09-25`):
+  `WIN_MEM=4G NIGHT_MAX=600 NIGHT_RUNS='Y43-hostexec' NIGHT_GPU_UP=gpu-up-host.sh WIN_HOST_MODE=exec
+  NIGHT_SERVER=/mnt/vmstore/caraxes/win11/vfio-user-nvgpu-cap-e354ce8a NIGHT_ENV='WIN_HOST_MODE=exec
+  CARAXES_LPWR_2806_OK=1 CARAXES_EMU_GR=1 CARAXES_RUSD=1 CARAXES_WIN_COMPBIT=1 CARAXES_WIN_DISPLAY_QUERIES=1
+  CARAXES_WIN_ACKS=1 CARAXES_PREFER_RECORDED=1 CARAXES_ACK_UNANSWERED=1 WIN_GPU_DISPLAY=0
+  CARAXES_WIN_EXCEPT=2080a70a,2080a709,2080a801,2080a02f,20803c01' ./night-win4.sh night-2026-09-25`
+  (gpu-up-host.sh adds `--host-rm --reserve-vram --reserve-slot 0 --host-exec --register-guest-ram --dma-ranges`,
+  `CARAXES_GUEST_DMA_GPA=1`, `CARAXES_MIRROR_CHANNELS/GR_SHADOW/BARE_CE=1`, floors VRAM 768 / BAR1 96 MiB, BAR1
+  windows 2 x 16 MiB, no pool). With a host RM the kgr answers come from the host (CARAXES_EMU_GR only applies without
+  one) and GET_CONSTRUCTED_FALCON_INFO is forwarded.
+- Expected markers in `gpu.log`/trace: `dma table: ... range(s), host IOVAs; ranges=...`, then `dma table: guest speaks
+  GPA (CARAXES_GUEST_DMA_GPA): N identity alias range(s)` (an `ERROR dma table: GPA aliases refused` line means stop);
+  `reserve`/`reservation` lines for the 1 GiB slot; after the KMD's channels ring their doorbells, mirror lines for host
+  channels (TSGs, GR/CE shadows) instead of "no mirror or shadow VA space rooted there"; no `refused ... leaf` for
+  sysmem PTEs (a GPA outside the aliases would show there). Acceptance: CM_PROB_NONE, nvidia-smi in the guest, a
+  D3D11/KMD channel's work completed on the host, host Xid 0 (`journalctl -k`), win-busy removed after the run.
