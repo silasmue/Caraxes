@@ -1,0 +1,17 @@
+== ladder2 F4 probe=cu at 1790389577.639411510: ./hold.sh eglhigh
+holder pid 6139 alive=1
+holder alive after probe=1
+-- p1-before-cu.out: START wall=1790389577.647 pid=6133 context in 1.37 s 
+RESULT PASS launches=3022 per_s=604.3 gflops=891.1 max_ms=18.7 bad=0 secs=5.0 total=6.4 rc=0 
+-- p2-hold.out: START wall=1790389584.823 pid=6139 context priority requested: high context priority got 0x3101 
+
+-- p3-during-cu.out: START wall=1790389596.956 pid=6152 context in 2.39 s 
+RESULT PASS launches=1631 per_s=325.9 gflops=480.6 max_ms=19.8 bad=0 secs=5.0 total=7.4 rc=0 
+-- p4-after-cu.out: START wall=1790389611.237 pid=6212 context in 2.09 s 
+RESULT PASS launches=2271 per_s=454.1 gflops=669.6 max_ms=17.0 bad=0 secs=5.0 total=7.1 rc=0 
+== failing allocs
+p1-before-cu.rm: 8 c5c0;  slow: 2
+p2-hold.rm: 0 c5c0;  slow: 0
+p3-during-cu.rm: 8 c5c0;  slow: 2
+p4-after-cu.rm: 8 c5c0;  slow: 2
+== end 1790389619.213709511

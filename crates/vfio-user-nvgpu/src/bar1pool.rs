@@ -1041,6 +1041,12 @@ impl PoolGpu for MirrorGpu<'_> {
         for r in roots {
             notes.extend(self.mirror.shadow_resync(self.reg, &mut gm, Some(*r)));
         }
+        // A set-B change this re-sync made goes to the trace: `poll_at` keeps only REFUSED
+        // and ERROR notes, so the recompute that emptied a root's exclusions here never
+        // showed (vm4-615, 2026-09-26, docs/research/va-alloc-bursts-2026-09-26.md).
+        for n in notes.iter().filter(|n| n.contains("set-B")) {
+            self.mirror.trace_note(format!("bar1 pool re-sync: {n}"));
+        }
         // The doorbell ordering rule (mirror.rs `gr_shadow_doorbell`): the worker has
         // applied every plan before anything else runs on the GPU.
         self.mirror.shadow_barrier();

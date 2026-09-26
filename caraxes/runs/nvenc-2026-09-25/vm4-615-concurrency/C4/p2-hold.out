@@ -1,0 +1,8 @@
+INFO device "Leandro VFIO RTX 2070-3G", CUDA context in 485.8 ms
+INFO NVENC API: driver supports 13.1, header 13.1
+INFO NVENC session opened in 20.9 ms
+INFO NVENC codecs: 2, H.264 present
+INFO NVENC caps: max 4096x4096
+INFO NVENC encoder initialised 1920x1080 H.264 P1 ultra-low-latency CBR 20000 kbit/s in 132.6 ms
+HOLDING idle session
+rc=143 (killed after the during probe)

@@ -1,0 +1,14 @@
+window 578437653..598435794 us
+late RPC answers (>100 ms): 0
+RPCs without reply in window: 0
+doorbell lines per second: 578:657 579:1156 580:1117 581:1186 582:1183 583:1209 584:1192 585:1177 586:1209 587:1250 588:1246 589:1229 590:1222 591:1231 592:1237 593:1222 594:1231 595:1205 596:1183 597:1201 598:514
+p1-before-cu.rm: 2 ioctl(s) > 100 ms
+   SLOW ioctl T=1790389742.246 us=240573 type=0x46 nr=0x57 size=64
+   SLOW ioctl T=1790389748.344 us=208742 type=0x46 nr=0x58 size=48
+p2-hold.rm: 1 ioctl(s) > 100 ms
+   SLOW ioctl T=1790389756.961 us=312435 type=0x46 nr=0x57 size=64
+p3-during-cu.rm: 1 ioctl(s) > 100 ms
+   SLOW ioctl T=1790389761.134 us=410406 type=0x46 nr=0x57 size=64
+p4-after-cu.rm: 2 ioctl(s) > 100 ms
+   SLOW ioctl T=1790389825.475 us=274688 type=0x46 nr=0x57 size=64
+   SLOW ioctl T=1790389831.616 us=186012 type=0x46 nr=0x58 size=48

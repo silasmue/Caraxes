@@ -1,0 +1,5 @@
+START wall=1790386084.495 pid=5554 mode=ctx
+cuInit=0
+cuCtxCreate_v2=0
+HOLDING
+rc=143 (killed after the during probe)

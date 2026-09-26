@@ -1,0 +1,9 @@
+START wall=1790387227.878 pid=10263
+egl device 0: EGL_NV_device_cuda EGL_EXT_device_drm EGL_EXT_device_drm_render_node EGL_EXT_device_query_name EGL_EXT_device_persistent_id
+egl device 1: EGL_EXT_device_drm EGL_EXT_device_drm_render_node EGL_EXT_device_query_name EGL_EXT_device_persistent_id
+egl device 2: EGL_MESA_device_software EGL_EXT_device_drm_render_node
+vendor NVIDIA version 1.5
+GL_RENDERER Leandro VFIO RTX 2070-3G/PCIe/SSE2
+setup in 0.97 s
+RESULT PASS frames=13616 fps=226.9 max_frame_ms=39.8 bad=0 secs=60.0 total=61.0
+rc=0

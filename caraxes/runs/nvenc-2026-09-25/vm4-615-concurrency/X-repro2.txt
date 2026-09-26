@@ -1,0 +1,4 @@
+/home/leandro/nvenc/repro2.sh: line 26: 10758 Aborted                 LD_PRELOAD=$LOG timeout 60 vkcube-wayland --c 30 > $O/vk-$k.out 2> $O/vk-$k.rmlog
+probe pid 10743
+vk 1 rc=134 15.137372795s 1 x 0x57 start=1790387406.324018637
+vk long rc=124

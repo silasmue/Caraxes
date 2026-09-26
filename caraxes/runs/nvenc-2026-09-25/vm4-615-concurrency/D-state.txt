@@ -1,0 +1,4 @@
+sunshine: 
+gnome-shell: 7661
+gdm: active
+      3 gnome-shell 

@@ -1,0 +1,17 @@
+== cell G1 at 1790388757.930442667 specs: vk:0:30
+== nvidia users
+      3 Xwayland       3 gnome-shell       3 gsd-xsettings       3 mutter-x11-fram       3 steam       6 steamwebhelper       4 sunshine 
+1972 /usr/libexec/gdm-wayland-session env GNOME_SHELL_SESSIO;2093 /usr/bin/gnome-shell;2807 /home/leandro/.steam/debian-installation/ubuntu12_32/st;2949 /usr/bin/Xwayland :0 -rootless -noreset -accessx -core ;7333 sunshine /home/leandro/.config/sunshine/sunshine.conf;
+-- p1-vk.out: START wall=1790388758.084 pid=7529 device Leandro VFIO RTX 2070-3G 
+RESULT FAIL step=vkCreateDevice(pd,&dci,0,&dev) vkresult=-3 t=14.00 rc=1 
+== rm status!=0
+      1 T=1790388758.206 us=1175 RMCTRL cmd=0x2080012f obj=0xbeef0004 size=1664 status=0x56 params=0000000000000000000000000000000000000000000000000000000000000000
+      1 T=1790388758.317 us=2571 RMCTRL cmd=0x2080012f obj=0xbfef0301 size=1664 status=0x56 params=0000000000000000000000000000000000000000000000000000000000000000
+      1 T=1790388770.952 us=13 RMALLOC class=0xc5c0 parent=0xbeed0100 new=0xbeed90c0 status=0x57 size=0
+== dmesg tail
+[  656.161049] NVRM: ioctl(0x2a, 0x954e6390, 0x20)
+[  656.161107] NVRM: nvidia_close on GPU with minor number 0
+[  656.161164] NVRM: ioctl(0x29, 0x954e6e60, 0x10)
+[  656.161232] NVRM: nvidia_close on GPU with minor number 255
+[  656.161234] NVRM: nvidia_ctl_close
+== end 1790388772.480040884

@@ -1,0 +1,5 @@
+sunshine_alive_at_end=1
+[2026-09-26 01:26:59.551]: Error: [av1_nvenc @ 0x564d9dba5c40] Provided device doesn't support required NVENC features
+[2026-09-26 01:26:59.560]: Error: Could not open codec [av1_nvenc]: Function not implemented
+[2026-09-26 01:27:00.412]: Info: // Testing for available encoders, this may generate errors. You can safely ignore those errors. //
+[2026-09-26 01:27:00.412]: Info: // Ignore any errors mentioned above, they are not relevant. //

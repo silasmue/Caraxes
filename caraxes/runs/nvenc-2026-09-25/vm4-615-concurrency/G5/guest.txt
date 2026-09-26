@@ -1,0 +1,15 @@
+== cell G5 at 1790388984.636875364 specs: cu:0:30
+== nvidia users
+      3 Xwayland       3 gnome-shell       3 gsd-xsettings       3 mutter-x11-fram       3 steam       6 steamwebhelper       4 sunshine 
+1972 /usr/libexec/gdm-wayland-session env GNOME_SHELL_SESSIO;2093 /usr/bin/gnome-shell;2807 /home/leandro/.steam/debian-installation/ubuntu12_32/st;2949 /usr/bin/Xwayland :0 -rootless -noreset -accessx -core ;7333 sunshine /home/leandro/.config/sunshine/sunshine.conf;
+-- p1-cu.out: START wall=1790388984.743 pid=8465 
+RESULT HANG launches=0 phase=1 t=60.00 rc=3 
+== rm status!=0
+      1 T=1790388984.806 us=2481 RMCTRL cmd=0x2080012f obj=0x5c000003 size=1664 status=0x56 params=0000000000000000000000000000000000000000000000000000000000000000
+== dmesg tail
+[  928.940326] NVRM: ioctl(0x2a, 0x9ff50f0, 0x20)
+[  928.940356] NVRM: nvidia_close on GPU with minor number 255
+[  928.940357] NVRM: nvidia_ctl_close
+[  928.940555] NVRM: ioctl(0x34, 0x9ff5c50, 0x1c)
+[  928.940971] NVRM: ioctl(0x57, 0x9ff5bf0, 0x40)
+== end 1790389045.249468571

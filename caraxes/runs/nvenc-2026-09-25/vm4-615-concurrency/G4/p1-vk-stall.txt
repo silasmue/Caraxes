@@ -1,0 +1,6 @@
+window 855936134..868567259 us
+late RPC answers (>100 ms): 0
+RPCs without reply in window: 0
+doorbell lines per second: 855:31 856:523 857:490 858:572 859:521 860:535 861:538 862:532 863:567 864:524 865:374 866:311 867:433 868:252
+p1-vk.rm: 1 ioctl(s) > 100 ms
+   SLOW ioctl T=1790388976.930 us=176390 type=0x46 nr=0x29 size=16

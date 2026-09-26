@@ -1,0 +1,23 @@
+== cell D5 at 1790387207.793595800 specs: cu:0:100 vk:10:80 egl:20:60
+== nvidia users
+      3 Xwayland       3 gnome-shell       3 gsd-xsettings       3 mutter-x11-fram       3 steam       6 steamwebhelper 
+7578 /usr/libexec/gdm-wayland-session env GNOME_SHELL_SESSIO;7661 /usr/bin/gnome-shell;8354 /home/leandro/.steam/debian-installation/ubuntu12_32/st;8655 /usr/bin/Xwayland :0 -rootless -noreset -accessx -core ;
+-- p1-cu.out: START wall=1790387207.877 pid=10236 context in 1.14 s 
+RESULT PASS launches=44119 per_s=441.2 gflops=650.6 max_ms=61.6 bad=0 secs=100.0 total=101.1 rc=0 
+-- p2-vk.out: START wall=1790387217.878 pid=10246 device Leandro VFIO RTX 2070-3G device created fam=2 in 1.31 s 
+RESULT PASS dispatches=13893 per_s=173.7 max_wait_ms=31.8 bad=0 secs=80.0 total=81.6 rc=0 
+-- p3-egl.out: START wall=1790387227.878 pid=10263 GL_RENDERER Leandro VFIO RTX 2070-3G/PCIe/SSE2 
+RESULT PASS frames=13616 fps=226.9 max_frame_ms=39.8 bad=0 secs=60.0 total=61.0 rc=0 
+== rm status!=0
+      1 T=1790387207.886 us=1224 RMCTRL cmd=0x2080012f obj=0x5c000003 size=1664 status=0x56 params=0000000000000000000000000000000000000000000000000000000000000000
+      1 T=1790387217.963 us=1062 RMCTRL cmd=0x2080012f obj=0xbeef0004 size=1664 status=0x56 params=0000000000000000000000000000000000000000000000000000000000000000
+      1 T=1790387218.042 us=1028 RMCTRL cmd=0x2080012f obj=0xbfef0301 size=1664 status=0x56 params=0000000000000000000000000000000000000000000000000000000000000000
+      1 T=1790387227.983 us=3248 RMCTRL cmd=0x2080012f obj=0xbfef0301 size=1664 status=0x56 params=0000000000000000000000000000000000000000000000000000000000000000
+      1 T=1790387228.007 us=863 RMCTRL cmd=0x2080012f obj=0xbeef0004 size=1664 status=0x56 params=0000000000000000000000000000000000000000000000000000000000000000
+== dmesg tail
+[ 1487.019089] NVRM: nvidia_close on GPU with minor number 255
+[ 1487.019090] NVRM: nvidia_ctl_close
+[ 1487.019091] NVRM: VM: nv_alloc_release:1679: 0x000000000f1accd9, 1 page(s), count = 16, page_table = 0x00000000a2f67f5b
+[ 1487.019096] NVRM: nvidia_close on GPU with minor number 255
+[ 1487.019097] NVRM: nvidia_ctl_close
+== end 1790387309.573988173

@@ -1,0 +1,6 @@
+START wall=1790386123.286 pid=5758 mode=alloc
+cuInit=0
+cuCtxCreate_v2=0
+cuMemAlloc=0
+HOLDING
+rc=143 (killed after the during probe)
