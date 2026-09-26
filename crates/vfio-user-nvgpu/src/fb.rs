@@ -1140,6 +1140,24 @@ impl FakeFb {
         true
     }
 
+    /// A flush read with the BAR2 memfd: true when it only marked the sync owed
+    /// (bar2area.rs `DeferredFlush`), false when the caller must sync now.
+    pub fn bar2_defer_flush(&mut self) -> bool {
+        self.bar2.as_deref_mut().is_some_and(|a| a.defer_flush())
+    }
+
+    /// Whether a deferred flush read's sync is owed.
+    pub fn bar2_flush_pending(&self) -> bool {
+        self.bar2.as_deref().is_some_and(|a| a.flush_pending())
+    }
+
+    /// A flush point's sync ran: an owed flush is settled (counted by `cause`).
+    pub fn bar2_flush_settled(&mut self, cause: crate::bar2area::Settle) {
+        if let Some(a) = self.bar2.as_deref_mut() {
+            a.flush_settled(cause);
+        }
+    }
+
     /// Count an access of a trapped BAR2 page.
     pub fn bar2_note_trapped(&self) {
         if let Some(a) = self.bar2.as_deref() {
@@ -2415,6 +2433,7 @@ mod tests {
         let cfg = Config {
             traps: vec![0x1f000],
             sync_doorbell: false,
+            defer_flush: false,
         };
         let area = Bar2Area::create(0x20000, &cfg).unwrap();
         let guest = area.mem.map_again().unwrap();

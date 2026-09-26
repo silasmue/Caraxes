@@ -1,0 +1,70 @@
+== w1-idle-noclient/trace-window.txt.xz
+  378 UPDATE kicks in 16.5 s = 22.9/s; tick period 16.665 ms
+  latch after its tick ms: p50 2.5 / p90 5.0 / p99 10.8 (n=378)
+  ticks between latches: {1: 131, 2: 150, 3: 35, 4: 16, 5: 7, 6: 12, 7: 7, 8: 3, 9: 1, 10: 3, 11: 2, 12: 2, 13: 1, 14: 2, 15: 1, 16: 1, 17: 1, 18: 1, 19: 1}
+  latch tick minus first tick after the kick: {-1: 33, 0: 345}
+  latch -> next kick ms: p50 20.2 / p90 83.5 / p99 261.1 (n=377)
+    latch -> pre-kick flush/invalidate run: p50 11.0 / p90 74.4 / p99 258.6 (n=377)
+    the run: p50 7.2 / p90 12.6 / p99 20.3 (n=377); accesses p50 25.0 / p90 25.0 / p99 28.0 (n=377)
+    run end -> kick: p50 0.7 / p90 2.5 / p99 12.4 (n=377)
+  flush reads 672/s, spacing inside runs ms: p50 0.3 / p90 1.1 / p99 2.8 (n=9307)
+== w2-cursor-noclient/trace-window.txt.xz
+  639 UPDATE kicks in 20.4 s = 31.3/s; tick period 16.667 ms
+  latch after its tick ms: p50 1.3 / p90 4.3 / p99 21.1 (n=639)
+  ticks between latches: {1: 174, 2: 360, 3: 91, 4: 10, 5: 3}
+  latch tick minus first tick after the kick: {-1: 21, 0: 617}
+  latch -> next kick ms: p50 21.6 / p90 33.9 / p99 48.8 (n=639)
+    latch -> pre-kick flush/invalidate run: p50 6.6 / p90 19.5 / p99 36.2 (n=639)
+    the run: p50 12.8 / p90 18.1 / p99 22.3 (n=639); accesses p50 25.0 / p90 25.0 / p99 25.0 (n=639)
+    run end -> kick: p50 0.8 / p90 2.2 / p99 6.4 (n=639)
+  flush reads 722/s, spacing inside runs ms: p50 0.5 / p90 1.2 / p99 2.4 (n=13861)
+== w3-idle-streaming/trace-window.txt.xz
+  354 UPDATE kicks in 20.0 s = 17.7/s; tick period 16.667 ms
+  latch after its tick ms: p50 1.5 / p90 5.4 / p99 9.5 (n=354)
+  ticks between latches: {2: 59, 3: 156, 4: 92, 5: 34, 6: 11, 7: 1}
+  latch tick minus first tick after the kick: {-1: 7, 0: 346}
+  latch -> next kick ms: p50 43.9 / p90 68.0 / p99 95.2 (n=354)
+    latch -> pre-kick flush/invalidate run: p50 36.1 / p90 64.4 / p99 81.2 (n=354)
+    the run: p50 6.7 / p90 15.2 / p99 21.6 (n=354); accesses p50 14.0 / p90 28.0 / p99 34.0 (n=354)
+    run end -> kick: p50 0.7 / p90 2.6 / p99 14.2 (n=354)
+  flush reads 509/s, spacing inside runs ms: p50 0.3 / p90 0.8 / p99 2.9 (n=8255)
+== w4-cursor-streaming/trace-window.txt.xz
+  283 UPDATE kicks in 20.3 s = 13.9/s; tick period 16.667 ms
+  latch after its tick ms: p50 1.8 / p90 5.4 / p99 12.3 (n=283)
+  ticks between latches: {2: 39, 3: 78, 4: 68, 5: 39, 6: 23, 7: 10, 8: 11, 9: 5, 10: 5, 11: 1, 12: 1, 13: 1, 14: 1}
+  latch tick minus first tick after the kick: {-1: 10, 0: 273}
+  latch -> next kick ms: p50 54.0 / p90 110.6 / p99 195.5 (n=282)
+    latch -> pre-kick flush/invalidate run: p50 47.7 / p90 102.7 / p99 187.9 (n=282)
+    the run: p50 4.4 / p90 13.8 / p99 19.4 (n=282); accesses p50 7.0 / p90 25.0 / p99 30.0 (n=282)
+    run end -> kick: p50 0.8 / p90 4.3 / p99 16.3 (n=282)
+  flush reads 435/s, spacing inside runs ms: p50 0.4 / p90 1.0 / p99 2.8 (n=6883)
+== w5-idle-streaming/trace-window.txt.xz
+  311 UPDATE kicks in 20.0 s = 15.6/s; tick period 16.667 ms
+  latch after its tick ms: p50 1.7 / p90 4.9 / p99 15.3 (n=311)
+  ticks between latches: {1: 2, 2: 47, 3: 134, 4: 71, 5: 34, 6: 14, 7: 5, 8: 1, 57: 1, 61: 1}
+  latch tick minus first tick after the kick: {-1: 3, 0: 308}
+  latch -> next kick ms: p50 44.4 / p90 75.7 / p99 109.6 (n=310)
+    latch -> pre-kick flush/invalidate run: p50 34.6 / p90 68.9 / p99 109.0 (n=310)
+    the run: p50 6.4 / p90 15.0 / p99 21.3 (n=310); accesses p50 13.0 / p90 27.0 / p99 33.0 (n=310)
+    run end -> kick: p50 0.7 / p90 5.5 / p99 15.0 (n=310)
+  flush reads 474/s, spacing inside runs ms: p50 0.3 / p90 0.8 / p99 2.9 (n=7563)
+== w6-cursor-streaming/trace-window.txt.xz
+  331 UPDATE kicks in 20.0 s = 16.5/s; tick period 16.667 ms
+  latch after its tick ms: p50 2.0 / p90 7.9 / p99 16.0 (n=331)
+  ticks between latches: {1: 14, 2: 141, 3: 108, 4: 31, 5: 11, 6: 3, 7: 2, 11: 2, 13: 2, 14: 1, 15: 1, 16: 2, 17: 1, 18: 1, 19: 1, 20: 2, 21: 1, 23: 1, 24: 4, 27: 1}
+  latch tick minus first tick after the kick: {-1: 8, 0: 323}
+  latch -> next kick ms: p50 32.6 / p90 67.3 / p99 383.8 (n=330)
+    latch -> pre-kick flush/invalidate run: p50 24.5 / p90 62.1 / p99 381.1 (n=330)
+    the run: p50 6.3 / p90 13.9 / p99 17.6 (n=330); accesses p50 13.0 / p90 28.0 / p99 30.0 (n=330)
+    run end -> kick: p50 0.6 / p90 1.3 / p99 14.7 (n=330)
+  flush reads 528/s, spacing inside runs ms: p50 0.3 / p90 0.7 / p99 2.9 (n=8477)
+== ../../vm4-615-latency/c1-baseline/w2-cursor-noclient/trace-window.txt.xz
+  1141 UPDATE kicks in 20.0 s = 57.0/s; tick period 16.667 ms
+  latch after its tick ms: p50 0.4 / p90 0.7 / p99 14.4 (n=1141)
+  ticks between latches: {1: 1090, 2: 41, 3: 8, 5: 1}
+  latch tick minus first tick after the kick: {-1: 3, 0: 1138}
+  latch -> next kick ms: p50 3.9 / p90 8.5 / p99 21.8 (n=1140)
+    latch -> pre-kick flush/invalidate run: p50 0.7 / p90 1.4 / p99 11.4 (n=1140)
+    the run: p50 2.6 / p90 6.2 / p99 10.7 (n=1140); accesses p50 12.0 / p90 25.0 / p99 25.0 (n=1140)
+    run end -> kick: p50 0.5 / p90 0.8 / p99 2.8 (n=1140)
+  flush reads 1311/s, spacing inside runs ms: p50 0.2 / p90 0.3 / p99 1.1 (n=24359)
