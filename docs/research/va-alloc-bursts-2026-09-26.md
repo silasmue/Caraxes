@@ -116,3 +116,20 @@
   - Pass: 0 host `virtmemAllocResources` lines; 0 `object refused` lines in the device trace; every
     `VAS of guest root ... freed` summary shows `0 map-failed`; "held out of set A" notes appear for
     the surviving client's GR channels; host Xid 0.
+
+## Fix (30a92496, branch vaalloc-2026-09-26)
+
+- `Registry::record_free` (`channel.rs`, `rehome_duplicated_vas`): a VA space freed while a DUP alias
+  of another client names it moves its root, root entries, alloc parameters and server-reserved
+  PDEs to the first surviving alias. The other aliases are repointed, and the FREE trace line
+  carries `registry: vaspace ... kept under ...`.
+- The BAR1 pool's re-sync forwards set-B notes to the trace (`bar1pool.rs` `MirrorGpu::resync`,
+  `Mirror::trace_note`).
+- Tests: `set_b_survives_the_vas_owner_client_free` and
+  `a_vas_owner_freed_last_keeps_the_old_behaviour` (`mirror.rs`).
+- Results: `cargo test -p vfio-user-nvgpu` passes with default features and with `--features v615`,
+  and `tools/check.sh` passes 18 of 18 (emu-boot skipped).
+- Frozen build: `/mnt/vmstore/caraxes/vfio-user-nvgpu-v615-vasdup-30a92496`.
+- GPU cell: `caraxes/runs/nvenc-2026-09-25/vm4-615-tokenfix/PLAN.md` case (e), not run yet.
+- Not changed: the externally owned mirror VAS map (`Mirror::vas`, the CE path) is still dropped
+  with the owner client (`Mirror::free_object`). The shadow path does not use it.
