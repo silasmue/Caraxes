@@ -980,10 +980,16 @@ impl Display {
             // ---- NV5070 / NVC370 / NVC372 on the NVC570 and NVC372 objects
             d::CMD_5070_SYSTEM_GET_CAPS_V2 => {
                 let mut b = params.to_vec();
+                // CARAXES_WIN_DISP_CAPS=<hex byte> (diagnostic): capsTbl[0] (ctrl5070system.h:40-46,
+                // e.g. 0x20 DEEP_COLOR_SUPPORT, 0x40 BUG_644815_DNISO_VIDMEM_ONLY).
+                let caps = std::env::var("CARAXES_WIN_DISP_CAPS")
+                    .ok()
+                    .and_then(|v| u8::from_str_radix(v.trim_start_matches("0x"), 16).ok())
+                    .unwrap_or(0);
                 if b.len() > d::CAPS_5070_TBL {
-                    b[d::CAPS_5070_TBL] = 0;
+                    b[d::CAPS_5070_TBL] = caps;
                 }
-                ok(b, SYNTH, "5070 system caps: none")
+                ok(b, SYNTH, format!("5070 system caps: {caps:#x}"))
             }
             d::CMD_5070_SET_SOR_FLUSH_MODE | d::CMD_5070_SET_RMFREE_FLAGS => {
                 ok(b, ACK, format!("5070 control {cmd:#x}"))
