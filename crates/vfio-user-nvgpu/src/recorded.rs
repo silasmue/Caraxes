@@ -570,7 +570,7 @@ fn gr_fs_info(params: &[u8], f: &Facts) -> Answer {
                 v::NV_OK
             }
             // CHIPLET_GPC_MAP, TPC_MASK, PPC_MASK: {gpcId in, value out}; no floorsweeping.
-            2 | 3 | 4 if gpc >= f.gpcs => NV_ERR_INVALID_ARGUMENT,
+            2..=4 if gpc >= f.gpcs => NV_ERR_INVALID_ARGUMENT,
             2 => {
                 put32(&mut b, d + 4, gpc);
                 v::NV_OK

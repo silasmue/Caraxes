@@ -168,8 +168,15 @@ params = "NV90E6_CTRL_MASTER_GET_VIRTUAL_FUNCTION_ERROR_CONT_INTR_MASK_PARAMS"
 moved_from = "B"
 label = "chip (no ECC, no NVLink: both masks 0)"
 
-# NV2080_CTRL_CMD_GR_GFX_POOL_QUERY_SIZE (kernel-privileged, no caller in the Linux tree) is
-# answered by src/recorded.rs: the Windows KMD sizes its graphics-preemption pool with it.
+# Kernel-privileged (flags 0x40) with no caller in the Linux tree (plan §2 row 24). The Windows
+# KMD sizes its graphics-preemption pool with it: src/recorded.rs answers it ahead of this table
+# (recorded::OVERRIDES), so this refusal is never reached; it stays for the ABI inventory.
+[[control]]
+name = "NV2080_CTRL_CMD_GR_GFX_POOL_QUERY_SIZE"
+params = "NV2080_CTRL_GR_GFX_POOL_QUERY_SIZE_PARAMS"
+moved_from = "B"
+status = "NOT_SUPPORTED"
+label = "refused (no caller in either tree: kernel-privileged GR_GFX_POOL_QUERY_SIZE, E by gsp-plan B)"
 # ---- The category D rows the plan moves to A (docs/caraxes/gsp-plan/d-device-model.md §3
 # and §7, d-controls.tsv `reclass` A). They are D in the inventory; the table takes them
 # because the D rule table (src/ver/v<major>/dmodel.rs) marks them A. `open` rows name the
