@@ -1,0 +1,4 @@
+bash: line 1:  9112 Aborted                 timeout 60 vkcube-wayland --c 120 > /tmp/vk.log 2>&1
+vkcube rc=134 elapsed=37.877550292
+vkcube-wayland: ./cube/cube.c:3802: demo_create_device: Assertion `!err' failed.
+timeout: the monitored command dumped core

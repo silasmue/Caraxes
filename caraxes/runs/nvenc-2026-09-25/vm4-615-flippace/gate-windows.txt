@@ -1,0 +1,12 @@
+A-defer/w1-idle-noclient/ span=20.0s triggers=2568 (128/s) busy_reads=917 | max kick gap 483 ms
+A-defer/w2-cursor-noclient/ span=20.3s triggers=2448 (120/s) busy_reads=8 | max kick gap 42 ms
+A-defer/w3-idle-streaming/ span=20.0s triggers=2239 (112/s) busy_reads=1282 | max kick gap 140 ms
+A-defer/w4-cursor-streaming/ span=20.4s triggers=2637 (129/s) busy_reads=578 | max kick gap 63 ms
+A-defer/w5-idle-streaming/ span=20.0s triggers=2511 (125/s) busy_reads=484 | max kick gap 70 ms
+A-defer/w6-cursor-streaming/ span=20.4s triggers=2494 (122/s) busy_reads=762 | max kick gap 109 ms
+B-sync/w1-idle-noclient/ span=20.0s triggers=1752 (88/s) busy_reads=989 | max kick gap 2300 ms
+B-sync/w2-cursor-noclient/ span=20.3s triggers=1280 (63/s) busy_reads=67 | max kick gap 90 ms
+B-sync/w3-idle-streaming/ span=20.0s triggers=1322 (66/s) busy_reads=594 | max kick gap 154 ms
+B-sync/w4-cursor-streaming/ span=20.5s triggers=1431 (70/s) busy_reads=644 | max kick gap 267 ms
+B-sync/w5-idle-streaming/ span=20.0s triggers=1350 (67/s) busy_reads=439 | max kick gap 149 ms
+B-sync/w6-cursor-streaming/ span=20.4s triggers=1142 (56/s) busy_reads=648 | max kick gap 217 ms

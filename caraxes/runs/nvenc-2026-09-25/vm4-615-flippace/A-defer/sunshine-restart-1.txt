@@ -1,0 +1,18 @@
+sunshine_alive_at_end=1
+[2026-09-26 00:40:55.937]: Error: [av1_nvenc @ 0x617c43003c40] Provided device doesn't support required NVENC features
+[2026-09-26 00:40:55.945]: Error: Could not open codec [av1_nvenc]: Function not implemented
+[2026-09-26 00:40:56.511]: Info: // Testing for available encoders, this may generate errors. You can safely ignore those errors. //
+[2026-09-26 00:40:56.511]: Info: // Ignore any errors mentioned above, they are not relevant. //
+[2026-09-26 00:43:32.835]: Error: Couldn't accept incoming connections: Operation canceled
+sunshine pid 7273, listening on 47989 (web UI 47990)
+[2026-09-26 00:43:36.007]: Info: Creating encoder [h264_nvenc]
+[2026-09-26 00:43:39.577]: Info: Creating encoder [hevc_nvenc]
+[2026-09-26 00:43:40.998]: Info: Creating encoder [av1_nvenc]
+[2026-09-26 00:43:41.207]: Info: Creating encoder [hevc_nvenc]
+[2026-09-26 00:43:42.848]: Info: Found H.264 encoder: h264_nvenc [nvenc]
+[2026-09-26 00:43:35.941]: Info: config: 'capture' = kms
+[2026-09-26 00:43:35.942]: Info: [wayland] Found monitor: Cyrix Corporation 24"
+[2026-09-26 00:43:35.942]: Info: -------- Start of KMS monitor list --------
+[2026-09-26 00:43:35.942]: Info: Monitor 0 is DP-1: Cyrix Corporation 24"
+[2026-09-26 00:43:35.942]: Info: --------- End of KMS monitor list ---------
+[2026-09-26 00:43:35.942]: Debug: Monitor description

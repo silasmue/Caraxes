@@ -1,0 +1,35 @@
+== device threads (pid 2620883)
+top - 02:45:22 up 15:00,  1 user,  load average: 3.83, 2.85, 2.71
+Threads: 8 total, 1 running, 7 sleep, 0 d-sleep, 0 stopped, 0 zombie
+%Cpu(s):  1.7 us,  8.8 sy,  5.5 ni, 82.9 id,  0.2 wa,  0.8 hi,  0.1 si,  0.0 st 
+MiB Mem :  32006.2 total,   5055.2 free,  16736.3 used,  18825.0 buff/cache     
+MiB Swap:  32768.0 total,  25137.9 free,   7630.1 used.  15269.9 avail Mem 
+
+    PID USER      PR  NI    VIRT    RES    SHR S  %CPU  %MEM     TIME+ COMMAND
+2620894 silas     25   5 9792.3m   9.0g   9.0g R  56.7  28.9   2:22.44 doorbel+
+2620883 silas     25   5 9792.3m   9.0g   9.0g S  30.8  28.9   1:06.90 vfio-us+
+2620893 silas     25   5 9792.3m   9.0g   9.0g S   2.0  28.9   0:02.86 bar2-fl+
+2628832 silas     25   5 9792.3m   9.0g   9.0g S   1.0  28.9   0:02.19 shadow-+
+2629228 silas     25   5 9792.3m   9.0g   9.0g S   1.0  28.9   0:00.69 host-ev+
+2620886 silas     25   5 9792.3m   9.0g   9.0g S   0.0  28.9   0:00.00 signals
+2620891 silas     25   5 9792.3m   9.0g   9.0g S   0.0  28.9   0:00.53 display+
+2620895 silas     25   5 9792.3m   9.0g   9.0g S   0.0  28.9   0:00.00 soak
+
+== cloud-hypervisor threads (pid 2620897)
+    PID USER      PR  NI    VIRT    RES    SHR S  %CPU  %MEM     TIME+ COMMAND
+2621456 silas     25   5 9525016   4.6g   4.5g S  14.9  14.6   0:29.87 vcpu1
+2621459 silas     25   5 9525016   4.6g   4.5g S  12.9  14.6   0:44.81 vcpu4
+2621455 silas     25   5 9525016   4.6g   4.5g S  10.9  14.6   0:34.01 vcpu0
+2621461 silas     25   5 9525016   4.6g   4.5g S  10.9  14.6   0:30.39 vcpu6
+2621460 silas     25   5 9525016   4.6g   4.5g S   9.9  14.6   0:37.99 vcpu5
+2621458 silas     25   5 9525016   4.6g   4.5g S   8.9  14.6   0:27.46 vcpu3
+2621462 silas     25   5 9525016   4.6g   4.5g S   8.9  14.6   0:32.71 vcpu7
+2621457 silas     25   5 9525016   4.6g   4.5g S   8.0  14.6   0:32.78 vcpu2
+2621527 silas     25   5 9525016   4.6g   4.5g S   1.0  14.6   0:00.77 _net3_q+
+2620897 silas     25   5 9525016   4.6g   4.5g S   0.0  14.6   0:00.00 cloud-h+
+2620903 silas     25   5 9525016   4.6g   4.5g S   0.0  14.6   0:00.08 vmm
+2620904 silas     25   5 9525016   4.6g   4.5g S   0.0  14.6   0:00.00 http-se+
+2620905 silas     25   5 9525016   4.6g   4.5g S   0.0  14.6   0:00.00 vmm_sig+
+== host
+MemAvailable:   15621140 kB
+3.83 2.85 2.71 4/2222 2676406
