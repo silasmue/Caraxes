@@ -942,6 +942,9 @@ impl Dispatcher {
             }
         }
         let a = self.control_modelled(h_client, h_object, cmd, params);
+        if a.label.starts_with("host") {
+            crate::recorded::record_host(cmd, a.status, params, &a.params);
+        }
         // Only for an object the guest allocated or the internal client's: a control on a
         // freed or unknown handle stays refused.
         let known = h_client == INTERNAL_CLIENT || self.objects.contains_key(&(h_client, h_object));

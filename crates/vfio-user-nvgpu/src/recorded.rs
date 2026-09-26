@@ -213,7 +213,10 @@ impl Recorded {
             // The KMD-block capture ran as an unprivileged user client: its permission
             // refusals (0x1b) and its answers to internal controls (0x20800Axx/Bxx) are not
             // what the kernel caller gets; the device's own answers stay.
-            if status == NV_ERR_INSUFFICIENT_PERMISSIONS || (cmd & 0xFFFF_FE00) == 0x2080_0A00 {
+            let device_run = f[4].contains("device run");
+            if status == NV_ERR_INSUFFICIENT_PERMISSIONS
+                || ((cmd & 0xFFFF_FE00) == 0x2080_0A00 && !device_run)
+            {
                 continue;
             }
             if matches!(cmd, FB_GET_INFO_V2 | BUS_GET_INFO_V2) && status == 0 {
@@ -253,6 +256,31 @@ impl Recorded {
                 entries: HashMap::new(),
             })
         })
+    }
+}
+
+/// `CARAXES_RECORD_HOST=<file>`: every answer the host RM gave (label `host...`) is appended
+/// to `<file>` as a recorded-controls.tsv line (request and answer with zero tails
+/// compressed), so a host-RM run yields the card's answers for the pure-emulation table.
+pub const RECORD_HOST_ENV: &str = "CARAXES_RECORD_HOST";
+
+fn hex_trim(b: &[u8]) -> String {
+    let h: String = b.iter().map(|x| format!("{x:02x}")).collect();
+    let t = h.trim_end_matches('0');
+    let t = if t.len() % 2 == 1 { format!("{t}0") } else { t.to_string() };
+    if t.len() == h.len() { h } else { format!("{}:{t}", b.len()) }
+}
+
+pub fn record_host(cmd: u32, status: u32, req: &[u8], ans: &[u8]) {
+    use std::io::Write;
+    let Ok(path) = std::env::var(RECORD_HOST_ENV) else { return };
+    if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(path) {
+        let _ = writeln!(
+            f,
+            "{cmd:#x}\t{status:#x}\t{}\t{}\thost RM (device run, CARAXES_RECORD_HOST)",
+            hex_trim(req),
+            hex_trim(ans)
+        );
     }
 }
 
@@ -603,6 +631,13 @@ mod tests {
         gpcs: 3,
         tpcs_per_gpc: 6,
     };
+
+    #[test]
+    fn host_answers_are_recorded_in_the_table_format() {
+        assert_eq!(hex_trim(&[1, 2, 0, 0]), "4:0102");
+        assert_eq!(hex_trim(&[1, 2]), "0102");
+        assert_eq!(unhex(&hex_trim(&[0x10, 0, 0])).unwrap(), vec![0x10, 0, 0]);
+    }
 
     #[test]
     fn the_embedded_table_parses() {
