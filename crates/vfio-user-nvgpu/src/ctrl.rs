@@ -1332,14 +1332,19 @@ impl Dispatcher {
             // firmwareVersion[64] @6. The version string is what nvidia-smi shows.
             CMD_GSP_GET_FEATURES => {
                 let mut b = vec![0u8; n];
-                let ver = v::DRIVER_VERSION.as_bytes();
+                // CARAXES_GSP_FW_VERSION: the firmware version string instead of the emulated
+                // driver's (a 617.14 Windows guest against the 615-based model).
+                let env_ver = std::env::var("CARAXES_GSP_FW_VERSION").ok().filter(|s| s.len() < 64);
+                let ver = env_ver.as_deref().unwrap_or(v::DRIVER_VERSION).as_bytes();
                 if n >= v::GSP_FEATURES_SIZE {
+                    // gspFeatures 1, as the card answers (kmd-controls-2026-09-26).
+                    put32(&mut b, 0, 1);
                     b[v::GSP_FEATURES_VALID] = 1;
                     b[v::GSP_FEATURES_DEFAULT_GSP_RM_GPU] = 1;
                     let at = v::GSP_FEATURES_FIRMWARE_VERSION;
                     b[at..at + ver.len()].copy_from_slice(ver);
                 }
-                Answer::ok(b, "synthesized (driver version string; the emulated GSP is that version)", format!("gsp features: valid, {}", v::DRIVER_VERSION))
+                Answer::ok(b, "synthesized (driver version string; the emulated GSP is that version)", format!("gsp features: 1, valid, {}", String::from_utf8_lossy(ver)))
             }
             // Row 97 (ctrl2080bios.h:44-45, 97-104): biosInfoListSize @0, entries {index, data} @4.
             CMD_BIOS_GET_INFO_V2 => {
