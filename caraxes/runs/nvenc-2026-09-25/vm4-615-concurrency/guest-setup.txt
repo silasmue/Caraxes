@@ -1,0 +1,82 @@
+Desktop
+Documents
+Downloads
+Music
+Pictures
+Public
+Templates
+Videos
+bench
+build-6.8.12-caraxesdma.log
+build.log
+caraxes-guest
+caraxes-sottr
+caraxes_dma_range
+conc
+cxbuild
+cxrun
+dmacheck
+gpu
+gsp_tu10x.bin
+ko-orig
+nvenc
+ogkm
+ogkm-610.57.04.tar.zst
+ogkm-cxdbg.tar.zst
+rmioctl-log.c
+rmioctl-log.so
+sniper-system-info.err
+sniper-system-info.json
+stage-kernel
+sunshine-boot-probe-1844.log
+sunshine-boot-probe-1906.log
+sunshine-boot-probe.log
+sunshine-cycles-1950.log
+sunshine-game-2040.log
+sunshine-iso-2040.log
+sunshine-run-1923.log
+uvm-register
+uvm-register.c
+ffnvcodec
+nvenc-probe
+nvenc-probe.c
+repro.sh
+repro2.sh
+rmioctl-log.c
+rmioctl-log.so
+rmioctl-log2.c
+rmioctl-log2.so
+rmioctl-log3.c
+cuwork.c: In function ‘onalrm’:
+cuwork.c:27:146: warning: ignoring return value of ‘write’ declared with attribute ‘warn_unused_result’ [-Wunused-result]
+   27 | static void onalrm(int s){(void)s; char b[160]; int n=snprintf(b,sizeof b,"RESULT HANG launches=%ld phase=%d t=%.2f\n",launches,phase,now()-t0); write(1,b,n); _exit(3);}
+      |                                                                                                                                                  ^~~~~~~~~~~~
+eglwork.c: In function ‘onalrm’:
+eglwork.c:16:127: warning: ignoring return value of ‘write’ declared with attribute ‘warn_unused_result’ [-Wunused-result]
+   16 | static void onalrm(int s){(void)s; char b[128]; int n=snprintf(b,sizeof b,"RESULT HANG frames=%ld t=%.2f\n",frames,now()-t0); write(1,b,n); _exit(3);}
+      |                                                                                                                               ^~~~~~~~~~~~
+build rc=0
+ffnvcodec: /home/leandro/nvenc/ffnvcodec
+nvenc build rc=0
+total 252
+drwxrwxr-x  4 leandro leandro  4096 Sep 26 02:23 .
+drwxr-x--- 31 leandro leandro  4096 Sep 26 02:23 ..
+-rw-r--r--  1 leandro leandro  3930 Sep 25 21:09 comp_spv.h
+-rwxrwxr-x  1 leandro leandro 16448 Sep 26 02:23 cuhold
+-rw-r--r--  1 leandro leandro  1617 Sep 25 22:15 cuhold.c
+-rwxrwxr-x  1 leandro leandro 16872 Sep 26 02:23 cuwork
+-rw-r--r--  1 leandro leandro  4797 Sep 25 21:10 cuwork.c
+-rwxrwxr-x  1 leandro leandro 26128 Sep 26 02:23 eglwork
+-rw-r--r--  1 leandro leandro  4751 Sep 26 02:00 eglwork.c
+-rw-r--r--  1 leandro leandro  1422 Sep 25 21:13 grun.sh
+-rwxr-xr-x  1 leandro leandro   415 Sep 26 02:01 hold.sh
+drwxrwxr-x  7 leandro leandro  4096 Sep 26 01:27 inc
+-rw-r--r--  1 leandro leandro  1336 Sep 25 22:15 ladder.sh
+-rwxr-xr-x  1 leandro leandro  1604 Sep 26 02:15 ladder2.sh
+-rwxrwxr-x  1 leandro leandro 41256 Sep 26 02:23 nvenc-hold
+-rw-r--r--  1 leandro leandro 24517 Sep 25 22:15 nvenc-hold.c
+drwxrwxr-x 41 leandro leandro  4096 Sep 26 02:18 out
+-rw-r--r--  1 leandro leandro  6555 Sep 26 00:42 rmioctl-log.c
+-rwxrwxr-x  1 leandro leandro 16064 Sep 26 02:23 rmioctl-log.so
+-rwxrwxr-x  1 leandro leandro 26072 Sep 26 02:23 vkcomp
+-rw-r--r--  1 leandro leandro  6629 Sep 25 21:10 vkcomp.c

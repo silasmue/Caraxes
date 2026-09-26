@@ -1,0 +1,2 @@
+nvenc-probe
+rmioctl-log3.so

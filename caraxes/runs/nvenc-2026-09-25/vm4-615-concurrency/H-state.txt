@@ -1,0 +1,4 @@
+sunshine: 
+gnome-shell: 
+gdm: inactive
+

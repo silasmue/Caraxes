@@ -1,0 +1,6 @@
+window 688272119..708255984 us
+late RPC answers (>100 ms): 0
+RPCs without reply in window: 0
+doorbell lines per second: 688:1 689:1 690:1 691:1 692:1 693:1 694:1 695:1 696:1 697:1 698:1 699:1 700:1 701:1 702:1 703:1 704:1 705:1 706:1 707:1
+p1-cu.rm: 1 ioctl(s) > 100 ms
+   SLOW ioctl T=1790388779.503 us=638073 type=0x46 nr=0x57 size=64

@@ -1,0 +1,3 @@
+START wall=1790389112.998 pid=8881
+RESULT HANG launches=0 phase=1 t=60.00
+rc=3

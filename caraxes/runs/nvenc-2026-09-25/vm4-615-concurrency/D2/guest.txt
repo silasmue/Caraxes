@@ -1,0 +1,23 @@
+== cell D2 at 1790386887.550682262 specs: cu:0:60 cu:0:60 cu:0:60
+== nvidia users
+      3 Xwayland       3 gnome-shell       3 gsd-xsettings       3 mutter-x11-fram       3 steam       6 steamwebhelper 
+7578 /usr/libexec/gdm-wayland-session env GNOME_SHELL_SESSIO;7661 /usr/bin/gnome-shell;8354 /home/leandro/.steam/debian-installation/ubuntu12_32/st;8655 /usr/bin/Xwayland :0 -rootless -noreset -accessx -core ;
+-- p1-cu.out: START wall=1790386887.674 pid=9207 context in 3.89 s 
+RESULT PASS launches=22590 per_s=376.5 gflops=555.2 max_ms=42.8 bad=0 secs=60.0 total=63.9 rc=0 
+-- p2-cu.out: START wall=1790386887.671 pid=9205 context in 3.98 s 
+RESULT PASS launches=22451 per_s=374.2 gflops=551.8 max_ms=42.8 bad=0 secs=60.0 total=64.0 rc=0 
+-- p3-cu.out: START wall=1790386887.672 pid=9206 context in 3.97 s 
+RESULT PASS launches=22727 per_s=378.8 gflops=558.5 max_ms=42.6 bad=0 secs=60.0 total=64.0 rc=0 
+== rm status!=0
+      1 T=1790386887.704 us=5976 RMCTRL cmd=0x2080012f obj=0x5c000003 size=1664 status=0x56 params=0000000000000000000000000000000000000000000000000000000000000000
+      1 T=1790386887.719 us=2600 RMCTRL cmd=0x2080012f obj=0x5c000003 size=1664 status=0x56 params=0000000000000000000000000000000000000000000000000000000000000000
+      1 T=1790386887.720 us=2935 RMCTRL cmd=0x2080012f obj=0x5c000003 size=1664 status=0x56 params=0000000000000000000000000000000000000000000000000000000000000000
+      1 T=1790386953.575 us=10159 RMCTRL cmd=0x20800146 obj=0x5c000003 size=0 status=0x63 params=
+      1 T=1790386953.673 us=700 RMCTRL cmd=0x20800146 obj=0x5c000003 size=0 status=0x63 params=
+== dmesg tail
+[ 1131.175795] NVRM: nvidia_close on GPU with minor number 255
+[ 1131.175796] NVRM: nvidia_ctl_close
+[ 1131.252171] NVRM: ioctl(0x4a, 0x4f812bc0, 0xb8)
+[ 1131.252239] NVRM: ioctl(0x4a, 0x4f812a00, 0xb8)
+[ 1131.252282] NVRM: ioctl(0x57, 0x4f812900, 0x40)
+== end 1790386953.762031859

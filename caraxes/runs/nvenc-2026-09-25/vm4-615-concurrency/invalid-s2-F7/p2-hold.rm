@@ -1,0 +1,2 @@
+bash: line 1: /home/leandro/conc/hold.sh: Permission denied
+bash: line 1: exec: /home/leandro/conc/hold.sh: cannot execute: Permission denied

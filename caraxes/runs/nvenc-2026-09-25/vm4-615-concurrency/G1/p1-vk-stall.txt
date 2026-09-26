@@ -1,0 +1,12 @@
+window 651138786..663091039 us
+late RPC answers (>100 ms): 0
+RPCs without reply in window: 0
+doorbell lines per second: 652:11 660:91 661:20
+p1-vk.rm: 7 ioctl(s) > 100 ms
+   SLOW ioctl T=1790388758.752 us=151175 type=0x46 nr=0x2b size=48
+   T=1790388758.752 us=151175 RMALLOC class=0x902d parent=0xbeef0100 new=0xbeef502d status=0 size=0
+   SLOW ioctl T=1790388759.524 us=123175 type=0x46 nr=0x2b size=48
+   T=1790388759.524 us=123175 RMALLOC class=0x902d parent=0xbeed0100 new=0xbeed502d status=0 size=0
+   SLOW ioctl T=1790388770.794 us=111343 type=0x46 nr=0x29 size=16
+   SLOW ioctl T=1790388771.533 us=164406 type=0x46 nr=0x29 size=16
+   SLOW ioctl T=1790388772.117 us=286893 type=0x46 nr=0x29 size=16

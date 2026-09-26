@@ -1,0 +1,2 @@
+7333, sunshine, 188 MiB
+8465, ./cuwork, 10 MiB
