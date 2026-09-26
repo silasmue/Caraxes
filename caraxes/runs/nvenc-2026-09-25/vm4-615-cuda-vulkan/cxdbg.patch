@@ -1,0 +1,810 @@
+diff -ru /mnt/vmstore/caraxes/ogkm-615.71.09/src/nvidia/src/kernel/gpu/fifo/channel_descendant.c src/nvidia/src/kernel/gpu/fifo/channel_descendant.c
+--- /mnt/vmstore/caraxes/ogkm-615.71.09/src/nvidia/src/kernel/gpu/fifo/channel_descendant.c	2026-09-24 10:53:42.574312334 +0200
++++ src/nvidia/src/kernel/gpu/fifo/channel_descendant.c	2026-09-25 23:12:57.174713412 +0200
+@@ -31,8 +31,8 @@
+ #include "kernel/gpu/mig_mgr/kernel_mig_manager.h"
+ #include "platform/sli/sli.h"
+ 
+-NV_STATUS
+-chandesConstruct_IMPL
++static NV_STATUS
++chandesConstruct_IMPL__cxinner
+ (
+     ChannelDescendant *pChannelDescendant,
+     CALL_CONTEXT *pCallContext,
+@@ -334,3 +334,19 @@
+ 
+     return NV_OK;
+ }
++
++/* CXDBG wrapper */
++NV_STATUS
++chandesConstruct_IMPL
++(
++    ChannelDescendant *pChannelDescendant,
++    CALL_CONTEXT *pCallContext,
++    RS_RES_ALLOC_PARAMS_INTERNAL *pParams,
++    PARAM_TO_ENGDESC_FUNCTION *pParamToEngDescFn
++)
++{
++    NV_STATUS cxStatus = chandesConstruct_IMPL__cxinner(pChannelDescendant, pCallContext, pParams, pParamToEngDescFn);
++    if (cxStatus != NV_OK)
++        NV_PRINTF(LEVEL_ERROR, "CXDBG chandesConstruct_IMPL -> 0x%x class 0x%x hClient 0x%x hParent 0x%x hObject 0x%x\n", cxStatus, pParams->externalClassId, pParams->hClient, pParams->hParent, pParams->hResource);
++    return cxStatus;
++}
+diff -ru /mnt/vmstore/caraxes/ogkm-615.71.09/src/nvidia/src/kernel/gpu/fifo/kernel_ctxshare.c src/nvidia/src/kernel/gpu/fifo/kernel_ctxshare.c
+--- /mnt/vmstore/caraxes/ogkm-615.71.09/src/nvidia/src/kernel/gpu/fifo/kernel_ctxshare.c	2026-09-24 10:53:42.574312334 +0200
++++ src/nvidia/src/kernel/gpu/fifo/kernel_ctxshare.c	2026-09-25 23:12:57.183720621 +0200
+@@ -39,8 +39,8 @@
+ #define SUBCTXID_EHEAP_OWNER NvU32_BUILD('n','v','r','m')
+ #define VASPACEID_EHEAP_OWNER NvU32_BUILD('n','v','r','m')
+ 
+-NV_STATUS
+-kctxshareapiConstruct_IMPL
++static NV_STATUS
++kctxshareapiConstruct_IMPL__cxinner
+ (
+     KernelCtxShareApi *pKernelCtxShareApi,
+     CALL_CONTEXT *pCallContext,
+@@ -324,8 +324,8 @@
+     return NV_TRUE;
+ }
+ 
+-NV_STATUS
+-kctxshareConstruct_IMPL
++static NV_STATUS
++kctxshareConstruct_IMPL__cxinner
+ (
+     KernelCtxShare *pKernelCtxShare
+ )
+@@ -711,3 +711,31 @@
+         NV_ASSERT(pBlock == NULL);
+     }
+ }
++
++/* CXDBG wrapper */
++NV_STATUS
++kctxshareapiConstruct_IMPL
++(
++    KernelCtxShareApi *pKernelCtxShareApi,
++    CALL_CONTEXT *pCallContext,
++    RS_RES_ALLOC_PARAMS_INTERNAL *pParams
++)
++{
++    NV_STATUS cxStatus = kctxshareapiConstruct_IMPL__cxinner(pKernelCtxShareApi, pCallContext, pParams);
++    if (cxStatus != NV_OK)
++        NV_PRINTF(LEVEL_ERROR, "CXDBG kctxshareapiConstruct_IMPL -> 0x%x class 0x%x hClient 0x%x hParent 0x%x hObject 0x%x\n", cxStatus, pParams->externalClassId, pParams->hClient, pParams->hParent, pParams->hResource);
++    return cxStatus;
++}
++
++/* CXDBG wrapper */
++NV_STATUS
++kctxshareConstruct_IMPL
++(
++    KernelCtxShare *pKernelCtxShare
++)
++{
++    NV_STATUS cxStatus = kctxshareConstruct_IMPL__cxinner(pKernelCtxShare);
++    if (cxStatus != NV_OK)
++        NV_PRINTF(LEVEL_ERROR, "CXDBG kctxshareConstruct_IMPL -> 0x%x\n", cxStatus);
++    return cxStatus;
++}
+diff -ru /mnt/vmstore/caraxes/ogkm-615.71.09/src/nvidia/src/kernel/gpu/gpu_resource.c src/nvidia/src/kernel/gpu/gpu_resource.c
+--- /mnt/vmstore/caraxes/ogkm-615.71.09/src/nvidia/src/kernel/gpu/gpu_resource.c	2026-09-24 10:53:42.575773184 +0200
++++ src/nvidia/src/kernel/gpu/gpu_resource.c	2026-09-25 23:12:57.175016425 +0200
+@@ -47,8 +47,8 @@
+ 
+ #include "g_allclasses.h"
+ 
+-NV_STATUS
+-gpuresConstruct_IMPL
++static NV_STATUS
++gpuresConstruct_IMPL__cxinner
+ (
+     GpuResource *pGpuResource,
+     CALL_CONTEXT *pCallContext,
+@@ -485,3 +485,18 @@
+ 
+     return NV_OK;
+ }
++
++/* CXDBG wrapper */
++NV_STATUS
++gpuresConstruct_IMPL
++(
++    GpuResource *pGpuResource,
++    CALL_CONTEXT *pCallContext,
++    RS_RES_ALLOC_PARAMS_INTERNAL *pParams
++)
++{
++    NV_STATUS cxStatus = gpuresConstruct_IMPL__cxinner(pGpuResource, pCallContext, pParams);
++    if (cxStatus != NV_OK)
++        NV_PRINTF(LEVEL_ERROR, "CXDBG gpuresConstruct_IMPL -> 0x%x class 0x%x hClient 0x%x hParent 0x%x hObject 0x%x\n", cxStatus, pParams->externalClassId, pParams->hClient, pParams->hParent, pParams->hResource);
++    return cxStatus;
++}
+diff -ru /mnt/vmstore/caraxes/ogkm-615.71.09/src/nvidia/src/kernel/gpu/gr/kernel_graphics.c src/nvidia/src/kernel/gpu/gr/kernel_graphics.c
+--- /mnt/vmstore/caraxes/ogkm-615.71.09/src/nvidia/src/kernel/gpu/gr/kernel_graphics.c	2026-09-24 10:53:42.577968572 +0200
++++ src/nvidia/src/kernel/gpu/gr/kernel_graphics.c	2026-09-26 00:14:53.185754511 +0200
+@@ -626,8 +626,8 @@
+ /*!
+  * @brief Initialize static data that isn't collected right away
+  */
+-NV_STATUS
+-kgraphicsInitializeDeferredStaticData_IMPL
++static NV_STATUS
++kgraphicsInitializeDeferredStaticData_IMPL__cxinner
+ (
+     OBJGPU *pGpu,
+     KernelGraphics *pKernelGraphics,
+@@ -1780,8 +1780,8 @@
+     return NV_OK;
+ }
+ 
+-NV_STATUS
+-kgraphicsAllocKgraphicsBuffers_KERNEL
++static NV_STATUS
++kgraphicsAllocKgraphicsBuffers_KERNEL__cxinner
+ (
+     OBJGPU *pGpu,
+     KernelGraphics *pKernelGraphics,
+@@ -1914,8 +1914,8 @@
+ /*!
+  * @brief Map a GR ctx buffer
+  */
+-NV_STATUS
+-kgraphicsMapCtxBuffer_IMPL
++static NV_STATUS
++kgraphicsMapCtxBuffer_IMPL__cxinner
+ (
+     OBJGPU *pGpu,
+     KernelGraphics *pKernelGraphics,
+@@ -4681,3 +4681,54 @@
+ {
+ }
+ 
++
++/* CXDBG wrapper */
++NV_STATUS
++kgraphicsMapCtxBuffer_IMPL
++(
++    OBJGPU *pGpu,
++    KernelGraphics *pKernelGraphics,
++    MEMORY_DESCRIPTOR *pMemDesc,
++    OBJVASPACE *pVAS,
++    VA_LIST *pVaList,
++    NvBool bAlignSize,
++    NvBool bIsReadOnly
++)
++{
++    NV_STATUS cxStatus = kgraphicsMapCtxBuffer_IMPL__cxinner(pGpu, pKernelGraphics, pMemDesc, pVAS, pVaList, bAlignSize, bIsReadOnly);
++    if (cxStatus != NV_OK)
++        NV_PRINTF(LEVEL_ERROR, "CXDBG kgraphicsMapCtxBuffer_IMPL -> 0x%x vas %p valist %p mapcount %llu memdesc %p size 0x%llx align %d ro %d\n", cxStatus, pVAS, pVaList, (NvU64)vaListMapCount(pVaList), pMemDesc, pMemDesc ? pMemDesc->Size : 0, bAlignSize, bIsReadOnly);
++    return cxStatus;
++}
++
++/* CXDBG wrapper */
++NV_STATUS
++kgraphicsAllocKgraphicsBuffers_KERNEL
++(
++    OBJGPU *pGpu,
++    KernelGraphics *pKernelGraphics,
++    KernelGraphicsContext *pKernelGraphicsContext,
++    KernelChannel *pKernelChannel
++)
++{
++    NV_STATUS cxStatus = kgraphicsAllocKgraphicsBuffers_KERNEL__cxinner(pGpu, pKernelGraphics, pKernelGraphicsContext, pKernelChannel);
++    if (cxStatus != NV_OK)
++        NV_PRINTF(LEVEL_ERROR, "CXDBG kgraphicsAllocKgraphicsBuffers_KERNEL -> 0x%x\n", cxStatus);
++    return cxStatus;
++}
++
++/* CXDBG wrapper */
++NV_STATUS
++kgraphicsInitializeDeferredStaticData_IMPL
++(
++    OBJGPU *pGpu,
++    KernelGraphics *pKernelGraphics,
++    NvHandle hClient,
++    NvHandle hSubdevice
++)
++{
++    NV_STATUS cxStatus = kgraphicsInitializeDeferredStaticData_IMPL__cxinner(pGpu, pKernelGraphics, hClient, hSubdevice);
++    if (cxStatus != NV_OK)
++        NV_PRINTF(LEVEL_ERROR, "CXDBG kgraphicsInitializeDeferredStaticData_IMPL -> 0x%x\n", cxStatus);
++    return cxStatus;
++}
+diff -ru /mnt/vmstore/caraxes/ogkm-615.71.09/src/nvidia/src/kernel/gpu/gr/kernel_graphics_context.c src/nvidia/src/kernel/gpu/gr/kernel_graphics_context.c
+--- /mnt/vmstore/caraxes/ogkm-615.71.09/src/nvidia/src/kernel/gpu/gr/kernel_graphics_context.c	2026-09-24 10:53:42.578773206 +0200
++++ src/nvidia/src/kernel/gpu/gr/kernel_graphics_context.c	2026-09-25 23:12:57.180061473 +0200
+@@ -1111,8 +1111,8 @@
+  * 1. Allocate main GR context buffer
+  * 2. Sets up GR context memory descriptor by calling kchannelSetEngineContextMemDesc
+  */
+-NV_STATUS
+-kgrctxAllocMainCtxBuffer_IMPL
++static NV_STATUS
++kgrctxAllocMainCtxBuffer_IMPL__cxinner
+ (
+     OBJGPU *pGpu,
+     KernelGraphicsContext *pKernelGraphicsContext,
+@@ -1200,8 +1200,8 @@
+ /*!
+  * @brief Allocate and setup the GR ctx patch buffer
+  */
+-NV_STATUS
+-kgrctxAllocPatchBuffer_IMPL
++static NV_STATUS
++kgrctxAllocPatchBuffer_IMPL__cxinner
+ (
+     OBJGPU *pGpu,
+     KernelGraphicsContext *pKernelGraphicsContext,
+@@ -1273,8 +1273,8 @@
+ /*!
+  * @brief Allocate the local ctx PM buffer
+  */
+-NV_STATUS
+-kgrctxAllocPmBuffer_IMPL
++static NV_STATUS
++kgrctxAllocPmBuffer_IMPL__cxinner
+ (
+     OBJGPU *pGpu,
+     KernelGraphicsContext *pKernelGraphicsContext,
+@@ -1375,8 +1375,8 @@
+ /*!
+  * This function allocates and maps various GR buffers.
+  */
+-NV_STATUS
+-kgrctxAllocCtxBuffers_IMPL
++static NV_STATUS
++kgrctxAllocCtxBuffers_IMPL__cxinner
+ (
+     OBJGPU *pGpu,
+     KernelGraphicsContext *pKernelGraphicsContext,
+@@ -1466,8 +1466,8 @@
+ }
+ 
+ // Map common buffer to a channel's context helper function
+-NV_STATUS
+-kgrctxMapGlobalCtxBuffer_IMPL
++static NV_STATUS
++kgrctxMapGlobalCtxBuffer_IMPL__cxinner
+ (
+     OBJGPU                *pGpu,
+     KernelGraphicsContext *pKernelGraphicsContext,
+@@ -1547,8 +1547,8 @@
+ //
+ // Map common buffers to a channel's context
+ //
+-NV_STATUS
+-kgrctxMapGlobalCtxBuffers_IMPL
++static NV_STATUS
++kgrctxMapGlobalCtxBuffers_IMPL__cxinner
+ (
+     OBJGPU                *pGpu,
+     KernelGraphicsContext *pKernelGraphicsContext,
+@@ -1611,8 +1611,8 @@
+ /*!
+  * @brief This function allocates and maps various GR buffers.
+  */
+-NV_STATUS
+-kgrctxMapCtxBuffers_IMPL
++static NV_STATUS
++kgrctxMapCtxBuffers_IMPL__cxinner
+ (
+     OBJGPU *pGpu,
+     KernelGraphicsContext *pKernelGraphicsContext,
+@@ -1709,8 +1709,8 @@
+ /*!
+  * @brief Set parameters for promoting the PA of a ctx buffer to physical RM.
+  */
+-NV_STATUS
+-kgrctxPrepareInitializeCtxBuffer_IMPL
++static NV_STATUS
++kgrctxPrepareInitializeCtxBuffer_IMPL__cxinner
+ (
+     OBJGPU *pGpu,
+     KernelGraphicsContext *pKernelGraphicsContext,
+@@ -1881,8 +1881,8 @@
+ /*!
+  * @brief Set parameters for promoting the VA of a ctx buffer to physical RM.
+  */
+-NV_STATUS
+-kgrctxPreparePromoteCtxBuffer_IMPL
++static NV_STATUS
++kgrctxPreparePromoteCtxBuffer_IMPL__cxinner
+ (
+     OBJGPU *pGpu,
+     KernelGraphicsContext *pKernelGraphicsContext,
+@@ -3755,3 +3755,156 @@
+     }
+     SLI_LOOP_END;
+ }
++
++/* CXDBG wrapper */
++NV_STATUS
++kgrctxAllocCtxBuffers_IMPL
++(
++    OBJGPU *pGpu,
++    KernelGraphicsContext *pKernelGraphicsContext,
++    KernelGraphics *pKernelGraphics,
++    KernelGraphicsObject *pKernelGraphicsObject
++)
++{
++    NV_STATUS cxStatus = kgrctxAllocCtxBuffers_IMPL__cxinner(pGpu, pKernelGraphicsContext, pKernelGraphics, pKernelGraphicsObject);
++    if (cxStatus != NV_OK)
++        NV_PRINTF(LEVEL_ERROR, "CXDBG kgrctxAllocCtxBuffers_IMPL -> 0x%x\n", cxStatus);
++    return cxStatus;
++}
++
++/* CXDBG wrapper */
++NV_STATUS
++kgrctxMapCtxBuffers_IMPL
++(
++    OBJGPU *pGpu,
++    KernelGraphicsContext *pKernelGraphicsContext,
++    KernelGraphics *pKernelGraphics,
++    KernelGraphicsObject *pKernelGraphicsObject
++)
++{
++    NV_STATUS cxStatus = kgrctxMapCtxBuffers_IMPL__cxinner(pGpu, pKernelGraphicsContext, pKernelGraphics, pKernelGraphicsObject);
++    if (cxStatus != NV_OK)
++        NV_PRINTF(LEVEL_ERROR, "CXDBG kgrctxMapCtxBuffers_IMPL -> 0x%x\n", cxStatus);
++    return cxStatus;
++}
++
++/* CXDBG wrapper */
++NV_STATUS
++kgrctxPrepareInitializeCtxBuffer_IMPL
++(
++    OBJGPU *pGpu,
++    KernelGraphicsContext *pKernelGraphicsContext,
++    KernelGraphics *pKernelGraphics,
++    KernelChannel *pKernelChannel,
++    NvU32 externalId,
++    NV2080_CTRL_GPU_PROMOTE_CTX_BUFFER_ENTRY *pEntry,
++    NvBool *pbAddEntry
++)
++{
++    NV_STATUS cxStatus = kgrctxPrepareInitializeCtxBuffer_IMPL__cxinner(pGpu, pKernelGraphicsContext, pKernelGraphics, pKernelChannel, externalId, pEntry, pbAddEntry);
++    if (cxStatus != NV_OK)
++        NV_PRINTF(LEVEL_ERROR, "CXDBG kgrctxPrepareInitializeCtxBuffer_IMPL -> 0x%x\n", cxStatus);
++    return cxStatus;
++}
++
++/* CXDBG wrapper */
++NV_STATUS
++kgrctxPreparePromoteCtxBuffer_IMPL
++(
++    OBJGPU *pGpu,
++    KernelGraphicsContext *pKernelGraphicsContext,
++    KernelChannel *pKernelChannel,
++    NvU32 externalId,
++    NV2080_CTRL_GPU_PROMOTE_CTX_BUFFER_ENTRY *pEntry,
++    NvBool *pbAddEntry
++)
++{
++    NV_STATUS cxStatus = kgrctxPreparePromoteCtxBuffer_IMPL__cxinner(pGpu, pKernelGraphicsContext, pKernelChannel, externalId, pEntry, pbAddEntry);
++    if (cxStatus != NV_OK)
++        NV_PRINTF(LEVEL_ERROR, "CXDBG kgrctxPreparePromoteCtxBuffer_IMPL -> 0x%x\n", cxStatus);
++    return cxStatus;
++}
++
++/* CXDBG wrapper */
++NV_STATUS
++kgrctxMapGlobalCtxBuffer_IMPL
++(
++    OBJGPU                *pGpu,
++    KernelGraphicsContext *pKernelGraphicsContext,
++    KernelGraphics        *pKernelGraphics,
++    NvU32                  gfid,
++    OBJVASPACE            *pVAS,
++    GR_GLOBALCTX_BUFFER    buffId,
++    NvBool                 bIsReadOnly
++)
++{
++    NV_STATUS cxStatus = kgrctxMapGlobalCtxBuffer_IMPL__cxinner(pGpu, pKernelGraphicsContext, pKernelGraphics, gfid, pVAS, buffId, bIsReadOnly);
++    if (cxStatus != NV_OK)
++        NV_PRINTF(LEVEL_ERROR, "CXDBG kgrctxMapGlobalCtxBuffer_IMPL -> 0x%x\n", cxStatus);
++    return cxStatus;
++}
++
++/* CXDBG wrapper */
++NV_STATUS
++kgrctxMapGlobalCtxBuffers_IMPL
++(
++    OBJGPU                *pGpu,
++    KernelGraphicsContext *pKernelGraphicsContext,
++    KernelGraphics        *pKernelGraphics,
++    NvU32                  gfid,
++    KernelChannel         *pKernelChannel
++)
++{
++    NV_STATUS cxStatus = kgrctxMapGlobalCtxBuffers_IMPL__cxinner(pGpu, pKernelGraphicsContext, pKernelGraphics, gfid, pKernelChannel);
++    if (cxStatus != NV_OK)
++        NV_PRINTF(LEVEL_ERROR, "CXDBG kgrctxMapGlobalCtxBuffers_IMPL -> 0x%x\n", cxStatus);
++    return cxStatus;
++}
++
++/* CXDBG wrapper */
++NV_STATUS
++kgrctxAllocMainCtxBuffer_IMPL
++(
++    OBJGPU *pGpu,
++    KernelGraphicsContext *pKernelGraphicsContext,
++    KernelGraphics *pKernelGraphics,
++    KernelChannel *pKernelChannel
++)
++{
++    NV_STATUS cxStatus = kgrctxAllocMainCtxBuffer_IMPL__cxinner(pGpu, pKernelGraphicsContext, pKernelGraphics, pKernelChannel);
++    if (cxStatus != NV_OK)
++        NV_PRINTF(LEVEL_ERROR, "CXDBG kgrctxAllocMainCtxBuffer_IMPL -> 0x%x\n", cxStatus);
++    return cxStatus;
++}
++
++/* CXDBG wrapper */
++NV_STATUS
++kgrctxAllocPatchBuffer_IMPL
++(
++    OBJGPU *pGpu,
++    KernelGraphicsContext *pKernelGraphicsContext,
++    KernelGraphics *pKernelGraphics,
++    KernelChannel *pKernelChannel
++)
++{
++    NV_STATUS cxStatus = kgrctxAllocPatchBuffer_IMPL__cxinner(pGpu, pKernelGraphicsContext, pKernelGraphics, pKernelChannel);
++    if (cxStatus != NV_OK)
++        NV_PRINTF(LEVEL_ERROR, "CXDBG kgrctxAllocPatchBuffer_IMPL -> 0x%x\n", cxStatus);
++    return cxStatus;
++}
++
++/* CXDBG wrapper */
++NV_STATUS
++kgrctxAllocPmBuffer_IMPL
++(
++    OBJGPU *pGpu,
++    KernelGraphicsContext *pKernelGraphicsContext,
++    KernelGraphics *pKernelGraphics,
++    KernelChannel *pKernelChannel
++)
++{
++    NV_STATUS cxStatus = kgrctxAllocPmBuffer_IMPL__cxinner(pGpu, pKernelGraphicsContext, pKernelGraphics, pKernelChannel);
++    if (cxStatus != NV_OK)
++        NV_PRINTF(LEVEL_ERROR, "CXDBG kgrctxAllocPmBuffer_IMPL -> 0x%x\n", cxStatus);
++    return cxStatus;
++}
+diff -ru /mnt/vmstore/caraxes/ogkm-615.71.09/src/nvidia/src/kernel/gpu/gr/kernel_graphics_manager.c src/nvidia/src/kernel/gpu/gr/kernel_graphics_manager.c
+--- /mnt/vmstore/caraxes/ogkm-615.71.09/src/nvidia/src/kernel/gpu/gr/kernel_graphics_manager.c	2026-09-24 10:53:42.578773206 +0200
++++ src/nvidia/src/kernel/gpu/gr/kernel_graphics_manager.c	2026-09-25 23:12:57.183234727 +0200
+@@ -414,8 +414,8 @@
+  * @param[in]  grRouteInfo                   Client-provided info to direct GR accesses
+  * @param[out] ppKernelGraphics (Optional)   Ptr to store appropriate KernelGraphics *, if desired.
+  */
+-NV_STATUS
+-kgrmgrCtrlRouteKGRWithDevice_IMPL
++static NV_STATUS
++kgrmgrCtrlRouteKGRWithDevice_IMPL__cxinner
+ (
+     OBJGPU *pGpu,
+     KernelGraphicsManager *pKernelGraphicsManager,
+@@ -1145,3 +1145,20 @@
+     return NV_OK;
+ }
+ 
++
++/* CXDBG wrapper */
++NV_STATUS
++kgrmgrCtrlRouteKGRWithDevice_IMPL
++(
++    OBJGPU *pGpu,
++    KernelGraphicsManager *pKernelGraphicsManager,
++    Device *pDevice,
++    const NV2080_CTRL_GR_ROUTE_INFO *pGrRouteInfo,
++    KernelGraphics **ppKernelGraphics
++)
++{
++    NV_STATUS cxStatus = kgrmgrCtrlRouteKGRWithDevice_IMPL__cxinner(pGpu, pKernelGraphicsManager, pDevice, pGrRouteInfo, ppKernelGraphics);
++    if (cxStatus != NV_OK)
++        NV_PRINTF(LEVEL_ERROR, "CXDBG kgrmgrCtrlRouteKGRWithDevice_IMPL -> 0x%x\n", cxStatus);
++    return cxStatus;
++}
+diff -ru /mnt/vmstore/caraxes/ogkm-615.71.09/src/nvidia/src/kernel/gpu/gr/kernel_graphics_object.c src/nvidia/src/kernel/gpu/gr/kernel_graphics_object.c
+--- /mnt/vmstore/caraxes/ogkm-615.71.09/src/nvidia/src/kernel/gpu/gr/kernel_graphics_object.c	2026-09-24 10:53:42.578773206 +0200
++++ src/nvidia/src/kernel/gpu/gr/kernel_graphics_object.c	2026-09-26 00:47:43.340261511 +0200
+@@ -47,8 +47,8 @@
+  * When UVM is enabled, this function is responsible only for updating the PA of
+  * a given context buffer, and not the VA.
+  */
+-NV_STATUS
+-kgrobjPromoteContext_IMPL
++static NV_STATUS
++kgrobjPromoteContext_IMPL__cxinner
+ (
+     OBJGPU *pGpu,
+     KernelGraphicsObject *pKernelGraphicsObject,
+@@ -132,12 +132,19 @@
+     params.hObject     = RES_GET_PARENT_HANDLE(pChannelDescendant);
+     params.entryCount  = entryCount;
+ 
++    for (i = 0; i < entryCount; ++i)
++        NV_PRINTF(LEVEL_ERROR, "CXDBG promote %u/%u chan 0x%x/0x%x subdev 0x%x: id %u init %u nonmapped %u size 0x%llx attr 0x%x pa 0x%llx va 0x%llx\n",
++                  i, entryCount, params.hChanClient, params.hObject, RES_GET_HANDLE(pSubdevice),
++                  params.promoteEntry[i].bufferId, params.promoteEntry[i].bInitialize, params.promoteEntry[i].bNonmapped,
++                  params.promoteEntry[i].size, params.promoteEntry[i].physAttr, params.promoteEntry[i].gpuPhysAddr,
++                  params.promoteEntry[i].gpuVirtAddr);
+     status = pRmApi->Control(pRmApi,
+                              RES_GET_CLIENT_HANDLE(pSubdevice),
+                              RES_GET_HANDLE(pSubdevice),
+                              NV2080_CTRL_CMD_GPU_PROMOTE_CTX,
+                              &params,
+                              sizeof(params));
++    NV_PRINTF(LEVEL_ERROR, "CXDBG promote chan 0x%x/0x%x: %u entries -> 0x%x\n", params.hChanClient, params.hObject, entryCount, status);
+ 
+     if (status == NV_OK)
+     {
+@@ -169,8 +176,9 @@
+  * @param[in]  pKernelGraphics
+  * @param[in]  pKernelGraphicsObject
+  */
++static NV_STATUS _kgrAlloc(OBJGPU *pGpu, KernelGraphics *pKernelGraphics, KernelGraphicsObject *pKernelGraphicsObject);
+ static NV_STATUS
+-_kgrAlloc
++_kgrAlloc__cxinner
+ (
+     OBJGPU               *pGpu,
+     KernelGraphics       *pKernelGraphics,
+@@ -282,8 +290,8 @@
+ //
+ // Graphics engine object creation routine.
+ //
+-NV_STATUS
+-kgrobjConstruct_IMPL
++static NV_STATUS
++kgrobjConstruct_IMPL__cxinner
+ (
+     KernelGraphicsObject         *pKernelGraphicsObject,
+     CALL_CONTEXT                 *pCallContext,
+@@ -315,7 +323,15 @@
+ 
+         NV_ASSERT_OR_RETURN(pkChannel != NULL, NV_ERR_INVALID_STATE);
+ 
+-        if (kgrctxFromKernelChannel(pkChannel, &pKernelGraphicsObject->pKernelGraphicsContext) == NV_OK)
++        NV_STATUS cxCtx = kgrctxFromKernelChannel(pkChannel, &pKernelGraphicsObject->pKernelGraphicsContext);
++        NV_PRINTF(LEVEL_ERROR, "CXDBG kgrobj: class 0x%x hClient 0x%x hParent 0x%x hObject 0x%x chid %u runqueue %u ctxLookup 0x%x hKGC chan 0x%x tsg 0x%x legacy %d vas %p\n",
++                  pParams->externalClassId, pParams->hClient, pParams->hParent, pParams->hResource,
++                  pkChannel->ChID, kchannelGetRunqueue(pkChannel), cxCtx, pkChannel->hKernelGraphicsContext,
++                  (pkChannel->pKernelChannelGroupApi != NULL) ? pkChannel->pKernelChannelGroupApi->hKernelGraphicsContext : 0,
++                  (pkChannel->pKernelChannelGroupApi != NULL && pkChannel->pKernelChannelGroupApi->pKernelChannelGroup != NULL) ?
++                      (int)pkChannel->pKernelChannelGroupApi->pKernelChannelGroup->bLegacyMode : -1,
++                  pkChannel->pVAS);
++        if (cxCtx == NV_OK)
+         {
+             KernelGraphicsContext *pKernelGraphicsContext = pKernelGraphicsObject->pKernelGraphicsContext;
+ 
+@@ -402,8 +418,8 @@
+ /*!
+  * @brief Set up MMIO memDesc for Compute Object
+  */
+-NV_STATUS
+-kgrobjSetComputeMmio_IMPL
++static NV_STATUS
++kgrobjSetComputeMmio_IMPL__cxinner
+ (
+     OBJGPU               *pGpu,
+     KernelGraphicsObject *pKernelGraphicsObject
+@@ -726,3 +742,66 @@
+     }
+ }
+ 
++
++/* CXDBG wrapper */
++NV_STATUS
++kgrobjConstruct_IMPL
++(
++    KernelGraphicsObject         *pKernelGraphicsObject,
++    CALL_CONTEXT                 *pCallContext,
++    RS_RES_ALLOC_PARAMS_INTERNAL *pParams
++)
++{
++    NV_STATUS cxStatus = kgrobjConstruct_IMPL__cxinner(pKernelGraphicsObject, pCallContext, pParams);
++    if (cxStatus != NV_OK)
++        NV_PRINTF(LEVEL_ERROR, "CXDBG kgrobjConstruct_IMPL -> 0x%x class 0x%x hClient 0x%x hParent 0x%x hObject 0x%x\n", cxStatus, pParams->externalClassId, pParams->hClient, pParams->hParent, pParams->hResource);
++    return cxStatus;
++}
++
++/* CXDBG wrapper */
++NV_STATUS
++kgrobjPromoteContext_IMPL
++(
++    OBJGPU *pGpu,
++    KernelGraphicsObject *pKernelGraphicsObject,
++    KernelGraphics *pKernelGraphics
++)
++{
++    NV_STATUS cxStatus = kgrobjPromoteContext_IMPL__cxinner(pGpu, pKernelGraphicsObject, pKernelGraphics);
++    if (cxStatus != NV_OK)
++        NV_PRINTF(LEVEL_ERROR, "CXDBG kgrobjPromoteContext_IMPL -> 0x%x\n", cxStatus);
++    return cxStatus;
++}
++
++/* CXDBG wrapper */
++NV_STATUS
++kgrobjSetComputeMmio_IMPL
++(
++    OBJGPU               *pGpu,
++    KernelGraphicsObject *pKernelGraphicsObject
++)
++{
++    NV_STATUS cxStatus = kgrobjSetComputeMmio_IMPL__cxinner(pGpu, pKernelGraphicsObject);
++    if (cxStatus != NV_OK)
++        NV_PRINTF(LEVEL_ERROR, "CXDBG kgrobjSetComputeMmio_IMPL -> 0x%x\n", cxStatus);
++    return cxStatus;
++}
++
++/* CXDBG wrapper */
++static NV_STATUS
++_kgrAlloc
++(
++    OBJGPU               *pGpu,
++    KernelGraphics       *pKernelGraphics,
++    KernelGraphicsObject *pKernelGraphicsObject
++)
++{
++    NV_STATUS cxStatus = _kgrAlloc__cxinner(pGpu, pKernelGraphics, pKernelGraphicsObject);
++    {
++        ChannelDescendant *cxCd = staticCast(pKernelGraphicsObject, ChannelDescendant);
++        NV_PRINTF(LEVEL_ERROR, "CXDBG _kgrAlloc class 0x%x chid %u kgrctx %p vas %p -> 0x%x\n", cxCd->resourceDesc.externalClassId, cxCd->pKernelChannel->ChID, pKernelGraphicsObject->pKernelGraphicsContext, cxCd->pKernelChannel->pVAS, cxStatus);
++    }
++    if (cxStatus != NV_OK)
++        NV_PRINTF(LEVEL_ERROR, "CXDBG _kgrAlloc -> 0x%x\n", cxStatus);
++    return cxStatus;
++}
+diff -ru /mnt/vmstore/caraxes/ogkm-615.71.09/src/nvidia/src/kernel/gpu/subdevice/subdevice.c src/nvidia/src/kernel/gpu/subdevice/subdevice.c
+--- /mnt/vmstore/caraxes/ogkm-615.71.09/src/nvidia/src/kernel/gpu/subdevice/subdevice.c	2026-09-24 10:53:42.601038000 +0200
++++ src/nvidia/src/kernel/gpu/subdevice/subdevice.c	2026-09-26 00:47:43.339948938 +0200
+@@ -309,8 +309,8 @@
+     return subdeviceGetByDeviceAndGpu(pClient, NULL, pGpu, ppSubdevice);
+ }
+ 
+-NV_STATUS
+-subdeviceGetByDeviceAndGpu_IMPL
++static NV_STATUS
++subdeviceGetByDeviceAndGpu_IMPL__cxinner
+ (
+     RsClient         *pClient,
+     Device           *pDevice,
+@@ -519,3 +519,19 @@
+     krcWatchdogChangeState(pKernelRc, GPU_GET_KERNEL_WATCHDOG(pGpu), pSubdevice, RM_CLIENT_DESTRUCTION);
+ }
+ 
++
++/* CXDBG wrapper */
++NV_STATUS
++subdeviceGetByDeviceAndGpu_IMPL
++(
++    RsClient         *pClient,
++    Device           *pDevice,
++    OBJGPU           *pGpu,
++    Subdevice       **ppSubdevice
++)
++{
++    NV_STATUS cxStatus = subdeviceGetByDeviceAndGpu_IMPL__cxinner(pClient, pDevice, pGpu, ppSubdevice);
++    if (cxStatus != NV_OK)
++        NV_PRINTF(LEVEL_ERROR, "CXDBG subdeviceGetByDeviceAndGpu_IMPL -> 0x%x\n", cxStatus);
++    return cxStatus;
++}
+diff -ru /mnt/vmstore/caraxes/ogkm-615.71.09/src/nvidia/src/kernel/rmapi/alloc_free.c src/nvidia/src/kernel/rmapi/alloc_free.c
+--- /mnt/vmstore/caraxes/ogkm-615.71.09/src/nvidia/src/kernel/rmapi/alloc_free.c	2026-09-24 10:53:42.611773445 +0200
++++ src/nvidia/src/kernel/rmapi/alloc_free.c	2026-09-25 23:12:57.173983927 +0200
+@@ -683,8 +683,8 @@
+     return NV_OK;
+ }
+ 
+-NV_STATUS
+-serverAllocResourceUnderLock
++static NV_STATUS
++serverAllocResourceUnderLock__cxinner
+ (
+     RsServer *pServer,
+     RS_RES_ALLOC_PARAMS *pRmAllocParams
+@@ -748,6 +748,8 @@
+         status = clientGetResourceRef(pClient, hParent, &pParentRef);
+         if (status != NV_OK)
+         {
++            NV_PRINTF(LEVEL_ERROR, "CXDBG alloc: parent 0x%x not in client 0x%x (class 0x%x hObject 0x%x) -> 0x%x\n",
++                      hParent, hClient, pRmAllocParams->externalClassId, pRmAllocParams->hResource, status);
+             goto done;
+         }
+         pLockInfo->pContextRef = pParentRef;
+@@ -922,6 +924,8 @@
+ 
+             NV_ASSERT_OK_OR_GOTO(status,
+                 resservSwapTlsCallContext(&pOldContext, &callContext), done);
++            NV_PRINTF(LEVEL_ERROR, "CXDBG alloc: RPC for class 0x%x hClient 0x%x hParent 0x%x hObject 0x%x\n",
++                      pRmAllocParams->externalClassId, pRmAllocParams->hClient, pRmAllocParams->hParent, pRmAllocParams->hResource);
+             NV_RM_RPC_ALLOC_OBJECT(pGpu,
+                                    pRmAllocParams->hClient,
+                                    pRmAllocParams->hParent,
+@@ -1189,8 +1193,8 @@
+                                     RMAPI_ALLOC_FLAGS_NONE, NvP64_NULL, &pRmApi->defaultSecInfo);
+ }
+ 
+-NV_STATUS
+-rmapiAllocWithSecInfo
++static NV_STATUS
++rmapiAllocWithSecInfo__cxinner
+ (
+     RM_API              *pRmApi,
+     NvHandle             hClient,
+@@ -1767,3 +1771,39 @@
+     }
+     return NV_OK;
+ }
++
++/* CXDBG wrapper */
++NV_STATUS
++serverAllocResourceUnderLock
++(
++    RsServer *pServer,
++    RS_RES_ALLOC_PARAMS *pRmAllocParams
++)
++{
++    NV_STATUS cxStatus = serverAllocResourceUnderLock__cxinner(pServer, pRmAllocParams);
++    if (cxStatus != NV_OK)
++        NV_PRINTF(LEVEL_ERROR, "CXDBG serverAllocResourceUnderLock -> 0x%x class 0x%x hClient 0x%x hParent 0x%x hObject 0x%x\n", cxStatus, pRmAllocParams->externalClassId, pRmAllocParams->hClient, pRmAllocParams->hParent, pRmAllocParams->hResource);
++    return cxStatus;
++}
++
++/* CXDBG wrapper */
++NV_STATUS
++rmapiAllocWithSecInfo
++(
++    RM_API              *pRmApi,
++    NvHandle             hClient,
++    NvHandle             hParent,
++    NvHandle            *phObject,
++    NvU32                hClass,
++    NvP64                pAllocParams,
++    NvU32                paramsSize,
++    NvU32                flags,
++    NvP64                pRightsRequested,
++    API_SECURITY_INFO   *pSecInfo
++)
++{
++    NV_STATUS cxStatus = rmapiAllocWithSecInfo__cxinner(pRmApi, hClient, hParent, phObject, hClass, pAllocParams, paramsSize, flags, pRightsRequested, pSecInfo);
++    if (cxStatus != NV_OK)
++        NV_PRINTF(LEVEL_ERROR, "CXDBG rmapiAllocWithSecInfo -> 0x%x\n", cxStatus);
++    return cxStatus;
++}
+diff -ru /mnt/vmstore/caraxes/ogkm-615.71.09/src/nvidia/src/libraries/resserv/src/rs_client.c src/nvidia/src/libraries/resserv/src/rs_client.c
+--- /mnt/vmstore/caraxes/ogkm-615.71.09/src/nvidia/src/libraries/resserv/src/rs_client.c	2026-09-24 10:53:42.630125445 +0200
++++ src/nvidia/src/libraries/resserv/src/rs_client.c	2026-09-25 23:12:57.174365330 +0200
+@@ -494,8 +494,8 @@
+     return NV_FALSE;
+ }
+ 
+-NV_STATUS
+-clientAllocResource_IMPL
++static NV_STATUS
++clientAllocResource_IMPL__cxinner
+ (
+     RsClient   *pClient,
+     RsServer   *pServer,
+@@ -1847,3 +1847,18 @@
+         listRemove(&pClient->accessBackRefList, pAccessBackRef);
+     }
+ }
++
++/* CXDBG wrapper */
++NV_STATUS
++clientAllocResource_IMPL
++(
++    RsClient   *pClient,
++    RsServer   *pServer,
++    RS_RES_ALLOC_PARAMS_INTERNAL *pParams
++)
++{
++    NV_STATUS cxStatus = clientAllocResource_IMPL__cxinner(pClient, pServer, pParams);
++    if (cxStatus != NV_OK)
++        NV_PRINTF(LEVEL_ERROR, "CXDBG clientAllocResource_IMPL -> 0x%x class 0x%x hClient 0x%x hParent 0x%x hObject 0x%x\n", cxStatus, pParams->externalClassId, pParams->hClient, pParams->hParent, pParams->hResource);
++    return cxStatus;
++}

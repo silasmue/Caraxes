@@ -1,0 +1,8 @@
+vk before rc=0 10.540815742s 0 x 0x57
+probe pid 5384
+vk during rc=124 66.401522103s 0 x 0x57
+probe: DEC frames=3600 seconds=50.841 fps=70.8 psnr_y_min=63.12 psnr_y_avg=72.12 (the decoded luma against the pattern; includes the copy to the host and the comparison) RESULT PASS 
+vk after rc=0 7.932809085s 0 x 0x57
+  18843 /home/leandro/cxrun/stock-a/kmsg.txt
+      2 /home/leandro/cxrun/stock-a/kmsg-filtered.txt
+  18845 total

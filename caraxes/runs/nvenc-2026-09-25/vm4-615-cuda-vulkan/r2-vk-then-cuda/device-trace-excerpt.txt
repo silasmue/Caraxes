@@ -1,0 +1,24 @@
+# vm4-615, device vfio-user-nvgpu-v615-invhold-3bad9810, session-615-20260926-021223, run r2 (grep of gpu-trace.log,
+# copied from the terminal before the next boot truncated the trace; device clock in us)
+   423144478 E boot: alloc: alloc 0xa06c object 0xcef80002 under 0xbeef0003: tsg 0xcef80002 engineType 0x1 vaspace 0xbeef0300 grpID 45 (kernel-assigned) [guest]
+   423286970 E boot: alloc: alloc 0x9067 object 0xcef00080 under 0xcef80002: ctxshare 0xcef00080 vaspace 0xbeef0300 [guest]
+   423289082 E boot: alloc: alloc 0xc46f object 0xbeee0100 under 0xcef80002: channel 0xbeee0100 chid 48 engineType 0x1 gpfifo va 0x4620000 x 32768
+   423308397 E boot: alloc: alloc 0xc46f object 0xbeee0101 under 0xbeef0003: channel 0xbeee0101 chid 54 engineType 0xb
+   423325266 E boot: alloc: alloc 0xc46f object 0xbeee0102 under 0xbeef0003: channel 0xbeee0102 chid 55 engineType 0xc
+   423459450 E boot: rx seq 7648 GSP_RM_ALLOC (103) sequence 7574 length 64 checksum ok: hClient=0xc1d00087 hParent=0xbeee0100 hObject=0xbeee502d hClass=0x902d
+   423460804 E boot: rx seq 7649 GSP_RM_ALLOC (103) sequence 7575 length 64 checksum ok: hClient=0xc1d00087 hParent=0xbeee0100 hObject=0xbeeea0b5 hClass=0xc5b5
+   423485269 E boot: rx seq 7652 GSP_RM_ALLOC (103) sequence 7578 length 64 checksum ok: hClient=0xc1d00087 hParent=0xbeee0100 hObject=0xbeee3901 hClass=0xa140
+   423511281 E boot: rx seq 7653 GSP_RM_ALLOC (103) sequence 7579 length 64 checksum ok: hClient=0xc1d00087 hParent=0xbeee0100 hObject=0xbeee9097 hClass=0xc597
+   423541625 E boot: ctrl 0x20801208: gr ctxsw zcull bind: client 0xc1d00087 channel 0xbeee0100 va 0x4770000 mode 2 -> status 0x0
+   423542282 E boot: ctrl 0x20801210: GR_SET_CTXSW_PREEMPTION_MODE (no context switch): ok -> status 0x0 [synthesized (NV_OK echo, nothing acted on: no host channel before part 2)]
+# 423.5 s .. 434.6 s: no doorbell for chid 48, 54 or 55, no mirror of chid 48 (doorbells in the window: chid 46 x1339, 15 x1028, 17 x954, 2 x914, 25 x674, 33 x341, 5 x330)
+  1007910:   434633258 E boot: rx seq 7660 FREE (10) sequence 7586 length 48 checksum ok: hRoot=0xc1d00087 hParent=0x0 hObject=0xbeeea0b5
+  1007918:   434633735 E boot: rx seq 7661 FREE (10) sequence 7587 length 48 checksum ok: hRoot=0xc1d00087 hParent=0x0 hObject=0xbeee9097
+  1007926:   434634136 E boot: rx seq 7662 FREE (10) sequence 7588 length 48 checksum ok: hRoot=0xc1d00087 hParent=0x0 hObject=0xbeee502d
+  1007935:   434634574 E boot: rx seq 7663 FREE (10) sequence 7589 length 48 checksum ok: hRoot=0xc1d00087 hParent=0x0 hObject=0xbeee3901
+  1007944:   434634955 E boot: rx seq 7664 FREE (10) sequence 7590 length 48 checksum ok: hRoot=0xc1d00087 hParent=0x0 hObject=0xbeee0100
+# (the guest's c5c0 on 0xbeee0100 follows here and never reaches the device)
+  1008996:   434800877 E boot: rx seq 7713 FREE (10) sequence 7639 length 48 checksum ok: hRoot=0xc1d00087 hParent=0x0 hObject=0xbeee8500
+  1009035:   434814963 E boot: rx seq 7714 FREE (10) sequence 7640 length 48 checksum ok: hRoot=0xc1d00087 hParent=0x0 hObject=0xbeee0101
+  1009142:   434846074 E boot: rx seq 7716 FREE (10) sequence 7642 length 48 checksum ok: hRoot=0xc1d00087 hParent=0x0 hObject=0xbeee0102
+  1009154:   434851323 E boot: rx seq 7717 FREE (10) sequence 7643 length 48 checksum ok: hRoot=0xc1d00087 hParent=0x0 hObject=0xcef00080

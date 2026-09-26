@@ -1,0 +1,2 @@
+[  257.853196] NVRM: GPU0 nvAssertFailedNoLog: Assertion failed: bAwakenIntrPending @ kern_disp_0300.c:748
+[  267.320040] NVRM: nvAssertFailedNoLog: Assertion failed: bAwakenIntrPending @ kern_disp_0300.c:748

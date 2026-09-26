@@ -1,0 +1,8 @@
+probe pid 5868
+vk during2 rc=134 41.678978483s 1 x 0x57
+probe: 
+vk long rc=124
+vk after rc=0 10.508306249s 0 x 0x57
+  21943 /home/leandro/cxrun/r2-vk-then-cuda/kmsg.txt
+    389 /home/leandro/cxrun/r2-vk-then-cuda/kmsg-filtered.txt
+  22332 total

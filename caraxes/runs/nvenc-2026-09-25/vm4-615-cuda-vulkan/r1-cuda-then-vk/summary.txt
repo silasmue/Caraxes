@@ -1,0 +1,8 @@
+vk before rc=0 4.836963721s 0 x 0x57
+probe pid 4752
+vk during rc=0 18.094938234s 0 x 0x57
+probe: DEC frames=3600 seconds=45.630 fps=78.9 psnr_y_min=63.12 psnr_y_avg=72.12 (the decoded luma against the pattern; includes the copy to the host and the comparison) RESULT PASS 
+vk after rc=0 11.697146521s 0 x 0x57
+  31201 /home/leandro/cxrun/r1-cuda-then-vk/kmsg.txt
+    708 /home/leandro/cxrun/r1-cuda-then-vk/kmsg-filtered.txt
+  31909 total

@@ -1,0 +1,676 @@
+[  187.950802] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x73 hClient 0xc1d00027 hParent 0xbfef0300 hObject 0xbfef0073
+[  187.981887] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x73 hClient 0xc1d00028 hParent 0xbeef0003 hObject 0xbeef0073
+[  187.997059] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x9096 hClient 0xc1d00028 hParent 0xbeef0004 hObject 0xbeef9960
+[  188.036422] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x2081 hClient 0xc1d00028 hParent 0xbeef0004 hObject 0xbeef0032
+[  190.964970] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x73 hClient 0xc1d0002c hParent 0xbfef0300 hObject 0xbfef0073
+[  190.982678] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x73 hClient 0xc1d0002d hParent 0xbeef0003 hObject 0xbeef0073
+[  190.995446] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x9096 hClient 0xc1d0002d hParent 0xbeef0004 hObject 0xbeef9960
+[  191.028960] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x2081 hClient 0xc1d0002d hParent 0xbeef0004 hObject 0xbeef0032
+[  191.124078] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x9067 hClient 0xc1d0002d hParent 0xcef80000 hObject 0xcef00000
+[  191.186953] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x9072 hClient 0xc1d0002d hParent 0xbeef0100 hObject 0xbeef4900
+[  191.187505] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x9072 hClient 0xc1d0002d hParent 0xbeef0100 hObject 0xbeef4901
+[  191.188041] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x9072 hClient 0xc1d0002d hParent 0xbeef0100 hObject 0xbeef4902
+[  191.191001] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x9072 hClient 0xc1d0002d hParent 0xbeef0100 hObject 0xbeef4903
+[  191.191316] NVRM: GPU0 kgrobjConstruct_IMPL__cxinner: CXDBG kgrobj: class 0x902d hClient 0xc1d0002d hParent 0xbeef0100 hObject 0xbeef502d chid 8 runqueue 0 ctxLookup 0x0 hKGC chan 0xcaf00002 tsg 0xcaf00002 legacy 0 vas FFFF8CBF46B53210
+[  191.242379] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 0/8 chan 0xc1d0002d/0xbeef0100 subdev 0xbeef0004: id 0 init 1 nonmapped 0 size 0xee000 attr 0x4 pa 0x1e4b36000 va 0x120010000
+[  191.242387] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 1/8 chan 0xc1d0002d/0xbeef0100 subdev 0xbeef0004: id 2 init 1 nonmapped 0 size 0x5000 attr 0x4 pa 0x1e5295000 va 0x1200fe000
+[  191.242389] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 2/8 chan 0xc1d0002d/0xbeef0100 subdev 0xbeef0004: id 3 init 0 nonmapped 0 size 0x0 attr 0x0 pa 0x0 va 0x120103000
+[  191.242391] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 3/8 chan 0xc1d0002d/0xbeef0100 subdev 0xbeef0004: id 4 init 0 nonmapped 0 size 0x0 attr 0x0 pa 0x0 va 0x120190000
+[  191.242393] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 4/8 chan 0xc1d0002d/0xbeef0100 subdev 0xbeef0004: id 5 init 0 nonmapped 0 size 0x0 attr 0x0 pa 0x0 va 0x120400000
+[  191.242394] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 5/8 chan 0xc1d0002d/0xbeef0100 subdev 0xbeef0004: id 6 init 0 nonmapped 0 size 0x0 attr 0x0 pa 0x0 va 0x1201b0000
+[  191.242396] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 6/8 chan 0xc1d0002d/0xbeef0100 subdev 0xbeef0004: id 9 init 0 nonmapped 0 size 0x0 attr 0x0 pa 0x0 va 0x120000000
+[  191.242397] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 7/8 chan 0xc1d0002d/0xbeef0100 subdev 0xbeef0004: id 10 init 0 nonmapped 0 size 0x0 attr 0x0 pa 0x0 va 0x120110000
+[  191.243038] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote chan 0xc1d0002d/0xbeef0100: 8 entries -> 0x0
+[  191.243042] NVRM: GPU0 _kgrAlloc: CXDBG _kgrAlloc class 0x902d chid 8 kgrctx FFFF8CBFC1272208 vas FFFF8CBF46B53210 -> 0x0
+[  191.243048] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x902d hClient 0xc1d0002d hParent 0xbeef0100 hObject 0xbeef502d
+[  191.243403] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0xc5b5 hClient 0xc1d0002d hParent 0xbeef0100 hObject 0xbeefa0b5
+[  191.243694] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0xc5b5 hClient 0xc1d0002d hParent 0xbeef0101 hObject 0xbeef8500
+[  191.243955] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0xc5b5 hClient 0xc1d0002d hParent 0xbeef0102 hObject 0xbeef8501
+[  191.244261] NVRM: GPU0 kgrobjConstruct_IMPL__cxinner: CXDBG kgrobj: class 0xa140 hClient 0xc1d0002d hParent 0xbeef0100 hObject 0xbeef3901 chid 8 runqueue 0 ctxLookup 0x0 hKGC chan 0xcaf00002 tsg 0xcaf00002 legacy 0 vas FFFF8CBF46B53210
+[  191.244274] NVRM: GPU0 _kgrAlloc: CXDBG _kgrAlloc class 0xa140 chid 8 kgrctx FFFF8CBFC1272208 vas FFFF8CBF46B53210 -> 0x0
+[  191.244276] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0xa140 hClient 0xc1d0002d hParent 0xbeef0100 hObject 0xbeef3901
+[  191.246294] NVRM: GPU0 kgrobjConstruct_IMPL__cxinner: CXDBG kgrobj: class 0xc597 hClient 0xc1d0002d hParent 0xbeef0100 hObject 0xbeef9097 chid 8 runqueue 0 ctxLookup 0x0 hKGC chan 0xcaf00002 tsg 0xcaf00002 legacy 0 vas FFFF8CBF46B53210
+[  191.246304] NVRM: GPU0 _kgrAlloc: CXDBG _kgrAlloc class 0xc597 chid 8 kgrctx FFFF8CBFC1272208 vas FFFF8CBF46B53210 -> 0x0
+[  191.246307] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0xc597 hClient 0xc1d0002d hParent 0xbeef0100 hObject 0xbeef9097
+[  193.447899] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x73 hClient 0xc1d00031 hParent 0xbfef0300 hObject 0xbfef0073
+[  193.457487] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x73 hClient 0xc1d00032 hParent 0xbeef0003 hObject 0xbeef0073
+[  193.465099] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x9096 hClient 0xc1d00032 hParent 0xbeef0004 hObject 0xbeef9960
+[  193.479963] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x2081 hClient 0xc1d00032 hParent 0xbeef0004 hObject 0xbeef0032
+[  193.542206] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x9067 hClient 0xc1d00032 hParent 0xcef80000 hObject 0xcef00000
+[  193.619743] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x9072 hClient 0xc1d00032 hParent 0xbeef0100 hObject 0xbeef4900
+[  193.624473] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x9072 hClient 0xc1d00032 hParent 0xbeef0100 hObject 0xbeef4901
+[  193.627242] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x9072 hClient 0xc1d00032 hParent 0xbeef0100 hObject 0xbeef4902
+[  193.629805] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x9072 hClient 0xc1d00032 hParent 0xbeef0100 hObject 0xbeef4903
+[  193.632942] NVRM: GPU0 kgrobjConstruct_IMPL__cxinner: CXDBG kgrobj: class 0x902d hClient 0xc1d00032 hParent 0xbeef0100 hObject 0xbeef502d chid 8 runqueue 0 ctxLookup 0x0 hKGC chan 0xcaf00002 tsg 0xcaf00002 legacy 0 vas FFFF8CBFC9CB2C10
+[  193.717176] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 0/8 chan 0xc1d00032/0xbeef0100 subdev 0xbeef0004: id 0 init 1 nonmapped 0 size 0xee000 attr 0x4 pa 0x1e4b36000 va 0x120010000
+[  193.717184] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 1/8 chan 0xc1d00032/0xbeef0100 subdev 0xbeef0004: id 2 init 1 nonmapped 0 size 0x5000 attr 0x4 pa 0x1e5295000 va 0x1200fe000
+[  193.717186] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 2/8 chan 0xc1d00032/0xbeef0100 subdev 0xbeef0004: id 3 init 0 nonmapped 0 size 0x0 attr 0x0 pa 0x0 va 0x120103000
+[  193.717187] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 3/8 chan 0xc1d00032/0xbeef0100 subdev 0xbeef0004: id 4 init 0 nonmapped 0 size 0x0 attr 0x0 pa 0x0 va 0x120190000
+[  193.717189] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 4/8 chan 0xc1d00032/0xbeef0100 subdev 0xbeef0004: id 5 init 0 nonmapped 0 size 0x0 attr 0x0 pa 0x0 va 0x120400000
+[  193.717190] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 5/8 chan 0xc1d00032/0xbeef0100 subdev 0xbeef0004: id 6 init 0 nonmapped 0 size 0x0 attr 0x0 pa 0x0 va 0x1201b0000
+[  193.717192] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 6/8 chan 0xc1d00032/0xbeef0100 subdev 0xbeef0004: id 9 init 0 nonmapped 0 size 0x0 attr 0x0 pa 0x0 va 0x120000000
+[  193.717194] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 7/8 chan 0xc1d00032/0xbeef0100 subdev 0xbeef0004: id 10 init 0 nonmapped 0 size 0x0 attr 0x0 pa 0x0 va 0x120110000
+[  193.718464] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote chan 0xc1d00032/0xbeef0100: 8 entries -> 0x0
+[  193.718467] NVRM: GPU0 _kgrAlloc: CXDBG _kgrAlloc class 0x902d chid 8 kgrctx FFFF8CBFC1294608 vas FFFF8CBFC9CB2C10 -> 0x0
+[  193.718474] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x902d hClient 0xc1d00032 hParent 0xbeef0100 hObject 0xbeef502d
+[  193.718797] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0xc5b5 hClient 0xc1d00032 hParent 0xbeef0100 hObject 0xbeefa0b5
+[  193.719105] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0xc5b5 hClient 0xc1d00032 hParent 0xbeef0101 hObject 0xbeef8500
+[  193.719596] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0xc5b5 hClient 0xc1d00032 hParent 0xbeef0102 hObject 0xbeef8501
+[  193.720157] NVRM: GPU0 kgrobjConstruct_IMPL__cxinner: CXDBG kgrobj: class 0xa140 hClient 0xc1d00032 hParent 0xbeef0100 hObject 0xbeef3901 chid 8 runqueue 0 ctxLookup 0x0 hKGC chan 0xcaf00002 tsg 0xcaf00002 legacy 0 vas FFFF8CBFC9CB2C10
+[  193.720167] NVRM: GPU0 _kgrAlloc: CXDBG _kgrAlloc class 0xa140 chid 8 kgrctx FFFF8CBFC1294608 vas FFFF8CBFC9CB2C10 -> 0x0
+[  193.720170] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0xa140 hClient 0xc1d00032 hParent 0xbeef0100 hObject 0xbeef3901
+[  193.721959] NVRM: GPU0 kgrobjConstruct_IMPL__cxinner: CXDBG kgrobj: class 0xc597 hClient 0xc1d00032 hParent 0xbeef0100 hObject 0xbeef9097 chid 8 runqueue 0 ctxLookup 0x0 hKGC chan 0xcaf00002 tsg 0xcaf00002 legacy 0 vas FFFF8CBFC9CB2C10
+[  193.721969] NVRM: GPU0 _kgrAlloc: CXDBG _kgrAlloc class 0xc597 chid 8 kgrctx FFFF8CBFC1294608 vas FFFF8CBFC9CB2C10 -> 0x0
+[  193.721972] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0xc597 hClient 0xc1d00032 hParent 0xbeef0100 hObject 0xbeef9097
+[  196.411431] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x73 hClient 0xc1d00036 hParent 0xbfef0300 hObject 0xbfef0073
+[  196.429147] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x73 hClient 0xc1d00037 hParent 0xbeef0003 hObject 0xbeef0073
+[  196.482501] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x9096 hClient 0xc1d00037 hParent 0xbeef0004 hObject 0xbeef9960
+[  196.501211] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x2081 hClient 0xc1d00037 hParent 0xbeef0004 hObject 0xbeef0032
+[  196.579852] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x9067 hClient 0xc1d00037 hParent 0xcef80000 hObject 0xcef00000
+[  196.622134] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x9072 hClient 0xc1d00037 hParent 0xbeef0100 hObject 0xbeef4900
+[  196.622654] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x9072 hClient 0xc1d00037 hParent 0xbeef0100 hObject 0xbeef4901
+[  196.623148] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x9072 hClient 0xc1d00037 hParent 0xbeef0100 hObject 0xbeef4902
+[  196.623667] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x9072 hClient 0xc1d00037 hParent 0xbeef0100 hObject 0xbeef4903
+[  196.623981] NVRM: GPU0 kgrobjConstruct_IMPL__cxinner: CXDBG kgrobj: class 0x902d hClient 0xc1d00037 hParent 0xbeef0100 hObject 0xbeef502d chid 8 runqueue 0 ctxLookup 0x0 hKGC chan 0xcaf00002 tsg 0xcaf00002 legacy 0 vas FFFF8CBFC9CB2210
+[  196.668103] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 0/8 chan 0xc1d00037/0xbeef0100 subdev 0xbeef0004: id 0 init 1 nonmapped 0 size 0xee000 attr 0x4 pa 0x1e4b36000 va 0x120010000
+[  196.668109] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 1/8 chan 0xc1d00037/0xbeef0100 subdev 0xbeef0004: id 2 init 1 nonmapped 0 size 0x5000 attr 0x4 pa 0x1e5295000 va 0x1200fe000
+[  196.668111] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 2/8 chan 0xc1d00037/0xbeef0100 subdev 0xbeef0004: id 3 init 0 nonmapped 0 size 0x0 attr 0x0 pa 0x0 va 0x120103000
+[  196.668113] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 3/8 chan 0xc1d00037/0xbeef0100 subdev 0xbeef0004: id 4 init 0 nonmapped 0 size 0x0 attr 0x0 pa 0x0 va 0x120190000
+[  196.668114] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 4/8 chan 0xc1d00037/0xbeef0100 subdev 0xbeef0004: id 5 init 0 nonmapped 0 size 0x0 attr 0x0 pa 0x0 va 0x120400000
+[  196.668116] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 5/8 chan 0xc1d00037/0xbeef0100 subdev 0xbeef0004: id 6 init 0 nonmapped 0 size 0x0 attr 0x0 pa 0x0 va 0x1201b0000
+[  196.668117] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 6/8 chan 0xc1d00037/0xbeef0100 subdev 0xbeef0004: id 9 init 0 nonmapped 0 size 0x0 attr 0x0 pa 0x0 va 0x120000000
+[  196.668119] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 7/8 chan 0xc1d00037/0xbeef0100 subdev 0xbeef0004: id 10 init 0 nonmapped 0 size 0x0 attr 0x0 pa 0x0 va 0x120110000
+[  196.668397] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote chan 0xc1d00037/0xbeef0100: 8 entries -> 0x0
+[  196.668402] NVRM: GPU0 _kgrAlloc: CXDBG _kgrAlloc class 0x902d chid 8 kgrctx FFFF8CBF6D525C08 vas FFFF8CBFC9CB2210 -> 0x0
+[  196.668408] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x902d hClient 0xc1d00037 hParent 0xbeef0100 hObject 0xbeef502d
+[  196.668753] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0xc5b5 hClient 0xc1d00037 hParent 0xbeef0100 hObject 0xbeefa0b5
+[  196.669013] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0xc5b5 hClient 0xc1d00037 hParent 0xbeef0101 hObject 0xbeef8500
+[  196.669293] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0xc5b5 hClient 0xc1d00037 hParent 0xbeef0102 hObject 0xbeef8501
+[  196.669681] NVRM: GPU0 kgrobjConstruct_IMPL__cxinner: CXDBG kgrobj: class 0xa140 hClient 0xc1d00037 hParent 0xbeef0100 hObject 0xbeef3901 chid 8 runqueue 0 ctxLookup 0x0 hKGC chan 0xcaf00002 tsg 0xcaf00002 legacy 0 vas FFFF8CBFC9CB2210
+[  196.669689] NVRM: GPU0 _kgrAlloc: CXDBG _kgrAlloc class 0xa140 chid 8 kgrctx FFFF8CBF6D525C08 vas FFFF8CBFC9CB2210 -> 0x0
+[  196.669691] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0xa140 hClient 0xc1d00037 hParent 0xbeef0100 hObject 0xbeef3901
+[  196.671973] NVRM: GPU0 kgrobjConstruct_IMPL__cxinner: CXDBG kgrobj: class 0xc597 hClient 0xc1d00037 hParent 0xbeef0100 hObject 0xbeef9097 chid 8 runqueue 0 ctxLookup 0x0 hKGC chan 0xcaf00002 tsg 0xcaf00002 legacy 0 vas FFFF8CBFC9CB2210
+[  196.671980] NVRM: GPU0 _kgrAlloc: CXDBG _kgrAlloc class 0xc597 chid 8 kgrctx FFFF8CBF6D525C08 vas FFFF8CBFC9CB2210 -> 0x0
+[  196.671982] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0xc597 hClient 0xc1d00037 hParent 0xbeef0100 hObject 0xbeef9097
+[  208.196391] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x73 hClient 0xc1d0003b hParent 0xbfef0300 hObject 0xbfef0073
+[  208.206295] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x73 hClient 0xc1d0003c hParent 0xbeef0003 hObject 0xbeef0073
+[  208.212259] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x9096 hClient 0xc1d0003c hParent 0xbeef0004 hObject 0xbeef9960
+[  208.227544] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x2081 hClient 0xc1d0003c hParent 0xbeef0004 hObject 0xbeef0032
+[  208.297341] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x9067 hClient 0xc1d0003c hParent 0xcef80000 hObject 0xcef00000
+[  208.347158] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x9072 hClient 0xc1d0003c hParent 0xbeef0100 hObject 0xbeef4900
+[  208.347874] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x9072 hClient 0xc1d0003c hParent 0xbeef0100 hObject 0xbeef4901
+[  208.348553] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x9072 hClient 0xc1d0003c hParent 0xbeef0100 hObject 0xbeef4902
+[  208.349056] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x9072 hClient 0xc1d0003c hParent 0xbeef0100 hObject 0xbeef4903
+[  208.349311] NVRM: GPU0 kgrobjConstruct_IMPL__cxinner: CXDBG kgrobj: class 0x902d hClient 0xc1d0003c hParent 0xbeef0100 hObject 0xbeef502d chid 8 runqueue 0 ctxLookup 0x0 hKGC chan 0xcaf00002 tsg 0xcaf00002 legacy 0 vas FFFF8CBF466C2010
+[  208.392221] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 0/8 chan 0xc1d0003c/0xbeef0100 subdev 0xbeef0004: id 0 init 1 nonmapped 0 size 0xee000 attr 0x4 pa 0x1e4b36000 va 0x120010000
+[  208.392228] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 1/8 chan 0xc1d0003c/0xbeef0100 subdev 0xbeef0004: id 2 init 1 nonmapped 0 size 0x5000 attr 0x4 pa 0x1e5295000 va 0x1200fe000
+[  208.392230] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 2/8 chan 0xc1d0003c/0xbeef0100 subdev 0xbeef0004: id 3 init 0 nonmapped 0 size 0x0 attr 0x0 pa 0x0 va 0x120103000
+[  208.392233] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 3/8 chan 0xc1d0003c/0xbeef0100 subdev 0xbeef0004: id 4 init 0 nonmapped 0 size 0x0 attr 0x0 pa 0x0 va 0x120190000
+[  208.392235] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 4/8 chan 0xc1d0003c/0xbeef0100 subdev 0xbeef0004: id 5 init 0 nonmapped 0 size 0x0 attr 0x0 pa 0x0 va 0x120400000
+[  208.392237] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 5/8 chan 0xc1d0003c/0xbeef0100 subdev 0xbeef0004: id 6 init 0 nonmapped 0 size 0x0 attr 0x0 pa 0x0 va 0x1201b0000
+[  208.392239] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 6/8 chan 0xc1d0003c/0xbeef0100 subdev 0xbeef0004: id 9 init 0 nonmapped 0 size 0x0 attr 0x0 pa 0x0 va 0x120000000
+[  208.392241] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 7/8 chan 0xc1d0003c/0xbeef0100 subdev 0xbeef0004: id 10 init 0 nonmapped 0 size 0x0 attr 0x0 pa 0x0 va 0x120110000
+[  208.392631] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote chan 0xc1d0003c/0xbeef0100: 8 entries -> 0x0
+[  208.392635] NVRM: GPU0 _kgrAlloc: CXDBG _kgrAlloc class 0x902d chid 8 kgrctx FFFF8CBFC9CB2C08 vas FFFF8CBF466C2010 -> 0x0
+[  208.392639] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x902d hClient 0xc1d0003c hParent 0xbeef0100 hObject 0xbeef502d
+[  208.393093] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0xc5b5 hClient 0xc1d0003c hParent 0xbeef0100 hObject 0xbeefa0b5
+[  208.393353] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0xc5b5 hClient 0xc1d0003c hParent 0xbeef0101 hObject 0xbeef8500
+[  208.393625] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0xc5b5 hClient 0xc1d0003c hParent 0xbeef0102 hObject 0xbeef8501
+[  208.393886] NVRM: GPU0 kgrobjConstruct_IMPL__cxinner: CXDBG kgrobj: class 0xa140 hClient 0xc1d0003c hParent 0xbeef0100 hObject 0xbeef3901 chid 8 runqueue 0 ctxLookup 0x0 hKGC chan 0xcaf00002 tsg 0xcaf00002 legacy 0 vas FFFF8CBF466C2010
+[  208.393892] NVRM: GPU0 _kgrAlloc: CXDBG _kgrAlloc class 0xa140 chid 8 kgrctx FFFF8CBFC9CB2C08 vas FFFF8CBF466C2010 -> 0x0
+[  208.393895] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0xa140 hClient 0xc1d0003c hParent 0xbeef0100 hObject 0xbeef3901
+[  208.395664] NVRM: GPU0 kgrobjConstruct_IMPL__cxinner: CXDBG kgrobj: class 0xc597 hClient 0xc1d0003c hParent 0xbeef0100 hObject 0xbeef9097 chid 8 runqueue 0 ctxLookup 0x0 hKGC chan 0xcaf00002 tsg 0xcaf00002 legacy 0 vas FFFF8CBF466C2010
+[  208.395671] NVRM: GPU0 _kgrAlloc: CXDBG _kgrAlloc class 0xc597 chid 8 kgrctx FFFF8CBFC9CB2C08 vas FFFF8CBF466C2010 -> 0x0
+[  208.395673] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0xc597 hClient 0xc1d0003c hParent 0xbeef0100 hObject 0xbeef9097
+[  209.008103] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x9067 hClient 0xc1d0003c hParent 0xcef80002 hObject 0xcef00080
+[  209.048404] NVRM: GPU0 kgrobjConstruct_IMPL__cxinner: CXDBG kgrobj: class 0x902d hClient 0xc1d0003c hParent 0xbeee0100 hObject 0xbeee502d chid 11 runqueue 0 ctxLookup 0x0 hKGC chan 0xcaf00029 tsg 0xcaf00029 legacy 0 vas FFFF8CBF466C2010
+[  209.112767] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 0/8 chan 0xc1d0003c/0xbeee0100 subdev 0xbeef0004: id 0 init 1 nonmapped 0 size 0xee000 attr 0x4 pa 0x1e4a48000 va 0x120240000
+[  209.112783] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 1/8 chan 0xc1d0003c/0xbeee0100 subdev 0xbeef0004: id 2 init 1 nonmapped 0 size 0x5000 attr 0x4 pa 0x1e528d000 va 0x120106000
+[  209.112785] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 2/8 chan 0xc1d0003c/0xbeee0100 subdev 0xbeef0004: id 3 init 0 nonmapped 0 size 0x0 attr 0x0 pa 0x0 va 0x12010b000
+[  209.112787] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 3/8 chan 0xc1d0003c/0xbeee0100 subdev 0xbeef0004: id 4 init 0 nonmapped 0 size 0x0 attr 0x0 pa 0x0 va 0x1203b0000
+[  209.112789] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 4/8 chan 0xc1d0003c/0xbeee0100 subdev 0xbeef0004: id 5 init 0 nonmapped 0 size 0x0 attr 0x0 pa 0x0 va 0x120800000
+[  209.112790] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 5/8 chan 0xc1d0003c/0xbeee0100 subdev 0xbeef0004: id 6 init 0 nonmapped 0 size 0x0 attr 0x0 pa 0x0 va 0x120c00000
+[  209.112792] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 6/8 chan 0xc1d0003c/0xbeee0100 subdev 0xbeef0004: id 9 init 0 nonmapped 0 size 0x0 attr 0x0 pa 0x0 va 0x120230000
+[  209.112794] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 7/8 chan 0xc1d0003c/0xbeee0100 subdev 0xbeef0004: id 10 init 0 nonmapped 0 size 0x0 attr 0x0 pa 0x0 va 0x120330000
+[  209.113130] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote chan 0xc1d0003c/0xbeee0100: 8 entries -> 0x0
+[  209.113133] NVRM: GPU0 _kgrAlloc: CXDBG _kgrAlloc class 0x902d chid 11 kgrctx FFFF8CBF421C6E08 vas FFFF8CBF466C2010 -> 0x0
+[  209.113140] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x902d hClient 0xc1d0003c hParent 0xbeee0100 hObject 0xbeee502d
+[  209.113705] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0xc5b5 hClient 0xc1d0003c hParent 0xbeee0100 hObject 0xbeeea0b5
+[  209.114057] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0xc5b5 hClient 0xc1d0003c hParent 0xbeee0101 hObject 0xbeee8500
+[  209.114567] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0xc5b5 hClient 0xc1d0003c hParent 0xbeee0102 hObject 0xbeee8501
+[  209.115007] NVRM: GPU0 kgrobjConstruct_IMPL__cxinner: CXDBG kgrobj: class 0xa140 hClient 0xc1d0003c hParent 0xbeee0100 hObject 0xbeee3901 chid 11 runqueue 0 ctxLookup 0x0 hKGC chan 0xcaf00029 tsg 0xcaf00029 legacy 0 vas FFFF8CBF466C2010
+[  209.115017] NVRM: GPU0 _kgrAlloc: CXDBG _kgrAlloc class 0xa140 chid 11 kgrctx FFFF8CBF421C6E08 vas FFFF8CBF466C2010 -> 0x0
+[  209.115019] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0xa140 hClient 0xc1d0003c hParent 0xbeee0100 hObject 0xbeee3901
+[  209.115525] NVRM: GPU0 kgrobjConstruct_IMPL__cxinner: CXDBG kgrobj: class 0xc597 hClient 0xc1d0003c hParent 0xbeee0100 hObject 0xbeee9097 chid 11 runqueue 0 ctxLookup 0x0 hKGC chan 0xcaf00029 tsg 0xcaf00029 legacy 0 vas FFFF8CBF466C2010
+[  209.115534] NVRM: GPU0 _kgrAlloc: CXDBG _kgrAlloc class 0xc597 chid 11 kgrctx FFFF8CBF421C6E08 vas FFFF8CBF466C2010 -> 0x0
+[  209.115537] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0xc597 hClient 0xc1d0003c hParent 0xbeee0100 hObject 0xbeee9097
+[  209.246680] NVRM: GPU0 kgrobjConstruct_IMPL__cxinner: CXDBG kgrobj: class 0xc5c0 hClient 0xc1d0003c hParent 0xbeee0100 hObject 0xbeee90c0 chid 11 runqueue 0 ctxLookup 0x0 hKGC chan 0xcaf00029 tsg 0xcaf00029 legacy 0 vas FFFF8CBF466C2010
+[  209.246696] NVRM: GPU0 _kgrAlloc: CXDBG _kgrAlloc class 0xc5c0 chid 11 kgrctx FFFF8CBF421C6E08 vas FFFF8CBF466C2010 -> 0x0
+[  209.246699] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0xc5c0 hClient 0xc1d0003c hParent 0xbeee0100 hObject 0xbeee90c0
+[  209.390832] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0xc5b5 hClient 0xc1d0003c hParent 0xbeed0101 hObject 0xbeed8500
+[  209.566860] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x9067 hClient 0xc1d0003c hParent 0xcef80003 hObject 0xcef000c0
+[  209.569650] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x9067 hClient 0xc1d0003c hParent 0xcef80003 hObject 0xcef000c1
+[  209.615307] NVRM: GPU0 kgrobjConstruct_IMPL__cxinner: CXDBG kgrobj: class 0x902d hClient 0xc1d0003c hParent 0xbeec0100 hObject 0xbeec502d chid 15 runqueue 0 ctxLookup 0x0 hKGC chan 0xcaf00056 tsg 0xcaf00056 legacy 0 vas FFFF8CBF466C2010
+[  209.696727] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 0/8 chan 0xc1d0003c/0xbeec0100 subdev 0xbeef0004: id 0 init 1 nonmapped 0 size 0xee000 attr 0x4 pa 0x1e495a000 va 0x120c80000
+[  209.696735] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 1/8 chan 0xc1d0003c/0xbeec0100 subdev 0xbeef0004: id 2 init 1 nonmapped 0 size 0x5000 attr 0x4 pa 0x1e5285000 va 0x1203e0000
+[  209.696737] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 2/8 chan 0xc1d0003c/0xbeec0100 subdev 0xbeef0004: id 3 init 0 nonmapped 0 size 0x0 attr 0x0 pa 0x0 va 0x1203e5000
+[  209.696739] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 3/8 chan 0xc1d0003c/0xbeec0100 subdev 0xbeef0004: id 4 init 0 nonmapped 0 size 0x0 attr 0x0 pa 0x0 va 0x120df0000
+[  209.696741] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 4/8 chan 0xc1d0003c/0xbeec0100 subdev 0xbeef0004: id 5 init 0 nonmapped 0 size 0x0 attr 0x0 pa 0x0 va 0x121000000
+[  209.696742] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 5/8 chan 0xc1d0003c/0xbeec0100 subdev 0xbeef0004: id 6 init 0 nonmapped 0 size 0x0 attr 0x0 pa 0x0 va 0x120e10000
+[  209.696744] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 6/8 chan 0xc1d0003c/0xbeec0100 subdev 0xbeef0004: id 9 init 0 nonmapped 0 size 0x0 attr 0x0 pa 0x0 va 0x1203d0000
+[  209.696745] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 7/8 chan 0xc1d0003c/0xbeec0100 subdev 0xbeef0004: id 10 init 0 nonmapped 0 size 0x0 attr 0x0 pa 0x0 va 0x120d70000
+[  209.697114] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote chan 0xc1d0003c/0xbeec0100: 8 entries -> 0x0
+[  209.697118] NVRM: GPU0 _kgrAlloc: CXDBG _kgrAlloc class 0x902d chid 15 kgrctx FFFF8CBF68F1E608 vas FFFF8CBF466C2010 -> 0x0
+[  209.697123] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x902d hClient 0xc1d0003c hParent 0xbeec0100 hObject 0xbeec502d
+[  209.697528] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0xc5b5 hClient 0xc1d0003c hParent 0xbeec0100 hObject 0xbeeca0b5
+[  209.697980] NVRM: GPU0 kgrobjConstruct_IMPL__cxinner: CXDBG kgrobj: class 0xa140 hClient 0xc1d0003c hParent 0xbeec0100 hObject 0xbeec3901 chid 15 runqueue 0 ctxLookup 0x0 hKGC chan 0xcaf00056 tsg 0xcaf00056 legacy 0 vas FFFF8CBF466C2010
+[  209.697988] NVRM: GPU0 _kgrAlloc: CXDBG _kgrAlloc class 0xa140 chid 15 kgrctx FFFF8CBF68F1E608 vas FFFF8CBF466C2010 -> 0x0
+[  209.697990] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0xa140 hClient 0xc1d0003c hParent 0xbeec0100 hObject 0xbeec3901
+[  209.698405] NVRM: GPU0 kgrobjConstruct_IMPL__cxinner: CXDBG kgrobj: class 0xc597 hClient 0xc1d0003c hParent 0xbeec0100 hObject 0xbeec9097 chid 15 runqueue 0 ctxLookup 0x0 hKGC chan 0xcaf00056 tsg 0xcaf00056 legacy 0 vas FFFF8CBF466C2010
+[  209.698414] NVRM: GPU0 _kgrAlloc: CXDBG _kgrAlloc class 0xc597 chid 15 kgrctx FFFF8CBF68F1E608 vas FFFF8CBF466C2010 -> 0x0
+[  209.698418] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0xc597 hClient 0xc1d0003c hParent 0xbeec0100 hObject 0xbeec9097
+[  209.698901] NVRM: GPU0 kgrobjConstruct_IMPL__cxinner: CXDBG kgrobj: class 0xc5c0 hClient 0xc1d0003c hParent 0xbeec0104 hObject 0xbeec90c1 chid 16 runqueue 1 ctxLookup 0x0 hKGC chan 0xcaf00056 tsg 0xcaf00056 legacy 0 vas FFFF8CBF466C2010
+[  209.698907] NVRM: GPU0 _kgrAlloc: CXDBG _kgrAlloc class 0xc5c0 chid 16 kgrctx FFFF8CBF68F1E608 vas FFFF8CBF466C2010 -> 0x0
+[  209.698910] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0xc5c0 hClient 0xc1d0003c hParent 0xbeec0104 hObject 0xbeec90c1
+[  209.699260] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0xc5b5 hClient 0xc1d0003c hParent 0xbeec0104 hObject 0xbeeca2b5
+[  209.848911] NVRM: GPU0 kgrobjConstruct_IMPL__cxinner: CXDBG kgrobj: class 0xc5c0 hClient 0xc1d0003c hParent 0xbeec0100 hObject 0xbeec90c0 chid 15 runqueue 0 ctxLookup 0x0 hKGC chan 0xcaf00056 tsg 0xcaf00056 legacy 0 vas FFFF8CBF466C2010
+[  209.848932] NVRM: GPU0 _kgrAlloc: CXDBG _kgrAlloc class 0xc5c0 chid 15 kgrctx FFFF8CBF68F1E608 vas FFFF8CBF466C2010 -> 0x0
+[  209.848935] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0xc5c0 hClient 0xc1d0003c hParent 0xbeec0100 hObject 0xbeec90c0
+[  213.002345] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x2081 hClient 0xc1d0003f hParent 0x5c000003 hObject 0x5c000004
+[  213.065618] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x9067 hClient 0xc1d0003f hParent 0x5c000012 hObject 0x5c000013
+[  213.364979] NVRM: GPU0 kgrobjConstruct_IMPL__cxinner: CXDBG kgrobj: class 0xc5c0 hClient 0xc1d0003f hParent 0x5c000019 hObject 0x5c00001a chid 8 runqueue 0 ctxLookup 0x0 hKGC chan 0xcaf00000 tsg 0xcaf00000 legacy 0 vas FFFF8CBF9DB00E10
+[  213.399111] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 0/4 chan 0xc1d0003f/0x5c000019 subdev 0x5c000003: id 0 init 1 nonmapped 0 size 0xee000 attr 0x4 pa 0x1e4b36000 va 0x120010000
+[  213.399117] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 1/4 chan 0xc1d0003f/0x5c000019 subdev 0x5c000003: id 2 init 1 nonmapped 0 size 0x5000 attr 0x4 pa 0x1e5297000 va 0x1200fe000
+[  213.399119] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 2/4 chan 0xc1d0003f/0x5c000019 subdev 0x5c000003: id 9 init 0 nonmapped 0 size 0x0 attr 0x0 pa 0x0 va 0x120000000
+[  213.399121] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 3/4 chan 0xc1d0003f/0x5c000019 subdev 0x5c000003: id 10 init 0 nonmapped 0 size 0x0 attr 0x0 pa 0x0 va 0x120110000
+[  213.399408] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote chan 0xc1d0003f/0x5c000019: 4 entries -> 0x0
+[  213.399413] NVRM: GPU0 _kgrAlloc: CXDBG _kgrAlloc class 0xc5c0 chid 8 kgrctx FFFF8CBF68F1C608 vas FFFF8CBF9DB00E10 -> 0x0
+[  213.399420] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0xc5c0 hClient 0xc1d0003f hParent 0x5c000019 hObject 0x5c00001a
+[  213.399771] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0xc5b5 hClient 0xc1d0003f hParent 0x5c000019 hObject 0x5c00001b
+[  213.420579] NVRM: GPU0 kgrobjConstruct_IMPL__cxinner: CXDBG kgrobj: class 0xc5c0 hClient 0xc1d0003f hParent 0x5c00001f hObject 0x5c000020 chid 9 runqueue 1 ctxLookup 0x0 hKGC chan 0xcaf00000 tsg 0xcaf00000 legacy 0 vas FFFF8CBF9DB00E10
+[  213.420592] NVRM: GPU0 _kgrAlloc: CXDBG _kgrAlloc class 0xc5c0 chid 9 kgrctx FFFF8CBF68F1C608 vas FFFF8CBF9DB00E10 -> 0x0
+[  213.420595] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0xc5c0 hClient 0xc1d0003f hParent 0x5c00001f hObject 0x5c000020
+[  213.420875] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0xc5b5 hClient 0xc1d0003f hParent 0x5c00001f hObject 0x5c000021
+[  213.429833] NVRM: GPU0 kgrobjConstruct_IMPL__cxinner: CXDBG kgrobj: class 0xc5c0 hClient 0xc1d0003f hParent 0x5c000023 hObject 0x5c000024 chid 10 runqueue 0 ctxLookup 0x0 hKGC chan 0xcaf00000 tsg 0xcaf00000 legacy 0 vas FFFF8CBF9DB00E10
+[  213.429844] NVRM: GPU0 _kgrAlloc: CXDBG _kgrAlloc class 0xc5c0 chid 10 kgrctx FFFF8CBF68F1C608 vas FFFF8CBF9DB00E10 -> 0x0
+[  213.429846] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0xc5c0 hClient 0xc1d0003f hParent 0x5c000023 hObject 0x5c000024
+[  213.432808] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0xc5b5 hClient 0xc1d0003f hParent 0x5c000023 hObject 0x5c000025
+[  213.438812] NVRM: GPU0 kgrobjConstruct_IMPL__cxinner: CXDBG kgrobj: class 0xc5c0 hClient 0xc1d0003f hParent 0x5c000027 hObject 0x5c000028 chid 11 runqueue 1 ctxLookup 0x0 hKGC chan 0xcaf00000 tsg 0xcaf00000 legacy 0 vas FFFF8CBF9DB00E10
+[  213.438823] NVRM: GPU0 _kgrAlloc: CXDBG _kgrAlloc class 0xc5c0 chid 11 kgrctx FFFF8CBF68F1C608 vas FFFF8CBF9DB00E10 -> 0x0
+[  213.438826] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0xc5c0 hClient 0xc1d0003f hParent 0x5c000027 hObject 0x5c000028
+[  213.439667] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0xc5b5 hClient 0xc1d0003f hParent 0x5c000027 hObject 0x5c000029
+[  213.442951] NVRM: GPU0 kgrobjConstruct_IMPL__cxinner: CXDBG kgrobj: class 0xc5c0 hClient 0xc1d0003f hParent 0x5c00002b hObject 0x5c00002c chid 12 runqueue 0 ctxLookup 0x0 hKGC chan 0xcaf00000 tsg 0xcaf00000 legacy 0 vas FFFF8CBF9DB00E10
+[  213.442960] NVRM: GPU0 _kgrAlloc: CXDBG _kgrAlloc class 0xc5c0 chid 12 kgrctx FFFF8CBF68F1C608 vas FFFF8CBF9DB00E10 -> 0x0
+[  213.442963] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0xc5c0 hClient 0xc1d0003f hParent 0x5c00002b hObject 0x5c00002c
+[  213.443721] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0xc5b5 hClient 0xc1d0003f hParent 0x5c00002b hObject 0x5c00002d
+[  213.451206] NVRM: GPU0 kgrobjConstruct_IMPL__cxinner: CXDBG kgrobj: class 0xc5c0 hClient 0xc1d0003f hParent 0x5c00002f hObject 0x5c000030 chid 13 runqueue 1 ctxLookup 0x0 hKGC chan 0xcaf00000 tsg 0xcaf00000 legacy 0 vas FFFF8CBF9DB00E10
+[  213.451217] NVRM: GPU0 _kgrAlloc: CXDBG _kgrAlloc class 0xc5c0 chid 13 kgrctx FFFF8CBF68F1C608 vas FFFF8CBF9DB00E10 -> 0x0
+[  213.451220] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0xc5c0 hClient 0xc1d0003f hParent 0x5c00002f hObject 0x5c000030
+[  213.454806] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0xc5b5 hClient 0xc1d0003f hParent 0x5c00002f hObject 0x5c000031
+[  213.456844] NVRM: GPU0 kgrobjConstruct_IMPL__cxinner: CXDBG kgrobj: class 0xc5c0 hClient 0xc1d0003f hParent 0x5c000033 hObject 0x5c000034 chid 14 runqueue 0 ctxLookup 0x0 hKGC chan 0xcaf00000 tsg 0xcaf00000 legacy 0 vas FFFF8CBF9DB00E10
+[  213.456858] NVRM: GPU0 _kgrAlloc: CXDBG _kgrAlloc class 0xc5c0 chid 14 kgrctx FFFF8CBF68F1C608 vas FFFF8CBF9DB00E10 -> 0x0
+[  213.456862] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0xc5c0 hClient 0xc1d0003f hParent 0x5c000033 hObject 0x5c000034
+[  213.464137] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0xc5b5 hClient 0xc1d0003f hParent 0x5c000033 hObject 0x5c000035
+[  213.468459] NVRM: GPU0 kgrobjConstruct_IMPL__cxinner: CXDBG kgrobj: class 0xc5c0 hClient 0xc1d0003f hParent 0x5c000037 hObject 0x5c000038 chid 15 runqueue 1 ctxLookup 0x0 hKGC chan 0xcaf00000 tsg 0xcaf00000 legacy 0 vas FFFF8CBF9DB00E10
+[  213.468470] NVRM: GPU0 _kgrAlloc: CXDBG _kgrAlloc class 0xc5c0 chid 15 kgrctx FFFF8CBF68F1C608 vas FFFF8CBF9DB00E10 -> 0x0
+[  213.468473] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0xc5c0 hClient 0xc1d0003f hParent 0x5c000037 hObject 0x5c000038
+[  213.468849] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0xc5b5 hClient 0xc1d0003f hParent 0x5c000037 hObject 0x5c000039
+[  213.479972] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0xc5b5 hClient 0xc1d0003f hParent 0x5c00003d hObject 0x5c00003e
+[  213.491757] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0xc5b5 hClient 0xc1d0003f hParent 0x5c000040 hObject 0x5c000041
+[  213.496095] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0xc5b5 hClient 0xc1d0003f hParent 0x5c000043 hObject 0x5c000044
+[  213.497887] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0xc5b5 hClient 0xc1d0003f hParent 0x5c000046 hObject 0x5c000047
+[  213.512268] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0xc5b5 hClient 0xc1d0003f hParent 0x5c00004b hObject 0x5c00004c
+[  213.527605] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0xc5b5 hClient 0xc1d0003f hParent 0x5c00004e hObject 0x5c00004f
+[  213.531901] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0xc5b5 hClient 0xc1d0003f hParent 0x5c000051 hObject 0x5c000052
+[  213.533628] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0xc5b5 hClient 0xc1d0003f hParent 0x5c000054 hObject 0x5c000055
+[  213.547444] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0xc5b5 hClient 0xc1d0003f hParent 0x5c000059 hObject 0x5c00005a
+[  213.558793] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0xc5b5 hClient 0xc1d0003f hParent 0x5c00005c hObject 0x5c00005d
+[  213.565454] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0xc5b5 hClient 0xc1d0003f hParent 0x5c00005f hObject 0x5c000060
+[  213.567672] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0xc5b5 hClient 0xc1d0003f hParent 0x5c000062 hObject 0x5c000063
+[  213.898327] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x73 hClient 0xc1d00042 hParent 0xbeef0003 hObject 0xbeef0073
+[  213.938639] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x9096 hClient 0xc1d00042 hParent 0xbeef0004 hObject 0xbeef9960
+[  214.010726] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x2081 hClient 0xc1d00042 hParent 0xbeef0004 hObject 0xbeef0032
+[  214.034189] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x73 hClient 0xc1d00044 hParent 0xbfef0300 hObject 0xbfef0073
+[  214.103386] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x83de hClient 0xc1d0003f hParent 0x5c000002 hObject 0x5c000082
+[  214.289268] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x9067 hClient 0xc1d00042 hParent 0xcef80000 hObject 0xcef00000
+[  214.396004] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x9072 hClient 0xc1d00042 hParent 0xbeef0100 hObject 0xbeef4900
+[  214.396629] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x9072 hClient 0xc1d00042 hParent 0xbeef0100 hObject 0xbeef4901
+[  214.397546] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x9072 hClient 0xc1d00042 hParent 0xbeef0100 hObject 0xbeef4902
+[  214.414678] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x9072 hClient 0xc1d00042 hParent 0xbeef0100 hObject 0xbeef4903
+[  214.419229] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0xc4b7 hClient 0xc1d00046 hParent 0x80000014 hObject 0x80000032
+[  214.423539] NVRM: GPU0 kgrobjConstruct_IMPL__cxinner: CXDBG kgrobj: class 0x902d hClient 0xc1d00042 hParent 0xbeef0100 hObject 0xbeef502d chid 28 runqueue 0 ctxLookup 0x0 hKGC chan 0xcaf00002 tsg 0xcaf00002 legacy 0 vas FFFF8CBF68F2FC10
+[  214.501598] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 0/8 chan 0xc1d00042/0xbeef0100 subdev 0xbeef0004: id 0 init 1 nonmapped 0 size 0xee000 attr 0x4 pa 0x1e4a48000 va 0x120040000
+[  214.501606] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 1/8 chan 0xc1d00042/0xbeef0100 subdev 0xbeef0004: id 2 init 1 nonmapped 0 size 0x5000 attr 0x4 pa 0x1e5272000 va 0x12012e000
+[  214.501608] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 2/8 chan 0xc1d00042/0xbeef0100 subdev 0xbeef0004: id 3 init 0 nonmapped 0 size 0x0 attr 0x0 pa 0x0 va 0x120133000
+[  214.501610] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 3/8 chan 0xc1d00042/0xbeef0100 subdev 0xbeef0004: id 4 init 0 nonmapped 0 size 0x0 attr 0x0 pa 0x0 va 0x1201c0000
+[  214.501612] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 4/8 chan 0xc1d00042/0xbeef0100 subdev 0xbeef0004: id 5 init 0 nonmapped 0 size 0x0 attr 0x0 pa 0x0 va 0x120400000
+[  214.501614] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 5/8 chan 0xc1d00042/0xbeef0100 subdev 0xbeef0004: id 6 init 0 nonmapped 0 size 0x0 attr 0x0 pa 0x0 va 0x1201e0000
+[  214.501616] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 6/8 chan 0xc1d00042/0xbeef0100 subdev 0xbeef0004: id 9 init 0 nonmapped 0 size 0x0 attr 0x0 pa 0x0 va 0x120030000
+[  214.501618] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 7/8 chan 0xc1d00042/0xbeef0100 subdev 0xbeef0004: id 10 init 0 nonmapped 0 size 0x0 attr 0x0 pa 0x0 va 0x120140000
+[  214.502833] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote chan 0xc1d00042/0xbeef0100: 8 entries -> 0x0
+[  214.502837] NVRM: GPU0 _kgrAlloc: CXDBG _kgrAlloc class 0x902d chid 28 kgrctx FFFF8CBFB3810008 vas FFFF8CBF68F2FC10 -> 0x0
+[  214.502845] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x902d hClient 0xc1d00042 hParent 0xbeef0100 hObject 0xbeef502d
+[  214.504655] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0xc5b5 hClient 0xc1d00042 hParent 0xbeef0100 hObject 0xbeefa0b5
+[  214.507987] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0xc5b5 hClient 0xc1d00042 hParent 0xbeef0101 hObject 0xbeef8500
+[  214.509505] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0xc5b5 hClient 0xc1d00042 hParent 0xbeef0102 hObject 0xbeef8501
+[  214.513443] NVRM: GPU0 kgrobjConstruct_IMPL__cxinner: CXDBG kgrobj: class 0xa140 hClient 0xc1d00042 hParent 0xbeef0100 hObject 0xbeef3901 chid 28 runqueue 0 ctxLookup 0x0 hKGC chan 0xcaf00002 tsg 0xcaf00002 legacy 0 vas FFFF8CBF68F2FC10
+[  214.513453] NVRM: GPU0 _kgrAlloc: CXDBG _kgrAlloc class 0xa140 chid 28 kgrctx FFFF8CBFB3810008 vas FFFF8CBF68F2FC10 -> 0x0
+[  214.513455] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0xa140 hClient 0xc1d00042 hParent 0xbeef0100 hObject 0xbeef3901
+[  214.523860] NVRM: GPU0 kgrobjConstruct_IMPL__cxinner: CXDBG kgrobj: class 0xc597 hClient 0xc1d00042 hParent 0xbeef0100 hObject 0xbeef9097 chid 28 runqueue 0 ctxLookup 0x0 hKGC chan 0xcaf00002 tsg 0xcaf00002 legacy 0 vas FFFF8CBF68F2FC10
+[  214.523872] NVRM: GPU0 _kgrAlloc: CXDBG _kgrAlloc class 0xc597 chid 28 kgrctx FFFF8CBFB3810008 vas FFFF8CBF68F2FC10 -> 0x0
+[  214.523874] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0xc597 hClient 0xc1d00042 hParent 0xbeef0100 hObject 0xbeef9097
+[  214.792635] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0xc5b5 hClient 0xc1d00046 hParent 0x8000004b hObject 0x80000069
+[  215.099331] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x73 hClient 0xc1d00049 hParent 0xbeef0003 hObject 0xbeef0073
+[  215.115986] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x9096 hClient 0xc1d00049 hParent 0xbeef0004 hObject 0xbeef9960
+[  215.201927] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x2081 hClient 0xc1d00049 hParent 0xbeef0004 hObject 0xbeef0032
+[  215.208611] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x73 hClient 0xc1d0004b hParent 0xbfef0300 hObject 0xbfef0073
+[  215.903788] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x73 hClient 0xc1d0004e hParent 0xbeef0003 hObject 0xbeef0073
+[  215.916169] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x9096 hClient 0xc1d0004e hParent 0xbeef0004 hObject 0xbeef9960
+[  215.973737] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x2081 hClient 0xc1d0004e hParent 0xbeef0004 hObject 0xbeef0032
+[  215.982187] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x73 hClient 0xc1d00050 hParent 0xbfef0300 hObject 0xbfef0073
+[  216.215351] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x9067 hClient 0xc1d0004e hParent 0xcef80000 hObject 0xcef00000
+[  216.292227] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x9072 hClient 0xc1d0004e hParent 0xbeef0100 hObject 0xbeef4900
+[  216.295521] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x9072 hClient 0xc1d0004e hParent 0xbeef0100 hObject 0xbeef4901
+[  216.296202] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x9072 hClient 0xc1d0004e hParent 0xbeef0100 hObject 0xbeef4902
+[  216.297059] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x9072 hClient 0xc1d0004e hParent 0xbeef0100 hObject 0xbeef4903
+[  216.297354] NVRM: GPU0 kgrobjConstruct_IMPL__cxinner: CXDBG kgrobj: class 0x902d hClient 0xc1d0004e hParent 0xbeef0100 hObject 0xbeef502d chid 33 runqueue 0 ctxLookup 0x0 hKGC chan 0xcaf00002 tsg 0xcaf00002 legacy 0 vas FFFF8CC01BE9A610
+[  216.383014] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 0/8 chan 0xc1d0004e/0xbeef0100 subdev 0xbeef0004: id 0 init 1 nonmapped 0 size 0xee000 attr 0x4 pa 0x1e495a000 va 0x120040000
+[  216.383024] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 1/8 chan 0xc1d0004e/0xbeef0100 subdev 0xbeef0004: id 2 init 1 nonmapped 0 size 0x5000 attr 0x4 pa 0x1e5264000 va 0x12012e000
+[  216.383026] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 2/8 chan 0xc1d0004e/0xbeef0100 subdev 0xbeef0004: id 3 init 0 nonmapped 0 size 0x0 attr 0x0 pa 0x0 va 0x120133000
+[  216.383029] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 3/8 chan 0xc1d0004e/0xbeef0100 subdev 0xbeef0004: id 4 init 0 nonmapped 0 size 0x0 attr 0x0 pa 0x0 va 0x1201c0000
+[  216.383031] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 4/8 chan 0xc1d0004e/0xbeef0100 subdev 0xbeef0004: id 5 init 0 nonmapped 0 size 0x0 attr 0x0 pa 0x0 va 0x120400000
+[  216.383033] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 5/8 chan 0xc1d0004e/0xbeef0100 subdev 0xbeef0004: id 6 init 0 nonmapped 0 size 0x0 attr 0x0 pa 0x0 va 0x1201e0000
+[  216.383035] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 6/8 chan 0xc1d0004e/0xbeef0100 subdev 0xbeef0004: id 9 init 0 nonmapped 0 size 0x0 attr 0x0 pa 0x0 va 0x120030000
+[  216.383038] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 7/8 chan 0xc1d0004e/0xbeef0100 subdev 0xbeef0004: id 10 init 0 nonmapped 0 size 0x0 attr 0x0 pa 0x0 va 0x120140000
+[  216.383431] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote chan 0xc1d0004e/0xbeef0100: 8 entries -> 0x0
+[  216.383435] NVRM: GPU0 _kgrAlloc: CXDBG _kgrAlloc class 0x902d chid 33 kgrctx FFFF8CBFC91E1A08 vas FFFF8CC01BE9A610 -> 0x0
+[  216.383443] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x902d hClient 0xc1d0004e hParent 0xbeef0100 hObject 0xbeef502d
+[  216.383788] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0xc5b5 hClient 0xc1d0004e hParent 0xbeef0100 hObject 0xbeefa0b5
+[  216.384087] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0xc5b5 hClient 0xc1d0004e hParent 0xbeef0101 hObject 0xbeef8500
+[  216.384482] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0xc5b5 hClient 0xc1d0004e hParent 0xbeef0102 hObject 0xbeef8501
+[  216.384789] NVRM: GPU0 kgrobjConstruct_IMPL__cxinner: CXDBG kgrobj: class 0xa140 hClient 0xc1d0004e hParent 0xbeef0100 hObject 0xbeef3901 chid 33 runqueue 0 ctxLookup 0x0 hKGC chan 0xcaf00002 tsg 0xcaf00002 legacy 0 vas FFFF8CC01BE9A610
+[  216.384801] NVRM: GPU0 _kgrAlloc: CXDBG _kgrAlloc class 0xa140 chid 33 kgrctx FFFF8CBFC91E1A08 vas FFFF8CC01BE9A610 -> 0x0
+[  216.384803] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0xa140 hClient 0xc1d0004e hParent 0xbeef0100 hObject 0xbeef3901
+[  216.387304] NVRM: GPU0 kgrobjConstruct_IMPL__cxinner: CXDBG kgrobj: class 0xc597 hClient 0xc1d0004e hParent 0xbeef0100 hObject 0xbeef9097 chid 33 runqueue 0 ctxLookup 0x0 hKGC chan 0xcaf00002 tsg 0xcaf00002 legacy 0 vas FFFF8CC01BE9A610
+[  216.387315] NVRM: GPU0 _kgrAlloc: CXDBG _kgrAlloc class 0xc597 chid 33 kgrctx FFFF8CBFC91E1A08 vas FFFF8CC01BE9A610 -> 0x0
+[  216.387318] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0xc597 hClient 0xc1d0004e hParent 0xbeef0100 hObject 0xbeef9097
+[  217.403948] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x73 hClient 0xc1d00053 hParent 0xbeef0003 hObject 0xbeef0073
+[  217.419141] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x9096 hClient 0xc1d00053 hParent 0xbeef0004 hObject 0xbeef9960
+[  217.533421] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x2081 hClient 0xc1d00053 hParent 0xbeef0004 hObject 0xbeef0032
+[  217.544227] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x73 hClient 0xc1d00055 hParent 0xbfef0300 hObject 0xbfef0073
+[  217.753793] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x73 hClient 0xc1d00058 hParent 0xbeef0003 hObject 0xbeef0073
+[  217.762162] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x9096 hClient 0xc1d00058 hParent 0xbeef0004 hObject 0xbeef9960
+[  217.846058] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x2081 hClient 0xc1d00058 hParent 0xbeef0004 hObject 0xbeef0032
+[  217.854739] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x73 hClient 0xc1d0005a hParent 0xbfef0300 hObject 0xbfef0073
+[  218.059883] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x9067 hClient 0xc1d00058 hParent 0xcef80000 hObject 0xcef00000
+[  218.069714] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x73 hClient 0xc1d0005d hParent 0xbeef0003 hObject 0xbeef0073
+[  218.155844] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x9096 hClient 0xc1d0005d hParent 0xbeef0004 hObject 0xbeef9960
+[  218.163859] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x9072 hClient 0xc1d00058 hParent 0xbeef0100 hObject 0xbeef4900
+[  218.206950] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x9072 hClient 0xc1d00058 hParent 0xbeef0100 hObject 0xbeef4901
+[  218.208257] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x9072 hClient 0xc1d00058 hParent 0xbeef0100 hObject 0xbeef4902
+[  218.246452] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x9072 hClient 0xc1d00058 hParent 0xbeef0100 hObject 0xbeef4903
+[  218.246863] NVRM: GPU0 kgrobjConstruct_IMPL__cxinner: CXDBG kgrobj: class 0x902d hClient 0xc1d00058 hParent 0xbeef0100 hObject 0xbeef502d chid 33 runqueue 0 ctxLookup 0x0 hKGC chan 0xcaf00002 tsg 0xcaf00002 legacy 0 vas FFFF8CC01BE99C10
+[  218.304931] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 0/8 chan 0xc1d00058/0xbeef0100 subdev 0xbeef0004: id 0 init 1 nonmapped 0 size 0xee000 attr 0x4 pa 0x1e495a000 va 0x120030000
+[  218.304939] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 1/8 chan 0xc1d00058/0xbeef0100 subdev 0xbeef0004: id 2 init 1 nonmapped 0 size 0x5000 attr 0x4 pa 0x1e5264000 va 0x12011e000
+[  218.304941] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 2/8 chan 0xc1d00058/0xbeef0100 subdev 0xbeef0004: id 3 init 0 nonmapped 0 size 0x0 attr 0x0 pa 0x0 va 0x120123000
+[  218.304943] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 3/8 chan 0xc1d00058/0xbeef0100 subdev 0xbeef0004: id 4 init 0 nonmapped 0 size 0x0 attr 0x0 pa 0x0 va 0x1201b0000
+[  218.304945] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 4/8 chan 0xc1d00058/0xbeef0100 subdev 0xbeef0004: id 5 init 0 nonmapped 0 size 0x0 attr 0x0 pa 0x0 va 0x120400000
+[  218.304946] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 5/8 chan 0xc1d00058/0xbeef0100 subdev 0xbeef0004: id 6 init 0 nonmapped 0 size 0x0 attr 0x0 pa 0x0 va 0x1201d0000
+[  218.304948] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 6/8 chan 0xc1d00058/0xbeef0100 subdev 0xbeef0004: id 9 init 0 nonmapped 0 size 0x0 attr 0x0 pa 0x0 va 0x120020000
+[  218.304949] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 7/8 chan 0xc1d00058/0xbeef0100 subdev 0xbeef0004: id 10 init 0 nonmapped 0 size 0x0 attr 0x0 pa 0x0 va 0x120130000
+[  218.305303] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote chan 0xc1d00058/0xbeef0100: 8 entries -> 0x0
+[  218.305307] NVRM: GPU0 _kgrAlloc: CXDBG _kgrAlloc class 0x902d chid 33 kgrctx FFFF8CBFB3A9BE08 vas FFFF8CC01BE99C10 -> 0x0
+[  218.305314] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x902d hClient 0xc1d00058 hParent 0xbeef0100 hObject 0xbeef502d
+[  218.305693] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x2081 hClient 0xc1d0005d hParent 0xbeef0004 hObject 0xbeef0032
+[  218.308477] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0xc5b5 hClient 0xc1d00058 hParent 0xbeef0100 hObject 0xbeefa0b5
+[  218.310741] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0xc5b5 hClient 0xc1d00058 hParent 0xbeef0101 hObject 0xbeef8500
+[  218.312481] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0xc5b5 hClient 0xc1d00058 hParent 0xbeef0102 hObject 0xbeef8501
+[  218.312849] NVRM: GPU0 kgrobjConstruct_IMPL__cxinner: CXDBG kgrobj: class 0xa140 hClient 0xc1d00058 hParent 0xbeef0100 hObject 0xbeef3901 chid 33 runqueue 0 ctxLookup 0x0 hKGC chan 0xcaf00002 tsg 0xcaf00002 legacy 0 vas FFFF8CC01BE99C10
+[  218.312861] NVRM: GPU0 _kgrAlloc: CXDBG _kgrAlloc class 0xa140 chid 33 kgrctx FFFF8CBFB3A9BE08 vas FFFF8CC01BE99C10 -> 0x0
+[  218.312864] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0xa140 hClient 0xc1d00058 hParent 0xbeef0100 hObject 0xbeef3901
+[  218.318944] NVRM: GPU0 kgrobjConstruct_IMPL__cxinner: CXDBG kgrobj: class 0xc597 hClient 0xc1d00058 hParent 0xbeef0100 hObject 0xbeef9097 chid 33 runqueue 0 ctxLookup 0x0 hKGC chan 0xcaf00002 tsg 0xcaf00002 legacy 0 vas FFFF8CC01BE99C10
+[  218.318957] NVRM: GPU0 _kgrAlloc: CXDBG _kgrAlloc class 0xc597 chid 33 kgrctx FFFF8CBFB3A9BE08 vas FFFF8CC01BE99C10 -> 0x0
+[  218.318961] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0xc597 hClient 0xc1d00058 hParent 0xbeef0100 hObject 0xbeef9097
+[  218.341466] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x73 hClient 0xc1d0005f hParent 0xbfef0300 hObject 0xbfef0073
+[  218.838568] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x9067 hClient 0xc1d0005d hParent 0xcef80000 hObject 0xcef00000
+[  219.079431] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x9072 hClient 0xc1d0005d hParent 0xbeef0100 hObject 0xbeef4900
+[  219.080084] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x9072 hClient 0xc1d0005d hParent 0xbeef0100 hObject 0xbeef4901
+[  219.081059] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x9072 hClient 0xc1d0005d hParent 0xbeef0100 hObject 0xbeef4902
+[  219.081853] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x9072 hClient 0xc1d0005d hParent 0xbeef0100 hObject 0xbeef4903
+[  219.082209] NVRM: GPU0 kgrobjConstruct_IMPL__cxinner: CXDBG kgrobj: class 0x902d hClient 0xc1d0005d hParent 0xbeef0100 hObject 0xbeef502d chid 36 runqueue 0 ctxLookup 0x0 hKGC chan 0xcaf00002 tsg 0xcaf00002 legacy 0 vas FFFF8CBF68F30C10
+[  219.168319] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 0/8 chan 0xc1d0005d/0xbeef0100 subdev 0xbeef0004: id 0 init 1 nonmapped 0 size 0xee000 attr 0x4 pa 0x1e486c000 va 0x120040000
+[  219.168326] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 1/8 chan 0xc1d0005d/0xbeef0100 subdev 0xbeef0004: id 2 init 1 nonmapped 0 size 0x5000 attr 0x4 pa 0x1e525b000 va 0x12012e000
+[  219.168328] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 2/8 chan 0xc1d0005d/0xbeef0100 subdev 0xbeef0004: id 3 init 0 nonmapped 0 size 0x0 attr 0x0 pa 0x0 va 0x120133000
+[  219.168330] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 3/8 chan 0xc1d0005d/0xbeef0100 subdev 0xbeef0004: id 4 init 0 nonmapped 0 size 0x0 attr 0x0 pa 0x0 va 0x1201c0000
+[  219.168332] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 4/8 chan 0xc1d0005d/0xbeef0100 subdev 0xbeef0004: id 5 init 0 nonmapped 0 size 0x0 attr 0x0 pa 0x0 va 0x120400000
+[  219.168333] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 5/8 chan 0xc1d0005d/0xbeef0100 subdev 0xbeef0004: id 6 init 0 nonmapped 0 size 0x0 attr 0x0 pa 0x0 va 0x1201e0000
+[  219.168335] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 6/8 chan 0xc1d0005d/0xbeef0100 subdev 0xbeef0004: id 9 init 0 nonmapped 0 size 0x0 attr 0x0 pa 0x0 va 0x120030000
+[  219.168336] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 7/8 chan 0xc1d0005d/0xbeef0100 subdev 0xbeef0004: id 10 init 0 nonmapped 0 size 0x0 attr 0x0 pa 0x0 va 0x120140000
+[  219.168882] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote chan 0xc1d0005d/0xbeef0100: 8 entries -> 0x0
+[  219.168886] NVRM: GPU0 _kgrAlloc: CXDBG _kgrAlloc class 0x902d chid 36 kgrctx FFFF8CBFC91E3A08 vas FFFF8CBF68F30C10 -> 0x0
+[  219.168892] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x902d hClient 0xc1d0005d hParent 0xbeef0100 hObject 0xbeef502d
+[  219.169264] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0xc5b5 hClient 0xc1d0005d hParent 0xbeef0100 hObject 0xbeefa0b5
+[  219.169769] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0xc5b5 hClient 0xc1d0005d hParent 0xbeef0101 hObject 0xbeef8500
+[  219.170126] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0xc5b5 hClient 0xc1d0005d hParent 0xbeef0102 hObject 0xbeef8501
+[  219.170509] NVRM: GPU0 kgrobjConstruct_IMPL__cxinner: CXDBG kgrobj: class 0xa140 hClient 0xc1d0005d hParent 0xbeef0100 hObject 0xbeef3901 chid 36 runqueue 0 ctxLookup 0x0 hKGC chan 0xcaf00002 tsg 0xcaf00002 legacy 0 vas FFFF8CBF68F30C10
+[  219.170519] NVRM: GPU0 _kgrAlloc: CXDBG _kgrAlloc class 0xa140 chid 36 kgrctx FFFF8CBFC91E3A08 vas FFFF8CBF68F30C10 -> 0x0
+[  219.170521] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0xa140 hClient 0xc1d0005d hParent 0xbeef0100 hObject 0xbeef3901
+[  219.175949] NVRM: GPU0 kgrobjConstruct_IMPL__cxinner: CXDBG kgrobj: class 0xc597 hClient 0xc1d0005d hParent 0xbeef0100 hObject 0xbeef9097 chid 36 runqueue 0 ctxLookup 0x0 hKGC chan 0xcaf00002 tsg 0xcaf00002 legacy 0 vas FFFF8CBF68F30C10
+[  219.175962] NVRM: GPU0 _kgrAlloc: CXDBG _kgrAlloc class 0xc597 chid 36 kgrctx FFFF8CBFC91E3A08 vas FFFF8CBF68F30C10 -> 0x0
+[  219.175965] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0xc597 hClient 0xc1d0005d hParent 0xbeef0100 hObject 0xbeef9097
+[  221.770891] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x73 hClient 0xc1d00062 hParent 0xbeef0003 hObject 0xbeef0073
+[  221.781636] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x9096 hClient 0xc1d00062 hParent 0xbeef0004 hObject 0xbeef9960
+[  221.847187] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x2081 hClient 0xc1d00062 hParent 0xbeef0004 hObject 0xbeef0032
+[  221.854752] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x73 hClient 0xc1d00064 hParent 0xbfef0300 hObject 0xbfef0073
+[  221.987185] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x9067 hClient 0xc1d00062 hParent 0xcef80000 hObject 0xcef00000
+[  222.042880] NVRM: GPU0 kgrobjConstruct_IMPL__cxinner: CXDBG kgrobj: class 0x902d hClient 0xc1d00062 hParent 0xbeef0100 hObject 0xbeef502d chid 36 runqueue 0 ctxLookup 0x0 hKGC chan 0xcaf00002 tsg 0xcaf00002 legacy 0 vas FFFF8CBFC8F95A10
+[  222.109270] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 0/8 chan 0xc1d00062/0xbeef0100 subdev 0xbeef0004: id 0 init 1 nonmapped 0 size 0xee000 attr 0x4 pa 0x1e486c000 va 0x120010000
+[  222.109279] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 1/8 chan 0xc1d00062/0xbeef0100 subdev 0xbeef0004: id 2 init 1 nonmapped 0 size 0x5000 attr 0x4 pa 0x1e525b000 va 0x1200fe000
+[  222.109281] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 2/8 chan 0xc1d00062/0xbeef0100 subdev 0xbeef0004: id 3 init 0 nonmapped 0 size 0x0 attr 0x0 pa 0x0 va 0x120103000
+[  222.109282] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 3/8 chan 0xc1d00062/0xbeef0100 subdev 0xbeef0004: id 4 init 0 nonmapped 0 size 0x0 attr 0x0 pa 0x0 va 0x120190000
+[  222.109284] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 4/8 chan 0xc1d00062/0xbeef0100 subdev 0xbeef0004: id 5 init 0 nonmapped 0 size 0x0 attr 0x0 pa 0x0 va 0x120400000
+[  222.109285] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 5/8 chan 0xc1d00062/0xbeef0100 subdev 0xbeef0004: id 6 init 0 nonmapped 0 size 0x0 attr 0x0 pa 0x0 va 0x1201b0000
+[  222.109287] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 6/8 chan 0xc1d00062/0xbeef0100 subdev 0xbeef0004: id 9 init 0 nonmapped 0 size 0x0 attr 0x0 pa 0x0 va 0x120000000
+[  222.109289] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 7/8 chan 0xc1d00062/0xbeef0100 subdev 0xbeef0004: id 10 init 0 nonmapped 0 size 0x0 attr 0x0 pa 0x0 va 0x120110000
+[  222.109758] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote chan 0xc1d00062/0xbeef0100: 8 entries -> 0x0
+[  222.109762] NVRM: GPU0 _kgrAlloc: CXDBG _kgrAlloc class 0x902d chid 36 kgrctx FFFF8CBF71B9A408 vas FFFF8CBFC8F95A10 -> 0x0
+[  222.109768] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x902d hClient 0xc1d00062 hParent 0xbeef0100 hObject 0xbeef502d
+[  222.110737] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0xc5b5 hClient 0xc1d00062 hParent 0xbeef0100 hObject 0xbeefa0b5
+[  222.111058] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0xc5b5 hClient 0xc1d00062 hParent 0xbeef0101 hObject 0xbeef8500
+[  222.111387] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0xc5b5 hClient 0xc1d00062 hParent 0xbeef0102 hObject 0xbeef8501
+[  222.111848] NVRM: GPU0 kgrobjConstruct_IMPL__cxinner: CXDBG kgrobj: class 0xa140 hClient 0xc1d00062 hParent 0xbeef0100 hObject 0xbeef3901 chid 36 runqueue 0 ctxLookup 0x0 hKGC chan 0xcaf00002 tsg 0xcaf00002 legacy 0 vas FFFF8CBFC8F95A10
+[  222.111857] NVRM: GPU0 _kgrAlloc: CXDBG _kgrAlloc class 0xa140 chid 36 kgrctx FFFF8CBF71B9A408 vas FFFF8CBFC8F95A10 -> 0x0
+[  222.111859] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0xa140 hClient 0xc1d00062 hParent 0xbeef0100 hObject 0xbeef3901
+[  222.112174] NVRM: GPU0 kgrobjConstruct_IMPL__cxinner: CXDBG kgrobj: class 0xc597 hClient 0xc1d00062 hParent 0xbeef0100 hObject 0xbeef9097 chid 36 runqueue 0 ctxLookup 0x0 hKGC chan 0xcaf00002 tsg 0xcaf00002 legacy 0 vas FFFF8CBFC8F95A10
+[  222.112180] NVRM: GPU0 _kgrAlloc: CXDBG _kgrAlloc class 0xc597 chid 36 kgrctx FFFF8CBF71B9A408 vas FFFF8CBFC8F95A10 -> 0x0
+[  222.112183] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0xc597 hClient 0xc1d00062 hParent 0xbeef0100 hObject 0xbeef9097
+[  222.289418] NVRM: GPU0 kgrobjConstruct_IMPL__cxinner: CXDBG kgrobj: class 0xc5c0 hClient 0xc1d00062 hParent 0xbeef0100 hObject 0xbeef90c0 chid 36 runqueue 0 ctxLookup 0x0 hKGC chan 0xcaf00002 tsg 0xcaf00002 legacy 0 vas FFFF8CBFC8F95A10
+[  222.289439] NVRM: GPU0 _kgrAlloc: CXDBG _kgrAlloc class 0xc5c0 chid 36 kgrctx FFFF8CBF71B9A408 vas FFFF8CBFC8F95A10 -> 0x0
+[  222.289444] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0xc5c0 hClient 0xc1d00062 hParent 0xbeef0100 hObject 0xbeef90c0
+[  222.466195] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0xc5b5 hClient 0xc1d00062 hParent 0xbeee0101 hObject 0xbeee8500
+[  222.668393] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x9067 hClient 0xc1d00062 hParent 0xcef80001 hObject 0xcef00040
+[  222.675901] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x9067 hClient 0xc1d00062 hParent 0xcef80001 hObject 0xcef00041
+[  222.717396] NVRM: GPU0 kgrobjConstruct_IMPL__cxinner: CXDBG kgrobj: class 0x902d hClient 0xc1d00062 hParent 0xbeed0100 hObject 0xbeed502d chid 40 runqueue 0 ctxLookup 0x0 hKGC chan 0xcaf00032 tsg 0xcaf00032 legacy 0 vas FFFF8CBFC8F95A10
+[  222.801120] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 0/8 chan 0xc1d00062/0xbeed0100 subdev 0xbeef0004: id 0 init 1 nonmapped 0 size 0xee000 attr 0x4 pa 0x1e477e000 va 0x120240000
+[  222.801128] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 1/8 chan 0xc1d00062/0xbeed0100 subdev 0xbeef0004: id 2 init 1 nonmapped 0 size 0x5000 attr 0x4 pa 0x1e5253000 va 0x120107000
+[  222.801130] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 2/8 chan 0xc1d00062/0xbeed0100 subdev 0xbeef0004: id 3 init 0 nonmapped 0 size 0x0 attr 0x0 pa 0x0 va 0x12010c000
+[  222.801132] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 3/8 chan 0xc1d00062/0xbeed0100 subdev 0xbeef0004: id 4 init 0 nonmapped 0 size 0x0 attr 0x0 pa 0x0 va 0x1203b0000
+[  222.801133] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 4/8 chan 0xc1d00062/0xbeed0100 subdev 0xbeef0004: id 5 init 0 nonmapped 0 size 0x0 attr 0x0 pa 0x0 va 0x120800000
+[  222.801135] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 5/8 chan 0xc1d00062/0xbeed0100 subdev 0xbeef0004: id 6 init 0 nonmapped 0 size 0x0 attr 0x0 pa 0x0 va 0x120c00000
+[  222.801136] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 6/8 chan 0xc1d00062/0xbeed0100 subdev 0xbeef0004: id 9 init 0 nonmapped 0 size 0x0 attr 0x0 pa 0x0 va 0x120230000
+[  222.801138] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 7/8 chan 0xc1d00062/0xbeed0100 subdev 0xbeef0004: id 10 init 0 nonmapped 0 size 0x0 attr 0x0 pa 0x0 va 0x120330000
+[  222.801601] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote chan 0xc1d00062/0xbeed0100: 8 entries -> 0x0
+[  222.801605] NVRM: GPU0 _kgrAlloc: CXDBG _kgrAlloc class 0x902d chid 40 kgrctx FFFF8CBFD04C6008 vas FFFF8CBFC8F95A10 -> 0x0
+[  222.801613] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x902d hClient 0xc1d00062 hParent 0xbeed0100 hObject 0xbeed502d
+[  222.802054] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0xc5b5 hClient 0xc1d00062 hParent 0xbeed0100 hObject 0xbeeda0b5
+[  222.802443] NVRM: GPU0 kgrobjConstruct_IMPL__cxinner: CXDBG kgrobj: class 0xa140 hClient 0xc1d00062 hParent 0xbeed0100 hObject 0xbeed3901 chid 40 runqueue 0 ctxLookup 0x0 hKGC chan 0xcaf00032 tsg 0xcaf00032 legacy 0 vas FFFF8CBFC8F95A10
+[  222.802456] NVRM: GPU0 _kgrAlloc: CXDBG _kgrAlloc class 0xa140 chid 40 kgrctx FFFF8CBFD04C6008 vas FFFF8CBFC8F95A10 -> 0x0
+[  222.802459] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0xa140 hClient 0xc1d00062 hParent 0xbeed0100 hObject 0xbeed3901
+[  222.802984] NVRM: GPU0 kgrobjConstruct_IMPL__cxinner: CXDBG kgrobj: class 0xc597 hClient 0xc1d00062 hParent 0xbeed0100 hObject 0xbeed9097 chid 40 runqueue 0 ctxLookup 0x0 hKGC chan 0xcaf00032 tsg 0xcaf00032 legacy 0 vas FFFF8CBFC8F95A10
+[  222.802998] NVRM: GPU0 _kgrAlloc: CXDBG _kgrAlloc class 0xc597 chid 40 kgrctx FFFF8CBFD04C6008 vas FFFF8CBFC8F95A10 -> 0x0
+[  222.803026] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0xc597 hClient 0xc1d00062 hParent 0xbeed0100 hObject 0xbeed9097
+[  222.803694] NVRM: GPU0 kgrobjConstruct_IMPL__cxinner: CXDBG kgrobj: class 0xc5c0 hClient 0xc1d00062 hParent 0xbeed0104 hObject 0xbeed90c1 chid 41 runqueue 1 ctxLookup 0x0 hKGC chan 0xcaf00032 tsg 0xcaf00032 legacy 0 vas FFFF8CBFC8F95A10
+[  222.803702] NVRM: GPU0 _kgrAlloc: CXDBG _kgrAlloc class 0xc5c0 chid 41 kgrctx FFFF8CBFD04C6008 vas FFFF8CBFC8F95A10 -> 0x0
+[  222.803706] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0xc5c0 hClient 0xc1d00062 hParent 0xbeed0104 hObject 0xbeed90c1
+[  222.804090] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0xc5b5 hClient 0xc1d00062 hParent 0xbeed0104 hObject 0xbeeda2b5
+[  222.989147] NVRM: GPU0 kgrobjConstruct_IMPL__cxinner: CXDBG kgrobj: class 0xc5c0 hClient 0xc1d00062 hParent 0xbeed0100 hObject 0xbeed90c0 chid 40 runqueue 0 ctxLookup 0x0 hKGC chan 0xcaf00032 tsg 0xcaf00032 legacy 0 vas FFFF8CBFC8F95A10
+[  222.989162] NVRM: GPU0 _kgrAlloc: CXDBG _kgrAlloc class 0xc5c0 chid 40 kgrctx FFFF8CBFD04C6008 vas FFFF8CBFC8F95A10 -> 0x0
+[  222.989165] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0xc5c0 hClient 0xc1d00062 hParent 0xbeed0100 hObject 0xbeed90c0
+[  223.246658] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x73 hClient 0xc1d00067 hParent 0xbeef0003 hObject 0xbeef0073
+[  223.254737] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x9096 hClient 0xc1d00067 hParent 0xbeef0004 hObject 0xbeef9960
+[  223.368105] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x2081 hClient 0xc1d00067 hParent 0xbeef0004 hObject 0xbeef0032
+[  223.471400] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x73 hClient 0xc1d00069 hParent 0xbfef0300 hObject 0xbfef0073
+[  224.130052] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x9067 hClient 0xc1d00067 hParent 0xcef80000 hObject 0xcef00000
+[  224.452981] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x9072 hClient 0xc1d00067 hParent 0xbeef0100 hObject 0xbeef4900
+[  224.458773] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x9072 hClient 0xc1d00067 hParent 0xbeef0100 hObject 0xbeef4901
+[  224.461702] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x9072 hClient 0xc1d00067 hParent 0xbeef0100 hObject 0xbeef4902
+[  224.463639] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x9072 hClient 0xc1d00067 hParent 0xbeef0100 hObject 0xbeef4903
+[  224.468758] NVRM: GPU0 kgrobjConstruct_IMPL__cxinner: CXDBG kgrobj: class 0x902d hClient 0xc1d00067 hParent 0xbeef0100 hObject 0xbeef502d chid 39 runqueue 0 ctxLookup 0x0 hKGC chan 0xcaf00002 tsg 0xcaf00002 legacy 0 vas FFFF8CBF466C1E10
+[  224.519968] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 0/8 chan 0xc1d00067/0xbeef0100 subdev 0xbeef0004: id 0 init 1 nonmapped 0 size 0xee000 attr 0x4 pa 0x1e486c000 va 0x120040000
+[  224.519975] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 1/8 chan 0xc1d00067/0xbeef0100 subdev 0xbeef0004: id 2 init 1 nonmapped 0 size 0x5000 attr 0x4 pa 0x1e525e000 va 0x12012e000
+[  224.519977] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 2/8 chan 0xc1d00067/0xbeef0100 subdev 0xbeef0004: id 3 init 0 nonmapped 0 size 0x0 attr 0x0 pa 0x0 va 0x120133000
+[  224.519979] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 3/8 chan 0xc1d00067/0xbeef0100 subdev 0xbeef0004: id 4 init 0 nonmapped 0 size 0x0 attr 0x0 pa 0x0 va 0x1201c0000
+[  224.519981] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 4/8 chan 0xc1d00067/0xbeef0100 subdev 0xbeef0004: id 5 init 0 nonmapped 0 size 0x0 attr 0x0 pa 0x0 va 0x120400000
+[  224.519983] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 5/8 chan 0xc1d00067/0xbeef0100 subdev 0xbeef0004: id 6 init 0 nonmapped 0 size 0x0 attr 0x0 pa 0x0 va 0x1201e0000
+[  224.519984] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 6/8 chan 0xc1d00067/0xbeef0100 subdev 0xbeef0004: id 9 init 0 nonmapped 0 size 0x0 attr 0x0 pa 0x0 va 0x120030000
+[  224.519986] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 7/8 chan 0xc1d00067/0xbeef0100 subdev 0xbeef0004: id 10 init 0 nonmapped 0 size 0x0 attr 0x0 pa 0x0 va 0x120140000
+[  224.520336] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote chan 0xc1d00067/0xbeef0100: 8 entries -> 0x0
+[  224.520340] NVRM: GPU0 _kgrAlloc: CXDBG _kgrAlloc class 0x902d chid 39 kgrctx FFFF8CBFC8CA3808 vas FFFF8CBF466C1E10 -> 0x0
+[  224.520345] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x902d hClient 0xc1d00067 hParent 0xbeef0100 hObject 0xbeef502d
+[  224.522220] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0xc5b5 hClient 0xc1d00067 hParent 0xbeef0100 hObject 0xbeefa0b5
+[  224.522849] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0xc5b5 hClient 0xc1d00067 hParent 0xbeef0101 hObject 0xbeef8500
+[  224.532478] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0xc5b5 hClient 0xc1d00067 hParent 0xbeef0102 hObject 0xbeef8501
+[  224.534126] NVRM: GPU0 kgrobjConstruct_IMPL__cxinner: CXDBG kgrobj: class 0xa140 hClient 0xc1d00067 hParent 0xbeef0100 hObject 0xbeef3901 chid 39 runqueue 0 ctxLookup 0x0 hKGC chan 0xcaf00002 tsg 0xcaf00002 legacy 0 vas FFFF8CBF466C1E10
+[  224.534138] NVRM: GPU0 _kgrAlloc: CXDBG _kgrAlloc class 0xa140 chid 39 kgrctx FFFF8CBFC8CA3808 vas FFFF8CBF466C1E10 -> 0x0
+[  224.534141] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0xa140 hClient 0xc1d00067 hParent 0xbeef0100 hObject 0xbeef3901
+[  224.592826] NVRM: GPU0 kgrobjConstruct_IMPL__cxinner: CXDBG kgrobj: class 0xc597 hClient 0xc1d00067 hParent 0xbeef0100 hObject 0xbeef9097 chid 39 runqueue 0 ctxLookup 0x0 hKGC chan 0xcaf00002 tsg 0xcaf00002 legacy 0 vas FFFF8CBF466C1E10
+[  224.592848] NVRM: GPU0 _kgrAlloc: CXDBG _kgrAlloc class 0xc597 chid 39 kgrctx FFFF8CBFC8CA3808 vas FFFF8CBF466C1E10 -> 0x0
+[  224.592852] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0xc597 hClient 0xc1d00067 hParent 0xbeef0100 hObject 0xbeef9097
+[  225.315602] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x73 hClient 0xc1d0006c hParent 0xbfef0300 hObject 0xbfef0073
+[  225.503796] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x73 hClient 0xc1d0006d hParent 0xbeef0003 hObject 0xbeef0073
+[  225.609062] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x9096 hClient 0xc1d0006d hParent 0xbeef0004 hObject 0xbeef9960
+[  225.643643] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x2081 hClient 0xc1d0006d hParent 0xbeef0004 hObject 0xbeef0032
+[  226.079078] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x9067 hClient 0xc1d0006d hParent 0xcef80000 hObject 0xcef00000
+[  226.370795] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x73 hClient 0xc1d00071 hParent 0xbeef0003 hObject 0xbeef0073
+[  226.448082] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x9072 hClient 0xc1d0006d hParent 0xbeef0100 hObject 0xbeef4900
+[  226.452739] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x9072 hClient 0xc1d0006d hParent 0xbeef0100 hObject 0xbeef4901
+[  226.468259] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x9072 hClient 0xc1d0006d hParent 0xbeef0100 hObject 0xbeef4902
+[  226.496781] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x9072 hClient 0xc1d0006d hParent 0xbeef0100 hObject 0xbeef4903
+[  226.501689] NVRM: GPU0 kgrobjConstruct_IMPL__cxinner: CXDBG kgrobj: class 0x902d hClient 0xc1d0006d hParent 0xbeef0100 hObject 0xbeef502d chid 36 runqueue 0 ctxLookup 0x0 hKGC chan 0xcaf00002 tsg 0xcaf00002 legacy 0 vas FFFF8CBFB3A5CC10
+[  226.600455] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 0/8 chan 0xc1d0006d/0xbeef0100 subdev 0xbeef0004: id 0 init 1 nonmapped 0 size 0xee000 attr 0x4 pa 0x1e477e000 va 0x120010000
+[  226.600463] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 1/8 chan 0xc1d0006d/0xbeef0100 subdev 0xbeef0004: id 2 init 1 nonmapped 0 size 0x5000 attr 0x4 pa 0x1e5253000 va 0x1200fe000
+[  226.600465] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 2/8 chan 0xc1d0006d/0xbeef0100 subdev 0xbeef0004: id 3 init 0 nonmapped 0 size 0x0 attr 0x0 pa 0x0 va 0x120103000
+[  226.600466] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 3/8 chan 0xc1d0006d/0xbeef0100 subdev 0xbeef0004: id 4 init 0 nonmapped 0 size 0x0 attr 0x0 pa 0x0 va 0x120190000
+[  226.600468] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 4/8 chan 0xc1d0006d/0xbeef0100 subdev 0xbeef0004: id 5 init 0 nonmapped 0 size 0x0 attr 0x0 pa 0x0 va 0x120400000
+[  226.600470] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 5/8 chan 0xc1d0006d/0xbeef0100 subdev 0xbeef0004: id 6 init 0 nonmapped 0 size 0x0 attr 0x0 pa 0x0 va 0x1201b0000
+[  226.600471] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 6/8 chan 0xc1d0006d/0xbeef0100 subdev 0xbeef0004: id 9 init 0 nonmapped 0 size 0x0 attr 0x0 pa 0x0 va 0x120000000
+[  226.600473] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 7/8 chan 0xc1d0006d/0xbeef0100 subdev 0xbeef0004: id 10 init 0 nonmapped 0 size 0x0 attr 0x0 pa 0x0 va 0x120110000
+[  226.600902] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote chan 0xc1d0006d/0xbeef0100: 8 entries -> 0x0
+[  226.600905] NVRM: GPU0 _kgrAlloc: CXDBG _kgrAlloc class 0x902d chid 36 kgrctx FFFF8CBF6C350208 vas FFFF8CBFB3A5CC10 -> 0x0
+[  226.600912] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x902d hClient 0xc1d0006d hParent 0xbeef0100 hObject 0xbeef502d
+[  226.602430] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0xc5b5 hClient 0xc1d0006d hParent 0xbeef0100 hObject 0xbeefa0b5
+[  226.603838] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0xc5b5 hClient 0xc1d0006d hParent 0xbeef0101 hObject 0xbeef8500
+[  226.604445] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0xc5b5 hClient 0xc1d0006d hParent 0xbeef0102 hObject 0xbeef8501
+[  226.607670] NVRM: GPU0 kgrobjConstruct_IMPL__cxinner: CXDBG kgrobj: class 0xa140 hClient 0xc1d0006d hParent 0xbeef0100 hObject 0xbeef3901 chid 36 runqueue 0 ctxLookup 0x0 hKGC chan 0xcaf00002 tsg 0xcaf00002 legacy 0 vas FFFF8CBFB3A5CC10
+[  226.607689] NVRM: GPU0 _kgrAlloc: CXDBG _kgrAlloc class 0xa140 chid 36 kgrctx FFFF8CBF6C350208 vas FFFF8CBFB3A5CC10 -> 0x0
+[  226.607694] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0xa140 hClient 0xc1d0006d hParent 0xbeef0100 hObject 0xbeef3901
+[  226.635911] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x9096 hClient 0xc1d00071 hParent 0xbeef0004 hObject 0xbeef9960
+[  226.637638] NVRM: GPU0 kgrobjConstruct_IMPL__cxinner: CXDBG kgrobj: class 0xc597 hClient 0xc1d0006d hParent 0xbeef0100 hObject 0xbeef9097 chid 36 runqueue 0 ctxLookup 0x0 hKGC chan 0xcaf00002 tsg 0xcaf00002 legacy 0 vas FFFF8CBFB3A5CC10
+[  226.637662] NVRM: GPU0 _kgrAlloc: CXDBG _kgrAlloc class 0xc597 chid 36 kgrctx FFFF8CBF6C350208 vas FFFF8CBFB3A5CC10 -> 0x0
+[  226.638024] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0xc597 hClient 0xc1d0006d hParent 0xbeef0100 hObject 0xbeef9097
+[  226.783317] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x2081 hClient 0xc1d00071 hParent 0xbeef0004 hObject 0xbeef0032
+[  226.895351] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x73 hClient 0xc1d00073 hParent 0xbfef0300 hObject 0xbfef0073
+[  227.393431] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x9067 hClient 0xc1d00071 hParent 0xcef80000 hObject 0xcef00000
+[  227.645679] NVRM: GPU0 kgrobjConstruct_IMPL__cxinner: CXDBG kgrobj: class 0x902d hClient 0xc1d00071 hParent 0xbeef0100 hObject 0xbeef502d chid 42 runqueue 0 ctxLookup 0x0 hKGC chan 0xcaf00002 tsg 0xcaf00002 legacy 0 vas FFFF8CC022DE8210
+[  227.736318] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 0/8 chan 0xc1d00071/0xbeef0100 subdev 0xbeef0004: id 0 init 1 nonmapped 0 size 0xee000 attr 0x4 pa 0x1e4690000 va 0x120010000
+[  227.736330] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 1/8 chan 0xc1d00071/0xbeef0100 subdev 0xbeef0004: id 2 init 1 nonmapped 0 size 0x5000 attr 0x4 pa 0x1e524b000 va 0x1200fe000
+[  227.736332] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 2/8 chan 0xc1d00071/0xbeef0100 subdev 0xbeef0004: id 3 init 0 nonmapped 0 size 0x0 attr 0x0 pa 0x0 va 0x120103000
+[  227.736334] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 3/8 chan 0xc1d00071/0xbeef0100 subdev 0xbeef0004: id 4 init 0 nonmapped 0 size 0x0 attr 0x0 pa 0x0 va 0x120190000
+[  227.736336] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 4/8 chan 0xc1d00071/0xbeef0100 subdev 0xbeef0004: id 5 init 0 nonmapped 0 size 0x0 attr 0x0 pa 0x0 va 0x120400000
+[  227.736338] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 5/8 chan 0xc1d00071/0xbeef0100 subdev 0xbeef0004: id 6 init 0 nonmapped 0 size 0x0 attr 0x0 pa 0x0 va 0x1201b0000
+[  227.736340] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 6/8 chan 0xc1d00071/0xbeef0100 subdev 0xbeef0004: id 9 init 0 nonmapped 0 size 0x0 attr 0x0 pa 0x0 va 0x120000000
+[  227.736342] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 7/8 chan 0xc1d00071/0xbeef0100 subdev 0xbeef0004: id 10 init 0 nonmapped 0 size 0x0 attr 0x0 pa 0x0 va 0x120110000
+[  227.737084] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote chan 0xc1d00071/0xbeef0100: 8 entries -> 0x0
+[  227.737089] NVRM: GPU0 _kgrAlloc: CXDBG _kgrAlloc class 0x902d chid 42 kgrctx FFFF8CBFC8CA7608 vas FFFF8CC022DE8210 -> 0x0
+[  227.737098] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x902d hClient 0xc1d00071 hParent 0xbeef0100 hObject 0xbeef502d
+[  227.741439] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0xc5b5 hClient 0xc1d00071 hParent 0xbeef0100 hObject 0xbeefa0b5
+[  227.742470] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0xc5b5 hClient 0xc1d00071 hParent 0xbeef0101 hObject 0xbeef8500
+[  227.743256] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0xc5b5 hClient 0xc1d00071 hParent 0xbeef0102 hObject 0xbeef8501
+[  227.743881] NVRM: GPU0 kgrobjConstruct_IMPL__cxinner: CXDBG kgrobj: class 0xa140 hClient 0xc1d00071 hParent 0xbeef0100 hObject 0xbeef3901 chid 42 runqueue 0 ctxLookup 0x0 hKGC chan 0xcaf00002 tsg 0xcaf00002 legacy 0 vas FFFF8CC022DE8210
+[  227.743895] NVRM: GPU0 _kgrAlloc: CXDBG _kgrAlloc class 0xa140 chid 42 kgrctx FFFF8CBFC8CA7608 vas FFFF8CC022DE8210 -> 0x0
+[  227.743897] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0xa140 hClient 0xc1d00071 hParent 0xbeef0100 hObject 0xbeef3901
+[  227.744352] NVRM: GPU0 kgrobjConstruct_IMPL__cxinner: CXDBG kgrobj: class 0xc597 hClient 0xc1d00071 hParent 0xbeef0100 hObject 0xbeef9097 chid 42 runqueue 0 ctxLookup 0x0 hKGC chan 0xcaf00002 tsg 0xcaf00002 legacy 0 vas FFFF8CC022DE8210
+[  227.744378] NVRM: GPU0 _kgrAlloc: CXDBG _kgrAlloc class 0xc597 chid 42 kgrctx FFFF8CBFC8CA7608 vas FFFF8CC022DE8210 -> 0x0
+[  227.744384] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0xc597 hClient 0xc1d00071 hParent 0xbeef0100 hObject 0xbeef9097
+[  227.975716] NVRM: GPU0 kgrobjConstruct_IMPL__cxinner: CXDBG kgrobj: class 0xc5c0 hClient 0xc1d00071 hParent 0xbeef0100 hObject 0xbeef90c0 chid 42 runqueue 0 ctxLookup 0x0 hKGC chan 0xcaf00002 tsg 0xcaf00002 legacy 0 vas FFFF8CC022DE8210
+[  227.975735] NVRM: GPU0 _kgrAlloc: CXDBG _kgrAlloc class 0xc5c0 chid 42 kgrctx FFFF8CBFC8CA7608 vas FFFF8CC022DE8210 -> 0x0
+[  227.975738] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0xc5c0 hClient 0xc1d00071 hParent 0xbeef0100 hObject 0xbeef90c0
+[  228.344030] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0xc5b5 hClient 0xc1d00071 hParent 0xbeee0101 hObject 0xbeee8500
+[  228.732955] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x9067 hClient 0xc1d0006d hParent 0xcef80002 hObject 0xcef00080
+[  228.931513] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x9067 hClient 0xc1d00071 hParent 0xcef80001 hObject 0xcef00040
+[  229.000743] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x9067 hClient 0xc1d00071 hParent 0xcef80001 hObject 0xcef00041
+[  229.039739] NVRM: GPU0 kgrobjConstruct_IMPL__cxinner: CXDBG kgrobj: class 0x902d hClient 0xc1d0006d hParent 0xbeee0100 hObject 0xbeee502d chid 46 runqueue 0 ctxLookup 0x0 hKGC chan 0xcaf00029 tsg 0xcaf00029 legacy 0 vas FFFF8CBFB3A5CC10
+[  229.202951] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 0/8 chan 0xc1d0006d/0xbeee0100 subdev 0xbeef0004: id 0 init 1 nonmapped 0 size 0xee000 attr 0x4 pa 0x1e45a2000 va 0x120240000
+[  229.202959] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 1/8 chan 0xc1d0006d/0xbeee0100 subdev 0xbeef0004: id 2 init 1 nonmapped 0 size 0x5000 attr 0x4 pa 0x1e523f000 va 0x120106000
+[  229.202961] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 2/8 chan 0xc1d0006d/0xbeee0100 subdev 0xbeef0004: id 3 init 0 nonmapped 0 size 0x0 attr 0x0 pa 0x0 va 0x12010b000
+[  229.202963] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 3/8 chan 0xc1d0006d/0xbeee0100 subdev 0xbeef0004: id 4 init 0 nonmapped 0 size 0x0 attr 0x0 pa 0x0 va 0x1203b0000
+[  229.202964] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 4/8 chan 0xc1d0006d/0xbeee0100 subdev 0xbeef0004: id 5 init 0 nonmapped 0 size 0x0 attr 0x0 pa 0x0 va 0x120800000
+[  229.202966] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 5/8 chan 0xc1d0006d/0xbeee0100 subdev 0xbeef0004: id 6 init 0 nonmapped 0 size 0x0 attr 0x0 pa 0x0 va 0x120c00000
+[  229.202967] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 6/8 chan 0xc1d0006d/0xbeee0100 subdev 0xbeef0004: id 9 init 0 nonmapped 0 size 0x0 attr 0x0 pa 0x0 va 0x120230000
+[  229.202969] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 7/8 chan 0xc1d0006d/0xbeee0100 subdev 0xbeef0004: id 10 init 0 nonmapped 0 size 0x0 attr 0x0 pa 0x0 va 0x120330000
+[  229.203969] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote chan 0xc1d0006d/0xbeee0100: 8 entries -> 0x0
+[  229.203975] NVRM: GPU0 _kgrAlloc: CXDBG _kgrAlloc class 0x902d chid 46 kgrctx FFFF8CC022DEAC08 vas FFFF8CBFB3A5CC10 -> 0x0
+[  229.203985] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x902d hClient 0xc1d0006d hParent 0xbeee0100 hObject 0xbeee502d
+[  229.207152] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0xc5b5 hClient 0xc1d0006d hParent 0xbeee0100 hObject 0xbeeea0b5
+[  229.209731] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0xc5b5 hClient 0xc1d0006d hParent 0xbeee0101 hObject 0xbeee8500
+[  229.227693] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0xc5b5 hClient 0xc1d0006d hParent 0xbeee0102 hObject 0xbeee8501
+[  229.229309] NVRM: GPU0 kgrobjConstruct_IMPL__cxinner: CXDBG kgrobj: class 0xa140 hClient 0xc1d0006d hParent 0xbeee0100 hObject 0xbeee3901 chid 46 runqueue 0 ctxLookup 0x0 hKGC chan 0xcaf00029 tsg 0xcaf00029 legacy 0 vas FFFF8CBFB3A5CC10
+[  229.229331] NVRM: GPU0 _kgrAlloc: CXDBG _kgrAlloc class 0xa140 chid 46 kgrctx FFFF8CC022DEAC08 vas FFFF8CBFB3A5CC10 -> 0x0
+[  229.229336] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0xa140 hClient 0xc1d0006d hParent 0xbeee0100 hObject 0xbeee3901
+[  229.230442] NVRM: GPU0 kgrobjConstruct_IMPL__cxinner: CXDBG kgrobj: class 0xc597 hClient 0xc1d0006d hParent 0xbeee0100 hObject 0xbeee9097 chid 46 runqueue 0 ctxLookup 0x0 hKGC chan 0xcaf00029 tsg 0xcaf00029 legacy 0 vas FFFF8CBFB3A5CC10
+[  229.230454] NVRM: GPU0 _kgrAlloc: CXDBG _kgrAlloc class 0xc597 chid 46 kgrctx FFFF8CC022DEAC08 vas FFFF8CBFB3A5CC10 -> 0x0
+[  229.230459] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0xc597 hClient 0xc1d0006d hParent 0xbeee0100 hObject 0xbeee9097
+[  229.356845] NVRM: GPU0 kgrobjConstruct_IMPL__cxinner: CXDBG kgrobj: class 0x902d hClient 0xc1d00071 hParent 0xbeed0100 hObject 0xbeed502d chid 49 runqueue 0 ctxLookup 0x0 hKGC chan 0xcaf00032 tsg 0xcaf00032 legacy 0 vas FFFF8CC022DE8210
+[  229.563752] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 0/8 chan 0xc1d00071/0xbeed0100 subdev 0xbeef0004: id 0 init 1 nonmapped 0 size 0xee000 attr 0x4 pa 0x1e44b4000 va 0x120240000
+[  229.563760] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 1/8 chan 0xc1d00071/0xbeed0100 subdev 0xbeef0004: id 2 init 1 nonmapped 0 size 0x5000 attr 0x4 pa 0x1e523a000 va 0x120107000
+[  229.563762] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 2/8 chan 0xc1d00071/0xbeed0100 subdev 0xbeef0004: id 3 init 0 nonmapped 0 size 0x0 attr 0x0 pa 0x0 va 0x12010c000
+[  229.563764] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 3/8 chan 0xc1d00071/0xbeed0100 subdev 0xbeef0004: id 4 init 0 nonmapped 0 size 0x0 attr 0x0 pa 0x0 va 0x1203b0000
+[  229.563766] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 4/8 chan 0xc1d00071/0xbeed0100 subdev 0xbeef0004: id 5 init 0 nonmapped 0 size 0x0 attr 0x0 pa 0x0 va 0x120800000
+[  229.563767] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 5/8 chan 0xc1d00071/0xbeed0100 subdev 0xbeef0004: id 6 init 0 nonmapped 0 size 0x0 attr 0x0 pa 0x0 va 0x120c00000
+[  229.563769] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 6/8 chan 0xc1d00071/0xbeed0100 subdev 0xbeef0004: id 9 init 0 nonmapped 0 size 0x0 attr 0x0 pa 0x0 va 0x120230000
+[  229.563770] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 7/8 chan 0xc1d00071/0xbeed0100 subdev 0xbeef0004: id 10 init 0 nonmapped 0 size 0x0 attr 0x0 pa 0x0 va 0x120330000
+[  229.571053] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote chan 0xc1d00071/0xbeed0100: 8 entries -> 0x0
+[  229.571059] NVRM: GPU0 _kgrAlloc: CXDBG _kgrAlloc class 0x902d chid 49 kgrctx FFFF8CC022DDEC08 vas FFFF8CC022DE8210 -> 0x0
+[  229.571067] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x902d hClient 0xc1d00071 hParent 0xbeed0100 hObject 0xbeed502d
+[  229.573396] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0xc5b5 hClient 0xc1d00071 hParent 0xbeed0100 hObject 0xbeeda0b5
+[  229.595674] NVRM: GPU0 kgrobjConstruct_IMPL__cxinner: CXDBG kgrobj: class 0xa140 hClient 0xc1d00071 hParent 0xbeed0100 hObject 0xbeed3901 chid 49 runqueue 0 ctxLookup 0x0 hKGC chan 0xcaf00032 tsg 0xcaf00032 legacy 0 vas FFFF8CC022DE8210
+[  229.595697] NVRM: GPU0 _kgrAlloc: CXDBG _kgrAlloc class 0xa140 chid 49 kgrctx FFFF8CC022DDEC08 vas FFFF8CC022DE8210 -> 0x0
+[  229.595702] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0xa140 hClient 0xc1d00071 hParent 0xbeed0100 hObject 0xbeed3901
+[  229.596888] NVRM: GPU0 kgrobjConstruct_IMPL__cxinner: CXDBG kgrobj: class 0xc597 hClient 0xc1d00071 hParent 0xbeed0100 hObject 0xbeed9097 chid 49 runqueue 0 ctxLookup 0x0 hKGC chan 0xcaf00032 tsg 0xcaf00032 legacy 0 vas FFFF8CC022DE8210
+[  229.596903] NVRM: GPU0 _kgrAlloc: CXDBG _kgrAlloc class 0xc597 chid 49 kgrctx FFFF8CC022DDEC08 vas FFFF8CC022DE8210 -> 0x0
+[  229.596907] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0xc597 hClient 0xc1d00071 hParent 0xbeed0100 hObject 0xbeed9097
+[  229.650515] NVRM: GPU0 kgrobjConstruct_IMPL__cxinner: CXDBG kgrobj: class 0xc5c0 hClient 0xc1d00071 hParent 0xbeed0104 hObject 0xbeed90c1 chid 50 runqueue 1 ctxLookup 0x0 hKGC chan 0xcaf00032 tsg 0xcaf00032 legacy 0 vas FFFF8CC022DE8210
+[  229.650546] NVRM: GPU0 _kgrAlloc: CXDBG _kgrAlloc class 0xc5c0 chid 50 kgrctx FFFF8CC022DDEC08 vas FFFF8CC022DE8210 -> 0x0
+[  229.650556] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0xc5c0 hClient 0xc1d00071 hParent 0xbeed0104 hObject 0xbeed90c1
+[  229.674952] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0xc5b5 hClient 0xc1d00071 hParent 0xbeed0104 hObject 0xbeeda2b5
+[  230.819836] NVRM: GPU0 kgrobjConstruct_IMPL__cxinner: CXDBG kgrobj: class 0xc5c0 hClient 0xc1d0006d hParent 0xbeee0100 hObject 0xbeee90c0 chid 46 runqueue 0 ctxLookup 0x0 hKGC chan 0xcaf00029 tsg 0xcaf00029 legacy 0 vas FFFF8CBFB3A5CC10
+[  230.819906] NVRM: GPU0 _kgrAlloc: CXDBG _kgrAlloc class 0xc5c0 chid 46 kgrctx FFFF8CC022DEAC08 vas FFFF8CBFB3A5CC10 -> 0x0
+[  230.819911] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0xc5c0 hClient 0xc1d0006d hParent 0xbeee0100 hObject 0xbeee90c0
+[  230.962176] NVRM: GPU0 kgrobjConstruct_IMPL__cxinner: CXDBG kgrobj: class 0xc5c0 hClient 0xc1d00071 hParent 0xbeed0100 hObject 0xbeed90c0 chid 49 runqueue 0 ctxLookup 0x0 hKGC chan 0xcaf00032 tsg 0xcaf00032 legacy 0 vas FFFF8CC022DE8210
+[  230.962211] NVRM: GPU0 _kgrAlloc: CXDBG _kgrAlloc class 0xc5c0 chid 49 kgrctx FFFF8CC022DDEC08 vas FFFF8CC022DE8210 -> 0x0
+[  230.962220] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0xc5c0 hClient 0xc1d00071 hParent 0xbeed0100 hObject 0xbeed90c0
+[  231.964612] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0xc5b5 hClient 0xc1d0006d hParent 0xbeed0101 hObject 0xbeed8500
+[  233.112818] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x9067 hClient 0xc1d0006d hParent 0xcef80003 hObject 0xcef000c0
+[  233.227212] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x9067 hClient 0xc1d0006d hParent 0xcef80003 hObject 0xcef000c1
+[  233.617717] NVRM: GPU0 kgrobjConstruct_IMPL__cxinner: CXDBG kgrobj: class 0x902d hClient 0xc1d0006d hParent 0xbeec0100 hObject 0xbeec502d chid 45 runqueue 0 ctxLookup 0x0 hKGC chan 0xcaf00056 tsg 0xcaf00056 legacy 0 vas FFFF8CBFB3A5CC10
+[  233.753835] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 0/8 chan 0xc1d0006d/0xbeec0100 subdev 0xbeef0004: id 0 init 1 nonmapped 0 size 0xee000 attr 0x4 pa 0x1e44b4000 va 0x120c80000
+[  233.753845] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 1/8 chan 0xc1d0006d/0xbeec0100 subdev 0xbeef0004: id 2 init 1 nonmapped 0 size 0x5000 attr 0x4 pa 0x1e523a000 va 0x1203e0000
+[  233.753848] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 2/8 chan 0xc1d0006d/0xbeec0100 subdev 0xbeef0004: id 3 init 0 nonmapped 0 size 0x0 attr 0x0 pa 0x0 va 0x1203e5000
+[  233.753850] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 3/8 chan 0xc1d0006d/0xbeec0100 subdev 0xbeef0004: id 4 init 0 nonmapped 0 size 0x0 attr 0x0 pa 0x0 va 0x120df0000
+[  233.753852] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 4/8 chan 0xc1d0006d/0xbeec0100 subdev 0xbeef0004: id 5 init 0 nonmapped 0 size 0x0 attr 0x0 pa 0x0 va 0x121000000
+[  233.753854] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 5/8 chan 0xc1d0006d/0xbeec0100 subdev 0xbeef0004: id 6 init 0 nonmapped 0 size 0x0 attr 0x0 pa 0x0 va 0x120e10000
+[  233.753857] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 6/8 chan 0xc1d0006d/0xbeec0100 subdev 0xbeef0004: id 9 init 0 nonmapped 0 size 0x0 attr 0x0 pa 0x0 va 0x1203d0000
+[  233.753859] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 7/8 chan 0xc1d0006d/0xbeec0100 subdev 0xbeef0004: id 10 init 0 nonmapped 0 size 0x0 attr 0x0 pa 0x0 va 0x120d70000
+[  233.754331] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote chan 0xc1d0006d/0xbeec0100: 8 entries -> 0x0
+[  233.754335] NVRM: GPU0 _kgrAlloc: CXDBG _kgrAlloc class 0x902d chid 45 kgrctx FFFF8CC022DFFC08 vas FFFF8CBFB3A5CC10 -> 0x0
+[  233.754342] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x902d hClient 0xc1d0006d hParent 0xbeec0100 hObject 0xbeec502d
+[  233.755290] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0xc5b5 hClient 0xc1d0006d hParent 0xbeec0100 hObject 0xbeeca0b5
+[  233.771308] NVRM: GPU0 kgrobjConstruct_IMPL__cxinner: CXDBG kgrobj: class 0xa140 hClient 0xc1d0006d hParent 0xbeec0100 hObject 0xbeec3901 chid 45 runqueue 0 ctxLookup 0x0 hKGC chan 0xcaf00056 tsg 0xcaf00056 legacy 0 vas FFFF8CBFB3A5CC10
+[  233.771362] NVRM: GPU0 _kgrAlloc: CXDBG _kgrAlloc class 0xa140 chid 45 kgrctx FFFF8CC022DFFC08 vas FFFF8CBFB3A5CC10 -> 0x0
+[  233.771385] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0xa140 hClient 0xc1d0006d hParent 0xbeec0100 hObject 0xbeec3901
+[  233.772190] NVRM: GPU0 kgrobjConstruct_IMPL__cxinner: CXDBG kgrobj: class 0xc597 hClient 0xc1d0006d hParent 0xbeec0100 hObject 0xbeec9097 chid 45 runqueue 0 ctxLookup 0x0 hKGC chan 0xcaf00056 tsg 0xcaf00056 legacy 0 vas FFFF8CBFB3A5CC10
+[  233.772201] NVRM: GPU0 _kgrAlloc: CXDBG _kgrAlloc class 0xc597 chid 45 kgrctx FFFF8CC022DFFC08 vas FFFF8CBFB3A5CC10 -> 0x0
+[  233.772205] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0xc597 hClient 0xc1d0006d hParent 0xbeec0100 hObject 0xbeec9097
+[  233.835603] NVRM: GPU0 kgrobjConstruct_IMPL__cxinner: CXDBG kgrobj: class 0xc5c0 hClient 0xc1d0006d hParent 0xbeec0104 hObject 0xbeec90c1 chid 52 runqueue 1 ctxLookup 0x0 hKGC chan 0xcaf00056 tsg 0xcaf00056 legacy 0 vas FFFF8CBFB3A5CC10
+[  233.835620] NVRM: GPU0 _kgrAlloc: CXDBG _kgrAlloc class 0xc5c0 chid 52 kgrctx FFFF8CC022DFFC08 vas FFFF8CBFB3A5CC10 -> 0x0
+[  233.835624] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0xc5c0 hClient 0xc1d0006d hParent 0xbeec0104 hObject 0xbeec90c1
+[  233.865441] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0xc5b5 hClient 0xc1d0006d hParent 0xbeec0104 hObject 0xbeeca2b5
+[  235.502737] NVRM: GPU0 kgrobjConstruct_IMPL__cxinner: CXDBG kgrobj: class 0xc5c0 hClient 0xc1d0006d hParent 0xbeec0100 hObject 0xbeec90c0 chid 45 runqueue 0 ctxLookup 0x0 hKGC chan 0xcaf00056 tsg 0xcaf00056 legacy 0 vas FFFF8CBFB3A5CC10
+[  235.502754] NVRM: GPU0 _kgrAlloc: CXDBG _kgrAlloc class 0xc5c0 chid 45 kgrctx FFFF8CC022DFFC08 vas FFFF8CBFB3A5CC10 -> 0x0
+[  235.502759] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0xc5c0 hClient 0xc1d0006d hParent 0xbeec0100 hObject 0xbeec90c0
+[  276.352775] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0xc4b0 hClient 0xc1d00075 hParent 0x80000012 hObject 0x80000030
+[  291.866404] NVRM: GPU0 nvAssertFailedNoLog: Assertion failed: bAwakenIntrPending @ kern_disp_0300.c:748
+[  328.909324] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x73 hClient 0xc1d00078 hParent 0xbfef0300 hObject 0xbfef0073
+[  328.967043] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x73 hClient 0xc1d00079 hParent 0xbeef0003 hObject 0xbeef0073
+[  328.997558] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x9096 hClient 0xc1d00079 hParent 0xbeef0004 hObject 0xbeef9960
+[  329.039195] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x2081 hClient 0xc1d00079 hParent 0xbeef0004 hObject 0xbeef0032
+[  329.216991] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x9067 hClient 0xc1d00079 hParent 0xcef80000 hObject 0xcef00000
+[  329.369996] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x9072 hClient 0xc1d00079 hParent 0xbeef0100 hObject 0xbeef4900
+[  329.376466] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x9072 hClient 0xc1d00079 hParent 0xbeef0100 hObject 0xbeef4901
+[  329.377942] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x9072 hClient 0xc1d00079 hParent 0xbeef0100 hObject 0xbeef4902
+[  329.379683] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x9072 hClient 0xc1d00079 hParent 0xbeef0100 hObject 0xbeef4903
+[  329.380581] NVRM: GPU0 kgrobjConstruct_IMPL__cxinner: CXDBG kgrobj: class 0x902d hClient 0xc1d00079 hParent 0xbeef0100 hObject 0xbeef502d chid 8 runqueue 0 ctxLookup 0x0 hKGC chan 0xcaf00002 tsg 0xcaf00002 legacy 0 vas FFFF8CC022DE4010
+[  329.442116] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 0/8 chan 0xc1d00079/0xbeef0100 subdev 0xbeef0004: id 0 init 1 nonmapped 0 size 0xee000 attr 0x4 pa 0x1e4b36000 va 0x120010000
+[  329.442127] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 1/8 chan 0xc1d00079/0xbeef0100 subdev 0xbeef0004: id 2 init 1 nonmapped 0 size 0x5000 attr 0x4 pa 0x1e5295000 va 0x1200fe000
+[  329.442129] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 2/8 chan 0xc1d00079/0xbeef0100 subdev 0xbeef0004: id 3 init 0 nonmapped 0 size 0x0 attr 0x0 pa 0x0 va 0x120103000
+[  329.442131] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 3/8 chan 0xc1d00079/0xbeef0100 subdev 0xbeef0004: id 4 init 0 nonmapped 0 size 0x0 attr 0x0 pa 0x0 va 0x120190000
+[  329.442133] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 4/8 chan 0xc1d00079/0xbeef0100 subdev 0xbeef0004: id 5 init 0 nonmapped 0 size 0x0 attr 0x0 pa 0x0 va 0x120400000
+[  329.442134] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 5/8 chan 0xc1d00079/0xbeef0100 subdev 0xbeef0004: id 6 init 0 nonmapped 0 size 0x0 attr 0x0 pa 0x0 va 0x1201b0000
+[  329.442136] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 6/8 chan 0xc1d00079/0xbeef0100 subdev 0xbeef0004: id 9 init 0 nonmapped 0 size 0x0 attr 0x0 pa 0x0 va 0x120000000
+[  329.442137] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 7/8 chan 0xc1d00079/0xbeef0100 subdev 0xbeef0004: id 10 init 0 nonmapped 0 size 0x0 attr 0x0 pa 0x0 va 0x120110000
+[  329.442890] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote chan 0xc1d00079/0xbeef0100: 8 entries -> 0x0
+[  329.442894] NVRM: GPU0 _kgrAlloc: CXDBG _kgrAlloc class 0x902d chid 8 kgrctx FFFF8CBFA3DC4E08 vas FFFF8CC022DE4010 -> 0x0
+[  329.442901] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x902d hClient 0xc1d00079 hParent 0xbeef0100 hObject 0xbeef502d
+[  329.444064] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0xc5b5 hClient 0xc1d00079 hParent 0xbeef0100 hObject 0xbeefa0b5
+[  329.448602] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0xc5b5 hClient 0xc1d00079 hParent 0xbeef0101 hObject 0xbeef8500
+[  329.450400] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0xc5b5 hClient 0xc1d00079 hParent 0xbeef0102 hObject 0xbeef8501
+[  329.450932] NVRM: GPU0 kgrobjConstruct_IMPL__cxinner: CXDBG kgrobj: class 0xa140 hClient 0xc1d00079 hParent 0xbeef0100 hObject 0xbeef3901 chid 8 runqueue 0 ctxLookup 0x0 hKGC chan 0xcaf00002 tsg 0xcaf00002 legacy 0 vas FFFF8CC022DE4010
+[  329.450945] NVRM: GPU0 _kgrAlloc: CXDBG _kgrAlloc class 0xa140 chid 8 kgrctx FFFF8CBFA3DC4E08 vas FFFF8CC022DE4010 -> 0x0
+[  329.450948] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0xa140 hClient 0xc1d00079 hParent 0xbeef0100 hObject 0xbeef3901
+[  329.464816] NVRM: GPU0 kgrobjConstruct_IMPL__cxinner: CXDBG kgrobj: class 0xc597 hClient 0xc1d00079 hParent 0xbeef0100 hObject 0xbeef9097 chid 8 runqueue 0 ctxLookup 0x0 hKGC chan 0xcaf00002 tsg 0xcaf00002 legacy 0 vas FFFF8CC022DE4010
+[  329.464835] NVRM: GPU0 _kgrAlloc: CXDBG _kgrAlloc class 0xc597 chid 8 kgrctx FFFF8CBFA3DC4E08 vas FFFF8CC022DE4010 -> 0x0
+[  329.464839] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0xc597 hClient 0xc1d00079 hParent 0xbeef0100 hObject 0xbeef9097
+[  330.937231] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x9067 hClient 0xc1d00079 hParent 0xcef80002 hObject 0xcef00080
+[  331.118106] NVRM: GPU0 kgrobjConstruct_IMPL__cxinner: CXDBG kgrobj: class 0x902d hClient 0xc1d00079 hParent 0xbeee0100 hObject 0xbeee502d chid 11 runqueue 0 ctxLookup 0x0 hKGC chan 0xcaf00029 tsg 0xcaf00029 legacy 0 vas FFFF8CC022DE4010
+[  331.195447] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 0/8 chan 0xc1d00079/0xbeee0100 subdev 0xbeef0004: id 0 init 1 nonmapped 0 size 0xee000 attr 0x4 pa 0x1e477e000 va 0x120240000
+[  331.195457] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 1/8 chan 0xc1d00079/0xbeee0100 subdev 0xbeef0004: id 2 init 1 nonmapped 0 size 0x5000 attr 0x4 pa 0x1e528d000 va 0x120106000
+[  331.195459] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 2/8 chan 0xc1d00079/0xbeee0100 subdev 0xbeef0004: id 3 init 0 nonmapped 0 size 0x0 attr 0x0 pa 0x0 va 0x12010b000
+[  331.195461] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 3/8 chan 0xc1d00079/0xbeee0100 subdev 0xbeef0004: id 4 init 0 nonmapped 0 size 0x0 attr 0x0 pa 0x0 va 0x1203b0000
+[  331.195463] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 4/8 chan 0xc1d00079/0xbeee0100 subdev 0xbeef0004: id 5 init 0 nonmapped 0 size 0x0 attr 0x0 pa 0x0 va 0x120800000
+[  331.195464] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 5/8 chan 0xc1d00079/0xbeee0100 subdev 0xbeef0004: id 6 init 0 nonmapped 0 size 0x0 attr 0x0 pa 0x0 va 0x120c00000
+[  331.195466] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 6/8 chan 0xc1d00079/0xbeee0100 subdev 0xbeef0004: id 9 init 0 nonmapped 0 size 0x0 attr 0x0 pa 0x0 va 0x120230000
+[  331.195467] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 7/8 chan 0xc1d00079/0xbeee0100 subdev 0xbeef0004: id 10 init 0 nonmapped 0 size 0x0 attr 0x0 pa 0x0 va 0x120330000
+[  331.196245] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote chan 0xc1d00079/0xbeee0100: 8 entries -> 0x0
+[  331.196248] NVRM: GPU0 _kgrAlloc: CXDBG _kgrAlloc class 0x902d chid 11 kgrctx FFFF8CBF71B96808 vas FFFF8CC022DE4010 -> 0x0
+[  331.196258] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x902d hClient 0xc1d00079 hParent 0xbeee0100 hObject 0xbeee502d
+[  331.197017] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0xc5b5 hClient 0xc1d00079 hParent 0xbeee0100 hObject 0xbeeea0b5
+[  331.198563] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0xc5b5 hClient 0xc1d00079 hParent 0xbeee0101 hObject 0xbeee8500
+[  331.199339] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0xc5b5 hClient 0xc1d00079 hParent 0xbeee0102 hObject 0xbeee8501
+[  331.200842] NVRM: GPU0 kgrobjConstruct_IMPL__cxinner: CXDBG kgrobj: class 0xa140 hClient 0xc1d00079 hParent 0xbeee0100 hObject 0xbeee3901 chid 11 runqueue 0 ctxLookup 0x0 hKGC chan 0xcaf00029 tsg 0xcaf00029 legacy 0 vas FFFF8CC022DE4010
+[  331.200860] NVRM: GPU0 _kgrAlloc: CXDBG _kgrAlloc class 0xa140 chid 11 kgrctx FFFF8CBF71B96808 vas FFFF8CC022DE4010 -> 0x0
+[  331.200864] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0xa140 hClient 0xc1d00079 hParent 0xbeee0100 hObject 0xbeee3901
+[  331.204133] NVRM: GPU0 kgrobjConstruct_IMPL__cxinner: CXDBG kgrobj: class 0xc597 hClient 0xc1d00079 hParent 0xbeee0100 hObject 0xbeee9097 chid 11 runqueue 0 ctxLookup 0x0 hKGC chan 0xcaf00029 tsg 0xcaf00029 legacy 0 vas FFFF8CC022DE4010
+[  331.204156] NVRM: GPU0 _kgrAlloc: CXDBG _kgrAlloc class 0xc597 chid 11 kgrctx FFFF8CBF71B96808 vas FFFF8CC022DE4010 -> 0x0
+[  331.204161] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0xc597 hClient 0xc1d00079 hParent 0xbeee0100 hObject 0xbeee9097
+[  331.536061] NVRM: GPU0 kgrobjConstruct_IMPL__cxinner: CXDBG kgrobj: class 0xc5c0 hClient 0xc1d00079 hParent 0xbeee0100 hObject 0xbeee90c0 chid 11 runqueue 0 ctxLookup 0x0 hKGC chan 0xcaf00029 tsg 0xcaf00029 legacy 0 vas FFFF8CC022DE4010
+[  331.536080] NVRM: GPU0 _kgrAlloc: CXDBG _kgrAlloc class 0xc5c0 chid 11 kgrctx FFFF8CBF71B96808 vas FFFF8CC022DE4010 -> 0x0
+[  331.536085] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0xc5c0 hClient 0xc1d00079 hParent 0xbeee0100 hObject 0xbeee90c0
+[  331.901270] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0xc5b5 hClient 0xc1d00079 hParent 0xbeed0101 hObject 0xbeed8500
+[  332.475489] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x9067 hClient 0xc1d00079 hParent 0xcef80003 hObject 0xcef000c0
+[  332.501077] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x9067 hClient 0xc1d00079 hParent 0xcef80003 hObject 0xcef000c1
+[  332.656638] NVRM: GPU0 kgrobjConstruct_IMPL__cxinner: CXDBG kgrobj: class 0x902d hClient 0xc1d00079 hParent 0xbeec0100 hObject 0xbeec502d chid 15 runqueue 0 ctxLookup 0x0 hKGC chan 0xcaf00056 tsg 0xcaf00056 legacy 0 vas FFFF8CC022DE4010
+[  332.760687] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 0/8 chan 0xc1d00079/0xbeec0100 subdev 0xbeef0004: id 0 init 1 nonmapped 0 size 0xee000 attr 0x4 pa 0x1e4690000 va 0x120c80000
+[  332.760699] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 1/8 chan 0xc1d00079/0xbeec0100 subdev 0xbeef0004: id 2 init 1 nonmapped 0 size 0x5000 attr 0x4 pa 0x1e5285000 va 0x1203e0000
+[  332.760702] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 2/8 chan 0xc1d00079/0xbeec0100 subdev 0xbeef0004: id 3 init 0 nonmapped 0 size 0x0 attr 0x0 pa 0x0 va 0x1203e5000
+[  332.760704] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 3/8 chan 0xc1d00079/0xbeec0100 subdev 0xbeef0004: id 4 init 0 nonmapped 0 size 0x0 attr 0x0 pa 0x0 va 0x120df0000
+[  332.760706] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 4/8 chan 0xc1d00079/0xbeec0100 subdev 0xbeef0004: id 5 init 0 nonmapped 0 size 0x0 attr 0x0 pa 0x0 va 0x121000000
+[  332.760708] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 5/8 chan 0xc1d00079/0xbeec0100 subdev 0xbeef0004: id 6 init 0 nonmapped 0 size 0x0 attr 0x0 pa 0x0 va 0x120e10000
+[  332.760710] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 6/8 chan 0xc1d00079/0xbeec0100 subdev 0xbeef0004: id 9 init 0 nonmapped 0 size 0x0 attr 0x0 pa 0x0 va 0x1203d0000
+[  332.760712] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote 7/8 chan 0xc1d00079/0xbeec0100 subdev 0xbeef0004: id 10 init 0 nonmapped 0 size 0x0 attr 0x0 pa 0x0 va 0x120d70000
+[  332.761748] NVRM: GPU0 kgrobjPromoteContext_IMPL__cxinner: CXDBG promote chan 0xc1d00079/0xbeec0100: 8 entries -> 0x0
+[  332.761752] NVRM: GPU0 _kgrAlloc: CXDBG _kgrAlloc class 0x902d chid 15 kgrctx FFFF8CBF6C05D608 vas FFFF8CC022DE4010 -> 0x0
+[  332.761760] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0x902d hClient 0xc1d00079 hParent 0xbeec0100 hObject 0xbeec502d
+[  332.764754] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0xc5b5 hClient 0xc1d00079 hParent 0xbeec0100 hObject 0xbeeca0b5
+[  332.765943] NVRM: GPU0 kgrobjConstruct_IMPL__cxinner: CXDBG kgrobj: class 0xa140 hClient 0xc1d00079 hParent 0xbeec0100 hObject 0xbeec3901 chid 15 runqueue 0 ctxLookup 0x0 hKGC chan 0xcaf00056 tsg 0xcaf00056 legacy 0 vas FFFF8CC022DE4010
+[  332.765961] NVRM: GPU0 _kgrAlloc: CXDBG _kgrAlloc class 0xa140 chid 15 kgrctx FFFF8CBF6C05D608 vas FFFF8CC022DE4010 -> 0x0
+[  332.765977] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0xa140 hClient 0xc1d00079 hParent 0xbeec0100 hObject 0xbeec3901
+[  332.774531] NVRM: GPU0 kgrobjConstruct_IMPL__cxinner: CXDBG kgrobj: class 0xc597 hClient 0xc1d00079 hParent 0xbeec0100 hObject 0xbeec9097 chid 15 runqueue 0 ctxLookup 0x0 hKGC chan 0xcaf00056 tsg 0xcaf00056 legacy 0 vas FFFF8CC022DE4010
+[  332.774555] NVRM: GPU0 _kgrAlloc: CXDBG _kgrAlloc class 0xc597 chid 15 kgrctx FFFF8CBF6C05D608 vas FFFF8CC022DE4010 -> 0x0
+[  332.774560] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0xc597 hClient 0xc1d00079 hParent 0xbeec0100 hObject 0xbeec9097
+[  332.789709] NVRM: GPU0 kgrobjConstruct_IMPL__cxinner: CXDBG kgrobj: class 0xc5c0 hClient 0xc1d00079 hParent 0xbeec0104 hObject 0xbeec90c1 chid 16 runqueue 1 ctxLookup 0x0 hKGC chan 0xcaf00056 tsg 0xcaf00056 legacy 0 vas FFFF8CC022DE4010
+[  332.789729] NVRM: GPU0 _kgrAlloc: CXDBG _kgrAlloc class 0xc5c0 chid 16 kgrctx FFFF8CBF6C05D608 vas FFFF8CC022DE4010 -> 0x0
+[  332.789733] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0xc5c0 hClient 0xc1d00079 hParent 0xbeec0104 hObject 0xbeec90c1
+[  332.792731] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0xc5b5 hClient 0xc1d00079 hParent 0xbeec0104 hObject 0xbeeca2b5
+[  333.172732] NVRM: GPU0 kgrobjConstruct_IMPL__cxinner: CXDBG kgrobj: class 0xc5c0 hClient 0xc1d00079 hParent 0xbeec0100 hObject 0xbeec90c0 chid 15 runqueue 0 ctxLookup 0x0 hKGC chan 0xcaf00056 tsg 0xcaf00056 legacy 0 vas FFFF8CC022DE4010
+[  333.172753] NVRM: GPU0 _kgrAlloc: CXDBG _kgrAlloc class 0xc5c0 chid 15 kgrctx FFFF8CBF6C05D608 vas FFFF8CC022DE4010 -> 0x0
+[  333.172757] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: RPC for class 0xc5c0 hClient 0xc1d00079 hParent 0xbeec0100 hObject 0xbeec90c0
