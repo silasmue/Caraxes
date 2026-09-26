@@ -2341,6 +2341,12 @@ impl Mirror {
         out
     }
 
+    /// A line for the device trace from a caller whose own notes are not traced (the BAR1
+    /// pool's re-sync), through the interrupt tree's note queue.
+    pub fn trace_note(&self, line: String) {
+        self.intr.note(line);
+    }
+
     /// Recompute the exclusions of shadow root `root`; one note when they changed.
     fn refresh_exclusions(&mut self, reg: &Registry, root: u64) -> Vec<String> {
         let now = self.root_exclusions(reg, root);
@@ -3879,6 +3885,102 @@ mod tests {
         g[v::PROMOTE_H_OBJECT..][..4].copy_from_slice(&0x42u32.to_le_bytes());
         reg.record_promote_ctx(&g);
         assert!(held_at_free(&reg, |c| c.h_object == 0x42, |_| None, size).is_empty());
+    }
+
+    /// A Vulkan client's VAS as the 615 guest builds it (vm4-615, 2026-09-26): client 0xb1
+    /// allocates VAS 0x3 and sets its root; 0xb3 and 0xb4 duplicate it; 0xb4's GR channel
+    /// runs on its alias 0xbeef0300 and promoted a context at 0x2000 (two pages). Returns the
+    /// registry and the channel's chid.
+    fn dup_vas_world(root: u64) -> (Registry, u32) {
+        let chip = crate::fixture::rtx2070().chip.data();
+        let mut reg = registry();
+        reg.record_alloc(0xb1, 0x1, 0x3, v::FERMI_VASPACE_A, &[0u8; 56]);
+        let mut pd = vec![0u8; 32];
+        pd[v::SET_PD_PHYS_ADDRESS..][..8].copy_from_slice(&root.to_le_bytes());
+        pd[v::SET_PD_NUM_ENTRIES..][..4].copy_from_slice(&4u32.to_le_bytes());
+        pd[v::SET_PD_H_VASPACE..][..4].copy_from_slice(&0x3u32.to_le_bytes());
+        reg.record_set_page_directory(0xb1, &pd);
+        assert!(reg.record_dup((0xb3, 0xbfef_0001), (0xb1, 0x3)).is_some());
+        assert!(reg.record_dup((0xb4, 0xbeef_0300), (0xb1, 0x3)).is_some());
+        reg.record_alloc(0xb4, 0x10, 0x30, v::KEPLER_CHANNEL_GROUP_A, &tsg_params(Some(10)));
+        let mut cp = channel_params(8, None);
+        let o = <Abi as nvrm_sys::RmAbi>::ALLOC_CHANNEL_PARAMS_OFF_hVASpace;
+        cp[o..o + 4].copy_from_slice(&0xbeef_0300u32.to_le_bytes());
+        reg.record_alloc(0xb4, 0x30, 0x40, chip.channel.gpfifo, &cp);
+        let mut g = vec![0u8; v::PROMOTE_PARAMS_SIZE];
+        g[v::PROMOTE_H_CHAN_CLIENT..][..4].copy_from_slice(&0xb4u32.to_le_bytes());
+        g[v::PROMOTE_H_OBJECT..][..4].copy_from_slice(&0x40u32.to_le_bytes());
+        g[v::PROMOTE_ENTRY_COUNT..][..4].copy_from_slice(&1u32.to_le_bytes());
+        g[v::PROMOTE_ENTRIES + 8..][..8].copy_from_slice(&0x2000u64.to_le_bytes());
+        g[v::PROMOTE_ENTRIES + 16..][..8].copy_from_slice(&0x2000u64.to_le_bytes());
+        reg.record_promote_ctx(&g);
+        (reg, 8)
+    }
+
+    /// The shadow root of a channel, as `Mirror::free_object` names it.
+    fn fb_root(reg: &Registry, c: &Channel) -> Option<u64> {
+        match reg.vas_key_of(c).and_then(|k| reg.vas_root(k)) {
+            Some(Target::Fb(r)) => Some(r),
+            _ => None,
+        }
+    }
+
+    /// The five bursts of vm4-615 on 2026-09-26 (04:37-04:48, 31 refused fixed VA
+    /// allocations each): the guest freed the client that owns a dup'ed VAS before the
+    /// client of the GR channels on it. The registry dropped the VAS, the channels resolved
+    /// to no root, set B of the root was empty while the host TSGs stood, and the next
+    /// re-sync mapped over the host's GR context. The VAS now stays under a surviving alias:
+    /// root, root entries, set B and the hold at the channel's free are unchanged.
+    #[test]
+    fn set_b_survives_the_vas_owner_client_free() {
+        const ROOT: u64 = 0x1_3567_7000;
+        let (mut reg, chid) = dup_vas_world(ROOT);
+        let size = |_: u16| None;
+        let ch = reg.channel(chid).unwrap().clone();
+        assert_eq!(reg.vas_key_of(&ch), Some((0xb1, 0x3)));
+        assert_eq!(exclusions_of(&reg, ROOT, size), vec![(0x2000, 0x4000)]);
+        // The owner goes first: kept under the first surviving alias, the other repointed.
+        let notes = reg.record_free(0xb1, 0xb1);
+        assert_eq!(notes.len(), 1, "{notes:?}");
+        assert!(notes[0].contains("kept under 0xb3/0xbfef0001"), "{notes:?}");
+        assert_eq!(reg.vas_key_of(&ch), Some((0xb3, 0xbfef_0001)));
+        assert_eq!(reg.vas_root(reg.vas_key_of(&ch).unwrap()), Some(Target::Fb(ROOT)));
+        assert_eq!(reg.root_entries((0xb4, 0xbeef_0300)), 4);
+        assert!(reg.vas_replay((0xb4, 0xbeef_0300)).0.is_some(), "the alloc parameters moved too");
+        assert_eq!(exclusions_of(&reg, ROOT, size), vec![(0x2000, 0x4000)], "set B unchanged");
+        // The second duplicate goes (the trace's order): the channel's own alias holds it.
+        let notes = reg.record_free(0xb3, 0xb3);
+        assert!(notes.len() == 1 && notes[0].contains("kept under 0xb4/0xbeef0300"), "{notes:?}");
+        assert_eq!(reg.vas_key_of(&ch), Some((0xb4, 0xbeef_0300)));
+        assert_eq!(exclusions_of(&reg, ROOT, size), vec![(0x2000, 0x4000)]);
+        // The channel's free still finds its root: its ranges are held for the host TSG.
+        let held = held_at_free(&reg, |c| c.h_object == 0x40, |c| fb_root(&reg, c), size);
+        assert_eq!(held.len(), 1);
+        assert_eq!((held[0].chid, held[0].root, held[0].ranges.clone()), (chid, ROOT, vec![(0x2000, 0x4000)]));
+        // The last client goes: nothing is left, and no alias to keep it under.
+        assert!(reg.record_free(0xb4, 0xb4).is_empty());
+        assert_eq!(reg.vas_root((0xb4, 0xbeef_0300)), None);
+        assert!(exclusions_of(&reg, ROOT, size).is_empty());
+    }
+
+    /// The owner freed last (the channels' client first): the behaviour before the re-home.
+    /// The channel's free holds its ranges on the root, the duplicates go without a note,
+    /// and the owner's free takes the VAS with it.
+    #[test]
+    fn a_vas_owner_freed_last_keeps_the_old_behaviour() {
+        const ROOT: u64 = 0x1_3567_7000;
+        let (mut reg, chid) = dup_vas_world(ROOT);
+        let size = |_: u16| None;
+        let held = held_at_free(&reg, |c| c.h_client == 0xb4, |c| fb_root(&reg, c), size);
+        assert_eq!((held.len(), held[0].chid, held[0].root), (1, chid, ROOT));
+        assert!(reg.record_free(0xb4, 0xb4).is_empty());
+        assert!(exclusions_of(&reg, ROOT, size).is_empty(), "the channel is gone");
+        assert_eq!(reg.vas_root((0xb1, 0x3)), Some(Target::Fb(ROOT)), "the owner keeps it");
+        assert!(reg.record_free(0xb3, 0xb3).is_empty());
+        assert_eq!(reg.vas_root((0xb1, 0x3)), Some(Target::Fb(ROOT)));
+        assert!(reg.record_free(0xb1, 0xb1).is_empty(), "no surviving alias: nothing kept");
+        assert_eq!(reg.vas_root((0xb1, 0x3)), None);
+        assert_eq!(reg.vas_root((0xb3, 0xbfef_0001)), None);
     }
 
     /// The video layout: the host-only area sits below the guest's RM base, inside the

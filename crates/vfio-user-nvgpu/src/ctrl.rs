@@ -1088,7 +1088,7 @@ impl Dispatcher {
             Some(m) => m.free_object(&self.channels, h_client, h_object),
             None => Vec::new(),
         };
-        self.channels.record_free(h_client, h_object);
+        let registry_notes = self.channels.record_free(h_client, h_object);
         self.guest_attrs.free(h_client, h_object);
         self.dstate.rc.forget(h_client, h_object);
         if h_object == h_client {
@@ -1098,11 +1098,16 @@ impl Dispatcher {
             Vec::new(),
             "synthesized",
             format!(
-                "free {h_object:#x} class {class:?}{}",
+                "free {h_object:#x} class {class:?}{}{}",
                 if mirror_notes.is_empty() {
                     String::new()
                 } else {
                     format!("; mirror: {}", mirror_notes.join("; "))
+                },
+                if registry_notes.is_empty() {
+                    String::new()
+                } else {
+                    format!("; registry: {}", registry_notes.join("; "))
                 }
             ),
         )
