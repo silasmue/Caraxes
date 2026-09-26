@@ -200,3 +200,44 @@ One boot per iteration (`night-win4.sh`, results in this directory), one model c
   40 C; stopped at bInit=0. The page came at 14.3 s (PA 0x17e77c000); the kernel set the poll mask 0x5f at 16.3 s
   (clock, perf, memory, power, thermal, fan... bits 0-4 and 6) and 0 at the teardown; 282 refreshes.
 - Result: same stop, 474 RPCs. RUSD was not the gate.
+
+### Y18/Y19-dbgprint (9829c18b): the guest kernel's DbgPrint
+- `Debug Print Filter` (DEFAULT, IHVVIDEO, IHVDRIVER = 0xffffffff) set in the guest; the NT Kernel Logger with flag
+  0x40000 (DBGPRINT) captures kernel prints (`dbgprint-capture.sh`; the agent comes up only ~38-45 s after the device
+  start, around the KMD's start, so the capture used a `pnputil /restart-device` inside the session). Result: 15 prints,
+  all from nvlddmkm's AddDevice ("nvLDDMkm: Driver Registry Path ...", "CNvLAdapter ... DriverModel is 0x3200",
+  "Device Registry Path = ...\Class\{4d36e968-...}\0007"). The release driver prints no RM error on the failed start.
+
+### Y20-compbit (e66c58b2, `CARAXES_WIN_COMPBIT=1`), Y21-dispqueries (38b6a822, `CARAXES_WIN_DISPLAY_QUERIES=1`)
+- Y20: FB_GET_COMPBIT_STORE_INFO answered with the card's captured answer instead of the D16 refusal: same stop.
+- Y21: SYSTEM_QUERY_DISPLAY_IDS_WITH_MUX (mask 0), SYSTEM_CHECK_SIDEBAND_I2C_SUPPORT (false),
+  SPECIFIC_GET_ACPI_DOD_DISPLAY_PORT_ATTACHMENT (UNKNOWN; the KMD now asks it once, for 0x100, instead of nine times):
+  same stop. 0x73117a (unknown DFP control) asks `{0, displayId 0x100, 0}`.
+- The display capability page (BAR0 0x640000-0x640fff, 8-byte reads, the whole page) is read right after the
+  NVC570 alloc and carries the chip's caps as for Linux (display.toml [[caps]]); it is not a zero page.
+
+### Y22-winacks (ce6f6a51, `CARAXES_WIN_ACKS=1`), Y23-ackall (7c218d42, diagnostic `CARAXES_ACK_UNANSWERED=1`)
+- Y22: FIFO_CONFIG_CTXSW_TIMEOUT and BUS_SERVICE_GPU_MULTIFUNC_STATE acknowledged, VPR caps answered (the card's
+  recorded answer): same stop, 475 RPCs.
+- Y23 (diagnostic): every control still unanswered or without a host answer gets NV_OK and its request back (32 of
+  them: the GSS commands 0x2080a0xx/a7xx/a801, 0x20803c01, 0x20808524, 0x73117a, CE caps, latency buffers, pstate):
+  **same stop**, 478 RPCs. No refused control is the gate; what remains non-OK is the card's own answer set (kgr PPC
+  masks, SM throttle, FECS trace defines, DIFR, ECC).
+- The 29 s between the KMD's first phase (15-18.6 s) and its display phase (47 s) is no wait: 2.06 M one-byte zero
+  writes through BAR1 (about 2 MiB of VRAM cleared through trapped MMIO, 14 us each), the KMD clearing its allocations.
+- Comparison with the Linux display path on the same device (display-f-2026-09-24/f0-display-up): nvkms kicks every
+  window channel right after its allocation (PUT 0xfc8, 505 methods), then sets up the SOR and talks AUX. The Windows
+  KMD allocates all 21 display channels without a kick, clears 4 KiB through BAR2 and 4 KiB through BAR1, and tears down;
+  it never writes a USERD page. The decision is internal to the KMD (or to a kernel-RM allocation that fails before any
+  RPC); the trace cannot show it and the release driver prints nothing.
+
+### Tooling added for the next host-RM run
+- `CARAXES_RECORD_HOST=<file>` (2a3cafa6): every host-RM answer the device passes on is appended as a
+  recorded-controls line, so one host-RM run of the KMD yields the card's answers (including forwarded internal
+  controls such as GET_CONSTRUCTED_FALCON_INFO) for the pure-emulation table.
+
+### Y24-unplugged (c036a5c4, diagnostic `CARAXES_DISPLAY_UNPLUGGED=1`), Y26-dispcaps60 (7ff6e531, `CARAXES_WIN_DISP_CAPS=60`)
+- Y24: the DP connector without a monitor (connect state 0): the KMD still allocates NVC570, NVC372 and all 21
+  channels and fails the same way (475 RPCs). The gate does not depend on a connected display.
+- Y26: NV5070_CTRL_CMD_SYSTEM_GET_CAPS_V2 with DEEP_COLOR_SUPPORT and DNISO_VIDMEM_ONLY set (the device answered 0):
+  same stop.
