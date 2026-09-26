@@ -1,0 +1,16 @@
+# concurrency run phase X (invhold-3bad9810), device trace excerpts; device clock in us
+  1572116973 E boot: shadow: chid 12 host object class 0x902d 0x800052c5 [host]
+  1572116974 E boot: shadow: chid 12 host object class 0xc5b5 0x800052c6 [host]
+  1572116977 E boot: shadow: chid 12 host object class 0xa140 0x800052c7 [host]
+  1572116979 E boot: shadow: chid 12 host object class 0xc597 0x800052c8 [host]
+  1572116980 E boot: shadow: chid 12 scheduled; host token 0x36 (host chid 54, runlist 0) [host]
+  1572116981 E boot: shadow: chid 12 restored guest GPGet 0 / GPPut 3 (host RM had cleared the USERD) [guest]
+  1572116985 E boot: doorbell tokens: chid 12 gets pool token 0xca700003 (was 0xc), written to its work-submit-token notifier entry at Sys(140731408539752) [synthesized]
+  1591544295 E boot: alloc: alloc 0xc46f object 0xbeee0100 under 0xcef80002: channel 0xbeee0100 chid 54 engineType 0x1 gpfifo va 0x4620000 x 32768 userd Some(Fb(5058197504)) vaspace Some((3251634554, 3203334912)) errorNotifier Some(Sys(140728245018704)) [guest] -> status 0x0 [guest (recorded for the channel emulation; no host ob
+  1591796831 E boot: alloc: alloc 0xc597 object 0xbeee9097 under 0xbeee0100: engine object class 0xc597 on chid 54 (0 bytes of params) [guest] -> status 0x0 [guest (recorded for the channel emulation; no host object)]
+  1591914893 W bar0 0x00bb0090 4  0x36         NV_VIRTUAL_FUNCTION_DOORBELL (usermode)
+  1591914901 E boot: shadow: sync 245 leaves walked in 1 unit(s), 2 table read(s) (245 set-A, 0 set-B excluded, 0 refused now) -> 0 unmapped, 1 mapped in 1 call(s), 0 failed, 0 over budget; mirrored 1610 leaves in 49 RM mapping(s) (48 before), 5 region object(s) + 0 leaf object(s) + 0 pooled; device live maps 944/32768; totals: 
+  1591914912 E boot: doorbell: guest chid 12 -> host token 0x36 written to the host doorbell page (1239 on this channel) [host]
+# (no other doorbell for chid 54 until its FREE)
+  1602931806 E boot: rx seq 21676 FREE (10) sequence 21602 length 48 checksum ok: hRoot=0xc1d0017a hParent=0x0 hObject=0xbeee0100
+# raw 0x36 writes in the whole trace: 1; rings of chid 12 via its host token: 15562
