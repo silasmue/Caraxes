@@ -427,7 +427,10 @@ impl Display {
             }
             let mut sink = DpSink::new(profile.clone(), edid::monitor_edid())
                 .map_err(|e| format!("sink: {e:?}"))?;
-            sink.plug();
+            // CARAXES_DISPLAY_UNPLUGGED=1 (diagnostic): the connectors start with no monitor.
+            if !std::env::var("CARAXES_DISPLAY_UNPLUGGED").is_ok_and(|v| v == "1") {
+                sink.plug();
+            }
             sink.take_events();
             disp.connectors.push(Connector {
                 display_id: c.display_id,
