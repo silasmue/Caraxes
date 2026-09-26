@@ -212,3 +212,87 @@ if (status != NV_OK)
 - `r2-vk-then-cuda/vk-during2.rmlog` (the failing vkcube), `r2-vk-then-cuda/device-trace-excerpt.txt`
 - `stock-a/vk-during.rmlog` (the hung vkcube on the stock module)
 - The full guest logs stay in the guest (`~/cxrun/`) and in the scratch copy of this session.
+
+## Follow-up: the 11 s stall (2026-09-26, analysis without a VM)
+
+Verdict so far: the 11 s are spent **in user mode** in the Vulkan driver's main thread, after its
+last GPU-memory setup ioctl and before the unbind/free of its first GR channel. No ioctl of that
+thread is pending during the wait. The UMD then frees the whole channel tree with one RM_FREE and
+continues on its error path (the c5c0 on the freed handle). vkcube retries device creation, and
+each attempt stalls the same way.
+
+### 1. Control 0xd01
+
+- `NV0000_CTRL_CMD_CLIENT_GET_ADDR_SPACE_TYPE` (ctrl0000client.h:56-66): `{hObject, mapFlags,
+  addrSpaceType out}`. The 12-byte params are handle, map flags and the answer, not a count.
+  - `mapFlags 0x8000` = `NVOS33_FLAGS_MAPPING_DIRECT` (nvos.h:1758-1761).
+  - `addrSpaceType 1` = SYSMEM.
+  - The handles (0x11/0x12, 0x2b/0x2c, 0x39/0x3a) are memory objects from RM_ALLOC_MEMORY /
+    VID_HEAP_CONTROL, which the logger did not print.
+- Implementation `cliresCtrlCmdClientGetAddrSpaceType_IMPL` (rmapi/client_resource.c:5050): a handle
+  lookup plus `memGetMapAddrSpace`. No RPC, no wait. The UMD asks it before it CPU-maps each buffer.
+- The extra `(0x3c, 0, 1)` / `(0x1c, 0, 1)` query is already on the error path. It comes after the
+  unbind in r2 (vk-during2.rmlog:217-218) and belongs to the UMD's error reporting, together with
+  `0x3d05`, `alloc 0x00fe` and `GPU_GET_NAME 0x20800110`.
+
+### 2. Where the 11 s go (r2, from the continuous kernel log)
+
+- With `ResmanDebugLevel=0` the guest kernel logs every escape with the caller's param pointer.
+  The failing vkcube thread (tid 5886) uses stack pointers `0xcc6a....`. `r2-vk-then-cuda/kmsg.txt`,
+  that thread only:
+  - `416.1236`: c597 on 0xbeee0100.
+  - `416.1259-416.1278`: 7 × control (906f0101 ×6, 0x801707).
+  - `416.1287-416.2312`: VID_HEAP_CONTROL (0x4a) ×6, MAP_MEMORY_DMA (0x57) ×4, the zcull bind and
+    preemption-mode controls, GET_ADDR_SPACE_TYPE ×2, MAP_MEMORY (0x4e) ×2: three buffers
+    allocated, GPU-mapped and CPU-mapped (both are SYSMEM, per the 0xd01 answers).
+  - **`416.2312` to `427.2444`: no escape from this thread (11.01 s).**
+  - `427.2444`: `0xda0006` UNBIND of 0xbeee0100.
+  - `427.2469`: one RM_FREE (0x29), the channel tree. The device got it at device time 434.633; the
+    device/guest clock offset is 7.388 s, from the c597 pair.
+  - `427.37-427.41`: ZBC reads. `427.4121`: c5c0 -> 0x57.
+- The same thread issues the free. It is not the CUDA process and not a kernel thread.
+- vkcube made three device creations in r2 (vk-during2.rmlog:205, 347, 539; 0xbeef0100 twice, then
+  0xbeee0100). Each stops after the same step with an unbind about 11 s later. The first two end
+  in a full teardown and a retry; the third reaches the stale c5c0.
+- 11 s ≈ a 10 s UMD timeout plus teardown. That points at a bounded wait for GPU progress on the
+  new channel, not at a lock.
+
+### 3. What the UMD polls (candidates; to confirm with the gdb snapshot of `repro2.sh`)
+
+- None of these reads traps, so none of them shows in the device trace:
+  - **The three SYSMEM buffers mapped just before the wait** (0x4a/0x57/0x4e at 416.13-416.23),
+    most likely the init pushbuffer and its completion semaphore. The device never backs guest
+    sysmem: the host GPU or the software executor writes the semaphore into guest RAM through the
+    IOMMU mapping/DMA table.
+  - **USERD GPGet** of chid 48 (`userd Fb(0x12fa7f800)` in the r2 device trace, VRAM). The UMD reads it through its
+    BAR1 mapping, which is backed by the device's BAR1 pool (the memfd over host VRAM). A mirrored
+    channel's GPGet is advanced by the host PBDMA; for a software channel, by the executor.
+  - The GPFIFO/pushbuffer in VRAM, same BAR1 path.
+- The device only sees the UMD's doorbell (usermode region BAR0 0xbb0090, ioeventfd or trapped).
+  The r2 excerpt counted only `guest chid N -> host token` lines, i.e. rings of already mirrored
+  channels. A first ring that builds a GR shadow channel, a held ring (`doorbell chid N: scheduling
+  disabled by the guest; held`, ctrl.rs:437-446) or a stale pool token (`not assigned to any
+  channel (stale), dropped`, ctrl.rs:237-243) has other wording. The trace was truncated before it
+  could be checked, so "no doorbell" is not established.
+
+### 4. Device-side candidates (to be decided by the next run)
+
+- The error is per channel: in the vulkan capture the sibling 0xbeed0104 got its c5c0 before the
+  first channel's unbind. Only the channel whose init the UMD waits on is torn down.
+- (a) **The first ring of the new GR channel builds a shadow channel** (`CARAXES_MIRROR_GR_SHADOW=1`,
+  ctrl.rs:449 `gr_shadow_doorbell`). This needs host RM work: host TSG, channel, promote. The CUDA
+  context's mirrored compute TSG shares the host GR engine and its subcontexts. A refused or delayed
+  build leaves the guest's first submission unexecuted until the UMD times out.
+- (b) **Doorbell token pool** (ctrl.rs:203-260, `hand_out_token`): after the first trapped ring the
+  device writes a pool token into the channel's work-submit notifier, and the UMD rings that token
+  from then on. If chid 48 (reused by every attempt) or a pool token still maps to the previous
+  owner, the ring is dropped as stale or lands on another channel.
+- (c) **Scheduling flags** (rc.rs:239-274): a software GR channel that is not enabled has its
+  doorbell held. If the CUDA side's `FIFO_DISABLE_CHANNELS` / usermode toggle leaves a flag set, a
+  new channel's rings are held. The flags are keyed by (hClient, hChannel), so a stale entry for a
+  reused handle would hit exactly the second client.
+- Next run (`repro2.sh` + `rmioctl-log3.c`, both here): per-thread timestamps, memory escapes with
+  raw params, a 1 s state sampler, and gdb snapshots at +6 s and +9 s of the stalled vkcube (the
+  polled address against `/proc/pid/maps`). On the device side, grep the new client's chid for
+  every doorbell wording (`-> chid N$`, `held`, `stale`, `shadow: GR chid N`, `REFUSED`,
+  `in software`).
