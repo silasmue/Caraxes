@@ -10,10 +10,9 @@
 #     unprivileged client (the FB/BUS/GR info the KMD asks); nothing executes on the card, no VRAM is
 #     reserved, no guest RAM is registered. Needs no privileges.
 #   WIN_HOST_MODE=exec: --host-rm --reserve-vram --reserve-slot ${WIN_RESERVE_SLOT:-0} --host-exec
-#     --register-guest-ram, as the Linux stage. Needs a copy of the binary with cap_sys_admin+p in
-#     $W (the launcher does `sudo -n setcap`; this script does not) AND a guest that hands the device
-#     IOVAs: Linux loads caraxes_dma_range for that, Windows has no such module, so the device would
-#     need a "guest speaks GPA" alias mode first (dmamap.rs, guestmem.rs host_iova). Refused until then.
+#     --register-guest-ram, as the Linux stage, plus CARAXES_GUEST_DMA_GPA=1: Windows has no
+#     caraxes_dma_range and hands the device GPAs, which the device aliases to the registered IOVAs.
+#     Needs WIN_GPU_SERVER = a copy of a build >= 18fae970 with cap_sys_admin+p (the user runs setcap).
 # Refuses to start while a vm4-615 device (the Linux stage) runs: BAR1 and VRAM budget.
 set -euo pipefail
 W=/mnt/vmstore/caraxes/win11
@@ -28,7 +27,16 @@ touch "$V/win-busy"
 trap 'rm -f "$V/win-busy"' ERR
 case ${WIN_HOST_MODE:-rm} in
     rm) export WIN_GPU_EXTRA="--host-rm" ;;
-    exec) die "WIN_HOST_MODE=exec needs a GPA alias mode for a guest without caraxes_dma_range (see the header)" ;;
+    exec)
+        # Host execution as the Linux stage (tools/caraxes-vm.sh), for a guest that speaks GPA:
+        # CARAXES_GUEST_DMA_GPA=1 (device 18fae970 on) aliases every registered GPA range.
+        # WIN_GPU_SERVER must be a copy with cap_sys_admin+p (setcap by the user).
+        getcap "${WIN_GPU_SERVER:?WIN_GPU_SERVER: the cap_sys_admin copy}" 2>/dev/null | grep -q cap_sys_admin ||
+            die "$WIN_GPU_SERVER lacks cap_sys_admin+p (the user sets it; this script does not)"
+        export WIN_GPU_EXTRA="--host-rm --reserve-vram --reserve-slot ${WIN_RESERVE_SLOT:-0} --host-exec --register-guest-ram --dma-ranges $W/dma-ranges"
+        export CARAXES_GUEST_DMA_GPA=1 CARAXES_MIRROR_CHANNELS=1 CARAXES_MIRROR_GR_SHADOW=1 CARAXES_MIRROR_BARE_CE=1
+        export CARAXES_GUEST_RAM_BYTES=$(( ${WIN_MEM_GIB:-4} << 30 ))
+        rm -f "$W/dma-ranges" "$W/dma-ranges.guest" ;;
     *) die "WIN_HOST_MODE must be rm or exec" ;;
 esac
 export CARAXES_HOST_VRAM_FLOOR_MIB=${CARAXES_HOST_VRAM_FLOOR_MIB:-768}
