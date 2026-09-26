@@ -142,3 +142,53 @@ matrix windows (`vm4-615-invhold/tools/`):
   - vkcube and glmark2 complete while streaming (the invhold cycle test).
 - **A/B:** `CARAXES_BAR2_MEMFD_DEFER_FLUSH=0` in the same binary must reproduce the
   A-invhold numbers.
+
+## 6. What the flush-read sync does, and when it runs with the deferral
+
+Written for the deferral's work regression (`vm4-615-flippace/NOTES.md`). That regression was
+traced to a doorbell token collision (`ctrl.rs` `doorbell`, `vm4-615-cuda-vulkan/NOTES.md`),
+not to a sync path. The list stays as the deferral's contract.
+
+A flush point (`BootModel::flush_point`) does the following:
+- **Guest to VRAM** (`Bar2Area::sync`, the scan): writes back the bytes the guest changed
+  through BAR2 to the page's home, which is its BAR1 pool page when pooled. The GPU and the
+  guest's BAR1 view then see them.
+- **Alias to alias** (the scan): the merged qwords are copied to the page's other BAR2 pages.
+  A read through another BAR2 page of the same FB page sees a write only after this.
+- **VRAM to guest, entering pages** (`follow_tables`, when a BAR2 table page changed): a page
+  newly mapped into BAR2 is loaded from VRAM (or guest RAM) into its memfd page. A page that
+  leaves is dropped, after the scan wrote it back.
+- **Replica merges, both ways** (`bar1pool::sync_untracked`): area to home for guest BAR1
+  writes, home to area for GPU and device writes. The area is the second BAR1 mapping of a
+  page the guest maps twice.
+- **Device caches**: the dirty pages are marked in the shadow walks, the BAR1 pool's walk, the
+  BAR TLB and the watched dwords (`note_pages_changed`, `bar1_pt_resync`).
+
+When each runs:
+
+| Mode | At the flush read | Otherwise |
+|---|---|---|
+| `DEFER_FLUSH=0` (before 02c0a625) | all of the above | MMU invalidate, GSP command-queue doorbell, BAR2 bind (scan and follow only); replica merges also at the pool polls after BAR0 writes |
+| deferral (02c0a625) | nothing; the sync is marked owed | all of the above at the MMU invalidate, the GSP command-queue doorbell, a channel doorbell while a sync is owed (trapped, ioeventfd or token), or the flush clock 1 ms after the first owed flush read; replica merges also at the pool polls |
+
+What the deferral changes beyond the GPU hand-overs:
+- **Longer lost-update window.** Guest BAR2 bytes reach VRAM up to 1 ms (plus the device-lock
+  wait) after the flush instead of before it returns. A write by another agent to the same
+  bytes in that window (the guest's BAR1 view, or the GPU) can be overwritten by the later
+  write-back. That needs a page the RM writes through BAR2 and another agent writes too, for
+  example a semaphore or notifier page. Page tables are written only by the RM.
+- **Stale alias reads.** A read through a second BAR2 alias of a page the RM just wrote returns
+  the old bytes until the settle. Up to 22 aliases of one page were measured.
+- **Fewer replica merges.** About 84 per second instead of about 430 (A2-defer against
+  B-sync). This only delays when the guest sees GPU writes to a replicated page.
+- **Unchanged:**
+  - Entering pages: the RM always flushes and invalidates after a BAR2 PTE change
+    (`kbusUpdateRmAperture_GM107`, kern_bus_gm107.c:2787-2815), and the invalidate settles.
+  - Device reads, which read the memfd.
+- **Tighter variant, if the next A/B shows a problem in these classes:** defer only page-table
+  pages at the flush read.
+  - Page-table pages are those the shadow walks watch, plus the tables of guest roots the RM
+    invalidates often, learned by a capped walk. Each must have a single BAR2 alias and must
+    not be pooled or a replica home.
+  - Everything else, and the replica merges, stays synchronous at the flush read.
+  - A clean scan of 245 live pages measured 45 us (CPU only).
