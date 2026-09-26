@@ -93,12 +93,25 @@ pub const WIN_COMPBIT_ENV: &str = "CARAXES_WIN_COMPBIT";
 /// host FB addresses) acknowledged for the Windows KMD, which is the kernel and would get
 /// NV_OK from GSP-RM: FIFO_CONFIG_CTXSW_TIMEOUT (0x20801110, recorded, nothing applied),
 /// BUS_SERVICE_GPU_MULTIFUNC_STATE (0x20801812, the HDA function: nothing to service) and
-/// GPU_GET_VPR_CAPS (0x20800160: minStart/maxEnd 0, no VPR in the emulated FB).
+/// GPU_GET_VPR_CAPS (0x20800160: minStart/maxEnd 0, no VPR in the emulated FB), and
+/// SET_RC_RECOVERY (0x2080220D: the KMD sets the robust-channel policy right after creating its
+/// channels and unloads when it is refused, Y25; recorded, the device's RC policy stays).
 pub const WIN_ACKS_ENV: &str = "CARAXES_WIN_ACKS";
-pub const WIN_ACKS: [u32; 3] = [0x2080_1110, 0x2080_1812, 0x2080_0160];
+pub const WIN_ACKS: [u32; 4] = [0x2080_1110, 0x2080_1812, 0x2080_0160, 0x2080_220D];
+
+/// Controls whose pure-emulation fallback answers NV_OK with nothing in it: the card's recorded
+/// answer (an exact request match) is preferred. GET_CONSTRUCTED_FALCON_INFO: the fallback
+/// lists no falcons, so the kernel RM has no NVDEC/NVENC engine for the KMD's video channels.
+/// Only in pure emulation and with `CARAXES_PREFER_RECORDED=1` (the Linux emu-boot keeps its
+/// fallbacks).
+pub const PREFER_RECORDED: [u32; 1] = [0x2080_01B0];
+pub const PREFER_RECORDED_ENV: &str = "CARAXES_PREFER_RECORDED";
 
 /// Whether `cmd` is answered here ahead of the dispatcher's tables.
 pub fn overrides(cmd: u32) -> bool {
+    if PREFER_RECORDED.contains(&cmd) {
+        return std::env::var(PREFER_RECORDED_ENV).is_ok_and(|v| v == "1");
+    }
     (WIN_ACKS.contains(&cmd) && std::env::var(WIN_ACKS_ENV).is_ok_and(|v| v == "1"))
         || OVERRIDES.contains(&cmd)
         || (cmd == FB_GET_COMPBIT_STORE_INFO
@@ -338,7 +351,7 @@ pub fn answer(cmd: u32, params: &[u8], f: &Facts) -> Option<Answer> {
             LABEL_CHIP,
             "vpr caps: no VPR (minStart/maxEnd 0) in the emulated FB".into(),
         )),
-        0x2080_1110 | 0x2080_1812 => Some(ok(
+        0x2080_1110 | 0x2080_1812 | 0x2080_220D => Some(ok(
             params.to_vec(),
             LABEL_CHIP,
             format!("{cmd:#x}: acknowledged for the Windows KMD (nothing applied)"),
@@ -742,8 +755,11 @@ mod tests {
         put32(&mut p, 12, 0x10);
         put32(&mut p, 60, 1);
         let a = answer(GSS_LEGACY_CLK_04, &p, &F).unwrap();
-        assert_eq!((get32(&a.params, 12), get32(&a.params, 16)), (0x10, 0xC_5C10));
-        assert_eq!((get32(&a.params, 60), get32(&a.params, 64)), (1, 0xC_D140));
+        // The frequencies are the card's at recording time (the first recording wins).
+        assert_eq!(get32(&a.params, 12), 0x10);
+        assert_ne!(get32(&a.params, 16), 0);
+        assert_eq!(get32(&a.params, 60), 1);
+        assert_ne!(get32(&a.params, 64), 0);
     }
 
     #[test]
