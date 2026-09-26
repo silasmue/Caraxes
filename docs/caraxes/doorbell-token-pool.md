@@ -332,6 +332,19 @@ client can usefully announce more. That bounds N at 253 for the one doorbell reg
 8. **Reader failure.** If `epoll_wait` or an eventfd read fails, the reader logs it and ends.
    Rings through eventfds then go unanswered; the guest would time out. That needs an OS failure
    on an eventfd and is logged in gpu.log.
+9. **Guest ChID before host token (2026-09-26).** Guest and host ChIDs overlap, so a trapped
+   value can be a new channel's guest token and an older mirror's host token at once
+   (runs/nvenc-2026-09-25/vm4-615-cuda-vulkan/NOTES.md, "cause found").
+   - `ctrl.rs` `route_token` rings the guest channel named by bits 11:0 first. The host token
+     is only a fallback for a value that names no guest channel. On a collision the host
+     token's owner is rung as well, since a spurious doorbell is harmless (rule 3).
+   - Each collision is noted in the trace (`[collision avoided]`) and counted in the
+     `doorbell routing:` exit line.
+10. **No raw host token for the guest.** When a doorbell builds a channel's host mirror, the host
+   RM writes the host token into the guest's notifier entry. `pin_pool_token` replaces it with
+   the channel's pool token in the same doorbell, which covers an eventfd ring that does not
+   block the guest. Rule 4 still applies: only an entry that holds the proven host token is
+   overwritten. Without a pool nothing changes.
 
 ## (f) Expected cost and measurement plan
 

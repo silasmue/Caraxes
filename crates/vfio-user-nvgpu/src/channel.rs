@@ -2007,6 +2007,158 @@ mod tests {
         let _ = std::fs::remove_file(&path);
     }
 
+    /// A registry with a VAS, a TSG and GR-style channels at the given ChIDs, each with its
+    /// error notifier in guest RAM at 0x4008_0000 + 0x1000 * i and its own USERD.
+    fn token_world(d: &mut crate::ctrl::Dispatcher, chids: &[u32]) -> Vec<u64> {
+        let reg = &mut d.channels;
+        reg.record_alloc(1, 0x10, 0x20, FERMI_VASPACE_A, &[]);
+        let mut pdes = vec![0u8; 40 + 24 * 6];
+        pdes[40..48].copy_from_slice(&0x10000u64.to_le_bytes());
+        pdes[56..60].copy_from_slice(&1u32.to_le_bytes());
+        reg.record_server_reserved_pdes(1, 0x20, &pdes);
+        let mut tsg = vec![0u8; 20];
+        tsg[8..12].copy_from_slice(&0x20u32.to_le_bytes());
+        reg.record_alloc(1, 0x10, 0x30, KEPLER_CHANNEL_GROUP_A, &tsg);
+        let mut notifiers = Vec::new();
+        for (i, &chid) in chids.iter().enumerate() {
+            let n = 0x4008_0000u64 + 0x1000 * i as u64;
+            let mut p = channel_params(chid, 0x1000_0000, 0x20_0000 + 0x1000 * i as u64, 0);
+            let o = <Abi as RmAbi>::ALLOC_CHANNEL_PARAMS_OFF_errorNotifierMem;
+            p[o + v::MEM_DESC_BASE..o + v::MEM_DESC_BASE + 8].copy_from_slice(&n.to_le_bytes());
+            p[o + v::MEM_DESC_ADDRESS_SPACE..o + v::MEM_DESC_ADDRESS_SPACE + 4]
+                .copy_from_slice(&ADDR_SYSMEM.to_le_bytes());
+            reg.record_alloc(1, 0x30, 0x40 + i as u32, TURING_CHANNEL_GPFIFO_A, &p)
+                .unwrap();
+            notifiers.push(n);
+        }
+        notifiers
+    }
+
+    /// The 2026-09-26 collision (vm4-615-cuda-vulkan/NOTES.md): mirrored chid 12 holds host
+    /// token 0x36 (host chid 54); the guest's new GR channel has ChID 54, so its first ring
+    /// is the raw value 0x36. That ring must go to guest chid 54 (the one that builds or runs
+    /// it), and chid 12 is rung too; values that name no guest channel still resolve by
+    /// host token, and a guest channel's own value without a host owner stays with it.
+    #[test]
+    fn a_guest_token_equal_to_a_host_token_rings_the_guest_channel() {
+        let f = crate::fixture::rtx2070();
+        let mut d = crate::ctrl::Dispatcher::new(f.chip.data(), &f.identity(4 << 30), None);
+        token_world(&mut d, &[12, 54]);
+        use crate::ctrl::{route_token, Route};
+        // The collision: the old order returned (12, via host token) and never rang 54.
+        assert_eq!(
+            route_token(&d.channels, 0x36, Some(12)),
+            Route {
+                chid: 54,
+                via_host_token: false,
+                also: Some(12)
+            }
+        );
+        // A host token naming no guest channel (host chid 0x3f, runlist 8): the owner.
+        assert_eq!(
+            route_token(&d.channels, 0x8003f, Some(12)),
+            Route {
+                chid: 12,
+                via_host_token: true,
+                also: None
+            }
+        );
+        // The guest channel's own token, no host owner (the no-mirror path): unchanged.
+        assert_eq!(
+            route_token(&d.channels, 54, None),
+            Route {
+                chid: 54,
+                via_host_token: false,
+                also: None
+            }
+        );
+        // A mirror whose host token has its own ChID's low bits: that channel, once.
+        assert_eq!(
+            route_token(&d.channels, 12, Some(12)),
+            Route {
+                chid: 12,
+                via_host_token: true,
+                also: None
+            }
+        );
+        // A value naming nothing: as before, the ChID (reported as no such channel).
+        assert_eq!(
+            route_token(&d.channels, 0x77, None),
+            Route {
+                chid: 0x77,
+                via_host_token: false,
+                also: None
+            }
+        );
+    }
+
+    /// Through the dispatcher without a pool and without a mirror (the old behaviour):
+    /// the raw ring of ChID 54 runs guest chid 54's entry on the software executor, and no
+    /// notifier entry is written.
+    #[test]
+    fn without_a_pool_the_guest_ring_is_unchanged() {
+        let (mut fb, sys, path, _root) = world("nopool");
+        let f = crate::fixture::rtx2070();
+        let mut d = crate::ctrl::Dispatcher::new(f.chip.data(), &f.identity(4 << 30), None);
+        let n = token_world(&mut d, &[12, 54]);
+        use crate::tokens::NOTIFIER_TOKEN_OFFSET as AT;
+        assert!(sys.write(n[1] + AT, &0x36u32.to_le_bytes()));
+        // One NOP control entry for chid 54 (USERD at FB 0x201000).
+        fb.write(0x100000, &[0u8; 8]);
+        fb.write(0x20_1000 + USERD_GP_PUT, &1u32.to_le_bytes());
+        let mut mem = GpuMem {
+            fb: &mut fb,
+            sys: &sys,
+        };
+        let notes = d.doorbell(&mut mem, 0x36);
+        assert_eq!(
+            mem.read_u32(Target::Fb(0x20_1000 + USERD_GP_GET)),
+            Some(1),
+            "{notes:#?}"
+        );
+        assert_eq!(sys.read_u32(n[1] + AT), Some(0x36));
+        assert_eq!(d.routing.collisions_avoided, 0);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// Part 2: at the mirror's scheduling the host token in the channel's work-submit-token
+    /// entry is replaced by its pool token before the guest can read it (`pin_pool_token`);
+    /// an entry holding anything else is left alone, and without a pool nothing is written.
+    #[test]
+    fn a_scheduled_mirror_gets_its_pool_token_not_the_host_token() {
+        use crate::tokens::{TokenPool, NOTIFIER_TOKEN_OFFSET as AT, TOKEN_BASE};
+        let (mut fb, sys, path, _root) = world("pin");
+        let f = crate::fixture::rtx2070();
+        let mut d = crate::ctrl::Dispatcher::new(f.chip.data(), &f.identity(4 << 30), None);
+        let n = token_world(&mut d, &[12, 13]);
+        let mut mem = GpuMem {
+            fb: &mut fb,
+            sys: &sys,
+        };
+        // Without a pool: the host token stays (the old behaviour).
+        assert!(sys.write(n[0] + AT, &0x36u32.to_le_bytes()));
+        assert!(d.pin_pool_token(&mut mem, 12, 0x36).is_empty());
+        assert_eq!(sys.read_u32(n[0] + AT), Some(0x36));
+        // With a pool: the host RM wrote host token 0x36 into chid 12's entry.
+        d.channels.tokens = Some(TokenPool::new(4));
+        let notes = d.pin_pool_token(&mut mem, 12, 0x36);
+        assert!(
+            notes
+                .iter()
+                .any(|s| s.contains("chid 12 gets pool token 0xca700000")),
+            "{notes:#?}"
+        );
+        assert_eq!(sys.read_u32(n[0] + AT), Some(TOKEN_BASE));
+        assert_ne!(sys.read_u32(n[0] + AT), Some(0x36));
+        assert_eq!(d.routing.pinned_at_schedule, 1);
+        // Chid 13's entry holds something that is not its host token: not overwritten.
+        assert!(sys.write(n[1] + AT, &0x1234u32.to_le_bytes()));
+        assert!(d.pin_pool_token(&mut mem, 13, 0x37).is_empty());
+        assert_eq!(sys.read_u32(n[1] + AT), Some(0x1234));
+        assert_eq!(d.routing.pinned_at_schedule, 1);
+        let _ = std::fs::remove_file(&path);
+    }
+
     /// The software executor consults the device's one set of scheduling flags (rc.rs):
     /// a channel the guest switched off (its own flag, the usermode switch for a channel
     /// of a TSG, the device-wide toggle) runs nothing at its doorbell; the doorbell is held

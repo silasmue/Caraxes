@@ -757,6 +757,9 @@ impl BootModel {
         if let Some(p) = &self.ctrl.channels.tokens {
             s.push(p.summary());
         }
+        if self.ctrl.mirror.is_some() || self.ctrl.channels.tokens.is_some() {
+            s.push(self.ctrl.routing.summary());
+        }
         if self.ctrl.display.enabled {
             s.push(self.ctrl.display.engine.summary());
         }

@@ -133,6 +133,83 @@ pub struct Dispatcher {
     /// The emulated PCIe Link Control register as the guest last left it (device.rs sets
     /// it after every config-space write): `NV208F BIF_INFO` answers from it (public.rs).
     pub link_control: u16,
+    /// How trapped doorbell values were resolved (`route_token`), for the exit summary.
+    pub routing: TokenRouting,
+    /// A channel whose work-submit-token entry was given its pool token when its mirror
+    /// was scheduled in this doorbell (`pin_pool_token`); `doorbell` does not hand out
+    /// again for it.
+    pinned_now: Option<u32>,
+}
+
+/// Counters of the doorbell value resolution (`route_token`; docs/caraxes/doorbell-token-pool.md
+/// (e) rule 9, the 2026-09-26 collision).
+#[derive(Default, Debug, Clone)]
+pub struct TokenRouting {
+    /// Rings resolved to a mirrored channel by its host token (no guest channel of that ChID).
+    pub by_host_token: u64,
+    /// Rings whose ChID named a guest channel while the value was also another channel's
+    /// host token: the old order (host token first) would have rung that other channel.
+    pub collisions_avoided: u64,
+    /// Mirrored channels whose notifier entry got its pool token at the mirror's scheduling
+    /// (`pin_pool_token`), before the guest could read the host token back.
+    pub pinned_at_schedule: u64,
+}
+
+impl TokenRouting {
+    pub fn summary(&self) -> String {
+        format!(
+            "doorbell routing: {} ring(s) by host token, {} collision(s) avoided (a guest channel's own token that is also another channel's host token; the old order rang the other channel), {} pool token(s) written at the mirror's scheduling",
+            self.by_host_token, self.collisions_avoided, self.pinned_at_schedule
+        )
+    }
+}
+
+/// Where a trapped doorbell value goes (`route_token`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Route {
+    /// The channel rung (and handed a pool token).
+    pub chid: u32,
+    /// The value was the host token of `chid`'s own mirror.
+    pub via_host_token: bool,
+    /// A second channel rung as well: the mirrored channel whose host token has the same
+    /// value (a spurious doorbell is harmless, a lost one is not).
+    pub also: Option<u32>,
+}
+
+/// Resolve a trapped, non-pool doorbell value. A guest token is the channel's ChID in
+/// bits 11:0 (NV_CTRL_VF_DOORBELL_VECTOR, tu102/dev_ctrl.h:36-37); a mirrored channel
+/// without a pool token rings the host token it read back from its notifier (execution.md
+/// §6). Host ChIDs and guest ChIDs overlap (both are allocated from 0 on the same
+/// runlists), so a value can be both: then the guest channel of that ChID is rung first,
+/// because its first ring has no other way to reach the device, and the host token's
+/// owner is rung too. Before 2026-09-26 the host token was tried first, and a new GR
+/// channel whose guest token equalled an older mirror's host token was never built
+/// (vm4-615-cuda-vulkan/NOTES.md, "cause found").
+pub fn route_token(reg: &crate::channel::Registry, token: u32, host_owner: Option<u32>) -> Route {
+    let guest = token & 0xFFF;
+    let named = reg.channel(guest).is_some();
+    match (named, host_owner) {
+        (true, Some(h)) if h != guest => Route {
+            chid: guest,
+            via_host_token: false,
+            also: Some(h),
+        },
+        (true, h) => Route {
+            chid: guest,
+            via_host_token: h == Some(guest),
+            also: None,
+        },
+        (false, Some(h)) => Route {
+            chid: h,
+            via_host_token: true,
+            also: None,
+        },
+        (false, None) => Route {
+            chid: guest,
+            via_host_token: false,
+            also: None,
+        },
+    }
 }
 
 /// Controls on a guest channel or TSG that a host mirror can take (mirror.rs
@@ -185,6 +262,8 @@ impl Dispatcher {
             guest_attrs: Default::default(),
             dstate: crate::dmodel::DState::new(chip),
             link_control: 0,
+            routing: TokenRouting::default(),
+            pinned_now: None,
         }
     }
 
@@ -210,12 +289,35 @@ impl Dispatcher {
         // NV_CTRL_VF_DOORBELL_VECTOR 11:0 is the ChID (tu102/dev_ctrl.h:36-37) of a guest
         // token; a mirrored channel's guest reads the *host* token back from its notifier
         // page (`Mirror::chid_of_host_token`) and rings that from its second submission on.
-        let (chid, via_host_token) = match self.mirror.as_ref().and_then(|m| m.chid_of_host_token(token)) {
-            Some(c) => (c, true),
-            None => (token & 0xFFF, false),
-        };
-        let mut notes = self.doorbell_chid(gm, token, chid, via_host_token);
-        notes.extend(self.hand_out_token(gm, chid, token));
+        // The guest channel named by the ChID comes first (`route_token`): the host token
+        // is only a fallback for a value that names no guest channel.
+        let host_owner = self
+            .mirror
+            .as_ref()
+            .and_then(|m| m.chid_of_host_token(token));
+        let route = route_token(&self.channels, token, host_owner);
+        let mut notes = Vec::new();
+        if let Some(other) = route.also {
+            self.routing.collisions_avoided += 1;
+            notes.push(format!(
+                "doorbell {token:#x}: guest chid {} rung first; the value is also the host token of mirrored chid {other} (the old order rang chid {other} only) [collision avoided]",
+                route.chid
+            ));
+        } else if route.via_host_token && route.chid != (token & 0xFFF) {
+            self.routing.by_host_token += 1;
+        }
+        self.pinned_now = None;
+        notes.extend(self.doorbell_chid(gm, token, route.chid, route.via_host_token));
+        if self.pinned_now != Some(route.chid) {
+            notes.extend(self.hand_out_token(gm, route.chid, token));
+        }
+        if let Some(other) = route.also {
+            self.pinned_now = None;
+            notes.extend(self.doorbell_chid(gm, token, other, true));
+            if self.pinned_now != Some(other) {
+                notes.extend(self.hand_out_token(gm, other, token));
+            }
+        }
         notes
     }
 
@@ -269,6 +371,22 @@ impl Dispatcher {
         chid: u32,
         rung: u32,
     ) -> Vec<String> {
+        let host = self
+            .mirror
+            .as_ref()
+            .and_then(|m| m.channel(chid))
+            .map(|h| h.token);
+        self.hand_out_token_with(gm, chid, rung, host)
+    }
+
+    /// `hand_out_token` with the mirror's host token of `chid` given (`None`: no mirror).
+    fn hand_out_token_with(
+        &mut self,
+        gm: &mut crate::channel::GpuMem,
+        chid: u32,
+        rung: u32,
+        host: Option<u32>,
+    ) -> Vec<String> {
         // The channel's error notifier: `None` for a channel the guest never announced.
         let notifier = self.channels.channel(chid).map(|c| c.error_notifier);
         let Some(pool) = self.channels.tokens.as_mut() else {
@@ -291,11 +409,6 @@ impl Dispatcher {
             Target::Sys(pa) => Target::Sys(pa + AT),
             other => other,
         };
-        let host = self
-            .mirror
-            .as_ref()
-            .and_then(|m| m.channel(chid))
-            .map(|h| h.token);
         let current = gm.read_u32(at);
         if held.is_some() && current == held {
             pool.stats.own_token_after_handout += 1;
@@ -342,6 +455,43 @@ impl Dispatcher {
                 _ => String::new(),
             }
         )]
+    }
+
+    /// At the scheduling of `chid`'s host mirror (this doorbell built it): the host RM has
+    /// just written the host token `host` into the channel's work-submit-token entry (the
+    /// guest's own notifier page). Replace it with the channel's pool token right here, so
+    /// a raw host token never reaches the guest: a trapped ring may still be waiting for
+    /// this answer, but a ring through an eventfd does not block the guest. Only a proven
+    /// host token is overwritten (rule 4); without a pool nothing changes.
+    pub(crate) fn pin_pool_token(
+        &mut self,
+        gm: &mut crate::channel::GpuMem,
+        chid: u32,
+        host: u32,
+    ) -> Vec<String> {
+        let Some(Some(notifier)) = self.channels.channel(chid).map(|c| c.error_notifier) else {
+            return Vec::new();
+        };
+        if self.channels.tokens.is_none() {
+            return Vec::new();
+        }
+        use crate::fb::Target;
+        use crate::tokens::NOTIFIER_TOKEN_OFFSET as AT;
+        let at = match notifier {
+            Target::Fb(pa) => Target::Fb(pa + AT),
+            Target::Sys(pa) => Target::Sys(pa + AT),
+            other => other,
+        };
+        if gm.read_u32(at) != Some(host) {
+            return Vec::new();
+        }
+        let notes = self.hand_out_token_with(gm, chid, host, Some(host));
+        let pool = self.channels.tokens.as_ref();
+        if pool.and_then(|p| p.token_of(chid)).is_some() && gm.read_u32(at) != Some(host) {
+            self.routing.pinned_at_schedule += 1;
+            self.pinned_now = Some(chid);
+        }
+        notes
     }
 
     /// The token-less doorbell (the ioeventfd path, device.rs `doorbell_ioeventfd`): KVM
@@ -453,7 +603,13 @@ impl Dispatcher {
         // (D17 route 4 stage 1, shadow.rs), built at its first doorbell.
         let host_doorbells = m.stats.doorbells;
         if m.is_shadow(&self.channels, chid) {
+            let fresh = !m.is_mirrored(chid);
             let mut notes = m.gr_shadow_doorbell(&self.channels, gm, chid);
+            let host = if fresh {
+                m.channel(chid).map(|h| h.token)
+            } else {
+                None
+            };
             // Shadow VA spaces handed to the teardown: their cached walks go too.
             for r in m.take_reaped_roots() {
                 gm.fb.unwatch_tables(crate::fb::Target::Fb(r));
@@ -489,6 +645,9 @@ impl Dispatcher {
             if self.mirror_diag {
                 notes.extend(self.mirror_push_diag(gm, chid));
             }
+            if let Some(h) = host {
+                notes.extend(self.pin_pool_token(gm, chid, h));
+            }
             return notes;
         }
         let eligible = m.is_mirrored(chid) || m.eligible(&self.channels, chid).is_ok();
@@ -523,6 +682,7 @@ impl Dispatcher {
         // Drain the BAR1 write-combining buffers before the host RM (and, for a GR
         // channel, the host GSP's context promotion) reads what the guest wrote to VRAM.
         gm.fb.flush();
+        let fresh = !m.is_mirrored(chid);
         match m.ensure_channel(&self.channels, gm, chid) {
             Ok((_, n)) => {
                 notes.extend(n);
@@ -552,6 +712,18 @@ impl Dispatcher {
                     "mirror: REFUSED chid {chid}: {e}; this doorbell runs on the software executor"
                 ));
                 notes.extend(self.channels.doorbell_except(gm, token, &off));
+            }
+        }
+        // Built in this doorbell: the host token the host RM just wrote into the guest's
+        // notifier entry becomes the channel's pool token now (`pin_pool_token`).
+        if fresh {
+            let host = self
+                .mirror
+                .as_ref()
+                .and_then(|m| m.channel(chid))
+                .map(|h| h.token);
+            if let Some(h) = host {
+                notes.extend(self.pin_pool_token(gm, chid, h));
             }
         }
         notes
