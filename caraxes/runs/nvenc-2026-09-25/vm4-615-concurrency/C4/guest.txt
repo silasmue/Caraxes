@@ -1,0 +1,15 @@
+== ladder C4 at 1790386155.551676345: env NVENC_HOLD_S=120 ./nvenc-hold -D -q -n 1
+holder pid 5973 alive=1
+-- p1-before-vk.out: START wall=1790386155.553 pid=5964 device created fam=2 in 1.06 s 
+RESULT PASS dispatches=650 per_s=129.9 max_wait_ms=43.8 bad=0 secs=5.0 total=6.2 rc=0 
+-- p2-hold.out: INFO NVENC session opened in 20.9 ms INFO NVENC encoder initialised 1920x1080 H.264 P1 ultra-low-latency CBR 20000 kbit/s in 132.6 ms HOLDING idle session 
+rc=143 (killed after the during probe) 
+-- p3-during-vk.out: START wall=1790386172.438 pid=5985 device created fam=2 in 1.12 s 
+RESULT PASS dispatches=728 per_s=145.6 max_wait_ms=44.8 bad=0 secs=5.0 total=6.3 rc=0 
+-- p4-after-vk.out: START wall=1790386182.682 pid=5996 device created fam=2 in 1.14 s 
+RESULT PASS dispatches=599 per_s=119.7 max_wait_ms=32.0 bad=0 secs=5.0 total=6.3 rc=0 
+== c5c0 allocs
+p1-before-vk.rm: 3 c5c0, failing: 0 ; T=1790386155.614 us=684 RMCTRL cmd=0x2080012f obj=0xbeef0004 size=1664 status=0x56 params=000000000000000000000000000000;T=1790386155.632 us=545 RMCTRL cmd=0x2080012f obj=0xbfef0301 size=1664 status=0x56 params=000000000000000000000000000000;
+p3-during-vk.rm: 3 c5c0, failing: 0 ; T=1790386172.505 us=750 RMCTRL cmd=0x2080012f obj=0xbeef0004 size=1664 status=0x56 params=000000000000000000000000000000;T=1790386172.524 us=492 RMCTRL cmd=0x2080012f obj=0xbfef0301 size=1664 status=0x56 params=000000000000000000000000000000;
+p4-after-vk.rm: 3 c5c0, failing: 0 ; T=1790386182.747 us=1155 RMCTRL cmd=0x2080012f obj=0xbeef0004 size=1664 status=0x56 params=00000000000000000000000000000;T=1790386182.775 us=689 RMCTRL cmd=0x2080012f obj=0xbfef0301 size=1664 status=0x56 params=000000000000000000000000000000;
+== end 1790386189.783387969

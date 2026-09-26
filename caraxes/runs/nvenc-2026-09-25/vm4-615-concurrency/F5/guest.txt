@@ -1,0 +1,17 @@
+== ladder2 F5 probe=vk at 1790389625.249654527: ./hold.sh nvenc
+holder pid 6439 alive=1
+holder alive after probe=1
+-- p1-before-vk.out: START wall=1790389625.251 pid=6429 device created fam=2 in 3.52 s 
+RESULT PASS dispatches=816 per_s=163.1 max_wait_ms=41.2 bad=0 secs=5.0 total=10.3 rc=0 
+-- p2-hold.out: 
+
+-- p3-during-vk.out: START wall=1790389649.133 pid=6451 
+RESULT FAIL step=vkCreateDevice(pd,&dci,0,&dev) vkresult=-3 t=15.39 rc=1 
+-- p4-after-vk.out: START wall=1790389669.200 pid=6486 device created fam=2 in 1.41 s 
+RESULT PASS dispatches=755 per_s=150.9 max_wait_ms=50.8 bad=0 secs=5.0 total=7.5 rc=0 
+== failing allocs
+p1-before-vk.rm: 3 c5c0;  slow: 2
+p2-hold.rm: 8 c5c0;  slow: 1
+p3-during-vk.rm: 2 c5c0; T=1790389663.241 us=21 RMALLOC class=0xc5c0 parent=0xbeec0100 new=0xbeec90c0 status=0x57 size=0; slow: 2
+p4-after-vk.rm: 3 c5c0;  slow: 1
+== end 1790389678.037989643

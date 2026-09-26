@@ -1,0 +1,16 @@
+== cell D5e at 1790387317.293890252 specs: egl:0:60
+== nvidia users
+      3 Xwayland       3 gnome-shell       3 gsd-xsettings       3 mutter-x11-fram       3 steam       6 steamwebhelper 
+7578 /usr/libexec/gdm-wayland-session env GNOME_SHELL_SESSIO;7661 /usr/bin/gnome-shell;8354 /home/leandro/.steam/debian-installation/ubuntu12_32/st;8655 /usr/bin/Xwayland :0 -rootless -noreset -accessx -core ;
+-- p1-egl.out: START wall=1790387317.378 pid=10461 GL_RENDERER Leandro VFIO RTX 2070-3G/PCIe/SSE2 
+RESULT PASS frames=32214 fps=536.9 max_frame_ms=23.8 bad=0 secs=60.0 total=60.6 rc=0 
+== rm status!=0
+      1 T=1790387317.438 us=765 RMCTRL cmd=0x2080012f obj=0xbfef0301 size=1664 status=0x56 params=0000000000000000000000000000000000000000000000000000000000000000
+      1 T=1790387317.449 us=578 RMCTRL cmd=0x2080012f obj=0xbeef0004 size=1664 status=0x56 params=0000000000000000000000000000000000000000000000000000000000000000
+== dmesg tail
+[ 1555.866602] NVRM: ioctl(0x2a, 0xdb5e0820, 0x20)
+[ 1555.866680] NVRM: nvidia_close on GPU with minor number 0
+[ 1555.866757] NVRM: ioctl(0x29, 0xdb5e12f0, 0x10)
+[ 1555.866823] NVRM: nvidia_close on GPU with minor number 255
+[ 1555.866824] NVRM: nvidia_ctl_close
+== end 1790387378.408132282

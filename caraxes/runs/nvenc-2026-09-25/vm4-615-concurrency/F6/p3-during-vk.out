@@ -1,0 +1,4 @@
+START wall=1790389707.439 pid=6769
+device Leandro VFIO RTX 2070-3G
+RESULT FAIL step=vkCreateDevice(pd,&dci,0,&dev) vkresult=-4 t=13.58
+rc=1

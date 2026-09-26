@@ -1,0 +1,16 @@
+== cell H5e at 1790386714.401313563 specs: egl:0:60
+== nvidia users
+
+
+-- p1-egl.out: START wall=1790386714.440 pid=7400 GL_RENDERER Leandro VFIO RTX 2070-3G/PCIe/SSE2 
+RESULT PASS frames=34590 fps=576.5 max_frame_ms=27.9 bad=0 secs=60.0 total=60.3 rc=0 
+== rm status!=0
+      1 T=1790386714.475 us=628 RMCTRL cmd=0x2080012f obj=0xbfef0301 size=1664 status=0x56 params=0000000000000000000000000000000000000000000000000000000000000000
+      1 T=1790386714.482 us=399 RMCTRL cmd=0x2080012f obj=0xbeef0004 size=1664 status=0x56 params=0000000000000000000000000000000000000000000000000000000000000000
+== dmesg tail
+[  952.456225] NVRM: ioctl(0x2a, 0xf8928a80, 0x20)
+[  952.456272] NVRM: nvidia_close on GPU with minor number 0
+[  952.456321] NVRM: ioctl(0x29, 0xf8929550, 0x10)
+[  952.456337] NVRM: nvidia_close on GPU with minor number 255
+[  952.456338] NVRM: nvidia_ctl_close
+== end 1790386774.990895931

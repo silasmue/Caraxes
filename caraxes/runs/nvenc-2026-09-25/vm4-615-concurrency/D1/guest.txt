@@ -1,0 +1,15 @@
+== cell D1 at 1790386817.986687827 specs: cu:0:60
+== nvidia users
+      3 gnome-shell 
+7578 /usr/libexec/gdm-wayland-session env GNOME_SHELL_SESSIO;7661 /usr/bin/gnome-shell;8354 /home/leandro/.steam/debian-installation/ubuntu12_32/st;8356 /home/leandro/.steam/debian-installation/ubuntu12_32/st;
+-- p1-cu.out: START wall=1790386818.061 pid=8608 context in 1.26 s 
+RESULT PASS launches=50932 per_s=848.8 gflops=1251.7 max_ms=41.8 bad=0 secs=60.0 total=61.3 rc=0 
+== rm status!=0
+      1 T=1790386818.078 us=1183 RMCTRL cmd=0x2080012f obj=0x5c000003 size=1664 status=0x56 params=0000000000000000000000000000000000000000000000000000000000000000
+== dmesg tail
+[ 1057.641336] NVRM: nvidia_close on GPU with minor number 255
+[ 1057.641338] NVRM: nvidia_ctl_close
+[ 1057.641339] NVRM: VM: nv_alloc_release:1679: 0x000000000f1accd9, 1 page(s), count = 16, page_table = 0x00000000a2f67f5b
+[ 1057.641345] NVRM: nvidia_close on GPU with minor number 255
+[ 1057.641346] NVRM: nvidia_ctl_close
+== end 1790386880.216593140

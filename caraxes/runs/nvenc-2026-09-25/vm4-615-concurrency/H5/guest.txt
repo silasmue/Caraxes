@@ -1,0 +1,23 @@
+== cell H5 at 1790386606.738935906 specs: cu:0:100 vk:10:80 egl:20:60
+== nvidia users
+
+
+-- p1-cu.out: START wall=1790386606.783 pid=7227 context in 0.60 s 
+RESULT PASS launches=43404 per_s=434.0 gflops=640.0 max_ms=46.0 bad=0 secs=100.0 total=100.6 rc=0 
+-- p2-vk.out: START wall=1790386616.783 pid=7235 device Leandro VFIO RTX 2070-3G device created fam=2 in 1.04 s 
+RESULT PASS dispatches=16311 per_s=203.9 max_wait_ms=23.2 bad=0 secs=80.0 total=81.3 rc=0 
+-- p3-egl.out: START wall=1790386626.783 pid=7245 GL_RENDERER Leandro VFIO RTX 2070-3G/PCIe/SSE2 
+RESULT PASS frames=12146 fps=202.4 max_frame_ms=42.1 bad=0 secs=60.0 total=60.9 rc=0 
+== rm status!=0
+      1 T=1790386606.792 us=650 RMCTRL cmd=0x2080012f obj=0x5c000003 size=1664 status=0x56 params=0000000000000000000000000000000000000000000000000000000000000000
+      1 T=1790386616.874 us=1048 RMCTRL cmd=0x2080012f obj=0xbeef0004 size=1664 status=0x56 params=0000000000000000000000000000000000000000000000000000000000000000
+      1 T=1790386616.939 us=852 RMCTRL cmd=0x2080012f obj=0xbfef0301 size=1664 status=0x56 params=0000000000000000000000000000000000000000000000000000000000000000
+      1 T=1790386626.881 us=3447 RMCTRL cmd=0x2080012f obj=0xbfef0301 size=1664 status=0x56 params=0000000000000000000000000000000000000000000000000000000000000000
+      1 T=1790386626.904 us=3523 RMCTRL cmd=0x2080012f obj=0xbeef0004 size=1664 status=0x56 params=0000000000000000000000000000000000000000000000000000000000000000
+== dmesg tail
+[  885.027874] NVRM: nvidia_close on GPU with minor number 255
+[  885.027875] NVRM: nvidia_ctl_close
+[  885.027876] NVRM: VM: nv_alloc_release:1679: 0x000000000f1accd9, 1 page(s), count = 2, page_table = 0x00000000a2f67f5b
+[  885.027882] NVRM: nvidia_close on GPU with minor number 255
+[  885.027883] NVRM: nvidia_ctl_close
+== end 1790386707.568388993

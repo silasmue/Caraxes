@@ -1,0 +1,16 @@
+== cell H4a at 1790386468.760136292 specs: vk:0:60
+== nvidia users
+
+
+-- p1-vk.out: START wall=1790386468.806 pid=6895 device Leandro VFIO RTX 2070-3G device created fam=2 in 1.00 s 
+RESULT PASS dispatches=17307 per_s=288.4 max_wait_ms=34.9 bad=0 secs=60.0 total=61.1 rc=0 
+== rm status!=0
+      1 T=1790386468.852 us=625 RMCTRL cmd=0x2080012f obj=0xbeef0004 size=1664 status=0x56 params=0000000000000000000000000000000000000000000000000000000000000000
+      1 T=1790386468.867 us=460 RMCTRL cmd=0x2080012f obj=0xbfef0301 size=1664 status=0x56 params=0000000000000000000000000000000000000000000000000000000000000000
+== dmesg tail
+[  707.962905] NVRM: nvidia_close on GPU with minor number 255
+[  707.962906] NVRM: nvidia_ctl_close
+[  707.967805] NVRM: nvidia_close on GPU with minor number 0
+[  707.967842] NVRM: nvidia_close on GPU with minor number 255
+[  707.967843] NVRM: nvidia_ctl_close
+== end 1790386530.492856123

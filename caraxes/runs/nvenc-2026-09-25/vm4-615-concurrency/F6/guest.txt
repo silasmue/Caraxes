@@ -1,0 +1,17 @@
+== ladder2 F6 probe=vk at 1790389686.023175779: ./hold.sh vkcube+nvenc
+holder pid 6742 alive=1
+holder alive after probe=1
+-- p1-before-vk.out: START wall=1790389686.025 pid=6726 device created fam=2 in 1.93 s 
+RESULT PASS dispatches=982 per_s=196.4 max_wait_ms=70.2 bad=0 secs=5.0 total=8.1 rc=0 
+-- p2-hold.out: 
+
+-- p3-during-vk.out: START wall=1790389707.439 pid=6769 
+RESULT FAIL step=vkCreateDevice(pd,&dci,0,&dev) vkresult=-4 t=13.58 rc=1 
+-- p4-after-vk.out: START wall=1790389725.744 pid=6795 device created fam=2 in 1.87 s 
+RESULT PASS dispatches=974 per_s=194.8 max_wait_ms=83.2 bad=0 secs=5.0 total=7.5 rc=0 
+== failing allocs
+p1-before-vk.rm: 3 c5c0;  slow: 2
+p2-hold.rm: 8 c5c0;  slow: 1
+p3-during-vk.rm: 1 c5c0; T=1790389720.700 us=323 RMALLOC class=0xc5c0 parent=0xbeee0100 new=0xbeee90c0 status=0x57 size=0; slow: 0
+p4-after-vk.rm: 3 c5c0;  slow: 2
+== end 1790389734.206574029

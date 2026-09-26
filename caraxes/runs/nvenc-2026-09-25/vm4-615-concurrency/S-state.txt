@@ -1,0 +1,4 @@
+sunshine: 11165
+gnome-shell: 7661
+gdm: active
+      3 Xwayland       3 gnome-shell       3 gsd-xsettings       3 mutter-x11-fram       3 steam       6 steamwebhelper       4 sunshine 

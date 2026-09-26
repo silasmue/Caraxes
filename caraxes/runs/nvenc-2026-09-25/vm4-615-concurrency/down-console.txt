@@ -1,0 +1,3 @@
+stopped
+host watch: 427 samples, nvidia-smi max 0.092s mean 0.023s, 44 kernel log lines, 0 Xid lines, 0 alerts
+host Xid lines since 2026-09-26 03:23:36:0; evidence in /home/silas/git/Caraxes/caraxes/runs/sottr-2026-09-24/session-615-20260926-032336

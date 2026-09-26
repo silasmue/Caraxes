@@ -1,0 +1,15 @@
+== cell H1 at 1790386235.230023089 specs: cu:0:60
+== nvidia users
+
+
+-- p1-cu.out: START wall=1790386235.274 pid=6400 context in 0.65 s 
+RESULT PASS launches=72550 per_s=1209.2 gflops=1783.0 max_ms=34.3 bad=0 secs=60.0 total=60.7 rc=0 
+== rm status!=0
+      1 T=1790386235.282 us=913 RMCTRL cmd=0x2080012f obj=0x5c000003 size=1664 status=0x56 params=0000000000000000000000000000000000000000000000000000000000000000
+== dmesg tail
+[  473.607771] NVRM: nvidia_close on GPU with minor number 255
+[  473.607772] NVRM: nvidia_ctl_close
+[  473.607773] NVRM: VM: nv_alloc_release:1679: 0x000000000f1accd9, 1 page(s), count = 2, page_table = 0x00000000a2f67f5b
+[  473.607778] NVRM: nvidia_close on GPU with minor number 255
+[  473.607779] NVRM: nvidia_ctl_close
+== end 1790386296.137325446

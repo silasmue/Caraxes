@@ -1,0 +1,23 @@
+== cell H2 at 1790386302.449878224 specs: cu:0:60 cu:0:60 cu:0:60
+== nvidia users
+
+
+-- p1-cu.out: START wall=1790386302.496 pid=6555 context in 1.47 s 
+RESULT PASS launches=33453 per_s=557.5 gflops=822.1 max_ms=62.9 bad=0 secs=60.0 total=61.5 rc=0 
+-- p2-cu.out: START wall=1790386302.496 pid=6557 context in 1.47 s 
+RESULT PASS launches=33079 per_s=551.3 gflops=812.9 max_ms=41.4 bad=0 secs=60.0 total=61.5 rc=0 
+-- p3-cu.out: START wall=1790386302.496 pid=6556 context in 1.52 s 
+RESULT PASS launches=32851 per_s=547.5 gflops=807.3 max_ms=53.3 bad=0 secs=60.0 total=61.5 rc=0 
+== rm status!=0
+      1 T=1790386302.505 us=2080 RMCTRL cmd=0x2080012f obj=0x5c000003 size=1664 status=0x56 params=0000000000000000000000000000000000000000000000000000000000000000
+      1 T=1790386302.517 us=2177 RMCTRL cmd=0x2080012f obj=0x5c000003 size=1664 status=0x56 params=0000000000000000000000000000000000000000000000000000000000000000
+      1 T=1790386302.518 us=2142 RMCTRL cmd=0x2080012f obj=0x5c000003 size=1664 status=0x56 params=0000000000000000000000000000000000000000000000000000000000000000
+      1 T=1790386364.464 us=71 RMCTRL cmd=0x20800146 obj=0x5c000003 size=0 status=0x63 params=
+      1 T=1790386364.466 us=4442 RMCTRL cmd=0x20800146 obj=0x5c000003 size=0 status=0x63 params=
+== dmesg tail
+[  541.972321] NVRM: nvidia_close on GPU with minor number 255
+[  541.972322] NVRM: nvidia_ctl_close
+[  541.972323] NVRM: VM: nv_alloc_release:1679: 0x000000000f1accd9, 1 page(s), count = 2, page_table = 0x00000000a2f67f5b
+[  541.972327] NVRM: nvidia_close on GPU with minor number 255
+[  541.972328] NVRM: nvidia_ctl_close
+== end 1790386364.517618141

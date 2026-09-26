@@ -1,0 +1,17 @@
+== ladder2 F4 probe=cu at 1790388496.537634642: ./hold.sh eglhigh
+holder pid 6217 alive=0
+holder alive after probe=0
+-- p1-before-cu.out: START wall=1790388496.539 pid=6212 context in 1.45 s 
+RESULT PASS launches=3274 per_s=654.7 gflops=965.4 max_ms=21.0 bad=0 secs=5.0 total=6.5 rc=0 
+-- p2-hold.out: 
+
+-- p3-during-cu.out: START wall=1790388516.259 pid=6258 context in 2.79 s 
+RESULT PASS launches=2186 per_s=437.1 gflops=644.5 max_ms=28.5 bad=0 secs=5.0 total=7.8 rc=0 
+-- p4-after-cu.out: START wall=1790388528.886 pid=6285 context in 1.77 s 
+RESULT PASS launches=3450 per_s=689.9 gflops=1017.3 max_ms=21.8 bad=0 secs=5.0 total=6.8 rc=0 
+== failing allocs
+p1-before-cu.rm: 8 c5c0;  slow: 2
+p2-hold.rm: 0 c5c0;  slow: 0
+p3-during-cu.rm: 8 c5c0;  slow: 2
+p4-after-cu.rm: 8 c5c0;  slow: 2
+== end 1790388536.550781119

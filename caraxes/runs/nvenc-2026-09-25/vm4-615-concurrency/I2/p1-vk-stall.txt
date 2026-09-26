@@ -1,0 +1,7 @@
+window 1814937704..1829371730 us
+late RPC answers (>100 ms): 0
+RPCs without reply in window: 0
+doorbell lines per second: 1817:11 1823:9 1824:75 1825:36
+p1-vk.rm: 2 ioctl(s) > 100 ms
+   SLOW ioctl T=1790387640.945 us=119316 type=0x46 nr=0x29 size=16
+   SLOW ioctl T=1790387641.702 us=107951 type=0x46 nr=0x29 size=16

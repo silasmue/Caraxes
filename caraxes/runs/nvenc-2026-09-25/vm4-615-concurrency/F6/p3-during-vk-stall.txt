@@ -1,0 +1,15 @@
+window 508703287..528701827 us
+late RPC answers (>100 ms): 0
+RPCs without reply in window: 0
+doorbell lines per second: 508:383 509:1290 510:1353 511:1164 512:1394 513:1158 514:1287 515:1209 516:1193 517:1141 518:1056 519:664 520:88 521:117 522:30 523:100 524:288 525:104 526:122 527:266 528:294
+p1-before-vk.rm: 3 ioctl(s) > 100 ms
+   SLOW ioctl T=1790389688.319 us=105480 type=0x46 nr=0x2b size=48
+   T=1790389688.319 us=105480 RMALLOC class=0x902d parent=0xbeec0100 new=0xbeec502d status=0 size=0
+   SLOW ioctl T=1790389695.200 us=117424 type=0x46 nr=0x29 size=16
+p2-hold.rm: 1 ioctl(s) > 100 ms
+   SLOW ioctl T=1790389703.602 us=319465 type=0x46 nr=0x57 size=64
+p3-during-vk.rm: 0 ioctl(s) > 100 ms
+p4-after-vk.rm: 3 ioctl(s) > 100 ms
+   SLOW ioctl T=1790389727.907 us=115254 type=0x46 nr=0x2b size=48
+   T=1790389727.907 us=115254 RMALLOC class=0xc5c0 parent=0xbeec0103 new=0xbeec90c1 status=0 size=0
+   SLOW ioctl T=1790389734.025 us=125499 type=0x46 nr=0x29 size=16

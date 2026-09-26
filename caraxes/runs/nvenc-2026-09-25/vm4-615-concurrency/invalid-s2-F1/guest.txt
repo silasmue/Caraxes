@@ -1,0 +1,17 @@
+== ladder2 F1 probe=vk at 1790388336.220608633: ./hold.sh vkcube
+holder pid 5417 alive=0
+holder alive after probe=0
+-- p1-before-vk.out: START wall=1790388336.224 pid=5303 device created fam=2 in 2.93 s 
+RESULT PASS dispatches=373 per_s=74.4 max_wait_ms=93.6 bad=0 secs=5.0 total=10.2 rc=0 
+-- p2-hold.out: 
+
+-- p3-during-vk.out: START wall=1790388364.100 pid=5439 device created fam=2 in 2.92 s 
+RESULT PASS dispatches=710 per_s=141.8 max_wait_ms=48.6 bad=0 secs=5.0 total=9.8 rc=0 
+-- p4-after-vk.out: START wall=1790388379.739 pid=5461 device created fam=2 in 3.10 s 
+RESULT PASS dispatches=661 per_s=132.0 max_wait_ms=68.3 bad=0 secs=5.0 total=9.6 rc=0 
+== failing allocs
+p1-before-vk.rm: 3 c5c0;  slow: 7
+p2-hold.rm: 0 c5c0;  slow: 0
+p3-during-vk.rm: 3 c5c0;  slow: 3
+p4-after-vk.rm: 3 c5c0;  slow: 4
+== end 1790388391.559421133
