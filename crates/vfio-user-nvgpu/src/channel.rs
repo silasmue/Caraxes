@@ -724,8 +724,10 @@ impl Registry {
         }
     }
 
-    /// Forget a freed object (a freed client takes its objects with it).
-    pub fn record_free(&mut self, h_client: u32, h_object: u32) {
+    /// Forget a freed object (a freed client takes its objects with it). Returns the trace
+    /// notes of VA spaces kept under a surviving DUP alias (`rehome_duplicated_vas`).
+    pub fn record_free(&mut self, h_client: u32, h_object: u32) -> Vec<String> {
+        let notes = self.rehome_duplicated_vas(h_client, h_object);
         let all = h_client == h_object;
         let gone = |c: &Channel| c.h_client == h_client && (all || c.h_object == h_object);
         // A freed channel gives its doorbell token back (docs/caraxes/doorbell-token-pool.md).
@@ -755,6 +757,62 @@ impl Registry {
             .retain(|(c, h), _| *c != h_client || !(all || *h == h_object));
         self.device_vas
             .retain(|(c, h), d| *c != h_client || !(all || *h == h_object || *d == h_object));
+        notes
+    }
+
+    /// A VA space freed by this FREE (its handle, or its owner client) while a DUP alias of
+    /// another client still names it: the guest RM keeps the object alive through the
+    /// duplicate, so the registry does too. Its root, root entries, alloc parameters and
+    /// server-reserved PDEs move to the first surviving alias, and the other surviving
+    /// aliases are repointed to it. Before (vm4-615, 2026-09-26 04:37-04:48, five bursts),
+    /// a Vulkan client's VAS was allocated by one client and dup'ed into the client of its
+    /// GR channels; the guest freed the owner first, the channels resolved to no root, their
+    /// set-B exclusions and held ranges vanished while the host TSGs stood, and the next
+    /// shadow re-sync mapped over the host's GR context (31 refused fixed VA allocations per
+    /// teardown; docs/research/va-alloc-bursts-2026-09-26.md).
+    fn rehome_duplicated_vas(&mut self, h_client: u32, h_object: u32) -> Vec<String> {
+        let all = h_client == h_object;
+        let freed = |k: &(u32, u32)| k.0 == h_client && (all || k.1 == h_object);
+        let owners: Vec<(u32, u32)> = self.vaspaces.keys().copied().filter(freed).collect();
+        let mut notes = Vec::new();
+        for old in owners {
+            // `record_dup` stores the resolved source, so an alias names its VAS directly.
+            let heirs: Vec<(u32, u32)> = self
+                .aliases
+                .iter()
+                .filter(|(d, s)| **s == old && !freed(d))
+                .map(|(d, _)| *d)
+                .collect();
+            let Some(&heir) = heirs.first() else {
+                continue;
+            };
+            self.aliases.remove(&heir);
+            for d in &heirs[1..] {
+                self.aliases.insert(*d, heir);
+            }
+            if let Some(r) = self.vaspaces.remove(&old) {
+                self.vaspaces.insert(heir, r);
+            }
+            if let Some(e) = self.root_entries.remove(&old) {
+                self.root_entries.insert(heir, e);
+            }
+            if let Some(p) = self.vas_params.remove(&old) {
+                self.vas_params.insert(heir, p);
+            }
+            if let Some(p) = self.server_pdes.remove(&old) {
+                self.server_pdes.insert(heir, p);
+            }
+            notes.push(format!(
+                "vaspace {:#x}/{:#x} freed while {} DUP alias(es) of another client name it: kept under {:#x}/{:#x}, root {:?} [guest]",
+                old.0,
+                old.1,
+                heirs.len(),
+                heir.0,
+                heir.1,
+                self.vaspaces.get(&heir).copied().flatten()
+            ));
+        }
+        notes
     }
 
     /// The ChID of guest channel `(h_client, h_channel)`, if recorded.
