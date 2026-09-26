@@ -121,10 +121,24 @@ pub fn excepted(cmd: u32) -> bool {
     })
 }
 
+/// `CARAXES_WIN_ACK_EXTRA=<hex>[,<hex>...]` (diagnostic): these controls are answered NV_OK
+/// with their request back, ahead of every table (e.g. a GSS command the device refuses for a
+/// layout-size mismatch).
+fn ack_extra(cmd: u32) -> bool {
+    std::env::var("CARAXES_WIN_ACK_EXTRA").is_ok_and(|l| {
+        l.split(',')
+            .filter_map(|x| u32::from_str_radix(x.trim().trim_start_matches("0x"), 16).ok())
+            .any(|c| c == cmd)
+    })
+}
+
 /// Whether `cmd` is answered here ahead of the dispatcher's tables.
 pub fn overrides(cmd: u32) -> bool {
     if excepted(cmd) {
         return false;
+    }
+    if ack_extra(cmd) {
+        return true;
     }
     if PREFER_RECORDED.contains(&cmd) {
         return std::env::var(PREFER_RECORDED_ENV).is_ok_and(|v| v == "1");
@@ -335,6 +349,13 @@ fn ok(params: Vec<u8>, label: &'static str, note: String) -> Answer {
 pub fn answer(cmd: u32, params: &[u8], f: &Facts) -> Option<Answer> {
     let t = Recorded::get();
     let n = params.len();
+    if ack_extra(cmd) {
+        return Some(ok(
+            params.to_vec(),
+            "diagnostic (CARAXES_WIN_ACK_EXTRA: NV_OK echo)",
+            format!("{cmd:#x}: acknowledged ({n} bytes)"),
+        ));
+    }
     if let Some(e) = t.exact.get(&(cmd, params.to_vec())) {
         let mut b = e.answer.clone();
         b.resize(n, 0);
