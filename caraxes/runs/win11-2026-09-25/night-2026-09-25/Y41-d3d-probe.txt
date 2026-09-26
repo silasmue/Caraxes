@@ -1,0 +1,9 @@
+adapter 0: NVIDIA GeForce RTX 2070 ven 10de dev 1f02 dedicated 817 MiB flags 0
+  D3D11CreateDevice hr 887a0004 feature level 0 in 208 ms
+adapter 1: Microsoft Basic Render Driver ven 1414 dev 008c dedicated 0 MiB flags 0
+  D3D11CreateDevice hr 00000000 feature level b000 in 4 ms
+adapter 2: Microsoft Basic Render Driver ven 1414 dev 008c dedicated 0 MiB flags 2
+  D3D11CreateDevice hr 00000000 feature level b000 in 4 ms
+
+
+[exit 0]

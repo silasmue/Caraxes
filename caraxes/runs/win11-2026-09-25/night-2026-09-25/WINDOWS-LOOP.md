@@ -277,3 +277,48 @@ One boot per iteration (`night-win4.sh`, results in this directory), one model c
 - The ack-all diagnostic acknowledged seven controls no header names: GSS 0x2080a70a (26 bytes), 0x2080a709 (8), 0x2080a801
   (1028), 0x2080a02f (1), 0x2080a630 (2340), 0x20803c01 (1098) and BINAPI 0x2081010d (0 bytes). Which of them the start
   needs is the next bisect; everything else of the start is modelled or recorded.
+
+### Y32-display-all (7dd91e5e, the Y31 set with the display engine on)
+- Same stop as Y9-Y28 (display channels allocated, BAR2/BAR1 clears, teardown, GSP_SUSPEND), 478 RPCs. The display path
+  is parked for tonight; headless is the path.
+
+### Bisect of the ack-all (headless, pure emulation, `CARAXES_WIN_EXCEPT`, `bisect-win.sh`, one boot each, `bisect.log`)
+- Y33 (4 GSS controls 0x2080a70a, a709, a801, a02f left refused): **starts** (CM_PROB_NONE, no GSP_SUSPEND). Not needed.
+- Y34 (0x2080a630, 0x20803c01, 0x2081010d left refused): fails (Code 43, GSP_SUSPEND). The gate is among these three.
+
+### Host execution for Windows: prepared (18fae970), not yet run
+- Under QEMU's vfio-user client without a vIOMMU the DMA_MAP addresses are the guest physical addresses, which is what
+  the Windows KMD writes (no caraxes_dma_range). `CARAXES_GUEST_DMA_GPA=1`: after the registration the device takes the
+  identity of its own table as the guest's table (device.rs `gpa_aliases`, kept across resets), so every GPA is an alias
+  of its registered IOVA, checked by `aliases_of` (only this VM's registered pages; refused if the registration put RAM at
+  IOVAs inside the GPA space). Unit test `identity_guest_table_aliases_a_linear_registration`.
+- `gpu-up-host.sh` with `WIN_HOST_MODE=exec`: `--host-rm --reserve-vram --reserve-slot 0 --host-exec --register-guest-ram
+  --dma-ranges`, `CARAXES_GUEST_DMA_GPA=1`, `CARAXES_MIRROR_CHANNELS/GR_SHADOW/BARE_CE=1`, floors VRAM 768 / BAR1 96 MiB,
+  BAR1 windows 2 x 16 MiB, no pool; the capped copy (the user's setcap) is /mnt/vmstore/caraxes/win11/vfio-user-nvgpu-cap-18fae970.
+- The first attempt (04:11) was refused by the script itself: the Linux queue had taken the host again (linux-busy
+  04:01:50, vm4-615 concurrency follow-up).
+- `d3d-probe.ps1`: DXGI adapter enumeration and a D3D11 device on each adapter (PowerShell with inline C#; the host has
+  no Windows cross compiler) as the user-mode workload.
+- Y36 (0x2080a630 refused, my D3D probe interfered): inconclusive. Y37 (0x20803c01 refused): **starts**. Y38 (0x2081010d
+  refused): **fails** (Code 43, GSP_SUSPEND). Y39 (0x2080a630 refused, redo): starts, but the driver unloads GSP-RM once
+  at 27.5 s (an orderly GSP_SUSPEND and Booter Unload) and loads it again at 30.9 s; it ends started (CM_PROB_NONE).
+- **Required for the headless start**: NV2080 BINAPI 0x2081010d acknowledged (0 bytes, no header names it) and the three
+  gates found by the loop: GET_CONSTRUCTED_FALCON_INFO with the card's falcons (Y15 vs Y25), SET_RC_RECOVERY 0x2080220d
+  (Y25) and NV0080_CTRL_DMA_SET_DEFAULT_VASPACE 0x801812 (Y29), each acknowledged. 0x2080a630 (2340 bytes) avoids one
+  unload/reload cycle. **Not required**: 0x20803c01 and the GSS 0x2080a70a, a709, a801, a02f.
+
+### Y40-d3d-probe (6bd37cc3), Y41-d3d-sharevas (e354ce8a): a user-mode D3D11 workload
+- `d3d-probe.ps1` (DXGI adapter list and a D3D11 device per adapter) on the started driver (headless, pure emulation).
+- Y40: D3D11CreateDevice on the NVIDIA adapter hung (>240 s): the KMD polled a fence in VRAM (FB 0x335300e0 through
+  BAR1, 11 000 reads, value 1) that its own channels never released: every KMD channel logged "VAS root unknown, nothing
+  run". Cause: the KMD opens one client per channel and allocates its NV01_DEVICE_0 with `hClientShare` = its main
+  client; the channels name no VAS and use the share client's default VAS, which the registry did not follow.
+- Fix (e354ce8a, channel.rs `client_share`, test `a_channel_of_a_sharing_client_runs_in_the_share_clients_default_vas`):
+  NV01_DEVICE_0 allocs record hClientShare; a channel without a VAS in such a client runs in the share client's device
+  default VAS (root lookup and the mirror's VAS key).
+- Y41: the KMD's channels now run on the device (CE methods, host methods, FERMI_TWOD_A methods skipped as not
+  modelled); no "VAS root unknown". DXGI lists **"NVIDIA GeForce RTX 2070", ven 10de dev 1f02, 817 MiB dedicated**;
+  D3D11CreateDevice on it returns **DXGI_ERROR_UNSUPPORTED (0x887a0004) in 208 ms** (no hang); the Basic Render Driver
+  adapters create devices (feature level 11.0). During the probe the UMD/KMD sent 0x2080b202 (3360 bytes, unknown,
+  acknowledged with zeros by the diagnostic) five times and GSS pmgr 0x2080a618 (refused: 20512-byte guest params
+  against the 20000 of the 610 layout table). The D3D device is the next gate.
