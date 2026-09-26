@@ -89,9 +89,18 @@ pub const FIFO_WINDOWS_1111: u32 = 0x2080_1111;
 pub const FB_GET_COMPBIT_STORE_INFO: u32 = 0x0080_1306;
 pub const WIN_COMPBIT_ENV: &str = "CARAXES_WIN_COMPBIT";
 
+/// `CARAXES_WIN_ACKS=1`: three controls the Linux path refuses on purpose (isolation or
+/// host FB addresses) acknowledged for the Windows KMD, which is the kernel and would get
+/// NV_OK from GSP-RM: FIFO_CONFIG_CTXSW_TIMEOUT (0x20801110, recorded, nothing applied),
+/// BUS_SERVICE_GPU_MULTIFUNC_STATE (0x20801812, the HDA function: nothing to service) and
+/// GPU_GET_VPR_CAPS (0x20800160: minStart/maxEnd 0, no VPR in the emulated FB).
+pub const WIN_ACKS_ENV: &str = "CARAXES_WIN_ACKS";
+pub const WIN_ACKS: [u32; 3] = [0x2080_1110, 0x2080_1812, 0x2080_0160];
+
 /// Whether `cmd` is answered here ahead of the dispatcher's tables.
 pub fn overrides(cmd: u32) -> bool {
-    OVERRIDES.contains(&cmd)
+    (WIN_ACKS.contains(&cmd) && std::env::var(WIN_ACKS_ENV).is_ok_and(|v| v == "1"))
+        || OVERRIDES.contains(&cmd)
         || (cmd == FB_GET_COMPBIT_STORE_INFO
             && std::env::var(WIN_COMPBIT_ENV).is_ok_and(|v| v == "1"))
 }
@@ -296,6 +305,16 @@ pub fn answer(cmd: u32, params: &[u8], f: &Facts) -> Option<Answer> {
             "enabled SEC2 classes: none (the card's class list has no SEC2 class)".into(),
         )),
         FIFO_GET_ENGINE_CONTEXT_PROPERTIES => Some(engine_ctx(params)),
+        0x2080_0160 => Some(ok(
+            vec![0; n],
+            LABEL_CHIP,
+            "vpr caps: no VPR (minStart/maxEnd 0) in the emulated FB".into(),
+        )),
+        0x2080_1110 | 0x2080_1812 => Some(ok(
+            params.to_vec(),
+            LABEL_CHIP,
+            format!("{cmd:#x}: acknowledged for the Windows KMD (nothing applied)"),
+        )),
         c if ENTRY_LISTS.iter().any(|l| l.cmd == c) => entry_list(t, c, params),
         GR_GFX_POOL_QUERY_SIZE => Some(gfx_pool_query_size(params)),
         FIFO_WINDOWS_1111 => Some(ok(
@@ -606,6 +625,17 @@ mod tests {
         assert!(classes.contains(&0xC597) && classes.contains(&0xC5B5));
         // A request that matches no recording is not answered here.
         assert!(answer(0x0080_0292, &[1u8; 804], &F).is_none());
+    }
+
+    /// The Windows acknowledgements: only with CARAXES_WIN_ACKS=1 ahead of the tables; the
+    /// VPR caps answer is an empty range.
+    #[test]
+    fn windows_acks() {
+        assert_eq!(overrides(0x2080_0160), std::env::var(WIN_ACKS_ENV).is_ok_and(|v| v == "1"));
+        let a = answer(0x2080_0160, &[0xAAu8; 16], &F).unwrap();
+        assert_eq!((a.status, a.params), (0, vec![0u8; 16]));
+        let a = answer(0x2080_1110, &[7u8; 8], &F).unwrap();
+        assert_eq!((a.status, a.params), (0, vec![7u8; 8]));
     }
 
     /// The capture's user-client refusals do not replace the device's answers.
