@@ -1,5 +1,21 @@
 # Windows 11 guest (2026-09-25)
 
+## Result of the night (2026-09-26, 03:34): the GeForce 617.14 driver starts on the synthetic RTX 2070
+
+- **Status**: Device Manager "NVIDIA GeForce RTX 2070" OK (CM_PROB_NONE), Win32_VideoController ConfigManagerErrorCode 0,
+  AdapterRAM 1 GiB, no DxgKrnl start failure (run Y31, `night-2026-09-25/WINDOWS-LOOP.md`).
+- **nvidia-smi -q in the guest**: KMD Version 617.14, Product Name "Leandro VFIO RTX 2070-1G", GeForce, Turing, Driver
+  Model WDDM, **GSP Firmware Version 615.71.09**, VBIOS 90.06.3D.00.76, FB 1024 MiB, BAR1 256 MiB
+  (`night-2026-09-25/Y31-headless-ackall-nvidia-smi-full.txt`).
+- **Configuration**: pure emulation (no host RM), headless (`WIN_GPU_DISPLAY=0`: display fuse 1, no display engine), the
+  registry keys `EnableGpuFirmware` = `RMEnableGpuFirmware` = 1 (GSP-RM mode, the switch), the full PROM window
+  (`WIN_GPU_VBIOS`), legacy ROM with the ROM BAR, branch win-loop-2026-09-26 build 7dd91e5e with `CARAXES_EMU_GR=1
+  CARAXES_RUSD=1 CARAXES_WIN_COMPBIT=1 CARAXES_WIN_DISPLAY_QUERIES=1 CARAXES_WIN_ACKS=1 CARAXES_PREFER_RECORDED=1
+  CARAXES_LPWR_2806_OK=1` and the diagnostic `CARAXES_ACK_UNANSWERED=1` (bisect in WINDOWS-LOOP.md).
+- **Still off**: the display engine (with it the start fails right after the 21 display channels are allocated, since
+  run Y9), host execution (a GPA alias for a guest without caraxes_dma_range and a cap_sys_admin binary copy).
+
+
 Goal: a Windows 11 guest under Cloud Hypervisor, first without the GPU, then with the
 vfio-user device (`nova-guest.md` section 7, P23: which RM path the Windows driver takes).
 
