@@ -509,7 +509,7 @@ diff -ru /mnt/vmstore/caraxes/ogkm-615.71.09/src/nvidia/src/kernel/gpu/gr/kernel
 +}
 diff -ru /mnt/vmstore/caraxes/ogkm-615.71.09/src/nvidia/src/kernel/gpu/gr/kernel_graphics_object.c src/nvidia/src/kernel/gpu/gr/kernel_graphics_object.c
 --- /mnt/vmstore/caraxes/ogkm-615.71.09/src/nvidia/src/kernel/gpu/gr/kernel_graphics_object.c	2026-09-24 10:53:42.578773206 +0200
-+++ src/nvidia/src/kernel/gpu/gr/kernel_graphics_object.c	2026-09-26 00:14:53.186193644 +0200
++++ src/nvidia/src/kernel/gpu/gr/kernel_graphics_object.c	2026-09-26 00:47:43.340261511 +0200
 @@ -47,8 +47,8 @@
   * When UVM is enabled, this function is responsible only for updating the PA of
   * a given context buffer, and not the VA.
@@ -521,7 +521,27 @@ diff -ru /mnt/vmstore/caraxes/ogkm-615.71.09/src/nvidia/src/kernel/gpu/gr/kernel
  (
      OBJGPU *pGpu,
      KernelGraphicsObject *pKernelGraphicsObject,
-@@ -169,8 +169,9 @@
+@@ -132,12 +132,19 @@
+     params.hObject     = RES_GET_PARENT_HANDLE(pChannelDescendant);
+     params.entryCount  = entryCount;
+ 
++    for (i = 0; i < entryCount; ++i)
++        NV_PRINTF(LEVEL_ERROR, "CXDBG promote %u/%u chan 0x%x/0x%x subdev 0x%x: id %u init %u nonmapped %u size 0x%llx attr 0x%x pa 0x%llx va 0x%llx\n",
++                  i, entryCount, params.hChanClient, params.hObject, RES_GET_HANDLE(pSubdevice),
++                  params.promoteEntry[i].bufferId, params.promoteEntry[i].bInitialize, params.promoteEntry[i].bNonmapped,
++                  params.promoteEntry[i].size, params.promoteEntry[i].physAttr, params.promoteEntry[i].gpuPhysAddr,
++                  params.promoteEntry[i].gpuVirtAddr);
+     status = pRmApi->Control(pRmApi,
+                              RES_GET_CLIENT_HANDLE(pSubdevice),
+                              RES_GET_HANDLE(pSubdevice),
+                              NV2080_CTRL_CMD_GPU_PROMOTE_CTX,
+                              &params,
+                              sizeof(params));
++    NV_PRINTF(LEVEL_ERROR, "CXDBG promote chan 0x%x/0x%x: %u entries -> 0x%x\n", params.hChanClient, params.hObject, entryCount, status);
+ 
+     if (status == NV_OK)
+     {
+@@ -169,8 +176,9 @@
   * @param[in]  pKernelGraphics
   * @param[in]  pKernelGraphicsObject
   */
@@ -532,7 +552,7 @@ diff -ru /mnt/vmstore/caraxes/ogkm-615.71.09/src/nvidia/src/kernel/gpu/gr/kernel
  (
      OBJGPU               *pGpu,
      KernelGraphics       *pKernelGraphics,
-@@ -282,8 +283,8 @@
+@@ -282,8 +290,8 @@
  //
  // Graphics engine object creation routine.
  //
@@ -543,7 +563,7 @@ diff -ru /mnt/vmstore/caraxes/ogkm-615.71.09/src/nvidia/src/kernel/gpu/gr/kernel
  (
      KernelGraphicsObject         *pKernelGraphicsObject,
      CALL_CONTEXT                 *pCallContext,
-@@ -315,7 +316,15 @@
+@@ -315,7 +323,15 @@
  
          NV_ASSERT_OR_RETURN(pkChannel != NULL, NV_ERR_INVALID_STATE);
  
@@ -560,7 +580,7 @@ diff -ru /mnt/vmstore/caraxes/ogkm-615.71.09/src/nvidia/src/kernel/gpu/gr/kernel
          {
              KernelGraphicsContext *pKernelGraphicsContext = pKernelGraphicsObject->pKernelGraphicsContext;
  
-@@ -402,8 +411,8 @@
+@@ -402,8 +418,8 @@
  /*!
   * @brief Set up MMIO memDesc for Compute Object
   */
@@ -571,7 +591,7 @@ diff -ru /mnt/vmstore/caraxes/ogkm-615.71.09/src/nvidia/src/kernel/gpu/gr/kernel
  (
      OBJGPU               *pGpu,
      KernelGraphicsObject *pKernelGraphicsObject
-@@ -726,3 +735,66 @@
+@@ -726,3 +742,66 @@
      }
  }
  
@@ -636,6 +656,40 @@ diff -ru /mnt/vmstore/caraxes/ogkm-615.71.09/src/nvidia/src/kernel/gpu/gr/kernel
 +    }
 +    if (cxStatus != NV_OK)
 +        NV_PRINTF(LEVEL_ERROR, "CXDBG _kgrAlloc -> 0x%x\n", cxStatus);
++    return cxStatus;
++}
+diff -ru /mnt/vmstore/caraxes/ogkm-615.71.09/src/nvidia/src/kernel/gpu/subdevice/subdevice.c src/nvidia/src/kernel/gpu/subdevice/subdevice.c
+--- /mnt/vmstore/caraxes/ogkm-615.71.09/src/nvidia/src/kernel/gpu/subdevice/subdevice.c	2026-09-24 10:53:42.601038000 +0200
++++ src/nvidia/src/kernel/gpu/subdevice/subdevice.c	2026-09-26 00:47:43.339948938 +0200
+@@ -309,8 +309,8 @@
+     return subdeviceGetByDeviceAndGpu(pClient, NULL, pGpu, ppSubdevice);
+ }
+ 
+-NV_STATUS
+-subdeviceGetByDeviceAndGpu_IMPL
++static NV_STATUS
++subdeviceGetByDeviceAndGpu_IMPL__cxinner
+ (
+     RsClient         *pClient,
+     Device           *pDevice,
+@@ -519,3 +519,19 @@
+     krcWatchdogChangeState(pKernelRc, GPU_GET_KERNEL_WATCHDOG(pGpu), pSubdevice, RM_CLIENT_DESTRUCTION);
+ }
+ 
++
++/* CXDBG wrapper */
++NV_STATUS
++subdeviceGetByDeviceAndGpu_IMPL
++(
++    RsClient         *pClient,
++    Device           *pDevice,
++    OBJGPU           *pGpu,
++    Subdevice       **ppSubdevice
++)
++{
++    NV_STATUS cxStatus = subdeviceGetByDeviceAndGpu_IMPL__cxinner(pClient, pDevice, pGpu, ppSubdevice);
++    if (cxStatus != NV_OK)
++        NV_PRINTF(LEVEL_ERROR, "CXDBG subdeviceGetByDeviceAndGpu_IMPL -> 0x%x\n", cxStatus);
 +    return cxStatus;
 +}
 diff -ru /mnt/vmstore/caraxes/ogkm-615.71.09/src/nvidia/src/kernel/rmapi/alloc_free.c src/nvidia/src/kernel/rmapi/alloc_free.c

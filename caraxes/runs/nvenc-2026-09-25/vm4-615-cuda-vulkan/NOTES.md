@@ -94,19 +94,121 @@ and no `GSP_RM_ALLOC` for it reaches the device. Source: 615.71.09 open modules
   host channel) can still reach the guest through the channel's own notifier or through GPU work
   that never completes.
 
-## Part B
+## Part B: instrumented guest (2026-09-26 01:43-02:40)
 
-Pending (the VM is held by the latency experiment and the Windows runs; see the end of this file).
-The instrumentation is prepared: `cxdbg.patch` (made by `patch.py` against the 615.71.09 tree):
-- wrappers print `CXDBG <function> -> <status>` on any failure of: `serverAllocResourceUnderLock`,
-  `rmapiAllocWithSecInfo`, `clientAllocResource`, `chandesConstruct`, `gpuresConstruct`,
-  `kgrobjConstruct`, `_kgrAlloc`, `kgrobjSetComputeMmio`, `kgrobjPromoteContext`,
-  `kgrmgrCtrlRouteKGRWithDevice`, `kgraphicsInitializeDeferredStaticData`,
-  `kgraphicsAllocKgraphicsBuffers`, `kgraphicsMapCtxBuffer` (with VAS, VA list, map count),
-  `kgrctxAllocCtxBuffers`, `kgrctxMapCtxBuffers`, `kgrctxMap(Global)CtxBuffer(s)`,
-  `kgrctxAlloc{Main,Patch,Pm}CtxBuffer`, `kgrctxPrepare{Initialize,Promote}CtxBuffer`,
-  `kctxshare(api)Construct`;
-- entry lines `CXDBG kgrobj:` (class, client/parent/object, chid, runqueue, context lookup, the
-  channel's and TSG's context handles, legacy mode, VAS) and `CXDBG _kgrAlloc` (status, context, VAS);
-- `CXDBG alloc: parent ... not in client` at alloc_free.c:748 and `CXDBG alloc: RPC for class ...`
-  before the alloc RPC.
+### What was done
+
+- The Ubuntu DKMS package ships the RM core prebuilt (`/usr/src/nvidia-615.71.09/nvidia/nv-kernel.o_binary`),
+  so the GR sources cannot be rebuilt from it. Instead the GitHub 615.71.09 tree with `cxdbg.patch` (the complete diff: `patch.py`'s
+  wrappers plus the promote-entry, subdevice-lookup and map-detail prints added by hand) was built in the guest (`make -j3 modules`, gcc 13.3, 6.8.0-136 headers, ~9 min)
+  and its four modules replaced the DKMS ones in `/lib/modules/6.8.0-136-generic/updates/dkms/`
+  (originals kept in `~/ko-orig/` in the guest).
+- The vm4-615 overlay persists across `up-615.sh` (`sottr-2026-09-24/up.sh:65` creates it only when
+  missing), so the stock `.ko.zst` files were put back and `depmod -a` run before the last
+  `down-615.sh`. The overlay now holds the stock modules again (checked: no `CXDBG` string in
+  `nvidia.ko.zst`). The build tree stays in `~/cxbuild/`, the run folders in `~/cxrun/`.
+- Kernel log recorded continuously (`dmesg -w` per run), ioctls with `rmioctl-log2` (the repo
+  logger plus client handle and thread id; for r4 also RM_FREE and ioctls slower than 0.2 s).
+  Sunshine stopped before every run. Script: `repro.sh` in the guest's `~/nvenc`
+  (orders: CUDA NVENC probe then `vkcube-wayland --c 30`; a long vkcube, then the probe, then a
+  second vkcube; create/destroy cycles).
+- Boots: 1) poollock-304012cc (as asked; stock baseline + first instrumented runs), then
+  2)-4) **invhold-3bad9810** (main b715c019 with the exclusion-release fix plus the invalidate
+  gate, on the coordinator's request); all with `SOTTR_NAT=0` (no host sudo), boots 3-4 with
+  `SOTTR_SUN_ENCODER=software` so no CUDA context exists at boot.
+
+| Run (binary) | Result |
+|---|---|
+| stock-a (poollock, stock module) | vkcube before OK; **during the CUDA probe: hung 66 s** (c5c0 on both GR channels OK, then no progress); after OK. No RM check line. |
+| dbg-a (poollock, instrumented, after an in-place module reload) | every vkcube hung 60 s (also before CUDA); discarded |
+| inv-a (invhold) | before OK; during: host watch SIGTERM to the device (host `nvidia-smi` 3.29 s), guest then Xid 119 (RPC timeout) |
+| r1 CUDA then Vulkan (invhold) | all three vkcube OK (during: 18 s) |
+| **r2 Vulkan, then CUDA, then Vulkan (invhold)** | **second vkcube: c5c0 0x57, abort in `demo_create_device`**; the CUDA probe gave no output in 60 s |
+| r3 cycles (invhold) | host watch SIGTERM again (02:21:40, `nvidia-smi` 3.24 s) |
+| r4 = r2 again, timed logger (invhold) | second vkcube OK (23 s); the CUDA probe again silent for 60 s |
+
+### The site
+
+`src/nvidia/src/kernel/rmapi/alloc_free.c:748`, `serverAllocResourceUnderLock`:
+
+```
+status = clientGetResourceRef(pClient, hParent, &pParentRef);
+if (status != NV_OK)
+    goto done;
+```
+
+`r2-vk-then-cuda/kmsg-cxdbg.txt:297-299`:
+
+```
+[  427.412569] NVRM: serverAllocResourceUnderLock__cxinner: CXDBG alloc: parent 0xbeee0100 not in client 0xc1d00087 (class 0xc5c0 hObject 0xbeee90c0) -> 0x57
+[  427.412574] NVRM: serverAllocResourceUnderLock: CXDBG serverAllocResourceUnderLock -> 0x57 class 0xc5c0 hClient 0xc1d00087 hParent 0xbeee0100 hObject 0xbeee90c0
+[  427.412585] NVRM: rmapiAllocWithSecInfo: CXDBG rmapiAllocWithSecInfo -> 0x57
+```
+
+- No `CXDBG kgrobj:` line exists for this c5c0: the GR object constructor never ran. The
+  kgrobj/kgrctx/kgraphics/ctxshare path is not involved; nothing in it missed.
+- **What misses is the client's own handle table: the GR channel 0xbeee0100 had already been
+  freed by the same client.** Device trace (`r2-vk-then-cuda/device-trace-excerpt.txt`):
+  0xbeee0100 created at 423.29 s (chid 48, TSG 0xcef80002, ctxshare 0xcef00080), objects
+  902d/c5b5/a140/c597 at 423.46-423.51 s, then **11 s with no doorbell on chid 48, 54 or 55** (the new
+  client's GR and two CE channels), then at 434.63 s `FREE` of c5b5, c597, 902d, a140 and the channel
+  0xbeee0100 (hRoot 0xc1d00087), then the c5c0 attempt, then the CE channels and the ctxshare.
+- The guest side agrees: c597 at 416.12 s, the 0x57 at 427.41 s (11.3 s later); the ioctl log shows
+  `NV_SEMAPHORE_SURFACE_CTRL_CMD_UNBIND_CHANNEL` (0x00da0006) for 0xbeee0100 right before the c5c0 -
+  the start of the client's teardown of that channel, the same signature as in both earlier captures.
+- So the Vulkan driver (userspace, one thread, tid 5886) gives up after ~11 s, tears its main GR
+  channel down, and its error path still allocates the compute object on the freed handle. The 0x57
+  is the symptom of that teardown, not a GR lookup.
+
+### What the device must do differently
+
+- The primary failure is the **stall**: while another GR/compute client is active, a newly created
+  client's initialisation makes no progress (no doorbell for ~11 s, then the driver's own timeout).
+  The same stall shows the other way round: with a vkcube running, the CUDA NVENC probe prints nothing
+  in 60 s (r2, r4; the earlier note "the probe hangs in context creation"). In stock-a the stall
+  appears as a vkcube that hangs after its c5c0 instead of timing out.
+- Not the cause: the device's GR answers. `GPU_PROMOTE_CTX` is echoed NV_OK, the static KGR
+  controls have no client argument, preemption mode and zcull bind are echoed (part A). The
+  instrumented runs show every propagated GR status 0x0 up to the teardown.
+- Proposed device work, in order:
+  1. Find what the new client waits on during the 11 s. Its channels got no doorbell, so it waits on a
+     CPU-visible condition, not on its own GPU work: a semaphore/notifier written by another channel
+     (the semaphore-surface object 0xa, class 0x00da, which it unbinds first), an event that should
+     reach it through the device's event path, or a host-side step that serialises a second
+     GR TSG behind the first. `rmioctl-log2.c` (here) now records RM_FREE and every ioctl slower than
+     0.2 s; run r2 with it until it reproduces, together with the device's event/notifier lines for
+     the second client.
+  2. Deliver notifier/event writes per client lifetime, not per numeric handle: handles repeat across
+     clients and TSGs (every vkcube reuses 0xbeef0100, 0xcef80000...; the promote map and channel
+     registry are keyed by (hClient, hObject), which is correct, but host mirror objects and shadow
+     exclusions must not outlive their guest owner; the invhold binary logs `ERROR freeing host TSG
+     0x80001ad6: 0xfffffffe` for guest TSG 0xcef80003 at teardown).
+- A guest-kernel issue triggered by an answer of ours: no. The guest kernel behaves correctly (the
+  parent is gone); the userspace driver's error path allocates on a freed channel, and it gets there
+  because its initialisation stalls on the device.
+
+### Also found
+
+- Host watch: two of four boots lost the device to the stage's own guard (SIGTERM when host
+  `nvidia-smi` takes > 3 s) while CUDA and Vulkan ran together in the guest; the guest then
+  logs Xid 119 (RPC timeout, FREE) and Xid 175. Host Xid 0 in all sessions.
+- The poollock binary showed the old "VA Space alloc failed" bursts on the host during boot 1
+  (coordinator: 01:48, 01:57, 01:58); the invhold runs are the ones to cite.
+- Promote bookkeeping (coordinator's question): `record_promote_ctx` (channel.rs:478-513) never wipes a
+  PA with a VA-only entry (`if pa != 0`). But the guest initialises the global buffers (FECS event,
+  priv access maps) once per GPU (`bInitialized[]` per gfid), and the PA lands only in the map of
+  the channel that promoted first (e.g. `CXDBG promote ... chan 0xc1d00012/0xbeef0100 ... init 1`);
+  `record_free` (channel.rs:754) drops that map with the channel. A later mirrored channel's replay
+  (mirror.rs:3350-3395) then has VA-only entries for those buffers. Worth a per-GPU store for the
+  global buffers' PA/size.
+- The nvidia-drm `__nv_drm_handle_flip_event` warnings (nvidia-drm-crtc.h:368) appear in every run,
+  with and without CUDA.
+
+### Files
+
+- `repro.sh` (the guest run script)
+- `NOTES.md` (this), `cxdbg.patch`, `patch.py` (instrumentation), `rmioctl-log2.c` (logger variant)
+- `<run>/summary.txt`, `<run>/kmsg-cxdbg.txt` (CXDBG, check, assert and Xid lines of the continuous log)
+- `r2-vk-then-cuda/vk-during2.rmlog` (the failing vkcube), `r2-vk-then-cuda/device-trace-excerpt.txt`
+- `stock-a/vk-during.rmlog` (the hung vkcube on the stock module)
+- The full guest logs stay in the guest (`~/cxrun/`) and in the scratch copy of this session.
