@@ -241,3 +241,39 @@ One boot per iteration (`night-win4.sh`, results in this directory), one model c
   channels and fails the same way (475 RPCs). The gate does not depend on a connected display.
 - Y26: NV5070_CTRL_CMD_SYSTEM_GET_CAPS_V2 with DEEP_COLOR_SUPPORT and DNISO_VIDMEM_ONLY set (the device answered 0):
   same stop.
+
+### Y27-gspfeat, Y28-gspver617 (9ddc665c)
+- GSP_GET_FEATURES with gspFeatures 1 as the card answers (the device had 0), then the version string 617.14 instead of
+  615.71.09 (`CARAXES_GSP_FW_VERSION`): no change on the display path (475 RPCs each).
+
+### Y25-hostrm-headless (c036a5c4, host RM, `WIN_GPU_DISPLAY=0`, `CARAXES_RECORD_HOST`)
+- Headless with the host RM: the KMD passes the NVDEC point of Y15 (the host answers GET_CONSTRUCTED_FALCON_INFO), creates
+  all its channels (CE x7, GR with TURING_A, TURING_COMPUTE_A, FERMI_TWOD_A and KEPLER_INLINE_TO_MEMORY_B, NVDEC0 with
+  TURING_NVDEC, two NVENC with TURING_NVENC; promote ctx for each), reads RC recovery, and unloads right after
+  **NV2080_CTRL_CMD_SET_RC_RECOVERY (0x2080220d)** is refused (D rule). 594 RPCs, host Xid 0. 85 host answers recorded
+  (`Y25-host-answers.tsv`), now in the recorded table (after the KMD-block capture, before the 610 traces).
+
+### Y29-headless-rc (c4f8eb4f), Y30-headless-vaspace (7dd91e5e): pure emulation, headless
+- Y29: SET_RC_RECOVERY acknowledged (`CARAXES_WIN_ACKS`), GET_CONSTRUCTED_FALCON_INFO from the recording
+  (`CARAXES_PREFER_RECORDED=1`): the KMD registers about 40 events, **rings the doorbells of its channels** (chid 3, 4, 7,
+  11, 12, 13), then allocates a 1 GiB VA space and unloads after **NV0080_CTRL_DMA_SET_DEFAULT_VASPACE (0x801812)** is
+  refused (chip table, "legacy_uncalled"). 685 RPCs.
+- Y30: 0x801812 acknowledged: ZBC object, one more CE channel (chid 14) scheduled and freed 1.3 ms later, then teardown;
+  no refusal in between; 713 RPCs. Still unanswered: 0x2081010d (BINAPI, 0 bytes), 0x2080a630 (2340 bytes), and the GSS
+  0x2080a70a/a709/a801/a02f, 0x20803c01.
+
+### Y31-headless-ackall (7dd91e5e, headless, pure emulation, diagnostic `CARAXES_ACK_UNANSWERED=1`): THE DRIVER STARTS
+- Env: `CARAXES_LPWR_2806_OK=1 CARAXES_EMU_GR=1 CARAXES_RUSD=1 CARAXES_WIN_COMPBIT=1 CARAXES_WIN_DISPLAY_QUERIES=1
+  CARAXES_WIN_ACKS=1 CARAXES_PREFER_RECORDED=1 CARAXES_ACK_UNANSWERED=1 WIN_GPU_DISPLAY=0`, the registry keys on, the full
+  PROM window, legacy ROM with the ROM BAR, 4 GiB guest.
+- **No GMCAPI_GSP_SUSPEND**: GSP-RM stays loaded; 731 RPCs, then sporadic RPCs over the next minutes (the driver idles).
+- Guest (qga, `Y31-headless-ackall-started.txt`): Device Manager "NVIDIA GeForce RTX 2070" **Status OK, Problem
+  CM_PROB_NONE**; Win32_VideoController ConfigManagerErrorCode 0, DriverVersion 32.0.16.1714, AdapterRAM 1073741824,
+  VideoProcessor "Leandro VFIO RTX 2070-1G"; no DxgKrnl 457/549 for this boot (the last ones are Y29/Y30's).
+- `nvidia-smi -q` in the guest (`Y31-headless-ackall-nvidia-smi-full.txt`): KMD 617.14, CUDA UMD 13.4, Product Name
+  "Leandro VFIO RTX 2070-1G", GeForce, Turing, Driver Model WDDM, **GSP Firmware Version 615.71.09** (GSP-RM mode on the
+  emulated GSP), VBIOS 90.06.3D.00.76, Bus Id 00000000:00:06.0, FB 1024 MiB (827 used, 10 free), BAR1 256 MiB (225 used),
+  Display Attached No.
+- The ack-all diagnostic acknowledged seven controls no header names: GSS 0x2080a70a (26 bytes), 0x2080a709 (8), 0x2080a801
+  (1028), 0x2080a02f (1), 0x2080a630 (2340), 0x20803c01 (1098) and BINAPI 0x2081010d (0 bytes). Which of them the start
+  needs is the next bisect; everything else of the start is modelled or recorded.
