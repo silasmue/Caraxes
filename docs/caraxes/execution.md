@@ -102,7 +102,9 @@ default; the code stays for the GR work.
 channel the mirror takes runs on the physical GPU (its host mirror is built on first use),
 every other channel on the software executor. The guest token's ChID selects the channel;
 the device holds a guest-token → host-token map and writes the host token to the host
-doorbell page. The GPFIFO is never interpreted for a mirrored channel.
+doorbell page. A trapped value is resolved guest ChID first (`route_token`): a host token is
+only looked up for a value that names no guest channel, because host and guest ChIDs overlap
+(doorbell-token-pool.md (e) rules 9-10). The GPFIFO is never interpreted for a mirrored channel.
 
 **Completion (blocking sync and polling).** `D/intr.rs` `IntrShared` is shared between the
 server thread and a host-event thread (`D/mirror.rs` `event_loop`). The event thread `poll`s
