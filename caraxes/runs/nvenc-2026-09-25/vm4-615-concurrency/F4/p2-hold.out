@@ -1,0 +1,9 @@
+START wall=1790389584.823 pid=6139
+egl device 0: EGL_NV_device_cuda EGL_EXT_device_drm EGL_EXT_device_drm_render_node EGL_EXT_device_query_name EGL_EXT_device_persistent_id
+egl device 1: EGL_EXT_device_drm EGL_EXT_device_drm_render_node EGL_EXT_device_query_name EGL_EXT_device_persistent_id
+egl device 2: EGL_MESA_device_software EGL_EXT_device_drm_render_node
+vendor NVIDIA version 1.5
+context priority requested: high
+GL_RENDERER Leandro VFIO RTX 2070-3G/PCIe/SSE2
+context priority got 0x3101
+setup in 1.01 s

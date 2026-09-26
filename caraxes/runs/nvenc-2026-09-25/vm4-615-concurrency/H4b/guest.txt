@@ -1,0 +1,20 @@
+== cell H4b at 1790386536.837685964 specs: vk:0:60 vk:0:60
+== nvidia users
+
+
+-- p1-vk.out: START wall=1790386536.883 pid=7055 device Leandro VFIO RTX 2070-3G device created fam=2 in 2.17 s 
+RESULT PASS dispatches=14684 per_s=244.7 max_wait_ms=37.5 bad=0 secs=60.0 total=62.5 rc=0 
+-- p2-vk.out: START wall=1790386536.883 pid=7056 device Leandro VFIO RTX 2070-3G device created fam=2 in 1.76 s 
+RESULT PASS dispatches=14612 per_s=243.5 max_wait_ms=37.5 bad=0 secs=60.0 total=62.0 rc=0 
+== rm status!=0
+      1 T=1790386536.936 us=832 RMCTRL cmd=0x2080012f obj=0xbeef0004 size=1664 status=0x56 params=0000000000000000000000000000000000000000000000000000000000000000
+      1 T=1790386536.942 us=439 RMCTRL cmd=0x2080012f obj=0xbeef0004 size=1664 status=0x56 params=0000000000000000000000000000000000000000000000000000000000000000
+      1 T=1790386536.963 us=449 RMCTRL cmd=0x2080012f obj=0xbfef0301 size=1664 status=0x56 params=0000000000000000000000000000000000000000000000000000000000000000
+      1 T=1790386536.967 us=395 RMCTRL cmd=0x2080012f obj=0xbfef0301 size=1664 status=0x56 params=0000000000000000000000000000000000000000000000000000000000000000
+== dmesg tail
+[  777.703958] NVRM: nvidia_close on GPU with minor number 255
+[  777.703959] NVRM: nvidia_ctl_close
+[  777.709374] NVRM: nvidia_close on GPU with minor number 0
+[  777.709418] NVRM: nvidia_close on GPU with minor number 255
+[  777.709419] NVRM: nvidia_ctl_close
+== end 1790386600.245365874

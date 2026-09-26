@@ -1,0 +1,1 @@
+window_s=48.4 kicks=935 kicks_per_s=19.3

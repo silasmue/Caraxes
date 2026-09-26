@@ -1,0 +1,10 @@
+#version 450
+layout(local_size_x = 64) in;
+layout(std430, binding = 0) buffer B { uint d[]; };
+layout(push_constant) uniform P { uint iters; } pc;
+void main() {
+    uint i = gl_GlobalInvocationID.x;
+    uint v = i;
+    for (uint k = 0u; k < pc.iters; k++) v = v * 1664525u + 1013904223u;
+    d[i] = v;
+}

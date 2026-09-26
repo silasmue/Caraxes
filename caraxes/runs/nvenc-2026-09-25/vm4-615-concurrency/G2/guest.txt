@@ -1,0 +1,15 @@
+== cell G2 at 1790388779.109029881 specs: cu:0:30
+== nvidia users
+      3 Xwayland       3 gnome-shell       3 gsd-xsettings       3 mutter-x11-fram       3 steam       6 steamwebhelper       4 sunshine 
+1972 /usr/libexec/gdm-wayland-session env GNOME_SHELL_SESSIO;2093 /usr/bin/gnome-shell;2807 /home/leandro/.steam/debian-installation/ubuntu12_32/st;2949 /usr/bin/Xwayland :0 -rootless -noreset -accessx -core ;7333 sunshine /home/leandro/.config/sunshine/sunshine.conf;
+-- p1-cu.out: START wall=1790388779.216 pid=7709 
+RESULT HANG launches=0 phase=1 t=60.00 rc=3 
+== rm status!=0
+      1 T=1790388779.247 us=3386 RMCTRL cmd=0x2080012f obj=0x5c000003 size=1664 status=0x56 params=0000000000000000000000000000000000000000000000000000000000000000
+== dmesg tail
+[  723.544688] NVRM: VM: nv_free_system_pages: 1/1 order0 pages
+[  723.544795] NVRM: VM: nv_free_pages: 0x3800 at = ffff8c15647d2c80
+[  723.544796] NVRM: VM: nv_free_pages:4156: 0x00000000c2f2a97a, 14336 page(s), count = 1, page_table = 0x00000000eaf7bdd9
+[  723.547445] NVRM: VM: nv_mem_pool_free_pages: at = ffff8c15647d2c80, at->order = 0, at->num_pages = 14336,                 pool_order = 0: 14336/14336 pages added to pool (15380 now in pool)
+[  723.547452] NVRM: VM: nv_free_system_pages: 14336/14336 order0 pages
+== end 1790388839.863638765

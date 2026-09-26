@@ -1,0 +1,19 @@
+== cell H3 at 1790386371.208269303 specs: cu:0:90 vk:15:60
+== nvidia users
+
+
+-- p1-cu.out: START wall=1790386371.255 pid=6728 context in 0.66 s 
+RESULT PASS launches=58246 per_s=647.2 gflops=954.3 max_ms=50.7 bad=0 secs=90.0 total=90.7 rc=0 
+-- p2-vk.out: START wall=1790386386.257 pid=6736 device Leandro VFIO RTX 2070-3G device created fam=2 in 1.15 s 
+RESULT PASS dispatches=14564 per_s=242.7 max_wait_ms=20.0 bad=0 secs=60.0 total=61.4 rc=0 
+== rm status!=0
+      1 T=1790386371.265 us=708 RMCTRL cmd=0x2080012f obj=0x5c000003 size=1664 status=0x56 params=0000000000000000000000000000000000000000000000000000000000000000
+      1 T=1790386386.333 us=850 RMCTRL cmd=0x2080012f obj=0xbeef0004 size=1664 status=0x56 params=0000000000000000000000000000000000000000000000000000000000000000
+      1 T=1790386386.394 us=396 RMCTRL cmd=0x2080012f obj=0xbfef0301 size=1664 status=0x56 params=0000000000000000000000000000000000000000000000000000000000000000
+== dmesg tail
+[  639.583955] NVRM: nvidia_close on GPU with minor number 255
+[  639.583956] NVRM: nvidia_ctl_close
+[  639.583957] NVRM: VM: nv_alloc_release:1679: 0x000000000f1accd9, 1 page(s), count = 2, page_table = 0x00000000a2f67f5b
+[  639.583962] NVRM: nvidia_close on GPU with minor number 255
+[  639.583963] NVRM: nvidia_ctl_close
+== end 1790386462.134286776

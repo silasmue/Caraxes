@@ -1,0 +1,5 @@
+START wall=1790386212.197 pid=6192
+device Leandro VFIO RTX 2070-3G
+device created fam=2 in 1.19 s
+RESULT PASS dispatches=1124 per_s=224.8 max_wait_ms=24.7 bad=0 secs=5.0 total=6.4
+rc=0

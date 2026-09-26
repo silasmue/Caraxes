@@ -1,0 +1,161 @@
+03:27:52 C1 |  3 PASS, | window_s=43.9 kicks=0 kicks_per_s=0.0 | dev_errors=0 | xid=0 | hostwatch_sigterm_lines=0 | memavail=10437MiB
+   p1-before-vk.out: RESULT PASS dispatches=807 per_s=161.4 max_wait_ms=36.1 bad=0 secs=5.0 total=6.2
+   p2-hold.out: 
+   p3-during-vk.out: RESULT PASS dispatches=857 per_s=171.3 max_wait_ms=25.4 bad=0 secs=5.0 total=6.2
+   p4-after-vk.out: RESULT PASS dispatches=784 per_s=156.7 max_wait_ms=38.7 bad=0 secs=5.0 total=6.1
+03:28:31 C2 |  3 PASS, | window_s=36.2 kicks=0 kicks_per_s=0.0 | dev_errors=0 | xid=0 | hostwatch_sigterm_lines=0 | memavail=10427MiB
+   p1-before-vk.out: RESULT PASS dispatches=827 per_s=165.4 max_wait_ms=41.1 bad=0 secs=5.0 total=6.1
+   p2-hold.out: 
+   p3-during-vk.out: RESULT PASS dispatches=927 per_s=185.3 max_wait_ms=22.6 bad=0 secs=5.0 total=6.2
+   p4-after-vk.out: RESULT PASS dispatches=888 per_s=177.6 max_wait_ms=24.3 bad=0 secs=5.0 total=6.1
+03:29:10 C3 |  3 PASS, | window_s=38.6 kicks=0 kicks_per_s=0.0 | dev_errors=0 | xid=0 | hostwatch_sigterm_lines=0 | memavail=14559MiB
+   p1-before-vk.out: RESULT PASS dispatches=1202 per_s=240.3 max_wait_ms=29.9 bad=0 secs=5.0 total=6.1
+   p2-hold.out: 
+   p3-during-vk.out: RESULT PASS dispatches=864 per_s=172.7 max_wait_ms=39.3 bad=0 secs=5.0 total=6.0
+   p4-after-vk.out: RESULT PASS dispatches=969 per_s=193.7 max_wait_ms=26.8 bad=0 secs=5.0 total=6.1
+03:29:50 C4 |  3 PASS, | window_s=39.2 kicks=0 kicks_per_s=0.0 | dev_errors=0 | xid=0 | hostwatch_sigterm_lines=0 | memavail=13286MiB
+   p1-before-vk.out: RESULT PASS dispatches=650 per_s=129.9 max_wait_ms=43.8 bad=0 secs=5.0 total=6.2
+   p2-hold.out: 
+   p3-during-vk.out: RESULT PASS dispatches=728 per_s=145.6 max_wait_ms=44.8 bad=0 secs=5.0 total=6.3
+   p4-after-vk.out: RESULT PASS dispatches=599 per_s=119.7 max_wait_ms=32.0 bad=0 secs=5.0 total=6.3
+03:30:30 C5 |  3 PASS, | window_s=34.4 kicks=0 kicks_per_s=0.0 | dev_errors=0 | xid=0 | hostwatch_sigterm_lines=0 | memavail=10419MiB
+   p1-before-vk.out: RESULT PASS dispatches=1038 per_s=207.6 max_wait_ms=24.8 bad=0 secs=5.0 total=6.2
+   p2-hold.out: 
+   p3-during-vk.out: RESULT PASS dispatches=1124 per_s=224.8 max_wait_ms=24.7 bad=0 secs=5.0 total=6.4
+   p4-after-vk.out: RESULT PASS dispatches=1064 per_s=212.5 max_wait_ms=43.5 bad=0 secs=5.0 total=6.3
+03:31:37 H1 |  1 PASS, | window_s=66.8 kicks=0 kicks_per_s=0.0 | dev_errors=0 | xid=0 | hostwatch_sigterm_lines=0 | memavail=10501MiB
+   p1-cu.out: RESULT PASS launches=72550 per_s=1209.2 gflops=1783.0 max_ms=34.3 bad=0 secs=60.0 total=60.7
+03:32:46 H2 |  3 PASS, | window_s=68.4 kicks=0 kicks_per_s=0.0 | dev_errors=0 | xid=0 | hostwatch_sigterm_lines=0 | memavail=10410MiB
+   p1-cu.out: RESULT PASS launches=33453 per_s=557.5 gflops=822.1 max_ms=62.9 bad=0 secs=60.0 total=61.5
+   p2-cu.out: RESULT PASS launches=33079 per_s=551.3 gflops=812.9 max_ms=41.4 bad=0 secs=60.0 total=61.5
+   p3-cu.out: RESULT PASS launches=32851 per_s=547.5 gflops=807.3 max_ms=53.3 bad=0 secs=60.0 total=61.5
+03:34:23 H3 |  2 PASS, | window_s=97.6 kicks=0 kicks_per_s=0.0 | dev_errors=0 | xid=0 | hostwatch_sigterm_lines=0 | memavail=13592MiB
+   p1-cu.out: RESULT PASS launches=58246 per_s=647.2 gflops=954.3 max_ms=50.7 bad=0 secs=90.0 total=90.7
+   p2-vk.out: RESULT PASS dispatches=14564 per_s=242.7 max_wait_ms=20.0 bad=0 secs=60.0 total=61.4
+03:35:31 H4a |  1 PASS, | window_s=64.7 kicks=0 kicks_per_s=0.0 | dev_errors=0 | xid=0 | hostwatch_sigterm_lines=0 | memavail=10454MiB
+   p1-vk.out: RESULT PASS dispatches=17307 per_s=288.4 max_wait_ms=34.9 bad=0 secs=60.0 total=61.1
+03:36:41 H4b |  2 PASS, | window_s=69.7 kicks=0 kicks_per_s=0.0 | dev_errors=0 | xid=0 | hostwatch_sigterm_lines=0 | memavail=10429MiB
+   p1-vk.out: RESULT PASS dispatches=14684 per_s=244.7 max_wait_ms=37.5 bad=0 secs=60.0 total=62.5
+   p2-vk.out: RESULT PASS dispatches=14612 per_s=243.5 max_wait_ms=37.5 bad=0 secs=60.0 total=62.0
+03:38:29 H5 |  3 PASS, | window_s=103.0 kicks=0 kicks_per_s=0.0 | dev_errors=0 | xid=0 | hostwatch_sigterm_lines=0 | memavail=10462MiB
+   p1-cu.out: RESULT PASS launches=43404 per_s=434.0 gflops=640.0 max_ms=46.0 bad=0 secs=100.0 total=100.6
+   p2-vk.out: RESULT PASS dispatches=16311 per_s=203.9 max_wait_ms=23.2 bad=0 secs=80.0 total=81.3
+   p3-egl.out: RESULT PASS frames=12146 fps=202.4 max_frame_ms=42.1 bad=0 secs=60.0 total=60.9
+03:39:36 H5e |  1 PASS, | window_s=67.4 kicks=0 kicks_per_s=0.0 | dev_errors=0 | xid=0 | hostwatch_sigterm_lines=0 | memavail=10422MiB
+   p1-egl.out: RESULT PASS frames=34590 fps=576.5 max_frame_ms=27.9 bad=0 secs=60.0 total=60.3
+03:41:22 D1 |  1 PASS, | window_s=62.4 kicks=446 kicks_per_s=7.1 | dev_errors=0 | xid=0 | hostwatch_sigterm_lines=0 | memavail=10385MiB
+   p1-cu.out: RESULT PASS launches=50932 per_s=848.8 gflops=1251.7 max_ms=41.8 bad=0 secs=60.0 total=61.3
+03:42:36 D2 |  3 PASS, | window_s=66.4 kicks=744 kicks_per_s=11.2 | dev_errors=0 | xid=0 | hostwatch_sigterm_lines=0 | memavail=10343MiB
+   p1-cu.out: RESULT PASS launches=22590 per_s=376.5 gflops=555.2 max_ms=42.8 bad=0 secs=60.0 total=63.9
+   p2-cu.out: RESULT PASS launches=22451 per_s=374.2 gflops=551.8 max_ms=42.8 bad=0 secs=60.0 total=64.0
+   p3-cu.out: RESULT PASS launches=22727 per_s=378.8 gflops=558.5 max_ms=42.6 bad=0 secs=60.0 total=64.0
+03:44:16 D3 |  2 PASS, | window_s=93.0 kicks=2545 kicks_per_s=27.4 | dev_errors=0 | xid=0 | hostwatch_sigterm_lines=0 | memavail=10369MiB
+   p1-cu.out: RESULT PASS launches=38186 per_s=424.3 gflops=625.6 max_ms=82.2 bad=0 secs=90.0 total=91.8
+   p2-vk.out: RESULT PASS dispatches=10959 per_s=182.6 max_wait_ms=38.1 bad=0 secs=60.0 total=62.9
+03:45:27 D4a |  1 PASS, | window_s=64.2 kicks=831 kicks_per_s=12.9 | dev_errors=0 | xid=0 | hostwatch_sigterm_lines=0 | memavail=10056MiB
+   p1-vk.out: RESULT PASS dispatches=8372 per_s=139.5 max_wait_ms=70.5 bad=0 secs=60.0 total=62.5
+03:46:42 D4b |  2 PASS, | window_s=68.0 kicks=213 kicks_per_s=3.1 | dev_errors=0 | xid=0 | hostwatch_sigterm_lines=0 | memavail=10255MiB
+   p1-vk.out: RESULT PASS dispatches=13661 per_s=227.7 max_wait_ms=75.8 bad=0 secs=60.0 total=66.0
+   p2-vk.out: RESULT PASS dispatches=13486 per_s=224.8 max_wait_ms=78.0 bad=0 secs=60.0 total=66.1
+03:48:32 D5 |  3 PASS, | window_s=102.0 kicks=2 kicks_per_s=0.0 | dev_errors=0 | xid=0 | hostwatch_sigterm_lines=0 | memavail=10232MiB
+   p1-cu.out: RESULT PASS launches=44119 per_s=441.2 gflops=650.6 max_ms=61.6 bad=0 secs=100.0 total=101.1
+   p2-vk.out: RESULT PASS dispatches=13893 per_s=173.7 max_wait_ms=31.8 bad=0 secs=80.0 total=81.6
+   p3-egl.out: RESULT PASS frames=13616 fps=226.9 max_frame_ms=39.8 bad=0 secs=60.0 total=61.0
+03:49:41 D5e |  1 PASS, | window_s=61.3 kicks=1 kicks_per_s=0.0 | dev_errors=0 | xid=0 | hostwatch_sigterm_lines=0 | memavail=10054MiB
+   p1-egl.out: RESULT PASS frames=32214 fps=536.9 max_frame_ms=23.8 bad=0 secs=60.0 total=60.6
+03:53:43 I1 |  1 HANG, | window_s=61.0 kicks=1 kicks_per_s=0.0 | dev_errors=0 | xid=0 | hostwatch_sigterm_lines=0 | memavail=9101MiB
+   p1-cu.out: RESULT HANG launches=0 phase=1 t=60.00
+03:54:06 I2 |  1 FAIL, | window_s=13.4 kicks=1 kicks_per_s=0.1 | dev_errors=0 | xid=0 | hostwatch_sigterm_lines=0 | memavail=10116MiB
+   p1-vk.out: RESULT FAIL step=vkCreateDevice(pd,&dci,0,&dev) vkresult=-3 t=12.94
+03:55:15 I3 |  1 PASS, | window_s=61.4 kicks=1 kicks_per_s=0.0 | dev_errors=0 | xid=0 | hostwatch_sigterm_lines=0 | memavail=10072MiB
+   p1-egl.out: RESULT PASS frames=31525 fps=525.4 max_frame_ms=75.4 bad=0 secs=60.0 total=60.7
+03:57:03 S1 |  1 PASS, | window_s=63.3 kicks=3 kicks_per_s=0.0 | dev_errors=0 | xid=0 | hostwatch_sigterm_lines=0 | memavail=10760MiB
+   p1-cu.out: RESULT PASS launches=18966 per_s=316.1 gflops=466.1 max_ms=23.6 bad=0 secs=60.0 total=61.7
+03:58:17 S2 |  1 PASS, | window_s=65.4 kicks=1 kicks_per_s=0.0 | dev_errors=0 | xid=0 | hostwatch_sigterm_lines=0 | memavail=10739MiB
+   p1-vk.out: RESULT PASS dispatches=10691 per_s=178.2 max_wait_ms=55.5 bad=0 secs=60.0 total=63.8
+03:59:28 S3 |  1 PASS, | window_s=63.0 kicks=1 kicks_per_s=0.0 | dev_errors=0 | xid=0 | hostwatch_sigterm_lines=0 | memavail=12640MiB
+   p1-egl.out: RESULT PASS frames=15521 fps=258.7 max_frame_ms=53.6 bad=0 secs=60.0 total=61.5
+04:06:32 F1 |  3 PASS, | window_s=55.7 kicks=732 kicks_per_s=13.2 | dev_errors=0 | xid=0 | hostwatch_sigterm_lines=0 | memavail=3799MiB
+   p1-before-vk.out: RESULT PASS dispatches=373 per_s=74.4 max_wait_ms=93.6 bad=0 secs=5.0 total=10.2
+   p2-hold.out: 
+   p3-during-vk.out: RESULT PASS dispatches=710 per_s=141.8 max_wait_ms=48.6 bad=0 secs=5.0 total=9.8
+   p4-after-vk.out: RESULT PASS dispatches=661 per_s=132.0 max_wait_ms=68.3 bad=0 secs=5.0 total=9.6
+04:07:18 F2 |  3 PASS, | window_s=39.7 kicks=1405 kicks_per_s=35.4 | dev_errors=0 | xid=0 | hostwatch_sigterm_lines=0 | memavail=8221MiB
+   p1-before-cu.out: RESULT PASS launches=2406 per_s=481.0 gflops=709.3 max_ms=43.3 bad=0 secs=5.0 total=7.2
+   p2-hold.out: 
+   p3-during-cu.out: RESULT PASS launches=2404 per_s=480.6 gflops=708.7 max_ms=36.3 bad=0 secs=5.0 total=7.1
+   p4-after-cu.out: RESULT PASS launches=3106 per_s=621.1 gflops=915.8 max_ms=22.7 bad=0 secs=5.0 total=6.7
+04:08:11 F3 |  3 PASS, | window_s=47.1 kicks=1440 kicks_per_s=30.6 | dev_errors=0 | xid=0 | hostwatch_sigterm_lines=0 | memavail=4028MiB
+   p1-before-vk.out: RESULT PASS dispatches=707 per_s=141.3 max_wait_ms=49.8 bad=0 secs=5.0 total=9.6
+   p2-hold.out: 
+   p3-during-vk.out: RESULT PASS dispatches=909 per_s=181.7 max_wait_ms=40.9 bad=0 secs=5.0 total=8.4
+   p4-after-vk.out: RESULT PASS dispatches=969 per_s=193.7 max_wait_ms=42.8 bad=0 secs=5.0 total=7.7
+04:08:57 F4 |  3 PASS, | window_s=40.3 kicks=1469 kicks_per_s=36.5 | dev_errors=0 | xid=0 | hostwatch_sigterm_lines=0 | memavail=4143MiB
+   p1-before-cu.out: RESULT PASS launches=3274 per_s=654.7 gflops=965.4 max_ms=21.0 bad=0 secs=5.0 total=6.5
+   p2-hold.out: 
+   p3-during-cu.out: RESULT PASS launches=2186 per_s=437.1 gflops=644.5 max_ms=28.5 bad=0 secs=5.0 total=7.8
+   p4-after-cu.out: RESULT PASS launches=3450 per_s=689.9 gflops=1017.3 max_ms=21.8 bad=0 secs=5.0 total=6.8
+04:09:51 F5 |  3 PASS, | window_s=48.1 kicks=1082 kicks_per_s=22.5 | dev_errors=0 | xid=0 | hostwatch_sigterm_lines=0 | memavail=3788MiB
+   p1-before-vk.out: RESULT PASS dispatches=966 per_s=193.1 max_wait_ms=75.6 bad=0 secs=5.0 total=8.5
+   p2-hold.out: 
+   p3-during-vk.out: RESULT PASS dispatches=843 per_s=168.5 max_wait_ms=30.1 bad=0 secs=5.0 total=9.3
+   p4-after-vk.out: RESULT PASS dispatches=725 per_s=145.0 max_wait_ms=60.1 bad=0 secs=5.0 total=8.8
+04:10:42 F6 |  3 PASS, | window_s=45.1 kicks=986 kicks_per_s=21.9 | dev_errors=0 | xid=0 | hostwatch_sigterm_lines=0 | memavail=3789MiB
+   p1-before-vk.out: RESULT PASS dispatches=909 per_s=181.7 max_wait_ms=34.0 bad=0 secs=5.0 total=8.7
+   p2-hold.out: 
+   p3-during-vk.out: RESULT PASS dispatches=890 per_s=178.0 max_wait_ms=55.1 bad=0 secs=5.0 total=8.2
+   p4-after-vk.out: RESULT PASS dispatches=1004 per_s=200.8 max_wait_ms=64.5 bad=0 secs=5.0 total=7.5
+04:11:25 F7 |  3 PASS, | window_s=36.2 kicks=2 kicks_per_s=0.1 | dev_errors=0 | xid=0 | hostwatch_sigterm_lines=0 | memavail=6463MiB
+   p1-before-cu.out: RESULT PASS launches=4525 per_s=905.0 gflops=1334.4 max_ms=16.0 bad=0 secs=5.0 total=6.2
+   p2-hold.out: 
+   p3-during-cu.out: RESULT PASS launches=5099 per_s=1019.7 gflops=1503.6 max_ms=17.1 bad=0 secs=5.0 total=6.0
+   p4-after-cu.out: RESULT PASS launches=4504 per_s=900.7 gflops=1328.1 max_ms=15.7 bad=0 secs=5.0 total=6.2
+04:12:54 G1 |  1 FAIL, | window_s=15.2 kicks=0 kicks_per_s=0.0 | dev_errors=0 | xid=0 | hostwatch_sigterm_lines=0 | memavail=5408MiB
+   p1-vk.out: RESULT FAIL step=vkCreateDevice(pd,&dci,0,&dev) vkresult=-3 t=14.00
+04:14:01 G2 |  1 HANG, | window_s=61.0 kicks=1 kicks_per_s=0.0 | dev_errors=0 | xid=0 | hostwatch_sigterm_lines=0 | memavail=5715MiB
+   p1-cu.out: RESULT HANG launches=0 phase=1 t=60.00
+04:15:22 G3 |  1 FAIL, | window_s=14.6 kicks=0 kicks_per_s=0.0 | dev_errors=0 | xid=0 | hostwatch_sigterm_lines=0 | memavail=5129MiB
+   p1-vk.out: RESULT FAIL step=vkCreateDevice(pd,&dci,0,&dev) vkresult=-3 t=13.67
+04:16:19 G4 |  1 FAIL, | window_s=15.2 kicks=0 kicks_per_s=0.0 | dev_errors=0 | xid=0 | hostwatch_sigterm_lines=0 | memavail=11431MiB
+   p1-vk.out: RESULT FAIL step=vkCreateDevice(pd,&dci,0,&dev) vkresult=-3 t=14.52
+04:17:28 G5 |  1 HANG, | window_s=60.9 kicks=1 kicks_per_s=0.0 | dev_errors=0 | xid=0 | hostwatch_sigterm_lines=0 | memavail=10431MiB
+   p1-cu.out: RESULT HANG launches=0 phase=1 t=60.00
+04:18:27 G6 |  1 PASS, | window_s=33.4 kicks=1 kicks_per_s=0.0 | dev_errors=0 | xid=0 | hostwatch_sigterm_lines=0 | memavail=9468MiB
+   p1-vk.out: RESULT PASS dispatches=5431 per_s=180.9 max_wait_ms=56.7 bad=0 secs=30.0 total=32.0
+04:19:36 G7 |  1 HANG, | window_s=61.0 kicks=1 kicks_per_s=0.0 | dev_errors=0 | xid=0 | hostwatch_sigterm_lines=0 | memavail=10880MiB
+   p1-cu.out: RESULT HANG launches=0 phase=1 t=60.00
+04:24:31 F1 |  3 PASS, | window_s=47.7 kicks=570 kicks_per_s=12.0 | dev_errors=0 | xid=0 | hostwatch_sigterm_lines=0 | memavail=10252MiB
+   p1-before-vk.out: RESULT PASS dispatches=574 per_s=114.7 max_wait_ms=68.3 bad=0 secs=5.0 total=8.5
+   p2-hold.out: 
+   p3-during-vk.out: RESULT PASS dispatches=828 per_s=165.6 max_wait_ms=49.5 bad=0 secs=5.0 total=9.5
+   p4-after-vk.out: RESULT PASS dispatches=784 per_s=156.7 max_wait_ms=73.6 bad=0 secs=5.0 total=8.3
+04:25:15 F2 |  3 PASS, | window_s=38.8 kicks=1298 kicks_per_s=33.4 | dev_errors=0 | xid=0 | hostwatch_sigterm_lines=0 | memavail=10240MiB
+   p1-before-cu.out: RESULT PASS launches=3527 per_s=705.3 gflops=1040.0 max_ms=18.2 bad=0 secs=5.0 total=6.7
+   p2-hold.out: 
+   p3-during-cu.out: RESULT PASS launches=2720 per_s=544.0 gflops=802.1 max_ms=59.6 bad=0 secs=5.0 total=6.6
+   p4-after-cu.out: RESULT PASS launches=2948 per_s=589.6 gflops=869.4 max_ms=51.8 bad=0 secs=5.0 total=6.9
+04:26:12 F3 |  3 PASS, | window_s=51.0 kicks=1055 kicks_per_s=20.7 | dev_errors=0 | xid=0 | hostwatch_sigterm_lines=0 | memavail=10218MiB
+   p1-before-vk.out: RESULT PASS dispatches=907 per_s=181.1 max_wait_ms=61.5 bad=0 secs=5.0 total=8.2
+   p2-hold.out: 
+   p3-during-vk.out: RESULT PASS dispatches=581 per_s=116.1 max_wait_ms=74.2 bad=0 secs=5.0 total=11.4
+   p4-after-vk.out: RESULT PASS dispatches=856 per_s=171.1 max_wait_ms=33.1 bad=0 secs=5.0 total=8.6
+04:27:00 F4 |  3 PASS, | window_s=41.9 kicks=933 kicks_per_s=22.3 | dev_errors=0 | xid=0 | hostwatch_sigterm_lines=0 | memavail=10172MiB
+   p1-before-cu.out: RESULT PASS launches=3022 per_s=604.3 gflops=891.1 max_ms=18.7 bad=0 secs=5.0 total=6.4
+   p2-hold.out: 
+   p3-during-cu.out: RESULT PASS launches=1631 per_s=325.9 gflops=480.6 max_ms=19.8 bad=0 secs=5.0 total=7.4
+   p4-after-cu.out: RESULT PASS launches=2271 per_s=454.1 gflops=669.6 max_ms=17.0 bad=0 secs=5.0 total=7.1
+04:28:01 F5 |  1 FAIL, 2 PASS, | window_s=53.0 kicks=1267 kicks_per_s=23.9 | dev_errors=0 | xid=0 | hostwatch_sigterm_lines=0 | memavail=10225MiB
+   p1-before-vk.out: RESULT PASS dispatches=816 per_s=163.1 max_wait_ms=41.2 bad=0 secs=5.0 total=10.3
+   p2-hold.out: 
+   p3-during-vk.out: RESULT FAIL step=vkCreateDevice(pd,&dci,0,&dev) vkresult=-3 t=15.39
+   p4-after-vk.out: RESULT PASS dispatches=755 per_s=150.9 max_wait_ms=50.8 bad=0 secs=5.0 total=7.5
+04:28:56 F6 |  1 FAIL, 2 PASS, | window_s=48.4 kicks=935 kicks_per_s=19.3 | dev_errors=0 | xid=0 | hostwatch_sigterm_lines=0 | memavail=10233MiB
+   p1-before-vk.out: RESULT PASS dispatches=982 per_s=196.4 max_wait_ms=70.2 bad=0 secs=5.0 total=8.1
+   p2-hold.out: 
+   p3-during-vk.out: RESULT FAIL step=vkCreateDevice(pd,&dci,0,&dev) vkresult=-4 t=13.58
+   p4-after-vk.out: RESULT PASS dispatches=974 per_s=194.8 max_wait_ms=83.2 bad=0 secs=5.0 total=7.5
+04:30:36 F7 |  1 HANG, 2 PASS, | window_s=90.4 kicks=2573 kicks_per_s=28.5 | dev_errors=0 | xid=0 | hostwatch_sigterm_lines=0 | memavail=12258MiB
+   p1-before-cu.out: RESULT PASS launches=4378 per_s=875.5 gflops=1291.0 max_ms=15.0 bad=0 secs=5.0 total=6.0
+   p2-hold.out: 
+   p3-during-cu.out: RESULT HANG launches=0 phase=1 t=60.00
+   p4-after-cu.out: RESULT PASS launches=5388 per_s=1077.6 gflops=1589.0 max_ms=19.0 bad=0 secs=5.0 total=6.1

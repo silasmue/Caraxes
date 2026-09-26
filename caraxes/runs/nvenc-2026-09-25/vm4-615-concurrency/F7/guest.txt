@@ -1,0 +1,17 @@
+== ladder2 F7 probe=cu at 1790389742.127886729: ./hold.sh vkcube+nvenc
+holder pid 7031 alive=1
+holder alive after probe=1
+-- p1-before-cu.out: START wall=1790389742.129 pid=7024 context in 0.98 s 
+RESULT PASS launches=4378 per_s=875.5 gflops=1291.0 max_ms=15.0 bad=0 secs=5.0 total=6.0 rc=0 
+-- p2-hold.out: 
+
+-- p3-during-cu.out: START wall=1790389760.767 pid=7055 
+RESULT HANG launches=0 phase=1 t=60.00 rc=3 
+-- p4-after-cu.out: START wall=1790389825.352 pid=7086 context in 1.05 s 
+RESULT PASS launches=5388 per_s=1077.6 gflops=1589.0 max_ms=19.0 bad=0 secs=5.0 total=6.1 rc=0 
+== failing allocs
+p1-before-cu.rm: 8 c5c0;  slow: 2
+p2-hold.rm: 8 c5c0;  slow: 1
+p3-during-cu.rm: 8 c5c0;  slow: 1
+p4-after-cu.rm: 8 c5c0;  slow: 2
+== end 1790389832.019828393

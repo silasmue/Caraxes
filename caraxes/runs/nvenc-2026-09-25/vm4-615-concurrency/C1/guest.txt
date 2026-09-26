@@ -1,0 +1,15 @@
+== ladder C1 at 1790386038.930996947: ./cuhold init 120
+holder pid 5346 alive=1
+-- p1-before-vk.out: START wall=1790386038.932 pid=5337 device created fam=2 in 1.01 s 
+RESULT PASS dispatches=807 per_s=161.4 max_wait_ms=36.1 bad=0 secs=5.0 total=6.2 rc=0 
+-- p2-hold.out: START wall=1790386045.655 pid=5346 mode=init HOLDING 
+rc=143 (killed after the during probe) 
+-- p3-during-vk.out: START wall=1790386055.682 pid=5353 device created fam=2 in 1.02 s 
+RESULT PASS dispatches=857 per_s=171.3 max_wait_ms=25.4 bad=0 secs=5.0 total=6.2 rc=0 
+-- p4-after-vk.out: START wall=1790386065.402 pid=5364 device created fam=2 in 0.94 s 
+RESULT PASS dispatches=784 per_s=156.7 max_wait_ms=38.7 bad=0 secs=5.0 total=6.1 rc=0 
+== c5c0 allocs
+p1-before-vk.rm: 3 c5c0, failing: 0 ; T=1790386038.991 us=676 RMCTRL cmd=0x2080012f obj=0xbeef0004 size=1664 status=0x56 params=000000000000000000000000000000;T=1790386039.010 us=426 RMCTRL cmd=0x2080012f obj=0xbfef0301 size=1664 status=0x56 params=000000000000000000000000000000;
+p3-during-vk.rm: 3 c5c0, failing: 0 ; T=1790386055.733 us=644 RMCTRL cmd=0x2080012f obj=0xbeef0004 size=1664 status=0x56 params=000000000000000000000000000000;T=1790386055.750 us=494 RMCTRL cmd=0x2080012f obj=0xbfef0301 size=1664 status=0x56 params=000000000000000000000000000000;
+p4-after-vk.rm: 3 c5c0, failing: 0 ; T=1790386065.455 us=893 RMCTRL cmd=0x2080012f obj=0xbeef0004 size=1664 status=0x56 params=000000000000000000000000000000;T=1790386065.471 us=435 RMCTRL cmd=0x2080012f obj=0xbfef0301 size=1664 status=0x56 params=000000000000000000000000000000;
+== end 1790386072.043297798

@@ -1,0 +1,4 @@
+START wall=1790386302.496 pid=6557
+context in 1.47 s
+RESULT PASS launches=33079 per_s=551.3 gflops=812.9 max_ms=41.4 bad=0 secs=60.0 total=61.5
+rc=0
