@@ -669,6 +669,7 @@ impl Device {
         );
         self.mem
             .set_table(if table.is_empty() { None } else { Some(table) });
+        self.gpa_aliases();
         if let Some(path) = self.dma_ranges.clone() {
             let tmp = path.with_extension("tmp");
             std::fs::write(&tmp, format!("{param}\n"))?;
@@ -688,7 +689,43 @@ impl Device {
     /// device"). Read at every reset, checked against the device's own table
     /// (dmamap.rs `aliases_of`); a missing file means no alias, a table that fails the check
     /// is refused with an ERROR line and the aliases stay off.
+    /// `CARAXES_GUEST_DMA_GPA=1`: a guest without caraxes_dma_range (Windows) hands the device
+    /// guest physical addresses, which under QEMU's vfio-user client without a vIOMMU are the
+    /// DMA_MAP addresses. The guest's table is then the identity of the registered guest RAM:
+    /// every GPA is an alias of its registered IOVA (checked by dmamap.rs `aliases_of`, so an
+    /// alias can name only this VM's registered pages), and the shadow maps and the device's
+    /// own accesses translate it (guestmem.rs `host_iova`, `translate`). Returns whether it
+    /// applied.
+    fn gpa_aliases(&mut self) -> bool {
+        if !std::env::var("CARAXES_GUEST_DMA_GPA").is_ok_and(|v| v == "1") {
+            return false;
+        }
+        let Some(table) = self.mem.table().cloned() else {
+            return true;
+        };
+        let ident: Vec<DmaRange> = table
+            .ranges()
+            .iter()
+            .map(|r| DmaRange { gpa: r.gpa, iova: r.gpa, size: r.size })
+            .collect();
+        match DmaTable::new(ident).and_then(|g| table.aliases_of(&g)) {
+            Ok(aliases) => {
+                let n = aliases.len();
+                self.mem.set_aliases(aliases);
+                self.note(&format!("dma table: guest speaks GPA (CARAXES_GUEST_DMA_GPA): {n} identity alias range(s)"));
+            }
+            Err(e) => {
+                self.mem.set_aliases(Vec::new());
+                self.note(&format!("ERROR dma table: GPA aliases refused: {e}"));
+            }
+        }
+        true
+    }
+
     fn load_guest_aliases(&mut self) {
+        if self.gpa_aliases() {
+            return;
+        }
         let (Some(path), Some(table)) = (self.dma_ranges.clone(), self.mem.table().cloned()) else {
             return;
         };

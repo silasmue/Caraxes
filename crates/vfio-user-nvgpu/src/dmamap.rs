@@ -420,4 +420,24 @@ mod tests {
         assert!(DmaTable::new((0..65).map(|i| r(i * G, i * G, G)).collect()).is_err());
         assert!(DmaTable::parse("0:0").is_err());
     }
+
+    /// A guest that speaks GPA (Windows, CARAXES_GUEST_DMA_GPA): the identity of a linearly
+    /// registered table is accepted as aliases, one per range; a registration that put some RAM
+    /// at IOVAs inside the GPA space would make an identity alias ambiguous and is refused.
+    #[test]
+    fn identity_guest_table_aliases_a_linear_registration() {
+        let off = 0x7ffa_c000_0000u64;
+        let t = DmaTable::new(vec![
+            DmaRange { gpa: 0, iova: off, size: 2 * G },
+            DmaRange { gpa: 4 * G, iova: off + 4 * G, size: 2 * G },
+        ])
+        .unwrap();
+        let ident = DmaTable::new(t.ranges().iter().map(|r| DmaRange { gpa: r.gpa, iova: r.gpa, size: r.size }).collect()).unwrap();
+        let a = t.aliases_of(&ident).unwrap();
+        assert_eq!(a.len(), 2);
+        assert!(a.iter().all(|r| r.iova == r.gpa));
+        let low = DmaTable::new(vec![DmaRange { gpa: 0, iova: 0x4000_0000, size: G }, DmaRange { gpa: G, iova: 0, size: G }]).unwrap();
+        let ident = DmaTable::new(low.ranges().iter().map(|r| DmaRange { gpa: r.gpa, iova: r.gpa, size: r.size }).collect()).unwrap();
+        assert!(low.aliases_of(&ident).is_err());
+    }
 }
