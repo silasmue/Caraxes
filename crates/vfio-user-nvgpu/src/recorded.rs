@@ -110,8 +110,22 @@ pub const WIN_ACKS: [u32; 5] = [0x2080_1110, 0x2080_1812, 0x2080_0160, 0x2080_22
 pub const PREFER_RECORDED: [u32; 1] = [0x2080_01B0];
 pub const PREFER_RECORDED_ENV: &str = "CARAXES_PREFER_RECORDED";
 
+/// `CARAXES_WIN_EXCEPT=<hex>[,<hex>...]` (bisect): controls left to the dispatcher's own
+/// answer although a knob here would answer them (the Windows acknowledgements and the
+/// ack-all diagnostic in ctrl.rs).
+pub fn excepted(cmd: u32) -> bool {
+    std::env::var("CARAXES_WIN_EXCEPT").is_ok_and(|l| {
+        l.split(',')
+            .filter_map(|x| u32::from_str_radix(x.trim().trim_start_matches("0x"), 16).ok())
+            .any(|c| c == cmd)
+    })
+}
+
 /// Whether `cmd` is answered here ahead of the dispatcher's tables.
 pub fn overrides(cmd: u32) -> bool {
+    if excepted(cmd) {
+        return false;
+    }
     if PREFER_RECORDED.contains(&cmd) {
         return std::env::var(PREFER_RECORDED_ENV).is_ok_and(|v| v == "1");
     }

@@ -965,11 +965,15 @@ impl Dispatcher {
             }
             // Diagnostic only (`CARAXES_ACK_UNANSWERED=1`): every control still without an
             // answer gets NV_OK and its request back, to see whether any refusal gates.
-            None if std::env::var("CARAXES_ACK_UNANSWERED").is_ok_and(|v| v == "1") => Answer::ok(
+            None if std::env::var("CARAXES_ACK_UNANSWERED").is_ok_and(|v| v == "1")
+                && !crate::recorded::excepted(cmd) =>
+            {
+                Answer::ok(
                 params.to_vec(),
                 "diagnostic (CARAXES_ACK_UNANSWERED: NV_OK echo)",
                 format!("{} -> acknowledged (was status {:#x} [{}])", a.note, a.status, a.label),
-            ),
+                )
+            }
             None => {
                 let mut a = a;
                 let head: String = params.iter().take(48).map(|b| format!("{b:02x}")).collect();
