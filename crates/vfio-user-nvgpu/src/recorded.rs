@@ -95,9 +95,12 @@ pub const WIN_COMPBIT_ENV: &str = "CARAXES_WIN_COMPBIT";
 /// BUS_SERVICE_GPU_MULTIFUNC_STATE (0x20801812, the HDA function: nothing to service) and
 /// GPU_GET_VPR_CAPS (0x20800160: minStart/maxEnd 0, no VPR in the emulated FB), and
 /// SET_RC_RECOVERY (0x2080220D: the KMD sets the robust-channel policy right after creating its
-/// channels and unloads when it is refused, Y25; recorded, the device's RC policy stays).
+/// channels and unloads when it is refused, Y25; recorded, the device's RC policy stays), and
+/// NV0080_CTRL_DMA_SET_DEFAULT_VASPACE (0x801812: the KMD makes its new 1 GiB VA space the
+/// device's default and unloads when it is refused, Y29; the channel emulation takes each
+/// channel's VA space from its own allocation).
 pub const WIN_ACKS_ENV: &str = "CARAXES_WIN_ACKS";
-pub const WIN_ACKS: [u32; 4] = [0x2080_1110, 0x2080_1812, 0x2080_0160, 0x2080_220D];
+pub const WIN_ACKS: [u32; 5] = [0x2080_1110, 0x2080_1812, 0x2080_0160, 0x2080_220D, 0x0080_1812];
 
 /// Controls whose pure-emulation fallback answers NV_OK with nothing in it: the card's recorded
 /// answer (an exact request match) is preferred. GET_CONSTRUCTED_FALCON_INFO: the fallback
@@ -351,7 +354,7 @@ pub fn answer(cmd: u32, params: &[u8], f: &Facts) -> Option<Answer> {
             LABEL_CHIP,
             "vpr caps: no VPR (minStart/maxEnd 0) in the emulated FB".into(),
         )),
-        0x2080_1110 | 0x2080_1812 | 0x2080_220D => Some(ok(
+        0x2080_1110 | 0x2080_1812 | 0x2080_220D | 0x0080_1812 => Some(ok(
             params.to_vec(),
             LABEL_CHIP,
             format!("{cmd:#x}: acknowledged for the Windows KMD (nothing applied)"),
@@ -682,6 +685,8 @@ mod tests {
         assert_eq!(overrides(0x2080_0160), std::env::var(WIN_ACKS_ENV).is_ok_and(|v| v == "1"));
         let a = answer(0x2080_0160, &[0xAAu8; 16], &F).unwrap();
         assert_eq!((a.status, a.params), (0, vec![0u8; 16]));
+        let a = answer(0x0080_1812, &[3u8; 8], &F).unwrap();
+        assert_eq!((a.status, a.params), (0, vec![3u8; 8]));
         let a = answer(0x2080_1110, &[7u8; 8], &F).unwrap();
         assert_eq!((a.status, a.params), (0, vec![7u8; 8]));
     }
