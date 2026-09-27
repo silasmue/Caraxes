@@ -262,3 +262,25 @@ returned `0xC000009A`. The next gate is the descriptor/resource construction in
 
 Evidence: `KD7-subsystem-vm38-failure.log` and
 `KD7-descriptor-stage-failure.log`. All offsets refer to stock Windows 617.14.
+
+## Zero-sized tone-mapping resource: KD7 restarts 7–8
+
+The second `+0x15c0550` call from `+0x15f1260` rejects a zero-sized resource.
+The live descriptor at receiver `+0x6228` has size 0 at `+4` and internal ID
+`0xff1fe315` at `+0x50`. Restart 8 stopped at the immediate zero-size check
+`+0x15c0587`; final startup remains `0xC000009A`.
+
+- Window count is 8 and presence mask is `0xff`.
+- Every cached PRECOMP window CAPA is `0x01c70000`, matching the emulated
+  `display.toml` entries at `0x780 + 0x20 * window`.
+- Vtable slot `+0xdb8` (`+0x1c840`) tests CAPA bit 20, `TMO_PRESENT` in
+  public `clc573.h`. It returns false for every window.
+- The skipped path adds `round_up(8 * (2^TMO_LOGSZ + 5), 256)` bytes per
+  eligible window to the descriptor size. No eligible windows means size 0.
+
+Evidence: `windows-kd/debugger/KD7-tmo-capability-zero-size.log`.
+The next diagnostic advertises only TMO presence on the four windows where
+it exists in the TU106 capture, plus CAPD TMO geometry `0x16a`. This is a
+startup-localization experiment. The current display engine stores TMO
+methods but does not load or apply its LUT; this must not become a supported
+HDR/TMO capability without implementing and validating that behavior.
