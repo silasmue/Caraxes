@@ -172,3 +172,23 @@ allocator uses that region's actual base, so this does not require memory at PA 
 This is a source-derived candidate, not a tested layout. The Windows console-size
 predicate must first be observed; static region metadata alone cannot enable it.
 `GSP_INIT` key `0x1031` reports the guest's console reservation in bytes.
+
+
+## Segment-base writer: KD4
+
+- A hardware write breakpoint on segment 2's base stopped after
+  `nvlddmkm+0x19632bd`: the writer copies segment-object `+0x80` into the entry.
+- The source value is zero. The same object contains the high usable bounds at
+  `+0xb0` and `+0xb8`; knowing those bounds does not establish its segment base.
+- Static inspection identifies an upstream initializer at `+0x1965630`:
+  it loads a DWORD from `*(@rdi+0x20)+0x0c`, converts KiB to bytes, rounds up to
+  2 MiB and stores the result at object `+0x80`. A secondary initializer at
+  `+0x1966015` consumes the same field without rounding. The input field is
+  consistent with HEAP_START; inspect the producer before treating that as proven.
+- The native FB-start registry lookup returned `0x56`; its output and stored
+  override stayed zero. The unmodified run again returned `0xC000009A` at
+  `+0x192c5af`. No new host Xid was observed.
+- Transcript: `windows-kd/debugger/KD4-segment-writer.log` in the state directory.
+
+The console-size diagnostic passed all six GMCAPI unit tests with ABI 615 and a
+release build. It changes logging only; it does not alter the FB layout.
