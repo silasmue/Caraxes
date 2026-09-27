@@ -207,3 +207,23 @@ again returned `0xC000009A`. Evidence: `windows-kd/debugger/KD5-console-size.log
 and the KD5 backend trace. Next trace the producer of this packed input; its
 semantic identification as HEAP_START still needs confirmation in the closed
 Windows driver.
+
+
+## Cached HEAP_START provenance: KD6
+
+- Break at `nvlddmkm+0x16f21d0` identified the live adapter. A hardware write
+  watch on its `+0x2c1c` first caught the 0x228-byte FB-info array being cleared.
+- The array at adapter `+0x2b28` contains 0x45 `{index, data}` pairs. Index
+  `0x1e` occupies `+0x2c18`, with its HEAP_START result at `+0x2c1c`.
+- `+0x1918c51` issues legacy `FB_GET_INFO` (`0x20801301`). Copy-out wrote zero
+  to the watched result; at `+0x1918c56` the wrapper reported success (`AL=1`).
+- `+0x18e7c99` consumed that same adapter and zero result for the packed segment
+  configuration. This establishes HEAP_START provenance; the earlier ACPI `_DOD`
+  lead referred to an unrelated receiver with the same field offset.
+- No guest values or statuses were changed. Startup again returned `0xC000009A`.
+  KD6 stopped cleanly, released its reservation, and produced no new host Xid.
+- Transcript: `windows-kd/debugger/KD6-cached-base-writer.log` in the state directory.
+
+The next experiment translates a zero-based guest FB range onto the owned host
+reservation through descriptor offsets. It keeps the fake WPR in the separate
+high guest address range and permits only host-managed shadow VA spaces.

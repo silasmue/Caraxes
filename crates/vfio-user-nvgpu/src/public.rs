@@ -240,6 +240,77 @@ pub fn answer(ctx: &mut Ctx<'_>, cmd: u32, params: &[u8]) -> Option<Answer> {
     })
 }
 
+/// Filter host addresses first, then express retained addresses in guest coordinates.
+pub fn answer_for_layout(
+    ctx: &mut Ctx<'_>,
+    cmd: u32,
+    params: &[u8],
+    layout: Option<&crate::fb::FbLayout>,
+) -> Option<Answer> {
+    let previous = ctx.reservation;
+    if let Some(layout) = layout {
+        ctx.reservation = layout.host_reservation;
+    }
+    let result = answer(ctx, cmd, params);
+    ctx.reservation = previous;
+    let mut a = result?;
+    let row = p::public_control(cmd)?;
+    // No-host and malformed requests return the guest's input without filtering.
+    if ctx.host.is_none() || (row.size != 0 && params.len() != row.size) {
+        return Some(a);
+    }
+    let Some(layout) = layout else { return Some(a) };
+    let (Some((host, _)), Some((guest, _))) = (layout.host_reservation, layout.reservation) else {
+        return Some(a);
+    };
+    if host == guest {
+        return Some(a);
+    }
+    if let Rule::Filtered(f) = row.rule {
+        if rebase_filtered(f, &mut a.params, host, guest) {
+            a.label = "host (filtered to the reservation, translated to guest FB coordinates)";
+            a.note.push_str(&format!("; FB base {host:#x} -> {guest:#x}"));
+        }
+    }
+    Some(a)
+}
+
+/// Inputs have already been restricted to the host reservation by `filtered`.
+fn rebase_filtered(f: Filter, b: &mut [u8], host: u64, guest: u64) -> bool {
+    let rebase_page = |b: &mut [u8], off: usize| {
+        let page = get64(b, off);
+        put64(b, off, page - (host >> p::RM_PAGE_SHIFT) + (guest >> p::RM_PAGE_SHIFT));
+    };
+    match f {
+        Filter::OfflinedPages => {
+            let n = (get32(b, p::OFFLINED_VALID_ENTRIES) as usize).min(p::OFFLINED_MAX);
+            for i in 0..n {
+                for field in [p::OFFLINED_ECC_ON, p::OFFLINED_ECC_OFF] {
+                    let off = i * p::OFFLINED_ENTRY_SIZE + field;
+                    if get64(b, off) != p::OFFLINED_INVALID_ADDRESS {
+                        rebase_page(b, off);
+                    }
+                }
+            }
+        }
+        Filter::DynamicOfflinedPages => {
+            let n = (get32(b, p::DYN_OFFLINED_VALID_ENTRIES) as usize).min(p::DYN_OFFLINED_MAX);
+            for i in 0..n {
+                rebase_page(b, i * p::DYN_OFFLINED_ENTRY_SIZE);
+            }
+        }
+        Filter::ScrubberRange => {
+            let (start, end) = (get64(b, p::SCRUBBER_START), get64(b, p::SCRUBBER_END));
+            if start < end {
+                put64(b, p::SCRUBBER_START, start - host + guest);
+                put64(b, p::SCRUBBER_END, end - host + guest);
+            }
+        }
+        _ => return false,
+    }
+    true
+}
+
 /// A control on one of the guest's channels or TSGs. Nothing here uses the host RM
 /// client; the only host path is the object's own mirror.
 fn guest(ctx: &mut Ctx<'_>, row: &PublicControl, g: Guest, params: &[u8]) -> Answer {
@@ -919,6 +990,81 @@ mod tests {
     use super::*;
     use crate::ver::active::NV_OK;
 
+    #[test]
+    fn translated_error_reply_is_filtered_and_rebased() {
+        struct FailedHost;
+        impl HostRm for FailedHost {
+            fn control(&mut self, _: u32, _: u32, b: &mut [u8]) -> u32 {
+                put64(b, p::SCRUBBER_START, 0x1_a980_1000);
+                put64(b, p::SCRUBBER_END, 0x1_a980_2000);
+                NV_ERR_NOT_SUPPORTED
+            }
+        }
+        let layout = crate::fb::FbLayout::reserved(1 << 30, 8 << 30, 0x1_a980_0000, 0x1_e980_0000)
+            .unwrap().zero_based().unwrap();
+        let mut host = FailedHost;
+        let mut ctx = Ctx {
+            host: Some(&mut host), reservation: layout.reservation, chip: tu106(),
+            now_ns: 0, object: (0, 0), key: (0, 0), mirror: None,
+            attrs: &mut GuestAttrs::default(), rc: &mut crate::rc::RcState::default(),
+            reg: None, link_control: 0,
+        };
+        let a = answer_for_layout(&mut ctx, 0x2080_015f, &[0; p::SCRUBBER_SIZE], Some(&layout)).unwrap();
+        assert_eq!(a.status, NV_ERR_NOT_SUPPORTED);
+        assert_eq!(get64(&a.params, p::SCRUBBER_START), 4096);
+        assert_eq!(get64(&a.params, p::SCRUBBER_END), 8192);
+        let a = answer_for_layout(&mut ctx, 0x2080_015f, &[0xff; 3], Some(&layout)).unwrap();
+        assert_eq!(a.status, NV_ERR_INVALID_PARAM_STRUCT);
+        assert_eq!(a.params, [0xff; 3]);
+        ctx.host = None;
+        let a = answer_for_layout(&mut ctx, 0x2080_015f, &[0xff; p::SCRUBBER_SIZE], Some(&layout)).unwrap();
+        assert_eq!(a.status, NV_ERR_NOT_SUPPORTED);
+        assert_eq!(a.params, [0xff; p::SCRUBBER_SIZE]);
+    }
+
+    #[test]
+    fn translated_fb_filters_keep_page_units_and_invalid_markers() {
+        let host = 0x1_a980_0000u64;
+        let range = Some((host, host + (1 << 30)));
+        let page = host >> p::RM_PAGE_SHIFT;
+        let mut b = offlined_answer(&[
+            (page - 1, p::OFFLINED_INVALID_ADDRESS, 0),
+            (page + 3, p::OFFLINED_INVALID_ADDRESS, 0),
+        ], false);
+        offlined_pages(&mut b, range);
+        assert!(rebase_filtered(Filter::OfflinedPages, &mut b, host, 0));
+        assert_eq!(get32(&b, p::OFFLINED_VALID_ENTRIES), 1);
+        assert_eq!(get64(&b, p::OFFLINED_ECC_ON), 3);
+        assert_eq!(get64(&b, p::OFFLINED_ECC_OFF), p::OFFLINED_INVALID_ADDRESS);
+
+        let mut b = vec![0; p::DYN_OFFLINED_SIZE];
+        put32(&mut b, p::DYN_OFFLINED_VALID_ENTRIES, 2);
+        put64(&mut b, 0, page + 7);
+        put64(&mut b, p::DYN_OFFLINED_ENTRY_SIZE, page - 1);
+        dynamic_offlined_pages(&mut b, range);
+        rebase_filtered(Filter::DynamicOfflinedPages, &mut b, host, 0);
+        assert_eq!(get32(&b, p::DYN_OFFLINED_VALID_ENTRIES), 1);
+        assert_eq!(get64(&b, 0), 7);
+        assert_eq!(get64(&b, p::DYN_OFFLINED_ENTRY_SIZE), 0);
+    }
+
+    #[test]
+    fn translated_scrubber_range_clamps_before_rebasing() {
+        let host = 0x1_a980_0000u64;
+        let range = Some((host, host + (1 << 30)));
+        let mut b = vec![0; p::SCRUBBER_SIZE];
+        put64(&mut b, p::SCRUBBER_START, host - 4096);
+        put64(&mut b, p::SCRUBBER_END, host + 8192);
+        scrubber_range(&mut b, range);
+        rebase_filtered(Filter::ScrubberRange, &mut b, host, 0);
+        assert_eq!(get64(&b, p::SCRUBBER_START), 0);
+        assert_eq!(get64(&b, p::SCRUBBER_END), 8192);
+        b.fill(0);
+        scrubber_range(&mut b, range);
+        rebase_filtered(Filter::ScrubberRange, &mut b, host, 0);
+        assert_eq!(get64(&b, p::SCRUBBER_END), 0);
+    }
+
     /// A host that answers every control with a fixed parameter block.
     struct Canned(Vec<u8>, std::sync::Arc<std::sync::Mutex<Vec<(u32, u32)>>>);
     impl HostRm for Canned {
@@ -951,6 +1097,10 @@ mod tests {
     }
 
     fn run(host: Vec<u8>, cmd: u32, res: Option<(u64, u64)>) -> (Answer, Vec<(u32, u32)>) {
+        run_with_layout(host, cmd, res, None)
+    }
+
+    fn run_with_layout(host: Vec<u8>, cmd: u32, res: Option<(u64, u64)>, layout: Option<&crate::fb::FbLayout>) -> (Answer, Vec<(u32, u32)>) {
         let seen = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
         let mut h = Canned(host, seen.clone());
         let mut ctx = Ctx {
@@ -967,9 +1117,25 @@ mod tests {
             link_control: 0,
         };
         let size = p::public_control(cmd).unwrap().size;
-        let a = answer(&mut ctx, cmd, &vec![0u8; size]).unwrap();
+        let a = answer_for_layout(&mut ctx, cmd, &vec![0u8; size], layout).unwrap();
         let s = seen.lock().unwrap().clone();
         (a, s)
+    }
+
+    #[test]
+    fn zero_based_answer_filters_host_pages_before_translation() {
+        let layout = crate::fb::FbLayout::reserved(1 << 30, 8 << 30, 0x1_a980_0000, 0x1_e980_0000)
+            .unwrap().zero_based().unwrap();
+        let page = 0x1_a980_0000u64 >> p::RM_PAGE_SHIFT;
+        let host = offlined_answer(&[
+            (3, p::OFFLINED_INVALID_ADDRESS, 0),
+            (page + 3, p::OFFLINED_INVALID_ADDRESS, 0),
+        ], false);
+        let (a, calls) = run_with_layout(host, 0x2080_1322, layout.reservation, Some(&layout));
+        assert_eq!(a.status, NV_OK);
+        assert_eq!(calls.len(), 1);
+        assert_eq!(get32(&a.params, p::OFFLINED_VALID_ENTRIES), 1);
+        assert_eq!(get64(&a.params, p::OFFLINED_ECC_ON), 3);
     }
 
     /// Every address the guest gets back from FB_GET_OFFLINED_PAGES lies in the

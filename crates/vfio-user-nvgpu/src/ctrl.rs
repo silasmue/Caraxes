@@ -131,6 +131,8 @@ pub struct Dispatcher {
     /// The VM's VRAM reservation `[B, E)` (fb.rs `FbLayout`): the filtered forwards of
     /// public.rs pass on only host FB addresses inside it.
     pub reservation: Option<(u64, u64)>,
+    /// Guest and host framebuffer coordinates.
+    fb_layout: Option<crate::fb::FbLayout>,
     /// What the guest set on its channels and TSGs (public.rs, gsp-plan/c-guest-state.md).
     pub guest_attrs: crate::public::GuestAttrs,
     /// The category D models of this VM (dmodel.rs, rc.rs, zbc.rs; gsp-plan/d-device-model.md).
@@ -269,6 +271,7 @@ impl Dispatcher {
             host_doorbell_at: None,
             display: crate::display::Display::new(),
             reservation: None,
+            fb_layout: None,
             guest_attrs: Default::default(),
             dstate: crate::dmodel::DState::new(chip),
             link_control: 0,
@@ -280,6 +283,12 @@ impl Dispatcher {
     /// The dispatcher of a device holding the VRAM reservation `r` (`FbLayout::reservation`).
     pub fn with_reservation(mut self, r: Option<(u64, u64)>) -> Self {
         self.reservation = r;
+        self
+    }
+
+    pub fn with_layout(mut self, layout: crate::fb::FbLayout) -> Self {
+        self.reservation = layout.host_reservation;
+        self.fb_layout = Some(layout);
         self
     }
 
@@ -595,7 +604,7 @@ impl Dispatcher {
         chid: u32,
         via_host_token: bool,
     ) -> Vec<String> {
-        self.channels.software_fb_range = self.reservation;
+        self.channels.software_fb_range = self.fb_layout.map_or(self.reservation, |l| l.reservation);
         let software_runs = self.channels.software_runs;
         let mut notes = self.doorbell_chid_inner(gm, token, chid, via_host_token);
         if self.channels.software_runs == software_runs {
@@ -1503,7 +1512,7 @@ impl Dispatcher {
             reg: Some(&self.channels),
             link_control: self.link_control,
         };
-        if let Some(a) = crate::public::answer(&mut pctx, cmd, params) {
+        if let Some(a) = crate::public::answer_for_layout(&mut pctx, cmd, params, self.fb_layout.as_ref()) {
             return a;
         }
         // nvidia-smi telemetry and identity (docs/caraxes/nvml.md) live in nvml.rs.

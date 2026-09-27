@@ -47,7 +47,7 @@ use nvrm_client::mem::CpuMap;
 
 use crate::channel::{Channel, GpuMem, Registry};
 use crate::chip::ChipData;
-use crate::fb::FakeFb;
+use crate::fb::{FakeFb, FbLayout};
 use crate::fb::Target;
 use crate::guestmem::GuestMemory;
 use crate::hostmem::{HostMemory, OsEvent};
@@ -584,6 +584,9 @@ pub struct Mirror {
     /// The reservation `[base, end)`: guest FB addresses handed to the host must lie in it.
     base: u64,
     end: u64,
+    /// Whether guest FB addresses are offsets into, rather than identities with, the host
+    /// reservation. Such addresses are safe only through host-managed shadow VA spaces.
+    translated: bool,
     reservation: u32,
     /// Immutable global-context sizes of this mirror's physical host GPU. Interior
     /// mutability keeps the exclusion walkers read-only; `Mirror` itself is serialized by
@@ -704,14 +707,35 @@ impl Mirror {
         hm: Arc<Mutex<HostMemory>>,
         intr: Arc<IntrShared>,
         chip: &'static ChipData,
+        layout: &FbLayout,
     ) -> Result<Self, String> {
-        let (base, end, reservation) = {
+        let (host_base, host_end, reservation) = {
             let h = hm.lock().unwrap();
             let r = h
                 .reservation()
                 .ok_or("the mirror needs the VRAM reservation (--reserve-vram)")?;
             (r.base, r.end(), r.handle)
         };
+        let (layout_host_base, layout_host_end) = layout.host_reservation
+            .ok_or("the mirror needs an FB layout backed by a host VRAM reservation")?;
+        if (layout_host_base, layout_host_end) != (host_base, host_end) {
+            return Err(format!("mirror host reservation [{host_base:#x}, {host_end:#x}) does not match the FB layout [{layout_host_base:#x}, {layout_host_end:#x})"));
+        }
+        let (base, end) = layout.reservation
+            .ok_or("the mirror needs a guest-visible FB reservation")?;
+        if end <= base || end - base != host_end - host_base {
+            return Err(format!("mirror guest reservation [{base:#x}, {end:#x}) is not the size of the host reservation [{host_base:#x}, {host_end:#x})"));
+        }
+        let translated = (base, end) != (host_base, host_end);
+        let shadow_probe = std::env::var("CARAXES_MIRROR_GR_SHADOW").as_deref() == Ok("1");
+        let ce_shadow = std::env::var("CARAXES_CE_SHADOW").as_deref() != Ok("0");
+        let mirror_gr = std::env::var("CARAXES_MIRROR_GR").as_deref() == Ok("1");
+        if translated && (!shadow_probe || !ce_shadow || mirror_gr) {
+            return Err("a translated FB reservation needs shadow-only host execution: CARAXES_MIRROR_GR_SHADOW=1, CARAXES_CE_SHADOW!=0, and CARAXES_MIRROR_GR!=1".into());
+        }
+        if translated && crate::device::doorbell_ioeventfd_requested() {
+            return Err("a translated FB reservation refuses the token-less doorbell ioeventfd; use trapped or token-pool doorbells so shadow routing is enforced".into());
+        }
         let worker = ShadowWorker::new(hm.clone(), intr.clone());
         Ok(Mirror {
             hm,
@@ -719,6 +743,7 @@ impl Mirror {
             chip,
             base,
             end,
+            translated,
             reservation,
             global_ctx_sizes: RefCell::new(GlobalCtxSizeCache::default()),
             vas: BTreeMap::new(),
@@ -728,17 +753,17 @@ impl Mirror {
             // replayed shared-management VAS plus a second `GPU_PROMOTE_CTX` on the host
             // channel carrying the guest's own recorded entries. Off by default (the GR
             // context wall); `CARAXES_MIRROR_GR=1` turns it and the VAS replay on.
-            replay_vas: std::env::var("CARAXES_MIRROR_GR").as_deref() == Ok("1"),
-            mirror_gr: std::env::var("CARAXES_MIRROR_GR").as_deref() == Ok("1"),
+            replay_vas: mirror_gr,
+            mirror_gr,
             mirror_ce: std::env::var("CARAXES_MIRROR_CE").as_deref() != Ok("0"),
             channels_enabled: std::env::var("CARAXES_MIRROR_CHANNELS").as_deref() == Ok("1"),
             doorbell: None,
             events: None,
             invalidator: None,
             memop_invalidate: std::env::var("CARAXES_MEMOP_INVALIDATE").as_deref() != Ok("0"),
-            shadow_probe: std::env::var("CARAXES_MIRROR_GR_SHADOW").as_deref() == Ok("1"),
+            shadow_probe,
             bare_ce: std::env::var("CARAXES_MIRROR_BARE_CE").as_deref() == Ok("1"),
-            ce_shadow: std::env::var("CARAXES_CE_SHADOW").as_deref() != Ok("0"),
+            ce_shadow,
             shadows: BTreeMap::new(),
             map_budget: crate::shadow::MapBudget::from_env(),
             worker,
@@ -1888,6 +1913,9 @@ impl Mirror {
         entries: u32,
         notes: &mut Vec<String>,
     ) -> Result<u32, String> {
+        if self.translated {
+            return Err("raw externally-owned VAS refused for a translated FB reservation; use the shadow VAS path".into());
+        }
         if let Some(hv) = self.vas.get(&key) {
             if hv.root == root || hv.replayed {
                 return Ok(hv.handle);
@@ -1957,6 +1985,10 @@ impl Mirror {
     /// GR channels (a bare externally-owned VAS can never schedule GR from user space:
     /// `bIsContextBound` is set only by the kernel-internal nv_gpu_ops path).
     pub fn on_server_reserved_pdes(&mut self, reg: &Registry, key: (u32, u32)) -> Vec<String> {
+        if self.translated {
+            self.stats.refusals += 1;
+            return vec![format!("vaspace {:#x}/{:#x}: raw server-reserved PDE replay refused for a translated FB reservation", key.0, key.1)];
+        }
         // The replayed (shared-management) VA space is only needed to schedule GR
         // channels on the host; while GR stays in software (the launch wall), the CE
         // channels bind to an externally-owned mirror built at their first doorbell
@@ -2173,6 +2205,9 @@ impl Mirror {
         gm: &mut GpuMem,
         chid: u32,
     ) -> Result<(u32, Vec<String>), String> {
+        if self.translated {
+            return Err("raw host channel construction refused for a translated FB reservation; use the shadow channel path".into());
+        }
         let mut notes = Vec::new();
         if let Some(c) = self.channels.get(&chid) {
             return Ok((c.token, notes));
@@ -2638,6 +2673,10 @@ impl Mirror {
     }
 
     fn ensure_invalidator(&mut self, fb: &mut FakeFb, notes: &mut Vec<String>) {
+        if self.translated {
+            notes.push("invalidator: raw physical invalidator refused for a translated FB reservation; shadow VAS invalidation remains active".into());
+            return;
+        }
         if self.invalidator.is_some() || !self.memop_invalidate {
             return;
         }
@@ -3064,6 +3103,9 @@ impl Mirror {
         root: Option<u64>,
         params: Option<&[u8]>,
     ) -> Vec<String> {
+        if self.translated {
+            return vec![format!("vaspace {:#x}/{:#x}: raw page-directory forwarding refused for a translated FB reservation", key.0, key.1)];
+        }
         let mut notes = Vec::new();
         let Some(hv) = self.vas.get(&key) else {
             return notes;

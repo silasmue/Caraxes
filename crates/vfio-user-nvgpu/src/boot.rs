@@ -196,7 +196,7 @@ impl BootModel {
             regs: r,
             fw: chip.firmware_boot(fb_bytes),
             layout,
-            ctrl: Dispatcher::new(d, &identity, None).with_reservation(layout.reservation),
+            ctrl: Dispatcher::new(d, &identity, None).with_layout(layout),
             identity,
             wpr_meta_pa: None,
             wpr: None,
@@ -267,7 +267,7 @@ impl BootModel {
         )));
         let r = self.regs;
         self.intr = IntrTree::new(r.intr_tree, r.intr_tree_size).with_shared(shared.clone());
-        self.ctrl.mirror = Some(Mirror::new(hm.clone(), shared.clone(), self.chip.data())?);
+        self.ctrl.mirror = Some(Mirror::new(hm.clone(), shared.clone(), self.chip.data(), &self.layout)?);
         self.exec = Some((hm, shared));
         Ok(self)
     }
@@ -868,7 +868,7 @@ impl BootModel {
     /// Give the device a host RM connection for the forwardable RPCs.
     pub fn with_host(mut self, host: Box<dyn HostRm>) -> Self {
         self.ctrl = Dispatcher::new(self.chip.data(), &self.identity, Some(host))
-            .with_reservation(self.layout.reservation);
+            .with_layout(self.layout);
         self
     }
 
@@ -937,7 +937,7 @@ impl BootModel {
         let mut fresh = BootModel::new(self.chip, self.layout, self.identity.clone());
         if let Some(h) = host {
             fresh.ctrl = Dispatcher::new(self.chip.data(), &self.identity, Some(h))
-                .with_reservation(self.layout.reservation);
+                .with_layout(self.layout);
         }
         if let Some((hm, shared)) = exec {
             // Cannot fail once it succeeded (the layout's reservation is unchanged).

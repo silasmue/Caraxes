@@ -525,6 +525,22 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
     // The display front-end page (display/fe_page.rs): a third area of the same memfd.
     let display_page =
         fe_page::requested(intr_page_config.is_some(), a.display).map_err(anyhow::Error::msg)?;
+    let zero_fb = std::env::var("CARAXES_FB_ZERO_BASED").as_deref() == Ok("1");
+    if zero_fb {
+        if !a.reserve_vram || !a.host_exec || !a.boot_model {
+            bail!("CARAXES_FB_ZERO_BASED=1 needs --reserve-vram, --host-exec and --boot-model");
+        }
+        if std::env::var("CARAXES_MIRROR_GR_SHADOW").as_deref() != Ok("1")
+            || std::env::var("CARAXES_CE_SHADOW").as_deref() == Ok("0")
+            || std::env::var("CARAXES_MIRROR_GR").as_deref() == Ok("1")
+            || doorbell_ioeventfd
+        {
+            bail!("CARAXES_FB_ZERO_BASED=1 requires shadow GR/CE and refuses raw GR or token-less direct doorbells");
+        }
+        if vfio_user_nvgpu::fb::bar1_passthrough_config().is_some() {
+            bail!("CARAXES_FB_ZERO_BASED=1 does not support fixed BAR1 passthrough; use the BAR1 pool or trapped BAR1");
+        }
+    }
     if intr_page_config.is_some() {
         if poll.mode == vfio_user_nvgpu::poll::Mode::Off {
             bail!(
@@ -712,6 +728,10 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
         let r = h.reservation().expect("reserved").clone();
         layout = FbLayout::reserved(a.fb_mib << 20, r.host_fb_total, r.base, r.end())
             .map_err(anyhow::Error::msg)?;
+        if zero_fb {
+            layout = layout.zero_based().map_err(anyhow::Error::msg)?;
+            eprintln!("vfio-user-nvgpu: experimental zero-based guest FB; host reservation [{:#x}, {:#x}), guest reservation {:?}; shadow execution only", r.base, r.end(), layout.reservation);
+        }
         if let Some(len) = bar1_pool {
             // P21 design H: the pool comes out of the usable FB before the static info is
             // built, so the guest's region table already ends its heap below it.
@@ -840,11 +860,16 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
         }
         if let Some((pool0, pool_end)) = layout.pool_range() {
             let len = pool_end - pool0;
+            let host_pool0 = layout.guest_range_to_host(pool0, len)
+                .ok_or_else(|| anyhow::anyhow!("BAR1 pool lies outside the guest reservation"))?;
+            if host_pool0 != pool0 {
+                eprintln!("vfio-user-nvgpu: BAR1 pool guest [{pool0:#x}, {pool_end:#x}) maps host [{host_pool0:#x}, {:#x})", host_pool0 + len);
+            }
             let hm = host_mem.as_ref().expect("checked above");
             let ex = hm
                 .lock()
                 .unwrap()
-                .export_bar1_passthrough(pool0, len)
+                .export_bar1_passthrough(host_pool0, len)
                 .context("BAR1 pool (CARAXES_BAR1_PASSTHROUGH=pool)")?;
             let (_, root) = layout.bar_roots().expect("a reserved layout");
             let usable = layout.usable().expect("a reserved layout");
@@ -856,7 +881,7 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
             if std::env::var("CARAXES_BAR1_POOL_PIN").as_deref() == Ok("0") {
                 eprintln!("vfio-user-nvgpu: bar1 pool: the device reaches the pool through the FB store's windows (CARAXES_BAR1_POOL_PIN=0)");
             } else {
-                match ex.map_self(layout.reservation.expect("a reserved layout").0) {
+                match ex.map_self(layout.host_reservation.expect("a reserved layout").0) {
                     Ok(w) => {
                         if model.fb.pin_store_window(Box::new(w)) {
                             eprintln!("vfio-user-nvgpu: bar1 pool: the device maps the pool through its own dma-buf mapping, outside the FB store's windows (docs/caraxes/bar1-pool.md §12; CARAXES_BAR1_POOL_PIN=0 turns it off)");

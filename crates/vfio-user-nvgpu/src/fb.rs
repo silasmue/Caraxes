@@ -35,8 +35,13 @@ pub struct FbLayout {
     pub addr_space: u64,
     /// The profile's FB size: `GspStaticConfigInfo.fb_length`, what `nvidia-smi` reports.
     pub profile: u64,
-    /// The host VRAM reservation `[base, end)`, when there is one.
+    /// The guest-visible owned range. It is identical to [`Self::host_reservation`] for
+    /// the established layout and starts at zero for the optional zero-based layout.
     pub reservation: Option<(u64, u64)>,
+    /// The physical host VRAM reservation backing [`Self::reservation`]. Guest addresses
+    /// are translated to offsets in this range; it never moves when the guest range is
+    /// rebased.
+    pub host_reservation: Option<(u64, u64)>,
     /// P21 design H: bytes of the reservation below the carve-out held back as the BAR1
     /// pool (docs/caraxes/bar1-pool.md); 0 without it. Taken out of the usable FB.
     pub pool: u64,
@@ -49,6 +54,7 @@ impl FbLayout {
             addr_space: profile,
             profile,
             reservation: None,
+            host_reservation: None,
             pool: 0,
         }
     }
@@ -77,8 +83,49 @@ impl FbLayout {
             addr_space,
             profile,
             reservation: Some((base, end)),
+            host_reservation: Some((base, end)),
             pool: 0,
         })
+    }
+
+    /// Rebase the guest-visible reservation to zero while retaining the physical host
+    /// reservation and the card-sized address space used by the fake WPR layout.
+    pub fn zero_based(mut self) -> Result<Self, String> {
+        let (base, end) = self
+            .reservation
+            .ok_or("zero-based FB needs a host VRAM reservation")?;
+        let len = end
+            .checked_sub(base)
+            .ok_or("zero-based FB reservation is inverted")?;
+        self.reservation = Some((0, len));
+        Ok(self)
+    }
+
+    /// Offset of the whole guest range `[pa, pa + len)` in its reservation. A plain
+    /// layout has no separate descriptor, so its addresses are identity offsets within
+    /// `addr_space`.
+    pub fn reservation_offset(&self, pa: u64, len: u64) -> Option<u64> {
+        let limit = pa.checked_add(len)?;
+        match self.reservation {
+            Some((base, end)) if pa >= base && limit <= end => pa.checked_sub(base),
+            None if limit <= self.addr_space => Some(pa),
+            _ => None,
+        }
+    }
+
+    /// Translate a whole guest FB range to its physical host VRAM start. Reserved
+    /// layouts use the same descriptor offset before and after a zero-based rebase;
+    /// plain layouts are identity-addressed host RAM.
+    pub fn guest_range_to_host(&self, pa: u64, len: u64) -> Option<u64> {
+        let off = self.reservation_offset(pa, len)?;
+        match self.host_reservation {
+            Some((base, end)) => {
+                let host = base.checked_add(off)?;
+                host.checked_add(len).filter(|limit| *limit <= end)?;
+                Some(host)
+            }
+            None => Some(pa),
+        }
     }
 
     /// The same layout with a BAR1 pool of `len` bytes (a multiple of 2 MiB) carved from
@@ -121,12 +168,9 @@ impl FbLayout {
             .map(|(base, end)| (base, end - CARVE_OUT - self.pool))
     }
 
-    /// Whether `[pa, pa + len)` lies inside the reservation (always, without one).
+    /// Whether `[pa, pa + len)` lies inside the reservation or plain address space.
     pub fn inside(&self, pa: u64, len: u64) -> bool {
-        match self.reservation {
-            None => true,
-            Some((base, end)) => pa >= base && pa.saturating_add(len) <= end,
-        }
+        self.reservation_offset(pa, len).is_some()
     }
 }
 
@@ -2496,6 +2540,15 @@ mod tests {
         let l = FbLayout::reserved(4 << 30, 8 << 30, 0xE900_0000, 0x1_E900_0000).unwrap();
         assert_eq!(l.bar_roots(), Some((0x1_E8E0_0000, 0x1_E8E0_1000)));
         assert_eq!(l.usable(), Some((0xE900_0000, 0x1_E8E0_0000)));
+        assert_eq!(l.host_reservation, l.reservation);
+        assert_eq!(
+            l.reservation_offset(0xE900_1000, 0x1000),
+            Some(0x1000)
+        );
+        assert_eq!(
+            l.guest_range_to_host(0xE900_1000, 0x1000),
+            Some(0xE900_1000)
+        );
         assert!(l.inside(0xE900_0000, 8));
         assert!(!l.inside(0x1_E900_0000, 1));
         assert!(!l.inside(0xE8FF_FFFC, 8));
@@ -2510,6 +2563,45 @@ mod tests {
         assert_eq!(fb.outside.writes.get(), 1);
         assert_eq!(fb.outside.reads.get(), 1);
         assert_eq!(FbLayout::plain(4 << 30).bar_roots(), None);
+    }
+
+    #[test]
+    fn zero_based_layout_separates_guest_and_host_ranges() {
+        let host = (0xE900_0000, 0x1_E900_0000);
+        let l = FbLayout::reserved(4 << 30, 8 << 30, host.0, host.1)
+            .unwrap()
+            .with_pool(32 * MIB)
+            .unwrap()
+            .zero_based()
+            .unwrap();
+        let carve = (4 << 30) - CARVE_OUT;
+        assert_eq!(l.addr_space, 8 << 30);
+        assert_eq!(l.profile, 4 << 30);
+        assert_eq!(l.reservation, Some((0, 4 << 30)));
+        assert_eq!(l.host_reservation, Some(host));
+        assert_eq!(l.usable(), Some((0, carve - 32 * MIB)));
+        assert_eq!(l.pool_range(), Some((carve - 32 * MIB, carve)));
+        assert_eq!(l.bar_roots(), Some((carve, carve + PAGE)));
+
+        assert_eq!(l.reservation_offset(0, PAGE), Some(0));
+        assert_eq!(l.guest_range_to_host(0, PAGE), Some(host.0));
+        assert_eq!(
+            l.reservation_offset((4 << 30) - PAGE, PAGE),
+            Some((4 << 30) - PAGE)
+        );
+        assert_eq!(
+            l.guest_range_to_host((4 << 30) - PAGE, PAGE),
+            Some(host.1 - PAGE)
+        );
+        assert_eq!(l.reservation_offset(4 << 30, 1), None);
+        assert_eq!(l.guest_range_to_host(4 << 30, 1), None);
+        assert_eq!(l.reservation_offset(u64::MAX - 1, PAGE), None);
+
+        let plain = FbLayout::plain(4 << 30);
+        assert_eq!(plain.reservation_offset(PAGE, PAGE), Some(PAGE));
+        assert_eq!(plain.guest_range_to_host(PAGE, PAGE), Some(PAGE));
+        assert_eq!(plain.guest_range_to_host(4 << 30, 1), None);
+        assert!(plain.zero_based().is_err());
     }
 
     /// A window source over host RAM that refuses windows above `max_len` and counts
@@ -2555,6 +2647,33 @@ mod tests {
                 pages: self.pages.clone(),
             }))
         }
+    }
+
+    #[test]
+    fn zero_based_vram_store_maps_descriptor_offsets_only() {
+        let pages = std::sync::Arc::new(std::sync::Mutex::new(HostRamStore::default()));
+        let maps = std::sync::Arc::new(std::sync::atomic::AtomicU64::new(0));
+        let src = RamWindows {
+            max_len: 2 << 20,
+            pages: pages.clone(),
+            maps: maps.clone(),
+        };
+        let mut store = VramStore::with_budget(Box::new(src), 0, 4 << 20, 2 << 20, 1);
+
+        store.write(0x20_1000, &[0x5a]);
+        assert_eq!(store.windows_held(), vec![(2 << 20, 2 << 20)]);
+        let mut byte = [0];
+        pages.lock().unwrap().read(0x20_1000, &mut byte);
+        assert_eq!(byte, [0x5a]);
+        let mapped = maps.load(std::sync::atomic::Ordering::Relaxed);
+
+        // The fake WPR/outside backing stays separate. This must not map another piece
+        // of the host reservation descriptor.
+        store.write(0x40_1000, &[0xa5]);
+        assert_eq!(maps.load(std::sync::atomic::Ordering::Relaxed), mapped);
+        let mut outside = [0];
+        store.read(0x40_1000, &mut outside);
+        assert_eq!(outside, [0xa5]);
     }
 
     /// The first access itself can force 64 MiB down to 16 MiB. Its piece boundary must
