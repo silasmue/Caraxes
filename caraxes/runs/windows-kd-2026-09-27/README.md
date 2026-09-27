@@ -447,3 +447,28 @@ The flag is experimental and off by default. Hardware validation is pending;
 the polling interval is a compatibility starting point, not a latency target.
 Do not truncate IOVAs, force semaphore completion, or treat the diagnostic LUT
 profile as supported color-pipeline behavior.
+
+### P3 result and bounded follow-up
+
+P3 (`19f70c3e`, binary `0dd448a631a3fdb8faf47a159aa79c3906e3b76e829512cf23335dbc36cc3a9c`)
+created the two previously refused GR channels. Whole-run totals: four channels
+created/freed, five doorbells forwarded. No USERD address-width rejection remained.
+
+A new Xid 32 followed on host channel 0x2f (guest chid 4). TU104 PBDMA interrupt
+0x00800000 is DEVICE, bit 23, for a software-class method. Method 0x80050200 is
+subchannel 5 method 0x200 (`NV5080_DEFERRED_API`), handle 0x40000003. Immediately
+before that submission, Caraxes refused two 0x50800101 registration controls as
+`legacy_uncalled`. The private host object therefore lacks the expected operation.
+
+The later notifier OBJECT_NOT_FOUND is secondary: the guest supplied no error
+notifier for this channel. Method 0x1b00 following the deferred call identifies
+only REPORT_SEMAPHORE_A; its B/C/D parameters are needed before tying it to the
+CE wait at 0x20002560. P3 was stopped after the Xid was observed. Teardown reports
+zero held windows, pinned chunks and tracked host objects. Rendering did not pass.
+
+`CARAXES_DEFERRED_API_CAPTURE=1` logs at most eight deferred requests, at most
+1024 bytes each, with decoded header fields and the actual reply status. It also
+holds shadow channels containing a 0x5080 object before host submission, so the
+same unresolved operation is not submitted again during capture. This is a
+bounded diagnostic, not deferred-API support. ABI615 checks: 508 unit tests and
+two integration tests passed, one ignored.

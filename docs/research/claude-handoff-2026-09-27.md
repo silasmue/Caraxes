@@ -1,6 +1,6 @@
 # Caraxes working handoff for Claude Code
 
-Updated: 2026-09-27, 23:40 CEST. Work continues; this is a checkpoint.
+Updated: 2026-09-27, 23:48 CEST. Work continues; this is a checkpoint.
 
 ## Workspace and constraints
 
@@ -153,18 +153,42 @@ LRU capacity, and preserves cumulative counters.
   producers, but their pending pushes have not established the exact producer.
 - P2 created zero host channels and forwarded zero doorbells. It is not a
   rendering success. QGA was intermittent; the P2 startup query timed out.
-- P2 teardown validated the mapping-order fix. No new host Xid observed.
+- P2 teardown validated the mapping-order fix. No new host Xid observed in P2 (P3 below has a new Xid).
 - D3D11 probe now emits flushed stage markers to distinguish DXGI, device
   creation and readback hangs. Uploaded to P2 but not executed in that run;
   runtime validation remains pending.
 
+## P3: USERD fixed, deferred API blocks execution
+
+- P3-private-userd is stopped; all owned test VMs are stopped.
+- Commit 19f70c3e, isolated LUT geometry profile, CARAXES_SHADOW_USERD=1.
+  Binary SHA-256: 0dd448a631a3fdb8faf47a159aa79c3906e3b76e829512cf23335dbc36cc3a9c.
+- Both previously refused GR channels were created and scheduled with private
+  host USERD. Whole-run totals: 4 channels created/freed, 5 doorbells forwarded.
+- A new host Xid 32 occurred on host channel 0x2f, guest chid 4. Stop initiated
+  after observing it; no host reset/unbind. Journal is in P3-private-userd/.
+- Interrupt 0x00800000 is TU104 PBDMA DEVICE (bit 23), not METHOD (bit 21).
+  Method 0x80050200 means subchannel 5, method 0x200: NV5080_DEFERRED_API,
+  handle 0x40000003. Two preceding registrations, control 0x50800101, were
+  refused as legacy_uncalled. No matching deferred operation was registered
+  on the host object. This is the next compatibility target.
+- The following method 0x1b00 only gives REPORT_SEMAPHORE_A. Without B/C/D,
+  its exact connection to the CE wait at 0x20002560 remains unproven.
+- The guest supplied no error notifier for that channel. The later host
+  OBJECT_NOT_FOUND is a fault-reporting failure, not the cause of Xid 32.
+- Teardown reports zero held windows/pinned chunks/tracked objects; no late
+  unmap status 0x33. Windows rendering and stable startup remain unvalidated.
+- Do not rerun P3 unchanged. Bounded deferred-control capture is being added;
+  capture mode holds channels containing a 0x5080 object before host submission.
+
 ## Next actions
 
-1. Test the new experimental CARAXES_SHADOW_USERD=1 path. Windows client USERD
+1. Capture and implement the specific deferred API contract. The experimental
+   CARAXES_SHADOW_USERD=1 path passed host channel creation in P3. Windows client USERD
    placement is independent of the RM-owned USERD capability; clearing that bit
    cannot fix this case. The new path uses private host vidmem, directional
    copies and a separate 1-ms poller (up to 32 live channels per pass).
-   Submission still waits for shadow mappings. Startup/rendering unvalidated.
+   Submission still waits for shadow mappings. Rendering unvalidated.
    After this change: 508 unit tests and 2 integration tests passed, 1 ignored;
    log: windows-plain/userd-shadow-tests.log.
 2. Repeat host-backed stock-driver startup, then require the NVIDIA D3D11

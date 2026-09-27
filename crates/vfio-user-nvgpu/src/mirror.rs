@@ -671,6 +671,7 @@ pub struct Mirror {
     /// By guest ChID.
     channels: BTreeMap<u32, HostChannel>,
     userd_cursor: u32,
+    capture_deferred: bool,
     /// Replay the guest's VA-space controls to make GR channels schedulable on the host
     /// (off while the GR-context wall stands: GR runs in software, only CE on the host).
     replay_vas: bool,
@@ -824,6 +825,7 @@ impl Mirror {
             tsgs: BTreeMap::new(),
             channels: BTreeMap::new(),
             userd_cursor: 0,
+            capture_deferred: std::env::var("CARAXES_DEFERRED_API_CAPTURE").as_deref() == Ok("1"),
             // GR channels on the host (the c2 experiment, exec-formats.md §4.5): the
             // replayed shared-management VAS plus a second `GPU_PROMOTE_CTX` on the host
             // channel carrying the guest's own recorded entries. Off by default (the GR
@@ -1368,6 +1370,11 @@ impl Mirror {
         gm: &mut GpuMem,
         chid: u32,
     ) -> Vec<String> {
+        if self.capture_deferred && reg.channel(chid).is_some_and(|ch| {
+            ch.engine_objects.iter().any(|(class, _)| *class == 0x5080)
+        }) {
+            return vec![format!("deferred API capture: chid {chid} held before host submission (0x5080 object present)")];
+        }
         let mut replacement_notes = Vec::new();
         if self.channels.get(&chid).is_some_and(|hc| {
             !reg.channel(chid).is_some_and(|ch| ch.generation == hc.generation)

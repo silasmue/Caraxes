@@ -1245,6 +1245,47 @@ impl Dispatcher {
     /// facts where they fit (recorded.rs); what stays NOT_SUPPORTED carries the first
     /// request bytes in its note, so a trace shows what the guest asked.
     pub fn control(&mut self, h_client: u32, h_object: u32, cmd: u32, params: &[u8]) -> Answer {
+        let mut answer = self.control_inner(h_client, h_object, cmd, params);
+        const DEFERRED: [u32; 4] = [0x5080_0101, 0x5080_0102, 0x5080_0103, 0x5080_0104];
+        static CAPTURED: std::sync::atomic::AtomicUsize =
+            std::sync::atomic::AtomicUsize::new(0);
+        if DEFERRED.contains(&cmd)
+            && std::env::var("CARAXES_DEFERRED_API_CAPTURE").as_deref() == Ok("1")
+            && CAPTURED.fetch_add(1, std::sync::atomic::Ordering::Relaxed) < 8
+        {
+            let word = |off: usize| {
+                params
+                    .get(off..off + 4)
+                    .map(|b| u32::from_le_bytes(b.try_into().unwrap()))
+            };
+            let fields = if cmd == 0x5080_0102 {
+                format!("hApiHandle {:?}", word(0).map(|v| format!("{v:#x}")))
+            } else {
+                format!(
+                    "hApiHandle {:?}, nested cmd {:?}, flags {:?}, hClientVA {:?}, hDeviceVA {:?}",
+                    word(0).map(|v| format!("{v:#x}")),
+                    word(4).map(|v| format!("{v:#x}")),
+                    word(8).map(|v| format!("{v:#x}")),
+                    word(12).map(|v| format!("{v:#x}")),
+                    word(16).map(|v| format!("{v:#x}")),
+                )
+            };
+            let kept = params.len().min(1024);
+            let hex: String = params[..kept]
+                .iter()
+                .map(|byte| format!("{byte:02x}"))
+                .collect();
+            answer.note.push_str(&format!(
+                "; deferred API capture: client {h_client:#x}, object {h_object:#x}, cmd {cmd:#x}, input {} byte(s), {fields}, return status {:#x}, bytes[0..{kept}] {hex}{}",
+                params.len(),
+                answer.status,
+                if kept < params.len() { " (truncated)" } else { "" }
+            ));
+        }
+        answer
+    }
+
+    fn control_inner(&mut self, h_client: u32, h_object: u32, cmd: u32, params: &[u8]) -> Answer {
         // This control used to be a Windows-only recorded acknowledgement. It changes the
         // device's live VA-space association, so model it before every recorded override.
         if cmd == CMD_DMA_SET_DEFAULT_VASPACE {
