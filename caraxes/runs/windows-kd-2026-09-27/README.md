@@ -192,3 +192,18 @@ predicate must first be observed; static region metadata alone cannot enable it.
 
 The console-size diagnostic passed all six GMCAPI unit tests with ABI 615 and a
 release build. It changes logging only; it does not alter the FB layout.
+
+
+## Console predicate and packed base input: KD5
+
+The diagnostic backend reports `consoleMemSize 0x0` from the stock 617.14
+`GSP_INIT` request. Therefore, an owned leading console region alone cannot
+activate the public TU102 heap-offset path in this guest configuration.
+
+At `+0x1965614`, the packed input DWORDs begin
+`000ff740 000e6f40 00000000 00000000 00100000`. The fourth DWORD, used to
+construct the segment base, is zero. No guest-memory edits were made; startup
+again returned `0xC000009A`. Evidence: `windows-kd/debugger/KD5-console-size.log`
+and the KD5 backend trace. Next trace the producer of this packed input; its
+semantic identification as HEAP_START still needs confirmation in the closed
+Windows driver.
