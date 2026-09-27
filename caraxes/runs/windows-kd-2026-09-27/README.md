@@ -41,14 +41,36 @@ The local host wrappers are `windows-kd/kd-command.py`, `kd-log.sh` and
 `run-debuggee.py`. They reference this machine's artifact paths. Start/stop target
 runs through `python3 run-debuggee.py`; do not reuse a run name.
 
-## Next diagnostic gate
+## Captured failure: KD3
 
-1. Stop at NVIDIA module load and record its address range.
-2. Break at `dxgkrnl!DxgkInitialize` and inspect the driver initialization table.
-3. Verify that the StartDevice callback belongs to NVIDIA before breaking there.
-4. Record its return status and failure path, then compare with historical B4.
+- NVIDIA module load was caught before driver initialization.
+- On Windows build 26100, the public symbol `dxgkrnl!DxgkInitialize` did not resolve.
+  `dxgkrnl!DpiDxgkDdiStartDevice` exposes the callback invocation instead.
+- Disassembly of this build places the callback dispatch at wrapper `+0x7b` and
+  its return at `+0x80`. Verify instructions again for other builds.
+- At dispatch, `RAX` is the callback. Filter against the loaded NVIDIA module
+  bounds: Microsoft Basic Display callbacks also reach this wrapper.
+- NVIDIA callback `nvlddmkm+0x16f21d0` returned `0xC000009A`
+  (`STATUS_INSUFFICIENT_RESOURCES`). Both output counts remained zero.
+- This confirms the earlier ETW status directly; it does not prove actual RAM or
+  VRAM exhaustion. No whitelist failure has been established.
+- The callback's indirect wrappers lead to `nvlddmkm+0x192c450`, which propagates
+  the return from `+0x1854890`. That function tail-calls `+0x1865570`.
+  Internal offsets apply only to the tested NVIDIA 617.14 binary.
 
-Avoid global allocator breakpoints over the serial transport. PnP code 0 is only
-a startup result: acceptance also requires NVIDIA hardware device creation,
-verified rendered output and a usable desktop. See the
-[Windows evidence](../../../docs/research/windows-2026-09-27.md).
+Raw transcripts: `windows-kd/debugger/KD3-callback-return.log` and
+`KD3-internal-start.log` under the state directory. The latter is an intermediate
+snapshot; keep the final transcript with the run before stopping the debugger.
+
+## Continuing the diagnosis
+
+1. Resolve the actual NVIDIA callback and arm a thread-scoped return breakpoint.
+2. Trace the internal call that produces `0xC000009A`; compare with historical B4.
+3. Change emulator behavior only when the trace identifies a concrete mismatch.
+4. Require NVIDIA hardware device creation, verified rendered output and a usable
+   desktop before treating Windows as working.
+
+Send KD commands on separate lines. Path commands can interpret semicolons as
+path separators. Avoid global allocator breakpoints and broad symbol reloads over
+serial; use the local symbol cache and matching debugger-VM system images.
+See the [Windows evidence](../../../docs/research/windows-2026-09-27.md).
