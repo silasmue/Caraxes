@@ -585,6 +585,8 @@ pub struct SystemInfo {
     pub bdf: Option<u64>,
     pub pci_config_mirror: (Option<u32>, Option<u32>),
     pub max_user_va: Option<u64>,
+    /// Guest console reservation in bytes; absent differs from an explicit zero.
+    pub console_mem_size: Option<u64>,
     pub host_page_size: Option<u32>,
     pub driver_name: Option<String>,
     pub driver_version: Option<String>,
@@ -624,6 +626,7 @@ impl SystemInfo {
                 si::PCI_CONFIG_MIRROR_BASE => s.pci_config_mirror.0 = v.as_u32(),
                 si::PCI_CONFIG_MIRROR_SIZE => s.pci_config_mirror.1 = v.as_u32(),
                 si::MAX_USER_VA => s.max_user_va = v.as_u64(),
+                si::CONSOLE_MEM_SIZE => s.console_mem_size = v.as_u64(),
                 si::HOST_PAGE_SIZE => s.host_page_size = v.as_u32(),
                 si::KERNEL_DRIVER_NAME => s.driver_name = v.as_str(),
                 si::KERNEL_DRIVER_VERSION_STRING => s.driver_version = v.as_str(),
@@ -666,7 +669,7 @@ impl SystemInfo {
     pub fn describe(&self) -> String {
         let hex = |v: Option<u64>| v.map_or("-".into(), |x| format!("{x:#x}"));
         format!(
-            "{} keys: driver {:?} {:?} cl {}, PCI {:?}/{:?} rev {:?}, bars {}/{}/{}/{}, bdf {}, mirror {:?}, maxUserVa {}, page {:?}, {} registry entr{}, {} other keys",
+            "{} keys: driver {:?} {:?} cl {}, PCI {:?}/{:?} rev {:?}, bars {}/{}/{}/{}, bdf {}, mirror {:?}, maxUserVa {}, consoleMemSize {}, page {:?}, {} registry entr{}, {} other keys",
             self.keys,
             self.driver_name.as_deref().unwrap_or("-"),
             self.driver_version.as_deref().unwrap_or("-"),
@@ -681,6 +684,7 @@ impl SystemInfo {
             hex(self.bdf),
             self.pci_config_mirror,
             hex(self.max_user_va),
+            hex(self.console_mem_size),
             self.host_page_size,
             self.registry.len(),
             if self.registry.len() == 1 { "y" } else { "ies" },
@@ -786,6 +790,7 @@ mod tests {
         e.imm32(0, si::HOST_ARCH, 1);
         e.seq32(0, si::PCI_CONFIG_MIRROR_BASE, &[0x88000, 0x1000]);
         e.imm32(0, si::HOST_PAGE_SIZE, 4096);
+        e.seq64(0, si::CONSOLE_MEM_SIZE, &[0x10000, 0x7fff_ffff_ffff]);
         e.string8(0, si::KERNEL_DRIVER_NAME, "NVRM");
         e.string8(0, si::KERNEL_DRIVER_VERSION_STRING, "615.71.09");
         e.imm32(0, si::KERNEL_DRIVER_CHANGELIST, 0);
@@ -818,6 +823,8 @@ mod tests {
         );
         assert_eq!(s.bdf, Some(0x400));
         assert_eq!(s.pci_config_mirror, (Some(0x88000), Some(0x1000)));
+        assert_eq!(s.console_mem_size, Some(0x10000));
+        assert_eq!(s.max_user_va, Some(0x7fff_ffff_ffff));
         assert_eq!(s.driver_name.as_deref(), Some("NVRM"));
         assert_eq!(s.driver_version.as_deref(), Some("615.71.09"));
         assert_eq!(

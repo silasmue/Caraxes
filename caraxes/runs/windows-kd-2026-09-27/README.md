@@ -163,3 +163,12 @@ See the [Windows evidence](../../../docs/research/windows-2026-09-27.md).
   inconsistent accounting. It is not a validated workaround.
 - Continue tracing segment construction and size accounting before changing this
   setting. Preserve reservation ownership and the identity FB mapping.
+
+A smaller candidate avoids the unowned prefix: an owned 64 KiB console region at
+`reservation_base`, followed by the usable region and existing top carveout.
+Public TU102 RM can derive `HEAP_START` from the first reserved region's end when
+console memory is present, while `fbOverrideStartKb` remains zero. Its console
+allocator uses that region's actual base, so this does not require memory at PA 0.
+This is a source-derived candidate, not a tested layout. The Windows console-size
+predicate must first be observed; static region metadata alone cannot enable it.
+`GSP_INIT` key `0x1031` reports the guest's console reservation in bytes.
