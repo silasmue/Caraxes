@@ -31,6 +31,8 @@
 # nvidia binds (guest-module/caraxes_dma_range/README.md); the guest keeps nvidia
 # blacklisted from autoloading so that it never binds without the table.
 # CARAXES_DISPLAY=1 presents the display engine (--display, docs/caraxes/display-ab.md).
+# CARAXES_DISPLAY_PAGE_READONLY=1 retains direct display-status reads but traps writes;
+# it requires CARAXES_DISPLAY_PAGE=1 and Cloud Hypervisor patch 0007.
 # E5b part 2 (docs/caraxes/execution.md): CARAXES_HOST_EXEC=1 executes on the physical GPU
 # (the FB is the reserved VRAM, guest channels get host mirror channels, engine non-stall
 # events become guest interrupts); it needs the three flags above. The device maps the
@@ -192,6 +194,21 @@ up() {
     fi
     [[ -x $SERVER ]] || error "$SERVER missing: cargo build --release -p vfio-user-nvgpu"
     [[ -x $LEA_CH ]] || error "cloud-hypervisor missing at $LEA_CH"
+    local user_device="socket=$W/gpu.sock,id=gpu0"
+    case ${CARAXES_DISPLAY_PAGE_READONLY:-0} in
+        0) ;;
+        1)
+            [[ ${CARAXES_DISPLAY_PAGE:-0} == 1 && ${CARAXES_INTR_PAGE:-0} == 1 &&
+               ${CARAXES_DISPLAY:-0} == 1 ]] ||
+                error "CARAXES_DISPLAY_PAGE_READONLY=1 requires display and interrupt pages"
+            local ch_help
+            ch_help=$("$LEA_CH" --help)
+            [[ $ch_help == *x_readonly_mmap_areas* ]] ||
+                error "CARAXES_DISPLAY_PAGE_READONLY=1 requires Cloud Hypervisor patch 0007"
+            user_device+=",x_readonly_mmap_areas=[0:0x611000:0x1000]"
+            ;;
+        *) error "CARAXES_DISPLAY_PAGE_READONLY must be 0 or 1" ;;
+    esac
     [[ -f $W/rootfs.qcow2 && -f $W/seed.img ]] || error "$W needs rootfs.qcow2 and seed.img"
     if [[ -n $CARAXES_DRIVER_EXPLICIT || $CARAXES_DRIVER != 610 ]]; then check_base; fi
     [[ -f $REF/rom.bin ]] || error "$REF/rom.bin missing (git-ignored capture of the card's ROM)"
@@ -261,7 +278,7 @@ up() {
         --disk path="$W/rootfs.qcow2",image_type=qcow2,backing_files=on \
                path="$W/seed.img",readonly=on "${games[@]}" \
         "${net[@]}" \
-        --user-device socket="$W/gpu.sock",id=gpu0 "${input[@]}" \
+        --user-device "$user_device" "${input[@]}" \
         --serial file="$W/serial.log" --console off \
         > "$W/ch.log" 2>&1 &
     echo $! > "$W/ch.pid"

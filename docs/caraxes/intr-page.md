@@ -591,6 +591,13 @@ bits. The writable mapping still uses the observer described above and retains i
 This requires both the backend change and VMM mapping support; a backend update alone
 does not protect direct guest stores.
 
+For the experimental path, apply Cloud Hypervisor patches 0001 through 0007 and
+set `CARAXES_DISPLAY_PAGE_READONLY=1` alongside `CARAXES_DISPLAY_PAGE=1`,
+`CARAXES_INTR_PAGE=1`, and `CARAXES_DISPLAY=1`. The launcher requires the VMM's
+`x_readonly_mmap_areas` option and selects `[0:0x611000:0x1000]`. The VMM keeps
+the region's write permission for vfio-user requests while protecting its KVM
+mapping. This option is off by default pending the paired graphics validation.
+
 ### 10.3 Order between the clock, the page and the MSI
 
 1. The display clock thread wakes at a tick of a head that has work: a pending presentation or
