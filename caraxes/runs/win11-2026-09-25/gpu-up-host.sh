@@ -5,7 +5,8 @@
 # The Windows device with the host RM behind it (night-2026-09-25/WINDOWS-LOOP.md, "Host RM"): the
 # same start as gpu-up.sh (WIN_GPU_SERVER, WIN_GPU_ROM, WIN_GPU_VBIOS, the 1 GiB profile) plus the
 # host-RM flags of the Linux stage (caraxes/runs/sottr-2026-09-24/env.sh, tools/caraxes-vm.sh), no BAR1
-# pool, BAR1 windows 2 x 16 MiB, the floors (VRAM 768 MiB, BAR1 96 MiB).
+# pool by default, BAR1 windows 2 x 16 MiB, floors (VRAM 768 MiB, BAR1 96 MiB).
+# WIN_BAR1_POOL_MIB opts into the experimental mmap pool for host execution.
 #   WIN_HOST_MODE=rm (default): --host-rm only. The host RM answers the forwardable controls as an
 #     unprivileged client (the FB/BUS/GR info the KMD asks); nothing executes on the card, no VRAM is
 #     reserved, no guest RAM is registered. Needs no privileges.
@@ -43,4 +44,9 @@ export CARAXES_HOST_VRAM_FLOOR_MIB=${CARAXES_HOST_VRAM_FLOOR_MIB:-768}
 export CARAXES_HOST_BAR1_FLOOR_MIB=${CARAXES_HOST_BAR1_FLOOR_MIB:-96}
 export CARAXES_BAR1_WINDOW_MIB=${CARAXES_BAR1_WINDOW_MIB:-16} CARAXES_BAR1_WINDOWS=${CARAXES_BAR1_WINDOWS:-2}
 unset CARAXES_BAR1_PASSTHROUGH CARAXES_BAR1_POOL_MIB
+if [[ -n ${WIN_BAR1_POOL_MIB:-} ]]; then
+    [[ ${WIN_HOST_MODE:-rm} == exec ]] || die "WIN_BAR1_POOL_MIB requires host execution"
+    [[ $WIN_BAR1_POOL_MIB =~ ^[1-9][0-9]*$ ]] || die "WIN_BAR1_POOL_MIB must be a positive integer"
+    export CARAXES_BAR1_PASSTHROUGH=pool CARAXES_BAR1_POOL_MIB=$WIN_BAR1_POOL_MIB
+fi
 "$HERE/gpu-up.sh" || { rm -f "$V/win-busy"; exit 1; }

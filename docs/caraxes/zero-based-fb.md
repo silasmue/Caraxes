@@ -26,3 +26,18 @@ Validation: final ABI 615 library tests passed (498 passed, one ignored);
 ABI 610 library tests also passed. `cargo check` and the release build passed. Clippy passed with the existing
 `unnecessary_cast` and `field_reassign_with_default` warnings allowed; strict
 Clippy still reports those pre-existing patterns.
+
+## Windows BAR1 pool trial
+
+The Windows host launcher accepts `WIN_BAR1_POOL_MIB=64` in `exec` mode to
+opt into the existing BAR1 mmap pool. It remains off by default. QEMU uses
+a fixed sparse mmap of the owned pool; Caraxes updates page contents and
+shadow mappings as guest BAR1 mappings change. Fixed passthrough is still
+refused in zero-based mode.
+
+The KD7 trace contains long byte-at-a-time VRAM clears through trapped BAR1
+accesses. This makes the pool a performance candidate, not a demonstrated
+Windows optimization. Validate initialization, alias coherence and mapped
+ranges before comparing CPU usage. Use `CARAXES_TRACE_ACCESSES=0` for timed
+runs; keep control/event logs. Reserve enough host BAR1 for the pool, VRAM
+windows and the configured free-space floor.
