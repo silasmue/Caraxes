@@ -15,7 +15,7 @@
 #     Needs WIN_GPU_SERVER = a copy of a build >= 18fae970 with cap_sys_admin+p (the user runs setcap).
 # Refuses to start while a vm4-615 device (the Linux stage) runs: BAR1 and VRAM budget.
 set -euo pipefail
-W=/mnt/vmstore/caraxes/win11
+W=${WIN_STATE_DIR:-/mnt/vmstore/caraxes/win11}
 HERE=$(cd "$(dirname "$(readlink -f "$0")")" && pwd -P)
 die() { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
 # Host sharing (2026-09-26): the Linux queue holds /mnt/vmstore/caraxes/linux-busy while it uses the

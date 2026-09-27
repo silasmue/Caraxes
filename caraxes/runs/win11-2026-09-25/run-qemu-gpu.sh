@@ -15,7 +15,7 @@
 #                               only display adapter: the desktop is then reached over RDP only;
 #                               WIN_GPU_ROOTPORT=1 attaches the card behind a PCIe root port)
 set -euo pipefail
-W=/mnt/vmstore/caraxes/win11
+W=${WIN_STATE_DIR:-/mnt/vmstore/caraxes/win11}
 VIRTIO=$W/iso/virtio-win.iso
 CODE=/usr/share/edk2/x64/OVMF_CODE.secboot.4m.fd
 VARS=$W/OVMF_VARS.4m.fd
@@ -59,4 +59,4 @@ exec qemu-system-x86_64 -enable-kvm -machine q35,accel=kvm,smm=on,memory-backend
     -device virtserialport,chardev=qga0,name=org.qemu.guest_agent.0 \
     "${gpu[@]}" \
     -device qemu-xhci -device usb-tablet -device usb-kbd \
-    -vga "${WIN_VGA:-std}" -display gtk -rtc base=localtime
+    -vga "${WIN_VGA:-std}" -display "${WIN_QEMU_DISPLAY:-gtk}" -rtc base=localtime

@@ -10,7 +10,7 @@
 #                          WIN_GPU_FB_MIB default 1024; WIN_GPU_ROM, WIN_GPU_BOARD,
 #                          WIN_GPU_REGS, WIN_GPU_CONFIG, CARAXES_GUEST_ABI optional)
 set -euo pipefail
-W=/mnt/vmstore/caraxes/win11
+W=${WIN_STATE_DIR:-/mnt/vmstore/caraxes/win11}
 LEA_ROOT=$(cd "$(dirname "$(readlink -f "$0")")/../../.." && pwd -P)
 SERVER=${WIN_GPU_SERVER:-/mnt/vmstore/caraxes/vfio-user-nvgpu-v615-ptimer-365dff26}
 REF=$LEA_ROOT/caraxes/reference/rtx2070

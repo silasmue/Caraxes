@@ -29,7 +29,7 @@ public static class Probe {
       object ao; if (f.EnumAdapters1(i, out ao) != 0) break;
       var a = (IDXGIAdapter1)ao; DESC1 d; a.GetDesc1(out d);
       s.AppendLine(String.Format("adapter {0}: {1} ven {2:x4} dev {3:x4} dedicated {4} MiB flags {5}", i, d.Description, d.VendorId, d.DeviceId, d.Ded.ToInt64() >> 20, d.Flags));
-      IntPtr pa = Marshal.GetIUnknownForObject(a); IntPtr dev, ctx; int lvl;
+      IntPtr pa = Marshal.GetComInterfaceForObject(a, typeof(IDXGIAdapter1)); IntPtr dev, ctx; int lvl;
       var t0 = DateTime.Now;
       hr = D3D11CreateDevice(pa, 0, IntPtr.Zero, 0, IntPtr.Zero, 0, 7, out dev, out lvl, out ctx);
       s.AppendLine(String.Format("  D3D11CreateDevice hr {0:x8} feature level {1:x} in {2} ms", hr, lvl, (int)(DateTime.Now - t0).TotalMilliseconds));
