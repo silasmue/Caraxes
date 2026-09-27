@@ -11,7 +11,7 @@ taken, the experiment ladder and the status log. The entry points are the
 ## Goal
 
 ```
-unmodified NVIDIA guest driver (open kernel modules, 610.57.04)
+unmodified NVIDIA guest driver (tested Linux desktop: 615.71.09)
   → synthetic NVIDIA PCI device served over vfio-user (Cloud Hypervisor client)
   → synthetic GSP-RM endpoint (message queue + RPC, emulated in userspace)
   → existing Leandro RM backend (crates/vhost-user-nvrm) → host driver → RTX 2070
@@ -20,8 +20,31 @@ unmodified NVIDIA guest driver (open kernel modules, 610.57.04)
 Constraints (from the project brief): do not modify the host driver; no guest
 driver patches except as a temporary aid; the stock (non-GRID) driver; the
 frontend lives in userspace via vfio-user; existing Leandro must keep working;
-reuse the RM backend rather than rewrite it. First milestone: the stock Linux
-driver recognizes and initializes a Turing/RTX 2070-like device. Windows later.
+reuse the RM backend. Current priority: Windows driver initialization, followed
+by desktop stability and latency on Linux and Windows.
+
+## Current verified configuration
+
+As of 2026-09-27, the preferred Linux path is Cloud Hypervisor with Ubuntu 24.04,
+the distribution-packaged NVIDIA 615.71.09 driver, GNOME Wayland and Sunshine KMS
+capture with NVENC. The guest uses stock NVIDIA modules and does not load
+`caraxes_dma_range`; `CARAXES_GUEST_DMA_GPA=1` selects registered guest RAM with
+GPA addresses. The older helper-based profile remains available.
+
+Short measured trials established the following:
+
+- One helper-free guest ran GNOME Wayland, native NVIDIA Vulkan, Sunshine NVENC
+  and an NVENC-to-NVDEC round trip together.
+- Two guests with 2 GiB reserved VRAM each streamed concurrently and completed overlapping NVENC,
+  NVDEC and Vulkan checks. Both Moonlight sessions received about 58 FPS against a
+  60 FPS request.
+- These are functional and short concurrency checks. They do not establish native
+  performance, long-term stability, hostile-tenant isolation or supported-alpha status.
+- Windows currently reaches Code 43 diagnostics. Windows rendering has not passed.
+
+Commands and limits are in [quickstart.md](quickstart.md). Measurements and exact
+test conditions are in
+[wayland-multiguest-2026-09-27.md](../research/wayland-multiguest-2026-09-27.md).
 
 ## Files
 
@@ -97,7 +120,7 @@ driver recognizes and initializes a Turing/RTX 2070-like device. Windows later.
 | [costume-ladder.md](costume-ladder.md) | The costume ladder (`CARAXES_COSTUME=rtx2080|rtx3060|rtx4060ti|h100|rtx5060ti-gb206`, `CARAXES_SM_VERSION`): chips presented over the executing TU106 as overlays on its (or GB206's) tables (`src/chip/derived.rs`, `chips/{tu104,ga106,ad106,gh100}`), ladder boards with `host_chip` and a class map for the mirror; per rung what is lied, what stays true, the first failure with its source line and the verdict; the pure-emulation baseline wall; the lesson which layers the identity can lie on |
 | [cutover-615.md](cutover-615.md) | The checklist for the host driver upgrade 610.57.04 to 615.71.09 (2026-09-24): the device's run-time host-ABI selection (`hostabi.rs`, `CARAXES_HOST_ABI`, the log line to look for), then in order the 610 closing benchmark and frozen binaries, the operator's upgrade checks, the 610 guest on the 615 host (nvml, cuda, display gates), the 615 guest once `ver/v615` lands (`CARAXES_DRIVER=615`), v1's wait for L615, rollback, open points |
 | [v1-615-image.md](v1-615-image.md) | The Leandro v1 guest image for 615.71.09 (`guest-v1-2026-09-24-615.71.09.qcow2`, made from the first v1 615 run's overlay without booting): what differs from the Caraxes 615 base image (guest nvidia modules blacklisted, `nvidia-modprobe` diverted, `nvidia-persistenced` masked, `/opt/nvrm` on the 615 system libraries), why not nix offline, `bench-v1vm.sh` taking v1's material from Leandro (`LEA_V1_ROOT`, `LEA_V1_BIN`, `NVRM`, driver selection, dry run), `LEA_MANAGED_COMPAT=1` as in the gpu gate, `v1-gates.sh`, the boot command |
-| [video-engines.md](video-engines.md) | NVENC and NVDEC through the mirror (2026-09-25, roadmap item 3): what the guest sends, the video session controls, the video channel on the shadow VAS bound at its first doorbell, the deferred video object, the two failure modes (VA reservation storm, doorbell-hold deadlock), what the next probe must show; figure `figures/video-engine-mirror.svg` |
+| [video-engines.md](video-engines.md) | NVENC and NVDEC through the mirror: protocol and layout, dated failure analysis, passing single-guest probes, and the 2026-09-27 two-guest Wayland concurrency checks; figure `figures/video-engine-mirror.svg` |
 | [sottr-stage.md](sottr-stage.md) | The SotTR stage (2026-09-24, roadmap item 2): vm4 as the game VM (3 GiB profile at slot 0, tap `caraxes3`, display configuration C, main 3cb33af device), the v1 Steam library as a thin overlay (`CARAXES_GAMES_DISK`, writer lock in the Caraxes store), the guest preparation of a fresh 610 overlay, Steam library registration and autostart, Sunshine kms, automatic Moonlight pairing and window, what is recorded and how it compares with v1's sottr-4q; plumbing test in pure emulation |
 | [gsp-surface.md](gsp-surface.md) | P23, the GSP surface of 610.57.04 from source: 829 of 1377 exported controls reach GSP, the device handles 171 with D9 provenance, the 658 unhandled sorted into five categories (pure chip data, host-forwardable, guest-state derived, needs modelling, never expected on TU106) with a recipe and estimate each, the 20 RPC functions and 41 events a GSP client uses, the top ten a Linux CUDA or display client hits next, what Windows and nova-core share; produced by `caraxes/tools/gsp-surface.py` (subagent report, 2026-09-24) |
 | [gsp-plan/](gsp-plan/README.md) | P23 implementation plans for the GSP surface on 615.71.09, one document per part of gsp-surface.md (index in gsp-plan/README.md): RPC functions (14 of 232 used by a 615 GSP client on TU106, 7 answered, `ALLOC_MEMORY` sent at every boot and refused), events (45, the device raises only POST_EVENT for hotplug), classes reaching GSP (143 on the wire, 48 on TU106), the boot exchange with teardown, suspend/resume and what `NV_ABI_STABLE` covers; category B (70 host-forwardable controls: 30 real forwards, 11 device-owned, 12 guest-object, 13 refused, 4 never sent) and C (31 guest-state controls plus 12 from B); category D (308 controls needing a device model, grouped by subsystem with estimate and rank: no CUDA or Wayland workload has reached D beyond `HDCP_CTRL` on unplug and one cuda-gdb control; 126 belong to A, C or E; roadmap R0 rule table, R1 display, R2 CUDA error paths, R3 games, R4 suspend, R5 tools); per item recipe, truth source, isolation and open questions (subagent reports, 2026-09-24) |

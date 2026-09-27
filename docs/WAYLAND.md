@@ -1,6 +1,12 @@
 <!-- SPDX-License-Identifier: MIT -->
 # Ubuntu Wayland desktop
 
+This page documents the VirtIO Leandro v1 desktop. Keep its guest modules and launch
+commands separate from Caraxes. The current Caraxes helper-free path uses Cloud
+Hypervisor, stock NVIDIA 615 packages and `CARAXES_GUEST_DMA_GPA=1`; see the
+[Caraxes quickstart](caraxes/quickstart.md#current-615-wayland-path) and the
+[2026-09-27 measurements](research/wayland-multiguest-2026-09-27.md).
+
 - Use the same host backends, Cloud Hypervisor commands and guest modules as [Quickstart](QUICKSTART.md).
 - Complete [Ubuntu installation](UBUNTU-DESKTOP.md) through **GNOME and Sunshine**, then apply this section before starting GDM.
 - GNOME uses Wayland; Sunshine captures DRM/KMS and encodes with NVENC. Moonlight carries mouse and keyboard input.

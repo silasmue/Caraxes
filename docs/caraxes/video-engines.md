@@ -3,7 +3,23 @@
 <!-- SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR -->
 # Video engines: NVENC and NVDEC through the mirror
 
-Status (2026-09-25): NVENC and NVDEC pass through the mirror on both guest drivers
+Current status (2026-09-27): NVENC and NVDEC pass through the mirror on both guest
+drivers. Stock 615 Wayland guests also passed short concurrent video trials while
+Sunshine streamed with NVENC.
+
+- One guest encoded and decoded 120 1080p H.264 frames at 98.0 and 94.6 FPS while
+  streaming.
+- Two guests completed three overlapping encode/decode rounds while one stream was
+  active, then another round with both Moonlight desktops connected. Both encoders
+  sustained about 60.1 FPS under the deliberately paced loads.
+- All eight round trips across the four concurrent rounds passed bitstream and
+  decoded-luma checks. No new host
+  Xid was recorded.
+- This is a short functional concurrency result, not a capacity, isolation or soak
+  claim. Exact profiles and measurements are in
+  [wayland-multiguest-2026-09-27.md](../research/wayland-multiguest-2026-09-27.md).
+
+The original 2026-09-25 single-guest probes passed on both guest drivers
 (`probe-nvdec0-610`, `probe-nvdec0-615`).
 - 300 frames of 1080p H.264 are encoded and decoded back, with a luma PSNR of at least
   63.37 dB (the native value).

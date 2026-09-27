@@ -1,15 +1,43 @@
 <!-- SPDX-License-Identifier: MIT -->
 # The stock driver on a synthetic RTX 2070
 
-- Direct commands for the device server and Cloud Hypervisor. `tools/caraxes-vm.sh`
-  and `tools/caraxes-gate.sh` wrap the run and the check; nothing else is required.
-- Linux x86-64 host with the NVIDIA open kernel modules 610.57.04 running against the
-  physical card (GSP firmware active), matching `vendor/open-gpu-kernel-modules`. The
-  host driver stays untouched; see Safety below.
-- This is Leandro v2 (Caraxes): the guest runs the unmodified stock driver, with no
-  guest module. Background: [README.md](README.md), [kickoff.md](kickoff.md).
-- Current state: milestone 1 is reached and `nvidia-smi` telemetry is complete. What
-  is still missing is listed under "Not yet working". Full ladder: [experiments.md](experiments.md).
+- Cloud Hypervisor is the preferred VMM for the current Linux path. The tested
+  desktop uses Ubuntu 24.04, stock NVIDIA 615.71.09 packages, GNOME Wayland and
+  Sunshine KMS capture with NVENC.
+- Linux x86-64 host with NVIDIA open kernel modules and GSP firmware active. The
+  current measured desktop uses host and guest driver 615.71.09. The host driver
+  stays untouched; see Safety below.
+- This is Leandro v2 (Caraxes). The current helper-free path uses the unmodified
+  stock driver and no Caraxes guest kernel module. Background: [README.md](README.md).
+
+## Current 615 Wayland path
+
+The maintained desktop harness provisions the stock 615 packages, starts GNOME
+Wayland and Sunshine, records evidence, and preserves the legacy helper profile.
+Use a current release build of `vfio-user-nvgpu`:
+
+```sh
+CARAXES_GUEST_DMA_GPA=1 \
+SOTTR_SERVER=/path/to/current/vfio-user-nvgpu \
+caraxes/runs/sottr-2026-09-24/up-615.sh
+
+caraxes/runs/sottr-2026-09-24/stream-615.sh
+caraxes/runs/sottr-2026-09-24/down-615.sh
+```
+
+- `CARAXES_GUEST_DMA_GPA=1` registers guest RAM and lets the stock guest use GPA
+  DMA addresses. Provisioning removes only the old display-module dependency on
+  `caraxes_dma_range`; it keeps the boot ordering and unrelated NVIDIA settings.
+- Omit the flag to retain the older helper and probe workflow.
+- The stage checks VRAM reservation overlap, tap ownership and image compatibility.
+  Read its [operator page](../../caraxes/runs/sottr-2026-09-24/README.md) before use.
+- The 2026-09-27 trials passed short single-guest and two-guest Wayland, NVENC,
+  NVDEC and Vulkan checks. See the
+  [measured report](../research/wayland-multiguest-2026-09-27.md) for the exact
+  profiles, rates and remaining gates.
+
+The direct 610 commands below document the original milestone path. They remain
+useful for low-level experiments, but they are not the current desktop recipe.
 
 ## Prerequisites
 
@@ -123,10 +151,9 @@ The mapping lives in `tools/lib/driver.sh`; any other value is refused.
 - With `CARAXES_DRIVER` set, or with a driver other than 610, `up` checks that
   `LEA_BASE_IMAGE` carries the version in its name and is in the overlay's backing chain,
   and refuses otherwise.
-- `CARAXES_GUEST_ABI=615` has no effect on today's device, because the device knows only
-  `595` (`crates/vfio-user-nvgpu/src/ver/mod.rs:133-143`). A 615 guest therefore stops at the status-queue link
-  ([guest-driver-versions.md](guest-driver-versions.md) section 5) until the 615 GSP
-  transport lands.
+- The device has a 615 ABI implementation. The status-queue limitation recorded in
+  [guest-driver-versions.md](guest-driver-versions.md) section 5 is dated bring-up
+  history and no longer describes the current 615 path.
 - `sync-tests` writes the selected version into the guest's `leandro-test/DRIVER_VERSION`
   and the userspace paths into `caraxes-tests/caraxes/driver.env`. After a switch, run it
   again before the gates.
@@ -150,7 +177,7 @@ The name, UUID and framebuffer size are device-owned (decision D6, never rewritt
 in a reply); temperature, power, clocks and utilization are forwarded from the
 physical card ([nvml.md](nvml.md)).
 
-## Not yet working
+## Limits of the original 610 milestone path
 
 - **No CUDA.** `nvidia-uvm` and the first CUDA context are the next experiment (E5);
   see [cuda-path.md](cuda-path.md) for the design and [experiments.md](experiments.md)
@@ -163,20 +190,26 @@ physical card ([nvml.md](nvml.md)).
 
 Full status and the experiment-by-experiment record: [experiments.md](experiments.md).
 
-## Safety rules (kickoff.md §2)
+Those three historical limits do not describe the tested 615 desktop configuration.
+The current result does not imply full native parity. Long-duration stream soak,
+hardware-decoded clients, resource-exhaustion recovery, full game runs and stronger
+multi-guest isolation evidence remain open. Windows is still in Code 43 debugging;
+no Windows rendering result exists.
 
-- The host GPU is read-only and hands-off: no unbinding, no kernel modules, no
-  `/dev/mem` tricks, no writes to host NVIDIA registers, no host driver changes. Reach
-  the card only as an unprivileged host RM client, the same way `vhost-user-nvrm`
-  does. Report every read of host GPU state.
-- No guest driver patches. The guest runs the stock open driver, never the GRID
-  driver.
-- Stay inside this repository. VM assets under `/mnt/vmstore/leandro` are inputs;
-  overlays, sockets and logs go under `target/caraxes/`.
-- Leandro v1 keeps working: add code, do not rewrite `vhost-user-nvrm`, `nvrm-abi`,
-  `nvrm-wire` or the guest module.
-- Passing the real card to a VM (the reference captures R1/R3) is opt-in and needs a
-  prepared, scheduled procedure; it is not part of this quickstart.
+## Host access and VM state
+
+- Keep the host NVIDIA driver bound. The backend submits work through host RM;
+  do not unbind, reset the GPU, reload host modules or write host registers directly.
+- Registered guest RAM requires `CAP_SYS_ADMIN` for the privileged RM query.
+  The launcher prepares a binary with `cap_sys_admin+p`; the backend enables it
+  on the calling thread only around the required operation. See
+  [memory-model.md](memory-model.md#privilege).
+- Use stock guest drivers. The current 615 GPA path needs no Caraxes guest module.
+- VM overlays, sockets and logs live under `$CARAXES_STORE/$VM`, normally
+  `/mnt/vmstore/caraxes/$VM`, with a repository-local fallback. Keep backing
+  images frozen while their overlays are in use.
+- Preserve Leandro v1 compatibility when changing shared RM or ABI code.
+- Physical GPU passthrough is a separate workflow and is not used here.
 
 ## Exact commands used on 2026-09-23
 
