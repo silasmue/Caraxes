@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Bounded Ubuntu/QEMU comparison for the desktop-a Cloud Hypervisor configuration.
-# This is a diagnostic harness; desktop.sh remains the supported/default launcher.
+# This is a diagnostic harness; desktop.sh is the measured Cloud Hypervisor baseline.
 set -euo pipefail
 
 BASE=${CARAXES_QEMU_BASE:-/mnt/vmstore/caraxes/alpha-2026-09-27}
@@ -58,7 +58,10 @@ preflight() {
 setup() {
     desktop_stopped
     command -v qemu-img >/dev/null || die "qemu-img missing"
-    command -v cloud-localds >/dev/null || die "cloud-localds missing"
+    command -v truncate >/dev/null || die "truncate missing"
+    command -v mkfs.vfat >/dev/null || die "mkfs.vfat missing"
+    command -v mcopy >/dev/null || die "mcopy missing"
+    command -v mtype >/dev/null || die "mtype missing"
     command -v guestfish >/dev/null || die "guestfish missing (needed for child-only network configuration)"
     [[ ! -e $ROOTFS && ! -e $SEED ]] || die "$W already contains rootfs.qcow2 or seed.img"
     mkdir -p "$W"
@@ -71,7 +74,12 @@ setup() {
         < <(mtype -i "$SOURCE/seed.img" ::user-data) > "$tmp/user-data"
     mtype -i "$SOURCE/seed.img" ::meta-data > "$tmp/meta-data"
     printf 'version: 2\nethernets: {}\n' > "$tmp/network-config"
-    cloud-localds --network-config="$tmp/network-config" "$SEED" "$tmp/user-data" "$tmp/meta-data"
+    # Match the source NoCloud FAT12 seed without requiring cloud-localds.
+    truncate -s 1440K "$SEED"
+    mkfs.vfat -F 12 -n cidata "$SEED" >/dev/null
+    mcopy -i "$SEED" "$tmp/user-data" ::user-data
+    mcopy -i "$SEED" "$tmp/meta-data" ::meta-data
+    mcopy -i "$SEED" "$tmp/network-config" ::network-config
     # cloud-init will not rewrite an already initialized clone. Change the installed network
     # configuration in the child overlay itself; the source image remains read-only.
     guestfish --rw -a "$ROOTFS" -i sh \
