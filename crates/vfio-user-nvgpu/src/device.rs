@@ -885,6 +885,9 @@ impl Device {
         for l in mirror_log {
             self.note(&format!("mirror: {l}"));
         }
+        if let Some(b) = self.bar0.boot_mut() {
+            b.fb.shutdown();
+        }
         if let GuestRam::Register(hm) = &self.guest_ram {
             let log = hm.lock().unwrap().shutdown();
             for l in log {

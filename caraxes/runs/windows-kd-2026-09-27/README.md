@@ -350,3 +350,25 @@ without the head-0 low-latency status bit. Its binary SHA-256 is
 `77f0c97e961c63303439c9afb145c31639181f5318ab370cbb5e24e2253781ac`.
 The checked-in profile remains unchanged; loading and applying LUTs still
 need implementation and validation.
+
+KD13 and KD14 used that OLUT diagnostic but produced no completed startup
+result because the serial debugger connection was unusable for the intended
+probe. Both target runs and the debugger VM were stopped; the usual test
+backend was restored to the zero-FB baseline `14e4519a…`. The OLUT geometry
+binary remains archived, not validated. `kdnet.exe` and `VerifiedNICList.xml`
+are present in the debugger VM; a private network debugger path still needs
+NIC support and PCI topology validation on the target.
+
+## BAR1 window cleanup ordering
+
+KD12 reported two `RM_UNMAP_MEMORY` failures with status `0x33` after the
+reservation and RM root client were already freed. `VramStore` still owned
+two LRU windows until the device destructor ran. This is a stale-client
+cleanup attempt; the tracked post-teardown object and pinned-chunk counts
+were zero, which alone does not establish absence of every possible leak.
+
+Device shutdown now drains framebuffer mappings after mirror channels are
+reset and before host memory teardown. It flushes LRU and pinned mappings,
+credits released LRU capacity, and preserves cumulative summary counters.
+The focused test verifies flush/drop counts, drop-before-credit ordering,
+and idempotence. Hardware validation of this fix is still pending.

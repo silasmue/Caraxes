@@ -214,6 +214,9 @@ pub trait FbStore: Send {
     }
     /// Drain any write-combining buffers to real VRAM (VRAM store only; no-op otherwise).
     fn flush(&self) {}
+    /// Release mappings which depend on the host RM client before that client is freed.
+    /// Keeps accumulated counters available for the exit summary. Idempotent.
+    fn shutdown(&mut self) {}
     /// Keep `w` mapped for good and serve its range from it, outside the LRU windows
     /// (the BAR1 pool's own dma-buf mapping, [`FakeFb::pin_store_window`]). False when the
     /// store has no windows (the window is dropped).
@@ -799,6 +802,25 @@ impl FbStore for VramStore {
         }
     }
 
+    fn shutdown(&mut self) {
+        // The LRU windows carry RM_UNMAP_MEMORY cookies. They must go while the root
+        // client and reservation still exist; dropping them with the rest of the device
+        // after HostMemory::shutdown only produces stale-client unmap failures.
+        let windows = self.windows.get_mut();
+        for slot in windows.drain(..) {
+            slot.win.flush();
+            let len = slot.win.len();
+            drop(slot);
+            self.src.get_mut().released(len);
+        }
+        // The BAR1 pool's pinned dma-buf mapping has no RM_UNMAP_MEMORY, but it too must
+        // stop retaining its mapping FD before the reservation/client teardown.
+        for w in &self.pinned {
+            w.flush();
+        }
+        self.pinned.clear();
+    }
+
     fn pin_window(&mut self, w: Box<dyn WindowBacking>) -> bool {
         self.pinned.push(w);
         true
@@ -1270,6 +1292,11 @@ impl FakeFb {
     /// guest wrote (before a host doorbell or TLB invalidate).
     pub fn flush(&self) {
         self.store.flush();
+    }
+
+    /// Release store mappings before the host RM reservation and client are freed.
+    pub fn shutdown(&mut self) {
+        self.store.shutdown();
     }
 
     /// Serve the range of `w` (reservation offsets) from `w` for good, outside the VRAM
@@ -2935,6 +2962,101 @@ mod tests {
         assert_eq!(st.map_failures, 0);
         assert_eq!(st.held, 2);
         assert_eq!(st.evictions, st.maps - 2);
+    }
+
+    #[test]
+    fn shutdown_releases_lru_and_pinned_windows_once_and_keeps_counters() {
+        use std::sync::atomic::{AtomicUsize, Ordering::SeqCst};
+
+        struct CountWindow {
+            offset: u64,
+            len: usize,
+            live: std::sync::Arc<AtomicUsize>,
+            flushes: std::sync::Arc<AtomicUsize>,
+        }
+        impl Drop for CountWindow {
+            fn drop(&mut self) {
+                self.live.fetch_sub(1, SeqCst);
+            }
+        }
+        impl WindowBacking for CountWindow {
+            fn offset(&self) -> u64 {
+                self.offset
+            }
+            fn len(&self) -> usize {
+                self.len
+            }
+            fn read(&self, _off: u64, buf: &mut [u8]) {
+                buf.fill(0);
+            }
+            fn write(&self, _off: u64, _data: &[u8]) {}
+            fn flush(&self) {
+                self.flushes.fetch_add(1, SeqCst);
+            }
+        }
+        struct CountSource {
+            live: std::sync::Arc<AtomicUsize>,
+            released: std::sync::Arc<AtomicUsize>,
+            live_when_released: std::sync::Arc<std::sync::Mutex<Vec<usize>>>,
+            flushes: std::sync::Arc<AtomicUsize>,
+        }
+        impl WindowSource for CountSource {
+            fn map(&mut self, offset: u64, len: usize) -> Result<Box<dyn WindowBacking>, u32> {
+                self.live.fetch_add(1, SeqCst);
+                Ok(Box::new(CountWindow {
+                    offset,
+                    len,
+                    live: self.live.clone(),
+                    flushes: self.flushes.clone(),
+                }))
+            }
+            fn released(&mut self, len: usize) {
+                self.live_when_released
+                    .lock()
+                    .unwrap()
+                    .push(self.live.load(SeqCst));
+                self.released.fetch_add(len, SeqCst);
+            }
+        }
+
+        let live = std::sync::Arc::new(AtomicUsize::new(0));
+        let released = std::sync::Arc::new(AtomicUsize::new(0));
+        let live_when_released = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+        let flushes = std::sync::Arc::new(AtomicUsize::new(0));
+        let src = CountSource {
+            live: live.clone(),
+            released: released.clone(),
+            live_when_released: live_when_released.clone(),
+            flushes: flushes.clone(),
+        };
+        let mut fb = FakeFb::new(4 << 20).with_store(Box::new(VramStore::with_budget(
+            Box::new(src), 0, 4 << 20, 2 << 20, 2,
+        )));
+        fb.write(0, &[1]);
+        fb.write(2 << 20, &[2]);
+        live.fetch_add(1, SeqCst);
+        assert!(fb.pin_store_window(Box::new(CountWindow {
+            offset: 0,
+            len: 4096,
+            live: live.clone(),
+            flushes: flushes.clone(),
+        })));
+        let before = fb.vram_stats().unwrap();
+        assert_eq!((before.maps, before.held, live.load(SeqCst)), (2, 2, 3));
+
+        fb.shutdown();
+        let after = fb.vram_stats().unwrap();
+        assert_eq!(after.maps, before.maps);
+        assert_eq!(after.held, 0);
+        assert_eq!(live.load(SeqCst), 0);
+        assert_eq!(released.load(SeqCst), 4 << 20);
+        assert_eq!(*live_when_released.lock().unwrap(), vec![2, 1]);
+        assert_eq!(flushes.load(SeqCst), 3);
+
+        fb.shutdown();
+        assert_eq!(live.load(SeqCst), 0);
+        assert_eq!(released.load(SeqCst), 4 << 20);
+        assert_eq!(flushes.load(SeqCst), 3);
     }
 
     #[test]
