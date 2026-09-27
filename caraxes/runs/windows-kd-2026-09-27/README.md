@@ -61,10 +61,27 @@ runs through `python3 run-debuggee.py`; do not reuse a run name.
 - The callback's indirect wrappers lead to `nvlddmkm+0x192c450`, which propagates
   the return from `+0x1854890`. That function tail-calls `+0x1865570`.
   Internal offsets apply only to the tested NVIDIA 617.14 binary.
+- A guest PnP restart hit `+0x186628b`: `+0x185a0a0` returned false, which
+  this branch converts into `0xC000009A`. The other literal resource-error
+  branches in this function were not the observed origin.
+- A second restart hit `+0x185a0c7`, identifying the first helper,
+  `+0x18586b0`, as the source of that false result. Its six fatal helper-return
+  checks are `+0x18586d8`, `+0x1858720`, `+0x1858845`, `+0x18588df`,
+  `+0x1858905` and `+0x1858bd4`. Conditional breakpoints stop only for `AL=0`.
+- The third restart stopped at `+0x18588df`, after `+0x185b6f0` returned false.
+  That routine prepares memory parameters and invokes allocation helpers.
+  The specific failing request is not yet established; this is not evidence
+  of a device whitelist.
+- PnP restart unloads and reloads NVIDIA at a different address. Catch the new
+  module load, resolve its base and re-arm breakpoints before continuing.
+  No new host Xid was observed during these restarts.
 
 Raw transcripts: `windows-kd/debugger/KD3-callback-return.log` and
-`KD3-internal-start.log` under the state directory. The latter is an intermediate
-snapshot; keep the final transcript with the run before stopping the debugger.
+`KD3-internal-start-full.log` under the state directory. `KD3-status-origin.log`
+captures the first internal failure branch; `KD3-first-stage.log` includes the
+next helper's disassembly. `KD3-init-helper.log` captures the third restart and
+the failing routine's disassembly. `KD3-internal-start.log` is an incomplete snapshot
+from before the console logging fix. Save a final transcript before stopping KD.
 
 ## Continuing the diagnosis
 
