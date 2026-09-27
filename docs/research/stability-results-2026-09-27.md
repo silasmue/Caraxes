@@ -4,7 +4,7 @@
 Evidence root: `/mnt/vmstore/caraxes/alpha-2026-09-27/RESULTS.md` and the
 adjacent raw run directories. One host-backed GPU VM at a time. RTX 2070,
 host NVIDIA 615.71.09; no host driver unbind, reset or module reload.
-No new host Xids observed through Windows B10 and the V1 import trials.
+No new host Xids observed through Windows B11, Linux L6 and the V1 import trials.
 
 ## Confirmed improvements
 
@@ -33,6 +33,33 @@ No new host Xids observed through Windows B10 and the V1 import trials.
   The Vulkan test uses the staged 615 ICD explicitly; the default test image
   loader path otherwise falls back to llvmpipe. This is a transfer test; rendered
   frames, desktop, streaming and longer soak still need testing.
+- RPC/GMC compatibility: reject invalid RPC signatures/versions before dispatch,
+  preserve all 64 GMC sequence bits in normal and error replies, and keep GMC
+  responses separate from RPC continuations. See
+  [the Nova reference analysis](nova-transport-compatibility-2026-09-27.md).
+
+## Final transport verification
+
+Commit `a0f1366d`; v615 release SHA-256
+`dbf1c6e271554f15a2f6fdd623a62a0f7f430b907abba58e82168b4e34ffa348`.
+The binary was built before final comment-only clarification; the archived patch
+and build logs identify its source. Default/610: 486 library tests pass. v615:
+489 pass, one expected ignore. Strict all-targets v615 Clippy passes with the
+repository's existing `unnecessary_cast` and `field_reassign_with_default`
+allowances. Release build, diff whitespace checks and graph update pass.
+
+L6 boots the stock Linux 615 driver with GPA aliases and no guest DMA helper.
+The first test command stops because this image does not automatically create
+`/dev/nvidia*`; driver initialization itself succeeds. After creating the device
+nodes using the majors registered in `/proc/devices`, CUDA returns correct data
+and the NVIDIA-only Vulkan copy verifies all 4096 bytes. The one CUDA smoke run
+reports 61 us/launch; this uncontrolled observation does not establish a latency
+improvement or explain the difference from L5's 25 us. No new host Xids.
+
+B11 uses the same binary with host-backed Windows execution. Code 43 and fresh
+DxgKrnl 549/457 `0xC000009A` recur; no invalid RPC schema rejection is logged.
+The transport fixes therefore do not resolve the observed Windows start failure.
+Raw evidence: `L6-rpc-final/`, `windows/B11-rpc-final/`, `v2-rpc-*.log`.
 
 ## Windows remains blocked at driver initialization
 
