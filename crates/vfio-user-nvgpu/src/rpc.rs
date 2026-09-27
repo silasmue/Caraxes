@@ -370,10 +370,15 @@ pub fn build_static_info(
     );
 
     // fbRegionInfoParams: numFBRegions, then the regions. With a host VRAM reservation
-    // the usable region is the reservation minus the device's carve-out at its top, and
-    // everything above it is reserved; nothing below the reservation is described (as
-    // on the host, whose one region starts at 54 MiB). docs/caraxes/memory-model.md §1.
+    // the usable region is the reservation minus the device's carve-out at its top.
+    // Only the owned carve-out and pool are reserved: ctrl2080fb.h defines `reserved`
+    // as memory RM needs within that region, not unassigned physical address space.
+    // Omit both holes outside the reservation (the host also omits its bottom hole).
+    // The guest RM derives its heap's address-space extent from the last region limit;
+    // it therefore ends at the reservation end. `layout.addr_space`, MMIO and the
+    // guest's already-computed WPR layout still describe the whole physical card.
     let space = layout.addr_space;
+    let reserved_end = layout.reservation.map_or(space, |(_, end)| end);
     let (usable_start, usable_end, rsvd_start, source) = match (layout.usable(), wpr) {
         (Some((b, e)), _) if layout.pool > 0 => (
             b,
@@ -422,12 +427,12 @@ pub fn build_static_info(
         b[o + v::FB_REGION_SUPPORT_ISO] = 1;
     };
     region(&mut b, 0, usable_start, usable_end - 1, 0);
-    region(&mut b, 1, rsvd_start, space - 1, space - rsvd_start);
+    region(&mut b, 1, rsvd_start, reserved_end - 1, reserved_end - rsvd_start);
     label(
         &mut labels,
         "fbRegionInfoParams",
         format!(
-            "2 regions: usable [{usable_start:#x}, {usable_end:#x}), reserved [{rsvd_start:#x}, {space:#x})"
+            "2 regions: usable [{usable_start:#x}, {usable_end:#x}), reserved [{rsvd_start:#x}, {reserved_end:#x})"
         ),
         source,
     );
@@ -919,8 +924,8 @@ pub(crate) mod tests {
             (r(1, 0), r(1, 8), r(1, 16)),
             (
                 0x1_E8E0_0000,
-                (8u64 << 30) - 1,
-                (8u64 << 30) - 0x1_E8E0_0000
+                0x1_E8FF_FFFF,
+                2 << 20
             )
         );
         // nvidia-smi's total stays the profile.
@@ -936,11 +941,88 @@ pub(crate) mod tests {
         let (b, labels) = build_static_info(f.chip.data(), &id, Some(&wpr), &pooled);
         let r = |i: usize, o: usize| u64_at(&b, v::SI_FB_REGIONS + i * v::FB_REGION_SIZE + o);
         assert_eq!((r(0, 0), r(0, 8)), (0xE900_0000, 0x1_E4DF_FFFF));
-        assert_eq!((r(1, 0), r(1, 16)), (0x1_E4E0_0000, (8u64 << 30) - 0x1_E4E0_0000));
+        assert_eq!((r(1, 0), r(1, 16)), (0x1_E4E0_0000, 66 << 20));
         assert_eq!(u64_at(&b, v::SI_BAR1_PDE_BASE), 0x1_E8E0_1000);
         assert!(labels
             .iter()
             .any(|l| l.field == "fbRegionInfoParams" && l.source.contains("BAR1 pool")));
+    }
+
+    #[test]
+    fn reserved_regions_describe_only_owned_memory_in_each_slot() {
+        use crate::gmcapi::{sc, words, Value};
+        let f = crate::fixture::rtx2070();
+        let profile = 1u64 << 30;
+        let id = f.identity(profile);
+        // The Windows slot 0 and slot 4 reservations have the same capacity, even
+        // though the unassigned gap to the card's 8 GiB top differs by 4 GiB.
+        for base in [0x1_A980_0000u64, 0xA980_0000] {
+            let end = base + profile;
+            for pool in [0, 64u64 << 20] {
+                let mut layout = FbLayout::reserved(profile, 8 << 30, base, end).unwrap();
+                if pool != 0 {
+                    layout = layout.with_pool(pool).unwrap();
+                }
+                let (b, _) = build_static_info(f.chip.data(), &id, None, &layout);
+                let r = |i: usize, o: usize| {
+                    u64_at(&b, v::SI_FB_REGIONS + i * v::FB_REGION_SIZE + o)
+                };
+                let reserved = (2 << 20) + pool;
+                assert_eq!(u32_at(&b, v::SI_NUM_FB_REGIONS), 2);
+                assert_eq!(r(0, v::FB_REGION_BASE), base);
+                assert_eq!(r(0, v::FB_REGION_LIMIT) + 1, end - reserved);
+                assert_eq!(r(0, v::FB_REGION_RESERVED), 0);
+                assert_eq!(r(1, v::FB_REGION_BASE), end - reserved);
+                assert_eq!(r(1, v::FB_REGION_LIMIT) + 1, end);
+                assert_eq!(r(1, v::FB_REGION_RESERVED), reserved);
+                let mut described = 0;
+                for i in 0..2 {
+                    let lo = r(i, v::FB_REGION_BASE);
+                    let hi = r(i, v::FB_REGION_LIMIT);
+                    assert!(base <= lo && lo <= hi && hi < end);
+                    described += hi - lo + 1;
+                }
+                assert_eq!(described, profile);
+                assert_eq!(u64_at(&b, v::SI_FB_LENGTH), profile);
+                assert_eq!(layout.addr_space, 8 << 30);
+                // memmgrInitBaseFbRegions_FWCLIENT rounds the last limit up to MiB.
+                // That guest heap extent now ends at the reservation, not at 8 GiB.
+                let extent = ((r(1, v::FB_REGION_LIMIT) + (1 << 20) - 1) >> 20) << 20;
+                assert_eq!(extent, end);
+                for field in [v::SI_BAR1_PDE_BASE, v::SI_BAR2_PDE_BASE] {
+                    let root = u64_at(&b, field);
+                    assert!(root >= end - (2 << 20) && root + 4096 <= extent);
+                }
+                // Verify the same bounded regions survive the 615 NVKV transport.
+                let extra = StaticExtra { wpr_offsets: None, sku: None };
+                let (bytes, _) = static_info_nvkv(&b, f.chip.data(), &extra);
+                let entries = kernel_accepts(&words(&bytes)).unwrap();
+                for (key, value) in [
+                    (sc::FB_REGION_LIMIT, end - 1),
+                    (sc::FB_REGION_RESERVED, reserved),
+                ] {
+                    assert!(entries.iter().any(|e| {
+                        e.key == key && e.index == 1 && e.value == Value::U64(value)
+                    }));
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn plain_static_info_without_wpr_keeps_the_fallback_reservation() {
+        let f = crate::fixture::rtx2070();
+        let profile = 1u64 << 30;
+        let id = f.identity(profile);
+        let (b, _) = build_static_info(f.chip.data(), &id, None, &FbLayout::plain(profile));
+        let r = |i: usize, o: usize| {
+            u64_at(&b, v::SI_FB_REGIONS + i * v::FB_REGION_SIZE + o)
+        };
+        assert_eq!(r(0, v::FB_REGION_BASE), 0);
+        assert_eq!(r(0, v::FB_REGION_LIMIT) + 1, profile - (160 << 20));
+        assert_eq!(r(1, v::FB_REGION_LIMIT) + 1, profile);
+        assert_eq!(r(1, v::FB_REGION_RESERVED), 160 << 20);
+        assert_eq!(u64_at(&b, v::SI_FB_LENGTH), profile);
     }
 
     #[test]
