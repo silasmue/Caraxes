@@ -80,6 +80,21 @@ prove that this allocation failed. Avoid inventing reply semantics from that
 sequence alone. Earlier ETW/DbgPrint work yielded generic statuses; further
 Windows work needs a more specific failing check or stack.
 
+The comparison with historical pure-emulation B4 narrows the boundary: after
+the second class-0x70 reply, B4 proceeds to `ALLOC_MEMORY`; B9/B10/B11 instead
+send two explicit `FREE` requests and tear down. Request fields, result status
+and recorded reply length match; the available trace does not demonstrate a
+class-0x70 reply mismatch. B4 is historical evidence, not a host-execution pass.
+
+Historical provider enumeration found no NVIDIA ETW provider. The next useful
+diagnostic candidate is guest kernel debugging during `DxgkDdiStartDevice`,
+recording allocator failures and stacks on the starting thread where the caller
+is `nvlddmkm.sys`. A NULL allocation may be an intentional probe, so it must be
+correlated with teardown. Conversely, no failure at the selected pool allocator
+breakpoints would only exclude those observed calls: other allocators, worker
+threads and driver-internal resource checks remain possible. This capture has
+not been performed; do not interpret `0xC000009A` as proof of pool exhaustion.
+
 No Windows NVIDIA hardware rendering, desktop, 3DMark or game success is
 claimed. The own D3D11 probe rejects software adapters and verifies rendered
 pixels; it cannot pass while the NVIDIA adapter is absent from DXGI.
