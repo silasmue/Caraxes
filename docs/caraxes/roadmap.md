@@ -3,7 +3,23 @@
 <!-- SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR -->
 # Caraxes roadmap: done, in progress, next, later
 
-Snapshot of 2026-09-24, 10:30. The decisions and ideas it refers to are in [README.md](README.md).
+## Current priorities (2026-09-27)
+
+1. Host-backed Windows desktop and verified hardware rendering in Caraxes.
+2. Stable, responsive Linux and Windows desktops, including concurrent NVENC/NVDEC.
+3. CUDA submission and short-kernel latency.
+4. Before public release: a full documentation review and reproducible benchmarks.
+5. Broader GPU coverage on rented hardware after the local acceptance gates pass.
+
+The release comparison covers V1, V2 and native on Linux; Windows compares V2
+with native. V1 remains Linux-only. Match hardware, driver versions, workloads,
+resolution and stream settings; publish raw results, CPU use, frame-time tails,
+latency and single/multiple-guest conditions alongside throughput. A working
+short trial is not a stability or native-parity claim.
+
+The sections below preserve the **historical 2026-09-24 roadmap**, including its
+later annotations. Current measurements are linked from [README.md](README.md).
+
 
 ## Done
 
