@@ -169,3 +169,18 @@ soak and end-to-end input and frame latency tests.
 
 Final artifacts are in
 `/mnt/vmstore/caraxes/alpha-2026-09-27/desktop-checks/D4-readonly-display-page/`.
+That directory includes the exact tested `caraxes-vm-readonly.sh` and
+`desktop-b-readonly.sh` launcher copies, `SHA256SUMS`, the backend file
+capability record, and `REPRODUCE.md`. The fixed-CPU3 default case can be
+started in a detached session with:
+
+```sh
+ART=/mnt/vmstore/caraxes/alpha-2026-09-27/desktop-checks/D4-readonly-display-page
+CARAXES_DOORBELL_POLL_CPU=3 CARAXES_DOORBELL_POLL_IDLE_US=200 \
+  setsid -f "$ART/desktop-b-readonly.sh" up \
+  > "$ART/reproduce-launch-200us.log" 2>&1
+```
+
+Change the idle value to `0` for the immediate-block case. The preserved
+wrapper selects Linux B and reservation slot 1; it must not be used for the
+frozen desktop A state.
