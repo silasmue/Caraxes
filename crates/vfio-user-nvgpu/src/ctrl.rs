@@ -30,6 +30,9 @@ pub use crate::ver::active::{
     NV01_ROOT, NV20_SUBDEVICE_0, NV_ERR_NOT_SUPPORTED, NV_OK,
 };
 
+/// `NV_ERR_INSUFFICIENT_PERMISSIONS` (nvstatuscodes.h).
+const NV_ERR_INSUFFICIENT_PERMISSIONS: u32 = 0x1B;
+
 /// The internal client, device and subdevice handles the device hands the guest
 /// kernel in the static info (device-owned, synthesized).
 pub const INTERNAL_CLIENT: u32 = 0xCA7A_0001;
@@ -1113,8 +1116,77 @@ impl Dispatcher {
         )
     }
 
-    /// `GSP_RM_CONTROL`.
+    /// `GSP_RM_CONTROL`. An answer the device has no model for (`unanswered`, or a `no
+    /// host` fallback in pure emulation) is filled from the card's recorded answers or chip
+    /// facts where they fit (recorded.rs); what stays NOT_SUPPORTED carries the first
+    /// request bytes in its note, so a trace shows what the guest asked.
     pub fn control(&mut self, h_client: u32, h_object: u32, cmd: u32, params: &[u8]) -> Answer {
+        let facts = crate::recorded::Facts {
+            fb_bytes: self.profile.fb_bytes,
+            gpcs: self.gr_info(0x14).unwrap_or(1),
+            tpcs_per_gpc: self.gr_info(0x17).unwrap_or(1),
+        };
+        if crate::recorded::overrides(cmd)
+            && !(self.host.is_some() && crate::recorded::PREFER_RECORDED.contains(&cmd))
+        {
+            if let Some(r) = crate::recorded::answer(cmd, params, &facts) {
+                return r;
+            }
+        }
+        let a = self.control_modelled(h_client, h_object, cmd, params);
+        if a.label.starts_with("host") {
+            crate::recorded::record_host(cmd, a.status, params, &a.params);
+        }
+        // Only for an object the guest allocated or the internal client's: a control on a
+        // freed or unknown handle stays refused.
+        let known = h_client == INTERNAL_CLIENT || self.objects.contains_key(&(h_client, h_object));
+        // With a host RM: what it refuses to the device's unprivileged client (0x1b) is not
+        // what the guest kernel would get from GSP-RM; the recorded answer stands in.
+        let host_refused = a.status == NV_ERR_INSUFFICIENT_PERMISSIONS && a.label.starts_with("host");
+        let unmodelled = a.status == NV_ERR_NOT_SUPPORTED
+            && (a.label == "unanswered" || a.label.contains("no host"));
+        if !(unmodelled || host_refused) || !known {
+            return a;
+        }
+        match crate::recorded::answer(cmd, params, &facts) {
+            Some(mut r) => {
+                r.note = format!("{} (was: {} [{}])", r.note, a.note, a.label);
+                r
+            }
+            // Diagnostic only (`CARAXES_ACK_UNANSWERED=1`): every control still without an
+            // answer gets NV_OK and its request back, to see whether any refusal gates.
+            None if std::env::var("CARAXES_ACK_UNANSWERED").is_ok_and(|v| v == "1")
+                && !crate::recorded::excepted(cmd) =>
+            {
+                Answer::ok(
+                params.to_vec(),
+                "diagnostic (CARAXES_ACK_UNANSWERED: NV_OK echo)",
+                format!("{} -> acknowledged (was status {:#x} [{}])", a.note, a.status, a.label),
+                )
+            }
+            None => {
+                let mut a = a;
+                let head: String = params.iter().take(48).map(|b| format!("{b:02x}")).collect();
+                a.note.push_str(&format!("; request {head}"));
+                a
+            }
+        }
+    }
+
+    /// A `[gr.emulated_info]` entry of the chip (GPC count 0x14, TPCs per GPC 0x17).
+    fn gr_info(&self, index: u32) -> Option<u32> {
+        self.chip
+            .gr
+            .emulated_info
+            .as_ref()?
+            .entries
+            .iter()
+            .find(|e| e[0] == index)
+            .map(|e| e[1])
+            .filter(|&n| (1..32).contains(&n))
+    }
+
+    fn control_modelled(&mut self, h_client: u32, h_object: u32, cmd: u32, params: &[u8]) -> Answer {
         // A control on a channel or TSG that runs on the host: the host mirror takes it.
         if MIRROR_FORWARDED.contains(&cmd) {
             if let Some(m) = self.mirror.as_mut() {
@@ -1197,7 +1269,23 @@ impl Dispatcher {
             return a;
         }
         // Graphics static-info rows (docs/caraxes/phase5-rpcs.md rows 35, 39-52) live in kgr.rs.
-        if let Some(a) = crate::kgr::answer(self.chip, cmd, params, self.host.as_mut()) {
+        // Pure emulation with `CARAXES_EMU_GR=1`: a whole TU106 GR from the recordings.
+        let kgr = if self.host.is_none() && crate::recorded::emu_gr() {
+            let facts = crate::recorded::Facts {
+                fb_bytes: self.profile.fb_bytes,
+                gpcs: self.gr_info(0x14).unwrap_or(1),
+                tpcs_per_gpc: self.gr_info(0x17).unwrap_or(1),
+            };
+            let mut h: Box<dyn HostRm> = Box::new(crate::recorded::EmuGrHost { facts });
+            crate::kgr::answer(self.chip, cmd, params, Some(&mut h)).map(|mut a| {
+                a.note = format!("{} [{}]", a.note, a.label);
+                a.label = crate::recorded::LABEL_EMU_GR;
+                a
+            })
+        } else {
+            crate::kgr::answer(self.chip, cmd, params, self.host.as_mut())
+        };
+        if let Some(a) = kgr {
             return a;
         }
         // The CUDA path's synthesized and derived rows (E5c) live in cuda.rs.
@@ -1440,14 +1528,19 @@ impl Dispatcher {
             // firmwareVersion[64] @6. The version string is what nvidia-smi shows.
             CMD_GSP_GET_FEATURES => {
                 let mut b = vec![0u8; n];
-                let ver = v::DRIVER_VERSION.as_bytes();
+                // CARAXES_GSP_FW_VERSION: the firmware version string instead of the emulated
+                // driver's (a 617.14 Windows guest against the 615-based model).
+                let env_ver = std::env::var("CARAXES_GSP_FW_VERSION").ok().filter(|s| s.len() < 64);
+                let ver = env_ver.as_deref().unwrap_or(v::DRIVER_VERSION).as_bytes();
                 if n >= v::GSP_FEATURES_SIZE {
+                    // gspFeatures 1, as the card answers (kmd-controls-2026-09-26).
+                    put32(&mut b, 0, 1);
                     b[v::GSP_FEATURES_VALID] = 1;
                     b[v::GSP_FEATURES_DEFAULT_GSP_RM_GPU] = 1;
                     let at = v::GSP_FEATURES_FIRMWARE_VERSION;
                     b[at..at + ver.len()].copy_from_slice(ver);
                 }
-                Answer::ok(b, "synthesized (driver version string; the emulated GSP is that version)", format!("gsp features: valid, {}", v::DRIVER_VERSION))
+                Answer::ok(b, "synthesized (driver version string; the emulated GSP is that version)", format!("gsp features: 1, valid, {}", String::from_utf8_lossy(ver)))
             }
             // Row 97 (ctrl2080bios.h:44-45, 97-104): biosInfoListSize @0, entries {index, data} @4.
             CMD_BIOS_GET_INFO_V2 => {

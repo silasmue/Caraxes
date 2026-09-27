@@ -100,6 +100,8 @@ pub struct BootModel {
     pub system_info: Option<Vec<u8>>,
     /// Requests the device could not answer, for the trace summary.
     pub unanswered: Vec<String>,
+    /// The RM user shared data page GSP-RM keeps (rusd.rs, `CARAXES_RUSD=1`).
+    rusd: crate::rusd::Rusd,
     /// A request split over CONTINUATION_RECORDs that is still being assembled.
     pending: Option<(crate::msgq::Message, usize)>,
     /// Memory registered with `ALLOC_MEMORY` and the GSP-side event buffers on it
@@ -204,6 +206,7 @@ impl BootModel {
             queues: None,
             system_info: None,
             unanswered: Vec::new(),
+            rusd: Default::default(),
             pending: None,
             gspmem: crate::gspmem::GspMemory::new(),
             fb: FakeFb::for_layout(&layout).with_mmu_format(&d.gmmu.mmu_format),
@@ -1165,6 +1168,12 @@ impl BootModel {
         })
     }
 
+    /// A latched write to a register the firmware model watches (`NV_PMC_ENABLE`):
+    /// `old` and `new` are what it read before and after. Notes for the trace.
+    pub fn observe_write(&mut self, off: u64, old: u32, new: u32) -> Vec<String> {
+        self.fw.observe_write(off, old, new)
+    }
+
     /// Write the dword-aligned register `off`. Returns `None` when the model does not
     /// own it, otherwise the notes the trace should carry (empty for plain writes).
     pub fn write32(&mut self, off: u64, v: u32, mem: &GuestMemory) -> Option<Vec<String>> {
@@ -1652,6 +1661,29 @@ impl BootModel {
                         ));
                         if a.label == "unanswered" {
                             self.unanswered.push(a.note.clone());
+                        }
+                        if crate::rusd::enabled() {
+                            let now = self.ctrl.channels.now_ns();
+                            if cmd == v::CMD_INTERNAL_INIT_USER_SHARED_DATA {
+                                let pa = params
+                                    .get(v::RUSD_PHYS_ADDR..v::RUSD_PHYS_ADDR + 8)
+                                    .map_or(0, |b| u64::from_le_bytes(b.try_into().unwrap()));
+                                let fb = self.ctrl.profile.fb_bytes;
+                                let f = crate::rusd::Facts {
+                                    bar1_kib: 0x4_0000,
+                                    bar1_avail_kib: 0x3_9F80,
+                                    pma_total: fb,
+                                    pma_free: fb - fb / 8,
+                                };
+                                notes.push(self.rusd.init(mem, pa, now, &f));
+                            } else if cmd == v::CMD_INTERNAL_USER_SHARED_DATA_SET_DATA_POLL {
+                                let mask = params
+                                    .get(..8)
+                                    .map_or(0, |b| u64::from_le_bytes(b.try_into().unwrap()));
+                                self.rusd.set_poll(mask);
+                                notes.push(format!("rusd: poll mask {mask:#x}"));
+                            }
+                            self.rusd.refresh(mem, now);
                         }
                         let mut reply = p[..at.min(p.len())].to_vec();
                         reply.resize(at, 0);

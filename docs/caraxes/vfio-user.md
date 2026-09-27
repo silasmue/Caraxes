@@ -110,7 +110,33 @@ because Cloud Hypervisor has no MMIO tracing for passthrough devices.
 | 3 (BAR3, RAMIN/BAR2) | 32 MiB, 64-bit, prefetch | trapped, log, read 0 |
 | 5 (I/O) | 128 B | trapped, log |
 | 6 (ROM) | 512 KiB | `rom.bin` (PCI chain) |
-| 7 (config) | 4 KiB | copy of `config-space.txt` with the BARs/ROM/MSI made writable per PCI rules; PCIe and PM caps as on the card; drop VC/LTR/L1SS/AER/VSEC/Secondary PCIe/Resizable BAR extended capabilities until a reason to keep them appears |
+| 7 (config) | 4 KiB | copy of `config-space.txt` with the BARs/ROM/MSI made writable per PCI rules; PCIe and PM caps as on the card; the extended space (0x100-0xFFF) reads 0 here unless `CARAXES_EXT_CONFIG=1`, and the BAR0 mirror `NV_PCFG` serves it (next section) |
 
 IRQs: INTX count 1 (`Interrupts: pin B`, but present as pin A for simplicity), MSI
 count 1 (64-bit, no masking), MSI-X count 0.
+
+## Extended configuration space (2026-09-25)
+
+- The reason appeared: the Windows driver (617.14) reads the extended space through
+  `NV_PCFG` (BAR0 0x88000 + offset) before any GSP contact and ends in Code 43 on zeros:
+  0x700 (then writes 0x20000 there), 0xBD8, 0xBE0, 0xBF4, 0xBFC. The last four are the
+  hidden SR-IOV block's `NV_XVE_SRIOV_CAP_HDR3/5/10/12` (turing/tu102/dev_nv_xve.h:46-53),
+  read by `kbifCacheVFInfo_TU102` (kernel_bif_tu102.c:235-282); the Linux RM reads them too.
+- RTX 2070 capture, chain from 0x100: VC 0x100, LTR 0x250, L1 PM Substates 0x258, Power
+  Budgeting 0x128, AER v2 0x420, VSEC 0x600, Secondary PCIe 0x900, Resizable BAR 0xBB0
+  (next 0). Not linked (hidden): SR-IOV 0xBCC, then ARI 0xC14; 16 GT/s 0xC1C, Lane
+  Margining 0xD00, Data Link Feature 0xE00; DVSEC 0xAC0. No Device Serial Number.
+- Served now (`config.rs` `strip_ext`, `ext_masks`): all capture bytes, in the mirror always.
+  - Cleared: SR-IOV, ARI and DSN when linked (GB206: 0x248, 0x250, 0x2F4, the chain skips
+    them); ARI and DSN anywhere else (TU106: the hidden ARI 0xC14).
+  - Kept read-only: the hidden SR-IOV block (TotalVFs 63, VF offset 4, VF BARs 64-bit, as
+    the card reports; nothing enables VFs), Resizable BAR (no resizing), capability
+    headers, AER header and prefix logs, `NV_XVE_CYA_2` 0x704 (MSI re-arm, unchanged).
+  - RW1C: AER uncorrectable and correctable status. Everything else latches.
+- Config region: already 4 KiB; it keeps reading zeros above 0xFF by default, so the
+  Linux guest and Cloud Hypervisor see what they saw before. `CARAXES_EXT_CONFIG=1` shows
+  the same bytes to the guest OS (Cloud Hypervisor nulls ARI/Rebar/SR-IOV ids itself,
+  `pci/src/vfio.rs` `parse_extended_capabilities`; QEMU hides SR-IOV and ARI). Opt-in
+  because the guest kernel then drives AER, LTR and L1SS on a model that only latches.
+- Open, Windows run only: whether Code 43 goes away with the mirror alone or needs
+  `CARAXES_EXT_CONFIG=1`, and which read comes next.

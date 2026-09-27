@@ -7,10 +7,21 @@
 //! `caraxes/reference/rtx2070/config-space.txt` for the RTX 2070) so vendor, device,
 //! subsystem, class, revision and the capability chain match the card byte for byte;
 //! the PM, MSI and PCIe capabilities are found by walking that chain. The BAR layout
-//! and the ROM BAR size come from the board data (`boards/<board>.toml`). The extended configuration space above 0x100 is zeroed: the
-//! extended capabilities of the card are not needed until a reason appears
-//! (docs/caraxes/vfio-user.md). BARs, ROM BAR, command register, MSI and the
-//! usual control words are writable under PCI rules; everything else is read-only.
+//! and the ROM BAR size come from the board data (`boards/<board>.toml`). BARs, ROM BAR,
+//! command register, MSI and the usual control words are writable under PCI rules; the
+//! rest of the standard header is read-only.
+//!
+//! The extended configuration space (0x100-0xFFF) holds the capture's bytes, because the
+//! Windows driver reads them through the BAR0 mirror `NV_PCFG` before any GSP contact
+//! (0x700, and the hidden SR-IOV block's `NV_XVE_SRIOV_CAP_HDR3/5/10/12` at 0xBD8-0xBFC,
+//! `kbifCacheVFInfo_TU102`, kernel_bif_tu102.c:235-282) and stops with Code 43 on zeros
+//! (docs/caraxes/vfio-user.md, "Extended configuration space"). SR-IOV, ARI and the Device
+//! Serial Number are unlinked from the chain and zeroed ([`strip_ext`]); a hidden SR-IOV
+//! block (TU106: 0xBCC, not reachable from 0x100) stays, read-only. Writes latch except
+//! capability headers, the SR-IOV and Resizable BAR blocks and the AER logs (read-only)
+//! and the AER status words (RW1C). The vfio-user config region shows the extended space
+//! only with [`EXT_CONFIG_ENV`]`=1`; by default the guest OS reads zeros there, as before,
+//! and only the BAR0 mirror serves it.
 
 use anyhow::{bail, Result};
 
@@ -33,6 +44,167 @@ const CAP_ID_PCIE: u8 = 0x10;
 pub const CAP_ID_MSIX: u8 = 0x11;
 /// The vendor-specific capability id (PCI Local Bus 3.0, 6.8.4).
 pub const CAP_ID_VNDR: u8 = 0x09;
+
+/// Start of the PCIe extended configuration space.
+pub const EXT_START: usize = 0x100;
+/// Extended capability ids (PCIe base spec 7.6-7.9): AER, Device Serial Number, ARI,
+/// SR-IOV, Resizable BAR.
+pub const EXT_ID_AER: u16 = 0x0001;
+pub const EXT_ID_DSN: u16 = 0x0003;
+pub const EXT_ID_ARI: u16 = 0x000E;
+pub const EXT_ID_SRIOV: u16 = 0x0010;
+pub const EXT_ID_REBAR: u16 = 0x0015;
+/// `CARAXES_EXT_CONFIG=1`: the vfio-user config region (the guest OS's view) shows the
+/// extended space too, not only the BAR0 mirror.
+pub const EXT_CONFIG_ENV: &str = "CARAXES_EXT_CONFIG";
+
+/// Whether `CARAXES_EXT_CONFIG=1` is set.
+pub fn ext_config_requested() -> bool {
+    std::env::var(EXT_CONFIG_ENV).is_ok_and(|v| v.trim() == "1")
+}
+
+fn dw(bytes: &[u8; SIZE], off: usize) -> u32 {
+    u32::from_le_bytes([bytes[off], bytes[off + 1], bytes[off + 2], bytes[off + 3]])
+}
+
+/// The linked extended capability chain from 0x100 as `(offset, id, version)`.
+pub fn ext_chain(bytes: &[u8; SIZE]) -> Vec<(usize, u16, u8)> {
+    let mut out: Vec<(usize, u16, u8)> = Vec::new();
+    let mut off = EXT_START;
+    for _ in 0..(SIZE - EXT_START) / 4 {
+        let h = dw(bytes, off);
+        if h == 0 || h == 0xFFFF_FFFF {
+            break;
+        }
+        out.push((off, h as u16, ((h >> 16) & 0xF) as u8));
+        let next = (h >> 20) as usize & !3;
+        if next < EXT_START || out.iter().any(|&(o, _, _)| o == next) {
+            break;
+        }
+        off = next;
+    }
+    out
+}
+
+/// Bytes an extended capability of `id` at `off` occupies, for the ones handled here.
+fn ext_len(bytes: &[u8; SIZE], id: u16, off: usize) -> usize {
+    match id {
+        EXT_ID_DSN => 12,
+        EXT_ID_ARI => 8,
+        EXT_ID_SRIOV => 0x40,
+        EXT_ID_AER => 0x48,
+        // Header, then one capability and one control dword per resizable BAR (the
+        // count in bits 7:5 of the first control word).
+        EXT_ID_REBAR => 4 + 8 * (((bytes[off + 8] >> 5) & 7).max(1) as usize),
+        _ => 4,
+    }
+    .min(SIZE - off)
+}
+
+/// A dword that looks like the header of extended capability `id`: version 1 and a next
+/// pointer that is 0 or a dword offset in the extended space.
+fn looks_like_header(bytes: &[u8; SIZE], off: usize, id: u16) -> bool {
+    let h = dw(bytes, off);
+    let next = (h >> 20) as usize;
+    h as u16 == id && (h >> 16) & 0xF == 1 && (next == 0 || (next >= EXT_START && next % 4 == 0))
+}
+
+/// Remove what names the physical card or a host-only function from the extended space:
+/// SR-IOV, ARI and the Device Serial Number are unlinked from the chain from 0x100 and
+/// zeroed (GB206: ARI 0x248, SR-IOV 0x250, DSN 0x2F4); an ARI or DSN outside the chain is
+/// zeroed too (TU106: the hidden ARI at 0xC14 that the hidden SR-IOV at 0xBCC leads to).
+/// A hidden SR-IOV block stays: the TU106 RM reads its read-only words through `NV_PCFG`.
+/// Returns the ranges zeroed as `(offset, length)`; they stay read-only zeros.
+pub fn strip_ext(bytes: &mut [u8; SIZE]) -> Vec<(usize, usize)> {
+    let mut zeroed = Vec::new();
+    let mut prev: Option<usize> = None;
+    for (off, id, _) in ext_chain(bytes) {
+        if !matches!(id, EXT_ID_SRIOV | EXT_ID_ARI | EXT_ID_DSN) {
+            prev = Some(off);
+            continue;
+        }
+        let next = dw(bytes, off) >> 20;
+        let len = ext_len(bytes, id, off);
+        bytes[off..off + len].fill(0);
+        zeroed.push((off, len));
+        // The previous header skips it; at 0x100 a null capability keeps the chain.
+        let at = prev.unwrap_or(EXT_START);
+        let h = if prev.is_some() {
+            dw(bytes, at) & 0x000F_FFFF
+        } else {
+            0
+        };
+        bytes[at..at + 4].copy_from_slice(&(h | (next << 20)).to_le_bytes());
+    }
+    for off in (EXT_START..SIZE).step_by(4) {
+        for id in [EXT_ID_ARI, EXT_ID_DSN] {
+            if !looks_like_header(bytes, off, id) {
+                continue;
+            }
+            let next = dw(bytes, off) & 0xFFF0_0000;
+            // A hidden SR-IOV that led here skips it.
+            for s in (EXT_START..SIZE).step_by(4) {
+                if looks_like_header(bytes, s, EXT_ID_SRIOV) && (dw(bytes, s) >> 20) as usize == off
+                {
+                    let h = (dw(bytes, s) & 0x000F_FFFF) | next;
+                    bytes[s..s + 4].copy_from_slice(&h.to_le_bytes());
+                }
+            }
+            let len = ext_len(bytes, id, off);
+            bytes[off..off + len].fill(0);
+            zeroed.push((off, len));
+        }
+    }
+    zeroed
+}
+
+/// `NV_XVE_CYA_2` (0x704, the RM's MSI re-arm, written with the value ignored): kept
+/// read-only as before the extended space was served, so the re-arm changes nothing.
+const XVE_CYA_2: usize = 0x704;
+
+/// The extended space's write rules: everything latches except capability headers, the
+/// SR-IOV and Resizable BAR blocks (no VFs, no BAR resizing in the model) and the AER
+/// logs, which are read-only, and the AER status words, which are RW1C; the `stripped`
+/// ranges stay read-only zeros. Sets `wmask` over 0x100-0xFFF and returns the RW1C mask.
+fn ext_masks(
+    bytes: &[u8; SIZE],
+    stripped: &[(usize, usize)],
+    wmask: &mut [u8; SIZE],
+) -> [u8; SIZE] {
+    let mut w1c = [0u8; SIZE];
+    wmask[EXT_START..].fill(0xFF);
+    wmask[XVE_CYA_2..XVE_CYA_2 + 4].fill(0);
+    for &(off, len) in stripped {
+        wmask[off..off + len].fill(0);
+    }
+    for (off, id, _) in ext_chain(bytes) {
+        wmask[off..off + 4].fill(0);
+        let len = ext_len(bytes, id, off);
+        match id {
+            EXT_ID_REBAR => wmask[off..off + len].fill(0),
+            EXT_ID_AER => {
+                // 0x04 uncorrectable and 0x10 correctable status: RW1C; 0x08, 0x0C, 0x14
+                // masks and severity latch; 0x18 capabilities and control: ECRC
+                // generation and check enable (bits 6, 8) only; from 0x1C: header and
+                // TLP prefix logs, read-only.
+                for st in [0x04, 0x10] {
+                    wmask[off + st..off + st + 4].fill(0);
+                    w1c[off + st..off + st + 4].fill(0xFF);
+                }
+                wmask[off + 0x18..off + 0x1C].copy_from_slice(&0x140u32.to_le_bytes());
+                wmask[off + 0x1C..off + len].fill(0);
+            }
+            _ => {}
+        }
+    }
+    for off in (EXT_START..SIZE).step_by(4) {
+        if looks_like_header(bytes, off, EXT_ID_SRIOV) {
+            let len = ext_len(bytes, EXT_ID_SRIOV, off);
+            wmask[off..off + len].fill(0);
+        }
+    }
+    w1c
+}
 
 /// Bytes a standard capability occupies: MSI-X 12, vendor-specific its length byte, other
 /// ids their two header bytes.
@@ -211,6 +383,10 @@ pub fn parse_dump(text: &str) -> Result<[u8; SIZE]> {
 pub struct ConfigSpace {
     bytes: [u8; SIZE],
     wmask: [u8; SIZE],
+    /// Write-1-to-clear bits (the AER status words).
+    w1c: [u8; SIZE],
+    /// Whether the config region (the guest OS's view) shows the extended space.
+    ext_visible: bool,
     flr: bool,
     bars: [Bar; 6],
     rom_size: u64,
@@ -221,8 +397,8 @@ pub struct ConfigSpace {
 impl ConfigSpace {
     /// Build the device's reset state from the card's dump and the board's BAR
     /// layout: host-assigned BAR addresses, bus-master/memory enables and MSI
-    /// programming are cleared; the extended space is zeroed; the write mask follows
-    /// PCI rules.
+    /// programming are cleared; SR-IOV, ARI and the serial number are stripped from the
+    /// extended space ([`strip_ext`]); the write mask follows PCI rules.
     pub fn from_dump(mut bytes: [u8; SIZE], bars: [Bar; 6], rom_size: u64) -> Result<Self> {
         if u16::from_le_bytes([bytes[0], bytes[1]]) != 0x10DE {
             bail!("config dump is not an NVIDIA device");
@@ -236,9 +412,7 @@ impl ConfigSpace {
             cap(CAP_ID_MSI, "MSI")?,
             cap(CAP_ID_PCIE, "PCI Express")?,
         );
-        for b in &mut bytes[0x100..] {
-            *b = 0;
-        }
+        let stripped = strip_ext(&mut bytes);
         bytes[REG_COMMAND] = 0;
         bytes[REG_COMMAND + 1] = 0;
         for (i, bar) in bars.iter().enumerate() {
@@ -272,9 +446,12 @@ impl ConfigSpace {
             wmask[cap_pcie + reg] = 0xFF;
             wmask[cap_pcie + reg + 1] = 0xFF;
         }
+        let w1c = ext_masks(&bytes, &stripped, &mut wmask);
         Ok(ConfigSpace {
             bytes,
             wmask,
+            w1c,
+            ext_visible: false,
             flr: false,
             bars,
             rom_size,
@@ -368,6 +545,36 @@ impl ConfigSpace {
         }
     }
 
+    /// Show the extended space in the config region ([`EXT_CONFIG_ENV`]).
+    pub fn set_ext_visible(&mut self, on: bool) {
+        self.ext_visible = on;
+    }
+
+    /// A read of the vfio-user config region: [`Self::read`], with the extended space
+    /// reading 0 unless it is visible (the BAR0 mirror always reads it).
+    pub fn region_read(&self, offset: usize, buf: &mut [u8]) {
+        self.read(offset, buf);
+        if !self.ext_visible {
+            for (i, b) in buf.iter_mut().enumerate() {
+                if (EXT_START..SIZE).contains(&(offset + i)) {
+                    *b = 0;
+                }
+            }
+        }
+    }
+
+    /// A write through the vfio-user config region: [`Self::write`], with writes to the
+    /// extended space dropped unless it is visible.
+    pub fn region_write(&mut self, offset: usize, data: &[u8]) {
+        if self.ext_visible {
+            return self.write(offset, data);
+        }
+        let n = EXT_START.saturating_sub(offset).min(data.len());
+        if n > 0 {
+            self.write(offset, &data[..n]);
+        }
+    }
+
     /// True once since the last call if a write set the Initiate Function Level
     /// Reset bit (PCIe device control bit 15); the bit itself always reads 0.
     pub fn take_flr(&mut self) -> bool {
@@ -384,6 +591,7 @@ impl ConfigSpace {
             }
             let m = self.wmask[off];
             self.bytes[off] = (self.bytes[off] & !m) | (d & m);
+            self.bytes[off] &= !(d & self.w1c[off]);
         }
         let end = offset + data.len();
         let devctl_hi = self.cap_pcie + 0x09;
@@ -458,14 +666,140 @@ mod tests {
         assert_eq!(c.ids().device_id(), 0x1F02_10DE);
         assert_eq!(c.ids().sub_device_id(), 0x4011_1458);
         assert!(!c.msi_enabled());
-        assert_eq!(c.dword(0x100), 0);
+        // The extended space holds the capture (VC at 0x100); the config region hides it.
+        assert_eq!(c.dword(0x100), 0x2501_0002);
+        let mut b = [0u8; 4];
+        c.region_read(0x100, &mut b);
+        assert_eq!(b, [0; 4]);
+    }
+
+    /// The capture's extended chain: VC, LTR, L1SS, Power Budgeting, AER, VSEC, Secondary
+    /// PCIe, Resizable BAR; no SR-IOV, ARI or DSN is linked on TU106.
+    #[test]
+    fn ext_chain_of_the_rtx2070() {
+        let c = space();
+        assert_eq!(
+            ext_chain(&c.bytes),
+            [
+                (0x100, 0x02, 1),
+                (0x250, 0x18, 1),
+                (0x258, 0x1E, 1),
+                (0x128, 0x04, 1),
+                (0x420, EXT_ID_AER, 2),
+                (0x600, 0x0B, 1),
+                (0x900, 0x19, 1),
+                (0xBB0, EXT_ID_REBAR, 1),
+            ]
+        );
+    }
+
+    /// The dwords the Windows driver reads through `NV_PCFG` before Code 43: 0x700 and
+    /// the hidden SR-IOV words 0xBD8, 0xBE0, 0xBF4, 0xBFC come from the capture.
+    #[test]
+    fn mirror_serves_the_capture_ext_dwords() {
+        let c = space();
+        for (off, v) in [
+            (0x700, 0x0002_0FFE),
+            (0xBD8, 0x003F_003F),
+            (0xBE0, 0x0001_0004),
+            (0xBF4, 0x0000_000C),
+            (0xBFC, 0x0000_000C),
+        ] {
+            assert_eq!(c.dword(off), v, "{off:#x}");
+        }
+        // Through BAR0 as well.
+        let f = crate::fixture::rtx2070();
+        let mut bar0 = crate::bar0::Bar0::new(f.chip, vec![0x55, 0xAA], None);
+        let cfg = f.config();
+        let mut b = [0u8; 4];
+        let pcfg = f.chip.data().bar0.pcfg;
+        bar0.read(
+            &cfg,
+            &crate::guestmem::GuestMemory::new(),
+            pcfg + 0x700,
+            &mut b,
+        );
+        assert_eq!(u32::from_le_bytes(b), 0x0002_0FFE);
+        bar0.read(
+            &cfg,
+            &crate::guestmem::GuestMemory::new(),
+            pcfg + 0xBD8,
+            &mut b,
+        );
+        assert_eq!(u32::from_le_bytes(b), 0x003F_003F);
+    }
+
+    /// The driver's read-modify-write at 0x700 reads back; the hidden SR-IOV block, the
+    /// Resizable BAR block and capability headers stay; AER status is RW1C; NV_XVE_CYA_2
+    /// stays read-only.
+    #[test]
+    fn ext_write_rules() {
+        let mut c = space();
+        c.write(0x700, &0x0002_0000u32.to_le_bytes());
+        assert_eq!(c.dword(0x700), 0x0002_0000);
+        c.write(0x704, &0xFFFF_FFFFu32.to_le_bytes());
+        assert_eq!(c.dword(0x704), 0);
+        for off in [0xBCC, 0xBD4, 0xBD8, 0xBF4, 0xBB8, 0xBC0, 0x100, 0x420] {
+            let before = c.dword(off);
+            c.write(off, &0x5A5A_5A5Au32.to_le_bytes());
+            assert_eq!(c.dword(off), before, "{off:#x}");
+        }
+        // AER correctable mask latches, the status clears on 1.
+        c.write(0x434, &0x0000_2000u32.to_le_bytes());
+        assert_eq!(c.dword(0x434), 0x0000_2000);
+        c.bytes[0x430] = 0x41;
+        c.write(0x430, &0x0000_0001u32.to_le_bytes());
+        assert_eq!(c.dword(0x430), 0x40);
+        // The config region drops extended writes until the space is visible.
+        c.region_write(0x708, &0x1234_5678u32.to_le_bytes());
+        assert_eq!(c.dword(0x708), 0x0987_E1ED);
+        c.set_ext_visible(true);
+        c.region_write(0x708, &0x1234_5678u32.to_le_bytes());
+        assert_eq!(c.dword(0x708), 0x1234_5678);
+        let mut b = [0u8; 4];
+        c.region_read(0x100, &mut b);
+        assert_eq!(u32::from_le_bytes(b), 0x2501_0002);
+        // A write across 0x100 keeps its standard-space part when hidden.
+        let mut h = space();
+        h.region_write(0xFC, &[0; 8]);
+        assert_eq!(h.dword(0x100), 0x2501_0002);
+    }
+
+    /// Cleared: the hidden ARI (0xC14) behind the hidden SR-IOV on TU106; on GB206 the
+    /// linked ARI, SR-IOV and DSN.
+    #[test]
+    fn stripped_capabilities_stay_zero() {
+        let mut c = space();
+        assert_eq!(c.dword(0xC14), 0);
+        assert_eq!(c.dword(0xC18), 0);
+        assert_eq!(
+            c.dword(0xBCC) >> 20,
+            0,
+            "hidden SR-IOV no longer leads to ARI"
+        );
+        c.write(0xC14, &0xFFFF_FFFFu32.to_le_bytes());
+        assert_eq!(c.dword(0xC14), 0, "a stripped capability stays zero");
+        let dump =
+            include_str!("../../../caraxes/reference/gb206/gpu-0000_01_00.0/config-space.txt");
+        let g = for_board(dump, &crate::board::Board::load("rtx5060ti").unwrap()).unwrap();
+        let ids: Vec<u16> = ext_chain(&g.bytes).iter().map(|&(_, id, _)| id).collect();
+        assert_eq!(
+            ids,
+            [0x19, 0x18, 0x15, 0x24, 0x25, 0x26, 0x2A, 0x01, 0x27, 0x0B, 0x04]
+        );
+        for (off, len) in [(0x248, 8), (0x250, 0x40), (0x2F4, 12)] {
+            assert!((off..off + len).all(|o| g.byte(o) == 0), "{off:#x}");
+        }
+        // Lane Margining (0x200) now leads to the VSEC (0x2A4), Power Budgeting ends it.
+        assert_eq!(g.dword(0x200) >> 20, 0x2A4);
+        assert_eq!(g.dword(0x2BC) >> 20, 0);
     }
 
     /// The GB206 capture (blackwell-gb206.md 1.2): PM 0x40, MSI 0x48, PCIe 0x60, the
     /// vendor-specific capability 0x9C and MSI-X 0xB0 on the card; the vendor-specific
     /// capability (UUID bytes in its PBI data dwords) is always removed, MSI-X by the
-    /// board's `msix = false`, and the extended space (SR-IOV, ARI, the serial number at
-    /// 0x2F4) is not presented.
+    /// board's `msix = false`, and SR-IOV, ARI and the serial number at 0x2F4 are stripped
+    /// from the extended space; the config region shows none of it.
     #[test]
     fn gb206_capture_without_msix() {
         let dump =
@@ -494,7 +828,9 @@ mod tests {
         // of MSI-X (0xB0) stays readable.
         assert!((0x9C..0x100).all(|o| c.byte(o) == 0));
         assert_eq!(raw[0xA8..0xAC], [0u8; 4], "redacted in the capture");
-        assert!((0x100..SIZE).all(|o| c.byte(o) == 0));
+        let mut ext = vec![0u8; SIZE - 0x100];
+        c.region_read(0x100, &mut ext);
+        assert!(ext.iter().all(|&b| b == 0));
         assert_eq!((c.cap_msi, c.cap_pcie), (0x48, 0x60));
         // The TU106 dump has no MSI-X: the filter changes nothing there.
         let mut t = parse_dump(DUMP).unwrap();
@@ -546,9 +882,14 @@ mod tests {
         let h = crate::board::Board::load("h100-on-tu106").unwrap();
         let a = for_board(dump, &g).unwrap();
         let b = for_board(dump, &h).unwrap();
-        assert_eq!((a.vendor_id(), a.device_id(), a.revision()), (0x10DE, 0x2503, 0xA1));
+        assert_eq!(
+            (a.vendor_id(), a.device_id(), a.revision()),
+            (0x10DE, 0x2503, 0xA1)
+        );
         assert_eq!(a.subsystem(), plain.subsystem());
         assert_eq!(b.subsystem(), (0x10DE, 0x1626));
-        assert!((0x08..0x100).filter(|o| !(0x2C..0x30).contains(o)).all(|o| a.byte(o) == plain.byte(o)));
+        assert!((0x08..0x100)
+            .filter(|o| !(0x2C..0x30).contains(o))
+            .all(|o| a.byte(o) == plain.byte(o)));
     }
 }

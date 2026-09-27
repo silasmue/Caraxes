@@ -508,3 +508,32 @@ fn d_model_fields_resolve_in_both_abis() {
         }
     }
 }
+
+/// NV0073_CTRL_CMD_SYSTEM_GET_HOTPLUG_CONFIG, which the Windows KMD asks at adapter start: every
+/// connector hot-plug pollable and interruptible, no events requested, none always attached.
+#[test]
+fn hotplug_config_names_every_connector() {
+    let mut disp = display();
+    let m = disp.supported_mask();
+    assert_ne!(m, 0);
+    let a = disp.control(0x0073_0109, &[0u8; 24]).unwrap();
+    assert_eq!(a.status, 0);
+    let w = |o: usize| u32::from_le_bytes(a.params[o..o + 4].try_into().unwrap());
+    assert_eq!((w(8), w(12), w(16), w(20)), (0, m, m, 0));
+}
+
+/// CARAXES_WIN_DISPLAY_QUERIES=1: the KMD's mux, sideband-I2C and ACPI DOD queries answered.
+#[test]
+fn windows_display_queries() {
+    let mut disp = display();
+    if std::env::var("CARAXES_WIN_DISPLAY_QUERIES").is_err() {
+        let a = disp.control(0x0073_013D, &[0xAAu8; 8]).unwrap();
+        assert_ne!(a.status, 0);
+        return;
+    }
+    let mut p = [0u8; 12];
+    p[4] = 0;
+    p[5] = 1;
+    let a = disp.control(0x0073_0285, &p).unwrap();
+    assert_eq!((a.status, &a.params[8..12]), (0, &[0xFFu8; 4][..]));
+}

@@ -11,8 +11,17 @@
 # The two falcon blocks (dev_falcon_v4.h, dev_fbif_v4.h, dev_riscv_pri.h): IMEM/DMEM
 # sizes in 256-byte blocks as HWCFG reports them. After GFW boot the GSP falcon sits
 # halted; the CPU checks that first.
-gsp = { base = 0x0011_0000, imem_blocks = 0x100, dmem_blocks = 0x100, riscv = true, halted = true }
-sec2 = { base = 0x0084_0000, imem_blocks = 0x100, dmem_blocks = 0x100, riscv = false, halted = false }
+# HWCFG, HWCFG1 and ITFEN are the host RTX 2070's (read-only capture of 2026-09-25): HWCFG
+# holds the same IMEM/DMEM block counts (8:0, 17:9) as the sizes here.
+gsp = { base = 0x0011_0000, imem_blocks = 0x100, dmem_blocks = 0x100, riscv = true, halted = true, hwcfg = 0x4042_0100, hwcfg1 = 0xCA10_1136, itfen = 0x1004 }
+sec2 = { base = 0x0084_0000, imem_blocks = 0x100, dmem_blocks = 0x100, riscv = false, halted = false, hwcfg = 0x4042_0100, hwcfg1 = 0xCA10_1136, itfen = 0x1007 }
+# The PMU falcon (0x10A000-0x10AFFF, FBIF at +0xE00, no RISC-V block), driven only by the
+# CPU-RM path of the Windows driver (the ACR unload; caraxes/runs/win11-2026-09-25/
+# night-2026-09-25/ANALYSIS-gsp-path.md). Reset through NV_PMC_ENABLE bit 13 (nouveau
+# gk104_mc_reset); a start raises IRQSTAT HALT.
+pmu = { base = 0x0010_A000, imem_blocks = 0x100, dmem_blocks = 0x100, riscv = false, halted = false, hwcfg = 0x400E_0100, hwcfg1 = 0xEA10_4136, itfen = 0x5, fbif = 0xE00, block_size = 0x1000, halt_irq = true, pmc_enable_bit = 13 }
+# NV_PMC_ENABLE (tu102/dev_mc.h), watched for the PMU reset.
+pmc_enable = 0x0000_0200
 # Falcon, FBIF and the RISC-V block at +0x1000.
 falcon_block_size = 0x2000
 # NV_PGSP_QUEUE_HEAD(0): the command-queue doorbell (kgspSetCmdQueueHead_TU102).
@@ -31,6 +40,12 @@ local_memory_range = 0x0010_0CE0
 # NV_PFB_PRI_MMU_WPR2_ADDR_LO/HI (dev_fb.h:42; kgspIsWpr2Up_TU102).
 wpr2_addr_lo = 0x001F_A824
 wpr2_addr_hi = 0x001F_A828
+# NV_PFB_PRI_MMU_WPR1_ADDR_LO/HI: 0 until an ACR sets WPR1 (none does in the model); the
+# ACR unload on the PMU (BOOTVEC 0x10000, linux-firmware nvidia/tu102/acr/unload_bl.bin
+# at IMEM tag 0x100) clears WPR1 and WPR2 (ANALYSIS-gsp-path.md §3 change 4).
+wpr1_addr_lo = 0x001F_A81C
+wpr1_addr_hi = 0x001F_A820
+acr_unload_bootvec = 0x1_0000
 
 # `kgspGetFrtsSize` on TU10x (docs/caraxes/gsp-boot-turing.md); used for the WPR2 high
 # address and for the fallback when guest RAM cannot be read.

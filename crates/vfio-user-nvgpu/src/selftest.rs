@@ -179,11 +179,12 @@ pub fn run(socket: &Path, e: &Expect) -> Result<Vec<String>> {
     )?;
     passed.push("boot registers".into());
 
-    let mut sig = [0u8; 2];
+    // 55 AA, or the IFR header (`NVGI`) of a card-like window (vbios.rs).
+    let mut sig = [0u8; 4];
     c.region_read(b0, windows.prom, &mut sig)?;
     ensure!(
-        sig == [0x55, 0xAA],
-        "PROM window: signature {sig:02x?}, want 55 aa"
+        sig[..2] == [0x55, 0xAA] || &sig == b"NVGI",
+        "PROM window: signature {sig:02x?}, want 55 aa or NVGI"
     );
     let mut rom_sig = [0u8; 2];
     c.region_read(VFIO_PCI_ROM_REGION_INDEX, 0, &mut rom_sig)?;

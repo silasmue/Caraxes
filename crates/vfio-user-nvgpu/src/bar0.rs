@@ -33,6 +33,9 @@ pub const SIZE: u64 = 16 << 20;
 pub const NV_PMC_BOOT_0: u64 = 0x0000_0000;
 pub const NV_PMC_BOOT_1: u64 = 0x0000_0004;
 pub const NV_PMC_BOOT_42: u64 = 0x0000_0A00;
+/// `NV_PMC_ENABLE` (tu102/dev_mc.h): latched like any unmodelled register, but its rising
+/// engine bits reset falcons in the firmware model (`FirmwareBoot::observe_write`).
+pub const NV_PMC_ENABLE: u64 = 0x0000_0200;
 
 /// The values of the three boot registers (the chip's).
 pub type Identity = BootIdentity;
@@ -101,10 +104,32 @@ impl CapturedRegisters {
         Ok(CapturedRegisters { regs })
     }
 
+    /// Load a capture; a comma-separated list of files is merged (the BAR0 capture and the
+    /// PMU/SEC2 falcon capture, `falcon-pmu-sec2-<date>.txt`). An offset in two files must
+    /// carry the same value.
     pub fn load(path: &Path) -> Result<Self, String> {
+        let s = path.to_string_lossy();
+        if s.contains(',') {
+            let mut all = CapturedRegisters::default();
+            for p in s.split(',').filter(|p| !p.is_empty()) {
+                all.merge(Self::load(Path::new(p))?)
+                    .map_err(|e| format!("{p}: {e}"))?;
+            }
+            return Ok(all);
+        }
         let text =
             std::fs::read_to_string(path).map_err(|e| format!("read {}: {e}", path.display()))?;
         Self::parse(&text).map_err(|e| format!("{}: {e}", path.display()))
+    }
+
+    /// Add `other`'s registers; an offset both hold must carry the same value.
+    pub fn merge(&mut self, other: CapturedRegisters) -> Result<(), String> {
+        for (off, v) in other.regs {
+            if self.regs.insert(off, v).is_some_and(|old| old != v) {
+                return Err(format!("offset {off:#x} captured twice with different values"));
+            }
+        }
+        Ok(())
     }
 
     /// The newest capture in `dir` (the greatest `bar0-registers-*.txt` name; the date
@@ -258,8 +283,16 @@ impl Bar0 {
         &self.rom
     }
 
+    /// The image behind the PROM window, byte for byte at its window offsets.
     pub fn vbios(&self) -> &[u8] {
         &self.vbios
+    }
+
+    /// The first PCI image of the PROM window image, located as the RM does (at 0, through
+    /// the IFR header, or by scanning; vbios.rs): what the device derives from the VBIOS
+    /// for itself starts there, not at offset 0.
+    pub fn vbios_image(&self) -> Option<crate::vbios::PciImage> {
+        crate::vbios::locate(&self.vbios)
     }
 
     /// Device reset (vfio-user reset or a PCI function-level reset): latched
@@ -397,12 +430,26 @@ impl Bar0 {
                 }
             }
         }
+        // NV_PMC_ENABLE latches; the firmware model watches its engine bits (the PMU reset).
+        let pmc = offset & !3 == NV_PMC_ENABLE;
+        let old = pmc.then(|| {
+            self.latched
+                .get(&NV_PMC_ENABLE)
+                .copied()
+                .or_else(|| self.captured.as_ref().and_then(|c| c.get(NV_PMC_ENABLE)))
+                .unwrap_or(0)
+        });
         for (i, &b) in data.iter().enumerate() {
             let off = offset + i as u64;
             let reg = off & !3;
             let shift = (off & 3) * 8;
             let v = self.latched.entry(reg).or_insert(0);
             *v = (*v & !(0xFF << shift)) | ((b as u32) << shift);
+        }
+        if let (Some(old), Some(boot)) = (old, self.boot.as_mut()) {
+            let new = self.latched.get(&NV_PMC_ENABLE).copied().unwrap_or(0);
+            self.notes
+                .extend(boot.observe_write(NV_PMC_ENABLE, old, new));
         }
         WriteEffect::Latched
     }
@@ -569,6 +616,112 @@ mod tests {
         assert_eq!(house.len(), 7941);
         assert!(house.check_identity(0x1660_00A1).is_ok());
         assert_eq!(house.get(0x1373A0), Some(0xA));
+    }
+
+    /// The card's PROM window (IFR header at 0, the image chain at 0x28600) is served at
+    /// its real offsets; the device locates its PCI image through the IFR.
+    #[test]
+    fn the_ifr_headed_prom_window_is_served_as_on_the_card() {
+        let window =
+            include_bytes!("../../../caraxes/reference/rtx2070/prom-window-2026-09-25.bin");
+        let f = crate::fixture::rtx2070();
+        let mut bar0 = Bar0::new(f.chip, vec![0x55, 0xAA], Some(window.to_vec()));
+        let cfg = f.config();
+        let mut b = [0u8; 4];
+        bar0.read(&cfg, &GuestMemory::new(), NV_PROM_DATA, &mut b);
+        assert_eq!(&b, b"NVGI");
+        bar0.read(&cfg, &GuestMemory::new(), NV_PROM_DATA + 0x28600, &mut b);
+        assert_eq!(b[..2], [0x55, 0xAA]);
+        bar0.read(&cfg, &GuestMemory::new(), NV_PROM_DATA + 0x78000, &mut b);
+        assert_eq!(&b, b"NVGI", "the second copy");
+        bar0.read(&cfg, &GuestMemory::new(), NV_PROM_DATA + 0xFFFFC, &mut b);
+        assert_eq!(u32::from_le_bytes(b), 0xFFFF_FFFF);
+        let i = bar0.vbios_image().unwrap();
+        assert_eq!((i.offset, i.device, i.bit), (0x28600, 0x1F02, Some(0x1B0)));
+        // An image that starts with 55 AA is found at 0, as before.
+        let plain = Bar0::new(f.chip, window[0x28600..0x48200].to_vec(), None);
+        assert_eq!(plain.vbios_image().unwrap().offset, 0);
+    }
+
+    /// NV_PMC_ENABLE stays a latch (read back as written, the capture before), and its
+    /// bit 13 rising from the captured 0xd0fdd1c1 resets the PMU falcon.
+    #[test]
+    fn pmc_enable_latches_and_resets_the_pmu() {
+        let house = CapturedRegisters::parse(include_str!(
+            "../../../caraxes/reference/rtx2070/bar0-registers-2026-09-25.txt"
+        ))
+        .unwrap();
+        let (bar0, mut cfg) = parts();
+        let mem = GuestMemory::new();
+        let f = crate::fixture::rtx2070();
+        let mut bar0 = bar0
+            .with_boot_model(BootModel::new(
+                f.chip,
+                crate::fb::FbLayout::plain(4 << 30),
+                f.identity(4 << 30),
+            ))
+            .with_captured(house);
+        let mut b = [0u8; 4];
+        bar0.read(&cfg, &mem, NV_PMC_ENABLE, &mut b);
+        assert_eq!(u32::from_le_bytes(b), 0xD0FD_D1C1);
+        bar0.write(
+            &mut cfg,
+            &mem,
+            0x10A000 + crate::falcon::DMEMC0,
+            &0x100_0010u32.to_le_bytes(),
+        );
+        assert_eq!(
+            bar0.write(&mut cfg, &mem, NV_PMC_ENABLE, &0xD1FD_FFD1u32.to_le_bytes()),
+            WriteEffect::Latched
+        );
+        assert!(bar0.take_notes().iter().any(|n| n.contains("pmu reset")));
+        bar0.read(&cfg, &mem, NV_PMC_ENABLE, &mut b);
+        assert_eq!(u32::from_le_bytes(b), 0xD1FD_FFD1);
+        bar0.read(&cfg, &mem, 0x10A000 + crate::falcon::DMEMC0, &mut b);
+        assert_eq!(u32::from_le_bytes(b), 0);
+    }
+
+    /// A falcon-block register the model has no value for falls through to the capture
+    /// (GSP 0x110ABC reads 0x20 as on the RTX 2070); the falcon offsets the Linux 615 guest
+    /// reads at boot (vm4-615 gpu-trace.log) keep the model's answers, and a written
+    /// register reads back as written.
+    #[test]
+    fn unmodelled_falcon_registers_read_the_capture() {
+        let house = CapturedRegisters::parse(include_str!(
+            "../../../caraxes/reference/rtx2070/bar0-registers-2026-09-25.txt"
+        ))
+        .unwrap();
+        let (bar0, mut cfg) = parts();
+        let mem = GuestMemory::new();
+        let f = crate::fixture::rtx2070();
+        let model = || {
+            BootModel::new(
+                f.chip,
+                crate::fb::FbLayout::plain(4 << 30),
+                f.identity(4 << 30),
+            )
+        };
+        let mut bar0 = bar0.with_boot_model(model()).with_captured(house);
+        let (plain, _) = parts();
+        let mut plain = plain.with_boot_model(model());
+        let rd = |bar0: &mut Bar0, cfg: &ConfigSpace, off: u64| {
+            let mut b = [0u8; 4];
+            bar0.read(cfg, &mem, off, &mut b);
+            (u32::from_le_bytes(b), bar0.take_captured())
+        };
+        assert_eq!(rd(&mut bar0, &cfg, 0x110ABC), (0x20, true));
+        assert_eq!(rd(&mut plain, &cfg, 0x110ABC), (0, false));
+        // The Linux 615 boot's falcon reads: same values with and without the capture.
+        for off in [
+            0x110008, 0x110018, 0x11001C, 0x110040, 0x110044, 0x110094, 0x1100F4, 0x110100,
+            0x110108, 0x11010C, 0x1103C0, 0x110610, 0x110624, 0x110C04, 0x110C80, 0x111240,
+            0x840040, 0x840044, 0x840100, 0x84010C, 0x8403C0, 0x840624, 0x110AC0, 0x110AC4,
+        ] {
+            let with = rd(&mut bar0, &cfg, off);
+            assert_eq!(with, (rd(&mut plain, &cfg, off).0, false), "{off:#x}");
+        }
+        bar0.write(&mut cfg, &mem, 0x110ABC, &7u32.to_le_bytes());
+        assert_eq!(rd(&mut bar0, &cfg, 0x110ABC), (7, false));
     }
 
     /// The L2 cache-operation registers (`NV_UFLUSH_*`, gm200/dev_flush.h, and the

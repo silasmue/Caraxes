@@ -11,16 +11,32 @@
 
 use std::collections::BTreeMap;
 
+/// `NV_PFALCON_FALCON_IRQSSET`/`IRQSCLR`/`IRQSTAT` (tu102/dev_falcon_v4.h): set, clear
+/// and status of the falcon's interrupts; bit 4 is HALT.
+pub const IRQSSET: u64 = 0x000;
+pub const IRQSCLR: u64 = 0x004;
+pub const IRQSTAT: u64 = 0x008;
 pub const MAILBOX0: u64 = 0x040;
 pub const MAILBOX1: u64 = 0x044;
+/// `NV_PFALCON_FALCON_ITFEN`: the interface enables (the host card: GSP 0x1004, SEC2
+/// 0x1007, PMU 0x5).
+pub const ITFEN: u64 = 0x048;
 pub const OS: u64 = 0x080;
 pub const RM: u64 = 0x084;
 pub const DEBUGINFO: u64 = 0x094;
+/// `NV_PFALCON_FALCON_ENGCTL`: bits 3:0 are write-only triggers (bit 1 SET_STALLREQ, bit 3
+/// SWITCH_CONTEXT, nouveau `gm200_flcn_bind_inst`); a stall request is acknowledged in the
+/// status bits (STALLACK_T 9, STALLACK_N 10, recalled layout; not in the vendored headers).
+/// The Windows driver writes 0x2 to the PMU's and polls for the acknowledge
+/// (caraxes/runs/win11-2026-09-25/night-2026-09-25/ANALYSIS-gsp-path.md §1).
+pub const ENGCTL: u64 = 0x0A4;
 pub const HWCFG2: u64 = 0x0F4;
 pub const CPUCTL: u64 = 0x100;
 pub const BOOTVEC: u64 = 0x104;
 pub const HWCFG: u64 = 0x108;
 pub const DMACTL: u64 = 0x10C;
+/// `NV_PFALCON_FALCON_HWCFG1`: core revision and security model (read-only).
+pub const HWCFG1: u64 = 0x12C;
 /// `NV_PFALCON_FALCON_DMATRFCMD` (ampere/ga102/dev_falcon_v4.h:57-71): `_FULL` 0:0 and
 /// `_IDLE` 1:1 read-only. The GA102-family HS path (`kgspExecuteHsFalcon_GA102`,
 /// kernel_gsp_falcon_ga102.c:184) DMAs the ucode itself and polls FULL false before and
@@ -57,6 +73,54 @@ const RISCV_CPUCTL_ACTIVE_STAT: u32 = 1 << 7;
 /// Size of the block in bytes (falcon, FBIF and the RISC-V block).
 pub const BLOCK_SIZE: u64 = 0x2000;
 
+/// Block-relative ranges the model answers even when never written (reads there never
+/// fall through to the capture, [`Falcon::answers`]): the falcon core registers 0x000-0x13F
+/// (IRQ, mailboxes, OS/RM, DEBUGINFO, HWCFG/HWCFG2, CPUCTL, BOOTVEC, DMA), the IMEM/DMEM
+/// ports, `ENGINE`, the EMEM ports 0xAC0-0xADF, the queue registers 0xC00-0xCFF
+/// (`NV_PGSP_QUEUE_*`/`MSGQ_*`, answered by the boot model before the falcon) and the
+/// whole RISC-V block from 0x1000; and the block's FBIF (0x100 bytes at 0x600 on GSP and
+/// SEC2, 0xE00 on the PMU).
+const MODELLED: [std::ops::Range<u64>; 6] = [
+    0x000..0x140,
+    IMEMC0..0x200,
+    ENGINE..ENGINE + 4,
+    0xAC0..0xAE0,
+    0xC00..0xD00,
+    0x1000..BLOCK_SIZE,
+];
+/// FBIF offset of GSP and SEC2 (`dev_fbif_v4.h`); the PMU's sits at 0xE00.
+pub const FBIF_DEFAULT: u64 = 0x600;
+const ENGCTL_TRIGGERS: u32 = 0xF;
+const ENGCTL_SET_STALLREQ: u32 = 1 << 1;
+/// STALLACK_T and STALLACK_N: status, never written.
+const ENGCTL_STALLACK_BITS: u32 = 0x600;
+/// What `ENGCTL` reads after a stall request: STALLACK_T (bit 9).
+pub const STALLACK_DEFAULT: u32 = 0x200;
+/// `CARAXES_FALCON_STALLACK=<hex>`: what `ENGCTL` reads after a stall request instead of
+/// 0x200 (the night runs try 0x0 and 0x600 if the driver's poll does not end).
+pub const STALLACK_ENV: &str = "CARAXES_FALCON_STALLACK";
+const IRQ_HALT: u32 = 1 << 4;
+
+/// `CARAXES_FALCON_STALLACK` when set: `Ok(None)` unset, `Err` for a value that is no
+/// 32-bit hex number.
+pub fn stallack_from_env() -> Result<Option<u32>, String> {
+    match std::env::var(STALLACK_ENV) {
+        Err(_) => Ok(None),
+        Ok(v) => u32::from_str_radix(v.trim().trim_start_matches("0x"), 16)
+            .map(Some)
+            .map_err(|e| format!("{STALLACK_ENV}={v:?}: {e}")),
+    }
+}
+
+/// The identity registers of a falcon as the host card reads them (boot.toml): `HWCFG`
+/// (`None`: computed from the IMEM/DMEM sizes), `HWCFG1` and the reset value of `ITFEN`.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct Ids {
+    pub hwcfg: Option<u32>,
+    pub hwcfg1: u32,
+    pub itfen: u32,
+}
+
 const CPUCTL_STARTCPU: u32 = 1 << 1;
 const CPUCTL_HALTED: u32 = 1 << 4;
 const ENGINE_RESET: u32 = 1;
@@ -91,6 +155,13 @@ pub struct Falcon {
     /// falcon offset: where the ucode's DMEM image starts in guest memory (the FWSEC data
     /// image of the GA102-family boot, which DMAs instead of loading through the ports).
     dmem_dma_src: Option<u64>,
+    ids: Ids,
+    fbif: u64,
+    /// A start raises `IRQSTAT` HALT, and `IRQSSET`/`IRQSCLR` act on `IRQSTAT` (the PMU;
+    /// GSP and SEC2 keep their latches, which the Linux path depends on).
+    halt_irq: bool,
+    /// What `ENGCTL` reads after a stall request.
+    stallack: u32,
 }
 
 impl Falcon {
@@ -117,7 +188,41 @@ impl Falcon {
             resets: 0,
             regs: BTreeMap::new(),
             dmem_dma_src: None,
+            ids: Ids::default(),
+            fbif: FBIF_DEFAULT,
+            halt_irq: false,
+            stallack: STALLACK_DEFAULT,
         }
+    }
+
+    /// The host card's identity registers.
+    pub fn with_ids(mut self, ids: Ids) -> Self {
+        self.ids = ids;
+        self
+    }
+
+    /// The FBIF block's offset (0xE00 on the PMU).
+    pub fn with_fbif(mut self, fbif: u64) -> Self {
+        self.fbif = fbif;
+        self
+    }
+
+    /// Model `IRQSTAT` HALT on a start and the set/clear registers.
+    pub fn with_halt_irq(mut self, on: bool) -> Self {
+        self.halt_irq = on;
+        self
+    }
+
+    /// What `ENGCTL` reads after a stall request.
+    pub fn with_stallack(mut self, v: u32) -> Self {
+        self.stallack = v;
+        self
+    }
+
+    /// The reset of a falcon whose engine is reset from outside (`NV_PMC_ENABLE` for the
+    /// PMU): the same post-reset state as a `FALCON_ENGINE` reset.
+    pub fn reset_block(&mut self) {
+        self.reset();
     }
 
     /// Where the DMEM image of the last DMA-loaded ucode starts in guest memory.
@@ -170,6 +275,18 @@ impl Falcon {
         self.regs.get(&off).copied().unwrap_or(0)
     }
 
+    /// Whether the model answers a read of the block-relative offset `off` itself: inside
+    /// `MODELLED` (the registers it names and the ones the boot model and the RM path
+    /// depend on), or written since the last reset. Elsewhere an unwritten register has no
+    /// model value, and the caller may answer it from the physical card's capture
+    /// (bar0.rs `CapturedRegisters`), e.g. 0xABC next to `NV_PGSP_EMEMC` (0x20 on the
+    /// RTX 2070), which the Windows driver reads.
+    pub fn answers(&self, off: u64) -> bool {
+        MODELLED.iter().any(|r| r.contains(&off))
+            || (self.fbif..self.fbif + 0x100).contains(&off)
+            || self.regs.contains_key(&off)
+    }
+
     fn hwcfg(&self) -> u32 {
         let imem = (self.imem.len() / 256) as u32 & 0x1FF;
         let dmem = (self.dmem.len() / 256) as u32 & 0x1FF;
@@ -196,7 +313,10 @@ impl Falcon {
     pub fn read32(&mut self, off: u64) -> u32 {
         match off {
             CPUCTL | CPUCTL_ALIAS => u32::from(self.halted) * CPUCTL_HALTED,
-            HWCFG => self.hwcfg(),
+            HWCFG => self.ids.hwcfg.unwrap_or_else(|| self.hwcfg()),
+            HWCFG1 => self.ids.hwcfg1,
+            ITFEN => self.regs.get(&ITFEN).copied().unwrap_or(self.ids.itfen),
+            ENGCTL => self.reg(ENGCTL) & !ENGCTL_TRIGGERS,
             HWCFG2 => u32::from(self.riscv_capable) * HWCFG2_RISCV,
             DMACTL => 0,
             DMATRFCMD => (self.reg(DMATRFCMD) & !DMATRFCMD_FULL) | DMATRFCMD_IDLE,
@@ -239,10 +359,36 @@ impl Falcon {
                 }
                 None
             }
+            ENGCTL => {
+                let ack = if v & ENGCTL_SET_STALLREQ != 0 {
+                    self.stallack
+                } else {
+                    0
+                };
+                self.regs.insert(
+                    ENGCTL,
+                    (v & !(ENGCTL_TRIGGERS | ENGCTL_STALLACK_BITS)) | ack,
+                );
+                None
+            }
+            IRQSCLR if self.halt_irq => {
+                let s = self.reg(IRQSTAT);
+                self.regs.insert(IRQSTAT, s & !v);
+                None
+            }
+            IRQSSET if self.halt_irq => {
+                let s = self.reg(IRQSTAT);
+                self.regs.insert(IRQSTAT, s | v);
+                None
+            }
             CPUCTL | CPUCTL_ALIAS => {
                 if v & CPUCTL_STARTCPU != 0 {
                     self.runs += 1;
                     self.halted = true;
+                    if self.halt_irq {
+                        let s = self.reg(IRQSTAT);
+                        self.regs.insert(IRQSTAT, s | IRQ_HALT);
+                    }
                     return Some(Event::Halted { run: self.runs });
                 }
                 None
@@ -292,14 +438,16 @@ impl Falcon {
                 // (BASE1:BASE << 8) + FBOFFS into falcon memory at MOFFS; the first DMEM
                 // chunk locates the image. Nothing is copied: the ucode never runs.
                 if v & DMATRFCMD_IMEM == 0 && self.dmem_dma_src.is_none() {
-                    let base = ((self.reg(DMATRFBASE1) as u64 & 0x1FF) << 32 | self.reg(DMATRFBASE) as u64) << 8;
+                    let base = ((self.reg(DMATRFBASE1) as u64 & 0x1FF) << 32
+                        | self.reg(DMATRFBASE) as u64)
+                        << 8;
                     let src = base + self.reg(DMATRFFBOFFS) as u64;
                     self.dmem_dma_src = src.checked_sub(self.reg(DMATRFMOFFS) as u64);
                 }
                 self.regs.insert(DMATRFCMD, v);
                 None
             }
-            HWCFG | HWCFG2 | DEBUGINFO | RISCV_STATUS | RISCV_CPUCTL => None,
+            HWCFG | HWCFG1 | HWCFG2 | DEBUGINFO | RISCV_STATUS | RISCV_CPUCTL => None,
             o => {
                 self.regs.insert(o, v);
                 None
@@ -311,6 +459,30 @@ impl Falcon {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// ENGCTL: the triggers (3:0) read 0; a stall request (bit 1) reads the acknowledge,
+    /// STALLACK_T 0x200 by default or the configured answer.
+    #[test]
+    fn engctl_stall_request_is_acknowledged() {
+        let mut f = Falcon::new("pmu", false, 0x100, 0x100, false);
+        assert_eq!(f.read32(ENGCTL), 0);
+        f.write32(ENGCTL, 0x8);
+        assert_eq!(f.read32(ENGCTL), 0);
+        f.write32(ENGCTL, 0x2);
+        assert_eq!(f.read32(ENGCTL), 0x200);
+        // A later write without the request drops the acknowledge.
+        f.write32(ENGCTL, 0x0);
+        assert_eq!(f.read32(ENGCTL), 0);
+        for ack in [0x0, 0x600] {
+            let mut g = Falcon::new("pmu", false, 0x100, 0x100, false).with_stallack(ack);
+            g.write32(ENGCTL, 0x2);
+            assert_eq!(g.read32(ENGCTL), ack);
+        }
+        // A reset clears it.
+        f.write32(ENGCTL, 0x2);
+        f.reset_block();
+        assert_eq!(f.read32(ENGCTL), 0);
+    }
 
     #[test]
     fn reset_load_start_halt() {

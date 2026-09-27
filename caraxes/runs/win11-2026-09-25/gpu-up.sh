@@ -23,7 +23,11 @@ die() { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
 [[ -s $CONFIG ]] || die "no config dump $CONFIG"
 [[ -s $W/gpu.pid ]] && kill -0 "$(cat "$W/gpu.pid")" 2>/dev/null && die "device already running (pid $(cat "$W/gpu.pid"))"
 rm -f "$W/gpu.sock"
-args=(--boot-model --display --fb-mib "${WIN_GPU_FB_MIB:-1024}")
+args=(--boot-model --fb-mib "${WIN_GPU_FB_MIB:-1024}")
+# WIN_GPU_DISPLAY=0: headless (the display fuse reads 1, no display engine), as in E0-E5.
+[[ ${WIN_GPU_DISPLAY:-1} == 1 ]] && args+=(--display)
+# WIN_GPU_EXTRA: further device flags, word-split (gpu-up-host.sh passes --host-rm).
+[[ -n ${WIN_GPU_EXTRA:-} ]] && read -ra extra <<< "$WIN_GPU_EXTRA" && args+=("${extra[@]}")
 # WIN_GPU_BOARD: a board-data file for a costume (crates/vfio-user-nvgpu/boards/tesla-t4-on-tu106.toml:
 # the card as a Tesla T4 for the data-centre driver's TCC path).
 [[ -n ${WIN_GPU_BOARD:-} ]] && args+=(--board-data "$WIN_GPU_BOARD")
@@ -46,4 +50,4 @@ LEA_ROOT=$LEA_ROOT "$SERVER" --socket "$W/gpu.sock" --trace "$W/gpu-trace.log" \
 echo $! > "$W/gpu.pid"
 for _ in $(seq 50); do [[ -S $W/gpu.sock ]] && break; sleep 0.1; done
 [[ -S $W/gpu.sock ]] || { cat "$W/gpu.log"; die "the device did not create $W/gpu.sock"; }
-echo "device up: pid $(cat "$W/gpu.pid"), pure emulation, config $CONFIG, rom $ROM, vbios ${WIN_GPU_VBIOS:-(rom)}, FB ${WIN_GPU_FB_MIB:-1024} MiB, socket $W/gpu.sock, log $W/gpu.log, trace $W/gpu-trace.log"
+echo "device up: pid $(cat "$W/gpu.pid"), ${WIN_GPU_EXTRA:-pure emulation}, config $CONFIG, rom $ROM, vbios ${WIN_GPU_VBIOS:-(rom)}, FB ${WIN_GPU_FB_MIB:-1024} MiB, socket $W/gpu.sock, log $W/gpu.log, trace $W/gpu-trace.log"

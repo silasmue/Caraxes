@@ -73,6 +73,12 @@ pub trait FirmwareBoot: Send {
     fn queue_registers(&self) -> Option<QueueRegisters> {
         None
     }
+    /// A write to a register the model watches but does not own (it latches in BAR0 and
+    /// reads back as written, or from the capture before): `NV_PMC_ENABLE`, whose rising
+    /// engine bits reset falcons. `old` is what the register read before. Notes for the trace.
+    fn observe_write(&mut self, _off: u64, _old: u32, _new: u32) -> Vec<String> {
+        Vec::new()
+    }
 }
 
 /// `NV_PGSP_QUEUE_HEAD/TAIL(0)` and `NV_PGSP_MSGQ_HEAD/TAIL(0)`: the CPU writes the

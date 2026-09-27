@@ -1,0 +1,70 @@
+
+
+Name                    : NVIDIA GeForce RTX 2070
+Status                  : OK
+ConfigManagerErrorCode  : 0
+DriverVersion           : 32.0.16.1714
+DriverDate              : 17.09.2026 02:00:00
+AdapterRAM              : 1073741824
+VideoProcessor          : Leandro VFIO RTX 2070-1G
+PNPDeviceID             : PCI\VEN_10DE&DEV_1F02&SUBSYS_40111458&REV_A1\3&11583659&0&30
+InstalledDisplayDrivers : C:\WINDOWS\System32\DriverStore\FileRepository\nv_dispi.inf_amd64_da865124972e1f80\nvldumdx.dll,C:\WINDOWS\System32\DriverStore\FileRepository\nv_dispi.inf_amd64_da865124972e
+                          1f80\nvldumdx.dll,C:\WINDOWS\System32\DriverStore\FileRepository\nv_dispi.inf_amd64_da865124972e1f80\nvldumdx.dll,C:\WINDOWS\System32\DriverStore\FileRepository\nv_dispi.inf_
+                          amd64_da865124972e1f80\nvldumdx.dll
+
+Name                    : Microsoft Basic Display Adapter
+Status                  : OK
+ConfigManagerErrorCode  : 0
+DriverVersion           : 10.0.26100.1
+DriverDate              : 21.06.2006 02:00:00
+AdapterRAM              : 0
+VideoProcessor          : 
+PNPDeviceID             : PCI\VEN_1234&DEV_1111&SUBSYS_11001AF4&REV_02\3&11583659&0&08
+InstalledDisplayDrivers : 
+
+
+
+
+
+KeyName                                       Data
+-------                                       ----
+DEVPKEY_Device_ProblemCode                       0
+DEVPKEY_Device_IsPresent                      True
+DEVPKEY_Device_HasProblem                    False
+DEVPKEY_Device_LastArrivalDate 26.09.2026 03:34:22
+DEVPKEY_Device_DriverVersion          32.0.16.1714
+DEVPKEY_Device_DriverProvider               NVIDIA
+
+
+
+
+
+
+TimeCreated : 26.09.2026 03:30:19
+Id          : 457
+Message     : Miniport driver failed to start device with status {Vorgang fehlgeschlagen}
+              Der Vorgang konnte nicht durchgef�hrt werden.
+
+TimeCreated : 26.09.2026 03:30:19
+Id          : 549
+Message     : Adapter start failed for VendorId (0x10DE) failed with the status ({Vorgang fehlgeschlagen}
+              Der Vorgang konnte nicht durchgef�hrt werden.), reason (StartAdapter_DdiStartDeviceFailed)
+
+TimeCreated : 26.09.2026 03:25:25
+Id          : 457
+Message     : Miniport driver failed to start device with status {Vorgang fehlgeschlagen}
+              Der Vorgang konnte nicht durchgef�hrt werden.
+
+TimeCreated : 26.09.2026 03:25:25
+Id          : 549
+Message     : Adapter start failed for VendorId (0x10DE) failed with the status ({Vorgang fehlgeschlagen}
+              Der Vorgang konnte nicht durchgef�hrt werden.), reason (StartAdapter_DdiStartDeviceFailed)
+
+TimeCreated : 26.09.2026 03:16:58
+Id          : 457
+Message     : Miniport driver failed to start device with status Nicht ausreichend Systemressourcen, um die API abzuschlie�en.
+
+
+
+
+[exit 0]

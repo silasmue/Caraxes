@@ -245,6 +245,9 @@ pub struct Channel {
 }
 
 /// Everything the device knows about the guest's channels.
+/// `NV01_DEVICE_0`.
+const NV01_DEVICE_0_CLASS: u32 = 0x80;
+
 pub struct Registry {
     /// The chip's channel, copy and UVM software classes.
     classes: ChannelClasses,
@@ -277,6 +280,11 @@ pub struct Registry {
     /// handle, `COPY_SERVER_RESERVED_PDES` on it and its FREE
     /// (gpu_vaspace.c:3877-3921); the root then lives on under `(hClient, hDevice)`.
     device_vas: BTreeMap<(u32, u32), u32>,
+    /// hClient → hClientShare of its `NV01_DEVICE_0` (`NV0080_ALLOC_PARAMETERS.hClientShare`
+    /// @4): a client whose device shares another client's VA space. The Windows KMD opens one
+    /// client per channel with the device sharing its main client's VAS; a channel there that
+    /// names no VAS runs in the share client's default VAS.
+    client_share: BTreeMap<u32, u32>,
     /// ChID → channel.
     channels: BTreeMap<u32, Channel>,
     /// Device clock base for semaphore timestamps.
@@ -328,6 +336,7 @@ impl Registry {
             aliases: BTreeMap::new(),
             promoted: BTreeMap::new(),
             device_vas: BTreeMap::new(),
+            client_share: BTreeMap::new(),
             channels: BTreeMap::new(),
             start: Some(std::time::Instant::now()),
             doorbells: 0,
@@ -440,6 +449,7 @@ impl Registry {
             .filter(|((c, _), r)| *c == ch.h_client && r.is_some());
         match (roots.next(), roots.next()) {
             (Some((k, _)), None) => Some(*k),
+            (None, _) if ch.vas.is_none() => self.shared_default_key(ch.h_client),
             _ => None,
         }
     }
@@ -554,6 +564,14 @@ impl Registry {
         params: &[u8],
     ) -> Option<String> {
         match h_class {
+            NV01_DEVICE_0_CLASS => {
+                let share = rd32(params, 4);
+                if share != 0 && share != h_client {
+                    self.client_share.insert(h_client, share);
+                    return Some(format!("device {h_object:#x} shares the VA space of client {share:#x} [guest]"));
+                }
+                None
+            }
             FERMI_VASPACE_A => {
                 // NV_VASPACE_ALLOCATION_PARAMETERS.index @0; GPU_DEVICE 3 (nvos.h:3178).
                 if rd32(params, 0) == VAS_INDEX_GPU_DEVICE {
@@ -924,6 +942,30 @@ impl Registry {
             .filter(|((c, _), r)| *c == ch.h_client && r.is_some());
         match (roots.next(), roots.next()) {
             (Some((_, r)), None) => *r,
+            (None, _) if ch.vas.is_none() => self
+                .shared_default_key(ch.h_client)
+                .and_then(|k| self.vaspaces.get(&k).copied().flatten()),
+            _ => None,
+        }
+    }
+
+    /// The default VAS of the client a client's device shares (`client_share`): the key kept
+    /// under the share client's device (announced through a GPU_DEVICE vaspace), else that
+    /// client's only VAS with a root.
+    fn shared_default_key(&self, h_client: u32) -> Option<(u32, u32)> {
+        let share = *self.client_share.get(&h_client)?;
+        let dev = self
+            .device_vas
+            .iter()
+            .filter(|((c, _), _)| *c == share)
+            .map(|(_, d)| (share, *d))
+            .find(|k| self.vaspaces.get(k).copied().flatten().is_some());
+        if dev.is_some() {
+            return dev;
+        }
+        let mut roots = self.vaspaces.iter().filter(|((c, _), r)| *c == share && r.is_some());
+        match (roots.next(), roots.next()) {
+            (Some((k, _)), None) => Some(*k),
             _ => None,
         }
     }
@@ -2515,6 +2557,36 @@ mod tests {
         let n = reg.record_server_reserved_pdes(2, 0x21, &pdes);
         assert!(!n.contains("default VAS"), "{n}");
         assert_eq!(reg.vas_root((2, 0x80)), None);
+    }
+
+    /// The Windows KMD opens one client per channel whose device shares the main client's VA
+    /// space (hClientShare): a channel there that names no VAS runs in the share client's
+    /// device default VAS.
+    #[test]
+    fn a_channel_of_a_sharing_client_runs_in_the_share_clients_default_vas() {
+        let mut reg = Registry::new(classes());
+        let mut vp = vec![0u8; 56];
+        vp[..4].copy_from_slice(&VAS_INDEX_GPU_DEVICE.to_le_bytes());
+        reg.record_alloc(1, 0x80, 0xcaf0_0000, FERMI_VASPACE_A, &vp);
+        let mut pdes = vec![0u8; 40 + 24 * 6];
+        pdes[40..48].copy_from_slice(&0x1_2729_d000u64.to_le_bytes());
+        pdes[56..60].copy_from_slice(&1u32.to_le_bytes());
+        reg.record_server_reserved_pdes(1, 0xcaf0_0000, &pdes);
+        reg.record_free(1, 0xcaf0_0000);
+        // Client 2's device shares client 1.
+        let mut dp = vec![0u8; 56];
+        dp[4..8].copy_from_slice(&1u32.to_le_bytes());
+        let n = reg.record_alloc(2, 2, 0x90, NV01_DEVICE_0_CLASS, &dp).unwrap();
+        assert!(n.contains("shares the VA space of client 0x1"), "{n}");
+        let mut cp = channel_params(5, 0x1_2007_0000, 0x20_0000, 0);
+        let o = <Abi as RmAbi>::ALLOC_CHANNEL_PARAMS_OFF_engineType;
+        cp[o..o + 4].copy_from_slice(&0xBu32.to_le_bytes());
+        reg.record_alloc(2, 0x90, 0x14, TURING_CHANNEL_GPFIFO_A, &cp).unwrap();
+        let ch = reg.channel(5).unwrap().clone();
+        assert_eq!(reg.root_of(&ch), Some(Target::Fb(0x1_2729_d000)));
+        assert_eq!(reg.vas_key_of(&ch), Some((1, 0x80)));
+        // A device without a share records nothing.
+        assert!(reg.record_alloc(3, 3, 0x91, NV01_DEVICE_0_CLASS, &[0u8; 56]).is_none());
     }
 
     /// A falcon engine promotes its context by VA alone (entryCount 0, the top-level

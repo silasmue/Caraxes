@@ -168,8 +168,9 @@ params = "NV90E6_CTRL_MASTER_GET_VIRTUAL_FUNCTION_ERROR_CONT_INTR_MASK_PARAMS"
 moved_from = "B"
 label = "chip (no ECC, no NVLink: both masks 0)"
 
-# Kernel-privileged (flags 0x40) with no caller in either tree (plan §2 row 24): E by the
-# plan's reading, refused as the E families are.
+# Kernel-privileged (flags 0x40) with no caller in the Linux tree (plan §2 row 24). The Windows
+# KMD sizes its graphics-preemption pool with it: src/recorded.rs answers it ahead of this table
+# (recorded::OVERRIDES), so this refusal is never reached; it stays for the ABI inventory.
 [[control]]
 name = "NV2080_CTRL_CMD_GR_GFX_POOL_QUERY_SIZE"
 params = "NV2080_CTRL_GR_GFX_POOL_QUERY_SIZE_PARAMS"

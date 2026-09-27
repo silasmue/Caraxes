@@ -57,7 +57,9 @@ pub mod profile;
 pub mod ptcache;
 pub mod public;
 pub mod rc;
+pub mod recorded;
 pub mod rpc;
+pub mod rusd;
 pub mod selftest;
 pub mod shadow;
 pub mod soak;
@@ -65,6 +67,7 @@ pub mod tokens;
 pub mod trace;
 pub mod untrapped;
 pub mod uvm;
+pub mod vbios;
 pub mod zbc;
 pub mod ver;
 

@@ -427,7 +427,10 @@ impl Display {
             }
             let mut sink = DpSink::new(profile.clone(), edid::monitor_edid())
                 .map_err(|e| format!("sink: {e:?}"))?;
-            sink.plug();
+            // CARAXES_DISPLAY_UNPLUGGED=1 (diagnostic): the connectors start with no monitor.
+            if !std::env::var("CARAXES_DISPLAY_UNPLUGGED").is_ok_and(|v| v == "1") {
+                sink.plug();
+            }
             sink.take_events();
             disp.connectors.push(Connector {
                 display_id: c.display_id,
@@ -481,6 +484,13 @@ impl Display {
     /// Answer a display control, or `None` when `cmd` is not the display's (or the
     /// display is switched off: then the controls stay unanswered, as before phase A).
     pub fn control(&mut self, cmd: u32, params: &[u8]) -> Option<Answer> {
+        fn win_display_queries() -> bool {
+            std::env::var("CARAXES_WIN_DISPLAY_QUERIES").is_ok_and(|v| v == "1")
+        }
+        const SYSTEM_GET_HOTPLUG_CONFIG: u32 = 0x0073_0109;
+        const WIN_MUX: u32 = 0x0073_013D;
+        const WIN_SIDEBAND_I2C: u32 = 0x0073_014B;
+        const WIN_ACPI_DOD_ATTACHMENT: u32 = 0x0073_0285;
         if !self.enabled {
             return None;
         }
@@ -642,6 +652,21 @@ impl Display {
                     SINK,
                     format!("connect state: asked {asked:#x} connected {m:#x}"),
                 )
+            }
+            // NV0073_CTRL_CMD_SYSTEM_GET_HOTPLUG_CONFIG (0x730109, ctrl0073system.h:
+            // {subDeviceInstance, flags, hotplugEventMask, hotplugPollable,
+            // hotplugInterruptible, hotplugAlwaysAttached}): the Windows KMD asks it at adapter
+            // start (WINDOWS-LOOP.md Y13). Every connector is a DisplayPort sink: hot-plug
+            // interruptible and pollable, no events requested yet, none always attached.
+            SYSTEM_GET_HOTPLUG_CONFIG => {
+                let m = self.supported_mask();
+                b.resize(n.max(24), 0);
+                put32(&mut b, 8, 0);
+                put32(&mut b, 12, m);
+                put32(&mut b, 16, m);
+                put32(&mut b, 20, 0);
+                b.truncate(n);
+                ok(b, BOARD, format!("hotplug config: pollable and interruptible {m:#x}"))
             }
             d::CMD_SYSTEM_GET_HEAD_ROUTING_MAP => {
                 // Echo the request when every display is ours and there are heads for
@@ -955,10 +980,16 @@ impl Display {
             // ---- NV5070 / NVC370 / NVC372 on the NVC570 and NVC372 objects
             d::CMD_5070_SYSTEM_GET_CAPS_V2 => {
                 let mut b = params.to_vec();
+                // CARAXES_WIN_DISP_CAPS=<hex byte> (diagnostic): capsTbl[0] (ctrl5070system.h:40-46,
+                // e.g. 0x20 DEEP_COLOR_SUPPORT, 0x40 BUG_644815_DNISO_VIDMEM_ONLY).
+                let caps = std::env::var("CARAXES_WIN_DISP_CAPS")
+                    .ok()
+                    .and_then(|v| u8::from_str_radix(v.trim_start_matches("0x"), 16).ok())
+                    .unwrap_or(0);
                 if b.len() > d::CAPS_5070_TBL {
-                    b[d::CAPS_5070_TBL] = 0;
+                    b[d::CAPS_5070_TBL] = caps;
                 }
-                ok(b, SYNTH, "5070 system caps: none")
+                ok(b, SYNTH, format!("5070 system caps: {caps:#x}"))
             }
             d::CMD_5070_SET_SOR_FLUSH_MODE | d::CMD_5070_SET_RMFREE_FLAGS => {
                 ok(b, ACK, format!("5070 control {cmd:#x}"))
@@ -1011,6 +1042,33 @@ impl Display {
                 BOARD,
                 format!("backlight brightness of {did:#x}: not supported (external DP monitor, no panel)"),
             ),
+            // CARAXES_WIN_DISPLAY_QUERIES=1: three plain queries of the Windows KMD's display
+            // start answered NV_OK (WINDOWS-LOOP.md Y21): QUERY_DISPLAY_IDS_WITH_MUX
+            // {subDeviceInstance, muxDisplayMask out} mask 0 (no mux), CHECK_SIDEBAND_I2C_SUPPORT
+            // {subDeviceInstance, bIsSidebandI2cSupported out} false, and
+            // SPECIFIC_GET_ACPI_DOD_DISPLAY_PORT_ATTACHMENT {subDeviceInstance, displayId,
+            // dispPortAttachment out} UNKNOWN (a desktop board has no ACPI _DOD).
+            c if win_display_queries()
+                && matches!(c, WIN_MUX | WIN_SIDEBAND_I2C | WIN_ACPI_DOD_ATTACHMENT) =>
+            {
+                b.resize(n.max(12), 0);
+                let what = match c {
+                    WIN_MUX => {
+                        put32(&mut b, 4, 0);
+                        "display ids with mux: none".to_string()
+                    }
+                    WIN_SIDEBAND_I2C => {
+                        b[4] = 0;
+                        "sideband I2C: not supported (false)".to_string()
+                    }
+                    _ => {
+                        put32(&mut b, 8, 0xFFFF_FFFF);
+                        format!("ACPI DOD port attachment of {did:#x}: UNKNOWN (no ACPI _DOD)")
+                    }
+                };
+                b.truncate(n);
+                ok(b, BOARD, what)
+            }
             d::CMD_SYSTEM_QUERY_DISPLAY_IDS_WITH_MUX => fail(
                 NV_ERR_NOT_SUPPORTED,
                 b,
@@ -1051,7 +1109,10 @@ impl Display {
                 NV_ERR_NOT_SUPPORTED,
                 b,
                 "unanswered",
-                format!("display control {cmd:#x} ({n} bytes): not modelled"),
+                format!(
+                    "display control {cmd:#x} ({n} bytes): not modelled; request {}",
+                    params.iter().take(48).map(|x| format!("{x:02x}")).collect::<String>()
+                ),
             ),
             _ => return None,
         };

@@ -61,7 +61,9 @@ vfio-user-nvgpu --selftest <socket> [--board-data <name|file>] [--chip <chip>] [
   --chip     the chip to present, tu106 or gb206 (or a costume-ladder chip: tu104, ga106, ad106, gh100) (default: the board's, tu106 for rtx2070, gb206 for rtx5060ti)
   --config   lspci -xxxx dump of the card (default: the board's, caraxes/reference/rtx2070/config-space.txt)
   --rom      PCI-visible ROM image for the expansion ROM region (default: the board's, caraxes/reference/rtx2070/rom.bin)
-  --vbios    image served through the BAR0 PROM window (default: the --rom image)
+  --vbios    image served through the BAR0 PROM window at its own offsets (default: the
+             --rom image); it starts with 55 AA or, like the card's window, with an IFR
+             header that leads to the PCI image chain
   --vbios-version  VBIOS version NN.NN.NN.NN.NN of the static info (default: the board's, 90.06.3D.00.76)
   --boot-model  attach the boot model (falcons, GFW/fuse/FB-size/WPR2 registers, GSP message queues)
   --fb-mib   framebuffer size the guest is told, in MiB (default: LEA_VRAM_PROFILE_MIB or 4096)
@@ -98,7 +100,8 @@ vfio-user-nvgpu --selftest <socket> [--board-data <name|file>] [--chip <chip>] [
   --bar0-registers  the physical card's captured BAR0 registers (bar0.rs CapturedRegisters),
              answering reads of offsets no model owns and nothing latched, traced `captured`
              (default: the newest bar0-registers-*.txt beside the board's config capture;
-             none: no table). A missing or malformed file, or one whose NV_PMC_BOOT_0 is not
+             none: no table). A comma-separated list merges several captures, e.g. that file
+             and falcon-pmu-sec2-2026-09-25.txt. A missing or malformed file, or one whose NV_PMC_BOOT_0 is not
              the presented chip's, leaves no table (those reads stay 0)
 Environment: CARAXES_DOORBELL_IOEVENTFD=1 offers the usermode doorbell register as an
   ioeventfd sub-region (VFIO_USER_DEVICE_GET_REGION_IO_FDS; needs patch 0005 in Cloud
@@ -123,6 +126,14 @@ Environment: CARAXES_DOORBELL_IOEVENTFD=1 offers the usermode doorbell register 
   datamatch, read by the token pool's reactor, which does what the trapped write does
   (docs/caraxes/intr-page.md §4); needs CARAXES_DOORBELL_TOKENS=N. A client that does not
   register it keeps trapping the write.
+  CARAXES_EXT_CONFIG=1 shows the extended configuration space (0x100-0xFFF, the capture's
+  capabilities without SR-IOV, ARI and the serial number) in the vfio-user config region
+  too, so the guest OS sees VC, LTR, L1SS, Power Budgeting, AER, the VSEC, Secondary PCIe
+  and Resizable BAR (read-only); without it the region reads zeros there and only the
+  BAR0 mirror NV_PCFG serves those bytes (docs/caraxes/vfio-user.md).
+  CARAXES_FALCON_STALLACK=<hex> is what a falcon's ENGCTL (+0xa4) reads after a stall
+  request (a write with bit 1): default 0x200 (STALLACK_T), e.g. 0 or 600 to try the other
+  answers the Windows driver's PMU poll may want (boot.toml `stallack` sets the default).
   CARAXES_DOORBELL_POLL=off|spin|hybrid chooses how the thread that reads those eventfds
   waits: off blocks in epoll_wait (default), spin polls with epoll_wait timeout 0 and
   never sleeps, hybrid spins CARAXES_DOORBELL_POLL_IDLE_US (default 200) after the last
@@ -328,7 +339,15 @@ fn config_space(a: &Args) -> Result<ConfigSpace> {
         }
         None => None,
     };
-    pci_config::for_board_with_ids(&dump, ids.as_deref(), &a.board_data)
+    let mut cfg = pci_config::for_board_with_ids(&dump, ids.as_deref(), &a.board_data)?;
+    if pci_config::ext_config_requested() {
+        cfg.set_ext_visible(true);
+        eprintln!(
+            "vfio-user-nvgpu: {}=1: the config region shows the extended configuration space",
+            pci_config::EXT_CONFIG_ENV
+        );
+    }
+    Ok(cfg)
 }
 
 /// One soak line (soak.rs) from the host memory client and, when given, the device's counts.
@@ -566,6 +585,12 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
         bail!("{DOORBELL_IOEVENTFD_ENV}=1 is refused together with CARAXES_BAR1_PASSTHROUGH=1: the ioeventfd carries no token and the passthrough area hides the GPPut writes the token-less path relies on; use the token pool ({}=N) instead", tokens::TOKENS_ENV);
     }
     let cfg = config_space(a)?;
+    if let Some(v) = vfio_user_nvgpu::falcon::stallack_from_env().map_err(anyhow::Error::msg)? {
+        eprintln!(
+            "vfio-user-nvgpu: {}={v:#x}: falcon ENGCTL reads {v:#x} after a stall request",
+            vfio_user_nvgpu::falcon::STALLACK_ENV
+        );
+    }
     let rom = std::fs::read(&a.rom).with_context(|| {
         format!(
             "read {} (the PCI-visible ROM of the card; capture it with `cat /sys/bus/pci/devices/<bdf>/rom` after `echo 1 > rom`)",
@@ -581,11 +606,27 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
     let vbios = match &a.vbios {
         Some(p) => {
             let img = std::fs::read(p).with_context(|| format!("read {}", p.display()))?;
-            if img.len() < 2 || img[0] != 0x55 || img[1] != 0xAA {
-                bail!(
-                    "{} does not start with the 55 AA ROM signature",
+            // Served byte for byte at its PROM offsets. An image that starts with 55 AA
+            // is taken as before; otherwise the PCI image chain must be found the way the
+            // RM finds it (the card's window: an IFR header at 0, the chain at 0x28600;
+            // vbios.rs).
+            let starts = img.len() >= 2 && img[0] == 0x55 && img[1] == 0xAA;
+            match vfio_user_nvgpu::vbios::locate(&img) {
+                Some(i) => eprintln!(
+                    "vfio-user-nvgpu: PROM image {}: PCI image {:04x}:{:04x} at {:#x} ({:?}), {:#x} bytes, BIT {}",
+                    p.display(),
+                    i.vendor,
+                    i.device,
+                    i.offset,
+                    i.how,
+                    i.len,
+                    i.bit.map_or_else(|| "none".into(), |b| format!("at image + {b:#x}"))
+                ),
+                None if starts => {}
+                None => bail!(
+                    "{} neither starts with the 55 AA ROM signature nor holds a PCI image the IFR header or a 512-byte scan finds",
                     p.display()
-                );
+                ),
             }
             Some(img)
         }
