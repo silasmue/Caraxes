@@ -189,3 +189,17 @@ CARAXES_DOORBELL_POLL_CPU=3 CARAXES_DOORBELL_POLL_IDLE_US=200 \
 Change the idle value to `0` for the immediate-block case. The preserved
 wrapper selects Linux B and reservation slot 1; it must not be used for the
 frozen desktop A state.
+
+### Trace-overhead follow-up
+
+`CARAXES_TRACE=0` in `tools/caraxes-vm.sh` omits the synchronous trace file;
+`gpu.log` and exit summaries remain. The default is 1. `probe` and `uvm`
+require tracing. D4's 0-us trace contains about 1.31 million lines, roughly
+980,000 of them events; disabling access lines alone leaves those events.
+A CPU improvement from disabling the entire file is not yet measured.
+
+The D4 wrapper now selects a frozen `vfio-user-nvgpu-419a308f` copy beside
+its scripts. The shared build directory was later rebuilt for Windows.
+`SHA256SUMS-pinned` verifies the repaired reproducer; the original wrapper
+and hash manifest remain available. D5 uses another copy with the same
+backend hash, plus a launcher-only trace toggle.
