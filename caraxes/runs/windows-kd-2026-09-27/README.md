@@ -284,3 +284,23 @@ it exists in the TU106 capture, plus CAPD TMO geometry `0x16a`. This is a
 startup-localization experiment. The current display engine stores TMO
 methods but does not load or apply its LUT; this must not become a supported
 HDR/TMO capability without implementing and validating that behavior.
+
+## Diagnostic capability result: KD8
+
+The TMO-only diagnostic binary (`1bea5ffae86aca0a399144d337ac16d8cbbf84089b5c55df3f3c9b264abdc1f1`)
+reached `+0x15f2884` with `AL=1`. The resource now has rounded size `0x9000`
+and a nonzero handle. This confirms the zero-size diagnosis without editing
+the stock guest driver or its requests.
+
+Startup still returned `0xC000009A`: the next failure is the ILUT descriptor
+constructor, observed at `+0x15f2b62`. The first input record has size/count
+values 1, backing size `0x100`, flags 0 and dimension 2. Its zero CAPB omits
+SFCLOAD. The constructor requires dimension 1 without SFCLOAD, or at most 2
+with it. The next diagnostic adds the measured ILUT CAPB geometry `0xda90`.
+Neither diagnostic changes the checked-in display profile. LUT loading and
+color processing remain implementation work before these can be supported
+capabilities. Evidence: `windows-kd/debugger/KD8-ilut-descriptor-failure.log`.
+
+The isolated patches, TOML inputs, build logs and binary hashes are under
+`windows-kd/tmo-caps-experiment/`. Do not substitute these binaries for the
+validated Linux backend.
