@@ -116,9 +116,10 @@ The fourth restart captured an `NVOS32_PARAMETERS` allocation inside the guest:
 
 Evidence: `KD3-allocation-failure.log`, `KD3-rm-dispatch.log`, and
 `KD3-fixed-offset-ab.log` under `windows-kd/debugger/`. The final transcript marks
-the guest-memory edit as `DIAGNOSTIC_ONLY_REBASE_ONE_ALLOCATION`. The target is
-halted immediately after that allocation; do not count further results from this
-run as stock-guest validation. Restart the VM before testing an emulator fix.
+the guest-memory edit as `DIAGNOSTIC_ONLY_REBASE_ONE_ALLOCATION`. Continuing the diagnostic run still returned `0xC000009A` from the internal
+startup routine. KD3 was then stopped; `KD3-final.log` captures that result.
+The single successful allocation did not resolve startup. KD4 boots the stock
+driver again without the KD3 request edit.
 
 ## Continuing the diagnosis
 
@@ -146,3 +147,19 @@ Send KD commands on separate lines. Path commands can interpret semicolons as
 path separators. Avoid global allocator breakpoints and broad symbol reloads over
 serial; use the local symbol cache and matching debugger-VM system images.
 See the [Windows evidence](../../../docs/research/windows-2026-09-27.md).
+
+
+## Native FB-start override: KD4
+
+- Stock 617.14 contains a DWORD setting named `OverrideFbStartKB`.
+  Its reader is `nvlddmkm+0x3ce8bc`; the registry-helper return is `+0x3ce8d8`.
+  A successful nonzero lookup stores the value at kernel-memory-system `+0x478`.
+- KD4 reached this reader during startup. No registry override has been applied.
+  The helper reads an internal cache; its exact Windows registry source still
+  needs verification. A string in the binary alone does not establish that path.
+- The reservation base corresponds to `0x6a6000` KiB; the advertised 1 GiB size
+  is only `0x100000` KiB. Public RM consumers subtract the override from memory
+  sizes and reserve a prefix in PMA. Applying the start alone risks underflow or
+  inconsistent accounting. It is not a validated workaround.
+- Continue tracing segment construction and size accounting before changing this
+  setting. Preserve reservation ownership and the identity FB mapping.
