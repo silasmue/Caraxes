@@ -398,3 +398,52 @@ d3d11-render.txt and the complete device logs. The next diagnostic uses
 `CARAXES_SHADOW_CHANNEL_DIAG=1` for full GPFIFO mapping coverage and
 `CARAXES_SEMAPHORE_DIAG=1` for bounded acquire/peer state. These flags only
 observe; guest command execution, ownership checks and waits are unchanged.
+
+
+## P2: sysmem USERD exceeds the Turing address field
+
+P2 used 7455aa13 with the isolated TMO/ILUT/OLUT geometry profile, zero-based
+framebuffer and a 64 MiB BAR1 pool. It is stopped. Artifacts:
+`alpha-2026-09-27/windows-plain/P2-channel-proof/`; build inputs: `P2-build/`.
+SHA-256: `f267cd5a22005925c8c1f2125d7003fd148de6d8edf726a870cf792f0ce2c1b5`.
+
+- GPFIFO spans 0x12026e000..0x12027e000 and 0x20104000..0x20124000 have full,
+  matching guest and host shadow coverage, with no set-B overlap.
+- Host kernel log reports the rejecting check directly:
+  `kchannelCreateUserdMemDesc_GV100`, physical USERD high word `0x7fff`.
+  GV100/Turing `NV_PPBDMA_USERD_HI_ADDR` is bits 7:0; USERD therefore needs
+  an address below 2^40, aligned to 512 bytes. The +0x200 offset is aligned.
+- Guest RAM descriptors have valid 47-bit host IOVAs. This is not a proven
+  CPU-virtual/physical mix-up. Reusing a high-IOVA descriptor does not fix it.
+- The CE semaphore wait remains: VA 0x20002560 expects 3, reads 0. Two GR
+  channels have pending GPFIFO entries and no host channel. Their exact
+  connection to the missing producer is not yet proven.
+- Zero host channels were created. No D3D11 result was obtained in P2.
+- Shutdown leaves zero tracked host objects, pinned chunks and held windows;
+  the old late-unmap status 0x33 is absent. No new host Xid observed.
+
+Windows client-provided USERD placement is independent of the FIFO capability
+for RM-owned USERD. P2 has RM boot channels in FB and WDDM channels in sysmem;
+no FIFO_GET_CAPS request was observed. Clearing that capability cannot fix it.
+
+### Experimental private USERD
+
+`CARAXES_SHADOW_USERD=1` opts into the new shadow-channel path:
+
+- Each sysmem USERD gets a private 4 KiB host vidmem object, outside guest FB.
+- The full allocation must fit below 2^40 with 512-byte alignment; existing
+  VRAM/BAR1 floor policies admit the allocation and mapping.
+- Host channel creation starts with an empty ring. CPU-owned Put/PutHi/GPPut
+  are published only after mapping completion, token acquisition and ownership
+  registration. GPPut is the last word published.
+- Only GPU-owned Get/Reference/TopLevelGet/GetHi/GPGet return to guest memory.
+- An independent 1-ms timer scans at most 32 private USERDs round-robin and
+  routes new submissions through normal scheduling checks and mapping barriers.
+  It also works before the display engine starts.
+- Channel generations prevent a reused ChID from retaining an old host mirror.
+- Teardown frees the channel, unmaps its private USERD, then frees that object.
+
+The flag is experimental and off by default. Hardware validation is pending;
+the polling interval is a compatibility starting point, not a latency target.
+Do not truncate IOVAs, force semaphore completion, or treat the diagnostic LUT
+profile as supported color-pipeline behavior.

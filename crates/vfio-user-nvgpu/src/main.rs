@@ -525,6 +525,14 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
     // The display front-end page (display/fe_page.rs): a third area of the same memfd.
     let display_page =
         fe_page::requested(intr_page_config.is_some(), a.display).map_err(anyhow::Error::msg)?;
+    if std::env::var("CARAXES_SHADOW_USERD").as_deref() == Ok("1")
+        && (!a.host_exec || !a.boot_model
+            || std::env::var("CARAXES_MIRROR_GR_SHADOW").as_deref() != Ok("1")
+            || std::env::var("CARAXES_CE_SHADOW").as_deref() == Ok("0")
+            || std::env::var("CARAXES_MIRROR_GR").as_deref() == Ok("1"))
+    {
+        bail!("CARAXES_SHADOW_USERD=1 needs --host-exec, --boot-model and shadow-only GR/CE execution");
+    }
     let zero_fb = std::env::var("CARAXES_FB_ZERO_BASED").as_deref() == Ok("1");
     if zero_fb {
         if !a.reserve_vram || !a.host_exec || !a.boot_model {
@@ -1220,10 +1228,28 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
     }
     let soak_stop = Arc::new(std::sync::atomic::AtomicBool::new(false));
     let soak = spawn_soak_thread(device.clone(), host_mem.clone(), soak_stop.clone());
+    // Private USERD needs progress even before display initialization or in a headless
+    // guest. The host sees guest submissions only after the shadow mapping barrier.
+    let userd_poll = if std::env::var("CARAXES_SHADOW_USERD").as_deref() == Ok("1") {
+        let d = device.clone();
+        let stop = soak_stop.clone();
+        Some(std::thread::Builder::new().name("shadow-userd".into()).spawn(move || {
+            while !stop.load(std::sync::atomic::Ordering::Acquire) {
+                std::thread::sleep(std::time::Duration::from_millis(1));
+                if stop.load(std::sync::atomic::Ordering::Acquire) { break }
+                d.lock().unwrap_or_else(PoisonError::into_inner).poll_shadow_userds();
+            }
+        }).context("spawn shadow USERD poller")?)
+    } else {
+        None
+    };
     let result = server
         .run(&mut SharedDevice(device.clone()))
         .map_err(|e| anyhow::anyhow!("vfio-user server: {e}"));
     soak_stop.store(true, std::sync::atomic::Ordering::Relaxed);
+    if let Some(t) = userd_poll {
+        let _ = t.join();
+    }
     if let Some(t) = soak {
         let _ = t.join();
     }

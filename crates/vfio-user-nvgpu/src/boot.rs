@@ -310,6 +310,13 @@ impl BootModel {
         notes
     }
 
+    pub fn poll_shadow_userds(&mut self, mem: &GuestMemory) -> Vec<String> {
+        self.ctrl.poll_shadow_userds(&mut crate::channel::GpuMem {
+            fb: &mut self.fb,
+            sys: mem,
+        })
+    }
+
     /// Send unsolicited messages (events.rs) on the status queue and raise GSP
     /// IRQSTAT.SWGEN0 with the GSP stall vector, as the GSP does for any message it
     /// posts unasked (kgspService_TU102). Without linked queues nothing is sent.

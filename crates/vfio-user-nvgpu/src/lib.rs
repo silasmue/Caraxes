@@ -66,6 +66,7 @@ pub mod soak;
 pub mod tokens;
 pub mod trace;
 pub mod untrapped;
+pub mod userd;
 pub mod uvm;
 pub mod vbios;
 pub mod zbc;

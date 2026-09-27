@@ -54,6 +54,48 @@ pub struct Window {
     pub len: usize,
 }
 
+/// One private host USERD page in vidmem. Its fields stay private so the mapping cannot
+/// be separated from the allocation handle; consume it with [`HostMemory::free_host_userd`],
+/// which drops the BAR1 window before freeing the RM object.
+pub struct HostUserd {
+    handle: u32,
+    gpu_addr: u64,
+    window: Window,
+}
+
+impl HostUserd {
+    pub fn handle(&self) -> u32 {
+        self.handle
+    }
+
+    pub fn gpu_addr(&self) -> u64 {
+        self.gpu_addr
+    }
+
+    pub fn read_u32(&self, offset: u64) -> u32 {
+        let mut data = [0; 4];
+        self.window.read(offset, &mut data);
+        u32::from_le_bytes(data)
+    }
+
+    pub fn write_u32(&self, offset: u64, value: u32) {
+        self.window.write(offset, &value.to_le_bytes());
+    }
+
+    pub fn flush(&self) {
+        self.window.flush();
+    }
+}
+
+fn valid_host_userd(addr: u64, size: u64, contiguous: bool) -> bool {
+    const USERD_ALIGN: u64 = 512;
+    const USERD_LIMIT: u64 = 1 << 40;
+    contiguous
+        && size == 4096
+        && addr % USERD_ALIGN == 0
+        && addr.checked_add(size).is_some_and(|end| end <= USERD_LIMIT)
+}
+
 // SAFETY: the mapping is owned by the window and only ever touched from the server
 // thread that owns the FB model; the raw pointer carries no thread affinity.
 unsafe impl Send for Window {}
@@ -222,6 +264,16 @@ mod window_bounds_tests {
         assert!(!w.covers(0x0fff, 1));
         assert!(!w.covers(0x1008, usize::MAX));
         assert!(!w.covers(0x1010, 1));
+    }
+
+    #[test]
+    fn host_userd_requires_one_aligned_page_below_40_bits() {
+        assert!(valid_host_userd(0x1234_5600, 4096, true));
+        assert!(valid_host_userd((1 << 40) - 4096, 4096, true));
+        assert!(!valid_host_userd(0x1234_5601, 4096, true));
+        assert!(!valid_host_userd((1 << 40) - 3584, 4096, true));
+        assert!(!valid_host_userd(0x1234_5600, 8192, true));
+        assert!(!valid_host_userd(0x1234_5600, 4096, false));
     }
 
     #[test]
@@ -728,6 +780,9 @@ pub struct HostMemory {
     /// The host VRAM floor (hostfloor.rs): every host allocation and map outside the
     /// reservation is admitted here first.
     guard: crate::hostfloor::HostGuard,
+    /// BAR1 budget for private mappings made while holding `HostMemory`. Reservation
+    /// windows use `ReservationMapper`'s equivalent guard because they map off-thread.
+    userd_bar1: crate::hostfloor::HostGuard,
 }
 
 /// One step of the teardown that frees host state the GPU could still reach.
@@ -927,6 +982,7 @@ impl HostMemory {
             free_failures: Vec::new(),
             fail_closed: None,
             guard: crate::hostfloor::HostGuard::from_env(),
+            userd_bar1: crate::hostfloor::HostGuard::bar1_from_env(),
         })
     }
 
@@ -1501,6 +1557,96 @@ impl HostMemory {
             offset,
             len,
         )
+    }
+
+    /// Allocate and CPU-map one host-private USERD page in vidmem. Turing's PBDMA USERD
+    /// address is 40 bits and 512-byte aligned (`NV_PPBDMA_USERD_{HI_,}ADDR`), so an RM
+    /// reply outside that range is freed and refused. The object is tracked in `live` and
+    /// must be consumed by [`Self::free_host_userd`] before HostMemory teardown.
+    pub fn alloc_host_userd(&mut self) -> Result<HostUserd, Status> {
+        const PAGE: u64 = 4096;
+        self.guard
+            .admit("host-userd", PAGE, Instant::now(), || self.heap_free())?;
+        if let Err(st) = self.userd_bar1.admit(
+            "host USERD BAR1 window",
+            PAGE,
+            Instant::now(),
+            || self.fb_info(&[FB_INFO_BAR1_AVAIL_SIZE]).ok().map(|v| v[0] * KIB),
+        ) {
+            self.guard.credit(PAGE);
+            return Err(st);
+        }
+        let mut p = sys::NV_MEMORY_ALLOCATION_PARAMS::default();
+        p.owner = OWNER_TAG;
+        p.type_ = sys::NVOS32_TYPE_IMAGE;
+        p.flags = sys::NVOS32_ALLOC_FLAGS_PERSISTENT_VIDMEM;
+        p.attr = nvos32_attr::LOCATION.set(sys::NVOS32_ATTR_LOCATION_VIDMEM)
+            | nvos32_attr::PHYSICALITY.set(sys::NVOS32_ATTR_PHYSICALITY_CONTIGUOUS)
+            | nvos32_attr::PAGE_SIZE.set(sys::NVOS32_ATTR_PAGE_SIZE_4KB);
+        p.size = PAGE;
+        // SAFETY: NV_MEMORY_ALLOCATION_PARAMS is the plain-data allocation block of
+        // NV01_MEMORY_LOCAL_USER.
+        let params = unsafe {
+            std::slice::from_raw_parts_mut(
+                &mut p as *mut _ as *mut u8,
+                std::mem::size_of::<sys::NV_MEMORY_ALLOCATION_PARAMS>(),
+            )
+        };
+        let handle = match self.alloc_object(
+            self.device,
+            v::NV01_MEMORY_LOCAL_USER,
+            params,
+            "host-userd",
+        ) {
+            Ok(handle) => handle,
+            Err(st) => {
+                self.userd_bar1.credit(PAGE);
+                self.guard.credit(PAGE);
+                return Err(st);
+            }
+        };
+        let contiguous =
+            nvos32_attr::PHYSICALITY.get(p.attr) == sys::NVOS32_ATTR_PHYSICALITY_CONTIGUOUS;
+        if !valid_host_userd(p.offset, p.size, contiguous) {
+            if self.free_object(handle).is_ok() {
+                self.guard.credit(PAGE);
+            }
+            self.userd_bar1.credit(PAGE);
+            return Err(sys::NV_ERR_INVALID_ADDRESS as u32);
+        }
+        let window = match map_window(
+            self.rm.ctl(),
+            &self._gpu,
+            self.rm.root(),
+            self.device,
+            handle,
+            0,
+            PAGE as usize,
+        ) {
+            Ok(window) => window,
+            Err(status) => {
+                if self.free_object(handle).is_ok() {
+                    self.guard.credit(PAGE);
+                }
+                self.userd_bar1.note_status("host USERD BAR1 window", status, Instant::now());
+                self.userd_bar1.credit(PAGE);
+                return Err(status);
+            }
+        };
+        Ok(HostUserd { handle, gpu_addr: p.offset, window })
+    }
+
+    /// Drop a host USERD's BAR1 mapping before freeing its tracked RM allocation.
+    pub fn free_host_userd(&mut self, userd: HostUserd) -> Result<(), Status> {
+        const PAGE: u64 = 4096;
+        let HostUserd { handle, window, .. } = userd;
+        drop(window);
+        self.userd_bar1.credit(PAGE);
+        let r = self.free_object(handle);
+        if r.is_ok() {
+            self.guard.credit(PAGE);
+        }
+        r
     }
 
     /// A mapper for BAR1 windows of the reservation that holds its own duplicates of the

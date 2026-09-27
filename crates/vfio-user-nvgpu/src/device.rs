@@ -951,6 +951,16 @@ impl Device {
         &self.mem
     }
 
+    pub fn poll_shadow_userds(&mut self) {
+        let notes = match self.bar0.boot_mut() {
+            Some(b) => b.poll_shadow_userds(&self.mem),
+            None => return,
+        };
+        for n in notes {
+            self.trace.event(&format!("boot: {n}"));
+        }
+    }
+
     /// The display clock's tick with the display page (engine.rs `Ticker::set_driver`,
     /// display/fe_page.rs): advance the display engine, trace its notes.
     pub fn display_tick(&mut self) {

@@ -214,6 +214,8 @@ pub struct Channel {
     /// Runs on a host mirror channel: the software executor leaves it alone.
     pub mirrored: bool,
     pub chid: u32,
+    /// Registry-unique identity for this allocation, even when the guest reuses a ChID.
+    pub generation: u64,
     pub engine_type: u32,
     /// Guest allocation flags, decoded with the selected guest ABI. These never grant
     /// the host channel additional privileges.
@@ -323,6 +325,8 @@ pub struct Registry {
     client_share: BTreeMap<u32, u32>,
     /// ChID → channel.
     channels: BTreeMap<u32, Channel>,
+    /// Last generation assigned to an accepted channel allocation.
+    channel_generation: u64,
     /// Device clock base for semaphore timestamps.
     start: Option<std::time::Instant>,
     pub doorbells: u64,
@@ -382,6 +386,7 @@ impl Registry {
             client_device: BTreeMap::new(),
             client_share: BTreeMap::new(),
             channels: BTreeMap::new(),
+            channel_generation: 0,
             start: Some(std::time::Instant::now()),
             doorbells: 0,
             tlb_invalidates: Vec::new(),
@@ -744,6 +749,10 @@ impl Registry {
                 ))
             }
             c if c == self.classes.gpfifo => {
+                self.channel_generation = self
+                    .channel_generation
+                    .checked_add(1)
+                    .expect("channel generation exhausted");
                 let flags = rd32(params, <Abi as RmAbi>::ALLOC_CHANNEL_PARAMS_OFF_flags);
                 // GSP clients pass their ChID as USERD_INDEX_VALUE (10:8) and
                 // USERD_INDEX_PAGE_VALUE (20:12), 8 channels per page
@@ -776,6 +785,7 @@ impl Registry {
                     engine_objects: Vec::new(),
                     mirrored: false,
                     chid,
+                    generation: self.channel_generation,
                     engine_type: rd32(params, <Abi as RmAbi>::ALLOC_CHANNEL_PARAMS_OFF_engineType),
                     alloc_flags: flags,
                     gpfifo_va: rd64(
@@ -3208,6 +3218,27 @@ mod tests {
         assert_eq!(reg.tsg_id((1, 0x40)), Some(12));
         reg.record_free(1, 0x30);
         assert_eq!(reg.tsg_id((1, 0x30)), None);
+    }
+
+    #[test]
+    fn a_reallocated_channel_gets_a_new_generation() {
+        let mut reg = Registry::new(classes());
+        let params = channel_params(3, 0x1000_0000, 0x20_0000, 0);
+        reg.record_alloc(1, 0x10, 0x40, TURING_CHANNEL_GPFIFO_A, &params)
+            .expect("first channel allocation");
+        let first = reg.channel(3).expect("first channel").generation;
+
+        reg.record_free(1, 0x40);
+        reg.record_alloc(1, 0x10, 0x40, TURING_CHANNEL_GPFIFO_A, &params)
+            .expect("identical channel reallocation");
+        let second = reg.channel(3).expect("replacement channel").generation;
+
+        assert_eq!(first, 1);
+        assert_eq!(second, 2);
+        assert_ne!(first, second);
+        reg.record_alloc(1, 0x10, 0x40, TURING_CHANNEL_GPFIFO_A, &params)
+            .expect("replacement without FREE");
+        assert_eq!(reg.channel(3).unwrap().generation, 3);
     }
 
     #[test]

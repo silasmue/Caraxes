@@ -513,6 +513,17 @@ impl Dispatcher {
         notes
     }
 
+    /// Poll private USERDs, then reuse normal submission and scheduling checks.
+    pub fn poll_shadow_userds(&mut self, gm: &mut crate::channel::GpuMem) -> Vec<String> {
+        let pending = self.mirror.as_mut()
+            .map(|m| m.poll_userds(&self.channels, gm)).unwrap_or_default();
+        let mut notes = Vec::new();
+        for chid in pending {
+            notes.extend(self.doorbell_chid(gm, chid, chid, false));
+        }
+        notes
+    }
+
     /// The token-less doorbell (the ioeventfd path, device.rs `doorbell_ioeventfd`): KVM
     /// signals that the guest wrote the doorbell register but not what, so every channel
     /// with GPFIFO entries published since its last doorbell (`Registry::pending`, one
@@ -1116,6 +1127,10 @@ impl Dispatcher {
         {
             // An engine object on a channel that already runs on the host: add it there.
             if let Some(m) = self.mirror.as_mut() {
+                for line in m.retire_replaced_channels(&self.channels) {
+                    note.push_str("; ");
+                    note.push_str(&line);
+                }
                 let chid = self
                     .channels
                     .channels()

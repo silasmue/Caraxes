@@ -1,6 +1,6 @@
 # Caraxes working handoff for Claude Code
 
-Updated: 2026-09-27, 23:15 CEST. Work continues; this is a checkpoint.
+Updated: 2026-09-27, 23:40 CEST. Work continues; this is a checkpoint.
 
 ## Workspace and constraints
 
@@ -47,7 +47,7 @@ The checked-in TU106 profile remains unchanged.
 |---|---|---|
 | Zero-FB baseline | 14e4519adc85b917cc6c674b6a2367f0fe3bb4224b07fc7c21b7318fea092d5b | Large stock allocation succeeds |
 | TMO + ILUT | 55331d64b4207776e534255ff7f95cf0654da6e4e54d7d045f24e0d10f13ff35 | KD12 confirms later OLUT failure |
-| TMO + ILUT + OLUT | 77f0c97e961c63303439c9afb145c31639181f5318ab370cbb5e24e2253781ac | Built, startup unvalidated |
+| TMO + ILUT + OLUT | 77f0c97e961c63303439c9afb145c31639181f5318ab370cbb5e24e2253781ac | P1 PnP code 0 once; D3D11 timeout |
 
 - Diagnostic binaries, patches, TOML inputs and build logs:
   windows-kd/tmo-caps-experiment/.
@@ -124,29 +124,55 @@ LRU capacity, and preserves cumulative counters.
   1 test ignored. Log: windows-kd/teardown-fix-tests.log.
 - Fix validation: framebuffer tests 16 passed; revised ordering test passed.
   It checks flush/drop counts, drop-before-credit ordering and idempotence.
-- Hardware validation of the new ordering is pending.
+- P2 hardware shutdown completed with zero held windows, pinned chunks and
+  tracked host objects; no late RM_UNMAP_MEMORY status 0x33 appeared.
 - Tracked post-teardown objects and pinned chunks were zero. This alone does
   not establish absence of every possible leak.
 
-## Next actions and runtime checkpoint
+## P2: USERD address-width failure confirmed
 
-1. D5 is archived and Linux B stopped. Continue Windows P1 below.
-2. Validate the shutdown fix on a host-backed run; preserve baseline binaries.
-3. Restore reliable Windows debugging or obtain a bounded non-debug boot
-   result. Test OLUT diagnostic startup, then capture the next real failure.
-4. Implement behavior behind required display capabilities; require repeated
-   successful driver starts and actual GPU rendering.
-5. Windows desktop/3D stability first, then desktop latency and simultaneous
+- P2 is stopped; all owned test VMs are stopped.
+- Artifact directory: windows-plain/P2-channel-proof/.
+- Backend: 7455aa13 plus the isolated LUT geometry profile; SHA-256
+  f267cd5a22005925c8c1f2125d7003fd148de6d8edf726a870cf792f0ce2c1b5.
+  Build inputs are in windows-plain/P2-build/. Checked-in profile unchanged.
+- ABI615 diagnostic suite: 501 unit tests and 2 integration tests passed,
+  1 ignored. See windows-kd/channel-diagnostic-tests.log.
+- Both rejected GPFIFO spans are fully covered by matching guest/host leaves,
+  without set-B overlaps. Shadow mapping failures do not explain the rejection.
+- host-kernel.log identifies the actual rejection in
+  kchannelCreateUserdMemDesc_GV100: USERD address high word 0x7fff exceeds its
+  field width. Public GV100/Turing USERD fields allow a 40-bit address with
+  512-byte alignment. The host uses valid 47-bit IOMMU addresses for guest RAM.
+- This is an address-width mismatch, not evidence that a CPU virtual pointer
+  was accidentally used as a physical address. Reusing the existing high-IOVA
+  descriptor or mapping its CPU alias below 4 GiB does not solve it.
+- Software CE chid 15 GP191 releases VA 0x20002540=2, then waits for
+  VA 0x20002560=3, observed 0. The later lifecycle repeats on chid 14.
+  Pending GR channels have no successful host channel. They are candidate
+  producers, but their pending pushes have not established the exact producer.
+- P2 created zero host channels and forwarded zero doorbells. It is not a
+  rendering success. QGA was intermittent; the P2 startup query timed out.
+- P2 teardown validated the mapping-order fix. No new host Xid observed.
+- D3D11 probe now emits flushed stage markers to distinguish DXGI, device
+  creation and readback hangs. Uploaded to P2 but not executed in that run;
+  runtime validation remains pending.
+
+## Next actions
+
+1. Test the new experimental CARAXES_SHADOW_USERD=1 path. Windows client USERD
+   placement is independent of the RM-owned USERD capability; clearing that bit
+   cannot fix this case. The new path uses private host vidmem, directional
+   copies and a separate 1-ms poller (up to 32 live channels per pass).
+   Submission still waits for shadow mappings. Startup/rendering unvalidated.
+   After this change: 508 unit tests and 2 integration tests passed, 1 ignored;
+   log: windows-plain/userd-shadow-tests.log.
+2. Repeat host-backed stock-driver startup, then require the NVIDIA D3D11
+   triangle/readback gate. PnP code 0 alone is insufficient.
+3. Implement behavior behind the diagnostic LUT capabilities before treating
+   the profile as supported. Steam/3DMark is planned with the user for tomorrow,
+   conditional on actual hardware rendering.
+4. Windows desktop/3D stability, desktop latency, then concurrent
    Sunshine/NVENC/NVDEC. Keep the guest stock and helper-free.
 
-Linux B, the KD VMs, and P1 are now stopped. P1 used a new child overlay at
-windows-plain/ (parent windows/win11.qcow2 unchanged), OLUT diagnostic 77f0c97e,
-and the same host-backed limits. It reported NVIDIA 617.14 PnP code 0 in one query,
-but the bounded D3D11 readback probe timed out after 30 seconds. Two host channel
-allocations failed with NV_ERR_INVALID_ADDRESS (GPFIFO VA 0x12026e000 and
-0x20104000); software channels 14/15 wait for semaphore VA 0x20002560 value 3,
-observed 0. Source diagnostics are being prepared for the next P2 run.
-
-No new host Xid was observed through the last check. Historical Xids at
-uptime 3058.691336 and 3959.278221 predate these trials.
-
+Historical host Xids at uptime 3058.691336 and 3959.278221 predate these trials.

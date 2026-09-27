@@ -20,20 +20,26 @@ public interface IDXGIAdapter1 {
 }
 public static class Probe {
   public static bool Passed = false;
+  static readonly System.Diagnostics.Stopwatch Clock = System.Diagnostics.Stopwatch.StartNew();
+  public static void Stage(string name) { Console.WriteLine("stage " + Clock.ElapsedMilliseconds + " ms: " + name); Console.Out.Flush(); }
   [DllImport("dxgi.dll")] static extern int CreateDXGIFactory1(ref Guid riid, [MarshalAs(UnmanagedType.IUnknown)] out object f);
   [DllImport("d3d11.dll")] static extern int D3D11CreateDevice(IntPtr adapter, int type, IntPtr sw, uint flags, IntPtr fl, uint nfl, uint sdk, out IntPtr dev, out int level, out IntPtr ctx);
   public static string Run() {
     var s = new System.Text.StringBuilder(); Guid g = typeof(IDXGIFactory1).GUID; object fo;
-    int hr = CreateDXGIFactory1(ref g, out fo); if (hr != 0) return "CreateDXGIFactory1 " + hr.ToString("x");
+    Stage("CreateDXGIFactory1 begin");
+    int hr = CreateDXGIFactory1(ref g, out fo); Stage("CreateDXGIFactory1 end"); if (hr != 0) return "CreateDXGIFactory1 " + hr.ToString("x");
     var f = (IDXGIFactory1)fo;
     for (uint i = 0; ; i++) {
+      Stage("EnumAdapters1 " + i);
       object ao; if (f.EnumAdapters1(i, out ao) != 0) break;
       var a = (IDXGIAdapter1)ao; DESC1 d; a.GetDesc1(out d);
       s.AppendLine(String.Format("adapter {0}: {1} ven {2:x4} dev {3:x4} dedicated {4} MiB flags {5}", i, d.Description, d.VendorId, d.DeviceId, d.Ded.ToInt64() >> 20, d.Flags));
       if (d.VendorId != 0x10de || (d.Flags & 2) != 0) { Marshal.ReleaseComObject(ao); continue; }
       IntPtr pa = Marshal.GetComInterfaceForObject(a, typeof(IDXGIAdapter1)); IntPtr dev, ctx; int lvl;
       var t0 = DateTime.Now;
+      Stage("D3D11CreateDevice begin: " + d.Description);
       hr = D3D11CreateDevice(pa, 0, IntPtr.Zero, 0, IntPtr.Zero, 0, 7, out dev, out lvl, out ctx);
+      Stage("D3D11CreateDevice end: 0x" + hr.ToString("x8"));
       s.AppendLine(String.Format("  D3D11CreateDevice hr {0:x8} feature level {1:x} in {2} ms", hr, lvl, (int)(DateTime.Now - t0).TotalMilliseconds));
       try { if (hr == 0) { s.AppendLine(RenderGate.Run(dev, ctx)); Passed = true; } }
       finally { if (ctx != IntPtr.Zero) Marshal.Release(ctx); if (dev != IntPtr.Zero) Marshal.Release(dev); Marshal.Release(pa); Marshal.ReleaseComObject(ao); }
@@ -81,22 +87,26 @@ public static class RenderGate {
   public static string Run(IntPtr dev,IntPtr ctx) {
     IntPtr render=IntPtr.Zero,staging=IntPtr.Zero,rtv=IntPtr.Zero,vs=IntPtr.Zero,ps=IntPtr.Zero;
     try {
+      Probe.Stage("render resources begin");
       Texture d=new Texture { W=64,H=64,Mips=1,Array=1,Format=28,Samples=1,Bind=0x20 };
       Check(Fn<CreateTexture>(dev,5)(dev,ref d,IntPtr.Zero,out render),"CreateTexture2D(render)");
       d.Usage=3;d.Bind=0;d.CPU=0x20000;
       Check(Fn<CreateTexture>(dev,5)(dev,ref d,IntPtr.Zero,out staging),"CreateTexture2D(staging)");
       Check(Fn<CreateView>(dev,9)(dev,render,IntPtr.Zero,out rtv),"CreateRenderTargetView");
       vs=Shader(dev,"vs","vs_4_0",12);ps=Shader(dev,"ps","ps_4_0",15);
+      Probe.Stage("render resources ready");
       Fn<Targets>(ctx,33)(ctx,1,ref rtv,IntPtr.Zero);
       Fn<SetShader>(ctx,11)(ctx,vs,IntPtr.Zero,0);Fn<SetShader>(ctx,9)(ctx,ps,IntPtr.Zero,0);
       Fn<Topology>(ctx,24)(ctx,4);
       Viewport vp=new Viewport { W=64,H=64,Max=1 };Fn<SetViewport>(ctx,44)(ctx,1,ref vp);
       var clock=System.Diagnostics.Stopwatch.StartNew();
       for(int frame=0;frame<3;frame++) {
+        Probe.Stage("frame " + frame + " submit");
         Fn<Clear>(ctx,50)(ctx,rtv,new float[]{0,0,0,1});
         // Alternate triangle/clear/triangle: stale readback cannot pass later frames.
         if(frame!=1)Fn<Draw>(ctx,13)(ctx,3,0);
         Fn<Copy>(ctx,47)(ctx,staging,render);
+        Probe.Stage("frame " + frame + " readback begin");
         Mapped m;Check(Fn<Map>(ctx,14)(ctx,staging,0,1,0,out m),"Map(readback)");
         try {
           if(m.Data==IntPtr.Zero || m.Row<256)throw new Exception("invalid mapped texture");
@@ -106,6 +116,7 @@ public static class RenderGate {
           for(int c=0;c<4;c++)if(Math.Abs(center[c]-expected[c])>1)throw new Exception("triangle pixel mismatch: "+BitConverter.ToString(center));
           if(corner[0]!=0||corner[1]!=0||corner[2]!=0||corner[3]!=255)throw new Exception("clear pixel mismatch: "+BitConverter.ToString(corner));
         } finally { Fn<Unmap>(ctx,15)(ctx,staging,0); }
+        Probe.Stage("frame " + frame + " verified");
       }
       clock.Stop();return "PASS: NVIDIA D3D11 triangle + background readback, 3 frames, "+clock.ElapsedMilliseconds+" ms (smoke test, not throughput benchmark)";
     } finally { foreach(IntPtr p in new IntPtr[]{ps,vs,rtv,staging,render})if(p!=IntPtr.Zero)Marshal.Release(p); }
