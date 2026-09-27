@@ -69,9 +69,9 @@ runs through `python3 run-debuggee.py`; do not reuse a run name.
   checks are `+0x18586d8`, `+0x1858720`, `+0x1858845`, `+0x18588df`,
   `+0x1858905` and `+0x1858bd4`. Conditional breakpoints stop only for `AL=0`.
 - The third restart stopped at `+0x18588df`, after `+0x185b6f0` returned false.
-  That routine prepares memory parameters and invokes allocation helpers.
-  The specific failing request is not yet established; this is not evidence
-  of a device whitelist.
+  The fourth stopped at `+0x185baa4`: its first `+0xdda3d0` call failed for
+  index 0. Continuing reached `+0x185bd42` with `SIL=0`, confirming that this
+  failure remained fatal.
 - PnP restart unloads and reloads NVIDIA at a different address. Catch the new
   module load, resolve its base and re-arm breakpoints before continuing.
   No new host Xid was observed during these restarts.
@@ -83,11 +83,49 @@ next helper's disassembly. `KD3-init-helper.log` captures the third restart and
 the failing routine's disassembly. `KD3-internal-start.log` is an incomplete snapshot
 from before the console logging fix. Save a final transcript before stopping KD.
 
+## Fixed-address allocation: controlled diagnostic
+
+The fourth restart captured an `NVOS32_PARAMETERS` allocation inside the guest:
+
+| Field | Value |
+| --- | --- |
+| Function | `2`, `NVOS32_FUNCTION_ALLOC_SIZE` |
+| Status | `0x51`, `NV_ERR_NO_MEMORY` |
+| Owner | `0xff080002` |
+| Size | `0x38c7f000`, about 908.5 MiB |
+| Flags | `0x8010`, fixed address and map not required |
+| Requested offset | `0` |
+| Usable static FB region | `[0x1a9800000, 0x1e9600000)` |
+
+- Windows segment 2 also has base 0 and size `0x38c7f000`. The accessor
+  `+0x1963d00` reads that base from the segment object at `+0x238 + index*0x58`.
+- This is a **guest RM** allocation. No NVOS32 ioctl is forwarded to the host.
+  The backend trace ends with a successful virtual-memory allocation before
+  the failed operation; no failed memory-allocation RPC was observed.
+- In the fifth restart, stop before the RM allocation dispatch. Change only the
+  copied `NV_MEMORY_ALLOCATION_PARAMS.offset` from 0 to `0x1a9800000`, then stop
+  immediately at the caller's return (`+0x156e10`). The allocation returns
+  `NV_OK`, with size rounded to `0x38c80000`, alignment `0x10000`, and the
+  requested high offset preserved. That range remains inside the reservation.
+- This establishes the address mismatch for this allocation. It does not
+  establish successful `StartDevice`, desktop rendering, or an unmodified guest
+  result. No register or instruction was changed to force a successful status.
+- `FB_GET_INFO_V2` base handling also deserves a consistency review, but the
+  recorded request in this run contains **none** of base indices `0x11`, `0x13`
+  or `0x1e`. Changing those replies alone is not an evidenced fix.
+
+Evidence: `KD3-allocation-failure.log`, `KD3-rm-dispatch.log`, and
+`KD3-fixed-offset-ab.log` under `windows-kd/debugger/`. The final transcript marks
+the guest-memory edit as `DIAGNOSTIC_ONLY_REBASE_ONE_ALLOCATION`. The target is
+halted immediately after that allocation; do not count further results from this
+run as stock-guest validation. Restart the VM before testing an emulator fix.
+
 ## Continuing the diagnosis
 
-1. Resolve the actual NVIDIA callback and arm a thread-scoped return breakpoint.
-2. Trace the internal call that produces `0xC000009A`; compare with historical B4.
-3. Change emulator behavior only when the trace identifies a concrete mismatch.
+1. Reconcile Windows segment coordinates with the emulated FB region coordinates.
+2. Prefer a consistent guest-visible layout; audit BAR roots, page-table leaves,
+   physical copy commands and CPU FB access together before changing the mapping.
+3. Reboot into an unmodified guest and reproduce the allocation without KD edits.
 4. Require NVIDIA hardware device creation, verified rendered output and a usable
    desktop before treating Windows as working.
 
