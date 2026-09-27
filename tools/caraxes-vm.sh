@@ -49,6 +49,9 @@
 # vfio-user-nvgpu --features v615 --target-dir target/v615`, the default SERVER then) is
 # passed to the device as --guest-abi, which refuses a binary built for another ABI (fail
 # closed); 595 is the pre-610 element experiment of docs/caraxes/guest-driver-versions.md.
+# CARAXES_GUEST_DMA_GPA=1 tests stock guest DMA addresses without caraxes_dma_range.
+# It requires registered RAM and host-managed GR/CE shadow mappings. The guest
+# helper must be absent; do not combine its IOVA translation with GPA aliases.
 # CARAXES_INPUT=fifo gives the guest a virtio-input device (docs/caraxes/display-e.md §8)
 # without patching Cloud Hypervisor: a vhost-user-input backend (CARAXES_INPUT_SERVER, default
 # vhost-user-input from PATH, else the Leandro build) serves it on $W/input.sock and Cloud
@@ -181,6 +184,12 @@ do_ssh() {
 }
 
 up() {
+    if [[ ${CARAXES_GUEST_DMA_GPA:-0} == 1 ]]; then
+        [[ ${CARAXES_DMA:-} == register && ${CARAXES_HOST_EXEC:-0} == 1 &&
+           ${CARAXES_MIRROR_CHANNELS:-0} == 1 && ${CARAXES_MIRROR_GR_SHADOW:-0} == 1 &&
+           ${CARAXES_CE_SHADOW:-1} != 0 ]] ||
+            error "GPA guest mode requires registered RAM, host execution and GR/CE shadow mappings"
+    fi
     [[ -x $SERVER ]] || error "$SERVER missing: cargo build --release -p vfio-user-nvgpu"
     [[ -x $LEA_CH ]] || error "cloud-hypervisor missing at $LEA_CH"
     [[ -f $W/rootfs.qcow2 && -f $W/seed.img ]] || error "$W needs rootfs.qcow2 and seed.img"
@@ -392,6 +401,13 @@ privileged_server() {
 # Reloads the module only when the table changed; then nvidia is unloaded first and
 # the device gets a function-level reset, so that the next modprobe starts clean.
 dma_load() {
+    if [[ ${CARAXES_GUEST_DMA_GPA:-0} == 1 ]]; then
+        [[ -s $W/dma-ranges ]] || error "GPA guest mode has no registered RAM table"
+        do_ssh 'test ! -d /sys/module/caraxes_dma_range' ||
+            error "GPA guest mode requires caraxes_dma_range to be absent; use a fresh guest boot without the helper"
+        echo "dma: guest uses GPA; host shadow maps translate registered RAM (no guest helper)"
+        return 0
+    fi
     [[ -s $W/dma-ranges ]] || return 0
     local ranges pool lo hi
     ranges=$(cat "$W/dma-ranges")

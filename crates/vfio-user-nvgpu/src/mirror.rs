@@ -36,6 +36,7 @@
 //! address handed to the host is the guest's, unchanged (`guest`), after the check that
 //! it lies inside the reservation.
 
+use std::cell::RefCell;
 use std::collections::BTreeMap;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
@@ -88,6 +89,25 @@ pub fn video_engine(engine_type: u32) -> Option<&'static str> {
         .map(|(n, _)| *n)
 }
 
+/// The chip's non-stall vector for an `NV2080_ENGINE_TYPE_*`. Copy-engine type names use
+/// `COPYn`, while the MC interrupt table names the same engines `CEn`.
+fn nonstall_vector(chip: &ChipData, engine_type: u32) -> Option<u32> {
+    let engine = v::NV2080_ENGINE_TYPES
+        .iter()
+        .find(|(_, value)| *value == engine_type)?
+        .0;
+    let mc_name = engine
+        .strip_prefix("COPY")
+        .map_or_else(|| engine.to_string(), |n| format!("CE{n}"));
+    let mc = v::lookup(v::MC_ENGINE_IDX, &mc_name)?;
+    chip.interrupts
+        .entries
+        .iter()
+        .find(|entry| entry.mc_idx as u32 == mc)
+        .map(|entry| entry.vector_nonstall)
+        .filter(|vector| *vector != 0)
+}
+
 /// Whether `class` is a video class the mirror serves on `chip`: an NVDEC (`..B0`) or
 /// NVENC (`..B7`) class of the chip's class database (TU106: NVC4B0, NVC4B7).
 pub fn video_class_ok(chip: &ChipData, class: u32) -> bool {
@@ -112,6 +132,17 @@ pub fn video_bind(chip: &ChipData, ch: &Channel) -> Option<u32> {
 pub fn copy_bind(ch: &Channel) -> Option<u32> {
     let t = ch.engine_type;
     ((0x09..=0x12).contains(&t) || (0x34..=0x3D).contains(&t)).then_some(t)
+}
+
+/// A channel which must not inherit the unprivileged host mirror client's execution
+/// context. Privileged non-GR channels remain in the bounded software executor. A bare
+/// COPY channel is also kept there unless its allocation explicitly denies physical-mode
+/// CE methods (`NVOS04_FLAGS_CHANNEL_DENY_PHYSICAL_MODE_CE`, bit 7).
+fn needs_software_physical_ce(engine_type: u32, alloc_flags: u32, is_gr: bool, bare: bool) -> bool {
+    let privileged = alloc_flags & (1 << 5) != 0;
+    let deny_physical_ce = alloc_flags & (1 << 7) != 0;
+    let copy = (0x09..=0x12).contains(&engine_type) || (0x34..=0x3D).contains(&engine_type);
+    (privileged && !is_gr) || (bare && copy && !deny_physical_ce)
 }
 
 /// `NVA06F_CTRL_CMD_BIND` {engineType} (ctrla06f.h): a host channel needs an engine before
@@ -474,6 +505,71 @@ pub struct MirrorStats {
     pub max_create_us: u128,
 }
 
+/// Sizes of the host GPU's global GR context buffers, by the host FIFO engine id used by
+/// `NV0080_CTRL_CMD_FIFO_GET_ENGINE_CONTEXT_PROPERTIES`. These are properties of the
+/// physical GPU, not of a guest channel or context. A cache belongs to one [`Mirror`], and
+/// therefore to the one host RM device/client that mirror was built with; recreating the
+/// mirror for another device starts with an empty cache.
+#[derive(Default)]
+struct GlobalCtxSizeCache {
+    by_engine: BTreeMap<u32, Option<u64>>,
+    queries: u64,
+    hits: u64,
+}
+
+impl GlobalCtxSizeCache {
+    /// The FIFO engine property which gives the size of a zero-sized
+    /// `NV2080_CTRL_GPU_PROMOTE_CTX_BUFFER_ID_*` entry.
+    fn engine_id(buffer_id: u16) -> Option<u32> {
+        // ctrl0080fifo.h ENGINE_ID_GRAPHICS_*: BUNDLE_CB 0x11, PAGEPOOL 0x0d,
+        // ATTRIBUTE_CB 0x13, RTV_CB_GLOBAL 0x14, GFXP_POOL 0x15,
+        // GFXP_CTRL_BLK 0x16, FECS_EVENT 0x17, PRIV_ACCESS_MAP 0x18.
+        Some(match buffer_id {
+            3 => 0x11,
+            4 => 0x0d,
+            5 => 0x13,
+            6 => 0x14,
+            7 => 0x15,
+            8 => 0x16,
+            9 => 0x17,
+            10..=12 => 0x18,
+            _ => return None,
+        })
+    }
+
+    /// Return a cached size, or query it once. Successful answers (including a zero size)
+    /// and NOT_SUPPORTED are immutable properties of this host-device generation and are
+    /// cached. Other errors may be transient (for example across recovery), so they are
+    /// returned but retried on the next use.
+    fn get_or_query(
+        &mut self,
+        buffer_id: u16,
+        query: impl FnOnce(u32) -> (u32, u32),
+    ) -> Option<u64> {
+        let engine_id = Self::engine_id(buffer_id)?;
+        if let Some(size) = self.by_engine.get(&engine_id) {
+            self.hits += 1;
+            return *size;
+        }
+        self.queries += 1;
+        let (status, raw) = query(engine_id);
+        let size = (status == sys::NV_OK && raw != 0).then(|| (u64::from(raw) + 0xFFFF) & !0xFFFF);
+        if status == sys::NV_OK || status == sys::NV_ERR_NOT_SUPPORTED {
+            self.by_engine.insert(engine_id, size);
+        }
+        size
+    }
+
+    fn summary(&self) -> String {
+        format!(
+            "global context sizes: {} host query(s), {} cache hit(s), {} cached engine result(s)",
+            self.queries,
+            self.hits,
+            self.by_engine.len()
+        )
+    }
+}
+
 /// The event thread: one OS event per engine notifier plus the RC notifier.
 struct Events {
     stop: Arc<AtomicBool>,
@@ -489,6 +585,10 @@ pub struct Mirror {
     base: u64,
     end: u64,
     reservation: u32,
+    /// Immutable global-context sizes of this mirror's physical host GPU. Interior
+    /// mutability keeps the exclusion walkers read-only; `Mirror` itself is serialized by
+    /// the Device mutex. A new host RM device gets a new `Mirror` and an empty cache.
+    global_ctx_sizes: RefCell<GlobalCtxSizeCache>,
     vas: BTreeMap<(u32, u32), HostVas>,
     /// By [`TsgKey`]: the kernel's TSG id on a 615 guest, the guest handle on 610.
     tsgs: BTreeMap<TsgKey, HostTsg>,
@@ -620,6 +720,7 @@ impl Mirror {
             base,
             end,
             reservation,
+            global_ctx_sizes: RefCell::new(GlobalCtxSizeCache::default()),
             vas: BTreeMap::new(),
             tsgs: BTreeMap::new(),
             channels: BTreeMap::new(),
@@ -750,26 +851,16 @@ impl Mirror {
     /// on the host: `NV0080_CTRL_CMD_FIFO_GET_ENGINE_CONTEXT_PROPERTIES` (NON_PRIVILEGED)
     /// on the device's own host device, rounded up to 64 KiB.
     fn global_ctx_size(&self, buffer_id: u16) -> Option<u64> {
-        // ctrl0080fifo.h ENGINE_ID_GRAPHICS_*: BUNDLE_CB 0x11, PAGEPOOL 0x0d, ATTRIBUTE_CB
-        // 0x13, RTV_CB_GLOBAL 0x14, GFXP_POOL 0x15, GFXP_CTRL_BLK 0x16, FECS_EVENT 0x17,
-        // PRIV_ACCESS_MAP 0x18.
-        let engine_id: u32 = match buffer_id {
-            3 => 0x11,
-            4 => 0x0d,
-            5 => 0x13,
-            6 => 0x14,
-            7 => 0x15,
-            8 => 0x16,
-            9 => 0x17,
-            10..=12 => 0x18,
-            _ => return None,
-        };
-        let h = self.hm.lock().unwrap();
-        let mut p = [0u8; 12];
-        p[..4].copy_from_slice(&engine_id.to_le_bytes());
-        let st = h.control(h.device(), 0x0080_1707, &mut p);
-        let size = u32::from_le_bytes(p[8..12].try_into().unwrap()) as u64;
-        (st == sys::NV_OK && size != 0).then(|| (size + 0xFFFF) & !0xFFFF)
+        self.global_ctx_sizes
+            .borrow_mut()
+            .get_or_query(buffer_id, |engine_id| {
+                let h = self.hm.lock().unwrap();
+                let mut p = [0u8; 12];
+                p[..4].copy_from_slice(&engine_id.to_le_bytes());
+                let status = h.control(h.device(), 0x0080_1707, &mut p);
+                let size = u32::from_le_bytes(p[8..12].try_into().unwrap());
+                (status, size)
+            })
     }
 
     /// Whether `chid` is a GR channel the shadow path takes (`CARAXES_MIRROR_GR_SHADOW=1`).
@@ -1151,12 +1242,9 @@ impl Mirror {
             let root = self.channels.get(&chid).and_then(|c| c.shadow_root);
             let mut notes = lazy_notes;
             notes.extend(ahead_line);
-            // The set-B ranges of the root's live channels, recomputed (`root_exclusions`):
+            // `shadow_resync` recomputes the set-B ranges of the root's live channels once:
             // a context promoted since the build leaves set A, and one whose channel the
             // guest freed comes back to it.
-            if let Some(r) = root {
-                notes.extend(self.refresh_exclusions(reg, r));
-            }
             notes.extend(self.shadow_resync(reg, gm, root));
             // Ordering: the doorbell is forwarded only after the worker applied every plan
             // submitted so far for this root (the mirror is consistent for it). A held
@@ -1614,6 +1702,16 @@ impl Mirror {
         self.channels.len()
     }
 
+    /// Raise the guest non-stall interrupt for software-executed work on `engine_type`.
+    /// The same [`IntrShared`] path serves host-mirrored engine events, including interrupt
+    /// page mode and MSI coalescing. Returns the vector, or `None` when this chip exposes no
+    /// non-stall vector for the engine.
+    pub fn raise_software_nonstall(&self, engine_type: u32) -> Option<u32> {
+        let vector = nonstall_vector(self.chip, engine_type)?;
+        self.intr.raise(vector);
+        Some(vector)
+    }
+
     /// Whether the registry's channel `chid` is one the mirror takes: a child of a
     /// guest TSG whose VA space has a known root inside the reservation.
     pub fn eligible(&self, reg: &Registry, chid: u32) -> Result<(u64, (u32, u32)), String> {
@@ -1622,11 +1720,12 @@ impl Mirror {
         }
         let ch = reg.channel(chid).ok_or("no such channel")?;
         let gr0 = v::lookup(v::NV2080_ENGINE_TYPES, "GR0").unwrap_or(1);
+        let bare = reg.tsg((ch.h_client, ch.h_parent)).is_none();
         // A bare video channel (libnvidia-encode's and libnvcuvid's, under the device with
         // no TSG and no VAS of its own) is mirrored in a host TSG of its own, as a bare CE
         // channel is under CARAXES_MIRROR_BARE_CE.
         let video = video_engine(ch.engine_type);
-        if reg.tsg((ch.h_client, ch.h_parent)).is_none()
+        if bare
             && video.is_none()
             && !(self.bare_ce && ch.engine_type != gr0 && ch.engine_type != 0)
         {
@@ -1673,6 +1772,19 @@ impl Mirror {
                 .engine_objects
                 .iter()
                 .any(|(c, _)| *c == self.chip.channel.compute);
+        // A guest privileged non-GR channel may issue physical-mode work (page-table
+        // updates and scrubbing, alloc_channel.h NVOS04_FLAGS_PRIVILEGED_CHANNEL). The host
+        // mirror client is deliberately unprivileged, so replaying it there would silently
+        // drop its privilege and can fault the physical GPU. A bare COPY channel with bit 7
+        // clear also lacks an explicit allocation-time denial of physical CE methods. Keep
+        // both in the bounded software executor; ordinary TSG-backed user CE and video
+        // channels remain eligible.
+        if needs_software_physical_ce(ch.engine_type, ch.alloc_flags, is_gr, bare) {
+            return Err(format!(
+                "channel may issue guest physical-mode work (engine {:#x}, allocation flags {:#x}, bare {bare}): host privilege is not inherited; stays with the bounded software executor",
+                ch.engine_type, ch.alloc_flags
+            ));
+        }
         if is_gr && !self.mirror_gr {
             return Err(
                 "GR channel: a host GR context that agrees with the guest's promoted context is not established (cuda-path.md §4.1); stays with the software executor (the kernel-launch wall)".into(),
@@ -2239,7 +2351,8 @@ impl Mirror {
             // guest's recorded entries. A refusal keeps the channel off the host: it would
             // otherwise run with a context the guest never sees (b2: Xid 38).
             if self.mirror_gr && objects.iter().any(|(c, _)| *c == self.chip.channel.compute) {
-                let (st, note) = promote_gr(&mut h, handle, &promote_entries);
+                let (st, note) =
+                    promote_gr(&mut h, handle, &promote_entries, self.base, self.end);
                 notes.push(note);
                 if st != sys::NV_OK {
                     return Err(format!(
@@ -3192,7 +3305,7 @@ impl Mirror {
     pub fn summary(&self) -> String {
         let s = &self.stats;
         format!(
-            "mirror: {} channel(s) created, {} freed, {} live; {} doorbell(s) forwarded, {} TLB invalidate(s) ({} MEM_OP push(es), {} slow), {} refusal(s), longest mirror build {} us; events raised {}, MSIs {} (coalesced {}), host RC events {}{}; {}",
+            "mirror: {} channel(s) created, {} freed, {} live; {} doorbell(s) forwarded, {} TLB invalidate(s) ({} MEM_OP push(es), {} slow), {} refusal(s), longest mirror build {} us; events raised {}, MSIs {} (coalesced {}), host RC events {}{}; {}; {}",
             s.channels_created,
             s.channels_freed,
             self.channels.len(),
@@ -3211,7 +3324,8 @@ impl Mirror {
             } else {
                 String::new()
             },
-            self.hold_summary()
+            self.hold_summary(),
+            self.global_ctx_sizes.borrow().summary()
         )
     }
 }
@@ -3435,6 +3549,60 @@ impl Drop for ShadowWorker {
     }
 }
 
+/// Validate the guest-owned physical half of one `GPU_PROMOTE_CTX` entry before the
+/// privileged host control can see it. `physAttr` uses the public
+/// `NV2080_CTRL_GPU_INITIALIZE_CTX_APERTURE` bits 1:0 and GPU-cacheable bit 2. The mirror
+/// currently owns only the reservation's contiguous VIDMEM aperture; system-memory
+/// physical addresses require an explicit registered-descriptor translation and are not
+/// forwarded by this path.
+fn validate_promote_phys(
+    entry: &crate::channel::PromoteEntry,
+    base: u64,
+    end: u64,
+) -> Result<(), String> {
+    if entry.nonmapped && !entry.initialize {
+        return Err("bNonmapped without bInitialize is illegal".into());
+    }
+    let Some((pa, attr)) = entry.phys else {
+        return if entry.initialize {
+            Err("bInitialize has no physical address".into())
+        } else {
+            Ok(())
+        };
+    };
+    if !entry.initialize {
+        return Err(format!("physical address {pa:#x} without bInitialize"));
+    }
+    if entry.size == 0 {
+        return Err(format!("physical address {pa:#x} has zero size"));
+    }
+    if attr & !0x7 != 0 {
+        return Err(format!("physical attributes {attr:#x} contain unsupported bits"));
+    }
+    match attr & 0x3 {
+        0 => {
+            let limit = pa
+                .checked_add(entry.size)
+                .ok_or_else(|| format!("VIDMEM range {pa:#x}+{:#x} wraps", entry.size))?;
+            if pa < base || limit > end {
+                return Err(format!(
+                    "VIDMEM range [{pa:#x}, {limit:#x}) is outside the reservation [{base:#x}, {end:#x})"
+                ));
+            }
+            Ok(())
+        }
+        1 => Err(format!(
+            "COHERENT_SYSMEM physical range {pa:#x}+{:#x} has no registered-descriptor translation",
+            entry.size
+        )),
+        2 => Err(format!(
+            "NONCOHERENT_SYSMEM physical range {pa:#x}+{:#x} has no registered-descriptor translation",
+            entry.size
+        )),
+        _ => Err(format!("physical attributes {attr:#x} name an invalid aperture")),
+    }
+}
+
 /// c2 (exec-formats.md §4.5): `GPU_PROMOTE_CTX` for the host GR channel with the
 /// guest's recorded entries (VAs of every buffer, the reservation PAs with the
 /// initialize flag for MAIN and PATCH), so the host GSP initializes the guest's
@@ -3446,12 +3614,25 @@ fn promote_gr(
     h: &mut HostMemory,
     host_channel: u32,
     entries: &[crate::channel::PromoteEntry],
+    base: u64,
+    end: u64,
 ) -> (u32, String) {
     if entries.is_empty() {
         return (
             0xFFFF_FFFF,
             format!("chid mirror {host_channel:#x}: no recorded promote entries; GR context not promoted (c2)"),
         );
+    }
+    for e in entries {
+        if let Err(why) = validate_promote_phys(e, base, end) {
+            return (
+                sys::NV_ERR_INVALID_ARGUMENT,
+                format!(
+                    "chid mirror {host_channel:#x}: c2 GPU_PROMOTE_CTX entry {} refused before the privileged host control: {why} [guest, isolation]",
+                    e.buffer_id
+                ),
+            );
+        }
     }
     let root = h.root();
     let n = entries.len().min(v::PROMOTE_MAX_ENTRIES);
@@ -3573,6 +3754,7 @@ fn event_loop(events: Vec<(OsEvent, Option<u32>)>, intr: Arc<IntrShared>, stop: 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::cell::Cell;
 
     /// The engines the mirror forwards are the chip's, with non-stall vectors in the
     /// notification subtree (vectors 0..63, cuda-path.md §5.1).
@@ -3592,6 +3774,197 @@ mod tests {
         }
         assert_eq!(NOTIFIER_GRAPHICS | EVENT_NONSTALL, 0x0800_000C);
         assert_eq!(SETPD_SIZE, 32);
+    }
+
+    /// Software-executed completions use the same chip-table mapping as mirrored host
+    /// notifications. COPY engine names deliberately map to the MC table's CE names.
+    #[test]
+    fn software_nonstall_vectors_follow_the_chip_table() {
+        let chip = crate::fixture::rtx2070().chip.data();
+        let engine = |name| v::lookup(v::NV2080_ENGINE_TYPES, name).unwrap();
+        assert_eq!(nonstall_vector(chip, engine("GR0")), Some(4));
+        assert_eq!(nonstall_vector(chip, engine("COPY2")), Some(5));
+        assert_eq!(nonstall_vector(chip, engine("COPY3")), Some(6));
+        assert_eq!(nonstall_vector(chip, engine("COPY4")), Some(7));
+        assert_eq!(nonstall_vector(chip, engine("NVDEC0")), Some(8));
+        assert_eq!(nonstall_vector(chip, engine("NVENC0")), Some(9));
+        assert_eq!(nonstall_vector(chip, engine("COPY0")), None);
+        assert_eq!(nonstall_vector(chip, 0xFFFF_FFFF), None);
+    }
+
+    /// Host privilege is never inherited. A bare COPY channel is additionally safe to
+    /// mirror only when the guest allocation explicitly denied physical CE methods.
+    #[test]
+    fn physical_ce_gate_preserves_only_explicitly_bounded_host_work() {
+        const PRIVILEGED: u32 = 1 << 5;
+        const DENY_PHYSICAL_CE: u32 = 1 << 7;
+        let copy2 = v::lookup(v::NV2080_ENGINE_TYPES, "COPY2").unwrap();
+        let nvdec0 = v::lookup(v::NV2080_ENGINE_TYPES, "NVDEC0").unwrap();
+        let gr0 = v::lookup(v::NV2080_ENGINE_TYPES, "GR0").unwrap();
+
+        assert!(needs_software_physical_ce(copy2, PRIVILEGED, false, false));
+        assert!(needs_software_physical_ce(nvdec0, PRIVILEGED, false, false));
+        assert!(!needs_software_physical_ce(gr0, PRIVILEGED, true, false));
+        assert!(needs_software_physical_ce(copy2, 0, false, true));
+        assert!(!needs_software_physical_ce(
+            copy2,
+            DENY_PHYSICAL_CE,
+            false,
+            true
+        ));
+        assert!(!needs_software_physical_ce(copy2, 0, false, false));
+        assert!(!needs_software_physical_ce(nvdec0, 0, false, true));
+    }
+
+    /// The privileged context-promotion control receives only initialized VIDMEM ranges
+    /// wholly owned by this mirror. VA-only entries remain valid; system apertures need a
+    /// separate registered-descriptor translation and are refused by this path.
+    #[test]
+    fn promote_physical_entries_are_bounded_to_the_reservation() {
+        const BASE: u64 = 0x1_0000_0000;
+        const END: u64 = BASE + 0x20_0000;
+        let physical = |pa, size, attr| crate::channel::PromoteEntry {
+            buffer_id: 0,
+            phys: Some((pa, attr)),
+            size,
+            initialize: true,
+            ..Default::default()
+        };
+
+        assert!(validate_promote_phys(&physical(BASE, END - BASE, 0x4), BASE, END).is_ok());
+        assert!(validate_promote_phys(&physical(BASE + 0x1000, 0x8c00, 0), BASE, END).is_ok());
+        assert!(validate_promote_phys(
+            &crate::channel::PromoteEntry {
+                buffer_id: 9,
+                virt: Some(0x1_2000_0000),
+                ..Default::default()
+            },
+            BASE,
+            END
+        )
+        .is_ok());
+
+        for bad in [
+            physical(BASE - 1, 1, 0x4),
+            physical(END - 1, 2, 0x4),
+            physical(u64::MAX - 1, 4, 0x4),
+            physical(BASE, 0, 0x4),
+            physical(BASE, 0x1000, 0x5),
+            physical(BASE, 0x1000, 0x6),
+            physical(BASE, 0x1000, 0x3),
+            physical(BASE, 0x1000, 0x8),
+        ] {
+            assert!(validate_promote_phys(&bad, BASE, END).is_err(), "{bad:?}");
+        }
+
+        let mut missing = crate::channel::PromoteEntry {
+            buffer_id: 2,
+            initialize: true,
+            ..Default::default()
+        };
+        assert!(validate_promote_phys(&missing, BASE, END).is_err());
+        missing.initialize = false;
+        missing.nonmapped = true;
+        assert!(validate_promote_phys(&missing, BASE, END).is_err());
+        let mut uninitialized = physical(BASE, 0x1000, 0x4);
+        uninitialized.initialize = false;
+        assert!(validate_promote_phys(&uninitialized, BASE, END).is_err());
+    }
+
+    /// Global GR context sizes belong to host engine properties, not to a guest channel:
+    /// buffer ids 10..12 share PRIV_ACCESS_MAP and must cause only one host query. Unknown
+    /// buffer ids never reach the host. The host's byte size is rounded up to 64 KiB once.
+    #[test]
+    fn global_context_sizes_are_cached_by_host_engine() {
+        let calls = Cell::new(0u32);
+        let mut cache = GlobalCtxSizeCache::default();
+        assert_eq!(
+            cache.get_or_query(2, |_| {
+                calls.set(calls.get() + 1);
+                (sys::NV_OK, 1)
+            }),
+            None
+        );
+        assert_eq!(calls.get(), 0, "an unknown buffer id has no host engine property");
+
+        assert_eq!(
+            cache.get_or_query(10, |engine| {
+                calls.set(calls.get() + 1);
+                assert_eq!(engine, 0x18);
+                (sys::NV_OK, 0x1_0001)
+            }),
+            Some(0x2_0000)
+        );
+        for id in [11, 12] {
+            assert_eq!(
+                cache.get_or_query(id, |_| panic!("the shared host engine was queried twice")),
+                Some(0x2_0000)
+            );
+        }
+        assert_eq!(calls.get(), 1);
+
+        assert_eq!(
+            cache.get_or_query(5, |engine| {
+                calls.set(calls.get() + 1);
+                assert_eq!(engine, 0x13);
+                (sys::NV_OK, 0x20_0000)
+            }),
+            Some(0x20_0000)
+        );
+        assert_eq!(calls.get(), 2, "a distinct host engine has its own property");
+        assert_eq!(cache.queries, 2);
+        assert_eq!(cache.hits, 2);
+        assert_eq!(cache.by_engine.len(), 2);
+    }
+
+    /// NOT_SUPPORTED and an NV_OK zero answer are stable for a host-device generation and
+    /// stay cached as `None`. Other failures are not cached: a later query can recover.
+    #[test]
+    fn global_context_size_cache_retries_only_nonstable_failures() {
+        let calls = Cell::new(0u32);
+        let mut cache = GlobalCtxSizeCache::default();
+
+        assert_eq!(
+            cache.get_or_query(7, |_| {
+                calls.set(calls.get() + 1);
+                (sys::NV_ERR_NOT_SUPPORTED, 0)
+            }),
+            None
+        );
+        assert_eq!(cache.get_or_query(7, |_| panic!("NOT_SUPPORTED was not cached")), None);
+
+        assert_eq!(
+            cache.get_or_query(8, |_| {
+                calls.set(calls.get() + 1);
+                (sys::NV_OK, 0)
+            }),
+            None
+        );
+        assert_eq!(cache.get_or_query(8, |_| panic!("the zero answer was not cached")), None);
+
+        assert_eq!(
+            cache.get_or_query(5, |_| {
+                calls.set(calls.get() + 1);
+                (sys::NV_ERR_INVALID_ARGUMENT, 0)
+            }),
+            None
+        );
+        assert_eq!(
+            cache.get_or_query(5, |_| {
+                calls.set(calls.get() + 1);
+                (sys::NV_OK, 0x30_0000)
+            }),
+            Some(0x30_0000),
+            "a transient/nonstable failure must not poison the device cache"
+        );
+        assert_eq!(
+            cache.get_or_query(5, |_| panic!("the recovered success was not cached")),
+            Some(0x30_0000)
+        );
+        assert_eq!(calls.get(), 4);
+        assert_eq!(cache.queries, 4);
+        assert_eq!(cache.hits, 3);
+        assert_eq!(cache.by_engine.len(), 3);
     }
 
     type Abi = v::RmAbi;

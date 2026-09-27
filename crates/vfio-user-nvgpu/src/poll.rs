@@ -175,8 +175,10 @@ impl Wait {
     }
 }
 
-/// A histogram of durations in 100 ns buckets up to 200 us, and one overflow bucket;
-/// written by the reader only, read at exit.
+/// Durations in 100 ns buckets up to 200 us, then 64 buckets per doubling.
+/// The tail covers all u64 nanoseconds so millisecond stalls do not collapse
+/// into an overflow bucket whose quantiles would misleadingly equal the maximum.
+/// Written by the reader only, read at exit.
 pub struct Histogram {
     buckets: Box<[AtomicU64]>,
     count: AtomicU64,
@@ -186,11 +188,34 @@ pub struct Histogram {
 
 const BUCKET_NS: u64 = 100;
 const BUCKETS: usize = 2000;
+const TAIL_START_NS: u64 = BUCKET_NS * BUCKETS as u64;
+const TAIL_SUB_BUCKETS: usize = 64;
+const TAIL_GROUPS: usize = (u64::BITS - (u64::MAX / TAIL_START_NS).leading_zeros()) as usize;
+
+fn duration_bucket(ns: u64) -> usize {
+    if ns < TAIL_START_NS {
+        return (ns / BUCKET_NS) as usize;
+    }
+    let group = (u64::BITS - 1 - (ns / TAIL_START_NS).leading_zeros()) as usize;
+    let base = TAIL_START_NS << group;
+    let width = base / TAIL_SUB_BUCKETS as u64;
+    BUCKETS + group * TAIL_SUB_BUCKETS + ((ns - base) / width) as usize
+}
+
+fn duration_bucket_upper_ns(bucket: usize) -> u128 {
+    if bucket < BUCKETS {
+        return (bucket as u128 + 1) * u128::from(BUCKET_NS);
+    }
+    let tail = bucket - BUCKETS;
+    let base = u128::from(TAIL_START_NS) << (tail / TAIL_SUB_BUCKETS);
+    base + (tail % TAIL_SUB_BUCKETS + 1) as u128 * (base / TAIL_SUB_BUCKETS as u128)
+}
 
 impl Default for Histogram {
     fn default() -> Self {
         Histogram {
-            buckets: (0..=BUCKETS).map(|_| AtomicU64::new(0)).collect(),
+            buckets: (0..BUCKETS + TAIL_GROUPS * TAIL_SUB_BUCKETS)
+                .map(|_| AtomicU64::new(0)).collect(),
             count: AtomicU64::new(0),
             sum_ns: AtomicU64::new(0),
             max_ns: AtomicU64::new(0),
@@ -206,7 +231,7 @@ fn bump(a: &AtomicU64, by: u64) {
 impl Histogram {
     pub fn record(&self, d: Duration) {
         let ns = d.as_nanos().min(u128::from(u64::MAX)) as u64;
-        let b = ((ns / BUCKET_NS) as usize).min(BUCKETS);
+        let b = duration_bucket(ns);
         bump(&self.buckets[b], 1);
         bump(&self.count, 1);
         bump(&self.sum_ns, ns);
@@ -231,8 +256,8 @@ impl Histogram {
         self.max_ns.load(Relaxed) as f64 / 1000.0
     }
 
-    /// The upper edge of the bucket holding quantile `q` (0..1), in microseconds; the
-    /// maximum when it lies in the overflow bucket.
+    /// The upper edge of the bucket holding quantile `q` (0..1), in microseconds,
+    /// capped by the observed maximum for the logarithmic tail.
     pub fn quantile_us(&self, q: f64) -> f64 {
         let n = self.count();
         if n == 0 {
@@ -243,10 +268,11 @@ impl Histogram {
         for (i, b) in self.buckets.iter().enumerate() {
             seen += b.load(Relaxed);
             if seen >= want {
-                if i == BUCKETS {
-                    return self.max_us();
+                let upper = duration_bucket_upper_ns(i) as f64 / 1000.0;
+                if i >= BUCKETS {
+                    return upper.min(self.max_us());
                 }
-                return ((i as u64 + 1) * BUCKET_NS) as f64 / 1000.0;
+                return upper;
             }
         }
         self.max_us()
@@ -929,9 +955,41 @@ mod tests {
         assert_eq!(h.count(), 100);
         assert_eq!(h.quantile_us(0.5), 1.1);
         assert_eq!(h.quantile_us(0.99), 1.1);
-        // The overflow bucket reports the maximum.
+        // The tail's upper bound is capped by the observed maximum.
         assert_eq!(h.quantile_us(1.0), 500.0);
         assert!((h.mean_us() - (99.0 * 1.05 + 500.0) / 100.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn histogram_millisecond_quantiles_do_not_report_the_maximum_outlier() {
+        let h = Histogram::default();
+        for _ in 0..99 {
+            h.record(Duration::from_micros(7_000));
+        }
+        h.record(Duration::from_micros(60_014));
+        for q in [0.5, 0.99] {
+            assert!((7_000.0..=7_100.0).contains(&h.quantile_us(q)));
+        }
+        assert_eq!(h.max_us(), 60_014.0);
+        assert_eq!(h.quantile_us(1.0), 60_014.0);
+    }
+
+    #[test]
+    fn histogram_tail_bounds_cover_every_duration_scale() {
+        for group in 0..TAIL_GROUPS {
+            let base = TAIL_START_NS << group;
+            for ns in [base - 1, base, base.saturating_add(base / 2), base.saturating_mul(2) - 1] {
+                let bucket = duration_bucket(ns);
+                assert!(bucket < BUCKETS + TAIL_GROUPS * TAIL_SUB_BUCKETS);
+                assert!(duration_bucket_upper_ns(bucket) > u128::from(ns));
+                if bucket > 0 {
+                    assert!(duration_bucket_upper_ns(bucket - 1) <= u128::from(ns));
+                }
+            }
+        }
+        let h = Histogram::default();
+        h.record(Duration::from_nanos(u64::MAX));
+        assert_eq!(h.quantile_us(0.5), h.max_us());
     }
 
     #[test]

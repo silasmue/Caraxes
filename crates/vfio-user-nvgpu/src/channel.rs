@@ -190,6 +190,7 @@ pub struct PromoteEntry {
 /// Host method state (`clc46f.h`).
 #[derive(Clone, Debug, Default)]
 struct HostState {
+    legacy_sem: [u32; 3],
     sem_addr_lo: u32,
     sem_addr_hi: u32,
     sem_payload_lo: u32,
@@ -211,6 +212,9 @@ pub struct Channel {
     pub mirrored: bool,
     pub chid: u32,
     pub engine_type: u32,
+    /// Guest allocation flags, decoded with the selected guest ABI. These never grant
+    /// the host channel additional privileges.
+    pub alloc_flags: u32,
     pub gpfifo_va: u64,
     pub gpfifo_entries: u32,
     /// USERD (GPGet/GPPut page), from `userdMem`.
@@ -242,6 +246,26 @@ pub struct Channel {
     pub launches_refused: u64,
     /// `MEM_OP` TLB invalidates of this channel's pushes since the registry drained them.
     tlb_invalidates: Vec<Option<u64>>,
+    /// A failed software method is terminal until this channel is reallocated.
+    software_failed: bool,
+    software_failure: Option<String>,
+    software_nonstall: bool,
+    software_fb_range: Option<(u64, u64)>,
+}
+
+impl Channel {
+    /// NVOS04_FLAGS_PRIVILEGED_CHANNEL, bit 5 in alloc_channel.h.
+    pub fn privileged(&self) -> bool {
+        self.alloc_flags & (1 << 5) != 0
+    }
+}
+
+/// Completed software work or a terminal method failure, drained by the dispatcher.
+pub struct SoftwareEvent {
+    pub chid: u32,
+    pub engine_type: u32,
+    pub failure: Option<String>,
+    pub nonstall: bool,
 }
 
 /// Everything the device knows about the guest's channels.
@@ -304,6 +328,10 @@ pub struct Registry {
     /// The doorbell token pool (`CARAXES_DOORBELL_TOKENS`, tokens.rs): which channel
     /// holds which pool token.
     pub tokens: Option<crate::tokens::TokenPool>,
+    /// Host-backed execution confines software CE accesses to this VM's reservation.
+    pub software_fb_range: Option<(u64, u64)>,
+    /// Lets the dispatcher avoid software-event scans on the mirrored hot path.
+    pub software_runs: u64,
 }
 
 fn rd32(b: &[u8], off: usize) -> u32 {
@@ -351,11 +379,38 @@ impl Registry {
             doorbells: 0,
             tlb_invalidates: Vec::new(),
             tokens: None,
+            software_fb_range: None,
+            software_runs: 0,
         }
     }
 
     pub fn channels(&self) -> impl Iterator<Item = &Channel> {
         self.channels.values()
+    }
+
+    pub fn take_software_events(&mut self) -> Vec<SoftwareEvent> {
+        self.channels
+            .values_mut()
+            .filter_map(|ch| {
+                let failure = ch.software_failure.take();
+                let nonstall = std::mem::take(&mut ch.software_nonstall);
+                (failure.is_some() || nonstall).then_some(SoftwareEvent {
+                    chid: ch.chid,
+                    engine_type: ch.engine_type,
+                    failure,
+                    nonstall,
+                })
+            })
+            .collect()
+    }
+
+    /// Software acquires may wait for a host GPU write without another guest doorbell.
+    pub fn blocked_software_channels(&self) -> Vec<u32> {
+        self.channels
+            .values()
+            .filter(|ch| !ch.mirrored && !ch.software_failed && ch.resume.is_some())
+            .map(|ch| ch.chid)
+            .collect()
     }
 
     pub fn vas_root(&self, key: (u32, u32)) -> Option<Target> {
@@ -630,7 +685,9 @@ impl Registry {
                 let share = rd32(params, 4);
                 if share != 0 && share != h_client {
                     self.client_share.insert(h_client, share);
-                    return Some(format!("device {h_object:#x} shares the VA space of client {share:#x} [guest]"));
+                    return Some(format!(
+                        "device {h_object:#x} shares the VA space of client {share:#x} [guest]"
+                    ));
                 }
                 None
             }
@@ -709,6 +766,7 @@ impl Registry {
                     mirrored: false,
                     chid,
                     engine_type: rd32(params, <Abi as RmAbi>::ALLOC_CHANNEL_PARAMS_OFF_engineType),
+                    alloc_flags: flags,
                     gpfifo_va: rd64(
                         params,
                         <Abi as RmAbi>::ALLOC_CHANNEL_PARAMS_OFF_gpFifoOffset,
@@ -740,9 +798,13 @@ impl Registry {
                     methods_done: 0,
                     launches_refused: 0,
                     tlb_invalidates: Vec::new(),
+                    software_failed: false,
+                    software_failure: None,
+                    software_nonstall: false,
+                    software_fb_range: None,
                 };
                 let mut note = format!(
-                    "channel {h_object:#x} chid {chid} engineType {:#x} gpfifo va {:#x} x {} userd {:?} vaspace {:?} errorNotifier {:?}{} [guest]",
+                    "channel {h_object:#x} chid {chid} engineType {:#x} gpfifo va {:#x} x {} userd {:?} vaspace {:?} errorNotifier {:?}{} alloc_flags {flags:#x} [guest]",
                     ch.engine_type,
                     ch.gpfifo_va,
                     ch.gpfifo_entries,
@@ -842,8 +904,7 @@ impl Registry {
         self.device_vas
             .retain(|(c, h), d| *c != h_client || !(all || *h == h_object || *d == h_object));
         self.default_vas.retain(|(c, d), v| {
-            !(*c == h_client
-                && (all || *d == h_object || (v.0 == h_client && v.1 == h_object)))
+            !(*c == h_client && (all || *d == h_object || (v.0 == h_client && v.1 == h_object)))
         });
         if device_gone {
             self.client_device.remove(&h_client);
@@ -1043,7 +1104,9 @@ impl Registry {
         }
         let vas = self.resolve((h_client, h_vas));
         if !self.vaspaces.contains_key(&vas) {
-            return Err(format!("vaspace {h_vas:#x} is not recorded for client {h_client:#x}"));
+            return Err(format!(
+                "vaspace {h_vas:#x} is not recorded for client {h_client:#x}"
+            ));
         }
         self.default_vas.insert(dev, vas);
         Ok(format!(
@@ -1106,7 +1169,10 @@ impl Registry {
         if let Some(k) = self.client_default_key(share) {
             return Some(k);
         }
-        let mut roots = self.vaspaces.iter().filter(|((c, _), r)| *c == share && r.is_some());
+        let mut roots = self
+            .vaspaces
+            .iter()
+            .filter(|((c, _), r)| *c == share && r.is_some());
         match (roots.next(), roots.next()) {
             (Some((k, _)), None) => Some(*k),
             _ => None,
@@ -1163,6 +1229,11 @@ impl Registry {
             return notes;
         };
         let ch = self.channels.get_mut(&chid).expect("checked");
+        if ch.mirrored || ch.software_failed {
+            return notes;
+        }
+        self.software_runs = self.software_runs.wrapping_add(1);
+        ch.software_fb_range = self.software_fb_range;
         let Some(userd) = ch.userd else {
             notes.push(format!("chid {chid}: no USERD, nothing run"));
             return notes;
@@ -1321,10 +1392,16 @@ impl Registry {
                 match r {
                     Ok(Some(n)) => notes.push(n),
                     Ok(None) => {}
-                    Err(Blocked(n)) => {
+                    Err(MethodError::Blocked(n)) => {
                         notes.push(n);
                         ch.resume = Some(pos);
                         return Ok((notes, true));
+                    }
+                    Err(MethodError::Failed(n)) => {
+                        ch.software_failed = true;
+                        ch.software_failure = Some(n.clone());
+                        ch.software_nonstall = false;
+                        return Err(n);
                     }
                 }
             }
@@ -1340,7 +1417,7 @@ impl Registry {
         addr: u32,
         data: u32,
         now: u64,
-    ) -> Result<Option<String>, Blocked> {
+    ) -> Result<Option<String>, MethodError> {
         let h = &mut ch.host;
         Ok(match addr {
             // SET_OBJECT: NVCLASS 15:0 (clc46f.h:68-71).
@@ -1352,7 +1429,72 @@ impl Registry {
                 ))
             }
             0x08 => None,
-            0x20 => Some("host NON_STALL_INTERRUPT (no interrupt raised)".into()),
+            0x10 => {
+                h.legacy_sem[0] = data;
+                None
+            }
+            0x14 => {
+                h.legacy_sem[1] = data;
+                None
+            }
+            0x18 => {
+                h.legacy_sem[2] = data;
+                None
+            }
+            // Legacy SEMAPHOREA-D is used after the Windows CE-utils transfers.
+            // 0x01100002 means a four-byte RELEASE, not a no-op.
+            0x1C => {
+                let va = ((h.legacy_sem[0] as u64 & 0xFF) << 32) | (h.legacy_sem[1] as u64 & !3);
+                let payload = h.legacy_sem[2];
+                let op = data & 0x1F;
+                let size = if op == 2 && data & (1 << 24) == 0 {
+                    16
+                } else {
+                    4
+                };
+                let pieces = ce_pieces(mem, root, false, 0, va, size, ch.software_fb_range)
+                    .map_err(MethodError::Failed)?;
+                mem.fb.flush();
+                if op == 2 {
+                    let mut b = [0u8; 16];
+                    b[..4].copy_from_slice(&payload.to_le_bytes());
+                    if size == 16 {
+                        b[8..].copy_from_slice(&now.to_le_bytes());
+                    }
+                    ce_publish(mem, &pieces, &b[..size as usize], 4)
+                        .map_err(MethodError::Failed)?;
+                    mem.fb.flush();
+                    Some(format!(
+                        "host legacy semaphore release va {va:#x} = {payload:#x} [guest]"
+                    ))
+                } else if matches!(op, 1 | 4 | 8) {
+                    let mut b = [0u8; 4];
+                    ce_read(mem, &pieces, &mut b).map_err(MethodError::Failed)?;
+                    let cur = u32::from_le_bytes(b);
+                    let ready = match op {
+                        1 => cur == payload,
+                        4 => cur >= payload,
+                        _ => cur & payload != 0,
+                    };
+                    if !ready {
+                        return Err(MethodError::Blocked(format!("host legacy semaphore acquire va {va:#x}: {cur:#x} vs {payload:#x}, channel waits")));
+                    }
+                    None
+                } else {
+                    return Err(MethodError::Failed(format!(
+                        "host legacy semaphore operation {op:#x} not implemented"
+                    )));
+                }
+            }
+            0x20 => {
+                mem.fb.flush();
+                ch.software_nonstall = true;
+                Some("host NON_STALL_INTERRUPT queued after software writes".into())
+            }
+            0x24 => {
+                mem.fb.flush();
+                None
+            }
             0x28 => {
                 h.mem_op[0] = data;
                 None
@@ -1386,6 +1528,7 @@ impl Registry {
                     ch.tlb_invalidates.push(pdb);
                     forwarded = "; queued for the host mirrors";
                 }
+                mem.fb.flush();
                 Some(format!(
                     "host MEM_OP {what} (op {op:#x}, A {:#x} B {:#x} C {:#x}): no cache to act on{forwarded}",
                     h.mem_op[0], h.mem_op[1], h.mem_op[2]
@@ -1415,36 +1558,40 @@ impl Registry {
                 let payload = ((h.sem_payload_hi as u64) << 32) | h.sem_payload_lo as u64;
                 match data & 7 {
                     1 => {
-                        let r = if data & (1 << 25) != 0 {
-                            let mut b = [0u8; 16];
+                        let mut b = [0u8; 16];
+                        let size = if data & (1 << 25) != 0 {
                             b[..8].copy_from_slice(&payload.to_le_bytes());
                             b[8..].copy_from_slice(&now.to_le_bytes());
-                            mem.write_va(root, va, &b)
+                            16
                         } else if wide {
-                            mem.write_va(root, va, &payload.to_le_bytes())
+                            b[..8].copy_from_slice(&payload.to_le_bytes());
+                            8
                         } else {
-                            mem.write_va(root, va, &(payload as u32).to_le_bytes())
+                            b[..4].copy_from_slice(&(payload as u32).to_le_bytes());
+                            4
                         };
-                        Some(match r {
-                            Ok(()) => format!(
-                                "host semaphore release va {va:#x} payload {payload:#x}{} [guest]",
-                                if data & (1 << 25) != 0 {
-                                    " + timestamp [synthesized]"
-                                } else {
-                                    ""
-                                }
-                            ),
-                            Err(e) => format!("host semaphore release va {va:#x}: {e}"),
-                        })
+                        let pieces = ce_pieces(mem, root, false, 0, va, size, ch.software_fb_range)
+                            .map_err(MethodError::Failed)?;
+                        mem.fb.flush();
+                        ce_publish(mem, &pieces, &b[..size as usize], if wide { 8 } else { 4 })
+                            .map_err(MethodError::Failed)?;
+                        mem.fb.flush();
+                        Some(format!(
+                            "host semaphore release va {va:#x} payload {payload:#x}{} [guest]",
+                            if data & (1 << 25) != 0 {
+                                " + timestamp [synthesized]"
+                            } else {
+                                ""
+                            }
+                        ))
                     }
                     op @ (0 | 2 | 3) => {
                         let mut b = [0u8; 8];
                         let n = if wide { 8 } else { 4 };
-                        if let Err(e) = mem.read_va(root, va, &mut b[..n]) {
-                            return Ok(Some(format!(
-                                "host semaphore acquire va {va:#x}: {e}, treated as satisfied"
-                            )));
-                        }
+                        let pieces =
+                            ce_pieces(mem, root, false, 0, va, n as u64, ch.software_fb_range)
+                                .map_err(MethodError::Failed)?;
+                        ce_read(mem, &pieces, &mut b[..n]).map_err(MethodError::Failed)?;
                         let cur = u64::from_le_bytes(b);
                         let (cur, want) = if wide {
                             (cur, payload)
@@ -1464,16 +1611,23 @@ impl Registry {
                             }
                         };
                         if !ok {
-                            return Err(Blocked(format!(
+                            return Err(MethodError::Blocked(format!(
                                 "host semaphore acquire va {va:#x} op {op}: {cur:#x} vs {want:#x}, channel waits"
                             )));
                         }
                         None
                     }
-                    op => Some(format!("host SEM_EXECUTE op {op} not modelled")),
+                    op => {
+                        return Err(MethodError::Failed(format!(
+                            "host SEM_EXECUTE op {op} not modelled"
+                        )))
+                    }
                 }
             }
-            0x78 => None,
+            0x78 => {
+                mem.fb.flush();
+                None
+            }
             a => Some(format!("host method {a:#x} = {data:#x} not modelled")),
         })
     }
@@ -1723,7 +1877,7 @@ impl Registry {
         addr: u32,
         data: u32,
         now: u64,
-    ) -> Result<Option<String>, Blocked> {
+    ) -> Result<Option<String>, MethodError> {
         let c = &mut ch.ce;
         match addr {
             0x100 => {}
@@ -1732,7 +1886,12 @@ impl Registry {
             0x248 => c.sem_payload = data,
             0x260 => c.src_phys = data,
             0x264 => c.dst_phys = data,
-            0x300 => return Ok(Some(Self::launch_dma(c, mem, root, data, now))),
+            0x300 => {
+                let note = Self::launch_dma(c, mem, root, data, now, ch.software_fb_range)
+                    .map_err(MethodError::Failed)?;
+                ch.software_nonstall |= (data >> 5) & 3 != 0;
+                return Ok(Some(note));
+            }
             0x400 => c.offset_in.0 = data & 0x1_FFFF,
             0x404 => c.offset_in.1 = data,
             0x408 => c.offset_out.0 = data & 0x1_FFFF,
@@ -1744,135 +1903,322 @@ impl Registry {
             0x700 => c.remap_const_a = data,
             0x704 => c.remap_const_b = data,
             0x708 => c.remap_components = data,
-            a => return Ok(Some(format!("ce method {a:#x} = {data:#x} not modelled"))),
+            a => {
+                return Err(MethodError::Failed(format!(
+                    "ce method {a:#x} = {data:#x} not modelled"
+                )))
+            }
         }
         Ok(None)
     }
 
-    /// `LAUNCH_DMA` (clc5b5.h:68-138): the transfer first, then the semaphore.
-    fn launch_dma(c: &CeState, mem: &mut GpuMem, root: Target, v: u32, now: u64) -> String {
-        let mut parts = Vec::new();
+    /// Execute the bounded linear/constant-remap subset before publishing completion.
+    /// Unsupported shapes and inaccessible memory leave GPGet and semaphores unchanged.
+    fn launch_dma(
+        c: &CeState,
+        mem: &mut GpuMem,
+        root: Target,
+        v: u32,
+        now: u64,
+        fb_range: Option<(u64, u64)>,
+    ) -> Result<String, String> {
         let transfer = v & 3;
+        let sem = (v >> 3) & 3;
+        let interrupt = (v >> 5) & 3;
         let multi = v & (1 << 9) != 0;
         let remap = v & (1 << 10) != 0;
         let src_phys = v & (1 << 12) != 0;
         let dst_phys = v & (1 << 13) != 0;
+        if transfer == 3 || sem == 3 || interrupt == 1 || interrupt == 3 {
+            return Err(format!(
+                "CE LAUNCH_DMA {v:#x}: unsupported transfer/semaphore/blocking interrupt"
+            ));
+        }
+        if v & (3 << 22) != 0 || v >> 28 != 0 {
+            return Err(format!(
+                "CE LAUNCH_DMA {v:#x}: protected/reserved operation refused"
+            ));
+        }
+        if multi && transfer != 0 && ((v & (1 << 8) == 0) || (!remap && v & (1 << 7) == 0)) {
+            return Err("CE multiline block-linear transfer is not implemented".into());
+        }
         let src = ((c.offset_in.0 as u64) << 32) | c.offset_in.1 as u64;
         let dst = ((c.offset_out.0 as u64) << 32) | c.offset_out.1 as u64;
-        // SET_*_PHYS_MODE TARGET 1:0: 0 LOCAL_FB, 1 COHERENT_SYSMEM, 2 NONCOHERENT_SYSMEM.
-        let phys = |mode: u32, pa: u64| {
-            if mode & 3 == 0 {
-                Target::Fb(pa)
-            } else {
-                Target::Sys(pa)
-            }
+        let sem_va = ((c.sem_upper as u64) << 32) | c.sem_lower as u64;
+        // Resolve the completion destination before changing any transfer data.
+        let sem_pieces = if sem != 0 {
+            ce_pieces(
+                mem,
+                root,
+                false,
+                0,
+                sem_va,
+                if sem == 1 { 4 } else { 16 },
+                fb_range,
+            )?
+        } else {
+            Vec::new()
         };
+        if sem == 2 && v & (1 << 19) != 0 {
+            return Err("CE four-word semaphore reduction is not implemented".into());
+        }
+        let mut parts = Vec::new();
         if transfer != 0 {
-            let lines = if multi { c.line_count.max(1) } else { 1 };
-            let r: Result<u64, String> = (|| {
-                let mut bytes = 0u64;
-                for line in 0..lines as u64 {
-                    let (s_at, d_at) = if multi {
-                        (
-                            src + line * c.pitch_in as u64,
-                            dst + line * c.pitch_out as u64,
-                        )
-                    } else {
-                        (src, dst)
-                    };
-                    let data = if remap {
-                        remap_line(c)?
-                    } else {
-                        let mut b = vec![0u8; c.line_length_in as usize];
-                        if src_phys {
-                            if !mem.read(phys(c.src_phys, s_at), &mut b) {
-                                return Err(format!("source pa {s_at:#x} unreadable"));
-                            }
-                        } else {
-                            mem.read_va(root, s_at, &mut b)?;
-                        }
-                        b
-                    };
-                    if dst_phys {
-                        if !mem.write(phys(c.dst_phys, d_at), &data) {
-                            return Err(format!("destination pa {d_at:#x} unwritable"));
-                        }
-                    } else {
-                        mem.write_va(root, d_at, &data)?;
-                    }
-                    bytes += data.len() as u64;
+            let lines = if multi { c.line_count as u64 } else { 1 };
+            let bytes_per_line = if remap {
+                (c.line_length_in as u64)
+                    .checked_mul((((c.remap_components >> 16) & 3) + 1) as u64)
+                    .and_then(|n| n.checked_mul((((c.remap_components >> 24) & 3) + 1) as u64))
+                    .ok_or("CE remap size overflow")?
+            } else {
+                c.line_length_in as u64
+            };
+            let bytes = bytes_per_line
+                .checked_mul(lines)
+                .ok_or("CE transfer size overflow")?;
+            if lines > CE_MAX_LINES || bytes_per_line > CE_MAX_BYTES || bytes > CE_MAX_BYTES {
+                return Err(format!(
+                    "CE transfer {lines} lines/{bytes} bytes exceeds software budget"
+                ));
+            }
+            // Validate every row before the first write. The lists are bounded by the
+            // byte/line limits; physical addresses never become host physical addresses.
+            let mut rows = Vec::new();
+            for line in 0..lines {
+                let s_at = src
+                    .checked_add(if multi { line * c.pitch_in as u64 } else { 0 })
+                    .ok_or("CE source address overflow")?;
+                let d_at = dst
+                    .checked_add(if multi { line * c.pitch_out as u64 } else { 0 })
+                    .ok_or("CE destination address overflow")?;
+                let from = if remap {
+                    Vec::new()
+                } else {
+                    ce_pieces(
+                        mem,
+                        root,
+                        src_phys,
+                        c.src_phys,
+                        s_at,
+                        bytes_per_line,
+                        fb_range,
+                    )?
+                };
+                let to = ce_pieces(
+                    mem,
+                    root,
+                    dst_phys,
+                    c.dst_phys,
+                    d_at,
+                    bytes_per_line,
+                    fb_range,
+                )?;
+                rows.push((from, to));
+            }
+            let mut data = if remap {
+                remap_line(c)?
+            } else {
+                let mut b = Vec::new();
+                b.try_reserve_exact(bytes_per_line as usize)
+                    .map_err(|_| "CE copy buffer allocation failed")?;
+                b.resize(bytes_per_line as usize, 0);
+                b
+            };
+            for (from, to) in rows {
+                if !remap {
+                    ce_read(mem, &from, &mut data)?;
                 }
-                Ok(bytes)
-            })();
-            let kind = if remap { "memset" } else { "memcopy" };
+                ce_write(mem, &to, &data)?;
+            }
             let dst_desc = if dst_phys {
-                format!("{:?}", phys(c.dst_phys, dst))
+                format!(
+                    "{:?}",
+                    if c.dst_phys & 3 == 0 {
+                        Target::Fb(dst)
+                    } else {
+                        Target::Sys(dst)
+                    }
+                )
             } else {
                 format!("va {dst:#x}")
             };
-            match r {
-                Ok(n) => parts.push(format!(
-                    "ce {kind} {n} bytes -> {dst_desc}{} [guest]",
-                    if remap {
-                        format!(" value {:#x}/{:#x}", c.remap_const_a, c.remap_const_b)
-                    } else if src_phys {
-                        format!(" from {:?}", phys(c.src_phys, src))
-                    } else {
-                        format!(" from va {src:#x}")
-                    }
-                )),
-                Err(e) => parts.push(format!("ce {kind} -> {dst_desc} FAILED: {e}")),
-            }
+            parts.push(format!(
+                "ce {} {bytes} bytes -> {dst_desc} [guest]",
+                if remap { "memset" } else { "memcopy" }
+            ));
         }
-        // SEMAPHORE_TYPE 4:3: 1 one-word, 2 four-word (payload, 0, 64-bit timestamp).
-        let sem_va = ((c.sem_upper as u64) << 32) | c.sem_lower as u64;
-        match (v >> 3) & 3 {
-            0 => {}
-            1 => {
-                let payload = if v & (1 << 19) != 0 {
-                    let mut b = [0u8; 4];
-                    let old = match mem.read_va(root, sem_va, &mut b) {
-                        Ok(()) => u32::from_le_bytes(b),
-                        Err(e) => {
-                            parts.push(format!("ce semaphore va {sem_va:#x}: {e}"));
-                            return parts.join("; ");
-                        }
-                    };
-                    reduce((v >> 14) & 0xF, v & (1 << 18) != 0, old, c.sem_payload)
-                } else {
-                    c.sem_payload
-                };
-                parts.push(match mem.write_va(root, sem_va, &payload.to_le_bytes()) {
-                    Ok(()) => format!("ce semaphore release va {sem_va:#x} = {payload:#x} [guest]"),
-                    Err(e) => format!("ce semaphore release va {sem_va:#x}: {e}"),
-                });
-            }
-            2 => {
-                let mut b = [0u8; 16];
-                b[..4].copy_from_slice(&c.sem_payload.to_le_bytes());
-                b[8..].copy_from_slice(&now.to_le_bytes());
-                parts.push(match mem.write_va(root, sem_va, &b) {
-                    Ok(()) => format!(
-                        "ce semaphore release (four words) va {sem_va:#x} = {:#x} [guest] + timestamp {now} [synthesized]",
-                        c.sem_payload
-                    ),
-                    Err(e) => format!("ce semaphore release va {sem_va:#x}: {e}"),
-                });
-            }
-            t => parts.push(format!("ce semaphore type {t} not modelled")),
+        // BAR1 WC stores must be visible before a CPU/GPU waiter observes completion.
+        mem.fb.flush();
+        std::sync::atomic::fence(std::sync::atomic::Ordering::SeqCst);
+        if sem == 1 {
+            let payload = if v & (1 << 19) != 0 {
+                let mut b = [0u8; 4];
+                ce_read(mem, &sem_pieces, &mut b)?;
+                let op = (v >> 14) & 0xF;
+                if op > 7 {
+                    return Err(format!("CE semaphore reduction {op} not implemented"));
+                }
+                // The helper argument is unsigned: SIGN_UNSIGNED=1 (clc5b5.h).
+                reduce(op, v & (1 << 18) != 0, u32::from_le_bytes(b), c.sem_payload)
+            } else {
+                c.sem_payload
+            };
+            ce_publish(mem, &sem_pieces, &payload.to_le_bytes(), 4)?;
+            parts.push(format!(
+                "ce semaphore release va {sem_va:#x} = {payload:#x} [guest]"
+            ));
+        } else if sem == 2 {
+            let mut b = [0u8; 16];
+            b[..4].copy_from_slice(&c.sem_payload.to_le_bytes());
+            b[8..].copy_from_slice(&now.to_le_bytes());
+            ce_publish(mem, &sem_pieces, &b, 4)?;
+            parts.push(format!("ce semaphore release (four words) va {sem_va:#x} = {:#x} [guest] + timestamp {now} [synthesized]", c.sem_payload));
         }
-        if (v >> 5) & 3 != 0 {
-            parts.push("interrupt requested (not raised)".into());
+        mem.fb.flush();
+        std::sync::atomic::fence(std::sync::atomic::Ordering::SeqCst);
+        if interrupt == 2 {
+            parts.push("non-stall interrupt queued after completion".into());
         }
         if parts.is_empty() {
             parts.push(format!("ce LAUNCH_DMA {v:#x}: nothing to do"));
         }
-        parts.join("; ")
+        Ok(parts.join("; "))
     }
 }
 
+// Explicit CPU-work and allocation limits, independent of guest-supplied dimensions.
+const CE_MAX_BYTES: u64 = 64 << 20;
+const CE_MAX_LINES: u64 = 4096;
+
+fn ce_pieces(
+    mem: &GpuMem,
+    root: Target,
+    physical: bool,
+    mode: u32,
+    address: u64,
+    len: u64,
+    fb_range: Option<(u64, u64)>,
+) -> Result<Vec<(Target, usize)>, String> {
+    address
+        .checked_add(len)
+        .ok_or("CE address range overflow")?;
+    if len > CE_MAX_BYTES {
+        return Err("CE range exceeds software budget".into());
+    }
+    if physical && (mode & 3 == 3 || mode & !3 != 0) {
+        return Err(format!("CE physical mode/kind {mode:#x} not implemented"));
+    }
+    let failed = mem.fb.vram_stats().map_or(0, |s| s.failed);
+    let pieces = if physical {
+        let mut out = Vec::new();
+        let mut done = 0;
+        while done < len {
+            let at = address + done;
+            let n = (4096 - (at & 4095)).min(len - done);
+            out.push((
+                if mode & 3 == 0 {
+                    Target::Fb(at)
+                } else {
+                    Target::Sys(at)
+                },
+                n as usize,
+            ));
+            done += n;
+        }
+        out
+    } else {
+        mem.pieces(root, address, len)?
+    };
+    if mem.fb.vram_stats().map_or(0, |s| s.failed) != failed {
+        return Err("CE page-table read failed while resolving the address".into());
+    }
+    for &(target, n) in &pieces {
+        let ok = match target {
+            Target::Fb(pa) => pa.checked_add(n as u64).is_some_and(|end| {
+                end <= mem.fb.size() && fb_range.is_none_or(|(lo, hi)| pa >= lo && end <= hi)
+            }),
+            Target::Sys(pa) => mem.sys.covers(pa, n as u64),
+            _ => false,
+        };
+        if !ok {
+            return Err(format!("CE range {target:?}+{n:#x} outside VM backing"));
+        }
+    }
+    Ok(pieces)
+}
+
+fn ce_read(mem: &GpuMem, pieces: &[(Target, usize)], data: &mut [u8]) -> Result<(), String> {
+    let mut off = 0;
+    for &(target, n) in pieces {
+        let failed = mem.fb.vram_stats().map_or(0, |s| s.failed);
+        if !mem.read(target, &mut data[off..off + n])
+            || mem.fb.vram_stats().map_or(0, |s| s.failed) != failed
+        {
+            return Err(format!("CE read {target:?}+{n:#x} failed"));
+        }
+        off += n;
+    }
+    Ok(())
+}
+
+fn ce_write(mem: &mut GpuMem, pieces: &[(Target, usize)], data: &[u8]) -> Result<(), String> {
+    let mut off = 0;
+    for &(target, n) in pieces {
+        let failed = mem.fb.vram_stats().map_or(0, |s| s.failed);
+        if !mem.write(target, &data[off..off + n])
+            || mem.fb.vram_stats().map_or(0, |s| s.failed) != failed
+        {
+            return Err(format!("CE write {target:?}+{n:#x} failed"));
+        }
+        off += n;
+    }
+    Ok(())
+}
+
+/// Write completion metadata before its payload: a later-page failure cannot expose
+/// a completed payload while its timestamp/body is still missing.
+fn ce_publish(
+    mem: &mut GpuMem,
+    pieces: &[(Target, usize)],
+    data: &[u8],
+    payload: usize,
+) -> Result<(), String> {
+    let Some(&(first, first_len)) = pieces.first() else {
+        return Err("empty semaphore destination".into());
+    };
+    let pa = match first {
+        Target::Fb(pa) | Target::Sys(pa) => pa,
+        _ => return Err("invalid semaphore aperture".into()),
+    };
+    if pa & (payload as u64 - 1) != 0 || first_len < payload {
+        return Err("unaligned or fragmented semaphore payload refused".into());
+    }
+    if data.len() > payload {
+        let mut tail = Vec::new();
+        if first_len > payload {
+            let at = match first {
+                Target::Fb(pa) => Target::Fb(pa + payload as u64),
+                Target::Sys(pa) => Target::Sys(pa + payload as u64),
+                _ => unreachable!(),
+            };
+            tail.push((at, first_len - payload));
+        }
+        tail.extend_from_slice(&pieces[1..]);
+        ce_write(mem, &tail, &data[payload..])?;
+    }
+    mem.fb.flush();
+    std::sync::atomic::fence(std::sync::atomic::Ordering::SeqCst);
+    ce_write(mem, &[(first, payload)], &data[..payload])?;
+    mem.fb.flush();
+    Ok(())
+}
+
 /// The error type of a method that has to wait.
-struct Blocked(String);
+#[derive(Debug)]
+enum MethodError {
+    Blocked(String),
+    Failed(String),
+}
 
 /// One memset line from the remap constants: LINE_LENGTH_IN elements of
 /// NUM_DST_COMPONENTS (25:24, +1) components of COMPONENT_SIZE (17:16, +1)
@@ -1895,10 +2241,17 @@ fn remap_line(c: &CeState) -> Result<Vec<u8>, String> {
         elem.extend_from_slice(&v.to_le_bytes()[..comp]);
     }
     let n = c.line_length_in as usize;
-    if n.saturating_mul(elem.len()) > 1 << 30 {
+    if n.saturating_mul(elem.len()) > CE_MAX_BYTES as usize {
         return Err(format!("memset of {n} elements refused"));
     }
-    Ok(elem.repeat(n))
+    let bytes = n.checked_mul(elem.len()).ok_or("CE remap size overflow")?;
+    let mut out = Vec::new();
+    out.try_reserve_exact(bytes)
+        .map_err(|_| "CE remap buffer allocation failed")?;
+    for _ in 0..n {
+        out.extend_from_slice(&elem);
+    }
+    Ok(out)
 }
 
 /// A Turing QMD as far as the refused launch needs describing. The QMD V02_02 layout is
@@ -2057,6 +2410,178 @@ mod tests {
             &0x0Du32.to_le_bytes(),
         );
         b
+    }
+
+    fn software_fixture(
+        tag: &str,
+        pb: &[u32],
+    ) -> (FakeFb, GuestMemory, std::path::PathBuf, Registry) {
+        let (mut fb, sys, path, root) = world(tag);
+        let mut reg = Registry::new(classes());
+        reg.vaspaces.insert((1, 0x20), Some(root));
+        let mut params = channel_params(9, 0x1000_0000, 0x20_0000, 0x20);
+        let off = <Abi as RmAbi>::ALLOC_CHANNEL_PARAMS_OFF_flags;
+        let flags = rd32(&params, off) | (1 << 5);
+        params[off..off + 4].copy_from_slice(&flags.to_le_bytes());
+        reg.record_alloc(1, 0x10, 0x40, TURING_CHANNEL_GPFIFO_A, &params)
+            .unwrap();
+        let bytes: Vec<u8> = pb.iter().flat_map(|w| w.to_le_bytes()).collect();
+        assert!(sys.write(0x4000_0000, &bytes));
+        fb.write_u64(0x100000, 0x1000_8000 | (((pb.len() as u64) << 10) << 32));
+        fb.write(0x20_0000 + USERD_GP_PUT, &1u32.to_le_bytes());
+        (fb, sys, path, reg)
+    }
+
+    fn physical_fill(dst: u64, elements: u32) -> Vec<u32> {
+        let mut pb = inc(0, 0, &[TURING_DMA_COPY_A]);
+        pb.extend(inc(0, 0x700, &[0xAABB_CCDD, 0, 0x0003_0004]));
+        pb.extend(inc(0, 0x264, &[0]));
+        pb.extend(inc(0, 0x408, &[(dst >> 32) as u32, dst as u32]));
+        pb.extend(inc(0, 0x418, &[elements]));
+        pb.extend(inc(0, 0x240, &[0, 0x1000_9004, 1]));
+        // The first Windows CE-utils launch, including physical destination, pitch,
+        // constant remap, flush, one-word semaphore, and DISABLE_PLC.
+        pb.extend(inc(0, 0x300, &[0x0400_258e]));
+        pb
+    }
+
+    #[test]
+    fn physical_ce_then_legacy_release_and_nonstall_complete_in_order() {
+        let mut pb = physical_fill(0x30_0000, 1);
+        pb.extend(inc(0, 0x10, &[0, 0x1000_9000, 1, 0x0110_0002]));
+        pb.extend(inc(0, 0x20, &[0]));
+        let (mut fb, sys, path, mut reg) = software_fixture("ce-legacy-complete", &pb);
+        reg.software_fb_range = Some((0, 64 << 20));
+        assert!(reg.channel(9).unwrap().privileged());
+        let notes = reg
+            .doorbell(
+                &mut GpuMem {
+                    fb: &mut fb,
+                    sys: &sys,
+                },
+                9,
+            )
+            .join("\n");
+        assert!(!notes.contains("not modelled"), "{notes}");
+        assert_eq!(fb.read_u64(0x30_0000).unwrap() as u32, 0xAABB_CCDD);
+        assert_eq!(sys.read_u32(0x4000_1004), Some(1));
+        assert_eq!(sys.read_u32(0x4000_1000), Some(1));
+        assert_eq!(fb.read_u64(0x20_0000 + USERD_GP_GET).unwrap() as u32, 1);
+        let events = reg.take_software_events();
+        assert_eq!(events.len(), 1);
+        assert!(events[0].nonstall && events[0].failure.is_none());
+        std::fs::remove_file(path).ok();
+    }
+
+    #[test]
+    fn failed_physical_ce_never_releases_semaphore_or_advances_gpget() {
+        let mut pb = physical_fill(0x30_0000, 1);
+        pb.extend(inc(0, 0x10, &[0, 0x1000_9000, 99, 0x0110_0002]));
+        pb.extend(inc(0, 0x20, &[0]));
+        let (mut fb, sys, path, mut reg) = software_fixture("ce-failed-range", &pb);
+        // Tables/USERD are valid, but the destination is outside the VM reservation.
+        reg.software_fb_range = Some((0, 0x28_0000));
+        reg.doorbell(
+            &mut GpuMem {
+                fb: &mut fb,
+                sys: &sys,
+            },
+            9,
+        );
+        assert_eq!(sys.read_u32(0x4000_1004), Some(0));
+        assert_eq!(sys.read_u32(0x4000_1000), Some(0));
+        assert_eq!(fb.read_u64(0x20_0000 + USERD_GP_GET).unwrap() as u32, 0);
+        let events = reg.take_software_events();
+        assert_eq!(events.len(), 1);
+        assert!(events[0]
+            .failure
+            .as_ref()
+            .unwrap()
+            .contains("outside VM backing"));
+        assert!(!events[0].nonstall);
+        reg.doorbell(
+            &mut GpuMem {
+                fb: &mut fb,
+                sys: &sys,
+            },
+            9,
+        );
+        assert!(
+            reg.take_software_events().is_empty(),
+            "terminal failure must not repeat writes/events"
+        );
+        std::fs::remove_file(path).ok();
+    }
+
+    #[test]
+    fn ce_refuses_overflow_budget_and_unknown_physical_kind_before_completion() {
+        let (mut fb, sys, path, root) = world("ce-bounds");
+        let mut gm = GpuMem {
+            fb: &mut fb,
+            sys: &sys,
+        };
+        let mut ce = CeState {
+            offset_out: (u32::MAX, u32::MAX),
+            line_length_in: 1,
+            remap_components: 0x0003_0004,
+            sem_lower: 0x1000_9000,
+            sem_payload: 7,
+            ..Default::default()
+        };
+        assert!(
+            Registry::launch_dma(&ce, &mut gm, root, 0x0400_258e, 1, None)
+                .unwrap_err()
+                .contains("overflow")
+        );
+        ce.offset_out = (0, 0x30_0000);
+        ce.line_length_in = u32::MAX;
+        assert!(
+            Registry::launch_dma(&ce, &mut gm, root, 0x0400_258e, 1, None)
+                .unwrap_err()
+                .contains("budget")
+        );
+        // Zero rows must not hide an oversized per-row staging allocation.
+        ce.line_count = 0;
+        assert!(
+            Registry::launch_dma(&ce, &mut gm, root, 0x0400_278e, 1, None)
+                .unwrap_err()
+                .contains("budget")
+        );
+        ce.line_length_in = 1;
+        ce.dst_phys = 3;
+        assert!(
+            Registry::launch_dma(&ce, &mut gm, root, 0x0400_258e, 1, None)
+                .unwrap_err()
+                .contains("mode/kind")
+        );
+        assert_eq!(sys.read_u32(0x4000_1000), Some(0));
+        std::fs::remove_file(path).ok();
+    }
+
+    #[test]
+    fn legacy_acquire_blocks_and_resumes_without_repeating_earlier_work() {
+        let pb = inc(0, 0x10, &[0, 0x1000_9000, 7, 1]);
+        let (mut fb, sys, path, mut reg) = software_fixture("ce-acquire-resume", &pb);
+        reg.doorbell(
+            &mut GpuMem {
+                fb: &mut fb,
+                sys: &sys,
+            },
+            9,
+        );
+        assert_eq!(reg.blocked_software_channels(), vec![9]);
+        assert_eq!(fb.read_u64(0x20_0000 + USERD_GP_GET).unwrap() as u32, 0);
+        assert!(sys.write(0x4000_1000, &7u32.to_le_bytes()));
+        reg.doorbell(
+            &mut GpuMem {
+                fb: &mut fb,
+                sys: &sys,
+            },
+            9,
+        );
+        assert!(reg.blocked_software_channels().is_empty());
+        assert_eq!(fb.read_u64(0x20_0000 + USERD_GP_GET).unwrap() as u32, 1);
+        std::fs::remove_file(path).ok();
     }
 
     #[test]
@@ -2420,11 +2945,20 @@ mod tests {
         let mut tsg = vec![0u8; 20];
         tsg[8..12].copy_from_slice(&0x20u32.to_le_bytes());
         reg.record_alloc(1, 0x10, 0x30, KEPLER_CHANNEL_GROUP_A, &tsg);
-        reg.record_alloc(1, 0x30, 0x40, TURING_CHANNEL_GPFIFO_A, &channel_params(9, 0x1000_0000, 0x20_0000, 0))
-            .unwrap();
+        reg.record_alloc(
+            1,
+            0x30,
+            0x40,
+            TURING_CHANNEL_GPFIFO_A,
+            &channel_params(9, 0x1000_0000, 0x20_0000, 0),
+        )
+        .unwrap();
         // Three NOP control entries, published one at a time.
         fb.write(0x100000, &[0u8; 24]);
-        let mut mem = GpuMem { fb: &mut fb, sys: &sys };
+        let mut mem = GpuMem {
+            fb: &mut fb,
+            sys: &sys,
+        };
         let gp_get = |mem: &GpuMem| mem.read_u32(Target::Fb(0x20_0000 + USERD_GP_GET));
         let t9 = (1u32 << 16) | 9;
         for (n, how) in [(1u32, "usermode"), (2, "toggle"), (3, "own")] {
@@ -2444,7 +2978,10 @@ mod tests {
             d.dstate.rc.scheduling_disabled = false;
             d.dstate.rc.disabled.clear();
             let notes = d.replay_held(&mut mem);
-            assert!(notes[0].contains("held doorbell runs now"), "{how}: {notes:#?}");
+            assert!(
+                notes[0].contains("held doorbell runs now"),
+                "{how}: {notes:#?}"
+            );
             assert_eq!(gp_get(&mem), Some(n), "{how}: the held entry ran");
             assert!(d.dstate.rc.held.is_empty());
         }
@@ -2484,7 +3021,10 @@ mod tests {
         mem.fb.write(0x20_0000 + USERD_GP_PUT, &1u32.to_le_bytes());
         assert!(reg.pending(&mem, 9));
         reg.note_rung(&mem, 9);
-        assert!(reg.pending(&mem, 9), "a software channel is pending until GPGet catches up");
+        assert!(
+            reg.pending(&mem, 9),
+            "a software channel is pending until GPGet catches up"
+        );
         reg.doorbell(&mut mem, 9);
         assert!(!reg.pending(&mem, 9));
         // A mirrored channel: the host runs it, so GPGet stays; pending means GPPut moved
@@ -2510,12 +3050,16 @@ mod tests {
             // TSG_ID 7, TSG_ID_VALID, GSP_OWNED (g_kernel_channel_group_nvoc.h:123-129).
             tsg[off..off + 4].copy_from_slice(&(7u32 | 1 << 16 | 1 << 17).to_le_bytes());
         }
-        let note = reg.record_alloc(1, 0x10, 0x30, KEPLER_CHANNEL_GROUP_A, &tsg).unwrap();
+        let note = reg
+            .record_alloc(1, 0x10, 0x30, KEPLER_CHANNEL_GROUP_A, &tsg)
+            .unwrap();
         assert_eq!(reg.tsg_id((1, 0x30)), has.then_some(7), "{note}");
         let mut ch = channel_params(3, 0x1000_0000, 0x20_0000, 0);
         let f = <Abi as RmAbi>::ALLOC_CHANNEL_PARAMS_OFF_internalFlags;
         ch[f..f + 4].copy_from_slice(&(12u32 << 8 | 1 << 24).to_le_bytes());
-        let note = reg.record_alloc(1, 0x10, 0x40, TURING_CHANNEL_GPFIFO_A, &ch).unwrap();
+        let note = reg
+            .record_alloc(1, 0x10, 0x40, TURING_CHANNEL_GPFIFO_A, &ch)
+            .unwrap();
         assert!(note.contains("internal TSG 12"), "{note}");
         assert_eq!(reg.tsg_id((1, 0x40)), Some(12));
         reg.record_free(1, 0x30);
@@ -2689,11 +3233,15 @@ mod tests {
         let mut cp = channel_params(22, 0x1_2007_0000, 0x20_0000, 0);
         let o = <Abi as RmAbi>::ALLOC_CHANNEL_PARAMS_OFF_engineType;
         cp[o..o + 4].copy_from_slice(&0x1Bu32.to_le_bytes());
-        reg.record_alloc(1, 0x80, 0x14, TURING_CHANNEL_GPFIFO_A, &cp).unwrap();
+        reg.record_alloc(1, 0x80, 0x14, TURING_CHANNEL_GPFIFO_A, &cp)
+            .unwrap();
         let ch = reg.channel(22).unwrap().clone();
         assert_eq!(ch.vas, None);
         assert_eq!(reg.vas_key_of(&ch), Some((1, 0x80)));
-        assert_eq!(reg.vas_root(reg.vas_key_of(&ch).unwrap()), Some(Target::Fb(0x1_2729_d000)));
+        assert_eq!(
+            reg.vas_root(reg.vas_key_of(&ch).unwrap()),
+            Some(Target::Fb(0x1_2729_d000))
+        );
         assert_eq!(reg.chid_of(1, 0x14), Some(22));
         // A VAS allocated with index NEW (0) is no device default.
         reg.record_alloc(2, 0x80, 0x21, FERMI_VASPACE_A, &[0u8; 56]);
@@ -2719,17 +3267,22 @@ mod tests {
         // Client 2's device shares client 1.
         let mut dp = vec![0u8; 56];
         dp[4..8].copy_from_slice(&1u32.to_le_bytes());
-        let n = reg.record_alloc(2, 2, 0x90, NV01_DEVICE_0_CLASS, &dp).unwrap();
+        let n = reg
+            .record_alloc(2, 2, 0x90, NV01_DEVICE_0_CLASS, &dp)
+            .unwrap();
         assert!(n.contains("shares the VA space of client 0x1"), "{n}");
         let mut cp = channel_params(5, 0x1_2007_0000, 0x20_0000, 0);
         let o = <Abi as RmAbi>::ALLOC_CHANNEL_PARAMS_OFF_engineType;
         cp[o..o + 4].copy_from_slice(&0xBu32.to_le_bytes());
-        reg.record_alloc(2, 0x90, 0x14, TURING_CHANNEL_GPFIFO_A, &cp).unwrap();
+        reg.record_alloc(2, 0x90, 0x14, TURING_CHANNEL_GPFIFO_A, &cp)
+            .unwrap();
         let ch = reg.channel(5).unwrap().clone();
         assert_eq!(reg.root_of(&ch), Some(Target::Fb(0x1_2729_d000)));
         assert_eq!(reg.vas_key_of(&ch), Some((1, 0x80)));
         // A device without a share records nothing.
-        assert!(reg.record_alloc(3, 3, 0x91, NV01_DEVICE_0_CLASS, &[0u8; 56]).is_none());
+        assert!(reg
+            .record_alloc(3, 3, 0x91, NV01_DEVICE_0_CLASS, &[0u8; 56])
+            .is_none());
     }
 
     /// Windows allocates its default VAS with index NEW, selects it explicitly, then opens
@@ -2822,7 +3375,10 @@ mod tests {
         p[v::PROMOTE_VIRT_ADDRESS..][..8].copy_from_slice(&0x1_2002_d000u64.to_le_bytes());
         p[v::PROMOTE_SIZE..][..8].copy_from_slice(&0x1000u64.to_le_bytes());
         let note = reg.record_promote_ctx(&p);
-        assert!(note.contains("falcon context va 0x12002d000 size 0x1000"), "{note}");
+        assert!(
+            note.contains("falcon context va 0x12002d000 size 0x1000"),
+            "{note}"
+        );
         let e = &reg.promoted((1, 0x14)).unwrap()[&PROMOTE_ID_FALCON_CTX];
         assert_eq!((e.virt, e.size), (Some(0x1_2002_d000), 0x1000));
         // A GR promote with entries leaves the top-level VA alone.
