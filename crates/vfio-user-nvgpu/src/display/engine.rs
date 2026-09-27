@@ -1407,11 +1407,10 @@ mod tests {
         assert_eq!(fe.read32(FE_EVT_STAT_AWAKEN_OTHER), AWAKEN_CORE | TAG);
         assert_eq!(fe.read32(FE_RM_INTR_STAT_CTRL_DISP), CTRL_DISP_AWAKEN);
         fe.write(FE_EVT_STAT_AWAKEN_OTHER, &AWAKEN_CORE.to_le_bytes());
-        assert!(fe.scan());
         assert_eq!(e.irq().awaken_other, 0);
-        // The guest enables vblank on head 0 through the page; the engine sees it.
+        assert!(!fe.scan(), "the trapped acknowledgement was applied synchronously");
+        // Trapped enable writes are visible to the engine before the reactor scans.
         fe.write(FE_RM_INTR_EN_HEAD_TIMING, &LAST_DATA.to_le_bytes());
-        fe.scan();
         assert_eq!(e.read32(FE_RM_INTR_EN_HEAD_TIMING, 0), Some(LAST_DATA));
         let (t0, p) = (e.heads[0].t0_ns, e.heads[0].period_ns);
         // The clock's tick: LAST_DATA and DISPATCH in the page, no guest read needed.
@@ -1440,11 +1439,11 @@ mod tests {
         fe.write(FE_EVT_STAT_HEAD_TIMING, &LAST_DATA.to_le_bytes());
         fe.write(FE_EVT_STAT_AWAKEN_WIN, &1u32.to_le_bytes());
         fe.write(FE_EVT_STAT_AWAKEN_OTHER, &AWAKEN_CORE.to_le_bytes());
-        fe.scan();
         assert!(!e.pending());
+        assert!(!fe.scan());
         assert_eq!(fe.read32(FE_RM_INTR_DISPATCH), 0);
         assert_eq!(fe.read32(FE_RM_INTR_STAT_CTRL_DISP), 0);
-        assert_eq!(raised.load(Ordering::Relaxed), 0, "nothing left asserted");
+        assert_eq!(raised.load(Ordering::Relaxed), 1, "the vblank ack leaves a window awaken pending");
     }
 
     /// With a driver the clock runs it at every tick before the raise; a head with only

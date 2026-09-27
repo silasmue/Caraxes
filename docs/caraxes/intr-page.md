@@ -574,12 +574,22 @@ guest's `CORE_RESET` and before the reactor has seen it reads the old window bit
 them a second time, and echoes them over the next marker's bits. The echo is seen and counted
 (`an AWAKEN_WIN store that is not the echo`), but the extra flip event has already reached the
 guest. The window is one reactor iteration, because a hybrid reactor spins while a marker is
-out (`FePage::busy`, up to `MARKER_SPIN` = 20 ms). In practice no second pass fits in it. The
-rest of the first pass runs after the ack: the head loop's dozen `DISPATCH` reads, the return,
-and the GPU lock release. The passes are serialized (kern_disp.c:1160, the low-latency lock),
-and each needs a new interrupt or DPC. The count in the exit summary is the check. Any value
-above zero is a finding, and then the safe version is a Cloud Hypervisor slot that is read-only
-for this page (writes exit and trap), which needs a patch beyond 0006.
+out (`FePage::busy`, up to `MARKER_SPIN` = 20 ms). The rest of the first pass runs after
+the ack: the head loop's `DISPATCH` reads, the return, and the GPU lock release. Passes are
+serialized (kern_disp.c:1160, the low-latency lock), but that does not eliminate the window.
+The [2026-09-27 graphics trial](../research/linux-graphics-optimization-2026-09-27.md)
+observed stale echoes during `vkcube` with a zero-microsecond hybrid spin window. The setting
+has not been established as the cause. Restoring page contents cannot undo an extra flip
+event already delivered to the guest.
+
+The correction under validation maps this page read-only for the guest, retaining direct
+reads while writes exit to the backend. `FePage::write` consumes each trapped transaction
+synchronously. An `AWAKEN_WIN` echo clears the displayed bits before the guest resumes;
+`CORE_RESET` completes the marker and publishes queued window bits. No reactor scan is
+needed between these writes. Partial write-one-to-clear transactions preserve unwritten
+bits. The writable mapping still uses the observer described above and retains its race.
+This requires both the backend change and VMM mapping support; a backend update alone
+does not protect direct guest stores.
 
 ### 10.3 Order between the clock, the page and the MSI
 

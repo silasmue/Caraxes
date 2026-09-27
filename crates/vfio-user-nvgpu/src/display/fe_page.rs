@@ -11,7 +11,8 @@
 //! The status lives here ([`FeIrq`], under the page's own lock, not the device's); the
 //! display engine (engine.rs) sets bits through [`FePage::update`] from the server thread
 //! and the display clock thread, and the reactor applies the guest's stores through
-//! [`FePage::scan`] as the interrupt page does for the tree.
+//! [`FePage::scan`] as the interrupt page does for the tree. With a read-only guest
+//! mapping, trapped writes instead apply synchronously through [`FePage::write`].
 //!
 //! What a memory word cannot report: a store of the value it already holds. So
 //! - `FE_EVT_STAT_HEAD_TIMING(h)` shows `TAG` (bit 31, no field) beside the pending bits;
@@ -330,20 +331,77 @@ impl FePage {
         self.word(off).load(Ordering::Acquire)
     }
 
-    /// A trapped write: stored as the guest would store it, found by the next scan.
+    /// Apply a trapped write before the guest resumes. Unlike a shared-memory store,
+    /// the transaction exposes an AWAKEN_WIN echo even when its value is unchanged.
     pub fn write(&self, off: u64, data: &[u8]) {
-        for (i, &b) in data.iter().enumerate() {
-            let o = off + i as u64;
-            let shift = (o & 3) * 8;
-            let w = self.word(o);
-            let mut cur = w.load(Ordering::Acquire);
-            loop {
-                let new = (cur & !(0xFF << shift)) | (u32::from(b) << shift);
-                match w.compare_exchange(cur, new, Ordering::AcqRel, Ordering::Acquire) {
-                    Ok(_) => break,
-                    Err(c) => cur = c,
+        let raise = {
+            let mut st = self.lock();
+            let (mut acked, seen) = self.sync(&mut st);
+            let mut i = 0;
+            while i < data.len() {
+                let o = off + i as u64;
+                let byte = (o & 3) as usize;
+                let n = (4 - byte).min(data.len() - i);
+                let mut value = 0u32;
+                let mut mask = 0u32;
+                for j in 0..n {
+                    value |= u32::from(data[i + j]) << ((byte + j) * 8);
+                    mask |= 0xff << ((byte + j) * 8);
                 }
+                match (0..WATCHED).find(|&w| watched_offset(w) == o & !3) {
+                    Some(w) if w < W_AWAKEN_WIN => {
+                        st.irq.evt[w] &= !(value & !TAG);
+                        bump(&self.stats.evt_acks);
+                        acked = true;
+                    }
+                    Some(W_AWAKEN_WIN) => {
+                        st.irq.awaken_win &= !value;
+                        st.shown &= !value;
+                        acked = true;
+                    }
+                    Some(W_AWAKEN_OTHER) if value & AWAKEN_CORE != 0 => {
+                        if let Some(t) = st.marker.take() {
+                            self.marker_ns.store(0, Ordering::Relaxed);
+                            st.irq.awaken_win &= !st.shown;
+                            st.irq.awaken_other &= !AWAKEN_CORE;
+                            st.shown = 0;
+                            st.retriggered = None;
+                            bump(&self.stats.marker_acks);
+                            self.stats.marker_us_max.fetch_max(
+                                t.elapsed().as_micros() as u64, Ordering::Relaxed,
+                            );
+                            acked = true;
+                        }
+                    }
+                    Some(W_AWAKEN_OTHER) => {}
+                    Some(w) if (W_EN..W_STAT).contains(&w) => {
+                        let h = w - W_EN;
+                        let was = st.irq.en[h];
+                        let v = (was & !mask) | value;
+                        st.irq.en[h] = v;
+                        super::engine::ticker().set_vblank(h, v & LAST_DATA != 0);
+                        bump(&self.stats.en_stores);
+                        if (was ^ v) & LAST_DATA != 0 {
+                            st.notes.push(format!(
+                                "display: head {h} vblank (LAST_DATA) interrupt {} [guest, display page]",
+                                if v & LAST_DATA != 0 { "enabled" } else { "disabled" },
+                            ));
+                        }
+                    }
+                    Some(_) => self.odd(&mut st, Odd::ReadOnlyStore),
+                    None => {
+                        let word = self.word(o);
+                        let _ = word.fetch_update(Ordering::AcqRel, Ordering::Acquire,
+                            |old| Some((old & !mask) | value));
+                    }
+                }
+                i += n;
             }
+            self.publish(&mut st, &seen);
+            acked && st.irq.pending()
+        };
+        if raise {
+            self.raise_now();
         }
     }
 
@@ -634,6 +692,42 @@ mod tests {
     }
 
     const H3: u64 = 12;
+
+    #[test]
+    fn trapped_echo_clears_before_another_guest_pass_without_a_scan() {
+        let (_intr, fe, _) = page();
+        fe.update(|i| i.awaken_win = 0x40);
+        // A different window completes while the first marker is still outstanding.
+        fe.update(|i| i.awaken_win |= 0x2);
+        let echo = fe.read32(FE_EVT_STAT_AWAKEN_WIN);
+        fe.write(FE_EVT_STAT_AWAKEN_WIN, &echo.to_le_bytes());
+        assert_eq!(fe.read32(FE_EVT_STAT_AWAKEN_WIN), 0);
+        assert_eq!(fe.irq().awaken_win, 0x2);
+        // The next marker becomes visible only after this pass's core acknowledgement.
+        fe.write(FE_EVT_STAT_AWAKEN_OTHER, &AWAKEN_CORE.to_le_bytes());
+        assert_eq!(fe.read32(FE_EVT_STAT_AWAKEN_WIN), 0x2);
+        fe.write(FE_EVT_STAT_AWAKEN_WIN, &0x2u32.to_le_bytes());
+        fe.write(FE_EVT_STAT_AWAKEN_OTHER, &AWAKEN_CORE.to_le_bytes());
+        assert_eq!(fe.read32(FE_RM_INTR_STAT_CTRL_DISP), 0);
+        assert!(!fe.dirty());
+        assert!(!fe.scan());
+        assert!(fe.summary().contains("inconsistencies: none"));
+    }
+
+    #[test]
+    fn trapped_partial_ack_preserves_unwritten_pending_bits() {
+        let (_intr, fe, _) = page();
+        fe.update(|i| {
+            i.awaken_win = 0x1040;
+            i.evt[3] = LAST_DATA | 0x100;
+        });
+        fe.write(FE_EVT_STAT_AWAKEN_WIN, &[0x40]);
+        assert_eq!(fe.read32(FE_EVT_STAT_AWAKEN_WIN), 0x1000);
+        fe.write(FE_EVT_STAT_HEAD_TIMING + H3, &[LAST_DATA as u8]);
+        assert_eq!(fe.irq().evt[3], 0x100);
+        assert_eq!(fe.read32(FE_EVT_STAT_HEAD_TIMING + H3), 0x100 | TAG);
+        assert!(!fe.dirty());
+    }
 
     #[test]
     fn switch_needs_the_interrupt_page_and_the_display() {
