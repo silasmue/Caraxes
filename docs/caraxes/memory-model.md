@@ -6,6 +6,9 @@ Written 2026-09-23 with the implementation in `crates/vfio-user-nvgpu` (`fb.rs`
 `tools/caraxes-vm.sh`. Results: [experiments.md](experiments.md), "E5b part 1".
 Evidence: `caraxes/runs/e5b-2026-09-23/`.
 
+This document describes the default identity-addressed path. The experimental
+[zero-based framebuffer](zero-based-fb.md) uses separate guest and host coordinates.
+
 Part 1 makes every address final while the device still executes pushes itself:
 
 - guest FB addresses are host VRAM addresses inside a reservation the device holds (D11);
