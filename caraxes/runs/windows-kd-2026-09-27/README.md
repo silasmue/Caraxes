@@ -129,6 +129,19 @@ run as stock-guest validation. Restart the VM before testing an emulator fix.
 4. Require NVIDIA hardware device creation, verified rendered output and a usable
    desktop before treating Windows as working.
 
+Keep the existing identity FB mapping while tracing segment construction. Direct
+page-directory adoption, USERD/context pointers and physical-address controls
+depend on it; changing only the advertised regions to zero would be incomplete.
+
+The public TU102 `memmgrCalculateHeapOffsetWithGSP` routine is a useful comparison:
+it derives the heap start from leading reserved regions only when console or CBC
+memory is present. Otherwise it falls back to the heap object's base. Caraxes
+still reports `disable_compbit_backing=true`; `CARAXES_WIN_COMPBIT=1` only changes
+the separate compbit-store-info reply. Windows console-reservation state is not
+yet known. Adding a large reserved prefix is therefore not an established fix:
+it also changes reserved-memory accounting and may request an internal allocation
+outside the owned VRAM. Do not relax the existing ownership bounds to test it.
+
 Send KD commands on separate lines. Path commands can interpret semicolons as
 path separators. Avoid global allocator breakpoints and broad symbol reloads over
 serial; use the local symbol cache and matching debugger-VM system images.
