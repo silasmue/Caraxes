@@ -225,6 +225,11 @@ const MIRROR_FORWARDED: &[u32] = &[
     v::CMD_TSG_GPFIFO_SCHEDULE,
 ];
 
+/// `NV0080_CTRL_DMA_SET_DEFAULT_VASPACE` (ctrl0080dma.h): `{ NvHandle hVASpace; }`.
+const CMD_DMA_SET_DEFAULT_VASPACE: u32 = 0x0080_1812;
+/// `NV_ERR_INVALID_OBJECT_HANDLE` (nvstatuscodes.h).
+const NV_ERR_INVALID_OBJECT_HANDLE: u32 = 0x33;
+
 impl Dispatcher {
     /// A dispatcher for `chip` presenting `id` (PCI ids, BAR sizes, VBIOS, GID, FB size).
     pub fn new(
@@ -1121,6 +1126,11 @@ impl Dispatcher {
     /// facts where they fit (recorded.rs); what stays NOT_SUPPORTED carries the first
     /// request bytes in its note, so a trace shows what the guest asked.
     pub fn control(&mut self, h_client: u32, h_object: u32, cmd: u32, params: &[u8]) -> Answer {
+        // This control used to be a Windows-only recorded acknowledgement. It changes the
+        // device's live VA-space association, so model it before every recorded override.
+        if cmd == CMD_DMA_SET_DEFAULT_VASPACE {
+            return self.set_default_vaspace(h_client, h_object, params);
+        }
         let facts = crate::recorded::Facts {
             fb_bytes: self.profile.fb_bytes,
             gpcs: self.gr_info(0x14).unwrap_or(1),
@@ -1158,10 +1168,11 @@ impl Dispatcher {
             None if std::env::var("CARAXES_ACK_UNANSWERED").is_ok_and(|v| v == "1")
                 && !crate::recorded::excepted(cmd) =>
             {
+                let head: String = params.iter().take(48).map(|b| format!("{b:02x}")).collect();
                 Answer::ok(
                 params.to_vec(),
                 "diagnostic (CARAXES_ACK_UNANSWERED: NV_OK echo)",
-                format!("{} -> acknowledged (was status {:#x} [{}])", a.note, a.status, a.label),
+                format!("{} -> acknowledged (was status {:#x} [{}]); request {head}", a.note, a.status, a.label),
                 )
             }
             None => {
@@ -1170,6 +1181,52 @@ impl Dispatcher {
                 a.note.push_str(&format!("; request {head}"));
                 a
             }
+        }
+    }
+
+    fn set_default_vaspace(&mut self, h_client: u32, h_device: u32, params: &[u8]) -> Answer {
+        let invalid = |status, why: String| Answer {
+            status,
+            params: params.to_vec(),
+            label: "guest (validated default VAS association)",
+            note: why,
+        };
+        if params.len() != 4 {
+            return invalid(
+                v::NV_ERR_INVALID_ARGUMENT,
+                format!(
+                    "set default vaspace on device {h_device:#x}: expected 4-byte hVASpace, got {} bytes",
+                    params.len()
+                ),
+            );
+        }
+        if self.objects.get(&(h_client, h_device)) != Some(&NV01_DEVICE_0) {
+            return invalid(
+                NV_ERR_INVALID_OBJECT_HANDLE,
+                format!("set default vaspace: unknown device {h_client:#x}/{h_device:#x}"),
+            );
+        }
+        let h_vas = get32(params, 0);
+        if self.objects.get(&(h_client, h_vas)) != Some(&v::FERMI_VASPACE_A) {
+            return invalid(
+                NV_ERR_INVALID_OBJECT_HANDLE,
+                format!(
+                    "set default vaspace on {h_client:#x}/{h_device:#x}: {h_vas:#x} is not this client's FERMI_VASPACE_A"
+                ),
+            );
+        }
+        match self
+            .channels
+            .record_set_default_vaspace(h_client, h_device, h_vas)
+        {
+            Ok(note) => Answer::ok(
+                params.to_vec(),
+                "guest (device default VAS association recorded)",
+                note,
+            ),
+            // deviceSetDefaultVASpace returns INVALID_OBJECT_HANDLE when the device already
+            // owns a default VAS, despite the public header listing INVALID_STATE.
+            Err(why) => invalid(NV_ERR_INVALID_OBJECT_HANDLE, why),
         }
     }
 
@@ -1714,6 +1771,28 @@ mod tests {
     fn dispatcher(host: Option<Box<dyn HostRm>>) -> Dispatcher {
         let f = crate::fixture::rtx2070();
         Dispatcher::new(f.chip.data(), &f.identity(4 << 30), host)
+    }
+
+    #[test]
+    fn set_default_vaspace_validates_and_records_the_device_association() {
+        let mut d = dispatcher(None);
+        d.alloc(1, 1, 0, NV01_ROOT, &[]);
+        d.alloc(1, 0x80, 1, NV01_DEVICE_0, &[0u8; 56]);
+        d.alloc(1, 0x21, 0x80, v::FERMI_VASPACE_A, &[0u8; 56]);
+
+        let p = 0x21u32.to_le_bytes();
+        let a = d.control(1, 0x80, CMD_DMA_SET_DEFAULT_VASPACE, &p);
+        assert_eq!(a.status, NV_OK, "{}", a.note);
+        assert!(a.note.contains("device 0x80 default vaspace 0x21"), "{}", a.note);
+
+        let a = d.control(1, 0x80, CMD_DMA_SET_DEFAULT_VASPACE, &p);
+        assert_eq!(a.status, NV_ERR_INVALID_OBJECT_HANDLE, "{}", a.note);
+        let a = d.control(1, 0x80, CMD_DMA_SET_DEFAULT_VASPACE, &[0u8; 8]);
+        assert_eq!(a.status, v::NV_ERR_INVALID_ARGUMENT, "{}", a.note);
+        let a = d.control(1, 0x81, CMD_DMA_SET_DEFAULT_VASPACE, &p);
+        assert_eq!(a.status, NV_ERR_INVALID_OBJECT_HANDLE, "{}", a.note);
+        let a = d.control(1, 0x80, CMD_DMA_SET_DEFAULT_VASPACE, &0x22u32.to_le_bytes());
+        assert_eq!(a.status, NV_ERR_INVALID_OBJECT_HANDLE, "{}", a.note);
     }
 
     /// 0x20800A36 follows the guest ABI: 610 chip info, 615 the fabric-probe sync,

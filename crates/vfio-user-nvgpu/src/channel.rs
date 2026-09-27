@@ -280,6 +280,13 @@ pub struct Registry {
     /// handle, `COPY_SERVER_RESERVED_PDES` on it and its FREE
     /// (gpu_vaspace.c:3877-3921); the root then lives on under `(hClient, hDevice)`.
     device_vas: BTreeMap<(u32, u32), u32>,
+    /// (hClient, hDevice) → the private `FERMI_VASPACE_A` made that device's default by
+    /// `NV0080_CTRL_DMA_SET_DEFAULT_VASPACE`. Unlike `device_vas`, this is a live object
+    /// association: page-directory changes on the VAS are visible to every sharing client.
+    default_vas: BTreeMap<(u32, u32), (u32, u32)>,
+    /// The device allocated by each client. RM clients in this model own one GPU device;
+    /// keeping its handle makes a sharing client's lookup select the corresponding default.
+    client_device: BTreeMap<u32, u32>,
     /// hClient → hClientShare of its `NV01_DEVICE_0` (`NV0080_ALLOC_PARAMETERS.hClientShare`
     /// @4): a client whose device shares another client's VA space. The Windows KMD opens one
     /// client per channel with the device sharing its main client's VAS; a channel there that
@@ -336,6 +343,8 @@ impl Registry {
             aliases: BTreeMap::new(),
             promoted: BTreeMap::new(),
             device_vas: BTreeMap::new(),
+            default_vas: BTreeMap::new(),
+            client_device: BTreeMap::new(),
             client_share: BTreeMap::new(),
             channels: BTreeMap::new(),
             start: Some(std::time::Instant::now()),
@@ -435,12 +444,18 @@ impl Registry {
                 return Some(r);
             }
         }
-        // A bare channel naming no VAS runs in its device's default VAS (the NVENC and
-        // NVDEC channels of libnvidia-encode and libnvcuvid).
+        // A channel naming no VAS runs in its device's default VAS. SET_DEFAULT_VASPACE
+        // associates a private VAS object; the GPU_DEVICE path keeps an internal default
+        // under the device key after its transient VAS handle is freed.
         if ch.vas.is_none() {
-            let dev = (ch.h_client, ch.h_parent);
-            if self.vaspaces.get(&dev).copied().flatten().is_some() {
-                return Some(dev);
+            if let Some(k) = self.device_default_key(ch.h_client, ch.h_parent) {
+                return Some(k);
+            }
+            if let Some(k) = self.client_default_key(ch.h_client) {
+                return Some(k);
+            }
+            if let Some(k) = self.shared_default_key(ch.h_client) {
+                return Some(k);
             }
         }
         let mut roots = self
@@ -449,7 +464,46 @@ impl Registry {
             .filter(|((c, _), r)| *c == ch.h_client && r.is_some());
         match (roots.next(), roots.next()) {
             (Some((k, _)), None) => Some(*k),
-            (None, _) if ch.vas.is_none() => self.shared_default_key(ch.h_client),
+            _ => None,
+        }
+    }
+
+    /// The live VAS key associated with one device, or the internal default kept under
+    /// the device key after the kernel's transient GPU_DEVICE handle was freed.
+    fn device_default_key(&self, h_client: u32, h_device: u32) -> Option<(u32, u32)> {
+        let dev = (h_client, h_device);
+        self.default_vas
+            .get(&dev)
+            .map(|k| self.resolve(*k))
+            .or_else(|| self.vaspaces.contains_key(&dev).then_some(dev))
+    }
+
+    /// The one device default of a client. The `client_device` path is exact; the scans
+    /// retain compatibility with older/internal flows that only announced a GPU_DEVICE VAS.
+    fn client_default_key(&self, h_client: u32) -> Option<(u32, u32)> {
+        if let Some(&dev) = self.client_device.get(&h_client) {
+            if let Some(k) = self.device_default_key(h_client, dev) {
+                return Some(k);
+            }
+        }
+        let mut explicit = self
+            .default_vas
+            .iter()
+            .filter(|((c, _), _)| *c == h_client)
+            .map(|(_, k)| self.resolve(*k));
+        match (explicit.next(), explicit.next()) {
+            (Some(k), None) => return Some(k),
+            (Some(_), Some(_)) => return None,
+            _ => {}
+        }
+        let mut internal = self
+            .device_vas
+            .iter()
+            .filter(|((c, _), _)| *c == h_client)
+            .map(|(_, d)| (h_client, *d))
+            .filter(|k| self.vaspaces.contains_key(k));
+        match (internal.next(), internal.next()) {
+            (Some(k), None) => Some(k),
             _ => None,
         }
     }
@@ -565,6 +619,14 @@ impl Registry {
     ) -> Option<String> {
         match h_class {
             NV01_DEVICE_0_CLASS => {
+                // A client handle can be reused after FREE. Every new device allocation
+                // replaces its sharing relationship, including an unshared allocation.
+                if let Some(old) = self.client_device.insert(h_client, h_object) {
+                    if old != h_object {
+                        self.default_vas.remove(&(h_client, old));
+                    }
+                }
+                self.client_share.remove(&h_client);
                 let share = rd32(params, 4);
                 if share != 0 && share != h_client {
                     self.client_share.insert(h_client, share);
@@ -745,8 +807,12 @@ impl Registry {
     /// Forget a freed object (a freed client takes its objects with it). Returns the trace
     /// notes of VA spaces kept under a surviving DUP alias (`rehome_duplicated_vas`).
     pub fn record_free(&mut self, h_client: u32, h_object: u32) -> Vec<String> {
-        let notes = self.rehome_duplicated_vas(h_client, h_object);
+        let mut notes = self.rehome_duplicated_vas(h_client, h_object);
         let all = h_client == h_object;
+        let device_gone = all || self.client_device.get(&h_client) == Some(&h_object);
+        if !all {
+            notes.extend(self.retain_device_default(h_client, h_object));
+        }
         let gone = |c: &Channel| c.h_client == h_client && (all || c.h_object == h_object);
         // A freed channel gives its doorbell token back (docs/caraxes/doorbell-token-pool.md).
         if let Some(pool) = self.tokens.as_mut() {
@@ -775,6 +841,57 @@ impl Registry {
             .retain(|(c, h), _| *c != h_client || !(all || *h == h_object));
         self.device_vas
             .retain(|(c, h), d| *c != h_client || !(all || *h == h_object || *d == h_object));
+        self.default_vas.retain(|(c, d), v| {
+            !(*c == h_client
+                && (all || *d == h_object || (v.0 == h_client && v.1 == h_object)))
+        });
+        if device_gone {
+            self.client_device.remove(&h_client);
+            self.client_share.remove(&h_client);
+        }
+        if all {
+            // A sharing client cannot retain a reference to a client that no longer exists.
+            self.client_share
+                .retain(|c, share| *c != h_client && *share != h_client);
+        }
+        notes
+    }
+
+    /// SET_DEFAULT takes a reference to the VAS object. Freeing its public handle therefore
+    /// leaves the device's default alive; keep that otherwise-unnameable object under the
+    /// device key, as the internal GPU_DEVICE flow already does. Channels continue resolving
+    /// the device state rather than retaining a snapshot of its root.
+    fn retain_device_default(&mut self, h_client: u32, h_vas: u32) -> Vec<String> {
+        let old = (h_client, h_vas);
+        let devices: Vec<(u32, u32)> = self
+            .default_vas
+            .iter()
+            .filter_map(|(dev, vas)| (*vas == old).then_some(*dev))
+            .collect();
+        let Some(root) = self.vaspaces.get(&old).copied() else {
+            return Vec::new();
+        };
+        let entries = self.root_entries.get(&old).copied();
+        let alloc = self.vas_params.get(&old).cloned();
+        let pdes = self.server_pdes.get(&old).cloned();
+        let mut notes = Vec::new();
+        for dev in devices {
+            self.vaspaces.insert(dev, root);
+            if let Some(entries) = entries {
+                self.root_entries.insert(dev, entries);
+            }
+            if let Some(ref alloc) = alloc {
+                self.vas_params.insert(dev, alloc.clone());
+            }
+            if let Some(ref pdes) = pdes {
+                self.server_pdes.insert(dev, pdes.clone());
+            }
+            self.default_vas.remove(&dev);
+            notes.push(format!(
+                "default vaspace {h_client:#x}/{h_vas:#x} handle freed: retained by device {:#x}/{:#x}, root {root:?} [guest]",
+                dev.0, dev.1
+            ));
+        }
         notes
     }
 
@@ -807,6 +924,13 @@ impl Registry {
             self.aliases.remove(&heir);
             for d in &heirs[1..] {
                 self.aliases.insert(*d, heir);
+            }
+            // The device holds an object reference, not the handle spelling used when
+            // SET_DEFAULT ran. Follow a surviving DUP alias when it becomes the owner.
+            for vas in self.default_vas.values_mut() {
+                if *vas == old {
+                    *vas = heir;
+                }
             }
             if let Some(r) = self.vaspaces.remove(&old) {
                 self.vaspaces.insert(heir, r);
@@ -869,6 +993,18 @@ impl Registry {
             .collect();
         let pa = rd64(params, level(0) + v::PDES_LEVEL_PHYS_ADDRESS);
         let aperture = rd32(params, level(0) + v::PDES_LEVEL_APERTURE);
+        let va_lo = rd64(params, v::PDES_VIRT_ADDR_LO);
+        let va_hi = rd64(params, v::PDES_VIRT_ADDR_HI);
+        // `_gvaspacePopulatePDEentries` zeroes its output first. When there is no
+        // server-owned range it reports the exact sentinel seen from Windows: PA 0 and
+        // the empty inclusive interval 1..0. It describes no replacement page directory;
+        // keep both the last usable root and the last real server-PDE description.
+        if pa == 0 && va_lo > va_hi {
+            return format!(
+                "vaspace {h_vas:#x}: empty server-reserved range {va_lo:#x}..{va_hi:#x}; root {:?} and prior PDE levels kept [guest]",
+                self.vas_root((h_client, h_vas))
+            );
+        }
         let root = gmmu_aperture(aperture, pa);
         self.vaspaces.insert((h_client, h_vas), root);
         let entries = (rd64(params, level(0) + v::PDES_LEVEL_SIZE_FIELD) / 8) as u32;
@@ -887,10 +1023,33 @@ impl Registry {
         };
         format!(
             "vaspace {h_vas:#x}{device_note}: root {root:?}; va {:#x}..{:#x} levels [{}] [guest]",
-            rd64(params, v::PDES_VIRT_ADDR_LO),
-            rd64(params, v::PDES_VIRT_ADDR_HI),
+            va_lo,
+            va_hi,
             levels.join(", ")
         )
+    }
+
+    /// `NV0080_CTRL_DMA_SET_DEFAULT_VASPACE` associates an existing private VAS object
+    /// with its parent device. The dispatcher validates the two object classes first.
+    pub fn record_set_default_vaspace(
+        &mut self,
+        h_client: u32,
+        h_device: u32,
+        h_vas: u32,
+    ) -> Result<String, String> {
+        let dev = (h_client, h_device);
+        if self.default_vas.contains_key(&dev) || self.vaspaces.contains_key(&dev) {
+            return Err(format!("device {h_device:#x} already has a default VAS"));
+        }
+        let vas = self.resolve((h_client, h_vas));
+        if !self.vaspaces.contains_key(&vas) {
+            return Err(format!("vaspace {h_vas:#x} is not recorded for client {h_client:#x}"));
+        }
+        self.default_vas.insert(dev, vas);
+        Ok(format!(
+            "device {h_device:#x} default vaspace {h_vas:#x} (live key {:#x}/{:#x}) [guest]",
+            vas.0, vas.1
+        ))
     }
 
     /// `NV0080_CTRL_CMD_DMA_SET_PAGE_DIRECTORY`: the VAS moves to the root the
@@ -930,23 +1089,7 @@ impl Registry {
     }
 
     fn root_of(&self, ch: &Channel) -> Option<Target> {
-        if let Some(k) = ch.vas {
-            if let Some(r) = self.vas_root(k) {
-                return Some(r);
-            }
-        }
-        // A channel of the device's default VAS: the only root of that client.
-        let mut roots = self
-            .vaspaces
-            .iter()
-            .filter(|((c, _), r)| *c == ch.h_client && r.is_some());
-        match (roots.next(), roots.next()) {
-            (Some((_, r)), None) => *r,
-            (None, _) if ch.vas.is_none() => self
-                .shared_default_key(ch.h_client)
-                .and_then(|k| self.vaspaces.get(&k).copied().flatten()),
-            _ => None,
-        }
+        self.vas_key_of(ch).and_then(|k| self.vas_root(k))
     }
 
     /// The default VAS of the client a client's device shares (`client_share`): the key kept
@@ -954,14 +1097,14 @@ impl Registry {
     /// client's only VAS with a root.
     fn shared_default_key(&self, h_client: u32) -> Option<(u32, u32)> {
         let share = *self.client_share.get(&h_client)?;
-        let dev = self
-            .device_vas
-            .iter()
-            .filter(|((c, _), _)| *c == share)
-            .map(|(_, d)| (share, *d))
-            .find(|k| self.vaspaces.get(k).copied().flatten().is_some());
-        if dev.is_some() {
-            return dev;
+        // Windows uses the same device handle in the main and per-channel clients.
+        if let Some(&device) = self.client_device.get(&h_client) {
+            if let Some(k) = self.device_default_key(share, device) {
+                return Some(k);
+            }
+        }
+        if let Some(k) = self.client_default_key(share) {
+            return Some(k);
         }
         let mut roots = self.vaspaces.iter().filter(|((c, _), r)| *c == share && r.is_some());
         match (roots.next(), roots.next()) {
@@ -2587,6 +2730,83 @@ mod tests {
         assert_eq!(reg.vas_key_of(&ch), Some((1, 0x80)));
         // A device without a share records nothing.
         assert!(reg.record_alloc(3, 3, 0x91, NV01_DEVICE_0_CLASS, &[0u8; 56]).is_none());
+    }
+
+    /// Windows allocates its default VAS with index NEW, selects it explicitly, then opens
+    /// per-channel clients whose devices share the main client. The association must select
+    /// that VAS even when another rooted VAS makes the old sole-root heuristic ambiguous.
+    #[test]
+    fn explicit_default_vas_is_live_for_sharing_clients_and_ignores_empty_pdes() {
+        let mut reg = Registry::new(classes());
+        reg.record_alloc(1, 1, 0x80, NV01_DEVICE_0_CLASS, &[0u8; 56]);
+
+        let mut vas = vec![0u8; 56];
+        vas[4..8].copy_from_slice(&5u32.to_le_bytes());
+        reg.record_alloc(1, 0x80, 0x21, FERMI_VASPACE_A, &vas);
+        reg.record_alloc(1, 0x80, 0x22, FERMI_VASPACE_A, &vas);
+        let pdes = |root: u64| {
+            let mut p = vec![0u8; v::PDES_LEVELS + v::PDES_LEVEL_SIZE * v::PDES_MAX_LEVELS];
+            p[v::PDES_VIRT_ADDR_LO..][..8].copy_from_slice(&0x1_0000_0000u64.to_le_bytes());
+            p[v::PDES_VIRT_ADDR_HI..][..8].copy_from_slice(&0x1_3fff_ffffu64.to_le_bytes());
+            p[v::PDES_NUM_LEVELS..][..4].copy_from_slice(&1u32.to_le_bytes());
+            let l = v::PDES_LEVELS;
+            p[l + v::PDES_LEVEL_PHYS_ADDRESS..][..8].copy_from_slice(&root.to_le_bytes());
+            p[l + v::PDES_LEVEL_SIZE_FIELD..][..8].copy_from_slice(&0x20u64.to_le_bytes());
+            p[l + v::PDES_LEVEL_APERTURE..][..4].copy_from_slice(&1u32.to_le_bytes());
+            p
+        };
+        reg.record_server_reserved_pdes(1, 0x21, &pdes(0x39da_2000));
+        reg.record_server_reserved_pdes(1, 0x22, &pdes(0x7abc_0000));
+        reg.record_set_default_vaspace(1, 0x80, 0x21).unwrap();
+
+        let mut device = vec![0u8; 56];
+        device[4..8].copy_from_slice(&1u32.to_le_bytes());
+        reg.record_alloc(2, 2, 0x80, NV01_DEVICE_0_CLASS, &device);
+        reg.record_alloc(
+            2,
+            0x80,
+            0x14,
+            TURING_CHANNEL_GPFIFO_A,
+            &channel_params(14, 0x1_2007_0000, 0x20_0000, 0),
+        );
+        let ch = reg.channel(14).unwrap().clone();
+        assert_eq!(reg.vas_key_of(&ch), Some((1, 0x21)));
+        assert_eq!(reg.root_of(&ch), Some(Target::Fb(0x39da_2000)));
+
+        // The mapping is live: replacing the selected VAS's root changes the shared client.
+        let newest = pdes(0x4bcd_3000);
+        reg.record_server_reserved_pdes(1, 0x21, &newest);
+        assert_eq!(reg.root_of(&ch), Some(Target::Fb(0x4bcd_3000)));
+
+        // RM reports no server-owned PDE interval as VA 1..0 with PA 0. This is a sentinel,
+        // not a replacement root, and must retain the real PDE block for mirror replay.
+        let mut empty = vec![0u8; v::PDES_LEVELS + v::PDES_LEVEL_SIZE * v::PDES_MAX_LEVELS];
+        empty[v::PDES_VIRT_ADDR_LO..][..8].copy_from_slice(&1u64.to_le_bytes());
+        empty[v::PDES_NUM_LEVELS..][..4].copy_from_slice(&1u32.to_le_bytes());
+        let note = reg.record_server_reserved_pdes(1, 0x21, &empty);
+        assert!(note.contains("empty server-reserved range"), "{note}");
+        assert_eq!(reg.root_of(&ch), Some(Target::Fb(0x4bcd_3000)));
+        assert_eq!(reg.vas_replay((1, 0x21)).1, Some(newest.as_slice()));
+
+        // deviceSetDefaultVASpace takes a reference: freeing the public VAS handle keeps it.
+        reg.record_free(1, 0x21);
+        assert_eq!(reg.vas_key_of(&ch), Some((1, 0x80)));
+        assert_eq!(reg.root_of(&ch), Some(Target::Fb(0x4bcd_3000)));
+    }
+
+    #[test]
+    fn freeing_a_shared_device_clears_its_client_share_before_handle_reuse() {
+        let mut reg = Registry::new(classes());
+        let mut shared = vec![0u8; 56];
+        shared[4..8].copy_from_slice(&1u32.to_le_bytes());
+        reg.record_alloc(2, 2, 0x80, NV01_DEVICE_0_CLASS, &shared);
+        assert_eq!(reg.client_share.get(&2), Some(&1));
+
+        reg.record_free(2, 0x80);
+        assert_eq!(reg.client_share.get(&2), None);
+        reg.record_alloc(2, 2, 0x80, NV01_DEVICE_0_CLASS, &[0u8; 56]);
+        assert_eq!(reg.client_share.get(&2), None);
+        assert_eq!(reg.shared_default_key(2), None);
     }
 
     /// A falcon engine promotes its context by VA alone (entryCount 0, the top-level

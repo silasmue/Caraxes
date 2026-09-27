@@ -730,6 +730,18 @@ mod tests {
         for r in Abi::active().d_rules {
             let req = vec![0xA5u8; r.size.max(4)];
             let a = d.control(INTERNAL_CLIENT, INTERNAL_SUBDEVICE, r.id, &req);
+            // SET_DEFAULT_VASPACE is now a stateful device control. This inventory sweep
+            // deliberately sends every command to the internal subdevice, so validation
+            // rejects this row before the chip feature fallback.
+            if r.id == 0x0080_1812 {
+                assert_eq!(
+                    (a.status, a.label),
+                    (0x33, "guest (validated default VAS association)"),
+                    "{}",
+                    r.name
+                );
+                continue;
+            }
             // The Windows KMD's GfxP pool (recorded.rs) is answered before this table.
             if crate::recorded::OVERRIDES.contains(&r.id) {
                 assert_eq!(a.label, crate::recorded::LABEL_CHIP, "{}", r.name);
