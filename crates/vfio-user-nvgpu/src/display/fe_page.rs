@@ -703,10 +703,13 @@ mod tests {
         fe.write(FE_EVT_STAT_AWAKEN_WIN, &echo.to_le_bytes());
         assert_eq!(fe.read32(FE_EVT_STAT_AWAKEN_WIN), 0);
         assert_eq!(fe.irq().awaken_win, 0x2);
+        // A new completion on the just-acknowledged window must also survive CORE_RESET.
+        fe.update(|i| i.awaken_win |= 0x40);
+        assert_eq!(fe.read32(FE_EVT_STAT_AWAKEN_WIN), 0);
         // The next marker becomes visible only after this pass's core acknowledgement.
         fe.write(FE_EVT_STAT_AWAKEN_OTHER, &AWAKEN_CORE.to_le_bytes());
-        assert_eq!(fe.read32(FE_EVT_STAT_AWAKEN_WIN), 0x2);
-        fe.write(FE_EVT_STAT_AWAKEN_WIN, &0x2u32.to_le_bytes());
+        assert_eq!(fe.read32(FE_EVT_STAT_AWAKEN_WIN), 0x42);
+        fe.write(FE_EVT_STAT_AWAKEN_WIN, &0x42u32.to_le_bytes());
         fe.write(FE_EVT_STAT_AWAKEN_OTHER, &AWAKEN_CORE.to_le_bytes());
         assert_eq!(fe.read32(FE_RM_INTR_STAT_CTRL_DISP), 0);
         assert!(!fe.dirty());
