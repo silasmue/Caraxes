@@ -203,3 +203,38 @@ its scripts. The shared build directory was later rebuilt for Windows.
 `SHA256SUMS-pinned` verifies the repaired reproducer; the original wrapper
 and hash manifest remain available. D5 uses another copy with the same
 backend hash, plus a launcher-only trace toggle.
+
+### D5 result: no demonstrated trace-off improvement
+
+Four completed sequences used the frozen 419a308f backend, read-only display
+page, CPU 3 and 0-us hybrid idle. Order was A1 (trace), B1/B2 (no trace, same
+boot), A2 (trace, fresh boot). Each sequence ran five 300-frame Wayland
+vkcubes and three ten-second glmark2 Wayland build scenes. All exited cleanly.
+
+| Run | Backend CPU | VMM CPU | Combined CPU | glmark2 FPS |
+|---|---:|---:|---:|---|
+| A1 trace | 49.62% | 102.92% | 152.54% | 3174 / 3087 / 981 |
+| B1 no trace | 53.97% | 92.87% | 146.84% | 3117 / 3149 / 204 |
+| B2 no trace | 58.46% | 106.22% | 164.68% | 2498 / 2763 / 3176 |
+| A2 trace | 49.03% | 116.45% | 165.49% | 3089 / 2947 / 2907 |
+
+These results do not demonstrate a trace-off speedup. The backend consumed
+more CPU without tracing in both samples, while VMM CPU and frame throughput
+varied. Fixed-duration glmark scenes also submit different amounts of work
+when FPS changes. Keep tracing enabled by default; the opt-in remains useful
+for controlled diagnosis and reducing log volume.
+
+All three boot summaries report matching display marker/ack counts and no
+display or interrupt inconsistency. VRAM accesses and mirror submissions
+report no failed access or refusal. Pool remap refusals with replica fallback
+remain present; no page-table hazard or conflicting replica word was reported.
+The B summary covers both B1 and B2, so its counters are not per-sequence.
+
+Late OpenGL slowdowns occurred in both trace modes, but not every sequence.
+The runner lacks per-process timestamps, so these logs cannot assign them to
+individual backend stalls. Add monotonic workload markers and per-channel
+submission-gap measurements before selecting another timing change.
+
+Evidence: `desktop-checks/D5-trace-overhead/` under the artifact root, including
+the runner, pinned backend, per-run CPU snapshots, guest output and shutdown
+logs. Linux B was stopped after A2 before the next Windows test.

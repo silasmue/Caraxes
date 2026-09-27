@@ -1,6 +1,6 @@
 # Caraxes working handoff for Claude Code
 
-Updated: 2026-09-27, 23:00 CEST. Work continues; this is a checkpoint.
+Updated: 2026-09-27, 23:05 CEST. Work continues; this is a checkpoint.
 
 ## Workspace and constraints
 
@@ -100,9 +100,9 @@ pending soak and input/frame latency validation.
   4e1a0c3d57855ef3605c0f14175e49b9782eee2318a154fdd9a1dc937331aa8b.
 - ba9ceab5 adds launcher CARAXES_TRACE=0; exit summaries remain.
   D5 uses that same frozen backend. **No extra performance win established.**
-- Interim combined graphics CPU: traced A1 152.54%, untraced B1 146.84%,
-  untraced B2 164.68%. OpenGL FPS has large outliers in both trace modes.
-  The traced control run is pending. Do not average these into a speedup.
+- Completed combined graphics CPU: traced A1/A2 152.54%/165.49%, untraced
+  B1/B2 146.84%/164.68%. OpenGL FPS has large outliers in both trace modes.
+  No trace-off gain demonstrated; do not change the default.
 - Completed D5 sequences ran five bounded Wayland vkcubes and three bounded
   glmark2 Wayland scenes. Runner:
   desktop-checks/D5-trace-overhead/measure-d5.sh.
@@ -119,7 +119,8 @@ late RM_UNMAP_MEMORY calls after the RM root client was freed (status 0x33).
 The fix flushes/drains LRU and pinned mappings after mirror reset, credits
 LRU capacity, and preserves cumulative counters.
 
-- Before this fix: ABI615 suite 498 passed, 1 ignored.
+- After this fix: ABI615 suite 499 unit tests and 2 integration tests passed,
+  1 test ignored. Log: windows-kd/teardown-fix-tests.log.
 - Fix validation: framebuffer tests 16 passed; revised ordering test passed.
   It checks flush/drop counts, drop-before-credit ordering and idempotence.
 - Hardware validation of the new ordering is pending.
@@ -128,7 +129,7 @@ LRU capacity, and preserves cumulative counters.
 
 ## Next actions and runtime checkpoint
 
-1. Finish/archive D5 traced control and stop Linux B before Windows GPU work.
+1. D5 is archived and Linux B stopped. Continue Windows P1 below.
 2. Validate the shutdown fix on a host-backed run; preserve baseline binaries.
 3. Restore reliable Windows debugging or obtain a bounded non-debug boot
    result. Test OLUT diagnostic startup, then capture the next real failure.
@@ -137,7 +138,12 @@ LRU capacity, and preserves cumulative counters.
 5. Windows desktop/3D stability first, then desktop latency and simultaneous
    Sunshine/NVENC/NVDEC. Keep the guest stock and helper-free.
 
-Linux B is on the traced control boot; Windows VMs are stopped.
+Linux B and both KD VMs are stopped. Windows P1 is running from a new child
+overlay at windows-plain/ (parent windows/win11.qcow2 remains unchanged), using
+OLUT diagnostic 77f0c97e and the same host-backed limits. This parent predates
+the KD BCD changes. P1 now reaches VAS/TSG creation and channel submissions,
+beyond the earlier LUT gate; final PnP/rendering result is pending. Its trace
+currently shows chid15 waiting for semaphore VA0x20002560 value3 (observed0).
 No new host Xid was observed through the last check. Historical Xids at
 uptime 3058.691336 and 3959.278221 predate these trials.
 
