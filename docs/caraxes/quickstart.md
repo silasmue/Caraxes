@@ -203,7 +203,7 @@ no Windows rendering result exists.
 - Registered guest RAM requires `CAP_SYS_ADMIN` for the privileged RM query.
   The launcher prepares a binary with `cap_sys_admin+p`; the backend enables it
   on the calling thread only around the required operation. See
-  [memory-model.md](memory-model.md#privilege).
+  [memory-model.md](memory-model.md#4-host-resources-privilege-teardown).
 - Use stock guest drivers. The current 615 GPA path needs no Caraxes guest module.
 - VM overlays, sockets and logs live under `$CARAXES_STORE/$VM`, normally
   `/mnt/vmstore/caraxes/$VM`, with a repository-local fallback. Keep backing
