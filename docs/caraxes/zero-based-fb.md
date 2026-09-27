@@ -22,7 +22,7 @@ The established identity-addressed mode remains the default.
 This is a compatibility experiment, not a supported Windows desktop profile.
 Boot, rendering, video and multi-guest validation must be recorded separately.
 
-Validation before hardware: ABI 615 library tests passed with one ignored test;
+Validation: final ABI 615 library tests passed (498 passed, one ignored);
 ABI 610 library tests also passed. `cargo check` and the release build passed. Clippy passed with the existing
 `unnecessary_cast` and `field_reassign_with_default` warnings allowed; strict
 Clippy still reports those pre-existing patterns.

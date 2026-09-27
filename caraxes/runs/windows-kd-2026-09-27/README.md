@@ -251,4 +251,14 @@ Evidence: `windows-kd/debugger/KD7-zero-fb-first-boot.log` and
 `KD7-heap-stage-success.log`, and `KD7-first-allocation-success-next-failure.log`.
 The later failure is now stopped at `+0x185a149`: the adapter getter at vtable
 slot `+0x1c8` returns its `+0x50e8` subobject. That subobject's vtable slot `+0x58`
-resolves to `+0x1534b20`, which returned false. Trace its internal failure next.
+resolves to `+0x1534b20`, which returned false.
+
+Further PnP restarts traced the same failure through `+0x1535120` to the new
+object's vtable slot `+0x38` (`+0x15cd260`), then its slot `+0xa40`
+(`+0x15f1260`). Restart 6 stopped at `+0x15cd336` with `AL=0`, `ZF=1` after
+that last call. The preceding resource setup succeeded; final startup still
+returned `0xC000009A`. The next gate is the descriptor/resource construction in
+`+0x15f1260`, not the already successful fixed-address heap allocation.
+
+Evidence: `KD7-subsystem-vm38-failure.log` and
+`KD7-descriptor-stage-failure.log`. All offsets refer to stock Windows 617.14.
