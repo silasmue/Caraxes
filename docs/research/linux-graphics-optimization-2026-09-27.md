@@ -116,20 +116,25 @@ measurement target, not evidence for changing the polling default.
 
 Cloud Hypervisor commit `e7b1965c0` mapped BAR0
 `0x611000..0x612000` through a read-only KVM memory slot. Reads therefore
-continued through the shared mmap, while guest writes exited to vfio-user and
-were applied synchronously by backend commit `419a308f`. The tested backend
-binary had SHA-256
-`4e1a0c3d57855ef3605c0f14175e49b9782eee2318a154fdd9a1dc937331aa8b`.
+continued through the shared mmap, while guest writes exited to vfio-user.
 
-The functional run completed five native-Wayland vkcube launches, vkgears, and
-two glmark build scenes. The 0-us trace contained 13,898 BAR0 writes in the FE
-page and no FE reads. This is the expected protocol split: trapped writes are
-visible in the vfio-user trace, while direct mmap reads are not. GNOME Wayland
-ran at 1920x1080 and no guest Xid, DMA refusal, or failed VRAM access occurred.
+An initial smoke run used backend commit `6c7dfbbb`, binary SHA-256
+`e2f756fdbad3a1bff4f7ae6552e6f9bd30bfb0c615ff13d8f61b6018020d0613`.
+It completed five native-Wayland vkcube launches, vkgears, and two glmark build
+scenes. This preceded the fix that raises an already-latched event when its
+interrupt is enabled, so `functional-200us.txt`, `gpu-functional-200us.log`,
+and `gpu-trace-functional-200us.log` are smoke evidence only and are excluded
+from the final validation and CPU comparison.
 
 The final comparison pinned the hybrid reader to host CPU 3 and used the same
-five-vkcube plus three-glmark sequence for each setting. Windows was stopped
-and the host remained otherwise quiet during the pair.
+five-vkcube plus three-glmark sequence for each setting. It used backend commit
+`419a308f`, binary SHA-256
+`4e1a0c3d57855ef3605c0f14175e49b9782eee2318a154fdd9a1dc937331aa8b`.
+The final 0-us trace contained 13,898 BAR0 writes in the FE page and no FE
+reads. This is the expected protocol split: trapped writes are visible in the
+vfio-user trace, while direct mmap reads are not. GNOME Wayland ran at
+1920x1080 and no guest Xid, DMA refusal, or failed VRAM access occurred.
+Windows was stopped and the host remained otherwise quiet during the pair.
 
 | Metric | Hybrid idle 200 us | Hybrid idle 0 us |
 |---|---:|---:|
