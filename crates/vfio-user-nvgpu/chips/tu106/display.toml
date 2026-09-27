@@ -3,9 +3,9 @@
 # SPDX-FileCopyrightText: 2026 Universität Stuttgart, IKR
 #
 # The TU106 display engine as the device presents it (docs/caraxes/display-ab.md,
-# display-adapter.md sections 3-5, display-scaling.md section 3.1). Synthetic data: no
-# value here was read from the physical card; every number is either a Turing header
-# reset value (named) or a choice for the emulated display (4 heads, 8 windows, 4 SORs).
+# display-adapter.md sections 3-5, display-scaling.md section 3.1). Values are Turing
+# header resets or choices for the emulated display (4 heads, 8 windows, 4 SORs),
+# except the IHUB resource geometry, captured from the card as documented below.
 # The board's connectors live in boards/<board>.toml [display].
 
 label = "synthesized (TU106 display engine data, chips/tu106/display.toml)"
@@ -56,8 +56,14 @@ name = "SYS_CAPB: WINDOW_EXISTS(0-7)"
 value = 0x0000_00FF
 [[caps]]
 offset = 0x010
-name = "IHUB_COMMON_CAPA: SUPPORT_PLANAR"
-value = 0x0008_0000
+name = "IHUB_COMMON_CAPA: 5120 x 128-byte entries, 128-byte requests, SUPPORT_PLANAR"
+# RTX 2070 (TU106), 2026-09-27: hostreg-read READ_32 through RM returned 0x81FA1400
+# at BAR0 0x640010. clc573.h defines MEMPOOL_ENTRIES[15:0] = 0x1400,
+# MEMPOOL_ENTRY_WIDTH[17:16] = 2 (128B), and
+# REQUEST_SIZE_PER_LINE_NON_ROTATION[31:30] = 2 (128B). A zero entry count advertises
+# no display input buffer. Keep the model's feature bits: SUPPORT_PLANAR only;
+# do not copy the card's VGA, compression, power-management or reserved bits.
+value = 0x800A_1400
 # SOR_CAP(i) = 0x144 + 8i: SINGLE_TMDS_A/B, DUAL_TMDS, DP_A, DP_B; HDMI_FRL (bit 28) 0.
 [[caps]]
 offset = 0x144

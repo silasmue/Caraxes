@@ -68,6 +68,23 @@ fn phase_a_answers() {
 }
 
 #[test]
+fn caps_page_reports_ihub_resources_without_unmodelled_features() {
+    let mut disp = display();
+    let ihub = disp.read32(NV_PDISP_FE_SW + 0x10).unwrap();
+    // clc573.h: entries[15:0], entry width[17:16], request size[31:30].
+    // The 2026-09-27 TU106 capture is 0x81FA1400; only its resource geometry
+    // belongs in this model, whose sole IHUB feature is SUPPORT_PLANAR[19].
+    let entries = ihub & 0xFFFF;
+    let entry_bytes = 32u32 << ((ihub >> 16) & 3);
+    let request_bytes = 32u32 << ((ihub >> 30) & 3);
+    assert_eq!(entries * entry_bytes, 640 * 1024, "IHUB capacity in bytes");
+    assert_eq!(entry_bytes, 128);
+    assert_eq!(request_bytes, entry_bytes);
+    let resource_fields = 0xC003_FFFF;
+    assert_eq!(ihub & !resource_fields, 1 << 19);
+}
+
+#[test]
 fn link_answers_agree_on_one_profile() {
     let mut disp = display();
     let mut p = vec![0u8; d::DP_CAPS_SIZE];
@@ -185,15 +202,29 @@ fn edid_ping_pong() {
 
 #[test]
 fn core_channel_update_arms_the_assembly_state() {
+    for initial_offset in [0, 0x40] {
+        core_channel_update_from_offset(initial_offset);
+    }
+}
+
+fn core_channel_update_from_offset(initial_offset: u32) {
     let mut disp = display();
     let mut mem = GuestMemory::new();
     // A pushbuffer in a memfd-backed guest page.
     let f = tempfile_4k();
     mem.map(0x10_0000, 0x1000, 0, &f).unwrap();
+    // Data before the requested initial GET is stale and must never be replayed.
+    if initial_offset != 0 {
+        assert!(mem.write(0x10_0000, &(1u32 << 18 | 0x1084).to_le_bytes()));
+        assert!(mem.write(0x10_0004, &0xABCDu32.to_le_bytes()));
+    }
     // WINDOW_SET_CONTROL(1) = owner 0 (method 0x1080), then UPDATE (0x200).
     let words = [1u32 << 18 | 0x1080, 0, 1 << 18 | 0x200, 0];
     for (i, w) in words.iter().enumerate() {
-        assert!(mem.write(0x10_0000 + 4 * i as u64, &w.to_le_bytes()));
+        assert!(mem.write(
+            0x10_0000 + initial_offset as u64 + 4 * i as u64,
+            &w.to_le_bytes()
+        ));
     }
     let mut p = vec![0u8; d::PUSHBUFFER_SIZE];
     put32(&mut p, d::PUSHBUFFER_ADDRESS_SPACE, 1);
@@ -202,15 +233,45 @@ fn core_channel_update_arms_the_assembly_state() {
     put32(&mut p, d::PUSHBUFFER_HCLASS, d::NVC57D_CORE_CHANNEL_DMA);
     p[d::PUSHBUFFER_VALID] = 1;
     disp.control(d::CMD_INTERNAL_DISPLAY_CHANNEL_PUSHBUFFER, &p);
-    disp.alloc(d::NVC57D_CORE_CHANNEL_DMA, &[0; 40]).unwrap();
+    let mut alloc = vec![0; d::CHANNELDMA_ALLOC_SIZE];
+    put32(&mut alloc, d::CHANNELDMA_ALLOC_OFFSET, initial_offset);
+    disp.alloc(d::NVC57D_CORE_CHANNEL_DMA, &alloc).unwrap();
+    assert_eq!(disp.read32(CORE_USERD), Some(initial_offset));
+    assert_eq!(disp.read32(CORE_USERD + 4), Some(initial_offset));
     disp.core_assembly.insert(0x1080, 0x3);
     let mut fb = crate::fb::FakeFb::new(1 << 20);
-    let notes = disp.write32(CORE_USERD, 16, &mem, &mut fb).unwrap();
+    let end = initial_offset + 16;
+    let notes = disp.write32(CORE_USERD, end, &mem, &mut fb).unwrap();
     assert!(notes[0].contains("2 method(s), 1 UPDATE(s)"), "{notes:?}");
-    assert_eq!(disp.read32(CORE_USERD + 4), Some(16));
+    assert_eq!(disp.read32(CORE_USERD + 4), Some(end));
     assert_eq!(disp.read32(CORE_ARMED + 0x1080), Some(0));
+    assert!(!disp.core_assembly.contains_key(&0x1084));
     // Cursor Free is non-zero.
     assert_ne!(disp.read32(CURSOR_USERD + 8), Some(0));
+}
+
+#[test]
+fn dma_channel_initial_offset_does_not_apply_to_cursor_pio() {
+    let mut disp = display();
+    for class in [
+        d::NVC57D_CORE_CHANNEL_DMA,
+        d::NVC57E_WINDOW_CHANNEL_DMA,
+        d::NVC57B_WINDOW_IMM_CHANNEL_DMA,
+    ] {
+        let mut params = vec![0; d::CHANNELDMA_ALLOC_SIZE];
+        put32(&mut params, d::CHANNELDMA_ALLOC_OFFSET, 0x80);
+        disp.alloc(class, &params).unwrap();
+        let base = userd_base(class, 0).unwrap();
+        assert_eq!(disp.read32(base), Some(0x80), "class {class:#x}");
+        assert_eq!(disp.read32(base + 4), Some(0x80), "class {class:#x}");
+    }
+    let mut params = vec![0; d::CHANNELPIO_ALLOC_SIZE];
+    // Upper half of the PIO pControl pointer, not a DMA offset.
+    put32(&mut params, 12, 0xFFFF_8000);
+    disp.alloc(d::NVC57A_CURSOR_IMM_CHANNEL_PIO, &params)
+        .unwrap();
+    assert_eq!(disp.read32(CURSOR_USERD), Some(0));
+    assert_eq!(disp.read32(CURSOR_USERD + 4), Some(0));
 }
 
 fn tempfile_4k() -> std::fs::File {

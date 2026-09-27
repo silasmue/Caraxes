@@ -1501,10 +1501,18 @@ impl Display {
                 instance: inst,
                 ..Channel::default()
             });
-            ch.put = 0;
-            ch.get = 0;
+            // nvos.h: DMA allocations supply the initial PUT/GET offset. Replaying
+            // from zero can consume stale methods before the requested start. PIO
+            // has no offset field (byte 12 is part of its pControl pointer).
+            let initial_offset = if h_class == d::NVC57A_CURSOR_IMM_CHANNEL_PIO {
+                0
+            } else {
+                get32(params, d::CHANNELDMA_ALLOC_OFFSET)
+            };
+            ch.put = initial_offset;
+            ch.get = initial_offset;
             note.push_str(&format!(
-                " instance {inst}: USERD at BAR0 {base:#x}, pushbuffer {:#x} (valid {})",
+                " instance {inst}: USERD at BAR0 {base:#x}, pushbuffer {:#x} (valid {}), initial PUT/GET {initial_offset:#x}",
                 ch.pb, ch.valid
             ));
         }

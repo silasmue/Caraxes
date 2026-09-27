@@ -310,6 +310,8 @@ pub const IMP_HEAD_MAX_PCLK_KHZ: usize = 4;
 /// `NV50VAIO_CHANNELDMA_ALLOCATION_PARAMETERS` (40): channelInstance 0, hObjectBuffer 4,
 /// hObjectNotify 8, offset 12.
 pub const CHANNELDMA_ALLOC_SIZE: usize = 40;
+/// `NV50VAIO_CHANNELDMA_ALLOCATION_PARAMETERS.offset`: initial PUT and GET, in bytes.
+pub const CHANNELDMA_ALLOC_OFFSET: usize = 12;
 /// `NV50VAIO_CHANNELPIO_ALLOCATION_PARAMETERS` (16): channelInstance 0.
 pub const CHANNELPIO_ALLOC_SIZE: usize = 16;
 pub const CHANNEL_ALLOC_INSTANCE: usize = 0;
@@ -448,6 +450,10 @@ mod tests {
         assert_eq!(
             s("NV50VAIO_CHANNELDMA_ALLOCATION_PARAMETERS"),
             CHANNELDMA_ALLOC_SIZE
+        );
+        assert_eq!(
+            f("NV50VAIO_CHANNELDMA_ALLOCATION_PARAMETERS", "offset"),
+            CHANNELDMA_ALLOC_OFFSET
         );
         assert_eq!(
             f(
