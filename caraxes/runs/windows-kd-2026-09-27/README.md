@@ -328,3 +328,25 @@ pool; guest usable FB ended at `0x3be00000` instead of `0x3fe00000`.
 
 Evidence: `windows-kd/debugger/KD10-pool-resource-progress.log`,
 `KD10-restart-transport-stall.log`, and the run's `qemu-dmabuf-maps.txt`.
+
+## Output-LUT constructor confirmed: KD12
+
+With the unchanged ILUT/TMO diagnostic and 64 MiB pool, a direct breakpoint
+at `+0x15f2e32` catches the head-0 output-LUT constructor failure. The input
+record has flags 0, dimensions 1/1, backing size `0x100`, and a nonzero first
+pointer. Static inspection of `+0x15fb880` shows that, without SFCLOAD, the
+pointer matrix must be empty. This is consistent with the zero head CAPB
+geometry. The OLUT backing allocation itself succeeded (`0x1000`, live handle).
+Final startup still returns `0xC000009A`. No guest request or driver code was
+edited. Evidence: `windows-kd/debugger/KD12-olut-failure.log`.
+
+KD11 produced no usable debugger connection and no new startup result. KD12
+used a restarted debugger VM, a local symbol-cache startup path, and only
+three direct failure probes. It reached the expected error entry. This does
+not establish which change resolved the previous debugger stalls.
+
+The next isolated diagnostic adds measured head CAPB geometry `0xd680`
+without the head-0 low-latency status bit. Its binary SHA-256 is
+`77f0c97e961c63303439c9afb145c31639181f5318ab370cbb5e24e2253781ac`.
+The checked-in profile remains unchanged; loading and applying LUTs still
+need implementation and validation.
