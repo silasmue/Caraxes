@@ -548,6 +548,14 @@ impl QueueStateV2 {
                         format!("rpc length {} outside [32, {nvdm_size}]", header.length),
                     )
                 }
+                NVDM_TYPE_RM_RPC if !answerable => reject(
+                    NV_ERR_INVALID_DATA,
+                    false,
+                    format!(
+                        "RPC header version {:#010x}, signature {:#010x}",
+                        header.header_version, header.signature
+                    ),
+                ),
                 NVDM_TYPE_RM_RPC => None,
                 NVDM_TYPE_GMCAPI => match gm {
                     Some(g) if g.is_response() => reject(
@@ -635,11 +643,9 @@ impl QueueStateV2 {
         self.held.len()
     }
 
-    /// Append one message to the status queue. An RPC header whose `function` is a
-    /// GMCAPI command id (above 0xFFFF) is sent as the GMCAPI response to that request:
-    /// command id with the response flag, the request's sequence, `rpc_result` as
-    /// `response.status`, the payload as data (gmcapi_base.h:27-60, gpu.c:7887-7893).
-    /// Everything else is an RM RPC element. Held while the CPU has not left room, as in
+    /// Append one RM RPC message to the status queue. GMCAPI responses use
+    /// [`QueueStateV2::send_gmcapi_response`] so their 64-bit sequence never passes through
+    /// the RPC header's 32-bit sequence field. Held while the CPU has not left room, as in
     /// v0. Returns the element's index (the trace's tx seq).
     pub fn send(
         &mut self,
@@ -650,20 +656,54 @@ impl QueueStateV2 {
         if self.failed.is_some() {
             return Err(self.failed_error());
         }
-        let (nvdm_type, body) = if header.function > gmcapi::COMMAND_RESERVED_LAST {
-            let g = gmcapi::Header::response(
-                header.function,
-                header.sequence as u64,
-                header.rpc_result,
-                payload.len(),
-            );
-            (NVDM_TYPE_GMCAPI, g.encode().to_vec())
-        } else {
-            let mut h = *header;
-            h.length = (RPC_HEADER_SIZE + payload.len()) as u32;
-            (NVDM_TYPE_RM_RPC, h.encode().to_vec())
-        };
-        self.enqueue(qm, nvdm_type, body, payload, header.function, header.sequence)
+        if header.function > gmcapi::COMMAND_RESERVED_LAST {
+            return Err(format!(
+                "GMCAPI response {:#x} requires send_gmcapi_response to preserve its 64-bit sequence",
+                header.function
+            ));
+        }
+        let mut h = *header;
+        h.length = (RPC_HEADER_SIZE + payload.len()) as u32;
+        self.enqueue(
+            qm,
+            NVDM_TYPE_RM_RPC,
+            h.encode().to_vec(),
+            payload,
+            header.function,
+            u64::from(header.sequence),
+        )
+    }
+
+    /// Send a GMCAPI response using the request's complete 64-bit sequence. GMCAPI has no
+    /// continuation-record framing: up to the transport's element maximum is one MCTP/NVDM
+    /// element spanning as many queue slots as necessary.
+    pub fn send_gmcapi_response(
+        &mut self,
+        qm: &QueueMemory,
+        request: &gmcapi::Header,
+        status: u32,
+        payload: &[u8],
+    ) -> Result<u32, String> {
+        if self.failed.is_some() {
+            return Err(self.failed_error());
+        }
+        if request.is_response() || request.id() <= gmcapi::COMMAND_RESERVED_LAST {
+            return Err(format!(
+                "GMCAPI response needs a CPU request id above {:#x}, got command {:#x}",
+                gmcapi::COMMAND_RESERVED_LAST,
+                request.command
+            ));
+        }
+        let response =
+            gmcapi::Header::response(request.id(), request.sequence, status, payload.len());
+        self.enqueue(
+            qm,
+            NVDM_TYPE_GMCAPI,
+            response.encode().to_vec(),
+            payload,
+            request.id(),
+            request.sequence,
+        )
     }
 
     /// Send a GMCAPI *request* of the GSP-to-CPU direction (`GMCAPI_KERNEL` commands such
@@ -693,7 +733,7 @@ impl QueueStateV2 {
         mut body: Vec<u8>,
         payload: &[u8],
         function: u32,
-        sequence: u32,
+        sequence: u64,
     ) -> Result<u32, String> {
         body.extend_from_slice(payload);
         let total = ELEMENT_HEADER_SIZE + body.len();
@@ -1009,8 +1049,9 @@ pub(crate) mod tests {
         let _ = std::fs::remove_file(&path);
     }
 
-    /// A GMCAPI request surfaces with its command id as the function; the reply to it is
-    /// framed as a GMCAPI response with the response flag, the sequence and the status.
+    /// A GMCAPI request surfaces with its command id as the function; the typed reply keeps
+    /// its full 64-bit sequence and the largest allowed 48 KiB response remains one GMCAPI
+    /// element (spanning queue slots, never RM continuation records).
     #[test]
     fn gmcapi_round_trip() {
         let (mem, pages, path) = linked("v2gmc");
@@ -1021,7 +1062,7 @@ pub(crate) mod tests {
         let g = gmcapi::Header {
             command: gmcapi::CMD_GSP_INIT,
             size: data.len() as u32,
-            sequence: 3,
+            sequence: 0x1_0000_0001,
             request_or_status: gmcapi::GSP_INIT_MAX_RESPONSE as u32,
         };
         let mut body = g.encode().to_vec();
@@ -1032,12 +1073,12 @@ pub(crate) mod tests {
         assert_eq!(m.gmcapi, Some(g));
         assert_eq!(
             (m.header.function, m.header.sequence),
-            (gmcapi::CMD_GSP_INIT, 3)
+            (gmcapi::CMD_GSP_INIT, 1)
         );
         assert_eq!(m.payload, data);
-        let out = [0x22u8; 16];
-        q.send(&qm, &RpcHeader::reply(&m.header, 0, out.len()), &out)
-            .unwrap();
+        let out = vec![0x22u8; gmcapi::GSP_INIT_MAX_RESPONSE];
+        q.send_gmcapi_response(&qm, &g, 0, &out).unwrap();
+        assert_eq!(q.sent, 1, "one GMCAPI element, not a continuation series");
         let (nvdm, body) = cpu.receive(&qm, q.write_ptr).expect("response");
         assert_eq!(nvdm, NVDM_TYPE_GMCAPI);
         let r = gmcapi::Header::parse(&body).unwrap();
@@ -1045,12 +1086,95 @@ pub(crate) mod tests {
             (r.command, r.size, r.sequence, r.request_or_status),
             (
                 gmcapi::CMD_GSP_INIT | gmcapi::COMMAND_FLAGS_RESPONSE,
-                16,
-                3,
+                gmcapi::GSP_INIT_MAX_RESPONSE as u32,
+                0x1_0000_0001,
                 0
             )
         );
         assert_eq!(&body[40..], &out);
+        assert!(
+            cpu.receive(&qm, q.write_ptr).is_none(),
+            "no continuation element"
+        );
+        let write_ptr = q.write_ptr;
+        q.failed = Some("sticky test failure".into());
+        assert!(q
+            .send_gmcapi_response(&qm, &g, NV_ERR_INVALID_DATA, &[])
+            .unwrap_err()
+            .contains("sticky test failure"));
+        assert_eq!(q.write_ptr, write_ptr, "a failed queue publishes nothing");
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// A parsed GMCAPI request behind malformed outer framing is answerable. Its rejection
+    /// consumes the request and a typed error response echoes all 64 sequence bits.
+    #[test]
+    fn malformed_answerable_gmcapi_rejection_preserves_u64_sequence() {
+        let (mem, pages, path) = linked("v2gmcrej");
+        let qm = QueueMemory::new(&mem, &pages);
+        let mut cpu = Cpu::create(&qm);
+        let mut q = QueueStateV2::link(&qm, &args(), 0).unwrap();
+        let g = gmcapi::Header {
+            command: gmcapi::CMD_GSP_INIT,
+            size: 0,
+            sequence: 0x1_0000_0001,
+            request_or_status: gmcapi::GSP_INIT_MAX_RESPONSE as u32,
+        };
+        let mut bad = cpu_element(NVDM_TYPE_GMCAPI, &g.encode());
+        put_u32(&mut bad, ELEMENT_MAGIC, 0xFFFF_FFFF);
+        cpu.raw(&qm, &bad);
+        q.cpu_write_ptr = cpu.write_ptr;
+
+        let m = q.receive(&qm).unwrap().expect("malformed GMCAPI element");
+        assert_eq!(m.gmcapi, Some(g));
+        assert_eq!(m.reply_to(), Some(ReplyTo::Itself));
+        assert_eq!(
+            m.rejected.as_ref().map(|r| r.status),
+            Some(NV_ERR_INVALID_DATA)
+        );
+        q.send_gmcapi_response(&qm, &m.gmcapi.unwrap(), NV_ERR_INVALID_DATA, &[])
+            .unwrap();
+        let (nvdm, body) = cpu.receive(&qm, q.write_ptr).expect("error response");
+        let response = gmcapi::Header::parse(&body).unwrap();
+        assert_eq!(nvdm, NVDM_TYPE_GMCAPI);
+        assert_eq!(
+            (response.id(), response.sequence, response.request_or_status),
+            (gmcapi::CMD_GSP_INIT, 0x1_0000_0001, NV_ERR_INVALID_DATA)
+        );
+        assert!(response.is_response());
+        assert_eq!((q.rejected, q.failed.as_deref()), (1, None));
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// A length-valid RM RPC with a foreign header schema must not reach dispatch; after
+    /// consuming bad signature and version elements, the same v2 queue receives the next
+    /// valid request normally.
+    #[test]
+    fn invalid_rpc_header_is_rejected_and_queue_recovers() {
+        let (mem, pages, path) = linked("v2rpcheader");
+        let qm = QueueMemory::new(&mem, &pages);
+        let mut cpu = Cpu::create(&qm);
+        let mut q = QueueStateV2::link(&qm, &args(), 0).unwrap();
+        let mut signature = rpc(70, 1, &[1]);
+        put_u32(&mut signature, 4, RPC_SIGNATURE ^ 1);
+        cpu.send(&qm, NVDM_TYPE_RM_RPC, &signature);
+        let mut version = rpc(71, 2, &[2]);
+        put_u32(&mut version, 0, RPC_HEADER_VERSION ^ 1);
+        cpu.send(&qm, NVDM_TYPE_RM_RPC, &version);
+        cpu.send(&qm, NVDM_TYPE_RM_RPC, &rpc(72, 3, &[3]));
+        q.cpu_write_ptr = cpu.write_ptr;
+
+        for field in ["signature", "version"] {
+            let m = q.receive(&qm).unwrap().expect("foreign RPC schema");
+            let r = m.rejected.as_ref().expect("rejected");
+            assert_eq!((r.status, r.answerable), (NV_ERR_INVALID_DATA, false));
+            assert!(r.reason.contains(field), "{}", r.reason);
+            assert_eq!(m.reply_to(), Some(ReplyTo::Nobody));
+        }
+        let m = q.receive(&qm).unwrap().expect("following valid RPC");
+        assert_eq!((m.header.function, m.payload.as_slice()), (72, &[3u8][..]));
+        assert!(m.rejected.is_none());
+        assert_eq!((q.rejected, q.failed.as_deref(), q.read_ptr), (2, None, 3));
         let _ = std::fs::remove_file(&path);
     }
 

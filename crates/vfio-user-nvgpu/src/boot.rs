@@ -1442,16 +1442,25 @@ impl BootModel {
                     let rej = msg.rejected.take().expect("rejected");
                     notes.push(format!("rx seq {} rejected: {}", msg.seq_num, rej.reason));
                     let target = match to {
-                        ReplyTo::Itself => Some(msg.header),
-                        ReplyTo::PendingRequest => self.pending.take().map(|(p, _)| p.header),
+                        ReplyTo::Itself => Some((msg.header, msg.gmcapi)),
+                        ReplyTo::PendingRequest => {
+                            self.pending.take().map(|(p, _)| (p.header, p.gmcapi))
+                        }
                         ReplyTo::Nobody => None,
                     };
-                    if let Some(h) = target {
-                        match queues.send(&qm, &RpcHeader::reply(&h, rej.status, 0), &[]) {
+                    if let Some((h, gmcapi)) = target {
+                        let reply_sequence = gmcapi
+                            .as_ref()
+                            .map_or(u64::from(h.sequence), |g| g.sequence);
+                        let sent = match gmcapi {
+                            Some(g) => queues.send_gmcapi_response(&qm, &g, rej.status, &[]),
+                            None => queues.send(&qm, &RpcHeader::reply(&h, rej.status, 0), &[]),
+                        };
+                        match sent {
                             Ok(seq) => notes.push(format!(
                                 "tx seq {seq} reply {} sequence {} result {:#x} (rejected request)",
                                 rpc::function_name(h.function),
-                                h.sequence,
+                                reply_sequence,
                                 rej.status
                             )),
                             Err(e) => notes.push(format!("send: {e}")),
@@ -1519,13 +1528,22 @@ impl BootModel {
                     }
                 }
                 let h = msg.header;
+                let sequence = msg
+                    .gmcapi
+                    .as_ref()
+                    .map_or(u64::from(h.sequence), |g| g.sequence);
+                let integrity = if self.transport == GspTransport::MsgqV2 {
+                    "framing"
+                } else {
+                    "checksum"
+                };
                 let t_rpc = crate::profile::on().then(std::time::Instant::now);
                 notes.push(format!(
-                    "rx seq {} {} ({}) sequence {} length {} checksum {}: {}",
+                    "rx seq {} {} ({}) sequence {} length {} {integrity} {}: {}",
                     msg.seq_num,
                     rpc::function_name(h.function),
                     h.function,
-                    h.sequence,
+                    sequence,
                     h.length,
                     if msg.checksum_ok { "ok" } else { "BAD" },
                     rpc::describe(h.function, &msg.payload)
@@ -2009,41 +2027,56 @@ impl BootModel {
                     }
                 };
                 if let Some((result, payload)) = reply {
-                    // The reply takes the request's shape: at most 65520 bytes per record,
-                    // continuation records with the following sequence numbers.
-                    let max_rpc: usize = crate::ver::element_layout().max_rpc_size();
-                    let first_len = payload.len().min(max_rpc - v::RPC_HEADER_SIZE);
-                    let hdr = RpcHeader::reply(&h, result, first_len);
-                    match queues.send(&qm, &hdr, &payload[..first_len]) {
-                        Ok(seq) => notes.push(format!(
-                            "tx seq {seq} reply {} sequence {} result {result:#x} length {}",
-                            rpc::function_name(h.function),
-                            h.sequence,
-                            hdr.length
-                        )),
-                        Err(e) => notes.push(format!("send: {e}")),
-                    }
-                    let mut sent = first_len;
-                    let mut sequence = h.sequence;
-                    while sent < payload.len() {
-                        let chunk = (payload.len() - sent).min(max_rpc - v::RPC_HEADER_SIZE);
-                        sequence = sequence.wrapping_add(1);
-                        let cont = RpcHeader {
-                            function: rpc::FN_CONTINUATION_RECORD,
-                            sequence,
-                            ..RpcHeader::reply(&h, result, chunk)
-                        };
-                        match queues.send(&qm, &cont, &payload[sent..sent + chunk]) {
+                    if let Some(g) = msg.gmcapi {
+                        // A GMCAPI response is one MCTP/NVDM element (possibly spanning
+                        // several queue slots), never an RM continuation series. Preserve
+                        // the request's full 64-bit sequence for the kernel's waiter.
+                        match queues.send_gmcapi_response(&qm, &g, result, &payload) {
                             Ok(seq) => notes.push(format!(
-                                "tx seq {seq} continuation sequence {sequence} length {}",
-                                cont.length
+                                "tx seq {seq} reply {} sequence {} result {result:#x} length {}",
+                                crate::gmcapi::command_name(g.id()),
+                                g.sequence,
+                                crate::gmcapi::HEADER_SIZE + payload.len()
                             )),
-                            Err(e) => {
-                                notes.push(format!("send continuation: {e}"));
-                                break;
-                            }
+                            Err(e) => notes.push(format!("send: {e}")),
                         }
-                        sent += chunk;
+                    } else {
+                        // The reply takes the request's shape: at most 65520 bytes per record,
+                        // continuation records with the following sequence numbers.
+                        let max_rpc: usize = crate::ver::element_layout().max_rpc_size();
+                        let first_len = payload.len().min(max_rpc - v::RPC_HEADER_SIZE);
+                        let hdr = RpcHeader::reply(&h, result, first_len);
+                        match queues.send(&qm, &hdr, &payload[..first_len]) {
+                            Ok(seq) => notes.push(format!(
+                                "tx seq {seq} reply {} sequence {} result {result:#x} length {}",
+                                rpc::function_name(h.function),
+                                h.sequence,
+                                hdr.length
+                            )),
+                            Err(e) => notes.push(format!("send: {e}")),
+                        }
+                        let mut sent = first_len;
+                        let mut sequence = h.sequence;
+                        while sent < payload.len() {
+                            let chunk = (payload.len() - sent).min(max_rpc - v::RPC_HEADER_SIZE);
+                            sequence = sequence.wrapping_add(1);
+                            let cont = RpcHeader {
+                                function: rpc::FN_CONTINUATION_RECORD,
+                                sequence,
+                                ..RpcHeader::reply(&h, result, chunk)
+                            };
+                            match queues.send(&qm, &cont, &payload[sent..sent + chunk]) {
+                                Ok(seq) => notes.push(format!(
+                                    "tx seq {seq} continuation sequence {sequence} length {}",
+                                    cont.length
+                                )),
+                                Err(e) => {
+                                    notes.push(format!("send continuation: {e}"));
+                                    break;
+                                }
+                            }
+                            sent += chunk;
+                        }
                     }
                 }
                 if let Some(t) = t_rpc {
@@ -2862,6 +2895,69 @@ mod tests {
         fn drop(&mut self) {
             let _ = std::fs::remove_file(&self.path);
         }
+    }
+
+    /// BootModel must route both an ordinary GMCAPI reply and an answerable framing
+    /// rejection through the typed response path. In both cases the kernel waiter's
+    /// 64-bit sequence survives instead of being narrowed through `RpcHeader`.
+    #[test]
+    fn boot_615_gmcapi_replies_preserve_u64_sequence() {
+        let mut guest = Guest615::boot("gmc-sequence");
+        let request = crate::gmcapi::Header {
+            command: crate::gmcapi::CMD_GSP_INIT,
+            size: 0,
+            sequence: 0x1_0000_0001,
+            request_or_status: crate::gmcapi::GSP_INIT_MAX_RESPONSE as u32,
+        };
+        let (notes, elements) = guest.send(
+            crate::msgq::v2::NVDM_TYPE_GMCAPI,
+            &request.encode(),
+        );
+        assert!(notes.iter().any(|n| n.contains("sequence 4294967297")), "{notes:?}");
+        assert_eq!(elements.len(), 1);
+        let response = crate::gmcapi::Header::parse(&elements[0].1).unwrap();
+        assert_eq!(
+            (elements[0].0, response.id(), response.sequence, response.request_or_status),
+            (
+                crate::msgq::v2::NVDM_TYPE_GMCAPI,
+                crate::gmcapi::CMD_GSP_INIT,
+                0x1_0000_0001,
+                rpc::NV_OK
+            )
+        );
+        assert!(response.is_response());
+
+        let malformed = crate::gmcapi::Header {
+            sequence: 0x2_0000_0001,
+            ..request
+        };
+        let body = malformed.encode().to_vec();
+        let mut raw = {
+            let qm = QueueMemory::new(&guest.mem, &guest.pages);
+            guest.cpu.send(&qm, crate::msgq::v2::NVDM_TYPE_GMCAPI, &body)
+        };
+        // Rewind and overwrite the just-built slot with a bad MCTP magic. Its intact
+        // GMCAPI header still makes the rejection answerable.
+        guest.cpu.write_ptr -= raw.len().div_ceil(0x1000) as u32;
+        raw[..4].copy_from_slice(&0xffff_ffffu32.to_le_bytes());
+        {
+            let qm = QueueMemory::new(&guest.mem, &guest.pages);
+            guest.cpu.raw(&qm, &raw);
+        }
+        let notes = guest.b.write32(CMD_HEAD, guest.cpu.write_ptr, &guest.mem).unwrap();
+        let elements = guest.drain();
+        assert!(notes.iter().any(|n| n.contains("sequence 8589934593")), "{notes:?}");
+        assert_eq!(elements.len(), 1);
+        let response = crate::gmcapi::Header::parse(&elements[0].1).unwrap();
+        assert_eq!(
+            (response.id(), response.sequence, response.request_or_status),
+            (
+                crate::gmcapi::CMD_GSP_INIT,
+                0x2_0000_0001,
+                crate::msgq::NV_ERR_INVALID_DATA
+            )
+        );
+        assert!(response.is_response());
     }
 
     /// A `GSP_RM_ALLOC` request of client `c` under parent `c`.

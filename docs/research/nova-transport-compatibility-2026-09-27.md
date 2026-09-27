@@ -12,14 +12,16 @@ change intended. No upstream code is copied into Caraxes.
 | Concern | Caraxes evidence / action |
 |---|---|
 | Queue extent | 570/595 has an outer `elemCount`, currently ignored on receive. 610 has no such field. 615 already uses outer `mctpPayloadSize`. Do not transplant one version's rule into another. |
-| RPC header validation | Both receive paths computed whether signature/version permit an error reply, but did not reject otherwise well-formed invalid RPC headers. Add rejection and subsequent-valid-message recovery tests. |
-| GMC correlation | The wire sequence is 64 bits. Adapting through `RpcHeader.sequence` loses its upper half. Preserve the native header for both successful and rejected GMC responses. |
+| RPC header validation | Fixed: both receive paths now reject invalid signatures/versions even when the outer frame is valid. Tests check pre-610, 610 and v2 framing and recovery at the next valid message. |
+| GMC correlation | Fixed: typed GMC responses preserve the native 64-bit sequence instead of adapting through `RpcHeader.sequence`. Queue and BootModel tests cover normal and rejected responses above 32 bits. |
 | RPC fragmentation | Keep continuation records on the RPC path. A GMC response can occupy several transport slots but is not an RPC continuation series. |
-| Integrity and diagnostics | v0 checks a checksum; v2 checks framing and has no checksum. Logs must distinguish these. Bound the outer frame before interpreting nested messages where the format permits it. |
+| Integrity and diagnostics | v0 checks a checksum; v2 checks framing and has no checksum. Logs now distinguish these and print the complete GMC sequence. Bound the outer frame before interpreting nested messages where the format permits it. |
 | Shared sequence stream | Add focused mixed RPC/GMC, asynchronous sequence-zero, continuation/interleave and wrap tests. Existing round-trip tests do not establish all combinations. |
 | Recovery | Existing malformed-queue and reload tests should be joined into failure → reset/reload → valid-request tests. |
 
-The immediate fixes should stay small and retain the current transport versions.
+The implemented fixes retain the current transport versions. A 48 KiB GMC reply
+is tested as one transport element spanning slots, without RPC continuation records;
+a failed queue refuses to publish a typed response.
 A later explicit decoded-message type can separate RPC and GMC more completely.
 The pre-610 count check belongs to a separate legacy-compatibility change, with
 malformed-count and count/length-disagreement tests; it is not a 615 fix.

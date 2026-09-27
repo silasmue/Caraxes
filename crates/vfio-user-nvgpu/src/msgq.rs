@@ -362,8 +362,8 @@ pub fn ring_distance(from: u32, to: u32, n: u32) -> u32 {
 pub struct Rejection {
     /// The `rpc_result` of the error reply.
     pub status: u32,
-    /// Whether the RPC header is intact enough (signature and header version as the
-    /// guest writes them) that its function and sequence can be echoed in a reply.
+    /// Whether the request header is intact enough that its function/command and
+    /// sequence can be echoed in an error reply.
     pub answerable: bool,
     pub reason: String,
 }
@@ -384,11 +384,12 @@ pub struct Message {
     /// answers it with [`Rejection::status`] when it is answerable, and never acts on
     /// its payload.
     pub rejected: Option<Rejection>,
-    /// The `GMCAPI_HEADER` of a GMCAPI request (message queue v2 only). The header's
-    /// `function` then holds the GMCAPI command id and `sequence` its sequence: GMCAPI
-    /// ids start above 0xFFFF so that the two share one namespace
-    /// (interface/gmcapi/gmcapi_base.h:76-80 of 615), and a reply sent with that
-    /// function goes out as the GMCAPI response ([`v2::QueueStateV2::send`]).
+    /// The `GMCAPI_HEADER` of a GMCAPI request (message queue v2 only). The synthetic
+    /// RPC header's `function` holds its command id for dispatch, but this original
+    /// header remains the reply authority because its sequence is 64-bit. GMCAPI ids
+    /// start above 0xFFFF so that the two share one namespace
+    /// (interface/gmcapi/gmcapi_base.h:76-80 of 615); replies use
+    /// [`v2::QueueStateV2::send_gmcapi_response`].
     pub gmcapi: Option<crate::gmcapi::Header>,
 }
 
@@ -410,9 +411,10 @@ impl Message {
     /// For a rejected element, which request its error reply answers (`None` for an
     /// element that was not rejected).
     ///
-    /// The reply is a bare RPC header, the request's function and sequence with
-    /// `rpc_result` set to [`Rejection::status`] and no payload. The guest handles it
-    /// as a failed RPC: `_issueRpcAndWait` returns any `rpc_result` below the VMIOP
+    /// An RM reply is a bare RPC header: the request's function and sequence with
+    /// `rpc_result` set to [`Rejection::status`] and no payload. A GMCAPI reply is its
+    /// response header with the original 64-bit sequence and `status` set likewise.
+    /// The guest handles an RM error as a failed RPC: `_issueRpcAndWait` returns any `rpc_result` below the VMIOP
     /// range (0xFF000000, rpc_headers.h:122) as the call's status (rpc.c:2011-2027,
     /// large requests rpc.c:2230-2241), and `rpcRmApiControl_GSP` copies no
     /// parameters back when that status is not `NV_OK` (rpc.c:10868-10899). The
@@ -688,19 +690,37 @@ impl QueueState {
             );
         }
         self.rx_seq = seq_num.wrapping_add(1);
-        let rejected = (!checksum_ok).then(|| {
+        let rejected = if !checksum_ok {
             self.rejected += 1;
             let reason = format!(
                 "bad checksum in command slot {slot} (seqNum {seq_num}, function {}, sequence {}), not dispatched",
                 header.function, header.sequence
             );
             log::error!("GSP command queue: {reason}");
-            Rejection {
+            Some(Rejection {
                 status: NV_ERR_INVALID_DATA,
                 answerable,
                 reason,
-            }
-        });
+            })
+        } else if !answerable {
+            // The checksum authenticates only the bytes' integrity. It does not make a
+            // foreign RPC schema safe to dispatch. Neither function nor sequence is
+            // trustworthy enough to reflect in a reply when the signature/version is not
+            // the one this server implements; consume the bounded element and continue.
+            self.rejected += 1;
+            let reason = format!(
+                "invalid RPC header in command slot {slot} (seqNum {seq_num}): version {:#010x}, signature {:#010x}, not dispatched",
+                header.header_version, header.signature
+            );
+            log::error!("GSP command queue: {reason}");
+            Some(Rejection {
+                status: NV_ERR_INVALID_DATA,
+                answerable: false,
+                reason,
+            })
+        } else {
+            None
+        };
         Ok(Some(Message {
             seq_num,
             header,
@@ -821,6 +841,24 @@ impl QueueState {
             Some(q) => q.send_gmcapi_request(qm, id, params),
             None => Err(format!(
                 "GMCAPI request {id:#x}: the 610 transport (message queue v0) has no GMCAPI"
+            )),
+        }
+    }
+
+    /// Send the response to a CPU-originated GMCAPI request without narrowing its 64-bit
+    /// sequence through [`RpcHeader`]. GMCAPI exists only on message queue v2.
+    pub fn send_gmcapi_response(
+        &mut self,
+        qm: &QueueMemory,
+        request: &crate::gmcapi::Header,
+        status: u32,
+        payload: &[u8],
+    ) -> Result<u32, String> {
+        match self.v2.as_deref_mut() {
+            Some(q) => q.send_gmcapi_response(qm, request, status, payload),
+            None => Err(format!(
+                "GMCAPI response {:#x}: the 610 transport (message queue v0) has no GMCAPI",
+                request.id()
             )),
         }
     }
@@ -1059,28 +1097,58 @@ pub(crate) mod tests {
         }
     }
 
-    /// A CPU element for `header` and `payload`: `length` set, checksum folded to zero,
-    /// padded to whole slots.
-    fn element(seq_num: u32, header: &RpcHeader, payload: &[u8]) -> Vec<u8> {
-        let total = 16 + 32 + payload.len();
+    fn v610_layout() -> crate::ver::ElementLayout {
+        crate::ver::ElementLayout {
+            header_size: ELEMENT_HEADER_SIZE,
+            checksum_off: 8,
+            seq_off: 12,
+            elem_count_off: None,
+            mctp: true,
+        }
+    }
+
+    /// A CPU element for `header` and `payload` in the selected v0 framing: `length` set,
+    /// checksum folded to zero, padded to whole slots.
+    fn element_for(
+        el: crate::ver::ElementLayout,
+        seq_num: u32,
+        header: &RpcHeader,
+        payload: &[u8],
+    ) -> Vec<u8> {
+        let total = el.header_size + RPC_HEADER_SIZE + payload.len();
         let mut raw = vec![0u8; total.div_ceil(0x1000) * 0x1000];
-        put_u32(&mut raw, 0, MCTP_HEADER);
-        put_u32(&mut raw, 4, NVDM_HEADER);
-        put_u32(&mut raw, 12, seq_num);
+        if el.mctp {
+            put_u32(&mut raw, 0, MCTP_HEADER);
+            put_u32(&mut raw, 4, NVDM_HEADER);
+        }
+        put_u32(&mut raw, el.seq_off, seq_num);
+        if let Some(off) = el.elem_count_off {
+            let slots = raw.len().div_ceil(0x1000) as u32;
+            put_u32(&mut raw, off, slots);
+        }
         let mut h = *header;
-        h.length = (32 + payload.len()) as u32;
-        raw[16..48].copy_from_slice(&h.encode());
-        raw[48..total].copy_from_slice(payload);
-        reseal(&mut raw);
+        h.length = (RPC_HEADER_SIZE + payload.len()) as u32;
+        let rpc = el.header_size;
+        raw[rpc..rpc + RPC_HEADER_SIZE].copy_from_slice(&h.encode());
+        raw[rpc + RPC_HEADER_SIZE..total].copy_from_slice(payload);
+        reseal_for(&mut raw, el);
         raw
+    }
+
+    fn element(seq_num: u32, header: &RpcHeader, payload: &[u8]) -> Vec<u8> {
+        element_for(v610_layout(), seq_num, header, payload)
     }
 
     /// Recompute the checksum over the length the RPC header declares.
     fn reseal(raw: &mut [u8]) {
-        put_u32(raw, 8, 0);
-        let total = (16 + u32_at(raw, 24) as usize).div_ceil(8) * 8;
+        reseal_for(raw, v610_layout());
+    }
+
+    fn reseal_for(raw: &mut [u8], el: crate::ver::ElementLayout) {
+        put_u32(raw, el.checksum_off, 0);
+        let total = (el.header_size + u32_at(raw, el.header_size + 8) as usize).div_ceil(8) * 8;
         let sum = checksum32(&raw[..total.min(raw.len())]);
-        put_u32(raw, 8, sum);
+        put_u32(raw, el.checksum_off, sum);
     }
 
     /// Write whole slots at the CPU's write pointer, slot by slot so that an element
@@ -1266,6 +1334,51 @@ pub(crate) mod tests {
         let m = q.receive(&qm).unwrap().expect("intact");
         assert_eq!((m.rejected.is_none(), m.reply_to()), (true, None));
         let _ = std::fs::remove_file(&path);
+    }
+
+    /// A valid element checksum does not authorize a foreign RPC schema. Both v0 outer
+    /// framings consume a bad signature/version without dispatch or reflection, then
+    /// recover at the following request: 610 has the 16-byte MCTP/NVDM header, while 595
+    /// and 570 use the pre-610 0x30-byte auth/AAD header and explicit element count.
+    #[test]
+    fn invalid_rpc_header_is_rejected_in_both_v0_framings() {
+        for (tag, guest, el) in [
+            ("rpc-header-610", None, v610_layout()),
+            (
+                "rpc-header-pre610",
+                Some(595),
+                crate::ver::ElementLayout::PRE_610,
+            ),
+        ] {
+            crate::ver::TEST_GUEST.with(|c| c.set(Some(guest)));
+            let (mem, pages, path, mut cmd) = linked(tag);
+            let qm = QueueMemory::new(&mem, &pages);
+            let mut q = QueueState::link(&qm, 0x1000, 0x41000, 0x40000).unwrap();
+
+            let mut signature = request(5);
+            signature.signature ^= 1;
+            cpu_raw(&qm, &mut cmd, &element_for(el, 0, &signature, &[1]));
+            let mut version = request(6);
+            version.header_version ^= 1;
+            cpu_raw(&qm, &mut cmd, &element_for(el, 1, &version, &[2]));
+            cpu_raw(&qm, &mut cmd, &element_for(el, 2, &request(7), &[3]));
+
+            for (i, field) in ["signature", "version"].into_iter().enumerate() {
+                let m = q.receive(&qm).unwrap().expect("invalid RPC header element");
+                assert!(m.checksum_ok, "{tag}: the outer checksum is valid");
+                let r = m.rejected.as_ref().expect("foreign RPC schema rejected");
+                assert_eq!((r.status, r.answerable), (NV_ERR_INVALID_DATA, false));
+                assert!(r.reason.contains(field), "{tag}: {}", r.reason);
+                assert_eq!(m.reply_to(), Some(ReplyTo::Nobody));
+                assert_eq!(q.read_ptr, i as u32 + 1);
+            }
+            let m = q.receive(&qm).unwrap().expect("following valid RPC");
+            assert!(m.rejected.is_none());
+            assert_eq!((m.header.function, m.payload.as_slice()), (7, &[3u8][..]));
+            assert_eq!((q.rejected, q.failed.as_deref(), q.read_ptr), (2, None, 3));
+            let _ = std::fs::remove_file(&path);
+            crate::ver::TEST_GUEST.with(|c| c.set(None));
+        }
     }
 
     /// The wrap rule of `seq_before` and `ring_distance`.
