@@ -29,44 +29,51 @@ public static class KdConsoleControl {
 [KdConsoleControl]::Initialize()
 
 New-Item -ItemType Directory -Force $inbox, $sent | Out-Null
-Set-Content $log "[$(Get-Date -Format o)] starting KD bridge"
+# Keep the writer open so a reader cannot interrupt logging between lines.
+$logStream = [IO.FileStream]::new($log, [IO.FileMode]::Create,
+    [IO.FileAccess]::Write, [IO.FileShare]::ReadWrite)
+$logWriter = [IO.StreamWriter]::new($logStream, [Text.UTF8Encoding]::new($false))
+$logWriter.AutoFlush = $true
+$logWriter.WriteLine("[$(Get-Date -Format o)] starting KD bridge")
 
 $si = [Diagnostics.ProcessStartInfo]::new()
 $si.FileName = $kd
 $si.Arguments = '-bonc -k com:port=com1,baud=115200 -cf C:\Temp\nv-start-failures.kds'
 $si.UseShellExecute = $false
-# KD must inherit the private console allocated above. GenerateConsoleCtrlEvent
-# addresses console process groups; CREATE_NO_WINDOW would detach KD from that
-# console and make @BREAK a no-op.
+# Inherit the console so @BREAK reaches KD.
 $si.CreateNoWindow = $false
 $si.RedirectStandardInput = $true
 $si.RedirectStandardOutput = $true
 $si.RedirectStandardError = $true
 $p = [Diagnostics.Process]::new()
 $p.StartInfo = $si
-if (-not $p.Start()) { throw 'failed to start kd.exe' }
-Set-Content $state "running kd_pid=$($p.Id) started=$(Get-Date -Format o)"
-
-$stdout = $p.StandardOutput.ReadLineAsync()
-$stderr = $p.StandardError.ReadLineAsync()
+$started = $false
 try {
+    $started = $p.Start()
+    if (-not $started) { throw 'failed to start kd.exe' }
+    Set-Content $state "running kd_pid=$($p.Id) started=$(Get-Date -Format o)"
+    $stdout = $p.StandardOutput.ReadLineAsync()
+    $stderr = $p.StandardError.ReadLineAsync()
     while (-not $p.HasExited) {
-        if ($stdout.IsCompleted) {
+        # Drain bursts without delaying command processing indefinitely.
+        for ($n = 0; $n -lt 256 -and $null -ne $stdout -and $stdout.IsCompleted; $n++) {
             $line = $stdout.GetAwaiter().GetResult()
-            if ($null -ne $line) { Add-Content $log $line }
+            if ($null -eq $line) { $stdout = $null; break }
+            $logWriter.WriteLine($line)
             $stdout = $p.StandardOutput.ReadLineAsync()
         }
-        if ($stderr.IsCompleted) {
+        for ($n = 0; $n -lt 256 -and $null -ne $stderr -and $stderr.IsCompleted; $n++) {
             $line = $stderr.GetAwaiter().GetResult()
-            if ($null -ne $line) { Add-Content $log "STDERR: $line" }
+            if ($null -eq $line) { $stderr = $null; break }
+            $logWriter.WriteLine("STDERR: $line")
             $stderr = $p.StandardError.ReadLineAsync()
         }
         foreach ($file in Get-ChildItem $inbox -Filter '*.cmd' | Sort-Object Name) {
             foreach ($line in Get-Content $file.FullName) {
-                Add-Content $log "COMMAND[$($file.Name)]: $line"
+                $logWriter.WriteLine("COMMAND[$($file.Name)]: $line")
                 if ($line -eq '@BREAK') {
                     [KdConsoleControl]::Break()
-                    Add-Content $log "CONTROL[$($file.Name)]: CTRL_BREAK_EVENT sent"
+                    $logWriter.WriteLine("CONTROL[$($file.Name)]: CTRL_BREAK_EVENT sent")
                 } else {
                     $p.StandardInput.WriteLine($line)
                 }
@@ -77,6 +84,10 @@ try {
         Start-Sleep -Milliseconds 100
     }
     Set-Content $state "exited code=$($p.ExitCode) time=$(Get-Date -Format o)"
+} catch {
+    Set-Content $state "failed time=$(Get-Date -Format o) error=$($_.Exception.Message)"
+    throw
 } finally {
-    if (-not $p.HasExited) { $p.Kill() }
+    if ($started -and -not $p.HasExited) { $p.Kill() }
+    $logWriter.Dispose()
 }

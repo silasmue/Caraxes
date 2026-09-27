@@ -20,11 +20,15 @@ success has been established.
 
 ## Console bridge
 
-Copy `kd-bridge.ps1` and `nv-start-failures.kds` to `C:\Temp` in the debugger VM.
+Copy `kd-bridge.ps1`, `kd-log.ps1` and `nv-start-failures.kds` to `C:\Temp` in the debugger VM.
 The existing `CaraxesKDBridge` scheduled task starts the bridge. It launches KD
 with redirected input/output and records output in `C:\Temp\kd-console.log`.
 Commands are queued as text files under `C:\Temp\kd-cmd`.
 
+- Read logs with `kd-log.ps1 -Lines 80`; use `-Snapshot C:\Temp\kd-snapshot.log`
+  before copying a transcript through QGA. The reader and persistent writer share
+  file access. The earlier `Add-Content` loop could fail during concurrent reads
+  and terminate KD. Thirty reads plus a snapshot passed with KD still running.
 - Ordinary lines are KD commands. A consumed file only proves delivery to stdin;
   confirm execution in the KD log.
 - `@BREAK` generates a Windows console break event. KD must inherit the bridge's
