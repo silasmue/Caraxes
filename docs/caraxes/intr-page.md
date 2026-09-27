@@ -696,3 +696,26 @@ display page as well (C), on the device built from main with both pages (the fro
   `CORE_RESET` (longest 10.3 ms), `inconsistencies: none`; the interrupt page: 772184 scans,
   296318 acks, `inconsistencies: none` (`C-display-page/device-summary.txt`).
 - GPPut barrier waits per GNOME start: 23 to 36 in C, 21 to 33 in B (display-e.md §9).
+
+### 10.7 Read-only page hardware validation (2026-09-27)
+
+The experimental read-only mapping was tested on the stock 615.71.09 Linux
+guest with Cloud Hypervisor `e7b1965c0` and backend `419a308f` (binary SHA-256
+`4e1a0c3d57855ef3605c0f14175e49b9782eee2318a154fdd9a1dc937331aa8b`).
+The 0-us trace recorded 13,898 trapped FE-page writes and no FE-page reads;
+the latter is expected because reads remain direct through the shared mmap and
+therefore leave no vfio-user trace record. Fixed-CPU3 runs at both the default
+200-us hybrid spin window and 0 us completed the same Wayland graphics
+sequence with equal marker and `CORE_RESET` counts and no display-page or
+interrupt-page inconsistency. At 0 us there were 3,516 markers, the longest
+acknowledgement was 29.6 ms, and two watchdog raises were needed; at 200 us
+there were 3,501 markers and the longest acknowledgement was 34.0 ms.
+
+Combined backend and VMM CPU fell from 14.73% to 7.20% in the desktop-idle
+window and from 185.05% to 163.45% in the graphics window. The 0-us setting
+with the read-only page is therefore a measured per-VM CPU-saving option, but
+it remains experimental pending a long soak and end-to-end input and frame
+latency measurements. The global default remains 200 us. See
+`docs/research/linux-graphics-optimization-2026-09-27.md` for the workload,
+separate backend and VMM CPU figures, native-Wayland limitations, and raw
+artifact paths. NVENC was not exercised in this validation.

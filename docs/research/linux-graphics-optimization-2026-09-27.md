@@ -111,3 +111,61 @@ same repeated glmark scene. Long submission gaps that follow a flip marker or
 stale echo would point to presentation pacing; gaps without display correlation
 would instead focus work on guest scheduling or command submission. This is a
 measurement target, not evidence for changing the polling default.
+
+## Read-only display-page follow-up
+
+Cloud Hypervisor commit `e7b1965c0` mapped BAR0
+`0x611000..0x612000` through a read-only KVM memory slot. Reads therefore
+continued through the shared mmap, while guest writes exited to vfio-user and
+were applied synchronously by backend commit `419a308f`. The tested backend
+binary had SHA-256
+`4e1a0c3d57855ef3605c0f14175e49b9782eee2318a154fdd9a1dc937331aa8b`.
+
+The functional run completed five native-Wayland vkcube launches, vkgears, and
+two glmark build scenes. The 0-us trace contained 13,898 BAR0 writes in the FE
+page and no FE reads. This is the expected protocol split: trapped writes are
+visible in the vfio-user trace, while direct mmap reads are not. GNOME Wayland
+ran at 1920x1080 and no guest Xid, DMA refusal, or failed VRAM access occurred.
+
+The final comparison pinned the hybrid reader to host CPU 3 and used the same
+five-vkcube plus three-glmark sequence for each setting. Windows was stopped
+and the host remained otherwise quiet during the pair.
+
+| Metric | Hybrid idle 200 us | Hybrid idle 0 us |
+|---|---:|---:|
+| Backend CPU, 15 s desktop idle | 11.33% | 3.13% |
+| VMM CPU, 15 s desktop idle | 3.40% | 4.07% |
+| Combined backend and VMM CPU, idle | 14.73% | 7.20% |
+| Backend CPU, matched graphics sequence | 80.57% | 48.80% |
+| VMM CPU, matched graphics sequence | 104.48% | 114.65% |
+| Combined backend and VMM CPU, graphics | 185.05% | 163.45% |
+| Five vkcube process times | 5.86 to 6.53 s | 5.91 to 7.04 s |
+| Three glmark build results | 2534 / 2449 / 2078 FPS | 2978 / 2641 / 2693 FPS |
+| Ring p50 / p99 | 10.7 / 79.4 us | 11.5 / 60.1 us |
+| Device-lock wait p50 / p99 | 0.4 / 96.5 us | 0.5 / 86.4 us |
+
+The 200-us run applied 6,945 display status acknowledgements and 13 interrupt
+enable stores, with 3,501 awaken markers and 3,501 matching core resets. The
+0-us run applied 6,858 acknowledgements and 13 enable stores, with 3,516 awaken
+markers and 3,516 matching resets. Neither run reported a display-page or
+interrupt-page inconsistency. The longest marker acknowledgement was 34.0 ms
+at 200 us and 29.6 ms at 0 us; the 0-us run used two watchdog raises.
+
+The read-only mapping and synchronous write path eliminate the stale shared
+store recovery seen in the earlier run. With that correctness issue addressed,
+the 0-us spin window remains a useful per-VM CPU-saving candidate: it reduced
+combined backend and VMM CPU by about 51.1% at idle and 11.7% during the
+graphics sequence. It also moved more work to the VMM during that sequence.
+Keep the 200-us default
+until an end-to-end frame or input latency measurement establishes that the
+immediate-block setting does not trade latency for CPU. The ring histogram
+still starts after epoll wakes and cannot answer that question.
+
+These are native Wayland application runs under a 60 Hz composited desktop;
+their frame rates and short process times are limited as performance evidence.
+This round did not exercise NVENC and makes no NVENC regression claim. Treat
+0 us with the read-only page as a measured CPU-saving option pending a longer
+soak and end-to-end input and frame latency tests.
+
+Final artifacts are in
+`/mnt/vmstore/caraxes/alpha-2026-09-27/desktop-checks/D4-readonly-display-page/`.
