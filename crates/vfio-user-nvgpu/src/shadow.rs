@@ -1050,6 +1050,31 @@ impl ShadowVas {
             .map(|(lva, m)| (*lva, m.leaf))
     }
 
+    /// Diagnostic proof that every byte of `[start, end)` is backed by mappings accepted
+    /// by the host RM.
+    pub fn coverage(&self, start: u64, end: u64) -> String {
+        let mut at = start;
+        let mut leaves = 0usize;
+        let mut first = None;
+        let mut last = None;
+        while at < end {
+            let Some((base, leaf)) = self.lookup(at) else {
+                return format!("gap at {at:#x} after {leaves} leaf/leaves");
+            };
+            let next = base.saturating_add(leaf.size);
+            if next <= at {
+                return format!("invalid leaf at {base:#x} size {:#x}", leaf.size);
+            }
+            first.get_or_insert((base, leaf));
+            last = Some((base, leaf));
+            leaves += 1;
+            at = next.min(end);
+        }
+        format!(
+            "covered [{start:#x}, {end:#x}) by {leaves} leaf/leaves; first {first:?}; last {last:?}"
+        )
+    }
+
     /// Unmap the mirrored leaves at `vas` (ascending): one NVOS47 per contiguous piece of
     /// a run; a piece that is not the whole run splits it (the RM keeps the rest mapped).
     /// A partial unmap the RM refuses unmaps the whole run; its other leaves are then no
@@ -2170,6 +2195,19 @@ mod tests {
         s.bulk_on = false;
         s.gather_on = false;
         s
+    }
+
+    #[test]
+    fn coverage_finds_a_gap_after_a_mapped_start() {
+        let host = Mutex::new(FakeHost::default());
+        let mut s = sv(false, false);
+        let plan = plan_of(
+            &[(0x1000, BASE + 0x1000, 0x1000, 6), (0x3000, BASE + 0x3000, 0x1000, 6)],
+            &[],
+        );
+        assert!(s.apply(&host, &plan, &[]).0);
+        assert_eq!(s.coverage(0x1000, 0x4000), "gap at 0x2000 after 1 leaf/leaves");
+        assert_eq!(s.coverage(0x3000, 0x5000), "gap at 0x4000 after 1 leaf/leaves");
     }
 
     /// A plan holding `leaves` (VA, FB PA, size, kind) in their 2 MiB units.

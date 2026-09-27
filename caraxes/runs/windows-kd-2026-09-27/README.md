@@ -372,3 +372,29 @@ reset and before host memory teardown. It flushes LRU and pinned mappings,
 credits released LRU capacity, and preserves cumulative summary counters.
 The focused test verifies flush/drop counts, drop-before-credit ordering,
 and idempotence. Hardware validation of this fix is still pending.
+
+## Host-backed boot without KD: P1
+
+A new child overlay at `windows-plain/` uses the pre-KD Windows parent without
+modifying that parent or the debugger image. P1 ran the OLUT geometry binary
+`77f0c97e...`, zero-based FB, a 64 MiB BAR1 pool and display enabled.
+
+- The guest reported NVIDIA driver 617.14, PnP problem code 0 and
+  ConfigManagerErrorCode 0 in one completed query. This is a host-backed
+  display-on result, unlike the earlier emulation-only/headless observation.
+- It reaches VAS/TSG creation and command submission, beyond the old LUT gate.
+- Host shadow channel allocations still fail with NV_ERR_INVALID_ADDRESS for
+  GPFIFO spans starting at `0x12026e000` (64 KiB) and `0x20104000` (128 KiB).
+- Software CE channel 15 GP191 releases `0x20002540 = 2`, then waits for
+  `0x20002560 = 3`, observed 0. Channel 14 later waits on the same address.
+  The trace does not identify its producer; do not bypass the acquire.
+- A bounded D3D11 triangle/readback process timed out after 30 seconds. No
+  render success, reliable driver-start claim, or usable NVIDIA desktop yet.
+- QGA responsiveness was intermittent. P1 was stopped; no new host Xid was
+  observed in the checks made during this run.
+
+Evidence: `windows-plain/P1-olut-geometry/`, especially startup-status.txt,
+d3d11-render.txt and the complete device logs. The next diagnostic uses
+`CARAXES_SHADOW_CHANNEL_DIAG=1` for full GPFIFO mapping coverage and
+`CARAXES_SEMAPHORE_DIAG=1` for bounded acquire/peer state. These flags only
+observe; guest command execution, ownership checks and waits are unchanged.

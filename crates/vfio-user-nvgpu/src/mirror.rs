@@ -298,6 +298,47 @@ pub fn set_b_with_held(
     out
 }
 
+fn guest_span_coverage(fb: &FakeFb, root: u64, start: u64, end: u64) -> String {
+    let leaves = fb.with_walk(Target::Fb(root), |c| {
+        let mut out = Vec::new();
+        let mut unit = start & !(crate::ptcache::UNIT - 1);
+        while unit < end {
+            out.extend_from_slice(c.unit_leaves(unit));
+            if end - unit <= crate::ptcache::UNIT {
+                break;
+            }
+            let Some(next) = unit.checked_add(crate::ptcache::UNIT) else { break };
+            unit = next;
+        }
+        out
+    });
+    let Some(leaves) = leaves else { return "no cached guest walk".into() };
+    let mut at = start;
+    let mut used = 0usize;
+    let mut first = None;
+    let mut last = None;
+    while at < end {
+        let Some((va, target, size, kind)) = leaves
+            .iter()
+            .copied()
+            .find(|(va, _, size, _)| *va <= at && at < va.saturating_add(*size))
+        else {
+            return format!("gap at {at:#x} after {used} leaf/leaves");
+        };
+        let next = va.saturating_add(size);
+        if next <= at {
+            return format!("invalid leaf at {va:#x} -> {target:?} size {size:#x} kind {kind:#x}");
+        }
+        first.get_or_insert((va, target, size, kind));
+        last = Some((va, target, size, kind));
+        used += 1;
+        at = next.min(end);
+    }
+    format!(
+        "covered [{start:#x}, {end:#x}) by {used} leaf/leaves; first {first:?}; last {last:?}"
+    )
+}
+
 /// `NV_VASPACE_ALLOCATION_FLAGS_IS_EXTERNALLY_OWNED` (nvos.h:3162).
 const VAS_IS_EXTERNALLY_OWNED: u32 = 1 << 3;
 /// The VA size of a mirror VA space: 1 TiB, as host-exec.rs (the root covers 2^47 anyway).
@@ -1412,6 +1453,22 @@ impl Mirror {
             self.worker.submit(Job::Apply(plan, Instant::now()));
         }
         self.worker.wait_all();
+        let diag_gpfifo = (std::env::var("CARAXES_SHADOW_CHANNEL_DIAG").as_deref() == Ok("1")).then(|| {
+            let bytes = u64::from(ch.gpfifo_entries).saturating_mul(8);
+            let Some(end) = ch.gpfifo_va.checked_add(bytes) else {
+                return (bytes, None, "skipped: GPFIFO span overflows u64".into(),
+                    "skipped: GPFIFO span overflows u64".into(), Vec::new());
+            };
+            if bytes > 1 << 20 {
+                return (bytes, Some(end), format!("skipped: GPFIFO span {bytes:#x} exceeds 1 MiB"),
+                    format!("skipped: GPFIFO span {bytes:#x} exceeds 1 MiB"), Vec::new());
+            }
+            let guest = guest_span_coverage(gm.fb, root, ch.gpfifo_va, end);
+            let host = self.worker.coverage(root, ch.gpfifo_va, end);
+            let hits: Vec<_> = exclude.iter().copied()
+                .filter(|(lo, hi)| ch.gpfifo_va < *hi && end > *lo).collect();
+            (bytes, Some(end), guest, host, hits)
+        });
         if let Err(e) = self.check_tsg_reuse(reg, tsg_key, tsg_guest, &mut notes) {
             notes.push(format!("shadow: chid {chid}: {e}"));
             self.abandon_shadow_build(root, chid, tsg_key, &mut notes);
@@ -1545,6 +1602,13 @@ impl Mirror {
             cp.hUserdMemory[0] = userd.0;
             cp.userdOffset[0] = userd.1;
             cp.engineType = ch.engine_type;
+            if let Some((bytes, end, guest, host, hits)) = &diag_gpfifo {
+                notes.push(format!(
+                    "shadow diagnostic: chid {chid} GPFIFO start {:#x} end {end:#x?} {} entries/{bytes:#x} bytes: guest {guest}; host {host}; set-B intersections {hits:x?}; USERD object {:#x}+{:#x}; engineType {:#x}; guest alloc_flags {:#x}; host flags {:#x}/internalFlags {:#x}; host ABI {} [host]",
+                    ch.gpfifo_va, ch.gpfifo_entries, userd.0, userd.1, ch.engine_type,
+                    ch.alloc_flags, cp.flags, cp.internalFlags, crate::hostabi::current().driver(),
+                ));
+            }
             let channel = match h.alloc_object(
                 tsg,
                 crate::board::host_class_of(self.chip.channel.gpfifo),
@@ -3380,6 +3444,8 @@ enum Job {
     Apply(crate::shadow::Plan, Instant),
     /// Tear the shadow VAS of a root down (its channels and TSGs are already freed).
     Free(u64),
+    /// Return exact post-apply mapping coverage to a diagnostic caller.
+    Coverage(u64, u64, u64, std::sync::mpsc::Sender<String>),
 }
 
 /// The shadow worker (docs/caraxes/mapping.md §4): one thread that owns the host side of
@@ -3495,6 +3561,14 @@ impl ShadowWorker {
                             }
                             Vec::new()
                         }
+                        Job::Coverage(root, start, end, reply) => {
+                            let answer = spaces.get(&root).map_or_else(
+                                || format!("unknown shadow root {root:#x}"),
+                                |sv| sv.coverage(start, end),
+                            );
+                            let _ = reply.send(answer);
+                            Vec::new()
+                        }
                     };
                     for l in lines {
                         intr.note(l);
@@ -3516,7 +3590,7 @@ impl ShadowWorker {
 
     fn submit(&mut self, job: Job) {
         let root = match &job {
-            Job::Create(r, _) | Job::Free(r) => *r,
+            Job::Create(r, _) | Job::Free(r) | Job::Coverage(r, _, _, _) => *r,
             Job::Apply(plan, _) => plan.root,
         };
         if self.thread.is_some() {
@@ -3529,6 +3603,15 @@ impl ShadowWorker {
         if !self.enabled {
             self.wait_all();
         }
+    }
+
+    fn coverage(&mut self, root: u64, start: u64, end: u64) -> String {
+        if self.thread.is_none() {
+            return "shadow worker unavailable".into();
+        }
+        let (tx, rx) = std::sync::mpsc::channel();
+        self.submit(Job::Coverage(root, start, end, tx));
+        rx.recv().unwrap_or_else(|_| "shadow worker unavailable".into())
     }
 
     /// Jobs submitted and not yet done.

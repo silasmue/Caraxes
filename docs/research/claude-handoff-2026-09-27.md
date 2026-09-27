@@ -1,6 +1,6 @@
 # Caraxes working handoff for Claude Code
 
-Updated: 2026-09-27, 23:05 CEST. Work continues; this is a checkpoint.
+Updated: 2026-09-27, 23:15 CEST. Work continues; this is a checkpoint.
 
 ## Workspace and constraints
 
@@ -20,7 +20,8 @@ Updated: 2026-09-27, 23:05 CEST. Work continues; this is a checkpoint.
 ## Windows: confirmed progress and blocker
 
 Stock Windows driver 617.14 still does not provide a working NVIDIA desktop.
-Do not report Code 43 resolved or rendering validated.
+P1 reported NVIDIA PnP code 0 once with host execution and display enabled.
+Rendering and repeatable startup remain unvalidated; see P1 below.
 
 1. Zero-based guest framebuffer translation (ad397d73, opt-in
    CARAXES_FB_ZERO_BASED=1) fixes the stock driver's large fixed allocation at
@@ -138,12 +139,14 @@ LRU capacity, and preserves cumulative counters.
 5. Windows desktop/3D stability first, then desktop latency and simultaneous
    Sunshine/NVENC/NVDEC. Keep the guest stock and helper-free.
 
-Linux B and both KD VMs are stopped. Windows P1 is running from a new child
-overlay at windows-plain/ (parent windows/win11.qcow2 remains unchanged), using
-OLUT diagnostic 77f0c97e and the same host-backed limits. This parent predates
-the KD BCD changes. P1 now reaches VAS/TSG creation and channel submissions,
-beyond the earlier LUT gate; final PnP/rendering result is pending. Its trace
-currently shows chid15 waiting for semaphore VA0x20002560 value3 (observed0).
+Linux B, the KD VMs, and P1 are now stopped. P1 used a new child overlay at
+windows-plain/ (parent windows/win11.qcow2 unchanged), OLUT diagnostic 77f0c97e,
+and the same host-backed limits. It reported NVIDIA 617.14 PnP code 0 in one query,
+but the bounded D3D11 readback probe timed out after 30 seconds. Two host channel
+allocations failed with NV_ERR_INVALID_ADDRESS (GPFIFO VA 0x12026e000 and
+0x20104000); software channels 14/15 wait for semaphore VA 0x20002560 value 3,
+observed 0. Source diagnostics are being prepared for the next P2 run.
+
 No new host Xid was observed through the last check. Historical Xids at
 uptime 3058.691336 and 3959.278221 predate these trials.
 

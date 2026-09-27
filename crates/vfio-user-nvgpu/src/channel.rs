@@ -49,6 +49,9 @@ type Abi = v::RmAbi;
 /// USERD offsets of GPGet and GPPut (`clc46f.h:61-62`).
 const USERD_GP_GET: u64 = 0x88;
 const USERD_GP_PUT: u64 = 0x8C;
+/// Hard diagnostic bounds: semaphore capture is optional and must not grow with runtime.
+const SEM_DIAG_TUPLES: usize = 32;
+const SEM_DIAG_PEERS: usize = 32;
 /// `NV_VASPACE_ALLOCATION_INDEX_GPU_DEVICE` (nvos.h:3178): "acquire reference to device
 /// vaspace".
 const VAS_INDEX_GPU_DEVICE: u32 = 3;
@@ -251,6 +254,8 @@ pub struct Channel {
     software_failure: Option<String>,
     software_nonstall: bool,
     software_fb_range: Option<(u64, u64)>,
+    /// Semaphore diagnostics already emitted as `(VA, payload)`; bounds retry logging.
+    sem_diag_seen: std::collections::BTreeSet<(u64, u32)>,
 }
 
 impl Channel {
@@ -332,6 +337,8 @@ pub struct Registry {
     pub software_fb_range: Option<(u64, u64)>,
     /// Lets the dispatcher avoid software-event scans on the mirrored hot path.
     pub software_runs: u64,
+    sem_diag: bool,
+    sem_diag_chid: Option<u32>,
 }
 
 fn rd32(b: &[u8], off: usize) -> u32 {
@@ -381,6 +388,10 @@ impl Registry {
             tokens: None,
             software_fb_range: None,
             software_runs: 0,
+            sem_diag: std::env::var("CARAXES_SEMAPHORE_DIAG").as_deref() == Ok("1"),
+            sem_diag_chid: std::env::var("CARAXES_SEMAPHORE_DIAG_CHID")
+                .ok()
+                .and_then(|s| s.parse().ok()),
         }
     }
 
@@ -802,6 +813,7 @@ impl Registry {
                     software_failure: None,
                     software_nonstall: false,
                     software_fb_range: None,
+                    sem_diag_seen: std::collections::BTreeSet::new(),
                 };
                 let mut note = format!(
                     "channel {h_object:#x} chid {chid} engineType {:#x} gpfifo va {:#x} x {} userd {:?} vaspace {:?} errorNotifier {:?}{} alloc_flags {flags:#x} [guest]",
@@ -1206,7 +1218,12 @@ impl Registry {
             notes.push(format!("chid {chid}: no such channel recorded"));
             return notes;
         }
-        notes.extend(self.run(mem, chid));
+        let ran = self.run(mem, chid);
+        let diagnosed = self.sem_diag && ran.iter().any(|n| n.starts_with("SEMAPHORE DIAG"));
+        notes.extend(ran);
+        if diagnosed {
+            notes.push(self.semaphore_diag_peers(mem, chid, off));
+        }
         let blocked: Vec<u32> = self
             .channels
             .iter()
@@ -1214,9 +1231,48 @@ impl Registry {
             .map(|(c, _)| *c)
             .collect();
         for c in blocked {
-            notes.extend(self.run(mem, c));
+            let ran = self.run(mem, c);
+            let diagnosed = self.sem_diag && ran.iter().any(|n| n.starts_with("SEMAPHORE DIAG"));
+            notes.extend(ran);
+            if diagnosed {
+                notes.push(self.semaphore_diag_peers(mem, c, off));
+            }
         }
         notes
+    }
+
+    fn semaphore_diag_peers(
+        &self,
+        mem: &GpuMem,
+        chid: u32,
+        off: &std::collections::BTreeSet<u32>,
+    ) -> String {
+        let peer_count = self.channels.len().saturating_sub(1);
+        let mut peers = self
+            .channels
+            .iter()
+            .filter(|(peer, _)| **peer != chid)
+            .take(SEM_DIAG_PEERS)
+            .map(|(&peer, p)| {
+                let put = self.gp_put_of(mem, peer).map(|(_, put)| put);
+                format!(
+                    "chid {peer}: engine {:#x}, mirrored {}, disabled {}, gp {}/{put:?}, resume {:?}",
+                    p.engine_type,
+                    p.mirrored,
+                    off.contains(&peer),
+                    p.gp_get,
+                    p.resume
+                )
+            })
+            .collect::<Vec<_>>()
+            .join("; ");
+        if peer_count > SEM_DIAG_PEERS {
+            peers.push_str(&format!(
+                "; ... {} peer(s) truncated",
+                peer_count - SEM_DIAG_PEERS
+            ));
+        }
+        format!("SEMAPHORE DIAG peers: {peers}")
     }
 
     /// Consume the channel's GPFIFO from GPGet up to GPPut.
@@ -1269,7 +1325,8 @@ impl Registry {
                 ));
             } else {
                 let pb_va = ((e1 as u64 & 0xFF) << 32) | (e0 as u64 & !3);
-                match Self::segment(ch, mem, root, pb_va, length as usize, now, &classes) {
+                let diagnose = self.sem_diag && self.sem_diag_chid.is_none_or(|c| c == chid);
+                match Self::segment(ch, mem, root, pb_va, length as usize, now, &classes, diagnose) {
                     Ok((seg_notes, blocked)) => {
                         notes.push(format!(
                             "chid {chid} gp {}: pushbuffer va {pb_va:#x} {} dwords{}",
@@ -1309,6 +1366,7 @@ impl Registry {
         dwords: usize,
         now: u64,
         classes: &ChannelClasses,
+        diagnose: bool,
     ) -> Result<(Vec<String>, bool), String> {
         let mut raw = vec![0u8; dwords * 4];
         mem.read_va(root, va, &mut raw)
@@ -1394,6 +1452,46 @@ impl Registry {
                     Ok(None) => {}
                     Err(MethodError::Blocked(n)) => {
                         notes.push(n);
+                        if diagnose && a == 0x1C {
+                            let h = &ch.host;
+                            let sem_va = ((h.legacy_sem[0] as u64 & 0xFF) << 32)
+                                | (h.legacy_sem[1] as u64 & !3);
+                            let payload = h.legacy_sem[2];
+                            if ch.sem_diag_seen.len() < SEM_DIAG_TUPLES
+                                && ch.sem_diag_seen.insert((sem_va, payload))
+                            {
+                                let start = sem_va.saturating_sub(8);
+                                let mut nearby = [0u8; 20];
+                                let resolved = mem.pieces(root, start, nearby.len() as u64);
+                                let words = mem
+                                    .read_va(root, start, &mut nearby)
+                                    .map(|()| {
+                                        nearby
+                                            .chunks_exact(4)
+                                            .map(|b| u32::from_le_bytes(b.try_into().unwrap()))
+                                            .map(|v| format!("{v:#x}"))
+                                            .collect::<Vec<_>>()
+                                            .join(" ")
+                                    })
+                                    .unwrap_or_else(|e| format!("unreadable: {e}"));
+                                let raw = w
+                                    .iter()
+                                    .take(64)
+                                    .map(|v| format!("{v:08x}"))
+                                    .collect::<Vec<_>>()
+                                    .join(" ");
+                                notes.push(format!(
+                                    "SEMAPHORE DIAG chid {} gp {} push va {va:#x} dwords {} raw[0..{}] [{raw}]; blocked decoded dword {pos}: subch {subch} method {a:#x} data {data:#x}, legacy A/B/C [{:#x} {:#x} {payload:#x}], target window {start:#x}+{:#x} -> {resolved:?}, words [{words}]",
+                                    ch.chid,
+                                    ch.gp_get,
+                                    w.len(),
+                                    w.len().min(64),
+                                    h.legacy_sem[0],
+                                    h.legacy_sem[1],
+                                    nearby.len()
+                                ));
+                            }
+                        }
                         ch.resume = Some(pos);
                         return Ok((notes, true));
                     }
@@ -2562,15 +2660,36 @@ mod tests {
     fn legacy_acquire_blocks_and_resumes_without_repeating_earlier_work() {
         let pb = inc(0, 0x10, &[0, 0x1000_9000, 7, 1]);
         let (mut fb, sys, path, mut reg) = software_fixture("ce-acquire-resume", &pb);
-        reg.doorbell(
+        reg.sem_diag = true;
+        reg.sem_diag_chid = Some(9);
+        let first = reg.doorbell(
             &mut GpuMem {
                 fb: &mut fb,
                 sys: &sys,
             },
             9,
         );
+        let diag = first
+            .iter()
+            .find(|n| n.starts_with("SEMAPHORE DIAG chid"))
+            .expect("first blocked tuple has a diagnostic");
+        assert!(diag.contains("raw[0..5]"), "{diag}");
+        assert!(diag.contains("method 0x1c data 0x1"), "{diag}");
+        assert!(diag.contains("Sys(1073745912)"), "{diag}");
+        assert!(first.iter().any(|n| n.starts_with("SEMAPHORE DIAG peers:")));
         assert_eq!(reg.blocked_software_channels(), vec![9]);
         assert_eq!(fb.read_u64(0x20_0000 + USERD_GP_GET).unwrap() as u32, 0);
+        let retry = reg.doorbell(
+            &mut GpuMem {
+                fb: &mut fb,
+                sys: &sys,
+            },
+            9,
+        );
+        assert!(
+            retry.iter().all(|n| !n.starts_with("SEMAPHORE DIAG")),
+            "same blocked tuple must not repeat diagnostics: {retry:?}"
+        );
         assert!(sys.write(0x4000_1000, &7u32.to_le_bytes()));
         reg.doorbell(
             &mut GpuMem {
@@ -2581,6 +2700,31 @@ mod tests {
         );
         assert!(reg.blocked_software_channels().is_empty());
         assert_eq!(fb.read_u64(0x20_0000 + USERD_GP_GET).unwrap() as u32, 1);
+        std::fs::remove_file(path).ok();
+    }
+
+    #[test]
+    fn semaphore_diagnostic_tuple_cap_does_not_change_the_acquire() {
+        let pb = inc(0, 0x10, &[0, 0x1000_9000, 7, 1]);
+        let (mut fb, sys, path, mut reg) = software_fixture("sem-diag-cap", &pb);
+        reg.sem_diag = true;
+        reg.sem_diag_chid = Some(9);
+        reg.channel_mut(9)
+            .unwrap()
+            .sem_diag_seen
+            .extend((0..SEM_DIAG_TUPLES).map(|n| (n as u64, n as u32)));
+
+        let notes = reg.doorbell(
+            &mut GpuMem {
+                fb: &mut fb,
+                sys: &sys,
+            },
+            9,
+        );
+        assert!(notes.iter().all(|n| !n.starts_with("SEMAPHORE DIAG")));
+        assert_eq!(reg.channel(9).unwrap().sem_diag_seen.len(), SEM_DIAG_TUPLES);
+        assert_eq!(reg.blocked_software_channels(), vec![9]);
+        assert_eq!(fb.read_u64(0x20_0000 + USERD_GP_GET).unwrap() as u32, 0);
         std::fs::remove_file(path).ok();
     }
 
