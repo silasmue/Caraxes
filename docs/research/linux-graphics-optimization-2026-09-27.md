@@ -70,3 +70,44 @@ Raw evidence is in
 `/mnt/vmstore/caraxes/alpha-2026-09-27/desktop-checks/D3-linux-graphics-optimization/`.
 The `fixed-cpu3-*-idle.txt` and `fixed-cpu3-*-workload.txt` files contain the
 matched CPU windows; `gpu-*-cpu3.log` contains the exit summaries.
+
+## Trace follow-up
+
+The retained final-run trace places the first recovered display stores during
+the timed workload rather than GNOME startup. It first records a markerless
+`CORE_RESET` at 65.342 seconds after boot and a stale `AWAKEN_WIN` echo at
+66.775 seconds. The first vkcube channels were created at about 64 to 65 seconds
+and freed at 70.28 to 70.40 seconds after five to six seconds of life. The trace
+only logs the first occurrence of each class, so it cannot place every one of
+the 9 and 28 occurrences counted at exit.
+
+These are fail-closed state recoveries, not expected coalescing. The stale
+window word is restored and the marker and acknowledgement counts still match
+(3384 each), so no marker acknowledgement was lost. However, the second guest
+pass has already delivered a duplicate flip event before the reactor observes
+and restores the stale echo. That can complete a later DRM flip early. A
+`CORE_RESET` without an outstanding marker is ignored. The one 0-us run does
+not establish that the polling setting caused either race.
+
+The three fixed-0-us glmark processes can be identified by their approximately
+ten-second channel lifetimes. Their submitted doorbells track the reported
+frame rates closely:
+
+| glmark build run | FPS | Channel life | Doorbells | Doorbells/s | Doorbells/frame |
+|---|---:|---:|---:|---:|---:|
+| 1 | 1709 | 10.127 s | 33781 | 3336 | 1.95 |
+| 2 | 2192 | 10.114 s | 43610 | 4312 | 1.97 |
+| 3 | 268 | 10.237 s | 5267 | 514 | 1.97 |
+
+The third-run collapse is therefore already visible in the guest submission
+rate. The backend reported zero mirror refusals, pool exhaustion, stale tokens,
+VRAM stalls, failed accesses, BAR1 hazards, and conflicting replica words.
+Duplicate BAR1 mappings used the fail-closed replica path in both fixed runs
+(14 at 200 us and 16 at 0 us), so they do not uniquely explain the third run.
+
+The next diagnostic target is a per-channel doorbell inter-arrival and idle-gap
+histogram correlated with display flip-marker sequence IDs. Run it around the
+same repeated glmark scene. Long submission gaps that follow a flip marker or
+stale echo would point to presentation pacing; gaps without display correlation
+would instead focus work on guest scheduling or command submission. This is a
+measurement target, not evidence for changing the polling default.
