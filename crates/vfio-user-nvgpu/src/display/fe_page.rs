@@ -336,7 +336,7 @@ impl FePage {
     pub fn write(&self, off: u64, data: &[u8]) {
         let raise = {
             let mut st = self.lock();
-            let (mut acked, seen) = self.sync(&mut st);
+            let (mut signal, seen) = self.sync(&mut st);
             let mut i = 0;
             while i < data.len() {
                 let o = off + i as u64;
@@ -352,12 +352,12 @@ impl FePage {
                     Some(w) if w < W_AWAKEN_WIN => {
                         st.irq.evt[w] &= !(value & !TAG);
                         bump(&self.stats.evt_acks);
-                        acked = true;
+                        signal = true;
                     }
                     Some(W_AWAKEN_WIN) => {
                         st.irq.awaken_win &= !value;
                         st.shown &= !value;
-                        acked = true;
+                        signal = true;
                     }
                     Some(W_AWAKEN_OTHER) if value & AWAKEN_CORE != 0 => {
                         if let Some(t) = st.marker.take() {
@@ -370,7 +370,7 @@ impl FePage {
                             self.stats.marker_us_max.fetch_max(
                                 t.elapsed().as_micros() as u64, Ordering::Relaxed,
                             );
-                            acked = true;
+                            signal = true;
                         }
                     }
                     Some(W_AWAKEN_OTHER) => {}
@@ -381,6 +381,7 @@ impl FePage {
                         st.irq.en[h] = v;
                         super::engine::ticker().set_vblank(h, v & LAST_DATA != 0);
                         bump(&self.stats.en_stores);
+                        signal = true;
                         if (was ^ v) & LAST_DATA != 0 {
                             st.notes.push(format!(
                                 "display: head {h} vblank (LAST_DATA) interrupt {} [guest, display page]",
@@ -398,7 +399,7 @@ impl FePage {
                 i += n;
             }
             self.publish(&mut st, &seen);
-            acked && st.irq.pending()
+            signal && st.irq.pending()
         };
         if raise {
             self.raise_now();
@@ -715,6 +716,18 @@ mod tests {
         assert!(!fe.dirty());
         assert!(!fe.scan());
         assert!(fe.summary().contains("inconsistencies: none"));
+    }
+
+    #[test]
+    fn trapped_enable_raises_an_already_pending_event() {
+        let (_intr, fe, raises) = page();
+        fe.update(|i| i.evt[0] = LAST_DATA);
+        assert_eq!(fe.read32(FE_RM_INTR_DISPATCH), 0);
+        assert_eq!(raises.load(Ordering::Relaxed), 0);
+        fe.write(FE_RM_INTR_EN_HEAD_TIMING, &LAST_DATA.to_le_bytes());
+        assert_eq!(fe.read32(FE_RM_INTR_DISPATCH), 1);
+        assert_eq!(raises.load(Ordering::Relaxed), 1);
+        assert!(!fe.dirty());
     }
 
     #[test]
