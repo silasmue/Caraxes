@@ -1,0 +1,4 @@
+.logopen /t C:\Temp\nv-start-kd.log
+.sympath srv*C:\symbols*https://msdl.microsoft.com/download/symbols
+sxe ld:nvlddmkm
+.echo CARAXES_DEBUGGER_READY
