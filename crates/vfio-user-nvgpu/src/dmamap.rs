@@ -42,7 +42,18 @@ pub struct DmaTable {
 impl DmaTable {
     /// A validated table: the rules the guest module enforces, so a table the device
     /// publishes is one the module accepts.
-    pub fn new(mut ranges: Vec<DmaRange>) -> Result<Self, String> {
+    pub fn new(ranges: Vec<DmaRange>) -> Result<Self, String> {
+        Self::with_granule(ranges, SIZE_GRANULE)
+    }
+
+    /// Exact page-sized mappings from a GPA-speaking guest (QEMU/Windows).
+    /// This table is internal; the Linux guest module still requires `new`'s
+    /// 2 MiB size granule. In particular, never round a VGA/MMIO hole into RAM.
+    pub fn for_gpa_guest(ranges: Vec<DmaRange>) -> Result<Self, String> {
+        Self::with_granule(ranges, PAGE)
+    }
+
+    fn with_granule(mut ranges: Vec<DmaRange>, granule: u64) -> Result<Self, String> {
         if ranges.len() > MAX_RANGES {
             return Err(format!(
                 "{} ranges, the module takes at most {MAX_RANGES}",
@@ -50,14 +61,14 @@ impl DmaTable {
             ));
         }
         for r in &ranges {
-            if r.size == 0 || r.size % SIZE_GRANULE != 0 {
-                return Err(format!("{r}: size is not a non-zero multiple of 2 MiB"));
+            if r.size == 0 || r.size % granule != 0 {
+                return Err(format!("DMA range {r:?}: size is not a non-zero multiple of {granule:#x}"));
             }
             if r.gpa % PAGE != 0 || r.iova % PAGE != 0 {
-                return Err(format!("{r}: start not page aligned"));
+                return Err(format!("DMA range {r:?}: start not page aligned"));
             }
             if r.gpa.checked_add(r.size).is_none() || r.iova.checked_add(r.size).is_none() {
-                return Err(format!("{r}: wraps around the address space"));
+                return Err(format!("DMA range {r:?}: wraps around the address space"));
             }
         }
         ranges.sort_by_key(|r| r.gpa);
@@ -151,7 +162,7 @@ impl DmaTable {
     /// Whether the table covers `[gpa, gpa + size)` completely.
     pub fn covers_gpa(&self, gpa: u64, size: u64) -> bool {
         let mut at = gpa;
-        let end = gpa + size;
+        let Some(end) = gpa.checked_add(size) else { return false };
         while at < end {
             match self
                 .ranges
@@ -279,6 +290,28 @@ impl fmt::Display for DmaRange {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn gpa_fragments_keep_holes_and_distinct_host_offsets() {
+        let ranges = vec![
+            DmaRange { gpa: 0, iova: 0x10_0000_0000, size: 0xa0000 },
+            DmaRange { gpa: 0x100000, iova: 0x20_0000_0000, size: 0x7bf00000 },
+        ];
+        assert!(DmaTable::new(ranges.clone()).is_err());
+        let host = DmaTable::for_gpa_guest(ranges.clone()).unwrap();
+        let guest = DmaTable::for_gpa_guest(ranges.iter().map(|r|
+            DmaRange { gpa: r.gpa, iova: r.gpa, size: r.size }).collect()).unwrap();
+        assert_eq!(host.aliases_of(&guest).unwrap().len(), 2);
+        assert_eq!(host.gpa_to_iova(0x9ffff), Some(0x10_0009_ffff));
+        assert_eq!(host.gpa_to_iova(0xa0000), None);
+        assert_eq!(host.gpa_to_iova(0xfffff), None);
+        assert_eq!(host.gpa_to_iova(0x100000), Some(0x20_0000_0000));
+        assert!(!host.covers_gpa(0x9f000, 0x2000));
+        assert_eq!(host.iova_to_gpa(0x10_0009_f000, 0x2000), None);
+        assert!(!host.covers_gpa(u64::MAX - 0x1000, 0x2000));
+        assert!(DmaTable::for_gpa_guest(vec![DmaRange { gpa: 0, iova: 0, size: 1 }]).is_err());
+        assert!(DmaTable::for_gpa_guest(vec![DmaRange { gpa: u64::MAX - 0xfff, iova: 0, size: 0x1000 }]).is_err());
+    }
 
     const G: u64 = 1 << 30;
 

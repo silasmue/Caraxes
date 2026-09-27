@@ -61,11 +61,19 @@ unsafe impl Send for Window {}
 impl Window {
     /// Whether `[pa, pa + len)` of the reservation (reservation offsets) lies in the window.
     pub fn covers(&self, off: u64, len: usize) -> bool {
-        off >= self.offset && off - self.offset + len as u64 <= self.len as u64
+        off.checked_sub(self.offset).is_some_and(|at| {
+            at <= self.len as u64 && len as u64 <= self.len as u64 - at
+        })
     }
 
     pub fn read(&self, off: u64, buf: &mut [u8]) {
-        debug_assert!(self.covers(off, buf.len()));
+        assert!(
+            self.covers(off, buf.len()),
+            "BAR1 read at reservation offset {off:#x} (+{:#x}) is outside window {:#x} (+{:#x})",
+            buf.len(),
+            self.offset,
+            self.len
+        );
         let at = (off - self.offset) as usize;
         // SAFETY: bounds checked against the mapping; volatile because it is device memory.
         // BAR1 reads are uncached PCIe reads, one bus round trip each: read aligned
@@ -101,7 +109,13 @@ impl Window {
     /// read (the host doorbell, a TLB invalidate). A per-write read-back keeps the common
     /// read-after-write of the software executor coherent.
     pub fn write(&self, off: u64, data: &[u8]) {
-        debug_assert!(self.covers(off, data.len()));
+        assert!(
+            self.covers(off, data.len()),
+            "BAR1 write at reservation offset {off:#x} (+{:#x}) is outside window {:#x} (+{:#x})",
+            data.len(),
+            self.offset,
+            self.len
+        );
         let at = (off - self.offset) as usize;
         // SAFETY: as in read; dword stores where aligned keep register-sized writes
         // (USERD GPPut, page-table entries) atomic on the bus.
@@ -183,6 +197,43 @@ impl Drop for Window {
                 );
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod window_bounds_tests {
+    use super::*;
+
+    fn window() -> std::mem::ManuallyDrop<Window> {
+        std::mem::ManuallyDrop::new(Window {
+            _fd: Box::new(()),
+            unmap: None,
+            ptr: std::ptr::NonNull::<u8>::dangling().as_ptr(),
+            offset: 0x1000,
+            len: 16,
+        })
+    }
+
+    #[test]
+    fn covers_rejects_ranges_that_wrap_or_leave_the_mapping() {
+        let w = window();
+        assert!(w.covers(0x1000, 16));
+        assert!(w.covers(0x1010, 0));
+        assert!(!w.covers(0x0fff, 1));
+        assert!(!w.covers(0x1008, usize::MAX));
+        assert!(!w.covers(0x1010, 1));
+    }
+
+    #[test]
+    #[should_panic(expected = "BAR1 read")]
+    fn an_out_of_bounds_read_panics_before_touching_the_mapping() {
+        window().read(0x0fff, &mut [0]);
+    }
+
+    #[test]
+    #[should_panic(expected = "BAR1 write")]
+    fn an_out_of_bounds_write_panics_before_touching_the_mapping() {
+        window().write(0x1010, &[1]);
     }
 }
 
@@ -526,6 +577,48 @@ pub struct Descriptor {
     pub host_va: usize,
 }
 
+/// Remove ownership only after a successful host free. On failure, the failed
+/// descriptor and every not-yet-attempted descriptor remain owned by the caller.
+fn retire_ram_descriptors<E>(
+    descriptors: &mut Vec<Descriptor>, gpa: u64, end: u64,
+    mut free: impl FnMut(u32) -> Result<(), E>,
+) -> Result<Vec<String>, (u32, E)> {
+    let mut log = Vec::new();
+    let mut i = 0;
+    while i < descriptors.len() {
+        let d = descriptors[i];
+        if d.range.gpa >= gpa && d.range.gpa + d.range.size <= end {
+            free(d.handle).map_err(|e| (d.handle, e))?;
+            descriptors.remove(i);
+            log.push(format!("freed guest RAM descriptor {:#x} ({})", d.handle, d.range));
+        } else {
+            i += 1;
+        }
+    }
+    Ok(log)
+}
+
+#[cfg(test)]
+mod ram_retirement_tests {
+    use super::*;
+
+    #[test]
+    fn a_failed_free_preserves_ownership_of_the_remaining_pages() {
+        let mut ds: Vec<_> = (1..=3).map(|h| Descriptor {
+            handle: h, range: DmaRange { gpa: h as u64 * 4096, iova: h as u64 * 4096, size: 4096 },
+            host_va: 0,
+        }).collect();
+        let mut calls = Vec::new();
+        let r = retire_ram_descriptors(&mut ds, 0, 4 * 4096, |h| {
+            calls.push(h);
+            if h == 2 { Err(0x51) } else { Ok(()) }
+        });
+        assert_eq!(r, Err((2, 0x51)));
+        assert_eq!(calls, vec![1, 2]);
+        assert_eq!(ds.iter().map(|d| d.handle).collect::<Vec<_>>(), vec![2, 3]);
+    }
+}
+
 /// A hole filler: `len` bytes of VA at `va` backed by one 2 MiB memfd page mapped over
 /// and over, registered as a descriptor so the IOVA allocator places the next chunk
 /// below it (docs/caraxes/mapping.md §5).
@@ -614,6 +707,9 @@ pub struct HostMemory {
     /// freed LIFO before the descriptors, so no host channel can still use an IOVA
     /// when its pages are unpinned (docs/caraxes/memory-model.md §4).
     live: Vec<(u32, u32, &'static str)>,
+    /// GPA registration currently supports firmware RAM-map churn only. Once a
+    /// GPU object can cache descriptor handles, mappings stay fixed for this VM.
+    gpa_mappings_frozen: bool,
     /// `nr_foll_pin_acquired`/`_released` when the client opened (host-wide counters).
     pins_at_open: (u64, u64),
     shut: bool,
@@ -824,6 +920,7 @@ impl HostMemory {
             gathers: Vec::new(),
             pending: Vec::new(),
             live: Vec::new(),
+            gpa_mappings_frozen: false,
             pins_at_open: foll_pins(),
             shut: false,
             closed: false,
@@ -892,6 +989,7 @@ impl HostMemory {
             self.guard.note_status(what, p.status as u32, Instant::now());
             return Err(p.status as u32);
         }
+        self.gpa_mappings_frozen |= !matches!(what, "os-event" | "usermode");
         self.live.push((parent, h, what));
         Ok(h)
     }
@@ -940,6 +1038,7 @@ impl HostMemory {
             self.guard.note_status(what, p.status as u32, Instant::now());
             return Err(p.status as u32);
         }
+        self.gpa_mappings_frozen |= !matches!(what, "os-event" | "usermode");
         self.live.push((parent, h, what));
         Ok(h)
     }
@@ -1332,6 +1431,7 @@ impl HostMemory {
         what: &'static str,
     ) -> Result<u32> {
         let h = self.os_descriptor(host_va, len)?;
+        self.gpa_mappings_frozen |= !matches!(what, "os-event" | "usermode");
         self.live.push((self.device, h, what));
         Ok(h)
     }
@@ -1849,7 +1949,7 @@ impl HostMemory {
             .and_then(|v| v.parse::<u64>().ok())
             .filter(|_| std::env::var("CARAXES_LINEAR_IOVA").as_deref() != Ok("0"));
         let Some(total) = total else {
-            return self.register_chunks(gpa, size, host_va);
+            return self.register_chunks(gpa, size, host_va, HUGE);
         };
         self.pending.push((gpa, size, host_va as usize));
         let have: u64 = self.pending.iter().map(|z| z.1).sum();
@@ -1874,7 +1974,7 @@ impl HostMemory {
                 )];
                 let mut ranges = Vec::new();
                 for (g, sz, va) in zones {
-                    let (r, l) = self.register_chunks(g, sz, va as *mut u8)?;
+                    let (r, l) = self.register_chunks(g, sz, va as *mut u8, HUGE)?;
                     ranges.extend(r);
                     log.extend(l);
                 }
@@ -2077,15 +2177,61 @@ impl HostMemory {
         Ok((ranges, log))
     }
 
+    /// QEMU exposes exact page-aligned fragments, including conventional RAM below
+    /// the VGA hole. Its GPA-speaking guest needs no globally linear host IOVA map.
+    pub fn register_gpa(
+        &mut self, gpa: u64, size: u64, host_va: *mut u8,
+    ) -> Result<(Vec<DmaRange>, Vec<String>)> {
+        self.check_gpa_mapping_update()?;
+        self.register_chunks(gpa, size, host_va, 4096)
+    }
+
+    /// A mapping change while channels or gather descriptors exist needs quiescing
+    /// first. Refuse it before changing any descriptor or CPU mapping.
+    pub fn check_gpa_mapping_update(&self) -> Result<()> {
+        // Events and the subdevice doorbell mapping exist before guest RAM is
+        // registered; neither can fetch RAM without a channel.
+        if self.gpa_mappings_frozen
+            || self.live.iter().any(|(_, _, what)| !matches!(*what, "os-event" | "usermode"))
+            || !self.gathers.is_empty() || !self.free_failures.is_empty() {
+            bail!("GPA mapping change requires idle host objects and no failed frees");
+        }
+        Ok(())
+    }
+
+    /// The shadow's descriptor snapshot is valid only while its source mappings
+    /// remain fixed, even before the first channel has been created.
+    pub fn freeze_gpa_mappings(&mut self) {
+        self.gpa_mappings_frozen = true;
+    }
+
+    /// Free an exact GPA mapping before its CPU mapping disappears. Failed frees
+    /// remain tracked, and the caller must retain the CPU mapping on any error.
+    pub fn release_gpa_region(&mut self, gpa: u64, size: u64) -> Result<Vec<String>> {
+        self.check_gpa_mapping_update()?;
+        let end = gpa.checked_add(size).ok_or_else(|| anyhow::anyhow!("GPA range overflow"))?;
+        let mut descriptors = std::mem::take(&mut self.descriptors);
+        let result = retire_ram_descriptors(&mut descriptors, gpa, end, |h| self.free_descriptor(h));
+        self.descriptors = descriptors;
+        result.map_err(|(h, e)| {
+            self.free_failures.push(format!("guest RAM descriptor {h:#x}: {e:#}"));
+            e
+        })
+    }
+
     fn register_chunks(
         &mut self,
         gpa: u64,
         size: u64,
         host_va: *mut u8,
+        granule: u64,
     ) -> Result<(Vec<DmaRange>, Vec<String>)> {
         let mut log = Vec::new();
-        if size % HUGE != 0 || gpa % HUGE != 0 {
-            bail!("guest RAM region {gpa:#x}+{size:#x} is not 2 MiB aligned (the guest module needs 2 MiB multiples)");
+        if size == 0 || size % granule != 0 || gpa % granule != 0
+            || (host_va as usize) % 4096 != 0 || gpa.checked_add(size).is_none()
+            || (host_va as usize).checked_add(size as usize).is_none()
+        {
+            bail!("guest RAM region {gpa:#x}+{size:#x} must be nonempty, aligned to {granule:#x}, and not wrap");
         }
         let avail = meminfo_kib("MemAvailable:") * KIB;
         if avail < size + RAM_FLOOR {
@@ -2103,20 +2249,22 @@ impl HostMemory {
         let mut at = gpa;
         let result: Result<()> = (|| {
             while at < gpa + size {
-                let end = ((at / CHUNK + 1) * CHUNK).min(gpa + size);
+                let end = at.saturating_add(CHUNK - at % CHUNK).min(gpa + size);
                 let len = end - at;
                 let va = host_va.wrapping_add((at - gpa) as usize);
                 let tc = Instant::now();
                 let h = self.os_descriptor(va, len)?;
+                // Own the descriptor before any query can fail. A zero-sized
+                // range cannot authorize DMA until its IOVA has been validated.
+                out.push(Descriptor {
+                    handle: h, range: DmaRange { gpa: at, iova: 0, size: 0 }, host_va: va as usize,
+                });
                 let reg_ms = tc.elapsed().as_millis();
                 let mut offsets: Vec<u64> = (0..len).step_by(SAMPLE_STEP as usize).collect();
                 offsets.push(len - 4096);
                 let answers = match self.phys_attr(h, &offsets) {
                     Ok(a) => a,
-                    Err(e) => {
-                        let _ = self.free_descriptor(h);
-                        return Err(e);
-                    }
+                    Err(e) => return Err(e),
                 };
                 let base = answers[0].1;
                 let bad = offsets
@@ -2124,7 +2272,6 @@ impl HostMemory {
                     .zip(&answers)
                     .find(|(&o, &(st, iova, ap))| st != 0 || ap != 1 || iova != base + o);
                 if let Some((o, (st, iova, ap))) = bad {
-                    let _ = self.free_descriptor(h);
                     bail!(
                         "refused: chunk GPA {at:#x}+{len:#x} is not one IOVA range: offset {o:#x} gave status {st:#x} aperture {ap} IOVA {iova:#x} (base {base:#x})"
                     );
@@ -2138,14 +2285,17 @@ impl HostMemory {
                     "registered guest RAM chunk {range} (descriptor {h:#x}, {reg_ms} ms, {} IOVA samples = base + offset)",
                     offsets.len()
                 ));
-                out.push(Descriptor { handle: h, range, host_va: va as usize });
+                out.last_mut().expect("staged descriptor").range = range;
                 at = end;
             }
             Ok(())
         })();
         if let Err(e) = result {
             for d in out {
-                let _ = self.free_descriptor(d.handle);
+                if let Err(free) = self.free_descriptor(d.handle) {
+                    self.free_failures.push(format!("registration rollback descriptor {:#x}: {free:#}", d.handle));
+                    self.descriptors.push(d);
+                }
             }
             return Err(e);
         }
@@ -2168,6 +2318,9 @@ impl HostMemory {
     /// unmaps it). The GPU must be idle on the guest's channels first: in part 1 no
     /// host channel exists (docs/caraxes/memory-model.md §4).
     pub fn release_region(&mut self, gpa: u64, size: u64) -> Vec<String> {
+        // Deferred zones hold raw CPU pointers too; a later registration must
+        // never pin a zone whose DMA_MAP has already gone away.
+        self.pending.retain(|(g, s, _)| !(*g < gpa.saturating_add(size) && gpa < g.saturating_add(*s)));
         // Never unpin while a host object that may reach the IOVAs lives (fail closed):
         // the descriptors stay registered (the pages stay pinned, which is safe after the
         // device's munmap) and the teardown frees them after the mirror objects.

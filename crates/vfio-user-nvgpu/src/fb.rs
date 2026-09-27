@@ -646,22 +646,46 @@ impl VramStore {
                 done += n;
                 continue;
             }
-            let wlen = self.window_len.get() as u64;
-            let in_win = (wlen - (off & (wlen - 1))).min((len - done) as u64) as usize;
-            let in_win = in_win.min((self.end - a) as usize);
+            // `window_for` may halve `window_len` before it returns a mapping. Size the
+            // piece from that mapping, rather than from the size with which the lookup
+            // began. Cached mappings can likewise be larger than the current adaptive
+            // size, so their own end remains the authoritative boundary.
+            let (piece, available) = match self.window_for(off) {
+                Some(i) => {
+                    let ws = self.windows.borrow();
+                    let w = &ws[i].win;
+                    let end = w
+                        .offset()
+                        .checked_add(w.len() as u64)
+                        .expect("mapped VRAM window end overflowed");
+                    assert!(
+                        off >= w.offset() && off < end,
+                        "mapped VRAM window does not cover requested offset {off:#x}"
+                    );
+                    (Piece::Window(i), end - off)
+                }
+                // A failed map can consume the rest of this unpinned reservation range
+                // in one fail-closed piece. In particular, it must still make progress
+                // after the adaptive lookup has exhausted every window size.
+                None => (Piece::Unmapped, self.end - a),
+            };
+            let mut n = available.min((len - done) as u64).min(self.end - a);
             // A window piece never runs into a pinned range (served by the pinned window).
-            let in_win = self
+            if let Some(next) = self
                 .pinned
                 .iter()
                 .filter(|w| w.offset() > off)
-                .map(|w| (w.offset() - off) as usize)
-                .fold(in_win, usize::min);
-            let piece = match self.window_for(off) {
-                Some(i) => Piece::Window(i),
-                None => Piece::Unmapped,
-            };
-            f(piece, a, in_win, done);
-            done += in_win;
+                .map(|w| w.offset() - off)
+                .min()
+            {
+                n = n.min(next);
+            }
+            // `a` is inside a non-empty remaining reservation range, and a returned
+            // window covers `off`, so every bound above is positive.
+            assert!(n > 0, "VRAM piece construction made no progress at {a:#x}");
+            let n = n as usize;
+            f(piece, a, n, done);
+            done += n;
         }
     }
 }
@@ -2531,6 +2555,77 @@ mod tests {
                 pages: self.pages.clone(),
             }))
         }
+    }
+
+    /// The first access itself can force 64 MiB down to 16 MiB. Its piece boundary must
+    /// follow the window that was actually mapped, including when the access straddles it.
+    /// Exercise fresh stores for both directions so neither path inherits an adapted size.
+    #[test]
+    fn an_adaptive_window_splits_each_first_access_at_its_actual_end() {
+        let (base, end) = (0xE900_0000u64, 0x1_6900_0000u64);
+        let make_store = |pages: std::sync::Arc<std::sync::Mutex<HostRamStore>>| {
+            let src = RamWindows {
+                max_len: 16 << 20,
+                pages,
+                maps: std::sync::Arc::new(std::sync::atomic::AtomicU64::new(0)),
+            };
+            VramStore::with_budget(Box::new(src), base, end, 64 << 20, 3)
+        };
+        let offset = (16 << 20) - 2;
+        let straddle = base + offset;
+
+        let read_pages = std::sync::Arc::new(std::sync::Mutex::new(HostRamStore::default()));
+        read_pages.lock().unwrap().write(offset, &[5, 6, 7, 8]);
+        let read_store = make_store(read_pages);
+        let mut b = [0u8; 4];
+        read_store.read(straddle, &mut b);
+        assert_eq!(b, [5, 6, 7, 8]);
+        assert_eq!(read_store.stats().map_failures, 2);
+        assert_eq!(
+            read_store.windows_held(),
+            vec![(0, 16 << 20), (16 << 20, 16 << 20)]
+        );
+
+        let write_pages = std::sync::Arc::new(std::sync::Mutex::new(HostRamStore::default()));
+        let mut write_store = make_store(write_pages);
+        write_store.write(straddle, &[1, 2, 3, 4]);
+        write_store.read(straddle, &mut b);
+
+        assert_eq!(b, [1, 2, 3, 4]);
+        assert_eq!(write_store.stats().map_failures, 2);
+        assert_eq!(
+            write_store.windows_held(),
+            vec![(0, 16 << 20), (16 << 20, 16 << 20)]
+        );
+    }
+
+    /// A refused map fails closed only up to the next pinned range. The following piece
+    /// must advance into that mapping rather than stalling or filling its bytes with ones.
+    #[test]
+    fn a_failed_window_piece_advances_to_the_next_pinned_range() {
+        let (base, end) = (0xE900_0000u64, 0x1_6900_0000u64);
+        let pages = std::sync::Arc::new(std::sync::Mutex::new(HostRamStore::default()));
+        let src = RamWindows {
+            max_len: 0,
+            pages: pages.clone(),
+            maps: std::sync::Arc::new(std::sync::atomic::AtomicU64::new(0)),
+        };
+        let mut s = VramStore::with_budget(Box::new(src), base, end, 2 << 20, 2);
+        s.stall_limit.set(0);
+        let pinned = 4 << 20;
+        pages.lock().unwrap().write(pinned, &[7, 8]);
+        assert!(s.pin_window(Box::new(RamWindow {
+            offset: pinned,
+            len: 2 << 20,
+            pages,
+        })));
+
+        let mut b = [0u8; 4];
+        s.read(base + pinned - 2, &mut b);
+
+        assert_eq!(b, [0xFF, 0xFF, 7, 8]);
+        let st = s.stats();
+        assert_eq!((st.failed, st.map_failures, st.pinned), (1, 1, 1));
     }
 
     /// The BAR1 pool's own dma-buf mapping pinned in the VRAM store (bar1-pool.md §12):

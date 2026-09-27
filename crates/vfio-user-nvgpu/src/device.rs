@@ -23,7 +23,7 @@ use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
 use vfio_bindings::bindings::vfio::{
     vfio_region_info, VFIO_IRQ_INFO_EVENTFD, VFIO_IRQ_INFO_NORESIZE, VFIO_IRQ_SET_ACTION_TRIGGER,
-    VFIO_IRQ_SET_DATA_EVENTFD, VFIO_PCI_BAR0_REGION_INDEX, VFIO_PCI_CONFIG_REGION_INDEX,
+    VFIO_IRQ_SET_DATA_EVENTFD, VFIO_IRQ_SET_DATA_NONE, VFIO_PCI_BAR0_REGION_INDEX, VFIO_PCI_CONFIG_REGION_INDEX,
     VFIO_PCI_INTX_IRQ_INDEX, VFIO_PCI_MSI_IRQ_INDEX, VFIO_PCI_NUM_IRQS, VFIO_PCI_NUM_REGIONS,
     VFIO_PCI_ROM_REGION_INDEX, VFIO_REGION_INFO_FLAG_MMAP, VFIO_REGION_INFO_FLAG_READ,
     VFIO_REGION_INFO_FLAG_WRITE,
@@ -70,6 +70,8 @@ pub struct Device {
     mem: GuestMemory,
     irq_fds: Vec<Vec<File>>,
     guest_ram: GuestRam,
+    /// Fixed for this session: QEMU/Windows uses GPAs and page-sized RAM fragments.
+    guest_dma_gpa: bool,
     /// Where the table is published (`<state dir>/dma-ranges`), in the module's format.
     dma_ranges: Option<PathBuf>,
     /// The table entries, per DMA_MAP region.
@@ -520,6 +522,7 @@ impl Device {
             mem: GuestMemory::new(),
             irq_fds,
             guest_ram: GuestRam::Plain,
+            guest_dma_gpa: std::env::var("CARAXES_GUEST_DMA_GPA").is_ok_and(|v| v == "1"),
             dma_ranges: None,
             ranges: Vec::new(),
             intr: None,
@@ -621,6 +624,9 @@ impl Device {
     /// Choose how guest RAM is handled and where the table is published.
     pub fn with_guest_ram(mut self, guest_ram: GuestRam, dma_ranges: Option<PathBuf>) -> Self {
         self.guest_ram = guest_ram;
+        if self.guest_dma_gpa && !matches!(self.guest_ram, GuestRam::Plain) {
+            self.mem.set_table(Some(DmaTable::default()));
+        }
         self.dma_ranges = dma_ranges;
         self
     }
@@ -656,7 +662,17 @@ impl Device {
         if matches!(self.guest_ram, GuestRam::Plain) {
             return Ok(());
         }
-        let table = DmaTable::new(self.ranges.clone()).map_err(std::io::Error::other)?;
+        let table = if self.guest_dma_gpa {
+            DmaTable::for_gpa_guest(self.ranges.clone())
+        } else {
+            DmaTable::new(self.ranges.clone())
+        }.map_err(std::io::Error::other)?;
+        let aliases = if self.guest_dma_gpa {
+            let identity = DmaTable::for_gpa_guest(table.ranges().iter().map(|r|
+                DmaRange { gpa: r.gpa, iova: r.gpa, size: r.size }).collect())
+                .map_err(std::io::Error::other)?;
+            Some(table.aliases_of(&identity).map_err(std::io::Error::other)?)
+        } else { None };
         let param = table.module_param();
         let what = format!(
             "dma table: {} range(s), {}; ranges={param}",
@@ -667,9 +683,6 @@ impl Device {
                 "host IOVAs"
             }
         );
-        self.mem
-            .set_table(if table.is_empty() { None } else { Some(table) });
-        self.gpa_aliases();
         if let Some(path) = self.dma_ranges.clone() {
             let tmp = path.with_extension("tmp");
             std::fs::write(&tmp, format!("{param}\n"))?;
@@ -677,6 +690,14 @@ impl Device {
             self.note(&format!("{what}; published to {}", path.display()));
         } else {
             self.note(&what);
+        }
+        // Commit only after validation and publication succeed. An empty GPA-mode
+        // table refuses DMA; it must not fall back to unregistered identity access.
+        self.mem.set_table(if table.is_empty() && !self.guest_dma_gpa { None } else { Some(table) });
+        if let Some(aliases) = aliases {
+            let n = aliases.len();
+            self.mem.set_aliases(aliases);
+            self.note(&format!("dma table: guest speaks GPA (CARAXES_GUEST_DMA_GPA): {n} identity alias range(s)"));
         }
         Ok(())
     }
@@ -697,7 +718,7 @@ impl Device {
     /// own accesses translate it (guestmem.rs `host_iova`, `translate`). Returns whether it
     /// applied.
     fn gpa_aliases(&mut self) -> bool {
-        if !std::env::var("CARAXES_GUEST_DMA_GPA").is_ok_and(|v| v == "1") {
+        if !self.guest_dma_gpa {
             return false;
         }
         let Some(table) = self.mem.table().cloned() else {
@@ -708,7 +729,7 @@ impl Device {
             .iter()
             .map(|r| DmaRange { gpa: r.gpa, iova: r.gpa, size: r.size })
             .collect();
-        match DmaTable::new(ident).and_then(|g| table.aliases_of(&g)) {
+        match DmaTable::for_gpa_guest(ident).and_then(|g| table.aliases_of(&g)) {
             Ok(aliases) => {
                 let n = aliases.len();
                 self.mem.set_aliases(aliases);
@@ -766,6 +787,7 @@ impl Device {
 
     /// Register or describe a freshly mapped region; an error refuses the DMA_MAP.
     fn add_guest_ram(&mut self, address: u64, size: u64) -> std::io::Result<()> {
+        let old_ranges = self.ranges.clone();
         match &self.guest_ram {
             GuestRam::Plain => return Ok(()),
             GuestRam::Identity => self.ranges.push(DmaRange {
@@ -779,7 +801,11 @@ impl Device {
                     .mem
                     .host_ptr(address, size)
                     .ok_or_else(|| std::io::Error::other("region not mapped"))?;
-                let r = hm.lock().unwrap().register(address, size, ptr);
+                let r = if self.guest_dma_gpa {
+                    hm.lock().unwrap().register_gpa(address, size, ptr)
+                } else {
+                    hm.lock().unwrap().register(address, size, ptr)
+                };
                 match r {
                     Ok((ranges, log)) => {
                         for l in log {
@@ -794,14 +820,40 @@ impl Device {
                 }
             }
         }
-        self.publish_table()
+        if let Err(e) = self.publish_table() {
+            self.ranges = old_ranges;
+            if self.guest_dma_gpa {
+                if let GuestRam::Register(hm) = &self.guest_ram {
+                    hm.lock().unwrap().release_gpa_region(address, size)
+                        .map_err(|free| std::io::Error::other(format!("{e}; rollback: {free:#}")))?;
+                }
+            }
+            return Err(e);
+        }
+        Ok(())
     }
 
     /// The guest RAM behind a DMA_UNMAP goes: free its descriptors first.
-    fn remove_guest_ram(&mut self, address: u64, size: u64) {
+    fn remove_guest_ram(&mut self, address: u64, size: u64) -> std::io::Result<()> {
         let log = match &self.guest_ram {
-            GuestRam::Plain => return,
+            GuestRam::Plain => return Ok(()),
             GuestRam::Identity => Vec::new(),
+            GuestRam::Register(hm) if self.guest_dma_gpa => {
+                // Refuse before touching the table or any CPU mapping if host work
+                // can still reference these pages.
+                hm.lock().unwrap().check_gpa_mapping_update().map_err(std::io::Error::other)?;
+                let result = hm.lock().unwrap().release_gpa_region(address, size);
+                match result {
+                    Ok(log) => log,
+                    Err(e) => {
+                        // Some descriptors may already have been freed. Revoke all
+                        // translations and retain CPU mappings for failed frees.
+                        self.ranges.clear();
+                        self.mem.set_table(Some(DmaTable::default()));
+                        return Err(std::io::Error::other(e));
+                    }
+                }
+            }
             GuestRam::Register(hm) => hm.lock().unwrap().release_region(address, size),
         };
         for l in log {
@@ -809,9 +861,14 @@ impl Device {
         }
         self.ranges
             .retain(|r| !(r.gpa >= address && r.gpa + r.size <= address + size));
+        if self.guest_dma_gpa {
+            self.mem.set_table(Some(DmaTable::default()));
+            return self.publish_table();
+        }
         if let Err(e) = self.publish_table() {
             self.note(&format!("dma table: {e}"));
         }
+        Ok(())
     }
 
     /// Free the host memory at the end of the session (the client disconnected). The
@@ -1118,14 +1175,36 @@ impl ServerBackend for Device {
             "dma_map address={address:#x} size={size:#x} offset={offset:#x} fd={:?} flags={flags:?}",
             fd.as_ref().map(std::os::fd::AsRawFd::as_raw_fd)
         ));
+        if self.guest_dma_gpa {
+            let end = address.checked_add(size).ok_or_else(|| std::io::Error::from_raw_os_error(libc::EINVAL))?;
+            if size == 0 || size % 4096 != 0 || address % 4096 != 0 || offset % 4096 != 0
+                || offset.checked_add(size).is_none()
+                || self.dma.iter().any(|m| address < m.address.saturating_add(m.size) && m.address < end)
+            {
+                return Err(std::io::Error::from_raw_os_error(libc::EINVAL));
+            }
+            if let Some(f) = &fd {
+                if offset + size > f.metadata()?.len() || offset > i64::MAX as u64 {
+                    return Err(std::io::Error::from_raw_os_error(libc::EINVAL));
+                }
+            }
+        }
         if let Some(f) = &fd {
             if let Err(e) = self.mem.map(address, size, offset, f) {
                 self.trace
                     .event(&format!("dma_map address={address:#x}: mmap failed: {e}"));
+                return Err(e);
             } else if let Err(e) = self.add_guest_ram(address, size) {
                 // Refuse the map: the VM must not run with guest RAM the GPU cannot
                 // reach or with a host short of RAM.
-                self.mem.unmap(address, size);
+                let keep = matches!(&self.guest_ram,
+                    GuestRam::Register(hm) if !hm.lock().unwrap().free_failures().is_empty());
+                if keep {
+                    self.mem.set_table(Some(DmaTable::default()));
+                    self.dma.push(DmaMapping { address, size, offset, fd });
+                } else {
+                    self.mem.unmap(address, size);
+                }
                 return Err(e);
             }
         }
@@ -1147,9 +1226,15 @@ impl ServerBackend for Device {
         self.trace.event(&format!(
             "dma_unmap address={address:#x} size={size:#x} flags={flags:?}"
         ));
-        self.dma
-            .retain(|m| !(m.address == address && m.size == size));
-        self.remove_guest_ram(address, size);
+        if self.guest_dma_gpa && !self.dma.iter().any(|m| m.address == address && m.size == size) {
+            return Err(std::io::Error::from_raw_os_error(libc::EINVAL));
+        }
+        // QEMU also reports ROM/MMIO extents without a RAM fd. Their lifecycle
+        // does not change any registered pages or translation table.
+        if self.dma.iter().any(|m| m.address == address && m.size == size && m.fd.is_some()) {
+            self.remove_guest_ram(address, size)?;
+        }
+        self.dma.retain(|m| !(m.address == address && m.size == size));
         self.mem.unmap(address, size);
         Ok(())
     }
@@ -1174,7 +1259,20 @@ impl ServerBackend for Device {
             "set_irqs index={index} flags={flags:#x} start={start} count={count} fds={}",
             fds.len()
         ));
-        if flags & VFIO_IRQ_SET_DATA_EVENTFD != 0 && flags & VFIO_IRQ_SET_ACTION_TRIGGER != 0 {
+        // VFIO disables an entire IRQ index with DATA_NONE, ACTION_TRIGGER and
+        // count zero. Drop both copies: the host-event thread owns a duplicate
+        // of the MSI eventfd and can otherwise signal it after guest teardown.
+        if flags == (VFIO_IRQ_SET_DATA_NONE | VFIO_IRQ_SET_ACTION_TRIGGER) && count == 0 {
+            if start != 0 || !fds.is_empty() || index as usize >= self.irq_fds.len() {
+                return Err(std::io::Error::from_raw_os_error(libc::EINVAL));
+            }
+            if index == VFIO_PCI_MSI_IRQ_INDEX {
+                if let Some(s) = &self.intr {
+                    s.set_msi_fd(None);
+                }
+            }
+            self.irq_fds[index as usize].clear();
+        } else if flags & VFIO_IRQ_SET_DATA_EVENTFD != 0 && flags & VFIO_IRQ_SET_ACTION_TRIGGER != 0 {
             if index == VFIO_PCI_MSI_IRQ_INDEX {
                 if let Some(s) = &self.intr {
                     s.set_msi_fd(fds.first().and_then(|f| f.try_clone().ok()));
@@ -1261,6 +1359,95 @@ impl Device {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn guest_ram_file() -> File {
+        let name = std::ffi::CString::new("caraxes-gpa-test").unwrap();
+        let fd = unsafe { libc::memfd_create(name.as_ptr(), libc::MFD_CLOEXEC) };
+        assert!(fd >= 0);
+        let f = unsafe { File::from_raw_fd(fd) };
+        f.set_len(32 << 20).unwrap();
+        f
+    }
+
+    #[test]
+    fn qemu_page_fragments_unmap_remap_and_reject_overlaps() {
+        let mut d = rtx2070_device().with_guest_ram(GuestRam::Identity, None);
+        d.guest_dma_gpa = true;
+        let f = guest_ram_file();
+        let map = |d: &mut Device, at, size| d.dma_map(DmaMapFlags::READ_WRITE,
+            at, at, size, Some(f.try_clone().unwrap()));
+        map(&mut d, 0, 0xa0000).unwrap();
+        map(&mut d, 0x100000, 0x1f00000).unwrap();
+        assert!(d.mem.covers(0x9f000, 0x1000));
+        assert!(!d.mem.covers(0x9f000, 0x2000));
+        assert!(!d.mem.covers(0xa0000, 1));
+        d.dma_map(DmaMapFlags::READ, 0, 0xc0000, 0x20000, None).unwrap();
+        assert!(!d.mem.covers(0xc0000, 1));
+        d.dma_unmap(DmaUnmapFlags::empty(), 0xc0000, 0x20000).unwrap();
+        assert!(map(&mut d, 0x90000, 0x20000).is_err());
+        // Only an exact DMA_MAP can be retired. A partial unmap must not leave
+        // published translations to pages that the server unmapped.
+        assert!(d.dma_unmap(DmaUnmapFlags::empty(), 0, 0x30000).is_err());
+        assert!(d.mem.covers(0x90000, 0x1000));
+        d.dma_unmap(DmaUnmapFlags::empty(), 0, 0xa0000).unwrap();
+        assert!(!d.mem.covers(0, 1));
+        map(&mut d, 0, 0x30000).unwrap();
+        map(&mut d, 0x50000, 0x50000).unwrap();
+        assert!(!d.mem.covers(0x30000, 1));
+        assert!(d.mem.covers(0x50000, 1));
+        d.dma_unmap(DmaUnmapFlags::empty(), 0, 0x30000).unwrap();
+        d.dma_unmap(DmaUnmapFlags::empty(), 0x50000, 0x50000).unwrap();
+        d.dma_unmap(DmaUnmapFlags::empty(), 0x100000, 0x1f00000).unwrap();
+        assert!(d.mem.table().unwrap().is_empty());
+        assert_eq!(d.mem.host_iova(0, 1), None);
+    }
+
+    #[test]
+    fn failed_gpa_publication_keeps_the_previous_mapping() {
+        let mut d = rtx2070_device().with_guest_ram(GuestRam::Identity, None);
+        d.guest_dma_gpa = true;
+        let f = guest_ram_file();
+        d.dma_map(DmaMapFlags::READ_WRITE, 0, 0, 0xa0000, Some(f.try_clone().unwrap())).unwrap();
+        d.dma_ranges = Some(PathBuf::from("/dev/null/dma-ranges"));
+        assert!(d.dma_map(DmaMapFlags::READ_WRITE, 0x100000, 0x100000, 0x1000, Some(f)).is_err());
+        assert_eq!(d.dma.len(), 1);
+        assert_eq!(d.ranges.len(), 1);
+        assert!(d.mem.covers(0, 0xa0000));
+        assert!(!d.mem.covers(0x100000, 1));
+        assert_eq!(d.mem.regions(), vec![(0, 0xa0000)]);
+    }
+
+    #[test]
+    fn disabling_msi_retires_both_eventfd_copies_and_can_be_rearmed() {
+        use std::os::fd::{AsRawFd, FromRawFd};
+        use std::sync::atomic::Ordering;
+        let intr = crate::intr::IntrShared::new();
+        let mut d = rtx2070_device().with_intr_shared(intr.clone());
+        let fd = unsafe { libc::eventfd(0, libc::EFD_NONBLOCK | libc::EFD_CLOEXEC) };
+        assert!(fd >= 0);
+        let reader = unsafe { File::from_raw_fd(fd) };
+        let arm = |d: &mut Device| {
+            d.set_irqs(VFIO_PCI_MSI_IRQ_INDEX,
+                VFIO_IRQ_SET_DATA_EVENTFD | VFIO_IRQ_SET_ACTION_TRIGGER,
+                0, 1, vec![reader.try_clone().unwrap()]).unwrap();
+        };
+        arm(&mut d);
+        d.set_irqs(VFIO_PCI_MSI_IRQ_INDEX,
+            VFIO_IRQ_SET_DATA_NONE | VFIO_IRQ_SET_ACTION_TRIGGER,
+            0, 0, vec![]).unwrap();
+        assert!(d.irq_fds[VFIO_PCI_MSI_IRQ_INDEX as usize].is_empty());
+        // Even if the PCI MSI enable bit remains set, the retired fd is silent.
+        intr.msi_enabled.store(true, Ordering::SeqCst);
+        assert!(!intr.signal_msi());
+        let mut value = 0u64;
+        assert_eq!(unsafe { libc::read(reader.as_raw_fd(), (&mut value as *mut u64).cast(), 8) }, -1);
+        assert_eq!(std::io::Error::last_os_error().raw_os_error(), Some(libc::EAGAIN));
+        arm(&mut d);
+        intr.msi_enabled.store(true, Ordering::SeqCst);
+        assert!(intr.signal_msi());
+        assert_eq!(unsafe { libc::read(reader.as_raw_fd(), (&mut value as *mut u64).cast(), 8) }, 8);
+        assert_eq!(value, 1);
+    }
 
     fn rtx2070_device() -> Device {
         let dump = include_str!("../../../caraxes/reference/rtx2070/config-space.txt");

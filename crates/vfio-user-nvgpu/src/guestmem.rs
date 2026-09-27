@@ -90,7 +90,7 @@ impl GuestMemory {
     fn locate_gpa(&self, gpa: u64, len: u64) -> Option<*mut u8> {
         self.regions
             .iter()
-            .find(|r| gpa >= r.address && gpa + len <= r.address + r.size)
+            .find(|r| gpa >= r.address && gpa - r.address <= r.size && len <= r.size - (gpa - r.address))
             .map(|r| r.ptr.wrapping_add((gpa - r.address) as usize))
     }
 

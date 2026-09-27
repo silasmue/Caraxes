@@ -1040,13 +1040,14 @@ impl Mirror {
     /// guest runs).
     fn descs(&mut self) -> Vec<(u32, u64, u64)> {
         if self.descs.is_none() {
-            let h = self.hm.lock().unwrap();
+            let mut h = self.hm.lock().unwrap();
             let d: Vec<(u32, u64, u64)> = h
                 .descriptors()
                 .iter()
                 .map(|d| (d.handle, d.range.iova, d.range.size))
                 .collect();
             if !d.is_empty() {
+                h.freeze_gpa_mappings();
                 self.descs = Some(d);
             } else {
                 return d;
