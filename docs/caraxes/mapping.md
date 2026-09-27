@@ -390,6 +390,7 @@ at one busy host core per poller.
 | `CARAXES_BAR_TLB` | 1 | 0: walk the BAR tables at every trapped access |
 | `CARAXES_CE_SHADOW` | 1 | 0: CE channels on the externally-owned VAS (the guest's own tables) |
 | `CARAXES_LINEAR_IOVA` | 1 | 0: independent 1 GiB chunks instead of IOVA = GPA + one offset |
+| `CARAXES_TRACE` | 1 | 0: omit `--trace` in `tools/caraxes-vm.sh`; `gpu.log` and the exit summary remain |
 | `CARAXES_TRACE_ACCESSES` | 1 | 0: no trace line per region access (events still written) |
 | `CARAXES_TRACE_FLUSH` | 1 | 0: flush the trace at events and every 100 ms instead of every line |
 | `CARAXES_MIRROR_DIAG` | 0 | 1: the per-doorbell and first-doorbell USERD diagnostics |

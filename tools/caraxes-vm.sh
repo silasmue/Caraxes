@@ -186,6 +186,12 @@ do_ssh() {
 }
 
 up() {
+    local trace=()
+    case ${CARAXES_TRACE:-1} in
+        0) ;;
+        1) trace=(--trace "$W/gpu-trace.log") ;;
+        *) error "CARAXES_TRACE must be 0 or 1" ;;
+    esac
     if [[ ${CARAXES_GUEST_DMA_GPA:-0} == 1 ]]; then
         [[ ${CARAXES_DMA:-} == register && ${CARAXES_HOST_EXEC:-0} == 1 &&
            ${CARAXES_MIRROR_CHANNELS:-0} == 1 && ${CARAXES_MIRROR_GR_SHADOW:-0} == 1 &&
@@ -251,7 +257,11 @@ up() {
         identity) vbios+=(--identity-dma-table --dma-ranges "$W/dma-ranges") ;;
         *) error "CARAXES_DMA must be register or identity" ;;
     esac
-    LEA_ROOT=$LEA_ROOT "$server" --socket "$W/gpu.sock" --trace "$W/gpu-trace.log" \
+    # The traced path truncates this file in the server's File::create. Match that
+    # lifecycle when tracing is off, immediately before the new backend starts, so
+    # status and later diagnostics cannot mistake an older run's trace for this one.
+    [[ ${CARAXES_TRACE:-1} == 0 ]] && rm -f "$W/gpu-trace.log"
+    LEA_ROOT=$LEA_ROOT "$server" --socket "$W/gpu.sock" "${trace[@]}" \
         --config "$CONFIG" --rom "$REF/rom.bin" "${vbios[@]}" > "$W/gpu.log" 2>&1 &
     echo $! > "$W/gpu.pid"
     for _ in $(seq 50); do [[ -S $W/gpu.sock ]] && break; sleep 0.1; done
@@ -523,8 +533,9 @@ wait_ssh() {
 probe() {
     local label=${1:-$(date +%Y%m%d-%H%M%S)} out
     out=$W/probe-$label
-    mkdir -p "$out"
     alive "$W/gpu.pid" || error "server not running"
+    [[ -f $W/gpu-trace.log ]] || error "probe needs a device trace; start with CARAXES_TRACE=1"
+    mkdir -p "$out"
     wc -l < "$W/gpu-trace.log" > "$out/trace-start"
     dma_load > "$out/dma.txt" 2>&1 || { cat "$out/dma.txt"; error "DMA table not installed"; }
     # A function-level reset puts the device model back to its initial state, so
@@ -543,8 +554,9 @@ probe() {
 uvm() {
     local label=${1:-$(date +%Y%m%d-%H%M%S)} flags=${2:-0} out start
     out=$W/uvm-$label
-    mkdir -p "$out"
     alive "$W/gpu.pid" || error "server not running"
+    [[ -f $W/gpu-trace.log ]] || error "uvm needs a device trace; start with CARAXES_TRACE=1"
+    mkdir -p "$out"
     start=$(wc -l < "$W/gpu-trace.log")
     dma_load > "$out/dma.txt" 2>&1 || { cat "$out/dma.txt"; error "DMA table not installed"; }
     do_ssh 'cat > uvm-register.c' < "$LEA_ROOT/crates/vfio-user-nvgpu/guest/uvm-register.c"
