@@ -1,6 +1,6 @@
 # Caraxes working handoff for Claude Code
 
-Updated: 2026-09-27, 23:48 CEST. Work continues; this is a checkpoint.
+Updated: 2026-09-27, 23:58 CEST. All test VMs are stopped.
 
 ## Workspace and constraints
 
@@ -178,12 +178,44 @@ LRU capacity, and preserves cumulative counters.
   OBJECT_NOT_FOUND is a fault-reporting failure, not the cause of Xid 32.
 - Teardown reports zero held windows/pinned chunks/tracked objects; no late
   unmap status 0x33. Windows rendering and stable startup remain unvalidated.
-- Do not rerun P3 unchanged. Bounded deferred-control capture is being added;
+- Do not rerun P3 unchanged. Bounded deferred-control capture is implemented;
   capture mode holds channels containing a 0x5080 object before host submission.
+
+## P4: deferred context operations captured
+
+- P4-deferred-capture is stopped. All owned test VMs are stopped.
+- Base f56b8bb2 plus isolated LUT geometry profile; source profile restored.
+  Binary SHA-256: 69a4992196e545d5b1535791058be263564d75ceb4b7c686ff88c348aedf4469.
+- CARAXES_DEFERRED_API_CAPTURE=1 held affected GR channels before submission:
+  zero host channels created, zero forwarded doorbells. No new host Xid in P4.
+  Exit reports zero pinned chunks and tracked host objects.
+- Eight complete 584-byte registration payloads captured. First sequence:
+
+| API handle | Nested command | Meaning |
+|---|---|---|
+| 0x40000002 | 0x2080012d | GPU_INITIALIZE_CTX |
+| 0x40000003 | 0x2080012b | GPU_PROMOTE_CTX |
+| 0x40000004 | 0x2080012c | GPU_EVICT_CTX |
+
+- First sequence: GR0, hClient 0xc1d0002a, hChanClient 0xc1d0002c,
+  hObject 0xff0e0000, ChID 17. This targets another client's TSG; the deferred
+  object belongs to client 0xc1d00018. Do not substitute the submitting channel.
+- Initialize: FB offset 0xe2000, size 0xad400, physAttr 0, hVirtMemory 0,
+  hDmaHandle 0, index 17. Promote: VA 0x17000, same size, entryCount 0.
+  Flags, hClientVA and hDeviceVA are zero. Later requests reuse object values
+  under different clients: resolve by client and object, not object alone.
+- Reference layout: OGKM 615.71.09 ctrl5080.h and ctrl2080/ctrl2080gpu.h.
+  Raw trace and decoded JSON: windows-plain/P4-deferred-capture/.
+- This is capture evidence, not context execution or a rendering pass.
 
 ## Next actions
 
-1. Capture and implement the specific deferred API contract. The experimental
+1. Implement the captured deferred context contract. First preserve exact guest
+   engine-object handles and client/TSG ownership through the host mirror.
+   Translate the owned FB range and target VAS, preserve deferred ordering and
+   implicit deletion, and handle target teardown/reuse. Never forward raw guest
+   physical offsets or acknowledge completion without performing the operation.
+   The experimental
    CARAXES_SHADOW_USERD=1 path passed host channel creation in P3. Windows client USERD
    placement is independent of the RM-owned USERD capability; clearing that bit
    cannot fix this case. The new path uses private host vidmem, directional
