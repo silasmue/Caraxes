@@ -227,3 +227,28 @@ Windows driver.
 The next experiment translates a zero-based guest FB range onto the owned host
 reservation through descriptor offsets. It keeps the fake WPR in the separate
 high guest address range and permits only host-managed shadow VA spaces.
+
+
+## Translated framebuffer: KD7
+
+Backend `ad397d73`, SHA-256
+`14e4519adc85b917cc6c674b6a2367f0fe3bb4224b07fc7c21b7318fea092d5b`,
+ran with `CARAXES_FB_ZERO_BASED=1`, 1 GiB host VRAM and display enabled.
+Guest usable FB is `[0, 0x3fe00000)`; the physical reservation remains
+`[0x1a9800000, 0x1e9800000)`. The fake WPR remains at `0x1fa600000` and above.
+
+- Initial boot returned `0xC000009A` without hitting `+0x185baa4`. That address
+  is the allocation-failure branch, not an unconditional allocation return.
+- A second PnP restart reached the heap function's return at `+0x185bd42` with
+  `SIL=1`, proving that the formerly failing heap initialization now succeeds.
+- A third restart stopped immediately after the first allocation helper at
+  `+0x185b926`: `AL=1`, index `RDI=0`, NVOS32 function 2, status 0, flags
+  `0x8010`, size `0x38900000` (905 MiB), offset 0. No guest value was edited.
+- Windows still reports Code 43. A later failure in the initialization sequence
+  remains to be isolated. No NVIDIA rendering result is established.
+
+Evidence: `windows-kd/debugger/KD7-zero-fb-first-boot.log` and
+`KD7-heap-stage-success.log`, and `KD7-first-allocation-success-next-failure.log`.
+The later failure is now stopped at `+0x185a149`: the adapter getter at vtable
+slot `+0x1c8` returns its `+0x50e8` subobject. That subobject's vtable slot `+0x58`
+resolves to `+0x1534b20`, which returned false. Trace its internal failure next.
