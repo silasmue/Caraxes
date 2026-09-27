@@ -13,7 +13,9 @@
 # SOTTR_DRIVER=615 (vm4-615): the 615 steps at the end instead of the driver build, the firmware
 # and /opt/nvrm-gl: the distribution packages (packages615), the module rules (modprobe615) and
 # gdm on Wayland (display615), then the shared steps.
-# Usage: sudo [SOTTR_DRIVER=615 SOTTR_PKG_VERSION=...] bash sottr-prepare.sh [step...]   (default: all steps in order)
+# Usage: sudo [SOTTR_DRIVER=615 SOTTR_PKG_VERSION=... SOTTR_GUEST_DMA_GPA=1] bash sottr-prepare.sh [step...]
+# (default: all steps in order). SOTTR_GUEST_DMA_GPA=1 removes the display-module dependency
+# on caraxes_dma_range for a device launched with CARAXES_GUEST_DMA_GPA=1.
 set -u
 U=leandro H=/home/leandro M=/var/lib/caraxes-sottr KV=$(uname -r)
 LABEL=LEAGAMES MNT=/games
@@ -200,9 +202,46 @@ packages615() {
 }
 
 modprobe615() {
-    todo modprobe615 || return 0
-    # up.sh writes caraxes-615-display.conf offline before the first boot; checked here.
+    # This step deliberately runs on every preparation. Older overlays have a done marker but
+    # still carry the caraxes_dma_range install guards, so helper-free mode must migrate them.
+    echo "== modprobe615"
+    # up.sh writes caraxes-615-display.conf offline before the first boot; rewrite it here so
+    # an existing overlay follows the launch mode too.
     [ -f /etc/modprobe.d/caraxes-615-display.conf ] || { echo "no /etc/modprobe.d/caraxes-615-display.conf (up.sh writes it)"; return 1; }
+    local mode=helper tmp
+    [ "${SOTTR_GUEST_DMA_GPA:-0}" = 1 ] && mode=gpa
+    tmp=$(mktemp)
+    {
+        cat <<EOF
+# Caraxes SotTR stage, 615. Provisioned DMA mode: $mode.
+# Keep the display modules out of boot; up.sh loads them after device memory is registered.
+blacklist nvidia_modeset
+blacklist nvidia_drm
+blacklist nvidia_peermem
+EOF
+        if [ "$mode" = helper ]; then
+            cat <<'EOF'
+install nvidia_modeset grep -q '^caraxes_dma_range ' /proc/modules && /sbin/modprobe --ignore-install nvidia_modeset $CMDLINE_OPTS
+install nvidia_drm grep -q '^caraxes_dma_range ' /proc/modules && /sbin/modprobe --ignore-install nvidia_drm $CMDLINE_OPTS
+EOF
+        fi
+        cat <<'EOF'
+install nvidia_peermem /bin/false
+options nvidia-drm modeset=1 fbdev=0
+EOF
+    } > "$tmp"
+    if ! cmp -s "$tmp" /etc/modprobe.d/caraxes-615-display.conf; then
+        if grep -q '^caraxes_dma_range ' /proc/modules; then
+            rm -f "$tmp"
+            echo "refusing to change the 615 DMA mode while caraxes_dma_range is loaded"
+            return 1
+        fi
+        install -m 0644 "$tmp" /etc/modprobe.d/caraxes-615-display.conf
+        echo "caraxes-615-display.conf: migrated to $mode DMA mode"
+    else
+        echo "caraxes-615-display.conf: $mode DMA mode already configured"
+    fi
+    rm -f "$tmp"
     systemctl mask nvidia-persistenced.service 2>&1
     grep -H . /etc/modprobe.d/caraxes.conf /etc/modprobe.d/caraxes-615-display.conf
     grep -l nvidia /etc/modprobe.d/* /usr/lib/modprobe.d/* /lib/modprobe.d/* 2>/dev/null | sort -u

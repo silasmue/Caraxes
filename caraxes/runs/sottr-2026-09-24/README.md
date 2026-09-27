@@ -88,3 +88,8 @@ so only one runs. The first start installs the driver packages with apt through 
 minutes, once). Steam needs a login again (a new overlay). Sunshine tries NVENC first and falls
 back to libx264; `sunshine-encoder.txt` in the session folder shows which encoder it took.
 Evidence goes to `session-615-<time>/`.
+
+`CARAXES_GUEST_DMA_GPA=1 up-615.sh` selects the helper-free stock-driver path. Preparation
+migrates an existing overlay's display-module rules on every start, so an old `modprobe615.done`
+marker does not retain the `caraxes_dma_range` guards. Without the flag, the legacy helper and
+probe path remains unchanged.

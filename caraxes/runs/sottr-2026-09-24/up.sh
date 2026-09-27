@@ -23,8 +23,10 @@ NAT=${SOTTR_NAT:-$((1 - EMU))}
 # SOTTR_DRIVER=615 (up-615.sh): vm4-615 on the 615 image with the distribution's driver
 # packages (env-615.sh); its evidence goes to session-615-<time>/.
 D615=0; [[ $SOTTR_DRIVER == 615 ]] && D615=1
+GPA=0; [[ ${CARAXES_GUEST_DMA_GPA:-0} == 1 ]] && GPA=1
 OUT=${SOTTR_OUT:-$here/session-$( ((D615)) && echo 615-)$(date +%Y%m%d-%H%M%S)}
 die() { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
+((GPA && !D615)) && die "CARAXES_GUEST_DMA_GPA=1 is supported by this stage only with SOTTR_DRIVER=615"
 alive() { [[ -f $1 ]] && kill -0 "$(cat "$1")" 2>/dev/null; }
 gsh() { "${VMSH[@]}" ssh "$@"; }
 mkdir -p "$W" "$OUT"
@@ -67,20 +69,25 @@ if [[ ! -f $W/rootfs.qcow2 ]]; then
     echo "new overlay $W/rootfs.qcow2 on $SOTTR_BASE"
     if ((D615)); then
         # Before the first boot, offline (vm0-615's and vm3-615's recipe): nothing may load nvidia
-        # before the launcher's probe installed the DMA table. nvidia-persistenced would (it opens
+        # before the device has registered guest memory. nvidia-persistenced would (it opens
         # /dev/nvidiactl at boot), and gdm at graphical.target would start GNOME without the
-        # display modules. nvidia_modeset and nvidia_drm load only while caraxes_dma_range is
-        # loaded; nvidia-drm with modeset=1 (fbdev=0 as display-up.sh passes it).
+        # display modules. Legacy mode gates those modules on caraxes_dma_range; GPA mode loads
+        # them by hand after vfio-user has registered RAM.
         conf=$(mktemp)
-        cat > "$conf" <<'EOF'
+        cat > "$conf" <<EOF
 # Caraxes SotTR stage, 615 (docs/caraxes/sottr-stage.md section 8): nvidia_modeset and nvidia_drm
-# load only after the launcher's probe installed its DMA table (caraxes_dma_range), never at
-# boot, so that `tools/caraxes-vm.sh probe` can reload nvidia; nvidia_peermem never.
+# are kept out of boot and loaded after device memory registration; nvidia_peermem never.
+# Provisioned DMA mode: $([[ $GPA == 1 ]] && echo gpa || echo helper).
 blacklist nvidia_modeset
 blacklist nvidia_drm
 blacklist nvidia_peermem
+EOF
+        if (( !GPA )); then cat >> "$conf" <<'EOF'
 install nvidia_modeset grep -q '^caraxes_dma_range ' /proc/modules && /sbin/modprobe --ignore-install nvidia_modeset $CMDLINE_OPTS
 install nvidia_drm grep -q '^caraxes_dma_range ' /proc/modules && /sbin/modprobe --ignore-install nvidia_drm $CMDLINE_OPTS
+EOF
+        fi
+        cat >> "$conf" <<'EOF'
 install nvidia_peermem /bin/false
 options nvidia-drm modeset=1 fbdev=0
 EOF
@@ -206,13 +213,20 @@ rsync -a --delete -e "$rsh" "$ROOT/crates/vfio-user-nvgpu/guest/" "leandro@$CARA
 rsync -a -e "$rsh" "$here/guest/" "leandro@$CARAXES_IP:caraxes-sottr/"
 # 615: the packages come from the public Ubuntu and NVIDIA repositories through the NAT (apt
 # sends no identifier of the operator).
-gsh "sudo SOTTR_DRIVER=$SOTTR_DRIVER SOTTR_PKG_VERSION=${SOTTR_PKG_VERSION:-} SOTTR_GUEST_KERNEL=${SOTTR_GUEST_KERNEL:-} bash caraxes-sottr/sottr-prepare.sh" > "$OUT/prepare.txt" 2>&1 \
+gsh "sudo SOTTR_DRIVER=$SOTTR_DRIVER SOTTR_PKG_VERSION=${SOTTR_PKG_VERSION:-} SOTTR_GUEST_KERNEL=${SOTTR_GUEST_KERNEL:-} SOTTR_GUEST_DMA_GPA=$GPA bash caraxes-sottr/sottr-prepare.sh" > "$OUT/prepare.txt" 2>&1 \
     || { tail -20 "$OUT/prepare.txt"; die "guest preparation failed ($OUT/prepare.txt)"; }
 grep -E '^==|prepared|total|LEAGAMES|cap_sys|^ii ' "$OUT/prepare.txt"
 
-# 6. The driver (DMA table and nvidia.ko through the launcher's probe), the display modules,
+# 6. The driver (legacy DMA table through probe, or direct stock-driver load after GPA-backed
+#    guest RAM registration), the display modules,
 #    EGL on the NVIDIA driver with host execution, on Mesa kms_swrast in emulation.
-"${VMSH[@]}" probe sottr > "$OUT/probe.txt" 2>&1; tail -4 "$OUT/probe.txt" | cut -c1-200
+if ((GPA)); then
+    gsh "test ! -d /sys/module/caraxes_dma_range && sudo dmesg -C && sudo modprobe nvidia; rc=\$?; sleep 2; sudo dmesg | grep -v 'NVRM: VM:'; echo modprobe rc=\$rc; ls -la /dev/nvidia* 2>/dev/null; exit \$rc" \
+        > "$OUT/probe.txt" 2>&1 || { tail -20 "$OUT/probe.txt"; die "stock driver failed in GPA mode"; }
+else
+    "${VMSH[@]}" probe sottr > "$OUT/probe.txt" 2>&1
+fi
+tail -4 "$OUT/probe.txt" | cut -c1-200
 #    615: EGL, GBM and Vulkan as the packages installed them, no nvidia-egl-setup.sh.
 if ((D615)); then
     gsh "cd caraxes-guest && sudo bash display-up.sh && lsmod | grep -E '^nvidia'" > "$OUT/display-up.txt" 2>&1
