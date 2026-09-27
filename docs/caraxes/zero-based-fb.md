@@ -41,3 +41,11 @@ Windows optimization. Validate initialization, alias coherence and mapped
 ranges before comparing CPU usage. Use `CARAXES_TRACE_ACCESSES=0` for timed
 runs; keep control/event logs. Reserve enough host BAR1 for the pool, VRAM
 windows and the configured free-space floor.
+
+KD10 confirmed QEMU's 64 MiB dma-buf mapping and reached the same descriptor
+setup as the trapped path. At the first teardown, the pool had moved 603 cold
+pages in and back (2412 KiB each way, 45.5 ms total copy time), with no refused
+moves, table hazards, replicas or conflicting words. This covers startup
+mappings only: no host render channel existed yet. A debugger transport stall
+interrupted the later restart, so these runs do not establish a speedup or
+workload coherence. Raw evidence: `windows-kd/debuggee/KD10-ilut-pool64/`.

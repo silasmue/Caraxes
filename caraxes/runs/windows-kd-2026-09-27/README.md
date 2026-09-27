@@ -304,3 +304,27 @@ capabilities. Evidence: `windows-kd/debugger/KD8-ilut-descriptor-failure.log`.
 The isolated patches, TOML inputs, build logs and binary hashes are under
 `windows-kd/tmo-caps-experiment/`. Do not substitute these binaries for the
 validated Linux backend.
+
+## ILUT geometry and BAR1 pool: KD9–KD10
+
+Diagnostic binary `55331d64b4207776e534255ff7f95cf0654da6e4e54d7d045f24e0d10f13ff35`
+adds ILUT CAPB `0xda90` to the TMO experiment. KD9's serial debugger connection
+stalled; it has no completed startup verdict. KD10 used the same binary with
+`WIN_BAR1_POOL_MIB=64` and a fresh debugger session. QEMU mapped the 64 MiB
+pool; guest usable FB ended at `0x3be00000` instead of `0x3fe00000`.
+
+- ILUT resource size is `0x21000`, TMO size `0x9000`, both with live handles.
+- The ILUT and TMO constructor failure branches were not taken in the first
+  boot, but `+0x15f1260` still returned false at its caller `+0x15cd336`.
+- Final startup status remains `0xC000009A`; there is no NVIDIA rendering result.
+- The earlier eleven-branch probe list was incomplete: `+0x15f2dc2` also checks
+  the output-LUT constructor and reaches the common false return through
+  `+0x15f2e32`. Inspect this error entry directly in the next run. The model's
+  head CAPB geometry is still zero; its relevance is not yet confirmed live.
+- KD10's later restart also lost debugger synchronization with many conditional
+  probes. Use direct error-entry breakpoints to reduce successful-path stops.
+  Microsoft's [KD resynchronization procedure](https://learn.microsoft.com/en-us/windows-hardware/drivers/debugger/synchronizing-with-the-target-computer)
+  was attempted; it did not restore a usable prompt in that trial.
+
+Evidence: `windows-kd/debugger/KD10-pool-resource-progress.log`,
+`KD10-restart-transport-stall.log`, and the run's `qemu-dmabuf-maps.txt`.
