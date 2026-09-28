@@ -174,3 +174,43 @@ Runs: `/mnt/vmstore/caraxes/alpha-2026-09-27/windows-plain/<run>/`.
   - Open. Not before the new memory architecture: hostmem.rs belongs to workstream A (the
     compressed per-VM slice, D16b).
   - Depends on: R, and the slice allocator.
+
+## P21 (2026-09-28 20:33, P21-pool-off, beside Linux B; BAR1 pool off, compression off)
+
+- **D3D11 renders without the BAR1 pool too.**
+  - Probe: create 14.2 s, frames 1.5 s.
+  - Smoke: create 4.9 s, frames 0.37 s.
+  - nvidia-smi -L and -q pass (exit codes now read correctly).
+  - Depends on: P (the pool is not needed for rendering).
+- **The Vulkan-time Xid is not the pool.**
+  - HOST0 HUBCLIENT_HOST_CPU FAULT_PTE read at VA 0x04774000, identical in P20 (pool 32 MiB) and
+    P21 (pool off).
+  - 0x04774000 is a guest VA, not a host BAR1 offset: the guest's paging channel mapped it at
+    148.5 s (MEM_OP targeted invalidate, A 0x4774001, PDB 0x3f45f000, shadow root of GR chids 24
+    and 28).
+  - The fault comes at the teardown of the failed vulkaninfo process: a register invalidate of
+    that root at 151.83 s re-synced the shadow, which unmapped 619 leaves, before the guest freed
+    the channels, TSG and client.
+  - A host channel on that root still read the page. HOST_CPU is likely the host scheduler
+    re-polling a pending semaphore acquire.
+  - Open: a shadow must not unmap pages its live host channels can still reach. Options: disable
+    or preempt them first, or hold the unmaps until those channels' host free, as set B is held
+    (`held_at_free`).
+  - Depends on: AB, L.
+- **D3D12 and Vulkan device creation wait forever on the P17 diagnostic.**
+  - GR chids 29 and 30 were never bound: 9 GFXP BINDs refused ("P17 accepts only captured
+    graphics pool binding shape", 0x56).
+  - Their work stays held ("held until owned GFXP is bound", 2717 and 1201 replays), and device
+    creation times out: the D3D12 gate hit its 90 s timeout, and vkCreateDevice returned
+    DEVICE_LOST.
+  - The refused payloads are not logged yet. Next: dump them, then translate that shape
+    (likely a combined GFXP + compute-CTA request).
+  - The pool bookkeeping stays unimplemented (P12: the driver needs real pool support).
+  - Depends on: R (owned GFXP buffers, see the slice decision above), AB.
+- **Held-doorbell replay spams the trace.** replay_held re-runs every P17-held channel at each scan
+  (thousands of "enabled again ... held" pairs). Keep them held without replay until they are
+  bound. Depends on: none.
+- **Host set B at guest VAs:** 190 refusals 0x1a (F2b class), no Xid attributed in P21. Depends
+  on: L, AB.
+- **Teardown:** exit 3 "owned GFXP resources remain attached to a host context" (as in P17).
+  Host FB/BAR1 returned to baseline. Depends on: R.
