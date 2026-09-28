@@ -1,0 +1,10 @@
+# target v2 metric launch1k rep 1
+# cmd BENCH_CU_PTX=kernels.ptx ./bench-cu-launch launch 1000
+# device /mnt/vmstore/caraxes/vm5/vfio-user-nvgpu sha256 8ba83e2f8383fe1d
+# time 2026-09-25T08:54:49+02:00
+# gpu 49, 870 MHz, 810 MHz, P5, 10 %, 5173 MiB, Disabled
+# procs 3208281:-dev 3339369:vm0-dev 3339387:vm1-vmm 3351767:vm5-dev 3351776:vm1-vmm 3355853:vm3-dev 3355872:vm1-vmm 
+# loadavg 9.04 6.38 7.03
+LAUNCH n=1000 sched=auto cycles=1000 total_ms=20.482 per_launch_us=20.48 interval_mean_us=20.48 interval_p10_us=14.41 interval_p50_us=15.05 interval_p90_us=16.19 interval_p99_us=61.62 interval_max_us=2797.3 launch_mean_us=5.14 launch_p10_us=4.48 launch_p50_us=4.91 launch_p90_us=5.49 launch_p99_us=12.79 launch_max_us=21.5 sync_mean_us=15.26 sync_p10_us=9.59 sync_p50_us=10.01 sync_p90_us=10.84 sync_p99_us=54.18 sync_max_us=2777.9
+# WALL wall_ms=1188 rc=0
+# MEAS dev_pid=3351767 dev_cpu_ms=930 dev_rss_hwm_kb=5255912/9444952 vmm_cpu_ms=1660 others: vm1-vmm=20ms vm1-vmm=380ms vm3-dev=40ms vm0-dev=450ms -dev=0ms 

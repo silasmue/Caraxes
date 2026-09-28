@@ -334,6 +334,11 @@ covers acks and enables that come later, the 10 ms watchdog covers the ambiguous
 
 ## 6a. Next steps: the two remaining sources
 
+(For CUDA launches the completion interrupt is not on the path: libcuda's auto wait spins on the
+semaphore. launch-path.md §2 measures the completion side, host event to raise 2 to 4 us and raise
+to MSI 11 to 15 us at the median, and §4 adds the interrupt gate for other clients' events,
+`CARAXES_INTR_GATE_MS`, backlog item 5.)
+
 After this change a Mutter frame still traps about 225 times (f3b). Two sources make up 185 of
 them, and each needs its own change:
 

@@ -1,0 +1,3 @@
+3312613 /mnt/vmstore/caraxes/vm5/vfio-user-nvgpu --socket /mnt/vmstore/caraxes/vm5/gpu.sock --trace /mnt/vmstore/caraxes/vm5/gpu-trace.log --config /home/silas/git/Caraxes/.claude/worktrees/agent-a418
+3365532 /mnt/vmstore/caraxes/vm5/vfio-user-nvgpu --socket /mnt/vmstore/caraxes/vm5/gpu.sock --trace /mnt/vmstore/caraxes/vm5/gpu-trace.log --config /home/silas/git/Caraxes/.claude/worktrees/agent-a418
+3464708 /mnt/vmstore/caraxes/vm5/vfio-user-nvgpu --socket /mnt/vmstore/caraxes/vm5/gpu.sock --trace /mnt/vmstore/caraxes/vm5/gpu-trace.log --config /home/silas/git/Caraxes/.claude/worktrees/agent-a418

@@ -1,0 +1,22 @@
+# series 2026-09-25T08:54:46+02:00 targets=[v2] reps=1 metrics=[short-auto launch1k copy]
+# libdir v2 /opt/nvrm/lib
+# caraxes shell-rig-335-g25c164b-dirty leandro-test 3edea73-dirty
+# bin c5b48cf1181bfcfc251f12aa2b0eaeb074887efec4c479f36efe399cb1307a13  bench-cu
+# bin 1fe322756ed297ae28ba698dbd7bcdd579dc65b09f6a3b6d9971343024c4d960  bench-cu-launch
+# bin 2e7db7218ac29e0da0b22a4d30307ea1f675dc04912d6b34922708495595904d  convnet.py
+# bin 68449e9ec7b25613a65d096a6a42864c01fbf46ec47e540ce01f47184f0479ea  ctrlping
+# bin 138c5073848b2f3cf2beb4709376c7c49b420d88e836664584e5cf8bbfc7848c  ioctlping
+# bin 1f921680fc7a2c2e0978eb007cc0ab48d2f1a7cf404a196c9063a19a10aa228f  kernels.ptx
+# bin abdf09531ac015ba4e8e7550bda6eb43609c429d6e1240e7f8553841bfe06513  llamaprobe.py
+# bin 2735d2a9cd25c0753898188542dbeb4a8433609024aa48230b6803a4a8d96e66  nvprobe
+# bin 012bb008b87ec0a6ee4ef566e0b55f856df09d6a3e07e72fe5cde5a9043dd18a  pporl.py
+# bin 02b1d58fc1778a47f8940e7f89d2cabb44b64d078f5b54b5ca1fba9437073c4a  transformer.py
+# bin f0868123fca8e2c40138fda523e35fa76c015b97e232fc647fea0b6b49f33584  vrampress
+# time 2026-09-25T08:54:46+02:00
+# gpu 49, 315 MHz, 405 MHz, P8, 35 %, 5173 MiB, Disabled
+# procs 3208281:-dev 3339369:vm0-dev 3339387:vm1-vmm 3351767:vm5-dev 3351776:vm1-vmm 3355853:vm3-dev 3355872:vm1-vmm 
+# loadavg 7.39 6.01 6.92
+08:54:49 v2  short-auto      rep 1: MSPERLAUNCH=0.040 # WALL wall_ms=2130 rc=0  | # MEAS dev_pid=3351767 dev_cpu_ms=1070 dev_rss_hwm_kb=5255808/9444952 vmm_cpu_ms=2080 others: vm1-vmm=30ms vm1-vmm=700ms
+08:54:51 v2  launch1k        rep 1: LAUNCH n=1000 sched=auto cycles=1000 total_ms=20.482 per_launch_us=20.48 interval_mean_us=20.48 interval_p10_us=14.41 interval_p50_us=15.05 interval_p | # MEAS dev_pid=3351767 dev_cpu_ms=930 dev_rss_hwm_kb=5255912/9444952 vmm_cpu_ms=1660 others: vm1-vmm=20ms vm1-vmm=380ms 
+08:54:56 v2  copy            rep 1: # WALL wall_ms=4212 rc=0  | # MEAS dev_pid=3351767 dev_cpu_ms=2610 dev_rss_hwm_kb=5266804/9444952 vmm_cpu_ms=6950 others: vm1-vmm=40ms vm1-vmm=920ms
+# end 2026-09-25T08:54:56+02:00

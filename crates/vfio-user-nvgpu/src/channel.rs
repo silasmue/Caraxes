@@ -929,6 +929,12 @@ impl Registry {
     /// Record the guest's GPPut at a doorbell of `chid`: every doorbell path calls this
     /// before it rings, and [`Self::pending`] compares against it.
     pub fn note_rung(&mut self, mem: &GpuMem, chid: u32) {
+        // Only the token-less ioeventfd reader compares against `gp_put_seen` (`pending`),
+        // and it excludes the token pool (main.rs): with the pool on, the fast ring path
+        // (launch.rs `FAST_ENV`) spares the read, an uncached one for a USERD in the pool.
+        if crate::launch::fast() && self.tokens.is_some() {
+            return;
+        }
         if let Some((_, gp_put)) = self.gp_put_of(mem, chid) {
             if let Some(ch) = self.channels.get_mut(&chid) {
                 ch.gp_put_seen = gp_put;
@@ -4288,6 +4294,19 @@ mod tests {
         assert!(reg.pending(&mem, 9));
         reg.note_rung(&mem, 9);
         assert!(!reg.pending(&mem, 9));
+        // The fast ring path spares note_rung's read only with the token pool on (which
+        // excludes the token-less reader, the one user of `pending`).
+        crate::launch::set_fast_here(true);
+        mem.fb.write(0x20_0000 + USERD_GP_PUT, &3u32.to_le_bytes());
+        reg.note_rung(&mem, 9);
+        assert!(!reg.pending(&mem, 9), "no pool: still recorded");
+        reg.tokens = Some(crate::tokens::TokenPool::new(4));
+        mem.fb.write(0x20_0000 + USERD_GP_PUT, &4u32.to_le_bytes());
+        reg.note_rung(&mem, 9);
+        assert!(reg.pending(&mem, 9), "pool on: the read is skipped");
+        crate::launch::set_fast_here(false);
+        reg.note_rung(&mem, 9);
+        assert!(!reg.pending(&mem, 9), "switch off: recorded again");
         let _ = std::fs::remove_file(&path);
     }
 

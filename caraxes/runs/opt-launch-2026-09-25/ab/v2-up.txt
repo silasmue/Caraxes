@@ -1,0 +1,6 @@
+ssh: connect to host 192.168.105.26 port 22: No route to host
+stopped
+ERROR: DMA table in /mnt/vmstore/caraxes/vm5/dma-ranges covers 0 of 4294967296 bytes
+stopped
+ERROR: DMA table in /mnt/vmstore/caraxes/vm5/dma-ranges covers 0 of 4294967296 bytes
+ssh: connect to host 192.168.105.26 port 22: No route to host

@@ -205,3 +205,14 @@ both:
   histograms and the summary carry over unchanged. Only the source of events changes: memory
   loads replace `epoll_wait`, and the eventfds remain as the fallback for channels without a
   polled page. One reactor core could then serve several devices, as P24 plans.
+
+## The launch path (2026-09-25)
+
+[launch-path.md](launch-path.md) splits the "ring to host doorbell" time of this reactor into its
+steps (`CARAXES_LAUNCH_TIMING=1`) and halves it with `CARAXES_LAUNCH_FAST=1` (p50 6.4 to 3.0 us in
+a launch loop, 9.8 to 3.7 us in rlprobe): the 3.6 us of the first measurement had become 6 to
+10 us once USERD moved into the BAR1 pool, because every GPGet and GPPut read and the flush are
+uncached BAR1 reads. It also measured the adaptive spin window (`CARAXES_DOORBELL_POLL_ADAPT_US`,
+`Wait::with_adapt`): fewer blocking wake-ups, more reactor CPU, no measurable guest gain; off by
+default. P24 stays unbuilt: with the pool, polling GPPut costs an uncached read per channel per
+iteration (launch-path.md §5).

@@ -48,6 +48,7 @@ pub mod intr_page;
 pub mod invalidate;
 pub mod invgate;
 pub mod kgr;
+pub mod launch;
 pub mod lazy;
 pub mod mirror;
 pub mod msgq;

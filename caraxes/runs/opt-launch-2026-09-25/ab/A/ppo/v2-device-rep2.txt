@@ -1,0 +1,139 @@
+vfio-user-nvgpu: launch timing on: per-step histograms of the doorbell and completion path in the exit summary (CARAXES_LAUNCH_TIMING=1, docs/caraxes/launch-path.md)
+vfio-user-nvgpu: host ABI 615.71.09: TSG params 28 bytes, GPU_GET_PES_INFO 76 (tpcToPesMap[15]), GR_GET_GLOBAL_SM_ORDER 10264 (SM entry 20), channel params 376, GSS legacy [pmgr 0x18 20512, thermal 0x36 24532, perf 0xf1 9216] (chosen by running driver 615.71.09 (/proc/driver/nvidia/version)); guest ABI 610.57.04
+vfio-user-nvgpu: host memory client open; privilege: uid 1000; capabilities effective 0x0 permitted 0x200000 inheritable 0x0
+vfio-user-nvgpu: hostmem: host FB regions: [0x3620000, 0x1e988ffff] reserved 0x0
+vfio-user-nvgpu: hostmem: host VRAM: total 8192 MiB, HEAP_FREE 3593 MiB, nvidia-smi free 3594 MiB, largest free region 3072 MiB at 0xa9800000; request 1024 MiB at [0x129800000, 0x169800000) (slot 2, heap region end 0x1e9890000)
+vfio-user-nvgpu: hostmem: reserved host VRAM [0x129800000, 0x169800000) (1024 MiB, slot 2), handle 0x80000003, attr 0x11800000 attr2 0x100005, contiguous, in 0 ms
+vfio-user-nvgpu: fb layout: address space 0x200000000 (host card), reservation [0x129800000, 0x169800000), usable [0x129800000, 0x167600000), BAR2/BAR1 roots 0x169600000/0x169601000, fb_length 0x40000000
+vfio-user-nvgpu: guest name "Leandro VFIO RTX 2070-1G"
+vfio-user-nvgpu: host RM open (unprivileged client, device 0, subdevice 0)
+vfio-user-nvgpu: alloc lazy: on, shadow plans at the next shadow doorbell or channel creation, deadline 20 ms [CARAXES_ALLOC_LAZY]
+vfio-user-nvgpu: host execution on: FB backed by the reserved VRAM through BAR1 windows (budget 2 x 32 MiB = 64 MiB of the host's shared BAR1; CARAXES_BAR1_WINDOWS, CARAXES_BAR1_WINDOW_MIB); guest channels mirrored on the host at their first doorbell; GR0/CE2-CE4 non-stall events forwarded as guest vectors (docs/caraxes/execution.md)
+vfio-user-nvgpu: bar1 pool: guest BAR1 [0, 0x2000000) offered as one sparse mmap area of region 1, backed by a dma-buf of the pool FB [0x167600000, 0x169600000) below the carve-out; the guest's usable FB ends at 0x167600000 (fbRegionInfo region 0), the pool is reported reserved; every page the guest maps into the area is moved to its pool page; 0x2000000 of host BAR1 held while the client maps it (CARAXES_BAR1_PASSTHROUGH=pool, docs/caraxes/bar1-pool.md)
+vfio-user-nvgpu: bar2 memfd: guest BAR2 [0, 0x2000000) offered as 2 sparse mmap area(s) of region 3 from a sealed memfd; trapped page(s) ["0xfea000"]; synced at the trapped pages, MMU invalidates, BAR2 binds and GSP doorbells (CARAXES_BAR2_MEMFD=1, docs/caraxes/bar2-memfd.md)
+vfio-user-nvgpu: intr page: BAR0 [0x0, 0x1000) and the interrupt tree [0xb81000, 0xb82000) offered as sparse mmap areas of region 0 from a memfd; the reactor applies the guest's stores (sleep bound 1 ms, retrigger watchdog 10 ms) (CARAXES_INTR_PAGE=1, docs/caraxes/intr-page.md)
+vfio-user-nvgpu: doorbell tokens: BAR0 0xbb0090, 4 bytes, 64 sub-region(s) with datamatch 0xca700000..=0xca70003f and one eventfd each, offered through VFIO_USER_DEVICE_GET_REGION_IO_FDS; a channel gets a pool token at its first (trapped) doorbell, written to its work-submit-token notifier entry (CARAXES_DOORBELL_TOKENS=64, docs/caraxes/doorbell-token-pool.md)
+vfio-user-nvgpu: msi re-arm ioeventfd: BAR0 0x88704 (NV_XVE_CYA_2), 4 bytes, no datamatch, offered through VFIO_USER_DEVICE_GET_REGION_IO_FDS and read by the token pool's reactor; a client that does not register it keeps trapping the write (CARAXES_MSI_REARM_IOEVENTFD=1, docs/caraxes/intr-page.md §4)
+vfio-user-nvgpu: guest ABI 610 (MsgqV1)
+vfio-user-nvgpu: TU106 (BOOT_0 0x166000a1, driver 610.57.04) on /mnt/vmstore/caraxes/vm5/gpu.sock, boot model on, FB 1024 MiB, ROM 130048 bytes, PROM image 131584 bytes, trace /mnt/vmstore/caraxes/vm5/gpu-trace.log
+vfio-user-nvgpu: doorbell poll: hybrid reader (CARAXES_DOORBELL_POLL=hybrid, CARAXES_DOORBELL_POLL_CPU=Auto)
+[2026-09-25T07:16:21Z INFO  vfio_user] Received client version: major = 0 minor = 1 capabilities = Capabilities { max_msg_fds: 253, max_data_xfer_size: 1048576, migration: MigrationCapabilities { pgsize: 4096 } }
+[2026-09-25T07:16:21Z INFO  vfio_user] Sent server version: major = 0 minor = 0 capabilities = Capabilities { max_msg_fds: 1, max_data_xfer_size: 1048576, migration: MigrationCapabilities { pgsize: 4096 } }
+vfio-user-nvgpu: hostmem: guest RAM 0x0+0xc0000000: registration deferred until all 4096 MiB are mapped (3072 MiB so far), so the whole guest gets one IOVA offset
+vfio-user-nvgpu: dma table: 0 range(s), identity; ranges=; published to /mnt/vmstore/caraxes/vm5/dma-ranges
+vfio-user-nvgpu: hostmem: placed guest RAM chunk GPA 0x100000000..0x140000000 -> IOVA 0x7ffe80000000..0x7ffec0000000 (descriptor 0x80000004, 1136 ms, 9 IOVA samples = base + offset)
+vfio-user-nvgpu: hostmem: linear registration: GPA 0xc0000000 landed at IOVA 0x7ffe00000000 (offset 0x7ffd40000000, not 0x7ffd80000000): a host allocation sits in between; restart 1 below it
+vfio-user-nvgpu: hostmem: placed guest RAM chunk GPA 0x100000000..0x140000000 -> IOVA 0x7ffd80000000..0x7ffdc0000000 (descriptor 0x80000006, 156 ms, 9 IOVA samples = base + offset)
+vfio-user-nvgpu: hostmem: linear registration: GPA 0xc0000000 landed at IOVA 0x7ffcc0000000 (offset 0x7ffc00000000, not 0x7ffc80000000): a host allocation sits in between; restart 2 below it
+vfio-user-nvgpu: hostmem: placed guest RAM chunk GPA 0x100000000..0x140000000 -> IOVA 0x7ffb40000000..0x7ffb80000000 (descriptor 0x80000008, 147 ms, 9 IOVA samples = base + offset)
+vfio-user-nvgpu: hostmem: linear registration: GPA 0xc0000000 landed at IOVA 0x7ffa40000000 (offset 0x7ff980000000, not 0x7ffa40000000): a host allocation sits in between; restart 3 below it
+vfio-user-nvgpu: hostmem: placed guest RAM chunk GPA 0x100000000..0x140000000 -> IOVA 0x7ff980000000..0x7ff9c0000000 (descriptor 0x8000000a, 100 ms, 9 IOVA samples = base + offset)
+vfio-user-nvgpu: hostmem: linear registration: GPA 0xc0000000 landed at IOVA 0x7ff900000000 (offset 0x7ff840000000, not 0x7ff880000000): a host allocation sits in between; restart 4 below it
+vfio-user-nvgpu: hostmem: placed guest RAM chunk GPA 0x100000000..0x140000000 -> IOVA 0x7ff880000000..0x7ff8c0000000 (descriptor 0x8000000c, 660 ms, 9 IOVA samples = base + offset)
+vfio-user-nvgpu: hostmem: hole filler GPA 0xc0000000..0x100000000 -> IOVA 0x7ff840000000..0x7ff880000000 (descriptor 0x8000000d over one device-owned 2 MiB page, 305 ms; never in the guest's table or the filter)
+vfio-user-nvgpu: hostmem: placed guest RAM chunk GPA 0x80000000..0xc0000000 -> IOVA 0x7ff800000000..0x7ff840000000 (descriptor 0x8000000e, 1092 ms, 9 IOVA samples = base + offset)
+vfio-user-nvgpu: hostmem: placed guest RAM chunk GPA 0x40000000..0x80000000 -> IOVA 0x7ff7c0000000..0x7ff800000000 (descriptor 0x8000000f, 1573 ms, 9 IOVA samples = base + offset)
+vfio-user-nvgpu: hostmem: placed guest RAM chunk GPA 0x0..0x40000000 -> IOVA 0x7ff780000000..0x7ff7c0000000 (descriptor 0x80000010, 860 ms, 9 IOVA samples = base + offset)
+vfio-user-nvgpu: hostmem: guest RAM 4096 MiB in 2 zone(s): 4 chunk(s) + 1 hole filler(s) registered from the top GPA down in 8681 ms (4 restart(s)); IOVA = GPA + 0x7ff780000000 for the whole guest; pinned now 4096 MiB; host foll_pin acquired +3408896 released +2097152; privileged windows so far 13
+vfio-user-nvgpu: hostmem: registered guest RAM chunk GPA 0x0..0x40000000 -> IOVA 0x7ff780000000..0x7ff7c0000000 (descriptor 0x80000010, linear)
+vfio-user-nvgpu: hostmem: registered guest RAM chunk GPA 0x40000000..0x80000000 -> IOVA 0x7ff7c0000000..0x7ff800000000 (descriptor 0x8000000f, linear)
+vfio-user-nvgpu: hostmem: registered guest RAM chunk GPA 0x80000000..0xc0000000 -> IOVA 0x7ff800000000..0x7ff840000000 (descriptor 0x8000000e, linear)
+vfio-user-nvgpu: hostmem: registered guest RAM chunk GPA 0x100000000..0x140000000 -> IOVA 0x7ff880000000..0x7ff8c0000000 (descriptor 0x8000000c, linear)
+vfio-user-nvgpu: dma table: 2 range(s), host IOVAs; ranges=0:7ff780000000:c0000000,100000000:7ff880000000:40000000; published to /mnt/vmstore/caraxes/vm5/dma-ranges
+vfio-user-nvgpu: doorbell poll: reader pinned to CPU 7 (auto: 40 % idle over 1 s; not CPU 0; VMM vCPU threads of pid 3526570 on CPU(s) [4, 5, 13] at the sample, avoided)
+vfio-user-nvgpu: alloc lazy: on, shadow plans at the next shadow doorbell or channel creation, deadline 20 ms [CARAXES_ALLOC_LAZY]
+vfio-user-nvgpu: dma table: guest aliases from /mnt/vmstore/caraxes/vm5/dma-ranges.guest: GPA 0xba200000..0xbe400000 -> IOVA 0xf000000000..0xf004200000
+vfio-user-nvgpu: alloc lazy: on, shadow plans at the next shadow doorbell or channel creation, deadline 20 ms [CARAXES_ALLOC_LAZY]
+vfio-user-nvgpu: bar1 pool: 492 page(s) the GPU maps moved behind the barrier (20 host channel(s) idle, 4 TSG(s) preempted); shadow(s) of root(s) {129800000} re-synced and the worker drained before the guest continues
+vfio-user-nvgpu: ERROR: bar1 pool: guest BAR1 0x82000 no longer maps FB 0x12a202000, but the page cannot move back from its pool page 0x167682000 yet: the page is the USERD of mirrored channel chid 2, whose host channel holds its address until it is freed; it stays in the pool (consistent) and is retried
+vfio-user-nvgpu: ERROR: bar1 pool: guest BAR1 0x85000 no longer maps FB 0x12a205000, but the page cannot move back from its pool page 0x167685000 yet: the page is the USERD of mirrored channel chid 3, whose host channel holds its address until it is freed; it stays in the pool (consistent) and is retried
+vfio-user-nvgpu: ERROR: bar1 pool: guest BAR1 0x88000 no longer maps FB 0x12a208000, but the page cannot move back from its pool page 0x167688000 yet: the page is the USERD of mirrored channel chid 4, whose host channel holds its address until it is freed; it stays in the pool (consistent) and is retried
+vfio-user-nvgpu: ERROR: bar1 pool: guest BAR1 0x8b000 no longer maps FB 0x12a20b000, but the page cannot move back from its pool page 0x16768b000 yet: the page is the USERD of mirrored channel chid 5, whose host channel holds its address until it is freed; it stays in the pool (consistent) and is retried
+vfio-user-nvgpu: ERROR: bar1 pool: guest BAR1 0x8e000 no longer maps FB 0x12a20e000, but the page cannot move back from its pool page 0x16768e000 yet: the page is the USERD of mirrored channel chid 6, whose host channel holds its address until it is freed; it stays in the pool (consistent) and is retried
+vfio-user-nvgpu: ERROR: bar1 pool: guest BAR1 0x91000 no longer maps FB 0x12a211000, but the page cannot move back from its pool page 0x167691000 yet: the page is the USERD of mirrored channel chid 7, whose host channel holds its address until it is freed; it stays in the pool (consistent) and is retried
+vfio-user-nvgpu: ERROR: bar1 pool: guest BAR1 0x94000 no longer maps FB 0x12a214000, but the page cannot move back from its pool page 0x167694000 yet: the page is the USERD of mirrored channel chid 8, whose host channel holds its address until it is freed; it stays in the pool (consistent) and is retried
+vfio-user-nvgpu: ERROR: bar1 pool: guest BAR1 0x97000 no longer maps FB 0x12a217000, but the page cannot move back from its pool page 0x167697000 yet: the page is the USERD of mirrored channel chid 9, whose host channel holds its address until it is freed; it stays in the pool (consistent) and is retried
+vfio-user-nvgpu: ERROR: bar1 pool: guest BAR1 0x9a000 no longer maps FB 0x12a21a000, but the page cannot move back from its pool page 0x16769a000 yet: the page is the USERD of mirrored channel chid 10, whose host channel holds its address until it is freed; it stays in the pool (consistent) and is retried
+vfio-user-nvgpu: ERROR: bar1 pool: guest BAR1 0x9d000 no longer maps FB 0x12a21d000, but the page cannot move back from its pool page 0x16769d000 yet: the page is the USERD of mirrored channel chid 11, whose host channel holds its address until it is freed; it stays in the pool (consistent) and is retried
+vfio-user-nvgpu: ERROR: bar1 pool: guest BAR1 0xa0000 no longer maps FB 0x12a220000, but the page cannot move back from its pool page 0x1676a0000 yet: the page is the USERD of mirrored channel chid 12, whose host channel holds its address until it is freed; it stays in the pool (consistent) and is retried
+vfio-user-nvgpu: ERROR: bar1 pool: guest BAR1 0xa3000 no longer maps FB 0x12a223000, but the page cannot move back from its pool page 0x1676a3000 yet: the page is the USERD of mirrored channel chid 13, whose host channel holds its address until it is freed; it stays in the pool (consistent) and is retried
+vfio-user-nvgpu: ERROR: bar1 pool: guest BAR1 0xa6000 no longer maps FB 0x12a226000, but the page cannot move back from its pool page 0x1676a6000 yet: the page is the USERD of mirrored channel chid 14, whose host channel holds its address until it is freed; it stays in the pool (consistent) and is retried
+vfio-user-nvgpu: ERROR: bar1 pool: guest BAR1 0xa9000 no longer maps FB 0x12a229000, but the page cannot move back from its pool page 0x1676a9000 yet: the page is the USERD of mirrored channel chid 15, whose host channel holds its address until it is freed; it stays in the pool (consistent) and is retried
+vfio-user-nvgpu: ERROR: bar1 pool: guest BAR1 0xac000 no longer maps FB 0x12a22c000, but the page cannot move back from its pool page 0x1676ac000 yet: the page is the USERD of mirrored channel chid 16, whose host channel holds its address until it is freed; it stays in the pool (consistent) and is retried
+vfio-user-nvgpu: ERROR: bar1 pool: guest BAR1 0xaf000 no longer maps FB 0x12a22f000, but the page cannot move back from its pool page 0x1676af000 yet: the page is the USERD of mirrored channel chid 17, whose host channel holds its address until it is freed; it stays in the pool (consistent) and is retried
+vfio-user-nvgpu: ERROR: bar1 pool: guest BAR1 0xb2000 no longer maps FB 0x12a232000, but the page cannot move back from its pool page 0x1676b2000 yet: the page is the USERD of mirrored channel chid 18, whose host channel holds its address until it is freed; it stays in the pool (consistent) and is retried
+vfio-user-nvgpu: ERROR: bar1 pool: guest BAR1 0xb5000 no longer maps FB 0x12a235000, but the page cannot move back from its pool page 0x1676b5000 yet: the page is the USERD of mirrored channel chid 19, whose host channel holds its address until it is freed; it stays in the pool (consistent) and is retried
+vfio-user-nvgpu: ERROR: bar1 pool: guest BAR1 0xb8000 no longer maps FB 0x12a238000, but the page cannot move back from its pool page 0x1676b8000 yet: the page is the USERD of mirrored channel chid 20, whose host channel holds its address until it is freed; it stays in the pool (consistent) and is retried
+vfio-user-nvgpu: ERROR: bar1 pool: guest BAR1 0xbb000 no longer maps FB 0x12a23b000, but the page cannot move back from its pool page 0x1676bb000 yet: the page is the USERD of mirrored channel chid 21, whose host channel holds its address until it is freed; it stays in the pool (consistent) and is retried
+vfio-user-nvgpu: bar1 pool: 1 page(s) the GPU maps moved behind the barrier (19 host channel(s) idle, 4 TSG(s) preempted); shadow(s) of root(s) {129800000} re-synced and the worker drained before the guest continues
+vfio-user-nvgpu: bar1 pool: 1 page(s) the GPU maps moved behind the barrier (18 host channel(s) idle, 4 TSG(s) preempted); shadow(s) of root(s) {129800000} re-synced and the worker drained before the guest continues
+vfio-user-nvgpu: bar1 pool: 1 page(s) the GPU maps moved behind the barrier (17 host channel(s) idle, 4 TSG(s) preempted); shadow(s) of root(s) {129800000} re-synced and the worker drained before the guest continues
+vfio-user-nvgpu: bar1 pool: 1 page(s) the GPU maps moved behind the barrier (16 host channel(s) idle, 4 TSG(s) preempted); shadow(s) of root(s) {129800000} re-synced and the worker drained before the guest continues
+vfio-user-nvgpu: bar1 pool: 1 page(s) the GPU maps moved behind the barrier (15 host channel(s) idle, 4 TSG(s) preempted); shadow(s) of root(s) {129800000} re-synced and the worker drained before the guest continues
+vfio-user-nvgpu: bar1 pool: 1 page(s) the GPU maps moved behind the barrier (14 host channel(s) idle, 4 TSG(s) preempted); shadow(s) of root(s) {129800000} re-synced and the worker drained before the guest continues
+vfio-user-nvgpu: bar1 pool: 1 page(s) the GPU maps moved behind the barrier (13 host channel(s) idle, 4 TSG(s) preempted); shadow(s) of root(s) {129800000} re-synced and the worker drained before the guest continues
+vfio-user-nvgpu: bar1 pool: 1 page(s) the GPU maps moved behind the barrier (12 host channel(s) idle, 3 TSG(s) preempted); shadow(s) of root(s) {129800000} re-synced and the worker drained before the guest continues
+vfio-user-nvgpu: bar1 pool: 1 page(s) the GPU maps moved behind the barrier (11 host channel(s) idle, 3 TSG(s) preempted); shadow(s) of root(s) {129800000} re-synced and the worker drained before the guest continues
+vfio-user-nvgpu: bar1 pool: 1 page(s) the GPU maps moved behind the barrier (10 host channel(s) idle, 3 TSG(s) preempted); shadow(s) of root(s) {129800000} re-synced and the worker drained before the guest continues
+vfio-user-nvgpu: bar1 pool: 1 page(s) the GPU maps moved behind the barrier (9 host channel(s) idle, 3 TSG(s) preempted); shadow(s) of root(s) {129800000} re-synced and the worker drained before the guest continues
+vfio-user-nvgpu: at 1790320815.532 pool empty: bar1 pool: guest BAR1 [0, 0x2000000) on the pool FB [0x167600000, 0x169600000); 76 poll(s), 82 unit walk(s); 0 page(s) in the pool now; moved in 512 cold + 0 behind the barrier, back 0 cold + 512 behind the barrier; 21 barrier(s) (0 refused, 56 TSG preempt(s)); 20 refused, 0 pending now, 0 sysmem page(s) in the area; copied 2048 KiB in, 2048 KiB back in 1781566 us; 0 page-table hazard(s); 0 page(s) also behind the BAR2 memfd; slowest poll 921390 us (docs/caraxes/bar1-pool.md); untrapped GPPut: rule on (CARAXES_SHADOW_UNTRAPPED_HOLD); 37 invalidate(s) held until applied (16 ms in total, longest 2526 us); 50910 doorbell(s) found the host channel ahead of them, 0 of them with plans pending (docs/caraxes/bar1-pool.md §9)
+[2026-09-25T07:20:16Z INFO  vfio_user] Connection closed
+vfio-user-nvgpu: mirror: shadow: VAS of guest root 0x129800000 freed: 58 syncs (0 skipped clean, 1 full walks, 87 table reads, 2876 units diffed; max 13354 us, total 105 ms), 204 maps (21482 leaves), 110 unmaps (21 partial, 0 failed), 0 map-failed, 0 over budget, 1 refused by the filter, 147 region objects (1 freed, 0 of them whole with 0 mappings, 0 refused, 19 pooled), 0 per-leaf objects, 1 gather descriptor(s) for 512 leaves (0 refused, 1 live); 20430 leaves in 134 RM mappings at the end; RM calls 463: map 204 (10052 us), unmap 110 (6397 us), object alloc 147 (9734 us), object free 1 (95 us), invalidate 0 (0 us), gather alloc 1 (1621 us), gather free 0 (0 us); regions reused 10, pooled 29; TLB invalidation per call; mapped PAs so far: vidmem [0x129a00000, 0x167880000); sysmem chunks 0x7ff780000000:46 0x7ff880000000:1; incremental teardown: 134 RM mapping(s) unmapped (134 with their region object, 0 failed) and 146 virtual object(s) freed in 5 step(s) of at most 64 mappings, the host RM lock released between steps, TLB invalidation per call, 27 ms in total; RM calls 148: map 0 (0 us), unmap 0 (0 us), object alloc 0 (0 us), object free 147 (15768 us), invalidate 0 (0 us), gather alloc 0 (0 us), gather free 1 (140 us); regions reused 0, pooled 0 [host]
+vfio-user-nvgpu: mirror: host doorbell object 0x80000040 freed: Ok(())
+vfio-user-nvgpu: mirror: host OS events freed, event thread stopped
+vfio-user-nvgpu: hostmem: freed host shadow-error-notifier 0x80000081
+vfio-user-nvgpu: hostmem: freed host shadow-error-notifier 0x8000007e
+vfio-user-nvgpu: hostmem: freed host shadow-error-notifier 0x8000007b
+vfio-user-nvgpu: hostmem: freed host shadow-error-notifier 0x80000078
+vfio-user-nvgpu: hostmem: freed host shadow-error-notifier 0x80000074
+vfio-user-nvgpu: hostmem: freed host shadow-error-notifier 0x80000071
+vfio-user-nvgpu: hostmem: freed host shadow-error-notifier 0x8000006e
+vfio-user-nvgpu: hostmem: freed host shadow-error-notifier 0x8000006b
+vfio-user-nvgpu: hostmem: freed host shadow-error-notifier 0x80000067
+vfio-user-nvgpu: hostmem: freed host shadow-error-notifier 0x80000064
+vfio-user-nvgpu: hostmem: freed host shadow-error-notifier 0x80000061
+vfio-user-nvgpu: hostmem: freed host shadow-error-notifier 0x8000005e
+vfio-user-nvgpu: hostmem: freed host shadow-error-notifier 0x80000059
+vfio-user-nvgpu: hostmem: freed host shadow-error-notifier 0x80000055
+vfio-user-nvgpu: hostmem: freed host shadow-error-notifier 0x80000051
+vfio-user-nvgpu: hostmem: freed host shadow-error-notifier 0x8000004d
+vfio-user-nvgpu: hostmem: freed host shadow-error-notifier 0x80000049
+vfio-user-nvgpu: hostmem: freed host shadow-error-notifier 0x80000045
+vfio-user-nvgpu: hostmem: freed host shadow-error-notifier 0x80000041
+vfio-user-nvgpu: hostmem: freed host shadow-error-notifier 0x8000003c
+vfio-user-nvgpu: hostmem: freed 20 of 20 host mirror object(s) before the descriptors
+vfio-user-nvgpu: hostmem: freed hole filler descriptor 0x8000000d (GPA 0xc0000000, IOVA 0x7ff840000000)
+vfio-user-nvgpu: hostmem: freed the VRAM reservation [0x129800000, 0x169800000) (1024 MiB) in 0 ms (host RM scrub on free)
+vfio-user-nvgpu: hostmem: host RM client 0xc1d6730f freed
+vfio-user-nvgpu: hostmem: freed 4 guest RAM descriptor(s), 4096 MiB unpinned; host foll_pin released +1310740 during the free (since open: acquired +3592108, released +3590446)
+vfio-user-nvgpu: hostmem: privileged windows opened in total: 13
+bar0: 34959 reads, 33756 writes
+bar3: 738 reads, 0 writes
+cfg: 12433 reads, 41 writes
+msi re-arm ioeventfd: 12951 guest write(s) in 12937 wakeup(s)
+dma table: 0 DMA address(es) outside the table refused
+fb: reservation [0x129800000, 0x169800000); accesses outside it: 0 reads, 0 writes
+vram store: 2680 window map(s), 2682 refused, 2679 eviction(s), 0 stall(s) without any window; 5788723 read(s) of 27958972 bytes, 63145 write(s) of 4569746 bytes
+bar tlb: 737 hit(s), 1 walk(s), 0 flush(es) by a table write (docs/caraxes/mapping.md §3)
+bar2 memfd: BAR2 [0, 0x2000000) in host RAM, trapped page(s) [0xfea000] with 738 access(es); 1297 sync(s) (412660 us total, 10128 us max), 120132 page compare(s), 416 dirty page(s), 293914 byte(s) written back, 0 alias conflict(s); 101 BAR2 table walk(s), 132 page(s) entered (130 loaded), 1 left; now 129 page(s) mapped at 131 BAR2 page(s), at most 129 live and 2 alias(es) of one page; 0 sysmem write-back(s) skipped (docs/caraxes/bar2-memfd.md)
+mirror: 20 channel(s) created, 20 freed, 0 live; 1157195 doorbell(s) forwarded, 0 TLB invalidate(s) (0 MEM_OP push(es), 0 slow), 0 refusal(s), longest mirror build 0 us; events raised 13180, MSIs 12971 (coalesced 203), host RC events 0; alloc lazy: 205 invalidate(s) deferred, planned in 13 batch(es) at a doorbell and 23 at the deadline (20 ms), largest batch 38 invalidate(s), 6 still pending; untrapped GPPut: rule on (CARAXES_SHADOW_UNTRAPPED_HOLD); 37 invalidate(s) held until applied (16 ms in total, longest 2526 us); 50910 doorbell(s) found the host channel ahead of them, 0 of them with plans pending (docs/caraxes/bar1-pool.md §9)
+doorbell tokens: 64 offered (0xca700000..), 20 handed out, 0 written again, 0 assigned at exit (peak 20); 1157175 eventfd wakeup(s) for 1247711 guest write(s); 0 pool token(s) trapped; 0 trapped ring(s) with a channel's own token after its hand-out; 0 stale; left on their own token: 0 without notifier, 0 notifier mismatch, 0 pool exhausted
+bar1 pool: guest BAR1 [0, 0x2000000) on the pool FB [0x167600000, 0x169600000); 76 poll(s), 82 unit walk(s); 0 page(s) in the pool now; moved in 512 cold + 0 behind the barrier, back 0 cold + 512 behind the barrier; 21 barrier(s) (0 refused, 56 TSG preempt(s)); 20 refused, 0 pending now, 0 sysmem page(s) in the area; copied 2048 KiB in, 2048 KiB back in 1781566 us; 0 page-table hazard(s); 0 page(s) also behind the BAR2 memfd; slowest poll 921390 us (docs/caraxes/bar1-pool.md)
+vidmem PTE kinds walked (kind:comptagline x count): 0x06:0x0x1 -- all uncompressed (kind 0x06/0x00, comptagline 0): comptag hold satisfied
+doorbell poll (tokens): hybrid (200 us idle), pinned to CPU 7; 74174259 loop iteration(s), 1177667 with events, 183513 blocking wait(s); 1170112 eventfd event(s) for 1260662 guest write(s); ring to host doorbell: 1157175 ring(s), mean 8.14 us, p50 7.3 us, p99 16.1 us, max 3718.7 us (0 ring(s) without a host doorbell); Device lock wait per wakeup: mean 0.81 us, p50 0.5 us, p99 1.3 us, max 25761.5 us; reader CPU 38.966 s (16.6 %) in 235.3 s
+intr page: 26533 scan(s) with work (slowest 2271.1 us); guest stores applied: 12949 ack(s), 381 LEAF_EN_SET, 758 LEAF_EN_CLEAR, 598 TOP_EN_SET, 375 TOP_EN_CLEAR, 1 trigger(s); 12977 raise fold(s) (237 coalesced while pending, 208 pended again at the ack); MSIs: 12949 for raises, 2 re-arms (a set store while a vector is pending), 20 by the watchdog, 0 not written (MSI off or no eventfd); 76 compare-and-swap(s) lost to a guest store; inconsistencies: none
+launch timing: 1166732 ring(s) by the reactor (23213 after a blocking wait), 1157195 host doorbell(s); host events by the age of the last host doorbell: 4 none yet, 10098 < 1 ms, 1976 < 100 ms, 1102 older (CARAXES_LAUNCH_TIMING=1, docs/caraxes/launch-path.md)
+launch timing: lock: n 1166732, mean 0.85 us, p10 0.5 us, p50 0.5 us, p90 0.7 us, p99 1.3 us, max 25762.3 us
+launch timing: dispatch: n 1157175, mean 1.63 us, p10 1.3 us, p50 1.4 us, p90 1.7 us, p99 4.3 us, max 2809.8 us
+launch timing: ran-ahead check: n 1157175, mean 2.08 us, p10 1.8 us, p50 1.9 us, p90 2.1 us, p99 4.2 us, max 3136.5 us
+launch timing: plan: n 1157175, mean 0.17 us, p10 0.2 us, p50 0.2 us, p90 0.3 us, p99 0.7 us, max 1260.1 us
+launch timing: worker wait: n 1157175, mean 0.07 us, p10 0.1 us, p50 0.1 us, p90 0.1 us, p99 0.1 us, max 826.3 us
+launch timing: BAR1 flush: n 1157175, mean 1.01 us, p10 0.9 us, p50 1.0 us, p90 1.1 us, p99 2.2 us, max 3688.2 us
+launch timing: USERD read: n 1157175, mean 1.98 us, p10 1.8 us, p50 1.9 us, p90 2.1 us, p99 2.6 us, max 2785.1 us
+launch timing: host doorbell write: n 1157175, mean 0.06 us, p10 0.1 us, p50 0.1 us, p90 0.1 us, p99 0.3 us, max 1008.2 us
+launch timing: tail after the host doorbell: n 1155103, mean 5.32 us, p10 4.3 us, p50 4.3 us, p90 7.0 us, p99 13.6 us, max 5122.7 us
+launch timing: ring to host doorbell (sum): n 1155103, mean 7.48 us, p10 6.3 us, p50 6.9 us, p90 8.0 us, p99 14.3 us, max 3697.0 us
+launch timing: host doorbell to the next ring: n 1166728, mean 1488.47 us, p10 4.8 us, p50 9.8 us, p90 46.0 us, p99 570.0 us, max 4200564.4 us
+launch timing: host doorbell to host event: n 13176, mean 159544.35 us, p10 9.1 us, p50 140.0 us, p90 4269707.4 us, p99 4269707.4 us, max 4269707.4 us
+launch timing: host event to raise: n 13180, mean 2.70 us, p10 1.2 us, p50 1.8 us, p90 4.7 us, p99 10.1 us, max 334.7 us
+launch timing: raise to MSI: n 12867, mean 47.26 us, p10 1.8 us, p50 8.6 us, p90 39.4 us, p99 1160.0 us, max 5954.2 us

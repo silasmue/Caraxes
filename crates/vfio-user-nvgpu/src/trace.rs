@@ -119,6 +119,20 @@ impl Trace {
         self.line(&format!("E {text}"));
     }
 
+    /// Several events with one flush at the end (the fast ring path, launch.rs).
+    pub fn events(&mut self, texts: &[String]) {
+        let t = self.start.elapsed().as_micros();
+        if let Some(out) = &mut self.out {
+            for text in texts {
+                let _ = writeln!(out, "{t:>12} E {text}");
+            }
+            if !texts.is_empty() {
+                let _ = out.flush();
+                self.last_flush = Instant::now();
+            }
+        }
+    }
+
     pub fn summary(&self) -> String {
         let mut s = String::new();
         for (i, n) in REGION_NAMES.iter().enumerate() {

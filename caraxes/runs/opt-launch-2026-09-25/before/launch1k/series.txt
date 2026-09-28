@@ -1,0 +1,64 @@
+# series 2026-09-25T08:23:09+02:00 targets=[v2] reps=3 metrics=[launch1k]
+# libdir v2 /opt/nvrm/lib
+# caraxes shell-rig-333-g7095b3c-dirty leandro-test 3edea73-dirty
+# bin c5b48cf1181bfcfc251f12aa2b0eaeb074887efec4c479f36efe399cb1307a13  bench-cu
+# bin 1fe322756ed297ae28ba698dbd7bcdd579dc65b09f6a3b6d9971343024c4d960  bench-cu-launch
+# bin 2e7db7218ac29e0da0b22a4d30307ea1f675dc04912d6b34922708495595904d  convnet.py
+# bin 68449e9ec7b25613a65d096a6a42864c01fbf46ec47e540ce01f47184f0479ea  ctrlping
+# bin 138c5073848b2f3cf2beb4709376c7c49b420d88e836664584e5cf8bbfc7848c  ioctlping
+# bin 1f921680fc7a2c2e0978eb007cc0ab48d2f1a7cf404a196c9063a19a10aa228f  kernels.ptx
+# bin abdf09531ac015ba4e8e7550bda6eb43609c429d6e1240e7f8553841bfe06513  llamaprobe.py
+# bin 2735d2a9cd25c0753898188542dbeb4a8433609024aa48230b6803a4a8d96e66  nvprobe
+# bin 012bb008b87ec0a6ee4ef566e0b55f856df09d6a3e07e72fe5cde5a9043dd18a  pporl.py
+# bin 02b1d58fc1778a47f8940e7f89d2cabb44b64d078f5b54b5ca1fba9437073c4a  transformer.py
+# bin f0868123fca8e2c40138fda523e35fa76c015b97e232fc647fea0b6b49f33584  vrampress
+# time 2026-09-25T08:23:09+02:00
+# gpu 52, 420 MHz, 405 MHz, P8, 21 %, 6209 MiB, Disabled
+# procs 3208281:-dev 3209114:vm0-dev 3209188:vm1-vmm 3211046:vm3-dev 3211074:vm1-vmm 3215344:vm5-dev 3215354:vm1-vmm 3223581:vm2-dev 3223633:vm1-vmm 
+# loadavg 10.67 7.48 6.17
+08:23:10 v2  launch1k        rep 1: # WALL wall_ms=6 rc=127  | # MEAS dev_pid=3215344 dev_cpu_ms=0 dev_rss_hwm_kb=5251972/5251972 vmm_cpu_ms=350 others: vm1-vmm=270ms vm1-vmm=0ms vm3-
+# 08:23:10 v2 restart before rep 2
+stopped
+dma table: 0:7ffb00000000:c0000000,100000000:7ffc00000000:40000000
+server pid 3227346, VM pid 3227354; logs in /mnt/vmstore/caraxes/vm5
+ssh up at 192.168.105.26
+[  254.867254] NVRM: GPU 0000:00:05.0: RmInitAdapter succeeded!
+modprobe rc=0
+v2 restarted: server pid 3227346
+08:27:34 v2  launch1k        rep 2: # WALL wall_ms=7 rc=127  | # MEAS dev_pid=3227346 dev_cpu_ms=0 dev_rss_hwm_kb=5252320/5252320 vmm_cpu_ms=170 others: vm1-vmm=830ms vm3-dev=190ms vm
+# 08:27:34 v2 restart before rep 3
+stopped
+dma table: 0:7ff900000000:40000000,40000000:7ff880000000:40000000,80000000:7ff840000000:40000000,100000000:7ffb00000000:40000000
+server pid 3246079, VM pid 3246091; logs in /mnt/vmstore/caraxes/vm5
+cloud-hypervisor:   0.021261s: <vmm> WARN:net_util/src/open_tap.rs:84 -- Tap caraxes5 already exists. IP configuration will not be overwritten.
+cloud-hypervisor:   0.021348s: <vmm> INFO:vmm/src/device_manager.rs:3105 -- Creating virtio-rng device: RngConfig { pci_common: PciDeviceCommonConfig { id: None, iommu: false, pci_segment: 0, pci_device_id: None }, src: "/dev/urandom" }
+cloud-hypervisor:   0.022330s: <vmm> INFO:pci/src/vfio_user.rs:633 -- Enabling IRQ 0 number of fds = 1
+cloud-hypervisor:   6.295053s: <vmm> ERROR:pci/src/vfio_user.rs:383 -- Could not mmap sparse area (offset = 0x0, size = 0x2000000): Input/output error (os error 5)
+cloud-hypervisor:   6.295339s: <vmm> INFO:pci/src/vfio_user.rs:670 -- Disabling IRQ 0
+cloud-hypervisor:   6.295590s: <vmm> INFO:virtio-devices/src/device.rs:485 -- Resuming virtio-net
+cloud-hypervisor:   6.295614s: <vmm> INFO:virtio-devices/src/device.rs:485 -- Resuming virtio-block
+cloud-hypervisor:   6.295634s: <vmm> INFO:virtio-devices/src/device.rs:485 -- Resuming virtio-rng
+cloud-hypervisor:   6.295652s: <vmm> INFO:virtio-devices/src/device.rs:485 -- Resuming virtio-block
+cloud-hypervisor:   6.319339s: <vmm> INFO:vmm/src/lib.rs:2080 -- VM exit event
+cloud-hypervisor:   6.319370s: <vmm> INFO:event_monitor/src/lib.rs:113 -- Event: source = vm event = deleted 
+cloud-hypervisor:   6.319389s: <vmm> INFO:event_monitor/src/lib.rs:113 -- Event: source = vmm event = shutdown 
+cloud-hypervisor:   6.319612s: <main> ERROR:/mnt/vmstore/caraxes/ch-0006/cloud-hypervisor/src/lib.rs:24 -- Fatal error: VmBoot(VmBoot(DeviceManager(VfioUserMapRegion(Other(Os { code: 5, kind: Uncategorized, message: "Input/output error" })))))
+Error: Cloud Hypervisor exited with the following chain of errors:
+  0: Error booting VM
+  1: The VM could not boot
+  2: Error from device manager
+  3: Failed to map region from VFIO user device into guest
+  4: Other OS error
+  5: Input/output error (os error 5)
+ERROR: VM exited
+08:27:46 v2  launch1k        rep 3:  | # MEAS dev_pid=3246079 dev_cpu_ms=-6300 dev_rss_hwm_kb=-/- vmm_cpu_ms=0 others: vm1-vmm=3030ms vm3-dev=1830ms vm1-vmm=42
+# end 2026-09-25T08:27:46+02:00
+# 08:27:46 v2 restart after the launch1k series
+ssh: connect to host 192.168.105.26 port 22: No route to host
+stopped
+dma table: 0:7ff5c0000000:c0000000,100000000:7ff6c0000000:40000000
+server pid 3247069, VM pid 3247079; logs in /mnt/vmstore/caraxes/vm5
+ssh up at 192.168.105.26
+[  137.662723] NVRM: GPU 0000:00:05.0: RmInitAdapter succeeded!
+modprobe rc=0
+v2 restarted: server pid 3247069
