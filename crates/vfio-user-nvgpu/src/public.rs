@@ -25,8 +25,8 @@
 use crate::ctrl::{Answer, HostRm};
 use std::collections::BTreeMap;
 
-use crate::ver::active::public::{self as p, Dev, Filter, Guest, PublicControl, Rule};
-use crate::ver::active::{NV20_SUBDEVICE_0, NV_ERR_NOT_SUPPORTED, NV_OK};
+use crate::ver::common::public::{self as p, Dev, Filter, Guest, PublicControl, Rule};
+use crate::ver::common::{NV20_SUBDEVICE_0, NV_ERR_NOT_SUPPORTED, NV_OK};
 
 /// `NV_ERR_INVALID_PARAM_STRUCT` (nvstatuscodes.h:87): a guest buffer of another size
 /// than the version's struct is refused, never forwarded.
@@ -988,7 +988,7 @@ fn gpumon_process(b: &mut [u8], chip: &crate::chip::ChipData) -> (&'static str, 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ver::active::NV_OK;
+    use crate::ver::common::NV_OK;
 
     #[test]
     fn translated_error_reply_is_filtered_and_rebased() {
@@ -1195,7 +1195,7 @@ mod tests {
     fn the_dispatcher_filters() {
         use crate::ctrl::{Dispatcher, INTERNAL_CLIENT, INTERNAL_SUBDEVICE};
         for id in [0x2080_1322u32, 0x2080_1344] {
-            assert!(!crate::ver::active::FORWARD.iter().any(|(c, _)| *c == id));
+            assert!(!crate::ver::common::FORWARD.iter().any(|(c, _)| *c == id));
         }
         let inv = p::OFFLINED_INVALID_ADDRESS;
         let host = offlined_answer(&[(inv, 0x3600, 0), (inv, (RES.0 >> 12) + 1, 0)], false);
@@ -1381,7 +1381,7 @@ mod tests {
     fn every_forward_targets_subdevice_device_or_binapi() {
         use crate::ctrl::{Dispatcher, INTERNAL_CLIENT, INTERNAL_SUBDEVICE};
         use crate::hostrm::{class_of_control, host_object};
-        use crate::ver::active::FORWARD;
+        use crate::ver::common::FORWARD;
         type Seen = std::sync::Arc<std::sync::Mutex<Vec<(u32, u32)>>>;
         struct Rec(Seen);
         impl HostRm for Rec {
@@ -1417,7 +1417,7 @@ mod tests {
         )
         .with_reservation(Some(RES));
         // The guest names objects of other classes too: a diag object and a ZBC object.
-        d.alloc(0xA, 0xA, 0, crate::ver::active::NV01_ROOT, &[]);
+        d.alloc(0xA, 0xA, 0, crate::ver::common::NV01_ROOT, &[]);
         d.alloc(0xA, 0x20, 0xA, 0x208F, &[]);
         d.alloc(0xA, 0x21, 0xA, 0x9096, &[]);
         for &(id, name) in &forwarded {
@@ -1438,7 +1438,7 @@ mod tests {
     /// illumination controls seen in the run logs.
     #[test]
     fn f1_rows_are_forwarded() {
-        use crate::ver::active::FORWARD;
+        use crate::ver::common::FORWARD;
         let f1 = [
             0x2080_0133u32, 0x2080_0153, 0x2080_0154, 0x2080_0173, 0x2080_01AB, 0x2080_01AE,
             0x2080_0809, 0x2080_1037, 0x2080_1120, 0x2080_130C, 0x2080_1328, 0x2080_1347,
@@ -1765,8 +1765,9 @@ mod tests {
     // ---------------------------------------------------------------------------------
     // Round 2 (the 17 C rows of the D plan, the open B rows, the TSG id).
 
-    use crate::ver::active as va;
-    type Abi = va::RmAbi;
+    use crate::ver::common as va;
+    /// The guest's channel allocation layout (the same in every guest ABI).
+    type Abi = nvrm_sys::V610;
 
     /// The device state the C rows reach: the per-object records and rc.rs's journal and
     /// scheduling flags.
@@ -1781,9 +1782,9 @@ mod tests {
     fn world() -> crate::channel::Registry {
         let chip = crate::fixture::rtx2070().chip.data();
         let mut reg = crate::channel::Registry::new(chip.channel);
-        let mut tsg = vec![0u8; <Abi as nvrm_sys::RmAbi>::TSG_PARAMS_SIZE as usize];
-        let off = <Abi as nvrm_sys::RmAbi>::TSG_PARAMS_OFF_internalFlags;
-        if tsg.len() >= off + 4 {
+        let l = crate::ver::layouts();
+        let mut tsg = vec![0u8; l.tsg_size];
+        if let Some(off) = l.tsg_internal_flags {
             tsg[off..off + 4].copy_from_slice(&(7u32 | 1 << 16).to_le_bytes());
         }
         reg.record_alloc(0xC1, 0xC1, 0x30, va::KEPLER_CHANNEL_GROUP_A, &tsg);

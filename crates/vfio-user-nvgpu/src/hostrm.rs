@@ -9,7 +9,7 @@ use nvrm_abi::{sys, NvDevice};
 use nvrm_client::RmClient;
 
 use crate::ctrl::HostRm;
-use crate::ver::active::{NV01_DEVICE_0, NV2081_BINAPI, NV20_SUBDEVICE_0, NV_ERR_NOT_SUPPORTED};
+use crate::ver::common::{NV01_DEVICE_0, NV2081_BINAPI, NV20_SUBDEVICE_0, NV_ERR_NOT_SUPPORTED};
 
 pub struct HostRmClient {
     rm: RmClient,

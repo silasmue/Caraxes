@@ -540,7 +540,7 @@ impl DState {
         for &op in ops {
             let mut p = l.flush_gpu_cache(op);
             let st = host.control(
-                crate::ver::active::NV20_SUBDEVICE_0,
+                crate::ver::common::NV20_SUBDEVICE_0,
                 crate::hostabi::CMD_FB_FLUSH_GPU_CACHE,
                 &mut p,
             );
@@ -560,7 +560,7 @@ pub fn status(name: &str) -> u32 {
         .unwrap_or_else(|| panic!("{name} is no status of the generated D table"))
 }
 
-/// The rule of `cmd` in the build's driver version.
+/// The rule of `cmd` in the guest ABI in force.
 pub fn rule(cmd: u32) -> Option<&'static DRule> {
     Abi::active().d_rule(cmd)
 }
@@ -625,7 +625,7 @@ pub fn alloc(class: u32) -> Option<Answer> {
 mod tests {
     use super::*;
     use crate::ctrl::{Dispatcher, HostRm, INTERNAL_CLIENT, INTERNAL_SUBDEVICE};
-    use crate::ver::{active as v, ABIS};
+    use crate::ver::{common as v, ABIS};
     use std::collections::BTreeSet;
     use std::sync::{Arc, Mutex};
 
@@ -808,7 +808,7 @@ mod tests {
                 // (public.rs) are no D rules any more (the reconciliation of 2026-09-25).
                 ('C', _) => panic!("{}: a C row no D model answers", r.name),
                 ('E', _) => {
-                    let acked = chip.features.acked.contains_key(&r.id);
+                    let acked = chip.features().acked.contains_key(&r.id);
                     assert_eq!(
                         a.label,
                         if acked {
@@ -821,11 +821,11 @@ mod tests {
                     );
                 }
                 ('A', _) => {
-                    if chip.controls.entries.contains_key(&r.id) {
+                    if chip.controls().entries.contains_key(&r.id) {
                         assert_ne!(a.label, "unanswered", "{}", r.name);
                     } else {
                         assert!(
-                            chip.controls.open.iter().any(|o| o.0 == r.id),
+                            chip.controls().open.iter().any(|o| o.0 == r.id),
                             "{}: an A row is a controls.toml row or an open one",
                             r.name
                         );
@@ -1028,7 +1028,7 @@ mod tests {
             .d_families
             .iter()
             .map(|f| f.name)
-            .filter(|n| !gb.features.absent.contains(n))
+            .filter(|n| !gb.features().absent.contains(n))
             .collect();
         assert_eq!(
             present,
@@ -1041,7 +1041,7 @@ mod tests {
                 "blackwell"
             ])
         );
-        let tu = &tu106().features;
+        let tu = &tu106().features();
         for f in Abi::active().d_families {
             assert!(tu.absent.contains(&f.name), "{}", f.name);
         }
@@ -1086,7 +1086,7 @@ mod tests {
     /// answers is one that returns `Some`).
     #[test]
     fn no_control_is_answered_by_two_tables() {
-        use crate::ver::active::public as p;
+        use crate::ver::common::public as p;
         let public: BTreeSet<u32> = p::PUBLIC.iter().chain(p::PUBLIC_C).map(|c| c.id).collect();
         let chips: Vec<&'static crate::chip::ChipData> = crate::chip::CHIPS
             .iter()
@@ -1100,7 +1100,7 @@ mod tests {
                 .flat_map(|f| f.controls.iter().map(|c| c.0))
                 .collect();
             for chip in &chips {
-                chipctl.extend(chip.controls.entries.keys());
+                chipctl.extend(chip.controls().entries.keys());
             }
             let mut d: BTreeSet<u32> = abi
                 .d_rules

@@ -1015,7 +1015,7 @@ pub fn slice_control(
         "NV9096_CTRL_CMD_SET_ZBC_CLEAR_TABLE" => {
             s.stats.refused += 1;
             Some(answer(
-                crate::ver::active::NV_ERR_NOT_SUPPORTED,
+                crate::ver::common::NV_ERR_NOT_SUPPORTED,
                 params.to_vec(),
                 REFUSED_HERE,
                 "ZBC clear table (indexed setter): not supported, as on a vGPU guest".into(),
@@ -1292,7 +1292,7 @@ mod tests {
         fn control(&mut self, class: u32, cmd: u32, p: &mut [u8]) -> u32 {
             self.0.lock().unwrap().calls.push((class, cmd));
             if class != GF100_ZBC_CLEAR {
-                return crate::ver::active::NV_ERR_NOT_SUPPORTED;
+                return crate::ver::common::NV_ERR_NOT_SUPPORTED;
             }
             assert!(
                 zbc_control_allowed(cmd),
@@ -1556,7 +1556,7 @@ mod tests {
         .unwrap();
         assert_eq!(
             (a.status, a.label),
-            (crate::ver::active::NV_ERR_NOT_SUPPORTED, REFUSED_HERE)
+            (crate::ver::common::NV_ERR_NOT_SUPPORTED, REFUSED_HERE)
         );
         let a = slice_control(
             &mut s,

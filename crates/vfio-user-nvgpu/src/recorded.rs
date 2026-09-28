@@ -25,7 +25,7 @@ use std::collections::{BTreeMap, HashMap};
 use std::sync::OnceLock;
 
 use crate::ctrl::Answer;
-use crate::ver::active as v;
+use crate::ver::common as v;
 
 const TSV: &str = include_str!("../chips/tu106/recorded-controls.tsv");
 
@@ -904,7 +904,7 @@ pub struct EmuGrHost {
 
 impl crate::ctrl::HostRm for EmuGrHost {
     fn control(&mut self, _class: u32, cmd: u32, params: &mut [u8]) -> u32 {
-        use crate::ver::active as v;
+        use crate::ver::common as v;
         let t = Recorded::get();
         if let Some(e) = t.exact.get(&(cmd, params.to_vec())) {
             let n = params.len().min(e.answer.len());
@@ -946,23 +946,34 @@ impl crate::ctrl::HostRm for EmuGrHost {
 #[cfg(test)]
 mod emu_gr_tests {
     use super::*;
-    use crate::ver::active as v;
+    use crate::ver::common as v;
 
     /// kgr.rs through the stand-in: 3 GPCs of 6 TPCs, 36 SMs in the card's order, context
     /// buffer sizes, and FECS_EVENT not NV_U32_MAX.
     #[test]
     fn kgr_static_info_is_a_whole_tu106() {
+        for g in [crate::ver::GuestAbi::V610, crate::ver::GuestAbi::V615] {
+            let _g = crate::ver::TestGuest::set(g);
+            kgr_static_info_case();
+        }
+    }
+
+    fn kgr_static_info_case() {
         let chip = crate::fixture::rtx2070().chip.data();
         let facts = Facts { fb_bytes: 1 << 30, gpcs: 3, tpcs_per_gpc: 6 };
         let mut h: Box<dyn crate::ctrl::HostRm> = Box::new(EmuGrHost { facts });
-        let a = crate::kgr::answer(chip, v::CMD_INTERNAL_STATIC_KGR_GET_FLOORSWEEPING_MASKS, &vec![0; v::FS_PARAMS], Some(&mut h)).unwrap();
+        let l = crate::ver::layouts();
+        let fs = &l.fs;
+        let a = crate::kgr::answer(chip, v::CMD_INTERNAL_STATIC_KGR_GET_FLOORSWEEPING_MASKS, &vec![0; fs.params], Some(&mut h)).unwrap();
         assert_eq!(a.status, 0);
-        assert_eq!(get32(&a.params, v::FS_GPC_MASK), 7, "{}", a.note);
-        assert_eq!(get32(&a.params, v::FS_TPC_MASK + 8), 0x3F);
-        assert_eq!(get32(&a.params, v::FS_TPC_COUNT + 4), 6);
-        assert_eq!(get32(&a.params, v::FS_NUM_PES_PER_GPC), 3);
-        assert_eq!(get32(&a.params, v::FS_NUM_GFX_TPC), 18);
-        let a = crate::kgr::answer(chip, v::CMD_INTERNAL_STATIC_KGR_GET_GLOBAL_SM_ORDER, &vec![0; v::SM_ORDER_PARAMS], Some(&mut h)).unwrap();
+        assert_eq!(a.params.len(), fs.params);
+        assert_eq!(get32(&a.params, fs.gpc_mask), 7, "{}", a.note);
+        assert_eq!(get32(&a.params, fs.tpc_mask + 8), 0x3F);
+        assert_eq!(get32(&a.params, fs.tpc_count + 4), 6);
+        assert_eq!(get32(&a.params, fs.num_pes_per_gpc), 3);
+        assert_eq!(get32(&a.params, fs.num_gfx_tpc), 18);
+        let a = crate::kgr::answer(chip, v::CMD_INTERNAL_STATIC_KGR_GET_GLOBAL_SM_ORDER, &vec![0; l.sm_order_params], Some(&mut h)).unwrap();
+        assert_eq!(a.params.len(), l.sm_order_params);
         assert!(a.note.contains("36 SMs"), "{}", a.note);
         let a = crate::kgr::answer(chip, v::CMD_INTERNAL_STATIC_KGR_GET_CONTEXT_BUFFERS_INFO, &vec![0; v::CTX_PARAMS], Some(&mut h)).unwrap();
         assert_eq!(get32(&a.params, 0), 0xA_D400, "the card's main context, {}", a.note);

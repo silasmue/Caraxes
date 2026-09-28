@@ -17,7 +17,7 @@
 
 use vfio_user_nvgpu::ctrl::HostRm;
 use vfio_user_nvgpu::hostrm::HostRmClient;
-use vfio_user_nvgpu::ver::active::NV20_SUBDEVICE_0;
+use vfio_user_nvgpu::ver::common::NV20_SUBDEVICE_0;
 
 /// (id, name, sizeof) of the 26 F1 and 4 F2 rows (plan §2; the same in 610.57.04 and
 /// 615.71.09).

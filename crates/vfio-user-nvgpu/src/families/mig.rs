@@ -46,7 +46,7 @@ use serde::Deserialize;
 use super::{id, off, rd32, reply, size, wr32, wr64, wr8, Families, Mode};
 use crate::chip::ChipData;
 use crate::ctrl::Answer;
-use crate::ver::active::{self as v, NV_ERR_INVALID_ARGUMENT, NV_ERR_NOT_SUPPORTED, NV_OK};
+use crate::ver::common::{self as v, NV_ERR_INVALID_ARGUMENT, NV_ERR_NOT_SUPPORTED, NV_OK};
 
 /// `NV_ERR_INSUFFICIENT_RESOURCES`, `NV_ERR_IN_USE`, `NV_ERR_INVALID_STATE`
 /// (nvstatuscodes.h:55, :52, :93).

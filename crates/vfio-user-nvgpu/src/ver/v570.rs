@@ -4,8 +4,9 @@
 //! Driver 570.144's GSP boot vocabulary: what nova-core of Linux 7.2.7 speaks
 //! (`drivers/gpu/nova-core/gsp/fw/r570_144.rs`, `FIRMWARE_VERSION = "570.144"`), as far as
 //! the device answers it (docs/caraxes/nova-guest.md). Not a full version module: nova sends
-//! no RM alloc or control, so only the boot exchange differs from the emulated 610 module,
-//! and a 610 build serves it under `CARAXES_GUEST_ABI=570` ([`crate::ver::older_guest`]):
+//! no RM alloc or control, so only the boot exchange differs from the 610 module. The
+//! device serves it when the guest's first queue element has the pre-610 frame, or under
+//! `CARAXES_GUEST_ABI=570` ([`crate::ver::GuestAbi::V570`], [`crate::ver::older_guest`]):
 //!
 //! - the queue element: the pre-610 layout (`super::ElementLayout::PRE_610`);
 //! - the GSP_RUN_CPU_SEQUENCER event before GSP_INIT_DONE ([`crate::ver::link_events`]);

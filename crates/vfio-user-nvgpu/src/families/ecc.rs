@@ -2,7 +2,7 @@
 // SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
 //! The `ecc` and `row_remap` families (docs/caraxes/gsp-plan/e-families.md §3.18, §3.19;
 //! docs/caraxes/limits-mig-ecc-vgpu.md §2): the ECC state a data-center board shows, from
-//! the headers of the emulated driver version. Paths are relative to the 610.57.04 tree.
+//! the headers of the guest's driver version. Paths are relative to the 610.57.04 tree.
 //!
 //! All controls here are ROUTE_TO_PHYSICAL with no kernel implementation on a GSP client
 //! (src/nvidia/generated/g_subdevice_nvoc.c; `rmresControl_Prologue_IMPL`,
@@ -38,7 +38,7 @@ use serde::Deserialize;
 use super::{id, off, reply, rd32, size, wr32, wr8, Families};
 use crate::chip::ChipData;
 use crate::ctrl::Answer;
-use crate::ver::active::{NV_ERR_INVALID_ARGUMENT, NV_ERR_NOT_SUPPORTED, NV_OK};
+use crate::ver::common::{NV_ERR_INVALID_ARGUMENT, NV_ERR_NOT_SUPPORTED, NV_OK};
 
 /// `[ecc]` of chip.toml: the ECC facts of the board the chip stands for.
 #[derive(Clone, Debug, Deserialize)]
@@ -266,7 +266,7 @@ pub fn answer(f: &mut Families, chip: &ChipData, cmd: u32, params: &[u8]) -> Opt
 mod tests {
     use super::*;
     use crate::ctrl::{Dispatcher, INTERNAL_CLIENT, INTERNAL_SUBDEVICE};
-    use crate::ver::active as v;
+    use crate::ver::common as v;
 
     fn chip(name: &str) -> &'static ChipData {
         crate::chip::by_name(name).unwrap().data()

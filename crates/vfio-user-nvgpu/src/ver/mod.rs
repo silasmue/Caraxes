@@ -10,13 +10,16 @@
 //! write (docs/caraxes/other-architectures.md §6: one ABI per driver release, shared
 //! by every chip).
 //!
-//! One module per vendored driver version, each behind a feature of the same name,
-//! mirroring `crates/nvrm-sys`. The modules export the same names; generic code
-//! reaches them through [`active`], the version this build emulates. A build
-//! emulates exactly one driver version, because the guest accepts only the GSP
-//! firmware whose `.fwversion` equals its own `NV_VERSION_STRING`
-//! (docs/caraxes/gsp-abi-610.md (e), "Version selection"); the device notes a guest
-//! that announces another version in `SET_GUEST_SYSTEM_INFO`.
+//! One module per vendored driver version, mirroring `crates/nvrm-sys`, and every one is
+//! compiled into every build (docs/research/one-abi-binary-2026-09-28.md). The guest
+//! chooses (decision D14): the device serves the ABI of the guest in front of it, read at
+//! run time from what the guest prepared for its GSP boot ([`guest`], detected by
+//! `BootModel`), or the one `--guest-abi` / `CARAXES_GUEST_ABI` pinned. Generic code reads
+//! what all guest ABIs share through [`common`] and what differs through [`layouts`]; the
+//! transport follows [`GuestAbi::transport`]. The guest accepts only the GSP firmware whose
+//! `.fwversion` equals its own `NV_VERSION_STRING` (docs/caraxes/gsp-abi-610.md (e),
+//! "Version selection"); the device notes a guest that announces a version other than the
+//! served one in `SET_GUEST_SYSTEM_INFO` or the GMCAPI init.
 //!
 //! Where `nvrm-sys` has a typed layout for a parameter struct, the offsets and sizes
 //! here are computed from it (`offset_of!`, `size_of`) and the tests pin them to the
@@ -25,33 +28,25 @@
 //! hand-written offsets are checked against the compiler-measured tables of
 //! gsp-abi-610.md (a) instead. How to add a version: docs/caraxes/versatility.md.
 
-#[cfg(feature = "v610")]
 pub mod v610;
 /// Driver 615.71.09 as the guest's driver: the 615 control layouts over the 610 module
-/// (docs/caraxes/gsp-transport-615.md). The feature implies `v610`, whose module keeps
-/// the host-side layouts: the host driver stays 610.57.04.
-#[cfg(feature = "v615")]
+/// (docs/caraxes/gsp-transport-615.md). It also serves the 617.14 Windows guest, whose
+/// model is 615's.
 pub mod v615;
 
-/// The driver version this build emulates. Features are additive (as in `nvrm-sys`),
-/// so a build with both picks the newer one.
-#[cfg(feature = "v615")]
-pub use v615 as active;
-#[cfg(all(feature = "v610", not(feature = "v615")))]
-pub use v610 as active;
-
 /// Driver 570.144's GSP boot vocabulary, the firmware nova-core speaks (Linux 7.2.7,
-/// docs/caraxes/nova-guest.md): data only, served by a 610 build under
-/// `CARAXES_GUEST_ABI=570` ([`older_guest`]).
+/// docs/caraxes/nova-guest.md): data only, over the 610 control vocabulary
+/// ([`GuestAbi::V570`], [`older_guest`]).
 pub mod v570;
 
-#[cfg(not(feature = "v610"))]
-compile_error!("vfio-user-nvgpu needs a driver-version feature (v610)");
+/// The vocabulary every guest ABI shares: the 610 module without the items that differ,
+/// which are private there and read through [`layouts`] (src/ver/common.rs).
+pub mod common;
 
 // The generated control tables of every guest ABI (caraxes/tools/gsp-tables.py and
 // caraxes/tools/ctrl-layouts.py; docs/caraxes/gsp-surface.md). They are data, not code,
 // and compiled into every build, so the tests check a chip's tables against each ABI;
-// the running device uses the build's own ([`Abi::active`]).
+// the running device uses the guest's ([`Abi::active`]).
 #[path = "v610/surface.rs"]
 pub mod surface610;
 #[path = "v610/ctrl_layouts.rs"]
@@ -256,11 +251,18 @@ pub const ABIS: &[Abi] = &[
 ];
 
 impl Abi {
-    /// The tables of the driver version this build emulates.
+    /// The tables of the guest ABI in force ([`guest`]; a 570 or 595 guest's controls are
+    /// 610's).
     pub fn active() -> &'static Abi {
+        Self::of(guest())
+    }
+
+    /// The tables of `g`.
+    pub fn of(g: GuestAbi) -> &'static Abi {
+        let driver = g.layouts().driver;
         ABIS.iter()
-            .find(|a| a.driver == active::DRIVER_VERSION)
-            .expect("generated control tables for the emulated driver version")
+            .find(|a| a.driver == driver)
+            .expect("generated control tables for every guest ABI")
     }
 
     pub fn routed(&self, name: &str) -> Option<&'static Routed> {
@@ -279,6 +281,37 @@ impl Abi {
     /// An SDK enum value of a modelled D control.
     pub fn d_enum(&self, name: &str) -> Option<u32> {
         self.d_enums.iter().find(|e| e.0 == name).map(|e| e.1)
+    }
+}
+
+/// A value resolved once for every guest ABI's generated tables ([`ABIS`]: 610, 615) when
+/// the data is loaded, and read for the guest ABI in force ([`Abi::active`]): the chip data
+/// resolved against control ids and layouts (chipctl.rs), which a chip loads before any
+/// guest shows its ABI.
+#[derive(Clone, Debug, Default)]
+pub struct PerAbi<T> {
+    by_abi: Vec<T>,
+}
+
+impl<T> PerAbi<T> {
+    /// `f` for every entry of [`ABIS`], in order; the first error ends it.
+    pub fn resolve<E>(f: impl FnMut(&'static Abi) -> Result<T, E>) -> Result<PerAbi<T>, E> {
+        Ok(PerAbi { by_abi: ABIS.iter().map(f).collect::<Result<_, _>>()? })
+    }
+
+    /// The value of the guest ABI in force.
+    pub fn get(&self) -> &T {
+        self.of(Abi::active())
+    }
+
+    /// The value of `abi`'s tables.
+    pub fn of(&self, abi: &Abi) -> &T {
+        // By name: `ABIS` is a const, so its entries have no one address.
+        let i = ABIS
+            .iter()
+            .position(|a| a.name == abi.name)
+            .expect("an entry of ABIS");
+        &self.by_abi[i]
     }
 }
 
@@ -310,14 +343,338 @@ pub enum GspTransport {
     MsgqV2,
 }
 
-/// The guest ABI the device serves, checked against this build (fail closed): what
-/// `--guest-abi` and `CARAXES_GUEST_ABI` ask for must be the build's own
-/// (`active::GSP_TRANSPORT`: 610 in a default build, 615 in a `--features v615` build), or
-/// 595 or 570 in a 610 build together with the environment switch that selects the pre-610
-/// element layout ([`element_layout`], [`older_guest`]; 570 is nova-core's firmware,
-/// docs/caraxes/nova-guest.md). Neither given: the build's. Returns the ABI.
-pub fn check_guest_abi(flag: Option<u32>, env: Option<&str>) -> Result<u32, String> {
-    let build = active::GSP_TRANSPORT.guest_abi();
+impl GspTransport {
+    /// The guest ABI a transport stands for, as `--guest-abi` and `CARAXES_GUEST_ABI` name it.
+    pub fn guest_abi(self) -> u32 {
+        match self {
+            GspTransport::MsgqV1 => 610,
+            GspTransport::MsgqV2 => 615,
+        }
+    }
+}
+
+/// A guest ABI the device serves: the GSP boot, transport and control layouts of one
+/// guest driver generation. Every build serves all of them; the guest in front of the
+/// device chooses ([`guest`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum GuestAbi {
+    /// 570.144, the firmware nova-core loads (Linux 7.2.7, docs/caraxes/nova-guest.md):
+    /// pre-610 queue elements, the GSP_RUN_CPU_SEQUENCER event before GSP_INIT_DONE, the
+    /// 570 static info; controls as 610 ([`v570`]).
+    V570,
+    /// 595.91.07, the Ubuntu driver experiment of docs/caraxes/guest-driver-versions.md:
+    /// pre-610 elements and the 595 static info. Only by pin: its elements look like 570's.
+    V595,
+    /// 610.57.04: message queue v0 with 610 elements and the four init RPCs.
+    V610,
+    /// 615.71.09: message queue v2, the GMCAPI init and the 615 control layouts. The
+    /// 617.14 Windows guest runs on this model.
+    V615,
+}
+
+impl GuestAbi {
+    pub const ALL: [GuestAbi; 4] = [GuestAbi::V570, GuestAbi::V595, GuestAbi::V610, GuestAbi::V615];
+
+    /// As `--guest-abi` and `CARAXES_GUEST_ABI` name it.
+    pub fn number(self) -> u32 {
+        match self {
+            GuestAbi::V570 => 570,
+            GuestAbi::V595 => 595,
+            GuestAbi::V610 => 610,
+            GuestAbi::V615 => 615,
+        }
+    }
+
+    pub fn from_number(n: u32) -> Option<GuestAbi> {
+        GuestAbi::ALL.into_iter().find(|g| g.number() == n)
+    }
+
+    /// The CPU-GSP transport the guest speaks.
+    pub fn transport(self) -> GspTransport {
+        match self {
+            GuestAbi::V615 => GspTransport::MsgqV2,
+            _ => GspTransport::MsgqV1,
+        }
+    }
+
+    /// The layouts the device answers the guest with (a 570 or 595 guest's controls are
+    /// 610's: nova-core sends few, and the 595 experiment was a 610 build).
+    pub fn layouts(self) -> &'static GuestLayouts {
+        match self {
+            GuestAbi::V615 => &L615,
+            _ => &L610,
+        }
+    }
+
+    /// 570 or 595 for a guest older than 610 (the pre-610 queue elements), else `None`.
+    pub fn older(self) -> Option<u32> {
+        match self {
+            GuestAbi::V570 | GuestAbi::V595 => Some(self.number()),
+            _ => None,
+        }
+    }
+
+    fn encode(self) -> u8 {
+        match self {
+            GuestAbi::V570 => 1,
+            GuestAbi::V595 => 2,
+            GuestAbi::V610 => 3,
+            GuestAbi::V615 => 4,
+        }
+    }
+
+    fn decode(v: u8) -> Option<GuestAbi> {
+        GuestAbi::ALL.into_iter().find(|g| g.encode() == v)
+    }
+}
+
+impl std::fmt::Display for GuestAbi {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            GuestAbi::V570 => "570 (r570.144, nova-core)",
+            GuestAbi::V595 => "595 (595.91.07, experiment)",
+            GuestAbi::V610 => "610 (610.57.04)",
+            GuestAbi::V615 => "615 (615.71.09; 617 Windows on its model)",
+        })
+    }
+}
+
+/// `NV2080_CTRL_FIFO_GET_DEVICE_INFO_TABLE_PARAMS` and its entry (`engineData` grew from 16
+/// to 17 words in 615).
+#[derive(Debug)]
+pub struct DevInfoLayout {
+    pub params_size: usize,
+    pub num_entries: usize,
+    pub b_more: usize,
+    pub entries: usize,
+    pub entry_size: usize,
+    pub engine_data: usize,
+    pub pbdma_ids: usize,
+    pub pbdma_fault_ids: usize,
+    pub num_pbdmas: usize,
+    pub engine_name: usize,
+}
+
+/// `NV2080_CTRL_INTERNAL_STATIC_GR_FLOORSWEEPING_MASKS` (1336 bytes per engine in 610,
+/// 1356 in 615) and its params.
+#[derive(Debug)]
+pub struct FsLayout {
+    pub elem: usize,
+    pub params: usize,
+    pub gpc_mask: usize,
+    pub tpc_mask: usize,
+    pub tpc_count: usize,
+    pub phys_gpc_mask: usize,
+    pub tpc_to_pes_map: usize,
+    /// `tpcToPesMap[]` entries: 10 in 610, 15 in 615.
+    pub tpc_to_pes_map_len: usize,
+    pub num_pes_per_gpc: usize,
+    pub zcull_mask: usize,
+    pub phys_gfx_gpc_mask: usize,
+    pub num_gfx_tpc: usize,
+}
+
+/// The NV0073 items `v615/display.rs` overrides that the display model reads.
+#[derive(Debug)]
+pub struct DisplayLayouts {
+    pub get_active_size: usize,
+    pub get_active_stale_sor_index: Option<usize>,
+    pub get_active_flags_gop_stale_head: u32,
+    pub dp_caps_internal_dp_tunneling: Option<usize>,
+    pub cmd_dp_set_war_flags: Option<u32>,
+}
+
+/// What differs between the guest ABIs for the code that answers the guest: the items
+/// `v615.rs` overrides, one table per version module, built from its constants at compile
+/// time ([`L610`], [`L615`]) and chosen at run time ([`layouts`]). The shared rest is
+/// [`common`], where these names are private.
+#[derive(Debug)]
+pub struct GuestLayouts {
+    /// `NV_VERSION_STRING` of the version module.
+    pub driver: &'static str,
+    pub transport: GspTransport,
+    /// What 0x20800A36 names in this version.
+    pub ctrl_0a36: Id0A36,
+    pub devinfo: DevInfoLayout,
+    pub p2p_read_caps_status: usize,
+    pub p2p_write_caps_status: usize,
+    pub fs: FsLayout,
+    /// The internal SM-order element (nine u16 per SM in 610, ten in 615).
+    pub sm_order: crate::hostabi::SmOrderLayout,
+    pub sm_order_params: usize,
+    /// `NV_CHANNEL_GROUP_ALLOCATION_PARAMETERS` (20 bytes in 610, 28 in 615).
+    pub tsg_size: usize,
+    /// `internalFlags` of the TSG allocation, where the struct has it (615).
+    pub tsg_internal_flags: Option<usize>,
+    pub display: DisplayLayouts,
+}
+
+macro_rules! guest_layouts {
+    ($m:ident) => {{
+        const TSG_SIZE: usize = <$m::RmAbi as nvrm_sys::RmAbi>::TSG_PARAMS_SIZE as usize;
+        const TSG_FLAGS: usize = <$m::RmAbi as nvrm_sys::RmAbi>::TSG_PARAMS_OFF_internalFlags;
+        GuestLayouts {
+            driver: $m::DRIVER_VERSION,
+            transport: $m::GSP_TRANSPORT,
+            ctrl_0a36: $m::CTRL_0A36,
+            devinfo: DevInfoLayout {
+                params_size: $m::DEVINFO_PARAMS_SIZE,
+                num_entries: $m::DEVINFO_NUM_ENTRIES,
+                b_more: $m::DEVINFO_B_MORE,
+                entries: $m::DEVINFO_ENTRIES,
+                entry_size: $m::DEVINFO_ENTRY_SIZE,
+                engine_data: $m::DEVINFO_ENGINE_DATA,
+                pbdma_ids: $m::DEVINFO_PBDMA_IDS,
+                pbdma_fault_ids: $m::DEVINFO_PBDMA_FAULT_IDS,
+                num_pbdmas: $m::DEVINFO_NUM_PBDMAS,
+                engine_name: $m::DEVINFO_ENGINE_NAME,
+            },
+            p2p_read_caps_status: $m::P2P_READ_CAPS_STATUS,
+            p2p_write_caps_status: $m::P2P_WRITE_CAPS_STATUS,
+            fs: FsLayout {
+                elem: $m::FS_ELEM,
+                params: $m::FS_PARAMS,
+                gpc_mask: $m::FS_GPC_MASK,
+                tpc_mask: $m::FS_TPC_MASK,
+                tpc_count: $m::FS_TPC_COUNT,
+                phys_gpc_mask: $m::FS_PHYS_GPC_MASK,
+                tpc_to_pes_map: $m::FS_TPC_TO_PES_MAP,
+                tpc_to_pes_map_len: $m::FS_TPC_TO_PES_MAP_LEN,
+                num_pes_per_gpc: $m::FS_NUM_PES_PER_GPC,
+                zcull_mask: $m::FS_ZCULL_MASK,
+                phys_gfx_gpc_mask: $m::FS_PHYS_GFX_GPC_MASK,
+                num_gfx_tpc: $m::FS_NUM_GFX_TPC,
+            },
+            sm_order: $m::SM_ORDER_GUEST,
+            sm_order_params: $m::SM_ORDER_PARAMS,
+            tsg_size: TSG_SIZE,
+            tsg_internal_flags: if TSG_SIZE >= TSG_FLAGS + 4 { Some(TSG_FLAGS) } else { None },
+            display: DisplayLayouts {
+                get_active_size: $m::display::GET_ACTIVE_SIZE,
+                get_active_stale_sor_index: $m::display::GET_ACTIVE_STALE_SOR_INDEX,
+                get_active_flags_gop_stale_head: $m::display::GET_ACTIVE_FLAGS_GOP_STALE_HEAD,
+                dp_caps_internal_dp_tunneling: $m::display::DP_CAPS_INTERNAL_DP_TUNNELING,
+                cmd_dp_set_war_flags: $m::display::CMD_DP_SET_WAR_FLAGS,
+            },
+        }
+    }};
+}
+
+/// The 610.57.04 layouts (also the 570 and 595 guests').
+pub static L610: GuestLayouts = guest_layouts!(v610);
+/// The 615.71.09 layouts (also the 617.14 Windows guest's).
+pub static L615: GuestLayouts = guest_layouts!(v615);
+
+/// The guest ABI `--guest-abi` or `CARAXES_GUEST_ABI` pinned for this process
+/// ([`pin_guest`], main.rs at start-up). Unset: the environment, read once.
+static PIN: std::sync::OnceLock<Option<GuestAbi>> = std::sync::OnceLock::new();
+/// The guest ABI the boot model detected last ([`set_guest`]; 0: none yet).
+#[cfg_attr(test, allow(dead_code))]
+static DETECTED: std::sync::atomic::AtomicU8 = std::sync::atomic::AtomicU8::new(0);
+
+#[cfg(test)]
+thread_local! {
+    /// A test's guest ABI in force (per test thread), set by [`TestGuest`] or by a boot
+    /// model's detection within the test ([`set_guest`]).
+    static TEST_GUEST: std::cell::Cell<Option<GuestAbi>> = const { std::cell::Cell::new(None) };
+    /// A test's stand-in for `CARAXES_GUEST_ABI` (per test thread): `Some(pin)`. Unset, a
+    /// test sees no pin: the environment of the shell that runs the tests does not count.
+    static TEST_PIN: std::cell::Cell<Option<Option<GuestAbi>>> = const { std::cell::Cell::new(None) };
+}
+
+/// A test's guest ABI and pin for as long as it lives (restored on drop).
+#[cfg(test)]
+pub(crate) struct TestGuest {
+    guest: Option<GuestAbi>,
+    pin: Option<Option<GuestAbi>>,
+}
+
+#[cfg(test)]
+impl TestGuest {
+    /// Serve `g` as if the boot model had detected it.
+    pub(crate) fn set(g: GuestAbi) -> TestGuest {
+        TestGuest {
+            guest: TEST_GUEST.with(|c| c.replace(Some(g))),
+            pin: TEST_PIN.with(|c| c.get()),
+        }
+    }
+
+    /// Serve `g` as if `CARAXES_GUEST_ABI` pinned it (`None`: no pin), nothing detected.
+    pub(crate) fn pin(g: Option<GuestAbi>) -> TestGuest {
+        TestGuest {
+            guest: TEST_GUEST.with(|c| c.replace(None)),
+            pin: TEST_PIN.with(|c| c.replace(Some(g))),
+        }
+    }
+}
+
+#[cfg(test)]
+impl Drop for TestGuest {
+    fn drop(&mut self) {
+        TEST_GUEST.with(|c| c.set(self.guest));
+        TEST_PIN.with(|c| c.set(self.pin));
+    }
+}
+
+/// Install the pin of `--guest-abi` / `CARAXES_GUEST_ABI` ([`check_guest_abi`]); `None`
+/// lets the guest choose. Once per process; a second, different pin is an error.
+pub fn pin_guest(p: Option<GuestAbi>) -> Result<(), String> {
+    let got = *PIN.get_or_init(|| p);
+    if got == p {
+        Ok(())
+    } else {
+        Err(format!("guest ABI already pinned as {got:?}, not {p:?}"))
+    }
+}
+
+/// The pinned guest ABI, `None` when the guest chooses.
+pub fn pinned() -> Option<GuestAbi> {
+    #[cfg(test)]
+    {
+        TEST_PIN.with(|c| c.get()).flatten()
+    }
+    #[cfg(not(test))]
+    {
+        *PIN.get_or_init(|| {
+            std::env::var("CARAXES_GUEST_ABI")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .and_then(GuestAbi::from_number)
+        })
+    }
+}
+
+/// The guest ABI in force: the one the boot model detected, else the pinned one, else 610
+/// (the default until a guest shows its own; nothing version-dependent runs before the
+/// guest's GSP boot).
+pub fn guest() -> GuestAbi {
+    #[cfg(test)]
+    let detected = TEST_GUEST.with(|c| c.get());
+    #[cfg(not(test))]
+    let detected = GuestAbi::decode(DETECTED.load(std::sync::atomic::Ordering::Acquire));
+    detected.or_else(pinned).unwrap_or(GuestAbi::V610)
+}
+
+/// The boot model found guest `g` (`BootModel::detect_guest`, `link_queues`); returns the
+/// one in force before.
+pub fn set_guest(g: GuestAbi) -> GuestAbi {
+    let before = guest();
+    #[cfg(test)]
+    TEST_GUEST.with(|c| c.set(Some(g)));
+    #[cfg(not(test))]
+    DETECTED.store(g.encode(), std::sync::atomic::Ordering::Release);
+    before
+}
+
+/// The layouts of the guest ABI in force.
+pub fn layouts() -> &'static GuestLayouts {
+    guest().layouts()
+}
+
+/// `--guest-abi` and `CARAXES_GUEST_ABI` (fail closed): either may pin one of 570, 595, 610
+/// and 615, and both together must agree. Neither: `None`, the guest chooses (every build
+/// serves every guest ABI).
+pub fn check_guest_abi(flag: Option<u32>, env: Option<&str>) -> Result<Option<GuestAbi>, String> {
     let env = match env {
         None | Some("") => None,
         Some(v) => Some(
@@ -330,34 +687,38 @@ pub fn check_guest_abi(flag: Option<u32>, env: Option<&str>) -> Result<u32, Stri
             return Err(format!("--guest-abi {f} but CARAXES_GUEST_ABI={e}"));
         }
     }
-    let want = flag.or(env).unwrap_or(build);
-    let how = |abi: u32| match abi {
-        615 => "cargo build --release -p vfio-user-nvgpu --features v615 --target-dir target/v615".to_string(),
-        _ => "cargo build --release -p vfio-user-nvgpu".to_string(),
-    };
-    match want {
-        570 | 595 if build == 610 && env == Some(want) => Ok(want),
-        570 | 595 => Err(format!(
-            "guest ABI {want} needs a 610 build and CARAXES_GUEST_ABI={want} in the device's environment"
-        )),
-        610 | 615 if want == build => Ok(want),
-        610 | 615 => Err(format!(
-            "guest ABI {want}, but this binary emulates {} with the {build} transport ({:?}); use the binary of `{}`",
-            active::DRIVER_VERSION,
-            active::GSP_TRANSPORT,
-            how(want)
-        )),
-        other => Err(format!("guest ABI {other} is none of 570, 595, 610, 615")),
+    match flag.or(env) {
+        None => Ok(None),
+        Some(n) => GuestAbi::from_number(n)
+            .map(Some)
+            .ok_or_else(|| format!("guest ABI {n} is none of 570, 595, 610, 615 (617 runs on 615)")),
     }
 }
 
-impl GspTransport {
-    /// The guest ABI a transport stands for, as `--guest-abi` and `CARAXES_GUEST_ABI` name it.
-    pub fn guest_abi(self) -> u32 {
-        match self {
-            GspTransport::MsgqV1 => 610,
-            GspTransport::MsgqV2 => 615,
-        }
+/// The frame of the first command-queue element of message queue v0: where the RPC header
+/// ("VRPC", version 3.0) sits tells the generation (docs/caraxes/guest-driver-versions.md
+/// §6, detection (b)).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ElementFrame {
+    /// `mctpHeader`, `nvdmHeader`, `checkSum`, `seqNum`, the RPC header at 0x10 (610).
+    V610,
+    /// `authTagBuffer[16]`, `aadBuffer[16]`, `checkSum`, `seqNum`, `elemCount`, the RPC
+    /// header at 0x30 (before 610: 570.144, 595.91.07).
+    Pre610,
+}
+
+/// The frame of the element `raw` (at least 0x38 bytes), `None` when neither place holds
+/// an RPC header.
+pub fn element_frame(raw: &[u8]) -> Option<ElementFrame> {
+    let rpc_at = |o: usize| {
+        raw.len() >= o + 8
+            && u32::from_le_bytes(raw[o..o + 4].try_into().unwrap()) == common::RPC_HEADER_VERSION
+            && u32::from_le_bytes(raw[o + 4..o + 8].try_into().unwrap()) == common::RPC_SIGNATURE
+    };
+    match (rpc_at(ElementLayout::V610.header_size), rpc_at(ElementLayout::PRE_610.header_size)) {
+        (true, false) => Some(ElementFrame::V610),
+        (false, true) => Some(ElementFrame::Pre610),
+        _ => None,
     }
 }
 
@@ -366,20 +727,135 @@ mod abi_tests {
     use super::*;
 
     #[test]
-    fn the_guest_abi_must_be_the_builds() {
-        let build = active::GSP_TRANSPORT.guest_abi();
-        let other = if build == 610 { 615 } else { 610 };
-        assert_eq!(check_guest_abi(None, None), Ok(build));
-        assert_eq!(check_guest_abi(Some(build), Some(&build.to_string())), Ok(build));
-        assert!(check_guest_abi(Some(other), None).unwrap_err().contains("use the binary"));
-        assert!(check_guest_abi(None, Some(&other.to_string())).is_err());
+    fn the_guest_abi_is_pinned_or_chosen_by_the_guest() {
+        assert_eq!(check_guest_abi(None, None), Ok(None));
+        assert_eq!(check_guest_abi(None, Some("")), Ok(None));
+        for g in GuestAbi::ALL {
+            let n = g.number();
+            assert_eq!(check_guest_abi(Some(n), None), Ok(Some(g)));
+            assert_eq!(check_guest_abi(None, Some(&n.to_string())), Ok(Some(g)));
+            assert_eq!(check_guest_abi(Some(n), Some(&n.to_string())), Ok(Some(g)));
+        }
         assert!(check_guest_abi(Some(610), Some("615")).is_err());
-        assert!(check_guest_abi(None, Some("6x5")).is_err());
-        assert!(check_guest_abi(Some(595), None).is_err(), "595 needs the environment switch");
-        assert_eq!(check_guest_abi(None, Some("595")).is_ok(), build == 610);
-        assert_eq!(check_guest_abi(Some(570), Some("570")).is_ok(), build == 610);
-        assert!(check_guest_abi(Some(570), None).is_err(), "570 needs the environment switch");
         assert!(check_guest_abi(Some(570), Some("595")).is_err());
+        assert!(check_guest_abi(None, Some("6x5")).is_err());
+        assert!(check_guest_abi(Some(617), None).is_err());
+        assert!(check_guest_abi(Some(580), None).is_err());
+    }
+
+    #[test]
+    fn the_guest_in_force_is_the_detected_then_the_pinned_then_610() {
+        let _g = TestGuest::pin(None);
+        assert_eq!(guest(), GuestAbi::V610);
+        {
+            let _p = TestGuest::pin(Some(GuestAbi::V615));
+            assert_eq!((guest(), layouts().driver), (GuestAbi::V615, "615.71.09"));
+            assert_eq!(set_guest(GuestAbi::V570), GuestAbi::V615);
+            assert_eq!((guest(), older_guest()), (GuestAbi::V570, Some(570)));
+        }
+        assert_eq!(guest(), GuestAbi::V610, "the guard restores");
+        let _s = TestGuest::set(GuestAbi::V615);
+        assert_eq!(Abi::active().name, "615");
+        assert_eq!(element_layout().max_rpc_size(), crate::msgq::v2::MAX_RPC_SIZE);
+    }
+
+    #[test]
+    fn every_guest_abi_has_its_transport_and_tables() {
+        use GspTransport::{MsgqV1, MsgqV2};
+        let want = [(570, MsgqV1, "610"), (595, MsgqV1, "610"), (610, MsgqV1, "610"), (615, MsgqV2, "615")];
+        for (g, (n, t, tables)) in GuestAbi::ALL.into_iter().zip(want) {
+            assert_eq!((g.number(), g.transport(), Abi::of(g).name), (n, t, tables), "{g:?}");
+            assert_eq!(g.layouts().transport, t);
+            assert_eq!(GuestAbi::decode(g.encode()), Some(g));
+            assert_eq!(GuestAbi::from_number(n), Some(g));
+        }
+        assert_eq!(L610.driver, v610::DRIVER_VERSION);
+        assert_eq!(L615.driver, v615::DRIVER_VERSION);
+    }
+
+    /// The per-guest table carries each version module's own numbers, and every number
+    /// that differs between the two is one of the table's (the rest is `common`).
+    #[test]
+    fn the_layout_tables_are_the_version_modules() {
+        assert_eq!((L610.fs.params, L615.fs.params), (10688, 10848));
+        assert_eq!((L610.fs.tpc_to_pes_map_len, L615.fs.tpc_to_pes_map_len), (10, 15));
+        assert_eq!((L610.sm_order_params, L615.sm_order_params), (73760, 81952));
+        assert_eq!((L610.sm_order.entry_size, L615.sm_order.entry_size), (18, 20));
+        assert_eq!((L610.devinfo.params_size, L615.devinfo.params_size), (3212, 3340));
+        assert_eq!((L610.tsg_size, L615.tsg_size), (20, 28));
+        assert_eq!((L610.tsg_internal_flags, L615.tsg_internal_flags), (None, Some(24)));
+        assert_eq!((L610.ctrl_0a36, L615.ctrl_0a36), (Id0A36::GetChipInfo, Id0A36::SyncFabricProbeInfo));
+        assert_eq!((L610.display.get_active_size, L615.display.get_active_size), (16, 20));
+        assert_eq!((L610.display.cmd_dp_set_war_flags, L615.display.cmd_dp_set_war_flags), (None, Some(0x73_1391)));
+        assert_eq!(L610.sm_order, crate::hostabi::guest_layouts::GUEST_SM_ORDER_610);
+        assert_eq!(L615.sm_order, crate::hostabi::guest_layouts::GUEST_SM_ORDER_615);
+    }
+
+    /// `common` hides exactly what `v615.rs` and `v615/display.rs` override (common.rs):
+    /// a new override without a private stand-in there would let generic code read the 610
+    /// number for a 615 guest.
+    #[test]
+    fn the_shared_vocabulary_hides_every_615_override() {
+        fn items(src: &str) -> Vec<&str> {
+            src.lines()
+                .filter_map(|l| {
+                    let l = l.trim_start();
+                    ["pub const ", "pub type ", "pub static "]
+                        .iter()
+                        .find_map(|p| l.strip_prefix(p))
+                        .map(|r| r.split(|c: char| !(c.is_alphanumeric() || c == '_')).next().unwrap_or(""))
+                })
+                .collect()
+        }
+        let common = include_str!("common.rs");
+        let (display_part, top_part) = {
+            let at = common.find("pub mod display").unwrap();
+            (&common[at..], &common[..at])
+        };
+        let hidden = |part: &str, n: &str| {
+            part.lines().any(|l| {
+                let t = l.trim().trim_end_matches(',');
+                t == n || l.trim_start().starts_with(&format!("type {n} "))
+            })
+        };
+        // New in 615: no 610 item of that name to hide.
+        let new_in_615 = [
+            "CMD_INTERNAL_GPU_SYNC_FABRIC_PROBE_INFO",
+            "FABRIC_PROBE_INFO_SIZE",
+            "WAR_FLAGS_SIZE",
+        ];
+        let (top, display) = (items(include_str!("v615.rs")), items(include_str!("v615/display.rs")));
+        for n in ["DRIVER_VERSION", "RmAbi", "FS_PARAMS", "SM_ORDER_GUEST", "DEVINFO_ENGINE_NAME"] {
+            assert!(top.contains(&n), "the scan finds {n} in v615.rs");
+        }
+        assert!(display.contains(&"GET_ACTIVE_SIZE") && display.contains(&"CMD_DP_SET_WAR_FLAGS"));
+        let mut missing = Vec::new();
+        for n in top {
+            if !new_in_615.contains(&n) && !hidden(top_part, n) {
+                missing.push(n.to_string());
+            }
+        }
+        for n in display {
+            if !new_in_615.contains(&n) && !hidden(display_part, n) {
+                missing.push(format!("display::{n}"));
+            }
+        }
+        assert!(missing.is_empty(), "v615 overrides not hidden in common.rs: {missing:?}");
+    }
+
+    #[test]
+    fn the_element_frame_tells_610_from_older() {
+        let rpc = |at: usize| {
+            let mut raw = vec![0u8; 0x60];
+            raw[at..at + 4].copy_from_slice(&common::RPC_HEADER_VERSION.to_le_bytes());
+            raw[at + 4..at + 8].copy_from_slice(&common::RPC_SIGNATURE.to_le_bytes());
+            raw
+        };
+        assert_eq!(element_frame(&rpc(0x10)), Some(ElementFrame::V610));
+        assert_eq!(element_frame(&rpc(0x30)), Some(ElementFrame::Pre610));
+        assert_eq!(element_frame(&[0u8; 0x60]), None);
+        assert_eq!(element_frame(&rpc(0x10)[..0x20]), Some(ElementFrame::V610));
+        assert_eq!(element_frame(&rpc(0x30)[..0x20]), None, "too short to tell");
     }
 }
 
@@ -434,14 +910,13 @@ pub(crate) mod measured {
     }
 }
 
-/// Queue-element layout of the guest's driver. The build emulates one version, but
-/// the element header is the first thing a guest of another version disagrees on
-/// (docs/caraxes/guest-driver-versions.md): before 610 it is `authTagBuffer[16]`,
-/// `aadBuffer[16]`, `checkSum`, `seqNum`, `elemCount` and the RPC header at 0x30
-/// (595.91.07 `message_queue_priv.h:43-51`); from 610 on `mctpHeader`,
-/// `nvdmHeader`, `checkSum`, `seqNum` and the payload at 0x10 (610.57.04
-/// `message_queue_priv.h:52-67`). Experiment only: `CARAXES_GUEST_ABI=595` selects
-/// the older layout; unset, the device uses the emulated version's.
+/// Queue-element layout of the guest's driver. The element header is the first thing
+/// guests of different versions disagree on (docs/caraxes/guest-driver-versions.md):
+/// before 610 it is `authTagBuffer[16]`, `aadBuffer[16]`, `checkSum`, `seqNum`,
+/// `elemCount` and the RPC header at 0x30 (595.91.07 `message_queue_priv.h:43-51`); from
+/// 610 on `mctpHeader`, `nvdmHeader`, `checkSum`, `seqNum` and the payload at 0x10
+/// (610.57.04 `message_queue_priv.h:52-67`); from 615 on the 24-byte message queue v2
+/// header (`msgq::v2`). [`element_layout`] gives the guest's.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ElementLayout {
     /// Bytes before the RPC header (`queueElementHdrSize`).
@@ -462,12 +937,19 @@ impl ElementLayout {
         0x10000 - self.header_size
     }
 
-    pub const EMULATED: ElementLayout = ElementLayout {
-        header_size: active::ELEMENT_HEADER_SIZE,
+    /// 610: `mctpHeader`, `nvdmHeader`, `checkSum`, `seqNum`.
+    pub const V610: ElementLayout = ElementLayout {
+        header_size: v610::ELEMENT_HEADER_SIZE,
         checksum_off: 8,
         seq_off: 12,
         elem_count_off: None,
         mctp: true,
+    };
+    /// 615 (message queue v2): only `header_size` is read here (`max_rpc_size`); the v2
+    /// element has no checksum or sequence number and is parsed by `msgq::v2`.
+    pub const V2: ElementLayout = ElementLayout {
+        header_size: crate::msgq::v2::ELEMENT_HEADER_SIZE,
+        ..ElementLayout::V610
     };
     pub const PRE_610: ElementLayout = ElementLayout {
         header_size: 0x30,
@@ -478,51 +960,28 @@ impl ElementLayout {
     };
 }
 
-#[cfg(test)]
-thread_local! {
-    /// A test's stand-in for `CARAXES_GUEST_ABI` (per test thread): `Some(guest)` overrides
-    /// [`older_guest`].
-    pub(crate) static TEST_GUEST: std::cell::Cell<Option<Option<u32>>> = const { std::cell::Cell::new(None) };
-}
-
-/// A guest older than the emulated version that a 610 build serves on request
-/// (`CARAXES_GUEST_ABI`, read once): 595 (the Ubuntu driver of
-/// docs/caraxes/guest-driver-versions.md) or 570 (570.144, the firmware Linux 7.2.7's
-/// nova-core loads, docs/caraxes/nova-guest.md). None: the emulated version.
+/// The guest older than 610 in force ([`guest`]): 570 (570.144, the firmware Linux
+/// 7.2.7's nova-core loads, docs/caraxes/nova-guest.md; detected from its pre-610 queue
+/// elements) or 595 (the Ubuntu driver experiment of docs/caraxes/guest-driver-versions.md;
+/// by pin only). `None`: 610 or 615.
 pub fn older_guest() -> Option<u32> {
-    #[cfg(test)]
-    if let Some(g) = TEST_GUEST.with(|c| c.get()) {
-        return g;
-    }
-    static G: std::sync::OnceLock<Option<u32>> = std::sync::OnceLock::new();
-    *G.get_or_init(|| match std::env::var("CARAXES_GUEST_ABI").as_deref() {
-        Ok("595") => {
-            log::warn!("CARAXES_GUEST_ABI=595: pre-610 GSP queue elements (experiment)");
-            Some(595)
-        }
-        Ok("570") => {
-            log::warn!(
-                "CARAXES_GUEST_ABI=570: r570.144 GSP boot for nova-core (pre-610 elements, CPU sequencer, 570 static info)"
-            );
-            Some(570)
-        }
-        _ => None,
-    })
+    guest().older()
 }
 
-/// The layout selected by `CARAXES_GUEST_ABI`: 570.144 frames its elements as 595 does
+/// The element layout of the guest in force: 570.144 frames its elements as 595 does
 /// (`GSP_MSG_QUEUE_ELEMENT` with the RPC header at 0x30, 570.144
 /// `src/nvidia/inc/kernel/gpu/gsp/message_queue_priv.h`; nova-core
 /// `gsp/fw/r570_144/bindings.rs:868-876` of Linux 7.2.7).
 pub fn element_layout() -> ElementLayout {
-    match older_guest() {
-        Some(_) => ElementLayout::PRE_610,
-        None => ElementLayout::EMULATED,
+    match guest() {
+        GuestAbi::V570 | GuestAbi::V595 => ElementLayout::PRE_610,
+        GuestAbi::V610 => ElementLayout::V610,
+        GuestAbi::V615 => ElementLayout::V2,
     }
 }
 
-/// The events the device sends when it links the queues, in order: GSP_INIT_DONE for the
-/// emulated version (`rpc_init_done_v17_00`, 1 byte in 610); for a 570 guest first an empty
+/// The events the device sends when it links message queue v0, in order: GSP_INIT_DONE
+/// for a 610 guest (`rpc_init_done_v17_00`, 1 byte in 610); for a 570 guest first an empty
 /// GSP_RUN_CPU_SEQUENCER and then GSP_INIT_DONE, because nova-core waits for the sequencer
 /// first and consumes and drops every message it is not waiting for (Linux 7.2.7 nova-core
 /// `gsp/hal/tu102.rs:335-356`, then `gsp/boot.rs:153-154`; `gsp/cmdq.rs:813-848`).
@@ -530,24 +989,24 @@ pub fn link_events(guest: Option<u32>) -> Vec<(u32, Vec<u8>)> {
     match guest {
         Some(570) => vec![
             (v570::EV_GSP_RUN_CPU_SEQUENCER, v570::empty_sequence()),
-            (active::EV_GSP_INIT_DONE, vec![0u8; v570::INIT_DONE_SIZE]),
+            (common::EV_GSP_INIT_DONE, vec![0u8; v570::INIT_DONE_SIZE]),
         ],
-        _ => vec![(active::EV_GSP_INIT_DONE, vec![0u8])],
+        _ => vec![(common::EV_GSP_INIT_DONE, vec![0u8])],
     }
 }
 
-/// `GspStaticConfigInfo` as a pre-610 guest reads it (`CARAXES_GUEST_ABI=595`):
+/// `GspStaticConfigInfo` as a pre-610 guest reads it (595 by pin, 570 detected):
 /// 595.91.07 lacks `vbiosRevision`/`vbiosOemRevision` (610: 0x5fc, 0x600),
 /// `bSysL2CacheCoherentMode` (610: 0x616) and `bBusResetRequired` (610: 0x638), so
 /// its tail sits 8 bytes lower and the struct is 0x638 bytes, not 0x640
 /// (gsp-abi-sizes of both trees, docs/caraxes/guest-driver-versions.md). Everything
-/// before 0x5fc is identical. Unchanged for the emulated version.
+/// before 0x5fc is identical. Unchanged for a 610 guest.
 pub fn static_info_for_guest(info: Vec<u8>) -> Vec<u8> {
     static_info_for(older_guest(), info)
 }
 
-/// [`static_info_for_guest`] for a given older guest (the tests pass it; the device reads
-/// `CARAXES_GUEST_ABI`). A 570 guest gets the 570.144 layout, remapped field by field by the
+/// [`static_info_for_guest`] for a given older guest (the tests pass it; the device uses
+/// [`older_guest`]). A 570 guest gets the 570.144 layout, remapped field by field by the
 /// table generated from the two snapshots ([`v570::static_info`]).
 pub fn static_info_for(guest: Option<u32>, info: Vec<u8>) -> Vec<u8> {
     if guest == Some(570) {

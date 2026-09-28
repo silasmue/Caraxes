@@ -15,8 +15,8 @@
 
 use super::{get32, put32, Display, NV_ERR_INVALID_ARGUMENT};
 use crate::ctrl::Answer;
-use crate::ver::active::display as d;
-use crate::ver::active::NV_OK;
+use crate::ver::common::display as d;
+use crate::ver::common::NV_OK;
 use dp_sink::transcript::{format_outcome, format_request};
 use dp_sink::{AuxCommand, AuxError, AuxRequest};
 

@@ -30,25 +30,21 @@ use crate::guestmem::GuestMemory;
 pub mod v2;
 
 /// The element and RPC header constants of message queue v0, the 610 queue: taken from
-/// `ver::v610`, not `ver::active`, since a `--features v615` build names the v2 element
-/// header there (24 bytes, `msgq::v2`) and a 615 guest never runs this transport.
+/// `ver::v610`, whatever guest ABI is in force (a 615 guest never runs this transport;
+/// its element header is `msgq::v2`'s).
 pub use crate::ver::v610::{
     ELEMENT_HEADER_SIZE, MCTP_HEADER, MSGQ_FLAGS_SWAP_RX, NVDM_HEADER, RPC_HEADER_SIZE,
     RPC_HEADER_VERSION, RPC_SIGNATURE,
 };
 
-/// The element layout of the v0 path: the 610 element (16-byte header) whatever version
-/// the build emulates, or the pre-610 one when `CARAXES_GUEST_ABI=595` selects it.
-/// `ver::element_layout()` alone would give the 24-byte v2 header in a `--features v615`
-/// build and misread every v0 element; in a default build both are the same.
+/// The element layout of the v0 path: the pre-610 one for a 570 or 595 guest, else the 610
+/// element (16-byte header). `ver::element_layout()` alone would give the 24-byte v2
+/// header while a 615 guest is in force and misread every v0 element.
 fn v0_element_layout() -> crate::ver::ElementLayout {
     use crate::ver::ElementLayout;
     match crate::ver::element_layout() {
         ElementLayout::PRE_610 => ElementLayout::PRE_610,
-        _ => ElementLayout {
-            header_size: ELEMENT_HEADER_SIZE,
-            ..ElementLayout::EMULATED
-        },
+        _ => ElementLayout::V610,
     }
 }
 
@@ -539,6 +535,22 @@ impl QueueState {
             held_stalls: 0,
             v2: Some(Box::new(q)),
         }
+    }
+
+    /// The first 0x40 bytes of the next unread command element (message queue v0; `None`
+    /// when the queue is empty or unreadable, and for v2): what the CPU queued before its
+    /// doorbell, for the frame check at the link (`ver::element_frame`).
+    pub fn peek_first(&self, qm: &QueueMemory) -> Option<Vec<u8>> {
+        if self.v2.is_some() || self.cmd.msg_count == 0 {
+            return None;
+        }
+        let write_ptr = qm.load_acquire(self.cmd_off + 16)?;
+        if write_ptr >= self.cmd.msg_count || write_ptr == self.read_ptr {
+            return None;
+        }
+        let mut raw = vec![0u8; 0x40];
+        qm.read(Self::slot_off(self.cmd_off, &self.cmd, self.read_ptr), &mut raw)
+            .then_some(raw)
     }
 
     /// The v2 state, when these are the queues of a 615 guest.
@@ -1109,7 +1121,7 @@ pub(crate) mod tests {
 
     /// A CPU element for `header` and `payload` in the selected v0 framing: `length` set,
     /// checksum folded to zero, padded to whole slots.
-    fn element_for(
+    pub(crate) fn element_for(
         el: crate::ver::ElementLayout,
         seq_num: u32,
         header: &RpcHeader,
@@ -1153,7 +1165,7 @@ pub(crate) mod tests {
 
     /// Write whole slots at the CPU's write pointer, slot by slot so that an element
     /// wraps at the ring end, then publish the write pointer.
-    fn cpu_raw(qm: &QueueMemory, cmd: &mut TxHeader, raw: &[u8]) {
+    pub(crate) fn cpu_raw(qm: &QueueMemory, cmd: &mut TxHeader, raw: &[u8]) {
         let slots = raw.len().div_ceil(0x1000) as u32;
         for i in 0..slots {
             let slot = (cmd.write_ptr + i) % cmd.msg_count;
@@ -1342,15 +1354,16 @@ pub(crate) mod tests {
     /// and 570 use the pre-610 0x30-byte auth/AAD header and explicit element count.
     #[test]
     fn invalid_rpc_header_is_rejected_in_both_v0_framings() {
+        use crate::ver::{GuestAbi, TestGuest};
         for (tag, guest, el) in [
-            ("rpc-header-610", None, v610_layout()),
+            ("rpc-header-610", GuestAbi::V610, v610_layout()),
             (
                 "rpc-header-pre610",
-                Some(595),
+                GuestAbi::V595,
                 crate::ver::ElementLayout::PRE_610,
             ),
         ] {
-            crate::ver::TEST_GUEST.with(|c| c.set(Some(guest)));
+            let _g = TestGuest::set(guest);
             let (mem, pages, path, mut cmd) = linked(tag);
             let qm = QueueMemory::new(&mem, &pages);
             let mut q = QueueState::link(&qm, 0x1000, 0x41000, 0x40000).unwrap();
@@ -1377,7 +1390,6 @@ pub(crate) mod tests {
             assert_eq!((m.header.function, m.payload.as_slice()), (7, &[3u8][..]));
             assert_eq!((q.rejected, q.failed.as_deref(), q.read_ptr), (2, None, 3));
             let _ = std::fs::remove_file(&path);
-            crate::ver::TEST_GUEST.with(|c| c.set(None));
         }
     }
 

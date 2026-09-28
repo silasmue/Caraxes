@@ -9,8 +9,8 @@
 use crate::channel::Registry;
 use crate::chip::{ChipData, Registers};
 use crate::ctrl::{Answer, HostRm};
-use crate::ver::active::{self as v, NV20_SUBDEVICE_0, NV_ERR_NOT_SUPPORTED, NV_OK};
-pub use crate::ver::active::{
+use crate::ver::common::{self as v, NV20_SUBDEVICE_0, NV_ERR_NOT_SUPPORTED, NV_OK};
+pub use crate::ver::common::{
     CMD_CE_GET_ALL_CAPS, CMD_CE_GET_ALL_PHYSICAL_CAPS, CMD_CE_GET_CAPS_V2, CMD_CE_GET_CE_PCE_MASK,
     CMD_CE_GET_PHYSICAL_CAPS, CMD_CE_IS_DECOMP_LCE_ENABLED, CMD_CHANNEL_BIND,
     CMD_CHANNEL_GPFIFO_SCHEDULE,

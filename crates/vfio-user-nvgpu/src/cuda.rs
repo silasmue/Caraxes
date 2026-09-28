@@ -10,7 +10,7 @@
 use crate::channel::Registry;
 use crate::chip::ChipData;
 use crate::ctrl::{Answer, HostRm};
-use crate::ver::active::{self as v, NV_OK};
+use crate::ver::common::{self as v, NV_OK};
 
 fn answer(params: Vec<u8>, label: &'static str, note: String) -> Answer {
     Answer {
