@@ -5288,6 +5288,8 @@ fn event_loop(events: Vec<(OsEvent, Option<u32>)>, intr: Arc<IntrShared>, stop: 
             match vector {
                 Some(vec) => {
                     crate::launch::host_event();
+                    // A host engine of the VM finished work: activity for the host boost.
+                    crate::hostboost::activity();
                     if let Some(g) = gate.as_mut() {
                         let now = std::time::Instant::now();
                         match g.event(now, *vec, crate::launch::gate_last_doorbell()) {

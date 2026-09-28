@@ -21,16 +21,14 @@ fn answer(params: Vec<u8>, label: &'static str, note: String) -> Answer {
     }
 }
 
-/// The controls of the context path that real GSP acts on (clocks, exception masks,
+/// The controls of the context path that real GSP acts on (clock limits, exception masks,
 /// preemption modes, timeslices, preemption, channel stop, eviction) and that the device
 /// acknowledges without effect, because no host channel exists yet (part 2 maps them to
 /// the host objects; cuda-lookahead.md §6.3). Native status for each is NV_OK
-/// (matrix/traces/610.57.04/cuda-core.tsv and cuda-launch.tsv).
+/// (matrix/traces/610.57.04/cuda-core.tsv and cuda-launch.tsv). The clock boost
+/// `PERF_BOOST_SET_2X` is acknowledged the same way and handed to the host boost
+/// (hostboost.rs).
 const ACKNOWLEDGED: &[(u32, &str)] = &[
-    (
-        v::CMD_INTERNAL_PERF_BOOST_SET_2X,
-        "PERF_BOOST_SET_2X (no clocks boosted)",
-    ),
     (
         v::CMD_KGR_INTERNAL_INIT_BUG4208224_WAR,
         "KGR_INIT_BUG4208224_WAR (no WAR channel run)",
@@ -84,6 +82,15 @@ pub fn answer_control(
         ));
     }
     Some(match cmd {
+        // The guest kernel's copy of its client's PERF_BOOST (cuCtxCreate: BOOST_TO_MAX |
+        // CUDA, infinite; the clear at teardown; kern_perf_boost.c:100-122). NV_OK echo as
+        // native; the device's host boost renews with the guest's command and its own
+        // finite duration (hostboost.rs; docs/research/host-boost-2026-09-28.md).
+        v::CMD_INTERNAL_PERF_BOOST_SET_2X => answer(
+            params.to_vec(),
+            "synthesized (NV_OK echo; the host boost acts on it with its own duration)",
+            crate::hostboost::guest_request(params),
+        ),
         // GPU_PROMOTE_CTX (PRIVILEGED, so not forwardable unprivileged): the golden and
         // WAR channels at module load, then per CUDA channel the kernel's PAs at the
         // compute-object alloc and UVM's VAs at channel binding. Echo (the kernel re-reads
@@ -294,6 +301,27 @@ mod tests {
         assert_eq!(v::copy_engine_index(0x01), None);
         use crate::hostabi::{HOST_610, HOST_615};
         assert!(!HOST_610.lce_shim_info_public && HOST_615.lce_shim_info_public);
+    }
+
+    /// The guest's boost: NV_OK and the params echoed; the note names the request (no
+    /// host boost runs in the unit tests, so nothing is boosted).
+    #[test]
+    fn perf_boost_2x_is_acknowledged_and_noted() {
+        let f = crate::fixture::rtx2070();
+        let mut reg = Registry::new(f.chip.data().channel);
+        let mut p = vec![0u8; v::PERF_BOOST_2X_SIZE];
+        p[0] = 0x12;
+        p[4..8].copy_from_slice(&u32::MAX.to_le_bytes());
+        let a = answer_control(f.chip.data(), v::CMD_INTERNAL_PERF_BOOST_SET_2X, &p, &mut reg, None)
+            .unwrap();
+        assert_eq!((a.status, a.params.as_slice()), (NV_OK, p.as_slice()));
+        assert!(a.label.contains("host boost"), "{}", a.label);
+        assert!(
+            a.note.starts_with("PERF_BOOST_SET_2X {flags 0x12, duration infinite}"),
+            "{}",
+            a.note
+        );
+        assert!(!ACKNOWLEDGED.iter().any(|(c, _)| *c == v::CMD_INTERNAL_PERF_BOOST_SET_2X));
     }
 
     /// Forwarded on a 615 host, the chip's shim table on a 610 host (the control is
