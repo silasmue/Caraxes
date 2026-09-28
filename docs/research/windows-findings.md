@@ -411,3 +411,11 @@ Runs: `/mnt/vmstore/caraxes/alpha-2026-09-27/windows-plain/<run>/`.
 - **Plan:** a maintenance boot without the synthetic GPU (`run27.py maint start`, WIN_GPU=0) to
   let the servicing finish, then `quiet.ps1 -Apply` (updates paused 7 days, no Windows Update
   drivers), then P27 again. Depends on: none.
+- **Repaired (M28-repair, 23:05-23:20, boot without the GPU device):** WinRE (F1 at the error
+  screen) refused "uninstall latest quality update" because of the pending actions;
+  `dism /image:C:\ /scratchdir:C:\dismscratch /cleanup-image /revertpendingactions` from the WinRE
+  prompt succeeded, and the next boot came up at build 26200.8037 (the pre-LCU build), CBS
+  pending cleared, the workload install intact.
+  - `quiet.ps1 -Apply`: updates paused until 2026-10-05, no drivers from Windows Update.
+  - The DriverStore also holds nv_dispwi 32.0.16.1692 and nv_dispig 32.0.15.9186 besides the
+    stock nv_dispi 32.0.16.1714; smoke's driver line shows which one binds.
