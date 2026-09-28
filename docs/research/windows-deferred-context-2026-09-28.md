@@ -286,3 +286,56 @@ Validation: ABI615 531 unit tests and two integration tests passed, one ignored.
   NOT-RUN in P14-unrun-channel-bind-build/.
 - VM stopped; no new host Xid. Artifacts: windows-plain/P14-build/ and
   P14-owned-gfxp-bind/ under alpha-2026-09-27/.
+
+## Persistent owned-GFXP lifecycle
+
+- ec3d1fa8 tracks five host buffers per exact TSG, with an eight-TSG limit and
+  a 64 MiB limit per set. No production control enables this path yet.
+- First bind requires a single prepared/promoted channel, exact generation and
+  shadow root, private USERD at cursor zero and a successful host idle. A drained
+  worker precedes allocation; all host-selected VA spans enter private exclusions.
+- BIND1 and GET1 must succeed before target submission reopens. Partial state
+  remains tracked with submission blocked; retry is through teardown, not bind.
+- Engine-child, channel and TSG frees idle the target, BIND WFI and verify mode 0
+  before freeing buffers. Exclusions remain until every child is freed, then the
+  merged exclusion set is recomputed without subtracting another owner's range.
+- Fixed existing parent-lifetime errors: the shadow TSG stored its guest TSG key
+  where its VAS key belonged; drop_vas ignored failed dependent frees; reset cleared
+  ownership sets even when resources survived cleanup. All now retain dependencies.
+- HostMemory stops LIFO frees at the first failure and keeps gather descriptors
+  pinned. A final shutdown with retained owned-GFXP tags skips explicit teardown
+  entirely and leaves ordering to native RM client-FD closure. Otherwise newer
+  buffers could be freed before older, still-live channels.
+- c9531d34 makes a successful virtual allocation return ownership before address
+  validation. An invalid VA no longer hides a failed rollback from the context owner.
+- ABI615: 535 unit tests, two integration tests passed; one ignored. ABI610:
+  532 unit tests and two integration tests passed at ec3d1fa8.
+- Next experiment maps the captured Windows pool BIND to owned ordinary GFXP.
+  Its legacy pool sizing/INITIALIZE/ADD/REMOVE replies are still incomplete and
+  confined to an isolated diagnostic build. A D3D pass would not validate pool
+  lifecycle, arbitrary slot changes, preemption stress, or multi-guest graphics.
+
+## P15: first compatibility run and startup race
+
+- Base c9531d34 plus isolated pool/BIND/LUT diagnostic; SHA-256:
+  df785f2e72f0544a8efed2b257281e6d0079305a5520aa38bd56d5dbbd1b9e43.
+- P15 stalls before deferred registration or owned GFXP. Like P13, sequence 829
+  completes but sequence 830 never arrives. Successful P13b/P14 receive it after
+  84/110 ms. Shadow synchronization reports no mapping failures.
+- Notifier 0x0800000c is GR0 nonstall, mapped to guest vector 4. The existing
+  log text for no MSI also includes normal coalescing; it cannot prove masking.
+  Code review separately found that PCI MSI enable/eventfd installation does not
+  replay already-pending shared interrupts. Causation of this stall is unproven.
+- P15b, same binary/configuration, boots with NVIDIA PnP code 0. Each GFXP bind
+  is refused because the promoted target already received its first doorbell.
+  D3D11CreateDevice still returns 0x8876017c after 3461 ms; no rendering pass.
+- Both VMs stopped, no new host Xid. P16 will hold the experimental target until
+  owned GFXP is bound, retaining the empty-first-use requirement.
+- Pool capture: QUERY maxSlots=4; INIT maxSlots=0, memory caf0000b, offset
+  0x440000, size 0x1000; ADD count 4, slots 0..3, same memory/span. Allocation
+  0x450000 matches our fabricated query layout rounded to 64 KiB. This demonstrates
+  guest consumption of our answer, not native geometry. Public headers define
+  INIT.maxSlots as input; the closed Windows driver's zero remains unexplained.
+- Future pool translation needs tracked memory identity, allocation bounds,
+  initialization and slot lifecycle. Slot-to-context association and control-block
+  contents remain unknown; unconditional bootstrap replies are not a valid model.

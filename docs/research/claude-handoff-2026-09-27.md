@@ -1,6 +1,6 @@
 # Caraxes working handoff for Claude Code
 
-Updated: 2026-09-28, 07:36 CEST. P14 stopped; ordinary host GFXP binding verified.
+Updated: 2026-09-28, 08:05 CEST. P15/P15b stopped; P16 diagnostic in preparation.
 
 ## Workspace and constraints
 
@@ -17,7 +17,7 @@ Updated: 2026-09-28, 07:36 CEST. P14 stopped; ordinary host GFXP binding verifie
   Windows target: 4 GiB RAM, 4 CPUs, 1 GiB VRAM, slot 0. Debugger VM has no GPU.
 - Artifact paths below are relative to /mnt/vmstore/caraxes/alpha-2026-09-27/.
 
-## Latest Windows result: P14
+## Latest Windows result: P15b
 
 - Deferred context ordering and lifetime fixes remain in place. P9 completed
   eight INITIALIZE/PROMOTE/EVICT cycles, 24 APIs and 16 ordered semaphore
@@ -44,13 +44,21 @@ Updated: 2026-09-28, 07:36 CEST. P14 stopped; ordinary host GFXP binding verifie
 - P14: direct SET1 succeeds, SET2 fails. Five owned host buffers (6,778,880 bytes)
   bind to the host TSG in mode 1; GET confirms it. BIND WFI/GET0 and complete
   buffer cleanup pass. No target workload was submitted.
-- Next: per-TSG owned GFXP lifetime, persistent private shadow VA exclusions,
-  then an explicitly experimental guest pool translation test. Host mode 1 is
-  not proof of guest pool mode 2 support or rendering.
-- No new host Xid through P14. All completed runs stopped. LUT capability
+- ec3d1fa8/c9531d34 implement per-TSG owned GFXP lifetime, private shadow VA
+  exclusions, retryable cleanup, parent retention, and final-exit safeguards.
+  The regular guest pool refusal remains. Next is isolated P15 compatibility
+  testing; its bootstrap pool replies are still incomplete. Host mode 1 is not
+  proof of guest pool mode 2 support or rendering.
+- P15 stalls before deferred registration, like P13. P15b boots with PnP code 0
+  but refuses owned GFXP because the target received a doorbell before BIND.
+  D3D11CreateDevice returns 0x8876017c after 3461 ms. No rendering pass.
+  P16 will hold the experimental target until its owned buffers are bound.
+- Separate IRQ review found missing replay of pending shared interrupts on PCI
+  MSI enable/eventfd installation. Fix/tests in progress; stall causation unproven.
+- No new host Xid through P15b. All completed runs stopped. LUT capability
   changes remain diagnostic only; the actual display color pipeline is unfinished.
-- Tests: ABI615 531 unit + two integration passed, one ignored at 80113455.
-  ABI610 525 unit + two integration passed before the pool guard/GFXP foundation.
+- Tests: ABI615 535 unit + two integration passed, one ignored at c9531d34;
+  ABI610 532 unit + two integration passed at ec3d1fa8.
 - Detailed evidence: [Deferred context report](windows-deferred-context-2026-09-28.md).
 
 ## Windows: confirmed progress and blocker
