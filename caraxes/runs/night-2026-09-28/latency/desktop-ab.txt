@@ -1,0 +1,7 @@
+desktop on:  MSPERLAUNCH=0.044 MSPERLAUNCH=0.100 MSPERLAUNCH=0.047 
+gnome procs: 0
+0
+desktop off: MSPERLAUNCH=0.050 MSPERLAUNCH=0.046 MSPERLAUNCH=0.045 
+desktop off sched=blocking: MSPERLAUNCH=0.196
+desktop off sched=spin: MSPERLAUNCH=0.049
+desktop off sched=yield: MSPERLAUNCH=0.045

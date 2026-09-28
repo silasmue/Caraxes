@@ -1,0 +1,3 @@
+vfio-user-nvgpu: launch timing on: per-step histograms of the doorbell and completion path in the exit summary (CARAXES_LAUNCH_TIMING=1, docs/caraxes/launch-path.md)
+launch timing: 3 ring(s) by the reactor (2 after a blocking wait), 0 host doorbell(s); host events by the age of the last host doorbell: 0 none yet, 0 < 1 ms, 0 < 100 ms, 0 older (CARAXES_LAUNCH_TIMING=1, docs/caraxes/launch-path.md)
+launch timing: lock: n 3, mean 2.20 us, p10 0.9 us, p50 2.3 us, p90 3.6 us, p99 3.6 us, max 3.5 us

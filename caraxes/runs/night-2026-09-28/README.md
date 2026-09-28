@@ -1,0 +1,102 @@
+<!-- SPDX-License-Identifier: MIT -->
+<!-- SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de> -->
+# Night 2026-09-28: CUDA, llama.cpp, PyTorch, Windows
+
+The user's end goal (2026-09-28): SotTR on Windows and Linux, CUDA/LLM/PyTorch, the desktop and
+NVENC/NVDEC all within ±10 % of native, with one universal device configuration.
+Tonight's focus: what can be tested and validated without the user.
+
+## Setup
+
+- **Linux B** ("desktop-b"):
+  - device dev cb4974fc, compression=slice, FB 4096 MiB slot 0, 8 vCPU / 8 GiB;
+  - wrapper `alpha-2026-09-27/desktop-checks/D6-dev-c049a59e/desktop-b-comp4g.sh`;
+  - taken down at 21:31 for the latency A/B.
+- **Lean compute VM** (vm2-615): the 2026-09-25 matrix configuration (`matrix-2026-09-25/env.sh wl615`), used for the latency A/B (`latency/lat-ab.sh`).
+- **Native:** the host, same binaries (`/mnt/vmstore/caraxes/llama/dist`, `target/bench/bin`, the host venv).
+- **Windows** ran in parallel (P23-P25, the Windows agent's run dirs), except for the native block.
+
+## Results
+
+First pass, before the fixes (Linux B, cb4974fc):
+
+| Workload | native | Linux B, cb4974fc | ratio |
+|---|---|---|---|
+| short kernel, µs/launch (1000 × 1000 cycles, auto) | 6 | 40-48 | 7-8× (regression, below) |
+| llama 1B Q4_K_M pp512, t/s | 7639 | 7084 ± 1667 (Windows booting) | 0.93 |
+| llama 1B tg128, t/s | 305 | 242 | 0.79 |
+| llama 7B Q4_K_M, -ngl 20, pp512 | 1085 | 914 | 0.84 |
+| llama 7B -ngl 20, tg128 | 16.6 | 11.4 | 0.69 |
+| llama 7B -ngl 99 (4.36 GiB > guest VRAM) | 1652 / 70.3 | clean "failed to load model", no Xid | expected |
+| llama 1B with GGML_CUDA_ENABLE_UNIFIED_MEMORY=1 | n/a | abort; host Xid 31 FAULT_PDE (guest gap) | UVM, below |
+| PyTorch transformer, tokens/s | 107485 | 105625 | 0.98 |
+| PyTorch ResNet-18, images/s | 532.5 | crash, host Xid 31 FAULT_PDE (shadow covered) | race, below |
+| NVENC 1080p H.264 P1 ULL, fps (median latency) | 166-180 (2.3-2.8 ms) | 89-101 (5.1-8.2 ms), lean VM | 0.55 |
+| NVDEC 1080p H.264, fps | 141-143 | 78-79, lean VM | 0.55 |
+
+After the fixes: dev 945431f9 (race fix c8f9ce08, set-B stamp 8d9ab89c, UVM off for Linux),
+lean VM with 4 GiB on slot 0, CARAXES_LAUNCH_FAST=2, 0 Xid in every stage (`series945-fast2/`,
+clocks in `clocks-series945.csv`):
+
+| Workload | native | Linux, 945431f9 | ratio |
+|---|---|---|---|
+| short kernel, µs/launch | 6 | 13-14 | 2.2× |
+| llama 1B pp512, t/s | 7639 | 8669 ± 777 | **1.13** |
+| llama 1B tg128, t/s | 305 | 282 ± 35 | **0.92** |
+| PyTorch transformer, tokens/s | 107485 | 110248 | **1.03** |
+| PyTorch ResNet-18 ×3, images/s | 532.5 | 500 / 530 / 499 | **0.94-1.00** (was a crash) |
+| NVENC fps | 165-180 | 95-125 | 0.6-0.7 |
+| NVDEC fps | 137-143 | 77-94 | 0.6 |
+| llama 1B with GGML_CUDA_ENABLE_UNIFIED_MEMORY=1 | n/a | clean "failed to load model", rc 1, no Xid (`uvm-off-945/`) | fail closed |
+
+With UVM off, libcuda also reports "VMM: no" (no cuMemCreate/cuMemMap family). llama and PyTorch
+run without it, but it is a compatibility gap to check.
+
+The ENC/DEC rows of the first pass come from the lean VM (`venc-cur2/`). The probe was built on the host from
+`caraxes/tools/nvenc-probe.c` with FFmpeg's nv-codec-headers (master tarball, fetched without
+identifiers into `target/nvenc`); it needs GLIBC 2.38. Both sides PASS (PSNR min 63.37 dB).
+The per-frame analysis runs as a separate research note (docs/research/video-path-2026-09-28.md).
+
+## Findings
+
+1. **Short-kernel regression.** Same lean VM, same configuration:
+   - fbe4dfb (2026-09-25): 14-18 µs per launch;
+   - cb4974fc: 40-48 µs.
+   - The configuration is not the cause: Linux B's desktop on or off gives the same numbers.
+   - `CARAXES_LAUNCH_TIMING=1`: the `plan` step of the shadow doorbell (mirror.rs `shadow_channel`: `flush_lazy` + `shadow_resync`) costs p50 20.6 µs on every doorbell. `CARAXES_ALLOC_LAZY=0` does not change it.
+   - Cause (branch planfast-2026-09-28, 8d9ab89c): set B was recomputed twice on every shadow doorbell.
+     - Each pass is 10.4 µs: a walk over all registry channels, 80 global extents and walk-cache scans for CUDA's 8 GR channels × 10 promoted globals.
+     - 4a6ba83b made it per-doorbell, 72a8034c added the second pass.
+   - Fix: set B is cached per root under a stamp (registry set-B generation, walk-cache generation, host-size count). A clean doorbell costs 0.1 µs instead of 20.8 µs (micro-benchmark `bench_set_b_clean_doorbell`).
+   - Measured (`arm-planfast`, lean VM with 1 GiB on slot 5): **22-26 µs per launch**, plan p50 0.3 µs, ring to host doorbell p50 9.8 µs.
+   - The rest of the gap to fbe4dfb is the untrapped-GPPut evidence reads (two uncached USERD read pairs, ~4.3 µs), which CARAXES_LAUNCH_FAST removes.
+   - Evidence: `latency/arm-cur`, `arm-old`, `arm-cur-nolazy`.
+2. **ResNet-18 crash: a shadow ordering race.**
+   - Host Xid 31 FAULT_PDE at 0x7794_b5c03000 (GPC0 T1 write).
+   - The device diagnostic shows the guest and the shadow covering the VA with the same 2 MiB leaf, so the kernel ran before the host mapping was in place.
+   - Root cause (docs/research/shadow-fault-race-2026-09-28.md on branch shadowrace-2026-09-28):
+     - Since 9ddc665c (gspFeatures UVM_ENABLED=1) libcuda maps through nvidia-uvm.
+     - UVM's page-table updates reach the device only as MEM_OP TLB invalidates in the software executor, which never held the shadow.
+     - The untrapped GPPut lets the host channel run the next kernel before the doorbell has planned the new regions (a ~3.4 ms window here).
+   - Fix c8f9ce08: a software MEM_OP invalidate of a shadow root stops its push until the plan is applied. Plus the F3 TSG fault-record read.
+   - Validated in `series945-fast2`: three fresh ResNet-18 processes at 499-530 images/s, 0 Xid.
+3. **UVM demand paging.**
+   - The guest has no mapping at the fault VA; UVM waits for a replayable fault that never reaches the guest.
+   - Since 9ddc665c (2026-09-26) the device answers GSP_GET_FEATURES with UVM_ENABLED=1.
+   - Research: docs/research/uvm-faults-2026-09-28.md. Not possible on Turing with an unmodified host driver.
+   - The user decided (22:35): report UVM=0 for now, "the vGPU simply cannot do it" (as NVIDIA vGPU without UVM). Implemented in 945431f9.
+   - A compatibility mode that pins managed memory in guest RAM is separate research (docs/research/uvm-guest-ram-2026-09-28.md). No guest patch for now.
+4. **Fault containment holds.** After each Xid the guest got per-channel Xid 31 (host mirror), and CUDA worked again right after (nvprobe 0.056 ms).
+5. **SotTR (Linux, run12-comp-4g).** The guest filled its VRAM to 3890 of 4096 MiB, and NVKMS refused the next GEM buffer (a still picture, sound on). A bigger profile only delays this; v1 solves it with its display balloon. This is a decision for the user.
+6. **The host card stays in P8 while the guest works (the biggest remaining lever).**
+   - Read-only `nvidia-smi` sampling during the NVENC/NVDEC probe, 500 ms interval (`clocks-*.csv`):
+     - native: P2, video 1305 MHz, memory 6801 MHz, PCIe gen 3;
+     - guest (lean VM, binary 945431f9): P8 in 308 of 322 samples, video 540 MHz, memory 405 MHz, PCIe gen 1.
+   - Natively every CUDA context sends PERF_BOOST. The device acknowledges the guest's boost (0x20800a9a) and drops it (cuda.rs), so the host never raises the clocks for the VM's work. Analysis: docs/research/video-path-2026-09-28.md.
+   - The user asked (22:30) for an activity-driven host clock boost "like the reactor". The design is a forwarded PERF_BOOST with a short duration, renewed while the VM rings.
+   - The agent for it was first blocked by the auto-mode classifier ("Modify Shared Resources": host GPU clocks). The user then allowed it explicitly (22:45): "You are allowed to boost, and if possible integrate a dynamic boosting into the host process." Being built on branch hostboost-2026-09-28.
+7. **Latency after the fixes** (combined branch night-2026-09-28), lean VM, µs per launch:
+   - 945431f9 (UVM off for Linux): 20 without FAST, 14-17 with LAUNCH_FAST=1, 13-14 with LAUNCH_FAST=2. Native 6.
+   - Ring to host doorbell p50: 9.5, 3.5 and 2.4 µs.
+   - The rest (host doorbell to the next ring ~10 µs vs ~6 µs native) is on the host GPU side, which is probably also the P8 clocks.
+8. **UVM:** 945431f9 answers GSP_GET_FEATURES bit 0 by the guest's NVGMC_SI_HOST_OS_TYPE: Unix 0 (cudaMallocManaged returns 801, as on vGPU without UVM), Windows 1 for now. The user thinks Windows does not need it; an A/B on Windows is planned.

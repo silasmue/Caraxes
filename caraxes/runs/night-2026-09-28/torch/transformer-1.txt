@@ -1,0 +1,7 @@
+   40.2s | step    523 |   13.02 steps/s | median   76.65 ms | loss 0.236
+   50.2s | step    651 |   12.96 steps/s | median   76.97 ms | loss 0.040
+
+=== final ===
+timed steps 774 in 60.03 s: 12.89 steps/s, median 77.22 ms, 105625 tokens/s, loss 8.370 -> 0.022, params 5.85 M, peak memory 1382 MiB
+# TRANSFORMER steps_per_s=12.894 step_med_ms=77.222 step_p10_ms=75.564 step_p90_ms=79.740 tokens_per_s=105625 steps=774 first_step_ms=799.8 loss_first=8.3697 loss_last=0.0218 amp=0 batch=32 seq=256 layers=6 dmodel=256 params_m=5.85 mem_peak_mib=1382 oom_retries=0 finite=1 device=Leandro_VFIO_RTX_2070-4G
+88 MiB

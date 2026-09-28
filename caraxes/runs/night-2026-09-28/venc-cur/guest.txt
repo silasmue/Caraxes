@@ -1,0 +1,11 @@
+no probe; headers at: .
+ls: cannot access '/home/leandro/nvenc': No such file or directory
+/home/leandro/bench:
+bench-cu
+bench-trap
+bench-trap.c
+convnet.py
+ctrlping
+ioctlping
+kernels.ptx
+llamaprobe.py

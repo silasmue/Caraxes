@@ -1,0 +1,1 @@
+usage: bench-cu init|copy [reps]|churn [cycles]

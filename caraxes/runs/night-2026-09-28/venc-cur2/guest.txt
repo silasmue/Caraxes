@@ -1,0 +1,11 @@
+probe: /home/leandro/nvenc/nvenc-probe a07b095d31781341
+ENC frames=300 bytes=5274082 seconds=3.264 fps=91.9 fill_ms_total=1166 lat_us_med=5279 lat_us_p99=14224 lat_us_max=17224 kbit_per_s_at_60fps=8439
+DEC frames=300 seconds=3.837 fps=78.2 psnr_y_min=63.37 psnr_y_avg=71.46 (the decoded luma against the pattern; includes the copy to the host and the comparison)
+RESULT PASS
+ENC frames=300 bytes=5274082 seconds=2.981 fps=100.6 fill_ms_total=1052 lat_us_med=5146 lat_us_p99=10940 lat_us_max=16005 kbit_per_s_at_60fps=8439
+DEC frames=300 seconds=3.777 fps=79.4 psnr_y_min=63.37 psnr_y_avg=71.46 (the decoded luma against the pattern; includes the copy to the host and the comparison)
+RESULT PASS
+ENC frames=300 bytes=5274082 seconds=3.378 fps=88.8 fill_ms_total=1065 lat_us_med=8153 lat_us_p99=10517 lat_us_max=10884 kbit_per_s_at_60fps=8439
+DEC frames=300 seconds=3.828 fps=78.4 psnr_y_min=63.37 psnr_y_avg=71.46 (the decoded luma against the pattern; includes the copy to the host and the comparison)
+RESULT PASS
+0 MiB

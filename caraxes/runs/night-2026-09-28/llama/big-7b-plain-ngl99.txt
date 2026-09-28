@@ -1,0 +1,6 @@
+ggml_cuda_init: found 1 CUDA devices (Total VRAM: 3889 MiB):
+  Device 0: Leandro VFIO RTX 2070-4G, compute capability 7.5, VMM: yes, VRAM: 3889 MiB
+llama_bench: error: failed to load model 'qwen7b.gguf'
+| model                          |       size |     params | backend    | ngl |            test |                  t/s |
+| ------------------------------ | ---------: | ---------: | ---------- | --: | --------------: | -------------------: |
+88 MiB

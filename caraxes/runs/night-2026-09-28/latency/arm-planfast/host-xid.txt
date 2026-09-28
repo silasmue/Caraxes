@@ -1,0 +1,2 @@
+# host kernel log, Xid lines since 2026-09-28 22:17:15 (device pid 976661)
+Sep 28 22:17:45 manacor kernel: NVRM: Xid (PCI:0000:2d:00): 31, pid=917287, name=vfio-user-nvgpu, intr 00000000. MMU Fault: ENGINE HOST0 HUBCLIENT_HOST_CPU faulted @ 0x0_04774000. Fault is of type FAULT_PTE ACCESS_TYPE_VIRT_READ
