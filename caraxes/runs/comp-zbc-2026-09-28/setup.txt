@@ -1,0 +1,6 @@
+2026-09-28T20:11:47+02:00
+NVRM version: NVIDIA UNIX Open Kernel Module for x86_64  615.71.09  Release Build  (root@)  
+f67fef547de9507244bcc13e3db84191f64168314fcc4b293e63c6bed9c9e1a5  target/release/examples/zbc-host
+5ffd1a1223529763ee66e0be1e67ec730a46d3275aebd827a2f09a87fdb2d72d  crates/vfio-user-nvgpu/examples/zbc-host.rs
+922430b2
+(working tree: comp-zbc, uncommitted zbc.rs/hostrm.rs at probe time)

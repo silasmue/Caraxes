@@ -1,0 +1,80 @@
+# ZBC host probe: host ABI 615.71.09: TSG params 28 bytes, GPU_GET_PES_INFO 76 (tpcToPesMap[15]), GR_GET_GLOBAL_SM_ORDER 10264 (SM entry 20), channel params 376, GSS legacy [pmgr 0x18 20512, thermal 0x36 24532, perf 0xf1 9216] (chosen by running driver 615.71.09 (/proc/driver/nvidia/version))
+# colour: colorFB 0xff000000,0xff000000,0xff000000,0xff000000 colorDS 0x00000000,0x00000000,0x00000000,0x3f800000 format 0x28
+host RM_ALLOC NV01_ROOT_CLIENT, NV01_DEVICE_0 (deviceId 0), NV20_SUBDEVICE_0 (subDeviceId 0): client open
+host RM_ALLOC GF100_ZBC_CLEAR (0x9096) under the client's subdevice, with this first ZBC control
+host RM_CONTROL 0x90960106 GET_ZBC_CLEAR_TABLE_SIZE: tableType 1 -> indexStart 1 indexEnd 15 status 0x0
+host RM_CONTROL 0x90960107 GET_ZBC_CLEAR_TABLE_ENTRY: tableType 1 index 1 -> bIndexValid 1 format 0x1 colorFB 0x00000000,0x00000000,0x00000000,0x00000000 colorDS 0x00000000,0x00000000,0x00000000,0x00000000 status 0x0
+host RM_CONTROL 0x90960107 GET_ZBC_CLEAR_TABLE_ENTRY: tableType 1 index 2 -> bIndexValid 1 format 0x2 colorFB 0xffffffff,0xffffffff,0xffffffff,0xffffffff colorDS 0x3f800000,0x3f800000,0x3f800000,0x3f800000 status 0x0
+host RM_CONTROL 0x90960107 GET_ZBC_CLEAR_TABLE_ENTRY: tableType 1 index 3 -> bIndexValid 1 format 0x4 colorFB 0x3f800000,0x3f800000,0x3f800000,0x3f800000 colorDS 0x3f800000,0x3f800000,0x3f800000,0x3f800000 status 0x0
+host RM_CONTROL 0x90960107 GET_ZBC_CLEAR_TABLE_ENTRY: tableType 1 index 4 -> bIndexValid 1 format 0x28 colorFB 0xff111111,0xff111111,0xff111111,0xff111111 colorDS 0x3d888889,0x3d888889,0x3d888889,0x3f800000 status 0x0
+host RM_CONTROL 0x90960107 GET_ZBC_CLEAR_TABLE_ENTRY: tableType 1 index 5 -> bIndexValid 1 format 0x28 colorFB 0xff121212,0xff121212,0xff121212,0xff121212 colorDS 0x3d909091,0x3d909091,0x3d909091,0x3f800000 status 0x0
+host RM_CONTROL 0x90960107 GET_ZBC_CLEAR_TABLE_ENTRY: tableType 1 index 6 -> bIndexValid 1 format 0x28 colorFB 0xff000000,0xff000000,0xff000000,0xff000000 colorDS 0x00000000,0x00000000,0x00000000,0x3f800000 status 0x0
+host RM_CONTROL 0x90960107 GET_ZBC_CLEAR_TABLE_ENTRY: tableType 1 index 7 -> bIndexValid 1 format 0x18 colorFB 0xff121214,0xff121214,0xff121214,0xff121214 colorDS 0x3d9090b6,0x3d9090ac,0x3da0a0a6,0x3f800000 status 0x0
+host RM_CONTROL 0x90960107 GET_ZBC_CLEAR_TABLE_ENTRY: tableType 1 index 8 -> bIndexValid 1 format 0x18 colorFB 0x00010000,0x00010000,0x00010000,0x00010000 colorDS 0x3b808081,0x00000000,0x00000000,0x00000000 status 0x0
+host RM_CONTROL 0x90960107 GET_ZBC_CLEAR_TABLE_ENTRY: tableType 1 index 9 -> bIndexValid 1 format 0x18 colorFB 0xff1e1e2e,0xff1e1e2e,0xff1e1e2e,0xff1e1e2e colorDS 0x3df0f0f1,0x3df0f0f1,0x3e38b8b9,0x3f800000 status 0x0
+host RM_CONTROL 0x90960107 GET_ZBC_CLEAR_TABLE_ENTRY: tableType 1 index 10 -> bIndexValid 1 format 0x18 colorFB 0xff121314,0xff121314,0xff121314,0xff121314 colorDS 0x3d909091,0x3d989899,0x3da0a0a1,0x3f800000 status 0x0
+host RM_CONTROL 0x90960107 GET_ZBC_CLEAR_TABLE_ENTRY: tableType 1 index 11 -> bIndexValid 1 format 0x18 colorFB 0xff191a1b,0xff191a1b,0xff191a1b,0xff191a1b colorDS 0x3dc8c8c9,0x3dd0d0d1,0x3dd8d8d9,0x3f800000 status 0x0
+host RM_CONTROL 0x90960107 GET_ZBC_CLEAR_TABLE_ENTRY: tableType 1 index 12 -> bIndexValid 1 format 0x18 colorFB 0xff252526,0xff252526,0xff252526,0xff252526 colorDS 0x3e149495,0x3e149495,0x3e189899,0x3f800000 status 0x0
+host RM_CONTROL 0x90960107 GET_ZBC_CLEAR_TABLE_ENTRY: tableType 1 index 13 -> bIndexValid 1 format 0x18 colorFB 0xff1a1a1e,0xff1a1a1e,0xff1a1a1e,0xff1a1a1e colorDS 0x3dd0ceca,0x3dd0cec8,0x3df0eecc,0x3f800000 status 0x0
+host RM_CONTROL 0x90960107 GET_ZBC_CLEAR_TABLE_ENTRY: tableType 1 index 14 -> bIndexValid 1 format 0x28 colorFB 0xfffaf9f7,0xfffaf9f7,0xfffaf9f7,0xfffaf9f7 colorDS 0x3f77f7f8,0x3f79f9fa,0x3f7afafb,0x3f800000 status 0x0
+host RM_CONTROL 0x90960107 GET_ZBC_CLEAR_TABLE_ENTRY: tableType 1 index 15 -> bIndexValid 1 format 0x28 colorFB 0xfffcfcfc,0xfffcfcfc,0xfffcfcfc,0xfffcfcfc colorDS 0x3f7cfcfd,0x3f7cfcfd,0x3f7cfcfd,0x3f800000 status 0x0
+# before: 15 of 15 colour slots used, 0 free; the colour is at index 6
+# the set references the existing entry: no slot is filled
+host RM_CONTROL 0x90960107 GET_ZBC_CLEAR_TABLE_ENTRY: tableType 1 index 1 -> bIndexValid 1 format 0x1 colorFB 0x00000000,0x00000000,0x00000000,0x00000000 colorDS 0x00000000,0x00000000,0x00000000,0x00000000 status 0x0
+host RM_CONTROL 0x90960107 GET_ZBC_CLEAR_TABLE_ENTRY: tableType 1 index 2 -> bIndexValid 1 format 0x2 colorFB 0xffffffff,0xffffffff,0xffffffff,0xffffffff colorDS 0x3f800000,0x3f800000,0x3f800000,0x3f800000 status 0x0
+host RM_CONTROL 0x90960107 GET_ZBC_CLEAR_TABLE_ENTRY: tableType 1 index 3 -> bIndexValid 1 format 0x4 colorFB 0x3f800000,0x3f800000,0x3f800000,0x3f800000 colorDS 0x3f800000,0x3f800000,0x3f800000,0x3f800000 status 0x0
+host RM_CONTROL 0x90960107 GET_ZBC_CLEAR_TABLE_ENTRY: tableType 1 index 4 -> bIndexValid 1 format 0x28 colorFB 0xff111111,0xff111111,0xff111111,0xff111111 colorDS 0x3d888889,0x3d888889,0x3d888889,0x3f800000 status 0x0
+host RM_CONTROL 0x90960107 GET_ZBC_CLEAR_TABLE_ENTRY: tableType 1 index 5 -> bIndexValid 1 format 0x28 colorFB 0xff121212,0xff121212,0xff121212,0xff121212 colorDS 0x3d909091,0x3d909091,0x3d909091,0x3f800000 status 0x0
+host RM_CONTROL 0x90960107 GET_ZBC_CLEAR_TABLE_ENTRY: tableType 1 index 6 -> bIndexValid 1 format 0x28 colorFB 0xff000000,0xff000000,0xff000000,0xff000000 colorDS 0x00000000,0x00000000,0x00000000,0x3f800000 status 0x0
+host RM_CONTROL 0x90960107 GET_ZBC_CLEAR_TABLE_ENTRY: tableType 1 index 7 -> bIndexValid 1 format 0x18 colorFB 0xff121214,0xff121214,0xff121214,0xff121214 colorDS 0x3d9090b6,0x3d9090ac,0x3da0a0a6,0x3f800000 status 0x0
+host RM_CONTROL 0x90960107 GET_ZBC_CLEAR_TABLE_ENTRY: tableType 1 index 8 -> bIndexValid 1 format 0x18 colorFB 0x00010000,0x00010000,0x00010000,0x00010000 colorDS 0x3b808081,0x00000000,0x00000000,0x00000000 status 0x0
+host RM_CONTROL 0x90960107 GET_ZBC_CLEAR_TABLE_ENTRY: tableType 1 index 9 -> bIndexValid 1 format 0x18 colorFB 0xff1e1e2e,0xff1e1e2e,0xff1e1e2e,0xff1e1e2e colorDS 0x3df0f0f1,0x3df0f0f1,0x3e38b8b9,0x3f800000 status 0x0
+host RM_CONTROL 0x90960107 GET_ZBC_CLEAR_TABLE_ENTRY: tableType 1 index 10 -> bIndexValid 1 format 0x18 colorFB 0xff121314,0xff121314,0xff121314,0xff121314 colorDS 0x3d909091,0x3d989899,0x3da0a0a1,0x3f800000 status 0x0
+host RM_CONTROL 0x90960107 GET_ZBC_CLEAR_TABLE_ENTRY: tableType 1 index 11 -> bIndexValid 1 format 0x18 colorFB 0xff191a1b,0xff191a1b,0xff191a1b,0xff191a1b colorDS 0x3dc8c8c9,0x3dd0d0d1,0x3dd8d8d9,0x3f800000 status 0x0
+host RM_CONTROL 0x90960107 GET_ZBC_CLEAR_TABLE_ENTRY: tableType 1 index 12 -> bIndexValid 1 format 0x18 colorFB 0xff252526,0xff252526,0xff252526,0xff252526 colorDS 0x3e149495,0x3e149495,0x3e189899,0x3f800000 status 0x0
+host RM_CONTROL 0x90960107 GET_ZBC_CLEAR_TABLE_ENTRY: tableType 1 index 13 -> bIndexValid 1 format 0x18 colorFB 0xff1a1a1e,0xff1a1a1e,0xff1a1a1e,0xff1a1a1e colorDS 0x3dd0ceca,0x3dd0cec8,0x3df0eecc,0x3f800000 status 0x0
+host RM_CONTROL 0x90960107 GET_ZBC_CLEAR_TABLE_ENTRY: tableType 1 index 14 -> bIndexValid 1 format 0x28 colorFB 0xfffaf9f7,0xfffaf9f7,0xfffaf9f7,0xfffaf9f7 colorDS 0x3f77f7f8,0x3f79f9fa,0x3f7afafb,0x3f800000 status 0x0
+host RM_CONTROL 0x90960107 GET_ZBC_CLEAR_TABLE_ENTRY: tableType 1 index 15 -> bIndexValid 1 format 0x28 colorFB 0xfffcfcfc,0xfffcfcfc,0xfffcfcfc,0xfffcfcfc colorDS 0x3f7cfcfd,0x3f7cfcfd,0x3f7cfcfd,0x3f800000 status 0x0
+host RM_CONTROL 0x90960101 SET_ZBC_COLOR_CLEAR: colorFB 0xff000000,0xff000000,0xff000000,0xff000000 colorDS 0x00000000,0x00000000,0x00000000,0x3f800000 format 0x28 bSkipL2Table 0 status 0x0
+device answer to the guest: status 0x0 [host (forwarded to the host's ZBC table on the device's own client; the host dedups and places the entry)] ZBC colour at host index 6 (an equal entry the host held)
+guest view: GET_ZBC_CLEAR_TABLE_ENTRY index 6: tableType 1 index 6 -> bIndexValid 1 format 0x28 colorFB 0xff000000,0xff000000,0xff000000,0xff000000 colorDS 0x00000000,0x00000000,0x00000000,0x3f800000 [host (the host's ZBC table as this VM sees it: the chip defaults and this VM's entries at their host indices; other tenants' entries read as empty)] (0 host call(s))
+host RM_CONTROL 0x90960106 GET_ZBC_CLEAR_TABLE_SIZE: tableType 1 -> indexStart 1 indexEnd 15 status 0x0
+host RM_CONTROL 0x90960107 GET_ZBC_CLEAR_TABLE_ENTRY: tableType 1 index 1 -> bIndexValid 1 format 0x1 colorFB 0x00000000,0x00000000,0x00000000,0x00000000 colorDS 0x00000000,0x00000000,0x00000000,0x00000000 status 0x0
+host RM_CONTROL 0x90960107 GET_ZBC_CLEAR_TABLE_ENTRY: tableType 1 index 2 -> bIndexValid 1 format 0x2 colorFB 0xffffffff,0xffffffff,0xffffffff,0xffffffff colorDS 0x3f800000,0x3f800000,0x3f800000,0x3f800000 status 0x0
+host RM_CONTROL 0x90960107 GET_ZBC_CLEAR_TABLE_ENTRY: tableType 1 index 3 -> bIndexValid 1 format 0x4 colorFB 0x3f800000,0x3f800000,0x3f800000,0x3f800000 colorDS 0x3f800000,0x3f800000,0x3f800000,0x3f800000 status 0x0
+host RM_CONTROL 0x90960107 GET_ZBC_CLEAR_TABLE_ENTRY: tableType 1 index 4 -> bIndexValid 1 format 0x28 colorFB 0xff111111,0xff111111,0xff111111,0xff111111 colorDS 0x3d888889,0x3d888889,0x3d888889,0x3f800000 status 0x0
+host RM_CONTROL 0x90960107 GET_ZBC_CLEAR_TABLE_ENTRY: tableType 1 index 5 -> bIndexValid 1 format 0x28 colorFB 0xff121212,0xff121212,0xff121212,0xff121212 colorDS 0x3d909091,0x3d909091,0x3d909091,0x3f800000 status 0x0
+host RM_CONTROL 0x90960107 GET_ZBC_CLEAR_TABLE_ENTRY: tableType 1 index 6 -> bIndexValid 1 format 0x28 colorFB 0xff000000,0xff000000,0xff000000,0xff000000 colorDS 0x00000000,0x00000000,0x00000000,0x3f800000 status 0x0
+host RM_CONTROL 0x90960107 GET_ZBC_CLEAR_TABLE_ENTRY: tableType 1 index 7 -> bIndexValid 1 format 0x18 colorFB 0xff121214,0xff121214,0xff121214,0xff121214 colorDS 0x3d9090b6,0x3d9090ac,0x3da0a0a6,0x3f800000 status 0x0
+host RM_CONTROL 0x90960107 GET_ZBC_CLEAR_TABLE_ENTRY: tableType 1 index 8 -> bIndexValid 1 format 0x18 colorFB 0x00010000,0x00010000,0x00010000,0x00010000 colorDS 0x3b808081,0x00000000,0x00000000,0x00000000 status 0x0
+host RM_CONTROL 0x90960107 GET_ZBC_CLEAR_TABLE_ENTRY: tableType 1 index 9 -> bIndexValid 1 format 0x18 colorFB 0xff1e1e2e,0xff1e1e2e,0xff1e1e2e,0xff1e1e2e colorDS 0x3df0f0f1,0x3df0f0f1,0x3e38b8b9,0x3f800000 status 0x0
+host RM_CONTROL 0x90960107 GET_ZBC_CLEAR_TABLE_ENTRY: tableType 1 index 10 -> bIndexValid 1 format 0x18 colorFB 0xff121314,0xff121314,0xff121314,0xff121314 colorDS 0x3d909091,0x3d989899,0x3da0a0a1,0x3f800000 status 0x0
+host RM_CONTROL 0x90960107 GET_ZBC_CLEAR_TABLE_ENTRY: tableType 1 index 11 -> bIndexValid 1 format 0x18 colorFB 0xff191a1b,0xff191a1b,0xff191a1b,0xff191a1b colorDS 0x3dc8c8c9,0x3dd0d0d1,0x3dd8d8d9,0x3f800000 status 0x0
+host RM_CONTROL 0x90960107 GET_ZBC_CLEAR_TABLE_ENTRY: tableType 1 index 12 -> bIndexValid 1 format 0x18 colorFB 0xff252526,0xff252526,0xff252526,0xff252526 colorDS 0x3e149495,0x3e149495,0x3e189899,0x3f800000 status 0x0
+host RM_CONTROL 0x90960107 GET_ZBC_CLEAR_TABLE_ENTRY: tableType 1 index 13 -> bIndexValid 1 format 0x18 colorFB 0xff1a1a1e,0xff1a1a1e,0xff1a1a1e,0xff1a1a1e colorDS 0x3dd0ceca,0x3dd0cec8,0x3df0eecc,0x3f800000 status 0x0
+host RM_CONTROL 0x90960107 GET_ZBC_CLEAR_TABLE_ENTRY: tableType 1 index 14 -> bIndexValid 1 format 0x28 colorFB 0xfffaf9f7,0xfffaf9f7,0xfffaf9f7,0xfffaf9f7 colorDS 0x3f77f7f8,0x3f79f9fa,0x3f7afafb,0x3f800000 status 0x0
+host RM_CONTROL 0x90960107 GET_ZBC_CLEAR_TABLE_ENTRY: tableType 1 index 15 -> bIndexValid 1 format 0x28 colorFB 0xfffcfcfc,0xfffcfcfc,0xfffcfcfc,0xfffcfcfc colorDS 0x3f7cfcfd,0x3f7cfcfd,0x3f7cfcfd,0x3f800000 status 0x0
+# after: the host table is unchanged
+# host calls of the first client: 48
+host client freed (its file descriptors closed)
+host RM_ALLOC NV01_ROOT_CLIENT, NV01_DEVICE_0 (deviceId 0), NV20_SUBDEVICE_0 (subDeviceId 0): client open
+host RM_ALLOC GF100_ZBC_CLEAR (0x9096) under the client's subdevice, with this first ZBC control
+host RM_CONTROL 0x90960106 GET_ZBC_CLEAR_TABLE_SIZE: tableType 1 -> indexStart 1 indexEnd 15 status 0x0
+host RM_CONTROL 0x90960107 GET_ZBC_CLEAR_TABLE_ENTRY: tableType 1 index 1 -> bIndexValid 1 format 0x1 colorFB 0x00000000,0x00000000,0x00000000,0x00000000 colorDS 0x00000000,0x00000000,0x00000000,0x00000000 status 0x0
+host RM_CONTROL 0x90960107 GET_ZBC_CLEAR_TABLE_ENTRY: tableType 1 index 2 -> bIndexValid 1 format 0x2 colorFB 0xffffffff,0xffffffff,0xffffffff,0xffffffff colorDS 0x3f800000,0x3f800000,0x3f800000,0x3f800000 status 0x0
+host RM_CONTROL 0x90960107 GET_ZBC_CLEAR_TABLE_ENTRY: tableType 1 index 3 -> bIndexValid 1 format 0x4 colorFB 0x3f800000,0x3f800000,0x3f800000,0x3f800000 colorDS 0x3f800000,0x3f800000,0x3f800000,0x3f800000 status 0x0
+host RM_CONTROL 0x90960107 GET_ZBC_CLEAR_TABLE_ENTRY: tableType 1 index 4 -> bIndexValid 1 format 0x28 colorFB 0xff111111,0xff111111,0xff111111,0xff111111 colorDS 0x3d888889,0x3d888889,0x3d888889,0x3f800000 status 0x0
+host RM_CONTROL 0x90960107 GET_ZBC_CLEAR_TABLE_ENTRY: tableType 1 index 5 -> bIndexValid 1 format 0x28 colorFB 0xff121212,0xff121212,0xff121212,0xff121212 colorDS 0x3d909091,0x3d909091,0x3d909091,0x3f800000 status 0x0
+host RM_CONTROL 0x90960107 GET_ZBC_CLEAR_TABLE_ENTRY: tableType 1 index 6 -> bIndexValid 1 format 0x28 colorFB 0xff000000,0xff000000,0xff000000,0xff000000 colorDS 0x00000000,0x00000000,0x00000000,0x3f800000 status 0x0
+host RM_CONTROL 0x90960107 GET_ZBC_CLEAR_TABLE_ENTRY: tableType 1 index 7 -> bIndexValid 1 format 0x18 colorFB 0xff121214,0xff121214,0xff121214,0xff121214 colorDS 0x3d9090b6,0x3d9090ac,0x3da0a0a6,0x3f800000 status 0x0
+host RM_CONTROL 0x90960107 GET_ZBC_CLEAR_TABLE_ENTRY: tableType 1 index 8 -> bIndexValid 1 format 0x18 colorFB 0x00010000,0x00010000,0x00010000,0x00010000 colorDS 0x3b808081,0x00000000,0x00000000,0x00000000 status 0x0
+host RM_CONTROL 0x90960107 GET_ZBC_CLEAR_TABLE_ENTRY: tableType 1 index 9 -> bIndexValid 1 format 0x18 colorFB 0xff1e1e2e,0xff1e1e2e,0xff1e1e2e,0xff1e1e2e colorDS 0x3df0f0f1,0x3df0f0f1,0x3e38b8b9,0x3f800000 status 0x0
+host RM_CONTROL 0x90960107 GET_ZBC_CLEAR_TABLE_ENTRY: tableType 1 index 10 -> bIndexValid 1 format 0x18 colorFB 0xff121314,0xff121314,0xff121314,0xff121314 colorDS 0x3d909091,0x3d989899,0x3da0a0a1,0x3f800000 status 0x0
+host RM_CONTROL 0x90960107 GET_ZBC_CLEAR_TABLE_ENTRY: tableType 1 index 11 -> bIndexValid 1 format 0x18 colorFB 0xff191a1b,0xff191a1b,0xff191a1b,0xff191a1b colorDS 0x3dc8c8c9,0x3dd0d0d1,0x3dd8d8d9,0x3f800000 status 0x0
+host RM_CONTROL 0x90960107 GET_ZBC_CLEAR_TABLE_ENTRY: tableType 1 index 12 -> bIndexValid 1 format 0x18 colorFB 0xff252526,0xff252526,0xff252526,0xff252526 colorDS 0x3e149495,0x3e149495,0x3e189899,0x3f800000 status 0x0
+host RM_CONTROL 0x90960107 GET_ZBC_CLEAR_TABLE_ENTRY: tableType 1 index 13 -> bIndexValid 1 format 0x18 colorFB 0xff1a1a1e,0xff1a1a1e,0xff1a1a1e,0xff1a1a1e colorDS 0x3dd0ceca,0x3dd0cec8,0x3df0eecc,0x3f800000 status 0x0
+host RM_CONTROL 0x90960107 GET_ZBC_CLEAR_TABLE_ENTRY: tableType 1 index 14 -> bIndexValid 1 format 0x28 colorFB 0xfffaf9f7,0xfffaf9f7,0xfffaf9f7,0xfffaf9f7 colorDS 0x3f77f7f8,0x3f79f9fa,0x3f7afafb,0x3f800000 status 0x0
+host RM_CONTROL 0x90960107 GET_ZBC_CLEAR_TABLE_ENTRY: tableType 1 index 15 -> bIndexValid 1 format 0x28 colorFB 0xfffcfcfc,0xfffcfcfc,0xfffcfcfc,0xfffcfcfc colorDS 0x3f7cfcfd,0x3f7cfcfd,0x3f7cfcfd,0x3f800000 status 0x0
+# second client: the colour is at index 6 (it was at index 6 after the set)
+# host calls of the second client: 16
+rc=0
