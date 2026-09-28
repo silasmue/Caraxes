@@ -237,13 +237,10 @@ pub fn host_footprint(raw: u64) -> u64 {
 /// How a size-0 global buffer's exclusion ended ([`global_exclusion`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum GlobalClip {
-    /// No guest page in `[va, va + cap)`: the full 64 KiB-rounded extent.
+    /// No guest page past the host's footprint within the 64 KiB extent: the full extent.
     Full,
     /// A guest page at `at`, past the host's footprint: excluded up to it.
     Cut { at: u64 },
-    /// A guest page at `at` inside the host's footprint: the footprint stays excluded (that
-    /// guest page is not mirrored, a fault rather than a page the two share).
-    Overlap { at: u64 },
 }
 
 /// The exclusion `[va, end)` of a global GR buffer promoted by VA alone (size 0), with the
@@ -252,6 +249,8 @@ pub enum GlobalClip {
 /// the guest maps past the footprint (`guest_first(lo, hi)`: the lowest guest-mapped VA in
 /// `[lo, hi)`). Run P19: the 64 KiB extent of the 12 KiB BUNDLE_CB covered the guest's
 /// semaphore page at +0x3000, and the GR engine's write there faulted (Xid 31 FAULT_PTE).
+/// Pages inside the footprint are the guest's own copy of the buffer (its RM allocates and
+/// maps the global buffers itself, run P20), which the host's replaces in the shadow.
 pub fn global_exclusion(
     va: u64,
     raw: u64,
@@ -259,9 +258,6 @@ pub fn global_exclusion(
 ) -> (u64, GlobalClip) {
     let floor = va + host_footprint(raw);
     let cap = floor.max(va + ((raw + 0xFFFF) & !0xFFFF));
-    if let Some(at) = guest_first(va, floor) {
-        return (floor, GlobalClip::Overlap { at });
-    }
     match guest_first(floor, cap) {
         Some(at) => (at, GlobalClip::Cut { at }),
         None => (cap, GlobalClip::Full),
@@ -1186,9 +1182,6 @@ impl Mirror {
                     "WARN: shadow root {root:#x}: global buffer {buffer_id} at {va:#x}: set-B exclusion cut short at {at:#x} by a guest-mapped page (host size {raw:#x}, footprint to {:#x}, 64 KiB extent to {:#x}) [set B]",
                     va + host_footprint(raw),
                     va + ((raw + 0xFFFF) & !0xFFFF)
-                ),
-                GlobalClip::Overlap { at } => format!(
-                    "WARN: shadow root {root:#x}: global buffer {buffer_id} at {va:#x}: the guest maps {at:#x} inside the host's footprint [{va:#x}, {end:#x}) (host size {raw:#x}): kept out of set A, that page is not mirrored [set B]"
                 ),
                 GlobalClip::Full => unreachable!(),
             };
@@ -5713,8 +5706,8 @@ mod tests {
     }
 
     /// Run P19: the guest's BUNDLE_CB (the host's 0x3000) at 0x1200e9000, its semaphore page at
-    /// 0x1200ec000. The exclusion stops there instead of at the 64 KiB extent; a guest page
-    /// inside the host's footprint never shrinks it.
+    /// 0x1200ec000. The exclusion stops there instead of at the 64 KiB extent; the guest's own
+    /// pages inside the host's footprint never shrink it.
     #[test]
     fn a_global_exclusion_stops_at_the_guests_next_page() {
         const BASE: u64 = 0x1_200e_9000;
@@ -5730,10 +5723,15 @@ mod tests {
             (0x1_200f_9000, GlobalClip::Full),
             "no guest page: the 64 KiB extent, as before"
         );
+        // Run P20: the guest maps its own copy of the buffer at the promoted VA; it never
+        // shrinks the footprint, and the next page still cuts the extent.
         assert_eq!(
-            global_exclusion(BASE, 0x3000, at(&[0x1_200e_a000, 0x1_200e_c000])),
-            (0x1_200e_c000, GlobalClip::Overlap { at: 0x1_200e_a000 }),
-            "a guest page inside the footprint: the footprint stays excluded"
+            global_exclusion(BASE, 0x3000, at(&[BASE, 0x1_200e_a000, 0x1_200e_c000])),
+            (0x1_200e_c000, GlobalClip::Cut { at: 0x1_200e_c000 })
+        );
+        assert_eq!(
+            global_exclusion(BASE, 0x3000, at(&[BASE])),
+            (0x1_200f_9000, GlobalClip::Full)
         );
         // Linux's layout (display-e.md): the attribute CB at 0x120400000, 2 MiB pages; the
         // exclusion is the footprint whatever the guest maps past it.

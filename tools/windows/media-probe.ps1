@@ -31,6 +31,7 @@ function Invoke-Tool([string]$exe, [string]$arguments, [string]$tag, [int]$timeo
     $out = "$dir\$tag.out.txt"; $err = "$dir\$tag.err.txt"
     $p = Start-Process -FilePath "$bin\$exe" -ArgumentList $arguments -NoNewWindow -PassThru `
         -RedirectStandardOutput $out -RedirectStandardError $err
+    $null = $p.Handle   # without a cached handle ExitCode stays $null (Start-Process -PassThru)
     if (-not $p.WaitForExit($timeout * 1000)) { $p.Kill(); return @(-1, "TIMEOUT after $timeout s", "") }
     return @($p.ExitCode, (Get-Content $err -Raw), (Get-Content $out -Raw))
 }

@@ -95,13 +95,13 @@ Runs: `/mnt/vmstore/caraxes/alpha-2026-09-27/windows-plain/<run>/`.
   - F2a (this branch): exclusion = [base, first guest-mapped page), never below the host's
     footprint and never above the 64 KiB extent.
     - A cut logs one WARN per clip ("set-B exclusion cut short").
-    - A guest page inside the footprint logs a WARN and stays unmirrored: a fault, never a
-      shared page.
+    - Pages the guest maps inside the footprint are its own copy of the buffer (P20) and never
+      shrink it.
     - Each FIFO_GET_ENGINE_CONTEXT_PROPERTIES answer is now logged unrounded ("global context
       size"), so P20 confirms the BUNDLE_CB number.
   - Linux: unchanged unless the guest maps inside the old 64 KiB overshoot; the host footprint
     is excluded as before.
-  - Validation open (P20). Depends on: AB, L; the host footprint rule on RM's page-size choice.
+  - Validated in P20 (below). Depends on: AB, L; the host footprint rule on RM's page-size choice.
 - **Host-owned VAs in the guest's kernel range remain:** 64 host VA allocations refused with 0x51 in
   0x1_2000_0000..0x1_2200_0000 (P18: 192). No Xid attributed to them in P19. Depends on: L, AB.
 
@@ -118,3 +118,59 @@ Runs: `/mnt/vmstore/caraxes/alpha-2026-09-27/windows-plain/<run>/`.
   - Guest user VAs above 0x1_2000_0000 + F can still meet the host.
   - Depends on: L, AB; the compressed slice (D16b) must keep kinds/comptags per mapped leaf inside
     the fence (K).
+
+## P20 (2026-09-28 20:16, P20-global-clip, beside Linux B)
+
+- **First D3D11 rendering on the device.**
+  - Triangle/clear/triangle readback passed, 3 frames: D3D11CreateDevice after 13.1 s, frames
+    4.7 s (frame 0 readback 4.3 s).
+  - The smoke stage passed it a second time: create 6.8 s, frames 1.3 s.
+  - 0 host Xid until 20:21:36.
+  - F2a: 72a8034c; F1 still holds (22 shadow VASes start at 0).
+- **The host's global-buffer sizes, read by the device:** FIFO_GET_ENGINE_CONTEXT_PROPERTIES
+  engine 0x11 (BUNDLE_CB) = 0x3000, alignment 0x100. All six size-0 globals match the static
+  table. Depends on: none.
+- **The guest maps its own copy of each global buffer at the promoted VA** (kernel roots
+  0x3d598000, 0x3d499000). Expected: the host's copy replaces it in the shadow. The first F2a
+  binary logged these as overlaps; fixed in the WARN text and check-p20. Depends on: AB.
+- **Names.**
+  - nvidia-smi: "Leandro VFIO RTX 2070-1G", KMD 617.14, CUDA UMD 13.4, VBIOS 90.06.3d.00.76,
+    1024 MiB, WDDM.
+  - Win32_VideoController.VideoProcessor and the registry AdapterString/ChipType carry the
+    Leandro name.
+  - Device Manager shows "NVIDIA GeForce RTX 2070": the INF DriverDesc for 10de:1f02, subsystem
+    1458:4011.
+  - Open (user decision): the Device Manager name. A stock driver takes it from the INF; a
+    FriendlyName override is a guest change.
+  - Depends on: none.
+- **Host set B at guest VAs now costs Xids (the F2b class).**
+  - During the D3D12 gate the GR FE took FAULT_PRIV_VIOLATION writes at 0x1_200fc000 and
+    0x1_2011c000 (4x).
+  - F3: the guest maps a sysmem page there; the shadow refused it with 0x1a ("VA collision with
+    set B"); the page is not in the guest's set B. The host's own privileged buffer sits at a
+    VA where this process's VAS holds guest data.
+  - 197 such refusals in the run.
+  - Windows processes lay out 0x1_2000_0000.. differently, and the host's first fit does not
+    know it.
+  - Open: F2b or a host-only area for set B. Depends on: L, AB.
+- **Vulkan device creation hits a host BAR1 CPU fault.**
+  - vulkaninfo: vkCreateDevice ERROR_DEVICE_LOST in nvoglv64.dll.
+  - Same moment (20:21:36): host Xid 31, ENGINE HOST0 HUBCLIENT_HOST_CPU FAULT_PTE read at host
+    BAR1 VA 0x04774000, pid of the Windows device.
+  - A CPU access through a BAR1 PTE that is gone: the FB store's windows (2 x 16 MiB) or the
+    BAR1 pool (32 MiB).
+  - Not attributed; the trace has no window or pool move at that point. Depends on: P, R.
+- **D3D12 hung** (gate timeout after 90 s), with the FE faults above. Not attributed separately.
+- **Test-pack bugs**, fixed on this branch:
+  - A `""` inside an expandable string broke smoke.ps1's parse.
+  - Start-Process `ExitCode` is `$null` without a cached handle: every "exit" was empty and read
+    as FAIL.
+- **User decision, 2026-09-28 ("ja Puffer in den SLICE der VM das ist sauberer"): the owned
+  GFXP buffers go into the VM's own VRAM slice.**
+  - Today each GR context gets 6.47 MiB (6778880 bytes) of ordinary-GFXP buffers as separate
+    host objects outside the reservation. P20's nvidia-smi showed the device at 1049 MiB = the
+    1024 MiB reservation + about 4 live GFXP sets.
+  - Target: allocate them from the VM's slice, so everything a VM uses is one contiguous piece.
+  - Open. Not before the new memory architecture: hostmem.rs belongs to workstream A (the
+    compressed per-VM slice, D16b).
+  - Depends on: R, and the slice allocator.
