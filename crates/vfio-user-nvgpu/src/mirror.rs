@@ -1953,24 +1953,39 @@ impl Mirror {
             .map(|(chid, _)| *chid)
     }
 
-    /// Transfer an idle management channel to the software command interpreter.
-    pub fn retire_for_management(&mut self, reg: &Registry, gm: &mut GpuMem, chid: u32) -> Result<(Option<u32>, Vec<String>), String> {
+    /// Read the fetched prefix boundary without retiring the host channel.
+    pub fn management_cursor(&self, reg: &Registry, chid: u32) -> Result<u32, String> {
         let ch = reg.channel(chid).ok_or("management channel is gone")?;
-        let Some(hc) = self.channels.get(&chid) else { return Ok((None, Vec::new())); };
+        let hc = self.channels.get(&chid).ok_or("management has no host channel")?;
         if hc.generation != ch.generation { return Err("management channel generation changed".into()); }
         let u = hc.userd.as_ref().ok_or("management takeover requires private USERD")?;
         let get = u.storage.read_u32(0x88);
-        if u.published_put != Some(get) { return Err("management host channel still has pending work".into()); }
-        u.harvest(gm);
-        let key = hc.tsg;
+        if u.published_put != Some(get) { return Err("management host channel still has unfetched work".into()); }
+        Ok(get)
+    }
+
+    /// Wait for engine completion, then retire the exact validated management channel.
+    pub fn retire_for_management(&mut self, reg: &Registry, gm: &mut GpuMem, chid: u32, expected_get: u32) -> Result<Vec<String>, String> {
+        let ch = reg.channel(chid).ok_or("management channel is gone")?;
+        let get = self.management_cursor(reg, chid)?;
+        if get != expected_get { return Err("management prefix changed after validation".into()); }
+        let key = self.channels.get(&chid).ok_or("management host channel is gone")?.tsg;
         if reg.channels().filter(|c| tsg_key_of(reg, c).0 == key).count() != 1 {
             return Err("management takeover of a shared TSG is not implemented".into());
         }
+        // nvos.h: idle the pushbuffer, FIFO cache and all engines of this channel.
+        let flags = ((sys::NVOS30_FLAGS_IDLE_PUSH_BUFFER | sys::NVOS30_FLAGS_IDLE_CACHE1
+            | sys::NVOS30_FLAGS_IDLE_ALL_ENGINES) << 8) | sys::NVOS30_FLAGS_BEHAVIOR_SLEEP;
+        let (status, idle_note) = self.idle_channels(reg, &[(ch.h_client, ch.h_object)], flags, 100_000)
+            .ok_or("management idle has no host target")?;
+        if status != sys::NV_OK { return Err(idle_note); }
+        if self.management_cursor(reg, chid)? != expected_get { return Err("management prefix changed while idling".into()); }
+        self.channels.get(&chid).and_then(|hc| hc.userd.as_ref()).ok_or("private USERD disappeared")?.harvest(gm);
         self.worker.wait_all();
-        let mut notes = Vec::new();
+        let mut notes = vec![idle_note];
         if !self.free_tsg(key, &mut notes) { return Err(notes.join("; ")); }
         self.worker.wait_idle();
-        Ok((Some(get), notes))
+        Ok(notes)
     }
 
     /// Prepare a host-owned GR context without publishing guest work to its USERD.

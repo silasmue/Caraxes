@@ -207,6 +207,16 @@ enum DeferredState {
     Completed { object: u32, api: u32 },
 }
 
+/// A read-only, bounded validation of the host-executed prefix of a management channel.
+/// Its fields stay private so only this registry can apply it after host teardown.
+#[derive(Debug)]
+pub struct DeferredTakeover {
+    chid: u32,
+    generation: u64,
+    gp_get: u32,
+    bindings: [u32; 8],
+}
+
 /// One guest channel as the guest RM allocated it.
 #[derive(Clone, Debug)]
 pub struct Channel {
@@ -463,14 +473,14 @@ impl Registry {
         Ok(())
     }
 
-    /// Return an idle host-mirrored management channel to the strict software executor.
-    /// The mirror validates host idleness before supplying its harvested GPGet.
-    pub fn takeover_deferred_management(
-        &mut self,
+    /// Validate the bounded prefix already consumed by an idle host channel without
+    /// changing registry state. The caller may safely do this before freeing host objects.
+    pub fn preview_deferred_takeover(
+        &self,
+        mem: &GpuMem,
         chid: u32,
         gp_get: u32,
-        mem: &mut GpuMem,
-    ) -> Result<(), String> {
+    ) -> Result<DeferredTakeover, String> {
         let ch = self
             .channels
             .get(&chid)
@@ -490,7 +500,7 @@ impl Registry {
             ));
         }
         let root = self.root_of(ch).ok_or_else(|| format!("chid {chid}: VAS root unknown"))?;
-        let mut bindings = Vec::new();
+        let mut bindings = ch.objects;
         for entry in 0..gp_get {
             let mut descriptor = [0; 8];
             mem.read_va(root, ch.gpfifo_va + 8 * u64::from(entry), &mut descriptor)
@@ -511,6 +521,20 @@ impl Registry {
                 .chunks_exact(4)
                 .map(|bytes| u32::from_le_bytes(bytes.try_into().unwrap()))
                 .collect::<Vec<_>>();
+            let diagnostic =
+                |subch: usize, bound_class: u32, method: u32, data: u32, why: &str| {
+                let shown = words.len().min(256);
+                let raw = words[..shown]
+                    .iter()
+                    .map(|word| format!("{word:08x}"))
+                    .collect::<Vec<_>>()
+                    .join(" ");
+                format!(
+                    "chid {chid}: takeover prefix rejected at entry {entry}/{gp_get}, subch {subch}, bound class {:#x}, method {method:#x}, data {data:#x}: {why}; entry {dwords} dwords, raw[0..{shown}] [{raw}]{}",
+                    bound_class,
+                    if shown < words.len() { " (truncated)" } else { "" }
+                )
+            };
             let mut i = 0;
             while i < words.len() {
                 let header = words[i];
@@ -527,19 +551,28 @@ impl Registry {
                     let subch = ((header >> 13) & 7) as usize;
                     let method = (header & 0xfff) << 2;
                     match method {
-                        0 => bindings.push((subch, count as u32 & 0xffff)),
+                        0 => bindings[subch] = count as u32 & 0xffff,
                         8 => {}
                         _ => {
-                            return Err(format!(
-                                "chid {chid}: initial immediate method {method:#x} on subch {subch} is not SET_OBJECT/NOP"
+                            return Err(diagnostic(
+                                subch,
+                                bindings[subch],
+                                method,
+                                count as u32,
+                                "initial immediate method is not SET_OBJECT/NOP",
                             ))
                         }
                     }
                     continue;
                 }
                 if !matches!(sec_op, 1 | 3 | 5) || i + count > words.len() {
-                    return Err(format!(
-                        "chid {chid}: unsupported initial method header {header:#x}"
+                    let subch = ((header >> 13) & 7) as usize;
+                    return Err(diagnostic(
+                        subch,
+                        bindings[subch],
+                        (header & 0xfff) << 2,
+                        header,
+                        "unsupported or truncated initial method header",
                     ));
                 }
                 let subch = ((header >> 13) & 7) as usize;
@@ -552,11 +585,15 @@ impl Registry {
                     };
                     let data = words[i + k];
                     match method {
-                        0 => bindings.push((subch, data & 0xffff)),
+                        0 => bindings[subch] = data & 0xffff,
                         8 => {}
                         _ => {
-                            return Err(format!(
-                                "chid {chid}: initial method {method:#x} on subch {subch} is not SET_OBJECT/NOP"
+                            return Err(diagnostic(
+                                subch,
+                                bindings[subch],
+                                method,
+                                data,
+                                "initial method is not SET_OBJECT/NOP",
                             ))
                         }
                     }
@@ -564,13 +601,45 @@ impl Registry {
                 i += count;
             }
         }
-        let ch = self.channels.get_mut(&chid).expect("validated live channel");
-        for (subch, class) in bindings {
-            ch.objects[subch] = class;
+        Ok(DeferredTakeover {
+            chid,
+            generation: ch.generation,
+            gp_get,
+            bindings,
+        })
+    }
+
+    /// Apply a previously validated takeover after the host channel was retired.
+    pub fn apply_deferred_takeover(&mut self, plan: DeferredTakeover) -> Result<(), String> {
+        let ch = self
+            .channels
+            .get_mut(&plan.chid)
+            .ok_or_else(|| format!("chid {}: no such channel", plan.chid))?;
+        if ch.generation != plan.generation || !ch.mirrored || ch.gp_get != 0 || ch.software_failed
+            || ch.deferred.is_some()
+        {
+            return Err(format!(
+                "chid {}: channel changed after takeover preview",
+                plan.chid
+            ));
         }
+        ch.objects = plan.bindings;
         ch.mirrored = false;
-        ch.gp_get = gp_get;
+        ch.gp_get = plan.gp_get;
         Ok(())
+    }
+
+    /// Validate and immediately apply a takeover. Runtime callers that tear down a host
+    /// channel between the two steps use `preview_deferred_takeover` and
+    /// `apply_deferred_takeover` directly.
+    pub fn takeover_deferred_management(
+        &mut self,
+        chid: u32,
+        gp_get: u32,
+        mem: &mut GpuMem,
+    ) -> Result<(), String> {
+        let plan = self.preview_deferred_takeover(mem, chid, gp_get)?;
+        self.apply_deferred_takeover(plan)
     }
 
     /// Run only this strict management channel. Unlike a normal guest doorbell this
@@ -3159,26 +3228,31 @@ mod tests {
         pb.extend(inc(5, 8, &[0]));
         let (mut fb, sys, path, mut reg) = software_fixture("management-takeover", &pb);
         reg.channel_mut(9).unwrap().mirrored = true;
-        reg.takeover_deferred_management(
-            9,
-            1,
-            &mut GpuMem {
-                fb: &mut fb,
-                sys: &sys,
-            },
-        )
-        .unwrap();
+        let plan = reg
+            .preview_deferred_takeover(
+                &GpuMem {
+                    fb: &mut fb,
+                    sys: &sys,
+                },
+                9,
+                1,
+            )
+            .unwrap();
+        assert_eq!(reg.channel(9).unwrap().objects[5], 0);
+        assert!(reg.channel(9).unwrap().mirrored);
+        assert_eq!(reg.channel(9).unwrap().gp_get, 0);
+        reg.apply_deferred_takeover(plan).unwrap();
         assert_eq!(reg.channel(9).unwrap().objects[5], 0x5080);
         assert!(!reg.channel(9).unwrap().mirrored);
         assert_eq!(reg.channel(9).unwrap().gp_get, 1);
         assert!(reg
-            .takeover_deferred_management(
-                9,
-                33,
-                &mut GpuMem {
+            .preview_deferred_takeover(
+                &GpuMem {
                     fb: &mut fb,
                     sys: &sys,
                 },
+                9,
+                33,
             )
             .is_err());
         std::fs::remove_file(path).ok();
@@ -3187,17 +3261,48 @@ mod tests {
         let (mut fb, sys, path, mut reg) = software_fixture("management-bad-prefix", &pb);
         reg.channel_mut(9).unwrap().mirrored = true;
         let error = reg
-            .takeover_deferred_management(
-                9,
-                1,
-                &mut GpuMem {
+            .preview_deferred_takeover(
+                &GpuMem {
                     fb: &mut fb,
                     sys: &sys,
                 },
+                9,
+                1,
             )
             .unwrap_err();
         assert!(error.contains("not SET_OBJECT/NOP"), "{error}");
+        assert!(error.contains("entry 0/1"), "{error}");
+        assert!(error.contains("bound class 0x0"), "{error}");
+        assert!(error.contains("method 0x10, data 0x1"), "{error}");
+        assert!(error.contains("entry 2 dwords, raw[0..2]"), "{error}");
         assert!(reg.channel(9).unwrap().mirrored);
+        assert_eq!(reg.channel(9).unwrap().gp_get, 0);
+        std::fs::remove_file(path).ok();
+
+        let pb = inc(5, 0, &[0x5080]);
+        let (mut fb, sys, path, mut reg) = software_fixture("management-stale-plan", &pb);
+        reg.channel_mut(9).unwrap().mirrored = true;
+        let plan = reg
+            .preview_deferred_takeover(
+                &GpuMem {
+                    fb: &mut fb,
+                    sys: &sys,
+                },
+                9,
+                1,
+            )
+            .unwrap();
+        reg.record_free(1, 0x40);
+        reg.record_alloc(
+            1,
+            0x10,
+            0x40,
+            TURING_CHANNEL_GPFIFO_A,
+            &channel_params(9, 0x1000_0000, 0x20_0000, 0x20),
+        );
+        reg.channel_mut(9).unwrap().mirrored = true;
+        assert!(reg.apply_deferred_takeover(plan).is_err());
+        assert_eq!(reg.channel(9).unwrap().objects[5], 0);
         assert_eq!(reg.channel(9).unwrap().gp_get, 0);
         std::fs::remove_file(path).ok();
     }

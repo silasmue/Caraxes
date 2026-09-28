@@ -14,8 +14,9 @@ must be off.
 - A registration identifies its owning management channel. Allocation flags
   alone cannot distinguish management from ordinary GR channels.
 - An idle host management channel is retired before software takeover.
-  Private USERD GPGet must equal its last published GPPut. Initial subchannel
-  bindings are recovered from at most 32 SET_OBJECT/NOP entries.
+  Initial subchannel bindings are previewed from at most 32 SET_OBJECT/NOP
+  entries before retirement. FIFO_IDLE_CHANNELS must then succeed for the exact
+  host channel; GPGet is rechecked against its last published GPPut.
 - The software interpreter stops at the deferred method. Following methods
   cannot execute until the operation completes. Unknown work fails closed.
 - INITIALIZE prepares the target's host-owned GR context with an empty private
@@ -65,3 +66,13 @@ channels remain unsupported until explicitly implemented.
   the transition needs an explicit completion fence.
 - No new host Xid observed. All owned test VMs stopped. No rendering pass.
 - Artifacts: alpha-2026-09-27/windows-plain/P5-deferred-context/.
+
+## Follow-up before P6
+
+- Preview the initial prefix without changing the registry or freeing host objects.
+- Reject unsupported prefixes once per channel generation and keep them off the
+  submission path. Include bound class, method, data and up to 256 raw dwords.
+- After a valid preview, require host FIFO_IDLE_CHANNELS success with a 100-ms
+  timeout and pushbuffer/cache/all-engine flags. GPGet alone is not a fence.
+- Apply recovered bindings only after host retirement and generation revalidation.
+- ABI615 remains 522 unit tests plus two integration tests passed, one ignored.

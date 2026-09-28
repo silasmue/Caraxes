@@ -83,6 +83,7 @@ pub(super) struct State {
     management: BTreeMap<u32, u64>,
     contexts: BTreeMap<TargetStamp, Context>,
     active: BTreeMap<u32, u64>,
+    takeover_refused: BTreeMap<u32, u64>,
 }
 
 impl Default for State {
@@ -93,6 +94,7 @@ impl Default for State {
             management: BTreeMap::new(),
             contexts: BTreeMap::new(),
             active: BTreeMap::new(),
+            takeover_refused: BTreeMap::new(),
         }
     }
 }
@@ -117,6 +119,10 @@ impl State {
                 .is_some_and(|ch| ch.generation == *generation)
         });
         self.active.retain(|chid, generation| {
+            reg.channel(*chid)
+                .is_some_and(|ch| ch.generation == *generation)
+        });
+        self.takeover_refused.retain(|chid, generation| {
             reg.channel(*chid)
                 .is_some_and(|ch| ch.generation == *generation)
         });
@@ -258,17 +264,28 @@ impl Dispatcher {
             let Some(mirror) = self.mirror.as_mut() else {
                 return vec!["deferred context requires a host mirror".into()];
             };
-            match mirror.retire_for_management(&self.channels, gm, chid) {
-                Ok((Some(get), n)) => {
-                    notes.extend(n);
-                    if let Err(e) = self.channels.takeover_deferred_management(chid, get, gm) {
-                        return vec![e];
-                    }
-                }
-                Ok((None, _)) => {
-                    return vec!["deferred management has no idle host channel to take over".into()]
-                }
+            if self.deferred_context.takeover_refused.get(&chid) == Some(&generation) {
+                return notes;
+            }
+            let get = match mirror.management_cursor(&self.channels, chid) {
+                Ok(get) => get,
                 Err(e) => return vec![format!("deferred management chid {chid}: waiting: {e}")],
+            };
+            let plan = match self.channels.preview_deferred_takeover(gm, chid, get) {
+                Ok(plan) => plan,
+                Err(e) => {
+                    self.deferred_context
+                        .takeover_refused
+                        .insert(chid, generation);
+                    return vec![e];
+                }
+            };
+            match mirror.retire_for_management(&self.channels, gm, chid, get) {
+                Ok(n) => notes.extend(n),
+                Err(e) => return vec![format!("deferred management chid {chid}: waiting: {e}")],
+            }
+            if let Err(e) = self.channels.apply_deferred_takeover(plan) {
+                return vec![e];
             }
             if let Err(e) = self.channels.enable_deferred_management(chid) {
                 return vec![e];
