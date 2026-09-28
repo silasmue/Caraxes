@@ -199,3 +199,24 @@ remain unsupported on management channels.
   fallback. If it requires pooled preemption, an actual pool implementation is needed.
 - VM stopped; no new host Xid.
 - Artifacts: alpha-2026-09-27/windows-plain/P11-host-preemption-modes/.
+
+## P12: no stock-driver fallback from refused pool sizing
+
+- Base 2a4a83d1; binary SHA-256:
+  93499676180a4abcf2d6ca5ec421ca1eff14b6a7306deca67d9e36bf29c63846.
+- Pool sizing returns NOT_SUPPORTED at 24.83 s. Windows unloads GSP at
+  26.16 s and reports NVIDIA PnP code 43. It does not select WFI in this run.
+- The P9 code-0 result therefore relied on bootstrap pool acknowledgements;
+  it was not a working graphics implementation. Keep those acknowledgements
+  disabled for host execution while actual pool support is developed.
+- Public GPU headers expose pool control-block offsets through 0x60 on Turing,
+  but not enough initialization/ownership semantics to justify the old estimated
+  sizing formula or writing a guessed freelist.
+- RM pool QUERY/INITIALIZE/ADD/REMOVE controls are kernel-only. Flag 0x40 means
+  ROUTE_TO_PHYSICAL; it lacks PRIVILEGED (0x4) or NON_PRIVILEGED (0x8). The
+  access check requires KERNEL privilege; CAP_SYS_ADMIN grants USER_ROOT only.
+- A separate public mode setter exists. Whether it can construct native pool
+  state on an owned empty context still needs investigation; mode success alone
+  would not prove the guest pool lifecycle or BIND contract is implemented.
+- VM stopped; no new host Xid. No rendering probe after the explicit driver failure.
+- Artifacts: alpha-2026-09-27/windows-plain/P12-host-pool-refusal/.
