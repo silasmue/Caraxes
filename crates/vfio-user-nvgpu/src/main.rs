@@ -147,6 +147,10 @@ Environment: CARAXES_DOORBELL_IOEVENTFD=1 offers the usermode doorbell register 
   or to a core chosen at start (auto, the default: not CPU 0, not a vCPU thread's, the
   highest-numbered idle one), or not at all (none). Needs one of the two above
   (docs/caraxes/doorbell-poll.md)
+  CARAXES_HOST_BOOST=0 turns off the host clock boost of --host-exec (on by default: a
+  3 s PERF_BOOST to the highest P-state on the device's own host subdevice, renewed at
+  most every second while the VM rings doorbells or its host engines raise events;
+  docs/research/host-boost-2026-09-28.md).
 Paths default relative to LEA_ROOT or the current directory.";
 
 struct Args {
@@ -936,6 +940,27 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
                 wlen >> 20,
                 (wlen >> 20) * wn
             );
+            // The host clock boost (hostboost.rs): the host card does the guest's work, so
+            // it leaves its idle P-state while the VM is active. On unless switched off.
+            use vfio_user_nvgpu::hostboost;
+            if hostboost::enabled(std::env::var(hostboost::ENV).ok().as_deref()) {
+                let flags = vfio_user_nvgpu::hostabi::current().perf_boost_flags;
+                match hostboost::start(flags) {
+                    Ok(()) => eprintln!(
+                        "vfio-user-nvgpu: host boost on: PERF_BOOST {{BOOST_TO_MAX, {} s}} on the subdevice of its own unprivileged host RM client, renewed at most every {} ms while the VM rings or its host engines raise events, then left to lapse; the guest's PERF_BOOST passes its command (host flag bits {flags:#x}), never its CUDA bits or duration ({}=0 turns it off; docs/research/host-boost-2026-09-28.md)",
+                        hostboost::DURATION_S,
+                        hostboost::RENEW.as_millis(),
+                        hostboost::ENV
+                    ),
+                    Err(e) => {
+                        eprintln!("vfio-user-nvgpu: WARNING host boost: {e}; running without it");
+                        hostboost::set_off(&format!("failed to start: {e}"));
+                    }
+                }
+            } else {
+                eprintln!("vfio-user-nvgpu: host boost off ({}=0)", hostboost::ENV);
+                hostboost::set_off(&format!("{}=0", hostboost::ENV));
+            }
         }
         if let Some((off, len)) = vfio_user_nvgpu::fb::bar1_passthrough_config() {
             if !a.host_exec {
@@ -1559,6 +1584,9 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
         );
     }
     eprint!("{}", device.summary());
+    if let Some(line) = vfio_user_nvgpu::hostboost::summary() {
+        eprint!("{line}");
+    }
     for (name, st) in &readers {
         eprint!("{}", st.summary(name));
     }

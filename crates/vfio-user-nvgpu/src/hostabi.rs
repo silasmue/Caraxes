@@ -31,6 +31,7 @@
 //! | `NV_CHANNEL_ALLOC_PARAMS` | 376 | 376 | channel alloc | [`ChannelAllocParams`], equality asserted at compile time |
 //! | `NV2080_CTRL_FB_FLUSH_GPU_CACHE_PARAMS` `flags` bits | APERTURE 1:0 | APERTURE 2:0 | `FB_FLUSH_GPU_CACHE` (guest L2 ops, boot.rs) | [`HostLayouts::flush_gpu_cache`] |
 //! | `NV2080_CTRL_CMD_CE_GET_LCE_SHIM_INFO` privilege | PRIVILEGED | NON_PRIVILEGED | forwarded for libcuda 615 (cuda.rs) | [`HostLayouts::lce_shim_info_public`] |
+//! | `NV2080_CTRL_PERF_BOOST_FLAGS` bits | CMD 1:0, CUDA, ASYNC, CUDA_PRIORITY | adds MULTIMEDIA 7:7 | `PERF_BOOST` (host boost, hostboost.rs) | [`HostLayouts::perf_boost_flags`] |
 //!
 //! The flush row is not a struct layout (the struct is 4024 bytes on both, in
 //! `nvrm_sys::stable`) but a flag-word layout the bindings cannot carry: 615 widens
@@ -157,6 +158,11 @@ pub struct HostLayouts {
     /// device's unprivileged client may forward it (610 export flags 0x145, PRIVILEGED;
     /// 615 0x149, NON_PRIVILEGED; the layout is the same, `ver::v610::LCE_SHIM_INFO_SIZE`).
     pub lce_shim_info_public: bool,
+    /// The `NV2080_CTRL_PERF_BOOST_FLAGS` bits this host defines that the device may pass
+    /// on from a guest request (hostboost.rs `forwarded`): the command 1:0 on both, and
+    /// MULTIMEDIA 7:7, which only 615 defines (615 ctrl2080perf.h:92-94; 610 :75-90).
+    /// CUDA, ASYNC and CUDA_PRIORITY exist on both and are never passed on.
+    pub perf_boost_flags: u32,
 }
 
 /// `NV2080_CTRL_CMD_FB_FLUSH_GPU_CACHE` (ctrl2080fb.h, both versions): public and
@@ -293,6 +299,7 @@ pub static HOST_610: HostLayouts = HostLayouts {
     },
     // 610 src/nvidia/generated/g_subdevice_nvoc.c:11827: flags 0x145 (PRIVILEGED).
     lce_shim_info_public: false,
+    perf_boost_flags: crate::hostboost::FLAGS_CMD,
 };
 
 pub static HOST_615: HostLayouts = HostLayouts {
@@ -322,6 +329,7 @@ pub static HOST_615: HostLayouts = HostLayouts {
     },
     // 615 src/nvidia/generated/g_subdevice_nvoc.c:12008: flags 0x149 (NON_PRIVILEGED).
     lce_shim_info_public: true,
+    perf_boost_flags: crate::hostboost::FLAGS_CMD | crate::hostboost::FLAG_MULTIMEDIA,
 };
 
 // The map lengths are array lengths the bindings cannot give as constants; pin

@@ -30,6 +30,7 @@ Target: driver 615.71.09 only (D19, D20); 610.57.04 appears as one "610 delta" b
 | [compression-guest-view-2026-09-28.md](compression-guest-view-2026-09-28.md) | What the 615 guest decides compression by, and every answer the device changes with `CARAXES_COMPRESSION=slice`; the Linux scrub-on-free precondition |
 | [zbc-host-table-2026-09-28.md](zbc-host-table-2026-09-28.md) | ZBC with real compression: who may add to the host's table, placement and release, what the device forwards, the cap, what a guest sees and can learn |
 | [shadow-fault-race-2026-09-28.md](shadow-fault-race-2026-09-28.md) | The Xid 31 FAULT_PDE of desktop-b: nvidia-uvm maps through `MEM_OP` invalidates the software executor ran without a shadow plan; the fix (the push stops at the invalidate until the shadow is applied) and the TSG fault-record lookup |
+| [host-boost-2026-09-28.md](host-boost-2026-09-28.md) | The host card ran VM work at P8; what `PERF_BOOST` does in the RM (params, privilege, per-client hints, no cleanup on free); the device's activity-driven 3 s boost renewed at most every second, `CARAXES_HOST_BOOST=0`, and the A/B to measure |
 
 ## Format of a note
 
