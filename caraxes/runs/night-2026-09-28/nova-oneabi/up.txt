@@ -1,0 +1,1 @@
+server pid 1351540, VM pid 1351555; logs in /mnt/vmstore/caraxes/vm9

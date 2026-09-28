@@ -1,0 +1,6 @@
+sudo: unable to resolve host caraxes-desktop-b: Name or service not known
+sudo: unable to resolve host caraxes-desktop-b: Name or service not known
+sudo: unable to resolve host caraxes-desktop-b: Name or service not known
+modules-ok
+sudo: unable to resolve host caraxes-desktop-b: Name or service not known
+gnome-shell=2

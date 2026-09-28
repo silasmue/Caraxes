@@ -1,0 +1,2 @@
+[cube] duration=10: FPS: 3389 FrameTime: 0.295 ms
+                                   vkmark Score: 3389
