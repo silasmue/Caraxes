@@ -410,11 +410,20 @@ struct OwnedGfxp {
     buffers: Vec<OwnedGfxpBuffer>,
 }
 
-fn get_gfxp_mode(host: &HostMemory, channel: u32) -> (u32, u32) {
+fn get_preemption_modes(host: &HostMemory, channel: u32) -> (u32, u32, u32) {
     let mut p = [0u8; 24];
     p[..4].copy_from_slice(&channel.to_le_bytes());
     let status = host.control(host.subdevice(), CMD_GET_CTXSW_PREEMPTION_MODE, &mut p);
-    (status, u32::from_le_bytes(p[20..24].try_into().unwrap()))
+    (
+        status,
+        u32::from_le_bytes(p[20..24].try_into().unwrap()),
+        u32::from_le_bytes(p[16..20].try_into().unwrap()),
+    )
+}
+
+fn get_gfxp_mode(host: &HostMemory, channel: u32) -> (u32, u32) {
+    let (status, gfxp, _) = get_preemption_modes(host, channel);
+    (status, gfxp)
 }
 
 fn gfxp_bind_params(root: u32, tsg: u32, mode: u32, addresses: &[u64; 5]) -> [u8; 112] {
@@ -431,6 +440,20 @@ fn gfxp_bind_params(root: u32, tsg: u32, mode: u32, addresses: &[u64; 5]) -> [u8
 
 fn bind_gfxp(host: &HostMemory, tsg: u32, mode: u32, addresses: &[u64; 5]) -> u32 {
     let mut p = gfxp_bind_params(host.root(), tsg, mode, addresses);
+    host.control(host.subdevice(), CMD_BIND_CTXSW_PREEMPTION_MODE, &mut p)
+}
+
+fn compute_cta_bind_params(root: u32, tsg: u32) -> [u8; 112] {
+    let mut p = [0u8; 112];
+    p[0..4].copy_from_slice(&1u32.to_le_bytes());
+    p[4..8].copy_from_slice(&root.to_le_bytes());
+    p[8..12].copy_from_slice(&tsg.to_le_bytes());
+    p[92..96].copy_from_slice(&1u32.to_le_bytes());
+    p
+}
+
+fn bind_compute_cta(host: &HostMemory, tsg: u32) -> u32 {
+    let mut p = compute_cta_bind_params(host.root(), tsg);
     host.control(host.subdevice(), CMD_BIND_CTXSW_PREEMPTION_MODE, &mut p)
 }
 
@@ -2230,6 +2253,88 @@ impl Mirror {
         } else {
             Err(format!("{}; resources retained and target blocked", attempt.unwrap_err()))
         }
+    }
+
+    /// Set compute CTA preemption on an exact host-owned ordinary-GFXP context. This
+    /// translates only the captured pointer-free shape: flags COMPUTE, CTA mode, every
+    /// buffer and route field zero. The guest's control payload is never consumed.
+    pub fn bind_owned_compute_cta(
+        &mut self,
+        reg: &Registry,
+        client: u32,
+        guest_tsg: u32,
+    ) -> Result<Vec<String>, String> {
+        let guest = reg.resolve((client, guest_tsg));
+        if !reg.tsg(guest).is_some_and(|(_, engine)| engine == 1) {
+            return Err("owned compute-CTA target is not a live GR TSG".into());
+        }
+        let key = tsg_key_of_guest(reg, guest).ok_or("owned compute-CTA target has no TSG key")?;
+        let mut members = reg.channels().filter(|ch| tsg_key_of(reg, ch).0 == key);
+        let ch = members.next().ok_or("owned compute-CTA TSG has no channel")?;
+        if members.next().is_some() {
+            return Err("owned compute-CTA currently requires a single-channel TSG".into());
+        }
+        let vas_key = reg.vas_key_of(ch).ok_or("owned compute-CTA target has no VAS")?;
+        let root = match reg.vas_root(vas_key) {
+            Some(Target::Fb(root)) => root,
+            _ => return Err("owned compute-CTA target has no shadow FB root".into()),
+        };
+        let (chid, generation) = (ch.chid, ch.generation);
+        let (host_channel, host_tsg) = {
+            let hc = self.channels.get(&chid)
+                .filter(|hc| hc.generation == generation && hc.context_ready && hc.tsg == key
+                    && hc.shadow_root == Some(root))
+                .ok_or("owned compute-CTA target has no exact host context")?;
+            let ht = self.tsgs.get(&key).ok_or("owned compute-CTA host TSG is gone")?;
+            ht.gfxp.as_ref().filter(|owned| owned.bound
+                && owned.chid == chid && owned.generation == generation
+                && owned.host_channel == hc.handle && owned.root == root)
+                .ok_or("owned compute-CTA requires the exact bound ordinary-GFXP context")?;
+            if ht.guest != guest || ht.engine != 1 || ht.vas != vas_key {
+                return Err("owned compute-CTA host TSG identity changed".into());
+            }
+            (hc.handle, ht.handle)
+        };
+
+        self.channels.get_mut(&chid).unwrap().context_ready = false;
+        let flags = ((sys::NVOS30_FLAGS_IDLE_PUSH_BUFFER | sys::NVOS30_FLAGS_IDLE_CACHE1
+            | sys::NVOS30_FLAGS_IDLE_ALL_ENGINES) << 8) | sys::NVOS30_FLAGS_BEHAVIOR_SLEEP;
+        let (idle_status, idle_note) = self.idle_host_channels(&[(chid, host_channel)], flags, 100_000);
+        if idle_status != sys::NV_OK { return Err(idle_note); }
+        let ch = reg.channel(chid).filter(|ch| ch.generation == generation)
+            .ok_or("owned compute-CTA target changed while idling")?;
+        if reg.vas_key_of(ch) != Some(vas_key)
+            || reg.vas_root(vas_key) != Some(Target::Fb(root))
+            || reg.channels().filter(|member| tsg_key_of(reg, member).0 == key).count() != 1
+        {
+            return Err("owned compute-CTA target VAS or TSG changed while idling".into());
+        }
+        let hc = self.channels.get(&chid).filter(|hc| hc.generation == generation
+            && hc.handle == host_channel && hc.tsg == key && hc.shadow_root == Some(root))
+            .ok_or("owned compute-CTA host channel changed while idling")?;
+        let ht = self.tsgs.get(&key).ok_or("owned compute-CTA host TSG disappeared while idling")?;
+        if ht.handle != host_tsg || ht.guest != guest || ht.vas != vas_key
+            || !ht.gfxp.as_ref().is_some_and(|owned| owned.bound
+                && owned.chid == chid && owned.generation == generation
+                && owned.host_channel == hc.handle && owned.root == root)
+        {
+            return Err("owned compute-CTA ownership changed while idling".into());
+        }
+
+        let host = self.hm.lock().unwrap();
+        let bind = bind_compute_cta(&host, host_tsg);
+        let (get, gfxp, cilp) = get_preemption_modes(&host, host_channel);
+        if bind != sys::NV_OK || get != sys::NV_OK || gfxp != 1 || cilp != 1 {
+            return Err(format!(
+                "compute-CTA BIND/GET refused: bind {}, get {}, gfxp {gfxp:#x}, cilp {cilp:#x}; target remains blocked",
+                status_name(bind), status_name(get)
+            ));
+        }
+        drop(host);
+        self.channels.get_mut(&chid).unwrap().context_ready = true;
+        Ok(vec![idle_note, format!(
+            "tsg {key}: host-owned compute CTA mode 1 bound; ordinary GFXP mode 1 preserved [host]"
+        )])
     }
 
     /// RM teardown idles the exact mirrored target, harvests its final GPGet and releases
@@ -5239,5 +5344,16 @@ mod tests {
         }
         assert!(p[56..88].iter().all(|byte| *byte == 0), "unused and CPU-pointer fields stay zero");
         assert!(p[92..].iter().all(|byte| *byte == 0), "CILP and routing fields stay zero");
+    }
+
+    #[test]
+    fn owned_compute_cta_bind_is_pointer_free_and_compute_only() {
+        let p = compute_cta_bind_params(0x1234, 0x5678);
+        let word = |o| u32::from_le_bytes(p[o..o + 4].try_into().unwrap());
+        assert_eq!((word(0), word(4), word(8)), (1, 0x1234, 0x5678));
+        assert_eq!((word(88), word(92)), (0, 1), "graphics is ignored and compute selects CTA");
+        assert!(p[12..16].iter().all(|byte| *byte == 0), "ABI padding stays zero");
+        assert!(p[16..88].iter().all(|byte| *byte == 0), "all nine guest pointer positions stay zero");
+        assert!(p[96..112].iter().all(|byte| *byte == 0), "route stays zero");
     }
 }
