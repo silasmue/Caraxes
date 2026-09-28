@@ -18,6 +18,7 @@ use vfio_user_nvgpu::bar0::Bar0;
 use vfio_user_nvgpu::board::{Board, BOARDS};
 use vfio_user_nvgpu::boot::BootModel;
 use vfio_user_nvgpu::chip::{self, Chip};
+use vfio_user_nvgpu::compslice;
 use vfio_user_nvgpu::config::{self as pci_config, ConfigSpace};
 use vfio_bindings::bindings::vfio::VFIO_PCI_BAR0_REGION_INDEX;
 use vfio_user_nvgpu::device::{
@@ -599,6 +600,27 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
             bail!("CARAXES_FB_ZERO_BASED=1 does not support fixed BAR1 passthrough; use the BAR1 pool or trapped BAR1");
         }
     }
+    // D16b (compslice.rs): real compression per VM slice. The reservation is allocated
+    // compressed, and only shadow-only host execution may run on it (invariant (b)).
+    let compression = compslice::requested().map_err(anyhow::Error::msg)?;
+    if compression == compslice::Mode::Slice {
+        if !a.reserve_vram || !a.host_exec || !a.boot_model {
+            bail!("{}=slice needs --reserve-vram, --host-exec and --boot-model", compslice::ENV);
+        }
+        let env = |k: &str| std::env::var(k).ok();
+        compslice::check_shadow_only(
+            compression,
+            env("CARAXES_MIRROR_GR_SHADOW").as_deref(),
+            env("CARAXES_CE_SHADOW").as_deref(),
+            env("CARAXES_MIRROR_GR").as_deref(),
+            doorbell_ioeventfd,
+        )
+        .map_err(anyhow::Error::msg)?;
+        eprintln!(
+            "vfio-user-nvgpu: compression: {}=slice: the reservation is allocated compressed and the shadow maps compressible guest kinds on its pages (D16b)",
+            compslice::ENV
+        );
+    }
     if intr_page_config.is_some() {
         if poll.mode == vfio_user_nvgpu::poll::Mode::Off {
             bail!(
@@ -771,7 +793,7 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
     if a.reserve_vram {
         let hm = host_mem.as_ref().expect("opened above");
         let mut h = hm.lock().unwrap();
-        match h.reserve(a.fb_mib << 20, a.reserve_slot) {
+        match h.reserve(a.fb_mib << 20, a.reserve_slot, compression) {
             Ok(log) => log
                 .iter()
                 .for_each(|l| eprintln!("vfio-user-nvgpu: hostmem: {l}")),
