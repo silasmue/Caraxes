@@ -1,0 +1,53 @@
+modules: ok
+RegistryDwords: "RmDisableGlobalCeUtils=1;RmRcWatchdog=0"
+desktop: WAYLAND_DISPLAY=wayland-0 gnome-shell=2 Xwayland=0
+display: connected 1920x1080
+Leandro VFIO RTX 2070-1G, 615.71.09, 1024 MiB
+vkcube-wayland rc=0
+vkcube-x11 rc=0
+glmark2 [build] duration=10: FPS: 1769 FrameTime: 0.565 ms
+vkcomp: device Leandro VFIO RTX 2070-1G
+vkcomp: device created fam=2 in 0.59 s
+vkcomp rc=124
+cuwork: START wall=1790629342.656 pid=2259
+cuwork: context in 0.33 s
+cuwork rc=124
+ENC frames=300 bytes=5274082 seconds=1.716 fps=174.8 fill_ms_total=826 lat_us_med=3222 lat_us_p99=4384 lat_us_max=4994 kbit_per_s_at_60fps=8439
+DEC frames=300 seconds=2.715 fps=110.5 psnr_y_min=63.37 psnr_y_avg=71.46 (the decoded luma against the pattern; includes the copy to the host and the comparison)
+RESULT PASS
+vkcube-x11 beside NVENC holder rc=0
+holder RESULT PASS
+sunshine: active
+guest Xid: 0
+=== vkmark wayland 1280x720
+[vertex] device-local=true: FPS: 3728 FrameTime: 0.268 ms
+[vertex] device-local=false: FPS: 3467 FrameTime: 0.288 ms
+[texture] anisotropy=0: FPS: 4381 FrameTime: 0.228 ms
+[texture] anisotropy=16: FPS: 4640 FrameTime: 0.216 ms
+[shading] shading=gouraud: FPS: 4919 FrameTime: 0.203 ms
+[shading] shading=blinn-phong-inf: FPS: 4687 FrameTime: 0.213 ms
+[shading] shading=phong: FPS: 4489 FrameTime: 0.223 ms
+[shading] shading=cel: FPS: 3721 FrameTime: 0.269 ms
+[effect2d] kernel=edge: FPS: 3377 FrameTime: 0.296 ms
+[effect2d] kernel=blur: FPS: 3672 FrameTime: 0.272 ms
+[desktop] <default>: FPS: 4938 FrameTime: 0.203 ms
+[cube] <default>: FPS: 3834 FrameTime: 0.261 ms
+[clear] <default>: FPS: 3985 FrameTime: 0.251 ms
+                                   vkmark Score: 4141
+[vertex] device-local=true: FPS: 4694 FrameTime: 0.213 ms
+[vertex] device-local=false: FPS: 3876 FrameTime: 0.258 ms
+[texture] anisotropy=0: FPS: 4869 FrameTime: 0.205 ms
+[texture] anisotropy=16: FPS: 4773 FrameTime: 0.210 ms
+[shading] shading=gouraud: FPS: 5034 FrameTime: 0.199 ms
+[shading] shading=blinn-phong-inf: FPS: 5368 FrameTime: 0.186 ms
+[shading] shading=phong: FPS: 5651 FrameTime: 0.177 ms
+[shading] shading=cel: FPS: 5640 FrameTime: 0.177 ms
+[effect2d] kernel=edge: FPS: 5168 FrameTime: 0.193 ms
+[effect2d] kernel=blur: FPS: 3927 FrameTime: 0.255 ms
+[desktop] <default>: FPS: 4662 FrameTime: 0.215 ms
+[cube] <default>: FPS: 5422 FrameTime: 0.184 ms
+[clear] <default>: FPS: 5335 FrameTime: 0.187 ms
+                                   vkmark Score: 4955
+=== glmark2-wayland 1280x720
+                                  glmark2 Score: 3332 
+guest Xid after graphics: 0

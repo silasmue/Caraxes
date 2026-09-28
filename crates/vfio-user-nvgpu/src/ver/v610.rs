@@ -1276,6 +1276,15 @@ pub const PROMOTE_PARAMS_SIZE: usize = PROMOTE_ENTRIES + PROMOTE_ENTRY_SIZE * PR
 /// host channel, only acknowledges (docs/caraxes/cuda-lookahead.md C2, C25-C27, C29,
 /// X3, X6, I-10; flags from g_*_nvoc.c).
 pub const CMD_INTERNAL_PERF_BOOST_SET_2X: u32 = 0x2080_0A9A;
+/// `NV2080_CTRL_INTERNAL_PERF_BOOST_SET_PARAMS_2X` {NvBool flags; NvU32 duration}
+/// (ctrl2080internal.h:1708-1712; 615 :1701-1705, `nvrm_sys::stable`): the guest kernel's
+/// copy of its client's public `PERF_BOOST`, the flags cut to their low byte
+/// (kern_perf_boost.c:110-120). hostboost.rs reads it.
+pub const PERF_BOOST_2X_SIZE: usize = size_of::<ffi::NV2080_CTRL_INTERNAL_PERF_BOOST_SET_PARAMS_2X>();
+pub const PERF_BOOST_2X_FLAGS: usize =
+    offset_of!(ffi::NV2080_CTRL_INTERNAL_PERF_BOOST_SET_PARAMS_2X, flags);
+pub const PERF_BOOST_2X_DURATION: usize =
+    offset_of!(ffi::NV2080_CTRL_INTERNAL_PERF_BOOST_SET_PARAMS_2X, duration);
 pub const CMD_KGR_INTERNAL_INIT_BUG4208224_WAR: u32 = 0x0080_2046;
 pub const CMD_INTERNAL_PERF_CUDA_LIMIT_SET_CONTROL: u32 = 0x0080_2009;
 /// `NV0080_CTRL_CMD_INTERNAL_PERF_CUDA_LIMIT_DISABLE` (ctrl0080internal.h:82), sent on the

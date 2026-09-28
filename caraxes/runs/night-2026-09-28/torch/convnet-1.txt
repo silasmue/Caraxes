@@ -1,0 +1,7 @@
+frame #20: Py_RunMain + 0x281 (0x6bcba1 in /home/leandro/gpu/venv/bin/python)
+frame #21: Py_BytesMain + 0x2d (0x6bc7bd in /home/leandro/gpu/venv/bin/python)
+frame #22: <unknown function> + 0x2a1ca (0x77960a22a1ca in /lib/x86_64-linux-gnu/libc.so.6)
+frame #23: __libc_start_main + 0x8b (0x77960a22a28b in /lib/x86_64-linux-gnu/libc.so.6)
+frame #24: _start + 0x25 (0x657a05 in /home/leandro/gpu/venv/bin/python)
+
+88 MiB

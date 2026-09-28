@@ -1,0 +1,6 @@
+ENC frames=300 bytes=5274082 seconds=1.804 fps=166.3 fill_ms_total=964 lat_us_med=2763 lat_us_p99=3419 lat_us_max=3585 kbit_per_s_at_60fps=8439
+DEC frames=300 seconds=2.134 fps=140.6 psnr_y_min=63.37 psnr_y_avg=71.46 (the decoded luma against the pattern; includes the copy to the host and the comparison)
+RESULT PASS
+ENC frames=300 bytes=5274082 seconds=1.669 fps=179.8 fill_ms_total=964 lat_us_med=2320 lat_us_p99=2732 lat_us_max=2887 kbit_per_s_at_60fps=8439
+DEC frames=300 seconds=2.098 fps=143.0 psnr_y_min=63.37 psnr_y_avg=71.46 (the decoded luma against the pattern; includes the copy to the host and the comparison)
+RESULT PASS

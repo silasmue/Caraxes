@@ -1,0 +1,3 @@
+=== final ===
+timed steps 999 in 60.03 s: 532.5 images/s, median step 59.88 ms, loss 7.005 -> 0.003, first step 1734 ms, peak memory 3211 MiB
+# CONVNET images_per_s=532.53 step_med_ms=59.882 step_p10_ms=57.532 step_p90_ms=62.280 steps=999 first_step_ms=1734.0 loss_first=7.0050 loss_last=0.0030 amp=0 channels_last=0 batch=32 size=224 mem_peak_mib=3211 oom_retries=0 finite=1 device=NVIDIA_GeForce_RTX_2070

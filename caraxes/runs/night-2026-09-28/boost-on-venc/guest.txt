@@ -1,0 +1,16 @@
+=== short
+MSPERLAUNCH=0.021
+MSPERLAUNCH=0.011
+MSPERLAUNCH=0.012
+--- xid: 0
+=== venc
+ENC frames=300 bytes=5274082 seconds=2.327 fps=128.9 fill_ms_total=1405 lat_us_med=2870 lat_us_p99=4494 lat_us_max=7116 kbit_per_s_at_60fps=8439
+DEC frames=300 seconds=2.686 fps=111.7 psnr_y_min=63.37 psnr_y_avg=71.46 (the decoded luma against the pattern; includes the copy to the host and the comparison)
+RESULT PASS
+ENC frames=300 bytes=5274082 seconds=2.073 fps=144.7 fill_ms_total=1174 lat_us_med=2854 lat_us_p99=5452 lat_us_max=11440 kbit_per_s_at_60fps=8439
+DEC frames=300 seconds=2.760 fps=108.7 psnr_y_min=63.37 psnr_y_avg=71.46 (the decoded luma against the pattern; includes the copy to the host and the comparison)
+RESULT PASS
+ENC frames=300 bytes=5274082 seconds=2.033 fps=147.5 fill_ms_total=1106 lat_us_med=2852 lat_us_p99=4427 lat_us_max=5325 kbit_per_s_at_60fps=8439
+DEC frames=300 seconds=2.761 fps=108.7 psnr_y_min=63.37 psnr_y_avg=71.46 (the decoded luma against the pattern; includes the copy to the host and the comparison)
+RESULT PASS
+--- xid: 0

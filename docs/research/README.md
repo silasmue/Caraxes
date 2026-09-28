@@ -30,6 +30,10 @@ Target: driver 615.71.09 only (D19, D20); 610.57.04 appears as one "610 delta" b
 | [compression-guest-view-2026-09-28.md](compression-guest-view-2026-09-28.md) | What the 615 guest decides compression by, and every answer the device changes with `CARAXES_COMPRESSION=slice`; the Linux scrub-on-free precondition |
 | [zbc-host-table-2026-09-28.md](zbc-host-table-2026-09-28.md) | ZBC with real compression: who may add to the host's table, placement and release, what the device forwards, the cap, what a guest sees and can learn |
 | [shadow-fault-race-2026-09-28.md](shadow-fault-race-2026-09-28.md) | The Xid 31 FAULT_PDE of desktop-b: nvidia-uvm maps through `MEM_OP` invalidates the software executor ran without a shadow plan; the fix (the push stops at the invalidate until the shadow is applied) and the TSG fault-record lookup |
+| [uvm-faults-2026-09-28.md](uvm-faults-2026-09-28.md) | Managed memory and UVM faults: why `cudaMallocManaged` ends in a host Xid 31 (the `GSP_GET_FEATURES` UVM bit), the guest's replayable-fault path on TU10x, UVM without faults, vGPU, what an unprivileged host process can do, ranked options |
+| [video-path-2026-09-28.md](video-path-2026-09-28.md) | NVENC/NVDEC per frame in a 615 guest: channels, doorbells, interrupts and idle gaps; the gap to native is host engine time (likely the host card's power state, with the guest's PERF_BOOST not forwarded); the 610 delta is run-to-run spread; three fixes ranked |
+| [uvm-guest-ram-2026-09-28.md](uvm-guest-ram-2026-09-28.md) | Managed memory pinned in guest RAM without faults: when UVM maps a GPU up front, module parameters, the preload-shim recipe and what breaks, what the device can do, a no-fault nvidia-uvm mode for upstream, the `GSP_GET_FEATURES` answer per guest OS (`HOST_OS_TYPE`) |
+| [host-boost-2026-09-28.md](host-boost-2026-09-28.md) | The host card ran VM work at P8; what `PERF_BOOST` does in the RM (params, privilege, per-client hints, no cleanup on free); the device's activity-driven 3 s boost renewed at most every second, `CARAXES_HOST_BOOST=0`, and the A/B to measure |
 
 ## Format of a note
 

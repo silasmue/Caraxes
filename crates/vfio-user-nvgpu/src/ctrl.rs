@@ -675,6 +675,9 @@ impl Dispatcher {
         chid: u32,
         via_host_token: bool,
     ) -> Vec<String> {
+        // Every route of a guest doorbell ends here: activity for the host clock boost
+        // (hostboost.rs; one relaxed load while a renewal is owed).
+        crate::hostboost::activity();
         self.channels.software_fb_range = self.fb_layout.map_or(self.reservation, |l| l.reservation);
         let software_runs = self.channels.software_runs;
         let mut notes = self.doorbell_chid_inner(gm, token, chid, via_host_token);

@@ -43,6 +43,7 @@ pub mod gsprpc;
 pub mod gmmu_v3;
 pub mod guestmem;
 pub mod hostabi;
+pub mod hostboost;
 pub mod hostfloor;
 pub mod hostmem;
 pub mod hostrm;

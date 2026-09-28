@@ -1,0 +1,33 @@
+ggml_cuda_init: found 1 CUDA devices (Total VRAM: 3889 MiB):
+  Device 0: Leandro VFIO RTX 2070-4G, compute capability 7.5, VMM: yes, VRAM: 3889 MiB
+| model                          |       size |     params | backend    | ngl |            test |                  t/s |
+| ------------------------------ | ---------: | ---------: | ---------- | --: | --------------: | -------------------: |
+/mnt/vmstore/caraxes/llama/src/ggml/src/ggml-cuda/ggml-cuda.cu:106: CUDA error
+[New LWP 9422]
+[New LWP 9421]
+[New LWP 9420]
+[New LWP 9416]
+[Thread debugging using libthread_db enabled]
+Using host libthread_db library "/lib/x86_64-linux-gnu/libthread_db.so.1".
+0x000072883a910913 in __GI___wait4 (pid=9433, stat_loc=0x0, options=0, usage=0x0) at ../sysdeps/unix/sysv/linux/wait4.c:30
+warning: 30	../sysdeps/unix/sysv/linux/wait4.c: No such file or directory
+#0  0x000072883a910913 in __GI___wait4 (pid=9433, stat_loc=0x0, options=0, usage=0x0) at ../sysdeps/unix/sysv/linux/wait4.c:30
+30	in ../sysdeps/unix/sysv/linux/wait4.c
+#1  0x000061706fe0fd8b in ggml_print_backtrace ()
+#2  0x000061706fe0feea in ggml_abort ()
+#3  0x000061706ef94161 in ggml_cuda_error(char const*, char const*, char const*, int, char const*) ()
+#4  0x000061706ef97570 in ggml_backend_cuda_buffer_set_tensor(ggml_backend_buffer*, ggml_tensor*, void const*, unsigned long, unsigned long) ()
+#5  0x000061706ed6042f in llama_model_loader::load_all_data(ggml_context*, std::unordered_map<unsigned int, ggml_backend_buffer*, std::hash<unsigned int>, std::equal_to<unsigned int>, std::allocator<std::pair<unsigned int const, ggml_backend_buffer*> > >&, std::vector<std::unique_ptr<llama_mlock, std::default_delete<llama_mlock> >, std::allocator<std::unique_ptr<llama_mlock, std::default_delete<llama_mlock> > > >*, bool (*)(float, void*), void*) ()
+#6  0x000061706ed802b8 in llama_model_base::load_tensors(llama_model_loader&) ()
+#7  0x000061706ecbc4b1 in llama_model_load(gguf_context*, void (*)(ggml_tensor*, void*), void*, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, std::vector<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::allocator<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > > >&, _IO_FILE*, llama_model_params&) ()
+#8  0x000061706ecbd562 in llama_model_load_from_file_impl(gguf_context*, void (*)(ggml_tensor*, void*), void*, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, std::vector<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::allocator<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > > >&, _IO_FILE*, llama_model_params) ()
+#9  0x000061706ecbe2a4 in llama_model_load_from_file ()
+#10 0x000061706ea26693 in llama_bench(int, char**) ()
+#11 0x000072883a82a1ca in __libc_start_call_main (main=main@entry=0x61706e9adae0 <main>, argc=argc@entry=11, argv=argv@entry=0x7ffd0cb70018) at ../sysdeps/nptl/libc_start_call_main.h:58
+warning: 58	../sysdeps/nptl/libc_start_call_main.h: No such file or directory
+#12 0x000072883a82a28b in __libc_start_main_impl (main=0x61706e9adae0 <main>, argc=11, argv=0x7ffd0cb70018, init=<optimized out>, fini=<optimized out>, rtld_fini=<optimized out>, stack_end=0x7ffd0cb70008) at ../csu/libc-start.c:360
+warning: 360	../csu/libc-start.c: No such file or directory
+#13 0x000061706ea12a15 in _start ()
+[Inferior 1 (process 9415) detached]
+bash: line 1:  9415 Aborted                 (core dumped) GGML_CUDA_ENABLE_UNIFIED_MEMORY=1 LD_LIBRARY_PATH=$HOME/bench-llama/lib ./llama-bench -m model.gguf -ngl 99 -p 512 -n 128 -r 3 2>&1
+89 MiB

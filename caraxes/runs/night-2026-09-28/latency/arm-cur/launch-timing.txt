@@ -1,0 +1,16 @@
+vfio-user-nvgpu: launch timing on: per-step histograms of the doorbell and completion path in the exit summary (CARAXES_LAUNCH_TIMING=1, docs/caraxes/launch-path.md)
+launch timing: 5967 ring(s) by the reactor (439 after a blocking wait), 5571 host doorbell(s); host events by the age of the last host doorbell: 4 none yet, 80 < 1 ms, 221 < 100 ms, 320 older (CARAXES_LAUNCH_TIMING=1, docs/caraxes/launch-path.md)
+launch timing: lock: n 5967, mean 82.72 us, p10 0.5 us, p50 0.5 us, p90 0.8 us, p99 1610.0 us, max 25819.9 us
+launch timing: dispatch: n 5471, mean 1.77 us, p10 1.5 us, p50 1.7 us, p90 1.8 us, p99 5.3 us, max 50.7 us
+launch timing: ran-ahead check: n 5471, mean 2.14 us, p10 2.0 us, p50 2.2 us, p90 2.4 us, p99 2.7 us, max 22.9 us
+launch timing: plan: n 5471, mean 23.47 us, p10 20.0 us, p50 20.6 us, p90 22.6 us, p99 37.3 us, max 2782.7 us
+launch timing: worker wait: n 5471, mean 12.72 us, p10 0.1 us, p50 0.1 us, p90 0.1 us, p99 59.5 us, max 7403.1 us
+launch timing: BAR1 flush: n 5471, mean 2.06 us, p10 1.9 us, p50 1.9 us, p90 2.3 us, p99 2.5 us, max 141.3 us
+launch timing: USERD read: n 5471, mean 2.15 us, p10 2.0 us, p50 2.1 us, p90 2.4 us, p99 2.7 us, max 75.4 us
+launch timing: host doorbell write: n 5471, mean 0.06 us, p10 0.1 us, p50 0.1 us, p90 0.1 us, p99 0.2 us, max 1.2 us
+launch timing: tail after the host doorbell: n 5453, mean 4.91 us, p10 4.3 us, p50 4.3 us, p90 7.1 us, p99 12.8 us, max 96.1 us
+launch timing: ring to host doorbell (sum): n 5453, mean 44.93 us, p10 27.8 us, p50 29.3 us, p90 32.2 us, p99 120.0 us, max 7622.2 us
+launch timing: host doorbell to the next ring: n 5964, mean 10639.98 us, p10 9.1 us, p50 10.4 us, p90 250.0 us, p99 416974.2 us, max 416974.2 us
+launch timing: host doorbell to host event: n 621, mean 160609.55 us, p10 440.0 us, p50 536249.2 us, p90 536249.2 us, p99 536249.2 us, max 536249.2 us
+launch timing: host event to raise: n 625, mean 1.90 us, p10 1.0 us, p50 1.6 us, p90 3.7 us, p99 6.1 us, max 12.8 us
+launch timing: raise to MSI: n 464, mean 395.95 us, p10 2.9 us, p50 8.5 us, p90 1570.0 us, p99 5070.0 us, max 6414.7 us

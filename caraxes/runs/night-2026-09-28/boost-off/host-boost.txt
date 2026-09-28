@@ -1,0 +1,2 @@
+vfio-user-nvgpu: host boost off (CARAXES_HOST_BOOST=0)
+host boost: off (CARAXES_HOST_BOOST=0)

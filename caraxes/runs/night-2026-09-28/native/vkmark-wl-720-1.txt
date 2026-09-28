@@ -1,0 +1,14 @@
+[vertex] device-local=true: FPS: 17427 FrameTime: 0.057 ms
+[vertex] device-local=false: FPS: 11921 FrameTime: 0.084 ms
+[texture] anisotropy=0: FPS: 17756 FrameTime: 0.056 ms
+[texture] anisotropy=16: FPS: 17618 FrameTime: 0.057 ms
+[shading] shading=gouraud: FPS: 17679 FrameTime: 0.057 ms
+[shading] shading=blinn-phong-inf: FPS: 17834 FrameTime: 0.056 ms
+[shading] shading=phong: FPS: 17813 FrameTime: 0.056 ms
+[shading] shading=cel: FPS: 17766 FrameTime: 0.056 ms
+[effect2d] kernel=edge: FPS: 15198 FrameTime: 0.066 ms
+[effect2d] kernel=blur: FPS: 9776 FrameTime: 0.102 ms
+[desktop] <default>: FPS: 13284 FrameTime: 0.075 ms
+[cube] <default>: FPS: 17850 FrameTime: 0.056 ms
+[clear] <default>: FPS: 15731 FrameTime: 0.064 ms
+                                   vkmark Score: 15973
