@@ -136,8 +136,8 @@ fn gfxp_charge(size: u64, alignment: u64) -> Option<u64> {
         .flatten()
 }
 
-fn valid_aligned_virtual(size: u64, alignment: u64, offset: u64) -> bool {
-    valid_gfxp_request(size, alignment)
+pub(crate) fn valid_aligned_virtual(size: u64, alignment: u64, offset: u64) -> bool {
+    offset != 0 && valid_gfxp_request(size, alignment)
         && offset % alignment == 0
         && offset.checked_add(size).is_some()
 }
@@ -1308,8 +1308,9 @@ impl HostMemory {
     }
 
     /// Allocate an aligned `NV50_MEMORY_VIRTUAL` reservation wherever the host RM's VA
-    /// allocator places it. The returned offset is the RM's chosen address; callers own
-    /// the handle and must free it with [`Self::free_object`].
+    /// allocator places it. Always return a successful RM allocation's handle, even if
+    /// its offset is malformed. The caller must retain ownership, validate with
+    /// `valid_aligned_virtual` before mapping, and free with [`Self::free_object`].
     pub fn alloc_virtual_aligned(
         &mut self,
         vaspace: u32,
@@ -1343,10 +1344,6 @@ impl HostMemory {
             bytes,
             "gfxp-virtual",
         )?;
-        if !valid_aligned_virtual(size, alignment, p.offset) {
-            let _ = self.free_tracked_leaf(h, "gfxp-virtual");
-            return Err(sys::NV_ERR_INVALID_ADDRESS as u32);
-        }
         Ok((h, p.offset))
     }
 
@@ -2933,6 +2930,7 @@ mod gfxp_tests {
         assert_eq!(gfxp_charge(u64::MAX, 0x1000), None);
 
         assert!(valid_aligned_virtual(0x3e3a80, 0x1000, 0x120000000));
+        assert!(!valid_aligned_virtual(0x1000, 0x1000, 0));
         assert!(!valid_aligned_virtual(0x1000, 0x1000, 0x120000100));
         assert!(!valid_aligned_virtual(0x2000, 0x1000, u64::MAX - 0xfff));
     }

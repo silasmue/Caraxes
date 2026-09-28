@@ -2197,6 +2197,9 @@ impl Mirror {
                     .map_err(|st| format!("GFXP virtual {engine:#x}: {}", status_name(st)))?;
                 buffer.virtual_handle = Some(virtual_handle);
                 buffer.va = va;
+                if !crate::hostmem::valid_aligned_virtual(len, alignment, va) {
+                    return Err("GFXP host virtual allocation returned an invalid range; handle retained".into());
+                }
                 let end = va.checked_add(len).ok_or("GFXP private VA overflow")?;
                 let sp = self.shadows.get_mut(&root).ok_or("GFXP shadow disappeared")?;
                 sp.private.entry(key).or_default().push((va, end));
