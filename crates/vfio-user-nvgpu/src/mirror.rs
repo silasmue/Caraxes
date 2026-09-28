@@ -169,6 +169,31 @@ fn needs_software_physical_ce(alloc_flags: u32, is_gr: bool) -> bool {
     privileged && !is_gr
 }
 
+/// `NVOS04_FLAGS_SKIP_CTXBUFFER_ALLOC` (bit 31): the Windows KMD allocates an application's GR
+/// context itself (the deferred context, ctrl/deferred_context.rs).
+const SKIP_CTXBUFFER_ALLOC: u32 = 1 << 31;
+
+/// Whether a privileged non-GR channel is an application's copy (or video) channel: its VA
+/// space is also that of an application GR context, a skip-context GR channel on the same
+/// root. The Windows KMD makes every channel privileged; CUDA's COPY TSG channels share the
+/// CUDA context's address space, the KMD's own paging and scrub channels (the physical-mode
+/// page-table writers) run in the system address space with only the KMD's management GR
+/// channel. Such a channel is mirrored like any other, unprivileged: its host channel
+/// denies physical-mode CE ([`HOST_MIRROR_CHANNEL_FLAGS`]), so a physical-mode method there
+/// faults that channel only (run P29: CUDA's copies in software ran at 10-200 MB/s and a
+/// 64 MiB read-back held the device 6.7 s). Linux never sets bit 31: unchanged there.
+pub fn application_copy_channel(reg: &Registry, ch: &Channel, gr0: u32) -> bool {
+    let Some(root) = reg.vas_key_of(ch).and_then(|k| reg.vas_root(k)) else {
+        return false;
+    };
+    reg.channels().any(|c| {
+        c.chid != ch.chid
+            && c.engine_type == gr0
+            && c.alloc_flags & SKIP_CTXBUFFER_ALLOC != 0
+            && reg.vas_key_of(c).and_then(|k| reg.vas_root(k)) == Some(root)
+    })
+}
+
 /// `NVA06F_CTRL_CMD_BIND` {engineType} (ctrla06f.h): a host channel needs an engine before
 /// `GPFIFO_SCHEDULE` (docs/caraxes/host-exec.md §1: NV_ERR_INVALID_STATE otherwise).
 const CMD_CHANNEL_BIND: u32 = 0xA06F_0104;
@@ -2595,6 +2620,12 @@ impl Mirror {
             token & 0xFFF,
             (token >> 16) & 0x7F
         ));
+        if ch.alloc_flags & (1 << 5) != 0 && ch.engine_type != v::lookup(v::NV2080_ENGINE_TYPES, "GR0").unwrap_or(1) {
+            notes.push(format!(
+                "shadow: chid {chid}: the guest's privileged engine {:#x} channel of an application VA space runs unprivileged on the host (DENY_PHYSICAL_MODE_CE; a physical-mode method faults this channel only) [host]",
+                ch.engine_type
+            ));
+        }
         drop(h);
         // Restore the guest's GPGet/GPPut the host RM cleared at channel creation.
         if let Some((get_at, put_at, Some(get), Some(put))) = saved_userd
@@ -3248,7 +3279,9 @@ impl Mirror {
         // silently drop its privilege and can fault the physical GPU: it stays in the
         // bounded software executor. Every other CE and video channel, bare or in a TSG,
         // remains eligible; its host channel denies physical-mode CE methods.
-        if needs_software_physical_ce(ch.alloc_flags, is_gr) {
+        if needs_software_physical_ce(ch.alloc_flags, is_gr)
+            && !application_copy_channel(reg, ch, gr0)
+        {
             return Err(format!(
                 "channel may issue guest physical-mode work (engine {:#x}, allocation flags {:#x}, bare {bare}): host privilege is not inherited; stays with the bounded software executor",
                 ch.engine_type, ch.alloc_flags
@@ -5606,6 +5639,62 @@ mod tests {
         assert!(!needs_software_physical_ce(DENY_PHYSICAL_CE, false));
         // The guest's X11 present CE channel of SotTR (allocation flags 0x202000).
         assert!(!needs_software_physical_ce(0x20_2000, false));
+    }
+
+    /// Run P29 (Windows): every channel is privileged. A copy channel on the VA space of an
+    /// application GR context (a skip-context GR channel on the same root: CUDA's COPY TSG
+    /// channels) is an application channel and may be mirrored; the KMD's paging copy
+    /// channel on the system VA space, where only the privileged management GR channel
+    /// runs, stays in software; so does any channel without a root.
+    #[test]
+    fn a_privileged_copy_channel_of_an_application_vas_is_mirrored() {
+        let chip = crate::fixture::rtx2070().chip.data();
+        let gr0 = 1u32;
+        let mut reg = registry();
+        let vas = |reg: &mut Registry, client: u32, root: u64| {
+            reg.record_alloc(client, 0x1, 0x3, v::FERMI_VASPACE_A, &[0u8; 56]);
+            let mut pd = vec![0u8; 32];
+            pd[v::SET_PD_PHYS_ADDRESS..][..8].copy_from_slice(&root.to_le_bytes());
+            pd[v::SET_PD_NUM_ENTRIES..][..4].copy_from_slice(&4u32.to_le_bytes());
+            pd[v::SET_PD_H_VASPACE..][..4].copy_from_slice(&0x3u32.to_le_bytes());
+            reg.record_set_page_directory(client, &pd);
+        };
+        let channel = |reg: &mut Registry, client: u32, h: u32, chid: u32, engine: u32, flags: u32| {
+            let mut cp = channel_params(chid, None);
+            let put = |cp: &mut Vec<u8>, o: usize, v: u32| cp[o..o + 4].copy_from_slice(&v.to_le_bytes());
+            put(&mut cp, <Abi as nvrm_sys::RmAbi>::ALLOC_CHANNEL_PARAMS_OFF_hVASpace, 0x3);
+            put(&mut cp, <Abi as nvrm_sys::RmAbi>::ALLOC_CHANNEL_PARAMS_OFF_engineType, engine);
+            let o = <Abi as nvrm_sys::RmAbi>::ALLOC_CHANNEL_PARAMS_OFF_flags;
+            let f = u32::from_le_bytes(cp[o..o + 4].try_into().unwrap());
+            put(&mut cp, o, f | flags);
+            reg.record_alloc(client, 0x1, h, chip.channel.gpfifo, &cp);
+        };
+        const PRIV: u32 = 1 << 5;
+        // CUDA's process: GR channel with SKIP_CTXBUFFER_ALLOC and two privileged CE channels.
+        let (app, system) = (0x1_0000_0000u64, 0x1_0800_0000u64);
+        vas(&mut reg, 0xc1d0_006f, app);
+        channel(&mut reg, 0xc1d0_006f, 0x40, 22, gr0, PRIV | SKIP_CTXBUFFER_ALLOC);
+        vas(&mut reg, 0xc1d0_008e, app);
+        channel(&mut reg, 0xc1d0_008e, 0x41, 32, 0x0c, PRIV);
+        // The system address space: the management GR channel and the paging CE channel.
+        vas(&mut reg, 0xc1d0_0002, system);
+        channel(&mut reg, 0xc1d0_0002, 0x42, 4, gr0, PRIV);
+        vas(&mut reg, 0xc1d0_0025, system);
+        channel(&mut reg, 0xc1d0_0025, 0x43, 14, 0x0b, PRIV);
+        let ch = |c: u32| reg.channel(c).unwrap();
+        assert!(application_copy_channel(&reg, ch(32), gr0));
+        assert!(!application_copy_channel(&reg, ch(14), gr0));
+        // The rule the mirror applies: privileged non-GR stays in software unless it is an
+        // application copy channel.
+        let software = |c: u32| {
+            needs_software_physical_ce(ch(c).alloc_flags, false)
+                && !application_copy_channel(&reg, ch(c), gr0)
+        };
+        assert!(!software(32));
+        assert!(software(14));
+        // The application's GR channel gone: its copy channel is no application's any more.
+        reg.record_free(0xc1d0_006f, 0x40);
+        assert!(!application_copy_channel(&reg, reg.channel(32).unwrap(), gr0));
     }
 
     /// The privileged context-promotion control receives only initialized VIDMEM ranges
