@@ -39,7 +39,8 @@ Runs: `/mnt/vmstore/caraxes/alpha-2026-09-27/windows-plain/<run>/`.
     (gpu_vaspace.c:1154, g_gpu_vaspace_nvoc.h:789) and refuses lower fixed VAs (0x1f).
   - Windows maps pushbuffers there (0x10000-0x13000, 0xbf000-0xcf000). First Xid: PBDMA
     FAULT_PDE at 0x13000; the FE fault at 0x10000 is the same class.
-  - F1 (this branch): the default layout sets ALLOW_ZERO_ADDRESS. Validation is open (P19).
+  - F1, 8f7a7f38: the default layout sets ALLOW_ZERO_ADDRESS. P19: every shadow VAS starts at 0,
+    no refused leaf below 1 MiB, no low-VA fault.
   - Depends on: L.
 - **The host's own buffers collide with Windows kernel data at 0x1_2000_0000 and up.**
   - Both RMs place kernel buffers at the lowest free VA ≥ 4 GiB outside the server-RM range
@@ -53,10 +54,50 @@ Runs: `/mnt/vmstore/caraxes/alpha-2026-09-27/windows-plain/<run>/`.
   - Candidate: a host-owned fence over the guest's kernel range at VAS creation, with guest
     leaves there mapped into the fence (touches the shadow's region objects).
   - Depends on: L, AB.
-- **Fault attribution needed a guest-table dump.** F3 (this branch): each MMU-fault RC of a
-  shadow channel logs the fault page's guest leaf, shadow leaf and set-B/private hits
+- **Fault attribution needed a guest-table dump.** F3, 8f7a7f38: each MMU-fault RC of a shadow
+  channel logs the fault page's guest leaf, shadow leaf and set-B/private hits
   ("shadow fault diagnostic"). Depends on: L, AB.
 - **The host RCs now reach the guest at once** (4d6ab0ee host notifier page): 4 in P18 instead of
   fence timeouts. Depends on: none.
 - **The bar1 pool refuses remaps of guest page-table pages** (P17 and P18 gpu.log ERROR lines).
   Not yet attributed to a failure. Depends on: P.
+
+## P19 (2026-09-28 19:55, P19-zero-base, beside Linux B)
+
+- **F1 holds:** 6 shadow VASes start at 0, no refused leaf below 1 MiB, no low-VA fault.
+- **The set-B exclusion of a size-0 global buffer swallows guest pages.**
+  - The first Xid (19:56:10) was FE FAULT_PTE write at 0x1_2010c000. Then 0x1_200ec000: 3x
+    FAULT_PTE and 1x FAULT_PRIV_VIOLATION. Stopped at 19:57.
+  - Both VAs are exactly BUNDLE_CB + 0x3000: the promote entry 3 (size 0) is at 0x1_20109000,
+    resp. 0x1_200e9000.
+  - F3 on roots 0x3d485000 and 0x3d471000: the guest maps a 4 KiB sysmem page there (kind 0);
+    the shadow has a gap; "set B true".
+  - `promoted_ranges` sizes a size-0 entry by the host's engine context size rounded up to 64 KiB
+    (mirror.rs `global_ctx_size`). The guest packs its next allocation (semaphores; P18 had CE
+    semaphores at +0x5000) right after its own reservation, so the exclusion overshoots into
+    guest data.
+  - The PRIV_VIOLATION shows the write is non-privileged (pushbuffer-driven), and that the host
+    placed a privileged buffer of its own in that excluded hole in one VAS.
+  - Not attributed yet: the host's BUNDLE_CB size (engine 0x11 is in no recorded answer), and
+    whether the guest leaves [base, base + 0x3000) unmapped.
+  - Open. Depends on: AB, L.
+- **Host-owned VAs in the guest's kernel range remain:** 64 host VA allocations refused with 0x51 in
+  0x1_2000_0000..0x1_2200_0000 (P18: 192). No Xid attributed to them in P19. Depends on: L, AB.
+
+### F2 designs (not built; main decides)
+
+- **F2a, exclusion extent (small, mirror.rs only):** a size-0 promoted global buffer excludes only
+  up to the first page the guest itself maps at or after its base. The guest never maps inside a
+  VA-only reservation that the server fills. Needs the cached guest walk where the exclusions are
+  recomputed (`refresh_exclusions`). Fixes the P19 faults if the guest's reservation is what it maps
+  around. Depends on: AB.
+- **F2b, host fence (larger, touches shadow.rs `apply`, workstream A's neighbourhood):**
+  - A host-owned `NV50_MEMORY_VIRTUAL` over [0x1_2000_0000, 0x1_2000_0000 + F) is created with the
+    shadow VAS.
+  - The host's first fit then lands above it. Guest leaves inside it are mapped into the fence
+    (hDma = fence, fixed offsets) instead of per-region objects; the fence is never freed while the
+    VAS lives.
+  - Removes the 0x51 collisions and the host's buffers in guest holes.
+  - Guest user VAs above 0x1_2000_0000 + F can still meet the host.
+  - Depends on: L, AB; the compressed slice (D16b) must keep kinds/comptags per mapped leaf inside
+    the fence (K).
