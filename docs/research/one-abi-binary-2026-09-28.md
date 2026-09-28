@@ -65,7 +65,7 @@ Scope: what chose the guest ABI at compile time in `crates/vfio-user-nvgpu`; whi
 
 ## Gate (no VM was started for this note)
 
-- Binary: `/mnt/vmstore/caraxes/vfio-user-nvgpu-oneabi-<commit>` (release build of the branch head; sha256 in the commit that records it).
+- Binary: `/mnt/vmstore/caraxes/vfio-user-nvgpu-oneabi-d7157f5a`, the release build of d7157f5a, sha256 `5993304b8d7cf75f61ac880912dfbae6b567089998a99033efba2274611d9360`; `<binary>` below.
 - Each device log names the choice: `grep 'guest ABI' gpu.log` shows "guest ABI 570 ... framed Pre610", "guest ABI 610 ... framed V610" or "guest ABI 615 ... magic "GSP "" (the trace has the same as notes).
 - nova (570), unpinned: `caraxes/runs/nova-2026-09-25/nova-boot.sh <dir> CARAXES_SERVER=<binary> CARAXES_KERNEL=/mnt/vmstore/caraxes/nova-kernel/build/arch/x86/boot/bzImage CARAXES_VBIOS=/mnt/vmstore/caraxes/night-2026-09-28/synth-vbios-nova.bin CARAXES_GUEST_ABI=` (the empty value lifts the script's 570 pin).
 - Linux 615 (lean VM, Linux B): the usual runs with `CARAXES_SERVER=<binary>`; nothing else. With dev's `tools/lib/driver.sh` the launcher still pins 615, which the binary accepts; with this branch's it runs unpinned.
