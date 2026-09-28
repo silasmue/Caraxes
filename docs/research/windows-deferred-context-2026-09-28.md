@@ -1,6 +1,6 @@
 # Windows deferred contexts
 
-Status: experimental, off by default. P5 reached registration; execution is unvalidated.
+Status: experimental, off by default. P9 completed eight context lifecycles; D3D11 rendering still fails.
 
 ## Contract
 
@@ -14,15 +14,18 @@ must be off.
 - A registration identifies its owning management channel. Allocation flags
   alone cannot distinguish management from ordinary GR channels.
 - An idle host management channel is retired before software takeover.
-  Initial subchannel bindings are previewed from at most 32 SET_OBJECT/NOP
-  entries before retirement. FIFO_IDLE_CHANNELS must then succeed for the exact
+  Initial subchannel bindings and captured nonexecuting 2D/notifier setup are
+  previewed from at most 32 entries before retirement. FIFO_IDLE_CHANNELS must
+  then succeed for the exact
   host channel; GPGet is rechecked against its last published GPPut.
 - The software interpreter stops at the deferred method. Following methods
   cannot execute until the operation completes. Unknown work fails closed.
 - INITIALIZE prepares the target's host-owned GR context with an empty private
   USERD. PROMOTE enables later submission after initialization succeeds.
-- EVICT frees the exact host TSG and waits for teardown. The first version
-  accepts one target channel per TSG; shared-group eviction is unsupported.
+- Target submission is blocked before PROMOTE and during/after EVICT. EVICT
+  idles the exact host channel, harvests its final USERD, frees the host TSG and
+  synchronizes the software cursor. One target channel per TSG is supported;
+  shared-group eviction is unsupported.
 - Guest physical context addresses are validated against the VM reservation,
   but are not passed to host RM. The host driver's GR object constructor owns
   the actual context allocation, initialization and promotion.
@@ -31,8 +34,9 @@ must be off.
 
 This is a shadow-context lifecycle model, not support for arbitrary deferred
 RM controls. The legacy guest context buffer is not installed over the host's
-internally managed context. 3D methods and compute launches on management
-channels remain unsupported until explicitly implemented.
+internally managed context. Management supports the captured C597 one-word
+report release after ordered completion. Rendering commands and compute launches
+remain unsupported on management channels.
 
 ## Related fixes
 
@@ -43,7 +47,7 @@ channels remain unsupported until explicitly implemented.
 
 ## Validation
 
-- ABI615: 522 unit tests passed, one ignored; two integration tests passed.
+- ABI615: 528 unit tests passed, one ignored; two integration tests passed.
 - Tests cover captured payloads, malformed input, client isolation, generation
   reuse, teardown, deferred ordering, exact-once completion and takeover bindings.
 - No D3D11 or desktop success is established by these software tests.
@@ -135,3 +139,27 @@ channels remain unsupported until explicitly implemented.
   Failed eviction keeps submissions held; successful eviction cannot replay
   already executed entries or bypass the next context lifecycle.
 - Artifacts: alpha-2026-09-27/windows-plain/P8-ordered-report/.
+
+## P9: context lifecycle passes; preemption bind blocks D3D
+
+- Base 79869d2f; binary SHA-256:
+  d1c3be3a9140419a818c9a9a366c7a76f75da0a0c360d22970e6623a4b148f79.
+- 24 deferred APIs completed: eight INITIALIZE/PROMOTE/EVICT cycles. Sixteen
+  ordered C597 releases completed; no strict interpreter failure.
+- Nine exact-channel idles returned NV_OK: one takeover and eight evictions,
+  1286–3516 us. These are diagnostic control timings, not workload latency.
+- NVIDIA RTX 2070, driver 32.0.16.1714, reports PnP error code 0.
+- The NVIDIA-only D3D11 gate reaches device creation and fails with HRESULT
+  0x8876017c after 3618 ms. No triangle/readback stage ran. Wrapper exit code 0
+  is not a rendering pass; its captured output explicitly reports failure.
+- Every context attempt fails GR_CTXSW_PREEMPTION_BIND (0x20801211) with
+  NV_ERR_INVALID_OBJECT_HANDLE (0x33). Windows passes a live TSG handle
+  0xff0e0000; the current public-control rule accepts only a direct channel.
+- Next: capture the full 112-byte request, then implement context-owner
+  resolution and the requested mode semantics. Recording an unsupported mode
+  alone is insufficient evidence that the host context implements it.
+- VM stopped after ACPI shutdown. Host reports no new Xid. QEMU's screenshot
+  shows the lock screen on its display; it is not proof of NVIDIA rendering.
+- ABI615: 528 unit tests plus two integration tests passed, one ignored.
+  ABI610: 525 unit tests plus two integration tests passed.
+- Artifacts: alpha-2026-09-27/windows-plain/P9-context-lifecycle/.

@@ -1,6 +1,6 @@
 # Caraxes working handoff for Claude Code
 
-Updated: 2026-09-28, 06:23 CEST. All test VMs are stopped.
+Updated: 2026-09-28, 06:59 CEST. P9 stopped; next run captures preemption-bind parameters.
 
 ## Workspace and constraints
 
@@ -16,6 +16,22 @@ Updated: 2026-09-28, 06:23 CEST. All test VMs are stopped.
 - Frozen desktop A is untouched. Linux B: 4 GiB RAM, 4 CPUs, 2 GiB VRAM, slot 1.
   Windows target: 4 GiB RAM, 4 CPUs, 1 GiB VRAM, slot 0. Debugger VM has no GPU.
 - Artifact paths below are relative to /mnt/vmstore/caraxes/alpha-2026-09-27/.
+
+## Latest Windows result: P9
+
+- HEAD includes fenced software takeover, channel-local software IDs, ordered
+  deferred completion and a target lifecycle gate. Experimental flags remain off
+  by default; the TMO/ILUT/OLUT capability profile remains diagnostic only.
+- P9 completed eight host-owned INITIALIZE/PROMOTE/EVICT cycles, 24 APIs total,
+  with 16 ordered C597 semaphore releases and no new host Xid.
+- NVIDIA reports PnP code 0. D3D11CreateDevice still fails with 0x8876017c;
+  no rendering or pixel readback succeeded.
+- New blocker: 0x20801211 GR_CTXSW_PREEMPTION_BIND receives a TSG handle,
+  but public.rs requires a direct channel and returns 0x33. Capture its full
+  request before choosing how to implement the requested preemption modes.
+- Tests: ABI615 528 unit + two integration passed, one ignored; ABI610
+  525 unit + two integration passed.
+- Detailed evidence and changes: [Deferred context report](windows-deferred-context-2026-09-28.md).
 
 ## Windows: confirmed progress and blocker
 

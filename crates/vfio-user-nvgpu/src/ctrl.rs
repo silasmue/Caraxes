@@ -1305,6 +1305,34 @@ impl Dispatcher {
                 if kept < params.len() { " (truncated)" } else { "" }
             ));
         }
+        const GR_CTXSW_PREEMPTION_BIND: u32 = 0x2080_1211;
+        static SHADOW_CHANNEL_CAPTURED: std::sync::atomic::AtomicUsize =
+            std::sync::atomic::AtomicUsize::new(0);
+        if cmd == GR_CTXSW_PREEMPTION_BIND
+            && std::env::var("CARAXES_SHADOW_CHANNEL_DIAG").as_deref() == Ok("1")
+            && SHADOW_CHANNEL_CAPTURED.fetch_add(1, std::sync::atomic::Ordering::Relaxed) < 8
+        {
+            let word = |off: usize| {
+                params
+                    .get(off..off + 4)
+                    .map(|b| u32::from_le_bytes(b.try_into().unwrap()))
+            };
+            let kept = params.len().min(112);
+            let hex: String = params[..kept]
+                .iter()
+                .map(|byte| format!("{byte:02x}"))
+                .collect();
+            answer.note.push_str(&format!(
+                "; shadow channel capture: ctrl20801211 input {} byte(s), flags {:?}, hClient {:?}, hChannel {:?}, gfxp {:?}, cilp {:?}, bytes[0..{kept}] {hex}{}",
+                params.len(),
+                word(0).map(|v| format!("{v:#x}")),
+                word(4).map(|v| format!("{v:#x}")),
+                word(8).map(|v| format!("{v:#x}")),
+                word(88).map(|v| format!("{v:#x}")),
+                word(92).map(|v| format!("{v:#x}")),
+                if kept < params.len() { " (truncated)" } else { "" }
+            ));
+        }
         answer
     }
 
