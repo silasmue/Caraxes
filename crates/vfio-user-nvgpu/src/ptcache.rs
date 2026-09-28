@@ -37,6 +37,15 @@ pub type Leaf = (u64, Target, u64, u8);
 /// A 2 MiB unit: one PD0 entry.
 pub const UNIT: u64 = 2 << 20;
 
+/// A generation stamp unique in the process: a cache keyed by stamps from several sources
+/// (the walks, the registry, mirror.rs `SetBStamp`) never mistakes a new source for an old
+/// one, even across a dropped walk or a replaced registry.
+pub fn fresh_generation() -> u64 {
+    use std::sync::atomic::{AtomicU64, Ordering};
+    static NEXT: AtomicU64 = AtomicU64::new(1);
+    NEXT.fetch_add(1, Ordering::Relaxed)
+}
+
 /// Reads `n` consecutive qwords of a page table.
 pub trait TableReader {
     fn block(&self, table: Target, n: usize) -> Option<Vec<u64>>;
@@ -205,6 +214,9 @@ pub struct WalkCache {
     /// Pages that entered `uses` and whether one left it, during the running update.
     added: Vec<u64>,
     dropped: bool,
+    /// A fresh stamp ([`fresh_generation`]) at creation and at every update that changed a
+    /// unit's leaves: equal generations, equal leaves ([`Self::generation`]).
+    generation: u64,
 }
 
 impl WalkCache {
@@ -226,7 +238,15 @@ impl WalkCache {
             reread: false,
             added: Vec::new(),
             dropped: false,
+            generation: fresh_generation(),
         }
+    }
+
+    /// The generation of the cached leaves: it changes whenever a unit's leaves do (an
+    /// update's `changed`, a full walk), so what is derived from the leaves (mirror.rs: the
+    /// clip of a global buffer's set-B exclusion) is reused while it stands.
+    pub fn generation(&self) -> u64 {
+        self.generation
     }
 
     /// A guest write of `data` at FB address `pa` (inside watched page `page`): patch the
@@ -402,6 +422,9 @@ impl WalkCache {
                     }
                 }
             }
+        }
+        if full || !changed.is_empty() {
+            self.generation = fresh_generation();
         }
         let uses = &self.uses;
         self.raw.retain(|p, _| uses.contains_key(p));
