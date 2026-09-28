@@ -1555,10 +1555,31 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
     } else {
         None
     };
+    // A long software CE transfer runs in slices (channel.rs `CE_SLICE`) so that the
+    // vfio-user loop answers between them; the next slice runs on this clock, with or
+    // without a display tick or another doorbell.
+    let ce_slices = {
+        let d = device.clone();
+        let stop = soak_stop.clone();
+        std::thread::Builder::new()
+            .name("ce-slices".into())
+            .spawn(move || {
+                while !stop.load(std::sync::atomic::Ordering::Acquire) {
+                    std::thread::sleep(std::time::Duration::from_millis(1));
+                    if vfio_user_nvgpu::channel::ce_slices_pending() {
+                        d.lock()
+                            .unwrap_or_else(PoisonError::into_inner)
+                            .continue_ce_slices();
+                    }
+                }
+            })
+            .context("spawn the software CE slice clock")?
+    };
     let result = server
         .run(&mut SharedDevice(device.clone()))
         .map_err(|e| anyhow::anyhow!("vfio-user server: {e}"));
     soak_stop.store(true, std::sync::atomic::Ordering::Relaxed);
+    let _ = ce_slices.join();
     if let Some(t) = userd_poll {
         let _ = t.join();
     }

@@ -339,6 +339,19 @@ impl BootModel {
         notes
     }
 
+    /// The next slice of every sliced software CE transfer: the channels it holds are
+    /// replayed (ctrl.rs `replay_held`), each continuing at its LAUNCH_DMA.
+    pub fn continue_ce_slices(&mut self, mem: &GuestMemory) -> Vec<String> {
+        if self.ctrl.dstate.rc.held.is_empty() {
+            return Vec::new();
+        }
+        let mut gm = crate::channel::GpuMem {
+            fb: &mut self.fb,
+            sys: mem,
+        };
+        self.ctrl.replay_held(&mut gm)
+    }
+
     pub fn poll_shadow_userds(&mut self, mem: &GuestMemory) -> Vec<String> {
         self.ctrl.poll_shadow_userds(&mut crate::channel::GpuMem {
             fb: &mut self.fb,
