@@ -134,15 +134,22 @@ pub fn copy_bind(ch: &Channel) -> Option<u32> {
     ((0x09..=0x12).contains(&t) || (0x34..=0x3D).contains(&t)).then_some(t)
 }
 
+/// The allocation flags of every guest channel's host mirror:
+/// `NVOS04_FLAGS_CHANNEL_DENY_PHYSICAL_MODE_CE` (bit 7). With it the host RM makes the
+/// channel unprivileged whatever the host client's privilege (alloc_channel.h:159-170), so
+/// a physical-mode CE method in the guest's push faults that channel instead of reaching
+/// host memory. Not for the device's own invalidator, which needs ADMIN (invalidate.rs).
+const HOST_MIRROR_CHANNEL_FLAGS: u32 = 1 << 7;
+
 /// A channel which must not inherit the unprivileged host mirror client's execution
-/// context. Privileged non-GR channels remain in the bounded software executor. A bare
-/// COPY channel is also kept there unless its allocation explicitly denies physical-mode
-/// CE methods (`NVOS04_FLAGS_CHANNEL_DENY_PHYSICAL_MODE_CE`, bit 7).
-fn needs_software_physical_ce(engine_type: u32, alloc_flags: u32, is_gr: bool, bare: bool) -> bool {
+/// context: a privileged non-GR channel (`NVOS04_FLAGS_PRIVILEGED_CHANNEL`, bit 5) may
+/// rely on physical-mode work, which its host mirror would refuse, so it remains in the
+/// bounded software executor. A bare COPY channel without bit 7 is mirrored: its host
+/// channel denies physical-mode CE itself ([`HOST_MIRROR_CHANNEL_FLAGS`]); the Vulkan
+/// driver's X11 present channel is one (SotTR, vkcube on XWayland, 2026-09-28).
+fn needs_software_physical_ce(alloc_flags: u32, is_gr: bool) -> bool {
     let privileged = alloc_flags & (1 << 5) != 0;
-    let deny_physical_ce = alloc_flags & (1 << 7) != 0;
-    let copy = (0x09..=0x12).contains(&engine_type) || (0x34..=0x3D).contains(&engine_type);
-    (privileged && !is_gr) || (bare && copy && !deny_physical_ce)
+    privileged && !is_gr
 }
 
 /// `NVA06F_CTRL_CMD_BIND` {engineType} (ctrla06f.h): a host channel needs an engine before
@@ -1838,6 +1845,7 @@ impl Mirror {
                 _ => 0,
             };
             let mut cp = crate::hostabi::ChannelAllocParams::default();
+            cp.flags = HOST_MIRROR_CHANNEL_FLAGS;
             cp.hObjectError = h_error;
             cp.gpFifoOffset = ch.gpfifo_va;
             cp.gpFifoEntries = ch.gpfifo_entries;
@@ -2514,12 +2522,11 @@ impl Mirror {
                 .any(|(c, _)| *c == self.chip.channel.compute);
         // A guest privileged non-GR channel may issue physical-mode work (page-table
         // updates and scrubbing, alloc_channel.h NVOS04_FLAGS_PRIVILEGED_CHANNEL). The host
-        // mirror client is deliberately unprivileged, so replaying it there would silently
-        // drop its privilege and can fault the physical GPU. A bare COPY channel with bit 7
-        // clear also lacks an explicit allocation-time denial of physical CE methods. Keep
-        // both in the bounded software executor; ordinary TSG-backed user CE and video
-        // channels remain eligible.
-        if needs_software_physical_ce(ch.engine_type, ch.alloc_flags, is_gr, bare) {
+        // mirror is unprivileged (HOST_MIRROR_CHANNEL_FLAGS), so replaying it there would
+        // silently drop its privilege and can fault the physical GPU: it stays in the
+        // bounded software executor. Every other CE and video channel, bare or in a TSG,
+        // remains eligible; its host channel denies physical-mode CE methods.
+        if needs_software_physical_ce(ch.alloc_flags, is_gr) {
             return Err(format!(
                 "channel may issue guest physical-mode work (engine {:#x}, allocation flags {:#x}, bare {bare}): host privilege is not inherited; stays with the bounded software executor",
                 ch.engine_type, ch.alloc_flags
@@ -3026,6 +3033,7 @@ impl Mirror {
                 _ => 0,
             };
             let mut cp = crate::hostabi::ChannelAllocParams::default();
+            cp.flags = HOST_MIRROR_CHANNEL_FLAGS;
             cp.hObjectError = h_error;
             cp.gpFifoOffset = ch.gpfifo_va;
             cp.gpFifoEntries = ch.gpfifo_entries;
@@ -4785,28 +4793,22 @@ mod tests {
         assert_eq!(nonstall_vector(chip, 0xFFFF_FFFF), None);
     }
 
-    /// Host privilege is never inherited. A bare COPY channel is additionally safe to
-    /// mirror only when the guest allocation explicitly denied physical CE methods.
+    /// Host privilege is never inherited: a privileged non-GR channel stays in software.
+    /// Every other channel may be mirrored, because its host channel is allocated with
+    /// DENY_PHYSICAL_MODE_CE (a bare CE channel with bit 7 clear included, the Vulkan X11
+    /// present channel of 2026-09-28).
     #[test]
-    fn physical_ce_gate_preserves_only_explicitly_bounded_host_work() {
+    fn physical_ce_gate_keeps_privileged_work_and_the_host_denies_physical_ce() {
         const PRIVILEGED: u32 = 1 << 5;
         const DENY_PHYSICAL_CE: u32 = 1 << 7;
-        let copy2 = v::lookup(v::NV2080_ENGINE_TYPES, "COPY2").unwrap();
-        let nvdec0 = v::lookup(v::NV2080_ENGINE_TYPES, "NVDEC0").unwrap();
-        let gr0 = v::lookup(v::NV2080_ENGINE_TYPES, "GR0").unwrap();
-
-        assert!(needs_software_physical_ce(copy2, PRIVILEGED, false, false));
-        assert!(needs_software_physical_ce(nvdec0, PRIVILEGED, false, false));
-        assert!(!needs_software_physical_ce(gr0, PRIVILEGED, true, false));
-        assert!(needs_software_physical_ce(copy2, 0, false, true));
-        assert!(!needs_software_physical_ce(
-            copy2,
-            DENY_PHYSICAL_CE,
-            false,
-            true
-        ));
-        assert!(!needs_software_physical_ce(copy2, 0, false, false));
-        assert!(!needs_software_physical_ce(nvdec0, 0, false, true));
+        assert_eq!(HOST_MIRROR_CHANNEL_FLAGS, DENY_PHYSICAL_CE);
+        assert_eq!(HOST_MIRROR_CHANNEL_FLAGS & PRIVILEGED, 0);
+        assert!(needs_software_physical_ce(PRIVILEGED, false));
+        assert!(!needs_software_physical_ce(PRIVILEGED, true));
+        assert!(!needs_software_physical_ce(0, false));
+        assert!(!needs_software_physical_ce(DENY_PHYSICAL_CE, false));
+        // The guest's X11 present CE channel of SotTR (allocation flags 0x202000).
+        assert!(!needs_software_physical_ce(0x20_2000, false));
     }
 
     /// The privileged context-promotion control receives only initialized VIDMEM ranges
