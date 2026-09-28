@@ -143,3 +143,37 @@ The A/B in the lean VM (1 GiB, slot 5, FAST=2), run while Windows P28 ran on slo
 
 - The device log shows 20 renewals (5 from guest requests), 0 refused; the RM call takes 7 ms mean, 45 ms max, off the ring path.
 - 0 Xid in the Linux VM. The host Xid lines in the same windows are all from the Windows device (pid 1192852, FAULT_PRIV_VIOLATION on HUBCLIENT_FE, the F2 class), reported by the Windows agent.
+
+## Graphics per frame (docs/research/vkmark-frame-2026-09-28.md) and the A/B of the trace and the pages
+
+Analysis of the traced vkmark cube/clear (0.295 / 0.234 ms per frame against 0.056 / 0.064 ms native):
+- The app's frame path traps 0 times and rings ~4.5 times per frame, untrapped.
+- Every vblank handler holds the GPU completions for 0.6-0.75 ms: two display-page writes of ~150 µs and 6 TIME reads.
+- Mutter's flip path costs ~3.7 ms per 60 Hz period, 2.3 ms of it in traps: 23 flush reads, 2 invalidates of ~430 µs.
+- The steady loop is paced by interrupt round trips of ~50 µs each.
+- ±10 % at 4000+ FPS is not reachable with mediated interrupts; for games at 60-150 FPS these costs are 1-4 % of a frame.
+
+The A/B, each arm a fresh Linux B (1 GiB, slot 4, FAST=2, boost on, dev 7f1143be), vkmark ×2 and glmark2 at 1280x720 (`vkmark-ab.sh`, `vkmark-ab/`):
+
+| Arm | vkmark | glmark2 | Note |
+|---|---|---|---|
+| trace on | 5339 / 5173 | 4620 | ran without Windows load |
+| trace off | 5847 / 6101 | 5049 | +10 %; Windows P30 started during this arm |
+| trace off + usermode, invalidate, kick pages | 2181 / 2103 | 2018 | −60 % |
+| control: trace off (bisect window, Windows P30 workloads alongside) | 4920 / 4246 | 3254 | |
+| + CARAXES_USERMODE_PAGE=1 | 3042 / 2529 | 1907 | −40 % against the control: its reactor scans every channel's GPPut after each doorbell and publishes TIME every iteration |
+| + CARAXES_INVALIDATE_PAGE=1 | 4127 / 4721 | 3762 | neutral, but **unsafe**: "ERROR untrapped GPPut: host channel ran ahead of its doorbell with plans pending" (the hold only acts on the trapped invalidate; the same class as the 2026-09-28 race) |
+| + CARAXES_DISPLAY_KICK_PAGE=1 | 5039 / 4873 | 4103 | +2-15 % vkmark, +26 % glmark2; 29550 kicks by the reactor, mean 117 µs, 0 inconsistencies |
+
+Consequences for the one universal configuration:
+- The device trace should be off by default: +10 % in these micro-benchmarks.
+- The display kick page is a candidate for the default, after a re-measure without Windows load and a game run.
+- The usermode page needs its reactor scan fixed first.
+- The invalidate page needs the untrapped-GPPut hold before it can be used.
+
+## Validation of the Windows branch's software-CE slicing on Linux (6c566092, one binary)
+
+`validate-b-6c566092/`: Linux B (1 GiB, slot 4, compression, display), the binary built from win-2026-09-28 at 6c566092 (dev + one ABI + the Windows fixes, including B: the software CE in slices of ≤40 ms).
+- Smoke all PASS: NVENC 165.4 fps, NVDEC 127.6 fps (boost on), glmark2 build 4324 FPS.
+- Scrub stress: 30 × 300 MiB alloc/fill/free, each free scrubbed by the guest RM through the software CE as a 300 MiB memset. Total 28 s, worst loop 1.07 s; vkcube ran alongside without break (rc 0).
+- 0 guest Xid, 0 host Xid.

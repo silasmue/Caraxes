@@ -1,0 +1,4 @@
+modules-ok
+SCRUB loops=30 size_mib=300 total_s=28.04 worst_loop_s=1.07
+vkcube-during-scrub rc=0
+guest Xid: 0

@@ -1,0 +1,2 @@
+[clear] duration=10: FPS: 4266 FrameTime: 0.234 ms
+                                   vkmark Score: 4266
