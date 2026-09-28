@@ -76,3 +76,19 @@ channels remain unsupported until explicitly implemented.
   timeout and pushbuffer/cache/all-engine flags. GPGet alone is not a fence.
 - Apply recovered bindings only after host retirement and generation revalidation.
 - ABI615 remains 522 unit tests plus two integration tests passed, one ignored.
+
+## P6 prefix capture
+
+- Base 772f2abd; binary SHA-256:
+  39bfe22179d5cece876b2378d3bf746e322468f41027b10814a40758bfa0a592.
+- Preview rejected before retiring the host channel. The complete first entry
+  is 43 dwords: object bindings, 2D state setters and GR/compute notifier addresses.
+  No launch, semaphore action, notify trigger or deferred invocation occurs in it.
+- Subchannel 5 binds value 1. This is the channel-local ENG_SW class ID assigned
+  by kchannelRegisterChild, not the external class number 0x5080. The software
+  interpreter must retain this ID-to-object association across allocations/frees.
+- Next: allow the captured nonexecuting setup and retain software object IDs.
+  Unsupported later 2D/compute work must still stop, since its old state is not
+  transferred into a software rendering implementation.
+- VM stopped. No new host Xid; deferred execution and rendering remain unvalidated.
+- Artifacts: alpha-2026-09-27/windows-plain/P6-prefix-preview/.
