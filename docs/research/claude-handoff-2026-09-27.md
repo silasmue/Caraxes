@@ -1,6 +1,6 @@
 # Caraxes working handoff for Claude Code
 
-Updated: 2026-09-28, 06:59 CEST. P9 stopped; next run captures preemption-bind parameters.
+Updated: 2026-09-28, 07:36 CEST. P14 stopped; ordinary host GFXP binding verified.
 
 ## Workspace and constraints
 
@@ -17,21 +17,41 @@ Updated: 2026-09-28, 06:59 CEST. P9 stopped; next run captures preemption-bind p
   Windows target: 4 GiB RAM, 4 CPUs, 1 GiB VRAM, slot 0. Debugger VM has no GPU.
 - Artifact paths below are relative to /mnt/vmstore/caraxes/alpha-2026-09-27/.
 
-## Latest Windows result: P9
+## Latest Windows result: P14
 
-- HEAD includes fenced software takeover, channel-local software IDs, ordered
-  deferred completion and a target lifecycle gate. Experimental flags remain off
-  by default; the TMO/ILUT/OLUT capability profile remains diagnostic only.
-- P9 completed eight host-owned INITIALIZE/PROMOTE/EVICT cycles, 24 APIs total,
-  with 16 ordered C597 semaphore releases and no new host Xid.
-- NVIDIA reports PnP code 0. D3D11CreateDevice still fails with 0x8876017c;
-  no rendering or pixel readback succeeded.
-- New blocker: 0x20801211 GR_CTXSW_PREEMPTION_BIND receives a TSG handle,
-  but public.rs requires a direct channel and returns 0x33. Capture its full
-  request before choosing how to implement the requested preemption modes.
-- Tests: ABI615 528 unit + two integration passed, one ignored; ABI610
-  525 unit + two integration passed.
-- Detailed evidence and changes: [Deferred context report](windows-deferred-context-2026-09-28.md).
+- Deferred context ordering and lifetime fixes remain in place. P9 completed
+  eight INITIALIZE/PROMOTE/EVICT cycles, 24 APIs and 16 ordered semaphore
+  releases. Its NVIDIA PnP code 0 did not establish rendering: D3D11CreateDevice
+  failed with 0x8876017c.
+- P10 captured Windows requesting GFXP_POOL mode 2 on a TSG, including guest
+  pool GPU addresses and a guest CPU control-block pointer. P11 measured the
+  actual owned host context in WFI mode 0.
+- Found and fixed a false acknowledgement: bootstrap pool sizing/lifecycle
+  responses were still active during host execution. They never constructed a
+  usable pool. Commit 2a4a83d1 refuses those controls before recorded overrides.
+- P12 proves this driver does not fall back after that refusal: GSP unloads and
+  NVIDIA reports PnP code 43. This is the current baseline limitation.
+- Pool controls require a kernel RM caller. CAP_SYS_ADMIN does not grant that
+  access. Public headers expose some control-block offsets, but do not establish
+  freelist initialization or justify the old estimated pool sizing.
+- P13b: public SET_CTXSW_PREEMPTION_MODE (mode 2) on an empty, idled host TSG
+  returns INVALID_ARGUMENT. GET remains WFI; SET0/GET restores successfully.
+  P13's first boot did not reach the probe; that separate startup stall remains
+  unexplained. Neither run submitted work on the tested target.
+- 80113455 adds floor-accounted owned GFXP buffers and aligned host VA allocation.
+  It also fixes a teardown bug: failed RM_FREE previously removed the object and
+  children from the ledger, making Mirror's retained ownership impossible to retry.
+- P14: direct SET1 succeeds, SET2 fails. Five owned host buffers (6,778,880 bytes)
+  bind to the host TSG in mode 1; GET confirms it. BIND WFI/GET0 and complete
+  buffer cleanup pass. No target workload was submitted.
+- Next: per-TSG owned GFXP lifetime, persistent private shadow VA exclusions,
+  then an explicitly experimental guest pool translation test. Host mode 1 is
+  not proof of guest pool mode 2 support or rendering.
+- No new host Xid through P14. All completed runs stopped. LUT capability
+  changes remain diagnostic only; the actual display color pipeline is unfinished.
+- Tests: ABI615 531 unit + two integration passed, one ignored at 80113455.
+  ABI610 525 unit + two integration passed before the pool guard/GFXP foundation.
+- Detailed evidence: [Deferred context report](windows-deferred-context-2026-09-28.md).
 
 ## Windows: confirmed progress and blocker
 

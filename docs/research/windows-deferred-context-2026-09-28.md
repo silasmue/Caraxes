@@ -1,6 +1,6 @@
 # Windows deferred contexts
 
-Status: experimental, off by default. P9 completed eight context lifecycles; D3D11 rendering still fails.
+Status: experimental, off by default. Context lifecycle passes; graphics pool support is missing. The current host path refuses bootstrap pool acknowledgements, and Windows reports Code 43. No D3D11 rendering pass.
 
 ## Contract
 
@@ -220,3 +220,69 @@ remain unsupported on management channels.
   would not prove the guest pool lifecycle or BIND contract is implemented.
 - VM stopped; no new host Xid. No rendering probe after the explicit driver failure.
 - Artifacts: alpha-2026-09-27/windows-plain/P12-host-pool-refusal/.
+
+## P13: public mode setter on an empty owned context
+
+- Base d72adeb7 plus archived diagnostic.patch; binary SHA-256:
+  b7bfef979d3f577097443e848ce5f22a5798776a7d4eaa9b7e59e7490d74f875.
+- Isolated build temporarily uses the P11 bootstrap replies to reach the probe.
+  All SKIP_CTX target submissions are blocked, including after PROMOTE. Neither
+  that bootstrap behavior nor the diagnostic LUT profile is merged into baseline.
+- P13 did not reach the probe: startup stopped progressing before deferred
+  registration. QGA was unavailable; the owned VM was stopped. Cause unconfirmed.
+- P13b reached an exact single-member, prepared/promoted host TSG. Its private
+  USERD had GPGet/GPPut zero, no publication and no doorbells. FIFO_IDLE returned
+  NV_OK in 1321 us. GET reported graphics WFI (0).
+- SET_CTXSW_PREEMPTION_MODE on the owned host TSG, flags 2 / mode 2 / route zero,
+  returned NV_ERR_INVALID_ARGUMENT (0x1f). GET remained WFI. Restoring mode 0
+  returned NV_OK and GET confirmed WFI. No target workload was submitted.
+- This rules out that exact setter request as a shortcut; it does not identify
+  the rejected field or prove that all other channel/buffer configurations fail.
+- A separate public OGKM vGPU path allocates and maps five ordinary GFXP buffers,
+  then BINDs mode 1. Its teardown BINDs WFI before unmapping/freeing. SET alone is
+  not documented to allocate those buffers.
+- Existing host measurements, IDs 0x0b..0x0f, give size/alignment pairs:
+  0x10f300/0x1000, 0xe1000/0x100, 0x20000/0x100,
+  0x3e3a80/0x1000, 0x82000/0x100. Preserve page rounding and memory floors.
+- A production ordinary-GFXP path would also need per-TSG ownership, host VA
+  exclusions, checked BIND/WFI, retryable cleanup and an independently validated
+  guest pool model. Host mode 1 is not evidence that guest pool mode 2 works.
+- Artifacts: windows-plain/P13-build/, P13-empty-host-mode/ and
+  P13b-empty-host-mode/ under alpha-2026-09-27/.
+
+## Owned-buffer foundation
+
+80113455 adds a floor-accounted HostGfxp allocation, aligned host virtual
+reservation, and retry-preserving buffer release. Physical buffers explicitly
+use 4 KiB pages; accounting rounds up the required size. These helpers do not
+implement pool lifecycle or change the guest-visible preemption mode.
+
+The same review found that HostMemory::free_object removed its ledger entry
+and children before RM_FREE returned. On refusal, Mirror retained its object
+but could never retry through HostMemory. The ledger now changes only after
+successful RM_FREE. A failure-injection test covers failure followed by retry.
+
+Validation: ABI615 531 unit tests and two integration tests passed, one ignored.
+
+## P14: ordinary GFXP with real host buffers passes
+
+- Base 80113455 plus isolated diagnostic.patch; binary SHA-256:
+  97ea37f2344b9a819a0ab9e996385f42db49ad7db4eaa9b7e59e7490d74f875.
+- Same empty-target restrictions as P13, plus exactly one host channel on the
+  shadow root and a drained mapping worker. FIFO_IDLE returned NV_OK in 985 us.
+- On the member channel, SET2 returns INVALID_ARGUMENT and GET remains WFI.
+  SET1 succeeds and GET reports ordinary GFXP (1); SET0/GET restores WFI.
+- Five physical buffers allocated with floor accounting, rounded 4 KiB pages,
+  aligned RM-selected VAs and nondeferred maps: 6,778,880 bytes total.
+- BIND1 on the exact host TSG returns NV_OK and GET confirms mode 1. BIND WFI
+  with zero addresses returns NV_OK; GET confirms mode 0. All five buffers are
+  then unmapped and freed successfully.
+- Host 2D (902D), 3D (C597) and compute (C5C0) objects exist on the target.
+- No target workload or guest pool equivalence was tested. The temporary probe
+  blocks submissions and finishes cleanup before the event thread can enqueue
+  another mapping plan. Production requires persistent private VA exclusions.
+- A first P14 build used a member handle for BIND; review corrected it to the
+  group handle before any hardware run. That unused binary is separately marked
+  NOT-RUN in P14-unrun-channel-bind-build/.
+- VM stopped; no new host Xid. Artifacts: windows-plain/P14-build/ and
+  P14-owned-gfxp-bind/ under alpha-2026-09-27/.
