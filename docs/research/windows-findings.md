@@ -474,3 +474,26 @@ Runs: `/mnt/vmstore/caraxes/alpha-2026-09-27/windows-plain/<run>/`.
   default suffices.
 - Teardown exit 3 ("owned GFXP resources remain attached") is the P17 diagnostic's owned GFXP
   only; a production build has no owned GFXP set and does not take that path.
+
+## P30 (2026-09-29 00:27-00:54, P30-uvm1: one binary, fixes 1-3, A, B; Linux B ran vkmark on slot 4)
+
+- **Guest ABI 615 detected** from the RMARGS magic "GSP " (one binary, no feature flag).
+- **No host Xid.** D3D11 PASS, D3D12 PASS, vulkaninfo exit 0.
+- **CUDA:** copies on the host (rule A): HtoD 12.9 GB/s, DtoH 12.9 GB/s (P29b: 0.20/0.07). Short
+  kernel median 157 us (Linux B's vkmark shared the GPU). No TDR at the CUDA exit (fix 1).
+- **Managed memory, bit 0 = 1:** OK again (64 MiB CPU write, kernel increment, CPU check).
+- **NVENC/NVDEC run** (fix 3): H.264 encode 14 fps, HEVC 5 fps, decode 23-35 fps (5 s clips of
+  ffmpeg's generated 1080p60 source; the probe's frame-count parse of the encoded files failed).
+- **Workloads** (00:44-00:53, beside Linux B's vkmark):
+
+  | workload | native | Linux B | Windows P30 |
+  |---|---|---|---|
+  | llama 1B pp512 / tg128 | 7639 / 305 | 7084 / 242 | 4445 ± 2132 / 108 |
+  | llama 7B -ngl 20 pp512 / tg128 | 1085 / 16.6 | 914 / 11.4 | 547 / 12.2 |
+  | transformer tokens/s | 107485 | 105625 | 49552 (first step 22 s) |
+  | ResNet-18 images/s | 532.5 | crashed | 190.2 (first step 121 s) |
+
+- **TDRs left:** after a D3D12 or D3D11 process: the TSG's context moved to its last channel,
+  which never rang (no host channel), and the eviction failed "host context is gone": Xid 45 on
+  the management channel. Fixed in 6c566092 (such an eviction frees the host TSG). Smoke's D3D12
+  gate timed out in that TDR.
