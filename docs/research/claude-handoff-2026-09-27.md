@@ -1,6 +1,8 @@
 # Caraxes working handoff for Claude Code
 
-Updated: 2026-09-28, 08:05 CEST. P15/P15b stopped; P16 diagnostic in preparation.
+Updated: 2026-09-28, 08:12 CEST. P16 completed its probe; P17 in preparation.
+
+Ready-to-use continuation prompt: [Claude Code prompt](claude-continue-windows.md).
 
 ## Workspace and constraints
 
@@ -17,7 +19,7 @@ Updated: 2026-09-28, 08:05 CEST. P15/P15b stopped; P16 diagnostic in preparation
   Windows target: 4 GiB RAM, 4 CPUs, 1 GiB VRAM, slot 0. Debugger VM has no GPU.
 - Artifact paths below are relative to /mnt/vmstore/caraxes/alpha-2026-09-27/.
 
-## Latest Windows result: P15b
+## Latest Windows result: P16
 
 - Deferred context ordering and lifetime fixes remain in place. P9 completed
   eight INITIALIZE/PROMOTE/EVICT cycles, 24 APIs and 16 ordered semaphore
@@ -53,8 +55,14 @@ Updated: 2026-09-28, 08:05 CEST. P15/P15b stopped; P16 diagnostic in preparation
   but refuses owned GFXP because the target received a doorbell before BIND.
   D3D11CreateDevice returns 0x8876017c after 3461 ms. No rendering pass.
   P16 will hold the experimental target until its owned buffers are bound.
-- Separate IRQ review found missing replay of pending shared interrupts on PCI
-  MSI enable/eventfd installation. Fix/tests in progress; stall causation unproven.
+- P16 binds real owned GFXP successfully and then forwards target doorbells.
+  NVIDIA PnP code 0, but D3D11CreateDevice still fails 0x8876017c after 4025 ms.
+  The next BIND requests compute CTA (flags1, cilp1, all pointers zero); the
+  diagnostic rejects it. P17 will translate this exact request and verify both modes.
+- 178bfd2f repairs pending shared MSI replay on availability transitions. Tests:
+  ABI610 535 unit +2 integration; ABI615 538 unit +2 integration, one ignored.
+  IntrTree-local pending delivery still needs an ACK-aware audit; startup-stall
+  causation remains unproven.
 - No new host Xid through P15b. All completed runs stopped. LUT capability
   changes remain diagnostic only; the actual display color pipeline is unfinished.
 - Tests: ABI615 535 unit + two integration passed, one ignored at c9531d34;

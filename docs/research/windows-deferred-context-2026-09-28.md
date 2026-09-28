@@ -339,3 +339,26 @@ Validation: ABI615 531 unit tests and two integration tests passed, one ignored.
 - Future pool translation needs tracked memory identity, allocation bounds,
   initialization and slot lifecycle. Slot-to-context association and control-block
   contents remain unknown; unconditional bootstrap replies are not a valid model.
+
+## P16: first-use gating establishes GFXP, then compute CTA is requested
+
+- Base 178bfd2f plus isolated diagnostic.patch; SHA-256:
+  3ceee816bd77b50283f29842649ce7556abedc54556d148c35201e60cfb20d76.
+- Diagnostic holds SKIP_CTX GR targets until their exact owned-GFXP state is
+  bound. All submission routes converge on the gate; management remains exempt.
+  Held work replays through the existing periodic path after successful binding.
+- Multiple real BIND1/GET1 operations pass, five private buffers per target.
+  The trace confirms target doorbells after binding. NVIDIA reports PnP code 0.
+- The next captured BIND differs: flags1 (compute only), gfxp0 (ignored),
+  cilp1 (CTA), all nine addresses, padding and routing zero. The narrow graphics
+  diagnostic rejects it. This is not a graphics WFI/unbind request.
+- D3D11CreateDevice still returns 0x8876017c after 4025 ms. No rendering pass.
+  P17 will translate only that exact compute request to the owned host TSG and
+  require GET to confirm CTA while preserving ordinary GFXP.
+- Shared-MSI correction 178bfd2f has full regression results: ABI610 535 unit
+  + two integration passed; ABI615 538 unit + two integration passed, one ignored.
+  Use `--features v615` for that build; CARAXES_GSP_ABI alone does not select it.
+- Remaining interrupt gap: shared bits already drained into IntrTree and its local
+  MSI flag can outlive a failed delivery without availability-transition replay.
+  Page mode remains owned by its reactor/watchdog. The startup race is not solved
+  merely because this boot succeeded.
