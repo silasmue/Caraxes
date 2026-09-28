@@ -1087,7 +1087,7 @@ impl Mirror {
         for chid in ids {
             self.userd_cursor = chid;
             let hc = self.channels.get(&chid).unwrap();
-            if !hc.context_ready || !reg.channel(chid).is_some_and(|ch| ch.generation == hc.generation) { continue }
+            if !hc.context_ready || reg.channel(chid).is_none_or(|ch| ch.generation != hc.generation) { continue }
             let u = hc.userd.as_ref().unwrap();
             u.harvest(gm);
             if gm.read_u32(Target::Sys(u.guest + 0x8c))
@@ -1103,7 +1103,7 @@ impl Mirror {
     /// Retire the previous host allocation before answering the replacement allocation.
     pub fn retire_replaced_channels(&mut self, reg: &Registry) -> Vec<String> {
         let stale: Vec<_> = self.channels.iter().filter(|(chid, hc)| {
-            !reg.channel(**chid).is_some_and(|ch| ch.generation == hc.generation)
+            reg.channel(**chid).is_none_or(|ch| ch.generation != hc.generation)
         }).map(|(&chid, _)| chid).collect();
         let mut notes = Vec::new();
         for chid in stale {
@@ -1464,13 +1464,12 @@ impl Mirror {
         }
         let mut replacement_notes = Vec::new();
         if self.channels.get(&chid).is_some_and(|hc| {
-            !reg.channel(chid).is_some_and(|ch| ch.generation == hc.generation)
+            reg.channel(chid).is_none_or(|ch| ch.generation != hc.generation)
                 || reg.channel(chid).and_then(|ch| reg.vas_key_of(ch))
                 .and_then(|k| reg.vas_root(k)) != hc.shadow_root.map(Target::Fb)
-        }) {
-            if !self.free_channel(chid, &mut replacement_notes) {
-                return replacement_notes;
-            }
+        }) && !self.free_channel(chid, &mut replacement_notes)
+        {
+            return replacement_notes;
         }
         if self.channels.get(&chid).is_some_and(|hc| !hc.context_ready) && submit {
             return vec![format!("shadow: chid {chid} held until deferred context promotion")];
@@ -2103,7 +2102,7 @@ impl Mirror {
     /// are passed to RM, and no context or scheduling state is changed.
     pub fn deferred_context_modes(&self, reg: &Registry, client: u32, object: u32) -> Result<String, String> {
         let key = reg.resolve((client, object));
-        if !reg.tsg(key).is_some_and(|(_, engine)| engine == 1) {
+        if reg.tsg(key).is_none_or(|(_, engine)| engine != 1) {
             return Err("preemption target is not a live GR TSG".into());
         }
         let mut members = reg.channels().filter(|ch| (ch.h_client, ch.h_parent) == key);
@@ -2133,7 +2132,7 @@ impl Mirror {
     /// forwarded.
     pub fn bind_owned_gfxp(&mut self, reg: &Registry, client: u32, guest_tsg: u32) -> Result<Vec<String>, String> {
         let guest = reg.resolve((client, guest_tsg));
-        if !reg.tsg(guest).is_some_and(|(_, engine)| engine == 1) {
+        if reg.tsg(guest).is_none_or(|(_, engine)| engine != 1) {
             return Err("owned GFXP target is not a live GR TSG".into());
         }
         let key = tsg_key_of_guest(reg, guest).ok_or("owned GFXP target has no TSG key")?;
@@ -2265,7 +2264,7 @@ impl Mirror {
         guest_tsg: u32,
     ) -> Result<Vec<String>, String> {
         let guest = reg.resolve((client, guest_tsg));
-        if !reg.tsg(guest).is_some_and(|(_, engine)| engine == 1) {
+        if reg.tsg(guest).is_none_or(|(_, engine)| engine != 1) {
             return Err("owned compute-CTA target is not a live GR TSG".into());
         }
         let key = tsg_key_of_guest(reg, guest).ok_or("owned compute-CTA target has no TSG key")?;

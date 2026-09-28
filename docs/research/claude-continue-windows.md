@@ -1,3 +1,4 @@
+<!-- SPDX-License-Identifier: MIT -->
 # Claude Code continuation prompt
 
 Continue Caraxes Windows work. Work in `/mnt/vmstore/caraxes/wt-codex-stability`,

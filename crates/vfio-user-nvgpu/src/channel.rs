@@ -1898,6 +1898,7 @@ impl Registry {
 
     /// Execute one pushbuffer segment. Returns the notes and whether a host
     /// semaphore acquire blocked (the entry is then resumed at that method).
+    #[allow(clippy::too_many_arguments)]
     fn segment(
         ch: &mut Channel,
         mem: &mut GpuMem,
@@ -2092,6 +2093,7 @@ impl Registry {
         Ok((notes, false))
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn host_method(
         ch: &mut Channel,
         mem: &mut GpuMem,

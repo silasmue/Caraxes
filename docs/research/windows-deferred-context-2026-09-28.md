@@ -1,3 +1,4 @@
+<!-- SPDX-License-Identifier: MIT -->
 # Windows deferred contexts
 
 Status: experimental, off by default. Context lifecycle passes; graphics pool support is missing. The current host path refuses bootstrap pool acknowledgements, and Windows reports Code 43. No D3D11 rendering pass.
