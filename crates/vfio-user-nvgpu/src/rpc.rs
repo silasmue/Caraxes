@@ -406,7 +406,10 @@ pub fn build_static_info(
         ),
     };
     put32(&mut b, v::SI_NUM_FB_REGIONS, 2);
-    let region = |b: &mut [u8], i: usize, base: u64, limit: u64, reserved: u64| {
+    // Compression per VM slice (compression.rs): the usable region, where the guest's heap
+    // lives, is compressible; `None` keeps D16 below.
+    let compression = crate::compression::GuestView::of(layout, chip);
+    let region = |b: &mut [u8], i: usize, base: u64, limit: u64, reserved: u64, compressed: bool| {
         let o = v::SI_FB_REGIONS + i * v::FB_REGION_SIZE;
         put64(b, o + v::FB_REGION_BASE, base);
         put64(b, o + v::FB_REGION_LIMIT, limit);
@@ -423,11 +426,15 @@ pub fn build_static_info(
         // surfaces use, so it must never carry a guest value. Reporting no compression
         // makes the guest pick uncompressible kinds (GENERIC_MEMORY 0x06 / PITCH 0x00),
         // COMPTAGLINE 0. Synthesized; fb-model.md §510, memory-model.md.
-        b[o + v::FB_REGION_SUPPORT_COMPRESSED] = 0;
+        // With compression per VM slice the host holds the reservation as compressible
+        // backing and writes the host PTEs' lines itself (compression.rs); a region
+        // without the flag would make the guest write every compressible PTE of it with
+        // the uncompressed kind (virt_mem_allocator_gm107.c:1866-1881, 1931-1943 of 615).
+        b[o + v::FB_REGION_SUPPORT_COMPRESSED] = compressed as u8;
         b[o + v::FB_REGION_SUPPORT_ISO] = 1;
     };
-    region(&mut b, 0, usable_start, usable_end - 1, 0);
-    region(&mut b, 1, rsvd_start, reserved_end - 1, reserved_end - rsvd_start);
+    region(&mut b, 0, usable_start, usable_end - 1, 0, compression.is_some());
+    region(&mut b, 1, rsvd_start, reserved_end - 1, reserved_end - rsvd_start, false);
     label(
         &mut labels,
         "fbRegionInfoParams",
@@ -436,6 +443,14 @@ pub fn build_static_info(
         ),
         source,
     );
+    if let Some(view) = &compression {
+        label(
+            &mut labels,
+            "fbRegionInfoParams.fbRegion[0].supportCompressed",
+            format!("1 ({})", view.describe()),
+            "card+guest (compression slice: the card's 1:1 comptag lines over this VM's reservation, compression.rs)",
+        );
+    }
 
     // bIsMigSupported: the chip models MIG (families/mig.rs); without it the kernel drops
     // PDB_PROP_GPU_MIG_SUPPORTED (gpu.c:2188-2196) and nvidia-smi finds no MIG device.
@@ -960,6 +975,48 @@ pub(crate) mod tests {
         assert!(labels
             .iter()
             .any(|l| l.field == "fbRegionInfoParams" && l.source.contains("BAR1 pool")));
+    }
+
+    /// Compression per VM slice (compression.rs): the usable region says
+    /// `supportCompressed`, the reserved one never does, and nothing else of the static
+    /// info moves; off is byte for byte the D16 image. The 615 guest reads the flag from
+    /// the NVKV key FB_REGION_FLAGS (kernel_gsp.c:7832 of 615).
+    #[test]
+    fn static_info_under_compression() {
+        use crate::gmcapi::{sc, words, Value};
+        let f = crate::fixture::rtx2070();
+        let id = f.identity(4 << 30);
+        let plain = FbLayout::reserved(4 << 30, 8 << 30, 0xE900_0000, 0x1_E900_0000).unwrap();
+        let (d16, _) = build_static_info(f.chip.data(), &id, None, &plain);
+        let (off, _) = build_static_info(f.chip.data(), &id, None, &plain.with_compression(false).unwrap());
+        assert_eq!(off, d16);
+        let (on, labels) = build_static_info(f.chip.data(), &id, None, &plain.with_compression(true).unwrap());
+        let flag = |b: &[u8], i: usize| b[v::SI_FB_REGIONS + i * v::FB_REGION_SIZE + v::FB_REGION_SUPPORT_COMPRESSED];
+        assert_eq!((flag(&d16, 0), flag(&d16, 1)), (0, 0));
+        assert_eq!((flag(&on, 0), flag(&on, 1)), (1, 0));
+        let changed: Vec<usize> = (0..on.len()).filter(|&i| on[i] != d16[i]).collect();
+        assert_eq!(changed, vec![v::SI_FB_REGIONS + v::FB_REGION_SUPPORT_COMPRESSED]);
+        assert!(labels
+            .iter()
+            .any(|l| l.field == "fbRegionInfoParams.fbRegion[0].supportCompressed" && l.value.contains("0xe901..=0x1e8e0")));
+        // A costume presenting GA106 over the same reservation stays uncompressed.
+        let ga106 = crate::chip::by_name("ga106").unwrap().data();
+        let (g, _) = build_static_info(ga106, &id, None, &plain.with_compression(true).unwrap());
+        assert_eq!(flag(&g, 0), 0);
+        let extra = StaticExtra { wpr_offsets: None, sku: None };
+        for (img, want) in [(&d16, 0), (&on, sc::FB_REGION_FLAGS_IS_COMPRESSION_SUPPORTED)] {
+            let (bytes, _) = static_info_nvkv(img, f.chip.data(), &extra);
+            let entries = kernel_accepts(&words(&bytes)).unwrap();
+            let flags = |i: u16| {
+                entries
+                    .iter()
+                    .find(|e| e.key == sc::FB_REGION_FLAGS && e.index == i)
+                    .map(|e| e.value.clone())
+                    .unwrap()
+            };
+            assert_eq!(flags(0), Value::U32(want | sc::FB_REGION_FLAGS_IS_ISO_SUPPORTED));
+            assert_eq!(flags(1), Value::U32(sc::FB_REGION_FLAGS_IS_ISO_SUPPORTED));
+        }
     }
 
     #[test]

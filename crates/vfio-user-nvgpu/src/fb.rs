@@ -45,6 +45,10 @@ pub struct FbLayout {
     /// P21 design H: bytes of the reservation below the carve-out held back as the BAR1
     /// pool (docs/caraxes/bar1-pool.md); 0 without it. Taken out of the usable FB.
     pub pool: u64,
+    /// Real compression per VM slice (`CARAXES_COMPRESSION=slice`, compression.rs): the
+    /// guest is told that its usable FB is compressible. Only with a reservation, whose
+    /// physical pages carry their own comptag lines ([`Self::with_compression`]).
+    pub compressible: bool,
 }
 
 impl FbLayout {
@@ -56,6 +60,7 @@ impl FbLayout {
             reservation: None,
             host_reservation: None,
             pool: 0,
+            compressible: false,
         }
     }
 
@@ -85,6 +90,7 @@ impl FbLayout {
             reservation: Some((base, end)),
             host_reservation: Some((base, end)),
             pool: 0,
+            compressible: false,
         })
     }
 
@@ -143,6 +149,22 @@ impl FbLayout {
         }
         Ok(FbLayout {
             pool: self.pool + len,
+            ..self
+        })
+    }
+
+    /// The same layout with its usable FB given to the guest as compressible (`on`) or not.
+    /// In 1:1 comptag mode a page's comptag line follows from its physical address
+    /// (compression.rs), so only a reservation can be: its lines are this VM's alone. Set
+    /// it only when the host holds the reservation as compressible backing (hostmem.rs):
+    /// a guest told "compressible" over uncompressed backing picks compressible kinds the
+    /// shadow tables then refuse.
+    pub fn with_compression(self, on: bool) -> Result<Self, String> {
+        if on && self.host_reservation.is_none() {
+            return Err("compression per VM slice needs a VRAM reservation (--reserve-vram)".into());
+        }
+        Ok(FbLayout {
+            compressible: on,
             ..self
         })
     }

@@ -288,6 +288,13 @@ impl Recorded {
         Ok(r)
     }
 
+    /// The recorded `(status, answer)` of `cmd` for exactly `req`.
+    pub fn exact_answer(&self, cmd: u32, req: &[u8]) -> Option<(u32, &[u8])> {
+        self.exact
+            .get(&(cmd, req.to_vec()))
+            .map(|e| (e.status, e.answer.as_slice()))
+    }
+
     /// The embedded table (a malformed file fails the unit test, not the device).
     pub fn get() -> &'static Recorded {
         static T: OnceLock<Recorded> = OnceLock::new();

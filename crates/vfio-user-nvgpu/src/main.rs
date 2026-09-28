@@ -838,6 +838,24 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
             layout.profile
         );
     }
+    // Real compression per VM slice (compression.rs): the guest is told about it only when
+    // the host holds the reservation as compressible backing.
+    // TODO(workstream A, hostmem.rs): the request stands in for the host's grant until
+    // hostmem reports whether it allocated the reservation compressible
+    // (NVOS32_ATTR_COMPR_REQUIRED); take that grant here instead, so that a host that
+    // refused the compressible reservation keeps the guest on the D16 answers.
+    let compression = vfio_user_nvgpu::compression::Mode::from_env().map_err(anyhow::Error::msg)?;
+    if compression == vfio_user_nvgpu::compression::Mode::Slice {
+        layout = layout.with_compression(true).map_err(anyhow::Error::msg)?;
+        match vfio_user_nvgpu::compression::GuestView::of(&layout, chip.data()) {
+            Some(view) => eprintln!("vfio-user-nvgpu: {}", view.describe()),
+            None => eprintln!(
+                "vfio-user-nvgpu: WARNING {}=slice, but chip {} has no compression facts of its own ([compression] of chip.toml): the guest is told no compression (D16)",
+                vfio_user_nvgpu::compression::ENV,
+                chip.data().name
+            ),
+        }
+    }
     // The display engine of every device model from here on (display/mod.rs).
     vfio_user_nvgpu::display::configure(vfio_user_nvgpu::display::Setup {
         enabled: a.display,
