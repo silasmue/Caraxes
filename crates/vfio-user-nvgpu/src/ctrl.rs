@@ -812,19 +812,31 @@ impl Dispatcher {
         }
         let eligible = m.is_mirrored(chid) || m.eligible(&self.channels, chid).is_ok();
         if !eligible {
-            let mut notes = self.channels.doorbell_except(gm, token, &off);
-            if let Err(why) = m.eligible(&self.channels, chid) {
-                notes.push(format!("mirror: chid {chid} in software: {why}"));
-            }
+            let why = m.eligible(&self.channels, chid).err();
             // The software executor's TLB invalidates reach the physical GPU's TLBs
-            // through the mirror VA spaces (every one, as above).
-            let inv = std::mem::take(&mut self.channels.tlb_invalidates);
-            if !inv.is_empty() {
-                let n: usize = inv.iter().map(|_| m.invalidate_tlb(gm.fb, None)).sum();
-                notes.push(format!(
-                    "mirror: {} software TLB invalidate(s) -> invalidated on {n} mirror VA space(s) [host]",
-                    inv.len()
-                ));
+            // through the mirror VA spaces (every one, as above). One that names a shadow
+            // root (nvidia-uvm's page-table updates of a CUDA VA space end in one) stops its
+            // push until the shadow worker applied that root, so UVM's semaphore release
+            // after it reaches the guest only once the host mappings exist (channel.rs
+            // `doorbell_holding`, docs/research/shadow-fault-race-2026-09-28.md).
+            let hold = m.memop_hold_roots();
+            let mut notes = self.channels.doorbell_holding(
+                gm,
+                token,
+                &off,
+                hold,
+                &mut |reg, gm, inv| {
+                    let n: usize = inv.iter().map(|_| m.invalidate_tlb(gm.fb, None)).sum();
+                    let mut notes = vec![format!(
+                        "mirror: {} software TLB invalidate(s) -> invalidated on {n} mirror VA space(s) [host]",
+                        inv.len()
+                    )];
+                    notes.extend(m.software_invalidated(reg, gm, inv));
+                    notes
+                },
+            );
+            if let Some(why) = why {
+                notes.push(format!("mirror: chid {chid} in software: {why}"));
             }
             return notes;
         }

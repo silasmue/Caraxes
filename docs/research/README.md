@@ -29,6 +29,7 @@ Target: driver 615.71.09 only (D19, D20); 610.57.04 appears as one "610 delta" b
 | [compression-isolation-2026-09-28.md](compression-isolation-2026-09-28.md) | How vGPU and MIG isolate compression (1:1 or raw comptag lines follow the physical page), and the route for real compression per VM slice |
 | [compression-guest-view-2026-09-28.md](compression-guest-view-2026-09-28.md) | What the 615 guest decides compression by, and every answer the device changes with `CARAXES_COMPRESSION=slice`; the Linux scrub-on-free precondition |
 | [zbc-host-table-2026-09-28.md](zbc-host-table-2026-09-28.md) | ZBC with real compression: who may add to the host's table, placement and release, what the device forwards, the cap, what a guest sees and can learn |
+| [shadow-fault-race-2026-09-28.md](shadow-fault-race-2026-09-28.md) | The Xid 31 FAULT_PDE of desktop-b: nvidia-uvm maps through `MEM_OP` invalidates the software executor ran without a shadow plan; the fix (the push stops at the invalidate until the shadow is applied) and the TSG fault-record lookup |
 
 ## Format of a note
 

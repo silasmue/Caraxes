@@ -25,6 +25,13 @@
 //! device lock is free while the worker applies. The counters say how often and how long.
 //! `CARAXES_SHADOW_UNTRAPPED_HOLD=0` turns the rule off, for the A/B reproduction only.
 //!
+//! nvidia-uvm's page-table updates of a CUDA VA space never reach that register: they end
+//! in a `MEM_OP` TLB invalidate on UVM's own CE channel, which the software executor runs,
+//! followed by the semaphore release UVM waits for. Such an invalidate of any shadow root
+//! stops its push until the worker applied the root's plan ([`memop_holds`], channel.rs
+//! `doorbell_holding`, docs/research/shadow-fault-race-2026-09-28.md). The same switch
+//! turns it off.
+//!
 //! The same module counts the evidence: a doorbell of a shadow channel whose host channel
 //! already fetched entries past the GPPut of the device's last forward ran ahead of the
 //! doorbell ([`ran_ahead`]); with plans pending at that moment it may have run on a mirror
@@ -58,6 +65,37 @@ pub fn must_hold(pdb: Option<u64>, untrapped: &BTreeSet<u64>) -> bool {
     }
 }
 
+/// Whether a `MEM_OP` TLB invalidate of page directory `pdb` (`None`: every one) that the
+/// software executor runs must stop its push until the shadow is applied: it names one of
+/// the shadow `roots`. nvidia-uvm updates the page tables of a CUDA VA space from its own
+/// CE channels (they carry `GP100_UVM_SW` and stay in software) and never through the
+/// invalidate register, so this is the last point the device sees before the guest
+/// submits work on the new mappings (docs/research/shadow-fault-race-2026-09-28.md). Unlike
+/// [`must_hold`] it holds every shadow root: a trapped GPPut store waits only for plans
+/// already made, and nothing else plans a root at a `MEM_OP` invalidate.
+pub fn memop_holds(pdb: Option<crate::fb::Target>, roots: &BTreeSet<u64>) -> bool {
+    match pdb {
+        Some(crate::fb::Target::Fb(r)) => roots.contains(&r),
+        Some(_) => false,
+        None => !roots.is_empty(),
+    }
+}
+
+/// The shadow `roots` that the `MEM_OP` invalidates `inv` name ([`memop_holds`]).
+pub fn memop_roots(inv: &[Option<crate::fb::Target>], roots: &BTreeSet<u64>) -> BTreeSet<u64> {
+    let mut out = BTreeSet::new();
+    for pdb in inv {
+        match pdb {
+            Some(crate::fb::Target::Fb(r)) if roots.contains(r) => {
+                out.insert(*r);
+            }
+            None => out.extend(roots.iter().copied()),
+            _ => {}
+        }
+    }
+    out
+}
+
 /// Whether a host channel fetched GPFIFO entries the device never forwarded: at a doorbell,
 /// its GPGet `get` has moved past `fwd`, the GPPut the device saw at its last forward,
 /// towards the guest's current GPPut `put`, on a ring of `entries` entries.
@@ -76,6 +114,11 @@ pub struct HoldStats {
     pub held: u64,
     pub held_total: Duration,
     pub held_max: Duration,
+    /// Software `MEM_OP` invalidates of a shadow root whose push waited until the worker
+    /// applied the root's plan ([`memop_holds`]), and the time.
+    pub memop_held: u64,
+    pub memop_total: Duration,
+    pub memop_max: Duration,
     /// Doorbells whose host channel had run ahead of them, and of those the ones that found
     /// plans pending (lazy or in the worker).
     pub ahead: u64,
@@ -88,6 +131,12 @@ impl HoldStats {
         self.held += 1;
         self.held_total += d;
         self.held_max = self.held_max.max(d);
+    }
+
+    pub fn note_memop_held(&mut self, d: Duration) {
+        self.memop_held += 1;
+        self.memop_total += d;
+        self.memop_max = self.memop_max.max(d);
     }
 
     /// A doorbell that found its host channel ahead; `pending` whether plans were pending.
@@ -107,11 +156,14 @@ impl HoldStats {
 
     pub fn summary(&self, on: bool) -> String {
         format!(
-            "untrapped GPPut: rule {} ({ENV}); {} invalidate(s) held until applied ({} ms in total, longest {} us); {} doorbell(s) found the host channel ahead of them, {} of them with plans pending (docs/caraxes/bar1-pool.md §9)",
+            "untrapped GPPut: rule {} ({ENV}); {} invalidate(s) held until applied ({} ms in total, longest {} us); {} software MEM_OP invalidate(s) of a shadow root held until applied ({} ms in total, longest {} us); {} doorbell(s) found the host channel ahead of them, {} of them with plans pending (docs/caraxes/bar1-pool.md §9)",
             if on { "on" } else { "OFF" },
             self.held,
             self.held_total.as_millis(),
             self.held_max.as_micros(),
+            self.memop_held,
+            self.memop_total.as_millis(),
+            self.memop_max.as_micros(),
             self.ahead,
             self.ahead_pending
         )
@@ -154,6 +206,28 @@ mod tests {
         assert!(must_hold(None, &one));
     }
 
+    /// A software `MEM_OP` invalidate holds every shadow root it names, untrapped or not;
+    /// one of every page directory holds them all; a sysmem or unknown directory none.
+    #[test]
+    fn a_memop_invalidate_holds_the_shadow_roots_it_names() {
+        use crate::fb::Target;
+        let none = BTreeSet::new();
+        let roots: BTreeSet<u64> = [0xef20_1000, 0x1_2980_0000].into();
+        assert!(memop_holds(Some(Target::Fb(0xef20_1000)), &roots));
+        assert!(!memop_holds(Some(Target::Fb(0xef20_0000)), &roots));
+        assert!(!memop_holds(Some(Target::Sys(0xef20_1000)), &roots));
+        assert!(memop_holds(None, &roots));
+        assert!(!memop_holds(None, &none));
+        assert!(!memop_holds(Some(Target::Fb(0xef20_1000)), &none));
+        // The run of 2026-09-28: UVM's invalidates of root 0xef201000, and its fault-replay
+        // invalidates that name page directory 0.
+        let inv = [Some(Target::Fb(0xef20_1000)), Some(Target::Fb(0)), Some(Target::Fb(0xef20_1000))];
+        assert_eq!(memop_roots(&inv, &roots), [0xef20_1000].into());
+        assert_eq!(memop_roots(&[None], &roots), roots);
+        assert!(memop_roots(&[Some(Target::Fb(0))], &roots).is_empty());
+        assert!(memop_roots(&[None], &none).is_empty());
+    }
+
     #[test]
     fn a_channel_ran_ahead_when_gpget_passed_the_last_forward() {
         // Forwarded at 10, the guest published up to 14 since.
@@ -183,5 +257,10 @@ mod tests {
         s.note_held(Duration::from_micros(100));
         assert_eq!((s.held, s.held_max), (2, Duration::from_micros(300)));
         assert!(s.summary(true).contains("2 invalidate(s) held"));
+        s.note_memop_held(Duration::from_micros(3123));
+        assert_eq!((s.memop_held, s.memop_max), (1, Duration::from_micros(3123)));
+        assert!(s
+            .summary(true)
+            .contains("1 software MEM_OP invalidate(s) of a shadow root held until applied (3 ms in total, longest 3123 us)"));
     }
 }
