@@ -346,6 +346,24 @@ fn guest_span_coverage(fb: &FakeFb, root: u64, start: u64, end: u64) -> String {
     )
 }
 
+/// `NV906F_CTRL_GET_MMU_FAULT_INFO_PARAMS` (ctrl906f.h:208-214): the fault VA {addrHi @0,
+/// addrLo @4}, faultType @8 and faultString[32] @12.
+fn decode_fault_info(p: &[u8]) -> (u64, u32, String) {
+    let word = |o: usize| {
+        p.get(o..o + 4)
+            .map_or(0, |b| u32::from_le_bytes(b.try_into().unwrap()))
+    };
+    let text = p.get(12..44).map_or(String::new(), |b| {
+        let end = b.iter().position(|c| *c == 0).unwrap_or(b.len());
+        String::from_utf8_lossy(&b[..end]).into_owned()
+    });
+    (
+        (u64::from(word(0)) << 32) | u64::from(word(4)),
+        word(8),
+        text,
+    )
+}
+
 /// `NV_VASPACE_ALLOCATION_FLAGS_IS_EXTERNALLY_OWNED` (nvos.h:3162).
 const VAS_IS_EXTERNALLY_OWNED: u32 = 1 << 3;
 /// The VA size of a mirror VA space: 1 TiB, as host-exec.rs (the root covers 2^47 anyway).
@@ -1628,8 +1646,14 @@ impl Mirror {
             match crate::shadow::ShadowVas::new(&mut h, self.map_budget.clone(), &layout) {
                 Ok(sv) => {
                     notes.push(format!(
-                        "shadow: host-managed VAS {:#x} for guest root {root:#x}{} [host]",
+                        "shadow: host-managed VAS {:#x} for guest root {root:#x}, VAS start {:#x}{}{} [host]",
                         sv.vas,
+                        sv.va_start,
+                        if layout.va_base == 0 && sv.va_start != 0 {
+                            " (ALLOW_ZERO_ADDRESS not honoured: guest VAs below it cannot be mirrored)"
+                        } else {
+                            ""
+                        },
                         if layout.va_base != 0 {
                             format!(
                                 ", video layout: base {:#x}, host area [{:#x}, {:#x}), host server-RM range [{:#x}, {:#x}) not mirrored",
@@ -3806,6 +3830,27 @@ impl Mirror {
         Some((st, p))
     }
 
+    /// The fault of a shadow channel's MMU-fault RC against the guest's tables and the
+    /// shadow (run P18): the page's guest leaf (cached walk) or gap, the shadow's mirrored
+    /// leaf or gap, and the set-B and host-private ranges it hits. `p` is the
+    /// `GET_MMU_FAULT_INFO` answer {addrHi @0, addrLo @4, faultType @8, faultString @12}.
+    /// `None` for a channel without a shadow VAS.
+    pub fn fault_diagnostic(&mut self, fb: &FakeFb, chid: u32, p: &[u8]) -> Option<String> {
+        let (va, fault_type, what) = decode_fault_info(p);
+        let root = self.channels.get(&chid)?.shadow_root?;
+        let page = va & !(PAGE - 1);
+        let guest = guest_span_coverage(fb, root, page, page + PAGE);
+        let host = self.worker.coverage(root, page, page + PAGE);
+        let sp = self.shadows.get(&root)?;
+        let hit = |r: &[(u64, u64)]| r.iter().any(|(lo, hi)| page < *hi && page + PAGE > *lo);
+        let set_b = hit(&sp.exclude) || sp.held.values().any(|r| hit(r));
+        let private = sp.private.values().any(|r| hit(r));
+        Some(format!(
+            "shadow fault diagnostic: chid {chid} fault {va:#x} type {fault_type:#x} ({what}) on shadow root {root:#x}: guest {guest}; shadow {host}; set B {set_b}; host-private {private}{} [host read]",
+            sp.front.layout.unmirrorable(page, page + PAGE).map_or(String::new(), |why| format!("; unmirrorable: {why}"))
+        ))
+    }
+
     /// Detach and release an owned GFXP set while the exact host TSG and channel still
     /// exist. Every failure retains the remaining objects and all private VA exclusions.
     fn free_owned_gfxp(&mut self, key: TsgKey, notes: &mut Vec<String>) -> bool {
@@ -5432,6 +5477,40 @@ mod tests {
         assert_eq!(l.unmirrorable(0x2_3C00_0000, 0x2_3C20_0000), None);
         // The default layout (GR, CE) refuses nothing, as before.
         assert_eq!(Layout::default().unmirrorable(0x10_0000, 0x10_1000), None);
+    }
+
+    /// Run P18: Windows maps pushbuffers below 1 MiB (the first Xid 31 was a host fetch at
+    /// 0x13000). The default layout asks the RM to start its VAS at 0 (`ALLOW_ZERO_ADDRESS`,
+    /// nvos.h BIT(8)) instead of the reserved 1 MiB; the video layout keeps its own base and
+    /// asks for nothing, so its host area and server-RM range stay where they were.
+    #[test]
+    fn the_default_layout_starts_at_zero_and_the_video_layout_is_unchanged() {
+        use crate::shadow::{Layout, RM_RESERVED_VA_BASE, VAS_ALLOW_ZERO_ADDRESS};
+        assert_eq!(VAS_ALLOW_ZERO_ADDRESS, 0x100);
+        assert_eq!(RM_RESERVED_VA_BASE, 0x10_0000);
+        let d = Layout::default();
+        assert_eq!((d.va_base, d.alloc_flags()), (0, VAS_ALLOW_ZERO_ADDRESS));
+        for va in [0x0u64, 0x1_0000, 0x1_3000, 0xb_f000, 0xc_e000] {
+            assert_eq!(d.unmirrorable(va, va + 0x1000), None, "{va:#x}");
+        }
+        assert_eq!(Layout::video().alloc_flags(), 0);
+    }
+
+    /// Run P18's first FE fault: `GET_MMU_FAULT_INFO` {addrHi, addrLo, faultType,
+    /// faultString[32]} decoded for the fault diagnostic.
+    #[test]
+    fn the_mmu_fault_info_decodes_va_type_and_text() {
+        let mut p = vec![0u8; MMU_FAULT_INFO_SIZE];
+        p[0..4].copy_from_slice(&1u32.to_le_bytes());
+        p[4..8].copy_from_slice(&0x200e_c000u32.to_le_bytes());
+        p[8..12].copy_from_slice(&3u32.to_le_bytes());
+        p[12..21].copy_from_slice(b"FAULT_PTE");
+        assert_eq!(
+            decode_fault_info(&p),
+            (0x1_200e_c000, 3, "FAULT_PTE".into())
+        );
+        // A short answer decodes to zeros, never a panic.
+        assert_eq!(decode_fault_info(&p[..3]), (0, 0, String::new()));
     }
 
     /// The fallback: the host object is kept only when its context took the host's first
