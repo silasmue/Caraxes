@@ -970,6 +970,9 @@ impl Dispatcher {
         let mut objects = [0u32; 8];
         let (mut dst, mut src, mut op) = (Surf::default(), Surf::default(), 0u32);
         let mut blits: Vec<(u32, u32, Surf, Surf, u32, bool)> = Vec::new();
+        // The other 2D methods (solid fills 0x580-0x6ff, pixels-from-CPU 0x800-0x8ff, ...),
+        // the last ones with their data, to name the operation that faulted.
+        let mut other: Vec<(u32, u32, u32)> = Vec::new();
         for k in (1..=ENTRIES.min(entries)).rev() {
             let idx = (put + entries - k) % entries;
             let mut e = [0u8; 8];
@@ -1042,17 +1045,44 @@ impl Dispatcher {
                             }
                             blits.push((idx, subch as u32, dst, src, op, assumed));
                         }
+                        a if a >= 0x2B0 => {
+                            if other.len() == 24 {
+                                other.remove(0);
+                            }
+                            other.push((idx, a, d));
+                        }
                         _ => {}
                     }
                 }
             }
         }
+        let layout = |l: u32| if l == 1 { "PITCH" } else { "BLOCKLINEAR" };
         if blits.is_empty() {
             notes.push(format!(
                 "ERROR gr postmortem: chid {chid}: no 2D blit in the last {ENTRIES} GPFIFO entries; 2D state now: dst {dst:x?} src {src:x?}"
             ));
         }
-        let layout = |l: u32| if l == 1 { "PITCH" } else { "BLOCKLINEAR" };
+        // The current destination (and source, if set): its first, middle and last page.
+        for (name, s) in [("dst", dst), ("src", src)] {
+            if s.va() == 0 {
+                continue;
+            }
+            let bytes = (s.width as u64 * 4).max(s.pitch as u64) * s.height.max(1) as u64;
+            let probes: Vec<String> = [0, bytes / 2, bytes.saturating_sub(1)]
+                .iter()
+                .map(|o| walk(s.va() + (o & !0xFFF)))
+                .collect();
+            notes.push(format!(
+                "ERROR gr postmortem: chid {chid} 2D {name} now: format {:#x} {} block {:#x} pitch {:#x} {}x{}, about {bytes:#x} bytes: {}",
+                s.format, layout(s.layout), s.block, s.pitch, s.width, s.height, probes.join(" | ")
+            ));
+        }
+        if !other.is_empty() {
+            notes.push(format!(
+                "ERROR gr postmortem: chid {chid} last 2D methods (gp, method, data): {}",
+                other.iter().map(|(i, a, d)| format!("{i}:{a:#x}={d:#x}")).collect::<Vec<_>>().join(" ")
+            ));
+        }
         for (idx, subch, d, s, op, assumed) in blits {
             notes.push(format!(
                 "ERROR gr postmortem: chid {chid} gp {idx} 2D blit on subch {subch}{} op {op:#x}: dst format {:#x} {} block {:#x} pitch {:#x} {}x{} {}; src format {:#x} {} block {:#x} pitch {:#x} {}x{} {}",
