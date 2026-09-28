@@ -1,6 +1,6 @@
 # Caraxes working handoff for Claude Code
 
-Updated: 2026-09-27, 23:58 CEST. All test VMs are stopped.
+Updated: 2026-09-28, 06:23 CEST. All test VMs are stopped.
 
 ## Workspace and constraints
 
@@ -207,6 +207,19 @@ LRU capacity, and preserves cumulative counters.
 - Reference layout: OGKM 615.71.09 ctrl5080.h and ctrl2080/ctrl2080gpu.h.
   Raw trace and decoded JSON: windows-plain/P4-deferred-capture/.
 - This is capture evidence, not context execution or a rendering pass.
+
+## P5: ordered context implementation and first hardware test
+
+- Experimental implementation committed as 73483c8d, CARAXES_DEFERRED_CONTEXT=1.
+- Exact engine identities, strict management yield/resume, target-generation
+  validation, private empty USERD preparation and single-TSG eviction are present.
+- ABI615: 522 unit tests and two integration tests passed, one ignored.
+- P5 accepted both registrations, then stopped on historical subchannel 3 method
+  0x888 during takeover-prefix validation. No deferred execution or rendering pass.
+- No new host Xid. VM stopped; diagnostic LUT profile remains unmerged.
+- Next: capture the complete initial prefix and validate it before retiring the
+  host channel. FIFO GPGet equality alone does not prove GPU work completion.
+- Details: [Deferred context report](windows-deferred-context-2026-09-28.md).
 
 ## Next actions
 

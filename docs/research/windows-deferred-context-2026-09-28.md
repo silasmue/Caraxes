@@ -1,6 +1,6 @@
 # Windows deferred contexts
 
-Status: experimental, off by default. Hardware validation pending.
+Status: experimental, off by default. P5 reached registration; execution is unvalidated.
 
 ## Contract
 
@@ -46,3 +46,22 @@ channels remain unsupported until explicitly implemented.
 - Tests cover captured payloads, malformed input, client isolation, generation
   reuse, teardown, deferred ordering, exact-once completion and takeover bindings.
 - No D3D11 or desktop success is established by these software tests.
+
+## P5 hardware result
+
+- Base 73483c8d, isolated LUT geometry diagnostic profile.
+- Binary SHA-256: 5fd978a34a353e817cd9000a341ebf6822d67f8ea9a31be7fc9ebc1edbe46906.
+- Windows first entered recovery after earlier interrupted boots. QMP Enter,
+  then Enter selected Continue; no reset or repair operation was selected.
+- INITIALIZE 0x40000002 and PROMOTE 0x40000003 registrations succeeded for
+  target chid 17, generation 18, through management chid 4.
+- Initial-prefix validation stopped at subchannel 3 method 0x888. The NVIDIA
+  cl902d.h name is SET_PIXELS_FROM_MEMORY_SAFE_OVERLAP; the full binding and
+  parameter sequence still need capture before deciding what state to preserve.
+- No deferred method completed. The host management channel had already been
+  retired before validation failed; move prefix validation before retirement.
+- GPGet equality proves FIFO fetch progress, not completion of arbitrary engine
+  work. A supported takeover prefix must contain only proven state setup, or
+  the transition needs an explicit completion fence.
+- No new host Xid observed. All owned test VMs stopped. No rendering pass.
+- Artifacts: alpha-2026-09-27/windows-plain/P5-deferred-context/.
