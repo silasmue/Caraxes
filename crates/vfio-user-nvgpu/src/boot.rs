@@ -1435,6 +1435,11 @@ impl BootModel {
             // The guest changed page tables in VRAM through BAR1; drain the WC
             // buffers before the host TLB invalidate so RM re-walks fresh tables.
             self.fb.flush();
+            // The root watch (pdbwatch.rs, fix 2 of run P17): the guest names the root it uses.
+            let named = (v & 2 == 0).then(|| {
+                crate::pdbwatch::register_pdb(self.mmu_invalidate.0, self.mmu_invalidate.1)
+            });
+            self.ctrl.channels.note_guest_invalidate(named);
             let forwarded = self.ctrl.mirror_invalidate(&mut self.fb, Some(pdb));
             // Shadow VA spaces (every channel's with the pool) are not host VA spaces
             // the invalidate is forwarded to: the re-sync below brings them in line.
