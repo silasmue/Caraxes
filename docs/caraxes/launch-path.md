@@ -287,3 +287,10 @@ Records: `before/` (the first series, per metric, stopped after rlprobe's second
 made a serial comparison useless), `ab/` (the interleaved A/B), `ab-rl-noadapt/`,
 `gate-after/` (the cuda gate with B's switches), each with `setup.txt`, `hostwatch.txt` and
 `host-xid.txt`. Scripts: `env.sh`, `bench.sh`, `ab.sh`, `gate.sh`, `stop.sh`.
+
+## Default since 2026-09-29
+
+`CARAXES_LAUNCH_FAST=2` (fast ring path plus the lean evidence) is the default; `=1` keeps the
+full ran-ahead evidence and `=0` turns the fast path off. It ran every Linux and Windows gate of
+the night of 2026-09-28 without an Xid and took the short kernel from 20 to 13 us
+(`caraxes/runs/night-2026-09-28/README.md`), one step toward one universal configuration.
