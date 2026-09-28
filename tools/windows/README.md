@@ -22,6 +22,7 @@ SYSTEM through the QEMU guest agent; stock Windows and driver components only (P
 | `d3d12-probe.ps1` | D3D12 device, 100 fence-signal round trips, a compute dispatch of 256 words read back |
 | `cuda-probe.ps1` | deviceQuery, PTX JIT vector add (1 Mi floats), launch cost, pinned copy bandwidth |
 | `media-probe.ps1` | NVENC H.264/HEVC 1080p60 encode, NVDEC with `-hwaccel cuda` and `*_cuvid`, frame counts, fps; `-Fetch` downloads ffmpeg (BtbN win64 GPL build) |
+| `workload.ps1` | the Linux/native compute comparison: `-Stage install` (llama.cpp b10173 CUDA 13.3, Python 3.12.10, torch 2.13.0+cu130, the models, sha256-checked from the host's loopback server at 10.0.2.2:8765), `info`, `llama -Model 1b\|7b [-Ngl n]`, `torch -Tool transformer\|convnet` |
 | `steam-3dmark.ps1` | `-Install` Steam silently, `-Prefer` NVIDIA GPU for 3DMark, `-Collect` result scores |
 
 ## Order (stop at the first failure)
