@@ -1,0 +1,16 @@
+vfio-user-nvgpu: launch timing on: per-step histograms of the doorbell and completion path in the exit summary (CARAXES_LAUNCH_TIMING=1, docs/caraxes/launch-path.md)
+launch timing: 1338494 ring(s) by the reactor (19146 after a blocking wait), 1338080 host doorbell(s); host events by the age of the last host doorbell: 0 none yet, 1338 < 1 ms, 2031 < 100 ms, 91 older (CARAXES_LAUNCH_TIMING=1, docs/caraxes/launch-path.md)
+launch timing: lock: n 1338494, mean 0.64 us, p10 0.5 us, p50 0.5 us, p90 0.6 us, p99 0.9 us, max 93396.1 us
+launch timing: dispatch: n 1336068, mean 0.20 us, p10 0.2 us, p50 0.2 us, p90 0.3 us, p99 0.6 us, max 1907.8 us
+launch timing: ran-ahead check: n 1336068, mean 0.07 us, p10 0.1 us, p50 0.1 us, p90 0.1 us, p99 0.1 us, max 174.5 us
+launch timing: plan: n 1336068, mean 0.21 us, p10 0.2 us, p50 0.3 us, p90 0.3 us, p99 0.5 us, max 486.5 us
+launch timing: worker wait: n 1336068, mean 0.06 us, p10 0.1 us, p50 0.1 us, p90 0.1 us, p99 0.1 us, max 20.4 us
+launch timing: BAR1 flush: n 1336068, mean 0.06 us, p10 0.1 us, p50 0.1 us, p90 0.1 us, p99 0.1 us, max 361.4 us
+launch timing: USERD read: n 1336068, mean 1.29 us, p10 1.0 us, p50 1.1 us, p90 2.1 us, p99 4.0 us, max 928.8 us
+launch timing: host doorbell write: n 1336068, mean 0.06 us, p10 0.1 us, p50 0.1 us, p90 0.1 us, p99 0.2 us, max 127.6 us
+launch timing: tail after the host doorbell: n 1335049, mean 2.20 us, p10 1.9 us, p50 2.0 us, p90 2.4 us, p99 6.8 us, max 3106.1 us
+launch timing: ring to host doorbell (sum): n 1335049, mean 2.46 us, p10 2.1 us, p50 2.2 us, p90 3.3 us, p99 5.5 us, max 1911.2 us
+launch timing: host doorbell to the next ring: n 1338491, mean 283.07 us, p10 2.7 us, p50 15.2 us, p90 48.6 us, p99 400.0 us, max 3205779.3 us
+launch timing: host doorbell to host event: n 3460, mean 35437.90 us, p10 21.9 us, p50 1620.0 us, p90 3204243.9 us, p99 3204243.9 us, max 3204243.9 us
+launch timing: host event to raise: n 3460, mean 1.67 us, p10 0.8 us, p50 1.3 us, p90 3.2 us, p99 6.0 us, max 48.0 us
+launch timing: raise to MSI: n 3453, mean 55.57 us, p10 1.2 us, p50 7.1 us, p90 12.1 us, p99 78.8 us, max 92706.4 us
