@@ -1,0 +1,60 @@
+== w1-idle-noclient/trace-window.txt.xz
+  394 UPDATE kicks in 17.0 s = 23.2/s; tick period 16.665 ms
+  latch after its tick ms: p50 2.2 / p90 4.8 / p99 18.7 (n=394)
+  ticks between latches: {1: 88, 2: 201, 3: 68, 4: 26, 5: 4, 6: 2, 7: 1, 21: 1, 22: 1, 138: 1}
+  latch tick minus first tick after the kick: {-1: 31, 0: 363}
+  latch -> next kick ms: p50 23.6 / p90 45.2 / p99 105.0 (n=393)
+    latch -> pre-kick flush/invalidate run: p50 11.0 / p90 34.0 / p99 85.7 (n=393)
+    the run: p50 9.5 / p90 18.0 / p99 29.3 (n=393); accesses p50 22.0 / p90 25.0 / p99 30.0 (n=393)
+    run end -> kick: p50 0.6 / p90 2.8 / p99 6.3 (n=393)
+  flush reads 693/s, spacing inside runs ms: p50 0.4 / p90 1.7 / p99 2.9 (n=10316)
+== w2-cursor-noclient/trace-window.txt.xz
+  634 UPDATE kicks in 20.3 s = 31.2/s; tick period 16.667 ms
+  latch after its tick ms: p50 1.5 / p90 4.5 / p99 23.3 (n=634)
+  ticks between latches: {1: 164, 2: 379, 3: 66, 4: 21, 5: 3}
+  latch tick minus first tick after the kick: {-1: 28, 0: 606}
+  latch -> next kick ms: p50 21.3 / p90 33.8 / p99 56.2 (n=633)
+    latch -> pre-kick flush/invalidate run: p50 6.8 / p90 19.7 / p99 47.8 (n=633)
+    the run: p50 12.2 / p90 18.0 / p99 25.1 (n=633); accesses p50 25.0 / p90 25.0 / p99 25.0 (n=633)
+    run end -> kick: p50 0.6 / p90 2.0 / p99 6.3 (n=633)
+  flush reads 718/s, spacing inside runs ms: p50 0.5 / p90 1.2 / p99 2.5 (n=13713)
+== w3-idle-streaming/trace-window.txt.xz
+  255 UPDATE kicks in 19.9 s = 12.8/s; tick period 16.666 ms
+  latch after its tick ms: p50 2.3 / p90 6.1 / p99 14.0 (n=255)
+  ticks between latches: {2: 12, 3: 42, 4: 72, 5: 63, 6: 34, 7: 20, 8: 6, 9: 4, 10: 1}
+  latch tick minus first tick after the kick: {-1: 15, 0: 240}
+  latch -> next kick ms: p50 64.5 / p90 99.6 / p99 138.6 (n=254)
+    latch -> pre-kick flush/invalidate run: p50 56.9 / p90 95.1 / p99 138.0 (n=254)
+    the run: p50 3.4 / p90 13.5 / p99 18.9 (n=254); accesses p50 6.0 / p90 21.0 / p99 30.0 (n=254)
+    run end -> kick: p50 1.0 / p90 6.5 / p99 19.0 (n=254)
+  flush reads 377/s, spacing inside runs ms: p50 0.5 / p90 1.2 / p99 2.8 (n=5794)
+== w4-cursor-streaming/trace-window.txt.xz
+  232 UPDATE kicks in 20.5 s = 11.3/s; tick period 16.667 ms
+  latch after its tick ms: p50 1.7 / p90 5.6 / p99 16.2 (n=232)
+  ticks between latches: {1: 1, 2: 13, 3: 42, 4: 53, 5: 32, 6: 34, 7: 20, 8: 9, 9: 10, 10: 5, 11: 8, 12: 1, 14: 1, 15: 1, 16: 1}
+  latch tick minus first tick after the kick: {-1: 5, 0: 227}
+  latch -> next kick ms: p50 68.4 / p90 135.9 / p99 231.3 (n=231)
+    latch -> pre-kick flush/invalidate run: p50 62.0 / p90 129.3 / p99 229.7 (n=231)
+    the run: p50 2.1 / p90 12.4 / p99 21.9 (n=231); accesses p50 4.0 / p90 21.0 / p99 31.0 (n=231)
+    run end -> kick: p50 0.9 / p90 5.5 / p99 15.4 (n=231)
+  flush reads 360/s, spacing inside runs ms: p50 0.5 / p90 1.4 / p99 2.9 (n=5458)
+== w5-idle-streaming/trace-window.txt.xz
+  278 UPDATE kicks in 19.9 s = 13.9/s; tick period 16.667 ms
+  latch after its tick ms: p50 1.4 / p90 4.6 / p99 10.0 (n=278)
+  ticks between latches: {2: 7, 3: 62, 4: 99, 5: 67, 6: 33, 7: 6, 8: 2, 9: 1}
+  latch tick minus first tick after the kick: {-1: 4, 0: 274}
+  latch -> next kick ms: p50 60.2 / p90 87.2 / p99 117.6 (n=277)
+    latch -> pre-kick flush/invalidate run: p50 54.2 / p90 82.1 / p99 117.1 (n=277)
+    the run: p50 3.5 / p90 15.4 / p99 22.2 (n=277); accesses p50 6.0 / p90 23.0 / p99 29.0 (n=277)
+    run end -> kick: p50 0.9 / p90 6.6 / p99 21.1 (n=277)
+  flush reads 398/s, spacing inside runs ms: p50 0.5 / p90 1.0 / p99 2.6 (n=6264)
+== w6-cursor-streaming/trace-window.txt.xz
+  217 UPDATE kicks in 19.9 s = 10.9/s; tick period 16.667 ms
+  latch after its tick ms: p50 1.7 / p90 6.5 / p99 17.1 (n=217)
+  ticks between latches: {2: 8, 3: 34, 4: 41, 5: 32, 6: 34, 7: 30, 8: 18, 9: 6, 10: 8, 11: 2, 12: 1, 13: 2}
+  latch tick minus first tick after the kick: {-1: 13, 0: 204}
+  latch -> next kick ms: p50 77.8 / p90 131.7 / p99 179.2 (n=216)
+    latch -> pre-kick flush/invalidate run: p50 71.8 / p90 124.8 / p99 175.4 (n=216)
+    the run: p50 0.0 / p90 11.7 / p99 31.7 (n=216); accesses p50 1.0 / p90 16.0 / p99 25.0 (n=216)
+    run end -> kick: p50 1.1 / p90 6.8 / p99 27.8 (n=216)
+  flush reads 333/s, spacing inside runs ms: p50 0.6 / p90 1.9 / p99 2.9 (n=4914)

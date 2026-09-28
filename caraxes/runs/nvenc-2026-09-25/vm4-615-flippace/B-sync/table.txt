@@ -1,0 +1,6 @@
+02:52:41-02:53:01 w1-idle-noclient  | window_s=20.0 kicks=438 kicks_per_s=21.9 | lat: | us=5 sy=6 st=1 in=4341/s | dev: doorbel+:46.8 vfio-us+:42.8 sum:89.6 | vcpu_sum:44.9
+02:53:47-02:54:09 w2-cursor-noclient moves 1963 in 20.01 s | window_s=20.4 kicks=705 kicks_per_s=34.6 | lat: | us=6 sy=6 st=2 in=4722/s | dev: doorbel+:50.8 vfio-us+:41.8 sum:92.6 | vcpu_sum:46.9
+02:55:59-02:56:19 w3-idle-streaming  | window_s=20.0 kicks=283 kicks_per_s=14.1 | lat: 34.40ms/156.10ms/66.73ms | us=4 sy=9 st=8 in=8654/s | dev: doorbel+:43.8 vfio-us+:41.8 sum:85.6 | vcpu_sum:69.6
+02:56:27-02:56:50 w4-cursor-streaming moves 1925 in 20.01 s | window_s=20.5 kicks=258 kicks_per_s=12.6 | lat: 40.10ms/195.40ms/76.78ms | us=5 sy=9 st=5 in=8886/s | dev: vfio-us+:43.8 doorbel+:43.8 sum:87.6 | vcpu_sum:76.5
+02:56:58-02:57:18 w5-idle-streaming  | window_s=20.0 kicks=309 kicks_per_s=15.4 | lat: 33.50ms/113.40ms/61.97ms | us=5 sy=9 st=6 in=9065/s | dev: doorbel+:47.7 vfio-us+:42.8 sum:90.5 | vcpu_sum:74.7
+02:57:27-02:57:49 w6-cursor-streaming moves 1929 in 20.0 s | window_s=20.4 kicks=241 kicks_per_s=11.8 | lat: 39.30ms/194.10ms/80.57ms | us=1 sy=3 st=5 in=7342/s | dev: vfio-us+:44.8 doorbel+:35.8 sum:80.6 | vcpu_sum:43
