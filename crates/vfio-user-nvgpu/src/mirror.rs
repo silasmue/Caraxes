@@ -158,18 +158,19 @@ const CMD_CHANNEL_BIND: u32 = 0xA06F_0104;
 
 /// The promoted context ranges `[va, va + size)` of a channel (GR set B, a falcon
 /// engine's context), which the shadow keeps out of the guest's set A. A global GR
-/// buffer promoted by VA alone has size 0; `global_size` gives its extent.
+/// buffer promoted by VA alone has size 0; `global_size(buffer id, VA)` gives its extent
+/// at that VA ([`global_exclusion`]).
 fn promoted_ranges(
     reg: &Registry,
     ch: &Channel,
-    global_size: impl Fn(u16) -> Option<u64>,
+    global_size: impl Fn(u16, u64) -> Option<u64>,
 ) -> Vec<(u64, u64)> {
     let mut out = Vec::new();
     if let Some(m) = reg.promoted((ch.h_client, ch.h_object)) {
         for e in m.values() {
             if let Some(v) = e.virt {
                 let size = if e.size == 0 {
-                    global_size(e.buffer_id).unwrap_or(0x1000)
+                    global_size(e.buffer_id, v).unwrap_or(0x1000)
                 } else {
                     e.size
                 };
@@ -217,6 +218,56 @@ pub fn context_verdict(
     }
 }
 
+/// The host RM's VA footprint of a global GR buffer of `raw` bytes: RM maps an internal
+/// pitch vidmem allocation with 4 KiB pages below 64 KiB, 64 KiB pages below 2 MiB and 2 MiB
+/// pages above (mem_mgr.c `_memmgrPickDefaultGpuPageSize`), so this is `raw` rounded up to
+/// that page. The guest's RM, the same code, reserves the same span (run P19: the guest's
+/// BUNDLE_CB of 0x3000 at 0x1200e9000, its next page at 0x1200ec000).
+pub fn host_footprint(raw: u64) -> u64 {
+    let page = if raw < 1 << 16 {
+        1 << 12
+    } else if raw < 1 << 21 {
+        1 << 16
+    } else {
+        1 << 21
+    };
+    raw.div_ceil(page) * page
+}
+
+/// How a size-0 global buffer's exclusion ended ([`global_exclusion`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum GlobalClip {
+    /// No guest page in `[va, va + cap)`: the full 64 KiB-rounded extent.
+    Full,
+    /// A guest page at `at`, past the host's footprint: excluded up to it.
+    Cut { at: u64 },
+    /// A guest page at `at` inside the host's footprint: the footprint stays excluded (that
+    /// guest page is not mirrored, a fault rather than a page the two share).
+    Overlap { at: u64 },
+}
+
+/// The exclusion `[va, end)` of a global GR buffer promoted by VA alone (size 0), with the
+/// host's size `raw`: at least the host's footprint ([`host_footprint`]), at most `raw`
+/// rounded up to 64 KiB (the extent since Display E, d5987e97), and cut at the first page
+/// the guest maps past the footprint (`guest_first(lo, hi)`: the lowest guest-mapped VA in
+/// `[lo, hi)`). Run P19: the 64 KiB extent of the 12 KiB BUNDLE_CB covered the guest's
+/// semaphore page at +0x3000, and the GR engine's write there faulted (Xid 31 FAULT_PTE).
+pub fn global_exclusion(
+    va: u64,
+    raw: u64,
+    guest_first: impl Fn(u64, u64) -> Option<u64>,
+) -> (u64, GlobalClip) {
+    let floor = va + host_footprint(raw);
+    let cap = floor.max(va + ((raw + 0xFFFF) & !0xFFFF));
+    if let Some(at) = guest_first(va, floor) {
+        return (floor, GlobalClip::Overlap { at });
+    }
+    match guest_first(floor, cap) {
+        Some(at) => (at, GlobalClip::Cut { at }),
+        None => (cap, GlobalClip::Full),
+    }
+}
+
 /// The set-B ranges the shadow of guest root `root` keeps out of set A: the promoted
 /// contexts of every channel the guest still has on that root, sorted and deduplicated.
 /// Recomputed, never accumulated: a context whose channel the guest freed gives its VAs
@@ -228,7 +279,7 @@ pub fn context_verdict(
 pub fn exclusions_of(
     reg: &Registry,
     root: u64,
-    global_size: impl Fn(u16) -> Option<u64>,
+    global_size: impl Fn(u16, u64) -> Option<u64>,
 ) -> Vec<(u64, u64)> {
     exclusions_among(
         reg,
@@ -241,7 +292,7 @@ pub fn exclusions_of(
 fn exclusions_among(
     reg: &Registry,
     on_root: impl Fn(&Channel) -> bool,
-    global_size: impl Fn(u16) -> Option<u64>,
+    global_size: impl Fn(u16, u64) -> Option<u64>,
 ) -> Vec<(u64, u64)> {
     let mut out: Vec<(u64, u64)> = reg
         .channels()
@@ -270,18 +321,19 @@ pub struct HeldSetB {
 /// the moment the guest freed its GR channels, the shadow mapped the guest's pages at
 /// 0x120000000 and up with fixed addresses, and the host RM, whose GR context of the
 /// still-live host TSG sat at the same VAs, refused all 23 (virtmemAllocResources
-/// NO_MEMORY). `root_of` names the shadow root of a channel (`None`: no shadow).
+/// NO_MEMORY). `root_of` names the shadow root of a channel (`None`: no shadow);
+/// `global_size(root, buffer id, VA)` the extent of a global buffer there.
 pub fn held_at_free(
     reg: &Registry,
     freed: impl Fn(&Channel) -> bool,
     root_of: impl Fn(&Channel) -> Option<u64>,
-    global_size: impl Fn(u16) -> Option<u64>,
+    global_size: impl Fn(u64, u16, u64) -> Option<u64>,
 ) -> Vec<HeldSetB> {
     reg.channels()
         .filter(|ch| freed(ch))
         .filter_map(|ch| {
             let root = root_of(ch)?;
-            let ranges = promoted_ranges(reg, ch, &global_size);
+            let ranges = promoted_ranges(reg, ch, |id, va| global_size(root, id, va));
             (!ranges.is_empty()).then(|| HeldSetB {
                 chid: ch.chid,
                 root,
@@ -303,6 +355,32 @@ pub fn set_b_with_held(
     out.sort_unstable();
     out.dedup();
     out
+}
+
+/// The lowest VA in `[lo, hi)` the guest's cached walk of `root` maps (a leaf overlapping
+/// it), `None` without a cached walk or without such a leaf.
+fn guest_first_mapped(fb: &FakeFb, root: u64, lo: u64, hi: u64) -> Option<u64> {
+    if lo >= hi {
+        return None;
+    }
+    fb.with_walk(Target::Fb(root), |c| {
+        let mut best: Option<u64> = None;
+        let mut unit = lo & !(crate::ptcache::UNIT - 1);
+        while unit < hi {
+            for &(va, _, size, _) in c.unit_leaves(unit) {
+                if va < hi && va.saturating_add(size) > lo {
+                    let at = va.max(lo);
+                    best = Some(best.map_or(at, |b| b.min(at)));
+                }
+            }
+            let Some(next) = unit.checked_add(crate::ptcache::UNIT) else {
+                break;
+            };
+            unit = next;
+        }
+        best
+    })
+    .flatten()
 }
 
 fn guest_span_coverage(fb: &FakeFb, root: u64, start: u64, end: u64) -> String {
@@ -343,6 +421,24 @@ fn guest_span_coverage(fb: &FakeFb, root: u64, start: u64, end: u64) -> String {
     }
     format!(
         "covered [{start:#x}, {end:#x}) by {used} leaf/leaves; first {first:?}; last {last:?}"
+    )
+}
+
+/// `NV906F_CTRL_GET_MMU_FAULT_INFO_PARAMS` (ctrl906f.h:208-214): the fault VA {addrHi @0,
+/// addrLo @4}, faultType @8 and faultString[32] @12.
+fn decode_fault_info(p: &[u8]) -> (u64, u32, String) {
+    let word = |o: usize| {
+        p.get(o..o + 4)
+            .map_or(0, |b| u32::from_le_bytes(b.try_into().unwrap()))
+    };
+    let text = p.get(12..44).map_or(String::new(), |b| {
+        let end = b.iter().position(|c| *c == 0).unwrap_or(b.len());
+        String::from_utf8_lossy(&b[..end]).into_owned()
+    });
+    (
+        (u64::from(word(0)) << 32) | u64::from(word(4)),
+        word(8),
+        text,
     )
 }
 
@@ -713,7 +809,7 @@ impl GlobalCtxSizeCache {
         }
         self.queries += 1;
         let (status, raw) = query(engine_id);
-        let size = (status == sys::NV_OK && raw != 0).then(|| (u64::from(raw) + 0xFFFF) & !0xFFFF);
+        let size = (status == sys::NV_OK && raw != 0).then(|| u64::from(raw));
         if status == sys::NV_OK || status == sys::NV_ERR_NOT_SUPPORTED {
             self.by_engine.insert(engine_id, size);
         }
@@ -752,6 +848,13 @@ pub struct Mirror {
     /// mutability keeps the exclusion walkers read-only; `Mirror` itself is serialized by
     /// the Device mutex. A new host RM device gets a new `Mirror` and an empty cache.
     global_ctx_sizes: RefCell<GlobalCtxSizeCache>,
+    /// The exclusion end of each size-0 global buffer by (shadow root, VA), as last computed
+    /// with the guest's walk ([`global_exclusion`]); used where no walk is at hand (a free).
+    global_clips: RefCell<BTreeMap<(u64, u64), u64>>,
+    /// Clips already reported by (root, VA, end): one WARN each.
+    global_clip_seen: RefCell<std::collections::BTreeSet<(u64, u64, u64)>>,
+    /// WARN lines not yet in the trace (`refresh_exclusions` hands them out).
+    global_clip_notes: RefCell<Vec<String>>,
     vas: BTreeMap<(u32, u32), HostVas>,
     /// By [`TsgKey`]: the kernel's TSG id on a 615 guest, the guest handle on 610.
     tsgs: BTreeMap<TsgKey, HostTsg>,
@@ -908,6 +1011,9 @@ impl Mirror {
             translated,
             reservation,
             global_ctx_sizes: RefCell::new(GlobalCtxSizeCache::default()),
+            global_clips: RefCell::new(BTreeMap::new()),
+            global_clip_seen: RefCell::new(std::collections::BTreeSet::new()),
+            global_clip_notes: RefCell::new(Vec::new()),
             vas: BTreeMap::new(),
             tsgs: BTreeMap::new(),
             channels: BTreeMap::new(),
@@ -1037,8 +1143,9 @@ impl Mirror {
     }
 
     /// The size of a global GR context buffer (by `NV2080_CTRL_GPU_PROMOTE_CTX_BUFFER_ID_*`)
-    /// on the host: `NV0080_CTRL_CMD_FIFO_GET_ENGINE_CONTEXT_PROPERTIES` (NON_PRIVILEGED)
-    /// on the device's own host device, rounded up to 64 KiB.
+    /// on the host, in bytes: `NV0080_CTRL_CMD_FIFO_GET_ENGINE_CONTEXT_PROPERTIES`
+    /// (NON_PRIVILEGED) {engineId @0, alignment @4, size @8} on the device's own host device.
+    /// Each host answer is logged once (the query is cached per engine).
     fn global_ctx_size(&self, buffer_id: u16) -> Option<u64> {
         self.global_ctx_sizes
             .borrow_mut()
@@ -1047,9 +1154,48 @@ impl Mirror {
                 let mut p = [0u8; 12];
                 p[..4].copy_from_slice(&engine_id.to_le_bytes());
                 let status = h.control(h.device(), 0x0080_1707, &mut p);
+                let align = u32::from_le_bytes(p[4..8].try_into().unwrap());
                 let size = u32::from_le_bytes(p[8..12].try_into().unwrap());
+                eprintln!(
+                    "vfio-user-nvgpu: global context size: buffer {buffer_id} host engine {engine_id:#x} (FIFO_GET_ENGINE_CONTEXT_PROPERTIES): status {status:#x}, size {size:#x}, alignment {align:#x} [host read]"
+                );
                 (status, size)
             })
+    }
+
+    /// The exclusion size of size-0 global buffer `buffer_id` at `va` on shadow root `root`
+    /// ([`global_exclusion`]): with the guest's cached walk when `fb` is given, else the
+    /// last such result (or the unclipped extent). A clip is logged once as a WARN.
+    fn global_extent(
+        &self,
+        fb: Option<&FakeFb>,
+        root: u64,
+        buffer_id: u16,
+        va: u64,
+    ) -> Option<u64> {
+        let raw = self.global_ctx_size(buffer_id)?;
+        let Some(fb) = fb else {
+            let end = self.global_clips.borrow().get(&(root, va)).copied();
+            return Some(end.unwrap_or_else(|| global_exclusion(va, raw, |_, _| None).0) - va);
+        };
+        let (end, clip) = global_exclusion(va, raw, |lo, hi| guest_first_mapped(fb, root, lo, hi));
+        self.global_clips.borrow_mut().insert((root, va), end);
+        if clip != GlobalClip::Full && self.global_clip_seen.borrow_mut().insert((root, va, end)) {
+            let line = match clip {
+                GlobalClip::Cut { at } => format!(
+                    "WARN: shadow root {root:#x}: global buffer {buffer_id} at {va:#x}: set-B exclusion cut short at {at:#x} by a guest-mapped page (host size {raw:#x}, footprint to {:#x}, 64 KiB extent to {:#x}) [set B]",
+                    va + host_footprint(raw),
+                    va + ((raw + 0xFFFF) & !0xFFFF)
+                ),
+                GlobalClip::Overlap { at } => format!(
+                    "WARN: shadow root {root:#x}: global buffer {buffer_id} at {va:#x}: the guest maps {at:#x} inside the host's footprint [{va:#x}, {end:#x}) (host size {raw:#x}): kept out of set A, that page is not mirrored [set B]"
+                ),
+                GlobalClip::Full => unreachable!(),
+            };
+            eprintln!("vfio-user-nvgpu: {line}");
+            self.global_clip_notes.borrow_mut().push(line);
+        }
+        Some(end - va)
     }
 
     /// Whether `chid` is a GR channel the shadow path takes (`CARAXES_MIRROR_GR_SHADOW=1`).
@@ -1136,13 +1282,31 @@ impl Mirror {
         let mut out = Vec::new();
         // The exclusions follow the guest's live channels (`exclusions_of`).
         let roots: Vec<u64> = self.shadows.keys().copied().filter(|r| root.is_none_or(|x| x == *r)).collect();
-        for r in roots {
-            out.extend(self.refresh_exclusions(reg, r));
+        for r in &roots {
+            out.extend(self.refresh_exclusions(reg, *r, gm.fb).0);
         }
         for (r, sp) in self.shadows.iter_mut() {
             if root.is_some_and(|x| x != *r) {
                 continue;
             }
+            if let Some(plan) =
+                sp.front
+                    .plan(gm.fb, gm.sys, base, end, reservation, &sp.exclude, &descs)
+            {
+                if !plan.is_empty() {
+                    self.worker.submit(Job::Apply(plan, Instant::now()));
+                }
+            }
+        }
+        // The plans brought the cached walks up to date. A guest page they walked for the
+        // first time can cut a global buffer's exclusion short (`global_exclusion`): set B
+        // changes, and the root is planned again with it (run P19).
+        for r in roots {
+            let (notes, changed) = self.refresh_exclusions(reg, r, gm.fb);
+            out.extend(notes);
+            let Some(sp) = self.shadows.get_mut(&r).filter(|_| changed) else {
+                continue;
+            };
             if let Some(plan) =
                 sp.front
                     .plan(gm.fb, gm.sys, base, end, reservation, &sp.exclude, &descs)
@@ -1586,7 +1750,7 @@ impl Mirror {
         // context-buffer size for the same silicon (display-e.md: the guest's attribute CB at
         // 0x120400000 was mirrored as set A and the host's own collided with it, Xid 31
         // PRIV_VIOLATION).
-        let new_b = self.root_exclusions(reg, root);
+        let new_b = self.root_exclusions(reg, root, Some(&*gm.fb));
         // A bare CE channel (`bare_ce`, the GL driver's) gets a host TSG of its own, keyed
         // by its internal TSG id (615) or its handle, on the channel's own engine.
         let (tsg_key, bare, tsg_guest) = tsg_key_of(reg, &ch);
@@ -1628,8 +1792,14 @@ impl Mirror {
             match crate::shadow::ShadowVas::new(&mut h, self.map_budget.clone(), &layout) {
                 Ok(sv) => {
                     notes.push(format!(
-                        "shadow: host-managed VAS {:#x} for guest root {root:#x}{} [host]",
+                        "shadow: host-managed VAS {:#x} for guest root {root:#x}, VAS start {:#x}{}{} [host]",
                         sv.vas,
+                        sv.va_start,
+                        if layout.va_base == 0 && sv.va_start != 0 {
+                            " (ALLOW_ZERO_ADDRESS not honoured: guest VAs below it cannot be mirrored)"
+                        } else {
+                            ""
+                        },
                         if layout.va_base != 0 {
                             format!(
                                 ", video layout: base {:#x}, host area [{:#x}, {:#x}), host server-RM range [{:#x}, {:#x}) not mirrored",
@@ -3249,13 +3419,13 @@ impl Mirror {
 
     /// [`Self::root_exclusions`] for diagnostics (ctrl.rs `gr_exception_postmortem`).
     pub fn set_b_of(&self, reg: &Registry, root: u64) -> Vec<(u64, u64)> {
-        self.root_exclusions(reg, root)
+        self.root_exclusions(reg, root, None)
     }
 
     /// The set-B exclusions of shadow root `root` now: the live channels' ([`exclusions_of`])
     /// and those held for a host TSG not yet freed ([`set_b_with_held`]).
-    fn root_exclusions(&self, reg: &Registry, root: u64) -> Vec<(u64, u64)> {
-        let live = exclusions_of(reg, root, |id| self.global_ctx_size(id));
+    fn root_exclusions(&self, reg: &Registry, root: u64, fb: Option<&FakeFb>) -> Vec<(u64, u64)> {
+        let live = exclusions_of(reg, root, |id, va| self.global_extent(fb, root, id, va));
         match self.shadows.get(&root) {
             Some(sp) => {
                 let mut out = set_b_with_held(live, &sp.held);
@@ -3287,21 +3457,29 @@ impl Mirror {
         self.intr.note(line);
     }
 
-    /// Recompute the exclusions of shadow root `root`; one note when they changed.
-    fn refresh_exclusions(&mut self, reg: &Registry, root: u64) -> Vec<String> {
-        let now = self.root_exclusions(reg, root);
+    /// Recompute set B of `root` (with the guest's cached walk from `fb`, [`global_exclusion`]);
+    /// the notes, and whether set B changed.
+    fn refresh_exclusions(
+        &mut self,
+        reg: &Registry,
+        root: u64,
+        fb: &FakeFb,
+    ) -> (Vec<String>, bool) {
+        let now = self.root_exclusions(reg, root, Some(fb));
+        let mut notes = std::mem::take(&mut *self.global_clip_notes.borrow_mut());
         let Some(sp) = self.shadows.get_mut(&root) else {
-            return Vec::new();
+            return (notes, false);
         };
         if sp.exclude == now {
-            return Vec::new();
+            return (notes, false);
         }
         let added = now.iter().filter(|x| !sp.exclude.contains(x)).count();
         let released = sp.exclude.iter().filter(|x| !now.contains(x)).count();
         sp.exclude = now;
-        vec![format!(
+        notes.push(format!(
             "shadow: root {root:#x} set-B exclusions recomputed: {added} added, {released} released back to set A [guest]"
-        )]
+        ));
+        (notes, true)
     }
 
     /// Whether a video object on mirrored channel `chid` is refused to the guest before it
@@ -3806,6 +3984,27 @@ impl Mirror {
         Some((st, p))
     }
 
+    /// The fault of a shadow channel's MMU-fault RC against the guest's tables and the
+    /// shadow (run P18): the page's guest leaf (cached walk) or gap, the shadow's mirrored
+    /// leaf or gap, and the set-B and host-private ranges it hits. `p` is the
+    /// `GET_MMU_FAULT_INFO` answer {addrHi @0, addrLo @4, faultType @8, faultString @12}.
+    /// `None` for a channel without a shadow VAS.
+    pub fn fault_diagnostic(&mut self, fb: &FakeFb, chid: u32, p: &[u8]) -> Option<String> {
+        let (va, fault_type, what) = decode_fault_info(p);
+        let root = self.channels.get(&chid)?.shadow_root?;
+        let page = va & !(PAGE - 1);
+        let guest = guest_span_coverage(fb, root, page, page + PAGE);
+        let host = self.worker.coverage(root, page, page + PAGE);
+        let sp = self.shadows.get(&root)?;
+        let hit = |r: &[(u64, u64)]| r.iter().any(|(lo, hi)| page < *hi && page + PAGE > *lo);
+        let set_b = hit(&sp.exclude) || sp.held.values().any(|r| hit(r));
+        let private = sp.private.values().any(|r| hit(r));
+        Some(format!(
+            "shadow fault diagnostic: chid {chid} fault {va:#x} type {fault_type:#x} ({what}) on shadow root {root:#x}: guest {guest}; shadow {host}; set B {set_b}; host-private {private}{} [host read]",
+            sp.front.layout.unmirrorable(page, page + PAGE).map_or(String::new(), |why| format!("; unmirrorable: {why}"))
+        ))
+    }
+
     /// Detach and release an owned GFXP set while the exact host TSG and channel still
     /// exist. Every failure retains the remaining objects and all private VA exclusions.
     fn free_owned_gfxp(&mut self, key: TsgKey, notes: &mut Vec<String>) -> bool {
@@ -4133,7 +4332,7 @@ impl Mirror {
                 Some(Target::Fb(r)) if self.shadows.contains_key(&r) => Some(r),
                 _ => None,
             },
-            |id| self.global_ctx_size(id),
+            |root, id, va| self.global_extent(None, root, id, va),
         );
         let mut notes = self.free_host_objects(reg, h_client, h_object);
         for h in candidates {
@@ -4923,7 +5122,8 @@ mod tests {
 
     /// Global GR context sizes belong to host engine properties, not to a guest channel:
     /// buffer ids 10..12 share PRIV_ACCESS_MAP and must cause only one host query. Unknown
-    /// buffer ids never reach the host. The host's byte size is rounded up to 64 KiB once.
+    /// buffer ids never reach the host. The host's byte size is kept as answered
+    /// (`global_exclusion` rounds it).
     #[test]
     fn global_context_sizes_are_cached_by_host_engine() {
         let calls = Cell::new(0u32);
@@ -4943,12 +5143,12 @@ mod tests {
                 assert_eq!(engine, 0x18);
                 (sys::NV_OK, 0x1_0001)
             }),
-            Some(0x2_0000)
+            Some(0x1_0001)
         );
         for id in [11, 12] {
             assert_eq!(
                 cache.get_or_query(id, |_| panic!("the shared host engine was queried twice")),
-                Some(0x2_0000)
+                Some(0x1_0001)
             );
         }
         assert_eq!(calls.get(), 1);
@@ -5177,7 +5377,7 @@ mod tests {
         reg.record_promote_ctx(&p);
         let ch = reg.channel(22).unwrap().clone();
         assert_eq!(
-            promoted_ranges(&reg, &ch, |_| None),
+            promoted_ranges(&reg, &ch, |_, _| None),
             vec![(0x1_2002_d000, 0x1_2002_e000)],
             "a context smaller than a page covers its page"
         );
@@ -5188,7 +5388,7 @@ mod tests {
         g[v::PROMOTE_ENTRIES + 8..][..8].copy_from_slice(&0x1_2040_0000u64.to_le_bytes());
         g[v::PROMOTE_ENTRIES + 28..][..2].copy_from_slice(&5u16.to_le_bytes());
         reg.record_promote_ctx(&g);
-        let r = promoted_ranges(&reg, &ch, |id| (id == 5).then_some(0x20_0000));
+        let r = promoted_ranges(&reg, &ch, |id, _| (id == 5).then_some(0x20_0000));
         assert!(r.contains(&(0x1_2040_0000, 0x1_2060_0000)), "{r:x?}");
         assert!(r.contains(&(0x1_2002_d000, 0x1_2002_e000)), "{r:x?}");
     }
@@ -5210,7 +5410,7 @@ mod tests {
         g[v::PROMOTE_ENTRIES + 8..][..8].copy_from_slice(&0x1_2140_0000u64.to_le_bytes());
         g[v::PROMOTE_ENTRIES + 28..][..2].copy_from_slice(&5u16.to_le_bytes());
         reg.record_promote_ctx(&g);
-        let size = |id: u16| (id == 5).then_some(0x20_0000u64);
+        let size = |id: u16, _: u64| (id == 5).then_some(0x20_0000u64);
         let all = |_: &Channel| true;
         assert_eq!(exclusions_among(&reg, all, size), vec![(0x1_2140_0000, 0x1_2160_0000)]);
         // Only the root's channels count.
@@ -5258,7 +5458,7 @@ mod tests {
         g[v::PROMOTE_ENTRIES + 16..][..8].copy_from_slice(&0x2000u64.to_le_bytes());
         reg.record_promote_ctx(&g);
         let key = tsg_key_of(&reg, reg.channel(2).unwrap()).0;
-        let size = |_: u16| None;
+        let size = |_: u16, _: u64| None;
         let all = |_: &Channel| true;
         let mut held: BTreeMap<TsgKey, Vec<(u64, u64)>> = BTreeMap::new();
         // The host TSGs standing (the mirror's `tsgs`): the one of the guest TSG.
@@ -5272,7 +5472,12 @@ mod tests {
         let plan = front.plan(&fb, &mem, BASE, END, 1, &b, &[]).unwrap();
         assert_eq!((plan.want, plan.excluded), (2, 2), "set B stays unmapped while the channel lives");
         // The guest frees the channel; its host TSG (the GR context) is still alive.
-        for h in held_at_free(&reg, |c| c.h_object == 0x40, |_| Some(root), size) {
+        for h in held_at_free(
+            &reg,
+            |c| c.h_object == 0x40,
+            |_| Some(root),
+            |_, id, va| size(id, va),
+        ) {
             assert_eq!((h.chid, h.root, h.key), (2, root, key));
             if host_tsgs.contains(&h.key) {
                 held.entry(h.key).or_default().extend(h.ranges);
@@ -5297,7 +5502,12 @@ mod tests {
         reg.record_alloc(1, 0x30, 0x41, chip.channel.gpfifo, &channel_params(3, None));
         g[v::PROMOTE_H_OBJECT..][..4].copy_from_slice(&0x41u32.to_le_bytes());
         reg.record_promote_ctx(&g);
-        for h in held_at_free(&reg, |c| c.h_object == 0x41, |_| Some(root), size) {
+        for h in held_at_free(
+            &reg,
+            |c| c.h_object == 0x41,
+            |_| Some(root),
+            |_, id, va| size(id, va),
+        ) {
             if host_tsgs.contains(&h.key) {
                 held.entry(h.key).or_default().extend(h.ranges);
             }
@@ -5308,7 +5518,13 @@ mod tests {
         reg.record_alloc(1, 0x30, 0x42, chip.channel.gpfifo, &channel_params(4, None));
         g[v::PROMOTE_H_OBJECT..][..4].copy_from_slice(&0x42u32.to_le_bytes());
         reg.record_promote_ctx(&g);
-        assert!(held_at_free(&reg, |c| c.h_object == 0x42, |_| None, size).is_empty());
+        assert!(held_at_free(
+            &reg,
+            |c| c.h_object == 0x42,
+            |_| None,
+            |_, id, va| size(id, va)
+        )
+        .is_empty());
     }
 
     /// A Vulkan client's VAS as the 615 guest builds it (vm4-615, 2026-09-26): client 0xb1
@@ -5359,7 +5575,7 @@ mod tests {
     fn set_b_survives_the_vas_owner_client_free() {
         const ROOT: u64 = 0x1_3567_7000;
         let (mut reg, chid) = dup_vas_world(ROOT);
-        let size = |_: u16| None;
+        let size = |_: u16, _: u64| None;
         let ch = reg.channel(chid).unwrap().clone();
         assert_eq!(reg.vas_key_of(&ch), Some((0xb1, 0x3)));
         assert_eq!(exclusions_of(&reg, ROOT, size), vec![(0x2000, 0x4000)]);
@@ -5378,7 +5594,12 @@ mod tests {
         assert_eq!(reg.vas_key_of(&ch), Some((0xb4, 0xbeef_0300)));
         assert_eq!(exclusions_of(&reg, ROOT, size), vec![(0x2000, 0x4000)]);
         // The channel's free still finds its root: its ranges are held for the host TSG.
-        let held = held_at_free(&reg, |c| c.h_object == 0x40, |c| fb_root(&reg, c), size);
+        let held = held_at_free(
+            &reg,
+            |c| c.h_object == 0x40,
+            |c| fb_root(&reg, c),
+            |_, id, va| size(id, va),
+        );
         assert_eq!(held.len(), 1);
         assert_eq!((held[0].chid, held[0].root, held[0].ranges.clone()), (chid, ROOT, vec![(0x2000, 0x4000)]));
         // The last client goes: nothing is left, and no alias to keep it under.
@@ -5394,8 +5615,13 @@ mod tests {
     fn a_vas_owner_freed_last_keeps_the_old_behaviour() {
         const ROOT: u64 = 0x1_3567_7000;
         let (mut reg, chid) = dup_vas_world(ROOT);
-        let size = |_: u16| None;
-        let held = held_at_free(&reg, |c| c.h_client == 0xb4, |c| fb_root(&reg, c), size);
+        let size = |_: u16, _: u64| None;
+        let held = held_at_free(
+            &reg,
+            |c| c.h_client == 0xb4,
+            |c| fb_root(&reg, c),
+            |_, id, va| size(id, va),
+        );
         assert_eq!((held.len(), held[0].chid, held[0].root), (1, chid, ROOT));
         assert!(reg.record_free(0xb4, 0xb4).is_empty());
         assert!(exclusions_of(&reg, ROOT, size).is_empty(), "the channel is gone");
@@ -5432,6 +5658,125 @@ mod tests {
         assert_eq!(l.unmirrorable(0x2_3C00_0000, 0x2_3C20_0000), None);
         // The default layout (GR, CE) refuses nothing, as before.
         assert_eq!(Layout::default().unmirrorable(0x10_0000, 0x10_1000), None);
+    }
+
+    /// Run P18: Windows maps pushbuffers below 1 MiB (the first Xid 31 was a host fetch at
+    /// 0x13000). The default layout asks the RM to start its VAS at 0 (`ALLOW_ZERO_ADDRESS`,
+    /// nvos.h BIT(8)) instead of the reserved 1 MiB; the video layout keeps its own base and
+    /// asks for nothing, so its host area and server-RM range stay where they were.
+    #[test]
+    fn the_default_layout_starts_at_zero_and_the_video_layout_is_unchanged() {
+        use crate::shadow::{Layout, RM_RESERVED_VA_BASE, VAS_ALLOW_ZERO_ADDRESS};
+        assert_eq!(VAS_ALLOW_ZERO_ADDRESS, 0x100);
+        assert_eq!(RM_RESERVED_VA_BASE, 0x10_0000);
+        let d = Layout::default();
+        assert_eq!((d.va_base, d.alloc_flags()), (0, VAS_ALLOW_ZERO_ADDRESS));
+        for va in [0x0u64, 0x1_0000, 0x1_3000, 0xb_f000, 0xc_e000] {
+            assert_eq!(d.unmirrorable(va, va + 0x1000), None, "{va:#x}");
+        }
+        assert_eq!(Layout::video().alloc_flags(), 0);
+    }
+
+    /// Run P18's first FE fault: `GET_MMU_FAULT_INFO` {addrHi, addrLo, faultType,
+    /// faultString[32]} decoded for the fault diagnostic.
+    #[test]
+    fn the_mmu_fault_info_decodes_va_type_and_text() {
+        let mut p = vec![0u8; MMU_FAULT_INFO_SIZE];
+        p[0..4].copy_from_slice(&1u32.to_le_bytes());
+        p[4..8].copy_from_slice(&0x200e_c000u32.to_le_bytes());
+        p[8..12].copy_from_slice(&3u32.to_le_bytes());
+        p[12..21].copy_from_slice(b"FAULT_PTE");
+        assert_eq!(
+            decode_fault_info(&p),
+            (0x1_200e_c000, 3, "FAULT_PTE".into())
+        );
+        // A short answer decodes to zeros, never a panic.
+        assert_eq!(decode_fault_info(&p[..3]), (0, 0, String::new()));
+    }
+
+    /// The host RM's VA footprint of its global buffers (run P19, the sizes the host answered
+    /// in the static info): 4 KiB pages below 64 KiB, 64 KiB pages below 2 MiB, 2 MiB pages
+    /// above (mem_mgr.c `_memmgrPickDefaultGpuPageSize`).
+    #[test]
+    fn the_host_footprint_follows_the_rm_page_size() {
+        assert_eq!(host_footprint(0x3000), 0x3000, "BUNDLE_CB");
+        assert_eq!(host_footprint(0x464), 0x1000, "GFXP_CTRL_BLK");
+        assert_eq!(host_footprint(0x1_0000), 0x1_0000, "FECS_EVENT");
+        assert_eq!(host_footprint(0x2_0000), 0x2_0000, "PAGEPOOL_GLOBAL");
+        assert_eq!(
+            host_footprint(0x8_0000),
+            0x8_0000,
+            "RTV_CB_GLOBAL, PRIV_ACCESS_MAP"
+        );
+        assert_eq!(host_footprint(0x3f_3a00), 0x40_0000, "ATTRIBUTE_CB");
+        assert_eq!(host_footprint(0x1_0001), 0x2_0000);
+    }
+
+    /// Run P19: the guest's BUNDLE_CB (the host's 0x3000) at 0x1200e9000, its semaphore page at
+    /// 0x1200ec000. The exclusion stops there instead of at the 64 KiB extent; a guest page
+    /// inside the host's footprint never shrinks it.
+    #[test]
+    fn a_global_exclusion_stops_at_the_guests_next_page() {
+        const BASE: u64 = 0x1_200e_9000;
+        let at = |pages: &'static [u64]| {
+            move |lo: u64, hi: u64| pages.iter().copied().filter(|p| *p >= lo && *p < hi).min()
+        };
+        assert_eq!(
+            global_exclusion(BASE, 0x3000, at(&[0x1_200e_c000, 0x1_200f_0000])),
+            (0x1_200e_c000, GlobalClip::Cut { at: 0x1_200e_c000 })
+        );
+        assert_eq!(
+            global_exclusion(BASE, 0x3000, at(&[])),
+            (0x1_200f_9000, GlobalClip::Full),
+            "no guest page: the 64 KiB extent, as before"
+        );
+        assert_eq!(
+            global_exclusion(BASE, 0x3000, at(&[0x1_200e_a000, 0x1_200e_c000])),
+            (0x1_200e_c000, GlobalClip::Overlap { at: 0x1_200e_a000 }),
+            "a guest page inside the footprint: the footprint stays excluded"
+        );
+        // Linux's layout (display-e.md): the attribute CB at 0x120400000, 2 MiB pages; the
+        // exclusion is the footprint whatever the guest maps past it.
+        assert_eq!(
+            global_exclusion(0x1_2040_0000, 0x3f_3a00, at(&[0x1_2080_0000])),
+            (0x1_2080_0000, GlobalClip::Full)
+        );
+        // A huge-page footprint larger than the 64 KiB extent is never cut below it.
+        assert_eq!(
+            global_exclusion(0, 0x21_0000, at(&[])),
+            (0x40_0000, GlobalClip::Full)
+        );
+    }
+
+    /// The set B of a channel whose BUNDLE_CB the guest promoted by VA alone: with the clip
+    /// the guest's page right after it is set A, the host's footprint stays set B.
+    #[test]
+    fn exclusions_use_the_clipped_global_extent() {
+        let chip = crate::fixture::rtx2070().chip.data();
+        let mut reg = registry();
+        reg.record_alloc(
+            1,
+            0x80,
+            0x15,
+            chip.channel.gpfifo,
+            &channel_params(23, Some(4)),
+        );
+        let mut g = vec![0u8; v::PROMOTE_PARAMS_SIZE];
+        g[v::PROMOTE_H_CHAN_CLIENT..][..4].copy_from_slice(&1u32.to_le_bytes());
+        g[v::PROMOTE_H_OBJECT..][..4].copy_from_slice(&0x15u32.to_le_bytes());
+        g[v::PROMOTE_ENTRY_COUNT..][..4].copy_from_slice(&1u32.to_le_bytes());
+        g[v::PROMOTE_ENTRIES + 8..][..8].copy_from_slice(&0x1_200e_9000u64.to_le_bytes());
+        g[v::PROMOTE_ENTRIES + 28..][..2].copy_from_slice(&3u16.to_le_bytes());
+        reg.record_promote_ctx(&g);
+        let all = |_: &Channel| true;
+        let guest =
+            |lo: u64, hi: u64| (lo <= 0x1_200e_c000 && 0x1_200e_c000 < hi).then_some(0x1_200e_c000);
+        let clipped =
+            |id: u16, va: u64| (id == 3).then(|| global_exclusion(va, 0x3000, guest).0 - va);
+        assert_eq!(
+            exclusions_among(&reg, all, clipped),
+            vec![(0x1_200e_9000, 0x1_200e_c000)]
+        );
     }
 
     /// The fallback: the host object is kept only when its context took the host's first

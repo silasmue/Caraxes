@@ -713,6 +713,11 @@ impl BootModel {
                         "chid {chid}: GET_MMU_FAULT_INFO on its own host mirror channel: status {st:#x} [host read]"
                     ));
                 }
+                // The fault page against the guest's tables and the shadow (run P18: was the
+                // page unmapped by the guest, refused, or held by the host?).
+                if let (Some((0, p)), Some(m)) = (&fault, self.ctrl.mirror.as_mut()) {
+                    notes.extend(m.fault_diagnostic(&*gm.fb, chid, p));
+                }
                 if let Some((0, p)) = fault {
                     self.ctrl.guest_attrs.set_fault((hc, ho), p);
                 }
