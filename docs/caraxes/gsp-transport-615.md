@@ -607,6 +607,77 @@ Open items:
 5. The phase-5 inventory of the 615 guest beyond init (the CUDA and display gates) is not taken
    yet.
 
+## 11. The RPC path: guest-cached answers and the head ioeventfd
+
+Two mechanisms of [gsp-transport-classes.md](gsp-transport-classes.md) §6 and §7 (T1 and T5 of
+[optimization-backlog.md](optimization-backlog.md) "By transport class"). Both work for the
+610 and the 615 guest. Records: `caraxes/runs/rpc-path-2026-09-25/`.
+
+### 11.1 CACHEABLE in the reply of a static GSS-legacy control
+
+- The kernel caches a GSS-legacy answer when the reply's `rmctrlFlags` are cacheable, not
+  `_BY_INPUT`, the access right is 0 and both statuses are NV_OK
+  (`src/nvidia/src/kernel/vgpu/rpc.c:10894-10905`; 610.57.04 `:10898-10909`, same logic).
+  Later calls read the cache before any RPC (`rpc.c:10762-10775`).
+- The cache key is (GPU, command) only (`rmapi_cache.c:481-535`, get `:407-472`; the file is
+  identical in 610 and 615). A later call gets the first answer whatever its request. So only
+  commands whose request and answer never change qualify.
+- The get path checks the stored flags with `rmControlValidateClientPrivilegeAccess`
+  (`src/nvidia/src/kernel/rmapi/control.c:678-716`). Flags without `NON_PRIVILEGED` would
+  fail every user process. The device sends `CACHEABLE | NON_PRIVILEGED` = 0x408
+  (`control.h:205, :257`).
+- The set: every GSS-legacy forward now carries FNV-1a fingerprints of request and reply in
+  its trace note. Over 20 `nvidia-smi -q` (before and after a CUDA gate), a 20-sample dmon and
+  the NVML gate (`cache-before-610/legacy-forwards.txt`), ten commands had one request, one
+  answer and NV_OK, from nvidia-smi, NVML and libcuda alike, and a table-sized reply:
+  gpu 0x59 (cuInit), thermal 0x2a, 0x2c, 0x2e, 0x42, clk 0x19, perf 0x79, 0xa4, 0xa7,
+  pmgr 0x12 (`nvml.rs` `LEGACY_CACHEABLE`).
+- Not cached: answers that changed (clk 0x04, 0x64, thermal 0x2f, 0x46, perf 0x26, 0x81,
+  0x97, 0xa8), small values that only held still (1 to 52 bytes), failing commands, and
+  every non-legacy control (the kernel reads the reply flags only for GSS-legacy ids).
+- Opt-in: `CARAXES_LEGACY_CACHEABLE=1` sends the flag; unset (the default since the merge into
+  dev, 2026-09-28) sends 0 as before. The runs of 2026-09-25 had it on by default.
+
+### 11.2 `NV_PGSP_QUEUE_HEAD(0)` as a KVM ioeventfd (`CARAXES_RPC_IOEVENTFD=1`)
+
+- The register is one more region-io-fds sub-region without datamatch, the shape of the MSI
+  re-arm register (intr-page.md §4). The token pool's reactor reads its eventfd
+  (`Device::rpc_ioeventfd`). The device also takes the count before every trapped access of
+  page 0x110000, so the element is served before the guest's next poll, whatever the reactor's
+  latency. KVM signals the eventfd inside the write's exit, before the guest runs on.
+- The value is lost; the count is exact. The CPU writes the register once per element
+  (`msgqTxSubmitBuffers`, `msgq.c:354-377`, once per `GspMsgQueueSendCommand` for all its
+  slots, `message_queue_cpu.c:551-607`). The only other write is `msgqTxCreate`'s 0
+  (`msgq.c:176`), at construction and on a reload.
+- Element check per counted write, at the device's own read pointer
+  (`QueueStateV2::peek_published`), without writing into the ring:
+  - magic "MCTP", and a nonzero sequence after the last one taken (RPCs, continuation records
+    and GMCAPI requests share one counter, `kernel_gsp.c:532-539`, `rpc.c:2125-2180`,
+    `gpu.c:7851`; fire-and-forget requests carry 0): an element of
+    `ceil(mctpPayloadSize / 4096)` slots, clamped to 1-16. The trapped path then serves it with
+    head = read pointer + slots and runs every §3.2 check. Bad framing fails the queue as before.
+  - "SEEN" (the device's own mark on every element it took, as for a trapped write), 0, or an
+    old sequence: no element. That is `msgqTxCreate`'s 0. When linked, the link drops as for a
+    trapped 0 (§2.3).
+  - Writes still counted at the link come from before it, and the link discards them. The CPU
+    publishes nothing before it sees the status header (`kernel_gsp_tu102.c:463-474`).
+- Ordering: the CPU copies the slots, fences (`message_queue_cpu.c:597-605`, `msgq.c:370`),
+  then writes the register. The eventfd is signalled from that write's exit. The device reads
+  an element only for a write it has counted, and never past the counted elements. So an element
+  still being copied (the one after a fire-and-forget request) is not read before its own
+  write, and a partially written element cannot be misread.
+- 610: the write pointer is in shared memory, and the CPU writes 0 to the register as a
+  doorbell (610 `kernel_gsp.c:424`). Each counted write is that doorbell.
+- Fail closed: off by default. The switch needs the token pool (its reactor) and the boot
+  model. A client that does not register the sub-region keeps trapping. The trapped path is
+  unchanged.
+- Tests: `msgq::v2::tests::peek_published_decides_without_the_pointer`,
+  `boot::tests::head_writes_without_their_value_are_served_from_the_ring`,
+  `device::tests::the_msi_rearm_ioeventfd_is_read_by_the_token_reactor` (the head eventfd
+  routed to `rpc_ioeventfd`).
+- Measure: `caraxes/tools/gsp-transport.py --rpc-traps` takes the device's
+  `rpc ioeventfd: head write` event as the start of an RPC and counts traps per RPC.
+
 ## Appendix A: gsp-abi-sizes output for 615.71.09 (generated)
 
 `bash caraxes/tools/gsp-abi-sizes.sh --abi 615 <615 tree>`, minimal flag set. The

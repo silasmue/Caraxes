@@ -221,6 +221,7 @@ mod tests {
         assert_eq!(field(c, "status"), RM_CONTROL_STATUS);
         assert_eq!(field(c, "paramsSize"), RM_CONTROL_PARAMS_SIZE);
         assert_eq!(field(c, "rmctrlFlags"), RM_CONTROL_RMCTRL_FLAGS);
+        assert_eq!(field(c, "rmctrlAccessRight"), RM_CONTROL_RMCTRL_ACCESS_RIGHT);
         assert_eq!(field(c, "params"), RM_CONTROL_PARAMS);
         let a = "rpc_gsp_rm_alloc_v03_00";
         assert_eq!(field(a, "hClient"), RM_ALLOC_H_CLIENT);

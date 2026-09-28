@@ -312,6 +312,18 @@ fn put_u32(b: &mut [u8], off: usize, v: u32) {
     b[off..off + 4].copy_from_slice(&v.to_le_bytes());
 }
 
+/// What a command-queue head write whose value the device did not see published
+/// ([`QueueStateV2::peek_published`]).
+#[derive(Debug, PartialEq, Eq)]
+pub enum Published {
+    /// An element of this many slots at the read pointer.
+    Element { slots: u32 },
+    /// No element: the write was `msgqTxCreate`'s 0 (msgq.c:176), a queue created anew.
+    Stale(String),
+    /// The queue failed; nothing is served until the guest resets the device.
+    Failed,
+}
+
 /// The GSP side of both v2 queues.
 #[derive(Debug)]
 pub struct QueueStateV2 {
@@ -629,6 +641,78 @@ impl QueueStateV2 {
             rejected,
             gmcapi: gm,
         }))
+    }
+
+    /// What one `NV_PGSP_QUEUE_HEAD(0)` write published when the device did not see its
+    /// value: the write came through a KVM ioeventfd without datamatch
+    /// (`CARAXES_RPC_IOEVENTFD=1`, docs/caraxes/gsp-transport-615.md §11), which counts the
+    /// writes and drops the values.
+    ///
+    /// The count is exact: the CPU writes the register once per element
+    /// (`msgqTxSubmitBuffers`, msgq.c:354-377, called once per `GspMsgQueueSendCommand`
+    /// for all its slots, message_queue_cpu.c:551-607), and otherwise only in
+    /// `msgqTxCreate` (msgq.c:176), the value 0 of a queue created anew. So write k of the
+    /// count published the element at our read pointer, and this decides which of the two
+    /// it was without writing anything into the command ring:
+    ///
+    /// - magic "MCTP" and, for a request with a sequence, a sequence after the last one
+    ///   (the one counter of RPC and GMCAPI requests, kernel_gsp.c:532-539, gpu.c:7851):
+    ///   a published element of `ceil(mctpPayloadSize / msgSize)` slots, clamped to
+    ///   [1, 16] (`queueElementSizeMax`, message_queue_cpu.c:85-86); [`Self::receive`]
+    ///   then checks it as for a trapped write and fails the queue on bad framing;
+    /// - anything else ("SEEN", which [`Self::receive`] leaves on every element it takes,
+    ///   message_queue_cpu.c:773-777 on the CPU side; 0 of a slot never written; a
+    ///   sequence at or before the last one, an element already taken): no element was
+    ///   published, so the write was `msgqTxCreate`'s 0.
+    ///
+    /// A partially written element cannot be read here: the CPU copies every slot, then
+    /// fences (`portAtomicMemoryFenceStore`, message_queue_cpu.c:597-605, msgq.c:370),
+    /// then writes the register; the write exits to KVM, which signals the eventfd from
+    /// that exit; the device reads the count after the eventfd is signalled and reads an
+    /// element only for a write it counted. It never reads past the counted elements, so
+    /// an element the CPU is still copying (the next one after a fire-and-forget request)
+    /// is not looked at until its own write is counted.
+    pub fn peek_published(&self, qm: &QueueMemory) -> Published {
+        if self.failed.is_some() {
+            return Published::Failed;
+        }
+        let msg_size = self.cmd.msg_size as usize;
+        let off = Self::slot_off(self.cmd_off, &self.cmd, self.read_ptr);
+        let mut raw = vec![0u8; msg_size.max(ELEMENT_HEADER_SIZE + RPC_HEADER_SIZE)];
+        if !qm.read(off, &mut raw[..msg_size]) {
+            return Published::Stale("command slot unreadable".into());
+        }
+        let magic = u32_at(&raw, ELEMENT_MAGIC);
+        if magic != MCTP_MAGIC {
+            return Published::Stale(format!(
+                "element {} reads magic {magic:#010x}{}",
+                self.read_ptr,
+                if magic == MCTP_MAGIC_SEEN { " (SEEN: taken before)" } else { "" }
+            ));
+        }
+        let total = u32_at(&raw, ELEMENT_MCTP_PAYLOAD_SIZE) as usize;
+        let slots = total
+            .div_ceil(msg_size)
+            .clamp(1, ELEMENT_SIZE_MAX / ELEMENT_SIZE_MIN)
+            .min(self.cmd.msg_count as usize) as u32;
+        let body = &raw[ELEMENT_HEADER_SIZE..];
+        let sequence = match u32_at(&raw, ELEMENT_NVDM_HEADER) >> 24 {
+            NVDM_TYPE_GMCAPI => gmcapi::Header::parse(body).map(|g| g.sequence as u32),
+            NVDM_TYPE_RM_RPC => {
+                let h = RpcHeader::parse(&body[..RPC_HEADER_SIZE]);
+                (h.signature == RPC_SIGNATURE).then_some(h.sequence)
+            }
+            _ => None,
+        };
+        if let (Some(seq), Some(last)) = (sequence, self.last_sequence) {
+            if seq != 0 && !super::seq_before(last, seq) {
+                return Published::Stale(format!(
+                    "element {} carries sequence {seq}, not after the last taken {last}",
+                    self.read_ptr
+                ));
+            }
+        }
+        Published::Element { slots }
     }
 
     /// Slots free in the status queue: msgCount minus what the CPU has not consumed
@@ -1020,6 +1104,50 @@ pub(crate) mod tests {
             (76, 5, 0, 40)
         );
         assert_eq!(&body[32..], &[7u8; 8]);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// The head write seen without its value (the ioeventfd): each counted write takes the
+    /// element at the read pointer, sized by its own mctpPayloadSize; a slot that reads
+    /// SEEN, 0 or an old sequence is the create write's 0; nothing is written into the ring
+    /// by the peek.
+    #[test]
+    fn peek_published_decides_without_the_pointer() {
+        let (mem, pages, path) = linked("v2peek");
+        let qm = QueueMemory::new(&mem, &pages);
+        let mut cpu = Cpu::create(&qm);
+        let mut q = QueueStateV2::link(&qm, &args(), cpu.write_ptr).unwrap();
+        // Nothing written yet: slot 0 reads 0.
+        assert!(matches!(q.peek_published(&qm), Published::Stale(ref r) if r.contains("0x00000000")));
+        // One element of one slot, then one of three slots (a 9000-byte payload).
+        cpu.send(&qm, NVDM_TYPE_RM_RPC, &rpc(76, 7, &[1u8; 40]));
+        let mut before = vec![0u8; 0x1000];
+        assert!(qm.read(CMD + 0x1000, &mut before));
+        assert_eq!(q.peek_published(&qm), Published::Element { slots: 1 });
+        let mut after = vec![0u8; 0x1000];
+        assert!(qm.read(CMD + 0x1000, &mut after));
+        assert_eq!(before, after, "the peek writes nothing");
+        q.cpu_write_ptr = q.read_ptr + 1;
+        assert_eq!(q.receive(&qm).unwrap().unwrap().header.sequence, 7);
+        cpu.send(&qm, NVDM_TYPE_RM_RPC, &rpc(76, 8, &[2u8; 9000]));
+        assert_eq!(q.peek_published(&qm), Published::Element { slots: 3 });
+        q.cpu_write_ptr = q.read_ptr + 3;
+        assert_eq!(q.receive(&qm).unwrap().unwrap().slots, 3);
+        assert_eq!(q.read_ptr, 4);
+        // Wrap to slot 0 again: the element taken there first reads SEEN.
+        q.read_ptr = 63;
+        q.cpu_write_ptr = 63;
+        assert!(matches!(q.peek_published(&qm), Published::Stale(ref r) if r.contains("SEEN")));
+        // An element with MCTP magic but a sequence already taken is stale too.
+        let mut cpu2 = Cpu::create(&qm);
+        cpu2.write_ptr = 63;
+        cpu2.send(&qm, NVDM_TYPE_RM_RPC, &rpc(76, 8, &[3u8; 8]));
+        assert!(matches!(q.peek_published(&qm), Published::Stale(ref r) if r.contains("sequence 8")));
+        // A fire-and-forget request (sequence 0) counts as published.
+        let mut cpu3 = Cpu::create(&qm);
+        cpu3.write_ptr = 63;
+        cpu3.send(&qm, NVDM_TYPE_RM_RPC, &rpc(76, 0, &[3u8; 8]));
+        assert_eq!(q.peek_published(&qm), Published::Element { slots: 1 });
         let _ = std::fs::remove_file(&path);
     }
 

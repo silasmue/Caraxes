@@ -1,0 +1,5 @@
+smi-q-1: 10 x nvidia-smi -q, mean 382 ms, median 325 ms, first 874
+cuda gate rc=1
+smi-q-2: 10 x nvidia-smi -q, mean 263 ms, median 219 ms, first 219
+dmon 20 samples: dmon-ms 20646
+nvml gate rc=1

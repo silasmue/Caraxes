@@ -159,12 +159,9 @@ pub fn answer(
         ));
     }
     if HOST_SIZED_LEGACY.contains(&cmd) {
-        return Some(host_sized_legacy(
-            host,
-            crate::hostabi::current(),
-            cmd,
-            params,
-        ));
+        let mut a = host_sized_legacy(host, crate::hostabi::current(), cmd, params);
+        a.note.push_str(&legacy_hashes(params, &a.params));
+        return Some(a);
     }
     if let Some((_, size, name)) = LEGACY.iter().find(|(c, _, _)| *c == cmd) {
         let mut a = forward(
@@ -179,6 +176,7 @@ pub fn answer(
             a.note
                 .push_str(&format!(" (params {n} bytes, host trace had {size})"));
         }
+        a.note.push_str(&legacy_hashes(params, &a.params));
         return Some(a);
     }
     if cmd >> 16 == GF100_SUBDEVICE_INFOROM {
@@ -272,6 +270,88 @@ pub fn answer(
         _ => return None,
     };
     Some(a)
+}
+
+/// FNV-1a over `b`: the request and reply fingerprints of a GSS-legacy forward in the
+/// trace, from which [`LEGACY_CACHEABLE`] was proven (byte-identical requests and answers
+/// across calls, processes and load; docs/caraxes/gsp-transport-classes.md §12 question 1).
+pub fn fnv64(b: &[u8]) -> u64 {
+    b.iter().fold(0xcbf2_9ce4_8422_2325u64, |h, &x| {
+        (h ^ u64::from(x)).wrapping_mul(0x0000_0100_0000_01b3)
+    })
+}
+
+fn legacy_hashes(req: &[u8], reply: &[u8]) -> String {
+    format!("; req {:016x} reply {:016x}", fnv64(req), fnv64(reply))
+}
+
+/// `RMCTRL_FLAGS_NON_PRIVILEGED` and `RMCTRL_FLAGS_CACHEABLE` (control.h:205, :257 in both
+/// 610.57.04 and 615.71.09).
+pub const RMCTRL_FLAGS_NON_PRIVILEGED: u32 = 0x0000_0008;
+pub const RMCTRL_FLAGS_CACHEABLE: u32 = 0x0000_0400;
+
+/// The GSS-legacy commands whose answer is static for the VM's life and independent of
+/// the request, so the guest kernel may answer repeats itself. Proven from the trace
+/// fingerprints (`fnv64`) of the 610 guest on the 615.71.09 host
+/// (caraxes/runs/rpc-path-2026-09-25/cache-before-610, legacy-forwards.txt): one request
+/// and one answer, NV_OK, over 20 `nvidia-smi -q` before and after a CUDA gate, a
+/// 20-sample dmon and the NVML gate, from nvidia-smi, NVML and libcuda alike. Only
+/// tables: a reply of at least 64 bytes (the cuInit query 0x59 has 332). Excluded,
+/// though identical there: the small replies (perf 0x14, 0x60, 0x6e, 0x80, 0x84, clk
+/// 0x01, 0x09, gpu 0x62; 1 to 52 bytes), which could be a live value that only held
+/// still at the states sampled. Never: the commands whose answer changed (clk 0x04,
+/// 0x64, thermal 0x2f, 0x46, perf 0x26, 0x81, 0x97, 0xa8: telemetry or input-keyed) and
+/// every failing one (the guest caches only NV_OK).
+pub const LEGACY_CACHEABLE: &[u32] = &[
+    0x2080_8159, // gpu 0x59, 332 bytes (cuInit)
+    0x2080_852A, // thermal 0x2a, 1784
+    0x2080_852C, // thermal 0x2c, 1440
+    0x2080_852E, // thermal 0x2e, 1432 (output only)
+    0x2080_8542, // thermal 0x42, 504
+    0x2080_9019, // clk 0x19, 12336
+    0x2080_A079, // perf 0x79, 83972 (25 ms per host call)
+    0x2080_A0A4, // perf 0xa4, 67396
+    0x2080_A0A7, // perf 0xa7, 17676
+    0x2080_A612, // pmgr 0x12, 54352
+];
+
+/// The switch that turns the CACHEABLE reply flag on (`CARAXES_LEGACY_CACHEABLE=1`); off by
+/// default, where every GSS-legacy reply carries rmctrlFlags 0 as before (the measurement's
+/// "before", and a way back should a cached answer ever be wrong).
+pub const LEGACY_CACHEABLE_ENV: &str = "CARAXES_LEGACY_CACHEABLE";
+
+/// Whether the CACHEABLE reply flag is switched on (`CARAXES_LEGACY_CACHEABLE=1`; off by
+/// default).
+pub fn legacy_cacheable_enabled() -> bool {
+    static ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *ON.get_or_init(|| std::env::var(LEGACY_CACHEABLE_ENV).is_ok_and(|v| v.trim() == "1"))
+}
+
+/// The `rmctrlFlags` of the reply to GSS-legacy control `cmd` answered with `status`.
+///
+/// The guest kernel caches a GSS-legacy answer when the reply's flags are cacheable and
+/// not by input, the access right is 0 and the control succeeded
+/// (`rpcRmApiControl_GSP`, src/nvidia/src/kernel/vgpu/rpc.c:10894-10905 of 615.71.09,
+/// :10898-10909 of 610.57.04), keyed by GPU and command only, without the request
+/// (`_rmapiControlCacheSet`, rmapi_cache.c:481-535; get :407-472, the same file in both
+/// versions). A later call, whatever its input, then gets the first answer
+/// (rpc.c:10762-10775 of 615), after `rmControlValidateClientPrivilegeAccess`
+/// (rmapi/control.c:678-716) checks the stored flags: without NON_PRIVILEGED a user
+/// process would fail the check and the cache would never serve it. So: CACHEABLE |
+/// NON_PRIVILEGED (the `_LEGACY_NON_PRIVILEGED` categories, ctrl2080base.h) for the
+/// proven commands on NV_OK when the switch is on, 0 otherwise (the value the device sent
+/// before).
+pub fn legacy_reply_flags(cmd: u32, status: u32) -> u32 {
+    legacy_reply_flags_with(cmd, status, legacy_cacheable_enabled())
+}
+
+/// [`legacy_reply_flags`] with the switch given.
+pub fn legacy_reply_flags_with(cmd: u32, status: u32, enabled: bool) -> u32 {
+    if status == NV_OK && enabled && LEGACY_CACHEABLE.contains(&cmd) {
+        RMCTRL_FLAGS_CACHEABLE | RMCTRL_FLAGS_NON_PRIVILEGED
+    } else {
+        0
+    }
 }
 
 /// A GSS legacy control whose params size depends on the host driver (`hl.legacy`).
@@ -416,6 +496,31 @@ fn fb_get_info_v2(host: &mut Host<'_>, params: &[u8], profile: &Profile) -> Answ
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The reply flags the guest kernel caches by (rpc.c:10899-10905 of 615): CACHEABLE |
+    /// NON_PRIVILEGED only for the proven static GSS-legacy tables and only on NV_OK; every
+    /// entry is a GSS-legacy command of the forwarded list with a table-sized reply, and
+    /// never a command whose answer was seen to change.
+    #[test]
+    fn cacheable_reply_flags_only_for_proven_static_tables() {
+        assert_eq!(legacy_reply_flags_with(0x2080_A079, NV_OK, true), 0x408);
+        assert_eq!(legacy_reply_flags_with(0x2080_A079, NV_OK, false), 0, "off by default");
+        assert_eq!(legacy_reply_flags_with(0x2080_A079, NV_ERR_NOT_SUPPORTED, true), 0);
+        for telemetry in [0x2080_9004, 0x2080_9064, 0x2080_852F, 0x2080_8546, 0x2080_A081, 0x2080_A097, 0x2080_A0A8, 0x2080_A026] {
+            assert_eq!(legacy_reply_flags_with(telemetry, NV_OK, true), 0, "{telemetry:#x}");
+        }
+        for &c in LEGACY_CACHEABLE {
+            assert_ne!(c & v::CMD_GSS_LEGACY_BIT, 0, "{c:#x} is GSS legacy (IsGssLegacyCall)");
+            let (_, size, _) = LEGACY.iter().find(|(l, _, _)| *l == c).expect("forwarded");
+            assert!(*size >= 64, "{c:#x}: a table, not a value");
+        }
+        // Not by input (rpc.c:10902 refuses those), no access right, no privilege check
+        // that a user process would fail (rmapi/control.c:678-716).
+        let f = RMCTRL_FLAGS_CACHEABLE | RMCTRL_FLAGS_NON_PRIVILEGED;
+        assert_eq!(f & 0x0002_0000, 0);
+        assert_eq!(fnv64(b""), 0xcbf2_9ce4_8422_2325);
+        assert_eq!(fnv64(b"a"), 0xaf63_dc4c_8601_ec8c);
+    }
     use crate::ver::active::NV01_DEVICE_0;
 
     fn chip() -> &'static ChipData {

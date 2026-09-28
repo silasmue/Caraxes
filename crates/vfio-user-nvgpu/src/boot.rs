@@ -157,6 +157,27 @@ pub struct BootModel {
     /// queue v2 it is the CPU's write pointer (`msgqTxCreate` writes 0 before GSP-RM
     /// boots, msgq.c:175-177 of 615); with v0 the register is a plain doorbell.
     cpu_cmd_head: u32,
+    /// The command-queue head write as a KVM ioeventfd (`CARAXES_RPC_IOEVENTFD=1`): a
+    /// non-blocking duplicate of the eventfd the reactor reads, so the model can take the
+    /// count itself (at the queue link, and before a trapped access of the GSP page), and
+    /// what came through it.
+    rpc_eventfd: Option<std::fs::File>,
+    pub rpc_eventfd_stats: RpcEventfdStats,
+}
+
+/// What the command-queue head ioeventfd delivered (`BootModel::cmd_head_from_ring`).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct RpcEventfdStats {
+    /// Guest head writes counted.
+    pub writes: u64,
+    /// Writes that published an element, served as the trapped write would have been.
+    pub elements: u64,
+    /// Writes before the queues were linked (`msgqTxCreate`'s 0).
+    pub before_link: u64,
+    /// Writes that published nothing while linked: a queue created anew (the link drops).
+    pub recreated: u64,
+    /// Writes taken at the link or before a trapped access instead of by the reactor.
+    pub taken_inline: u64,
 }
 
 // The GSP falcon's interrupt registers (turing/tu102/dev_falcon_v4.h at NV_PGSP 0x110000,
@@ -235,6 +256,8 @@ impl BootModel {
             sr_meta_pa: None,
             transport: v::GSP_TRANSPORT,
             cpu_cmd_head: 0,
+            rpc_eventfd: None,
+            rpc_eventfd_stats: RpcEventfdStats::default(),
         }
     }
 
@@ -987,6 +1010,8 @@ impl BootModel {
         self.fb.carry_bar2_area(&mut fresh.fb);
         fresh.ctrl.channels.tokens = tokens;
         fresh.transport = self.transport;
+        fresh.rpc_eventfd = self.rpc_eventfd.take();
+        fresh.rpc_eventfd_stats = self.rpc_eventfd_stats;
         *self = fresh;
     }
 
@@ -1745,10 +1770,19 @@ impl BootModel {
                         let st = v::RM_CONTROL_STATUS;
                         reply[st..st + 4].copy_from_slice(&a.status.to_le_bytes());
                         if cmd & v::CMD_GSS_LEGACY_BIT != 0 {
-                            // GSS legacy: rmctrlFlags 0, or the guest caches the reply
-                            // (rpc.c:10902-10907, phase5-rpcs.md §2).
+                            // GSS legacy: the guest caches the reply by its rmctrlFlags
+                            // (rpc.c:10899-10905 of 615): CACHEABLE for the proven static
+                            // answers when CARAXES_LEGACY_CACHEABLE=1, 0 for the rest and
+                            // by default (nvml.rs `legacy_reply_flags`); with the flag the
+                            // access right is written 0.
+                            let flags = crate::nvml::legacy_reply_flags(cmd, a.status);
                             let f = v::RM_CONTROL_RMCTRL_FLAGS;
-                            reply[f..f + 4].copy_from_slice(&0u32.to_le_bytes());
+                            reply[f..f + 4].copy_from_slice(&flags.to_le_bytes());
+                            if flags != 0 {
+                                let r = v::RM_CONTROL_RMCTRL_ACCESS_RIGHT;
+                                reply[r..r + 4].copy_from_slice(&0u32.to_le_bytes());
+                                notes.push(format!("ctrl {cmd:#x}: reply rmctrlFlags {flags:#x} (the guest caches it)"));
+                            }
                         }
                         let mut out = a.params;
                         out.resize(size, 0);
@@ -2238,6 +2272,95 @@ impl BootModel {
         self.transport
     }
 
+    /// The BAR0 offset of the command-queue head register (`NV_PGSP_QUEUE_HEAD(0)`,
+    /// 0x110C00 on TU10x through GB20x, kern_gpu_tu102.c:596-605 of 615).
+    pub fn cmd_head_register(&self) -> Option<u64> {
+        self.fw.queue_registers().map(|r| r.cmd_head)
+    }
+
+    /// Take the head writes through the ioeventfd from here as well
+    /// (`CARAXES_RPC_IOEVENTFD=1`): `fd` is a duplicate of the reactor's eventfd; it is
+    /// made non-blocking (the flag is the shared file description's, which the polling
+    /// reactor sets as well).
+    pub fn with_rpc_eventfd(mut self, fd: std::fs::File) -> std::io::Result<Self> {
+        use std::os::fd::AsRawFd;
+        // SAFETY: plain fcntl on an open descriptor.
+        unsafe {
+            let fl = libc::fcntl(fd.as_raw_fd(), libc::F_GETFL);
+            if fl < 0 || libc::fcntl(fd.as_raw_fd(), libc::F_SETFL, fl | libc::O_NONBLOCK) < 0 {
+                return Err(std::io::Error::last_os_error());
+            }
+        }
+        self.rpc_eventfd = Some(fd);
+        Ok(self)
+    }
+
+    /// The head writes counted by the eventfd since it was last read (0 without one).
+    pub fn take_rpc_writes(&mut self) -> u64 {
+        use std::io::Read;
+        let Some(f) = self.rpc_eventfd.as_mut() else {
+            return 0;
+        };
+        let mut b = [0u8; 8];
+        match f.read(&mut b) {
+            Ok(8) => {
+                let n = u64::from_ne_bytes(b);
+                self.rpc_eventfd_stats.taken_inline += n;
+                n
+            }
+            _ => 0,
+        }
+    }
+
+    /// One command-queue head write that came through the ioeventfd, whose value the
+    /// device did not see: the value the trapped write would have carried, for
+    /// [`BootModel::write32`] to serve exactly as it serves a trapped one, or `None` when
+    /// the write publishes nothing to serve. With it the note for the trace.
+    ///
+    /// - Message queue v0 (610): the register is a plain doorbell, the CPU writes 0
+    ///   (kernel_gsp.c:424 of 610) and the pointer lives in shared memory: 0.
+    /// - Message queue v2 (615), not linked: `msgqTxCreate`'s 0 (msgq.c:176), before
+    ///   GSP-RM starts; the link starts from 0 anyway.
+    /// - v2, linked: the element at our read pointer decides
+    ///   ([`crate::msgq::v2::QueueStateV2::peek_published`]): read pointer plus its slots,
+    ///   or 0 for a queue created anew, which drops the link as the trapped 0 does.
+    pub fn cmd_head_from_ring(&mut self, mem: &GuestMemory) -> (Option<u32>, String) {
+        use crate::msgq::v2::Published;
+        self.rpc_eventfd_stats.writes += 1;
+        if self.transport != GspTransport::MsgqV2 {
+            self.rpc_eventfd_stats.elements += 1;
+            return (Some(0), "610 doorbell (pointer in shared memory)".into());
+        }
+        let peek = {
+            let pages = &self.pages;
+            match self.queues.as_ref().and_then(|q| q.v2()) {
+                None => None,
+                Some(q) => {
+                    let qm = QueueMemory::new(mem, pages);
+                    Some((q.read_ptr, q.peek_published(&qm)))
+                }
+            }
+        };
+        match peek {
+            None => {
+                self.rpc_eventfd_stats.before_link += 1;
+                self.cpu_cmd_head = 0;
+                (None, "before the queue link: msgqTxCreate's QUEUE_HEAD = 0 (msgq.c:176)".into())
+            }
+            Some((rp, Published::Element { slots })) => {
+                self.rpc_eventfd_stats.elements += 1;
+                let head = rp.wrapping_add(slots);
+                (Some(head), format!("element {rp}, {slots} slot(s): QUEUE_HEAD {head}"))
+            }
+            Some((0, Published::Stale(why))) => (None, format!("nothing published ({why}), read pointer 0: ignored")),
+            Some((_, Published::Stale(why))) => {
+                self.rpc_eventfd_stats.recreated += 1;
+                (Some(0), format!("nothing published ({why}): msgqTxCreate's QUEUE_HEAD = 0, the command queue created anew"))
+            }
+            Some((_, Published::Failed)) => (None, "queue failed: not served".into()),
+        }
+    }
+
     /// `NV_PGSP_QUEUE_TAIL(0)` and `NV_PGSP_MSGQ_HEAD(0)` once v2 queues are linked:
     /// the GSP's read pointer into the command queue and write pointer into the status
     /// queue (msgqTxGetFreeSpace and msgqRxGetReadAvailable read them, msgq.c:283-430 of 615).
@@ -2380,6 +2503,16 @@ impl BootModel {
         ));
         let pages = QueueMemory::read_page_table(mem, args.shared_mem_pa, args.page_table_entry_count)
             .ok_or("queue page table not mapped")?;
+        // Head writes through the ioeventfd not taken yet were made before this link:
+        // msgqTxCreate's 0 (msgq.c:176); the CPU publishes nothing before it sees our
+        // status header (kernel_gsp_tu102.c:463-474 of 615).
+        let early = self.take_rpc_writes();
+        if early > 0 {
+            self.rpc_eventfd_stats.writes += early;
+            self.rpc_eventfd_stats.before_link += early;
+            self.cpu_cmd_head = 0;
+            notes.push(format!("rpc ioeventfd: {early} head write(s) before the link (msgqTxCreate's 0)"));
+        }
         let q = {
             let qm = QueueMemory::new(mem, &pages);
             QueueStateV2::link(&qm, &args, self.cpu_cmd_head)?
@@ -2829,6 +2962,97 @@ mod tests {
         assert_eq!(b.read32(msg_head), Some(0), "the falcon register again");
         b.reset();
         assert_eq!(b.transport(), GspTransport::MsgqV2, "a reset keeps the transport");
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// The command-queue head writes through the ioeventfd (`CARAXES_RPC_IOEVENTFD=1`):
+    /// the count without the values. msgqTxCreate's write before the boot is taken at the
+    /// link; each later write is served with the head reconstructed from the ring, as the
+    /// trapped write with its value would be; a write that published nothing while linked
+    /// is the reload's 0 and drops the link. A 610 transport gets its plain doorbell.
+    #[test]
+    fn head_writes_without_their_value_are_served_from_the_ring() {
+        use std::io::Write;
+        let (mem, path) = guest_615("rpcfd");
+        let f = crate::fixture::rtx2070();
+        // SAFETY: a plain syscall; checked below.
+        let raw = unsafe { libc::eventfd(0, libc::EFD_CLOEXEC) };
+        assert!(raw >= 0);
+        // SAFETY: a new descriptor nothing else owns.
+        let efd = unsafe { <std::fs::File as std::os::fd::FromRawFd>::from_raw_fd(raw) };
+        let guest_write = |n: u64| (&efd).write_all(&n.to_ne_bytes()).unwrap();
+        let mut b = BootModel::new(f.chip, crate::fb::FbLayout::plain(4 << 30), f.identity(4 << 30))
+            .with_transport(GspTransport::MsgqV2)
+            .with_rpc_eventfd(efd.try_clone().unwrap())
+            .unwrap();
+        assert_eq!(b.cmd_head_register(), Some(CMD_HEAD));
+        assert_eq!(b.take_rpc_writes(), 0, "nothing counted, and the read does not block");
+        guest_write(1); // msgqTxCreate (msgq.c:176)
+        let notes = booter_load(&mut b, &mem);
+        assert!(notes.iter().any(|n| n.contains("1 head write(s) before the link")), "{notes:?}");
+        assert!(notes.iter().any(|n| n.starts_with("queues linked (v2)")), "{notes:?}");
+        // GSP_INIT published at slot 0: head 1, served as the trapped write.
+        let slot0 = std::fs::read(
+            "../../caraxes/runs/guest-driver-2026-09-24/615.71.09/linked/gmcapi-gsp-init-slot0.bin",
+        )
+        .unwrap();
+        assert!(mem.write(0x88a0_0000 + 0x2000, &slot0));
+        b.write32(MSGQ_TAIL, 0, &mem);
+        let (v, note) = b.cmd_head_from_ring(&mem);
+        assert_eq!(v, Some(1), "{note}");
+        let notes = b.write32(CMD_HEAD, 1, &mem).unwrap();
+        assert!(notes.iter().any(|n| n.starts_with("tx seq 0 reply GMCAPI_GSP_INIT")), "{notes:?}");
+        // A second count before the element is written would be a create write; after
+        // the RPC is written it is the RPC.
+        let pages = QueueMemory::read_page_table(&mem, 0x88a0_0000, 129).unwrap();
+        let mut cpu = crate::msgq::v2::tests::Cpu {
+            hdr: crate::msgq::v2::TxHeaderV2::standard(0x40000),
+            write_ptr: 1,
+            read_ptr: 0,
+        };
+        let h = RpcHeader {
+            header_version: v::RPC_HEADER_VERSION,
+            signature: v::RPC_SIGNATURE,
+            length: v::RPC_HEADER_SIZE as u32,
+            function: rpc::FN_SET_GUEST_SYSTEM_INFO,
+            rpc_result: 0xFFFF_FFFF,
+            rpc_result_private: 0xFFFF_FFFF,
+            sequence: 1,
+            u: 0,
+        };
+        {
+            let qm = QueueMemory::new(&mem, &pages);
+            let mut body = h.encode().to_vec();
+            body.extend_from_slice(&[0u8; 792]);
+            let mut hh = h;
+            hh.length = body.len() as u32;
+            body[..32].copy_from_slice(&hh.encode());
+            cpu.send(&qm, crate::msgq::v2::NVDM_TYPE_RM_RPC, &body);
+        }
+        let (v, note) = b.cmd_head_from_ring(&mem);
+        assert_eq!(v, Some(2), "{note}");
+        let notes = b.write32(CMD_HEAD, 2, &mem).unwrap();
+        assert!(notes.iter().any(|n| n.contains("SET_GUEST_SYSTEM_INFO")), "{notes:?}");
+        // A driver reload: msgqTxCreate's 0 publishes nothing; the slot at our read
+        // pointer was never written (0): the link drops as for the trapped 0.
+        let (v, note) = b.cmd_head_from_ring(&mem);
+        assert_eq!(v, Some(0), "{note}");
+        assert!(note.contains("created anew"), "{note}");
+        let notes = b.write32(CMD_HEAD, 0, &mem).unwrap();
+        assert!(notes.iter().any(|n| n.contains("link dropped")), "{notes:?}");
+        // Unlinked now: a count is noted only.
+        assert_eq!(b.cmd_head_from_ring(&mem).0, None);
+        let st = b.rpc_eventfd_stats;
+        assert_eq!((st.writes, st.elements, st.before_link, st.recreated), (5, 2, 2, 1));
+        // The reset keeps the eventfd and the counters.
+        b.reset();
+        guest_write(3);
+        assert_eq!(b.take_rpc_writes(), 3);
+        assert_eq!(b.rpc_eventfd_stats.writes, 5);
+        // The 610 transport: the register is a doorbell of value 0.
+        let mut b610 = BootModel::new(f.chip, crate::fb::FbLayout::plain(4 << 30), f.identity(4 << 30))
+            .with_transport(GspTransport::MsgqV1);
+        assert_eq!(b610.cmd_head_from_ring(&mem).0, Some(0));
         let _ = std::fs::remove_file(&path);
     }
 

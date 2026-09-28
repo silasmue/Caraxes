@@ -89,6 +89,10 @@ pub struct Device {
     /// the device longer than [`SLOW_POOL_POLL`].
     mirror_writes_unsynced: u64,
     slow_pool_polls: u64,
+    /// Command-queue head ioeventfd (`CARAXES_RPC_IOEVENTFD=1`): the register's BAR0
+    /// offset, and the wakeups that handed writes to [`Device::rpc_ioeventfd`].
+    rpc_head: Option<u64>,
+    rpc_wakeups: u64,
 }
 
 /// A BAR1 pool poll that holds the device longer than this is traced as an event (the
@@ -115,6 +119,22 @@ pub const NV_XVE_CYA_2: u64 = 0x704;
 /// Whether `CARAXES_MSI_REARM_IOEVENTFD=1` is set.
 pub fn msi_rearm_ioeventfd_requested() -> bool {
     std::env::var(MSI_REARM_IOEVENTFD_ENV).is_ok_and(|v| v.trim() == "1")
+}
+
+/// The switch for the command-queue head ioeventfd (docs/caraxes/gsp-transport-615.md §11).
+pub const RPC_IOEVENTFD_ENV: &str = "CARAXES_RPC_IOEVENTFD";
+
+/// Whether `CARAXES_RPC_IOEVENTFD=1` is set.
+pub fn rpc_ioeventfd_requested() -> bool {
+    std::env::var(RPC_IOEVENTFD_ENV).is_ok_and(|v| v.trim() == "1")
+}
+
+/// The command-queue head sub-region at BAR0 `offset` (`NV_PGSP_QUEUE_HEAD(0)`): 4
+/// bytes, no datamatch (every value the CPU writes must wake the device; the value is
+/// reconstructed from the ring, `BootModel::cmd_head_from_ring`), and the eventfd's
+/// reading end. The shape is the MSI re-arm's.
+pub fn rpc_head_sub_region(offset: u64) -> std::io::Result<(IoEventFdSubRegion, File)> {
+    doorbell_sub_region(offset)
 }
 
 /// The MSI re-arm sub-region at BAR0 `offset` (the `NV_PCFG` base plus [`NV_XVE_CYA_2`]):
@@ -179,13 +199,15 @@ pub fn spawn_token_reader(
     readers: Vec<File>,
     reactor: crate::poll::Reactor,
 ) -> std::io::Result<Arc<crate::poll::ReaderStats>> {
-    spawn_token_reader_hooked(device, doorbell, readers, reactor, None, None)
+    spawn_token_reader_hooked(device, doorbell, readers, reactor, None, None, None)
 }
 
 /// As [`spawn_token_reader`], with a hook the reactor runs on every iteration (the
 /// interrupt page, intr_page.rs). `rearm`: the MSI re-arm eventfd as one more reader after
 /// the tokens' (`CARAXES_MSI_REARM_IOEVENTFD=1`), `(BAR0 offset, eventfd)`; its wakeups go
-/// to [`Device::msi_rearm_ioeventfd`], never to a token.
+/// to [`Device::msi_rearm_ioeventfd`], never to a token. `rpc`: the command-queue head
+/// eventfd (`CARAXES_RPC_IOEVENTFD=1`) as one more reader after those, `(BAR0 offset,
+/// eventfd)`; its wakeups go to [`Device::rpc_ioeventfd`].
 pub fn spawn_token_reader_hooked(
     device: Arc<Mutex<Device>>,
     doorbell: u64,
@@ -193,29 +215,35 @@ pub fn spawn_token_reader_hooked(
     reactor: crate::poll::Reactor,
     hook: Option<Box<dyn crate::poll::Hook>>,
     rearm: Option<(u64, File)>,
+    rpc: Option<(u64, File)>,
 ) -> std::io::Result<Arc<crate::poll::ReaderStats>> {
     let tokens = readers.len();
-    let rearm_at = rearm.map(|(offset, fd)| {
-        readers.push(fd);
-        offset
-    });
+    let mut extra = |e: Option<(u64, File)>| {
+        e.map(|(offset, fd)| {
+            readers.push(fd);
+            (readers.len() - 1, offset)
+        })
+    };
+    let rearm_at = extra(rearm);
+    let rpc_at = extra(rpc);
     reactor.spawn_hooked(
         readers,
         move |rings, seen, st| {
             let mut d = lock(&device);
             st.lock_wait.record(seen.elapsed());
-            match rearm_at {
-                None => d.doorbell_tokens(doorbell, rings, &mut |host| st.ring(seen, host)),
-                Some(offset) => {
-                    for r in rings {
-                        if r.0 < tokens {
-                            d.doorbell_tokens(doorbell, std::slice::from_ref(r), &mut |host| {
-                                st.ring(seen, host)
-                            });
-                        } else {
-                            d.msi_rearm_ioeventfd(offset, r.1);
-                        }
+            if rearm_at.is_none() && rpc_at.is_none() {
+                return d.doorbell_tokens(doorbell, rings, &mut |host| st.ring(seen, host));
+            }
+            for r in rings {
+                match (rearm_at, rpc_at) {
+                    _ if r.0 < tokens => {
+                        d.doorbell_tokens(doorbell, std::slice::from_ref(r), &mut |host| {
+                            st.ring(seen, host)
+                        })
                     }
+                    (Some((i, offset)), _) if r.0 == i => d.msi_rearm_ioeventfd(offset, r.1),
+                    (_, Some((i, offset))) if r.0 == i => d.rpc_ioeventfd(offset, r.1),
+                    _ => {}
                 }
             }
         },
@@ -532,6 +560,61 @@ impl Device {
             rearm_writes: 0,
             mirror_writes_unsynced: 0,
             slow_pool_polls: 0,
+            rpc_head: None,
+            rpc_wakeups: 0,
+        }
+    }
+
+    /// Serve the command-queue head register at BAR0 `offset` through its ioeventfd
+    /// ([`Device::rpc_ioeventfd`]); the boot model holds a duplicate of the eventfd
+    /// (`BootModel::with_rpc_eventfd`).
+    pub fn set_rpc_ioeventfd(&mut self, offset: u64) {
+        self.rpc_head = Some(offset);
+    }
+
+    /// Guest writes to the command-queue head register (`NV_PGSP_QUEUE_HEAD(0)`) that
+    /// arrived through its ioeventfd (`CARAXES_RPC_IOEVENTFD=1`, gsp-transport-615.md §11):
+    /// `writes` of them, values unknown. Each is served as the trapped write is
+    /// (`region_write` on BAR0: the model's write, which services the queue and writes
+    /// the reply, then the steps after every BAR0 write, which raise a pending MSI), with
+    /// the value the boot model reconstructs from the command ring
+    /// (`BootModel::cmd_head_from_ring`); a write that published nothing is noted only.
+    pub fn rpc_ioeventfd(&mut self, offset: u64, writes: u64) {
+        self.rpc_wakeups += 1;
+        crate::profile::window("rpc eventfd: wakeups (units: guest head writes)", writes);
+        for _ in 0..writes {
+            let mem = &self.mem;
+            let (value, note) = match self.bar0.boot_mut() {
+                Some(b) => b.cmd_head_from_ring(mem),
+                None => (None, "no boot model".into()),
+            };
+            self.trace
+                .event(&format!("rpc ioeventfd: head write to BAR0 {offset:#x}: {note}"));
+            if let Some(v) = value {
+                let effect = self
+                    .bar0
+                    .write(&mut self.cfg, &self.mem, offset, &v.to_le_bytes());
+                self.after_bar0_write(!matches!(effect, WriteEffect::Mirror), offset);
+            }
+        }
+    }
+
+    /// Before a trapped access of the GSP falcon page (0x110000, the queue pointers and
+    /// the falcon registers the CPU polls after a head write, gsp-transport-classes.md §2):
+    /// serve head writes the eventfd counted and the reactor has not taken yet. The guest's
+    /// access follows its head write, and KVM signalled the eventfd inside that write's
+    /// exit, so the element is served before the guest reads the status pointer, whatever
+    /// the reactor's wake-up latency.
+    fn poll_rpc_ioeventfd(&mut self, offset: u64) {
+        let Some(head) = self.rpc_head else {
+            return;
+        };
+        if offset >> 12 != head >> 12 {
+            return;
+        }
+        let n = self.bar0.boot_mut().map_or(0, |b| b.take_rpc_writes());
+        if n > 0 {
+            self.rpc_ioeventfd(head, n);
         }
     }
 
@@ -1007,6 +1090,13 @@ impl Device {
                 self.rearm_writes, self.rearm_wakeups
             ));
         }
+        if let (Some(_), Some(b)) = (self.rpc_head, self.bar0.boot()) {
+            let r = b.rpc_eventfd_stats;
+            s.push_str(&format!(
+                "rpc ioeventfd: {} head write(s) in {} handling(s): {} element(s) served, {} before the link, {} queue(s) created anew; {} taken before a trapped GSP access or at the link\n",
+                r.writes, self.rpc_wakeups, r.elements, r.before_link, r.recreated, r.taken_inline
+            ));
+        }
         let (n, first) = self.mem.misses();
         if self.mem.table().is_some() || n > 0 {
             s.push_str(&format!(
@@ -1095,6 +1185,7 @@ impl ServerBackend for Device {
         match region {
             VFIO_PCI_CONFIG_REGION_INDEX => self.cfg.region_read(offset as usize, data),
             VFIO_PCI_BAR0_REGION_INDEX => {
+                self.poll_rpc_ioeventfd(offset);
                 self.bar0.read(&self.cfg, &self.mem, offset, data);
                 note = self.bar0.name(offset);
                 if self.bar0.take_captured() {
@@ -1148,6 +1239,7 @@ impl ServerBackend for Device {
                 None
             }
             VFIO_PCI_BAR0_REGION_INDEX => {
+                self.poll_rpc_ioeventfd(offset);
                 match self.bar0.write(&mut self.cfg, &self.mem, offset, data) {
                     WriteEffect::Mirror => {
                         sync_point = false;
@@ -1589,6 +1681,12 @@ mod tests {
             server.add_ioeventfd(VFIO_PCI_BAR0_REGION_INDEX, s).unwrap();
         }
         server.add_ioeventfd(VFIO_PCI_BAR0_REGION_INDEX, rearm).unwrap();
+        // The command-queue head (CARAXES_RPC_IOEVENTFD=1) the same way: one more entry
+        // without datamatch, one more reader.
+        let (rpc, rpc_reader) = rpc_head_sub_region(0x11_0C00).unwrap();
+        assert_eq!((rpc.offset, rpc.size, rpc.flags, rpc.datamatch), (0x11_0C00, 4, 0, 0));
+        let rpc_writer = File::from(rpc.fd.try_clone().unwrap());
+        server.add_ioeventfd(VFIO_PCI_BAR0_REGION_INDEX, rpc).unwrap();
         drop(server);
         let _ = std::fs::remove_file(&path);
 
@@ -1603,7 +1701,9 @@ mod tests {
         (&rearm_writer).write_all(&1u64.to_ne_bytes()).unwrap();
         (&rearm_writer).write_all(&1u64.to_ne_bytes()).unwrap();
         (&token_writers[1]).write_all(&1u64.to_ne_bytes()).unwrap();
+        (&rpc_writer).write_all(&1u64.to_ne_bytes()).unwrap();
         let device = Arc::new(Mutex::new(rtx2070_device()));
+        lock(&device).set_rpc_ioeventfd(0x11_0C00);
         let reactor = crate::poll::Reactor::new("test", crate::poll::Config::default(), None).unwrap();
         let stats = spawn_token_reader_hooked(
             device.clone(),
@@ -1612,16 +1712,18 @@ mod tests {
             reactor,
             None,
             Some((at, rearm_reader)),
+            Some((0x11_0C00, rpc_reader)),
         )
         .unwrap();
         let t0 = std::time::Instant::now();
-        while stats.events.load(std::sync::atomic::Ordering::Relaxed) < 2 {
+        while stats.events.load(std::sync::atomic::Ordering::Relaxed) < 3 {
             assert!(t0.elapsed() < std::time::Duration::from_secs(5), "reactor did not read");
             std::thread::sleep(std::time::Duration::from_millis(1));
         }
         stats.stop.store(true, std::sync::atomic::Ordering::Relaxed);
         let d = lock(&device);
         assert_eq!((d.rearm_wakeups, d.rearm_writes), (1, 2));
+        assert_eq!(d.rpc_wakeups, 1, "the head eventfd went to rpc_ioeventfd");
         let cfg: Vec<u32> = (0..0x1000).step_by(4).map(|o| d.cfg.dword(o)).collect();
         assert_eq!(cfg, before);
         assert!(d.summary().contains("msi re-arm ioeventfd: 2 guest write(s) in 1 wakeup(s)"));

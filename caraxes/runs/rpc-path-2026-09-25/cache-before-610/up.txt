@@ -1,0 +1,7 @@
+dma table: 0:7ff800000000:c0000000,100000000:7ff900000000:40000000
+server pid 3985219, VM pid 3985236; logs in /mnt/vmstore/caraxes/vm2
+ssh up at 192.168.102.22
+probe rpcpath: 69938 device accesses, guest log in /mnt/vmstore/caraxes/vm2/probe-rpcpath/guest-dmesg.txt
+[  138.992659] NVRM: GPU 0000:00:05.0: RmInitAdapter
+[  149.351493] NVRM: GPU 0000:00:05.0: RmInitAdapter succeeded!
+modprobe rc=0
