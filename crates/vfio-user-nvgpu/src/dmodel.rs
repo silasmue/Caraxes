@@ -22,7 +22,8 @@
 //! C, listed in the plan); `MODEL` and `MIRROR` rows without a model stay `unanswered`. The
 //! display rows are answered by the display's board table (display/mod.rs), which asks
 //! [`answer`] for its fallback; this hook in `Dispatcher::control` answers them only when
-//! the display is switched off. Nothing here reaches the host.
+//! the display is switched off. Nothing here reaches the host (the ZBC setters with real
+//! compression excepted, zbc.rs).
 //!
 //! The profiler classes (6.16) are refused at allocation: [`alloc`].
 
@@ -101,7 +102,8 @@ pub struct DCtx<'a> {
     pub reg: &'a crate::channel::Registry,
     /// The host mirrors of the guest's own channels and TSGs.
     pub mirror: Option<&'a mut dyn crate::rc::MirrorOps>,
-    /// The device's host RM client (the L2 flush only).
+    /// The device's host RM client (the L2 flush; with real compression the ZBC table,
+    /// zbc.rs).
     pub host: Option<&'a mut (dyn crate::ctrl::HostRm + 'static)>,
     /// The guest BAR0 (bus address as the guest reported it, size).
     pub bar0: (u64, u64),
@@ -111,12 +113,16 @@ pub struct DCtx<'a> {
 
 /// The state of the D models of one VM (roadmap R2 and the open MODEL rows). Lives in the
 /// dispatcher; nothing of it is the host's, and nothing of it reaches the host but the L2
-/// flush and the per-channel controls on the guest's own mirrors (rc.rs).
+/// flush, the per-channel controls on the guest's own mirrors (rc.rs) and, with real
+/// compression, the ZBC setters (zbc.rs `SliceZbc`).
 pub struct DState {
     chip: &'static crate::chip::ChipData,
     pub rc: crate::rc::RcState,
     /// Created at the first ZBC control from the chip's defaults (zbc.rs).
     pub zbc: Option<crate::zbc::ZbcTable>,
+    /// With real compression (`CARAXES_COMPRESSION=slice`): the VM's share of the host's ZBC
+    /// table, which answers the ZBC controls instead of `zbc` (zbc.rs `SliceZbc`).
+    pub zbc_slice: Option<crate::zbc::SliceZbc>,
     pub compute_mode: u32,
     /// Accounting state by gpuId (`NV0000_CTRL_GPU_ACCOUNTING_STATE_*`).
     pub gpuacct: BTreeMap<u32, u32>,
@@ -194,6 +200,8 @@ impl DState {
                 ..Default::default()
             },
             zbc: None,
+            zbc_slice: crate::zbc::slice_from_env()
+                .then(|| crate::zbc::SliceZbc::new(&chip.name, crate::zbc::max_from_env())),
             compute_mode: 0,
             gpuacct: BTreeMap::new(),
             fecs: (false, 0, 0),
@@ -242,6 +250,13 @@ impl DState {
             "NV2080_CTRL_CMD_INTERNAL_LOG_OOB_XID" => self.rc.log_oob_xid(params),
             "NV2080_CTRL_CMD_RC_SET_CLEAN_ERROR_HISTORY" => self.rc.clean_history(params),
             n if n.starts_with("NV9096_") => {
+                if let Some(s) = self.zbc_slice.as_mut() {
+                    let host = cx
+                        .host
+                        .as_deref_mut()
+                        .map(|h| h as &mut dyn crate::ctrl::HostRm);
+                    return crate::zbc::slice_control(s, host, n, params);
+                }
                 let chip = &self.chip.name;
                 let t = self
                     .zbc
@@ -448,6 +463,24 @@ impl DState {
             _ => return None,
         };
         Some(a)
+    }
+
+    /// With real compression, the guest kernel's `INTERNAL_MEMSYS_SET_ZBC_REFERENCED`
+    /// (zbc.rs `referenced`); `None` otherwise, and chipctl.rs acknowledges it as before.
+    pub fn zbc_referenced(&mut self, cmd: u32, params: &[u8]) -> Option<Answer> {
+        let s = self.zbc_slice.as_mut()?;
+        let id = Abi::active()
+            .routed("NV0080_CTRL_CMD_INTERNAL_MEMSYS_SET_ZBC_REFERENCED")?
+            .id;
+        (cmd == id).then(|| crate::zbc::referenced(s, params))
+    }
+
+    /// VM exit: what the VM leaves in the host's ZBC table (real compression only).
+    pub fn release_zbc(&mut self) -> Vec<String> {
+        self.zbc_slice
+            .as_mut()
+            .map(|s| s.release())
+            .unwrap_or_default()
     }
 
     /// The BAR0 map policy (6.4 rule 3): the kernel answers PTIMER, the usermode page and
