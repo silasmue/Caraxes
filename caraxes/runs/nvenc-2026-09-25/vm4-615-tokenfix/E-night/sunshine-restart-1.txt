@@ -1,0 +1,25 @@
+sunshine_alive_at_end=0
+[2026-09-26 04:37:34.956]: Error: [av1_nvenc @ 0x5dfc3bfbc0c0] Provided device doesn't support required NVENC features
+[2026-09-26 04:37:34.963]: Error: Could not open codec [av1_nvenc]: Function not implemented
+[2026-09-26 04:37:35.527]: Info: // Testing for available encoders, this may generate errors. You can safely ignore those errors. //
+[2026-09-26 04:37:35.527]: Info: // Ignore any errors mentioned above, they are not relevant. //
+[2026-09-26 04:40:12.376]: Error: Couldn't accept incoming connections: Operation canceled
+sunshine pid 23989, listening on 47989 (web UI 47990)
+[2026-09-26 05:05:36.162]: Info: Creating encoder [h264_nvenc]
+[2026-09-26 05:05:37.460]: Error: [h264_nvenc @ 0x5c9f56b4fc40] OpenEncodeSessionEx failed: incompatible client key (21): (no details)
+[2026-09-26 05:05:37.908]: Info: Creating encoder [h264_nvenc]
+[2026-09-26 05:05:38.614]: Error: [h264_nvenc @ 0x5c9f56b4fc40] OpenEncodeSessionEx failed: incompatible client key (21): (no details)
+[2026-09-26 05:05:38.921]: Info: Encoder [nvenc] failed
+[2026-09-26 05:05:38.921]: Info: Creating encoder [h264_vulkan]
+[2026-09-26 05:05:50.062]: Info: Creating encoder [h264_vulkan]
+[2026-09-26 05:06:00.412]: Info: Encoder [vulkan] failed
+[2026-09-26 05:06:00.813]: Info: Encoder [vaapi] failed
+[2026-09-26 05:06:01.034]: Info: Creating encoder [libx264]
+[2026-09-26 05:06:01.054]: Info: Creating encoder [libx264]
+[2026-09-26 05:06:01.122]: Info: Found H.264 encoder: libx264 [software]
+[2026-09-26 05:05:36.101]: Info: config: 'capture' = kms
+[2026-09-26 05:05:36.102]: Info: [wayland] Found monitor: Cyrix Corporation 24"
+[2026-09-26 05:05:36.102]: Info: -------- Start of KMS monitor list --------
+[2026-09-26 05:05:36.102]: Info: Monitor 0 is DP-1: Cyrix Corporation 24"
+[2026-09-26 05:05:36.102]: Info: --------- End of KMS monitor list ---------
+[2026-09-26 05:05:36.102]: Debug: Monitor description

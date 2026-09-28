@@ -1,0 +1,82 @@
+== sessions
+14 1000 leandro -     -    active no -
+36 1000 leandro seat0 tty2 active no -
+== processes
+   2269      45 gdm3
+   3805       1 gdm-session-wor
+   3812       1 gdm-x-session
+== session type
+Name=leandro
+Type=tty
+Class=user
+State=active
+Name=leandro
+Type=x11
+Class=user
+State=active
+== kms
+GRAB no active CRTC framebuffer: No such file or directory
+== gnome-shell / mutter log (errors, KMS, flips, gamma)
+[  186.228295] caraxes-vm4 /usr/libexec/gdm-x-session[3814]: (II) modeset(0): Supported color encodings: RGB 4:4:4
+[  186.228295] caraxes-vm4 /usr/libexec/gdm-x-session[3814]: (II) modeset(0): Default color space is primary color space
+[  186.228295] caraxes-vm4 /usr/libexec/gdm-x-session[3814]: (II) modeset(0): First detailed timing is preferred mode
+[  186.228295] caraxes-vm4 /usr/libexec/gdm-x-session[3814]: (II) modeset(0): Preferred mode is native pixel format and refresh rate
+[  186.228295] caraxes-vm4 /usr/libexec/gdm-x-session[3814]: (II) modeset(0): redX: 0.640 redY: 0.330   greenX: 0.300 greenY: 0.600
+[  186.228295] caraxes-vm4 /usr/libexec/gdm-x-session[3814]: (II) modeset(0): blueX: 0.150 blueY: 0.060   whiteX: 0.312 whiteY: 0.329
+[  186.228295] caraxes-vm4 /usr/libexec/gdm-x-session[3814]: (II) modeset(0): Supported established timings:
+[  186.228295] caraxes-vm4 /usr/libexec/gdm-x-session[3814]: (II) modeset(0): 640x480@60Hz
+[  186.228295] caraxes-vm4 /usr/libexec/gdm-x-session[3814]: (II) modeset(0): Manufacturer's mask: 0
+[  186.228295] caraxes-vm4 /usr/libexec/gdm-x-session[3814]: (II) modeset(0): Supported detailed timing:
+[  186.228295] caraxes-vm4 /usr/libexec/gdm-x-session[3814]: (II) modeset(0): clock: 148.5 MHz   Image Size:  527 x 296 mm
+[  186.228295] caraxes-vm4 /usr/libexec/gdm-x-session[3814]: (II) modeset(0): h_active: 1920  h_sync: 2008  h_sync_end 2052 h_blank_end 2200 h_border: 0
+[  186.228295] caraxes-vm4 /usr/libexec/gdm-x-session[3814]: (II) modeset(0): v_active: 1080  v_sync: 1084  v_sync_end 1089 v_blanking: 1125 v_border: 0
+[  186.228295] caraxes-vm4 /usr/libexec/gdm-x-session[3814]: (II) modeset(0): Supported detailed timing:
+[  186.228622] caraxes-vm4 /usr/libexec/gdm-x-session[3814]: (II) modeset(0): clock: 74.2 MHz   Image Size:  527 x 296 mm
+[  186.228622] caraxes-vm4 /usr/libexec/gdm-x-session[3814]: (II) modeset(0): h_active: 1280  h_sync: 1390  h_sync_end 1430 h_blank_end 1650 h_border: 0
+[  186.228622] caraxes-vm4 /usr/libexec/gdm-x-session[3814]: (II) modeset(0): v_active: 720  v_sync: 725  v_sync_end 730 v_blanking: 750 v_border: 0
+[  186.228622] caraxes-vm4 /usr/libexec/gdm-x-session[3814]: (II) modeset(0): Supported detailed timing:
+[  186.228622] caraxes-vm4 /usr/libexec/gdm-x-session[3814]: (II) modeset(0): clock: 148.5 MHz   Image Size:  527 x 296 mm
+[  186.228622] caraxes-vm4 /usr/libexec/gdm-x-session[3814]: (II) modeset(0): h_active: 1920  h_sync: 2448  h_sync_end 2492 h_blank_end 2640 h_border: 0
+[  186.228622] caraxes-vm4 /usr/libexec/gdm-x-session[3814]: (II) modeset(0): v_active: 1080  v_sync: 1084  v_sync_end 1089 v_blanking: 1125 v_border: 0
+[  186.228622] caraxes-vm4 /usr/libexec/gdm-x-session[3814]: (II) modeset(0): Monitor name: Caraxes DP
+[  186.228622] caraxes-vm4 /usr/libexec/gdm-x-session[3814]: (II) modeset(0): Number of EDID sections to follow: 1
+[  186.228622] caraxes-vm4 /usr/libexec/gdm-x-session[3814]: (II) modeset(0): EDID (in hex):
+[  186.228622] caraxes-vm4 /usr/libexec/gdm-x-session[3814]: (II) modeset(0):         00ffffffffffff000e58020000000000
+[  186.228622] caraxes-vm4 /usr/libexec/gdm-x-session[3814]: (II) modeset(0):         27240104a5351e7806ee91a3544c9926
+[  186.228622] caraxes-vm4 /usr/libexec/gdm-x-session[3814]: (II) modeset(0):         0f505420000001010101010101010101
+[  186.228845] caraxes-vm4 /usr/libexec/gdm-x-session[3814]: (II) modeset(0):         010101010101023a801871382d40582c
+[  186.228845] caraxes-vm4 /usr/libexec/gdm-x-session[3814]: (II) modeset(0):         45000f282100001e011d007251d01e20
+[  186.228845] caraxes-vm4 /usr/libexec/gdm-x-session[3814]: (II) modeset(0):         6e2855000f282100001e023a80d07238
+[  186.228845] caraxes-vm4 /usr/libexec/gdm-x-session[3814]: (II) modeset(0):         2d40102c45800f282100001e000000fc
+[  186.228845] caraxes-vm4 /usr/libexec/gdm-x-session[3814]: (II) modeset(0):         00436172617865732044500a2020011f
+[  186.228845] caraxes-vm4 /usr/libexec/gdm-x-session[3814]: (II) modeset(0):         02030c804410041fc9e2004a00000000
+[  186.228845] caraxes-vm4 /usr/libexec/gdm-x-session[3814]: (II) modeset(0):         00000000000000000000000000000000
+[  186.228845] caraxes-vm4 /usr/libexec/gdm-x-session[3814]: (II) modeset(0):         00000000000000000000000000000000
+[  186.228845] caraxes-vm4 /usr/libexec/gdm-x-session[3814]: (II) modeset(0):         00000000000000000000000000000000
+[  186.228845] caraxes-vm4 /usr/libexec/gdm-x-session[3814]: (II) modeset(0):         00000000000000000000000000000000
+[  186.228845] caraxes-vm4 /usr/libexec/gdm-x-session[3814]: (II) modeset(0):         00000000000000000000000000000000
+[  186.228845] caraxes-vm4 /usr/libexec/gdm-x-session[3814]: (II) modeset(0):         00000000000000000000000000000000
+[  186.228845] caraxes-vm4 /usr/libexec/gdm-x-session[3814]: (II) modeset(0):         00000000000000000000000000000003
+[  186.229080] caraxes-vm4 /usr/libexec/gdm-x-session[3814]: (II) modeset(0): Printing probed modes for output DP-1
+[  186.229080] caraxes-vm4 /usr/libexec/gdm-x-session[3814]: (II) modeset(0): Modeline "1920x1080"x60.0  148.50  1920 2008 2052 2200  1080 1084 1089 1125 +hsync +vsync (67.5 kHz P)
+[  186.229080] caraxes-vm4 /usr/libexec/gdm-x-session[3814]: (II) modeset(0): Modeline "1920x1080"x50.0  148.50  1920 2448 2492 2640  1080 1084 1089 1125 +hsync +vsync (56.2 kHz)
+[  186.229080] caraxes-vm4 /usr/libexec/gdm-x-session[3814]: (II) modeset(0): Modeline "1920x1080"x59.9  148.35  1920 2008 2052 2200  1080 1084 1089 1125 +hsync +vsync (67.4 kHz)
+[  186.229080] caraxes-vm4 /usr/libexec/gdm-x-session[3814]: (II) modeset(0): Modeline "1280x720"x60.0   74.25  1280 1390 1430 1650  720 725 730 750 +hsync +vsync (45.0 kHz)
+[  186.229080] caraxes-vm4 /usr/libexec/gdm-x-session[3814]: (II) modeset(0): Modeline "1280x720"x59.9   74.18  1280 1390 1430 1650  720 725 730 750 +hsync +vsync (45.0 kHz)
+[  186.229080] caraxes-vm4 /usr/libexec/gdm-x-session[3814]: (II) modeset(0): Modeline "640x480"x59.9   25.18  640 656 752 800  480 490 492 525 -hsync -vsync (31.5 kHz)
+[  186.229080] caraxes-vm4 /usr/libexec/gdm-x-session[3814]: (II) modeset(0): Output DP-1 connected
+[  186.229080] caraxes-vm4 /usr/libexec/gdm-x-session[3814]: (II) modeset(0): Using exact sizes for initial modes
+[  186.229080] caraxes-vm4 /usr/libexec/gdm-x-session[3814]: (II) modeset(0): Output DP-1 using initial mode 1920x1080 +0+0
+[  186.229080] caraxes-vm4 /usr/libexec/gdm-x-session[3814]: (==) modeset(0): Using gamma correction (1.0, 1.0, 1.0)
+[  186.229080] caraxes-vm4 /usr/libexec/gdm-x-session[3814]: (==) modeset(0): DPI set to (96, 96)
+[  186.363607] caraxes-vm4 /usr/libexec/gdm-x-session[3814]: (==) modeset(0): Backing store enabled
+[  186.364463] caraxes-vm4 /usr/libexec/gdm-x-session[3814]: (==) modeset(0): Silken mouse enabled
+[  186.364730] caraxes-vm4 /usr/libexec/gdm-x-session[3814]: (II) modeset(0): Initializing kms color map for depth 24, 8 bpc.
+[  186.364818] caraxes-vm4 /usr/libexec/gdm-x-session[3814]: (==) modeset(0): DPMS enabled
+[  186.366018] caraxes-vm4 /usr/libexec/gdm-x-session[3814]: (II) modeset(0): [DRI2] Setup complete
+[  186.366018] caraxes-vm4 /usr/libexec/gdm-x-session[3814]: (II) modeset(0): [DRI2]   DRI driver: nouveau
+[  186.366018] caraxes-vm4 /usr/libexec/gdm-x-session[3814]: (II) modeset(0): [DRI2]   VDPAU driver: nouveau
+[  186.366345] caraxes-vm4 /usr/libexec/gdm-x-session[3814]: (II) Initializing extension RENDER
+== counts
+page_flip_failed=0
+== dmesg

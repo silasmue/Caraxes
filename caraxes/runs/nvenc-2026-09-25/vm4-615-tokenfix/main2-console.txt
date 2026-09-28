@@ -1,0 +1,38 @@
+05:10:34 cell C-combo binary /mnt/vmstore/caraxes/vfio-user-nvgpu-v615-combo-3111dbf9 920947cb pace=pace
+05:14:02 up rc=0
+05:14:03 guest tools: -rwxrwxr-x 1 leandro leandro 41104 Sep 25 14:47 /home/leandro/nvenc/nvenc-probe -rw-r--r-- 1 leandro leandro  2114 Sep 26 03:14 /home/leandro/nvenc/repro2.sh -rwxrwxr-x 1 leandro leandro 16112 Sep 26 01:49 /home/leandro/nvenc/rmioctl-log3.so 
+05:14:23-05:14:43 w1-idle-noclient  | window_s=20.0 kicks=845 kicks_per_s=42.2 | lat: | us=6 sy=3 st=1 in=6285/s | dev: doorbel+:60.7 vfio-us+:10.0 sum:70.7 | vcpu_sum:62.8
+05:15:30-05:15:52 w2-cursor-noclient moves 1971 in 20.01 s | window_s=20.4 kicks=1355 kicks_per_s=66.5 | lat: | us=6 sy=4 st=1 in=6586/s | dev: doorbel+:61.7 vfio-us+:13.9 sum:75.6 | vcpu_sum:67.7
+05:19:21 (a) a1 tries=5: vk 1 rc=0 vk 2 rc=0 vk 3 rc=0 vk 4 rc=0 vk 5 rc=0 | 0x57 total 0 | collisions_avoided=11 host_nvrm_lines=31 va_alloc_failed=31 xid=0
+05:21:59 (a) a2 tries=5: vk 1 rc=0 vk 2 rc=0 vk 3 rc=0 vk 4 rc=0 vk 5 rc=0 | 0x57 total 0 | collisions_avoided=10 host_nvrm_lines=31 va_alloc_failed=31 xid=0
+05:24:38 (a) a3 tries=5: vk 1 rc=0 vk 2 rc=0 vk 3 rc=0 vk 4 rc=0 vk 5 rc=0 | 0x57 total 0 | collisions_avoided=10 host_nvrm_lines=31 va_alloc_failed=31 xid=0
+05:27:16 (a) a4 tries=5: vk 1 rc=0 vk 2 rc=0 vk 3 rc=0 vk 4 rc=0 vk 5 rc=0 | 0x57 total 0 | collisions_avoided=10 host_nvrm_lines=31 va_alloc_failed=31 xid=0
+05:29:54 (a) a5 tries=5: vk 1 rc=0 vk 2 rc=0 vk 3 rc=0 vk 4 rc=0 vk 5 rc=0 | 0x57 total 0 | collisions_avoided=10 host_nvrm_lines=31 va_alloc_failed=31 xid=0
+05:29:54 (a) counting runs (with a collision): 5 of 5
+/home/silas/git/Caraxes/caraxes/runs/nvenc-2026-09-25/vm4-615-tokenfix/tools/cell.sh: line 67: /home/silas/git/Caraxes/caraxes/runs/nvenc-2026-09-25/vm4-615-tokenfix/C-combo/session/moonlight.log: No such file or directory
+05:30:24 moonlight attempt 1: 00:00:21 - SDL Info (0): Received first video packet after 2400 ms
+05:30:34-05:30:54 w3-idle-streaming  | window_s=20.0 kicks=0 kicks_per_s=0.0 | lat: 21.40ms/79.30ms/33.83ms | us=2 sy=2 st=1 in=8042/s | dev: doorbel+:43.8 vfio-us+:40.8 shadow-+:3.0 sum:87.6 | vcpu_sum:37
+05:31:05-05:31:27 w4-cursor-streaming moves 1960 in 20.0 s | window_s=20.3 kicks=786 kicks_per_s=38.7 | lat: 24.30ms/66.50ms/37.79ms | us=2 sy=3 st=1 in=8065/s | dev: doorbel+:43.8 vfio-us+:40.8 sum:84.6 | vcpu_sum:35
+05:32:10 (b) b1: vkcube rc=0 elapsed=18.324317367 0x57=0 | [build] <default>: FPS: 33 FrameTime: 30.688 ms                                   glmark2 Score: 32  glrc=0  | collisions_avoided=2 host_nvrm_lines=0 va_alloc_failed=0 xid=0
+05:32:59 (b) b2: vkcube rc=0 elapsed=18.563599114 0x57=0 | [build] <default>: FPS: 27 FrameTime: 37.665 ms                                   glmark2 Score: 26  glrc=0  | collisions_avoided=2 host_nvrm_lines=0 va_alloc_failed=0 xid=0
+05:33:50 (b) b3: vkcube rc=0 elapsed=21.045764370 0x57=0 | [build] <default>: FPS: 32 FrameTime: 32.095 ms                                   glmark2 Score: 31  glrc=0  | collisions_avoided=2 host_nvrm_lines=0 va_alloc_failed=0 xid=0
+05:34:41 (b) b4: vkcube rc=0 elapsed=21.295342121 0x57=0 | [build] <default>: FPS: 31 FrameTime: 32.659 ms                                   glmark2 Score: 30  glrc=0  | collisions_avoided=2 host_nvrm_lines=0 va_alloc_failed=0 xid=0
+05:37:23 (c) c1: vkmark rc=0 elapsed=139.984486557 score [                                   vkmark Score: 50] | collisions_avoided=1 host_nvrm_lines=0 va_alloc_failed=0 xid=0
+05:37:23-05:37:45 w6-cursor-streaming moves 1961 in 20.0 s | window_s=20.3 kicks=744 kicks_per_s=36.6 | lat: 23.90ms/106.20ms/38.52ms | us=2 sy=3 st=1 in=7957/s | dev: doorbel+:41.8 vfio-us+:40.8 sum:82.6 | vcpu_sum:36
+05:37:57 guest: flip warnings 0, TLB invalidation failed 0, Xid 0
+05:37:57 down
+05:38:18 done: host NVRM lines 155, VA alloc failed 155, Xid 0; device failures 76
+05:38:48 cell B2-invhold binary /mnt/vmstore/caraxes/vfio-user-nvgpu-v615-invhold-3bad9810 5c480789 pace=no
+05:42:13 up rc=0
+05:42:13 guest tools: -rwxrwxr-x 1 leandro leandro 41104 Sep 25 14:47 /home/leandro/nvenc/nvenc-probe -rw-r--r-- 1 leandro leandro  2114 Sep 26 03:42 /home/leandro/nvenc/repro2.sh -rwxrwxr-x 1 leandro leandro 16112 Sep 26 01:49 /home/leandro/nvenc/rmioctl-log3.so 
+05:42:35 (a) counting runs (with a collision): 0 of 0
+/home/silas/git/Caraxes/caraxes/runs/nvenc-2026-09-25/vm4-615-tokenfix/tools/cell.sh: line 67: /home/silas/git/Caraxes/caraxes/runs/nvenc-2026-09-25/vm4-615-tokenfix/B2-invhold/session/moonlight.log: No such file or directory
+05:43:24 moonlight attempt 1: 00:00:30 - SDL Info (0): Received first video packet after 3100 ms
+05:46:07 (b) b1: bash: line 1:  5602 Aborted                 LD_PRELOAD=~/nvenc/rmioctl-log3.so timeout 90  | [build] <default>: FPS: 1 FrameTime: 38719.375 ms                                   glmark2 Score: 0  glrc=124 | collisions_avoided=0 host_nvrm_lines=0 va_alloc_failed=0 xid=0
+05:48:45 (b) b2: bash: line 1:  5869 Aborted                 LD_PRELOAD=~/nvenc/rmioctl-log3.so timeout 90  | [build] <default>: FPS: 1 FrameTime: 36736.712 ms                                   glmark2 Score: 0  glrc=124 | collisions_avoided=0 host_nvrm_lines=0 va_alloc_failed=0 xid=0
+05:51:19 (b) b3: bash: line 1:  6143 Aborted                 LD_PRELOAD=~/nvenc/rmioctl-log3.so timeout 90  | [build] <default>: FPS: 1 FrameTime: 36068.480 ms                                   glmark2 Score: 0  glrc=124 | collisions_avoided=0 host_nvrm_lines=0 va_alloc_failed=0 xid=0
+05:53:53 (b) b4: bash: line 1:  6373 Aborted                 LD_PRELOAD=~/nvenc/rmioctl-log3.so timeout 90  | [build] <default>: FPS: 1 FrameTime: 36015.864 ms                                   glmark2 Score: 0  glrc=124 | collisions_avoided=0 host_nvrm_lines=0 va_alloc_failed=0 xid=0
+05:54:47 (c) c1: vkmark rc=1 elapsed=36.924870436 score [] | collisions_avoided=0 host_nvrm_lines=0 va_alloc_failed=0 xid=0
+05:54:48 guest: flip warnings 0, TLB invalidation failed 0, Xid 0
+05:54:48 down
+05:55:09 done: host NVRM lines 0, VA alloc failed 0, Xid 0; device failures 27

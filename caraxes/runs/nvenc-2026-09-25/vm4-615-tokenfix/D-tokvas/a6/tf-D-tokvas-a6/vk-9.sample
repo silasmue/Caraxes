@@ -1,0 +1,41 @@
+== +0 s 1790396078.985071148
+24785 vkcube-wayland st=R wchan=0 sys=
+== +1 s 1790396080.005291852
+24785 vkcube-wayland st=R wchan=0 sys=
+== +2 s 1790396081.014876131
+24785 vkcube-wayland st=R wchan=0 sys=
+24815 vkcube-wayland st=S wchan=futex_wait_queue sys=
+24816 [vkcf] Analysis st=Analysis) wchan=futex_wait_queue sys=
+24818 [vkrt] Analysis st=Analysis) wchan=futex_wait_queue sys=
+24819 [vkps] Update st=Update) wchan=futex_wait_queue sys=
+24821 vkcube-wayland st=S wchan=futex_wait_queue sys=
+== +3 s 1790396082.082807004
+24785 vkcube-wayland st=D wchan=os_acquire_rwlock_write sys=
+24815 vkcube-wayland st=S wchan=futex_wait_queue sys=
+24816 [vkcf] Analysis st=Analysis) wchan=futex_wait_queue sys=
+24818 [vkrt] Analysis st=Analysis) wchan=futex_wait_queue sys=
+24819 [vkps] Update st=Update) wchan=futex_wait_queue sys=
+24821 vkcube-wayland st=S wchan=futex_wait_queue sys=
+== +4 s 1790396083.131092069
+24785 vkcube-wayland st=S wchan=do_poll.constprop.0 sys=
+24815 vkcube-wayland st=S wchan=futex_wait_queue sys=
+24816 [vkcf] Analysis st=Analysis) wchan=futex_wait_queue sys=
+24818 [vkrt] Analysis st=Analysis) wchan=futex_wait_queue sys=
+24819 [vkps] Update st=Update) wchan=0 sys=
+24821 vkcube-wayland st=S wchan=futex_wait_queue sys=
+== +5 s 1790396084.174831942
+24785 vkcube-wayland st=S wchan=do_poll.constprop.0 sys=
+24815 vkcube-wayland st=S wchan=futex_wait_queue sys=
+24816 [vkcf] Analysis st=Analysis) wchan=futex_wait_queue sys=
+24818 [vkrt] Analysis st=Analysis) wchan=futex_wait_queue sys=
+24819 [vkps] Update st=Update) wchan=futex_wait_queue sys=
+24821 vkcube-wayland st=S wchan=futex_wait_queue sys=
+== +6 s 1790396085.216530654
+24785 vkcube-wayland st=R wchan=0 sys=
+24815 vkcube-wayland st=S wchan=futex_wait_queue sys=
+24816 [vkcf] Analysis st=Analysis) wchan=futex_wait_queue sys=
+24818 [vkrt] Analysis st=Analysis) wchan=futex_wait_queue sys=
+24819 [vkps] Update st=Update) wchan=futex_wait_queue sys=
+24821 vkcube-wayland st=S wchan=futex_wait_queue sys=
+== +7 s 1790396086.676912246
+24785 vkcube-wayland st=R wchan=0 sys=

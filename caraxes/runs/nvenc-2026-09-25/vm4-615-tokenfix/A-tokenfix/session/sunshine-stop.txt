@@ -1,0 +1,9 @@
+sunshine_alive_at_end=1
+[2026-09-26 02:48:43.798]: Warning: setpriority failed for nice -10: Permission denied
+[2026-09-26 02:48:44.317]: Debug: RTKit: Could not set priority: GDBus.Error:org.freedesktop.DBus.Error.AccessDenied: Operation not permitted
+[2026-09-26 02:48:44.317]: Warning: setpriority failed for nice -15: Permission denied
+[2026-09-26 02:48:44.325]: Debug: RTKit: Could not set priority: GDBus.Error:org.freedesktop.DBus.Error.AccessDenied: Operation not permitted
+[2026-09-26 02:48:44.325]: Warning: setpriority failed for nice -10: Permission denied
+[2026-09-26 02:48:44.547]: Debug: RTKit: Could not set priority: GDBus.Error:org.freedesktop.DBus.Error.AccessDenied: Operation not permitted
+[2026-09-26 02:48:44.547]: Warning: setpriority failed for nice -15: Permission denied
+[2026-09-26 02:56:03.204]: Error: Couldn't set default-sink [auto_null]: No such entity

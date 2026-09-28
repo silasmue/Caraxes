@@ -1,0 +1,11 @@
+Traceback (most recent call last):
+  File "/home/silas/git/Caraxes/caraxes/runs/win11-2026-09-25/qga.py", line 113, in <module>
+    sys.exit(main(sys.argv))
+             ~~~~^^^^^^^^^^
+  File "/home/silas/git/Caraxes/caraxes/runs/win11-2026-09-25/qga.py", line 91, in main
+    q = Qga()
+  File "/home/silas/git/Caraxes/caraxes/runs/win11-2026-09-25/qga.py", line 29, in __init__
+    r = self._recv()
+  File "/home/silas/git/Caraxes/caraxes/runs/win11-2026-09-25/qga.py", line 35, in _recv
+    d = self.s.recv(65536)
+TimeoutError: timed out

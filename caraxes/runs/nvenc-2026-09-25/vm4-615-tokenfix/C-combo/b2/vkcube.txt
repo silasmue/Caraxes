@@ -1,0 +1,1 @@
+vkcube rc=0 elapsed=18.563599114 0x57=0

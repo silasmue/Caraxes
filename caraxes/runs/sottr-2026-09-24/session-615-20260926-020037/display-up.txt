@@ -1,0 +1,5 @@
+card0-DP-1 connected 1920x1080 1920x1080 1920x1080 1280x720 1280x720 640x480 
+nvidia_uvm           2068480  0
+nvidia_drm            151552  0
+nvidia_modeset       1544192  1 nvidia_drm
+nvidia              16871424  2 nvidia_uvm,nvidia_modeset

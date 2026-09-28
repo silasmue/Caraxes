@@ -1,0 +1,88 @@
+== sessions
+12 1000 leandro -     -    active no -
+13 1000 leandro seat0 tty2 active no -
+== processes
+   1895      45 gdm3
+   1912      44 gdm-session-wor
+   1925      44 gdm-wayland-ses
+   2046      44 gnome-shell
+   2082      44 colord
+   2116      43 gnome-shell-cal
+   2160      43 gsd-color
+   2763      31 Xwayland
+   2798      30 mutter-x11-fram
+== session type
+Name=leandro
+Type=tty
+Class=user
+State=active
+Name=leandro
+Type=wayland
+Class=user
+State=active
+== kms
+GRAB crtc 66 fb 137 1920x1080 format XR24 modifier 0x300000000606014 pitch 7680 handle 1 mode 1920x1080@60
+== gnome-shell / mutter log (errors, KMS, flips, gamma)
+[  140.782920] caraxes-vm4-615 gnome-shell[2046]: Error looking up permission: GDBus.Error:org.freedesktop.portal.Error.NotFound: No entry for geolocation
+[  141.006301] caraxes-vm4-615 gnome-shell[2046]: Failed to import DBusMenu, quicklists are not available: Error: Requiring Dbusmenu, version none: Typelib file for namespace 'Dbusmenu' (any version) not found
+[  141.006456] caraxes-vm4-615 gnome-shell[2046]: Failed to import DBusMenu, quicklists are not available: Error: Requiring Dbusmenu, version none: Typelib file for namespace 'Dbusmenu' (any version) not found
+[  141.006496] caraxes-vm4-615 gnome-shell[2046]: Failed to import DBusMenu, quicklists are not available: Error: Requiring Dbusmenu, version none: Typelib file for namespace 'Dbusmenu' (any version) not found
+[  141.116031] caraxes-vm4-615 gnome-shell[2046]: Window manager warning: Overwriting existing binding of keysym 39 with keysym 39 (keycode 12).
+[  141.116031] caraxes-vm4-615 gnome-shell[2046]: Window manager warning: Overwriting existing binding of keysym 39 with keysym 39 (keycode 12).
+[  141.116145] caraxes-vm4-615 gnome-shell[2046]: Window manager warning: Overwriting existing binding of keysym 36 with keysym 36 (keycode f).
+[  141.116231] caraxes-vm4-615 gnome-shell[2046]: Window manager warning: Overwriting existing binding of keysym 34 with keysym 34 (keycode d).
+[  141.116310] caraxes-vm4-615 gnome-shell[2046]: Window manager warning: Overwriting existing binding of keysym 34 with keysym 34 (keycode d).
+[  141.116414] caraxes-vm4-615 gnome-shell[2046]: Window manager warning: Overwriting existing binding of keysym 31 with keysym 31 (keycode a).
+[  141.116521] caraxes-vm4-615 gnome-shell[2046]: Window manager warning: Overwriting existing binding of keysym 35 with keysym 35 (keycode e).
+[  141.116606] caraxes-vm4-615 gnome-shell[2046]: Window manager warning: Overwriting existing binding of keysym 38 with keysym 38 (keycode 11).
+[  141.116644] caraxes-vm4-615 gnome-shell[2046]: Window manager warning: Overwriting existing binding of keysym 33 with keysym 33 (keycode c).
+[  141.116677] caraxes-vm4-615 gnome-shell[2046]: Window manager warning: Overwriting existing binding of keysym 38 with keysym 38 (keycode 11).
+[  141.116703] caraxes-vm4-615 gnome-shell[2046]: Window manager warning: Overwriting existing binding of keysym 32 with keysym 32 (keycode b).
+[  141.116703] caraxes-vm4-615 gnome-shell[2046]: Window manager warning: Overwriting existing binding of keysym 36 with keysym 36 (keycode f).
+[  141.116764] caraxes-vm4-615 gnome-shell[2046]: Window manager warning: Overwriting existing binding of keysym 32 with keysym 32 (keycode b).
+[  141.116764] caraxes-vm4-615 gnome-shell[2046]: Window manager warning: Overwriting existing binding of keysym 37 with keysym 37 (keycode 10).
+[  141.116899] caraxes-vm4-615 gnome-shell[2046]: Window manager warning: Overwriting existing binding of keysym 37 with keysym 37 (keycode 10).
+[  141.116938] caraxes-vm4-615 gnome-shell[2046]: Window manager warning: Overwriting existing binding of keysym 31 with keysym 31 (keycode a).
+[  141.116960] caraxes-vm4-615 gnome-shell[2046]: Window manager warning: Overwriting existing binding of keysym 33 with keysym 33 (keycode c).
+[  141.117119] caraxes-vm4-615 gnome-shell[2046]: Window manager warning: Overwriting existing binding of keysym 35 with keysym 35 (keycode e).
+[  142.087366] caraxes-vm4-615 gnome-shell[2046]: DING: (gjs:2595): Gjs-WARNING **: 10:31:45.738: GLib.unix_signal_add has been moved to a separate platform-specific library. Please update your code to use GLibUnix.signal_add instead.
+[  152.746928] caraxes-vm4-615 gnome-shell[2769]: > Warning:          Could not resolve keysym XF86CameraAccessEnable
+[  152.746928] caraxes-vm4-615 gnome-shell[2769]: > Warning:          Could not resolve keysym XF86CameraAccessDisable
+[  152.746928] caraxes-vm4-615 gnome-shell[2769]: > Warning:          Could not resolve keysym XF86CameraAccessToggle
+[  152.746928] caraxes-vm4-615 gnome-shell[2769]: > Warning:          Could not resolve keysym XF86NextElement
+[  152.746928] caraxes-vm4-615 gnome-shell[2769]: > Warning:          Could not resolve keysym XF86PreviousElement
+[  152.746928] caraxes-vm4-615 gnome-shell[2769]: > Warning:          Could not resolve keysym XF86AutopilotEngageToggle
+[  152.746928] caraxes-vm4-615 gnome-shell[2769]: > Warning:          Could not resolve keysym XF86MarkWaypoint
+[  152.746928] caraxes-vm4-615 gnome-shell[2769]: > Warning:          Could not resolve keysym XF86Sos
+[  152.746928] caraxes-vm4-615 gnome-shell[2769]: > Warning:          Could not resolve keysym XF86NavChart
+[  152.746928] caraxes-vm4-615 gnome-shell[2769]: > Warning:          Could not resolve keysym XF86FishingChart
+[  152.746928] caraxes-vm4-615 gnome-shell[2769]: > Warning:          Could not resolve keysym XF86SingleRangeRadar
+[  152.747627] caraxes-vm4-615 gnome-shell[2769]: > Warning:          Could not resolve keysym XF86DualRangeRadar
+[  152.747627] caraxes-vm4-615 gnome-shell[2769]: > Warning:          Could not resolve keysym XF86RadarOverlay
+[  152.747627] caraxes-vm4-615 gnome-shell[2769]: > Warning:          Could not resolve keysym XF86TraditionalSonar
+[  152.747627] caraxes-vm4-615 gnome-shell[2769]: > Warning:          Could not resolve keysym XF86ClearvuSonar
+[  152.747627] caraxes-vm4-615 gnome-shell[2769]: > Warning:          Could not resolve keysym XF86SidevuSonar
+[  152.747627] caraxes-vm4-615 gnome-shell[2769]: > Warning:          Could not resolve keysym XF86NavInfo
+[  152.747749] caraxes-vm4-615 gnome-shell[2769]: Errors from xkbcomp are not fatal to the X server
+[  152.754879] caraxes-vm4-615 gnome-shell[2772]: > Warning:          Unsupported maximum keycode 708, clipping.
+[  152.755587] caraxes-vm4-615 gnome-shell[2772]: > Warning:          Could not resolve keysym XF86CameraAccessEnable
+[  152.755587] caraxes-vm4-615 gnome-shell[2772]: > Warning:          Could not resolve keysym XF86CameraAccessDisable
+[  152.755587] caraxes-vm4-615 gnome-shell[2772]: > Warning:          Could not resolve keysym XF86CameraAccessToggle
+[  152.755689] caraxes-vm4-615 gnome-shell[2772]: > Warning:          Could not resolve keysym XF86NextElement
+[  152.755689] caraxes-vm4-615 gnome-shell[2772]: > Warning:          Could not resolve keysym XF86PreviousElement
+[  152.755689] caraxes-vm4-615 gnome-shell[2772]: > Warning:          Could not resolve keysym XF86AutopilotEngageToggle
+[  152.755689] caraxes-vm4-615 gnome-shell[2772]: > Warning:          Could not resolve keysym XF86MarkWaypoint
+[  152.755689] caraxes-vm4-615 gnome-shell[2772]: > Warning:          Could not resolve keysym XF86Sos
+[  152.755689] caraxes-vm4-615 gnome-shell[2772]: > Warning:          Could not resolve keysym XF86NavChart
+[  152.755689] caraxes-vm4-615 gnome-shell[2772]: > Warning:          Could not resolve keysym XF86FishingChart
+[  152.755689] caraxes-vm4-615 gnome-shell[2772]: > Warning:          Could not resolve keysym XF86SingleRangeRadar
+[  152.755689] caraxes-vm4-615 gnome-shell[2772]: > Warning:          Could not resolve keysym XF86DualRangeRadar
+[  152.755689] caraxes-vm4-615 gnome-shell[2772]: > Warning:          Could not resolve keysym XF86RadarOverlay
+[  152.755689] caraxes-vm4-615 gnome-shell[2772]: > Warning:          Could not resolve keysym XF86TraditionalSonar
+[  152.755689] caraxes-vm4-615 gnome-shell[2772]: > Warning:          Could not resolve keysym XF86ClearvuSonar
+[  152.755689] caraxes-vm4-615 gnome-shell[2772]: > Warning:          Could not resolve keysym XF86SidevuSonar
+[  152.755689] caraxes-vm4-615 gnome-shell[2772]: > Warning:          Could not resolve keysym XF86NavInfo
+[  152.756153] caraxes-vm4-615 gnome-shell[2772]: Errors from xkbcomp are not fatal to the X server
+== counts
+page_flip_failed=0
+== dmesg

@@ -1,0 +1,22 @@
+== vkcube
+Authorization required, but no authorization protocol specified
+
+Cannot connect to XCB.
+Exiting ...
+rc=1
+== sniper
+runtime: /games/SteamLibrary/steamapps/common/SteamLinuxRuntime_sniper (depot 3.0.20260805.254768   # Overall version number)
+rc=0 (185742 bytes, ~/sniper-system-info.json)
+overall issues: None
+vulkan icd: /usr/lib/pressure-vessel/overrides/share/vulkan/icd.d/radeon_icd.json libvulkan_radeon.so  issues: None
+vulkan icd: /usr/lib/pressure-vessel/overrides/share/vulkan/icd.d/gfxstream_vk_icd.json libvulkan_gfxstream.so  issues: None
+vulkan icd: /usr/lib/pressure-vessel/overrides/share/vulkan/icd.d/asahi_icd.json libvulkan_asahi.so  issues: None
+vulkan icd: /usr/lib/pressure-vessel/overrides/share/vulkan/icd.d/virtio_icd.json libvulkan_virtio.so  issues: None
+vulkan icd: /usr/lib/pressure-vessel/overrides/share/vulkan/icd.d/intel_hasvk_icd.json libvulkan_intel_hasvk.so  issues: None
+vulkan icd: /usr/lib/pressure-vessel/overrides/share/vulkan/icd.d/lvp_icd.json libvulkan_lvp.so  issues: None
+vulkan icd: /usr/lib/pressure-vessel/overrides/share/vulkan/icd.d/nvidia_icd.json libGLX_nvidia.so.0  issues: None
+vulkan icd: /usr/lib/pressure-vessel/overrides/share/vulkan/icd.d/intel_icd.json libvulkan_intel.so  issues: None
+vulkan icd: /usr/lib/pressure-vessel/overrides/share/vulkan/icd.d/nouveau_icd.json libvulkan_nouveau.so  issues: None
+egl icd: /usr/lib/pressure-vessel/overrides/share/glvnd/egl_vendor.d/10_nvidia.json libEGL_nvidia.so.0 issues: None
+egl icd: /usr/lib/pressure-vessel/overrides/share/glvnd/egl_vendor.d/50_mesa.json libEGL_mesa.so.0 issues: None
+container: pressure-vessel /run/host

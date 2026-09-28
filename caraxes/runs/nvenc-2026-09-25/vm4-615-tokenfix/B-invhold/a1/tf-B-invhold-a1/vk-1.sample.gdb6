@@ -1,0 +1,64 @@
+[Thread debugging using libthread_db enabled]
+Using host libthread_db library "/lib/x86_64-linux-gnu/libthread_db.so.1".
+0x00007169d448bb2d in ?? () from /lib/x86_64-linux-gnu/libnvidia-eglcore.so.615.71.09
+
+Thread 1 (Thread 0x7169ef03a4c0 (LWP 5296) "vkcube-wayland"):
+#0  0x00007169d448bb2d in ?? () from /lib/x86_64-linux-gnu/libnvidia-eglcore.so.615.71.09
+#1  0x00007169d44975ef in ?? () from /lib/x86_64-linux-gnu/libnvidia-eglcore.so.615.71.09
+#2  0x00007169d441d4d5 in ?? () from /lib/x86_64-linux-gnu/libnvidia-eglcore.so.615.71.09
+#3  0x00007169d44e9e28 in ?? () from /lib/x86_64-linux-gnu/libnvidia-eglcore.so.615.71.09
+#4  0x00007169d44ec104 in ?? () from /lib/x86_64-linux-gnu/libnvidia-eglcore.so.615.71.09
+#5  0x00007169d43e656d in ?? () from /lib/x86_64-linux-gnu/libnvidia-eglcore.so.615.71.09
+#6  0x00007169d43c08c4 in ?? () from /lib/x86_64-linux-gnu/libnvidia-eglcore.so.615.71.09
+#7  0x00007169d43c106b in ?? () from /lib/x86_64-linux-gnu/libnvidia-eglcore.so.615.71.09
+rax            0xef657b3           251025331
+rbx            0xef657b3           251025331
+rcx            0x0                 0
+rdx            0xef657b3           251025331
+rsi            0x0                 0
+rdi            0x0                 0
+rbp            0x7169d5f9d960      0x7169d5f9d960
+rsp            0x7ffd28a47df0      0x7ffd28a47df0
+r8             0x0                 0
+r9             0x0                 0
+r10            0x0                 0
+r11            0x0                 0
+r12            0xef657c6           251025350
+r13            0x6032e8dc0a30      105771771365936
+r14            0xef657b2           251025330
+r15            0x0                 0
+rip            0x7169d448bb2d      0x7169d448bb2d
+eflags         0x297               [ CF PF AF SF IF ]
+cs             0x33                51
+ss             0x2b                43
+ds             0x0                 0
+es             0x0                 0
+fs             0x0                 0
+gs             0x0                 0
+fs_base        0x7169ef03a4c0      124699795498176
+gs_base        0x0                 0
+   0x7169d448bafd:	je     0x7169d448bb08
+   0x7169d448baff:	cmpl   $0x1,0x2b2e0(%rbx)
+   0x7169d448bb06:	je     0x7169d448bb70
+   0x7169d448bb08:	mov    $0x3,%edi
+   0x7169d448bb0d:	call   *0x280(%rbp)
+   0x7169d448bb13:	mov    %r14,%rbx
+   0x7169d448bb16:	jmp    0x7169d448bb37
+   0x7169d448bb18:	nopl   0x0(%rax,%rax,1)
+   0x7169d448bb20:	pause
+   0x7169d448bb22:	mov    %rax,%rbx
+   0x7169d448bb25:	pause
+   0x7169d448bb27:	pause
+   0x7169d448bb29:	pause
+   0x7169d448bb2b:	pause
+=> 0x7169d448bb2d:	pause
+   0x7169d448bb2f:	pause
+   0x7169d448bb31:	pause
+   0x7169d448bb33:	pause
+   0x7169d448bb35:	pause
+   0x7169d448bb37:	call   *0x290(%rbp)
+   0x7169d448bb3d:	cmp    %r12,%rax
+   0x7169d448bb40:	jge    0x7169d448bb47
+   0x7169d448bb42:	cmp    %rax,%rbx
+   0x7169d448bb45:	jl     0x7169d448bb20
+[Inferior 1 (process 5296) detached]

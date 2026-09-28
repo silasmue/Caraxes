@@ -1,0 +1,36 @@
+
+
+
+TimeCreated : 26.09.2026 03:30:19
+Id          : 457
+Message     : Miniport driver failed to start device with status {Vorgang fehlgeschlagen}
+              Der Vorgang konnte nicht durchgef�hrt werden.
+
+TimeCreated : 26.09.2026 03:30:19
+Id          : 549
+Message     : Adapter start failed for VendorId (0x10DE) failed with the status ({Vorgang fehlgeschlagen}
+              Der Vorgang konnte nicht durchgef�hrt werden.), reason (StartAdapter_DdiStartDeviceFailed)
+
+TimeCreated : 26.09.2026 03:25:25
+Id          : 457
+Message     : Miniport driver failed to start device with status {Vorgang fehlgeschlagen}
+              Der Vorgang konnte nicht durchgef�hrt werden.
+
+TimeCreated : 26.09.2026 03:25:25
+Id          : 549
+Message     : Adapter start failed for VendorId (0x10DE) failed with the status ({Vorgang fehlgeschlagen}
+              Der Vorgang konnte nicht durchgef�hrt werden.), reason (StartAdapter_DdiStartDeviceFailed)
+
+
+
+
+
+
+InstanceId : PCI\VEN_10DE&DEV_1F02&SUBSYS_40111458&REV_A1\3&11583659&0&30
+Status     : Error
+Problem    : CM_PROB_FAILED_POST_START
+
+
+
+
+[exit 0]

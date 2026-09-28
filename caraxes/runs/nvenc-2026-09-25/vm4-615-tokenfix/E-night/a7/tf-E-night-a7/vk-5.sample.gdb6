@@ -1,0 +1,77 @@
+[New LWP 18533]
+[Thread debugging using libthread_db enabled]
+Using host libthread_db library "/lib/x86_64-linux-gnu/libthread_db.so.1".
+__GI___ioctl (fd=12, request=3222292009) at ../sysdeps/unix/sysv/linux/ioctl.c:36
+
+warning: 36	../sysdeps/unix/sysv/linux/ioctl.c: No such file or directory
+
+Thread 2 (Thread 0x74920fbff6c0 (LWP 18533) "vkcube-wayland"):
+#0  0x0000749231098e51 in __futex_abstimed_wait_common64 (private=29842, cancel=true, abstime=0x74920fbfede0, op=393, expected=0, futex_word=0x749208000d48) at ./nptl/futex-internal.c:57
+#1  __futex_abstimed_wait_common (cancel=true, private=29842, abstime=0x74920fbfede0, clockid=29842, expected=0, futex_word=0x749208000d48) at ./nptl/futex-internal.c:87
+#2  __GI___futex_abstimed_wait_cancelable64 (futex_word=futex_word@entry=0x749208000d48, expected=expected@entry=0, clockid=clockid@entry=0, abstime=abstime@entry=0x74920fbfede0, private=private@entry=0) at ./nptl/futex-internal.c:139
+#3  0x000074923109bd6e in __pthread_cond_wait_common (abstime=0x74920fbfede0, clockid=0, mutex=0x5bea9d901f30, cond=0x749208000d20) at ./nptl/pthread_cond_wait.c:503
+#4  ___pthread_cond_timedwait64 (cond=0x749208000d20, mutex=0x5bea9d901f30, abstime=0x74920fbfede0) at ./nptl/pthread_cond_wait.c:652
+#5  0x000074921657b4d0 in ?? () from /lib/x86_64-linux-gnu/libnvidia-eglcore.so.615.71.09
+#6  0x00007492168f66ca in ?? () from /lib/x86_64-linux-gnu/libnvidia-eglcore.so.615.71.09
+#7  0x000074921657edea in ?? () from /lib/x86_64-linux-gnu/libnvidia-eglcore.so.615.71.09
+
+Thread 1 (Thread 0x74923134a4c0 (LWP 18503) "vkcube-wayland"):
+#0  __GI___ioctl (fd=12, request=3222292009) at ../sysdeps/unix/sysv/linux/ioctl.c:36
+#1  0x00007492314652d9 in ioctl () from /home/leandro/nvenc/rmioctl-log3.so
+#2  0x0000749216a748d9 in ?? () from /lib/x86_64-linux-gnu/libnvidia-eglcore.so.615.71.09
+#3  0x0000749216a76760 in ?? () from /lib/x86_64-linux-gnu/libnvidia-eglcore.so.615.71.09
+#4  0x0000749216a77491 in ?? () from /lib/x86_64-linux-gnu/libnvidia-eglcore.so.615.71.09
+#5  0x00007492165e256f in ?? () from /lib/x86_64-linux-gnu/libnvidia-eglcore.so.615.71.09
+#6  0x00007492165e4170 in ?? () from /lib/x86_64-linux-gnu/libnvidia-eglcore.so.615.71.09
+#7  0x00007492165e4408 in ?? () from /lib/x86_64-linux-gnu/libnvidia-eglcore.so.615.71.09
+rax            0x0                 0
+rbx            0xc0104629          3222292009
+rcx            0x7492311250bd      128171237331133
+rdx            0x7ffd43b7be50      140725739568720
+rsi            0xc0104629          3222292009
+rdi            0xc                 12
+rbp            0x7ffd43b7bba0      0x7ffd43b7bba0
+rsp            0x7ffd43b7bb50      0x7ffd43b7bb50
+r8             0x0                 0
+r9             0x0                 0
+r10            0x0                 0
+r11            0x246               582
+r12            0x7ffd43b7bbf0      140725739568112
+r13            0x749231125080      128171237331072
+r14            0x118caaa0          294431392
+r15            0xc                 12
+rip            0x7492311250bd      0x7492311250bd <__GI___ioctl+61>
+eflags         0x246               [ PF ZF IF ]
+cs             0x33                51
+ss             0x2b                43
+ds             0x0                 0
+es             0x0                 0
+fs             0x0                 0
+gs             0x0                 0
+fs_base        0x74923134a4c0      128171239580864
+gs_base        0x0                 0
+   0x74923112508d <__GI___ioctl+13>:	mov    %edx,-0x20(%rbp)
+   0x749231125090 <__GI___ioctl+16>:	mov    %fs:0x28,%rax
+   0x749231125099 <__GI___ioctl+25>:	mov    %rax,-0x38(%rbp)
+   0x74923112509d <__GI___ioctl+29>:	xor    %eax,%eax
+   0x74923112509f <__GI___ioctl+31>:	lea    0x10(%rbp),%rax
+   0x7492311250a3 <__GI___ioctl+35>:	movl   $0x10,-0x50(%rbp)
+   0x7492311250aa <__GI___ioctl+42>:	mov    %rax,-0x48(%rbp)
+   0x7492311250ae <__GI___ioctl+46>:	lea    -0x30(%rbp),%rax
+   0x7492311250b2 <__GI___ioctl+50>:	mov    %rax,-0x40(%rbp)
+   0x7492311250b6 <__GI___ioctl+54>:	mov    $0x10,%eax
+   0x7492311250bb <__GI___ioctl+59>:	syscall
+=> 0x7492311250bd <__GI___ioctl+61>:	mov    %eax,%edx
+   0x7492311250bf <__GI___ioctl+63>:	cmp    $0xfffff000,%eax
+   0x7492311250c4 <__GI___ioctl+68>:	ja     0x7492311250e0 <__GI___ioctl+96>
+   0x7492311250c6 <__GI___ioctl+70>:	mov    -0x38(%rbp),%rax
+   0x7492311250ca <__GI___ioctl+74>:	sub    %fs:0x28,%rax
+   0x7492311250d3 <__GI___ioctl+83>:	jne    0x7492311250f3 <__GI___ioctl+115>
+   0x7492311250d5 <__GI___ioctl+85>:	leave
+   0x7492311250d6 <__GI___ioctl+86>:	mov    %edx,%eax
+   0x7492311250d8 <__GI___ioctl+88>:	ret
+   0x7492311250d9 <__GI___ioctl+89>:	nopl   0x0(%rax)
+   0x7492311250e0 <__GI___ioctl+96>:	mov    0xded11(%rip),%rdx        # 0x749231203df8
+   0x7492311250e7 <__GI___ioctl+103>:	neg    %eax
+   0x7492311250e9 <__GI___ioctl+105>:	mov    %eax,%fs:(%rdx)
+[Inferior 1 (process 18503) detached]

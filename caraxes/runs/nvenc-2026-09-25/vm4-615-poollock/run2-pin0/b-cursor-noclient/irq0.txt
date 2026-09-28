@@ -1,0 +1,35 @@
+           CPU0       CPU1       CPU2       CPU3       CPU4       CPU5       CPU6       CPU7       
+ 24:          0          0          0          0          0          0          0       1414   IO-APIC   4-edge      ttyS0
+ 25:          0          0          0          0          0          0          0          0   IO-APIC  13-edge      ACPI:Ged
+ 26:          0          0          0          0          0          0          0          0  PCI-MSIX-0000:00:01.0   0-edge      virtio0-config
+ 27:          0          0          0          0          0          0          0      39914  PCI-MSIX-0000:00:01.0   1-edge      virtio0-req.0
+ 28:          0          0          0          0          0          0          0          0  PCI-MSIX-0000:00:02.0   0-edge      virtio1-config
+ 29:          0          0          0          0          0          0         89          0  PCI-MSIX-0000:00:02.0   1-edge      virtio1-req.0
+ 30:          0          0          0          0          0          0          0          0  PCI-MSIX-0000:00:03.0   0-edge      virtio2-config
+ 31:          0          0          0          0          0       5899          0          0  PCI-MSIX-0000:00:03.0   1-edge      virtio2-req.0
+ 32:          0          0          0          0          0          0          0          0  PCI-MSIX-0000:00:04.0   0-edge      virtio3-config
+ 33:          0          0          0          0          0       1925          0          0  PCI-MSIX-0000:00:04.0   1-edge      virtio3-input.0
+ 34:          0          0          0          0          0          0       1998          0  PCI-MSIX-0000:00:04.0   2-edge      virtio3-output.0
+ 35:          0          0          0          0          0          0          0          0  PCI-MSIX-0000:00:05.0   0-edge      virtio4-config
+ 36:          0         21          0          0          0          0          0          0  PCI-MSIX-0000:00:05.0   1-edge      virtio4-input
+ 38:          0          0     190631          0          0          0          0          0  PCI-MSI-0000:00:06.0   0-edge      nvidia
+NMI:          0          0          0          0          0          0          0          0   Non-maskable interrupts
+LOC:     179279     187764     147508     189562     199598     188021     187979     199142   Local timer interrupts
+SPU:          0          0          0          0          0          0          0          0   Spurious interrupts
+PMI:          0          0          0          0          0          0          0          0   Performance monitoring interrupts
+IWI:          0          0          0          0          0          0          0          0   IRQ work interrupts
+RTR:          0          0          0          0          0          0          0          0   APIC ICR read retries
+RES:       1160       1370       1154       1991       1294       1367       1247       2782   Rescheduling interrupts
+CAL:     213271     138152      95316     149934     124997     121563     121774     108950   Function call interrupts
+TLB:       1342       1157        893       1757       1298        922       1516       1257   TLB shootdowns
+TRM:          0          0          0          0          0          0          0          0   Thermal event interrupts
+THR:          0          0          0          0          0          0          0          0   Threshold APIC interrupts
+DFR:          0          0          0          0          0          0          0          0   Deferred Error APIC interrupts
+MCE:          0          0          0          0          0          0          0          0   Machine check exceptions
+MCP:          2          2          2          2          2          2          2          2   Machine check polls
+HYP:          1          1          1          1          1          1          1          1   Hypervisor callback interrupts
+ERR:          0
+MIS:          0
+PIN:          0          0          0          0          0          0          0          0   Posted-interrupt notification event
+NPI:          0          0          0          0          0          0          0          0   Nested posted-interrupt event
+PIW:          0          0          0          0          0          0          0          0   Posted-interrupt wakeup event

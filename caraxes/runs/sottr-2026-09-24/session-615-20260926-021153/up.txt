@@ -1,0 +1,9 @@
+driver 615.71.09: overlay on /mnt/vmstore/caraxes/images/guest-baked-2026-09-24-615.71.09.qcow2, CARAXES_GUEST_ABI=615
+games disk: /mnt/vmstore/caraxes/vm4-615/games.qcow2
+cloud-hypervisor:   0.000026s: <main> INFO:cloud-hypervisor/src/main.rs:631 -- v53.0-6-g88e92aded starting
+cloud-hypervisor:   0.000084s: <main> INFO:event_monitor/src/lib.rs:113 -- Event: source = vmm event = starting 
+cloud-hypervisor:   0.000286s: <main> ERROR:/mnt/vmstore/caraxes/ch-0006/cloud-hypervisor/src/lib.rs:24 -- Fatal error: StartVmmThread(ApiSocketInUse("/mnt/vmstore/caraxes/vm4-615/ch.sock"))
+Error: Cloud Hypervisor exited with the following chain of errors:
+  0: Failed to start the VMM thread
+  1: API socket "/mnt/vmstore/caraxes/vm4-615/ch.sock" is already in use by another running instance
+ERROR: VM exited

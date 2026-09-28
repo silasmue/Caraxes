@@ -1,0 +1,203 @@
+[  139.273608] caraxes-vm4 gnome-shell[2095]: Running GNOME Shell (using mutter 46.2) as a Wayland display server
+[  139.867682] caraxes-vm4 gnome-shell[2095]: Made thread 'KMS thread' realtime scheduled
+[  140.446348] caraxes-vm4 gnome-shell[2095]: Device '/dev/dri/card0' prefers shadow buffer
+[  140.458381] caraxes-vm4 gnome-shell[2095]: Added device '/dev/dri/card0' (nvidia-drm) using atomic mode setting.
+[  140.463628] caraxes-vm4 gnome-shell[2095]: Created gbm renderer for '/dev/dri/card0'
+[  140.463699] caraxes-vm4 gnome-shell[2095]: Boot VGA GPU /dev/dri/card0 selected as primary
+[  140.468011] caraxes-vm4 gnome-shell[2095]: Obtained a high priority EGL context
+[  140.490132] caraxes-vm4 gnome-shell[2095]: Obtained a high priority EGL context
+[  140.535681] caraxes-vm4 gnome-shell[2095]: Using public X11 display :0, (using :1 for managed services)
+[  140.535787] caraxes-vm4 gnome-shell[2095]: Using Wayland display name 'wayland-0'
+[  140.630454] caraxes-vm4 at-spi-dbus-bus.desktop[2108]: dbus-daemon[2108]: Activating service name='org.a11y.atspi.Registry' requested by ':1.0' (uid=1000 pid=2095 comm="/usr/bin/gnome-shell" label="unconfined")
+[  140.997138] caraxes-vm4 gnome-shell[2095]: Unset XDG_SESSION_ID, getCurrentSessionProxy() called outside a user session. Asking logind directly.
+[  140.997256] caraxes-vm4 gnome-shell[2095]: Will monitor session 14
+[  141.025644] caraxes-vm4 dbus-daemon[1068]: [session uid=1000 pid=1068] Activating service name='org.gnome.Shell.Screencast' requested by ':1.31' (uid=1000 pid=2095 comm="/usr/bin/gnome-shell" label="unconfined")
+[  141.054642] caraxes-vm4 dbus-daemon[1068]: [session uid=1000 pid=1068] Activating via systemd: service name='org.freedesktop.impl.portal.PermissionStore' unit='xdg-permission-store.service' requested by ':1.31' (uid=1000 pid=2095 comm="/usr/bin/gnome-shell" label="unconfined")
+[  141.055994] caraxes-vm4 dbus-daemon[1068]: [session uid=1000 pid=1068] Activating service name='org.gnome.Shell.CalendarServer' requested by ':1.31' (uid=1000 pid=2095 comm="/usr/bin/gnome-shell" label="unconfined")
+[  141.114369] caraxes-vm4 dbus-daemon[1068]: [session uid=1000 pid=1068] Activating via systemd: service name='org.gnome.evolution.dataserver.Sources5' unit='evolution-source-registry.service' requested by ':1.37' (uid=1000 pid=2163 comm="/usr/libexec/gnome-shell-calendar-server" label="unconfined")
+[  141.129353] caraxes-vm4 dbus-daemon[1068]: [session uid=1000 pid=1068] Activating via systemd: service name='ca.desrt.dconf' unit='dconf.service' requested by ':1.31' (uid=1000 pid=2095 comm="/usr/bin/gnome-shell" label="unconfined")
+[  141.138240] caraxes-vm4 dbus-daemon[1068]: [session uid=1000 pid=1068] Activating service name='org.gnome.Shell.Notifications' requested by ':1.31' (uid=1000 pid=2095 comm="/usr/bin/gnome-shell" label="unconfined")
+[  141.168925] caraxes-vm4 gnome-shell[2095]: Gio.UnixInputStream has been moved to a separate platform-specific library. Please update your code to use GioUnix.InputStream instead.
+[  141.169933] caraxes-vm4 gnome-shell[2095]: Error looking up permission: GDBus.Error:org.freedesktop.portal.Error.NotFound: No entry for geolocation
+[  141.229179] caraxes-vm4 dbus-daemon[1068]: [session uid=1000 pid=1068] Activating via systemd: service name='org.gtk.vfs.UDisks2VolumeMonitor' unit='gvfs-udisks2-volume-monitor.service' requested by ':1.31' (uid=1000 pid=2095 comm="/usr/bin/gnome-shell" label="unconfined")
+[  141.431358] caraxes-vm4 dbus-daemon[1068]: [session uid=1000 pid=1068] Activating via systemd: service name='org.gtk.vfs.GoaVolumeMonitor' unit='gvfs-goa-volume-monitor.service' requested by ':1.31' (uid=1000 pid=2095 comm="/usr/bin/gnome-shell" label="unconfined")
+[  141.471495] caraxes-vm4 dbus-daemon[1068]: [session uid=1000 pid=1068] Activating via systemd: service name='org.gnome.evolution.dataserver.Calendar8' unit='evolution-calendar-factory.service' requested by ':1.37' (uid=1000 pid=2163 comm="/usr/libexec/gnome-shell-calendar-server" label="unconfined")
+[  141.471868] caraxes-vm4 dbus-daemon[1068]: [session uid=1000 pid=1068] Activating via systemd: service name='org.gtk.vfs.MTPVolumeMonitor' unit='gvfs-mtp-volume-monitor.service' requested by ':1.31' (uid=1000 pid=2095 comm="/usr/bin/gnome-shell" label="unconfined")
+[  141.495431] caraxes-vm4 dbus-daemon[1068]: [session uid=1000 pid=1068] Activating via systemd: service name='org.gtk.vfs.GPhoto2VolumeMonitor' unit='gvfs-gphoto2-volume-monitor.service' requested by ':1.31' (uid=1000 pid=2095 comm="/usr/bin/gnome-shell" label="unconfined")
+[  141.511653] caraxes-vm4 dbus-daemon[1068]: [session uid=1000 pid=1068] Activating via systemd: service name='org.gtk.vfs.AfcVolumeMonitor' unit='gvfs-afc-volume-monitor.service' requested by ':1.31' (uid=1000 pid=2095 comm="/usr/bin/gnome-shell" label="unconfined")
+[  142.500791] caraxes-vm4 gnome-shell[2095]: Failed to import DBusMenu, quicklists are not available: Error: Requiring Dbusmenu, version none: Typelib file for namespace 'Dbusmenu' (any version) not found
+[  142.501084] caraxes-vm4 gnome-shell[2095]: Failed to import DBusMenu, quicklists are not available: Error: Requiring Dbusmenu, version none: Typelib file for namespace 'Dbusmenu' (any version) not found
+[  142.501144] caraxes-vm4 gnome-shell[2095]: Failed to import DBusMenu, quicklists are not available: Error: Requiring Dbusmenu, version none: Typelib file for namespace 'Dbusmenu' (any version) not found
+[  142.514444] caraxes-vm4 dbus-daemon[1068]: [session uid=1000 pid=1068] Activating service name='org.freedesktop.FileManager1' requested by ':1.31' (uid=1000 pid=2095 comm="/usr/bin/gnome-shell" label="unconfined")
+[  142.616731] caraxes-vm4 gnome-shell[2095]: Window manager warning: Overwriting existing binding of keysym 34 with keysym 34 (keycode d).
+[  142.616731] caraxes-vm4 gnome-shell[2095]: Window manager warning: Overwriting existing binding of keysym 38 with keysym 38 (keycode 11).
+[  142.616837] caraxes-vm4 gnome-shell[2095]: Window manager warning: Overwriting existing binding of keysym 35 with keysym 35 (keycode e).
+[  142.616954] caraxes-vm4 gnome-shell[2095]: Window manager warning: Overwriting existing binding of keysym 39 with keysym 39 (keycode 12).
+[  142.616954] caraxes-vm4 gnome-shell[2095]: Window manager warning: Overwriting existing binding of keysym 37 with keysym 37 (keycode 10).
+[  142.617113] caraxes-vm4 gnome-shell[2095]: Window manager warning: Overwriting existing binding of keysym 36 with keysym 36 (keycode f).
+[  142.617158] caraxes-vm4 gnome-shell[2095]: Window manager warning: Overwriting existing binding of keysym 31 with keysym 31 (keycode a).
+[  142.617654] caraxes-vm4 gnome-shell[2095]: Window manager warning: Overwriting existing binding of keysym 33 with keysym 33 (keycode c).
+[  142.617654] caraxes-vm4 gnome-shell[2095]: Window manager warning: Overwriting existing binding of keysym 32 with keysym 32 (keycode b).
+[  142.617654] caraxes-vm4 gnome-shell[2095]: Window manager warning: Overwriting existing binding of keysym 36 with keysym 36 (keycode f).
+[  142.617654] caraxes-vm4 gnome-shell[2095]: Window manager warning: Overwriting existing binding of keysym 31 with keysym 31 (keycode a).
+[  142.617654] caraxes-vm4 gnome-shell[2095]: Window manager warning: Overwriting existing binding of keysym 35 with keysym 35 (keycode e).
+[  142.617654] caraxes-vm4 gnome-shell[2095]: Window manager warning: Overwriting existing binding of keysym 37 with keysym 37 (keycode 10).
+[  142.617654] caraxes-vm4 gnome-shell[2095]: Window manager warning: Overwriting existing binding of keysym 39 with keysym 39 (keycode 12).
+[  142.617654] caraxes-vm4 gnome-shell[2095]: Window manager warning: Overwriting existing binding of keysym 32 with keysym 32 (keycode b).
+[  142.617654] caraxes-vm4 gnome-shell[2095]: Window manager warning: Overwriting existing binding of keysym 33 with keysym 33 (keycode c).
+[  142.617938] caraxes-vm4 gnome-shell[2095]: Window manager warning: Overwriting existing binding of keysym 38 with keysym 38 (keycode 11).
+[  142.617938] caraxes-vm4 gnome-shell[2095]: Window manager warning: Overwriting existing binding of keysym 34 with keysym 34 (keycode d).
+[  143.658694] caraxes-vm4 gnome-shell[2095]: GNOME Shell started at Fri Sep 25 2026 08:28:08 GMT+0000 (Coordinated Universal Time)
+[  143.660435] caraxes-vm4 gnome-shell[2095]: Registering session with GDM
+[  143.742185] caraxes-vm4 gnome-shell[2095]: Launching DING process
+[  144.036104] caraxes-vm4 gnome-shell[2095]: DING: Detected async api for thumbnails
+[  144.164791] caraxes-vm4 gnome-shell[2095]: DING: (gjs:2676): Gjs-WARNING **: 08:28:11.404: GLib.unix_signal_add has been moved to a separate platform-specific library. Please update your code to use GLibUnix.signal_add instead.
+[  144.165822] caraxes-vm4 gnome-shell[2095]: DING: 0 DesktopManager() ["/usr/share/gnome-shell/extensions/ding@rastersoft.com/app/desktopManager.js":264:12]
+[  144.165873] caraxes-vm4 gnome-shell[2095]: DING: 1 anonymous() ["/usr/share/gnome-shell/extensions/ding@rastersoft.com/app/ding.js":180:25]
+[  144.166041] caraxes-vm4 gnome-shell[2095]: DING: 2 anonymous() ["/usr/share/gnome-shell/extensions/ding@rastersoft.com/app/ding.js":197:20]
+[  144.166104] caraxes-vm4 gnome-shell[2095]: DING: 3 <TOP LEVEL> ["/usr/share/gnome-shell/extensions/ding@rastersoft.com/app/ding.js":206:12]
+[  144.241711] caraxes-vm4 gnome-shell[2095]: DING: DBus interface for Nautilus (org.gnome.Nautilus.FileOperations2) is now available.
+[  144.260060] caraxes-vm4 gnome-shell[2095]: DING: DBus interface for Nautilus (org.freedesktop.FileManager1) is now available.
+[  144.260723] caraxes-vm4 gnome-shell[2095]: DING: DBus interface for Gvfs daemon (org.gtk.vfs.Metadata) is now available.
+[  144.260770] caraxes-vm4 gnome-shell[2095]: DING: ** Message: 08:28:11.457: Connecting to org.freedesktop.Tracker3.Miner.Files
+[  144.260770] caraxes-vm4 gnome-shell[2095]: DING: GNOME nautilus 46.4
+[  144.355457] caraxes-vm4 gnome-shell[2095]: Received notification for window. 0 notifications remaining.
+[  146.954213] caraxes-vm4 systemd[1033]: Started app-gnome-steam-2737.scope - Application launched by gnome-session-binary.
+[  146.968857] caraxes-vm4 steam.desktop[2745]: Warning: --icon-name is deprecated and will be removed in a future version of zenity; Treating as --icon.
+[  148.709997] caraxes-vm4 gnome-shell[2095]: Invalid sequence for VSYNC frame info
+[  186.635560] caraxes-vm4 gnome-shell[2893]: The XKEYBOARD keymap compiler (xkbcomp) reports:
+[  186.635560] caraxes-vm4 gnome-shell[2893]: > Warning:          Could not resolve keysym XF86CameraAccessEnable
+[  186.635560] caraxes-vm4 gnome-shell[2893]: > Warning:          Could not resolve keysym XF86CameraAccessDisable
+[  186.635560] caraxes-vm4 gnome-shell[2893]: > Warning:          Could not resolve keysym XF86CameraAccessToggle
+[  186.635560] caraxes-vm4 gnome-shell[2893]: > Warning:          Could not resolve keysym XF86NextElement
+[  186.635560] caraxes-vm4 gnome-shell[2893]: > Warning:          Could not resolve keysym XF86PreviousElement
+[  186.635560] caraxes-vm4 gnome-shell[2893]: > Warning:          Could not resolve keysym XF86AutopilotEngageToggle
+[  186.635560] caraxes-vm4 gnome-shell[2893]: > Warning:          Could not resolve keysym XF86MarkWaypoint
+[  186.635560] caraxes-vm4 gnome-shell[2893]: > Warning:          Could not resolve keysym XF86Sos
+[  186.635560] caraxes-vm4 gnome-shell[2893]: > Warning:          Could not resolve keysym XF86NavChart
+[  186.635560] caraxes-vm4 gnome-shell[2893]: > Warning:          Could not resolve keysym XF86FishingChart
+[  186.635560] caraxes-vm4 gnome-shell[2893]: > Warning:          Could not resolve keysym XF86SingleRangeRadar
+[  186.636502] caraxes-vm4 gnome-shell[2893]: > Warning:          Could not resolve keysym XF86DualRangeRadar
+[  186.636502] caraxes-vm4 gnome-shell[2893]: > Warning:          Could not resolve keysym XF86RadarOverlay
+[  186.636502] caraxes-vm4 gnome-shell[2893]: > Warning:          Could not resolve keysym XF86TraditionalSonar
+[  186.636502] caraxes-vm4 gnome-shell[2893]: > Warning:          Could not resolve keysym XF86ClearvuSonar
+[  186.636502] caraxes-vm4 gnome-shell[2893]: > Warning:          Could not resolve keysym XF86SidevuSonar
+[  186.636502] caraxes-vm4 gnome-shell[2893]: > Warning:          Could not resolve keysym XF86NavInfo
+[  186.636502] caraxes-vm4 gnome-shell[2893]: Errors from xkbcomp are not fatal to the X server
+[  186.652197] caraxes-vm4 gnome-shell[2896]: The XKEYBOARD keymap compiler (xkbcomp) reports:
+[  186.652197] caraxes-vm4 gnome-shell[2896]: > Warning:          Unsupported maximum keycode 708, clipping.
+[  186.652197] caraxes-vm4 gnome-shell[2896]: >                   X11 cannot support keycodes above 255.
+[  186.652904] caraxes-vm4 gnome-shell[2896]: > Warning:          Could not resolve keysym XF86CameraAccessEnable
+[  186.652904] caraxes-vm4 gnome-shell[2896]: > Warning:          Could not resolve keysym XF86CameraAccessDisable
+[  186.652904] caraxes-vm4 gnome-shell[2896]: > Warning:          Could not resolve keysym XF86CameraAccessToggle
+[  186.652989] caraxes-vm4 gnome-shell[2896]: > Warning:          Could not resolve keysym XF86NextElement
+[  186.652989] caraxes-vm4 gnome-shell[2896]: > Warning:          Could not resolve keysym XF86PreviousElement
+[  186.652989] caraxes-vm4 gnome-shell[2896]: > Warning:          Could not resolve keysym XF86AutopilotEngageToggle
+[  186.652989] caraxes-vm4 gnome-shell[2896]: > Warning:          Could not resolve keysym XF86MarkWaypoint
+[  186.652989] caraxes-vm4 gnome-shell[2896]: > Warning:          Could not resolve keysym XF86Sos
+[  186.652989] caraxes-vm4 gnome-shell[2896]: > Warning:          Could not resolve keysym XF86NavChart
+[  186.652989] caraxes-vm4 gnome-shell[2896]: > Warning:          Could not resolve keysym XF86FishingChart
+[  186.652989] caraxes-vm4 gnome-shell[2896]: > Warning:          Could not resolve keysym XF86SingleRangeRadar
+[  186.652989] caraxes-vm4 gnome-shell[2896]: > Warning:          Could not resolve keysym XF86DualRangeRadar
+[  186.652989] caraxes-vm4 gnome-shell[2896]: > Warning:          Could not resolve keysym XF86RadarOverlay
+[  186.652989] caraxes-vm4 gnome-shell[2896]: > Warning:          Could not resolve keysym XF86TraditionalSonar
+[  186.652989] caraxes-vm4 gnome-shell[2896]: > Warning:          Could not resolve keysym XF86ClearvuSonar
+[  186.652989] caraxes-vm4 gnome-shell[2896]: > Warning:          Could not resolve keysym XF86SidevuSonar
+[  186.653318] caraxes-vm4 gnome-shell[2896]: > Warning:          Could not resolve keysym XF86NavInfo
+[  186.653445] caraxes-vm4 gnome-shell[2896]: Errors from xkbcomp are not fatal to the X server
+[  228.552847] caraxes-vm4 gnome-shell[2095]: Window manager warning: Ping serial 228552 was reused for window W1, previous use was for window W0.
+[  228.552847] caraxes-vm4 gnome-shell[2095]: Window manager warning: Ping serial 228552 was reused for window W2, previous use was for window W0.
+[  235.002147] caraxes-vm4 gnome-shell[2095]: Window manager warning: Ping serial 235002 was reused for window W2, previous use was for window W1.
+[  241.950253] caraxes-vm4 gnome-shell[2095]: Window manager warning: Ping serial 241950 was reused for window W1, previous use was for window W0.
+[  241.950253] caraxes-vm4 gnome-shell[2095]: Window manager warning: Ping serial 241950 was reused for window W2, previous use was for window W0.
+[  249.094805] caraxes-vm4 gnome-shell[2095]: Window manager warning: Ping serial 249094 was reused for window W2, previous use was for window W1.
+[  255.032701] caraxes-vm4 gnome-shell[2095]: Window manager warning: Ping serial 255032 was reused for window W1, previous use was for window W0.
+[  255.032701] caraxes-vm4 gnome-shell[2095]: Window manager warning: Ping serial 255032 was reused for window W2, previous use was for window W0.
+[  261.267783] caraxes-vm4 gnome-shell[2095]: Window manager warning: Ping serial 261267 was reused for window W2, previous use was for window W1.
+[  266.955327] caraxes-vm4 gnome-shell[2095]: Window manager warning: Ping serial 266955 was reused for window W1, previous use was for window W0.
+[  266.955327] caraxes-vm4 gnome-shell[2095]: Window manager warning: Ping serial 266955 was reused for window W2, previous use was for window W0.
+[  274.468980] caraxes-vm4 gnome-shell[2095]: Window manager warning: Ping serial 274468 was reused for window W2, previous use was for window W1.
+[  281.406331] caraxes-vm4 gnome-shell[2095]: Window manager warning: Ping serial 281406 was reused for window W1, previous use was for window W0.
+[  281.406331] caraxes-vm4 gnome-shell[2095]: Window manager warning: Ping serial 281406 was reused for window W2, previous use was for window W0.
+[  304.233119] caraxes-vm4 gnome-shell[2095]: Window manager warning: Ping serial 304233 was reused for window W3, previous use was for window W2.
+[  360.743305] caraxes-vm4 gnome-shell[2095]: Window manager warning: Ping serial 360743 was reused for window W1, previous use was for window W0.
+[  360.743305] caraxes-vm4 gnome-shell[2095]: Window manager warning: Ping serial 360743 was reused for window W2, previous use was for window W0.
+[  360.743305] caraxes-vm4 gnome-shell[2095]: Window manager warning: Ping serial 360743 was reused for window W3, previous use was for window W0.
+[  365.929354] caraxes-vm4 gnome-shell[2095]: Window manager warning: Ping serial 365928 was reused for window W2, previous use was for window W1.
+[  371.163792] caraxes-vm4 gnome-shell[2095]: Window manager warning: Ping serial 371163 was reused for window W1, previous use was for window W0.
+[  371.163792] caraxes-vm4 gnome-shell[2095]: Window manager warning: Ping serial 371163 was reused for window W2, previous use was for window W0.
+[  371.163792] caraxes-vm4 gnome-shell[2095]: Window manager warning: Ping serial 371163 was reused for window W3, previous use was for window W0.
+[  376.555682] caraxes-vm4 gnome-shell[2095]: Window manager warning: Ping serial 376555 was reused for window W2, previous use was for window W1.
+[  376.555682] caraxes-vm4 gnome-shell[2095]: Window manager warning: Ping serial 376555 was reused for window W3, previous use was for window W1.
+[  417.956488] caraxes-vm4 gnome-shell[2095]: Window manager warning: Ping serial 417956 was reused for window W2, previous use was for window W1.
+[  425.196168] caraxes-vm4 gnome-shell[2095]: Window manager warning: Ping serial 425196 was reused for window W1, previous use was for window W0.
+[  425.196168] caraxes-vm4 gnome-shell[2095]: Window manager warning: Ping serial 425196 was reused for window W2, previous use was for window W0.
+[  432.001446] caraxes-vm4 gnome-shell[2095]: Window manager warning: Ping serial 432001 was reused for window W2, previous use was for window W1.
+[  438.803616] caraxes-vm4 gnome-shell[2095]: Window manager warning: Ping serial 438803 was reused for window W1, previous use was for window W0.
+[  438.803616] caraxes-vm4 gnome-shell[2095]: Window manager warning: Ping serial 438803 was reused for window W2, previous use was for window W0.
+[  445.291444] caraxes-vm4 gnome-shell[2095]: Window manager warning: Ping serial 445291 was reused for window W2, previous use was for window W1.
+[  451.737350] caraxes-vm4 gnome-shell[2095]: Window manager warning: Ping serial 451737 was reused for window W1, previous use was for window W0.
+[  451.737350] caraxes-vm4 gnome-shell[2095]: Window manager warning: Ping serial 451737 was reused for window W2, previous use was for window W0.
+[  458.596958] caraxes-vm4 gnome-shell[2095]: Window manager warning: Ping serial 458596 was reused for window W2, previous use was for window W1.
+[  459.324033] caraxes-vm4 gnome-shell[2888]: [dix] couldn't enable device 10
+[  459.324033] caraxes-vm4 gnome-shell[2888]: [dix] couldn't enable device 11
+[  459.324033] caraxes-vm4 gnome-shell[2888]: [dix] couldn't enable device 12
+[  466.475601] caraxes-vm4 sudo[3759]:  leandro : PWD=/home/leandro ; USER=root ; COMMAND=/usr/bin/journalctl -b --no-pager -t gnome-shell
+[  478.356282] caraxes-vm4 gnome-shell[2095]: Window manager warning: Ping serial 478356 was reused for window W1, previous use was for window W0.
+[  492.706383] caraxes-vm4 gnome-shell[2095]: Window manager warning: Ping serial 492705 was reused for window W1, previous use was for window W0.
+[  510.513782] caraxes-vm4 gnome-shell[2095]: Window manager warning: Ping serial 510513 was reused for window W0, previous use was for window W1.
+[  523.544266] caraxes-vm4 gnome-shell[2095]: Window manager warning: Ping serial 523544 was reused for window W0, previous use was for window W1.
+[  536.662289] caraxes-vm4 gnome-shell[2095]: Window manager warning: Ping serial 536662 was reused for window W0, previous use was for window W1.
+[  549.474220] caraxes-vm4 gnome-shell[2095]: Window manager warning: Ping serial 549474 was reused for window W0, previous use was for window W1.
+[  580.092588] caraxes-vm4 gnome-shell[2888]: [dix] couldn't enable device 10
+[  580.092588] caraxes-vm4 gnome-shell[2888]: [dix] couldn't enable device 11
+[  580.092588] caraxes-vm4 gnome-shell[2888]: [dix] couldn't enable device 12
+[  599.068967] caraxes-vm4 gnome-shell[2095]: Window manager warning: Ping serial 599068 was reused for window W1, previous use was for window W0.
+[  599.068967] caraxes-vm4 gnome-shell[2095]: Window manager warning: Ping serial 599068 was reused for window W2, previous use was for window W0.
+[  604.429157] caraxes-vm4 gnome-shell[2095]: Window manager warning: Ping serial 604429 was reused for window W2, previous use was for window W1.
+[  610.972023] caraxes-vm4 gnome-shell[2095]: Window manager warning: Ping serial 610971 was reused for window W1, previous use was for window W0.
+[  612.941315] caraxes-vm4 gnome-shell[2888]: [dix] couldn't enable device 10
+[  612.941315] caraxes-vm4 gnome-shell[2888]: [dix] couldn't enable device 11
+[  612.941315] caraxes-vm4 gnome-shell[2888]: [dix] couldn't enable device 12
+[  661.367314] caraxes-vm4 gnome-shell[2095]: Window manager warning: Ping serial 661367 was reused for window W1, previous use was for window W2.
+[  661.367314] caraxes-vm4 gnome-shell[2095]: Window manager warning: Ping serial 661367 was reused for window W0, previous use was for window W2.
+[  667.802147] caraxes-vm4 gnome-shell[2095]: Window manager warning: Ping serial 667802 was reused for window W0, previous use was for window W1.
+[  675.603083] caraxes-vm4 gnome-shell[2095]: libinput error: event1  - Mouse passthrough: client bug: event processing lagging behind by 23ms, your system is too slow
+[  680.632516] caraxes-vm4 gnome-shell[2095]: Window manager warning: Ping serial 680632 was reused for window W0, previous use was for window W2.
+[  708.844815] caraxes-vm4 gnome-shell[2095]: Window manager warning: Ping serial 708844 was reused for window W0, previous use was for window W2.
+[  708.844815] caraxes-vm4 gnome-shell[2095]: Window manager warning: Ping serial 708844 was reused for window W1, previous use was for window W2.
+[  715.629720] caraxes-vm4 gnome-shell[2095]: Window manager warning: Ping serial 715629 was reused for window W1, previous use was for window W0.
+[  722.272808] caraxes-vm4 gnome-shell[2095]: Window manager warning: Ping serial 722272 was reused for window W0, previous use was for window W2.
+[  722.272808] caraxes-vm4 gnome-shell[2095]: Window manager warning: Ping serial 722272 was reused for window W1, previous use was for window W2.
+[  728.845311] caraxes-vm4 gnome-shell[2095]: Window manager warning: Ping serial 728845 was reused for window W1, previous use was for window W0.
+[  735.309746] caraxes-vm4 gnome-shell[2095]: Window manager warning: Ping serial 735309 was reused for window W0, previous use was for window W2.
+[  735.309746] caraxes-vm4 gnome-shell[2095]: Window manager warning: Ping serial 735309 was reused for window W1, previous use was for window W2.
+[  742.027938] caraxes-vm4 gnome-shell[2095]: Window manager warning: Ping serial 742026 was reused for window W1, previous use was for window W0.
+[  742.028335] caraxes-vm4 gnome-shell[2095]: Owner of volume monitor org.gtk.vfs.AfcVolumeMonitor disconnected from the bus; removing drives/volumes/mounts
+[  742.028383] caraxes-vm4 gnome-shell[2095]: Owner of volume monitor org.gtk.vfs.GoaVolumeMonitor disconnected from the bus; removing drives/volumes/mounts
+[  742.032101] caraxes-vm4 gnome-shell[2095]: Owner of volume monitor org.gtk.vfs.GPhoto2VolumeMonitor disconnected from the bus; removing drives/volumes/mounts
+[  742.032298] caraxes-vm4 gnome-shell[2095]: Owner of volume monitor org.gtk.vfs.MTPVolumeMonitor disconnected from the bus; removing drives/volumes/mounts
+[  742.033789] caraxes-vm4 gnome-shell[2095]: Owner of volume monitor org.gtk.vfs.UDisks2VolumeMonitor disconnected from the bus; removing drives/volumes/mounts
+[  742.041127] caraxes-vm4 gnome-shell[2095]: DING: (gjs:2676): GVFS-RemoteVolumeMonitor-WARNING **: 08:38:08.751: Owner of volume monitor org.gtk.vfs.AfcVolumeMonitor disconnected from the bus; removing drives/volumes/mounts
+[  742.043975] caraxes-vm4 gnome-shell[2095]: DING: (gjs:2676): GVFS-RemoteVolumeMonitor-WARNING **: 08:38:08.754: Owner of volume monitor org.gtk.vfs.GoaVolumeMonitor disconnected from the bus; removing drives/volumes/mounts
+[  742.044286] caraxes-vm4 gnome-shell[2095]: DING: (gjs:2676): GVFS-RemoteVolumeMonitor-WARNING **: 08:38:08.757: Owner of volume monitor org.gtk.vfs.GPhoto2VolumeMonitor disconnected from the bus; removing drives/volumes/mounts
+[  742.044840] caraxes-vm4 gnome-shell[2095]: DING: (gjs:2676): GVFS-RemoteVolumeMonitor-WARNING **: 08:38:08.775: Owner of volume monitor org.gtk.vfs.MTPVolumeMonitor disconnected from the bus; removing drives/volumes/mounts
+[  742.045198] caraxes-vm4 gnome-shell[2095]: DING: (gjs:2676): GVFS-RemoteVolumeMonitor-WARNING **: 08:38:08.792: Owner of volume monitor org.gtk.vfs.UDisks2VolumeMonitor disconnected from the bus; removing drives/volumes/mounts
+[  748.044486] caraxes-vm4 gnome-shell[2095]: Connection to xwayland lost
+[  748.044842] caraxes-vm4 gnome-shell[2095]: Window manager warning: Ping serial 748044 was reused for window W0, previous use was for window W2.
+[  748.044842] caraxes-vm4 gnome-shell[2095]: Window manager warning: Ping serial 748044 was reused for window W1, previous use was for window W2.
+[  748.097387] caraxes-vm4 gnome-shell[2095]: Launching DING process
+[  748.110039] caraxes-vm4 gnome-shell[2095]: Shutting down GNOME Shell
+[  748.118659] caraxes-vm4 dbus-daemon[1068]: [session uid=1000 pid=1068] Activating via systemd: service name='org.gtk.vfs.Daemon' unit='gvfs-daemon.service' requested by ':1.206' (uid=1000 pid=4809 comm="gjs /usr/share/gnome-shell/extensions/ding@rasters" label="desktop-icons-ng (unconfined)")
+[  748.223385] caraxes-vm4 gnome-shell[2095]: Attempting to call back into JSAPI during the sweeping phase of GC. This is most likely caused by not destroying a Clutter actor or Gtk+ widget with ::destroy signals connected, but can also be caused by using the destroy(), dispose(), or remove() vfuncs. Because it would crash the application, it has been blocked and the JS callback not invoked.
+[  748.223574] caraxes-vm4 gnome-shell[2095]: Attempting to call back into JSAPI during the sweeping phase of GC. This is most likely caused by not destroying a Clutter actor or Gtk+ widget with ::destroy signals connected, but can also be caused by using the destroy(), dispose(), or remove() vfuncs. Because it would crash the application, it has been blocked and the JS callback not invoked.
+[  748.223637] caraxes-vm4 gnome-shell[2095]: Attempting to call back into JSAPI during the sweeping phase of GC. This is most likely caused by not destroying a Clutter actor or Gtk+ widget with ::destroy signals connected, but can also be caused by using the destroy(), dispose(), or remove() vfuncs. Because it would crash the application, it has been blocked and the JS callback not invoked.
+[  748.223688] caraxes-vm4 gnome-shell[2095]: Attempting to call back into JSAPI during the sweeping phase of GC. This is most likely caused by not destroying a Clutter actor or Gtk+ widget with ::destroy signals connected, but can also be caused by using the destroy(), dispose(), or remove() vfuncs. Because it would crash the application, it has been blocked and the JS callback not invoked.
+[  748.223739] caraxes-vm4 gnome-shell[2095]: Attempting to call back into JSAPI during the sweeping phase of GC. This is most likely caused by not destroying a Clutter actor or Gtk+ widget with ::destroy signals connected, but can also be caused by using the destroy(), dispose(), or remove() vfuncs. Because it would crash the application, it has been blocked and the JS callback not invoked.
+[  748.223782] caraxes-vm4 gnome-shell[2095]: Attempting to call back into JSAPI during the sweeping phase of GC. This is most likely caused by not destroying a Clutter actor or Gtk+ widget with ::destroy signals connected, but can also be caused by using the destroy(), dispose(), or remove() vfuncs. Because it would crash the application, it has been blocked and the JS callback not invoked.
+[  748.223823] caraxes-vm4 gnome-shell[2095]: Attempting to call back into JSAPI during the sweeping phase of GC. This is most likely caused by not destroying a Clutter actor or Gtk+ widget with ::destroy signals connected, but can also be caused by using the destroy(), dispose(), or remove() vfuncs. Because it would crash the application, it has been blocked and the JS callback not invoked.
+[  748.223865] caraxes-vm4 gnome-shell[2095]: Attempting to call back into JSAPI during the sweeping phase of GC. This is most likely caused by not destroying a Clutter actor or Gtk+ widget with ::destroy signals connected, but can also be caused by using the destroy(), dispose(), or remove() vfuncs. Because it would crash the application, it has been blocked and the JS callback not invoked.
+[  748.223910] caraxes-vm4 gnome-shell[2095]: Attempting to call back into JSAPI during the sweeping phase of GC. This is most likely caused by not destroying a Clutter actor or Gtk+ widget with ::destroy signals connected, but can also be caused by using the destroy(), dispose(), or remove() vfuncs. Because it would crash the application, it has been blocked and the JS callback not invoked.
+[  748.223948] caraxes-vm4 gnome-shell[2095]: Attempting to call back into JSAPI during the sweeping phase of GC. This is most likely caused by not destroying a Clutter actor or Gtk+ widget with ::destroy signals connected, but can also be caused by using the destroy(), dispose(), or remove() vfuncs. Because it would crash the application, it has been blocked and the JS callback not invoked.
+[  748.224012] caraxes-vm4 gnome-shell[2095]: Attempting to call back into JSAPI during the sweeping phase of GC. This is most likely caused by not destroying a Clutter actor or Gtk+ widget with ::destroy signals connected, but can also be caused by using the destroy(), dispose(), or remove() vfuncs. Because it would crash the application, it has been blocked and the JS callback not invoked.
+[  748.613833] caraxes-vm4 steam.desktop[2737]: steam: Installation cancelled

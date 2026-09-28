@@ -1,0 +1,23 @@
+# 01:40:42 agent up; starting the NT Kernel Logger with DBGPRINT
+Der Befehl wurde erfolgreich ausgef�hrt.
+
+01:40:45.111
+[exit 0]
+# 01:41:20 stopping
+Der Befehl wurde erfolgreich ausgef�hrt.
+
+lines: 367
+
+SystemConfig,        PnP,            0,          5,          0,          0,         22,          0, 0x0000000000000000, 0x0000096C, 0x000005D0,                    3,             ,                     ,   {00000000-0000-0000-0000-000000000000},                                         ,   134348532825790202,         15,         15, {4d36e968-e325-11ce-bfc1-08002be10318},        0,        0, 
+25175040,       43, "PCI\VEN_10DE&DEV_1F02&SUBSYS_40111458&REV_A1\3&11583659&0&30", "NVIDIA GeForce RTX 2070", "", "\Device\NTPNP_PCI0006", "nvlddmkm", , 
+SystemConfig,   Services,            0,          3,          0,          0,         15,          0, 0x0000000000000000, 0x0000096C, 0x000005D0,                    0,             ,                     ,   {00000000-0000-0000-0000-000000000000},                                         ,   134348532826602342,         30,         15, 0x0, 0x1, 0x4A, "FDResPub", 
+"Funktionssuche-Ressourcenver�ffentlichung", "", "", ""
+SystemConfig,   Services,            0,          3,          0,          0,         15,          0, 0x0000000000000000, 0x0000096C, 0x000005D0,                    0,             ,                     ,   {00000000-0000-0000-0000-000000000000},                                         ,   134348532826602451,         30,         15, 0x0, 0x1, 0x58, "InventorySvc", "Inventur- und 
+Kompatibilit�tssentit�tsdienst", "", "", "InvSvcGroup"
+SystemConfig,   Services,            0,          3,          0,          0,         15,          0, 0x0000000000000000, 0x0000096C, 0x000005D0,                    0,             ,                     ,   {00000000-0000-0000-0000-000000000000},                                         ,   134348532826602899,         30,         15, 0x90C, 0x4, 0x80, "NVDisplay.ContainerLocalSystem", "NVIDIA Display 
+Container LS", "NVDisplay.Container.exe", "Video", ""
+SystemConfig,   Services,            0,          3,          0,          0,         15,          0, 0x0000000000000000, 0x0000096C, 0x000005D0,                    0,             ,                     ,   {00000000-0000-0000-0000-000000000000},                                         ,   134348532826602917,         30,         15, 0xE9C, 0x4, 0x81, "NVWMI", "NVWMI", "nvWmi64.exe", "", ""
+
+
+
+[exit 0]

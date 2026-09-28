@@ -1,0 +1,3 @@
+[build] <default>: FPS: 19 FrameTime: 55.049 ms
+                                  glmark2 Score: 18 
+glrc=0

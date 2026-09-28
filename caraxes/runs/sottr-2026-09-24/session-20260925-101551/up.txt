@@ -1,0 +1,22 @@
+games disk: /mnt/vmstore/caraxes/vm4/games.qcow2
+vfio-user-nvgpu: bar2 memfd: guest BAR2 [0, 0x2000000) offered as 2 sparse mmap area(s) of region 3 from a sealed memfd; trapped page(s) ["0xfea000"]; synced at the trapped pages, MMU invalidates, BAR2 binds and GSP doorbells (CARAXES_BAR2_MEMFD=1, docs/caraxes/bar2-memfd.md)
+vfio-user-nvgpu: intr page: BAR0 [0x0, 0x1000) and the interrupt tree [0xb81000, 0xb82000) offered as sparse mmap areas of region 0 from a memfd; the reactor applies the guest's stores (sleep bound 1 ms, retrigger watchdog 10 ms) (CARAXES_INTR_PAGE=1, docs/caraxes/intr-page.md)
+vfio-user-nvgpu: display page: BAR0 [0x611000, 0x612000) (the display front-end interrupt status) offered as a third sparse mmap area; the display clock advances the engine at every tick, the reactor applies the guest's acks and enables, window AWAKENs are acknowledged by the CORE marker (CARAXES_DISPLAY_PAGE=1, docs/caraxes/intr-page.md §10)
+vfio-user-nvgpu: doorbell tokens: BAR0 0xbb0090, 4 bytes, 64 sub-region(s) with datamatch 0xca700000..=0xca70003f and one eventfd each, offered through VFIO_USER_DEVICE_GET_REGION_IO_FDS; a channel gets a pool token at its first (trapped) doorbell, written to its work-submit-token notifier entry (CARAXES_DOORBELL_TOKENS=64, docs/caraxes/doorbell-token-pool.md)
+vfio-user-nvgpu: msi re-arm ioeventfd: BAR0 0x88704 (NV_XVE_CYA_2), 4 bytes, no datamatch, offered through VFIO_USER_DEVICE_GET_REGION_IO_FDS and read by the token pool's reactor; a client that does not register it keeps trapping the write (CARAXES_MSI_REARM_IOEVENTFD=1, docs/caraxes/intr-page.md §4)
+vfio-user-nvgpu: guest ABI 610 (MsgqV1)
+vfio-user-nvgpu: TU106 (BOOT_0 0x166000a1, driver 610.57.04) on /mnt/vmstore/caraxes/vm4/gpu.sock, boot model on, FB 3072 MiB, ROM 130048 bytes, PROM image 131584 bytes, trace /mnt/vmstore/caraxes/vm4/gpu-trace.log
+vfio-user-nvgpu: doorbell poll: hybrid reader (CARAXES_DOORBELL_POLL=hybrid, CARAXES_DOORBELL_POLL_CPU=Auto)
+[2026-09-25T08:15:52Z INFO  vfio_user] Received client version: major = 0 minor = 1 capabilities = Capabilities { max_msg_fds: 253, max_data_xfer_size: 1048576, migration: MigrationCapabilities { pgsize: 4096 } }
+[2026-09-25T08:15:52Z INFO  vfio_user] Sent server version: major = 0 minor = 0 capabilities = Capabilities { max_msg_fds: 1, max_data_xfer_size: 1048576, migration: MigrationCapabilities { pgsize: 4096 } }
+vfio-user-nvgpu: hostmem: guest RAM 0x0+0xc0000000: registration deferred until all 8192 MiB are mapped (3072 MiB so far), so the whole guest gets one IOVA offset
+vfio-user-nvgpu: dma table: 0 range(s), identity; ranges=; published to /mnt/vmstore/caraxes/vm4/dma-ranges
+vfio-user-nvgpu: hostmem: guest RAM 0x100000000+0x140000000: refused: pinning 5120 MiB of guest RAM would leave the host 2776 MiB available, below the 4096 MiB floor (MemAvailable 7896 MiB)
+[2026-09-25T08:16:05Z ERROR vfio_user] Error handling command: 2: Error from backend: Custom { kind: Other, error: "refused: pinning 5120 MiB of guest RAM would leave the host 2776 MiB available, below the 4096 MiB floor (MemAvailable 7896 MiB)" }
+vfio-user-nvgpu: doorbell poll: reader pinned to CPU 10 (auto: 86 % idle over 1 s; not CPU 0; VMM vCPU threads of pid 4136327 on CPU(s) [4, 6, 7, 12, 14, 15] at the sample, avoided)
+vfio-user-nvgpu: signal 15: freeing host memory and exiting
+vfio-user-nvgpu: hostmem: freed the VRAM reservation [0x129800000, 0x1e9800000) (3072 MiB) in 0 ms (host RM scrub on free)
+vfio-user-nvgpu: hostmem: host RM client 0xc1d6c935 freed
+vfio-user-nvgpu: hostmem: freed 3 guest RAM descriptor(s), 3072 MiB unpinned; host foll_pin released +786422 during the free (since open: acquired +3407872, released +3407862)
+vfio-user-nvgpu: hostmem: privileged windows opened in total: 13
+ERROR: server exited

@@ -1,0 +1,64 @@
+== sessions
+12 1000 leandro -     -    active no -
+13 1000 leandro seat0 tty2 active no -
+== processes
+   1909      45 gdm3
+   1926      44 gdm-session-wor
+   1939      44 gdm-wayland-ses
+   2061      44 gnome-shell
+   2096      43 colord
+   2130      43 gnome-shell-cal
+   2168      43 gsd-color
+== session type
+Name=leandro
+Type=tty
+Class=user
+State=active
+Name=leandro
+Type=wayland
+Class=user
+State=active
+== kms
+GRAB crtc 66 fb 137 1920x1080 format XR24 modifier 0x300000000606014 pitch 7680 handle 1 mode 1920x1080@60
+== gnome-shell / mutter log (errors, KMS, flips, gamma)
+[  141.325967] caraxes-vm4-615 gdm3[1909]: Gdm: on_display_added: assertion 'GDM_IS_REMOTE_DISPLAY (display)' failed
+[  141.326170] caraxes-vm4-615 gdm3[1909]: Gdm: on_display_removed: assertion 'GDM_IS_REMOTE_DISPLAY (display)' failed
+[  141.943323] caraxes-vm4-615 gnome-shell[2061]: Made thread 'KMS thread' realtime scheduled
+[  142.309896] caraxes-vm4-615 gnome-shell[2061]: Added device '/dev/dri/card0' (nvidia-drm) using atomic mode setting.
+[  142.318198] caraxes-vm4-615 gnome-shell[2061]: Created gbm renderer for '/dev/dri/card0'
+[  142.320798] caraxes-vm4-615 gnome-shell[2061]: Obtained a high priority EGL context
+[  142.340101] caraxes-vm4-615 gnome-shell[2061]: Obtained a high priority EGL context
+[  142.856091] caraxes-vm4-615 gnome-shell[2061]: Will monitor session 13
+[  142.949510] caraxes-vm4-615 dbus-daemon[1093]: [session uid=1000 pid=1093] Activating via systemd: service name='org.gnome.evolution.dataserver.Sources5' unit='evolution-source-registry.service' requested by ':1.36' (uid=1000 pid=2130 comm="/usr/libexec/gnome-shell-calendar-server" label="unconfined")
+[  143.034434] caraxes-vm4-615 dbus-daemon[1093]: [session uid=1000 pid=1093] Activating via systemd: service name='org.gtk.vfs.UDisks2VolumeMonitor' unit='gvfs-udisks2-volume-monitor.service' requested by ':1.31' (uid=1000 pid=2061 comm="/usr/bin/gnome-shell" label="unconfined")
+[  143.188121] caraxes-vm4-615 dbus-daemon[1093]: [session uid=1000 pid=1093] Activating via systemd: service name='org.gnome.evolution.dataserver.Calendar8' unit='evolution-calendar-factory.service' requested by ':1.36' (uid=1000 pid=2130 comm="/usr/libexec/gnome-shell-calendar-server" label="unconfined")
+[  143.199790] caraxes-vm4-615 dbus-daemon[1093]: [session uid=1000 pid=1093] Activating via systemd: service name='org.gtk.vfs.GoaVolumeMonitor' unit='gvfs-goa-volume-monitor.service' requested by ':1.31' (uid=1000 pid=2061 comm="/usr/bin/gnome-shell" label="unconfined")
+[  143.218881] caraxes-vm4-615 dbus-daemon[1093]: [session uid=1000 pid=1093] Activating via systemd: service name='org.gtk.vfs.MTPVolumeMonitor' unit='gvfs-mtp-volume-monitor.service' requested by ':1.31' (uid=1000 pid=2061 comm="/usr/bin/gnome-shell" label="unconfined")
+[  143.232019] caraxes-vm4-615 dbus-daemon[1093]: [session uid=1000 pid=1093] Activating via systemd: service name='org.gtk.vfs.GPhoto2VolumeMonitor' unit='gvfs-gphoto2-volume-monitor.service' requested by ':1.31' (uid=1000 pid=2061 comm="/usr/bin/gnome-shell" label="unconfined")
+[  143.245779] caraxes-vm4-615 dbus-daemon[1093]: [session uid=1000 pid=1093] Activating via systemd: service name='org.gtk.vfs.AfcVolumeMonitor' unit='gvfs-afc-volume-monitor.service' requested by ':1.31' (uid=1000 pid=2061 comm="/usr/bin/gnome-shell" label="unconfined")
+[  143.480170] caraxes-vm4-615 gnome-shell[2061]: Error looking up permission: GDBus.Error:org.freedesktop.portal.Error.NotFound: No entry for geolocation
+[  143.721793] caraxes-vm4-615 gnome-shell[2061]: Failed to import DBusMenu, quicklists are not available: Error: Requiring Dbusmenu, version none: Typelib file for namespace 'Dbusmenu' (any version) not found
+[  143.721889] caraxes-vm4-615 gnome-shell[2061]: Failed to import DBusMenu, quicklists are not available: Error: Requiring Dbusmenu, version none: Typelib file for namespace 'Dbusmenu' (any version) not found
+[  143.721967] caraxes-vm4-615 gnome-shell[2061]: Failed to import DBusMenu, quicklists are not available: Error: Requiring Dbusmenu, version none: Typelib file for namespace 'Dbusmenu' (any version) not found
+[  143.854924] caraxes-vm4-615 gnome-shell[2061]: Window manager warning: Overwriting existing binding of keysym 33 with keysym 33 (keycode c).
+[  143.855420] caraxes-vm4-615 gnome-shell[2061]: Window manager warning: Overwriting existing binding of keysym 35 with keysym 35 (keycode e).
+[  143.855420] caraxes-vm4-615 gnome-shell[2061]: Window manager warning: Overwriting existing binding of keysym 32 with keysym 32 (keycode b).
+[  143.855420] caraxes-vm4-615 gnome-shell[2061]: Window manager warning: Overwriting existing binding of keysym 39 with keysym 39 (keycode 12).
+[  143.855552] caraxes-vm4-615 gnome-shell[2061]: Window manager warning: Overwriting existing binding of keysym 39 with keysym 39 (keycode 12).
+[  143.855589] caraxes-vm4-615 gnome-shell[2061]: Window manager warning: Overwriting existing binding of keysym 34 with keysym 34 (keycode d).
+[  143.855589] caraxes-vm4-615 gnome-shell[2061]: Window manager warning: Overwriting existing binding of keysym 38 with keysym 38 (keycode 11).
+[  143.855589] caraxes-vm4-615 gnome-shell[2061]: Window manager warning: Overwriting existing binding of keysym 34 with keysym 34 (keycode d).
+[  143.855684] caraxes-vm4-615 gnome-shell[2061]: Window manager warning: Overwriting existing binding of keysym 33 with keysym 33 (keycode c).
+[  143.855684] caraxes-vm4-615 gnome-shell[2061]: Window manager warning: Overwriting existing binding of keysym 35 with keysym 35 (keycode e).
+[  143.855736] caraxes-vm4-615 gnome-shell[2061]: Window manager warning: Overwriting existing binding of keysym 38 with keysym 38 (keycode 11).
+[  143.855736] caraxes-vm4-615 gnome-shell[2061]: Window manager warning: Overwriting existing binding of keysym 36 with keysym 36 (keycode f).
+[  143.855736] caraxes-vm4-615 gnome-shell[2061]: Window manager warning: Overwriting existing binding of keysym 37 with keysym 37 (keycode 10).
+[  143.855736] caraxes-vm4-615 gnome-shell[2061]: Window manager warning: Overwriting existing binding of keysym 36 with keysym 36 (keycode f).
+[  143.856095] caraxes-vm4-615 gnome-shell[2061]: Window manager warning: Overwriting existing binding of keysym 31 with keysym 31 (keycode a).
+[  143.856095] caraxes-vm4-615 gnome-shell[2061]: Window manager warning: Overwriting existing binding of keysym 32 with keysym 32 (keycode b).
+[  143.856095] caraxes-vm4-615 gnome-shell[2061]: Window manager warning: Overwriting existing binding of keysym 31 with keysym 31 (keycode a).
+[  143.856095] caraxes-vm4-615 gnome-shell[2061]: Window manager warning: Overwriting existing binding of keysym 37 with keysym 37 (keycode 10).
+[  145.173637] caraxes-vm4-615 gnome-shell[2061]: DING: (gjs:2609): Gjs-WARNING **: 23:45:40.800: GLib.unix_signal_add has been moved to a separate platform-specific library. Please update your code to use GLibUnix.signal_add instead.
+== counts
+page_flip_failed=0
+== dmesg

@@ -1,0 +1,164 @@
+vfio-user-nvgpu: host ABI 615.71.09: TSG params 28 bytes, GPU_GET_PES_INFO 76 (tpcToPesMap[15]), GR_GET_GLOBAL_SM_ORDER 10264 (SM entry 20), channel params 376, GSS legacy [pmgr 0x18 20512, thermal 0x36 24532, perf 0xf1 9216] (chosen by running driver 615.71.09 (/proc/driver/nvidia/version)); guest ABI 615.71.09
+vfio-user-nvgpu: host memory client open; privilege: uid 1000; capabilities effective 0x0 permitted 0x200000 inheritable 0x0
+vfio-user-nvgpu: hostmem: host FB regions: [0x3620000, 0x1e988ffff] reserved 0x0
+vfio-user-nvgpu: hostmem: host VRAM: total 8192 MiB, HEAP_FREE 6671 MiB, nvidia-smi free 6672 MiB, largest free region 6410 MiB at 0x58e00000; request 3072 MiB at [0x129800000, 0x1e9800000) (slot 0, heap region end 0x1e9890000)
+vfio-user-nvgpu: hostmem: reserved host VRAM [0x129800000, 0x1e9800000) (3072 MiB, slot 0), handle 0x80000003, attr 0x11800000 attr2 0x100005, contiguous, in 0 ms
+vfio-user-nvgpu: fb layout: address space 0x200000000 (host card), reservation [0x129800000, 0x1e9800000), usable [0x129800000, 0x1e9600000), BAR2/BAR1 roots 0x1e9600000/0x1e9601000, fb_length 0xc0000000
+vfio-user-nvgpu: display engine present (fuse 0; board connectors from the board data)
+vfio-user-nvgpu: guest name "Leandro VFIO RTX 2070-3G"
+vfio-user-nvgpu: host RM open (unprivileged client, device 0, subdevice 0)
+vfio-user-nvgpu: forward cache on (22 static getters; CARAXES_FORWARD_CACHE=0 turns it off)
+vfio-user-nvgpu: alloc lazy: on, shadow plans at the next shadow doorbell or channel creation, deadline 20 ms [CARAXES_ALLOC_LAZY]
+vfio-user-nvgpu: host execution on: FB backed by the reserved VRAM through BAR1 windows (budget 2 x 32 MiB = 64 MiB of the host's shared BAR1; CARAXES_BAR1_WINDOWS, CARAXES_BAR1_WINDOW_MIB); guest channels mirrored on the host at their first doorbell; GR0/CE2-CE4 non-stall events forwarded as guest vectors (docs/caraxes/execution.md)
+vfio-user-nvgpu: bar2 memfd: guest BAR2 [0, 0x2000000) offered as 2 sparse mmap area(s) of region 3 from a sealed memfd; trapped page(s) ["0xfea000"]; synced at the trapped pages, MMU invalidates, BAR2 binds and GSP doorbells (CARAXES_BAR2_MEMFD=1, docs/caraxes/bar2-memfd.md)
+vfio-user-nvgpu: intr page: BAR0 [0x0, 0x1000) and the interrupt tree [0xb81000, 0xb82000) offered as sparse mmap areas of region 0 from a memfd; the reactor applies the guest's stores (sleep bound 1 ms, retrigger watchdog 10 ms) (CARAXES_INTR_PAGE=1, docs/caraxes/intr-page.md)
+vfio-user-nvgpu: display page: BAR0 [0x611000, 0x612000) (the display front-end interrupt status) offered as a third sparse mmap area; the display clock advances the engine at every tick, the reactor applies the guest's acks and enables, window AWAKENs are acknowledged by the CORE marker (CARAXES_DISPLAY_PAGE=1, docs/caraxes/intr-page.md §10)
+vfio-user-nvgpu: doorbell tokens: BAR0 0xbb0090, 4 bytes, 64 sub-region(s) with datamatch 0xca700000..=0xca70003f and one eventfd each, offered through VFIO_USER_DEVICE_GET_REGION_IO_FDS; a channel gets a pool token at its first (trapped) doorbell, written to its work-submit-token notifier entry (CARAXES_DOORBELL_TOKENS=64, docs/caraxes/doorbell-token-pool.md)
+vfio-user-nvgpu: msi re-arm ioeventfd: BAR0 0x88704 (NV_XVE_CYA_2), 4 bytes, no datamatch, offered through VFIO_USER_DEVICE_GET_REGION_IO_FDS and read by the token pool's reactor; a client that does not register it keeps trapping the write (CARAXES_MSI_REARM_IOEVENTFD=1, docs/caraxes/intr-page.md §4)
+vfio-user-nvgpu: guest ABI 615 (MsgqV2)
+vfio-user-nvgpu: TU106 (BOOT_0 0x166000a1, driver 615.71.09) on /mnt/vmstore/caraxes/vm4-615/gpu.sock, boot model on, FB 3072 MiB, ROM 130048 bytes, PROM image 131584 bytes, trace /mnt/vmstore/caraxes/vm4-615/gpu-trace.log
+vfio-user-nvgpu: doorbell poll: hybrid reader (CARAXES_DOORBELL_POLL=hybrid, CARAXES_DOORBELL_POLL_CPU=Auto)
+[2026-09-25T10:03:09Z INFO  vfio_user] Received client version: major = 0 minor = 1 capabilities = Capabilities { max_msg_fds: 253, max_data_xfer_size: 1048576, migration: MigrationCapabilities { pgsize: 4096 } }
+[2026-09-25T10:03:09Z INFO  vfio_user] Sent server version: major = 0 minor = 0 capabilities = Capabilities { max_msg_fds: 1, max_data_xfer_size: 1048576, migration: MigrationCapabilities { pgsize: 4096 } }
+vfio-user-nvgpu: hostmem: guest RAM 0x0+0xc0000000: registration deferred until all 4096 MiB are mapped (3072 MiB so far), so the whole guest gets one IOVA offset
+vfio-user-nvgpu: dma table: 0 range(s), identity; ranges=; published to /mnt/vmstore/caraxes/vm4-615/dma-ranges
+vfio-user-nvgpu: hostmem: placed guest RAM chunk GPA 0x100000000..0x140000000 -> IOVA 0x7fff80000000..0x7fffc0000000 (descriptor 0x80000004, 633 ms, 9 IOVA samples = base + offset)
+vfio-user-nvgpu: hostmem: hole filler GPA 0xc0000000..0x100000000 -> IOVA 0x7fff40000000..0x7fff80000000 (descriptor 0x80000005 over one device-owned 2 MiB page, 221 ms; never in the guest's table or the filter)
+vfio-user-nvgpu: hostmem: placed guest RAM chunk GPA 0x80000000..0xc0000000 -> IOVA 0x7fff00000000..0x7fff40000000 (descriptor 0x80000006, 606 ms, 9 IOVA samples = base + offset)
+vfio-user-nvgpu: hostmem: placed guest RAM chunk GPA 0x40000000..0x80000000 -> IOVA 0x7ffec0000000..0x7fff00000000 (descriptor 0x80000007, 605 ms, 9 IOVA samples = base + offset)
+vfio-user-nvgpu: hostmem: linear registration: GPA 0x0 landed at IOVA 0x7ffe40000000 (offset 0x7ffe40000000, not 0x7ffe80000000): a host allocation sits in between; restart 1 below it
+vfio-user-nvgpu: hostmem: placed guest RAM chunk GPA 0x100000000..0x140000000 -> IOVA 0x7ffe00000000..0x7ffe40000000 (descriptor 0x80000009, 57 ms, 9 IOVA samples = base + offset)
+vfio-user-nvgpu: hostmem: hole filler GPA 0xc0000000..0x100000000 -> IOVA 0x7ffdc0000000..0x7ffe00000000 (descriptor 0x8000000a over one device-owned 2 MiB page, 214 ms; never in the guest's table or the filter)
+vfio-user-nvgpu: hostmem: placed guest RAM chunk GPA 0x80000000..0xc0000000 -> IOVA 0x7ffd80000000..0x7ffdc0000000 (descriptor 0x8000000b, 54 ms, 9 IOVA samples = base + offset)
+vfio-user-nvgpu: hostmem: placed guest RAM chunk GPA 0x40000000..0x80000000 -> IOVA 0x7ffd40000000..0x7ffd80000000 (descriptor 0x8000000c, 55 ms, 9 IOVA samples = base + offset)
+vfio-user-nvgpu: hostmem: placed guest RAM chunk GPA 0x0..0x40000000 -> IOVA 0x7ffd00000000..0x7ffd40000000 (descriptor 0x8000000d, 53 ms, 9 IOVA samples = base + offset)
+vfio-user-nvgpu: hostmem: guest RAM 4096 MiB in 2 zone(s): 4 chunk(s) + 1 hole filler(s) registered from the top GPA down in 3258 ms (1 restart(s)); IOVA = GPA + 0x7ffd00000000 for the whole guest; pinned now 4096 MiB; host foll_pin acquired +2621440 released +1310647; privileged windows so far 10
+vfio-user-nvgpu: hostmem: registered guest RAM chunk GPA 0x0..0x40000000 -> IOVA 0x7ffd00000000..0x7ffd40000000 (descriptor 0x8000000d, linear)
+vfio-user-nvgpu: hostmem: registered guest RAM chunk GPA 0x40000000..0x80000000 -> IOVA 0x7ffd40000000..0x7ffd80000000 (descriptor 0x8000000c, linear)
+vfio-user-nvgpu: hostmem: registered guest RAM chunk GPA 0x80000000..0xc0000000 -> IOVA 0x7ffd80000000..0x7ffdc0000000 (descriptor 0x8000000b, linear)
+vfio-user-nvgpu: hostmem: registered guest RAM chunk GPA 0x100000000..0x140000000 -> IOVA 0x7ffe00000000..0x7ffe40000000 (descriptor 0x80000009, linear)
+vfio-user-nvgpu: dma table: 2 range(s), host IOVAs; ranges=0:7ffd00000000:c0000000,100000000:7ffe00000000:40000000; published to /mnt/vmstore/caraxes/vm4-615/dma-ranges
+vfio-user-nvgpu: doorbell poll: reader pinned to CPU 15 (auto: 97 % idle over 1 s; not CPU 0; VMM vCPU threads of pid 62558 on CPU(s) [0, 1, 2, 3, 6, 9, 12, 13] at the sample, avoided)
+vfio-user-nvgpu: alloc lazy: on, shadow plans at the next shadow doorbell or channel creation, deadline 20 ms [CARAXES_ALLOC_LAZY]
+vfio-user-nvgpu: dma table: guest aliases from /mnt/vmstore/caraxes/vm4-615/dma-ranges.guest: GPA 0xba200000..0xbe400000 -> IOVA 0xf000000000..0xf004200000
+vfio-user-nvgpu: alloc lazy: on, shadow plans at the next shadow doorbell or channel creation, deadline 20 ms [CARAXES_ALLOC_LAZY]
+vfio-user-nvgpu: ERROR untrapped GPPut: at 1790331124.100 chid 23's host channel ran ahead of its doorbell (GPGet 4803, forwarded up to 4800, GPPut 4803) with plans pending (lazy true, worker false, 0 unwaited invalidate plan(s) since the forward); USERD untrapped false
+[2026-09-25T10:13:05Z INFO  vfio_user] Connection closed
+vfio-user-nvgpu: mirror: chid 2: host channel 0x80000140 freed after 2746 doorbell(s), 452716 ms of life [host]
+vfio-user-nvgpu: mirror: chid 5: host channel 0x800001e8 freed after 1667 doorbell(s), 439035 ms of life [host]
+vfio-user-nvgpu: mirror: chid 8: host channel 0x8000020f freed after 8 doorbell(s), 438188 ms of life [host]
+vfio-user-nvgpu: mirror: chid 11: host channel 0x800003d4 freed after 4 doorbell(s), 433652 ms of life [host]
+vfio-user-nvgpu: mirror: chid 14: host channel 0x80000261 freed after 2358 doorbell(s), 435981 ms of life [host]
+vfio-user-nvgpu: mirror: tsg 0xc1d00019/0xcef80000 (grpID 2): host TSG 0x8000013f (engineType 0x1) freed [host]
+vfio-user-nvgpu: mirror: shadow: VAS 0x80000135 of guest root 0x1298f0000 handed to the worker for an incremental teardown (2717 resync(s) skipped clean on this thread) [host]
+vfio-user-nvgpu: mirror: tsg 0xc1d0001e/0xcef80000 (grpID 6): host TSG 0x800001e7 (engineType 0x1) freed [host]
+vfio-user-nvgpu: mirror: shadow: VAS 0x800001e0 of guest root 0x1298fe000 handed to the worker for an incremental teardown (1623 resync(s) skipped clean on this thread) [host]
+vfio-user-nvgpu: mirror: tsg 0xc1d0002c/0xcef80000 (grpID 10): host TSG 0x8000020e (engineType 0x1) freed [host]
+vfio-user-nvgpu: mirror: shadow: VAS 0x80000206 of guest root 0x134685000 handed to the worker for an incremental teardown (7 resync(s) skipped clean on this thread) [host]
+vfio-user-nvgpu: mirror: tsg 0xc1d0004f/0xcef80000 (grpID 14): host TSG 0x800003d3 (engineType 0x1) freed [host]
+vfio-user-nvgpu: mirror: shadow: VAS 0x800003c6 of guest root 0x134762000 handed to the worker for an incremental teardown (3 resync(s) skipped clean on this thread) [host]
+vfio-user-nvgpu: mirror: tsg 0xc1d00045/0xcef80000 (grpID 18): host TSG 0x80000260 (engineType 0x1) freed [host]
+vfio-user-nvgpu: mirror: shadow: VAS 0x80000258 of guest root 0x134ad0000 handed to the worker for an incremental teardown (2348 resync(s) skipped clean on this thread) [host]
+vfio-user-nvgpu: mirror: shadow: VAS of guest root 0x1298f4000 freed: 15 syncs (0 skipped clean, 1 full walks, 65 table reads, 66 units diffed; max 14148 us, total 43 ms), 314 maps (2666 leaves), 280 unmaps (2 partial, 0 failed), 0 map-failed, 0 over budget, 0 refused by the filter, 14 region objects (4 freed, 1 of them whole with 10 mappings, 0 refused, 3 pooled), 249 per-leaf objects, 2 gather descriptor(s) for 289 leaves (0 refused, 2 live); 1505 leaves in 26 RM mappings at the end; RM calls 1112: map 314 (15309 us), unmap 280 (7436 us), object alloc 263 (7421 us), object free 253 (7436 us)
+vfio-user-nvgpu: mirror: shadow: VAS of guest root 0x134766000 freed: 9 syncs (0 skipped clean, 1 full walks, 25 table reads, 18 units diffed; max 2669 us, total 7 ms), 38 maps (919 leaves), 13 unmaps (1 partial, 0 failed), 0 map-failed, 0 over budget, 0 refused by the filter, 3 region objects (0 freed, 0 of them whole with 0 mappings, 0 refused, 0 pooled), 6 per-leaf objects, 3 gather descriptor(s) for 418 leaves (0 refused, 3 live); 875 leaves in 26 RM mappings at the end; RM calls 69: map 38 (2249 us), unmap 13 (387 us), object alloc 9 (491 us), object free 6 (205 us), invalidate 0 (0 us), 
+vfio-user-nvgpu: mirror: shadow: VAS of guest root 0x134ad1000 freed: 11 syncs (0 skipped clean, 1 full walks, 30 table reads, 22 units diffed; max 6017 us, total 10 ms), 37 maps (919 leaves), 9 unmaps (1 partial, 0 failed), 0 map-failed, 0 over budget, 0 refused by the filter, 3 region objects (0 freed, 0 of them whole with 0 mappings, 0 refused, 0 pooled), 6 per-leaf objects, 7 gather descriptor(s) for 822 leaves (0 refused, 7 live); 875 leaves in 29 RM mappings at the end; RM calls 68: map 37 (1696 us), unmap 9 (1110 us), object alloc 9 (476 us), object free 6 (266 us), invalidate 0 (0 us),
+vfio-user-nvgpu: mirror: shadow: VAS of guest root 0x134ad7000 freed: 19 syncs (0 skipped clean, 1 full walks, 79 table reads, 74 units diffed; max 19519 us, total 54 ms), 308 maps (2794 leaves), 286 unmaps (1 partial, 0 failed), 0 map-failed, 0 over budget, 0 refused by the filter, 14 region objects (3 freed, 0 of them whole with 0 mappings, 0 refused, 4 pooled), 249 per-leaf objects, 2 gather descriptor(s) for 289 leaves (0 refused, 2 live); 1633 leaves in 23 RM mappings at the end; RM calls 1111: map 308 (20972 us), unmap 286 (8402 us), object alloc 263 (12614 us), object free 252 (7122 us)
+vfio-user-nvgpu: mirror: shadow: VAS of guest root 0x1346c6000 freed: 40 syncs (0 skipped clean, 1 full walks, 114 table reads, 94 units diffed; max 45573 us, total 142 ms), 314 maps (2794 leaves), 287 unmaps (1 partial, 0 failed), 0 map-failed, 0 over budget, 0 refused by the filter, 14 region objects (3 freed, 0 of them whole with 0 mappings, 0 refused, 4 pooled), 249 per-leaf objects, 15 gather descriptor(s) for 1792 leaves (0 refused, 7 live); 1633 leaves in 28 RM mappings at the end; RM calls 1139: map 314 (49372 us), unmap 287 (20254 us), object alloc 263 (10010 us), object free 252 (274
+vfio-user-nvgpu: mirror: shadow: VAS of guest root 0x1346c5000 freed: 5 syncs (0 skipped clean, 1 full walks, 22 table reads, 13 units diffed; max 4219 us, total 8 ms), 29 maps (910 leaves), 3 unmaps (1 partial, 0 failed), 0 map-failed, 0 over budget, 0 refused by the filter, 3 region objects (0 freed, 0 of them whole with 0 mappings, 0 refused, 0 pooled), 0 per-leaf objects, 4 gather descriptor(s) for 657 leaves (0 refused, 4 live); 874 leaves in 27 RM mappings at the end; RM calls 39: map 29 (4274 us), unmap 3 (179 us), object alloc 3 (624 us), object free 0 (0 us), invalidate 0 (0 us), gath
+vfio-user-nvgpu: mirror: shadow: VAS of guest root 0x1346c5000 freed: 5 syncs (0 skipped clean, 0 full walks, 20 table reads, 13 units diffed; max 6911 us, total 10 ms), 34 maps (910 leaves), 3 unmaps (2 partial, 0 failed), 0 map-failed, 0 over budget, 0 refused by the filter, 3 region objects (0 freed, 0 of them whole with 0 mappings, 0 refused, 0 pooled), 0 per-leaf objects, 6 gather descriptor(s) for 802 leaves (0 refused, 6 live); 874 leaves in 33 RM mappings at the end; RM calls 46: map 34 (2830 us), unmap 3 (162 us), object alloc 3 (351 us), object free 0 (0 us), invalidate 0 (0 us), gat
+vfio-user-nvgpu: mirror: shadow: VAS of guest root 0x1346c5000 freed: 1476 syncs (0 skipped clean, 0 full walks, 1555 table reads, 7255 units diffed; max 106094 us, total 1856 ms), 5616 maps (8740 leaves), 5587 unmaps (4 partial, 0 failed), 0 map-failed, 0 over budget, 0 refused by the filter, 20 region objects (6 freed, 0 of them whole with 0 mappings, 0 refused, 9 pooled), 505 per-leaf objects, 17 gather descriptor(s) for 2589 leaves (0 refused, 6 live); 1386 leaves in 33 RM mappings at the end; RM calls 12267: map 5616 (720279 us), unmap 5587 (902559 us), object alloc 525 (46776 us), object
+vfio-user-nvgpu: mirror: shadow: VAS of guest root 0x1298f0000 freed: 161 syncs (0 skipped clean, 1 full walks, 291 table reads, 361 units diffed; max 13672 us, total 178 ms), 340 maps (11500 leaves), 129 unmaps (4 partial, 0 failed), 0 map-failed, 0 over budget, 0 refused by the filter, 124 region objects (10 freed, 0 of them whole with 0 mappings, 0 refused, 7 pooled), 36 per-leaf objects, 13 gather descriptor(s) for 3894 leaves (0 refused, 10 live); 9548 leaves in 215 RM mappings at the end; RM calls 662: map 340 (75386 us), unmap 129 (33578 us), object alloc 160 (23980 us), object free 17 
+vfio-user-nvgpu: mirror: shadow: VAS of guest root 0x1298fe000 freed: 63 syncs (0 skipped clean, 1 full walks, 96 table reads, 85 units diffed; max 8791 us, total 46 ms), 132 maps (2971 leaves), 44 unmaps (0 partial, 0 failed), 0 map-failed, 0 over budget, 0 refused by the filter, 13 region objects (0 freed, 0 of them whole with 0 mappings, 0 refused, 0 pooled), 63 per-leaf objects, 8 gather descriptor(s) for 1618 leaves (0 refused, 7 live); 2602 leaves in 88 RM mappings at the end; RM calls 298: map 132 (20116 us), unmap 44 (1404 us), object alloc 76 (10479 us), object free 37 (1085 us), inva
+vfio-user-nvgpu: mirror: shadow: VAS of guest root 0x134685000 freed: 10 syncs (0 skipped clean, 1 full walks, 26 table reads, 19 units diffed; max 2685 us, total 10 ms), 41 maps (925 leaves), 11 unmaps (1 partial, 0 failed), 0 map-failed, 0 over budget, 0 refused by the filter, 3 region objects (0 freed, 0 of them whole with 0 mappings, 0 refused, 0 pooled), 9 per-leaf objects, 1 gather descriptor(s) for 96 leaves (0 refused, 1 live); 881 leaves in 31 RM mappings at the end; RM calls 71: map 41 (4621 us), unmap 11 (351 us), object alloc 12 (2748 us), object free 6 (204 us), invalidate 0 (0 us
+vfio-user-nvgpu: mirror: shadow: VAS of guest root 0x134762000 freed: 7 syncs (0 skipped clean, 1 full walks, 24 table reads, 16 units diffed; max 8240 us, total 17 ms), 63 maps (982 leaves), 6 unmaps (0 partial, 0 failed), 0 map-failed, 0 over budget, 0 refused by the filter, 5 region objects (0 freed, 0 of them whole with 0 mappings, 0 refused, 0 pooled), 25 per-leaf objects, 7 gather descriptor(s) for 822 leaves (0 refused, 7 live); 976 leaves in 57 RM mappings at the end; RM calls 109: map 63 (3842 us), unmap 6 (162 us), object alloc 30 (6100 us), object free 3 (163 us), invalidate 0 (0 us
+vfio-user-nvgpu: mirror: shadow: VAS of guest root 0x134ad0000 freed: 160 syncs (0 skipped clean, 1 full walks, 253 table reads, 263 units diffed; max 16823 us, total 160 ms), 298 maps (4519 leaves), 228 unmaps (2 partial, 0 failed), 0 map-failed, 0 over budget, 0 refused by the filter, 39 region objects (2 freed, 0 of them whole with 0 mappings, 0 refused, 8 pooled), 143 per-leaf objects, 12 gather descriptor(s) for 2769 leaves (0 refused, 12 live); 3805 leaves in 72 RM mappings at the end; RM calls 852: map 298 (52223 us), unmap 228 (53290 us), object alloc 182 (21452 us), object free 132 (6
+vfio-user-nvgpu: mirror: host doorbell object 0x8000001f freed: Ok(())
+vfio-user-nvgpu: mirror: host OS events freed, event thread stopped
+vfio-user-nvgpu: hostmem: freed hole filler descriptor 0x8000000a (GPA 0xc0000000, IOVA 0x7ffdc0000000)
+vfio-user-nvgpu: hostmem: freed the VRAM reservation [0x129800000, 0x1e9800000) (3072 MiB) in 5 ms (host RM scrub on free)
+vfio-user-nvgpu: hostmem: host RM client 0xc1d01855 freed
+vfio-user-nvgpu: hostmem: freed 4 guest RAM descriptor(s), 4096 MiB unpinned; host foll_pin released +1310720 during the free (since open: acquired +3164653, released +3164653)
+vfio-user-nvgpu: hostmem: privileged windows opened in total: 10
+bar0: 429289 reads, 187118 writes
+bar1: 3 reads, 170795 writes
+bar3: 116758 reads, 0 writes
+cfg: 2920 reads, 41 writes
+bar0 offsets without a name in the register map (offset: accesses):
+  0x00001100: 19
+  0x00613878: 2
+  0x00640000: 5
+  0x00640004: 5
+  0x00640010: 5
+  0x00640144: 5
+  0x0064014c: 5
+  0x00640154: 5
+  0x0064015c: 5
+  0x006405e8: 5
+  0x006405ec: 5
+  0x006405f0: 5
+  0x006405f4: 5
+  0x00640608: 5
+  0x0064060c: 5
+  0x00640610: 5
+  0x00640614: 5
+  0x00640680: 5
+  0x006406a0: 5
+  0x006406c0: 5
+  0x006406e0: 5
+  0x00640780: 10
+  0x006407a0: 10
+  0x006407c0: 10
+  0x006407e0: 10
+  0x00640800: 10
+  0x00640820: 10
+  0x00640840: 10
+  0x00640860: 10
+  0x00640880: 10
+  0x006408a0: 10
+  0x006408c0: 10
+  0x006408e0: 10
+  0x00640900: 10
+  0x00640920: 10
+  0x00640940: 10
+  0x00640960: 10
+  0x00640980: 10
+  0x006409a0: 10
+  0x006409c0: 10
+  0x006409e0: 10
+  0x00640a00: 10
+  0x00640a20: 10
+  0x00640a40: 10
+  0x00640a60: 10
+  0x00640a80: 10
+  0x00640aa0: 10
+  0x00640ac0: 10
+  0x00640ae0: 10
+  0x00640b00: 10
+  0x00640b20: 10
+  0x00640b40: 10
+  0x00640b60: 10
+  0x00680000: 42
+  0x00680004: 53
+  0x00689000: 5
+  0x00689080: 5
+  0x00689100: 5
+  0x00689180: 5
+  0x00689200: 5
+  0x00689280: 5
+  0x00689300: 5
+  0x00689380: 5
+  0x00690000: 34
+  ... 20 more
+msi re-arm ioeventfd: 202348 guest write(s) in 200551 wakeup(s)
+dma table: 1 DMA address(es) outside the table refused (first: 0x0)
+fb: reservation [0x129800000, 0x1e9800000); accesses outside it: 0 reads, 0 writes
+vram store: 3243 window map(s), 0 refused, 3241 eviction(s), 0 stall(s) without any window; 737513 read(s) of 4392192 bytes, 993856 write(s) of 2174109 bytes
+bar tlb: 323819 hit(s), 126 walk(s), 37 flush(es) by a table write (docs/caraxes/mapping.md §3)
+bar2 memfd: BAR2 [0, 0x2000000) in host RAM, trapped page(s) [0xfea000] with 116758 access(es); 169325 sync(s) (24049022 us total, 50762 us max), 43465550 page compare(s), 66203 dirty page(s), 1422645 byte(s) written back, 0 alias conflict(s); 465 BAR2 table walk(s), 526 page(s) entered (332 loaded), 135 left; now 197 page(s) mapped at 264 BAR2 page(s), at most 213 live and 21 alias(es) of one page; 0 sysmem write-back(s) skipped (docs/caraxes/bar2-memfd.md)
+mirror: 27 channel(s) created, 27 freed, 0 live; 155003 doorbell(s) forwarded, 0 TLB invalidate(s) (0 MEM_OP push(es), 0 slow), 0 refusal(s), longest mirror build 0 us; events raised 202281, MSIs 234385 (coalesced 25563), host RC events 0; alloc lazy: 47763 invalidate(s) deferred, planned in 22958 batch(es) at a doorbell and 176 at the deadline (20 ms), largest batch 40 invalidate(s), 2 still pending; untrapped GPPut: rule on (CARAXES_SHADOW_UNTRAPPED_HOLD); 0 invalidate(s) held until applied (0 ms in total, longest 0 us); 207 doorbell(s) found the host channel ahead of them, 1 of them with pl
+doorbell tokens: 64 offered (0xca700000..), 18 handed out, 0 written again, 5 assigned at exit (peak 8); 154952 eventfd wakeup(s) for 157173 guest write(s); 0 pool token(s) trapped; 0 trapped ring(s) with a channel's own token after its hand-out; 0 stale; left on their own token: 0 without notifier, 33 notifier mismatch, 0 pool exhausted (first: chid 5: work-submit-token entry at Sys(140729528402024) holds Some(0), not the rung token 0x20005 or the host token 0x90030; chid 3: work-submit-token entry at Sys(140729570803816) holds Some(ca700000), not the rung token 0x10003 or the host token 0x80
+display engine: 5 core UPDATEs, 5 core notifiers written, 26978 vblank interrupts, 0 unresolved context DMAs, ticker raised 54912 (34981 MSIs); head 3: active 1920x1080 60.000 Hz, 27045 ticks, 1 modesets; window 6: 876 updates, 876 latched, 0 pending, 0 acquire waits; window 7: 1 updates, 1 latched, 0 pending, 0 acquire waits
+vidmem PTE kinds walked (kind:comptagline x count): 0x06:0x0x126 -- all uncompressed (kind 0x06/0x00, comptagline 0): comptag hold satisfied
+doorbell poll (tokens): hybrid (200 us idle), pinned to CPU 15; 198930799 loop iteration(s), 514007 with events, 592596 blocking wait(s); 355503 eventfd event(s) for 359521 guest write(s); ring to host doorbell: 154952 ring(s), mean 22.44 us, p50 11.9 us, p99 90.9 us, max 27804.7 us (0 ring(s) without a host doorbell); Device lock wait per wakeup: mean 12.78 us, p50 0.6 us, p99 184.4 us, max 67705.3 us; reader CPU 79.990 s (13.4 %) in 596.4 s
+intr page: 736069 scan(s) with work (slowest 3113.9 us); guest stores applied: 169002 ack(s), 271118 LEAF_EN_SET, 329876 LEAF_EN_CLEAR, 304207 TOP_EN_SET, 160063 TOP_EN_CLEAR, 1 trigger(s); 170597 raise fold(s) (24801 coalesced while pending, 17388 pended again at the ack); MSIs: 162526 for raises, 71777 re-arms (a set store while a vector is pending), 82 by the watchdog, 0 not written (MSI off or no eventfd); 34914 compare-and-swap(s) lost to a guest store; inconsistencies: none
+display page: 31444 scan(s) with work; guest stores applied: 33830 EVT_STAT ack(s), 5 RM_INTR_EN store(s); 880 awaken marker(s), 880 acked by CORE_RESET (longest 5.2 ms); 868 raise(s) after an ack, 0 by the watchdog; 0 compare-and-swap(s) lost to a guest store; inconsistencies: none

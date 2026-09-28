@@ -1,0 +1,80 @@
+== +0 s 1790391662.020244928
+5296 vkcube-wayland st=R wchan=0 sys=
+== +1 s 1790391663.032095388
+5296 vkcube-wayland st=R wchan=0 sys=
+== +2 s 1790391664.047281460
+5296 vkcube-wayland st=R wchan=0 sys=
+== +3 s 1790391665.057580699
+5296 vkcube-wayland st=R wchan=0 sys=
+== +4 s 1790391666.068220639
+5296 vkcube-wayland st=R wchan=0 sys=
+== +5 s 1790391667.109091341
+5296 vkcube-wayland st=R wchan=0 sys=
+== +6 s 1790391668.125186573
+5296 vkcube-wayland st=R wchan=0 sys=
+== +7 s 1790391670.358171088
+5296 vkcube-wayland st=R wchan=0 sys=
+== +8 s 1790391671.388408655
+5296 vkcube-wayland st=R wchan=0 sys=
+== +9 s 1790391672.405453398
+5296 vkcube-wayland st=R wchan=0 sys=
+== +10 s 1790391674.067123421
+5296 vkcube-wayland st=R wchan=0 sys=
+== +11 s 1790391675.089482625
+5296 vkcube-wayland st=R wchan=0 sys=
+== +12 s 1790391676.106124778
+5296 vkcube-wayland st=R wchan=0 sys=
+== +13 s 1790391677.121252319
+5296 vkcube-wayland st=R wchan=0 sys=
+== +14 s 1790391678.158968200
+5296 vkcube-wayland st=R wchan=0 sys=
+== +15 s 1790391679.203448383
+5296 vkcube-wayland st=R wchan=0 sys=
+== +16 s 1790391680.212821732
+5296 vkcube-wayland st=R wchan=0 sys=
+== +17 s 1790391681.223132992
+5296 vkcube-wayland st=R wchan=0 sys=
+== +18 s 1790391682.233372121
+5296 vkcube-wayland st=R wchan=0 sys=
+== +19 s 1790391683.243508820
+5296 vkcube-wayland st=R wchan=0 sys=
+== +20 s 1790391684.254303530
+5296 vkcube-wayland st=R wchan=0 sys=
+== +21 s 1790391685.265231430
+5296 vkcube-wayland st=R wchan=0 sys=
+== +22 s 1790391686.275971429
+5296 vkcube-wayland st=R wchan=0 sys=
+== +23 s 1790391687.289968310
+5296 vkcube-wayland st=R wchan=0 sys=
+== +24 s 1790391688.300043800
+5296 vkcube-wayland st=R wchan=0 sys=
+== +25 s 1790391689.309246509
+5296 vkcube-wayland st=S wchan=do_poll.constprop.0 sys=
+== +26 s 1790391690.344905089
+5296 vkcube-wayland st=D wchan=os_acquire_rwlock_read sys=
+== +27 s 1790391691.364096052
+5296 vkcube-wayland st=R wchan=0 sys=
+== +28 s 1790391692.374494871
+5296 vkcube-wayland st=R wchan=0 sys=
+== +29 s 1790391693.384690841
+5296 vkcube-wayland st=R wchan=0 sys=
+== +30 s 1790391694.394844550
+5296 vkcube-wayland st=R wchan=0 sys=
+== +31 s 1790391695.407028490
+5296 vkcube-wayland st=R wchan=0 sys=
+== +32 s 1790391696.423478682
+5296 vkcube-wayland st=R wchan=0 sys=
+== +33 s 1790391697.433926202
+5296 vkcube-wayland st=R wchan=0 sys=
+== +34 s 1790391698.449766204
+5296 vkcube-wayland st=R wchan=0 sys=
+== +35 s 1790391699.460055673
+5296 vkcube-wayland st=R wchan=0 sys=
+== +36 s 1790391700.470078123
+5296 vkcube-wayland st=R wchan=0 sys=
+== +37 s 1790391701.489691406
+5296 vkcube-wayland st=R wchan=0 sys=
+== +38 s 1790391702.502781386
+5296 vkcube-wayland st=S wchan=pipe_write sys=
+== +39 s 1790391703.513566166
+5296 vkcube-wayland st=R wchan=0 sys=

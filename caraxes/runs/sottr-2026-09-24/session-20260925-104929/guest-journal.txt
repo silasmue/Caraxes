@@ -1,0 +1,400 @@
+[  710.802102] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[  710.832234] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[  712.191839] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[  712.252071] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[  712.313100] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[  713.218292] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[  713.249141] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[  713.310832] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[  713.376108] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[  714.794421] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[  718.865309] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[  719.136650] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[  719.226144] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[  720.810278] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[  727.318303] caraxes-vm4 steam[2774]: Failed to create Vulkan device: -1
+[  727.476034] caraxes-vm4 steam[2774]: ShadowOfTheTombRaider: dumped to "/home/leandro/.local/share/feral-interactive/Shadow of the Tomb Raider/crashes/0fb31f7e-3386-e0b7-0804b2c4-619b35e8.dmp"
+[  727.476034] caraxes-vm4 steam[2774]: ShadowOfTheTombRaider: crash reporter "/games/SteamLibrary/steamapps/common/Shadow of the Tomb Raider/bin/feral_linux_crash_reporter" launching
+[  727.623729] caraxes-vm4 steam[2774]: Adding process 4697 for gameID 750920
+[  727.625787] caraxes-vm4 steam[2774]: Adding process 4698 for gameID 750920
+[  727.677402] caraxes-vm4 steam[2774]: Adding process 4699 for gameID 750920
+[  727.680672] caraxes-vm4 steam[2774]: Game crashed with signal 6
+[  727.680672] caraxes-vm4 steam[2774]: Failed to create Vulkan device: -1
+[  727.680672] caraxes-vm4 steam[2774]: You may be able to relaunch the game to send the crash log automatically.
+[  727.681416] caraxes-vm4 steam[2774]: You can also contact support@feralinteractive.com directly with details of the crash, Steam System Info, and the dump file:
+[  727.681416] caraxes-vm4 steam[2774]: /home/leandro/.local/share/feral-interactive/Shadow of the Tomb Raider/crashes/0fb31f7e-3386-e0b7-0804b2c4-619b35e8.dmp
+[  727.682548] caraxes-vm4 steam[2774]: pid 4701 != 4513, skipping destruction (fork without exec?)
+[  727.729255] caraxes-vm4 steam[2774]: Adding process 4700 for gameID 750920
+[  727.730422] caraxes-vm4 steam[2774]: Adding process 4702 for gameID 750920
+[  729.779433] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[  730.423428] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[  730.700700] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[  731.525666] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[  731.978630] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[  733.912717] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[  734.612527] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[  735.005556] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[  735.185483] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[  736.806051] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[  737.303086] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[  740.580607] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[  741.701134] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[  742.430224] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[  743.092858] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[  743.122536] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[  743.260265] caraxes-vm4 steam[2774]: Game Recording - game stopped [gameid=750920]
+[  743.261024] caraxes-vm4 steam[2774]: Removing process 4702 for gameID 750920
+[  743.261410] caraxes-vm4 steam[2774]: Removing process 4700 for gameID 750920
+[  743.261841] caraxes-vm4 steam[2774]: Removing process 4699 for gameID 750920
+[  743.261841] caraxes-vm4 steam[2774]: Removing process 4698 for gameID 750920
+[  743.261841] caraxes-vm4 steam[2774]: Removing process 4697 for gameID 750920
+[  743.262473] caraxes-vm4 steam[2774]: Removing process 4513 for gameID 750920
+[  743.262549] caraxes-vm4 steam[2774]: Removing process 4512 for gameID 750920
+[  743.262712] caraxes-vm4 steam[2774]: Removing process 4511 for gameID 750920
+[  743.262712] caraxes-vm4 steam[2774]: Removing process 4510 for gameID 750920
+[  743.262712] caraxes-vm4 steam[2774]: Removing process 4500 for gameID 750920
+[  743.262843] caraxes-vm4 steam[2774]: Removing process 4494 for gameID 750920
+[  743.262843] caraxes-vm4 steam[2774]: Removing process 4469 for gameID 750920
+[  743.263261] caraxes-vm4 steam[2774]: Removing process 4385 for gameID 750920
+[  743.263673] caraxes-vm4 steam[2774]: Removing process 4384 for gameID 750920
+[  743.263673] caraxes-vm4 steam[2774]: Removing process 4383 for gameID 750920
+[  743.263673] caraxes-vm4 steam[2774]: Removing process 4382 for gameID 750920
+[  743.273291] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[  743.546990] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[  743.610023] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[  744.240272] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[  744.545147] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[  746.159566] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[  755.302323] caraxes-vm4 steam[2774]: reaping pid: 4623 -- gameoverlayui
+[  792.792974] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[  792.819907] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[  792.849577] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[  794.331394] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[  819.321831] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[  819.351360] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[  819.382016] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[  819.411697] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[  819.441472] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[  819.471386] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[  819.501521] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[  819.531533] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[  819.561223] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[  819.592228] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[  819.622873] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[  819.652649] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[  819.682374] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[  819.713068] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[  819.743806] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[  819.773800] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[  819.806863] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[  819.836637] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[  834.996901] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[  861.465349] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[  861.496016] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[  880.276952] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[  880.305675] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[  881.788846] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[  881.852972] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[  883.342086] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[  883.402296] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[  911.418511] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[  931.666111] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[  990.656384] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1020.289037] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1112.629639] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1162.529259] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1162.559440] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1162.590051] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1162.620462] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1162.650354] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1162.681778] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1162.711851] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1162.741434] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1162.771801] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1162.801069] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1162.832122] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1162.863094] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1162.893616] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1162.923682] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1162.953552] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1162.983314] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1163.014102] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1163.044794] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1185.959936] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1186.019264] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1186.140741] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1186.261996] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1187.291545] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1190.370617] caraxes-vm4 steam[2774]: Fossilize INFO: Setting autogroup scheduling.
+[ 1191.737643] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1192.738771] caraxes-vm4 steam[2774]: chdir "/games/SteamLibrary/steamapps/common/Shadow of the Tomb Raider"
+[ 1192.748683] caraxes-vm4 steam[2774]: ERROR: ld.so: object '/home/leandro/.steam/debian-installation/ubuntu12_32/gameoverlayrenderer.so' from LD_PRELOAD cannot be preloaded (wrong ELF class: ELFCLASS32): ignored.
+[ 1192.770844] caraxes-vm4 steam[2774]: ERROR: ld.so: object '/home/leandro/.steam/debian-installation/ubuntu12_32/gameoverlayrenderer.so' from LD_PRELOAD cannot be preloaded (wrong ELF class: ELFCLASS32): ignored.
+[ 1192.785487] caraxes-vm4 steam[2774]: ERROR: ld.so: object '/home/leandro/.steam/debian-installation/ubuntu12_64/gameoverlayrenderer.so' from LD_PRELOAD cannot be preloaded (wrong ELF class: ELFCLASS64): ignored.
+[ 1192.795842] caraxes-vm4 steam[2774]: ERROR: ld.so: object '/home/leandro/.steam/debian-installation/ubuntu12_32/gameoverlayrenderer.so' from LD_PRELOAD cannot be preloaded (wrong ELF class: ELFCLASS32): ignored.
+[ 1192.798081] caraxes-vm4 steam[2774]: Game Recording - would start recording game 750920, but recording for this game is disabled
+[ 1192.803910] caraxes-vm4 steam[2774]: Adding process 7958 for gameID 750920
+[ 1192.810027] caraxes-vm4 steam[2774]: Adding process 7959 for gameID 750920
+[ 1192.816814] caraxes-vm4 steam[2774]: ERROR: ld.so: object '/home/leandro/.steam/debian-installation/ubuntu12_32/gameoverlayrenderer.so' from LD_PRELOAD cannot be preloaded (wrong ELF class: ELFCLASS32): ignored.
+[ 1192.917312] caraxes-vm4 steam[2774]: Adding process 7960 for gameID 750920
+[ 1192.917713] caraxes-vm4 steam[2774]: Adding process 7961 for gameID 750920
+[ 1193.115362] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1194.976314] caraxes-vm4 steam[2774]: pid 8051 != 8045, skipping destruction (fork without exec?)
+[ 1195.037503] caraxes-vm4 steam[2774]: Adding process 8045 for gameID 750920
+[ 1195.195039] caraxes-vm4 steam[2774]: Adding process 8072 for gameID 750920
+[ 1195.212794] caraxes-vm4 steam[2774]: pid 8079 != 8078, skipping destruction (fork without exec?)
+[ 1195.218692] caraxes-vm4 steam[2774]: pid 8082 != 8078, skipping destruction (fork without exec?)
+[ 1195.246770] caraxes-vm4 steam[2774]: Adding process 8078 for gameID 750920
+[ 1195.257077] caraxes-vm4 steam[2774]: pid 8086 != 8078, skipping destruction (fork without exec?)
+[ 1195.258849] caraxes-vm4 steam[2774]: pid 8085 != 8078, skipping destruction (fork without exec?)
+[ 1195.349909] caraxes-vm4 steam[2774]: Adding process 8088 for gameID 750920
+[ 1195.350579] caraxes-vm4 steam[2774]: Adding process 8089 for gameID 750920
+[ 1195.400174] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1195.401824] caraxes-vm4 steam[2774]: Adding process 8090 for gameID 750920
+[ 1195.472499] caraxes-vm4 steam[2774]: ShadowOfTheTombRaider: crash reporter initialised with path "/home/leandro/.local/share/feral-interactive/Shadow of the Tomb Raider/crashes"
+[ 1195.511032] caraxes-vm4 steam[2774]: Adding process 8091 for gameID 750920
+[ 1196.992936] caraxes-vm4 steam[2774]: SDL2 initialised [built against 2.0.10, running with 2.0.10]
+[ 1196.996510] caraxes-vm4 steam[2774]: Setting breakpad minidump AppID = 750920
+[ 1196.997407] caraxes-vm4 steam[2774]: Steam_SetMinidumpSteamID:  Caching Steam ID:  76561198098363212 [API loaded no]
+[ 1197.515692] caraxes-vm4 steam[2774]: [0925/090932.682846:ERROR:gpu_process_transport_factory.cc(1026)] Lost UI shared context.
+[ 1200.096284] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1200.667060] caraxes-vm4 steam[2774]: Fossilize INFO: Overriding serialization path: "/games/SteamLibrary/steamapps/shadercache/750920/fozpipelinesv6/steamapprun_pipeline_cache".
+[ 1200.854285] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1200.915026] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1200.949043] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1200.979015] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1201.009120] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1201.039777] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1201.069478] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1201.105102] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1201.130450] caraxes-vm4 steam[2774]: [0925/090936.297978:INFO:CONSOLE(0)] "Styling master document from stylesheets defined in HTML Imports is deprecated. Please refer to https://goo.gl/EGXzpw for possible migration paths.", source:  (0)
+[ 1201.137865] caraxes-vm4 steam[2774]: [0925/090936.305382:INFO:CONSOLE(6569)] "The specified value "!" does not conform to the required format.  The format is "#rrggbb" where rr, gg, bb are two-digit hexadecimal numbers.", source: file:///games/SteamLibrary/steamapps/common/Shadow%20of%20the%20Tomb%20Raider/share/FeralUI/Core/3rdParty/jquery-ui-1.10.4.custom/js/jquery-1.10.2.js (6569)
+[ 1201.144280] caraxes-vm4 steam[2774]: [0925/090936.311735:INFO:CONSOLE(8672)] "Synchronous XMLHttpRequest on the main thread is deprecated because of its detrimental effects to the end user's experience. For more help, check https://xhr.spec.whatwg.org/.", source: file:///games/SteamLibrary/steamapps/common/Shadow%20of%20the%20Tomb%20Raider/share/FeralUI/Core/3rdParty/jquery-ui-1.10.4.custom/js/jquery-1.10.2.js (8672)
+[ 1201.675119] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1201.709318] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1201.752457] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1201.783593] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1201.815995] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1201.916033] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1201.945728] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1201.976076] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1202.007044] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1202.071206] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1202.132444] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1202.162599] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1202.193561] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1202.223425] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1202.255130] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1202.313557] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1203.124458] caraxes-vm4 steam[2774]: 09/25 09:09:38 minidumps folder is set to /tmp/dumps
+[ 1203.127439] caraxes-vm4 steam[2774]: 09/25 09:09:38 Init: Installing breakpad exception handler for appid(gameoverlayui)/version(20260903013152)/tid(8195)
+[ 1203.127439] caraxes-vm4 steam[2774]: 09/25 09:09:38 Init: Installing breakpad exception handler for appid(gameoverlayui)/version(1.0)/tid(8195)
+[ 1203.286449] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1203.317170] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1203.377572] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1203.407869] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1203.467310] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1203.498009] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1204.066109] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1204.553937] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1204.616739] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1204.644619] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1204.680862] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1204.768895] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1204.918830] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1205.011188] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1205.101115] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1205.132244] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1205.252744] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1205.312366] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1205.344097] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1205.405140] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1205.466190] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1205.526394] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1205.586808] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1205.616659] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1205.676426] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1205.743405] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1205.766316] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1205.798051] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1205.859076] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1205.897510] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1205.981937] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1206.071812] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1206.131977] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1206.191789] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1206.282548] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1206.312809] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1206.375866] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1206.463604] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1206.614595] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1206.704328] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1206.734887] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1206.796427] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1206.826421] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1206.886235] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1206.916448] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1206.976968] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1207.036620] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1207.066748] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1207.127581] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1207.187857] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1207.218048] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1207.279753] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1207.309353] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1207.369784] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1207.400744] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1207.461191] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1207.520295] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1207.551479] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1207.611474] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1207.641915] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1207.671662] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1207.702708] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1207.765614] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1207.795276] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1207.855216] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1207.915221] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1207.975282] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1208.005416] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1208.221246] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1208.378937] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1208.408822] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1208.470925] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1208.561478] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1208.592024] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1208.651567] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1209.144287] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1209.309347] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1209.519310] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1209.609731] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1209.670037] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1209.730216] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1209.818839] caraxes-vm4 steam[2774]: [0925/090944.986282:ERROR:media_internals.cc(103)] Cannot get RenderProcessHost
+[ 1209.819200] caraxes-vm4 steam[2774]: [0925/090944.986437:ERROR:media_internals.cc(103)] Cannot get RenderProcessHost
+[ 1209.820194] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1209.880558] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1209.941529] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1210.580749] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1210.640705] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1210.730364] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1210.760485] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1210.790604] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1210.851182] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1210.913805] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1210.943958] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1210.974081] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1211.034605] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1211.868130] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1212.018412] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1212.595695] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1212.625433] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1212.685704] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1212.746960] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1212.808067] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1212.838711] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1212.961455] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1213.132151] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1213.252961] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1213.282623] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1213.462210] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1213.492911] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1213.523564] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1213.584741] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1213.707606] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1213.737285] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1214.189192] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1215.726478] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1215.756825] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1220.416579] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1228.287165] caraxes-vm4 steam[2774]: Failed to create Vulkan device: -1
+[ 1228.428925] caraxes-vm4 steam[2774]: ShadowOfTheTombRaider: dumped to "/home/leandro/.local/share/feral-interactive/Shadow of the Tomb Raider/crashes/38b3c17d-6c9a-7c3d-434568a9-27fdc73f.dmp"
+[ 1228.429200] caraxes-vm4 steam[2774]: Warning: Previous run didn't quit gracefully, attempting to run crash reporter.
+[ 1228.429200] caraxes-vm4 steam[2774]: ShadowOfTheTombRaider: crash reporter "/games/SteamLibrary/steamapps/common/Shadow of the Tomb Raider/bin/feral_linux_crash_reporter" launching
+[ 1228.543096] caraxes-vm4 steam[2774]: Game crashed with signal 6
+[ 1228.543096] caraxes-vm4 steam[2774]: Failed to create Vulkan device: -1
+[ 1228.543273] caraxes-vm4 steam[2774]: You may be able to relaunch the game to send the crash log automatically.
+[ 1228.543273] caraxes-vm4 steam[2774]: You can also contact support@feralinteractive.com directly with details of the crash, Steam System Info, and the dump file:
+[ 1228.543273] caraxes-vm4 steam[2774]: /home/leandro/.local/share/feral-interactive/Shadow of the Tomb Raider/crashes/38b3c17d-6c9a-7c3d-434568a9-27fdc73f.dmp
+[ 1228.543865] caraxes-vm4 steam[2774]: pid 8346 != 8091, skipping destruction (fork without exec?)
+[ 1228.546956] caraxes-vm4 steam[2774]: Adding process 8342 for gameID 750920
+[ 1228.602570] caraxes-vm4 steam[2774]: Adding process 8343 for gameID 750920
+[ 1228.604430] caraxes-vm4 steam[2774]: Adding process 8344 for gameID 750920
+[ 1228.604430] caraxes-vm4 steam[2774]: Adding process 8345 for gameID 750920
+[ 1228.604555] caraxes-vm4 steam[2774]: Adding process 8347 for gameID 750920
+[ 1229.848160] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1230.600400] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1231.475303] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1232.091070] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1232.670256] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1232.730447] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1233.062550] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1233.694519] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1234.811275] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1235.909606] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1238.144568] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1238.384335] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1238.718792] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1238.779045] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1238.838719] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1239.411123] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1239.624603] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1240.384462] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1240.750065] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1240.947854] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1241.247862] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1241.278791] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1241.309211] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1241.672063] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1242.190617] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1242.649240] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1242.749369] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1242.811657] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1243.484586] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1243.514724] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1243.544518] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1243.574298] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1243.604346] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1243.634711] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1243.695818] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1243.803461] caraxes-vm4 steam[2774]: Game Recording - game stopped [gameid=750920]
+[ 1243.803873] caraxes-vm4 steam[2774]: Removing process 8347 for gameID 750920
+[ 1243.803873] caraxes-vm4 steam[2774]: Removing process 8345 for gameID 750920
+[ 1243.803918] caraxes-vm4 steam[2774]: Removing process 8344 for gameID 750920
+[ 1243.804573] caraxes-vm4 steam[2774]: Removing process 8343 for gameID 750920
+[ 1243.804573] caraxes-vm4 steam[2774]: Removing process 8342 for gameID 750920
+[ 1243.804573] caraxes-vm4 steam[2774]: Removing process 8091 for gameID 750920
+[ 1243.804573] caraxes-vm4 steam[2774]: Removing process 8090 for gameID 750920
+[ 1243.804573] caraxes-vm4 steam[2774]: Removing process 8089 for gameID 750920
+[ 1243.804573] caraxes-vm4 steam[2774]: Removing process 8088 for gameID 750920
+[ 1243.804573] caraxes-vm4 steam[2774]: Removing process 8078 for gameID 750920
+[ 1243.804573] caraxes-vm4 steam[2774]: Removing process 8072 for gameID 750920
+[ 1243.804893] caraxes-vm4 steam[2774]: Removing process 8045 for gameID 750920
+[ 1243.804934] caraxes-vm4 steam[2774]: Removing process 7961 for gameID 750920
+[ 1243.804934] caraxes-vm4 steam[2774]: Removing process 7960 for gameID 750920
+[ 1243.804934] caraxes-vm4 steam[2774]: Removing process 7959 for gameID 750920
+[ 1243.804934] caraxes-vm4 steam[2774]: Removing process 7958 for gameID 750920
+[ 1243.816468] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1244.006937] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1244.126254] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1244.189042] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1244.248299] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1245.306552] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1255.071749] caraxes-vm4 steam[2774]: reaping pid: 8195 -- gameoverlayui
+[ 1262.716645] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1298.638176] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1303.055843] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1303.085569] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1303.116169] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1303.477236] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1303.507759] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1303.598603] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1303.628415] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1303.659058] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1303.720534] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1303.750185] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1303.781208] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1303.811872] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1303.841533] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1316.747025] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!
+[ 1316.777679] caraxes-vm4 gnome-shell[2814]: Key repeat discarded, Wayland compositor doesn't seem to be processing events fast enough!

@@ -1,0 +1,4 @@
+vkmark rc=1 elapsed=36.924870436
+ERROR:             VkInstanceCreateInfo::pApplicationInfo::apiVersion has value of 0 which is not permitted. If apiVersion is not 0, then it must be greater than or equal to the value of VK_API_VERSION_1_0 [VUID-VkApplicationInfo-apiVersion]
+Authorization required, but no authorization protocol specified
+Error: vk::PhysicalDevice::createDevice: ErrorDeviceLost

@@ -1,0 +1,6 @@
+18:25:40 trace_s=152-156 desktop-up rc=0 elapsed=3.676393740 sunshine=no fps=32.6 kicks=149 kick_per_s=37.2
+18:26:54 trace_s=226-234 after-sunshine-probes rc=0 elapsed=7.599168832 sunshine=yes fps=15.8 kicks=225 kick_per_s=28.1
+18:27:18 trace_s=251-258 after-moonlight-connect rc=0 elapsed=7.269920518 sunshine=yes fps=16.5 kicks=186 kick_per_s=26.6
+18:27:40 trace_s=272-286 after-client-connected rc=134 elapsed=14.110313374 sunshine=yes fps=8.5 kicks=257 kick_per_s=18.4
+18:28:16 trace_s=308-323 streaming-retry1 rc=134 elapsed=14.201669968 sunshine=yes fps=8.4 kicks=244 kick_per_s=16.3
+18:32:43 trace_s=575-590 after-5min-streaming rc=134 elapsed=14.612789160 sunshine=yes fps=8.2 kicks=251 kick_per_s=16.7

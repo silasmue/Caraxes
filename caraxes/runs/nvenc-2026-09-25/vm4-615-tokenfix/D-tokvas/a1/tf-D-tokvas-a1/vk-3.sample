@@ -1,0 +1,44 @@
+== +0 s 1790395194.707540780
+6543 vkcube-wayland st=R wchan=0 sys=
+== +1 s 1790395195.717196710
+6543 vkcube-wayland st=R wchan=0 sys=
+== +2 s 1790395196.728407089
+6543 vkcube-wayland st=S wchan=do_poll.constprop.0 sys=
+== +3 s 1790395197.738821049
+6543 vkcube-wayland st=D wchan=0 sys=
+== +4 s 1790395198.748455458
+6543 vkcube-wayland st=R wchan=0 sys=
+6598 vkcube-wayland st=S wchan=futex_wait_queue sys=
+6599 [vkcf] Analysis st=Analysis) wchan=futex_wait_queue sys=
+6601 [vkrt] Analysis st=Analysis) wchan=futex_wait_queue sys=
+6602 [vkps] Update st=Update) wchan=futex_wait_queue sys=
+== +5 s 1790395199.788703380
+6543 vkcube-wayland st=S wchan=do_poll.constprop.0 sys=
+6598 vkcube-wayland st=S wchan=futex_wait_queue sys=
+6599 [vkcf] Analysis st=Analysis) wchan=futex_wait_queue sys=
+6601 [vkrt] Analysis st=Analysis) wchan=futex_wait_queue sys=
+6602 [vkps] Update st=Update) wchan=0 sys=
+6656 vkcube-wayland st=S wchan=futex_wait_queue sys=
+== +6 s 1790395200.842414017
+6543 vkcube-wayland st=D wchan=0 sys=
+6598 vkcube-wayland st=S wchan=futex_wait_queue sys=
+6599 [vkcf] Analysis st=Analysis) wchan=futex_wait_queue sys=
+6601 [vkrt] Analysis st=Analysis) wchan=futex_wait_queue sys=
+6602 [vkps] Update st=Update) wchan=futex_wait_queue sys=
+6656 vkcube-wayland st=S wchan=futex_wait_queue sys=
+== +7 s 1790395202.376105948
+6543 vkcube-wayland st=S wchan=do_poll.constprop.0 sys=
+6598 vkcube-wayland st=S wchan=futex_wait_queue sys=
+6599 [vkcf] Analysis st=Analysis) wchan=futex_wait_queue sys=
+6601 [vkrt] Analysis st=Analysis) wchan=futex_wait_queue sys=
+6602 [vkps] Update st=Update) wchan=futex_wait_queue sys=
+6656 vkcube-wayland st=S wchan=futex_wait_queue sys=
+== +8 s 1790395203.430626146
+6543 vkcube-wayland st=R wchan=0 sys=
+6598 vkcube-wayland st=S wchan=futex_wait_queue sys=
+6601 [vkrt] Analysis st=Analysis) wchan=futex_wait_queue sys=
+== +9 s 1790395204.459879253
+6543 vkcube-wayland st=R wchan=0 sys=
+6598 vkcube-wayland st=S wchan=futex_wait_queue sys=
+== +10 s 1790395205.944862895
+6543 vkcube-wayland st=R wchan=0 sys=

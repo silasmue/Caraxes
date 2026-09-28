@@ -1,0 +1,51 @@
+Fri Sep 25 16:38:58 2026       
++-----------------------------------------------------------------------------------------+
+| NVIDIA-SMI 615.71.09              KMD Version: 615.71.09     CUDA UMD Version: 13.4     |
++-----------------------------------------+------------------------+----------------------+
+| GPU  Name                 Persistence-M | Bus-Id          Disp.A | Volatile Uncorr. ECC |
+| Fan  Temp   Perf          Pwr:Usage/Cap |           Memory-Usage | GPU-Util  Compute M. |
+|                                         |                        |               MIG M. |
+|=========================================+========================+======================|
+|   0  Leandro VFIO RTX 2070-3G       Off |   00000000:00:06.0 Off |                  N/A |
+| 60%   53C    P5             31W /  175W |    1964MiB /   3072MiB |      5%      Default |
+|                                         |                        |                  N/A |
++-----------------------------------------+------------------------+----------------------+
+
++-----------------------------------------------------------------------------------------+
+| Processes:                                                                              |
+|  GPU   GI   CI              PID   Type   Process name                        GPU Memory |
+|        ID   ID                                                               Usage      |
+|=========================================================================================|
+|    0   N/A  N/A            2152      G   /usr/bin/gnome-shell                    157MiB |
+|    0   N/A  N/A            2977      G   ...nstallation/ubuntu12_32/steam          4MiB |
+|    0   N/A  N/A            3015      G   /usr/bin/Xwayland                         2MiB |
+|    0   N/A  N/A            3230      G   ./steamwebhelper                         24MiB |
+|    0   N/A  N/A            3257      G   ...on/ubuntu12_64/steamwebhelper       1625MiB |
+|    0   N/A  N/A            4993    C+G   sunshine                                100MiB |
+|    0   N/A  N/A            7006      G   .../bin/../bin/FeralLinuxMessage         17MiB |
++-----------------------------------------------------------------------------------------+
+
+==============NVSMI LOG==============
+
+Timestamp                                              : Fri Sep 25 16:38:58 2026
+Driver Version                                         : 615.71.09 [Deprecated; will be removed in CUDA 14.0. Use KMD Version instead]
+CUDA Version                                           : 13.4 [Deprecated; will be removed in CUDA 14.0. Use CUDA UMD Version instead]
+KMD Version                                            : 615.71.09
+CUDA UMD Version                                       : 13.4
+
+Attached GPUs                                          : 1
+GPU 00000000:00:06.0
+    FB Memory Usage
+        Total                                          : 3072 MiB
+        Reserved                                       : 173 MiB
+        Used                                           : 1966 MiB
+        Free                                           : 934 MiB
+    BAR1 Memory Usage
+        Total                                          : 256 MiB
+        Used                                           : 8 MiB
+        Free                                           : 248 MiB
+    Conf Compute Protected Memory Usage
+        Total                                          : 0 MiB
+        Used                                           : 0 MiB
+        Free                                           : 0 MiB
+

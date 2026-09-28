@@ -1,0 +1,46 @@
+== +0 s 1790395679.834316878
+16097 vkcube-wayland st=R wchan=0 sys=
+== +1 s 1790395680.851166010
+16097 vkcube-wayland st=R wchan=0 sys=
+== +2 s 1790395681.860221699
+16097 vkcube-wayland st=R wchan=0 sys=
+== +3 s 1790395682.870427398
+16097 vkcube-wayland st=S wchan=do_poll.constprop.0 sys=
+== +4 s 1790395683.880058238
+16097 vkcube-wayland st=R wchan=0 sys=
+== +5 s 1790395684.888674966
+16097 vkcube-wayland st=R wchan=0 sys=
+== +6 s 1790395685.899773256
+16097 vkcube-wayland st=R wchan=0 sys=
+16179 vkcube-wayland st=S wchan=futex_wait_queue sys=
+16180 [vkcf] Analysis st=Analysis) wchan=futex_wait_queue sys=
+16182 [vkrt] Analysis st=Analysis) wchan=futex_wait_queue sys=
+16183 [vkps] Update st=Update) wchan=0 sys=
+== +7 s 1790395687.615997342
+16097 vkcube-wayland st=R wchan=0 sys=
+16179 vkcube-wayland st=S wchan=futex_wait_queue sys=
+16180 [vkcf] Analysis st=Analysis) wchan=futex_wait_queue sys=
+16182 [vkrt] Analysis st=Analysis) wchan=futex_wait_queue sys=
+16183 [vkps] Update st=Update) wchan=futex_wait_queue sys=
+16253 vkcube-wayland st=S wchan=futex_wait_queue sys=
+== +8 s 1790395688.663905336
+16097 vkcube-wayland st=R wchan=0 sys=
+16179 vkcube-wayland st=S wchan=futex_wait_queue sys=
+16180 [vkcf] Analysis st=Analysis) wchan=futex_wait_queue sys=
+16182 [vkrt] Analysis st=Analysis) wchan=futex_wait_queue sys=
+16183 [vkps] Update st=Update) wchan=futex_wait_queue sys=
+16253 vkcube-wayland st=S wchan=futex_wait_queue sys=
+== +9 s 1790395689.712660582
+16097 vkcube-wayland st=S wchan=do_poll.constprop.0 sys=
+16179 vkcube-wayland st=S wchan=futex_wait_queue sys=
+16180 [vkcf] Analysis st=Analysis) wchan=futex_wait_queue sys=
+16182 [vkrt] Analysis st=Analysis) wchan=futex_wait_queue sys=
+16183 [vkps] Update st=Update) wchan=futex_wait_queue sys=
+16253 vkcube-wayland st=S wchan=futex_wait_queue sys=
+== +10 s 1790395691.193481492
+16097 vkcube-wayland st=R wchan=0 sys=
+16179 vkcube-wayland st=S wchan=futex_wait_queue sys=
+== +11 s 1790395692.227076961
+16097 vkcube-wayland st=R wchan=0 sys=
+== +12 s 1790395693.239238951
+16097 vkcube-wayland st=R wchan=0 sys=

@@ -1,0 +1,3 @@
+      1 vfio-user-nvgpu: soak line every 60 s (CARAXES_SOAK_SECS; 0 turns it off), once at exit; host VRAM floor 768 MiB: 0 admitted, 0 refused (0 below the floor, 0 unknown free, 0 in back-off), 0 NO_MEMORY answer(s), 0 free-size read(s)
+      1 vfio-user-nvgpu: soak exit (signal): rss_kib=9100 vram_used_mib=4586 vram_free_mib=3605 bar1_used_mib=88 bar1_free_mib=167 foll_pin=0 pinned_chunks=0 pinned_mib=0 host_objects=0 vas=0 virtual=0 tsg=0 channel=0 engine=0 guest_page=0 event=0 ot
+      1 vfio-user-nvgpu: host BAR1 floor 96 MiB: 0 admitted, 0 refused (0 below the floor, 0 unknown free, 0 in back-off), 0 NO_MEMORY answer(s), 0 free-size read(s) (every BAR1 window of the VRAM store is admitted against the host's free BAR1 minus 

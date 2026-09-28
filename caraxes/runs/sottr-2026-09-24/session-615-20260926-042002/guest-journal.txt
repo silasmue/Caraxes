@@ -1,0 +1,230 @@
+[  140.838751] caraxes-vm4-615 gnome-shell[2076]: Running GNOME Shell (using mutter 46.2) as a Wayland display server
+[  141.039214] caraxes-vm4-615 gnome-shell[2076]: Made thread 'KMS thread' realtime scheduled
+[  141.372592] caraxes-vm4-615 gnome-shell[2076]: Device '/dev/dri/card0' prefers shadow buffer
+[  141.385904] caraxes-vm4-615 gnome-shell[2076]: Added device '/dev/dri/card0' (nvidia-drm) using atomic mode setting.
+[  141.393641] caraxes-vm4-615 gnome-shell[2076]: Created gbm renderer for '/dev/dri/card0'
+[  141.393737] caraxes-vm4-615 gnome-shell[2076]: Boot VGA GPU /dev/dri/card0 selected as primary
+[  141.396270] caraxes-vm4-615 gnome-shell[2076]: Obtained a high priority EGL context
+[  141.412812] caraxes-vm4-615 gnome-shell[2076]: Obtained a high priority EGL context
+[  141.498500] caraxes-vm4-615 gnome-shell[2076]: Using public X11 display :0, (using :1 for managed services)
+[  141.498616] caraxes-vm4-615 gnome-shell[2076]: Using Wayland display name 'wayland-0'
+[  141.507297] caraxes-vm4-615 gnome-shell[2076]: Disabling hardware cursors because MUTTER_DEBUG_DISABLE_HW_CURSORS is set
+[  141.588225] caraxes-vm4-615 at-spi-dbus-bus.desktop[2086]: dbus-daemon[2086]: Activating service name='org.a11y.atspi.Registry' requested by ':1.0' (uid=1000 pid=2076 comm="/usr/bin/gnome-shell" label="unconfined")
+[  142.028568] caraxes-vm4-615 gnome-shell[2076]: Unset XDG_SESSION_ID, getCurrentSessionProxy() called outside a user session. Asking logind directly.
+[  142.028963] caraxes-vm4-615 gnome-shell[2076]: Will monitor session 13
+[  142.063499] caraxes-vm4-615 dbus-daemon[1103]: [session uid=1000 pid=1103] Activating service name='org.gnome.Shell.Screencast' requested by ':1.31' (uid=1000 pid=2076 comm="/usr/bin/gnome-shell" label="unconfined")
+[  142.091174] caraxes-vm4-615 dbus-daemon[1103]: [session uid=1000 pid=1103] Activating via systemd: service name='org.freedesktop.impl.portal.PermissionStore' unit='xdg-permission-store.service' requested by ':1.31' (uid=1000 pid=2076 comm="/usr/bin/gnome-shell" label="unconfined")
+[  142.092854] caraxes-vm4-615 dbus-daemon[1103]: [session uid=1000 pid=1103] Activating service name='org.gnome.Shell.CalendarServer' requested by ':1.31' (uid=1000 pid=2076 comm="/usr/bin/gnome-shell" label="unconfined")
+[  142.127721] caraxes-vm4-615 dbus-daemon[1103]: [session uid=1000 pid=1103] Activating via systemd: service name='org.gnome.evolution.dataserver.Sources5' unit='evolution-source-registry.service' requested by ':1.37' (uid=1000 pid=2141 comm="/usr/libexec/gnome-shell-calendar-server" label="unconfined")
+[  142.164567] caraxes-vm4-615 dbus-daemon[1103]: [session uid=1000 pid=1103] Activating service name='org.gnome.Shell.Notifications' requested by ':1.31' (uid=1000 pid=2076 comm="/usr/bin/gnome-shell" label="unconfined")
+[  142.191763] caraxes-vm4-615 gnome-shell[2076]: Gio.UnixInputStream has been moved to a separate platform-specific library. Please update your code to use GioUnix.InputStream instead.
+[  142.256472] caraxes-vm4-615 dbus-daemon[1103]: [session uid=1000 pid=1103] Activating via systemd: service name='org.gtk.vfs.UDisks2VolumeMonitor' unit='gvfs-udisks2-volume-monitor.service' requested by ':1.31' (uid=1000 pid=2076 comm="/usr/bin/gnome-shell" label="unconfined")
+[  142.387894] caraxes-vm4-615 dbus-daemon[1103]: [session uid=1000 pid=1103] Activating via systemd: service name='org.gnome.evolution.dataserver.Calendar8' unit='evolution-calendar-factory.service' requested by ':1.37' (uid=1000 pid=2141 comm="/usr/libexec/gnome-shell-calendar-server" label="unconfined")
+[  142.389318] caraxes-vm4-615 dbus-daemon[1103]: [session uid=1000 pid=1103] Activating via systemd: service name='org.gtk.vfs.GoaVolumeMonitor' unit='gvfs-goa-volume-monitor.service' requested by ':1.31' (uid=1000 pid=2076 comm="/usr/bin/gnome-shell" label="unconfined")
+[  142.414641] caraxes-vm4-615 dbus-daemon[1103]: [session uid=1000 pid=1103] Activating via systemd: service name='org.gtk.vfs.MTPVolumeMonitor' unit='gvfs-mtp-volume-monitor.service' requested by ':1.31' (uid=1000 pid=2076 comm="/usr/bin/gnome-shell" label="unconfined")
+[  142.426897] caraxes-vm4-615 dbus-daemon[1103]: [session uid=1000 pid=1103] Activating via systemd: service name='org.gtk.vfs.GPhoto2VolumeMonitor' unit='gvfs-gphoto2-volume-monitor.service' requested by ':1.31' (uid=1000 pid=2076 comm="/usr/bin/gnome-shell" label="unconfined")
+[  142.442055] caraxes-vm4-615 dbus-daemon[1103]: [session uid=1000 pid=1103] Activating via systemd: service name='org.gtk.vfs.AfcVolumeMonitor' unit='gvfs-afc-volume-monitor.service' requested by ':1.31' (uid=1000 pid=2076 comm="/usr/bin/gnome-shell" label="unconfined")
+[  142.690299] caraxes-vm4-615 gnome-shell[2076]: Error looking up permission: GDBus.Error:org.freedesktop.portal.Error.NotFound: No entry for geolocation
+[  142.983928] caraxes-vm4-615 gnome-shell[2076]: Failed to import DBusMenu, quicklists are not available: Error: Requiring Dbusmenu, version none: Typelib file for namespace 'Dbusmenu' (any version) not found
+[  142.984085] caraxes-vm4-615 gnome-shell[2076]: Failed to import DBusMenu, quicklists are not available: Error: Requiring Dbusmenu, version none: Typelib file for namespace 'Dbusmenu' (any version) not found
+[  142.984149] caraxes-vm4-615 gnome-shell[2076]: Failed to import DBusMenu, quicklists are not available: Error: Requiring Dbusmenu, version none: Typelib file for namespace 'Dbusmenu' (any version) not found
+[  142.997463] caraxes-vm4-615 dbus-daemon[1103]: [session uid=1000 pid=1103] Activating service name='org.freedesktop.FileManager1' requested by ':1.31' (uid=1000 pid=2076 comm="/usr/bin/gnome-shell" label="unconfined")
+[  143.113776] caraxes-vm4-615 dbus-daemon[1103]: [session uid=1000 pid=1103] Activating via systemd: service name='ca.desrt.dconf' unit='dconf.service' requested by ':1.31' (uid=1000 pid=2076 comm="/usr/bin/gnome-shell" label="unconfined")
+[  143.150433] caraxes-vm4-615 gnome-shell[2076]: Window manager warning: Overwriting existing binding of keysym 35 with keysym 35 (keycode e).
+[  143.150788] caraxes-vm4-615 gnome-shell[2076]: Window manager warning: Overwriting existing binding of keysym 37 with keysym 37 (keycode 10).
+[  143.150788] caraxes-vm4-615 gnome-shell[2076]: Window manager warning: Overwriting existing binding of keysym 36 with keysym 36 (keycode f).
+[  143.150788] caraxes-vm4-615 gnome-shell[2076]: Window manager warning: Overwriting existing binding of keysym 33 with keysym 33 (keycode c).
+[  143.150788] caraxes-vm4-615 gnome-shell[2076]: Window manager warning: Overwriting existing binding of keysym 32 with keysym 32 (keycode b).
+[  143.150788] caraxes-vm4-615 gnome-shell[2076]: Window manager warning: Overwriting existing binding of keysym 35 with keysym 35 (keycode e).
+[  143.150788] caraxes-vm4-615 gnome-shell[2076]: Window manager warning: Overwriting existing binding of keysym 31 with keysym 31 (keycode a).
+[  143.150788] caraxes-vm4-615 gnome-shell[2076]: Window manager warning: Overwriting existing binding of keysym 34 with keysym 34 (keycode d).
+[  143.150788] caraxes-vm4-615 gnome-shell[2076]: Window manager warning: Overwriting existing binding of keysym 39 with keysym 39 (keycode 12).
+[  143.150992] caraxes-vm4-615 gnome-shell[2076]: Window manager warning: Overwriting existing binding of keysym 34 with keysym 34 (keycode d).
+[  143.150992] caraxes-vm4-615 gnome-shell[2076]: Window manager warning: Overwriting existing binding of keysym 39 with keysym 39 (keycode 12).
+[  143.150992] caraxes-vm4-615 gnome-shell[2076]: Window manager warning: Overwriting existing binding of keysym 38 with keysym 38 (keycode 11).
+[  143.150992] caraxes-vm4-615 gnome-shell[2076]: Window manager warning: Overwriting existing binding of keysym 37 with keysym 37 (keycode 10).
+[  143.150992] caraxes-vm4-615 gnome-shell[2076]: Window manager warning: Overwriting existing binding of keysym 31 with keysym 31 (keycode a).
+[  143.150992] caraxes-vm4-615 gnome-shell[2076]: Window manager warning: Overwriting existing binding of keysym 33 with keysym 33 (keycode c).
+[  143.151203] caraxes-vm4-615 gnome-shell[2076]: Window manager warning: Overwriting existing binding of keysym 38 with keysym 38 (keycode 11).
+[  143.151339] caraxes-vm4-615 gnome-shell[2076]: Window manager warning: Overwriting existing binding of keysym 32 with keysym 32 (keycode b).
+[  143.151339] caraxes-vm4-615 gnome-shell[2076]: Window manager warning: Overwriting existing binding of keysym 36 with keysym 36 (keycode f).
+[  143.971440] caraxes-vm4-615 gnome-shell[2076]: GNOME Shell started at Sat Sep 26 2026 02:22:30 GMT+0000 (Coordinated Universal Time)
+[  143.971738] caraxes-vm4-615 gnome-shell[2076]: Registering session with GDM
+[  143.999834] caraxes-vm4-615 gnome-shell[2076]: Launching DING process
+[  144.284852] caraxes-vm4-615 dbus-daemon[1103]: [session uid=1000 pid=1103] Activating via systemd: service name='org.gtk.vfs.Metadata' unit='gvfs-metadata.service' requested by ':1.88' (uid=1000 pid=2621 comm="gjs /usr/share/gnome-shell/extensions/ding@rasters" label="desktop-icons-ng (unconfined)")
+[  144.307557] caraxes-vm4-615 gnome-shell[2076]: DING: Detected async api for thumbnails
+[  144.380610] caraxes-vm4-615 gnome-shell[2076]: DING: (gjs:2621): Gjs-WARNING **: 02:22:32.251: GLib.unix_signal_add has been moved to a separate platform-specific library. Please update your code to use GLibUnix.signal_add instead.
+[  144.381016] caraxes-vm4-615 gnome-shell[2076]: DING: 0 DesktopManager() ["/usr/share/gnome-shell/extensions/ding@rastersoft.com/app/desktopManager.js":264:12]
+[  144.381016] caraxes-vm4-615 gnome-shell[2076]: DING: 1 anonymous() ["/usr/share/gnome-shell/extensions/ding@rastersoft.com/app/ding.js":180:25]
+[  144.381016] caraxes-vm4-615 gnome-shell[2076]: DING: 2 anonymous() ["/usr/share/gnome-shell/extensions/ding@rastersoft.com/app/ding.js":197:20]
+[  144.381016] caraxes-vm4-615 gnome-shell[2076]: DING: 3 <TOP LEVEL> ["/usr/share/gnome-shell/extensions/ding@rastersoft.com/app/ding.js":206:12]
+[  144.421479] caraxes-vm4-615 gnome-shell[2076]: DING: ** Message: 02:22:32.284: Connecting to org.freedesktop.Tracker3.Miner.Files
+[  144.423735] caraxes-vm4-615 gnome-shell[2076]: DING: DBus interface for Gvfs daemon (org.gtk.vfs.Metadata) is now available.
+[  144.488230] caraxes-vm4-615 gnome-shell[2076]: Received notification for window. 0 notifications remaining.
+[  144.643874] caraxes-vm4-615 gnome-shell[2076]: DING: DBus interface for Nautilus (org.gnome.Nautilus.FileOperations2) is now available.
+[  144.646250] caraxes-vm4-615 gnome-shell[2076]: DING: DBus interface for Nautilus (org.freedesktop.FileManager1) is now available.
+[  144.646281] caraxes-vm4-615 gnome-shell[2076]: DING: GNOME nautilus 46.4
+[  147.955132] caraxes-vm4-615 systemd[1070]: Started app-gnome-steam-2672.scope - Application launched by gnome-session-binary.
+[  147.983382] caraxes-vm4-615 steam.desktop[2672]: steam.sh[2672]: Running Steam on ubuntu 24.04 64-bit
+[  147.983705] caraxes-vm4-615 steam.desktop[2672]: steam.sh[2672]: STEAM_RUNTIME is enabled automatically
+[  148.016213] caraxes-vm4-615 steam.desktop[2713]: setup.sh[2713]: Steam runtime environment up-to-date!
+[  148.795302] caraxes-vm4-615 steam[2757]: steam.sh[2672]: Steam client's requirements are satisfied
+[  148.824577] caraxes-vm4-615 steam[2757]: CProcessEnvironmentManager is ready, 5 preallocated environment variables.
+[  148.835793] caraxes-vm4-615 steam[2757]: [2026-09-26 02:22:36] Startup - updater built Sep  3 2026 01:31:48
+[  148.835793] caraxes-vm4-615 steam[2757]: [2026-09-26 02:22:36] Startup - Steam Client launched with: '/home/leandro/.steam/debian-installation/ubuntu12_32/steam' '-srt-logger-opened' '-nominidumps' '-nobreakpad'
+[  150.080072] caraxes-vm4-615 steam[2757]: 09/26 02:22:37 minidumps folder is set to /tmp/dumps
+[  150.080444] caraxes-vm4-615 steam[2757]: 09/26 02:22:37 Init: Installing breakpad exception handler for appid(steam)/version(1788652215)/tid(2788)
+[  150.080618] caraxes-vm4-615 steam[2757]: Looks like steam didn't shutdown cleanly, scheduling immediate update check
+[  150.083881] caraxes-vm4-615 steam[2757]: CProcessEnvironmentManager is ready, 5 preallocated environment variables.
+[  150.088671] caraxes-vm4-615 steam[2757]: [2026-09-26 02:22:37] Process started with command-line: '/home/leandro/.steam/debian-installation/ubuntu12_32/steam' '-child-update-ui' '-child-update-ui-socket' '8' '-srt-logger-opened' '-nominidumps' '-nobreakpad'
+[  150.089262] caraxes-vm4-615 steam[2757]: 09/26 02:22:37 minidumps folder is set to /tmp/dumps
+[  150.090661] caraxes-vm4-615 steam[2757]: [2026-09-26 02:22:37] Using update UI: console
+[  150.090661] caraxes-vm4-615 steam[2757]: 09/26 02:22:37 Init: Installing breakpad exception handler for appid(steam)/version(0)/tid(2790)
+[  150.091009] caraxes-vm4-615 steam[2757]: [2026-09-26 02:22:37] Create window
+[  150.099143] caraxes-vm4-615 steam[2757]: [2026-09-26 02:22:37] Loading cached metrics from disk (/home/leandro/.steam/debian-installation/package/steam_client_metrics.bin)
+[  150.099994] caraxes-vm4-615 steam[2757]: [2026-09-26 02:22:37] Using the following download hosts for Public, Realm steamglobal
+[  150.099994] caraxes-vm4-615 steam[2757]: [2026-09-26 02:22:37] 1. https://client-update.fastly.steamstatic.com, /, Realm 'steamglobal', weight was 900, source = 'update_hosts_cached.vdf'
+[  150.100061] caraxes-vm4-615 steam[2757]: [2026-09-26 02:22:37] 2. https://client-update.akamai.steamstatic.com, /, Realm 'steamglobal', weight was 400, source = 'update_hosts_cached.vdf'
+[  150.100061] caraxes-vm4-615 steam[2757]: [2026-09-26 02:22:37] 3. https://client-update.steamstatic.com, /, Realm 'steamglobal', weight was 1, source = 'baked in'
+[  150.100189] caraxes-vm4-615 steam[2757]: [2026-09-26 02:22:37] Checking for update on startup
+[  150.102374] caraxes-vm4-615 steam[2757]: [2026-09-26 02:22:37] Checking for available updates...
+[  150.102374] caraxes-vm4-615 steam[2757]: [2026-09-26 02:22:37] Downloading manifest: https://client-update.fastly.steamstatic.com/steam_client_ubuntu12
+[  150.103357] caraxes-vm4-615 steam[2757]: [2026-09-26 02:22:37] Manifest download: send request
+[  150.107162] caraxes-vm4-615 steam[2757]: [2026-09-26 02:22:37] Set percent complete: 0
+[  150.115286] caraxes-vm4-615 steam[2757]: [2026-09-26 02:22:37] Set status message: Checking for available updates...
+[  150.115286] caraxes-vm4-615 steam[2757]: [  0%] Checking for available updates...
+[  150.123385] caraxes-vm4-615 steam[2757]: [2026-09-26 02:22:37] Set percent complete: -1
+[  150.352535] caraxes-vm4-615 steam[2757]: [2026-09-26 02:22:38] Manifest download: waiting for download to finish
+[  152.103030] caraxes-vm4-615 steam[2757]: [2026-09-26 02:22:39] Show window
+[  170.358967] caraxes-vm4-615 steam[2757]: [2026-09-26 02:22:58] Manifest download: finished
+[  170.358967] caraxes-vm4-615 steam[2757]: [2026-09-26 02:22:58] Download failed: http error 0 (client-update.fastly.steamstatic.com/steam_client_ubuntu12)
+[  170.358967] caraxes-vm4-615 steam[2757]: [2026-09-26 02:22:58] Downloading manifest: https://client-update.akamai.steamstatic.com/steam_client_ubuntu12
+[  170.359892] caraxes-vm4-615 steam[2757]: [2026-09-26 02:22:58] Manifest download: send request
+[  170.609217] caraxes-vm4-615 steam[2757]: [2026-09-26 02:22:58] Manifest download: waiting for download to finish
+[  186.632450] caraxes-vm4-615 gnome-shell[2932]: The XKEYBOARD keymap compiler (xkbcomp) reports:
+[  186.632450] caraxes-vm4-615 gnome-shell[2932]: > Warning:          Could not resolve keysym XF86CameraAccessEnable
+[  186.632450] caraxes-vm4-615 gnome-shell[2932]: > Warning:          Could not resolve keysym XF86CameraAccessDisable
+[  186.632450] caraxes-vm4-615 gnome-shell[2932]: > Warning:          Could not resolve keysym XF86CameraAccessToggle
+[  186.632450] caraxes-vm4-615 gnome-shell[2932]: > Warning:          Could not resolve keysym XF86NextElement
+[  186.632450] caraxes-vm4-615 gnome-shell[2932]: > Warning:          Could not resolve keysym XF86PreviousElement
+[  186.632450] caraxes-vm4-615 gnome-shell[2932]: > Warning:          Could not resolve keysym XF86AutopilotEngageToggle
+[  186.632450] caraxes-vm4-615 gnome-shell[2932]: > Warning:          Could not resolve keysym XF86MarkWaypoint
+[  186.632450] caraxes-vm4-615 gnome-shell[2932]: > Warning:          Could not resolve keysym XF86Sos
+[  186.632450] caraxes-vm4-615 gnome-shell[2932]: > Warning:          Could not resolve keysym XF86NavChart
+[  186.632931] caraxes-vm4-615 gnome-shell[2932]: > Warning:          Could not resolve keysym XF86FishingChart
+[  186.632931] caraxes-vm4-615 gnome-shell[2932]: > Warning:          Could not resolve keysym XF86SingleRangeRadar
+[  186.632931] caraxes-vm4-615 gnome-shell[2932]: > Warning:          Could not resolve keysym XF86DualRangeRadar
+[  186.632931] caraxes-vm4-615 gnome-shell[2932]: > Warning:          Could not resolve keysym XF86RadarOverlay
+[  186.632931] caraxes-vm4-615 gnome-shell[2932]: > Warning:          Could not resolve keysym XF86TraditionalSonar
+[  186.632931] caraxes-vm4-615 gnome-shell[2932]: > Warning:          Could not resolve keysym XF86ClearvuSonar
+[  186.632931] caraxes-vm4-615 gnome-shell[2932]: > Warning:          Could not resolve keysym XF86SidevuSonar
+[  186.632931] caraxes-vm4-615 gnome-shell[2932]: > Warning:          Could not resolve keysym XF86NavInfo
+[  186.633322] caraxes-vm4-615 gnome-shell[2932]: Errors from xkbcomp are not fatal to the X server
+[  186.642962] caraxes-vm4-615 gnome-shell[2935]: The XKEYBOARD keymap compiler (xkbcomp) reports:
+[  186.642962] caraxes-vm4-615 gnome-shell[2935]: > Warning:          Unsupported maximum keycode 708, clipping.
+[  186.642962] caraxes-vm4-615 gnome-shell[2935]: >                   X11 cannot support keycodes above 255.
+[  186.643704] caraxes-vm4-615 gnome-shell[2935]: > Warning:          Could not resolve keysym XF86CameraAccessEnable
+[  186.643704] caraxes-vm4-615 gnome-shell[2935]: > Warning:          Could not resolve keysym XF86CameraAccessDisable
+[  186.643704] caraxes-vm4-615 gnome-shell[2935]: > Warning:          Could not resolve keysym XF86CameraAccessToggle
+[  186.643804] caraxes-vm4-615 gnome-shell[2935]: > Warning:          Could not resolve keysym XF86NextElement
+[  186.643804] caraxes-vm4-615 gnome-shell[2935]: > Warning:          Could not resolve keysym XF86PreviousElement
+[  186.643804] caraxes-vm4-615 gnome-shell[2935]: > Warning:          Could not resolve keysym XF86AutopilotEngageToggle
+[  186.643804] caraxes-vm4-615 gnome-shell[2935]: > Warning:          Could not resolve keysym XF86MarkWaypoint
+[  186.643804] caraxes-vm4-615 gnome-shell[2935]: > Warning:          Could not resolve keysym XF86Sos
+[  186.643804] caraxes-vm4-615 gnome-shell[2935]: > Warning:          Could not resolve keysym XF86NavChart
+[  186.643804] caraxes-vm4-615 gnome-shell[2935]: > Warning:          Could not resolve keysym XF86FishingChart
+[  186.643933] caraxes-vm4-615 gnome-shell[2935]: > Warning:          Could not resolve keysym XF86SingleRangeRadar
+[  186.643933] caraxes-vm4-615 gnome-shell[2935]: > Warning:          Could not resolve keysym XF86DualRangeRadar
+[  186.643933] caraxes-vm4-615 gnome-shell[2935]: > Warning:          Could not resolve keysym XF86RadarOverlay
+[  186.643933] caraxes-vm4-615 gnome-shell[2935]: > Warning:          Could not resolve keysym XF86TraditionalSonar
+[  186.643933] caraxes-vm4-615 gnome-shell[2935]: > Warning:          Could not resolve keysym XF86ClearvuSonar
+[  186.643933] caraxes-vm4-615 gnome-shell[2935]: > Warning:          Could not resolve keysym XF86SidevuSonar
+[  186.643933] caraxes-vm4-615 gnome-shell[2935]: > Warning:          Could not resolve keysym XF86NavInfo
+[  186.644217] caraxes-vm4-615 gnome-shell[2935]: Errors from xkbcomp are not fatal to the X server
+[  190.615588] caraxes-vm4-615 steam[2757]: [2026-09-26 02:23:18] Manifest download: finished
+[  190.615588] caraxes-vm4-615 steam[2757]: [2026-09-26 02:23:18] Download failed: http error 0 (client-update.akamai.steamstatic.com/steam_client_ubuntu12)
+[  190.615958] caraxes-vm4-615 steam[2757]: [2026-09-26 02:23:18] Downloading manifest: https://client-update.steamstatic.com/steam_client_ubuntu12
+[  190.616321] caraxes-vm4-615 steam[2757]: [2026-09-26 02:23:18] Manifest download: send request
+[  190.865812] caraxes-vm4-615 steam[2757]: [2026-09-26 02:23:18] Manifest download: waiting for download to finish
+[  210.873808] caraxes-vm4-615 steam[2757]: [2026-09-26 02:23:38] Manifest download: finished
+[  210.873808] caraxes-vm4-615 steam[2757]: [2026-09-26 02:23:38] Download failed: http error 0 (client-update.steamstatic.com/steam_client_ubuntu12)
+[  210.873808] caraxes-vm4-615 steam[2757]: [2026-09-26 02:23:38] DownloadManifest - exhausted list of download hosts
+[  210.873808] caraxes-vm4-615 steam[2757]: [2026-09-26 02:23:38] failed to load manifest from buffer.
+[  210.873808] caraxes-vm4-615 steam[2757]: [2026-09-26 02:23:38] Failed to load manifest
+[  210.873808] caraxes-vm4-615 steam[2757]: [2026-09-26 02:23:38] Error: Download failed: http error 0
+[  210.874252] caraxes-vm4-615 steam[2757]: [2026-09-26 02:23:38] Saving metrics to disk (/home/leandro/.steam/debian-installation/package/steam_client_metrics.bin)
+[  210.874252] caraxes-vm4-615 steam[2757]: [2026-09-26 02:23:38] Verifying installation...
+[  210.874252] caraxes-vm4-615 steam[2757]: [2026-09-26 02:23:38] Verifying all executable checksums
+[  210.877192] caraxes-vm4-615 steam[2757]: [2026-09-26 02:23:38] Set percent complete: -1
+[  210.885297] caraxes-vm4-615 steam[2757]: [2026-09-26 02:23:38] Set status message: Verifying installation...
+[  210.885297] caraxes-vm4-615 steam[2757]: [----] Verifying installation...
+[  213.306986] caraxes-vm4-615 steam[2757]: [2026-09-26 02:23:41] Verification complete
+[  213.307340] caraxes-vm4-615 steam[2757]: UpdateUI: skip show logo
+[  213.309603] caraxes-vm4-615 steam[2757]: [2026-09-26 02:23:41] Destroy window
+[  214.448757] caraxes-vm4-615 steam[2757]: [2026-09-26 02:23:42] ProcessNextMessage: socket disconnected
+[  214.448757] caraxes-vm4-615 steam[2757]: [2026-09-26 02:23:42] No more messages are expected - exiting
+[  214.461439] caraxes-vm4-615 steam[2757]: Steam logging initialized: directory: /home/leandro/.steam/debian-installation/logs
+[  214.642080] caraxes-vm4-615 steam[2757]: XOpenIM() failed, LANG = C.UTF-8
+[  214.651630] caraxes-vm4-615 steam[2757]: XOpenIM() failed, LANG = C.UTF-8XRRGetOutputInfo Workaround: initialized with override: 0 real: 0xe8827860
+[  214.651787] caraxes-vm4-615 steam[2757]: XRRGetCrtcInfo Workaround: initialized with override: 0 real: 0xe8825fc0
+[  214.661183] caraxes-vm4-615 steam[2757]: /usr/share/themes/Yaru/gtk-2.0/main.rc:775: error: unexpected identifier 'direction', expected character '}'
+[  214.661963] caraxes-vm4-615 steam[2757]: /usr/share/themes/Yaru/gtk-2.0/hacks.rc:28: error: invalid string constant "normal_entry", expected valid string constant
+[  215.336238] caraxes-vm4-615 steam[2757]: 09/26 02:23:43 minidumps folder is set to /tmp/dumps
+[  215.336238] caraxes-vm4-615 steam[2757]: 09/26 02:23:43 Init: Installing breakpad exception handler for appid(steamsysinfo)/version(1788652215)/tid(5037)
+[  215.336435] caraxes-vm4-615 steam[2757]: Running query: 1 - GpuTopology
+[  215.845057] caraxes-vm4-615 steam[2757]: Response: gpu_topology {
+[  215.845344] caraxes-vm4-615 steam[2757]:   gpus {
+[  215.845344] caraxes-vm4-615 steam[2757]:     id: 1
+[  215.845344] caraxes-vm4-615 steam[2757]:     name: "Leandro VFIO RTX 2070-3G"
+[  215.845344] caraxes-vm4-615 steam[2757]:     vram_size_bytes: 3479175168
+[  215.845344] caraxes-vm4-615 steam[2757]:     driver_id: k_EGpuDriverId_NvidiaProprietary
+[  215.845344] caraxes-vm4-615 steam[2757]:     driver_version_major: 615
+[  215.845344] caraxes-vm4-615 steam[2757]:     driver_version_minor: 71
+[  215.845344] caraxes-vm4-615 steam[2757]:     driver_version_patch: 9
+[  215.845344] caraxes-vm4-615 steam[2757]:     luid: 0
+[  215.845344] caraxes-vm4-615 steam[2757]:   }
+[  215.845344] caraxes-vm4-615 steam[2757]:   gpus {
+[  215.845344] caraxes-vm4-615 steam[2757]:     id: 2
+[  215.845344] caraxes-vm4-615 steam[2757]:     name: "llvmpipe (LLVM 20.1.2, 256 bits)"
+[  215.845344] caraxes-vm4-615 steam[2757]:     vram_size_bytes: 3221225472
+[  215.845344] caraxes-vm4-615 steam[2757]:     driver_id: k_EGpuDriverId_MesaLLVMPipe
+[  215.845344] caraxes-vm4-615 steam[2757]:     driver_version_major: 25
+[  215.845344] caraxes-vm4-615 steam[2757]:     driver_version_minor: 2
+[  215.845344] caraxes-vm4-615 steam[2757]:     driver_version_patch: 8
+[  215.845344] caraxes-vm4-615 steam[2757]:     luid: 0
+[  215.845344] caraxes-vm4-615 steam[2757]:   }
+[  215.845344] caraxes-vm4-615 steam[2757]:   default_gpu_id: 1
+[  215.845344] caraxes-vm4-615 steam[2757]: }
+[  215.845344] caraxes-vm4-615 steam[2757]: Exit code: 0
+[  215.845344] caraxes-vm4-615 steam[2757]: Saving response to: /tmp/steameeIHnb - 105 bytes
+[  216.013117] caraxes-vm4-615 steamwebhelper[5055]: steamwebhelper.sh[5043]: Starting steamwebhelper under bootstrap steamrt steam runtime via: /home/leandro/.steam/debian-installation/steamrt64/pv-runtime/steam-runtime-steamrt/_v2-entry-point
+[  216.013797] caraxes-vm4-615 steamwebhelper[5055]: steamwebhelper.sh[5043]: Starting steamwebhelper with steamrt steam runtime at /home/leandro/.steam/debian-installation/steamrt64/pv-runtime/steam-runtime-steamrt/_v2-entry-point
+[  216.329737] caraxes-vm4-615 steam[2757]: Steam Runtime Launch Service: starting steam-runtime-launcher-service
+[  216.332426] caraxes-vm4-615 steam[2757]: Steam Runtime Launch Service: steam-runtime-launcher-service is running pid 5114
+[  216.347831] caraxes-vm4-615 steam[2757]: bus_name=com.steampowered.PressureVessel.LaunchAlongsideSteam
+[  217.452314] caraxes-vm4-615 steamwebhelper[5055]: exec ./steamwebhelper -nocrashdialog -lang=en_US -cachedir=/home/leandro/.steam/debian-installation/config/htmlcache -steampid=2788 -buildid=1788652215 -steamid=0 -logdir=/home/leandro/.steam/debian-installation/logs -uimode=7 -startcount=0 -steamuniverse=Public -realm=Global -clientui=/home/leandro/.steam/debian-installation/clientui -steampath=/home/leandro/.steam/debian-installation/ubuntu12_32/steam -launcher=0 -use_xcomposite_workaround --valve-initial-threadpool-size=4 --valve-enable-site-isolation --enable-smooth-scrolling --password-store=basic --log-file=/home/leandro/.steam/debian-installation/logs/cef_log.txt --disable-quick-menu --disable-component-update --gaia-url=http://disabled.invalid --enable-features=PlatformHEVCDecoderSupport --disable-features=WinRetrieveSuggestionsOnlyOnDemand,SpareRendererForSitePerProcess,DcheckIsFatal,BlockPromptsIfIgnoredOften,WebUsbDeviceDetection,ValveFFmpegAllowLowDelayHEVC
+[  230.971390] caraxes-vm4-615 gnome-shell[2076]: surface_state_changed: assertion 'wl_window->has_last_sent_configuration' failed
+[  336.379347] caraxes-vm4-615 steam[2757]: [2026-09-26 02:25:44] Background update loop checking for update. . .
+[  336.379347] caraxes-vm4-615 steam[2757]: [2026-09-26 02:25:44] Checking for available updates...
+[  336.379347] caraxes-vm4-615 steam[2757]: [2026-09-26 02:25:44] Downloading manifest: https://client-update.fastly.steamstatic.com/steam_client_ubuntu12
+[  336.379347] caraxes-vm4-615 steam[2757]: [2026-09-26 02:25:44] Manifest download: send request
+[  336.624140] caraxes-vm4-615 steam[2757]: [2026-09-26 02:25:44] Manifest download: waiting for download to finish
+[  356.662352] caraxes-vm4-615 steam[2757]: [2026-09-26 02:26:04] Manifest download: finished
+[  356.662352] caraxes-vm4-615 steam[2757]: [2026-09-26 02:26:04] Download failed: http error 0 (client-update.fastly.steamstatic.com/steam_client_ubuntu12)
+[  356.662352] caraxes-vm4-615 steam[2757]: [2026-09-26 02:26:04] Downloading manifest: https://client-update.akamai.steamstatic.com/steam_client_ubuntu12
+[  356.662352] caraxes-vm4-615 steam[2757]: [2026-09-26 02:26:04] Manifest download: send request
+[  356.886613] caraxes-vm4-615 steam[2757]: [2026-09-26 02:26:04] Manifest download: waiting for download to finish
+[  376.913442] caraxes-vm4-615 steam[2757]: [2026-09-26 02:26:24] Manifest download: finished
+[  376.913837] caraxes-vm4-615 steam[2757]: [2026-09-26 02:26:24] Download failed: http error 0 (client-update.akamai.steamstatic.com/steam_client_ubuntu12)
+[  376.913837] caraxes-vm4-615 steam[2757]: [2026-09-26 02:26:24] Downloading manifest: https://client-update.steamstatic.com/steam_client_ubuntu12
+[  376.913837] caraxes-vm4-615 steam[2757]: [2026-09-26 02:26:24] Manifest download: send request
+[  377.150602] caraxes-vm4-615 steam[2757]: [2026-09-26 02:26:25] Manifest download: waiting for download to finish
+[  396.711454] caraxes-vm4-615 steam[2757]: Desktop state changed: desktop: { pos:    0,   0 size: 1920,1080 } primary: { pos:    0,   0 size: 1920,1080 }
+[  396.711889] caraxes-vm4-615 steam[2757]: Caching cursor image for , size 24x24, serial 26, cache size = 0
+[  397.914319] caraxes-vm4-615 steam[2757]: [2026-09-26 02:26:45] Manifest download: finished
+[  397.914319] caraxes-vm4-615 steam[2757]: [2026-09-26 02:26:45] Download failed: http error 0 (client-update.steamstatic.com/steam_client_ubuntu12)
+[  397.914319] caraxes-vm4-615 steam[2757]: [2026-09-26 02:26:45] DownloadManifest - exhausted list of download hosts
+[  397.914319] caraxes-vm4-615 steam[2757]: [2026-09-26 02:26:45] failed to load manifest from buffer.
+[  397.914319] caraxes-vm4-615 steam[2757]: [2026-09-26 02:26:45] Failed to load manifest
+[  397.914319] caraxes-vm4-615 steam[2757]: [2026-09-26 02:26:45] Error: Download failed: http error 0
+[  397.914319] caraxes-vm4-615 steam[2757]: [2026-09-26 02:26:45] Saving metrics to disk (/home/leandro/.steam/debian-installation/package/steam_client_metrics.bin)

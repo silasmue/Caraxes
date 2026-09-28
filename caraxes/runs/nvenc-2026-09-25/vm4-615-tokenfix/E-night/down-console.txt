@@ -1,0 +1,13 @@
+moonlight pid 1149131 ended (SIGTERM)
+Incoming frame rate from network: 33.68 FPS
+Decoding frame rate: 33.68 FPS
+Rendering frame rate: 33.66 FPS
+Host processing latency min/max/average: 28.8/156.3/44.6 ms
+Frames dropped by your network connection: 0.00%
+Frames dropped due to network jitter: 0.02%
+Average network latency: 3 ms (variance: 2 ms)
+Average decoding time: 0.79 ms
+Average rendering time (including monitor V-sync latency): 0.86 ms
+stopped
+host watch: 481 samples, nvidia-smi max 0.076s mean 0.022s, 0 kernel log lines, 0 Xid lines, 0 alerts
+host Xid lines since 2026-09-26 06:34:16:0; evidence in /home/silas/git/Caraxes/caraxes/runs/nvenc-2026-09-25/vm4-615-tokenfix/E-night/session

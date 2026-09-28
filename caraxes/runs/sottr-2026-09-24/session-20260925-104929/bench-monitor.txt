@@ -1,0 +1,155 @@
+monitor start 2026-09-25T11:01:30+02:00 device pid 43023 vmm pid 43032
+11:01:30 gpu=32,21,5249,795,31.35,P5,51 bar1=197 MiB dev=35%/4118MiB vmm=78% load=6.54
+11:01:35 gpu=15,3,5249,1035,57.12,P0,52 bar1=197 MiB dev=35%/4119MiB vmm=79% load=6.81
+11:01:40 gpu=37,24,5249,735,31.60,P5,51 bar1=197 MiB dev=36%/4119MiB vmm=81% load=6.51
+11:01:45 gpu=39,25,5249,825,31.63,P5,51 bar1=197 MiB dev=36%/4118MiB vmm=82% load=6.55
+11:01:50 gpu=21,3,5249,690,31.41,P5,51 bar1=197 MiB dev=36%/4118MiB vmm=83% load=6.18
+11:01:55 gpu=27,8,5249,885,41.14,P3,52 bar1=201 MiB dev=37%/4118MiB vmm=84% load=5.93
+%CPU %MEM COMMAND | 154.5 7.2 sunshine | 90.9 9.8 gnome-s+ | 36.4 1.7 FeralLi+ | 27.3 0.4 tracker+ | 18.2 0.6 pipewir+ | 
+[2026-09-25 09:01:56.442]: Debug: Frame processing latency (min/max/avg): 19.80ms/958.10ms/35.17ms
+11:02:01 gpu=39,19,5319,1140,57.13,P0,52 bar1=197 MiB dev=37%/4118MiB vmm=86% load=6.33
+11:02:07 gpu=36,19,5256,945,31.43,P5,51 bar1=197 MiB dev=37%/4118MiB vmm=87% load=6.39
+11:02:12 gpu=29,18,5252,645,31.26,P5,50 bar1=197 MiB dev=38%/4118MiB vmm=88% load=6.12
+11:02:17 gpu=28,18,5253,765,30.94,P5,51 bar1=197 MiB dev=38%/4118MiB vmm=89% load=6.27
+11:02:22 gpu=34,21,5252,720,31.16,P5,50 bar1=197 MiB dev=38%/4118MiB vmm=90% load=6.33
+11:02:27 gpu=30,18,5252,720,31.34,P5,50 bar1=197 MiB dev=38%/4118MiB vmm=91% load=6.14
+%CPU %MEM COMMAND | 230.0 6.4 sunshine | 110.0 9.4 steam | 10.0 0.1 rsyslogd | 10.0 0.0 irq/38-+ | 10.0 0.5 tracker+ | 
+[2026-09-25 09:02:16.465]: Debug: Frame processing latency (min/max/avg): 16.60ms/276.90ms/27.17ms
+11:02:33 gpu=29,19,5252,645,31.13,P5,50 bar1=197 MiB dev=38%/4118MiB vmm=92% load=6.05
+11:02:38 gpu=31,19,5274,690,31.03,P5,50 bar1=197 MiB dev=38%/4118MiB vmm=93% load=6.12
+11:02:43 gpu=36,22,5252,975,31.36,P5,50 bar1=197 MiB dev=38%/4118MiB vmm=94% load=6.03
+11:02:48 gpu=25,17,5271,720,30.72,P5,50 bar1=201 MiB dev=39%/4118MiB vmm=94% load=5.95
+11:02:53 gpu=36,24,5271,735,31.09,P5,50 bar1=197 MiB dev=39%/4118MiB vmm=95% load=6.20
+11:02:58 gpu=33,20,5259,765,31.24,P5,50 bar1=197 MiB dev=39%/4118MiB vmm=96% load=6.26
+%CPU %MEM COMMAND | 250.0 6.4 sunshine | 20.0 12.8 steamwe+ | 10.0 0.1 rsyslogd | 10.0 7.2 steamwe+ | 10.0 0.1 top | 
+[2026-09-25 09:02:56.479]: Debug: Frame processing latency (min/max/avg): 17.00ms/143.50ms/27.34ms
+11:03:04 gpu=29,19,5259,675,31.24,P5,50 bar1=197 MiB dev=39%/4118MiB vmm=97% load=6.16
+11:03:09 gpu=32,19,5282,690,30.88,P5,50 bar1=197 MiB dev=39%/4118MiB vmm=98% load=5.83
+11:03:14 gpu=16,8,5379,1125,39.54,P0,51 bar1=197 MiB dev=40%/4119MiB vmm=98% load=6.24
+11:03:20 gpu=32,18,4258,885,31.37,P5,50 bar1=165 MiB dev=40%/4119MiB vmm=99% load=6.22
+11:03:25 gpu=33,20,4262,645,30.87,P5,50 bar1=165 MiB dev=40%/4119MiB vmm=100% load=6.17
+11:03:30 gpu=29,19,4256,885,31.06,P5,50 bar1=165 MiB dev=40%/4119MiB vmm=100% load=6.32
+%CPU %MEM COMMAND | 191.7 6.4 sunshine | 16.7 12.9 steamwe+ | 8.3 1.3 systemd+ | 8.3 0.1 top | 0.0 0.3 systemd | 
+[2026-09-25 09:03:16.482]: Debug: Frame processing latency (min/max/avg): 17.70ms/820.00ms/29.25ms
+11:03:35 gpu=26,17,4242,750,31.03,P5,50 bar1=165 MiB dev=40%/4119MiB vmm=101% load=6.54
+11:03:40 gpu=34,20,4272,720,31.09,P5,50 bar1=165 MiB dev=40%/4119MiB vmm=102% load=6.73
+11:03:46 gpu=34,21,4263,840,31.45,P5,50 bar1=169 MiB dev=41%/4119MiB vmm=103% load=6.67
+11:03:51 gpu=30,18,4242,885,31.11,P5,50 bar1=165 MiB dev=41%/4119MiB vmm=103% load=7.10
+11:03:56 gpu=27,18,4246,660,30.89,P5,50 bar1=165 MiB dev=41%/4119MiB vmm=104% load=7.25
+11:04:01 gpu=26,18,4249,675,31.27,P5,50 bar1=169 MiB dev=41%/4119MiB vmm=105% load=7.23
+%CPU %MEM COMMAND | 209.1 6.4 sunshine | 9.1 0.1 rsyslogd | 9.1 0.4 pipewire | 9.1 9.6 steamwe+ | 9.1 13.1 steamwe+ | 
+[2026-09-25 09:03:56.488]: Debug: Frame processing latency (min/max/avg): 18.50ms/80.50ms/29.13ms
+11:04:07 gpu=32,20,4249,660,31.07,P5,50 bar1=165 MiB dev=41%/4119MiB vmm=106% load=7.77
+11:04:12 gpu=28,18,4241,645,30.64,P5,49 bar1=169 MiB dev=41%/4119MiB vmm=107% load=7.79
+11:04:17 gpu=32,24,4241,555,30.56,P8,49 bar1=165 MiB dev=42%/4119MiB vmm=108% load=7.97
+11:04:22 gpu=22,16,4248,750,30.76,P5,49 bar1=165 MiB dev=42%/4119MiB vmm=109% load=8.21
+11:04:27 gpu=34,21,5277,765,30.92,P5,49 bar1=165 MiB dev=42%/4119MiB vmm=109% load=8.12
+11:04:32 gpu=31,20,5258,735,31.08,P5,49 bar1=197 MiB dev=42%/4119MiB vmm=110% load=7.79
+%CPU %MEM COMMAND | 190.9 6.3 sunshine | 18.2 12.6 steamwe+ | 9.1 0.1 rsyslogd | 9.1 5.0 steam | 9.1 2.6 Xwayland | 
+[2026-09-25 09:04:16.495]: Debug: Frame processing latency (min/max/avg): 19.30ms/173.40ms/31.60ms
+11:04:38 gpu=30,18,5268,840,31.25,P5,49 bar1=197 MiB dev=42%/4119MiB vmm=111% load=8.76
+11:04:43 gpu=26,18,5246,645,30.73,P5,49 bar1=197 MiB dev=42%/4119MiB vmm=111% load=8.86
+11:04:48 gpu=34,20,5246,750,30.83,P5,49 bar1=197 MiB dev=42%/4119MiB vmm=112% load=8.71
+11:04:53 gpu=27,17,5245,720,31.04,P5,49 bar1=197 MiB dev=43%/4119MiB vmm=113% load=8.34
+11:04:59 gpu=30,20,5246,735,30.83,P5,49 bar1=197 MiB dev=43%/4119MiB vmm=113% load=8.39
+11:05:04 gpu=27,17,5246,780,30.95,P5,49 bar1=197 MiB dev=43%/4119MiB vmm=114% load=8.44
+%CPU %MEM COMMAND | 240.0 6.3 sunshine | 20.0 12.5 steamwe+ | 10.0 0.1 rsyslogd | 10.0 0.6 pipewir+ | 10.0 0.1 top | 
+[2026-09-25 09:04:56.506]: Debug: Frame processing latency (min/max/avg): 17.40ms/72.50ms/27.15ms
+11:05:10 gpu=31,20,5245,660,30.75,P5,49 bar1=197 MiB dev=43%/4119MiB vmm=115% load=9.07
+11:05:15 gpu=29,18,5267,900,31.15,P5,49 bar1=197 MiB dev=43%/4119MiB vmm=115% load=8.74
+11:05:20 gpu=34,21,5263,1260,56.74,P0,51 bar1=201 MiB dev=43%/4119MiB vmm=116% load=8.84
+11:05:25 gpu=42,20,5109,765,30.92,P5,50 bar1=197 MiB dev=43%/4119MiB vmm=116% load=9.02
+11:05:31 gpu=25,3,5117,1080,44.79,P0,51 bar1=197 MiB dev=44%/4119MiB vmm=117% load=8.85
+11:05:36 gpu=32,19,5123,585,30.65,P8,49 bar1=197 MiB dev=44%/4119MiB vmm=117% load=8.38
+%CPU %MEM COMMAND | 218.2 6.3 sunshine | 27.3 12.6 steamwe+ | 9.1 0.6 systemd+ | 9.1 6.6 steamwe+ | 9.1 0.1 top | 
+[2026-09-25 09:05:36.527]: Debug: Frame processing latency (min/max/avg): 16.40ms/82.00ms/23.66ms
+11:05:41 gpu=30,19,5122,750,30.94,P5,50 bar1=197 MiB dev=44%/4119MiB vmm=118% load=8.03
+11:05:46 gpu=28,18,5116,810,30.44,P5,50 bar1=197 MiB dev=44%/4119MiB vmm=118% load=7.63
+11:05:51 gpu=34,20,5112,720,30.86,P5,50 bar1=197 MiB dev=44%/4119MiB vmm=119% load=7.42
+11:05:57 gpu=30,18,5114,720,30.50,P5,50 bar1=197 MiB dev=44%/4119MiB vmm=119% load=7.06
+11:06:02 gpu=35,21,5113,825,31.22,P5,49 bar1=197 MiB dev=44%/4119MiB vmm=120% load=7.14
+11:06:07 gpu=34,21,5116,825,31.11,P5,50 bar1=197 MiB dev=44%/4119MiB vmm=120% load=6.81
+%CPU %MEM COMMAND | 210.0 6.3 sunshine | 10.0 9.4 steamwe+ | 10.0 12.6 steamwe+ | 0.0 0.3 systemd | 0.0 0.0 kthreadd | 
+[2026-09-25 09:05:56.529]: Debug: Frame processing latency (min/max/avg): 16.40ms/84.30ms/24.06ms
+11:06:13 gpu=30,18,5113,750,30.84,P5,49 bar1=197 MiB dev=44%/4119MiB vmm=121% load=6.74
+11:06:18 gpu=33,20,5113,855,31.22,P5,49 bar1=197 MiB dev=44%/4119MiB vmm=122% load=7.00
+11:06:23 gpu=26,8,5143,1110,56.92,P0,51 bar1=197 MiB dev=44%/4119MiB vmm=122% load=6.84
+11:06:28 gpu=37,18,5115,780,30.97,P5,50 bar1=197 MiB dev=45%/4119MiB vmm=123% load=6.94
+11:06:33 gpu=28,18,5143,1125,57.44,P0,51 bar1=197 MiB dev=45%/4119MiB vmm=123% load=6.94
+11:06:38 gpu=36,23,5152,1050,32.30,P0,51 bar1=197 MiB dev=45%/4119MiB vmm=124% load=6.95
+%CPU %MEM COMMAND | 200.0 6.3 sunshine | 18.2 13.5 steamwe+ | 9.1 0.1 rsyslogd | 9.1 0.3 pipewire | 9.1 0.6 pipewir+ | 
+[2026-09-25 09:06:36.552]: Debug: Frame processing latency (min/max/avg): 17.40ms/66.40ms/25.22ms
+11:06:44 gpu=38,21,5150,705,31.17,P5,50 bar1=229 MiB dev=45%/4119MiB vmm=124% load=7.27
+11:06:49 gpu=27,18,5125,825,31.27,P5,50 bar1=229 MiB dev=45%/4119MiB vmm=125% load=7.17
+11:06:54 gpu=30,18,5125,540,30.93,P5,50 bar1=229 MiB dev=45%/4119MiB vmm=125% load=7.08
+11:06:59 gpu=28,18,4096,615,31.13,P8,50 bar1=165 MiB dev=45%/4119MiB vmm=126% load=6.83
+11:07:04 gpu=35,21,4096,705,30.95,P5,50 bar1=165 MiB dev=45%/4119MiB vmm=126% load=6.84
+11:07:09 gpu=27,18,4113,780,30.97,P5,50 bar1=169 MiB dev=45%/4119MiB vmm=127% load=7.18
+%CPU %MEM COMMAND | 245.5 6.3 sunshine | 18.2 12.6 steamwe+ | 9.1 0.1 rsyslogd | 9.1 0.6 pipewir+ | 9.1 0.0 irq/38-+ | 
+[2026-09-25 09:06:56.566]: Debug: Frame processing latency (min/max/avg): 18.40ms/177.80ms/30.26ms
+11:07:15 gpu=33,21,4101,900,31.38,P5,50 bar1=165 MiB dev=46%/4119MiB vmm=127% load=7.77
+11:07:21 gpu=32,21,4097,765,30.90,P5,50 bar1=165 MiB dev=46%/4119MiB vmm=128% load=7.71
+11:07:26 gpu=31,20,4086,720,30.99,P5,50 bar1=165 MiB dev=46%/4119MiB vmm=128% load=7.89
+11:07:31 gpu=28,17,4113,675,30.97,P5,50 bar1=165 MiB dev=46%/4119MiB vmm=129% load=7.90
+11:07:36 gpu=32,20,4116,780,30.81,P5,50 bar1=165 MiB dev=46%/4119MiB vmm=129% load=8.07
+11:07:41 gpu=28,17,4117,675,30.95,P5,50 bar1=165 MiB dev=46%/4119MiB vmm=130% load=8.38
+%CPU %MEM COMMAND | 209.1 6.3 sunshine | 18.2 6.6 steamwe+ | 18.2 12.5 steamwe+ | 9.1 1.8 systemd+ | 9.1 0.1 rsyslogd | 
+[2026-09-25 09:07:36.581]: Debug: Frame processing latency (min/max/avg): 19.30ms/81.30ms/30.01ms
+11:07:47 gpu=34,21,4086,795,31.15,P5,50 bar1=165 MiB dev=46%/4119MiB vmm=130% load=8.43
+11:07:52 gpu=28,18,4106,585,30.29,P8,50 bar1=165 MiB dev=46%/4119MiB vmm=131% load=8.32
+11:07:57 gpu=27,17,4096,735,31.25,P5,50 bar1=165 MiB dev=46%/4119MiB vmm=131% load=8.69
+11:08:02 gpu=25,13,4159,1185,56.91,P0,51 bar1=165 MiB dev=47%/4119MiB vmm=131% load=8.64
+11:08:07 gpu=28,17,4075,525,30.81,P8,50 bar1=165 MiB dev=47%/4119MiB vmm=132% load=9.39
+11:08:12 gpu=32,20,4076,645,31.09,P5,50 bar1=165 MiB dev=47%/4119MiB vmm=132% load=9.60
+%CPU %MEM COMMAND | 250.0 6.3 sunshine | 10.0 2.1 systemd+ | 10.0 0.0 irq/38-+ | 10.0 5.0 steam | 10.0 6.6 steamwe+ | 
+[2026-09-25 09:07:56.594]: Debug: Frame processing latency (min/max/avg): 20.30ms/86.00ms/31.35ms
+11:08:18 gpu=32,20,4075,840,30.86,P5,50 bar1=165 MiB dev=47%/4119MiB vmm=133% load=9.55
+11:08:24 gpu=29,18,4075,735,30.97,P5,50 bar1=169 MiB dev=47%/4119MiB vmm=133% load=9.42
+11:08:29 gpu=34,20,4075,840,31.27,P5,50 bar1=165 MiB dev=47%/4119MiB vmm=134% load=9.15
+11:08:34 gpu=32,20,4076,810,31.13,P5,50 bar1=165 MiB dev=47%/4119MiB vmm=134% load=8.98
+11:08:39 gpu=27,18,4097,825,31.14,P5,50 bar1=165 MiB dev=47%/4119MiB vmm=135% load=8.90
+11:08:44 gpu=27,18,4076,645,31.14,P5,50 bar1=165 MiB dev=47%/4119MiB vmm=135% load=8.75
+%CPU %MEM COMMAND | 209.1 6.3 sunshine | 18.2 12.6 steamwe+ | 9.1 2.4 systemd+ | 9.1 0.6 pipewir+ | 9.1 6.6 steamwe+ | 
+[2026-09-25 09:08:36.621]: Debug: Frame processing latency (min/max/avg): 19.20ms/75.60ms/27.83ms
+11:08:49 gpu=34,21,4099,1005,31.11,P5,50 bar1=165 MiB dev=48%/4119MiB vmm=135% load=8.45
+11:08:55 gpu=37,22,4103,825,31.22,P5,50 bar1=165 MiB dev=48%/4119MiB vmm=136% load=8.17
+11:09:00 gpu=33,21,4096,825,31.05,P5,50 bar1=165 MiB dev=48%/4119MiB vmm=136% load=8.23
+11:09:05 gpu=30,19,4076,615,30.90,P8,50 bar1=165 MiB dev=48%/4119MiB vmm=137% load=7.97
+11:09:10 gpu=35,21,4106,885,31.26,P5,50 bar1=165 MiB dev=48%/4119MiB vmm=137% load=7.89
+11:09:15 gpu=14,2,4148,525,40.85,P5,51 bar1=165 MiB dev=48%/4119MiB vmm=137% load=7.90
+%CPU %MEM COMMAND | 190.9 6.3 sunshine | 9.1 0.0 irq/38-+ | 9.1 12.5 steamwe+ | 0.0 0.3 systemd | 0.0 0.0 kthreadd | 
+[2026-09-25 09:09:16.634]: Debug: Frame processing latency (min/max/avg): 16.40ms/100.70ms/26.28ms
+11:09:21 gpu=20,4,4118,1155,57.07,P0,52 bar1=165 MiB dev=48%/4119MiB vmm=138% load=7.67
+11:09:26 gpu=38,24,4089,825,31.96,P5,50 bar1=165 MiB dev=48%/4119MiB vmm=139% load=7.62
+11:09:31 gpu=27,14,4089,540,31.08,P5,50 bar1=165 MiB dev=48%/4119MiB vmm=139% load=7.89
+11:09:37 gpu=32,22,4090,735,31.01,P5,50 bar1=165 MiB dev=48%/4119MiB vmm=140% load=7.82
+11:09:42 gpu=38,26,4090,855,31.29,P5,50 bar1=165 MiB dev=48%/4119MiB vmm=141% load=8.15
+11:09:47 gpu=29,21,4090,810,31.58,P5,50 bar1=165 MiB dev=49%/4119MiB vmm=141% load=7.98
+%CPU %MEM COMMAND | 109.1 6.1 sunshine | 81.8 9.5 ShadowO+ | 72.7 8.6 gnome-s+ | 27.3 0.6 tracker+ | 18.2 16.2 steamwe+ | 
+[2026-09-25 09:09:36.764]: Debug: Frame processing latency (min/max/avg): 16.50ms/114.70ms/30.64ms
+11:09:53 gpu=36,23,4090,750,31.35,P5,50 bar1=165 MiB dev=49%/4120MiB vmm=142% load=7.58
+11:09:58 gpu=38,24,4090,705,31.54,P5,50 bar1=165 MiB dev=49%/4120MiB vmm=142% load=7.45
+11:10:03 gpu=36,23,4090,675,31.07,P5,50 bar1=165 MiB dev=49%/4119MiB vmm=143% load=7.18
+11:10:08 gpu=38,23,4090,825,31.47,P5,50 bar1=165 MiB dev=49%/4119MiB vmm=143% load=6.92
+11:10:13 gpu=36,22,4090,810,31.13,P5,50 bar1=165 MiB dev=49%/4119MiB vmm=144% load=6.85
+11:10:18 gpu=18,3,4090,540,40.91,P3,51 bar1=165 MiB dev=50%/4119MiB vmm=144% load=7.10
+%CPU %MEM COMMAND | 163.6 6.1 sunshine | 81.8 5.5 steam | 45.5 8.6 gnome-s+ | 27.3 8.9 steamwe+ | 27.3 15.1 steamwe+ | 
+[2026-09-25 09:10:16.784]: Debug: Frame processing latency (min/max/avg): 19.50ms/989.80ms/34.84ms
+11:10:24 gpu=31,17,4116,465,30.94,P5,50 bar1=165 MiB dev=50%/4119MiB vmm=145% load=7.33
+11:10:30 gpu=26,17,4086,795,31.15,P5,50 bar1=169 MiB dev=50%/4119MiB vmm=145% load=7.79
+11:10:35 gpu=31,20,4086,675,30.86,P5,50 bar1=165 MiB dev=50%/4119MiB vmm=145% load=8.05
+11:10:40 gpu=33,21,4086,735,30.97,P5,50 bar1=165 MiB dev=50%/4119MiB vmm=146% load=7.73
+11:10:45 gpu=29,6,5171,1185,57.01,P0,52 bar1=165 MiB dev=50%/4119MiB vmm=146% load=7.67
+11:10:50 gpu=27,18,5149,690,30.95,P5,51 bar1=197 MiB dev=50%/4119MiB vmm=146% load=8.26
+%CPU %MEM COMMAND | 250.0 6.1 sunshine | 20.0 8.3 steamwe+ | 20.0 13.1 steamwe+ | 10.0 1.6 systemd+ | 10.0 0.5 pipewir+ | 
+[2026-09-25 09:10:36.785]: Debug: Frame processing latency (min/max/avg): 19.60ms/293.10ms/34.96ms
+11:10:56 gpu=29,18,5125,735,31.04,P5,50 bar1=197 MiB dev=50%/4119MiB vmm=147% load=8.16
+11:11:01 gpu=28,18,5106,855,31.28,P5,50 bar1=197 MiB dev=50%/4119MiB vmm=147% load=7.74
+11:11:06 gpu=34,21,5106,840,31.33,P5,50 bar1=197 MiB dev=50%/4119MiB vmm=147% load=7.68
+11:11:11 gpu=33,21,5106,750,31.06,P5,50 bar1=197 MiB dev=50%/4119MiB vmm=148% load=7.71
+11:11:16 gpu=25,9,5140,1875,81.22,P0,55 bar1=199 MiB dev=50%/4119MiB vmm=148% load=7.81
+11:11:21 gpu=33,28,5213,1305,57.72,P0,53 bar1=192 MiB dev=50%/4119MiB vmm=148% load=7.27
+%CPU %MEM COMMAND | 9.1 8.3 steamwe+ | 9.1 13.3 steamwe+ | 9.1 0.1 top | 0.0 0.3 systemd | 0.0 0.0 kthreadd | 
+[2026-09-25 09:11:16.818]: Debug: Frame processing latency (min/max/avg): 18.00ms/85.50ms/27.69ms
+11:11:27 gpu=20,25,5074,420,30.14,P8,51 bar1=192 MiB dev=50%/4119MiB vmm=147% load=6.77
+11:11:32 gpu=22,26,5005,420,30.48,P8,50 bar1=191 MiB dev=50%/4119MiB vmm=147% load=6.38

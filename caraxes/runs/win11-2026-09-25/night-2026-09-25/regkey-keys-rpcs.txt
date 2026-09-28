@@ -1,0 +1,314 @@
+  1707602614 E boot: rx seq 7 GSP_RM_ALLOC (103) sequence 7 length 64 checksum ok: hClient=0xc1e00003 hParent=0xc1e00003 hObject=0xcaf00000 hClass=0x80 paramsSize=56 flags=0x0
+  1707602615 E boot: alloc: alloc NV01_DEVICE_0 0x80 object 0xcaf00000 under 0xc1e00003 -> status 0x0 [synthesized (object recorded, no host object yet)]
+  1707602762 E boot: rx seq 8 GSP_RM_ALLOC (103) sequence 8 length 64 checksum ok: hClient=0xc1e00003 hParent=0xcaf00000 hObject=0xcaf00001 hClass=0x2080 paramsSize=4 flags=0x0
+  1707602763 E boot: alloc: alloc NV20_SUBDEVICE_0 0x2080 object 0xcaf00001 under 0xcaf00000 -> status 0x0 [synthesized (object recorded, no host object yet)]
+  1707603358 E boot: rx seq 9 GSP_RM_CONTROL (76) sequence 9 length 20564 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20800a41 paramsSize=20492 rpcFlags=0x0
+  1707603364 E boot: ctrl 0x20800a41: user register access map -> status 0x0 [synthesized (allow-all map, gpu_register_access_map.c:260-298)]
+  1707603868 E boot: rx seq 15 GSP_RM_CONTROL (76) sequence 10 length 1356 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x208001b0 paramsSize=1284 rpcFlags=0x0
+  1707603869 E boot: ctrl 0x208001b0: constructed falcon info: empty -> status 0x0 [synthesized fallback (no falcons)]
+  1707604030 E boot: rx seq 16 GSP_RM_CONTROL (76) sequence 11 length 1356 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x208001b0 paramsSize=1284 rpcFlags=0x0
+  1707604032 E boot: ctrl 0x208001b0: constructed falcon info: empty -> status 0x0 [synthesized fallback (no falcons)]
+  1707604290 E boot: rx seq 17 GSP_RM_CONTROL (76) sequence 12 length 3412 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20801112 paramsSize=3340 rpcFlags=0x0
+  1707604291 E boot: ctrl 0x20801112: fifo device info table: 12 entries -> status 0x0 [host (engines, fault ids, PBDMA counts) + synthesized (runlists, PBDMA ids; fifo-device-info.md)]
+  1707604551 E boot: rx seq 18 GSP_RM_CONTROL (76) sequence 13 length 2184 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20800a5c paramsSize=2112 rpcFlags=0x0
+  1707604552 E boot: ctrl 0x20800a5c: interrupt kernel table: 13 entries -> status 0x0 [synthesized (TU102-style subtree map; E4: host MC_GET_STATIC_INTR_TABLE; E5b part 2: GR0/CE2-CE4 non-stall vectors)]
+  1707604678 E boot: rx seq 19 GSP_RM_CONTROL (76) sequence 14 length 112 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20800a1c paramsSize=40 rpcFlags=0x0
+  1707604679 E boot: ctrl 0x20800a1c: memsys static config -> status 0x0 [synthesized (TU106: 4 MiB L2, 8 LTC x 2 LTS, GDDR6; E4: host FB_GET_INFO_V2)]
+  1707604838 E boot: rx seq 20 GSP_RM_CONTROL (76) sequence 15 length 272 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20801803 paramsSize=200 rpcFlags=0x0
+  1707604839 E boot: ctrl 0x20801803: pci bar info: 4 bars -> status 0x0 [guest (BAR addresses from GspSystemInfo) + card (emulated BAR sizes)]
+  1707605058 E boot: rx seq 21 GSP_RM_CONTROL (76) sequence 16 length 76 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20800a4b paramsSize=4 rpcFlags=0x0
+  1707605060 E boot: ctrl 0x20800a4b: display ip version 0x4000000 -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1707605218 E boot: rx seq 22 GSP_RM_ALLOC (103) sequence 17 length 64 checksum ok: hClient=0xc1e00004 hParent=0x0 hObject=0x0 hClass=0x0 paramsSize=120 flags=0x0
+  1707605219 E boot: alloc: alloc NV01_ROOT 0x0 object 0x0 under 0x0 -> status 0x0 [synthesized (object recorded, no host object yet)]
+  1707605317 E boot: rx seq 23 GSP_RM_ALLOC (103) sequence 18 length 64 checksum ok: hClient=0xc1e00004 hParent=0xc1e00004 hObject=0xcaf00000 hClass=0x80 paramsSize=56 flags=0x0
+  1707605319 E boot: alloc: alloc NV01_DEVICE_0 0x80 object 0xcaf00000 under 0xc1e00004 -> status 0x0 [synthesized (object recorded, no host object yet)]
+  1707605423 E boot: rx seq 24 GSP_RM_ALLOC (103) sequence 19 length 64 checksum ok: hClient=0xc1e00004 hParent=0xcaf00000 hObject=0xcaf00001 hClass=0x2080 paramsSize=4 flags=0x0
+  1707605425 E boot: alloc: alloc NV20_SUBDEVICE_0 0x2080 object 0xcaf00001 under 0xcaf00000 -> status 0x0 [synthesized (object recorded, no host object yet)]
+  1707605554 E boot: rx seq 25 GSP_RM_ALLOC (103) sequence 20 length 64 checksum ok: hClient=0xc1e00004 hParent=0xcaf00000 hObject=0xcaf00002 hClass=0x73 paramsSize=0 flags=0x0
+  1707605556 E boot: alloc: alloc NV04_DISPLAY_COMMON 0x73 -> status 0x0 [synthesized (display object recorded; channel state in display/mod.rs)]
+  1707607319 E boot: rx seq 26 GSP_RM_CONTROL (76) sequence 21 length 76 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20800aac paramsSize=4 rpcFlags=0x0
+  1707607321 E boot: ctrl 0x20800aac: bif static info: all false -> status 0x0 [synthesized (single function, no gen4, no C2C)]
+  1707608133 E boot: rx seq 27 GSP_RM_CONTROL (76) sequence 22 length 80 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20800a61 paramsSize=8 rpcFlags=0x0
+  1707608134 E boot: ctrl 0x20800a61: fifo num channels: 512 -> status 0x0 [synthesized (512 channels; E4: host FIFO_GET_INFO)]
+  1707608253 E boot: rx seq 28 GSP_RM_CONTROL (76) sequence 23 length 76 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20802a08 paramsSize=4 rpcFlags=0x0
+  1707608255 E boot: ctrl 0x20802a08: ce fault method buffer size -> status 0x0 [synthesized (32 KiB fault method buffer; fifo-device-info.md §4a)]
+  1707609267 E boot: rx seq 29 GSP_RM_CONTROL (76) sequence 24 length 88 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20800afe paramsSize=16 rpcFlags=0x0
+  1707609275 E boot: ctrl 0x20800afe: init user shared data: pa 0x17e759000 -> status 0x0 [guest (RUSD page recorded)]
+  1707609377 E boot: rx seq 30 GSP_RM_CONTROL (76) sequence 25 length 88 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20800aff paramsSize=16 rpcFlags=0x0
+  1707609379 E boot: ctrl 0x20800aff: user shared data poll: ok -> status 0x0 [synthesized]
+  1707609496 E boot: rx seq 31 GSP_RM_ALLOC (103) sequence 26 length 64 checksum ok: hClient=0xc1e00005 hParent=0x0 hObject=0x0 hClass=0x0 paramsSize=120 flags=0x0
+  1707609497 E boot: alloc: alloc NV01_ROOT 0x0 object 0x0 under 0x0 -> status 0x0 [synthesized (object recorded, no host object yet)]
+  1707609614 E boot: rx seq 32 GSP_RM_ALLOC (103) sequence 27 length 64 checksum ok: hClient=0xc1e00005 hParent=0xc1e00005 hObject=0xcaf00000 hClass=0x80 paramsSize=56 flags=0x0
+  1707609615 E boot: alloc: alloc NV01_DEVICE_0 0x80 object 0xcaf00000 under 0xc1e00005 -> status 0x0 [synthesized (object recorded, no host object yet)]
+  1707609727 E boot: rx seq 33 GSP_RM_ALLOC (103) sequence 28 length 64 checksum ok: hClient=0xc1e00005 hParent=0xcaf00000 hObject=0xcaf00001 hClass=0x2080 paramsSize=4 flags=0x0
+  1707609728 E boot: alloc: alloc NV20_SUBDEVICE_0 0x2080 object 0xcaf00001 under 0xcaf00000 -> status 0x0 [synthesized (object recorded, no host object yet)]
+  1707609850 E boot: rx seq 34 GSP_RM_ALLOC (103) sequence 29 length 64 checksum ok: hClient=0xc1e00005 hParent=0xcaf00001 hObject=0xcaf00003 hClass=0x7e paramsSize=24 flags=0x0
+  1707609851 E boot: alloc: alloc NV01_EVENT_KERNEL_CALLBACK_EX 0x7e object 0xcaf00003 under 0xcaf00001 -> status 0x0 [synthesized (object recorded, no host object yet)]
+  1707609974 E boot: rx seq 35 GSP_RM_CONTROL (76) sequence 30 length 92 checksum ok: hClient=0xc1e00005 hObject=0xcaf00001 cmd=0x20800301 paramsSize=20 rpcFlags=0x0
+  1707609975 E boot: ctrl 0x20800301: event set notification: ok -> status 0x0 [synthesized (event registered, never raised yet)]
+  1707610074 E boot: rx seq 36 GSP_RM_CONTROL (76) sequence 31 length 88 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20800a59 paramsSize=16 rpcFlags=0x0
+  1707610076 E boot: ctrl 0x20800a59: gmmu static info -> status 0x0 [synthesized (256-entry fault buffers)]
+  1707610245 E boot: rx seq 37 GSP_RM_CONTROL (76) sequence 32 length 75 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20800aaf paramsSize=3 rpcFlags=0x0
+  1707610247 E boot: ctrl 0x20800aaf: control 0x20800aaf on 0xca7a0003 (class 0x2080, 3 bytes): not supported -> status 0x56 [unanswered]
+  1707818659 E boot: rx seq 38 UPDATE_BAR_PDE (70) sequence 33 length 56 checksum ok: 24 bytes: 010000000000000002e3a503000000002f00000000000000
+  1707819652 E boot: rx seq 39 GSP_RM_CONTROL (76) sequence 34 length 72 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20800a70 paramsSize=0 rpcFlags=0x0
+  1707819654 E boot: ctrl 0x20800a70: bus flush with sysmembar: ok -> status 0x0 [synthesized (nothing to flush)]
+  1707820012 E boot: rx seq 40 GSP_RM_CONTROL (76) sequence 35 length 72 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20800a70 paramsSize=0 rpcFlags=0x0
+  1707820014 E boot: ctrl 0x20800a70: bus flush with sysmembar: ok -> status 0x0 [synthesized (nothing to flush)]
+  1707820649 E boot: rx seq 41 GSP_RM_CONTROL (76) sequence 36 length 76 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20800a6c paramsSize=4 rpcFlags=0x0
+  1707820651 E boot: ctrl 0x20800a6c: l2 invalidate/evict: ok -> status 0x0 [synthesized (no cache to evict)]
+  1707820970 E boot: rx seq 42 GSP_RM_CONTROL (76) sequence 37 length 76 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20800a6c paramsSize=4 rpcFlags=0x0
+  1707820972 E boot: ctrl 0x20800a6c: l2 invalidate/evict: ok -> status 0x0 [synthesized (no cache to evict)]
+  1707821585 E boot: rx seq 43 GSP_RM_CONTROL (76) sequence 38 length 76 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20800a6c paramsSize=4 rpcFlags=0x0
+  1707821586 E boot: ctrl 0x20800a6c: l2 invalidate/evict: ok -> status 0x0 [synthesized (no cache to evict)]
+  1707821880 E boot: rx seq 44 GSP_RM_CONTROL (76) sequence 39 length 104 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20800a01 paramsSize=32 rpcFlags=0x0
+  1707821881 E boot: ctrl 0x20800a01: display static info: 4 heads, windows 0xff, i2cPort 16, 81 channels, no internal panel -> status 0x0 [synthesized (chips/tu106/display.toml)]
+  1707822022 E boot: rx seq 45 GSP_RM_CONTROL (76) sequence 40 length 4176 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20800ac6 paramsSize=4104 rpcFlags=0x0
+  1707822023 E boot: ctrl 0x20800ac6: brightc state load: no backlight (no internal panel) -> status 0x0 [synthesized (acknowledged; no display state behind it yet)]
+  1707822212 E boot: rx seq 47 GSP_RM_CONTROL (76) sequence 41 length 8460 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20800adf paramsSize=8388 rpcFlags=0x0
+  1707822213 E boot: ctrl 0x20800adf: static (ACPI) EDID data: tableLen 0 -> status 0x0 [synthesized (acknowledged; no display state behind it yet)]
+  1707822760 E boot: rx seq 50 GSP_RM_CONTROL (76) sequence 42 length 96 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20800a49 paramsSize=24 rpcFlags=0x0
+  1707822761 E boot: ctrl 0x20800a49: display instance memory: pa 0x3a5d0000 size 0x10000 addrSpace 2 -> status 0x0 [guest (recorded from the request)]
+  1707822934 E boot: rx seq 51 GSP_RM_CONTROL (76) sequence 43 length 876 checksum ok: hClient=0xca7a0001 hObject=0xca7a0002 cmd=0x800292 paramsSize=804 rpcFlags=0x0
+  1707822935 E boot: ctrl 0x800292: control 0x800292 on 0xca7a0002 (class 0x80, 804 bytes): not supported -> status 0x56 [unanswered]
+  1707823125 E boot: rx seq 52 GSP_RM_CONTROL (76) sequence 44 length 88 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20800a80 paramsSize=16 rpcFlags=0x0
+  1707823126 E boot: ctrl 0x20800a80: perf boost sync info: zeros -> status 0x0 [synthesized (no boost sync)]
+  1707823249 E boot: rx seq 53 GSP_RM_CONTROL (76) sequence 45 length 80 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20800a61 paramsSize=8 rpcFlags=0x0
+  1707823250 E boot: ctrl 0x20800a61: fifo num channels: 512 -> status 0x0 [synthesized (512 channels; E4: host FIFO_GET_INFO)]
+  1707823535 E boot: rx seq 54 GSP_RM_ALLOC (103) sequence 46 length 64 checksum ok: hClient=0xc1e00006 hParent=0x0 hObject=0x0 hClass=0x0 paramsSize=120 flags=0x0
+  1707823536 E boot: alloc: alloc NV01_ROOT 0x0 object 0x0 under 0x0 -> status 0x0 [synthesized (object recorded, no host object yet)]
+  1707823637 E boot: rx seq 55 GSP_RM_ALLOC (103) sequence 47 length 64 checksum ok: hClient=0xc1e00006 hParent=0xc1e00006 hObject=0xcaf00000 hClass=0x80 paramsSize=56 flags=0x0
+  1707823638 E boot: alloc: alloc NV01_DEVICE_0 0x80 object 0xcaf00000 under 0xc1e00006 -> status 0x0 [synthesized (object recorded, no host object yet)]
+  1707823759 E boot: rx seq 56 GSP_RM_ALLOC (103) sequence 48 length 64 checksum ok: hClient=0xc1e00006 hParent=0xcaf00000 hObject=0xcaf00001 hClass=0x2080 paramsSize=4 flags=0x0
+  1707823760 E boot: alloc: alloc NV20_SUBDEVICE_0 0x2080 object 0xcaf00001 under 0xcaf00000 -> status 0x0 [synthesized (object recorded, no host object yet)]
+  1707841653 E boot: rx seq 57 GSP_RM_CONTROL (76) sequence 49 length 88 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20800a80 paramsSize=16 rpcFlags=0x0
+  1707841654 E boot: ctrl 0x20800a80: perf boost sync info: zeros -> status 0x0 [synthesized (no boost sync)]
+  1707842520 E boot: rx seq 58 GSP_RM_CONTROL (76) sequence 50 length 112 checksum ok: hClient=0xc1e00004 hObject=0xcaf00002 cmd=0x730151 paramsSize=40 rpcFlags=0x0
+  1707842521 E boot: ctrl 0x730151: map shared data: base 0x3a5ce000 size 0x20 bMap 1 -> status 0x0 [guest (recorded from the request)]
+  1707842639 E boot: rx seq 59 GSP_RM_CONTROL (76) sequence 51 length 104 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20802a0f paramsSize=32 rpcFlags=0x0
+  1707842641 E boot: ctrl 0x20802a0f: ce pce config for lce type: zeros -> status 0x0 [synthesized (no decompression LCE on Turing)]
+  1707842740 E boot: rx seq 60 GSP_RM_CONTROL (76) sequence 52 length 76 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20802a06 paramsSize=4 rpcFlags=0x0
+  1707842741 E boot: ctrl 0x20802a06: ce update class db: no CE stubbed -> status 0x0 [synthesized (stubbedCeMask 0)]
+  1707842856 E boot: rx seq 61 GSP_RM_CONTROL (76) sequence 53 length 356 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20802a0d paramsSize=284 rpcFlags=0x0
+  1707842857 E boot: ctrl 0x20802a0d: ce update pce/lce mappings: ok -> status 0x0 [synthesized (mapping recorded, nothing programmed)]
+  1707843057 E boot: rx seq 62 GSP_RM_CONTROL (76) sequence 54 length 76 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20802a06 paramsSize=4 rpcFlags=0x0
+  1707843058 E boot: ctrl 0x20802a06: ce update class db: no CE stubbed -> status 0x0 [synthesized (stubbedCeMask 0)]
+  1708039055 E boot: rx seq 63 GSP_RM_CONTROL (76) sequence 55 length 256 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20800a9f paramsSize=184 rpcFlags=0x0
+  1708039057 E boot: ctrl 0x20800a9f: copy reserved split GVA space PDEs to server: ok -> status 0x0 [synthesized (NV_OK, echo; phase5 row 35)]
+  1708238547 E boot: rx seq 64 GSP_RM_ALLOC (103) sequence 56 length 64 checksum ok: hClient=0xc1e00007 hParent=0x0 hObject=0x0 hClass=0x0 paramsSize=120 flags=0x0
+  1708238549 E boot: alloc: alloc NV01_ROOT 0x0 object 0x0 under 0x0 -> status 0x0 [synthesized (object recorded, no host object yet)]
+  1708238657 E boot: rx seq 65 GSP_RM_ALLOC (103) sequence 57 length 64 checksum ok: hClient=0xc1e00007 hParent=0xc1e00007 hObject=0xcaf00000 hClass=0x80 paramsSize=56 flags=0x0
+  1708238659 E boot: alloc: alloc NV01_DEVICE_0 0x80 object 0xcaf00000 under 0xc1e00007 -> status 0x0 [synthesized (object recorded, no host object yet)]
+  1708238793 E boot: rx seq 66 GSP_RM_ALLOC (103) sequence 58 length 64 checksum ok: hClient=0xc1e00007 hParent=0xcaf00000 hObject=0xcaf00001 hClass=0x2080 paramsSize=4 flags=0x0
+  1708238794 E boot: alloc: alloc NV20_SUBDEVICE_0 0x2080 object 0xcaf00001 under 0xcaf00000 -> status 0x0 [synthesized (object recorded, no host object yet)]
+  1708238940 E boot: rx seq 67 GSP_RM_CONTROL (76) sequence 59 length 256 checksum ok: hClient=0xc1e00007 hObject=0xcaf00001 cmd=0x20800a1f paramsSize=184 rpcFlags=0x0
+  1708238941 E boot: ctrl 0x20800a1f: kgr caps: zeros (no host) -> status 0x0 [synthesized fallback (no GR caps)]
+  1708239059 E boot: rx seq 68 GSP_RM_CONTROL (76) sequence 60 length 4104 checksum ok: hClient=0xc1e00007 hObject=0xcaf00001 cmd=0x20800a2a paramsSize=4032 rpcFlags=0x0
+  1708239060 E boot: ctrl 0x20800a2a: kgr info: 63 entries, the chip's emulated table (no host) -> status 0x0 [host (TU106 lab capture: subcontexts, GPC/TPC counts, CC 7.5) + synthesized (rest 0)]
+  1708239186 E boot: rx seq 70 GSP_RM_CONTROL (76) sequence 61 length 10920 checksum ok: hClient=0xc1e00007 hObject=0xcaf00001 cmd=0x20800a26 paramsSize=10848 rpcFlags=0x0
+  1708239188 E boot: ctrl 0x20800a26: kgr floorsweeping masks: all zero (no host) -> status 0x0 [synthesized fallback (gpcMask 0: no golden channel, GR unusable)]
+  1708239544 E boot: rx seq 73 GSP_RM_CONTROL (76) sequence 62 length 65512 checksum ok: hClient=0xc1e00007 hObject=0xcaf00001 cmd=0x20800a22 paramsSize=81952 rpcFlags=0x0
+  1708239545 E boot: ctrl 0x20800a22: kgr global SM order: zeros (no host) -> status 0x0 [synthesized fallback (empty SM order)]
+  1708239729 E boot: rx seq 94 GSP_RM_CONTROL (76) sequence 64 length 2120 checksum ok: hClient=0xc1e00007 hObject=0xcaf00001 cmd=0x20800a30 paramsSize=2048 rpcFlags=0x0
+  1708239731 E boot: ctrl 0x20800a30: kgr PPC masks: not supported; the public GR_GET_PPC_MASK 0x20801233 is one GPC per call ({grRouteInfo, gpcId, ppcMask}, ctrl2080gr.h:1810-1814), not the internal mask[64] layout -> status 0x56 [synthesized (NOT_SUPPORTED, 
+  1708239855 E boot: rx seq 95 GSP_RM_CONTROL (76) sequence 65 length 392 checksum ok: hClient=0xc1e00007 hObject=0xcaf00001 cmd=0x20800a2c paramsSize=320 rpcFlags=0x0
+  1708239857 E boot: ctrl 0x20800a2c: kgr zcull info: not supported (no host) -> status 0x56 [synthesized fallback (NOT_SUPPORTED, tolerated)]
+  1708240001 E boot: rx seq 96 GSP_RM_CONTROL (76) sequence 66 length 168 checksum ok: hClient=0xc1e00007 hObject=0xcaf00001 cmd=0x20800a2e paramsSize=96 rpcFlags=0x0
+  1708240003 E boot: ctrl 0x20800a2e: kgr ROP info: not supported (no host) -> status 0x56 [synthesized fallback (NOT_SUPPORTED, tolerated)]
+  1708240117 E boot: rx seq 97 GSP_RM_CONTROL (76) sequence 67 length 144 checksum ok: hClient=0xc1e00007 hObject=0xcaf00001 cmd=0x20800a34 paramsSize=72 rpcFlags=0x0
+  1708240118 E boot: ctrl 0x20800a34: kgr SM issue rate modifier: not supported (no host) -> status 0x56 [synthesized fallback (NOT_SUPPORTED, tolerated)]
+  1708240237 E boot: rx seq 98 GSP_RM_CONTROL (76) sequence 68 length 16424 checksum ok: hClient=0xc1e00007 hObject=0xcaf00001 cmd=0x20800b03 paramsSize=16352 rpcFlags=0x0
+  1708240239 E boot: ctrl 0x20800b03: kgr SM issue rate modifier v2: not supported (no host) -> status 0x56 [synthesized fallback (NOT_SUPPORTED, tolerated)]
+  1708240361 E boot: rx seq 103 GSP_RM_CONTROL (76) sequence 69 length 16424 checksum ok: hClient=0xc1e00007 hObject=0xcaf00001 cmd=0x20800b05 paramsSize=16352 rpcFlags=0x0
+  1708240363 E boot: ctrl 0x20800b05: kgr SM issue throttle ctrl: not supported, not forwarded -> status 0x56 [synthesized (NOT_SUPPORTED; forwarding makes the host driver assert)]
+  1708240552 E boot: rx seq 108 GSP_RM_CONTROL (76) sequence 70 length 104 checksum ok: hClient=0xc1e00007 hObject=0xcaf00001 cmd=0x20800a3d paramsSize=32 rpcFlags=0x0
+  1708240554 E boot: ctrl 0x20800a3d: kgr FECS record size: 120 -> status 0x0 [synthesized (sizeof FECS_EVENT_RECORD = 120, fecs_event_list.c:58-69)]
+  1708240664 E boot: rx seq 109 GSP_RM_CONTROL (76) sequence 71 length 328 checksum ok: hClient=0xc1e00007 hObject=0xcaf00001 cmd=0x20800a3f paramsSize=256 rpcFlags=0x0
+  1708240670 E boot: ctrl 0x20800a3f: kgr FECS trace defines: not supported; there is no public host control for them (phase5 row 50); pFecsTraceDefines stays NULL -> status 0x56 [synthesized (NOT_SUPPORTED, tolerated: kernel_graphics.c:1498-1501)]
+  1708240778 E boot: rx seq 110 GSP_RM_CONTROL (76) sequence 72 length 80 checksum ok: hClient=0xc1e00007 hObject=0xcaf00001 cmd=0x20800a48 paramsSize=8 rpcFlags=0x0
+  1708240780 E boot: ctrl 0x20800a48: kgr PDB properties: per-subcontext ctx header supported -> status 0x0 [synthesized (bPerSubCtxheaderSupported TRUE, g_kernel_graphics_nvoc.c:306-314)]
+  1708240896 E boot: rx seq 111 GSP_RM_CONTROL (76) sequence 73 length 1736 checksum ok: hClient=0xc1e00007 hObject=0xcaf00001 cmd=0x20800a32 paramsSize=1664 rpcFlags=0x0
+  1708240897 E boot: ctrl 0x20800a32: kgr context buffers info: no sizes (no host); FECS_EVENT forced to 0 -> status 0x0 [synthesized fallback (all NV_U32_MAX, FECS_EVENT 0)]
+  1708241682 E boot: rx seq 112 FREE (10) sequence 74 length 48 checksum ok: hRoot=0xc1e00007 hParent=0x0 hObject=0xcaf00001
+  1708241831 E boot: rx seq 113 FREE (10) sequence 75 length 48 checksum ok: hRoot=0xc1e00007 hParent=0x0 hObject=0xcaf00000
+  1708242159 E boot: rx seq 114 FREE (10) sequence 76 length 48 checksum ok: hRoot=0xc1e00007 hParent=0x0 hObject=0xc1e00007
+  1708307838 E boot: rx seq 115 GSP_RM_ALLOC (103) sequence 77 length 64 checksum ok: hClient=0xc1e00008 hParent=0x0 hObject=0x0 hClass=0x0 paramsSize=120 flags=0x0
+  1708307840 E boot: alloc: alloc NV01_ROOT 0x0 object 0x0 under 0x0 -> status 0x0 [synthesized (object recorded, no host object yet)]
+  1708308001 E boot: rx seq 116 GSP_RM_ALLOC (103) sequence 78 length 64 checksum ok: hClient=0xc1e00008 hParent=0xc1e00008 hObject=0x9 hClass=0x80 paramsSize=56 flags=0x0
+  1708308002 E boot: alloc: alloc NV01_DEVICE_0 0x80 object 0x9 under 0xc1e00008 -> status 0x0 [synthesized (object recorded, no host object yet)]
+  1708308138 E boot: rx seq 117 GSP_RM_ALLOC (103) sequence 79 length 64 checksum ok: hClient=0xc1e00008 hParent=0x9 hObject=0xa hClass=0x2080 paramsSize=4 flags=0x0
+  1708308140 E boot: alloc: alloc NV20_SUBDEVICE_0 0x2080 object 0xa under 0x9 -> status 0x0 [synthesized (object recorded, no host object yet)]
+  1708511856 E boot: rx seq 118 GSP_RM_ALLOC (103) sequence 80 length 64 checksum ok: hClient=0xc1e00008 hParent=0x9 hObject=0xb hClass=0x90f1 paramsSize=56 flags=0x0
+  1708511858 E boot: alloc: alloc 0x90f1 object 0xb under 0x9: vaspace 0xb recorded (flags 0x0, vaSize 0x0, internal 0x0..0x0, bigPage 0x0) [guest] -> status 0x0 [guest (recorded for the channel emulation; no host object)]
+  1708511993 E boot: rx seq 119 GSP_RM_CONTROL (76) sequence 81 length 256 checksum ok: hClient=0xc1e00008 hObject=0xb cmd=0x90f10106 paramsSize=184 rpcFlags=0x0
+  1708511995 E boot: ctrl 0x90f10106: vaspace 0xb (the default VAS of device 0x9): root Some(Fb(979124224)); va 0x100000000..0x11fffffff levels [0x3a5c4000+0x20 ap 1 shift 47, 0x3a5c3000+0x1000 ap 1 shift 38, 0x3a5c2000+0x1000 ap 1 shift 29, 0x3a5c1000+0x1000 
+  1708512103 E boot: rx seq 120 FREE (10) sequence 82 length 48 checksum ok: hRoot=0xc1e00008 hParent=0x0 hObject=0xb
+  1708616255 E boot: rx seq 121 GSP_RM_CONTROL (76) sequence 83 length 76 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20802a08 paramsSize=4 rpcFlags=0x0
+  1708616256 E boot: ctrl 0x20802a08: ce fault method buffer size -> status 0x0 [synthesized (32 KiB fault method buffer; fifo-device-info.md §4a)]
+  1708664738 E boot: rx seq 122 GSP_RM_ALLOC (103) sequence 84 length 64 checksum ok: hClient=0xc1e00008 hParent=0x9 hObject=0x2 hClass=0xc46f paramsSize=376 flags=0x0
+  1708664745 E boot: alloc: alloc 0xc46f object 0x2 under 0x9: channel 0x2 chid 1 engineType 0xb gpfifo va 0x120064000 x 4096 userd Some(Fb(876412928)) vaspace None errorNotifier Some(Sys(4896788480)) internal TSG 1 [guest] -> status 0x0 [guest (recorded for t
+  1708714057 E boot: rx seq 123 GSP_RM_ALLOC (103) sequence 85 length 64 checksum ok: hClient=0xc1e00008 hParent=0x2 hObject=0x5 hClass=0xc5b5 paramsSize=8 flags=0x0
+  1708714059 E boot: alloc: alloc 0xc5b5 object 0x5 under 0x2: engine object class 0xc5b5 on chid 1 (8 bytes of params) [guest] -> status 0x0 [guest (recorded for the channel emulation; no host object)]
+  1708714202 E boot: rx seq 124 GSP_RM_CONTROL (76) sequence 86 length 75 checksum ok: hClient=0xc1e00008 hObject=0x2 cmd=0xa06f0103 paramsSize=3 rpcFlags=0x0
+  1708714323 E boot: rx seq 125 GSP_RM_ALLOC (103) sequence 87 length 64 checksum ok: hClient=0xc1e00008 hParent=0xa hObject=0x6 hClass=0x7e paramsSize=24 flags=0x0
+  1708714324 E boot: alloc: alloc NV01_EVENT_KERNEL_CALLBACK_EX 0x7e object 0x6 under 0xa -> status 0x0 [synthesized (object recorded, no host object yet)]
+  1708714474 E boot: rx seq 126 GSP_RM_CONTROL (76) sequence 88 length 92 checksum ok: hClient=0xc1e00008 hObject=0xa cmd=0x20800301 paramsSize=20 rpcFlags=0x0
+  1708714476 E boot: ctrl 0x20800301: event set notification: ok -> status 0x0 [synthesized (event registered, never raised yet)]
+  1708716088 E boot: rx seq 127 GSP_RM_CONTROL (76) sequence 89 length 208 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x2080013f paramsSize=136 rpcFlags=0x0
+  1708716090 E boot: ctrl 0x2080013f: oem board info: zeros -> status 0x0 [synthesized fallback (no OEM board info)]
+  1708716315 E boot: rx seq 128 GSP_RM_ALLOC (103) sequence 90 length 64 checksum ok: hClient=0xc1e00009 hParent=0x0 hObject=0x0 hClass=0x0 paramsSize=120 flags=0x0
+  1708716316 E boot: alloc: alloc NV01_ROOT 0x0 object 0x0 under 0x0 -> status 0x0 [synthesized (object recorded, no host object yet)]
+  1708716407 E boot: rx seq 129 GSP_RM_ALLOC (103) sequence 91 length 64 checksum ok: hClient=0xc1e00009 hParent=0xc1e00009 hObject=0xcaf00000 hClass=0x80 paramsSize=56 flags=0x0
+  1708716408 E boot: alloc: alloc NV01_DEVICE_0 0x80 object 0xcaf00000 under 0xc1e00009 -> status 0x0 [synthesized (object recorded, no host object yet)]
+  1708716516 E boot: rx seq 130 GSP_RM_ALLOC (103) sequence 92 length 64 checksum ok: hClient=0xc1e00009 hParent=0xcaf00000 hObject=0xcaf00001 hClass=0x2080 paramsSize=4 flags=0x0
+  1708716523 E boot: alloc: alloc NV20_SUBDEVICE_0 0x2080 object 0xcaf00001 under 0xcaf00000 -> status 0x0 [synthesized (object recorded, no host object yet)]
+  1708716721 E boot: rx seq 131 ALLOC_MEMORY (4) sequence 93 length 96 checksum ok: 64 bytes: 0900e0c10000f0ca0200f0ca810000000000004c000000000000000000000000
+  1708716722 E boot: alloc memory 0xc1e00009/0xcaf00002 under 0xcaf00000 class 0x81 flags 0x4c000000 length 0x1000 adjust 0x0 format 0 pages 1 (pageCount 1): registered, first page 0x17e750000 [guest, recorded; no host mapping]
+  1708717160 E boot: rx seq 132 ALLOC_MEMORY (4) sequence 94 length 96 checksum ok: 64 bytes: 0900e0c10000f0ca0300f0ca810000000000004c000000000000000000000000
+  1708717162 E boot: alloc memory 0xc1e00009/0xcaf00003 under 0xcaf00000 class 0x81 flags 0x4c000000 length 0x7000 adjust 0x0 format 0 pages 1 (pageCount 1): registered, first page 0x17c5f9000 [guest, recorded; no host mapping]
+  1708717841 E boot: rx seq 133 ALLOC_MEMORY (4) sequence 95 length 96 checksum ok: 64 bytes: 0900e0c10000f0ca0400f0ca810000000000004c000000000000000000000000
+  1708717842 E boot: alloc memory 0xc1e00009/0xcaf00004 under 0xcaf00000 class 0x81 flags 0x4c000000 length 0x10000 adjust 0x0 format 0 pages 1 (pageCount 1): registered, first page 0x17c590000 [guest, recorded; no host mapping]
+  1708717975 E boot: rx seq 134 GSP_RM_ALLOC (103) sequence 96 length 64 checksum ok: hClient=0xc1e00009 hParent=0xc1e00009 hObject=0xcaf00006 hClass=0x90cd paramsSize=72 flags=0x0
+  1708717977 E boot: alloc: event buffer 0xc1e00009/0xcaf00006 under 0xc1e00009: 256 records of 104 bytes, vardata 0x10000, memories 0xcaf00002/0xcaf00003/0xcaf00004; the device is the producer of the operational events it raises [guest, recorded] -> status 0x
+  1708728198 E boot: rx seq 135 GSP_RM_CONTROL (76) sequence 97 length 80 checksum ok: hClient=0xc1e00009 hObject=0xcaf00006 cmd=0x90cd0101 paramsSize=8 rpcFlags=0x0
+  1708728200 E boot: ctrl 0x90cd0101: event buffer 0xc1e00009/0xcaf00006 control 0x90cd0101: enable events true policy 1 [guest] -> status 0x0 [guest (GSP-side event buffer, gspmem.rs)]
+  1708728312 E boot: rx seq 136 GSP_RM_ALLOC (103) sequence 98 length 64 checksum ok: hClient=0xc1e00009 hParent=0xc1e00009 hObject=0xcaf00005 hClass=0x90d0 paramsSize=104 flags=0x0
+  1708728314 E boot: alloc: operational event bind 0xc1e00009/0xcaf00005: event buffer 0xcaf00006 format 1 scope device, bindId 1; the device's own operational events go there [guest, recorded] -> status 0x0 [guest (GSP-side event buffer, gspmem.rs)]
+  1708728478 E boot: rx seq 137 GSP_RM_CONTROL (76) sequence 99 length 76 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20800ab8 paramsSize=4 rpcFlags=0x0
+  1708728480 E boot: ctrl 0x20800ab8: pcie p2p caps: not supported -> status 0x0 [synthesized (no PCIe P2P)]
+  1708729890 E boot: rx seq 138 GSP_RM_CONTROL (76) sequence 100 length 76 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20800a4c paramsSize=4 rpcFlags=0x0
+  1708729892 E boot: ctrl 0x20800a4c: smc mode: unsupported -> status 0x0 [synthesized (SMC/MIG unsupported on TU106)]
+  1708730657 E boot: rx seq 139 GSP_RM_CONTROL (76) sequence 101 length 80 checksum ok: hClient=0xc1d00002 hObject=0xff030000 cmd=0x20809009 paramsSize=8 rpcFlags=0x0
+  1708730658 E boot: ctrl 0x20809009: GSS legacy clk 0x09: no host -> status 0x56 [synthesized fallback (no host: NOT_SUPPORTED)]
+  1708731020 E boot: rx seq 140 GSP_RM_CONTROL (76) sequence 102 length 1100 checksum ok: hClient=0xc1d00002 hObject=0xff030000 cmd=0x20801303 paramsSize=1028 rpcFlags=0x0
+  1708731022 E boot: ctrl 0x20801303: fb info v2: no host -> status 0x56 [synthesized fallback (no host: NOT_SUPPORTED)]
+  1708731327 E boot: rx seq 141 GSP_RM_CONTROL (76) sequence 103 length 160 checksum ok: hClient=0xc1d00002 hObject=0xff010000 cmd=0x801306 paramsSize=88 rpcFlags=0x0
+  1708731329 E boot: ctrl 0x801306: NV0080_CTRL_CMD_FB_GET_COMPBIT_STORE_INFO (0x801306): chip table, NV0080_CTRL_FB_GET_COMPBIT_STORE_INFO_PARAMS -> status 0x56 [refused (no compression, D16: no compbit backing store)]
+  1708732438 E boot: rx seq 142 GSP_RM_CONTROL (76) sequence 104 length 1064 checksum ok: hClient=0xc1d00002 hObject=0xff0d0000 cmd=0x20810108 paramsSize=992 rpcFlags=0x0
+  1708732440 E boot: ctrl 0x20810108: binapi 0x20810108: no host -> status 0x56 [synthesized fallback (no host: NOT_SUPPORTED)]
+  1708737913 E boot: rx seq 143 GSP_RM_CONTROL (76) sequence 105 length 492 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20801823 paramsSize=420 rpcFlags=0x0
+  1708737914 E boot: ctrl 0x20801823: BUS_GET_INFO_V2: no host -> status 0x56 [synthesized fallback (no host: NOT_SUPPORTED)]
+  1708739117 E boot: rx seq 144 GSP_RM_CONTROL (76) sequence 106 length 492 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20801823 paramsSize=420 rpcFlags=0x0
+  1708739119 E boot: ctrl 0x20801823: BUS_GET_INFO_V2: no host -> status 0x56 [synthesized fallback (no host: NOT_SUPPORTED)]
+  1708739491 E boot: rx seq 145 GSP_RM_CONTROL (76) sequence 107 length 492 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20801823 paramsSize=420 rpcFlags=0x0
+  1708739492 E boot: ctrl 0x20801823: BUS_GET_INFO_V2: no host -> status 0x56 [synthesized fallback (no host: NOT_SUPPORTED)]
+  1708739869 E boot: rx seq 146 GSP_RM_CONTROL (76) sequence 108 length 492 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20801823 paramsSize=420 rpcFlags=0x0
+  1708739870 E boot: ctrl 0x20801823: BUS_GET_INFO_V2: no host -> status 0x56 [synthesized fallback (no host: NOT_SUPPORTED)]
+  1708740216 E boot: rx seq 147 GSP_RM_CONTROL (76) sequence 109 length 492 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20801823 paramsSize=420 rpcFlags=0x0
+  1708740218 E boot: ctrl 0x20801823: BUS_GET_INFO_V2: no host -> status 0x56 [synthesized fallback (no host: NOT_SUPPORTED)]
+  1708740607 E boot: rx seq 148 GSP_RM_CONTROL (76) sequence 110 length 492 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20801823 paramsSize=420 rpcFlags=0x0
+  1708740609 E boot: ctrl 0x20801823: BUS_GET_INFO_V2: no host -> status 0x56 [synthesized fallback (no host: NOT_SUPPORTED)]
+  1708740919 E boot: rx seq 149 GSP_RM_CONTROL (76) sequence 111 length 492 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20801823 paramsSize=420 rpcFlags=0x0
+  1708740920 E boot: ctrl 0x20801823: BUS_GET_INFO_V2: no host -> status 0x56 [synthesized fallback (no host: NOT_SUPPORTED)]
+  1708741265 E boot: rx seq 150 GSP_RM_CONTROL (76) sequence 112 length 492 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20801823 paramsSize=420 rpcFlags=0x0
+  1708741271 E boot: ctrl 0x20801823: BUS_GET_INFO_V2: no host -> status 0x56 [synthesized fallback (no host: NOT_SUPPORTED)]
+  1708741594 E boot: rx seq 151 GSP_RM_CONTROL (76) sequence 113 length 492 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20801823 paramsSize=420 rpcFlags=0x0
+  1708741596 E boot: ctrl 0x20801823: BUS_GET_INFO_V2: no host -> status 0x56 [synthesized fallback (no host: NOT_SUPPORTED)]
+  1708741907 E boot: rx seq 152 GSP_RM_CONTROL (76) sequence 114 length 492 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20801823 paramsSize=420 rpcFlags=0x0
+  1708741908 E boot: ctrl 0x20801823: BUS_GET_INFO_V2: no host -> status 0x56 [synthesized fallback (no host: NOT_SUPPORTED)]
+  1708742240 E boot: rx seq 153 GSP_RM_CONTROL (76) sequence 115 length 492 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20801823 paramsSize=420 rpcFlags=0x0
+  1708742242 E boot: ctrl 0x20801823: BUS_GET_INFO_V2: no host -> status 0x56 [synthesized fallback (no host: NOT_SUPPORTED)]
+  1708742551 E boot: rx seq 154 GSP_RM_CONTROL (76) sequence 116 length 492 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20801823 paramsSize=420 rpcFlags=0x0
+  1708742552 E boot: ctrl 0x20801823: BUS_GET_INFO_V2: no host -> status 0x56 [synthesized fallback (no host: NOT_SUPPORTED)]
+  1708742944 E boot: rx seq 155 GSP_RM_CONTROL (76) sequence 117 length 492 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20801823 paramsSize=420 rpcFlags=0x0
+  1708742946 E boot: ctrl 0x20801823: BUS_GET_INFO_V2: no host -> status 0x56 [synthesized fallback (no host: NOT_SUPPORTED)]
+  1708743267 E boot: rx seq 156 GSP_RM_CONTROL (76) sequence 118 length 492 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20801823 paramsSize=420 rpcFlags=0x0
+  1708743269 E boot: ctrl 0x20801823: BUS_GET_INFO_V2: no host -> status 0x56 [synthesized fallback (no host: NOT_SUPPORTED)]
+  1708743572 E boot: rx seq 157 GSP_RM_CONTROL (76) sequence 119 length 492 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20801823 paramsSize=420 rpcFlags=0x0
+  1708743574 E boot: ctrl 0x20801823: BUS_GET_INFO_V2: no host -> status 0x56 [synthesized fallback (no host: NOT_SUPPORTED)]
+  1708743899 E boot: rx seq 158 GSP_RM_CONTROL (76) sequence 120 length 492 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20801823 paramsSize=420 rpcFlags=0x0
+  1708743900 E boot: ctrl 0x20801823: BUS_GET_INFO_V2: no host -> status 0x56 [synthesized fallback (no host: NOT_SUPPORTED)]
+  1708744211 E boot: rx seq 159 GSP_RM_CONTROL (76) sequence 121 length 492 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20801823 paramsSize=420 rpcFlags=0x0
+  1708744212 E boot: ctrl 0x20801823: BUS_GET_INFO_V2: no host -> status 0x56 [synthesized fallback (no host: NOT_SUPPORTED)]
+  1708744551 E boot: rx seq 160 GSP_RM_CONTROL (76) sequence 122 length 492 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20801823 paramsSize=420 rpcFlags=0x0
+  1708744553 E boot: ctrl 0x20801823: BUS_GET_INFO_V2: no host -> status 0x56 [synthesized fallback (no host: NOT_SUPPORTED)]
+  1708744948 E boot: rx seq 161 GSP_RM_CONTROL (76) sequence 123 length 492 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20801823 paramsSize=420 rpcFlags=0x0
+  1708744954 E boot: ctrl 0x20801823: BUS_GET_INFO_V2: no host -> status 0x56 [synthesized fallback (no host: NOT_SUPPORTED)]
+  1708745241 E boot: rx seq 162 GSP_RM_CONTROL (76) sequence 124 length 492 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20801823 paramsSize=420 rpcFlags=0x0
+  1708745243 E boot: ctrl 0x20801823: BUS_GET_INFO_V2: no host -> status 0x56 [synthesized fallback (no host: NOT_SUPPORTED)]
+  1708745548 E boot: rx seq 163 GSP_RM_CONTROL (76) sequence 125 length 492 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20801823 paramsSize=420 rpcFlags=0x0
+  1708745550 E boot: ctrl 0x20801823: BUS_GET_INFO_V2: no host -> status 0x56 [synthesized fallback (no host: NOT_SUPPORTED)]
+  1708746107 E boot: rx seq 164 GSP_RM_CONTROL (76) sequence 126 length 492 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20801823 paramsSize=420 rpcFlags=0x0
+  1708746109 E boot: ctrl 0x20801823: BUS_GET_INFO_V2: no host -> status 0x56 [synthesized fallback (no host: NOT_SUPPORTED)]
+  1708746645 E boot: rx seq 165 GSP_RM_CONTROL (76) sequence 127 length 492 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20801823 paramsSize=420 rpcFlags=0x0
+  1708746647 E boot: ctrl 0x20801823: BUS_GET_INFO_V2: no host -> status 0x56 [synthesized fallback (no host: NOT_SUPPORTED)]
+  1708746954 E boot: rx seq 166 GSP_RM_CONTROL (76) sequence 128 length 492 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20801823 paramsSize=420 rpcFlags=0x0
+  1708746955 E boot: ctrl 0x20801823: BUS_GET_INFO_V2: no host -> status 0x56 [synthesized fallback (no host: NOT_SUPPORTED)]
+  1708749167 E boot: rx seq 167 GSP_RM_CONTROL (76) sequence 129 length 76 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20800ab8 paramsSize=4 rpcFlags=0x0
+  1708749168 E boot: ctrl 0x20800ab8: pcie p2p caps: not supported -> status 0x0 [synthesized (no PCIe P2P)]
+  1708749763 E boot: rx seq 168 GSP_RM_CONTROL (76) sequence 130 length 84 checksum ok: hClient=0xc1d00002 hObject=0xff030000 cmd=0x20800173 paramsSize=12 rpcFlags=0x0
+  1708749765 E boot: ctrl 0x20800173: GPU_QUERY_FUNCTION_STATUS: no host -> status 0x56 [synthesized fallback (no host: NOT_SUPPORTED)]
+  1708750100 E boot: rx seq 169 GSP_RM_CONTROL (76) sequence 131 length 88 checksum ok: hClient=0xc1d00002 hObject=0xff030000 cmd=0x20801315 paramsSize=16 rpcFlags=0x0
+  1708750101 E boot: ctrl 0x20801315: gpu cache info -> status 0x0 [synthesized fallback (L2 enabled, write-back)]
+  1708750435 E boot: rx seq 170 GSP_RM_CONTROL (76) sequence 132 length 80 checksum ok: hClient=0xc1d00002 hObject=0xff030000 cmd=0x20802a12 paramsSize=8 rpcFlags=0x0
+  1708750445 E boot: ctrl 0x20802a12: ce lce 0 decomp enabled: false -> status 0x0 [synthesized (no decompression LCE on Turing)]
+  1708750581 E boot: rx seq 171 GSP_RM_CONTROL (76) sequence 133 length 80 checksum ok: hClient=0xc1d00002 hObject=0xff030000 cmd=0x20802a12 paramsSize=8 rpcFlags=0x0
+  1708750582 E boot: ctrl 0x20802a12: ce lce 1 decomp enabled: false -> status 0x0 [synthesized (no decompression LCE on Turing)]
+  1708750675 E boot: rx seq 172 GSP_RM_CONTROL (76) sequence 134 length 80 checksum ok: hClient=0xc1d00002 hObject=0xff030000 cmd=0x20802a12 paramsSize=8 rpcFlags=0x0
+  1708750676 E boot: ctrl 0x20802a12: ce lce 2 decomp enabled: false -> status 0x0 [synthesized (no decompression LCE on Turing)]
+  1708750767 E boot: rx seq 173 GSP_RM_CONTROL (76) sequence 135 length 80 checksum ok: hClient=0xc1d00002 hObject=0xff030000 cmd=0x20802a12 paramsSize=8 rpcFlags=0x0
+  1708750769 E boot: ctrl 0x20802a12: ce lce 3 decomp enabled: false -> status 0x0 [synthesized (no decompression LCE on Turing)]
+  1708750861 E boot: rx seq 174 GSP_RM_CONTROL (76) sequence 136 length 80 checksum ok: hClient=0xc1d00002 hObject=0xff030000 cmd=0x20802a12 paramsSize=8 rpcFlags=0x0
+  1708750863 E boot: ctrl 0x20802a12: ce lce 4 decomp enabled: false -> status 0x0 [synthesized (no decompression LCE on Turing)]
+  1708752183 E boot: rx seq 175 GSP_RM_CONTROL (76) sequence 137 length 652 checksum ok: hClient=0xc1d00002 hObject=0xff030000 cmd=0x20800102 paramsSize=580 rpcFlags=0x0
+  1708752185 E boot: ctrl 0x20800102: gpu info v2: 1 entries; host [0x11] status 0x0; own [] -> status 0x0 [host (GPU_GET_INFO_V2, marked indices)]
+  1708752485 E boot: rx seq 176 GSP_RM_CONTROL (76) sequence 138 length 84 checksum ok: hClient=0xc1d00002 hObject=0xff010000 cmd=0x801c02 paramsSize=12 rpcFlags=0x0
+  1708752486 E boot: ctrl 0x801c02: NV0080_CTRL_CMD_NVDEC_GET_CAPS_V2 (0x801c02): chip table, NV0080_CTRL_NVDEC_GET_CAPS_PARAMS_V2 -> status 0x0 [card (NVDEC caps table 01 00 00 00 16 00 00 00; native traces nvdec.jsonl:2192, vk-enum.jsonl:590)]
+  1708752823 E boot: rx seq 177 GSP_RM_CONTROL (76) sequence 139 length 84 checksum ok: hClient=0xc1d00002 hObject=0xff010000 cmd=0x801b02 paramsSize=12 rpcFlags=0x0
+  1708752824 E boot: ctrl 0x801b02: NV0080_CTRL_CMD_NVENC_GET_CAPS_V2 (0x801b02): chip table, NV0080_CTRL_NVENC_GET_CAPS_V2_PARAMS -> status 0x0 [card (NVENC caps table all zero; native traces nvdec.jsonl:2195, vk-enum.jsonl:593, the V1 control)]
+  1708753504 E boot: rx seq 178 GSP_RM_CONTROL (76) sequence 140 length 144 checksum ok: hClient=0xc1d00002 hObject=0xff030000 cmd=0x20803601 paramsSize=72 rpcFlags=0x0
+  1708753506 E boot: ctrl 0x20803601: gsp features: valid, 615.71.09 -> status 0x0 [synthesized (driver version string; the emulated GSP is that version)]
+  1708753961 E boot: rx seq 179 GSP_RM_CONTROL (76) sequence 141 length 404 checksum ok: hClient=0xc1d00002 hObject=0xff030000 cmd=0x20808159 paramsSize=332 rpcFlags=0x0
+  1708753963 E boot: ctrl 0x20808159: GSS legacy gpu 0x59 (cuInit): no host -> status 0x56 [synthesized fallback (no host: NOT_SUPPORTED)]
+  1708754291 E boot: rx seq 180 GSP_RM_CONTROL (76) sequence 142 length 88 checksum ok: hClient=0xc1d00002 hObject=0xff030000 cmd=0x20800160 paramsSize=16 rpcFlags=0x0
+  1708754293 E boot: ctrl 0x20800160: NV2080_CTRL_CMD_GPU_GET_VPR_CAPS (0x20800160): chip table, NV2080_CTRL_GPU_GET_VPR_CAPS_PARAMS -> status 0x56 [refused (no VPR in the VM: FB_SETUP_VPR_REGION is refused; the range is host FB addresses)]
+  1708754740 E boot: rx seq 181 GSP_RM_CONTROL (76) sequence 143 length 76 checksum ok: hClient=0xc1d00002 hObject=0xff030000 cmd=0x20802801 paramsSize=4 rpcFlags=0x0
+  1708754742 E boot: ctrl 0x20802801: DIFR (display idle frame refresh): not supported -> status 0x56 [synthesized (chips/tu106/display.toml)]
+  1708755101 E boot: rx seq 182 GSP_RM_CONTROL (76) sequence 144 length 84 checksum ok: hClient=0xc1d00002 hObject=0xff010000 cmd=0x801707 paramsSize=12 rpcFlags=0x0
+  1708755102 E boot: ctrl 0x801707: engine context properties: not supported -> status 0x56 [synthesized fallback (no host: sizes unknown)]
+  1708755511 E boot: rx seq 183 GSP_RM_CONTROL (76) sequence 145 length 1736 checksum ok: hClient=0xc1d00002 hObject=0xff030000 cmd=0x2080012f paramsSize=1664 rpcFlags=0x0
+  1708755513 E boot: ctrl 0x2080012f: GPU_QUERY_ECC_STATUS: no host -> status 0x56 [synthesized fallback (no host: NOT_SUPPORTED)]
+  1708756121 E boot: rx seq 184 GSP_RM_CONTROL (76) sequence 146 length 2000 checksum ok: hClient=0xc1d00002 hObject=0xff030000 cmd=0x20803801 paramsSize=1928 rpcFlags=0x0
+  1708756127 E boot: ctrl 0x20803801: GRMGR_GET_GR_FS_INFO: no host -> status 0x56 [synthesized fallback (no host: NOT_SUPPORTED)]
+  1708756435 E boot: rx seq 185 GSP_RM_CONTROL (76) sequence 147 length 76 checksum ok: hClient=0xc1d00002 hObject=0xff030000 cmd=0x20802806 paramsSize=4 rpcFlags=0x0
+  1708756437 E boot: ctrl 0x20802806: control 0x20802806 on 0xff030000 (class 0x2080, 4 bytes): not supported -> status 0x56 [unanswered]
+  1708756785 E boot: rx seq 186 FREE (10) sequence 148 length 48 checksum ok: hRoot=0xc1d00002 hParent=0x0 hObject=0xff0d0000
+  1708757109 E boot: rx seq 187 FREE (10) sequence 149 length 48 checksum ok: hRoot=0xc1d00002 hParent=0x0 hObject=0xff030000
+  1708757416 E boot: rx seq 188 FREE (10) sequence 150 length 48 checksum ok: hRoot=0xc1d00002 hParent=0x0 hObject=0xff010000
+  1708757557 E boot: rx seq 189 FREE (10) sequence 151 length 48 checksum ok: hRoot=0xc1d00002 hParent=0x0 hObject=0xc1d00002
+  1708758891 E boot: rx seq 190 FREE (10) sequence 152 length 48 checksum ok: hRoot=0xc1e00009 hParent=0x0 hObject=0xcaf00005
+  1708759009 E boot: rx seq 191 FREE (10) sequence 153 length 48 checksum ok: hRoot=0xc1e00009 hParent=0x0 hObject=0xcaf00006
+  1708759144 E boot: rx seq 192 FREE (10) sequence 154 length 48 checksum ok: hRoot=0xc1e00009 hParent=0x0 hObject=0xcaf00004
+  1708759287 E boot: rx seq 193 FREE (10) sequence 155 length 48 checksum ok: hRoot=0xc1e00009 hParent=0x0 hObject=0xcaf00003
+  1708759426 E boot: rx seq 194 FREE (10) sequence 156 length 48 checksum ok: hRoot=0xc1e00009 hParent=0x0 hObject=0xcaf00002
+  1708759567 E boot: rx seq 195 FREE (10) sequence 157 length 48 checksum ok: hRoot=0xc1e00009 hParent=0x0 hObject=0xcaf00001
+  1708759729 E boot: rx seq 196 FREE (10) sequence 158 length 48 checksum ok: hRoot=0xc1e00009 hParent=0x0 hObject=0xcaf00000
+  1708759826 E boot: rx seq 197 FREE (10) sequence 159 length 48 checksum ok: hRoot=0xc1e00009 hParent=0x0 hObject=0xc1e00009
+  1708760027 E boot: rx seq 198 FREE (10) sequence 160 length 48 checksum ok: hRoot=0xc1e00008 hParent=0x0 hObject=0x5
+  1708760173 E boot: rx seq 199 FREE (10) sequence 161 length 48 checksum ok: hRoot=0xc1e00008 hParent=0x0 hObject=0x2
+  1708760337 E boot: rx seq 200 FREE (10) sequence 162 length 48 checksum ok: hRoot=0xc1e00008 hParent=0x0 hObject=0x6
+  1708760437 E boot: rx seq 201 FREE (10) sequence 163 length 48 checksum ok: hRoot=0xc1e00008 hParent=0x0 hObject=0xa
+  1708801827 E boot: rx seq 202 FREE (10) sequence 164 length 48 checksum ok: hRoot=0xc1e00008 hParent=0x0 hObject=0x9
+  1708801923 E boot: rx seq 203 FREE (10) sequence 165 length 48 checksum ok: hRoot=0xc1e00008 hParent=0x0 hObject=0xc1e00008
+  1708885437 E boot: rx seq 204 GSP_RM_CONTROL (76) sequence 166 length 112 checksum ok: hClient=0xc1e00004 hObject=0xcaf00002 cmd=0x730151 paramsSize=40 rpcFlags=0x0
+  1708885438 E boot: ctrl 0x730151: map shared data: base 0x0 size 0x0 bMap 0 -> status 0x0 [guest (recorded from the request)]
+  1708885800 E boot: rx seq 205 FREE (10) sequence 167 length 48 checksum ok: hRoot=0xc1e00006 hParent=0x0 hObject=0xcaf00001
+  1708886012 E boot: rx seq 206 FREE (10) sequence 168 length 48 checksum ok: hRoot=0xc1e00006 hParent=0x0 hObject=0xcaf00000
+  1708886117 E boot: rx seq 207 FREE (10) sequence 169 length 48 checksum ok: hRoot=0xc1e00006 hParent=0x0 hObject=0xc1e00006
+  1708886265 E boot: rx seq 208 GSP_RM_CONTROL (76) sequence 170 length 96 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20800a38 paramsSize=24 rpcFlags=0x0
+  1708886266 E boot: ctrl 0x20800a38: gr get FECS trace hw enable: bEnable FALSE -> status 0x0 [synthesized (FECS trace HW never enabled)]
+  1708886395 E boot: rx seq 209 FREE (10) sequence 171 length 48 checksum ok: hRoot=0xc1e00004 hParent=0x0 hObject=0xcaf00002
+  1708886555 E boot: rx seq 210 FREE (10) sequence 172 length 48 checksum ok: hRoot=0xc1e00004 hParent=0x0 hObject=0xcaf00001
+  1708886663 E boot: rx seq 211 FREE (10) sequence 173 length 48 checksum ok: hRoot=0xc1e00004 hParent=0x0 hObject=0xcaf00000
+  1708886779 E boot: rx seq 212 FREE (10) sequence 174 length 48 checksum ok: hRoot=0xc1e00004 hParent=0x0 hObject=0xc1e00004
+  1709087913 E boot: rx seq 213 UPDATE_BAR_PDE (70) sequence 175 length 56 checksum ok: 24 bytes: 010000000000000000000000000000002f00000000000000
+  1709088124 E boot: rx seq 214 FREE (10) sequence 176 length 48 checksum ok: hRoot=0xc1e00005 hParent=0x0 hObject=0xcaf00003
+  1709088264 E boot: rx seq 215 FREE (10) sequence 177 length 48 checksum ok: hRoot=0xc1e00005 hParent=0x0 hObject=0xcaf00001
+  1709088381 E boot: rx seq 216 FREE (10) sequence 178 length 48 checksum ok: hRoot=0xc1e00005 hParent=0x0 hObject=0xcaf00000
+  1709088492 E boot: rx seq 217 FREE (10) sequence 179 length 48 checksum ok: hRoot=0xc1e00005 hParent=0x0 hObject=0xc1e00005
+  1709088628 E boot: rx seq 218 GSP_RM_CONTROL (76) sequence 180 length 88 checksum ok: hClient=0xca7a0001 hObject=0xca7a0003 cmd=0x20800afe paramsSize=16 rpcFlags=0x0
+  1709088629 E boot: ctrl 0x20800afe: init user shared data: pa 0x0 -> status 0x0 [guest (RUSD page recorded)]
+  1709088842 E boot: rx seq 219 FREE (10) sequence 181 length 48 checksum ok: hRoot=0xc1e00003 hParent=0x0 hObject=0xcaf00001
+  1709088967 E boot: rx seq 220 FREE (10) sequence 182 length 48 checksum ok: hRoot=0xc1e00003 hParent=0x0 hObject=0xcaf00000
+  1709089075 E boot: rx seq 221 FREE (10) sequence 183 length 48 checksum ok: hRoot=0xc1e00003 hParent=0x0 hObject=0xc1e00003
+  1709089204 E boot: rx seq 222 GMCAPI_GSP_SUSPEND (65540) sequence 184 length 40 checksum ok: 8 bytes: 0000000000000000

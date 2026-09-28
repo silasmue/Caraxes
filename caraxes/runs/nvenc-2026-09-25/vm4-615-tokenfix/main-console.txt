@@ -1,0 +1,38 @@
+04:31:23 cell A-tokenfix binary /mnt/vmstore/caraxes/vfio-user-nvgpu-v615-tokenfix-d1084c0a afd3aabf pace=no
+04:34:45 up rc=0
+04:34:46 guest tools: -rwxrwxr-x 1 leandro leandro 41104 Sep 25 14:47 /home/leandro/nvenc/nvenc-probe -rw-r--r-- 1 leandro leandro  2114 Sep 26 02:34 /home/leandro/nvenc/repro2.sh -rwxrwxr-x 1 leandro leandro 16112 Sep 26 01:49 /home/leandro/nvenc/rmioctl-log3.so 
+04:37:46 (a) a1 tries=5: vk 1 rc=0 vk 2 rc=0 vk 3 rc=0 vk 4 rc=0 vk 5 rc=0 | 0x57 total 0 | collisions_avoided=8 host_nvrm_lines=31 va_alloc_failed=31 xid=0
+04:40:22 (a) a2 tries=5: vk 1 rc=0 vk 2 rc=0 vk 3 rc=0 vk 4 rc=0 vk 5 rc=0 | 0x57 total 0 | collisions_avoided=11 host_nvrm_lines=31 va_alloc_failed=31 xid=0
+04:42:59 (a) a3 tries=5: vk 1 rc=0 vk 2 rc=0 vk 3 rc=0 vk 4 rc=0 vk 5 rc=0 | 0x57 total 0 | collisions_avoided=10 host_nvrm_lines=31 va_alloc_failed=31 xid=0
+04:45:36 (a) a4 tries=5: vk 1 rc=0 vk 2 rc=0 vk 3 rc=0 vk 4 rc=0 vk 5 rc=0 | 0x57 total 0 | collisions_avoided=10 host_nvrm_lines=31 va_alloc_failed=31 xid=0
+04:48:14 (a) a5 tries=5: vk 1 rc=0 vk 2 rc=0 vk 3 rc=0 vk 4 rc=0 vk 5 rc=0 | 0x57 total 0 | collisions_avoided=10 host_nvrm_lines=31 va_alloc_failed=31 xid=0
+04:48:14 (a) counting runs (with a collision): 5 of 5
+/home/silas/git/Caraxes/caraxes/runs/nvenc-2026-09-25/vm4-615-tokenfix/tools/cell.sh: line 67: /home/silas/git/Caraxes/caraxes/runs/nvenc-2026-09-25/vm4-615-tokenfix/A-tokenfix/session/moonlight.log: No such file or directory
+04:48:47 moonlight attempt 1: 00:00:23 - SDL Info (0): Received first video packet after 2300 ms
+04:49:57 (b) b1: vkcube rc=0 elapsed=44.847805478 0x57=0 | [build] <default>: FPS: 18 FrameTime: 55.853 ms                                   glmark2 Score: 17  glrc=0  | collisions_avoided=0 host_nvrm_lines=0 va_alloc_failed=0 xid=0
+04:51:14 (b) b2: vkcube rc=0 elapsed=45.860509788 0x57=0 | [build] <default>: FPS: 19 FrameTime: 55.049 ms                                   glmark2 Score: 18  glrc=0  | collisions_avoided=0 host_nvrm_lines=0 va_alloc_failed=0 xid=0
+04:52:13 (b) b3: vkcube rc=0 elapsed=29.203081016 0x57=0 | [build] <default>: FPS: 21 FrameTime: 49.575 ms                                   glmark2 Score: 20  glrc=0  | collisions_avoided=0 host_nvrm_lines=0 va_alloc_failed=0 xid=0
+04:53:10 (b) b4: vkcube rc=0 elapsed=26.603569302 0x57=0 | [build] <default>: FPS: 21 FrameTime: 48.004 ms                                   glmark2 Score: 20  glrc=0  | collisions_avoided=0 host_nvrm_lines=0 va_alloc_failed=0 xid=0
+04:55:59 (c) c1: vkmark rc=0 elapsed=148.892837388 score [                                   vkmark Score: 20] | collisions_avoided=0 host_nvrm_lines=0 va_alloc_failed=0 xid=0
+04:55:59 guest: flip warnings 11, TLB invalidation failed 0, Xid 0
+04:55:59 down
+04:56:20 done: host NVRM lines 155, VA alloc failed 155, Xid 0; device failures 76
+04:56:50 cell B-invhold binary /mnt/vmstore/caraxes/vfio-user-nvgpu-v615-invhold-3bad9810 5c480789 pace=no
+05:00:18 up rc=0
+05:00:19 guest tools: -rwxrwxr-x 1 leandro leandro 41104 Sep 25 14:47 /home/leandro/nvenc/nvenc-probe -rw-r--r-- 1 leandro leandro  2114 Sep 26 03:00 /home/leandro/nvenc/repro2.sh -rwxrwxr-x 1 leandro leandro 16112 Sep 26 01:49 /home/leandro/nvenc/rmioctl-log3.so 
+05:03:19 (a) a1 tries=5: vk 1 rc=134 | 0x57 total 1 | collisions_avoided=0 host_nvrm_lines=31 va_alloc_failed=31 xid=0
+05:03:19 (a) failure seen: baseline stop
+05:03:19 (a) counting runs (with a collision): 0 of 1
+/home/silas/git/Caraxes/caraxes/runs/nvenc-2026-09-25/vm4-615-tokenfix/tools/cell.sh: line 67: /home/silas/git/Caraxes/caraxes/runs/nvenc-2026-09-25/vm4-615-tokenfix/B-invhold/session/moonlight.log: No such file or directory
+05:04:08 moonlight attempt 1: 00:00:31 - SDL Info (0): Received first video packet after 3000 ms
+05:05:14 (b) b1: vkcube rc=0 elapsed=38.495746193 0x57=0 | [build] <default>: FPS: 10 FrameTime: 100.814 ms                                   glmark2 Score: 9  glrc=0  | collisions_avoided=0 host_nvrm_lines=0 va_alloc_failed=0 xid=0
+05:06:10 (b) b2: vkcube rc=0 elapsed=26.352772231 0x57=0 | [build] <default>: FPS: 50 FrameTime: 20.355 ms                                   glmark2 Score: 49  glrc=0  | collisions_avoided=0 host_nvrm_lines=0 va_alloc_failed=0 xid=0
+05:06:32 (b) b3: ssh: connect to host 192.168.103.24 port 22: No route to host | ssh: connect to host 192.168.103.24 port 22: No route to host  | collisions_avoided=0 host_nvrm_lines=0 va_alloc_failed=0 xid=0
+05:06:54 (b) b4: ssh: connect to host 192.168.103.24 port 22: No route to host | ssh: connect to host 192.168.103.24 port 22: No route to host  | collisions_avoided=0 host_nvrm_lines=0 va_alloc_failed=0 xid=0
+05:07:15 (c) c1: ssh: connect to host 192.168.103.24 port 22: No route to host score [] | collisions_avoided=0 host_nvrm_lines=0 va_alloc_failed=0 xid=0
+05:07:18 guest: flip warnings 0, TLB invalidation failed 0, Xid 0
+05:07:18 down
+05:07:18 done: host NVRM lines 31, VA alloc failed 31, Xid 0; device failures 34
+05:07:49 cell C-combo binary /mnt/vmstore/caraxes/vfio-user-nvgpu-v615-combo-3111dbf9 920947cb pace=pace
+05:08:51 up rc=1
+05:08:51 up failed

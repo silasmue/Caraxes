@@ -1,0 +1,2 @@
+2026-09-25T10:28:58+02:00 moonlight stream 192.168.103.24 Desktop --resolution 1920x1080 --fps 60 --bitrate 20000 --display-mode windowed
+2026-09-25T10:35:12+02:00 restarted with --absolute-mouse (pid 8413)

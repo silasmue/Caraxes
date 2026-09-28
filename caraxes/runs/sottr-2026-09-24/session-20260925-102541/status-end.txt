@@ -1,0 +1,22 @@
+== session
+95 1000 leandro seat0 tty2 active no -
+96 1000 leandro -     -    active no -
+gnome-shell      
+Xwayland         
+steam            
+steamwebhelper   
+sunshine         
+ShadowOfTheTomb  
+== games
+TARGET SOURCE   FSTYPE OPTIONS
+/games /dev/vdc ext4   rw,relatime
+3DMark Demo
+Proton - Experimental
+Proton Hotfix
+Shadow of the Tomb Raider
+Steam.dll
+SteamLinuxRuntime_4
+SteamLinuxRuntime_sniper
+SteamLinuxRuntime_soldier
+== kms
+GRAB no active CRTC framebuffer: No such file or directory

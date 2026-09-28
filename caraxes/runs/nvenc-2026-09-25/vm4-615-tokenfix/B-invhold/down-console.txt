@@ -1,0 +1,2 @@
+stopped
+host Xid lines since 2026-09-26 05:07:18:0; evidence in /home/silas/git/Caraxes/caraxes/runs/nvenc-2026-09-25/vm4-615-tokenfix/tools/stage/session-down-20260926-050718
