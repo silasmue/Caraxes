@@ -78,20 +78,37 @@ Runs: `/mnt/vmstore/caraxes/alpha-2026-09-27/windows-plain/<run>/`.
     guest data.
   - The PRIV_VIOLATION shows the write is non-privileged (pushbuffer-driven), and that the host
     placed a privileged buffer of its own in that excluded hole in one VAS.
-  - Not attributed yet: the host's BUNDLE_CB size (engine 0x11 is in no recorded answer), and
-    whether the guest leaves [base, base + 0x3000) unmapped.
-  - Open. Depends on: AB, L.
+  - Sizes (2026-09-28, from P19's recorded static info: the host's own
+    GR_GET_ENGINE_CONTEXT_PROPERTIES answer, forwarded unchanged as
+    KGR_GET_CONTEXT_BUFFERS_INFO):
+    - The host allocates its BUNDLE_CB from that table: 0x3000, alignment 0x100
+      (kgraphics_gm200.c:71-74).
+    - RM maps an internal vidmem buffer below 64 KiB with 4 KiB pages
+      (mem_mgr.c `_memmgrPickDefaultGpuPageSize`), so the host's VA footprint is 0x3000.
+    - The guest was told 0x3000 and reserved exactly that span: [0x1200e9000, 0x1200ec000), its
+      next page at +0x3000; F3 shows nothing mapped below.
+    - Host size <= guest span: no real overlap.
+  - Other size-0 globals (host size = footprint = the 64 KiB rounding): PAGEPOOL 0x20000,
+    RTV_CB 0x80000, FECS_EVENT 0x10000, PRIV_ACCESS_MAP 0x80000, ATTRIBUTE_CB 0x3f3a00 (2 MiB
+    pages, 0x400000). Only BUNDLE_CB and GFXP_CTRL_BLK (0x464) have a footprint below their
+    64 KiB extent.
+  - F2a (this branch): exclusion = [base, first guest-mapped page), never below the host's
+    footprint and never above the 64 KiB extent.
+    - A cut logs one WARN per clip ("set-B exclusion cut short").
+    - A guest page inside the footprint logs a WARN and stays unmirrored: a fault, never a
+      shared page.
+    - Each FIFO_GET_ENGINE_CONTEXT_PROPERTIES answer is now logged unrounded ("global context
+      size"), so P20 confirms the BUNDLE_CB number.
+  - Linux: unchanged unless the guest maps inside the old 64 KiB overshoot; the host footprint
+    is excluded as before.
+  - Validation open (P20). Depends on: AB, L; the host footprint rule on RM's page-size choice.
 - **Host-owned VAs in the guest's kernel range remain:** 64 host VA allocations refused with 0x51 in
   0x1_2000_0000..0x1_2200_0000 (P18: 192). No Xid attributed to them in P19. Depends on: L, AB.
 
-### F2 designs (not built; main decides)
+### F2 designs
 
-- **F2a, exclusion extent (small, mirror.rs only):** a size-0 promoted global buffer excludes only
-  up to the first page the guest itself maps at or after its base. The guest never maps inside a
-  VA-only reservation that the server fills. Needs the cached guest walk where the exclusions are
-  recomputed (`refresh_exclusions`). Fixes the P19 faults if the guest's reservation is what it maps
-  around. Depends on: AB.
-- **F2b, host fence (larger, touches shadow.rs `apply`, workstream A's neighbourhood):**
+- **F2a, exclusion extent: built** (see the P19 entry above). Depends on: AB.
+- **F2b, host fence (parked; larger, touches shadow.rs `apply`, workstream A's neighbourhood):**
   - A host-owned `NV50_MEMORY_VIRTUAL` over [0x1_2000_0000, 0x1_2000_0000 + F) is created with the
     shadow VAS.
   - The host's first fit then lands above it. Guest leaves inside it are mapped into the fence
