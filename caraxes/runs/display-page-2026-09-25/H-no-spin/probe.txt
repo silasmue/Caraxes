@@ -1,0 +1,4 @@
+probe desk-H-no-spin: 68734 device accesses, guest log in /mnt/vmstore/caraxes/vm0/probe-desk-H-no-spin/guest-dmesg.txt
+[  234.141950] NVRM: GPU 0000:00:05.0: RmInitAdapter
+[  236.446504] NVRM: GPU 0000:00:05.0: RmInitAdapter succeeded!
+modprobe rc=0

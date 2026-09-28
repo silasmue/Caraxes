@@ -1,0 +1,4 @@
+probe desk-P1-flush-page-memory: 68583 device accesses, guest log in /mnt/vmstore/caraxes/vm0/probe-desk-P1-flush-page-memory/guest-dmesg.txt
+[  129.012569] NVRM: GPU 0000:00:05.0: RmInitAdapter
+[  131.207056] NVRM: GPU 0000:00:05.0: RmInitAdapter succeeded!
+modprobe rc=0

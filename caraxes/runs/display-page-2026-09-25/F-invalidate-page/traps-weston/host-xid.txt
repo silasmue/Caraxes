@@ -1,0 +1,3 @@
+# SPDX-License-Identifier: MIT
+# host kernel log, Xid lines since 2026-09-25 08:40:49 (device pid 3267300)
+Sep 25 08:41:13 manacor kernel: NVRM: Xid (PCI:0000:2d:00): 109, pid=3245134, name=vfio-user-nvgpu, channel 0x0000003c, errorString CTX SWITCH TIMEOUT, Info 0x5c03b

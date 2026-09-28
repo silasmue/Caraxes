@@ -1185,3 +1185,41 @@ the VM; then display, expected to be much easier than in v1.
   - **Pending.** The GA100 rung (A100 identity over tu106, MIG pending until a reset through
     the devinit scratch bit), the TU106-as-VF run and the TU106 emu-boot check. The operator
     stopped VM boots for host memory.
+- 2026-09-25: **The desktop with the recommended configuration and the next windows**
+  ([intr-page.md](intr-page.md) §11, records `caraxes/runs/display-page-2026-09-25/`).
+  - **Setup.** vm0, 610 guest, 2 GiB at slot 0, the recommended configuration of the morning
+    matrix; per series Mutter, vkcube and glmark2 under Mutter (no browser: the image's
+    `firefox` is the snap stub) and Weston, `trap-table.py --pages --regs`.
+  - **Traps per Mutter frame.** 139.86 (C) to 50.50 with the memfd and the re-arm (D), to 40 with
+    the flush deferral (`CARAXES_BAR2_FLUSH_DEFER_US=on`, 2 ms) and the MMU invalidate page
+    (`CARAXES_INVALIDATE_PAGE=1`, `inv_page.rs`) in F to H. What stays: 23 flush reads (now
+    without a sync), `TIME_0/1` at a fixed 925 per second, 1.33 display kicks. Weston 31.08 to 15
+    to 17.5. No display FE page register traps any more.
+  - **Frame timing.** Mutter 60 Hz with sd 1.7 to 1.9 ms in F and G (C: sd 2.9). Weston's
+    stretched frames (C: 57.4 Hz, sd 4.1) are late vblank deliveries: the guest services every
+    interrupt on vCPU 1, and with other VMs loading the host 17 to 41 % of the vblanks reach
+    the guest's ack 1 ms or more late. No trap stretches them.
+  - **Open.** With the pool poll after a page trigger (f37b354, needed for the gate's KMS
+    readback) Mutter ran at 52 and 48 Hz (I, I2) and its PTE batch grew from 1 to 3 ms; the A/B
+    is prepared (series.sh J/K) and waits for the GPU. Watchdog counters for slow triggers and
+    overdue flush debts (8801bfe).
+  - **Xid.** 0 on vm0's device in every series; the only Xid lines of the session were vm2's
+    (pid 3245134, Xid 109, series F).
+- 2026-09-25 afternoon: **The remaining per-frame traps as memory** ([intr-page.md](intr-page.md)
+  §12, records `caraxes/runs/display-page-2026-09-25/` P1).
+  - **Flush page as memory** (`CARAXES_BAR2_FLUSH_PAGE=memory`): no BAR2 page traps; the BAR2
+    memfd syncs at the invalidate, the GSP doorbell, every trapped write and doorbell, and by
+    the reactor 2 ms after the last sync. Mutter 17.68 traps per frame at 60.06 Hz (H: 39.76),
+    Weston 14.70 at 60.00 Hz sd 0.70 ms, vkcube 53.2 FPS, glmark2 2045, display gate pass, 0
+    host Xid (vm0 at slot 2 beside the game VM).
+  - **Built, runs owed:** the usermode page (`CARAXES_USERMODE_PAGE=1`) and the display kick
+    page (`CARAXES_DISPLAY_KICK_PAGE=1`), the last two per-frame sources.
+  - **Host BAR1 floor** (`CARAXES_HOST_BAR1_FLOOR_MIB`, default 96): after two pools exhausted
+    the host's BAR1 and the host desktop's Vulkan failed.
+  - **Game findings:** the cursor plane stays out of the capture (keep the software cursor);
+    the second GNOME start's failure is the stage's hand restart with Sunshine and Steam
+    holding the GPU, not the device.
+  - **In dev since 2026-09-28** (all opt-in): the invalidate, usermode and kick pages, the
+    flush page as memory (on dev's `DeferredFlush`), the vblank spin. Not merged: the branch's
+    flush deferral `CARAXES_BAR2_FLUSH_DEFER_US` (dev's `CARAXES_BAR2_MEMFD_DEFER_FLUSH` does
+    this) and its BAR1 floor (dev had the same). Notes in intr-page.md §11.2, §11.3, §12.1, §12.4.

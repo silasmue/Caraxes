@@ -1,0 +1,4 @@
+probe desk-D-recommended: 68985 device accesses, guest log in /mnt/vmstore/caraxes/vm0/probe-desk-D-recommended/guest-dmesg.txt
+[  129.957777] NVRM: GPU 0000:00:05.0: RmInitAdapter
+[  131.928032] NVRM: GPU 0000:00:05.0: RmInitAdapter succeeded!
+modprobe rc=0

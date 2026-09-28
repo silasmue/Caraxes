@@ -1,0 +1,2 @@
+# SPDX-License-Identifier: MIT
+# host kernel log, Xid lines since 2026-09-25 08:25:03 (device pid 3209114)

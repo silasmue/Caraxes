@@ -157,6 +157,15 @@ mapping package's c0/c1 measurement ([mapping.md](mapping.md)).
 | host notifier events raising an MSI | 3.56 | 5.90 | 4.71 | 4.98 | 4.85 |
 | shadow plans applied in the window | 0 | 0 | 0 | 0 | 1 (walk 63 us, apply 375 us) |
 
+**Current numbers (2026-09-25):** with the interrupt page, the display page, the BAR1 pool, the
+BAR2 memfd and the MSI re-arm ioeventfd, Mutter traps 50.5 times per frame and Weston 17.1
+([intr-page.md](intr-page.md) §11.1). With the flush deferral and the MMU invalidate page, Mutter
+traps 40 times per frame (23 cheap flush reads, 16 `TIME` reads, 1.3 display kicks) and Weston
+15 to 17 (§11.5). The frame-timing analysis of Weston is in §11.4 and §11.9 (the guest services
+every interrupt on one vCPU); the per-frame tables of all series (C to I2, Mutter, Weston,
+vkcube, glmark2) are in §11.7, and Mutter's lower rate with the pool poll after a page trigger
+(series I and I2, A/B pending) in §11.8.
+
 Per-run tables: `f3-traps-mutter/trap-table.txt`, `f3b-traps-mutter-fresh/`, `f4-traps-weston/`,
 `f5-traps-mutter-ioeventfd/`, `f5b-traps-mutter-ioeventfd/`. Findings:
 

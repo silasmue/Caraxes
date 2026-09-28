@@ -1,0 +1,3 @@
+# SPDX-License-Identifier: MIT
+# display gate gate-display-2026-09-25: events.txt
+0.13 0.09 0.11 0.14 0.17 1.07 0.95 0.12 0.13 2.07  ms  (empty submit to fence, 10x)

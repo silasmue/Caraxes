@@ -2537,6 +2537,7 @@ mod tests {
             traps: vec![0x1f000],
             sync_doorbell: false,
             defer_flush: false,
+            flush_page_memory: false,
         };
         let area = Bar2Area::create(0x20000, &cfg).unwrap();
         let guest = area.mem.map_again().unwrap();
@@ -2586,6 +2587,58 @@ mod tests {
         assert!(fb.bar2_area().is_none());
         assert!(!fresh.bar2_area().unwrap().has_live());
         assert_eq!(fb.read_u64(0x14000 + 8 * 6), Some(pte(0x60000)));
+    }
+
+    /// The flush page as memory (`CARAXES_BAR2_FLUSH_PAGE=memory`, intr-page.md §12.1): no
+    /// page of BAR2 traps, no read marks a sync owed, and still no GPU use of a page-table
+    /// update can come before its sync. The guest RM makes a PTE update usable only
+    /// through an MMU invalidate (D17: kbusUpdateRmAperture_GM107 and every
+    /// dmaUpdateVASpace path end in one), and the invalidate's flush point syncs before it
+    /// walks; the owed flush stands again after every sync, for the doorbells and the flush
+    /// clock (bar2area.rs `DeferredFlush::standing`).
+    #[test]
+    fn bar2_flush_page_as_memory_syncs_at_the_hand_overs() {
+        use crate::bar2area::{config_from, Bar2Area, Settle};
+        let vid = |a: u64| ((a >> 12) << 8) | 0b010;
+        let pte = |a: u64| ((a >> 12) << 8) | (0x06 << 56) | 1;
+        let mut fb = FakeFb::new(64 << 20);
+        let root = 0x10000;
+        fb.write_u64(root, vid(0x11000));
+        fb.write_u64(0x11000, vid(0x12000));
+        fb.write_u64(0x12000, vid(0x13000));
+        fb.write_u64(0x13008, vid(0x14000));
+        fb.write_u64(0x14000 + 8, pte(0x14000));
+        fb.write_u64(0x14000 + 16, pte(0x34000));
+        let cfg = config_from(None, false, true, Some("memory")).unwrap();
+        assert!(cfg.traps.is_empty());
+        let area = Bar2Area::create(0x20000, &cfg).unwrap();
+        // The whole aperture is one sparse area: the flush page no longer traps.
+        assert_eq!(area.sparse_areas(), vec![(0, 0x20000)]);
+        let guest = area.mem.map_again().unwrap();
+        fb.set_bar2_area(area).unwrap();
+        assert!(fb.bar2_sync(Some(root), None));
+        assert!(fb.bar2_flush_pending(), "owed from the start");
+        let raw = |fb: &FakeFb, pa: u64| {
+            let mut b = [0u8; 8];
+            fb.store.read(pa, &mut b);
+            u64::from_le_bytes(b)
+        };
+        // A PTE update, no flush read seen: VRAM does not have it yet.
+        guest.store_word(2, 3, pte(0x51000));
+        assert_eq!(raw(&fb, 0x34000 + 8 * 3), 0);
+        // The MMU invalidate's flush point brings it before any walk.
+        fb.bar2_sync(Some(root), None);
+        fb.bar2_flush_settled(Settle::SyncPoint);
+        assert_eq!(raw(&fb, 0x34000 + 8 * 3), pte(0x51000));
+        // Owed again after the sync: the next write is not seen either.
+        assert!(fb.bar2_flush_pending());
+        // A doorbell settles it without any flush read before it.
+        guest.store_word(2, 4, pte(0x52000));
+        fb.bar2_sync(Some(root), None);
+        fb.bar2_flush_settled(Settle::Doorbell);
+        assert_eq!(raw(&fb, 0x34000 + 8 * 4), pte(0x52000));
+        let st = fb.bar2_area().unwrap().stats();
+        assert_eq!((st.deferred, st.settled_sync_point, st.settled_doorbell), (0, 1, 1));
     }
 
     #[test]

@@ -1,0 +1,6 @@
+/usr/bin/xauth:  timeout in locking authority file /home/leandro/.Xauthority
+== 2026-09-25T07:06:58Z load 0.01 0.04 0.00 1/635 3308
+first frame callback after 0.0 s
+FRAMES callbacks intervals=825 mean_ms=16.673 rate_hz=59.98 min_ms=2.710 max_ms=30.965 sd_ms=3.357
+PRESENTED feedback intervals=825 mean_ms=16.668 rate_hz=60.00 min_ms=9.551 max_ms=23.065 sd_ms=0.884
+presented=831 discarded=0 refresh_ns=16666667 (60.000 Hz) flags=0x7 (vsync 1 hw_clock 1 hw_completion 1)

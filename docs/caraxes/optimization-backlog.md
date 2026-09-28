@@ -404,6 +404,49 @@ calls.
   launch-path.md): `CARAXES_LAUNCH_FAST=1` halves the device's share of a ring (6.4 to 3.0 us p50
   in a launch loop, 9.8 to 3.7 in rlprobe) and takes 1000 back-to-back launches from 18.9 to
   13.4 us per launch (p50) on a loaded host; rlprobe and PPO were not measurably faster.
+- **Item 3: done for the desktop, open for CUDA** (intr-page.md §11.2, §11.3; runs
+  `caraxes/runs/display-page-2026-09-25/`).
+  - Dev merge (2026-09-28): the deferral below is dev's `DeferredFlush`
+    (`CARAXES_BAR2_MEMFD_DEFER_FLUSH`, display-pacing.md); `CARAXES_BAR2_FLUSH_DEFER_US` was not
+    merged. The invalidate page waits out dev's invalidate gate (intr-page.md §11.3 note).
+  - The MMU invalidate page (`CARAXES_INVALIDATE_PAGE=1`, inv_page.rs) serves 0xb83000 from
+    memory. The reactor runs each `TRIGGER` and clears it when the device is done. The
+    fault-buffer and access-counter words are modelled read-only or masked, as trapped. Mutter
+    loses its 10 invalidate accesses per frame.
+  - The flush page stays trapped: a read of memory cannot start a sync. Its cost is gone
+    instead: `CARAXES_BAR2_FLUSH_DEFER_US=on` (2 ms) turns each flush read into a debt that the
+    invalidate's sync, a trapped write, a doorbell or the reactor pays. The syncs of a desktop
+    run fell from 107298 (D) to 21670 (F).
+  - Open: CUDA allocations invalidate without a flush batch before them, so a trigger can wait
+    up to the reactor's sleep bound (1 ms). Measure cuMemAlloc and cuMemFree with the census
+    before recommending the page there. The sync cost itself (KVM dirty log, or a sync
+    limited to reachable pages) is not addressed.
+- **Desktop rows (2026-09-25, intr-page.md §11):** Mutter 139.86 (C) to 50.50 (D, the
+  recommended configuration: memfd and re-arm) to 40.1 to 40.5 (F to I, deferral and
+  invalidate page) traps per frame, at 60 Hz. Weston 31.08 to 17.11 to 15 to 17.5. What stays:
+  23 flush reads (cheap), 16 `TIME_0/1` reads (item 8), 1.3 display kicks. Weston's frame
+  rate follows the other VMs' load (52 to 60 Hz with the same binary). The stretch is in the
+  guest's response to the vblank interrupt (§11.4), not in a trap: the guest services every
+  interrupt on vCPU 1 (§11.9).
+  - Open: with the pool poll after a page trigger (f37b354) Mutter ran at 52 and 48 Hz (I, I2)
+    against 60 Hz in F to H, and its PTE batch grew from about 1 to about 3 ms (§11.8). The A/B
+    (series.sh J1 K1 J2 K2) waits for the GPU. The poll already returns at once when no unit
+    is dirty (bar1pool.rs:674), and it cannot move after `TRIGGER` clears: the guest may use a
+    new BAR1 mapping, an untrapped pool page, right after the invalidate returns. If the A/B
+    blames it, the work to cut is the walk and the page moves inside it.
+  - The `TIME_0/1` reads are a fixed 925 per second, not per frame (§11.7).
+- **Desktop, afternoon (intr-page.md §12):**
+  - The flush page as memory (`CARAXES_BAR2_FLUSH_PAGE=memory`, a display mode): Mutter 39.76
+    to 17.68 traps per frame at 60 Hz, gate pass (P1). Cost: every doorbell and the 2 ms
+    bound sync (372327 syncs, 19.2 s in 550 s); the ring to the host doorbell p50 10 to 56 us.
+    CUDA keeps the trapped flush page.
+  - Built and unit-tested, runs owed: the usermode page (`CARAXES_USERMODE_PAGE=1`: TIME as
+    one 64-bit store per reactor iteration, the doorbell found by a GPPut scan) and the kick
+    page (`CARAXES_DISPLAY_KICK_PAGE=1`). With both, Mutter's frame should trap only the rare
+    PMC/GSP rows. The usermode page's decision (display-only or general) waits for the U/T
+    launch rows.
+  - The host BAR1 floor (`CARAXES_HOST_BAR1_FLOOR_MIB`, 96 MiB): a pool is refused when the
+    host would keep less free BAR1.
 - **Item 4: done** (commit 0c2cb79, `CARAXES_MSI_REARM_IOEVENTFD=1`, intr-page.md §4,
   `caraxes/runs/opt-msi-ioeventfd-2026-09-25/`).
   - The re-arm write is an ioeventfd without datamatch, read by the token pool's reactor, which
@@ -412,7 +455,8 @@ calls.
     100 ms window). Against the 55 per second of items 4 and 5 and the 331 of coverage-map.md: the idle rate depends on what else runs on the card: 55 per second is the census's idle windows in `off` (section 3), 102 per second the idle census window of the ioeventfd run (`caraxes/runs/opt-msi-ioeventfd-2026-09-25/`, 10.2 per 100 ms), 331 per second the coverage map's 300 s idle while other VMs worked (coverage-map.md section 4, row 9); the MSIs are other clients' work forwarded, so the rate follows the other VMs' load.
   - All traps per second: rlprobe 508 to 456, PPO 423 to 314.
   - The cuda gate is 10 of 12, and there was 0 host Xid. Mutter was not measured: expected 9.6
-    traps per frame fewer.
+    traps per frame fewer. Measured on 2026-09-25 (series D, intr-page.md §11.1): the
+    `NV_PCFG` row went from 12.17 per Mutter frame to 0.
 
 **Coverage map (2026-09-25).** [coverage-map.md](coverage-map.md) extends this census from
 single operations to whole workloads with the device's profile (`CARAXES_PROFILE=1`). Its §4

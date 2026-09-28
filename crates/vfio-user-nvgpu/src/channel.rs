@@ -1114,6 +1114,11 @@ impl Registry {
         )
     }
 
+    /// The device clock's epoch (the usermode page publishes against it, um_page.rs).
+    pub fn epoch(&self) -> Option<std::time::Instant> {
+        self.start
+    }
+
     /// Nanoseconds of the device clock (semaphore timestamps, usermode TIME_0/1).
     pub fn now_ns(&self) -> u64 {
         self.start.map_or(0, |s| s.elapsed().as_nanos() as u64)
@@ -4307,6 +4312,54 @@ mod tests {
         crate::launch::set_fast_here(false);
         reg.note_rung(&mem, 9);
         assert!(!reg.pending(&mem, 9), "switch off: recorded again");
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// The usermode page's doorbell (um_page.rs): one scan after any number of doorbell
+    /// writes rings every channel whose GPPut advanced, and only those; a channel whose
+    /// GPPut is not written yet is not rung (the guest writes GPPut before the doorbell,
+    /// the reactor scans after taking the doorbell word).
+    #[test]
+    fn one_page_doorbell_rings_every_advanced_channel() {
+        let (mut fb, sys, path, _root) = world("umpage");
+        let f = crate::fixture::rtx2070();
+        let mut d = crate::ctrl::Dispatcher::new(f.chip.data(), &f.identity(4 << 30), None);
+        let reg = &mut d.channels;
+        reg.record_alloc(1, 0x10, 0x20, FERMI_VASPACE_A, &[]);
+        let mut pdes = vec![0u8; 40 + 24 * 6];
+        pdes[40..48].copy_from_slice(&0x10000u64.to_le_bytes());
+        pdes[56..60].copy_from_slice(&1u32.to_le_bytes());
+        reg.record_server_reserved_pdes(1, 0x20, &pdes);
+        let mut tsg = vec![0u8; 20];
+        tsg[8..12].copy_from_slice(&0x20u32.to_le_bytes());
+        reg.record_alloc(1, 0x10, 0x30, KEPLER_CHANNEL_GROUP_A, &tsg);
+        for (chid, h, userd) in [(9u32, 0x40u32, 0x20_0000u64), (10, 0x41, 0x20_1000), (11, 0x42, 0x20_2000)] {
+            reg.record_alloc(
+                1,
+                0x30,
+                h,
+                TURING_CHANNEL_GPFIFO_A,
+                &channel_params(chid, 0x1000_0000, userd, 0),
+            )
+            .unwrap();
+        }
+        fb.write(0x100000, &[0u8; 16]);
+        let mut mem = GpuMem {
+            fb: &mut fb,
+            sys: &sys,
+        };
+        // Channels 9 and 10 publish one entry each and write the doorbell twice (only the
+        // last value is left in the page); channel 11 publishes nothing.
+        mem.fb.write(0x20_0000 + USERD_GP_PUT, &1u32.to_le_bytes());
+        mem.fb.write(0x20_1000 + USERD_GP_PUT, &1u32.to_le_bytes());
+        let notes = d.doorbell_pending(&mut mem);
+        assert_eq!(crate::um_page::pending_count(&notes[0]), 2, "{notes:#?}");
+        assert!(notes[0].contains("[9, 10]"), "{notes:#?}");
+        assert_eq!(mem.read_u32(Target::Fb(0x20_0000 + USERD_GP_GET)), Some(1));
+        assert_eq!(mem.read_u32(Target::Fb(0x20_1000 + USERD_GP_GET)), Some(1));
+        // Nothing advanced since: a second scan (the watchdog's) rings nothing.
+        let notes = d.doorbell_pending(&mut mem);
+        assert_eq!(crate::um_page::pending_count(&notes[0]), 0, "{notes:#?}");
         let _ = std::fs::remove_file(&path);
     }
 

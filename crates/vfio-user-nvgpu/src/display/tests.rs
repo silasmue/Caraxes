@@ -598,3 +598,34 @@ fn windows_display_queries() {
     let a = disp.control(0x0073_0285, &p).unwrap();
     assert_eq!((a.status, &a.params[8..12]), (0, &[0xFFu8; 4][..]));
 }
+
+/// The kick page's kick (chan_page.rs): a window channel's `PUT` from the page runs the
+/// same walk as the trapped write and returns `GET`; a page without a channel is `None`.
+#[test]
+fn a_page_kick_is_the_trapped_kick() {
+    let mut disp = display();
+    let mut mem = GuestMemory::new();
+    let f = tempfile_4k();
+    mem.map(0x10_0000, 0x1000, 0, &f).unwrap();
+    // Window 6: SET_PRESENT_CONTROL-like method 0x308 then UPDATE (0x200).
+    let words = [1u32 << 18 | 0x308, 0, 1 << 18 | 0x200, 0];
+    for (i, w) in words.iter().enumerate() {
+        assert!(mem.write(0x10_0000 + 4 * i as u64, &w.to_le_bytes()));
+    }
+    let mut p = vec![0u8; d::PUSHBUFFER_SIZE];
+    put32(&mut p, d::PUSHBUFFER_ADDRESS_SPACE, 1);
+    p[8..16].copy_from_slice(&0x10_0000u64.to_le_bytes());
+    p[16..24].copy_from_slice(&0xFFFu64.to_le_bytes());
+    put32(&mut p, d::PUSHBUFFER_HCLASS, d::NVC57E_WINDOW_CHANNEL_DMA);
+    put32(&mut p, d::PUSHBUFFER_CHANNEL_INSTANCE, 6);
+    p[d::PUSHBUFFER_VALID] = 1;
+    disp.control(d::CMD_INTERNAL_DISPLAY_CHANNEL_PUSHBUFFER, &p);
+    let mut fb = crate::fb::FakeFb::new(1 << 20);
+    let w6 = WIN_USERD + 6 * 0x1000;
+    assert!(disp.page_kick(WIN_USERD + 7 * 0x1000, 16, &mem, &mut fb).is_none());
+    let (get, notes) = disp.page_kick(w6, 16, &mem, &mut fb).unwrap();
+    assert_eq!(get, 16);
+    assert!(notes[0].contains("2 method(s), 1 UPDATE(s)"), "{notes:?}");
+    assert_eq!(disp.read32(w6 + 4), Some(16));
+    assert_eq!(disp.channels[&w6].kicks, 1);
+}

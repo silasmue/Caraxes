@@ -1,0 +1,42 @@
+window 10 s [476134788, 486134788) us; presented frames (latches with a surface): window 6: 506; per-frame base: window 6 = 506 (50.60 Hz)
+what                                                              count  per frame
+BAR0 writes, all                                                    609       1.20
+  other 0x696000                                                    562       1.11
+  other 0x110c00 NV_PGSP_QUEUE_HEAD/TAIL                             43       0.08
+  doorbell (usermode NOTIFY_CHANNEL_PENDING)                          4       0.01
+BAR0 reads, all                                                   10734      21.21
+  NV_VIRTUAL_FUNCTION_TIME_0/1                                    10493      20.74
+  NV_PGSP                                                           129       0.25
+  0x696004                                                          112       0.22
+BAR1 writes, all                                                      0       0.00
+BAR1 reads                                                            0       0.00
+BAR2 writes, all                                                      0       0.00
+BAR2 reads                                                        11970      23.66
+all trapped accesses                                              23313      46.07
+display channel kicks                                               562       1.11
+forwarded doorbells (host doorbell rung)                           3121       6.17
+guest MMU invalidates seen                                         1113       2.20
+host notifier events (no MSI)                                       253       0.50
+host notifier events -> MSI                                        5896      11.65
+shadow plans applied (sync lines)                                    59       0.12
+BAR0 page 0xbb0000 reads                                          10493      20.74
+BAR0 page 0x696000 writes                                           562       1.11
+BAR0 page 0x110000 reads                                            129       0.25
+BAR0 page 0x696000 reads                                            112       0.22
+BAR0 page 0x110000 writes                                            43       0.08
+BAR0 page 0xbb0000 writes                                             4       0.01
+per register (BAR, access, offset, name):
+  BAR2 R 0x00fea000 fb 0x1e75cf000                                11970      23.66
+  BAR0 R 0x00bb0084 NV_VIRTUAL_FUNCTION_TIME_0/1                   6995      13.82
+  BAR0 R 0x00bb0080 NV_VIRTUAL_FUNCTION_TIME_0/1                   3498       6.91
+  BAR0 W 0x00696000                                                 562       1.11
+  BAR0 R 0x00696004                                                 112       0.22
+  BAR0 W 0x00110c00 NV_PGSP_QUEUE_HEAD/TAIL                          43       0.08
+  BAR0 R 0x00110094 NV_PGSP                                          43       0.08
+  BAR0 R 0x00110804 NV_PGSP                                          43       0.08
+  BAR0 R 0x00110808 NV_PGSP                                          43       0.08
+  BAR0 W 0x00bb0090 NV_VIRTUAL_FUNCTION_DOORBELL                      4       0.01
+latch intervals of window 6: 505, mean 17.657 ms, sd 6.144 ms, min 13.201 ms, max 111.778 ms, over 20 ms 21
+  server-thread walk per plan: p50 45 us, max 3140 us, sum 6215 us (12 us per frame)
+  worker apply per plan: p50 177 us, max 21521 us, sum 46113 us (91 us per frame)
+  queued before apply: p50 17 us, max 2229 us

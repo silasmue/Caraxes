@@ -395,8 +395,13 @@ Pass criteria:
 | `CARAXES_INTR_PAGE_RETRIGGER_MS` | 10 | the watchdog period; 0 turns the watchdog off (also for the display page's markers) |
 | `CARAXES_DISPLAY_PAGE` | off | `1`: offer the display front-end page 0x611000 as memory too (needs `CARAXES_INTR_PAGE=1` and `--display`, §10) |
 | `CARAXES_MSI_REARM_IOEVENTFD` | off | `1`: the MSI re-arm write (`NV_XVE_CYA_2`, BAR0 0x88704) as an ioeventfd read by the token pool's reactor (needs `CARAXES_DOORBELL_TOKENS=N`, §4) |
+| `CARAXES_BAR2_FLUSH_DEFER_US` | off | microseconds (2 to 5000, `on` = 2000): a BAR2 flush read owes its memfd sync instead of running it; paid by the next consumer or by the reactor at the bound (needs `CARAXES_BAR2_MEMFD=1` and `CARAXES_INTR_PAGE=1`, §11.2) |
+| `CARAXES_INVALIDATE_PAGE` | off | `1`: offer the VF MMU invalidate page 0xb83000 as memory; the reactor runs each `TRIGGER` (needs `CARAXES_INTR_PAGE=1` and the boot model, §11.3) |
+| `CARAXES_INTR_PAGE_VBLANK_SPIN_US` | 0 | microseconds (0 to 16000): the reactor spins from this long before each display tick (display page only, §11.4; no measured gain) |
 
-The exit summary adds `intr page: ...` with the scans that found work, the guest stores applied
+The exit summary adds `bar2 flush deferral: ...`, `invalidate page: ...`, `display page
+delivery: ...`, `reactor wake-up after a display raise ...` and the display clock's timing in
+the `display engine:` line when those are on (§11). It adds `intr page: ...` with the scans that found work, the guest stores applied
 per register kind, the vectors raised through the page, MSIs by cause (raise, edge, watchdog),
 compare-and-swap retries, and the inconsistencies.
 
@@ -724,3 +729,500 @@ latency measurements. The global default remains 200 us. See
 `docs/research/linux-graphics-optimization-2026-09-27.md` for the workload,
 separate backend and VMM CPU figures, native-Wayland limitations, and raw
 artifact paths. NVENC was not exercised in this validation.
+## 11. The desktop with the recommended configuration, and the next windows (2026-09-25)
+
+Written 2026-09-25 for the operator's direction "optimise the desktop". Runs:
+`caraxes/runs/display-page-2026-09-25/` (`series.sh`, `env.sh`, `run.sh`, one folder per
+series with `series-output.txt`). Environment: vm0, 610 guest, 2 GiB at reservation slot 0,
+the display page series' environment (`display-page-2026-09-24/env.sh`) plus the recommended
+configuration of the morning matrix: interrupt page, display page, BAR1 pool 32 MiB, token pool
+64, hybrid reactor, BAR2 memfd, MSI re-arm ioeventfd, lazy plans. Each series has the host
+watch around it, the trap windows of Mutter (wlframes), vkcube and glmark2 under Mutter (the
+image's `firefox` is the snap stub, `snap install firefox`, so no browser window), and Weston
+(wlframes); `trap-table.py --pages --regs` per window (new: every trapped register per frame
+and the spread of the latch intervals), and from series F on `host-load.txt` per window (the
+host's busy CPU and the other VMs' CPU). Other agents' VMs (vm2, vm3, vm5, a v1 VM, a smoke
+device) shared the card and the CPUs throughout; see §11.5.
+
+### 11.1 Series D: the memfd and the re-arm on the desktop
+
+| Per presented frame | C (display page, 2026-09-24) | D (recommended, main d96cc59) |
+|---|---|---|
+| Mutter: all traps | 139.86 | **50.50** |
+| of which BAR2 page-table writes | 73.60 | 0 |
+| of which BAR2 flush-page reads (0xfea000) | 23.02 | 23.06 |
+| of which `NV_PCFG` re-arm (0x88704) | 12.17 | 0 |
+| of which the usermode page (`TIME_0/1`, 0xbb0080/84) | 16.69 | 16.04 |
+| of which the MMU invalidate page (0xb830a0/a4/b0: 6 W, 4 R) | 10.03 | 10.05 |
+| of which display channel kicks (0x696000 W, 0x696004 R) | 1.33 | 1.33 |
+| of which USERD GPPut through BAR1 | 3.00 | 0 (the pool) |
+| Mutter callbacks | 59.86 Hz, sd 2.90 ms | 60.12 Hz, sd 2.49 ms (presentation sd 0.51 ms) |
+| Weston: all traps | 31.08 | **17.11** (`TIME_0/1` 15.75, kicks 1.33) |
+| Weston callbacks | 57.41 Hz, sd 4.11 ms | 52.24 Hz, sd 6.36 ms |
+
+The expectation (Mutter about 60, Weston about 20) is met for the traps. No register of the
+display page 0x611000 traps any more in any window of D to I, so the display page's watched
+words need no extension (§10.1). vkcube ran at 45.8 FPS and glmark2's build scene at 1608 FPS
+(the compositor at 56.8 Hz). The display gate failed its compositor stage (Weston 48.95 Hz
+against 60 +- 0.5); 0 host Xid.
+
+What the memfd left: no BAR2 write traps in any window. The flush reads stay, because the flush
+page stays trapped (bar2-memfd.md §3), and each of them ran a whole memfd sync: 107298 syncs
+over D's run, 7.96 s, 74 us each (exit summary). They come in batches: the guest RM rewrites
+the PTEs of five scanout pages through BAR2, one flush read after each PTE pair, then one MMU
+invalidate (twice per frame). So the table for the next windows was: the flush reads (23), the
+usermode page (16), the invalidate page (10), the display kicks (1.3).
+
+### 11.2 The flush deferral (`CARAXES_BAR2_FLUSH_DEFER_US`)
+
+> **Dev (merge of 2026-09-28): superseded, not in the code.** Dev defers flush reads by
+> default with its own mechanism (`CARAXES_BAR2_MEMFD_DEFER_FLUSH`, bar2area.rs
+> `DeferredFlush`, `BootModel::flush_point`/`settle_deferred_flush`, the 1 ms flush clock;
+> display-pacing.md). It settles at the MMU invalidate, the GSP command-queue doorbell and the
+> channel doorbells, not at every trapped BAR0 write or BAR1 access. `Owed`, `Payer`,
+> `bar2_pay_owed` and `PageHook::poll_owed` named below are the branch's and were not merged;
+> the measurements stay as the evidence for deferring.
+
+A flush read only says "the BAR2 writes so far must become visible" (kbusFlushSingle_GV100).
+Nothing reads those bytes until something consumes them. So with the deferral, a flush read
+starts a debt instead of a sync (bar2area.rs `Owed`, `FakeFb::bar2_flush`, fb.rs:1021). The
+debt is paid by whichever comes first:
+- a sync that runs anyway: the MMU invalidate, the BAR2 bind, the GSP doorbell (they sync
+  before they act, as before);
+- a trapped BAR0 write other than the invalidate's three words (boot.rs:1078), a BAR1 access
+  (a GPPut store may start work, boot.rs:764), or a doorbell, trapped or through the token or
+  doorbell eventfd (`bar2_doorbell_sync`, boot.rs:1269);
+- the interrupt page's reactor, once the bound has run out (`PageHook::poll_owed`,
+  intr_page.rs:911, through `Device::bar2_pay_owed`). While a debt is open the reactor spins.
+
+Fail closed: refused without `CARAXES_INTR_PAGE=1` (the reactor must be there to pay). The one
+consumer that is not seen is the GPU reading BAR2-written VRAM through work it is already
+running, with no doorbell in between (a semaphore the CPU releases through BAR2). That reader
+waits at most the bound. No trace of this series has a BAR2 write followed by such a use, and
+the RM's own rule (the flush precedes an invalidate, an RPC or a doorbell) is the same one the
+memfd's design already relies on (bar2-memfd.md §3).
+
+Measured: E (200 us bound) cut the syncs from 107298 to 37104, but the reactor paid 17697 of
+the debts in the middle of a PTE batch. With 2 ms (F to I) the invalidate's own sync pays most
+of them: F 21670 syncs, 11476 paid by the invalidate, 1113 by the reactor, 652 by an access.
+The flush reads stay 23 per Mutter frame, now as bare traps (30 to 60 us apart in the trace
+instead of 90 to 100). `CARAXES_BAR2_FLUSH_DEFER_US=on` is 2000 us.
+
+Why the flush page itself stays trapped: a read of a memory page tells the device nothing, so
+the debt could not start. The page could only become memory if every consumer synced
+unconditionally: the doorbell eventfds too, 28000 times per second under PPO at 100 to 300 us
+each. That is not viable without a cheap test for "the guest wrote BAR2 since the last sync",
+which the device cannot see (the VMM's mapping, bar2-memfd.md §2).
+
+### 11.3 The MMU invalidate page (`CARAXES_INVALIDATE_PAGE=1`)
+
+> **Dev (merge of 2026-09-28):** the page is in dev, opt-in. Dev's held invalidate completes
+> through the trigger's busy bit (invgate.rs, execution.md §8), which a memory word cannot
+> show while the worker runs. So `BootModel::mmu_invalidate_from_page` waits the gate out
+> (`Mirror::invalidate_busy` until false) before the page clears `TRIGGER`: with the page on,
+> a held invalidate waits under the device lock as before §8. Needs a GPU run before the knob is
+> trusted with the async gate.
+
+BAR0 page 0xb83000 holds `NV_VIRTUAL_FUNCTION_PRIV_MMU_INVALIDATE_PDB`, `_UPPER_PDB` and
+`_INVALIDATE` (0xb830a0/a4/b0) beside the VF fault-buffer and access-counter pointers. The guest
+RM's sequence per invalidate is a pending check (read), the two PDB words, the trigger with
+`TRIGGER` (bit 31), and a poll until `TRIGGER` clears (`kgmmuCommitTlbInvalidate_TU102` and
+`kgmmuCheckPendingInvalidates_TU102`, kern_gmmu_tu102.c:50-121). `TRIGGER` is the hardware's
+own busy bit, so the page can serve the whole sequence from memory: inv_page.rs.
+- The page is a fourth sparse area of the interrupt page's memfd (`InvPage::create`,
+  `IntrPage::map_page`).
+- The reactor finds `TRIGGER` in the stored word (`InvPage::scan`, inv_page.rs:250). It runs
+  the device's invalidate under the device lock, as the trapped write did
+  (`Device::invalidate_from_page`, device.rs:810, `BootModel::mmu_invalidate_from_page`): the
+  BAR2 memfd sync (which pays the flush debt), the host TLB invalidate on the mirror VA
+  spaces, the shadow resync, and then the steps after every trapped BAR0 write
+  (`after_bar0_write`, device.rs:1107, where the BAR1 pool moves pages). Only then does it
+  clear `TRIGGER` (`InvPage::complete`, inv_page.rs:297), which is what the guest polls for.
+- Fail closed: the read-only VF words (the PUT pointers, the access-counter buffer size and
+  INFO) are restored and counted, and the GET words are masked to their 20-bit field, as the
+  trapped path does. A change of `_INVALIDATE` while its trigger runs is counted and left for
+  the next scan. Any other register model in the page refuses the start (`InvPage::check`).
+  The switch needs `CARAXES_INTR_PAGE=1` and the boot model. Trapped accesses of the page (a
+  client that does not map it) go to the same memory.
+- Latency: a trigger waits for the reactor's next iteration. On the desktop the reactor
+  spins, because the flush debt that precedes the invalidate keeps it spinning. A trigger
+  that finds the reactor blocked waits up to the sleep bound (1 ms). F: 11629 triggers, 3085
+  of them found right after a blocking wait. For CUDA allocations, which invalidate without a
+  flush batch before them, this is the open cost: measure it before recommending the switch
+  there.
+
+The first version skipped `after_bar0_write`. The pool then saw the guest's new BAR1 mappings
+only at the next trapped write, and the gate's KMS readback read an empty pool page (capture
+stage of F, G and H: `SAMPLE 320 240 0x00000000`). Fixed in f37b354, with a test that the
+page's trigger leaves the registers as the trapped writes do.
+
+Measured (F to I): the page's 10 accesses per Mutter frame are gone, with inconsistencies
+none. The invalidate the device runs costs 400 to 716 us on average (the sync is in it) and
+does not stall the guest's vCPU in a trap.
+
+### 11.4 Frame timing: why Weston's frame stretches
+
+Weston runs with a 12 ms repaint window: it starts compositing about 4.7 ms after each vblank
+and must hand the flip to the display channel before the next one. Per-frame analysis of the
+traces (the latch of window 6, the compositor's first doorbell after it, its last doorbell and
+the display-channel kick; `analysis/wframe.py`, `isr.py` and `latchlate.py` in the run folder) gives, for Weston:
+
+| Series | first doorbell after the latch, p50 (on time / before a missed tick) | last doorbell to kick, p50 (on time / missed) | latch lateness before a missed tick, p50 |
+|---|---|---|---|
+| B (trapped display) | 4.83 / 33.8 ms (4 misses) | 0.41 / 2.84 ms | 0.16 ms |
+| C (display page) | 5.48 / 14.31 ms (34) | 0.80 / 5.03 ms | 0.07 ms |
+| D | 6.55 / 14.39 ms (106) | 1.46 / 4.81 ms | 0.07 ms |
+| E | 5.58 / 9.01 ms (17) | 2.03 / 9.02 ms | 0.06 ms |
+
+So a missed tick is not a late display clock: the latch before it came on time. A missed
+tick is a frame that Weston started late, about 14 ms after the vblank instead of 5, and whose
+GPU work took longer. The guest's first interrupt service after the latch (the MSI re-arm write
+that ends every handler) shows where the time goes: under Weston it ends p50 0.4 to 1.4 ms and
+p90 2.2 to 6.8 ms after the latch in C, D and E, and under Mutter p90 0.4 ms. vkcube under
+Mutter shows the same pattern (F: p90 5.3 ms, p99 12.5 ms).
+
+The new counters split the delivery (display/engine.rs `Ticker::timing_summary`, fe_page.rs
+`display page delivery`, the reactor's `reactor wake-up after a display raise`; G and H):
+- the display clock fires on time: 1 to 2 % of ticks 1 ms or more late;
+- a blocked reactor wakes for a display raise within 2 ms at p99 (1.6 to 1.9 % at 1 ms or
+  more);
+- but from the raise to the guest's `EVT_STAT` ack, 17 % (G) to 21 % (H) of the vblanks take
+  1 ms or more, with p99 16 ms.
+
+The wait is in the guest's response to the interrupt, not in the device. It grows with the
+other VMs' load: the same binary and configuration gave Weston 52.2 Hz in D and 60.00 Hz
+(sd 1.39 ms) in D2, and 52.45 and 59.94 Hz in G and H. In G, vm5's VMM used 19.8 s of CPU and
+its device 5.3 s during the 17 s Weston window. In F, vm2's device hit a CTX SWITCH TIMEOUT
+(Xid 109, its own pid) during Weston's window, and Weston's callbacks stalled for 4.3 s. The GPU
+part (last doorbell to kick) grows in the same windows, because the GR engine is shared.
+
+`CARAXES_INTR_PAGE_VBLANK_SPIN_US=N` keeps the reactor spinning from N us before each tick. It
+removes the reactor's wake-up from the path, but G against H shows no measurable gain, so it
+stays off. The gate's compositor stage needs Weston at 60 +- 0.5 Hz over 30 s, and in this
+session it passed in none of D to H. With other agents' GPU work on the card, that stage
+measures the card's load. The matrix of the morning passed it with the same windows.
+
+### 11.5 What still traps per frame, and why
+
+| Source | Mutter | Weston | Why it stays |
+|---|---|---|---|
+| BAR2 flush page (0xfea000) | 23 (cheap: no sync) | 0 | the deferral's signal (§11.2) |
+| usermode page `TIME_0/1` (0xbb0080/84) | 16 | 16 | the doorbell (0xbb0090) shares the page and must trap for the token ioeventfds. A memory clock would need a thread writing the time continuously, and the guest reads hi-lo-hi, so a stale value is a wrong timestamp (backlog item 8) |
+| display channel kicks (0x696000 W, 0x696004 R) | 1.33 | 1.33 | the display engine runs the pushed methods at the kick and answers GET := PUT |
+| MMU invalidate page (0xb830xx) | 0 with the page | 0 | |
+| display FE page (0x611000) | 0 | 0 | |
+| PMC/PBUS | 0.01 (GSP, L2 flush) | 0 | rare |
+
+The usermode page cannot be covered by the token pool's area either: the pool's ioeventfds
+need the doorbell register to exit (tokens.rs header), and a sparse area is never trapped.
+
+### 11.6 Series table
+
+| Series | Configuration | Mutter traps/frame, callbacks | Weston traps/frame, callbacks | vkcube FPS | glmark2 FPS | Gate | Host Xid (this device) |
+|---|---|---|---|---|---|---|---|
+| C (2026-09-24) | intr + display page | 139.86, 59.86 Hz sd 2.90 | 31.08, 57.41 Hz sd 4.11 | - | - | not run | 0 |
+| D | recommended (main) | 50.50, 60.12 Hz sd 2.49 | 17.11, 52.24 Hz sd 6.36 | 45.8 | 1608 | fail: compositor 48.95 Hz | 0 |
+| E | D + deferral 200 us | 55.00, 48.38 Hz sd 11.16 | 15.63, 58.64 Hz sd 4.47 | 45.0 | 518 | fail: compositor 58.96, present | 0 |
+| F | D + deferral 2 ms + invalidate page | 40.47, 60.06 Hz sd 1.72 | 17.53, 43.38 Hz (4.3 s stall, vm2 Xid) | 40.3 | 1964 | fail: compositor 59.33, capture | 0 (2 of vm2's device) |
+| D2 | D again | 51.09, 60.10 Hz sd 3.03 | 15.38, 60.00 Hz sd 1.39 | 51.0 | 935 | not run | 0 |
+| G | F + counters + spin 1.5 ms | 40.11, 60.05 Hz sd 1.88 | 17.08, 52.45 Hz sd 6.61 | 53.2 | 2715 | fail: compositor 54.09, capture | 0 |
+| H | G without spin | 39.76, 59.98 Hz sd 3.36 | 15.16, 59.94 Hz sd 1.92 | 52.1 | 924 | fail: compositor 55.02, capture | 0 |
+| I | H + the pool poll after a page trigger (f37b354), deferral `on` | 42.79, 52.15 Hz sd 9.36 (host 57 % busy) | 15.64, 59.93 Hz sd 2.04 | 36.5 | 610 | fail: compositor 55.77, present 23 FPS, events 3.16 ms; capture passes | 0 |
+| I2 | I again (binary `vfio-user-nvgpu-desk-i2`, I's code rebuilt), guest interrupt placement recorded | 43.76, 47.83 Hz sd 4.20 (host 30 % busy) | 15.68, 59.58 Hz sd 2.20 | 44.9 | 1698 | stopped (slot 0 for the operator's game VM) | 0 |
+
+Every host Xid line of the session names another agent's device pid (F: vm2, pid 3245134);
+none named a vm0 device. E ran with vm3, vm5, a v1 VM and a smoke device up; the frame rates
+of E are the load's, not the deferral's.
+
+### 11.7 Per-frame trap tables of every series
+
+Per presented frame of window 6 (`trap-table.py --pages --regs`, one 10 s window each; the
+columns are the rows of §11.5; the numbers are the sums of the `per register` rows of each
+`trap-table.txt`, `analysis/tab.py` run from `caraxes/runs/`). Rate: the client's frame callbacks (Mutter,
+Weston) or the application's own FPS (vkcube, glmark2), and the latch rate of window 6.
+
+Mutter (wlframes):
+
+| Series | all | BAR2 W | flush R | `TIME_0/1` | `NV_PCFG` | invalidate | kicks | BAR1 | callbacks | latches |
+|---|---|---|---|---|---|---|---|---|---|---|
+| B | 230.24 | 73.60 | 23.02 | - | - | - | - | 3.00 | 59.72 Hz sd 3.56 | 59.6 Hz |
+| C | 139.86 | 73.60 | 23.02 | 16.69 | 12.17 | 10.03 | 1.33 | 3.00 | 59.86 Hz sd 2.90 | 59.7 Hz |
+| D | 50.50 | 0 | 23.06 | 16.04 | 0 | 10.05 | 1.33 | 0 | 60.12 Hz sd 2.49 | 59.9 Hz sd 0.10 |
+| E | 55.00 | 0 | 23.01 | 20.61 | 0 | 10.01 | 1.34 | 0 | 48.38 Hz sd 11.16 | 44.2 Hz sd 11.86 |
+| F | 40.47 | 0 | 22.98 | 16.14 | 0 | 0 | 1.33 | 0 | 60.06 Hz sd 1.72 | 60.1 Hz sd 0.03 |
+| D2 | 51.09 | 0 | 23.02 | 16.68 | 0 | 10.04 | 1.33 | 0 | 60.10 Hz sd 3.03 | 60.0 Hz sd 0.24 |
+| G | 40.11 | 0 | 23.02 | 15.75 | 0 | 0 | 1.33 | 0 | 60.05 Hz sd 1.88 | 60.0 Hz sd 0.03 |
+| H | 39.76 | 0 | 22.98 | 15.43 | 0 | 0 | 1.33 | 0 | 59.98 Hz sd 3.36 | 60.1 Hz sd 0.14 |
+| I | 42.79 | 0 | 23.04 | 18.39 | 0 | 0 | 1.33 | 0 | 52.15 Hz sd 9.36 | 49.8 Hz sd 8.76 |
+| I2 | 43.76 | 0 | 23.02 | 19.38 | 0 | 0 | 1.33 | 0 | 47.83 Hz sd 4.20 | 47.7 Hz sd 7.50 |
+
+(B and C: the trap tables of 2026-09-24 name the registers differently; C's `TIME`, `NV_PCFG`
+and invalidate numbers are those of §11.1, B's are not split.)
+
+Weston (wlframes):
+
+| Series | all | `TIME_0/1` | kicks | other | callbacks | latches |
+|---|---|---|---|---|---|---|
+| B | 106.46 | | | | 59.71 Hz sd 1.51 | 59.9 Hz |
+| C | 31.08 | | 1.33 | | 57.42 Hz sd 4.11 | 57.0 Hz |
+| D | 17.11 | 15.75 | 1.33 | 0.03 | 52.24 Hz sd 6.36 | 52.6 Hz sd 6.04 |
+| E | 15.63 | 14.30 | 1.33 | 0 | 58.64 Hz sd 4.47 | 58.3 Hz sd 3.69 |
+| F | 17.53 | 16.19 | 1.33 | 0.01 | 43.38 Hz (4.3 s stall) | 40.1 Hz |
+| D2 | 15.38 | 14.05 | 1.33 | 0 | 60.00 Hz sd 1.39 | 60.0 Hz sd 0.20 |
+| G | 17.08 | 15.73 | 1.33 | 0.02 | 52.45 Hz sd 6.61 | 52.9 Hz sd 6.17 |
+| H | 15.16 | 13.83 | 1.33 | 0 | 59.94 Hz sd 1.92 | 60.0 Hz sd 0.25 |
+| I | 15.64 | 14.31 | 1.33 | 0 | 59.93 Hz sd 2.04 | 60.0 Hz sd 0.17 |
+| I2 | 15.68 | 14.34 | 1.33 | 0.01 | 59.58 Hz sd 2.20 | 59.5 Hz sd 1.52 |
+
+vkcube and glmark2 (build scene) under Mutter, the third and fourth workload (the image's
+`firefox` is the snap stub, so no browser):
+
+| Series | vkcube all | flush R | `TIME` | invalidate | FPS | glmark2 all | flush R | `TIME` | invalidate | FPS |
+|---|---|---|---|---|---|---|---|---|---|---|
+| D | 56.78 | 23.00 | 22.44 | 10.00 | 45.8 | 53.50 | 23.39 | 17.70 | 11.06 | 1608 |
+| E | 54.84 | 23.00 | 20.51 | 10.00 | 45.0 | 53.36 | 23.25 | 18.15 | 10.61 | 518 |
+| F | 46.89 | 22.95 | 22.61 | 0 | 40.3 | 42.21 | 23.97 | 16.89 | 0 | 1964 |
+| D2 | 53.42 | 23.00 | 19.08 | 10.00 | 51.0 | 52.78 | 23.45 | 16.89 | 11.10 | 935 |
+| G | 42.33 | 23.00 | 17.99 | 0 | 53.2 | 41.60 | 23.95 | 16.31 | 0 | 2715 |
+| H | 43.34 | 23.00 | 19.01 | 0 | 52.1 | 43.42 | 23.46 | 18.46 | 0 | 924 |
+| I | 52.02 | 24.20 | 25.96 | 0 | 36.5 | 42.03 | 23.34 | 17.35 | 0 | 610 |
+| I2 | 46.07 | 23.66 | 20.73 | 0 | 44.9 | 42.07 | 23.71 | 17.03 | 0 | 1698 |
+
+Every series keeps 1.33 display kicks per frame; BAR2 writes, BAR1 accesses and `NV_PCFG` are 0
+from D on. Two readings of the table:
+- The `TIME_0/1` reads come at a fixed rate, about 925 per second in every Mutter window (H
+  15.43 x 60, I2 19.38 x 47.7), not per frame. They rise per frame whenever the frame rate
+  falls, so they are not what slows a frame.
+- The flush reads are exactly 23 per Mutter frame in every series: the guest RM's PTE batch of
+  the scanout surfaces (§11.1), the only per-frame trap source Mutter has left besides `TIME`.
+
+### 11.8 Series I2 and Mutter's rate with the branch's windows
+
+I2 repeated I with a fresh build of the branch (vm0, 2026-09-25 09:53 to 10:03, host 26 to 30 %
+busy, vm2 and vm3 up; vm2's VMM used 35 s of CPU in Mutter's 10 s window). Weston ran at
+59.58 Hz, vkcube at 44.9 FPS and glmark2 at 1698 FPS with 59.6 Hz latches, but Mutter's own
+window ran at 47.83 Hz, as I's did (52.15 Hz). F, G and H, with the same windows but without
+the pool poll after a page trigger (f37b354), held Mutter at 60 Hz. The device's own waits did
+not grow in I2 (`doorbell poll (tokens)` line: device lock wait per wakeup p99 22 us against H's
+149 us; ring to host doorbell p50 10.4 us; invalidate mean 781 us against H's 716 us), so the
+pool poll's cost is not visible in them. Per frame (`analysis/invgap.py`,
+`batch.py` and `phase.py` over the Mutter traces):
+
+| Mutter | F | G | H | I | I2 |
+|---|---|---|---|---|---|
+| PTE batch, first flush read to the display kick, p50 / p90 (ms) | 0.79 / 1.48 | 0.86 / 1.80 | 1.12 / 3.05 | 2.28 / 11.0 | 2.96 / 6.81 |
+| an invalidate trigger to the guest's next access, p50 / p90 (ms) | 0.23 / 0.45 | 0.25 / 0.48 | 0.28 / 0.87 | 0.75 / 3.36 | 0.49 / 1.02 |
+| last flush read to the reactor's trigger event, p50 / p90 (ms) | 0.19 / 0.77 | 0.19 / 0.77 | 0.28 / 0.90 | 0.50 / 2.27 | 0.22 / 0.98 |
+
+The trigger-to-next-access time is what the guest's vCPU spins on `TRIGGER`: it doubled from H
+to I2 and tripled to I, and the whole PTE batch grew from about 1 ms to about 3 ms. That is the
+step f37b354 added (the pool's walk and page moves inside the trigger, before `TRIGGER`
+clears). In I2 Mutter's frame also changed shape: its render doorbell now comes about 16 ms
+before the PTE batch instead of 1 ms (p50 16.5 against 0.8 to 1.4 ms in F to I), so the batch
+and the kick fall at the end of the frame and 120 of 476 latch intervals ran over 20 ms. Whether
+that is the poll or the other VMs' GPU work cannot be split from one run: the A/B is prepared in
+`series.sh` (J1 K1 J2 K2 interleaved: H's binary without the poll against this branch's with
+it) and waits for the GPU (the operator's game session holds slot 0).
+
+The watchdog lines added for it (8801bfe): `invalidate page: ... N at 1 ms or more` and an
+inconsistency for a trigger held past the guest RM's 4 s timeout; `bar2 flush deferral: ...
+N paid after 2x the bound or later`. I's run had a 10.3 s invalidate and a 144 ms debt, which
+the old summary showed only as maxima.
+
+### 11.9 Where the guest's interrupt lands (I2, `irq-info/guest.txt`)
+
+- The device's MSI is irq 36, affinity 0-7, effective CPU 1 only (62893 interrupts on CPU 1, 0
+  elsewhere); its thread `irq/36-nvidia` runs SCHED_FIFO 50 on CPU 1; `irqbalance` is inactive
+  and the guest has no cpuidle driver (a halted vCPU waits in the host's KVM halt).
+- So every vblank, every GPU notifier and every GSP event is serviced by one vCPU. When the
+  host deschedules that vCPU's thread (the other VMs' VMMs used 20 to 66 s of CPU in some 10 s
+  windows, §11.4), the interrupt waits for it. That is the tail §11.4 measured from the raise to
+  the guest's `EVT_STAT` ack: in I2 37 % of the vblanks at 1 ms or more, p99 16 ms (I 41 %, G 17 %,
+  H 21 %).
+- Weston's 57.4 Hz and 4.1 ms spread in C are this tail: Weston starts its repaint a fixed time
+  after the vblank it is told of, so a late vblank delivery starts the frame late (14 ms instead
+  of 5, §11.4), and the frame misses the next tick. No trap stretches it: Weston traps 15 to 17
+  times per frame from D on, 14 to 16 of them `TIME` reads at about 20 us each.
+- What would shorten it lies outside the device: pinning vm0's vCPU 1 on the host, or spreading
+  the guest's MSI (the device offers one vector). It is not a device change, so it is left for
+  the operator (and for the game VM, which has the same single vector).
+
+
+## 12. The remaining per-frame traps as memory (2026-09-25 afternoon)
+
+Written for the operator's direction "get rid of as many traps as possible, and where they are
+necessary, optimise them out with the reactor". Starting point: series H (§11.7), 40 traps per
+Mutter frame: 23 BAR2 flush-page reads, 16 `TIME_0/1` reads on the usermode page, 1.33 display
+kicks. Runs: `caraxes/runs/display-page-2026-09-25/` series P1, T1, U1, U2, W1, W2, J1, K1
+(`series.sh` header), vm0 at reservation slot 2 beside the game VM (vm4, slot 0 of its 3 GiB
+profile), `CARAXES_RESERVE_SLOT_DESK=2`.
+
+### 12.1 The BAR2 flush page as memory (`CARAXES_BAR2_FLUSH_PAGE=memory`)
+
+> **Dev (merge of 2026-09-28):** ported onto dev's deferred flush: with `memory` the owed
+> flush stands from every sync on (`DeferredFlush::standing`), dev's hand-overs (MMU
+> invalidate, GSP and channel doorbells) settle it, and the flush clock syncs 1 ms after the
+> last sync (the branch's reactor bound was 2 ms, and it also paid at every trapped BAR0 write
+> and BAR1 access; those payers are not ported). Refused with
+> `CARAXES_BAR2_MEMFD_DEFER_FLUSH=0` or a trap list holding the flush page. Needs a GPU run
+> before the knob is trusted.
+
+- The flush is `kbusFlushSingle_GV100`'s read of a BAR2 CPU pointer (kern_bus_gv100.c:384-395),
+  a plain read. A memory page cannot report a read, so without the trap no read can start a debt.
+- With the switch no BAR2 page traps (bar2area.rs `config_from`: the trap list defaults to none,
+  refused if it still holds 0xfea000), and the debt stands from every sync on (`Owed` standing
+  mode, bar2area.rs): `since` is the last sync.
+- Who syncs:
+  - the MMU invalidate (the reactor's trigger, inv_page.rs), the BAR2 bind and the GSP doorbell,
+    as before;
+  - every trapped BAR0 write (the display kick), BAR1 access and doorbell (fb.rs `bar2_pay`:
+    in standing mode every payer syncs);
+  - the reactor, when the bound (2 ms) has run out since the last sync (intr_page.rs
+    `poll_owed`; it does not spin for a standing debt, the 1 ms sleep bound wakes it).
+- Why no GPU use of a page-table update can come before its sync (the D17 ordering): the guest
+  RM writes page tables only through BAR2 (its BAR2 CPU mapping, bar2-memfd.md §1), and a PTE
+  becomes usable by the GPU only after an MMU invalidate (`kgmmuCommitTlbInvalidate_TU102`,
+  kern_gmmu_tu102.c:95-123, at the end of every `dmaUpdateVASpace` path and of
+  `kbusUpdateRmAperture_GM107`, kern_bus_gm107.c:2757-2785). The invalidate is a sync point,
+  and the device syncs before it walks. Other BAR2 data (instance blocks, RAMFC) reaches the
+  GPU through a GSP RPC, which syncs, or a BAR2 bind, which syncs. Userspace has no BAR2
+  mapping. Test: fb.rs `bar2_flush_page_as_memory_syncs_at_the_consumers` (a PTE write, no
+  flush read, reaches VRAM at the invalidate's sync; a doorbell and the reactor pay too).
+- Fail closed: refused with the bound off or a trap list with the flush page; needs the
+  interrupt page. Counters (exit summary `bar2 flush page as memory:`): syncs per payer, the
+  reactor syncs that wrote bytes back (writes no consumer had paid within the bound), the
+  longest time between syncs and the number past twice the bound.
+- Measured (P1, 550 s of device life): 372327 syncs, 19.2 s in total (51 us each): 216910 by
+  the reactor at the bound, of which 262 wrote bytes back; 136716 by a trapped write or a
+  doorbell; 18701 that ran anyway. The ring to the host doorbell went from p50 10.4 us (I2) to
+  56.4 us, because each doorbell now syncs. That cost is why the switch is a display mode: the
+  CUDA path keeps the trapped flush page (a PPO run rings about 28000 times per second, §11.2).
+
+| Per presented frame | H | P1 |
+|---|---|---|
+| Mutter: all traps | 39.76 | **17.68** |
+| of which flush reads | 22.98 | 0 |
+| of which `TIME_0/1` | 15.43 | 16.34 |
+| of which display kicks | 1.33 | 1.33 |
+| Mutter callbacks | 59.98 Hz sd 3.36 ms | 60.06 Hz sd 2.68 ms (presentation sd 0.74, latches sd 0.25) |
+| Weston: all traps | 15.16 | 14.70 |
+| Weston callbacks | 59.94 Hz sd 1.92 | 60.00 Hz sd 0.70 |
+| vkcube FPS, traps | 52.1, 43.34 | 53.2, 20.15 |
+| glmark2 FPS, traps | 924, 43.42 | 2045, 18.86 |
+| display gate | fail (compositor) | **pass** |
+
+P1 ran with the pool poll after a page trigger (f37b354) and with only the game VM beside it;
+Mutter held 60 Hz, unlike I and I2 (§11.8), which points at the other VMs' load there rather
+than at the poll (the J/K A/B, §12.6).
+
+### 12.2 The usermode page as memory (`CARAXES_USERMODE_PAGE=1`)
+
+- The page 0xbb0000 holds `TIME_0/1` (0x80/0x84) and the doorbell `NOTIFY_CHANNEL_PENDING`
+  (0x90). It cannot be split, so the whole page becomes a sparse area the reactor owns
+  (um_page.rs).
+- Who reads `TIME`: the guest RM's `tmrGetCurrentTime` on a VF (timer_tu102.c:107-159,
+  hi-lo-hi), UVM through `time0Offset/time1Offset` (nv_gpu_ops.c:2541-2553), and the GL/Vulkan
+  userspace through its VOLTA_USERMODE_A mapping (clc361.h:31-32: GPU timestamps, fence and
+  wait timeouts). nvidia-drm and nvkms time with the CPU clock (`nvkms_get_usec`, nvidia-modeset-linux.c:746; the fence
+  timeouts in nvidia-drm-fence.c:43, :124-138 are jiffies), and Mutter's frame clock uses the
+  DRM vblank timestamps (CLOCK_MONOTONIC), not the GPU's. So no reader needs more than
+  millisecond freshness, and none may see time go back.
+- The clock: the reactor stores both words as one aligned 64-bit store every iteration
+  (`UmPage::publish_time`, the trapped model's format, uvm.rs:73-74). A reader never sees a
+  torn pair (two 32-bit stores would show (H, small) or (H+1, max) at a `TIME_0` wrap, every
+  4.3 s). While the reactor blocks (at most its 1 ms sleep bound) the clock stands still:
+  stale by up to 1 ms, never backwards.
+- The doorbell: a write lands in memory. The reactor swaps the word to a sentinel
+  (0xffffffff, no token has all bits) and then scans every channel's GPPut
+  (`doorbell_pending`, ctrl.rs:353), ringing each that advanced. Several writes before the
+  reactor looks leave only the last value, and the same value twice is only a change because
+  the swap put the sentinel back; the value never decides what runs. Ordering: the guest
+  writes GPPut before the doorbell, the scan runs after the swap, so a channel is rung only
+  with a GPPut that is visible. A watchdog scan every 10 ms counts channels it finds pending
+  without a doorbell seen. The token pool's ioeventfds are not offered with the page (they
+  could never fire on a mapped page).
+- Fail closed: TIME_0/1 must be one aligned qword in the doorbell's page, no other register
+  model may answer in the page (`UmPage::check`), and the interrupt page and the boot model
+  are required; a guest store to TIME is an inconsistency.
+- Tests: um_page.rs (layout and check, the clock never going back, doorbell coalescing and the
+  watchdog), channel.rs `one_page_doorbell_rings_every_advanced_channel`.
+
+### 12.3 The display kick page (`CARAXES_DISPLAY_KICK_PAGE=1`)
+
+- The window channels' USERD pages (NVC57E and NVC57B, 64 pages from 0x690000,
+  display/mod.rs `userd_base`) hold `PUT` (+0) and `GET` (+4). nvkms writes the methods into
+  its pushbuffer in guest RAM, then `PUT`; it reads `GET` for free space. Trapped, the `PUT`
+  write runs the kick (display/mod.rs `kick`): 1.11 writes and 0.22 `GET` reads per frame.
+- With the switch the 64 pages are one sparse area (display/chan_page.rs). The reactor
+  compares each `PUT` with the last one it saw and runs the kick under the device lock
+  (`Device::display_kick_from_page`: the BAR2 payment and the steps after a BAR0 write, as the
+  trapped write had), then stores `GET`. Two `PUT` writes before the reactor looks are one
+  kick to the newest, as the walk from `GET` to `PUT` is for the trapped second write.
+- Fail closed: needs the display page; a guest store to `GET` is restored and counted, a `PUT`
+  in a page without a channel is counted and left, and the watchdog counts a kick not
+  completed within 20 ms. Tests: chan_page.rs, display/tests.rs `a_page_kick_is_the_trapped_kick`.
+- Latency: a kick waits for the reactor's next iteration, up to its 1 ms sleep bound when it
+  blocks. The latch is at the next tick; a flip that came less than a millisecond before it
+  can slip one frame.
+
+### 12.4 The host BAR1 floor
+
+> **Dev (merge of 2026-09-28):** dev already had the same floor (bar1pool.rs
+> `host_bar1_floor`, `CARAXES_HOST_BAR1_FLOOR_MIB`, 96 MiB); dev's code was kept.
+
+The game VM's 128 MiB pool plus vm0's pool exhausted the host's 256 MiB BAR1, and the host
+desktop's Vulkan failed at `vkCreateDevice` (INITIALIZATION_FAILED), which ended Moonlight.
+bar1pool.rs `check_host_bar1` now reads the host's free BAR1 at start (`nvidia-smi -q -d
+MEMORY`, read-only) and refuses a pool whose size plus window budget would leave less than
+`CARAXES_HOST_BAR1_FLOOR_MIB` (default 96 MiB); an unreadable free size refuses too, 0 skips
+the check. With the game VM up the host showed 91 MiB free (10:59), so vm0's 32 MiB pool with
+its 64 MiB window budget is refused beside it from now on.
+
+### 12.5 The game session's two findings
+
+- **The hardware cursor.** Mutter puts the pointer on nvidia-drm's cursor plane (window 7 in
+  the device, 143 updates in P1). Sunshine's KMS capture exports the framebuffer of one
+  plane, the primary (its "Couldn't get drm fb for plane [0]" at 08:38:13,
+  `session-20260925-102541/sunshine.log:223169`, is that plane's framebuffer going away at the
+  session restart); a pointer on its own plane is in no buffer the capture reads. The stage
+  forces `MUTTER_DEBUG_DISABLE_HW_CURSORS=1`. A device-side
+  alternative, compositing the cursor plane into the scanout buffer the capture reads, is not
+  worth it: that buffer is the compositor's own render target in guest VRAM, which it reuses
+  with damage tracking, so writing cursor pixels into it leaves trails in the next frames and
+  races the GPU's rendering; a separate composited copy would need a device-side blit per frame
+  and a buffer the capture does not know. Mutter's software cursor costs one small blend in a
+  frame it renders anyway. Keep the variable.
+- **The second GNOME start.** No device-side cause in the records: both failing lives show 0
+  refusals, all channels freed, the token pool never exhausted and 0 host Xid
+  (`caraxes/runs/sottr-2026-09-24/session-20260925-102541/device-log-tail.txt:168-174`). The
+  "not supported by EGL" message is from a first start (life 10:18,
+  `session-20260925-101825/guest-journal.txt:5,8`); the second-start failure (life 10:25) left
+  only gdm's "maximum number of X display failures" (`session.log:198`). The difference from
+  this series' five restarts per life: the series stops gdm3, waits and starts it
+  (`display-page-2026-09-24/guest/gnome-restart.sh`), so gdm autologins again; the game stage
+  restarted the session by hand with Sunshine (KMS capture, holding card0 and the NVIDIA nodes)
+  and Steam still running, and gdm does not autologin twice in one daemon life
+  (`sottr-session.sh gnome` only starts gdm3 when no gnome-shell runs). Fix in the stage, not
+  the device: a scripted restart that stops Sunshine and Steam, stops gdm3, waits until
+  `fuser /dev/dri/card0 /dev/nvidia*` is empty and starts gdm3; and keep the whole `gpu.log`
+  and a `sudo journalctl -b` with the gdm lines per life (the failing lives' device logs were
+  overwritten).
+
+### 12.6 Status and the runs still owed
+
+- Measured: P1 (§12.1). Built, unit-tested and prepared in `series.sh`, not yet run on the GPU
+  (the operator held vm0 down for the game session at 11:0x): T1 (the token-pool reference
+  with the final binary), U1 and U2 (the usermode page with the hybrid and the spinning
+  reactor, each with the CUDA launch rows `CUDA=1`: nvprobe 4 short and long kernels), W1
+  (every window: flush page, usermode page, kick page) and W2 (the kick page with the token
+  pool), and the J/K A/B of the pool poll after a page trigger.
+- Expected per Mutter frame with W1: 0 flush reads, 0 `TIME` reads, 0 kicks; what traps is
+  then the rare PMC/GSP/L2 rows (0.01 per frame).
+- The usermode page's decision needs the U/T numbers: the reactor's CPU (`doorbell poll`
+  summary line, `reader CPU`), the launch time per kernel from nvprobe 4, and the ring latency.
+  Expected from the design: with the hybrid reactor a doorbell that finds the reactor blocked
+  waits up to its 1 ms sleep bound, which a short CUDA launch (about 0.1 ms, benchmark.md)
+  cannot afford; the token pool's eventfd wakes it at once. So unless U2's spinning reactor is
+  the configuration, the usermode page stays a display mode.
+- vm0 beside the game VM is now refused by the host BAR1 floor (§12.4) unless the pool and
+  window budget shrink or the floor is lowered for the run.

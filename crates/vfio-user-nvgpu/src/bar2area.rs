@@ -57,6 +57,11 @@ pub const SYNC_DOORBELL_ENV: &str = "CARAXES_BAR2_MEMFD_SYNC_DOORBELL";
 pub const DEFER_FLUSH_ENV: &str = "CARAXES_BAR2_MEMFD_DEFER_FLUSH";
 /// How long an owed flush may wait for a hand-over before the flush clock settles it.
 pub const DEFER_BOUND: Duration = Duration::from_millis(1);
+/// `memory`: the flush page is memory as well, no longer trapped (docs/caraxes/intr-page.md
+/// §12.1); `trap` (the default) keeps it trapped. With it no flush read marks a sync owed,
+/// so the owed flush stands from every sync on ([`DeferredFlush::standing`]): the
+/// hand-overs and the flush clock settle it.
+pub const FLUSH_PAGE_ENV: &str = "CARAXES_BAR2_FLUSH_PAGE";
 /// The guest RM's BAR2 flush page: `pReadToFlush`, a persistent (top-down) BAR2 mapping
 /// made once at boot (kern_bus_gv100.c:85-87); BAR2 0xfea000 in every device trace of
 /// driver 610.57.04 (`caraxes/runs/mapping-2026-09-24/p3-profile/init-trace.txt`: 472
@@ -75,6 +80,9 @@ pub struct Config {
     pub sync_doorbell: bool,
     /// Flush reads defer their sync to the next hand-over ([`DEFER_FLUSH_ENV`]).
     pub defer_flush: bool,
+    /// `CARAXES_BAR2_FLUSH_PAGE=memory`: the flush page is not trapped; the owed flush
+    /// stands from every sync on ([`DeferredFlush::standing`]).
+    pub flush_page_memory: bool,
 }
 
 /// `Some` when `CARAXES_BAR2_MEMFD=1`; an error for a malformed trap list.
@@ -82,15 +90,53 @@ pub fn config() -> Result<Option<Config>, String> {
     if std::env::var(ENV).as_deref() != Ok("1") {
         return Ok(None);
     }
-    let traps = match std::env::var(TRAP_ENV) {
-        Ok(v) => parse_traps(&v)?,
-        Err(_) => vec![DEFAULT_TRAP],
+    config_from(
+        std::env::var(TRAP_ENV).ok().as_deref(),
+        std::env::var(SYNC_DOORBELL_ENV).as_deref() == Ok("1"),
+        std::env::var(DEFER_FLUSH_ENV).as_deref() != Ok("0"),
+        std::env::var(FLUSH_PAGE_ENV).ok().as_deref(),
+    )
+    .map(Some)
+}
+
+/// The settings from the variables' values (unset: `None`). Fail closed: the flush page as
+/// memory refuses a trap list that still holds the flush page and a switched-off deferred
+/// flush (without the flush clock nothing would settle what the guest wrote through BAR2
+/// between hand-overs); with it the trap list defaults to none.
+pub fn config_from(
+    traps: Option<&str>,
+    sync_doorbell: bool,
+    defer_flush: bool,
+    flush_page: Option<&str>,
+) -> Result<Config, String> {
+    let flush_page_memory = match flush_page.map(str::trim).unwrap_or("") {
+        "" | "trap" => false,
+        "memory" => true,
+        v => return Err(format!("{FLUSH_PAGE_ENV}={v:?}: trap or memory")),
     };
-    Ok(Some(Config {
+    let traps = match traps {
+        Some(v) => parse_traps(v)?,
+        None if flush_page_memory => Vec::new(),
+        None => vec![DEFAULT_TRAP],
+    };
+    if flush_page_memory {
+        if traps.contains(&DEFAULT_TRAP) {
+            return Err(format!(
+                "{FLUSH_PAGE_ENV}=memory with {TRAP_ENV} holding the flush page {DEFAULT_TRAP:#x}"
+            ));
+        }
+        if !defer_flush {
+            return Err(format!(
+                "{FLUSH_PAGE_ENV}=memory needs the deferred flush and its clock ({DEFER_FLUSH_ENV} not 0)"
+            ));
+        }
+    }
+    Ok(Config {
         traps,
-        sync_doorbell: std::env::var(SYNC_DOORBELL_ENV).as_deref() == Ok("1"),
-        defer_flush: std::env::var(DEFER_FLUSH_ENV).as_deref() != Ok("0"),
-    }))
+        sync_doorbell,
+        defer_flush,
+        flush_page_memory,
+    })
 }
 
 fn parse_traps(v: &str) -> Result<Vec<u64>, String> {
@@ -667,6 +713,10 @@ pub enum Settle {
 #[derive(Default)]
 pub struct DeferredFlush {
     pending: AtomicBool,
+    /// The flush page is memory (`CARAXES_BAR2_FLUSH_PAGE=memory`): no read marks a sync
+    /// owed, so one stands from every sync on and the clock settles it [`DEFER_BOUND`]
+    /// after the last one.
+    standing: bool,
     /// When the owed flush was marked, in nanoseconds since `epoch`.
     since_ns: AtomicU64,
     epoch: std::sync::OnceLock<Instant>,
@@ -698,8 +748,26 @@ impl DeferredFlush {
         self.pending.load(Ordering::Acquire)
     }
 
-    /// The sync ran: nothing is owed now; returns whether something was.
+    /// The owed flush of the flush page as memory (`CARAXES_BAR2_FLUSH_PAGE=memory`,
+    /// docs/caraxes/intr-page.md §12.1): owed from the start and again from every sync on,
+    /// since the guest may write BAR2 at any moment and no trapped read says when.
+    pub fn standing() -> Self {
+        let d = DeferredFlush {
+            standing: true,
+            ..Default::default()
+        };
+        d.since_ns.store(d.now_ns(), Ordering::Release);
+        d.pending.store(true, Ordering::Release);
+        d
+    }
+
+    /// The sync ran: nothing is owed now (standing: owed again from now on); returns
+    /// whether something was.
     fn clear(&self) -> bool {
+        if self.standing {
+            self.since_ns.store(self.now_ns(), Ordering::Release);
+            return self.pending.swap(true, Ordering::AcqRel);
+        }
         self.pending.swap(false, Ordering::AcqRel)
     }
 
@@ -813,7 +881,13 @@ impl Bar2Area {
             cache_root: Cell::new(u64::MAX),
             stats: Bar2Stats::default(),
             trapped: Cell::new(0),
-            defer: cfg.defer_flush.then(|| Arc::new(DeferredFlush::default())),
+            defer: cfg.defer_flush.then(|| {
+                Arc::new(if cfg.flush_page_memory {
+                    DeferredFlush::standing()
+                } else {
+                    DeferredFlush::default()
+                })
+            }),
         })
     }
 
@@ -1183,6 +1257,42 @@ impl Bar2Area {
                 "sync at once".to_string()
             }
         )
+    }
+}
+
+#[cfg(test)]
+mod flush_page_tests {
+    use super::*;
+
+    /// `CARAXES_BAR2_FLUSH_PAGE`: memory drops the flush page from the traps; fail closed
+    /// on a trap list with the flush page or the deferred flush off.
+    #[test]
+    fn flush_page_as_memory_settings() {
+        let c = config_from(None, false, true, None).unwrap();
+        assert_eq!(c.traps, vec![DEFAULT_TRAP]);
+        assert!(!c.flush_page_memory && c.defer_flush);
+        let c = config_from(None, false, true, Some("memory")).unwrap();
+        assert!(c.traps.is_empty() && c.flush_page_memory);
+        assert!(config_from(None, false, false, Some("memory")).is_err());
+        assert!(config_from(Some("0xfea000"), false, true, Some("memory")).is_err());
+        assert!(config_from(Some("0x1000"), false, true, Some("memory")).is_ok());
+        assert!(config_from(None, false, true, Some("maybe")).is_err());
+        assert!(!config_from(None, false, true, Some("trap")).unwrap().flush_page_memory);
+    }
+
+    /// Standing mode: owed from the start and again after every sync, the bound counting
+    /// from the last one.
+    #[test]
+    fn a_standing_flush_is_owed_again_after_every_sync() {
+        let d = DeferredFlush::standing();
+        assert!(d.pending());
+        assert!(d.due_in().is_some());
+        assert!(d.clear());
+        assert!(d.pending(), "owed again from the sync on");
+        assert!(d.due_in().unwrap() <= DEFER_BOUND);
+        assert!(!d.mark(), "a trapped flush read (a client without the mapping) adds nothing");
+        let plain = DeferredFlush::default();
+        assert!(!plain.pending());
     }
 }
 

@@ -199,6 +199,12 @@ pub struct Stats {
     pub cas_retries: AtomicU64,
     pub odd: [AtomicU64; 5],
     pub marker_us_max: AtomicU64,
+    /// From the display clock's raise to the reactor applying the guest's EVT_STAT ack:
+    /// the whole delivery (reactor wake-up, MSI, vCPU, handler), docs/caraxes/intr-page.md
+    /// §11.4.
+    pub service: Mutex<super::engine::Hist>,
+    /// From a marker's publication to the guest's CORE_RESET.
+    pub marker_ack: Mutex<super::engine::Hist>,
 }
 
 fn bump(a: &AtomicU64) {
@@ -513,6 +519,14 @@ impl FePage {
                 st.irq.evt[h] &= !(v & !TAG);
                 acked = true;
                 bump(&self.stats.evt_acks);
+                if let Some(t) = super::engine::ticker().take_raise_for_ack() {
+                    let us = super::engine::now_ns().saturating_sub(t) / 1000;
+                    self.stats
+                        .service
+                        .lock()
+                        .unwrap_or_else(PoisonError::into_inner)
+                        .add(us);
+                }
             }
         }
         if changed(W_AWAKEN_WIN) {
@@ -538,6 +552,11 @@ impl FePage {
                 bump(&self.stats.marker_acks);
                 let us = t.elapsed().as_micros() as u64;
                 self.stats.marker_us_max.fetch_max(us, Ordering::Relaxed);
+                self.stats
+                    .marker_ack
+                    .lock()
+                    .unwrap_or_else(PoisonError::into_inner)
+                    .add(us);
             } else {
                 self.odd(st, Odd::StaleCoreAck);
             }
@@ -652,6 +671,10 @@ impl FePage {
             l(&s.watchdog),
             l(&s.cas_retries),
             if odd.is_empty() { "none".into() } else { odd.join(", ") }
+        ) + &format!(
+            "display page delivery: raise to the guest's EVT_STAT ack {}; marker to CORE_RESET {}\n",
+            s.service.lock().unwrap_or_else(PoisonError::into_inner).describe(),
+            s.marker_ack.lock().unwrap_or_else(PoisonError::into_inner).describe()
         )
     }
 }

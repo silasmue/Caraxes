@@ -703,6 +703,21 @@ impl BootModel {
         notes
     }
 
+    /// A kick the display kick page's reactor found (display/chan_page.rs): what the
+    /// trapped `PUT` write did (the walk reads the pushbuffer through the BAR2 memfd, so no
+    /// owed flush needs settling first, bar2area.rs `DeferredFlush`).
+    pub fn display_kick_from_page(
+        &mut self,
+        mem: &GuestMemory,
+        base: u64,
+        put: u32,
+    ) -> (Option<u32>, Vec<String>) {
+        match self.ctrl.display.page_kick(base, put, mem, &mut self.fb) {
+            Some((get, notes)) => (Some(get), notes),
+            None => (None, Vec::new()),
+        }
+    }
+
     /// A BAR0 write to the display (display/mod.rs).
     pub fn display_write32(&mut self, off: u64, v: u32, mem: &GuestMemory) -> Option<Vec<String>> {
         if off == GSP_IRQSCLR && v & GSP_SWGEN0 != 0 {
@@ -1048,6 +1063,11 @@ impl BootModel {
         ptimer_word(&mut self.ptimer_hi, self.ctrl.channels.now_ns(), hi)
     }
 
+    /// The BAR0 offset of `_INVALIDATE` (the invalidate page's trigger word, inv_page.rs).
+    pub fn mmu_invalidate_register(&self) -> u64 {
+        self.regs.mmu_invalidate
+    }
+
     fn reg(&self, off: u64) -> Option<Reg> {
         let r = &self.regs;
         Some(match off {
@@ -1305,60 +1325,7 @@ impl BootModel {
                 notes.extend(self.ctrl.doorbell(&mut gm, v));
             }
             Some(Reg::MmuInvalidate) => {
-                self.mmu_invalidate.2 = v;
-                if v & (1 << 31) != 0 {
-                    // NV_PFB_PRI_MMU_INVALIDATE_PDB: ADDR 31:4 in 4 KiB units, APERTURE
-                    // 1:0; UPPER_PDB adds bits 51:32 (fb-model.md §4d).
-                    let pdb = ((self.mmu_invalidate.0 as u64 >> 4) << 12)
-                        | ((self.mmu_invalidate.1 as u64 & 0xF_FFFF) << 32);
-                    // With the BAR2 memfd: take in what the guest wrote through BAR2 (write
-                    // it back to VRAM, mark the changed table pages dirty) and follow the
-                    // BAR2 tables; the RM flushes and invalidates after every BAR2 PTE
-                    // update (kbusUpdateRmAperture_GM107, kern_bus_gm107.c:2757-2785).
-                    // The BAR1 area's untracked pages (bar1pool.rs `sync_untracked`): the
-                    // replicas' guest writes reach their pages as tracked writes, and a
-                    // table page still in the pool is re-read by the walks below. Settles
-                    // a deferred flush read.
-                    self.flush_point(mem, crate::bar2area::Settle::SyncPoint);
-                    // The guest changed page tables in VRAM through BAR1; drain the WC
-                    // buffers before the host TLB invalidate so RM re-walks fresh tables.
-                    self.fb.flush();
-                    let forwarded = self.ctrl.mirror_invalidate(&mut self.fb, Some(pdb));
-                    // Shadow VA spaces (every channel's with the pool) are not host VA spaces
-                    // the invalidate is forwarded to: the re-sync below brings them in line.
-                    let shadowed = self.ctrl.mirror.as_ref().is_some_and(|m| {
-                        let roots = m.shadow_roots();
-                        if v & 2 != 0 {
-                            !roots.is_empty()
-                        } else {
-                            roots.contains(&pdb)
-                        }
-                    });
-                    // Re-sync the GR shadow VAS from the guest root: the guest maps set-A
-                    // pages (e.g. the kernel's I2M upload targets) and then invalidates
-                    // before the GR push touches them, so a page mapped since the last
-                    // walk must be mirrored now or the GR engine MMU-faults (Xid 31).
-                    {
-                        let mut gm = crate::channel::GpuMem {
-                            fb: &mut self.fb,
-                            sys: mem,
-                        };
-                        // ALL_PDB (bit 1) invalidates every VAS: resync every shadow.
-                        let which = if v & 2 != 0 { None } else { Some(pdb) };
-                        notes.extend(self.ctrl.mirror_shadow_resync(&mut gm, which));
-                    }
-                    notes.push(format!(
-                        "mmu invalidate: pdb {pdb:#x} flags {:#x}{}",
-                        v & 0x7FFF_FFFF,
-                        if forwarded > 0 {
-                            format!(" -> invalidated on {forwarded} mirror VA space(s) [host]")
-                        } else if shadowed {
-                            " -> the shadow VA space(s) re-synced from the guest's tables".into()
-                        } else {
-                            " (no mirror or shadow VA space rooted there; nothing cached here)".into()
-                        }
-                    ));
-                }
+                notes.extend(self.mmu_invalidate_write(v, mem));
             }
             None => {
                 notes.extend(self.queue_register_write(off, v, mem));
@@ -1437,6 +1404,88 @@ impl BootModel {
         Some(notes)
     }
 
+    /// A write of `_INVALIDATE` (trapped, or found by the invalidate page's reactor,
+    /// inv_page.rs): with TRIGGER (bit 31) the device runs the invalidate now.
+    fn mmu_invalidate_write(&mut self, v: u32, mem: &GuestMemory) -> Vec<String> {
+        let mut notes = Vec::new();
+        self.mmu_invalidate.2 = v;
+        if v & (1 << 31) != 0 {
+            // NV_PFB_PRI_MMU_INVALIDATE_PDB: ADDR 31:4 in 4 KiB units, APERTURE
+            // 1:0; UPPER_PDB adds bits 51:32 (fb-model.md §4d).
+            let pdb = ((self.mmu_invalidate.0 as u64 >> 4) << 12)
+                | ((self.mmu_invalidate.1 as u64 & 0xF_FFFF) << 32);
+            // With the BAR2 memfd: take in what the guest wrote through BAR2 (write
+            // it back to VRAM, mark the changed table pages dirty) and follow the
+            // BAR2 tables; the RM flushes and invalidates after every BAR2 PTE
+            // update (kbusUpdateRmAperture_GM107, kern_bus_gm107.c:2757-2785).
+            // The BAR1 area's untracked pages (bar1pool.rs `sync_untracked`): the
+            // replicas' guest writes reach their pages as tracked writes, and a
+            // table page still in the pool is re-read by the walks below. Settles
+            // a deferred flush read.
+            self.flush_point(mem, crate::bar2area::Settle::SyncPoint);
+            // The guest changed page tables in VRAM through BAR1; drain the WC
+            // buffers before the host TLB invalidate so RM re-walks fresh tables.
+            self.fb.flush();
+            let forwarded = self.ctrl.mirror_invalidate(&mut self.fb, Some(pdb));
+            // Shadow VA spaces (every channel's with the pool) are not host VA spaces
+            // the invalidate is forwarded to: the re-sync below brings them in line.
+            let shadowed = self.ctrl.mirror.as_ref().is_some_and(|m| {
+                let roots = m.shadow_roots();
+                if v & 2 != 0 {
+                    !roots.is_empty()
+                } else {
+                    roots.contains(&pdb)
+                }
+            });
+            // Re-sync the GR shadow VAS from the guest root: the guest maps set-A
+            // pages (e.g. the kernel's I2M upload targets) and then invalidates
+            // before the GR push touches them, so a page mapped since the last
+            // walk must be mirrored now or the GR engine MMU-faults (Xid 31).
+            {
+                let mut gm = crate::channel::GpuMem {
+                    fb: &mut self.fb,
+                    sys: mem,
+                };
+                // ALL_PDB (bit 1) invalidates every VAS: resync every shadow.
+                let which = if v & 2 != 0 { None } else { Some(pdb) };
+                notes.extend(self.ctrl.mirror_shadow_resync(&mut gm, which));
+            }
+            notes.push(format!(
+                "mmu invalidate: pdb {pdb:#x} flags {:#x}{}",
+                v & 0x7FFF_FFFF,
+                if forwarded > 0 {
+                    format!(" -> invalidated on {forwarded} mirror VA space(s) [host]")
+                } else if shadowed {
+                    " -> the shadow VA space(s) re-synced from the guest's tables".into()
+                } else {
+                    " (no mirror or shadow VA space rooted there; nothing cached here)".into()
+                }
+            ));
+        }
+        notes
+    }
+
+    /// The invalidate page's trigger (`CARAXES_INVALIDATE_PAGE=1`, inv_page.rs): the three
+    /// words as the guest stored them in memory, applied as the trapped writes are.
+    pub fn mmu_invalidate_from_page(
+        &mut self,
+        mem: &GuestMemory,
+        pdb: u32,
+        upper: u32,
+        v: u32,
+    ) -> Vec<String> {
+        self.mmu_invalidate.0 = pdb;
+        self.mmu_invalidate.1 = upper;
+        let notes = self.mmu_invalidate_write(v, mem);
+        // A held invalidate completes through the trigger's busy bit (invgate.rs,
+        // execution.md §8): the trapped trigger read reports TRIGGER until the shadow
+        // worker applied the plan. The page clears TRIGGER as soon as this returns
+        // (inv_page.rs `complete`), so the gate is waited out here, under the device lock
+        // (each `invalidate_busy` waits at most 50 us; past 1 s it waits to the end).
+        while self.ctrl.mirror.as_mut().is_some_and(|m| m.invalidate_busy()) {}
+        notes
+    }
+
     /// `CARAXES_BAR2_MEMFD_SYNC_DOORBELL=1`: a BAR2 memfd sync before every doorbell (the
     /// reference for the rule that the guest's flush and invalidate are enough,
     /// docs/caraxes/bar2-memfd.md §3).
@@ -1451,6 +1500,34 @@ impl BootModel {
             let root = self.bar_root(3);
             self.fb.bar2_sync(root, Some(mem));
         }
+    }
+
+    /// A doorbell the usermode page's reactor found (um_page.rs), or its watchdog
+    /// (`hint` None): every channel whose GPPut advanced is rung, as the token-less
+    /// ioeventfd path rings them. The watchdog first checks without the BAR2 sync that a
+    /// doorbell pays, and does nothing when no channel is pending. Returns the channels
+    /// rung and the notes.
+    pub fn doorbell_from_page(&mut self, mem: &GuestMemory, hint: Option<u32>) -> (usize, Vec<String>) {
+        if hint.is_none() {
+            let gm = crate::channel::GpuMem {
+                fb: &mut self.fb,
+                sys: mem,
+            };
+            let any = self
+                .ctrl
+                .channels
+                .channels()
+                .map(|c| c.chid)
+                .collect::<Vec<_>>()
+                .into_iter()
+                .any(|c| self.ctrl.channels.pending(&gm, c));
+            if !any {
+                return (0, Vec::new());
+            }
+        }
+        let notes = self.doorbell_pending(mem);
+        let rung = notes.first().map_or(0, |n| crate::um_page::pending_count(n));
+        (rung, notes)
     }
 
     /// A token-less doorbell from the ioeventfd path (device.rs): ring every channel with
@@ -3643,6 +3720,7 @@ mod tests {
             traps: vec![0x1f000],
             sync_doorbell: false,
             defer_flush: defer,
+            flush_page_memory: false,
         };
         let area = Bar2Area::create(0x20000, &cfg).unwrap();
         let guest = area.mem.map_again().unwrap();

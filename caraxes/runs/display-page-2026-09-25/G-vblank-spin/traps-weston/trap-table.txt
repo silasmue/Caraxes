@@ -1,0 +1,29 @@
+window 10 s [317670246, 327670246) us; presented frames (latches with a surface): window 6: 529; per-frame base: window 6 = 529 (52.90 Hz)
+what                                                              count  per frame
+BAR0 writes, all                                                    589       1.11
+  other 0x696000                                                    589       1.11
+BAR0 reads, all                                                    8442      15.96
+  NV_VIRTUAL_FUNCTION_TIME_0/1                                     8322      15.73
+  0x696004                                                          118       0.22
+  0x1100                                                              2       0.00
+BAR1 writes, all                                                      0       0.00
+BAR1 reads                                                            0       0.00
+BAR2 writes, all                                                      0       0.00
+BAR2 reads                                                            6       0.01
+all trapped accesses                                               9037      17.08
+display channel kicks                                               589       1.11
+forwarded doorbells (host doorbell rung)                            910       1.72
+guest MMU invalidates seen                                            2       0.00
+shadow plans applied (sync lines)                                     0       0.00
+BAR0 page 0xbb0000 reads                                           8322      15.73
+BAR0 page 0x696000 writes                                           589       1.11
+BAR0 page 0x696000 reads                                            118       0.22
+BAR0 page 0x001000 reads                                              2       0.00
+per register (BAR, access, offset, name):
+  BAR0 R 0x00bb0084 NV_VIRTUAL_FUNCTION_TIME_0/1                   5548      10.49
+  BAR0 R 0x00bb0080 NV_VIRTUAL_FUNCTION_TIME_0/1                   2774       5.24
+  BAR0 W 0x00696000                                                 589       1.11
+  BAR0 R 0x00696004                                                 118       0.22
+  BAR2 R 0x00fea000 fb 0x1e75cf000                                    6       0.01
+  BAR0 R 0x00001100                                                   2       0.00
+latch intervals of window 6: 528, mean 18.908 ms, sd 6.174 ms, min 12.124 ms, max 51.092 ms, over 20 ms 70

@@ -36,6 +36,22 @@ pub const SLEEP_ENV: &str = "CARAXES_INTR_PAGE_SLEEP_MS";
 /// The retrigger watchdog's period in milliseconds (0: off).
 pub const RETRIGGER_ENV: &str = "CARAXES_INTR_PAGE_RETRIGGER_MS";
 
+/// Spin from this many microseconds before each display tick (display page only; 0 or
+/// unset: off), docs/caraxes/intr-page.md §11.4.
+pub const VBLANK_SPIN_ENV: &str = "CARAXES_INTR_PAGE_VBLANK_SPIN_US";
+
+/// `CARAXES_INTR_PAGE_VBLANK_SPIN_US`: microseconds, 0 to 16000.
+pub fn vblank_spin(v: Option<&str>) -> Result<u64, String> {
+    match v.map(str::trim).filter(|v| !v.is_empty()) {
+        None => Ok(0),
+        Some(v) => v
+            .parse::<u64>()
+            .ok()
+            .filter(|&us| us <= 16_000)
+            .ok_or_else(|| format!("{VBLANK_SPIN_ENV}={v:?}: microseconds, 0 to 16000")),
+    }
+}
+
 /// The page granularity of the sparse areas (the host's; checked at start).
 pub const PAGE: u64 = 4096;
 /// Shown in every leaf and in `TOP_EN_SET`; the guest never stores it.
@@ -199,6 +215,15 @@ impl Mapping {
         assert!(off < PAGE && off % 4 == 0);
         // SAFETY: in bounds of the page mapped in `new`; AtomicU32 has u32's layout.
         unsafe { &*self.ptr.as_ptr().add((off / 4) as usize) }
+    }
+
+    /// The qword at byte offset `off` (qword-aligned, below `PAGE`): one store of it is
+    /// one store for a reader of either half (the usermode page's clock, um_page.rs).
+    pub(crate) fn qword(&self, off: u64) -> &std::sync::atomic::AtomicU64 {
+        assert!(off < PAGE && off % 8 == 0);
+        // SAFETY: in bounds and 8-aligned (the mapping is page-aligned); AtomicU64 has
+        // u64's layout.
+        unsafe { &*self.ptr.as_ptr().cast::<std::sync::atomic::AtomicU64>().add((off / 8) as usize) }
     }
 }
 
@@ -831,6 +856,20 @@ pub struct PageHook {
     page: Arc<IntrPage>,
     /// The display page (`CARAXES_DISPLAY_PAGE=1`, display/fe_page.rs), scanned first.
     fe: Option<Arc<crate::display::fe_page::FePage>>,
+    /// The MMU invalidate page (`CARAXES_INVALIDATE_PAGE=1`, inv_page.rs).
+    inv: Option<(Arc<crate::inv_page::InvPage>, Arc<crate::inv_page::Driver>)>,
+    /// The usermode page (`CARAXES_USERMODE_PAGE=1`, um_page.rs).
+    um: Option<(Arc<crate::um_page::UmPage>, Arc<crate::um_page::Driver>)>,
+    /// The display kick page (`CARAXES_DISPLAY_KICK_PAGE=1`, display/chan_page.rs).
+    kicks: Option<(
+        Arc<crate::display::chan_page::ChanPage>,
+        Arc<crate::display::chan_page::Driver>,
+    )>,
+    /// `CARAXES_INTR_PAGE_VBLANK_SPIN_US`: spin from this long before each display tick
+    /// (docs/caraxes/intr-page.md §11.4); 0 off.
+    vblank_lead_ns: u64,
+    /// From a display raise to the reactor's wake-up for it (a blocked reactor only).
+    pub raise_wake: Arc<Mutex<crate::display::engine::Hist>>,
     wake: File,
     iterations: u32,
     last_tick: Instant,
@@ -852,6 +891,11 @@ impl PageHook {
             PageHook {
                 page,
                 fe: None,
+                inv: None,
+                um: None,
+                kicks: None,
+                vblank_lead_ns: 0,
+                raise_wake: Arc::new(Mutex::new(Default::default())),
                 wake,
                 iterations: 0,
                 last_tick: Instant::now(),
@@ -868,10 +912,65 @@ impl PageHook {
         self.fe = Some(fe);
         self
     }
+
+    /// Spin from `lead_us` before each display tick until it is served (0: off).
+    pub fn with_vblank_spin(mut self, lead_us: u64) -> Self {
+        self.vblank_lead_ns = lead_us * 1000;
+        self
+    }
+
+    /// The vblank window: a display tick is due within the lead (the clock's next tick).
+    fn vblank_window(&self) -> bool {
+        if self.vblank_lead_ns == 0 || self.fe.is_none() {
+            return false;
+        }
+        let t = crate::display::engine::ticker();
+        t.next_due().is_some_and(|d| {
+            crate::display::engine::now_ns() + self.vblank_lead_ns >= d
+        })
+    }
+
+    /// Scan the MMU invalidate page and run `driver` for each trigger found.
+    pub fn with_invalidate(
+        mut self,
+        page: Arc<crate::inv_page::InvPage>,
+        driver: Arc<crate::inv_page::Driver>,
+    ) -> Self {
+        self.inv = Some((page, driver));
+        self
+    }
+
+    /// Run the display kicks written to the window channels' USERD pages (`driver`).
+    pub fn with_kicks(
+        mut self,
+        page: Arc<crate::display::chan_page::ChanPage>,
+        driver: Arc<crate::display::chan_page::Driver>,
+    ) -> Self {
+        self.kicks = Some((page, driver));
+        self
+    }
+
+    /// Own the usermode page: publish its clock every iteration, scan the channels for
+    /// each doorbell written to it (`driver`).
+    pub fn with_usermode(
+        mut self,
+        page: Arc<crate::um_page::UmPage>,
+        driver: Arc<crate::um_page::Driver>,
+    ) -> Self {
+        self.um = Some((page, driver));
+        self
+    }
+
 }
 
 impl crate::poll::Hook for PageHook {
     fn poll(&mut self, woken: bool) -> bool {
+        if woken && self.fe.is_some() {
+            if let Some(t) = crate::display::engine::ticker().take_raise_for_wake() {
+                let us = crate::display::engine::now_ns().saturating_sub(t) / 1000;
+                self.raise_wake.lock().unwrap_or_else(PoisonError::into_inner).add(us);
+            }
+        }
         // An outstanding awaken marker keeps a hybrid reactor spinning, so the guest's
         // CORE_RESET is seen within one iteration (display/fe_page.rs).
         let mut work = self
@@ -879,12 +978,26 @@ impl crate::poll::Hook for PageHook {
             .as_ref()
             .is_some_and(|f| f.scan() | f.busy(Instant::now()));
         work |= self.page.scan().work;
+        // The invalidate settles an owed BAR2 flush itself (its trigger is a flush point).
+        if let Some((p, d)) = &self.inv {
+            work |= crate::inv_page::poll(p, d.as_ref(), woken);
+        }
+        if let Some((p, d)) = &self.um {
+            work |= crate::um_page::poll(p, d.as_ref());
+        }
+        if let Some((p, d)) = &self.kicks {
+            work |= crate::display::chan_page::poll(p, d.as_ref());
+        }
+        work |= self.vblank_window();
         self.iterations = self.iterations.wrapping_add(1);
         if woken || self.iterations % TICK_ITERATIONS == 0 {
             let now = Instant::now();
             if now.saturating_duration_since(self.last_tick) >= Duration::from_millis(1) {
                 self.last_tick = now;
                 work |= self.page.tick(now);
+                if let Some((p, _)) = &self.kicks {
+                    p.watchdog(now);
+                }
                 if let Some(f) = &self.fe {
                     work |= f.tick(now);
                 }

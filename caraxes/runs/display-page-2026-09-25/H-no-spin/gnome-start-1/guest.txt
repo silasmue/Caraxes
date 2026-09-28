@@ -1,0 +1,6 @@
+/usr/bin/xauth:  timeout in locking authority file /home/leandro/.Xauthority
+== 2026-09-25T07:04:29Z start
+Type=wayland
+[  430.628495] caraxes-vm0 gnome-shell[2357]: Created gbm renderer for '/dev/dri/card0'
+page_flip_failed=0
+gnome-shell pid 2357; eglcore 6

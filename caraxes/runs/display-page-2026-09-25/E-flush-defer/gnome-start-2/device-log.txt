@@ -1,0 +1,4 @@
+vfio-user-nvgpu: bar1 pool: 127 page(s) the GPU maps moved behind the barrier (1 host channel(s) idle, 1 TSG(s) preempted); shadow(s) of root(s) {1698fe000} re-synced and the worker drained before the guest continues
+vfio-user-nvgpu: ERROR: bar1 pool: guest BAR1 0x28f000 no longer maps FB 0x174ddf000, but the page cannot move back from its pool page 0x1e788f000 yet: the page is the USERD of mirrored channel chid 5, whose host channel holds its address until it is freed; it stays in the pool (consistent) and is retried
+vfio-user-nvgpu: bar1 pool: 2 page(s) the GPU maps moved behind the barrier (1 host channel(s) idle, 1 TSG(s) preempted); shadow(s) of root(s) {1698fe000} re-synced and the worker drained before the guest continues
+vfio-user-nvgpu: bar1 pool: 1 page(s) the GPU maps moved behind the barrier (0 host channel(s) idle, 0 TSG(s) preempted); shadow(s) of root(s) {1698fe000} re-synced and the worker drained before the guest continues
