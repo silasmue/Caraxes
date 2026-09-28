@@ -108,6 +108,9 @@ pub struct Dispatcher {
     /// BAR sizes (board data) and the addresses the guest reported (GspSystemInfo).
     pub bar_sizes: Vec<u64>,
     pub bar_offsets: [u64; 4],
+    /// The guest driver's `NVGMC_SI_HOST_OS_TYPE` from GSP_INIT (`None` before it or on the
+    /// 610 transport): selects the `GSP_GET_FEATURES` UVM bit.
+    pub guest_os_type: Option<u32>,
     /// VBIOS revision and OEM revision (board data) and their provenance label.
     vbios: (u32, u32, &'static str),
     pub crash_buffer: Option<(u64, u32)>,
@@ -260,6 +263,7 @@ impl Dispatcher {
             pci_revision: id.pci.revision as u32,
             bar_sizes: id.bar_sizes.clone(),
             bar_offsets: [0; 4],
+            guest_os_type: None,
             vbios: (id.vbios_revision, id.vbios_oem_revision, id.vbios_label),
             crash_buffer: None,
             rusd_pa: None,
@@ -2187,15 +2191,22 @@ impl Dispatcher {
                 // driver's (a 617.14 Windows guest against the 615-based model).
                 let env_ver = std::env::var("CARAXES_GSP_FW_VERSION").ok().filter(|s| s.len() < 64);
                 let ver = env_ver.as_deref().unwrap_or(v::DRIVER_VERSION).as_bytes();
+                // gspFeatures bit 0 is UVM_ENABLED (ctrl2080gsp.h). A Linux guest's nvidia-uvm
+                // would need replayable faults, which never reach the guest (the host RM owns
+                // them): libcuda would map through UVM and the first GPU touch of a managed page
+                // kills the context with a host Xid 31 (docs/research/uvm-faults-2026-09-28.md).
+                // So a Unix guest is told the GPU has no UVM (cudaMallocManaged returns 801, as on
+                // NVIDIA vGPU without enable_uvm). A Windows guest keeps 1 as the card answers
+                // (kmd-controls-2026-09-26); WDDM managed memory needs no replayable faults.
+                let uvm = self.guest_os_type == Some(crate::gmcapi::HOST_OS_TYPE_WINDOWS);
                 if n >= v::GSP_FEATURES_SIZE {
-                    // gspFeatures 1, as the card answers (kmd-controls-2026-09-26).
-                    put32(&mut b, 0, 1);
+                    put32(&mut b, 0, u32::from(uvm));
                     b[v::GSP_FEATURES_VALID] = 1;
                     b[v::GSP_FEATURES_DEFAULT_GSP_RM_GPU] = 1;
                     let at = v::GSP_FEATURES_FIRMWARE_VERSION;
                     b[at..at + ver.len()].copy_from_slice(ver);
                 }
-                Answer::ok(b, "synthesized (driver version string; the emulated GSP is that version)", format!("gsp features: 1, valid, {}", String::from_utf8_lossy(ver)))
+                Answer::ok(b, "synthesized (driver version string; the emulated GSP is that version)", format!("gsp features: {} (UVM {} for guest os {:?}), valid, {}", u32::from(uvm), if uvm { "on" } else { "off" }, self.guest_os_type, String::from_utf8_lossy(ver)))
             }
             // Row 97 (ctrl2080bios.h:44-45, 97-104): biosInfoListSize @0, entries {index, data} @4.
             CMD_BIOS_GET_INFO_V2 => {
@@ -2576,6 +2587,25 @@ mod tests {
             &[0u8; 72],
         );
         assert_eq!(&a.params[6..15], v::DRIVER_VERSION.as_bytes());
+        // UVM_ENABLED (gspFeatures bit 0): off before GSP_INIT and for a Unix guest (no
+        // replayable faults reach it), on for a Windows guest (as the card answers).
+        assert_eq!(get32(&a.params, 0), 0);
+        for (os, want) in [
+            (crate::gmcapi::HOST_OS_TYPE_UNIX, 0),
+            (crate::gmcapi::HOST_OS_TYPE_WINDOWS, 1),
+            (0, 0),
+        ] {
+            d.guest_os_type = Some(os);
+            let a = d.control(
+                INTERNAL_CLIENT,
+                0xCA7A_0003,
+                CMD_GSP_GET_FEATURES,
+                &[0u8; 72],
+            );
+            assert_eq!(get32(&a.params, 0), want, "guest os type {os}");
+            assert_eq!(a.params[v::GSP_FEATURES_VALID], 1);
+        }
+        d.guest_os_type = None;
         // An id no driver version defines (0x20800BAD is INTERNAL_NVLINK_RESUME_DISABLE_
         // CHANNELS in 615, refused by the NVLink family rule of chipctl.rs).
         let a = d.control(INTERNAL_CLIENT, 0xCA7A_0003, 0x2080_0FFF, &[0u8; 8]);

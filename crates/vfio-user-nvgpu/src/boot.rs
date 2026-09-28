@@ -2695,6 +2695,7 @@ impl BootModel {
         if let Some(bars) = si.bar_addresses() {
             self.ctrl.bar_offsets = bars;
         }
+        self.ctrl.guest_os_type = si.host_os_type;
         if si.driver_version.as_deref() != Some(v::DRIVER_VERSION) {
             notes.push(format!(
                 "guest driver {:?} is not the emulated {} (build with its ver module)",
