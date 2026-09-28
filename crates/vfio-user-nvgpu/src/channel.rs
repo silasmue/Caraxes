@@ -229,6 +229,10 @@ pub struct Channel {
     pub engine_objects: Vec<(u32, Vec<u8>)>,
     /// Guest handles corresponding one-for-one with `engine_objects`.
     engine_object_handles: Vec<u32>,
+    /// Channel-local ENG_SW class IDs assigned in engine-object allocation order.
+    software_objects: BTreeMap<u16, (u32, u32)>,
+    next_software_object: u16,
+    software_object_model_valid: bool,
     /// Runs on a host mirror channel: the software executor leaves it alone.
     pub mirrored: bool,
     pub chid: u32,
@@ -295,6 +299,13 @@ impl Channel {
             .copied()
             .zip(self.engine_objects.iter())
             .map(|(handle, (class, params))| (handle, *class, params.as_slice()))
+    }
+
+    fn bound_class(&self, binding: u32) -> u32 {
+        u16::try_from(binding)
+            .ok()
+            .and_then(|id| self.software_objects.get(&id))
+            .map_or(binding, |(_, class)| *class)
     }
 }
 
@@ -460,6 +471,7 @@ impl Registry {
     }
 
     pub fn enable_deferred_management(&mut self, chid: u32) -> Result<(), String> {
+        let classes = self.classes;
         let ch = self
             .channels
             .get_mut(&chid)
@@ -467,6 +479,32 @@ impl Registry {
         if ch.mirrored || ch.software_failed {
             return Err(format!(
                 "chid {chid}: cannot enable strict management execution"
+            ));
+        }
+        let allowed = |class| {
+            matches!(class, 0x5080 | 0xa140 | 0x902d | 0xc597)
+                || class == classes.uvm_sw
+                || class == classes.copy
+                || class == classes.compute
+        };
+        if !ch.software_object_model_valid {
+            return Err(format!(
+                "chid {chid}: channel-local software class ID sequence is not modelled"
+            ));
+        }
+        if let Some((class, _)) = ch.engine_objects.iter().find(|(class, _)| !allowed(*class)) {
+            return Err(format!(
+                "chid {chid}: strict management has unsupported engine class {class:#x}"
+            ));
+        }
+        if ch.engine_objects.iter().any(|(class, _)| *class == 0x5080)
+            && !ch
+                .software_objects
+                .values()
+                .any(|(_, class)| *class == 0x5080)
+        {
+            return Err(format!(
+                "chid {chid}: deferred object has no channel-local software class ID"
             ));
         }
         ch.deferred_management = true;
@@ -492,14 +530,18 @@ impl Registry {
             ));
         }
         if ch.software_failed || ch.deferred.is_some() {
-            return Err(format!("chid {chid}: cannot take over active management state"));
+            return Err(format!(
+                "chid {chid}: cannot take over active management state"
+            ));
         }
         if ch.gp_get != 0 {
             return Err(format!(
                 "chid {chid}: management takeover after a software ring wrap is unsupported"
             ));
         }
-        let root = self.root_of(ch).ok_or_else(|| format!("chid {chid}: VAS root unknown"))?;
+        let root = self
+            .root_of(ch)
+            .ok_or_else(|| format!("chid {chid}: VAS root unknown"))?;
         let mut bindings = ch.objects;
         for entry in 0..gp_get {
             let mut descriptor = [0; 8];
@@ -521,8 +563,7 @@ impl Registry {
                 .chunks_exact(4)
                 .map(|bytes| u32::from_le_bytes(bytes.try_into().unwrap()))
                 .collect::<Vec<_>>();
-            let diagnostic =
-                |subch: usize, bound_class: u32, method: u32, data: u32, why: &str| {
+            let diagnostic = |subch: usize, bound_class: u32, method: u32, data: u32, why: &str| {
                 let shown = words.len().min(256);
                 let raw = words[..shown]
                     .iter()
@@ -534,6 +575,22 @@ impl Registry {
                     bound_class,
                     if shown < words.len() { " (truncated)" } else { "" }
                 )
+            };
+            let state_setter = |binding: u32, method: u32| {
+                let class = u16::try_from(binding)
+                    .ok()
+                    .and_then(|id| ch.software_objects.get(&id))
+                    .map_or(binding, |(_, class)| *class);
+                (class == 0x902d
+                    && matches!(
+                        method,
+                        0x888 | 0x290 | 0x29c | 0x2ac | 0x804
+                            | 0x840..=0x84c
+                            | 0x850..=0x85c
+                            | 0x8c0..=0x8cc
+                    ))
+                    || (matches!(class, 0xc597) || class == self.classes.compute)
+                        && matches!(method, 0x104 | 0x108)
             };
             let mut i = 0;
             while i < words.len() {
@@ -553,6 +610,7 @@ impl Registry {
                     match method {
                         0 => bindings[subch] = count as u32 & 0xffff,
                         8 => {}
+                        _ if state_setter(bindings[subch], method) => {}
                         _ => {
                             return Err(diagnostic(
                                 subch,
@@ -587,6 +645,7 @@ impl Registry {
                     match method {
                         0 => bindings[subch] = data & 0xffff,
                         8 => {}
+                        _ if state_setter(bindings[subch], method) => {}
                         _ => {
                             return Err(diagnostic(
                                 subch,
@@ -615,7 +674,10 @@ impl Registry {
             .channels
             .get_mut(&plan.chid)
             .ok_or_else(|| format!("chid {}: no such channel", plan.chid))?;
-        if ch.generation != plan.generation || !ch.mirrored || ch.gp_get != 0 || ch.software_failed
+        if ch.generation != plan.generation
+            || !ch.mirrored
+            || ch.gp_get != 0
+            || ch.software_failed
             || ch.deferred.is_some()
         {
             return Err(format!(
@@ -1076,6 +1138,9 @@ impl Registry {
                     h_parent,
                     engine_objects: Vec::new(),
                     engine_object_handles: Vec::new(),
+                    software_objects: BTreeMap::new(),
+                    next_software_object: 1,
+                    software_object_model_valid: true,
                     mirrored: false,
                     chid,
                     generation: self.channel_generation,
@@ -1144,6 +1209,7 @@ impl Registry {
             // An engine object (copy, compute, the UVM SW class, ...) under a channel:
             // kept with its parameters for the host mirror.
             _ => {
+                let classes = self.classes;
                 self.channels
                     .values()
                     .find(|c| c.h_client == h_client && c.h_object == h_parent)?;
@@ -1160,6 +1226,8 @@ impl Registry {
                         .iter()
                         .position(|h| *h == h_object)
                     {
+                        let handle = old.engine_object_handles[i];
+                        old.software_objects.retain(|_, (h, _)| *h != handle);
                         old.engine_object_handles.remove(i);
                         old.engine_objects.remove(i);
                     }
@@ -1168,6 +1236,20 @@ impl Registry {
                     .channels
                     .values_mut()
                     .find(|c| c.h_client == h_client && c.h_object == h_parent)?;
+                let known_hardware = matches!(h_class, 0xa140 | 0x902d | 0xc597)
+                    || h_class == classes.copy
+                    || h_class == classes.compute;
+                if h_class == 0x5080 || h_class == classes.uvm_sw {
+                    let id = ch.next_software_object;
+                    if id != 0 {
+                        ch.next_software_object = id.checked_add(1).unwrap_or(0);
+                        ch.software_objects.insert(id, (h_object, h_class));
+                    } else {
+                        ch.software_object_model_valid = false;
+                    }
+                } else if !known_hardware {
+                    ch.software_object_model_valid = false;
+                }
                 ch.engine_object_handles.push(h_object);
                 ch.engine_objects.push((h_class, params.to_vec()));
                 Some(format!(
@@ -1199,6 +1281,8 @@ impl Registry {
             .find(|c| c.h_client == h_client && c.h_object == h_parent)
         {
             if let Some(i) = ch.engine_objects.iter().rposition(|(c, _)| *c == class) {
+                let handle = ch.engine_object_handles[i];
+                ch.software_objects.retain(|_, (h, _)| *h != handle);
                 ch.engine_object_handles.remove(i);
                 ch.engine_objects.remove(i);
             }
@@ -1231,6 +1315,7 @@ impl Registry {
             .filter(|c| c.h_client == h_client)
         {
             if let Some(i) = c.engine_object_handles.iter().position(|h| *h == h_object) {
+                c.software_objects.retain(|_, (h, _)| *h != h_object);
                 c.engine_object_handles.remove(i);
                 c.engine_objects.remove(i);
             }
@@ -1676,9 +1761,8 @@ impl Registry {
                 ));
             } else {
                 if ch.deferred_management && length > 4096 {
-                    let failure = format!(
-                        "strict management chid {chid} rejects {length}-dword pushbuffer"
-                    );
+                    let failure =
+                        format!("strict management chid {chid} rejects {length}-dword pushbuffer");
                     ch.software_failed = true;
                     ch.software_failure = Some(failure.clone());
                     notes.push(failure);
@@ -1686,7 +1770,16 @@ impl Registry {
                 }
                 let pb_va = ((e1 as u64 & 0xFF) << 32) | (e0 as u64 & !3);
                 let diagnose = self.sem_diag && self.sem_diag_chid.is_none_or(|c| c == chid);
-                match Self::segment(ch, mem, root, pb_va, length as usize, now, &classes, diagnose) {
+                match Self::segment(
+                    ch,
+                    mem,
+                    root,
+                    pb_va,
+                    length as usize,
+                    now,
+                    &classes,
+                    diagnose,
+                ) {
                     Ok((seg_notes, blocked)) => {
                         notes.push(format!(
                             "chid {chid} gp {}: pushbuffer va {pb_va:#x} {} dwords{}",
@@ -1807,11 +1900,12 @@ impl Registry {
                 // Methods below 0x100 are the host's; the rest go to the class bound to
                 // the subchannel. A subchannel without SET_OBJECT is taken as the copy
                 // engine (UVM's CE channels, E5a).
-                let class = ch.objects[subch];
+                let binding = ch.objects[subch];
+                let class = ch.bound_class(binding);
                 let r = if a < 0x100 {
                     Self::host_method(ch, mem, root, subch, a, data, now, ch.deferred_management)
                 } else if ch.deferred_management && class == 0x5080 {
-                    Self::deferred_management_method(ch, a, data)
+                    Self::deferred_management_method(ch, binding, a, data)
                 } else if ch.deferred_management && class == classes.compute {
                     Err(MethodError::Failed(format!(
                         "strict management chid {} rejects compute method {a:#x}",
@@ -2152,6 +2246,7 @@ impl Registry {
 
     fn deferred_management_method(
         ch: &mut Channel,
+        binding: u32,
         addr: u32,
         api: u32,
     ) -> Result<Option<String>, MethodError> {
@@ -2161,10 +2256,18 @@ impl Registry {
                 ch.chid
             )));
         }
-        let objects = ch
-            .engine_objects_with_handles()
-            .filter_map(|(handle, class, _)| (class == 0x5080).then_some(handle))
-            .collect::<Vec<_>>();
+        let objects = if binding == 0x5080 {
+            ch.engine_objects_with_handles()
+                .filter_map(|(handle, class, _)| (class == 0x5080).then_some(handle))
+                .collect::<Vec<_>>()
+        } else {
+            u16::try_from(binding)
+                .ok()
+                .and_then(|id| ch.software_objects.get(&id).copied())
+                .filter(|(_, class)| *class == 0x5080)
+                .map(|(handle, _)| vec![handle])
+                .unwrap_or_default()
+        };
         let Some(&object) = objects.first() else {
             return Err(MethodError::Failed(format!(
                 "strict management chid {} has no recorded 0x5080 object",
@@ -3308,6 +3411,41 @@ mod tests {
     }
 
     #[test]
+    fn captured_management_prefix_is_pure_state_and_resolves_software_id() {
+        let words = [
+            0x20014000, 0x0000a140, 0x20016000, 0x0000902d, 0x20016222, 0x00000001, 0x200160a4,
+            0x00000000, 0x200160a7, 0x00000000, 0x200160ab, 0x00000003, 0x20016201, 0x000000cf,
+            0x20046210, 0x00000000, 0x00000001, 0x00000000, 0x00000001, 0x20046214, 0x00000000,
+            0x00000000, 0x00000000, 0x00000000, 0x20046230, 0x00000000, 0x00000001, 0x00000000,
+            0x00000001, 0x20018000, 0x0000c5b5, 0x20010000, 0x0000c597, 0x20020041, 0x00000001,
+            0x20233600, 0x20012000, 0x0000c5c0, 0x20022041, 0x00000001, 0x20233600, 0x2001a000,
+            0x00000001,
+        ];
+        let (mut fb, sys, path, mut reg) = software_fixture("captured-management-prefix", &words);
+        reg.record_alloc(1, 0x40, 0x77, 0x5080, &[]).unwrap();
+        reg.channel_mut(9).unwrap().mirrored = true;
+        let plan = reg
+            .preview_deferred_takeover(
+                &GpuMem {
+                    fb: &mut fb,
+                    sys: &sys,
+                },
+                9,
+                1,
+            )
+            .unwrap();
+        reg.apply_deferred_takeover(plan).unwrap();
+        let ch = reg.channel(9).unwrap();
+        assert_eq!(ch.objects[3], 0x902d);
+        assert_eq!(ch.objects[2], 0xa140);
+        assert_eq!(ch.objects[1], 0xc5c0);
+        assert_eq!(ch.objects[5], 1);
+        assert_eq!(ch.bound_class(1), 0x5080);
+        assert_eq!(ch.software_objects.get(&1), Some(&(0x77, 0x5080)));
+        std::fs::remove_file(path).ok();
+    }
+
+    #[test]
     fn strict_management_rejects_unmodelled_work_and_failed_completion_is_fatal() {
         let mut pb = inc(5, 0, &[0x5080]);
         pb.extend(inc(5, 0x200, &[7]));
@@ -3951,6 +4089,42 @@ mod tests {
         reg.record_free(1, 0x77);
         assert!(reg.engine_object(1, 0x77).is_none());
         assert!(reg.channel(4).is_some());
+    }
+
+    #[test]
+    fn software_object_ids_are_exact_monotonic_and_unknown_history_fails_strict() {
+        let mut reg = Registry::new(classes());
+        let params = channel_params(3, 0x1000_0000, 0x20_0000, 0);
+        reg.record_alloc(1, 0x10, 0x40, TURING_CHANNEL_GPFIFO_A, &params);
+        reg.record_alloc(1, 0x40, 0x70, 0x5080, &[]);
+        reg.record_alloc(1, 0x40, 0x71, GP100_UVM_SW, &[]);
+        assert_eq!(
+            reg.channel(3).unwrap().software_objects.get(&1),
+            Some(&(0x70, 0x5080))
+        );
+        assert_eq!(
+            reg.channel(3).unwrap().software_objects.get(&2),
+            Some(&(0x71, GP100_UVM_SW))
+        );
+        reg.record_free(1, 0x70);
+        reg.record_alloc(1, 0x40, 0x72, 0x5080, &[]);
+        assert!(!reg.channel(3).unwrap().software_objects.contains_key(&1));
+        assert_eq!(
+            reg.channel(3).unwrap().software_objects.get(&3),
+            Some(&(0x72, 0x5080))
+        );
+
+        reg.record_alloc(1, 0x40, 0x73, 0xdead, &[]);
+        reg.record_free(1, 0x73);
+        assert!(reg.enable_deferred_management(3).is_err());
+        reg.record_free(1, 0x40);
+        reg.record_alloc(1, 0x10, 0x40, TURING_CHANNEL_GPFIFO_A, &params);
+        reg.record_alloc(1, 0x40, 0x70, 0x5080, &[]);
+        assert_eq!(
+            reg.channel(3).unwrap().software_objects.get(&1),
+            Some(&(0x70, 0x5080))
+        );
+        assert!(reg.enable_deferred_management(3).is_ok());
     }
 
     #[test]
