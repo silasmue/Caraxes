@@ -2913,7 +2913,12 @@ impl Registry {
             let bytes = bytes_per_line
                 .checked_mul(lines)
                 .ok_or("CE transfer size overflow")?;
-            if lines > CE_MAX_LINES || bytes_per_line > CE_MAX_BYTES || bytes > CE_MAX_BYTES {
+            // A memset (constant remap) writes the guest's own memory with no buffer the
+            // size of the transfer, so it gets the larger fill budget: the guest's scrubber
+            // clears freed allocations in one LAUNCH_DMA (132448256 bytes seen, 615 with
+            // scrub-on-free, 2026-09-28). A copy keeps the copy budget.
+            let max = if remap { CE_MAX_FILL_BYTES } else { CE_MAX_BYTES };
+            if lines > CE_MAX_LINES || bytes_per_line > max || bytes > max {
                 return Err(format!(
                     "CE transfer {lines} lines/{bytes} bytes exceeds software budget"
                 ));
@@ -2952,20 +2957,20 @@ impl Registry {
                 )?;
                 rows.push((from, to));
             }
-            let mut data = if remap {
-                remap_line(c)?
-            } else {
-                let mut b = Vec::new();
-                b.try_reserve_exact(bytes_per_line as usize)
-                    .map_err(|_| "CE copy buffer allocation failed")?;
-                b.resize(bytes_per_line as usize, 0);
-                b
-            };
-            for (from, to) in rows {
-                if !remap {
-                    ce_read(mem, &from, &mut data)?;
+            if remap {
+                let elem = remap_elem(c)?;
+                for (_, to) in rows {
+                    ce_fill(mem, &to, &elem)?;
                 }
-                ce_write(mem, &to, &data)?;
+            } else {
+                let mut data = Vec::new();
+                data.try_reserve_exact(bytes_per_line as usize)
+                    .map_err(|_| "CE copy buffer allocation failed")?;
+                data.resize(bytes_per_line as usize, 0);
+                for (from, to) in rows {
+                    ce_read(mem, &from, &mut data)?;
+                    ce_write(mem, &to, &data)?;
+                }
             }
             let dst_desc = if dst_phys {
                 format!(
@@ -3025,6 +3030,10 @@ impl Registry {
 
 // Explicit CPU-work and allocation limits, independent of guest-supplied dimensions.
 const CE_MAX_BYTES: u64 = 64 << 20;
+/// A memset's bound: at most the guest's own memory it may address (ce_pieces checks each
+/// piece against the guest FB and registered RAM), written in [`CE_FILL_CHUNK`] pieces.
+const CE_MAX_FILL_BYTES: u64 = 4 << 30;
+const CE_FILL_CHUNK: usize = 1 << 20;
 const CE_MAX_LINES: u64 = 4096;
 
 fn ce_pieces(
@@ -3039,7 +3048,7 @@ fn ce_pieces(
     address
         .checked_add(len)
         .ok_or("CE address range overflow")?;
-    if len > CE_MAX_BYTES {
+    if len > CE_MAX_FILL_BYTES {
         return Err("CE range exceeds software budget".into());
     }
     if physical && (mode & 3 == 3 || mode & !3 != 0) {
@@ -3160,7 +3169,40 @@ enum MethodError {
 /// One memset line from the remap constants: LINE_LENGTH_IN elements of
 /// NUM_DST_COMPONENTS (25:24, +1) components of COMPONENT_SIZE (17:16, +1)
 /// bytes, each component from CONST_A (4) or CONST_B (5) (clc5b5.h:155-206).
-fn remap_line(c: &CeState) -> Result<Vec<u8>, String> {
+/// Write the element `elem` repeated over `pieces` (the destination rows of a memset),
+/// in [`CE_FILL_CHUNK`] writes, the pattern continuing across pieces.
+fn ce_fill(mem: &mut GpuMem, pieces: &[(Target, usize)], elem: &[u8]) -> Result<(), String> {
+    let e = elem.len().max(1);
+    // One chunk of whole elements plus one element of slack for the phase at a piece start.
+    let reps = CE_FILL_CHUNK.div_ceil(e) + 1;
+    let pattern: Vec<u8> = elem.iter().copied().cycle().take(reps * e).collect();
+    let mut row_off = 0usize;
+    for &(target, n) in pieces {
+        let mut done = 0usize;
+        while done < n {
+            let len = (n - done).min(CE_FILL_CHUNK);
+            let phase = (row_off + done) % e;
+            let at = match target {
+                Target::Fb(pa) => Target::Fb(pa + done as u64),
+                Target::Sys(pa) => Target::Sys(pa + done as u64),
+                t => t,
+            };
+            let failed = mem.fb.vram_stats().map_or(0, |s| s.failed);
+            if !mem.write(at, &pattern[phase..phase + len])
+                || mem.fb.vram_stats().map_or(0, |s| s.failed) != failed
+            {
+                return Err(format!("CE fill {at:?}+{len:#x} failed"));
+            }
+            done += len;
+        }
+        row_off += n;
+    }
+    Ok(())
+}
+
+/// One element of a constant remap (memset): the components the remap selects, each the
+/// component size wide.
+fn remap_elem(c: &CeState) -> Result<Vec<u8>, String> {
     let comp = ((c.remap_components >> 16) & 3) as usize + 1;
     let ncomp = ((c.remap_components >> 24) & 3) as usize + 1;
     let mut elem = Vec::with_capacity(comp * ncomp);
@@ -3177,18 +3219,7 @@ fn remap_line(c: &CeState) -> Result<Vec<u8>, String> {
         };
         elem.extend_from_slice(&v.to_le_bytes()[..comp]);
     }
-    let n = c.line_length_in as usize;
-    if n.saturating_mul(elem.len()) > CE_MAX_BYTES as usize {
-        return Err(format!("memset of {n} elements refused"));
-    }
-    let bytes = n.checked_mul(elem.len()).ok_or("CE remap size overflow")?;
-    let mut out = Vec::new();
-    out.try_reserve_exact(bytes)
-        .map_err(|_| "CE remap buffer allocation failed")?;
-    for _ in 0..n {
-        out.extend_from_slice(&elem);
-    }
-    Ok(out)
+    Ok(elem)
 }
 
 /// A Turing QMD as far as the refused launch needs describing. The QMD V02_02 layout is
@@ -4053,6 +4084,42 @@ mod tests {
         assert!(blit.contains("src format 0xe6 BLOCKLINEAR block 0x10"), "{blit}");
         assert!(blit.contains("0x780x0x438 va 0x10003000") || blit.contains("1920x1080 va 0x10003000"), "{blit}");
         assert!(!blit.contains("assumed"), "{blit}");
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// A memset (constant remap) is written in chunks with no buffer of its size, and its
+    /// pattern continues across the destination's pieces (the guest scrubber's fills,
+    /// 2026-09-28): a 3-byte element over pieces of odd sizes, in FB and guest RAM.
+    #[test]
+    fn a_memset_fill_keeps_its_pattern_across_pieces() {
+        let (mut fb, sys, path, _root) = world("cefill");
+        let elem = [0xA1u8, 0xB2, 0xC3];
+        let pieces = [(Target::Fb(0x10_0000), 7usize), (Target::Fb(0x20_0005), 5), (Target::Sys(0x4000_0100), 11)];
+        {
+            let mut mem = GpuMem { fb: &mut fb, sys: &sys };
+            ce_fill(&mut mem, &pieces, &elem).unwrap();
+        }
+        let mut all = Vec::new();
+        for (t, n) in pieces {
+            let mut b = vec![0u8; n];
+            match t {
+                Target::Fb(pa) => assert!(fb.read(pa, &mut b)),
+                Target::Sys(pa) => assert!(sys.read(pa, &mut b)),
+                _ => unreachable!(),
+            }
+            all.extend(b);
+        }
+        let want: Vec<u8> = elem.iter().copied().cycle().take(all.len()).collect();
+        assert_eq!(all, want);
+        // A fill longer than one chunk.
+        let n = 3 * CE_FILL_CHUNK + 17;
+        {
+            let mut mem = GpuMem { fb: &mut fb, sys: &sys };
+            ce_fill(&mut mem, &[(Target::Fb(0x40_0000), n)], &[0x5Au8, 0x5B]).unwrap();
+        }
+        let mut b = vec![0u8; n];
+        assert!(fb.read(0x40_0000, &mut b));
+        assert!(b.chunks(2).all(|c| c[0] == 0x5A && (c.len() == 1 || c[1] == 0x5B)));
         let _ = std::fs::remove_file(&path);
     }
 
