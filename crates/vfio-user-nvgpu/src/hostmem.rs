@@ -1496,7 +1496,7 @@ impl HostMemory {
             })
             | f::DMA_OFFSET_FIXED.set(f::DMA_OFFSET_FIXED_TRUE)
             | f::DEFER_TLB_INVALIDATION.set(u32::from(defer));
-        // A guest depth/stencil kind (shadow.rs `kind_override`): NVOS46_FLAGS_PAGE_KIND_OVERRIDE
+        // A guest uncompressed kind (shadow.rs `kind_override`): NVOS46_FLAGS_PAGE_KIND_OVERRIDE
         // (nvos.h:2114) with `kindOverride` (nvos.h:2178).
         if let Some(k) = kind {
             p.flags |= f::PAGE_KIND_OVERRIDE.set(1);

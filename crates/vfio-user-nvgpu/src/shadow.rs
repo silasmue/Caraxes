@@ -434,17 +434,21 @@ fn host_target(sys_mem: &GuestMemory, t: &Target, size: u64) -> Target {
 pub struct Leaf {
     pub target: Target,
     pub size: u64,
-    /// The guest PTE's kind. A depth/stencil kind (Z16..Z24S8, 0x01-0x05, uncompressed) is
-    /// carried into the shadow mapping as a kind override (`kind_override`): the 3D engine
-    /// checks the kind of a Z surface (Xid 13 "3D-Z KIND Violation" with the reservation's
-    /// generic kind, display-e.md).
+    /// The guest PTE's kind, carried into the shadow mapping as a kind override
+    /// (`kind_override`) for every uncompressed kind: the engines check a surface's kind
+    /// against its layout (Xid 13 "3D-Z KIND Violation" for a Z surface, display-e.md;
+    /// "2D KIND Violation" for a pitch surface, SotTR 2026-09-28).
     pub kind: u8,
 }
 
-/// The kind a shadow mapping overrides to: the guest's, for the uncompressed depth and
-/// stencil kinds only; every other leaf keeps the backing object's kind.
+/// The kind a shadow mapping overrides to: the guest's, for every uncompressed Turing kind
+/// (0x00 PITCH, 0x01-0x05 depth/stencil, 0x06 GENERIC_16BX2). Without it a leaf keeps the
+/// backing object's kind: a pitch surface in the reservation became block-linear generic
+/// and the 2D engine faulted (Xid 13 "2D KIND Violation" on FERMI_TWOD_A, SotTR's first
+/// frames, 2026-09-28). The host RM accepts any kind the chip supports as an override,
+/// vidmem or sysmem (virtual_mem.c:1319-1328). Compressible kinds never get here (D16).
 pub fn kind_override(kind: u8) -> Option<u8> {
-    (0x01..=0x05).contains(&kind).then_some(kind)
+    (0x00..=0x06).contains(&kind).then_some(kind)
 }
 
 /// The page class of a region object: 2 MiB pages, or 4 KiB/64 KiB pages under the
@@ -2278,6 +2282,19 @@ mod tests {
 
     /// D16: a compressible leaf inside an otherwise contiguous stretch is refused by the
     /// filter, never reaches a map call, and splits the run around it.
+    /// Every uncompressed guest kind reaches the host PTE as an override: pitch (the 2D
+    /// KIND Violation of SotTR, 2026-09-28), depth/stencil (display-e.md) and generic.
+    /// INVALID and the compressible kinds (refused by D16 before any map) get none.
+    #[test]
+    fn every_uncompressed_kind_is_carried_into_the_shadow_mapping() {
+        for k in 0x00..=0x06u8 {
+            assert_eq!(kind_override(k), Some(k), "kind {k:#x}");
+        }
+        for k in 0x07..=0x0Fu8 {
+            assert_eq!(kind_override(k), None, "kind {k:#x}");
+        }
+    }
+
     #[test]
     fn a_compressible_leaf_splits_the_run_and_is_never_mapped() {
         let mut fb = FakeFb::new(END + (64 << 20));
