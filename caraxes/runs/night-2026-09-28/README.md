@@ -100,3 +100,46 @@ The per-frame analysis runs as a separate research note (docs/research/video-pat
    - Ring to host doorbell p50: 9.5, 3.5 and 2.4 µs.
    - The rest (host doorbell to the next ring ~10 µs vs ~6 µs native) is on the host GPU side, which is probably also the P8 clocks.
 8. **UVM:** 945431f9 answers GSP_GET_FEATURES bit 0 by the guest's NVGMC_SI_HOST_OS_TYPE: Unix 0 (cudaMallocManaged returns 801, as on vGPU without UVM), Windows 1 for now. The user thinks Windows does not need it; an A/B on Windows is planned.
+
+## Stability gate (the user's priority from 23:00: one stable device for nova, the Linux open driver and Windows)
+
+| Guest | Binary | Result | Evidence |
+|---|---|---|---|
+| Linux, NVIDIA open 615.71.09, desktop + compression + display, 1 GiB slot 4, FAST=2 | v615 945431f9 | modules, GNOME/Wayland, 1920x1080 display, vkcube Wayland/X11, glmark2, NVENC/NVDEC PASS (174.8 / 110.5 fps), vkcube beside the NVENC holder, Sunshine active; 0 guest Xid, 0 host Xid. vkcomp/cuwork rc=124 is their endless loop cut by the 40 s timeout, the same in runs 9-11 | `linuxb-night/smoke-graphics.txt` |
+| Linux, compute series, 4 GiB slot 0 | v615 945431f9 | short kernel, llama, transformer, ResNet-18 ×3, ENC/DEC; 0 Xid | `series945-fast2/` |
+| nova-core (Linux 7.2.7), pure emulation, 1 GiB | **v610** 945431f9 | 5 probes, 4 GSP unloads, unbind/bind ×2, rmmod/modprobe, nova-drm each time; 0 rejected or unanswered RPCs, no host NVRM line | `nova-945/` |
+| Windows 11, 617.14 | P28 (win branch + night) | not run: the test image is broken by a half-applied Windows update (KB5129195, winload.efi 0xc0430001 at code integrity, without our device); repair boot M28 in progress | the Windows agent's run dirs |
+
+- **One device, two builds:** nova's guest ABI 570 needs the 610 build (`--guest-abi: guest ABI 570 needs a 610 build`). The v615 build serves the 615 Linux guest and the 617 Windows guest. For "one universal device" the version choice has to move from compile time to run time (D14: per-version generated ABI, chosen by the guest).
+- The nova VBIOS was regenerated: `synth-vbios.py --ext-sig 0x4E56 --appid 0x85 caraxes/reference/rtx2070/rom.bin` (the oracle passes). The file is not in git; it is at /mnt/vmstore/caraxes/night-2026-09-28/synth-vbios-nova.bin.
+
+## Graphics (Linux, windowed Wayland 1280x720; native on the host's Wayland session at P0)
+
+| Benchmark | native | Linux B 945431f9 (1 GiB, FAST=2) | ratio |
+|---|---|---|---|
+| vkmark score | 15973 / 15940 | 4141 / 4955 | 0.26-0.31 |
+| glmark2 score | 12214 | 3332 | 0.27 |
+
+- Frame times of 0.2 ms against 0.06 ms native: these tiny scenes measure per-frame submit and present overhead (the guest compositor, the virtual display, doorbells and fences), not GPU throughput.
+- vkmark's headless winsys needs VK_EXT_headless_surface, which the NVIDIA driver lacks, so both sides run windowed.
+
+## Host clock boost (merged into dev as 78d4b0fd; branch hostboost-2026-09-28, 0a068b0d)
+
+The user approved it (22:45): "You are allowed to boost, and if possible integrate a dynamic boosting into the host process." Design: docs/research/host-boost-2026-09-28.md.
+- A thread with its own unprivileged host RM client sends NV2080_CTRL_CMD_PERF_BOOST {BOOST_TO_MAX, 3 s}.
+- It renews at most once per second while the VM rings or its host engines raise events, and never on the ring path.
+- It never forwards the guest's CUDA bits or an infinite duration. The boost lapses 2-4 s after the last activity.
+- Off switch for A/B: CARAXES_HOST_BOOST=0.
+
+The A/B in the lean VM (1 GiB, slot 5, FAST=2), run while Windows P28 ran on slot 0 (`boost-ab.sh`, `boost-*-venc/`, `clocks-boost-*-venc.csv`):
+
+| | native | boost on | boost off |
+|---|---|---|---|
+| NVENC 1080p fps | 165-180 | 129 / 145 / 148 | 127 / 110 / 103 |
+| NVENC median latency | 2.3-2.8 ms | 2.85 ms | 3.6-6.6 ms |
+| NVDEC fps | 137-143 | 109-112 | 82-86 |
+| short kernel µs | 6 | 11-12 (21 cold) | 13-17 (36 once) |
+| host P0 samples (100 ms) | - | 195 | 0 (P8/P5 only) |
+
+- The device log shows 20 renewals (5 from guest requests), 0 refused; the RM call takes 7 ms mean, 45 ms max, off the ring path.
+- 0 Xid in the Linux VM. The host Xid lines in the same windows are all from the Windows device (pid 1192852, FAULT_PRIV_VIOLATION on HUBCLIENT_FE, the F2 class), reported by the Windows agent.

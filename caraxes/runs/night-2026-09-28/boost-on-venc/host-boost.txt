@@ -1,0 +1,3 @@
+vfio-user-nvgpu: host boost on: PERF_BOOST {BOOST_TO_MAX, 3 s} on the subdevice of its own unprivileged host RM client, renewed at most every 1000 ms while the VM rings or its host engines raise events, then left to lapse; the guest's PERF_BOOST passes its command (host flag bits 0x83), never its CUDA bits or duration (CARAXES_HOST_BOOST=0 turns it off; docs/research/host-boost-2026-09-28.md)
+vfio-user-nvgpu: host boost: first renewal at +258.170 s: PERF_BOOST {flags 0x2, 3 s} NV_OK in 45179 us
+host boost: 20 renewals (5 from guest requests), 0 refused, first at +258.170 s; RM call mean 7136 us, max 45179 us over 20 call(s)

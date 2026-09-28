@@ -1,0 +1,6 @@
+# host kernel log, Xid lines since 2026-09-28 23:25:44 (device pid 1208820)
+Sep 28 23:26:47 manacor kernel: NVRM: Xid (PCI:0000:2d:00): 31, pid=1192852, name=vfio-user-nvgpu, intr 00000000. MMU Fault: ENGINE GRAPHICS HUBCLIENT_FE faulted @ 0x1_2011c000. Fault is of type FAULT_PRIV_VIOLATION ACCESS_TYPE_VIRT_WRITE
+Sep 28 23:26:55 manacor kernel: NVRM: Xid (PCI:0000:2d:00): 31, pid=1192852, name=vfio-user-nvgpu, intr 00000000. MMU Fault: ENGINE GRAPHICS HUBCLIENT_FE faulted @ 0x1_200fc000. Fault is of type FAULT_PRIV_VIOLATION ACCESS_TYPE_VIRT_WRITE
+Sep 28 23:27:01 manacor kernel: NVRM: Xid (PCI:0000:2d:00): 31, pid=1192852, name=vfio-user-nvgpu, intr 00000000. MMU Fault: ENGINE GRAPHICS HUBCLIENT_FE faulted @ 0x1_200ff000. Fault is of type FAULT_PRIV_VIOLATION ACCESS_TYPE_VIRT_WRITE
+Sep 28 23:27:07 manacor kernel: NVRM: Xid (PCI:0000:2d:00): 31, pid=1192852, name=vfio-user-nvgpu, intr 00000000. MMU Fault: ENGINE GRAPHICS HUBCLIENT_FE faulted @ 0x1_2024f000. Fault is of type FAULT_PRIV_VIOLATION ACCESS_TYPE_VIRT_WRITE
+Sep 28 23:27:13 manacor kernel: NVRM: Xid (PCI:0000:2d:00): 31, pid=1192852, name=vfio-user-nvgpu, intr 00000000. MMU Fault: ENGINE GRAPHICS HUBCLIENT_FE faulted @ 0x1_2038f000. Fault is of type FAULT_PRIV_VIOLATION ACCESS_TYPE_VIRT_WRITE
