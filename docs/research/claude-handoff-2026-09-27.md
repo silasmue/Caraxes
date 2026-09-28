@@ -1,6 +1,8 @@
+<!-- SPDX-License-Identifier: MIT -->
 # Caraxes working handoff for Claude Code
 
-Updated: 2026-09-28, 08:12 CEST. P16 completed its probe; P17 in preparation.
+Updated: 2026-09-28, 16:40 CEST (Claude Code). P17 ran at 08:15 and was stopped after
+four host Xid 31; its result is below. No VM is running; the host was rebooted at 15:15.
 
 Ready-to-use continuation prompt: [Claude Code prompt](claude-continue-windows.md).
 
@@ -19,7 +21,32 @@ Ready-to-use continuation prompt: [Claude Code prompt](claude-continue-windows.m
   Windows target: 4 GiB RAM, 4 CPUs, 1 GiB VRAM, slot 0. Debugger VM has no GPU.
 - Artifact paths below are relative to /mnt/vmstore/caraxes/alpha-2026-09-27/.
 
-## Latest Windows result: P16
+## Latest Windows result: P17
+
+- Build 7b435a18 plus P17-build/diagnostic.patch (binary SHA-256 5600ea77...);
+  artifacts in windows-plain/P17-owned-compute-cta/. Started 08:14:59, stopped 08:17.
+- **D3D11CreateDevice succeeded for the first time** (0x00000000 after 17.5 s),
+  render resources were created at 18.2 s and frame 0 was submitted. The readback of
+  frame 0 never completed; the probe ended with D3D_PROBE_TIMEOUT. Not a rendering pass.
+- Owned GFXP buffers were mapped at private VAs and bound as in P16. Two later
+  GFXP_POOL binds were refused by the diagnostic ("accepts only captured graphics pool
+  binding shape", status 0x56).
+- **Four host Xid 31** on the device's client: MMU fault ENGINE HOST0 HUBCLIENT_HOST,
+  FAULT_PDE, VIRT_READ at 0x144e6000, 0x14d54000, 0x14201000 and 0x151ef000. Each is
+  preceded in the host log by `dmaAllocMapping_GM107: can't update VA space for mapping
+  @vaddr=0x5xxx_xxxx_xxxx` (e.g. 0x534d25a00000). host-kernel.log also has 150 VA
+  allocation failures: 0x51 in 0x120200000-0x120630000 (the guest kernel-RM buffers,
+  set B) and 0x1f at VA 0x0 and 0x13000.
+- Device side: the shadow refuses Windows guest VAs in the 0x5262_xxxx_xxxx range with
+  0x1f (for example `map va 0x526209400000 -> Fb(67a000) size 0x200000 refused 0x1f`),
+  about 9,000 refused leaves per full walk, and the VAS of guest root 0xd3e9000 ended
+  with 1007 map-failed. The faulting VAs are low push-buffer addresses; whether their
+  leaves were refused, deferred or never walked is not yet attributed.
+- Teardown: `exit 3: teardown failed closed (owned GFXP resources remain attached to a
+  host context)`. The host client's resources went with the process; the host was
+  rebooted at 15:15. Do not rerun P17 unchanged.
+
+## Previous Windows result: P16
 
 - Deferred context ordering and lifetime fixes remain in place. P9 completed
   eight INITIALIZE/PROMOTE/EVICT cycles, 24 APIs and 16 ordered semaphore
@@ -48,8 +75,8 @@ Ready-to-use continuation prompt: [Claude Code prompt](claude-continue-windows.m
   buffer cleanup pass. No target workload was submitted.
 - ec3d1fa8/c9531d34 implement per-TSG owned GFXP lifetime, private shadow VA
   exclusions, retryable cleanup, parent retention, and final-exit safeguards.
-  The regular guest pool refusal remains. Next is isolated P15 compatibility
-  testing; its bootstrap pool replies are still incomplete. Host mode 1 is not
+  The regular guest pool refusal remains. P15/P16 isolated compatibility
+  tests retain incomplete bootstrap pool replies. Host mode 1 is not
   proof of guest pool mode 2 support or rendering.
 - P15 stalls before deferred registration, like P13. P15b boots with PnP code 0
   but refuses owned GFXP because the target received a doorbell before BIND.
@@ -275,25 +302,20 @@ LRU capacity, and preserves cumulative counters.
 
 ## Next actions
 
-1. Implement the captured deferred context contract. First preserve exact guest
-   engine-object handles and client/TSG ownership through the host mirror.
-   Translate the owned FB range and target VAS, preserve deferred ordering and
-   implicit deletion, and handle target teardown/reuse. Never forward raw guest
-   physical offsets or acknowledge completion without performing the operation.
-   The experimental
-   CARAXES_SHADOW_USERD=1 path passed host channel creation in P3. Windows client USERD
-   placement is independent of the RM-owned USERD capability; clearing that bit
-   cannot fix this case. The new path uses private host vidmem, directional
-   copies and a separate 1-ms poller (up to 32 live channels per pass).
-   Submission still waits for shadow mappings. Rendering unvalidated.
-   After this change: 508 unit tests and 2 integration tests passed, 1 ignored;
-   log: windows-plain/userd-shadow-tests.log.
-2. Repeat host-backed stock-driver startup, then require the NVIDIA D3D11
-   triangle/readback gate. PnP code 0 alone is insufficient.
-3. Implement behavior behind the diagnostic LUT capabilities before treating
-   the profile as supported. Steam/3DMark is planned with the user for tomorrow,
-   conditional on actual hardware rendering.
-4. Windows desktop/3D stability, desktop latency, then concurrent
-   Sunshine/NVENC/NVDEC. Keep the guest stock and helper-free.
+1. Attribute the P17 faults before any GPU run: why the host refuses the 0x5262_xxxx_xxxx
+   guest VAs (compare the mirror's host VA-space range with the VA space the Windows KMD
+   allocated), and map each fault VA through the guest page tables of the faulting
+   channel (refused, deferred or never walked). Then rerun the triangle/readback gate.
+   Check checkpoint.json and the latest report before launching another VM.
+2. Resolve the next observed failure, preserving ownership, completion ordering
+   and cleanup. PnP code 0 and wrapper exit code 0 do not establish rendering.
+3. Validate guest pool lifecycle and implement the display LUT behavior before
+   enabling the diagnostic capabilities in a supported profile. Current pool
+   sizing is synthetic; closed Windows slot/control-block semantics are unknown.
+4. Audit IntrTree-local MSI delivery across disabled/no-eventfd transitions with
+   ACK-aware tests. The shared pending fix does not cover every interrupt source.
+5. Once rendering passes, repeat startup/teardown, desktop and Windows workloads.
+   Steam/3DMark is conditional on a hardware rendering pass. Then resume Linux
+   Wayland latency and concurrent Sunshine/NVENC/NVDEC validation.
 
 Historical host Xids at uptime 3058.691336 and 3959.278221 predate these trials.
