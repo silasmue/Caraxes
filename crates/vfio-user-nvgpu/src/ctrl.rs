@@ -844,6 +844,186 @@ impl Dispatcher {
         notes
     }
 
+    /// After a host RC with a graphics exception (exceptType 13) on mirrored channel `chid`:
+    /// the 2D engine's surface state (FERMI_TWOD_A, cl902d.h: SET_DST_* 0x200-0x224,
+    /// SET_SRC_* 0x230-0x254) at each blit (`PIXELS_FROM_MEMORY_SRC_Y0_INT` 0x8dc) of the
+    /// channel's last 16 GPFIFO entries, each surface VA with the guest's PTE (its kind) and
+    /// whether set B covers it (then the host's own context buffer is mapped there, not the
+    /// guest's page). For the host Xid 13 "2D KIND Violation" of SotTR (2026-09-28). Read-only,
+    /// once per RC. A subchannel whose SET_OBJECT is older than these entries is taken for
+    /// 2D when it is subchannel 3 (the NVIDIA driver's binding), and says so.
+    pub fn gr_exception_postmortem(&self, gm: &crate::channel::GpuMem, chid: u32) -> Vec<String> {
+        use crate::fb::Target;
+        const ENTRIES: u32 = 16;
+        const MAX_DWORDS: usize = 1 << 16;
+        const TWOD: u32 = 0x902D;
+        #[derive(Default, Clone, Copy, Debug)]
+        struct Surf {
+            format: u32,
+            layout: u32,
+            block: u32,
+            pitch: u32,
+            width: u32,
+            height: u32,
+            upper: u32,
+            lower: u32,
+        }
+        impl Surf {
+            fn set(&mut self, off: u32, d: u32) {
+                match off {
+                    0x00 => self.format = d,
+                    0x04 => self.layout = d,
+                    0x08 => self.block = d,
+                    0x14 => self.pitch = d,
+                    0x18 => self.width = d,
+                    0x1C => self.height = d,
+                    0x20 => self.upper = d,
+                    0x24 => self.lower = d,
+                    _ => {}
+                }
+            }
+            fn va(&self) -> u64 {
+                ((self.upper as u64 & 0xFF) << 32) | self.lower as u64
+            }
+        }
+        let mut notes = Vec::new();
+        let Some(ch) = self.channels.channel(chid) else {
+            return notes;
+        };
+        let (Some(userd), Some(root)) = (
+            ch.userd,
+            self.channels.vas_key_of(ch).and_then(|k| self.channels.vas_root(k)),
+        ) else {
+            notes.push(format!("gr postmortem: chid {chid}: no USERD or VAS root"));
+            return notes;
+        };
+        let at = |t: Target, off: u64| match t {
+            Target::Fb(pa) => Target::Fb(pa + off),
+            Target::Sys(pa) => Target::Sys(pa + off),
+            t => t,
+        };
+        let (get, put) = (gm.read_u32(at(userd, 0x88)), gm.read_u32(at(userd, 0x8C)));
+        let set_b = match (root, self.mirror.as_ref()) {
+            (Target::Fb(r), Some(m)) => m.set_b_of(&self.channels, r),
+            _ => Vec::new(),
+        };
+        let walk = |va: u64| -> String {
+            let (t, pte) = gm.fb.walk_in(Some(gm.sys), root, va);
+            let b = set_b.iter().find(|(lo, hi)| va >= *lo && va < *hi);
+            format!(
+                "va {va:#x} -> {t:?} pte {pte:#018x} kind {:#04x}{}",
+                pte >> 56,
+                b.map_or(String::new(), |(lo, hi)| format!(
+                    " IN SET B [{lo:#x}, {hi:#x}): the host's context buffer is mapped there"
+                ))
+            )
+        };
+        let Some(put) = put else {
+            notes.push(format!("gr postmortem: chid {chid}: USERD unreadable"));
+            return notes;
+        };
+        notes.push(format!(
+            "ERROR gr postmortem: chid {chid} (host RC exceptType 13): USERD GPGet {get:?} GPPut {put}, engine objects {:x?}, set B {set_b:x?}",
+            ch.engine_objects
+        ));
+        let entries = ch.gpfifo_entries.max(1);
+        let mut objects = [0u32; 8];
+        let (mut dst, mut src, mut op) = (Surf::default(), Surf::default(), 0u32);
+        let mut blits: Vec<(u32, u32, Surf, Surf, u32, bool)> = Vec::new();
+        for k in (1..=ENTRIES.min(entries)).rev() {
+            let idx = (put + entries - k) % entries;
+            let mut e = [0u8; 8];
+            if gm.read_va(root, ch.gpfifo_va + 8 * idx as u64, &mut e).is_err() {
+                continue;
+            }
+            let (e0, e1) = (
+                u32::from_le_bytes(e[0..4].try_into().unwrap()),
+                u32::from_le_bytes(e[4..8].try_into().unwrap()),
+            );
+            let length = ((e1 >> 10) & 0x1F_FFFF) as usize;
+            let pb_va = ((e1 as u64 & 0xFF) << 32) | (e0 as u64 & !3);
+            if length == 0 || length > MAX_DWORDS {
+                continue;
+            }
+            let mut raw = vec![0u8; length * 4];
+            if gm.read_va(root, pb_va, &mut raw).is_err() {
+                notes.push(format!("gr postmortem: chid {chid} gp {idx}: pushbuffer {pb_va:#x} unreadable"));
+                continue;
+            }
+            let w: Vec<u32> = raw
+                .chunks_exact(4)
+                .map(|c| u32::from_le_bytes(c.try_into().unwrap()))
+                .collect();
+            let mut i = 0usize;
+            while i < w.len() {
+                let hdr = w[i];
+                i += 1;
+                let (sec_op, count, subch, addr) = (
+                    hdr >> 29,
+                    ((hdr >> 16) & 0x1FFF) as usize,
+                    ((hdr >> 13) & 7) as usize,
+                    (hdr & 0xFFF) << 2,
+                );
+                let methods: Vec<(u32, u32)> = match sec_op {
+                    1 | 3 | 5 => {
+                        let n = count.min(w.len() - i);
+                        let m = (0..n)
+                            .map(|k| {
+                                let a = if sec_op == 3 || (sec_op == 5 && k > 0) {
+                                    addr
+                                } else {
+                                    addr + 4 * k as u32
+                                };
+                                (a, w[i + k])
+                            })
+                            .collect();
+                        i += n;
+                        m
+                    }
+                    4 => vec![(addr, (hdr >> 16) & 0x1FFF)],
+                    _ => continue,
+                };
+                for (a, d) in methods {
+                    if a == 0 {
+                        objects[subch] = d & 0xFFFF;
+                        continue;
+                    }
+                    let assumed = objects[subch] == 0 && subch == 3;
+                    if objects[subch] != TWOD && !assumed {
+                        continue;
+                    }
+                    match a {
+                        0x200..=0x224 => dst.set(a - 0x200, d),
+                        0x230..=0x254 => src.set(a - 0x230, d),
+                        0x2AC => op = d,
+                        0x8DC => {
+                            if blits.len() == 4 {
+                                blits.remove(0);
+                            }
+                            blits.push((idx, subch as u32, dst, src, op, assumed));
+                        }
+                        _ => {}
+                    }
+                }
+            }
+        }
+        if blits.is_empty() {
+            notes.push(format!(
+                "ERROR gr postmortem: chid {chid}: no 2D blit in the last {ENTRIES} GPFIFO entries; 2D state now: dst {dst:x?} src {src:x?}"
+            ));
+        }
+        let layout = |l: u32| if l == 1 { "PITCH" } else { "BLOCKLINEAR" };
+        for (idx, subch, d, s, op, assumed) in blits {
+            notes.push(format!(
+                "ERROR gr postmortem: chid {chid} gp {idx} 2D blit on subch {subch}{} op {op:#x}: dst format {:#x} {} block {:#x} pitch {:#x} {}x{} {}; src format {:#x} {} block {:#x} pitch {:#x} {}x{} {}",
+                if assumed { " (class assumed 0x902d)" } else { "" },
+                d.format, layout(d.layout), d.block, d.pitch, d.width, d.height, walk(d.va()),
+                s.format, layout(s.layout), s.block, s.pitch, s.width, s.height, walk(s.va()),
+            ));
+        }
+        notes
+    }
+
     /// After the host doorbell of a mirrored channel (read-only, nothing is executed
     /// here): poll the channel's USERD GPGet through the FB store for up to 20 ms, then
     /// decode the GPFIFO entry the guest just rang and report every address the physical

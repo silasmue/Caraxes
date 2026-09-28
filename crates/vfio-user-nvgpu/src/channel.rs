@@ -3967,6 +3967,51 @@ mod tests {
         let _ = std::fs::remove_file(&path);
     }
 
+    /// The post-mortem of a host graphics exception (ctrl.rs `gr_exception_postmortem`,
+    /// the SotTR "2D KIND Violation" of 2026-09-28): a blit of the channel's last entries is
+    /// reported with both surfaces' layout, VA and the guest PTE's kind.
+    #[test]
+    fn a_gr_exception_postmortem_names_the_2d_surfaces_and_their_kinds() {
+        let (mut fb, sys, path, _root) = world("grpm");
+        // The destination page VA 0x1000_2000 has kind GENERIC_16BX2 (0x06).
+        fb.write_u64(0x14000 + 8 * 2, ((0x102000u64 >> 12) << 8) | 1 | (0x06 << 56));
+        let f = crate::fixture::rtx2070();
+        let mut d = crate::ctrl::Dispatcher::new(f.chip.data(), &f.identity(4 << 30), None);
+        let reg = &mut d.channels;
+        reg.record_alloc(1, 0x10, 0x20, FERMI_VASPACE_A, &[]);
+        let mut pdes = vec![0u8; 40 + 24 * 6];
+        pdes[40..48].copy_from_slice(&0x10000u64.to_le_bytes());
+        pdes[56..60].copy_from_slice(&1u32.to_le_bytes());
+        reg.record_server_reserved_pdes(1, 0x20, &pdes);
+        let mut tsg = vec![0u8; 20];
+        tsg[8..12].copy_from_slice(&0x20u32.to_le_bytes());
+        reg.record_alloc(1, 0x10, 0x30, KEPLER_CHANNEL_GROUP_A, &tsg);
+        reg.record_alloc(1, 0x30, 0x40, TURING_CHANNEL_GPFIFO_A, &channel_params(9, 0x1000_0000, 0x20_0000, 0))
+            .unwrap();
+        // Pushbuffer at VA 0x1000_1000: 2D on subch 3, a pitch destination at VA 0x1000_2000
+        // (1920x1080, format 0xe6), a block-linear source at VA 0x1000_3000, one blit.
+        let mut pb = inc(3, 0, &[0x902D]);
+        pb.extend(inc(3, 0x200, &[0xE6, 1, 0, 1, 0, 0x1E00, 1920, 1080, 0, 0x1000_2000]));
+        pb.extend(inc(3, 0x230, &[0xE6, 0, 0x10, 1, 0, 0, 1920, 1080, 0, 0x1000_3000]));
+        pb.extend(inc(3, 0x8DC, &[0]));
+        let bytes: Vec<u8> = pb.iter().flat_map(|d| d.to_le_bytes()).collect();
+        fb.write(0x101000, &bytes);
+        let e0 = 0x1000_1000u32;
+        let e1 = (pb.len() as u32) << 10;
+        fb.write(0x100000, &[e0.to_le_bytes(), e1.to_le_bytes()].concat());
+        fb.write(0x20_0000 + USERD_GP_PUT, &1u32.to_le_bytes());
+        let mem = GpuMem { fb: &mut fb, sys: &sys };
+        let notes = d.gr_exception_postmortem(&mem, 9);
+        let blit = notes.iter().find(|n| n.contains("2D blit")).unwrap_or_else(|| panic!("{notes:#?}"));
+        assert!(blit.contains("dst format 0xe6 PITCH"), "{blit}");
+        assert!(blit.contains("va 0x10002000 -> Fb(1056768)") || blit.contains("va 0x10002000 -> Fb(0x102000)"), "{blit}");
+        assert!(blit.contains("kind 0x06"), "{blit}");
+        assert!(blit.contains("src format 0xe6 BLOCKLINEAR block 0x10"), "{blit}");
+        assert!(blit.contains("0x780x0x438 va 0x10003000") || blit.contains("1920x1080 va 0x10003000"), "{blit}");
+        assert!(!blit.contains("assumed"), "{blit}");
+        let _ = std::fs::remove_file(&path);
+    }
+
     /// The doorbell token pool through the dispatcher (docs/caraxes/doorbell-token-pool.md):
     /// the first ring traps with the guest token and hands out a pool token through the
     /// work-submit-token notifier entry; later rings by pool token (eventfd or trapped)

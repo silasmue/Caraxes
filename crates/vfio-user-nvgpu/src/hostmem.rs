@@ -54,6 +54,41 @@ pub struct Window {
     pub len: usize,
 }
 
+/// One page of the device's own memory under an `NV01_MEMORY_SYSTEM_OS_DESCRIPTOR`
+/// ([`HostMemory::device_page_object`]): the error notifier of a host mirror channel whose
+/// guest notifier the host cannot reach (one in guest VRAM). Without it the host RM's RC
+/// of that channel fails to write any notifier ("krcErrorWriteNotifier ... Requested
+/// object not found", 2026-09-28) and the guest learns of the RC only by a fence timeout.
+/// The device reads the page (boot.rs `scan_channel_errors`). Unmapped on drop; the RM
+/// pins the page by its page array, so a drop after a failed descriptor free is safe.
+pub struct DevicePage {
+    ptr: *mut u8,
+}
+
+// SAFETY: the page is this value's own anonymous mapping; the device only reads it
+// (volatile), the GPU writes it through the host RM.
+unsafe impl Send for DevicePage {}
+unsafe impl Sync for DevicePage {}
+
+impl DevicePage {
+    const LEN: usize = 4096;
+
+    /// The first `out.len()` bytes of the page.
+    pub fn read(&self, out: &mut [u8]) {
+        for (i, b) in out.iter_mut().take(Self::LEN).enumerate() {
+            // SAFETY: `i < LEN`, inside the live mapping.
+            *b = unsafe { std::ptr::read_volatile(self.ptr.add(i)) };
+        }
+    }
+}
+
+impl Drop for DevicePage {
+    fn drop(&mut self) {
+        // SAFETY: the mapping made in `device_page_object`, unmapped once.
+        unsafe { libc::munmap(self.ptr.cast(), Self::LEN) };
+    }
+}
+
 /// One private host USERD page in vidmem. Its fields stay private so the mapping cannot
 /// be separated from the allocation handle; consume it with [`HostMemory::free_host_userd`],
 /// which drops the BAR1 window before freeing the RM object.
@@ -1663,6 +1698,29 @@ impl HostMemory {
         self.gpa_mappings_frozen |= !matches!(what, "os-event" | "usermode");
         self.live.push((self.device, h, what));
         Ok(h)
+    }
+
+    /// A zeroed page of the device's own memory as an OS descriptor under the device
+    /// ([`DevicePage`]). Not guest RAM, so it does not freeze the guest's GPA mappings.
+    pub fn device_page_object(&mut self, what: &'static str) -> Result<(u32, DevicePage)> {
+        // SAFETY: a fresh anonymous shared mapping; checked below.
+        let p = unsafe {
+            libc::mmap(
+                std::ptr::null_mut(),
+                DevicePage::LEN,
+                libc::PROT_READ | libc::PROT_WRITE,
+                libc::MAP_SHARED | libc::MAP_ANONYMOUS | libc::MAP_POPULATE,
+                -1,
+                0,
+            )
+        };
+        if p == libc::MAP_FAILED {
+            bail!("device page: mmap: {}", std::io::Error::last_os_error());
+        }
+        let page = DevicePage { ptr: p.cast() };
+        let h = self.os_descriptor(page.ptr, DevicePage::LEN as u64)?;
+        self.live.push((self.device, h, what));
+        Ok((h, page))
     }
 
     /// A sampled read of the whole reservation through BAR1 (P20 item 4b): every 16 MiB

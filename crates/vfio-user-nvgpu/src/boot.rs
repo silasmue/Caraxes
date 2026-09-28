@@ -630,25 +630,38 @@ impl BootModel {
         let mut items = Vec::new();
         let mut notes = Vec::new();
         let mut live = std::collections::BTreeSet::new();
+        // Where each mirrored channel's RC shows: the device's own host notifier page when the
+        // guest's could not be mirrored (mirror.rs `rc_notifier`), else the guest's notifier.
+        let mirror = self.ctrl.mirror.as_ref();
         let chans: Vec<_> = self
             .ctrl
             .channels
             .channels()
             .filter(|c| c.mirrored)
             .filter_map(|c| {
-                c.error_notifier
-                    .map(|t| (c.h_client, c.h_object, c.chid, c.engine_type, t, c.stopped))
+                let host = mirror.and_then(|m| m.rc_notifier(c.chid));
+                (host.is_some() || c.error_notifier.is_some()).then_some((
+                    c.h_client,
+                    c.h_object,
+                    c.chid,
+                    c.engine_type,
+                    c.error_notifier,
+                    host,
+                    c.stopped,
+                ))
             })
             .collect();
-        for (hc, ho, chid, eng, t, stopped) in chans {
+        for (hc, ho, chid, eng, t, host, stopped) in chans {
             live.insert((hc, ho));
             let mut now = [0u8; crate::events::NOTIFIER_SIZE];
             let gm = crate::channel::GpuMem {
                 fb: &mut self.fb,
                 sys: mem,
             };
-            if !gm.read(t, &mut now) {
-                continue;
+            match (host, t) {
+                (Some(h), _) => now = h,
+                (None, Some(t)) if gm.read(t, &mut now) => {}
+                _ => continue,
             }
             let w = self
                 .watch
@@ -671,8 +684,12 @@ impl BootModel {
                     "Caraxes: channel {chid} (engine type {eng:#x}) error, info16 {info16:#x} (host mirror)"
                 );
                 notes.push(format!(
-                    "chid {chid}: error notifier written (exceptType {xid}, info16 {info16:#x}): OS_ERROR_LOG and RC_TRIGGERED to the guest [guest channel, host mirror]"
+                    "chid {chid}: error notifier written (exceptType {xid}, info16 {info16:#x}){}: OS_ERROR_LOG and RC_TRIGGERED to the guest [guest channel, host mirror]",
+                    if host.is_some() { " on the device's host notifier page" } else { "" }
                 ));
+                if xid == crate::gspmem::XID_GR_EXCEPTION {
+                    notes.extend(self.ctrl.gr_exception_postmortem(&gm, chid));
+                }
                 // RmLogonRC = 0: no Xid line (gspboot.rs, B3).
                 if self.registry.log_on_rc {
                     items.push(crate::events::Unsolicited::Event(

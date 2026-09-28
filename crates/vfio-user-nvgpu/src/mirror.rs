@@ -649,6 +649,9 @@ pub struct HostChannel {
     /// Private low-address USERD for a guest sysmem USERD on a high-IOVA host.
     userd: Option<ShadowUserd>,
     context_ready: bool,
+    /// The host error notifier when the guest's could not be mirrored (a guest notifier in
+    /// VRAM): the device's own page, read by the RC scan (`Mirror::rc_notifier`).
+    rc_page: Option<crate::hostmem::DevicePage>,
 }
 
 /// Counters for the exit summary.
@@ -1774,6 +1777,7 @@ impl Mirror {
         // used to stay until the device exited: one leak per doorbell of a refused channel).
         let mut owned: Vec<u32> = Vec::new();
         let mut shadow_userd: Option<ShadowUserd> = None;
+        let mut rc_page: Option<crate::hostmem::DevicePage> = None;
         let built = (|| -> Result<Built, (String, Option<u32>)> {
             // P21 design H: a USERD page the guest maps into the BAR1 pool area lives at
             // its pool page (fb.rs `remap`).
@@ -1843,6 +1847,23 @@ impl Mirror {
                     .inspect(|d| owned.push(*d))
                     .unwrap_or(0),
                 _ => 0,
+            };
+            let h_error = if h_error != 0 {
+                h_error
+            } else {
+                match h.device_page_object("rc-notifier") {
+                    Ok((d, page)) => {
+                        owned.push(d);
+                        rc_page = Some(page);
+                        d
+                    }
+                    Err(e) => {
+                        notes.push(format!(
+                            "shadow: chid {chid}: no host error notifier ({e:#}); an RC of this channel reaches the guest only as a fence timeout [host]"
+                        ));
+                        0
+                    }
+                }
             };
             let mut cp = crate::hostabi::ChannelAllocParams::default();
             cp.flags = HOST_MIRROR_CHANNEL_FLAGS;
@@ -1998,6 +2019,7 @@ impl Mirror {
                 fwd_unwaited: 0,
                 userd: shadow_userd,
                 context_ready: submit,
+                rc_page,
             },
         );
         notes.push(format!(
@@ -2444,6 +2466,15 @@ impl Mirror {
 
     pub fn channel(&self, chid: u32) -> Option<&HostChannel> {
         self.channels.get(&chid)
+    }
+
+    /// The host error notifier of `chid`'s mirror when it is the device's own page (the
+    /// guest's could not be mirrored): what the host RM wrote there. `None` otherwise.
+    pub fn rc_notifier(&self, chid: u32) -> Option<[u8; crate::events::NOTIFIER_SIZE]> {
+        let page = self.channels.get(&chid)?.rc_page.as_ref()?;
+        let mut n = [0u8; crate::events::NOTIFIER_SIZE];
+        page.read(&mut n);
+        Some(n)
     }
 
     pub fn mirrored_channels(&self) -> usize {
@@ -2979,6 +3010,7 @@ impl Mirror {
 
         let mut h = self.hm.lock().unwrap();
         let mut owned: Vec<u32> = Vec::new();
+        let mut rc_page: Option<crate::hostmem::DevicePage> = None;
         let r = (|| -> Result<Built, String> {
             // USERD: the guest's page, as the host memory object over the same bytes.
             // P21 design H: the USERD's pool page when it lives in the pool (fb.rs `remap`).
@@ -3031,6 +3063,23 @@ impl Mirror {
                     }
                 }
                 _ => 0,
+            };
+            let h_error = if h_error != 0 {
+                h_error
+            } else {
+                match h.device_page_object("rc-notifier") {
+                    Ok((d, page)) => {
+                        owned.push(d);
+                        rc_page = Some(page);
+                        d
+                    }
+                    Err(e) => {
+                        notes.push(format!(
+                            "chid {chid}: no host error notifier ({e:#}); an RC of this channel reaches the guest only as a fence timeout [host]"
+                        ));
+                        0
+                    }
+                }
             };
             let mut cp = crate::hostabi::ChannelAllocParams::default();
             cp.flags = HOST_MIRROR_CHANNEL_FLAGS;
@@ -3179,6 +3228,7 @@ impl Mirror {
                         fwd_unwaited: 0,
                         userd: None,
                         context_ready: true,
+                        rc_page,
                     },
                 );
                 Ok((token, notes))
@@ -3195,6 +3245,11 @@ impl Mirror {
                 Err(format!("{e}; notes so far: {}", notes.join(" | ")))
             }
         }
+    }
+
+    /// [`Self::root_exclusions`] for diagnostics (ctrl.rs `gr_exception_postmortem`).
+    pub fn set_b_of(&self, reg: &Registry, root: u64) -> Vec<(u64, u64)> {
+        self.root_exclusions(reg, root)
     }
 
     /// The set-B exclusions of shadow root `root` now: the live channels' ([`exclusions_of`])

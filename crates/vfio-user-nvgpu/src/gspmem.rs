@@ -254,6 +254,8 @@ pub const LOG_LEVEL_DIAGNOSTIC: u8 = 20;
 pub const LOG_LEVEL_ERROR: u8 = 50;
 /// `ROBUST_CHANNEL_FIFO_ERROR_MMU_ERR_FLT` (nverror.h:49): Xid 31.
 pub const XID_MMU_FAULT: u32 = 31;
+/// `ROBUST_CHANNEL_GR_EXCEPTION` (nverror.h): Xid 13, a graphics engine exception.
+pub const XID_GR_EXCEPTION: u32 = 13;
 /// `ROBUST_CHANNEL_PREEMPTIVE_REMOVAL` (nverror.h): Xid 45, also the notice the kernel
 /// writes into a channel's error notifier after its `STOP_CHANNEL` (kernel_channel.c:1903).
 pub const XID_PREEMPTIVE_REMOVAL: u32 = 45;
