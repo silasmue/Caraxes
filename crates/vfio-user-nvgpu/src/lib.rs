@@ -29,6 +29,7 @@ pub mod display;
 pub mod dmamap;
 pub mod events;
 pub mod dmodel;
+pub mod deferred;
 pub mod falcon;
 pub mod fwdcache;
 pub mod fb;

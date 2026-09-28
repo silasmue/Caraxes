@@ -1,0 +1,605 @@
+// SPDX-License-Identifier: MIT
+// SPDX-FileCopyrightText: 2026 Silas Müller <github@silasmueller.de>
+//! Ordered Windows context lifecycle on host-managed shadow contexts.
+
+use super::{Answer, Dispatcher, NV_ERR_NOT_SUPPORTED, NV_OK};
+use crate::channel::{GpuMem, Registry};
+use crate::deferred::{self, Request};
+use crate::fb::Target;
+use std::collections::{BTreeMap, BTreeSet};
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+struct TargetStamp {
+    chid: u32,
+    generation: u64,
+    client: u32,
+    object: u32,
+    root: u64,
+}
+
+impl TargetStamp {
+    fn resolve(reg: &Registry, request: Request) -> Result<Self, String> {
+        let target = request.target();
+        let ch = reg
+            .channel(target.channel_id)
+            .ok_or("target ChID is not live")?;
+        if ch.h_client != target.h_channel_client
+            || ch.h_parent != target.h_object
+            || ch.engine_type != 1
+            || ch.alloc_flags & (1 << 31) == 0
+            || reg.tsg((ch.h_client, ch.h_parent)).is_none()
+        {
+            return Err("target is not the exact skip-context GR channel/TSG".into());
+        }
+        if reg
+            .channels()
+            .filter(|c| c.h_client == ch.h_client && c.h_parent == ch.h_parent)
+            .count()
+            != 1
+        {
+            return Err("deferred multi-channel TSG is not implemented".into());
+        }
+        let Some(Target::Fb(root)) = reg.vas_key_of(ch).and_then(|key| reg.vas_root(key)) else {
+            return Err("target VAS has no framebuffer root".into());
+        };
+        Ok(Self {
+            chid: ch.chid,
+            generation: ch.generation,
+            client: ch.h_client,
+            object: ch.h_parent,
+            root,
+        })
+    }
+
+    fn live(self, reg: &Registry) -> bool {
+        reg.channel(self.chid).is_some_and(|ch| {
+            ch.generation == self.generation
+                && ch.h_client == self.client
+                && ch.h_parent == self.object
+                && reg.tsg((self.client, self.object)).is_some()
+                && reg.vas_key_of(ch).and_then(|key| reg.vas_root(key))
+                    == Some(Target::Fb(self.root))
+        })
+    }
+}
+
+#[derive(Clone, Copy)]
+struct Registered {
+    owner_chid: u32,
+    owner_generation: u64,
+    target: TargetStamp,
+    request: Request,
+}
+
+#[derive(Clone, Copy)]
+struct Context {
+    size: u64,
+    promoted: bool,
+}
+
+pub(super) struct State {
+    pub(super) enabled: bool,
+    requests: BTreeMap<(u32, u32, u32), Registered>,
+    management: BTreeMap<u32, u64>,
+    contexts: BTreeMap<TargetStamp, Context>,
+    active: BTreeMap<u32, u64>,
+}
+
+impl Default for State {
+    fn default() -> Self {
+        Self {
+            enabled: std::env::var("CARAXES_DEFERRED_CONTEXT").as_deref() == Ok("1"),
+            requests: BTreeMap::new(),
+            management: BTreeMap::new(),
+            contexts: BTreeMap::new(),
+            active: BTreeMap::new(),
+        }
+    }
+}
+
+impl State {
+    pub(super) fn is_management(&self, reg: &Registry, chid: u32) -> bool {
+        self.enabled
+            && self.management.get(&chid).is_some_and(|generation| {
+                reg.channel(chid)
+                    .is_some_and(|ch| ch.generation == *generation)
+            })
+    }
+
+    pub(super) fn prune(&mut self, reg: &Registry) {
+        self.requests.retain(|(client, object, _), r| {
+            r.target.live(reg)
+                && reg.engine_owner(*client, *object) == Some((r.owner_chid, r.owner_generation))
+        });
+        self.contexts.retain(|target, _| target.live(reg));
+        self.management.retain(|chid, generation| {
+            reg.channel(*chid)
+                .is_some_and(|ch| ch.generation == *generation)
+        });
+        self.active.retain(|chid, generation| {
+            reg.channel(*chid)
+                .is_some_and(|ch| ch.generation == *generation)
+        });
+    }
+}
+
+impl Dispatcher {
+    pub(super) fn register_deferred(
+        &mut self,
+        client: u32,
+        object: u32,
+        cmd: u32,
+        params: &[u8],
+    ) -> Answer {
+        let result = (|| -> Result<String, String> {
+            self.deferred_context.prune(&self.channels);
+            let (chid, generation, class, _) = self
+                .channels
+                .engine_object(client, object)
+                .ok_or("deferred object has no live channel owner")?;
+            if class != 0x5080 {
+                return Err("control target is not a deferred object".into());
+            }
+            // Even a refused registration must never leave its software-class method
+            // eligible for raw host submission with a missing host API handle.
+            if cmd != 0x5080_0102 {
+                self.deferred_context.management.insert(chid, generation);
+            }
+            if cmd == 0x5080_0102 {
+                let bytes: [u8; 4] = params
+                    .try_into()
+                    .map_err(|_| "remove API requires four bytes")?;
+                let api = u32::from_le_bytes(bytes);
+                return self
+                    .deferred_context
+                    .requests
+                    .remove(&(client, object, api))
+                    .map(|_| format!("deferred API {api:#x} removed"))
+                    .ok_or_else(|| "deferred API is unknown or already consumed".into());
+            }
+            if cmd != deferred::CMD_DEFERRED_API {
+                return Err("only legacy deferred context registration is implemented".into());
+            }
+            let request = deferred::parse(params).map_err(|e| e.to_string())?;
+            let target = TargetStamp::resolve(&self.channels, request)?;
+            let owner = self
+                .channels
+                .channel(chid)
+                .ok_or("deferred owner is gone")?;
+            if owner.engine_type != 1
+                || owner.alloc_flags & 0x20 == 0
+                || owner.alloc_flags & (1 << 31) != 0
+                || chid == target.chid
+            {
+                return Err(
+                    "deferred caller is not a distinct privileged management channel".into(),
+                );
+            }
+            if let Request::Initialize {
+                phys_address,
+                size,
+                index,
+                ..
+            } = request
+            {
+                if index != target.chid || size == 0 || size % 256 != 0 || phys_address % 4096 != 0
+                {
+                    return Err("unsupported legacy context index, size or alignment".into());
+                }
+                if self
+                    .fb_layout
+                    .and_then(|layout| layout.guest_range_to_host(phys_address, size))
+                    .is_none()
+                {
+                    return Err("deferred context range is outside this VM's framebuffer".into());
+                }
+            }
+            if let Request::Promote {
+                virt_address, size, ..
+            } = request
+            {
+                if size == 0
+                    || size % 256 != 0
+                    || virt_address % 4096 != 0
+                    || virt_address
+                        .checked_add(size)
+                        .is_none_or(|end| end > (1 << 49))
+                {
+                    return Err("unsupported legacy context virtual range".into());
+                }
+            }
+            let key = (client, object, request.api_handle());
+            if request.api_handle() == 0 || self.deferred_context.requests.contains_key(&key) {
+                return Err("deferred API handle is zero or already registered".into());
+            }
+            if self.deferred_context.requests.len() >= 4096 {
+                return Err("deferred API table is full".into());
+            }
+            self.deferred_context.requests.insert(
+                key,
+                Registered {
+                    owner_chid: chid,
+                    owner_generation: generation,
+                    target,
+                    request,
+                },
+            );
+            self.deferred_context.management.insert(chid, generation);
+            Ok(format!("deferred API {:#x} registered on {client:#x}/{object:#x} chid {chid}, nested {:#x} -> target chid {} generation {} (pending execution)", request.api_handle(), request.command(), target.chid, target.generation))
+        })();
+        match result {
+            Ok(note) => Answer {
+                status: NV_OK,
+                params: params.to_vec(),
+                label: "guest (deferred registration)",
+                note,
+            },
+            Err(note) => Answer {
+                status: NV_ERR_NOT_SUPPORTED,
+                params: params.to_vec(),
+                label: "refused (deferred context)",
+                note,
+            },
+        }
+    }
+
+    pub(super) fn run_deferred_management(
+        &mut self,
+        gm: &mut GpuMem,
+        chid: u32,
+        off: &BTreeSet<u32>,
+    ) -> Vec<String> {
+        let mut notes = Vec::new();
+        let generation = match self.channels.channel(chid) {
+            Some(ch) => ch.generation,
+            None => return vec!["deferred management channel is gone".into()],
+        };
+        if self.deferred_context.active.get(&chid) != Some(&generation) {
+            let Some(mirror) = self.mirror.as_mut() else {
+                return vec!["deferred context requires a host mirror".into()];
+            };
+            match mirror.retire_for_management(&self.channels, gm, chid) {
+                Ok((Some(get), n)) => {
+                    notes.extend(n);
+                    if let Err(e) = self.channels.takeover_deferred_management(chid, get, gm) {
+                        return vec![e];
+                    }
+                }
+                Ok((None, _)) => {
+                    return vec!["deferred management has no idle host channel to take over".into()]
+                }
+                Err(e) => return vec![format!("deferred management chid {chid}: waiting: {e}")],
+            }
+            if let Err(e) = self.channels.enable_deferred_management(chid) {
+                return vec![e];
+            }
+            self.deferred_context.active.insert(chid, generation);
+        }
+        // Each pass stops at the pending software method before any following release.
+        for _ in 0..64 {
+            notes.extend(self.channels.run_deferred_one(gm, chid));
+            let pending = self.channels.pending_deferred();
+            if pending.is_empty() {
+                break;
+            }
+            let mut completed = false;
+            for (owner_chid, object, api) in pending {
+                if owner_chid != chid || off.contains(&owner_chid) {
+                    continue;
+                }
+                let Some(owner) = self.channels.channel(owner_chid) else {
+                    continue;
+                };
+                let key = (owner.h_client, object, api);
+                let entry = self.deferred_context.requests.remove(&key);
+                let result = match entry {
+                    Some(entry)
+                        if entry.owner_chid == owner_chid
+                            && entry.owner_generation == owner.generation
+                            && entry.target.live(&self.channels) =>
+                    {
+                        self.execute_deferred(gm, entry, &mut notes)
+                    }
+                    _ => Err("unregistered or stale deferred API".into()),
+                };
+                notes.push(format!(
+                    "deferred method chid {owner_chid} API {api:#x}: {}",
+                    result
+                        .as_ref()
+                        .map(|_| "completed".to_string())
+                        .unwrap_or_else(|e| e.clone())
+                ));
+                if let Err(e) = self.channels.complete_deferred(owner_chid, api, result) {
+                    notes.push(e);
+                }
+                completed = true;
+            }
+            if !completed {
+                break;
+            }
+        }
+        notes
+    }
+
+    fn execute_deferred(
+        &mut self,
+        gm: &mut GpuMem,
+        entry: Registered,
+        notes: &mut Vec<String>,
+    ) -> Result<(), String> {
+        let state = &mut self.deferred_context;
+        let mirror = self.mirror.as_mut().ok_or("host mirror is unavailable")?;
+        match entry.request {
+            Request::Initialize { size, .. } => {
+                if state.contexts.contains_key(&entry.target) {
+                    return Err("context is already initialized".into());
+                }
+                notes.extend(mirror.prepare_deferred_context(
+                    &self.channels,
+                    gm,
+                    entry.target.chid,
+                )?);
+                state.contexts.insert(
+                    entry.target,
+                    Context {
+                        size,
+                        promoted: false,
+                    },
+                );
+            }
+            Request::Promote { size, .. } => {
+                let context = state
+                    .contexts
+                    .get_mut(&entry.target)
+                    .ok_or("context has not been initialized")?;
+                if context.size != size || context.promoted {
+                    return Err("context promotion size or lifecycle mismatch".into());
+                }
+                mirror.promote_deferred_context(&self.channels, entry.target.chid)?;
+                context.promoted = true;
+            }
+            Request::Evict { .. } => {
+                if !state
+                    .contexts
+                    .get(&entry.target)
+                    .is_some_and(|ctx| ctx.promoted)
+                {
+                    return Err("context has not been promoted".into());
+                }
+                notes.extend(mirror.evict_deferred_context(&self.channels, entry.target.chid)?);
+                state.contexts.remove(&entry.target);
+                if let Some(ch) = self.channels.channel_mut(entry.target.chid) {
+                    ch.mirrored = false;
+                }
+            }
+        }
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::deferred::{ContextTarget, Request, CMD_DEFERRED_API};
+    use crate::fb::FbLayout;
+    use crate::ver::active::{self as v, FERMI_VASPACE_A, KEPLER_CHANNEL_GROUP_A};
+    use nvrm_sys::RmAbi;
+
+    type Abi = v::RmAbi;
+
+    fn put32(bytes: &mut [u8], offset: usize, value: u32) {
+        bytes[offset..offset + 4].copy_from_slice(&value.to_le_bytes());
+    }
+
+    fn put64(bytes: &mut [u8], offset: usize, value: u64) {
+        bytes[offset..offset + 8].copy_from_slice(&value.to_le_bytes());
+    }
+
+    fn channel_params(chid: u32, flags: u32, vas: u32) -> Vec<u8> {
+        let mut params = vec![0; <Abi as RmAbi>::ALLOC_CHANNEL_PARAMS_SIZE as usize];
+        put32(
+            &mut params,
+            <Abi as RmAbi>::ALLOC_CHANNEL_PARAMS_OFF_flags,
+            flags | ((chid / 8) << 12) | ((chid % 8) << 8),
+        );
+        put32(
+            &mut params,
+            <Abi as RmAbi>::ALLOC_CHANNEL_PARAMS_OFF_gpFifoEntries,
+            32,
+        );
+        put32(
+            &mut params,
+            <Abi as RmAbi>::ALLOC_CHANNEL_PARAMS_OFF_hVASpace,
+            vas,
+        );
+        put32(
+            &mut params,
+            <Abi as RmAbi>::ALLOC_CHANNEL_PARAMS_OFF_engineType,
+            1,
+        );
+        params
+    }
+
+    fn dispatcher() -> Dispatcher {
+        let fixture = crate::fixture::rtx2070();
+        let mut dispatcher = Dispatcher::new(fixture.chip.data(), &fixture.identity(4 << 30), None)
+            .with_layout(FbLayout::plain(4 << 30));
+        dispatcher.deferred_context.enabled = true;
+        dispatcher
+    }
+
+    fn add_pair(
+        dispatcher: &mut Dispatcher,
+        client: u32,
+        management_chid: u32,
+        target_chid: u32,
+    ) -> (u32, u32, u32) {
+        let classes = crate::fixture::rtx2070().chip.data().channel;
+        let (vas, tsg, management_channel, target_channel, deferred_object) =
+            (0x20, 0x30, 0x40, 0x41, 0x77);
+        dispatcher
+            .channels
+            .record_alloc(client, 0x10, vas, FERMI_VASPACE_A, &[]);
+        let mut pd = vec![0; 24];
+        put64(
+            &mut pd,
+            v::SET_PD_PHYS_ADDRESS,
+            0x10_0000 + u64::from(client) * 0x1000,
+        );
+        put32(&mut pd, v::SET_PD_NUM_ENTRIES, 1);
+        put32(&mut pd, v::SET_PD_H_VASPACE, vas);
+        dispatcher.channels.record_set_page_directory(client, &pd);
+        let mut tsg_params = vec![0; <Abi as RmAbi>::TSG_PARAMS_SIZE as usize];
+        put32(&mut tsg_params, v::TSG_HVASPACE, vas);
+        put32(&mut tsg_params, v::TSG_ENGINE_TYPE, 1);
+        dispatcher
+            .channels
+            .record_alloc(client, 0x10, tsg, KEPLER_CHANNEL_GROUP_A, &tsg_params);
+        dispatcher.channels.record_alloc(
+            client,
+            0x10,
+            management_channel,
+            classes.gpfifo,
+            &channel_params(management_chid, 1 << 5, vas),
+        );
+        dispatcher.channels.record_alloc(
+            client,
+            tsg,
+            target_channel,
+            classes.gpfifo,
+            &channel_params(target_chid, 1 << 31, 0),
+        );
+        dispatcher
+            .channels
+            .record_alloc(client, management_channel, deferred_object, 0x5080, &[]);
+        (deferred_object, target_channel, tsg)
+    }
+
+    fn evict(api: u32, client: u32, target_chid: u32, tsg: u32) -> Request {
+        Request::Evict {
+            api_handle: api,
+            target: ContextTarget {
+                engine_type: 1,
+                h_client: client,
+                channel_id: target_chid,
+                h_channel_client: client,
+                h_object: tsg,
+            },
+        }
+    }
+
+    #[test]
+    fn registration_is_exact_unique_and_client_scoped() {
+        let mut dispatcher = dispatcher();
+        let (object1, _, tsg1) = add_pair(&mut dispatcher, 1, 3, 4);
+        let (object2, _, tsg2) = add_pair(&mut dispatcher, 2, 5, 6);
+        let p1 = evict(0x101, 1, 4, tsg1).encode();
+        let p2 = evict(0x101, 2, 6, tsg2).encode();
+        assert_eq!(
+            dispatcher
+                .register_deferred(1, object1, CMD_DEFERRED_API, &p1)
+                .status,
+            NV_OK
+        );
+        assert_eq!(
+            dispatcher
+                .register_deferred(2, object2, CMD_DEFERRED_API, &p2)
+                .status,
+            NV_OK
+        );
+        assert_eq!(dispatcher.deferred_context.requests.len(), 2);
+        assert_eq!(
+            dispatcher
+                .register_deferred(1, object1, CMD_DEFERRED_API, &p1)
+                .status,
+            NV_ERR_NOT_SUPPORTED
+        );
+        assert!(dispatcher
+            .deferred_context
+            .is_management(&dispatcher.channels, 3));
+        assert!(dispatcher
+            .deferred_context
+            .is_management(&dispatcher.channels, 5));
+    }
+
+    #[test]
+    fn target_generation_reuse_and_free_prune_registration_and_readiness() {
+        let mut dispatcher = dispatcher();
+        let (object, target_object, tsg) = add_pair(&mut dispatcher, 1, 3, 4);
+        let request = evict(0x101, 1, 4, tsg);
+        let params = request.encode();
+        assert_eq!(
+            dispatcher
+                .register_deferred(1, object, CMD_DEFERRED_API, &params)
+                .status,
+            NV_OK
+        );
+        let registered = *dispatcher
+            .deferred_context
+            .requests
+            .get(&(1, object, 0x101))
+            .unwrap();
+        dispatcher.deferred_context.contexts.insert(
+            registered.target,
+            Context {
+                size: 0x2000,
+                promoted: true,
+            },
+        );
+        assert!(registered.target.live(&dispatcher.channels));
+
+        dispatcher.channels.record_free(1, target_object);
+        let classes = crate::fixture::rtx2070().chip.data().channel;
+        dispatcher.channels.record_alloc(
+            1,
+            tsg,
+            target_object,
+            classes.gpfifo,
+            &channel_params(4, 1 << 31, 0),
+        );
+        assert!(!registered.target.live(&dispatcher.channels));
+        dispatcher.deferred_context.prune(&dispatcher.channels);
+        assert!(dispatcher.deferred_context.requests.is_empty());
+        assert!(dispatcher.deferred_context.contexts.is_empty());
+
+        dispatcher.channels.record_free(1, 0x40);
+        dispatcher.deferred_context.prune(&dispatcher.channels);
+        assert!(!dispatcher
+            .deferred_context
+            .is_management(&dispatcher.channels, 3));
+    }
+
+    #[test]
+    fn initialization_rejects_out_of_bounds_and_unsupported_flags() {
+        let mut dispatcher = dispatcher();
+        let (object, _, tsg) = add_pair(&mut dispatcher, 1, 3, 4);
+        let target = evict(1, 1, 4, tsg).target();
+        let outside = Request::Initialize {
+            api_handle: 0x201,
+            target,
+            h_virt_memory: 0,
+            phys_address: (4 << 30) - 0x1000,
+            phys_attr: 0,
+            h_dma_handle: 0,
+            index: 0,
+            size: 0x2000,
+        }
+        .encode();
+        assert_eq!(
+            dispatcher
+                .register_deferred(1, object, CMD_DEFERRED_API, &outside)
+                .status,
+            NV_ERR_NOT_SUPPORTED
+        );
+
+        let mut unsupported = outside;
+        put32(&mut unsupported, 24 + 32, 2);
+        assert_eq!(
+            dispatcher
+                .register_deferred(1, object, CMD_DEFERRED_API, &unsupported)
+                .status,
+            NV_ERR_NOT_SUPPORTED
+        );
+        assert!(dispatcher.deferred_context.requests.is_empty());
+    }
+}

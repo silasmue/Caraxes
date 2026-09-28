@@ -10,6 +10,8 @@
 
 use std::collections::BTreeMap;
 
+mod deferred_context;
+
 use crate::chip::ChipData;
 use crate::rpc::StaticIdentity;
 // Classes, control numbers and parameter layouts of the emulated driver (src/ver).
@@ -98,6 +100,7 @@ pub struct Dispatcher {
     /// (hClient, hObject) → class, for every alloc the device acknowledged. Handles are
     /// per client in RM, so the guest kernel's clients may reuse each other's numbers.
     objects: BTreeMap<(u32, u32), u32>,
+    deferred_context: deferred_context::State,
     /// PCI ids of the emulated function (config space).
     pub pci_device_id: u32,
     pub pci_sub_device_id: u32,
@@ -249,6 +252,7 @@ impl Dispatcher {
             host,
             chip,
             objects,
+            deferred_context: deferred_context::State::default(),
             pci_device_id: id.pci.device_id(),
             pci_sub_device_id: id.pci.sub_device_id(),
             pci_revision: id.pci.revision as u32,
@@ -685,6 +689,9 @@ impl Dispatcher {
                 "doorbell chid {chid}: scheduling disabled by the guest; held until enabled (rc.rs) [guest channel]"
             )];
         }
+        if self.deferred_context.is_management(&self.channels, chid) {
+            return self.run_deferred_management(gm, chid, &off);
+        }
         let Some(m) = self.mirror.as_mut() else {
             return self.channels.doorbell_except(gm, token, &off);
         };
@@ -1084,6 +1091,16 @@ impl Dispatcher {
         h_class: u32,
         params: &[u8],
     ) -> Answer {
+        if self.channels.engine_object(h_client, h_object).is_some()
+            || self.mirror.as_ref().is_some_and(|m| m.engine_handle_in_use(&self.channels, h_client, h_object))
+        {
+            return Answer {
+                status: nvrm_sys::NV_ERR_INVALID_ARGUMENT,
+                params: params.to_vec(),
+                label: "refused (live engine handle)",
+                note: format!("alloc {h_class:#x}: engine {h_client:#x}/{h_object:#x} is still live"),
+            };
+        }
         // Profiler classes are refused (dmodel.rs, d-device-model.md 6.16); the D models note
         // the allocation (a reused handle, a channel's instance block).
         if let Some(a) = self.dstate.alloc(h_client, h_object, h_class, params) {
@@ -1136,7 +1153,7 @@ impl Dispatcher {
                     .channels()
                     .find(|c| c.h_client == h_client && c.h_object == h_parent)
                     .map(|c| c.chid);
-                if let Some(n) = chid.and_then(|c| m.add_engine_object(c, h_class, params)) {
+                if let Some(n) = chid.and_then(|c| m.add_engine_object(c, h_object, h_class, params)) {
                     note.push_str("; ");
                     note.push_str(&n);
                 }
@@ -1216,6 +1233,7 @@ impl Dispatcher {
             None => Vec::new(),
         };
         let registry_notes = self.channels.record_free(h_client, h_object);
+        self.deferred_context.prune(&self.channels);
         self.guest_attrs.free(h_client, h_object);
         self.dstate.rc.forget(h_client, h_object);
         if h_object == h_client {
@@ -1286,6 +1304,10 @@ impl Dispatcher {
     }
 
     fn control_inner(&mut self, h_client: u32, h_object: u32, cmd: u32, params: &[u8]) -> Answer {
+        if matches!(cmd, 0x5080_0101..=0x5080_0104)
+            && self.deferred_context.enabled {
+            return self.register_deferred(h_client, h_object, cmd, params);
+        }
         // This control used to be a Windows-only recorded acknowledgement. It changes the
         // device's live VA-space association, so model it before every recorded override.
         if cmd == CMD_DMA_SET_DEFAULT_VASPACE {

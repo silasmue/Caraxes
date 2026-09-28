@@ -510,7 +510,7 @@ pub fn tsg_reuse(reg: &Registry, existing: (u32, u32), wanted: (u32, u32)) -> Ts
 }
 
 /// What one channel build yields: the host channel, its engine objects, the token.
-type Built = (u32, Vec<(u32, u32)>, u32);
+type Built = (u32, Vec<(u32, u32)>, BTreeMap<u32, u32>, u32);
 
 struct ShadowUserd {
     storage: HostUserd,
@@ -549,6 +549,8 @@ pub struct HostChannel {
     pub token: u32,
     /// `(class, host handle)` of the replayed engine objects.
     pub objects: Vec<(u32, u32)>,
+    /// Exact guest engine handle to host handle, scoped by this channel generation.
+    engine_map: BTreeMap<u32, u32>,
     /// The host memory objects over the guest's own RAM pages this channel uses (its USERD
     /// and error notifier in sysmem, `guest_page_object`): children of the device, not of
     /// the channel, so they are freed with the channel explicitly (before, they lived until
@@ -565,6 +567,7 @@ pub struct HostChannel {
     pub fwd_unwaited: u64,
     /// Private low-address USERD for a guest sysmem USERD on a high-IOVA host.
     userd: Option<ShadowUserd>,
+    context_ready: bool,
 }
 
 /// Counters for the exit summary.
@@ -738,9 +741,9 @@ pub struct Mirror {
     /// The registered guest RAM descriptors `(handle, iova, size)`, read once.
     descs: Option<Vec<(u32, u64, u64)>>,
     /// Video objects the guest allocated on a mirrored shadow channel, not yet placed on
-    /// the host: `(class, params)` by ChID ([`Mirror::place_video_object`];
+    /// the host: `(guest handle, class, params)` by ChID ([`Mirror::place_video_object`];
     /// docs/caraxes/video-engines.md §3).
-    video_pending: BTreeMap<u32, (u32, Vec<u8>)>,
+    video_pending: BTreeMap<u32, (u32, u32, Vec<u8>)>,
     /// Place video objects on the host ([`Mirror::place_video_object`]);
     /// `CARAXES_MIRROR_VIDEO_OBJECT=0` refuses every one to the guest.
     video_objects: bool,
@@ -1010,7 +1013,7 @@ impl Mirror {
         for chid in ids {
             self.userd_cursor = chid;
             let hc = self.channels.get(&chid).unwrap();
-            if !reg.channel(chid).is_some_and(|ch| ch.generation == hc.generation) { continue }
+            if !hc.context_ready || !reg.channel(chid).is_some_and(|ch| ch.generation == hc.generation) { continue }
             let u = hc.userd.as_ref().unwrap();
             u.harvest(gm);
             if gm.read_u32(Target::Sys(u.guest + 0x8c))
@@ -1370,6 +1373,16 @@ impl Mirror {
         gm: &mut GpuMem,
         chid: u32,
     ) -> Vec<String> {
+        self.shadow_channel(reg, gm, chid, true)
+    }
+
+    fn shadow_channel(
+        &mut self,
+        reg: &Registry,
+        gm: &mut GpuMem,
+        chid: u32,
+        submit: bool,
+    ) -> Vec<String> {
         if self.capture_deferred && reg.channel(chid).is_some_and(|ch| {
             ch.engine_objects.iter().any(|(class, _)| *class == 0x5080)
         }) {
@@ -1381,7 +1394,12 @@ impl Mirror {
                 || reg.channel(chid).and_then(|ch| reg.vas_key_of(ch))
                 .and_then(|k| reg.vas_root(k)) != hc.shadow_root.map(Target::Fb)
         }) {
-            self.free_channel(chid, &mut replacement_notes);
+            if !self.free_channel(chid, &mut replacement_notes) {
+                return replacement_notes;
+            }
+        }
+        if self.channels.get(&chid).is_some_and(|hc| !hc.context_ready) && submit {
+            return vec![format!("shadow: chid {chid} held until deferred context promotion")];
         }
         // Evidence (untrapped.rs): did the host channel fetch entries this doorbell has not
         // forwarded yet, and were plans pending then?
@@ -1409,6 +1427,10 @@ impl Mirror {
                 None => self.worker.wait_all(),
             }
             gm.fb.flush();
+            if !submit {
+                notes.push(format!("shadow: chid {chid} context already prepared; no submission"));
+                return notes;
+            }
             if let Some(u) = self.channels.get_mut(&chid).and_then(|hc| hc.userd.as_mut()) {
                 u.harvest(gm);
                 if let Err(e) = u.publish(gm) {
@@ -1742,16 +1764,18 @@ impl Mirror {
             notes.push(format!("shadow: host GR channel {channel:#x} in TSG {tsg:#x} on VAS {vas_handle:#x}, gpfifo va {:#x} [host]", ch.gpfifo_va));
             // The guest's engine objects; the compute object makes the host RM build set B.
             let mut objects = Vec::new();
+            let mut engine_map = BTreeMap::new();
             let mut refused = None;
-            for (class, params) in &ch.engine_objects {
-                let mut p = params.clone();
-                match h.alloc_object(channel, crate::board::host_class_of(*class), &mut p, "shadow-engine") {
+            for (guest_handle, class, params) in ch.engine_objects_with_handles() {
+                let mut p = params.to_vec();
+                match h.alloc_object(channel, crate::board::host_class_of(class), &mut p, "shadow-engine") {
                     Ok(oh) => {
                         notes.push(format!(
                             "shadow: chid {chid} host object class {class:#x}{} {oh:#x} [host]",
-                            crate::board::mapped_note(*class)
+                            crate::board::mapped_note(class)
                         ));
-                        objects.push((*class, oh));
+                        objects.push((class, oh));
+                        engine_map.insert(guest_handle, oh);
                     }
                     Err(e) => {
                         refused = refused.or(Some(e));
@@ -1812,9 +1836,9 @@ impl Mirror {
                     None,
                 ));
             }
-            Ok((channel, objects, u32::from_le_bytes(tok)))
+            Ok((channel, objects, engine_map, u32::from_le_bytes(tok)))
         })();
-        let (channel, objects, token) = match built {
+        let (channel, objects, engine_map, token) = match built {
             Ok(b) => b,
             Err((why, st)) => {
                 notes.push(why);
@@ -1848,6 +1872,7 @@ impl Mirror {
                 tsg: tsg_key,
                 token,
                 objects,
+                engine_map,
                 pages,
                 created: Instant::now(),
                 doorbells: 0,
@@ -1855,6 +1880,7 @@ impl Mirror {
                 fwd_put: None,
                 fwd_unwaited: 0,
                 userd: shadow_userd,
+                context_ready: submit,
             },
         );
         notes.push(format!(
@@ -1876,6 +1902,10 @@ impl Mirror {
             }
         }
         gm.fb.flush();
+        if !submit {
+            notes.push(format!("shadow: chid {chid} context prepared with an empty private USERD; no submission"));
+            return notes;
+        }
         if let Some(u) = self.channels.get_mut(&chid).and_then(|hc| hc.userd.as_mut()) {
             if let Err(e) = u.publish(gm) {
                 notes.push(format!("shadow USERD chid {chid}: {e}; submission refused"));
@@ -1921,6 +1951,74 @@ impl Mirror {
             .iter()
             .find(|(_, c)| c.token == token)
             .map(|(chid, _)| *chid)
+    }
+
+    /// Transfer an idle management channel to the software command interpreter.
+    pub fn retire_for_management(&mut self, reg: &Registry, gm: &mut GpuMem, chid: u32) -> Result<(Option<u32>, Vec<String>), String> {
+        let ch = reg.channel(chid).ok_or("management channel is gone")?;
+        let Some(hc) = self.channels.get(&chid) else { return Ok((None, Vec::new())); };
+        if hc.generation != ch.generation { return Err("management channel generation changed".into()); }
+        let u = hc.userd.as_ref().ok_or("management takeover requires private USERD")?;
+        let get = u.storage.read_u32(0x88);
+        if u.published_put != Some(get) { return Err("management host channel still has pending work".into()); }
+        u.harvest(gm);
+        let key = hc.tsg;
+        if reg.channels().filter(|c| tsg_key_of(reg, c).0 == key).count() != 1 {
+            return Err("management takeover of a shared TSG is not implemented".into());
+        }
+        self.worker.wait_all();
+        let mut notes = Vec::new();
+        if !self.free_tsg(key, &mut notes) { return Err(notes.join("; ")); }
+        self.worker.wait_idle();
+        Ok((Some(get), notes))
+    }
+
+    /// Prepare a host-owned GR context without publishing guest work to its USERD.
+    pub fn prepare_deferred_context(&mut self, reg: &Registry, gm: &mut GpuMem, chid: u32) -> Result<Vec<String>, String> {
+        let ch = reg.channel(chid).ok_or("deferred target channel is gone")?;
+        if !self.is_shadow(reg, chid) || !matches!(ch.userd, Some(Target::Sys(_)))
+            || std::env::var("CARAXES_SHADOW_USERD").as_deref() != Ok("1") {
+            return Err("deferred context requires a shadow GR channel and private sysmem USERD".into());
+        }
+        if !ch.engine_objects.iter().any(|(class, _)| *class == self.chip.channel.compute) {
+            return Err("deferred target has no GR compute object".into());
+        }
+        if self.channels.get(&chid).is_some_and(|hc| hc.doorbells != 0) {
+            return Err("deferred target already submitted work before initialization".into());
+        }
+        let notes = self.shadow_channel(reg, gm, chid, false);
+        let hc = self.channels.get(&chid).filter(|hc| hc.generation == ch.generation)
+            .ok_or_else(|| format!("host context preparation failed: {}", notes.join("; ")))?;
+        if hc.userd.is_none() || !hc.objects.iter().any(|(class, _)| *class == self.chip.channel.compute) {
+            return Err("host context preparation lacks private USERD or GR object".into());
+        }
+        Ok(notes)
+    }
+
+    pub fn promote_deferred_context(&mut self, reg: &Registry, chid: u32) -> Result<(), String> {
+        let ch = reg.channel(chid).ok_or("deferred target channel is gone")?;
+        let root = reg.vas_key_of(ch).and_then(|key| reg.vas_root(key));
+        let hc = self.channels.get_mut(&chid).filter(|hc| hc.generation == ch.generation)
+            .ok_or("deferred target host context is gone")?;
+        if root != hc.shadow_root.map(Target::Fb) { return Err("deferred target VAS changed".into()); }
+        hc.context_ready = true;
+        Ok(())
+    }
+
+    /// RM teardown stops the exact mirrored TSG and releases its host-owned context.
+    pub fn evict_deferred_context(&mut self, reg: &Registry, chid: u32) -> Result<Vec<String>, String> {
+        let ch = reg.channel(chid).ok_or("deferred target channel is gone")?;
+        let hc = self.channels.get(&chid).filter(|hc| hc.generation == ch.generation)
+            .ok_or("deferred target host context is gone")?;
+        let key = hc.tsg;
+        if reg.channels().filter(|c| tsg_key_of(reg, c).0 == key).count() != 1 {
+            return Err("deferred eviction of a multi-channel TSG is not implemented".into());
+        }
+        self.worker.wait_all();
+        let mut notes = Vec::new();
+        if !self.free_tsg(key, &mut notes) { return Err(notes.join("; ")); }
+        self.worker.wait_idle();
+        Ok(notes)
     }
 
     pub fn channel(&self, chid: u32) -> Option<&HostChannel> {
@@ -2564,16 +2662,18 @@ impl Mirror {
             ));
             // The engine objects, with the guest's own parameters.
             let mut objects = Vec::new();
-            for (class, params) in &ch.engine_objects {
-                let mut p = params.clone();
-                match h.alloc_object(handle, crate::board::host_class_of(*class), &mut p, "engine-object") {
+            let mut engine_map = BTreeMap::new();
+            for (guest_handle, class, params) in ch.engine_objects_with_handles() {
+                let mut p = params.to_vec();
+                match h.alloc_object(handle, crate::board::host_class_of(class), &mut p, "engine-object") {
                     Ok(oh) => {
                         notes.push(format!(
                             "chid {chid}: host object class {class:#x}{} {oh:#x} ({} bytes of the guest's params) [host]",
-                            crate::board::mapped_note(*class),
+                            crate::board::mapped_note(class),
                             params.len()
                         ));
-                        objects.push((*class, oh));
+                        objects.push((class, oh));
+                        engine_map.insert(guest_handle, oh);
                     }
                     Err(e) => notes.push(format!(
                         "chid {chid}: host object class {class:#x} refused: {} (continuing)",
@@ -2610,7 +2710,7 @@ impl Mirror {
             if st != sys::NV_OK {
                 return Err(format!("host GET_WORK_SUBMIT_TOKEN: {}", status_name(st)));
             }
-            Ok((handle, objects, u32::from_le_bytes(tok)))
+            Ok((handle, objects, engine_map, u32::from_le_bytes(tok)))
         })();
         // The host RM clears the USERD it is given; the guest's GPGet/GPPut go back
         // whether the mirror was built or the software executor keeps the channel.
@@ -2628,7 +2728,7 @@ impl Mirror {
             }
         };
         match r {
-            Ok((handle, objects, token)) => {
+            Ok((handle, objects, engine_map, token)) => {
                 drop(h);
                 restore_userd(gm, &mut notes);
                 let us = t0.elapsed().as_micros();
@@ -2648,6 +2748,7 @@ impl Mirror {
                         tsg: tsg_key,
                         token,
                         objects,
+                        engine_map,
                         pages,
                         created: t0,
                         doorbells: 0,
@@ -2655,6 +2756,7 @@ impl Mirror {
                         fwd_put: None,
                         fwd_unwaited: 0,
                         userd: None,
+                        context_ready: true,
                     },
                 );
                 Ok((token, notes))
@@ -2740,9 +2842,20 @@ impl Mirror {
         ))
     }
 
+    /// A failed host FREE keeps the old engine handle occupied until channel teardown.
+    pub fn engine_handle_in_use(&self, reg: &Registry, client: u32, object: u32) -> bool {
+        self.channels.iter().any(|(chid, hc)| {
+            reg.channel(*chid).is_some_and(|ch| ch.h_client == client && ch.generation == hc.generation)
+                && hc.engine_map.contains_key(&object)
+        })
+    }
+
     /// An engine object the guest allocated on an already mirrored channel.
-    pub fn add_engine_object(&mut self, chid: u32, class: u32, params: &[u8]) -> Option<String> {
+    pub fn add_engine_object(&mut self, chid: u32, guest_handle: u32, class: u32, params: &[u8]) -> Option<String> {
         let hc = self.channels.get_mut(&chid)?;
+        if hc.engine_map.contains_key(&guest_handle) {
+            return Some(format!("chid {chid}: duplicate live engine handle {guest_handle:#x} refused"));
+        }
         // A video object on a shadow channel: placed by `place_video_object` once the
         // guest's own context page has left the shadow.
         if video_class_ok(self.chip, class) && hc.shadow_root.is_some() {
@@ -2753,7 +2866,7 @@ impl Mirror {
                     "chid {chid}: a second video object {class:#x} on a mirrored channel: refused"
                 ));
             }
-            self.video_pending.insert(chid, (class, params.to_vec()));
+            self.video_pending.insert(chid, (guest_handle, class, params.to_vec()));
             return Some(format!(
                 "chid {chid}: video object {class:#x} deferred until the guest's context page has left the shadow [host]"
             ));
@@ -2767,6 +2880,7 @@ impl Mirror {
         Some(match r {
             Ok(oh) => {
                 hc.objects.push((class, oh));
+                hc.engine_map.insert(guest_handle, oh);
                 format!("chid {chid}: host object class {class:#x} {oh:#x} added [host]")
             }
             Err(e) => format!(
@@ -2792,7 +2906,7 @@ impl Mirror {
     /// (`free_channel`) frees the object and the RM frees its context with it
     /// (`kflcnFreeContext`). Returns the notes and whether the guest's allocation is refused.
     pub fn place_video_object(&mut self, chid: u32) -> (Vec<String>, bool) {
-        let Some((class, params)) = self.video_pending.remove(&chid) else {
+        let Some((guest_handle, class, params)) = self.video_pending.remove(&chid) else {
             return (Vec::new(), false);
         };
         let Some(hc) = self.channels.get(&chid) else {
@@ -2840,6 +2954,7 @@ impl Mirror {
                 drop(h);
                 if let Some(hc) = self.channels.get_mut(&chid) {
                     hc.objects.push((class, oh));
+                    hc.engine_map.insert(guest_handle, oh);
                 }
                 (vec![format!("chid {chid}: host video object class {class:#x} {oh:#x}: {line} [host]")], false)
             }
@@ -3195,7 +3310,7 @@ impl Mirror {
         Some((st, p))
     }
 
-    fn free_channel(&mut self, chid: u32, notes: &mut Vec<String>) {
+    fn free_channel(&mut self, chid: u32, notes: &mut Vec<String>) -> bool {
         for sp in self.shadows.values_mut() {
             sp.chids.remove(&chid);
         }
@@ -3224,7 +3339,9 @@ impl Mirror {
                 }
                 r
             };
-            self.stats.channels_freed += 1;
+            if r.is_ok() {
+                self.stats.channels_freed += 1;
+            }
             notes.push(match r {
                 Ok(()) => format!(
                     "chid {chid}: host channel {:#x} freed after {} doorbell(s), {} ms of life [host]",
@@ -3234,19 +3351,27 @@ impl Mirror {
                 ),
                 Err(st) => format!("chid {chid}: ERROR freeing host channel {:#x}: {}", hc.handle, status_name(st)),
             });
+            if r.is_err() {
+                hc.context_ready = false;
+                self.channels.insert(chid, hc);
+                return false;
+            }
         }
+        true
     }
 
-    fn free_tsg(&mut self, key: TsgKey, notes: &mut Vec<String>) {
+    fn free_tsg(&mut self, key: TsgKey, notes: &mut Vec<String>) -> bool {
         let chids: Vec<u32> = self
             .channels
             .iter()
             .filter(|(_, c)| c.tsg == key)
             .map(|(c, _)| *c)
             .collect();
+        let mut freed = true;
         for c in chids {
-            self.free_channel(c, notes);
+            freed &= self.free_channel(c, notes);
         }
+        if !freed { return false; }
         if let Some(t) = self.tsgs.remove(&key) {
             let r = self.hm.lock().unwrap().free_object(t.handle);
             notes.push(match r {
@@ -3267,6 +3392,9 @@ impl Mirror {
             // A refused free keeps them (fail closed: the host context may still be there).
             if r.is_ok() {
                 self.release_held(key, notes);
+            } else {
+                self.tsgs.insert(key, t);
+                return false;
             }
         } else {
             // No host TSG under the key (never built, or freed before): nothing owns the VAs.
@@ -3276,6 +3404,7 @@ impl Mirror {
             sp.tsgs.remove(&key);
         }
         self.reap_shadows(None, notes);
+        true
     }
 
     fn drop_vas(&mut self, key: (u32, u32), notes: &mut Vec<String>) {
@@ -3443,6 +3572,25 @@ impl Mirror {
     /// [`Mirror::free_object`] without the set-B holds.
     fn free_host_objects(&mut self, reg: &Registry, h_client: u32, h_object: u32) -> Vec<String> {
         let mut notes = Vec::new();
+        if let Some((chid, generation, _, _)) = reg.engine_object(h_client, h_object) {
+            if self.video_pending.get(&chid).is_some_and(|(handle, _, _)| *handle == h_object) {
+                self.video_pending.remove(&chid);
+                notes.push(format!("chid {chid}: pending engine {h_object:#x} dropped [guest]"));
+            }
+            if let Some(hc) = self.channels.get_mut(&chid).filter(|hc| hc.generation == generation) {
+                if let Some(host) = hc.engine_map.get(&h_object).copied() {
+                    match self.hm.lock().unwrap().free_object(host) {
+                        Ok(()) => {
+                            hc.engine_map.remove(&h_object);
+                            hc.objects.retain(|(_, handle)| *handle != host);
+                            notes.push(format!("chid {chid}: engine {h_object:#x} host object {host:#x} freed [host]"));
+                        }
+                        Err(st) => notes.push(format!("chid {chid}: ERROR freeing engine {h_object:#x} host object {host:#x}: {}", status_name(st))),
+                    }
+                }
+            }
+            return notes;
+        }
         // A deferred video object of a channel that goes away is never placed.
         let gone: Vec<u32> = reg
             .channels()

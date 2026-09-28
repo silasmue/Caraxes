@@ -525,7 +525,7 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
     // The display front-end page (display/fe_page.rs): a third area of the same memfd.
     let display_page =
         fe_page::requested(intr_page_config.is_some(), a.display).map_err(anyhow::Error::msg)?;
-    if ["CARAXES_SHADOW_USERD", "CARAXES_DEFERRED_API_CAPTURE"].iter()
+    if ["CARAXES_SHADOW_USERD", "CARAXES_DEFERRED_API_CAPTURE", "CARAXES_DEFERRED_CONTEXT"].iter()
         .any(|key| std::env::var(key).as_deref() == Ok("1"))
         && (!a.host_exec || !a.boot_model
             || std::env::var("CARAXES_MIRROR_GR_SHADOW").as_deref() != Ok("1")
@@ -533,6 +533,11 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
             || std::env::var("CARAXES_MIRROR_GR").as_deref() == Ok("1"))
     {
         bail!("private USERD/deferred API capture needs --host-exec, --boot-model and shadow-only GR/CE execution");
+    }
+    if std::env::var("CARAXES_DEFERRED_CONTEXT").as_deref() == Ok("1")
+        && (std::env::var("CARAXES_SHADOW_USERD").as_deref() != Ok("1")
+            || std::env::var("CARAXES_DEFERRED_API_CAPTURE").as_deref() == Ok("1")) {
+        bail!("deferred context execution needs private USERD and capture mode off");
     }
     let zero_fb = std::env::var("CARAXES_FB_ZERO_BASED").as_deref() == Ok("1");
     if zero_fb {
