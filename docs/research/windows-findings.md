@@ -387,3 +387,18 @@ Runs: `/mnt/vmstore/caraxes/alpha-2026-09-27/windows-plain/<run>/`.
   - Stopped by the rule. Next: P27 with the member fix; if the Xid remains, the unmap rule
     (P21 section) with semaphore pages in the held set.
 - **Not reached:** short kernel, llama, PyTorch, NVENC/NVDEC.
+
+## P27 attempt (2026-09-28 22:28, P27-workload): the guest powered off before the driver loaded
+
+- QEMU exited cleanly 66 s after the start (22:29:20): no QEMU error, no OOM, no segfault, no
+  Xid. The device saw only firmware DMA maps and INTx setup, then the connection close.
+- **Cause, from the guest's System log (read offline, read-only):** Windows Update installed the
+  2026-09 security update KB5129195 (26200.9457) during P26 (event 43 at 22:10:45, while the
+  workload stages ran); at P26's `Stop-Computer` it reported install failure 0xc1800109
+  (event 20, 22:18:41), and `Component Based Servicing\PackagesPending` (an LCU merge) is still
+  set. The P27 boot ran that servicing and powered off.
+- Guest networking (QEMU user NAT, needed for the workload install) also lets Windows Update in,
+  and Windows Update can deliver NVIDIA drivers: a risk for the stock 617.14.
+- **Plan:** a maintenance boot without the synthetic GPU (`run27.py maint start`, WIN_GPU=0) to
+  let the servicing finish, then `quiet.ps1 -Apply` (updates paused 7 days, no Windows Update
+  drivers), then P27 again. Depends on: none.
