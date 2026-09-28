@@ -442,6 +442,46 @@ fn decode_fault_info(p: &[u8]) -> (u64, u32, String) {
     )
 }
 
+/// Whether a `GET_MMU_FAULT_INFO` answer `(status, record)` holds no fault: a failed read,
+/// or a record with neither a fault address nor a fault string.
+fn fault_record_empty(st: u32, p: &[u8]) -> bool {
+    if st != 0 {
+        return true;
+    }
+    let (va, _, text) = decode_fault_info(p);
+    va == 0 && text.is_empty()
+}
+
+/// An RC'd channel's MMU fault record ([`Mirror::mmu_fault_info_in_tsg`]).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct TsgFault {
+    /// The status of the read on the channel's own mirror.
+    pub own_status: u32,
+    /// The ChID whose record this is (the channel's own when no TSG member held one).
+    pub from: u32,
+    pub status: u32,
+    pub record: Vec<u8>,
+}
+
+/// The first of `own` (the answer for `chid`) and the `peers`' answers that holds a fault;
+/// `own` when none does. The peers are read only while needed.
+fn first_fault(
+    chid: u32,
+    own: (u32, Vec<u8>),
+    peers: impl Iterator<Item = (u32, (u32, Vec<u8>))>,
+) -> TsgFault {
+    let own_status = own.0;
+    if !fault_record_empty(own.0, &own.1) {
+        return TsgFault { own_status, from: chid, status: own.0, record: own.1 };
+    }
+    for (c, (st, p)) in peers {
+        if !fault_record_empty(st, &p) {
+            return TsgFault { own_status, from: c, status: st, record: p };
+        }
+    }
+    TsgFault { own_status, from: chid, status: own.0, record: own.1 }
+}
+
 /// `NV_VASPACE_ALLOCATION_FLAGS_IS_EXTERNALLY_OWNED` (nvos.h:3162).
 const VAS_IS_EXTERNALLY_OWNED: u32 = 1 << 3;
 /// The VA size of a mirror VA space: 1 TiB, as host-exec.rs (the root covers 2^47 anyway).
@@ -1433,6 +1473,54 @@ impl Mirror {
             Some(p) => self.resync_pending(reg, gm, &p),
             None => Vec::new(),
         }
+    }
+
+    /// The shadow roots whose software `MEM_OP` TLB invalidate stops its push until the
+    /// shadow is applied (channel.rs `doorbell_holding`): every shadow root while the rule
+    /// is on (untrapped.rs `memop_holds`), `None` otherwise.
+    pub fn memop_hold_roots(&self) -> Option<std::collections::BTreeSet<u64>> {
+        (self.hold_on && !self.shadows.is_empty()).then(|| self.shadows.keys().copied().collect())
+    }
+
+    /// `MEM_OP` TLB invalidates the software executor ran (`inv`: the page directory each
+    /// names; nvidia-uvm's page-table updates of a CUDA VA space end in one): plan every
+    /// shadow root they name now and wait until the worker applied it. The channel that ran
+    /// them is stopped right after the invalidate meanwhile (channel.rs `doorbell_holding`),
+    /// so UVM's semaphore release after the update reaches the guest only once the host
+    /// mappings exist, and no host channel can run the guest's next work on an older shadow
+    /// (docs/research/shadow-fault-race-2026-09-28.md). Before, nothing planned a root at
+    /// such an invalidate: its next doorbell did, while a host channel with an untrapped
+    /// USERD could already run the new work.
+    pub fn software_invalidated(
+        &mut self,
+        reg: &Registry,
+        gm: &mut GpuMem,
+        inv: &[Option<Target>],
+    ) -> Vec<String> {
+        let Some(held) = self.memop_hold_roots() else {
+            return Vec::new();
+        };
+        let roots = crate::untrapped::memop_roots(inv, &held);
+        if roots.is_empty() {
+            return Vec::new();
+        }
+        let t0 = Instant::now();
+        let mut notes = Vec::new();
+        for r in &roots {
+            notes.extend(self.shadow_resync(reg, gm, Some(*r)));
+        }
+        for r in &roots {
+            self.worker.wait_root(*r);
+        }
+        let d = t0.elapsed();
+        self.hold.note_memop_held(d);
+        notes.push(format!(
+            "shadow: {} software TLB invalidate(s) of shadow root(s) {} planned and applied in {} us before the channel continues [host]",
+            inv.len(),
+            roots.iter().map(|r| format!("{r:#x}")).collect::<Vec<_>>().join(", "),
+            d.as_micros()
+        ));
+        notes
     }
 
     /// The untrapped-GPPut counters (untrapped.rs), for the pool's per-context line.
@@ -4023,6 +4111,24 @@ impl Mirror {
         Some((st, p))
     }
 
+    /// [`Self::mmu_fault_info`] of `chid`; when that holds no fault, of every other
+    /// mirrored channel of its host TSG, the first that does. The host records an MMU
+    /// fault on the TSG member that faulted and RCs the whole TSG, so the others read back
+    /// an empty record (run of 2026-09-28: chids 15-22 RC'd, only chid 20's record held
+    /// the fault). `None` without a mirror of `chid`.
+    pub fn mmu_fault_info_in_tsg(&self, chid: u32) -> Option<TsgFault> {
+        let own = self.mmu_fault_info(chid)?;
+        let tsg = self.channels.get(&chid)?.tsg;
+        let peers = self
+            .channels
+            .iter()
+            .filter(|(c, h)| **c != chid && h.tsg == tsg)
+            .map(|(c, _)| *c);
+        Some(first_fault(chid, own, peers.filter_map(|c| {
+            self.mmu_fault_info(c).map(|r| (c, r))
+        })))
+    }
+
     /// The fault of a shadow channel's MMU-fault RC against the guest's tables and the
     /// shadow (run P18): the page's guest leaf (cached walk) or gap, the shadow's mirrored
     /// leaf or gap, and the set-B and host-private ranges it hits. `p` is the
@@ -5731,6 +5837,51 @@ mod tests {
         );
         // A short answer decodes to zeros, never a panic.
         assert_eq!(decode_fault_info(&p[..3]), (0, 0, String::new()));
+    }
+
+    /// The RC of 2026-09-28: the host RC'd the eight channels of a TSG, and only the member
+    /// that faulted (chid 20) held the fault record; the others read back empty. An empty
+    /// record is looked up on the other members, the first that holds a fault is used, and
+    /// the peers are read only while needed.
+    #[test]
+    fn an_empty_fault_record_is_taken_from_the_tsg_member_that_faulted() {
+        let empty = vec![0u8; MMU_FAULT_INFO_SIZE];
+        let mut fault = empty.clone();
+        fault[0..4].copy_from_slice(&0x7794u32.to_le_bytes());
+        fault[4..8].copy_from_slice(&0xb5c0_3000u32.to_le_bytes());
+        fault[12..21].copy_from_slice(b"FAULT_PDE");
+        assert!(fault_record_empty(0, &empty));
+        assert!(!fault_record_empty(0, &fault));
+        assert!(fault_record_empty(0x1f, &fault), "a failed read holds nothing");
+        // FAULT_PDE is fault type 0: the string or the address tells a record from none.
+        let mut typed = empty.clone();
+        typed[12..21].copy_from_slice(b"FAULT_PDE");
+        assert!(!fault_record_empty(0, &typed));
+
+        let read = std::cell::Cell::new(0);
+        let peers = |list: Vec<(u32, (u32, Vec<u8>))>| {
+            let read = &read;
+            list.into_iter().inspect(move |_| read.set(read.get() + 1))
+        };
+        // chid 15 empty; 16 empty, 20 holds it, 21 is never read.
+        let f = first_fault(
+            15,
+            (0, empty.clone()),
+            peers(vec![(16, (0, empty.clone())), (20, (0, fault.clone())), (21, (0, empty.clone()))]),
+        );
+        assert_eq!(f, TsgFault { own_status: 0, from: 20, status: 0, record: fault.clone() });
+        assert_eq!(read.get(), 2);
+        assert_eq!(decode_fault_info(&f.record).0, 0x7794_b5c0_3000);
+        // The faulting member's own record: no peer is read.
+        read.set(0);
+        let f = first_fault(20, (0, fault.clone()), peers(vec![(15, (0, empty.clone()))]));
+        assert_eq!((f.from, read.get()), (20, 0));
+        // No member holds one: the own answer, as before.
+        let f = first_fault(15, (0, empty.clone()), peers(vec![(16, (0, empty.clone()))]));
+        assert_eq!(f, TsgFault { own_status: 0, from: 15, status: 0, record: empty.clone() });
+        // A failed own read: a member's record, with the own status kept for the trace.
+        let f = first_fault(15, (0x1f, empty.clone()), peers(vec![(20, (0, fault.clone()))]));
+        assert_eq!((f.own_status, f.from, f.status), (0x1f, 20, 0));
     }
 
     /// The host RM's VA footprint of its global buffers (run P19, the sizes the host answered
