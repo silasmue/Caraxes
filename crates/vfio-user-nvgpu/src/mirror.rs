@@ -953,6 +953,10 @@ pub struct Mirror {
     /// GR contexts whose preemption request was carried out on the host without an owned
     /// GFXP set, by (chid, generation) ([`Self::note_preemption_ready`]).
     preemption_ready: std::collections::BTreeSet<(u32, u64)>,
+    /// Host TSGs whose preemption request was carried out ([`Self::bind_owned_compute`],
+    /// [`Self::confirm_gfx_wfi`]): their channels built later are ready too. Cleared at the
+    /// host TSG's free.
+    preemption_ready_tsg: std::collections::BTreeSet<TsgKey>,
     /// Guest roots whose shadow VAS was handed to the teardown: the FB store drops their
     /// cached walks ([`Mirror::take_reaped_roots`]; before, a walk cache of up to 4M leaves
     /// stayed for every context that ever ran).
@@ -1133,6 +1137,7 @@ impl Mirror {
             next_event_id: 0x1000,
             stats: MirrorStats::default(),
             preemption_ready: std::collections::BTreeSet::new(),
+            preemption_ready_tsg: std::collections::BTreeSet::new(),
             reaped_roots: Vec::new(),
             released_roots: Vec::new(),
             exhausted: Default::default(),
@@ -2569,10 +2574,13 @@ impl Mirror {
     }
 
     /// Bind compute preemption mode `mode` ([`COMPUTE_CTA`] or [`COMPUTE_CILP`]) on the host
-    /// TSG of a guest GR TSG: the guest's pointer-free compute BIND, sent to the host for the
-    /// exact prepared host context and verified by a GET (run P22: CUDA's context asks for
-    /// CILP). An owned ordinary-GFXP set on the TSG must be bound and stays in mode 1; a TSG
-    /// without one (a compute-only context) keeps its graphics mode as it was.
+    /// TSG of a guest GR TSG: the guest's pointer-free compute BIND, sent to the host TSG and
+    /// verified by a GET on one of its prepared host channels (run P22: CUDA's context asks
+    /// for CILP; run P25: CUDA's TSG has several channels). An owned ordinary-GFXP set on the
+    /// TSG must be bound and stays in mode 1 (single-channel TSGs only, as its lifetime is
+    /// per channel); a TSG without one keeps its graphics mode as it was. Every member with a
+    /// prepared host context is idled first, and the TSG is marked ready for members built
+    /// later.
     pub fn bind_owned_compute(
         &mut self,
         reg: &Registry,
@@ -2585,76 +2593,38 @@ impl Mirror {
             COMPUTE_CILP => "compute CILP",
             _ => return Err(format!("compute preemption mode {mode:#x} is not CTA or CILP")),
         };
-        let guest = reg.resolve((client, guest_tsg));
-        if reg.tsg(guest).is_none_or(|(_, engine)| engine != 1) {
-            return Err(format!("owned {what} target is not a live GR TSG"));
+        let (key, host_tsg, with_gfxp, hosted) = self.prepared_tsg(reg, client, guest_tsg, what)?;
+        if with_gfxp && hosted.len() != 1 {
+            return Err(format!("owned {what} with an owned GFXP set requires a single-channel TSG"));
         }
-        let key = tsg_key_of_guest(reg, guest).ok_or(format!("owned {what} target has no TSG key"))?;
-        let mut members = reg.channels().filter(|ch| tsg_key_of(reg, ch).0 == key);
-        let ch = members.next().ok_or(format!("owned {what} TSG has no channel"))?;
-        if members.next().is_some() {
-            return Err(format!("owned {what} currently requires a single-channel TSG"));
-        }
-        let vas_key = reg.vas_key_of(ch).ok_or(format!("owned {what} target has no VAS"))?;
-        let root = match reg.vas_root(vas_key) {
-            Some(Target::Fb(root)) => root,
-            _ => return Err(format!("owned {what} target has no shadow FB root")),
-        };
-        let (chid, generation) = (ch.chid, ch.generation);
-        let exact_gfxp = |owned: &OwnedGfxp, handle: u32| {
-            owned.bound && owned.chid == chid && owned.generation == generation
-                && owned.host_channel == handle && owned.root == root
-        };
-        let (host_channel, host_tsg, with_gfxp) = {
-            let hc = self.channels.get(&chid)
-                .filter(|hc| hc.generation == generation && hc.context_ready && hc.tsg == key
-                    && hc.shadow_root == Some(root))
-                .ok_or(format!("owned {what} target has no exact host context"))?;
-            let ht = self.tsgs.get(&key).ok_or(format!("owned {what} host TSG is gone"))?;
-            if ht.gfxp.as_ref().is_some_and(|owned| !exact_gfxp(owned, hc.handle)) {
-                return Err(format!("owned {what}: the TSG's ordinary-GFXP set is not the exact bound one"));
-            }
-            if ht.guest != guest || ht.engine != 1 || ht.vas != vas_key {
-                return Err(format!("owned {what} host TSG identity changed"));
-            }
-            (hc.handle, ht.handle, ht.gfxp.is_some())
-        };
+        let (_, _, probe) = hosted[0];
         let gfxp_before = {
             let host = self.hm.lock().unwrap();
-            let (st, gfxp, _) = get_preemption_modes(&host, host_channel);
+            let (st, gfxp, _) = get_preemption_modes(&host, probe);
             if st != sys::NV_OK {
                 return Err(format!("owned {what}: host GET before the BIND refused: {}", status_name(st)));
             }
             gfxp
         };
-
-        self.channels.get_mut(&chid).unwrap().context_ready = false;
+        for (chid, _, _) in &hosted {
+            self.channels.get_mut(chid).unwrap().context_ready = false;
+        }
         let flags = ((sys::NVOS30_FLAGS_IDLE_PUSH_BUFFER | sys::NVOS30_FLAGS_IDLE_CACHE1
             | sys::NVOS30_FLAGS_IDLE_ALL_ENGINES) << 8) | sys::NVOS30_FLAGS_BEHAVIOR_SLEEP;
-        let (idle_status, idle_note) = self.idle_host_channels(&[(chid, host_channel)], flags, 100_000);
+        let pairs: Vec<(u32, u32)> = hosted.iter().map(|(c, _, h)| (*c, *h)).collect();
+        let (idle_status, idle_note) = self.idle_host_channels(&pairs, flags, 100_000);
         if idle_status != sys::NV_OK { return Err(idle_note); }
-        let ch = reg.channel(chid).filter(|ch| ch.generation == generation)
-            .ok_or(format!("owned {what} target changed while idling"))?;
-        if reg.vas_key_of(ch) != Some(vas_key)
-            || reg.vas_root(vas_key) != Some(Target::Fb(root))
-            || reg.channels().filter(|member| tsg_key_of(reg, member).0 == key).count() != 1
+        // Nothing may have changed while idling: the same host TSG and the same host channels.
+        let (key2, host_tsg2, with_gfxp2, hosted2) = self.prepared_tsg_idle(reg, client, guest_tsg, what)?;
+        if (key2, host_tsg2, with_gfxp2) != (key, host_tsg, with_gfxp)
+            || hosted2.iter().map(|(c, g, h)| (*c, *g, *h)).collect::<Vec<_>>() != hosted
         {
-            return Err(format!("owned {what} target VAS or TSG changed while idling"));
-        }
-        let hc = self.channels.get(&chid).filter(|hc| hc.generation == generation
-            && hc.handle == host_channel && hc.tsg == key && hc.shadow_root == Some(root))
-            .ok_or(format!("owned {what} host channel changed while idling"))?;
-        let ht = self.tsgs.get(&key).ok_or(format!("owned {what} host TSG disappeared while idling"))?;
-        if ht.handle != host_tsg || ht.guest != guest || ht.vas != vas_key
-            || ht.gfxp.is_some() != with_gfxp
-            || ht.gfxp.as_ref().is_some_and(|owned| !exact_gfxp(owned, hc.handle))
-        {
-            return Err(format!("owned {what} ownership changed while idling"));
+            return Err(format!("owned {what} TSG changed while idling"));
         }
 
         let host = self.hm.lock().unwrap();
         let bind = bind_compute(&host, host_tsg, mode);
-        let (get, gfxp, cilp) = get_preemption_modes(&host, host_channel);
+        let (get, gfxp, cilp) = get_preemption_modes(&host, probe);
         let gfxp_want = if with_gfxp { 1 } else { gfxp_before };
         if bind != sys::NV_OK || get != sys::NV_OK || gfxp != gfxp_want || cilp != mode {
             return Err(format!(
@@ -2663,39 +2633,101 @@ impl Mirror {
             ));
         }
         drop(host);
-        self.channels.get_mut(&chid).unwrap().context_ready = true;
-        self.note_preemption_ready(chid, generation);
+        for (chid, generation, _) in &hosted {
+            self.channels.get_mut(chid).unwrap().context_ready = true;
+            self.note_preemption_ready(*chid, *generation);
+        }
+        self.preemption_ready_tsg.insert(key);
         Ok(vec![idle_note, format!(
-            "tsg {key}: host {what} (mode {mode}) bound; graphics mode {gfxp_want} {} [host]",
+            "tsg {key}: host {what} (mode {mode}) bound for {} channel(s); graphics mode {gfxp_want} {} [host]",
+            hosted.len(),
             if with_gfxp { "(owned ordinary GFXP preserved)" } else { "(unchanged)" }
         )])
     }
 
+    /// The host TSG of guest GR TSG `(client, guest_tsg)` and its members with a prepared,
+    /// ready host context (chid, generation, host channel), in chid order: at least one.
+    #[allow(clippy::type_complexity)]
+    fn prepared_tsg(
+        &self,
+        reg: &Registry,
+        client: u32,
+        guest_tsg: u32,
+        what: &str,
+    ) -> Result<(TsgKey, u32, bool, Vec<(u32, u64, u32)>), String> {
+        self.tsg_members(reg, client, guest_tsg, what, true)
+    }
+
+    /// [`Self::prepared_tsg`] after the idle, which marked the members not ready.
+    #[allow(clippy::type_complexity)]
+    fn prepared_tsg_idle(
+        &self,
+        reg: &Registry,
+        client: u32,
+        guest_tsg: u32,
+        what: &str,
+    ) -> Result<(TsgKey, u32, bool, Vec<(u32, u64, u32)>), String> {
+        self.tsg_members(reg, client, guest_tsg, what, false)
+    }
+
+    #[allow(clippy::type_complexity)]
+    fn tsg_members(
+        &self,
+        reg: &Registry,
+        client: u32,
+        guest_tsg: u32,
+        what: &str,
+        ready: bool,
+    ) -> Result<(TsgKey, u32, bool, Vec<(u32, u64, u32)>), String> {
+        let guest = reg.resolve((client, guest_tsg));
+        if reg.tsg(guest).is_none_or(|(_, engine)| engine != 1) {
+            return Err(format!("owned {what} target is not a live GR TSG"));
+        }
+        let key = tsg_key_of_guest(reg, guest).ok_or(format!("owned {what} target has no TSG key"))?;
+        let ht = self.tsgs.get(&key).ok_or(format!("owned {what} host TSG is gone"))?;
+        if ht.guest != guest || ht.engine != 1 {
+            return Err(format!("owned {what} host TSG identity changed"));
+        }
+        let hosted: Vec<(u32, u64, u32)> = reg
+            .channels()
+            .filter(|ch| tsg_key_of(reg, ch).0 == key)
+            .filter_map(|ch| {
+                let hc = self.channels.get(&ch.chid)?;
+                let root = match reg.vas_key_of(ch).and_then(|k| reg.vas_root(k)) {
+                    Some(Target::Fb(root)) => root,
+                    _ => return None,
+                };
+                (hc.generation == ch.generation && hc.context_ready == ready && hc.tsg == key
+                    && hc.shadow_root == Some(root) && reg.vas_key_of(ch) == Some(ht.vas))
+                    .then_some((ch.chid, ch.generation, hc.handle))
+            })
+            .collect();
+        if hosted.is_empty() {
+            return Err(format!("owned {what} TSG has no prepared host context"));
+        }
+        if let Some(owned) = ht.gfxp.as_ref() {
+            let (chid, generation, handle) = hosted[0];
+            if !(owned.bound && owned.chid == chid && owned.generation == generation
+                && owned.host_channel == handle)
+            {
+                return Err(format!("owned {what}: the TSG's ordinary-GFXP set is not the exact bound one"));
+            }
+        }
+        Ok((key, ht.handle, ht.gfxp.is_some(), hosted))
+    }
+
     /// The guest's pointer-free graphics BIND to WFI (flags GFXP_SET, gfxpPreemptMode 0; run
-    /// P22): nothing is bound on the host; a GET confirms the exact prepared host context is
-    /// in graphics WFI. Refused otherwise. Returns the target channel and the note.
+    /// P22): nothing is bound on the host; a GET on a prepared host channel of the TSG must
+    /// show graphics WFI. Refused otherwise.
     pub fn confirm_gfx_wfi(
         &mut self,
         reg: &Registry,
         client: u32,
         guest_tsg: u32,
     ) -> Result<Vec<String>, String> {
-        let guest = reg.resolve((client, guest_tsg));
-        if reg.tsg(guest).is_none_or(|(_, engine)| engine != 1) {
-            return Err("graphics-WFI target is not a live GR TSG".into());
-        }
-        let key = tsg_key_of_guest(reg, guest).ok_or("graphics-WFI target has no TSG key")?;
-        let mut members = reg.channels().filter(|ch| tsg_key_of(reg, ch).0 == key);
-        let ch = members.next().ok_or("graphics-WFI TSG has no channel")?;
-        if members.next().is_some() {
-            return Err("graphics WFI currently requires a single-channel TSG".into());
-        }
-        let (chid, generation) = (ch.chid, ch.generation);
-        let hc = self.channels.get(&chid)
-            .filter(|hc| hc.generation == generation && hc.tsg == key)
-            .ok_or("graphics-WFI target has no exact host context")?;
+        let (key, _, _, hosted) = self.prepared_tsg(reg, client, guest_tsg, "graphics WFI")?;
         let host = self.hm.lock().unwrap();
-        let (st, gfxp, cilp) = get_preemption_modes(&host, hc.handle);
+        let (st, gfxp, cilp) = get_preemption_modes(&host, hosted[0].2);
         drop(host);
         if st != sys::NV_OK || gfxp != 0 {
             return Err(format!(
@@ -2703,9 +2735,12 @@ impl Mirror {
                 status_name(st)
             ));
         }
-        self.note_preemption_ready(chid, generation);
+        for (chid, generation, _) in &hosted {
+            self.note_preemption_ready(*chid, *generation);
+        }
+        self.preemption_ready_tsg.insert(key);
         Ok(vec![format!(
-            "tsg {key}: chid {chid} host context confirmed in graphics WFI (GET gfxp 0, cilp {cilp:#x}); nothing bound [host read]"
+            "tsg {key}: host context confirmed in graphics WFI (GET gfxp 0, cilp {cilp:#x}); nothing bound [host read]"
         )])
     }
 
@@ -2723,6 +2758,9 @@ impl Mirror {
     /// host ([`Self::note_preemption_ready`]).
     pub fn preemption_ready(&self, chid: u32, generation: u64) -> bool {
         self.preemption_ready.contains(&(chid, generation))
+            || self.channels.get(&chid).is_some_and(|hc| {
+                hc.generation == generation && self.preemption_ready_tsg.contains(&hc.tsg)
+            })
     }
 
     /// RM teardown idles the exact mirrored target, harvests its final GPGet and releases
@@ -4310,6 +4348,7 @@ impl Mirror {
             freed &= self.free_channel(c, notes);
         }
         if !freed { return false; }
+        self.preemption_ready_tsg.remove(&key);
         if let Some(t) = self.tsgs.remove(&key) {
             let r = self.hm.lock().unwrap().free_object(t.handle);
             notes.push(match r {
