@@ -46,6 +46,9 @@ use crate::ver::active::{
 /// The channel parameter offsets of the emulated driver version.
 type Abi = v::RmAbi;
 
+/// The page shift of a Turing (GMMU v2) VA space's root directory, PD3 (ptcache.rs).
+const ROOT_PAGE_SHIFT_V2: u8 = 47;
+
 /// USERD offsets of GPGet and GPPut (`clc46f.h:61-62`).
 const USERD_GP_GET: u64 = 0x88;
 const USERD_GP_PUT: u64 = 0x8C;
@@ -1595,6 +1598,28 @@ impl Registry {
             return format!(
                 "vaspace {h_vas:#x}: empty server-reserved range {va_lo:#x}..{va_hi:#x}; root {:?} and prior PDE levels kept [guest]",
                 self.vas_root((h_client, h_vas))
+            );
+        }
+        // A call whose first level is a lower directory describes a subtree, not a new root.
+        // The Windows KMD sends this control a second time with one PD1-level table (page
+        // shift 29) and the empty range 1..0 (run P17); taking it as the root makes the shadow
+        // walk a PD1 as the PD3, and the GPFIFOs are never mapped. A stated shift below the
+        // root level, or below the recorded root's, keeps the root; a zero shift is unstated.
+        let shift0 = params
+            .get(level(0) + v::PDES_LEVEL_PAGE_SHIFT)
+            .copied()
+            .unwrap_or(0);
+        let prior_shift = self
+            .server_pdes
+            .get(&(h_client, h_vas))
+            .and_then(|p| p.get(level(0) + v::PDES_LEVEL_PAGE_SHIFT).copied())
+            .unwrap_or(0);
+        if shift0 != 0 && (shift0 < ROOT_PAGE_SHIFT_V2 || shift0 < prior_shift) {
+            return format!(
+                "vaspace {h_vas:#x}: level 0 at {pa:#x} is a page-shift-{shift0} directory, not a root (shift {}); root {:?} and prior PDE levels kept; va {va_lo:#x}..{va_hi:#x} levels [{}] [guest]",
+                ROOT_PAGE_SHIFT_V2.max(prior_shift),
+                self.vas_root((h_client, h_vas)),
+                levels.join(", ")
             );
         }
         let root = gmmu_aperture(aperture, pa);
@@ -4694,6 +4719,37 @@ mod tests {
         assert_eq!(reduce(6, true, 10, 10), 0);
         assert_eq!(reduce(5, true, 3, 10), 13);
         assert_eq!(reduce(7, true, 0, 10), 10);
+    }
+
+    /// Run P17: the Windows KMD sends COPY_SERVER_RESERVED_PDES a second time with one
+    /// PD1-level table and the empty range 1..0. That call describes a subtree, not a root.
+    #[test]
+    fn a_lower_level_server_pde_call_keeps_the_vas_root() {
+        let mut reg = Registry::new(classes());
+        reg.record_alloc(1, 0x80, 0x20, FERMI_VASPACE_A, &[0u8; 56]);
+        let pdes = |pa: u64, size: u64, shift: u8, lo: u64, hi: u64| {
+            let mut p = vec![0u8; v::PDES_LEVELS + v::PDES_LEVEL_SIZE * v::PDES_MAX_LEVELS];
+            let put = |p: &mut Vec<u8>, o: usize, b: &[u8]| p[o..o + b.len()].copy_from_slice(b);
+            let l = v::PDES_LEVELS;
+            put(&mut p, v::PDES_NUM_LEVELS, &1u32.to_le_bytes());
+            put(&mut p, v::PDES_VIRT_ADDR_LO, &lo.to_le_bytes());
+            put(&mut p, v::PDES_VIRT_ADDR_HI, &hi.to_le_bytes());
+            put(&mut p, l + v::PDES_LEVEL_PHYS_ADDRESS, &pa.to_le_bytes());
+            put(&mut p, l + v::PDES_LEVEL_SIZE_FIELD, &size.to_le_bytes());
+            put(&mut p, l + v::PDES_LEVEL_APERTURE, &1u32.to_le_bytes());
+            p[l + v::PDES_LEVEL_PAGE_SHIFT] = shift;
+            p
+        };
+        let root = pdes(0x3b48_5000, 0x20, 47, 0x1_0000_0000, 0x1_1fff_ffff);
+        reg.record_server_reserved_pdes(1, 0x20, &root);
+        assert_eq!(reg.vas_root((1, 0x20)), Some(Target::Fb(0x3b48_5000)));
+        let note = reg.record_server_reserved_pdes(1, 0x20, &pdes(0x0d3f_0000, 0x1000, 29, 1, 0));
+        assert!(note.contains("not a root"), "{note}");
+        assert_eq!(reg.vas_root((1, 0x20)), Some(Target::Fb(0x3b48_5000)));
+        // A real root replacement (shift 47) is still taken.
+        let next = pdes(0x3b49_9000, 0x20, 47, 0x1_0000_0000, 0x1_1fff_ffff);
+        reg.record_server_reserved_pdes(1, 0x20, &next);
+        assert_eq!(reg.vas_root((1, 0x20)), Some(Target::Fb(0x3b49_9000)));
     }
 
     /// libnvidia-encode's NVENC channel: a bare channel under the device, no VAS of its
