@@ -1,0 +1,19 @@
+c34e8e7969769ffc0e1795d5b5fe5a445aee80bae47e9a7eeddd9a1ea6ac194d  /home/silas/git/Caraxes/.claude/worktrees/agent-ae95a1dc71b4a3276/target/limits/release/vfio-user-nvgpu
+a27e6b4 docs: pure emulation regressions of 2026-09-24 (blackwell-gate.md section 5), ladder correction, status
+CARAXES_BOOT_MODEL=1
+CARAXES_COSTUME=h100
+CARAXES_FB_MIB=4096
+CARAXES_PERSIST=1
+CARAXES_SERVER=/home/silas/git/Caraxes/.claude/worktrees/agent-ae95a1dc71b4a3276/target/limits/release/vfio-user-nvgpu
+CARAXES_TAP=none
+FRESH=1
+VM=vm8
+scenario ecc-1
+persist before:
+(none)
+persist after:
+# The persistent settings of this VM's synthetic GPU (vfio-user-nvgpu --persist):
+# what a real card keeps in its InfoROM. src/families/mod.rs.
+[ecc]
+current = true
+pending = false

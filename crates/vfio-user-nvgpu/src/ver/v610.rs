@@ -195,6 +195,9 @@ pub const SI_H_INTERNAL_CLIENT: usize = 0x608;
 pub const SI_H_INTERNAL_DEVICE: usize = 0x60C;
 pub const SI_H_INTERNAL_SUBDEVICE: usize = 0x610;
 pub const SI_BUS_RESET_REQUIRED: usize = 0x638;
+/// `bIsMigSupported` (gsp_static_config.h:113; docs/caraxes/gsp-abi-610.md): read by
+/// gpuValidateMIGSupport_KERNEL (gpu.c:7706-7716) on a chip with PDB_PROP_GPU_MIG_SUPPORTED.
+pub const SI_IS_MIG_SUPPORTED: usize = 0x5D5;
 /// `fwWprLayoutOffset.nonWprHeapOffset`/`.frtsOffset`: read by the kernel RM only with
 /// `PDB_PROP_GPU_FW_WPR_OFFSET_SET_BY_ACR` (GH100 and GB20x; kernel_gsp.c:4712-4728,
 /// generated/g_gpu_nvoc.c:365-375), where ACR, not the CPU, lays out the WPR.
@@ -1411,6 +1414,7 @@ mod tests {
         assert_eq!(field(i, "hInternalDevice"), SI_H_INTERNAL_DEVICE);
         assert_eq!(field(i, "hInternalSubdevice"), SI_H_INTERNAL_SUBDEVICE);
         assert_eq!(field(i, "bBusResetRequired"), SI_BUS_RESET_REQUIRED);
+        assert_eq!(field(i, "bIsMigSupported"), SI_IS_MIG_SUPPORTED);
 
         let r = "NV2080_CTRL_CMD_FB_GET_FB_REGION_FB_REGION_INFO";
         assert_eq!(size(r), FB_REGION_SIZE);

@@ -1,0 +1,30 @@
+c80b38194fa5ba51f2e2ab6b619bb6cbddfc80aad424a546351f514d8cab47f1  /home/silas/git/Caraxes/.claude/worktrees/agent-a543c2b22c4c1757d/target/limits/release/vfio-user-nvgpu
+22c9c098 families/mig: resetless MIG is off at every GSP boot; runs mig/gh100-5 and gh100-6, scenario mig-3
+CARAXES_BOOT_MODEL=1
+CARAXES_COSTUME=h100
+CARAXES_FB_MIB=4096
+CARAXES_PERSIST=1
+CARAXES_SERVER=/home/silas/git/Caraxes/.claude/worktrees/agent-a543c2b22c4c1757d/target/limits/release/vfio-user-nvgpu
+CARAXES_TAP=none
+VM=vm8
+scenario mig-3
+persist before:
+# The persistent settings of this VM's synthetic GPU (vfio-user-nvgpu --persist):
+# what a real card keeps in its InfoROM. src/families/mod.rs.
+[ecc]
+current = true
+pending = true
+
+[mig]
+current = false
+pending = false
+persist after:
+# The persistent settings of this VM's synthetic GPU (vfio-user-nvgpu --persist):
+# what a real card keeps in its InfoROM. src/families/mod.rs.
+[ecc]
+current = true
+pending = true
+
+[mig]
+current = true
+pending = true

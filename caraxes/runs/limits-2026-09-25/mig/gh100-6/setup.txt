@@ -1,0 +1,30 @@
+b1b86a734c06cfc30295194f5189a960300ae6c8461dd5783d65c7fa89dbadc4  /home/silas/git/Caraxes/.claude/worktrees/agent-a543c2b22c4c1757d/target/limits/release/vfio-user-nvgpu
+6579d96f families/mig: GR global buffers size 0 instead of NV_U32_MAX on a MIG chip; run mig/gh100-4
+CARAXES_BOOT_MODEL=1
+CARAXES_COSTUME=h100
+CARAXES_FB_MIB=4096
+CARAXES_PERSIST=1
+CARAXES_SERVER=/home/silas/git/Caraxes/.claude/worktrees/agent-a543c2b22c4c1757d/target/limits/release/vfio-user-nvgpu
+CARAXES_TAP=none
+VM=vm8
+scenario mig-3
+persist before:
+# The persistent settings of this VM's synthetic GPU (vfio-user-nvgpu --persist):
+# what a real card keeps in its InfoROM. src/families/mod.rs.
+[ecc]
+current = true
+pending = true
+
+[mig]
+current = true
+pending = true
+persist after:
+# The persistent settings of this VM's synthetic GPU (vfio-user-nvgpu --persist):
+# what a real card keeps in its InfoROM. src/families/mod.rs.
+[ecc]
+current = true
+pending = true
+
+[mig]
+current = false
+pending = false

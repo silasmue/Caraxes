@@ -206,7 +206,9 @@ impl Bar0 {
             prom: d.bar0.prom..d.bar0.prom + d.bar0.prom_size,
             rom,
             vbios,
-            latched: BTreeMap::new(),
+            latched: crate::families::devinit_scratch(d)
+                .map(|(r, v)| BTreeMap::from([(r, v)]))
+                .unwrap_or_default(),
             captured: None,
             served_captured: false,
             boot: None,
@@ -299,6 +301,10 @@ impl Bar0 {
     /// registers and the boot model return to their initial state.
     pub fn reset(&mut self) {
         self.latched.clear();
+        // The devinit scratch a real card's devinit sets at every reset (families/mod.rs).
+        if let Some((r, v)) = crate::families::devinit_scratch(self.chip.data()) {
+            self.latched.insert(r, v);
+        }
         if let Some(p) = &self.page {
             p.reset();
         }

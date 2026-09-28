@@ -31,6 +31,7 @@ pub mod events;
 pub mod dmodel;
 pub mod deferred;
 pub mod falcon;
+pub mod families;
 pub mod fwdcache;
 pub mod fb;
 pub mod gmcapi;

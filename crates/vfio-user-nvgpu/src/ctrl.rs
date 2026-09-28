@@ -140,6 +140,8 @@ pub struct Dispatcher {
     pub guest_attrs: crate::public::GuestAttrs,
     /// The category D models of this VM (dmodel.rs, rc.rs, zbc.rs; gsp-plan/d-device-model.md).
     pub dstate: crate::dmodel::DState,
+    /// The feature-family models of this VM: ECC, MIG (families/, gsp-plan/e-families.md §4).
+    pub families: crate::families::Families,
     /// The emulated PCIe Link Control register as the guest last left it (device.rs sets
     /// it after every config-space write): `NV208F BIF_INFO` answers from it (public.rs).
     pub link_control: u16,
@@ -278,6 +280,7 @@ impl Dispatcher {
             fb_layout: None,
             guest_attrs: Default::default(),
             dstate: crate::dmodel::DState::new(chip),
+            families: crate::families::Families::new(chip, id.fb_bytes),
             link_control: 0,
             routing: TokenRouting::default(),
             pinned_now: None,
@@ -1120,6 +1123,14 @@ impl Dispatcher {
         if let Some(a) = self.dstate.alloc(h_client, h_object, h_class, params) {
             return a;
         }
+        // The feature families' objects (the MIG instance references, families/mig.rs).
+        if let Some(a) = self
+            .families
+            .alloc(h_client, h_object, h_parent, h_class, params)
+        {
+            self.objects.insert((h_client, h_object), h_class);
+            return a;
+        }
         self.objects.insert((h_client, h_object), h_class);
         // Hotplug events are kept for the display's POST_EVENT (display/mod.rs).
         self.display
@@ -1226,6 +1237,7 @@ impl Dispatcher {
             self.objects.insert(dst, c);
         }
         let alias = self.channels.record_dup(dst, src);
+        self.families.dup(dst, src);
         format!(
             "dup {:#x}/{:#x} <- {:#x}/{:#x} class {}{}",
             dst.0,
@@ -1250,6 +1262,7 @@ impl Dispatcher {
         self.deferred_context.prune(&self.channels);
         self.guest_attrs.free(h_client, h_object);
         self.dstate.rc.forget(h_client, h_object);
+        self.families.free(h_client, h_object);
         if h_object == h_client {
             self.objects.retain(|(c, _), _| *c != h_client);
         }
@@ -1598,7 +1611,10 @@ impl Dispatcher {
         } else {
             crate::kgr::answer(self.chip, cmd, params, self.host.as_mut())
         };
-        if let Some(a) = kgr {
+        if let Some(mut a) = kgr {
+            // A chip with the MIG model reserves the GR global buffers per GPU instance
+            // (families/mig.rs, `global_ctx_buffers`).
+            crate::families::mig::global_ctx_buffers(&self.families, cmd, &mut a);
             return a;
         }
         // The CUDA path's synthesized and derived rows (E5c) live in cuda.rs.
@@ -1622,6 +1638,12 @@ impl Dispatcher {
             &mut self.uvm,
             self.host.as_mut(),
         ) {
+            return a;
+        }
+        // The feature families the chip models (families/): ahead of the host forwards of
+        // public.rs and nvml.rs, whose host card has neither ECC nor MIG, and of the
+        // refusals of chipctl.rs.
+        if let Some(a) = self.families.control(h_client, h_object, cmd, params) {
             return a;
         }
         let n = params.len();
@@ -1775,6 +1797,13 @@ impl Dispatcher {
                 let m = &self.chip.memsys;
                 let mut b = vec![0u8; n.max(v::MEMSYS_SIZE)];
                 b[v::MEMSYS_DISABLE_COMPBIT_BACKING] = m.disable_compbit_backing as u8;
+                // ECC in force (families/ecc.rs): what FB_INFO_FBPA_ECC_ENABLED reports
+                // (kern_mem_sys_ctrl.c:771-776 of 610.57.04).
+                let ecc = crate::families::off(
+                    "NV2080_CTRL_INTERNAL_MEMSYS_GET_STATIC_CONFIG_PARAMS",
+                    "bEnabledEccFBPA",
+                );
+                b[ecc] = self.families.ecc_enabled() as u8;
                 put64(&mut b, v::MEMSYS_L2_CACHE_SIZE, m.l2_cache_size);
                 b[v::MEMSYS_FBPA_PRESENT] = m.fbpa_present as u8;
                 put32(&mut b, v::MEMSYS_COMPR_PAGE_SIZE, m.compr_page_size);

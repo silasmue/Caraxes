@@ -1,0 +1,30 @@
+61f2515c6a3b4ab12d45115cbf3051876cf0e9afbc37fd7023233b1bc1b00b6a  /home/silas/git/Caraxes/.claude/worktrees/agent-a543c2b22c4c1757d/target/limits/release/vfio-user-nvgpu
+3a10895d families/mig: answer the GI copy-engine mapping (PCE config, PCE/LCE MIG mappings); run.sh keeps tracked log names
+CARAXES_BOOT_MODEL=1
+CARAXES_COSTUME=h100
+CARAXES_FB_MIB=4096
+CARAXES_PERSIST=1
+CARAXES_SERVER=/home/silas/git/Caraxes/.claude/worktrees/agent-a543c2b22c4c1757d/target/limits/release/vfio-user-nvgpu
+CARAXES_TAP=none
+VM=vm8
+scenario mig-2
+persist before:
+# The persistent settings of this VM's synthetic GPU (vfio-user-nvgpu --persist):
+# what a real card keeps in its InfoROM. src/families/mod.rs.
+[ecc]
+current = true
+pending = true
+
+[mig]
+current = false
+pending = false
+persist after:
+# The persistent settings of this VM's synthetic GPU (vfio-user-nvgpu --persist):
+# what a real card keeps in its InfoROM. src/families/mod.rs.
+[ecc]
+current = true
+pending = true
+
+[mig]
+current = false
+pending = false
