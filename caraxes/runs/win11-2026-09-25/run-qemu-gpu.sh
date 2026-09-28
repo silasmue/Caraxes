@@ -32,7 +32,12 @@ if [[ ${WIN_GPU_ROOTPORT:-0} == 1 ]]; then
     port=(-device pcie-root-port,id=rp1,bus=pcie.0,chassis=1,slot=1)
     bus=',"bus":"rp1"'
 fi
-gpu=("${port[@]}" -device "{\"driver\":\"vfio-user-pci\",\"socket\":{\"type\":\"unix\",\"path\":\"$W/gpu.sock\"},\"rombar\":${WIN_GPU_ROMBAR:-0}$bus}")
+# WIN_VFIO_USER_TIMEOUT_MS: QEMU's vfio-user reply timeout (x-msg-timeout, QEMU's default 5000).
+# A long software CE transfer holds the device's message loop; past the timeout QEMU drops the
+# device (run P29: a 64 MiB VRAM-to-sysmem copy took 6.7 s, the device exited on EPIPE).
+tmo=""
+[[ -n ${WIN_VFIO_USER_TIMEOUT_MS:-} ]] && tmo=",\"x-msg-timeout\":$WIN_VFIO_USER_TIMEOUT_MS"
+gpu=("${port[@]}" -device "{\"driver\":\"vfio-user-pci\",\"socket\":{\"type\":\"unix\",\"path\":\"$W/gpu.sock\"},\"rombar\":${WIN_GPU_ROMBAR:-0}$bus$tmo}")
 if [[ ${WIN_GPU:-1} == 0 ]]; then gpu=(); echo "WIN_GPU=0: memfd RAM, no device (isolation run)"; else
     [[ -S $W/gpu.sock ]] || die "no device socket $W/gpu.sock: run gpu-up.sh first"
 fi
