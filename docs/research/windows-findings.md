@@ -214,3 +214,34 @@ Runs: `/mnt/vmstore/caraxes/alpha-2026-09-27/windows-plain/<run>/`.
   on: L, AB.
 - **Teardown:** exit 3 "owned GFXP resources remain attached to a host context" (as in P17).
   Host FB/BAR1 returned to baseline. Depends on: R.
+
+### The shadow must not unmap under a live host channel (P21; a Linux correctness item too)
+
+- **Rule:** a guest leaf that a live host channel of the root can still reach is not unmapped from
+  the shadow until that channel is idle or freed on the host. The guest's own order (invalidate,
+  then FREE of channel/TSG/client) leaves a window in which the host channel still runs or
+  re-polls on pages the shadow already unmapped: P21's HOST_CPU FAULT_PTE at 0x04774000.
+- **Options:**
+  - **(a) Hold unmaps per root while host channels live.** An unmap planned on a root with live
+    host channels is deferred; the leaves stay mapped (read-only is not available per leaf) until
+    the host free of the last channel on the root, or until a guest remap of the same VA replaces
+    them.
+    - Mirrors set B's `held_at_free`.
+    - Cost: stale guest pages stay reachable for the dying channel only. Isolation holds: they
+      are the guest's own pages, and the registered-range check was done at map time.
+  - **(b) Preempt or disable first.** Before applying a plan with unmaps on a root, disable and
+    preempt its host channels (TSG preempt, GPFIFO_SCHEDULE off), then unmap, then re-enable.
+    - Exact, but costs a host control round trip per invalidate with unmaps. That hurts the hot
+      path on Linux (UVM unmaps often) and on Windows (paging channel).
+  - **(c) Hold only for channels the guest already disabled or stopped.** The teardown case of
+    P21: the guest's STOP_CHANNEL/disable comes before the invalidate. Narrow and cheap, but misses
+    unmaps while a channel still runs normally (a guest bug that real hardware would also fault
+    on).
+- **Proposal:** (a), bounded to unmaps whose VA lies inside a live channel's recently used set:
+  GPFIFO, USERD and pushbuffer segments of the last entries. The cheap first cut is the GPFIFO and
+  pushbuffer VAs the device already decodes. (c) comes as the teardown special case.
+  - Linux keeps its behaviour for every unmap outside those ranges.
+- **Tests:** a unit test with a root that has a live host channel, a guest invalidate that drops
+  its GPFIFO leaf, and the channel's host free afterwards (the unmap applied only then).
+- Implemented after P22. Depends on: AB, L (the shadow's apply path, shared with the compressed
+  slice's kind handling).
