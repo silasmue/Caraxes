@@ -823,6 +823,29 @@ fn tsg_context_ready(
         })
 }
 
+/// How a deferred eviction releases the target's host context ([`Mirror::evict_deferred_context`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum EvictPath {
+    /// Idle the target's host channel, harvest its GPGet, free its host TSG.
+    HostChannel,
+    /// A target that never ran on the host, alone in its TSG: free the host TSG (its context).
+    FreeTsg,
+    /// A target that never ran, with no host TSG left: nothing on the host.
+    Nothing,
+    /// A target without a host channel while other channels of its TSG are hosted: refused
+    /// (the context is theirs to release).
+    Refuse,
+}
+
+fn evict_path(hosted: bool, other_members_hosted: bool, host_tsg: bool) -> EvictPath {
+    match (hosted, other_members_hosted, host_tsg) {
+        (true, _, _) => EvictPath::HostChannel,
+        (false, true, _) => EvictPath::Refuse,
+        (false, false, true) => EvictPath::FreeTsg,
+        (false, false, false) => EvictPath::Nothing,
+    }
+}
+
 /// What to do with an existing host TSG under the key a new guest TSG maps to.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum TsgReuse {
@@ -3137,12 +3160,37 @@ impl Mirror {
         let client = ch.h_client;
         let object = ch.h_object;
         let root = reg.vas_key_of(ch).and_then(|vas| reg.vas_root(vas));
+        let key = tsg_key_of(reg, ch).0;
+        let hosted = self.channels.get(&chid).is_some_and(|hc| hc.generation == generation);
+        let others = self.channels.iter().any(|(c, hc)| *c != chid && hc.tsg == key);
+        match evict_path(hosted, others, self.tsgs.contains_key(&key)) {
+            EvictPath::HostChannel => {}
+            EvictPath::Refuse => {
+                return Err("deferred target host context is gone while other members of its TSG are hosted".into());
+            }
+            // Run P30: the TSG's context was moved to its last channel, which never rang (no
+            // host channel was built for it). Nothing of it runs on the host: the TSG's host
+            // context goes with the host TSG, and the guest's GPGet is final.
+            EvictPath::FreeTsg | EvictPath::Nothing => {
+                let mut notes = vec![format!(
+                    "deferred eviction of chid {chid}: a TSG member that never ran on the host; its TSG's host context is released with the host TSG [host]"
+                )];
+                self.worker.wait_all();
+                if !self.free_tsg(key, &mut notes) {
+                    return Err(notes.join("; "));
+                }
+                self.worker.wait_idle();
+                return Ok((notes, reg.channel_gp_get(chid).unwrap_or(0)));
+            }
+        }
         let hc = self.channels.get_mut(&chid).filter(|hc| hc.generation == generation)
             .ok_or("deferred target host context is gone")?;
         if root != hc.shadow_root.map(Target::Fb) {
             return Err("deferred target VAS changed".into());
         }
-        let key = hc.tsg;
+        if hc.tsg != key {
+            return Err("deferred target host channel is in another host TSG".into());
+        }
         if reg.channels().filter(|c| tsg_key_of(reg, c).0 == key).count() != 1 {
             return Err("deferred eviction of a multi-channel TSG is not implemented".into());
         }
@@ -5948,6 +5996,18 @@ mod tests {
         assert!(TsgKey::Grp(1) < TsgKey::Handle(0, 0));
         assert_eq!(TsgKey::Grp(7).to_string(), "grpID 7");
         assert_eq!(TsgKey::Handle(1, 0x30).to_string(), "0x1/0x30");
+    }
+
+    /// Run P30: the eviction of a TSG's context through its last channel, which never rang,
+    /// frees the host TSG instead of refusing ("host context is gone" was an Xid 45 and a
+    /// TDR after every D3D12 process); with other members still hosted it is refused.
+    #[test]
+    fn a_deferred_eviction_through_a_member_that_never_ran_frees_the_tsg() {
+        assert_eq!(evict_path(true, false, true), EvictPath::HostChannel);
+        assert_eq!(evict_path(true, true, true), EvictPath::HostChannel);
+        assert_eq!(evict_path(false, false, true), EvictPath::FreeTsg);
+        assert_eq!(evict_path(false, false, false), EvictPath::Nothing);
+        assert_eq!(evict_path(false, true, true), EvictPath::Refuse);
     }
 
     /// Run P26: CUDA's BINDs (compute CILP) reach the host TSG while only its first channel

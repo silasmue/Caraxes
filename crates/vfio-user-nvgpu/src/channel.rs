@@ -922,6 +922,12 @@ impl Registry {
             .collect()
     }
 
+    /// The GPGet the device last recorded for guest channel `chid` (its software or
+    /// harvested position).
+    pub fn channel_gp_get(&self, chid: u32) -> Option<u32> {
+        self.channels.get(&chid).map(|c| c.gp_get)
+    }
+
     /// Software acquires may wait for a host GPU write without another guest doorbell.
     pub fn blocked_software_channels(&self) -> Vec<u32> {
         self.channels
