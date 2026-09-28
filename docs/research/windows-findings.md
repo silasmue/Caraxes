@@ -280,3 +280,21 @@ Runs: `/mnt/vmstore/caraxes/alpha-2026-09-27/windows-plain/<run>/`.
 - **Linux B was relaunched by the main session at 20:48:57, during P22** (new pids
   708175/708207). Its "untrapped GPPut ... ran ahead of its doorbell" ERRORs are its own
   channels' evidence counters, not caused by the Windows device.
+
+## P23 (2026-09-28 21:15, P23-cilp-wfi, slot 4 beside Linux B slot 0 with 4 GiB; pool off)
+
+- **D3D11 PASS** (create 5.8 s, 3 frames 0.38 s).
+- **Stopped at 21:18 by the Linux-B rule, before CUDA ran.**
+  - A host Xid 31 named Linux B's device at 21:16:24: GR GPC1 FAULT_PDE write at
+    0x7287_aa001000, during main's CUDA tests in Linux B.
+  - Linux B's trace RC'd chids 21 and 22 on shadow root 0xef201000. Its F3 line read an empty
+    fault record: `GET_MMU_FAULT_INFO` of those channels is zero when the fault belongs to another
+    channel of the TSG.
+  - Causality from Windows not shown: separate reservations, VASes and host clients.
+  - Open: F3 should read the fault record of every channel of the TSG. Depends on: none.
+- **Windows Xid at boot (21:16:51):** HOST0 HUBCLIENT_HOST FAULT_PDE read at 0x1_20223000, a
+  PBDMA fetch.
+  - The host refused guest leaves at 0x120220000-0x12022e000 with 0x51: host set B holds those
+    VAs in that process's shadow VAS.
+  - The F2b class now blocks at boot, and the stop rule then ends every run before CUDA.
+  - Priority: F2b first, then the unmap rule. Depends on: L, AB.
