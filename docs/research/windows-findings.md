@@ -419,3 +419,20 @@ Runs: `/mnt/vmstore/caraxes/alpha-2026-09-27/windows-plain/<run>/`.
   - `quiet.ps1 -Apply`: updates paused until 2026-10-05, no drivers from Windows Update.
   - The DriverStore also holds nv_dispwi 32.0.16.1692 and nv_dispig 32.0.15.9186 besides the
     stock nv_dispi 32.0.16.1714; smoke's driver line shows which one binds.
+
+## P28 (2026-09-28 23:21, P28-uvm1, merged with night-2026-09-28; slot 0, 4 GiB; fence on)
+
+- **D3D11 PASS** (create 12.7 s). Stopped at the D3D12 stage by the Windows-device rule.
+- **7 host Xid 31, 23:25:32-23:27:13:** GRAPHICS HUBCLIENT_FE FAULT_PRIV_VIOLATION writes at
+  0x1_200f_c000, 0x1_2011_c000, 0x1_200f_f000, 0x1_2024_f000, 0x1_2038_f000, all inside the fence.
+  - F3: chid 18, the guest maps 0x1_2011_c000 (a sysmem page), the shadow has a gap there, not
+    set B: a leaf refused because a host page sits at that VA.
+  - Checks: 46 guest leaves refused 0x1a, 90 host 0x51 inside the fence, 43 fence holes (P26: 3,
+    no 0x1a).
+- **Cause: my merge.** planfast moved the set-B computation into `GlobalExtents::set_b/refresh`,
+  which size global buffers directly; the fence check stayed in `Mirror::global_extent` only. So
+  size-0 globals inside the fence were set B again, the fence was carved around them, and the
+  host's own buffers fell first fit into the holes, at the guest's VAs.
+- **Fix 5738dc81:** `set_b` takes the root's fence (the shadow's layout, or `Mirror::fence_of`
+  before the build); a regression test drives the `GlobalExtents` path (fails without the fix).
+  Depends on: L, AB.
