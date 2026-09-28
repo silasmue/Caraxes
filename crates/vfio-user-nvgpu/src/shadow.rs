@@ -16,6 +16,10 @@
 //! wholly in the reservation and carry an uncompressible kind; a sysmem leaf must lie
 //! wholly in a registered guest-RAM descriptor. Anything else is refused, counted and
 //! logged with VA, PA, aperture and reason, and never mapped (D16/D17 isolation).
+//! With real compression per slice (`CARAXES_COMPRESSION=slice`, decision D16b,
+//! compslice.rs) the kind filter is the D16b allowlist instead: compressible kinds map on
+//! covered slice pages and are downgraded elsewhere, and the shadow samples the host PTEs
+//! it made against the slice's comptag lines.
 //!
 //! **Dynamic mirroring (2026-09-24).** The guest keeps mapping set-A while it works, so
 //! the mirror is a diff: [`ShadowVas::apply`] compares the guest's leaves with what is
@@ -76,6 +80,7 @@ use std::time::{Duration, Instant};
 
 use nvrm_abi::sys;
 
+use crate::compslice::{self, KindUse, Policy, PteBlock};
 use crate::fb::{FakeFb, Target};
 use crate::guestmem::GuestMemory;
 use crate::hostmem::HostMemory;
@@ -110,6 +115,10 @@ pub const LEAF_OBJECT_FAILURES_PER_REGION: usize = 4;
 /// An emptied region with at least this many runs is freed whole (one `RM_FREE`, the RM
 /// unmaps its mappings itself) instead of one unmap per run.
 pub const BULK_MIN_RUNS: usize = 4;
+
+/// Host PTEs one plan samples at most for the D16b audit (compslice.rs `Policy::check_pte`):
+/// the first compressible or downgraded vidmem runs it maps.
+pub const AUDIT_PER_APPLY: usize = 4;
 
 /// A VA-contiguous stretch of 4 KiB sysmem leaves is mapped through a gather descriptor
 /// when it has at least this many leaves and coalescing would still need this many runs.
@@ -253,6 +262,9 @@ pub trait ShadowHost {
     fn gather(&mut self, pages: &[(u32, u64)]) -> Result<u32, String>;
     /// Free a gather descriptor.
     fn free_gather(&mut self, handle: u32) -> u32;
+    /// `NV0080_CTRL_CMD_DMA_GET_PTE_INFO` of `va` in the VA space `vas` (read-only; the
+    /// D16b audit, compslice.rs).
+    fn pte_info(&self, vas: u32, va: u64) -> Result<[PteBlock; 5], u32>;
 }
 
 impl ShadowHost for HostMemory {
@@ -294,6 +306,9 @@ impl ShadowHost for HostMemory {
     }
     fn free_gather(&mut self, handle: u32) -> u32 {
         HostMemory::free_gather(self, handle)
+    }
+    fn pte_info(&self, vas: u32, va: u64) -> Result<[PteBlock; 5], u32> {
+        HostMemory::pte_info(self, vas, va)
     }
 }
 
@@ -404,7 +419,9 @@ enum Resolved {
 
 /// The D16/D17 filter: the **whole** leaf `[pa, pa + size)` must lie in the reservation
 /// `[base, end)` (vidmem) or in one registered descriptor `(handle, iova, size)`
-/// (sysmem), and its kind must not be compressible.
+/// (sysmem), and its kind must not be compressible. With a compression policy (`comp`,
+/// D16b) the kind must be on the Turing allowlist instead (0x00-0x06, 0x08-0x0E); which
+/// kind the leaf is then mapped with is [`map_kind`]'s answer.
 fn resolve_leaf(
     t: &Target,
     size: u64,
@@ -412,9 +429,16 @@ fn resolve_leaf(
     base: u64,
     end: u64,
     descs: &[(u32, u64, u64)],
+    comp: Option<&Policy>,
 ) -> Resolved {
-    if (0x08..=0x0E).contains(&kind) {
-        return Resolved::Refused("compressible kind (D16)");
+    match comp {
+        None if compslice::compressible(kind) => {
+            return Resolved::Refused("compressible kind (D16)");
+        }
+        Some(_) if !compslice::allowlisted(kind) => {
+            return Resolved::Refused("kind outside the Turing allowlist 0x00-0x06, 0x08-0x0E (D16b)");
+        }
+        _ => {}
     }
     match t {
         Target::Fb(pa) => {
@@ -470,9 +494,29 @@ pub struct Leaf {
 /// backing object's kind: a pitch surface in the reservation became block-linear generic
 /// and the 2D engine faulted (Xid 13 "2D KIND Violation" on FERMI_TWOD_A, SotTR's first
 /// frames, 2026-09-28). The host RM accepts any kind the chip supports as an override,
-/// vidmem or sysmem (virtual_mem.c:1319-1328). Compressible kinds never get here (D16).
+/// vidmem or sysmem (virtual_mem.c:1319-1328). Compressible kinds never get here (D16);
+/// with compression per slice (D16b) [`map_kind`] decides instead.
 pub fn kind_override(kind: u8) -> Option<u8> {
     (0x00..=0x06).contains(&kind).then_some(kind)
+}
+
+/// The kind override a leaf that passed [`resolve_leaf`] is mapped with, and why a
+/// compressible kind was downgraded. Without a compression policy it is
+/// [`kind_override`], as before D16b. With one it is [`Policy::kind_use`]: every mapping
+/// then carries an explicit kind, so none takes the compressed reservation's own kind
+/// 0x09. `vid_off` is the leaf's reservation offset when it resolved to vidmem.
+fn map_kind(
+    kind: u8,
+    size: u64,
+    vid_off: Option<u64>,
+    comp: Option<&Policy>,
+) -> Result<(Option<u8>, Option<&'static str>), &'static str> {
+    match comp.map(|p| p.kind_use(kind, size, vid_off)) {
+        None => Ok((kind_override(kind), None)),
+        Some(KindUse::Map(k)) => Ok((Some(k), None)),
+        Some(KindUse::Downgrade(k, why)) => Ok((Some(k), Some(why))),
+        Some(KindUse::Refuse(why)) => Err(why),
+    }
 }
 
 /// The page class of a region object: 2 MiB pages, or 4 KiB/64 KiB pages under the
@@ -515,9 +559,13 @@ struct MappedLeaf {
     leaf: Leaf,
     /// The VA of the run holding it.
     run: u64,
+    /// The kind override it was mapped with ([`map_kind`]).
+    map_kind: Option<u8>,
 }
 
-/// A leaf to map: VA, leaf, backing handle, offset in it, snoop (sysmem).
+/// A leaf to map: VA, leaf, backing handle, offset in it, snoop (sysmem), and the kind
+/// override the filter chose ([`map_kind`]; part of the diff, so a policy change maps the
+/// leaf again).
 #[derive(Clone, Copy, Debug)]
 struct ToMap {
     va: u64,
@@ -525,6 +573,7 @@ struct ToMap {
     h_mem: u32,
     off: u64,
     snoop: bool,
+    map_kind: Option<u8>,
 }
 
 /// Group sorted leaves into runs one RM call can map: contiguous VA, same page size and
@@ -540,6 +589,7 @@ fn coalesce(items: &[ToMap]) -> Vec<std::ops::Range<usize>> {
             let ok = n.va == p.va + p.leaf.size
                 && n.leaf.size == p.leaf.size
                 && n.leaf.kind == p.leaf.kind
+                && n.map_kind == p.map_kind
                 && n.h_mem == p.h_mem
                 && n.snoop == p.snoop
                 && n.off == p.off + p.leaf.size
@@ -704,6 +754,8 @@ pub struct Plan {
     pub excluded: usize,
     pub refused_now: usize,
     pub refused_total: u64,
+    /// Compressible leaves of this plan mapped with their uncompressed twin (D16b).
+    pub downgraded: usize,
     pub walk_us: u128,
     /// Set by the worker: how long the plan waited in its queue.
     pub queued_us: u128,
@@ -729,6 +781,12 @@ pub struct ShadowFront {
     pub skipped: u64,
     /// Malformed entries of the root's tree at the last plan.
     malformed: usize,
+    /// The compression policy (D16b, compslice.rs); `None` keeps D16.
+    pub comp: Option<Arc<Policy>>,
+    /// The policy generation the last plan used: a change re-plans every unit.
+    comp_gen: u64,
+    /// Compressible leaves mapped downgraded, each noted once.
+    downgraded: BTreeMap<u64, Leaf>,
 }
 
 impl ShadowFront {
@@ -743,16 +801,28 @@ impl ShadowFront {
             layout: Layout::default(),
             skipped: 0,
             malformed: 0,
+            comp: None,
+            comp_gen: 0,
+            downgraded: BTreeMap::new(),
         }
     }
 
     /// Whether the next sync has work: the guest wrote a table page of this root, or the
-    /// exclusions changed, or always-resync is on.
+    /// exclusions changed, or always-resync is on, or the compression policy changed.
     pub fn needs_sync(&self, fb: &FakeFb, exclude: &[(u64, u64)]) -> bool {
         self.always
             || exclude != self.exclude.as_slice()
             || fb.tables_dirty(Target::Fb(self.root))
             || fb.pool_rediff_pending(self.root)
+            || self.comp_stale()
+    }
+
+    /// The compression policy changed since the last plan (an audit violation stopped
+    /// compressible maps, compslice.rs `Policy::violation`).
+    fn comp_stale(&self) -> bool {
+        self.comp
+            .as_ref()
+            .is_some_and(|p| p.generation() != self.comp_gen)
     }
 
     /// Walk what changed (ptcache.rs) and filter it (D16/D17): the plan for [`ShadowVas::apply`].
@@ -775,6 +845,11 @@ impl ShadowFront {
         }
         let exclude_changed = exclude != self.exclude.as_slice();
         self.exclude = exclude.to_vec();
+        let comp = self.comp.clone();
+        let comp_changed = self.comp_stale();
+        if let Some(p) = &comp {
+            self.comp_gen = p.generation();
+        }
         let root = Target::Fb(self.root);
         let upd = fb.walk_update(Some(sys_mem), root, self.always, MAX_LEAVES);
         let mut units: BTreeSet<u64> = upd.changed.iter().copied().collect();
@@ -794,7 +869,7 @@ impl ShadowFront {
             ),
         });
         self.malformed = malformed;
-        if exclude_changed || upd.full || pool_moved || verdict_changed {
+        if exclude_changed || upd.full || pool_moved || verdict_changed || comp_changed {
             if let Some(all) = fb.with_walk(root, |c| c.units_with_leaves()) {
                 units.extend(all);
             }
@@ -821,6 +896,8 @@ impl ShadowFront {
             let mut want_u: Vec<ToMap> = Vec::new();
             let old: Vec<u64> = self.refused.range(u..u + REGION).map(|(v, _)| *v).collect();
             let mut refused_u: BTreeMap<u64, Leaf> = BTreeMap::new();
+            let old_down: Vec<u64> = self.downgraded.range(u..u + REGION).map(|(v, _)| *v).collect();
+            let mut down_u: BTreeMap<u64, Leaf> = BTreeMap::new();
             for (va, t, size, kind) in &leaves {
                 if exclude.iter().any(|(lo, hi)| va < hi && va + size > *lo) {
                     plan.excluded += 1;
@@ -834,24 +911,39 @@ impl ShadowFront {
                 let resolved = match self.layout.unmirrorable(*va, va + size) {
                     _ if wrong_root => Resolved::Refused("the root holds malformed entries (wrong root?)"),
                     Some(why) => Resolved::Refused(why),
-                    None => resolve_leaf(&host_target(sys_mem, t, *size), *size, *kind, base, end, descs),
+                    None => resolve_leaf(&host_target(sys_mem, t, *size), *size, *kind, base, end, descs, comp.as_deref()),
                 };
-                match resolved {
-                    Resolved::Vidmem { offset } => want_u.push(ToMap {
-                        va: *va,
-                        leaf,
-                        h_mem: reservation,
-                        off: offset,
-                        snoop: false,
-                    }),
-                    Resolved::Sysmem { h_mem, offset } => want_u.push(ToMap {
-                        va: *va,
-                        leaf,
-                        h_mem,
-                        off: offset,
-                        snoop: true,
-                    }),
-                    Resolved::Refused(why) => {
+                // The kind the leaf is mapped with (D16b: the allowlist, compslice.rs).
+                let outcome = match resolved {
+                    Resolved::Vidmem { offset } => map_kind(*kind, *size, Some(offset), comp.as_deref())
+                        .map(|(mk, down)| (reservation, offset, false, mk, down)),
+                    Resolved::Sysmem { h_mem, offset } => map_kind(*kind, *size, None, comp.as_deref())
+                        .map(|(mk, down)| (h_mem, offset, true, mk, down)),
+                    Resolved::Refused(why) => Err(why),
+                };
+                match outcome {
+                    Ok((h_mem, off, snoop, map_kind, down)) => {
+                        if let Some(why) = down {
+                            if self.downgraded.get(va) != Some(&leaf) && logged < LOG_PER_SYNC {
+                                logged += 1;
+                                plan.notes.push(format!(
+                                    "shadow: DOWNGRADED leaf va {va:#x} -> {t:x?} size {size:#x} kind {kind:#x} mapped as {:#x}: {why} [D16b]",
+                                    map_kind.unwrap_or(*kind)
+                                ));
+                            }
+                            down_u.insert(*va, leaf);
+                            plan.downgraded += 1;
+                        }
+                        want_u.push(ToMap {
+                            va: *va,
+                            leaf,
+                            h_mem,
+                            off,
+                            snoop,
+                            map_kind,
+                        });
+                    }
+                    Err(why) => {
                         if self.refused.get(va) != Some(&leaf) {
                             self.refused_total += 1;
                             if logged < LOG_PER_SYNC {
@@ -869,6 +961,10 @@ impl ShadowFront {
                 self.refused.remove(&v);
             }
             self.refused.extend(refused_u);
+            for v in old_down {
+                self.downgraded.remove(&v);
+            }
+            self.downgraded.extend(down_u);
             if want_u.is_empty() {
                 self.live_units.remove(&u);
             } else {
@@ -942,6 +1038,9 @@ pub struct ShadowVas {
     gathers: BTreeMap<u32, usize>,
     /// Gather descriptors no run uses any more, freed at the next safe point.
     gathers_idle: Vec<u32>,
+    /// The compression policy (D16b, compslice.rs) whose PTE audit this VAS runs; `None`:
+    /// no audit (D16).
+    pub comp: Option<Arc<Policy>>,
 }
 
 impl ShadowVas {
@@ -1000,6 +1099,7 @@ impl ShadowVas {
             gather_on: switch_on("CARAXES_SHADOW_GATHER"),
             gathers: BTreeMap::new(),
             gathers_idle: Vec::new(),
+            comp: None,
         }
     }
 
@@ -1355,6 +1455,7 @@ impl ShadowVas {
         // the guest changes them (the guest's access faults on its own channel meanwhile).
         let mut exhausted: Option<u32> = None;
         let mut n_exhausted = 0usize;
+        let mut audit_left = AUDIT_PER_APPLY;
         if !self.pool.is_empty() {
             let mut h = hm.lock().unwrap();
             self.purge_pool(&mut *h, exclude);
@@ -1369,10 +1470,13 @@ impl ShadowVas {
                     self.failed.remove(&v);
                 }
             }
+            // A leaf whose kind override changed (a D16b policy change) is mapped again.
             let unmap: Vec<u64> = self
                 .mapped
                 .range(u..u + REGION)
-                .filter(|(va, m)| want.get(va).map(|w| w.leaf) != Some(m.leaf))
+                .filter(|(va, m)| {
+                    want.get(va).map(|w| (w.leaf, w.map_kind)) != Some((m.leaf, m.map_kind))
+                })
                 .map(|(va, _)| *va)
                 .collect();
             let need = want.values().next().map(|m| class_of(m.leaf.size));
@@ -1575,6 +1679,7 @@ impl ShadowVas {
                     let mut st = self.rm_map(&*h, h_dma, &p0, len);
                     if st == sys::NV_OK {
                         self.record_run(p0.va, len, h_dma, p0.h_mem, own, piece, descs);
+                        self.audit(&*h, &p0, &mut audit_left, &mut notes);
                         n_map += 1;
                         n_leaves += piece.len();
                         continue;
@@ -1619,6 +1724,7 @@ impl ShadowVas {
                         st = self.rm_map(&*h, h_dma, m, m.leaf.size);
                         if st == sys::NV_OK {
                             self.record_run(m.va, m.leaf.size, h_dma, m.h_mem, false, std::slice::from_ref(m), descs);
+                            self.audit(&*h, m, &mut audit_left, &mut notes);
                             n_map += 1;
                             n_leaves += 1;
                         } else {
@@ -1735,12 +1841,64 @@ impl ShadowVas {
             m.va,
             page_size_flag(m.leaf.size),
             m.snoop,
-            kind_override(m.leaf.kind),
+            m.map_kind,
             self.defer_tlb,
         );
         self.calls.add(Call::Map, t0);
         self.tlb_owed |= self.defer_tlb;
         st
+    }
+
+    /// D16b invariant (a), sampled: read back the host PTE of a vidmem run just mapped from
+    /// the slice with a compressible guest kind (mapped compressible or downgraded) and
+    /// check its kind and comptag line against the slice (compslice.rs
+    /// `Policy::check_pte`). At most `left` samples; none once the host refused the control
+    /// (it is test-only on the host RM). A violation stops compressible maps device-wide
+    /// and is an ERROR.
+    fn audit<H: ShadowHost>(&mut self, h: &H, m: &ToMap, left: &mut usize, notes: &mut Vec<String>) {
+        let Some(p) = self.comp.clone() else {
+            return;
+        };
+        let (Target::Fb(_), false, Some(kind)) = (m.leaf.target, m.snoop, m.map_kind) else {
+            return;
+        };
+        if *left == 0 || !compslice::compressible(m.leaf.kind) || !p.audit_wanted() {
+            return;
+        }
+        *left -= 1;
+        let blocks = match h.pte_info(self.vas, m.va) {
+            Ok(b) => b,
+            Err(st) => {
+                if let Some(l) = p.audit_refused(st) {
+                    eprintln!("vfio-user-nvgpu: {l}");
+                    notes.push(l);
+                }
+                return;
+            }
+        };
+        p.audit_answered();
+        match p.check_pte(&blocks, m.leaf.size, m.off, kind) {
+            Ok(true) => {}
+            Ok(false) => {
+                if p.kind_mismatch() {
+                    notes.push(format!(
+                        "WARN compression: the host PTE at va {:#x} carries another kind than the override {kind:#x} (the host changed it) [D16b]",
+                        m.va
+                    ));
+                }
+            }
+            Err(v) => {
+                let what = format!(
+                    "shadow VAS {:#x} va {:#x} (slice offset {:#x}, {:#x}-byte page, guest kind {:#x}): {v}",
+                    self.vas, m.va, m.off, m.leaf.size, m.leaf.kind
+                );
+                let line = p.violation(&what).unwrap_or_else(|| {
+                    format!("ERROR compression: host PTE audit violation: {what} [D16b invariant (a)]")
+                });
+                eprintln!("vfio-user-nvgpu: {line}");
+                notes.push(line);
+            }
+        }
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -1768,7 +1926,14 @@ impl ShadowVas {
             *c += 1;
         }
         for m in piece {
-            self.mapped.insert(m.va, MappedLeaf { leaf: m.leaf, run: va });
+            self.mapped.insert(
+                m.va,
+                MappedLeaf {
+                    leaf: m.leaf,
+                    run: va,
+                    map_kind: m.map_kind,
+                },
+            );
         }
         self.stats.maps += 1;
         self.stats.leaves_mapped += piece.len() as u64;
@@ -1818,7 +1983,7 @@ impl ShadowVas {
                 String::new()
             },
             s.extents()
-        )
+        ) + &self.comp.as_ref().map(|p| format!("; {}", p.summary())).unwrap_or_default()
     }
 
     /// Free the shadow VAS incrementally: unmap its runs `TEARDOWN_BATCH` at a time with
@@ -1946,32 +2111,32 @@ mod tests {
     fn the_filter_needs_the_whole_leaf_inside() {
         let descs = [(7u32, 0x7fff_0000_0000u64, 0x4000_0000u64)];
         assert_eq!(
-            resolve_leaf(&Target::Fb(BASE), 0x1000, 0, BASE, END, &descs),
+            resolve_leaf(&Target::Fb(BASE), 0x1000, 0, BASE, END, &descs, None),
             Resolved::Vidmem { offset: 0 }
         );
         // A 2 MiB page that starts inside and ends past the reservation is refused.
         assert!(matches!(
-            resolve_leaf(&Target::Fb(END - 0x1000), REGION, 0, BASE, END, &descs),
+            resolve_leaf(&Target::Fb(END - 0x1000), REGION, 0, BASE, END, &descs, None),
             Resolved::Refused(_)
         ));
         assert!(matches!(
-            resolve_leaf(&Target::Fb(BASE - 0x1000), 0x1000, 0, BASE, END, &descs),
+            resolve_leaf(&Target::Fb(BASE - 0x1000), 0x1000, 0, BASE, END, &descs, None),
             Resolved::Refused(_)
         ));
         assert_eq!(
-            resolve_leaf(&Target::Sys(0x7fff_0000_1000), 0x1000, 0, BASE, END, &descs),
+            resolve_leaf(&Target::Sys(0x7fff_0000_1000), 0x1000, 0, BASE, END, &descs, None),
             Resolved::Sysmem {
                 h_mem: 7,
                 offset: 0x1000
             }
         );
         assert!(matches!(
-            resolve_leaf(&Target::Sys(0x7fff_3fff_f000), 0x1_0000, 0, BASE, END, &descs),
+            resolve_leaf(&Target::Sys(0x7fff_3fff_f000), 0x1_0000, 0, BASE, END, &descs, None),
             Resolved::Refused(_)
         ));
         // D16: a compressible kind never passes, whatever the address.
         assert!(matches!(
-            resolve_leaf(&Target::Fb(BASE), 0x1000, 0x0A, BASE, END, &descs),
+            resolve_leaf(&Target::Fb(BASE), 0x1000, 0x0A, BASE, END, &descs, None),
             Resolved::Refused(_)
         ));
     }
@@ -1987,6 +2152,7 @@ mod tests {
             h_mem: h,
             off: pa - BASE,
             snoop: false,
+            map_kind: kind_override(kind),
         }
     }
 
@@ -2153,6 +2319,9 @@ mod tests {
         defer: bool,
     }
 
+    /// A fake mapping: backing offset, length, kind override.
+    type FakeMap = (u64, u64, Option<u8>);
+
     #[derive(Default)]
     struct FakeHost {
         seen: RefCell<Vec<Seen>>,
@@ -2173,6 +2342,14 @@ mod tests {
         alloc_status: Option<u32>,
         /// Every map answers this status.
         map_status: Option<u32>,
+        /// Every map's backing offset, length and kind override by VA: what the host RM
+        /// writes into the PTEs.
+        maps: RefCell<BTreeMap<u64, FakeMap>>,
+        /// The PTE the fake host reports for a mapped backing offset and kind; `None`: the
+        /// control is refused as test-only, as on the RTX 2070 host.
+        pte: Option<fn(u64, Option<u8>) -> PteBlock>,
+        /// The VAs `pte_info` was asked for.
+        audited: RefCell<Vec<u64>>,
     }
 
     impl FakeHost {
@@ -2193,11 +2370,12 @@ mod tests {
             }
             Ok(0x100 + self.next)
         }
-        fn map_dma_fixed(&self, h_dma: u32, h_mem: u32, _o: u64, len: u64, va: u64, _ps: u32, _s: bool, _k: Option<u8>, defer: bool) -> u32 {
+        fn map_dma_fixed(&self, h_dma: u32, h_mem: u32, o: u64, len: u64, va: u64, _ps: u32, _s: bool, k: Option<u8>, defer: bool) -> u32 {
             self.seen.borrow_mut().push(Seen { call: Call::Map, va, len, defer });
             if let Some(st) = self.map_status {
                 return st;
             }
+            self.maps.borrow_mut().insert(va, (o, len, k));
             self.live.borrow_mut().insert((h_dma, va), (len, h_mem));
             sys::NV_OK
         }
@@ -2232,6 +2410,15 @@ mod tests {
             let g = 0x900 + self.next;
             self.gathered.insert(g, pages.to_vec());
             Ok(g)
+        }
+        fn pte_info(&self, _vas: u32, va: u64) -> Result<[PteBlock; 5], u32> {
+            self.audited.borrow_mut().push(va);
+            let f = self.pte.ok_or(compslice::NV_ERR_TEST_ONLY_CODE_NOT_ENABLED)?;
+            let maps = self.maps.borrow();
+            let (mva, (off, _, kind)) = maps.range(..=va).next_back().expect("a mapped VA");
+            let mut b = [PteBlock::default(); 5];
+            b[1] = f(off + (va - mva), *kind);
+            Ok(b)
         }
         fn free_gather(&mut self, handle: u32) -> u32 {
             self.seen.borrow_mut().push(Seen { call: Call::GatherFree, va: handle as u64, len: 0, defer: false });
@@ -2289,6 +2476,7 @@ mod tests {
             h_mem: 7,
             off: iova,
             snoop,
+            map_kind: Some(k),
         };
         let items = vec![
             tm(0x1000, BASE + 0x1000, 0x1000, k, 1),
@@ -2697,6 +2885,7 @@ mod tests {
                 h_mem: 7,
                 off: iova - SYS,
                 snoop: true,
+                map_kind: Some(6),
             });
         }
         Plan {
@@ -2919,5 +3108,204 @@ mod tests {
         assert!(plan.notes.iter().any(|l| l.contains("below the video shadow VAS base")));
         let plan = ShadowFront::new(root).plan(&fb, &mem, BASE, END, 1, &[], &[]).unwrap();
         assert_eq!((plan.want, plan.refused_now), (4, 0));
+    }
+
+    // ---- D16b: real compression per slice (compslice.rs). ----
+
+    /// The policy of a slice that is the whole test reservation, host = guest addresses.
+    fn policy() -> Arc<Policy> {
+        Arc::new(Policy::new(&compslice::test_grant(BASE, END - BASE)).unwrap())
+    }
+
+    const DESCS: [(u32, u64, u64); 1] = [(7, 0x7fff_0000_0000, 0x4000_0000)];
+
+    /// A guest root whose PD0 entry 0 is a dual PDE: 4 KiB leaves from `pt` and 64 KiB
+    /// leaves from `bt`. Returns (root, pt, bt).
+    fn dual_tree(fb: &mut FakeFb) -> (u64, u64, u64) {
+        let vid = |a: u64| ((a >> 12) << 8) | 0b010;
+        let (root, pd2, pd1, pd0, pt, bt) =
+            (BASE, BASE + 0x1000, BASE + 0x2000, BASE + 0x3000, BASE + 0x4000, BASE + 0x5000);
+        fb.write_u64(root, vid(pd2));
+        fb.write_u64(pd2, vid(pd1));
+        fb.write_u64(pd1, vid(pd0));
+        fb.write_u64(pd0, ((bt >> 8) << 4) | 0b010);
+        fb.write_u64(pd0 + 8, vid(pt));
+        (root, pt, bt)
+    }
+
+    /// A guest PTE: vidmem or sysmem (coherent) at `a`, `kind`, and a guest COMPTAGLINE in
+    /// bits 55:36 (fb-model.md §2), which the device must never use.
+    fn gpte(a: u64, kind: u8, sys: bool, ctl: u64) -> u64 {
+        ((a >> 12) << 8) | if sys { 0b101 } else { 1 } | ((ctl & 0xF_FFFF) << 36) | ((kind as u64) << 56)
+    }
+
+    fn by_va(plan: &Plan) -> BTreeMap<u64, (Option<u8>, u32, u64)> {
+        plan.units
+            .iter()
+            .flat_map(|(_, w)| w.iter().map(|m| (m.va, (m.map_kind, m.h_mem, m.off))))
+            .collect()
+    }
+
+    /// Invariant (a), the filter: with the policy, compressible kinds map as they are on
+    /// slice pages of 64 KiB, are downgraded at 4 KiB and in sysmem, and kinds off the
+    /// allowlist are refused; every leaf carries an explicit kind. Without it (the switch
+    /// off) the plan is D16's: compressible kinds refused, 0x0F mapped without an override.
+    #[test]
+    fn with_compression_the_allowlist_decides_each_leafs_kind() {
+        let mut fb = FakeFb::new(END + (64 << 20));
+        let (root, pt, bt) = dual_tree(&mut fb);
+        let x = BASE + 0x10_0000;
+        fb.write_u64(bt + 8, gpte(BASE + 0x20_0000, 0x0C, false, 0)); // VA 0x10000, 64 KiB
+        fb.write_u64(bt + 16, gpte(BASE + 0x21_0000, 0x08, false, 0)); // VA 0x20000
+        fb.write_u64(pt + 8, gpte(x, 0x0C, false, 0)); // VA 0x1000, 4 KiB
+        // VA 0x2000: SMSKED_MESSAGE, the one kind off the allowlist the walk passes (it
+        // drops 0x07 and above 0x0F as malformed, ptcache.rs).
+        fb.write_u64(pt + 16, gpte(x + 0x1000, 0x0F, false, 0));
+        fb.write_u64(pt + 24, gpte(0x7fff_0000_1000, 0x08, true, 0)); // VA 0x3000: sysmem
+        fb.write_u64(pt + 32, gpte(x + 0x3000, 0x03, false, 0)); // VA 0x4000: S8Z24
+        let mem = GuestMemory::new();
+        let mut front = ShadowFront::new(root);
+        front.comp = Some(policy());
+        let plan = front.plan(&fb, &mem, BASE, END, 1, &[], &DESCS).unwrap();
+        let want: BTreeMap<u64, (Option<u8>, u32, u64)> = [
+            (0x1000, (Some(0x03), 1, 0x10_0000)),
+            (0x3000, (Some(0x06), 7, 0x1000)),
+            (0x4000, (Some(0x03), 1, 0x10_3000)),
+            (0x10000, (Some(0x0C), 1, 0x20_0000)),
+            (0x20000, (Some(0x08), 1, 0x21_0000)),
+        ]
+        .into_iter()
+        .collect();
+        assert_eq!(by_va(&plan), want);
+        assert_eq!((plan.refused_now, plan.downgraded), (1, 2));
+        assert!(plan.notes.iter().any(|l| l.contains("REFUSED leaf va 0x2000") && l.contains("allowlist")));
+        assert!(plan.notes.iter().any(|l| l.contains("DOWNGRADED leaf va 0x1000") && l.contains("4 KiB")));
+        assert!(plan.notes.iter().any(|l| l.contains("DOWNGRADED leaf va 0x3000") && l.contains("guest RAM")));
+        // The map calls carry exactly those kinds.
+        let host = Mutex::new(FakeHost::default());
+        let mut s = sv(false, false);
+        s.comp = front.comp.clone();
+        s.apply(&host, &plan, &DESCS);
+        let h = host.lock().unwrap();
+        let kinds: BTreeMap<u64, Option<u8>> = h.maps.borrow().iter().map(|(va, (_, _, k))| (*va, *k)).collect();
+        assert_eq!(kinds[&0x10000], Some(0x0C));
+        assert_eq!(kinds[&0x20000], Some(0x08));
+        assert_eq!(kinds[&0x1000], Some(0x03));
+        // Switch off: D16 as before.
+        let plan = ShadowFront::new(root).plan(&fb, &mem, BASE, END, 1, &[], &DESCS).unwrap();
+        let off: BTreeMap<u64, (Option<u8>, u32, u64)> =
+            [(0x2000, (None, 1, 0x10_1000)), (0x4000, (Some(0x03), 1, 0x10_3000))].into_iter().collect();
+        assert_eq!(by_va(&plan), off);
+        assert_eq!((plan.refused_now, plan.downgraded), (4, 0));
+    }
+
+    /// Invariant (c): the guest's COMPTAGLINE never reaches the host. Two trees that differ
+    /// only in it give the same plan, and the map call has no comptag argument (the host
+    /// RM writes 1 + SPA[35:16] itself).
+    #[test]
+    fn a_guest_comptag_line_changes_nothing() {
+        let mem = GuestMemory::new();
+        let plan_with = |ctl: u64| {
+            let mut fb = FakeFb::new(END + (64 << 20));
+            let (root, pt, bt) = dual_tree(&mut fb);
+            fb.write_u64(bt + 8, gpte(BASE + 0x20_0000, 0x0C, false, ctl));
+            fb.write_u64(pt + 8, gpte(BASE + 0x10_0000, 0x0E, false, ctl));
+            let mut front = ShadowFront::new(root);
+            front.comp = Some(policy());
+            by_va(&front.plan(&fb, &mem, BASE, END, 1, &[], &[]).unwrap())
+        };
+        let clean = plan_with(0);
+        assert_eq!(clean.len(), 2);
+        for ctl in [1, 0x1_2345, 0xF_FFFF] {
+            assert_eq!(plan_with(ctl), clean, "guest COMPTAGLINE {ctl:#x}");
+        }
+    }
+
+    fn pte_own_line(off: u64, kind: Option<u8>) -> PteBlock {
+        let k = kind.unwrap_or(6);
+        PteBlock {
+            page_size: 0x1_0000,
+            comptag_line: if compslice::compressible(k) { compslice::comptag_line(BASE + off) } else { 0 },
+            kind: k as u32,
+            flags: 1,
+        }
+    }
+
+    fn pte_next_line(off: u64, kind: Option<u8>) -> PteBlock {
+        let mut b = pte_own_line(off, kind);
+        b.comptag_line += 1;
+        b
+    }
+
+    /// Invariant (a), the audit: the host PTEs of compressible runs are sampled (at most
+    /// AUDIT_PER_APPLY per plan) and a clean answer changes nothing.
+    #[test]
+    fn the_audit_samples_compressible_runs_and_accepts_the_pages_own_line() {
+        let p = policy();
+        let leaves: Vec<(u64, u64, u64, u8)> =
+            (0..6u64).map(|i| (0x40_0000 + i * 0x2_0000, BASE + 0x80_0000 + i * 0x2_0000, 0x1_0000, 0x0C)).collect();
+        let mut plan = plan_of(&leaves, &[]);
+        for (_, w) in plan.units.iter_mut() {
+            for m in w.iter_mut() {
+                m.map_kind = Some(0x0C);
+            }
+        }
+        let host = Mutex::new(FakeHost { pte: Some(pte_own_line), ..Default::default() });
+        let mut s = sv(false, false);
+        s.comp = Some(p.clone());
+        let (_, lines) = s.apply(&host, &plan, &[]);
+        let h = host.lock().unwrap();
+        assert_eq!(h.audited.borrow().len(), AUDIT_PER_APPLY);
+        assert_eq!(p.audited.load(std::sync::atomic::Ordering::Relaxed), AUDIT_PER_APPLY as u64);
+        assert!(!p.disabled());
+        assert!(!lines.iter().any(|l| l.contains("ERROR")));
+    }
+
+    /// A PTE with another page's comptag line is an ERROR; compressible maps stop, the front
+    /// re-plans every unit and the leaf is mapped again with its uncompressed twin.
+    #[test]
+    fn an_audit_violation_stops_compressible_maps_and_remaps_downgraded() {
+        let mut fb = FakeFb::new(END + (64 << 20));
+        let (root, _, bt) = dual_tree(&mut fb);
+        fb.write_u64(bt + 8, gpte(BASE + 0x20_0000, 0x0C, false, 0));
+        let mem = GuestMemory::new();
+        let p = policy();
+        let mut front = ShadowFront::new(root);
+        front.comp = Some(p.clone());
+        let plan = front.plan(&fb, &mem, BASE, END, 1, &[], &[]).unwrap();
+        let host = Mutex::new(FakeHost { pte: Some(pte_next_line), ..Default::default() });
+        let mut s = sv(false, false);
+        s.comp = Some(p.clone());
+        let (_, lines) = s.apply(&host, &plan, &[]);
+        assert!(lines.iter().any(|l| l.contains("ERROR compression: host PTE audit violation")), "{lines:?}");
+        assert!(p.disabled());
+        assert!(front.needs_sync(&fb, &[]));
+        let plan = front.plan(&fb, &mem, BASE, END, 1, &[], &[]).unwrap();
+        assert_eq!(by_va(&plan)[&0x10000].0, Some(0x03));
+        assert!(plan.notes.iter().any(|l| l.contains("stopped")));
+        host.lock().unwrap().seen.borrow_mut().clear();
+        s.apply(&host, &plan, &[]);
+        let h = host.lock().unwrap();
+        assert_eq!(h.kinds(), vec![Call::Unmap, Call::Map]);
+        assert_eq!(h.maps.borrow()[&0x10000].2, Some(0x03));
+    }
+
+    /// The RTX 2070 host refuses DMA_GET_PTE_INFO as test-only: one WARN, never asked again.
+    #[test]
+    fn a_refused_audit_warns_once_and_is_not_asked_again() {
+        let p = policy();
+        let mut plan = plan_of(&[(0x40_0000, BASE + 0x80_0000, 0x1_0000, 0x0C)], &[]);
+        plan.units[0].1[0].map_kind = Some(0x0C);
+        let host = Mutex::new(FakeHost::default());
+        let mut s = sv(false, false);
+        s.comp = Some(p.clone());
+        let (_, lines) = s.apply(&host, &plan, &[]);
+        assert!(lines.iter().any(|l| l.contains("WARN compression") && l.contains("EnableRmTestOnlyCode")));
+        let mut plan2 = plan_of(&[(0x60_0000, BASE + 0xA0_0000, 0x1_0000, 0x0C)], &[]);
+        plan2.units[0].1[0].map_kind = Some(0x0C);
+        let (_, lines) = s.apply(&host, &plan2, &[]);
+        assert!(!lines.iter().any(|l| l.contains("WARN compression")));
+        assert_eq!(host.lock().unwrap().audited.borrow().len(), 1);
+        assert!(!p.disabled());
     }
 }

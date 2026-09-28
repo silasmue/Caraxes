@@ -507,8 +507,9 @@ fn fill_value(b: &mut [u8], st: &str, ty: u32, e: Option<&Entry>) {
 /// (docs/research/compression-isolation-2026-09-28.md). A ZBC fast clear on a compressible
 /// kind stores a table index in the compbits, and the hardware resolves it through the one
 /// table of the host GPU (mem_mgr_gm107.c:516-523 of 615.71.09), so the guest's entries go
-/// to the host's table ([`SliceZbc`]). Anything else keeps this VM's local table.
-pub const COMPRESSION_ENV: &str = "CARAXES_COMPRESSION";
+/// to the host's table ([`SliceZbc`]). Anything else keeps this VM's local table. The one
+/// parser of the switch is compslice.rs [`requested`](crate::compslice::requested).
+pub const COMPRESSION_ENV: &str = crate::compslice::ENV;
 /// `CARAXES_ZBC_MAX`: how many free slots of each host table (colour, depth, stencil) one VM
 /// may fill, 0-15; an equal entry the host already holds costs nothing.
 pub const ZBC_MAX_ENV: &str = "CARAXES_ZBC_MAX";
@@ -538,9 +539,10 @@ pub const REFUSED_HERE: &str =
 pub const REFERENCED: &str =
     "guest (this guest's ZBC-kind surfaces recorded; not forwarded: kernel-privileged on the host)";
 
-/// Whether `CARAXES_COMPRESSION=slice`.
+/// Whether `CARAXES_COMPRESSION=slice`, by the switch's one parser (compslice.rs; a value
+/// it refuses ends start-up in main.rs before this is read).
 pub fn slice_from_env() -> bool {
-    std::env::var(COMPRESSION_ENV).is_ok_and(|v| v.trim() == "slice")
+    crate::compslice::requested() == Ok(crate::compslice::Mode::Slice)
 }
 
 /// `CARAXES_ZBC_MAX`, or [`DEFAULT_MAX`].
