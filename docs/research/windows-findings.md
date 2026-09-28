@@ -245,3 +245,34 @@ Runs: `/mnt/vmstore/caraxes/alpha-2026-09-27/windows-plain/<run>/`.
   its GPFIFO leaf, and the channel's host free afterwards (the unmap applied only then).
 - Implemented after P22. Depends on: AB, L (the shadow's apply path, shared with the compressed
   slice's kind handling).
+
+## P22 (2026-09-28 20:45, P22-bind-payloads, beside Linux B; pool off, compression off)
+
+- **D3D11 PASS again** (create 14.0 s, 3 frames 5.2 s).
+- **CUDA reaches the device, not a context.**
+  - deviceQuery OK: "Leandro VFIO RTX 2070-1G", 1021 MiB, sm_75, 36 SMs, 1620/7001 MHz, 256-bit,
+    L2 4 MiB.
+  - cuDevicePrimaryCtxRetain returns 999 CUDA_ERROR_UNKNOWN.
+  - NVENC and NVDEC (ffmpeg) fail at their own cuCtxCreate, the same cause.
+- **The GFXP BIND shapes** (payload log; `NV2080_CTRL_GR_CTXSW_PREEMPTION_BIND_PARAMS`, ctrl2080gr.h:917):
+
+  | flags | gfxp | cilp | buffers | Sender | P17 diagnostic | P23 decision |
+  |---|---|---|---|---|---|---|
+  | 2 GFXP_SET | 2 GFXP_POOL | 0 | pool VAs + CPU ptr | D3D11 contexts | owned GFXP mode 1 | unchanged |
+  | 1 CILP_SET | 0 | 1 CTA | none | D3D11 contexts | host CTA bind | unchanged (`bind_owned_compute`) |
+  | 1 CILP_SET | 0 | 2 CILP | none | CUDA contexts (3 of them) | refused | host CILP bind + GET, else NOT_SUPPORTED; never downgraded to CTA |
+  | 2 GFXP_SET | 0 WFI | 0 | none | 9 other D3D contexts | refused | host GET; OK only if the host context is in WFI |
+
+  - User decision via main: no silent CILP-to-CTA downgrade.
+  - A context whose request was carried out without an owned GFXP set is marked
+    `preemption_ready`; the first-use gate opens for it.
+  - Depends on: R (owned GFXP buffers; into the VM's slice later), AB.
+- **The P21 teardown fault repeats** (HOST_CPU FAULT_PTE at 0x04774000, 20:50:40, during smoke).
+  Fix: the unmap rule above (after P23). Depends on: AB, L.
+- **Held-doorbell replay:** the trace still shows 10220 "enabled again ... held" lines. The P22
+  quiet replay covers the replay loop only; these lines come from `doorbell_pending`/ioeventfd
+  rings of gated channels, which re-enter the gate. Next: silence the gate note after its first
+  line per channel generation. Depends on: none.
+- **Linux B was relaunched by the main session at 20:48:57, during P22** (new pids
+  708175/708207). Its "untrapped GPPut ... ran ahead of its doorbell" ERRORs are its own
+  channels' evidence counters, not caused by the Windows device.
