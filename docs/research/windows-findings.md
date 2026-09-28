@@ -396,7 +396,16 @@ Runs: `/mnt/vmstore/caraxes/alpha-2026-09-27/windows-plain/<run>/`.
   2026-09 security update KB5129195 (26200.9457) during P26 (event 43 at 22:10:45, while the
   workload stages ran); at P26's `Stop-Computer` it reported install failure 0xc1800109
   (event 20, 22:18:41), and `Component Based Servicing\PackagesPending` (an LCU merge) is still
-  set. The P27 boot ran that servicing and powered off.
+  set.
+- **Correction (M27-servicing, 22:38, boot without the GPU device):** the boot stops at the
+  Windows recovery screen "code integrity could not be initialized, \\WINDOWS\\system32\\winload.efi,
+  0xc0430001" and powers off about 60 s later (P27 did the same).
+  - Offline, read-only: winload.efi, ci.dll, ntoskrnl.exe, VbsSiPolicy.p7b and
+    driversipolicy.p7b were replaced at 22:09 (the LCU's staging), `WinSxS\\pending.xml` is
+    there, the ESP's bootmgfw.efi is still the one of 2026-09-25. A half-applied LCU.
+  - Not the device: it happens without the synthetic GPU.
+  - Repair: WinRE (F1 at that screen) "Uninstall latest quality update", or DISM
+    `/RevertPendingActions` from its prompt; fallback a fresh overlay on the base chain.
 - Guest networking (QEMU user NAT, needed for the workload install) also lets Windows Update in,
   and Windows Update can deliver NVIDIA drivers: a risk for the stock 617.14.
 - **Plan:** a maintenance boot without the synthetic GPU (`run27.py maint start`, WIN_GPU=0) to
