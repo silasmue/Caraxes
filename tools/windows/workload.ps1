@@ -85,15 +85,29 @@ switch ($Stage) {
                 'Include_test=0', 'Include_doc=0', 'Include_tcltk=0', 'Shortcuts=0', 'AssociateFiles=0')
             if ($p.ExitCode -ne 0) { throw "python installer exit $($p.ExitCode)" }
         }
+        # torch and llama.cpp both need the VC++ 2015-2022 runtime (msvcp140, vcruntime140_1).
+        if (-not (Test-Path "$env:SystemRoot\System32\vcruntime140_1.dll")) {
+            $sig = Get-AuthenticodeSignature $files['vc_redist.x64.exe']
+            if ($sig.Status -ne 'Valid' -or $sig.SignerCertificate.Subject -notmatch 'O=Microsoft Corporation') {
+                throw "vc_redist signature: $($sig.Status) $($sig.SignerCertificate.Subject)"
+            }
+            "vc_redist signed by $($sig.SignerCertificate.Subject)"
+            $p = Start-Process $files['vc_redist.x64.exe'] -Wait -PassThru -ArgumentList '/install', '/quiet', '/norestart'
+            if ($p.ExitCode -notin 0, 3010) { throw "vc_redist exit $($p.ExitCode)" }
+        }
         $pip = Invoke-Native $py -m pip install --disable-pip-version-check --no-index --find-links "$W\dl" 'torch==2.13.0+cu130'
         $pip
         if ($pip[-1] -ne 'exit 0') { throw 'pip install failed' }
-        Invoke-Native $py -c "import sys, torch; print('python', sys.version.split()[0], 'torch', torch.__version__, 'cuda', torch.version.cuda)"
-        Invoke-Native "$W\llama\llama-bench.exe" --version
+        $t = Invoke-Native $py -c "import sys, torch; print('python', sys.version.split()[0], 'torch', torch.__version__, 'cuda', torch.version.cuda)"
+        $t
+        $l = Invoke-Native "$W\llama\llama-bench.exe" --help
+        $l
+        # llama-bench --help prints its usage and exits 1; a missing DLL exits 0xC0000135 before that.
+        if ($t[-1] -ne 'exit 0' -or -not ($l -match '^usage: ')) { throw 'torch or llama-bench does not load' }
         'INSTALL_OK'
     }
     'info' {
-        Invoke-Native nvidia-smi.exe -q
+        Invoke-Native nvidia-smi.exe '-q'
         Invoke-Native nvidia-smi.exe
         Get-CimInstance Win32_VideoController | Format-List Name, DriverVersion, AdapterRAM, Status | Out-String
     }

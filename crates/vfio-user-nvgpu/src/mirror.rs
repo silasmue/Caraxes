@@ -665,6 +665,28 @@ pub fn tsg_key_of_guest(reg: &Registry, obj: (u32, u32)) -> Option<TsgKey> {
     }
 }
 
+/// [`Mirror::tsg_context_ready`]: channel `chid` is a member of a guest GR TSG whose live
+/// host TSG (the same guest TSG, not a stale one under a reused id) is `ready` or holds a
+/// bound owned GFXP set.
+fn tsg_context_ready(
+    tsgs: &BTreeMap<TsgKey, HostTsg>,
+    ready: &std::collections::BTreeSet<TsgKey>,
+    reg: &Registry,
+    chid: u32,
+) -> bool {
+    let Some(ch) = reg.channel(chid) else {
+        return false;
+    };
+    let (key, bare, guest) = tsg_key_of(reg, ch);
+    !bare
+        && ch.engine_type == 1
+        && tsgs.get(&key).is_some_and(|ht| {
+            ht.guest == guest
+                && ht.engine == 1
+                && (ready.contains(&key) || ht.gfxp.as_ref().is_some_and(|g| g.bound))
+        })
+}
+
 /// What to do with an existing host TSG under the key a new guest TSG maps to.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum TsgReuse {
@@ -2761,6 +2783,16 @@ impl Mirror {
             || self.channels.get(&chid).is_some_and(|hc| {
                 hc.generation == generation && self.preemption_ready_tsg.contains(&hc.tsg)
             })
+    }
+
+    /// Whether guest GR channel `chid` belongs to a guest TSG whose host TSG is set up: its
+    /// preemption request was carried out ([`Self::bind_owned_compute`],
+    /// [`Self::confirm_gfx_wfi`]) or it holds a bound owned GFXP set. A channel of that TSG
+    /// without a host context yet joins the TSG's context at its first doorbell (run P26:
+    /// CUDA's TSG has eight channels, one per subcontext; every BIND arrives while only the
+    /// first is hosted, and the other seven waited for a bind of their own forever).
+    pub fn tsg_context_ready(&self, reg: &Registry, chid: u32) -> bool {
+        tsg_context_ready(&self.tsgs, &self.preemption_ready_tsg, reg, chid)
     }
 
     /// RM teardown idles the exact mirrored target, harvests its final GPGet and releases
@@ -5504,6 +5536,58 @@ mod tests {
         assert!(TsgKey::Grp(1) < TsgKey::Handle(0, 0));
         assert_eq!(TsgKey::Grp(7).to_string(), "grpID 7");
         assert_eq!(TsgKey::Handle(1, 0x30).to_string(), "0x1/0x30");
+    }
+
+    /// Run P26: CUDA's BINDs (compute CILP) reach the host TSG while only its first channel
+    /// is hosted; the TSG's other GR channels join a ready context, a channel of another
+    /// guest TSG under a reused id or a bare channel does not.
+    #[test]
+    fn members_join_a_tsg_whose_context_is_set_up() {
+        let gpfifo = crate::fixture::rtx2070().chip.data().channel.gpfifo;
+        let gr = |chid: u32| {
+            let mut b = channel_params(chid, None);
+            let o = <Abi as nvrm_sys::RmAbi>::ALLOC_CHANNEL_PARAMS_OFF_engineType;
+            b[o..o + 4].copy_from_slice(&1u32.to_le_bytes());
+            b
+        };
+        let mut reg = registry();
+        reg.record_alloc(
+            1,
+            0x10,
+            0x30,
+            v::KEPLER_CHANNEL_GROUP_A,
+            &tsg_params(Some(22)),
+        );
+        for (chid, h) in [(24, 0x40), (25, 0x41), (31, 0x47)] {
+            reg.record_alloc(1, 0x30, h, gpfifo, &gr(chid));
+        }
+        reg.record_alloc(1, 0x10, 0x50, gpfifo, &gr(4)); // bare
+        let (key, _, guest) = tsg_key_of(&reg, reg.channel(24).unwrap());
+        let host = |guest, gfxp| HostTsg {
+            handle: 0x8000_0001,
+            vas: (1, 0x20),
+            engine: 1,
+            guest,
+            gfxp,
+        };
+        let mut tsgs = BTreeMap::new();
+        let mut ready = std::collections::BTreeSet::new();
+        let joins = |t: &BTreeMap<_, _>, r: &std::collections::BTreeSet<_>, c| {
+            tsg_context_ready(t, r, &reg, c)
+        };
+        assert!(!joins(&tsgs, &ready, 25), "no host TSG yet");
+        tsgs.insert(key, host(guest, None));
+        assert!(
+            !joins(&tsgs, &ready, 25),
+            "host TSG, no BIND carried out yet"
+        );
+        ready.insert(key);
+        assert!([24, 25, 31].iter().all(|c| joins(&tsgs, &ready, *c)));
+        assert!(!joins(&tsgs, &ready, 4), "a bare channel has its own TSG");
+        assert!(!joins(&tsgs, &ready, 99), "no such channel");
+        // The same id under another guest TSG (a stale host TSG) is not ready for it.
+        tsgs.insert(key, host((1, 0x31), None));
+        assert!(!joins(&tsgs, &ready, 25));
     }
 
     /// The video engines by `NV2080_ENGINE_TYPE` (NVDEC0 0x13, NVENC0 0x1b on 610 and

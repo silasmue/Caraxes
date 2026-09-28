@@ -336,3 +336,54 @@ Runs: `/mnt/vmstore/caraxes/alpha-2026-09-27/windows-plain/<run>/`.
   - The fence is carved exactly: set-B ranges and per-leaf objects get their exact range, the
     rest of a 2 MiB region stays fenced, and a released range is fenced again.
   - Depends on: L, AB.
+
+## P25 (2026-09-28 21:40, P25-fence-exact, slot 4, 1 GiB; fence on, pool off)
+
+- **Boot clean:** 16 fenced shadow VASes, 3 fence holes (host 0x51 at 0x1_2010_4000 and
+  0x1_200e_4000, the released PATCH still held by the host when re-fenced; retry open), no 0x1a.
+- **D3D11 PASS**, own name in nvidia-smi ("Leandro VFIO RTX 2070-1G"); Device Manager shows the
+  INF name (user decision).
+- **CUDA:** cuInit and deviceQuery pass (driver CUDA 13.4, 36 SMs, sm_75);
+  `cuDevicePrimaryCtxRetain` returned 999. Cause: the compute BIND refused a TSG with more than
+  one hosted channel. Fixed in e705186b (the BIND goes to the whole host TSG).
+- **Smoke:** vulkaninfo exit 1, D3D12 gate timeout (90 s), 5 nvlddmkm events (ids 14, 153).
+- **Host Xid 31 at 21:43:33:** HOST_CPU FAULT_PTE read at 0x0477_4000, the teardown class of
+  P21 (see P26).
+- **The fence should become default-on for every guest** once proven (the user's
+  4-5-knob goal); Linux B has not run with it yet. Depends on: L, AB.
+
+## P26 (2026-09-28 22:00, P26-workload, slot 0, 4 GiB FB, 8 GiB RAM; fence on, pool off)
+
+- **Setup:** Linux B and the lean VM down.
+  - QEMU logged `vfio_wait_reqs - timed out` once at boot: registering 6 GiB of high RAM takes
+    6 x ~650 ms in one DMA_MAP. Harmless here; an 8 GiB guest needs the map split or answered
+    early.
+- **D3D11 PASS** (create 14.7 s), nvidia-smi "Leandro VFIO RTX 2070-4G" 4096 MiB, WDDM, CUDA
+  UMD 13.4.
+- **Workload install (tools/windows/workload.ps1):** llama.cpp b10173 (= e9fa0781f) CUDA 13.3
+  with cudart, Python 3.12.10, torch 2.13.0+cu130, both models, all sha256-checked; torch and
+  llama.cpp need the VC++ 2015-2022 runtime. `ggml_cuda_init` finds the device (4093 MiB).
+- **CUDA hangs in context creation** (cuda-probe killed at 300 s, no Xid).
+  - CUDA's TSG (grpID 22) has eight GR channels, chids 24-31, one per subcontext. The guest
+    promotes the context once, on chid 24, and sends one CILP BIND per channel allocation;
+    each bound the host TSG with only chid 24 hosted.
+  - Chids 25-31 were held forever by the diagnostic's first-use gate, which wanted a bind of
+    their own; the deferred-context gate behind it (`target_submission_blocked`) wanted a
+    promotion of their own (code reading; not reached in the run).
+  - Fix (this commit): a member of a TSG whose context is promoted and live, or whose host TSG
+    is set up (`Mirror::tsg_context_ready`), submits and joins the host TSG at its first
+    doorbell, as on Linux (CUDA's 8 channels, one context share).
+  - Likely the same cause: Vulkan and D3D12 also build multi-channel TSGs; the P21-P26 Xid
+    below fits a hosted channel that waits on a semaphore released by a held member.
+  - Depends on: none (gating only); the joined members use the host TSG's context (R, AB as
+    before).
+- **Host Xid 31 at 22:17:45 (smoke, after the D3D11 gate):** HOST_CPU FAULT_PTE read at
+  0x0477_4000, the same VA as P21, P22 and P25.
+  - Order in the trace: a teardown sync unmapped 809 leaves of root 0xff45_2000 at 1073.014 s
+    while its GR channels (chids 24 and 28) were still hosted; the RC event came at 1073.067 s;
+    the guest idled (chid 29 "GPGet 0 GPPut 30", a held member) and freed the channels after.
+  - The guest invalidated 0x4773000, 0x4774000 and 0x4777000 repeatedly before: a small page
+    set the KMD rewrites, likely a fence/semaphore page that HOST polls.
+  - Stopped by the rule. Next: P27 with the member fix; if the Xid remains, the unmap rule
+    (P21 section) with semaphore pages in the held set.
+- **Not reached:** short kernel, llama, PyTorch, NVENC/NVDEC.

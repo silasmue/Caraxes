@@ -100,6 +100,9 @@ impl Default for State {
 }
 
 impl State {
+    /// A skip-context GR channel submits only once its TSG's context is promoted and live.
+    /// The context is the TSG's: the guest promotes it once, on the channel it names, and
+    /// the TSG's other channels (Windows CUDA: eight, one per subcontext, run P26) share it.
     pub(super) fn target_submission_blocked(&self, reg: &Registry, chid: u32) -> bool {
         let Some(ch) = reg.channel(chid) else {
             return false;
@@ -108,10 +111,9 @@ impl State {
             && ch.engine_type == 1
             && ch.alloc_flags & (1 << 31) != 0
             && !self.contexts.iter().any(|(target, context)| {
-                target.chid == chid
-                    && target.generation == ch.generation
-                    && context.promoted
-                    && target.live(reg)
+                let own = target.chid == chid && target.generation == ch.generation;
+                let member = target.client == ch.h_client && target.object == ch.h_parent;
+                (own || member) && context.promoted && target.live(reg)
             })
     }
 
@@ -580,6 +582,58 @@ mod tests {
         assert!(blocked(&dispatcher)); // A reused ChID cannot inherit promotion.
         dispatcher.deferred_context.enabled = false;
         assert!(!blocked(&dispatcher));
+    }
+
+    #[test]
+    fn tsg_members_submit_on_the_tsg_context_promoted_on_another_channel() {
+        let mut dispatcher = dispatcher();
+        let (_, _, tsg) = add_pair(&mut dispatcher, 1, 3, 4);
+        let target = TargetStamp::resolve(&dispatcher.channels, evict(1, 1, 4, tsg)).unwrap();
+        // Run P26: CUDA's TSG gets seven more skip-context channels after the promotion.
+        let classes = crate::fixture::rtx2070().chip.data().channel;
+        for (chid, object) in [(5, 0x42), (6, 0x43)] {
+            dispatcher.channels.record_alloc(
+                1,
+                tsg,
+                object,
+                classes.gpfifo,
+                &channel_params(chid, 1 << 31, 0),
+            );
+        }
+        // A skip-context channel of another client's TSG with the same handles.
+        let (_, _, other_tsg) = add_pair(&mut dispatcher, 2, 7, 8);
+        dispatcher.channels.record_alloc(
+            2,
+            other_tsg,
+            0x42,
+            classes.gpfifo,
+            &channel_params(9, 1 << 31, 0),
+        );
+        let blocked = |d: &Dispatcher, chid| {
+            d.deferred_context
+                .target_submission_blocked(&d.channels, chid)
+        };
+        assert!([4, 5, 6, 9].iter().all(|c| blocked(&dispatcher, *c)));
+        dispatcher.deferred_context.contexts.insert(
+            target,
+            Context {
+                size: 0x2000,
+                promoted: false,
+            },
+        );
+        assert!([4, 5, 6].iter().all(|c| blocked(&dispatcher, *c)));
+        dispatcher
+            .deferred_context
+            .contexts
+            .get_mut(&target)
+            .unwrap()
+            .promoted = true;
+        assert!([4, 5, 6].iter().all(|c| !blocked(&dispatcher, *c)));
+        assert!(blocked(&dispatcher, 9)); // Another client's TSG shares nothing.
+        assert!(blocked(&dispatcher, 8));
+        // The promoted channel freed: its members fall back to blocked.
+        dispatcher.channels.record_free(1, 0x41);
+        assert!([5, 6].iter().all(|c| blocked(&dispatcher, *c)));
     }
 
     #[test]
