@@ -63,6 +63,31 @@ pub struct HostUserd {
     window: Window,
 }
 
+/// One host-owned ordinary-GFXP context buffer in vidmem. The byte charge stays with
+/// this value until [`HostMemory::free_host_gfxp`] successfully frees its RM object.
+/// A failed free returns the value to the caller so neither ownership nor accounting is
+/// lost.
+pub struct HostGfxp {
+    handle: u32,
+    size: u64,
+    alignment: u64,
+    charge: u64,
+}
+
+impl HostGfxp {
+    pub fn handle(&self) -> u32 {
+        self.handle
+    }
+
+    pub fn size(&self) -> u64 {
+        self.size
+    }
+
+    pub fn alignment(&self) -> u64 {
+        self.alignment
+    }
+}
+
 impl HostUserd {
     pub fn handle(&self) -> u32 {
         self.handle
@@ -94,6 +119,27 @@ fn valid_host_userd(addr: u64, size: u64, contiguous: bool) -> bool {
         && size == 4096
         && addr % USERD_ALIGN == 0
         && addr.checked_add(size).is_some_and(|end| end <= USERD_LIMIT)
+}
+
+fn valid_gfxp_request(size: u64, alignment: u64) -> bool {
+    size != 0
+        && alignment.is_power_of_two()
+        && size.checked_add(alignment - 1).is_some()
+}
+
+fn gfxp_charge(size: u64, alignment: u64) -> Option<u64> {
+    // NV01_MEMORY_LOCAL_USER is page-backed even when the engine's minimum alignment is
+    // only 256 bytes. Charge at least the 4 KiB physical allocation granularity.
+    let quantum = alignment.max(4096);
+    valid_gfxp_request(size, alignment)
+        .then(|| size.checked_add(quantum - 1).map(|n| n & !(quantum - 1)))
+        .flatten()
+}
+
+fn valid_aligned_virtual(size: u64, alignment: u64, offset: u64) -> bool {
+    valid_gfxp_request(size, alignment)
+        && offset % alignment == 0
+        && offset.checked_add(size).is_some()
 }
 
 // SAFETY: the mapping is owned by the window and only ever touched from the server
@@ -876,6 +922,19 @@ pub fn forget_subtree(live: &mut Vec<(u32, u32, &'static str)>, handle: u32) {
     }
 }
 
+fn apply_tracked_free(
+    live: &mut Vec<(u32, u32, &'static str)>,
+    handle: u32,
+    result: Result<(), Status>,
+) -> Result<(), Status> {
+    result?;
+    if let Some(i) = live.iter().rposition(|(_, h, _)| *h == handle) {
+        live.remove(i);
+        forget_subtree(live, handle);
+    }
+    Ok(())
+}
+
 /// `NV2080_CTRL_FB_INFO_INDEX_BAR1_SIZE` and `_BAR1_AVAIL_SIZE` (ctrl2080fb.h:323, :351;
 /// KiB), the host's BAR1 for the soak line.
 const FB_INFO_BAR1_SIZE: u32 = 0x05;
@@ -1197,6 +1256,49 @@ impl HostMemory {
         Ok((h, p.offset))
     }
 
+    /// Allocate an aligned `NV50_MEMORY_VIRTUAL` reservation wherever the host RM's VA
+    /// allocator places it. The returned offset is the RM's chosen address; callers own
+    /// the handle and must free it with [`Self::free_object`].
+    pub fn alloc_virtual_aligned(
+        &mut self,
+        vaspace: u32,
+        size: u64,
+        alignment: u64,
+    ) -> Result<(u32, u64), Status> {
+        if !valid_gfxp_request(size, alignment) {
+            return Err(sys::NV_ERR_INVALID_ARGUMENT as u32);
+        }
+        let mut p = sys::NV_MEMORY_ALLOCATION_PARAMS::default();
+        p.owner = OWNER_TAG;
+        p.type_ = sys::NVOS32_TYPE_IMAGE as u32;
+        p.flags = sys::NVOS32_ALLOC_FLAGS_VIRTUAL as u32
+            | sys::NVOS32_ALLOC_FLAGS_ALIGNMENT_FORCE;
+        p.alignment = alignment;
+        p.attr = nvos32_attr::LOCATION.set(sys::NVOS32_ATTR_LOCATION_PCI as u32)
+            | nvos32_attr::PAGE_SIZE.set(sys::NVOS32_ATTR_PAGE_SIZE_DEFAULT as u32);
+        p.size = size;
+        p.hVASpace = vaspace;
+        let device = self.device();
+        // SAFETY: plain-data allocation parameters; RM writes its chosen VA to `offset`.
+        let bytes = unsafe {
+            std::slice::from_raw_parts_mut(
+                &mut p as *mut _ as *mut u8,
+                std::mem::size_of::<sys::NV_MEMORY_ALLOCATION_PARAMS>(),
+            )
+        };
+        let h = self.alloc_object(
+            device,
+            sys::NV50_MEMORY_VIRTUAL,
+            bytes,
+            "gfxp-virtual",
+        )?;
+        if !valid_aligned_virtual(size, alignment, p.offset) {
+            let _ = self.free_tracked_leaf(h, "gfxp-virtual");
+            return Err(sys::NV_ERR_INVALID_ADDRESS as u32);
+        }
+        Ok((h, p.offset))
+    }
+
     /// Allocate an `NV50_MEMORY_VIRTUAL` reservation of `size` **fixed at VA `va`** inside
     /// `vaspace`. `page_bytes` is the page-size attribute: 4 KiB, 64 KiB or 2 MiB, or
     /// `None` for `PAGE_SIZE_DEFAULT` (RM locks both 4 KiB and big pages for the range,
@@ -1421,15 +1523,31 @@ impl HostMemory {
         let Some(i) = self.live.iter().rposition(|(_, h, _)| *h == handle) else {
             return Err(0xFFFF_FFFE);
         };
-        let (parent, _, what) = self.live.remove(i);
-        // RM frees the subtree; forget all of it this side too.
-        forget_subtree(&mut self.live, handle);
-        let r = self.rm_free(parent, handle);
+        if self.live[i].2 == "host-gfxp" {
+            return Err(sys::NV_ERR_INVALID_STATE as u32);
+        }
+        let (parent, _, what) = self.live[i];
+        let rm_result = self.rm_free(parent, handle);
+        let r = apply_tracked_free(&mut self.live, handle, rm_result);
         if let Err(st) = r {
             self.free_failures
                 .push(format!("host {what} {handle:#x}: status {st:#x}"));
         }
         r
+    }
+
+    /// Free a tracked leaf while retaining its ledger entry when RM refuses the free.
+    /// Used by owned helpers whose children and byte accounting are managed explicitly.
+    fn free_tracked_leaf(&mut self, handle: u32, expected: &'static str) -> Result<(), Status> {
+        let Some(i) = self.live.iter().rposition(|(_, h, what)| {
+            *h == handle && *what == expected
+        }) else {
+            return Err(0xFFFF_FFFE);
+        };
+        let parent = self.live[i].0;
+        self.rm_free(parent, handle)?;
+        self.live.remove(i);
+        Ok(())
     }
 
     /// Host frees that failed so far (each makes the teardown fail closed).
@@ -1557,6 +1675,66 @@ impl HostMemory {
             offset,
             len,
         )
+    }
+
+    /// Allocate one host-owned ordinary-GFXP buffer with the size and alignment returned
+    /// by `FIFO_GET_ENGINE_CONTEXT_PROPERTIES`. This is private host vidmem; it is not a
+    /// guest reservation and is never exposed through BAR1 here.
+    pub fn alloc_host_gfxp(
+        &mut self,
+        size: u64,
+        alignment: u64,
+    ) -> Result<HostGfxp, Status> {
+        let charge = gfxp_charge(size, alignment)
+            .ok_or(sys::NV_ERR_INVALID_ARGUMENT as u32)?;
+        self.guard
+            .admit("host GFXP buffer", charge, Instant::now(), || self.heap_free())?;
+
+        let mut p = sys::NV_MEMORY_ALLOCATION_PARAMS::default();
+        p.owner = OWNER_TAG;
+        p.type_ = sys::NVOS32_TYPE_IMAGE;
+        p.flags = sys::NVOS32_ALLOC_FLAGS_ALIGNMENT_FORCE;
+        p.attr = nvos32_attr::LOCATION.set(sys::NVOS32_ATTR_LOCATION_VIDMEM)
+            | nvos32_attr::PAGE_SIZE.set(sys::NVOS32_ATTR_PAGE_SIZE_4KB);
+        p.size = size;
+        p.alignment = alignment;
+        // SAFETY: NV_MEMORY_ALLOCATION_PARAMS is the plain-data allocation block of
+        // NV01_MEMORY_LOCAL_USER.
+        let params = unsafe {
+            std::slice::from_raw_parts_mut(
+                &mut p as *mut _ as *mut u8,
+                std::mem::size_of::<sys::NV_MEMORY_ALLOCATION_PARAMS>(),
+            )
+        };
+        let handle = match self.alloc_object(
+            self.device,
+            v::NV01_MEMORY_LOCAL_USER,
+            params,
+            "host-gfxp",
+        ) {
+            Ok(handle) => handle,
+            Err(status) => {
+                self.guard.credit(charge);
+                return Err(status);
+            }
+        };
+        Ok(HostGfxp { handle, size, alignment, charge })
+    }
+
+    /// Free an owned GFXP allocation. On failure the allocation is returned intact so a
+    /// caller can keep the context blocked and retry; the floor is credited only after RM
+    /// confirms the free.
+    pub fn free_host_gfxp(
+        &mut self,
+        gfxp: HostGfxp,
+    ) -> Result<(), (Status, HostGfxp)> {
+        match self.free_tracked_leaf(gfxp.handle, "host-gfxp") {
+            Ok(()) => {
+                self.guard.credit(gfxp.charge);
+                Ok(())
+            }
+            Err(status) => Err((status, gfxp)),
+        }
     }
 
     /// Allocate and CPU-map one host-private USERD page in vidmem. Turing's PBDMA USERD
@@ -2664,6 +2842,31 @@ impl Drop for HostMemory {
 }
 
 #[cfg(test)]
+mod gfxp_tests {
+    use super::*;
+
+    #[test]
+    fn gfxp_charge_uses_physical_page_granularity() {
+        assert_eq!(gfxp_charge(0x10f300, 0x1000), Some(0x110000));
+        assert_eq!(gfxp_charge(0x3e3a80, 0x1000), Some(0x3e4000));
+        assert_eq!(gfxp_charge(0xe1000, 0x100), Some(0xe1000));
+        assert_eq!(gfxp_charge(0x82000, 0x100), Some(0x82000));
+    }
+
+    #[test]
+    fn gfxp_and_virtual_requests_reject_invalid_ranges() {
+        assert!(!valid_gfxp_request(0, 0x1000));
+        assert!(!valid_gfxp_request(0x1000, 0));
+        assert!(!valid_gfxp_request(0x1000, 0x180));
+        assert_eq!(gfxp_charge(u64::MAX, 0x1000), None);
+
+        assert!(valid_aligned_virtual(0x3e3a80, 0x1000, 0x120000000));
+        assert!(!valid_aligned_virtual(0x1000, 0x1000, 0x120000100));
+        assert!(!valid_aligned_virtual(0x2000, 0x1000, u64::MAX - 0xfff));
+    }
+}
+
+#[cfg(test)]
 mod slot_tests {
     use super::*;
 
@@ -2766,6 +2969,22 @@ mod teardown_tests {
         forget_subtree(&mut live, 2);
         // The object itself is removed by the caller (`free_object`).
         assert_eq!(live, vec![(1, 5, "vaspace"), (1, 2, "tsg"), (1, 6, "channel")]);
+    }
+
+    #[test]
+    fn a_refused_object_free_retains_the_whole_retryable_subtree() {
+        let original = vec![
+            (1, 2, "tsg"),
+            (2, 3, "channel"),
+            (3, 4, "engine-object"),
+            (1, 5, "vaspace"),
+        ];
+        let mut live = original.clone();
+        assert_eq!(apply_tracked_free(&mut live, 2, Err(0x31)), Err(0x31));
+        assert_eq!(live, original);
+
+        assert_eq!(apply_tracked_free(&mut live, 2, Ok(())), Ok(()));
+        assert_eq!(live, vec![(1, 5, "vaspace")]);
     }
 
     #[test]
