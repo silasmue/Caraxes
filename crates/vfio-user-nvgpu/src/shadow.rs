@@ -139,6 +139,13 @@ pub const SERVER_RM_VA_SIZE: u64 = 0x2000_0000;
 pub const GUEST_RM_VA_BASE: u64 = SERVER_RM_VA_START + SERVER_RM_VA_SIZE;
 /// The size of the host-only area below [`GUEST_RM_VA_BASE`] in a video shadow VA space.
 pub const HOST_AREA_SIZE: u64 = 64 << 20;
+/// `NV_VASPACE_ALLOCATION_FLAGS_ALLOW_ZERO_ADDRESS` (nvos.h:3169): the VAS starts at its
+/// `vaBase` even when that is 0. Without it the RM starts a VAS with base 0 at
+/// `gvaspaceGetReservedVaspaceBase`, 1 MiB (gpu_vaspace.c:1154, g_gpu_vaspace_nvoc.h:789),
+/// and refuses every fixed VA below (0x1f). No privilege check (vaspace_api.c:626-629).
+pub const VAS_ALLOW_ZERO_ADDRESS: u32 = 1 << 8;
+/// The RM's start of a VAS created with base 0 and without [`VAS_ALLOW_ZERO_ADDRESS`].
+pub const RM_RESERVED_VA_BASE: u64 = 1 << 20;
 
 /// The VA layout of a shadow VA space: where the host RM's own allocations go, and which
 /// guest VAs cannot be mirrored there.
@@ -154,9 +161,16 @@ pub const HOST_AREA_SIZE: u64 = 64 << 20;
 /// maps. The price: guest leaves below the base (32-bit pointer allocations) and inside the
 /// host's own server-RM range (the base + 4 GiB, gpu_vaspace.c:410-417) cannot be mirrored;
 /// the filter refuses them by name, so no fixed allocation ever collides with the host.
+///
+/// The default layout starts at 0 (`ALLOW_ZERO_ADDRESS`, run P18, 2026-09-28): Windows maps
+/// channel data below 1 MiB (pushbuffers at 0x10000-0x13000, 0xbf000-0xcf000), which the
+/// RM's default start of 1 MiB refused, and the first host fetch there took Xid 31
+/// `FAULT_PDE`. The host's own first fit does not move: RM buffers stay at 4 GiB or above
+/// (virt_mem_allocator_gm107.c:2771-2775), and the server-RM range stays at 4 GiB
+/// (gpu_vaspace.c:410-417 takes the lower of 4 GiB and the internal limit).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 pub struct Layout {
-    /// The shadow VAS's `vaBase` (0: the RM default, 1 MiB).
+    /// The shadow VAS's `vaBase` (0: from VA 0, [`VAS_ALLOW_ZERO_ADDRESS`]).
     pub va_base: u64,
     /// `[lo, hi)` where the host's own allocations land; empty in the default layout.
     pub host_area: (u64, u64),
@@ -192,6 +206,16 @@ impl Layout {
             Some("in the host RM's server-RM range of the video shadow VAS")
         } else {
             None
+        }
+    }
+
+    /// The `NV_VASPACE_ALLOCATION_PARAMETERS.flags` of this layout: the default layout
+    /// starts at VA 0; the video layout's base is its own and needs no flag.
+    pub fn alloc_flags(&self) -> u32 {
+        if self.va_base == 0 {
+            VAS_ALLOW_ZERO_ADDRESS
+        } else {
+            0
         }
     }
 
@@ -964,6 +988,9 @@ impl ShadowFront {
 /// excluded (the host builds those).
 pub struct ShadowVas {
     pub vas: u32,
+    /// The VAS start the host RM took (vaspace_api.c:423): 0 with [`VAS_ALLOW_ZERO_ADDRESS`],
+    /// [`RM_RESERVED_VA_BASE`] where the host ignored the flag, the base of the video layout.
+    pub va_start: u64,
     regions: BTreeMap<u64, Region>,
     /// Mirrored leaves by VA.
     mapped: BTreeMap<u64, MappedLeaf>,
@@ -1021,6 +1048,7 @@ impl ShadowVas {
     pub fn new(hm: &mut HostMemory, budget: MapBudget, layout: &Layout) -> Result<Self, u32> {
         let device = hm.device();
         let mut vp = sys::NV_VASPACE_ALLOCATION_PARAMETERS::default();
+        vp.flags = layout.alloc_flags();
         vp.vaBase = layout.va_base;
         vp.vaSize = 1 << 47;
         vp.bigPageSize = 64 * 1024;
@@ -1038,13 +1066,16 @@ impl ShadowVas {
             let _ = hm.free_object(vas);
             return Err(0x1f); // NV_ERR_INVALID_ARGUMENT
         }
-        Ok(Self::with_vas(vas, budget))
+        let mut sv = Self::with_vas(vas, budget);
+        sv.va_start = vp.vaBase;
+        Ok(sv)
     }
 
     /// The shadow of an existing VA space handle, with the switches from the environment.
     pub fn with_vas(vas: u32, budget: MapBudget) -> Self {
         ShadowVas {
             vas,
+            va_start: 0,
             regions: BTreeMap::new(),
             mapped: BTreeMap::new(),
             runs: BTreeMap::new(),

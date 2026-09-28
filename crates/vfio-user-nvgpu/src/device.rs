@@ -978,6 +978,14 @@ impl Device {
         for l in mirror_log {
             self.note(&format!("mirror: {l}"));
         }
+        let zbc_log = self
+            .bar0
+            .boot_mut()
+            .map(|b| b.ctrl.dstate.release_zbc())
+            .unwrap_or_default();
+        for l in zbc_log {
+            self.note(&l);
+        }
         if let Some(b) = self.bar0.boot_mut() {
             b.fb.shutdown();
         }

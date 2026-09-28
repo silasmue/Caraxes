@@ -18,6 +18,9 @@ pub struct HostRmClient {
     subdevice: u32,
     /// NV2081_BINAPI under the subdevice, allocated on first use (nvml.rs).
     binapi: Option<u32>,
+    /// GF100_ZBC_CLEAR under the subdevice, allocated on first use (zbc.rs, real compression
+    /// per slice only).
+    zbc: Option<u32>,
 }
 
 impl HostRmClient {
@@ -50,6 +53,7 @@ impl HostRmClient {
             device,
             subdevice,
             binapi: None,
+            zbc: None,
         })
     }
 
@@ -70,6 +74,51 @@ impl HostRmClient {
         }
         self.binapi
     }
+
+    /// The host ZBC table object (NON_PRIVILEGED class under the subdevice,
+    /// rmapi/resource_list.h:874-884 of 615.71.09; no alloc params).
+    fn zbc(&mut self) -> Option<u32> {
+        if self.zbc.is_none() {
+            let h = self.rm.next_handle();
+            // SAFETY: GF100_ZBC_CLEAR takes no alloc params (RS_NONE); none are passed.
+            let r = unsafe {
+                self.rm
+                    .alloc::<u32>(self.subdevice, h, GF100_ZBC_CLEAR, None)
+            };
+            self.zbc = r.ok().map(|_| h);
+        }
+        self.zbc
+    }
+}
+
+/// GF100_ZBC_CLEAR (class/cl9096.h): the host's ZBC clear table, reached only through
+/// [`HostRm::control`] with this class and one of [`ZBC_CONTROLS`] (zbc.rs, with
+/// `CARAXES_COMPRESSION=slice`). It is no guest object's host object: [`host_object`] and
+/// [`class_of_control`] never name it, so no generic forward reaches it.
+pub const GF100_ZBC_CLEAR: u32 = 0x9096;
+
+/// ctrl9096.h:113, :163, :339, :379, :427 (the same ids in 610.57.04 and 615.71.09).
+pub const CMD_SET_ZBC_COLOR_CLEAR: u32 = 0x9096_0101;
+pub const CMD_SET_ZBC_DEPTH_CLEAR: u32 = 0x9096_0102;
+pub const CMD_SET_ZBC_STENCIL_CLEAR: u32 = 0x9096_0105;
+pub const CMD_GET_ZBC_CLEAR_TABLE_SIZE: u32 = 0x9096_0106;
+pub const CMD_GET_ZBC_CLEAR_TABLE_ENTRY: u32 = 0x9096_0107;
+
+/// The controls the device may issue on its host ZBC object: the three setters that add an
+/// entry or reference an equal one (the host places it), and the two getters. Never the
+/// indexed `SET_ZBC_CLEAR_TABLE` (0x90960104), which writes a caller-chosen slot of the
+/// table the host desktop and every VM share, nor the deprecated combined getter.
+pub const ZBC_CONTROLS: &[(u32, &str)] = &[
+    (CMD_SET_ZBC_COLOR_CLEAR, "SET_ZBC_COLOR_CLEAR"),
+    (CMD_SET_ZBC_DEPTH_CLEAR, "SET_ZBC_DEPTH_CLEAR"),
+    (CMD_SET_ZBC_STENCIL_CLEAR, "SET_ZBC_STENCIL_CLEAR"),
+    (CMD_GET_ZBC_CLEAR_TABLE_SIZE, "GET_ZBC_CLEAR_TABLE_SIZE"),
+    (CMD_GET_ZBC_CLEAR_TABLE_ENTRY, "GET_ZBC_CLEAR_TABLE_ENTRY"),
+];
+
+/// Whether `cmd` may go to the host ZBC object.
+pub fn zbc_control_allowed(cmd: u32) -> bool {
+    ZBC_CONTROLS.iter().any(|&(c, _)| c == cmd)
 }
 
 /// The host objects the client holds. A control is issued only on one of them; there is
@@ -114,6 +163,10 @@ impl HostRm for HostRmClient {
                 Some(h) => h,
                 None => return NV_ERR_NOT_SUPPORTED,
             },
+            None if class == GF100_ZBC_CLEAR && zbc_control_allowed(cmd) => match self.zbc() {
+                Some(h) => h,
+                None => return NV_ERR_NOT_SUPPORTED,
+            },
             None => return NV_ERR_NOT_SUPPORTED,
         };
         let mut p = sys::NVOS54_PARAMETERS::default();
@@ -155,5 +208,33 @@ mod tests {
         assert_eq!(class_of_control(0x2081_0108), Some(NV2081_BINAPI));
         assert_eq!(class_of_control(0x0000_0B02), None);
         assert_eq!(class_of_control(0x90E6_0101), None);
+    }
+
+    /// The host ZBC object takes the three adding setters and the two getters, never the
+    /// indexed setter or the combined getter, and no generic forward names its class.
+    #[test]
+    fn zbc_object_takes_only_its_five_controls() {
+        for cmd in [
+            0x9096_0101,
+            0x9096_0102,
+            0x9096_0105,
+            0x9096_0106,
+            0x9096_0107,
+        ] {
+            assert!(zbc_control_allowed(cmd), "{cmd:#x}");
+        }
+        for cmd in [
+            0x9096_0104,
+            0x9096_0103,
+            0x9096_0000,
+            0x2080_0153,
+            0x0080_200A,
+        ] {
+            assert!(!zbc_control_allowed(cmd), "{cmd:#x}");
+        }
+        assert_eq!(host_object(GF100_ZBC_CLEAR), None);
+        for &(cmd, _) in ZBC_CONTROLS {
+            assert_eq!(class_of_control(cmd), None);
+        }
     }
 }

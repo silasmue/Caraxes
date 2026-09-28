@@ -1953,6 +1953,11 @@ impl Dispatcher {
         ) {
             return a;
         }
+        // Real compression (zbc.rs): the guest kernel's ZBC-surface flag, which the
+        // chip-data rules acknowledge otherwise.
+        if let Some(a) = self.dstate.zbc_referenced(cmd, params) {
+            return a;
+        }
         // Category E refusals per feature family and the category A chip-data table
         // (chipctl.rs, docs/caraxes/gsp-surface.md §3).
         if let Some(a) = crate::chipctl::answer(self.chip, cmd, params) {
