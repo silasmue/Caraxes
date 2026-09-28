@@ -86,6 +86,9 @@ pub const REGION: u64 = 2 << 20;
 const LOG_PER_SYNC: usize = 24;
 /// Leaves the cached walk holds per root at most (about 40 bytes each).
 const MAX_LEAVES: usize = 4 << 20;
+/// Malformed table entries (ptcache.rs) from which a root counts as a wrong one and none of
+/// its leaves is mapped. A driver's tree has none; P17's PD1 installed as the root had hundreds.
+const WRONG_ROOT_MALFORMED: usize = 16;
 /// Teardown: RM calls per batch, and the pause after each batch.
 pub const TEARDOWN_BATCH: usize = 64;
 pub const TEARDOWN_PAUSE: Duration = Duration::from_millis(2);
@@ -696,6 +699,8 @@ pub struct ShadowFront {
     /// The VA layout of the shadow VAS ([`Layout`]): guest leaves it cannot mirror are refused.
     pub layout: Layout,
     pub skipped: u64,
+    /// Malformed entries of the root's tree at the last plan.
+    malformed: usize,
 }
 
 impl ShadowFront {
@@ -709,6 +714,7 @@ impl ShadowFront {
             always: std::env::var("CARAXES_SHADOW_ALWAYS_RESYNC").as_deref() == Ok("1"),
             layout: Layout::default(),
             skipped: 0,
+            malformed: 0,
         }
     }
 
@@ -746,7 +752,21 @@ impl ShadowFront {
         let mut units: BTreeSet<u64> = upd.changed.iter().copied().collect();
         // P21 design H: a page this root maps moved into or out of the BAR1 pool.
         let pool_moved = fb.take_pool_rediff(self.root);
-        if exclude_changed || upd.full || pool_moved {
+        // A wrong root (ptcache.rs, malformed entries): none of its leaves is mapped, and a
+        // change of that verdict re-plans every unit.
+        let malformed = fb.with_walk(root, |c| c.malformed()).unwrap_or(0);
+        let wrong_root = malformed >= WRONG_ROOT_MALFORMED;
+        let verdict_changed = wrong_root != (self.malformed >= WRONG_ROOT_MALFORMED);
+        let malformed_note = (malformed != self.malformed).then(|| match malformed {
+            0 => format!("shadow: root {:#x}: no malformed table entries left [P17]", self.root),
+            n => format!(
+                "shadow: root {:#x}: {n} malformed table entries, neither followed nor mapped{} [P17]",
+                self.root,
+                if wrong_root { "; the root looks wrong (a lower-level table?), none of its leaves is mapped" } else { "" }
+            ),
+        });
+        self.malformed = malformed;
+        if exclude_changed || upd.full || pool_moved || verdict_changed {
             if let Some(all) = fb.with_walk(root, |c| c.units_with_leaves()) {
                 units.extend(all);
             }
@@ -761,6 +781,7 @@ impl ShadowFront {
             truncated: fb.with_walk(root, |c| c.truncated) == Some(true),
             ..Default::default()
         };
+        plan.notes.extend(malformed_note);
         let mut logged = 0usize;
         for &u in &units {
             // P21 design H: leaves on pool pages point there (fb.rs `remap`).
@@ -783,6 +804,7 @@ impl ShadowFront {
                     kind: *kind,
                 };
                 let resolved = match self.layout.unmirrorable(*va, va + size) {
+                    _ if wrong_root => Resolved::Refused("the root holds malformed entries (wrong root?)"),
                     Some(why) => Resolved::Refused(why),
                     None => resolve_leaf(&host_target(sys_mem, t, *size), *size, *kind, base, end, descs),
                 };
@@ -2287,6 +2309,47 @@ mod tests {
         );
         assert!(maps.iter().all(|m| !(m.va..m.va + m.len).contains(&0x4000)));
         assert!(lines.iter().any(|l| l.contains("REFUSED leaf va 0x4000") && l.contains("D16")));
+    }
+
+    /// P17: a root whose tree holds many malformed entries (a lower-level table walked as
+    /// the root) maps none of its leaves; once the entries are gone, its leaves are mapped.
+    #[test]
+    fn a_root_with_many_malformed_entries_maps_nothing_until_they_are_gone() {
+        let mut fb = FakeFb::new(END + (64 << 20));
+        let vid = |a: u64| ((a >> 12) << 8) | 0b010;
+        let pte = |a: u64| ((a >> 12) << 8) | 1 | (0x06 << 56);
+        let (root, pd2, pd1, pd0, pt) = (BASE, BASE + 0x1000, BASE + 0x2000, BASE + 0x3000, BASE + 0x4000);
+        fb.write_u64(root, vid(pd2));
+        fb.write_u64(pd2, vid(pd1));
+        fb.write_u64(pd1, vid(pd0));
+        fb.write_u64(pd0 + 8, vid(pt));
+        let x = BASE + 0x10_0000;
+        for i in 0..3u64 {
+            fb.write_u64(pt + 8 * (i + 1), pte(x + i * 0x1000));
+        }
+        // PD1 entries holding PTE-like words (bit 0 set): one short of the verdict.
+        for i in 1..WRONG_ROOT_MALFORMED as u64 {
+            fb.write_u64(pd1 + 8 * i, pte(x));
+        }
+        let mem = GuestMemory::new();
+        let mut front = ShadowFront::new(root);
+        let plan = front.plan(&fb, &mem, BASE, END, 1, &[], &[]).unwrap();
+        assert_eq!(plan.want, 3);
+        assert!(plan.notes.iter().any(|l| l.contains("15 malformed") && !l.contains("looks wrong")));
+        // One more: the root counts as wrong, every leaf is refused.
+        fb.write_u64(pd1 + 8 * WRONG_ROOT_MALFORMED as u64, pte(x));
+        let plan = front.plan(&fb, &mem, BASE, END, 1, &[], &[]).unwrap();
+        assert_eq!(plan.want, 0);
+        assert_eq!(plan.refused_now, 3);
+        assert!(plan.notes.iter().any(|l| l.contains("16 malformed") && l.contains("looks wrong")));
+        // The guest clears them: the leaves are wanted again.
+        for i in 1..=WRONG_ROOT_MALFORMED as u64 {
+            fb.write_u64(pd1 + 8 * i, 0);
+        }
+        let plan = front.plan(&fb, &mem, BASE, END, 1, &[], &[]).unwrap();
+        assert_eq!(plan.want, 3);
+        assert_eq!(plan.refused_now, 0);
+        assert!(plan.notes.iter().any(|l| l.contains("no malformed table entries left")));
     }
 
     #[test]

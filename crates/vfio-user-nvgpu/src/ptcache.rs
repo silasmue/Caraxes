@@ -19,6 +19,13 @@
 //! 48:47) -> PD2 (512, 46:38) -> PD1 (512, 37:29) -> PD0 (256 dual entries of 16 bytes,
 //! 28:21) -> a 64 KiB big-page table (32 entries, 20:16, 256 bytes) and a 4 KiB small-page
 //! table (512 entries, 20:12). A valid PD0 low qword is a 2 MiB PTE.
+//!
+//! Entries no driver writes are malformed: a PD3/PD2/PD1 entry with bit 0 set (v2 has no
+//! PTE above PD0), a PTE of kind 0x07 (NV_MMU_PTE_KIND_INVALID) or above 0x0f, and a 64 KiB
+//! or 2 MiB PTE off its alignment. They are neither followed nor turned into leaves, and
+//! [`WalkCache::malformed`] counts them: a walk from a wrong root reads data words as
+//! entries (P17: a PD1 installed as the root, 2 MiB "leaves" of kind 0xff), so a count well
+//! above zero says the root is wrong.
 
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
@@ -47,6 +54,8 @@ enum Use {
 struct Dir {
     at: Target,
     entries: Vec<u64>,
+    /// Its malformed entries.
+    bad: usize,
 }
 
 struct Unit {
@@ -56,6 +65,8 @@ struct Unit {
     /// The FB pages of its big and small page tables (for the use map).
     pages: Vec<u64>,
     leaves: Vec<Leaf>,
+    /// Its malformed PTEs.
+    bad: usize,
 }
 
 /// Qwords of a directory table of `level`.
@@ -118,6 +129,28 @@ fn leaf(pte: u64, va: u64, size: u64) -> Option<Leaf> {
     Some((va, t, size, kind))
 }
 
+/// Whether a directory entry of `level` is malformed: bit 0 set above PD0.
+fn malformed_pde(level: u8, entry: u64) -> bool {
+    level > 0 && entry & 1 == 1
+}
+
+/// Whether a leaf is malformed: an invalid kind or a big or huge page off its alignment.
+fn malformed_leaf(&(_, t, size, kind): &Leaf) -> bool {
+    let (Target::Fb(pa) | Target::Sys(pa)) = t else {
+        return true;
+    };
+    kind == 0x07 || kind > 0x0f || pa & (size - 1) != 0
+}
+
+/// Add the leaf of `pte` to `leaves`, or count it in `bad` when it is malformed.
+fn take_leaf(pte: u64, va: u64, size: u64, leaves: &mut Vec<Leaf>, bad: &mut usize) {
+    match leaf(pte, va, size) {
+        Some(l) if malformed_leaf(&l) => *bad += 1,
+        Some(l) => leaves.push(l),
+        None => {}
+    }
+}
+
 /// The 4096 bytes of a table page copy (little-endian qwords on x86).
 fn bytemuck_bytes(a: &mut [u64; 512]) -> &mut [u8; 4096] {
     // SAFETY: [u64; 512] and [u8; 4096] have the same size, u8 has no alignment
@@ -156,6 +189,8 @@ pub struct WalkCache {
     /// A table of this tree lives in guest sysmem: it cannot be watched.
     pub sys_tables: bool,
     leaves: usize,
+    /// Malformed entries in the cached tree (the module docs).
+    malformed: usize,
     /// Leaves cached at most (a guest cannot make the device hold unbounded state);
     /// units past the cap are not cached and `truncated` is set.
     pub max_leaves: usize,
@@ -183,6 +218,7 @@ impl WalkCache {
             built: false,
             sys_tables: false,
             leaves: 0,
+            malformed: 0,
             max_leaves,
             truncated: false,
             reads: 0,
@@ -231,6 +267,11 @@ impl WalkCache {
 
     pub fn leaf_count(&self) -> usize {
         self.leaves
+    }
+
+    /// Malformed entries met in the cached tree (not followed, not leaves).
+    pub fn malformed(&self) -> usize {
+        self.malformed
     }
 
     pub fn table_pages(&self) -> usize {
@@ -322,6 +363,7 @@ impl WalkCache {
             self.dirty.clear();
             self.raw.clear();
             self.leaves = 0;
+            self.malformed = 0;
             self.truncated = false;
             self.sys_tables = false;
             let root = self.root;
@@ -390,11 +432,14 @@ impl WalkCache {
             return;
         };
         self.add_use(at, Use::Dir(level, va));
+        let bad = entries.iter().filter(|e| malformed_pde(level, **e)).count();
+        self.malformed += bad;
         self.dirs.insert(
             (level, va),
             Dir {
                 at,
                 entries: entries.clone(),
+                bad,
             },
         );
         self.walk_children(r, level, va, &entries, None, changed);
@@ -422,7 +467,7 @@ impl WalkCache {
             return;
         }
         for (i, e) in entries.iter().enumerate() {
-            if only.is_some_and(|o| o != i) {
+            if only.is_some_and(|o| o != i) || malformed_pde(level, *e) {
                 continue;
             }
             if let Some(t) = next_table(*e) {
@@ -443,9 +488,10 @@ impl WalkCache {
     ) {
         let mut leaves = Vec::new();
         let mut pages = Vec::new();
+        let mut bad = 0;
         if lo & 1 == 1 {
             // A 2 MiB page: the low qword is a PTE.
-            leaves.extend(leaf(lo, va, UNIT));
+            take_leaf(lo, va, UNIT, &mut leaves, &mut bad);
         } else {
             let bt = big_table(lo);
             let st = next_table(hi);
@@ -460,7 +506,7 @@ impl WalkCache {
             });
             if let Some(b) = &big {
                 for (i, pte) in b.iter().enumerate() {
-                    leaves.extend(leaf(*pte, va | ((i as u64) << 16), 0x1_0000));
+                    take_leaf(*pte, va | ((i as u64) << 16), 0x1_0000, &mut leaves, &mut bad);
                 }
             }
             if let Some(t) = st {
@@ -473,7 +519,7 @@ impl WalkCache {
                         if big.as_ref().is_some_and(|b| b[i >> 4] & 1 == 1) {
                             continue;
                         }
-                        leaves.extend(leaf(*pte, va | ((i as u64) << 12), 0x1000));
+                        take_leaf(*pte, va | ((i as u64) << 12), 0x1000, &mut leaves, &mut bad);
                     }
                 }
             }
@@ -495,6 +541,7 @@ impl WalkCache {
             changed.insert(va);
         }
         self.leaves += leaves.len();
+        self.malformed += bad;
         self.units.insert(
             va,
             Unit {
@@ -502,6 +549,7 @@ impl WalkCache {
                 hi,
                 pages,
                 leaves,
+                bad,
             },
         );
     }
@@ -515,6 +563,7 @@ impl WalkCache {
                 changed.insert(va);
             }
             self.leaves -= u.leaves.len();
+            self.malformed -= u.bad;
         }
     }
 
@@ -546,6 +595,7 @@ impl WalkCache {
                 .collect();
             for k in keys {
                 if let Some(d) = self.dirs.remove(&k) {
+                    self.malformed -= d.bad;
                     if let Target::Fb(pa) = d.at {
                         self.drop_use(pa >> 12, Use::Dir(k.0, k.1));
                     }
@@ -578,8 +628,11 @@ impl WalkCache {
         if new == old {
             return;
         }
+        let bad = new.iter().filter(|e| malformed_pde(level, **e)).count();
         if let Some(d) = self.dirs.get_mut(&(level, va)) {
+            self.malformed = self.malformed - d.bad + bad;
             d.entries = new.clone();
+            d.bad = bad;
         }
         if level == 0 {
             for i in 0..256usize {
@@ -719,6 +772,56 @@ mod tests {
         let mut full = WalkCache::new(Target::Fb(0x10000), 1 << 20);
         full.update(&m, true);
         assert_eq!(c.all_leaves(), full.all_leaves());
+    }
+
+    #[test]
+    fn a_walk_from_a_pd1_meets_ptes_as_directory_entries_and_maps_nothing() {
+        // P17: the guest's PD1 installed as the root. Walked from it, the PD0 page reads as
+        // a PD2 and the big and small page tables as PD1s, whose PTEs have bit 0 set.
+        let m = tree();
+        let mut c = WalkCache::new(Target::Fb(0x12000), 1 << 20);
+        c.update(&m, false);
+        assert!(c.all_leaves().is_empty());
+        assert_eq!(c.malformed(), 2);
+        let mut good = WalkCache::new(Target::Fb(0x10000), 1 << 20);
+        good.update(&m, false);
+        assert_eq!(good.leaf_count(), 2);
+        assert_eq!(good.malformed(), 0);
+    }
+
+    #[test]
+    fn malformed_ptes_are_counted_not_leaves_and_the_count_follows_updates() {
+        let m = tree();
+        // Unit 1: a 2 MiB PTE of kind 0xff (P17's all-ones data words).
+        m.w(0x13000 + 16, pte(0x60_0000) | (0xff << 56));
+        // Unit 2: a 2 MiB PTE off its alignment.
+        m.w(0x13000 + 32, pte(0x61_0000));
+        // Unit 0: a 64 KiB PTE off its alignment beside the good one.
+        m.w(0x15000 + 16, pte(0x41000));
+        let mut c = WalkCache::new(Target::Fb(0x10000), 1 << 20);
+        c.update(&m, false);
+        assert_eq!(c.malformed(), 3);
+        assert_eq!(c.leaf_count(), 2);
+        // A PD2 entry with bit 0 set is not followed.
+        m.w(0x11008, vid(0x12000) | 1);
+        c.mark_dirty(0x11);
+        c.update(&m, false);
+        assert_eq!(c.malformed(), 4);
+        assert_eq!(c.leaf_count(), 2);
+        // The guest rewrites them: the count drops, and the cache equals a full walk.
+        m.w(0x13000 + 16, pte(0x60_0000));
+        m.w(0x15000 + 16, 0);
+        m.w(0x11008, 0);
+        for p in [0x11, 0x13, 0x15] {
+            c.mark_dirty(p);
+        }
+        c.update(&m, false);
+        assert_eq!(c.malformed(), 1); // unit 2 stays off its alignment
+        assert_eq!(c.leaf_count(), 3);
+        let mut full = WalkCache::new(Target::Fb(0x10000), 1 << 20);
+        full.update(&m, true);
+        assert_eq!(c.all_leaves(), full.all_leaves());
+        assert_eq!(c.malformed(), full.malformed());
     }
 
     #[test]
