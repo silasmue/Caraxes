@@ -978,6 +978,14 @@ impl Device {
         for l in mirror_log {
             self.note(&format!("mirror: {l}"));
         }
+        let zbc_log = self
+            .bar0
+            .boot_mut()
+            .map(|b| b.ctrl.dstate.release_zbc())
+            .unwrap_or_default();
+        for l in zbc_log {
+            self.note(&l);
+        }
         if let Some(b) = self.bar0.boot_mut() {
             b.fb.shutdown();
         }
@@ -1224,9 +1232,9 @@ impl Device {
             }
             let kinds = b.fb.pte_kinds();
             if !kinds.is_empty() {
-                let unsafe_pte = kinds
-                    .iter()
-                    .any(|&(k, c, _)| !(k == 0x06 || k == 0x00) || c != 0);
+                // D16's comptag hold, or with compression per VM slice this VM's lines
+                // (compression.rs).
+                let view = crate::compression::GuestView::of(b.layout(), b.chip().data());
                 s.push_str(&format!(
                     "vidmem PTE kinds walked (kind:comptagline x count): {}{}\n",
                     kinds
@@ -1234,11 +1242,7 @@ impl Device {
                         .map(|(k, c, n)| format!("{k:#04x}:{c:#x}x{n}"))
                         .collect::<Vec<_>>()
                         .join(" "),
-                    if unsafe_pte {
-                        " -- COMPRESSIBLE KIND OR NON-ZERO COMPTAGLINE PRESENT (comptag hold, execution.md §7)"
-                    } else {
-                        " -- all uncompressed (kind 0x06/0x00, comptagline 0): comptag hold satisfied"
-                    }
+                    crate::compression::pte_kinds_verdict(view.as_ref(), &kinds)
                 ));
             }
         }

@@ -21,6 +21,8 @@ pub mod channel;
 pub mod chip;
 pub mod chipctl;
 pub mod classes;
+pub mod compression;
+pub mod compslice;
 pub mod config;
 pub mod ctrl;
 pub mod cuda;

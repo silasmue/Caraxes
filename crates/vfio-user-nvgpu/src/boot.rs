@@ -2650,7 +2650,19 @@ impl BootModel {
         if crate::ver::older_guest() == Some(570) {
             return;
         }
-        for w in crate::gspboot::missing_guest_keys(entries) {
+        // With compression per VM slice a Linux guest needs scrub on free, the reverse of
+        // the quickstart key (compression.rs `guest_key_warnings`).
+        let slice = crate::compression::GuestView::of(&self.layout, self.chip.data()).is_some();
+        let compression = if slice {
+            crate::compression::guest_key_warnings(entries)
+        } else {
+            Vec::new()
+        };
+        for w in crate::gspboot::missing_guest_keys(entries)
+            .into_iter()
+            .filter(|w| !(slice && w.contains("RMDisableScrubOnFree")))
+            .chain(compression)
+        {
             eprintln!("vfio-user-nvgpu: {w}");
             notes.push(w);
         }
@@ -2729,6 +2741,35 @@ mod tests {
     use super::*;
     use crate::chip::turing::local_memory_range;
     use crate::falcon;
+
+    /// Compression per VM slice turns the quickstart's scrub key from a requirement into a
+    /// warning (compression.rs `guest_key_warnings`); off keeps today's warnings.
+    #[test]
+    fn guest_key_warnings_under_compression() {
+        use crate::gmcapi::RegValue;
+        let f = crate::fixture::rtx2070();
+        let l = crate::fb::FbLayout::reserved(4 << 30, 8 << 30, 0xE900_0000, 0x1_E900_0000).unwrap();
+        let key = |k: &str, x: u32| (k.to_string(), RegValue::U32(x));
+        let quickstart = vec![
+            key("RmDisableGlobalCeUtils", 1),
+            key("RMDisableScrubOnFree", 1),
+            key("RmRcWatchdog", 0),
+        ];
+        let scrubbing = vec![key("RmDisableGlobalCeUtils", 1), key("RmRcWatchdog", 0)];
+        let warn = |layout: crate::fb::FbLayout, e: &[(String, RegValue)]| {
+            let b = BootModel::new(f.chip, layout, f.identity(4 << 30));
+            let mut notes = Vec::new();
+            b.guest_key_warnings(e, &mut notes);
+            notes
+        };
+        assert!(warn(l, &quickstart).is_empty());
+        let w = warn(l, &scrubbing);
+        assert!(w.len() == 1 && w[0].contains("RMDisableScrubOnFree is absent"), "{w:?}");
+        let on = l.with_compression(true).unwrap();
+        let w = warn(on, &quickstart);
+        assert!(w.len() == 1 && w[0].contains("kern_mem_sys.c:480-495"), "{w:?}");
+        assert!(warn(on, &scrubbing).is_empty());
+    }
 
     /// NV_PTIMER_TIME_0/1 run on the device clock, the usermode TIME_0/1's base, and a
     /// TIME_1-then-TIME_0 pair never goes back across a low-word wrap.

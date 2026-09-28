@@ -299,6 +299,12 @@ impl Dispatcher {
         self
     }
 
+    /// What this VM's guest is told about compression (compression.rs): `None` is D16,
+    /// no compression, today's answers.
+    pub fn compression(&self) -> Option<crate::compression::GuestView> {
+        crate::compression::GuestView::of(self.fb_layout.as_ref()?, self.chip)
+    }
+
     pub fn take_host(&mut self) -> Option<Box<dyn HostRm>> {
         self.host.take()
     }
@@ -1541,6 +1547,10 @@ impl Dispatcher {
     /// request bytes in its note, so a trace shows what the guest asked.
     pub fn control(&mut self, h_client: u32, h_object: u32, cmd: u32, params: &[u8]) -> Answer {
         let mut answer = self.control_inner(h_client, h_object, cmd, params);
+        // Compression per VM slice: the forwarded and replayed FB info is this VM's.
+        if let Some(view) = self.compression() {
+            crate::compression::finish(&view, cmd, &mut answer);
+        }
         const DEFERRED: [u32; 4] = [0x5080_0101, 0x5080_0102, 0x5080_0103, 0x5080_0104];
         static CAPTURED: std::sync::atomic::AtomicUsize =
             std::sync::atomic::AtomicUsize::new(0);
@@ -1639,6 +1649,14 @@ impl Dispatcher {
         // device's live VA-space association, so model it before every recorded override.
         if cmd == CMD_DMA_SET_DEFAULT_VASPACE {
             return self.set_default_vaspace(h_client, h_object, params);
+        }
+        // Compression per VM slice: the compbit-store controls are this VM's, ahead of the
+        // chip table (D16 refusals) and of the recorded CARAXES_WIN_COMPBIT answer, which
+        // carries the host's store addresses (compression.rs).
+        if let Some(view) = self.compression() {
+            if let Some(a) = crate::compression::answer(&view, cmd, params) {
+                return a;
+            }
         }
         let facts = crate::recorded::Facts {
             fb_bytes: self.profile.fb_bytes,
@@ -1953,6 +1971,11 @@ impl Dispatcher {
         ) {
             return a;
         }
+        // Real compression (zbc.rs): the guest kernel's ZBC-surface flag, which the
+        // chip-data rules acknowledge otherwise.
+        if let Some(a) = self.dstate.zbc_referenced(cmd, params) {
+            return a;
+        }
         // Category E refusals per feature family and the category A chip-data table
         // (chipctl.rs, docs/caraxes/gsp-surface.md §3).
         if let Some(a) = crate::chipctl::answer(self.chip, cmd, params) {
@@ -2058,8 +2081,14 @@ impl Dispatcher {
             CMD_INTERNAL_MEMSYS_GET_STATIC_CONFIG => {
                 // ctrl2080internal.h:94-135; the values are the chip's.
                 let m = &self.chip.memsys;
+                let compression = self.compression();
                 let mut b = vec![0u8; n.max(v::MEMSYS_SIZE)];
                 b[v::MEMSYS_DISABLE_COMPBIT_BACKING] = m.disable_compbit_backing as u8;
+                // Compression per VM slice: the card's 1:1 comptag lines and the backing on
+                // (compression.rs); without it the chip's D16 answer above.
+                if let Some(view) = &compression {
+                    crate::compression::memsys_static_config(&mut b, view);
+                }
                 // ECC in force (families/ecc.rs): what FB_INFO_FBPA_ECC_ENABLED reports
                 // (kern_mem_sys_ctrl.c:771-776 of 610.57.04).
                 let ecc = crate::families::off(
@@ -2075,7 +2104,15 @@ impl Dispatcher {
                 put32(&mut b, v::MEMSYS_LTC_COUNT, m.ltc_count);
                 put32(&mut b, v::MEMSYS_LTS_PER_LTC_COUNT, m.lts_per_ltc_count);
                 b.truncate(n);
-                Answer::ok(b, &m.label, "memsys static config")
+                let note = match compression {
+                    Some(view) => format!(
+                        "memsys static config; {} [{}]",
+                        view.describe(),
+                        view.facts.label
+                    ),
+                    None => "memsys static config".into(),
+                };
+                Answer::ok(b, &m.label, note)
             }
             CMD_BUS_GET_PCI_BAR_INFO => {
                 // ctrl2080bus.h:612-646: pciBarCount, then {flags, barSize (MiB),

@@ -839,6 +839,10 @@ pub struct Mirror {
     /// Whether guest FB addresses are offsets into, rather than identities with, the host
     /// reservation. Such addresses are safe only through host-managed shadow VA spaces.
     translated: bool,
+    /// Real compression per slice (D16b, compslice.rs): the policy every shadow VAS filters
+    /// and audits by. Like a translated FB it allows shadow-only execution: a host channel
+    /// on the guest's own tables would use the guest's COMPTAGLINE.
+    comp: Option<Arc<crate::compslice::Policy>>,
     reservation: u32,
     /// Immutable global-context sizes of this mirror's physical host GPU. Interior
     /// mutability keeps the exclusion walkers read-only; `Mirror` itself is serialized by
@@ -970,12 +974,12 @@ impl Mirror {
         chip: &'static ChipData,
         layout: &FbLayout,
     ) -> Result<Self, String> {
-        let (host_base, host_end, reservation) = {
+        let (host_base, host_end, reservation, grant) = {
             let h = hm.lock().unwrap();
             let r = h
                 .reservation()
                 .ok_or("the mirror needs the VRAM reservation (--reserve-vram)")?;
-            (r.base, r.end(), r.handle)
+            (r.base, r.end(), r.handle, r.compression.clone())
         };
         let (layout_host_base, layout_host_end) = layout.host_reservation
             .ok_or("the mirror needs an FB layout backed by a host VRAM reservation")?;
@@ -997,6 +1001,24 @@ impl Mirror {
         if translated && crate::device::doorbell_ioeventfd_requested() {
             return Err("a translated FB reservation refuses the token-less doorbell ioeventfd; use trapped or token-pool doorbells so shadow routing is enforced".into());
         }
+        // D16b invariant (b), again where the host channels are made (main.rs checks it at
+        // start): a compressed reservation allows shadow-only execution.
+        let comp = match grant {
+            Some(g) => {
+                crate::compslice::check_shadow_only(
+                    crate::compslice::Mode::Slice,
+                    shadow_probe.then_some("1"),
+                    (!ce_shadow).then_some("0"),
+                    mirror_gr.then_some("1"),
+                    crate::device::doorbell_ioeventfd_requested(),
+                )?;
+                if base.abs_diff(host_base) % crate::compslice::COMPR_PAGE != 0 {
+                    return Err(format!("a compressed reservation needs guest and host FB addresses 64 KiB aligned to each other (guest {base:#x}, host {host_base:#x})"));
+                }
+                Some(Arc::new(crate::compslice::Policy::new(&g)?))
+            }
+            None => None,
+        };
         let worker = ShadowWorker::new(hm.clone(), intr.clone());
         Ok(Mirror {
             hm,
@@ -1005,6 +1027,7 @@ impl Mirror {
             base,
             end,
             translated,
+            comp,
             reservation,
             global_ctx_sizes: RefCell::new(GlobalCtxSizeCache::default()),
             global_clips: RefCell::new(BTreeMap::new()),
@@ -1157,6 +1180,20 @@ impl Mirror {
                 );
                 (status, size)
             })
+    }
+
+    /// Why the raw paths are refused (a host VAS or channel on the guest's own tables, raw
+    /// PDE replay and forwarding, the raw physical invalidator): a translated FB
+    /// reservation, whose guest addresses are not host addresses, or a compressed one
+    /// (D16b), whose guest COMPTAGLINE must never reach a host walker. `None`: allowed.
+    fn raw_refusal(&self) -> Option<&'static str> {
+        if self.translated {
+            Some("a translated FB reservation")
+        } else if self.comp.is_some() {
+            Some("a compressed FB reservation (D16b)")
+        } else {
+            None
+        }
     }
 
     /// The exclusion size of size-0 global buffer `buffer_id` at `va` on shadow root `root`
@@ -1783,7 +1820,8 @@ impl Mirror {
         };
         if let std::collections::btree_map::Entry::Vacant(slot) = self.shadows.entry(root) {
             match crate::shadow::ShadowVas::new(&mut h, self.map_budget.clone(), &layout) {
-                Ok(sv) => {
+                Ok(mut sv) => {
+                    sv.comp = self.comp.clone();
                     notes.push(format!(
                         "shadow: host-managed VAS {:#x} for guest root {root:#x}, VAS start {:#x}{}{} [host]",
                         sv.vas,
@@ -1810,6 +1848,7 @@ impl Mirror {
                     self.worker.submit(Job::Create(root, Box::new(sv)));
                     let mut front = crate::shadow::ShadowFront::new(root);
                     front.layout = layout;
+                    front.comp = self.comp.clone();
                     slot.insert(ShadowSpace {
                         front,
                         vas,
@@ -2829,8 +2868,8 @@ impl Mirror {
         entries: u32,
         notes: &mut Vec<String>,
     ) -> Result<u32, String> {
-        if self.translated {
-            return Err("raw externally-owned VAS refused for a translated FB reservation; use the shadow VAS path".into());
+        if let Some(why) = self.raw_refusal() {
+            return Err(format!("raw externally-owned VAS refused for {why}; use the shadow VAS path"));
         }
         if let Some(hv) = self.vas.get(&key) {
             if hv.root == root || hv.replayed {
@@ -2901,9 +2940,9 @@ impl Mirror {
     /// GR channels (a bare externally-owned VAS can never schedule GR from user space:
     /// `bIsContextBound` is set only by the kernel-internal nv_gpu_ops path).
     pub fn on_server_reserved_pdes(&mut self, reg: &Registry, key: (u32, u32)) -> Vec<String> {
-        if self.translated {
+        if let Some(why) = self.raw_refusal() {
             self.stats.refusals += 1;
-            return vec![format!("vaspace {:#x}/{:#x}: raw server-reserved PDE replay refused for a translated FB reservation", key.0, key.1)];
+            return vec![format!("vaspace {:#x}/{:#x}: raw server-reserved PDE replay refused for {why}", key.0, key.1)];
         }
         // The replayed (shared-management) VA space is only needed to schedule GR
         // channels on the host; while GR stays in software (the launch wall), the CE
@@ -3122,8 +3161,8 @@ impl Mirror {
         gm: &mut GpuMem,
         chid: u32,
     ) -> Result<(u32, Vec<String>), String> {
-        if self.translated {
-            return Err("raw host channel construction refused for a translated FB reservation; use the shadow channel path".into());
+        if let Some(why) = self.raw_refusal() {
+            return Err(format!("raw host channel construction refused for {why}; use the shadow channel path"));
         }
         let mut notes = Vec::new();
         if let Some(c) = self.channels.get(&chid) {
@@ -3649,8 +3688,8 @@ impl Mirror {
     }
 
     fn ensure_invalidator(&mut self, fb: &mut FakeFb, notes: &mut Vec<String>) {
-        if self.translated {
-            notes.push("invalidator: raw physical invalidator refused for a translated FB reservation; shadow VAS invalidation remains active".into());
+        if let Some(why) = self.raw_refusal() {
+            notes.push(format!("invalidator: raw physical invalidator refused for {why}; shadow VAS invalidation remains active"));
             return;
         }
         if self.invalidator.is_some() || !self.memop_invalidate {
@@ -4226,8 +4265,8 @@ impl Mirror {
         root: Option<u64>,
         params: Option<&[u8]>,
     ) -> Vec<String> {
-        if self.translated {
-            return vec![format!("vaspace {:#x}/{:#x}: raw page-directory forwarding refused for a translated FB reservation", key.0, key.1)];
+        if let Some(why) = self.raw_refusal() {
+            return vec![format!("vaspace {:#x}/{:#x}: raw page-directory forwarding refused for {why}", key.0, key.1)];
         }
         let mut notes = Vec::new();
         let Some(hv) = self.vas.get(&key) else {

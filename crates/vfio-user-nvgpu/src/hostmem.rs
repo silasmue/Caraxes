@@ -260,6 +260,29 @@ impl Window {
         }
     }
 
+    /// Zero `[off, off + len)` (reservation offsets) with bulk stores, then drain the
+    /// write-combining buffers and read the last byte back, so the zeros are in VRAM when
+    /// this returns (the slice clear of D16b, `HostMemory::clear_slice`).
+    pub fn fill_zero(&self, off: u64, len: usize) {
+        assert!(
+            self.covers(off, len),
+            "BAR1 fill at reservation offset {off:#x} (+{len:#x}) is outside window {:#x} (+{:#x})",
+            self.offset,
+            self.len
+        );
+        if len == 0 {
+            return;
+        }
+        let at = (off - self.offset) as usize;
+        // SAFETY: bounds checked against the mapping; the pointer came from mmap, so the
+        // stores are not elided; the read-back is inside the range just written.
+        unsafe {
+            std::ptr::write_bytes(self.ptr.add(at), 0, len);
+            std::arch::x86_64::_mm_sfence();
+            std::ptr::read_volatile(self.ptr.add(at + len - 1));
+        }
+    }
+
     /// Drain the write-combining buffers of this window to VRAM: an `sfence` orders the
     /// WC stores, then a read of the first line forces the buffer to evict. Called before
     /// the GPU is pointed at anything the guest wrote here (host-exec.md: a not-yet-flushed
@@ -651,6 +674,33 @@ pub fn count_pattern(buf: &[u8]) -> (u64, u64) {
     (records, nonzero)
 }
 
+/// The BAR1 windows of the slice clear (`HostMemory::clear_slice`, D16b invariant (d)):
+/// `[0, size)` in back-to-back pieces of at most `step` bytes, every byte once.
+fn clear_windows(size: u64, step: u64) -> impl Iterator<Item = (u64, usize)> {
+    let step = step.max(HUGE);
+    (0..size.div_ceil(step)).map(move |i| (i * step, step.min(size - i * step) as usize))
+}
+
+#[cfg(test)]
+mod clear_tests {
+    use super::*;
+
+    /// Invariant (d), the device's part: the clear writes every byte of the slice once.
+    #[test]
+    fn the_clear_covers_the_whole_slice_once() {
+        for (size, step) in [(3 * GIB, 32 * MIB), (GIB + 2 * MIB, 32 * MIB), (2 * MIB, 64 * MIB), (6 * MIB, 0)] {
+            let w: Vec<(u64, usize)> = clear_windows(size, step).collect();
+            assert_eq!(w[0].0, 0);
+            for p in w.windows(2) {
+                assert_eq!(p[0].0 + p[0].1 as u64, p[1].0, "{size:#x} {step:#x}");
+            }
+            let last = w.last().unwrap();
+            assert_eq!(last.0 + last.1 as u64, size);
+            assert!(w.iter().all(|&(_, l)| l as u64 <= step.max(HUGE) && l > 0));
+        }
+    }
+}
+
 /// Heap attribution tag of the reservation (as host-facts.rs).
 const OWNER_TAG: u32 = u32::from_le_bytes(*b"cara");
 
@@ -693,6 +743,9 @@ pub struct Reservation {
     pub heap_free: u64,
     pub smi_free: u64,
     pub alloc_ms: u128,
+    /// What the host granted when the reservation was allocated compressed
+    /// (`CARAXES_COMPRESSION=slice`, compslice.rs); `None`: uncompressed (D16).
+    pub compression: Option<crate::compslice::Grant>,
 }
 
 impl Reservation {
@@ -1390,9 +1443,10 @@ impl HostMemory {
     /// (`dma.c:157-158`, NV_ERR_INVALID_OFFSET otherwise), so the shadow route reserves
     /// one object per 2 MiB region at its VA. `force_align` sets
     /// `ALIGNMENT_FORCE` with the page size as alignment, for an object smaller than the
-    /// VAS's compression-page alignment (legal because nothing here is ever compressed,
-    /// D16). Returns the handle, or the status (a refusal is a VA collision with the
-    /// server-reserved range or the host RM's own context VAs).
+    /// VAS's compression-page alignment (legal: under D16 nothing is compressed, and under
+    /// D16b a compressible leaf is a 64 KiB or 2 MiB page at its own alignment, a multiple
+    /// of the 64 KiB compression page). Returns the handle, or the status (a refusal is a
+    /// VA collision with the server-reserved range or the host RM's own context VAs).
     pub fn alloc_virtual_fixed(
         &mut self,
         vaspace: u32,
@@ -1776,6 +1830,125 @@ impl HostMemory {
         ))
     }
 
+    /// A BAR1 window onto `len` bytes at `offset` of another vidmem object of this client
+    /// (the compression probe's, examples/comp-slice-probe.rs). The window's offsets are the
+    /// object's.
+    pub fn map_object(&self, handle: u32, offset: u64, len: usize) -> Result<Window, Status> {
+        if self.closed {
+            return Err(CLOSED);
+        }
+        map_window(
+            self.rm.ctl(),
+            &self._gpu,
+            self.rm.root(),
+            self.device,
+            handle,
+            offset,
+            len,
+        )
+    }
+
+    /// Read back what the host granted for the compressed vidmem object `handle` at host
+    /// `[base, base + size)`, returned `attr`, `attr2` and kind `kind` (compslice.rs `Grant`):
+    /// `GET_SURFACE_INFO` ATTRS and COMPR_COVERAGE and `GET_SURFACE_COMPRESSION_COVERAGE` on
+    /// the object, `FB_GET_INFO_V2` 1TO1_COMPTAG_ENABLED and COMPRESSION_SIZE on the
+    /// subdevice. Read-only, every control NON_PRIVILEGED.
+    pub fn query_grant(
+        &self,
+        handle: u32,
+        base: u64,
+        size: u64,
+        attr: u32,
+        attr2: u32,
+        kind: u32,
+    ) -> crate::compslice::Grant {
+        use crate::compslice as c;
+        let mut g = c::Grant {
+            base,
+            size,
+            attr,
+            attr2,
+            kind,
+            ..Default::default()
+        };
+        // NV0041_CTRL_GET_SURFACE_INFO_PARAMS {surfaceInfoListSize u32 @0, surfaceInfoList
+        // NvP64 @8}; the RM copies the list in and out (embedded_param_copy.c:545-555).
+        let mut list = [
+            sys::NVXXXX_CTRL_XXX_INFO { index: c::SURFACE_INFO_ATTRS, data: 0 },
+            sys::NVXXXX_CTRL_XXX_INFO { index: c::SURFACE_INFO_COMPR_COVERAGE, data: 0 },
+        ];
+        let mut sp = [0u8; 16];
+        sp[0..4].copy_from_slice(&(list.len() as u32).to_le_bytes());
+        sp[8..16].copy_from_slice(&(list.as_mut_ptr() as usize as u64).to_le_bytes());
+        g.statuses[0] = self.control(handle, c::CMD_GET_SURFACE_INFO, &mut sp);
+        g.surface_attrs = list[0].data;
+        g.coverage_64k = list[1].data;
+        // {hSubDevice u32 @0 (0: the object's GPU), lineMin @4, lineMax @8, format @12}.
+        let mut cp = [0u8; 16];
+        g.statuses[1] = self.control(handle, c::CMD_GET_SURFACE_COMPRESSION_COVERAGE, &mut cp);
+        let rd = |o: usize| u32::from_le_bytes(cp[o..o + 4].try_into().unwrap());
+        (g.line_min, g.line_max, g.format) = (rd(4), rd(8), rd(12));
+        match self.fb_info(&[c::FB_INFO_1TO1_COMPTAG_ENABLED, c::FB_INFO_COMPRESSION_SIZE]) {
+            Ok(v) => (g.one_to_one, g.compression_size) = (v[0], v[1]),
+            Err(_) => g.statuses[2] = 0xFFFF_FFFF,
+        }
+        g
+    }
+
+    /// D16b invariant (d), the device's part: write zeros over the whole compressed slice
+    /// through its own BAR1 windows, one window at a time. The windows carry the
+    /// reservation's kind 0x09 with physically based comptags, the kind the host scrubber
+    /// writes with (compslice.rs), so every 64 KiB page ends up uncompressed zeros whatever
+    /// its compbits said before. The host's scrub-on-free does the same at the free; this
+    /// is the device's own guarantee, after the allocation and before the free.
+    /// `CARAXES_COMPRESSION_CLEAR=0` skips it. `Err` when a window is refused.
+    pub fn clear_slice(&mut self, when: &str) -> Result<String, String> {
+        let r = self.reservation.clone().ok_or("no reservation")?;
+        if r.compression.is_none() {
+            return Ok(format!("compression: nothing to clear {when} (uncompressed reservation)"));
+        }
+        if std::env::var(crate::compslice::CLEAR_ENV).as_deref() == Ok("0") {
+            return Ok(format!(
+                "WARN compression: the slice clear {when} is skipped ({}=0); the host's scrub-on-free still writes every freed page through its kind-0x09 alias",
+                crate::compslice::CLEAR_ENV
+            ));
+        }
+        let t = Instant::now();
+        let step = crate::fb::bar1_budget().0 as u64;
+        let mut windows = 0u32;
+        for (off, len) in clear_windows(r.size, step) {
+            let w = self.map_reservation(off, len).map_err(|st| {
+                format!(
+                    "BAR1 window at slice offset {off:#x} (+{len:#x}) refused {st:#x} after {} MiB",
+                    off / MIB
+                )
+            })?;
+            w.fill_zero(off, len);
+            drop(w);
+            windows += 1;
+        }
+        Ok(format!(
+            "compression: cleared the slice [{:#x}, {:#x}) {when}: zeros through {windows} BAR1 window(s) of {} MiB (kind 0x09, the slice's own comptag lines) in {} ms",
+            r.base,
+            r.end(),
+            step / MIB,
+            t.elapsed().as_millis()
+        ))
+    }
+
+    /// `NV0080_CTRL_CMD_DMA_GET_PTE_INFO` (read-only) of `va` in the VA space `vas`: the
+    /// PTE blocks of every page size, or the status. The host RM flags it test-only
+    /// (compslice.rs `CMD_DMA_GET_PTE_INFO`).
+    pub fn pte_info(&self, vas: u32, va: u64) -> Result<[crate::compslice::PteBlock; 5], Status> {
+        #[repr(C, align(8))]
+        struct Params([u8; crate::compslice::PTE_INFO_SIZE]);
+        let mut p = Params(crate::compslice::pte_info_params(vas, va));
+        match self.control(self.device, crate::compslice::CMD_DMA_GET_PTE_INFO, &mut p.0) {
+            sys::NV_OK => Ok(crate::compslice::parse_pte_info(&p.0)),
+            st => Err(st),
+        }
+    }
+
     /// Map `len` bytes of the reservation at reservation offset `offset` through BAR1.
     pub fn map_reservation(&mut self, offset: u64, len: usize) -> Result<Window, Status> {
         let r = self.reservation.as_ref().ok_or(0xFFFF_FFFEu32)?;
@@ -2090,8 +2263,18 @@ impl HostMemory {
     /// refused unless `S + 1 GiB` is free by both `HEAP_FREE` and nvidia-smi, fixed
     /// address and physically contiguous, no floating fallback, the reply checked.
     /// `slot` n places it n profile sizes lower, `[E - (n+1)S, E - nS)` (P20: one slot
-    /// per VM, stacked downward; slot 0 is the range above). Returns the log lines.
-    pub fn reserve(&mut self, size: u64, slot: u32) -> Result<Vec<String>> {
+    /// per VM, stacked downward; slot 0 is the range above). `compression`
+    /// [`Mode::Slice`](crate::compslice::Mode) allocates it compressed
+    /// (`NVOS32_ATTR_COMPR_DISABLE_PLC_ANY`, kind 0x09, decision D16b): the grant is read
+    /// back and must pass [`Grant::verdict`](crate::compslice::Grant::verdict), then the
+    /// slice is cleared through its own BAR1 windows ([`Self::clear_slice`]); anything else
+    /// is refused and the reservation freed. Returns the log lines.
+    pub fn reserve(
+        &mut self,
+        size: u64,
+        slot: u32,
+        compression: crate::compslice::Mode,
+    ) -> Result<Vec<String>> {
         let mut log = Vec::new();
         if self.reservation.is_some() {
             bail!("a reservation is already held");
@@ -2142,6 +2325,7 @@ impl HostMemory {
         self.guard
             .check_reservation(s, f, VRAM_HEADROOM)
             .map_err(|e| anyhow::anyhow!(e))?;
+        let compressed = compression == crate::compslice::Mode::Slice;
         let mut p = sys::NV_MEMORY_ALLOCATION_PARAMS::default();
         p.owner = OWNER_TAG;
         p.type_ = sys::NVOS32_TYPE_IMAGE;
@@ -2149,7 +2333,15 @@ impl HostMemory {
         p.attr = nvos32_attr::LOCATION.set(sys::NVOS32_ATTR_LOCATION_VIDMEM)
             | nvos32_attr::PHYSICALITY.set(sys::NVOS32_ATTR_PHYSICALITY_CONTIGUOUS)
             | nvos32_attr::PAGE_SIZE.set(sys::NVOS32_ATTR_PAGE_SIZE_HUGE);
+        if compressed {
+            // D16b: kind 0x09, physically based comptags (compslice.rs).
+            p.attr |= crate::compslice::ATTR_COMPR_DISABLE_PLC_ANY
+                << crate::compslice::ATTR_COMPR_SHIFT;
+        }
+        // D16b: `ZBC_SKIP_ZBCREFCOUNT` stays `_NO`, so a compressed slice counts as a ZBC
+        // surface on the host while it lives (compslice.rs `ATTR2_ZBC_SKIP_ZBCREFCOUNT`).
         p.attr2 = v::ATTR2_PAGE_SIZE_HUGE_2MB;
+        debug_assert_eq!(p.attr2 & crate::compslice::ATTR2_ZBC_SKIP_ZBCREFCOUNT, 0);
         p.size = s;
         p.offset = base;
         let h = self.rm.next_handle();
@@ -2184,6 +2376,21 @@ impl HostMemory {
             p.attr,
             p.attr2
         ));
+        let compression = if compressed {
+            let g = self.query_grant(h, base, s, p.attr, p.attr2, p.format);
+            if let Err(why) = g.verdict() {
+                let _ = self.rm.free(h);
+                bail!(
+                    "refused: {}=slice, but the host's grant does not isolate the slice ({why}); {}; freed",
+                    crate::compslice::ENV,
+                    g.describe()
+                );
+            }
+            log.push(g.describe());
+            Some(g)
+        } else {
+            None
+        };
         self.reservation = Some(Reservation {
             handle: h,
             base,
@@ -2193,7 +2400,19 @@ impl HostMemory {
             heap_free,
             smi_free,
             alloc_ms,
+            compression,
         });
+        if compressed {
+            // D16b (d): the device's own clear, before anything else uses the slice.
+            match self.clear_slice("after the allocation") {
+                Ok(l) => log.push(l),
+                Err(e) => {
+                    let _ = self.rm.free(h);
+                    self.reservation = None;
+                    bail!("refused: the compressed slice could not be cleared after the allocation ({e}); freed");
+                }
+            }
+        }
         if let Some(l) = self.scan_reservation("after the reservation") {
             log.push(l);
         }
@@ -2922,6 +3141,17 @@ impl TeardownOps for HostMemory {
         // range waits for it.
         if let Some(l) = self.scan_reservation("before the free") {
             log.push(l);
+        }
+        if r.compression.is_some() {
+            // D16b (d): the device's own clear before the pages go back to the host. A
+            // refused window does not stop the free: the host's scrub-on-free writes every
+            // page through its kind-0x09 alias anyway (compslice.rs).
+            match self.clear_slice("before the free") {
+                Ok(l) => log.push(l),
+                Err(e) => log.push(format!(
+                    "ERROR compression: the slice clear before the free failed ({e}); the host's scrub-on-free still writes every freed page through its kind-0x09 alias"
+                )),
+            }
         }
         let t = Instant::now();
         match self.rm.free(r.handle) {
