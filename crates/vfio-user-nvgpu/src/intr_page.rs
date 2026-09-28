@@ -916,7 +916,7 @@ mod tests {
         let shared = IntrShared::new();
         let (msi_w, msi_r) = eventfd();
         shared.set_msi_fd(Some(msi_w));
-        shared.msi_enabled.store(true, Ordering::Relaxed);
+        shared.set_msi_enabled(true);
         let p = IntrPage::create(16 << 20, BASE, identity(), shared.clone(), config).unwrap();
         let (hook, wake) = PageHook::new(p.clone()).unwrap();
         shared.attach_page(wake);
@@ -1143,7 +1143,7 @@ mod tests {
             .contains("inconsistencies: 1 x a store to the read-only TOP"));
         // MSI off: the vector stays pending and nothing is written.
         count(&mut msi);
-        p.shared.msi_enabled.store(false, Ordering::Relaxed);
+        p.shared.set_msi_enabled(false);
         store(&p, LEAF_EN_SET, 0xFF);
         store(&p, TOP_EN_SET, 1);
         store(&p, LEAF_TRIGGER, 4);
@@ -1311,7 +1311,7 @@ mod tests {
             let shared = IntrShared::new();
             let (msi_w, mut msi_r) = eventfd();
             shared.set_msi_fd(Some(msi_w));
-            shared.msi_enabled.store(true, Ordering::Relaxed);
+            shared.set_msi_enabled(true);
             let p = IntrPage::create(
                 16 << 20,
                 BASE,

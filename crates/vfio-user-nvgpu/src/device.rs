@@ -640,8 +640,7 @@ impl Device {
 
     fn sync_msi_enabled(&self) {
         if let Some(s) = &self.intr {
-            s.msi_enabled
-                .store(self.cfg.msi_enabled(), std::sync::atomic::Ordering::Relaxed);
+            s.set_msi_enabled(self.cfg.msi_enabled());
         }
     }
 
@@ -1433,7 +1432,6 @@ mod tests {
     #[test]
     fn disabling_msi_retires_both_eventfd_copies_and_can_be_rearmed() {
         use std::os::fd::{AsRawFd, FromRawFd};
-        use std::sync::atomic::Ordering;
         let intr = crate::intr::IntrShared::new();
         let mut d = rtx2070_device().with_intr_shared(intr.clone());
         let fd = unsafe { libc::eventfd(0, libc::EFD_NONBLOCK | libc::EFD_CLOEXEC) };
@@ -1450,13 +1448,13 @@ mod tests {
             0, 0, vec![]).unwrap();
         assert!(d.irq_fds[VFIO_PCI_MSI_IRQ_INDEX as usize].is_empty());
         // Even if the PCI MSI enable bit remains set, the retired fd is silent.
-        intr.msi_enabled.store(true, Ordering::SeqCst);
+        intr.set_msi_enabled(true);
         assert!(!intr.signal_msi());
         let mut value = 0u64;
         assert_eq!(unsafe { libc::read(reader.as_raw_fd(), (&mut value as *mut u64).cast(), 8) }, -1);
         assert_eq!(std::io::Error::last_os_error().raw_os_error(), Some(libc::EAGAIN));
         arm(&mut d);
-        intr.msi_enabled.store(true, Ordering::SeqCst);
+        intr.set_msi_enabled(true);
         assert!(intr.signal_msi());
         assert_eq!(unsafe { libc::read(reader.as_raw_fd(), (&mut value as *mut u64).cast(), 8) }, 8);
         assert_eq!(value, 1);

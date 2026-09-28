@@ -29,7 +29,9 @@ pub const LEAVES: usize = 8;
 pub struct IntrShared {
     pending: [AtomicU32; LEAVES],
     msi_fd: Mutex<Option<File>>,
-    pub msi_enabled: AtomicBool,
+    msi_enabled: AtomicBool,
+    /// Serializes raises with changes that make MSI delivery available.
+    delivery: Mutex<()>,
     /// Counters for the summary: vectors raised, MSIs written, host RC events seen.
     pub raised: AtomicU64,
     pub msis: AtomicU64,
@@ -55,7 +57,34 @@ impl IntrShared {
 
     /// Keep a duplicate of the client's MSI eventfd for raising from the thread.
     pub fn set_msi_fd(&self, fd: Option<File>) {
-        *self.msi_fd.lock().unwrap() = fd;
+        let _delivery = self.delivery.lock().unwrap();
+        let mut slot = self.msi_fd.lock().unwrap();
+        let became_available = slot.is_none() && fd.is_some();
+        *slot = fd;
+        drop(slot);
+        if became_available && !self.page_mode.load(Ordering::SeqCst) && self.pending() {
+            self.signal_msi_locked();
+        }
+    }
+
+    /// Mirror the PCI MSI enable bit, replaying one MSI when pending work becomes
+    /// deliverable. Pending bits stay set until the guest reads the interrupt tree.
+    pub fn set_msi_enabled(&self, enabled: bool) {
+        let _delivery = self.delivery.lock().unwrap();
+        let was = self.msi_enabled.swap(enabled, Ordering::SeqCst);
+        if enabled
+            && !was
+            && !self.page_mode.load(Ordering::SeqCst)
+            && self.pending()
+        {
+            self.signal_msi_locked();
+        }
+    }
+
+    fn pending(&self) -> bool {
+        self.pending
+            .iter()
+            .any(|p| p.load(Ordering::SeqCst) != 0)
     }
 
     /// Raise `vector` from any thread: mark it pending and write the MSI eventfd when
@@ -67,6 +96,7 @@ impl IntrShared {
     /// an MSI was written.
     pub fn raise(&self, vector: u32) -> bool {
         use std::io::Write;
+        let _delivery = self.delivery.lock().unwrap();
         let leaf = (vector / 32) as usize;
         self.raised.fetch_add(1, Ordering::Relaxed);
         crate::profile::window("interrupts: vector raises", 0);
@@ -87,7 +117,7 @@ impl IntrShared {
             }
             return true;
         }
-        self.signal_msi()
+        self.signal_msi_locked()
     }
 
     /// Hand raises to the interrupt page's reactor from now on: `wake` is an eventfd in
@@ -104,6 +134,11 @@ impl IntrShared {
 
     /// Write the MSI eventfd when the guest has MSI enabled; whether it was written.
     pub fn signal_msi(&self) -> bool {
+        let _delivery = self.delivery.lock().unwrap();
+        self.signal_msi_locked()
+    }
+
+    fn signal_msi_locked(&self) -> bool {
         use std::io::Write;
         if !self.msi_enabled.load(Ordering::Relaxed) {
             return false;
@@ -279,8 +314,65 @@ impl IntrTree {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::io::Read;
 
     const BASE: u64 = 0x00B8_1000;
+
+    fn eventfd() -> (File, File) {
+        // SAFETY: a fresh eventfd, immediately wrapped in an owned File.
+        let fd = unsafe { libc::eventfd(0, libc::EFD_NONBLOCK) };
+        assert!(fd >= 0);
+        // SAFETY: `fd` is fresh and owned by this test.
+        let writer = unsafe { <File as std::os::fd::FromRawFd>::from_raw_fd(fd) };
+        (writer.try_clone().unwrap(), writer)
+    }
+
+    fn read_eventfd(mut reader: File) -> u64 {
+        let mut b = [0u8; 8];
+        assert_eq!(reader.read(&mut b).unwrap(), 8);
+        u64::from_le_bytes(b)
+    }
+
+    #[test]
+    fn pending_vector_is_replayed_once_when_msi_is_enabled() {
+        let shared = IntrShared::new();
+        let (reader, writer) = eventfd();
+        shared.set_msi_fd(Some(writer));
+
+        assert!(!shared.raise(4));
+        shared.set_msi_enabled(true);
+        // Repeating the same state transition must not duplicate the replay.
+        shared.set_msi_enabled(true);
+        assert_eq!(read_eventfd(reader), 1);
+        assert_eq!(shared.msis.load(Ordering::Relaxed), 1);
+    }
+
+    #[test]
+    fn pending_vector_is_replayed_once_when_eventfd_is_installed() {
+        let shared = IntrShared::new();
+        shared.set_msi_enabled(true);
+        assert!(!shared.raise(4));
+
+        let (reader, writer) = eventfd();
+        shared.set_msi_fd(Some(writer));
+        assert_eq!(read_eventfd(reader), 1);
+        assert_eq!(shared.msis.load(Ordering::Relaxed), 1);
+    }
+
+    #[test]
+    fn transition_before_raise_delivers_only_the_raise() {
+        // Together with the two replay-order tests above, this covers both sides of the
+        // race. `delivery` serializes the pending fetch_or with each availability change:
+        // the transition either observes the bit and replays it, or the later raise
+        // observes the available MSI and delivers it itself.
+        let shared = IntrShared::new();
+        let (reader, writer) = eventfd();
+        shared.set_msi_fd(Some(writer));
+        shared.set_msi_enabled(true);
+        assert!(shared.raise(4));
+        assert_eq!(read_eventfd(reader), 1);
+        assert_eq!(shared.msis.load(Ordering::Relaxed), 1);
+    }
 
     #[test]
     fn self_test_vector_raises_msi_when_enabled() {
@@ -310,7 +402,6 @@ mod tests {
     /// writes the MSI eventfd when MSI is enabled.
     #[test]
     fn shared_vectors_reach_the_leaves_and_the_msi() {
-        use std::io::Read;
         let shared = IntrShared::new();
         let mut t = IntrTree::new(BASE, 0x800).with_shared(shared.clone());
         // No MSI fd, MSI disabled: pending only; a second raise before the guest reads
@@ -328,7 +419,7 @@ mod tests {
         shared.set_msi_fd(Some(unsafe {
             <File as std::os::fd::FromRawFd>::from_raw_fd(efd)
         }));
-        shared.msi_enabled.store(true, Ordering::Relaxed);
+        shared.set_msi_enabled(true);
         let raised = std::thread::spawn({
             let s = shared.clone();
             move || s.raise(6)
