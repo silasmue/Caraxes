@@ -92,3 +92,27 @@ channels remain unsupported until explicitly implemented.
   transferred into a software rendering implementation.
 - VM stopped. No new host Xid; deferred execution and rendering remain unvalidated.
 - Artifacts: alpha-2026-09-27/windows-plain/P6-prefix-preview/.
+
+## P7: fenced takeover and first execution packet
+
+- Base 47c19704; binary SHA-256:
+  3a12821cd227582737985d82424902ae860b6b7828a1b2a475a338edd5fad47a.
+- ABI615: 524 unit tests and two integration tests passed; one ignored.
+- Windows recovery required selecting Continue. Normal driver startup followed.
+- Exact host FIFO_IDLE_CHANNELS completed with NV_OK in 1247 us, before the
+  management host TSG was freed. The initial setup prefix and local SW ID passed.
+- The next 20-dword packet contains, in order:
+  - Legacy acquire at VA 0x120233540, payload 2.
+  - A140 binding and SET_REFERENCE(0).
+  - Deferred INITIALIZE API 0x40000002.
+  - SET_REFERENCE(0), then deferred PROMOTE API 0x40000003.
+  - C597 REPORT_SEMAPHORE at VA 0x120233560, payload 3, flags 0x1000f010.
+- Strict execution stopped at the first SET_REFERENCE (host method 0x50).
+  No deferred API completed and the following release was withheld.
+- SET_REFERENCE must update USERD.Reference at offset 0x48. The captured 3D
+  release requests one word after preceding writes, pipeline ALL; support must
+  preserve the INITIALIZE/PROMOTE completion boundary before publishing it.
+- ACPI powerdown followed by the stop helper shut down the VM. No new host Xid;
+  the trace's RC Xid 45 is the emulator's explicit guest failure for method 0x50.
+- Artifacts: alpha-2026-09-27/windows-plain/P7-software-object-id/.
+- Rendering remains unvalidated.
