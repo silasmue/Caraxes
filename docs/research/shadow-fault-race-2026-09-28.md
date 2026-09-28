@@ -33,12 +33,14 @@ Scope: the host Xid 31 of Linux guest desktop-b at 21:20:24 (PyTorch ResNet-18, 
 - The window: UVM learns that the map is done at 1269272524. The shadow holds the leaf only after the doorbell's apply, stamped 1269275926. For about 3.4 ms the host channel could run PyTorch's next kernels on the new 2 MiB regions.
 - After that: error notifiers at 1269291411, the host RC event at 1269291655 [T:4786344, T:4786398].
 
-### Why not on 2026-09-25 [I]
+### What changed since 2026-09-25 [I]
 
-- The matrix guests had no working UVM: `cuda-managed` failed with 801 [caraxes/runs/matrix-2026-09-25/gates-615].
-- So CUDA mapped through RM and the register invalidate, which db9bcda0 holds. Those faults sat at RM-style VAs (0x100_xxxx_xxxx) [workload-615/xid31-note.txt].
-- The stock 615 guest runs nvidia-uvm (UVM channels, managed memory reaches demand paging), and its allocations are UVM external mappings at CPU-shaped VAs.
-- The software `MEM_OP` path is unchanged since 66682ae2. e8f281a9, 7c1ce283, 8f7a7f38, 5b72a19a and the worker changes do not touch it.
+- 9ddc665c (2026-09-26) answers `GSP_GET_FEATURES` `gspFeatures` 1. Bit 0 is `UVM_ENABLED` [docs/research/uvm-faults-2026-09-28.md on the main checkout, not yet committed].
+- Before that, the matrix guests had no managed memory: `cuda-managed` failed with 801 [caraxes/runs/matrix-2026-09-25/gates-615].
+- CUDA then mapped through RM and the register invalidate, which db9bcda0 holds: 1787 lazily deferred register invalidates, and the faults of §9 at RM-style VAs (0x100_xxxx_xxxx) [workload-615/device-summary.txt, xid31-note.txt].
+- Now libcuda runs its VA space through nvidia-uvm. Allocations are UVM external mappings at CPU-shaped VAs (0x7794_...), and the CUDA root gets no register invalidates.
+- The lean VM on cb4974fc shows the same: "0 invalidate(s) held" [caraxes/runs/night-2026-09-28/latency/arm-cur/device-summary.txt].
+- The software `MEM_OP` path itself is unchanged since 66682ae2. e8f281a9, 7c1ce283, 8f7a7f38, 5b72a19a and the worker changes do not touch it.
 
 ### What the trace cannot show
 
@@ -66,7 +68,8 @@ Scope: the host Xid 31 of Linux guest desktop-b at 21:20:24 (PyTorch ResNet-18, 
 
 ## Open
 
-- VM validation: convnet 60 s ×3, transformer, llama 1B plain, nvprobe short-kernel.
+- VM validation: convnet 60 s ×3, transformer, llama 1B plain, nvprobe short-kernel. Run it with `gspFeatures` bit 0 = 1, as tonight: that is what routes CUDA through UVM.
+- If bit 0 goes back to 0 (uvm-faults note, option 1), CUDA maps through RM again and this path idles. The hold stays correct for any UVM-mapped VA space.
 - If the lock holds show up next to Sunshine: stop the channel, release the lock, resume it once `Progress` reaches the plan.
 - The ran-ahead counter should treat dirty, unplanned table pages of the channel's root as pending.
 - Catalogue row in [isolation-and-xids.md](isolation-and-xids.md) after the validation.
