@@ -201,6 +201,12 @@ struct HostState {
     mem_op: [u32; 3],
 }
 
+#[derive(Clone, Copy, Debug, Default)]
+struct StrictReportState {
+    words: [u32; 3],
+    initialized: u8,
+}
+
 #[derive(Clone, Copy, Debug)]
 enum DeferredState {
     Pending { object: u32, api: u32 },
@@ -267,6 +273,7 @@ pub struct Channel {
     ce: CeState,
     compute: ComputeState,
     host: HostState,
+    strict_reports: [StrictReportState; 8],
     pub entries_done: u64,
     pub methods_done: u64,
     /// Compute work (kernel launches) the device refused to run: part 2.
@@ -306,6 +313,64 @@ impl Channel {
             .ok()
             .and_then(|id| self.software_objects.get(&id))
             .map_or(binding, |(_, class)| *class)
+    }
+
+    fn validate_deferred_management(&self, classes: ChannelClasses) -> Result<(), String> {
+        if !self.software_object_model_valid {
+            return Err(format!(
+                "chid {}: channel-local software class ID sequence is not modelled",
+                self.chid
+            ));
+        }
+        let allowed = |class| {
+            matches!(class, 0x5080 | 0xa140 | 0x902d | 0xc597)
+                || class == classes.uvm_sw
+                || class == classes.copy
+                || class == classes.compute
+        };
+        if let Some((class, _)) = self
+            .engine_objects
+            .iter()
+            .find(|(class, _)| !allowed(*class))
+        {
+            return Err(format!(
+                "chid {}: strict management has unsupported engine class {class:#x}",
+                self.chid
+            ));
+        }
+        let live = self
+            .engine_objects_with_handles()
+            .map(|(handle, class, _)| (handle, class))
+            .collect::<BTreeMap<_, _>>();
+        if self
+            .software_objects
+            .values()
+            .any(|(handle, class)| live.get(handle) != Some(class))
+        {
+            return Err(format!(
+                "chid {}: channel-local software class ID names a stale object",
+                self.chid
+            ));
+        }
+        let deferred = live.iter().filter(|(_, class)| **class == 0x5080);
+        let mut count = 0;
+        for (&handle, _) in deferred {
+            count += 1;
+            if !self
+                .software_objects
+                .values()
+                .any(|entry| *entry == (handle, 0x5080))
+            {
+                return Err(format!(
+                    "chid {}: deferred object {handle:#x} has no channel-local software class ID",
+                    self.chid
+                ));
+            }
+        }
+        if count == 0 {
+            return Err(format!("chid {}: no live deferred object", self.chid));
+        }
+        Ok(())
     }
 }
 
@@ -481,32 +546,7 @@ impl Registry {
                 "chid {chid}: cannot enable strict management execution"
             ));
         }
-        let allowed = |class| {
-            matches!(class, 0x5080 | 0xa140 | 0x902d | 0xc597)
-                || class == classes.uvm_sw
-                || class == classes.copy
-                || class == classes.compute
-        };
-        if !ch.software_object_model_valid {
-            return Err(format!(
-                "chid {chid}: channel-local software class ID sequence is not modelled"
-            ));
-        }
-        if let Some((class, _)) = ch.engine_objects.iter().find(|(class, _)| !allowed(*class)) {
-            return Err(format!(
-                "chid {chid}: strict management has unsupported engine class {class:#x}"
-            ));
-        }
-        if ch.engine_objects.iter().any(|(class, _)| *class == 0x5080)
-            && !ch
-                .software_objects
-                .values()
-                .any(|(_, class)| *class == 0x5080)
-        {
-            return Err(format!(
-                "chid {chid}: deferred object has no channel-local software class ID"
-            ));
-        }
+        ch.validate_deferred_management(classes)?;
         ch.deferred_management = true;
         Ok(())
     }
@@ -534,6 +574,7 @@ impl Registry {
                 "chid {chid}: cannot take over active management state"
             ));
         }
+        ch.validate_deferred_management(self.classes)?;
         if ch.gp_get != 0 {
             return Err(format!(
                 "chid {chid}: management takeover after a software ring wrap is unsupported"
@@ -1173,6 +1214,7 @@ impl Registry {
                     ce: CeState::default(),
                     compute: ComputeState::default(),
                     host: HostState::default(),
+                    strict_reports: [StrictReportState::default(); 8],
                     entries_done: 0,
                     methods_done: 0,
                     launches_refused: 0,
@@ -1906,6 +1948,8 @@ impl Registry {
                     Self::host_method(ch, mem, root, subch, a, data, now, ch.deferred_management)
                 } else if ch.deferred_management && class == 0x5080 {
                     Self::deferred_management_method(ch, binding, a, data)
+                } else if ch.deferred_management && class == 0xc597 {
+                    Self::strict_report_method(ch, mem, root, subch, a, data)
                 } else if ch.deferred_management && class == classes.compute {
                     Err(MethodError::Failed(format!(
                         "strict management chid {} rejects compute method {a:#x}",
@@ -2140,6 +2184,39 @@ impl Registry {
                     h.mem_op[0], h.mem_op[1], h.mem_op[2]
                 ))
             }
+            // SET_REFERENCE is GPU-owned USERD state. Strict management publishes it
+            // synchronously; no GPU work or completion is implied.
+            0x50 if strict => {
+                let userd = ch.userd.ok_or_else(|| {
+                    MethodError::Failed(format!(
+                        "strict management chid {} has no USERD for SET_REFERENCE",
+                        ch.chid
+                    ))
+                })?;
+                let at = match userd {
+                    Target::Fb(pa) => Target::Fb(pa.checked_add(0x48).ok_or_else(|| {
+                        MethodError::Failed("SET_REFERENCE USERD address overflow".into())
+                    })?),
+                    Target::Sys(pa) => Target::Sys(pa.checked_add(0x48).ok_or_else(|| {
+                        MethodError::Failed("SET_REFERENCE USERD address overflow".into())
+                    })?),
+                    _ => {
+                        return Err(MethodError::Failed(
+                            "SET_REFERENCE USERD aperture is not writable".into(),
+                        ))
+                    }
+                };
+                if !mem.write(at, &data.to_le_bytes()) {
+                    return Err(MethodError::Failed(format!(
+                        "strict management chid {} SET_REFERENCE USERD write failed",
+                        ch.chid
+                    )));
+                }
+                mem.fb.flush();
+                Some(format!(
+                    "strict management SET_REFERENCE USERD {at:?} = {data:#x} [guest]"
+                ))
+            }
             0x5C => {
                 h.sem_addr_lo = data;
                 None
@@ -2310,6 +2387,58 @@ impl Registry {
             Some(state) => Err(MethodError::Failed(format!(
                 "strict management chid {} deferred state {state:?} does not match object {object:#x} API {api:#x}",
                 ch.chid
+            ))),
+        }
+    }
+
+    fn strict_report_method(
+        ch: &mut Channel,
+        mem: &mut GpuMem,
+        root: Target,
+        subch: usize,
+        addr: u32,
+        data: u32,
+    ) -> Result<Option<String>, MethodError> {
+        let report = &mut ch.strict_reports[subch];
+        match addr {
+            0x1b00..=0x1b08 if (addr - 0x1b00) % 4 == 0 => {
+                let index = ((addr - 0x1b00) / 4) as usize;
+                report.words[index] = data;
+                report.initialized |= 1 << index;
+                Ok(None)
+            }
+            0x1b0c => {
+                if data != 0x1000_f010 {
+                    return Err(MethodError::Failed(format!(
+                        "strict C597 REPORT_SEMAPHORE_D {data:#x} is not the captured release"
+                    )));
+                }
+                if report.initialized != 0b111 {
+                    return Err(MethodError::Failed(
+                        "strict C597 report semaphore A/B/C are not initialized".into(),
+                    ));
+                }
+                let high = report.words[0];
+                let low = report.words[1];
+                let payload = report.words[2];
+                if high & !0xff != 0 || low & 3 != 0 {
+                    return Err(MethodError::Failed(format!(
+                        "strict C597 report semaphore address {high:#x}:{low:#x} is invalid"
+                    )));
+                }
+                let va = (u64::from(high) << 32) | u64::from(low);
+                let pieces = ce_pieces(mem, root, false, 0, va, 4, ch.software_fb_range)
+                    .map_err(MethodError::Failed)?;
+                mem.fb.flush();
+                ce_publish(mem, &pieces, &payload.to_le_bytes(), 4).map_err(MethodError::Failed)?;
+                mem.fb.flush();
+                report.initialized = 0;
+                Ok(Some(format!(
+                    "strict C597 report semaphore release va {va:#x} = {payload:#x} [guest]"
+                )))
+            }
+            _ => Err(MethodError::Failed(format!(
+                "strict C597 method {addr:#x} = {data:#x} not modelled"
             ))),
         }
     }
@@ -3330,6 +3459,7 @@ mod tests {
         let mut pb = inc(5, 0, &[0x5080]);
         pb.extend(inc(5, 8, &[0]));
         let (mut fb, sys, path, mut reg) = software_fixture("management-takeover", &pb);
+        reg.record_alloc(1, 0x40, 0x77, 0x5080, &[]).unwrap();
         reg.channel_mut(9).unwrap().mirrored = true;
         let plan = reg
             .preview_deferred_takeover(
@@ -3362,6 +3492,7 @@ mod tests {
 
         let pb = inc(0, 0x10, &[1]);
         let (mut fb, sys, path, mut reg) = software_fixture("management-bad-prefix", &pb);
+        reg.record_alloc(1, 0x40, 0x77, 0x5080, &[]).unwrap();
         reg.channel_mut(9).unwrap().mirrored = true;
         let error = reg
             .preview_deferred_takeover(
@@ -3384,6 +3515,7 @@ mod tests {
 
         let pb = inc(5, 0, &[0x5080]);
         let (mut fb, sys, path, mut reg) = software_fixture("management-stale-plan", &pb);
+        reg.record_alloc(1, 0x40, 0x77, 0x5080, &[]).unwrap();
         reg.channel_mut(9).unwrap().mirrored = true;
         let plan = reg
             .preview_deferred_takeover(
@@ -3407,6 +3539,30 @@ mod tests {
         assert!(reg.apply_deferred_takeover(plan).is_err());
         assert_eq!(reg.channel(9).unwrap().objects[5], 0);
         assert_eq!(reg.channel(9).unwrap().gp_get, 0);
+        std::fs::remove_file(path).ok();
+
+        let pb = inc(5, 0, &[1]);
+        let (mut fb, sys, path, mut reg) = software_fixture("management-unknown-history", &pb);
+        reg.record_alloc(1, 0x40, 0x77, 0x5080, &[]).unwrap();
+        reg.record_alloc(1, 0x40, 0x78, 0xdead, &[]).unwrap();
+        reg.record_free(1, 0x78);
+        reg.channel_mut(9).unwrap().mirrored = true;
+        let before = reg.channel(9).unwrap().objects;
+        let error = reg
+            .preview_deferred_takeover(
+                &GpuMem {
+                    fb: &mut fb,
+                    sys: &sys,
+                },
+                9,
+                1,
+            )
+            .unwrap_err();
+        assert!(error.contains("ID sequence is not modelled"), "{error}");
+        let ch = reg.channel(9).unwrap();
+        assert!(ch.mirrored);
+        assert_eq!(ch.gp_get, 0);
+        assert_eq!(ch.objects, before);
         std::fs::remove_file(path).ok();
     }
 
@@ -3446,6 +3602,85 @@ mod tests {
     }
 
     #[test]
+    fn captured_deferred_sequence_publishes_report_only_after_both_completions() {
+        let sequence = || {
+            let mut pb = inc(0, 0x10, &[0, 0x1000_9000, 2, 0x1001]);
+            pb.extend(inc(2, 0, &[0xa140]));
+            pb.extend(inc(0, 0x50, &[0]));
+            pb.extend(inc(5, 0x200, &[0x4000_0002]));
+            pb.extend(inc(0, 0x50, &[0]));
+            pb.extend(inc(5, 0x200, &[0x4000_0003]));
+            pb.extend(inc(0, 0x1b00, &[0, 0x1000_9000, 3, 0x1000_f010]));
+            pb
+        };
+        let prepare = |tag: &str| {
+            let (fb, sys, path, mut reg) = software_fixture(tag, &sequence());
+            reg.record_alloc(1, 0x40, 0x77, 0x5080, &[]).unwrap();
+            let ch = reg.channel_mut(9).unwrap();
+            ch.objects[0] = 0xc597;
+            ch.objects[5] = 1;
+            reg.enable_deferred_management(9).unwrap();
+            (fb, sys, path, reg)
+        };
+        let (mut fb, sys, path, mut reg) = prepare("captured-deferred-sequence");
+        assert!(sys.write(0x4000_1000, &2u32.to_le_bytes()));
+        fb.write(0x20_0000 + 0x48, &0x55u32.to_le_bytes());
+        let ring = |reg: &mut Registry, fb: &mut FakeFb, sys: &GuestMemory| {
+            reg.run_deferred_one(&mut GpuMem { fb, sys }, 9)
+        };
+        ring(&mut reg, &mut fb, &sys);
+        assert_eq!(reg.pending_deferred(), vec![(9, 0x77, 0x4000_0002)]);
+        assert_eq!(sys.read_u32(0x4000_1000), Some(2));
+        assert_eq!(fb.read_u64(0x20_0000 + USERD_GP_GET).unwrap() as u32, 0);
+        assert_eq!(fb.read_u64(0x20_0000 + 0x48).unwrap() as u32, 0);
+        reg.complete_deferred(9, 0x4000_0002, Ok(())).unwrap();
+        ring(&mut reg, &mut fb, &sys);
+        assert_eq!(reg.pending_deferred(), vec![(9, 0x77, 0x4000_0003)]);
+        assert_eq!(sys.read_u32(0x4000_1000), Some(2));
+        reg.complete_deferred(9, 0x4000_0003, Ok(())).unwrap();
+        ring(&mut reg, &mut fb, &sys);
+        assert_eq!(sys.read_u32(0x4000_1000), Some(3));
+        assert_eq!(fb.read_u64(0x20_0000 + USERD_GP_GET).unwrap() as u32, 1);
+        std::fs::remove_file(path).ok();
+
+        let (mut fb, sys, path, mut reg) = prepare("captured-deferred-failure");
+        assert!(sys.write(0x4000_1000, &2u32.to_le_bytes()));
+        ring(&mut reg, &mut fb, &sys);
+        reg.complete_deferred(9, 0x4000_0002, Err("refused".into()))
+            .unwrap();
+        ring(&mut reg, &mut fb, &sys);
+        assert_eq!(sys.read_u32(0x4000_1000), Some(2));
+        assert_eq!(fb.read_u64(0x20_0000 + USERD_GP_GET).unwrap() as u32, 0);
+        std::fs::remove_file(path).ok();
+    }
+
+    #[test]
+    fn strict_report_rejects_uncaptured_d_without_publishing() {
+        let pb = inc(0, 0x1b00, &[0, 0x1000_9000, 3, 0x1000_f011]);
+        let (mut fb, sys, path, mut reg) = software_fixture("strict-report-d", &pb);
+        reg.record_alloc(1, 0x40, 0x77, 0x5080, &[]).unwrap();
+        let ch = reg.channel_mut(9).unwrap();
+        ch.objects[0] = 0xc597;
+        reg.enable_deferred_management(9).unwrap();
+        assert!(sys.write(0x4000_1000, &2u32.to_le_bytes()));
+        reg.run_deferred_one(
+            &mut GpuMem {
+                fb: &mut fb,
+                sys: &sys,
+            },
+            9,
+        );
+        assert_eq!(sys.read_u32(0x4000_1000), Some(2));
+        assert_eq!(fb.read_u64(0x20_0000 + USERD_GP_GET).unwrap() as u32, 0);
+        assert!(reg.take_software_events()[0]
+            .failure
+            .as_deref()
+            .unwrap()
+            .contains("not the captured release"));
+        std::fs::remove_file(path).ok();
+    }
+
+    #[test]
     fn strict_management_rejects_unmodelled_work_and_failed_completion_is_fatal() {
         let mut pb = inc(5, 0, &[0x5080]);
         pb.extend(inc(5, 0x200, &[7]));
@@ -3476,6 +3711,7 @@ mod tests {
             .chain(inc(5, 0x100, &[1]))
             .collect::<Vec<_>>();
         let (mut fb, sys, path, mut reg) = software_fixture("strict-unmodelled", &pb);
+        reg.record_alloc(1, 0x40, 0x77, 0x5080, &[]).unwrap();
         reg.enable_deferred_management(9).unwrap();
         reg.doorbell(
             &mut GpuMem {
@@ -3490,7 +3726,7 @@ mod tests {
             .failure
             .as_deref()
             .unwrap()
-            .contains("rejects class 0xc597"));
+            .contains("strict C597 method 0x100"));
         std::fs::remove_file(path).ok();
     }
 
