@@ -578,7 +578,11 @@ impl Dispatcher {
         }
         let off = self.dstate.rc.disabled_chids(&self.channels);
         let held = std::mem::take(&mut self.dstate.rc.held);
-        let (run, keep): (Vec<u32>, Vec<u32>) = held.into_iter().partition(|c| !off.contains(c));
+        // A channel held for its VAS root (`root_hold`) stays held, quietly, until the
+        // guest's invalidates name the walked root again.
+        let (run, keep): (Vec<u32>, Vec<u32>) = held.into_iter().partition(|c| {
+            !off.contains(c) && self.channels.root_mismatch(*c).is_none()
+        });
         self.dstate.rc.held = keep.into_iter().collect();
         let mut notes = Vec::new();
         for chid in run {
@@ -622,6 +626,36 @@ impl Dispatcher {
             self.objects.remove(&(h_client, h_object));
         }
         (notes, refused)
+    }
+
+    /// Fix 2 of run P17 (pdbwatch.rs): a channel bound for the host whose VAS is walked from
+    /// a root the guest's own TLB invalidates no longer name runs nothing there (the host
+    /// would fetch its GPFIFO through the wrong tables: Xid 31 `FAULT_PDE`). Its doorbell is
+    /// held (`replay_held` runs it once the guest names the walked root); one ERROR per
+    /// mismatch, a short note for every further held doorbell.
+    fn root_hold(&mut self, chid: u32) -> Option<Vec<String>> {
+        let (vas, mm) = self.channels.root_mismatch(chid)?;
+        let m = self.mirror.as_ref()?;
+        let to_host = m.is_mirrored(chid)
+            || m.is_shadow(&self.channels, chid)
+            || m.eligible(&self.channels, chid).is_ok();
+        if !to_host {
+            return None;
+        }
+        self.dstate.rc.held.insert(chid);
+        let watch = self.channels.pdb_watch_mut();
+        watch.holds += 1;
+        if !watch.first_report(vas, &mm) {
+            return Some(vec![format!(
+                "chid {chid}: host doorbell held, VAS root mismatch (see the ERROR above) [host protection]"
+            )]);
+        }
+        let text = format!(
+            "ERROR: chid {chid}: VAS {:#x}/{:#x} is walked from root {:?}, but the guest's TLB invalidates name its former root {:?} ({} since the change); the host doorbell is held until the guest names the walked root (pdbwatch.rs) [host protection]",
+            vas.0, vas.1, mm.walked, mm.named, mm.count
+        );
+        eprintln!("vfio-user-nvgpu: {text}");
+        Some(vec![text])
     }
 
     fn doorbell_chid(
@@ -709,6 +743,9 @@ impl Dispatcher {
                 "deferred target chid {chid}: submission held until context promotion"
             )];
         }
+        if let Some(notes) = self.root_hold(chid) {
+            return notes;
+        }
         let Some(m) = self.mirror.as_mut() else {
             return self.channels.doorbell_except(gm, token, &off);
         };
@@ -745,9 +782,12 @@ impl Dispatcher {
             }
             // Forward the guest's own MEM_OP TLB invalidates too (the shadow VAS's PDB is
             // the host root; the invalidator handles the guest root for the CE channels).
+            // Each reaches every mirror VA space, as before the decode read MEM_OP_C PDB 0:0
+            // right (pdbwatch.rs): forwarding only the named root waits for a GPU run that
+            // shows the mirror roots equal the guest's PDBs.
             let inv = std::mem::take(&mut self.channels.tlb_invalidates);
             if !inv.is_empty() {
-                let n: usize = inv.iter().map(|pdb| m.invalidate_tlb(gm.fb, *pdb)).sum();
+                let n: usize = inv.iter().map(|_| m.invalidate_tlb(gm.fb, None)).sum();
                 notes.push(format!(
                     "mirror: {} software TLB invalidate(s) -> {n} host invalidate(s) [host]",
                     inv.len()
@@ -771,10 +811,10 @@ impl Dispatcher {
                 notes.push(format!("mirror: chid {chid} in software: {why}"));
             }
             // The software executor's TLB invalidates reach the physical GPU's TLBs
-            // through the mirror VA spaces (the same page directories).
+            // through the mirror VA spaces (every one, as above).
             let inv = std::mem::take(&mut self.channels.tlb_invalidates);
             if !inv.is_empty() {
-                let n: usize = inv.iter().map(|pdb| m.invalidate_tlb(gm.fb, *pdb)).sum();
+                let n: usize = inv.iter().map(|_| m.invalidate_tlb(gm.fb, None)).sum();
                 notes.push(format!(
                     "mirror: {} software TLB invalidate(s) -> invalidated on {n} mirror VA space(s) [host]",
                     inv.len()

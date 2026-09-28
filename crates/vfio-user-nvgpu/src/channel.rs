@@ -284,8 +284,9 @@ pub struct Channel {
     pub methods_done: u64,
     /// Compute work (kernel launches) the device refused to run: part 2.
     pub launches_refused: u64,
-    /// `MEM_OP` TLB invalidates of this channel's pushes since the registry drained them.
-    tlb_invalidates: Vec<Option<u64>>,
+    /// `MEM_OP` TLB invalidates of this channel's pushes since the registry drained them:
+    /// the page directory each names (`None`: all, pdbwatch.rs `memop_pdb`).
+    tlb_invalidates: Vec<Option<Target>>,
     /// A failed software method is terminal until this channel is reallocated.
     software_failed: bool,
     software_failure: Option<String>,
@@ -446,7 +447,9 @@ pub struct Registry {
     /// TLB invalidates the software executor ran into (`MEM_OP` MMU_TLB_INVALIDATE):
     /// the page directory (`None`: all), for the host mirrors of the same page
     /// directories (part 2); drained by the dispatcher after each doorbell.
-    pub tlb_invalidates: Vec<Option<u64>>,
+    pub tlb_invalidates: Vec<Option<Target>>,
+    /// The guest's TLB invalidates against the VAS roots recorded here (fix 2 of run P17).
+    pdb_watch: crate::pdbwatch::PdbWatch,
     /// The doorbell token pool (`CARAXES_DOORBELL_TOKENS`, tokens.rs): which channel
     /// holds which pool token.
     pub tokens: Option<crate::tokens::TokenPool>,
@@ -503,6 +506,7 @@ impl Registry {
             start: Some(std::time::Instant::now()),
             doorbells: 0,
             tlb_invalidates: Vec::new(),
+            pdb_watch: crate::pdbwatch::PdbWatch::default(),
             tokens: None,
             software_fb_range: None,
             software_runs: 0,
@@ -1427,6 +1431,8 @@ impl Registry {
             .retain(|(c, h), _| *c != h_client || !(all || *h == h_object));
         self.vaspaces
             .retain(|(c, h), _| *c != h_client || !(all || *h == h_object));
+        let live = &self.vaspaces;
+        self.pdb_watch.retain(|k| live.contains_key(k));
         self.root_entries
             .retain(|(c, h), _| *c != h_client || !(all || *h == h_object));
         self.vas_params
@@ -1476,6 +1482,7 @@ impl Registry {
         let mut notes = Vec::new();
         for dev in devices {
             self.vaspaces.insert(dev, root);
+            self.pdb_watch.copy(old, dev);
             if let Some(entries) = entries {
                 self.root_entries.insert(dev, entries);
             }
@@ -1534,6 +1541,7 @@ impl Registry {
             if let Some(r) = self.vaspaces.remove(&old) {
                 self.vaspaces.insert(heir, r);
             }
+            self.pdb_watch.rekey(old, heir);
             if let Some(e) = self.root_entries.remove(&old) {
                 self.root_entries.insert(heir, e);
             }
@@ -1627,7 +1635,7 @@ impl Registry {
             );
         }
         let root = gmmu_aperture(aperture, pa);
-        self.vaspaces.insert((h_client, h_vas), root);
+        self.put_root((h_client, h_vas), root);
         let entries = (rd64(params, level(0) + v::PDES_LEVEL_SIZE_FIELD) / 8) as u32;
         self.root_entries.insert((h_client, h_vas), entries.max(1));
         self.server_pdes.insert((h_client, h_vas), params.to_vec());
@@ -1635,7 +1643,7 @@ impl Registry {
         // (hClient, hDevice) after that handle's FREE, for the channels that name no VAS.
         let device_note = match self.device_vas.get(&(h_client, h_vas)).copied() {
             Some(dev) => {
-                self.vaspaces.insert((h_client, dev), root);
+                self.put_root((h_client, dev), root);
                 self.root_entries.insert((h_client, dev), entries.max(1));
                 self.server_pdes.insert((h_client, dev), params.to_vec());
                 format!(" (the default VAS of device {dev:#x})")
@@ -1688,7 +1696,7 @@ impl Registry {
             _ => None,
         };
         let key = self.resolve((h_client, h_vas));
-        self.vaspaces.insert(key, root);
+        self.put_root(key, root);
         self.root_entries
             .insert(key, rd32(params, v::SET_PD_NUM_ENTRIES).max(1));
         format!(
@@ -1713,6 +1721,36 @@ impl Registry {
 
     fn root_of(&self, ch: &Channel) -> Option<Target> {
         self.vas_key_of(ch).and_then(|k| self.vas_root(k))
+    }
+
+    /// Record `root` for VAS key `key`; the watch of the guest's invalidates follows.
+    fn put_root(&mut self, key: (u32, u32), root: Option<Target>) {
+        self.vaspaces.insert(key, root);
+        self.pdb_watch.set_root(key, root);
+    }
+
+    /// A guest TLB invalidate by register (boot.rs `mmu_invalidate_write`) of `pdb`
+    /// (`None`: `ALL_PDB`); the `MEM_OP` ones arrive through the software executor.
+    pub fn note_guest_invalidate(&mut self, pdb: Option<Target>) {
+        self.pdb_watch.note_invalidate(pdb);
+    }
+
+    /// Fix 2 of run P17 (pdbwatch.rs): channel `chid`'s VAS key and mismatch when its VAS is
+    /// walked from a root the guest's TLB invalidates no longer name.
+    pub fn root_mismatch(&self, chid: u32) -> Option<((u32, u32), crate::pdbwatch::Mismatch)> {
+        let ch = self.channels.get(&chid)?;
+        let vas = self.vas_key_of(ch)?;
+        let walked = self.vas_root(vas)?;
+        let m = self.pdb_watch.check(self.resolve(vas), walked)?;
+        Some((vas, m))
+    }
+
+    pub fn pdb_watch_mut(&mut self) -> &mut crate::pdbwatch::PdbWatch {
+        &mut self.pdb_watch
+    }
+
+    pub fn pdb_watch(&self) -> &crate::pdbwatch::PdbWatch {
+        &self.pdb_watch
     }
 
     /// The default VAS of the client a client's device shares (`client_share`): the key kept
@@ -1932,6 +1970,9 @@ impl Registry {
             }
         }
         let inv = std::mem::take(&mut ch.tlb_invalidates);
+        for pdb in &inv {
+            self.pdb_watch.note_invalidate(*pdb);
+        }
         self.tlb_invalidates.extend(inv);
         notes
     }
@@ -2235,8 +2276,8 @@ impl Registry {
             }
             // MEM_OP_D OPERATION 31:27: 5 MEMBAR, 9 MMU_TLB_INVALIDATE, 0xa targeted,
             // others L2 maintenance (clc46f.h:176-192). Nothing is cached here; a TLB
-            // invalidate is queued for the host mirrors of the same page directory
-            // (MEM_OP_C PDB bit 0 = one PDB, ADDR_LO 31:12; MEM_OP_D ADDR_HI 26:0).
+            // invalidate is queued for the host mirrors and the root watch with the page
+            // directory it names (pdbwatch.rs `memop_pdb`: MEM_OP_C PDB 0:0 is ONE when 0).
             0x34 => {
                 let op = data >> 27;
                 if strict && op != 5 {
@@ -2253,16 +2294,19 @@ impl Registry {
                     _ => "l2 or other",
                 };
                 let mut forwarded = "";
+                let mut pdb_note = String::new();
                 if op == 9 || op == 0xA {
-                    let c = h.mem_op[2];
-                    let pdb = (c & 1 == 1)
-                        .then_some((c as u64 & 0xFFFF_F000) | ((data as u64 & 0x7FF_FFFF) << 32));
+                    let pdb = crate::pdbwatch::memop_pdb(h.mem_op[2], data);
                     ch.tlb_invalidates.push(pdb);
+                    pdb_note = match pdb {
+                        Some(p) => format!(" pdb {p:?}"),
+                        None => " all pdbs".into(),
+                    };
                     forwarded = "; queued for the host mirrors";
                 }
                 mem.fb.flush();
                 Some(format!(
-                    "host MEM_OP {what} (op {op:#x}, A {:#x} B {:#x} C {:#x}): no cache to act on{forwarded}",
+                    "host MEM_OP {what} (op {op:#x}, A {:#x} B {:#x} C {:#x}{pdb_note}): no cache to act on{forwarded}",
                     h.mem_op[0], h.mem_op[1], h.mem_op[2]
                 ))
             }
@@ -4799,6 +4843,66 @@ mod tests {
         let next = pdes(0x3b49_9000, 0x20, 47, 0x1_0000_0000, 0x1_1fff_ffff);
         reg.record_server_reserved_pdes(1, 0x20, &next);
         assert_eq!(reg.vas_root((1, 0x20)), Some(Target::Fb(0x3b49_9000)));
+    }
+
+    /// Fix 2 of run P17 (pdbwatch.rs): a paging channel's `MEM_OP` names the root another
+    /// VAS really uses. That VAS's root moved, and the guest still invalidates the former
+    /// one: its channels are walked from the wrong root until the guest names the new one.
+    #[test]
+    fn a_memop_naming_a_former_root_flags_that_vas() {
+        let (mut fb, sys, path, root) = world("pdbwatch");
+        let mut reg = Registry::new(classes());
+        let set_pd = |reg: &mut Registry, vas: u32, pa: u64| {
+            let mut p = vec![0u8; 32];
+            p[0..8].copy_from_slice(&pa.to_le_bytes());
+            p[16..20].copy_from_slice(&vas.to_le_bytes());
+            reg.record_set_page_directory(1, &p)
+        };
+        let Target::Fb(r) = root else { unreachable!() };
+        // The paging channel (chid 1) in VAS 0x20, a GR channel (chid 2) in VAS 0x21.
+        reg.record_alloc(1, 0x10, 0x20, FERMI_VASPACE_A, &[]);
+        set_pd(&mut reg, 0x20, r);
+        reg.record_alloc(1, 0x10, 0x21, FERMI_VASPACE_A, &[]);
+        let (old, new) = (Target::Fb(0x3b48_5000), Target::Fb(0x0d3f_0000));
+        set_pd(&mut reg, 0x21, 0x3b48_5000);
+        let paging = channel_params(1, 0x1000_0000, 0x20_0000, 0x20);
+        reg.record_alloc(1, 0x10, 0x40, TURING_CHANNEL_GPFIFO_A, &paging);
+        let gr = channel_params(2, 0x1000_1000, 0x20_1000, 0x21);
+        reg.record_alloc(1, 0x10, 0x41, TURING_CHANNEL_GPFIFO_A, &gr);
+        set_pd(&mut reg, 0x21, 0x0d3f_0000);
+        assert_eq!(reg.root_mismatch(2), None);
+        // MEM_OP A..D: TLB invalidate (OPERATION 9) of PDB ONE 0x3b485000 in vidmem, as the
+        // Windows paging channel pushed it in P17 (C 0x3b4852a0).
+        let pb = inc(0, 0x28, &[0, 0, 0x3b48_52a0, 9 << 27]);
+        let bytes: Vec<u8> = pb.iter().flat_map(|d| d.to_le_bytes()).collect();
+        assert!(sys.write(0x4000_0000, &bytes));
+        let mut gp = 0x1000_8000u32.to_le_bytes().to_vec();
+        gp.extend_from_slice(&((pb.len() as u32) << 10).to_le_bytes());
+        fb.write(0x100000, &gp);
+        fb.write(0x20_0000 + USERD_GP_PUT, &1u32.to_le_bytes());
+        let mut mem = GpuMem {
+            fb: &mut fb,
+            sys: &sys,
+        };
+        let all = reg.doorbell(&mut mem, 1).join("\n");
+        assert!(all.contains("pdb Fb(994594816)"), "{all}");
+        assert_eq!(reg.tlb_invalidates, vec![Some(old)]);
+        assert_eq!(reg.root_mismatch(1), None);
+        let (vas, m) = reg
+            .root_mismatch(2)
+            .expect("chid 2 walks a root the guest left");
+        assert_eq!((vas, m.named, m.walked, m.count), ((1, 0x21), old, new, 1));
+        assert!(reg.pdb_watch_mut().first_report(vas, &m));
+        // The guest names the walked root (a register invalidate): released.
+        reg.note_guest_invalidate(Some(new));
+        assert_eq!(reg.root_mismatch(2), None);
+        // The former root named again: flagged again; the VAS's FREE forgets it.
+        reg.note_guest_invalidate(Some(old));
+        assert!(reg.root_mismatch(2).is_some());
+        reg.record_free(1, 0x21);
+        assert_eq!(reg.root_mismatch(2), None);
+        assert_eq!(reg.pdb_watch().invalidates, 3);
+        let _ = std::fs::remove_file(&path);
     }
 
     /// libnvidia-encode's NVENC channel: a bare channel under the device, no VAS of its
