@@ -420,6 +420,12 @@ pub struct Registry {
     aliases: BTreeMap<(u32, u32), (u32, u32)>,
     /// (hChanClient, hObject) → promoted context buffers by buffer id.
     promoted: BTreeMap<(u32, u32), BTreeMap<u16, PromoteEntry>>,
+    /// The generation of what a shadow root's set B is computed from here (mirror.rs
+    /// `exclusions_of`): the channels, how their VA spaces resolve to a root (`vaspaces`,
+    /// `aliases`, `default_vas`, `device_vas`, `client_device`, `client_share`) and the
+    /// promoted buffers. A fresh stamp (ptcache.rs `fresh_generation`) at every change of
+    /// those ([`Self::set_b_changed`]); [`Self::channel_mut`] callers change none of them.
+    set_b_gen: u64,
     /// (hClient, hVASpace) of a `FERMI_VASPACE_A` with `index` GPU_DEVICE → its device:
     /// the kernel announces a device's default VAS to GSP through such a transient
     /// handle, `COPY_SERVER_RESERVED_PDES` on it and its FREE
@@ -448,6 +454,11 @@ pub struct Registry {
     /// the page directory (`None`: all), for the host mirrors of the same page
     /// directories (part 2); drained by the dispatcher after each doorbell.
     pub tlb_invalidates: Vec<Option<Target>>,
+    /// The shadow roots whose `MEM_OP` TLB invalidate stops the software executor right
+    /// after the method, for one doorbell ([`Self::doorbell_holding`]); `None`: never stop.
+    memop_hold: Option<std::collections::BTreeSet<u64>>,
+    /// Channels stopped after such an invalidate, to continue once the shadow is applied.
+    held_at_invalidate: Vec<u32>,
     /// The guest's TLB invalidates against the VAS roots recorded here (fix 2 of run P17).
     pdb_watch: crate::pdbwatch::PdbWatch,
     /// The doorbell token pool (`CARAXES_DOORBELL_TOKENS`, tokens.rs): which channel
@@ -497,6 +508,7 @@ impl Registry {
             ctxshares: BTreeMap::new(),
             aliases: BTreeMap::new(),
             promoted: BTreeMap::new(),
+            set_b_gen: crate::ptcache::fresh_generation(),
             device_vas: BTreeMap::new(),
             default_vas: BTreeMap::new(),
             client_device: BTreeMap::new(),
@@ -506,6 +518,8 @@ impl Registry {
             start: Some(std::time::Instant::now()),
             doorbells: 0,
             tlb_invalidates: Vec::new(),
+            memop_hold: None,
+            held_at_invalidate: Vec::new(),
             pdb_watch: crate::pdbwatch::PdbWatch::default(),
             tokens: None,
             software_fb_range: None,
@@ -902,6 +916,9 @@ impl Registry {
         )
     }
 
+    /// The channel's run state (`mirrored`, `stopped`, ...). Its identity (`h_client`,
+    /// `h_object`, `h_parent`, `vas`) is a set-B input ([`Self::set_b_generation`]) that only
+    /// the `record_*` calls change.
     pub fn channel_mut(&mut self, chid: u32) -> Option<&mut Channel> {
         self.channels.get_mut(&chid)
     }
@@ -1049,10 +1066,38 @@ impl Registry {
             return None;
         }
         self.aliases.insert(dst, src);
+        self.set_b_changed();
         Some(format!(
             "vaspace alias {:#x}/{:#x} -> {:#x}/{:#x} [guest]",
             dst.0, dst.1, src.0, src.1
         ))
+    }
+
+    /// The generation of what a shadow root's set B is computed from here (the channels,
+    /// how their VA spaces resolve to a root, their promoted buffers): while it stands, so
+    /// does set B (mirror.rs `SetBStamp`).
+    pub fn set_b_generation(&self) -> u64 {
+        self.set_b_gen
+    }
+
+    /// A set-B input changed ([`Self::set_b_gen`]).
+    fn set_b_changed(&mut self) {
+        self.set_b_gen = crate::ptcache::fresh_generation();
+    }
+
+    /// The sizes of the set-B inputs [`Self::record_free`] only removes from: a change of
+    /// one of them is a removal.
+    fn set_b_shape(&self) -> [usize; 8] {
+        [
+            self.channels.len(),
+            self.vaspaces.len(),
+            self.aliases.len(),
+            self.promoted.len(),
+            self.device_vas.len(),
+            self.default_vas.len(),
+            self.client_device.len(),
+            self.client_share.len(),
+        ]
     }
 
     /// The promoted context buffers of a channel or TSG (part 2 input).
@@ -1067,6 +1112,7 @@ impl Registry {
             rd32(params, v::PROMOTE_H_OBJECT),
         );
         let n = (rd32(params, v::PROMOTE_ENTRY_COUNT) as usize).min(v::PROMOTE_MAX_ENTRIES);
+        self.set_b_changed();
         let map = self.promoted.entry(key).or_default();
         let mut desc = Vec::new();
         for i in 0..n {
@@ -1148,6 +1194,7 @@ impl Registry {
             NV01_DEVICE_0_CLASS => {
                 // A client handle can be reused after FREE. Every new device allocation
                 // replaces its sharing relationship, including an unshared allocation.
+                self.set_b_changed();
                 if let Some(old) = self.client_device.insert(h_client, h_object) {
                     if old != h_object {
                         self.default_vas.remove(&(h_client, old));
@@ -1169,6 +1216,7 @@ impl Registry {
                     self.device_vas.insert((h_client, h_object), h_parent);
                 }
                 self.vaspaces.insert((h_client, h_object), None);
+                self.set_b_changed();
                 self.vas_params
                     .insert((h_client, h_object), params.to_vec());
                 Some(format!(
@@ -1308,6 +1356,7 @@ impl Registry {
                     ));
                 }
                 self.channels.insert(chid, ch);
+                self.set_b_changed();
                 Some(note)
             }
             // An engine object (copy, compute, the UVM SW class, ...) under a channel:
@@ -1396,6 +1445,7 @@ impl Registry {
     /// Forget a freed object (a freed client takes its objects with it). Returns the trace
     /// notes of VA spaces kept under a surviving DUP alias (`rehome_duplicated_vas`).
     pub fn record_free(&mut self, h_client: u32, h_object: u32) -> Vec<String> {
+        let shape = self.set_b_shape();
         let mut notes = self.rehome_duplicated_vas(h_client, h_object);
         let all = h_client == h_object;
         let device_gone = all || self.client_device.get(&h_client) == Some(&h_object);
@@ -1459,6 +1509,11 @@ impl Registry {
             self.client_share
                 .retain(|c, share| *c != h_client && *share != h_client);
         }
+        // Past the re-homes above (which note their changes), a free only removes: a set-B
+        // input changed exactly when one of them shrank.
+        if self.set_b_shape() != shape {
+            self.set_b_changed();
+        }
         notes
     }
 
@@ -1482,6 +1537,7 @@ impl Registry {
         let mut notes = Vec::new();
         for dev in devices {
             self.vaspaces.insert(dev, root);
+            self.set_b_changed();
             self.pdb_watch.copy(old, dev);
             if let Some(entries) = entries {
                 self.root_entries.insert(dev, entries);
@@ -1527,6 +1583,7 @@ impl Registry {
             let Some(&heir) = heirs.first() else {
                 continue;
             };
+            self.set_b_changed();
             self.aliases.remove(&heir);
             for d in &heirs[1..] {
                 self.aliases.insert(*d, heir);
@@ -1677,6 +1734,7 @@ impl Registry {
             ));
         }
         self.default_vas.insert(dev, vas);
+        self.set_b_changed();
         Ok(format!(
             "device {h_device:#x} default vaspace {h_vas:#x} (live key {:#x}/{:#x}) [guest]",
             vas.0, vas.1
@@ -1716,6 +1774,7 @@ impl Registry {
         let h_vas = rd32(params, v::UNSET_PD_H_VASPACE);
         let key = self.resolve((h_client, h_vas));
         self.vaspaces.insert(key, None);
+        self.set_b_changed();
         format!("unset page directory: vaspace {h_vas:#x} [guest]")
     }
 
@@ -1726,6 +1785,7 @@ impl Registry {
     /// Record `root` for VAS key `key`; the watch of the guest's invalidates follows.
     fn put_root(&mut self, key: (u32, u32), root: Option<Target>) {
         self.vaspaces.insert(key, root);
+        self.set_b_changed();
         self.pdb_watch.set_root(key, root);
     }
 
@@ -1827,6 +1887,50 @@ impl Registry {
         notes
     }
 
+    /// [`Self::doorbell_except`] for a dispatcher with shadow VA spaces
+    /// (docs/research/shadow-fault-race-2026-09-28.md). A `MEM_OP` TLB invalidate that names
+    /// one of the `hold` roots (or every root) stops its channel right after the method;
+    /// `on_invalidates` then gets every invalidate run so far (the dispatcher plans the
+    /// shadows it names and waits until the worker applied them), and only then do the
+    /// stopped channels continue. So nothing after such an invalidate in a push, above all
+    /// the semaphore release nvidia-uvm waits for before it reports a mapping done, reaches
+    /// the guest before the host mappings exist. Without `hold` this is `doorbell_except`
+    /// followed by one `on_invalidates` call, as before.
+    pub fn doorbell_holding(
+        &mut self,
+        mem: &mut GpuMem,
+        token: u32,
+        off: &std::collections::BTreeSet<u32>,
+        hold: Option<std::collections::BTreeSet<u64>>,
+        on_invalidates: &mut OnInvalidates<'_>,
+    ) -> Vec<String> {
+        self.memop_hold = hold.filter(|h| !h.is_empty());
+        self.held_at_invalidate.clear();
+        let mut notes = self.doorbell_except(mem, token, off);
+        let mut rounds = 0usize;
+        loop {
+            let inv = std::mem::take(&mut self.tlb_invalidates);
+            if !inv.is_empty() {
+                notes.extend(on_invalidates(self, mem, &inv));
+            }
+            // The invalidates of every stopped channel were handed over above: continuing
+            // them is safe from here on, also later through the held-doorbell replay
+            // (their resume point is kept) when the bound below ends this loop.
+            if self.held_at_invalidate.is_empty() || rounds >= MAX_INVALIDATE_ROUNDS {
+                break;
+            }
+            rounds += 1;
+            for c in std::mem::take(&mut self.held_at_invalidate) {
+                if !off.contains(&c) {
+                    notes.extend(self.run(mem, c));
+                }
+            }
+        }
+        self.memop_hold = None;
+        self.held_at_invalidate.clear();
+        notes
+    }
+
     fn semaphore_diag_peers(
         &self,
         mem: &GpuMem,
@@ -1891,6 +1995,7 @@ impl Registry {
         };
         let entries = ch.gpfifo_entries.max(1);
         let mut guard = 0u32;
+        let mut held = false;
         while ch.gp_get != gp_put % entries && guard < entries {
             guard += 1;
             let mut e = [0u8; 8];
@@ -1939,17 +2044,29 @@ impl Registry {
                     now,
                     &classes,
                     diagnose,
+                    self.memop_hold.as_ref(),
                 ) {
-                    Ok((seg_notes, blocked)) => {
+                    Ok((seg_notes, stop)) => {
                         notes.push(format!(
                             "chid {chid} gp {}: pushbuffer va {pb_va:#x} {} dwords{}",
                             ch.gp_get,
                             length,
-                            if blocked { ", blocked on acquire" } else { "" }
+                            match stop {
+                                Stop::End => "",
+                                Stop::Blocked => ", blocked on acquire",
+                                Stop::HeldAtInvalidate => {
+                                    ", stopped after a TLB invalidate of a shadow root until the shadow is applied"
+                                }
+                            }
                         ));
                         notes.extend(seg_notes);
-                        if blocked {
-                            break;
+                        match stop {
+                            Stop::End => {}
+                            Stop::Blocked => break,
+                            Stop::HeldAtInvalidate => {
+                                held = true;
+                                break;
+                            }
                         }
                     }
                     Err(err) => {
@@ -1974,11 +2091,16 @@ impl Registry {
             self.pdb_watch.note_invalidate(*pdb);
         }
         self.tlb_invalidates.extend(inv);
+        if held {
+            self.held_at_invalidate.push(chid);
+        }
         notes
     }
 
-    /// Execute one pushbuffer segment. Returns the notes and whether a host
-    /// semaphore acquire blocked (the entry is then resumed at that method).
+    /// Execute one pushbuffer segment. Returns the notes and where it stopped: at its end,
+    /// at a host semaphore acquire that blocked (the entry is then resumed at that method),
+    /// or right after a `MEM_OP` TLB invalidate of a `hold` root (resumed after it,
+    /// [`Self::doorbell_holding`]).
     #[allow(clippy::too_many_arguments)]
     fn segment(
         ch: &mut Channel,
@@ -1989,7 +2111,8 @@ impl Registry {
         now: u64,
         classes: &ChannelClasses,
         diagnose: bool,
-    ) -> Result<(Vec<String>, bool), String> {
+        hold: Option<&std::collections::BTreeSet<u64>>,
+    ) -> Result<(Vec<String>, Stop), String> {
         let mut raw = vec![0u8; dwords * 4];
         mem.read_va(root, va, &mut raw)
             .map_err(|e| format!("pushbuffer: {e}"))?;
@@ -2061,6 +2184,7 @@ impl Registry {
                     continue;
                 }
                 ch.methods_done += 1;
+                let invalidates_before = ch.tlb_invalidates.len();
                 // Methods below 0x100 are the host's; the rest go to the class bound to
                 // the subchannel. A subchannel without SET_OBJECT is taken as the copy
                 // engine (UVM's CE channels, E5a).
@@ -2146,7 +2270,7 @@ impl Registry {
                             }
                         }
                         ch.resume = Some(pos);
-                        return Ok((notes, true));
+                        return Ok((notes, Stop::Blocked));
                     }
                     Err(MethodError::Failed(n)) => {
                         let n = if ch.deferred_management {
@@ -2169,9 +2293,24 @@ impl Registry {
                         return Err(n);
                     }
                 }
+                // A TLB invalidate of a held shadow root (nvidia-uvm's page-table update
+                // of a CUDA VA space ends in one): the rest of the push, above all the
+                // semaphore release UVM waits for, runs only after the dispatcher applied
+                // the shadow ([`Self::doorbell_holding`]). Resumed after this method.
+                if a < 0x100
+                    && ch.tlb_invalidates.len() > invalidates_before
+                    && hold.is_some_and(|h| {
+                        ch.tlb_invalidates[invalidates_before..]
+                            .iter()
+                            .any(|pdb| crate::untrapped::memop_holds(*pdb, h))
+                    })
+                {
+                    ch.resume = Some(pos + 1);
+                    return Ok((notes, Stop::HeldAtInvalidate));
+                }
             }
         }
-        Ok((notes, false))
+        Ok((notes, Stop::End))
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -3166,6 +3305,26 @@ enum MethodError {
     Failed(String),
 }
 
+/// Where a pushbuffer segment stopped.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Stop {
+    /// At its end: the entry is done.
+    End,
+    /// At a host semaphore acquire not yet satisfied (resumed at that method).
+    Blocked,
+    /// Right after a `MEM_OP` TLB invalidate of a held shadow root (resumed after it,
+    /// [`Registry::doorbell_holding`]).
+    HeldAtInvalidate,
+}
+
+/// What [`Registry::doorbell_holding`] hands the software executor's `MEM_OP` TLB
+/// invalidates to (the page directory each names, `None`: all); returns the trace notes.
+pub type OnInvalidates<'a> = dyn FnMut(&Registry, &mut GpuMem, &[Option<Target>]) -> Vec<String> + 'a;
+
+/// Rounds of invalidate, shadow apply and continue per doorbell; a channel still stopped
+/// after them continues through the held-doorbell replay (its invalidates are handed over).
+const MAX_INVALIDATE_ROUNDS: usize = 256;
+
 /// One memset line from the remap constants: LINE_LENGTH_IN elements of
 /// NUM_DST_COMPONENTS (25:24, +1) components of COMPONENT_SIZE (17:16, +1)
 /// bytes, each component from CONST_A (4) or CONST_B (5) (clc5b5.h:155-206).
@@ -3411,6 +3570,120 @@ mod tests {
         // constant remap, flush, one-word semaphore, and DISABLE_PLC.
         pb.extend(inc(0, 0x300, &[0x0400_258e]));
         pb
+    }
+
+    /// `MEM_OP_A..D` of a targeted TLB invalidate (OPERATION 0xa) of the vidmem page
+    /// directory `pdb`, or of every page directory (`None`), as nvidia-uvm pushes it.
+    fn memop_invalidate(pdb: Option<u64>) -> Vec<u32> {
+        let (c, d) = match pdb {
+            Some(p) => ((p as u32) & 0xFFFF_F000, (0xA << 27) | ((p >> 32) as u32 & 0x7FF_FFFF)),
+            None => (1, 0xA << 27),
+        };
+        inc(0, 0x28, &[0, 0, c, d])
+    }
+
+    /// A 64-bit legacy semaphore release of `payload` at VA `va` (the fixture maps VA
+    /// 0x1000_8000.. to guest RAM 0x4000_0000..).
+    fn release(va: u32, payload: u32) -> Vec<u32> {
+        inc(0, 0x10, &[0, va, payload, 0x0110_0002])
+    }
+
+    /// What `on_invalidates` saw at each call: the invalidates, the two semaphores (guest
+    /// RAM 0x4000_1000 and 0x4000_1010) and the channel's GPGet.
+    type Seen = Vec<(Vec<Option<Target>>, Option<u32>, Option<u32>, u32)>;
+
+    fn doorbell_seen(
+        tag: &str,
+        pb: &[u32],
+        hold: Option<std::collections::BTreeSet<u64>>,
+    ) -> (Seen, String, FakeFb, GuestMemory, Registry) {
+        let (mut fb, sys, path, mut reg) = software_fixture(tag, pb);
+        let mut seen: Seen = Vec::new();
+        let notes = {
+            let mut mem = GpuMem {
+                fb: &mut fb,
+                sys: &sys,
+            };
+            reg.doorbell_holding(
+                &mut mem,
+                9,
+                &std::collections::BTreeSet::new(),
+                hold,
+                &mut |reg, mem, inv| {
+                    seen.push((
+                        inv.to_vec(),
+                        mem.sys.read_u32(0x4000_1000),
+                        mem.sys.read_u32(0x4000_1010),
+                        reg.channel(9).unwrap().gp_get,
+                    ));
+                    vec!["shadow applied".to_string()]
+                },
+            )
+            .join("\n")
+        };
+        std::fs::remove_file(path).ok();
+        (seen, notes, fb, sys, reg)
+    }
+
+    /// The Xid 31 of 2026-09-28 (docs/research/shadow-fault-race-2026-09-28.md): nvidia-uvm
+    /// maps a CUDA allocation with PTE writes, a `MEM_OP` TLB invalidate of the VA space's
+    /// root and the semaphore release it waits for, all on its software CE channel. With
+    /// the root held the push stops right after the invalidate, so the release reaches the
+    /// guest only after `on_invalidates` (the dispatcher's shadow apply) returned.
+    #[test]
+    fn a_memop_invalidate_of_a_held_root_releases_nothing_before_the_shadow_is_applied() {
+        let mut pb = memop_invalidate(Some(0x1_0000));
+        pb.extend(release(0x1000_9000, 1));
+        let hold = Some([0x1_0000u64].into());
+        let (seen, notes, fb, sys, reg) = doorbell_seen("memop-hold", &pb, hold);
+        assert_eq!(seen, vec![(vec![Some(Target::Fb(0x1_0000))], Some(0), Some(0), 0)]);
+        assert!(notes.contains("stopped after a TLB invalidate of a shadow root"), "{notes}");
+        assert!(notes.contains("shadow applied"), "{notes}");
+        // Continued after the apply: released, GPGet past the entry, nothing left stopped,
+        // the invalidate handed over once.
+        assert_eq!(sys.read_u32(0x4000_1000), Some(1));
+        assert_eq!(fb.read_u64(0x20_0000 + USERD_GP_GET).unwrap() as u32, 1);
+        assert!(reg.blocked_software_channels().is_empty());
+        assert!(reg.tlb_invalidates.is_empty());
+        assert!(reg.memop_hold.is_none());
+    }
+
+    /// The order before the fix, still the order without a hold: the release is in guest
+    /// memory before the dispatcher sees the invalidate (the window a host channel with an
+    /// untrapped USERD ran the guest's next work in).
+    #[test]
+    fn without_a_hold_the_release_comes_before_the_invalidate_is_handed_over() {
+        let mut pb = memop_invalidate(Some(0x1_0000));
+        pb.extend(release(0x1000_9000, 1));
+        let (seen, notes, ..) = doorbell_seen("memop-nohold", &pb, None);
+        assert_eq!(seen, vec![(vec![Some(Target::Fb(0x1_0000))], Some(1), Some(0), 1)]);
+        assert!(!notes.contains("stopped after"), "{notes}");
+        // Another root held: the same.
+        let (seen, ..) = doorbell_seen("memop-other", &pb, Some([0x2_0000u64].into()));
+        assert_eq!(seen, vec![(vec![Some(Target::Fb(0x1_0000))], Some(1), Some(0), 1)]);
+    }
+
+    /// Two invalidates in one push (the root, then every page directory): the push stops
+    /// after each, every method runs once, and each release follows its invalidate's apply.
+    #[test]
+    fn every_held_invalidate_of_a_push_stops_it_once() {
+        let mut pb = memop_invalidate(Some(0x1_0000));
+        pb.extend(release(0x1000_9000, 1));
+        pb.extend(memop_invalidate(None));
+        pb.extend(release(0x1000_9010, 2));
+        let hold = Some([0x1_0000u64].into());
+        let (seen, notes, fb, sys, reg) = doorbell_seen("memop-two", &pb, hold);
+        assert_eq!(
+            seen,
+            vec![
+                (vec![Some(Target::Fb(0x1_0000))], Some(0), Some(0), 0),
+                (vec![None], Some(1), Some(0), 0),
+            ]
+        );
+        assert_eq!(notes.matches("stopped after a TLB invalidate").count(), 2, "{notes}");
+        assert_eq!((sys.read_u32(0x4000_1000), sys.read_u32(0x4000_1010)), (Some(1), Some(2)));
+        assert_eq!(fb.read_u64(0x20_0000 + USERD_GP_GET).unwrap() as u32, 1);
+        assert!(reg.blocked_software_channels().is_empty());
     }
 
     #[test]

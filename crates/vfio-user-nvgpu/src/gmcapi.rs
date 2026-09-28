@@ -393,6 +393,10 @@ impl Encoder {
 
 /// `NVGMC_SI_*`: the system information of the GSP_INIT request
 /// (interface/gmcapi/gmcapi_system_info.h:26-216, gmcapi_system_info_unstable.h:29).
+/// `NVGMC_SI_HOST_OS_TYPE_*` values (gmcapi_system_info.h:71-73).
+pub const HOST_OS_TYPE_UNIX: u32 = 1;
+pub const HOST_OS_TYPE_WINDOWS: u32 = 2;
+
 pub mod si {
     pub const PCI_DEVICE_ID: u16 = 0x0001;
     pub const PCI_SUB_DEVICE_ID: u16 = 0x0002;
@@ -593,6 +597,9 @@ pub struct SystemInfo {
     pub changelist: Option<u32>,
     /// `NVGMC_SI_UNSTABLE_INTERFACE_SUPPORT`: RPC 0:0, EVENTS 1:1 (gspboot.rs).
     pub unstable: Option<u32>,
+    /// `NVGMC_SI_HOST_OS_TYPE` (gmcapi_system_info.h:70-73, kernel_gsp.c:5010-5013): the
+    /// guest driver's build platform, 0 other, 1 Unix, 2 Windows.
+    pub host_os_type: Option<u32>,
     pub registry: Vec<(String, RegValue)>,
     /// Keys in the request, SEQ runs counted per key.
     pub keys: usize,
@@ -632,6 +639,7 @@ impl SystemInfo {
                 si::KERNEL_DRIVER_VERSION_STRING => s.driver_version = v.as_str(),
                 si::KERNEL_DRIVER_CHANGELIST => s.changelist = v.as_u32(),
                 si::UNSTABLE_INTERFACE_SUPPORT => s.unstable = v.as_u32(),
+                si::HOST_OS_TYPE => s.host_os_type = v.as_u32(),
                 si::REGKEY_NAME => name = v.as_str(),
                 si::REGKEY_VALUE_U32 | si::REGKEY_VALUE_STRING | si::REGKEY_VALUE_BINARY => {
                     let n = name.take().ok_or_else(|| {
@@ -669,11 +677,12 @@ impl SystemInfo {
     pub fn describe(&self) -> String {
         let hex = |v: Option<u64>| v.map_or("-".into(), |x| format!("{x:#x}"));
         format!(
-            "{} keys: driver {:?} {:?} cl {}, PCI {:?}/{:?} rev {:?}, bars {}/{}/{}/{}, bdf {}, mirror {:?}, maxUserVa {}, consoleMemSize {}, page {:?}, {} registry entr{}, {} other keys",
+            "{} keys: driver {:?} {:?} cl {}, os {:?}, PCI {:?}/{:?} rev {:?}, bars {}/{}/{}/{}, bdf {}, mirror {:?}, maxUserVa {}, consoleMemSize {}, page {:?}, {} registry entr{}, {} other keys",
             self.keys,
             self.driver_name.as_deref().unwrap_or("-"),
             self.driver_version.as_deref().unwrap_or("-"),
             self.changelist.unwrap_or(0),
+            self.host_os_type,
             self.pci_device_id,
             self.pci_sub_device_id,
             self.pci_revision_id,

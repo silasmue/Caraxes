@@ -704,22 +704,33 @@ impl BootModel {
                 // The device's RC journal (rc.rs) and the channel's fault record
                 // (public.rs): an MMU fault's details are the host's record of the
                 // channel's own mirror (a read of the device's own host channel, NV906F
-                // GET_MMU_FAULT_INFO).
+                // GET_MMU_FAULT_INFO). The host keeps the record on the TSG member that
+                // faulted: an empty one is looked up on the other members of the TSG.
                 let fault = (xid == crate::gspmem::XID_MMU_FAULT)
-                    .then(|| self.ctrl.mirror.as_ref().and_then(|m| m.mmu_fault_info(chid)))
+                    .then(|| self.ctrl.mirror.as_ref().and_then(|m| m.mmu_fault_info_in_tsg(chid)))
                     .flatten();
-                if let Some((st, _)) = &fault {
-                    notes.push(format!(
-                        "chid {chid}: GET_MMU_FAULT_INFO on its own host mirror channel: status {st:#x} [host read]"
-                    ));
+                if let Some(f) = &fault {
+                    notes.push(if f.from == chid {
+                        format!(
+                            "chid {chid}: GET_MMU_FAULT_INFO on its own host mirror channel: status {:#x} [host read]",
+                            f.status
+                        )
+                    } else {
+                        format!(
+                            "chid {chid}: GET_MMU_FAULT_INFO on its own host mirror channel: status {:#x}, no fault recorded; the record of TSG member chid {} is used (status {:#x}) [host read]",
+                            f.own_status, f.from, f.status
+                        )
+                    });
                 }
                 // The fault page against the guest's tables and the shadow (run P18: was the
                 // page unmapped by the guest, refused, or held by the host?).
-                if let (Some((0, p)), Some(m)) = (&fault, self.ctrl.mirror.as_mut()) {
-                    notes.extend(m.fault_diagnostic(&*gm.fb, chid, p));
+                if let (Some(f), Some(m)) = (&fault, self.ctrl.mirror.as_mut()) {
+                    if f.status == 0 {
+                        notes.extend(m.fault_diagnostic(&*gm.fb, chid, &f.record));
+                    }
                 }
-                if let Some((0, p)) = fault {
-                    self.ctrl.guest_attrs.set_fault((hc, ho), p);
+                if let Some(f) = fault.filter(|f| f.status == 0) {
+                    self.ctrl.guest_attrs.set_fault((hc, ho), f.record);
                 }
                 self.ctrl.dstate.rc.record(Some(chid), xid, text.clone());
                 // The 615 operational-event import: a GOE record and its wake-up.
@@ -2684,6 +2695,7 @@ impl BootModel {
         if let Some(bars) = si.bar_addresses() {
             self.ctrl.bar_offsets = bars;
         }
+        self.ctrl.guest_os_type = si.host_os_type;
         if si.driver_version.as_deref() != Some(v::DRIVER_VERSION) {
             notes.push(format!(
                 "guest driver {:?} is not the emulated {} (build with its ver module)",
