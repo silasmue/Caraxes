@@ -269,10 +269,14 @@ Runs: `/mnt/vmstore/caraxes/alpha-2026-09-27/windows-plain/<run>/`.
   - Depends on: R (owned GFXP buffers; into the VM's slice later), AB.
 - **The P21 teardown fault repeats** (HOST_CPU FAULT_PTE at 0x04774000, 20:50:40, during smoke).
   Fix: the unmap rule above (after P23). Depends on: AB, L.
-- **Held-doorbell replay:** the trace still shows 10220 "enabled again ... held" lines. The P22
-  quiet replay covers the replay loop only; these lines come from `doorbell_pending`/ioeventfd
-  rings of gated channels, which re-enter the gate. Next: silence the gate note after its first
-  line per channel generation. Depends on: none.
+- **Held-doorbell replay:**
+  - P22's quiet replay worked: P17-gated replays fell from thousands in P21 (chid 29: 2717,
+    chid 30: 1201) to 8.
+  - The remaining 10112 "enabled again" lines are chid 15, the software paging CE channel
+    re-polling its blocked semaphore acquires. That is by design (`blocked_software_channels`);
+    only the per-replay trace line is noise.
+  - Next (small): trace that replay only when the acquire is satisfied.
+  - Depends on: none.
 - **Linux B was relaunched by the main session at 20:48:57, during P22** (new pids
   708175/708207). Its "untrapped GPPut ... ran ahead of its doorbell" ERRORs are its own
   channels' evidence counters, not caused by the Windows device.
