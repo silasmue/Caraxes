@@ -163,3 +163,22 @@ remain unsupported on management channels.
 - ABI615: 528 unit tests plus two integration tests passed, one ignored.
   ABI610: 525 unit tests plus two integration tests passed.
 - Artifacts: alpha-2026-09-27/windows-plain/P9-context-lifecycle/.
+
+## P10: GFXP pool request captured
+
+- Base b9632a8e; binary SHA-256:
+  cee7b7177d6743095781eb653713c1ba3c459108de08ee2582ff30ad719f7dac.
+- Eight binds captured. Flags 2 select graphics mode; gfxp mode 2 requests
+  GFXP_POOL. Compute mode is not selected. Padding and route info are zero.
+- First request's nonzero buffers: CONTEXT_POOL 0x120800000,
+  CONTEXT_POOL_CONTROL 0x12010d000, CONTEXT_POOL_CONTROL_CPU
+  0xfffff38f73ca3000. The last value is a guest Windows kernel address and must
+  never be forwarded as a host CPU pointer.
+- BIND follows successful deferred INIT/PROMOTE. Accepting a TSG and merely
+  recording this request would not establish a working pool or preemption mode.
+- Next diagnostic reads the existing owned host context's actual modes. In
+  parallel, inspect pool support and whether advertised capability bits require
+  correction so the stock guest can choose an implemented mode.
+- VM stopped. No new host Xid. No new D3D probe in this capture-only run.
+- Artifacts: alpha-2026-09-27/windows-plain/P10-preemption-capture/,
+  including preemption.json with all eight exact payloads.

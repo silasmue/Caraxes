@@ -1332,6 +1332,15 @@ impl Dispatcher {
                 word(92).map(|v| format!("{v:#x}")),
                 if kept < params.len() { " (truncated)" } else { "" }
             ));
+            if self.deferred_context.enabled {
+                if let (Some(mirror), Some(client), Some(target)) =
+                    (self.mirror.as_ref(), word(4), word(8))
+                {
+                    let note = mirror.deferred_context_modes(&self.channels, client, target)
+                        .unwrap_or_else(|e| format!("host context modes unavailable: {e}"));
+                    answer.note.push_str(&format!("; {note}"));
+                }
+            }
         }
         answer
     }

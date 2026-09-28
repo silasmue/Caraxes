@@ -2020,6 +2020,35 @@ impl Mirror {
         Ok(())
     }
 
+    /// Read the actual mode of an existing private context. No guest buffer pointers
+    /// are passed to RM, and no context or scheduling state is changed.
+    pub fn deferred_context_modes(&self, reg: &Registry, client: u32, object: u32) -> Result<String, String> {
+        let key = reg.resolve((client, object));
+        if !reg.tsg(key).is_some_and(|(_, engine)| engine == 1) {
+            return Err("preemption target is not a live GR TSG".into());
+        }
+        let mut members = reg.channels().filter(|ch| (ch.h_client, ch.h_parent) == key);
+        let ch = members.next().ok_or("preemption TSG has no channel")?;
+        if members.next().is_some() {
+            return Err("preemption query requires a single-channel TSG".into());
+        }
+        let hc = self.channels.get(&ch.chid)
+            .filter(|hc| hc.generation == ch.generation && hc.context_ready)
+            .ok_or("preemption target has no prepared and promoted host context")?;
+        if reg.vas_key_of(ch).and_then(|vas| reg.vas_root(vas)) != hc.shadow_root.map(Target::Fb) {
+            return Err("preemption target VAS changed".into());
+        }
+        let mut params = [0u8; 24];
+        params[..4].copy_from_slice(&hc.handle.to_le_bytes());
+        let host = self.hm.lock().unwrap();
+        let status = host.control(host.subdevice(), 0x2080_1235, &mut params);
+        let word = |offset| u32::from_le_bytes(params[offset..offset + 4].try_into().unwrap());
+        Ok(format!(
+            "host context modes chid {} generation {}: status {status:#x}, gfxp {:#x}, cilp {:#x}, zcull {:#x}, pm {:#x}, smpc {:#x}",
+            ch.chid, ch.generation, word(20), word(16), word(4), word(8), word(12)
+        ))
+    }
+
     /// RM teardown idles the exact mirrored target, harvests its final GPGet and releases
     /// its host-owned context. Once eviction starts, an error leaves the context present
     /// but not ready, so no new guest work can be published to it.
