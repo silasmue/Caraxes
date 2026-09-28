@@ -30,6 +30,9 @@ use std::cell::{Cell, RefCell};
 use std::collections::{BTreeMap, HashMap};
 use std::fs::File;
 use std::os::fd::{AsRawFd, FromRawFd, RawFd};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
 
 use crate::fb::{FbStore, Target};
 use crate::guestmem::GuestMemory;
@@ -47,6 +50,13 @@ pub const ENV: &str = "CARAXES_BAR2_MEMFD";
 pub const TRAP_ENV: &str = "CARAXES_BAR2_MEMFD_TRAP";
 /// `1`: sync before every doorbell as well (the reference for the doorbell rule).
 pub const SYNC_DOORBELL_ENV: &str = "CARAXES_BAR2_MEMFD_SYNC_DOORBELL";
+/// `0`: every trapped flush read syncs at once (the behaviour before
+/// docs/caraxes/display-pacing.md). On by default: a flush read only marks the sync owed
+/// ([`DeferredFlush`]); the next hand-over to the GPU (MMU invalidate, GSP command-queue
+/// doorbell, channel doorbell) or the flush clock after [`DEFER_BOUND`] settles it.
+pub const DEFER_FLUSH_ENV: &str = "CARAXES_BAR2_MEMFD_DEFER_FLUSH";
+/// How long an owed flush may wait for a hand-over before the flush clock settles it.
+pub const DEFER_BOUND: Duration = Duration::from_millis(1);
 /// The guest RM's BAR2 flush page: `pReadToFlush`, a persistent (top-down) BAR2 mapping
 /// made once at boot (kern_bus_gv100.c:85-87); BAR2 0xfea000 in every device trace of
 /// driver 610.57.04 (`caraxes/runs/mapping-2026-09-24/p3-profile/init-trace.txt`: 472
@@ -63,6 +73,8 @@ pub struct Config {
     /// BAR2 offsets of the trapped pages.
     pub traps: Vec<u64>,
     pub sync_doorbell: bool,
+    /// Flush reads defer their sync to the next hand-over ([`DEFER_FLUSH_ENV`]).
+    pub defer_flush: bool,
 }
 
 /// `Some` when `CARAXES_BAR2_MEMFD=1`; an error for a malformed trap list.
@@ -77,6 +89,7 @@ pub fn config() -> Result<Option<Config>, String> {
     Ok(Some(Config {
         traps,
         sync_doorbell: std::env::var(SYNC_DOORBELL_ENV).as_deref() == Ok("1"),
+        defer_flush: std::env::var(DEFER_FLUSH_ENV).as_deref() != Ok("0"),
     }))
 }
 
@@ -626,6 +639,102 @@ impl TableReader for Reader<'_> {
     }
 }
 
+/// What settled an owed flush ([`Bar2Area::flush_settled`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Settle {
+    /// A sync point that syncs anyway: the MMU invalidate, the GSP command-queue doorbell,
+    /// or a flush read with the deferral off.
+    SyncPoint,
+    /// A channel doorbell (trapped, ioeventfd or token): the GPU may fetch what the guest
+    /// wrote before it.
+    Doorbell,
+    /// The flush clock, [`DEFER_BOUND`] after the flush read, with no hand-over since.
+    Clock,
+}
+
+/// A flush read whose sync is owed (docs/caraxes/display-pacing.md).
+///
+/// The guest RM reads the flush page after every batch of BAR2 writes (`kbusFlush`,
+/// about 23 times per desktop frame, 11 or 12 per GPU VA change). Each sync compares
+/// every mapped memfd page with its snapshot and merges the BAR1 pool's replicas, 0.2 to
+/// 0.5 ms under the device lock; on hardware the read costs a microsecond. What the sync
+/// makes visible is used by the GPU only after a hand-over the device sees (bar2-memfd.md
+/// §3): page tables after the MMU invalidate, RPC data after the command-queue doorbell,
+/// channel data after the channel doorbell. So the flush read only marks the sync owed
+/// here, and the first of those hand-overs settles it; the flush clock settles it after
+/// [`DEFER_BOUND`] for data a running engine polls without one. The device's own reads
+/// see the guest's BAR2 bytes without a sync (they read the memfd, `read_through`).
+#[derive(Default)]
+pub struct DeferredFlush {
+    pending: AtomicBool,
+    /// When the owed flush was marked, in nanoseconds since `epoch`.
+    since_ns: AtomicU64,
+    epoch: std::sync::OnceLock<Instant>,
+    thread: Mutex<Option<std::thread::Thread>>,
+}
+
+impl DeferredFlush {
+    fn now_ns(&self) -> u64 {
+        self.epoch.get_or_init(Instant::now).elapsed().as_nanos() as u64
+    }
+
+    /// Mark a sync owed; returns whether none was owed before (the clock is woken then).
+    pub fn mark(&self) -> bool {
+        if self.pending.load(Ordering::Acquire) {
+            return false;
+        }
+        self.since_ns.store(self.now_ns(), Ordering::Release);
+        let first = !self.pending.swap(true, Ordering::AcqRel);
+        if first {
+            if let Some(t) = self.thread.lock().unwrap().as_ref() {
+                t.unpark();
+            }
+        }
+        first
+    }
+
+    /// Whether a sync is owed.
+    pub fn pending(&self) -> bool {
+        self.pending.load(Ordering::Acquire)
+    }
+
+    /// The sync ran: nothing is owed now; returns whether something was.
+    fn clear(&self) -> bool {
+        self.pending.swap(false, Ordering::AcqRel)
+    }
+
+    /// How long the owed sync may still wait (zero when due, `None` when none is owed).
+    pub fn due_in(&self) -> Option<Duration> {
+        if !self.pending() {
+            return None;
+        }
+        let since = self.since_ns.load(Ordering::Acquire);
+        let age = self.now_ns().saturating_sub(since);
+        Some(Duration::from_nanos(
+            (DEFER_BOUND.as_nanos() as u64).saturating_sub(age),
+        ))
+    }
+
+    /// Start the flush clock: a thread that calls `settle` (lock the device, settle the
+    /// owed flush: `Device::settle_bar2_flush`) once an owed flush is [`DEFER_BOUND`] old.
+    pub fn spawn_clock(self: &Arc<Self>, settle: Box<dyn Fn() + Send>) -> std::io::Result<()> {
+        let me = self.clone();
+        let h = std::thread::Builder::new()
+            .name("bar2-flush".into())
+            .spawn(move || loop {
+                match me.due_in() {
+                    // Parked until a flush read marks one (and at least every 100 ms, so a
+                    // mark before the thread handle was stored is not lost).
+                    None => std::thread::park_timeout(Duration::from_millis(100)),
+                    Some(d) if !d.is_zero() => std::thread::sleep(d),
+                    Some(_) => settle(),
+                }
+            })?;
+        *self.thread.lock().unwrap() = Some(h.thread().clone());
+        Ok(())
+    }
+}
+
 /// Counters for the exit summary.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Bar2Stats {
@@ -652,6 +761,11 @@ pub struct Bar2Stats {
     pub trapped: u64,
     /// Device writes that landed in a mapped page.
     pub device_writes: u64,
+    /// Flush reads that deferred their sync, and what settled the owed syncs.
+    pub deferred: u64,
+    pub settled_sync_point: u64,
+    pub settled_doorbell: u64,
+    pub settled_clock: u64,
 }
 
 /// What one sync changed, for the FB's caches.
@@ -675,6 +789,8 @@ pub struct Bar2Area {
     cache_root: Cell<u64>,
     pub stats: Bar2Stats,
     trapped: Cell<u64>,
+    /// The owed flush when flush reads defer ([`Config::defer_flush`]).
+    defer: Option<Arc<DeferredFlush>>,
 }
 
 impl Bar2Area {
@@ -697,6 +813,7 @@ impl Bar2Area {
             cache_root: Cell::new(u64::MAX),
             stats: Bar2Stats::default(),
             trapped: Cell::new(0),
+            defer: cfg.defer_flush.then(|| Arc::new(DeferredFlush::default())),
         })
     }
 
@@ -750,6 +867,41 @@ impl Bar2Area {
         for page in pa >> 12..=last {
             if c.watches(page) {
                 c.note_write(page, pa, data);
+            }
+        }
+    }
+
+    /// The owed flush shared with the flush clock, when flush reads defer.
+    pub fn deferred_flush(&self) -> Option<Arc<DeferredFlush>> {
+        self.defer.clone()
+    }
+
+    /// A flush read: with the deferral on, mark the sync owed and return true (the caller
+    /// skips it); otherwise false (the caller syncs now).
+    pub fn defer_flush(&mut self) -> bool {
+        match &self.defer {
+            Some(d) => {
+                d.mark();
+                self.stats.deferred += 1;
+                true
+            }
+            None => false,
+        }
+    }
+
+    /// Whether a deferred flush read's sync is owed.
+    pub fn flush_pending(&self) -> bool {
+        self.defer.as_ref().is_some_and(|d| d.pending())
+    }
+
+    /// A flush point's sync ran (`BootModel::flush_point`): an owed flush is settled, and
+    /// counted by `cause`.
+    pub fn flush_settled(&mut self, cause: Settle) {
+        if self.defer.as_ref().is_some_and(|d| d.clear()) {
+            match cause {
+                Settle::SyncPoint => self.stats.settled_sync_point += 1,
+                Settle::Doorbell => self.stats.settled_doorbell += 1,
+                Settle::Clock => self.stats.settled_clock += 1,
             }
         }
     }
@@ -1002,7 +1154,7 @@ impl Bar2Area {
             .map(|p| format!("{:#x}", p * PAGE))
             .collect();
         format!(
-            "bar2 memfd: BAR2 [0, {:#x}) in host RAM, trapped page(s) [{}] with {} access(es); {} sync(s) ({} us total, {} us max), {} page compare(s), {} dirty page(s), {} byte(s) written back, {} alias conflict(s); {} BAR2 table walk(s), {} page(s) entered ({} loaded), {} left; now {} page(s) mapped at {} BAR2 page(s), at most {} live and {} alias(es) of one page; {} sysmem write-back(s) skipped (docs/caraxes/bar2-memfd.md)",
+            "bar2 memfd: BAR2 [0, {:#x}) in host RAM, trapped page(s) [{}] with {} access(es); {} sync(s) ({} us total, {} us max), {} page compare(s), {} dirty page(s), {} byte(s) written back, {} alias conflict(s); {} BAR2 table walk(s), {} page(s) entered ({} loaded), {} left; now {} page(s) mapped at {} BAR2 page(s), at most {} live and {} alias(es) of one page; {} sysmem write-back(s) skipped; flush reads {} (docs/caraxes/bar2-memfd.md, display-pacing.md)",
             self.size,
             traps.join(" "),
             s.trapped,
@@ -1021,7 +1173,15 @@ impl Bar2Area {
             self.remap.mapped(),
             s.max_live,
             s.max_aliases,
-            s.sys_skipped
+            s.sys_skipped,
+            if self.defer.is_some() {
+                format!(
+                    "deferred: {} deferred, settled {} at a sync point, {} at a doorbell, {} by the clock",
+                    s.deferred, s.settled_sync_point, s.settled_doorbell, s.settled_clock
+                )
+            } else {
+                "sync at once".to_string()
+            }
         )
     }
 }
@@ -1029,6 +1189,36 @@ impl Bar2Area {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The owed flush: one mark per burst wakes the clock, and the clock settles it
+    /// [`DEFER_BOUND`] after the mark.
+    #[test]
+    fn the_flush_clock_settles_an_owed_flush_after_the_bound() {
+        let d = Arc::new(DeferredFlush::default());
+        assert_eq!(d.due_in(), None);
+        assert!(d.mark());
+        assert!(!d.mark(), "a second flush read in the burst changes nothing");
+        assert!(d.due_in().unwrap() <= DEFER_BOUND);
+        assert!(d.clear());
+        assert!(!d.clear());
+        let settled = Arc::new(AtomicU64::new(0));
+        let (d2, s2) = (d.clone(), settled.clone());
+        let marked = Instant::now();
+        d.spawn_clock(Box::new(move || {
+            s2.fetch_add(1, Ordering::SeqCst);
+            d2.clear();
+        }))
+        .unwrap();
+        d.mark();
+        while settled.load(Ordering::SeqCst) == 0 {
+            assert!(marked.elapsed() < Duration::from_secs(5), "the clock never settled");
+            std::thread::sleep(Duration::from_micros(200));
+        }
+        assert!(marked.elapsed() >= DEFER_BOUND);
+        assert!(!d.pending());
+        std::thread::sleep(3 * DEFER_BOUND);
+        assert_eq!(settled.load(Ordering::SeqCst), 1, "nothing owed, nothing settled");
+    }
 
     #[test]
     fn sparse_areas_leave_the_trapped_pages_out() {

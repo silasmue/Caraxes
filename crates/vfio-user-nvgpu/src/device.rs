@@ -972,6 +972,19 @@ impl Device {
         }
     }
 
+    /// The BAR2 memfd's owed flush (bar2area.rs `DeferredFlush`), for the flush clock.
+    pub fn bar2_flush_clock(&self) -> Option<std::sync::Arc<crate::bar2area::DeferredFlush>> {
+        self.bar0.boot()?.fb.bar2_area()?.deferred_flush()
+    }
+
+    /// The flush clock's settle: a deferred flush read whose sync no hand-over ran within
+    /// the bound (docs/caraxes/display-pacing.md).
+    pub fn settle_bar2_flush(&mut self) {
+        if let Some(b) = self.bar0.boot_mut() {
+            b.settle_deferred_flush(&self.mem, crate::bar2area::Settle::Clock);
+        }
+    }
+
     pub fn summary(&self) -> String {
         let mut s = self.trace.summary();
         if self.doorbell_wakeups > 0 {

@@ -282,7 +282,22 @@ if (status != NV_OK)
      the lost ring (≈03:50:07), at vkcube's teardown and exit. They are a consequence to chase
      separately, not the cause. Host Xid 0.
 
-### Proposed device fix (ctrl.rs `doorbell`)
+### The host VA-alloc bursts at teardown (to be chased separately)
+
+- In phase X the host journal logs 13 × `NVRM: GPU0 virtmemAllocResources: VA Space alloc
+  failed! Status Code: 0x51` at 03:50:21, with fixed ranges RangeLo 0x120000000-0x120600000
+  (sizes 0x1000-0x200000).
+- The stalled ring was about 14 s earlier (≈03:50:07). The bursts fall on vkcube's teardown and
+  exit, while the device rebuilds shadow mappings of the GR context region
+  (0x1200xxxxx-0x1207xxxxx, where the guest places a channel's global/ctx buffers).
+- So they follow the stall; they do not cause it. They show a fixed-address host VA allocation
+  in a range still held on the host: a stale mapping of a freed client, or two guest VA spaces
+  mapped into one host VAS. Earlier bursts tonight were at RangeLo 0x121200000.
+- The tokenfix A/B (vm4-615-tokenfix/PLAN.md (d)) counts them per case. If they remain without a
+  stall, they need their own investigation of the shadow VAS teardown/rebuild order
+  (`refresh_exclusions`, the set-B release).
+
+### Proposed device fix (ctrl.rs `doorbell`; implemented on branch tokenfix-2026-09-26, d1084c0a)
 
 - Short term: interpret a written token as a host token only when it is not the guest token of a
   registered channel that is not mirrored yet. That is, if `token & 0xFFF` names a live guest
