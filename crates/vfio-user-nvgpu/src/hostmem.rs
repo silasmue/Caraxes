@@ -900,6 +900,26 @@ pub fn run_teardown<O: TeardownOps>(
     TeardownOutcome::Clean
 }
 
+fn run_teardown_guarded<O: TeardownOps>(
+    ops: &mut O,
+    prior_failures: usize,
+    owned_gfxp_live: bool,
+    log: &mut Vec<String>,
+) -> TeardownOutcome {
+    if owned_gfxp_live {
+        return TeardownOutcome::FailClosed {
+            reason: "owned GFXP resources remain attached to a host context".into(),
+            descriptors_kept: ops.descriptor_count(),
+            reservation_kept: true,
+        };
+    }
+    run_teardown(ops, prior_failures, log)
+}
+
+fn has_owned_gfxp(live: &[(u32, u32, &'static str)]) -> bool {
+    live.iter().any(|(_, _, what)| matches!(*what, "host-gfxp" | "gfxp-virtual"))
+}
+
 /// One RM status, for callers that log the number rather than fail.
 pub type Status = u32;
 
@@ -931,6 +951,37 @@ fn apply_tracked_free(
     if let Some(i) = live.iter().rposition(|(_, h, _)| *h == handle) {
         live.remove(i);
         forget_subtree(live, handle);
+    }
+    Ok(())
+}
+
+/// Free a LIFO ledger until the first error. An entry is removed only after its free
+/// succeeds, so the failed entry and every older dependency remain available for retry.
+fn free_lifo_until_error<T: Copy, E>(
+    ledger: &mut Vec<T>,
+    mut free: impl FnMut(T) -> Result<(), E>,
+) -> (usize, Option<E>) {
+    let mut freed = 0;
+    while let Some(item) = ledger.last().copied() {
+        match free(item) {
+            Ok(()) => {
+                ledger.pop();
+                freed += 1;
+            }
+            Err(e) => return (freed, Some(e)),
+        }
+    }
+    (freed, None)
+}
+
+fn apply_leaf_free<T: PartialEq, E>(
+    ledger: &mut Vec<T>,
+    item: &T,
+    result: Result<(), E>,
+) -> Result<(), E> {
+    result?;
+    if let Some(i) = ledger.iter().position(|entry| entry == item) {
+        ledger.swap_remove(i);
     }
     Ok(())
 }
@@ -1583,15 +1634,22 @@ impl HostMemory {
     /// spaces). Returns one line per object.
     pub fn free_live(&mut self) -> Vec<String> {
         let mut log = Vec::new();
-        while let Some((parent, h, what)) = self.live.pop() {
-            match self.rm_free(parent, h) {
-                Ok(()) => log.push(format!("freed host {what} {h:#x}")),
-                Err(st) => {
+        let mut live = std::mem::take(&mut self.live);
+        let (_, failed) = free_lifo_until_error(&mut live, |(parent, h, what)| {
+            self.rm_free(parent, h)
+                .inspect(|()| log.push(format!("freed host {what} {h:#x}")))
+                .inspect_err(|st| {
                     log.push(format!("ERROR freeing host {what} {h:#x}: status {st:#x}"));
                     self.free_failures
                         .push(format!("host {what} {h:#x}: status {st:#x}"));
-                }
-            }
+                })
+        });
+        self.live = live;
+        if failed.is_some() {
+            log.push(format!(
+                "stopped host object teardown with {} object(s) still live",
+                self.live.len()
+            ));
         }
         log
     }
@@ -2202,11 +2260,11 @@ impl HostMemory {
 
     /// Free a gather descriptor (unpins its page references). Returns the status.
     pub fn free_gather(&mut self, h: u32) -> Status {
-        let Some(i) = self.gathers.iter().position(|g| *g == h) else {
+        if !self.gathers.contains(&h) {
             return 0xFFFF_FFFE;
-        };
-        self.gathers.swap_remove(i);
-        match self.free_descriptor(h) {
+        }
+        let result = self.free_descriptor(h);
+        match apply_leaf_free(&mut self.gathers, &h, result) {
             Ok(()) => sys::NV_OK,
             Err(e) => {
                 self.free_failures.push(format!("host gather descriptor {h:#x}: {e:#}"));
@@ -2691,7 +2749,8 @@ impl HostMemory {
         let n = self.descriptors.len();
         let bytes = self.pinned_bytes();
         let p0 = foll_pins();
-        let outcome = run_teardown(self, prior, &mut log);
+        let owned_gfxp_live = has_owned_gfxp(&self.live);
+        let outcome = run_teardown_guarded(self, prior, owned_gfxp_live, &mut log);
         self.closed = true;
         let p1 = foll_pins();
         let freed = n - self.descriptors.len();
@@ -2739,19 +2798,32 @@ impl TeardownOps for HostMemory {
         let n = self.live.len();
         let before = self.free_failures.len();
         log.extend(self.free_live());
+        let freed_live = n - self.live.len();
+        if !self.live.is_empty() {
+            log.push(format!(
+                "freed {freed_live} of {n} host mirror object(s) before the descriptors"
+            ));
+            return self.free_failures.len() - before;
+        }
         // Gather descriptors the shadow did not free (it frees them with their mappings):
         // after the channels and VA spaces, before the guest-RAM descriptors.
-        let gathers = self.gathers.clone();
-        for g in &gathers {
-            self.free_gather(*g);
+        let gather_count = self.gathers.len();
+        let mut freed_gathers = 0;
+        while let Some(g) = self.gathers.last().copied() {
+            if self.free_gather(g) != sys::NV_OK {
+                break;
+            }
+            freed_gathers += 1;
         }
-        if !gathers.is_empty() {
-            log.push(format!("freed {} leftover gather descriptor(s) of the shadow", gathers.len()));
+        if gather_count > 0 {
+            log.push(format!(
+                "freed {freed_gathers} of {gather_count} leftover gather descriptor(s) of the shadow"
+            ));
         }
         let failed = self.free_failures.len() - before;
         log.push(format!(
             "freed {} of {n} host mirror object(s) before the descriptors",
-            n - failed
+            freed_live
         ));
         failed
     }
@@ -2988,6 +3060,32 @@ mod teardown_tests {
     }
 
     #[test]
+    fn lifo_free_stops_at_first_error_and_retains_failed_dependencies() {
+        let mut live = vec!["vaspace", "tsg", "channel", "engine"];
+        let mut attempted = Vec::new();
+        let (freed, failed) = free_lifo_until_error(&mut live, |item| {
+            attempted.push(item);
+            if item == "channel" { Err(0x31) } else { Ok(()) }
+        });
+
+        assert_eq!(freed, 1);
+        assert_eq!(failed, Some(0x31));
+        assert_eq!(attempted, ["engine", "channel"]);
+        assert_eq!(live, ["vaspace", "tsg", "channel"]);
+    }
+
+    #[test]
+    fn failed_leaf_free_keeps_the_descriptor_for_retry() {
+        let mut gathers = vec![0x10, 0x20, 0x30];
+        assert_eq!(apply_leaf_free(&mut gathers, &0x20, Err(0x31)), Err(0x31));
+        assert_eq!(gathers, [0x10, 0x20, 0x30]);
+
+        assert_eq!(apply_leaf_free(&mut gathers, &0x20, Ok::<(), u32>(())), Ok(()));
+        assert_eq!(gathers.len(), 2);
+        assert!(!gathers.contains(&0x20));
+    }
+
+    #[test]
     fn a_clean_teardown_frees_in_order() {
         let mut f = fake(4);
         let out = run_teardown(&mut f, 0, &mut Vec::new());
@@ -3021,6 +3119,26 @@ mod teardown_tests {
         ));
         assert_eq!(f.order, ["mirrors"]);
         assert!(f.reservation && f.client);
+    }
+
+    #[test]
+    fn live_owned_gfxp_stops_before_every_teardown_callback() {
+        let mut f = fake(4);
+        let out = run_teardown_guarded(&mut f, 0, true, &mut Vec::new());
+        assert!(matches!(
+            out,
+            TeardownOutcome::FailClosed {
+                descriptors_kept: 4,
+                reservation_kept: true,
+                ..
+            }
+        ));
+        assert!(f.order.is_empty());
+        assert!(f.reservation && f.client);
+
+        assert!(has_owned_gfxp(&[(1, 2, "host-gfxp")]));
+        assert!(has_owned_gfxp(&[(1, 2, "gfxp-virtual")]));
+        assert!(!has_owned_gfxp(&[(1, 2, "channel")]));
     }
 
     #[test]
