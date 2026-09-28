@@ -1047,16 +1047,22 @@ impl GlobalExtents {
     /// TSG not yet freed ([`set_b_with_held`]) and its private ones. Every GR channel of a
     /// context promotes the same global buffers (a CUDA context: eight channels, ten
     /// buffers), so each `(buffer id, VA)` is sized and clipped once per computation.
+    /// A size-0 global inside the root's host `fence` (F2b) holds no host buffer: the host
+    /// maps its own first fit above the fence, so the guest's pages there are plain set A.
     fn set_b(
         &self,
         reg: &Registry,
         root: u64,
         fb: Option<&FakeFb>,
         space: Option<&ShadowSpace>,
+        fence: Option<(u64, u64)>,
         query: CtxSizeQuery,
     ) -> Vec<(u64, u64)> {
         let once: RefCell<BTreeMap<(u16, u64), Option<u64>>> = RefCell::new(BTreeMap::new());
         let live = exclusions_of(reg, root, |id, va| {
+            if fence.is_some_and(|(lo, hi)| va >= lo && va < hi) {
+                return Some(0);
+            }
             if let Some(e) = once.borrow().get(&(id, va)) {
                 return *e;
             }
@@ -1103,7 +1109,7 @@ impl GlobalExtents {
         }
         self.computed.set(self.computed.get() + 1);
         let retries = self.sizes.borrow().retries;
-        let now = self.set_b(reg, root, Some(fb), Some(sp), query);
+        let now = self.set_b(reg, root, Some(fb), Some(sp), sp.front.layout.fence, query);
         // A size the host did not answer for good is asked again at the next refresh.
         sp.set_b_stamp = (self.sizes.borrow().retries == retries).then(|| self.stamp(reg, root, fb));
         let mut notes = self.take_notes();
@@ -1515,18 +1521,8 @@ impl Mirror {
         buffer_id: u16,
         va: u64,
     ) -> Option<u64> {
-        // A fenced shadow (F2b): the host maps its own global buffers first fit above the
-        // fence, so a size-0 global inside it holds no host buffer and is plain set A. The
-        // shadow of a root not built yet takes the layout its GR channel will get.
-        let fence = self.shadows.get(&root).map_or_else(
-            || {
-                self.shadow_fence
-                    .then(crate::shadow::Layout::fenced)
-                    .and_then(|l| l.fence)
-            },
-            |sp| sp.front.layout.fence,
-        );
-        if fence.is_some_and(|(lo, hi)| va >= lo && va < hi) {
+        // A fenced shadow (F2b): a size-0 global inside the fence is plain set A.
+        if self.fence_of(root).is_some_and(|(lo, hi)| va >= lo && va < hi) {
             return Some(0);
         }
         let hm = &self.hm;
@@ -3938,9 +3934,24 @@ impl Mirror {
     /// and those held for a host TSG not yet freed ([`set_b_with_held`]).
     fn root_exclusions(&self, reg: &Registry, root: u64, fb: Option<&FakeFb>) -> Vec<(u64, u64)> {
         let hm = &self.hm;
-        self.extents.set_b(reg, root, fb, self.shadows.get(&root), &|b, e| {
-            Self::host_ctx_size(hm, b, e)
-        })
+        let fence = self.fence_of(root);
+        self.extents
+            .set_b(reg, root, fb, self.shadows.get(&root), fence, &|b, e| {
+                Self::host_ctx_size(hm, b, e)
+            })
+    }
+
+    /// The host fence (F2b) of shadow root `root`: its shadow's, or for a shadow not built
+    /// yet the one its GR channel will get (`CARAXES_SHADOW_FENCE`).
+    fn fence_of(&self, root: u64) -> Option<(u64, u64)> {
+        self.shadows.get(&root).map_or_else(
+            || {
+                self.shadow_fence
+                    .then(crate::shadow::Layout::fenced)
+                    .and_then(|l| l.fence)
+            },
+            |sp| sp.front.layout.fence,
+        )
     }
 
     /// Guest roots whose held set-B ranges went back to set A at a host TSG free since the
@@ -3976,7 +3987,8 @@ impl Mirror {
         match self.shadows.get_mut(&root) {
             Some(sp) => self.extents.refresh(reg, root, fb, sp, &query),
             None => {
-                self.extents.set_b(reg, root, Some(fb), None, &query);
+                let fence = self.fence_of(root);
+                self.extents.set_b(reg, root, Some(fb), None, fence, &query);
                 (self.extents.take_notes(), false)
             }
         }
@@ -6826,6 +6838,47 @@ mod tests {
         let n = asked.get();
         fresh.refresh(&reg, root, &tree.fb, &mut sp2, &flaky);
         assert_eq!((asked.get(), fresh.computed.get(), fresh.reused.get()), (n, 2, 1));
+    }
+
+    /// Run P28 (the merge with planfast): set B is computed by [`GlobalExtents`], and the F2b
+    /// rule must hold there too. A size-0 global inside a fenced root's fence is plain set A;
+    /// a PA-promoted buffer inside it and a size-0 global outside it stay set B. Without it
+    /// the shadow left the guest's pages in the fence unmapped (46 refusals, FE
+    /// FAULT_PRIV_VIOLATION writes at 0x1_200f_c000 and up).
+    #[test]
+    fn a_fenced_root_computes_set_b_without_fenced_globals() {
+        let DoorbellWorld { mut reg, tree, root } = doorbell_world();
+        let cuda = 0xc1d0_0373u32;
+        let (fenced_global, patch, outside) =
+            (0x1_200e_9000u64, 0x1_200e_4000u64, 0x2_2000_9000u64);
+        reg.record_promote_ctx(&promote_params(
+            cuda,
+            0x5c00_0101,
+            &[
+                (3, 0, fenced_global, 0, false),
+                (2, 0x40_0000, patch, 0x5000, false),
+                (4, 0, outside, 0, false),
+            ],
+        ));
+        let query = |_: u16, engine: u32| rtx2070_ctx_size(engine);
+        let set_b = |layout: crate::shadow::Layout| {
+            let ext = GlobalExtents::default();
+            let mut front = crate::shadow::ShadowFront::new(root);
+            front.layout = layout;
+            let mut sp = ShadowSpace::new(front, 0);
+            ext.refresh(&reg, root, &tree.fb, &mut sp, &query);
+            let fence = sp.front.layout.fence;
+            let direct = ext.set_b(&reg, root, Some(&tree.fb), Some(&sp), fence, &query);
+            assert_eq!(direct, sp.exclude, "refresh and set_b agree");
+            sp.exclude
+        };
+        let starts = |x: &[(u64, u64)]| x.iter().map(|r| r.0).collect::<Vec<_>>();
+        let fenced = set_b(crate::shadow::Layout::fenced());
+        assert!(!starts(&fenced).contains(&fenced_global), "{fenced:x?}");
+        assert!(fenced.contains(&(patch, patch + 0x5000)), "{fenced:x?}");
+        assert!(starts(&fenced).contains(&outside), "{fenced:x?}");
+        let plain = set_b(crate::shadow::Layout::default());
+        assert!(starts(&plain).contains(&fenced_global), "{plain:x?}");
     }
 
     /// Micro-benchmark (`cargo test --release -p vfio-user-nvgpu --lib bench_set_b --
