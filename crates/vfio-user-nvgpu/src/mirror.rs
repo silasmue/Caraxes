@@ -159,7 +159,7 @@ const CMD_CHANNEL_BIND: u32 = 0xA06F_0104;
 /// The promoted context ranges `[va, va + size)` of a channel (GR set B, a falcon
 /// engine's context), which the shadow keeps out of the guest's set A. A global GR
 /// buffer promoted by VA alone has size 0; `global_size(buffer id, VA)` gives its extent
-/// at that VA ([`global_exclusion`]).
+/// at that VA ([`global_exclusion`]), `Some(0)` none (the host's own copy is elsewhere).
 fn promoted_ranges(
     reg: &Registry,
     ch: &Channel,
@@ -170,7 +170,12 @@ fn promoted_ranges(
         for e in m.values() {
             if let Some(v) = e.virt {
                 let size = if e.size == 0 {
-                    global_size(e.buffer_id, v).unwrap_or(0x1000)
+                    match global_size(e.buffer_id, v) {
+                        // The host's own buffer is not at this VA (a fenced shadow, F2b).
+                        Some(0) => continue,
+                        Some(s) => s,
+                        None => 0x1000,
+                    }
                 } else {
                     e.size
                 };
@@ -337,17 +342,6 @@ pub fn held_at_free(
                 ranges,
             })
         })
-        .collect()
-}
-
-/// The set-B ranges of a fenced shadow ([`crate::shadow::Layout::fenced`]) without those inside
-/// the fence: the host's own buffers land above the fence, so the guest's copies at its
-/// promoted VAs are plain set A there (and keep their region from the fence). Unchanged
-/// without a fence.
-pub fn unfenced(ranges: Vec<(u64, u64)>, layout: &crate::shadow::Layout) -> Vec<(u64, u64)> {
-    ranges
-        .into_iter()
-        .filter(|(lo, hi)| !layout.in_fence(*lo, *hi))
         .collect()
 }
 
@@ -1231,6 +1225,20 @@ impl Mirror {
         buffer_id: u16,
         va: u64,
     ) -> Option<u64> {
+        // A fenced shadow (F2b): the host maps its own global buffers first fit above the
+        // fence, so a size-0 global inside it holds no host buffer and is plain set A. The
+        // shadow of a root not built yet takes the layout its GR channel will get.
+        let fence = self.shadows.get(&root).map_or_else(
+            || {
+                self.shadow_fence
+                    .then(crate::shadow::Layout::fenced)
+                    .and_then(|l| l.fence)
+            },
+            |sp| sp.front.layout.fence,
+        );
+        if fence.is_some_and(|(lo, hi)| va >= lo && va < hi) {
+            return Some(0);
+        }
         let raw = self.global_ctx_size(buffer_id)?;
         let Some(fb) = fb else {
             let end = self.global_clips.borrow().get(&(root, va)).copied();
@@ -3582,7 +3590,7 @@ impl Mirror {
                 out.extend(sp.private.values().flatten().copied());
                 out.sort_unstable();
                 out.dedup();
-                unfenced(out, &sp.front.layout)
+                out
             }
             None => live,
         }
@@ -5810,11 +5818,12 @@ mod tests {
         assert_eq!(Layout::default().unmirrorable(0x10_0000, 0x10_1000), None);
     }
 
-    /// F2b: the fenced layout holds [0x1_2000_0000, +512 MiB); set-B ranges inside it are
-    /// dropped (the host's own buffers land above), those outside kept; without a fence
-    /// (Linux's default, the video layout) nothing changes.
+    /// F2b: the fenced layout holds [0x1_2000_0000, +512 MiB); without a fence (Linux's default,
+    /// the video layout) nothing changes. A size-0 global buffer answered `Some(0)` (inside a
+    /// fence) is no set-B range; a promoted buffer with its own size stays set B (P24: the
+    /// host maps the guest's PATCH at the guest's VA).
     #[test]
-    fn the_fence_keeps_set_b_out_only_outside_it() {
+    fn a_fenced_global_buffer_is_no_set_b_range() {
         use crate::shadow::{Layout, FENCE_SIZE, GUEST_RM_VA_BASE};
         let f = Layout::fenced();
         assert_eq!(
@@ -5829,19 +5838,42 @@ mod tests {
             (Layout::default().fence, Layout::video().fence),
             (None, None)
         );
-        let b = vec![
-            (0x1_200e_9000, 0x1_200e_c000),
-            (0x1_3ff0_0000, 0x1_4010_0000),
-            (0x2_0000_0000, 0x2_0001_0000),
-        ];
+        let chip = crate::fixture::rtx2070().chip.data();
+        let mut reg = registry();
+        reg.record_alloc(
+            1,
+            0x80,
+            0x15,
+            chip.channel.gpfifo,
+            &channel_params(23, Some(4)),
+        );
+        let mut g = vec![0u8; v::PROMOTE_PARAMS_SIZE];
+        g[v::PROMOTE_H_CHAN_CLIENT..][..4].copy_from_slice(&1u32.to_le_bytes());
+        g[v::PROMOTE_H_OBJECT..][..4].copy_from_slice(&0x15u32.to_le_bytes());
+        g[v::PROMOTE_ENTRY_COUNT..][..4].copy_from_slice(&2u32.to_le_bytes());
+        // Entry 0: the PATCH buffer with its own size; entry 1: BUNDLE_CB by VA alone.
+        let e0 = v::PROMOTE_ENTRIES;
+        g[e0 + 8..][..8].copy_from_slice(&0x1_200e_4000u64.to_le_bytes());
+        g[e0 + 16..][..8].copy_from_slice(&0x5000u64.to_le_bytes());
+        g[e0 + 28..][..2].copy_from_slice(&2u16.to_le_bytes());
+        let e1 = e0 + v::PROMOTE_ENTRY_SIZE;
+        g[e1 + 8..][..8].copy_from_slice(&0x1_200e_9000u64.to_le_bytes());
+        g[e1 + 28..][..2].copy_from_slice(&3u16.to_le_bytes());
+        reg.record_promote_ctx(&g);
+        let all = |_: &Channel| true;
+        let fenced = |_: u16, _: u64| Some(0);
         assert_eq!(
-            unfenced(b.clone(), &f),
+            exclusions_among(&reg, all, fenced),
+            vec![(0x1_200e_4000, 0x1_200e_9000)]
+        );
+        let unfenced = |_: u16, _: u64| Some(0x3000);
+        assert_eq!(
+            exclusions_among(&reg, all, unfenced),
             vec![
-                (0x1_3ff0_0000, 0x1_4010_0000),
-                (0x2_0000_0000, 0x2_0001_0000)
+                (0x1_200e_4000, 0x1_200e_9000),
+                (0x1_200e_9000, 0x1_200e_c000)
             ]
         );
-        assert_eq!(unfenced(b.clone(), &Layout::default()), b);
     }
 
     /// Run P18: Windows maps pushbuffers below 1 MiB (the first Xid 31 was a host fetch at

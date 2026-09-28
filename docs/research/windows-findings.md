@@ -318,3 +318,21 @@ Runs: `/mnt/vmstore/caraxes/alpha-2026-09-27/windows-plain/<run>/`.
   - The fence size (512 MiB) comes from P18-P23 (guest RM range up to 0x1_21e4_0000).
 - Depends on: L (a new part of the shadow layout), AB (set B moves), K (the compressed slice's
   kinds map through the same region objects; the fence only reserves VA).
+
+## P24 (2026-09-28 21:29, P24-fence, slot 4 beside Linux B; fence on, pool off)
+
+- **The fence works:** 8 fenced shadow VASes, 0 holes.
+- **The first F2b build dropped set B wrongly** (commit fb78a283).
+  - It dropped every set-B range inside the fence. The promoted buffers that carry their own
+    PA (PATCH at 0x1200e4000, size 0x5000) are mapped by the host at the guest's VA (the
+    deferred PROMOTE); only the size-0 global buffers are the host's own, placed first fit
+    above the fence.
+  - Dropping PATCH made the shadow map the guest's PATCH pages as set A: refused 0x1a (25 host
+    0x51).
+  - The per-region failure limit then left the guest's semaphore page 0x1_200ec000 unmapped:
+    FE FAULT_PTE write, 6x from 21:30:32. Stopped at 21:31. D3D11 and CUDA not reached.
+- **Correction (this commit):**
+  - Only size-0 globals inside the fence lose their exclusion; PA-promoted buffers stay set B.
+  - The fence is carved exactly: set-B ranges and per-leaf objects get their exact range, the
+    rest of a 2 MiB region stays fenced, and a released range is fenced again.
+  - Depends on: L, AB.

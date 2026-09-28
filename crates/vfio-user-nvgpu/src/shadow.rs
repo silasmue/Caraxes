@@ -1025,6 +1025,8 @@ pub struct ShadowVas {
     fence_notes: Vec<String>,
     /// Set by the teardown: freed regions are not fenced again.
     tearing_down: bool,
+    /// Set-B ranges carved out of the fence (the host maps promoted buffers there itself).
+    fence_b: Vec<(u64, u64)>,
     /// The VAS start the host RM took (vaspace_api.c:423): 0 with [`VAS_ALLOW_ZERO_ADDRESS`],
     /// [`RM_RESERVED_VA_BASE`] where the host ignored the flag, the base of the video layout.
     pub va_start: u64,
@@ -1146,30 +1148,77 @@ impl ShadowVas {
         }
     }
 
-    /// Put `[u, u + REGION)` back into the fence after its region object went (not during the
-    /// teardown, not when anything of the shadow still lives there).
+    /// Put `[u, u + REGION)` back into the fence after its region object went.
     fn fence_back<H: ShadowHost>(&mut self, h: &mut H, u: u64) {
-        let inside = self
-            .fence_span
-            .is_some_and(|(a, b)| u >= a && u + REGION <= b);
+        self.fence_back_range(h, u, u + REGION);
+    }
+
+    /// Put `[lo, hi)` back into the fence when nothing of the shadow uses it any more: no run,
+    /// no region or pooled object, no carved set-B range, no fence piece (not during the
+    /// teardown).
+    fn fence_back_range<H: ShadowHost>(&mut self, h: &mut H, lo: u64, hi: u64) {
+        let inside = self.fence_span.is_some_and(|(a, b)| lo >= a && hi <= b);
+        let overlaps = |a: u64, b: u64| a < hi && b > lo;
+        let units = (lo & !(REGION - 1)..hi).step_by(REGION as usize);
         if !inside
             || self.tearing_down
-            || self.regions.contains_key(&u)
-            || self.pool.contains_key(&u)
-            || self.runs.range(u..u + REGION).next().is_some()
+            || units.clone().any(|u| {
+                self.regions.get(&u).is_some_and(|r| r.handle.is_some())
+                    || self.pool.contains_key(&u)
+            })
             || self
-                .fence
-                .range(..u + REGION)
-                .any(|(a, (b, _))| *a < u + REGION && *b > u)
+                .runs
+                .range(..hi)
+                .next_back()
+                .is_some_and(|(v, r)| overlaps(*v, v + r.size))
+            || self.runs.range(lo..hi).next().is_some()
+            || self.fence_b.iter().any(|(a, b)| overlaps(*a, *b))
+            || self.fence.range(..hi).any(|(a, (b, _))| overlaps(*a, *b))
         {
             return;
         }
         self.fence_stats.1 += 1;
-        self.fence_piece(h, u, u + REGION);
+        self.fence_piece(h, lo, hi);
+    }
+
+    /// At each sync: carve the set-B ranges inside the fence (the host maps promoted buffers
+    /// there itself, at the guest's VA) and put back those the guest no longer promotes.
+    fn fence_sync_b<H: ShadowHost>(&mut self, h: &mut H, exclude: &[(u64, u64)]) {
+        let Some((a, b)) = self.fence_span else {
+            return;
+        };
+        let now: Vec<(u64, u64)> = exclude
+            .iter()
+            .filter(|(lo, hi)| *lo < b && *hi > a)
+            .map(|(lo, hi)| ((*lo).max(a), (*hi).min(b)))
+            .collect();
+        if now == self.fence_b {
+            return;
+        }
+        let gone: Vec<(u64, u64)> = self
+            .fence_b
+            .iter()
+            .filter(|r| !now.contains(r))
+            .copied()
+            .collect();
+        for (lo, hi) in &now {
+            self.fence_carve(h, *lo, *hi);
+        }
+        self.fence_b = now;
+        for (lo, hi) in gone {
+            self.fence_back_range(h, lo, hi);
+        }
     }
 
     fn fence_piece<H: ShadowHost>(&mut self, h: &mut H, lo: u64, hi: u64) {
-        match h.alloc_virtual_fixed(self.vas, lo, hi - lo, None, false) {
+        // A piece not on 2 MiB boundaries holds 4 KiB pages at a forced 4 KiB alignment
+        // (a default-page object there is refused, hostmem.rs `alloc_virtual_fixed`).
+        let (page, force) = if lo % REGION == 0 && hi % REGION == 0 {
+            (None, false)
+        } else {
+            (Some(0x1000), true)
+        };
+        match h.alloc_virtual_fixed(self.vas, lo, hi - lo, page, force) {
             Ok(hd) => {
                 self.fence.insert(lo, (hi, hd));
             }
@@ -1192,6 +1241,7 @@ impl ShadowVas {
             fence_stats: (0, 0, 0),
             fence_notes: Vec::new(),
             tearing_down: false,
+            fence_b: Vec::new(),
             va_start: 0,
             regions: BTreeMap::new(),
             mapped: BTreeMap::new(),
@@ -1463,15 +1513,7 @@ impl ShadowVas {
         }
         if run.own_object {
             self.free_virtual(hm, run.h_dma);
-            let u = run_va & !(REGION - 1);
-            if self.regions.get(&u).is_none_or(|r| r.handle.is_none()) {
-                let emptied = self.regions.contains_key(&u)
-                    && self.runs.range(u..u + REGION).next().is_none();
-                if emptied {
-                    self.regions.remove(&u);
-                }
-                self.fence_back(hm, u);
-            }
+            self.fence_back_range(hm, run_va, run_va + run.size);
         }
         self.run_gone(run.h_mem);
         self.free_idle_gathers(hm);
@@ -1587,6 +1629,10 @@ impl ShadowVas {
         if !self.pool.is_empty() {
             let mut h = hm.lock().unwrap();
             self.purge_pool(&mut *h, exclude);
+        }
+        if self.fence_span.is_some() {
+            let mut h = hm.lock().unwrap();
+            self.fence_sync_b(&mut *h, exclude);
         }
         for (u, want_v) in &plan.units {
             let u = *u;
@@ -1780,8 +1826,7 @@ impl ShadowVas {
                     let (h_dma, own) = match region {
                         Some(hd) => (hd, false),
                         None => {
-                            let lr = p0.va & !(REGION - 1);
-                            self.fence_carve(&mut *h, lr, (p0.va + len).div_ceil(REGION) * REGION);
+                            self.fence_carve(&mut *h, p0.va, p0.va + len);
                             let ta = Instant::now();
                             let r = h.alloc_virtual_fixed(self.vas, p0.va, len, Some(p0.leaf.size), true);
                             self.calls.add(Call::ObjectAlloc, ta);
@@ -2896,6 +2941,52 @@ mod tests {
         assert_eq!(h.calls(Call::ObjectAlloc).len(), 1);
         drop(h);
         assert_eq!(s.fence.len(), 3);
+    }
+
+    /// Run P24: the host maps the guest's promoted PATCH at the guest's VA itself, so a set-B
+    /// range inside the fence is carved out exactly, and a guest page next to it gets its own
+    /// exact object; the rest of the 2 MiB region stays fenced. A released set-B range goes
+    /// back into the fence.
+    #[test]
+    fn set_b_and_a_leaf_object_are_carved_out_exactly() {
+        const F0: u64 = 0x1_2000_0000;
+        const F1: u64 = F0 + 4 * REGION;
+        let (b0, b1) = (F0 + REGION + 0x4000, F0 + REGION + 0x9000);
+        let leaf = F0 + REGION + 0xc000;
+        let host = Mutex::new(FakeHost::default());
+        let mut s = sv(false, false);
+        s.fence_up(&mut *host.lock().unwrap(), F0, F1).unwrap();
+        let mut p = plan_of(&[(leaf, BASE + 0x1000, 0x1000, 6)], &[]);
+        p.exclude = vec![(b0, b1)];
+        s.apply(&host, &p, &[]);
+        assert_eq!(
+            s.fence
+                .iter()
+                .map(|(a, (b, _))| (*a, *b))
+                .collect::<Vec<_>>(),
+            vec![(F0, b0), (b1, leaf), (leaf + 0x1000, F1)],
+            "set B and the leaf carved out, nothing else"
+        );
+        assert!(s.coverage(leaf, leaf + 0x1000).starts_with("covered"));
+        // The guest's promote goes: set B is fenced again, the leaf stays.
+        s.apply(
+            &host,
+            &plan_of(&[(leaf, BASE + 0x1000, 0x1000, 6)], &[]),
+            &[],
+        );
+        assert_eq!(
+            s.fence
+                .iter()
+                .map(|(a, (b, _))| (*a, *b))
+                .collect::<Vec<_>>(),
+            vec![(F0, b0), (b0, b1), (b1, leaf), (leaf + 0x1000, F1)]
+        );
+        // The leaf goes too: its range is fenced again.
+        s.apply(&host, &plan_of(&[], &[F0 + REGION]), &[]);
+        assert!(s
+            .fence
+            .iter()
+            .any(|(a, (b, _))| (*a, *b) == (leaf, leaf + 0x1000)));
     }
 
     /// The teardown frees the fence with everything else and puts nothing back.
