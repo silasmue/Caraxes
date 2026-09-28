@@ -51,6 +51,22 @@ public static class Probe {
 	ret;
 }
 
+.visible .entry spin(.param .u32 pcycles)
+{
+	.reg .pred %p<2>;
+	.reg .b32 %r<2>;
+	.reg .b64 %rd<5>;
+	ld.param.u32 %r1, [pcycles];
+	cvt.u64.u32 %rd4, %r1;
+	mov.u64 %rd1, %clock64;
+SPIN:
+	mov.u64 %rd2, %clock64;
+	sub.s64 %rd3, %rd2, %rd1;
+	setp.lt.s64 %p1, %rd3, %rd4;
+	@%p1 bra SPIN;
+	ret;
+}
+
 .visible .entry vadd(.param .u64 pa, .param .u64 pb, .param .u64 pc, .param .u32 pn)
 {
 	.reg .pred %p<2>;
@@ -104,7 +120,8 @@ DONE:
       Stage("context current");
       byte[] image = System.Text.Encoding.ASCII.GetBytes(Ptx + "\0");
       Check(cuModuleLoadData(out module, image), "cuModuleLoadData (PTX JIT)");
-      IntPtr fEmpty, fAdd; Check(cuModuleGetFunction(out fEmpty, module, "empty"), "cuModuleGetFunction(empty)");
+      IntPtr fEmpty, fAdd, fSpin; Check(cuModuleGetFunction(out fEmpty, module, "empty"), "cuModuleGetFunction(empty)");
+      Check(cuModuleGetFunction(out fSpin, module, "spin"), "cuModuleGetFunction(spin)");
       Check(cuModuleGetFunction(out fAdd, module, "vadd"), "cuModuleGetFunction(vadd)");
       Stage("module loaded");
       // Vector add of 1 Mi floats: c = a + b with a = i, b = 2i.
@@ -135,6 +152,23 @@ DONE:
       for (int k = 0; k < 100; k++) { Check(cuLaunchKernel(fEmpty, 1, 1, 1, 1, 1, 1, 0, IntPtr.Zero, null, IntPtr.Zero), "cuLaunchKernel(empty)"); Check(cuCtxSynchronize(), "cuCtxSynchronize"); }
       double sync = clock.Elapsed.TotalMilliseconds;
       s.AppendLine(String.Format("launch: {0:F2} us per queued launch (1000), {1:F1} us per launch + synchronize (100)", queued, sync * 10));
+      // NVPROBE-style: a 1000-cycle kernel, synchronize after each launch, 1000 launches.
+      IntPtr cyc = Marshal.AllocHGlobal(4); Marshal.WriteInt32(cyc, 1000);
+      IntPtr[] spinArgs = new IntPtr[] { cyc };
+      double[] each = new double[1000];
+      try {
+        for (int k = 0; k < 10; k++) { Check(cuLaunchKernel(fSpin, 1, 1, 1, 1, 1, 1, 0, IntPtr.Zero, spinArgs, IntPtr.Zero), "cuLaunchKernel(spin)"); Check(cuCtxSynchronize(), "cuCtxSynchronize"); }
+        var one = new System.Diagnostics.Stopwatch();
+        for (int k = 0; k < 1000; k++) {
+          one.Restart();
+          Check(cuLaunchKernel(fSpin, 1, 1, 1, 1, 1, 1, 0, IntPtr.Zero, spinArgs, IntPtr.Zero), "cuLaunchKernel(spin)");
+          Check(cuCtxSynchronize(), "cuCtxSynchronize(spin)");
+          each[k] = one.Elapsed.TotalMilliseconds * 1000.0;
+        }
+      } finally { Marshal.FreeHGlobal(cyc); }
+      double total = 0; foreach (double e in each) total += e;
+      Array.Sort(each);
+      s.AppendLine(String.Format("short kernel (1000 cycles, launch + synchronize, 1000x): mean {0:F1} us, median {1:F1} us, p90 {2:F1} us, min {3:F1} us", total / 1000, each[500], each[900], each[0]));
       // Pinned copy bandwidth, 5 copies each way.
       UIntPtr bb = (UIntPtr)((ulong)mib << 20);
       Check(cuMemAllocHost(out host, bb), "cuMemAllocHost"); Check(cuMemAlloc(out big, bb), "cuMemAlloc(big)");
