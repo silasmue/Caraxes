@@ -497,3 +497,18 @@ Runs: `/mnt/vmstore/caraxes/alpha-2026-09-27/windows-plain/<run>/`.
   which never rang (no host channel), and the eviction failed "host context is gone": Xid 45 on
   the management channel. Fixed in 6c566092 (such an eviction frees the host TSG). Smoke's D3D12
   gate timed out in that TDR.
+
+## P31 (2026-09-29 00:58-01:26, UVM A/B; eviction fix 6c566092)
+
+- **Smoke ALL PASS for the first time** (both halves): D3D11, D3D12, vulkaninfo, nvidia-smi,
+  0 nvlddmkm events. No host Xid.
+- **One TDR left (uvm1, 01:03:20):** the KMD's own NVENC channel (chid 8, boot-time, PRIVILEGED)
+  ran in software. The RM sets PRIVILEGED on every kernel-allocated channel
+  (kernel_channel.c 273-283), and video engines have no physical mode: fixed in bac4f5fa
+  (privileged NVENC/NVDEC channels mirrored unprivileged). Depends on: none.
+- **UVM bit A/B (GSP_GET_FEATURES bit 0):** Windows works the same with 0 (managed memory OK,
+  concurrentManagedAccess 0 either way), but CUDA's pinned copies drop from 12.9 to 3.3 GB/s.
+  Per-OS rule (Windows 1, Unix 0) or one value: a decision for the user.
+- **Performance notes (after stability):** the first steps of the PyTorch workloads (17-121 s)
+  are the KMD's paging channel in software: a candidate for a host CE path. NVENC 13-14 fps (boost
+  off) against Linux 89-101 (165 with boost): P32 measures it with the boost on.
