@@ -2020,20 +2020,71 @@ impl Mirror {
         Ok(())
     }
 
-    /// RM teardown stops the exact mirrored TSG and releases its host-owned context.
-    pub fn evict_deferred_context(&mut self, reg: &Registry, chid: u32) -> Result<Vec<String>, String> {
+    /// RM teardown idles the exact mirrored target, harvests its final GPGet and releases
+    /// its host-owned context. Once eviction starts, an error leaves the context present
+    /// but not ready, so no new guest work can be published to it.
+    pub fn evict_deferred_context(
+        &mut self,
+        reg: &Registry,
+        gm: &mut GpuMem,
+        chid: u32,
+    ) -> Result<(Vec<String>, u32), String> {
         let ch = reg.channel(chid).ok_or("deferred target channel is gone")?;
-        let hc = self.channels.get(&chid).filter(|hc| hc.generation == ch.generation)
+        let generation = ch.generation;
+        let client = ch.h_client;
+        let object = ch.h_object;
+        let root = reg.vas_key_of(ch).and_then(|vas| reg.vas_root(vas));
+        let hc = self.channels.get_mut(&chid).filter(|hc| hc.generation == generation)
             .ok_or("deferred target host context is gone")?;
+        if root != hc.shadow_root.map(Target::Fb) {
+            return Err("deferred target VAS changed".into());
+        }
         let key = hc.tsg;
         if reg.channels().filter(|c| tsg_key_of(reg, c).0 == key).count() != 1 {
             return Err("deferred eviction of a multi-channel TSG is not implemented".into());
         }
+        hc.context_ready = false;
+
+        // `FIFO_IDLE_CHANNELS` deschedules the target and waits for its pending engine work,
+        // unlike GPGet (which proves only that PBDMA fetched the entries). Match management
+        // takeover's bounded wait and require a successful completion before freeing RM state.
+        let flags = ((sys::NVOS30_FLAGS_IDLE_PUSH_BUFFER | sys::NVOS30_FLAGS_IDLE_CACHE1
+            | sys::NVOS30_FLAGS_IDLE_ALL_ENGINES) << 8) | sys::NVOS30_FLAGS_BEHAVIOR_SLEEP;
+        let (status, idle_note) = self.idle_channels(reg, &[(client, object)], flags, 100_000)
+            .ok_or("deferred target idle has no host target")?;
+        if status != sys::NV_OK {
+            return Err(idle_note);
+        }
+
+        let ch = reg.channel(chid).filter(|ch| ch.generation == generation)
+            .ok_or("deferred target channel changed while idling")?;
+        if reg.vas_key_of(ch).and_then(|vas| reg.vas_root(vas)) != root
+            || reg.channels().filter(|c| tsg_key_of(reg, c).0 == key).count() != 1 {
+            return Err("deferred target VAS or TSG changed while idling".into());
+        }
+        let hc = self.channels.get(&chid)
+            .filter(|hc| hc.generation == generation && hc.tsg == key)
+            .ok_or("deferred target host context changed while idling")?;
+        let userd = hc.userd.as_ref().ok_or("deferred target has no private USERD")?;
+        let get = userd.storage.read_u32(USERD_GP_GET);
+        if get >= userd.entries {
+            return Err(format!("deferred target final GPGet {get} is outside its {}-entry ring", userd.entries));
+        }
+        let put = userd.storage.read_u32(USERD_GP_PUT);
+        let all_published_work_fetched = userd.published_put == Some(get);
+        let untouched_empty_ring = userd.published_put.is_none()
+            && hc.doorbells == 0
+            && put == get;
+        if !all_published_work_fetched && !untouched_empty_ring {
+            return Err("deferred target still has published work after idling".into());
+        }
+        userd.harvest(gm);
+
         self.worker.wait_all();
-        let mut notes = Vec::new();
+        let mut notes = vec![idle_note];
         if !self.free_tsg(key, &mut notes) { return Err(notes.join("; ")); }
         self.worker.wait_idle();
-        Ok(notes)
+        Ok((notes, get))
     }
 
     pub fn channel(&self, chid: u32) -> Option<&HostChannel> {

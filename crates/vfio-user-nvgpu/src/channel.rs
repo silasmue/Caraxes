@@ -732,6 +732,46 @@ impl Registry {
         Ok(())
     }
 
+    /// Retire a deferred target after its host FIFO is idle, its private USERD has been
+    /// harvested, and its host objects were freed. The harvested GPGet becomes the exact
+    /// software-side position so old host-executed entries are never replayed.
+    pub fn retire_deferred_target(
+        &mut self,
+        chid: u32,
+        generation: u64,
+        gp_get: u32,
+    ) -> Result<(), String> {
+        let ch = self
+            .channels
+            .get_mut(&chid)
+            .ok_or_else(|| format!("chid {chid}: deferred target is gone"))?;
+        if ch.generation != generation {
+            return Err(format!(
+                "chid {chid}: deferred target generation changed from {generation} to {}",
+                ch.generation
+            ));
+        }
+        let entries = ch.gpfifo_entries.max(1);
+        if gp_get >= entries {
+            return Err(format!(
+                "chid {chid}: harvested GPGet {gp_get} is outside {entries} entries"
+            ));
+        }
+        if ch.resume.is_some()
+            || ch.deferred.is_some()
+            || ch.deferred_management
+            || ch.software_failed
+        {
+            return Err(format!(
+                "chid {chid}: deferred target has active software execution state"
+            ));
+        }
+        ch.gp_get = gp_get;
+        ch.gp_put_seen = gp_get;
+        ch.mirrored = false;
+        Ok(())
+    }
+
     /// Validate and immediately apply a takeover. Runtime callers that tear down a host
     /// channel between the two steps use `preview_deferred_takeover` and
     /// `apply_deferred_takeover` directly.
@@ -3563,6 +3603,46 @@ mod tests {
         assert!(ch.mirrored);
         assert_eq!(ch.gp_get, 0);
         assert_eq!(ch.objects, before);
+        std::fs::remove_file(path).ok();
+    }
+
+    #[test]
+    fn deferred_target_retirement_records_only_valid_harvested_position() {
+        let (mut fb, sys, path, mut reg) =
+            software_fixture("deferred-target-retire", &inc(0, 8, &[0]));
+        let generation = reg.channel(9).unwrap().generation;
+        reg.channel_mut(9).unwrap().mirrored = true;
+        let before = {
+            let ch = reg.channel(9).unwrap();
+            (ch.gp_get, ch.gp_put_seen, ch.mirrored)
+        };
+        assert!(reg.retire_deferred_target(9, generation + 1, 1).is_err());
+        assert_eq!(
+            {
+                let ch = reg.channel(9).unwrap();
+                (ch.gp_get, ch.gp_put_seen, ch.mirrored)
+            },
+            before
+        );
+        assert!(reg.retire_deferred_target(9, generation, 32).is_err());
+        assert_eq!(
+            {
+                let ch = reg.channel(9).unwrap();
+                (ch.gp_get, ch.gp_put_seen, ch.mirrored)
+            },
+            before
+        );
+
+        reg.retire_deferred_target(9, generation, 1).unwrap();
+        let ch = reg.channel(9).unwrap();
+        assert_eq!((ch.gp_get, ch.gp_put_seen, ch.mirrored), (1, 1, false));
+        assert!(!reg.pending(
+            &GpuMem {
+                fb: &mut fb,
+                sys: &sys,
+            },
+            9,
+        ));
         std::fs::remove_file(path).ok();
     }
 

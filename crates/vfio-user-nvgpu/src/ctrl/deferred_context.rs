@@ -100,6 +100,21 @@ impl Default for State {
 }
 
 impl State {
+    pub(super) fn target_submission_blocked(&self, reg: &Registry, chid: u32) -> bool {
+        let Some(ch) = reg.channel(chid) else {
+            return false;
+        };
+        self.enabled
+            && ch.engine_type == 1
+            && ch.alloc_flags & (1 << 31) != 0
+            && !self.contexts.iter().any(|(target, context)| {
+                target.chid == chid
+                    && target.generation == ch.generation
+                    && context.promoted
+                    && target.live(reg)
+            })
+    }
+
     pub(super) fn is_management(&self, reg: &Registry, chid: u32) -> bool {
         self.enabled
             && self.management.get(&chid).is_some_and(|generation| {
@@ -383,11 +398,18 @@ impl Dispatcher {
                 {
                     return Err("context has not been promoted".into());
                 }
-                notes.extend(mirror.evict_deferred_context(&self.channels, entry.target.chid)?);
+                // Close the dispatcher gate before teardown. Any failure keeps the
+                // target held, including a partial host FREE failure.
+                state.contexts.get_mut(&entry.target).unwrap().promoted = false;
+                let (evict_notes, final_get) =
+                    mirror.evict_deferred_context(&self.channels, gm, entry.target.chid)?;
+                notes.extend(evict_notes);
+                self.channels.retire_deferred_target(
+                    entry.target.chid,
+                    entry.target.generation,
+                    final_get,
+                )?;
                 state.contexts.remove(&entry.target);
-                if let Some(ch) = self.channels.channel_mut(entry.target.chid) {
-                    ch.mirrored = false;
-                }
             }
         }
         Ok(())
@@ -503,6 +525,61 @@ mod tests {
                 h_object: tsg,
             },
         }
+    }
+
+    #[test]
+    fn target_submission_requires_live_promotion_even_after_eviction_or_reuse() {
+        let mut dispatcher = dispatcher();
+        let (_, target_object, tsg) = add_pair(&mut dispatcher, 1, 3, 4);
+        let target = TargetStamp::resolve(&dispatcher.channels, evict(1, 1, 4, tsg)).unwrap();
+        let blocked = |d: &Dispatcher| d.deferred_context.target_submission_blocked(&d.channels, 4);
+        assert!(blocked(&dispatcher)); // Before any API registration or INIT.
+        assert!(!dispatcher
+            .deferred_context
+            .target_submission_blocked(&dispatcher.channels, 3));
+        dispatcher.deferred_context.contexts.insert(
+            target,
+            Context {
+                size: 0x2000,
+                promoted: false,
+            },
+        );
+        assert!(blocked(&dispatcher));
+        dispatcher
+            .deferred_context
+            .contexts
+            .get_mut(&target)
+            .unwrap()
+            .promoted = true;
+        assert!(!blocked(&dispatcher));
+        dispatcher
+            .deferred_context
+            .contexts
+            .get_mut(&target)
+            .unwrap()
+            .promoted = false;
+        assert!(blocked(&dispatcher)); // Failed eviction must keep the gate closed.
+        dispatcher.deferred_context.contexts.remove(&target);
+        assert!(blocked(&dispatcher)); // Successful eviction cannot rebuild on a doorbell.
+        dispatcher.deferred_context.contexts.insert(
+            target,
+            Context {
+                size: 0x2000,
+                promoted: true,
+            },
+        );
+        dispatcher.channels.record_free(1, target_object);
+        let classes = crate::fixture::rtx2070().chip.data().channel;
+        dispatcher.channels.record_alloc(
+            1,
+            tsg,
+            target_object,
+            classes.gpfifo,
+            &channel_params(4, 1 << 31, 0),
+        );
+        assert!(blocked(&dispatcher)); // A reused ChID cannot inherit promotion.
+        dispatcher.deferred_context.enabled = false;
+        assert!(!blocked(&dispatcher));
     }
 
     #[test]

@@ -116,3 +116,22 @@ channels remain unsupported until explicitly implemented.
   the trace's RC Xid 45 is the emulator's explicit guest failure for method 0x50.
 - Artifacts: alpha-2026-09-27/windows-plain/P7-software-object-id/.
 - Rendering remains unvalidated.
+
+## P8 interrupted; lifecycle correction
+
+- Base 9a47c54b; binary SHA-256:
+  d8988140d5e3ee1644dc1df743c583b58f1cb8edda49e41a9204e11467f935ea.
+- SET_REFERENCE and the exact captured C597 release are implemented. Software
+  tests verify no release before both deferred completions, including failure.
+- Review found that EVICT could free a busy target without an explicit idle and
+  then allow its next doorbell to recreate a context without INIT/PROMOTE.
+- P8 was stopped before deferred registration/execution. This run provides no
+  runtime validation of the new reference/report code. No new host Xid observed.
+- The correction adds a dispatcher gate for all experimental GR skip-context
+  targets, including before registration and after eviction. Only a live,
+  promoted context can submit. EVICT closes the gate before attempting teardown.
+- Target eviction requires exact-channel FIFO_IDLE_CHANNELS success, final
+  private USERD harvest, and checked synchronization of the software GPGet.
+  Failed eviction keeps submissions held; successful eviction cannot replay
+  already executed entries or bypass the next context lifecycle.
+- Artifacts: alpha-2026-09-27/windows-plain/P8-ordered-report/.

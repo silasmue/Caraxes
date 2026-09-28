@@ -692,6 +692,11 @@ impl Dispatcher {
         if self.deferred_context.is_management(&self.channels, chid) {
             return self.run_deferred_management(gm, chid, &off);
         }
+        if self.deferred_context.target_submission_blocked(&self.channels, chid) {
+            return vec![format!(
+                "deferred target chid {chid}: submission held until context promotion"
+            )];
+        }
         let Some(m) = self.mirror.as_mut() else {
             return self.channels.doorbell_except(gm, token, &off);
         };
