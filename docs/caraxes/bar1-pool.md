@@ -428,7 +428,8 @@ then on, 0 Xid): cuMemAlloc 64 x 1 MiB 175 to 200 us, cuMemFree 282 to 312 us; c
 16.3 ms; the short-kernel launch unchanged (0.019 to 0.020 ms). Large allocations pay the apply
 time of their mappings that lazy mode used to hide. A cheaper variant that stays fail closed:
 hold only plans that map something new (an unmap may stay deferred, the guest issues no work on
-a VA it freed, and a stale shadow mapping still points into this VM's reservation); not built.
+a VA it freed, and a stale shadow mapping still points into this VM's reservation); built
+the same day, §9.1.
 
 Tests (`cargo test -p vfio-user-nvgpu`, 349 plus 2):
 - `untrapped::tests::an_invalidate_of_a_root_with_an_untrapped_userd_is_held`,
@@ -454,6 +455,67 @@ Tests (`cargo test -p vfio-user-nvgpu`, 349 plus 2):
 - `gate-610` (vm3, the gate610 environment): nvml pass but the known power-number; cuda 10 of 11
   (cuda-managed 801); convburn passes; 829 invalidates held (1.2 s); pool as on 615.
 
+### 9.1 The refinement: hold only plans that add or change mappings (2026-09-25)
+
+> **Not ported to dev (history merge of 2026-09-28):** the code below conflicts with dev's held invalidate (invgate.rs, execution.md §8) and its reworked shadow build; the reasons and a port proposal are in `/mnt/vmstore/caraxes/cleanup-2026-09-28/merge-notes.md`.
+
+Records: `caraxes/runs/opt-ctxcreate-2026-09-25/` (`part1`, `part1-allocburn`, `after-allocburn`,
+`final-allocburn`; README there). Design and numbers of the context creation: ctx-create.md.
+
+**The argument.** The fault of §9 needs a VA that the guest maps and the shadow does not: a
+host channel that runs ahead writes a fresh region before the invalidate's plan is applied.
+A plan that only removes mappings cannot produce that state:
+- Before such a plan is applied, the shadow holds every leaf of the guest's new tables with the
+  same target, size and kind (the update removed leaves, it added or changed none), plus the
+  leaves the guest dropped. Every VA the guest still maps therefore resolves in the shadow to
+  what the guest's tables say. No FAULT_PDE or FAULT_PTE is possible on a VA the guest maps.
+- The extra leaves are VAs the guest freed. The guest issues no work on them. Each was
+  validated into this VM's reservation or registered RAM when it was made (D16/D17), so a stale
+  one reaches only this VM's memory, as under lazy mode's deferral.
+- The worker applies jobs in order. A later plan that adds a mapping is held, and it waits for
+  the earlier removal as well (`wait_all`).
+
+A change of a mapping (same VA, another target, size or kind) counts as adding, and so do a full
+walk, a truncated walk, a pool re-diff and a changed set-B exclusion.
+
+**The build.**
+- `ptcache::leaves_grew` (`ptcache.rs:123`) and `Update::grew` (`ptcache.rs:154`): whether a
+  changed unit holds a leaf it did not hold before.
+- `Plan::adds` (`shadow.rs:681`): `grew`, or a full walk, a truncated walk, a pool move or an
+  exclusion change.
+- The held path of `Mirror::shadow_invalidated` (`mirror.rs:598-633`) plans the named untrapped
+  roots, plus the ones lazy mode deferred for them (`LazyPlans::take_roots`, `lazy.rs:184`). Other
+  roots stay deferred. It waits for the worker only when a plan adds
+  (`untrapped::must_wait`, `untrapped.rs:68`). Otherwise it counts the invalidate as passed.
+- The worker tracks the last job that may add (`ShadowWorker::adds_seq`, `mirror.rs`
+  `submit`). The ran-ahead evidence counts a doorbell as "with plans pending" only when an adding
+  plan is in the worker or a deferred batch still owes the channel's own root a plan
+  (`LazyPlans::owes_plan`, `lazy.rs:221`).
+- `CARAXES_SHADOW_UNTRAPPED_HOLD=0` is still the off switch. The exit line counts held and passed
+  invalidates separately.
+
+**Tests.**
+- `untrapped::tests::a_plan_that_only_removes_mappings_cannot_fault_a_run_ahead_channel`
+  (`untrapped.rs:222`) runs the scenario of §9 on the shadow front: a cuMemFree (a PTE cleared)
+  is not held, and every VA the guest still maps resolves in the unapplied shadow. A cuMemAlloc
+  of a fresh 2 MiB region is held, and without the hold the fresh region would fault. A remap of
+  the same VA is held.
+- `ptcache::tests::an_update_that_only_removes_leaves_does_not_grow` (`ptcache.rs:740`) and
+  `leaves_grew_compares_whole_leaves` (`ptcache.rs:783`).
+- `lazy::tests::the_rule_takes_only_its_roots_out_of_the_batch` (`lazy.rs:397`).
+
+**Results** (vm3, 610 guest, the recommended configuration, 20 iterations of convburn plus
+`allocburn.py`, the reproduction of §9):
+- `part1-allocburn` (3880068): 20 of 20 pass, 0 host Xid, 0 refused barriers. 58827 invalidates
+  held (68.1 s), 122673 passed without a wait (1.6 s of planning); before the refinement all
+  181500 were held. 4555 ran-ahead doorbells, none with plans pending.
+- `after-allocburn` (9f712dc): 20 of 20, 0 Xid, 0 refused barriers. One ran-ahead doorbell was
+  logged "with plans pending" by the old counter; a8b3a54 narrowed the counter to the channel's
+  own root.
+- `final-allocburn` (a8f66e3): @FINAL_ALLOCBURN@
+- Cost: frees get their lazy cost back. bench-cu churn cuMemFree 64 MiB 2.6 ms (`before`) to
+  1.0 to 1.2 ms (`part1`, `after`), census cuMemFree 64 MiB 5.4 to 1.6 ms. Allocations and
+  context creation keep their held plans (ctx-create.md §5).
 ## 10. Page-table pages and aliased pages in the area (2026-09-25)
 
 Record: the black Sunshine stream of the 615 game VM,
