@@ -115,6 +115,23 @@ pub fn video_class_ok(chip: &ChipData, class: u32) -> bool {
         && chip.classes.as_ref().is_some_and(|db| db.ids.contains(&class))
 }
 
+/// `NV50_DEFERRED_API_CLASS`: the software object the Windows KMD allocates on every channel.
+/// Its deferred calls run only on the KMD's management channel, which the device executes
+/// itself (ctrl/deferred_context.rs); on any other channel it is an inert object, which the
+/// host channel gets too (as a GR channel's) so that the guest's SET_OBJECT of it resolves.
+pub const DEFERRED_API_CLASS: u32 = 0x5080;
+
+/// The first engine object of a video channel that is neither a video class of `chip` nor
+/// the KMD's deferred-API object (fail closed: such a channel stays in software). Run
+/// P29b: Windows' NVENC/NVDEC channels carry 0x5080 beside NVC4B7/NVC4B0; refusing them
+/// left every encode and decode session in software (ffmpeg EINVAL, then a TDR).
+pub fn video_channel_foreign_class(chip: &ChipData, classes: &[(u32, Vec<u8>)]) -> Option<u32> {
+    classes
+        .iter()
+        .map(|(c, _)| *c)
+        .find(|c| *c != DEFERRED_API_CLASS && !video_class_ok(chip, *c))
+}
+
 /// The engine a video channel with no video object yet is bound to at its build
 /// (`gr_shadow_doorbell`): its own engine type, when that is a video engine.
 pub fn video_bind(chip: &ChipData, ch: &Channel) -> Option<u32> {
@@ -3190,11 +3207,7 @@ impl Mirror {
         }
         // Fail closed: a video channel carries only the chip's own video classes.
         if let Some(engine) = video {
-            if let Some((c, _)) = ch
-                .engine_objects
-                .iter()
-                .find(|(c, _)| !video_class_ok(self.chip, *c))
-            {
+            if let Some(c) = video_channel_foreign_class(self.chip, &ch.engine_objects) {
                 return Err(format!(
                     "{engine} channel carries class {c:#x}, not a video class of this chip: refused, stays with the software executor"
                 ));
@@ -5910,6 +5923,35 @@ mod tests {
         assert!(!video_class_ok(chip, 0xC5C0));
         assert_eq!(NOTIFIER_NVENC0 | EVENT_NONSTALL, 0x0800_0026);
         assert_eq!(NOTIFIER_NVDEC0 | EVENT_NONSTALL, 0x0800_000E);
+    }
+
+    /// Run P29b: a Windows video channel carries the KMD's deferred-API object beside its
+    /// video class, and is mirrored; any other foreign class still keeps it in software.
+    #[test]
+    fn a_video_channel_may_carry_the_deferred_api_object() {
+        let chip = crate::fixture::rtx2070().chip.data();
+        let obj = |c: u32| (c, Vec::new());
+        assert_eq!(video_channel_foreign_class(chip, &[obj(0xC4B7)]), None);
+        assert_eq!(
+            video_channel_foreign_class(chip, &[obj(DEFERRED_API_CLASS), obj(0xC4B7)]),
+            None
+        );
+        assert_eq!(
+            video_channel_foreign_class(chip, &[obj(DEFERRED_API_CLASS), obj(0xC4B0)]),
+            None
+        );
+        assert_eq!(
+            video_channel_foreign_class(chip, &[obj(DEFERRED_API_CLASS)]),
+            None
+        );
+        assert_eq!(
+            video_channel_foreign_class(chip, &[obj(DEFERRED_API_CLASS), obj(0xC5B5)]),
+            Some(0xC5B5)
+        );
+        assert_eq!(
+            video_channel_foreign_class(chip, &[obj(0xC4B7), obj(0xC5C0)]),
+            Some(0xC5C0)
+        );
     }
 
     /// A video channel with no video object yet is bound to its own engine at its build
