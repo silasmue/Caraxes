@@ -512,3 +512,37 @@ Runs: `/mnt/vmstore/caraxes/alpha-2026-09-27/windows-plain/<run>/`.
 - **Performance notes (after stability):** the first steps of the PyTorch workloads (17-121 s)
   are the KMD's paging channel in software: a candidate for a host CE path. NVENC 13-14 fps (boost
   off) against Linux 89-101 (165 with boost): P32 measures it with the boost on.
+- **Decision (2026-09-29): the per-OS UVM rule stays** (Windows 1, Unix 0; the device decides
+  from the guest's OS type at GSP_INIT, no switch). Reason, the A/B of P31:
+
+  | | bit 0 = 1 (P31-uvm1) | bit 0 = 0 (P31-uvm0) |
+  |---|---|---|
+  | D3D11 / D3D12 / vulkaninfo | PASS / PASS / 0 | PASS / PASS / 0 |
+  | managedMemory, concurrentManagedAccess | 1, 0 | 1, 0 |
+  | managed 64 MiB CPU write, kernel +1, CPU check | ok | ok |
+  | smoke | ALL PASS | ALL PASS |
+  | pinned HtoD / DtoH (64 MiB x5) | 12.8 / 12.9 GB/s | 3.27 / 3.33 GB/s |
+  | llama 1B pp512 / tg128 | 5857 / 197 (vkmark beside) | 5822 / 219 |
+  | transformer tokens/s | 81776 (vkmark beside) | 84777 |
+
+## P32 (2026-09-29 01:22-01:38, P32-boost: privileged video channels mirrored, host boost on)
+
+- **No host Xid, no RC, no TDR, 0 nvlddmkm events; smoke ALL PASS.** The KMD's NVENC/NVDEC
+  channels run on the host (8 build notes, no fault).
+- **CUDA:** HtoD 12.9 GB/s, DtoH 13.0 GB/s; short kernel median 58.7 us, launch + sync 123 us;
+  managed memory OK.
+- **Media (boost on):** NVENC H.264 21 fps, HEVC 22 fps; NVDEC 30-40 fps (P31 boost off: 13/6,
+  25-36). Still far below Linux (165/128 with the boost). The source is ffmpeg's testsrc2 generated
+  on the guest CPU and uploaded through the driver: the next thing to measure (a probe with frames
+  already in video memory, as Linux's nvenc-probe does).
+- **Workloads, boost on (Linux B idle):**
+
+  | workload | native | Linux B (cb4974fc) | Windows P32 |
+  |---|---|---|---|
+  | short kernel, us/launch | 6 | 13-20 | 58.7 (median) |
+  | llama 1B pp512 / tg128 | 7639 / 305 | 7084 / 242 | 5931 ± 3172 / 176.7 |
+  | llama 7B -ngl 20 pp512 / tg128 | 1085 / 16.6 | 914 / 11.4 | 542 ± 197 / 15.8 |
+  | transformer tokens/s | 107485 | 105625 | 83769 |
+  | ResNet-18 images/s | 532.5 | crashed | 341.7 (first step 98 s) |
+
+- Teardown exit 3 at stop: P17 diagnostic only (owned GFXP), as noted.
