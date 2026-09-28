@@ -1346,6 +1346,19 @@ impl Dispatcher {
     }
 
     fn control_inner(&mut self, h_client: u32, h_object: u32, cmd: u32, params: &[u8]) -> Answer {
+        if self.mirror.is_some()
+            && (cmd == crate::recorded::GR_GFX_POOL_QUERY_SIZE
+                || crate::recorded::GR_GFX_POOL_MANAGE.contains(&cmd))
+        {
+            // The bootstrap answers size and acknowledge a pool without constructing
+            // one. They cannot describe an executable host-backed graphics context.
+            return Answer {
+                status: NV_ERR_NOT_SUPPORTED,
+                params: params.to_vec(),
+                label: "refused (host GFXP pool is not implemented)",
+                note: format!("gfx pool {cmd:#x}: no host pool lifecycle; bootstrap acknowledgement disabled"),
+            };
+        }
         if matches!(cmd, 0x5080_0101..=0x5080_0104)
             && self.deferred_context.enabled {
             return self.register_deferred(h_client, h_object, cmd, params);

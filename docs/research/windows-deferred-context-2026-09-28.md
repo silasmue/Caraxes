@@ -168,7 +168,7 @@ remain unsupported on management channels.
 
 - Base b9632a8e; binary SHA-256:
   cee7b7177d6743095781eb653713c1ba3c459108de08ee2582ff30ad719f7dac.
-- Eight binds captured. Flags 2 select graphics mode; gfxp mode 2 requests
+- Seven binds captured. Flags 2 select graphics mode; gfxp mode 2 requests
   GFXP_POOL. Compute mode is not selected. Padding and route info are zero.
 - First request's nonzero buffers: CONTEXT_POOL 0x120800000,
   CONTEXT_POOL_CONTROL 0x12010d000, CONTEXT_POOL_CONTROL_CPU
@@ -181,4 +181,21 @@ remain unsupported on management channels.
   correction so the stock guest can choose an implemented mode.
 - VM stopped. No new host Xid. No new D3D probe in this capture-only run.
 - Artifacts: alpha-2026-09-27/windows-plain/P10-preemption-capture/,
-  including preemption.json with all eight exact payloads.
+  including preemption.json with all seven exact payloads.
+
+## P11: host context mode verified
+
+- Base 63066e66; binary SHA-256:
+  711790cb2d5ad66db65953ce655ebb1475c4df5dd5a1bdee5198e59498ab7129.
+- Read-only GR_GET_CTXSW_MODES on each exact owned, promoted host context
+  returns NV_OK, graphics WFI (0), compute WFI (0), zcull 1.
+- This does not implement Windows' requested pooled graphics preemption (2).
+  No guest handles, virtual addresses or CPU pointers were forwarded by the query.
+- Separate bug: recorded.rs supplies estimated pool sizing and acknowledges
+  INITIALIZE/ADD/REMOVE under the bootstrap assumption that no GR work executes.
+  Those overrides also ran in host-backed mode. The host path now refuses these
+  controls before recorded overrides; no unconstructed pool is reported ready.
+- Next run tests whether the stock driver handles that refusal with a supported
+  fallback. If it requires pooled preemption, an actual pool implementation is needed.
+- VM stopped; no new host Xid.
+- Artifacts: alpha-2026-09-27/windows-plain/P11-host-preemption-modes/.
