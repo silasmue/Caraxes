@@ -1094,6 +1094,15 @@ impl FakeFb {
         u
     }
 
+    /// The generation of the cached walk of `root` (ptcache.rs `WalkCache::generation`),
+    /// `None` without one: unchanged while no update changed its leaves.
+    pub fn walk_generation(&self, root: Target) -> Option<u64> {
+        self.walks
+            .borrow()
+            .get(&Self::watch_key(root))
+            .map(|c| c.generation())
+    }
+
     /// Run `f` on the cached walk of `root` (after [`Self::walk_update`]).
     pub fn with_walk<R>(
         &self,

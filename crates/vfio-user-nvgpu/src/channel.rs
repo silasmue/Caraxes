@@ -420,6 +420,12 @@ pub struct Registry {
     aliases: BTreeMap<(u32, u32), (u32, u32)>,
     /// (hChanClient, hObject) → promoted context buffers by buffer id.
     promoted: BTreeMap<(u32, u32), BTreeMap<u16, PromoteEntry>>,
+    /// The generation of what a shadow root's set B is computed from here (mirror.rs
+    /// `exclusions_of`): the channels, how their VA spaces resolve to a root (`vaspaces`,
+    /// `aliases`, `default_vas`, `device_vas`, `client_device`, `client_share`) and the
+    /// promoted buffers. A fresh stamp (ptcache.rs `fresh_generation`) at every change of
+    /// those ([`Self::set_b_changed`]); [`Self::channel_mut`] callers change none of them.
+    set_b_gen: u64,
     /// (hClient, hVASpace) of a `FERMI_VASPACE_A` with `index` GPU_DEVICE → its device:
     /// the kernel announces a device's default VAS to GSP through such a transient
     /// handle, `COPY_SERVER_RESERVED_PDES` on it and its FREE
@@ -497,6 +503,7 @@ impl Registry {
             ctxshares: BTreeMap::new(),
             aliases: BTreeMap::new(),
             promoted: BTreeMap::new(),
+            set_b_gen: crate::ptcache::fresh_generation(),
             device_vas: BTreeMap::new(),
             default_vas: BTreeMap::new(),
             client_device: BTreeMap::new(),
@@ -902,6 +909,9 @@ impl Registry {
         )
     }
 
+    /// The channel's run state (`mirrored`, `stopped`, ...). Its identity (`h_client`,
+    /// `h_object`, `h_parent`, `vas`) is a set-B input ([`Self::set_b_generation`]) that only
+    /// the `record_*` calls change.
     pub fn channel_mut(&mut self, chid: u32) -> Option<&mut Channel> {
         self.channels.get_mut(&chid)
     }
@@ -1049,10 +1059,38 @@ impl Registry {
             return None;
         }
         self.aliases.insert(dst, src);
+        self.set_b_changed();
         Some(format!(
             "vaspace alias {:#x}/{:#x} -> {:#x}/{:#x} [guest]",
             dst.0, dst.1, src.0, src.1
         ))
+    }
+
+    /// The generation of what a shadow root's set B is computed from here (the channels,
+    /// how their VA spaces resolve to a root, their promoted buffers): while it stands, so
+    /// does set B (mirror.rs `SetBStamp`).
+    pub fn set_b_generation(&self) -> u64 {
+        self.set_b_gen
+    }
+
+    /// A set-B input changed ([`Self::set_b_gen`]).
+    fn set_b_changed(&mut self) {
+        self.set_b_gen = crate::ptcache::fresh_generation();
+    }
+
+    /// The sizes of the set-B inputs [`Self::record_free`] only removes from: a change of
+    /// one of them is a removal.
+    fn set_b_shape(&self) -> [usize; 8] {
+        [
+            self.channels.len(),
+            self.vaspaces.len(),
+            self.aliases.len(),
+            self.promoted.len(),
+            self.device_vas.len(),
+            self.default_vas.len(),
+            self.client_device.len(),
+            self.client_share.len(),
+        ]
     }
 
     /// The promoted context buffers of a channel or TSG (part 2 input).
@@ -1067,6 +1105,7 @@ impl Registry {
             rd32(params, v::PROMOTE_H_OBJECT),
         );
         let n = (rd32(params, v::PROMOTE_ENTRY_COUNT) as usize).min(v::PROMOTE_MAX_ENTRIES);
+        self.set_b_changed();
         let map = self.promoted.entry(key).or_default();
         let mut desc = Vec::new();
         for i in 0..n {
@@ -1148,6 +1187,7 @@ impl Registry {
             NV01_DEVICE_0_CLASS => {
                 // A client handle can be reused after FREE. Every new device allocation
                 // replaces its sharing relationship, including an unshared allocation.
+                self.set_b_changed();
                 if let Some(old) = self.client_device.insert(h_client, h_object) {
                     if old != h_object {
                         self.default_vas.remove(&(h_client, old));
@@ -1169,6 +1209,7 @@ impl Registry {
                     self.device_vas.insert((h_client, h_object), h_parent);
                 }
                 self.vaspaces.insert((h_client, h_object), None);
+                self.set_b_changed();
                 self.vas_params
                     .insert((h_client, h_object), params.to_vec());
                 Some(format!(
@@ -1308,6 +1349,7 @@ impl Registry {
                     ));
                 }
                 self.channels.insert(chid, ch);
+                self.set_b_changed();
                 Some(note)
             }
             // An engine object (copy, compute, the UVM SW class, ...) under a channel:
@@ -1396,6 +1438,7 @@ impl Registry {
     /// Forget a freed object (a freed client takes its objects with it). Returns the trace
     /// notes of VA spaces kept under a surviving DUP alias (`rehome_duplicated_vas`).
     pub fn record_free(&mut self, h_client: u32, h_object: u32) -> Vec<String> {
+        let shape = self.set_b_shape();
         let mut notes = self.rehome_duplicated_vas(h_client, h_object);
         let all = h_client == h_object;
         let device_gone = all || self.client_device.get(&h_client) == Some(&h_object);
@@ -1459,6 +1502,11 @@ impl Registry {
             self.client_share
                 .retain(|c, share| *c != h_client && *share != h_client);
         }
+        // Past the re-homes above (which note their changes), a free only removes: a set-B
+        // input changed exactly when one of them shrank.
+        if self.set_b_shape() != shape {
+            self.set_b_changed();
+        }
         notes
     }
 
@@ -1482,6 +1530,7 @@ impl Registry {
         let mut notes = Vec::new();
         for dev in devices {
             self.vaspaces.insert(dev, root);
+            self.set_b_changed();
             self.pdb_watch.copy(old, dev);
             if let Some(entries) = entries {
                 self.root_entries.insert(dev, entries);
@@ -1527,6 +1576,7 @@ impl Registry {
             let Some(&heir) = heirs.first() else {
                 continue;
             };
+            self.set_b_changed();
             self.aliases.remove(&heir);
             for d in &heirs[1..] {
                 self.aliases.insert(*d, heir);
@@ -1677,6 +1727,7 @@ impl Registry {
             ));
         }
         self.default_vas.insert(dev, vas);
+        self.set_b_changed();
         Ok(format!(
             "device {h_device:#x} default vaspace {h_vas:#x} (live key {:#x}/{:#x}) [guest]",
             vas.0, vas.1
@@ -1716,6 +1767,7 @@ impl Registry {
         let h_vas = rd32(params, v::UNSET_PD_H_VASPACE);
         let key = self.resolve((h_client, h_vas));
         self.vaspaces.insert(key, None);
+        self.set_b_changed();
         format!("unset page directory: vaspace {h_vas:#x} [guest]")
     }
 
@@ -1726,6 +1778,7 @@ impl Registry {
     /// Record `root` for VAS key `key`; the watch of the guest's invalidates follows.
     fn put_root(&mut self, key: (u32, u32), root: Option<Target>) {
         self.vaspaces.insert(key, root);
+        self.set_b_changed();
         self.pdb_watch.set_root(key, root);
     }
 

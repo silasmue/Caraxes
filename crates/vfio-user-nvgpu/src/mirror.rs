@@ -577,14 +577,68 @@ struct ShadowSpace {
     front: crate::shadow::ShadowFront,
     vas: u32,
     exclude: Vec<(u64, u64)>,
+    /// The inputs `exclude` was last computed from ([`GlobalExtents::refresh`]); `None`:
+    /// compute it again at the next refresh.
+    set_b_stamp: Option<SetBStamp>,
     /// Set-B ranges of guest channels already freed, held by the host TSG that still
     /// stands for their GR context ([`held_at_free`]); released at that TSG's host free.
+    /// Changed only through [`ShadowSpace::hold`] and [`ShadowSpace::release`].
     held: BTreeMap<TsgKey, Vec<(u64, u64)>>,
     /// Host-private ordinary-GFXP buffers mapped in this VAS. These ranges stay out of
-    /// the guest shadow even after a partial allocation or cleanup failure.
+    /// the guest shadow even after a partial allocation or cleanup failure. Changed only
+    /// through [`ShadowSpace::add_private`] and [`ShadowSpace::drop_private`].
     private: BTreeMap<TsgKey, Vec<(u64, u64)>>,
     chids: std::collections::BTreeSet<u32>,
     tsgs: std::collections::BTreeSet<TsgKey>,
+}
+
+impl ShadowSpace {
+    fn new(front: crate::shadow::ShadowFront, vas: u32) -> Self {
+        ShadowSpace {
+            front,
+            vas,
+            exclude: Vec::new(),
+            set_b_stamp: None,
+            held: BTreeMap::new(),
+            private: BTreeMap::new(),
+            chids: Default::default(),
+            tsgs: Default::default(),
+        }
+    }
+
+    /// Hold `ranges` out of set A for host TSG `key` ([`held_at_free`]).
+    fn hold(&mut self, key: TsgKey, ranges: Vec<(u64, u64)>) {
+        let e = self.held.entry(key).or_default();
+        e.extend(ranges);
+        e.sort_unstable();
+        e.dedup();
+        self.set_b_stamp = None;
+    }
+
+    /// The ranges held for host TSG `key`, released back to set A.
+    fn release(&mut self, key: TsgKey) -> Option<Vec<(u64, u64)>> {
+        let r = self.held.remove(&key);
+        if r.is_some() {
+            self.set_b_stamp = None;
+        }
+        r
+    }
+
+    /// A host-private range `[va, end)` of host TSG `key`, kept out of set A at once.
+    fn add_private(&mut self, key: TsgKey, va: u64, end: u64) {
+        self.private.entry(key).or_default().push((va, end));
+        self.exclude.push((va, end));
+        self.exclude.sort_unstable();
+        self.exclude.dedup();
+        self.set_b_stamp = None;
+    }
+
+    /// Forget the host-private ranges of host TSG `key`.
+    fn drop_private(&mut self, key: TsgKey) {
+        if self.private.remove(&key).is_some() {
+            self.set_b_stamp = None;
+        }
+    }
 }
 
 struct HostTsg {
@@ -771,6 +825,8 @@ struct GlobalCtxSizeCache {
     by_engine: BTreeMap<u32, Option<u64>>,
     queries: u64,
     hits: u64,
+    /// Answers not cached (a possibly transient error): asked again at the next use.
+    retries: u64,
 }
 
 impl GlobalCtxSizeCache {
@@ -812,8 +868,15 @@ impl GlobalCtxSizeCache {
         let size = (status == sys::NV_OK && raw != 0).then(|| u64::from(raw));
         if status == sys::NV_OK || status == sys::NV_ERR_NOT_SUPPORTED {
             self.by_engine.insert(engine_id, size);
+        } else {
+            self.retries += 1;
         }
         size
+    }
+
+    /// Engine results cached so far: a new one may change a size (part of [`SetBStamp`]).
+    fn cached(&self) -> usize {
+        self.by_engine.len()
     }
 
     fn summary(&self) -> String {
@@ -822,6 +885,185 @@ impl GlobalCtxSizeCache {
             self.queries,
             self.hits,
             self.by_engine.len()
+        )
+    }
+}
+
+/// The inputs of a shadow root's set B by generation ([`GlobalExtents::refresh`]), besides
+/// the root's held and private ranges (whose change clears [`ShadowSpace::set_b_stamp`]):
+/// while they stand, so does set B, and a doorbell reuses it instead of computing it again.
+/// The computation walks every channel's promoted buffers and the guest's walk around each
+/// global buffer: 10 µs, twice per doorbell, for a CUDA context whose eight GR channels
+/// promote ten global buffers each (the 2026-09-28 latency run: the doorbell's plan step at
+/// 20.6 µs p50, 0.2 µs on 2026-09-25; `bench_set_b_clean_doorbell`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct SetBStamp {
+    /// The registry's channels, their VA-space resolution and their promoted buffers
+    /// (channel.rs `Registry::set_b_generation`).
+    registry: u64,
+    /// The guest's cached walk of the root (`None`: none), which clips a global buffer's
+    /// exclusion ([`global_exclusion`], ptcache.rs `WalkCache::generation`).
+    walk: Option<u64>,
+    /// The host's global context sizes cached so far ([`GlobalCtxSizeCache::cached`]).
+    sizes: usize,
+}
+
+/// The host side of the set-B computation: the global context sizes and the clip of each
+/// size-0 global buffer (run P19) with its one-time WARN. Interior mutability keeps the
+/// exclusion walkers read-only; `Mirror` itself is serialized by the Device mutex.
+#[derive(Default)]
+struct GlobalExtents {
+    /// Immutable global-context sizes of this mirror's physical host GPU. A new host RM
+    /// device gets a new `Mirror` and an empty cache.
+    sizes: RefCell<GlobalCtxSizeCache>,
+    /// The exclusion end of each size-0 global buffer by (shadow root, VA), as last computed
+    /// with the guest's walk ([`global_exclusion`]); used where no walk is at hand (a free).
+    clips: RefCell<BTreeMap<(u64, u64), u64>>,
+    /// Clips already reported by (root, VA, end): one WARN each.
+    clip_seen: RefCell<std::collections::BTreeSet<(u64, u64, u64)>>,
+    /// WARN lines not yet in the trace ([`Self::refresh`] hands them out).
+    clip_notes: RefCell<Vec<String>>,
+    /// Refreshes that reused set B (no input changed), and those that computed it.
+    reused: std::cell::Cell<u64>,
+    computed: std::cell::Cell<u64>,
+}
+
+/// How the host answers a global context size: `(buffer id, FIFO engine id)` to
+/// `(status, size)` (`Mirror::host_ctx_size`).
+type CtxSizeQuery<'a> = &'a dyn Fn(u16, u32) -> (u32, u32);
+
+impl GlobalExtents {
+    /// The size of global GR buffer `buffer_id` on the host ([`GlobalCtxSizeCache`]).
+    fn size(&self, buffer_id: u16, query: CtxSizeQuery) -> Option<u64> {
+        self.sizes
+            .borrow_mut()
+            .get_or_query(buffer_id, |engine| query(buffer_id, engine))
+    }
+
+    /// The exclusion size of size-0 global buffer `buffer_id` at `va` on shadow root `root`
+    /// ([`global_exclusion`]): with the guest's cached walk when `fb` is given, else the
+    /// last such result (or the unclipped extent). A clip is logged once as a WARN.
+    fn extent(
+        &self,
+        fb: Option<&FakeFb>,
+        root: u64,
+        buffer_id: u16,
+        va: u64,
+        query: CtxSizeQuery,
+    ) -> Option<u64> {
+        let raw = self.size(buffer_id, query)?;
+        let Some(fb) = fb else {
+            let end = self.clips.borrow().get(&(root, va)).copied();
+            return Some(end.unwrap_or_else(|| global_exclusion(va, raw, |_, _| None).0) - va);
+        };
+        let (end, clip) = global_exclusion(va, raw, |lo, hi| guest_first_mapped(fb, root, lo, hi));
+        self.clips.borrow_mut().insert((root, va), end);
+        if clip != GlobalClip::Full && self.clip_seen.borrow_mut().insert((root, va, end)) {
+            let line = match clip {
+                GlobalClip::Cut { at } => format!(
+                    "WARN: shadow root {root:#x}: global buffer {buffer_id} at {va:#x}: set-B exclusion cut short at {at:#x} by a guest-mapped page (host size {raw:#x}, footprint to {:#x}, 64 KiB extent to {:#x}) [set B]",
+                    va + host_footprint(raw),
+                    va + ((raw + 0xFFFF) & !0xFFFF)
+                ),
+                GlobalClip::Overlap { at } => format!(
+                    "WARN: shadow root {root:#x}: global buffer {buffer_id} at {va:#x}: the guest maps {at:#x} inside the host's footprint [{va:#x}, {end:#x}) (host size {raw:#x}): kept out of set A, that page is not mirrored [set B]"
+                ),
+                GlobalClip::Full => unreachable!(),
+            };
+            eprintln!("vfio-user-nvgpu: {line}");
+            self.clip_notes.borrow_mut().push(line);
+        }
+        Some(end - va)
+    }
+
+    /// The set-B exclusions of shadow root `root` now: the live channels'
+    /// ([`exclusions_of`]), and with the root's shadow `space` the ranges held for a host
+    /// TSG not yet freed ([`set_b_with_held`]) and its private ones. Every GR channel of a
+    /// context promotes the same global buffers (a CUDA context: eight channels, ten
+    /// buffers), so each `(buffer id, VA)` is sized and clipped once per computation.
+    fn set_b(
+        &self,
+        reg: &Registry,
+        root: u64,
+        fb: Option<&FakeFb>,
+        space: Option<&ShadowSpace>,
+        query: CtxSizeQuery,
+    ) -> Vec<(u64, u64)> {
+        let once: RefCell<BTreeMap<(u16, u64), Option<u64>>> = RefCell::new(BTreeMap::new());
+        let live = exclusions_of(reg, root, |id, va| {
+            if let Some(e) = once.borrow().get(&(id, va)) {
+                return *e;
+            }
+            let e = self.extent(fb, root, id, va, query);
+            once.borrow_mut().insert((id, va), e);
+            e
+        });
+        match space {
+            Some(sp) => {
+                let mut out = set_b_with_held(live, &sp.held);
+                out.extend(sp.private.values().flatten().copied());
+                out.sort_unstable();
+                out.dedup();
+                out
+            }
+            None => live,
+        }
+    }
+
+    /// The stamp of set B of `root` from the inputs as they are now.
+    fn stamp(&self, reg: &Registry, root: u64, fb: &FakeFb) -> SetBStamp {
+        SetBStamp {
+            registry: reg.set_b_generation(),
+            walk: fb.walk_generation(Target::Fb(root)),
+            sizes: self.sizes.borrow().cached(),
+        }
+    }
+
+    /// Recompute set B of shadow root `root` (its shadow `sp`, with the guest's cached walk
+    /// from `fb`, [`global_exclusion`]) unless no input changed since the last time
+    /// ([`SetBStamp`]: then O(1), the doorbell of a root where nothing changed); the notes,
+    /// and whether set B changed.
+    fn refresh(
+        &self,
+        reg: &Registry,
+        root: u64,
+        fb: &FakeFb,
+        sp: &mut ShadowSpace,
+        query: CtxSizeQuery,
+    ) -> (Vec<String>, bool) {
+        if sp.set_b_stamp.is_some_and(|s| s == self.stamp(reg, root, fb)) {
+            self.reused.set(self.reused.get() + 1);
+            return (self.take_notes(), false);
+        }
+        self.computed.set(self.computed.get() + 1);
+        let retries = self.sizes.borrow().retries;
+        let now = self.set_b(reg, root, Some(fb), Some(sp), query);
+        // A size the host did not answer for good is asked again at the next refresh.
+        sp.set_b_stamp = (self.sizes.borrow().retries == retries).then(|| self.stamp(reg, root, fb));
+        let mut notes = self.take_notes();
+        if sp.exclude == now {
+            return (notes, false);
+        }
+        let added = now.iter().filter(|x| !sp.exclude.contains(x)).count();
+        let released = sp.exclude.iter().filter(|x| !now.contains(x)).count();
+        sp.exclude = now;
+        notes.push(format!(
+            "shadow: root {root:#x} set-B exclusions recomputed: {added} added, {released} released back to set A [guest]"
+        ));
+        (notes, true)
+    }
+
+    /// The WARN lines not yet in the trace.
+    fn take_notes(&self) -> Vec<String> {
+        std::mem::take(&mut *self.clip_notes.borrow_mut())
+    }
+
+    fn summary(&self) -> String {
+        format!(
+            "{}; set B: {} refresh(es) reused it, {} computed it",
+            self.sizes.borrow().summary(),
+            self.reused.get(),
+            self.computed.get()
         )
     }
 }
@@ -848,17 +1090,8 @@ pub struct Mirror {
     /// on the guest's own tables would use the guest's COMPTAGLINE.
     comp: Option<Arc<crate::compslice::Policy>>,
     reservation: u32,
-    /// Immutable global-context sizes of this mirror's physical host GPU. Interior
-    /// mutability keeps the exclusion walkers read-only; `Mirror` itself is serialized by
-    /// the Device mutex. A new host RM device gets a new `Mirror` and an empty cache.
-    global_ctx_sizes: RefCell<GlobalCtxSizeCache>,
-    /// The exclusion end of each size-0 global buffer by (shadow root, VA), as last computed
-    /// with the guest's walk ([`global_exclusion`]); used where no walk is at hand (a free).
-    global_clips: RefCell<BTreeMap<(u64, u64), u64>>,
-    /// Clips already reported by (root, VA, end): one WARN each.
-    global_clip_seen: RefCell<std::collections::BTreeSet<(u64, u64, u64)>>,
-    /// WARN lines not yet in the trace (`refresh_exclusions` hands them out).
-    global_clip_notes: RefCell<Vec<String>>,
+    /// The host's global context sizes and the clips of global buffers (set B).
+    extents: GlobalExtents,
     vas: BTreeMap<(u32, u32), HostVas>,
     /// By [`TsgKey`]: the kernel's TSG id on a 615 guest, the guest handle on 610.
     tsgs: BTreeMap<TsgKey, HostTsg>,
@@ -1033,10 +1266,7 @@ impl Mirror {
             translated,
             comp,
             reservation,
-            global_ctx_sizes: RefCell::new(GlobalCtxSizeCache::default()),
-            global_clips: RefCell::new(BTreeMap::new()),
-            global_clip_seen: RefCell::new(std::collections::BTreeSet::new()),
-            global_clip_notes: RefCell::new(Vec::new()),
+            extents: GlobalExtents::default(),
             vas: BTreeMap::new(),
             tsgs: BTreeMap::new(),
             channels: BTreeMap::new(),
@@ -1167,23 +1397,20 @@ impl Mirror {
 
     /// The size of a global GR context buffer (by `NV2080_CTRL_GPU_PROMOTE_CTX_BUFFER_ID_*`)
     /// on the host, in bytes: `NV0080_CTRL_CMD_FIFO_GET_ENGINE_CONTEXT_PROPERTIES`
-    /// (NON_PRIVILEGED) {engineId @0, alignment @4, size @8} on the device's own host device.
-    /// Each host answer is logged once (the query is cached per engine).
-    fn global_ctx_size(&self, buffer_id: u16) -> Option<u64> {
-        self.global_ctx_sizes
-            .borrow_mut()
-            .get_or_query(buffer_id, |engine_id| {
-                let h = self.hm.lock().unwrap();
-                let mut p = [0u8; 12];
-                p[..4].copy_from_slice(&engine_id.to_le_bytes());
-                let status = h.control(h.device(), 0x0080_1707, &mut p);
-                let align = u32::from_le_bytes(p[4..8].try_into().unwrap());
-                let size = u32::from_le_bytes(p[8..12].try_into().unwrap());
-                eprintln!(
-                    "vfio-user-nvgpu: global context size: buffer {buffer_id} host engine {engine_id:#x} (FIFO_GET_ENGINE_CONTEXT_PROPERTIES): status {status:#x}, size {size:#x}, alignment {align:#x} [host read]"
-                );
-                (status, size)
-            })
+    /// (NON_PRIVILEGED) {engineId @0, alignment @4, size @8} on the device's own host device,
+    /// as `(status, size)`. Each host answer is logged once (the query is cached per engine,
+    /// [`GlobalCtxSizeCache`]).
+    fn host_ctx_size(hm: &Mutex<HostMemory>, buffer_id: u16, engine_id: u32) -> (u32, u32) {
+        let h = hm.lock().unwrap();
+        let mut p = [0u8; 12];
+        p[..4].copy_from_slice(&engine_id.to_le_bytes());
+        let status = h.control(h.device(), 0x0080_1707, &mut p);
+        let align = u32::from_le_bytes(p[4..8].try_into().unwrap());
+        let size = u32::from_le_bytes(p[8..12].try_into().unwrap());
+        eprintln!(
+            "vfio-user-nvgpu: global context size: buffer {buffer_id} host engine {engine_id:#x} (FIFO_GET_ENGINE_CONTEXT_PROPERTIES): status {status:#x}, size {size:#x}, alignment {align:#x} [host read]"
+        );
+        (status, size)
     }
 
     /// Why the raw paths are refused (a host VAS or channel on the guest's own tables, raw
@@ -1201,8 +1428,7 @@ impl Mirror {
     }
 
     /// The exclusion size of size-0 global buffer `buffer_id` at `va` on shadow root `root`
-    /// ([`global_exclusion`]): with the guest's cached walk when `fb` is given, else the
-    /// last such result (or the unclipped extent). A clip is logged once as a WARN.
+    /// ([`GlobalExtents::extent`]).
     fn global_extent(
         &self,
         fb: Option<&FakeFb>,
@@ -1210,29 +1436,9 @@ impl Mirror {
         buffer_id: u16,
         va: u64,
     ) -> Option<u64> {
-        let raw = self.global_ctx_size(buffer_id)?;
-        let Some(fb) = fb else {
-            let end = self.global_clips.borrow().get(&(root, va)).copied();
-            return Some(end.unwrap_or_else(|| global_exclusion(va, raw, |_, _| None).0) - va);
-        };
-        let (end, clip) = global_exclusion(va, raw, |lo, hi| guest_first_mapped(fb, root, lo, hi));
-        self.global_clips.borrow_mut().insert((root, va), end);
-        if clip != GlobalClip::Full && self.global_clip_seen.borrow_mut().insert((root, va, end)) {
-            let line = match clip {
-                GlobalClip::Cut { at } => format!(
-                    "WARN: shadow root {root:#x}: global buffer {buffer_id} at {va:#x}: set-B exclusion cut short at {at:#x} by a guest-mapped page (host size {raw:#x}, footprint to {:#x}, 64 KiB extent to {:#x}) [set B]",
-                    va + host_footprint(raw),
-                    va + ((raw + 0xFFFF) & !0xFFFF)
-                ),
-                GlobalClip::Overlap { at } => format!(
-                    "WARN: shadow root {root:#x}: global buffer {buffer_id} at {va:#x}: the guest maps {at:#x} inside the host's footprint [{va:#x}, {end:#x}) (host size {raw:#x}): kept out of set A, that page is not mirrored [set B]"
-                ),
-                GlobalClip::Full => unreachable!(),
-            };
-            eprintln!("vfio-user-nvgpu: {line}");
-            self.global_clip_notes.borrow_mut().push(line);
-        }
-        Some(end - va)
+        let hm = &self.hm;
+        self.extents
+            .extent(fb, root, buffer_id, va, &|b, e| Self::host_ctx_size(hm, b, e))
     }
 
     /// Whether `chid` is a GR channel the shadow path takes (`CARAXES_MIRROR_GR_SHADOW=1`).
@@ -1856,15 +2062,7 @@ impl Mirror {
                     let mut front = crate::shadow::ShadowFront::new(root);
                     front.layout = layout;
                     front.comp = self.comp.clone();
-                    slot.insert(ShadowSpace {
-                        front,
-                        vas,
-                        exclude: Vec::new(),
-                        held: BTreeMap::new(),
-                        private: BTreeMap::new(),
-                        chids: Default::default(),
-                        tsgs: Default::default(),
-                    });
+                    slot.insert(ShadowSpace::new(front, vas));
                 }
                 Err(st) => {
                     notes.push(format!("shadow: VAS refused: {}", status_name(st)));
@@ -1877,6 +2075,7 @@ impl Mirror {
         }
         let sp = self.shadows.get_mut(&root).expect("built");
         sp.exclude = new_b;
+        sp.set_b_stamp = None;
         sp.chids.insert(chid);
         sp.tsgs.insert(tsg_key);
         let exclude = sp.exclude.clone();
@@ -2494,10 +2693,7 @@ impl Mirror {
                 }
                 let end = va.checked_add(len).ok_or("GFXP private VA overflow")?;
                 let sp = self.shadows.get_mut(&root).ok_or("GFXP shadow disappeared")?;
-                sp.private.entry(key).or_default().push((va, end));
-                sp.exclude.push((va, end));
-                sp.exclude.sort_unstable();
-                sp.exclude.dedup();
+                sp.add_private(key, va, end);
                 let st = host.map_dma_fixed(virtual_handle, buffer.memory.as_ref().unwrap().handle(), 0, len, va,
                     nvrm_abi::nvgpu::nvos46_flags::PAGE_SIZE_4KB, false, None, false);
                 if st != sys::NV_OK { return Err(format!("GFXP map {engine:#x}: {}", status_name(st))); }
@@ -3464,17 +3660,10 @@ impl Mirror {
     /// The set-B exclusions of shadow root `root` now: the live channels' ([`exclusions_of`])
     /// and those held for a host TSG not yet freed ([`set_b_with_held`]).
     fn root_exclusions(&self, reg: &Registry, root: u64, fb: Option<&FakeFb>) -> Vec<(u64, u64)> {
-        let live = exclusions_of(reg, root, |id, va| self.global_extent(fb, root, id, va));
-        match self.shadows.get(&root) {
-            Some(sp) => {
-                let mut out = set_b_with_held(live, &sp.held);
-                out.extend(sp.private.values().flatten().copied());
-                out.sort_unstable();
-                out.dedup();
-                out
-            }
-            None => live,
-        }
+        let hm = &self.hm;
+        self.extents.set_b(reg, root, fb, self.shadows.get(&root), &|b, e| {
+            Self::host_ctx_size(hm, b, e)
+        })
     }
 
     /// Guest roots whose held set-B ranges went back to set A at a host TSG free since the
@@ -3496,29 +3685,24 @@ impl Mirror {
         self.intr.note(line);
     }
 
-    /// Recompute set B of `root` (with the guest's cached walk from `fb`, [`global_exclusion`]);
-    /// the notes, and whether set B changed.
+    /// Recompute set B of `root` (with the guest's cached walk from `fb`, [`global_exclusion`])
+    /// when one of its inputs changed ([`GlobalExtents::refresh`]); the notes, and whether
+    /// set B changed.
     fn refresh_exclusions(
         &mut self,
         reg: &Registry,
         root: u64,
         fb: &FakeFb,
     ) -> (Vec<String>, bool) {
-        let now = self.root_exclusions(reg, root, Some(fb));
-        let mut notes = std::mem::take(&mut *self.global_clip_notes.borrow_mut());
-        let Some(sp) = self.shadows.get_mut(&root) else {
-            return (notes, false);
-        };
-        if sp.exclude == now {
-            return (notes, false);
+        let hm = &self.hm;
+        let query = |b, e| Self::host_ctx_size(hm, b, e);
+        match self.shadows.get_mut(&root) {
+            Some(sp) => self.extents.refresh(reg, root, fb, sp, &query),
+            None => {
+                self.extents.set_b(reg, root, Some(fb), None, &query);
+                (self.extents.take_notes(), false)
+            }
         }
-        let added = now.iter().filter(|x| !sp.exclude.contains(x)).count();
-        let released = sp.exclude.iter().filter(|x| !now.contains(x)).count();
-        sp.exclude = now;
-        notes.push(format!(
-            "shadow: root {root:#x} set-B exclusions recomputed: {added} added, {released} released back to set A [guest]"
-        ));
-        (notes, true)
     }
 
     /// Whether a video object on mirrored channel `chid` is refused to the guest before it
@@ -4116,7 +4300,7 @@ impl Mirror {
         }
         drop(host);
         if let Some(sp) = self.shadows.get_mut(&owned.root) {
-            sp.private.remove(&key);
+            sp.drop_private(key);
             // `exclude` is the merged live + held + private set. Do not subtract exact
             // tuples here: another owner may have the same range. The normal root re-sync
             // recomputes it from all owners after `released_roots` is consumed.
@@ -4349,7 +4533,7 @@ impl Mirror {
     /// Release the set-B ranges held for host TSG `key` on every shadow root.
     fn release_held(&mut self, key: TsgKey, notes: &mut Vec<String>) {
         for (root, sp) in self.shadows.iter_mut() {
-            if let Some(ranges) = sp.held.remove(&key) {
+            if let Some(ranges) = sp.release(key) {
                 notes.push(format!(
                     "shadow: root {root:#x}: {} held set-B range(s) of host TSG ({key}) back to set A after its host free [host]",
                     ranges.len()
@@ -4388,10 +4572,7 @@ impl Mirror {
                 h.root,
                 h.key
             ));
-            let e = sp.held.entry(h.key).or_default();
-            e.extend(h.ranges);
-            e.sort_unstable();
-            e.dedup();
+            sp.hold(h.key, h.ranges);
         }
         notes
     }
@@ -4568,7 +4749,7 @@ impl Mirror {
                 String::new()
             },
             self.hold_summary(),
-            self.global_ctx_sizes.borrow().summary()
+            self.extents.summary()
         )
     }
 }
@@ -5816,6 +5997,477 @@ mod tests {
             exclusions_among(&reg, all, clipped),
             vec![(0x1_200e_9000, 0x1_200e_c000)]
         );
+    }
+
+    /// The host's global context sizes by FIFO engine (the RTX 2070's answers, the set-B
+    /// WARN lines of the 2026-09-28 latency run).
+    fn rtx2070_ctx_size(engine: u32) -> (u32, u32) {
+        let size = match engine {
+            0x11 => 0x3000,
+            0x0d => 0x2_0000,
+            0x13 => 0x3f_3a00,
+            0x14 => 0x8_0000,
+            0x17 => 0x1_0000,
+            0x18 => 0x8_0000,
+            _ => return (sys::NV_ERR_NOT_SUPPORTED, 0),
+        };
+        (sys::NV_OK, size)
+    }
+
+    /// A guest GMMU v2 tree in an FB store (ptcache.rs geometry), mapped page by page.
+    struct GuestTree {
+        fb: FakeFb,
+        root: u64,
+        next_table: u64,
+        next_pa: u64,
+        tables: BTreeMap<(u8, u64), u64>,
+    }
+
+    impl GuestTree {
+        fn new(root: u64) -> Self {
+            GuestTree {
+                fb: FakeFb::new(0x2_0000_0000 + (64 << 20)),
+                root,
+                next_table: root + 0x1000,
+                next_pa: 0x1_4000_0000,
+                tables: BTreeMap::new(),
+            }
+        }
+
+        /// The table under `key` (level 2..0 by VA, 8 a unit's big-page table, 9 its
+        /// small-page table), and whether it is new.
+        fn table(&mut self, key: (u8, u64)) -> (u64, bool) {
+            if let Some(t) = self.tables.get(&key) {
+                return (*t, false);
+            }
+            let t = self.next_table;
+            self.next_table += 0x1000;
+            self.tables.insert(key, t);
+            (t, true)
+        }
+
+        /// Map `n` pages of `size` (4 KiB, 64 KiB or 2 MiB) from `va` on fresh memory.
+        fn map(&mut self, va: u64, size: u64, n: u64) {
+            for i in 0..n {
+                self.next_pa = self.next_pa.next_multiple_of(size);
+                let pa = self.next_pa;
+                self.next_pa += size;
+                self.map_page(va + i * size, pa, size);
+            }
+        }
+
+        fn map_page(&mut self, va: u64, pa: u64, size: u64) {
+            let pde = |a: u64| ((a >> 12) << 8) | 0b010;
+            let pte = |a: u64| ((a >> 12) << 8) | 1 | (0x06u64 << 56);
+            let mut table = self.root;
+            for (level, shift) in [(3u8, 47u32), (2, 38), (1, 29)] {
+                let i = (va >> shift) & if level == 3 { 3 } else { 0x1ff };
+                let (child, fresh) = self.table((level - 1, va & !((1u64 << shift) - 1)));
+                if fresh {
+                    self.fb.write_u64(table + 8 * i, pde(child));
+                }
+                table = child;
+            }
+            let dual = table + 16 * ((va >> 21) & 0xff);
+            let unit = va & !(crate::ptcache::UNIT - 1);
+            match size {
+                0x20_0000 => {
+                    self.fb.write_u64(dual, pte(pa));
+                }
+                0x1_0000 => {
+                    let (bt, fresh) = self.table((8, unit));
+                    if fresh {
+                        self.fb.write_u64(dual, ((bt >> 8) << 4) | 0b010);
+                    }
+                    self.fb.write_u64(bt + 8 * ((va >> 16) & 0x1f), pte(pa));
+                }
+                _ => {
+                    let (st, fresh) = self.table((9, unit));
+                    if fresh {
+                        self.fb.write_u64(dual + 8, pde(st));
+                    }
+                    self.fb.write_u64(st + 8 * ((va >> 12) & 0x1ff), pte(pa));
+                }
+            }
+        }
+    }
+
+    /// A CUDA context's global GR buffers as nvprobe 4 promotes them on every one of its
+    /// eight GR channels (the 2026-09-28 latency trace): `(buffer id, VA)`, all of size 0.
+    const CUDA_GLOBALS: [(u16, u64); 10] = [
+        (5, 0x2_03c0_0000),
+        (11, 0x2_0400_0000),
+        (9, 0x2_0408_0000),
+        (10, 0x2_0409_0000),
+        (4, 0x2_0411_0000),
+        (6, 0x2_0413_0000),
+        (0, 0x2_041b_0000),
+        (3, 0x2_0429_e000),
+        (1, 0x2_042a_1000),
+        (2, 0x2_042a_a000),
+    ];
+
+    /// The guest's registry, FB store and cached walk of a lean compute VM running
+    /// nvprobe 4, with a desktop beside it: CUDA's context (root `root`) with one TSG of
+    /// eight GR channels, each promoting [`CUDA_GLOBALS`], and six copy channels; UVM with
+    /// ten copy channels on its own root and a duplicate of CUDA's VA space; three desktop
+    /// clients with a GR and six copy channels each on their own roots. The guest maps the
+    /// global buffers at their VAs (2 MiB, 64 KiB and 4 KiB pages) and about 2300 pages of
+    /// CUDA's own memory: about 2600 leaves, as the latency run's shadow held.
+    struct DoorbellWorld {
+        reg: Registry,
+        tree: GuestTree,
+        root: u64,
+    }
+
+    fn promote_params(h_client: u32, h_object: u32, entries: &[(u16, u64, u64, u64, bool)]) -> Vec<u8> {
+        let mut g = vec![0u8; v::PROMOTE_PARAMS_SIZE];
+        g[v::PROMOTE_H_CHAN_CLIENT..][..4].copy_from_slice(&h_client.to_le_bytes());
+        g[v::PROMOTE_H_OBJECT..][..4].copy_from_slice(&h_object.to_le_bytes());
+        g[v::PROMOTE_ENTRY_COUNT..][..4].copy_from_slice(&(entries.len() as u32).to_le_bytes());
+        for (i, &(id, pa, va, size, nonmapped)) in entries.iter().enumerate() {
+            let o = v::PROMOTE_ENTRIES + v::PROMOTE_ENTRY_SIZE * i;
+            g[o..][..8].copy_from_slice(&pa.to_le_bytes());
+            g[o + 8..][..8].copy_from_slice(&va.to_le_bytes());
+            g[o + 16..][..8].copy_from_slice(&size.to_le_bytes());
+            g[o + 28..][..2].copy_from_slice(&id.to_le_bytes());
+            g[o + 30] = u8::from(nonmapped);
+            g[o + 31] = u8::from(nonmapped);
+        }
+        g
+    }
+
+    fn doorbell_world() -> DoorbellWorld {
+        let chip = crate::fixture::rtx2070().chip.data();
+        let root = 0x1_0000_0000u64;
+        let mut reg = registry();
+        let vas = |reg: &mut Registry, h_client: u32, h_vas: u32, root: u64| {
+            reg.record_alloc(h_client, 0x1, h_vas, v::FERMI_VASPACE_A, &[0u8; 56]);
+            let mut pd = vec![0u8; 32];
+            pd[v::SET_PD_PHYS_ADDRESS..][..8].copy_from_slice(&root.to_le_bytes());
+            pd[v::SET_PD_NUM_ENTRIES..][..4].copy_from_slice(&4u32.to_le_bytes());
+            pd[v::SET_PD_H_VASPACE..][..4].copy_from_slice(&h_vas.to_le_bytes());
+            reg.record_set_page_directory(h_client, &pd);
+        };
+        let mut chid = 0u32;
+        let mut channel = |reg: &mut Registry, h_client: u32, h_parent: u32, h_object: u32, h_vas: u32| {
+            let mut cp = channel_params(chid, None);
+            let o = <Abi as nvrm_sys::RmAbi>::ALLOC_CHANNEL_PARAMS_OFF_hVASpace;
+            cp[o..o + 4].copy_from_slice(&h_vas.to_le_bytes());
+            reg.record_alloc(h_client, h_parent, h_object, chip.channel.gpfifo, &cp);
+            chid += 1;
+        };
+        let globals = |base: u64| -> Vec<(u16, u64, u64, u64, bool)> {
+            CUDA_GLOBALS.iter().map(|&(id, va)| (id, 0, va - 0x2_0000_0000 + base, 0, false)).collect()
+        };
+        // CUDA: one TSG of eight GR channels on its VAS, six copy channels.
+        let cuda = 0xc1d0_0373u32;
+        vas(&mut reg, cuda, 0x5c00_0003, root);
+        reg.record_alloc(cuda, 0x1, 0x5c00_0010, v::KEPLER_CHANNEL_GROUP_A, &tsg_params(Some(26)));
+        for i in 0..8u32 {
+            let h = 0x5c00_0019 + 4 * i;
+            channel(&mut reg, cuda, 0x5c00_0010, h, 0x5c00_0003);
+            if i == 0 {
+                reg.record_promote_ctx(&promote_params(cuda, h, &[
+                    (0, 0x1_e6b3_6000, 0, 0xe_e000, true),
+                    (1, 0x1_e727_1000, 0, 0x8c00, true),
+                    (2, 0x1_e727_a000, 0, 0x5000, true),
+                ]));
+            }
+            reg.record_promote_ctx(&promote_params(cuda, h, &globals(0x2_0000_0000)));
+        }
+        for i in 0..6u32 {
+            channel(&mut reg, cuda, 0x1, 0x5c00_0100 + i, 0x5c00_0003);
+        }
+        // UVM: ten copy channels on its own root, and CUDA's VA space duplicated.
+        let uvm = 0xc1e0_0001u32;
+        vas(&mut reg, uvm, 0x3, 0x1_0800_0000);
+        assert!(reg.record_dup((uvm, 0xbeef_0001), (cuda, 0x5c00_0003)).is_some());
+        for i in 0..10u32 {
+            channel(&mut reg, uvm, 0x1, 0x100 + i, 0x3);
+        }
+        // The desktop: three clients with a GR channel (its own globals) and six copy channels.
+        for d in 0..3u32 {
+            let c = 0xc1f0_0001 + d;
+            vas(&mut reg, c, 0x3, 0x1_0900_0000 + u64::from(d) * 0x10_0000);
+            channel(&mut reg, c, 0x1, 0x200, 0x3);
+            reg.record_promote_ctx(&promote_params(c, 0x200, &globals(0x1_2000_0000)));
+            for i in 0..6u32 {
+                channel(&mut reg, c, 0x1, 0x201 + i, 0x3);
+            }
+        }
+        assert_eq!(reg.channels().count(), 45);
+        // The guest's pages: the global buffers at their VAs, and CUDA's own memory.
+        let mut tree = GuestTree::new(root);
+        let g = |id: u16| CUDA_GLOBALS.iter().find(|(i, _)| *i == id).unwrap().1;
+        tree.map(g(5), 0x20_0000, 2);
+        tree.map(g(11), 0x1_0000, 8);
+        tree.map(g(9), 0x1_0000, 1);
+        tree.map(g(10), 0x1_0000, 8);
+        tree.map(g(4), 0x1_0000, 2);
+        tree.map(g(6), 0x1_0000, 8);
+        tree.map(g(0), 0x1000, 238);
+        tree.map(g(3), 0x1000, 3);
+        tree.map(g(1), 0x1000, 9);
+        tree.map(g(2), 0x1000, 5);
+        tree.map(0x2_0020_0000, 0x1000, 2300);
+        DoorbellWorld { reg, tree, root }
+    }
+
+    /// Mean nanoseconds of `f` over `n` calls, the best of five rounds.
+    fn ns_per_call(n: u32, mut f: impl FnMut()) -> f64 {
+        (0..5)
+            .map(|_| {
+                let t = Instant::now();
+                for _ in 0..n {
+                    f();
+                }
+                t.elapsed().as_nanos() as f64 / f64::from(n)
+            })
+            .fold(f64::INFINITY, f64::min)
+    }
+
+    /// `shadow_resync` of one root without the worker: refresh set B, plan, and when the plan
+    /// changed set B (a first walk clipping a global buffer), plan again. `force` computes set
+    /// B at both refreshes, as before the stamp. Whether anything was planned.
+    fn resync_root(
+        ext: &GlobalExtents,
+        sp: &mut ShadowSpace,
+        reg: &Registry,
+        fb: &FakeFb,
+        mem: &GuestMemory,
+        descs: &[(u32, u64, u64)],
+        force: bool,
+    ) -> bool {
+        let root = sp.front.root;
+        let query = |_: u16, engine: u32| rtx2070_ctx_size(engine);
+        let mut planned = false;
+        if force {
+            sp.set_b_stamp = None;
+        }
+        ext.refresh(reg, root, fb, sp, &query);
+        planned |= sp.front.plan(fb, mem, 0x1_0000_0000, 0x2_0000_0000, 1, &sp.exclude, descs).is_some();
+        if force {
+            sp.set_b_stamp = None;
+        }
+        if ext.refresh(reg, root, fb, sp, &query).1 {
+            planned |= sp.front.plan(fb, mem, 0x1_0000_0000, 0x2_0000_0000, 1, &sp.exclude, descs).is_some();
+        }
+        planned
+    }
+
+    /// The set-B stamp ([`SetBStamp`]): a doorbell on a root where nothing changed reuses set
+    /// B and computes nothing; every input that can change set B makes the next refresh
+    /// compute it: a promotion, a channel free, a guest page mapped inside a global
+    /// buffer's extent (P19's clip, found by the plan's walk), a hold and its release at the
+    /// host TSG free, a private range, a host size not answered for good. A free of an
+    /// object set B does not depend on changes nothing.
+    #[test]
+    fn set_b_is_reused_until_an_input_changes() {
+        let DoorbellWorld { mut reg, mut tree, root } = doorbell_world();
+        let mem = GuestMemory::new();
+        let ext = GlobalExtents::default();
+        let mut sp = ShadowSpace::new(crate::shadow::ShadowFront::new(root), 0);
+        let cuda = 0xc1d0_0373u32;
+        // The build: the first refresh has no walk yet, the plan's walk clips the global
+        // buffers, the second refresh computes again with it.
+        assert!(resync_root(&ext, &mut sp, &reg, &tree.fb, &mem, &[], false));
+        assert_eq!(ext.computed.get(), 2);
+        let computed = |n: u64| n + 2;
+        // Clean doorbells: nothing computed.
+        for _ in 0..3 {
+            assert!(!resync_root(&ext, &mut sp, &reg, &tree.fb, &mem, &[], false));
+        }
+        assert_eq!((ext.computed.get(), ext.reused.get()), (computed(0), 6));
+        let set_b = sp.exclude.clone();
+        // A free of an object set B does not depend on (guest memory) keeps the stamp.
+        let gen = reg.set_b_generation();
+        reg.record_free(cuda, 0x5c00_9999);
+        reg.channel_mut(0).unwrap().mirrored = true;
+        assert_eq!(reg.set_b_generation(), gen);
+        assert!(!resync_root(&ext, &mut sp, &reg, &tree.fb, &mem, &[], false));
+        assert_eq!(ext.computed.get(), computed(0));
+        // A promotion: one of CUDA's copy channels promotes a context of two pages.
+        let ctx = (0x2_1000_0000, 0x2_1000_2000);
+        reg.record_promote_ctx(&promote_params(cuda, 0x5c00_0100, &[(13, 0, ctx.0, 0x2000, false)]));
+        resync_root(&ext, &mut sp, &reg, &tree.fb, &mem, &[], false);
+        assert_eq!(ext.computed.get(), computed(1));
+        assert!(sp.exclude.contains(&ctx), "{:x?}", sp.exclude);
+        // Its channel's free gives it back to set A.
+        reg.record_free(cuda, 0x5c00_0100);
+        resync_root(&ext, &mut sp, &reg, &tree.fb, &mem, &[], false);
+        assert_eq!(ext.computed.get(), computed(2));
+        assert_eq!(sp.exclude, set_b);
+        // A global buffer promoted by VA alone where the guest maps nothing: the whole
+        // 64 KiB extent of the 12 KiB BUNDLE_CB (run P19's numbers).
+        let bundle = 0x2_2000_9000u64;
+        reg.record_promote_ctx(&promote_params(cuda, 0x5c00_0101, &[(3, 0, bundle, 0, false)]));
+        resync_root(&ext, &mut sp, &reg, &tree.fb, &mem, &[], false);
+        assert_eq!(ext.computed.get(), computed(3));
+        assert!(sp.exclude.contains(&(bundle, bundle + 0x1_0000)), "{:x?}", sp.exclude);
+        assert!(!resync_root(&ext, &mut sp, &reg, &tree.fb, &mem, &[], false));
+        assert_eq!(ext.computed.get(), computed(3));
+        // The guest maps its semaphore page right after the footprint: the first refresh
+        // still finds the old walk, the plan walks the new page and the second refresh cuts
+        // the exclusion there; the root is planned again with it, and the WARN comes once.
+        tree.map(bundle + 0x3000, 0x1000, 1);
+        let gen = reg.set_b_generation();
+        assert!(resync_root(&ext, &mut sp, &reg, &tree.fb, &mem, &[], false));
+        assert_eq!(reg.set_b_generation(), gen, "no registry change");
+        assert_eq!(ext.computed.get(), computed(4));
+        assert!(sp.exclude.contains(&(bundle, bundle + 0x3000)), "{:x?}", sp.exclude);
+        assert!(!sp.exclude.contains(&(bundle, bundle + 0x1_0000)));
+        assert!(ext.take_notes().is_empty(), "handed out with the refresh");
+        assert!(!resync_root(&ext, &mut sp, &reg, &tree.fb, &mem, &[], false));
+        assert_eq!(ext.computed.get(), computed(4));
+        let set_b = sp.exclude.clone();
+        // A hold for a host TSG not yet freed, and its release at that free.
+        let key = TsgKey::Handle(cuda, 0x5c00_0010);
+        let held = (0x2_3000_0000, 0x2_3000_4000);
+        sp.hold(key, vec![held]);
+        resync_root(&ext, &mut sp, &reg, &tree.fb, &mem, &[], false);
+        assert_eq!(ext.computed.get(), computed(5));
+        assert!(sp.exclude.contains(&held));
+        assert!(sp.release(key).is_some());
+        assert!(sp.release(key).is_none());
+        resync_root(&ext, &mut sp, &reg, &tree.fb, &mem, &[], false);
+        assert_eq!(ext.computed.get(), computed(6));
+        assert_eq!(sp.exclude, set_b);
+        // A private range: out of set A at once, and kept by the computation it forces.
+        sp.add_private(key, 0x2_4000_0000, 0x2_4001_0000);
+        assert!(sp.exclude.contains(&(0x2_4000_0000, 0x2_4001_0000)));
+        resync_root(&ext, &mut sp, &reg, &tree.fb, &mem, &[], false);
+        assert_eq!(ext.computed.get(), computed(7));
+        assert!(sp.exclude.contains(&(0x2_4000_0000, 0x2_4001_0000)));
+        sp.drop_private(key);
+        resync_root(&ext, &mut sp, &reg, &tree.fb, &mem, &[], false);
+        assert_eq!(ext.computed.get(), computed(8));
+        assert_eq!(sp.exclude, set_b);
+        // A channel of another root changes the registry: set B is computed again (and
+        // stays the same).
+        reg.record_free(0xc1f0_0001, 0x206);
+        assert!(!resync_root(&ext, &mut sp, &reg, &tree.fb, &mem, &[], false));
+        assert_eq!(ext.computed.get(), computed(9));
+        assert_eq!(sp.exclude, set_b);
+        // A host size not answered for good (a transient error) is asked again at the next
+        // refresh, and once answered the stamp holds.
+        let fresh = GlobalExtents::default();
+        let mut sp2 = ShadowSpace::new(crate::shadow::ShadowFront::new(root), 0);
+        let (asked, failed) = (Cell::new(0u32), Cell::new(false));
+        let flaky = |_: u16, engine: u32| {
+            asked.set(asked.get() + 1);
+            if engine == 0x11 && !failed.replace(true) {
+                (sys::NV_ERR_TIMEOUT, 0)
+            } else {
+                rtx2070_ctx_size(engine)
+            }
+        };
+        fresh.refresh(&reg, root, &tree.fb, &mut sp2, &flaky);
+        assert!(sp2.set_b_stamp.is_none(), "not stamped after a transient failure");
+        fresh.refresh(&reg, root, &tree.fb, &mut sp2, &flaky);
+        assert!(sp2.set_b_stamp.is_some());
+        assert_eq!(sp2.exclude, sp.exclude);
+        let n = asked.get();
+        fresh.refresh(&reg, root, &tree.fb, &mut sp2, &flaky);
+        assert_eq!((asked.get(), fresh.computed.get(), fresh.reused.get()), (n, 2, 1));
+    }
+
+    /// Micro-benchmark (`cargo test --release -p vfio-user-nvgpu --lib bench_set_b --
+    /// --ignored --nocapture`): the plan step of a clean doorbell on the CUDA root of
+    /// [`doorbell_world`] (`shadow_resync` without the worker), before and with the set-B
+    /// stamp, and where the time goes.
+    #[test]
+    #[ignore]
+    fn bench_set_b_clean_doorbell() {
+        let w = doorbell_world();
+        let (reg, fb, root) = (&w.reg, &w.tree.fb, w.root);
+        let mem = GuestMemory::new();
+        let descs: Vec<(u32, u64, u64)> =
+            (0..53).map(|i| (i, 0x7ffa_c000_0000 + u64::from(i) * (1 << 30), 1 << 30)).collect();
+        let ext = GlobalExtents::default();
+        let mut sp = ShadowSpace::new(crate::shadow::ShadowFront::new(root), 0);
+        // The build and the first doorbell: the first plan's walk clips the global buffers.
+        assert!(resync_root(&ext, &mut sp, reg, fb, &mem, &descs, false));
+        assert!(!resync_root(&ext, &mut sp, reg, fb, &mem, &descs, false), "a clean doorbell");
+        eprintln!("cached walk: {} leaves", fb.with_walk(Target::Fb(root), |c| c.leaf_count()).unwrap());
+        eprintln!("set B of the CUDA root: {} range(s)", sp.exclude.len());
+        let n = 2000;
+        // cb4974fc: every refresh walks every channel and sizes and clips all 80 promoted
+        // global buffers of the eight GR channels (`Mirror::global_extent` per entry).
+        let old_ext = GlobalExtents::default();
+        let query = |_: u16, engine: u32| rtx2070_ctx_size(engine);
+        let old_set_b = || {
+            let live = exclusions_of(reg, root, |id, va| old_ext.extent(Some(fb), root, id, va, &query));
+            let mut out = set_b_with_held(live, &sp.held);
+            out.extend(sp.private.values().flatten().copied());
+            out.sort_unstable();
+            out.dedup();
+            out
+        };
+        assert_eq!(old_set_b(), sp.exclude, "the same set B");
+        let mut front = crate::shadow::ShadowFront::new(root);
+        front.plan(fb, &mem, 0x1_0000_0000, 0x2_0000_0000, 1, &sp.exclude, &descs).unwrap();
+        let mut exclude = sp.exclude.clone();
+        let old = ns_per_call(n, || {
+            let descs = descs.clone();
+            for _ in 0..2 {
+                let now = old_set_b();
+                if exclude != now {
+                    exclude = now;
+                }
+                assert!(front.plan(fb, &mem, 0x1_0000_0000, 0x2_0000_0000, 1, &exclude, &descs).is_none());
+            }
+        });
+        let old_one = ns_per_call(n, || {
+            std::hint::black_box(old_set_b());
+        });
+        let forced = ns_per_call(n, || {
+            let descs = descs.clone();
+            assert!(!resync_root(&ext, &mut sp, reg, fb, &mem, &descs, true));
+        });
+        let clean = ns_per_call(n, || {
+            let descs = descs.clone();
+            assert!(!resync_root(&ext, &mut sp, reg, fb, &mem, &descs, false));
+        });
+        let reg_walk = ns_per_call(n, || {
+            std::hint::black_box(exclusions_of(reg, root, |_, _| Some(0x1000)));
+        });
+        let filter_only = ns_per_call(n, || {
+            std::hint::black_box(
+                reg.channels()
+                    .filter(|ch| reg.vas_key_of(ch).and_then(|k| reg.vas_root(k)) == Some(Target::Fb(root)))
+                    .count(),
+            );
+        });
+        let extents = ns_per_call(n, || {
+            for _ in 0..8 {
+                for &(id, va) in &CUDA_GLOBALS {
+                    std::hint::black_box(old_ext.extent(Some(fb), root, id, va, &query));
+                }
+            }
+        });
+        let walk_queries = ns_per_call(n, || {
+            for _ in 0..8 {
+                for &(id, va) in &CUDA_GLOBALS {
+                    if let Some(raw) = old_ext.size(id, &query) {
+                        std::hint::black_box(global_exclusion(va, raw, |lo, hi| guest_first_mapped(fb, root, lo, hi)));
+                    }
+                }
+            }
+        });
+        let plan_clean = ns_per_call(n, || {
+            assert!(sp.front.plan(fb, &mem, 0x1_0000_0000, 0x2_0000_0000, 1, &sp.exclude, &descs).is_none());
+        });
+        let stamp = ns_per_call(n, || {
+            std::hint::black_box(ext.stamp(reg, root, fb));
+        });
+        eprintln!("clean doorbell, plan step without the lazy flush (2 set-B refreshes + plan):");
+        eprintln!("  cb4974fc:                          {old:>7.0} ns");
+        eprintln!("  set B computed at both refreshes:  {forced:>7.0} ns (each (buffer, VA) sized and clipped once)");
+        eprintln!("  with the stamp (clean root):       {clean:>7.0} ns (stamp {stamp:.0} ns, plan's clean check {plan_clean:.0} ns)");
+        eprintln!("where cb4974fc's time goes, per refresh ({old_one:.0} ns):");
+        eprintln!("  registry walk, 45 channels, trivial extents: {reg_walk:.0} ns (root filter alone {filter_only:.0} ns)");
+        eprintln!("  80 global extents (8 GR channels x 10 buffers): {extents:.0} ns, of which the walk queries {walk_queries:.0} ns");
     }
 
     /// The fallback: the host object is kept only when its context took the host's first
