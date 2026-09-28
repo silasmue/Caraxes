@@ -155,6 +155,9 @@ pub struct ChipData {
     pub ecc: Option<crate::families::ecc::EccData>,
     /// `[mig]`: the MIG profile tables (families/mig.rs); `None` without MIG.
     pub mig: Option<crate::families::mig::MigData>,
+    /// `[compression]`: the card's compression facts (compression.rs); `None` for a chip
+    /// whose card was never read: its guest is told no compression, whatever the switch.
+    pub compression: Option<crate::compression::ComprData>,
 }
 
 impl ChipData {
@@ -452,6 +455,8 @@ struct ChipFile {
     ecc: Option<crate::families::ecc::EccData>,
     #[serde(default)]
     mig: Option<crate::families::mig::MigData>,
+    #[serde(default)]
+    compression: Option<crate::compression::ComprData>,
 }
 
 #[derive(Deserialize)]
@@ -646,6 +651,7 @@ impl ChipData {
         Ok(ChipData {
             ecc: c.ecc,
             mig: c.mig,
+            compression: c.compression,
             name: c.name,
             identity: c.identity,
             short_name: c.short_name,

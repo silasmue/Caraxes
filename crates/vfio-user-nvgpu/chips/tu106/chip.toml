@@ -113,6 +113,30 @@ ltc_count = 8
 lts_per_ltc_count = 2
 label = "synthesized (TU106: 4 MiB L2, 8 LTC x 2 LTS, GDDR6; E4: host FB_GET_INFO_V2)"
 
+# The card's compression, told to the guest only with CARAXES_COMPRESSION=slice
+# (src/compression.rs; without it `disable_compbit_backing` above stands, D16). All values
+# are the RTX 2070's own: host RM 615.71.09 (GSP) answered FB_GET_INFO_V2
+# 1TO1_COMPTAG_ENABLED 1 (recorded-controls.tsv:49) and FB_GET_COMPBIT_STORE_INFO with
+# comptaglineAllocationPolicy 1 = POLICY_1TO1 and the cache geometry below
+# (recorded-controls.tsv:76); its FB_GET_CAPS_V2 is 0b 81 12, DISABLE_PLC_GLOBALLY (2:0x04)
+# clear (matrix/traces/610.57.04/control/vk-enum.tsv, the 0x801307 reply). The comptag
+# line of a page is 1 + SPA[35:16] (memmgrDetermineComptag_TU102, mem_mgr_tu102.c:505-512
+# of 615; tu102/dev_fb_addendum.h:27). `chip`: a costume overlay presenting another chip
+# (chip/derived.rs) inherits this table, but its HAL expects another policy (raw mode from
+# GA10x): the facts apply to the chip they were recorded on only.
+[compression]
+chip = "TU106"
+policy = "1to1"
+comptagline_from_spa = [35, 16]
+disable_post_l2_compression = false
+comptags_per_cache_line = 0x100
+cache_line_size = 0x1_0000
+cache_line_size_per_slice = 0x800
+cache_line_fetch_alignment = 0x2_0000
+gobs_per_comptag_per_slice = 8
+cbc_coverage_per_slice = 0xD8_0000
+label = "card (RTX 2070 on host RM 615.71.09: 1TO1_COMPTAG 1, COMPBIT_STORE_INFO geometry, recorded-controls.tsv:49,76; PLC on, vk-enum.tsv FB caps)"
+
 [fifo]
 # INTERNAL_FIFO_GET_NUM_CHANNELS per runlist.
 num_channels = { value = 512, label = "synthesized (512 channels; E4: host FIFO_GET_INFO)" }
