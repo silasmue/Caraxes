@@ -1513,6 +1513,19 @@ impl Dispatcher {
         cmd: u32,
         params: &[u8],
     ) -> Answer {
+        // STOP_CHANNEL: once it returns, the guest kernel writes PREEMPTIVE_REMOVAL into the
+        // channel's error notifier itself (kchannelNotifyRc, kernel_channel.c:1903). The RC
+        // scan (boot.rs `scan_channel_errors`) must not report that as a host RC.
+        if cmd == v::CMD_CHANNEL_STOP {
+            let chid = self
+                .channels
+                .channels()
+                .find(|c| c.h_client == h_client && c.h_object == h_object)
+                .map(|c| c.chid);
+            if let Some(c) = chid.and_then(|chid| self.channels.channel_mut(chid)) {
+                c.stopped = true;
+            }
+        }
         // A control on a channel or TSG that runs on the host: the host mirror takes it.
         if MIRROR_FORWARDED.contains(&cmd) {
             if let Some(m) = self.mirror.as_mut() {

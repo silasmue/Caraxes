@@ -637,10 +637,10 @@ impl BootModel {
             .filter(|c| c.mirrored)
             .filter_map(|c| {
                 c.error_notifier
-                    .map(|t| (c.h_client, c.h_object, c.chid, c.engine_type, t))
+                    .map(|t| (c.h_client, c.h_object, c.chid, c.engine_type, t, c.stopped))
             })
             .collect();
-        for (hc, ho, chid, eng, t) in chans {
+        for (hc, ho, chid, eng, t, stopped) in chans {
             live.insert((hc, ho));
             let mut now = [0u8; crate::events::NOTIFIER_SIZE];
             let gm = crate::channel::GpuMem {
@@ -658,6 +658,15 @@ impl BootModel {
                     raised: false,
                 });
             if let Some((xid, info16)) = crate::events::notifier_error(w, &now) {
+                if stopped && xid == crate::gspmem::XID_PREEMPTIVE_REMOVAL {
+                    // The guest kernel's own notice after its STOP_CHANNEL: the new baseline.
+                    w.raised = false;
+                    w.baseline = now;
+                    notes.push(format!(
+                        "chid {chid}: PREEMPTIVE_REMOVAL after the guest's STOP_CHANNEL, the kernel's own stop notice: no RC [guest channel]"
+                    ));
+                    continue;
+                }
                 let text = format!(
                     "Caraxes: channel {chid} (engine type {eng:#x}) error, info16 {info16:#x} (host mirror)"
                 );
@@ -3525,6 +3534,56 @@ mod tests {
         assert!(g.mem.write(notifier, &n));
         g.b.rc_scan.1 = None;
         assert!(g.b.scan_channel_errors(&g.mem, true).is_empty());
+    }
+
+    /// The guest's STOP_CHANNEL, then the kernel's own PREEMPTIVE_REMOVAL in the channel's
+    /// error notifier (kchannelNotifyRc): no OS_ERROR_LOG, no RC_TRIGGERED (the guest Xid 45
+    /// at every CUDA process exit of 2026-09-27/28). A later error of another kind still
+    /// reaches the guest.
+    #[test]
+    fn the_notice_after_the_guests_stop_channel_is_no_rc() {
+        use nvrm_sys::RmAbi;
+        type Abi = v::RmAbi;
+        let mut g = Guest615::boot("stopnotice");
+        let (c, notifier) = (0xc1d0_0001u32, 0x88a7_8000u64);
+        let mut p = vec![0u8; <Abi as RmAbi>::ALLOC_CHANNEL_PARAMS_SIZE as usize];
+        let put = |b: &mut [u8], o: usize, x: &[u8]| b[o..o + x.len()].copy_from_slice(x);
+        let flags = (1u32 << 21) | (5 << 8);
+        put(&mut p, <Abi as RmAbi>::ALLOC_CHANNEL_PARAMS_OFF_flags, &flags.to_le_bytes());
+        put(&mut p, <Abi as RmAbi>::ALLOC_CHANNEL_PARAMS_OFF_gpFifoEntries, &32u32.to_le_bytes());
+        put(&mut p, <Abi as RmAbi>::ALLOC_CHANNEL_PARAMS_OFF_engineType, &1u32.to_le_bytes());
+        let userd = <Abi as RmAbi>::ALLOC_CHANNEL_PARAMS_OFF_userdMem;
+        put(&mut p, userd + v::MEM_DESC_BASE, &0x20_0000u64.to_le_bytes());
+        put(&mut p, userd + v::MEM_DESC_ADDRESS_SPACE, &v::ADDR_FBMEM.to_le_bytes());
+        let err = <Abi as RmAbi>::ALLOC_CHANNEL_PARAMS_OFF_errorNotifierMem;
+        put(&mut p, err + v::MEM_DESC_BASE, &notifier.to_le_bytes());
+        put(&mut p, err + v::MEM_DESC_ADDRESS_SPACE, &v::ADDR_SYSMEM.to_le_bytes());
+        let (notes, el) = g.rpc(rpc::FN_GSP_RM_ALLOC, &alloc_request(c, 0xcaf1_0000, 0xc46f, &p));
+        assert_eq!(Guest615::reply(&el, rpc::FN_GSP_RM_ALLOC).unwrap().0, 0, "{notes:?}");
+        g.b.ctrl.channels.channel_mut(5).unwrap().mirrored = true;
+        assert!(g.b.scan_channel_errors(&g.mem, true).is_empty());
+        g.rpc(rpc::FN_GSP_RM_CONTROL, &control_request(c, 0xcaf1_0000, v::CMD_CHANNEL_STOP, &[0u8; 1]));
+        assert!(g.b.ctrl.channels.channel_mut(5).unwrap().stopped);
+        g.drain();
+        // The kernel's stop notice: info32 45, status 0xFFFF.
+        let mut n = [0u8; 16];
+        n[8] = 45;
+        n[14] = 0xFF;
+        n[15] = 0xFF;
+        assert!(g.mem.write(notifier, &n));
+        g.b.rc_scan.1 = None;
+        let notes = g.b.scan_channel_errors(&g.mem, true);
+        assert!(notes.iter().any(|s| s.contains("chid 5: PREEMPTIVE_REMOVAL after the guest's STOP_CHANNEL")), "{notes:?}");
+        assert!(!notes.iter().any(|s| s.contains("error notifier written")), "{notes:?}");
+        let el = g.drain();
+        assert!(Guest615::reply(&el, crate::events::EV_OS_ERROR_LOG).is_none());
+        assert!(Guest615::reply(&el, crate::events::EV_RC_TRIGGERED).is_none());
+        // A later MMU fault on the same channel is an RC as before.
+        n[8] = 31;
+        assert!(g.mem.write(notifier, &n));
+        g.b.rc_scan.1 = None;
+        let notes = g.b.scan_channel_errors(&g.mem, true);
+        assert!(notes.iter().any(|s| s.contains("chid 5: error notifier written (exceptType 31")), "{notes:?}");
     }
 
     /// The RC reflection of the D models (rc.rs): a non-replayable fault UVM reports on a

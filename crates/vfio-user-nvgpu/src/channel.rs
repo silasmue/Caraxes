@@ -244,6 +244,9 @@ pub struct Channel {
     software_object_model_valid: bool,
     /// Runs on a host mirror channel: the software executor leaves it alone.
     pub mirrored: bool,
+    /// The guest stopped it (`NVA06F_CTRL_CMD_STOP_CHANNEL`): a PREEMPTIVE_REMOVAL in its
+    /// error notifier is the guest kernel's own stop notice, not a host RC (boot.rs).
+    pub stopped: bool,
     pub chid: u32,
     /// Registry-unique identity for this allocation, even when the guest reuses a ChID.
     pub generation: u64,
@@ -1237,6 +1240,7 @@ impl Registry {
                     next_software_object: 1,
                     software_object_model_valid: true,
                     mirrored: false,
+                    stopped: false,
                     chid,
                     generation: self.channel_generation,
                     engine_type: rd32(params, <Abi as RmAbi>::ALLOC_CHANNEL_PARAMS_OFF_engineType),
