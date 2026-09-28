@@ -340,6 +340,17 @@ pub fn held_at_free(
         .collect()
 }
 
+/// The set-B ranges of a fenced shadow ([`crate::shadow::Layout::fenced`]) without those inside
+/// the fence: the host's own buffers land above the fence, so the guest's copies at its
+/// promoted VAs are plain set A there (and keep their region from the fence). Unchanged
+/// without a fence.
+pub fn unfenced(ranges: Vec<(u64, u64)>, layout: &crate::shadow::Layout) -> Vec<(u64, u64)> {
+    ranges
+        .into_iter()
+        .filter(|(lo, hi)| !layout.in_fence(*lo, *hi))
+        .collect()
+}
+
 /// Set B of a shadow root: the live channels' exclusions ([`exclusions_of`]) and the
 /// ranges held for host TSGs not yet freed ([`held_at_free`]), sorted and deduplicated.
 pub fn set_b_with_held(
@@ -940,6 +951,9 @@ pub struct Mirror {
     /// Place video objects on the host ([`Mirror::place_video_object`]);
     /// `CARAXES_MIRROR_VIDEO_OBJECT=0` refuses every one to the guest.
     video_objects: bool,
+    /// `CARAXES_SHADOW_FENCE=1` (shadow.rs [`crate::shadow::Layout::fenced`]): GR and CE shadow
+    /// VA spaces fence the guest RM's kernel range, and set B moves above it.
+    shadow_fence: bool,
     next_event_id: u32,
     pub stats: MirrorStats,
     /// GR contexts whose preemption request was carried out on the host without an owned
@@ -1121,6 +1135,7 @@ impl Mirror {
             descs: None,
             video_pending: BTreeMap::new(),
             video_objects: std::env::var("CARAXES_MIRROR_VIDEO_OBJECT").as_deref() != Ok("0"),
+            shadow_fence: std::env::var(crate::shadow::FENCE_ENV).as_deref() == Ok("1"),
             next_event_id: 0x1000,
             stats: MirrorStats::default(),
             preemption_ready: std::collections::BTreeSet::new(),
@@ -1825,6 +1840,8 @@ impl Mirror {
         // GR and CE roots keep the default layout, as before.
         let layout = if self.video_objects && video_bind(self.chip, &ch).is_some() {
             crate::shadow::Layout::video()
+        } else if self.shadow_fence {
+            crate::shadow::Layout::fenced()
         } else {
             crate::shadow::Layout::default()
         };
@@ -1833,13 +1850,17 @@ impl Mirror {
                 Ok(mut sv) => {
                     sv.comp = self.comp.clone();
                     notes.push(format!(
-                        "shadow: host-managed VAS {:#x} for guest root {root:#x}, VAS start {:#x}{}{} [host]",
+                        "shadow: host-managed VAS {:#x} for guest root {root:#x}, VAS start {:#x}{}{}{} [host]",
                         sv.vas,
                         sv.va_start,
                         if layout.va_base == 0 && sv.va_start != 0 {
                             " (ALLOW_ZERO_ADDRESS not honoured: guest VAs below it cannot be mirrored)"
                         } else {
                             ""
+                        },
+                        match layout.fence {
+                            Some((lo, hi)) => format!(", fence [{lo:#x}, {hi:#x}) held by the host (its own buffers land above it)"),
+                            None => String::new(),
                         },
                         if layout.va_base != 0 {
                             format!(
@@ -3561,7 +3582,7 @@ impl Mirror {
                 out.extend(sp.private.values().flatten().copied());
                 out.sort_unstable();
                 out.dedup();
-                out
+                unfenced(out, &sp.front.layout)
             }
             None => live,
         }
@@ -5787,6 +5808,40 @@ mod tests {
         assert_eq!(l.unmirrorable(0x2_3C00_0000, 0x2_3C20_0000), None);
         // The default layout (GR, CE) refuses nothing, as before.
         assert_eq!(Layout::default().unmirrorable(0x10_0000, 0x10_1000), None);
+    }
+
+    /// F2b: the fenced layout holds [0x1_2000_0000, +512 MiB); set-B ranges inside it are
+    /// dropped (the host's own buffers land above), those outside kept; without a fence
+    /// (Linux's default, the video layout) nothing changes.
+    #[test]
+    fn the_fence_keeps_set_b_out_only_outside_it() {
+        use crate::shadow::{Layout, FENCE_SIZE, GUEST_RM_VA_BASE};
+        let f = Layout::fenced();
+        assert_eq!(
+            f.fence,
+            Some((GUEST_RM_VA_BASE, GUEST_RM_VA_BASE + FENCE_SIZE))
+        );
+        assert_eq!(
+            (f.va_base, f.alloc_flags()),
+            (0, crate::shadow::VAS_ALLOW_ZERO_ADDRESS)
+        );
+        assert_eq!(
+            (Layout::default().fence, Layout::video().fence),
+            (None, None)
+        );
+        let b = vec![
+            (0x1_200e_9000, 0x1_200e_c000),
+            (0x1_3ff0_0000, 0x1_4010_0000),
+            (0x2_0000_0000, 0x2_0001_0000),
+        ];
+        assert_eq!(
+            unfenced(b.clone(), &f),
+            vec![
+                (0x1_3ff0_0000, 0x1_4010_0000),
+                (0x2_0000_0000, 0x2_0001_0000)
+            ]
+        );
+        assert_eq!(unfenced(b.clone(), &Layout::default()), b);
     }
 
     /// Run P18: Windows maps pushbuffers below 1 MiB (the first Xid 31 was a host fetch at

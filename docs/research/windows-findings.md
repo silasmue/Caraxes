@@ -298,3 +298,23 @@ Runs: `/mnt/vmstore/caraxes/alpha-2026-09-27/windows-plain/<run>/`.
     VAs in that process's shadow VAS.
   - The F2b class now blocks at boot, and the stop rule then ends every run before CUDA.
   - Priority: F2b first, then the unmap rule. Depends on: L, AB.
+
+### F2b built: the host fence (2026-09-28 night)
+
+- **`CARAXES_SHADOW_FENCE=1`** (off by default; the Windows launcher sets it from P24).
+  - GR and CE shadow VA spaces of the default layout hold [0x1_2000_0000, 0x1_4000_0000) with one
+    host placeholder `NV50_MEMORY_VIRTUAL`, allocated right after the VAS and before any host
+    buffer. The host's own set B lands first fit above it.
+  - A guest leaf inside the fence carves its 2 MiB region out, under the same host lock: the
+    placeholder is freed, the rest put back around the region, then the region object is
+    allocated. An emptied region goes back into the fence. The teardown frees the fence.
+  - Set-B exclusions inside the fence are dropped (`unfenced`): the host's copies are above
+    it, so the guest's copies at its promoted VAs are plain set A.
+  - A refused placeholder piece is a WARN ("a hole in the fence").
+- **Linux:** unchanged (switch off). The video layout gets no fence.
+- **Open:**
+  - Host buffers above the fence can still meet guest VAs there. Windows' user allocations seen
+    at 0x2_2000_0000; none in [0x1_4000_0000, 0x2_0000_0000) in P18-P23.
+  - The fence size (512 MiB) comes from P18-P23 (guest RM range up to 0x1_21e4_0000).
+- Depends on: L (a new part of the shadow layout), AB (set B moves), K (the compressed slice's
+  kinds map through the same region objects; the fence only reserves VA).
