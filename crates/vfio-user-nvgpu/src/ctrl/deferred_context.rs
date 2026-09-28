@@ -100,6 +100,9 @@ impl Default for State {
 }
 
 impl State {
+    /// A skip-context GR channel submits only once its TSG's context is promoted and live.
+    /// The context is the TSG's: the guest promotes it once, on the channel it names, and
+    /// the TSG's other channels (Windows CUDA: eight, one per subcontext, run P26) share it.
     pub(super) fn target_submission_blocked(&self, reg: &Registry, chid: u32) -> bool {
         let Some(ch) = reg.channel(chid) else {
             return false;
@@ -108,10 +111,9 @@ impl State {
             && ch.engine_type == 1
             && ch.alloc_flags & (1 << 31) != 0
             && !self.contexts.iter().any(|(target, context)| {
-                target.chid == chid
-                    && target.generation == ch.generation
-                    && context.promoted
-                    && target.live(reg)
+                let own = target.chid == chid && target.generation == ch.generation;
+                let member = target.client == ch.h_client && target.object == ch.h_parent;
+                (own || member) && context.promoted && target.live(reg)
             })
     }
 
@@ -123,12 +125,50 @@ impl State {
             })
     }
 
+    /// A context stays with its TSG while any channel of it lives: the guest promotes it on
+    /// one channel and evicts it through whichever channel is left (run P29b: Windows CUDA
+    /// frees the promoted channel first and evicts through the last of its eight; the
+    /// eviction failed "not promoted", an Xid 45 RC on the management channel and a TDR at
+    /// every CUDA process exit). A context whose channel is gone moves to the lowest live
+    /// skip-context GR channel of the same TSG on the same root; with none it is dropped.
+    fn rehome_contexts(&mut self, reg: &Registry) {
+        let stale: Vec<TargetStamp> = self
+            .contexts
+            .keys()
+            .filter(|t| !t.live(reg))
+            .copied()
+            .collect();
+        for old in stale {
+            let context = self.contexts.remove(&old).unwrap();
+            let heir = reg
+                .channels()
+                .filter(|ch| {
+                    ch.h_client == old.client
+                        && ch.h_parent == old.object
+                        && ch.engine_type == 1
+                        && ch.alloc_flags & (1 << 31) != 0
+                })
+                .map(|ch| TargetStamp {
+                    chid: ch.chid,
+                    generation: ch.generation,
+                    client: old.client,
+                    object: old.object,
+                    root: old.root,
+                })
+                .filter(|t| t.live(reg) && !self.contexts.contains_key(t))
+                .min();
+            if let Some(heir) = heir {
+                self.contexts.insert(heir, context);
+            }
+        }
+    }
+
     pub(super) fn prune(&mut self, reg: &Registry) {
         self.requests.retain(|(client, object, _), r| {
             r.target.live(reg)
                 && reg.engine_owner(*client, *object) == Some((r.owner_chid, r.owner_generation))
         });
-        self.contexts.retain(|target, _| target.live(reg));
+        self.rehome_contexts(reg);
         self.management.retain(|chid, generation| {
             reg.channel(*chid)
                 .is_some_and(|ch| ch.generation == *generation)
@@ -421,10 +461,11 @@ mod tests {
     use super::*;
     use crate::deferred::{ContextTarget, Request, CMD_DEFERRED_API};
     use crate::fb::FbLayout;
-    use crate::ver::active::{self as v, FERMI_VASPACE_A, KEPLER_CHANNEL_GROUP_A};
+    use crate::ver::common::{self as v, FERMI_VASPACE_A, KEPLER_CHANNEL_GROUP_A};
     use nvrm_sys::RmAbi;
 
-    type Abi = v::RmAbi;
+    /// The guest's channel allocation layout (the same in every guest ABI).
+    type Abi = nvrm_sys::V610;
 
     fn put32(bytes: &mut [u8], offset: usize, value: u32) {
         bytes[offset..offset + 4].copy_from_slice(&value.to_le_bytes());
@@ -488,7 +529,7 @@ mod tests {
         put32(&mut pd, v::SET_PD_NUM_ENTRIES, 1);
         put32(&mut pd, v::SET_PD_H_VASPACE, vas);
         dispatcher.channels.record_set_page_directory(client, &pd);
-        let mut tsg_params = vec![0; <Abi as RmAbi>::TSG_PARAMS_SIZE as usize];
+        let mut tsg_params = vec![0; crate::ver::layouts().tsg_size];
         put32(&mut tsg_params, v::TSG_HVASPACE, vas);
         put32(&mut tsg_params, v::TSG_ENGINE_TYPE, 1);
         dispatcher
@@ -569,6 +610,7 @@ mod tests {
             },
         );
         dispatcher.channels.record_free(1, target_object);
+        dispatcher.deferred_context.prune(&dispatcher.channels); // as Dispatcher::free
         let classes = crate::fixture::rtx2070().chip.data().channel;
         dispatcher.channels.record_alloc(
             1,
@@ -580,6 +622,116 @@ mod tests {
         assert!(blocked(&dispatcher)); // A reused ChID cannot inherit promotion.
         dispatcher.deferred_context.enabled = false;
         assert!(!blocked(&dispatcher));
+    }
+
+    #[test]
+    fn tsg_members_submit_on_the_tsg_context_promoted_on_another_channel() {
+        let mut dispatcher = dispatcher();
+        let (_, _, tsg) = add_pair(&mut dispatcher, 1, 3, 4);
+        let target = TargetStamp::resolve(&dispatcher.channels, evict(1, 1, 4, tsg)).unwrap();
+        // Run P26: CUDA's TSG gets seven more skip-context channels after the promotion.
+        let classes = crate::fixture::rtx2070().chip.data().channel;
+        for (chid, object) in [(5, 0x42), (6, 0x43)] {
+            dispatcher.channels.record_alloc(
+                1,
+                tsg,
+                object,
+                classes.gpfifo,
+                &channel_params(chid, 1 << 31, 0),
+            );
+        }
+        // A skip-context channel of another client's TSG with the same handles.
+        let (_, _, other_tsg) = add_pair(&mut dispatcher, 2, 7, 8);
+        dispatcher.channels.record_alloc(
+            2,
+            other_tsg,
+            0x42,
+            classes.gpfifo,
+            &channel_params(9, 1 << 31, 0),
+        );
+        let blocked = |d: &Dispatcher, chid| {
+            d.deferred_context
+                .target_submission_blocked(&d.channels, chid)
+        };
+        assert!([4, 5, 6, 9].iter().all(|c| blocked(&dispatcher, *c)));
+        dispatcher.deferred_context.contexts.insert(
+            target,
+            Context {
+                size: 0x2000,
+                promoted: false,
+            },
+        );
+        assert!([4, 5, 6].iter().all(|c| blocked(&dispatcher, *c)));
+        dispatcher
+            .deferred_context
+            .contexts
+            .get_mut(&target)
+            .unwrap()
+            .promoted = true;
+        assert!([4, 5, 6].iter().all(|c| !blocked(&dispatcher, *c)));
+        assert!(blocked(&dispatcher, 9)); // Another client's TSG shares nothing.
+        assert!(blocked(&dispatcher, 8));
+        // The promoted channel freed (Dispatcher::free prunes): the context moves to a live
+        // member, and the TSG's channels keep submitting.
+        dispatcher.channels.record_free(1, 0x41);
+        dispatcher.deferred_context.prune(&dispatcher.channels);
+        assert!([5, 6].iter().all(|c| !blocked(&dispatcher, *c)));
+        assert!(blocked(&dispatcher, 9));
+    }
+
+    /// Run P29b: Windows CUDA promotes on its first channel, frees it first and evicts the
+    /// TSG's context through the last channel left. The context moves with the TSG.
+    #[test]
+    fn the_tsg_context_moves_to_a_live_member_and_is_evicted_there() {
+        let mut dispatcher = dispatcher();
+        let (_, first, tsg) = add_pair(&mut dispatcher, 1, 3, 4);
+        let promoted = TargetStamp::resolve(&dispatcher.channels, evict(1, 1, 4, tsg)).unwrap();
+        let classes = crate::fixture::rtx2070().chip.data().channel;
+        for (chid, object) in [(5, 0x42), (6, 0x43)] {
+            dispatcher.channels.record_alloc(
+                1,
+                tsg,
+                object,
+                classes.gpfifo,
+                &channel_params(chid, 1 << 31, 0),
+            );
+        }
+        dispatcher.deferred_context.contexts.insert(
+            promoted,
+            Context {
+                size: 0x2000,
+                promoted: true,
+            },
+        );
+        let blocked = |d: &Dispatcher, chid| {
+            d.deferred_context
+                .target_submission_blocked(&d.channels, chid)
+        };
+        // The promoted channel is freed (Dispatcher::free prunes): the context moves to the
+        // lowest live member, and the members still submit.
+        dispatcher.channels.record_free(1, first);
+        dispatcher.deferred_context.prune(&dispatcher.channels);
+        let homes: Vec<u32> = dispatcher
+            .deferred_context
+            .contexts
+            .keys()
+            .map(|t| t.chid)
+            .collect();
+        assert_eq!(homes, vec![5]);
+        assert!(!blocked(&dispatcher, 5) && !blocked(&dispatcher, 6));
+        // Channel 5 goes too: the eviction the guest names on channel 6 finds the context.
+        dispatcher.channels.record_free(1, 0x42);
+        dispatcher.deferred_context.prune(&dispatcher.channels);
+        let last = TargetStamp::resolve(&dispatcher.channels, evict(2, 1, 6, tsg)).unwrap();
+        assert!(dispatcher
+            .deferred_context
+            .contexts
+            .get(&last)
+            .is_some_and(|c| c.promoted && c.size == 0x2000));
+        // The TSG's last channel gone: no heir, the context is dropped.
+        dispatcher.channels.record_free(1, 0x43);
+        dispatcher.deferred_context.prune(&dispatcher.channels);
+        assert!(dispatcher.deferred_context.contexts.is_empty());
     }
 
     #[test]
@@ -643,6 +795,7 @@ mod tests {
         assert!(registered.target.live(&dispatcher.channels));
 
         dispatcher.channels.record_free(1, target_object);
+        dispatcher.deferred_context.prune(&dispatcher.channels); // as Dispatcher::free
         let classes = crate::fixture::rtx2070().chip.data().channel;
         dispatcher.channels.record_alloc(
             1,

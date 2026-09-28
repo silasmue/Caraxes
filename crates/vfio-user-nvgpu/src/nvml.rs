@@ -30,12 +30,12 @@
 use crate::chip::ChipData;
 use crate::ctrl::{Answer, HostRm};
 use crate::hostabi::{HostLayouts, HOST_SIZED_LEGACY};
-// The control numbers, lists and layouts of the emulated driver version (src/ver).
-use crate::ver::active::{
+// The control numbers, lists and layouts every guest ABI shares (src/ver/common.rs).
+use crate::ver::common::{
     self as v, INDEX_FORWARD_TO_PHYSICAL, INFO_CHIP_UNIQUE_HI, INFO_CHIP_UNIQUE_LO,
     NV20_SUBDEVICE_0, NV_ERR_NOT_SUPPORTED, NV_OK, SMC_MODE_UNSUPPORTED,
 };
-pub use crate::ver::active::{
+pub use crate::ver::common::{
     BINAPI, CMD_BINAPI_0108, CMD_DIAG_GPU_VERIFY_INFOROM, CMD_FB_GET_INFO_V2,
     CMD_GPU_GET_CHIP_DETAILS, CMD_GPU_GET_INFO_V2, CMD_INTERNAL_GPU_GET_SMC_MODE,
     CMD_NVLINK_GET_PLATFORM_INFO, CMD_THERMAL_SYSTEM_EXECUTE_V2,
@@ -521,7 +521,7 @@ mod tests {
         assert_eq!(fnv64(b""), 0xcbf2_9ce4_8422_2325);
         assert_eq!(fnv64(b"a"), 0xaf63_dc4c_8601_ec8c);
     }
-    use crate::ver::active::NV01_DEVICE_0;
+    use crate::ver::common::NV01_DEVICE_0;
 
     fn chip() -> &'static ChipData {
         crate::fixture::rtx2070().chip.data()

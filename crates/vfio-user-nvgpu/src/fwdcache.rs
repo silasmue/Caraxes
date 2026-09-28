@@ -153,8 +153,8 @@ impl HostRm for CachingHost {
         let status = self.inner.control(class, cmd, params);
         let keep = matches!(
             status,
-            crate::ver::active::NV_OK
-                | crate::ver::active::NV_ERR_NOT_SUPPORTED
+            crate::ver::common::NV_OK
+                | crate::ver::common::NV_ERR_NOT_SUPPORTED
                 | NV_ERR_OBJECT_NOT_FOUND
         );
         let size = 2 * params.len();
@@ -173,7 +173,7 @@ impl HostRm for CachingHost {
 mod tests {
     use super::*;
     use crate::ctrl::{Dispatcher, INTERNAL_CLIENT, INTERNAL_SUBDEVICE};
-    use crate::ver::active::{self as v, FORWARD, LEGACY, NV20_SUBDEVICE_0, NV_OK};
+    use crate::ver::common::{self as v, FORWARD, LEGACY, NV20_SUBDEVICE_0, NV_OK};
     use std::sync::{Arc, Mutex};
 
     /// A host whose every answer differs from the last: a counter in the first four bytes

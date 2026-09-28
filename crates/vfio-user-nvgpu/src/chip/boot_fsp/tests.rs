@@ -250,11 +250,10 @@ fn multi_packet_messages_are_reassembled() {
 
 /// The whole GB206 bootstrap as kgspBootstrap_GH100 runs it, against the generic boot
 /// model with the GB206 chip, up to the linked message queues. The guest side is the
-/// 610 transport (message queue v0 through `msgq::tests`), which a `v615` build does not
-/// link (it waits for the 615 RMARGS, docs/caraxes/gsp-transport-615.md §8), so the test
-/// belongs to the 610 build.
+/// 610 transport (message queue v0 through `msgq::tests`): RMARGS without the 615 magic,
+/// which the device reads as message queue v0 (a 615 guest links v2 instead,
+/// docs/caraxes/gsp-transport-615.md §8).
 #[test]
-#[cfg_attr(feature = "v615", ignore = "610 transport; a v615 build links only msgq v2")]
 fn gb206_bootstrap_reaches_the_message_queues() {
     let fx = crate::fixture::rtx5060ti();
     let fb = 4u64 << 30;
@@ -269,10 +268,10 @@ fn gb206_bootstrap_reaches_the_message_queues() {
     put64(&mem, libos + v::LIBOS_ARG_ID8, v::RMARGS_ID8);
     put64(&mem, libos + v::LIBOS_ARG_PA, rmargs);
     put64(&mem, libos + v::LIBOS_ARG_REGION_SIZE, 0x1000);
-    put64(&mem, rmargs + v::MQ_SHARED_MEM_PA, base);
-    assert!(mem.write(rmargs + v::MQ_PAGE_TABLE_ENTRY_COUNT, &129u32.to_le_bytes()));
-    put64(&mem, rmargs + v::MQ_CMD_QUEUE_OFFSET, 0x1000);
-    put64(&mem, rmargs + v::MQ_STAT_QUEUE_OFFSET, 0x4_1000);
+    put64(&mem, rmargs + crate::ver::v610::MQ_SHARED_MEM_PA, base);
+    assert!(mem.write(rmargs + crate::ver::v610::MQ_PAGE_TABLE_ENTRY_COUNT, &129u32.to_le_bytes()));
+    put64(&mem, rmargs + crate::ver::v610::MQ_CMD_QUEUE_OFFSET, 0x1000);
+    put64(&mem, rmargs + crate::ver::v610::MQ_STAT_QUEUE_OFFSET, 0x4_1000);
     cpu_wpr_meta(&mem, meta);
     cpu_fmc_params(&mem, fmc, meta, libos);
 

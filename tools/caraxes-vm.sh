@@ -46,11 +46,11 @@
 # call; CARAXES_BAR_TLB=0 walks the BAR tables at every trapped access; CARAXES_CE_SHADOW=0
 # runs copy-engine channels on the guest's own (unfiltered) tables; CARAXES_LINEAR_IOVA=0 keeps
 # the independent 1 GiB chunks instead of IOVA = GPA + one offset.
-# Guest driver ABI (docs/caraxes/gsp-transport-615.md): CARAXES_GUEST_ABI=610 (the default
-# build) or 615 (message queue v2 and GMCAPI init: the binary of `cargo build --release -p
-# vfio-user-nvgpu --features v615 --target-dir target/v615`, the default SERVER then) is
-# passed to the device as --guest-abi, which refuses a binary built for another ABI (fail
-# closed); 595 is the pre-610 element experiment of docs/caraxes/guest-driver-versions.md.
+# Guest driver ABI (docs/research/one-abi-binary-2026-09-28.md): one device binary serves
+# every guest ABI and reads the guest's at its GSP boot (570 nova-core, 610, 615 Linux, the
+# 617 Windows guest on the 615 model). CARAXES_GUEST_ABI=570|595|610|615 is optional: it is
+# passed as --guest-abi and pins the device (fail closed on a guest that shows another);
+# 595 is the pre-610 element experiment of docs/caraxes/guest-driver-versions.md, pin only.
 # CARAXES_GUEST_DMA_GPA=1 tests stock guest DMA addresses without caraxes_dma_range.
 # It requires registered RAM and host-managed GR/CE shadow mappings. The guest
 # helper must be absent; do not combine its IOVA translation with GPA aliases.
@@ -66,8 +66,8 @@
 # LEA_BASE_IMAGE), seed.img (cloud-init), gpu.sock, gpu-trace.log, serial.log.
 # CARAXES_DRIVER=610|615 picks the guest driver (default: the repository's DRIVER_VERSION;
 # tools/lib/driver.sh): 615 takes /mnt/vmstore/caraxes/images/guest-baked-2026-09-24-615.71.09.qcow2
-# as LEA_BASE_IMAGE and exports CARAXES_GUEST_ABI=615 to the device (which acts on it only
-# once the 615 GSP transport lands); any other value is refused. With CARAXES_DRIVER set, or
+# as LEA_BASE_IMAGE (the device reads the guest's ABI itself; a CARAXES_GUEST_ABI other than
+# 615 is refused); any other value is refused. With CARAXES_DRIVER set, or
 # with a driver other than 610, `up` refuses an overlay not backed by that image.
 # Steam library disk (docs/caraxes/sottr-stage.md): CARAXES_GAMES_DISK=<base.qcow2> attaches a
 # second data disk after the seed (vdc in the Ubuntu guest, which mounts it by its label). By
@@ -114,9 +114,6 @@ KERNEL=${CARAXES_KERNEL:-$LEA_VM_DIR/guest-image/vmlinuz}
 INITRD=${CARAXES_INITRD:-$LEA_VM_DIR/guest-image/initrd}
 SSH_KEY=${CARAXES_SSH_KEY:-$LEA_VM_DIR/id_leandro}
 SERVER=${CARAXES_SERVER:-$LEA_ROOT/target/release/vfio-user-nvgpu}
-if [[ ${CARAXES_GUEST_ABI:-} == 615 && -z ${CARAXES_SERVER:-} ]]; then
-    SERVER=$LEA_ROOT/target/v615/release/vfio-user-nvgpu
-fi
 # The settings the guest-visible identity follows (`up` and `name` pass the same ones).
 IDENTITY=()
 [[ -n ${CARAXES_FB_MIB:-} ]] && IDENTITY+=(--fb-mib "$CARAXES_FB_MIB")

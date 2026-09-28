@@ -147,10 +147,12 @@ pub struct ChipData {
     pub interrupts: Interrupts,
     /// BAR0 names for the trace, first match wins.
     pub regmap: Vec<RegName>,
-    /// The feature families the chip lacks (category E, chipctl.rs).
-    pub features: crate::chipctl::Features,
-    /// The chip-data answers of category A (`controls.toml`, chipctl.rs).
-    pub controls: crate::chipctl::ControlTable,
+    /// The feature families the chip lacks (category E, chipctl.rs), resolved for every
+    /// guest ABI's control ids: [`ChipData::features`] gives the guest's.
+    pub features_by_abi: crate::ver::PerAbi<crate::chipctl::Features>,
+    /// The chip-data answers of category A (`controls.toml`, chipctl.rs), laid out for
+    /// every guest ABI: [`ChipData::controls`] gives the guest's.
+    pub controls_by_abi: crate::ver::PerAbi<crate::chipctl::ControlTable>,
     /// `[ecc]`: the ECC facts of a board with ECC (families/ecc.rs); `None` without.
     pub ecc: Option<crate::families::ecc::EccData>,
     /// `[mig]`: the MIG profile tables (families/mig.rs); `None` without MIG.
@@ -161,6 +163,16 @@ pub struct ChipData {
 }
 
 impl ChipData {
+    /// The feature families of the guest ABI in force (category E, chipctl.rs).
+    pub fn features(&self) -> &crate::chipctl::Features {
+        self.features_by_abi.get()
+    }
+
+    /// The category A table of the guest ABI in force (chipctl.rs).
+    pub fn controls(&self) -> &crate::chipctl::ControlTable {
+        self.controls_by_abi.get()
+    }
+
     /// Name of the register or block at `offset`, from the chip's register map.
     /// `None` means the offset is not in the map yet: the trace summary lists those.
     pub fn register_name(&self, offset: u64) -> Option<&str> {
@@ -537,13 +549,13 @@ fn parse<T: serde::de::DeserializeOwned>(file: &str, text: &str) -> Result<T, St
     toml::from_str(text).map_err(|e| format!("{file}: {e}"))
 }
 
-/// The number the emulated driver version gives `name` in `table` (`what` names the
+/// The number the guest's driver version gives `name` in `table` (`what` names the
 /// enum for the error).
 fn resolve(table: &[(&str, u32)], what: &str, name: &str) -> Result<u32, String> {
-    crate::ver::active::lookup(table, name).ok_or_else(|| {
+    crate::ver::common::lookup(table, name).ok_or_else(|| {
         format!(
             "{what} {name:?} has no number in driver {}",
-            crate::ver::active::DRIVER_VERSION
+            crate::ver::layouts().driver
         )
     })
 }
@@ -551,7 +563,7 @@ fn resolve(table: &[(&str, u32)], what: &str, name: &str) -> Result<u32, String>
 impl ChipData {
     /// Parse and resolve one chip's files (`chips/<chip>/*.toml`).
     pub fn load(f: &ChipFiles) -> Result<Self, String> {
-        use crate::ver::active as v;
+        use crate::ver::common as v;
         let c: ChipFile = parse("chip.toml", f.chip)?;
         let regmap: RegmapFile = parse("regmap.toml", f.regmap)?;
         let di: DeviceInfoFile = parse("device-info.toml", f.device_info)?;
@@ -681,14 +693,15 @@ impl ChipData {
                 subtrees,
             },
             regmap: regmap.register,
-            // Category E families and the category A table, for the emulated driver
-            // version's control ids and layouts (chipctl.rs).
-            features: crate::chipctl::Features::resolve(crate::ver::Abi::active(), &c.features)
-                .map_err(|e| format!("chip.toml {e}"))?,
-            controls: crate::chipctl::ControlTable::resolve(
-                crate::ver::Abi::active(),
-                f.controls,
-            )?,
+            // Category E families and the category A table, for every guest ABI's control
+            // ids and layouts (chipctl.rs): the chip loads before a guest shows its ABI.
+            features_by_abi: crate::ver::PerAbi::resolve(|abi| {
+                crate::chipctl::Features::resolve(abi, &c.features)
+                    .map_err(|e| format!("chip.toml ({} tables) {e}", abi.name))
+            })?,
+            controls_by_abi: crate::ver::PerAbi::resolve(|abi| {
+                crate::chipctl::ControlTable::resolve(abi, f.controls)
+            })?,
         })
     }
 }

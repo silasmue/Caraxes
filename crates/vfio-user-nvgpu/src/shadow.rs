@@ -146,6 +146,12 @@ pub const HOST_AREA_SIZE: u64 = 64 << 20;
 pub const VAS_ALLOW_ZERO_ADDRESS: u32 = 1 << 8;
 /// The RM's start of a VAS created with base 0 and without [`VAS_ALLOW_ZERO_ADDRESS`].
 pub const RM_RESERVED_VA_BASE: u64 = 1 << 20;
+/// `CARAXES_SHADOW_FENCE=1`: default-layout shadow VA spaces fence the guest RM's kernel range
+/// ([`Layout::fenced`]); off by default (Linux's layout is unchanged).
+pub const FENCE_ENV: &str = "CARAXES_SHADOW_FENCE";
+/// The fenced range above [`GUEST_RM_VA_BASE`]: Windows' kernel-RM buffers lay there in runs
+/// P18-P23 (up to 0x1_21e4_0000); 512 MiB leaves room for many more contexts.
+pub const FENCE_SIZE: u64 = 512 << 20;
 
 /// The VA layout of a shadow VA space: where the host RM's own allocations go, and which
 /// guest VAs cannot be mirrored there.
@@ -176,9 +182,29 @@ pub struct Layout {
     pub host_area: (u64, u64),
     /// The host RM's server-RM range when it is not the guest's (the video layout).
     pub host_server: (u64, u64),
+    /// `[lo, hi)` held by host placeholder objects from the VAS's creation ([`Layout::fenced`]):
+    /// the host's own buffers land above it; guest leaves inside take their region from it.
+    pub fence: Option<(u64, u64)>,
 }
 
 impl Layout {
+    /// The default layout with the guest RM's kernel range fenced (F2b, runs P20-P23). Both RMs
+    /// place their kernel buffers first fit from [`GUEST_RM_VA_BASE`], so without the fence the
+    /// host's own set B lands on VAs a Windows process maps later (host 0x51, guest leaf
+    /// refused 0x1a, a GR or PBDMA MMU fault there). The fence is allocated before any host
+    /// buffer, so the host's first fit lands above it.
+    pub fn fenced() -> Self {
+        Layout {
+            fence: Some((GUEST_RM_VA_BASE, GUEST_RM_VA_BASE + FENCE_SIZE)),
+            ..Layout::default()
+        }
+    }
+
+    /// Whether `[lo, hi)` lies wholly inside the fence.
+    pub fn in_fence(&self, lo: u64, hi: u64) -> bool {
+        self.fence.is_some_and(|(a, b)| lo >= a && hi <= b)
+    }
+
     /// The layout of a shadow VA space built for a video channel.
     pub fn video() -> Self {
         let base = GUEST_RM_VA_BASE - HOST_AREA_SIZE;
@@ -189,6 +215,7 @@ impl Layout {
             va_base: base,
             host_area: (base, GUEST_RM_VA_BASE),
             host_server: (server, server + SERVER_RM_VA_SIZE),
+            fence: None,
         }
     }
 
@@ -988,6 +1015,18 @@ impl ShadowFront {
 /// excluded (the host builds those).
 pub struct ShadowVas {
     pub vas: u32,
+    /// The fence's placeholder objects by start: `(end, handle)` ([`Layout::fenced`]).
+    fence: BTreeMap<u64, (u64, u32)>,
+    /// The fenced range, when there is a fence.
+    fence_span: Option<(u64, u64)>,
+    /// Fence changes: pieces carved out for regions, pieces put back, placeholders refused.
+    pub fence_stats: (u64, u64, u64),
+    /// Fence lines for the next sync's notes.
+    fence_notes: Vec<String>,
+    /// Set by the teardown: freed regions are not fenced again.
+    tearing_down: bool,
+    /// Set-B ranges carved out of the fence (the host maps promoted buffers there itself).
+    fence_b: Vec<(u64, u64)>,
     /// The VAS start the host RM took (vaspace_api.c:423): 0 with [`VAS_ALLOW_ZERO_ADDRESS`],
     /// [`RM_RESERVED_VA_BASE`] where the host ignored the flag, the base of the video layout.
     pub va_start: u64,
@@ -1068,13 +1107,141 @@ impl ShadowVas {
         }
         let mut sv = Self::with_vas(vas, budget);
         sv.va_start = vp.vaBase;
+        if let Some((lo, hi)) = layout.fence {
+            // Before any host buffer exists in this VAS: the host's first fit lands above.
+            if let Err(st) = sv.fence_up(hm, lo, hi) {
+                sv.fence_notes.push(format!(
+                    "WARN: shadow VAS {vas:#x}: fence [{lo:#x}, {hi:#x}) refused {st:#x}; host buffers may land on guest VAs there [host]"
+                ));
+            }
+        }
         Ok(sv)
+    }
+
+    /// Hold `[lo, hi)` with one placeholder virtual object (small pages, no mapping).
+    pub fn fence_up<H: ShadowHost>(&mut self, h: &mut H, lo: u64, hi: u64) -> Result<(), u32> {
+        self.fence_span = Some((lo, hi));
+        let hd = h.alloc_virtual_fixed(self.vas, lo, hi - lo, None, false)?;
+        self.fence.insert(lo, (hi, hd));
+        Ok(())
+    }
+
+    /// Before a region or leaf object at `[lo, hi)`: free the fence pieces overlapping it and
+    /// put back what is left of them around it, under the same host lock (nothing else can
+    /// allocate in this VAS in between).
+    fn fence_carve<H: ShadowHost>(&mut self, h: &mut H, lo: u64, hi: u64) {
+        let hit: Vec<(u64, u64, u32)> = self
+            .fence
+            .range(..hi)
+            .filter(|(a, (b, _))| **a < hi && *b > lo)
+            .map(|(a, (b, hd))| (*a, *b, *hd))
+            .collect();
+        for (a, b, hd) in hit {
+            self.fence.remove(&a);
+            self.free_virtual(h, hd);
+            self.fence_stats.0 += 1;
+            for (pa, pb) in [(a, lo.max(a)), (hi.min(b), b)] {
+                if pa < pb {
+                    self.fence_piece(h, pa, pb);
+                }
+            }
+        }
+    }
+
+    /// Put `[u, u + REGION)` back into the fence after its region object went.
+    fn fence_back<H: ShadowHost>(&mut self, h: &mut H, u: u64) {
+        self.fence_back_range(h, u, u + REGION);
+    }
+
+    /// Put `[lo, hi)` back into the fence when nothing of the shadow uses it any more: no run,
+    /// no region or pooled object, no carved set-B range, no fence piece (not during the
+    /// teardown).
+    fn fence_back_range<H: ShadowHost>(&mut self, h: &mut H, lo: u64, hi: u64) {
+        let inside = self.fence_span.is_some_and(|(a, b)| lo >= a && hi <= b);
+        let overlaps = |a: u64, b: u64| a < hi && b > lo;
+        let units = (lo & !(REGION - 1)..hi).step_by(REGION as usize);
+        if !inside
+            || self.tearing_down
+            || units.clone().any(|u| {
+                self.regions.get(&u).is_some_and(|r| r.handle.is_some())
+                    || self.pool.contains_key(&u)
+            })
+            || self
+                .runs
+                .range(..hi)
+                .next_back()
+                .is_some_and(|(v, r)| overlaps(*v, v + r.size))
+            || self.runs.range(lo..hi).next().is_some()
+            || self.fence_b.iter().any(|(a, b)| overlaps(*a, *b))
+            || self.fence.range(..hi).any(|(a, (b, _))| overlaps(*a, *b))
+        {
+            return;
+        }
+        self.fence_stats.1 += 1;
+        self.fence_piece(h, lo, hi);
+    }
+
+    /// At each sync: carve the set-B ranges inside the fence (the host maps promoted buffers
+    /// there itself, at the guest's VA) and put back those the guest no longer promotes.
+    fn fence_sync_b<H: ShadowHost>(&mut self, h: &mut H, exclude: &[(u64, u64)]) {
+        let Some((a, b)) = self.fence_span else {
+            return;
+        };
+        let now: Vec<(u64, u64)> = exclude
+            .iter()
+            .filter(|(lo, hi)| *lo < b && *hi > a)
+            .map(|(lo, hi)| ((*lo).max(a), (*hi).min(b)))
+            .collect();
+        if now == self.fence_b {
+            return;
+        }
+        let gone: Vec<(u64, u64)> = self
+            .fence_b
+            .iter()
+            .filter(|r| !now.contains(r))
+            .copied()
+            .collect();
+        for (lo, hi) in &now {
+            self.fence_carve(h, *lo, *hi);
+        }
+        self.fence_b = now;
+        for (lo, hi) in gone {
+            self.fence_back_range(h, lo, hi);
+        }
+    }
+
+    fn fence_piece<H: ShadowHost>(&mut self, h: &mut H, lo: u64, hi: u64) {
+        // A piece not on 2 MiB boundaries holds 4 KiB pages at a forced 4 KiB alignment
+        // (a default-page object there is refused, hostmem.rs `alloc_virtual_fixed`).
+        let (page, force) = if lo % REGION == 0 && hi % REGION == 0 {
+            (None, false)
+        } else {
+            (Some(0x1000), true)
+        };
+        match h.alloc_virtual_fixed(self.vas, lo, hi - lo, page, force) {
+            Ok(hd) => {
+                self.fence.insert(lo, (hi, hd));
+            }
+            Err(st) => {
+                self.fence_stats.2 += 1;
+                self.fence_notes.push(format!(
+                    "WARN: shadow VAS {:#x}: fence piece [{lo:#x}, {hi:#x}) refused {st:#x}: a hole in the fence [host]",
+                    self.vas
+                ));
+            }
+        }
     }
 
     /// The shadow of an existing VA space handle, with the switches from the environment.
     pub fn with_vas(vas: u32, budget: MapBudget) -> Self {
         ShadowVas {
             vas,
+            fence: BTreeMap::new(),
+            fence_span: None,
+            fence_stats: (0, 0, 0),
+            fence_notes: Vec::new(),
+            tearing_down: false,
+            fence_b: Vec::new(),
             va_start: 0,
             regions: BTreeMap::new(),
             mapped: BTreeMap::new(),
@@ -1163,6 +1330,7 @@ impl ShadowVas {
         }
         self.regions.remove(&u);
         self.free_virtual(h, hd);
+        self.fence_back(h, u);
         self.stats.regions_freed += 1;
         self.stats.bulk_frees += 1;
         self.stats.bulk_runs += runs.len() as u64;
@@ -1184,6 +1352,7 @@ impl ShadowVas {
             if let Some(hd) = self.pool.remove(&rv).and_then(|r| r.handle) {
                 self.free_virtual(h, hd);
                 self.stats.regions_freed += 1;
+                self.fence_back(h, rv);
             }
         }
     }
@@ -1344,6 +1513,7 @@ impl ShadowVas {
         }
         if run.own_object {
             self.free_virtual(hm, run.h_dma);
+            self.fence_back_range(hm, run_va, run_va + run.size);
         }
         self.run_gone(run.h_mem);
         self.free_idle_gathers(hm);
@@ -1460,6 +1630,10 @@ impl ShadowVas {
             let mut h = hm.lock().unwrap();
             self.purge_pool(&mut *h, exclude);
         }
+        if self.fence_span.is_some() {
+            let mut h = hm.lock().unwrap();
+            self.fence_sync_b(&mut *h, exclude);
+        }
         for (u, want_v) in &plan.units {
             let u = *u;
             let want: BTreeMap<u64, ToMap> = want_v.iter().map(|m| (m.va, *m)).collect();
@@ -1519,6 +1693,9 @@ impl ShadowVas {
                         } else {
                             self.free_virtual(&mut *h, hd);
                             self.stats.regions_freed += 1;
+                            if need.is_none() {
+                                self.fence_back(&mut *h, u);
+                            }
                         }
                     }
                 }
@@ -1574,6 +1751,7 @@ impl ShadowVas {
                             Class::Huge => Some(REGION),
                             Class::Small => None,
                         };
+                        self.fence_carve(&mut *h, rv, rv + REGION);
                         let ta = Instant::now();
                         let r = h.alloc_virtual_fixed(self.vas, rv, REGION, page, false);
                         self.calls.add(Call::ObjectAlloc, ta);
@@ -1648,6 +1826,7 @@ impl ShadowVas {
                     let (h_dma, own) = match region {
                         Some(hd) => (hd, false),
                         None => {
+                            self.fence_carve(&mut *h, p0.va, p0.va + len);
                             let ta = Instant::now();
                             let r = h.alloc_virtual_fixed(self.vas, p0.va, len, Some(p0.leaf.size), true);
                             self.calls.add(Call::ObjectAlloc, ta);
@@ -1782,7 +1961,8 @@ impl ShadowVas {
         self.stats.refused = plan.refused_total;
         self.stats.max_sync_us = self.stats.max_sync_us.max(us);
         self.stats.total_sync_us += us;
-        let settle_notes = std::mem::take(&mut self.settle_notes);
+        let mut settle_notes = std::mem::take(&mut self.settle_notes);
+        settle_notes.append(&mut self.fence_notes);
         let changed = n_unmap > 0
             || n_map > 0
             || n_fail > 0
@@ -2005,6 +2185,7 @@ impl ShadowVas {
     /// RM lock is held for the step only. Returns true when everything is freed.
     pub fn teardown_step<H: ShadowHost>(&mut self, hm: &std::sync::Mutex<H>) -> bool {
         let mut h = hm.lock().unwrap();
+        self.tearing_down = true;
         if self.teardown_calls0.is_none() {
             self.teardown_calls0 = Some(self.calls);
         }
@@ -2066,6 +2247,11 @@ impl ShadowVas {
                 }
             }
         }
+        let fenced: Vec<u32> = std::mem::take(&mut self.fence)
+            .into_values()
+            .map(|(_, hd)| hd)
+            .collect();
+        self.teardown_objects.extend(fenced);
         if !self.teardown_objects.is_empty() {
             let n = self.teardown_objects.len().min(TEARDOWN_BATCH);
             for o in self.teardown_objects.drain(..n).collect::<Vec<_>>() {
@@ -2693,6 +2879,164 @@ mod tests {
         s.apply(&host, &plan_of(&[(0, BASE + 0x60_0000, REGION, 6)], &[]), &[]);
         let h = host.lock().unwrap();
         assert_eq!(h.kinds(), vec![Call::ObjectFree, Call::ObjectAlloc, Call::Map, Call::Invalidate]);
+    }
+
+    /// F2b (runs P20-P23): a fenced VAS holds the guest RM's kernel range with host
+    /// placeholders from its creation. A guest leaf there carves its region out of the fence
+    /// (placeholder freed, the rest put back around it, then the region object), and an
+    /// emptied region goes back into the fence; a leaf outside the fence never touches it.
+    #[test]
+    fn a_fenced_region_is_carved_out_for_the_guest_and_put_back_when_empty() {
+        const F0: u64 = 0x1_2000_0000;
+        const F1: u64 = F0 + 4 * REGION;
+        let host = Mutex::new(FakeHost::default());
+        let mut s = sv(false, false);
+        s.fence_up(&mut *host.lock().unwrap(), F0, F1).unwrap();
+        assert_eq!(s.fence.len(), 1);
+        host.lock().unwrap().seen.borrow_mut().clear();
+        // A guest page in the fence's second region.
+        let va = F0 + REGION + 0x3000;
+        s.apply(&host, &plan_of(&[(va, BASE + 0x1000, 0x1000, 6)], &[]), &[]);
+        {
+            let h = host.lock().unwrap();
+            let seen: Vec<(Call, u64, u64)> = h
+                .seen
+                .borrow()
+                .iter()
+                .map(|x| (x.call, x.va, x.len))
+                .collect();
+            assert_eq!(seen[0].0, Call::ObjectFree, "{seen:x?}");
+            assert_eq!(
+                &seen[1..4],
+                &[
+                    (Call::ObjectAlloc, F0, REGION),
+                    (Call::ObjectAlloc, F0 + 2 * REGION, 2 * REGION),
+                    (Call::ObjectAlloc, F0 + REGION, REGION),
+                ],
+                "the fence around the region, then the region object"
+            );
+        }
+        assert_eq!(
+            s.fence.keys().copied().collect::<Vec<_>>(),
+            vec![F0, F0 + 2 * REGION]
+        );
+        assert_eq!(s.fence_stats, (1, 0, 0));
+        // The guest unmaps it: the region object goes and its VA returns to the fence.
+        host.lock().unwrap().seen.borrow_mut().clear();
+        s.apply(&host, &plan_of(&[], &[F0 + REGION]), &[]);
+        assert_eq!(
+            s.fence.keys().copied().collect::<Vec<_>>(),
+            vec![F0, F0 + REGION, F0 + 2 * REGION]
+        );
+        assert_eq!(s.fence_stats, (1, 1, 0));
+        // Outside the fence: no fence call.
+        host.lock().unwrap().seen.borrow_mut().clear();
+        s.apply(
+            &host,
+            &plan_of(&[(0x1000, BASE + 0x2000, 0x1000, 6)], &[]),
+            &[],
+        );
+        let h = host.lock().unwrap();
+        assert_eq!(h.calls(Call::ObjectFree).len(), 0);
+        assert_eq!(h.calls(Call::ObjectAlloc).len(), 1);
+        drop(h);
+        assert_eq!(s.fence.len(), 3);
+    }
+
+    /// Run P24: the host maps the guest's promoted PATCH at the guest's VA itself, so a set-B
+    /// range inside the fence is carved out exactly, and a guest page next to it gets its own
+    /// exact object; the rest of the 2 MiB region stays fenced. A released set-B range goes
+    /// back into the fence.
+    #[test]
+    fn set_b_and_a_leaf_object_are_carved_out_exactly() {
+        const F0: u64 = 0x1_2000_0000;
+        const F1: u64 = F0 + 4 * REGION;
+        let (b0, b1) = (F0 + REGION + 0x4000, F0 + REGION + 0x9000);
+        let leaf = F0 + REGION + 0xc000;
+        let host = Mutex::new(FakeHost::default());
+        let mut s = sv(false, false);
+        s.fence_up(&mut *host.lock().unwrap(), F0, F1).unwrap();
+        let mut p = plan_of(&[(leaf, BASE + 0x1000, 0x1000, 6)], &[]);
+        p.exclude = vec![(b0, b1)];
+        s.apply(&host, &p, &[]);
+        assert_eq!(
+            s.fence
+                .iter()
+                .map(|(a, (b, _))| (*a, *b))
+                .collect::<Vec<_>>(),
+            vec![(F0, b0), (b1, leaf), (leaf + 0x1000, F1)],
+            "set B and the leaf carved out, nothing else"
+        );
+        assert!(s.coverage(leaf, leaf + 0x1000).starts_with("covered"));
+        // The guest's promote goes: set B is fenced again, the leaf stays.
+        s.apply(
+            &host,
+            &plan_of(&[(leaf, BASE + 0x1000, 0x1000, 6)], &[]),
+            &[],
+        );
+        assert_eq!(
+            s.fence
+                .iter()
+                .map(|(a, (b, _))| (*a, *b))
+                .collect::<Vec<_>>(),
+            vec![(F0, b0), (b0, b1), (b1, leaf), (leaf + 0x1000, F1)]
+        );
+        // The leaf goes too: its range is fenced again.
+        s.apply(&host, &plan_of(&[], &[F0 + REGION]), &[]);
+        assert!(s
+            .fence
+            .iter()
+            .any(|(a, (b, _))| (*a, *b) == (leaf, leaf + 0x1000)));
+    }
+
+    /// The teardown frees the fence with everything else and puts nothing back.
+    #[test]
+    fn the_teardown_frees_the_fence() {
+        let host = Mutex::new(FakeHost::default());
+        let mut s = sv(false, false);
+        s.fence_up(
+            &mut *host.lock().unwrap(),
+            0x1_2000_0000,
+            0x1_2000_0000 + 2 * REGION,
+        )
+        .unwrap();
+        s.apply(
+            &host,
+            &plan_of(&[(0x1_2000_1000, BASE + 0x1000, 0x1000, 6)], &[]),
+            &[],
+        );
+        let placeholders: Vec<u32> = s.fence.values().map(|(_, hd)| *hd).collect();
+        while !s.teardown_step(&host) {}
+        let h = host.lock().unwrap();
+        for hd in placeholders {
+            assert!(h.freed.contains(&hd), "placeholder {hd:#x} freed");
+        }
+        assert!(s.fence.is_empty());
+        assert_eq!(s.fence_stats.1, 0, "nothing put back during the teardown");
+    }
+
+    /// A refused placeholder leaves a hole, reported, not an error of the sync.
+    #[test]
+    fn a_refused_fence_piece_is_a_reported_hole() {
+        let host = Mutex::new(FakeHost::default());
+        let mut s = sv(false, false);
+        s.fence_up(
+            &mut *host.lock().unwrap(),
+            0x1_2000_0000,
+            0x1_2000_0000 + 3 * REGION,
+        )
+        .unwrap();
+        host.lock().unwrap().alloc_status = Some(0x1a);
+        let (_, notes) = s.apply(
+            &host,
+            &plan_of(&[(0x1_2020_0000, BASE + 0x1000, 0x1000, 6)], &[]),
+            &[],
+        );
+        assert_eq!(s.fence_stats.2, 2, "both remainders refused");
+        assert!(
+            notes.iter().any(|l| l.contains("a hole in the fence")),
+            "{notes:?}"
+        );
     }
 
     /// Fail closed: a region in which an unmap failed may still hold a mapping on the host,

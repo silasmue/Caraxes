@@ -28,8 +28,7 @@
 //! The channel and copy classes come from the chip (`chips/<chip>/chip.toml`,
 //! `[channel]`); the method decoding below is that of the Volta/Turing host class
 //! (`clc46f.h`) and the Turing copy class (`clc5b5.h`), which the chip data names. The
-//! allocation and control parameter layouts are the emulated driver version's
-//! ([`crate::ver`]).
+//! allocation and control parameter layouts are the guest ABI's ([`crate::ver`]).
 
 use std::collections::BTreeMap;
 
@@ -38,13 +37,15 @@ use nvrm_sys::RmAbi;
 use crate::chip::ChannelClasses;
 use crate::fb::{FakeFb, Target};
 use crate::guestmem::GuestMemory;
-use crate::ver::active::{
+use crate::ver::common::{
     self as v, ADDR_FBMEM, ADDR_SYSMEM, CTXSHARE_HVASPACE, FERMI_CONTEXT_SHARE_A, FERMI_VASPACE_A,
     KEPLER_CHANNEL_GROUP_A, TSG_ENGINE_TYPE, TSG_HVASPACE,
 };
 
-/// The channel parameter offsets of the emulated driver version.
-type Abi = v::RmAbi;
+/// The guest's channel allocation offsets: `NV_CHANNEL_ALLOC_PARAMS` is the same in every
+/// guest ABI (hostabi.rs asserts 610 and 615 equal field by field); the TSG allocation is
+/// not, and comes from `ver::layouts()`.
+type Abi = nvrm_sys::V610;
 
 /// The page shift of a Turing (GMMU v2) VA space's root directory, PD3 (ptcache.rs).
 const ROOT_PAGE_SHIFT_V2: u8 = 47;
@@ -160,6 +161,43 @@ struct CeState {
     remap_const_a: u32,
     remap_const_b: u32,
     remap_components: u32,
+    /// A transfer run in slices ([`CE_SLICE`]): how far it got.
+    progress: Option<CeProgress>,
+}
+
+/// The LAUNCH_DMA a sliced transfer belongs to: its value and geometry.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct CeKey {
+    v: u32,
+    src: u64,
+    dst: u64,
+    lines: u64,
+    bytes_per_line: u64,
+}
+
+/// Where a sliced transfer continues: the row and the byte offset in it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct CeProgress {
+    key: CeKey,
+    line: u64,
+    offset: u64,
+}
+
+/// What a LAUNCH_DMA did: finished (its notes), or ran one slice of a long transfer, which
+/// the channel continues at the same method ([`MethodError::Blocked`], the held replay).
+#[derive(Debug)]
+enum CeOutcome {
+    Done(String),
+    Sliced(String),
+}
+
+/// Sliced software CE transfers are pending: the device's `ce-slices` clock continues them
+/// ([`ce_slices_pending`]).
+static CE_SLICES_PENDING: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// Whether a software CE transfer waits for its next slice (cleared by the check).
+pub fn ce_slices_pending() -> bool {
+    CE_SLICES_PENDING.swap(false, std::sync::atomic::Ordering::AcqRel)
 }
 
 /// Compute-class stub state (`clc5c0.h`, E5c): report semaphores and inline-to-memory.
@@ -292,6 +330,8 @@ pub struct Channel {
     software_failure: Option<String>,
     software_nonstall: bool,
     software_fb_range: Option<(u64, u64)>,
+    /// The software CE's slice ([`CE_SLICE`]; the registry's, copied at each run).
+    ce_slice: std::time::Duration,
     /// Fail-closed software execution for management channels whose deferred APIs are
     /// completed by the dispatcher through a prepared host context.
     deferred_management: bool,
@@ -466,6 +506,8 @@ pub struct Registry {
     pub tokens: Option<crate::tokens::TokenPool>,
     /// Host-backed execution confines software CE accesses to this VM's reservation.
     pub software_fb_range: Option<(u64, u64)>,
+    /// The software CE's slice ([`CE_SLICE`]; shorter in tests).
+    pub ce_slice: std::time::Duration,
     /// Lets the dispatcher avoid software-event scans on the mirrored hot path.
     pub software_runs: u64,
     sem_diag: bool,
@@ -523,6 +565,7 @@ impl Registry {
             pdb_watch: crate::pdbwatch::PdbWatch::default(),
             tokens: None,
             software_fb_range: None,
+            ce_slice: CE_SLICE,
             software_runs: 0,
             sem_diag: std::env::var("CARAXES_SEMAPHORE_DIAG").as_deref() == Ok("1"),
             sem_diag_chid: std::env::var("CARAXES_SEMAPHORE_DIAG_CHID")
@@ -877,6 +920,12 @@ impl Registry {
                 })
             })
             .collect()
+    }
+
+    /// The GPGet the device last recorded for guest channel `chid` (its software or
+    /// harvested position).
+    pub fn channel_gp_get(&self, chid: u32) -> Option<u32> {
+        self.channels.get(&chid).map(|c| c.gp_get)
     }
 
     /// Software acquires may wait for a host GPU write without another guest doorbell.
@@ -1238,10 +1287,10 @@ impl Registry {
                 let engine = rd32(params, TSG_ENGINE_TYPE);
                 self.tsgs.insert((h_client, h_object), (vas, engine));
                 // 615 appends internalFlags (28 bytes; 610 has 20 and no such field).
-                let off = <Abi as RmAbi>::TSG_PARAMS_OFF_internalFlags;
-                let grp = (<Abi as RmAbi>::TSG_PARAMS_SIZE as usize >= off + 4
-                    && params.len() >= off + 4)
-                    .then(|| rd32(params, off))
+                let grp = crate::ver::layouts()
+                    .tsg_internal_flags
+                    .filter(|&off| params.len() >= off + 4)
+                    .map(|off| rd32(params, off))
                     .filter(|f| f & (1 << 16) != 0)
                     .map(|f| f & 0xFFFF);
                 if let Some(id) = grp {
@@ -1333,6 +1382,7 @@ impl Registry {
                     software_failure: None,
                     software_nonstall: false,
                     software_fb_range: None,
+                    ce_slice: CE_SLICE,
                     deferred_management: false,
                     deferred: None,
                     sem_diag_seen: std::collections::BTreeSet::new(),
@@ -1980,6 +2030,7 @@ impl Registry {
         }
         self.software_runs = self.software_runs.wrapping_add(1);
         ch.software_fb_range = self.software_fb_range;
+        ch.ce_slice = self.ce_slice;
         let Some(userd) = ch.userd else {
             notes.push(format!("chid {chid}: no USERD, nothing run"));
             return notes;
@@ -2963,10 +3014,19 @@ impl Registry {
             0x260 => c.src_phys = data,
             0x264 => c.dst_phys = data,
             0x300 => {
-                let note = Self::launch_dma(c, mem, root, data, now, ch.software_fb_range)
-                    .map_err(MethodError::Failed)?;
-                ch.software_nonstall |= (data >> 5) & 3 != 0;
-                return Ok(Some(note));
+                let (fb_range, slice) = (ch.software_fb_range, ch.ce_slice);
+                return match Self::launch_dma(&mut ch.ce, mem, root, data, now, fb_range, slice)
+                    .map_err(MethodError::Failed)?
+                {
+                    CeOutcome::Done(note) => {
+                        ch.software_nonstall |= (data >> 5) & 3 != 0;
+                        Ok(Some(note))
+                    }
+                    CeOutcome::Sliced(note) => {
+                        CE_SLICES_PENDING.store(true, std::sync::atomic::Ordering::Release);
+                        Err(MethodError::Blocked(note))
+                    }
+                };
             }
             0x400 => c.offset_in.0 = data & 0x1_FFFF,
             0x404 => c.offset_in.1 = data,
@@ -2989,15 +3049,22 @@ impl Registry {
     }
 
     /// Execute the bounded linear/constant-remap subset before publishing completion.
-    /// Unsupported shapes and inaccessible memory leave GPGet and semaphores unchanged.
+    /// Unsupported shapes and inaccessible memory leave GPGet and semaphores unchanged. A
+    /// transfer runs for at most `budget` per call: a longer one returns
+    /// [`CeOutcome::Sliced`] and continues where it stopped at the next call with the same
+    /// LAUNCH_DMA, so the device's message loop answers between slices (run P29: a 64 MiB
+    /// read-back of VRAM held the loop 6.7 s and QEMU dropped the device at its 5 s reply
+    /// timeout; on Linux the scrubber's memsets stalled the desktop).
     fn launch_dma(
-        c: &CeState,
+        c: &mut CeState,
         mem: &mut GpuMem,
         root: Target,
         v: u32,
         now: u64,
         fb_range: Option<(u64, u64)>,
-    ) -> Result<String, String> {
+        budget: std::time::Duration,
+    ) -> Result<CeOutcome, String> {
+        let start = std::time::Instant::now();
         let transfer = v & 3;
         let sem = (v >> 3) & 3;
         let interrupt = (v >> 5) & 3;
@@ -3062,53 +3129,101 @@ impl Registry {
                     "CE transfer {lines} lines/{bytes} bytes exceeds software budget"
                 ));
             }
-            // Validate every row before the first write. The lists are bounded by the
-            // byte/line limits; physical addresses never become host physical addresses.
-            let mut rows = Vec::new();
-            for line in 0..lines {
-                let s_at = src
-                    .checked_add(if multi { line * c.pitch_in as u64 } else { 0 })
-                    .ok_or("CE source address overflow")?;
-                let d_at = dst
-                    .checked_add(if multi { line * c.pitch_out as u64 } else { 0 })
-                    .ok_or("CE destination address overflow")?;
-                let from = if remap {
-                    Vec::new()
-                } else {
-                    ce_pieces(
-                        mem,
-                        root,
-                        src_phys,
-                        c.src_phys,
-                        s_at,
-                        bytes_per_line,
-                        fb_range,
-                    )?
-                };
-                let to = ce_pieces(
-                    mem,
-                    root,
-                    dst_phys,
-                    c.dst_phys,
-                    d_at,
-                    bytes_per_line,
-                    fb_range,
-                )?;
-                rows.push((from, to));
-            }
-            if remap {
-                let elem = remap_elem(c)?;
-                for (_, to) in rows {
-                    ce_fill(mem, &to, &elem)?;
+            // A transfer that fits one slice is validated whole before its first write; a
+            // longer one chunk by chunk (a fault then stops it part-way, as on hardware, and
+            // no completion is published). Physical addresses never become host physical
+            // addresses (ce_pieces checks each piece against the guest's own memory).
+            let key = CeKey {
+                v,
+                src,
+                dst,
+                lines,
+                bytes_per_line,
+            };
+            let row_at = |base: u64, pitch: u32, line: u64| {
+                base.checked_add(if multi { line * pitch as u64 } else { 0 })
+            };
+            let (mut line, mut offset) = match c.progress.take() {
+                Some(p) if p.key == key => (p.line, p.offset),
+                _ => {
+                    if bytes <= CE_VALIDATE_WHOLE {
+                        for line in 0..lines {
+                            let s_at = row_at(src, c.pitch_in, line)
+                                .ok_or("CE source address overflow")?;
+                            let d_at = row_at(dst, c.pitch_out, line)
+                                .ok_or("CE destination address overflow")?;
+                            if !remap {
+                                ce_pieces(
+                                    mem,
+                                    root,
+                                    src_phys,
+                                    c.src_phys,
+                                    s_at,
+                                    bytes_per_line,
+                                    fb_range,
+                                )?;
+                            }
+                            ce_pieces(
+                                mem,
+                                root,
+                                dst_phys,
+                                c.dst_phys,
+                                d_at,
+                                bytes_per_line,
+                                fb_range,
+                            )?;
+                        }
+                    }
+                    (0, 0)
                 }
+            };
+            let elem = if remap { remap_elem(c)? } else { Vec::new() };
+            // A fill chunk is written from one pattern buffer; a copy chunk is read into a
+            // buffer first (VRAM reads through the BAR1 windows ran at 10 MB/s, run P29).
+            let chunk = if remap {
+                CE_FILL_CHUNK as u64
             } else {
-                let mut data = Vec::new();
-                data.try_reserve_exact(bytes_per_line as usize)
-                    .map_err(|_| "CE copy buffer allocation failed")?;
-                data.resize(bytes_per_line as usize, 0);
-                for (from, to) in rows {
+                CE_COPY_CHUNK as u64
+            };
+            let mut data = Vec::new();
+            while line < lines {
+                let s_at = row_at(src, c.pitch_in, line)
+                    .and_then(|a| a.checked_add(offset))
+                    .ok_or("CE source address overflow")?;
+                let d_at = row_at(dst, c.pitch_out, line)
+                    .and_then(|a| a.checked_add(offset))
+                    .ok_or("CE destination address overflow")?;
+                let n = (bytes_per_line - offset).min(chunk);
+                let to = ce_pieces(mem, root, dst_phys, c.dst_phys, d_at, n, fb_range)?;
+                if remap {
+                    // The pattern continues at this offset of the row.
+                    let phase = (offset % elem.len().max(1) as u64) as usize;
+                    let rotated: Vec<u8> = elem[phase..]
+                        .iter()
+                        .chain(&elem[..phase])
+                        .copied()
+                        .collect();
+                    ce_fill(mem, &to, &rotated)?;
+                } else {
+                    let from = ce_pieces(mem, root, src_phys, c.src_phys, s_at, n, fb_range)?;
+                    data.resize(n as usize, 0);
                     ce_read(mem, &from, &mut data)?;
                     ce_write(mem, &to, &data)?;
+                }
+                offset += n;
+                if offset == bytes_per_line {
+                    line += 1;
+                    offset = 0;
+                }
+                if line < lines && start.elapsed() >= budget {
+                    mem.fb.flush();
+                    c.progress = Some(CeProgress { key, line, offset });
+                    return Ok(CeOutcome::Sliced(format!(
+                        "ce {} {} of {bytes} bytes in this slice's {} us; continued in the next slice [guest]",
+                        if remap { "memset" } else { "memcopy" },
+                        line * bytes_per_line + offset,
+                        start.elapsed().as_micros()
+                    )));
                 }
             }
             let dst_desc = if dst_phys {
@@ -3163,12 +3278,24 @@ impl Registry {
         if parts.is_empty() {
             parts.push(format!("ce LAUNCH_DMA {v:#x}: nothing to do"));
         }
-        Ok(parts.join("; "))
+        Ok(CeOutcome::Done(parts.join("; ")))
     }
 }
 
 // Explicit CPU-work and allocation limits, independent of guest-supplied dimensions.
-const CE_MAX_BYTES: u64 = 64 << 20;
+/// A copy's bound: no buffer the size of the transfer is allocated (it runs in
+/// [`CE_COPY_CHUNK`] pieces and [`CE_SLICE`]s), so a copy may cover the guest's own memory
+/// as a memset may.
+const CE_MAX_BYTES: u64 = 4 << 30;
+/// The longest one call of the software CE works on a transfer before the rest continues in
+/// the next slice: the vfio-user loop answers within that (QEMU's reply timeout is 5 s) and
+/// the guest's other channels run in between.
+const CE_SLICE: std::time::Duration = std::time::Duration::from_millis(40);
+/// A copy's chunk between two slice checks: 64 KiB take 6.5 ms at the 10 MB/s of VRAM reads
+/// through the BAR1 windows (run P29), so a slice ends within 50 ms.
+const CE_COPY_CHUNK: usize = 64 << 10;
+/// Transfers up to this size are validated whole before their first write.
+const CE_VALIDATE_WHOLE: u64 = 16 << 20;
 /// A memset's bound: at most the guest's own memory it may address (ce_pieces checks each
 /// piece against the guest FB and registered RAM), written in [`CE_FILL_CHUNK`] pieces.
 const CE_MAX_FILL_BYTES: u64 = 4 << 30;
@@ -3686,6 +3813,147 @@ mod tests {
         assert!(reg.blocked_software_channels().is_empty());
     }
 
+    /// A physical FB-to-FB copy of `len` bytes from `src` to `dst` (CeState only).
+    fn physical_copy(src: u64, dst: u64, len: u32) -> CeState {
+        CeState {
+            offset_in: ((src >> 32) as u32, src as u32),
+            offset_out: ((dst >> 32) as u32, dst as u32),
+            line_length_in: len,
+            ..Default::default()
+        }
+    }
+
+    /// LAUNCH_DMA of a physical-to-physical pitch copy, no semaphore, no interrupt.
+    const PHYS_COPY: u32 = 0x3182;
+
+    /// Runs P29/P29b and the Linux scrub stalls: a 1 GiB software copy never holds the
+    /// caller (the vfio-user loop) longer than the slice bound; each call ends within
+    /// CE_SLICE plus one chunk, returns Sliced and continues where it stopped.
+    #[test]
+    fn a_1_gib_software_copy_never_holds_the_loop_longer_than_the_slice_bound() {
+        let (_, sys, path, root) = world("ce-slice-1g");
+        let mut fb = FakeFb::new(4 << 30);
+        let mut gm = GpuMem {
+            fb: &mut fb,
+            sys: &sys,
+        };
+        let mut ce = physical_copy(0, 1 << 30, 1 << 30);
+        let bound = CE_SLICE + std::time::Duration::from_millis(10);
+        let mut done = 0u64;
+        for _ in 0..4 {
+            let t = std::time::Instant::now();
+            let r = Registry::launch_dma(&mut ce, &mut gm, root, PHYS_COPY, 1, None, CE_SLICE);
+            let took = t.elapsed();
+            assert!(took <= bound, "one slice took {took:?}");
+            assert!(matches!(r, Ok(CeOutcome::Sliced(_))), "{r:?}");
+            let p = ce.progress.expect("a sliced copy keeps its progress");
+            let now = p.line * p.key.bytes_per_line + p.offset;
+            assert!(now > done && now < 1 << 30, "progress {done} -> {now}");
+            done = now;
+        }
+        std::fs::remove_file(path).ok();
+    }
+
+    /// A sliced copy and a sliced fill end exactly as a whole one: every byte once, the fill
+    /// pattern continuing across slices (3-byte elements), the progress cleared at the end.
+    #[test]
+    fn sliced_transfers_complete_exactly() {
+        let (mut fb, sys, path, root) = world("ce-slice-exact");
+        let n = 3 * CE_COPY_CHUNK as u32 + 4099;
+        let src: Vec<u8> = (0..n).map(|i| (i * 7 + i / 251) as u8).collect();
+        assert!(fb.write(0x100_0000, &src));
+        let mut gm = GpuMem {
+            fb: &mut fb,
+            sys: &sys,
+        };
+        let zero = std::time::Duration::ZERO;
+        let mut ce = physical_copy(0x100_0000, 0x200_0000, n);
+        let mut slices = 0;
+        loop {
+            match Registry::launch_dma(&mut ce, &mut gm, root, PHYS_COPY, 1, None, zero).unwrap() {
+                CeOutcome::Sliced(_) => slices += 1,
+                CeOutcome::Done(note) => {
+                    assert!(note.contains(&format!("memcopy {n} bytes")), "{note}");
+                    break;
+                }
+            }
+        }
+        assert_eq!(slices, 3, "one chunk per slice with a zero budget");
+        assert!(ce.progress.is_none());
+        let mut got = vec![0u8; n as usize];
+        assert!(gm.fb.read(0x200_0000, &mut got));
+        assert!(got == src, "the sliced copy differs");
+        // A constant-remap fill of 3-byte elements (COMPONENT_SIZE 3, one component: the
+        // constant A), 2.5 chunks.
+        let elements = (5 * CE_FILL_CHUNK as u32 / 2) / 3 + 1;
+        let mut fill = CeState {
+            offset_out: (0, 0x300_0000),
+            line_length_in: elements,
+            remap_const_a: 0x00C3_B2A1,
+            remap_components: 0x0002_0004,
+            ..Default::default()
+        };
+        // Physical destination, constant remap, pitch.
+        let v = 0x2582;
+        let mut fills = 0;
+        while let CeOutcome::Sliced(_) =
+            Registry::launch_dma(&mut fill, &mut gm, root, v, 1, None, zero).unwrap()
+        {
+            fills += 1;
+        }
+        assert_eq!(fills, 2);
+        let mut b = vec![0u8; elements as usize * 3];
+        assert!(gm.fb.read(0x300_0000, &mut b));
+        assert!(
+            b.chunks(3).all(|c| c == [0xA1, 0xB2, 0xC3]),
+            "fill pattern broken"
+        );
+        std::fs::remove_file(path).ok();
+    }
+
+    /// Through the channel: a sliced LAUNCH_DMA holds the channel at that method (a blocked
+    /// software channel, replayed by the held path); its semaphore is released and GPGet
+    /// advances only when the last slice is done.
+    #[test]
+    fn a_sliced_launch_releases_its_semaphore_only_at_the_end() {
+        let mut pb = physical_fill(0x30_0000, 3 * CE_FILL_CHUNK as u32);
+        pb.extend(inc(0, 0x20, &[0]));
+        let (mut fb, sys, path, mut reg) = software_fixture("ce-slice-chan", &pb);
+        reg.software_fb_range = Some((0, 64 << 20));
+        reg.ce_slice = std::time::Duration::ZERO;
+        let mut runs = 0;
+        loop {
+            reg.doorbell(
+                &mut GpuMem {
+                    fb: &mut fb,
+                    sys: &sys,
+                },
+                9,
+            );
+            runs += 1;
+            if reg.blocked_software_channels().is_empty() {
+                break;
+            }
+            assert_eq!(
+                sys.read_u32(0x4000_1004),
+                Some(0),
+                "released before the end"
+            );
+            assert_eq!(fb.read_u64(0x20_0000 + USERD_GP_GET).unwrap() as u32, 0);
+            assert!(runs < 64, "never finished");
+        }
+        assert!(runs > 1, "the fill was not sliced");
+        assert!(ce_slices_pending());
+        assert_eq!(sys.read_u32(0x4000_1004), Some(1));
+        assert_eq!(fb.read_u64(0x20_0000 + USERD_GP_GET).unwrap() as u32, 1);
+        assert_eq!(
+            fb.read_u64(0x30_0000 + 12 * CE_FILL_CHUNK as u64 - 8)
+                .unwrap() as u32,
+            0xAABB_CCDD
+        );
+        std::fs::remove_file(path).ok();
+    }
+
     #[test]
     fn physical_ce_then_legacy_release_and_nonstall_complete_in_order() {
         let mut pb = physical_fill(0x30_0000, 1);
@@ -3770,28 +4038,28 @@ mod tests {
             ..Default::default()
         };
         assert!(
-            Registry::launch_dma(&ce, &mut gm, root, 0x0400_258e, 1, None)
+            Registry::launch_dma(&mut ce, &mut gm, root, 0x0400_258e, 1, None, CE_SLICE)
                 .unwrap_err()
                 .contains("overflow")
         );
         ce.offset_out = (0, 0x30_0000);
         ce.line_length_in = u32::MAX;
         assert!(
-            Registry::launch_dma(&ce, &mut gm, root, 0x0400_258e, 1, None)
+            Registry::launch_dma(&mut ce, &mut gm, root, 0x0400_258e, 1, None, CE_SLICE)
                 .unwrap_err()
                 .contains("budget")
         );
         // Zero rows must not hide an oversized per-row staging allocation.
         ce.line_count = 0;
         assert!(
-            Registry::launch_dma(&ce, &mut gm, root, 0x0400_278e, 1, None)
+            Registry::launch_dma(&mut ce, &mut gm, root, 0x0400_278e, 1, None, CE_SLICE)
                 .unwrap_err()
                 .contains("budget")
         );
         ce.line_length_in = 1;
         ce.dst_phys = 3;
         assert!(
-            Registry::launch_dma(&ce, &mut gm, root, 0x0400_258e, 1, None)
+            Registry::launch_dma(&mut ce, &mut gm, root, 0x0400_258e, 1, None, CE_SLICE)
                 .unwrap_err()
                 .contains("mode/kind")
         );

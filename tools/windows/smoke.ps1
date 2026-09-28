@@ -19,6 +19,7 @@ function Invoke-Bounded([string]$exe, [string]$arguments, [int]$seconds, [string
     $out = "$dir\smoke-$tag.out.txt"; $err = "$dir\smoke-$tag.err.txt"
     $p = Start-Process -FilePath $exe -ArgumentList $arguments -NoNewWindow -PassThru `
         -RedirectStandardOutput $out -RedirectStandardError $err
+    $null = $p.Handle   # without a cached handle ExitCode stays $null (Start-Process -PassThru)
     if (-not $p.WaitForExit($seconds * 1000)) { $p.Kill(); return @(-1, "TIMEOUT after $seconds s") }
     return @($p.ExitCode, ((Get-Content $out -Raw) + (Get-Content $err -Raw)))
 }
@@ -62,7 +63,8 @@ Say "INFO" ("own name in nvidia-smi: " + $(if ($name -like '*Leandro*') { "yes" 
 $r = Invoke-Bounded $smi "--query-gpu=name,pci.bus_id,driver_version,vbios_version,memory.total,memory.used,utilization.gpu,temperature.gpu,power.draw --format=csv" 60 "smi-query"
 Write-Output $r[1]
 $r = Invoke-Bounded $smi "-q" 120 "smi-q"
-Say (Verdict ($r[0] -eq 0)) "nvidia-smi -q: exit $($r[0]), $((("" + $r[1]) -split "`n").Count) lines in $dir\smoke-smi-q.out.txt"
+$lines = (("" + $r[1]) -split "`n").Count
+Say (Verdict ($r[0] -eq 0)) "nvidia-smi -q: exit $($r[0]), $lines lines in $dir\smoke-smi-q.out.txt"
 
 Write-Output "=== Vulkan"
 $r = Invoke-Bounded "$env:SystemRoot\System32\vulkaninfo.exe" "--summary" 60 "vulkan"

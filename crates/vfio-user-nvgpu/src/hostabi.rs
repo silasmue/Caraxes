@@ -7,8 +7,9 @@
 //!
 //!   * the GUEST's, which fixes every layout the guest reads or writes (GSP
 //!     messages, the internal controls it sends, the answers the device builds).
-//!     That is [`crate::ver::active`], chosen at build time by the `v610` feature
-//!     (decision D14; the guest accepts only the GSP firmware of its own version).
+//!     That is [`crate::ver`], chosen at run time from what the guest shows at its
+//!     GSP boot (decision D14; the guest accepts only the GSP firmware of its own
+//!     version; docs/research/one-abi-binary-2026-09-28.md).
 //!   * the HOST's, which fixes the layouts of the calls the device makes as an
 //!     unprivileged RM client of the host kernel driver (decision D10). That is
 //!     this module, chosen at run time from `/proc/driver/nvidia/version`,
@@ -58,7 +59,7 @@
 //! `ctrl2080ce.h`, `ctrla06fgpfifo.h`, `ctrlc36f.h`, `ctrl90f1.h`: no layout
 //! difference; `ctrl2080event.h` changes only the RATS trace bind, unused).
 //!
-//! The guest's side of the SM order is the guest ABI's (`ver::active::SM_ORDER_GUEST`);
+//! The guest's side of the SM order is the guest ABI's (`ver::layouts().sm_order`);
 //! [`translate_sm_order`] moves every per-SM field by name from one [`SmOrderLayout`] to
 //! the other, so the four combinations of a 610 or 615 guest on a 610 or 615 host take
 //! one path (kgr.rs `global_sm_order`).
@@ -930,8 +931,8 @@ mod tests {
 }
 
 /// The guest's internal SM-order element of both guest ABIs, from the generated modules,
-/// for the tests of all four guest and host combinations (a build emulates one guest ABI,
-/// `ver::active::SM_ORDER_GUEST`, which the tests compare with the matching one here).
+/// for the tests of all four guest and host combinations (`ver::L610` and `ver::L615`
+/// carry the same, which the tests compare with the ones here).
 #[cfg(test)]
 pub(crate) mod guest_layouts {
     use super::SmOrderLayout;

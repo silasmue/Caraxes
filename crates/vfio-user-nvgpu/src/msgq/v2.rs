@@ -620,7 +620,7 @@ impl QueueStateV2 {
             // a seqNum mismatch.
             if let Some(last) = self.last_sequence {
                 if header.sequence != last.wrapping_add(1)
-                    && header.function != crate::ver::active::FN_CONTINUATION_RECORD
+                    && header.function != crate::ver::common::FN_CONTINUATION_RECORD
                 {
                     self.sequence_gaps += 1;
                     log::warn!(

@@ -450,12 +450,21 @@ fn rg_status_reports_unlocked_heads() {
 /// (docs/caraxes/display-615.md §3.2); the 610 ABI has no such control.
 #[test]
 fn dp_set_war_flags_is_recorded_per_connector() {
+    use crate::ver::{GuestAbi, TestGuest};
+    for g in [GuestAbi::V610, GuestAbi::V615] {
+        let _g = TestGuest::set(g);
+        war_flags_case(g);
+    }
+}
+
+fn war_flags_case(g: crate::ver::GuestAbi) {
     let mut disp = display();
-    let Some(id) = d::CMD_DP_SET_WAR_FLAGS else {
-        assert_eq!(crate::ver::active::DRIVER_VERSION, "610.57.04");
+    let Some(id) = crate::ver::layouts().display.cmd_dp_set_war_flags else {
+        assert_eq!(g, crate::ver::GuestAbi::V610);
         assert!(d_id("NV0073_CTRL_CMD_DP_SET_WAR_FLAGS").is_none());
         return;
     };
+    assert_eq!(g, crate::ver::GuestAbi::V615);
     let (rid, size) = d_id("NV0073_CTRL_CMD_DP_SET_WAR_FLAGS").unwrap();
     assert_eq!((rid, size), (id, 16));
     let war = |did: u32, war: u32, on: bool| {
@@ -498,24 +507,30 @@ fn dp_set_war_flags_is_recorded_per_connector() {
 /// caller left in them; the input flag CLIENT is kept.
 #[test]
 fn get_active_reports_no_head_and_no_stale_head() {
-    let mut disp = display();
-    let mut p = vec![0xAAu8; d::GET_ACTIVE_SIZE];
-    put32(&mut p, d::GET_ACTIVE_HEAD, 1);
-    put32(&mut p, d::GET_ACTIVE_FLAGS, 0x3);
-    let a = disp.control(d::CMD_SYSTEM_GET_ACTIVE, &p).unwrap();
-    assert_eq!(a.status, NV_OK);
-    assert_eq!(a.params.len(), d::GET_ACTIVE_SIZE);
-    assert_eq!(get32(&a.params, d::GET_ACTIVE_DISPLAY_ID), 0);
-    assert_eq!(
-        get32(&a.params, d::GET_ACTIVE_FLAGS),
-        0x3 & !d::GET_ACTIVE_FLAGS_GOP_STALE_HEAD
-    );
-    match d::GET_ACTIVE_STALE_SOR_INDEX {
-        Some(o) => {
-            assert_eq!((o, d::GET_ACTIVE_SIZE, get32(&a.params, o)), (16, 20, 0));
-            assert_eq!(get32(&a.params, d::GET_ACTIVE_FLAGS), 0x1);
+    use crate::ver::{GuestAbi, TestGuest};
+    for g in [GuestAbi::V610, GuestAbi::V615] {
+        let _g = TestGuest::set(g);
+        let l = &crate::ver::layouts().display;
+        let mut disp = display();
+        let mut p = vec![0xAAu8; l.get_active_size];
+        put32(&mut p, d::GET_ACTIVE_HEAD, 1);
+        put32(&mut p, d::GET_ACTIVE_FLAGS, 0x3);
+        let a = disp.control(d::CMD_SYSTEM_GET_ACTIVE, &p).unwrap();
+        assert_eq!(a.status, NV_OK);
+        assert_eq!(a.params.len(), l.get_active_size);
+        assert_eq!(get32(&a.params, d::GET_ACTIVE_DISPLAY_ID), 0);
+        assert_eq!(
+            get32(&a.params, d::GET_ACTIVE_FLAGS),
+            0x3 & !l.get_active_flags_gop_stale_head
+        );
+        match l.get_active_stale_sor_index {
+            Some(o) => {
+                assert_eq!(g, GuestAbi::V615);
+                assert_eq!((o, l.get_active_size, get32(&a.params, o)), (16, 20, 0));
+                assert_eq!(get32(&a.params, d::GET_ACTIVE_FLAGS), 0x1);
+            }
+            None => assert_eq!((g, l.get_active_size), (GuestAbi::V610, 16)),
         }
-        None => assert_eq!(d::GET_ACTIVE_SIZE, 16),
     }
 }
 
@@ -532,9 +547,12 @@ fn dp_caps_claim_no_internal_dp_tunneling() {
         a.params[d::DP_CAPS_DSC_SUPPORTED],
         disp.chip().link.dsc as u8
     );
-    if let Some(o) = d::DP_CAPS_INTERNAL_DP_TUNNELING {
-        assert_eq!((o, a.params[o]), (33, 0));
+    for l in [&crate::ver::L610.display, &crate::ver::L615.display] {
+        if let Some(o) = l.dp_caps_internal_dp_tunneling {
+            assert_eq!((o, a.params[o]), (33, 0));
+        }
     }
+    assert_eq!(crate::ver::L615.display.dp_caps_internal_dp_tunneling, Some(33));
 }
 
 /// Every field the display's D models use resolves in both ABIs' generated layouts.

@@ -508,7 +508,7 @@ impl FirmwareBoot for TuringBoot {
                     if self.loaded && {
                         let (m0, m1) = self.sec2.mailbox();
                         let pa = ((m1 as u64) << 32) | m0 as u64;
-                        mem.read_u64(pa) != Some(crate::ver::active::WPR_META_MAGIC)
+                        mem.read_u64(pa) != Some(crate::ver::common::WPR_META_MAGIC)
                     } =>
                 {
                     // Booter Unload: WPR2 is torn down and the RISC-V core stops

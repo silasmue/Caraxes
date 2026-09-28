@@ -9,7 +9,8 @@
 //! registers and the usermode doorbell) and, once the firmware boot hands over the
 //! WPR meta and rings the command-queue doorbell, the GSP message queues and the RPC
 //! service (docs/caraxes/gsp-rpc-protocol.md, docs/caraxes/phase5-rpcs.md). Message
-//! layouts are the emulated driver version's ([`crate::ver`]).
+//! layouts are the guest ABI's, chosen by the guest at its GSP boot ([`crate::ver`],
+//! [`BootModel::guest_chooses`]).
 
 use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex};
@@ -23,7 +24,7 @@ use crate::intr::{IntrShared, IntrTree};
 use crate::mirror::Mirror;
 use crate::msgq::{QueueMemory, QueueState, ReplyTo, RpcHeader};
 use crate::rpc::{self, StaticIdentity, WprLayout};
-use crate::ver::active as v;
+use crate::ver::common as v;
 use crate::ver::GspTransport;
 
 /// A register of the kernel-RM surface this model owns (offsets from the chip).
@@ -150,9 +151,13 @@ pub struct BootModel {
     suspended: Option<u64>,
     /// The argument of the last Booter Unload: 0 or the suspend's GspFwSRMeta (B5).
     sr_meta_pa: Option<u64>,
-    /// The CPU-GSP transport this model serves: the emulated version's
-    /// (`ver::active::GSP_TRANSPORT`) unless [`BootModel::with_transport`] says otherwise.
+    /// The CPU-GSP transport this model serves: the guest's, detected at each queue link
+    /// ([`BootModel::detect_guest`]) unless `--guest-abi`/`CARAXES_GUEST_ABI` pinned a
+    /// guest ABI or [`BootModel::with_transport`] fixed it.
     transport: GspTransport,
+    /// Whether the guest chooses its ABI ([`BootModel::detect_guest`]): no pin, no
+    /// [`BootModel::with_transport`].
+    auto_guest: bool,
     /// The last value the CPU wrote to the command-queue head register. With message
     /// queue v2 it is the CPU's write pointer (`msgqTxCreate` writes 0 before GSP-RM
     /// boots, msgq.c:175-177 of 615); with v0 the register is a plain doorbell.
@@ -254,7 +259,8 @@ impl BootModel {
             unstable: None,
             suspended: None,
             sr_meta_pa: None,
-            transport: v::GSP_TRANSPORT,
+            transport: crate::ver::pinned().map_or(GspTransport::MsgqV1, |g| g.transport()),
+            auto_guest: crate::ver::pinned().is_none(),
             cpu_cmd_head: 0,
             rpc_eventfd: None,
             rpc_eventfd_stats: RpcEventfdStats::default(),
@@ -331,6 +337,19 @@ impl BootModel {
         let mut notes = self.ctrl.display.tick(&mut self.fb, mem);
         notes.extend(self.scan_channel_errors(mem, true));
         notes
+    }
+
+    /// The next slice of every sliced software CE transfer: the channels it holds are
+    /// replayed (ctrl.rs `replay_held`), each continuing at its LAUNCH_DMA.
+    pub fn continue_ce_slices(&mut self, mem: &GuestMemory) -> Vec<String> {
+        if self.ctrl.dstate.rc.held.is_empty() {
+            return Vec::new();
+        }
+        let mut gm = crate::channel::GpuMem {
+            fb: &mut self.fb,
+            sys: mem,
+        };
+        self.ctrl.replay_held(&mut gm)
     }
 
     pub fn poll_shadow_userds(&mut self, mem: &GuestMemory) -> Vec<String> {
@@ -1069,6 +1088,7 @@ impl BootModel {
         // The persistent settings (ECC and MIG mode) survive, and what was pending applies.
         fresh.ctrl.families.after_reset(&self.ctrl.families);
         fresh.transport = self.transport;
+        fresh.auto_guest = self.auto_guest;
         fresh.rpc_eventfd = self.rpc_eventfd.take();
         fresh.rpc_eventfd_stats = self.rpc_eventfd_stats;
         *self = fresh;
@@ -1594,6 +1614,10 @@ impl BootModel {
     /// doorbell, then answer everything in the command queue.
     fn service_queues(&mut self, mem: &GuestMemory, libos_args_pa: u64) -> Vec<String> {
         let mut notes = Vec::new();
+        if self.queues.is_none() && self.auto_guest && !self.detect_guest(mem, libos_args_pa, &mut notes) {
+            notes.push("queues: not linked (the guest's ABI is not known yet)".into());
+            return notes;
+        }
         if self.transport == GspTransport::MsgqV2 && self.queues.is_none() {
             // Message queue v2 links when GSP-RM starts (`gsp_started`); a doorbell before
             // that is the CPU's msgqTxCreate at construction (msgq.c:175-177 of 615).
@@ -1791,14 +1815,15 @@ impl BootModel {
                         None
                     }
                     rpc::FN_SET_GUEST_SYSTEM_INFO => {
-                        // The device emulates one driver version (gsp-abi-610.md (e)); a
-                        // guest that announces another is noted, not refused, so its
-                        // failure shows up where its layouts first differ.
+                        // The device serves one guest ABI at a time (gsp-abi-610.md (e)); a
+                        // guest that announces another version is noted, not refused, so
+                        // its failure shows up where its layouts first differ.
                         let guest = rpc::guest_driver_version(&msg.payload);
-                        if guest != v::DRIVER_VERSION {
+                        let served = crate::ver::layouts().driver;
+                        if guest != served {
                             notes.push(format!(
-                                "guest driver {guest:?} is not the emulated {} (build with its ver module)",
-                                v::DRIVER_VERSION
+                                "guest driver {guest:?} is not the served {served} (guest ABI {})",
+                                crate::ver::guest()
                             ));
                         }
                         Some((rpc::NV_OK, msg.payload.clone()))
@@ -2327,14 +2352,18 @@ impl BootModel {
             }
         }
         let rmargs = rmargs_pa.ok_or("no RMARGS region in the libos init arguments")?;
+        // MESSAGE_QUEUE_INIT_ARGUMENTS of message queue v0 (570 keeps 610's four fields).
+        use crate::ver::v610::{
+            MQ_CMD_QUEUE_OFFSET, MQ_PAGE_TABLE_ENTRY_COUNT, MQ_SHARED_MEM_PA, MQ_STAT_QUEUE_OFFSET,
+        };
         let shared = mem
-            .read_u64(rmargs + v::MQ_SHARED_MEM_PA)
+            .read_u64(rmargs + MQ_SHARED_MEM_PA)
             .ok_or("RMARGS not mapped")?;
         let count = mem
-            .read_u32(rmargs + v::MQ_PAGE_TABLE_ENTRY_COUNT)
+            .read_u32(rmargs + MQ_PAGE_TABLE_ENTRY_COUNT)
             .unwrap_or(0);
-        let cmd_off = mem.read_u64(rmargs + v::MQ_CMD_QUEUE_OFFSET).unwrap_or(0);
-        let stat_off = mem.read_u64(rmargs + v::MQ_STAT_QUEUE_OFFSET).unwrap_or(0);
+        let cmd_off = mem.read_u64(rmargs + MQ_CMD_QUEUE_OFFSET).unwrap_or(0);
+        let stat_off = mem.read_u64(rmargs + MQ_STAT_QUEUE_OFFSET).unwrap_or(0);
         notes.push(format!(
             "rmargs: sharedMemPhysAddr {shared:#x} pages {count} cmdQueueOffset {cmd_off:#x} statQueueOffset {stat_off:#x}"
         ));
@@ -2354,6 +2383,13 @@ impl BootModel {
             "queues linked: cmd {:?}; status header written (size {:#x}, {} slots)",
             queues.cmd, stat_size, queues.stat.msg_count
         ));
+        // 610 or older: the frame of the first element the CPU queued before its doorbell
+        // (the events below and every element after depend on it).
+        let frame = {
+            let qm = QueueMemory::new(mem, &pages);
+            queues.peek_first(&qm).and_then(|raw| crate::ver::element_frame(&raw))
+        };
+        self.guest_from_frame(frame, &mut notes);
         // GSP_INIT_DONE: function 0x1001, sequence 0, rpc_result 0, bIsD3Hot = 0; for a 570
         // guest (nova-core) an empty GSP_RUN_CPU_SEQUENCER first (ver::link_events).
         for (function, payload) in crate::ver::link_events(crate::ver::older_guest()) {
@@ -2387,11 +2423,100 @@ const NV_ERR_INVALID_ARGUMENT: u32 = 0x1F;
 /// pointers in the NV_PGSP_QUEUE_* and MSGQ_* registers, linked when GSP-RM starts, and
 /// the GMCAPI init.
 impl BootModel {
-    /// Serve `transport` instead of the emulated version's (the tests of the 615 path,
-    /// which run in the default 610 build).
+    /// Serve `transport` whatever the guest shows (a pin for tests; the device pins
+    /// through `--guest-abi`/`CARAXES_GUEST_ABI`, [`crate::ver::pinned`]).
     pub fn with_transport(mut self, transport: GspTransport) -> Self {
         self.transport = transport;
+        self.auto_guest = false;
         self
+    }
+
+    /// Whether the guest chooses its ABI (no pin, no [`BootModel::with_transport`]).
+    pub fn guest_chooses(&self) -> bool {
+        self.auto_guest
+    }
+
+    /// Read the guest's ABI from what it prepared for its GSP boot (decision D14: the guest
+    /// chooses; docs/research/one-abi-binary-2026-09-28.md), before the queues link: RMARGS
+    /// (`GSP_ARGUMENTS_CACHED`) opening with the magic "GSP " is a 615 guest (message queue
+    /// v2 and the GMCAPI init: 615 Linux, the 617 Windows guest); without it the queues are
+    /// message queue v0, provisionally 610 until the link reads the first element's frame
+    /// ([`BootModel::guest_from_frame`]: 570 for nova-core). Only when the guest chooses; a
+    /// pin keeps its transport. Returns whether the transport is known (always with a pin).
+    fn detect_guest(&mut self, mem: &GuestMemory, libos_args_pa: u64, notes: &mut Vec<String>) -> bool {
+        use crate::ver::GuestAbi;
+        if !self.auto_guest {
+            return true;
+        }
+        let mut probe = Vec::new();
+        let rmargs = match Self::find_rmargs(mem, libos_args_pa, &mut probe) {
+            Ok(r) => r,
+            Err(e) => {
+                notes.push(format!(
+                    "guest ABI: not known yet (libos arguments at {libos_args_pa:#x}: {e})"
+                ));
+                return false;
+            }
+        };
+        let (transport, abi, why) = match crate::msgq::v2::rmargs_is_v2(mem, rmargs) {
+            Some(true) => (
+                GspTransport::MsgqV2,
+                GuestAbi::V615,
+                "RMARGS opens with the magic \"GSP \" (GSP_ARGUMENTS_CACHED): message queue v2, GMCAPI init",
+            ),
+            Some(false) => (
+                GspTransport::MsgqV1,
+                GuestAbi::V610,
+                "RMARGS without the 615 magic: message queue v0; 610 until the first element's frame says otherwise",
+            ),
+            None => {
+                notes.push(format!("guest ABI: not known yet (RMARGS at {rmargs:#x} not mapped)"));
+                return false;
+            }
+        };
+        // A 570 guest found at an earlier link of this boot keeps its ABI until the next
+        // link reads the frame again.
+        let keep = transport == GspTransport::MsgqV1 && crate::ver::guest().older().is_some();
+        if !keep {
+            let before = crate::ver::set_guest(abi);
+            if before != abi || self.transport != transport {
+                eprintln!("vfio-user-nvgpu: guest ABI {abi}: {why}");
+            }
+        }
+        self.transport = transport;
+        notes.push(format!("guest ABI {}: {why}", crate::ver::guest()));
+        true
+    }
+
+    /// The guest behind message queue v0, from the frame of the first element it queued
+    /// ([`crate::ver::element_frame`]): 610's MCTP/NVDM header, or the pre-610 one with the
+    /// RPC header at 0x30, which nova-core's r570.144 uses (595 has the same frame and is
+    /// served only by pin). With a pin a mismatch is noted.
+    fn guest_from_frame(&mut self, frame: Option<crate::ver::ElementFrame>, notes: &mut Vec<String>) {
+        use crate::ver::{ElementFrame, GuestAbi};
+        let g = crate::ver::guest();
+        let Some(frame) = frame else {
+            notes.push(format!(
+                "guest ABI {g}: the first command element shows no RPC header at 0x10 or 0x30; kept"
+            ));
+            return;
+        };
+        if !self.auto_guest {
+            if (frame == ElementFrame::Pre610) != g.older().is_some() {
+                notes.push(format!(
+                    "guest ABI: ERROR the guest frames its elements as {frame:?}, but the device is pinned to {g} (unset CARAXES_GUEST_ABI and --guest-abi to let the guest choose)"
+                ));
+            }
+            return;
+        }
+        let abi = match frame {
+            ElementFrame::V610 => GuestAbi::V610,
+            ElementFrame::Pre610 => GuestAbi::V570,
+        };
+        // Once per link, in the device log too (the gates grep it).
+        crate::ver::set_guest(abi);
+        eprintln!("vfio-user-nvgpu: guest ABI {abi}: the first queue element is framed {frame:?}");
+        notes.push(format!("guest ABI {abi}: the first command element is framed {frame:?}"));
     }
 
     pub fn transport(&self) -> GspTransport {
@@ -2549,8 +2674,10 @@ impl BootModel {
     /// right after this (GspStatusQueueInit, kernel_gsp_tu102.c:463-469 of 615) and rings
     /// no doorbell before its first message, so the v2 queues link here, from the libos
     /// arguments the CPU put into the GSP mailboxes before Booter
-    /// (kernel_gsp_tu102.c:429-437). A 610 device notes a 615 guest (RMARGS magic "GSP ")
-    /// and leaves its queues alone: the guest times out in its status-queue link.
+    /// (kernel_gsp_tu102.c:429-437). The guest's ABI is read here first
+    /// ([`BootModel::detect_guest`]). A device pinned to message queue v0 notes a 615 guest
+    /// (RMARGS magic "GSP ") and leaves its queues alone: the guest times out in its
+    /// status-queue link.
     fn gsp_started(&mut self, mem: &GuestMemory) -> Vec<String> {
         let mut notes = Vec::new();
         let Some(pa) = self.fw.libos_args_pa() else {
@@ -2559,13 +2686,14 @@ impl BootModel {
             }
             return notes;
         };
+        self.detect_guest(mem, pa, &mut notes);
         if self.transport != GspTransport::MsgqV2 {
             let mut probe = Vec::new();
             if let Ok(rmargs) = Self::find_rmargs(mem, pa, &mut probe) {
                 if crate::msgq::v2::rmargs_is_v2(mem, rmargs) == Some(true) {
                     notes.push(format!(
-                        "guest ABI: ERROR the guest's RMARGS at {rmargs:#x} carry the 615 magic \"GSP \"; this device emulates {} with the 610 transport (start it with --guest-abi 615 from a v615 build, CARAXES_GUEST_ABI=615)",
-                        v::DRIVER_VERSION
+                        "guest ABI: ERROR the guest's RMARGS at {rmargs:#x} carry the 615 magic \"GSP \"; this device is pinned to guest ABI {} with the 610 transport (unset CARAXES_GUEST_ABI and --guest-abi, or pin 615)",
+                        crate::ver::guest()
                     ));
                 }
             }
@@ -2696,11 +2824,12 @@ impl BootModel {
             self.ctrl.bar_offsets = bars;
         }
         self.ctrl.guest_os_type = si.host_os_type;
-        if si.driver_version.as_deref() != Some(v::DRIVER_VERSION) {
+        let served = crate::ver::layouts().driver;
+        if si.driver_version.as_deref() != Some(served) {
             notes.push(format!(
-                "guest driver {:?} is not the emulated {} (build with its ver module)",
+                "guest driver {:?} is not the served {served} (guest ABI {}; 617 runs on the 615 model)",
                 si.driver_version,
-                v::DRIVER_VERSION
+                crate::ver::guest()
             ));
         }
         for (name, value) in &si.registry {
@@ -2903,23 +3032,37 @@ mod tests {
         assert_eq!(b.doorbells(), 0);
     }
 
-    /// nova-core's GSP exchange (Linux 7.2.7, firmware 570.144; docs/caraxes/nova-guest.md)
-    /// against a 610 device under `CARAXES_GUEST_ABI=570`: pre-610 elements (RPC header at
-    /// 0x30, checksum 0x20, seqNum 0x24, elemCount 0x28), SET_SYSTEM_INFO and SET_REGISTRY
-    /// without reply, then the events GSP_RUN_CPU_SEQUENCER (empty) and GSP_INIT_DONE in
-    /// that order, GET_GSP_STATIC_INFO answered with the 1656-byte 570 layout and the name
-    /// at 1260, UNLOADING_GUEST_DRIVER with the processor-suspended bit, and a re-probe
-    /// (new Booter Load, fresh queues) that links again. A 610 build only: the 615 build's
-    /// RMARGS offsets are 615's, and `check_guest_abi` refuses 570 there.
+    /// nova-core's GSP exchange (Linux 7.2.7, firmware 570.144; docs/caraxes/nova-guest.md):
+    /// pre-610 elements (RPC header at 0x30, checksum 0x20, seqNum 0x24, elemCount 0x28),
+    /// SET_SYSTEM_INFO and SET_REGISTRY without reply, then the events
+    /// GSP_RUN_CPU_SEQUENCER (empty) and GSP_INIT_DONE in that order, GET_GSP_STATIC_INFO
+    /// answered with the 1656-byte 570 layout and the name at 1260, UNLOADING_GUEST_DRIVER
+    /// with the processor-suspended bit, and a re-probe (new Booter Load, fresh queues)
+    /// that links again. Once with the guest ABI read from the guest (no pin: RMARGS
+    /// without the 615 magic, then the first element's pre-610 frame), once pinned by
+    /// `CARAXES_GUEST_ABI=570`; one binary for both.
     #[test]
-    #[cfg(not(feature = "v615"))]
     fn nova_570_boot_through_the_queue() {
+        use crate::ver::{GuestAbi, TestGuest};
+        {
+            let _g = TestGuest::pin(None);
+            assert_eq!(crate::ver::guest(), GuestAbi::V610, "before the boot: the default");
+            let notes = nova_570_boot("nova570-auto");
+            assert_eq!(crate::ver::guest(), GuestAbi::V570, "chosen by the guest");
+            assert!(notes.iter().any(|n| n.contains("guest ABI 570") && n.contains("Pre610")), "{notes:?}");
+        }
+        let _g = TestGuest::pin(Some(GuestAbi::V570));
+        let notes = nova_570_boot("nova570-pin");
+        assert!(!notes.iter().any(|n| n.contains("ERROR")), "{notes:?}");
+    }
+
+    /// One nova boot (see above); the notes of the first link.
+    fn nova_570_boot(tag: &str) -> Vec<String> {
         use crate::msgq::tests::queue_fixture;
-        crate::ver::TEST_GUEST.with(|c| c.set(Some(Some(570))));
         let f = crate::fixture::rtx2070();
-        let (mem, pages, base, path) = queue_fixture("nova570");
-        let mut b = BootModel::new(f.chip, crate::fb::FbLayout::plain(1 << 30), f.identity(1 << 30))
-            .with_transport(GspTransport::MsgqV1);
+        let (mem, pages, base, path) = queue_fixture(tag);
+        let mut b = BootModel::new(f.chip, crate::fb::FbLayout::plain(1 << 30), f.identity(1 << 30));
+        assert_eq!(b.transport(), GspTransport::MsgqV1);
         let (gsp, sec2, queue_head) = (0x0011_0000u64, 0x0084_0000u64, 0x0011_0C00u64);
         // Libos arguments (LOGINIT, RMARGS) and RMARGS' queue arguments behind the queue
         // buffer; 570's MESSAGE_QUEUE_INIT_ARGUMENTS keeps the four fields at 0/8/16/24.
@@ -2986,6 +3129,7 @@ mod tests {
             notes
         };
         let notes = boot(&mut b, &mut cmd, &mut send);
+        let first = notes.clone();
         assert!(notes.iter().any(|n| n.contains("queues linked")), "{notes:?}");
         assert_eq!(status(0).0, crate::ver::v570::EV_GSP_RUN_CPU_SEQUENCER);
         assert_eq!(status(0).1, 32 + 40);
@@ -3018,8 +3162,123 @@ mod tests {
         assert!(notes.iter().any(|n| n.contains("queues linked")), "{notes:?}");
         assert_eq!(status(0).0, crate::ver::v570::EV_GSP_RUN_CPU_SEQUENCER);
         assert_eq!(status(1).0, rpc::EV_GSP_INIT_DONE);
-        crate::ver::TEST_GUEST.with(|c| c.set(None));
         let _ = std::fs::remove_file(path);
+        first
+    }
+
+    /// A 610 guest (OpenRM 610.57.04) on message queue v0: RMARGS without the 615 magic and
+    /// 610-framed elements (MCTP/NVDM header, the RPC header at 0x10). The link sends
+    /// GSP_INIT_DONE alone (no CPU sequencer), the registry keys are checked (nova's are
+    /// not), and GET_GSP_STATIC_INFO is the 610 struct (0x640 bytes). Returns the notes of
+    /// the link and the static-info reply's length.
+    fn v610_boot(tag: &str) -> (Vec<String>, usize) {
+        use crate::msgq::tests::{cpu_raw, element_for, queue_fixture, request};
+        let f = crate::fixture::rtx2070();
+        let (mem, pages, base, path) = queue_fixture(tag);
+        let mut b = BootModel::new(f.chip, crate::fb::FbLayout::plain(1 << 30), f.identity(1 << 30));
+        let (gsp, sec2, queue_head) = (0x0011_0000u64, 0x0084_0000u64, 0x0011_0C00u64);
+        let (libos, rmargs) = (base + 0x90000, base + 0x91000);
+        let id8 = |s: &str| s.bytes().fold(0u64, |a, c| (a << 8) | c as u64);
+        assert!(mem.write(libos, &id8("LOGINIT").to_le_bytes()));
+        assert!(mem.write(libos + 32, &id8("RMARGS").to_le_bytes()));
+        assert!(mem.write(libos + 40, &rmargs.to_le_bytes()));
+        assert!(mem.write(rmargs, &base.to_le_bytes()));
+        assert!(mem.write(rmargs + 8, &129u32.to_le_bytes()));
+        assert!(mem.write(rmargs + 16, &0x1000u64.to_le_bytes()));
+        assert!(mem.write(rmargs + 24, &0x41000u64.to_le_bytes()));
+        let mut cmd = crate::msgq::TxHeader::standard(0x40000);
+        let qm = QueueMemory::new(&mem, &pages);
+        assert!(qm.write(0x1000, &cmd.encode()));
+        b.write32(gsp + falcon::MAILBOX0, libos as u32, &mem);
+        b.write32(gsp + falcon::MAILBOX1, (libos >> 32) as u32, &mem);
+        b.write32(sec2 + falcon::MAILBOX0, 0x7654_3000, &mem);
+        b.write32(sec2 + falcon::MAILBOX1, 0, &mem);
+        let mut notes = b.write32(sec2 + falcon::CPUCTL, 2, &mem).unwrap();
+        let el = crate::ver::ElementLayout::V610;
+        cpu_raw(&qm, &mut cmd, &element_for(el, 0, &request(rpc::FN_GSP_SET_SYSTEM_INFO), &[0u8; 928]));
+        cpu_raw(&qm, &mut cmd, &element_for(el, 1, &request(rpc::FN_SET_REGISTRY), &[8, 0, 0, 0, 0, 0, 0, 0]));
+        notes.extend(b.write32(queue_head, 0, &mem).unwrap());
+        assert_eq!(b.transport(), GspTransport::MsgqV1);
+        assert!(notes.iter().any(|n| n.contains("queues linked")), "{notes:?}");
+        // The status queue: one element, GSP_INIT_DONE with its 610 payload (1 byte).
+        let mut e = vec![0u8; 0x1000];
+        assert!(qm.read(0x42000, &mut e));
+        let h = RpcHeader::parse(&e[0x10..]);
+        assert_eq!((h.function, h.length), (rpc::EV_GSP_INIT_DONE, 32 + 1), "{notes:?}");
+        assert!(qm.read(0x43000, &mut e));
+        assert_ne!(RpcHeader::parse(&e[0x10..]).function, rpc::EV_GSP_INIT_DONE, "one event only");
+        cpu_raw(&qm, &mut cmd, &element_for(el, 2, &request(rpc::FN_GET_GSP_STATIC_INFO), &[0u8; 0x640]));
+        b.write32(queue_head, 0, &mem).unwrap();
+        assert!(qm.read(0x43000, &mut e));
+        let h = RpcHeader::parse(&e[0x10..]);
+        assert_eq!(h.function, rpc::FN_GET_GSP_STATIC_INFO);
+        let _ = std::fs::remove_file(path);
+        (notes, h.length as usize - 32)
+    }
+
+    /// A 610 guest chooses 610: the RMARGS probe says message queue v0, the first element's
+    /// frame says 610, the registry keys are checked, and the static info is 610's.
+    #[test]
+    fn a_610_guest_is_chosen_from_its_first_element() {
+        use crate::ver::{GuestAbi, TestGuest};
+        let _g = TestGuest::pin(None);
+        let (notes, static_len) = v610_boot("v610-auto");
+        assert_eq!(crate::ver::guest(), GuestAbi::V610);
+        assert!(notes.iter().any(|n| n.contains("guest ABI 610") && n.contains("V610")), "{notes:?}");
+        assert!(notes.iter().any(|n| n.contains("WARNING guest registry")), "{notes:?}");
+        assert_eq!(static_len, 0x640);
+    }
+
+    /// The captured 615 guest chooses 615 without a pin: the early QUEUE_HEAD write links
+    /// nothing, Booter Load reads the RMARGS magic and links message queue v2, the GMCAPI
+    /// init is answered, and 0x20800A36 is the fabric-probe sync (echo), not 610 chip info.
+    #[test]
+    fn the_615_guest_is_chosen_from_its_rmargs() {
+        use crate::ver::{GuestAbi, TestGuest};
+        let _g = TestGuest::pin(None);
+        let (mem, path) = guest_615("auto");
+        let f = crate::fixture::rtx2070();
+        let mut b = BootModel::new(f.chip, crate::fb::FbLayout::plain(4 << 30), f.identity(4 << 30));
+        assert_eq!((b.transport(), crate::ver::guest()), (GspTransport::MsgqV1, GuestAbi::V610));
+        let notes = b.write32(0x0011_0C00, 0, &mem).unwrap();
+        assert!(notes.iter().any(|n| n.contains("not linked")), "{notes:?}");
+        let notes = booter_load(&mut b, &mem);
+        assert!(notes.iter().any(|n| n.starts_with("guest ABI 615") && n.contains("GSP ")), "{notes:?}");
+        assert!(notes.iter().any(|n| n.starts_with("queues linked (v2)")), "{notes:?}");
+        assert_eq!((b.transport(), crate::ver::guest()), (GspTransport::MsgqV2, GuestAbi::V615));
+        let _ = std::fs::remove_file(&path);
+        drop(b);
+        let mut g = Guest615::boot("auto-ctrl");
+        let mut p = [0u8; 16];
+        p[0] = 1;
+        p[8] = 0xAA;
+        let (_, out) = g.rpc(
+            rpc::FN_GSP_RM_CONTROL,
+            &control_request(crate::ctrl::INTERNAL_CLIENT, 0xCA7A_0003, 0x2080_0A36, &p),
+        );
+        let (result, body) = Guest615::reply(&out, rpc::FN_GSP_RM_CONTROL).expect("control reply");
+        assert_eq!(result, rpc::NV_OK);
+        let st = u32::from_le_bytes(body[v::RM_CONTROL_STATUS..][..4].try_into().unwrap());
+        assert_eq!(st, rpc::NV_OK);
+        assert_eq!(&body[v::RM_CONTROL_PARAMS..][..16], &p, "echoed: the fabric-probe sync");
+    }
+
+    /// One binary, one process, three guests in turn (D14): nova-core (570), a 610 guest
+    /// and the 615 guest each get their own ABI from what they show at their GSP boot,
+    /// whatever the previous guest was.
+    #[test]
+    fn one_binary_serves_nova_610_and_615_in_turn() {
+        use crate::ver::{GuestAbi, TestGuest};
+        let _g = TestGuest::pin(None);
+        nova_570_boot("turn-nova");
+        assert_eq!(crate::ver::guest(), GuestAbi::V570);
+        let (_, static_len) = v610_boot("turn-610");
+        assert_eq!((crate::ver::guest(), static_len), (GuestAbi::V610, 0x640));
+        let g = Guest615::boot("turn-615");
+        assert_eq!((g.b.transport(), crate::ver::guest()), (GspTransport::MsgqV2, GuestAbi::V615));
+        drop(g);
+        nova_570_boot("turn-nova-again");
+        assert_eq!(crate::ver::guest(), GuestAbi::V570);
     }
 
     /// Guest memory holding what the 615.71.09 guest prepared before its GSP boot, as
@@ -3241,13 +3500,18 @@ mod tests {
     const MSGQ_TAIL: u64 = 0x0011_0C84;
 
     impl Guest615 {
+        /// The captured 615 guest booted against a device that lets the guest choose: the
+        /// RMARGS magic selects message queue v2 and the 615 layouts at Booter Load, as in
+        /// the one binary (the guest ABI stays 615 on this test thread afterwards).
         pub fn boot(tag: &str) -> Self {
             let (mem, path) = guest_615(tag);
             let f = crate::fixture::rtx2070();
-            let mut b = BootModel::new(f.chip, crate::fb::FbLayout::plain(4 << 30), f.identity(4 << 30))
-                .with_transport(GspTransport::MsgqV2);
+            let mut b = BootModel::new(f.chip, crate::fb::FbLayout::plain(4 << 30), f.identity(4 << 30));
+            assert!(b.guest_chooses());
             b.write32(CMD_HEAD, 0, &mem);
-            booter_load(&mut b, &mem);
+            let notes = booter_load(&mut b, &mem);
+            assert_eq!(b.transport(), GspTransport::MsgqV2, "{notes:?}");
+            assert_eq!(crate::ver::guest(), crate::ver::GuestAbi::V615);
             let slot0 = std::fs::read(
                 "../../caraxes/runs/guest-driver-2026-09-24/615.71.09/linked/gmcapi-gsp-init-slot0.bin",
             )
@@ -3567,7 +3831,7 @@ mod tests {
     #[test]
     fn a_mirrored_channel_error_reaches_the_guest_once() {
         use nvrm_sys::RmAbi;
-        type Abi = v::RmAbi;
+        type Abi = nvrm_sys::V610;
         let mut g = Guest615::boot("rcevent");
         let (c, notifier) = (0xc1d0_0001u32, 0x88a7_8000u64);
         let mut p = vec![0u8; <Abi as RmAbi>::ALLOC_CHANNEL_PARAMS_SIZE as usize];
@@ -3623,7 +3887,7 @@ mod tests {
     #[test]
     fn the_notice_after_the_guests_stop_channel_is_no_rc() {
         use nvrm_sys::RmAbi;
-        type Abi = v::RmAbi;
+        type Abi = nvrm_sys::V610;
         let mut g = Guest615::boot("stopnotice");
         let (c, notifier) = (0xc1d0_0001u32, 0x88a7_8000u64);
         let mut p = vec![0u8; <Abi as RmAbi>::ALLOC_CHANNEL_PARAMS_SIZE as usize];
@@ -3673,7 +3937,7 @@ mod tests {
     #[test]
     fn the_d_models_rc_reaches_the_guest() {
         use nvrm_sys::RmAbi;
-        type Abi = v::RmAbi;
+        type Abi = nvrm_sys::V610;
         let mut g = Guest615::boot("dmodelrc");
         goe_import(&mut g);
         // recordPut of the GOE header: one record per RC the device raised.
@@ -3819,15 +4083,18 @@ mod tests {
         );
     }
 
-    /// Fail closed: a 610 device facing the captured 615 guest does not link anything
-    /// at Booter-Load, names the mismatch, and keeps the QUEUE_* registers the falcon's.
+    /// Fail closed: a device pinned to 610 (`CARAXES_GUEST_ABI=610`) facing the captured
+    /// 615 guest does not link anything at Booter-Load, names the mismatch, and keeps the
+    /// QUEUE_* registers the falcon's.
     #[test]
     fn a_610_device_names_a_615_guest() {
+        let _g = crate::ver::TestGuest::pin(Some(crate::ver::GuestAbi::V610));
         let (mem, path) = guest_615("mismatch");
         let f = crate::fixture::rtx2070();
-        let mut b = BootModel::new(f.chip, crate::fb::FbLayout::plain(4 << 30), f.identity(4 << 30))
-            .with_transport(GspTransport::MsgqV1);
+        let mut b = BootModel::new(f.chip, crate::fb::FbLayout::plain(4 << 30), f.identity(4 << 30));
+        assert!(!b.guest_chooses());
         let notes = booter_load(&mut b, &mem);
+        assert_eq!(crate::ver::guest(), crate::ver::GuestAbi::V610, "the pin holds");
         assert!(notes.iter().any(|n| n.contains("guest ABI: ERROR") && n.contains("615 magic")), "{notes:?}");
         assert!(!notes.iter().any(|n| n.contains("queues linked")), "{notes:?}");
         assert_eq!(b.read32(0x0011_0C80), Some(0));

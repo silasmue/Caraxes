@@ -30,7 +30,7 @@ use std::collections::BTreeMap;
 use serde::Deserialize;
 
 use crate::ctrl::Answer;
-use crate::ver::{active as v, Abi};
+use crate::ver::{common as v, Abi};
 
 /// The D9 label of a category E refusal.
 pub const REFUSED: &str = "refused (feature absent on this chip)";
@@ -63,7 +63,7 @@ pub struct EmptyOkFile {
     pub label: String,
 }
 
-/// The resolved feature families of a chip for the build's driver version.
+/// The resolved feature families of a chip for the guest ABI in force.
 #[derive(Clone, Debug, Default)]
 pub struct Features {
     pub absent: Vec<&'static str>,
@@ -229,7 +229,7 @@ fn enum_value(name: &str) -> Result<u64, String> {
     };
     v::lookup(t, key)
         .map(u64::from)
-        .ok_or_else(|| format!("{table} has no {key:?} in driver {}", v::DRIVER_VERSION))
+        .ok_or_else(|| format!("{table} has no {key:?} in driver {}", crate::ver::layouts().driver))
 }
 
 fn slot_value(
@@ -413,7 +413,7 @@ fn why_absent(family: &str) -> &'static str {
 
 /// The answer of the two rules to `cmd`, or `None` when neither takes it.
 pub fn answer(chip: &'static crate::chip::ChipData, cmd: u32, params: &[u8]) -> Option<Answer> {
-    if let Some(&(family, name)) = chip.features.refused.get(&cmd) {
+    if let Some(&(family, name)) = chip.features().refused.get(&cmd) {
         return Some(Answer {
             status: v::NV_ERR_NOT_SUPPORTED,
             params: params.to_vec(),
@@ -425,7 +425,7 @@ pub fn answer(chip: &'static crate::chip::ChipData, cmd: u32, params: &[u8]) -> 
             ),
         });
     }
-    if let Some(&(family, name)) = chip.features.acked.get(&cmd) {
+    if let Some(&(family, name)) = chip.features().acked.get(&cmd) {
         return Some(Answer {
             status: v::NV_OK,
             params: params.to_vec(),
@@ -436,7 +436,7 @@ pub fn answer(chip: &'static crate::chip::ChipData, cmd: u32, params: &[u8]) -> 
             ),
         });
     }
-    if let Some((family, name, label)) = chip.features.empty_ok.get(&cmd) {
+    if let Some((family, name, label)) = chip.features().empty_ok.get(&cmd) {
         return Some(Answer {
             status: v::NV_OK,
             params: vec![0u8; params.len()],
@@ -446,8 +446,8 @@ pub fn answer(chip: &'static crate::chip::ChipData, cmd: u32, params: &[u8]) -> 
             ),
         });
     }
-    let (status, b, label) = chip.controls.answer(cmd, params)?;
-    let e = &chip.controls.entries[&cmd];
+    let (status, b, label) = chip.controls().answer(cmd, params)?;
+    let e = &chip.controls().entries[&cmd];
     Some(Answer {
         status,
         params: b,
@@ -466,6 +466,25 @@ mod tests {
 
     fn tu106() -> &'static crate::chip::ChipData {
         crate::chip::by_name("tu106").unwrap().data()
+    }
+
+    /// The chip loads before a guest shows its ABI, so its category E and A tables are
+    /// resolved for every guest ABI and read for the one in force.
+    #[test]
+    fn chip_tables_follow_the_guest_abi() {
+        use crate::ver::{Abi, GuestAbi, TestGuest};
+        for chip in ["tu106", "gb206"] {
+            let c = crate::chip::by_name(chip).unwrap().data();
+            for g in GuestAbi::ALL {
+                let _g = TestGuest::set(g);
+                assert!(std::ptr::eq(c.features(), c.features_by_abi.of(Abi::of(g))), "{chip} {g:?}");
+                assert!(std::ptr::eq(c.controls(), c.controls_by_abi.of(Abi::of(g))), "{chip} {g:?}");
+            }
+            assert!(!std::ptr::eq(
+                c.controls_by_abi.of(&ABIS[0]),
+                c.controls_by_abi.of(&ABIS[1])
+            ));
+        }
     }
 
     fn features_file() -> FeaturesFile {
@@ -519,7 +538,7 @@ mod tests {
         assert_eq!((ABIS[0].e_inventory, ABIS[1].e_inventory), (189, 200));
         // TU106 lacks every family, so the chip's rule covers the whole E count and the
         // D rows that belong to E.
-        let f = &tu106().features;
+        let f = &tu106().features();
         let abi = Abi::active();
         let d_e = abi
             .d_families
@@ -539,7 +558,7 @@ mod tests {
     fn every_family_id_is_refused() {
         let seen = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
         let mut d = dispatcher(tu106(), Some(Box::new(Rec(seen.clone()))));
-        let f = &tu106().features;
+        let f = &tu106().features();
         for fam in Abi::active().families {
             for &(id, name) in fam.controls {
                 let a = d.control(INTERNAL_CLIENT, INTERNAL_SUBDEVICE, id, &[0xA5; 24]);
@@ -579,7 +598,7 @@ mod tests {
                 r.name
             );
         }
-        for (id, name) in crate::ver::active::FORWARD {
+        for (id, name) in crate::ver::common::FORWARD {
             assert!(
                 answer(chip, *id, &[0u8; 16]).is_none(),
                 "{name} is host-forwarded"
@@ -603,8 +622,8 @@ mod tests {
         };
         let present: &'static crate::chip::ChipData =
             Box::leak(Box::new(crate::chip::ChipData::load(&files).unwrap()));
-        assert!(present.features.refused.is_empty() && present.features.empty_ok.is_empty());
-        assert!(present.features.acked.is_empty());
+        assert!(present.features().refused.is_empty() && present.features().empty_ok.is_empty());
+        assert!(present.features().acked.is_empty());
         let seen = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
         let mut d = dispatcher(present, Some(Box::new(Rec(seen.clone()))));
         for fam in Abi::active().families {
@@ -624,7 +643,7 @@ mod tests {
         // The A table answers its controls ahead of the rest (a zeroed request matches
         // every entry without cases).
         for e in chip
-            .controls
+            .controls()
             .entries
             .values()
             .filter(|e| e.cases.is_empty())
@@ -686,7 +705,7 @@ mod tests {
     /// NVLINK_GET_PLATFORM_INFO, which it also answers NV_OK, stays with nvml.rs.
     #[test]
     fn the_cards_empty_answers_are_kept() {
-        let f = &tu106().features;
+        let f = &tu106().features();
         assert!(f.empty_ok.values().any(|(_, n, l)| *n
             == "NV2080_CTRL_GPU_GET_NVENC_SW_SESSION_STATS"
             && l.starts_with("card")));
@@ -797,13 +816,13 @@ mod tests {
         // (id, parameter size): the chip table's size for its rows, 64 bytes for a forward.
         let size = |n: &str| {
             let id = abi.routed(n).unwrap_or_else(|| panic!("{n}")).id;
-            (id, tu106().controls.entries.get(&id).map_or(64, |e| e.size))
+            (id, tu106().controls().entries.get(&id).map_or(64, |e| e.size))
         };
         let seen = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
         let mut d = dispatcher(tu106(), Some(Box::new(Rec(seen.clone()))));
         for n in FORWARDED {
             let (id, _) = size(n);
-            assert!(crate::ver::active::FORWARD.iter().any(|(c, _)| *c == id), "{n}");
+            assert!(crate::ver::common::FORWARD.iter().any(|(c, _)| *c == id), "{n}");
             assert!(answer(tu106(), id, &[0u8; 16]).is_none(), "{n} is in the chip table too");
             seen.lock().unwrap().clear();
             let a = d.control(INTERNAL_CLIENT, INTERNAL_SUBDEVICE, id, &[0u8; 64]);
@@ -966,7 +985,7 @@ mod tests {
         let chip = tu106();
         let id = |n: &str| Abi::active().routed(n).unwrap().id;
         let (_, b, _) = chip
-            .controls
+            .controls()
             .answer(
                 id("NV2080_CTRL_CMD_MC_GET_INTR_CATEGORY_SUBTREE_MAP"),
                 &[0u8; 56],
@@ -983,7 +1002,7 @@ mod tests {
             assert_eq!(got, want, "category {c}");
         }
         let (_, b, _) = chip
-            .controls
+            .controls()
             .answer(
                 id("NV2080_CTRL_CMD_MC_GET_ENGINE_NOTIFICATION_INTR_VECTORS"),
                 &[0u8; 2052],
@@ -1001,7 +1020,7 @@ mod tests {
             assert_eq!(w(4 + 8 * i + 4), e.vector_nonstall, "{name}");
         }
         let (_, b, _) = chip
-            .controls
+            .controls()
             .answer(id("NV2080_CTRL_CMD_MC_GET_STATIC_INTR_TABLE"), &[0u8; 516])
             .unwrap();
         let w = |o: usize| u32::from_le_bytes(b[o..o + 4].try_into().unwrap());

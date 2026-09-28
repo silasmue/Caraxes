@@ -1062,6 +1062,18 @@ impl Device {
         }
     }
 
+    /// The next slice of the sliced software CE transfers (channel.rs `CE_SLICE`), on the
+    /// `ce-slices` clock of main.rs.
+    pub fn continue_ce_slices(&mut self) {
+        let notes = match self.bar0.boot_mut() {
+            Some(b) => b.continue_ce_slices(&self.mem),
+            None => return,
+        };
+        for n in notes {
+            self.trace.event(&format!("boot: {n}"));
+        }
+    }
+
     /// The display clock's tick with the display page (engine.rs `Ticker::set_driver`,
     /// display/fe_page.rs): advance the display engine, trace its notes.
     pub fn display_tick(&mut self) {

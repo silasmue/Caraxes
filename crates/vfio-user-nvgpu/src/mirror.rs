@@ -53,7 +53,7 @@ use crate::guestmem::GuestMemory;
 use crate::hostmem::{HostGfxp, HostMemory, HostUserd, OsEvent};
 use crate::intr::IntrShared;
 use crate::invalidate::Invalidator;
-use crate::ver::active as v;
+use crate::ver::common as v;
 
 /// `NV2080_NOTIFIERS_*` (class/cl2080_notification.h): the engine notifiers the mirrored
 /// channels run on, and the RC notifier.
@@ -115,6 +115,23 @@ pub fn video_class_ok(chip: &ChipData, class: u32) -> bool {
         && chip.classes.as_ref().is_some_and(|db| db.ids.contains(&class))
 }
 
+/// `NV50_DEFERRED_API_CLASS`: the software object the Windows KMD allocates on every channel.
+/// Its deferred calls run only on the KMD's management channel, which the device executes
+/// itself (ctrl/deferred_context.rs); on any other channel it is an inert object, which the
+/// host channel gets too (as a GR channel's) so that the guest's SET_OBJECT of it resolves.
+pub const DEFERRED_API_CLASS: u32 = 0x5080;
+
+/// The first engine object of a video channel that is neither a video class of `chip` nor
+/// the KMD's deferred-API object (fail closed: such a channel stays in software). Run
+/// P29b: Windows' NVENC/NVDEC channels carry 0x5080 beside NVC4B7/NVC4B0; refusing them
+/// left every encode and decode session in software (ffmpeg EINVAL, then a TDR).
+pub fn video_channel_foreign_class(chip: &ChipData, classes: &[(u32, Vec<u8>)]) -> Option<u32> {
+    classes
+        .iter()
+        .map(|(c, _)| *c)
+        .find(|c| *c != DEFERRED_API_CLASS && !video_class_ok(chip, *c))
+}
+
 /// The engine a video channel with no video object yet is bound to at its build
 /// (`gr_shadow_doorbell`): its own engine type, when that is a video engine.
 pub fn video_bind(chip: &ChipData, ch: &Channel) -> Option<u32> {
@@ -152,6 +169,44 @@ fn needs_software_physical_ce(alloc_flags: u32, is_gr: bool) -> bool {
     privileged && !is_gr
 }
 
+/// Whether a guest channel stays in the software executor for its privilege: a privileged
+/// non-GR copy channel that is not an application's ([`application_copy_channel`]). A video
+/// channel never does: NVENC/NVDEC have no physical mode, and the RM sets
+/// PRIVILEGED_CHANNEL on every channel a kernel-level client allocates (kernel_channel.c
+/// 273-283), so on Windows the bit says nothing about the KMD's intent (run P31: the KMD's own
+/// NVENC channel ran in software, hit an NVENC method the CE model lacks, Xid 45 and a TDR).
+/// A privileged-only method on a mirrored video channel faults that channel only.
+fn privileged_stays_in_software(reg: &Registry, ch: &Channel, gr0: u32, is_gr: bool) -> bool {
+    needs_software_physical_ce(ch.alloc_flags, is_gr)
+        && video_engine(ch.engine_type).is_none()
+        && !application_copy_channel(reg, ch, gr0)
+}
+
+/// `NVOS04_FLAGS_SKIP_CTXBUFFER_ALLOC` (bit 31): the Windows KMD allocates an application's GR
+/// context itself (the deferred context, ctrl/deferred_context.rs).
+const SKIP_CTXBUFFER_ALLOC: u32 = 1 << 31;
+
+/// Whether a privileged non-GR channel is an application's copy (or video) channel: its VA
+/// space is also that of an application GR context, a skip-context GR channel on the same
+/// root. The Windows KMD makes every channel privileged; CUDA's COPY TSG channels share the
+/// CUDA context's address space, the KMD's own paging and scrub channels (the physical-mode
+/// page-table writers) run in the system address space with only the KMD's management GR
+/// channel. Such a channel is mirrored like any other, unprivileged: its host channel
+/// denies physical-mode CE ([`HOST_MIRROR_CHANNEL_FLAGS`]), so a physical-mode method there
+/// faults that channel only (run P29: CUDA's copies in software ran at 10-200 MB/s and a
+/// 64 MiB read-back held the device 6.7 s). Linux never sets bit 31: unchanged there.
+pub fn application_copy_channel(reg: &Registry, ch: &Channel, gr0: u32) -> bool {
+    let Some(root) = reg.vas_key_of(ch).and_then(|k| reg.vas_root(k)) else {
+        return false;
+    };
+    reg.channels().any(|c| {
+        c.chid != ch.chid
+            && c.engine_type == gr0
+            && c.alloc_flags & SKIP_CTXBUFFER_ALLOC != 0
+            && reg.vas_key_of(c).and_then(|k| reg.vas_root(k)) == Some(root)
+    })
+}
+
 /// `NVA06F_CTRL_CMD_BIND` {engineType} (ctrla06f.h): a host channel needs an engine before
 /// `GPFIFO_SCHEDULE` (docs/caraxes/host-exec.md §1: NV_ERR_INVALID_STATE otherwise).
 const CMD_CHANNEL_BIND: u32 = 0xA06F_0104;
@@ -159,7 +214,7 @@ const CMD_CHANNEL_BIND: u32 = 0xA06F_0104;
 /// The promoted context ranges `[va, va + size)` of a channel (GR set B, a falcon
 /// engine's context), which the shadow keeps out of the guest's set A. A global GR
 /// buffer promoted by VA alone has size 0; `global_size(buffer id, VA)` gives its extent
-/// at that VA ([`global_exclusion`]).
+/// at that VA ([`global_exclusion`]), `Some(0)` none (the host's own copy is elsewhere).
 fn promoted_ranges(
     reg: &Registry,
     ch: &Channel,
@@ -170,7 +225,12 @@ fn promoted_ranges(
         for e in m.values() {
             if let Some(v) = e.virt {
                 let size = if e.size == 0 {
-                    global_size(e.buffer_id, v).unwrap_or(0x1000)
+                    match global_size(e.buffer_id, v) {
+                        // The host's own buffer is not at this VA (a fenced shadow, F2b).
+                        Some(0) => continue,
+                        Some(s) => s,
+                        None => 0x1000,
+                    }
                 } else {
                     e.size
                 };
@@ -237,13 +297,10 @@ pub fn host_footprint(raw: u64) -> u64 {
 /// How a size-0 global buffer's exclusion ended ([`global_exclusion`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum GlobalClip {
-    /// No guest page in `[va, va + cap)`: the full 64 KiB-rounded extent.
+    /// No guest page past the host's footprint within the 64 KiB extent: the full extent.
     Full,
     /// A guest page at `at`, past the host's footprint: excluded up to it.
     Cut { at: u64 },
-    /// A guest page at `at` inside the host's footprint: the footprint stays excluded (that
-    /// guest page is not mirrored, a fault rather than a page the two share).
-    Overlap { at: u64 },
 }
 
 /// The exclusion `[va, end)` of a global GR buffer promoted by VA alone (size 0), with the
@@ -252,6 +309,8 @@ pub enum GlobalClip {
 /// the guest maps past the footprint (`guest_first(lo, hi)`: the lowest guest-mapped VA in
 /// `[lo, hi)`). Run P19: the 64 KiB extent of the 12 KiB BUNDLE_CB covered the guest's
 /// semaphore page at +0x3000, and the GR engine's write there faulted (Xid 31 FAULT_PTE).
+/// Pages inside the footprint are the guest's own copy of the buffer (its RM allocates and
+/// maps the global buffers itself, run P20), which the host's replaces in the shadow.
 pub fn global_exclusion(
     va: u64,
     raw: u64,
@@ -259,9 +318,6 @@ pub fn global_exclusion(
 ) -> (u64, GlobalClip) {
     let floor = va + host_footprint(raw);
     let cap = floor.max(va + ((raw + 0xFFFF) & !0xFFFF));
-    if let Some(at) = guest_first(va, floor) {
-        return (floor, GlobalClip::Overlap { at });
-    }
     match guest_first(floor, cap) {
         Some(at) => (at, GlobalClip::Cut { at }),
         None => (cap, GlobalClip::Full),
@@ -586,17 +642,23 @@ fn bind_gfxp(host: &HostMemory, tsg: u32, mode: u32, addresses: &[u64; 5]) -> u3
     host.control(host.subdevice(), CMD_BIND_CTXSW_PREEMPTION_MODE, &mut p)
 }
 
-fn compute_cta_bind_params(root: u32, tsg: u32) -> [u8; 112] {
+/// `NV2080_CTRL_SET_CTXSW_PREEMPTION_MODE_COMPUTE_CTA`/`_CILP` (ctrl2080gr.h:856-857).
+pub const COMPUTE_CTA: u32 = 1;
+pub const COMPUTE_CILP: u32 = 2;
+
+/// `NV2080_CTRL_GR_CTXSW_PREEMPTION_BIND_PARAMS` for compute mode `mode` alone: flags
+/// CILP_SET (0:0), no buffer pointers, graphics ignored (ctrl2080gr.h:842-857, 917).
+fn compute_bind_params(root: u32, tsg: u32, mode: u32) -> [u8; 112] {
     let mut p = [0u8; 112];
     p[0..4].copy_from_slice(&1u32.to_le_bytes());
     p[4..8].copy_from_slice(&root.to_le_bytes());
     p[8..12].copy_from_slice(&tsg.to_le_bytes());
-    p[92..96].copy_from_slice(&1u32.to_le_bytes());
+    p[92..96].copy_from_slice(&mode.to_le_bytes());
     p
 }
 
-fn bind_compute_cta(host: &HostMemory, tsg: u32) -> u32 {
-    let mut p = compute_cta_bind_params(host.root(), tsg);
+fn bind_compute(host: &HostMemory, tsg: u32, mode: u32) -> u32 {
+    let mut p = compute_bind_params(host.root(), tsg, mode);
     host.control(host.subdevice(), CMD_BIND_CTXSW_PREEMPTION_MODE, &mut p)
 }
 
@@ -749,6 +811,51 @@ pub fn tsg_key_of_guest(reg: &Registry, obj: (u32, u32)) -> Option<TsgKey> {
     match tsg_key_of(reg, ch) {
         (k, true, _) => Some(k),
         _ => None,
+    }
+}
+
+/// [`Mirror::tsg_context_ready`]: channel `chid` is a member of a guest GR TSG whose live
+/// host TSG (the same guest TSG, not a stale one under a reused id) is `ready` or holds a
+/// bound owned GFXP set.
+fn tsg_context_ready(
+    tsgs: &BTreeMap<TsgKey, HostTsg>,
+    ready: &std::collections::BTreeSet<TsgKey>,
+    reg: &Registry,
+    chid: u32,
+) -> bool {
+    let Some(ch) = reg.channel(chid) else {
+        return false;
+    };
+    let (key, bare, guest) = tsg_key_of(reg, ch);
+    !bare
+        && ch.engine_type == 1
+        && tsgs.get(&key).is_some_and(|ht| {
+            ht.guest == guest
+                && ht.engine == 1
+                && (ready.contains(&key) || ht.gfxp.as_ref().is_some_and(|g| g.bound))
+        })
+}
+
+/// How a deferred eviction releases the target's host context ([`Mirror::evict_deferred_context`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum EvictPath {
+    /// Idle the target's host channel, harvest its GPGet, free its host TSG.
+    HostChannel,
+    /// A target that never ran on the host, alone in its TSG: free the host TSG (its context).
+    FreeTsg,
+    /// A target that never ran, with no host TSG left: nothing on the host.
+    Nothing,
+    /// A target without a host channel while other channels of its TSG are hosted: refused
+    /// (the context is theirs to release).
+    Refuse,
+}
+
+fn evict_path(hosted: bool, other_members_hosted: bool, host_tsg: bool) -> EvictPath {
+    match (hosted, other_members_hosted, host_tsg) {
+        (true, _, _) => EvictPath::HostChannel,
+        (false, true, _) => EvictPath::Refuse,
+        (false, false, true) => EvictPath::FreeTsg,
+        (false, false, false) => EvictPath::Nothing,
     }
 }
 
@@ -1005,9 +1112,6 @@ impl GlobalExtents {
                     va + host_footprint(raw),
                     va + ((raw + 0xFFFF) & !0xFFFF)
                 ),
-                GlobalClip::Overlap { at } => format!(
-                    "WARN: shadow root {root:#x}: global buffer {buffer_id} at {va:#x}: the guest maps {at:#x} inside the host's footprint [{va:#x}, {end:#x}) (host size {raw:#x}): kept out of set A, that page is not mirrored [set B]"
-                ),
                 GlobalClip::Full => unreachable!(),
             };
             eprintln!("vfio-user-nvgpu: {line}");
@@ -1021,16 +1125,22 @@ impl GlobalExtents {
     /// TSG not yet freed ([`set_b_with_held`]) and its private ones. Every GR channel of a
     /// context promotes the same global buffers (a CUDA context: eight channels, ten
     /// buffers), so each `(buffer id, VA)` is sized and clipped once per computation.
+    /// A size-0 global inside the root's host `fence` (F2b) holds no host buffer: the host
+    /// maps its own first fit above the fence, so the guest's pages there are plain set A.
     fn set_b(
         &self,
         reg: &Registry,
         root: u64,
         fb: Option<&FakeFb>,
         space: Option<&ShadowSpace>,
+        fence: Option<(u64, u64)>,
         query: CtxSizeQuery,
     ) -> Vec<(u64, u64)> {
         let once: RefCell<BTreeMap<(u16, u64), Option<u64>>> = RefCell::new(BTreeMap::new());
         let live = exclusions_of(reg, root, |id, va| {
+            if fence.is_some_and(|(lo, hi)| va >= lo && va < hi) {
+                return Some(0);
+            }
             if let Some(e) = once.borrow().get(&(id, va)) {
                 return *e;
             }
@@ -1077,7 +1187,7 @@ impl GlobalExtents {
         }
         self.computed.set(self.computed.get() + 1);
         let retries = self.sizes.borrow().retries;
-        let now = self.set_b(reg, root, Some(fb), Some(sp), query);
+        let now = self.set_b(reg, root, Some(fb), Some(sp), sp.front.layout.fence, query);
         // A size the host did not answer for good is asked again at the next refresh.
         sp.set_b_stamp = (self.sizes.borrow().retries == retries).then(|| self.stamp(reg, root, fb));
         let mut notes = self.take_notes();
@@ -1211,8 +1321,18 @@ pub struct Mirror {
     /// Place video objects on the host ([`Mirror::place_video_object`]);
     /// `CARAXES_MIRROR_VIDEO_OBJECT=0` refuses every one to the guest.
     video_objects: bool,
+    /// `CARAXES_SHADOW_FENCE=1` (shadow.rs [`crate::shadow::Layout::fenced`]): GR and CE shadow
+    /// VA spaces fence the guest RM's kernel range, and set B moves above it.
+    shadow_fence: bool,
     next_event_id: u32,
     pub stats: MirrorStats,
+    /// GR contexts whose preemption request was carried out on the host without an owned
+    /// GFXP set, by (chid, generation) ([`Self::note_preemption_ready`]).
+    preemption_ready: std::collections::BTreeSet<(u32, u64)>,
+    /// Host TSGs whose preemption request was carried out ([`Self::bind_owned_compute`],
+    /// [`Self::confirm_gfx_wfi`]): their channels built later are ready too. Cleared at the
+    /// host TSG's free.
+    preemption_ready_tsg: std::collections::BTreeSet<TsgKey>,
     /// Guest roots whose shadow VAS was handed to the teardown: the FB store drops their
     /// cached walks ([`Mirror::take_reaped_roots`]; before, a walk cache of up to 4M leaves
     /// stayed for every context that ever ran).
@@ -1386,8 +1506,11 @@ impl Mirror {
             descs: None,
             video_pending: BTreeMap::new(),
             video_objects: std::env::var("CARAXES_MIRROR_VIDEO_OBJECT").as_deref() != Ok("0"),
+            shadow_fence: std::env::var(crate::shadow::FENCE_ENV).as_deref() == Ok("1"),
             next_event_id: 0x1000,
             stats: MirrorStats::default(),
+            preemption_ready: std::collections::BTreeSet::new(),
+            preemption_ready_tsg: std::collections::BTreeSet::new(),
             reaped_roots: Vec::new(),
             released_roots: Vec::new(),
             exhausted: Default::default(),
@@ -1476,6 +1599,10 @@ impl Mirror {
         buffer_id: u16,
         va: u64,
     ) -> Option<u64> {
+        // A fenced shadow (F2b): a size-0 global inside the fence is plain set A.
+        if self.fence_of(root).is_some_and(|(lo, hi)| va >= lo && va < hi) {
+            return Some(0);
+        }
         let hm = &self.hm;
         self.extents
             .extent(fb, root, buffer_id, va, &|b, e| Self::host_ctx_size(hm, b, e))
@@ -2116,6 +2243,8 @@ impl Mirror {
         // GR and CE roots keep the default layout, as before.
         let layout = if self.video_objects && video_bind(self.chip, &ch).is_some() {
             crate::shadow::Layout::video()
+        } else if self.shadow_fence {
+            crate::shadow::Layout::fenced()
         } else {
             crate::shadow::Layout::default()
         };
@@ -2124,13 +2253,17 @@ impl Mirror {
                 Ok(mut sv) => {
                     sv.comp = self.comp.clone();
                     notes.push(format!(
-                        "shadow: host-managed VAS {:#x} for guest root {root:#x}, VAS start {:#x}{}{} [host]",
+                        "shadow: host-managed VAS {:#x} for guest root {root:#x}, VAS start {:#x}{}{}{} [host]",
                         sv.vas,
                         sv.va_start,
                         if layout.va_base == 0 && sv.va_start != 0 {
                             " (ALLOW_ZERO_ADDRESS not honoured: guest VAs below it cannot be mirrored)"
                         } else {
                             ""
+                        },
+                        match layout.fence {
+                            Some((lo, hi)) => format!(", fence [{lo:#x}, {hi:#x}) held by the host (its own buffers land above it)"),
+                            None => String::new(),
                         },
                         if layout.va_base != 0 {
                             format!(
@@ -2523,6 +2656,15 @@ impl Mirror {
             token & 0xFFF,
             (token >> 16) & 0x7F
         ));
+        if ch.alloc_flags & (1 << 5) != 0
+            && ch.engine_type != v::lookup(v::NV2080_ENGINE_TYPES, "GR0").unwrap_or(1)
+        {
+            notes.push(format!(
+                "shadow: chid {chid}: the guest's privileged engine {:#x} channel ({}) runs unprivileged on the host (DENY_PHYSICAL_MODE_CE; a privileged or physical-mode method faults this channel only) [host]",
+                ch.engine_type,
+                if video_engine(ch.engine_type).is_some() { "a video engine" } else { "an application's VA space" }
+            ));
+        }
         drop(h);
         // Restore the guest's GPGet/GPPut the host RM cleared at channel creation.
         if let Some((get_at, put_at, Some(get), Some(put))) = saved_userd
@@ -2817,77 +2959,207 @@ impl Mirror {
         client: u32,
         guest_tsg: u32,
     ) -> Result<Vec<String>, String> {
-        let guest = reg.resolve((client, guest_tsg));
-        if reg.tsg(guest).is_none_or(|(_, engine)| engine != 1) {
-            return Err("owned compute-CTA target is not a live GR TSG".into());
-        }
-        let key = tsg_key_of_guest(reg, guest).ok_or("owned compute-CTA target has no TSG key")?;
-        let mut members = reg.channels().filter(|ch| tsg_key_of(reg, ch).0 == key);
-        let ch = members.next().ok_or("owned compute-CTA TSG has no channel")?;
-        if members.next().is_some() {
-            return Err("owned compute-CTA currently requires a single-channel TSG".into());
-        }
-        let vas_key = reg.vas_key_of(ch).ok_or("owned compute-CTA target has no VAS")?;
-        let root = match reg.vas_root(vas_key) {
-            Some(Target::Fb(root)) => root,
-            _ => return Err("owned compute-CTA target has no shadow FB root".into()),
-        };
-        let (chid, generation) = (ch.chid, ch.generation);
-        let (host_channel, host_tsg) = {
-            let hc = self.channels.get(&chid)
-                .filter(|hc| hc.generation == generation && hc.context_ready && hc.tsg == key
-                    && hc.shadow_root == Some(root))
-                .ok_or("owned compute-CTA target has no exact host context")?;
-            let ht = self.tsgs.get(&key).ok_or("owned compute-CTA host TSG is gone")?;
-            ht.gfxp.as_ref().filter(|owned| owned.bound
-                && owned.chid == chid && owned.generation == generation
-                && owned.host_channel == hc.handle && owned.root == root)
-                .ok_or("owned compute-CTA requires the exact bound ordinary-GFXP context")?;
-            if ht.guest != guest || ht.engine != 1 || ht.vas != vas_key {
-                return Err("owned compute-CTA host TSG identity changed".into());
-            }
-            (hc.handle, ht.handle)
-        };
+        self.bind_owned_compute(reg, client, guest_tsg, COMPUTE_CTA)
+    }
 
-        self.channels.get_mut(&chid).unwrap().context_ready = false;
+    /// Bind compute preemption mode `mode` ([`COMPUTE_CTA`] or [`COMPUTE_CILP`]) on the host
+    /// TSG of a guest GR TSG: the guest's pointer-free compute BIND, sent to the host TSG and
+    /// verified by a GET on one of its prepared host channels (run P22: CUDA's context asks
+    /// for CILP; run P25: CUDA's TSG has several channels). An owned ordinary-GFXP set on the
+    /// TSG must be bound and stays in mode 1 (single-channel TSGs only, as its lifetime is
+    /// per channel); a TSG without one keeps its graphics mode as it was. Every member with a
+    /// prepared host context is idled first, and the TSG is marked ready for members built
+    /// later.
+    pub fn bind_owned_compute(
+        &mut self,
+        reg: &Registry,
+        client: u32,
+        guest_tsg: u32,
+        mode: u32,
+    ) -> Result<Vec<String>, String> {
+        let what = match mode {
+            COMPUTE_CTA => "compute CTA",
+            COMPUTE_CILP => "compute CILP",
+            _ => return Err(format!("compute preemption mode {mode:#x} is not CTA or CILP")),
+        };
+        let (key, host_tsg, with_gfxp, hosted) = self.prepared_tsg(reg, client, guest_tsg, what)?;
+        if with_gfxp && hosted.len() != 1 {
+            return Err(format!("owned {what} with an owned GFXP set requires a single-channel TSG"));
+        }
+        let (_, _, probe) = hosted[0];
+        let gfxp_before = {
+            let host = self.hm.lock().unwrap();
+            let (st, gfxp, _) = get_preemption_modes(&host, probe);
+            if st != sys::NV_OK {
+                return Err(format!("owned {what}: host GET before the BIND refused: {}", status_name(st)));
+            }
+            gfxp
+        };
+        for (chid, _, _) in &hosted {
+            self.channels.get_mut(chid).unwrap().context_ready = false;
+        }
         let flags = ((sys::NVOS30_FLAGS_IDLE_PUSH_BUFFER | sys::NVOS30_FLAGS_IDLE_CACHE1
             | sys::NVOS30_FLAGS_IDLE_ALL_ENGINES) << 8) | sys::NVOS30_FLAGS_BEHAVIOR_SLEEP;
-        let (idle_status, idle_note) = self.idle_host_channels(&[(chid, host_channel)], flags, 100_000);
+        let pairs: Vec<(u32, u32)> = hosted.iter().map(|(c, _, h)| (*c, *h)).collect();
+        let (idle_status, idle_note) = self.idle_host_channels(&pairs, flags, 100_000);
         if idle_status != sys::NV_OK { return Err(idle_note); }
-        let ch = reg.channel(chid).filter(|ch| ch.generation == generation)
-            .ok_or("owned compute-CTA target changed while idling")?;
-        if reg.vas_key_of(ch) != Some(vas_key)
-            || reg.vas_root(vas_key) != Some(Target::Fb(root))
-            || reg.channels().filter(|member| tsg_key_of(reg, member).0 == key).count() != 1
+        // Nothing may have changed while idling: the same host TSG and the same host channels.
+        let (key2, host_tsg2, with_gfxp2, hosted2) = self.prepared_tsg_idle(reg, client, guest_tsg, what)?;
+        if (key2, host_tsg2, with_gfxp2) != (key, host_tsg, with_gfxp)
+            || hosted2.iter().map(|(c, g, h)| (*c, *g, *h)).collect::<Vec<_>>() != hosted
         {
-            return Err("owned compute-CTA target VAS or TSG changed while idling".into());
-        }
-        let hc = self.channels.get(&chid).filter(|hc| hc.generation == generation
-            && hc.handle == host_channel && hc.tsg == key && hc.shadow_root == Some(root))
-            .ok_or("owned compute-CTA host channel changed while idling")?;
-        let ht = self.tsgs.get(&key).ok_or("owned compute-CTA host TSG disappeared while idling")?;
-        if ht.handle != host_tsg || ht.guest != guest || ht.vas != vas_key
-            || !ht.gfxp.as_ref().is_some_and(|owned| owned.bound
-                && owned.chid == chid && owned.generation == generation
-                && owned.host_channel == hc.handle && owned.root == root)
-        {
-            return Err("owned compute-CTA ownership changed while idling".into());
+            return Err(format!("owned {what} TSG changed while idling"));
         }
 
         let host = self.hm.lock().unwrap();
-        let bind = bind_compute_cta(&host, host_tsg);
-        let (get, gfxp, cilp) = get_preemption_modes(&host, host_channel);
-        if bind != sys::NV_OK || get != sys::NV_OK || gfxp != 1 || cilp != 1 {
+        let bind = bind_compute(&host, host_tsg, mode);
+        let (get, gfxp, cilp) = get_preemption_modes(&host, probe);
+        let gfxp_want = if with_gfxp { 1 } else { gfxp_before };
+        if bind != sys::NV_OK || get != sys::NV_OK || gfxp != gfxp_want || cilp != mode {
             return Err(format!(
-                "compute-CTA BIND/GET refused: bind {}, get {}, gfxp {gfxp:#x}, cilp {cilp:#x}; target remains blocked",
+                "{what} BIND/GET refused: bind {}, get {}, gfxp {gfxp:#x} (want {gfxp_want:#x}), cilp {cilp:#x}; target remains blocked",
                 status_name(bind), status_name(get)
             ));
         }
         drop(host);
-        self.channels.get_mut(&chid).unwrap().context_ready = true;
+        for (chid, generation, _) in &hosted {
+            self.channels.get_mut(chid).unwrap().context_ready = true;
+            self.note_preemption_ready(*chid, *generation);
+        }
+        self.preemption_ready_tsg.insert(key);
         Ok(vec![idle_note, format!(
-            "tsg {key}: host-owned compute CTA mode 1 bound; ordinary GFXP mode 1 preserved [host]"
+            "tsg {key}: host {what} (mode {mode}) bound for {} channel(s); graphics mode {gfxp_want} {} [host]",
+            hosted.len(),
+            if with_gfxp { "(owned ordinary GFXP preserved)" } else { "(unchanged)" }
         )])
+    }
+
+    /// The host TSG of guest GR TSG `(client, guest_tsg)` and its members with a prepared,
+    /// ready host context (chid, generation, host channel), in chid order: at least one.
+    #[allow(clippy::type_complexity)]
+    fn prepared_tsg(
+        &self,
+        reg: &Registry,
+        client: u32,
+        guest_tsg: u32,
+        what: &str,
+    ) -> Result<(TsgKey, u32, bool, Vec<(u32, u64, u32)>), String> {
+        self.tsg_members(reg, client, guest_tsg, what, true)
+    }
+
+    /// [`Self::prepared_tsg`] after the idle, which marked the members not ready.
+    #[allow(clippy::type_complexity)]
+    fn prepared_tsg_idle(
+        &self,
+        reg: &Registry,
+        client: u32,
+        guest_tsg: u32,
+        what: &str,
+    ) -> Result<(TsgKey, u32, bool, Vec<(u32, u64, u32)>), String> {
+        self.tsg_members(reg, client, guest_tsg, what, false)
+    }
+
+    #[allow(clippy::type_complexity)]
+    fn tsg_members(
+        &self,
+        reg: &Registry,
+        client: u32,
+        guest_tsg: u32,
+        what: &str,
+        ready: bool,
+    ) -> Result<(TsgKey, u32, bool, Vec<(u32, u64, u32)>), String> {
+        let guest = reg.resolve((client, guest_tsg));
+        if reg.tsg(guest).is_none_or(|(_, engine)| engine != 1) {
+            return Err(format!("owned {what} target is not a live GR TSG"));
+        }
+        let key = tsg_key_of_guest(reg, guest).ok_or(format!("owned {what} target has no TSG key"))?;
+        let ht = self.tsgs.get(&key).ok_or(format!("owned {what} host TSG is gone"))?;
+        if ht.guest != guest || ht.engine != 1 {
+            return Err(format!("owned {what} host TSG identity changed"));
+        }
+        let hosted: Vec<(u32, u64, u32)> = reg
+            .channels()
+            .filter(|ch| tsg_key_of(reg, ch).0 == key)
+            .filter_map(|ch| {
+                let hc = self.channels.get(&ch.chid)?;
+                let root = match reg.vas_key_of(ch).and_then(|k| reg.vas_root(k)) {
+                    Some(Target::Fb(root)) => root,
+                    _ => return None,
+                };
+                (hc.generation == ch.generation && hc.context_ready == ready && hc.tsg == key
+                    && hc.shadow_root == Some(root) && reg.vas_key_of(ch) == Some(ht.vas))
+                    .then_some((ch.chid, ch.generation, hc.handle))
+            })
+            .collect();
+        if hosted.is_empty() {
+            return Err(format!("owned {what} TSG has no prepared host context"));
+        }
+        if let Some(owned) = ht.gfxp.as_ref() {
+            let (chid, generation, handle) = hosted[0];
+            if !(owned.bound && owned.chid == chid && owned.generation == generation
+                && owned.host_channel == handle)
+            {
+                return Err(format!("owned {what}: the TSG's ordinary-GFXP set is not the exact bound one"));
+            }
+        }
+        Ok((key, ht.handle, ht.gfxp.is_some(), hosted))
+    }
+
+    /// The guest's pointer-free graphics BIND to WFI (flags GFXP_SET, gfxpPreemptMode 0; run
+    /// P22): nothing is bound on the host; a GET on a prepared host channel of the TSG must
+    /// show graphics WFI. Refused otherwise.
+    pub fn confirm_gfx_wfi(
+        &mut self,
+        reg: &Registry,
+        client: u32,
+        guest_tsg: u32,
+    ) -> Result<Vec<String>, String> {
+        let (key, _, _, hosted) = self.prepared_tsg(reg, client, guest_tsg, "graphics WFI")?;
+        let host = self.hm.lock().unwrap();
+        let (st, gfxp, cilp) = get_preemption_modes(&host, hosted[0].2);
+        drop(host);
+        if st != sys::NV_OK || gfxp != 0 {
+            return Err(format!(
+                "graphics WFI not confirmed: host GET {}, gfxp {gfxp:#x}, cilp {cilp:#x}",
+                status_name(st)
+            ));
+        }
+        for (chid, generation, _) in &hosted {
+            self.note_preemption_ready(*chid, *generation);
+        }
+        self.preemption_ready_tsg.insert(key);
+        Ok(vec![format!(
+            "tsg {key}: host context confirmed in graphics WFI (GET gfxp 0, cilp {cilp:#x}); nothing bound [host read]"
+        )])
+    }
+
+    /// A GR context whose preemption request was carried out on the host without an owned
+    /// GFXP set (compute CTA/CILP, graphics WFI): the first-use gate of the deferred-context
+    /// diagnostic may let its work run.
+    fn note_preemption_ready(&mut self, chid: u32, generation: u64) {
+        let live = &self.channels;
+        self.preemption_ready
+            .retain(|(c, g)| live.get(c).is_some_and(|hc| hc.generation == *g));
+        self.preemption_ready.insert((chid, generation));
+    }
+
+    /// Whether channel `chid` of `generation` had its preemption request carried out on the
+    /// host ([`Self::note_preemption_ready`]).
+    pub fn preemption_ready(&self, chid: u32, generation: u64) -> bool {
+        self.preemption_ready.contains(&(chid, generation))
+            || self.channels.get(&chid).is_some_and(|hc| {
+                hc.generation == generation && self.preemption_ready_tsg.contains(&hc.tsg)
+            })
+    }
+
+    /// Whether guest GR channel `chid` belongs to a guest TSG whose host TSG is set up: its
+    /// preemption request was carried out ([`Self::bind_owned_compute`],
+    /// [`Self::confirm_gfx_wfi`]) or it holds a bound owned GFXP set. A channel of that TSG
+    /// without a host context yet joins the TSG's context at its first doorbell (run P26:
+    /// CUDA's TSG has eight channels, one per subcontext; every BIND arrives while only the
+    /// first is hosted, and the other seven waited for a bind of their own forever).
+    pub fn tsg_context_ready(&self, reg: &Registry, chid: u32) -> bool {
+        tsg_context_ready(&self.tsgs, &self.preemption_ready_tsg, reg, chid)
     }
 
     /// RM teardown idles the exact mirrored target, harvests its final GPGet and releases
@@ -2904,12 +3176,37 @@ impl Mirror {
         let client = ch.h_client;
         let object = ch.h_object;
         let root = reg.vas_key_of(ch).and_then(|vas| reg.vas_root(vas));
+        let key = tsg_key_of(reg, ch).0;
+        let hosted = self.channels.get(&chid).is_some_and(|hc| hc.generation == generation);
+        let others = self.channels.iter().any(|(c, hc)| *c != chid && hc.tsg == key);
+        match evict_path(hosted, others, self.tsgs.contains_key(&key)) {
+            EvictPath::HostChannel => {}
+            EvictPath::Refuse => {
+                return Err("deferred target host context is gone while other members of its TSG are hosted".into());
+            }
+            // Run P30: the TSG's context was moved to its last channel, which never rang (no
+            // host channel was built for it). Nothing of it runs on the host: the TSG's host
+            // context goes with the host TSG, and the guest's GPGet is final.
+            EvictPath::FreeTsg | EvictPath::Nothing => {
+                let mut notes = vec![format!(
+                    "deferred eviction of chid {chid}: a TSG member that never ran on the host; its TSG's host context is released with the host TSG [host]"
+                )];
+                self.worker.wait_all();
+                if !self.free_tsg(key, &mut notes) {
+                    return Err(notes.join("; "));
+                }
+                self.worker.wait_idle();
+                return Ok((notes, reg.channel_gp_get(chid).unwrap_or(0)));
+            }
+        }
         let hc = self.channels.get_mut(&chid).filter(|hc| hc.generation == generation)
             .ok_or("deferred target host context is gone")?;
         if root != hc.shadow_root.map(Target::Fb) {
             return Err("deferred target VAS changed".into());
         }
-        let key = hc.tsg;
+        if hc.tsg != key {
+            return Err("deferred target host channel is in another host TSG".into());
+        }
         if reg.channels().filter(|c| tsg_key_of(reg, c).0 == key).count() != 1 {
             return Err("deferred eviction of a multi-channel TSG is not implemented".into());
         }
@@ -3005,11 +3302,7 @@ impl Mirror {
         }
         // Fail closed: a video channel carries only the chip's own video classes.
         if let Some(engine) = video {
-            if let Some((c, _)) = ch
-                .engine_objects
-                .iter()
-                .find(|(c, _)| !video_class_ok(self.chip, *c))
-            {
+            if let Some(c) = video_channel_foreign_class(self.chip, &ch.engine_objects) {
                 return Err(format!(
                     "{engine} channel carries class {c:#x}, not a video class of this chip: refused, stays with the software executor"
                 ));
@@ -3050,7 +3343,7 @@ impl Mirror {
         // silently drop its privilege and can fault the physical GPU: it stays in the
         // bounded software executor. Every other CE and video channel, bare or in a TSG,
         // remains eligible; its host channel denies physical-mode CE methods.
-        if needs_software_physical_ce(ch.alloc_flags, is_gr) {
+        if privileged_stays_in_software(reg, ch, gr0, is_gr) {
             return Err(format!(
                 "channel may issue guest physical-mode work (engine {:#x}, allocation flags {:#x}, bare {bare}): host privilege is not inherited; stays with the bounded software executor",
                 ch.engine_type, ch.alloc_flags
@@ -3749,9 +4042,24 @@ impl Mirror {
     /// and those held for a host TSG not yet freed ([`set_b_with_held`]).
     fn root_exclusions(&self, reg: &Registry, root: u64, fb: Option<&FakeFb>) -> Vec<(u64, u64)> {
         let hm = &self.hm;
-        self.extents.set_b(reg, root, fb, self.shadows.get(&root), &|b, e| {
-            Self::host_ctx_size(hm, b, e)
-        })
+        let fence = self.fence_of(root);
+        self.extents
+            .set_b(reg, root, fb, self.shadows.get(&root), fence, &|b, e| {
+                Self::host_ctx_size(hm, b, e)
+            })
+    }
+
+    /// The host fence (F2b) of shadow root `root`: its shadow's, or for a shadow not built
+    /// yet the one its GR channel will get (`CARAXES_SHADOW_FENCE`).
+    fn fence_of(&self, root: u64) -> Option<(u64, u64)> {
+        self.shadows.get(&root).map_or_else(
+            || {
+                self.shadow_fence
+                    .then(crate::shadow::Layout::fenced)
+                    .and_then(|l| l.fence)
+            },
+            |sp| sp.front.layout.fence,
+        )
     }
 
     /// Guest roots whose held set-B ranges went back to set A at a host TSG free since the
@@ -3787,7 +4095,8 @@ impl Mirror {
         match self.shadows.get_mut(&root) {
             Some(sp) => self.extents.refresh(reg, root, fb, sp, &query),
             None => {
-                self.extents.set_b(reg, root, Some(fb), None, &query);
+                let fence = self.fence_of(root);
+                self.extents.set_b(reg, root, Some(fb), None, fence, &query);
                 (self.extents.take_notes(), false)
             }
         }
@@ -4481,6 +4790,7 @@ impl Mirror {
             freed &= self.free_channel(c, notes);
         }
         if !freed { return false; }
+        self.preemption_ready_tsg.remove(&key);
         if let Some(t) = self.tsgs.remove(&key) {
             let r = self.hm.lock().unwrap().free_object(t.handle);
             notes.push(match r {
@@ -5393,6 +5703,91 @@ mod tests {
         assert!(!needs_software_physical_ce(0x20_2000, false));
     }
 
+    /// Run P29 (Windows): every channel is privileged. A copy channel on the VA space of an
+    /// application GR context (a skip-context GR channel on the same root: CUDA's COPY TSG
+    /// channels) is an application channel and may be mirrored; the KMD's paging copy
+    /// channel on the system VA space, where only the privileged management GR channel
+    /// runs, stays in software; so does any channel without a root.
+    #[test]
+    fn a_privileged_copy_channel_of_an_application_vas_is_mirrored() {
+        let chip = crate::fixture::rtx2070().chip.data();
+        let gr0 = 1u32;
+        let mut reg = registry();
+        let vas = |reg: &mut Registry, client: u32, root: u64| {
+            reg.record_alloc(client, 0x1, 0x3, v::FERMI_VASPACE_A, &[0u8; 56]);
+            let mut pd = vec![0u8; 32];
+            pd[v::SET_PD_PHYS_ADDRESS..][..8].copy_from_slice(&root.to_le_bytes());
+            pd[v::SET_PD_NUM_ENTRIES..][..4].copy_from_slice(&4u32.to_le_bytes());
+            pd[v::SET_PD_H_VASPACE..][..4].copy_from_slice(&0x3u32.to_le_bytes());
+            reg.record_set_page_directory(client, &pd);
+        };
+        let channel =
+            |reg: &mut Registry, client: u32, h: u32, chid: u32, engine: u32, flags: u32| {
+                let mut cp = channel_params(chid, None);
+                let put = |cp: &mut Vec<u8>, o: usize, v: u32| {
+                    cp[o..o + 4].copy_from_slice(&v.to_le_bytes())
+                };
+                put(
+                    &mut cp,
+                    <Abi as nvrm_sys::RmAbi>::ALLOC_CHANNEL_PARAMS_OFF_hVASpace,
+                    0x3,
+                );
+                put(
+                    &mut cp,
+                    <Abi as nvrm_sys::RmAbi>::ALLOC_CHANNEL_PARAMS_OFF_engineType,
+                    engine,
+                );
+                let o = <Abi as nvrm_sys::RmAbi>::ALLOC_CHANNEL_PARAMS_OFF_flags;
+                let f = u32::from_le_bytes(cp[o..o + 4].try_into().unwrap());
+                put(&mut cp, o, f | flags);
+                reg.record_alloc(client, 0x1, h, chip.channel.gpfifo, &cp);
+            };
+        const PRIV: u32 = 1 << 5;
+        // CUDA's process: GR channel with SKIP_CTXBUFFER_ALLOC and two privileged CE channels.
+        let (app, system) = (0x1_0000_0000u64, 0x1_0800_0000u64);
+        vas(&mut reg, 0xc1d0_006f, app);
+        channel(
+            &mut reg,
+            0xc1d0_006f,
+            0x40,
+            22,
+            gr0,
+            PRIV | SKIP_CTXBUFFER_ALLOC,
+        );
+        vas(&mut reg, 0xc1d0_008e, app);
+        channel(&mut reg, 0xc1d0_008e, 0x41, 32, 0x0c, PRIV);
+        // The system address space: the management GR channel and the paging CE channel.
+        vas(&mut reg, 0xc1d0_0002, system);
+        channel(&mut reg, 0xc1d0_0002, 0x42, 4, gr0, PRIV);
+        vas(&mut reg, 0xc1d0_0025, system);
+        channel(&mut reg, 0xc1d0_0025, 0x43, 14, 0x0b, PRIV);
+        let ch = |c: u32| reg.channel(c).unwrap();
+        assert!(application_copy_channel(&reg, ch(32), gr0));
+        assert!(!application_copy_channel(&reg, ch(14), gr0));
+        // The rule the mirror applies: privileged non-GR stays in software unless it is an
+        // application copy channel or a video channel (the KMD's own NVENC, run P31).
+        let software = |reg: &Registry, c: u32| {
+            privileged_stays_in_software(reg, reg.channel(c).unwrap(), gr0, false)
+        };
+        assert!(!software(&reg, 32));
+        assert!(software(&reg, 14));
+        vas(&mut reg, 0xc1d0_0128, system);
+        channel(&mut reg, 0xc1d0_0128, 0x44, 8, 0x1b, PRIV);
+        assert!(!application_copy_channel(
+            &reg,
+            reg.channel(8).unwrap(),
+            gr0
+        ));
+        assert!(!software(&reg, 8), "a privileged NVENC channel is mirrored");
+        // The application's GR channel gone: its copy channel is no application's any more.
+        reg.record_free(0xc1d0_006f, 0x40);
+        assert!(!application_copy_channel(
+            &reg,
+            reg.channel(32).unwrap(),
+            gr0
+        ));
+    }
+
     /// The privileged context-promotion control receives only initialized VIDMEM ranges
     /// wholly owned by this mirror. VA-only entries remain valid; system apertures need a
     /// separate registered-descriptor translation and are refused by this path.
@@ -5545,7 +5940,9 @@ mod tests {
         assert_eq!(cache.by_engine.len(), 3);
     }
 
-    type Abi = v::RmAbi;
+    /// The guest's channel allocation layout (the same in every guest ABI; the TSG's is
+    /// `ver::layouts()`).
+    type Abi = nvrm_sys::V610;
 
     fn registry() -> Registry {
         Registry::new(crate::fixture::rtx2070().chip.data().channel)
@@ -5554,9 +5951,9 @@ mod tests {
     /// A TSG with the kernel's id `grp` in internalFlags (a 615 layout; the 610 struct has
     /// no such field, so the id is dropped there, as a 610 kernel sends none).
     fn tsg_params(grp: Option<u32>) -> Vec<u8> {
-        let mut b = vec![0u8; <Abi as nvrm_sys::RmAbi>::TSG_PARAMS_SIZE as usize];
-        let off = <Abi as nvrm_sys::RmAbi>::TSG_PARAMS_OFF_internalFlags;
-        if let (Some(id), true) = (grp, b.len() >= off + 4) {
+        let l = crate::ver::layouts();
+        let mut b = vec![0u8; l.tsg_size];
+        if let (Some(id), Some(off)) = (grp, l.tsg_internal_flags) {
             b[off..off + 4].copy_from_slice(&(id | 1 << 16 | 1 << 17).to_le_bytes());
         }
         b
@@ -5577,8 +5974,7 @@ mod tests {
     }
 
     fn with_615_id() -> bool {
-        <Abi as nvrm_sys::RmAbi>::TSG_PARAMS_SIZE as usize
-            >= <Abi as nvrm_sys::RmAbi>::TSG_PARAMS_OFF_internalFlags + 4
+        crate::ver::layouts().tsg_internal_flags.is_some()
     }
 
     /// Item 3 of the GSP plan round 2 (classes.md §8, TSG): the host TSG map is keyed by the
@@ -5587,6 +5983,14 @@ mod tests {
     /// bare channel's internal TSG is keyed by its own id.
     #[test]
     fn host_tsg_key_is_the_kernel_tsg_id() {
+        for g in [crate::ver::GuestAbi::V610, crate::ver::GuestAbi::V615] {
+            let _g = crate::ver::TestGuest::set(g);
+            assert_eq!(with_615_id(), g == crate::ver::GuestAbi::V615);
+            host_tsg_key_case();
+        }
+    }
+
+    fn host_tsg_key_case() {
         let gpfifo = crate::fixture::rtx2070().chip.data().channel.gpfifo;
         let grp = |id: u32, c: u32, h: u32| {
             if with_615_id() {
@@ -5637,6 +6041,70 @@ mod tests {
         assert_eq!(TsgKey::Handle(1, 0x30).to_string(), "0x1/0x30");
     }
 
+    /// Run P30: the eviction of a TSG's context through its last channel, which never rang,
+    /// frees the host TSG instead of refusing ("host context is gone" was an Xid 45 and a
+    /// TDR after every D3D12 process); with other members still hosted it is refused.
+    #[test]
+    fn a_deferred_eviction_through_a_member_that_never_ran_frees_the_tsg() {
+        assert_eq!(evict_path(true, false, true), EvictPath::HostChannel);
+        assert_eq!(evict_path(true, true, true), EvictPath::HostChannel);
+        assert_eq!(evict_path(false, false, true), EvictPath::FreeTsg);
+        assert_eq!(evict_path(false, false, false), EvictPath::Nothing);
+        assert_eq!(evict_path(false, true, true), EvictPath::Refuse);
+    }
+
+    /// Run P26: CUDA's BINDs (compute CILP) reach the host TSG while only its first channel
+    /// is hosted; the TSG's other GR channels join a ready context, a channel of another
+    /// guest TSG under a reused id or a bare channel does not.
+    #[test]
+    fn members_join_a_tsg_whose_context_is_set_up() {
+        let gpfifo = crate::fixture::rtx2070().chip.data().channel.gpfifo;
+        let gr = |chid: u32| {
+            let mut b = channel_params(chid, None);
+            let o = <Abi as nvrm_sys::RmAbi>::ALLOC_CHANNEL_PARAMS_OFF_engineType;
+            b[o..o + 4].copy_from_slice(&1u32.to_le_bytes());
+            b
+        };
+        let mut reg = registry();
+        reg.record_alloc(
+            1,
+            0x10,
+            0x30,
+            v::KEPLER_CHANNEL_GROUP_A,
+            &tsg_params(Some(22)),
+        );
+        for (chid, h) in [(24, 0x40), (25, 0x41), (31, 0x47)] {
+            reg.record_alloc(1, 0x30, h, gpfifo, &gr(chid));
+        }
+        reg.record_alloc(1, 0x10, 0x50, gpfifo, &gr(4)); // bare
+        let (key, _, guest) = tsg_key_of(&reg, reg.channel(24).unwrap());
+        let host = |guest, gfxp| HostTsg {
+            handle: 0x8000_0001,
+            vas: (1, 0x20),
+            engine: 1,
+            guest,
+            gfxp,
+        };
+        let mut tsgs = BTreeMap::new();
+        let mut ready = std::collections::BTreeSet::new();
+        let joins = |t: &BTreeMap<_, _>, r: &std::collections::BTreeSet<_>, c| {
+            tsg_context_ready(t, r, &reg, c)
+        };
+        assert!(!joins(&tsgs, &ready, 25), "no host TSG yet");
+        tsgs.insert(key, host(guest, None));
+        assert!(
+            !joins(&tsgs, &ready, 25),
+            "host TSG, no BIND carried out yet"
+        );
+        ready.insert(key);
+        assert!([24, 25, 31].iter().all(|c| joins(&tsgs, &ready, *c)));
+        assert!(!joins(&tsgs, &ready, 4), "a bare channel has its own TSG");
+        assert!(!joins(&tsgs, &ready, 99), "no such channel");
+        // The same id under another guest TSG (a stale host TSG) is not ready for it.
+        tsgs.insert(key, host((1, 0x31), None));
+        assert!(!joins(&tsgs, &ready, 25));
+    }
+
     /// The video engines by `NV2080_ENGINE_TYPE` (NVDEC0 0x13, NVENC0 0x1b on 610 and
     /// 615) and the chip's video classes: TU106 has NVC4B0 and NVC4B7, and the copy and
     /// compute classes are no video classes (fail closed on the channel).
@@ -5656,6 +6124,35 @@ mod tests {
         assert!(!video_class_ok(chip, 0xC5C0));
         assert_eq!(NOTIFIER_NVENC0 | EVENT_NONSTALL, 0x0800_0026);
         assert_eq!(NOTIFIER_NVDEC0 | EVENT_NONSTALL, 0x0800_000E);
+    }
+
+    /// Run P29b: a Windows video channel carries the KMD's deferred-API object beside its
+    /// video class, and is mirrored; any other foreign class still keeps it in software.
+    #[test]
+    fn a_video_channel_may_carry_the_deferred_api_object() {
+        let chip = crate::fixture::rtx2070().chip.data();
+        let obj = |c: u32| (c, Vec::new());
+        assert_eq!(video_channel_foreign_class(chip, &[obj(0xC4B7)]), None);
+        assert_eq!(
+            video_channel_foreign_class(chip, &[obj(DEFERRED_API_CLASS), obj(0xC4B7)]),
+            None
+        );
+        assert_eq!(
+            video_channel_foreign_class(chip, &[obj(DEFERRED_API_CLASS), obj(0xC4B0)]),
+            None
+        );
+        assert_eq!(
+            video_channel_foreign_class(chip, &[obj(DEFERRED_API_CLASS)]),
+            None
+        );
+        assert_eq!(
+            video_channel_foreign_class(chip, &[obj(DEFERRED_API_CLASS), obj(0xC5B5)]),
+            Some(0xC5B5)
+        );
+        assert_eq!(
+            video_channel_foreign_class(chip, &[obj(0xC4B7), obj(0xC5C0)]),
+            Some(0xC5C0)
+        );
     }
 
     /// A video channel with no video object yet is bound to its own engine at its build
@@ -5988,6 +6485,64 @@ mod tests {
         assert_eq!(Layout::default().unmirrorable(0x10_0000, 0x10_1000), None);
     }
 
+    /// F2b: the fenced layout holds [0x1_2000_0000, +512 MiB); without a fence (Linux's default,
+    /// the video layout) nothing changes. A size-0 global buffer answered `Some(0)` (inside a
+    /// fence) is no set-B range; a promoted buffer with its own size stays set B (P24: the
+    /// host maps the guest's PATCH at the guest's VA).
+    #[test]
+    fn a_fenced_global_buffer_is_no_set_b_range() {
+        use crate::shadow::{Layout, FENCE_SIZE, GUEST_RM_VA_BASE};
+        let f = Layout::fenced();
+        assert_eq!(
+            f.fence,
+            Some((GUEST_RM_VA_BASE, GUEST_RM_VA_BASE + FENCE_SIZE))
+        );
+        assert_eq!(
+            (f.va_base, f.alloc_flags()),
+            (0, crate::shadow::VAS_ALLOW_ZERO_ADDRESS)
+        );
+        assert_eq!(
+            (Layout::default().fence, Layout::video().fence),
+            (None, None)
+        );
+        let chip = crate::fixture::rtx2070().chip.data();
+        let mut reg = registry();
+        reg.record_alloc(
+            1,
+            0x80,
+            0x15,
+            chip.channel.gpfifo,
+            &channel_params(23, Some(4)),
+        );
+        let mut g = vec![0u8; v::PROMOTE_PARAMS_SIZE];
+        g[v::PROMOTE_H_CHAN_CLIENT..][..4].copy_from_slice(&1u32.to_le_bytes());
+        g[v::PROMOTE_H_OBJECT..][..4].copy_from_slice(&0x15u32.to_le_bytes());
+        g[v::PROMOTE_ENTRY_COUNT..][..4].copy_from_slice(&2u32.to_le_bytes());
+        // Entry 0: the PATCH buffer with its own size; entry 1: BUNDLE_CB by VA alone.
+        let e0 = v::PROMOTE_ENTRIES;
+        g[e0 + 8..][..8].copy_from_slice(&0x1_200e_4000u64.to_le_bytes());
+        g[e0 + 16..][..8].copy_from_slice(&0x5000u64.to_le_bytes());
+        g[e0 + 28..][..2].copy_from_slice(&2u16.to_le_bytes());
+        let e1 = e0 + v::PROMOTE_ENTRY_SIZE;
+        g[e1 + 8..][..8].copy_from_slice(&0x1_200e_9000u64.to_le_bytes());
+        g[e1 + 28..][..2].copy_from_slice(&3u16.to_le_bytes());
+        reg.record_promote_ctx(&g);
+        let all = |_: &Channel| true;
+        let fenced = |_: u16, _: u64| Some(0);
+        assert_eq!(
+            exclusions_among(&reg, all, fenced),
+            vec![(0x1_200e_4000, 0x1_200e_9000)]
+        );
+        let unfenced = |_: u16, _: u64| Some(0x3000);
+        assert_eq!(
+            exclusions_among(&reg, all, unfenced),
+            vec![
+                (0x1_200e_4000, 0x1_200e_9000),
+                (0x1_200e_9000, 0x1_200e_c000)
+            ]
+        );
+    }
+
     /// Run P18: Windows maps pushbuffers below 1 MiB (the first Xid 31 was a host fetch at
     /// 0x13000). The default layout asks the RM to start its VAS at 0 (`ALLOW_ZERO_ADDRESS`,
     /// nvos.h BIT(8)) instead of the reserved 1 MiB; the video layout keeps its own base and
@@ -6086,8 +6641,8 @@ mod tests {
     }
 
     /// Run P19: the guest's BUNDLE_CB (the host's 0x3000) at 0x1200e9000, its semaphore page at
-    /// 0x1200ec000. The exclusion stops there instead of at the 64 KiB extent; a guest page
-    /// inside the host's footprint never shrinks it.
+    /// 0x1200ec000. The exclusion stops there instead of at the 64 KiB extent; the guest's own
+    /// pages inside the host's footprint never shrink it.
     #[test]
     fn a_global_exclusion_stops_at_the_guests_next_page() {
         const BASE: u64 = 0x1_200e_9000;
@@ -6103,10 +6658,15 @@ mod tests {
             (0x1_200f_9000, GlobalClip::Full),
             "no guest page: the 64 KiB extent, as before"
         );
+        // Run P20: the guest maps its own copy of the buffer at the promoted VA; it never
+        // shrinks the footprint, and the next page still cuts the extent.
         assert_eq!(
-            global_exclusion(BASE, 0x3000, at(&[0x1_200e_a000, 0x1_200e_c000])),
-            (0x1_200e_c000, GlobalClip::Overlap { at: 0x1_200e_a000 }),
-            "a guest page inside the footprint: the footprint stays excluded"
+            global_exclusion(BASE, 0x3000, at(&[BASE, 0x1_200e_a000, 0x1_200e_c000])),
+            (0x1_200e_c000, GlobalClip::Cut { at: 0x1_200e_c000 })
+        );
+        assert_eq!(
+            global_exclusion(BASE, 0x3000, at(&[BASE])),
+            (0x1_200f_9000, GlobalClip::Full)
         );
         // Linux's layout (display-e.md): the attribute CB at 0x120400000, 2 MiB pages; the
         // exclusion is the footprint whatever the guest maps past it.
@@ -6525,6 +7085,47 @@ mod tests {
         assert_eq!((asked.get(), fresh.computed.get(), fresh.reused.get()), (n, 2, 1));
     }
 
+    /// Run P28 (the merge with planfast): set B is computed by [`GlobalExtents`], and the F2b
+    /// rule must hold there too. A size-0 global inside a fenced root's fence is plain set A;
+    /// a PA-promoted buffer inside it and a size-0 global outside it stay set B. Without it
+    /// the shadow left the guest's pages in the fence unmapped (46 refusals, FE
+    /// FAULT_PRIV_VIOLATION writes at 0x1_200f_c000 and up).
+    #[test]
+    fn a_fenced_root_computes_set_b_without_fenced_globals() {
+        let DoorbellWorld { mut reg, tree, root } = doorbell_world();
+        let cuda = 0xc1d0_0373u32;
+        let (fenced_global, patch, outside) =
+            (0x1_200e_9000u64, 0x1_200e_4000u64, 0x2_2000_9000u64);
+        reg.record_promote_ctx(&promote_params(
+            cuda,
+            0x5c00_0101,
+            &[
+                (3, 0, fenced_global, 0, false),
+                (2, 0x40_0000, patch, 0x5000, false),
+                (4, 0, outside, 0, false),
+            ],
+        ));
+        let query = |_: u16, engine: u32| rtx2070_ctx_size(engine);
+        let set_b = |layout: crate::shadow::Layout| {
+            let ext = GlobalExtents::default();
+            let mut front = crate::shadow::ShadowFront::new(root);
+            front.layout = layout;
+            let mut sp = ShadowSpace::new(front, 0);
+            ext.refresh(&reg, root, &tree.fb, &mut sp, &query);
+            let fence = sp.front.layout.fence;
+            let direct = ext.set_b(&reg, root, Some(&tree.fb), Some(&sp), fence, &query);
+            assert_eq!(direct, sp.exclude, "refresh and set_b agree");
+            sp.exclude
+        };
+        let starts = |x: &[(u64, u64)]| x.iter().map(|r| r.0).collect::<Vec<_>>();
+        let fenced = set_b(crate::shadow::Layout::fenced());
+        assert!(!starts(&fenced).contains(&fenced_global), "{fenced:x?}");
+        assert!(fenced.contains(&(patch, patch + 0x5000)), "{fenced:x?}");
+        assert!(starts(&fenced).contains(&outside), "{fenced:x?}");
+        let plain = set_b(crate::shadow::Layout::default());
+        assert!(starts(&plain).contains(&fenced_global), "{plain:x?}");
+    }
+
     /// Micro-benchmark (`cargo test --release -p vfio-user-nvgpu --lib bench_set_b --
     /// --ignored --nocapture`): the plan step of a clean doorbell on the CUDA root of
     /// [`doorbell_world`] (`shadow_resync` without the worker), before and with the set-B
@@ -6657,12 +7258,19 @@ mod tests {
 
     #[test]
     fn owned_compute_cta_bind_is_pointer_free_and_compute_only() {
-        let p = compute_cta_bind_params(0x1234, 0x5678);
+        let p = compute_bind_params(0x1234, 0x5678, COMPUTE_CTA);
         let word = |o| u32::from_le_bytes(p[o..o + 4].try_into().unwrap());
         assert_eq!((word(0), word(4), word(8)), (1, 0x1234, 0x5678));
         assert_eq!((word(88), word(92)), (0, 1), "graphics is ignored and compute selects CTA");
         assert!(p[12..16].iter().all(|byte| *byte == 0), "ABI padding stays zero");
         assert!(p[16..88].iter().all(|byte| *byte == 0), "all nine guest pointer positions stay zero");
         assert!(p[96..112].iter().all(|byte| *byte == 0), "route stays zero");
+        // Run P22: CUDA's context asks for CILP (flags 1, cilpPreemptMode 2, no pointers).
+        let p = compute_bind_params(0x1234, 0x5678, COMPUTE_CILP);
+        assert_eq!((word_of(&p, 0), word_of(&p, 88), word_of(&p, 92)), (1, 0, 2));
+    }
+
+    fn word_of(p: &[u8], o: usize) -> u32 {
+        u32::from_le_bytes(p[o..o + 4].try_into().unwrap())
     }
 }

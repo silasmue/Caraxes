@@ -35,8 +35,8 @@ use serde::Deserialize;
 use crate::ctrl::Answer;
 use crate::fb::FakeFb;
 use crate::guestmem::GuestMemory;
-use crate::ver::active::display as d;
-use crate::ver::active::{NV_ERR_NOT_SUPPORTED, NV_OK};
+use crate::ver::common::display as d;
+use crate::ver::common::{NV_ERR_NOT_SUPPORTED, NV_OK};
 use dp_sink::{DpSink, LinkConfig, LinkRate, SinkProfile};
 
 /// `NV2080_NOTIFIERS_HOTPLUG` (cl2080_notification.h).
@@ -715,9 +715,10 @@ impl Display {
             // (615 ctrl0073system.h:638-678; ver/v615/display.rs).
             d::CMD_SYSTEM_GET_ACTIVE => {
                 put32(&mut b, d::GET_ACTIVE_DISPLAY_ID, 0);
-                let flags = get32(params, d::GET_ACTIVE_FLAGS) & !d::GET_ACTIVE_FLAGS_GOP_STALE_HEAD;
+                let l = &crate::ver::layouts().display;
+                let flags = get32(params, d::GET_ACTIVE_FLAGS) & !l.get_active_flags_gop_stale_head;
                 put32(&mut b, d::GET_ACTIVE_FLAGS, flags);
-                if let Some(o) = d::GET_ACTIVE_STALE_SOR_INDEX {
+                if let Some(o) = l.get_active_stale_sor_index {
                     put32(&mut b, o, 0);
                 }
                 ok(
@@ -1104,7 +1105,7 @@ impl Display {
             // this board's answers. The rows the plan moves to A or E are the chip tables'
             // (chipctl.rs), the MODEL rows without a model stay unanswered.
             // DP_SET_WAR_FLAGS (615 on): the rule table's ACK, the WAR recorded per connector.
-            c if d::CMD_DP_SET_WAR_FLAGS == Some(c) => self.set_war_flags(c, params),
+            c if crate::ver::layouts().display.cmd_dp_set_war_flags == Some(c) => self.set_war_flags(c, params),
             // The D rows with a model here (roadmap R1): HDCP per sub-command, FEC, RG status.
             c if crate::dmodel::rule(c).is_some_and(|r| crate::dmodel::MODELLED.contains(&r.name)) => {
                 self.d_model(c, params)

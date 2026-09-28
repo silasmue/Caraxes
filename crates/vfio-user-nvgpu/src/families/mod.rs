@@ -117,7 +117,7 @@ pub struct Families {
 
 /// Whether `chip` answers `family` with a model: named present and described.
 pub fn modelled(chip: &ChipData, family: &str) -> bool {
-    if chip.features.absent.contains(&family) {
+    if chip.features().absent.contains(&family) {
         return false;
     }
     match family {
@@ -127,7 +127,7 @@ pub fn modelled(chip: &ChipData, family: &str) -> bool {
     }
 }
 
-/// The id of `name` in the emulated driver version, when it reaches GSP there.
+/// The id of `name` in the guest ABI in force, when it reaches GSP there.
 pub(crate) fn id(name: &str) -> Option<u32> {
     Abi::active().routed(name).map(|r| r.id).or_else(|| {
         // Sent to GSP, but not in the generated inventory: GET_GPU_INSTANCES goes out on the
@@ -155,7 +155,7 @@ pub(crate) fn off(st: &str, path: &str) -> usize {
         .0
 }
 
-/// The size of `st` in the emulated driver version.
+/// The size of `st` in the guest ABI in force.
 pub(crate) fn size(st: &str) -> usize {
     Abi::active()
         .layout(st)

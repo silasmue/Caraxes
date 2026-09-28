@@ -31,7 +31,7 @@ use super::turing::{ConstReg, FalconSpec};
 use super::{BootEvent, BootWrite, FirmwareBoot};
 use crate::falcon::{self, Falcon};
 use crate::guestmem::GuestMemory;
-use crate::ver::active as v;
+use crate::ver::common as v;
 
 /// The FSP registers of `boot.toml` `[fsp]`.
 #[derive(Clone, Debug, Deserialize)]

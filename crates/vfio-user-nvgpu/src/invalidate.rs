@@ -35,7 +35,7 @@ use nvrm_client::mem::CpuMap;
 
 use crate::fb::FakeFb;
 use crate::hostmem::HostMemory;
-use crate::ver::active as v;
+use crate::ver::common as v;
 
 /// The carve-out the invalidator takes: the top 256 KiB of the reservation.
 pub const CARVE_OUT: u64 = 0x40000;
