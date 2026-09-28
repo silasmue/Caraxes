@@ -556,7 +556,7 @@ fn serve(a: &Args, socket: &Path, privilege: Privilege) -> Result<()> {
     }
     if vfio_user_nvgpu::launch::configure_fast().map_err(anyhow::Error::msg)? {
         eprintln!(
-            "vfio-user-nvgpu: launch fast: one USERD read per step, the BAR1 flush only after a device store, no note_rung read under the token pool, one trace flush per ring{} ({}, docs/caraxes/launch-path.md)",
+            "vfio-user-nvgpu: launch fast: one USERD read per step, the BAR1 flush only after a device store, no note_rung read under the token pool, one trace flush per ring{} (the default; {}=0 turns it off, docs/caraxes/launch-path.md)",
             if vfio_user_nvgpu::launch::lean() { ", the ran-ahead read only with plans pending" } else { "" },
             vfio_user_nvgpu::launch::FAST_ENV
         );

@@ -317,13 +317,15 @@ pub fn configure() -> Result<bool, String> {
     Ok(on)
 }
 
-/// Read the fast switch once at start: `1` on, `2` on with the lean evidence, unset or
-/// `0` off, anything else refused.
+/// Read the fast switch once at start: `2` (the default since 2026-09-29: on with the lean
+/// evidence), `1` on, `0` off, anything else refused. The default follows the night of
+/// 2026-09-28: FAST=2 ran every Linux and Windows gate without an Xid and took the short
+/// kernel from 20 to 13 us (caraxes/runs/night-2026-09-28/README.md).
 pub fn configure_fast() -> Result<bool, String> {
     let (on, lean) = match std::env::var(FAST_ENV).ok().as_deref().map(str::trim) {
-        None | Some("") | Some("0") => (false, false),
+        None | Some("") | Some("2") => (true, true),
+        Some("0") => (false, false),
         Some("1") => (true, false),
-        Some("2") => (true, true),
         Some(v) => return Err(format!("{FAST_ENV}={v:?}: 2, 1 or 0")),
     };
     set_fast(on);
