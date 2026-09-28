@@ -1,0 +1,24 @@
+== session
+15 1000 leandro seat0 tty2 active  no -
+19 1000 leandro -     -    closing no -
+47 1000 leandro -     -    active  no -
+gnome-shell      2152 2220 2242 
+Xwayland         3015 
+steam            2801 2946 2977 
+steamwebhelper   3063 3205 3230 
+sunshine         4993 
+ShadowOfTheTomb  6819 6820 6821 
+== games
+TARGET SOURCE   FSTYPE OPTIONS
+/games /dev/vdc ext4   rw,relatime
+3DMark Demo
+Proton - Experimental
+Proton Hotfix
+Shadow of the Tomb Raider
+Steam.dll
+SteamLinuxRuntime
+SteamLinuxRuntime_4
+SteamLinuxRuntime_sniper
+SteamLinuxRuntime_soldier
+== kms
+GRAB crtc 66 fb 137 1920x1080 format XR24 modifier 0x300000000606014 pitch 7680 handle 1 mode 1920x1080@60

@@ -1,0 +1,21 @@
+==top
+top - 03:31:00 up 20 min,  3 users,  load average: 1.06, 1.37, 1.08
+Tasks: 315 total,   1 running, 314 sleeping,   0 stopped,   0 zombie
+%Cpu(s):  1.9 us,  2.5 sy,  0.0 ni, 93.6 id,  0.0 wa,  0.0 hi,  0.4 si,  1.7 st 
+MiB Mem :   7940.0 total,   3198.6 free,   2180.4 used,   2934.2 buff/cache     
+MiB Swap:      0.0 total,      0.0 free,      0.0 used.   5759.6 avail Mem 
+
+    PID USER      PR  NI    VIRT    RES    SHR S  %CPU  %MEM     TIME+ COMMAND
+  16789 leandro   20   0 7580724 428756 335656 S  94.0   5.3   0:43.03 sunshine
+    768 syslog    20   0  222572   6816   4712 S   3.0   0.1   0:08.15 rsyslogd
+   1085 leandro   20   0  114708  13960   8448 S   2.0   0.2   0:00.66 pipewire
+   1090 leandro   20   0  115152  18112  10052 S   2.0   0.2   0:00.95 pipewir+
+   2077 leandro   20   0 4545596 426724 221444 S   2.0   5.2   9:25.01 gnome-s+
+==vmstat
+procs -----------memory---------- ---swap-- -----io---- -system-- -------cpu-------
+ r  b   swpd   free   buff  cache   si   so    bi    bo   in   cs us sy id wa st gu
+ 3  0      0 3278540  88192 2916820    0    0  2158   505 5254    5  5  5 88  0  3  0
+ 2  0      0 3281808  88192 2916932    0    0     0     0 8052 7917  2  2 94  0  1  0
+ 1  0      0 3283704  88192 2917252    0    0     0     0 7915 7866  2  3 94  0  1  0
+ 1  0      0 3285388  88192 2917400    0    0     0     0 8088 8018  2  2 95  0  1  0
+ 1  0      0 3286512  88192 2917764    0    0     0     0 8115 8033  2  3 93  0  2  0

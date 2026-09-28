@@ -1,0 +1,86 @@
+# I-hwcfg-synthvbios 20:37:49: trace lines 50369, non-PROM 1939
+# distinct non-PROM BAR0 offsets: 36
+# GSP/SEC2/PFIFO writes: 0
+# reads by register:
+     52 0x00000000 NV_PMC_BOOT_0
+     11 0x001373a0 captured
+      7 0x00021434 captured
+      4 0x00022408 captured
+      4 0x00021c04 NV_FUSE_STATUS_OPT_DISPLAY
+      3 0x00610074 captured
+      3 0x00000004 NV_PMC_BOOT_1
+      2 0x00088080 mirror)
+      2 0x00021640 captured
+      2 0x00021200 captured
+      2 0x00000a00 NV_PMC_BOOT_42
+      1 0x00625480 captured
+      1 0x00610068 captured
+      1 0x00610018 captured
+      1 0x00110abc captured
+      1 0x00088bfc mirror)
+      1 0x00088bf4 mirror)
+      1 0x00088be0 mirror)
+      1 0x00088bd8 mirror)
+      1 0x00088700 mirror)
+      1 0x00088084 mirror)
+      1 0x0008807c mirror)
+      1 0x00022410 captured
+      1 0x00001478 captured
+      1 0x00001400 captured
+      1 0x00001078 captured
+      1 0x00001070 captured
+      1 0x00000140 captured
+      1 0x00000008 captured
+# writes:
+      1 W bar0 0x00088700 4  0x20ffe      NV_PCFG (config mirror)
+      1 W bar0 0x00088080 4  0x10291f     NV_PCFG (config mirror)
+      1 W bar0 0x00088080 4  0x10211f     NV_PCFG (config mirror)
+      1 W bar0 0x0000db4c 4  0xc80        latched
+      1 W bar0 0x0000dafc 4  0xc80        latched
+      1 W bar0 0x0000daac 4  0xc80        latched
+      1 W bar0 0x0000da5c 4  0xc80        latched
+      1 W bar0 0x0000da0c 4  0xc80        latched
+      1 W bar0 0x0000d9bc 4  0xc80        latched
+      1 W bar0 0x0000d96c 4  0xc80        latched
+# extended config mirror reads/writes:
+      1 W bar0 0x00088700 4  0x20ffe      NV_PCFG (config mirror)
+      1 R bar0 0x00088bfc 4  0xc          NV_PCFG (config mirror)
+      1 R bar0 0x00088bf4 4  0xc          NV_PCFG (config mirror)
+      1 R bar0 0x00088be0 4  0x10004      NV_PCFG (config mirror)
+      1 R bar0 0x00088bd8 4  0x3f003f     NV_PCFG (config mirror)
+      1 R bar0 0x00088700 4  0x20ffe      NV_PCFG (config mirror)
+# last 30 non-PROM lines:
+    54632990 R cfg  0x00000002 2  0x1f02
+    54633035 R cfg  0x00000008 1  0xa1
+    54633082 R cfg  0x00000009 1  0x0
+    54633121 R cfg  0x0000000a 1  0x0
+    54633156 R cfg  0x0000000b 1  0x3
+    54633191 R cfg  0x0000000e 1  0x80
+    54633226 R cfg  0x0000002c 2  0x1458
+    54633261 R cfg  0x0000002e 2  0x4011
+    54633299 R cfg  0x00000004 2  0x1
+    54633333 R cfg  0x0000000c 1  0x0
+    54633402 R cfg  0x0000000d 1  0x0
+    54633474 R cfg  0x0000003c 1  0x0
+    54633511 R cfg  0x00000000 2  0x10de
+    54633546 R cfg  0x00000002 2  0x1f02
+    54633580 R cfg  0x00000008 1  0xa1
+    54633615 R cfg  0x00000009 1  0x0
+    54633653 R cfg  0x0000000a 1  0x0
+    54633692 R cfg  0x0000000b 1  0x3
+    54633731 R cfg  0x0000000e 1  0x80
+    54633769 R cfg  0x0000002c 2  0x1458
+    54633808 R cfg  0x0000002e 2  0x4011
+    54642415 R cfg  0x00000000 2  0x10de
+    54642498 R cfg  0x00000002 2  0x1f02
+    54642549 R cfg  0x00000008 1  0xa1
+    54642601 R cfg  0x00000009 1  0x0
+    54642651 R cfg  0x0000000a 1  0x0
+    54642708 R cfg  0x0000000b 1  0x3
+    54642826 R cfg  0x0000000e 1  0x80
+    54642874 R cfg  0x0000002c 2  0x1458
+    54642921 R cfg  0x0000002e 2  0x4011
+# BAR0 offsets not in the 35-register baseline (offset, first answer):
+0x00022408 R bar0 0x00022408 4  0x0          captured
+# baseline offsets not touched this run:
+

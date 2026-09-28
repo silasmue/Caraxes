@@ -1,0 +1,44 @@
+== +0 s 1790395799.933616975
+17999 vkcube-wayland st=R wchan=0 sys=
+== +1 s 1790395800.943471055
+17999 vkcube-wayland st=R wchan=0 sys=
+== +2 s 1790395801.953531414
+17999 vkcube-wayland st=S wchan=do_poll.constprop.0 sys=
+== +3 s 1790395802.963067713
+17999 vkcube-wayland st=R wchan=0 sys=
+== +4 s 1790395803.973023293
+17999 vkcube-wayland st=R wchan=0 sys=
+18057 vkcube-wayland st=S wchan=futex_wait_queue sys=
+18058 [vkcf] Analysis st=Analysis) wchan=futex_wait_queue sys=
+== +5 s 1790395805.040718555
+17999 vkcube-wayland st=R wchan=0 sys=
+18057 vkcube-wayland st=S wchan=futex_wait_queue sys=
+18058 [vkcf] Analysis st=Analysis) wchan=futex_wait_queue sys=
+18092 [vkrt] Analysis st=Analysis) wchan=futex_wait_queue sys=
+18093 [vkps] Update st=Update) wchan=futex_wait_queue sys=
+== +6 s 1790395806.124157024
+17999 vkcube-wayland st=D wchan=0 sys=
+18057 vkcube-wayland st=S wchan=futex_wait_queue sys=
+18058 [vkcf] Analysis st=Analysis) wchan=futex_wait_queue sys=
+18092 [vkrt] Analysis st=Analysis) wchan=futex_wait_queue sys=
+18093 [vkps] Update st=Update) wchan=futex_wait_queue sys=
+18147 vkcube-wayland st=S wchan=futex_wait_queue sys=
+== +7 s 1790395807.621344141
+17999 vkcube-wayland st=S wchan=do_poll.constprop.0 sys=
+18057 vkcube-wayland st=S wchan=futex_wait_queue sys=
+18058 [vkcf] Analysis st=Analysis) wchan=futex_wait_queue sys=
+18092 [vkrt] Analysis st=Analysis) wchan=futex_wait_queue sys=
+18093 [vkps] Update st=Update) wchan=0 sys=
+18147 vkcube-wayland st=S wchan=futex_wait_queue sys=
+== +8 s 1790395808.676586999
+17999 vkcube-wayland st=R wchan=0 sys=
+18057 vkcube-wayland st=S wchan=futex_wait_queue sys=
+18058 [vkcf] Analysis st=Analysis) wchan=futex_wait_queue sys=
+18092 [vkrt] Analysis st=Analysis) wchan=futex_wait_queue sys=
+18093 [vkps] Update st=Update) wchan=futex_wait_queue sys=
+18147 vkcube-wayland st=S wchan=futex_wait_queue sys=
+== +9 s 1790395809.721892633
+17999 vkcube-wayland st=R wchan=0 sys=
+18057 vkcube-wayland st=S wchan=futex_wait_queue sys=
+== +10 s 1790395811.248168421
+17999 vkcube-wayland st=D wchan=os_acquire_rwlock_read sys=

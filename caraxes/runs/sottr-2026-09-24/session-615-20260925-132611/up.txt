@@ -1,0 +1,25 @@
+driver 615.71.09: overlay on /mnt/vmstore/caraxes/images/guest-baked-2026-09-24-615.71.09.qcow2, CARAXES_GUEST_ABI=615
+games disk: /mnt/vmstore/caraxes/vm4-615/games.qcow2
+dma table: 0:7ffc00000000:c0000000,100000000:7ffd00000000:140000000
+server pid 509184, VM pid 509207; logs in /mnt/vmstore/caraxes/vm4-615
+cloud-hypervisor:   9.336627s: <vcpu2> INFO:vmm/src/vm.rs:510 -- Guest PIO write to unregistered address 0x27a
+cloud-hypervisor:   9.336657s: <vcpu2> INFO:vmm/src/vm.rs:500 -- Guest PIO read from unregistered address 0x27a
+cloud-hypervisor:   9.336686s: <vcpu2> INFO:vmm/src/vm.rs:510 -- Guest PIO write to unregistered address 0x278
+cloud-hypervisor:   9.336716s: <vcpu2> INFO:vmm/src/vm.rs:500 -- Guest PIO read from unregistered address 0x278
+cloud-hypervisor: 129.030853s: <vmm> INFO:vmm/src/lib.rs:2080 -- VM exit event
+cloud-hypervisor: 129.030914s: <vmm> INFO:virtio-devices/src/device.rs:485 -- Resuming virtio-rng
+cloud-hypervisor: 129.030945s: <vmm> INFO:virtio-devices/src/device.rs:485 -- Resuming virtio-net
+cloud-hypervisor: 129.030991s: <vmm> INFO:virtio-devices/src/device.rs:485 -- Resuming virtio-block
+cloud-hypervisor: 129.031036s: <vmm> INFO:virtio-devices/src/device.rs:485 -- Resuming virtio-block
+cloud-hypervisor: 129.031067s: <vmm> INFO:virtio-devices/src/device.rs:485 -- Resuming virtio-block
+cloud-hypervisor: 129.035370s: <vmm> INFO:event_monitor/src/lib.rs:113 -- Event: source = vm event = shutdown 
+cloud-hypervisor: 129.035400s: <vmm> INFO:virtio-devices/src/device.rs:485 -- Resuming virtio-rng
+cloud-hypervisor: 129.035431s: <vmm> INFO:virtio-devices/src/device.rs:485 -- Resuming virtio-net
+cloud-hypervisor: 129.035461s: <vmm> INFO:virtio-devices/src/device.rs:485 -- Resuming virtio-block
+cloud-hypervisor: 129.035507s: <vmm> INFO:virtio-devices/src/device.rs:485 -- Resuming virtio-block
+cloud-hypervisor: 129.035538s: <vmm> INFO:virtio-devices/src/device.rs:485 -- Resuming virtio-block
+cloud-hypervisor: 129.054504s: <vmm> INFO:pci/src/vfio_user.rs:670 -- Disabling IRQ 0
+cloud-hypervisor: 129.103577s: <vmm> INFO:event_monitor/src/lib.rs:113 -- Event: source = vm event = deleted 
+cloud-hypervisor: 129.103638s: <vmm> INFO:event_monitor/src/lib.rs:113 -- Event: source = vmm event = shutdown 
+cloud-hypervisor: 129.104019s: <main> INFO:cloud-hypervisor/src/main.rs:962 -- Cloud Hypervisor exited successfully
+ERROR: VM exited

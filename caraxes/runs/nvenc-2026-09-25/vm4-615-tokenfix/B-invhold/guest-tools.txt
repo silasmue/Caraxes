@@ -1,0 +1,3 @@
+-rwxrwxr-x 1 leandro leandro 41104 Sep 25 14:47 /home/leandro/nvenc/nvenc-probe
+-rw-r--r-- 1 leandro leandro  2114 Sep 26 03:00 /home/leandro/nvenc/repro2.sh
+-rwxrwxr-x 1 leandro leandro 16112 Sep 26 01:49 /home/leandro/nvenc/rmioctl-log3.so

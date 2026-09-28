@@ -1,0 +1,121 @@
+[New LWP 12520]
+[New LWP 12466]
+[New LWP 12465]
+[New LWP 12463]
+[New LWP 12462]
+[Thread debugging using libthread_db enabled]
+Using host libthread_db library "/lib/x86_64-linux-gnu/libthread_db.so.1".
+__GI___ioctl (fd=12, request=3233302090) at ../sysdeps/unix/sysv/linux/ioctl.c:36
+
+warning: 36	../sysdeps/unix/sysv/linux/ioctl.c: No such file or directory
+
+Thread 6 (Thread 0x76cb369ff6c0 (LWP 12462) "vkcube-wayland"):
+#0  0x000076cb57e98e51 in __futex_abstimed_wait_common64 (private=30411, cancel=true, abstime=0x76cb369fede0, op=393, expected=0, futex_word=0x76cb30000d48) at ./nptl/futex-internal.c:57
+#1  __futex_abstimed_wait_common (cancel=true, private=30411, abstime=0x76cb369fede0, clockid=30411, expected=0, futex_word=0x76cb30000d48) at ./nptl/futex-internal.c:87
+#2  __GI___futex_abstimed_wait_cancelable64 (futex_word=futex_word@entry=0x76cb30000d48, expected=expected@entry=0, clockid=clockid@entry=0, abstime=abstime@entry=0x76cb369fede0, private=private@entry=0) at ./nptl/futex-internal.c:139
+#3  0x000076cb57e9bd6e in __pthread_cond_wait_common (abstime=0x76cb369fede0, clockid=0, mutex=0x5f77614f1db0, cond=0x76cb30000d20) at ./nptl/pthread_cond_wait.c:503
+#4  ___pthread_cond_timedwait64 (cond=0x76cb30000d20, mutex=0x5f77614f1db0, abstime=0x76cb369fede0) at ./nptl/pthread_cond_wait.c:652
+#5  0x000076cb3d37b4d0 in ?? () from /lib/x86_64-linux-gnu/libnvidia-eglcore.so.615.71.09
+#6  0x000076cb3d6f66ca in ?? () from /lib/x86_64-linux-gnu/libnvidia-eglcore.so.615.71.09
+#7  0x000076cb3d37edea in ?? () from /lib/x86_64-linux-gnu/libnvidia-eglcore.so.615.71.09
+
+Thread 5 (Thread 0x76cb361fe6c0 (LWP 12463) "[vkcf] Analysis"):
+#0  0x000076cb57e98e51 in __futex_abstimed_wait_common64 (private=30411, cancel=true, abstime=0x0, op=393, expected=0, futex_word=0x76cb28000d48) at ./nptl/futex-internal.c:57
+#1  __futex_abstimed_wait_common (cancel=true, private=30411, abstime=0x0, clockid=0, expected=0, futex_word=0x76cb28000d48) at ./nptl/futex-internal.c:87
+#2  __GI___futex_abstimed_wait_cancelable64 (futex_word=futex_word@entry=0x76cb28000d48, expected=expected@entry=0, clockid=clockid@entry=0, abstime=abstime@entry=0x0, private=private@entry=0) at ./nptl/futex-internal.c:139
+#3  0x000076cb57e9b8cd in __pthread_cond_wait_common (abstime=0x0, clockid=0, mutex=0x5f77614f9f10, cond=0x76cb28000d20) at ./nptl/pthread_cond_wait.c:503
+#4  ___pthread_cond_wait (cond=0x76cb28000d20, mutex=0x5f77614f9f10) at ./nptl/pthread_cond_wait.c:627
+#5  0x000076cb3d37b46f in ?? () from /lib/x86_64-linux-gnu/libnvidia-eglcore.so.615.71.09
+#6  0x000076cb3d709da8 in ?? () from /lib/x86_64-linux-gnu/libnvidia-eglcore.so.615.71.09
+#7  0x000076cb3d37edea in ?? () from /lib/x86_64-linux-gnu/libnvidia-eglcore.so.615.71.09
+
+Thread 4 (Thread 0x76cb356fd6c0 (LWP 12465) "[vkrt] Analysis"):
+#0  0x000076cb57e98e51 in __futex_abstimed_wait_common64 (private=30411, cancel=true, abstime=0x0, op=393, expected=0, futex_word=0x76cb2c000d48) at ./nptl/futex-internal.c:57
+#1  __futex_abstimed_wait_common (cancel=true, private=30411, abstime=0x0, clockid=0, expected=0, futex_word=0x76cb2c000d48) at ./nptl/futex-internal.c:87
+#2  __GI___futex_abstimed_wait_cancelable64 (futex_word=futex_word@entry=0x76cb2c000d48, expected=expected@entry=0, clockid=clockid@entry=0, abstime=abstime@entry=0x0, private=private@entry=0) at ./nptl/futex-internal.c:139
+#3  0x000076cb57e9b8cd in __pthread_cond_wait_common (abstime=0x0, clockid=0, mutex=0x5f7761771a60, cond=0x76cb2c000d20) at ./nptl/pthread_cond_wait.c:503
+#4  ___pthread_cond_wait (cond=0x76cb2c000d20, mutex=0x5f7761771a60) at ./nptl/pthread_cond_wait.c:627
+#5  0x000076cb3d37b46f in ?? () from /lib/x86_64-linux-gnu/libnvidia-eglcore.so.615.71.09
+#6  0x000076cb3d721f98 in ?? () from /lib/x86_64-linux-gnu/libnvidia-eglcore.so.615.71.09
+#7  0x000076cb3d72659f in ?? () from /lib/x86_64-linux-gnu/libnvidia-eglcore.so.615.71.09
+
+Thread 3 (Thread 0x76cb34efc6c0 (LWP 12466) "[vkps] Update"):
+#0  0x000076cb57e98e51 in __futex_abstimed_wait_common64 (private=30411, cancel=true, abstime=0x76cb34efbe00, op=393, expected=0, futex_word=0x76cb20000d48) at ./nptl/futex-internal.c:57
+#1  __futex_abstimed_wait_common (cancel=true, private=30411, abstime=0x76cb34efbe00, clockid=909521970, expected=0, futex_word=0x76cb20000d48) at ./nptl/futex-internal.c:87
+#2  __GI___futex_abstimed_wait_cancelable64 (futex_word=futex_word@entry=0x76cb20000d48, expected=expected@entry=0, clockid=clockid@entry=0, abstime=abstime@entry=0x76cb34efbe00, private=private@entry=0) at ./nptl/futex-internal.c:139
+#3  0x000076cb57e9bd6e in __pthread_cond_wait_common (abstime=0x76cb34efbe00, clockid=0, mutex=0x5f7761771e30, cond=0x76cb20000d20) at ./nptl/pthread_cond_wait.c:503
+#4  ___pthread_cond_timedwait64 (cond=0x76cb20000d20, mutex=0x5f7761771e30, abstime=0x76cb34efbe00) at ./nptl/pthread_cond_wait.c:652
+#5  0x000076cb3d37b4d0 in ?? () from /lib/x86_64-linux-gnu/libnvidia-eglcore.so.615.71.09
+#6  0x000076cb3d6f32a4 in ?? () from /lib/x86_64-linux-gnu/libnvidia-eglcore.so.615.71.09
+#7  0x000076cb3d37edea in ?? () from /lib/x86_64-linux-gnu/libnvidia-eglcore.so.615.71.09
+
+Thread 2 (Thread 0x76cb27fff6c0 (LWP 12520) "vkcube-wayland"):
+#0  0x000076cb57e98e51 in __futex_abstimed_wait_common64 (private=-1609466981, cancel=true, abstime=0x76cb27ffedf0, op=393, expected=0, futex_word=0x76cb1c000d48) at ./nptl/futex-internal.c:57
+#1  __futex_abstimed_wait_common (cancel=true, private=-1609466981, abstime=0x76cb27ffedf0, clockid=0, expected=0, futex_word=0x76cb1c000d48) at ./nptl/futex-internal.c:87
+#2  __GI___futex_abstimed_wait_cancelable64 (futex_word=futex_word@entry=0x76cb1c000d48, expected=expected@entry=0, clockid=clockid@entry=0, abstime=abstime@entry=0x76cb27ffedf0, private=private@entry=0) at ./nptl/futex-internal.c:139
+#3  0x000076cb57e9bd6e in __pthread_cond_wait_common (abstime=0x76cb27ffedf0, clockid=0, mutex=0x5f7761500760, cond=0x76cb1c000d20) at ./nptl/pthread_cond_wait.c:503
+#4  ___pthread_cond_timedwait64 (cond=0x76cb1c000d20, mutex=0x5f7761500760, abstime=0x76cb27ffedf0) at ./nptl/pthread_cond_wait.c:652
+#5  0x000076cb3d37b4d0 in ?? () from /lib/x86_64-linux-gnu/libnvidia-eglcore.so.615.71.09
+#6  0x000076cb3d86bba1 in ?? () from /lib/x86_64-linux-gnu/libnvidia-eglcore.so.615.71.09
+#7  0x000076cb3d85e2ce in ?? () from /lib/x86_64-linux-gnu/libnvidia-eglcore.so.615.71.09
+
+Thread 1 (Thread 0x76cb5814e4c0 (LWP 12420) "vkcube-wayland"):
+#0  __GI___ioctl (fd=12, request=3233302090) at ../sysdeps/unix/sysv/linux/ioctl.c:36
+#1  0x000076cb582692d9 in ioctl () from /home/leandro/nvenc/rmioctl-log3.so
+#2  0x000076cb3d8748d9 in ?? () from /lib/x86_64-linux-gnu/libnvidia-eglcore.so.615.71.09
+#3  0x000076cb3d876760 in ?? () from /lib/x86_64-linux-gnu/libnvidia-eglcore.so.615.71.09
+#4  0x000076cb3d87a47d in ?? () from /lib/x86_64-linux-gnu/libnvidia-eglcore.so.615.71.09
+#5  0x000076cb3d440b0c in ?? () from /lib/x86_64-linux-gnu/libnvidia-eglcore.so.615.71.09
+#6  0x000076cb3d39e570 in ?? () from /lib/x86_64-linux-gnu/libnvidia-eglcore.so.615.71.09
+#7  0x000076cb3d3a0384 in ?? () from /lib/x86_64-linux-gnu/libnvidia-eglcore.so.615.71.09
+rax            0x0                 0
+rbx            0xc0b8464a          3233302090
+rcx            0x76cb57f250bd      130615725936829
+rdx            0x7fffc0850420      140736423330848
+rsi            0xc0b8464a          3233302090
+rdi            0xc                 12
+rbp            0x7fffc0850090      0x7fffc0850090
+rsp            0x7fffc0850040      0x7fffc0850040
+r8             0x0                 0
+r9             0x0                 0
+r10            0x0                 0
+r11            0x246               582
+r12            0x7fffc08500e0      140736423330016
+r13            0x76cb57f25080      130615725936768
+r14            0x2a54464a          710166090
+r15            0xc                 12
+rip            0x76cb57f250bd      0x76cb57f250bd <__GI___ioctl+61>
+eflags         0x246               [ PF ZF IF ]
+cs             0x33                51
+ss             0x2b                43
+ds             0x0                 0
+es             0x0                 0
+fs             0x0                 0
+gs             0x0                 0
+fs_base        0x76cb5814e4c0      130615728202944
+gs_base        0x0                 0
+   0x76cb57f2508d <__GI___ioctl+13>:	mov    %edx,-0x20(%rbp)
+   0x76cb57f25090 <__GI___ioctl+16>:	mov    %fs:0x28,%rax
+   0x76cb57f25099 <__GI___ioctl+25>:	mov    %rax,-0x38(%rbp)
+   0x76cb57f2509d <__GI___ioctl+29>:	xor    %eax,%eax
+   0x76cb57f2509f <__GI___ioctl+31>:	lea    0x10(%rbp),%rax
+   0x76cb57f250a3 <__GI___ioctl+35>:	movl   $0x10,-0x50(%rbp)
+   0x76cb57f250aa <__GI___ioctl+42>:	mov    %rax,-0x48(%rbp)
+   0x76cb57f250ae <__GI___ioctl+46>:	lea    -0x30(%rbp),%rax
+   0x76cb57f250b2 <__GI___ioctl+50>:	mov    %rax,-0x40(%rbp)
+   0x76cb57f250b6 <__GI___ioctl+54>:	mov    $0x10,%eax
+   0x76cb57f250bb <__GI___ioctl+59>:	syscall
+=> 0x76cb57f250bd <__GI___ioctl+61>:	mov    %eax,%edx
+   0x76cb57f250bf <__GI___ioctl+63>:	cmp    $0xfffff000,%eax
+   0x76cb57f250c4 <__GI___ioctl+68>:	ja     0x76cb57f250e0 <__GI___ioctl+96>
+   0x76cb57f250c6 <__GI___ioctl+70>:	mov    -0x38(%rbp),%rax
+   0x76cb57f250ca <__GI___ioctl+74>:	sub    %fs:0x28,%rax
+   0x76cb57f250d3 <__GI___ioctl+83>:	jne    0x76cb57f250f3 <__GI___ioctl+115>
+   0x76cb57f250d5 <__GI___ioctl+85>:	leave
+   0x76cb57f250d6 <__GI___ioctl+86>:	mov    %edx,%eax
+   0x76cb57f250d8 <__GI___ioctl+88>:	ret
+   0x76cb57f250d9 <__GI___ioctl+89>:	nopl   0x0(%rax)
+   0x76cb57f250e0 <__GI___ioctl+96>:	mov    0xded11(%rip),%rdx        # 0x76cb58003df8
+   0x76cb57f250e7 <__GI___ioctl+103>:	neg    %eax
+   0x76cb57f250e9 <__GI___ioctl+105>:	mov    %eax,%fs:(%rdx)
+[Inferior 1 (process 12420) detached]

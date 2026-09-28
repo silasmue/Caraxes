@@ -1,0 +1,2 @@
+games disk: /mnt/vmstore/caraxes/vm4/games.qcow2
+ERROR: DMA table in /mnt/vmstore/caraxes/vm4/dma-ranges covers 0 of 8589934592 bytes

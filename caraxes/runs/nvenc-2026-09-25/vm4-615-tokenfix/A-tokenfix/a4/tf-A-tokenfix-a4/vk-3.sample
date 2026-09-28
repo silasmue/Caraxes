@@ -1,0 +1,42 @@
+== +0 s 1790390623.347395802
+13739 vkcube-wayland st=R wchan=0 sys=
+== +1 s 1790390624.380919371
+13739 vkcube-wayland st=D wchan=os_acquire_rwlock_read sys=
+== +2 s 1790390625.391568980
+13739 vkcube-wayland st=R wchan=0 sys=
+13769 vkcube-wayland st=S wchan=futex_wait_queue sys=
+13770 [vkcf] Analysis st=Analysis) wchan=futex_wait_queue sys=
+13772 [vkrt] Analysis st=Analysis) wchan=futex_wait_queue sys=
+13773 [vkps] Update st=Update) wchan=futex_wait_queue sys=
+== +3 s 1790390626.430760121
+13739 vkcube-wayland st=R wchan=0 sys=
+13769 vkcube-wayland st=S wchan=futex_wait_queue sys=
+13770 [vkcf] Analysis st=Analysis) wchan=futex_wait_queue sys=
+13772 [vkrt] Analysis st=Analysis) wchan=futex_wait_queue sys=
+13773 [vkps] Update st=Update) wchan=futex_wait_queue sys=
+== +4 s 1790390627.470028473
+13739 vkcube-wayland st=R wchan=0 sys=
+13769 vkcube-wayland st=S wchan=futex_wait_queue sys=
+13770 [vkcf] Analysis st=Analysis) wchan=futex_wait_queue sys=
+13772 [vkrt] Analysis st=Analysis) wchan=futex_wait_queue sys=
+13773 [vkps] Update st=Update) wchan=futex_wait_queue sys=
+13879 vkcube-wayland st=S wchan=futex_wait_queue sys=
+== +5 s 1790390628.528069261
+13739 vkcube-wayland st=R wchan=0 sys=
+13769 vkcube-wayland st=S wchan=futex_wait_queue sys=
+13770 [vkcf] Analysis st=Analysis) wchan=futex_wait_queue sys=
+13772 [vkrt] Analysis st=Analysis) wchan=futex_wait_queue sys=
+13773 [vkps] Update st=Update) wchan=futex_wait_queue sys=
+13879 vkcube-wayland st=S wchan=futex_wait_queue sys=
+== +6 s 1790390629.593814023
+13739 vkcube-wayland st=S wchan=do_poll.constprop.0 sys=
+13769 vkcube-wayland st=S wchan=futex_wait_queue sys=
+13770 [vkcf] Analysis st=Analysis) wchan=futex_wait_queue sys=
+13772 [vkrt] Analysis st=Analysis) wchan=futex_wait_queue sys=
+13773 [vkps] Update st=Update) wchan=0 sys=
+13879 vkcube-wayland st=S wchan=futex_wait_queue sys=
+== +7 s 1790390631.117853661
+13739 vkcube-wayland st=R wchan=0 sys=
+13769 vkcube-wayland st=S wchan=futex_wait_queue sys=
+== +8 s 1790390632.142334606
+13739 vkcube-wayland st=R wchan=os_acquire_rwlock_read sys=

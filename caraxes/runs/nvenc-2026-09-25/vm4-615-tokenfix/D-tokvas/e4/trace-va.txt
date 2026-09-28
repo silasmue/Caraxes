@@ -1,0 +1,92 @@
+  1707101076 E boot: shadow: GR chid 8 on the host-managed shadow VAS of guest root 0x13b391000
+  1707652483 E boot: shadow: root 0x13b391000 set-B exclusions recomputed: 8 added, 0 released back to set A [guest]
+  1707736580 E boot: shadow: GR chid 11 on the host-managed shadow VAS of guest root 0x13b391000
+  1708097758 E boot: shadow: GR chid 14 on the host-managed shadow VAS of guest root 0x13b391000
+  1708686516 E boot: shadow: root 0x13b391000 set-B exclusions recomputed: 8 added, 0 released back to set A [guest]
+  1708776964 E boot: shadow: GR chid 15 on the host-managed shadow VAS of guest root 0x13b391000
+  1709049242 E boot: shadow: GR chid 12 on the host-managed shadow VAS of guest root 0x13b391000
+  1709213553 E boot: shadow: GR chid 16 on the host-managed shadow VAS of guest root 0x13b391000
+  1714641252 E boot: free 0xbeec0103 class Some(50287); mirror: chid 16: host channel 0x8000e384 freed after 1009 doorbell(s), 5427 ms of life [host]; shadow: chid 16: 4 set-B range(s) of the freed guest channel held out of set A on root 0x13b391000 until host TSG (grpID 27) is freed [guest] [synthesized]
+  1714710744 E boot: free 0xbeec0100 class Some(50287); mirror: chid 15: host channel 0x8000e282 freed after 3 doorbell(s), 5933 ms of life [host]; shadow: chid 15: 8 set-B range(s) of the freed guest channel held out of set A on root 0x13b391000 until host TSG (grpID 26) is freed [guest] [synthesized]
+  1714757380 E boot: shadow: root 0x13b391000 set-B exclusions recomputed: 0 added, 8 released back to set A [guest]
+  1714760045 E boot: shadow: root 0x13b391000 set-B exclusions recomputed: 0 added, 4 released back to set A [guest]
+  1714985465 E boot: free 0xbeee0100 class Some(50287); mirror: chid 11: host channel 0x8000e164 freed after 3 doorbell(s), 7248 ms of life [host]; shadow: chid 11: 8 set-B range(s) of the freed guest channel held out of set A on root 0x13b391000 until host TSG (grpID 14) is freed [guest] [synthesized]
+  1715041308 E boot: shadow: root 0x13b391000 set-B exclusions recomputed: 0 added, 8 released back to set A [guest]
+  1715194819 E boot: free 0xbeef0100 class Some(50287); mirror: chid 8: host channel 0x8000e052 freed after 5 doorbell(s), 8093 ms of life [host]; shadow: chid 8: 8 set-B range(s) of the freed guest channel held out of set A on root 0x13b391000 until host TSG (grpID 10) is freed [guest] [synthesized]
+  1715245923 E boot: shadow: VAS of guest root 0x13b391000 freed: 163 syncs (0 skipped clean, 1 full walks, 206 table reads, 293 units diffed; max 38766 us, total 165 ms), 861 maps (6120 leaves), 821 unmaps (1 partial, 0 failed), 0 map-failed, 0 over budget, 0 left unmapped on an exhausted host in 0 sync(s), 0 refused by the filter, 23 region objects (6 freed, 0 of them whole with 0 mappings, 0 re
+  1715850827 E boot: shadow: GR chid 8 on the host-managed shadow VAS of guest root 0x13b391000
+  1716224138 E boot: shadow: root 0x13b391000 set-B exclusions recomputed: 8 added, 0 released back to set A [guest]
+  1716321690 E boot: shadow: GR chid 11 on the host-managed shadow VAS of guest root 0x13b391000
+  1716494872 E boot: shadow: GR chid 14 on the host-managed shadow VAS of guest root 0x13b391000
+  1716748562 E boot: shadow: root 0x13b391000 set-B exclusions recomputed: 8 added, 0 released back to set A [guest]
+  1716809946 E boot: shadow: GR chid 15 on the host-managed shadow VAS of guest root 0x13b391000
+  1716882480 E boot: shadow: GR chid 12 on the host-managed shadow VAS of guest root 0x13b391000
+  1716890463 E boot: shadow: GR chid 16 on the host-managed shadow VAS of guest root 0x13b391000
+  1717008628 E boot: shadow: GR chid 13 on the host-managed shadow VAS of guest root 0x13b391000
+  1725488803 E boot: shadow: GR chid 39 on the host-managed shadow VAS of guest root 0x134683000
+  1725498877 E boot: shadow: GR chid 40 on the host-managed shadow VAS of guest root 0x134683000
+  1725507304 E boot: shadow: GR chid 42 on the host-managed shadow VAS of guest root 0x134683000
+  1725511909 E boot: shadow: GR chid 43 on the host-managed shadow VAS of guest root 0x134683000
+  1725524534 E boot: shadow: GR chid 29 on the host-managed shadow VAS of guest root 0x134683000
+  1725529705 E boot: shadow: GR chid 30 on the host-managed shadow VAS of guest root 0x134683000
+  1725534745 E boot: shadow: GR chid 37 on the host-managed shadow VAS of guest root 0x134683000
+  1725539725 E boot: shadow: GR chid 38 on the host-managed shadow VAS of guest root 0x134683000
+  1725560848 E boot: shadow: GR chid 25 on the host-managed shadow VAS of guest root 0x134683000
+  1725583188 E boot: shadow: GR chid 26 on the host-managed shadow VAS of guest root 0x134683000
+  1725594014 E boot: shadow: GR chid 27 on the host-managed shadow VAS of guest root 0x134683000
+  1725602705 E boot: shadow: GR chid 28 on the host-managed shadow VAS of guest root 0x134683000
+  1725626397 E boot: shadow: GR chid 17 on the host-managed shadow VAS of guest root 0x134683000
+  1725647061 E boot: shadow: GR chid 18 on the host-managed shadow VAS of guest root 0x134683000
+  1725663204 E boot: shadow: GR chid 19 on the host-managed shadow VAS of guest root 0x134683000
+  1725676988 E boot: shadow: GR chid 20 on the host-managed shadow VAS of guest root 0x134683000
+  1725688833 E boot: shadow: GR chid 21 on the host-managed shadow VAS of guest root 0x134683000
+  1725700610 E boot: shadow: GR chid 22 on the host-managed shadow VAS of guest root 0x134683000
+  1725713063 E boot: shadow: GR chid 23 on the host-managed shadow VAS of guest root 0x134683000
+  1725725707 E boot: shadow: GR chid 24 on the host-managed shadow VAS of guest root 0x134683000
+  1726398729 E boot: shadow: GR chid 46 on the host-managed shadow VAS of guest root 0x1e524f000
+  1726409551 E boot: shadow: root 0x1e524f000 set-B exclusions recomputed: 1 added, 0 released back to set A [guest]
+  1726747806 E boot: shadow: GR chid 47 on the host-managed shadow VAS of guest root 0x1e524f000
+  1728781784 E boot: shadow: GR chid 51 on the host-managed shadow VAS of guest root 0x13b6bc000
+  1730082168 E boot: shadow: root 0x13b6bc000 set-B exclusions recomputed: 8 added, 0 released back to set A [guest]
+  1730259308 E boot: shadow: GR chid 54 on the host-managed shadow VAS of guest root 0x13b6bc000
+  1730897898 E boot: shadow: GR chid 57 on the host-managed shadow VAS of guest root 0x13b6bc000
+  1731534694 E boot: shadow: root 0x13b6bc000 set-B exclusions recomputed: 8 added, 0 released back to set A [guest]
+  1731673334 E boot: shadow: GR chid 58 on the host-managed shadow VAS of guest root 0x13b6bc000
+  1732025399 E boot: shadow: GR chid 55 on the host-managed shadow VAS of guest root 0x13b6bc000
+  1732271687 E boot: shadow: GR chid 59 on the host-managed shadow VAS of guest root 0x13b6bc000
+  1738318784 E boot: free 0xbeec0103 class Some(50287); mirror: chid 59: host channel 0x8000ea41 freed after 315 doorbell(s), 6047 ms of life [host]; shadow: chid 59: 4 set-B range(s) of the freed guest channel held out of set A on root 0x13b6bc000 until host TSG (grpID 50) is freed [guest] [synthesized]
+  1738365231 E boot: free 0xbeec0100 class Some(50287); mirror: chid 58: host channel 0x8000e93f freed after 3 doorbell(s), 6691 ms of life [host]; shadow: chid 58: 8 set-B range(s) of the freed guest channel held out of set A on root 0x13b6bc000 until host TSG (grpID 49) is freed [guest] [synthesized]
+  1738445630 E boot: shadow: root 0x13b6bc000 set-B exclusions recomputed: 0 added, 8 released back to set A [guest]
+  1738459494 E boot: shadow: root 0x13b6bc000 set-B exclusions recomputed: 0 added, 4 released back to set A [guest]
+  1739071261 E boot: free 0xbeee0100 class Some(50287); mirror: chid 54: host channel 0x8000e824 freed after 3 doorbell(s), 8811 ms of life [host]; shadow: chid 54: 8 set-B range(s) of the freed guest channel held out of set A on root 0x13b6bc000 until host TSG (grpID 45) is freed [guest] [synthesized]
+  1739136942 E boot: shadow: root 0x13b6bc000 set-B exclusions recomputed: 0 added, 8 released back to set A [guest]
+  1739604982 E boot: free 0xbeef0100 class Some(50287); mirror: chid 51: host channel 0x8000e712 freed after 5 doorbell(s), 10823 ms of life [host]; shadow: chid 51: 8 set-B range(s) of the freed guest channel held out of set A on root 0x13b6bc000 until host TSG (grpID 41) is freed [guest] [synthesized]
+  1739679110 E boot: shadow: VAS of guest root 0x13b6bc000 freed: 165 syncs (0 skipped clean, 1 full walks, 211 table reads, 291 units diffed; max 14015 us, total 140 ms), 876 maps (5608 leaves), 836 unmaps (1 partial, 0 failed), 0 map-failed, 0 over budget, 0 left unmapped on an exhausted host in 0 sync(s), 0 refused by the filter, 22 region objects (6 freed, 0 of them whole with 0 mappings, 0 re
+  1740484758 E boot: free 0x5c000019 class Some(50287); mirror: chid 17: host channel 0x8000e66e freed after 1287 doorbell(s), 14858 ms of life [host]; shadow: chid 17: 4 set-B range(s) of the freed guest channel held out of set A on root 0x134683000 until host TSG (grpID 27) is freed [guest] [synthesized]
+  1740529916 E boot: shadow: root 0x134683000 set-B exclusions recomputed: 0 added, 4 released back to set A [guest]
+  1740737800 E boot: shadow: VAS of guest root 0x134683000 freed: 56 syncs (0 skipped clean, 1 full walks, 87 table reads, 2333 units diffed; max 40435 us, total 137 ms), 150 maps (21167 leaves), 81 unmaps (21 partial, 0 failed), 0 map-failed, 0 over budget, 0 left unmapped on an exhausted host in 0 sync(s), 1 refused by the filter, 106 region objects (1 freed, 0 of them whole with 0 mappings, 0 r
+  1741584711 E boot: shadow: VAS of guest root 0x1e524f000 freed: 65 syncs (0 skipped clean, 1 full walks, 74 table reads, 76 units diffed; max 4808 us, total 21 ms), 126 maps (1935 leaves), 1 unmaps (0 partial, 0 failed), 0 map-failed, 0 over budget, 0 left unmapped on an exhausted host in 0 sync(s), 0 refused by the filter, 26 region objects (0 freed, 0 of them whole with 0 mappings, 0 refused, 
+  1742282768 E boot: free 0xfade0003 class Some(37105); registry: vaspace 0xc1d00218/0xfade0003 freed while 2 DUP alias(es) of another client name it: kept under 0xc1d0021a/0xbfef0001, root Some(Fb(5288562688)) [guest] [synthesized]
+  1742285089 E boot: free 0xbfef0001 class Some(37105); registry: vaspace 0xc1d0021a/0xbfef0001 freed while 1 DUP alias(es) of another client name it: kept under 0xc1d0021b/0xbeef0300, root Some(Fb(5288562688)) [guest] [synthesized]
+  1742418853 E boot: free 0xbeef0100 class Some(50287); mirror: chid 8: host channel 0x8000e3a1 freed after 5 doorbell(s), 26568 ms of life [host]; shadow: chid 8: 8 set-B range(s) of the freed guest channel held out of set A on root 0x13b391000 until host TSG (grpID 10) is freed [guest] [synthesized]
+  1742493982 E boot: shadow: root 0x13b391000 set-B exclusions recomputed: 0 added, 8 released back to set A [guest]
+  1742515702 E boot: free 0xbeee0100 class Some(50287); mirror: chid 11: host channel 0x8000e4b5 freed after 11 doorbell(s), 26194 ms of life [host]; shadow: chid 11: 8 set-B range(s) of the freed guest channel held out of set A on root 0x13b391000 until host TSG (grpID 14) is freed [guest] [synthesized]
+  1742575433 E boot: shadow: root 0x13b391000 set-B exclusions recomputed: 0 added, 8 released back to set A [guest]
+  1742611986 E boot: free 0xbeec0100 class Some(50287); mirror: chid 15: host channel 0x8000e5d5 freed after 827 doorbell(s), 25800 ms of life [host]; shadow: chid 15: 8 set-B range(s) of the freed guest channel held out of set A on root 0x13b391000 until host TSG (grpID 26) is freed [guest] [synthesized]
+  1742682149 E boot: shadow: VAS of guest root 0x13b391000 freed: 138 syncs (0 skipped clean, 1 full walks, 175 table reads, 397 units diffed; max 13490 us, total 104 ms), 669 maps (5155 leaves), 548 unmaps (3 partial, 0 failed), 0 map-failed, 0 over budget, 0 left unmapped on an exhausted host in 0 sync(s), 1 refused by the filter, 22 region objects (6 freed, 0 of them whole with 0 mappings, 0 re
+  1745714667 E boot: shadow: GR chid 8 on the host-managed shadow VAS of guest root 0x13b391000
+  1746030901 E boot: shadow: root 0x13b391000 set-B exclusions recomputed: 8 added, 0 released back to set A [guest]
+  1746107503 E boot: shadow: GR chid 11 on the host-managed shadow VAS of guest root 0x13b391000
+  1746322701 E boot: shadow: GR chid 14 on the host-managed shadow VAS of guest root 0x13b391000
+  1746648239 E boot: shadow: root 0x13b391000 set-B exclusions recomputed: 8 added, 0 released back to set A [guest]
+  1746792135 E boot: shadow: GR chid 15 on the host-managed shadow VAS of guest root 0x13b391000
+  1746876675 E boot: shadow: GR chid 12 on the host-managed shadow VAS of guest root 0x13b391000
+  1747009164 E boot: shadow: GR chid 16 on the host-managed shadow VAS of guest root 0x13b391000
+  1752432815 E boot: free 0xbeec0103 class Some(50287); mirror: chid 16: host channel 0x8000ed95 freed after 1072 doorbell(s), 5423 ms of life [host]; shadow: chid 16: 4 set-B range(s) of the freed guest channel held out of set A on root 0x13b391000 until host TSG (grpID 27) is freed [guest] [synthesized]
+  1752461533 E boot: free 0xbeec0100 class Some(50287); mirror: chid 15: host channel 0x8000ec93 freed after 3 doorbell(s), 5669 ms of life [host]; shadow: chid 15: 8 set-B range(s) of the freed guest channel held out of set A on root 0x13b391000 until host TSG (grpID 26) is freed [guest] [synthesized]
+  1752508149 E boot: shadow: root 0x13b391000 set-B exclusions recomputed: 0 added, 8 released back to set A [guest]
+  1752510632 E boot: shadow: root 0x13b391000 set-B exclusions recomputed: 0 added, 4 released back to set A [guest]
+  1752701663 E boot: free 0xbeee0100 class Some(50287); mirror: chid 11: host channel 0x8000eb75 freed after 3 doorbell(s), 6594 ms of life [host]; shadow: chid 11: 8 set-B range(s) of the freed guest channel held out of set A on root 0x13b391000 until host TSG (grpID 14) is freed [guest] [synthesized]
+  1752760530 E boot: shadow: root 0x13b391000 set-B exclusions recomputed: 0 added, 8 released back to set A [guest]
+  1752990332 E boot: free 0xbeef0100 class Some(50287); mirror: chid 8: host channel 0x8000ea63 freed after 5 doorbell(s), 7275 ms of life [host]; shadow: chid 8: 8 set-B range(s) of the freed guest channel held out of set A on root 0x13b391000 until host TSG (grpID 10) is freed [guest] [synthesized]
+  1753041451 E boot: shadow: VAS of guest root 0x13b391000 freed: 163 syncs (0 skipped clean, 1 full walks, 209 table reads, 293 units diffed; max 14861 us, total 148 ms), 864 maps (6120 leaves), 823 unmaps (1 partial, 0 failed), 0 map-failed, 0 over budget, 0 left unmapped on an exhausted host in 0 sync(s), 0 refused by the filter, 23 region objects (6 freed, 0 of them whole with 0 mappings, 0 re

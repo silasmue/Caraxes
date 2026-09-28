@@ -1,0 +1,21 @@
+vkmark rc=0 elapsed=140.618847804
+    Device Name:    Leandro VFIO RTX 2070-3G
+    Driver Version: 2580660800
+    Device UUID:    5589416e20b1efc444ed60259e8e3409
+=======================================================
+[vertex] device-local=true: FPS: 32 FrameTime: 31.250 ms
+[vertex] device-local=false: FPS: 37 FrameTime: 27.027 ms
+[texture] anisotropy=0: FPS: 37 FrameTime: 27.027 ms
+[texture] anisotropy=16: FPS: 38 FrameTime: 26.316 ms
+[shading] shading=gouraud: FPS: 39 FrameTime: 25.641 ms
+[shading] shading=blinn-phong-inf: FPS: 37 FrameTime: 27.027 ms
+[shading] shading=phong: FPS: 39 FrameTime: 25.641 ms
+[shading] shading=cel: FPS: 34 FrameTime: 29.412 ms
+[effect2d] kernel=edge: FPS: 38 FrameTime: 26.316 ms
+[effect2d] kernel=blur: FPS: 38 FrameTime: 26.316 ms
+[desktop] <default>: FPS: 38 FrameTime: 26.316 ms
+[cube] <default>: FPS: 38 FrameTime: 26.316 ms
+[clear] <default>: FPS: 41 FrameTime: 24.390 ms
+=======================================================
+                                   vkmark Score: 37
+=======================================================

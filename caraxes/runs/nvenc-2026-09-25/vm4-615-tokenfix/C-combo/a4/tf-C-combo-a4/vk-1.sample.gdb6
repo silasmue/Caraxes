@@ -1,0 +1,63 @@
+[Thread debugging using libthread_db enabled]
+Using host libthread_db library "/lib/x86_64-linux-gnu/libthread_db.so.1".
+0x0000776e08047a65 in __run_exit_handlers (status=0, listp=<optimized out>, run_list_atexit=run_list_atexit@entry=true, run_dtors=run_dtors@entry=true) at ./stdlib/exit.c:107
+
+warning: 107	./stdlib/exit.c: No such file or directory
+
+Thread 1 (Thread 0x776e083884c0 (LWP 13549) "vkcube-wayland"):
+#0  0x0000776e08047a65 in __run_exit_handlers (status=0, listp=<optimized out>, run_list_atexit=run_list_atexit@entry=true, run_dtors=run_dtors@entry=true) at ./stdlib/exit.c:107
+#1  0x0000776e08047bbe in __GI_exit (status=<optimized out>) at ./stdlib/exit.c:138
+#2  0x0000776e0802a1d1 in __libc_start_call_main (main=main@entry=0x5bbc90faf420, argc=argc@entry=3, argv=argv@entry=0x7fff1ecd6f58) at ../sysdeps/nptl/libc_start_call_main.h:74
+#3  0x0000776e0802a28b in __libc_start_main_impl (main=0x5bbc90faf420, argc=3, argv=0x7fff1ecd6f58, init=<optimized out>, fini=<optimized out>, rtld_fini=<optimized out>, stack_end=0x7fff1ecd6f48) at ../csu/libc-start.c:360
+#4  0x00005bbc90fb23b5 in ?? ()
+rax            0x776dff566760      131314318993248
+rbx            0x776e08205fa8      131314466447272
+rcx            0x1                 1
+rdx            0x3                 3
+rsi            0x0                 0
+rdi            0x776e06f4cbd8      131314446814168
+rbp            0x7fff1ecd6e20      0x7fff1ecd6e20
+rsp            0x7fff1ecd6dd0      0x7fff1ecd6dd0
+r8             0x776e06f4cb00      131314446813952
+r9             0x7                 7
+r10            0x5bbcb61f5d90      100866067488144
+r11            0xaa32e31c6b8d4e79  -6182629627223257479
+r12            0x17a4              6052
+r13            0x0                 0
+r14            0x0                 0
+r15            0x5bbcb620bce0      100866067578080
+rip            0x776e08047a65      0x776e08047a65 <__run_exit_handlers+341>
+eflags         0x206               [ PF IF ]
+cs             0x33                51
+ss             0x2b                43
+ds             0x0                 0
+es             0x0                 0
+fs             0x0                 0
+gs             0x0                 0
+fs_base        0x776e083884c0      131314468029632
+gs_base        0x0                 0
+   0x776e08047a35 <__run_exit_handlers+293>:	add    %ah,0x2e(%rsi)
+   0x776e08047a38 <__run_exit_handlers+296>:	nopl   0x0(%rax,%rax,1)
+   0x776e08047a40 <__run_exit_handlers+304>:	mov    0x18(%rax),%rcx
+   0x776e08047a44 <__run_exit_handlers+308>:	mov    0x20(%rax),%r8
+   0x776e08047a48 <__run_exit_handlers+312>:	movq   $0x0,0x10(%rax)
+   0x776e08047a50 <__run_exit_handlers+320>:	mov    %rcx,%rax
+   0x776e08047a53 <__run_exit_handlers+323>:	mov    %r13d,%ecx
+   0x776e08047a56 <__run_exit_handlers+326>:	ror    $0x11,%rax
+   0x776e08047a5a <__run_exit_handlers+330>:	xor    %fs:0x30,%rax
+   0x776e08047a63 <__run_exit_handlers+339>:	xchg   %ecx,(%rbx)
+=> 0x776e08047a65 <__run_exit_handlers+341>:	cmp    $0x1,%ecx
+   0x776e08047a68 <__run_exit_handlers+344>:	jg     0x776e08047b48 <__run_exit_handlers+568>
+   0x776e08047a6e <__run_exit_handlers+350>:	mov    %r14d,%esi
+   0x776e08047a71 <__run_exit_handlers+353>:	mov    %r8,%rdi
+   0x776e08047a74 <__run_exit_handlers+356>:	call   *%rax
+   0x776e08047a76 <__run_exit_handlers+358>:	mov    $0x1,%ecx
+   0x776e08047a7b <__run_exit_handlers+363>:	mov    %r13d,%eax
+   0x776e08047a7e <__run_exit_handlers+366>:	lock cmpxchg %ecx,(%rbx)
+   0x776e08047a82 <__run_exit_handlers+370>:	je     0x776e080479e6 <__run_exit_handlers+214>
+   0x776e08047a88 <__run_exit_handlers+376>:	mov    %rbx,%rdi
+   0x776e08047a8b <__run_exit_handlers+379>:	call   0x776e08098fc0 <__GI___lll_lock_wait_private>
+   0x776e08047a90 <__run_exit_handlers+384>:	jmp    0x776e080479e6 <__run_exit_handlers+214>
+   0x776e08047a95 <__run_exit_handlers+389>:	nopl   (%rax)
+   0x776e08047a98 <__run_exit_handlers+392>:	mov    %r13d,%ecx
+[Inferior 1 (process 13549) detached]

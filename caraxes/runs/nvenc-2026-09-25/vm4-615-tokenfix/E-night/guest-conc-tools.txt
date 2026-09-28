@@ -1,0 +1,5 @@
+-rw-r--r-- 1 leandro leandro   415 Sep 26 03:24 /home/leandro/conc/hold.sh
+-rw-r--r-- 1 leandro leandro  1604 Sep 26 03:24 /home/leandro/conc/ladder2.sh
+-rwxrwxr-x 1 leandro leandro 41256 Sep 26 02:23 /home/leandro/conc/nvenc-hold
+-rwxrwxr-x 1 leandro leandro 16064 Sep 26 02:23 /home/leandro/conc/rmioctl-log.so
+-rwxrwxr-x 1 leandro leandro 26072 Sep 26 02:23 /home/leandro/conc/vkcomp

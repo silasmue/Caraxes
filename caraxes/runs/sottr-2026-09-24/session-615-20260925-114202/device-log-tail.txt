@@ -1,0 +1,35 @@
+vfio-user-nvgpu: host ABI 615.71.09: TSG params 28 bytes, GPU_GET_PES_INFO 76 (tpcToPesMap[15]), GR_GET_GLOBAL_SM_ORDER 10264 (SM entry 20), channel params 376, GSS legacy [pmgr 0x18 20512, thermal 0x36 24532, perf 0xf1 9216] (chosen by running driver 615.71.09 (/proc/driver/nvidia/version)); guest ABI 615.71.09
+vfio-user-nvgpu: host memory client open; privilege: uid 1000; capabilities effective 0x0 permitted 0x200000 inheritable 0x0
+vfio-user-nvgpu: hostmem: host FB regions: [0x3620000, 0x1e988ffff] reserved 0x0
+vfio-user-nvgpu: hostmem: host VRAM: total 8192 MiB, HEAP_FREE 5676 MiB, nvidia-smi free 5677 MiB, largest free region 3072 MiB at 0x129800000; request 3072 MiB at [0x129800000, 0x1e9800000) (slot 0, heap region end 0x1e9890000)
+vfio-user-nvgpu: hostmem: reserved host VRAM [0x129800000, 0x1e9800000) (3072 MiB, slot 0), handle 0x80000003, attr 0x11800000 attr2 0x100005, contiguous, in 0 ms
+vfio-user-nvgpu: fb layout: address space 0x200000000 (host card), reservation [0x129800000, 0x1e9800000), usable [0x129800000, 0x1e9600000), BAR2/BAR1 roots 0x1e9600000/0x1e9601000, fb_length 0xc0000000
+vfio-user-nvgpu: display engine present (fuse 0; board connectors from the board data)
+vfio-user-nvgpu: guest name "Leandro VFIO RTX 2070-3G"
+vfio-user-nvgpu: host RM open (unprivileged client, device 0, subdevice 0)
+vfio-user-nvgpu: forward cache on (22 static getters; CARAXES_FORWARD_CACHE=0 turns it off)
+vfio-user-nvgpu: host execution on: FB backed by the reserved VRAM through BAR1 windows (budget 2 x 32 MiB = 64 MiB of the host's shared BAR1; CARAXES_BAR1_WINDOWS, CARAXES_BAR1_WINDOW_MIB); guest channels mirrored on the host at their first doorbell; GR0/CE2-CE4 non-stall events forwarded as guest vectors (docs/caraxes/execution.md)
+vfio-user-nvgpu: intr page: BAR0 [0x0, 0x1000) and the interrupt tree [0xb81000, 0xb82000) offered as sparse mmap areas of region 0 from a memfd; the reactor applies the guest's stores (sleep bound 1 ms, retrigger watchdog 10 ms) (CARAXES_INTR_PAGE=1, docs/caraxes/intr-page.md)
+vfio-user-nvgpu: display page: BAR0 [0x611000, 0x612000) (the display front-end interrupt status) offered as a third sparse mmap area; the display clock advances the engine at every tick, the reactor applies the guest's acks and enables, window AWAKENs are acknowledged by the CORE marker (CARAXES_DISPLAY_PAGE=1, docs/caraxes/intr-page.md §10)
+vfio-user-nvgpu: doorbell tokens: BAR0 0xbb0090, 4 bytes, 64 sub-region(s) with datamatch 0xca700000..=0xca70003f and one eventfd each, offered through VFIO_USER_DEVICE_GET_REGION_IO_FDS; a channel gets a pool token at its first (trapped) doorbell, written to its work-submit-token notifier entry (CARAXES_DOORBELL_TOKENS=64, docs/caraxes/doorbell-token-pool.md)
+vfio-user-nvgpu: guest ABI 615 (MsgqV2)
+vfio-user-nvgpu: TU106 (BOOT_0 0x166000a1, driver 615.71.09) on /mnt/vmstore/caraxes/vm4-615/gpu.sock, boot model on, FB 3072 MiB, ROM 130048 bytes, PROM image 131584 bytes, trace /mnt/vmstore/caraxes/vm4-615/gpu-trace.log
+vfio-user-nvgpu: doorbell poll: hybrid reader (CARAXES_DOORBELL_POLL=hybrid, CARAXES_DOORBELL_POLL_CPU=Auto)
+[2026-09-25T09:42:03Z INFO  vfio_user] Received client version: major = 0 minor = 1 capabilities = Capabilities { max_msg_fds: 253, max_data_xfer_size: 1048576, migration: MigrationCapabilities { pgsize: 4096 } }
+[2026-09-25T09:42:03Z INFO  vfio_user] Sent server version: major = 0 minor = 0 capabilities = Capabilities { max_msg_fds: 1, max_data_xfer_size: 1048576, migration: MigrationCapabilities { pgsize: 4096 } }
+vfio-user-nvgpu: hostmem: guest RAM 0x0+0xc0000000: registration deferred until all 4096 MiB are mapped (3072 MiB so far), so the whole guest gets one IOVA offset
+vfio-user-nvgpu: dma table: 0 range(s), identity; ranges=; published to /mnt/vmstore/caraxes/vm4-615/dma-ranges
+vfio-user-nvgpu: doorbell poll: reader pinned to CPU 15 (auto: 99 % idle over 1 s; not CPU 0; VMM vCPU threads not found within 20 s)
+vfio-user-nvgpu: signal 15: freeing host memory and exiting
+vfio-user-nvgpu: hostmem: ERROR hostmem: linear registration failed (no run of 5 free adjacent IOVA slots after 5 restarts; placements: placed guest RAM chunk GPA 0x100000000..0x140000000 -> IOVA 0x7ffd80000000..0x7ffdc0000000 (descriptor 0x80000004, 694 ms, 9 IOVA samples = base + offset) | linear registration: GPA 0xc0000000 landed at IOVA 0x7ffcc0000000 (offset 0x7ffc00000000, not 0x7ffc80000000): a host allocation sits in between; restart 1 below it | placed guest RAM chunk GPA 0x100000000..0x140000000 -> IOVA 0x7ffc00000000..0x7ffc40000000 (descriptor 0x80000006, 85 ms, 9 IOVA samples = b
+vfio-user-nvgpu: hostmem: registered guest RAM chunk GPA 0x0..0x40000000 -> IOVA 0x7ffd80000000..0x7ffdc0000000 (descriptor 0x80000010, 1051 ms, 9 IOVA samples = base + offset)
+vfio-user-nvgpu: hostmem: registered guest RAM chunk GPA 0x40000000..0x80000000 -> IOVA 0x7ffcc0000000..0x7ffd00000000 (descriptor 0x80000011, 4932 ms, 9 IOVA samples = base + offset)
+vfio-user-nvgpu: hostmem: registered guest RAM chunk GPA 0x80000000..0xc0000000 -> IOVA 0x7ffc00000000..0x7ffc40000000 (descriptor 0x80000012, 265 ms, 9 IOVA samples = base + offset)
+vfio-user-nvgpu: hostmem: guest RAM 0x0+0xc0000000: 3 chunk(s) in 19946 ms; pinned now 3072 MiB; host foll_pin acquired +786432 released +64; privileged windows so far 15
+vfio-user-nvgpu: hostmem: registered guest RAM chunk GPA 0x100000000..0x140000000 -> IOVA 0x7ffb80000000..0x7ffbc0000000 (descriptor 0x80000013, 105 ms, 9 IOVA samples = base + offset)
+vfio-user-nvgpu: hostmem: guest RAM 0x100000000+0x40000000: 1 chunk(s) in 106 ms; pinned now 4096 MiB; host foll_pin acquired +262144 released +0; privileged windows so far 16
+vfio-user-nvgpu: dma table: 4 range(s), host IOVAs; ranges=0:7ffd80000000:40000000,40000000:7ffcc0000000:40000000,80000000:7ffc00000000:40000000,100000000:7ffb80000000:40000000; published to /mnt/vmstore/caraxes/vm4-615/dma-ranges
+vfio-user-nvgpu: hostmem: freed the VRAM reservation [0x129800000, 0x1e9800000) (3072 MiB) in 2 ms (host RM scrub on free)
+vfio-user-nvgpu: hostmem: host RM client 0xc1d6f40f freed
+vfio-user-nvgpu: hostmem: freed 4 guest RAM descriptor(s), 4096 MiB unpinned; host foll_pin released +1048576 during the free (since open: acquired +4194837, released +4194304)
+vfio-user-nvgpu: hostmem: privileged windows opened in total: 16

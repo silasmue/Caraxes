@@ -1,0 +1,54 @@
+[  141.901074] caraxes-vm4 gnome-shell[2442]: Running GNOME Shell (using mutter 46.2) as a Wayland display server
+[  142.424153] caraxes-vm4 gnome-shell[2442]: Made thread 'KMS thread' realtime scheduled
+[  142.453882] caraxes-vm4 gnome-shell[2442]: Device '/dev/dri/card0' prefers shadow buffer
+[  142.472424] caraxes-vm4 gnome-shell[2442]: Added device '/dev/dri/card0' (nvidia-drm) using atomic mode setting.
+[  142.473722] caraxes-vm4 gnome-shell[2442]: Failed to initialize accelerated iGPU/dGPU framebuffer sharing: No EGL display
+[  142.473825] caraxes-vm4 gnome-shell[2442]: Created gbm renderer for '/dev/dri/card0'
+[  142.473869] caraxes-vm4 gnome-shell[2442]: Boot VGA GPU /dev/dri/card0 selected as primary
+[  142.630826] caraxes-vm4 gnome-shell[2442]: Failed to setup: The GPU /dev/dri/card0 chosen as primary is not supported by EGL.
+[  142.702953] caraxes-vm4 systemd[1024]: org.gnome.Shell-disable-extensions.service - Disable GNOME Shell extensions after failure was skipped because of an unmet condition check (ConditionPathExists=/run/user/1000/gnome-shell-disable-extensions).
+[  143.172770] caraxes-vm4 gnome-shell[2606]: Running GNOME Shell (using mutter 46.2) as a Wayland display server
+[  143.230659] caraxes-vm4 gnome-shell[2606]: Made thread 'KMS thread' realtime scheduled
+[  143.232661] caraxes-vm4 gnome-shell[2606]: Device '/dev/dri/card0' prefers shadow buffer
+[  143.248594] caraxes-vm4 gnome-shell[2606]: Added device '/dev/dri/card0' (nvidia-drm) using atomic mode setting.
+[  143.249822] caraxes-vm4 gnome-shell[2606]: Failed to initialize accelerated iGPU/dGPU framebuffer sharing: No EGL display
+[  143.249960] caraxes-vm4 gnome-shell[2606]: Created gbm renderer for '/dev/dri/card0'
+[  143.250046] caraxes-vm4 gnome-shell[2606]: Boot VGA GPU /dev/dri/card0 selected as primary
+[  143.354067] caraxes-vm4 gnome-shell[2606]: Failed to setup: The GPU /dev/dri/card0 chosen as primary is not supported by EGL.
+[  143.389834] caraxes-vm4 systemd[1024]: org.gnome.Shell-disable-extensions.service - Disable GNOME Shell extensions after failure was skipped because of an unmet condition check (ConditionPathExists=/run/user/1000/gnome-shell-disable-extensions).
+[  143.874805] caraxes-vm4 gnome-shell[2800]: Running GNOME Shell (using mutter 46.2) as a Wayland display server
+[  143.923240] caraxes-vm4 gnome-shell[2800]: Made thread 'KMS thread' realtime scheduled
+[  143.925129] caraxes-vm4 gnome-shell[2800]: Device '/dev/dri/card0' prefers shadow buffer
+[  143.941411] caraxes-vm4 gnome-shell[2800]: Added device '/dev/dri/card0' (nvidia-drm) using atomic mode setting.
+[  143.942850] caraxes-vm4 gnome-shell[2800]: Failed to initialize accelerated iGPU/dGPU framebuffer sharing: No EGL display
+[  143.942994] caraxes-vm4 gnome-shell[2800]: Created gbm renderer for '/dev/dri/card0'
+[  143.943062] caraxes-vm4 gnome-shell[2800]: Boot VGA GPU /dev/dri/card0 selected as primary
+[  144.046708] caraxes-vm4 gnome-shell[2800]: Failed to setup: The GPU /dev/dri/card0 chosen as primary is not supported by EGL.
+[  144.073312] caraxes-vm4 systemd[1024]: org.gnome.Shell-disable-extensions.service - Disable GNOME Shell extensions after failure was skipped because of an unmet condition check (ConditionPathExists=/run/user/1000/gnome-shell-disable-extensions).
+[  146.350284] caraxes-vm4 gnome-shell[3035]: Running GNOME Shell (using mutter 46.2) as a Wayland display server
+[  146.397178] caraxes-vm4 gnome-shell[3035]: Made thread 'KMS thread' realtime scheduled
+[  146.403369] caraxes-vm4 gnome-shell[3035]: Device '/dev/dri/card0' prefers shadow buffer
+[  146.420615] caraxes-vm4 gnome-shell[3035]: Added device '/dev/dri/card0' (nvidia-drm) using atomic mode setting.
+[  146.421902] caraxes-vm4 gnome-shell[3035]: Failed to initialize accelerated iGPU/dGPU framebuffer sharing: No EGL display
+[  146.422033] caraxes-vm4 gnome-shell[3035]: Created gbm renderer for '/dev/dri/card0'
+[  146.422213] caraxes-vm4 gnome-shell[3035]: Boot VGA GPU /dev/dri/card0 selected as primary
+[  146.517222] caraxes-vm4 gnome-shell[3035]: Failed to setup: The GPU /dev/dri/card0 chosen as primary is not supported by EGL.
+[  146.550014] caraxes-vm4 systemd[1024]: org.gnome.Shell-disable-extensions.service - Disable GNOME Shell extensions after failure was skipped because of an unmet condition check (ConditionPathExists=/run/user/1000/gnome-shell-disable-extensions).
+[  147.029824] caraxes-vm4 gnome-shell[3216]: Running GNOME Shell (using mutter 46.2) as a Wayland display server
+[  147.083184] caraxes-vm4 gnome-shell[3216]: Made thread 'KMS thread' realtime scheduled
+[  147.085850] caraxes-vm4 gnome-shell[3216]: Device '/dev/dri/card0' prefers shadow buffer
+[  147.098467] caraxes-vm4 gnome-shell[3216]: Added device '/dev/dri/card0' (nvidia-drm) using atomic mode setting.
+[  147.100292] caraxes-vm4 gnome-shell[3216]: Failed to initialize accelerated iGPU/dGPU framebuffer sharing: No EGL display
+[  147.100440] caraxes-vm4 gnome-shell[3216]: Created gbm renderer for '/dev/dri/card0'
+[  147.100470] caraxes-vm4 gnome-shell[3216]: Boot VGA GPU /dev/dri/card0 selected as primary
+[  147.218109] caraxes-vm4 gnome-shell[3216]: Failed to setup: The GPU /dev/dri/card0 chosen as primary is not supported by EGL.
+[  147.252029] caraxes-vm4 systemd[1024]: org.gnome.Shell-disable-extensions.service - Disable GNOME Shell extensions after failure was skipped because of an unmet condition check (ConditionPathExists=/run/user/1000/gnome-shell-disable-extensions).
+[  147.667170] caraxes-vm4 gnome-shell[3433]: Running GNOME Shell (using mutter 46.2) as a Wayland display server
+[  147.712615] caraxes-vm4 gnome-shell[3433]: Made thread 'KMS thread' realtime scheduled
+[  147.713771] caraxes-vm4 gnome-shell[3433]: Device '/dev/dri/card0' prefers shadow buffer
+[  147.726746] caraxes-vm4 gnome-shell[3433]: Added device '/dev/dri/card0' (nvidia-drm) using atomic mode setting.
+[  147.727615] caraxes-vm4 gnome-shell[3433]: Failed to initialize accelerated iGPU/dGPU framebuffer sharing: No EGL display
+[  147.727719] caraxes-vm4 gnome-shell[3433]: Created gbm renderer for '/dev/dri/card0'
+[  147.727762] caraxes-vm4 gnome-shell[3433]: Boot VGA GPU /dev/dri/card0 selected as primary
+[  147.801014] caraxes-vm4 gnome-shell[3433]: Failed to setup: The GPU /dev/dri/card0 chosen as primary is not supported by EGL.
+[  147.834016] caraxes-vm4 systemd[1024]: org.gnome.Shell-disable-extensions.service - Disable GNOME Shell extensions after failure was skipped because of an unmet condition check (ConditionPathExists=/run/user/1000/gnome-shell-disable-extensions).

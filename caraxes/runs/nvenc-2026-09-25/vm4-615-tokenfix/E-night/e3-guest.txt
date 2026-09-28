@@ -1,0 +1,17 @@
+== ladder2 tf-E-night-e3 probe=vk at 1790398982.860560580: ./hold.sh vkcube+nvenc
+holder pid 23376 alive=1
+holder alive after probe=1
+-- p1-before-vk.out: START wall=1790398982.862 pid=23353 device created fam=2 in 1.51 s 
+RESULT PASS dispatches=1058 per_s=211.6 max_wait_ms=44.7 bad=0 secs=5.0 total=7.1 rc=0 
+-- p2-hold.out: 
+
+-- p3-during-vk.out: START wall=1790399002.781 pid=23399 device created fam=2 in 1.31 s 
+RESULT PASS dispatches=781 per_s=156.2 max_wait_ms=30.0 bad=0 secs=5.0 total=7.2 rc=0 
+-- p4-after-vk.out: START wall=1790399015.280 pid=23413 device created fam=2 in 1.16 s 
+RESULT PASS dispatches=1060 per_s=211.9 max_wait_ms=60.7 bad=0 secs=5.0 total=6.7 rc=0 
+== failing allocs
+p1-before-vk.rm: 3 c5c0;  slow: 1
+p2-hold.rm: 8 c5c0;  slow: 2
+p3-during-vk.rm: 3 c5c0;  slow: 1
+p4-after-vk.rm: 3 c5c0;  slow: 1
+== end 1790399022.712615363

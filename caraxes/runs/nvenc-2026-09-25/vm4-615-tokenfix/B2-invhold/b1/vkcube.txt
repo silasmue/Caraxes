@@ -1,0 +1,2 @@
+bash: line 1:  5602 Aborted                 LD_PRELOAD=~/nvenc/rmioctl-log3.so timeout 90 vkcube-wayland --c 300 > /tmp/vk.out 2> /tmp/vk.rmlog
+vkcube rc=134 elapsed=42.417018072 0x57=1

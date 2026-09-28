@@ -1,0 +1,41 @@
+== +0 s 1790390474.945243873
+11524 vkcube-wayland st=R wchan=nvkms_open_common sys=
+== +1 s 1790390475.958736043
+11524 vkcube-wayland st=R wchan=0 sys=
+== +2 s 1790390476.978951817
+11524 vkcube-wayland st=S wchan=do_poll.constprop.0 sys=
+== +3 s 1790390477.991060177
+11524 vkcube-wayland st=R wchan=0 sys=
+== +4 s 1790390479.002255337
+11524 vkcube-wayland st=R wchan=0 sys=
+11580 vkcube-wayland st=S wchan=futex_wait_queue sys=
+11581 [vkcf] Analysis st=Analysis) wchan=futex_wait_queue sys=
+11583 [vkrt] Analysis st=Analysis) wchan=futex_wait_queue sys=
+11584 [vkps] Update st=Update) wchan=futex_wait_queue sys=
+== +5 s 1790390480.044532199
+11524 vkcube-wayland st=S wchan=do_poll.constprop.0 sys=
+11580 vkcube-wayland st=S wchan=futex_wait_queue sys=
+11581 [vkcf] Analysis st=Analysis) wchan=futex_wait_queue sys=
+11583 [vkrt] Analysis st=Analysis) wchan=futex_wait_queue sys=
+11584 [vkps] Update st=Update) wchan=futex_wait_queue sys=
+11638 vkcube-wayland st=S wchan=futex_wait_queue sys=
+== +6 s 1790390481.100253937
+11524 vkcube-wayland st=R wchan=0 sys=
+11580 vkcube-wayland st=S wchan=futex_wait_queue sys=
+11581 [vkcf] Analysis st=Analysis) wchan=futex_wait_queue sys=
+11583 [vkrt] Analysis st=Analysis) wchan=futex_wait_queue sys=
+11584 [vkps] Update st=Update) wchan=futex_wait_queue sys=
+11638 vkcube-wayland st=S wchan=futex_wait_queue sys=
+== +7 s 1790390482.657010808
+11524 vkcube-wayland st=S wchan=do_poll.constprop.0 sys=
+11580 vkcube-wayland st=S wchan=futex_wait_queue sys=
+11581 [vkcf] Analysis st=Analysis) wchan=futex_wait_queue sys=
+11583 [vkrt] Analysis st=Analysis) wchan=futex_wait_queue sys=
+11584 [vkps] Update st=Update) wchan=0 sys=
+11638 vkcube-wayland st=S wchan=futex_wait_queue sys=
+== +8 s 1790390483.704154753
+11524 vkcube-wayland st=R wchan=0 sys=
+11580 vkcube-wayland st=S wchan=futex_wait_queue sys=
+11583 [vkrt] Analysis st=Analysis) wchan=futex_wait_queue sys=
+== +9 s 1790390484.732954760
+11524 vkcube-wayland st=D wchan=os_acquire_rwlock_write sys=

@@ -1,0 +1,2 @@
+2026-09-25T10:54:45+02:00 moonlight stream 192.168.103.24 Desktop --resolution 1920x1080 --fps 60 --bitrate 20000 --display-mode windowed --absolute-mouse
+2026-09-25T10:56:26+02:00 restarted with --video-decoder software after the missing-HW-decoder dialog (pid 69411)

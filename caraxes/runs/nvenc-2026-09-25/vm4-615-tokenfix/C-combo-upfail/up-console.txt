@@ -1,0 +1,5 @@
+host watch pid 602858 -> /home/silas/git/Caraxes/caraxes/runs/nvenc-2026-09-25/vm4-615-tokenfix/C-combo/session/hostwatch.txt
+driver 615.71.09: overlay on /mnt/vmstore/caraxes/images/guest-baked-2026-09-24-615.71.09.qcow2, CARAXES_GUEST_ABI=615
+games disk: /mnt/vmstore/caraxes/vm4-615/games.qcow2
+ERROR: DMA table in /mnt/vmstore/caraxes/vm4-615/dma-ranges covers 0 of 8589934592 bytes
+ERROR: up failed (/home/silas/git/Caraxes/caraxes/runs/nvenc-2026-09-25/vm4-615-tokenfix/C-combo/session/up.txt)

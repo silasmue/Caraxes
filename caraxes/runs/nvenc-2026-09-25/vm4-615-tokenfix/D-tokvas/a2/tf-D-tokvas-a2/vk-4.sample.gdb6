@@ -1,0 +1,66 @@
+[Thread debugging using libthread_db enabled]
+Using host libthread_db library "/lib/x86_64-linux-gnu/libthread_db.so.1".
+__GI___ioctl (fd=12, request=3223340586) at ../sysdeps/unix/sysv/linux/ioctl.c:36
+
+warning: 36	../sysdeps/unix/sysv/linux/ioctl.c: No such file or directory
+
+Thread 1 (Thread 0x7c360b2ca4c0 (LWP 10236) "vkcube-wayland"):
+#0  __GI___ioctl (fd=12, request=3223340586) at ../sysdeps/unix/sysv/linux/ioctl.c:36
+#1  0x00007c360b3e52d9 in ioctl () from /home/leandro/nvenc/rmioctl-log3.so
+#2  0x00007c35f0a748d9 in ?? () from /lib/x86_64-linux-gnu/libnvidia-eglcore.so.615.71.09
+#3  0x00007c35f0a76760 in ?? () from /lib/x86_64-linux-gnu/libnvidia-eglcore.so.615.71.09
+#4  0x00007c35f0a783c8 in ?? () from /lib/x86_64-linux-gnu/libnvidia-eglcore.so.615.71.09
+#5  0x00007c35f01804d7 in ?? () from /lib/x86_64-linux-gnu/libnvidia-eglcore.so.615.71.09
+#6  0x00007c35f069ee48 in ?? () from /lib/x86_64-linux-gnu/libnvidia-eglcore.so.615.71.09
+#7  0x00007c35f05e6837 in ?? () from /lib/x86_64-linux-gnu/libnvidia-eglcore.so.615.71.09
+rax            0x0                 0
+rbx            0xc020462a          3223340586
+rcx            0x7c360b1250bd      136571555827901
+rdx            0x7ffcd538c5f0      140723885753840
+rsi            0xc020462a          3223340586
+rdi            0xc                 12
+rbp            0x7ffcd538c260      0x7ffcd538c260
+rsp            0x7ffcd538c210      0x7ffcd538c210
+r8             0x0                 0
+r9             0x0                 0
+r10            0x0                 0
+r11            0x246               582
+r12            0x7ffcd538c2b0      140723885753008
+r13            0x7c360b125080      136571555827840
+r14            0x31e9285e          837363806
+r15            0xc                 12
+rip            0x7c360b1250bd      0x7c360b1250bd <__GI___ioctl+61>
+eflags         0x246               [ PF ZF IF ]
+cs             0x33                51
+ss             0x2b                43
+ds             0x0                 0
+es             0x0                 0
+fs             0x0                 0
+gs             0x0                 0
+fs_base        0x7c360b2ca4c0      136571557553344
+gs_base        0x0                 0
+   0x7c360b12508d <__GI___ioctl+13>:	mov    %edx,-0x20(%rbp)
+   0x7c360b125090 <__GI___ioctl+16>:	mov    %fs:0x28,%rax
+   0x7c360b125099 <__GI___ioctl+25>:	mov    %rax,-0x38(%rbp)
+   0x7c360b12509d <__GI___ioctl+29>:	xor    %eax,%eax
+   0x7c360b12509f <__GI___ioctl+31>:	lea    0x10(%rbp),%rax
+   0x7c360b1250a3 <__GI___ioctl+35>:	movl   $0x10,-0x50(%rbp)
+   0x7c360b1250aa <__GI___ioctl+42>:	mov    %rax,-0x48(%rbp)
+   0x7c360b1250ae <__GI___ioctl+46>:	lea    -0x30(%rbp),%rax
+   0x7c360b1250b2 <__GI___ioctl+50>:	mov    %rax,-0x40(%rbp)
+   0x7c360b1250b6 <__GI___ioctl+54>:	mov    $0x10,%eax
+   0x7c360b1250bb <__GI___ioctl+59>:	syscall
+=> 0x7c360b1250bd <__GI___ioctl+61>:	mov    %eax,%edx
+   0x7c360b1250bf <__GI___ioctl+63>:	cmp    $0xfffff000,%eax
+   0x7c360b1250c4 <__GI___ioctl+68>:	ja     0x7c360b1250e0 <__GI___ioctl+96>
+   0x7c360b1250c6 <__GI___ioctl+70>:	mov    -0x38(%rbp),%rax
+   0x7c360b1250ca <__GI___ioctl+74>:	sub    %fs:0x28,%rax
+   0x7c360b1250d3 <__GI___ioctl+83>:	jne    0x7c360b1250f3 <__GI___ioctl+115>
+   0x7c360b1250d5 <__GI___ioctl+85>:	leave
+   0x7c360b1250d6 <__GI___ioctl+86>:	mov    %edx,%eax
+   0x7c360b1250d8 <__GI___ioctl+88>:	ret
+   0x7c360b1250d9 <__GI___ioctl+89>:	nopl   0x0(%rax)
+   0x7c360b1250e0 <__GI___ioctl+96>:	mov    0xded11(%rip),%rdx        # 0x7c360b203df8
+   0x7c360b1250e7 <__GI___ioctl+103>:	neg    %eax
+   0x7c360b1250e9 <__GI___ioctl+105>:	mov    %eax,%fs:(%rdx)
+[Inferior 1 (process 10236) detached]

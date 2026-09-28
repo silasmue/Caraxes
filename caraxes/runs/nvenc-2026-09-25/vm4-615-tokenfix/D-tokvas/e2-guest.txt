@@ -1,0 +1,17 @@
+== ladder2 tf-D-tokvas-e2 probe=vk at 1790396509.970307651: ./hold.sh vkcube+nvenc
+holder pid 35343 alive=1
+holder alive after probe=1
+-- p1-before-vk.out: START wall=1790396509.972 pid=35326 device created fam=2 in 1.69 s 
+RESULT PASS dispatches=1050 per_s=209.9 max_wait_ms=50.4 bad=0 secs=5.0 total=7.3 rc=0 
+-- p2-hold.out: 
+
+-- p3-during-vk.out: START wall=1790396530.490 pid=35366 device created fam=2 in 3.14 s 
+RESULT PASS dispatches=871 per_s=174.2 max_wait_ms=45.5 bad=0 secs=5.0 total=9.4 rc=0 
+-- p4-after-vk.out: START wall=1790396546.156 pid=35380 device created fam=2 in 1.36 s 
+RESULT PASS dispatches=1144 per_s=228.7 max_wait_ms=27.6 bad=0 secs=5.0 total=7.4 rc=0 
+== failing allocs
+p1-before-vk.rm: 3 c5c0;  slow: 3
+p2-hold.rm: 8 c5c0;  slow: 1
+p3-during-vk.rm: 3 c5c0;  slow: 2
+p4-after-vk.rm: 3 c5c0;  slow: 1
+== end 1790396554.438596235

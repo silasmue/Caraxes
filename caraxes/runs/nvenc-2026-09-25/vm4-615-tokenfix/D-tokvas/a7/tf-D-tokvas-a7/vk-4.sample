@@ -1,0 +1,41 @@
+== +0 s 1790396180.406585625
+27345 vkcube-wayland st=R wchan=0 sys=
+== +1 s 1790396181.419487356
+27345 vkcube-wayland st=R wchan=os_acquire_rwlock_read sys=
+== +2 s 1790396182.430779306
+27345 vkcube-wayland st=R wchan=0 sys=
+27375 vkcube-wayland st=S wchan=futex_wait_queue sys=
+27376 [vkcf] Analysis st=Analysis) wchan=futex_wait_queue sys=
+== +3 s 1790396183.490666525
+27345 vkcube-wayland st=R wchan=0 sys=
+27375 vkcube-wayland st=S wchan=futex_wait_queue sys=
+27376 [vkcf] Analysis st=Analysis) wchan=futex_wait_queue sys=
+27382 [vkrt] Analysis st=Analysis) wchan=futex_wait_queue sys=
+27383 [vkps] Update st=Update) wchan=futex_wait_queue sys=
+27413 vkcube-wayland st=S wchan=futex_wait_queue sys=
+== +4 s 1790396184.540394691
+27345 vkcube-wayland st=S wchan=do_poll.constprop.0 sys=
+27375 vkcube-wayland st=S wchan=futex_wait_queue sys=
+27376 [vkcf] Analysis st=Analysis) wchan=futex_wait_queue sys=
+27382 [vkrt] Analysis st=Analysis) wchan=futex_wait_queue sys=
+27383 [vkps] Update st=Update) wchan=futex_wait_queue sys=
+27413 vkcube-wayland st=S wchan=futex_wait_queue sys=
+== +5 s 1790396185.596816539
+27345 vkcube-wayland st=S wchan=do_poll.constprop.0 sys=
+27375 vkcube-wayland st=S wchan=futex_wait_queue sys=
+27376 [vkcf] Analysis st=Analysis) wchan=futex_wait_queue sys=
+27382 [vkrt] Analysis st=Analysis) wchan=futex_wait_queue sys=
+27383 [vkps] Update st=Update) wchan=futex_wait_queue sys=
+27413 vkcube-wayland st=S wchan=futex_wait_queue sys=
+== +6 s 1790396186.641738233
+27345 vkcube-wayland st=S wchan=do_poll.constprop.0 sys=
+27375 vkcube-wayland st=S wchan=futex_wait_queue sys=
+27376 [vkcf] Analysis st=Analysis) wchan=futex_wait_queue sys=
+27382 [vkrt] Analysis st=Analysis) wchan=futex_wait_queue sys=
+27383 [vkps] Update st=Update) wchan=futex_wait_queue sys=
+27413 vkcube-wayland st=S wchan=futex_wait_queue sys=
+== +7 s 1790396188.179754386
+27345 vkcube-wayland st=R wchan=0 sys=
+27375 vkcube-wayland st=S wchan=futex_wait_queue sys=
+== +8 s 1790396189.198654639
+27345 vkcube-wayland st=D wchan=nvidia_close_callback sys=

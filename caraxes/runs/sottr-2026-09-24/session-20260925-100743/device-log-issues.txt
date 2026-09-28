@@ -1,0 +1,4 @@
+      1 vram store: 0 window map(s), 0 refused, 0 eviction(s), 0 stall(s) without any window; 0 read(s) of 0 bytes, 0 write(s) of 0 bytes
+      1 vfio-user-nvgpu: hostmem: guest RAM 0x100000000+0x140000000: refused: pinning 3072 MiB of guest RAM would leave the host 2891 MiB available, below the 4096 MiB floor (MemAvailable 5963 MiB)
+      1 bar1 pool: guest BAR1 [0, 0x8000000) on the pool FB [0x1e1600000, 0x1e9600000); 0 poll(s), 0 unit walk(s); 0 page(s) in the pool now; moved in 0 cold + 0 behind the barrier, back 0 cold + 0 behind the barrier; 0 barrier(s) (0 refused, 0 TSG p
+      1 [2026-09-25T08:07:45Z ERROR vfio_user] Error handling command: 2: Error from backend: Custom { kind: Other, error: "refused: pinning 3072 MiB of guest RAM would leave the host 2891 MiB available, below the 4096 MiB floor (MemAvailable 5963 Mi

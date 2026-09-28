@@ -1,0 +1,9 @@
+sunshine_alive_at_end=0
+[2026-09-25 08:38:15.451]: Warning: Couldn't get drm fb for plane [0]: No such file or directory
+[2026-09-25 08:38:15.467]: Warning: Couldn't get drm fb for plane [0]: No such file or directory
+[2026-09-25 08:38:15.485]: Warning: Couldn't get drm fb for plane [0]: No such file or directory
+[2026-09-25 08:38:15.500]: Warning: Couldn't get drm fb for plane [0]: No such file or directory
+[2026-09-25 08:38:15.517]: Warning: Couldn't get drm fb for plane [0]: No such file or directory
+[2026-09-25 08:38:15.534]: Warning: Couldn't get drm fb for plane [0]: No such file or directory
+[2026-09-25 08:38:15.550]: Warning: Couldn't get drm fb for plane [0]: No such file or directory
+[2026-09-25 08:38:15.567]: Warning: Couldn't get drm fb for plane [0]: No such file or directory

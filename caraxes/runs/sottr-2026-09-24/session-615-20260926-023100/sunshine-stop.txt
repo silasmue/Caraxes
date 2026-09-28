@@ -1,0 +1,4 @@
+sunshine_alive_at_end=0
+[2026-09-26 00:34:22.024]: Info: // Testing for available encoders, this may generate errors. You can safely ignore those errors. //
+[2026-09-26 00:34:22.024]: Info: // Ignore any errors mentioned above, they are not relevant. //
+[2026-09-26 00:34:29.706]: Error: Couldn't accept incoming connections: Operation canceled

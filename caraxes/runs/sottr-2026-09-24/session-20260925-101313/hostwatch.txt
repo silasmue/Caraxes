@@ -1,0 +1,7 @@
+# SPDX-License-Identifier: MIT
+# host watch from 2026-09-25T10:13:14+02:00: interval 5s, slow above 3s, kill /mnt/vmstore/caraxes/vm4/gpu.pid
+# time smi_s used_mib klog_lines_interval xid_lines_interval
+10:13:14 0.051 1288 0 0
+10:13:19 0.030 4274 487 0
+10:13:24 0.043 4266 815 0
+host watch: 3 samples, nvidia-smi max 0.051s mean 0.041s, 1302 kernel log lines, 0 Xid lines, 0 alerts

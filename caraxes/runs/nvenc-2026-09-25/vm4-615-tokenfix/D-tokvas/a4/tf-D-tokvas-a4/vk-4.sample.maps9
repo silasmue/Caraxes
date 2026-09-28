@@ -1,0 +1,524 @@
+40c20000-40c22000 r-xs 00000000 00:01 5143                               /memfd:/.glXXXXXX (deleted)
+4166d000-41719000 rw-p 00000000 00:00 0 
+5b3b9ae7d000-5b3b9ae80000 r--p 00000000 fd:01 94003                      /usr/bin/vkcube-wayland
+5b3b9ae80000-5b3b9ae8b000 r-xp 00003000 fd:01 94003                      /usr/bin/vkcube-wayland
+5b3b9ae8b000-5b3b9ae93000 r--p 0000e000 fd:01 94003                      /usr/bin/vkcube-wayland
+5b3b9ae93000-5b3b9ae94000 r--p 00016000 fd:01 94003                      /usr/bin/vkcube-wayland
+5b3b9ae94000-5b3b9aec5000 rw-p 00017000 fd:01 94003                      /usr/bin/vkcube-wayland
+5b3ba72a9000-5b3ba7edc000 rw-p 00000000 00:00 0                          [heap]
+7e51f4000000-7e51f4021000 rw-p 00000000 00:00 0 
+7e51f4021000-7e51f8000000 ---p 00000000 00:00 0 
+7e51f8000000-7e51f8021000 rw-p 00000000 00:00 0 
+7e51f8021000-7e51fc000000 ---p 00000000 00:00 0 
+7e51fc000000-7e51fc021000 rw-p 00000000 00:00 0 
+7e51fc021000-7e5200000000 ---p 00000000 00:00 0 
+7e5200000000-7e5200021000 rw-p 00000000 00:00 0 
+7e5200021000-7e5204000000 ---p 00000000 00:00 0 
+7e5204000000-7e5204021000 rw-p 00000000 00:00 0 
+7e5204021000-7e5208000000 ---p 00000000 00:00 0 
+7e5208730000-7e5208930000 rw-s 00000000 00:05 630                        /dev/nvidiactl
+7e5208930000-7e520973b000 rw-p 00000000 00:00 0 
+7e520973b000-7e520977b000 rw-s 00000000 00:05 630                        /dev/nvidiactl
+7e520977b000-7e52097fb000 rw-s 00000000 00:05 630                        /dev/nvidiactl
+7e52097fb000-7e52097fc000 ---p 00000000 00:00 0 
+7e52097fc000-7e5209ffc000 rw-p 00000000 00:00 0 
+7e5209ffc000-7e520a0fc000 rw-s 00000000 00:05 630                        /dev/nvidiactl
+7e520a0fc000-7e520a0fd000 ---p 00000000 00:00 0 
+7e520a0fd000-7e520a8fd000 rw-p 00000000 00:00 0 
+7e520a8fd000-7e520a8fe000 ---p 00000000 00:00 0 
+7e520a8fe000-7e520b0fe000 rw-p 00000000 00:00 0 
+7e520b0fe000-7e520b1fe000 rw-s 00000000 00:05 630                        /dev/nvidiactl
+7e520b1fe000-7e520b3fe000 rw-s 00000000 00:05 630                        /dev/nvidiactl
+7e520b3fe000-7e520b3ff000 ---p 00000000 00:00 0 
+7e520b3ff000-7e520bbff000 rw-p 00000000 00:00 0 
+7e520bbff000-7e520bc00000 ---p 00000000 00:00 0 
+7e520bc00000-7e520c400000 rw-p 00000000 00:00 0 
+7e520c400000-7e520c434000 r--p 00000000 fd:01 85059                      /usr/lib/x86_64-linux-gnu/libnvidia-glvkspirv.so.615.71.09
+7e520c434000-7e520cc09000 r-xp 00034000 fd:01 85059                      /usr/lib/x86_64-linux-gnu/libnvidia-glvkspirv.so.615.71.09
+7e520cc09000-7e520cd5b000 r--p 00809000 fd:01 85059                      /usr/lib/x86_64-linux-gnu/libnvidia-glvkspirv.so.615.71.09
+7e520cd5b000-7e520cd5c000 ---p 0095b000 fd:01 85059                      /usr/lib/x86_64-linux-gnu/libnvidia-glvkspirv.so.615.71.09
+7e520cd5c000-7e520cd6e000 r--p 0095b000 fd:01 85059                      /usr/lib/x86_64-linux-gnu/libnvidia-glvkspirv.so.615.71.09
+7e520cd6e000-7e520cdf9000 rw-p 0096d000 fd:01 85059                      /usr/lib/x86_64-linux-gnu/libnvidia-glvkspirv.so.615.71.09
+7e520cdf9000-7e520ce0f000 rw-p 00000000 00:00 0 
+7e520ce40000-7e520cec0000 rw-s 00000000 00:05 630                        /dev/nvidiactl
+7e520cec0000-7e520cf00000 rw-s 00000000 00:05 630                        /dev/nvidiactl
+7e520cf00000-7e520d000000 rw-s 00000000 00:05 630                        /dev/nvidiactl
+7e520d000000-7e520d0c9000 r--p 00000000 fd:01 92164                      /usr/lib/x86_64-linux-gnu/libvulkan_nouveau.so
+7e520d0c9000-7e520d690000 r-xp 000c9000 fd:01 92164                      /usr/lib/x86_64-linux-gnu/libvulkan_nouveau.so
+7e520d690000-7e520de73000 r--p 00690000 fd:01 92164                      /usr/lib/x86_64-linux-gnu/libvulkan_nouveau.so
+7e520de73000-7e520df31000 r--p 00e72000 fd:01 92164                      /usr/lib/x86_64-linux-gnu/libvulkan_nouveau.so
+7e520df31000-7e520df34000 rw-p 00f30000 fd:01 92164                      /usr/lib/x86_64-linux-gnu/libvulkan_nouveau.so
+7e520df34000-7e520df37000 rw-p 00000000 00:00 0 
+7e520df4d000-7e520df60000 rw-s 00000000 00:05 630                        /dev/nvidiactl
+7e520df60000-7e520df80000 rw-s 00000000 00:05 630                        /dev/nvidiactl
+7e520df80000-7e520dfc0000 rw-s 00000000 00:05 630                        /dev/nvidiactl
+7e520dfc0000-7e520e000000 rw-s 00000000 00:05 630                        /dev/nvidiactl
+7e520e000000-7e520e04b000 r--p 00000000 fd:01 92161                      /usr/lib/x86_64-linux-gnu/libvulkan_intel.so
+7e520e04b000-7e520e90a000 r-xp 0004b000 fd:01 92161                      /usr/lib/x86_64-linux-gnu/libvulkan_intel.so
+7e520e90a000-7e520f384000 r--p 0090a000 fd:01 92161                      /usr/lib/x86_64-linux-gnu/libvulkan_intel.so
+7e520f384000-7e520f42f000 r--p 01383000 fd:01 92161                      /usr/lib/x86_64-linux-gnu/libvulkan_intel.so
+7e520f42f000-7e520f433000 rw-p 0142e000 fd:01 92161                      /usr/lib/x86_64-linux-gnu/libvulkan_intel.so
+7e520f433000-7e520f439000 rw-p 00000000 00:00 0 
+7e520f447000-7e520f467000 rw-s 00000000 00:05 630                        /dev/nvidiactl
+7e520f467000-7e520f477000 rw-s 00000000 00:05 630                        /dev/nvidiactl
+7e520f477000-7e520f497000 rw-s 00000000 00:05 630                        /dev/nvidiactl
+7e520f497000-7e520f4d7000 rw-s 00000000 00:05 630                        /dev/nvidiactl
+7e520f4d7000-7e520f4f7000 rw-s 00000000 00:05 630                        /dev/nvidiactl
+7e520f4f7000-7e520f537000 rw-s 00000000 00:05 630                        /dev/nvidiactl
+7e520f537000-7e520f557000 rw-s 00000000 00:05 630                        /dev/nvidiactl
+7e520f557000-7e520f597000 rw-s 00000000 00:05 630                        /dev/nvidiactl
+7e520f597000-7e520f617000 rw-s 00000000 00:05 630                        /dev/nvidiactl
+7e520f617000-7e520f717000 rw-s 00000000 00:05 630                        /dev/nvidiactl
+7e520f717000-7e520f797000 rw-s 00000000 00:05 630                        /dev/nvidiactl
+7e520f797000-7e520f7d7000 rw-s 00000000 00:05 630                        /dev/nvidiactl
+7e520f7d7000-7e520f7e6000 r--p 00000000 fd:01 4972                       /usr/lib/x86_64-linux-gnu/libgcrypt.so.20.4.3
+7e520f7e6000-7e520f8db000 r-xp 0000f000 fd:01 4972                       /usr/lib/x86_64-linux-gnu/libgcrypt.so.20.4.3
+7e520f8db000-7e520f916000 r--p 00104000 fd:01 4972                       /usr/lib/x86_64-linux-gnu/libgcrypt.so.20.4.3
+7e520f916000-7e520f91b000 r--p 0013f000 fd:01 4972                       /usr/lib/x86_64-linux-gnu/libgcrypt.so.20.4.3
+7e520f91b000-7e520f91f000 rw-p 00144000 fd:01 4972                       /usr/lib/x86_64-linux-gnu/libgcrypt.so.20.4.3
+7e520f91f000-7e520f920000 rw-p 00000000 00:00 0 
+7e520f920000-7e520f936000 r--p 00000000 fd:01 35145                      /usr/lib/x86_64-linux-gnu/libsystemd.so.0.38.0
+7e520f936000-7e520f9c5000 r-xp 00016000 fd:01 35145                      /usr/lib/x86_64-linux-gnu/libsystemd.so.0.38.0
+7e520f9c5000-7e520f9f3000 r--p 000a5000 fd:01 35145                      /usr/lib/x86_64-linux-gnu/libsystemd.so.0.38.0
+7e520f9f3000-7e520f9fe000 r--p 000d2000 fd:01 35145                      /usr/lib/x86_64-linux-gnu/libsystemd.so.0.38.0
+7e520f9fe000-7e520f9ff000 rw-p 000dd000 fd:01 35145                      /usr/lib/x86_64-linux-gnu/libsystemd.so.0.38.0
+7e520f9ff000-7e520fa00000 rw-p 00000000 00:00 0 
+7e520fa00000-7e520facf000 r--p 00000000 fd:01 89463                      /usr/lib/x86_64-linux-gnu/libgallium-25.2.8-0ubuntu0.24.04.2.so
+7e520facf000-7e52112e2000 r-xp 000cf000 fd:01 89463                      /usr/lib/x86_64-linux-gnu/libgallium-25.2.8-0ubuntu0.24.04.2.so
+7e52112e2000-7e5212221000 r--p 018e2000 fd:01 89463                      /usr/lib/x86_64-linux-gnu/libgallium-25.2.8-0ubuntu0.24.04.2.so
+7e5212221000-7e5212347000 r--p 02821000 fd:01 89463                      /usr/lib/x86_64-linux-gnu/libgallium-25.2.8-0ubuntu0.24.04.2.so
+7e5212347000-7e5212369000 rw-p 02947000 fd:01 89463                      /usr/lib/x86_64-linux-gnu/libgallium-25.2.8-0ubuntu0.24.04.2.so
+7e5212369000-7e5212533000 rw-p 00000000 00:00 0 
+7e5212540000-7e5212560000 rw-s 00000000 00:05 630                        /dev/nvidiactl
+7e5212560000-7e5212580000 rw-s 00000000 00:05 630                        /dev/nvidiactl
+7e5212580000-7e5212600000 rw-s 00000000 00:05 631                        /dev/nvidia0
+7e5212600000-7e521281b000 r--p 00000000 fd:01 85045                      /usr/lib/x86_64-linux-gnu/libnvidia-eglcore.so.615.71.09
+7e521281b000-7e5213482000 r-xp 0021b000 fd:01 85045                      /usr/lib/x86_64-linux-gnu/libnvidia-eglcore.so.615.71.09
+7e5213482000-7e52149d0000 r--p 00e82000 fd:01 85045                      /usr/lib/x86_64-linux-gnu/libnvidia-eglcore.so.615.71.09
+7e52149d0000-7e52149d1000 ---p 023d0000 fd:01 85045                      /usr/lib/x86_64-linux-gnu/libnvidia-eglcore.so.615.71.09
+7e52149d1000-7e5214b49000 r--p 023d0000 fd:01 85045                      /usr/lib/x86_64-linux-gnu/libnvidia-eglcore.so.615.71.09
+7e5214b49000-7e5214b91000 rw-p 02548000 fd:01 85045                      /usr/lib/x86_64-linux-gnu/libnvidia-eglcore.so.615.71.09
+7e5214b91000-7e5214ba8000 rw-p 00000000 00:00 0 
+7e5214bad000-7e5214bc0000 rw-s 00000000 00:05 630                        /dev/nvidiactl
+7e5214bc0000-7e5214c00000 rw-s 00000000 00:05 630                        /dev/nvidiactl
+7e5214c00000-7e5214f98000 r--p 00000000 fd:01 84504                      /usr/lib/x86_64-linux-gnu/libnvidia-gpucomp.so.615.71.09
+7e5214f98000-7e5219798000 r-xp 00398000 fd:01 84504                      /usr/lib/x86_64-linux-gnu/libnvidia-gpucomp.so.615.71.09
+7e5219798000-7e521bb9b000 r--p 04b98000 fd:01 84504                      /usr/lib/x86_64-linux-gnu/libnvidia-gpucomp.so.615.71.09
+7e521bb9b000-7e521bb9c000 ---p 06f9b000 fd:01 84504                      /usr/lib/x86_64-linux-gnu/libnvidia-gpucomp.so.615.71.09
+7e521bb9c000-7e521be24000 r--p 06f9b000 fd:01 84504                      /usr/lib/x86_64-linux-gnu/libnvidia-gpucomp.so.615.71.09
+7e521be24000-7e521bff1000 rw-p 07223000 fd:01 84504                      /usr/lib/x86_64-linux-gnu/libnvidia-gpucomp.so.615.71.09
+7e521bff1000-7e521c0cc000 rw-p 00000000 00:00 0 
+7e521c0cc000-7e521c0cd000 r-xp 00000000 00:00 0 
+7e521c0cd000-7e521c0ce000 r--p 00000000 00:00 0 
+7e521c0ce000-7e521c0cf000 rw-s 00000000 00:05 630                        /dev/nvidiactl
+7e521c0cf000-7e521c0d0000 rw-s 00000000 00:05 630                        /dev/nvidiactl
+7e521c0d0000-7e521c0d1000 rw-s 00000000 00:05 630                        /dev/nvidiactl
+7e521c0d1000-7e521c0d4000 r--p 00000000 fd:01 92157                      /usr/lib/x86_64-linux-gnu/libVkLayer_MESA_device_select.so
+7e521c0d4000-7e521c0e3000 r-xp 00003000 fd:01 92157                      /usr/lib/x86_64-linux-gnu/libVkLayer_MESA_device_select.so
+7e521c0e3000-7e521c0e7000 r--p 00012000 fd:01 92157                      /usr/lib/x86_64-linux-gnu/libVkLayer_MESA_device_select.so
+7e521c0e7000-7e521c0e8000 r--p 00016000 fd:01 92157                      /usr/lib/x86_64-linux-gnu/libVkLayer_MESA_device_select.so
+7e521c0e8000-7e521c0e9000 rw-p 00017000 fd:01 92157                      /usr/lib/x86_64-linux-gnu/libVkLayer_MESA_device_select.so
+7e521c0e9000-7e521c0eb000 rw-p 00000000 00:00 0 
+7e521c0eb000-7e521c10b000 rw-s 00000000 00:05 630                        /dev/nvidiactl
+7e521c10b000-7e521c14b000 rw-s 00000000 00:05 630                        /dev/nvidiactl
+7e521c14b000-7e521c14f000 r--p 00000000 fd:01 85043                      /usr/lib/x86_64-linux-gnu/libnvidia-allocator.so.615.71.09
+7e521c14f000-7e521c165000 r-xp 00004000 fd:01 85043                      /usr/lib/x86_64-linux-gnu/libnvidia-allocator.so.615.71.09
+7e521c165000-7e521c16f000 r--p 0001a000 fd:01 85043                      /usr/lib/x86_64-linux-gnu/libnvidia-allocator.so.615.71.09
+7e521c16f000-7e521c170000 r--p 00023000 fd:01 85043                      /usr/lib/x86_64-linux-gnu/libnvidia-allocator.so.615.71.09
+7e521c170000-7e521c171000 rw-p 00024000 fd:01 85043                      /usr/lib/x86_64-linux-gnu/libnvidia-allocator.so.615.71.09
+7e521c171000-7e521c173000 rw-p 00000000 00:00 0 
+7e521c173000-7e521c177000 r--p 00000000 fd:01 6181                       /usr/lib/x86_64-linux-gnu/libgpg-error.so.0.34.0
+7e521c177000-7e521c18d000 r-xp 00004000 fd:01 6181                       /usr/lib/x86_64-linux-gnu/libgpg-error.so.0.34.0
+7e521c18d000-7e521c196000 r--p 0001a000 fd:01 6181                       /usr/lib/x86_64-linux-gnu/libgpg-error.so.0.34.0
+7e521c196000-7e521c197000 r--p 00023000 fd:01 6181                       /usr/lib/x86_64-linux-gnu/libgpg-error.so.0.34.0
+7e521c197000-7e521c198000 rw-p 00024000 fd:01 6181                       /usr/lib/x86_64-linux-gnu/libgpg-error.so.0.34.0
+7e521c198000-7e521c1c9000 r--p 00000000 fd:01 85039                      /usr/lib/x86_64-linux-gnu/libEGL_nvidia.so.615.71.09
+7e521c1c9000-7e521c251000 r-xp 00031000 fd:01 85039                      /usr/lib/x86_64-linux-gnu/libEGL_nvidia.so.615.71.09
+7e521c251000-7e521c2a0000 r--p 000b9000 fd:01 85039                      /usr/lib/x86_64-linux-gnu/libEGL_nvidia.so.615.71.09
+7e521c2a0000-7e521c2a1000 ---p 00108000 fd:01 85039                      /usr/lib/x86_64-linux-gnu/libEGL_nvidia.so.615.71.09
+7e521c2a1000-7e521c2a8000 r--p 00108000 fd:01 85039                      /usr/lib/x86_64-linux-gnu/libEGL_nvidia.so.615.71.09
+7e521c2a8000-7e521c2bd000 rw-p 0010f000 fd:01 85039                      /usr/lib/x86_64-linux-gnu/libEGL_nvidia.so.615.71.09
+7e521c2bd000-7e521c2c3000 rw-p 00000000 00:00 0 
+7e521c2c3000-7e521c2dc000 r--p 00000000 fd:01 7298                       /usr/lib/x86_64-linux-gnu/libX11.so.6.4.0
+7e521c2dc000-7e521c36c000 r-xp 00019000 fd:01 7298                       /usr/lib/x86_64-linux-gnu/libX11.so.6.4.0
+7e521c36c000-7e521c3fb000 r--p 000a9000 fd:01 7298                       /usr/lib/x86_64-linux-gnu/libX11.so.6.4.0
+7e521c3fb000-7e521c3fc000 r--p 00138000 fd:01 7298                       /usr/lib/x86_64-linux-gnu/libX11.so.6.4.0
+7e521c3fc000-7e521c400000 rw-p 00139000 fd:01 7298                       /usr/lib/x86_64-linux-gnu/libX11.so.6.4.0
+7e521c400000-7e521c651000 r-xp 00000000 fd:01 85047                      /usr/lib/x86_64-linux-gnu/libnvidia-glcore.so.615.71.09
+7e521c651000-7e521c672000 rwxp 00251000 fd:01 85047                      /usr/lib/x86_64-linux-gnu/libnvidia-glcore.so.615.71.09
+7e521c672000-7e521c800000 r-xp 00272000 fd:01 85047                      /usr/lib/x86_64-linux-gnu/libnvidia-glcore.so.615.71.09
+7e521c800000-7e521d400000 r-xp 00400000 fd:01 85047                      /usr/lib/x86_64-linux-gnu/libnvidia-glcore.so.615.71.09
+7e521d400000-7e521ea19000 r-xp 01000000 fd:01 85047                      /usr/lib/x86_64-linux-gnu/libnvidia-glcore.so.615.71.09
+7e521ea19000-7e521eb94000 r--p 02618000 fd:01 85047                      /usr/lib/x86_64-linux-gnu/libnvidia-glcore.so.615.71.09
+7e521eb94000-7e521ebf7000 rw-p 02793000 fd:01 85047                      /usr/lib/x86_64-linux-gnu/libnvidia-glcore.so.615.71.09
+7e521ebf7000-7e521ec17000 rw-p 00000000 00:00 0 
+7e521ec17000-7e521ec18000 r--p 00000000 00:01 4133                       /memfd:mutter-shared (deleted)
+7e521ec18000-7e521ec19000 rw-s 00000000 00:05 630                        /dev/nvidiactl
+7e521ec19000-7e521ec1d000 rw-s 00000000 00:05 630                        /dev/nvidiactl
+7e521ec1d000-7e521ec5e000 r--p 00000000 fd:01 88387                      /usr/lib/x86_64-linux-gnu/libGLdispatch.so.0.0.0
+7e521ec5e000-7e521ec9d000 r-xp 00041000 fd:01 88387                      /usr/lib/x86_64-linux-gnu/libGLdispatch.so.0.0.0
+7e521ec9d000-7e521ecb0000 r--p 00080000 fd:01 88387                      /usr/lib/x86_64-linux-gnu/libGLdispatch.so.0.0.0
+7e521ecb0000-7e521eccc000 r--p 00093000 fd:01 88387                      /usr/lib/x86_64-linux-gnu/libGLdispatch.so.0.0.0
+7e521eccc000-7e521eccd000 rw-p 000af000 fd:01 88387                      /usr/lib/x86_64-linux-gnu/libGLdispatch.so.0.0.0
+7e521eccd000-7e521ecd5000 rw-p 00000000 00:00 0 
+7e521ecd5000-7e521ed26000 r--p 00000000 fd:01 85042                      /usr/lib/x86_64-linux-gnu/libGLX_nvidia.so.615.71.09
+7e521ed26000-7e521ed83000 r-xp 00051000 fd:01 85042                      /usr/lib/x86_64-linux-gnu/libGLX_nvidia.so.615.71.09
+7e521ed83000-7e521edb8000 rwxp 000ae000 fd:01 85042                      /usr/lib/x86_64-linux-gnu/libGLX_nvidia.so.615.71.09
+7e521edb8000-7e521edb9000 r-xp 000e3000 fd:01 85042                      /usr/lib/x86_64-linux-gnu/libGLX_nvidia.so.615.71.09
+7e521edb9000-7e521edd9000 r--p 000e4000 fd:01 85042                      /usr/lib/x86_64-linux-gnu/libGLX_nvidia.so.615.71.09
+7e521edd9000-7e521edf9000 r--p 00103000 fd:01 85042                      /usr/lib/x86_64-linux-gnu/libGLX_nvidia.so.615.71.09
+7e521edf9000-7e521edfe000 rw-p 00123000 fd:01 85042                      /usr/lib/x86_64-linux-gnu/libGLX_nvidia.so.615.71.09
+7e521edfe000-7e521ee00000 rw-p 00000000 00:00 0 
+7e521ee00000-7e521ee5b000 r--p 00000000 fd:01 92163                      /usr/lib/x86_64-linux-gnu/libvulkan_lvp.so
+7e521ee5b000-7e521f26b000 r-xp 0005b000 fd:01 92163                      /usr/lib/x86_64-linux-gnu/libvulkan_lvp.so
+7e521f26b000-7e521f8c6000 r--p 0046b000 fd:01 92163                      /usr/lib/x86_64-linux-gnu/libvulkan_lvp.so
+7e521f8c6000-7e521f95c000 r--p 00ac5000 fd:01 92163                      /usr/lib/x86_64-linux-gnu/libvulkan_lvp.so
+7e521f95c000-7e521f961000 rw-p 00b5b000 fd:01 92163                      /usr/lib/x86_64-linux-gnu/libvulkan_lvp.so
+7e521f961000-7e521f98d000 rw-p 00000000 00:00 0 
+7e521f98d000-7e521f98e000 rw-s 00000000 00:05 631                        /dev/nvidia0
+7e521f98e000-7e521f990000 rw-s 00000000 00:05 630                        /dev/nvidiactl
+7e521f990000-7e521f991000 rw-s 00000000 00:05 630                        /dev/nvidiactl
+7e521f991000-7e521f9b1000 rw-s 00000000 00:05 630                        /dev/nvidiactl
+7e521f9b1000-7e521f9bd000 r--p 00000000 fd:01 6210                       /usr/lib/x86_64-linux-gnu/libdbus-1.so.3.32.4
+7e521f9bd000-7e521f9ed000 r-xp 0000c000 fd:01 6210                       /usr/lib/x86_64-linux-gnu/libdbus-1.so.3.32.4
+7e521f9ed000-7e521f9fe000 r--p 0003c000 fd:01 6210                       /usr/lib/x86_64-linux-gnu/libdbus-1.so.3.32.4
+7e521f9fe000-7e521f9ff000 r--p 0004c000 fd:01 6210                       /usr/lib/x86_64-linux-gnu/libdbus-1.so.3.32.4
+7e521f9ff000-7e521fa00000 rw-p 0004d000 fd:01 6210                       /usr/lib/x86_64-linux-gnu/libdbus-1.so.3.32.4
+7e521fa00000-7e521fa48000 r--p 00000000 fd:01 92162                      /usr/lib/x86_64-linux-gnu/libvulkan_intel_hasvk.so
+7e521fa48000-7e5220059000 r-xp 00048000 fd:01 92162                      /usr/lib/x86_64-linux-gnu/libvulkan_intel_hasvk.so
+7e5220059000-7e52209d1000 r--p 00659000 fd:01 92162                      /usr/lib/x86_64-linux-gnu/libvulkan_intel_hasvk.so
+7e52209d1000-7e5220a6a000 r--p 00fd0000 fd:01 92162                      /usr/lib/x86_64-linux-gnu/libvulkan_intel_hasvk.so
+7e5220a6a000-7e5220a6d000 rw-p 01069000 fd:01 92162                      /usr/lib/x86_64-linux-gnu/libvulkan_intel_hasvk.so
+7e5220a6d000-7e5220a70000 rw-p 00000000 00:00 0 
+7e5220a70000-7e5220a71000 rw-s 00000000 00:05 631                        /dev/nvidia0
+7e5220a71000-7e5220a75000 rw-s 00000000 00:05 630                        /dev/nvidiactl
+7e5220a75000-7e5220a88000 rw-s 00000000 00:05 630                        /dev/nvidiactl
+7e5220a88000-7e5220a9e000 r--p 00000000 fd:01 92166                      /usr/lib/x86_64-linux-gnu/libvulkan_virtio.so
+7e5220a9e000-7e5220b8b000 r-xp 00016000 fd:01 92166                      /usr/lib/x86_64-linux-gnu/libvulkan_virtio.so
+7e5220b8b000-7e5220beb000 r--p 00103000 fd:01 92166                      /usr/lib/x86_64-linux-gnu/libvulkan_virtio.so
+7e5220beb000-7e5220bfc000 r--p 00162000 fd:01 92166                      /usr/lib/x86_64-linux-gnu/libvulkan_virtio.so
+7e5220bfc000-7e5220bff000 rw-p 00173000 fd:01 92166                      /usr/lib/x86_64-linux-gnu/libvulkan_virtio.so
+7e5220bff000-7e5220c00000 rw-p 00000000 00:00 0 
+7e5220c00000-7e5220c5a000 r--p 00000000 fd:01 92159                      /usr/lib/x86_64-linux-gnu/libvulkan_asahi.so
+7e5220c5a000-7e5220fd0000 r-xp 0005a000 fd:01 92159                      /usr/lib/x86_64-linux-gnu/libvulkan_asahi.so
+7e5220fd0000-7e522168b000 r--p 003d0000 fd:01 92159                      /usr/lib/x86_64-linux-gnu/libvulkan_asahi.so
+7e522168b000-7e5221742000 r--p 00a8b000 fd:01 92159                      /usr/lib/x86_64-linux-gnu/libvulkan_asahi.so
+7e5221742000-7e522174a000 rw-p 00b42000 fd:01 92159                      /usr/lib/x86_64-linux-gnu/libvulkan_asahi.so
+7e522174a000-7e5221751000 rw-p 00000000 00:00 0 
+7e5221751000-7e5221753000 rw-s 00000000 00:05 630                        /dev/nvidiactl
+7e5221753000-7e5221754000 rw-s 00000000 00:05 630                        /dev/nvidiactl
+7e5221754000-7e5221758000 rw-s 00000000 00:05 630                        /dev/nvidiactl
+7e5221758000-7e522175a000 rw-s 00000000 00:05 630                        /dev/nvidiactl
+7e522175a000-7e522175d000 rw-s 00000000 00:05 630                        /dev/nvidiactl
+7e522175d000-7e522175f000 rw-s 00000000 00:01 5143                       /memfd:/.glXXXXXX (deleted)
+7e522175f000-7e5221763000 rw-s 00000000 00:05 630                        /dev/nvidiactl
+7e5221763000-7e5221766000 r--p 00000000 fd:01 5095                       /usr/lib/x86_64-linux-gnu/liblz4.so.1.9.4
+7e5221766000-7e5221781000 r-xp 00003000 fd:01 5095                       /usr/lib/x86_64-linux-gnu/liblz4.so.1.9.4
+7e5221781000-7e5221783000 r--p 0001e000 fd:01 5095                       /usr/lib/x86_64-linux-gnu/liblz4.so.1.9.4
+7e5221783000-7e5221784000 r--p 00020000 fd:01 5095                       /usr/lib/x86_64-linux-gnu/liblz4.so.1.9.4
+7e5221784000-7e5221785000 rw-p 00021000 fd:01 5095                       /usr/lib/x86_64-linux-gnu/liblz4.so.1.9.4
+7e5221785000-7e5221788000 r--p 00000000 fd:01 6185                       /usr/lib/x86_64-linux-gnu/libcap.so.2.66
+7e5221788000-7e522178e000 r-xp 00003000 fd:01 6185                       /usr/lib/x86_64-linux-gnu/libcap.so.2.66
+7e522178e000-7e5221790000 r--p 00009000 fd:01 6185                       /usr/lib/x86_64-linux-gnu/libcap.so.2.66
+7e5221790000-7e5221791000 r--p 0000b000 fd:01 6185                       /usr/lib/x86_64-linux-gnu/libcap.so.2.66
+7e5221791000-7e5221792000 rw-p 0000c000 fd:01 6185                       /usr/lib/x86_64-linux-gnu/libcap.so.2.66
+7e5221792000-7e5221793000 rw-s 00000000 00:05 631                        /dev/nvidia0
+7e5221793000-7e52217a6000 rw-s 00000000 00:05 630                        /dev/nvidiactl
+7e52217a6000-7e52217a8000 r--p 00000000 fd:01 35919                      /usr/lib/x86_64-linux-gnu/libpciaccess.so.0.11.1
+7e52217a8000-7e52217ad000 r-xp 00002000 fd:01 35919                      /usr/lib/x86_64-linux-gnu/libpciaccess.so.0.11.1
+7e52217ad000-7e52217af000 r--p 00007000 fd:01 35919                      /usr/lib/x86_64-linux-gnu/libpciaccess.so.0.11.1
+7e52217af000-7e52217b0000 r--p 00008000 fd:01 35919                      /usr/lib/x86_64-linux-gnu/libpciaccess.so.0.11.1
+7e52217b0000-7e52217b1000 rw-p 00009000 fd:01 35919                      /usr/lib/x86_64-linux-gnu/libpciaccess.so.0.11.1
+7e52217b1000-7e52217c0000 r--p 00000000 fd:01 89476                      /usr/lib/x86_64-linux-gnu/libEGL_mesa.so.0.0.0
+7e52217c0000-7e52217e8000 r-xp 0000f000 fd:01 89476                      /usr/lib/x86_64-linux-gnu/libEGL_mesa.so.0.0.0
+7e52217e8000-7e52217f9000 r--p 00037000 fd:01 89476                      /usr/lib/x86_64-linux-gnu/libEGL_mesa.so.0.0.0
+7e52217f9000-7e5221805000 r--p 00047000 fd:01 89476                      /usr/lib/x86_64-linux-gnu/libEGL_mesa.so.0.0.0
+7e5221805000-7e5221806000 rw-p 00053000 fd:01 89476                      /usr/lib/x86_64-linux-gnu/libEGL_mesa.so.0.0.0
+7e5221806000-7e522181f000 r--p 00000000 fd:01 92160                      /usr/lib/x86_64-linux-gnu/libvulkan_gfxstream.so
+7e522181f000-7e5221963000 r-xp 00019000 fd:01 92160                      /usr/lib/x86_64-linux-gnu/libvulkan_gfxstream.so
+7e5221963000-7e52219ec000 r--p 0015d000 fd:01 92160                      /usr/lib/x86_64-linux-gnu/libvulkan_gfxstream.so
+7e52219ec000-7e52219fd000 r--p 001e5000 fd:01 92160                      /usr/lib/x86_64-linux-gnu/libvulkan_gfxstream.so
+7e52219fd000-7e5221a00000 rw-p 001f6000 fd:01 92160                      /usr/lib/x86_64-linux-gnu/libvulkan_gfxstream.so
+7e5221a00000-7e5221a01000 r--p 00000000 fd:01 6290                       /usr/lib/x86_64-linux-gnu/libicudata.so.74.2
+7e5221a01000-7e5221a02000 r-xp 00001000 fd:01 6290                       /usr/lib/x86_64-linux-gnu/libicudata.so.74.2
+7e5221a02000-7e522375e000 r--p 00002000 fd:01 6290                       /usr/lib/x86_64-linux-gnu/libicudata.so.74.2
+7e522375e000-7e522375f000 r--p 01d5d000 fd:01 6290                       /usr/lib/x86_64-linux-gnu/libicudata.so.74.2
+7e522375f000-7e5223760000 rw-p 01d5e000 fd:01 6290                       /usr/lib/x86_64-linux-gnu/libicudata.so.74.2
+7e5223760000-7e5223761000 rw-s 00000000 00:05 630                        /dev/nvidiactl
+7e5223761000-7e5223762000 rw-s 00000000 00:05 630                        /dev/nvidiactl
+7e5223762000-7e5223764000 rw-s 00000000 00:05 630                        /dev/nvidiactl
+7e5223764000-7e5223767000 r--p 00000000 fd:01 89414                      /usr/lib/x86_64-linux-gnu/libdrm_intel.so.1.125.0
+7e5223767000-7e522377d000 r-xp 00003000 fd:01 89414                      /usr/lib/x86_64-linux-gnu/libdrm_intel.so.1.125.0
+7e522377d000-7e5223786000 r--p 00019000 fd:01 89414                      /usr/lib/x86_64-linux-gnu/libdrm_intel.so.1.125.0
+7e5223786000-7e5223787000 r--p 00021000 fd:01 89414                      /usr/lib/x86_64-linux-gnu/libdrm_intel.so.1.125.0
+7e5223787000-7e5223788000 rw-p 00022000 fd:01 89414                      /usr/lib/x86_64-linux-gnu/libdrm_intel.so.1.125.0
+7e5223788000-7e522378a000 r--p 00000000 fd:01 6389                       /usr/lib/x86_64-linux-gnu/libsensors.so.5.0.0
+7e522378a000-7e5223791000 r-xp 00002000 fd:01 6389                       /usr/lib/x86_64-linux-gnu/libsensors.so.5.0.0
+7e5223791000-7e5223795000 r--p 00009000 fd:01 6389                       /usr/lib/x86_64-linux-gnu/libsensors.so.5.0.0
+7e5223795000-7e5223796000 r--p 0000d000 fd:01 6389                       /usr/lib/x86_64-linux-gnu/libsensors.so.5.0.0
+7e5223796000-7e5223797000 rw-p 0000e000 fd:01 6389                       /usr/lib/x86_64-linux-gnu/libsensors.so.5.0.0
+7e5223797000-7e522379a000 r--p 00000000 fd:01 84590                      /usr/lib/x86_64-linux-gnu/libnvidia-egl-xlib.so.1.0.6
+7e522379a000-7e52237a6000 r-xp 00003000 fd:01 84590                      /usr/lib/x86_64-linux-gnu/libnvidia-egl-xlib.so.1.0.6
+7e52237a6000-7e52237aa000 r--p 0000f000 fd:01 84590                      /usr/lib/x86_64-linux-gnu/libnvidia-egl-xlib.so.1.0.6
+7e52237aa000-7e52237ab000 r--p 00012000 fd:01 84590                      /usr/lib/x86_64-linux-gnu/libnvidia-egl-xlib.so.1.0.6
+7e52237ab000-7e52237ac000 rw-p 00013000 fd:01 84590                      /usr/lib/x86_64-linux-gnu/libnvidia-egl-xlib.so.1.0.6
+7e52237ac000-7e52237af000 r--p 00000000 fd:01 84583                      /usr/lib/x86_64-linux-gnu/libnvidia-egl-xcb.so.1.0.6
+7e52237af000-7e52237ba000 r-xp 00003000 fd:01 84583                      /usr/lib/x86_64-linux-gnu/libnvidia-egl-xcb.so.1.0.6
+7e52237ba000-7e52237be000 r--p 0000e000 fd:01 84583                      /usr/lib/x86_64-linux-gnu/libnvidia-egl-xcb.so.1.0.6
+7e52237be000-7e52237bf000 r--p 00011000 fd:01 84583                      /usr/lib/x86_64-linux-gnu/libnvidia-egl-xcb.so.1.0.6
+7e52237bf000-7e52237c0000 rw-p 00012000 fd:01 84583                      /usr/lib/x86_64-linux-gnu/libnvidia-egl-xcb.so.1.0.6
+7e52237c0000-7e52237c7000 r--p 00000000 fd:01 89546                      /usr/lib/x86_64-linux-gnu/libwayland-server.so.0.22.0
+7e52237c7000-7e52237cf000 r-xp 00007000 fd:01 89546                      /usr/lib/x86_64-linux-gnu/libwayland-server.so.0.22.0
+7e52237cf000-7e52237d3000 r--p 0000f000 fd:01 89546                      /usr/lib/x86_64-linux-gnu/libwayland-server.so.0.22.0
+7e52237d3000-7e52237d5000 r--p 00012000 fd:01 89546                      /usr/lib/x86_64-linux-gnu/libwayland-server.so.0.22.0
+7e52237d5000-7e52237d6000 rw-p 00014000 fd:01 89546                      /usr/lib/x86_64-linux-gnu/libwayland-server.so.0.22.0
+7e52237d6000-7e52237da000 rw-s 00000000 00:05 630                        /dev/nvidiactl
+7e52237da000-7e52237ea000 rw-s 00000000 00:05 631                        /dev/nvidia0
+7e52237ea000-7e52237ee000 r--p 00000000 fd:01 84574                      /usr/lib/x86_64-linux-gnu/libnvidia-egl-wayland2.so.1.0.2
+7e52237ee000-7e52237fa000 r-xp 00004000 fd:01 84574                      /usr/lib/x86_64-linux-gnu/libnvidia-egl-wayland2.so.1.0.2
+7e52237fa000-7e52237fe000 r--p 00010000 fd:01 84574                      /usr/lib/x86_64-linux-gnu/libnvidia-egl-wayland2.so.1.0.2
+7e52237fe000-7e52237ff000 r--p 00014000 fd:01 84574                      /usr/lib/x86_64-linux-gnu/libnvidia-egl-wayland2.so.1.0.2
+7e52237ff000-7e5223800000 rw-p 00015000 fd:01 84574                      /usr/lib/x86_64-linux-gnu/libnvidia-egl-wayland2.so.1.0.2
+7e5223800000-7e5223868000 r--p 00000000 fd:01 6295                       /usr/lib/x86_64-linux-gnu/libicuuc.so.74.2
+7e5223868000-7e522396d000 r-xp 00068000 fd:01 6295                       /usr/lib/x86_64-linux-gnu/libicuuc.so.74.2
+7e522396d000-7e52239f7000 r--p 0016d000 fd:01 6295                       /usr/lib/x86_64-linux-gnu/libicuuc.so.74.2
+7e52239f7000-7e5223a0a000 r--p 001f7000 fd:01 6295                       /usr/lib/x86_64-linux-gnu/libicuuc.so.74.2
+7e5223a0a000-7e5223a0b000 rw-p 0020a000 fd:01 6295                       /usr/lib/x86_64-linux-gnu/libicuuc.so.74.2
+7e5223a0b000-7e5223a0d000 rw-p 00000000 00:00 0 
+7e5223a0d000-7e5223a0e000 rw-s 00000000 00:05 631                        /dev/nvidia0
+7e5223a0e000-7e5223a0f000 rw-s 00000000 00:05 630                        /dev/nvidiactl
+7e5223a0f000-7e5223a10000 rw-s 00000000 00:05 630                        /dev/nvidiactl
+7e5223a10000-7e5223a11000 r--p 00000000 fd:01 84554                      /usr/lib/x86_64-linux-gnu/libnvidia-egl-gbm.so.1.1.4
+7e5223a11000-7e5223a14000 r-xp 00001000 fd:01 84554                      /usr/lib/x86_64-linux-gnu/libnvidia-egl-gbm.so.1.1.4
+7e5223a14000-7e5223a15000 r--p 00004000 fd:01 84554                      /usr/lib/x86_64-linux-gnu/libnvidia-egl-gbm.so.1.1.4
+7e5223a15000-7e5223a16000 r--p 00005000 fd:01 84554                      /usr/lib/x86_64-linux-gnu/libnvidia-egl-gbm.so.1.1.4
+7e5223a16000-7e5223a17000 rw-p 00006000 fd:01 84554                      /usr/lib/x86_64-linux-gnu/libnvidia-egl-gbm.so.1.1.4
+7e5223a17000-7e5223a19000 r--p 00000000 fd:01 89469                      /usr/lib/x86_64-linux-gnu/libgbm.so.1.0.0
+7e5223a19000-7e5223a1b000 r-xp 00002000 fd:01 89469                      /usr/lib/x86_64-linux-gnu/libgbm.so.1.0.0
+7e5223a1b000-7e5223a1c000 r--p 00004000 fd:01 89469                      /usr/lib/x86_64-linux-gnu/libgbm.so.1.0.0
+7e5223a1c000-7e5223a1d000 r--p 00004000 fd:01 89469                      /usr/lib/x86_64-linux-gnu/libgbm.so.1.0.0
+7e5223a1d000-7e5223a1e000 rw-p 00005000 fd:01 89469                      /usr/lib/x86_64-linux-gnu/libgbm.so.1.0.0
+7e5223a1e000-7e5223a4d000 r--p 00000000 fd:01 27950                      /usr/lib/x86_64-linux-gnu/libxml2.so.2.9.14
+7e5223a4d000-7e5223bb3000 r-xp 0002f000 fd:01 27950                      /usr/lib/x86_64-linux-gnu/libxml2.so.2.9.14
+7e5223bb3000-7e5223bf5000 r--p 00195000 fd:01 27950                      /usr/lib/x86_64-linux-gnu/libxml2.so.2.9.14
+7e5223bf5000-7e5223bfe000 r--p 001d6000 fd:01 27950                      /usr/lib/x86_64-linux-gnu/libxml2.so.2.9.14
+7e5223bfe000-7e5223bff000 rw-p 001df000 fd:01 27950                      /usr/lib/x86_64-linux-gnu/libxml2.so.2.9.14
+7e5223bff000-7e5223c00000 rw-p 00000000 00:00 0 
+7e5223c00000-7e5223c9d000 r--p 00000000 fd:01 6450                       /usr/lib/x86_64-linux-gnu/libstdc++.so.6.0.33
+7e5223c9d000-7e5223de5000 r-xp 0009d000 fd:01 6450                       /usr/lib/x86_64-linux-gnu/libstdc++.so.6.0.33
+7e5223de5000-7e5223e6c000 r--p 001e5000 fd:01 6450                       /usr/lib/x86_64-linux-gnu/libstdc++.so.6.0.33
+7e5223e6c000-7e5223e77000 r--p 0026b000 fd:01 6450                       /usr/lib/x86_64-linux-gnu/libstdc++.so.6.0.33
+7e5223e77000-7e5223e7a000 rw-p 00276000 fd:01 6450                       /usr/lib/x86_64-linux-gnu/libstdc++.so.6.0.33
+7e5223e7a000-7e5223e7e000 rw-p 00000000 00:00 0 
+7e5223e7e000-7e5223e7f000 r--s 00000000 00:05 630                        /dev/nvidiactl
+7e5223e7f000-7e5223e82000 r--p 00000000 fd:01 89482                      /usr/lib/x86_64-linux-gnu/libEGL.so.1.1.0
+7e5223e82000-7e5223e8c000 r-xp 00003000 fd:01 89482                      /usr/lib/x86_64-linux-gnu/libEGL.so.1.1.0
+7e5223e8c000-7e5223e8f000 r--p 0000d000 fd:01 89482                      /usr/lib/x86_64-linux-gnu/libEGL.so.1.1.0
+7e5223e8f000-7e5223e90000 r--p 00010000 fd:01 89482                      /usr/lib/x86_64-linux-gnu/libEGL.so.1.1.0
+7e5223e90000-7e5223e91000 rw-p 00011000 fd:01 89482                      /usr/lib/x86_64-linux-gnu/libEGL.so.1.1.0
+7e5223e91000-7e5223e92000 r--p 00000000 fd:01 4004                       /usr/lib/x86_64-linux-gnu/librt.so.1
+7e5223e92000-7e5223e93000 r-xp 00001000 fd:01 4004                       /usr/lib/x86_64-linux-gnu/librt.so.1
+7e5223e93000-7e5223e94000 r--p 00002000 fd:01 4004                       /usr/lib/x86_64-linux-gnu/librt.so.1
+7e5223e94000-7e5223e95000 r--p 00002000 fd:01 4004                       /usr/lib/x86_64-linux-gnu/librt.so.1
+7e5223e95000-7e5223e96000 rw-p 00003000 fd:01 4004                       /usr/lib/x86_64-linux-gnu/librt.so.1
+7e5223e96000-7e5223e97000 r--p 00000000 fd:01 4002                       /usr/lib/x86_64-linux-gnu/libpthread.so.0
+7e5223e97000-7e5223e98000 r-xp 00001000 fd:01 4002                       /usr/lib/x86_64-linux-gnu/libpthread.so.0
+7e5223e98000-7e5223e99000 r--p 00002000 fd:01 4002                       /usr/lib/x86_64-linux-gnu/libpthread.so.0
+7e5223e99000-7e5223e9a000 r--p 00002000 fd:01 4002                       /usr/lib/x86_64-linux-gnu/libpthread.so.0
+7e5223e9a000-7e5223e9b000 rw-p 00003000 fd:01 4002                       /usr/lib/x86_64-linux-gnu/libpthread.so.0
+7e5223e9b000-7e5223e9f000 r--p 00000000 fd:01 7300                       /usr/lib/x86_64-linux-gnu/libXext.so.6.4.0
+7e5223e9f000-7e5223eaa000 r-xp 00004000 fd:01 7300                       /usr/lib/x86_64-linux-gnu/libXext.so.6.4.0
+7e5223eaa000-7e5223ead000 r--p 0000f000 fd:01 7300                       /usr/lib/x86_64-linux-gnu/libXext.so.6.4.0
+7e5223ead000-7e5223eae000 r--p 00011000 fd:01 7300                       /usr/lib/x86_64-linux-gnu/libXext.so.6.4.0
+7e5223eae000-7e5223eaf000 rw-p 00012000 fd:01 7300                       /usr/lib/x86_64-linux-gnu/libXext.so.6.4.0
+7e5223eaf000-7e5223eb0000 r--p 00000000 fd:01 85146                      /usr/lib/x86_64-linux-gnu/libnvidia-tls.so.615.71.09
+7e5223eb0000-7e5223eb2000 r-xp 00001000 fd:01 85146                      /usr/lib/x86_64-linux-gnu/libnvidia-tls.so.615.71.09
+7e5223eb2000-7e5223eb3000 r--p 00003000 fd:01 85146                      /usr/lib/x86_64-linux-gnu/libnvidia-tls.so.615.71.09
+7e5223eb3000-7e5223eb4000 r--p 00003000 fd:01 85146                      /usr/lib/x86_64-linux-gnu/libnvidia-tls.so.615.71.09
+7e5223eb4000-7e5223eb5000 rw-p 00004000 fd:01 85146                      /usr/lib/x86_64-linux-gnu/libnvidia-tls.so.615.71.09
+7e5223eb5000-7e5223ec5000 r--p 00000000 fd:01 85055                      /usr/lib/x86_64-linux-gnu/libnvidia-glsi.so.615.71.09
+7e5223ec5000-7e5223f25000 r-xp 00010000 fd:01 85055                      /usr/lib/x86_64-linux-gnu/libnvidia-glsi.so.615.71.09
+7e5223f25000-7e5223f42000 r--p 00070000 fd:01 85055                      /usr/lib/x86_64-linux-gnu/libnvidia-glsi.so.615.71.09
+7e5223f42000-7e5223f48000 r--p 0008c000 fd:01 85055                      /usr/lib/x86_64-linux-gnu/libnvidia-glsi.so.615.71.09
+7e5223f48000-7e5223f49000 rw-p 00092000 fd:01 85055                      /usr/lib/x86_64-linux-gnu/libnvidia-glsi.so.615.71.09
+7e5223f49000-7e5223f51000 rw-p 00000000 00:00 0 
+7e5223f51000-7e5223f53000 r--p 00000000 fd:01 5110                       /usr/lib/x86_64-linux-gnu/libmd.so.0.1.0
+7e5223f53000-7e5223f5c000 r-xp 00002000 fd:01 5110                       /usr/lib/x86_64-linux-gnu/libmd.so.0.1.0
+7e5223f5c000-7e5223f5e000 r--p 0000b000 fd:01 5110                       /usr/lib/x86_64-linux-gnu/libmd.so.0.1.0
+7e5223f5e000-7e5223f5f000 r--p 0000c000 fd:01 5110                       /usr/lib/x86_64-linux-gnu/libmd.so.0.1.0
+7e5223f5f000-7e5223f60000 rw-p 0000d000 fd:01 5110                       /usr/lib/x86_64-linux-gnu/libmd.so.0.1.0
+7e5223f60000-7e5223f63000 r--p 00000000 fd:01 5098                       /usr/lib/x86_64-linux-gnu/liblzma.so.5.4.5
+7e5223f63000-7e5223f85000 r-xp 00003000 fd:01 5098                       /usr/lib/x86_64-linux-gnu/liblzma.so.5.4.5
+7e5223f85000-7e5223f90000 r--p 00025000 fd:01 5098                       /usr/lib/x86_64-linux-gnu/liblzma.so.5.4.5
+7e5223f90000-7e5223f91000 r--p 00030000 fd:01 5098                       /usr/lib/x86_64-linux-gnu/liblzma.so.5.4.5
+7e5223f91000-7e5223f92000 rw-p 00031000 fd:01 5098                       /usr/lib/x86_64-linux-gnu/liblzma.so.5.4.5
+7e5223f92000-7e5223fa0000 r--p 00000000 fd:01 38800                      /usr/lib/x86_64-linux-gnu/libtinfo.so.6.4
+7e5223fa0000-7e5223fb3000 r-xp 0000e000 fd:01 38800                      /usr/lib/x86_64-linux-gnu/libtinfo.so.6.4
+7e5223fb3000-7e5223fc1000 r--p 00021000 fd:01 38800                      /usr/lib/x86_64-linux-gnu/libtinfo.so.6.4
+7e5223fc1000-7e5223fc5000 r--p 0002e000 fd:01 38800                      /usr/lib/x86_64-linux-gnu/libtinfo.so.6.4
+7e5223fc5000-7e5223fc6000 rw-p 00032000 fd:01 38800                      /usr/lib/x86_64-linux-gnu/libtinfo.so.6.4
+7e5223fc6000-7e5223fce000 r--p 00000000 fd:01 6480                       /usr/lib/x86_64-linux-gnu/libedit.so.2.0.72
+7e5223fce000-7e5223fed000 r-xp 00008000 fd:01 6480                       /usr/lib/x86_64-linux-gnu/libedit.so.2.0.72
+7e5223fed000-7e5223ff9000 r--p 00027000 fd:01 6480                       /usr/lib/x86_64-linux-gnu/libedit.so.2.0.72
+7e5223ff9000-7e5223ffb000 r--p 00033000 fd:01 6480                       /usr/lib/x86_64-linux-gnu/libedit.so.2.0.72
+7e5223ffb000-7e5223ffc000 rw-p 00035000 fd:01 6480                       /usr/lib/x86_64-linux-gnu/libedit.so.2.0.72
+7e5223ffc000-7e5224000000 rw-p 00000000 00:00 0 
+7e5224000000-7e522c208000 r-xp 00000000 fd:01 89420                      /usr/lib/x86_64-linux-gnu/libLLVM.so.20.1
+7e522c208000-7e522c209000 ---p 08208000 fd:01 89420                      /usr/lib/x86_64-linux-gnu/libLLVM.so.20.1
+7e522c209000-7e522c89e000 r--p 08208000 fd:01 89420                      /usr/lib/x86_64-linux-gnu/libLLVM.so.20.1
+7e522c89e000-7e522c8e6000 rw-p 0889d000 fd:01 89420                      /usr/lib/x86_64-linux-gnu/libLLVM.so.20.1
+7e522c8e6000-7e522c98e000 rw-p 00000000 00:00 0 
+7e522c98e000-7e522c992000 r--p 00000000 fd:01 6280                       /usr/lib/x86_64-linux-gnu/libbsd.so.0.12.1
+7e522c992000-7e522c99e000 r-xp 00004000 fd:01 6280                       /usr/lib/x86_64-linux-gnu/libbsd.so.0.12.1
+7e522c99e000-7e522c9a1000 r--p 00010000 fd:01 6280                       /usr/lib/x86_64-linux-gnu/libbsd.so.0.12.1
+7e522c9a1000-7e522c9a2000 r--p 00012000 fd:01 6280                       /usr/lib/x86_64-linux-gnu/libbsd.so.0.12.1
+7e522c9a2000-7e522c9a3000 rw-p 00013000 fd:01 6280                       /usr/lib/x86_64-linux-gnu/libbsd.so.0.12.1
+7e522c9a3000-7e522c9a4000 rw-p 00000000 00:00 0 
+7e522c9a4000-7e522c9a8000 r--p 00000000 fd:01 6451                       /usr/lib/x86_64-linux-gnu/libgcc_s.so.1
+7e522c9a8000-7e522c9cc000 r-xp 00004000 fd:01 6451                       /usr/lib/x86_64-linux-gnu/libgcc_s.so.1
+7e522c9cc000-7e522c9d0000 r--p 00028000 fd:01 6451                       /usr/lib/x86_64-linux-gnu/libgcc_s.so.1
+7e522c9d0000-7e522c9d1000 r--p 0002b000 fd:01 6451                       /usr/lib/x86_64-linux-gnu/libgcc_s.so.1
+7e522c9d1000-7e522c9d2000 rw-p 0002c000 fd:01 6451                       /usr/lib/x86_64-linux-gnu/libgcc_s.so.1
+7e522c9d2000-7e522c9d6000 r--p 00000000 fd:01 38840                      /usr/lib/x86_64-linux-gnu/libexpat.so.1.9.1
+7e522c9d6000-7e522c9f5000 r-xp 00004000 fd:01 38840                      /usr/lib/x86_64-linux-gnu/libexpat.so.1.9.1
+7e522c9f5000-7e522c9fd000 r--p 00023000 fd:01 38840                      /usr/lib/x86_64-linux-gnu/libexpat.so.1.9.1
+7e522c9fd000-7e522c9ff000 r--p 0002b000 fd:01 38840                      /usr/lib/x86_64-linux-gnu/libexpat.so.1.9.1
+7e522c9ff000-7e522ca00000 rw-p 0002d000 fd:01 38840                      /usr/lib/x86_64-linux-gnu/libexpat.so.1.9.1
+7e522ca00000-7e522ca5d000 r--p 00000000 fd:01 92165                      /usr/lib/x86_64-linux-gnu/libvulkan_radeon.so
+7e522ca5d000-7e522cfda000 r-xp 0005d000 fd:01 92165                      /usr/lib/x86_64-linux-gnu/libvulkan_radeon.so
+7e522cfda000-7e522d7d3000 r--p 005da000 fd:01 92165                      /usr/lib/x86_64-linux-gnu/libvulkan_radeon.so
+7e522d7d3000-7e522d86a000 r--p 00dd3000 fd:01 92165                      /usr/lib/x86_64-linux-gnu/libvulkan_radeon.so
+7e522d86a000-7e522d882000 rw-p 00e6a000 fd:01 92165                      /usr/lib/x86_64-linux-gnu/libvulkan_radeon.so
+7e522d882000-7e522d887000 rw-p 00000000 00:00 0 
+7e522d887000-7e522d888000 r--p 00000000 fd:01 3992                       /usr/lib/x86_64-linux-gnu/libdl.so.2
+7e522d888000-7e522d889000 r-xp 00001000 fd:01 3992                       /usr/lib/x86_64-linux-gnu/libdl.so.2
+7e522d889000-7e522d88a000 r--p 00002000 fd:01 3992                       /usr/lib/x86_64-linux-gnu/libdl.so.2
+7e522d88a000-7e522d88b000 r--p 00002000 fd:01 3992                       /usr/lib/x86_64-linux-gnu/libdl.so.2
+7e522d88b000-7e522d88c000 rw-p 00003000 fd:01 3992                       /usr/lib/x86_64-linux-gnu/libdl.so.2
+7e522d88c000-7e522d88e000 r--p 00000000 fd:01 7294                       /usr/lib/x86_64-linux-gnu/libXdmcp.so.6.0.0
+7e522d88e000-7e522d890000 r-xp 00002000 fd:01 7294                       /usr/lib/x86_64-linux-gnu/libXdmcp.so.6.0.0
+7e522d890000-7e522d892000 r--p 00004000 fd:01 7294                       /usr/lib/x86_64-linux-gnu/libXdmcp.so.6.0.0
+7e522d892000-7e522d893000 r--p 00005000 fd:01 7294                       /usr/lib/x86_64-linux-gnu/libXdmcp.so.6.0.0
+7e522d893000-7e522d894000 rw-p 00006000 fd:01 7294                       /usr/lib/x86_64-linux-gnu/libXdmcp.so.6.0.0
+7e522d894000-7e522d895000 r--p 00000000 fd:01 7292                       /usr/lib/x86_64-linux-gnu/libXau.so.6.0.0
+7e522d895000-7e522d897000 r-xp 00001000 fd:01 7292                       /usr/lib/x86_64-linux-gnu/libXau.so.6.0.0
+7e522d897000-7e522d898000 r--p 00003000 fd:01 7292                       /usr/lib/x86_64-linux-gnu/libXau.so.6.0.0
+7e522d898000-7e522d899000 r--p 00003000 fd:01 7292                       /usr/lib/x86_64-linux-gnu/libXau.so.6.0.0
+7e522d899000-7e522d89a000 rw-p 00004000 fd:01 7292                       /usr/lib/x86_64-linux-gnu/libXau.so.6.0.0
+7e522d89a000-7e522d89d000 r--p 00000000 fd:01 7450                       /usr/lib/x86_64-linux-gnu/libdrm_amdgpu.so.1.125.0
+7e522d89d000-7e522d8a3000 r-xp 00003000 fd:01 7450                       /usr/lib/x86_64-linux-gnu/libdrm_amdgpu.so.1.125.0
+7e522d8a3000-7e522d8a5000 r--p 00009000 fd:01 7450                       /usr/lib/x86_64-linux-gnu/libdrm_amdgpu.so.1.125.0
+7e522d8a5000-7e522d8a6000 r--p 0000a000 fd:01 7450                       /usr/lib/x86_64-linux-gnu/libdrm_amdgpu.so.1.125.0
+7e522d8a6000-7e522d8a7000 rw-p 0000b000 fd:01 7450                       /usr/lib/x86_64-linux-gnu/libdrm_amdgpu.so.1.125.0
+7e522d8a7000-7e522d8a8000 r--p 00000000 fd:01 89457                      /usr/lib/x86_64-linux-gnu/libxshmfence.so.1.0.0
+7e522d8a8000-7e522d8a9000 r-xp 00001000 fd:01 89457                      /usr/lib/x86_64-linux-gnu/libxshmfence.so.1.0.0
+7e522d8a9000-7e522d8aa000 r--p 00002000 fd:01 89457                      /usr/lib/x86_64-linux-gnu/libxshmfence.so.1.0.0
+7e522d8aa000-7e522d8ab000 r--p 00002000 fd:01 89457                      /usr/lib/x86_64-linux-gnu/libxshmfence.so.1.0.0
+7e522d8ab000-7e522d8ac000 rw-p 00003000 fd:01 89457                      /usr/lib/x86_64-linux-gnu/libxshmfence.so.1.0.0
+7e522d8ac000-7e522d8ad000 r--p 00000000 fd:01 38362                      /usr/lib/x86_64-linux-gnu/libxcb-shm.so.0.0.0
+7e522d8ad000-7e522d8ae000 r-xp 00001000 fd:01 38362                      /usr/lib/x86_64-linux-gnu/libxcb-shm.so.0.0.0
+7e522d8ae000-7e522d8af000 r--p 00002000 fd:01 38362                      /usr/lib/x86_64-linux-gnu/libxcb-shm.so.0.0.0
+7e522d8af000-7e522d8b0000 r--p 00002000 fd:01 38362                      /usr/lib/x86_64-linux-gnu/libxcb-shm.so.0.0.0
+7e522d8b0000-7e522d8b1000 rw-p 00003000 fd:01 38362                      /usr/lib/x86_64-linux-gnu/libxcb-shm.so.0.0.0
+7e522d8b1000-7e522d8b8000 r--p 00000000 fd:01 89439                      /usr/lib/x86_64-linux-gnu/libxcb-randr.so.0.1.0
+7e522d8b8000-7e522d8bd000 r-xp 00007000 fd:01 89439                      /usr/lib/x86_64-linux-gnu/libxcb-randr.so.0.1.0
+7e522d8bd000-7e522d8c0000 r--p 0000c000 fd:01 89439                      /usr/lib/x86_64-linux-gnu/libxcb-randr.so.0.1.0
+7e522d8c0000-7e522d8c1000 r--p 0000f000 fd:01 89439                      /usr/lib/x86_64-linux-gnu/libxcb-randr.so.0.1.0
+7e522d8c1000-7e522d8c2000 rw-p 00010000 fd:01 89439                      /usr/lib/x86_64-linux-gnu/libxcb-randr.so.0.1.0
+7e522d8c2000-7e522d8c5000 r--p 00000000 fd:01 89445                      /usr/lib/x86_64-linux-gnu/libxcb-sync.so.1.0.0
+7e522d8c5000-7e522d8c8000 r-xp 00003000 fd:01 89445                      /usr/lib/x86_64-linux-gnu/libxcb-sync.so.1.0.0
+7e522d8c8000-7e522d8c9000 r--p 00006000 fd:01 89445                      /usr/lib/x86_64-linux-gnu/libxcb-sync.so.1.0.0
+7e522d8c9000-7e522d8ca000 r--p 00007000 fd:01 89445                      /usr/lib/x86_64-linux-gnu/libxcb-sync.so.1.0.0
+7e522d8ca000-7e522d8cb000 rw-p 00008000 fd:01 89445                      /usr/lib/x86_64-linux-gnu/libxcb-sync.so.1.0.0
+7e522d8cb000-7e522d8d6000 r--p 00000000 fd:01 7296                       /usr/lib/x86_64-linux-gnu/libxcb.so.1.1.0
+7e522d8d6000-7e522d8e9000 r-xp 0000b000 fd:01 7296                       /usr/lib/x86_64-linux-gnu/libxcb.so.1.1.0
+7e522d8e9000-7e522d8f2000 r--p 0001e000 fd:01 7296                       /usr/lib/x86_64-linux-gnu/libxcb.so.1.1.0
+7e522d8f2000-7e522d8f3000 r--p 00026000 fd:01 7296                       /usr/lib/x86_64-linux-gnu/libxcb.so.1.1.0
+7e522d8f3000-7e522d8f4000 rw-p 00027000 fd:01 7296                       /usr/lib/x86_64-linux-gnu/libxcb.so.1.1.0
+7e522d8f4000-7e522d8f9000 r--p 00000000 fd:01 7006                       /usr/lib/x86_64-linux-gnu/libdrm.so.2.125.0
+7e522d8f9000-7e522d905000 r-xp 00005000 fd:01 7006                       /usr/lib/x86_64-linux-gnu/libdrm.so.2.125.0
+7e522d905000-7e522d909000 r--p 00011000 fd:01 7006                       /usr/lib/x86_64-linux-gnu/libdrm.so.2.125.0
+7e522d909000-7e522d90a000 r--p 00015000 fd:01 7006                       /usr/lib/x86_64-linux-gnu/libdrm.so.2.125.0
+7e522d90a000-7e522d90b000 rw-p 00016000 fd:01 7006                       /usr/lib/x86_64-linux-gnu/libdrm.so.2.125.0
+7e522d90b000-7e522d90f000 r--p 00000000 fd:01 5108                       /usr/lib/x86_64-linux-gnu/libzstd.so.1.5.5
+7e522d90f000-7e522d9b6000 r-xp 00004000 fd:01 5108                       /usr/lib/x86_64-linux-gnu/libzstd.so.1.5.5
+7e522d9b6000-7e522d9c3000 r--p 000ab000 fd:01 5108                       /usr/lib/x86_64-linux-gnu/libzstd.so.1.5.5
+7e522d9c3000-7e522d9c4000 r--p 000b7000 fd:01 5108                       /usr/lib/x86_64-linux-gnu/libzstd.so.1.5.5
+7e522d9c4000-7e522d9c5000 rw-p 000b8000 fd:01 5108                       /usr/lib/x86_64-linux-gnu/libzstd.so.1.5.5
+7e522d9c5000-7e522d9c7000 r--p 00000000 fd:01 38399                      /usr/lib/x86_64-linux-gnu/libz.so.1.3
+7e522d9c7000-7e522d9d9000 r-xp 00002000 fd:01 38399                      /usr/lib/x86_64-linux-gnu/libz.so.1.3
+7e522d9d9000-7e522d9df000 r--p 00014000 fd:01 38399                      /usr/lib/x86_64-linux-gnu/libz.so.1.3
+7e522d9df000-7e522d9e0000 r--p 0001a000 fd:01 38399                      /usr/lib/x86_64-linux-gnu/libz.so.1.3
+7e522d9e0000-7e522d9e1000 rw-p 0001b000 fd:01 38399                      /usr/lib/x86_64-linux-gnu/libz.so.1.3
+7e522d9e1000-7e522d9e4000 r--p 00000000 fd:01 6259                       /usr/lib/x86_64-linux-gnu/libelf-0.190.so
+7e522d9e4000-7e522d9fa000 r-xp 00003000 fd:01 6259                       /usr/lib/x86_64-linux-gnu/libelf-0.190.so
+7e522d9fa000-7e522d9fe000 r--p 00019000 fd:01 6259                       /usr/lib/x86_64-linux-gnu/libelf-0.190.so
+7e522d9fe000-7e522d9ff000 r--p 0001c000 fd:01 6259                       /usr/lib/x86_64-linux-gnu/libelf-0.190.so
+7e522d9ff000-7e522da00000 rw-p 0001d000 fd:01 6259                       /usr/lib/x86_64-linux-gnu/libelf-0.190.so
+7e522da00000-7e522da28000 r--p 00000000 fd:01 3990                       /usr/lib/x86_64-linux-gnu/libc.so.6
+7e522da28000-7e522dbb1000 r-xp 00028000 fd:01 3990                       /usr/lib/x86_64-linux-gnu/libc.so.6
+7e522dbb1000-7e522dc00000 r--p 001b1000 fd:01 3990                       /usr/lib/x86_64-linux-gnu/libc.so.6
+7e522dc00000-7e522dc04000 r--p 001ff000 fd:01 3990                       /usr/lib/x86_64-linux-gnu/libc.so.6
+7e522dc04000-7e522dc06000 rw-p 00203000 fd:01 3990                       /usr/lib/x86_64-linux-gnu/libc.so.6
+7e522dc06000-7e522dc13000 rw-p 00000000 00:00 0 
+7e522dc13000-7e522dc16000 r--p 00000000 fd:01 89451                      /usr/lib/x86_64-linux-gnu/libxcb-xfixes.so.0.0.0
+7e522dc16000-7e522dc19000 r-xp 00003000 fd:01 89451                      /usr/lib/x86_64-linux-gnu/libxcb-xfixes.so.0.0.0
+7e522dc19000-7e522dc1b000 r--p 00006000 fd:01 89451                      /usr/lib/x86_64-linux-gnu/libxcb-xfixes.so.0.0.0
+7e522dc1b000-7e522dc1c000 r--p 00007000 fd:01 89451                      /usr/lib/x86_64-linux-gnu/libxcb-xfixes.so.0.0.0
+7e522dc1c000-7e522dc1d000 rw-p 00008000 fd:01 89451                      /usr/lib/x86_64-linux-gnu/libxcb-xfixes.so.0.0.0
+7e522dc1d000-7e522dc1e000 r--p 00000000 fd:01 89433                      /usr/lib/x86_64-linux-gnu/libxcb-present.so.0.0.0
+7e522dc1e000-7e522dc1f000 r-xp 00001000 fd:01 89433                      /usr/lib/x86_64-linux-gnu/libxcb-present.so.0.0.0
+7e522dc1f000-7e522dc20000 r--p 00002000 fd:01 89433                      /usr/lib/x86_64-linux-gnu/libxcb-present.so.0.0.0
+7e522dc20000-7e522dc21000 r--p 00002000 fd:01 89433                      /usr/lib/x86_64-linux-gnu/libxcb-present.so.0.0.0
+7e522dc21000-7e522dc22000 rw-p 00003000 fd:01 89433                      /usr/lib/x86_64-linux-gnu/libxcb-present.so.0.0.0
+7e522dc22000-7e522dc23000 r--p 00000000 fd:01 88084                      /usr/lib/x86_64-linux-gnu/libX11-xcb.so.1.0.0
+7e522dc23000-7e522dc24000 r-xp 00001000 fd:01 88084                      /usr/lib/x86_64-linux-gnu/libX11-xcb.so.1.0.0
+7e522dc24000-7e522dc25000 r--p 00002000 fd:01 88084                      /usr/lib/x86_64-linux-gnu/libX11-xcb.so.1.0.0
+7e522dc25000-7e522dc26000 r--p 00002000 fd:01 88084                      /usr/lib/x86_64-linux-gnu/libX11-xcb.so.1.0.0
+7e522dc26000-7e522dc27000 rw-p 00003000 fd:01 88084                      /usr/lib/x86_64-linux-gnu/libX11-xcb.so.1.0.0
+7e522dc27000-7e522dc29000 r--p 00000000 fd:01 89427                      /usr/lib/x86_64-linux-gnu/libxcb-dri3.so.0.1.0
+7e522dc29000-7e522dc2b000 r-xp 00002000 fd:01 89427                      /usr/lib/x86_64-linux-gnu/libxcb-dri3.so.0.1.0
+7e522dc2b000-7e522dc2c000 r--p 00004000 fd:01 89427                      /usr/lib/x86_64-linux-gnu/libxcb-dri3.so.0.1.0
+7e522dc2c000-7e522dc2d000 r--p 00004000 fd:01 89427                      /usr/lib/x86_64-linux-gnu/libxcb-dri3.so.0.1.0
+7e522dc2d000-7e522dc2e000 rw-p 00005000 fd:01 89427                      /usr/lib/x86_64-linux-gnu/libxcb-dri3.so.0.1.0
+7e522dc2e000-7e522dc34000 r--p 00000000 fd:01 88381                      /usr/lib/x86_64-linux-gnu/libvulkan.so.1.3.275
+7e522dc34000-7e522dc80000 r-xp 00006000 fd:01 88381                      /usr/lib/x86_64-linux-gnu/libvulkan.so.1.3.275
+7e522dc80000-7e522dcaa000 r--p 00052000 fd:01 88381                      /usr/lib/x86_64-linux-gnu/libvulkan.so.1.3.275
+7e522dcaa000-7e522dcab000 r--p 0007b000 fd:01 88381                      /usr/lib/x86_64-linux-gnu/libvulkan.so.1.3.275
+7e522dcab000-7e522dcac000 rw-p 0007c000 fd:01 88381                      /usr/lib/x86_64-linux-gnu/libvulkan.so.1.3.275
+7e522dcac000-7e522dcb0000 rw-p 00000000 00:00 0 
+7e522dcb0000-7e522dcb2000 r--p 00000000 fd:01 6315                       /usr/lib/x86_64-linux-gnu/libffi.so.8.1.4
+7e522dcb2000-7e522dcb9000 r-xp 00002000 fd:01 6315                       /usr/lib/x86_64-linux-gnu/libffi.so.8.1.4
+7e522dcb9000-7e522dcba000 r--p 00009000 fd:01 6315                       /usr/lib/x86_64-linux-gnu/libffi.so.8.1.4
+7e522dcba000-7e522dcbb000 r--p 0000a000 fd:01 6315                       /usr/lib/x86_64-linux-gnu/libffi.so.8.1.4
+7e522dcbb000-7e522dcbc000 rw-p 0000b000 fd:01 6315                       /usr/lib/x86_64-linux-gnu/libffi.so.8.1.4
+7e522dcbc000-7e522dcc1000 r--p 00000000 fd:01 11892                      /usr/lib/x86_64-linux-gnu/libwayland-client.so.0.22.0
+7e522dcc1000-7e522dcc7000 r-xp 00005000 fd:01 11892                      /usr/lib/x86_64-linux-gnu/libwayland-client.so.0.22.0
+7e522dcc7000-7e522dcc9000 r--p 0000b000 fd:01 11892                      /usr/lib/x86_64-linux-gnu/libwayland-client.so.0.22.0
+7e522dcc9000-7e522dccb000 r--p 0000d000 fd:01 11892                      /usr/lib/x86_64-linux-gnu/libwayland-client.so.0.22.0
+7e522dccb000-7e522dccc000 rw-p 0000f000 fd:01 11892                      /usr/lib/x86_64-linux-gnu/libwayland-client.so.0.22.0
+7e522dccc000-7e522dcdc000 r--p 00000000 fd:01 3993                       /usr/lib/x86_64-linux-gnu/libm.so.6
+7e522dcdc000-7e522dd5b000 r-xp 00010000 fd:01 3993                       /usr/lib/x86_64-linux-gnu/libm.so.6
+7e522dd5b000-7e522ddb3000 r--p 0008f000 fd:01 3993                       /usr/lib/x86_64-linux-gnu/libm.so.6
+7e522ddb3000-7e522ddb4000 r--p 000e7000 fd:01 3993                       /usr/lib/x86_64-linux-gnu/libm.so.6
+7e522ddb4000-7e522ddb5000 rw-p 000e8000 fd:01 3993                       /usr/lib/x86_64-linux-gnu/libm.so.6
+7e522ddb5000-7e522ddb8000 r--p 00000000 fd:01 1057245                    /opt/nvrm-gl/lib/libnvidia-egl-wayland.so.1
+7e522ddb8000-7e522ddc2000 r-xp 00003000 fd:01 1057245                    /opt/nvrm-gl/lib/libnvidia-egl-wayland.so.1
+7e522ddc2000-7e522ddc6000 r--p 0000d000 fd:01 1057245                    /opt/nvrm-gl/lib/libnvidia-egl-wayland.so.1
+7e522ddc6000-7e522ddc8000 r--p 00010000 fd:01 1057245                    /opt/nvrm-gl/lib/libnvidia-egl-wayland.so.1
+7e522ddc8000-7e522ddc9000 rw-p 00012000 fd:01 1057245                    /opt/nvrm-gl/lib/libnvidia-egl-wayland.so.1
+7e522ddc9000-7e522ddca000 r--p 00000000 fd:01 1135225                    /home/leandro/nvenc/rmioctl-log3.so
+7e522ddca000-7e522ddcb000 r-xp 00001000 fd:01 1135225                    /home/leandro/nvenc/rmioctl-log3.so
+7e522ddcb000-7e522ddcc000 r--p 00002000 fd:01 1135225                    /home/leandro/nvenc/rmioctl-log3.so
+7e522ddcc000-7e522ddcd000 r--p 00002000 fd:01 1135225                    /home/leandro/nvenc/rmioctl-log3.so
+7e522ddcd000-7e522ddce000 rw-p 00003000 fd:01 1135225                    /home/leandro/nvenc/rmioctl-log3.so
+7e522ddce000-7e522ddd0000 rw-p 00000000 00:00 0 
+7e522ddd0000-7e522ddd1000 r--p 00000000 fd:01 3986                       /usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2
+7e522ddd1000-7e522ddfc000 r-xp 00001000 fd:01 3986                       /usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2
+7e522ddfc000-7e522de06000 r--p 0002c000 fd:01 3986                       /usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2
+7e522de06000-7e522de08000 r--p 00036000 fd:01 3986                       /usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2
+7e522de08000-7e522de0a000 rw-p 00038000 fd:01 3986                       /usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2
+7ffe4d2a1000-7ffe4d2c2000 rw-p 00000000 00:00 0                          [stack]
+7ffe4d3d0000-7ffe4d3d4000 r--p 00000000 00:00 0                          [vvar]
+7ffe4d3d4000-7ffe4d3d6000 r-xp 00000000 00:00 0                          [vdso]
+ffffffffff600000-ffffffffff601000 --xp 00000000 00:00 0                  [vsyscall]

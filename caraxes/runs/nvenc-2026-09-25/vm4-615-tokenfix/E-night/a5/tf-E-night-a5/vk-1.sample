@@ -1,0 +1,26 @@
+== +0 s 1790398267.497243095
+13490 vkcube-wayland st=R wchan=0 sys=
+== +1 s 1790398268.515050438
+13490 vkcube-wayland st=R wchan=0 sys=
+13508 vkcube-wayland st=S wchan=futex_wait_queue sys=
+13509 [vkcf] Analysis st=Analysis) wchan=futex_wait_queue sys=
+== +2 s 1790398269.543071305
+13490 vkcube-wayland st=S wchan=do_poll.constprop.0 sys=
+13508 vkcube-wayland st=S wchan=futex_wait_queue sys=
+13509 [vkcf] Analysis st=Analysis) wchan=futex_wait_queue sys=
+13543 [vkrt] Analysis st=Analysis) wchan=futex_wait_queue sys=
+13544 [vkps] Update st=Update) wchan=futex_wait_queue sys=
+13546 vkcube-wayland st=S wchan=futex_wait_queue sys=
+== +3 s 1790398270.613388118
+13490 vkcube-wayland st=R wchan=0 sys=
+13508 vkcube-wayland st=S wchan=futex_wait_queue sys=
+13509 [vkcf] Analysis st=Analysis) wchan=futex_wait_queue sys=
+13543 [vkrt] Analysis st=Analysis) wchan=futex_wait_queue sys=
+13544 [vkps] Update st=Update) wchan=futex_wait_queue sys=
+13546 vkcube-wayland st=S wchan=futex_wait_queue sys=
+== +4 s 1790398271.663969544
+13490 vkcube-wayland st=R wchan=0 sys=
+13508 vkcube-wayland st=S wchan=futex_wait_queue sys=
+13543 [vkrt] Analysis st=Analysis) wchan=futex_wait_queue sys=
+== +5 s 1790398272.693879952
+13490 vkcube-wayland st=D wchan=0 sys=

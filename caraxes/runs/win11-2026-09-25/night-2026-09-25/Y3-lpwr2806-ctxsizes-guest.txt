@@ -1,0 +1,32 @@
+
+
+
+TimeCreated : 25.09.2026 23:52:45
+Id          : 457
+Message     : Miniport driver failed to start device with status Nicht ausreichend Systemressourcen, um die API abzuschlie�en.
+
+TimeCreated : 25.09.2026 23:52:45
+Id          : 549
+Message     : Adapter start failed for VendorId (0x10DE) failed with the status (Nicht ausreichend Systemressourcen, um die API abzuschlie�en.), reason (StartAdapter_DdiStartDeviceFailed)
+
+TimeCreated : 25.09.2026 23:47:33
+Id          : 457
+Message     : Miniport driver failed to start device with status Nicht ausreichend Systemressourcen, um die API abzuschlie�en.
+
+TimeCreated : 25.09.2026 23:47:33
+Id          : 549
+Message     : Adapter start failed for VendorId (0x10DE) failed with the status (Nicht ausreichend Systemressourcen, um die API abzuschlie�en.), reason (StartAdapter_DdiStartDeviceFailed)
+
+
+
+
+
+
+InstanceId : PCI\VEN_10DE&DEV_1F02&SUBSYS_40111458&REV_A1\3&11583659&0&30
+Status     : Error
+Problem    : CM_PROB_FAILED_POST_START
+
+
+
+
+[exit 0]

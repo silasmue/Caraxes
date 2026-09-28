@@ -1,0 +1,31 @@
+
+
+TimeCreated  : 26.09.2026 04:38:47
+ProviderName : nvlddmkm
+Id           : 153
+Message      : 
+
+TimeCreated  : 26.09.2026 04:38:47
+ProviderName : nvlddmkm
+Id           : 153
+Message      : 
+
+TimeCreated  : 26.09.2026 04:38:45
+ProviderName : nvlddmkm
+Id           : 153
+Message      : 
+
+
+
+
+
+
+
+InstanceId : PCI\VEN_10DE&DEV_1F02&SUBSYS_40111458&REV_A1\3&11583659&0&30
+Status     : OK
+Problem    : CM_PROB_NONE
+
+
+
+
+[exit 0]

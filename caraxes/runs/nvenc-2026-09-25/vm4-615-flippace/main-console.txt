@@ -1,0 +1,28 @@
+02:37:34 run A-defer mode F override 
+02:40:57 up rc=0
+02:41:17-02:41:37 w1-idle-noclient  | window_s=20.0 kicks=731 kicks_per_s=36.5 | lat: | us=6 sy=4 st=1 in=6472/s | dev: doorbel+:59.7 vfio-us+:16.9 bar2-fl+:2.0 sum:78.6 | vcpu_sum:61.7
+02:42:23-02:42:46 w2-cursor-noclient moves 1970 in 20.0 s | window_s=20.3 kicks=1347 kicks_per_s=66.3 | lat: | us=7 sy=4 st=2 in=6261/s | dev: doorbel+:57.7 vfio-us+:10.9 bar2-fl+:2.0 sum:70.6 | vcpu_sum:64.8
+/home/silas/git/Caraxes/caraxes/runs/nvenc-2026-09-25/vm4-615-flippace/tools/run.sh: line 35: /home/silas/git/Caraxes/caraxes/runs/nvenc-2026-09-25/vm4-615-flippace/A-defer/session/moonlight.log: No such file or directory
+02:44:11 moonlight attempt1: 00:00:27 - SDL Info (0): Received first video packet after 2700 ms
+02:44:27-02:44:47 w3-idle-streaming  | window_s=20.0 kicks=502 kicks_per_s=25.1 | lat: 28.20ms/158.70ms/50.13ms | us=16 sy=9 st=4 in=10593/s | dev: doorbel+:58.7 vfio-us+:25.9 bar2-fl+:2.0 shadow-+:2.0 sum:88.6 | vcpu_sum:156.2
+02:44:56-02:45:18 w4-cursor-streaming moves 1952 in 20.01 s | window_s=20.4 kicks=713 kicks_per_s=35.0 | lat: 23.30ms/133.20ms/41.91ms | us=7 sy=8 st=3 in=10249/s | dev: doorbel+:56.7 vfio-us+:30.8 bar2-fl+:2.0 sum:89.5 | vcpu_sum:85.3
+02:45:27-02:45:47 w5-idle-streaming  | window_s=20.0 kicks=644 kicks_per_s=32.2 | lat: 22.90ms/113.10ms/41.98ms | us=6 sy=8 st=2 in=9656/s | dev: vfio-us+:36.8 doorbel+:35.8 sum:72.6 | vcpu_sum:85.6
+02:45:56-02:46:18 w6-cursor-streaming moves 1943 in 20.01 s | window_s=20.4 kicks=603 kicks_per_s=29.6 | lat: 25.70ms/95.00ms/44.07ms | us=6 sy=8 st=3 in=9893/s | dev: doorbel+:53.7 vfio-us+:33.8 bar2-fl+:2.0 sum:89.5 | vcpu_sum:81.7
+02:48:05 c0-work-streaming: bash: line 1:  9112 Aborted                 timeout 60 vkcub | [build] duration=8: FPS: 0 FrameTime: inf ms                                   glmark2 Score: 0  glrc=124 
+02:48:05 flip warnings: 0; TLB invalidation failed: 0
+02:48:05 down
+02:48:27 done
+02:48:57 run B-sync mode F override export CARAXES_BAR2_MEMFD_DEFER_FLUSH=0;
+02:52:20 up rc=0
+02:52:41-02:53:01 w1-idle-noclient  | window_s=20.0 kicks=438 kicks_per_s=21.9 | lat: | us=5 sy=6 st=1 in=4341/s | dev: doorbel+:46.8 vfio-us+:42.8 sum:89.6 | vcpu_sum:44.9
+02:53:47-02:54:09 w2-cursor-noclient moves 1963 in 20.01 s | window_s=20.4 kicks=705 kicks_per_s=34.6 | lat: | us=6 sy=6 st=2 in=4722/s | dev: doorbel+:50.8 vfio-us+:41.8 sum:92.6 | vcpu_sum:46.9
+/home/silas/git/Caraxes/caraxes/runs/nvenc-2026-09-25/vm4-615-flippace/tools/run.sh: line 35: /home/silas/git/Caraxes/caraxes/runs/nvenc-2026-09-25/vm4-615-flippace/B-sync/session/moonlight.log: No such file or directory
+02:55:44 moonlight attempt1: 00:00:33 - SDL Info (0): Received first video packet after 4800 ms
+02:55:59-02:56:19 w3-idle-streaming  | window_s=20.0 kicks=283 kicks_per_s=14.1 | lat: 34.40ms/156.10ms/66.73ms | us=4 sy=9 st=8 in=8654/s | dev: doorbel+:43.8 vfio-us+:41.8 sum:85.6 | vcpu_sum:69.6
+02:56:27-02:56:50 w4-cursor-streaming moves 1925 in 20.01 s | window_s=20.5 kicks=258 kicks_per_s=12.6 | lat: 40.10ms/195.40ms/76.78ms | us=5 sy=9 st=5 in=8886/s | dev: vfio-us+:43.8 doorbel+:43.8 sum:87.6 | vcpu_sum:76.5
+02:56:58-02:57:18 w5-idle-streaming  | window_s=20.0 kicks=309 kicks_per_s=15.4 | lat: 33.50ms/113.40ms/61.97ms | us=5 sy=9 st=6 in=9065/s | dev: doorbel+:47.7 vfio-us+:42.8 sum:90.5 | vcpu_sum:74.7
+02:57:27-02:57:49 w6-cursor-streaming moves 1929 in 20.0 s | window_s=20.4 kicks=241 kicks_per_s=11.8 | lat: 39.30ms/194.10ms/80.57ms | us=1 sy=3 st=5 in=7342/s | dev: vfio-us+:44.8 doorbel+:35.8 sum:80.6 | vcpu_sum:43
+02:58:35 c0-work-streaming: vkcube rc=0 elapsed=25.959546412 | [build] duration=8: FPS: 10 FrameTime: 103.609 ms                                   glmark2 Score: 9  glrc=0 
+02:58:36 flip warnings: 1; TLB invalidation failed: 0
+02:58:36 down
+02:58:59 done

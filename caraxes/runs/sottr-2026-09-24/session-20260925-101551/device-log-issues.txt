@@ -1,0 +1,2 @@
+      1 vfio-user-nvgpu: hostmem: guest RAM 0x100000000+0x140000000: refused: pinning 5120 MiB of guest RAM would leave the host 2776 MiB available, below the 4096 MiB floor (MemAvailable 7896 MiB)
+      1 [2026-09-25T08:16:05Z ERROR vfio_user] Error handling command: 2: Error from backend: Custom { kind: Other, error: "refused: pinning 5120 MiB of guest RAM would leave the host 2776 MiB available, below the 4096 MiB floor (MemAvailable 7896 Mi

@@ -1,0 +1,4 @@
+games disk: /mnt/vmstore/caraxes/vm4/games.qcow2
+dma table: 0:7ffe80000000:40000000,40000000:7ffe00000000:40000000,80000000:7ffd80000000:40000000,100000000:7ffcc0000000:40000000
+server pid 4145079, VM pid 4145088; logs in /mnt/vmstore/caraxes/vm4
+ssh up at 192.168.103.24

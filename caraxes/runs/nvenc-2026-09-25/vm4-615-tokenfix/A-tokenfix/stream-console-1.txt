@@ -1,0 +1,3 @@
+sunshine listens on 192.168.103.24:47989
+moonlight: already paired with 192.168.103.24
+moonlight pid 227637, log /home/silas/git/Caraxes/caraxes/runs/nvenc-2026-09-25/vm4-615-tokenfix/A-tokenfix/session/moonlight.log; close the window or run down.sh to end the stream

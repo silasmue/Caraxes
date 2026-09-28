@@ -1,0 +1,121 @@
+     2307581 R rom  0x00000000 524288 524288B:55aa76eb4b37343030e94c1977cc5649
+     9182267 R bar0 0x00000a00 4  0x166a1000   NV_PMC_BOOT_42
+     9182379 R bar0 0x00000004 4  0x0          NV_PMC_BOOT_1
+     9182535 R bar0 0x00000000 4  0x166000a1   NV_PMC_BOOT_0
+     9182666 R bar0 0x00000a00 4  0x166a1000   NV_PMC_BOOT_42
+     9182709 R bar0 0x00000004 4  0x0          NV_PMC_BOOT_1
+     9183207 R bar0 0x00022410 4  0x0          captured
+     9185245 R bar0 0x00000004 4  0x0          NV_PMC_BOOT_1
+     9185513 R bar0 0x00001070 4  0x0          captured
+     9187161 R bar0 0x0008807c 4  0x112c8de1   NV_PCFG (config mirror)
+     9187240 R bar0 0x00088bd8 4  0x3f003f     NV_PCFG (config mirror)
+     9187321 R bar0 0x00088be0 4  0x10004      NV_PCFG (config mirror)
+     9187375 R bar0 0x00088bf4 4  0xc          NV_PCFG (config mirror)
+     9187436 R bar0 0x00088bfc 4  0xc          NV_PCFG (config mirror)
+     9187474 R bar0 0x00088084 4  0x453d03     NV_PCFG (config mirror)
+     9187664 R bar0 0x00000008 4  0x0          captured
+     9187791 R bar0 0x00088700 4  0x20ffe      NV_PCFG (config mirror)
+     9187842 W bar0 0x00088700 4  0x20ffe      NV_PCFG (config mirror)
+     9188990 R bar0 0x00021c04 4  0x0          NV_FUSE_STATUS_OPT_DISPLAY
+     9189073 R bar0 0x00021c04 4  0x0          NV_FUSE_STATUS_OPT_DISPLAY
+     9189137 R bar0 0x00610018 4  0x4000000    captured
+     9189199 R bar0 0x00021c04 4  0x0          NV_FUSE_STATUS_OPT_DISPLAY
+     9189253 R bar0 0x00610074 4  0x800404     captured
+     9189303 R bar0 0x00610074 4  0x800404     captured
+     9189359 R bar0 0x00610074 4  0x800404     captured
+     9189508 R bar0 0x00610068 4  0x432        captured
+     9193838 R bar0 0x00001078 4  0x0          captured
+     9194409 R bar0 0x001373a0 4  0xa          captured
+     9194507 R bar0 0x00021434 4  0x1          captured
+     9194717 R bar0 0x001373a0 4  0xa          captured
+     9194809 R bar0 0x00021434 4  0x1          captured
+     9194921 R bar0 0x001373a0 4  0xa          captured
+     9195002 R bar0 0x00021200 4  0x0          captured
+     9195312 R bar0 0x001373a0 4  0xa          captured
+     9195382 R bar0 0x00021434 4  0x1          captured
+     9195451 R bar0 0x001373a0 4  0xa          captured
+     9195516 R bar0 0x00021200 4  0x0          captured
+     9196954 W bar0 0x0000d96c 4  0xc80        latched
+     9196969 W bar0 0x0000d9bc 4  0xc80        latched
+     9196975 W bar0 0x0000da0c 4  0xc80        latched
+     9196980 W bar0 0x0000da5c 4  0xc80        latched
+     9197027 W bar0 0x0000daac 4  0xc80        latched
+     9197065 W bar0 0x0000dafc 4  0xc80        latched
+     9197092 W bar0 0x0000db4c 4  0xc80        latched
+     9202309 R bar0 0x00021c04 4  0x0          NV_FUSE_STATUS_OPT_DISPLAY
+     9202424 R bar0 0x001373a0 4  0xa          captured
+     9202493 R bar0 0x00021434 4  0x1          captured
+     9202565 R bar0 0x001373a0 4  0xa          captured
+     9202636 R bar0 0x00021434 4  0x1          captured
+     9203053 R bar0 0x001373a0 4  0xa          captured
+     9203128 R bar0 0x00021434 4  0x1          captured
+     9203257 R bar0 0x001373a0 4  0xa          captured
+     9203325 R bar0 0x00021434 4  0x1          captured
+     9203381 R bar0 0x001373a0 4  0xa          captured
+     9203457 R bar0 0x00021640 4  0x1          captured
+     9204255 R bar0 0x00110abc 4  0x0          NV_PGSP (GSP falcon)
+     9204433 R bar0 0x00001478 4  0x0          NV_PBUS_SW_SCRATCH(i) captured
+     9204565 R bar0 0x00000140 4  0x0          NV_PMC_INTR_EN(0) captured
+     9225901 R bar0 0x00088080 4  0x10291f     NV_PCFG (config mirror)
+     9225999 W bar0 0x00088080 4  0x10291f     NV_PCFG (config mirror)
+     9226009 R bar0 0x00088080 4  0x10291f     NV_PCFG (config mirror)
+     9226105 W bar0 0x00088080 4  0x10211f     NV_PCFG (config mirror)
+     9226206 R bar0 0x00001400 4  0x5          NV_PBUS_SW_SCRATCH(i) captured
+     9226259 R bar0 0x00625480 4  0x4000       captured
+     9349167 R bar0 0x00000000 4  0x166000a1   NV_PMC_BOOT_0
+     9686107 R bar0 0x00000000 4  0x166000a1   NV_PMC_BOOT_0
+     9686724 R bar0 0x00000000 4  0x166000a1   NV_PMC_BOOT_0
+     9687394 R bar0 0x00000000 4  0x166000a1   NV_PMC_BOOT_0
+     9691657 R bar0 0x00000000 4  0x166000a1   NV_PMC_BOOT_0
+     9695533 R bar0 0x00000000 4  0x166000a1   NV_PMC_BOOT_0
+     9696343 R bar0 0x00000000 4  0x166000a1   NV_PMC_BOOT_0
+     9697841 R bar0 0x00000000 4  0x166000a1   NV_PMC_BOOT_0
+     9703127 R bar0 0x00000000 4  0x166000a1   NV_PMC_BOOT_0
+     9728901 R bar0 0x00000000 4  0x166000a1   NV_PMC_BOOT_0
+     9729551 R bar0 0x00000000 4  0x166000a1   NV_PMC_BOOT_0
+     9906183 R bar0 0x00000000 4  0x166000a1   NV_PMC_BOOT_0
+     9911106 R bar0 0x00000000 4  0x166000a1   NV_PMC_BOOT_0
+     9972680 R bar0 0x00000000 4  0x166000a1   NV_PMC_BOOT_0
+     9973098 R bar0 0x00000000 4  0x166000a1   NV_PMC_BOOT_0
+     9973594 R bar0 0x00000000 4  0x166000a1   NV_PMC_BOOT_0
+     9975738 R bar0 0x00000000 4  0x166000a1   NV_PMC_BOOT_0
+     9976398 R bar0 0x00000000 4  0x166000a1   NV_PMC_BOOT_0
+     9985563 R bar0 0x00000000 4  0x166000a1   NV_PMC_BOOT_0
+     9986727 R bar0 0x00000000 4  0x166000a1   NV_PMC_BOOT_0
+     9994483 R bar0 0x00000000 4  0x166000a1   NV_PMC_BOOT_0
+     9996810 R bar0 0x00000000 4  0x166000a1   NV_PMC_BOOT_0
+     9997511 R bar0 0x00000000 4  0x166000a1   NV_PMC_BOOT_0
+     9999505 R bar0 0x00000000 4  0x166000a1   NV_PMC_BOOT_0
+    10000928 R bar0 0x00000000 4  0x166000a1   NV_PMC_BOOT_0
+    10008719 R bar0 0x00000000 4  0x166000a1   NV_PMC_BOOT_0
+    10010063 R bar0 0x00000000 4  0x166000a1   NV_PMC_BOOT_0
+    10020723 R bar0 0x00000000 4  0x166000a1   NV_PMC_BOOT_0
+    10085172 R bar0 0x00000000 4  0x166000a1   NV_PMC_BOOT_0
+    10099920 R bar0 0x00000000 4  0x166000a1   NV_PMC_BOOT_0
+    10168870 R bar0 0x00000000 4  0x166000a1   NV_PMC_BOOT_0
+    10168980 R bar0 0x00000000 4  0x166000a1   NV_PMC_BOOT_0
+    10169104 R bar0 0x00000000 4  0x166000a1   NV_PMC_BOOT_0
+    10169217 R bar0 0x00000000 4  0x166000a1   NV_PMC_BOOT_0
+    10169326 R bar0 0x00000000 4  0x166000a1   NV_PMC_BOOT_0
+    10169429 R bar0 0x00000000 4  0x166000a1   NV_PMC_BOOT_0
+    10169529 R bar0 0x00000000 4  0x166000a1   NV_PMC_BOOT_0
+    10169622 R bar0 0x00000000 4  0x166000a1   NV_PMC_BOOT_0
+    10169713 R bar0 0x00000000 4  0x166000a1   NV_PMC_BOOT_0
+    10169815 R bar0 0x00000000 4  0x166000a1   NV_PMC_BOOT_0
+    10169940 R bar0 0x00000000 4  0x166000a1   NV_PMC_BOOT_0
+    10170053 R bar0 0x00000000 4  0x166000a1   NV_PMC_BOOT_0
+    10170162 R bar0 0x00000000 4  0x166000a1   NV_PMC_BOOT_0
+    10170279 R bar0 0x00000000 4  0x166000a1   NV_PMC_BOOT_0
+    10170386 R bar0 0x00000000 4  0x166000a1   NV_PMC_BOOT_0
+    10170552 R bar0 0x00000000 4  0x166000a1   NV_PMC_BOOT_0
+    10170670 R bar0 0x00000000 4  0x166000a1   NV_PMC_BOOT_0
+    10170784 R bar0 0x00000000 4  0x166000a1   NV_PMC_BOOT_0
+    10170904 R bar0 0x00000000 4  0x166000a1   NV_PMC_BOOT_0
+    10171022 R bar0 0x00000000 4  0x166000a1   NV_PMC_BOOT_0
+    11729692 R bar0 0x00022408 4  0x0          captured
+    11729734 R bar0 0x00022408 4  0x0          captured
+    11729769 R bar0 0x00022408 4  0x0          captured
+    11729802 R bar0 0x00022408 4  0x0          captured
+    11729865 R bar0 0x001373a0 4  0xa          captured
+    11729902 R bar0 0x00021640 4  0x1          captured
+    11730952 R bar0 0x00000000 4  0x166000a1   NV_PMC_BOOT_0

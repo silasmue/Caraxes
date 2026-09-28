@@ -1,0 +1,8 @@
+sunshine pid 3348, listening on 47989 (web UI 47990)
+[2026-09-25 08:43:51.439]: Info: Found H.264 encoder: libx264 [software]
+[2026-09-25 08:43:49.332]: Info: config: 'capture' = kms
+[2026-09-25 08:43:49.334]: Info: [wayland] Found monitor: Cyrix Corporation 24"
+[2026-09-25 08:43:49.334]: Info: -------- Start of KMS monitor list --------
+[2026-09-25 08:43:49.334]: Info: Monitor 0 is DP-1: Cyrix Corporation 24"
+[2026-09-25 08:43:49.334]: Info: --------- End of KMS monitor list ---------
+[2026-09-25 08:43:49.334]: Debug: Monitor description

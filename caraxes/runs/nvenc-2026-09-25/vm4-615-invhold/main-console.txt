@@ -1,0 +1,45 @@
+01:13:37 run A-invhold mode A override 
+01:19:07 up rc=0
+01:19:27-01:19:47 w1-idle-noclient  | window_s=20.0 kicks=420 kicks_per_s=21.0 | lat: | us=6 sy=7 st=4 in=6427/s | dev: doorbel+:52.7 vfio-us+:35.8 sum:88.5 | vcpu_sum:74.6
+01:20:34-01:20:57 w2-cursor-noclient moves 1964 in 20.0 s | window_s=20.4 kicks=710 kicks_per_s=34.8 | lat: | us=6 sy=6 st=1 in=4681/s | dev: doorbel+:48.8 vfio-us+:47.8 sum:96.6 | vcpu_sum:41.9
+/home/silas/git/Caraxes/caraxes/runs/nvenc-2026-09-25/vm4-615-invhold/tools/run.sh: line 34: /home/silas/git/Caraxes/caraxes/runs/nvenc-2026-09-25/vm4-615-invhold/A-invhold/session/moonlight.log: No such file or directory
+01:22:30 moonlight attempt1: 00:00:32 - SDL Info (0): Received first video packet after 4900 ms
+01:22:45-01:23:05 w3-idle-streaming  | window_s=20.0 kicks=393 kicks_per_s=19.6 | lat: 27.50ms/110.50ms/53.87ms | us=6 sy=9 st=5 in=9526/s | dev: doorbel+:49.7 vfio-us+:39.8 sum:89.5 | vcpu_sum:71.6
+01:23:14-01:23:36 w4-cursor-streaming moves 1912 in 20.0 s | window_s=20.4 kicks=315 kicks_per_s=15.4 | lat: 32.70ms/168.70ms/59.39ms | us=6 sy=9 st=5 in=9455/s | dev: doorbel+:48.7 vfio-us+:40.8 sum:89.5 | vcpu_sum:79.4
+01:23:51-01:24:11 w5-idle-streaming  | window_s=20.0 kicks=346 kicks_per_s=17.3 | lat: 27.90ms/112.80ms/56.86ms | us=5 sy=8 st=5 in=9138/s | dev: doorbel+:45.8 vfio-us+:42.8 sum:88.6 | vcpu_sum:75.3
+01:24:20-01:24:42 w6-cursor-streaming moves 1960 in 20.01 s | window_s=20.4 kicks=368 kicks_per_s=18.1 | lat: 20.60ms/107.20ms/43.64ms | us=2 sy=4 st=1 in=8297/s | dev: doorbel+:44.8 vfio-us+:39.8 sum:84.6 | vcpu_sum:36
+01:25:22 c0-work-streaming: vkcube rc=0 elapsed=20.043625304 | [build] duration=8: FPS: 12 FrameTime: 90.471 ms                                   glmark2 Score: 11  glrc=0 
+01:25:22 moonlight pid 1485457 killed
+01:26:21 moonlight cycle1: 00:00:26 - SDL Info (0): Received first video packet after 3100 ms
+01:27:08 c1-work-after-connect: vkcube rc=0 elapsed=29.970629367 | [build] duration=8: FPS: 16 FrameTime: 65.928 ms                                   glmark2 Score: 15  glrc=0 
+01:27:08 cycle 1: host Xid 31 lines so far: 0
+01:27:08 moonlight pid 1572874 killed
+01:28:02 moonlight cycle2: 00:00:22 - SDL Info (0): Received first video packet after 1900 ms
+01:28:37 c2-work-after-connect: vkcube rc=0 elapsed=18.151890607 | [build] duration=8: FPS: 22 FrameTime: 47.310 ms                                   glmark2 Score: 21  glrc=0 
+01:28:37 cycle 2: host Xid 31 lines so far: 0
+01:28:37 moonlight pid 1579886 killed
+01:29:32 moonlight cycle3: 00:00:22 - SDL Info (0): Received first video packet after 2200 ms
+01:30:05 c3-work-after-connect: vkcube rc=0 elapsed=16.757827043 | [build] duration=8: FPS: 21 FrameTime: 49.320 ms                                   glmark2 Score: 20  glrc=0 
+01:30:05 cycle 3: host Xid 31 lines so far: 0
+01:30:05 moonlight pid 1585341 killed
+01:31:00 moonlight cycle4: 00:00:23 - SDL Info (0): Received first video packet after 2300 ms
+01:31:35 c4-work-after-connect: vkcube rc=0 elapsed=17.949468735 | [build] duration=8: FPS: 17 FrameTime: 61.668 ms                                   glmark2 Score: 16  glrc=0 
+01:31:35 cycle 4: host Xid 31 lines so far: 0
+01:31:35 moonlight pid 1590685 killed
+01:32:29 moonlight cycle5: 00:00:23 - SDL Info (0): Received first video packet after 2000 ms
+01:33:03 c5-work-after-connect: vkcube rc=0 elapsed=17.203672963 | [build] duration=8: FPS: 22 FrameTime: 47.151 ms                                   glmark2 Score: 21  glrc=0 
+01:33:03 cycle 5: host Xid 31 lines so far: 0
+01:33:04 flip warnings: 5; TLB invalidation failed: 0
+01:33:04 down
+01:33:30 done
+01:34:00 run B-hold mode B override export CARAXES_SHADOW_INVALIDATE_ASYNC=0;
+01:37:30 up rc=0
+01:37:51-01:38:11 w1-idle-noclient  | window_s=20.0 kicks=409 kicks_per_s=20.4 | lat: | us=5 sy=6 st=2 in=4147/s | dev: vfio-us+:47.7 doorbel+:43.8 sum:91.5 | vcpu_sum:40.9
+01:38:57-01:39:20 w2-cursor-noclient moves 1962 in 20.0 s | window_s=20.4 kicks=889 kicks_per_s=43.6 | lat: | us=6 sy=6 st=2 in=4634/s | dev: doorbel+:54.7 vfio-us+:31.8 sum:86.5 | vcpu_sum:57.8
+/home/silas/git/Caraxes/caraxes/runs/nvenc-2026-09-25/vm4-615-invhold/tools/run.sh: line 34: /home/silas/git/Caraxes/caraxes/runs/nvenc-2026-09-25/vm4-615-invhold/B-hold/session/moonlight.log: No such file or directory
+01:40:58 moonlight attempt1: 00:00:36 - SDL Info (0): Received first video packet after 3700 ms
+01:41:13-01:41:33 w3-idle-streaming  | window_s=20.0 kicks=383 kicks_per_s=19.1 | lat: 30.30ms/112.30ms/53.32ms | us=6 sy=10 st=2 in=9983/s | dev: doorbel+:53.7 vfio-us+:40.8 sum:94.5 | vcpu_sum:86.6
+01:41:41-01:42:04 w4-cursor-streaming moves 1933 in 20.0 s | window_s=20.4 kicks=347 kicks_per_s=17.0 | lat: 28.60ms/176.80ms/59.75ms | us=5 sy=10 st=4 in=9436/s | dev: doorbel+:50.7 vfio-us+:39.8 shadow-+:2.0 sum:92.5 | vcpu_sum:76.6
+01:42:12 flip warnings: 8; TLB invalidation failed: 0
+01:42:12 down
+01:42:36 done
