@@ -1,0 +1,38 @@
+probe: host ABI host ABI 615.71.09: TSG params 28 bytes, GPU_GET_PES_INFO 76 (tpcToPesMap[15]), GR_GET_GLOBAL_SM_ORDER 10264 (SM entry 20), channel params 376, GSS legacy [pmgr 0x18 20512, thermal 0x36 24532, perf 0xf1 9216] (running driver 615.71.09 (/proc/driver/nvidia/version))
+probe: host RM client 0xc1d04938 with NV01_DEVICE_0 0x80000001 and NV20_SUBDEVICE_0 0x80000002 (RM_ALLOC x3, status 0)
+probe: RM_ALLOC NV01_MEMORY_LOCAL_USER probe-compressed: 4 MiB attr in 0x11803000 -> handle 0x80000003, status 0; offset (FB PA) 0x2cc00000, attr 0x11801000 (COMPR 1), attr2 0x100006, format (PTE kind) 0x9, comprCovg 0x0
+probe: GET_SURFACE_INFO status 0x0, GET_SURFACE_COMPRESSION_COVERAGE status 0x0, FB_GET_INFO_V2 status 0x0
+probe: compression granted for [0x2cc00000, 0x2d000000): attr 0x11801000 (COMPR 1), attr2 0x100006 (ZBC 2: counted as a ZBC surface), kind 0x9, surface ATTRS 0x2, coverage 64 x 64 KiB = 4 MiB of 4 MiB, coverage lines 1/1 format 1 (1/1/1: physically based), 1TO1_COMPTAG 1, COMPRESSION_SIZE 0xf7d00000; the slice's comptag lines [0x2cc1, 0x2d00] (64 lines)
+probe: verdict: the grant isolates the slice (1:1, physically based, kind 0x09)
+probe: RM_ALLOC NV01_MEMORY_LOCAL_USER probe-compr-required: 2 MiB attr in 0x11801000 -> handle 0x80000004, status 0; offset (FB PA) 0x1cc00000, attr 0x11801000 (COMPR 1), attr2 0x100006, format (PTE kind) 0x8, comprCovg 0x0
+probe: COMPR_REQUIRED for comparison: compression granted for [0x1cc00000, 0x1ce00000): attr 0x11801000 (COMPR 1), attr2 0x100006 (ZBC 2: counted as a ZBC surface), kind 0x8, surface ATTRS 0x2, coverage 32 x 64 KiB = 2 MiB of 2 MiB, coverage lines 1/1 format 1 (1/1/1: physically based), 1TO1_COMPTAG 1, COMPRESSION_SIZE 0xf7d00000; the slice's comptag lines [0x1cc1, 0x1ce0] (32 lines)
+probe: RM_FREE 0x80000004: Ok(())
+probe: RM_ALLOC FERMI_VASPACE_A -> 0x80000005, status 0
+probe: RM_ALLOC NV50_MEMORY_VIRTUAL at 0x200000000 (+2 MiB, default page size): Ok(80000006)
+probe: RM_ALLOC NV50_MEMORY_VIRTUAL at 0x200200000 (+2 MiB, 2 MiB pages): Ok(80000007)
+probe: RM_MAP_MEMORY_DMA object +0x10000 (+0x10000) at VA 0x200010000, kind override 0xc: status 0x0
+probe: RM_MAP_MEMORY_DMA object +0x230000 (+0x10000) at VA 0x200040000, kind override 0x8: status 0x0
+probe: RM_MAP_MEMORY_DMA object +0x50000 (+0x10000) at VA 0x200050000, kind override 0x3: status 0x0
+probe: RM_MAP_MEMORY_DMA object +0x200000 (+0x200000) at VA 0x200200000, kind override 0x9: status 0x0
+probe: DMA_GET_PTE_INFO VA 0x200010000 (object +0x10000, PA 0x2cc10000, kind 0xc): status 0x7e (NV_ERR_TEST_ONLY_CODE_NOT_ENABLED: test-only control, EnableRmTestOnlyCode not set); predicted comptagLine 0x2cc2
+probe: DMA_GET_PTE_INFO VA 0x200040000 (object +0x230000, PA 0x2ce30000, kind 0x8): status 0x7e (NV_ERR_TEST_ONLY_CODE_NOT_ENABLED: test-only control, EnableRmTestOnlyCode not set); predicted comptagLine 0x2ce4
+probe: DMA_GET_PTE_INFO VA 0x200050000 (object +0x50000, PA 0x2cc50000, kind 0x3): status 0x7e (NV_ERR_TEST_ONLY_CODE_NOT_ENABLED: test-only control, EnableRmTestOnlyCode not set); predicted comptagLine 0x0
+probe: DMA_GET_PTE_INFO VA 0x200200000 (object +0x200000, PA 0x2ce00000, kind 0x9): status 0x7e (NV_ERR_TEST_ONLY_CODE_NOT_ENABLED: test-only control, EnableRmTestOnlyCode not set); predicted comptagLine 0x2ce1
+probe: RM_MAP_MEMORY whole object (4 MiB): status 0; 16 bytes at +0x10000 before any write: [00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00]
+probe: BAR1 write and read back at +0x10000 ok and +0x230000 ok
+probe: RM_MAP_MEMORY object +0x10000 (+0x10000): status 0; read [01, 00, 6b, d1, 5a, 5e, 7a, ca]
+probe: RM_UNMAP_MEMORY object +0x10000
+probe: RM_MAP_MEMORY object +0x1000 (+0x1000): status 0; read [00, 00, 00, 00, 00, 00, 00, 00]
+probe: RM_UNMAP_MEMORY object +0x1000
+probe: zeroed the object through BAR1 in 776 us (5154 MiB/s; 1 GiB would take about 198 ms); +0x10000 now [00, 00, 00, 00, 00, 00, 00, 00]
+probe: RM_UNMAP_MEMORY whole object
+probe: RM_UNMAP_MEMORY_DMA VA 0x200200000 (+0x200000): status 0x0
+probe: RM_UNMAP_MEMORY_DMA VA 0x200050000 (+0x10000): status 0x0
+probe: RM_UNMAP_MEMORY_DMA VA 0x200040000 (+0x10000): status 0x0
+probe: RM_UNMAP_MEMORY_DMA VA 0x200010000 (+0x10000): status 0x0
+probe: RM_FREE virtual 0x80000007: Ok(())
+probe: RM_FREE virtual 0x80000006: Ok(())
+probe: RM_FREE VA space 0x80000005: Ok(())
+probe: RM_FREE object 0x80000003: Ok(())
+probe: teardown: host RM client 0xc1d04938 freed
+probe: teardown: privileged windows opened in total: 0

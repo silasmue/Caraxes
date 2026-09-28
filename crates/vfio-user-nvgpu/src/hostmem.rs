@@ -1849,7 +1849,7 @@ impl HostMemory {
     }
 
     /// Read back what the host granted for the compressed vidmem object `handle` at host
-    /// `[base, base + size)`, allocated with `attr` and kind `kind` (compslice.rs `Grant`):
+    /// `[base, base + size)`, returned `attr`, `attr2` and kind `kind` (compslice.rs `Grant`):
     /// `GET_SURFACE_INFO` ATTRS and COMPR_COVERAGE and `GET_SURFACE_COMPRESSION_COVERAGE` on
     /// the object, `FB_GET_INFO_V2` 1TO1_COMPTAG_ENABLED and COMPRESSION_SIZE on the
     /// subdevice. Read-only, every control NON_PRIVILEGED.
@@ -1859,6 +1859,7 @@ impl HostMemory {
         base: u64,
         size: u64,
         attr: u32,
+        attr2: u32,
         kind: u32,
     ) -> crate::compslice::Grant {
         use crate::compslice as c;
@@ -1866,6 +1867,7 @@ impl HostMemory {
             base,
             size,
             attr,
+            attr2,
             kind,
             ..Default::default()
         };
@@ -2336,7 +2338,10 @@ impl HostMemory {
             p.attr |= crate::compslice::ATTR_COMPR_DISABLE_PLC_ANY
                 << crate::compslice::ATTR_COMPR_SHIFT;
         }
+        // D16b: `ZBC_SKIP_ZBCREFCOUNT` stays `_NO`, so a compressed slice counts as a ZBC
+        // surface on the host while it lives (compslice.rs `ATTR2_ZBC_SKIP_ZBCREFCOUNT`).
         p.attr2 = v::ATTR2_PAGE_SIZE_HUGE_2MB;
+        debug_assert_eq!(p.attr2 & crate::compslice::ATTR2_ZBC_SKIP_ZBCREFCOUNT, 0);
         p.size = s;
         p.offset = base;
         let h = self.rm.next_handle();
@@ -2372,7 +2377,7 @@ impl HostMemory {
             p.attr2
         ));
         let compression = if compressed {
-            let g = self.query_grant(h, base, s, p.attr, p.format);
+            let g = self.query_grant(h, base, s, p.attr, p.attr2, p.format);
             if let Err(why) = g.verdict() {
                 let _ = self.rm.free(h);
                 bail!(

@@ -112,7 +112,7 @@ fn main() -> anyhow::Result<()> {
         return Ok(());
     };
     let pa = p.offset;
-    let g = hm.query_grant(h, pa, 4 * MIB, p.attr, p.format);
+    let g = hm.query_grant(h, pa, 4 * MIB, p.attr, p.attr2, p.format);
     println!(
         "probe: GET_SURFACE_INFO status {:#x}, GET_SURFACE_COMPRESSION_COVERAGE status {:#x}, FB_GET_INFO_V2 status {:#x}",
         g.statuses[0], g.statuses[1], g.statuses[2]
@@ -123,7 +123,7 @@ fn main() -> anyhow::Result<()> {
         Err(e) => println!("probe: verdict: REFUSED: {e}"),
     }
     if let Some((h2, p2)) = alloc(&mut hm, 2 * MIB, 1, "probe-compr-required") {
-        let g2 = hm.query_grant(h2, p2.offset, 2 * MIB, p2.attr, p2.format);
+        let g2 = hm.query_grant(h2, p2.offset, 2 * MIB, p2.attr, p2.attr2, p2.format);
         println!("probe: COMPR_REQUIRED for comparison: {}", g2.describe());
         println!("probe: RM_FREE {h2:#x}: {:?}", hm.free_object(h2));
     }

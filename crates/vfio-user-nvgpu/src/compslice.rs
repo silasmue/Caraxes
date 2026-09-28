@@ -36,6 +36,10 @@
 //!   whole slice through its own compressible BAR1 windows after the allocation and before
 //!   the free (hostmem.rs `clear_slice`; `CARAXES_COMPRESSION_CLEAR=0` skips it).
 //!
+//! The slice also counts as a ZBC-kind surface on the host (`ZBC_SKIP_ZBCREFCOUNT` left
+//! `_NO`, checked in [`Grant::verdict`]), so the host keeps the VM's ZBC entries (zbc.rs)
+//! while its compressed surfaces may reference them.
+//!
 //! Line numbers are those of the host driver's open source, 615.71.09.
 
 use std::sync::atomic::{AtomicBool, AtomicU64, AtomicU8, Ordering};
@@ -58,6 +62,14 @@ pub const KIND_RESERVATION: u32 = 0x09;
 /// `NVOS32_ATTR_COMPR` (nvos.h:988-994), bits 13:12 of `NV_MEMORY_ALLOCATION_PARAMS::attr`.
 pub const ATTR_COMPR_SHIFT: u32 = 12;
 pub const ATTR_COMPR_DISABLE_PLC_ANY: u32 = 3;
+/// `NVOS32_ATTR2_ZBC` (nvos.h:1108-1113), bits 1:0 of `attr2`: the host answers
+/// `PREFER_ZBC` exactly when it counted the allocation as a ZBC surface
+/// (`memmgrAllocHal_GM107`, mem_mgr_gm107.c:539-563).
+pub const ATTR2_ZBC_MASK: u32 = 3;
+pub const ATTR2_ZBC_PREFER_ZBC: u32 = 2;
+/// `NVOS32_ATTR2_ZBC_SKIP_ZBCREFCOUNT` (nvos.h:1233-1235), bit 17 of `attr2`: left `_NO`,
+/// so the slice counts as a ZBC-kind surface for its whole life.
+pub const ATTR2_ZBC_SKIP_ZBCREFCOUNT: u32 = 1 << 17;
 /// `NV2080_CTRL_FB_INFO_INDEX_*` (ctrl2080fb.h:319, 362).
 pub const FB_INFO_COMPRESSION_SIZE: u32 = 0x01;
 pub const FB_INFO_1TO1_COMPTAG_ENABLED: u32 = 0x28;
@@ -171,9 +183,10 @@ pub struct Grant {
     /// The reservation's host physical range.
     pub base: u64,
     pub size: u64,
-    /// `NV_MEMORY_ALLOCATION_PARAMS::attr` and `format` (the PTE kind) the allocation
-    /// returned (`memmgrAllocResources`, mem_utils.c:1581-1583).
+    /// `NV_MEMORY_ALLOCATION_PARAMS::attr`, `attr2` and `format` (the PTE kind) the
+    /// allocation returned (`memmgrAllocResources`, mem_utils.c:1581-1583).
     pub attr: u32,
+    pub attr2: u32,
     pub kind: u32,
     /// `GET_SURFACE_INFO`: `ATTRS` and `COMPR_COVERAGE` in 64 KiB units (mem_ctrl.c:155-187).
     pub surface_attrs: u32,
@@ -210,7 +223,10 @@ impl Grant {
 
     /// Whether the grant is the one the isolation argument needs: 1:1 mode, a
     /// compressed allocation of kind 0x09 whose comptags are physically based, with coverage
-    /// from its first page, 64 KiB aligned. `Err` lists every reason.
+    /// from its first page, 64 KiB aligned, and counted as a ZBC surface, so the host keeps
+    /// the ZBC entries the VM's compressed surfaces reference while the slice lives (zbc.rs;
+    /// the host flushes its table only with no ZBC surface left, mem_mgr_gm107.c:611-634).
+    /// `Err` lists every reason.
     pub fn verdict(&self) -> Result<(), String> {
         let mut why: Vec<String> = Vec::new();
         if self.statuses.iter().any(|&s| s != 0) {
@@ -224,6 +240,12 @@ impl Grant {
         }
         if self.attr_compr() == 0 {
             why.push(format!("the allocation came back COMPR_NONE (attr {:#x})", self.attr));
+        }
+        if self.attr2 & ATTR2_ZBC_MASK != ATTR2_ZBC_PREFER_ZBC {
+            why.push(format!(
+                "the host did not count the slice as a ZBC surface (attr2 {:#x}, ZBC not PREFER_ZBC): it could drop the VM's ZBC entries while compressed surfaces still use them",
+                self.attr2
+            ));
         }
         if self.kind != KIND_RESERVATION {
             why.push(format!(
@@ -260,11 +282,18 @@ impl Grant {
     pub fn describe(&self) -> String {
         let (lo, hi) = self.lines();
         format!(
-            "compression granted for [{:#x}, {:#x}): attr {:#x} (COMPR {}), kind {:#x}, surface ATTRS {:#x}, coverage {} x 64 KiB = {} MiB of {} MiB, coverage lines {}/{} format {} (1/1/1: physically based), 1TO1_COMPTAG {}, COMPRESSION_SIZE {:#x}; the slice's comptag lines [{lo:#x}, {hi:#x}] ({} lines)",
+            "compression granted for [{:#x}, {:#x}): attr {:#x} (COMPR {}), attr2 {:#x} (ZBC {}: {}), kind {:#x}, surface ATTRS {:#x}, coverage {} x 64 KiB = {} MiB of {} MiB, coverage lines {}/{} format {} (1/1/1: physically based), 1TO1_COMPTAG {}, COMPRESSION_SIZE {:#x}; the slice's comptag lines [{lo:#x}, {hi:#x}] ({} lines)",
             self.base,
             self.base + self.size,
             self.attr,
             self.attr_compr(),
+            self.attr2,
+            self.attr2 & ATTR2_ZBC_MASK,
+            if self.attr2 & ATTR2_ZBC_MASK == ATTR2_ZBC_PREFER_ZBC {
+                "counted as a ZBC surface"
+            } else {
+                "NOT counted as a ZBC surface"
+            },
             self.kind,
             self.surface_attrs,
             self.coverage_64k,
@@ -548,6 +577,7 @@ pub(crate) fn test_grant(base: u64, size: u64) -> Grant {
         base,
         size,
         attr: 0x1180_1000,
+        attr2: 0x10_0006,
         kind: KIND_RESERVATION,
         surface_attrs: SURFACE_INFO_ATTRS_COMPR,
         coverage_64k: (size / COMPR_PAGE) as u32,
@@ -625,7 +655,8 @@ mod tests {
     fn only_a_physically_based_1to1_grant_passes() {
         assert_eq!(grant().verdict(), Ok(()));
         type Spoil = fn(&mut Grant);
-        let bad: [(&str, Spoil); 8] = [
+        let bad: [(&str, Spoil); 9] = [
+            ("ZBC surface", |g| g.attr2 = 0x10_0005),
             ("1:1", |g| g.one_to_one = 0),
             ("COMPR_NONE", |g| g.attr = 0x1180_0000),
             ("kind", |g| g.kind = 0x08),

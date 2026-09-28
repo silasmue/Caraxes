@@ -1,0 +1,7 @@
+2026-09-28T20:23:04+02:00
+NVRM version: NVIDIA UNIX Open Kernel Module for x86_64  615.71.09  Release Build  (root@)  
+6b58a5790f8884801ef2e44e31350b68a8e0e9b73c3e6acce2e4a45eb620af3d  crates/vfio-user-nvgpu/examples/comp-slice-probe.rs
+branch comp-slice at 363d642f plus the follow-up commit (the source checksum above is the probe-time source)
+(working tree: comp-slice with the ZBC-surface follow-up uncommitted at probe time)
+probe-run1.txt: first run (19:5x), before the attr2 decode; probe-run2.txt: the run with the ZBC-surface check (a run in between was cut by SIGPIPE from a 'head' in the pipeline; the host RM freed its client at process exit)
+command: ./target/debug/examples/comp-slice-probe (built with --features v615), unprivileged, no VM started or touched
